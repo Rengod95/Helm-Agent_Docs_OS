@@ -3,13 +3,12 @@ import { assertNever } from "@fresnel/contracts";
 import type { ScheduleListItem } from "@fresnel/contracts/capabilities";
 import type { ScheduleRow } from "@fresnel/client";
 import {
-  Badge,
   Button,
   IconButton,
   Menu,
   MenuItem,
+  MenuSeparator,
   Table,
-  Tooltip,
   type TableColumn,
   type TableRow,
 } from "@caustic/react";
@@ -21,18 +20,15 @@ import {
   lastRunAtOf,
   lastRunStatusOf,
   nextRunTextOf,
-  reasonOf,
   ROW_ACTION_ID,
-  stoppedOf,
-  timeTextOf,
   triggerSummaryOf,
   type RowAction,
   type StatusTone,
 } from "./schedule-text.ts";
 
-// 예약 표(P-07). 행은 `scheduleListView`가 준 정렬 순서이고 키보드 이동 순서도 이것이다. 상태는 문자와 배지 색을 함께 쓴다.
-// 행 동작은 행 메뉴(`Menu`)에 모은다. 항목과 잠금은 `rowMenuOf`가 정한다. 상대 시각은 목록을 읽은 시각(`state.nowMs`) 기준이고
-// 절대 시각은 `Tooltip`에 둔다.
+// 예약 표(P-07). 행은 `scheduleListView`가 준 정렬 순서이고 키보드 이동 순서도 이것이다. 상태는 글자 색으로 준다(배지 없음).
+// 원격 예약의 "지금 실행"과 꺼진 예약의 "다시 켜기"는 칸 옆에 바로 둔다. 나머지 동작은 행 메뉴(`Menu`)에 모으고,
+// 항목과 잠금은 `rowMenuOf`가 정한다. 상대 시각은 목록을 읽은 시각(`state.nowMs`) 기준이다.
 
 /** 행 동작. 속성 형태로 둬서 `handlers.fire`를 그대로 넘겨도 된다 */
 export interface RowHandlers {
@@ -48,15 +44,14 @@ export interface RowHandlers {
 }
 
 /**
- * 배지 색. caustic `Badge`의 `tone` 속성은 옛 값 때문에 지원 중단 표시가 붙어 쓰지 않고, 같은 색 토큰을 유틸리티로 입힌다.
- * 색만으로 뜻을 주지 않는다: 글자가 따로 있다.
+ * 상태 글자 색. 표와 실행 기록 시트가 같이 쓴다. 색만으로 뜻을 주지 않는다: 상태 글자가 따로 있다.
  */
-const TONE_CLASS: Readonly<Record<StatusTone, string>> = {
-  info: "bg-info-soft text-info-text",
-  success: "bg-success-soft text-success-text",
-  danger: "bg-danger-soft text-danger-text",
-  warning: "bg-warning-soft text-warning-text",
-  neutral: "bg-neutral-track text-text-secondary",
+export const STATUS_TEXT_TONE: Readonly<Record<StatusTone, string>> = {
+  info: "text-text-primary",
+  success: "text-text-secondary",
+  danger: "text-danger-text",
+  warning: "text-warning-text",
+  neutral: "text-text-tertiary",
 };
 
 export interface ScheduleTableProps {
@@ -72,13 +67,15 @@ export interface ScheduleTableProps {
 function columnsOf(): TableColumn[] {
   return [
     { key: "title", header: t("desktop.schedules.columns.title") },
-    { key: "trigger", header: t("desktop.schedules.columns.trigger") },
-    { key: "next", header: t("desktop.schedules.columns.next") },
-    { key: "last", header: t("desktop.schedules.columns.last") },
-    { key: "iterations", header: t("desktop.schedules.columns.iterations"), align: "end" },
-    { key: "stopped", header: t("desktop.schedules.columns.stopped") },
-    { key: "enabled", header: t("desktop.schedules.columns.enabled") },
+    { key: "trigger", header: t("desktop.schedules.columns.trigger"), width: 150 },
+    { key: "next", header: t("desktop.schedules.columns.next"), width: 130 },
+    { key: "last", header: t("desktop.schedules.columns.last"), width: 190 },
   ];
+}
+
+/** 끈 예약의 칸은 흐리게 그린다(배지 대신) */
+function dimOf(row: ScheduleRow): string {
+  return row.enabled ? "" : "opacity-60";
 }
 
 export function ScheduleTable(props: ScheduleTableProps): ReactNode {
@@ -90,7 +87,6 @@ export function ScheduleTable(props: ScheduleTableProps): ReactNode {
     items.map((item): [string, ScheduleListItem] => [item.entry.id, item]),
   );
   const acting = canAct(state);
-  const expanded = new Set(state.expanded);
 
   /** 행 메뉴의 항목을 누르면 그 동작을 부른다. 대화 열기는 대화가 있을 때만 항목이 켜진다(`rowMenuOf`) */
   const runAction = (row: ScheduleRow, action: RowAction): void => {
@@ -127,48 +123,36 @@ export function ScheduleTable(props: ScheduleTableProps): ReactNode {
   const cells = new Map<string, (row: ScheduleRow) => ReactNode>([
     [
       "title",
-      (row) => {
-        const prompt = entryById.get(row.id)?.entry.prompt ?? row.promptPreview;
-        const open = expanded.has(row.id);
-        return (
-          <span className="grid min-w-0 gap-0.5">
-            <span className="truncate font-medium text-text-primary">{row.title}</span>
-            <span className="whitespace-pre-line text-ui-sm text-text-tertiary">
-              {open ? prompt : row.promptPreview}
-            </span>
-            {row.promptHasMore ? (
-              <Button
-                variant="ghost"
-                size="xs"
-                className="justify-self-start"
-                aria-expanded={open}
-                onClick={() => {
-                  handlers.toggleExpanded(row.id);
-                }}
-              >
-                {open ? t("desktop.schedules.lessPrompt") : t("desktop.schedules.morePrompt")}
-              </Button>
-            ) : null}
-          </span>
-        );
-      },
+      (row) => (
+        <span className={`truncate font-medium text-text-primary ${dimOf(row)}`}>{row.title}</span>
+      ),
     ],
     [
       "trigger",
       (row) => {
         const summary = triggerSummaryOf(row.triggerSummary, locale);
-        return t(summary.id, summary.args);
+        return (
+          <span className={`font-normal text-text-secondary ${dimOf(row)}`}>
+            {t(summary.id, summary.args)}
+          </span>
+        );
       },
     ],
     [
       "next",
       (row) => {
-        if (row.nextDueAt === null) return t("desktop.schedules.none");
+        if (row.nextDueAt === null) {
+          return (
+            <span className={`text-text-secondary ${dimOf(row)}`}>
+              {t("desktop.schedules.none")}
+            </span>
+          );
+        }
         const message = nextRunTextOf(row.nextDueAt, state.nowMs, locale);
         return (
-          <Tooltip content={timeTextOf(row.nextDueAt, locale)}>
-            <span>{t(message.id, message.args)}</span>
-          </Tooltip>
+          <span className={`font-normal tabular-nums text-text-secondary ${dimOf(row)}`}>
+            {t(message.id, message.args)}
+          </span>
         );
       },
     ],
@@ -176,31 +160,23 @@ export function ScheduleTable(props: ScheduleTableProps): ReactNode {
       "last",
       (row) => {
         const raw = entryById.get(row.id)?.lastRun ?? null;
+        const threadId = row.lastRun?.threadId ?? null;
         return (
           <LastRunCell
             run={row.lastRun}
             at={raw === null ? null : lastRunAtOf(raw)}
             nowMs={state.nowMs}
-            locale={locale}
+            dim={dimOf(row)}
+            onOpen={
+              threadId !== null && openable(threadId)
+                ? () => {
+                    handlers.openThread(threadId);
+                  }
+                : null
+            }
           />
         );
       },
-    ],
-    ["iterations", (row) => t("desktop.schedules.iterations", { count: row.iterations })],
-    [
-      "stopped",
-      (row) =>
-        row.stoppedReason === null
-          ? t("desktop.schedules.none")
-          : t(stoppedOf(row.stoppedReason).id),
-    ],
-    [
-      "enabled",
-      (row) => (
-        <Badge className={TONE_CLASS[row.enabled ? "success" : "neutral"]}>
-          {t(row.enabled ? "desktop.schedules.enabled.on" : "desktop.schedules.enabled.off")}
-        </Badge>
-      ),
     ],
   ]);
 
@@ -215,38 +191,80 @@ export function ScheduleTable(props: ScheduleTableProps): ReactNode {
     if (row === undefined) return null;
     const threadId = row.lastRun?.threadId ?? null;
     const menu = rowMenuOf(row, acting, threadId !== null && openable(threadId));
+    const plain = menu.filter((item) => item.action !== "cancel");
+    const cancel = menu.filter((item) => item.action === "cancel");
     return (
-      <Menu
-        align="end"
-        trigger={
-          <IconButton
-            label={t("desktop.schedules.rowMenu")}
-            variant="ghost"
+      <div className="flex items-center justify-end gap-0.5">
+        {row.enabled ? null : (
+          <Button
             size="xs"
+            variant="outline"
             disabled={!acting}
-          >
-            <Ellipsis />
-          </IconButton>
-        }
-      >
-        {menu.map((item) => (
-          <MenuItem
-            key={item.action}
-            tone={item.action === "cancel" ? "danger" : "neutral"}
-            disabled={item.disabled}
-            onSelect={() => {
-              runAction(row, item.action);
+            onClick={() => {
+              handlers.reenable(row.id);
             }}
           >
-            {t(ROW_ACTION_ID[item.action])}
-          </MenuItem>
-        ))}
-      </Menu>
+            {t("desktop.schedules.reenable")}
+          </Button>
+        )}
+        {row.triggerKind === "remote" && row.enabled ? (
+          <Button
+            size="xs"
+            variant="ghost"
+            disabled={!acting}
+            onClick={() => {
+              handlers.fire(row.id);
+            }}
+          >
+            {t("desktop.schedules.fire")}
+          </Button>
+        ) : null}
+        <Menu
+          align="end"
+          trigger={
+            <IconButton
+              label={t("desktop.schedules.rowMenu")}
+              variant="ghost"
+              size="xs"
+              disabled={!acting}
+            >
+              <Ellipsis />
+            </IconButton>
+          }
+        >
+          {plain.map((item) => (
+            <MenuItem
+              key={item.action}
+              disabled={item.disabled}
+              onSelect={() => {
+                runAction(row, item.action);
+              }}
+            >
+              {t(ROW_ACTION_ID[item.action])}
+            </MenuItem>
+          ))}
+          {cancel.length === 0 ? null : <MenuSeparator />}
+          {cancel.map((item) => (
+            <MenuItem
+              key={item.action}
+              tone="danger"
+              disabled={item.disabled}
+              onSelect={() => {
+                runAction(row, item.action);
+              }}
+            >
+              {t(ROW_ACTION_ID[item.action])}
+            </MenuItem>
+          ))}
+        </Menu>
+      </div>
     );
   };
 
   return (
     <Table
+      size="sm"
+      variant="ghost"
       aria-label={t("desktop.schedules.title")}
       columns={columnsOf()}
       rows={[...rows]}
@@ -267,21 +285,35 @@ function LastRunCell(props: {
   /** 마지막 실행의 시각(epoch ms). 기록이 없으면 null */
   readonly at: number | null;
   readonly nowMs: number;
-  readonly locale: Locale;
+  readonly dim: string;
+  /** 실행이 만든 대화를 열 수 있으면 그 동작, 아니면 null */
+  readonly onOpen: (() => void) | null;
 }): ReactNode {
-  const { run, at, nowMs, locale } = props;
-  if (run === null || at === null) return t("desktop.schedules.none");
+  const { run, at, nowMs, dim, onOpen } = props;
+  if (run === null || at === null) {
+    return (
+      <span className={`text-text-tertiary ${dim}`}>{t("desktop.schedules.lastRunNone")}</span>
+    );
+  }
   const status = lastRunStatusOf(run);
   const age = relativeAgeOf(at, nowMs);
+  const label = (
+    <>
+      <span className={STATUS_TEXT_TONE[status.tone]}>{t(status.label.id, status.label.args)}</span>
+      <span className="text-ui-xs text-text-tertiary">{t(age.id, age.args)}</span>
+    </>
+  );
+  if (onOpen === null) {
+    return <span className={`inline-flex min-w-0 items-baseline gap-1.5 ${dim}`}>{label}</span>;
+  }
   return (
-    <span className="inline-flex flex-wrap items-center gap-1.5">
-      <Badge className={TONE_CLASS[status.tone]}>{t(status.label.id, status.label.args)}</Badge>
-      {run.reason === null ? null : (
-        <span className="text-ui-sm text-text-tertiary">{t(reasonOf(run.reason).id)}</span>
-      )}
-      <Tooltip content={timeTextOf(at, locale)}>
-        <span className="text-ui-sm text-text-tertiary">{t(age.id, age.args)}</span>
-      </Tooltip>
-    </span>
+    <Button
+      variant="ghost"
+      size="xs"
+      className={`-mx-1 min-w-0 items-baseline gap-1.5 font-normal ${dim}`}
+      onClick={onOpen}
+    >
+      {label}
+    </Button>
   );
 }

@@ -40,13 +40,13 @@ export interface ProposalPage {
   readonly nextCursor: string | null;
 }
 
-export type ListState =
+type ListState =
   | { readonly status: "loading" }
   | { readonly status: "failed" }
   | ({ readonly status: "ready"; readonly loadingMore: boolean } & ProposalPage);
 
 /** 상세의 입력 칸. 수정은 본문, 거절은 메모다 */
-export type Editor =
+type Editor =
   | { readonly mode: "none" }
   | { readonly mode: "edit"; readonly key: string; readonly text: string }
   | { readonly mode: "reject"; readonly key: string; readonly text: string };

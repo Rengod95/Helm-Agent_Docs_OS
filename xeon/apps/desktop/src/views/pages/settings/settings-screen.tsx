@@ -395,9 +395,6 @@ export function SettingsPage(props: {
     retry: () => {
       if (controller !== null) detach(controller.load(), rethrow);
     },
-    back: () => {
-      commands.showScreen("chat");
-    },
     fields,
     promptSave: () => {
       const move = pending;
@@ -430,7 +427,7 @@ export function SettingsPage(props: {
       saved={saved}
       restartError={state.restartError?.message ?? null}
       prompt={pending === null ? null : { to: pending.to, count: pending.keys.length }}
-      secretsPanel={<SecretsPanel />}
+      secretsPanel={<SecretsPanel embedded />}
       fileEditor={fileEditor}
       fileOpen={file.phase !== "closed"}
       editors={EDITORS}

@@ -701,3 +701,22 @@ test("settings.writeFile never repeats a secret key's wrong value, and maps the 
   expect(JSON.stringify(error.data)).not.toContain(secret);
   await connection.close();
 });
+
+test("settings-get-pending: a fresh engine with no change reports no pending restart or next-turn key", async () => {
+  const host = createFakeHost();
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const deferred = [...host.fake.engine.catalog.values()].filter(
+    (def) => def.runtimeChange !== "live",
+  );
+  expect(deferred.length).toBeGreaterThan(0);
+  const first = await connection.request("settings.get", {});
+  const second = await connection.request("settings.get", {});
+  for (const result of [first, second]) {
+    expect(result.settings.filter((setting) => setting.pendingUntil !== null)).toEqual([]);
+    expect(
+      result.settings.filter((setting) => setting.runtimeChange === "restart").length,
+    ).toBeGreaterThan(0);
+  }
+  await connection.close();
+});

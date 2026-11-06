@@ -9,6 +9,7 @@ import {
   Checkbox,
   Field,
   FormLayoutFooter,
+  IconButton,
   Input,
   NumberField,
   RadioGroup,
@@ -17,9 +18,16 @@ import {
   SelectOption,
   Switch,
   TagInput,
+  Tooltip,
 } from "@caustic/react";
+import { Check, CircleHelp, Lock } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
-import { scopeText, type FieldVM, type WritableScope } from "@fresnel/client/settings";
+import {
+  scopeText,
+  type FieldVM,
+  type RuntimeBadge,
+  type WritableScope,
+} from "@fresnel/client/settings";
 import { assertNever } from "@fresnel/contracts";
 import type { SettingKey } from "@fresnel/contracts/settings";
 import { useId, type ReactNode } from "react";
@@ -30,6 +38,7 @@ import {
   foldableOf,
   hasFooter,
   type DedicatedEditorKind,
+  type FieldControl,
   launchChoiceOf,
   numberValueOf,
   optionOf,
@@ -42,10 +51,13 @@ import {
   valueSummaryOf,
   writableOf,
 } from "./settings-model.ts";
-import { RUNTIME_TONE, SCOPE_TONE, TONE_CLASS } from "./settings-text.ts";
+import { TONE_CLASS } from "./settings-text.ts";
 
-// 설정 항목 한 줄(P-09)의 그림. 위젯 종류마다 caustic 부품 하나를 고른다(L4.settings-ui §4.2.1).
-// 표(table), 시크릿(secret)은 전용 편집기(`editors`, 종류마다 그림 하나: P-11 `pages/providers`, P-09 `pages/settings`)로 그린다.
+// 설정 항목 한 줄(P-09)의 그림. 줄은 제목 하나와 컨트롤 하나로 이루어진다(P-09 `_settings/row.tsx`, c04).
+//   머리: 제목(라벨) · 정보 아이콘(설명은 아이콘 뒤 말풍선과 화면 낭독기 설명) ………… 저장됨 또는 저장 중 또는 적용 시점
+//         적용 시점은 "즉시"를 적지 않고, 다음 턴은 연한 글, 재시작 필요만 warning 배지다. 범위는 화면 낭독기 문장에만 남긴다.
+//   다음 줄: 컨트롤(자기 폭). 오류와 경고는 컨트롤 아래에 보인다. 잠금 문장은 그 아래에 보인다.
+// 위젯 종류마다 caustic 부품 하나를 고른다(L4.settings-ui §4.2.1). 표(table), 시크릿(secret)은 전용 편집기(`editors`)로 그린다.
 // 읽기 전용(readonly)은 객체와 배열을 접힌 JSON으로 보인다. 검색 순서는 도구와 웹 패널이 맡는다(`panelOwnedOf`).
 // 상태와 명령은 없고 `handlers`만 받는다.
 
@@ -91,59 +103,143 @@ function errorTextOf(field: FieldVM): string | null {
   return field.issues[0]?.message ?? null;
 }
 
-/** 숫자 칸의 설명 줄. 단위가 있으면 설명 뒤에 덧붙인다 */
-function numberHintOf(hint: string | null, unit: string | null): string | null {
-  if (unit === null) return hint;
-  return hint === null ? unit : `${hint} · ${unit}`;
-}
-
 function choiceTextOf(value: unknown): string {
   return typeof value === "string" || typeof value === "number" ? String(value) : "";
 }
 
+/** "저장됨". 저장한 뒤 2초 동안 적용 시점 자리에 보인다(P-09 `SavedMark`) */
+export function SavedMark(): ReactNode {
+  return (
+    <span role="status" className="inline-flex items-center gap-1 text-ui-sm text-success-text">
+      <Check aria-hidden className="size-icon-sm" />
+      {t("desktop.settings.field.saved")}
+    </span>
+  );
+}
+
+/** 적용 시점 자리. "즉시"는 적지 않고, 다음 턴은 연한 글, 재시작은 warning 배지다(c04 DP-36) */
+function ApplyMark(props: { readonly runtime: RuntimeBadge }): ReactNode {
+  const { change, text } = props.runtime;
+  switch (change) {
+    case "live":
+      return null;
+    case "nextTurn":
+      return <span className="text-ui-sm text-text-tertiary">{text}</span>;
+    case "restart":
+      return (
+        <Badge size="sm" className={TONE_CLASS.warning}>
+          {text}
+        </Badge>
+      );
+    default:
+      return assertNever(change, "RuntimeChange");
+  }
+}
+
+/** 저장 중 자리. 저장하는 동안 적용 시점 자리에 짧은 글을 보인다(표시 줄은 칸 옆이 아니라 머리에 둔다) */
+function SavingMark(): ReactNode {
+  return (
+    <span role="status" className="text-ui-sm text-text-tertiary">
+      {t("desktop.settings.field.saving")}
+    </span>
+  );
+}
+
+/**
+ * 설명 줄 모음. 설명, 재시작 대기 문장, 엔진 연결 안내, 파일 안내는 정보 아이콘 뒤에 둔다.
+ * 경고와 오류, 잠금 문장과 바깥 변경 알림은 그대로 보인다.
+ */
+function explanationOf(field: FieldVM, control: FieldControl): readonly string[] {
+  const lines = [
+    field.help,
+    field.runtime.pendingText,
+    field.offlineNote,
+    control === "summary" ? t("desktop.settings.field.fileHint") : null,
+  ];
+  return lines.filter((line): line is string => line !== null && line !== "");
+}
+
+/**
+ * 정보 아이콘 하나. 설명 줄은 마우스 올림과 초점에서 말풍선으로 뜬다. 화면 낭독기에는 같은 글이 설명(sr-only)으로 간다.
+ */
+export function InfoTip(props: {
+  readonly label: string;
+  readonly lines: readonly string[];
+}): ReactNode {
+  const id = useId();
+  return (
+    <>
+      <Tooltip
+        content={
+          <span className="grid max-w-72 gap-1 whitespace-normal">
+            {props.lines.map((line) => (
+              <span key={line}>{line}</span>
+            ))}
+          </span>
+        }
+      >
+        <IconButton
+          size="xs"
+          variant="ghost"
+          label={t("desktop.settings.field.help.label", { label: props.label })}
+          aria-describedby={id}
+        >
+          <CircleHelp />
+        </IconButton>
+      </Tooltip>
+      <span id={id} className="sr-only">
+        {props.lines.join(" ")}
+      </span>
+    </>
+  );
+}
+
 export function FieldRow(props: FieldRowProps): ReactNode {
   const { field, editable, hasThread, saved, editors, handlers } = props;
+  const titleId = useId();
   const lockId = useId();
   const disabled = !editable;
   const errorText = errorTextOf(field);
   const control = fieldControlOf(field);
-  const unit = field.widget.kind === "number" ? field.widget.unit : null;
-  const hint = field.help;
   const writable = writableOf(field.scope.scope);
+  const explain = explanationOf(field, control);
   return (
     <div
       data-slot="settings-field"
       data-key={field.key}
+      role="group"
+      aria-labelledby={titleId}
       aria-disabled={field.lock === null ? undefined : true}
       aria-describedby={field.lock === null ? undefined : lockId}
-      className="flex flex-col gap-2 py-3"
+      className="grid gap-1.5 py-3"
     >
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-ui-strong text-text-primary">{field.label}</span>
-        <Badge className={TONE_CLASS[SCOPE_TONE[field.scope.tone]]}>{field.scope.text}</Badge>
-        <Badge className={TONE_CLASS[RUNTIME_TONE[field.runtime.change]]}>
-          {field.runtime.text}
-        </Badge>
-        {saved ? (
-          <Badge className={TONE_CLASS.success} role="status">
-            {t("desktop.settings.field.saved")}
-          </Badge>
-        ) : null}
+      <div className="flex min-h-6 min-w-0 items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span id={titleId} className="shrink-0 text-ui font-medium text-text-primary">
+            {field.label}
+            <span className="sr-only">
+              {`, ${t("desktop.settings.field.scope.sr", { scope: field.scope.text })}`}
+            </span>
+          </span>
+          {explain.length === 0 ? null : <InfoTip label={field.label} lines={explain} />}
+        </div>
+        <div className="flex flex-none items-center gap-2">
+          {editable && scopeChoiceShown(field) ? (
+            <ScopeChoice field={field} handlers={handlers} />
+          ) : null}
+          {saved ? (
+            <SavedMark />
+          ) : field.saving ? (
+            <SavingMark />
+          ) : (
+            <ApplyMark runtime={field.runtime} />
+          )}
+        </div>
       </div>
-      {field.lock === null ? null : (
-        <p id={lockId} className="text-ui-sm text-text-tertiary">
-          {field.lock.text}
-        </p>
-      )}
-      {field.offlineNote === null ? null : (
-        <p className="text-ui-sm text-text-tertiary">{field.offlineNote}</p>
-      )}
-      {field.runtime.pendingText === null ? null : (
-        <p className="text-ui-sm text-text-tertiary">{field.runtime.pendingText}</p>
-      )}
       {control === "switch" ? (
-        <Field group label={field.label} hint={hint} error={errorText} disabled={disabled}>
+        <Field disabled={disabled} error={errorText}>
           <Switch
+            size="sm"
             aria-label={field.label}
             checked={field.value === true}
             disabled={disabled}
@@ -159,35 +255,40 @@ export function FieldRow(props: FieldRowProps): ReactNode {
           options={field.widget.options}
           disabled={disabled}
           errorText={errorText}
-          hint={hint}
           handlers={handlers}
         />
       ) : null}
       {control === "number" && field.widget.kind === "number" ? (
-        <Field
-          label={field.label}
-          hint={numberHintOf(hint, unit)}
-          error={errorText}
-          disabled={disabled}
-        >
-          <NumberField
-            appearance="stepper"
-            commitMode="release"
-            value={numberValueOf(field.value)}
-            min={field.widget.min ?? undefined}
-            max={field.widget.max ?? undefined}
-            step={field.widget.integer ? 1 : undefined}
-            disabled={disabled}
-            invalid={errorText !== null}
-            onValueChange={(next) => {
-              handlers.change(field.key, next);
-            }}
-          />
+        <Field disabled={disabled} error={errorText}>
+          <span className="flex items-center gap-2">
+            <NumberField
+              appearance="stepper"
+              size="sm"
+              containerClassName="w-36"
+              aria-label={field.label}
+              commitMode="release"
+              value={numberValueOf(field.value)}
+              min={field.widget.min ?? undefined}
+              max={field.widget.max ?? undefined}
+              step={field.widget.integer ? 1 : undefined}
+              disabled={disabled}
+              invalid={errorText !== null}
+              onValueChange={(next) => {
+                handlers.change(field.key, next);
+              }}
+            />
+            {field.widget.unit === null ? null : (
+              <span className="text-ui-sm text-text-tertiary">{field.widget.unit}</span>
+            )}
+          </span>
         </Field>
       ) : null}
       {control === "text" ? (
-        <Field label={field.label} hint={hint} error={errorText} disabled={disabled}>
+        <Field disabled={disabled} error={errorText}>
           <Input
+            size="sm"
+            aria-label={field.label}
+            containerClassName="w-[min(20rem,100%)]"
             value={textValueOf(field.value)}
             disabled={disabled}
             invalid={errorText !== null}
@@ -207,8 +308,10 @@ export function FieldRow(props: FieldRowProps): ReactNode {
         </Field>
       ) : null}
       {control === "tags" ? (
-        <Field label={field.label} hint={hint} error={errorText} disabled={disabled}>
+        <Field disabled={disabled} error={errorText}>
           <TagInput
+            aria-label={field.label}
+            containerClassName="max-w-[28rem]"
             value={[...tagsOf(field.value)]}
             disabled={disabled}
             invalid={errorText !== null}
@@ -219,25 +322,20 @@ export function FieldRow(props: FieldRowProps): ReactNode {
         </Field>
       ) : null}
       {control === "editor" ? (
-        <Field group label={field.label} hint={hint} error={errorText} disabled={disabled}>
+        <Field disabled={disabled} error={errorText}>
           {renderEditor(field, editable, editors, handlers)}
         </Field>
       ) : null}
-      {control === "summary" ? (
-        <Field
-          group
-          label={field.label}
-          hint={t("desktop.settings.field.fileHint")}
-          disabled={disabled}
+      {control === "summary" ? <ReadonlyValue field={field} /> : null}
+      {field.lock === null ? null : (
+        <p
+          id={lockId}
+          className="m-0 flex min-w-0 items-center gap-1.5 text-ui-sm text-text-tertiary"
         >
-          <ReadonlyValue field={field} />
-        </Field>
-      ) : null}
-      {field.saving ? (
-        <p role="status" className="text-ui-sm text-text-tertiary">
-          {t("desktop.settings.field.saving")}
+          <Lock aria-hidden className="size-icon-xs flex-none" />
+          <span>{field.lock.text}</span>
         </p>
-      ) : null}
+      )}
       {remoteNoticeOf(field) ? (
         <Alert tone="warning" variant="ghost" size="sm">
           {t("desktop.settings.field.remoteChanged")}
@@ -254,9 +352,6 @@ export function FieldRow(props: FieldRowProps): ReactNode {
         </Alert>
       )}
       {field.shadowed.length === 0 ? null : <ShadowedNote field={field} />}
-      {editable && scopeChoiceShown(field) ? (
-        <ScopeChoice field={field} handlers={handlers} />
-      ) : null}
       <LaunchChoice field={field} hasThread={hasThread} disabled={disabled} handlers={handlers} />
       {editable && field.dirty && hasFooter(field) ? (
         <FormLayoutFooter>
@@ -297,30 +392,30 @@ export function FieldRow(props: FieldRowProps): ReactNode {
   );
 }
 
-/** 고르기 칸. 선택지가 여덟 이하면 라디오 묶음, 넘으면 선택 상자다 */
+/** 고르기 칸. 선택지가 여덟 이하면 라디오 묶음, 넘으면 선택 상자다. 네 개 이하는 한 줄로 늘어놓는다(c04, P-09) */
 function ChoiceField(props: {
   readonly field: FieldVM;
   readonly options: readonly (string | number)[];
   readonly disabled: boolean;
   readonly errorText: string | null;
-  readonly hint: string | null;
   readonly handlers: FieldHandlers;
 }): ReactNode {
-  const { field, options, disabled, errorText, hint, handlers } = props;
+  const { field, options, disabled, errorText, handlers } = props;
   const text = choiceTextOf(field.value);
   const choose = (next: string): void => {
     const option = optionOf(options, next);
     if (option !== null) handlers.change(field.key, option);
   };
   return (
-    <Field group label={field.label} hint={hint} error={errorText} disabled={disabled}>
+    <Field disabled={disabled} error={errorText}>
       {selectControlOf(options.length) === "radio" ? (
         <RadioGroup
           aria-label={field.label}
+          orientation={options.length <= 4 ? "horizontal" : "vertical"}
           value={text}
           disabled={disabled}
           onValueChange={choose}
-          className="gap-1"
+          className={options.length <= 4 ? "min-h-7 gap-5" : "gap-1"}
         >
           {options.map((option) => (
             <RadioGroupItem key={optionTextOf(option)} value={optionTextOf(option)}>
@@ -330,10 +425,12 @@ function ChoiceField(props: {
         </RadioGroup>
       ) : (
         <Select
+          size="sm"
           aria-label={field.label}
           value={text}
           disabled={disabled}
           invalid={errorText !== null}
+          className="w-[min(20rem,100%)]"
           onValueChange={choose}
         >
           {options.map((option) => (
@@ -427,35 +524,35 @@ function ShadowedNote(props: { readonly field: FieldVM }): ReactNode {
   );
 }
 
-/** 쓸 범위 고르기. 범위가 둘 이상일 때만 보인다 */
+/**
+ * 쓸 범위 고르기. 범위가 둘 이상일 때만 보인다. 글은 없고 선택 상자의 이름만 "저장할 범위"다
+ * (보이는 것은 지금 범위 글 하나다. 다른 범위 고르기는 편집 동작이라 빼지 않는다).
+ */
 function ScopeChoice(props: {
   readonly field: FieldVM;
   readonly handlers: FieldHandlers;
 }): ReactNode {
   const { field, handlers } = props;
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="text-ui-sm text-text-tertiary">
-        {t("desktop.settings.field.scope.label")}
-      </span>
-      <Select
-        aria-label={t("desktop.settings.field.scope.label")}
-        size="sm"
-        value={field.selectedScope ?? ""}
-        onValueChange={(next) => {
-          const scope = field.writableScopes.find((candidate) => candidate === next);
-          if (scope === undefined) return;
-          handlers.selectScope(field.key, scope);
-          if (field.dirty) handlers.commit(field.key);
-        }}
-      >
-        {field.writableScopes.map((scope) => (
-          <SelectOption key={scope} value={scope}>
-            {scopeText(scope)}
-          </SelectOption>
-        ))}
-      </Select>
-    </div>
+    <Select
+      aria-label={t("desktop.settings.field.scope.label")}
+      size="xs"
+      variant="ghost"
+      className="w-auto"
+      value={field.selectedScope ?? ""}
+      onValueChange={(next) => {
+        const scope = field.writableScopes.find((candidate) => candidate === next);
+        if (scope === undefined) return;
+        handlers.selectScope(field.key, scope);
+        if (field.dirty) handlers.commit(field.key);
+      }}
+    >
+      {field.writableScopes.map((scope) => (
+        <SelectOption key={scope} value={scope}>
+          {scopeText(scope)}
+        </SelectOption>
+      ))}
+    </Select>
   );
 }
 

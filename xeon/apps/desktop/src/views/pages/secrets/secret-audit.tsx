@@ -57,7 +57,7 @@ function AuditRow(props: {
   const relative = lastUsedTextOf(entry.at, nowMs, locale);
   const denied = entry.decision === "deny";
   return (
-    <li className="grid grid-cols-[7rem_minmax(0,1fr)_minmax(0,1fr)_auto] items-baseline gap-3 py-1">
+    <li className="grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,1fr)_auto] items-baseline gap-3 py-1">
       <time dateTime={entry.at} title={entry.at} className="tabular-nums text-text-tertiary">
         {relative ?? entry.at}
       </time>

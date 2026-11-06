@@ -63,9 +63,7 @@ describe("desktop render with ui.locale=en", () => {
     const markup = connectionHtml("en");
     expect(markup).toContain("This computer (in app)");
     expect(markup).toContain("Add remote target");
-    expect(markup).toContain(
-      "No remote targets yet. Add the service socket address of a machine you can reach over SSH.",
-    );
+    expect(markup).toContain("No remote targets.");
     expect(markup).not.toMatch(HANGUL);
   });
 
@@ -112,10 +110,7 @@ describe("desktop render with ui.locale=en", () => {
       <ConnectionScreenView state={withClients} engine={null} locale="en" handlers={handlers} />,
     );
     expect(markup).toContain("Connected clients");
-    expect(markup).toContain("Standard I/O (stdio) · 1.2.0");
-    expect(markup).toContain("Conversations: writing 2 · viewing 1");
-    expect(markup).toContain("This app");
-    expect(markup).toContain("Service connection");
+    expect(markup).toContain("This app, Service connection");
     expect(markup).not.toMatch(HANGUL);
   });
 

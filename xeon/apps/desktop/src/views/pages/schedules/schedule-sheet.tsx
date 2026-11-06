@@ -1,15 +1,12 @@
 import { t } from "@fresnel/client/i18n";
-import {
-  SCHEDULE_MIN_INTERVAL_SECONDS,
-  type ScheduleTriggerKind,
-  type TriggerDraft,
-} from "@fresnel/client";
+import type { ScheduleTriggerKind, TriggerDraft } from "@fresnel/client";
 import { assertNever } from "@fresnel/contracts";
 import {
   Alert,
   Button,
   Field,
   Input,
+  NumberField,
   SegmentedControl,
   SegmentedControlItem,
   Sheet,
@@ -30,7 +27,8 @@ import type { SheetState } from "./schedule-model.ts";
 import { triggerKindId, TRIGGER_KINDS, type MessageRef } from "./schedule-text.ts";
 
 // 새 예약 시트(O-08). 입력은 `ScheduleDraft`로 올리고 검사와 저장은 화면이 한다. 작업 폴더는 경로 글자 칸이다
-// (OS 폴더 고르기는 새 의존 승인이 없어 쓰지 않는다, shell/README.md).
+// (OS 폴더 고르기는 새 의존 승인이 없어 쓰지 않는다, shell/README.md). 숫자 칸은 `NumberField`(단위 글자 포함)로 그리고,
+// 글 상태(`ScheduleDraft`)와는 `numberOf`와 `String`으로 오간다.
 
 export interface ScheduleSheetProps {
   readonly sheet: SheetState | null;
@@ -45,6 +43,13 @@ function textOf(ref: MessageRef | undefined): ReactNode {
 
 function kindOf(value: string): ScheduleTriggerKind | null {
   return TRIGGER_KINDS.find((kind) => kind === value) ?? null;
+}
+
+/** 숫자 칸에 보일 값. 빈 글이나 숫자가 아니면 null이다(칸은 비어 보인다) */
+function numberOf(text: string): number | null {
+  if (text.trim() === "") return null;
+  const value = Number(text);
+  return Number.isFinite(value) ? value : null;
 }
 
 export function ScheduleSheet(props: ScheduleSheetProps): ReactNode {
@@ -64,13 +69,15 @@ export function ScheduleSheet(props: ScheduleSheetProps): ReactNode {
         if (!open) onClose();
       }}
       title={title}
+      size="sm"
       footer={
         sheet === null ? null : (
           <>
-            <Button variant="outline" size="sm" disabled={sheet.sending} onClick={onClose}>
+            <span className="flex-1" />
+            <Button variant="ghost" size="sm" disabled={sheet.sending} onClick={onClose}>
               {t("desktop.schedules.sheet.discard")}
             </Button>
-            <Button type="submit" form={formId} size="sm" loading={sheet.sending}>
+            <Button type="submit" form={formId} variant="solid" size="sm" loading={sheet.sending}>
               {t("desktop.schedules.sheet.save")}
             </Button>
           </>
@@ -100,22 +107,24 @@ function SheetForm(props: {
   const setTrigger = (patch: Partial<TriggerDraft>): void => {
     onChange({ ...draft, trigger: { ...draft.trigger, ...patch } });
   };
-  const enabledId = `${props.id}-enabled`;
   return (
     <form
       id={props.id}
       noValidate
-      className="grid gap-4"
+      className="grid gap-3.5"
       onSubmit={(event) => {
         event.preventDefault();
         props.onSubmit();
       }}
     >
       {errors.form === null ? null : (
-        <Alert tone="danger">{t(errors.form.id, errors.form.args)}</Alert>
+        <Alert size="sm" tone="danger">
+          {t(errors.form.id, errors.form.args)}
+        </Alert>
       )}
-      <Field label={t("desktop.schedules.form.title")} error={fieldError("title")}>
+      <Field label={t("desktop.schedules.form.title")} size="sm" error={fieldError("title")}>
         <Input
+          size="sm"
           value={draft.title}
           onValueChange={(value) => {
             setDraft({ title: value });
@@ -123,14 +132,16 @@ function SheetForm(props: {
         />
       </Field>
       {sheet.mode === "edit" ? (
-        <Alert tone="info">{t("desktop.schedules.form.editHint")}</Alert>
+        <Alert size="sm" tone="info">
+          {t("desktop.schedules.form.editHint")}
+        </Alert>
       ) : null}
       {sheet.mode === "edit" ? null : (
         <>
-          <Field label={t("desktop.schedules.form.trigger")} group>
+          <Field label={t("desktop.schedules.form.trigger")} size="sm" group>
             <SegmentedControl
-              size="sm"
-              className="w-full [&>[data-slot=segmented-control-item]]:flex-1"
+              size="xs"
+              aria-label={t("desktop.schedules.form.trigger")}
               value={draft.trigger.kind}
               onValueChange={(value) => {
                 const kind = kindOf(value);
@@ -147,9 +158,10 @@ function SheetForm(props: {
           <TriggerInputs draft={draft.trigger} error={fieldError} onChange={setTrigger} />
         </>
       )}
-      <Field label={t("desktop.schedules.form.prompt")} error={fieldError("prompt")}>
+      <Field label={t("desktop.schedules.form.prompt")} size="sm" error={fieldError("prompt")}>
         <Textarea
-          rows={4}
+          size="sm"
+          rows={3}
           value={draft.prompt}
           onValueChange={(value) => {
             setDraft({ prompt: value });
@@ -160,28 +172,28 @@ function SheetForm(props: {
         <>
           <Field
             label={t("desktop.schedules.form.workspace")}
-            hint={t("desktop.schedules.form.workspaceHint")}
+            size="sm"
             error={fieldError("workspace")}
           >
             <Input
+              size="sm"
               value={draft.workspace}
               onValueChange={(value) => {
                 setDraft({ workspace: value });
               }}
             />
           </Field>
-          <div className="flex items-center justify-between gap-3">
-            <span id={enabledId} className="text-ui text-text-primary">
-              {t("desktop.schedules.form.enabled")}
-            </span>
+          <label className="flex items-center gap-2.5 text-ui-sm text-text-primary">
+            <span className="flex-1">{t("desktop.schedules.form.enabled")}</span>
             <Switch
-              aria-labelledby={enabledId}
+              size="sm"
+              aria-label={t("desktop.schedules.form.enabled")}
               checked={draft.enabled}
               onCheckedChange={(checked) => {
                 setDraft({ enabled: checked });
               }}
             />
-          </div>
+          </label>
         </>
       )}
     </form>
@@ -196,28 +208,34 @@ function TriggerInputs(props: {
 }): ReactNode {
   const { draft, error, onChange } = props;
   switch (draft.kind) {
-    case "interval":
+    case "interval": {
+      const invalid = error("intervalSeconds") !== undefined;
       return (
         <Field
           label={t("desktop.schedules.form.interval")}
-          hint={t("desktop.schedules.form.intervalHint", {
-            minSeconds: SCHEDULE_MIN_INTERVAL_SECONDS,
-          })}
+          size="sm"
           error={error("intervalSeconds")}
         >
-          <Input
-            inputMode="numeric"
-            value={draft.intervalSeconds}
+          <NumberField
+            size="sm"
+            aria-label={t("desktop.schedules.form.interval")}
+            unit={t("desktop.schedules.form.unit.seconds")}
+            min={1}
+            max={31536000}
+            value={numberOf(draft.intervalSeconds)}
+            invalid={invalid}
             onValueChange={(value) => {
-              onChange({ intervalSeconds: value });
+              onChange({ intervalSeconds: String(value) });
             }}
           />
         </Field>
       );
+    }
     case "at":
       return (
-        <Field label={t("desktop.schedules.form.at")} error={error("atMs")}>
+        <Field label={t("desktop.schedules.form.at")} size="sm" error={error("atMs")}>
           <Input
+            size="sm"
             type="datetime-local"
             value={localInputOf(draft.atMs)}
             onValueChange={(value) => {
@@ -229,54 +247,85 @@ function TriggerInputs(props: {
     case "file_watch":
       return (
         <>
-          <Field
-            label={t("desktop.schedules.form.paths")}
-            hint={t("desktop.schedules.form.pathsHint")}
-            error={error("paths")}
-          >
+          <Field label={t("desktop.schedules.form.paths")} size="sm" error={error("paths")}>
             <TagInput
+              size="sm"
               value={[...draft.paths]}
+              placeholder={t("desktop.schedules.form.pathsPlaceholder")}
               onValueChange={(paths) => {
                 onChange({ paths });
               }}
             />
           </Field>
-          <Field label={t("desktop.schedules.form.debounce")} error={error("debounceMs")}>
-            <Input
-              inputMode="numeric"
-              value={draft.debounceMs}
+          <Field label={t("desktop.schedules.form.debounce")} size="sm" error={error("debounceMs")}>
+            <NumberField
+              size="sm"
+              aria-label={t("desktop.schedules.form.debounce")}
+              unit={t("desktop.schedules.form.unit.ms")}
+              value={numberOf(draft.debounceMs)}
+              invalid={error("debounceMs") !== undefined}
               onValueChange={(value) => {
-                onChange({ debounceMs: value });
+                onChange({ debounceMs: String(value) });
               }}
             />
           </Field>
         </>
       );
     case "remote":
-      return <Field hint={t("desktop.schedules.form.remoteHint")} />;
-    case "repeat":
+      return (
+        <p className="m-0 text-ui-sm font-normal text-text-secondary">
+          {t("desktop.schedules.form.remoteHint")}
+        </p>
+      );
+    case "repeat": {
+      const intervalInvalid = error("loopIntervalSeconds") !== undefined;
+      const maxInvalid = error("maxIterations") !== undefined;
       return (
         <>
-          <Field label={t("desktop.schedules.form.interval")} error={error("loopIntervalSeconds")}>
+          <div className="flex gap-2">
+            <Field
+              label={t("desktop.schedules.form.interval")}
+              size="sm"
+              className="min-w-0 flex-1"
+              error={error("loopIntervalSeconds")}
+            >
+              <NumberField
+                size="sm"
+                aria-label={t("desktop.schedules.form.interval")}
+                unit={t("desktop.schedules.form.unit.seconds")}
+                value={numberOf(draft.loopIntervalSeconds)}
+                invalid={intervalInvalid}
+                onValueChange={(value) => {
+                  onChange({ loopIntervalSeconds: String(value) });
+                }}
+              />
+            </Field>
+            <Field
+              label={t("desktop.schedules.form.maxIterations")}
+              size="sm"
+              className="min-w-0 flex-1"
+              error={error("maxIterations")}
+            >
+              <NumberField
+                size="sm"
+                appearance="stepper"
+                aria-label={t("desktop.schedules.form.maxIterations")}
+                min={1}
+                value={numberOf(draft.maxIterations)}
+                invalid={maxInvalid}
+                onValueChange={(value) => {
+                  onChange({ maxIterations: String(value) });
+                }}
+              />
+            </Field>
+          </div>
+          <Field
+            label={t("desktop.schedules.form.expiresAt")}
+            size="sm"
+            error={error("expiresAtMs")}
+          >
             <Input
-              inputMode="numeric"
-              value={draft.loopIntervalSeconds}
-              onValueChange={(value) => {
-                onChange({ loopIntervalSeconds: value });
-              }}
-            />
-          </Field>
-          <Field label={t("desktop.schedules.form.maxIterations")} error={error("maxIterations")}>
-            <Input
-              inputMode="numeric"
-              value={draft.maxIterations}
-              onValueChange={(value) => {
-                onChange({ maxIterations: value });
-              }}
-            />
-          </Field>
-          <Field label={t("desktop.schedules.form.expiresAt")} error={error("expiresAtMs")}>
-            <Input
+              size="sm"
               type="datetime-local"
               value={expiresInputOf(draft.expiresAtMs)}
               onValueChange={(value) => {
@@ -286,6 +335,7 @@ function TriggerInputs(props: {
           </Field>
         </>
       );
+    }
     default:
       return assertNever(draft.kind, "ScheduleTriggerKind");
   }

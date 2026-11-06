@@ -13,20 +13,31 @@ import {
   Select,
   SelectOption,
 } from "@caustic/react";
-import { TriangleAlert } from "@caustic/react/icons";
 import { useRef, type ReactNode } from "react";
+import { InfoTip } from "../../craft/info-tip.tsx";
 import type { EntryState, Load, MetaState } from "./secret-model.ts";
 import type { MetaDraft } from "./secret-draft.ts";
 import { approvalIdOf, commandErrorText } from "./secret-text.ts";
 import { assertNever } from "@fresnel/contracts";
 
-// 시크릿 화면의 대화 상자(P-10): 등록 창, 메타 고치기, 삭제 확인. 값 칸은 제어 컴포넌트가 아니다: 값은 DOM 노드에만 있고
+// 시크릿 화면의 대화 상자(P-10): 등록 창, 메타 고치기, 삭제 확인(mockup `dialogs.tsx`). 값 칸은 제어 컴포넌트가 아니다: 값은 DOM 노드에만 있고
 // React 상태와 props에 들어가지 않는다. 저장을 누르면 부모가 `field.take()`로 읽는 즉시 비운다(설정 화면과 같은 규칙).
+// 입력 칸의 형식 설명은 이름 옆 정보 아이콘에 둔다. 거절 문장은 칸 아래에 그대로 보인다.
 
 const APPROVALS: readonly SecretApproval[] = ["none", "per-session", "per-use"];
 
 function approvalOf(value: string): SecretApproval | null {
   return APPROVALS.find((approval) => approval === value) ?? null;
+}
+
+/** 입력 칸 옆에 정보 아이콘 하나. 아이콘은 라벨 안에 두지 않는다(라벨의 단추는 칸 이름에 설명이 섞인다) */
+function withTip(input: ReactNode, tip: string): ReactNode {
+  return (
+    <span className="flex min-w-0 items-center gap-1.5">
+      <span className="min-w-0 flex-1">{input}</span>
+      <InfoTip text={tip} />
+    </span>
+  );
 }
 
 // ── 등록 창 ─────────────────────────────────────────────────────────────
@@ -49,6 +60,7 @@ export function EntryDialog(props: EntryDialogProps): ReactNode {
   return (
     <Dialog
       kind="dialog"
+      size="md"
       open={open}
       onOpenChange={(next) => {
         if (!next) onClose();
@@ -95,28 +107,34 @@ function NameStep(props: {
     >
       <Field
         label={t("desktop.secrets.entry.nameLabel")}
-        hint={t("desktop.secrets.entry.nameRule")}
-        error={props.error}
+        error={props.error ?? undefined}
+        size="sm"
       >
-        <Input
-          value={props.name}
-          disabled={props.busy}
-          autoComplete="off"
-          spellCheck={false}
-          onValueChange={props.onName}
-        />
+        {withTip(
+          <Input
+            size="sm"
+            className="font-mono"
+            value={props.name}
+            disabled={props.busy}
+            autoComplete="off"
+            spellCheck={false}
+            onValueChange={props.onName}
+          />,
+          t("desktop.secrets.entry.nameRule"),
+        )}
       </Field>
       <div className="flex justify-end gap-2">
         <Button
           type="button"
-          variant="outline"
+
+          variant="ghost"
           size="sm"
           disabled={props.busy}
           onClick={props.onCancel}
         >
           {t("desktop.secrets.cancel")}
         </Button>
-        <Button type="submit" size="sm" disabled={props.busy}>
+        <Button type="submit" variant="solid" size="sm" disabled={props.busy}>
           {t("desktop.secrets.entry.next")}
         </Button>
       </div>
@@ -149,26 +167,32 @@ function ValueStep(props: {
         });
       }}
     >
-      <Field
-        label={t("desktop.secrets.entry.valueLabel")}
-        hint={t("desktop.secrets.entry.valueHint")}
-      >
-        <Input
-          ref={input}
-          type="password"
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          defaultValue=""
-          disabled={props.busy}
-        />
+      <Field label={t("desktop.secrets.entry.valueLabel")} size="sm">
+        {withTip(
+          <Input
+            size="sm"
+            ref={input}
+            type="password"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            defaultValue=""
+            disabled={props.busy}
+          />,
+          t("desktop.secrets.entry.valueHint"),
+        )}
       </Field>
-      {props.error === null ? null : <Alert tone="danger">{props.error}</Alert>}
+      {props.error === null ? null : (
+        <Alert tone="danger" size="sm">
+          {props.error}
+        </Alert>
+      )}
       <div className="flex justify-end gap-2">
         <Button
           type="button"
-          variant="outline"
+
+          variant="ghost"
           size="sm"
           disabled={props.busy}
           onClick={() => {
@@ -178,7 +202,7 @@ function ValueStep(props: {
         >
           {t("desktop.secrets.cancel")}
         </Button>
-        <Button type="submit" size="sm" disabled={props.busy}>
+        <Button type="submit" variant="solid" size="sm" disabled={props.busy}>
           {t("desktop.secrets.entry.save")}
         </Button>
       </div>
@@ -201,6 +225,7 @@ export function MetaDialog(props: MetaDialogProps): ReactNode {
   return (
     <Dialog
       kind="dialog"
+      size="md"
       open={open}
       onOpenChange={(next) => {
         if (!next) props.onClose();
@@ -215,8 +240,9 @@ export function MetaDialog(props: MetaDialogProps): ReactNode {
             if (!meta.busy) props.onSubmit();
           }}
         >
-          <Field label={t("desktop.secrets.meta.desc")} error={meta.error}>
+          <Field label={t("desktop.secrets.meta.desc")} error={meta.error ?? undefined} size="sm">
             <Input
+              size="sm"
               value={meta.draft.desc}
               disabled={meta.busy}
               onValueChange={(value) => {
@@ -224,32 +250,38 @@ export function MetaDialog(props: MetaDialogProps): ReactNode {
               }}
             />
           </Field>
-          <Field label={t("desktop.secrets.meta.hosts")} hint={t("desktop.secrets.meta.hostsHint")}>
-            <Input
-              value={meta.draft.hosts}
-              disabled={meta.busy}
-              spellCheck={false}
-              onValueChange={(value) => {
-                props.onDraft({ ...meta.draft, hosts: value });
-              }}
-            />
+          <Field label={t("desktop.secrets.meta.hosts")} size="sm">
+            {withTip(
+              <Input
+                size="sm"
+                value={meta.draft.hosts}
+                disabled={meta.busy}
+                spellCheck={false}
+                onValueChange={(value) => {
+                  props.onDraft({ ...meta.draft, hosts: value });
+                }}
+              />,
+              t("desktop.secrets.meta.hostsHint"),
+            )}
           </Field>
-          <Field
-            label={t("desktop.secrets.meta.expiresAt")}
-            hint={t("desktop.secrets.meta.expiresHint")}
-          >
-            <Input
-              value={meta.draft.expiresAt}
-              placeholder="YYYY-MM-DD"
-              disabled={meta.busy}
-              spellCheck={false}
-              onValueChange={(value) => {
-                props.onDraft({ ...meta.draft, expiresAt: value });
-              }}
-            />
+          <Field label={t("desktop.secrets.meta.expiresAt")} size="sm">
+            {withTip(
+              <Input
+                size="sm"
+                value={meta.draft.expiresAt}
+                placeholder="YYYY-MM-DD"
+                disabled={meta.busy}
+                spellCheck={false}
+                onValueChange={(value) => {
+                  props.onDraft({ ...meta.draft, expiresAt: value });
+                }}
+              />,
+              t("desktop.secrets.meta.expiresHint"),
+            )}
           </Field>
-          <Field label={t("desktop.secrets.meta.approval")}>
+          <Field label={t("desktop.secrets.meta.approval")} size="sm">
             <Select
+              size="sm"
               value={meta.draft.approval}
               disabled={meta.busy}
               onValueChange={(value) => {
@@ -264,8 +296,9 @@ export function MetaDialog(props: MetaDialogProps): ReactNode {
               ))}
             </Select>
           </Field>
-          <Field label={t("desktop.secrets.meta.ttlSeconds")}>
+          <Field label={t("desktop.secrets.meta.ttlSeconds")} size="sm">
             <Input
+              size="sm"
               inputMode="numeric"
               value={meta.draft.ttlSeconds}
               disabled={meta.busy}
@@ -274,8 +307,9 @@ export function MetaDialog(props: MetaDialogProps): ReactNode {
               }}
             />
           </Field>
-          <Field label={t("desktop.secrets.meta.maxUses")}>
+          <Field label={t("desktop.secrets.meta.maxUses")} size="sm">
             <Input
+              size="sm"
               inputMode="numeric"
               value={meta.draft.maxUses}
               disabled={meta.busy}
@@ -287,14 +321,15 @@ export function MetaDialog(props: MetaDialogProps): ReactNode {
           <div className="flex justify-end gap-2">
             <Button
               type="button"
-              variant="outline"
+
+              variant="ghost"
               size="sm"
               disabled={meta.busy}
               onClick={props.onClose}
             >
               {t("desktop.secrets.cancel")}
             </Button>
-            <Button type="submit" size="sm" disabled={meta.busy}>
+            <Button type="submit" variant="solid" size="sm" disabled={meta.busy}>
               {t("desktop.secrets.meta.save")}
             </Button>
           </div>
@@ -327,26 +362,23 @@ export function RemoveDialog(props: RemoveDialogProps): ReactNode {
   return (
     <Dialog
       kind="alert"
+      size="sm"
+      tone="danger"
       open={open}
       onOpenChange={(next) => {
         if (!next) props.onClose();
       }}
-      icon={<TriangleAlert />}
       title={t("desktop.secrets.delete.title")}
       description={t("desktop.secrets.delete.body", { name: name ?? "" })}
       footer={
         <>
           <DialogClose asChild>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" autoFocus>
               {t("desktop.secrets.delete.keep")}
             </Button>
           </DialogClose>
           {canConfirm ? (
-            <DialogAction
-              onClick={() => {
-                props.onConfirm();
-              }}
-            >
+            <DialogAction onClick={props.onConfirm}>
               {t("desktop.secrets.delete.confirm")}
             </DialogAction>
           ) : null}
@@ -367,21 +399,21 @@ function RemoveStatus(props: {
     case "idle":
     case "loading":
       return (
-        <p role="status" className="text-ui-sm text-text-tertiary">
+        <p role="status" className="m-0 text-ui-sm text-text-tertiary">
           {t("desktop.secrets.delete.checking")}
         </p>
       );
     case "failed": {
       const failure = commandErrorText(refs.error);
       return (
-        <p role="alert" className="text-ui-sm text-danger-text">
+        <p role="alert" className="m-0 text-ui-sm text-danger-text">
           {t(failure.id, failure.args)}
         </p>
       );
     }
     case "ready":
       return inUse ? (
-        <p role="alert" className="text-ui-sm text-danger-text">
+        <p role="alert" className="m-0 text-ui-sm text-danger-text">
           {t("desktop.secrets.delete.inUse")}
         </p>
       ) : null;

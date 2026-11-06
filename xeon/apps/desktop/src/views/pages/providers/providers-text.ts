@@ -1,5 +1,5 @@
 import type { Locale, MessageArgs, MessageId } from "@fresnel/client/i18n";
-import type { RotationState, UsageLimitAction } from "@fresnel/client";
+import type { UsageLimitAction } from "@fresnel/client";
 import type { UsageUnit, UsageWindow } from "@fresnel/contracts/wire";
 import type { RoleId } from "./providers-model.ts";
 
@@ -54,17 +54,6 @@ const FIELD_ID: Readonly<Record<FieldName, MessageId>> = {
 
 export function fieldIdOf(field: FieldName): MessageId {
   return FIELD_ID[field];
-}
-
-const ROTATION_STATE_ID: Readonly<Record<RotationState, MessageId>> = {
-  off: "desktop.providers.rotation.state.off",
-  needsNotice: "desktop.providers.rotation.state.needsNotice",
-  on: "desktop.providers.rotation.state.on",
-};
-
-/** 회전 상태(off, needsNotice, on)의 글 이름 */
-export function rotationStateIdOf(state: RotationState): MessageId {
-  return ROTATION_STATE_ID[state];
 }
 
 const UNIT_ID: Readonly<Record<UsageUnit, MessageId>> = {

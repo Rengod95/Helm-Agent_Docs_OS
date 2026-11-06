@@ -20,6 +20,8 @@ export interface OrderedListProps {
   readonly items: readonly OrderedItem[];
   /** 끌기와 키 옮기기를 받는다. 오프라인이면 거짓이다 */
   readonly editable: boolean;
+  /** 행 앞에 순서 번호를 보인다(목업 P-12 검색 순서). 기본은 끌기 손잡이만 보인다 */
+  readonly numbered?: boolean;
   /** 옮긴 뒤의 전체 id 순서 */
   readonly onMove: (order: readonly string[]) => void;
 }
@@ -32,11 +34,14 @@ function announceOf(event: ListReorderAnnouncement): string {
 }
 
 export function OrderedList(props: OrderedListProps): ReactNode {
-  const { label, items, editable, onMove } = props;
+  const { label, items, editable, numbered = false, onMove } = props;
   const ids = items.map((item) => item.id);
   return (
     <List
       reorderable
+      numbered={numbered}
+      size="xs"
+      variant="ghost"
       aria-label={label}
       disabled={!editable}
       order={ids}

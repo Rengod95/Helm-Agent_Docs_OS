@@ -130,16 +130,17 @@ describe("ToolsWebPanelView states", () => {
 });
 
 describe("ToolsWebPanelView ready values", () => {
-  test("each provider shows its state text, its note and its badges", () => {
+  test("a ready provider shows no state text, a provider with a problem shows its state, and its note sits behind the info icon", () => {
     const html = renderToString(
       <ToolsWebPanelView {...propsOf({ status: "ready", view: READY })} />,
     );
-    expect(html).toContain(t("desktop.tools.state.ready"));
+    expect(html).not.toContain(t("desktop.tools.state.ready"));
     expect(html).toContain(t("desktop.tools.state.needsKey"));
     expect(html).toContain(t("desktop.tools.state.unavailable"));
     expect(html).toContain(t("desktop.tools.current"));
     expect(html).toContain(t("desktop.tools.notice.pending"));
     expect(html).toContain(t("desktop.tools.price.stale"));
+    // 설명은 정보 아이콘의 이름으로만 남는다(툴팁은 열 때만 그린다)
     expect(html).toContain("fresnel secret add exa-api-key");
   });
 
@@ -152,12 +153,14 @@ describe("ToolsWebPanelView ready values", () => {
     expect(html).toContain("플러그인을 설치해 주세요");
   });
 
-  test("an empty browser list and a first-use notice count are said in words", () => {
+  test("an empty browser and fetch list say so, and a first-use notice shows on its row", () => {
     const html = renderToString(
       <ToolsWebPanelView {...propsOf({ status: "ready", view: READY })} />,
     );
     expect(html).toContain(t("desktop.tools.browse.empty"));
-    expect(html).toContain(t("desktop.tools.notices", { count: 1 }));
+    expect(html).toContain(t("desktop.tools.fetch.title"));
+    expect(html).toContain(t("desktop.tools.fetch.empty"));
+    expect(html).toContain(t("desktop.tools.notice.pending"));
   });
 
   test("SearXNG never appears in the rendered value, and the pinned line names the id when pinned", () => {
@@ -208,11 +211,16 @@ describe("ToolsWebPanelView ready values", () => {
 
 describe("ToolsWebPanelView editing lock", () => {
   test("the search rows are focusable only while the order can be changed", () => {
+    // 가격 오래됨 글도 툴팁 대상이라 초점을 받는다. 순서 잠금만 보려고 가격 줄을 뺀 값으로 본다
+    const noPrice: ToolsWebView = {
+      ...READY,
+      search: { ...READY.search, rows: READY.search.rows.map((r) => ({ ...r, price: null })) },
+    };
     const live = renderToString(
-      <ToolsWebPanelView {...propsOf({ status: "ready", view: READY })} />,
+      <ToolsWebPanelView {...propsOf({ status: "ready", view: noPrice })} />,
     );
     const offline = renderToString(
-      <ToolsWebPanelView {...propsOf({ status: "ready", view: READY }, { offline: true })} />,
+      <ToolsWebPanelView {...propsOf({ status: "ready", view: noPrice }, { offline: true })} />,
     );
     expect(live).toContain('tabindex="0"');
     expect(offline).not.toContain('tabindex="0"');

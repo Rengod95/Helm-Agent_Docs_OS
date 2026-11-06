@@ -1,6 +1,7 @@
 import { assertNever } from "@fresnel/contracts";
 import type { MessageId } from "@fresnel/client/i18n";
 import type { OrderUpdateError, WebRecommendation } from "@fresnel/client";
+import type { WebProviderOrigin } from "@fresnel/contracts/wire";
 import type { ProviderState } from "./tools-web-model.ts";
 
 // 도구와 웹 화면의 문장 고르기. 문장은 메시지 키로 들고 있다가 그릴 때 `t()`로 만든다.
@@ -24,6 +25,17 @@ const RECOMMENDATION_STATE_ID: Readonly<Record<WebRecommendation["state"], Messa
 
 export function recommendationStateIdOf(state: WebRecommendation["state"]): MessageId {
   return RECOMMENDATION_STATE_ID[state];
+}
+
+const ORIGIN_ID: Readonly<Record<WebProviderOrigin, MessageId>> = {
+  builtin: "desktop.tools.origin.builtin",
+  plugin: "desktop.tools.origin.plugin",
+  detected: "desktop.tools.origin.detected",
+};
+
+/** 행의 출처 글(내장, 플러그인, 사용자 설정) */
+export function originIdOf(origin: WebProviderOrigin): MessageId {
+  return ORIGIN_ID[origin];
 }
 
 /** 순서 저장 검사의 실패 문장. 어느 id가 문제인지는 문장에 넣지 않는다 */

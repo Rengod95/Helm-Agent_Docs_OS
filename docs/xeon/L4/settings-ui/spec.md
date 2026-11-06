@@ -825,6 +825,7 @@ sequenceDiagram
 
 #### 4.4.5 재시작 안내
 
+- 호스트는 `pendingUntil`을 값이 바뀐 키에만 싣는다. 엔진이 처음 본 유효 값과 같으면 `runtimeChange`가 `restart`여도 `null`이다(아무것도 바꾸지 않은 새 엔진 홈에서 띠가 뜨지 않게 한다). 처음 본 값은 엔진 프로세스 안에만 있다 [가정: 설정 파일을 엔진 밖에서 고친 변경은 이 판정이 못 본다].
 - `pendingUntil: "restart"`인 항목이 하나라도 있으면 설정 화면 위에 "재시작해야 적용되는 변경이 {n}개 있어요" 띠와 "엔진 재시작" 버튼을 보인다.
 - 버튼은 `SettingsHostPort.requestHostRestart()`를 부른다. 재시작 절차(체크포인트, 사이드카 재기동, 재연결)는 desktop 몫이다(`L4.desktop.spec`). 진행 중 turn이 있으면 desktop이 확인을 받는다 [가정].
 - 재연결 뒤 desktop이 새 `HostConnection`으로 컨트롤러를 다시 만들거나 `load()`를 다시 부른다. 대기 표시는 다시 읽은 `pendingUntil`로 정한다.

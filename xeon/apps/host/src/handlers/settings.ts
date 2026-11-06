@@ -55,7 +55,7 @@ export function createSettingsGetHandler(engine: Engine): WireHandler<"settings.
           message: issue.message,
         });
       }
-      settings.push(withProblem(engine, resolved.setting));
+      settings.push(withProblem(engine, withPending(engine, resolved.setting)));
     }
     return { settings };
   };
@@ -126,12 +126,40 @@ function withProblem(engine: Engine, setting: EffectiveSetting): EffectiveSettin
   return problem === undefined ? setting : { ...setting, problem };
 }
 
+/** 엔진이 처음 본 유효 값(JSON). 이 값과 같으면 재시작·다음 turn 대기가 없다 */
+const appliedValues = new WeakMap<Engine, Map<string, string>>();
+
+/**
+ * `pendingUntil`은 값이 바뀐 키에만 남긴다. 정의의 runtimeChange를 그대로 싣던 탓에, 아무것도 바꾸지 않은
+ * 새 엔진 홈에서도 재시작 키 수만큼 "재시작해야 적용되는 변경" 띠가 떴다. 엔진이 처음 본 값을 적용된 값으로 본다.
+ */
+function withPending(engine: Engine, setting: EffectiveSetting): EffectiveSetting {
+  if (setting.pendingUntil === null) return setting;
+  let applied = appliedValues.get(engine);
+  if (applied === undefined) {
+    applied = new Map();
+    appliedValues.set(engine, applied);
+  }
+  const now = JSON.stringify(setting.value ?? null);
+  const first = applied.get(setting.key);
+  if (first === undefined) applied.set(setting.key, now);
+  return first === undefined || first === now ? { ...setting, pendingUntil: null } : setting;
+}
+
 function effectiveOf(
   engine: Engine,
   def: SettingDef,
   threadId: ThreadId | undefined,
 ): EffectiveSetting {
-  return withProblem(engine, resolveSetting(def, engine.ports.settings.layers(threadId)).setting);
+  return withProblem(
+    engine,
+    withPending(engine, resolveSetting(def, engine.ports.settings.layers(threadId)).setting),
+  );
+}
+
+/** 쓰기 전에 지금 값을 적용된 값으로 기억한다 */
+function rememberApplied(engine: Engine, def: SettingDef, threadId: ThreadId | undefined): void {
+  withPending(engine, resolveSetting(def, engine.ports.settings.layers(threadId)).setting);
 }
 
 /** 모델 id를 값으로 갖는 설정 키: 기본 모델과 역할별 모델 */
@@ -189,6 +217,7 @@ export function createSettingsSetHandler(engine: Engine): WireHandler<"settings.
     const def = catalog.get(key);
     if (def === undefined) throw wireError("settings.unknownKey", { details: { key } });
     requireKnownModel(engine, key, checked.value);
+    rememberApplied(engine, def, threadId);
     const written = await ports.settings.write(scope, key, checked.value, threadId);
     if (!written.ok) throw writeFailure(written.error, def, scope);
     // 사용자 범위의 provider 키 연결은 사람의 허용이다: 그 시크릿에 모델 provider 사용 하나를 더한다(HS-45)
@@ -212,6 +241,7 @@ export function createSettingsResetHandler(engine: Engine): WireHandler<"setting
         throw wireError("settings.locked", { details: { key, lockedBy: "managed" } });
       }
     }
+    rememberApplied(engine, def, threadId);
     const cleared = await ports.settings.reset(scope, key, threadId);
     if (!cleared.ok) throw writeFailure(cleared.error, def, scope);
     return { setting: effectiveOf(engine, def, threadId) };

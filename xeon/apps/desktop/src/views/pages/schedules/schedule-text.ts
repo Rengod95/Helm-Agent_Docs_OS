@@ -1,11 +1,6 @@
 import type { Locale, MessageArgs, MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
-import type {
-  RunView,
-  ScheduleEntryView,
-  ScheduleError,
-  ScheduleTrigger,
-} from "@fresnel/contracts/capabilities";
+import type { RunView, ScheduleError, ScheduleTrigger } from "@fresnel/contracts/capabilities";
 import {
   scheduleErrorKey,
   type ScheduleErrorKey,
@@ -143,34 +138,6 @@ export function lastRunStatusOf(run: ScheduleLastRun): StatusView {
     return { label: message("desktop.schedules.status.finished"), tone: "neutral" };
   }
   return OUTCOME_VIEW[run.outcome];
-}
-
-const REASON_ID: Readonly<Record<NonNullable<RunView["reason"]>, MessageId>> = {
-  missed: "desktop.schedules.reason.missed",
-  too_old: "desktop.schedules.reason.tooOld",
-  min_interval: "desktop.schedules.reason.minInterval",
-  overlap: "desktop.schedules.reason.overlap",
-  rate_limited: "desktop.schedules.reason.rateLimited",
-  host_exit: "desktop.schedules.reason.hostExit",
-  start_failed: "desktop.schedules.reason.startFailed",
-  run_failed: "desktop.schedules.reason.runFailed",
-};
-
-export function reasonOf(reason: NonNullable<RunView["reason"]>): MessageRef {
-  return message(REASON_ID[reason]);
-}
-
-const STOPPED_ID: Readonly<Record<NonNullable<ScheduleEntryView["stoppedReason"]>, MessageId>> = {
-  cancelled: "desktop.schedules.stopped.cancelled",
-  completed: "desktop.schedules.stopped.completed",
-  max_iterations: "desktop.schedules.stopped.maxIterations",
-  expired: "desktop.schedules.stopped.expired",
-  host_exit: "desktop.schedules.stopped.hostExit",
-  run_failed: "desktop.schedules.stopped.runFailed",
-};
-
-export function stoppedOf(reason: NonNullable<ScheduleEntryView["stoppedReason"]>): MessageRef {
-  return message(STOPPED_ID[reason]);
 }
 
 /** 예약 오류 코드 → 메시지 키. 키는 카탈로그 규칙에 맞게 camelCase다 */

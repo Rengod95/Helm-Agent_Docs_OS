@@ -1,10 +1,8 @@
 import {
   Alert,
-  Badge,
   Button,
-  Field,
-  Select,
-  SelectOption,
+  SegmentedControl,
+  SegmentedControlItem,
   Skeleton,
   Textarea,
 } from "@caustic/react";
@@ -22,10 +20,12 @@ import {
   type FileEditorState,
   type FileScope,
 } from "./settings-file-model.ts";
+import { SavedMark } from "./settings-field.tsx";
 import { settingsKeyOf } from "./settings-model.ts";
-import { TONE_CLASS } from "./settings-text.ts";
+import { SettingSection } from "./settings-section.tsx";
 
 // 설정 파일 편집기(P-09 "파일로 보기")의 그림. 상태와 명령은 없고 `state`와 `handlers`만 받는다(서버 렌더 시험이 직접 그린다).
+// 구역 하나(제목 "설정 파일", 머리 끝은 닫기)이고, 안은 범위 고르기와 경로, 원문 글 칸, 되돌리기와 저장이다(P-09 `file-tab.tsx`).
 // 원문은 caustic `Textarea`로 편집한다(코드 편집기는 없다, L4.desktop-ux §6.13 caustic [gap:C-06]).
 // ⌘S는 저장, Esc는 되돌리기다. 편집기 안에서 누른 바로 가기는 화면 바깥(설정 항목의 저장과 되돌리기)으로 넘기지 않는다.
 
@@ -54,6 +54,7 @@ export function SettingsFileEditorView(props: SettingsFileEditorProps): ReactNod
   const dirty = fileDirtyOf(state);
   const editable = fileEditableOf(state, live);
   const showsText = state.phase === "ready" || state.phase === "conflict";
+  const scopes = fileScopesOf(hasThread);
   const onKey = (event: KeyboardEvent<HTMLDivElement>): void => {
     const intent = settingsKeyOf({
       key: event.key,
@@ -72,91 +73,92 @@ export function SettingsFileEditorView(props: SettingsFileEditorProps): ReactNod
     }
   };
   return (
-    <div
-      data-slot="settings-file-editor"
-      className="flex flex-col gap-3 rounded-md bg-control-raised p-3"
-      onKeyDown={onKey}
+    <SettingSection
+      title={t("desktop.settings.file.title")}
+      end={
+        <Button
+          variant="ghost"
+          size="xs"
+
+          disabled={!fileCloseableOf(state)}
+          onClick={handlers.close}
+        >
+          {t("desktop.settings.file.close.button")}
+        </Button>
+      }
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-ui-strong text-text-primary">{t("desktop.settings.file.title")}</span>
+      <div data-slot="settings-file-editor" className="grid gap-3 py-3" onKeyDown={onKey}>
         <div className="flex flex-wrap items-center gap-2">
-          <Select
+          <SegmentedControl
+            size="xs"
             aria-label={t("desktop.settings.field.scope.label")}
-            size="sm"
             value={state.scope}
             disabled={!live || dirty || state.saving || state.phase === "loading"}
             onValueChange={(next) => {
-              const scope = fileScopesOf(hasThread).find((candidate) => candidate === next);
+              const scope = scopes.find((candidate) => candidate === next);
               if (scope !== undefined) handlers.scope(scope);
             }}
           >
-            {fileScopesOf(hasThread).map((scope) => (
-              <SelectOption key={scope} value={scope}>
+            {scopes.map((scope) => (
+              <SegmentedControlItem key={scope} value={scope}>
                 {scopeText(scope)}
-              </SelectOption>
+              </SegmentedControlItem>
             ))}
-          </Select>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!fileCloseableOf(state)}
-            onClick={handlers.close}
-          >
-            {t("desktop.settings.file.close.button")}
-          </Button>
-        </div>
-      </div>
-      {state.doc === null || state.doc.path === null ? null : (
-        <p className="text-ui-sm text-text-tertiary">
-          {t("desktop.settings.file.path", { path: state.doc.path })}
-        </p>
-      )}
-      {live ? null : <Alert tone="info">{t("desktop.settings.offline")}</Alert>}
-      {state.phase === "loading" ? (
-        <div className="flex flex-col gap-2">
-          <p role="status" className="text-ui-sm text-text-tertiary">
-            {t("desktop.settings.loading.status")}
-          </p>
-          <Skeleton height={160} />
-        </div>
-      ) : null}
-      {state.phase === "conflict" ? (
-        <Alert
-          tone="warning"
-          action={
-            <Button size="xs" variant="outline" disabled={!live} onClick={handlers.reread}>
-              {t("desktop.settings.file.reread.button")}
-            </Button>
-          }
-        >
-          <span className="block text-ui-strong">{t("desktop.settings.file.conflict")}</span>
-          <span className="block">{t("desktop.settings.file.conflict.body")}</span>
-        </Alert>
-      ) : null}
-      {state.error === null ? null : (
-        <Alert
-          tone="danger"
-          action={
-            state.phase === "failed" ? (
-              <Button size="xs" variant="outline" disabled={!live} onClick={handlers.reread}>
-                {t("desktop.settings.retry.button")}
-              </Button>
-            ) : undefined
-          }
-        >
-          {errorText(state.error)}
-        </Alert>
-      )}
-      {showsText && state.doc !== null ? (
-        <>
-          {state.doc.readOnly ? (
-            <p className="text-ui-sm text-text-secondary">{t("desktop.settings.file.readOnly")}</p>
-          ) : null}
-          {state.doc.exists ? null : (
-            <p className="text-ui-sm text-text-secondary">{t("desktop.settings.file.missing")}</p>
+          </SegmentedControl>
+          {state.doc === null || state.doc.path === null ? null : (
+            <span className="min-w-0 truncate font-mono text-mono-sm text-text-tertiary">
+              {state.doc.path}
+            </span>
           )}
-          <Field label={t("desktop.settings.file.text.label")} disabled={!editable}>
+        </div>
+        {live ? null : <Alert tone="info">{t("desktop.settings.offline")}</Alert>}
+        {state.phase === "loading" ? (
+          <div className="flex flex-col gap-2">
+            <p role="status" className="text-ui-sm text-text-tertiary">
+              {t("desktop.settings.loading.status")}
+            </p>
+            <Skeleton height={160} />
+          </div>
+        ) : null}
+        {state.phase === "conflict" ? (
+          <Alert
+            tone="warning"
+            action={
+              <Button size="xs" variant="outline" disabled={!live} onClick={handlers.reread}>
+                {t("desktop.settings.file.reread.button")}
+              </Button>
+            }
+          >
+            <span className="block text-ui-strong">{t("desktop.settings.file.conflict")}</span>
+            <span className="block">{t("desktop.settings.file.conflict.body")}</span>
+          </Alert>
+        ) : null}
+        {state.error === null ? null : (
+          <Alert
+            tone="danger"
+            action={
+              state.phase === "failed" ? (
+                <Button size="xs" variant="outline" disabled={!live} onClick={handlers.reread}>
+                  {t("desktop.settings.retry.button")}
+                </Button>
+              ) : undefined
+            }
+          >
+            {errorText(state.error)}
+          </Alert>
+        )}
+        {showsText && state.doc !== null ? (
+          <>
+            {state.doc.readOnly ? (
+              <p className="text-ui-sm text-text-secondary">
+                {t("desktop.settings.file.readOnly")}
+              </p>
+            ) : null}
+            {state.doc.exists ? null : (
+              <p className="text-ui-sm text-text-secondary">{t("desktop.settings.file.missing")}</p>
+            )}
             <Textarea
+              aria-label={t("desktop.settings.file.text.label")}
               rows={16}
               value={state.draft}
               disabled={!editable}
@@ -165,37 +167,36 @@ export function SettingsFileEditorView(props: SettingsFileEditorProps): ReactNod
               className="font-mono text-mono-sm"
               onValueChange={handlers.edit}
             />
-          </Field>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {state.saving ? (
-              <span role="status" className="text-ui-sm text-text-tertiary">
-                {t("desktop.settings.field.saving")}
-              </span>
-            ) : null}
-            {state.saved ? (
-              <Badge className={TONE_CLASS.success} role="status">
-                {t("desktop.settings.field.saved")}
-              </Badge>
-            ) : null}
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!fileDiscardableOf(state)}
-              onClick={handlers.discard}
-            >
-              {t("desktop.settings.field.discard")}
-            </Button>
-            <Button
-              size="sm"
-              loading={state.saving}
-              disabled={!fileSaveableOf(state, live)}
-              onClick={handlers.save}
-            >
-              {t("desktop.settings.field.save")}
-            </Button>
-          </div>
-        </>
-      ) : null}
-    </div>
+            <div className="flex flex-wrap items-center justify-end gap-1">
+              {state.saving ? (
+                <span role="status" className="text-ui-sm text-text-tertiary">
+                  {t("desktop.settings.field.saving")}
+                </span>
+              ) : null}
+              {state.saved ? <SavedMark /> : null}
+              <Button
+                variant="ghost"
+                size="xs"
+
+                disabled={!fileDiscardableOf(state)}
+                onClick={handlers.discard}
+              >
+                {t("desktop.settings.field.discard")}
+              </Button>
+              <Button
+                variant="solid"
+                size="xs"
+
+                loading={state.saving}
+                disabled={!fileSaveableOf(state, live)}
+                onClick={handlers.save}
+              >
+                {t("desktop.settings.field.save")}
+              </Button>
+            </div>
+          </>
+        ) : null}
+      </div>
+    </SettingSection>
   );
 }

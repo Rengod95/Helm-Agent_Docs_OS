@@ -4,7 +4,6 @@ import type { SecretName } from "@fresnel/contracts/capabilities";
 import type { SecretListEntry } from "@fresnel/contracts/wire";
 import {
   Alert,
-  Badge,
   Button,
   EmptyState,
   Field,
@@ -12,15 +11,12 @@ import {
   Select,
   SelectOption,
   Skeleton,
-  Table,
-  type TableColumn,
-  type TableRow,
 } from "@caustic/react";
-import { Plus } from "@caustic/react/icons";
 import { useId, useRef, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { InfoTip } from "../../craft/info-tip.tsx";
 import type { MetaDraft } from "./secret-draft.ts";
 import { EntryDialog, MetaDialog, RemoveDialog } from "./secret-dialogs.tsx";
-import { SecretDetail, TONE_CLASS, type SecretDetailHandlers } from "./secret-detail.tsx";
+import { SecretDetail, type SecretDetailHandlers } from "./secret-detail.tsx";
 import {
   keyIntentOf,
   secretsViewOf,
@@ -29,10 +25,11 @@ import {
   type SecretSort,
   type SecretsState,
 } from "./secret-model.ts";
-import { commandErrorText, lastUsedTextOf, statusViewOf } from "./secret-text.ts";
+import { commandErrorText, statusViewOf, type StatusTone } from "./secret-text.ts";
 
 // 시크릿 화면(P-10)의 그림. 상태와 명령은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
-// 바로 가기 키의 뜻은 `keyIntentOf`가, 실제 동작은 `secrets-screen.tsx`가 맡는다. 상세로 초점을 옮기는 일만 여기서 한다.
+// 목록은 이름, 설명, 조치가 필요한 상태만 보인다(mockup `list.tsx`). 바로 가기 키의 뜻은 `keyIntentOf`가, 실제 동작은 `secrets-screen.tsx`가 맡는다.
+// 상세로 초점을 옮기는 일만 여기서 한다.
 
 /** 입력 칸(편집 가능)을 고른다. 여기에 초점이 있으면 화면 바로 가기 키는 아무것도 하지 않는다 */
 const EDITABLE = "input, textarea, select, [contenteditable]:not([contenteditable='false'])";
@@ -65,6 +62,8 @@ export interface SecretsScreenViewProps {
   readonly locale: Locale;
   readonly nowMs: number;
   readonly handlers: SecretsScreenHandlers;
+  /** 설정 화면 안: 바깥 스크롤과 머리 제목을 쓴다 */
+  readonly embedded?: boolean;
 }
 
 function sortOf(value: string): SecretSort | null {
@@ -81,7 +80,7 @@ const SORT_ID: Readonly<Record<SecretSort, MessageId>> = {
 export function SecretsScreenView(props: SecretsScreenViewProps): ReactNode {
   const { state, shownText, locale, nowMs, handlers } = props;
   const headingId = useId();
-  const detailRef = useRef<HTMLDivElement | null>(null);
+  const detailRef = useRef<HTMLElement | null>(null);
   const view = secretsViewOf(state);
   const selected = view.selected;
   const failure = view.failed === null ? null : commandErrorText(view.failed);
@@ -95,7 +94,7 @@ export function SecretsScreenView(props: SecretsScreenViewProps): ReactNode {
       altKey: event.altKey,
       shiftKey: event.shiftKey,
       editable: target !== null && target.closest(EDITABLE) !== null,
-      onRow: target !== null && target.dataset.slot === "table-row",
+      onRow: target !== null && target.getAttribute("role") === "option",
       revealed: view.reveal.status === "revealed",
     });
     if (intent === null) return;
@@ -110,22 +109,46 @@ export function SecretsScreenView(props: SecretsScreenViewProps): ReactNode {
   return (
     <section
       aria-labelledby={headingId}
-      className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4"
+      className={
+        props.embedded === true
+          ? "flex flex-col gap-4"
+          : "flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4"
+      }
       onKeyDown={onKey}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 id={headingId} className="text-ui-strong text-text-primary">
-          {t("desktop.secrets.title")}
-        </h1>
-        <Button size="sm" iconStart={<Plus />} disabled={!view.acting} onClick={handlers.add}>
-          {t("desktop.secrets.add")}
-        </Button>
+      <div
+        className={`flex flex-wrap items-center gap-3 ${props.embedded === true ? "justify-end" : "justify-between"}`}
+      >
+        <div className="flex min-w-0 items-center gap-1">
+          <h1
+            id={headingId}
+            className={`m-0 text-ui-strong text-text-primary ${props.embedded === true ? "sr-only" : ""}`}
+          >
+            {t("desktop.secrets.title")}
+          </h1>
+          <InfoTip text={t("desktop.secrets.intro")} />
+        </div>
+        {state.rows.length === 0 ? null : (
+          <Button
+            size="xs"
+
+            variant="outline"
+            disabled={!view.acting}
+            onClick={handlers.add}
+          >
+            {t("desktop.secrets.add")}
+          </Button>
+        )}
       </div>
-      <p className="text-ui-sm text-text-tertiary">{t("desktop.secrets.intro")}</p>
-      {view.offline ? <Alert tone="info">{t("desktop.secrets.offline")}</Alert> : null}
+      {view.offline ? (
+        <Alert tone="info" size="sm">
+          {t("desktop.secrets.offline")}
+        </Alert>
+      ) : null}
       {failure === null ? null : (
         <Alert
           tone="danger"
+          size="sm"
           action={
             <Button size="xs" variant="outline" disabled={!view.acting} onClick={handlers.retry}>
               {t("desktop.secrets.retry")}
@@ -138,6 +161,7 @@ export function SecretsScreenView(props: SecretsScreenViewProps): ReactNode {
       {state.notice === null ? null : (
         <Alert
           tone={state.notice.tone}
+          size="sm"
           dismissible
           dismissLabel={t("desktop.secrets.dismiss")}
           onDismiss={handlers.dismissNotice}
@@ -148,25 +172,29 @@ export function SecretsScreenView(props: SecretsScreenViewProps): ReactNode {
       {view.loading ? <LoadingRows /> : null}
       {!view.loading && state.rows.length === 0 && state.list.kind === "ready" ? (
         <EmptyState
-          size="md"
+          size="sm"
+          surface="none"
           title={t("desktop.secrets.empty")}
-          description={t("desktop.secrets.emptyHint")}
-          actions={[
-            {
-              label: t("desktop.secrets.add"),
-              icon: <Plus />,
-              disabled: !view.acting,
-              onClick: handlers.add,
-            },
-          ]}
+          actions={
+            <Button
+              size="sm"
+
+              variant="solid"
+              disabled={!view.acting}
+              onClick={handlers.add}
+            >
+              {t("desktop.secrets.add")}
+            </Button>
+          }
         />
       ) : null}
       {state.rows.length === 0 ? null : (
         <>
           {view.showSearch ? (
             <div className="grid gap-3 compact:grid-cols-[minmax(0,1fr)_auto]">
-              <Field label={t("desktop.secrets.search.label")}>
+              <Field label={t("desktop.secrets.search.label")} size="sm">
                 <Input
+                  size="sm"
                   type="search"
                   value={state.query}
                   placeholder={t("desktop.secrets.search.placeholder")}
@@ -174,8 +202,9 @@ export function SecretsScreenView(props: SecretsScreenViewProps): ReactNode {
                   onValueChange={handlers.query}
                 />
               </Field>
-              <Field label={t("desktop.secrets.sort.label")}>
+              <Field label={t("desktop.secrets.sort.label")} size="sm">
                 <Select
+                  size="sm"
                   value={state.sort}
                   onValueChange={(value) => {
                     const sort = sortOf(value);
@@ -192,15 +221,13 @@ export function SecretsScreenView(props: SecretsScreenViewProps): ReactNode {
             </div>
           ) : null}
           {view.rows.length === 0 ? (
-            <p role="status" className="text-ui-sm text-text-tertiary">
+            <p role="status" className="m-0 text-ui-sm text-text-tertiary">
               {t("desktop.secrets.noMatch")}
             </p>
           ) : (
-            <SecretTable
+            <SecretList
               rows={view.rows}
               selectedName={selected?.name ?? null}
-              locale={locale}
-              nowMs={nowMs}
               onSelect={handlers.select}
             />
           )}
@@ -208,6 +235,7 @@ export function SecretsScreenView(props: SecretsScreenViewProps): ReactNode {
       )}
       {selected !== null && view.detail !== null ? (
         <SecretDetail
+          key={selected.name}
           entry={selected}
           detail={view.detail}
           reveal={view.reveal}
@@ -245,97 +273,83 @@ export function SecretsScreenView(props: SecretsScreenViewProps): ReactNode {
   );
 }
 
+/** 읽는 동안의 자리. 목록 줄 모양의 뼈대 여섯 줄이다(mockup `D-loading`) */
 function LoadingRows(): ReactNode {
   return (
-    <div role="status" aria-busy="true" className="grid gap-2">
+    <div role="status" aria-busy="true" className="grid gap-3 pt-1">
       <span className="sr-only">{t("desktop.secrets.loading")}</span>
-      {[0, 1, 2].map((line) => (
-        <Skeleton key={line} height={40} />
+      {Array.from({ length: 6 }, (_, i) => (
+        <div key={i} className="flex gap-6">
+          <Skeleton width="28%" height={12} />
+          <Skeleton width="16%" height={12} />
+          <Skeleton width="20%" height={12} />
+        </div>
       ))}
     </div>
   );
 }
 
-function columnsOf(): TableColumn[] {
-  return [
-    { key: "name", header: t("desktop.secrets.columns.name") },
-    { key: "provider", header: t("desktop.secrets.columns.provider") },
-    { key: "description", header: t("desktop.secrets.columns.description") },
-    { key: "hosts", header: t("desktop.secrets.columns.hosts") },
-    { key: "lastUsed", header: t("desktop.secrets.columns.lastUsed") },
-    { key: "expiry", header: t("desktop.secrets.columns.expiry") },
-    { key: "status", header: t("desktop.secrets.columns.status") },
-  ];
+/** 상태 글자의 색. 색만으로 뜻을 주지 않는다(글자가 따로 있다) */
+const STATUS_TEXT: Readonly<Record<StatusTone, string>> = {
+  success: "text-success-text",
+  warning: "text-warning-text",
+  danger: "text-danger-text",
+  neutral: "text-text-tertiary",
+};
+
+/** 목록 칸의 상태 글자. 정상이면 칸을 비운다. 조치가 필요한 상태만 적는다 */
+function listStatusOf(
+  status: SecretListEntry["status"],
+): { readonly text: string; readonly cls: string } | null {
+  if (status === "valid") return null;
+  const view = statusViewOf(status);
+  return { text: t(view.label.id, view.label.args), cls: STATUS_TEXT[view.tone] };
 }
 
-/** 긴 글은 칸 폭에서 자른다. 전체 글은 제목 속성으로 본다 */
-function Clipped(props: { readonly text: string; readonly mono?: boolean }): ReactNode {
-  return (
-    <span
-      title={props.text}
-      className={
-        props.mono === true ? "block max-w-64 truncate font-mono" : "block max-w-64 truncate"
-      }
-    >
-      {props.text}
-    </span>
-  );
-}
+/** 목록 줄 칸 폭. 좁은 폭에서는 설명 칸을 접는다 */
+const COLS =
+  "grid-cols-[minmax(9rem,1.1fr)_minmax(0,1fr)_5.5rem] @max-[34rem]:grid-cols-[minmax(0,1fr)_5.5rem]";
 
-function SecretTable(props: {
+/**
+ * 시크릿 목록. caustic `Table`은 고른 행을 검게 뒤집고 행이 커서, 지금 행을 올린 바탕 하나로 보이는 밀도 높은 목록을
+ * caustic 토큰으로 만든다(mockup `list.tsx`). 값 열은 없고, 줄마다 이름과 설명과 조치 상태만 있다.
+ */
+function SecretList(props: {
   readonly rows: readonly SecretListEntry[];
   readonly selectedName: SecretName | null;
-  readonly locale: Locale;
-  readonly nowMs: number;
   readonly onSelect: (name: SecretName) => void;
 }): ReactNode {
-  const { rows, selectedName, locale, nowMs, onSelect } = props;
-  const byName = new Map<string, SecretListEntry>(rows.map((row) => [row.name, row]));
-  const none = t("desktop.secrets.none");
-
-  const cells = new Map<string, (row: SecretListEntry) => ReactNode>([
-    ["name", (row) => <Clipped text={row.name} mono />],
-    ["provider", (row) => row.meta?.provider ?? none],
-    ["description", (row) => <Clipped text={row.meta?.desc ?? none} />],
-    [
-      "hosts",
-      (row) => {
-        const hosts = row.meta?.use.hosts ?? [];
-        return <Clipped text={hosts.length === 0 ? none : hosts.join(", ")} />;
-      },
-    ],
-    ["lastUsed", (row) => lastUsedTextOf(row.lastUsedAt, nowMs, locale) ?? none],
-    ["expiry", (row) => row.meta?.expiresAt ?? none],
-    [
-      "status",
-      (row) => {
-        const status = statusViewOf(row.status);
-        return (
-          <Badge className={TONE_CLASS[status.tone]}>{t(status.label.id, status.label.args)}</Badge>
-        );
-      },
-    ],
-  ]);
-
-  const renderCell = (tableRow: TableRow, column: TableColumn): ReactNode => {
-    const row = byName.get(tableRow.id);
-    const cell = cells.get(column.key);
-    return row === undefined || cell === undefined ? null : cell(row);
-  };
-
+  const { rows, selectedName, onSelect } = props;
   return (
-    <Table
-      aria-label={t("desktop.secrets.title")}
-      columns={columnsOf()}
-      rows={rows.map((row): TableRow => ({ id: row.name }))}
-      renderCell={renderCell}
-      selectionMode="single"
-      selectedKeys={selectedName === null ? [] : [selectedName]}
-      onSelectedKeysChange={(keys) => {
-        const picked = rows.find((row) => row.name === keys[0]);
-        if (picked !== undefined) onSelect(picked.name);
-      }}
-      maxHeight={320}
-    />
+    <div role="listbox" aria-label={t("desktop.secrets.title")} className="@container grid">
+      {rows.map((row) => {
+        const current = row.name === selectedName;
+        const status = listStatusOf(row.status);
+        return (
+          <div
+            key={row.name}
+            role="option"
+            aria-selected={current}
+            tabIndex={current ? 0 : -1}
+            onClick={() => {
+              onSelect(row.name);
+            }}
+            className={`grid h-8 ${COLS} cursor-default items-center gap-3 rounded-md px-2 text-ui outline-none focus-visible:focus-ring ${
+              current
+                ? "bg-control-raised shadow-[inset_0_0_0_1px_var(--cs-color-control-edge)]"
+                : "hover:bg-neutral-hover"
+            }`}
+          >
+            <span className="truncate font-mono text-mono text-text-primary">{row.name}</span>
+            <span className="truncate text-text-secondary @max-[34rem]:hidden">
+              {row.meta?.desc ?? ""}
+            </span>
+            {status === null ? null : (
+              <span className={`truncate text-ui-sm ${status.cls}`}>{status.text}</span>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }

@@ -1,6 +1,5 @@
 import type { MessageId } from "@fresnel/client/i18n";
-import type { BadgeScope, ViewDiagnostic } from "@fresnel/client/settings";
-import type { RuntimeChange } from "@fresnel/contracts/settings";
+import type { ViewDiagnostic } from "@fresnel/client/settings";
 
 // 설정 화면(P-09)의 문장 고르기. 문장은 메시지 키로 들고 있다가 그릴 때 `t()`로 만든다(모듈을 읽을 때의 로케일에 묶이지 않도록).
 // 범위와 적용 시점의 글자는 client가 `FieldVM`에 이미 담아 준다. 여기서는 화면이 더하는 문장과 배지 색만 고른다.
@@ -28,21 +27,4 @@ export const TONE_CLASS: Readonly<Record<BadgeTone, string>> = {
   warning: "bg-warning-soft text-warning-text",
   info: "bg-info-soft text-info-text",
   agent: "bg-agent-soft text-agent-text",
-};
-
-/** 범위 배지의 색 계열 */
-export const SCOPE_TONE: Readonly<Record<BadgeScope, BadgeTone>> = {
-  managed: "warning",
-  user: "accent",
-  project: "info",
-  local: "neutral",
-  launch: "agent",
-  default: "neutral",
-};
-
-/** 적용 시점 배지의 색 계열. 즉시는 성공, 다음 턴은 정보, 재시작은 경고다 */
-export const RUNTIME_TONE: Readonly<Record<RuntimeChange, BadgeTone>> = {
-  live: "success",
-  nextTurn: "info",
-  restart: "warning",
 };

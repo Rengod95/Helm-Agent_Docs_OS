@@ -3,9 +3,11 @@ import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { ReactNode } from "react";
 import type { RestoreReport } from "../../../transport/ipc.ts";
+import { InfoTip } from "./settings-field.tsx";
 import { restoreBlockOf, type RestorePhase, type RestoreState } from "./settings-restore-model.ts";
 
 // 데이터 복원 구역(P-09 고급 탭)의 그림. 상태와 명령은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
+// 고급 탭 카드 안의 줄 하나다: 제목(정보 아이콘 뒤에 설명), 경로 칸과 고르기 단추, 복원 단추, 결과 문장.
 // 확인 대화 상자는 취소가 기본 초점이고 실행 단추는 위험(danger) 톤이다. 그 안의 글이 복원이 하는 일과 하지 않는 일을 말한다.
 
 export interface RestoreHandlers {
@@ -41,28 +43,34 @@ export function RestoreView(props: RestoreViewProps): ReactNode {
   const block = restoreBlockOf(state);
   const running = state.phase.kind === "running";
   return (
-    <div className="flex flex-col gap-2" data-slot="settings-restore">
-      <span className="text-ui-strong text-text-primary">
-        {t("desktop.settings.restore.title")}
-      </span>
-      <p className="text-ui-sm text-text-secondary">{t("desktop.settings.restore.intro")}</p>
+    <div className="grid gap-2 py-3" data-slot="settings-restore">
+      <div className="flex min-h-6 items-center gap-2">
+        <span className="text-ui font-medium text-text-primary">
+          {t("desktop.settings.restore.title")}
+        </span>
+        <InfoTip
+          label={t("desktop.settings.restore.title")}
+          lines={[t("desktop.settings.restore.intro"), t("desktop.settings.restore.path.hint")]}
+        />
+      </div>
       <div className="flex items-center gap-2">
         <Input
           type="text"
+          size="sm"
           aria-label={t("desktop.settings.restore.path.label")}
           placeholder={t("desktop.settings.restore.path.placeholder")}
           value={state.path}
           disabled={running}
           spellCheck={false}
+          containerClassName="min-w-0 flex-1"
           onValueChange={handlers.edit}
         />
         {onPick === undefined ? null : (
-          <Button variant="outline" size="sm" disabled={running} onClick={onPick}>
+          <Button variant="outline" size="xs" disabled={running} onClick={onPick}>
             {t("desktop.workspace.pickFolderButton")}
           </Button>
         )}
       </div>
-      <p className="text-ui-sm text-text-tertiary">{t("desktop.settings.restore.path.hint")}</p>
       {block === "relative" ? (
         <p className="text-ui-sm text-text-secondary">
           {t("desktop.settings.restore.blocked.relative")}
@@ -74,7 +82,13 @@ export function RestoreView(props: RestoreViewProps): ReactNode {
         </p>
       )}
       <div className="flex flex-wrap items-center gap-3">
-        <Button variant="outline" size="sm" disabled={block !== null} onClick={handlers.ask}>
+        <Button
+          variant="outline"
+          size="xs"
+
+          disabled={block !== null}
+          onClick={handlers.ask}
+        >
           {t("desktop.settings.restore.button")}
         </Button>
         {block === "remote" ? (

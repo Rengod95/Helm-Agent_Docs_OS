@@ -75,7 +75,7 @@ describe("file editor states", () => {
   test("a read file shows its path and the text, with save and discard", () => {
     const out = html(propsOf());
     expect(out).toContain(t("desktop.settings.file.title"));
-    expect(out).toContain(t("desktop.settings.file.path", { path: DOC.path ?? "" }));
+    expect(out).toContain(DOC.path ?? "");
     expect(out).toContain("<textarea");
     expect(out).toContain("sonnet");
     expect(out).toContain(t("desktop.settings.field.discard"));
