@@ -499,6 +499,15 @@ export function createSearchApi(deps: WebDeps): {
         ? { allow: merged.domains.allow, deny: merged.domains.deny, truncated: false }
         : fitFor(firstManifest);
     const request: ProviderSearchRequest = {
+      ...(threadId === undefined
+        ? {}
+        : {
+            origin: {
+              threadId,
+              turnId: context?.turnId ?? null,
+              requestId: context?.toolCallId ?? options?.requestId ?? null,
+            },
+          }),
       terms: providerTerms,
       directives: merged.directives,
       ...(input.objective === undefined ? {} : { objective: input.objective }),

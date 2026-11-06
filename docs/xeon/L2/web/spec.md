@@ -1383,7 +1383,8 @@ ADR-0005 §3.1 ②, §3.2, §3.4 아래 항목을 구체화한다.
    - 현재 모델 provider·모델에 hosted 검색이 없으면 `unsupported-model`.
    - 이전 호출이 조직 차단 400을 받았으면 `org-disabled`. 이 판정은 프로세스 수명 동안 기억하고, 설정 `l2.web.search.wrapper.model`이 바뀌면 지운다(WEB.6).
    - 그 밖에는 `ok`. 탐침용 모델 호출은 보내지 않는다.
-8. 지연과 비용은 측정하지 않았다. 1회 약 $0.011은 [가정]이고 지연 수치는 없다(ADR-0005 §4.2, §6).
+8. 귀속: 검색을 부른 도구 실행의 대화, Turn, 도구 호출 id(`CallContext.threadId`·`turnId`·`toolCallId`, 없으면 `requestId`)를 `ProviderSearchRequest.origin`에 싣고 래퍼가 `HostedSearchRequest.origin`으로 넘긴다. 모델 호출의 사용량은 그 대화·Turn에 쌓이고 도구 호출 id가 `requestId`로 남는다. 대화 밖 호출(`threadId` 없음)에는 `origin`이 없다.
+9. 지연과 비용은 측정하지 않았다. 1회 약 $0.011은 [가정]이고 지연 수치는 없다(ADR-0005 §4.2, §6).
 
 필요한 L1.models 기능은 §8 요구 표의 `HostedSearchPort`다.
 

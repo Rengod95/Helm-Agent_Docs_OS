@@ -122,6 +122,7 @@ export function createWrapperProvider(deps: WrapperDeps): WebSearchProvider {
     await repeatAsync(async () => {
       const answered = await deps.hosted.search(
         {
+          ...(request.origin === undefined ? {} : { origin: request.origin }),
           model,
           system: WRAPPER_SYSTEM_PROMPT,
           query,
