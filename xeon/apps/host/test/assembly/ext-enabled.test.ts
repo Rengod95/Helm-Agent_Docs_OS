@@ -1,7 +1,11 @@
 import { expect, test } from "bun:test";
 import type { Logger } from "@fresnel/contracts";
-import type { ExtensionLoader, OperationsPolicy } from "@fresnel/ext-host";
-import { extNameOfEnabledKey, followExtEnabled } from "../../src/assembly/ext-enabled.ts";
+import type { ExtHost, ExtensionLoader, OperationsPolicy } from "@fresnel/ext-host";
+import {
+  extNameOfEnabledKey,
+  followBuiltinEnabled,
+  followExtEnabled,
+} from "../../src/assembly/ext-enabled.ts";
 import type { SettingsChange } from "../../src/types.ts";
 import { partial } from "../fixtures/unsafe.ts";
 
@@ -98,7 +102,7 @@ test("a plain turn-on of an extension that was not auto-disabled only tells the 
   expect(r.calls).toEqual(["settingChanged:web"]);
 });
 
-test("a change to false, other keys, and an empty key list do nothing", async () => {
+test("a change to false tells the loader so the stop applies at the next step boundary, without a re-enable", async () => {
   const r = rig({
     values: { "ext.review.enabled": false, "ext.web.isolation": "process" },
     disabled: ["ext:review"],
@@ -106,7 +110,47 @@ test("a change to false, other keys, and an empty key list do nothing", async ()
   r.fire(CHANGE(["ext.review.enabled", "ext.web.isolation"]));
   r.fire(CHANGE([]));
   await r.settle();
-  expect(r.calls).toEqual([]);
+  expect(r.calls).toEqual(["settingChanged:review"]);
+});
+
+test("a builtin group follows its enabled key into the registration enable and disable", () => {
+  const calls: string[] = [];
+  let listener: ((change: SettingsChange) => void) | undefined;
+  const values: Record<string, unknown> = { "ext.authoring.enabled": true };
+  followBuiltinEnabled({
+    onChange: (next) => {
+      listener = next;
+      return () => {};
+    },
+    value: (key) => values[key],
+    host: partial<Pick<ExtHost, "registrations" | "registration">>({
+      registrations: () => [
+        partial<ReturnType<ExtHost["registrations"]>[number]>({
+          id: "authoring",
+          extension: "authoring",
+        }),
+        partial<ReturnType<ExtHost["registrations"]>[number]>({ id: "other", extension: "other" }),
+      ],
+      registration: (id) =>
+        partial<NonNullable<ReturnType<ExtHost["registration"]>>>({
+          enable: () => {
+            calls.push(`enable:${id}`);
+          },
+          disable: () => {
+            calls.push(`disable:${id}`);
+          },
+        }),
+    }),
+    names: () => ["authoring"],
+    onEnabled: (name) => {
+      calls.push(`ledger:${name}`);
+    },
+  });
+  listener?.(CHANGE(["ext.authoring.enabled"]));
+  values["ext.authoring.enabled"] = false;
+  listener?.(CHANGE(["ext.authoring.enabled"]));
+  listener?.(CHANGE(["ext.core-loop.enabled"]));
+  expect(calls).toEqual(["enable:authoring", "ledger:authoring", "disable:authoring"]);
 });
 
 test("with no external loader the re-enable still runs, and a loader failure is logged without the re-enable", async () => {

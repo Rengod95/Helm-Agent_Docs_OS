@@ -49,3 +49,31 @@ realTest(
   },
   60_000,
 );
+
+// 내장 그룹(authoring, 기본 꺼짐)의 켜기 스위치가 값만 쓰는 것이 아니라 실제로 켜고 끈다(rtC R-3).
+realTest(
+  "turning the authoring group on through its setting enables it and turning it off disables it",
+  async () => {
+    const home = useEngineHome();
+    const host = await startInProcessHost({ devChecks: true });
+    const connection = createHostConnection(host.client);
+    await connection.request("host.hello", HELLO_PARAMS);
+    const key = "ext.authoring.enabled";
+    const statusOf = async (): Promise<string | undefined> => {
+      const listed = await connection.request("ext.list", {});
+      return listed.extensions.find((entry) => entry.name === "authoring")?.status;
+    };
+    expect(await statusOf()).toBe("disabled");
+    await connection.request("settings.set", { key, value: true, scope: "user" });
+    await Bun.sleep(300);
+    // 단계 경계가 없으면 켜짐은 "enabling"으로 대기한다(다음 경계에서 적용). 꺼짐 상태로 남지 않는다
+    expect(["enabling", "enabled"]).toContain(await statusOf());
+    await connection.request("settings.set", { key, value: false, scope: "user" });
+    await Bun.sleep(300);
+    expect(await statusOf()).toBe("disabled");
+    await connection.close();
+    await host.close();
+    home.dispose();
+  },
+  60_000,
+);

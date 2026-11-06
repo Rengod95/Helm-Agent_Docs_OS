@@ -130,7 +130,11 @@ import {
   installedAgentDefinitions,
 } from "./assembly/default-plugins.ts";
 import { bridgeExtensionCommands } from "./assembly/extension-commands.ts";
-import { followExtEnabled } from "./assembly/ext-enabled.ts";
+import {
+  BUILTIN_GROUP_NAMES,
+  followBuiltinEnabled,
+  followExtEnabled,
+} from "./assembly/ext-enabled.ts";
 import { loadExternalExtensions } from "./assembly/external.ts";
 import { createExtUiVersionSource } from "./assembly/m4/ext-ui-version-source.ts";
 import { createProjectExtensions } from "./assembly/project-extensions.ts";
@@ -562,10 +566,12 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     loader: ExtensionLoader | undefined;
     unbridge: (() => void) | undefined;
     unfollowEnabled: (() => void) | undefined;
+    unfollowBuiltin: (() => void) | undefined;
   } = {
     loader: undefined,
     unbridge: undefined,
     unfollowEnabled: undefined,
+    unfollowBuiltin: undefined,
   };
 
   const settingsWatchSlot: { watch: SettingsWatch | undefined } = { watch: undefined };
@@ -582,6 +588,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       await scheduleSlot.service?.close();
       await portsHandle?.releaseAll();
       external.unfollowEnabled?.();
+      external.unfollowBuiltin?.();
       external.unbridge?.();
       await external.loader?.dispose();
       await ext.dispose();
@@ -944,8 +951,21 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     extras.forEach((module, index) => {
       units.push(unitOfModule(module, units.length + index));
     });
-    unitList.units = units;
-    await sequentially(units, async (unit) => {
+    // 내장 그룹은 로더를 거치지 않으므로 처음 켜짐도 설정 값에서 정한다. 값이 없으면 매니페스트 기본이다(rtC R-3)
+    const enabledOfBuiltin = (name: string): boolean | undefined => {
+      const key = `ext.${name}.enabled`;
+      const value = built.catalog.has(key) ? settings.value(key) : undefined;
+      return typeof value === "boolean" ? value : undefined;
+    };
+    const installable = units.map((unit): ExtensionUnit => {
+      const initialEnabled =
+        unit.builtin && BUILTIN_GROUP_NAMES.includes(unit.manifest.name)
+          ? enabledOfBuiltin(unit.manifest.name)
+          : undefined;
+      return initialEnabled === undefined ? unit : { ...unit, initialEnabled };
+    });
+    unitList.units = installable;
+    await sequentially(installable, async (unit) => {
       const result = await ext.install(unit);
       const failure = installFailureOf(result);
       if (failure !== undefined) {
@@ -953,6 +973,19 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           { code: "plugin", plugin: failure.plugin, message: failure.message },
         ]);
       }
+    });
+
+    external.unfollowBuiltin = followBuiltinEnabled({
+      onChange: (listener) => settings.onChange(listener),
+      value: (key) => settings.value(key),
+      host: ext,
+      names: () =>
+        unitList.units
+          .filter((unit) => unit.builtin && BUILTIN_GROUP_NAMES.includes(unit.manifest.name))
+          .map((unit) => unit.manifest.name),
+      onEnabled: (name) => {
+        operations.autoDisabler.clearLedger(`ext:${name}`);
+      },
     });
 
     // 3a. 외부 훅 단위. 안전 모드에서는 싣지 않는다(X.operations.spec §4.6.2)

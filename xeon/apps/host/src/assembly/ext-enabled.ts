@@ -1,5 +1,5 @@
 import { detach, type Logger } from "@fresnel/contracts";
-import type { ExtensionLoader, OperationsPolicy } from "@fresnel/ext-host";
+import type { ExtHost, ExtensionLoader, OperationsPolicy } from "@fresnel/ext-host";
 import type { SettingsChange } from "../types.ts";
 
 // 일반 켜기 스위치(`settings.set ext.<이름>.enabled true`)를 "다시 켜기"(`ext.reenable`)와 같은 결과로 만든다.
@@ -42,19 +42,22 @@ export interface ExtEnabledFollowDeps {
  * 돌려주는 함수로 구독을 푼다. 끝나지 않은 적용은 신호가 끊기면 로더가 멈춘다
  */
 export function followExtEnabled(deps: ExtEnabledFollowDeps): () => void {
-  const apply = async (name: string): Promise<void> => {
+  const apply = async (name: string, enabled: boolean): Promise<void> => {
     const key = ownerKeyOf(name);
     const pending =
-      deps.autoDisabler.disabled().includes(key) ||
-      deps.autoDisabler.questions().some((question) => question.key === key);
+      enabled &&
+      (deps.autoDisabler.disabled().includes(key) ||
+        deps.autoDisabler.questions().some((question) => question.key === key));
     await deps.loader()?.settingChanged(name, deps.signal);
     if (pending) deps.autoDisabler.reenable(key);
   };
   return deps.onChange((change) => {
     for (const settingKey of change.keys) {
       const name = extNameOfEnabledKey(settingKey);
-      if (name === undefined || deps.value(settingKey) !== true) continue;
-      detach(apply(name), (caught) => {
+      const value = name === undefined ? undefined : deps.value(settingKey);
+      if (name === undefined || typeof value !== "boolean") continue;
+      // 끄기도 로더가 받는다. 등록의 끄기는 다음 단계 경계에서 적용되어 재시작 없이 멈춘다(X.loading-trust §4.4.7)
+      detach(apply(name, value), (caught) => {
         deps.logger.warn("ext.enable_follow_failed", {
           extension: name,
           reason: caught instanceof Error ? caught.message : String(caught),
@@ -63,3 +66,39 @@ export function followExtEnabled(deps: ExtEnabledFollowDeps): () => void {
     }
   });
 }
+
+export interface BuiltinEnabledFollowDeps {
+  readonly onChange: (listener: (change: SettingsChange) => void) => () => void;
+  /** 카탈로그 키의 유효 값 */
+  readonly value: (key: string) => unknown;
+  readonly host: Pick<ExtHost, "registrations" | "registration">;
+  /** 설정 값을 따라 켜고 끄는 내장 단위의 이름(내장 그룹). 핵심 부품은 설정으로 끄지 않는다 */
+  readonly names: () => readonly string[];
+  /** 켜기를 요청한 직후 부른다(실패 장부 비우기) */
+  readonly onEnabled?: (name: string) => void;
+}
+
+/**
+ * 내장 그룹(`authoring`, `learning`)의 `ext.<이름>.enabled` 변경을 등록의 켜기·끄기로 옮긴다. 외부 확장은 로더가 하지만(`followExtEnabled`)
+ * 내장 단위는 로더를 거치지 않아 값만 바뀌고 켜지지 않았다(rtC R-3). 켜기·끄기는 다음 단계 경계에서 적용된다.
+ */
+export function followBuiltinEnabled(deps: BuiltinEnabledFollowDeps): () => void {
+  return deps.onChange((change) => {
+    const names = deps.names();
+    for (const settingKey of change.keys) {
+      const name = extNameOfEnabledKey(settingKey);
+      if (name === undefined || !names.includes(name)) continue;
+      const value = deps.value(settingKey);
+      if (typeof value !== "boolean") continue;
+      for (const info of deps.host.registrations().filter((scope) => scope.extension === name)) {
+        const handle = deps.host.registration(info.id);
+        if (value) handle?.enable();
+        else handle?.disable();
+      }
+      if (value) deps.onEnabled?.(name);
+    }
+  });
+}
+
+/** 설정 값(`ext.<이름>.enabled`)이 켜짐을 정하는 내장 그룹. 정적 카탈로그에 예약 키가 있는 것만이다(HS-113). 시험이 더하는 단위는 매니페스트 기본을 따른다 */
+export const BUILTIN_GROUP_NAMES: readonly string[] = ["learning", "authoring"];
