@@ -122,6 +122,7 @@ export function TestsView(props: TestsViewProps): ReactNode {
         devMode={ui.devMode}
         sending={ui.sending}
         targetNames={props.targetNames}
+        failure={ui.notice?.kind === "failed" ? t(noticeTextOf(ui.notice)) : null}
         handlers={handlers.sheet}
       />
       <RunConfirmDialog

@@ -271,6 +271,22 @@ describe("새 테스트 시트 대상 고르기", () => {
   });
 });
 
+describe("새 테스트 시트 실패 이유", () => {
+  test("a failed start shows its reason inside the sheet form, which hides the screen notice", () => {
+    const markup = renderToString(
+      <NewTestForm
+        id="new-test"
+        draft={NEW_TEST_DEFAULT}
+        devMode={false}
+        failure="이 이름은 설치되어 실린 확장이 아니에요."
+        onChange={NOOP}
+        onSubmit={NOOP}
+      />,
+    );
+    expect(markup).toContain("이 이름은 설치되어 실린 확장이 아니에요.");
+  });
+});
+
 describe("테스트 화면 알림", () => {
   test("a target that is not a loaded extension says why and where to pick", () => {
     const markup = html({
