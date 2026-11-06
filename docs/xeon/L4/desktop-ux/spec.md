@@ -587,6 +587,7 @@ Fresnel 데스크톱
 
 - `help.shortcuts`는 O-09를 연다(§6.20). 셸이 처리하지 않는 나머지 동작은 `App`의 `onAction`이 맡는다.
 - `approval.next`(⌘⇧A): 대기 승인 목록(엔진 거울의 순서)에서 초점이 있는 카드의 다음 카드로 옮긴다. 초점이 없거나 목록에 없으면 첫 카드다. 마지막 카드 다음은 처음 카드다(`views/approval-focus-model.ts`의 `nextApprovalId`). 카드 머리(`[data-approval-kind]`, tabIndex -1)에 초점을 준다. 화면에 카드가 없으면 아무 일도 없다.
+- 초점 돌려주기: 승인 카드에 답해 카드가 사라지고 초점이 BODY로 떨어지면, 그 카드 뒤의 다음 대기 카드로(없으면 남은 첫 카드로), 대기 카드가 없으면 입력창으로 초점을 준다. 턴이 끝났을 때(진행 중 → 아님) 초점이 BODY면 입력창으로 준다. 초점이 다른 곳에 있으면 건드리지 않는다(`views/focus-return.tsx`, 순수 판정은 `approval-focus-model.ts`).
 - `thread.next`·`thread.prev`(⌥⌘↓ / ⌥⌘↑): 사이드바 대화 목록 순서(최근 활동 먼저)로 옮긴다. 끝에서 처음으로, 처음에서 끝으로 돈다(`views/thread-step-model.ts`의 `stepThreadId`). 고르기는 대화 목록 행과 같은 `commands.selectThread`다. 영역은 바꾸지 않는다.
 - `composer.focus`(⌘L): 대화가 열려 있으면 대화 영역의 대화 화면으로 바꾸고 입력창에 초점을 준다. 입력창은 `UiState.composerRequest`를 받아 지운다(`views/composer.tsx`).
 - 명령 팔레트(S-02)의 구현 노트는 §6.2에 있다.
@@ -788,7 +789,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 - 상태 여섯 가지(빈, 읽는 중, 오류, 오프라인, 권한 필요, 긴 내용)를 화면마다 적습니다. 해당 없으면 "해당 없음"이라 씁니다.
 - 오프라인 공통: 연결 상태가 `live`가 아니면 쓰기 버튼을 잠그고 "엔진에 연결되면 할 수 있어요"를 `Tooltip`으로 보입니다. 읽은 데이터는 그대로 두고 화면 머리에 `Alert tone="warning" layout="inline"`을 둡니다.
 - 문구: 문장은 해요체, 라벨은 명사구입니다(`L4.settings-ui.spec` §4.8). 현재 M2 화면의 합니다체 문구도 M4에서 해요체로 맞춥니다 [결정: 오케스트레이터 기본값]. 문구는 메시지 키로 둡니다(adr.0016).
-- 접근성 공통: caustic 규칙(대상 24×24 이상, 키보드 초점 고리, axe 위반 0)을 따릅니다. 실시간 영역은 `aria-live="polite"`이고 오류만 `role="alert"`입니다. 모든 아이콘 버튼은 `label`이 있습니다. 움직임은 `prefers-reduced-motion`을 따릅니다.
+- 접근성 공통: caustic 규칙(대상 24×24 이상, 키보드 초점 고리, axe 위반 0)을 따릅니다. 실시간 영역은 `aria-live="polite"`이고 오류만 `role="alert"`입니다. 앱에는 눈에 안 보이는 polite 안내 영역이 하나 있어 새 승인 요청("승인이 필요해요: edit")과 턴 완료·실패("답이 끝났어요", "답이 실패했어요")를 한 줄씩 알립니다. 스트리밍 글자는 안내하지 않습니다(`views/live-announcer.tsx`, 문장은 `announce-model.ts`). 상태 줄의 `role="status"`는 따로 둡니다(상태 줄 트랙 소관). 모든 아이콘 버튼은 `label`이 있습니다. 움직임은 `prefers-reduced-motion`을 따릅니다.
 - 시간 표시는 상대 시각("3분 전")이고 `Tooltip`에 절대 시각을 둡니다.
 
 ### 6.1 S-01 앱 셸
@@ -851,6 +852,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 - 묶음 순서는 대화, 명령, 플러그인, 슬래시 명령, 설정, 화면 이동이다(`views/palette/palette-model.ts`의 `visibleGroupsOf`). 화면 이동 행은 `screenTargetsOf`가 내비 표(`views/shell/nav.ts`)에서 만든다. 현재 영역의 화면이 먼저 오고 다른 영역의 화면이 뒤에 온다. 묶음은 `views/palette/palette.tsx`의 `PaletteBody`가 그린다.
 - 묶음마다 찾는 글에 맞는 항목을 앞에서 다섯 개 보이고, 나머지는 "더 보기" 한 행 뒤에 둔다(`groupCellsOf`). 찾는 글은 라벨과 설명에서 찾는다. 빈 입력의 "자주 쓴 동작 5개"는 명령 실행 횟수가 많은 순서의 앞 다섯 개다(`availableCommands`). 횟수는 명령 id마다 셈해 로컬 설정 `l4.desktop.window.paletteUses`에 둔다. 셈은 `App`의 `runCommand`가 하므로 팔레트 밖의 바로 가기로 실행한 것도 든다. 횟수가 같으면 표 순서이고, 표에 없는 id는 셈하지 않는다. 정렬은 최근 사용 순이 아니라 횟수 순이다(실행 시각은 기록하지 않는다).
 - 상태: 빈 입력은 묶음을 그대로 보인다. 맞는 항목이 없으면 "맞는 항목이 없어요"다. 슬래시 명령과 설정 항목은 읽는 중과 읽기 실패를 그 묶음의 상태 칸으로만 보인다. 오프라인(엔진에 연결되지 않음)이면 앱 동작과 화면 이동만 보이고 안내 한 줄을 둔다.
+- 키보드: 글자를 치면 Combobox가 고른 행을 비우므로, 글이 있고 고른 행이 없을 때 Enter는 첫 결과를 실행한다(`enterRunsFirstRow`; 한글 조합 중의 Enter는 제외). 화살표로 고른 행이 있으면 그 행을 실행한다. 대화를 고르면 플러그인 화면 같은 비채팅 화면에서도 대화 화면으로 간다(`useShowChat`, 셸 영역·화면·자리를 함께 옮긴다).
 - 슬래시 명령: 입력창이 있는 대화가 열려 있을 때만 묶음이 보인다. 팔레트를 열 때 `command.list { threadId }`를 읽는다(`commands.commandList`). 고르면 입력창에 `/이름 `을 채운다. 입력창에 쓴 글이 있으면 그 글을 지우지 않고 초점만 준다. 실행은 입력창에서 Enter로 보낼 때 한다.
 - 설정 항목: 탭 열세 개(고정 표)와 항목을 팔레트를 열 때 설정 목록으로 읽는다. 설정 화면의 컨트롤러를 잠깐 빌려 읽고 바로 놓는다. 고르면 설정 화면을 열고(`UiState.settingsJump`) 그 탭으로 옮기며 찾기 글을 비운 뒤 항목 자리로 스크롤한다. 항목을 강조하지는 않는다 `[미결]`. 초안이 있으면 §6.13의 묻는 대화 상자가 먼저 뜬다.
 - 요청 전달: 입력창과 설정 화면은 `UiState`의 `composerRequest`와 `settingsJump`를 받아 쓰고 바로 지운다(`views/commands.ts`의 `requestComposer`, `requestSettingsJump`). 팔레트는 입력창과 설정 화면의 상태를 직접 쓰지 않고 요청만 남긴다.
@@ -1140,7 +1142,7 @@ compact 폭(720 이하)과 사이드바 시트:
 - 복사: 화면에서 복사되는 글은 그려진 글이므로 값이 없습니다. 메시지 복사([제안], 위 표)를 만들면 그려진 텍스트를 써야 합니다. 지금은 트랜스크립트에 복사 동작이 없고 진단 복사(`copyDiagnostics`)만 있으며, 진단 묶음에는 대화 내용이 들어가지 않습니다(`FS-13`).
 - 범위 밖: 승인 카드(P-03)의 도구 인자와 설정 화면은 이 표식을 쓰지 않습니다 [미결]. 내보내기 `db export`는 가리지 않고 확인을 받습니다(`L4.cli.spec` §4.13).
 - 바로 가기 키: Enter 보내기, ⇧Enter 줄바꿈, ⌘. 중단, ⌘L 입력창 초점, `/` 자동 완성(↑↓ 이동, Tab 채우기), ⌘⇧A 다음 승인 카드, 카드 안 Y·N·⇧Y.
-- 접근성: 트랜스크립트는 `role="log"`, `aria-live="polite"`이며 스트리밍 조각은 문장 단위로만 알립니다 [제안]. 승인 카드가 생기면 "승인 요청: bash"를 한 번 알립니다. 입력창 `inputLabel="메시지"`, `sendLabel="보내기"`, `stopLabel="중단"`.
+- 접근성: 트랜스크립트 스크롤 영역은 `role="region"`, 이름 "대화 기록", `tabindex="0"`이라 Tab으로 들어가 PageUp/PageDown/Home/End와 방향키로 움직이고 안쪽 초점 고리가 보입니다(`views/virtual-list.tsx`). 스트리밍 글자는 읽지 않고, 승인 요청과 턴 완료·실패는 앱의 polite 안내 영역 하나가 짧게 알립니다(§6.0 실시간 안내). 입력창 `inputLabel="메시지"`, `sendLabel="보내기"`, `stopLabel="중단"`.
 - caustic: `Message`(user 버블, agent 세리프), `MessageCode`, `Thinking`, `ToolCall`, `ActivityTree`(서브에이전트와 Helm 렌즈 진행), `AgentRequest`(kind `permission`, `review`, `proposal`), `ChoiceGroup`(질문), `Plan`(계획 단계 미리보기), `Composer`, `Suggestions`, `Alert`, `Card`, `Dialog`, `EmptyState`, `Skeleton`, `ScrollArea`. Markdown 렌더는 caustic 밖입니다 `[gap:C-06]`.
 
 ### 6.7 P-03 받은 요청과 승인 카드

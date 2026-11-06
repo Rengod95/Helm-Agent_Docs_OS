@@ -24,7 +24,15 @@ import {
   type FieldVM,
 } from "@fresnel/client/settings";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
-import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { useLinkPhase, useThreadSummaries } from "../../state/engine/index.ts";
 import { useShell, useShellActions } from "../../state/shell/index.ts";
 import { useSelectedThreadId } from "../../state/ui/index.ts";
@@ -35,6 +43,7 @@ import {
   availableCommands,
   commandValue,
   decodeValue,
+  enterRunsFirstRow,
   groupCellsOf,
   pluginCommandItemsOf,
   screenTargetsOf,
@@ -316,8 +325,28 @@ export function PaletteBody(props: PaletteProps): ReactNode {
     setQuery(text);
   };
 
+  // 글자를 치면 Combobox가 고른 행을 비운다. Enter는 첫 결과를 실행한다(scD 3-1): 첫 행 단추를 눌러 고른다
+  const onEnterCapture = (event: KeyboardEvent<HTMLDivElement>): void => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement)) return;
+    const runs = enterRunsFirstRow({
+      key: event.key,
+      composing: event.nativeEvent.isComposing,
+      query,
+      hasActiveRow: input.getAttribute("aria-activedescendant") !== null,
+    });
+    if (!runs) return;
+    const first = event.currentTarget.querySelector<HTMLElement>(
+      '[role="option"]:not([aria-disabled="true"])',
+    );
+    if (first === null) return;
+    event.preventDefault();
+    event.stopPropagation();
+    first.click();
+  };
+
   return (
-    <div className="grid gap-2 p-2">
+    <div className="grid gap-2 p-2" onKeyDownCapture={onEnterCapture}>
       <Combobox
         mode="inline"
         inline

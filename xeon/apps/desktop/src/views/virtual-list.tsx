@@ -15,6 +15,8 @@ type Props<R extends VirtualRow> = {
   readonly renderRow: (row: R) => ReactNode;
   /** 바닥에 붙어 있을 때 새 내용이 오면 따라 내려간다 */
   readonly followTail: boolean;
+  /** 스크롤 영역의 이름(화면 낭독이 영역으로 읽는다) */
+  readonly label: string;
 };
 
 /** 시작 위치 offsets[i] (i번째 행의 위쪽)와 전체 높이 */
@@ -131,7 +133,15 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
 
   const mounted = rows.slice(first, last);
   return (
-    <div className="scroller" ref={scroller} onScroll={onScroll}>
+    // 키보드로 들어가 PageUp/PageDown/Home/End/방향키로 움직이는 스크롤 영역이다(scD 1-3). 브라우저가 초점 있는 스크롤 영역에 그 키를 준다
+    <div
+      className="scroller"
+      ref={scroller}
+      onScroll={onScroll}
+      tabIndex={0}
+      role="region"
+      aria-label={props.label}
+    >
       <div style={{ height: total, position: "relative" }}>
         {mounted.map((row, i) => (
           <div

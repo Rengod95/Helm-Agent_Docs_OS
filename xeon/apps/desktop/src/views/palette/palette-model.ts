@@ -350,3 +350,17 @@ export function groupCellsOf(input: GroupInput): readonly GroupCell[] {
   if (status !== "ready") cells.push({ kind: "status", value: `status:${input.group}`, status });
   return cells;
 }
+
+/**
+ * 글자를 친 뒤 Enter가 첫 결과를 실행해야 하는지(scD 3-1). caustic Combobox는 글자가 바뀌면 고른 행을 비우므로
+ * 입력에 `aria-activedescendant`가 없을 때만, 글이 있고 한글 조합 중이 아닐 때 첫 행을 대신 고른다.
+ * 화살표로 이미 행을 골랐으면 Combobox가 그 행을 실행한다.
+ */
+export function enterRunsFirstRow(input: {
+  readonly key: string;
+  readonly composing: boolean;
+  readonly query: string;
+  readonly hasActiveRow: boolean;
+}): boolean {
+  return input.key === "Enter" && !input.composing && input.query !== "" && !input.hasActiveRow;
+}

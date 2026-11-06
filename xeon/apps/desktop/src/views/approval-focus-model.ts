@@ -12,3 +12,35 @@ export function nextApprovalId<T>(pending: readonly T[], current: T | null): T |
   if (index === -1) return first;
   return pending[(index + 1) % pending.length] ?? first;
 }
+
+/** 초점을 돌려줄 자리: 다음 대기 카드, 또는 입력창 */
+export type FocusReturn<T> =
+  | { readonly kind: "card"; readonly id: T }
+  | { readonly kind: "composer" };
+
+/** 초점이 문서 맨 위(BODY)로 떨어졌는지. 초점이 있던 요소가 사라지면 브라우저가 BODY로 둔다 */
+export function focusIsLost(active: { readonly tagName: string } | null): boolean {
+  return active === null || active.tagName === "BODY";
+}
+
+/**
+ * 승인 카드가 사라진 뒤 초점 자리(1-1). 대기 목록이 줄었고 초점이 BODY로 떨어졌을 때만 돌려준다.
+ * 사라진 카드의 뒤쪽에서 아직 남은 첫 카드, 없으면 남은 첫 카드, 하나도 없으면 입력창이다.
+ */
+export function focusAfterApprovalChange<T>(
+  before: readonly T[],
+  after: readonly T[],
+  lost: boolean,
+): FocusReturn<T> | null {
+  if (!lost) return null;
+  const removed = before.findIndex((id) => !after.includes(id));
+  if (removed === -1) return null;
+  const following = before.slice(removed + 1).find((id) => after.includes(id));
+  const target = following ?? after[0];
+  return target === undefined ? { kind: "composer" } : { kind: "card", id: target };
+}
+
+/** 턴이 끝났을 때(진행 중 → 아님) 초점이 BODY면 입력창으로 간다 */
+export function focusAfterTurnEnd(wasRunning: boolean, running: boolean, lost: boolean): boolean {
+  return wasRunning && !running && lost;
+}
