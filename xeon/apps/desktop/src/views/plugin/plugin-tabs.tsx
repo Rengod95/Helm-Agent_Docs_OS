@@ -10,13 +10,11 @@ import { useLinkPhase } from "../../state/engine/index.ts";
 import { useCommands } from "../commands.ts";
 import { ConfirmHost } from "./confirm-host.tsx";
 import { usePluginUi, usePluginUiState } from "./plugin-context.tsx";
+import { HELM_EXTENSION, pluginScreenItemsOf, usePluginPickRequest } from "./plugin-pick.ts";
 import { PluginView, screenKeyOf } from "./plugin-view.tsx";
 import { ThreadSwitches } from "./thread-switches.tsx";
 
 // Placement `panel`과 `page`를 오른쪽 탭에 잇는 부품과, 엔진이 붙을 때 화면 목록을 읽는 부품.
-
-/** Helm 옆 패널의 확장 이름. 오른쪽 탭 id `helm`이 이 확장의 `panel` 항목을 그린다 */
-const HELM_EXTENSION = "helm";
 
 function Pick(props: {
   readonly items: readonly PlacedEntry[];
@@ -44,7 +42,14 @@ function Pick(props: {
 }
 
 function EntryList(props: { readonly items: readonly PlacedEntry[] }): ReactNode {
-  const [picked, setPicked] = useState<string | undefined>(undefined);
+  // 사이드바 "플러그인 UI"에서 고른 화면이 오면 그것을 고른다(번호가 바뀔 때마다. 화면이 열릴 때 이미 있던 요청도 따른다)
+  const request = usePluginPickRequest();
+  const [picked, setPicked] = useState<string | undefined>(request?.key);
+  const [seen, setSeen] = useState<number | undefined>(request?.seq);
+  if (request !== undefined && request.seq !== seen) {
+    setSeen(request.seq);
+    setPicked(request.key);
+  }
   const current: ExtUiEntry | undefined =
     props.items.find(({ entry }) => screenKeyOf(entry) === picked)?.entry ?? props.items[0]?.entry;
   if (current === undefined) {
@@ -71,10 +76,7 @@ export function HelmPanelTab(): ReactNode {
  */
 export function PluginPagesTab(): ReactNode {
   const state = usePluginUiState();
-  const items = [
-    ...state.groups.page,
-    ...state.groups.panel.filter(({ entry }) => entry.extension !== HELM_EXTENSION),
-  ];
+  const items = pluginScreenItemsOf(state);
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="max-h-[40vh] flex-none overflow-y-auto">

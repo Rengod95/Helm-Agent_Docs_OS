@@ -210,11 +210,10 @@ function ListBody(props: TestsViewProps): ReactNode {
           {read.value.length === 0 ? (
             <EmptyState
               size="sm"
-              surface="none"
               title={t("desktop.tests.empty")}
               actions={
                 <Button
-                  size="xs"
+                  size="sm"
                   variant="outline"
                   disabled={!props.online || ui.sending}
                   onClick={handlers.openSheet}
