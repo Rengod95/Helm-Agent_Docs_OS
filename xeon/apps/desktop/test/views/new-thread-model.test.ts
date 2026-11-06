@@ -1,6 +1,11 @@
 import { expect, test } from "bun:test";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
-import { blankThreadIn, isBlankThread, planNewThread } from "../../src/views/new-thread-model.ts";
+import {
+  blankThreadIn,
+  isBlankThread,
+  planNewThread,
+  recentWorkspacesOf,
+} from "../../src/views/new-thread-model.ts";
 import { thr, trn } from "../state/helpers.ts";
 
 function summary(patch: Partial<ThreadSummary>): ThreadSummary {
@@ -43,4 +48,35 @@ test("a blank thread in the same folder is reused instead of creating another", 
   expect(planNewThread([used, blank], thr(1))).toEqual({ kind: "open", threadId: thr(2) });
   expect(blankThreadIn([used, blank], "/w/b")).toBeNull();
   expect(blankThreadIn([summary({ threadId: thr(3), workspace: null })], null)).toBe(thr(3));
+});
+
+test("recent folders are the distinct folders in list order, with their thread counts", () => {
+  const threads = [
+    summary({ threadId: thr(1), workspace: "/w/a" }),
+    summary({ threadId: thr(2), workspace: null }),
+    summary({ threadId: thr(3), workspace: "/w/b" }),
+    summary({ threadId: thr(4), workspace: "/w/a" }),
+    summary({ threadId: thr(5), workspace: "" }),
+    summary({ threadId: thr(6), workspace: "/w/c" }),
+  ];
+  expect(recentWorkspacesOf(threads)).toEqual([
+    { path: "/w/a", count: 2 },
+    { path: "/w/b", count: 1 },
+    { path: "/w/c", count: 1 },
+  ]);
+  expect(recentWorkspacesOf([summary({ workspace: null })])).toEqual([]);
+  expect(recentWorkspacesOf([])).toEqual([]);
+});
+
+test("at most five recent folders are offered", () => {
+  const threads = ["/w/1", "/w/2", "/w/3", "/w/4", "/w/5", "/w/6"].map((path, index) =>
+    summary({ threadId: thr(index + 1), workspace: path }),
+  );
+  expect(recentWorkspacesOf(threads).map((recent) => recent.path)).toEqual([
+    "/w/1",
+    "/w/2",
+    "/w/3",
+    "/w/4",
+    "/w/5",
+  ]);
 });

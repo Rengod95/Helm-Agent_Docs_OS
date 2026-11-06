@@ -3,15 +3,19 @@ import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
 import {
+  Alert,
   Button,
+  Dialog,
   EmptyState,
+  Field,
+  IconButton,
   Input,
   ListNavigation,
   ListNavigationGroup,
   ListNavigationItem,
-  Popover,
   Skeleton,
 } from "@caustic/react";
+import { Folder, FolderOpen } from "@caustic/react/icons";
 import { memo, useState, type ReactNode } from "react";
 import {
   useThreadsStatus,
@@ -21,7 +25,7 @@ import {
 import { useSelectedThreadId } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
 import { pickWorkspaceFolder, type FolderPickInvoke } from "./folder-pick.ts";
-import { blankThreadIn } from "./new-thread-model.ts";
+import { blankThreadIn, recentWorkspacesOf, type RecentWorkspace } from "./new-thread-model.ts";
 import { folderLabel, groupByWorkspace } from "./thread-groups.ts";
 import { ThreadRowMenu } from "./thread-row-menu.tsx";
 import { checkWorkspaceInput, createFailureText, workspaceHint } from "./workspace-model.ts";
@@ -74,73 +78,138 @@ const ThreadRow = memo(function ThreadRow(props: { readonly thread: ThreadSummar
   );
 });
 
-/** 다른 폴더(경로를 적거나 고른 폴더)에서 새 대화를 여는 작은 창 */
+/** 다른 폴더(경로를 적거나 고른 폴더)에서 새 대화를 여는 대화 상자(시안 O-07). 만들면 닫힌다 */
 function OtherFolder(props: {
   readonly folderPick: FolderPickInvoke | undefined;
   readonly creating: boolean;
+  readonly recent: readonly RecentWorkspace[];
   readonly onCreate: (path: string | undefined) => void;
   readonly onPickFailed: () => void;
 }): ReactNode {
+  const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
+  const [pickFailed, setPickFailed] = useState(false);
   const workspace = checkWorkspaceInput(text);
   const hint = workspaceHint(workspace);
   const folderPick = props.folderPick;
   const pick = async (invoke: FolderPickInvoke): Promise<void> => {
     const picked = await pickWorkspaceFolder(invoke);
     if (!picked.ok) {
+      setPickFailed(true);
       props.onPickFailed();
       return;
     }
     if (picked.value !== undefined) setText(picked.value);
   };
+  // 대화 상자를 닫고 만든다. 만들지 못한 까닭은 목록 아래 줄에 보인다
+  const create = (): void => {
+    if (props.creating || workspace.kind === "invalid") return;
+    setOpen(false);
+    props.onCreate(workspace.kind === "path" ? workspace.path : undefined);
+  };
   return (
-    <Popover
+    <Dialog
+      open={open}
+      onOpenChange={setOpen}
       size="sm"
-      arrow={false}
-      side="bottom"
-      align="start"
-      anchor={
+      title={t("desktop.threads.newDialog.title")}
+      trigger={
         <Button size="xs" variant="ghost" className="justify-self-start">
           {t("desktop.threads.otherFolder")}
         </Button>
       }
-    >
-      <div className="grid w-64 gap-2">
-        <label className="grid gap-1 text-ui-sm text-text-secondary">
-          {t("desktop.threads.workspaceLabel")}
-          <Input
-            size="sm"
-            placeholder="/Users/me/project"
-            value={text}
-            invalid={hint !== null}
-            onValueChange={setText}
-          />
-        </label>
-        {hint === null ? null : <div className="text-ui-sm text-danger-text">{hint}</div>}
-        <div className="flex gap-2">
-          {folderPick === undefined ? null : (
-            <Button
-              size="sm"
-              variant="outline"
-
-              disabled={props.creating}
-              onClick={() => detach(pick(folderPick), rethrow)}
-            >
-              {t("desktop.workspace.pickFolderButton")}
-            </Button>
-          )}
+      footer={
+        <>
+          <span aria-hidden className="flex-1" />
           <Button
             size="sm"
-            disabled={props.creating || workspace.kind === "invalid"}
+            variant="ghost"
             onClick={() => {
-              props.onCreate(workspace.kind === "path" ? workspace.path : undefined);
+              setOpen(false);
             }}
           >
-            {t("desktop.threads.newButton")}
+            {t("desktop.threads.newDialog.cancel")}
           </Button>
-        </div>
+          <Button
+            size="sm"
+            variant="solid"
+            loading={props.creating}
+            disabled={props.creating || hint !== null}
+            onClick={create}
+          >
+            {text.trim() === ""
+              ? t("desktop.threads.newDialog.createNoFolder")
+              : t("desktop.threads.newDialog.create")}
+          </Button>
+        </>
+      }
+    >
+      <div className="grid gap-3">
+        {pickFailed ? (
+          <Alert tone="danger" layout="inline" size="sm">
+            {t("desktop.workspace.pickFailed")}
+          </Alert>
+        ) : null}
+        <Field
+          label={t("desktop.threads.newDialog.folderLabel")}
+          optional
+          optionalLabel={t("desktop.threads.newDialog.optional")}
+          error={hint ?? undefined}
+          size="sm"
+        >
+          <Input
+            size="sm"
+            value={text}
+            invalid={hint !== null}
+            spellCheck={false}
+            autoComplete="off"
+            placeholder="/Users/me/project"
+            className="font-mono text-mono-sm"
+            onValueChange={(value) => {
+              setText(value);
+              setPickFailed(false);
+            }}
+            onKeyDown={(event) => {
+              // 한글 조합 중의 Enter는 글자를 확정하는 키라 만들기가 아니다
+              if (event.key === "Enter" && !event.nativeEvent.isComposing) create();
+            }}
+            suffix={
+              folderPick === undefined ? null : (
+                <IconButton
+                  size="xs"
+                  variant="ghost"
+                  label={t("desktop.workspace.pickFolderButton")}
+                  disabled={props.creating}
+                  onClick={() => detach(pick(folderPick), rethrow)}
+                >
+                  <FolderOpen />
+                </IconButton>
+              )
+            }
+          />
+        </Field>
+        {props.recent.length === 0 ? null : (
+          <ListNavigation aria-label={t("desktop.threads.recentLabel")} size="sm" as="div">
+            <ListNavigationGroup heading={t("desktop.threads.recentHeading")}>
+              {props.recent.map((recent) => (
+                <ListNavigationItem
+                  key={recent.path}
+                  icon={<Folder />}
+                  current={text.trim() === recent.path}
+                  meta={t("desktop.threads.recentCount", { count: recent.count })}
+                  onSelect={() => {
+                    setText(recent.path);
+                    setPickFailed(false);
+                  }}
+                >
+                  <span className="font-mono text-mono-sm">{recent.path}</span>
+                </ListNavigationItem>
+              ))}
+            </ListNavigationGroup>
+          </ListNavigation>
+        )}
       </div>
-    </Popover>
+    </Dialog>
   );
 }
 
@@ -174,6 +243,7 @@ export function ThreadList(props: {
   };
 
   const groups = groupByWorkspace(threads);
+  const recent = recentWorkspacesOf(threads);
   return (
     <div className={LIST_COLUMN}>
       <ListNavigation
@@ -261,6 +331,7 @@ export function ThreadList(props: {
         <OtherFolder
           folderPick={props.folderPick}
           creating={creating}
+          recent={recent}
           onCreate={start}
           onPickFailed={() => {
             setError(t("desktop.workspace.pickFailed"));

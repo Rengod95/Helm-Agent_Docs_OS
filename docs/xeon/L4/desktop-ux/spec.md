@@ -2096,7 +2096,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | O-04 | `trust.get` → `trustCardOf` | `trust.decide { choice }` | 입력창 위 카드, 대화 상자 아님 |
 | O-05 | 시크릿 이름 | `SecretRevealPort.reveal` | 기본 초점 "취소", 실패 사유 문장 |
 | O-06 | 참조와 영향 | 삭제 동작 | `tone="danger"`, 기본 초점 "취소" |
-| O-07 | 최근 작업 폴더 `selectRecentWorkspaces` | `thread.create { workspace? }`, 검사 `checkWorkspaceInput` | OS 폴더 고르기는 `pick_folder`(W-19). 대화 목록은 작업 폴더별 묶음(머리의 `+`가 그 폴더에서 새 대화, 보낸 것 없는 빈 대화가 있으면 그리로 감)이고 ⌘N은 보던 폴더에서 열거나 폴더가 없으면 폴더 고르기 창을 연다(`L4.desktop.spec` §4.16), 폴더 입력란은 목록 아래 "다른 폴더에서 시작…" 팝오버 안에서 경로를 직접 적는 길로 남는다 [근거: `views/thread-list.tsx`, `views/thread-groups.ts`] |
+| O-07 | 최근 작업 폴더 `recentWorkspacesOf`(서로 다른 작업 폴더, 목록 순서, 최대 5개, "대화 N") | `thread.create { workspace? }`, 검사 `checkWorkspaceInput` | OS 폴더 고르기는 `pick_folder`(W-19). 대화 목록은 작업 폴더별 묶음(머리의 `+`가 그 폴더에서 새 대화, 보낸 것 없는 빈 대화가 있으면 그리로 감)이고 ⌘N은 보던 폴더에서 열거나 폴더가 없으면 폴더 고르기 창을 연다(`L4.desktop.spec` §4.16). 폴더 입력란은 목록 아래 "다른 폴더에서 시작…" 단추가 여는 대화 상자(`Dialog`)에서 경로를 직접 적는 길로 남고, 최근 작업 폴더를 고르면 입력란을 채운다. 만들면 대화 상자가 닫힌다 [근거: `views/thread-list.tsx`(`OtherFolder`), `views/new-thread-model.ts`, `views/thread-groups.ts`] |
 | O-08 | §6.11 | `schedule.create` | 닫을 때 초안 확인 |
 | O-09 | §4.8 표 | 없음 | `[gap:C-11]` |
 
