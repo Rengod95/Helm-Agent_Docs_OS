@@ -144,6 +144,7 @@ export {
   LoadDiagnosticSchema,
   RESERVED_EXT_KEYS,
   reservedExtensionSettings,
+  settingsFromManifest,
   SOURCE_TRUST,
   TRUST_LEVELS,
   TRUST_MATRIX,

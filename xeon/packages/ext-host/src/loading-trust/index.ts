@@ -45,7 +45,11 @@ import type {
   LoadState,
 } from "./pipeline.ts";
 import { satisfiesRange } from "./semver.ts";
-import { RESERVED_EXT_KEYS, reservedExtensionSettings } from "./settings-keys.ts";
+import {
+  RESERVED_EXT_KEYS,
+  reservedExtensionSettings,
+  settingsFromManifest,
+} from "./settings-keys.ts";
 import {
   checkUiDecl,
   DEFAULT_UI_POLICY,
@@ -126,6 +130,7 @@ export {
   loadingTrustSettings,
   RESERVED_EXT_KEYS,
   reservedExtensionSettings,
+  settingsFromManifest,
 } from "./settings-keys.ts";
 export { uiSettings } from "./ui-settings.ts";
 export { resolveAppFile, type AppFileResult } from "./app-files.ts";
@@ -1125,7 +1130,14 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       .flatMap((record) => {
         if (record.manifest === undefined) return [];
         const group = reservedExtensionSettings(record.manifest, record.source);
-        return [{ owner: record.name, namespace: group.namespace, defs: group.defs }];
+        const declared = settingsFromManifest(record.manifest);
+        return [
+          {
+            owner: record.name,
+            namespace: group.namespace,
+            defs: [...group.defs, ...declared.defs],
+          },
+        ];
       });
   }
 
