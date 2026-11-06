@@ -14,10 +14,12 @@ import type { ReactNode } from "react";
 import {
   QUESTION_TEXT_MAX,
   REVIEW_CHANGE_ID,
+  fileChangeViewOf,
   setPickText,
   toolApprovalView,
   toolReplaceView,
   togglePick,
+  type FileChangeView,
   type QuestionDraft,
   type QuestionItem,
   type ToolApprovalBody,
@@ -31,6 +33,7 @@ import {
   modeLabelIdOf,
   reviewTotalsOf,
 } from "./card-model.ts";
+import { FileChangeDiff } from "../file-change-view.tsx";
 
 /** 승인 뒤 모드의 화면 글. 모르는 모드는 원시값이다 */
 function modeLabelOf(mode: string): string {
@@ -135,9 +138,28 @@ function ArgsFold(props: { readonly view: ToolApprovalView }): ReactNode {
   );
 }
 
+/** 파일 변경 승인의 머리(수정 또는 파일 쓰기 글과 경로)와 그림 */
+function FileChangeBlock(props: { readonly view: FileChangeView }): ReactNode {
+  const { view } = props;
+  return (
+    <div className="grid gap-1.5">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-2">
+        <span className="text-ui-sm text-text-secondary">
+          {view.kind === "edit"
+            ? t("desktop.approvals.diff.editLabel")
+            : t("desktop.approvals.diff.writeLabel")}
+        </span>
+        <code className="min-w-0 break-all">{view.path}</code>
+      </div>
+      <FileChangeDiff view={view} />
+    </div>
+  );
+}
+
 export function ToolBody(props: { readonly body: ToolApprovalBody }): ReactNode {
   const view = toolApprovalView(props.body);
   const replace = toolReplaceView(props.body);
+  const change = fileChangeViewOf(props.body);
   const { ruleId } = props.body;
   return (
     <>
@@ -155,6 +177,7 @@ export function ToolBody(props: { readonly body: ToolApprovalBody }): ReactNode 
           {view.command}
         </MessageCode>
       )}
+      {change === null ? null : <FileChangeBlock view={change} />}
       <SecretsNote secrets={view.secrets} />
       <ArgsFold view={view} />
     </>

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { renderToString } from "react-dom/server";
 import {
   ModelSelect,
+  PermissionModeSelect,
   UsageRing,
   ownsComposerRequest,
   secretWarningOf,
@@ -76,6 +77,27 @@ describe("model select", () => {
 
   test("a disabled composer disables the select", () => {
     const markup = renderToString(<ModelSelect {...props} disabled />);
+    const tag = markup.match(/<button[^>]*>/)?.[0] ?? "";
+    expect(tag).toMatch(/ disabled=""/);
+  });
+});
+
+describe("approval mode select", () => {
+  test("is a combobox button named for the conversation's approval mode that does not submit the form", () => {
+    const markup = renderToString(
+      <PermissionModeSelect mode="default" disabled={false} onChange={() => {}} />,
+    );
+    const tag = markup.match(/<button[^>]*>/)?.[0] ?? "";
+    expect(tag).toContain('type="button"');
+    expect(tag).toContain('role="combobox"');
+    expect(tag).toContain('aria-label="이 대화의 승인 모드"');
+    expect(tag).not.toMatch(/ disabled=""/);
+  });
+
+  test("a disabled composer disables the select", () => {
+    const markup = renderToString(
+      <PermissionModeSelect mode="plan" disabled onChange={() => {}} />,
+    );
     const tag = markup.match(/<button[^>]*>/)?.[0] ?? "";
     expect(tag).toMatch(/ disabled=""/);
   });

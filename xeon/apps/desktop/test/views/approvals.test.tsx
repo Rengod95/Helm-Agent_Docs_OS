@@ -109,6 +109,66 @@ describe("tool approval card", () => {
   });
 });
 
+const fileRequest = (
+  toolName: string,
+  args: Record<string, unknown>,
+): ApprovalRequestedPayload => ({
+  ...toolRequest({}),
+  body: {
+    kind: "tool",
+    tool: {
+      toolName,
+      risk: "write",
+      args: JSON.parse(JSON.stringify(args)),
+      argsHash: "h",
+      ruleId: null,
+    },
+  },
+});
+
+describe("file change approval card", () => {
+  test("an edit shows the path, the changed lines, and the raw args behind 자세히", () => {
+    const out = html(
+      fileRequest("edit", {
+        path: "src/a.ts",
+        edits: [{ oldText: "const a = 1;", newText: "const a = 2;" }],
+      }),
+    );
+    expect(out).toContain("수정");
+    expect(out).toContain(">src/a.ts</code>");
+    expect(out).toContain("const a = 1;");
+    expect(out).toContain("const a = 2;");
+    expect(out).toContain("자세히");
+    expect(out).not.toContain("더 보기");
+  });
+
+  test("an edit longer than thirty rows folds the rest behind 더 보기", () => {
+    const old = Array.from({ length: 40 }, (_, index) => `o${index + 1}`).join("\n");
+    const next = Array.from({ length: 40 }, (_, index) => `n${index + 1}`).join("\n");
+    const out = html(
+      fileRequest("edit", { path: "big.ts", edits: [{ oldText: old, newText: next }] }),
+    );
+    expect(out).toContain("더 보기 (50줄)");
+  });
+
+  test("a write shows its content with the lines past forty counted", () => {
+    const content = Array.from({ length: 45 }, (_, index) => `row ${index + 1}`).join("\n");
+    const out = html(fileRequest("write", { path: "notes.md", content }));
+    expect(out).toContain("파일 쓰기");
+    expect(out).toContain(">notes.md</code>");
+    // diff 칸의 줄 번호(data-line)는 앞 40줄까지만 있다. 뒤 줄은 "자세히" 안의 인자 JSON에만 남는다
+    expect(out).toContain('data-line="40"');
+    expect(out).not.toContain('data-line="41"');
+    expect(out).toContain("5줄 더 있어요");
+  });
+
+  test("a bash card has no file header", () => {
+    const out = html(toolRequest({ command: "ls" }));
+    expect(out).not.toContain("파일 쓰기");
+    expect(out).not.toContain("더 보기");
+  });
+});
+
 describe("question approval card", () => {
   const picker = questionRequest({
     questions: [

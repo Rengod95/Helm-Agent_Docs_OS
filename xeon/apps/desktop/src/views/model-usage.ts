@@ -1,9 +1,11 @@
-import { detach, rethrow } from "@fresnel/contracts";
+import { detach, rethrow, type Result } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { PermissionMode } from "@fresnel/contracts/services";
 import type { ModelEntry, UsageContext, UsageGauge } from "@fresnel/contracts/wire";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useLinkPhase, useThread } from "../state/engine/index.ts";
-import { useCommands } from "./commands.ts";
+import { useCommands, type CommandError, type SwitchMode } from "./commands.ts";
+import { permissionModeOf } from "./permission-mode-model.ts";
 import { usageFractionOf } from "./pages/providers/providers-model.ts";
 
 // 입력창의 모델 단추·사용량 링과 상태 막대의 모델·토큰 칸이 같이 쓰는 읽기. 모두 요청 결과라 거울에 넣지 않는다(FS-03).
@@ -273,4 +275,44 @@ export function useModelChoices(): readonly ModelEntry[] {
     };
   }, [commands, phase]);
   return models;
+}
+
+/**
+ * 이 대화의 승인 모드(입력창 칩이 보이는 값)와 고르기. 값은 대화 범위 `settings.get`이고, 설정이 바뀌면 다시 읽고, 고르기가 이기면 다시 읽는다.
+ * 읽지 못했거나 네 모드가 아니면 `mode`가 null이고 칩은 그리지 않는다(모르는 값을 지어내지 않는다).
+ */
+export function useThreadPermissionMode(threadId: ThreadId): {
+  readonly mode: PermissionMode | null;
+  readonly choose: (next: SwitchMode) => Promise<Result<null, CommandError>>;
+} {
+  const commands = useCommands();
+  const phase = useLinkPhase();
+  const [mode, setMode] = useState<PermissionMode | null>(null);
+  // 고르기가 이기면 올려 다시 읽게 한다. 호스트가 준 값(관리 설정이 덮을 수 있다)을 그대로 보인다
+  const [reads, setReads] = useState(0);
+  useEffect(() => {
+    if (phase !== "live") return undefined;
+    let stale = false;
+    const read = (): void => {
+      detach(
+        commands.readThreadMode(threadId).then((result) => {
+          if (!stale) setMode(result.ok ? permissionModeOf(result.value) : null);
+          return undefined;
+        }),
+        rethrow,
+      );
+    };
+    read();
+    const stop = commands.onThreadModeChanged(threadId, read);
+    return () => {
+      stale = true;
+      stop();
+    };
+  }, [commands, phase, threadId, reads]);
+  const choose = (next: SwitchMode): Promise<Result<null, CommandError>> =>
+    commands.setThreadMode(threadId, next).then((result) => {
+      if (result.ok) setReads((count) => count + 1);
+      return result;
+    });
+  return { mode, choose };
 }

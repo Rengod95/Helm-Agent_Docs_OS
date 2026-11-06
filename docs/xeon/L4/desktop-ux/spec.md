@@ -254,6 +254,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
      - 띠는 복구 표식이 남은 대화(`ThreadSummary.resumable`)에 "중단된 턴이 있어요" 글과 "이어서 실행"(`turn.resume`), "그대로 두기"(`turn.interrupt`, 열린 턴을 중단으로 닫는다) 단추를 둡니다.
      - [제안] 사용자가 중단한 뒤 큐에 남은 입력(`queuedInputs > 0`, 대화가 `idle`)은 자동으로 시작하지 않습니다. 띠가 "대기 중인 메시지 N개가 있어요"와 "보내기"(`turn.resume`)를 보입니다 [결정: 기본값, scB-S4].
      - 도구 호출은 호출 하나에 행 하나입니다. 행의 상태 알약은 결과를 따릅니다: 성공은 완료, 실패는 "실패", 사용자가 거부하면 "거부함", 중단된 호출은 "중단됨", 결과가 없고 대화가 실행 중이면 "실행 중"입니다. 결과 기록은 따로 그리지 않고 같은 행의 본문으로 보입니다. 내부 오류 코드(`[코드] `)는 본문에 드러내지 않습니다(scB-S3).
+     - `edit`·`write` 행은 상세에 파일 경로를 보이고, 결과가 있으면 펼친 본문에서 결과 글 위에 파일 변경 diff를 보입니다(승인 카드와 같은 그림, `apps/desktop/src/views/file-change-view.tsx`). 파일을 되돌리는 길은 없습니다. 엔진에 파일 변경 기록이 없어 되돌리기는 엔진 작업으로 남깁니다 [gap: 파일 변경 기록 없음].
      - 도구 호출은 실행 중에도 행 하나입니다. 어시스턴트 기록의 호출 행이 이미 "실행 중"으로 보이면, 같은 호출의 실행 진행 항목(`item.started`의 `toolCallId`)은 따로 그리지 않습니다. 인자가 긴 호출(`submit_plan`)은 행 안에서 한 줄 말줄임이고 대화 칸 밖으로 밀리지 않습니다(행 열 폭 `minmax(0,1fr)`) [근거: scB-S3, rtAB-R4].
      - "이어서 실행"이 시작됐다는 답(`turn.resume` → `resumed`)을 받으면 그 복구 표식의 "중단된 턴" 띠를 닫습니다. 표식은 턴이 끝나야 지워지고 그 사이 상태는 `running`이므로, 상태가 아니라 답받은 턴 id로 가립니다(`resumeBandClosed`) [근거: rtAB-R6]. 중단 뒤 "보내기"는 엔진이 대기 입력을 새 턴으로 시작하고, 중단된 턴의 부분 답은 "중단됨"으로 그대로 남습니다. 컨텍스트 조립이 중단된 어시스턴트 항목을 다음 요청에서 빼므로(L1.persistence §4.8) 새 턴은 앞 글을 모르고 처음부터 답할 수 있습니다 [rtAB-R2: 화면과 엔진 기록은 정상, 표시 문제 아님].
 - 거치는 화면: P-02, O-01
@@ -515,6 +516,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 | 연결·서비스 상태 | 상태 표시줄 왼쪽 | 셸 IPC 엔진 상태(`EngineState`), 연결 상태 기계, `host.status` | 실패 시 "다시 연결", "엔진 다시 시작", "진단 복사" |
 | 원격 대상 | 제목 띠 경로 첫 항목, 상태 표시줄 첫 칸 | 데스크톱 설정 `l0.process.service.remote` [가정], `host.hello` 결과 `transport` | 누르면 대상 팝오버(P-08 요약과 "대상 바꾸기") |
 | 모델 | 상태 표시줄, 입력창 모델 칸 | 대화 요약의 `model`(거울, `thread.setModel`이 `thread.updated { model }`로 정함), 없으면 `l1.models.default`. 목록은 `models.list` | 입력창의 `Select`(시안 `sonnet-5-5 ⌄`)가 대화별로 고른다. 고르면 `thread.setModel { threadId, model }`이고 다음 턴부터 적용된다. 대화가 모델을 정했으면 끝 줄 "기본 모델 · …"이 지정을 거둔다(`model: null`) [결정: 오케스트레이터 기본값, M4 T-MODEL]. 목록은 날짜 붙은 중복(`…-20251001`, 날짜 없는 별칭이 있을 때)을 감추고 제공자순·새 버전순이며, 줄은 카탈로그 이름과 100만 토큰당 입출력 가격(`$1 / $5`, 카탈로그가 모르면 "가격 모름")을 보인다. 모델을 바꿀 때 비용·캐시 경고를 보일지는 사용자 정책이라 이 화면은 정하지 않는다 |
+| 승인 모드 | 입력창, 모델 칸 왼쪽의 칩 | `settings.get { keys: ["l1.tools.permissionMode"], threadId }`의 값. 대화 범위(`launch`) 값이 없으면 사용자·프로젝트·관리 설정과 기본값 `default`를 따른다 | 칩은 이 대화의 모드를 보인다(대화마다 따로). 고를 수 있는 것은 "기본 (실행마다 묻기)"과 "편집 자동 허용"뿐이다. 고르면 `settings.set { key: "l1.tools.permissionMode", scope: "launch", threadId }`이고, 값은 설정이 `live`라 바로 쓰인다. 지금 모드가 계획이나 모두 허용이면 그 글만 칩에 보이고 메뉴에서 고를 수 없다(계획과 모두 허용으로 들어가는 목표는 없다. 계획은 계획 승인이, 모두 허용은 설정이 정한다). 모드를 모르는 동안(읽기 실패, 네 모드가 아닌 값)은 칩을 그리지 않는다. 다시 읽는 때는 세 가지다. 설정 변경 알림(`settings.invalidated`)이 이 키를 가리키거나 키 목록이 비었을 때(대화 범위 변경은 이 대화의 것일 때), 내구 이벤트 묶음(`events.batch`)에 이 대화의 `settings.changed` 기록(키가 이 키)이 있을 때, 고르기가 성공했을 때다. 계획 승인은 대화 범위 값을 호스트 안에서 쓰므로 `settings.invalidated` 없이 `settings.changed` 기록만 남기기 때문에 두 번째 길이 필요하다 [제안] [근거: `apps/desktop/src/views/permission-mode-model.ts`, `apps/desktop/src/views/model-usage.ts`의 `useThreadPermissionMode`, `apps/desktop/src/app/commands.ts`의 `setThreadMode`·`onThreadModeChanged`, `packages/core-tools/src/runtime.ts`의 `setMode`, `apps/host/src/assembly/settings-store.ts`] |
 | 사용량 | 상태 표시줄 게이지 | `usage.get { threadId }` | 누르면 `Popover`에 게이지 목록 |
 | 목표 | 상태 표시줄 칩 "목표 2/3"(판정 횟수/최대, DP-25) | `goal.status` | 누르면 `Popover`(첫 줄 "판정 2/3"), 거기서 끝 영역 작업 탭 |
 | Helm 단계 | 상태 표시줄 칩 | `[gap:W-04]` | 누르면 끝 영역 탐구 탭 |
@@ -1104,7 +1106,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 인라인 승인 카드 | 이 대화의 대기 승인 | `approval.requested` 내구 이벤트, 재접속 뒤 `approval.list { threadId }` |
 | 신뢰 카드 | 작업 폴더 자원과 선택지 | `trust.get { workspace }` → `trustCardOf` |
 | 띠 | 설정 필요, 오프라인, 관찰 중, 이어서 실행, turn 실패 | `useSetupNeeded`, 연결 상태, `observing`, `ThreadSummary.resumable`, `turnFailures` |
-| 입력창 | 텍스트, 첨부, 모델(대화별 `Select`: `models.list`, `thread.setModel`), 큐 모드, 문맥 링, 보내기·중단 | `composerDisabledReason`, `createEnterGuard`, `createSendLatch`, `ModelSelect`, `useThreadModel`, `useModelChoices` |
+| 입력창 | 텍스트, 첨부, 승인 모드 칩(대화별, 아래 전역 요소의 "승인 모드"), 모델(대화별 `Select`: `models.list`, `thread.setModel`), 큐 모드, 문맥 링, 보내기·중단 | `composerDisabledReason`, `createEnterGuard`, `createSendLatch`, `PermissionModeSelect`, `useThreadPermissionMode`, `ModelSelect`, `useThreadModel`, `useModelChoices` |
 | 슬래시 자동 완성 | `/`로 시작하면 명령 목록 | `command.list` → `completeSlash` |
 
 | 기능 | wire 또는 view-model |
@@ -1115,6 +1117,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 이어서 실행 | `turn.resume { threadId }` → resumed, closed, nothing |
 | 첨부 | `attachments.add { threadId, source }` 결과의 `parts`를 `turn.start` 입력에 글과 함께 넣는다. 파일 고르기는 입력창 왼쪽 `+` 단추(시안 `Composer`의 `onAttach`, 정보 아이콘 없음. 이미지와 텍스트 파일이 그대로 전달된다는 안내는 단추의 설명(`aria-description`)에 두고, 시크릿 경고는 숨기지 않고 입력창 위 한 줄(`data-composer-secret-warning`)로 보인다: 글이 키·토큰·개인 키처럼 보이면(`looksLikeSecret`) "시크릿처럼 보이는 값이 들어 있어요", 첨부가 있으면 "시크릿이 든 파일은 붙이지 마세요")로 한다(데스크톱 로컬 엔진은 셸 `pick_file`의 경로 소스, 원격과 웹은 `<input type=file>`의 `data` 소스), 끌어 놓기와 클립보드 붙여넣기(`data` 소스). 크기 상한은 `settings.get l2.dialog.attachments.maxBytes`(호스트 값)로 미리 읽고, 넘는 파일은 올리지 않고 칩에 실패로 보인다("올리지 못했어요: 파일이 너무 커요(최대 N)"). `data` 소스는 base64로 한 요청 줄(`WIRE_LIMITS.maxFrameBytes` 1 MiB)에 실려서 실제 한도가 약 780 KB(`dataSourceLimit`)이므로 엔진 설정이 더 커도 칩의 N은 이 값이다. 경로 소스(파일 고르기 창)는 이 줄 한도에 걸리지 않는다. 받지 못하는 형식은 엔진이 읽어 보고 정하므로(텍스트는 내용으로 판정) 올리는 즉시 칩에 "이미지와 텍스트 파일만 붙일 수 있어요"로 보이고, 올리기 전에 확장자로 거르지 않는다 [기본값: 형식 목록이 코드에 없다]. 이미지 썸네일은 `data:` 주소라 앱 문서의 CSP(`default-src 'self'`, `architecture.security.spec` B-09)가 막아 지금은 깨진 그림으로 보인다. `img-src`를 넓힐지는 보안 경계 결정이라 미결이다(2026-11-07). 호스트 거절은 `issues[].message`의 `attachment_too_large: `·`attachment_type_unsupported: ` 머리로 가른다. 턴이 도는 중과 입력창 잠금 중에는 단추·놓기·붙여넣기를 막는다. 첨부가 있으면 슬래시 명령으로 풀지 않는다. 입력 위 칩은 이미지면 작은 썸네일이다. 올리지 못한 칩(크기 초과 등)이나 올리는 중인 칩이 있는 채로 Enter를 누르면 보내지 않고 입력창 위에 이유 한 문장을 보이며(글은 그대로), 칩의 "빼기"를 누르면 초점이 입력창으로 돌아간다. 보낸 말풍선은 `<attachment …>` 태그와 본문을 보이지 않고 글만 말풍선에 두며, 첨부는 아래에 파일 칩과 이미지 썸네일로 보인다(`views/attachment-bubble-model.ts`). 호스트 blob 자리표시자뿐인 이미지는 썸네일 바이트가 없어 이름 칩으로 보인다 [미결: 썸네일은 blob 읽기 wire가 필요하다] [근거: `packages/cap-dialog/src/attachments/service.ts` 이미지 파트의 자리표시자] |
 | 모델 바꾸기(이 대화) | `settings.set { key: "l1.models.default", scope: "launch", threadId }` |
+| 승인 모드 바꾸기(이 대화) | `settings.set { key: "l1.tools.permissionMode", value, scope: "launch", threadId }`, value는 `default` 또는 `acceptEdits`만 보낸다. 쓰기 소유를 요구하므로 잠기면 잠김 대화 상자다 [근거: `apps/desktop/src/app/commands.ts`의 `setThreadMode`, `apps/host/src/handlers/settings.ts`] |
 | 승인 응답 | `approval.respond { approvalId, decision, answer?, remember? }`, 결과 `approvalFailureOf` |
 | 신뢰 결정 | `trust.decide { workspace, choice }` |
 | 관찰·분기 | `thread.open { mode: "observe" }`, `thread.fork { threadId }` (O-01) |
@@ -1229,7 +1232,7 @@ compact 폭(720 이하)과 사이드바 시트:
 
 | 기능 | wire 또는 view-model |
 |---|---|
-| 도구 승인 | `approval.respond { decision: "allow" | "deny", remember }`, 보기 `toolApprovalView` |
+| 도구 승인 | `approval.respond { decision: "allow" | "deny", remember }`, 보기 `toolApprovalView`, 파일 변경 보기 `fileChangeViewOf` |
 | 질문 답 | `approval.respond { decision: "answer", answer: QuestionAnswer }`, `togglePick`, `setPickText`, `answerOf` |
 | 계획 승인 | `approval.respond { decision: "allow", answer: { mode } }`, 수정 요청과 거부는 `{ decision: "deny", answer: { feedback } }` [가정: 수정 요청과 거부의 구분 값은 L1.tools §3.6 확인] `[gap:V-12]` |
 | 변경 검토 | "검토 열기" → P-04, "모두 승인"은 `ReviewAnswer { decisions: [], comments: [], submit: true, approveRemaining: true }` |
@@ -1242,7 +1245,8 @@ compact 폭(720 이하)과 사이드바 시트:
 
 - 승인 카드 규칙
   - 공통 머리: kind 라벨, 대화 이름(누르면 그 대화), 상대 시각, caller 배지(`background`, `subagent:<이름>`, `ext:<이름>`), 원격에서 온 요청이면 "원격" 배지, `expiresAt`이 있으면 "HH:MM에 자동 거부/답"(`onExpire`).
-  - 도구: 도구 이름, 위험도(`risk`), `command` 전문(`MessageCode`), `secretEnv` 핸들 목록, 인자 접힘(4000자), BlobRef면 "별도 저장소에 있어요". `ruleId`가 있으면 "규칙 <id> 때문에 물어요".
+  - 도구: 도구 이름, 위험도(`risk`), `command` 전문(`MessageCode`), `secretEnv` 핸들 목록, 인자 JSON을 "자세히" 접힘(4000자), BlobRef면 "별도 저장소에 있어요". `ruleId`가 있으면 "규칙 <id> 때문에 물어요".
+  - 파일 변경(`edit`, `write`): 경로(`<code>`)와 "수정" 또는 "파일 쓰기" 글을 머리에 두고, 그 아래 줄 diff(`CodeDiffLine`, `codeDiffVariants` 카드)를 그립니다. `edit`은 바꿀 곳마다 앞뒤 공통 줄을 떼고 바뀐 줄과 가까운 문맥 최대 2줄만 보입니다. 파일을 읽지 않으므로 줄 번호는 파일의 줄 번호가 아니라 diff 줄의 순서입니다. 앞 30줄 뒤는 "더 보기 (N줄)"로 접습니다. `write`는 쓸 내용의 앞 40줄과 "N줄 더 있어요"이고, 기존 내용은 보이지 않으니 "새 파일"이라 쓰지 않습니다. 인자가 모양에 맞지 않거나 BlobRef면 그림 없이 일반 도구 카드로 그립니다. 시험: `test/views/approval-form.test.ts`의 `fileChangeViewOf`, `test/views/approvals.test.tsx`의 `file change approval card` [구현: 2026-11-07, 승인 카드 파일 변경 트랙].
   - 내장 도구 대체(도구 이름 `tool_replace`, 규칙 `tools.replace`, L1.tools §4.13): 일반 도구 카드의 머리에 "기본 도구를 대체하려는 요청이에요"와 확장 이름, 대체할 기본 도구, 확장 신뢰 등급(기본 제공·사용자·작업 폴더·신뢰하지 않음), 위험도(원본 → 실제, 같으면 한 값)를 `args`에서 읽어 보이고, `Alert tone="warning"`으로 "기본 도구에 들어 있는 파일 경로 보호는 대체 도구에 적용되지 않아요. 대체 도구가 경로 보호를 직접 지켜야 해요."를 항상 보입니다(본문 `notice`와 무관). 허용은 이 대화 안에서만 효력이 있고(`remember`는 `once`뿐) 거부하면 기본 도구가 그대로입니다. 확장 이름이나 대체 도구 이름이 `args`에 없으면 일반 도구 카드로 그립니다 [결정: 2026-11-03 사용자: 같은 이름 대체 지원].
   - 요청한 곳(U-7): `origin.caller`가 `main`이 아니면 "요청한 곳: 백그라운드 | 앱 | 보조 에이전트 <이름> | 그룹 <이름>" 한 줄을 제목 아래에 보입니다(`ext:<이름>`은 그룹 이름으로 보임).
   - 질문: 1~4문항, 문항마다 `header`, `text`, 선택지(`recommended`는 "(추천)"), `multiSelect`면 체크박스, `allowFreeText`면 직접 입력. 모든 문항에 답이 있어야 "답하기"가 켜집니다.
