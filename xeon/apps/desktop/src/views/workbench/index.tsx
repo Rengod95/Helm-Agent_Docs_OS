@@ -20,14 +20,14 @@ import { AutoOffNotice, noticeCountOf } from "./craft-parts.tsx";
 import { detachVoid, useWorkbenchController } from "./controller.ts";
 import { HookAnswersContext, HookNoticeList } from "./hook-notice.tsx";
 import {
-  Shapes,
   Clock,
   Eye,
   FlaskConical,
-  Layers,
+  LayoutGrid,
   Package,
   Plug,
-  Settings,
+  SquareStack,
+  Target,
 } from "@caustic/react/icons";
 
 function scoped(store: WorkbenchStore, children: ReactNode): ReactNode {
@@ -39,7 +39,7 @@ export function registerWorkbench(registry: ShellRegistry, store: WorkbenchStore
     id: "overview",
     area: "workbench",
     label: "desktop.shell.nav.overview",
-    icon: <Layers />,
+    icon: <LayoutGrid />,
     render: () => scoped(store, <CraftScreen />),
   });
   registry.registerScreen({
@@ -60,21 +60,21 @@ export function registerWorkbench(registry: ShellRegistry, store: WorkbenchStore
     id: "metrics",
     area: "workbench",
     label: "desktop.shell.nav.metrics",
-    icon: <Clock />,
+    icon: <Target />,
     render: () => <MetricsScreen />,
   });
   registry.registerScreen({
     id: "compose",
     area: "workbench",
     label: "desktop.shell.nav.compose",
-    icon: <Shapes />,
+    icon: <SquareStack />,
     render: () => scoped(store, <ComposeScreen />),
   });
   registry.registerScreen({
     id: "engine",
     area: "workbench",
     label: "desktop.shell.nav.engine",
-    icon: <Settings />,
+    icon: <Plug />,
     render: () => scoped(store, <EngineScreen />),
   });
 }

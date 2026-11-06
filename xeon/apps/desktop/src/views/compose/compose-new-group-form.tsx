@@ -43,7 +43,7 @@ export function PlaceFields(props: {
   const { draft } = props;
   const nameError = newGroupNameErrorOf(draft.name);
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid gap-3 compact:grid-cols-2">
       <Field
         label={t("desktop.compose.newGroup.name.label")}
         error={nameError === null ? undefined : t("desktop.compose.newGroup.name.pattern")}
@@ -100,7 +100,7 @@ export function StartGrid(props: {
     <div
       role="radiogroup"
       aria-label={t("desktop.compose.newGroup.start.head")}
-      className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border-subtle bg-border-subtle sm:grid-cols-3"
+      className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border-subtle bg-border-subtle compact:grid-cols-3"
     >
       {props.points.map((point) => {
         const on = point.id === props.selected;
@@ -141,7 +141,7 @@ export function StartPicker(props: {
   switch (read.kind) {
     case "loading":
       return (
-        <div role="status" aria-busy="true" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div role="status" aria-busy="true" className="grid grid-cols-2 gap-2 compact:grid-cols-3">
           <span className="sr-only">{t("desktop.compose.loading")}</span>
           {[0, 1, 2].map((slot) => (
             <Skeleton key={slot} height={80} />

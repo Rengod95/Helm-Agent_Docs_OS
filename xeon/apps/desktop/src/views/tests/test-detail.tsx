@@ -143,7 +143,7 @@ export function ReplayResult(props: {
         <h3 className="m-0 text-ui-sm font-semibold text-text-secondary">
           {t("desktop.tests.detail.effects")}
         </h3>
-        <dl className="m-0 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <dl className="m-0 grid grid-cols-2 gap-3 compact:grid-cols-4">
           {effectRowsOf(report).map((row) => (
             <div key={row.key} className="grid gap-0.5">
               <dt className="text-ui-sm text-text-tertiary">{t(EFFECT_TEXT[row.key])}</dt>

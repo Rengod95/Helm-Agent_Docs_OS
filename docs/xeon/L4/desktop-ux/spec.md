@@ -460,6 +460,8 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 | 5 | 연결 | P-08 | 연결 실패 시 경고 점 | ⌘5 |
 | 6 | 플러그인 화면 | P-18 | 없음 | ⌘6 |
 
+- 내비 항목마다 무대 화면이 등록돼 있어야 합니다. 받은 요청(2번)은 끝 영역 탭과 같은 목록을 무대 전체에 보입니다(구현: `desktop-registry.tsx`의 `INBOX_SCREEN`). 등록이 빠지면 무대에 "이 화면은 아직 없어요"가 뜨므로 `test/views/nav-screens.test.ts`가 지킵니다. 내비 아이콘은 시안(`mockups/_shell/start-panel.tsx`)과 같습니다: 연결 Link, 플러그인 화면 WandSparkles, 개요 LayoutGrid, 측정 Target, 구성 SquareStack, 엔진 Plug.
+
 - 그 아래에 대화 목록(`ListNavigation kind="sessions"`)이 항상 보입니다. 대화가 주 객체이기 때문입니다.
 - 시작 영역 맨 아래에 "설정"(⌘,)이 있습니다. 설정은 무대를 채우는 화면입니다 [결정: 오케스트레이터 기본값].
 - 탐구(P-05)와 목표·작업(P-14)은 대화에 딸린 정보라 주 내비게이션에 두지 않고 대화 화면의 끝 영역 탭으로 둡니다.
@@ -3462,7 +3464,8 @@ DP-11을 caustic 토큰으로 정했습니다(caustic `27fe658`, `bbb094a`, `FOU
 - DP-12 승인 상세는 caustic `ListDescription`(variant ghost, size xs) 한 목록으로 보입니다. 명령 전문, 위험도(`Badge tone="warning"`), 시크릿 참조(`ENV ← secret://…`), 인자를 행마다 이름표·값으로 둡니다. 따로 흩어진 줄, 이름표 문장, 접기를 두지 않습니다. 카드가 좌우 여백을 주므로 행의 좌우 여백은 0입니다(DP-07).
 - DP-13 왼쪽 패널은 창의 위아래 끝까지 붙는 docked 면입니다(`SidePanel variant="outline"`: 모서리 없음, 오른쪽 헤어라인 하나, 그림자 없음). 창 여백은 그 오른쪽 열에만 줍니다. 좁은 폭에서 대화 위로 뜰 때만 floating 면(solid)과 그림자 하나입니다.
 - DP-14 왼쪽 패널 머리의 찾기는 필드 모양 그대로 `Input`(size xs, variant soft, 검색 prefix, 읽기 전용, 누르거나 Enter면 팔레트)이 머리 폭을 다 쓰고, 접기 `IconButton`은 늘 보이는 자리에 둡니다. 머리에 hover 때만 보이는 버튼으로 빈 자리를 남기지 않습니다.
-- DP-15 원격 글꼴은 렌더를 막지 않습니다. 스타일시트 안의 원격 `@import`(Google Fonts 등)는 호스트가 느리거나 막히면 스타일시트와 그 뒤 모듈 스크립트를 함께 멈춰 빈(다크에서는 검은) 창을 만듭니다. 원격 글꼴은 스크립트가 넣는 `<link>`나 자체 호스팅 `@font-face`로만 싣습니다. 시안은 `fonts.ts`가 `fonts.css`의 원격 `@import`를 떼어 비동기로 붙입니다. caustic `fonts.css`에서 원격 `@import`를 빼는 것을 권합니다.
+- DP-15 원격 글꼴은 렌더를 막지 않습니다. 스타일시트 안의 원격 `@import`(Google Fonts 등)는 호스트가 느리거나 막히면 스타일시트와 그 뒤 모듈 스크립트를 함께 멈춰 빈(다크에서는 검은) 창을 만듭니다. 원격 글꼴은 스크립트가 넣는 `<link>`나 자체 호스팅 `@font-face`로만 싣습니다. 시안은 `fonts.ts`가 `fonts.css`의 원격 `@import`를 떼어 비동기로 붙입니다. caustic `fonts.css`에서 원격 `@import`를 빼는 것을 권합니다. 앱은 빌드 CSS에 로컬 SUIT `@font-face`를 넣습니다(`src/styles.css`가 `@caustic/tokens/fonts.css`를 가져오고 Vite가 woff2를 내보냅니다). 현재 `fonts.css`에는 원격 `@import`가 없고, Tauri CSP(`default-src 'self'`)가 막는 런타임 `<style>` 주입은 쓰지 않습니다.
+- DP-15a 옛 CSS는 caustic을 덮지 않습니다. `src/styles.css`의 무층 규칙은 특이도와 상관없이 Tailwind·caustic의 base·components·utilities 층을 이기므로, 무층으로는 `:root` 변수 선언만 둡니다. 옛 요소 규칙은 `@layer base` 안에서 `:where()`로 특이도 0이 되게 하고 `[data-slot]` 부품은 뺍니다. 옛 클래스 규칙은 `@layer components`입니다. caustic 테마는 Tailwind 기본 눈금(`sm:`, `text-sm`, `rounded`, `max-w-xl` 등)을 지우므로 caustic 이름(`compact:`·`medium:`·`wide:`, `text-ui`, `rounded-sm` 등)만 쓰고, 임의 값 안에는 밑줄이 든 토큰(`var(--cs-space-0_75)`)을 쓰지 않으며(Tailwind가 밑줄을 공백으로 바꿉니다), 인라인 `<style>`을 쓰지 않습니다(Tauri CSP가 막습니다). 세 가지 모두 `apps/desktop/test/styles/`가 지킵니다.
 - DP-16 앞 아이콘이 있는 상태 칩(`ToolCall`의 실패·소요 시간 알약)은 네 방향 안쪽 여백이 같습니다. 칩은 caustic `Chip` md처럼 높이 24px(`h-control-xs`) 고정 상자이고, 14px 아이콘과 `leading-none` 글자가 14px 내용 줄을 이루며 그 둘레에 5px씩 남습니다. 아이콘과 글자 사이는 5px입니다. 높이를 글자 줄(18px)에서 얻으면 14px 아이콘 위아래가 2px만 남아 좌우 6px보다 좁아 보입니다. 아이콘을 담는 알약은 늘 고정 높이와 같은 사방 여백으로 만듭니다(caustic `tool-call.variants.ts` `toolStatus`).
 
 ### 13.4 4차 (2026-10-30)

@@ -35,7 +35,6 @@ import {
   visibleRels,
   type LinkRow,
 } from "./link-model.ts";
-import { LINK_CSS } from "./link-style.ts";
 import { matchesFilter } from "./strata-model.ts";
 
 // 위: 도구 막대 아래. 아래: 찾기 줄 위. 화면(크래프트 셸)의 막대 높이에 맞춘 여백이다.
@@ -479,7 +478,6 @@ function LinkCanvas({ focus }: { readonly focus: CanvasPlugin }): ReactNode {
         if (e.target === e.currentTarget) setPick(null);
       }}
     >
-      <style>{LINK_CSS}</style>
       {geo !== null && bundles.length > 0 && (
         <svg
           className="pointer-events-none absolute inset-0"

@@ -153,7 +153,7 @@ function Curve(props: {
       <figcaption className="text-ui-sm text-text-tertiary">{props.label}</figcaption>
       <svg
         viewBox={`0 0 ${CURVE_W} ${CURVE_H}`}
-        className="h-16 w-full max-w-xl"
+        className="h-16 w-full max-w-[36rem]"
         role="img"
         aria-label={props.label}
       >

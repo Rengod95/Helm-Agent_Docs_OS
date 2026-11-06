@@ -164,7 +164,7 @@ export function SecretsScreenView(props: SecretsScreenViewProps): ReactNode {
       {state.rows.length === 0 ? null : (
         <>
           {view.showSearch ? (
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="grid gap-3 compact:grid-cols-[minmax(0,1fr)_auto]">
               <Field label={t("desktop.secrets.search.label")}>
                 <Input
                   type="search"

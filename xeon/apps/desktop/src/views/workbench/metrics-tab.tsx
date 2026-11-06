@@ -55,7 +55,7 @@ function GroupMetricsBody(props: { readonly metrics: GroupMetricsVM | null }): R
         <h4 className="m-0 font-semibold text-text-secondary">
           {t("desktop.workbench.metrics.tokens")}
         </h4>
-        <dl className="m-0 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <dl className="m-0 grid grid-cols-2 gap-3 compact:grid-cols-4">
           {metrics.tokens.map((cell) => (
             <Cell key={cell.key} label={t(TOKEN_TEXT[cell.key])} value={numberText(cell.value)} />
           ))}
@@ -67,7 +67,7 @@ function GroupMetricsBody(props: { readonly metrics: GroupMetricsVM | null }): R
         </p>
         <p className={MUTED}>{t("desktop.workbench.metrics.costNote")}</p>
       </section>
-      <dl className="m-0 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <dl className="m-0 grid grid-cols-2 gap-3 compact:grid-cols-3">
         <Cell
           label={t("desktop.workbench.metrics.lead")}
           value={t(LEAD_TEXT[metrics.lead.unit], { value: metrics.lead.value })}

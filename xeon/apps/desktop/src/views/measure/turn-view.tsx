@@ -66,7 +66,7 @@ function PluginRows(props: {
             <button
               type="button"
               aria-pressed={active}
-              className={`flex w-full flex-wrap items-center gap-3 rounded px-2 py-1 text-start ${active ? "bg-neutral-soft" : "bg-transparent"}`}
+              className={`flex w-full flex-wrap items-center gap-3 rounded-sm px-2 py-1 text-start ${active ? "bg-neutral-soft" : "bg-transparent"}`}
               onClick={() => props.onFocus(active ? null : share.owner)}
             >
               <span className="font-mono text-text-primary">{share.owner}</span>
@@ -115,7 +115,7 @@ function HookRows(props: {
               </span>
             </div>
             <div
-              className={`h-1 rounded ${hook.outcome.problem ? "bg-danger-graphic" : "bg-border-strong"}`}
+              className={`h-1 rounded-sm ${hook.outcome.problem ? "bg-danger-graphic" : "bg-border-strong"}`}
               style={{ width: `${Math.max(1, Math.round((hook.ms / longest) * 100))}%` }}
             />
           </li>
@@ -146,7 +146,7 @@ function Bar(props: { readonly bar: CompositionBarVM; readonly focus: string | n
         </span>
       </div>
       <div
-        className="flex h-3 overflow-hidden rounded"
+        className="flex h-3 overflow-hidden rounded-sm"
         role="img"
         aria-label={t("desktop.measure.turn.bars")}
       >

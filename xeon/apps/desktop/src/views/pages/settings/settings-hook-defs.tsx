@@ -299,7 +299,7 @@ export function HookDefsEditor(props: DedicatedEditorProps): ReactNode {
                   point: editing.confirm.point,
                 })}
               </p>
-              <code className="block break-all rounded-sm bg-surface-sunken p-2 text-mono-sm">
+              <code className="block break-all rounded-sm bg-bg-inset p-2 text-mono-sm">
                 {commandLineOf(editing.confirm.command)}
               </code>
               {warning}
