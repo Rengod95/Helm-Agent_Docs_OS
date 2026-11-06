@@ -41,7 +41,10 @@ export function threadSwitchOf(entry: ExtListEntry, threadOpen: boolean): Thread
   if (!threadOpen) return { kind: "locked", lock: "no_thread", on };
   const lock = lockOf(entry);
   if (lock === "safe_mode" || lock === "managed") return { kind: "locked", lock, on };
-  if (entry.status === "disabled") return { kind: "locked", lock: "global_off", on };
+  // 이 대화에서 끈 값(`thread`)이 전체 상태를 "꺼짐"으로 보이게 할 수 있다(대화가 하나뿐일 때). 그때는 전역이 꺼진 것이 아니므로 잠그지 않는다(rtC R-4)
+  if (entry.status === "disabled" && entry.enabledSource !== "thread") {
+    return { kind: "locked", lock: "global_off", on };
+  }
   return { kind: "open", on };
 }
 

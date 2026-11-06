@@ -296,7 +296,7 @@ export function createSession(
  * 대화 화면으로 간다. 플러그인 화면은 셸의 화면 자리(`places.chat.screen`)에 있으므로 스토어의 화면만 바꾸면 돌아가지 않는다(rtC R-2).
  * 앱 셸의 `showChat`과 같은 순서다
  */
-function useShowChat(): () => void {
+export function useShowChat(): () => void {
   const commands = useCommands();
   // 셸 없이 그린 화면(시험, 따로 끼운 곳)에서는 스토어 화면만 바꾼다
   const shell = useContext(ShellStoreContext)?.actions;
