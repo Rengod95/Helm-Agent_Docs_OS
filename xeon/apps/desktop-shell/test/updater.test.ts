@@ -6,6 +6,7 @@ import {
   classifyError,
   createUpdaterModule,
   feedFromText,
+  feedOf,
   isConfigured,
   type UpdateCandidate,
   type UpdaterBackend,
@@ -154,6 +155,9 @@ describe("feed configuration", () => {
       { provider: "generic", url: 5 },
       { provider: "generic", url: null },
       { provider: "github", url: FEED_URL },
+      { provider: "github", owner: "acme" },
+      { provider: "github", owner: "acme", repo: "a/b" },
+      { provider: "github", owner: "", repo: "app" },
     ];
     for (const config of configs) {
       expect(isConfigured(config)).toBe(false);
@@ -163,6 +167,19 @@ describe("feed configuration", () => {
   test("a filled-in generic feed is configured, and padding around the url is ignored", () => {
     expect(isConfigured({ provider: "generic", url: FEED_URL })).toBe(true);
     expect(isConfigured({ provider: "generic", url: `  ${FEED_URL} ` })).toBe(true);
+  });
+
+  test("a github feed needs a plain owner and repo name", () => {
+    expect(feedOf({ provider: "github", owner: " acme ", repo: "fresnel.app" })).toEqual({
+      provider: "github",
+      owner: "acme",
+      repo: "fresnel.app",
+    });
+    expect(feedFromText('{"provider":"github","owner":"acme","repo":"app"}')).toEqual({
+      provider: "github",
+      owner: "acme",
+      repo: "app",
+    });
   });
 
   test("a malformed or non-object feed file is not configured", () => {

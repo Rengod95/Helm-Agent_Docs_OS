@@ -24,7 +24,11 @@ async function loadUpdater(feed: UpdateFeed): Promise<AppUpdater> {
   const mod = await import("electron-updater");
   // CJS 모듈의 이름 붙은 내보내기는 ESM 적재기가 정적으로 못 찾을 수 있어 `default`로 읽는다
   const updater = mod.default.autoUpdater;
-  updater.setFeedURL({ provider: "generic", url: feed.url });
+  updater.setFeedURL(
+    feed.provider === "github"
+      ? { provider: "github", owner: feed.owner, repo: feed.repo }
+      : { provider: "generic", url: feed.url },
+  );
   updater.autoDownload = false;
   updater.autoInstallOnAppQuit = false;
   return updater;

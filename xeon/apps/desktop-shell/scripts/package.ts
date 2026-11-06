@@ -1,13 +1,13 @@
 // @electron/packager로 Fresnel.app(macOS arm64)을 만든다(L4.desktop.spec §11.7). UI 번들과 엔진 사이드카는 Resources에 넣고
 // (옛 Tauri 구현의 externalBin과 같은 자리), 고지 파일은 Resources/licenses/에 모은다. 서명과 공증은 이 스크립트가 아니라
 // xeon/scripts/electron-sign.sh가 하고(`just desktop-sign-electron`), 업데이트 피드(Resources/update-feed.json)는
-// build/update-feed.json이 있을 때만 넣는다(값은 사용자 몫).
+// build/update-feed.json이나 env FRESNEL_UPDATE_REPO가 있을 때만 넣는다(값은 사용자 몫).
 // env: FRESNEL_RELEASE_VERSION (앱 버전, 기본은 package.json), FRESNEL_APP_OUT (출력 폴더, 기본 dist-app)
 // 도구 선택: packager는 설정 없이 .app만 만들고 서명·공증·업데이트는 따로 붙일 수 있어 electron-builder보다 얇다.
-import { copyFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { packager } from "@electron/packager";
-import { dirBytes, localeDirsOf, mibOf, pruneLocales } from "./package-lib.ts";
+import { dirBytes, githubFeedText, localeDirsOf, mibOf, pruneLocales } from "./package-lib.ts";
 
 const root = import.meta.dirname;
 const shell = path.resolve(root, "..");
@@ -68,7 +68,15 @@ copyFileSync(
   path.join(addonStage, "build", "Release", "mac_security.node"),
 );
 
-const feed = path.join(shell, "build", "update-feed.json");
+// 업데이트 피드: build/update-feed.json이 있으면 그것을, 없고 FRESNEL_UPDATE_REPO(소유자/저장소)가 맞으면 GitHub Releases 피드를 만든다.
+// 둘 다 없으면 피드 없이 묶는다(앱은 "업데이트를 확인할 수 없어요"를 보인다). 저장소가 비공개면 앱이 못 읽는다(공개 릴리스 저장소는 사용자 몫)
+const feedSource = path.join(shell, "build", "update-feed.json");
+const generated = githubFeedText(process.env["FRESNEL_UPDATE_REPO"]);
+let feed = feedSource;
+if (!existsSync(feedSource) && generated !== null) {
+  feed = path.join(stage, "update-feed.json");
+  writeFileSync(feed, generated);
+}
 const extraResource = [
   path.join(desktop, "dist", "ui"),
   path.join(desktop, "dist", "sidecar", "fresnel-aarch64-apple-darwin"),

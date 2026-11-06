@@ -67,15 +67,30 @@ export type ErrorClass =
   | { readonly kind: "offline" }
   | { readonly kind: "failed"; readonly reason: "signature" | "no_release" | "network" | "other" };
 
-/** 설정 파일(`update-feed.json`)의 모양. 배포 주소 하나를 가진 일반 제공자다 */
-export interface UpdateFeed {
-  readonly provider: "generic";
-  readonly url: string;
-}
+/**
+ * 설정 파일(`update-feed.json`)의 모양. 배포 주소 하나를 가진 `generic`이거나, GitHub Releases 저장소를 가리키는 `github`이다
+ * (피드는 GitHub Releases로 정했다. 저장소가 비공개면 앱이 읽지 못한다)
+ */
+export type UpdateFeed =
+  | { readonly provider: "generic"; readonly url: string }
+  | { readonly provider: "github"; readonly owner: string; readonly repo: string };
 
-/** 설정 객체를 읽는다. `provider`가 `"generic"`이고 `url`이 공백 아닌 문자열일 때만 피드를 돌려준다. 그 밖의 모양은 모두 `null`이다 */
+/** GitHub 소유자·저장소 이름으로 쓸 수 있는 글자만 허용한다(주소 조각이라 `/`와 공백을 막는다) */
+const GITHUB_NAME = /^[A-Za-z0-9._-]{1,100}$/u;
+
+/** 설정 객체를 읽는다. 알려진 제공자(`generic`, `github`)의 필수 값이 모두 있을 때만 피드를 돌려준다. 그 밖의 모양은 모두 `null`이다 */
 export function feedOf(config: unknown): UpdateFeed | null {
   const provider: unknown = fieldOf(config, "provider");
+  if (provider === "github") {
+    const owner: unknown = fieldOf(config, "owner");
+    const repo: unknown = fieldOf(config, "repo");
+    if (typeof owner !== "string" || typeof repo !== "string") return null;
+    const o = owner.trim();
+    const r = repo.trim();
+    return GITHUB_NAME.test(o) && GITHUB_NAME.test(r)
+      ? { provider: "github", owner: o, repo: r }
+      : null;
+  }
   const url: unknown = fieldOf(config, "url");
   if (provider !== "generic" || typeof url !== "string") return null;
   const trimmed = url.trim();

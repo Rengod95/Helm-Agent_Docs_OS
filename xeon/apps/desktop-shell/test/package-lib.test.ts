@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import {
   dirBytes,
+  githubFeedText,
   isPrunableLocaleDir,
   KEPT_LOCALES,
   localeDirsOf,
@@ -67,5 +68,19 @@ describe("sizes and places", () => {
       "/x/Fresnel.app/Contents/Resources",
       "/x/Fresnel.app/Contents/Frameworks/Electron Framework.framework/Versions/A/Resources",
     ]);
+  });
+});
+
+describe("githubFeedText", () => {
+  test("builds a github feed from owner/repo", () => {
+    expect(githubFeedText(" acme/fresnel.app ")).toBe(
+      '{"provider":"github","owner":"acme","repo":"fresnel.app"}\n',
+    );
+  });
+
+  test("anything else is null", () => {
+    for (const bad of [undefined, "", "acme", "a/b/c", "a b/c", "/c", "a/"]) {
+      expect(githubFeedText(bad)).toBeNull();
+    }
   });
 });
