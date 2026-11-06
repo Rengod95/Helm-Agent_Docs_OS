@@ -2724,7 +2724,7 @@
   "desktop.tools.offline": "연결이 끊겨 도구와 웹 정보를 볼 수 없어요",
   "desktop.tools.load.failed": "도구와 웹 정보를 읽지 못했어요",
   "desktop.tools.retry": "다시 읽기",
-  "desktop.providers.pool.empty": "계정이 없어요. 기본 키를 써요",
+  "desktop.providers.pool.empty": "계정 풀이 비어 있어요",
   "desktop.providers.pool.unreadable": "계정 값을 읽을 수 없어요. 파일로 보기에서 고쳐 주세요",
   "desktop.providers.pool.listLabel": "{provider} 계정 순서",
   "desktop.providers.pool.remove": "지우기",

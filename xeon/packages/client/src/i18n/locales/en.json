@@ -2724,7 +2724,7 @@
   "desktop.tools.offline": "Disconnected. Tools and web are unavailable",
   "desktop.tools.load.failed": "Could not load tools and web",
   "desktop.tools.retry": "Retry",
-  "desktop.providers.pool.empty": "No accounts. The default key is used",
+  "desktop.providers.pool.empty": "The account pool is empty",
   "desktop.providers.pool.unreadable": "The accounts value cannot be read. Fix it in the file view",
   "desktop.providers.pool.listLabel": "{provider} account order",
   "desktop.providers.pool.remove": "Remove",
