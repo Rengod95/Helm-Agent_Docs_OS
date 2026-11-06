@@ -116,6 +116,29 @@ function html(props: SettingsPageProps): string {
   );
 }
 
+/** 설정 파일 카드의 줄을 용어, 값, 고정폭 여부, 복사 단추 유무로 뽑는다. 카드는 제목 자리의 aria-label부터 정보와 진단 카드 전까지다 */
+function fileRowsOf(out: string): readonly FileRowView[] {
+  const from = out.indexOf(`aria-label="${t("desktop.settings.overview.files.title")}"`);
+  const to = out.indexOf(`aria-label="${t("desktop.settings.about.title")}"`, from);
+  const card = out.slice(from, to);
+  return card
+    .split('data-slot="list-description-row"')
+    .slice(1)
+    .map((row) => ({
+      term: row.match(/data-slot="list-description-term"[^>]*>([^<]*)</)?.[1] ?? "",
+      value: row.match(/data-slot="list-description-value-text"[^>]*>([^<]*)</)?.[1] ?? "",
+      mono: row.includes('data-mono="true"'),
+      copy: row.includes('aria-label="Copy '),
+    }));
+}
+
+interface FileRowView {
+  readonly term: string;
+  readonly value: string;
+  readonly mono: boolean;
+  readonly copy: boolean;
+}
+
 const SETTINGS = [
   settingOf(MODEL.key, "sonnet"),
   settingOf(STEPS.key, 3),
@@ -621,24 +644,41 @@ describe("overview tab sections", () => {
     expect(out).not.toContain(t("desktop.settings.about.openLogs"));
   });
 
-  test("draws the 설정 파일 card with the user, project and managed paths, and none when no path was read", () => {
-    const withPaths = html(
+  test("the 설정 파일 card has the user, project and managed rows in that order, and an unknown path shows 없음 in plain text with no copy button", () => {
+    const out = html(
       propsOf({
         view,
         tab: "overview",
         filePaths: [
           { scope: "user", path: "/home/me/.fresnel/settings.json" },
-          { scope: "project", path: "/repo/.fresnel/settings.json" },
+          { scope: "project", path: null },
           { scope: "managed", path: "/etc/fresnel/managed.json" },
         ],
       }),
     );
-    expect(withPaths).toContain(t("desktop.settings.overview.files.title"));
-    expect(withPaths).toContain("~/.fresnel/settings.json");
-    expect(withPaths).not.toContain("/home/me");
-    expect(withPaths).toContain("/repo/.fresnel/settings.json");
-    expect(withPaths).toContain("/etc/fresnel/managed.json");
-    expect(withPaths).toContain(t("desktop.settings.overview.files.managed"));
+    expect(fileRowsOf(out)).toEqual([
+      {
+        term: t("desktop.settings.overview.files.user"),
+        value: "~/.fresnel/settings.json",
+        mono: true,
+        copy: true,
+      },
+      {
+        term: t("desktop.settings.overview.files.project"),
+        value: t("desktop.settings.overview.files.none"),
+        mono: false,
+        copy: false,
+      },
+      {
+        term: t("desktop.settings.overview.files.managed"),
+        value: "/etc/fresnel/managed.json",
+        mono: true,
+        copy: true,
+      },
+    ]);
+  });
+
+  test("the 설정 파일 card is hidden when there are no rows, as when the connection is not live", () => {
     expect(html(propsOf({ view, tab: "overview" }))).not.toContain(
       t("desktop.settings.overview.files.title"),
     );

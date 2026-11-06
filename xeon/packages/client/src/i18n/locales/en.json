@@ -1616,6 +1616,7 @@
   "desktop.settings.overview.files.user": "User",
   "desktop.settings.overview.files.project": "Project",
   "desktop.settings.overview.files.managed": "Managed policy",
+  "desktop.settings.overview.files.none": "None",
   "desktop.settings.overview.copyDiagnostics": "Copy diagnostics",
   "desktop.settings.overview.copied": "Copied",
   "desktop.settings.overview.state": "Current state",

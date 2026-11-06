@@ -1,6 +1,30 @@
 import { describe, expect, test } from "bun:test";
-import { pathThreadIdOf, shortenHome } from "../../src/views/pages/settings/settings-file-paths.ts";
+import { err, ok } from "@fresnel/contracts";
+import {
+  PATH_SCOPES,
+  pathRowOf,
+  pathThreadIdOf,
+  shortenHome,
+} from "../../src/views/pages/settings/settings-file-paths.ts";
 import { thr } from "../state/helpers.ts";
+
+describe("settings file rows", () => {
+  test("the rows are read in the order user, project, managed", () => {
+    expect([...PATH_SCOPES]).toEqual(["user", "project", "managed"]);
+  });
+
+  test("a read with a path keeps the path, and a null path or a failed read leaves the path unknown", () => {
+    expect(pathRowOf("user", ok({ path: "/home/me/.fresnel/settings.json" }))).toEqual({
+      scope: "user",
+      path: "/home/me/.fresnel/settings.json",
+    });
+    expect(pathRowOf("project", ok({ path: null }))).toEqual({ scope: "project", path: null });
+    expect(pathRowOf("managed", err({ kind: "offline" }))).toEqual({
+      scope: "managed",
+      path: null,
+    });
+  });
+});
 
 describe("shortenHome", () => {
   test("replaces a macOS or Linux home prefix with ~", () => {
