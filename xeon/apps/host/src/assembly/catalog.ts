@@ -36,6 +36,7 @@ import {
   operationsSettings,
   primitivesSettings,
   reservedExtensionSettings,
+  uiSettings,
 } from "@fresnel/ext-host";
 import { EXEC_SETTING_DEFS } from "@fresnel/platform-exec";
 import { OS_SETTING_DEFS } from "@fresnel/platform-os";
@@ -72,6 +73,7 @@ export function coreSettingGroups(): readonly CatalogGroupInput[] {
     ofGroup("ext-host", primitivesSettings),
     ofGroup("ext-host", operationsSettings),
     ofGroup("ext-host", loadingTrustSettings),
+    ofGroup("ext-host", uiSettings),
     ofDefs("platform-os", "l0.os", OS_SETTING_DEFS),
     ofDefs("platform-store", "l0.store", STORE_SETTING_DEFS),
     ofDefs("platform-exec", "l0.exec", EXEC_SETTING_DEFS),
