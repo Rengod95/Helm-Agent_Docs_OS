@@ -50,7 +50,7 @@ export function WipeDialog({
           {phase === "wiping" ? (
             <Progress decorative size="xs" className="w-40" />
           ) : (
-            <Button size="sm" tone="neutral" onClick={onClose}>
+            <Button size="sm" onClick={onClose}>
               다시 시작
             </Button>
           )}
@@ -73,17 +73,17 @@ export function WipeDialog({
       footer={
         blocked ? (
           <DialogClose asChild>
-            <Button size="sm" tone="neutral" variant="outline" autoFocus>
+            <Button size="sm" variant="outline" autoFocus>
               닫기
             </Button>
           </DialogClose>
         ) : (
           <>
-            <Button size="sm" tone="neutral" variant="ghost" className="me-auto">
+            <Button size="sm" variant="ghost" className="me-auto">
               먼저 내보내기…
             </Button>
             <DialogClose asChild>
-              <Button size="sm" tone="neutral" variant="outline" autoFocus>
+              <Button size="sm" variant="outline" autoFocus>
                 취소
               </Button>
             </DialogClose>

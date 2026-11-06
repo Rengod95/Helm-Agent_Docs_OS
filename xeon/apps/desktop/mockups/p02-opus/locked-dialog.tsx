@@ -14,13 +14,12 @@ export function LockedDialog() {
       title="이 대화는 다른 창에서 쓰고 있어요"
       footer={
         <>
-          <Button size="sm" tone="neutral" variant="ghost" onClick={close}>
+          <Button size="sm" variant="ghost" onClick={close}>
             닫기
           </Button>
           <span aria-hidden className="flex-1" />
           <Button
             size="sm"
-            tone="neutral"
             variant="outline"
             onClick={() => {
               close();
@@ -31,7 +30,6 @@ export function LockedDialog() {
           </Button>
           <Button
             size="sm"
-            tone="neutral"
             variant="solid"
             autoFocus
             onClick={() => {

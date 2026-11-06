@@ -62,13 +62,7 @@ export function ViewHost({
           </span>
         }
         actions={
-          <Button
-            size="xs"
-            tone="neutral"
-            variant="outline"
-            iconStart={<MessageSquare />}
-            onClick={onBackToChat}
-          >
+          <Button size="xs" variant="outline" iconStart={<MessageSquare />} onClick={onBackToChat}>
             대화로
           </Button>
         }
@@ -84,7 +78,7 @@ export function ViewHost({
               title={`${title.split(" ")[0]}이 꺼져 있어요`}
               description={disabledReason}
               actions={
-                <Button size="xs" tone="neutral" variant="outline" onClick={onOpenDetail}>
+                <Button size="xs" variant="outline" onClick={onOpenDetail}>
                   확장 상세 열기
                 </Button>
               }
@@ -96,7 +90,7 @@ export function ViewHost({
               surface="none"
               title="이 화면이 연속 실패해 꺼졌어요"
               actions={
-                <Button size="xs" tone="neutral" variant="outline" onClick={onReenableView}>
+                <Button size="xs" variant="outline" onClick={onReenableView}>
                   다시 켜기
                 </Button>
               }

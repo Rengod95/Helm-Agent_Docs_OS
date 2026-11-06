@@ -54,13 +54,7 @@ export function PluginCard({
         )}
       </div>
       {clipped && (
-        <Button
-          size="xs"
-          tone="neutral"
-          variant="ghost"
-          className="-ms-2 justify-self-start"
-          onClick={onMore}
-        >
+        <Button size="xs" variant="ghost" className="-ms-2 justify-self-start" onClick={onMore}>
           더 보기
         </Button>
       )}
@@ -101,13 +95,7 @@ export function GenericItem({
         />
         <span className="flex-none font-mono text-mono-sm text-text-tertiary">{kind}</span>
         <span className="truncate">{summary}</span>
-        <Button
-          size="xs"
-          tone="neutral"
-          variant="ghost"
-          className="ms-auto -my-1 flex-none"
-          onClick={onLog}
-        >
+        <Button size="xs" variant="ghost" className="ms-auto -my-1 flex-none" onClick={onLog}>
           기록
         </Button>
       </div>
@@ -165,7 +153,7 @@ export function HelmFinishedTree({ tall, onOpenPage }: { tall: boolean; onOpenPa
         </section>
       )}
       <div>
-        <Button size="xs" tone="neutral" variant="outline" onClick={onOpenPage}>
+        <Button size="xs" variant="outline" onClick={onOpenPage}>
           {T.inquiry} 화면 열기
         </Button>
       </div>

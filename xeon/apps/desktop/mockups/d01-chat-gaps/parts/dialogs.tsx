@@ -39,11 +39,11 @@ export function RenameDialog({
       footer={
         <>
           <DialogClose asChild>
-            <Button size="sm" tone="neutral" variant="outline">
+            <Button size="sm" variant="outline">
               취소
             </Button>
           </DialogClose>
-          <Button size="sm" tone="neutral" disabled={empty} onClick={() => onSave(v.trim())}>
+          <Button size="sm" disabled={empty} onClick={() => onSave(v.trim())}>
             저장
           </Button>
         </>
@@ -105,14 +105,14 @@ export function DeleteThreadDialog({
       footer={
         f.running ? (
           <DialogClose asChild>
-            <Button size="sm" tone="neutral" variant="outline" autoFocus>
+            <Button size="sm" variant="outline" autoFocus>
               닫기
             </Button>
           </DialogClose>
         ) : (
           <>
             <DialogClose asChild>
-              <Button size="sm" tone="neutral" variant="outline" autoFocus>
+              <Button size="sm" variant="outline" autoFocus>
                 취소
               </Button>
             </DialogClose>
@@ -162,7 +162,7 @@ export function DeleteScheduleDialog({
       footer={
         <>
           <DialogClose asChild>
-            <Button size="sm" tone="neutral" variant="outline" autoFocus>
+            <Button size="sm" variant="outline" autoFocus>
               취소
             </Button>
           </DialogClose>
@@ -216,11 +216,11 @@ export function ExportDialog({
       footer={
         <>
           <DialogClose asChild>
-            <Button size="sm" tone="neutral" variant="outline">
+            <Button size="sm" variant="outline">
               취소
             </Button>
           </DialogClose>
-          <Button size="sm" tone="neutral" loading={phase === "saving"} onClick={onSave}>
+          <Button size="sm" loading={phase === "saving"} onClick={onSave}>
             {phase === "fail" ? "다른 곳에 저장…" : "저장…"}
           </Button>
         </>

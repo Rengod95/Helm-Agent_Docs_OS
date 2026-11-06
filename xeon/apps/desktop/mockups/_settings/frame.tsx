@@ -245,10 +245,10 @@ export function SettingsFrame({
                   <span role="status" className="me-auto text-ui-sm text-text-secondary">
                     저장하지 않은 변경 {draft.count}개
                   </span>
-                  <Button size="sm" tone="neutral" variant="ghost">
+                  <Button size="sm" variant="ghost">
                     되돌리기
                   </Button>
-                  <Button size="sm" tone="neutral" variant="solid" disabled={draft.saving}>
+                  <Button size="sm" variant="solid" disabled={draft.saving}>
                     {draft.saving === true ? "저장 중" : "저장"}
                   </Button>
                 </FormLayoutFooter>

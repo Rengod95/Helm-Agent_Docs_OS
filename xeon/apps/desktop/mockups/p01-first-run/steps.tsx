@@ -132,7 +132,6 @@ function ToolsStep() {
         <Write>
           <Button
             size="xs"
-            tone="neutral"
             variant="outline"
             iconStart={<RotateCcw />}
             disabled={m.offline}
@@ -207,7 +206,6 @@ function KeyStep() {
             <Write>
               <Button
                 size="sm"
-                tone="neutral"
                 variant="solid"
                 disabled={m.offline}
                 loading={m.busy === "key"}
@@ -250,13 +248,7 @@ function ModelStep() {
             groups={models}
             className="w-56"
           />
-          <Button
-            size="sm"
-            tone="neutral"
-            variant="solid"
-            loading={m.busy === "model"}
-            onClick={m.saveModel}
-          >
+          <Button size="sm" variant="solid" loading={m.busy === "model"} onClick={m.saveModel}>
             저장
           </Button>
         </span>
@@ -303,7 +295,7 @@ function GroupsStep() {
         className={`${LIST} [--cs-size-list-term:6rem]`}
       >
         <ListDescriptionRow term="내 그룹">
-          <Button size="xs" tone="neutral" variant="outline">{`새 ${T.group}`}</Button>
+          <Button size="xs" variant="outline">{`새 ${T.group}`}</Button>
         </ListDescriptionRow>
         <ListDescriptionRow term="안전 모드">
           <span className="text-text-secondary">
@@ -312,7 +304,7 @@ function GroupsStep() {
         </ListDescriptionRow>
       </ListDescription>
       <div>
-        <Button size="xs" tone="neutral" variant="solid" onClick={m.confirmGroups}>
+        <Button size="xs" variant="solid" onClick={m.confirmGroups}>
           이대로 쓰기
         </Button>
       </div>
@@ -345,7 +337,7 @@ function SearchStep() {
               containerClassName="min-w-0 flex-1 max-w-64"
               className="font-mono"
             />
-            <Button size="sm" tone="neutral" variant="outline">
+            <Button size="sm" variant="outline">
               확인
             </Button>
             <span className="text-ui-xs text-text-tertiary">연결 안 됨</span>
@@ -358,7 +350,7 @@ function SearchStep() {
               {r.state === "needs-key" ? (
                 <>
                   <span className="text-ui-xs text-text-tertiary">키 없음</span>
-                  <Button size="xs" tone="neutral" variant="outline">
+                  <Button size="xs" variant="outline">
                     키 등록
                   </Button>
                 </>
@@ -373,7 +365,7 @@ function SearchStep() {
         ))}
       </ListDescription>
       <div>
-        <Button size="xs" tone="neutral" variant="ghost" onClick={m.dismissSearch}>
+        <Button size="xs" variant="ghost" onClick={m.dismissSearch}>
           나중에
         </Button>
       </div>

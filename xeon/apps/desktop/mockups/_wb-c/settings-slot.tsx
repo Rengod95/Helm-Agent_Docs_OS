@@ -62,13 +62,7 @@ export function SettingsSlot({
             </ListDescription>
           )}
           {onOpenPage !== undefined && (
-            <Button
-              size="xs"
-              tone="neutral"
-              variant="ghost"
-              className="-ms-2 w-fit"
-              onClick={onOpenPage}
-            >
+            <Button size="xs" variant="ghost" className="-ms-2 w-fit" onClick={onOpenPage}>
               {extName(ext)} {T.inquiry} 화면 열기
             </Button>
           )}

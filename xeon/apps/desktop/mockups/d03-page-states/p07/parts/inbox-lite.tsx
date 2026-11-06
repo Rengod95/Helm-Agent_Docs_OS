@@ -35,7 +35,7 @@ export function InboxLite() {
               {approvals.a2.thread} · {approvals.a2.at}
             </span>
           </span>
-          <Button size="xs" tone="neutral" variant="ghost">
+          <Button size="xs" variant="ghost">
             답하기
           </Button>
         </div>
@@ -47,7 +47,7 @@ export function InboxLite() {
               {proposal.kind} <span className="font-mono text-mono-sm">{proposal.target}</span>{" "}
               <span className="text-text-tertiary">{proposal.extra}</span>
             </div>
-            <Button size="xs" tone="neutral" variant="ghost">
+            <Button size="xs" variant="ghost">
               열기
             </Button>
           </div>

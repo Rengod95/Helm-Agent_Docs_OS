@@ -102,13 +102,7 @@ export function QuestionCard({
           <p className="m-0 min-w-0 flex-1 truncate font-voice text-voice-sm text-text-primary">
             {q.text}
           </p>
-          <Button
-            size="xs"
-            tone="neutral"
-            variant="outline"
-            disabled={locked}
-            onClick={summary.onOpen}
-          >
+          <Button size="xs" variant="outline" disabled={locked} onClick={summary.onOpen}>
             답하기
           </Button>
         </div>
@@ -143,11 +137,11 @@ export function QuestionCard({
             />
           )}
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            <Button size="sm" tone="neutral" variant="ghost" onClick={onDeny}>
+            <Button size="sm" variant="ghost" onClick={onDeny}>
               거부
             </Button>
             <span aria-hidden className="flex-1" />
-            <Button size="sm" tone="neutral" variant="solid" disabled={!ready} onClick={onAnswer}>
+            <Button size="sm" variant="solid" disabled={!ready} onClick={onAnswer}>
               답하기
             </Button>
           </div>

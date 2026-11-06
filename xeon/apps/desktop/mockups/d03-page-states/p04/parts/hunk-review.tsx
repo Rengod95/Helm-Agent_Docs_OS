@@ -56,10 +56,10 @@ export function CommentBox({
             placeholder="이 줄에 남길 의견"
           />
           <div className="flex justify-end gap-1">
-            <Button size="xs" tone="neutral" variant="ghost" onClick={onDone}>
+            <Button size="xs" variant="ghost" onClick={onDone}>
               취소
             </Button>
-            <Button size="xs" tone="neutral" variant="solid" onClick={onDone}>
+            <Button size="xs" variant="solid" onClick={onDone}>
               의견 남기기
             </Button>
           </div>
@@ -68,10 +68,10 @@ export function CommentBox({
         comment !== null && (
           <div className="flex min-w-0 items-start gap-2 rounded-lg bg-neutral-track px-2.5 py-1.5">
             <p className="m-0 min-w-0 flex-1 text-ui-sm text-text-primary">{comment.text}</p>
-            <Button size="xs" tone="neutral" variant="ghost" onClick={onEdit}>
+            <Button size="xs" variant="ghost" onClick={onEdit}>
               고치기
             </Button>
-            <Button size="xs" tone="neutral" variant="ghost">
+            <Button size="xs" variant="ghost">
               지우기
             </Button>
           </div>
@@ -134,7 +134,6 @@ export function HunkReview({
         <span className="flex items-center gap-0.5">
           <Button
             size="xs"
-            tone="neutral"
             variant={decision === "approved" ? "soft" : "ghost"}
             aria-pressed={decision === "approved"}
             disabled={locked}
@@ -144,7 +143,6 @@ export function HunkReview({
           </Button>
           <Button
             size="xs"
-            tone="neutral"
             variant={decision === "rejected" ? "soft" : "ghost"}
             aria-pressed={decision === "rejected"}
             disabled={locked}
@@ -152,7 +150,7 @@ export function HunkReview({
           >
             거절
           </Button>
-          <Button size="xs" tone="neutral" variant="ghost" disabled={locked} onClick={onComment}>
+          <Button size="xs" variant="ghost" disabled={locked} onClick={onComment}>
             의견
           </Button>
         </span>

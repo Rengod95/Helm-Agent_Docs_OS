@@ -113,7 +113,7 @@ export function WebLogin({
           <Checkbox defaultChecked />
           {L2("이 브라우저에서 30일 기억하기", "Remember on this browser for 30 days")}
         </label>
-        <Button size="md" tone="neutral" variant="solid" type="submit" loading={busy}>
+        <Button size="md" variant="solid" type="submit" loading={busy}>
           {busy ? L2("연결 중…", "Connecting…") : L2("연결", "Connect")}
         </Button>
       </form>

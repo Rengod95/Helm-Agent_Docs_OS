@@ -191,10 +191,10 @@ function ScopePicker({
         ))}
       </RadioGroup>
       <div className="flex justify-end gap-1 pt-1">
-        <Button size="xs" tone="neutral" variant="ghost" onClick={onClose}>
+        <Button size="xs" variant="ghost" onClick={onClose}>
           취소
         </Button>
-        <Button size="xs" tone="neutral" variant="solid" onClick={onApply}>
+        <Button size="xs" variant="solid" onClick={onApply}>
           켜기
         </Button>
       </div>
@@ -300,7 +300,7 @@ export function App({ state }: { state: StateId }) {
       );
     if (r.state === "auto")
       return (
-        <Button size="xs" tone="neutral" variant="outline" className="-me-1">
+        <Button size="xs" variant="outline" className="-me-1">
           다시 켜기
         </Button>
       );
@@ -375,10 +375,10 @@ export function App({ state }: { state: StateId }) {
             title={T.extension}
             actions={
               <>
-                <Button size="xs" tone="neutral" variant="ghost" className="max-compact:hidden">
+                <Button size="xs" variant="ghost" className="max-compact:hidden">
                   가져오기
                 </Button>
-                <Button size="xs" tone="neutral" variant="outline">
+                <Button size="xs" variant="outline">
                   새 {T.group}
                 </Button>
               </>

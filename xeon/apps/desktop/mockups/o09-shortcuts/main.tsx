@@ -130,11 +130,11 @@ function ShortcutsDialog({
       title="바로 가기 키"
       footer={
         <>
-          <Button size="sm" tone="neutral" variant="ghost">
+          <Button size="sm" variant="ghost">
             설정에서 바꾸기
           </Button>
           <span aria-hidden className="flex-1" />
-          <Button size="sm" tone="neutral" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button size="sm" variant="outline" onClick={() => onOpenChange(false)}>
             닫기
           </Button>
         </>

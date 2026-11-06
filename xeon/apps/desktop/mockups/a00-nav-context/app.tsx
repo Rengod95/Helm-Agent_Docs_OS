@@ -291,7 +291,7 @@ export function App({ state }: { state: StateId }) {
         footer={
           <>
             <DialogClose asChild>
-              <Button size="sm" tone="neutral" variant="outline" autoFocus>
+              <Button size="sm" variant="outline" autoFocus>
                 취소
               </Button>
             </DialogClose>

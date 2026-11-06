@@ -59,16 +59,16 @@ export function ModelsTab({ state }: { state: State }) {
           extra={
             draft ? (
               <div className="flex gap-1">
-                <Button size="xs" tone="neutral" variant="outline">
+                <Button size="xs" variant="outline">
                   그 값 쓰기
                 </Button>
-                <Button size="xs" tone="neutral" variant="ghost">
+                <Button size="xs" variant="ghost">
                   내 값 유지
                 </Button>
               </div>
             ) : err ? (
               <div>
-                <Button size="xs" tone="neutral" variant="outline">
+                <Button size="xs" variant="outline">
                   다시 시도
                 </Button>
               </div>
@@ -206,7 +206,7 @@ export function ModelsTab({ state }: { state: State }) {
             ))}
           </List>
           <div>
-            <Button size="xs" tone="neutral" variant="ghost" disabled={off}>
+            <Button size="xs" variant="ghost" disabled={off}>
               모델 더하기
             </Button>
           </div>

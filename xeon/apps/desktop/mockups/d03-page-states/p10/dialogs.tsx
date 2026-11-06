@@ -41,11 +41,11 @@ export function ReauthDialog({
       footer={
         <>
           <DialogClose asChild>
-            <Button size="sm" tone="neutral" variant="outline" autoFocus>
+            <Button size="sm" variant="outline" autoFocus>
               취소
             </Button>
           </DialogClose>
-          <Button size="sm" tone="neutral" variant="solid" onClick={onContinue}>
+          <Button size="sm" variant="solid" onClick={onContinue}>
             OS 인증으로 계속
           </Button>
         </>
@@ -71,11 +71,11 @@ export function AddDialog({
       footer={
         <>
           <DialogClose asChild>
-            <Button size="sm" tone="neutral" variant="ghost">
+            <Button size="sm" variant="ghost">
               취소
             </Button>
           </DialogClose>
-          <Button size="sm" tone="neutral" variant="solid">
+          <Button size="sm" variant="solid">
             추가
           </Button>
         </>
@@ -152,14 +152,14 @@ export function DeleteDialog({
       footer={
         inUse ? (
           <DialogClose asChild>
-            <Button size="sm" tone="neutral" variant="outline" autoFocus>
+            <Button size="sm" variant="outline" autoFocus>
               닫기
             </Button>
           </DialogClose>
         ) : (
           <>
             <DialogClose asChild>
-              <Button size="sm" tone="neutral" variant="outline" autoFocus>
+              <Button size="sm" variant="outline" autoFocus>
                 취소
               </Button>
             </DialogClose>

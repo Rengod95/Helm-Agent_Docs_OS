@@ -80,12 +80,11 @@ export function NewThreadDialog({
       footer={
         <>
           <span aria-hidden className="flex-1" />
-          <Button size="sm" tone="neutral" variant="ghost" onClick={() => onOpenChange(false)}>
+          <Button size="sm" variant="ghost" onClick={() => onOpenChange(false)}>
             취소
           </Button>
           <Button
             size="sm"
-            tone="neutral"
             variant="solid"
             loading={busy}
             disabled={hint !== null}

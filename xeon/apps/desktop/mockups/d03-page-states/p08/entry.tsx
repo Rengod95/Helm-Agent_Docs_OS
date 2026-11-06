@@ -139,7 +139,7 @@ function TargetList({
     <Section
       title="대상"
       end={
-        <Button size="xs" tone="neutral" variant="ghost">
+        <Button size="xs" variant="ghost">
           원격 대상 추가
         </Button>
       }
@@ -198,10 +198,10 @@ function TargetList({
             <Input size="sm" defaultValue="tcp://10.0.4.12:7300" invalid className="font-mono" />
           </Field>
           <div className="flex justify-end gap-1.5">
-            <Button size="sm" tone="neutral" variant="ghost">
+            <Button size="sm" variant="ghost">
               취소
             </Button>
-            <Button size="sm" tone="neutral" variant="solid">
+            <Button size="sm" variant="solid">
               저장
             </Button>
           </div>
@@ -212,7 +212,7 @@ function TargetList({
           <span className="min-w-0 flex-1 truncate text-ui-xs text-text-tertiary">
             바꾸면 엔진이 이 대상으로 다시 붙어요.
           </span>
-          <Button size="sm" tone="neutral" variant="solid">
+          <Button size="sm" variant="solid">
             연결
           </Button>
         </div>
@@ -278,7 +278,7 @@ function Detail({ state: full }: { state: S }) {
         <Section title="build-box에 붙는 중">
           <AttachSteps />
           <div>
-            <Button size="xs" tone="neutral" variant="ghost">
+            <Button size="xs" variant="ghost">
               그만두기
             </Button>
           </div>
@@ -353,20 +353,20 @@ function Detail({ state: full }: { state: S }) {
           </Button>
         )}
         {service && t.kind !== "remote" && (
-          <Button size="sm" tone="neutral" variant="ghost" loading={restarting}>
+          <Button size="sm" variant="ghost" loading={restarting}>
             서비스 다시 시작
           </Button>
         )}
         {t.kind === "remote" && (
-          <Button size="sm" tone="neutral" variant="ghost">
+          <Button size="sm" variant="ghost">
             로컬로 돌아가기
           </Button>
         )}
         <span className="flex-1" />
-        <Button size="sm" tone="neutral" variant="ghost">
+        <Button size="sm" variant="ghost">
           진단 복사
         </Button>
-        <Button size="sm" tone="neutral" variant="soft">
+        <Button size="sm" variant="soft">
           엔진 다시 시작
         </Button>
       </div>
@@ -382,7 +382,7 @@ function Detail({ state: full }: { state: S }) {
           footer={
             <>
               <DialogClose asChild>
-                <Button size="sm" tone="neutral" variant="outline" autoFocus>
+                <Button size="sm" variant="outline" autoFocus>
                   취소
                 </Button>
               </DialogClose>

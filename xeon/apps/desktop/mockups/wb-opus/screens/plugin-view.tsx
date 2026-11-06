@@ -38,7 +38,6 @@ function HelmTree() {
         </span>
         <Button
           size="xs"
-          tone="neutral"
           variant="outline"
           className="ms-auto"
           onClick={() =>

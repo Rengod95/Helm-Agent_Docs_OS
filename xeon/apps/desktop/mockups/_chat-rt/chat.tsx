@@ -123,7 +123,6 @@ export function RuntimeRow({
       {action !== undefined && (
         <Button
           size="xs"
-          tone="neutral"
           variant="ghost"
           className="ms-auto -my-1 flex-none"
           disabled={action.disabled}
@@ -157,13 +156,7 @@ export function PluginCard({
         </span>
         <span className="font-mono text-mono-sm">{extName(ext)}</span>
         {onMore !== undefined && (
-          <Button
-            size="xs"
-            tone="neutral"
-            variant="ghost"
-            className="ms-auto -me-1.5 -my-1"
-            onClick={onMore}
-          >
+          <Button size="xs" variant="ghost" className="ms-auto -me-1.5 -my-1" onClick={onMore}>
             {moreLabel}
           </Button>
         )}

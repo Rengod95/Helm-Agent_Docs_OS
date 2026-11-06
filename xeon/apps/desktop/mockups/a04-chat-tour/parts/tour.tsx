@@ -106,16 +106,16 @@ export function Tour({
           </>
         )}
         <div className="mt-1 flex items-center gap-1">
-          <Button size="xs" tone="neutral" variant="ghost" onClick={onSkip}>
+          <Button size="xs" variant="ghost" onClick={onSkip}>
             그만 보기
           </Button>
           <span className="flex-1" />
           {at > 0 && (
-            <Button size="xs" tone="neutral" variant="ghost" onClick={onBack}>
+            <Button size="xs" variant="ghost" onClick={onBack}>
               이전
             </Button>
           )}
-          <Button size="xs" tone="neutral" variant="solid" onClick={onNext}>
+          <Button size="xs" variant="solid" onClick={onNext}>
             {last ? "다 봤어요" : "다음"}
           </Button>
         </div>

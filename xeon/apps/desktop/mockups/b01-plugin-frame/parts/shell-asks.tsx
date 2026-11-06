@@ -100,11 +100,11 @@ export function LinkDialog({
         <>
           <span aria-hidden className="flex-1" />
           <DialogClose asChild>
-            <Button size="sm" tone="neutral" variant="outline" autoFocus>
+            <Button size="sm" variant="outline" autoFocus>
               취소
             </Button>
           </DialogClose>
-          <Button size="sm" tone="neutral" variant="solid" onClick={onOpenLink}>
+          <Button size="sm" variant="solid" onClick={onOpenLink}>
             {web ? "새 탭에서 열기" : "브라우저에서 열기"}
           </Button>
         </>
@@ -157,7 +157,7 @@ export function FramesSettingDialog({
           <span className="text-ui-xs text-text-tertiary">설정 › 플러그인과 그룹에도 있어요</span>
           <span aria-hidden className="flex-1" />
           <DialogClose asChild>
-            <Button size="sm" tone="neutral" variant="solid">
+            <Button size="sm" variant="solid">
               닫기
             </Button>
           </DialogClose>
@@ -211,7 +211,7 @@ export function FramesSettingDialog({
               ) : (
                 <span className="inline-flex items-center gap-2">
                   아직 정하지 않았어요
-                  <Button size="xs" tone="neutral" variant="outline" onClick={onTrustFolder}>
+                  <Button size="xs" variant="outline" onClick={onTrustFolder}>
                     이 폴더 신뢰…
                   </Button>
                 </span>

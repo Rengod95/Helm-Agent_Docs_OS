@@ -90,13 +90,7 @@ export function ViewHead({
         </span>
       }
       actions={
-        <Button
-          size="xs"
-          tone="neutral"
-          variant="outline"
-          iconStart={<MessageSquare />}
-          onClick={onBackToChat}
-        >
+        <Button size="xs" variant="outline" iconStart={<MessageSquare />} onClick={onBackToChat}>
           대화로
         </Button>
       }
@@ -218,10 +212,10 @@ export function ConfirmRow({
             <Checkbox size="sm" checked={dontAsk} onCheckedChange={(v) => onDontAsk(v === true)} />
             이 화면에서 묻지 않기
           </label>
-          <Button size="xs" tone="neutral" variant="outline" onClick={onDeny} autoFocus>
+          <Button size="xs" variant="outline" onClick={onDeny} autoFocus>
             거절
           </Button>
-          <Button size="xs" tone="neutral" variant="solid" onClick={onAllow}>
+          <Button size="xs" variant="solid" onClick={onAllow}>
             허용
           </Button>
         </>

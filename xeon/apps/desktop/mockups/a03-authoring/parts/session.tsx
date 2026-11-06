@@ -104,7 +104,7 @@ export function AuthoringPage({ s, onBack }: { s: S; onBack: () => void }) {
         title={`${T.authoring} · ${NAME}`}
         meta={`authoring · ${T.trustBuiltin} · 0.1.0`}
         actions={
-          <Button size="xs" tone="neutral" variant="outline" onClick={onBack}>
+          <Button size="xs" variant="outline" onClick={onBack}>
             {T.thread}로
           </Button>
         }

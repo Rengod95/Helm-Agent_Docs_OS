@@ -164,7 +164,6 @@ export function App({ state }: { state: StateId }) {
                 action={
                   <Button
                     size="xs"
-                    tone="neutral"
                     variant="outline"
                     onClick={() => set({ look: "loading", then: "ready", reconnected: true })}
                   >
@@ -185,7 +184,6 @@ export function App({ state }: { state: StateId }) {
                 action={
                   <Button
                     size="xs"
-                    tone="neutral"
                     variant="outline"
                     onClick={() =>
                       set({ look: "loading", then: "failure", busy: "safe-off", pick: {} })
@@ -209,7 +207,6 @@ export function App({ state }: { state: StateId }) {
                   <span className="flex items-center gap-2">
                     <Button
                       size="xs"
-                      tone="neutral"
                       variant="outline"
                       onClick={() =>
                         set({ look: "loading", then: "safe-mode", busy: "safe-on", pick: {} })
@@ -219,7 +216,6 @@ export function App({ state }: { state: StateId }) {
                     </Button>
                     <Button
                       size="xs"
-                      tone="neutral"
                       variant="outline"
                       onClick={() => done("이번 단계가 끝나면 다시 켜요")}
                     >

@@ -142,7 +142,6 @@ export function App({ state }: { state: StateId }) {
           actions={
             <Button
               size="xs"
-              tone="neutral"
               variant="outline"
               iconStart={<Package />}
               onClick={() => set({ install: "pick", picked: null, checked: 0 })}
@@ -168,7 +167,6 @@ export function App({ state }: { state: StateId }) {
                 action={
                   <Button
                     size="xs"
-                    tone="neutral"
                     variant="outline"
                     onClick={() => {
                       set({ removeError: false });

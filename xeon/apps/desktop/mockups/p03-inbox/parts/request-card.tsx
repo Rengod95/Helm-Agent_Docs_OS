@@ -70,7 +70,6 @@ export function RequestCard({
             <Fragment key={a.id}>
               <Button
                 size="sm"
-                tone="neutral"
                 {...LOOK[a.tone]}
                 disabled={a.disabled === true}
                 onClick={() => onAction?.(a.id)}

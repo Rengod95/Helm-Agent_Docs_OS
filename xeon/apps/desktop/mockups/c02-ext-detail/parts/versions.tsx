@@ -97,7 +97,6 @@ export function VersionsFull({
         v.current === true ? null : (
           <Button
             size="xs"
-            tone="neutral"
             variant="ghost"
             iconStart={<RotateCcw />}
             disabled={offline}
@@ -151,7 +150,6 @@ export function VersionsFull({
                 {v.current !== true && (
                   <Button
                     size="xs"
-                    tone="neutral"
                     variant="ghost"
                     disabled={offline}
                     onClick={() => onAsk(v.version)}
@@ -207,15 +205,15 @@ export function VersionsFallback({ ext, web }: { ext: "learning" | "acme-notes";
       </p>
       <div className="flex flex-wrap gap-1.5">
         {builtin ? (
-          <Button size="sm" tone="neutral" variant="outline" iconStart={<RotateCcw />}>
+          <Button size="sm" variant="outline" iconStart={<RotateCcw />}>
             {`${josa(T.bundledVersion, "으로", "로")} ${T.revert}`}
           </Button>
         ) : web ? (
-          <Button size="sm" tone="neutral" variant="outline" iconStart={<Copy />}>
+          <Button size="sm" variant="outline" iconStart={<Copy />}>
             경로 복사
           </Button>
         ) : (
-          <Button size="sm" tone="neutral" variant="outline" iconStart={<FolderOpen />}>
+          <Button size="sm" variant="outline" iconStart={<FolderOpen />}>
             폴더 열기
           </Button>
         )}
@@ -328,12 +326,12 @@ export function RevertDialog({
         ) : (
           <>
             <DialogClose asChild>
-              <Button size="sm" tone="neutral" variant="outline" autoFocus>
+              <Button size="sm" variant="outline" autoFocus>
                 취소
               </Button>
             </DialogClose>
             {clear && (
-              <Button size="sm" tone="neutral" variant="outline" onClick={() => onGo("code")}>
+              <Button size="sm" variant="outline" onClick={() => onGo("code")}>
                 {T.codeOnlyRevert}
               </Button>
             )}

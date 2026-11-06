@@ -37,13 +37,7 @@ function EventRow({ item }: { item: Extract<ContextItem, { kind: "event" }> }) {
         {item.detail !== undefined && <span className="text-text-tertiary">{item.detail}</span>}
       </div>
       {item.action !== undefined && (
-        <Button
-          size="xs"
-          tone="neutral"
-          variant="ghost"
-          onClick={item.action.onClick}
-          className="-my-0.5"
-        >
+        <Button size="xs" variant="ghost" onClick={item.action.onClick} className="-my-0.5">
           {item.action.label}
         </Button>
       )}

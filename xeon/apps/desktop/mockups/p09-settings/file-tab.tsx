@@ -32,7 +32,7 @@ export function FileTab() {
         tone="warning"
         layout="inline"
         action={
-          <Button size="xs" tone="neutral" variant="outline">
+          <Button size="xs" variant="outline">
             다시 읽기
           </Button>
         }
@@ -48,10 +48,10 @@ export function FileTab() {
         className="font-mono text-mono-sm"
       />
       <div className="flex justify-end gap-1">
-        <Button size="xs" tone="neutral" variant="ghost">
+        <Button size="xs" variant="ghost">
           되돌리기
         </Button>
-        <Button size="xs" tone="neutral" variant="solid" disabled>
+        <Button size="xs" variant="solid" disabled>
           저장
         </Button>
       </div>

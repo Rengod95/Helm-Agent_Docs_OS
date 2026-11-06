@@ -80,7 +80,7 @@ export function TrialDetail({
       case "running":
         return (
           <Band text={`${T.trial} 실행 중`}>
-            <Button size="xs" tone="neutral" variant="outline" onClick={onPause}>
+            <Button size="xs" variant="outline" onClick={onPause}>
               멈춤
             </Button>
           </Band>
@@ -90,10 +90,10 @@ export function TrialDetail({
       case "paused":
         return (
           <Band text={`${T.stepBoundary}에서 멈춤`}>
-            <Button size="xs" tone="neutral" variant="ghost" onClick={onStep}>
+            <Button size="xs" variant="ghost" onClick={onStep}>
               {T.stepOnce}
             </Button>
-            <Button size="xs" tone="neutral" variant="outline" onClick={onResume}>
+            <Button size="xs" variant="outline" onClick={onResume}>
               이어서
             </Button>
           </Band>
@@ -105,12 +105,7 @@ export function TrialDetail({
             tone="danger"
             text={`${extJ(run.target, "이", "가")} ${josa(T.autoDisabled, "이라", "라")} ${josa(T.trial, "을", "를")} 멈췄어요`}
           >
-            <Button
-              size="xs"
-              tone="neutral"
-              variant="outline"
-              onClick={() => goFolder("c03-ext-list")}
-            >
+            <Button size="xs" variant="outline" onClick={() => goFolder("c03-ext-list")}>
               다시 켜고 이어서
             </Button>
           </Band>
@@ -126,7 +121,6 @@ export function TrialDetail({
         <h2 className="m-0 truncate text-ui-strong text-text-primary">{run.title}</h2>
         <Button
           size="xs"
-          tone="neutral"
           variant="ghost"
           className="ms-auto"
           onClick={() => goFolder("a01-trial-chat", "state=paused")}
@@ -292,7 +286,6 @@ export function ReplayDetail({
           >
             <Button
               size="sm"
-              tone="neutral"
               variant="soft"
               iconStart={<Lock />}
               aria-disabled
@@ -307,7 +300,7 @@ export function ReplayDetail({
             {lockReason}
           </span>
           {!web && (
-            <Button size="sm" tone="neutral" variant="ghost" onClick={onDevMode}>
+            <Button size="sm" variant="ghost" onClick={onDevMode}>
               {T.devMode} 켜기…
             </Button>
           )}
@@ -366,13 +359,13 @@ export function ReplayDetail({
         </CodeDiff>
       )}
       <div className="flex flex-wrap gap-1.5">
-        <Button size="sm" tone="neutral" variant="soft" disabled={running}>
+        <Button size="sm" variant="soft" disabled={running}>
           이벤트 비교 열기
         </Button>
-        <Button size="sm" tone="neutral" variant="ghost" disabled={running} onClick={onRerun}>
+        <Button size="sm" variant="ghost" disabled={running} onClick={onRerun}>
           다시 실행
         </Button>
-        <Button size="sm" tone="neutral" variant="ghost" disabled={running} onClick={onCopy}>
+        <Button size="sm" variant="ghost" disabled={running} onClick={onCopy}>
           JSON 복사
         </Button>
       </div>

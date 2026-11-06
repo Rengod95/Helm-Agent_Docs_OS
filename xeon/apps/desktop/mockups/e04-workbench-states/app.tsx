@@ -154,7 +154,7 @@ export function App({ state }: { state: StateId }) {
           onClear={() => {}}
           clearLabel={L2("찾기 지우기", "Clear search")}
           extra={
-            <Button size="sm" tone="neutral" variant="ghost">
+            <Button size="sm" variant="ghost">
               {L2("비슷한 설정 열기", "Open a similar setting")}
             </Button>
           }

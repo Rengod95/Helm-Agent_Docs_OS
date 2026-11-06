@@ -252,12 +252,7 @@ export function App({ state }: { state: StateId }) {
             }
             actions={
               reason?.settings === true ? (
-                <Button
-                  size="xs"
-                  tone="neutral"
-                  variant="outline"
-                  onClick={() => set({ setting: true })}
-                >
+                <Button size="xs" variant="outline" onClick={() => set({ setting: true })}>
                   {s.frame === "blocked-project" ? "켜는 방법" : "설정 열기"}
                 </Button>
               ) : undefined
@@ -274,12 +269,7 @@ export function App({ state }: { state: StateId }) {
               icon={<CodeXml emphasis="muted" />}
               action={
                 reason?.settings === true ? (
-                  <Button
-                    size="xs"
-                    tone="neutral"
-                    variant="ghost"
-                    onClick={() => set({ setting: true })}
-                  >
+                  <Button size="xs" variant="ghost" onClick={() => set({ setting: true })}>
                     설정 열기
                   </Button>
                 ) : undefined
@@ -318,12 +308,7 @@ export function App({ state }: { state: StateId }) {
           <ShellLine
             icon={<Inbox emphasis="muted" />}
             action={
-              <Button
-                size="xs"
-                tone="neutral"
-                variant="ghost"
-                onClick={() => shell.openEnd("inbox")}
-              >
+              <Button size="xs" variant="ghost" onClick={() => shell.openEnd("inbox")}>
                 {T.inbox}
               </Button>
             }
@@ -357,7 +342,7 @@ export function App({ state }: { state: StateId }) {
               description="확장이나 앱을 업데이트하면 열려요."
               diag="bridge_unsupported · 요청 ^2.0.0 · 앱 1.4"
               actions={
-                <Button size="xs" tone="neutral" variant="outline" iconStart={<Package />}>
+                <Button size="xs" variant="outline" iconStart={<Package />}>
                   확장 상세 열기
                 </Button>
               }
@@ -372,13 +357,12 @@ export function App({ state }: { state: StateId }) {
                 <>
                   <Button
                     size="xs"
-                    tone="neutral"
                     variant="outline"
                     onClick={() => set({ frame: "loading", fails: 0 })}
                   >
                     다시 켜기
                   </Button>
-                  <Button size="xs" tone="neutral" variant="ghost">
+                  <Button size="xs" variant="ghost">
                     확장 상세 열기
                   </Button>
                 </>
@@ -393,7 +377,6 @@ export function App({ state }: { state: StateId }) {
               actions={
                 <Button
                   size="xs"
-                  tone="neutral"
                   variant="outline"
                   iconStart={<RotateCw />}
                   onClick={() => set({ frame: "loading" })}
@@ -449,7 +432,7 @@ export function App({ state }: { state: StateId }) {
               title={`${T.safeMode}라 Helm이 빠졌어요`}
               description={`${T.safeMode}에서는 ${T.trustUser} ${josa(T.extension, "을", "를")} 싣지 않아요.`}
               actions={
-                <Button size="xs" tone="neutral" variant="outline">
+                <Button size="xs" variant="outline">
                   보통 모드로 다시 시작
                 </Button>
               }
@@ -472,13 +455,12 @@ export function App({ state }: { state: StateId }) {
                 <>
                   <Button
                     size="xs"
-                    tone="neutral"
                     variant="outline"
                     onClick={() => set({ helm: "loading", fails: 0 })}
                   >
                     다시 켜기
                   </Button>
-                  <Button size="xs" tone="neutral" variant="ghost">
+                  <Button size="xs" variant="ghost">
                     확장 상세 열기
                   </Button>
                 </>
@@ -514,7 +496,7 @@ export function App({ state }: { state: StateId }) {
             title="이 확장은 화면을 내지 않아요"
             description="설정과 기록은 확장 상세에서 봐요."
             actions={
-              <Button size="xs" tone="neutral" variant="outline">
+              <Button size="xs" variant="outline">
                 확장 상세 열기
               </Button>
             }

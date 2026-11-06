@@ -196,7 +196,7 @@ export function InboxPage({ state }: { state: InboxState }) {
                   <li key={s}>{s}</li>
                 ))}
               </ol>
-              <Button size="xs" tone="neutral" variant="ghost" className="-ms-2 justify-self-start">
+              <Button size="xs" variant="ghost" className="-ms-2 justify-self-start">
                 전체 보기
               </Button>
             </div>
@@ -391,7 +391,7 @@ export function InboxPage({ state }: { state: InboxState }) {
             <Section
               title="제안"
               end={
-                <Button size="xs" tone="neutral" variant="ghost">
+                <Button size="xs" variant="ghost">
                   제안 화면에서 보기
                 </Button>
               }
@@ -429,7 +429,7 @@ export function InboxPage({ state }: { state: InboxState }) {
               title="알림"
               end={
                 !loading && !failed && unread > 0 ? (
-                  <Button size="xs" tone="neutral" variant="ghost" onClick={() => setRead(true)}>
+                  <Button size="xs" variant="ghost" onClick={() => setRead(true)}>
                     모두 읽음
                   </Button>
                 ) : undefined
@@ -441,7 +441,7 @@ export function InboxPage({ state }: { state: InboxState }) {
                 <Alert
                   tone="danger"
                   action={
-                    <Button size="xs" tone="neutral" variant="ghost">
+                    <Button size="xs" variant="ghost">
                       다시
                     </Button>
                   }

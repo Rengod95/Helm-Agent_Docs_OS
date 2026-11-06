@@ -50,7 +50,6 @@ export function TrialBand({
           <Button
             key={a.label}
             size="xs"
-            tone="neutral"
             variant={a.primary === true ? "solid" : "ghost"}
             disabled={a.disabled}
             onClick={a.onClick}

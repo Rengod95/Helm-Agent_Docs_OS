@@ -130,16 +130,15 @@ TypeError: Cannot read properties of undefined (reading 'vault')
         </pre>
       )}
       <div className="flex flex-wrap items-center gap-1.5">
-        <Button size="sm" tone="neutral" variant="ghost" onClick={() => setLog(!log)}>
+        <Button size="sm" variant="ghost" onClick={() => setLog(!log)}>
           {log ? "로그 접기" : "stderr 마지막 20줄"}
         </Button>
-        <Button size="sm" tone="neutral" variant="ghost" onClick={onCopy}>
+        <Button size="sm" variant="ghost" onClick={onCopy}>
           진단 복사
         </Button>
         <span aria-hidden className="flex-1" />
         <Button
           size="sm"
-          tone="neutral"
           variant="outline"
           loading={busy === "retry"}
           disabled={busy !== null}
@@ -147,13 +146,7 @@ TypeError: Cannot read properties of undefined (reading 'vault')
         >
           그대로 다시 시작
         </Button>
-        <Button
-          size="sm"
-          tone="neutral"
-          loading={busy === "safe"}
-          disabled={busy !== null}
-          onClick={onSafe}
-        >
+        <Button size="sm" loading={busy === "safe"} disabled={busy !== null} onClick={onSafe}>
           {josa(T.safeMode, "으로", "로")} 시작
         </Button>
       </div>
@@ -328,14 +321,14 @@ export function RestartDialog({
       footer={
         <>
           <DialogClose asChild>
-            <Button size="sm" tone="neutral" variant="outline" autoFocus>
+            <Button size="sm" variant="outline" autoFocus>
               나중에
             </Button>
           </DialogClose>
-          <Button size="sm" tone="neutral" variant="outline" onClick={onAfterTurn}>
+          <Button size="sm" variant="outline" onClick={onAfterTurn}>
             {josa(T.turn, "이", "가")} 끝나면
           </Button>
-          <Button size="sm" tone="neutral" onClick={onNow}>
+          <Button size="sm" onClick={onNow}>
             지금 다시 시작
           </Button>
         </>

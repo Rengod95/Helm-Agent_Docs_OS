@@ -57,7 +57,7 @@ export function App({ state }: { state: State }) {
         modalOpen={reauthOpen || addOpen || deleteOpen}
         actions={
           empty ? undefined : (
-            <Button size="xs" tone="neutral" variant="outline" onClick={() => setAddOpen(true)}>
+            <Button size="xs" variant="outline" onClick={() => setAddOpen(true)}>
               추가
             </Button>
           )
@@ -69,7 +69,7 @@ export function App({ state }: { state: State }) {
             surface="none"
             title="등록된 시크릿이 없어요"
             actions={
-              <Button size="sm" tone="neutral" variant="solid" onClick={() => setAddOpen(true)}>
+              <Button size="sm" variant="solid" onClick={() => setAddOpen(true)}>
                 추가
               </Button>
             }
@@ -85,25 +85,20 @@ export function App({ state }: { state: State }) {
               onHide={() => setReveal("hidden")}
               actions={
                 <>
-                  <Button size="xs" tone="neutral" variant="ghost">
+                  <Button size="xs" variant="ghost">
                     메타 고치기
                   </Button>
-                  <Button size="xs" tone="neutral" variant="ghost">
+                  <Button size="xs" variant="ghost">
                     값 바꾸기
                   </Button>
-                  <Button size="xs" tone="neutral" variant="ghost">
+                  <Button size="xs" variant="ghost">
                     테스트
                   </Button>
                   <Menu
                     align="end"
                     aria-label={`${current.name} 메뉴`}
                     trigger={
-                      <Button
-                        size="xs"
-                        tone="neutral"
-                        variant="ghost"
-                        aria-label={`${current.name} 더 보기`}
-                      >
+                      <Button size="xs" variant="ghost" aria-label={`${current.name} 더 보기`}>
                         <Ellipsis />
                       </Button>
                     }

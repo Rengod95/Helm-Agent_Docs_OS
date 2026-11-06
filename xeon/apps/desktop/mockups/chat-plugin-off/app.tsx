@@ -99,7 +99,7 @@ function PluginsTab({
           tone="danger"
           layout="inline"
           action={
-            <Button size="xs" tone="neutral" variant="outline" onClick={onRetry}>
+            <Button size="xs" variant="outline" onClick={onRetry}>
               다시 시도
             </Button>
           }

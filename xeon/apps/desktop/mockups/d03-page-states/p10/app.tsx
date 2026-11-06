@@ -74,7 +74,6 @@ export function App({ state }: { state: State }) {
           empty ? undefined : (
             <Button
               size="xs"
-              tone="neutral"
               variant="outline"
               disabled={offline || loading}
               onClick={() => setAddOpen(true)}
@@ -100,7 +99,7 @@ export function App({ state }: { state: State }) {
             surface="none"
             title="등록된 시크릿이 없어요"
             actions={
-              <Button size="sm" tone="neutral" variant="solid" onClick={() => setAddOpen(true)}>
+              <Button size="sm" variant="solid" onClick={() => setAddOpen(true)}>
                 추가
               </Button>
             }
@@ -116,25 +115,20 @@ export function App({ state }: { state: State }) {
               onHide={() => setReveal("hidden")}
               actions={
                 <>
-                  <Button size="xs" tone="neutral" variant="ghost" disabled={offline}>
+                  <Button size="xs" variant="ghost" disabled={offline}>
                     메타 고치기
                   </Button>
-                  <Button size="xs" tone="neutral" variant="ghost" disabled={offline}>
+                  <Button size="xs" variant="ghost" disabled={offline}>
                     값 바꾸기
                   </Button>
-                  <Button size="xs" tone="neutral" variant="ghost" disabled={offline}>
+                  <Button size="xs" variant="ghost" disabled={offline}>
                     테스트
                   </Button>
                   <Menu
                     align="end"
                     aria-label={`${current.name} 메뉴`}
                     trigger={
-                      <Button
-                        size="xs"
-                        tone="neutral"
-                        variant="ghost"
-                        aria-label={`${current.name} 더 보기`}
-                      >
+                      <Button size="xs" variant="ghost" aria-label={`${current.name} 더 보기`}>
                         <Ellipsis />
                       </Button>
                     }

@@ -235,7 +235,6 @@ export function App({ state }: { state: StateId }) {
                   </span>
                   <Button
                     size="xs"
-                    tone="neutral"
                     variant="ghost"
                     iconStart={<RotateCcw />}
                     onClick={() => dispatch({ t: "askAgain", id: k.id })}
@@ -351,13 +350,7 @@ export function App({ state }: { state: StateId }) {
                 containerClassName="min-w-0 flex-1"
               />
               {!web && (
-                <Button
-                  size="xs"
-                  tone="neutral"
-                  variant="outline"
-                  iconStart={<FolderOpen />}
-                  disabled={!devOn}
-                >
+                <Button size="xs" variant="outline" iconStart={<FolderOpen />} disabled={!devOn}>
                   고르기
                 </Button>
               )}
@@ -386,7 +379,6 @@ export function App({ state }: { state: StateId }) {
           end={
             <Button
               size="xs"
-              tone="neutral"
               variant="ghost"
               onClick={() => goFolder("c02-ext-detail", "state=settings")}
             >
@@ -471,7 +463,7 @@ export function App({ state }: { state: StateId }) {
       </SettingRow>
       {restart && (
         <div className="pb-2">
-          <Button size="xs" tone="neutral" variant="outline" iconStart={<RotateCcw />}>
+          <Button size="xs" variant="outline" iconStart={<RotateCcw />}>
             지금 다시 시작
           </Button>
         </div>
@@ -499,12 +491,7 @@ export function App({ state }: { state: StateId }) {
         }
         actions={
           s.tab === "plugins" ? (
-            <Button
-              size="xs"
-              tone="neutral"
-              variant="ghost"
-              onClick={() => goFolder("c03-ext-list")}
-            >
+            <Button size="xs" variant="ghost" onClick={() => goFolder("c03-ext-list")}>
               {`${T.workbench}에서 관리`}
             </Button>
           ) : undefined

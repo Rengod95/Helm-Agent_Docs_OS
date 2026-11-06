@@ -12,7 +12,7 @@ export function ObserveBand({ onRetry }: { onRetry: () => void }) {
       <div className="min-w-0 flex-1">
         <p className="m-0 text-ui-strong text-text-primary">관찰 중이에요</p>
       </div>
-      <Button size="sm" tone="neutral" variant="outline" onClick={onRetry}>
+      <Button size="sm" variant="outline" onClick={onRetry}>
         쓰기 다시 시도
       </Button>
     </div>

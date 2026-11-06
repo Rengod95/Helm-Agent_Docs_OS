@@ -312,7 +312,6 @@ export function App({ state }: { state: StateId }) {
           <>
             <Button
               size="sm"
-              tone="neutral"
               variant="ghost"
               disabled={changedN === 0}
               onClick={() => dispatch({ t: "resetAsk" })}
@@ -328,7 +327,7 @@ export function App({ state }: { state: StateId }) {
                 : null}
             </span>
             <span aria-hidden className="flex-1" />
-            <Button size="sm" tone="neutral" variant="outline" onClick={() => setOpen(false)}>
+            <Button size="sm" variant="outline" onClick={() => setOpen(false)}>
               {L2("닫기", "Close")}
             </Button>
           </>
@@ -371,12 +370,7 @@ export function App({ state }: { state: StateId }) {
               <p className="m-0 text-ui-sm text-text-secondary">
                 {L2(`"${s.q}"와 맞는 동작이 없어요`, `No action matches "${s.q}"`)}
               </p>
-              <Button
-                size="xs"
-                tone="neutral"
-                variant="outline"
-                onClick={() => dispatch({ t: "q", q: "" })}
-              >
+              <Button size="xs" variant="outline" onClick={() => dispatch({ t: "q", q: "" })}>
                 {L2("모든 키 보기", "Show all shortcuts")}
               </Button>
             </div>
@@ -417,20 +411,10 @@ export function App({ state }: { state: StateId }) {
         footer={
           <>
             <span aria-hidden className="flex-1" />
-            <Button
-              size="sm"
-              tone="neutral"
-              variant="outline"
-              onClick={() => dispatch({ t: "cancel" })}
-            >
+            <Button size="sm" variant="outline" onClick={() => dispatch({ t: "cancel" })}>
               {L2("취소", "Cancel")}
             </Button>
-            <Button
-              size="sm"
-              tone="neutral"
-              variant="solid"
-              onClick={() => dispatch({ t: "resetAll" })}
-            >
+            <Button size="sm" variant="solid" onClick={() => dispatch({ t: "resetAll" })}>
               {L2("기본값으로", "Reset")}
             </Button>
           </>

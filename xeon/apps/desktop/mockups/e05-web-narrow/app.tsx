@@ -284,7 +284,7 @@ function RemoteWorkbench({ s, go, view }: { s: S; go: (a: A) => void; view: "ext
             title={T.extension}
             meta={`build-box`}
             actions={
-              <Button size="xs" tone="neutral" variant="ghost" disabled>
+              <Button size="xs" variant="ghost" disabled>
                 {L2("가져오기", "Import")}
               </Button>
             }
@@ -387,10 +387,10 @@ function RemoteWorkbench({ s, go, view }: { s: S; go: (a: A) => void; view: "ext
                 )}
               </Alert>
               <div className="flex gap-1.5">
-                <Button size="xs" tone="neutral" variant="outline" iconStart={<Copy />}>
+                <Button size="xs" variant="outline" iconStart={<Copy />}>
                   {T.copyPath}
                 </Button>
-                <Button size="xs" tone="neutral" variant="ghost" disabled>
+                <Button size="xs" variant="ghost" disabled>
                   {L2("파일 열기 · 원격", "Open file · remote")}
                 </Button>
               </div>

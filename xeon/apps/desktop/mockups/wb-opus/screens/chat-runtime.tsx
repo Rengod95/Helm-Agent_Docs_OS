@@ -50,13 +50,7 @@ function PluginCard({
       <div className="flex items-center gap-1.5 text-ui-xs text-text-tertiary">
         <Compass emphasis="muted" aria-hidden className="size-icon-xs" />
         <span className="font-mono text-mono-sm">{ext}</span>
-        <Button
-          size="xs"
-          tone="neutral"
-          variant="ghost"
-          className="ms-auto -me-1.5 -my-1"
-          onClick={onMore}
-        >
+        <Button size="xs" variant="ghost" className="ms-auto -me-1.5 -my-1" onClick={onMore}>
           더 보기
         </Button>
       </div>

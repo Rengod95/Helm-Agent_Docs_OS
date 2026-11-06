@@ -49,7 +49,7 @@ function Foot({
     <>
       <span aria-hidden className="flex-1" />
       <DialogClose asChild>
-        <Button size="sm" tone="neutral" variant="outline" autoFocus>
+        <Button size="sm" variant="outline" autoFocus>
           {cancel}
         </Button>
       </DialogClose>
@@ -103,7 +103,7 @@ export function TrustDialog({
                   <TriangleAlert />
                 </ToneIcon>
                 먼저 이 폴더를 신뢰해야 켤 수 있어요
-                <Button size="xs" tone="neutral" variant="outline" onClick={onTrustFolder}>
+                <Button size="xs" variant="outline" onClick={onTrustFolder}>
                   폴더 신뢰…
                 </Button>
               </span>

@@ -114,7 +114,7 @@ function rowActions(row: TableRow) {
   return (
     <div className="flex items-center justify-end gap-0.5">
       {s.trigger === "remote" && s.enabled && (
-        <Button size="xs" tone="neutral" variant="ghost">
+        <Button size="xs" variant="ghost">
           지금 실행
         </Button>
       )}
@@ -185,7 +185,7 @@ function Page({ state }: { state: S }) {
             <SegmentedControlItem value="enabled">켜진 것</SegmentedControlItem>
             <SegmentedControlItem value="all">모두</SegmentedControlItem>
           </SegmentedControl>
-          <Button size="sm" tone="neutral" variant="solid" onClick={() => setSheetOpen(true)}>
+          <Button size="sm" variant="solid" onClick={() => setSheetOpen(true)}>
             새 예약
           </Button>
         </header>
@@ -196,7 +196,7 @@ function Page({ state }: { state: S }) {
                 tone="warning"
                 size="sm"
                 action={
-                  <Button size="xs" tone="neutral" variant="ghost">
+                  <Button size="xs" variant="ghost">
                     서비스 켜기
                   </Button>
                 }
@@ -209,7 +209,7 @@ function Page({ state }: { state: S }) {
                 tone="danger"
                 size="sm"
                 action={
-                  <Button size="xs" tone="neutral" variant="ghost">
+                  <Button size="xs" variant="ghost">
                     다시 읽기
                   </Button>
                 }
@@ -235,12 +235,7 @@ function Page({ state }: { state: S }) {
                 icon={<CalendarClock />}
                 title="예약이 없어요"
                 actions={
-                  <Button
-                    size="sm"
-                    tone="neutral"
-                    variant="solid"
-                    onClick={() => setSheetOpen(true)}
-                  >
+                  <Button size="sm" variant="solid" onClick={() => setSheetOpen(true)}>
                     새 예약
                   </Button>
                 }

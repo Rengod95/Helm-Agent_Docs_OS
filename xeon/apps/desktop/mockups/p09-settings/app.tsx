@@ -56,7 +56,7 @@ export function App({ state }: { state: State }) {
 
   // 빈 탭(고급)은 본문의 빈 상태에 같은 "파일로 보기"가 있어 머리에는 두지 않는다.
   const fileAction = (
-    <Button size="xs" tone="neutral" variant="ghost">
+    <Button size="xs" variant="ghost">
       파일로 보기
     </Button>
   );
@@ -66,7 +66,7 @@ export function App({ state }: { state: State }) {
         tone="warning"
         layout="inline"
         action={
-          <Button size="xs" tone="neutral" variant="outline" disabled={offline}>
+          <Button size="xs" variant="outline" disabled={offline}>
             엔진 재시작
           </Button>
         }

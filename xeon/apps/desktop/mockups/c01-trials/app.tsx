@@ -311,12 +311,7 @@ export function App({ state }: { state: StateId }) {
     <WorkbenchHead
       title={T.trials}
       actions={
-        <Button
-          size="xs"
-          tone="neutral"
-          variant="outline"
-          onClick={() => dispatch({ t: "openNew" })}
-        >
+        <Button size="xs" variant="outline" onClick={() => dispatch({ t: "openNew" })}>
           새 테스트
         </Button>
       }
@@ -390,12 +385,7 @@ export function App({ state }: { state: StateId }) {
                 size="sm"
                 title="아직 돌린 테스트가 없어요"
                 actions={
-                  <Button
-                    size="sm"
-                    tone="neutral"
-                    variant="outline"
-                    onClick={() => dispatch({ t: "openNew" })}
-                  >
+                  <Button size="sm" variant="outline" onClick={() => dispatch({ t: "openNew" })}>
                     새 테스트
                   </Button>
                 }

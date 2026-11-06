@@ -177,7 +177,7 @@ export function App({ state }: { state: State }) {
               tone="danger"
               layout="inline"
               action={
-                <Button size="xs" tone="neutral" variant="outline">
+                <Button size="xs" variant="outline">
                   다시 읽기
                 </Button>
               }
@@ -302,7 +302,7 @@ export function App({ state }: { state: State }) {
             <li key={r.n} className="flex min-h-8 items-center gap-3">
               <span className="text-ui font-medium text-text-primary">{r.n}</span>
               <span className="min-w-0 flex-1 truncate text-ui-sm text-text-tertiary">{r.d}</span>
-              <Button size="xs" tone="neutral" variant="outline">
+              <Button size="xs" variant="outline">
                 {r.a}
               </Button>
             </li>
@@ -313,7 +313,7 @@ export function App({ state }: { state: State }) {
       <SettingSection
         title="MCP 서버"
         end={
-          <Button size="xs" tone="neutral" variant="ghost">
+          <Button size="xs" variant="ghost">
             관리
           </Button>
         }

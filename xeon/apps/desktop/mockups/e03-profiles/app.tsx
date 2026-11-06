@@ -239,7 +239,6 @@ function Detail({ s, go, offline }: { s: S; go: (a: A) => void; offline: boolean
             />
             <Button
               size="sm"
-              tone="neutral"
               variant="solid"
               type="submit"
               loading={s.saving}
@@ -247,12 +246,7 @@ function Detail({ s, go, offline }: { s: S; go: (a: A) => void; offline: boolean
             >
               {L2("저장", "Save")}
             </Button>
-            <Button
-              size="sm"
-              tone="neutral"
-              variant="ghost"
-              onClick={() => go({ t: "sel", id: p.id })}
-            >
+            <Button size="sm" variant="ghost" onClick={() => go({ t: "sel", id: p.id })}>
               {L2("취소", "Cancel")}
             </Button>
           </form>
@@ -263,10 +257,10 @@ function Detail({ s, go, offline }: { s: S; go: (a: A) => void; offline: boolean
         )}
         {!renaming && (
           <>
-            <Button size="xs" tone="neutral" variant="ghost" disabled={offline}>
+            <Button size="xs" variant="ghost" disabled={offline}>
               {L2("새 테스트 대화로", "New trial conversation")}
             </Button>
-            <Button size="xs" tone="neutral" variant="outline" disabled={offline}>
+            <Button size="xs" variant="outline" disabled={offline}>
               {L2("이 대화에 적용", "Apply to this conversation")}
             </Button>
           </>
@@ -472,12 +466,7 @@ export function App({ state }: { state: StateId }) {
                   `A profile bundles extension on/off and setting overrides. Use it for trial conversations or as the view.`,
                 )}
                 actions={
-                  <Button
-                    size="xs"
-                    tone="neutral"
-                    variant="outline"
-                    onClick={() => dispatch({ t: "createOpen" })}
-                  >
+                  <Button size="xs" variant="outline" onClick={() => dispatch({ t: "createOpen" })}>
                     {L2(`새 ${T.profile}`, "New profile")}
                   </Button>
                 }
@@ -497,7 +486,6 @@ export function App({ state }: { state: StateId }) {
                     </h2>
                     <Button
                       size="xs"
-                      tone="neutral"
                       variant="ghost"
                       iconStart={<Plus />}
                       disabled={offline}
@@ -530,20 +518,10 @@ export function App({ state }: { state: StateId }) {
         footer={
           <>
             <span aria-hidden className="flex-1" />
-            <Button
-              size="sm"
-              tone="neutral"
-              variant="ghost"
-              onClick={() => dispatch({ t: "close" })}
-            >
+            <Button size="sm" variant="ghost" onClick={() => dispatch({ t: "close" })}>
               {L2("취소", "Cancel")}
             </Button>
-            <Button
-              size="sm"
-              tone="neutral"
-              variant="solid"
-              onClick={() => dispatch({ t: "create" })}
-            >
+            <Button size="sm" variant="solid" onClick={() => dispatch({ t: "create" })}>
               {L2("만들기", "Create")}
             </Button>
           </>
@@ -577,12 +555,7 @@ export function App({ state }: { state: StateId }) {
         footer={
           <>
             <span aria-hidden className="flex-1" />
-            <Button
-              size="sm"
-              tone="neutral"
-              variant="outline"
-              onClick={() => dispatch({ t: "close" })}
-            >
+            <Button size="sm" variant="outline" onClick={() => dispatch({ t: "close" })}>
               {L2("취소", "Cancel")}
             </Button>
             <Button

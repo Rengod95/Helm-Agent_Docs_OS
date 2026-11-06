@@ -38,13 +38,7 @@ export function ShadowedScopes({
             >
               <span className="w-14 flex-none text-text-tertiary">{r.scope}</span>
               <span className="font-mono text-mono-sm text-text-primary">{r.value}</span>
-              <Button
-                size="xs"
-                tone="neutral"
-                variant="ghost"
-                disabled={disabled}
-                className="ms-auto"
-              >
+              <Button size="xs" variant="ghost" disabled={disabled} className="ms-auto">
                 이 범위 값 지우기
               </Button>
             </div>

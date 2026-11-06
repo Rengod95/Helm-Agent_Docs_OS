@@ -98,7 +98,7 @@ function Cell({ cell }: { cell: StatusCell }) {
             </Button>
           )}
           {cell.secondary !== undefined && (
-            <Button size="xs" tone="neutral" variant="ghost" onClick={cell.secondary.onSelect}>
+            <Button size="xs" variant="ghost" onClick={cell.secondary.onSelect}>
               {cell.secondary.label}
             </Button>
           )}
@@ -117,7 +117,6 @@ function InlineActions({ cell }: { cell: StatusCell }) {
         <Button
           key={a.label}
           size="xs"
-          tone="neutral"
           variant="outline"
           className="h-5 px-1.5 text-ui-xs"
           onClick={a.onSelect}

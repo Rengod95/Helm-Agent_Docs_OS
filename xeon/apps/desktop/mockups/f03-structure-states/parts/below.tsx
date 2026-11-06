@@ -172,7 +172,7 @@ export function EmptyInvite({ onNew }: { onNew: () => void }) {
       surface="none"
       title={`${T.group}을 만들어 보세요`}
       actions={
-        <Button size="sm" tone="neutral" variant="solid" onClick={onNew}>
+        <Button size="sm" variant="solid" onClick={onNew}>
           새 {T.group}
         </Button>
       }

@@ -124,7 +124,7 @@ function TargetList({
     <Section
       title="대상"
       end={
-        <Button size="xs" tone="neutral" variant="ghost">
+        <Button size="xs" variant="ghost">
           원격 대상 추가
         </Button>
       }
@@ -174,10 +174,10 @@ function TargetList({
             <Input size="sm" defaultValue="tcp://10.0.4.12:7300" invalid className="font-mono" />
           </Field>
           <div className="flex justify-end gap-1.5">
-            <Button size="sm" tone="neutral" variant="ghost">
+            <Button size="sm" variant="ghost">
               취소
             </Button>
-            <Button size="sm" tone="neutral" variant="solid">
+            <Button size="sm" variant="solid">
               저장
             </Button>
           </div>
@@ -185,7 +185,7 @@ function TargetList({
       )}
       {selected !== current && state !== "S6" && (
         <div className="flex justify-end pt-1">
-          <Button size="sm" tone="neutral" variant="solid">
+          <Button size="sm" variant="solid">
             연결
           </Button>
         </div>
@@ -222,7 +222,7 @@ function Detail({ state }: { state: S }) {
         <Section title="build-box에 붙는 중">
           <AttachSteps />
           <div>
-            <Button size="xs" tone="neutral" variant="ghost">
+            <Button size="xs" variant="ghost">
               그만두기
             </Button>
           </div>
@@ -293,15 +293,15 @@ function Detail({ state }: { state: S }) {
           </Button>
         )}
         {t.kind === "remote" && (
-          <Button size="sm" tone="neutral" variant="ghost">
+          <Button size="sm" variant="ghost">
             로컬로 돌아가기
           </Button>
         )}
         <span className="flex-1" />
-        <Button size="sm" tone="neutral" variant="ghost">
+        <Button size="sm" variant="ghost">
           진단 복사
         </Button>
-        <Button size="sm" tone="neutral" variant="soft">
+        <Button size="sm" variant="soft">
           엔진 다시 시작
         </Button>
       </div>

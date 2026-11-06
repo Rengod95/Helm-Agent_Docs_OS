@@ -141,7 +141,6 @@ function TrialBar({
             >
               <Button
                 size="xs"
-                tone="neutral"
                 variant="soft"
                 iconStart={<Lock />}
                 aria-disabled
@@ -199,13 +198,12 @@ function DevDialog({ s, dispatch }: { s: Model; dispatch: (a: Action) => void })
       footer={
         <>
           <DialogClose asChild>
-            <Button size="sm" tone="neutral" variant="outline" disabled={checking}>
+            <Button size="sm" variant="outline" disabled={checking}>
               취소
             </Button>
           </DialogClose>
           <Button
             size="sm"
-            tone="neutral"
             variant="solid"
             disabled={checking}
             onClick={() => dispatch({ t: "check" })}

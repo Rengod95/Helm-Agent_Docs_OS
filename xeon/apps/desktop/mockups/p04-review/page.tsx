@@ -159,7 +159,7 @@ export function ReviewPage({ state }: { state: ReviewState }) {
             surface="none"
             title="바뀐 내용이 없어요"
             actions={
-              <Button size="sm" tone="neutral" variant="outline">
+              <Button size="sm" variant="outline">
                 검토 닫기
               </Button>
             }
@@ -259,7 +259,7 @@ export function ReviewPage({ state }: { state: ReviewState }) {
                             </span>
                           )}
                           {r.tone === "danger" && (
-                            <Button size="xs" tone="neutral" variant="outline">
+                            <Button size="xs" variant="outline">
                               파일 열기
                             </Button>
                           )}
@@ -313,7 +313,6 @@ export function ReviewPage({ state }: { state: ReviewState }) {
                       <span aria-hidden className="flex-1" />
                       <Button
                         size="xs"
-                        tone="neutral"
                         variant="ghost"
                         disabled={submitted || offline}
                         onClick={() => decideFile(file, "rejected")}
@@ -322,7 +321,6 @@ export function ReviewPage({ state }: { state: ReviewState }) {
                       </Button>
                       <Button
                         size="xs"
-                        tone="neutral"
                         variant="outline"
                         disabled={submitted || offline}
                         onClick={() => decideFile(file, "approved")}
@@ -337,7 +335,7 @@ export function ReviewPage({ state }: { state: ReviewState }) {
                           {file.binary === true ? "바이너리 파일이에요." : "본문을 읽지 못했어요."}
                         </span>
                         {file.unreadable === true && (
-                          <Button size="xs" tone="neutral" variant="ghost">
+                          <Button size="xs" variant="ghost">
                             다시 읽기
                           </Button>
                         )}
@@ -395,7 +393,7 @@ export function ReviewPage({ state }: { state: ReviewState }) {
           {submitted ? (
             <>
               <span aria-hidden className="flex-1" />
-              <Button size="sm" tone="neutral" variant="solid">
+              <Button size="sm" variant="solid">
                 받은 요청으로
               </Button>
             </>
@@ -419,10 +417,10 @@ export function ReviewPage({ state }: { state: ReviewState }) {
                 />
                 남은 것 모두 승인
               </label>
-              <Button size="sm" tone="neutral" variant="ghost" disabled={offline}>
+              <Button size="sm" variant="ghost" disabled={offline}>
                 검토 닫기
               </Button>
-              <Button size="sm" tone="neutral" variant="solid" disabled={!canSubmit || loading}>
+              <Button size="sm" variant="solid" disabled={!canSubmit || loading}>
                 제출
               </Button>
             </>

@@ -386,12 +386,7 @@ function LogTab({ name }: { name: string }) {
           <Alert
             tone="danger"
             action={
-              <Button
-                size="xs"
-                tone="neutral"
-                variant="outline"
-                onClick={() => m.reenable("review")}
-              >
+              <Button size="xs" variant="outline" onClick={() => m.reenable("review")}>
                 다시 켜기
               </Button>
             }
@@ -419,7 +414,6 @@ function LogTab({ name }: { name: string }) {
               end={
                 <Button
                   size="xs"
-                  tone="neutral"
                   variant="ghost"
                   iconStart={<FileCode />}
                   onClick={() => toast({ title: "편집기에서 열어요", description: f.where })}
@@ -471,7 +465,7 @@ function VersionsTab() {
               지금
             </Badge>
           ) : r["where"] === "이전 버전" ? (
-            <Button size="xs" tone="neutral" variant="ghost">
+            <Button size="xs" variant="ghost">
               되돌리기
             </Button>
           ) : null;
@@ -523,7 +517,7 @@ function ViewsTab({ name }: { name: string }) {
             );
           if (c.key === "act")
             return r["slot"] === "page" && r["state"] === "active" ? (
-              <Button size="xs" tone="neutral" variant="ghost" onClick={m.openView}>
+              <Button size="xs" variant="ghost" onClick={m.openView}>
                 열기
               </Button>
             ) : null;
@@ -570,7 +564,6 @@ export function Detail() {
               "auto_disabled" ? (
               <Button
                 size="xs"
-                tone="neutral"
                 variant="outline"
                 disabled={m.offline}
                 onClick={() => m.reenable(name)}
@@ -580,7 +573,6 @@ export function Detail() {
             ) : (
               <Button
                 size="xs"
-                tone="neutral"
                 variant="outline"
                 disabled={m.offline || m.pending.has(name)}
                 onClick={() => m.setEnabled(name, off)}
