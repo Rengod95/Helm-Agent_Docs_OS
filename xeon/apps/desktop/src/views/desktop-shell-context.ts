@@ -1,4 +1,5 @@
 import { createContext, useContext, type Context } from "react";
+import type { AppearancePort } from "./appearance-prefs.ts";
 import type { OsNotifier } from "./os-notify.ts";
 import type { NotifyPrefsPort } from "./os-notify-prefs.ts";
 import type { SubscribeShellIntent } from "./shell-intents.ts";
@@ -17,6 +18,8 @@ export interface DesktopShell {
   readonly subscribeIntent: SubscribeShellIntent;
   readonly notifier: OsNotifier;
   readonly prefs: NotifyPrefsPort;
+  /** 움직임 줄이기와 확대(설정 "외관"의 접근성 묶음) */
+  readonly appearance: AppearancePort;
 }
 
 export const DesktopShellContext: Context<DesktopShell | null> = createContext<DesktopShell | null>(

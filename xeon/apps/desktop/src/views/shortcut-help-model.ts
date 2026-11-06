@@ -31,17 +31,88 @@ export const ACTION_LABEL_IDS: Readonly<Record<ActionId, MessageId>> = {
   "area.workbench": "desktop.shortcuts.action.areaWorkbench",
 };
 
+/** 도움말 묶음. 왼쪽 열에 `SHORTCUT_COLUMNS[0]`, 오른쪽 열에 `[1]`의 묶음이 쌓인다(시안 o09) */
+export type ShortcutGroupId = "anywhere" | "navigate" | "conversation" | "panel" | "area";
+
+export const SHORTCUT_COLUMNS: readonly (readonly ShortcutGroupId[])[] = [
+  ["anywhere", "navigate", "conversation"],
+  ["panel", "area"],
+];
+
+export const SHORTCUT_GROUP_LABEL_IDS: Readonly<Record<ShortcutGroupId, MessageId>> = {
+  anywhere: "desktop.shortcuts.group.anywhere",
+  navigate: "desktop.shortcuts.group.navigate",
+  conversation: "desktop.shortcuts.group.conversation",
+  panel: "desktop.shortcuts.group.panel",
+  area: "desktop.shortcuts.group.area",
+};
+
+/** 동작마다 속한 묶음. 빠진 동작이 있으면 타입 검사가 실패한다 */
+const ACTION_GROUP: Readonly<Record<ActionId, ShortcutGroupId>> = {
+  "palette.open": "anywhere",
+  "thread.new": "anywhere",
+  "settings.open": "anywhere",
+  "help.shortcuts": "anywhere",
+  "nav.1": "navigate",
+  "nav.2": "navigate",
+  "nav.3": "navigate",
+  "nav.4": "navigate",
+  "nav.5": "navigate",
+  "nav.6": "navigate",
+  "thread.next": "navigate",
+  "thread.prev": "navigate",
+  "turn.interrupt": "conversation",
+  "composer.focus": "conversation",
+  "approval.next": "conversation",
+  "sidebar.toggle": "panel",
+  "panel.toggle": "panel",
+  "panel.inbox": "panel",
+  "panel.helm": "panel",
+  "panel.work": "panel",
+  "area.toggle": "area",
+  "area.chat": "area",
+  "area.workbench": "area",
+};
+
 export interface ShortcutRow {
   readonly id: ActionId;
   readonly label: MessageId;
+  readonly group: ShortcutGroupId;
   /** 화면에 보이는 키 글자(macOS는 ⌘⇧⌥ 기호, 그 밖은 Ctrl+Shift+) */
   readonly keys: string;
+  /** `keys`를 낱키로 나눈 것. 키 칩 하나가 한 칸이다 */
+  readonly parts: readonly string[];
+}
+
+/** 화면 표기를 낱키로 나눈다. macOS는 기호 한 글자씩, 그 밖은 `+`로 나눈다(`Ctrl++`의 끝 `+`는 키 자체다) */
+export function keyPartsOf(keys: string, mac: boolean): readonly string[] {
+  return mac ? Array.from(keys) : keys.split(/\+(?!$)/);
 }
 
 export function shortcutRowsOf(keymap: Keymap, mac: boolean): readonly ShortcutRow[] {
-  return ACTION_IDS.map((id) => ({
-    id,
-    label: ACTION_LABEL_IDS[id],
-    keys: formatKey(keymap[id], mac),
-  }));
+  return ACTION_IDS.map((id) => {
+    const keys = formatKey(keymap[id], mac);
+    return {
+      id,
+      label: ACTION_LABEL_IDS[id],
+      group: ACTION_GROUP[id],
+      keys,
+      parts: keyPartsOf(keys, mac),
+    };
+  });
+}
+
+/** 찾기 글에 맞는 행만 남긴다. 동작 이름, 묶음 이름, 동작 id, 키 글자 중 하나가 들어 있으면 맞는다. 빈 글은 모두 남긴다 */
+export function filterShortcutRows(
+  rows: readonly ShortcutRow[],
+  query: string,
+  text: (id: MessageId) => string,
+): readonly ShortcutRow[] {
+  const needle = query.trim().toLowerCase();
+  if (needle === "") return rows;
+  return rows.filter((row) =>
+    [text(row.label), text(SHORTCUT_GROUP_LABEL_IDS[row.group]), row.id, row.keys].some((hay) =>
+      hay.toLowerCase().includes(needle),
+    ),
+  );
 }

@@ -1803,7 +1803,7 @@ compact 폭(720 이하)과 사이드바 시트:
 │  테스트 정리   승인1 │ 권한                 │ work     secret://ant-work    0    10  [...]     │
 │  빌드 실패 분석      │ 샌드박스             │ personal secret://ant-me     10    30  [...]     │
 │  예약: 매일 정리   ! │ 대화와 컨텍스트      │ openai                               [계정 추가] │
-│ ~/notes          [+] │ 도구와 웹            │  계정이 없어요. 기본 키를 써요  (빈 상태)        │
+│ ~/notes          [+] │ 도구와 웹            │  계정 풀이 비어 있어요  (빈 상태)        │
 │  주간 회고           │ 플러그인과 그룹      │──────────────────────────────────────────────────│
 │  CLI 세션       잠김 │ 실행과 서비스        │ 계정 회전  플러그인 [켜짐]                       │
 │                      │ 외관                 │ ! 구독 계정 회전은 약관 위험이 있어요            │
@@ -1847,7 +1847,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 충돌 처리 | `conflict` → "다른 곳에서 바뀌었어요" + 다시 읽기 |
 
 - 상태
-  - 빈: "계정이 없어요. 기본 키를 써요"를 계정 풀 자리의 빈 상태(`EmptyState`)로 보입니다.
+  - 빈: "계정 풀이 비어 있어요"를 계정 풀 자리의 빈 상태(`EmptyState`, 동작 "계정 추가")로 보입니다. 입력 칸(제공자·계정·secret://·우선·예비율)은 계정이 있거나 "계정 추가"를 눌렀을 때만 열립니다(시안 d03 D-empty). 사용량 제목의 "이 대화"는 값이 대화마다라서 시안의 "이 창"으로 바꾸지 않았습니다.
   - 읽는 중: 줄 셋의 `Skeleton`(목업 d03 D-loading).
   - 오류: `checkAccount`의 첫 잘못된 필드를 그 칸 아래에, 저장 오류 `not_object`, `host`, `transport` 문장.
   - 오프라인: 편집 잠금.
@@ -2102,7 +2102,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 #### 구현 노트 (O-03과 O-09, 트랙 chat3)
 
 - O-03 명령 결과 시트(`views/command-output-sheet.tsx`, 모델 `views/command-output-model.ts`): 동작 슬래시 명령의 `command.run` `done { message, result }`가 `UiState.commandOutput`에 들어가면 `Sheet side="right"`가 연다. 결과 JSON은 접혀 있다. 복사는 `commands.copyText`(클립보드)로 메시지와 JSON을 한 글로 쓰고, 닫기는 `dismissCommandOutput`이다. 파싱은 바꾸지 않았다(`app/commands.ts`의 `runSlash`는 `show`에서 그대로 연다). 시트는 `App`에 한 번 붙는다.
-- O-09 바로 가기 키 도움말(`views/shortcut-help-dialog.tsx`, 모델 `views/shortcut-help-model.ts`): 표는 `ACTION_IDS` 순서의 22행이고 키는 `resolveKeymap`(사용자 덮어쓰기 반영)과 `formatKey`(macOS 기호)로 쓴다. 동작 이름은 `desktop.shortcuts.action.*` 문장이다. `help.shortcuts`는 셸이 처리하지 않아 `App`의 `onAction`이 `helpOpen` 상태를 켠다(이번 변경에서 연결했다). 열린 동안은 `Shell`의 `modalOpen`으로 Esc가 끝 영역을 닫지 않게 한다.
+- O-09 바로 가기 키 도움말(`views/shortcut-help-dialog.tsx`, 모델 `views/shortcut-help-model.ts`): 목록은 `ACTION_IDS` 순서의 23행이고 키는 `resolveKeymap`(사용자 덮어쓰기 반영)과 `formatKey`(macOS 기호)로 쓴다. 동작 이름은 `desktop.shortcuts.action.*` 문장이다. `help.shortcuts`는 셸이 처리하지 않아 `App`의 `onAction`이 `helpOpen` 상태를 켠다(이번 변경에서 연결했다). 열린 동안은 `Shell`의 `modalOpen`으로 Esc가 끝 영역을 닫지 않게 한다. 모양은 시안 `o09-shortcuts`다: `Dialog size="lg"`에 찾기 `Input`(동작 이름·묶음 이름·동작 id·키 글자로 거른다), 두 열 묶음(왼쪽 어디서나·이동·대화, 오른쪽 패널·영역; 동작이 없는 묶음은 감춘다), 낱키마다 `Kbd`(`shortcutRowsOf`의 `parts`), 바닥 `닫기`. 거른 결과가 없으면 `desktop.shortcuts.empty`를 보인다. 입력창·승인 카드 키(시안 묶음)와 `설정에서 바꾸기`는 키 맵 밖이거나 이동 경로가 없어 넣지 않았다.
 - C-11은 앱 조합(`Dialog` + `Table` + `Kbd`)으로 해결했다. 빠진 것: `thread.new`와 `turn.interrupt`를 뺀 나머지 셸 밖 동작(`composer.focus`, `thread.next|prev`, `approval.next`)은 이번 변경에서 연결하지 않았다(§4.8 구현 노트에서 연결했다). 키를 고치는 화면은 이 표에 없다.
 
 ### 6.21 LightCraft 공통 규칙
@@ -3253,7 +3253,7 @@ export const palette = [
 | V-11 | 사용량 게이지 행(`UsageGauge` → 막대와 문장) | `packages/client/src/settings` |
 | V-12 | 계획 승인 보기와 답 만들기 | `apps/desktop/src/views/approval-form.ts`에 추가 |
 | V-13 | 상태 표시줄 칸 모델 | `apps/desktop/src/views` |
-| V-14 | 데스크톱 로컬 설정 저장소(창, 패널, 테마, 바로 가기 키, 첫 실행 표시) | `apps/desktop/src/settings-store/local.ts`(T-SHELL 구현: `LOCAL` 키 표, `createLocalSettings`, 셸 명령 `desktop_settings_read`·`desktop_settings_write`). 키는 `l4.desktop.window.{sidebarOpen,sidebarWidth,endOpen,endWidth,area.current,area.chat,area.workbench}`, `l4.desktop.appearance.keybindings`, `l4.desktop.firstRun.searchHintDismissed`. 테마와 캔버스 순서 키는 소유 트랙이 `LOCAL`에 더함 |
+| V-14 | 데스크톱 로컬 설정 저장소(창, 패널, 테마, 바로 가기 키, 첫 실행 표시) | `apps/desktop/src/settings-store/local.ts`(T-SHELL 구현: `LOCAL` 키 표, `createLocalSettings`, 셸 명령 `desktop_settings_read`·`desktop_settings_write`). 키는 `l4.desktop.window.{sidebarOpen,sidebarWidth,endOpen,endWidth,area.current,area.chat,area.workbench}`, `l4.desktop.appearance.keybindings`, `l4.desktop.appearance.motion`(움직임 줄이기, boolean), `l4.desktop.appearance.zoom`(확대 %, 90·100·125·150·200), `l4.desktop.firstRun.searchHintDismissed`. 움직임·확대는 엔진과 셸 설정에 해당 키가 없어 렌더러 값으로 둔다(`views/appearance-prefs.ts`: `<html data-motion="reduce">`와 `<html>`의 `zoom`, 설정 "외관" 탭의 접근성 묶음 `settings-appearance-view.tsx`). 고대비는 OS의 강제 색이라 화면 안에서 켤 수 없어 넣지 않았다. 테마와 캔버스 순서 키는 소유 트랙이 `LOCAL`에 더함 |
 | V-15 | 바로 가기 키 표(동작 id ↔ 키) | `apps/desktop/src/views/shell/keybindings.ts`(T-SHELL 구현: §4.8의 동작 22개 `ACTION_IDS`, `DEFAULT_KEYMAP`, 사용자 덮어쓰기 `resolveKeymap`) |
 | V-16 | 확장 행 모델과 거르기·정렬(층, 종류, 등급, 상태) | `packages/client/src/workbench` [제안] |
 | V-17 | 층 × 확장 지도 모델(칸 tone, 경고) | 같은 곳 |

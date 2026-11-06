@@ -52,10 +52,18 @@ function poolProps(
 }
 
 describe("AccountPoolView", () => {
-  test("no account says the default key is used", () => {
+  test("no account shows the empty state with an add action and hides the input form", () => {
     const html = renderToString(<AccountPoolView {...poolProps([])} />);
     expect(html).toContain(t("desktop.providers.pool.empty"));
     expect(html).toContain(t("desktop.providers.pool.add"));
+    expect(html).not.toContain('placeholder="secret://"');
+    expect(html).not.toContain(`aria-label="${t("desktop.providers.field.accountId")}"`);
+  });
+
+  test("with accounts the add form is shown under the list", () => {
+    const html = renderToString(<AccountPoolView {...poolProps([account("work", 0)])} />);
+    expect(html).toContain('placeholder="secret://"');
+    expect(html).not.toContain(t("desktop.providers.pool.empty"));
   });
 
   test("accounts show their credential reference, their reserve as an editable value, and their provider", () => {

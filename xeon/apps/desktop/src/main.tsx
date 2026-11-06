@@ -19,6 +19,7 @@ import { selectThread } from "./state/engine/index.ts";
 import { persistShell, restoreShell } from "./views/shell/persist.ts";
 import { DesktopShellContext, type DesktopShell } from "./views/desktop-shell-context.ts";
 import { createOsNotifier, NOTIFY_FAILED_EVENT, type OsNotifyInvoke } from "./views/os-notify.ts";
+import { appearancePortOf, appearancePrefsOf, applyAppearance } from "./views/appearance-prefs.ts";
 import { notifyPrefsOf, notifyPrefsPortOf } from "./views/os-notify-prefs.ts";
 import { SHELL_INTENT_EVENT, type SubscribeShellIntent } from "./views/shell-intents.ts";
 import type { FileSaveInvoke } from "./views/file-save.ts";
@@ -125,6 +126,7 @@ if (container === null) {
     subscribeIntent: subscribeShellIntent,
     notifier,
     prefs: notifyPrefsPortOf(localSettings),
+    appearance: appearancePortOf(localSettings, document.documentElement),
   };
   // 플러그인 화면 실행 맥락. Windows는 전용 스킴 주소가 달라 프레임 모드를 켜지 않는다(ADR-0021 §3.6.2)
   const framesSupported = !navigator.platform.startsWith("Win");
@@ -190,7 +192,10 @@ if (container === null) {
   // 저장해 둔 영역·자리를 읽어 얹은 뒤부터 바뀐 값을 쓴다(읽기 전에는 쓰지 않는다)
   detach(
     localSettings.load().then((loaded) => {
-      if (loaded.ok) shell.actions.replace(restoreShell(shell.read.getState(), localSettings));
+      if (loaded.ok) {
+        shell.actions.replace(restoreShell(shell.read.getState(), localSettings));
+        applyAppearance(document.documentElement, appearancePrefsOf(localSettings));
+      }
       shell.read.subscribe((next, prev) => {
         detach(Promise.all(persistShell(prev, next, localSettings)), rethrow);
       });

@@ -91,6 +91,8 @@ export interface SettingsPageProps {
   readonly filePaths: readonly SettingsPathRow[];
   /** OS 알림 묶음(B-10). "실행과 서비스" 탭 맨 위에 보인다. 웹이나 문맥이 없으면 `null`이다 */
   readonly notifyPanel?: ReactNode | undefined;
+  /** 외관 탭의 접근성 묶음 */
+  readonly appearancePanel?: ReactNode | undefined;
   readonly handlers: SettingsPageHandlers;
 }
 
@@ -382,6 +384,7 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
           {groups.general.map(rowOf)}
         </SettingSection>
       ) : null}
+      {tab === "appearance" ? props.appearancePanel : null}
       {groups.operator.length === 0 ? null : (
         <SettingSection title={t("desktop.settings.advanced.operator.title")}>
           {groups.operator.map(rowOf)}

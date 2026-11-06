@@ -21,7 +21,7 @@ import { Ellipsis, Lock, TriangleAlert, X } from "@caustic/react/icons";
 import { activeLocale, t } from "@fresnel/client/i18n";
 import type { AccountEntry, RateLimitEntry, RotationState } from "@fresnel/client";
 import type { UsageGauge, UsageUnit } from "@fresnel/contracts/wire";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { TONE_CLASS } from "../settings/settings-text.ts";
 import { InfoTip, PanelBlock } from "../shared/panel-parts.tsx";
 import { OrderedList, type OrderedItem } from "../shared/ordered-list.tsx";
@@ -334,19 +334,42 @@ export interface AccountPoolViewProps {
 
 export function AccountPoolView(props: AccountPoolViewProps): ReactNode {
   const { pools, editable } = props;
+  // 계정이 하나도 없으면 입력 칸 대신 빈 상태를 보이고, "계정 추가"를 누르면 칸이 열린다(시안 d03 D-empty)
+  const [adding, setAdding] = useState(false);
+  const formShown = pools.length > 0 || adding;
   return (
     <div className="grid">
       {pools.length === 0 ? (
-        <EmptyState size="sm" surface="none" title={t("desktop.providers.pool.empty")} />
+        <EmptyState
+          size="sm"
+          surface="none"
+          title={t("desktop.providers.pool.empty")}
+          actions={
+            formShown ? undefined : (
+              <Button
+                size="xs"
+                variant="outline"
+                disabled={!editable}
+                onClick={() => {
+                  setAdding(true);
+                }}
+              >
+                {t("desktop.providers.pool.add")}
+              </Button>
+            )
+          }
+        />
       ) : (
         pools.map((pool) => <PoolGroup key={pool.provider} pool={pool} {...props} />)
       )}
-      <AccountAddForm
-        draft={props.draft}
-        editable={editable}
-        onDraft={props.onDraft}
-        onAdd={props.onAdd}
-      />
+      {formShown ? (
+        <AccountAddForm
+          draft={props.draft}
+          editable={editable}
+          onDraft={props.onDraft}
+          onAdd={props.onAdd}
+        />
+      ) : null}
       <ErrorNote message={props.error} />
     </div>
   );

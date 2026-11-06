@@ -133,3 +133,15 @@
     margin: 6px 0;
   }
 }
+
+/* 설정 "외관"의 움직임 줄이기 켬(`views/appearance-prefs.ts`가 `<html data-motion="reduce">`를 건다).
+   caustic은 `prefers-reduced-motion` 미디어 쿼리만 있어 앱 설정으로 켤 고리가 없어, 같은 규칙을 속성으로도 건다(시안 e01 mockup.css). */
+@layer components {
+  [data-motion="reduce"] *,
+  [data-motion="reduce"] *::before,
+  [data-motion="reduce"] *::after {
+    animation-duration: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0s !important;
+  }
+}
