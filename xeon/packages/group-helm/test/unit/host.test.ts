@@ -104,7 +104,10 @@ test("commands.start-stop-status", async () => {
   await rig.settle("k2");
   expect(statesOf(rig)).toHaveLength(commits);
   expect(again).toBe("이미 탐구 중이거나 시작을 기다리는 탐구가 있습니다.");
-  expect(status).toContain("임대: waiting");
+  expect(status?.split("\n")[0]).toBe(
+    "[helm] 시작을 기다리는 중이에요, 단계: 대기, 주제: 캐시 무효화",
+  );
+  expect(status).not.toContain("waiting");
   expect(status).toContain("캐시 무효화");
   // 명령 결과는 모델 입력 대기열에 쌓이지 않는다
   expect(noticeTexts(rig)).toEqual([]);

@@ -11,6 +11,7 @@ import {
   type StateWriteFailure,
 } from "./state.ts";
 import { transition } from "./phase.ts";
+import { LEASE_TEXT, LENS_STATUS_TEXT } from "./texts.ts";
 
 export type HelmCommand =
   | { readonly name: "start"; readonly topic?: string }
@@ -141,10 +142,12 @@ export function commandErrorText(error: HelmCommandError): string {
 /** 상태 한 줄 문장. `missingMeta`가 있으면 도구 메타 없음 경고를 붙인다 */
 export function statusText(view: HelmStatusView, missingMeta: readonly string[]): string {
   const lines = [
-    `[helm] 단계: ${PHASE_TEXT[view.phase]}, 임대: ${view.lease}${view.topic === null ? "" : `, 주제: ${view.topic}`}`,
+    `[helm] ${LEASE_TEXT[view.lease]}, 단계: ${PHASE_TEXT[view.phase]}${view.topic === null ? "" : `, 주제: ${view.topic}`}`,
   ];
   if (view.lenses.length > 0) {
-    lines.push(`렌즈: ${view.lenses.map((lens) => `${lens.title}(${lens.status})`).join(", ")}`);
+    lines.push(
+      `렌즈: ${view.lenses.map((lens) => `${lens.title}(${LENS_STATUS_TEXT[lens.status]})`).join(", ")}`,
+    );
   }
   if (view.findings > 0) lines.push(`발견: ${String(view.findings)}개`);
   if (missingMeta.length > 0) {

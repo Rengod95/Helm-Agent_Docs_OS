@@ -1,19 +1,100 @@
 {
   "type": "Stack",
   "children": [
-    { "type": "Heading", "bind": { "text": { "path": "/topic" } } },
+    {
+      "type": "Heading",
+      "bind": {
+        "text": {
+          "path": "/topic"
+        }
+      }
+    },
     {
       "type": "Row",
       "children": [
-        { "type": "Badge", "bind": { "text": { "path": "/outcome" } } },
-        { "type": "Text", "props": { "text": "발견" } },
-        { "type": "Text", "bind": { "text": { "path": "/findingCount", "format": "number" } } }
+        {
+          "type": "Badge",
+          "props": {
+            "text": "적용됨"
+          },
+          "when": {
+            "path": "/outcome",
+            "op": "eq",
+            "value": "applied"
+          }
+        },
+        {
+          "type": "Badge",
+          "props": {
+            "text": "발견 없음"
+          },
+          "when": {
+            "path": "/outcome",
+            "op": "eq",
+            "value": "empty"
+          }
+        },
+        {
+          "type": "Badge",
+          "props": {
+            "text": "멈춤"
+          },
+          "when": {
+            "path": "/outcome",
+            "op": "eq",
+            "value": "stopped"
+          }
+        },
+        {
+          "type": "Badge",
+          "props": {
+            "text": "상한에 걸림"
+          },
+          "when": {
+            "path": "/outcome",
+            "op": "eq",
+            "value": "limit"
+          }
+        },
+        {
+          "type": "Badge",
+          "props": {
+            "text": "실패"
+          },
+          "when": {
+            "path": "/outcome",
+            "op": "eq",
+            "value": "failed"
+          }
+        },
+        {
+          "type": "Text",
+          "props": {
+            "text": "발견"
+          }
+        },
+        {
+          "type": "Text",
+          "bind": {
+            "text": {
+              "path": "/findingCount",
+              "format": "number"
+            }
+          }
+        }
       ]
     },
     {
       "type": "Text",
-      "bind": { "text": { "path": "/reason" } },
-      "when": { "path": "/reason", "op": "exists" }
+      "bind": {
+        "text": {
+          "path": "/reason"
+        }
+      },
+      "when": {
+        "path": "/reason",
+        "op": "exists"
+      }
     }
   ]
 }

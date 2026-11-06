@@ -3,28 +3,107 @@
   "children": [
     {
       "type": "Section",
-      "props": { "title": "현재 탐구" },
+      "props": {
+        "title": "현재 탐구"
+      },
       "children": [
         {
           "type": "Stepper",
-          "bind": { "current": { "path": "/status/phase" } },
+          "bind": {
+            "current": {
+              "path": "/status/phase"
+            }
+          },
           "children": [
-            { "type": "Text", "props": { "step": "idle", "text": "대기" } },
-            { "type": "Text", "props": { "step": "diverge", "text": "발산" } },
-            { "type": "Text", "props": { "step": "explore", "text": "다른 분야 탐색" } },
-            { "type": "Text", "props": { "step": "converge", "text": "수렴" } },
-            { "type": "Text", "props": { "step": "apply", "text": "적용" } }
+            {
+              "type": "Text",
+              "props": {
+                "step": "idle",
+                "text": "대기"
+              }
+            },
+            {
+              "type": "Text",
+              "props": {
+                "step": "diverge",
+                "text": "발산"
+              }
+            },
+            {
+              "type": "Text",
+              "props": {
+                "step": "explore",
+                "text": "다른 분야 탐색"
+              }
+            },
+            {
+              "type": "Text",
+              "props": {
+                "step": "converge",
+                "text": "수렴"
+              }
+            },
+            {
+              "type": "Text",
+              "props": {
+                "step": "apply",
+                "text": "적용"
+              }
+            }
           ]
         },
         {
           "type": "Row",
-          "when": { "path": "/status/inquiryId", "op": "ne", "value": null },
+          "when": {
+            "path": "/status/inquiryId",
+            "op": "ne",
+            "value": null
+          },
           "children": [
-            { "type": "Badge", "bind": { "text": { "path": "/status/lease" } } },
+            {
+              "type": "Badge",
+              "props": {
+                "text": "탐구하는 중이에요"
+              },
+              "when": {
+                "path": "/status/lease",
+                "op": "eq",
+                "value": "held"
+              }
+            },
+            {
+              "type": "Badge",
+              "props": {
+                "text": "시작을 기다리는 중이에요"
+              },
+              "when": {
+                "path": "/status/lease",
+                "op": "eq",
+                "value": "waiting"
+              }
+            },
+            {
+              "type": "Badge",
+              "props": {
+                "text": "쉬는 중이에요"
+              },
+              "when": {
+                "path": "/status/lease",
+                "op": "eq",
+                "value": "none"
+              }
+            },
             {
               "type": "Meter",
-              "props": { "label": "발견 수", "max": 24 },
-              "bind": { "value": { "path": "/status/findings" } }
+              "props": {
+                "label": "발견 수",
+                "max": 24
+              },
+              "bind": {
+                "value": {
+                  "path": "/status/findings"
+                }
+              }
             }
           ]
         },
@@ -33,35 +112,153 @@
           "children": [
             {
               "type": "Row",
-              "each": { "path": "/status/lenses", "as": "lens" },
+              "each": {
+                "path": "/status/lenses",
+                "as": "lens"
+              },
               "children": [
-                { "type": "Text", "bind": { "text": { "path": "/lens/title" } } },
-                { "type": "Badge", "bind": { "text": { "path": "/lens/status" } } }
+                {
+                  "type": "Text",
+                  "bind": {
+                    "text": {
+                      "path": "/lens/title"
+                    }
+                  }
+                },
+                {
+                  "type": "Badge",
+                  "props": {
+                    "text": "대기"
+                  },
+                  "when": {
+                    "path": "/lens/status",
+                    "op": "eq",
+                    "value": "pending"
+                  }
+                },
+                {
+                  "type": "Badge",
+                  "props": {
+                    "text": "진행 중"
+                  },
+                  "when": {
+                    "path": "/lens/status",
+                    "op": "eq",
+                    "value": "running"
+                  }
+                },
+                {
+                  "type": "Badge",
+                  "props": {
+                    "text": "끝남"
+                  },
+                  "when": {
+                    "path": "/lens/status",
+                    "op": "eq",
+                    "value": "done"
+                  }
+                },
+                {
+                  "type": "Badge",
+                  "props": {
+                    "text": "실패"
+                  },
+                  "when": {
+                    "path": "/lens/status",
+                    "op": "eq",
+                    "value": "failed"
+                  }
+                },
+                {
+                  "type": "Badge",
+                  "props": {
+                    "text": "건너뜀"
+                  },
+                  "when": {
+                    "path": "/lens/status",
+                    "op": "eq",
+                    "value": "skipped"
+                  }
+                }
               ]
             }
           ]
         },
         {
           "type": "EmptyState",
-          "props": { "text": "진행 중인 탐구가 없습니다" },
-          "when": { "path": "/status/inquiryId", "op": "eq", "value": null }
+          "props": {
+            "text": "진행 중인 탐구가 없습니다"
+          },
+          "when": {
+            "path": "/status/inquiryId",
+            "op": "eq",
+            "value": null
+          }
         }
       ]
     },
     {
       "type": "Section",
-      "props": { "title": "발견" },
-      "when": { "path": "/status/inquiryId", "op": "ne", "value": null },
+      "props": {
+        "title": "발견"
+      },
+      "when": {
+        "path": "/status/inquiryId",
+        "op": "ne",
+        "value": null
+      },
       "children": [
         {
           "type": "List",
           "children": [
             {
               "type": "Row",
-              "each": { "path": "/findings/findings", "as": "finding" },
+              "each": {
+                "path": "/findings/findings",
+                "as": "finding"
+              },
               "children": [
-                { "type": "Text", "bind": { "text": { "path": "/finding/claim" } } },
-                { "type": "Badge", "bind": { "text": { "path": "/finding/confidence" } } }
+                {
+                  "type": "Text",
+                  "bind": {
+                    "text": {
+                      "path": "/finding/claim"
+                    }
+                  }
+                },
+                {
+                  "type": "Badge",
+                  "props": {
+                    "text": "높음"
+                  },
+                  "when": {
+                    "path": "/finding/confidence",
+                    "op": "eq",
+                    "value": "high"
+                  }
+                },
+                {
+                  "type": "Badge",
+                  "props": {
+                    "text": "보통"
+                  },
+                  "when": {
+                    "path": "/finding/confidence",
+                    "op": "eq",
+                    "value": "medium"
+                  }
+                },
+                {
+                  "type": "Badge",
+                  "props": {
+                    "text": "낮음"
+                  },
+                  "when": {
+                    "path": "/finding/confidence",
+                    "op": "eq",
+                    "value": "low"
+                  }
+                }
               ]
             }
           ]
@@ -70,18 +267,116 @@
     },
     {
       "type": "Section",
-      "props": { "title": "지난 탐구" },
+      "props": {
+        "title": "지난 탐구"
+      },
       "children": [
         {
           "type": "List",
           "children": [
             {
               "type": "Row",
-              "each": { "path": "/inquiries/inquiries", "as": "inquiry" },
+              "each": {
+                "path": "/inquiries/inquiries",
+                "as": "inquiry"
+              },
               "children": [
-                { "type": "Text", "bind": { "text": { "path": "/inquiry/topic" } } },
-                { "type": "Badge", "bind": { "text": { "path": "/inquiry/status" } } },
-                { "type": "Badge", "bind": { "text": { "path": "/inquiry/outcome" } } }
+                {
+                  "type": "Text",
+                  "bind": {
+                    "text": {
+                      "path": "/inquiry/topic"
+                    }
+                  }
+                },
+                {
+                  "type": "Badge",
+                  "props": {
+                    "text": "시작 대기"
+                  },
+                  "when": {
+                    "path": "/inquiry/status",
+                    "op": "eq",
+                    "value": "pending"
+                  }
+                },
+                {
+                  "type": "Badge",
+                  "props": {
+                    "text": "진행 중"
+                  },
+                  "when": {
+                    "path": "/inquiry/status",
+                    "op": "eq",
+                    "value": "running"
+                  }
+                },
+                {
+                  "type": "Badge",
+                  "props": {
+                    "text": "끝남"
+                  },
+                  "when": {
+                    "path": "/inquiry/status",
+                    "op": "eq",
+                    "value": "finished"
+                  }
+                },
+                {
+                  "type": "Badge",
+                  "props": {
+                    "text": "적용됨"
+                  },
+                  "when": {
+                    "path": "/inquiry/outcome",
+                    "op": "eq",
+                    "value": "applied"
+                  }
+                },
+                {
+                  "type": "Badge",
+                  "props": {
+                    "text": "발견 없음"
+                  },
+                  "when": {
+                    "path": "/inquiry/outcome",
+                    "op": "eq",
+                    "value": "empty"
+                  }
+                },
+                {
+                  "type": "Badge",
+                  "props": {
+                    "text": "멈춤"
+                  },
+                  "when": {
+                    "path": "/inquiry/outcome",
+                    "op": "eq",
+                    "value": "stopped"
+                  }
+                },
+                {
+                  "type": "Badge",
+                  "props": {
+                    "text": "상한에 걸림"
+                  },
+                  "when": {
+                    "path": "/inquiry/outcome",
+                    "op": "eq",
+                    "value": "limit"
+                  }
+                },
+                {
+                  "type": "Badge",
+                  "props": {
+                    "text": "실패"
+                  },
+                  "when": {
+                    "path": "/inquiry/outcome",
+                    "op": "eq",
+                    "value": "failed"
+                  }
+                }
               ]
             }
           ]
@@ -90,8 +385,15 @@
     },
     {
       "type": "Form",
-      "props": { "command": "helm start", "submitLabel": "탐구 시작" },
-      "when": { "path": "/status/lease", "op": "eq", "value": "none" },
+      "props": {
+        "command": "helm start",
+        "submitLabel": "탐구 시작"
+      },
+      "when": {
+        "path": "/status/lease",
+        "op": "eq",
+        "value": "none"
+      },
       "children": [
         {
           "type": "TextField",
@@ -106,8 +408,15 @@
     },
     {
       "type": "Button",
-      "props": { "label": "탐구 멈춤", "command": "helm stop" },
-      "when": { "path": "/status/lease", "op": "ne", "value": "none" }
+      "props": {
+        "label": "탐구 멈춤",
+        "command": "helm stop"
+      },
+      "when": {
+        "path": "/status/lease",
+        "op": "ne",
+        "value": "none"
+      }
     }
   ]
 }
