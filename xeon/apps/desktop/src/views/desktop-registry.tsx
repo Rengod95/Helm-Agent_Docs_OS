@@ -213,14 +213,15 @@ export function createDesktopRegistry(): ShellRegistry {
   registry.registerScreen(SECRETS_SCREEN);
   registry.registerScreen(FIRST_RUN_SCREEN);
   registry.registerScreen(REVIEW_SCREEN);
+  // 막대 순서는 스펙 §4.9.4와 시안 chatRightTabs를 따른다: 받은 요청, 런타임, 작업, 플러그인
   registry.registerEndTab(INBOX_TAB);
-  registry.registerEndTab(WORK_TAB);
-  registry.registerEndTab(HELM_TAB);
   // 워크벤치 스토어는 플러그인 탭과 크래프트 화면이 같이 읽으므로 탭 등록보다 먼저 만든다
   const workbench = createWorkbenchStore();
-  registry.registerEndTab(pluginPagesEndTab(workbench));
   // 런타임 탭(§4.9.8): 이 대화의 주도 락, 켜진 그룹과 확장, 실패. 훅 알림을 위해 같은 워크벤치 스토어를 받는다
   registry.registerEndTab(runtimeEndTab(workbench));
+  registry.registerEndTab(WORK_TAB);
+  registry.registerEndTab(HELM_TAB);
+  registry.registerEndTab(pluginPagesEndTab(workbench));
   registerWorkbench(registry, workbench);
   registry.registerEndTab(inspectEndTab(workbench));
   return registry;

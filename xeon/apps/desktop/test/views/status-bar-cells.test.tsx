@@ -47,10 +47,10 @@ describe("status bar engine cell", () => {
     expect(engineDotOf(undefined)).toBe("neutral");
   });
 
-  test("only a failed or restarting engine adds a sentence to its popover", () => {
+  test("a running, failed or restarting engine adds a sentence to its popover", () => {
     expect(engineDescriptionOf(FAILED)).toBe("desktop.status.cell.engine.failed");
     expect(engineDescriptionOf(RESTARTING)).toBe("desktop.status.cell.engine.restarting");
-    expect(engineDescriptionOf(RUNNING)).toBeUndefined();
+    expect(engineDescriptionOf(RUNNING)).toBe("desktop.status.cell.engine.running");
     expect(engineDescriptionOf(null)).toBeUndefined();
   });
 });
@@ -415,7 +415,7 @@ describe("status bar cell order", () => {
 
   test("engine and link lead on the left, and in-progress then approvals follow the spacer on the right", () => {
     const html = barWith(mirrorWithApproval());
-    expect(cellIdsOf(html)).toEqual(["engine", "link", "live", "approvals"]);
+    expect(cellIdsOf(html)).toEqual(["engine", "link", "live", "model", "approvals"]);
     const spacer = html.indexOf('class="grow"');
     expect(html.indexOf('data-bar-cell="link"')).toBeLessThan(spacer);
     expect(spacer).toBeLessThan(html.indexOf('data-bar-cell="live"'));
@@ -423,7 +423,7 @@ describe("status bar cell order", () => {
 
   test("the approval cell reads its count, and is absent when no approval waits", () => {
     expect(cellTextOf(barWith(mirrorWithApproval()), "approvals")).toBe("승인 1");
-    expect(cellIdsOf(barWith(mirrorWithFailure()))).toEqual(["engine", "link", "live"]);
+    expect(cellIdsOf(barWith(mirrorWithFailure()))).toEqual(["engine", "link", "live", "model"]);
   });
 
   test("the bar has no settings button, the sidebar footer is the way to settings", () => {
@@ -464,6 +464,7 @@ describe("status bar model and usage cells", () => {
     expect(cellTextOf(renderToString(<ModelCell model="sonnet-5-5" />), "model")).toBe(
       "sonnet-5-5",
     );
+    expect(cellTextOf(renderToString(<ModelCell model={null} />), "model")).toBe("모델 없음");
   });
 
   test("the tokens cell shows the count and draws the bar only when the limit is known", () => {

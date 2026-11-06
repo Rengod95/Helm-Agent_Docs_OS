@@ -1,4 +1,4 @@
-import { Progress } from "@caustic/react";
+import { Button, Progress } from "@caustic/react";
 import { TriangleAlert } from "@caustic/react/icons";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
@@ -18,6 +18,7 @@ import {
   useApprovalCount,
   useEngineState,
   useLinkBanner,
+  useLinkPhase,
   useRunningCount,
   useStatusItems,
   useThreadRunning,
@@ -204,10 +205,11 @@ export function engineDotOf(engine: EngineState | null | undefined): StatusDot {
   }
 }
 
-/** 엔진 Popover의 설명. 실패와 다시 시작 중에만 한 문장을 더한다. 나머지는 칸 글로 충분하다 */
+/** 엔진 Popover의 설명. 실행 중, 실패, 다시 시작 중에 한 문장을 둔다(시안 defaultStatusCells). 나머지는 칸 글로 충분하다 */
 export function engineDescriptionOf(engine: EngineState | null | undefined): MessageId | undefined {
   if (engine?.kind === "failed") return "desktop.status.cell.engine.failed";
   if (engine?.kind === "restarting") return "desktop.status.cell.engine.restarting";
+  if (engine?.kind === "running") return "desktop.status.cell.engine.running";
   return undefined;
 }
 
@@ -395,16 +397,17 @@ function LiveRowLine(props: {
       <div className="flex min-w-0 items-center gap-2 text-ui-sm text-text-primary">{content}</div>
     );
   return (
-    <button
-      type="button"
-      className="-mx-1.5 flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-start text-ui-sm text-text-primary outline-none focus-visible:focus-ring"
+    <Button
+      size="sm"
+      variant="ghost"
+      className="-mx-1.5 h-auto min-w-0 justify-start px-1.5 py-1 text-start font-normal"
       onClick={() => {
         goTo(row.threadId);
         close();
       }}
     >
       {content}
-    </button>
+    </Button>
   );
 }
 
@@ -444,14 +447,19 @@ function LiveCell(): ReactNode {
  * "모델" 칸(시안 `model`). 이 대화가 다음 턴부터 쓰는 모델(대화가 정한 모델, 없으면 기본 모델)을 보인다.
  * 칸 글은 모델 이름만 두고(`provider/` 접두사는 뗀다). 고르는 곳은 입력창의 모델 select다
  */
-export function ModelCell(props: { readonly model: string }): ReactNode {
+export function ModelCell(props: { readonly model: string | null }): ReactNode {
   const [open, setOpen] = useState(false);
+  // 기본 모델을 아직 정하지 않았으면 시안(p01)처럼 "모델 없음"으로 보인다
   return (
     <StatusCell
       cellId="model"
-      text={modelLabelOf(props.model)}
+      text={props.model === null ? t("desktop.status.cell.model.none") : modelLabelOf(props.model)}
       title={t("desktop.status.cell.model.title")}
-      description={t("desktop.status.cell.model.description")}
+      description={
+        props.model === null
+          ? t("desktop.status.cell.model.noneDescription")
+          : t("desktop.status.cell.model.description")
+      }
       open={open}
       onOpenChange={setOpen}
     />
@@ -513,8 +521,15 @@ function ThreadUsageCells(props: { readonly threadId: ThreadId }): ReactNode {
 /** 모델과 사용량 칸(시안 `model`, `tokens`). 대화를 고르지 않았으면 아무것도 그리지 않고, 값을 읽기 전에는 칸을 두지 않는다 */
 function UsageCells(): ReactNode {
   const threadId = useSelectedThreadId();
-  if (threadId === null) return null;
+  if (threadId === null) return <DefaultModelCell />;
   return <ThreadUsageCells threadId={threadId} />;
+}
+
+/** 대화를 고르지 않았을 때의 모델 칸. 연결이 살아 있을 때만 그려서, 값을 읽기 전에 "모델 없음"이 깜박이지 않게 한다 */
+function DefaultModelCell(): ReactNode {
+  const phase = useLinkPhase();
+  const model = useDefaultModel();
+  return phase === "live" ? <ModelCell model={model} /> : null;
 }
 
 /** "승인 n" 칸. 답을 기다리는 승인이 있을 때만 그린다(0이면 칸을 두지 않는다). 시안처럼 점은 없고 글만 있다 */
@@ -638,34 +653,37 @@ export function StatusBar(): ReactNode {
     <footer className="statusbar" role="status">
       <EngineCell engine={engine} />
       {engine?.kind === "failed" ? (
-        <button
-          type="button"
+        <Button
+          size="xs"
+          variant="outline"
           onClick={() => {
             detach(commands.restartEngine(), rethrow);
           }}
         >
           {t("desktop.status.restartEngineButton")}
-        </button>
+        </Button>
       ) : null}
       <LinkCell phase={banner.phase} attempt={banner.attempt} />
       {banner.phase === "failed" || connectError !== null ? (
         <>
-          <button
-            type="button"
+          <Button
+            size="xs"
+            variant="outline"
             onClick={() => {
               commands.reconnect();
             }}
           >
             {t("desktop.status.reconnectButton")}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            size="xs"
+            variant="outline"
             onClick={() => {
               detach(copy(), rethrow);
             }}
           >
             {t("desktop.status.copyDiagnosticsButton")}
-          </button>
+          </Button>
           {copied === null ? null : (
             <span className="dim">
               {copied

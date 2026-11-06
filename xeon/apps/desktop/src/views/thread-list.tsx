@@ -12,6 +12,7 @@ import {
   Popover,
   Skeleton,
 } from "@caustic/react";
+import { RotateCcw } from "@caustic/react/icons";
 import { memo, useState, type ReactNode } from "react";
 import {
   useThreadsStatus,
@@ -34,8 +35,17 @@ const LIST_COLUMN =
   "grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1 [&_ul]:grid-cols-[minmax(0,1fr)] [&_[data-slot=list-navigation-item]]:min-w-0 [&_[data-slot=list-navigation-item]]:grid-cols-[minmax(0,1fr)]";
 
 /** 행 오른쪽 짧은 글자. 이어서 실행, 닫힘, 승인 수 중 하나(시안: 행 meta는 짧게) */
-function metaOf(thread: ThreadSummary): string | undefined {
-  if (thread.resumable !== null) return t("desktop.threads.resumableBadge");
+function metaOf(thread: ThreadSummary): ReactNode {
+  // 이어서 실행은 아이콘 하나로 보인다(시안 threadMeta의 RotateCcw). 글은 스크린 리더와 툴팁에 두어 제목을 자르지 않는다
+  if (thread.resumable !== null) {
+    const label = t("desktop.threads.resumableBadge");
+    return (
+      <span className="inline-flex items-center" title={label}>
+        <RotateCcw aria-hidden className="size-icon-xs" />
+        <span className="sr-only">{label}</span>
+      </span>
+    );
+  }
   if (thread.status === "closed") return t("desktop.threads.closedBadge");
   if (thread.pendingApprovals > 0) {
     return t("desktop.threads.approvalsBadge", { count: thread.pendingApprovals });

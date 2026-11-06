@@ -637,7 +637,9 @@ Fresnel 데스크톱
 | 대화 | 받은 요청, 런타임, 작업, 플러그인 `well` 탭들 | 런타임(§4.9.8): 이 대화의 그룹과 확장, drive 락 보유와 대기열, drive 락 상한 사용량, 단계 경계 전환 기록, "LightCraft에서 보기". 기존 "탐구" 탭은 Helm의 `well` 기여(`helm/panel`)가 됩니다 |
 | LightCraft | 받은 요청, 검사, 기록, 대화 | 검사: 개요 목록이나 캔버스에서 고른 확장의 검사기(§6.22.4). 기록: 맥락 대화의 런타임 이벤트(`scope.changed`, `scope.handler_failed`, `lease.*`) 실시간 목록. 대화: 맥락 대화의 트랜스크립트 끝 부분 읽기 전용과 "대화로 가기". 구성기(P-21)에서는 검사 자리에 "블록"(팔레트)과 "속성" 탭이 옵니다 |
 
+- 대화 영역 막대 순서는 받은 요청, 런타임(`Layers` 아이콘), 작업, 플러그인입니다(시안 `chatRightTabs`).
 - 받은 요청은 두 영역 모두 맨 위입니다. 승인은 어느 영역에서도 답할 수 있습니다.
+- 막대는 무대 위에 떠 있지만 막대 폭(34px)과 간격 6px만큼 무대 오른쪽(`pe-10`, 40px)을 비워 두어, 화면 머리줄의 단추("새 예약", "서비스 켜기", 셀렉트)가 막대에 가리지 않습니다. 열린 well은 이 여백과 상관없이 무대 위에 펼쳐집니다. 막대가 없는 화면(등록된 탭이 없을 때)은 비우지 않습니다.
 - 플러그인 `well` 탭은 열린 대화에서 켜진 확장의 것만 보입니다. 탭 아이콘은 기여 선언의 `icon`이고, 확장 수가 많아도 막대 칸은 6개까지 보이고 나머지는 "더 보기" 메뉴입니다 [제안].
 
 #### 4.9.5 대화와 LightCraft 잇기
@@ -871,10 +873,10 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 | 칸 | 출처 | 누르면 |
 |---|---|---|
 | 대상 | 연결 설정, `host.hello`의 `transport`, `host.status.mode` | 대상 팝오버(P-08 요약, "대상 바꾸기") |
-| 엔진 | 셸 IPC `EngineState`(starting, running, restarting, stopping, failed, stopped). 점은 돌고 있으면 초록, 시작·다시 시작·끄는 중이면 노랑, 실패면 빨강, 꺼짐은 회색 | `Popover`(제목 "엔진"). 실패와 다시 시작 중에는 한 문장을 더합니다. 실패 단추 "엔진 다시 시작"은 칸 옆 띠에 그대로 둡니다 [근거: `apps/desktop/src/views/status-bar.tsx`의 `engineDotOf`, `engineDescriptionOf`] |
+| 엔진 | 셸 IPC `EngineState`(starting, running, restarting, stopping, failed, stopped). 점은 돌고 있으면 초록, 시작·다시 시작·끄는 중이면 노랑, 실패면 빨강, 꺼짐은 회색 | `Popover`(제목 "엔진"). 실행 중("엔진이 실행 중이에요."), 실패, 다시 시작 중에는 한 문장을 둡니다(시안 `defaultStatusCells`). 실패 단추 "엔진 다시 시작"은 칸 옆 띠에 그대로 둡니다 [근거: `apps/desktop/src/views/status-bar.tsx`의 `engineDotOf`, `engineDescriptionOf`] |
 | 연결 | 연결 상태 기계(offline, connecting, catchingUp, live, resyncing, reloading, failed). 점은 연결됨 초록, 실패 빨강, 연결 없음 회색, 그 밖은 노랑 | `Popover`(제목 "연결"). 끊김은 "읽기만 돼요"를, 맞추는 중은 맞추는 방법을 한 문장으로 보입니다. 실패 단추 "다시 연결", "진단 복사"는 그대로 둡니다 [근거: `apps/desktop/src/views/status-bar.tsx`의 `LINK_DOT`, `LINK_DESCRIPTION`] |
 | 진행 중 | 거울의 실행 중 대화(`thread.list`의 `status`가 running). 테스트 대화는 `testRun` 표식, 예약은 `origin.kind`가 schedule로 가른다. `host.status.liveTurns`는 읽지 않는다 [근거: `apps/desktop/src/views/status-bar.tsx`의 `liveRowsOf`] | `Popover`(넓은 크기). 머리 글 "대화", "테스트 대화", "예약"으로 묶고 행을 누르면 그 대화로 가며 `Popover`는 닫힙니다. 없으면 "지금 진행 중인 일이 없어요." 제작 대화는 읽을 값이 없어 아직 없습니다 [미결] |
-| 모델 | 이 대화가 다음 턴부터 쓰는 모델. 거울의 대화 요약 `model`(`thread.setModel`)이 있으면 그것이고 없으면 `setup.load`의 `defaultModel`(설정 `l1.models.default`)입니다 [근거: `apps/desktop/src/views/model-usage.ts`의 `useThreadModel`, `apps/desktop/src/views/status-bar.tsx`의 `ModelCell`] | `Popover`(제목 "모델"). 칸 글은 모델 이름이고, 설명이 다음 턴부터 쓰는 모델이며 입력창에서 대화마다 고른다고 말합니다. 고르는 곳은 입력창 `Select`입니다(요소 표의 모델 행) |
+| 모델 | 이 대화가 다음 턴부터 쓰는 모델. 거울의 대화 요약 `model`(`thread.setModel`)이 있으면 그것이고 없으면 `setup.load`의 `defaultModel`(설정 `l1.models.default`)입니다 [근거: `apps/desktop/src/views/model-usage.ts`의 `useThreadModel`, `apps/desktop/src/views/status-bar.tsx`의 `ModelCell`] | `Popover`(제목 "모델"). 칸 글은 모델 이름이고, 설명이 다음 턴부터 쓰는 모델이며 입력창에서 대화마다 고른다고 말합니다. 고르는 곳은 입력창 `Select`입니다(요소 표의 모델 행). 대화를 고르지 않았고 연결이 살아 있으면 기본 모델을 보이고, 기본 모델이 없으면 칸 글은 "모델 없음"이고 설명은 시작하기에서 정한다고 말합니다(시안 p01). 목표·알림 칸은 값이 없어 두지 않고, 0인 개수 칸은 숨기는 시안 규칙(DP-27)과 같습니다 |
 | 사용량 | `usage.get { threadId }`의 `context`(가장 나중에 끝난 호출의 `totalTokens`와 그 모델의 문맥 창). `context`가 없으면(끝난 호출이 없거나 문맥 창을 모름) `session` 토큰 게이지 합으로 돌아가고 이때는 비율이 없습니다 [근거: `apps/desktop/src/views/model-usage.ts`의 `sessionUsageOf`, `useSessionUsage`] | `Popover`(제목 "문맥 사용량"). 지금 문맥에 찬 토큰 수를 말하고, 문맥 창을 알면 비율을 한 문장 더합니다. 칸 뒤의 `Progress` 막대와 입력창 보내기 옆 링은 비율을 알 때만 그립니다. 문맥 창은 모델 카탈로그의 `contextWindow`입니다. 게이지 목록과 P-11 링크는 아직 없습니다 [gap:V-11] |
 | 목표 | "목표 2/3"(판정 횟수/최대, DP-25). `goal.status` [근거: `apps/host/src/handlers/m4/dialog-area.ts`]. 이벤트 `agent.judged`·`work.goal_*`는 갱신 알림에만 씁니다 | `Popover` 첫 줄 "판정 2/3", 끝 영역 작업 탭 링크 |
 | Helm | `[gap:W-04]`, 임시로 `grp.helm.*` 이벤트 | 끝 영역 탐구 탭 |
@@ -3483,7 +3485,7 @@ DP-11을 caustic 토큰으로 정했습니다(caustic `27fe658`, `bbb094a`, `FOU
 
 - DP-11e 글자 기준(변형 D, 2026-11-02 사용자 선택)은 앱 `src/type-scale.css`가 시안 `_shell/type-variants.css`와 같은 값으로 준다. 제목 2는 16/22 600, 제목 1은 24/32 600, 손으로 쓴 머리 `h1`은 16/22 700(설정 화면 `data-page-title`만 20/28 700), 설명 13/19, 글 색 secondary·tertiary는 라이트 L .46·.54, 다크 .72·.64입니다. 머리 `h1`·`h2`는 `text-*` 크기·굵기 클래스를 붙이지 않고 이 규칙을 받습니다. T-LANG의 radius.css는 가져오지 않습니다(2026-11-02 되돌림).
 
-- DP-13a 왼쪽 패널이 닫혔을 때 다시 여는 단추: 대화 화면은 머리줄(`chat-header`)이 갖고, 다른 모든 화면(설정 포함)은 셸이 무대 위에 한 줄(h-9)로 둡니다. 시안은 화면마다 머리줄에 단추를 넣지만 앱 화면 머리가 흩어져 있어 셸 한 곳에 둡니다 [가정]. 오른쪽 떠 있는 막대가 가리지 않도록 머리 줄의 오른쪽 동작은 `pe-11`(시안 `BAR_INSET`)을 둡니다.
+- DP-13a 왼쪽 패널이 닫혔을 때 다시 여는 단추: 대화 화면은 머리줄(`chat-header`)이 갖고, 다른 모든 화면(설정 포함)은 셸이 무대 위에 한 줄(h-9)로 둡니다. 시안은 화면마다 머리줄에 단추를 넣지만 앱 화면 머리가 흩어져 있어 셸 한 곳에 둡니다 [가정]. 오른쪽 떠 있는 막대가 가리지 않도록 머리 줄의 오른쪽 동작은 `pe-10`(시안 `BAR_INSET`)을 둡니다.
 
 ### 13.3 3차 (2026-10-30)
 
