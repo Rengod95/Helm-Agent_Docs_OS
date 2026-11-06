@@ -8,6 +8,7 @@ import type {
 } from "@fresnel/contracts/records";
 import { memoryInputQueue, memoryLoopPort, runPortContract } from "@fresnel/ext-host/testing";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
+import { completeTurn, itemAt } from "./support/branching.ts";
 import {
   endTurn,
   expectOk,
@@ -483,5 +484,39 @@ describe("port contract (X.primitives.plan P-19)", () => {
     loop: () => memoryLoopPort(),
     queue: () => memoryInputQueue(),
     records: freshRecords,
+  });
+});
+
+describe("ext.commit on a forked thread", () => {
+  // 갈라진 thread의 첫 상태 커밋은 출처에서 이어받은 판을 기대 판으로 받아야 한다. 저장소가 자기 thread 이벤트만 보면 판 0으로 읽어 충돌한다
+  test("forked_thread_state_rev_follows_the_origin_chain", async () => {
+    const h = await openHarness();
+    const { threadId } = newThread(h);
+    const first = stateRequest(h, threadId, "st-1", 1, null, { n: 1 });
+    expect(await h.service.ext.commit(first)).toEqual({ status: "committed" });
+    const secondRequest = stateRequest(h, threadId, "st-2", 2, firstDraftId(first), { n: 2 });
+    expect(await h.service.ext.commit(secondRequest)).toEqual({ status: "committed" });
+    completeTurn(h, threadId);
+
+    const childId = h.ids.next("thr");
+    expectOk(await h.service.threads.fork(threadId, itemAt(h, threadId, 0).itemId, childId));
+    const token = h.store.leases.acquire(`thread:${childId}`, TEST_HOLDER_A);
+    if (!token.ok) throw new Bug("test: child lease failed");
+    expectOk(h.service.openForWrite(childId, token.value));
+
+    const snapshot = expectOk(await h.service.ext.loadThread(childId));
+    expect(snapshot.states).toMatchObject([{ scopeId: "alpha", rev: 2, doc: { n: 2 } }]);
+
+    const stale = await h.service.ext.commit(
+      stateRequest(h, childId, "child-stale", 1, null, { n: 7 }),
+    );
+    expect(stale).toEqual({ status: "rejected", code: "state_conflict" });
+    const ok3 = await h.service.ext.commit(
+      stateRequest(h, childId, "child-3", 3, firstDraftId(secondRequest), { n: 3 }),
+    );
+    expect(ok3).toEqual({ status: "committed" });
+    // 출처 thread는 그대로 판 2다
+    const origin = expectOk(await h.service.ext.loadThread(threadId));
+    expect(origin.states).toMatchObject([{ rev: 2, doc: { n: 2 } }]);
   });
 });

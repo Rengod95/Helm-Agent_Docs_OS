@@ -315,6 +315,7 @@ export interface TxView {
   agentByRequestId(parentThreadId: ThreadId, requestId: string): AgentView | undefined;
   /** X.primitives.spec §4.6.1 expectStateRev 검사용. 없으면 0 */
   scopeStateRev(threadId: ThreadId, scopeId: string): number;
+  // 활성 가지는 출처 thread의 이벤트까지 이어지므로 갈라진 thread는 자기 이벤트가 없어도 출처에서 이어받은 판을 읽는다(ext.loadThread와 같은 값)
   lastCheckpoint(threadId: ThreadId): StepCheckpoint | null;
 }
 ```
