@@ -5,10 +5,9 @@ import { join } from "node:path";
 import { attempt } from "@fresnel/contracts";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
-import { callingModels } from "../fixtures/call-tape.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
-import { settleMcpTools } from "../fixtures/mcp-settle.ts";
+import { callingModelsAfterTool, warmUntilAdvertised } from "../fixtures/mcp-settle.ts";
 import { toolResultTexts } from "../fixtures/tool-results.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS, startTurnWhenIdle } from "../fixtures/wire-client.ts";
@@ -56,20 +55,22 @@ realTest(
       // 서버 도구는 기본이 승인을 묻는다. 이 시험은 호출 경로를 본다
       "l2.mcp.approvalMode": "auto",
     });
+    const gated = callingModelsAfterTool("mcp-stdio", "stdio_marker", [
+      { name: "stdio_marker", args: {} },
+    ]);
     const host = await startInProcessHost({
       devChecks: true,
       defaultGroups: false,
-      buildModels: callingModels("mcp-stdio", [{ name: "stdio_marker", args: {} }], "done.", [
-        "warmed up.",
-      ]),
+      buildModels: gated.buildModels,
     });
     const connection = createHostConnection(host.client);
     await connection.request("host.hello", HELLO_PARAMS);
     const collector = collectEvents(connection);
     await connection.request("events.subscribe", { from: "head" });
     const created = await connection.request("thread.create", {});
-    // 연결은 세션 시작을 막지 않는다. 서버가 도구 목록을 내준 뒤 turn을 한 번 돌리면 그 뒤 단계 경계가 연결 결과를 반영한다(mcp-settle.ts)
-    await settleMcpTools(
+    // 연결은 세션 시작을 막지 않는다. 서버가 도구 목록을 내준 뒤, 모델이 받은 요청에 도구가 보일 때까지 turn을 돌린다(mcp-settle.ts)
+    await warmUntilAdvertised(
+      gated,
       () => existsSync(listedFile),
       async () => {
         const warm = await startTurnWhenIdle(connection, {

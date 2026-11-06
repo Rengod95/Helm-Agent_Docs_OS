@@ -7,7 +7,12 @@ import { startInProcessHost } from "../../src/main.ts";
 import { callingModels, type ToolStep } from "../fixtures/call-tape.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
-import { serveMcpStub, settleMcpTools } from "../fixtures/mcp-settle.ts";
+import {
+  callingModelsAfterTool,
+  serveMcpStub,
+  warmUntilAdvertised,
+  type GatedModels,
+} from "../fixtures/mcp-settle.ts";
 import { toolResultTexts } from "../fixtures/tool-results.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { SECRET_REF, SECRET_TOOL, startSecretEnvScenario } from "../fixtures/secret-env.ts";
@@ -40,9 +45,8 @@ async function runScenario(
   settled: Settled,
   options: {
     readonly settings?: JsonObject;
-    readonly lead?: readonly string[];
-    /** MCP 서버가 tools/list 응답을 냈는지. 있으면 warm turn 하나를 돌린 뒤 `go`를 부른다(`lead`는 그 warm turn의 모델 응답이다) */
-    readonly listed?: () => boolean;
+    /** MCP 서버 도구를 부르는 시나리오: 서버가 tools/list 응답을 냈는지와, 그 도구가 광고된 뒤에만 테이프를 쓰는 모델. 도구가 광고될 때까지 warm turn을 돌린 뒤 `go`를 부른다 */
+    readonly mcp?: { readonly listed: () => boolean; readonly gated: GatedModels };
   } = {},
 ): Promise<Scenario> {
   const home = useEngineHome();
@@ -50,7 +54,10 @@ async function runScenario(
   const host = await startInProcessHost({
     devChecks: true,
     defaultGroups: false,
-    buildModels: callingModels("shapes", steps, "done.", options.lead ?? []),
+    buildModels:
+      options.mcp === undefined
+        ? callingModels("shapes", steps, "done.")
+        : options.mcp.gated.buildModels,
   });
   const connection = createHostConnection(host.client);
   try {
@@ -58,9 +65,9 @@ async function runScenario(
     const collector = collectEvents(connection);
     await connection.request("events.subscribe", { from: "head" });
     const created = await connection.request("thread.create", {});
-    // MCP 서버 도구는 서버가 목록을 낸 뒤의 단계 경계에 오른다. 목록 표지를 기다린 뒤 warm turn을 돌리고, `go`의 단계 경계가 그 뒤에 온다
-    if (options.listed !== undefined) {
-      await settleMcpTools(options.listed, async () => {
+    // MCP 서버 도구는 서버가 목록을 낸 뒤의 단계 경계에 오른다. 모델이 받은 요청에 도구가 보일 때까지 warm turn을 돌린 뒤 `go`를 부른다
+    if (options.mcp !== undefined) {
+      await warmUntilAdvertised(options.mcp.gated, options.mcp.listed, async () => {
         const warm = await startTurnWhenIdle(connection, {
           threadId: created.threadId,
           input: "warm",
@@ -170,6 +177,13 @@ realTest(
       era: "modern",
       tools: [
         {
+          name: "ping",
+          description:
+            "Answers at once. The warm-up turns call it to learn the server tools are listed.",
+          inputSchema: { type: "object", properties: {} },
+          handle: () => ({ kind: "complete", content: [{ type: "text", text: "pong" }] }),
+        },
+        {
           name: "ask_server",
           description: "Asks the user one thing before it answers.",
           inputSchema: { type: "object", properties: {} },
@@ -241,8 +255,10 @@ realTest(
         [{ name: "ask_server", args: {} }],
         { decision: "answer", answer: { q1: { selected: [], text: "Ada" } } },
         {
-          lead: ["warmed up."],
-          listed: served.listed,
+          mcp: {
+            listed: served.listed,
+            gated: callingModelsAfterTool("shapes", "ping", [{ name: "ask_server", args: {} }]),
+          },
           settings: {
             "l2.mcp.servers": {
               fixture: { transport: { type: "http", url: served.url } },

@@ -1,5 +1,12 @@
 import type { JsonObject } from "@fresnel/contracts/conversation";
-import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
+import {
+  t,
+  tape,
+  tapeBuildModels,
+  tapePlayer,
+  tapeProvider,
+  type TapePlayer,
+} from "@fresnel/core-models/testing";
 import { realTapeClock } from "./tape-host.ts";
 import type { AssembleOptions } from "../../src/types.ts";
 
@@ -17,40 +24,46 @@ export function callingModels(
   final = "done.",
   lead: readonly string[] = [],
 ): NonNullable<AssembleOptions["buildModels"]> {
-  return tapeBuildModels(
-    tapeProvider(
-      tapePlayer(
-        tape(id, [
-          ...lead.map((text, index) => ({
-            role: "main" as const,
-            label: `lead ${String(index + 1)}`,
-            response: {
-              type: "message" as const,
-              content: [t.text(text)],
-              stopReason: "stop" as const,
-            },
-          })),
-          ...steps.map((step, index) => ({
-            role: "main" as const,
-            label: `step ${String(index + 1)}: ${step.name}`,
-            response: {
-              type: "message" as const,
-              content: [t.toolCall(step.name, step.args, `call_${String(index + 1)}`)],
-              stopReason: "toolUse" as const,
-            },
-          })),
-          {
-            role: "main" as const,
-            label: "final answer",
-            response: {
-              type: "message" as const,
-              content: [t.text(final)],
-              stopReason: "stop" as const,
-            },
-          },
-        ]),
-        { clock: realTapeClock() },
-      ),
-    ),
+  return tapeBuildModels(tapeProvider(callingPlayer(id, steps, final, lead)));
+}
+
+/** `callingModels`의 모델 테이프 재생기. 재생기를 한 겹 감싸는 도우미(mcp-settle.ts)가 쓴다 */
+export function callingPlayer(
+  id: string,
+  steps: readonly ToolStep[],
+  final: string,
+  lead: readonly string[],
+): TapePlayer {
+  return tapePlayer(
+    tape(id, [
+      ...lead.map((text, index) => ({
+        role: "main" as const,
+        label: `lead ${String(index + 1)}`,
+        response: {
+          type: "message" as const,
+          content: [t.text(text)],
+          stopReason: "stop" as const,
+        },
+      })),
+      ...steps.map((step, index) => ({
+        role: "main" as const,
+        label: `step ${String(index + 1)}: ${step.name}`,
+        response: {
+          type: "message" as const,
+          content: [t.toolCall(step.name, step.args, `call_${String(index + 1)}`)],
+          stopReason: "toolUse" as const,
+        },
+      })),
+      {
+        role: "main" as const,
+        label: "final answer",
+        response: {
+          type: "message" as const,
+          content: [t.text(final)],
+          stopReason: "stop" as const,
+        },
+      },
+    ]),
+    { clock: realTapeClock() },
   );
 }

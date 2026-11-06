@@ -13,10 +13,9 @@ import { expect, test } from "bun:test";
 import { attempt } from "@fresnel/contracts";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
-import { callingModels } from "../fixtures/call-tape.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
-import { settleMcpTools } from "../fixtures/mcp-settle.ts";
+import { callingModelsAfterTool, warmUntilAdvertised } from "../fixtures/mcp-settle.ts";
 import { toolResultTexts } from "../fixtures/tool-results.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS, startTurnWhenIdle } from "../fixtures/wire-client.ts";
@@ -74,14 +73,13 @@ realTest(
     });
     const previousCwd = process.cwd();
     process.chdir(engineCwd);
+    const gated = callingModelsAfterTool("mcp-ws", "stdio_marker", [
+      { name: "stdio_marker", args: {} },
+    ]);
     const host = await startInProcessHost({
       devChecks: true,
       defaultGroups: false,
-      buildModels: callingModels("mcp-ws", [{ name: "stdio_marker", args: {} }], "done.", [
-        "untrusted turn.",
-        "warmed up.",
-        "settled.",
-      ]),
+      buildModels: gated.buildModels,
     });
     const connection = createHostConnection(host.client);
     await connection.request("host.hello", HELLO_PARAMS);
@@ -113,8 +111,9 @@ realTest(
       expect(
         await connection.request("approval.respond", { approvalId: asked.id, decision: "allow" }),
       ).toEqual({ applied: true });
-      // 서버가 목록을 낸 뒤 turn을 한 번 돌려 단계 경계가 연결 결과를 반영하게 한 다음 도구를 부른다(mcp-settle.ts)
-      await settleMcpTools(
+      // 서버가 목록을 낸 뒤, 모델이 받은 요청에 도구가 보일 때까지 turn을 돌리고 도구를 부른다(mcp-settle.ts)
+      await warmUntilAdvertised(
+        gated,
         () => existsSync(projectListed),
         () => turnDone("settle"),
       );
