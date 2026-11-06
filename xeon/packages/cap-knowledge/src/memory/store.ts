@@ -55,6 +55,10 @@ import {
 // 파일 해시를 마지막으로 확인한 해시와 비교해 바깥 편집(원장 `external`)과 드리프트(`.bak` 사본, 쓰기 거부)를 처리한다(§4.3.5).
 
 const STORES: readonly MemoryStore[] = ["user", "env"];
+
+/** 스냅샷 블록의 머리. 사용자 저장소 항목을 모델이 지시로 읽게 한다(L2.knowledge.spec §4.3.4) */
+export const MEMORY_HEADER =
+  '아래 <memory>는 사용자가 알려 준 것이다. store="user" 항목은 사용자의 지시와 선호이므로 이 대화의 모든 답에 따른다(답의 길이, 말투, 형식 포함). 항목이 지금 요청과 부딪히면 지금 요청을 따른다. store="env" 항목은 환경에 대한 사실이다.';
 const FILE_OF: Readonly<Record<MemoryStore, string>> = { user: "USER.md", env: "MEMORY.md" };
 const MAX_BATCH_OPS = 8;
 const MAX_STALE_RETRIES = 5;
@@ -489,7 +493,7 @@ export function createMemory(deps: MemoryDeps): MemoryRuntime {
       const blocked = view.writeBlocked ? ' writeBlocked="true"' : "";
       return `<memory store="${view.store}" fileHash="${view.fileHash}" used="${String(view.usedChars)}" limit="${String(view.limitChars)}"${blocked}>\n${lines.join("\n")}${lines.length === 0 ? "" : "\n"}</memory>`;
     });
-    return ok(blocks.join("\n"));
+    return ok(`${MEMORY_HEADER}\n${blocks.join("\n")}`);
   };
 
   // ── 쓰기 흐름 ─────────────────────────────────────────────────────────────
