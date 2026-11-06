@@ -21,7 +21,7 @@ describe("approvalFailureOf", () => {
       kind: "closed",
     });
     expect(approvalFailureOf(ok({ applied: false, reason: "unknown_approval" }), "deny")).toEqual({
-      kind: "closed",
+      kind: "gone",
     });
     expect(approvalFailureOf(ok({ applied: false, reason: "commit_failed" }), "allow")).toEqual({
       kind: "failed",

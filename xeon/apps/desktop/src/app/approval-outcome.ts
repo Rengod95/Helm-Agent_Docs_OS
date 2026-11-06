@@ -32,7 +32,9 @@ export function approvalFailureOf(
   if (reason === "answer_invalid") {
     return detail === undefined ? { kind: "invalid" } : { kind: "invalid", detail };
   }
-  if (reason === "already_resolved" || reason === "unknown_approval") return { kind: "closed" };
+  // 이미 해결된 승인은 곧 대기열에서 빠지고, host가 모르는 승인은 지울 때까지 카드에 남는다
+  if (reason === "already_resolved") return { kind: "closed" };
+  if (reason === "unknown_approval") return { kind: "gone" };
   if (reason === "commit_failed") return { kind: "failed" };
   return { kind: "unapplied" };
 }

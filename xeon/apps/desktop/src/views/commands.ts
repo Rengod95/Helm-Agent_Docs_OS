@@ -789,6 +789,11 @@ export interface Commands {
   /** 보류 중이면 응답을 보내지 않고 카드에 `switching` 실패 표시를 둔다(보내는 중 표시는 켜지 않는다) */
   respondApproval(approvalId: EventId, response: ApprovalDecision): Promise<void>;
   /**
+   * 승인을 대기열에서 뺀다. host가 모르는 승인(`gone`)을 카드에서 지울 때 쓴다. 거울에서 지우고 카드의 응답 표시도 지운다.
+   * 연결과 무관하게 바로 된다(host에 보내지 않는다).
+   */
+  dismissApproval(approvalId: EventId): void;
+  /**
    * 엔진 대상을 바꾼다(W-08, `engine_retarget`). 바꾸는 동안 쓰기 명령(`sendTurn`, `interrupt`, `withdrawInput`, `respondApproval`, `createThread`,
    * `forkThread`, `trust.decide`)은 `switching`으로 거절한다. 옛 엔진이 `shutdownGraceMs`까지 쓰기를 받을 수 있어서다.
    * `graceMs`는 `l4.desktop.engine.shutdownGraceMs`.

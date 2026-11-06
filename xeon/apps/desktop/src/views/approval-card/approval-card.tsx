@@ -153,6 +153,10 @@ function PendingCard(props: {
   const respond = (decision: ApprovalDecision): void => {
     detach(commands.respondApproval(id, decision), rethrow);
   };
+  /** host가 모르는 승인을 대기열에서 뺀다(`gone`일 때 지우기 단추) */
+  const dismiss = (): void => {
+    commands.dismissApproval(id);
+  };
   /** 검토 열기: 변경 검토 화면(P-04)을 이 승인으로 연다. 화면 자리는 App이 옮긴다 */
   const openReview = (): void => {
     if (body.kind === "review")
@@ -345,6 +349,17 @@ function PendingCard(props: {
               {detail === undefined ? null : ` (${detail})`}
             </span>
           )}
+          {sendState === "gone" ? (
+            <Button
+              type="button"
+              data-action="dismiss"
+              size={actionSize}
+              variant="ghost"
+              onClick={dismiss}
+            >
+              {t("desktop.approvals.failure.gone.dismiss")}
+            </Button>
+          ) : null}
         </div>
       </AgentRequest>
     </li>

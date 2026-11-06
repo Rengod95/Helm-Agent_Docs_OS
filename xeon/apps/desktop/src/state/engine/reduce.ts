@@ -240,6 +240,11 @@ export function reduceMirror(state: EngineMirror, input: MirrorInput): Reduced<E
       const ids = [...state.approvals.ids, ...fresh.map((a) => a.approvalId)];
       return keep({ ...state, approvals: { ...state.approvals, ids, byId } }, "applied");
     }
+    case "approval_dismissed": {
+      // 거울에 없는 승인은 건드리지 않는다(뺀 기록도 남기지 않는다)
+      if (state.approvals.byId[input.approvalId] === undefined) return keep(state, "stale");
+      return keep(settleApproval(state, input.approvalId), "applied");
+    }
     case "transcript_failed": {
       const t = state.transcript;
       if (t === null || t.status !== "loading" || t.threadId !== input.threadId)
@@ -438,6 +443,26 @@ function bumpPending(state: EngineMirror, id: ThreadId, delta: 1 | -1): EngineMi
   }));
 }
 
+/**
+ * 승인 하나가 대기열에서 빠진다. `approval.resolved` 사실과 `approval_dismissed` 입력이 같이 쓴다. 해결된 id로 기억해 두어
+ * `approvals` 복원이 되살리지 못하게 하고, 거울에 있었다면 목록에서 빼고 그 대화의 대기 수를 줄인다.
+ */
+function settleApproval(state: EngineMirror, approvalId: EventId): EngineMirror {
+  const resolved = capped(state.approvals.resolved, approvalId);
+  const found = state.approvals.byId[approvalId];
+  if (found === undefined) return { ...state, approvals: { ...state.approvals, resolved } };
+  const { [approvalId]: _gone, ...byId } = state.approvals.byId;
+  const next: EngineMirror = {
+    ...state,
+    approvals: {
+      resolved,
+      ids: state.approvals.ids.filter((id) => id !== approvalId),
+      byId,
+    },
+  };
+  return bumpPending(next, found.threadId, -1);
+}
+
 function putStreaming(streaming: Streaming, item: StreamingItem): Streaming {
   const known = streaming.items[item.itemId] !== undefined;
   return {
@@ -613,21 +638,8 @@ function applyFact(state: EngineMirror, fact: DurableFact): EngineMirror {
       };
       return bumpPending(next, fact.threadId, 1);
     }
-    case "approval.resolved": {
-      const resolved = capped(state.approvals.resolved, fact.approvalId);
-      const found = state.approvals.byId[fact.approvalId];
-      if (found === undefined) return { ...state, approvals: { ...state.approvals, resolved } };
-      const { [fact.approvalId]: _gone, ...byId } = state.approvals.byId;
-      const next: EngineMirror = {
-        ...state,
-        approvals: {
-          resolved,
-          ids: state.approvals.ids.filter((id) => id !== fact.approvalId),
-          byId,
-        },
-      };
-      return bumpPending(next, found.threadId, -1);
-    }
+    case "approval.resolved":
+      return settleApproval(state, fact.approvalId);
     case "lease.acquired":
       return recordTransition(
         state,

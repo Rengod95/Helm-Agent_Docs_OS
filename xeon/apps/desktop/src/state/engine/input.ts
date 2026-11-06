@@ -174,5 +174,10 @@ export type MirrorInput =
     }
   | { readonly type: "transcript_closed" }
   | { readonly type: "approvals"; readonly approvals: readonly WirePendingApproval[] }
+  /**
+   * 화면이 승인을 대기열에서 뺀다(응답이 이미 해결됐다는 답 뒤의 제거, host가 모르는 승인의 지우기). 내구 사실이 아니라 거울만 바꾼다.
+   * 거울에 없는 id면 아무것도 하지 않는다. 뺀 id는 `resolved`에 남아 목록 복원이 되살리지 못한다.
+   */
+  | { readonly type: "approval_dismissed"; readonly approvalId: EventId }
   | { readonly type: "threads_failed" }
   | { readonly type: "transcript_failed"; readonly threadId: ThreadId };

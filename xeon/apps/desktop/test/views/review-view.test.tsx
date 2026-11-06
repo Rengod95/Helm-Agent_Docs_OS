@@ -220,6 +220,10 @@ describe("review screen states", () => {
   test("a failed answer shows the same sentence the card shows", () => {
     const html = render(view({ failure: "closed" }));
     expect(html).toContain(t("desktop.approvals.failure.closed"));
+    // host가 모르는 승인은 화면에서도 같은 문장으로 알린다(지우기 단추는 카드에만 있다)
+    const gone = render(view({ failure: "gone" }));
+    expect(gone).toContain("이 승인은 더 이상 답할 수 없어요.");
+    expect(gone).toContain(t("desktop.approvals.failure.gone"));
   });
 
   test("a binary file has no hunks to decide, and says so", () => {

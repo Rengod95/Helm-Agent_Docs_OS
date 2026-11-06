@@ -141,6 +141,7 @@ export function createApp(env: AppEnv): App {
     clipboard: env.clipboard,
     engineSwitch,
     logger: log.logger,
+    scheduler: env.scheduler,
   });
   return {
     engine,
