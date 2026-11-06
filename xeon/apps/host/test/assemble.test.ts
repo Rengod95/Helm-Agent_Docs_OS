@@ -89,6 +89,7 @@ test("the core groups build one catalog with the keys of every package that decl
   if (!built.ok) return;
   const owners = new Set(coreSettingGroups().map((group) => group.owner));
   expect([...owners].toSorted()).toEqual([
+    "builtin-extensions",
     "cap-artifacts",
     "cap-dialog",
     "cap-knowledge",
@@ -119,6 +120,10 @@ test("the core groups build one catalog with the keys of every package that decl
     "platform-store",
     "plugin-builder",
   ]);
+  // 내장 확장의 예약 키가 정적 카탈로그에 있어 파일 스키마와 `config list`가 같은 키를 본다(X10)
+  expect(built.catalog.has("ext.cap-web.enabled")).toBe(true);
+  expect(built.catalog.get("ext.authoring.enabled")?.default).toBe(false);
+  expect(built.catalog.get("ext.learning.enabled")?.default).toBe(true);
   for (const key of [
     "x.primitives.driveDefaultLimits",
     "x.primitives.driveLimits",
