@@ -859,9 +859,21 @@ describe("skillViewResultOf", () => {
 describe("skillList", () => {
   test("the index and its diagnostics are mapped, hidden skills included, with the thread's host context", async () => {
     const seen: { input: unknown; options: CallOptions | undefined }[] = [];
+    const order: string[] = [];
     const port = portFor({
       skills: {
+        reindex: () => {
+          order.push("reindex");
+          return Promise.resolve({
+            added: 0,
+            changed: 0,
+            removed: 0,
+            indexVersion: 3,
+            diagnostics: [],
+          });
+        },
         list: (input, options) => {
+          order.push("list");
           seen.push({ input, options });
           return Promise.resolve({
             skills: [
@@ -907,6 +919,8 @@ describe("skillList", () => {
         ],
       },
     });
+    // 목록은 다시 훑은 뒤에 읽는다
+    expect(order).toEqual(["reindex", "list"]);
     expect(seen[0]?.input).toEqual({ includeHidden: true });
     expect(seen[0]?.options?.context).toEqual({ threadId: THREAD, caller: { kind: "host" } });
   });

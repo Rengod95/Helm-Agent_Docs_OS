@@ -335,6 +335,9 @@ export function createDialogAreaPort(deps: M4PortDeps): DialogAreaPort {
       const context: CallContext =
         threadId === undefined ? { caller: { kind: "host" } } : hostContext(threadId);
       const options: CallOptions = { signal, context };
+      // 화면이 보는 목록은 지금 디스크와 신뢰 상태를 따른다: 대화 중에 둔 스킬과 그 사이에 준 폴더 신뢰가 turn을 기다리지 않고 보이게
+      // 먼저 다시 훑는다. 실패해도 마지막 색인으로 답한다
+      await attemptAsync(() => api.reindex({}, options));
       // 모델이 못 부르는 스킬도 슬래시로는 부를 수 있어 숨은 것까지 읽는다
       const listed = await attemptAsync(() => api.list({ includeHidden: true }, options));
       if (!listed.ok) {
