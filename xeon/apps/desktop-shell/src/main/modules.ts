@@ -6,10 +6,15 @@ import { engineModule } from "./engine.ts";
 import { inspectModule } from "./inspect.ts";
 import { openExternalModule } from "./open-external.ts";
 import { secretEntryModule } from "./secret-entry.ts";
+import { shellIntentsModule } from "./shell-intents.ts";
+import { singleInstanceShellModule } from "./single-instance-shell.ts";
+import { trayShellModule } from "./tray-shell.ts";
 import { viewSchemeModule } from "./view-scheme.ts";
 import { windowStateModule } from "./window-state.ts";
 
+/** 단일 인스턴스 잠금이 가장 먼저 와야 한다(두 번째 실행이 다른 초기화를 하기 전에 끝난다) */
 export const MODULES: readonly ShellModule[] = [
+  singleInstanceShellModule,
   desktopSettingsModule,
   engineModule,
   inspectModule,
@@ -18,4 +23,6 @@ export const MODULES: readonly ShellModule[] = [
   dialogsModule,
   secretEntryModule,
   viewSchemeModule,
+  shellIntentsModule,
+  trayShellModule,
 ];

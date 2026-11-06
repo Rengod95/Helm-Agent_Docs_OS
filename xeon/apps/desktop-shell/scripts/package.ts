@@ -18,6 +18,8 @@ const paths = await packager({
   extraResource: [
     `${desktop}/src-tauri/ui`,
     `${desktop}/src-tauri/binaries/fresnel-aarch64-apple-darwin`,
+    // 트레이 아이콘(tray-shell.ts가 Resources/assets/tray.png를 읽는다)
+    `${shell}/assets`,
   ],
 });
 process.stdout.write(`${paths.join("\n")}\n`);

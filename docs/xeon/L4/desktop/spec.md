@@ -794,7 +794,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 
 ### 11.3 실행
 
-`just desktop-run-electron`(Tauri `just desktop-run`은 그대로). 단일 인스턴스 잠금이 없어 두 셸이 동시에 떠도 서로 막지 않는다.
+`just desktop-run-electron`(Tauri `just desktop-run`은 그대로). 단일 인스턴스 잠금은 이 앱의 userData 기준이라 Tauri 셸과 서로 막지 않는다(§11.6).
 
 ### 11.4 이 단계의 범위
 
@@ -816,3 +816,11 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 | `engine_restart`, `engine_retarget`, `db_restore` | `engine.ts`, `engine/supervisor.ts`, `engine/policy.ts`, `engine/launcher.ts` | 세대 관리, 크래시 재시작(10분 창, 지수 백오프), 안전 모드, service 대상, 정상 종료 순서(EOF, 유예, 그룹 종료)는 Rust와 같다. 프로세스 기동은 `@fresnel/platform-process/piped`다(DR-07). 차이: 기동이 비동기라 기동 중 종료 요청이 오면 새 엔진을 낡은 것으로 보고 멈춘다. 엔진 프로세스가 끝나면 남은 손자 프로세스도 같이 끝난다. `FRESNEL_REMOTE_TOKEN`은 Rust처럼 환경 전체 상속으로 간다 |
 | (디버그) inspect 소켓 | `inspect.ts` | `<로그 폴더>/inspect.sock`, 줄 단위 JSON-RPC 2.0, `state.dump`, `viewport.snapshot`(`webContents.capturePage`, PNG는 파일로 쓰고 경로만 응답). Electron은 릴리스에도 코드가 들어가므로 환경 변수 `FRESNEL_DESKTOP_INSPECT=1`일 때만 켜진다. 패키징은 이 변수를 설정하지 않는다 |
 | SIGTERM, SIGINT | `main.ts` | 첫 신호는 정상 종료(onQuit), 종료 중 두 번째 신호는 즉시 종료 |
+
+### 11.6 OS 기능의 Electron 대응 (§4.17, §4.18)
+
+명령 이름과 인자·응답 모양은 Tauri와 같다(UI가 두 셸에서 같은 코드로 돈다). 모듈은 `src/main/<기능>.ts`(electron을 import하지 않는 로직, `bun test`로 시험)와 `<기능>-shell.ts`(Electron 어댑터)로 나뉜다. 어댑터는 시험하지 않고 셸을 띄워 확인한다.
+
+**트레이** (`tray.ts`, `tray-shell.ts`): Electron `Tray`와 메뉴(열기, 새 대화, 진행 중 n[비활성], 끝내기). macOS는 템플릿 이미지(`assets/tray.png`, 높이 18pt). 글은 `tray_update`가 보낸 것이고 80자(코드 포인트) 상한이다. 트레이를 만들지 못하면 `{kind:"unavailable"}`이고 닫기 동작 `tray`는 `quit`처럼 움직인다(`close-behavior.ts`, Tauri `effective_close_behavior`와 같은 표). 닫기 동작의 설정값은 설정 모듈이 `setConfiguredCloseBehavior`로 넣는다(기본 `tray`).
+
+**셸 의도와 단일 인스턴스** (`intents.ts`, `shell-intents.ts`, `single-instance.ts`): 큐는 Tauri와 같다(최대 8개, 30초, 끝이 같은 `openThread`는 시각만 갱신). `shell_take_intents`와 `shell-intent` 이벤트도 같다. 잠금은 Electron `requestSingleInstanceLock()`이고 이 앱의 userData 기준이라 Tauri 셸(다른 데이터 폴더와 플러그인 잠금)과 서로 막지 않는다. `second-instance`와 `open-url`은 창을 앞으로 가져오기만 한다(URL 스킴은 아직 없다).

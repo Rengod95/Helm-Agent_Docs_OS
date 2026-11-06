@@ -12,6 +12,7 @@ import {
   type BrowserWindowConstructorOptions,
   type WebContents,
 } from "electron";
+import { shouldQuitWhenWindowsClosed } from "./main/close-behavior.ts";
 import { createCommandRegistry } from "./main/commands.ts";
 import type { ShellContext } from "./main/context.ts";
 import { isTrustedFrame, isUiUrl } from "./main/frame-check.ts";
@@ -84,6 +85,7 @@ function createContext(
   windows: Set<BrowserWindow>,
   quit: (() => void | Promise<void>)[],
   hooks: WindowHooks,
+  showMainWindow: () => void,
 ): ShellContext {
   return {
     env: process.env,
@@ -128,6 +130,7 @@ function createContext(
         if (!win.isDestroyed()) win.webContents.send(SHELL_CHANNELS.event, name);
       }
     },
+    showMainWindow,
     onQuit(cleanup) {
       quit.unshift(cleanup);
     },
@@ -199,7 +202,21 @@ async function main(): Promise<void> {
   const windows = new Set<BrowserWindow>();
   const quit: (() => void | Promise<void>)[] = [];
   const hooks: WindowHooks = { options: [], created: [] };
-  const ctx = createContext(registry, windows, quit, hooks);
+  const openMainWindow = async (): Promise<void> => {
+    const win = createWindow(windows, hooks);
+    await win.loadURL(`${SCHEME}://localhost/index.html`);
+  };
+  const showMainWindow = (): void => {
+    const existing = [...windows].find((win) => !win.isDestroyed());
+    if (existing === undefined) {
+      detach(openMainWindow(), rethrow);
+      return;
+    }
+    if (existing.isMinimized()) existing.restore();
+    existing.show();
+    existing.focus();
+  };
+  const ctx = createContext(registry, windows, quit, hooks, showMainWindow);
   for (const module of MODULES) module.register(ctx);
   ipcMain.handle(SHELL_CHANNELS.invoke, (event, command: unknown, args: unknown) => {
     const frame = event.senderFrame;
@@ -218,7 +235,7 @@ async function main(): Promise<void> {
     detach(runCleanups(quit), rethrow);
   });
   app.on("window-all-closed", () => {
-    app.quit();
+    if (shouldQuitWhenWindowsClosed()) app.quit();
   });
   // SIGTERM, SIGINT는 정상 종료 순서(onQuit)를 탄다. 종료 중에 한 번 더 오면 바로 끝낸다
   let signaled = false;
@@ -229,8 +246,7 @@ async function main(): Promise<void> {
       app.quit();
     });
   }
-  const win = createWindow(windows, hooks);
-  await win.loadURL(`${SCHEME}://localhost/index.html`);
+  await openMainWindow();
 }
 
 detach(main(), rethrow);

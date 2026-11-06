@@ -52,6 +52,8 @@ export interface ShellContext {
   channel(caller: IpcCaller, value: unknown): ShellChannel | null;
   /** 열린 모든 창의 UI에 이름 붙은 이벤트를 보낸다 */
   emit(name: string): void;
+  /** 메인 창을 앞으로 가져온다. 창이 없으면(트레이 유지로 닫힌 뒤) 새로 만든다 */
+  showMainWindow(): void;
   /** 앱이 끝나기 전에 부른다(등록 역순, 하나씩 기다린다). 엔진 정리처럼 오래 걸리는 일은 여기서 기다린다 */
   onQuit(cleanup: () => void | Promise<void>): void;
   /** 사용자 정의 스킴(`schemes`로 미리 등록한 것)의 요청을 처리한다 */
