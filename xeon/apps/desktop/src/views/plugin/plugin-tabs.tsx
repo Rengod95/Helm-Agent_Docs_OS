@@ -72,12 +72,13 @@ export function PluginPagesTab(): ReactNode {
     ...state.groups.page,
     ...state.groups.panel.filter(({ entry }) => entry.extension !== HELM_EXTENSION),
   ];
+  // 탭 전체가 한 스크롤 컨테이너다. 이 대화에서 끄기 구역과 화면이 한 흐름으로 흐르고, 안쪽에 두 번째 스크롤을 두지 않는다
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="max-h-72 shrink-0 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <ThreadSwitches />
+        <EntryList items={items} />
       </div>
-      <EntryList items={items} />
     </div>
   );
 }

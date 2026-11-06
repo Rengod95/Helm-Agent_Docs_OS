@@ -71,7 +71,7 @@ export function PromotionBody(props: { readonly report: PromotionReport }): Reac
 export function PromotionView(props: { readonly read: TabRead<PromotionReport> }): ReactNode {
   return (
     <section className="grid gap-1.5">
-      <h2 className="m-0 flex items-center gap-1 text-ui-sm font-semibold text-text-primary">
+      <h2 className="m-0 flex items-center gap-1 text-title-3 font-semibold text-text-primary">
         {t("desktop.measure.promotion.title")}
         <InfoTip text={t("desktop.measure.promotion.info")} />
       </h2>

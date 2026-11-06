@@ -154,7 +154,7 @@ export function NewGroupScreen(props: {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2
           id="compose-new-group-title"
-          className="m-0 flex items-center gap-1 text-ui-strong text-text-primary"
+          className="m-0 flex items-center gap-1 text-title-3 font-semibold text-text-primary"
         >
           {t("desktop.compose.newGroup.title")}
           {props.prefill?.composition === undefined ? null : (

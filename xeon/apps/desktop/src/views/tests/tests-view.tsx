@@ -86,14 +86,13 @@ export function TestsView(props: TestsViewProps): ReactNode {
         <header className="flex h-10 min-w-0 items-center gap-2">
           <h1
             id="tests-screen-title"
-            className="m-0 min-w-0 truncate text-ui-strong text-text-primary"
+            className="m-0 min-w-0 truncate text-title-3 font-bold text-text-primary"
           >
             {t("desktop.tests.title")}
           </h1>
           <Button
             className="ms-auto"
             size="xs"
-
             variant="outline"
             disabled={!props.online || ui.sending}
             onClick={handlers.openSheet}
@@ -217,8 +216,7 @@ function ListBody(props: TestsViewProps): ReactNode {
               title={t("desktop.tests.empty")}
               actions={
                 <Button
-                  size="sm"
-
+                  size="xs"
                   variant="outline"
                   disabled={!props.online || ui.sending}
                   onClick={handlers.openSheet}
@@ -321,7 +319,7 @@ function Group(props: {
   return (
     <section className="grid gap-2">
       <div className="flex min-h-7 min-w-0 items-center gap-2">
-        <h2 className="m-0 min-w-0 truncate text-ui-dense font-semibold text-text-primary">
+        <h2 className="m-0 min-w-0 truncate text-title-3 font-semibold text-text-primary">
           {props.title}
         </h2>
         {props.end === undefined ? null : (
