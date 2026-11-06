@@ -1,9 +1,9 @@
 // L4.desktop.design §15.1. UI가 셸(Tauri 또는 Electron)을 부르는 길을 한 곳으로 모은다.
 // 화면과 transport는 이 인터페이스만 안다. 어느 셸인지는 실행 때 `selectShellBridge`가 고른다.
 
-export type ShellKind = "tauri" | "electron";
+type ShellKind = "tauri" | "electron";
 
-export type ShellArgs = Readonly<Record<string, unknown>>;
+type ShellArgs = Readonly<Record<string, unknown>>;
 
 export interface ShellBridge {
   readonly kind: ShellKind;

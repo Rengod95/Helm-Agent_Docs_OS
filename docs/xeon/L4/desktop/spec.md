@@ -799,3 +799,16 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 ### 11.4 이 단계의 범위
 
 이 단계는 엔진 릴레이, 엔진 수명, 복원, 설정, 키 등록, 앱 루트와 `fresnel-view://`, 외부 열기, 폴더·파일 선택, 파일 저장, 창 위치, 앱 로그, PATH 보정, inspect 소켓을 옮긴다. 트레이, OS 알림, 업데이트, 재인증, 단일 인스턴스와 셸 의도는 다음 단계, 서명·공증·릴리스 묶음과 고지는 그 다음 단계, Tauri·Rust 삭제는 마지막이다.
+
+### 11.5 명령별 Electron 대응
+
+| Tauri 명령 | Electron 구현(`apps/desktop-shell/src/main/`) | 비고 |
+|---|---|---|
+| `desktop_settings_read`, `desktop_settings_write` | `desktop-settings.ts` | 같은 파일 `<configDir>/desktop-settings.json`(Tauri `app_config_dir`)을 읽고 쓴다. 키 검사, 64 KiB 상한, 거부 코드는 같다. JSON 파서가 `2.0`을 정수와 구별하지 못해 `2.0`, `5e3`을 정수로 받는다(UI는 쓰지 않는다). 진단 문구에 오류 위치(줄, 열)가 없다 |
+| `secret_register` | `secret-entry.ts` | 번들된 사이드카 `fresnel secret <동작> <이름>`을 `@fresnel/platform-process/piped`의 `spawnPiped`로 한 번 실행하고 값은 stdin에만 쓴다. 30초 제한, 한 번에 하나, 요청 본문은 쓴 뒤 0으로 덮는다. 앱 로그에는 `secret entry <동작> <이름>: <결과>`만 남는다 |
+| `app_roots_set`, `fresnel-view://` | `view-scheme.ts` | `protocol.handle`과 `registerSchemesAsPrivileged`(standard, secure, supportFetchAPI, corsEnabled). 허용 루트, 경로 규칙, 확장자 표, 16 MiB 상한, 프레임 CSP는 Rust와 같다. WHATWG URL이 `.`, `..` 마디를 먼저 접어 프레임의 `..`은 403이 아니라 400이다 |
+| `open_external` | `open-external.ts` | 스킴 허용 목록은 Rust와 같다(http, https) |
+| `pick_folder`, `pick_file`, `save_file` | `dialogs.ts` | `dialog.showOpenDialog`, `showSaveDialog`. 파일 이름 정리와 200자 상한은 Rust와 같다 |
+| (Tauri에 없음) 창 위치·크기 기억 | `window-state.ts` | `window.rs`는 창 다시 열기만 하고 위치를 기억하지 않는다. Electron 쪽에 새로 넣었고 파일은 `window-state-electron.json`이다 |
+| 앱 로그 | `lib/applog.ts` | `<logs>/fresnel-desktop.log`(macOS `~/Library/Logs/dev.fresnel.desktop/`), 줄 단위, 제어 문자는 공백 |
+| PATH 보정 | `env-path.ts`, `lib/env-path.ts` | 엔진과 `fresnel secret` 자식의 환경에만 적용한다(Rust `engine_env`와 같다) |

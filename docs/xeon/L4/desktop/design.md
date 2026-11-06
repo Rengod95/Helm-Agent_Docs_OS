@@ -1779,3 +1779,7 @@ root.render(<App engine={engine.read} ui={ui} link={link} />);
 | 원격 URL의 IPC 접근 없음(`remote` 비어 있음) | 발신 프레임이 최상위 `app://localhost`가 아니면 `forbidden-frame` |
 | `fresnel-view://` 프레임은 IPC에 닿지 못함 | 같은 프레임 검사(자식 프레임 거부) |
 | CSP(`tauri.conf.json`) | `app://` 응답 헤더의 CSP, 같은 지시문 |
+| `fresnel-view://`의 `capabilities` 대응 | 스킴은 `registerSchemesAsPrivileged`로 standard, secure, supportFetchAPI, corsEnabled만 준다(`bypassCSP`, 서비스 워커 없음). 응답마다 프레임 CSP를 붙인다. Electron에서의 실제 프레임 격리는 실기 확인이 남았다 |
+| `allow-secret-register` | `secret_register`는 값을 stdin에만 쓰고 argv, env, 로그에 넣지 않는다 |
+| `allow-open-external` | 스킴 허용 목록(http, https)을 메인 프로세스가 검사한다 |
+| `allow-pick-folder`, `allow-pick-file`, `allow-save-file` | 메인 프로세스가 `dialog`를 연다. renderer에는 dialog API가 없다 |

@@ -2,7 +2,7 @@ import type { ShellBridge } from "./bridge.ts";
 import { createElectronBridge, type FresnelShellApi } from "./electron-bridge.ts";
 import { createTauriBridge } from "./tauri-bridge.ts";
 
-export type { ShellArgs, ShellBridge, ShellKind } from "./bridge.ts";
+export type { ShellBridge } from "./bridge.ts";
 
 /**
  * 실행 중인 셸을 고른다. preload가 `window.fresnelShell`을 내놓으면 Electron, 아니면 Tauri다.
