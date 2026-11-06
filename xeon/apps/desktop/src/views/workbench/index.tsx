@@ -20,9 +20,9 @@ import { AutoOffNotice, noticeCountOf } from "./craft-parts.tsx";
 import { detachVoid, useWorkbenchController } from "./controller.ts";
 import { HookAnswersContext, HookNoticeList } from "./hook-notice.tsx";
 import {
-  Clock,
   Eye,
   FlaskConical,
+  Layers,
   LayoutGrid,
   Package,
   Plug,
@@ -127,7 +127,7 @@ export function runtimeEndTab(store: WorkbenchStore): EndTabDef {
     id: "runtime",
     area: "chat",
     label: "desktop.shell.tab.runtime",
-    icon: <Clock />,
+    icon: <Layers />,
     badge: hookBadgeOf(store),
     render: () => scoped(store, <RuntimeTab />),
   };
