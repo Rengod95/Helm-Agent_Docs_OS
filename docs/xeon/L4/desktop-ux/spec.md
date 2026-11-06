@@ -1718,6 +1718,14 @@ compact 폭(720 이하)과 사이드바 시트:
   - 데이터 복원 [결정: 2026-11-04 사용자, 앱 화면도 둔다]: 고급 탭에 "데이터 복원" 구역이 있습니다(`settings-restore-*`). 사용자가 `db export` 폴더 경로를 직접 적거나 경로 칸 옆의 "폴더 고르기…"(셸 명령 `pick_folder`, W-19)로 고르고 "복원…"을 누르면 확인 대화 상자(기본 초점 취소)가 뜹니다. 본문은 현재 DB가 `restore-previous/`에 최근 3개까지 남는다는 것, 엔진이 다시 시작되고 열린 대화가 끊긴다는 것, 시크릿(age 키, 설정 파일)은 사본에 없고 건드리지 않는다는 것을 말합니다. 확인하면 셸 명령 `db_restore { backupDir }`(결과 `{ exitCode, stdout, stderr }`)을 부릅니다. 셸이 엔진을 내리고(재시작 횟수에 세지 않음), 사이드카를 `db restore <폴더> --json`으로 한 번 실행하고(L4.cli §4.13.1, `L0.store` §4.10.1), 엔진을 다시 띄웁니다. 종료코드 0이면 보고서(추가 블롭 수, 빠진 블롭, 옮겨 둔 이전 DB 폴더, 이어 끝낸 복원)를 토스트와 결과 블록으로, 2·3이면 문장과 해결 줄을 경고로 보입니다. 원격 대상이면 셸이 `remote-target`으로 거절하고 화면도 단추를 막습니다. 엔진 대상을 앱이 모르면(보낸 적 없음) 셸 기본값 로컬로 보고 셸에 맡깁니다. 상대 경로는 화면이 거절해 단추를 막고 "절대 경로로 적어 달라"는 줄을 보입니다(작업 폴더 입력과 같은 검사, 사용자 확인 전 기본값). 복원이 도는 동안 앱 종료(⌘Q, 신호)는 막고, 복원이 끝나면 같은 종료를 다시 요청합니다(`L4.desktop.spec` §4.3).
   - 뒤로 미룬 것: 고급 탭의 파일 전용 항목(`SettingsView.fileOnly`)은 아직 목록에 그리지 않는다. 그 항목을 편집기로 가리키는 자리는 L4.settings-ui §4.2.3의 M2 단계가 맡는다 [gap]. 검색 순서 편집기의 그림은 P-12 트랙이 붙인다. 모델 역할, 대체 사슬, 계정 풀, 레이트 리밋은 P-11이 붙였다. 목록 원소가 객체인 `list`(`List` 행)는 아직 그리지 않는다. 클라이언트가 그런 정의를 `widgetMismatch`로 읽기 전용에 두기 때문이다(L4.settings-ui §4.2.1). 로컬 원천의 "기본값으로 되돌리기"는 파일에서 키를 지우지 못해 기본값을 쓴다. 출처 배지는 사용자 범위로 남는다 [미결].
 
+#### 기억 구역 (P-09 "대화와 컨텍스트" 탭, 시나리오 scE S7, 트랙 fxME)
+
+- 탭의 항목 아래에 "기억" 구역이 있다. 엔진의 기억은 항목 목록이라(L2.knowledge §3.3, `USER.md`와 `MEMORY.md`를 `§` 줄로 나눔) 사용자 기억과 환경 기억 두 묶음에 항목마다 한 행이다. 행에는 글(한 줄로 줄임), "고치기", "지우기"가 있고, 묶음 머리에 "새로 넣기"와 쓴 글자 수/한도가 있다. 설명은 정보 아이콘 뒤에 둔다.
+- 환경 기억은 작업 폴더별이 아니다. 엔진에 작업 폴더별 기억이 없어서 [결정: 2026-11-07 오케스트레이터 기본값, 엔진에 있는 두 저장소만 보인다] 두 묶음 모두 모든 대화가 함께 쓴다.
+- 고치기와 새로 넣기는 글 칸이 있는 `Dialog`, 지우기는 확인 `Dialog`(`kind="alert"`)다. 비어 있으면 "아직 기억한 것이 없어요"와 무엇이 기억되는지 한 줄이 보인다. 파일 구조가 깨져 쓰기가 막힌 묶음(`writeBlocked`)은 경고 한 줄을 보이고 단추를 끈다.
+- 바깥(CLI, 모델)에서 바뀐 것은 구역을 열 때와 창이 다시 앞에 올 때 다시 읽는다(기억 변경 알림이 없다). 고치기·지우기가 `baseHash` 거절(`-32602`)을 받으면 창을 닫고 다시 읽은 뒤 "다른 곳에서 먼저 바뀌어 다시 읽었어요"를 보인다. 바꾼 기억은 다음 대화부터 반영된다는 말이 구역 정보 아이콘에 있다(스냅샷은 대화 시작에 고정, L2.knowledge §4.3.4).
+- [미결: 제안 화면(P-06)에서 받아들인 기억으로 가는 링크는 만들지 않았다. 제안이 가리키는 기억 항목 id를 화면이 아직 받지 않는다.]
+
 ### 6.14 P-10 시크릿
 
 ```text
@@ -3215,6 +3223,7 @@ export const palette = [
 | W-16 | 이벤트 id로 item 읽기, 대화 출처(예약, 원격) | P-06, S-01 | 구현됨. `thread.read`의 `around` 인자와 `ThreadSummary.origin`이 있다 [근거: `apps/host/src/assembly/thread-read.ts`, `packages/contracts/src/wire-settings/wire/methods.ts:443`] | `thread.read`에 `around` 인자, `ThreadSummary.origin` |
 | W-17 | 큐에 넣은 입력 철회 | P-02 | 구현됨. `turn.withdraw { threadId, requestId }`가 있다 [근거: `apps/host/src/handlers/turn.ts`]. 데스크톱은 입력창 위 칩의 "철회" 단추로 부르고, 칩은 `input.queued`로 생겨 `input.placed`·`input.withdrawn`으로 사라진다. 실행 중 보낸 사용자 글은 `turn.start { whenBusy: "followUp" }`로 큐에 들어가 칩이 된다(F.wire-settings §3.3.1 0a) | `turn.withdraw { threadId, requestId }` |
 | W-18 | 계획 버전 목록 | P-14 | 구현됨. `work.plans.versions { threadId, planId }`가 있다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`] | `work.plans.versions { threadId, planId }` |
+| W-19 | 기억 보기·고치기·지우기 | P-09 "대화와 컨텍스트" 탭 기억 구역 | 구현됨. `knowledge.memory.read`·`add`·`replace`·`remove`가 있다. 사람이 연 호출이라 승인 없이 적용한다. 고치기·지우기는 읽을 때 받은 `fileHash`를 `baseHash`로 보내고, 바깥에서 바뀌었으면 `-32602`(path `baseHash`)라 화면이 다시 읽는다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`] | `knowledge.memory.read { stores? }` 등 |
 | W-19 | OS 폴더 고르기 | O-07 | 구현됨. 옛 Tauri 구현(커밋 424f338a)은 `tauri-plugin-dialog` 2.8.4를 셸 명령 `pick_folder`로 감쌌고, Electron 셸은 `dialog.showOpenDialog`로 같은 명령을 구현한다(`L4.desktop.spec` §11.5, §10 17번, [결정: 2026-11-04 사용자]). WebView에는 dialog 권한이 없다. 맥에서 창 동작은 아직 확인하지 않았다 | `pick_folder`. 입력란은 경로를 직접 적는 길로 남는다 |
 | W-20 | 확장 하나의 상세(매니페스트, 유효 등급, tier, 기능 바인딩, 훅과 예산 등급, 진단) | P-17 | 구현됨. `ext.get`이 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `ext.get { name }` |
 | W-21 | 자동 꺼짐 확장 다시 켜기(장부 비우기) | P-13, P-17, P-16 | 구현됨. `ext.reenable`이 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `ext.reenable { name }` |

@@ -55,6 +55,7 @@ import { SETTINGS_EDITORS } from "./settings-editors-screen.tsx";
 import { SettingsPageView, type SettingsPageHandlers } from "./settings-view.tsx";
 import { UpdatePanel } from "./settings-update-view.tsx";
 import { NotifyPanel } from "./settings-notify-view.tsx";
+import { MemoryPanel } from "./settings-memory-view.tsx";
 import { PluginsPanel } from "./settings-plugins-view.tsx";
 import { AppearancePanel } from "./settings-appearance-view.tsx";
 
@@ -444,6 +445,7 @@ export function SettingsPage(props: {
       notifyPanel={<NotifyPanel />}
       appearancePanel={<AppearancePanel />}
       pluginsPanel={<PluginsPanel />}
+      memoryPanel={<MemoryPanel />}
       rotationPanel={
         view === null ? null : <RotationPanel view={view} live={live} handlers={fields} />
       }

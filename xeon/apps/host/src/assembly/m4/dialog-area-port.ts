@@ -25,6 +25,7 @@ import type {
   DialogAreaOutcome,
   DialogAreaPort,
 } from "../../handlers/m4/dialog-area.ts";
+import type { MemoryApi } from "./dialog-area-bridge.ts";
 import type { M4PortDeps } from "./deps.ts";
 
 // DialogArea 포트 구현(T-WC). 목표·작업·계획은 L2.work 기능을, 스킬 본문은 L2.knowledge 기능을 호스트 호출(사람이 연 화면)로 읽고,
@@ -241,6 +242,27 @@ export function createDialogAreaPort(deps: M4PortDeps): DialogAreaPort {
     return schedule.list().find((entry) => entry.id === scheduleId);
   }
 
+  /** 기억 기능을 사람이 연 호출로 부른다. 기능 오류는 와이어가 아는 실패로 옮긴다 */
+  async function memoryCall<T>(
+    run: (api: MemoryApi, options: CallOptions) => Promise<T>,
+    signal: AbortSignal,
+  ): Promise<DialogAreaOutcome<T>> {
+    const api = dialogArea.memory;
+    if (api === undefined) return err({ kind: "unavailable" });
+    const options: CallOptions = { signal, context: { caller: { kind: "host" } } };
+    const done = await attemptAsync(() => run(api, options));
+    if (done.ok) return ok(done.value);
+    const cause = done.error.cause;
+    if (isCapabilityError(cause)) {
+      // 기억 설정이 꺼져 있으면 기능이 없는 것과 같은 답이다(-32601)
+      if (cause.data.code === "unavailable") return err({ kind: "unavailable" });
+      if (cause.data.code === "not_found") return err({ kind: "unknown", path: "entryId", id: "" });
+      if (cause.data.code === "base_stale")
+        return err({ kind: "unknown", path: "baseHash", id: "" });
+    }
+    return err(rejectedOf(cause));
+  }
+
   return {
     reviewGet(reviewId) {
       // 산출물 확장이 올라와 있지 않으면 본문을 읽을 수 없다(-32601). 확장이 내려가면 자리가 비므로 그때도 같다
@@ -302,6 +324,18 @@ export function createDialogAreaPort(deps: M4PortDeps): DialogAreaPort {
       }
       return ok(skillViewResultOf(viewed.value));
     },
+
+    memoryRead: (params, signal) =>
+      memoryCall(
+        (api, options) =>
+          api.read(params.stores === undefined ? {} : { stores: [...params.stores] }, options),
+        signal,
+      ),
+    memoryAdd: (params, signal) => memoryCall((api, options) => api.add(params, options), signal),
+    memoryReplace: (params, signal) =>
+      memoryCall((api, options) => api.replace(params, options), signal),
+    memoryRemove: (params, signal) =>
+      memoryCall((api, options) => api.remove(params, options), signal),
 
     async plansVersions(threadId, planId, signal) {
       const missing = threadExists(threadId);

@@ -1,9 +1,17 @@
 import { Type, type TUnsafe } from "typebox";
 import type { SchemaProof } from "../../base/index.ts";
 import {
+  HashHexSchema,
+  MemoryEntryIdSchema,
+  MemoryReadOutputSchema,
+  MemoryStoreSchema,
+  MemoryWriteOutputSchema,
   PlanVersionsOutput,
   SkillFilePathSchema,
   SkillScopeSchema,
+  type MemoryReadOutput,
+  type MemoryStore,
+  type MemoryWriteOutput,
   type PlanVersionsOutputValue,
   type SkillScope,
 } from "../../capabilities/index.ts";
@@ -379,6 +387,72 @@ export const PlanVersionsParamsSchema: TUnsafe<Req<PlanVersionsParams>> = Type.U
   >,
 );
 
+/** `knowledge.memory.read`(W-19). 사용자 기억과 환경 기억의 항목, 쓰기 막힘, `fileHash`. `stores`를 생략하면 둘 다 읽는다 */
+export interface MemoryReadParams {
+  readonly stores?: readonly MemoryStore[];
+}
+const MemoryReadParamsShape = request({
+  stores: Type.Optional(Type.Array(MemoryStoreSchema, { minItems: 1, maxItems: 2 })),
+});
+export const MemoryReadParamsSchema: TUnsafe<Req<MemoryReadParams>> = Type.Unsafe<
+  Req<MemoryReadParams>
+>(MemoryReadParamsShape satisfies SchemaProof<Req<MemoryReadParams>, typeof MemoryReadParamsShape>);
+
+/** `knowledge.memory.add`(W-19). 항목 하나를 더한다 */
+export interface MemoryAddParams {
+  readonly store: MemoryStore;
+  readonly text: string;
+}
+const MemoryAddParamsShape = request({
+  store: MemoryStoreSchema,
+  text: Type.String({ minLength: 1, maxLength: 20000 }),
+});
+export const MemoryAddParamsSchema: TUnsafe<Req<MemoryAddParams>> = Type.Unsafe<
+  Req<MemoryAddParams>
+>(MemoryAddParamsShape satisfies SchemaProof<Req<MemoryAddParams>, typeof MemoryAddParamsShape>);
+
+/** `knowledge.memory.replace`(W-19). 읽을 때 받은 `fileHash`를 `baseHash`로 보낸다. 그 사이 바깥에서 바뀌었으면 거절한다 */
+export interface MemoryReplaceParams {
+  readonly store: MemoryStore;
+  readonly entryId: string;
+  readonly text: string;
+  readonly baseHash: string;
+}
+const MemoryReplaceParamsShape = request({
+  store: MemoryStoreSchema,
+  entryId: MemoryEntryIdSchema,
+  text: Type.String({ minLength: 1, maxLength: 20000 }),
+  baseHash: HashHexSchema,
+});
+export const MemoryReplaceParamsSchema: TUnsafe<Req<MemoryReplaceParams>> = Type.Unsafe<
+  Req<MemoryReplaceParams>
+>(
+  MemoryReplaceParamsShape satisfies SchemaProof<
+    Req<MemoryReplaceParams>,
+    typeof MemoryReplaceParamsShape
+  >,
+);
+
+/** `knowledge.memory.remove`(W-19). 항목 하나를 지운다 */
+export interface MemoryRemoveParams {
+  readonly store: MemoryStore;
+  readonly entryId: string;
+  readonly baseHash: string;
+}
+const MemoryRemoveParamsShape = request({
+  store: MemoryStoreSchema,
+  entryId: MemoryEntryIdSchema,
+  baseHash: HashHexSchema,
+});
+export const MemoryRemoveParamsSchema: TUnsafe<Req<MemoryRemoveParams>> = Type.Unsafe<
+  Req<MemoryRemoveParams>
+>(
+  MemoryRemoveParamsShape satisfies SchemaProof<
+    Req<MemoryRemoveParams>,
+    typeof MemoryRemoveParamsShape
+  >,
+);
+
 type U<T> = TUnsafe<T>;
 export interface DialogAreaSchemas {
   "review.get": Io<U<Req<ReviewGetParams>>, U<ReviewGetResult>>;
@@ -390,6 +464,10 @@ export interface DialogAreaSchemas {
   "turn.withdraw": Io<U<Req<TurnWithdrawParams>>, U<TurnWithdrawResult>>;
   "knowledge.skills.view": Io<U<Req<SkillViewParams>>, U<SkillViewResult>>;
   "work.plans.versions": Io<U<Req<PlanVersionsParams>>, U<PlanVersionsOutputValue>>;
+  "knowledge.memory.read": Io<U<Req<MemoryReadParams>>, U<MemoryReadOutput>>;
+  "knowledge.memory.add": Io<U<Req<MemoryAddParams>>, U<MemoryWriteOutput>>;
+  "knowledge.memory.replace": Io<U<Req<MemoryReplaceParams>>, U<MemoryWriteOutput>>;
+  "knowledge.memory.remove": Io<U<Req<MemoryRemoveParams>>, U<MemoryWriteOutput>>;
 }
 type Table = {
   readonly [M in keyof DialogAreaSchemas]: M4Spec<
@@ -407,4 +485,8 @@ export const DIALOG_AREA_METHODS: Table = {
   "turn.withdraw": m4(TurnWithdrawParamsSchema, TurnWithdrawResultSchema),
   "knowledge.skills.view": m4(SkillViewParamsSchema, SkillViewResultSchema),
   "work.plans.versions": m4(PlanVersionsParamsSchema, PlanVersionsOutput),
+  "knowledge.memory.read": m4(MemoryReadParamsSchema, MemoryReadOutputSchema),
+  "knowledge.memory.add": m4(MemoryAddParamsSchema, MemoryWriteOutputSchema),
+  "knowledge.memory.replace": m4(MemoryReplaceParamsSchema, MemoryWriteOutputSchema),
+  "knowledge.memory.remove": m4(MemoryRemoveParamsSchema, MemoryWriteOutputSchema),
 };

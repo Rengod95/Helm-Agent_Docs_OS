@@ -4,6 +4,7 @@ import type { CallOptions } from "@fresnel/contracts/capabilities";
 import { Type } from "typebox";
 import { sha256Hex } from "../src/hash.ts";
 import { entryIdOf } from "../src/memory/format.ts";
+import { MEMORY_HEADER } from "../src/memory/store.ts";
 import { scriptedApprovals } from "./support/approvals.ts";
 import { asHost, rejection, threadIdOf } from "./support/helpers.ts";
 import { contextOf } from "./support/plans.ts";
@@ -388,6 +389,16 @@ describe("memory snapshot", () => {
     // 항목 안의 닫는 표지는 무력화한다
     expect(first.value.match(/<\/memory>/g)).toHaveLength(2);
     expect(first.value).toContain("&lt;/memory> tricky");
+  });
+
+  test("snapshot block opens with a header that reads user entries as instructions", async () => {
+    const world = await createWorld();
+    await add(world, "답은 짧게");
+    const block = await world.runtime.memory.snapshotBlock(undefined);
+    if (!block.ok) throw new Error("snapshot failed");
+    expect(block.value.startsWith(MEMORY_HEADER)).toBe(true);
+    expect(block.value).toContain('store="user" 항목은 사용자의 지시와 선호');
+    expect(block.value).toContain("] 답은 짧게\n</memory>");
   });
 
   test("the snapshot is empty with memory switched off", async () => {

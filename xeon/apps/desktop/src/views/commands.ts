@@ -228,6 +228,29 @@ export interface SkillCommands {
   ): Promise<Result<WireResult<"knowledge.skills.view">, SkillViewError>>;
 }
 
+/**
+ * 기억 보기·고치기·지우기(W-19). 기억은 요청 결과라 거울에 넣지 않는다(FS-03). 쓰기 결과의 `view`는 쓴 뒤의 저장소다.
+ * `baseHash`는 마지막으로 읽은 `fileHash`다. 바깥에서 바뀌었으면 `rejected`(path `baseHash`)다.
+ */
+export interface MemoryCommands {
+  read(): Promise<Result<WireResult<"knowledge.memory.read">, CommandError>>;
+  add(
+    store: "user" | "env",
+    text: string,
+  ): Promise<Result<WireResult<"knowledge.memory.add">, CommandError>>;
+  replace(
+    store: "user" | "env",
+    entryId: string,
+    text: string,
+    baseHash: string,
+  ): Promise<Result<WireResult<"knowledge.memory.replace">, CommandError>>;
+  remove(
+    store: "user" | "env",
+    entryId: string,
+    baseHash: string,
+  ): Promise<Result<WireResult<"knowledge.memory.remove">, CommandError>>;
+}
+
 /** 스킬 본문 읽기가 기대한 실패는 `not_found`뿐이고, 나머지는 연결과 host 실패다 */
 export type SkillViewError = CommandError | { readonly kind: "not_found" };
 
@@ -775,6 +798,8 @@ export interface Commands {
   readonly review: ReviewCommands;
   /** 제안 화면의 충돌 스킬 본문(W-14). 읽기 한 번이다 */
   readonly skills: SkillCommands;
+  /** 설정 "대화와 컨텍스트" 탭의 기억 구역(W-19) */
+  readonly memory: MemoryCommands;
   readonly usage: UsageCommands;
   readonly notices: NoticeCommands;
   /** `thread.locked` 대화 상자의 "관찰만" 선택. 성공하면 그 thread의 입력창이 잠긴다 */
