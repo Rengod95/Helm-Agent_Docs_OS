@@ -223,13 +223,32 @@
   );
 }
 .craft-label[data-fail] {
-  --craft-tint: var(--cs-color-danger-graphic);
+  --craft-tint: var(--cs-color-warning-graphic);
   --craft-edge: 62%;
   --craft-solid: color-mix(
     in oklab,
     var(--cs-color-surface-raised) 93%,
-    var(--cs-color-danger-graphic)
+    var(--cs-color-warning-graphic)
   );
+}
+/* 자동 꺼짐: 주황 점선 테두리(모양으로도 가른다) */
+.craft-label[data-auto-off] {
+  border-style: dashed;
+}
+/* 주도: accent 테두리와 면. 이름표 끝에 "주도" 글이 붙는다 */
+.craft-label[data-lead] {
+  --craft-tint: var(--cs-color-accent-graphic);
+  --craft-edge: 70%;
+  --craft-solid: color-mix(
+    in oklab,
+    var(--cs-color-surface-raised) 90%,
+    var(--cs-color-accent-graphic)
+  );
+}
+.craft-label-tag {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.7;
 }
 /* 포인터를 따라오는 안쪽 빛(변수 두 개는 포인터 이동 때 DOM에서 바로 쓴다) */
 .craft-label::before {
@@ -258,9 +277,14 @@
   color: var(--cs-color-info-on);
 }
 .craft-label[data-picked][data-fail] {
-  border-color: var(--cs-color-danger-solid);
-  background: var(--cs-color-danger-solid);
-  color: var(--cs-color-danger-on);
+  border-color: var(--cs-color-warning-solid);
+  background: var(--cs-color-warning-solid);
+  color: var(--cs-color-warning-on);
+}
+.craft-label[data-picked][data-lead] {
+  border-color: var(--cs-color-accent-solid);
+  background: var(--cs-color-accent-solid);
+  color: var(--cs-color-accent-on);
 }
 
 @media (prefers-reduced-motion: reduce) {

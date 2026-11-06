@@ -2409,6 +2409,8 @@
   "desktop.craft.infoTip.label": "Show details",
   "desktop.craft.orbit.label": "Map",
   "desktop.craft.orbit.dot.name": "{name}, {state}",
+  "desktop.craft.orbit.legend.label": "State legend",
+  "desktop.craft.orbit.state.lead": "Lead",
   "desktop.craft.orbit.state.on": "On",
   "desktop.craft.orbit.state.off": "Off",
   "desktop.craft.orbit.state.failing": "Failed",

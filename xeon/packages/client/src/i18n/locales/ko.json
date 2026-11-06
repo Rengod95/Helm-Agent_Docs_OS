@@ -2409,6 +2409,8 @@
   "desktop.craft.infoTip.label": "설명 보기",
   "desktop.craft.orbit.label": "지도",
   "desktop.craft.orbit.dot.name": "{name}, {state}",
+  "desktop.craft.orbit.legend.label": "상태 범례",
+  "desktop.craft.orbit.state.lead": "주도",
   "desktop.craft.orbit.state.on": "켜짐",
   "desktop.craft.orbit.state.off": "꺼짐",
   "desktop.craft.orbit.state.failing": "실패",
