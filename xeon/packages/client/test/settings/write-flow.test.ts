@@ -88,7 +88,7 @@ describe("checkClientValue", () => {
   test("a value outside the range fails with the range sentence at the root path", () => {
     expect(checkClientValue(budgetDef, 25)).toEqual({
       ok: false,
-      error: [{ path: "", message: "1에서 20 사이 값만 넣을 수 있어요" }],
+      error: [{ path: "", message: "1에서 20 사이로 적어 주세요" }],
     });
   });
 
@@ -128,8 +128,8 @@ describe("planWrite", () => {
       kind: "blocked",
       error: {
         kind: "invalidValue",
-        message: "1에서 20 사이 값만 넣을 수 있어요",
-        issues: [{ path: "", message: "1에서 20 사이 값만 넣을 수 있어요" }],
+        message: "1에서 20 사이로 적어 주세요",
+        issues: [{ path: "", message: "1에서 20 사이로 적어 주세요" }],
       },
     });
   });
@@ -208,8 +208,8 @@ describe("toFieldError", () => {
     expect(toFieldError(budgetDef, error)).toEqual({
       error: {
         kind: "invalidValue",
-        message: "1에서 20 사이 값만 넣을 수 있어요",
-        issues: [{ path: "/", message: "1에서 20 사이 값만 넣을 수 있어요" }],
+        message: "1에서 20 사이로 적어 주세요",
+        issues: [{ path: "/", message: "1에서 20 사이로 적어 주세요" }],
       },
       followUp: "none",
     });

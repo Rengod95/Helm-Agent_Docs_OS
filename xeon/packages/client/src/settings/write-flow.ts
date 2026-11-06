@@ -80,6 +80,16 @@ export function invalidMessage(def: SettingDefWire | undefined): string {
   if (range?.min !== undefined && range.max !== undefined) {
     return t("client.settings.field.invalidRange", { min: range.min, max: range.max });
   }
+  if (range?.min !== undefined) return t("client.settings.field.invalidMin", { min: range.min });
+  if (range?.max !== undefined) return t("client.settings.field.invalidMax", { max: range.max });
+  const minLength = def?.type["minLength"];
+  const maxLength = def?.type["maxLength"];
+  if (typeof minLength === "number" && typeof maxLength === "number" && minLength > 0) {
+    return t("client.settings.field.invalidLength", { min: minLength, max: maxLength });
+  }
+  if (typeof maxLength === "number") {
+    return t("client.settings.field.invalidMaxLength", { max: maxLength });
+  }
   if (def !== undefined && Object.hasOwn(def.type, "pattern")) {
     return t("client.settings.field.format");
   }

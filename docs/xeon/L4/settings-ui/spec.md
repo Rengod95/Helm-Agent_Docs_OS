@@ -629,8 +629,8 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | `SettingWidget` | 화면 부품 [제안] | `SettingDefWire`에서 읽는 것 | 조건(맞지 않으면 `widgetMismatch`) |
 |---|---|---|---|
 | `toggle` | 스위치 | `type.type === "boolean"` | D8 |
-| `select` | 단일 선택 목록. 선택지 8개 이하면 라디오 묶음, 넘으면 드롭다운 | `range.enum`(표시 순서 그대로) | D8. `range.enum`이 없으면 불일치 |
-| `number` | 숫자 입력 + 단위 꼬리표 | `range.min`, `range.max`, `type.type === "integer"`이면 정수 단계, `ui.unit` | D8 |
+| `select` | 단일 선택 목록. 선택지 8개 이하면 라디오 묶음, 넘으면 드롭다운 | `range.enum`(표시 순서 그대로) | D8. `range.enum`이 없으면 불일치. 선택지는 원시 값이 아니라 카탈로그 `settings.<설정 키>.option.<값>`(값의 `-`·`_`는 camelCase)의 라벨로 보이고, 없으면 값 그대로 보인다 |
+| `number` | 숫자 입력 + 단위 꼬리표 | `range.min`, `range.max`, `type.type === "integer"`이면 정수 단계, `ui.unit` | D8. 칸이 받지 못하는 글(범위 밖, 숫자 아님, 빈 칸)은 칸 안에 초안으로 남고 칸 아래에 이유 문장을 보인다(범위는 `range`에서 만든다) |
 | `text` | 한 줄 입력 | `type.minLength`, `type.maxLength`, `type.pattern` | `type.type === "string"` |
 | `list` | 원소 추가·삭제·순서 변경 목록 | `type.items.type`(string, number, integer, boolean), `type.maxItems` | `type.type === "array"`이고 `items`가 원시 타입 |
 | `table` | 행 추가·삭제 표. `rows` 모양은 열이 `items.properties` 순서, `record` 모양은 "이름"·"값" 두 열 | `rows`: `type.items.properties`, `type.items.required`, 열의 `enum`. `record`: `type.additionalProperties`의 원시 타입 | `rows`: `type.type === "array"`이고 `items.type === "object"`. `record`: `type.type === "object"`이고 `additionalProperties`가 원시 타입 스키마(예: `l4.desktop.appearance.keybindings`, `L4.desktop.spec` §6) |
@@ -812,7 +812,7 @@ sequenceDiagram
 
 | `data.kind` | `FieldError.kind` | 문구 예 [제안: 해요체] | 뒤따르는 동작 |
 |---|---|---|---|
-| `settings.invalidValue` | `invalidValue` | 숫자 범위: "{min}에서 {max} 사이 값만 넣을 수 있어요". enum: "목록에 있는 값만 고를 수 있어요". pattern: "형식이 맞지 않아요". 그 밖: "이 값은 저장할 수 없어요" | 초안 유지 |
+| `settings.invalidValue` | `invalidValue` | 숫자 범위: "{min}에서 {max} 사이로 적어 주세요"(한쪽만 있으면 "{min} 이상으로", "{max} 이하로"). 글 길이: "{min}자에서 {max}자 사이로 적어 주세요". enum: "목록에 있는 값만 고를 수 있어요". pattern: "형식이 맞지 않아요". 그 밖: "이 값은 저장할 수 없어요" | 초안 유지 |
 | `settings.scopeNotAllowed` | `scopeNotAllowed` | "{범위} 범위에는 저장할 수 없어요" | `details.allowedScopes`로 후보를 다시 계산하고 `settings.list`를 다시 읽는다(`reloadCatalog`) |
 | `settings.scopeNotAllowed` + `details.reason: "workspaceRequired"` | `scopeNotAllowed` | "작업 폴더가 열려 있지 않아 {범위}에는 저장할 수 없어요" | 초안 유지, `followUp: "none"`. 카탈로그를 다시 읽지 않는다(`L4.host-service.spec` §3.4 `settings.set` 행 [제안]) |
 | `settings.locked` | `locked` | "관리 정책으로 잠겨 있어 바꿀 수 없어요" | `settings.get`으로 그 키를 다시 읽는다(`refreshValue`) |
