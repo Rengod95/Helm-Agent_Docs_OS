@@ -31,6 +31,16 @@ describe("thread row menu commands", () => {
     expect(paramsOf(params, "thread.close")).toEqual([{ threadId: thr(2) }]);
   });
 
+  test("selecting another conversation closes the one being left, once", async () => {
+    const { app, params } = await liveApp({ results: { "thread.close": {} } });
+    app.commands.selectThread(thr(1));
+    expect(paramsOf(params, "thread.close")).toEqual([]);
+    app.commands.selectThread(thr(2));
+    await until(() => paramsOf(params, "thread.close").length > 0, "close sent");
+    app.commands.selectThread(thr(2));
+    expect(paramsOf(params, "thread.close")).toEqual([{ threadId: thr(1) }]);
+  });
+
   test("delete sends the thread id and then reads the list again", async () => {
     const { app, params } = await liveApp({ results: { "thread.delete": {} } });
     const before = paramsOf(params, "thread.list").length;
