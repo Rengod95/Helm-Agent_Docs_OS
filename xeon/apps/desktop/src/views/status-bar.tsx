@@ -96,7 +96,10 @@ function StatusCells(): ReactNode {
       title={originTitleOf(entry)}
       data-status-cell={screenKeyOf(entry)}
     >
-      <span className="shrink-0 text-xs text-muted-foreground" data-status-origin={entry.extension}>
+      <span
+        className="shrink-0 text-ui-sm text-text-secondary"
+        data-status-origin={entry.extension}
+      >
         {entry.extension}
       </span>
       <EntrySurface entry={entry} dense />

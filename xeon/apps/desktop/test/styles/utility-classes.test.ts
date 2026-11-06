@@ -19,10 +19,7 @@ const UTILITY_ROOT = new RegExp(
 const NOT_TAILWIND: ReadonlyMap<string, string> = new Map<string, string>([]);
 
 // 아직 고치지 않은 누락. 파일 주인이 고치면 항목을 지운다(항목이 남아 있는데 누락이 없으면 시험이 실패한다).
-const PENDING: ReadonlyMap<string, string> = new Map([
-  ["views/status-bar.tsx text-xs", "상태줄은 b10 트랙 몫(text-ui-sm으로)"],
-  ["views/status-bar.tsx text-muted-foreground", "상태줄은 b10 트랙 몫(text-text-secondary로)"],
-]);
+const PENDING: ReadonlyMap<string, string> = new Map<string, string>([]);
 
 function splitVariants(token: string): string {
   let depth = 0;
