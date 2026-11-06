@@ -65,7 +65,14 @@ export function createThreadReaderPort(deps: ThreadReaderDeps): TranscriptPort {
         return undefined;
       });
       if (failed) return err({ kind: "failed" });
-      return ok({ asOfSeq: first.value.position.seq, items: pages.flat() });
+      const items = pages.flat();
+      // 상한에서 멈췄는데 더 오래된 item이 남았으면 화면이 안내한다(scJ S2-1)
+      const hasOlder = pages.length === 1 ? first.value.hasMore : olderHasMore.value;
+      return ok({
+        asOfSeq: first.value.position.seq,
+        items,
+        ...(hasOlder ? { truncated: true as const } : {}),
+      });
     },
   };
 }

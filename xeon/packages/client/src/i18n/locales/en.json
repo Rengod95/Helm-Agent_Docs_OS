@@ -2027,6 +2027,7 @@
   "desktop.transcript.loadFailed.stale": "The conversation kept changing, so it could not be read up to date.",
   "desktop.transcript.loading": "Loading the conversation…",
   "desktop.transcript.newMessages": "{count} new",
+  "desktop.transcript.truncated": "Earlier history is not shown here. Only the latest {count} items were loaded.",
   "desktop.transcript.pickThread": "Pick a conversation on the left, or create a new one.",
   "desktop.transcript.reloadButton": "Reload",
   "desktop.trust.card.denied": "This work folder is set not to be trusted.",

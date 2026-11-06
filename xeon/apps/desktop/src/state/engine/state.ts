@@ -62,6 +62,8 @@ export type Transcript =
       readonly asOfSeq: number;
       readonly itemIds: readonly ItemId[];
       readonly items: Readonly<Record<string, ItemRecord>>;
+      /** 읽는 상한에서 멈춰 더 오래된 item이 화면에 없다(scJ S2-1) */
+      readonly truncated?: true;
     }
   | {
       readonly status: "error";

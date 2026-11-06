@@ -165,6 +165,9 @@ export const selectUnsentUserItemId = (s: EngineMirror): ItemId | null => {
   }
   return null;
 };
+/** 열린 대화가 읽는 상한에서 잘려 더 오래된 기록이 화면에 없으면 참 */
+export const selectTranscriptTruncated = (s: EngineMirror): boolean =>
+  s.transcript?.status === "ready" && s.transcript.truncated === true;
 /** 열린 대화의 마지막 사용자 말 item id. 보낸 뒤 목록이 바닥으로 내려가는 기준이다(scJ S2-2). 없으면 null */
 export const selectLastUserItemId = (s: EngineMirror): ItemId | null => {
   const transcript = s.transcript;

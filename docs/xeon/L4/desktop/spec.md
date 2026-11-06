@@ -467,6 +467,7 @@ pub enum PipeSource { Sidecar(SidecarPipe), Service(SocketPipe) }
 4. `stream.chunk` 합치기: 같은 item의 조각을 애니메이션 프레임 하나에 한 번만 DOM에 반영한다. 완성 기록이 오면 그 item의 조각 버퍼를 버린다(`F.wire-settings.spec` §3.4.4).
 5. 창을 닫았을 때 WebView 해제: 트레이 유지 모드에서 창을 닫으면 창(WebView)을 파괴하고 셸과 엔진만 남긴다. 트레이에서 다시 열면 새 창을 만들고 §4.5로 다시 붙는다.
 6. 이벤트 캐시 상한: WebView는 열린 thread의 item만 메모리에 둔다. 다른 thread로 옮기면 이전 thread의 item 캐시를 버린다.
+7. 읽기 상한 안내: 열 때 `thread.read`는 가장 새 item부터 1,000개(`MAX_SNAPSHOT_ITEMS`)까지만 읽는다. 상한에서 멈췄는데 더 오래된 item이 남았으면 스냅샷이 `truncated`를 달고, 거울의 열린 대화(`Transcript` ready)에 같은 표식이 남아 가상 목록 위에 "이전 기록은 여기 보이지 않아요. 최근 1,000개만 읽어 왔어요." 한 줄을 보인다. 상한은 그대로다. 더 불러오기 단추와 잘린 개수는 두지 않았다(`thread.read`는 `hasMore`만 알려 줘 개수를 세려면 남은 쪽을 모두 읽어야 한다) [결정: 오케스트레이터 기본값, scJ].
 
 ### 4.11 플랫폼 지원
 

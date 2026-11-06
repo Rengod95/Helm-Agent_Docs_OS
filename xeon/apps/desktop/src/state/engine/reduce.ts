@@ -865,6 +865,7 @@ function applySnapshot(
     asOfSeq: input.asOfSeq,
     itemIds,
     items,
+    ...(input.truncated === true ? { truncated: true as const } : {}),
   };
   ready = recordItems(ready, t.held);
   let streaming = state.streaming;

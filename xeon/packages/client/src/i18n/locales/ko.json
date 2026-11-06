@@ -2027,6 +2027,7 @@
   "desktop.transcript.loadFailed.stale": "대화가 계속 바뀌어서 최신 상태로 읽지 못했어요.",
   "desktop.transcript.loading": "대화를 읽는 중…",
   "desktop.transcript.newMessages": "새 메시지 {count}",
+  "desktop.transcript.truncated": "이전 기록은 여기 보이지 않아요. 최근 {count}개만 읽어 왔어요.",
   "desktop.transcript.pickThread": "왼쪽에서 대화를 고르거나 새로 만드세요.",
   "desktop.transcript.reloadButton": "다시 읽기",
   "desktop.trust.card.denied": "이 작업 폴더를 신뢰하지 않도록 정해 두었어요.",
