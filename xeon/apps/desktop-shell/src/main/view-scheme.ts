@@ -428,6 +428,12 @@ function failure(kind: Rejection): Response {
  * 응답 하나. 성공은 파일 내용과 보안 헤더(HEAD면 본문 없음), 실패는 상태 코드와 빈 본문이다(이유 글을 내보내지 않는다).
  * `ctx.handleScheme`의 처리기가 이것을 부른다. 메서드는 GET과 HEAD만 받는다
  */
+/** URL에서 `#` 뒤 조각을 뗀다 */
+export function withoutFragment(url: string): string {
+  const at = url.indexOf("#");
+  return at === -1 ? url : url.slice(0, at);
+}
+
 export async function respond(roots: AppRoots, method: string, uri: string): Promise<Response> {
   if (method !== "GET" && method !== "HEAD") return failure("method_not_allowed");
   const found = await resolve(roots, uri, method === "GET");
@@ -521,6 +527,9 @@ export const viewSchemeModule: ShellModule = {
       if (!result.ok) throw new ShellError(result.error.kind);
       return result.value;
     });
-    ctx.handleScheme(SCHEME, (request) => respond(roots, request.method, request.url));
+    // 프레임 주소의 `#n=<nonce>` 조각은 요청 대상이 아니다. Electron은 request.url에 조각을 남기므로 떼고 넘긴다
+    ctx.handleScheme(SCHEME, (request) =>
+      respond(roots, request.method, withoutFragment(request.url)),
+    );
   },
 };

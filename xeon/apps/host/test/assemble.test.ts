@@ -74,6 +74,15 @@ test("an app group such as l4.cli.* joins the catalog next to the core groups", 
   if (built.ok) expect(built.catalog.has("l4.cli.color")).toBe(true);
 });
 
+test("the Plugin App keys are in the engine catalog, so the app can read its screen list", () => {
+  const built = buildEngineCatalog([]);
+  expect(built.ok).toBe(true);
+  if (!built.ok) return;
+  // 없으면 settings.get x.ui.apps가 unknownKey로 실패하고 플러그인 화면 목록이 늘 비어 있다
+  expect(built.catalog.has("x.ui.apps")).toBe(true);
+  expect(built.catalog.has("x.ui.allowProjectApps")).toBe(true);
+});
+
 test("the core groups build one catalog with the keys of every package that declares settings", () => {
   const built = buildEngineCatalog();
   expect(built.ok).toBe(true);

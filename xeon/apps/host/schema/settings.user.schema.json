@@ -7563,6 +7563,48 @@
           "widget": "number"
         }
       }
+    },
+    "x.ui.allowProjectApps": {
+      "default": false,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "restart",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Allow app screens for work folder plugins",
+          "labelKey": "settings.x.ui.allowProjectApps.label",
+          "order": 460,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "x.ui.apps": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "restart",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Allow plugin app screens",
+          "labelKey": "settings.x.ui.apps.label",
+          "order": 450,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
     }
   },
   "type": "object",
