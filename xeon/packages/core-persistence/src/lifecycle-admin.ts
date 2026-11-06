@@ -118,7 +118,7 @@ export function deleteThreadRows(
 
 export function createAdminOps(
   deps: AdminDeps,
-): Pick<ThreadLifecycle, "list" | "close" | "remove" | "setTitle"> {
+): Pick<ThreadLifecycle, "list" | "close" | "remove" | "setTitle" | "setModel"> {
   const { db, writer, producers, sessions, ids, points, logger } = deps;
   const handle = producers.internal(PERSISTENCE_PRODUCER);
 
@@ -292,6 +292,42 @@ export function createAdminOps(
           },
         );
       }
+      return ok(undefined);
+    },
+
+    setModel(threadId, model, requestKey): Result<void, LifecycleError> {
+      const denied = ownerError(sessions, threadId);
+      if (denied !== null) return err(denied);
+      const committed = writer.commit({
+        threadId,
+        requestId: `model:${commitKeyPart(requestKey, sha256Hex)}`,
+        fingerprintSource: { model },
+        build(view): CommitPlan {
+          if (view.threadStatus === "closed") {
+            return { kind: "reject", code: "thread_closed", detail: null };
+          }
+          return {
+            kind: "append",
+            drafts: [
+              handle.draft({
+                id: ids.next("evt"),
+                kind: "thread.updated",
+                threadId,
+                turnId: null,
+                stepId: null,
+                causationId: null,
+                correlationId: null,
+                payload: { model },
+              }),
+            ],
+            checkpoint: null,
+          };
+        },
+      });
+      if (!committed.ok) return err(committed.error);
+      const result = committed.value;
+      if (result.status === "key_reused") return err({ kind: "key_reused", requestKey });
+      if (result.status === "rejected") return err({ kind: "thread_closed", threadId });
       return ok(undefined);
     },
   };

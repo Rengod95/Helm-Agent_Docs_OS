@@ -81,6 +81,7 @@ export type ThreadTitleSource = Static<typeof ThreadTitleSourceSchema>;
 export const ThreadUpdatedPayloadSchema: TObject<{
   title: TAddOptional<TUnion<[TString, TNull]>>;
   titleSource: TAddOptional<typeof ThreadTitleSourceSchema>;
+  model: TAddOptional<TUnion<[TString, TNull]>>;
   status: TAddOptional<typeof ThreadStatusSchema>;
   leafEventId: TAddOptional<TUnsafe<EventId>>;
 }> = Type.Object(
@@ -88,6 +89,8 @@ export const ThreadUpdatedPayloadSchema: TObject<{
     title: Type.Optional(Nullable(Type.String({ maxLength: 200 }))),
     /** 선택 필드다. 없는 옛 이벤트는 출처를 모른다(읽기는 그대로 된다) */
     titleSource: Type.Optional(ThreadTitleSourceSchema),
+    /** 이 대화가 다음 turn부터 쓸 모델 참조(`provider/id`). null이면 지정을 거둬 기본 모델로 돌아간다. 필드가 없으면 바꾸지 않는다 */
+    model: Type.Optional(Nullable(Type.String({ minLength: 1, maxLength: 200 }))),
     status: Type.Optional(ThreadStatusSchema),
     leafEventId: Type.Optional(EventIdSchema),
   },

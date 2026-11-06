@@ -80,6 +80,8 @@ export interface ThreadSummaryRow {
   readonly title: string | null;
   /** 제목을 정한 쪽. 제목 이벤트에 출처가 없던 옛 기록이나 제목이 없으면 없다 */
   readonly titleSource?: ThreadTitleSource;
+  /** 이 대화가 다음 turn부터 쓰도록 정한 모델 참조(`provider/id`). 정하지 않았으면 없다(기본 모델) */
+  readonly model?: string;
   readonly status: ThreadStatus;
   readonly workspace: string | null;
   readonly createdAt: number;
@@ -350,6 +352,15 @@ export interface ThreadLifecycle {
     requestKey: string,
     /** 제목을 정한 쪽. 생략하면 출처를 남기지 않는다 */
     source?: ThreadTitleSource,
+  ): Result<void, LifecycleError>;
+  /**
+   * 이 대화의 모델을 정한다(`thread.updated { model }` 커밋). null이면 지정을 거둔다. 다음 turn부터 적용된다.
+   * 참조가 카탈로그에 있는지는 부르는 쪽이 본다. 쓰기 소유자만 부른다
+   */
+  setModel(
+    threadId: ThreadId,
+    model: string | null,
+    requestKey: string,
   ): Result<void, LifecycleError>;
   /** 같은 클라이언트가 다른 thread로 옮기기 전에 session_before_switch(first)를 발화한다 */
   prepareSwitch(from: ThreadId, to: ThreadId | null): Promise<Result<void, LifecycleError>>;

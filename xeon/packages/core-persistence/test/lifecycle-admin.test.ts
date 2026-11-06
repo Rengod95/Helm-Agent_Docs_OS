@@ -154,6 +154,32 @@ describe("threads.remove", () => {
   });
 });
 
+describe("threads.setModel", () => {
+  test("the_model_is_stored_on_the_thread_and_null_clears_it", async () => {
+    const h = await openHarness();
+    const { threadId } = newThread(h, "before");
+    expect(expectOk(h.service.query.thread(threadId))?.model).toBeUndefined();
+    expectOk(h.service.threads.setModel(threadId, "anthropic/claude-haiku-5-5", "m1"));
+    expect(expectOk(h.service.query.thread(threadId))?.model).toBe("anthropic/claude-haiku-5-5");
+    // 제목 변경은 모델을 건드리지 않는다
+    expectOk(h.service.threads.setTitle(threadId, "renamed", "m-t"));
+    expect(expectOk(h.service.query.thread(threadId))?.model).toBe("anthropic/claude-haiku-5-5");
+    expectOk(h.service.threads.setModel(threadId, null, "m2"));
+    expect(expectOk(h.service.query.thread(threadId))?.model).toBeUndefined();
+  });
+
+  test("the_same_key_with_another_model_is_key_reused", async () => {
+    const h = await openHarness();
+    const { threadId } = newThread(h, "before");
+    expectOk(h.service.threads.setModel(threadId, "a/one", "same"));
+    expectOk(h.service.threads.setModel(threadId, "a/one", "same"));
+    expect(h.service.threads.setModel(threadId, "a/two", "same")).toEqual({
+      ok: false,
+      error: { kind: "key_reused", requestKey: "same" },
+    });
+  });
+});
+
 describe("threads.setTitle", () => {
   // spec plan set_title_writes_thread_updated_and_fires_info_changed
   test("set_title_writes_thread_updated_and_fires_info_changed", async () => {
