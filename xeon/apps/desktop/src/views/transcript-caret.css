@@ -1,0 +1,26 @@
+/* 작성 중 커서(시안 p02-opus StreamingText). 글 끝에 깜빡이는 막대 하나이고 움직임을 줄이면 멈춘다.
+   caustic에는 깜빡임 keyframes가 없어서 여기에 둔다. Tauri CSP가 인라인 <style>을 막아 JSX가 아니라 이 파일로 두고 styles.css가 가져온다. */
+.transcript-caret {
+  display: inline-block;
+  width: 0.125rem;
+  height: 1.1em;
+  margin-inline-start: 0.125rem;
+  border-radius: 9999px;
+  background: var(--cs-color-text-secondary);
+  transform: translateY(0.2em);
+  animation: transcript-caret-blink 1.06s steps(1, end) infinite;
+}
+@keyframes transcript-caret-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .transcript-caret {
+    animation: none;
+  }
+}

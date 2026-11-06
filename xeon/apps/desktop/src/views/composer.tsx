@@ -400,7 +400,7 @@ export function Composer(): ReactNode {
   });
   // thread가 바뀌면 입력 중이던 글자를 버린다(key). 관찰 띠는 입력창 자리에 같은 모서리로 놓인다(p02-opus ObserveBand)
   return (
-    <div className="grid gap-1.5 px-4 py-2">
+    <div className="mx-auto grid w-full max-w-184 flex-none gap-1.5 px-3 pb-1.5">
       {observing ? (
         <div
           role="status"
