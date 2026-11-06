@@ -19,7 +19,7 @@ import { useLinkPhase } from "../../state/engine/index.ts";
 import { useShell, useShellActions, type WorkbenchContext } from "../../state/shell/index.ts";
 import { useCommands } from "../commands.ts";
 import { tabLinkOf } from "../workbench/tab-read.ts";
-import { phaseOf, runControl, sendTestPrompt, startTest } from "./tests-actions.ts";
+import { phaseOf, runControl, sendTestPrompt, startTest, targetNamesOf } from "./tests-actions.ts";
 import { useTestList } from "./tests-read.ts";
 import { TestsView, type TestsViewHandlers } from "./tests-view.tsx";
 
@@ -95,7 +95,7 @@ export function TestsScreen(): ReactNode {
     const run = async (): Promise<void> => {
       const got = await commands.workbench.list();
       if (active && got.ok) {
-        setTargetNames(got.value.filter((e) => e.safeModeExcluded === null).map((e) => e.name));
+        setTargetNames(targetNamesOf(got.value));
       }
     };
     detach(run(), rethrow);
