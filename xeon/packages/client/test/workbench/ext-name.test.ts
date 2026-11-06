@@ -40,7 +40,7 @@ const part: Pick<ExtListEntry, "name" | "displayName"> = {
 
 describe("확장 이름", () => {
   test("카탈로그에 ext.name 키가 있으면 한국어 이름을 쓴다", () => {
-    expect(inLocale("ko", () => extNameOf(part))).toBe("세션 저장");
+    expect(inLocale("ko", () => extNameOf(part))).toBe("대화 저장");
   });
 
   test("영어 말투와 키가 없는 확장은 매니페스트 이름을 쓴다", () => {
@@ -52,7 +52,7 @@ describe("확장 이름", () => {
 
   test("행의 표시 이름은 한국어 이름이고, 이름이 id와 같으면 null이다", () => {
     inLocale("ko", () => {
-      expect(rowOf(full(part), INITIAL_WORKBENCH.pending).displayName).toBe("세션 저장");
+      expect(rowOf(full(part), INITIAL_WORKBENCH.pending).displayName).toBe("대화 저장");
       expect(rowOf(full({}), INITIAL_WORKBENCH.pending).displayName).toBeNull();
     });
   });

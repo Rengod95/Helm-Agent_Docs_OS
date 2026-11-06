@@ -205,7 +205,7 @@ describe("확장 화면: 잠긴 스위치의 이유는 Tooltip으로 보인다",
     ]);
     const rows = rowsOf(renderState(state));
     // core-loop은 카탈로그의 한국어 이름(ext.name.coreLoop)으로 그려진다
-    for (const name of ["에이전트 루프", "gate"]) {
+    for (const name of ["에이전트 실행기", "gate"]) {
       const row = rows.find((r) => r.cells[0]?.includes(name));
       expect(row?.markup).toContain(`aria-description="${t("desktop.workbench.lock.exempt")}"`);
       expect(row?.markup).toContain('data-slot="tooltip-trigger"');
