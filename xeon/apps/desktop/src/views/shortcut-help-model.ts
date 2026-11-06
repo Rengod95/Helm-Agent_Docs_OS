@@ -32,11 +32,18 @@ export const ACTION_LABEL_IDS: Readonly<Record<ActionId, MessageId>> = {
 };
 
 /** 도움말 묶음. 왼쪽 열에 `SHORTCUT_COLUMNS[0]`, 오른쪽 열에 `[1]`의 묶음이 쌓인다(시안 o09) */
-export type ShortcutGroupId = "anywhere" | "navigate" | "conversation" | "panel" | "area";
+export type ShortcutGroupId =
+  | "anywhere"
+  | "navigate"
+  | "conversation"
+  | "panel"
+  | "area"
+  | "composer"
+  | "approval";
 
 export const SHORTCUT_COLUMNS: readonly (readonly ShortcutGroupId[])[] = [
   ["anywhere", "navigate", "conversation"],
-  ["panel", "area"],
+  ["panel", "area", "composer", "approval"],
 ];
 
 export const SHORTCUT_GROUP_LABEL_IDS: Readonly<Record<ShortcutGroupId, MessageId>> = {
@@ -45,6 +52,8 @@ export const SHORTCUT_GROUP_LABEL_IDS: Readonly<Record<ShortcutGroupId, MessageI
   conversation: "desktop.shortcuts.group.conversation",
   panel: "desktop.shortcuts.group.panel",
   area: "desktop.shortcuts.group.area",
+  composer: "desktop.shortcuts.group.composer",
+  approval: "desktop.shortcuts.group.approval",
 };
 
 /** 동작마다 속한 묶음. 빠진 동작이 있으면 타입 검사가 실패한다 */
@@ -74,8 +83,15 @@ const ACTION_GROUP: Readonly<Record<ActionId, ShortcutGroupId>> = {
   "area.workbench": "area",
 };
 
+/** 키 맵 밖의 고정 키(바꿀 수 없다). 입력창은 `composer.tsx`의 Enter 처리, 승인 카드는 `approval-card/card-model.ts`의 `approvalKeyOf`가 정본이다 */
+export type FixedShortcutId =
+  | "composer.send"
+  | "composer.newline"
+  | "approval.allow"
+  | "approval.deny";
+
 export interface ShortcutRow {
-  readonly id: ActionId;
+  readonly id: ActionId | FixedShortcutId;
   readonly label: MessageId;
   readonly group: ShortcutGroupId;
   /** 화면에 보이는 키 글자(macOS는 ⌘⇧⌥ 기호, 그 밖은 Ctrl+Shift+) */
@@ -115,4 +131,22 @@ export function filterShortcutRows(
       hay.toLowerCase().includes(needle),
     ),
   );
+}
+
+/** 입력창·승인 카드의 고정 키 행. 사용자가 바꿀 수 없어 키 맵을 받지 않는다 */
+export function fixedShortcutRowsOf(mac: boolean): readonly ShortcutRow[] {
+  const enter = mac ? "↩" : "Enter";
+  const shift = mac ? "⇧" : "Shift";
+  const row = (
+    id: FixedShortcutId,
+    label: MessageId,
+    group: ShortcutGroupId,
+    parts: readonly string[],
+  ): ShortcutRow => ({ id, label, group, keys: mac ? parts.join("") : parts.join("+"), parts });
+  return [
+    row("composer.send", "desktop.shortcuts.action.composerSend", "composer", [enter]),
+    row("composer.newline", "desktop.shortcuts.action.composerNewline", "composer", [shift, enter]),
+    row("approval.allow", "desktop.shortcuts.action.approvalAllow", "approval", ["Y"]),
+    row("approval.deny", "desktop.shortcuts.action.approvalDeny", "approval", ["N"]),
+  ];
 }

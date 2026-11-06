@@ -3,6 +3,7 @@ import { ACTION_IDS, DEFAULT_KEYMAP, resolveKeymap } from "../../src/views/shell
 import {
   ACTION_LABEL_IDS,
   filterShortcutRows,
+  fixedShortcutRowsOf,
   keyPartsOf,
   SHORTCUT_COLUMNS,
   shortcutRowsOf,
@@ -88,7 +89,7 @@ describe("groups, key chips and search", () => {
   });
 
   test("every group in the columns holds at least one default action", () => {
-    const rows = shortcutRowsOf(DEFAULT_KEYMAP, true);
+    const rows = [...shortcutRowsOf(DEFAULT_KEYMAP, true), ...fixedShortcutRowsOf(true)];
     for (const group of SHORTCUT_COLUMNS.flat()) {
       expect(rows.some((row) => row.group === group)).toBe(true);
     }
@@ -110,5 +111,47 @@ describe("groups, key chips and search", () => {
     ]);
     expect(filterShortcutRows(rows, "⇧⌘i", text).map((row) => row.id)).toEqual(["panel.inbox"]);
     expect(filterShortcutRows(rows, "no-such", text)).toEqual([]);
+  });
+});
+
+describe("fixed keys", () => {
+  test("composer and approval rows are listed with their real keys", () => {
+    expect(fixedShortcutRowsOf(true)).toEqual([
+      {
+        id: "composer.send",
+        label: "desktop.shortcuts.action.composerSend",
+        group: "composer",
+        keys: "↩",
+        parts: ["↩"],
+      },
+      {
+        id: "composer.newline",
+        label: "desktop.shortcuts.action.composerNewline",
+        group: "composer",
+        keys: "⇧↩",
+        parts: ["⇧", "↩"],
+      },
+      {
+        id: "approval.allow",
+        label: "desktop.shortcuts.action.approvalAllow",
+        group: "approval",
+        keys: "Y",
+        parts: ["Y"],
+      },
+      {
+        id: "approval.deny",
+        label: "desktop.shortcuts.action.approvalDeny",
+        group: "approval",
+        keys: "N",
+        parts: ["N"],
+      },
+    ]);
+    expect(fixedShortcutRowsOf(false)[1]).toEqual({
+      id: "composer.newline",
+      label: "desktop.shortcuts.action.composerNewline",
+      group: "composer",
+      keys: "Shift+Enter",
+      parts: ["Shift", "Enter"],
+    });
   });
 });
