@@ -7,11 +7,10 @@ import type { ReviewOutcome } from "../proposals/reader.ts";
 import { reviewTask } from "./prompts.ts";
 import type { ReviewReason } from "./reason.ts";
 import { reviewToolPolicy } from "./policy.ts";
+import { REVIEW_AGENT_NAME } from "./agent.ts";
 
 // L3.learning.spec §3.4, §4.3. 검토 포크 호출과 완료 통지. 이 파일의 함수는 순수 함수다.
 
-/** 검토 포크 서브에이전트 정의 이름. 정의 파일은 그룹 패키지 agents/learning-review.md(매니페스트 components.agents) */
-const REVIEW_AGENT = "learning-review";
 /** 자동 검토의 requestId 접두. 구독 핸들러가 이 접두로 자기 검토를 알아본다 */
 const REVIEW_ID_PREFIX = "learning:review:";
 
@@ -52,7 +51,7 @@ export interface BuildReviewInput {
 export function buildReviewSpec(input: BuildReviewInput): DelegateSpec {
   const { settings } = input;
   return {
-    agent: REVIEW_AGENT,
+    agent: REVIEW_AGENT_NAME,
     task: reviewTask(input.reasons),
     requestId: input.requestId,
     toolPolicy: reviewToolPolicy(),

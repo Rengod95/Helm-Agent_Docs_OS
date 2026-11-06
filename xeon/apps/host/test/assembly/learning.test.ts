@@ -4,11 +4,27 @@ import type { ResourceRecord, ResourceRegistry } from "@fresnel/ext-host";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import {
   createLearningRunner,
+  learningAgentsLoaded,
   slotReader,
   type LearningRunner,
 } from "../../src/assembly/learning.ts";
 
-// 학습 그룹을 싣는 조립 코드의 단위 시험: 읽기 면 자리와 `/learning` 명령 실행기. 실제 엔진 위의 시험은 test/int/proposals.int.test.ts다.
+// 학습 그룹을 싣는 조립 코드의 단위 시험: 읽기 면 자리, `/learning` 명령 실행기, 검토 포크 정의를 싣는 조건. 실제 엔진 위의 시험은 test/int/proposals.int.test.ts다.
+
+function namesOf(definitions: readonly { readonly name: string }[]): string[] {
+  return definitions.map((definition) => definition.name);
+}
+
+test("learning.agents-loaded: the review definition is supplied exactly when the learning group is loaded", () => {
+  expect(namesOf(learningAgentsLoaded({ defaultGroups: undefined, safeMode: undefined }))).toEqual([
+    "learning-review",
+  ]);
+  expect(learningAgentsLoaded({ defaultGroups: undefined, safeMode: false })[0]?.source).toEqual({
+    kind: "builtin",
+  });
+  expect(learningAgentsLoaded({ defaultGroups: false, safeMode: undefined })).toEqual([]);
+  expect(learningAgentsLoaded({ defaultGroups: undefined, safeMode: true })).toEqual([]);
+});
 
 const ids = fixedIdFactory(3);
 const FIRST: ThreadId = ids.next("thr");

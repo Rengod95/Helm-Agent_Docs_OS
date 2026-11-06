@@ -7,12 +7,14 @@ import {
   createLearningGroup,
   createSqlReader,
   createLearningProjector,
+  learningAgentDefinitions,
   learningProjector,
   type CommandReport,
   type LearningBridge,
   type LearningQueueReader,
   type StoreFailure,
 } from "@fresnel/group-learning";
+import type { AgentDefinition } from "@fresnel/contracts/services";
 import { err, type Clock, type Logger } from "@fresnel/contracts";
 import type { SessionService, StoreService } from "@fresnel/contracts/records";
 import { isId, type IdFactory, type ThreadId } from "@fresnel/contracts/conversation";
@@ -29,6 +31,17 @@ export function learningLoaded(options: {
   readonly safeMode: boolean | undefined;
 }): boolean {
   return options.defaultGroups !== false && options.safeMode !== true;
+}
+
+/**
+ * 학습 그룹이 실릴 때 그 내장 서브에이전트 정의(검토 포크 `learning-review`)를 준다. 싣지 않으면 빈 목록이다.
+ * 내장 그룹의 `components.agents`는 호스트가 읽지 않으므로 조립 루트가 `builtinDefinitions`에 이것을 더한다 (L3.learning.spec §3.1)
+ */
+export function learningAgentsLoaded(options: {
+  readonly defaultGroups: boolean | undefined;
+  readonly safeMode: boolean | undefined;
+}): readonly AgentDefinition[] {
+  return learningLoaded(options) ? learningAgentDefinitions() : [];
 }
 
 /** `fresnel.knowledge`의 제안 대기열 어댑터를 나중에 채우는 자리. 브리지 확장이 채우고 `proposal.*` 처리기가 부를 때 읽는다 */
