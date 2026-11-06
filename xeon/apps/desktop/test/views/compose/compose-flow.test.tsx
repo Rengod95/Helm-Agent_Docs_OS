@@ -333,7 +333,7 @@ describe("시험 실행의 노드 상태", () => {
         />
       </CommandsContext.Provider>,
     );
-    const start = html.split("<button").find((part) => part.includes("시험 대화에서 돌려 보기"));
+    const start = html.split("<button").find((part) => part.includes("테스트 대화에서 돌려 보기"));
     expect(start).toContain("disabled");
     expect(html).toContain("설치되지 않은 그룹이라 지금은 돌릴 수 없어요.");
   });

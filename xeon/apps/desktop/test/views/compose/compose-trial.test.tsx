@@ -35,7 +35,7 @@ const NOOP = (): void => {};
 const RUN_ID = "thr_0123456789ABCDEFGHJKMNPQRS";
 const SHORT_ID = "thr_01234567";
 
-/** 시험 대화 id는 wire의 브랜드 값이다. 시험 입력은 스키마로 만든다 */
+/** 테스트 대화 id는 wire의 브랜드 값이다. 시험 입력은 스키마로 만든다 */
 function threadOf(raw: string): ThreadId {
   const parsed = parse(ThreadIdSchema, raw);
   if (!parsed.ok) throw new Error(`시험 입력의 대화 id가 잘못됐어요: ${raw}`);
@@ -164,13 +164,13 @@ function render(
 
 /** 초안을 고치는 중에 시험이 설치된 그룹을 돌린다는 경고. 정보 아이콘 글과 따로 보인다 */
 const DRAFT_WARNING =
-  "지금 고치는 초안은 시험에 들어가지 않아요. 시험 대화는 설치된 그룹을 돌려요.";
+  "지금 고치는 초안은 테스트에 들어가지 않아요. 테스트 대화는 설치된 그룹을 돌려요.";
 
 describe("시험 시작 줄", () => {
   test("설치된 그룹은 시작 단추가 눌리고, 설명은 정보 아이콘 뒤에 있다", () => {
     const html = render(trialOf());
-    expect(buttonNamed(html, "시험 대화에서 돌려 보기")?.disabled).toBe(false);
-    expect(html).toContain("시험 대화를 새로 만들고 이 그룹을 그 대화에서 켜요.");
+    expect(buttonNamed(html, "테스트 대화에서 돌려 보기")?.disabled).toBe(false);
+    expect(html).toContain("테스트 대화를 새로 만들고 이 그룹을 그 대화에서 켜요.");
   });
 
   test("초안을 고치는 중이면 설치된 그룹을 돈다는 경고가 단추 옆에 글로 보인다", () => {
@@ -178,7 +178,7 @@ describe("시험 시작 줄", () => {
     expect(html).toContain(DRAFT_WARNING);
     // 경고는 설명 아이콘의 글에 들어가지 않는다(정보 아이콘 글은 시험 방식만 적는다)
     expect(html).not.toContain("고친 초안은 아직 돌지 않아요");
-    expect(buttonNamed(html, "시험 대화에서 돌려 보기")?.disabled).toBe(false);
+    expect(buttonNamed(html, "테스트 대화에서 돌려 보기")?.disabled).toBe(false);
   });
 
   test("초안이 아니면 그 경고는 보이지 않는다", () => {
@@ -187,20 +187,20 @@ describe("시험 시작 줄", () => {
 
   test("연결이 없으면 시작이 잠기고 연결하라는 줄이 보인다", () => {
     const html = render(trialOf({ online: false }), "offline");
-    expect(buttonNamed(html, "시험 대화에서 돌려 보기")?.disabled).toBe(true);
-    expect(html).toContain("엔진에 연결되면 시험을 돌릴 수 있어요.");
+    expect(buttonNamed(html, "테스트 대화에서 돌려 보기")?.disabled).toBe(true);
+    expect(html).toContain("엔진에 연결되면 테스트을 돌릴 수 있어요.");
   });
 
   test("설치되지 않은 그룹은 잠기고, 이유가 보이고 설명이 정보 아이콘에 있다", () => {
     const html = render(trialOf(), "live", false);
-    expect(buttonNamed(html, "시험 대화에서 돌려 보기")?.disabled).toBe(true);
+    expect(buttonNamed(html, "테스트 대화에서 돌려 보기")?.disabled).toBe(true);
     expect(html).toContain("설치되지 않은 그룹이라 지금은 돌릴 수 없어요.");
-    expect(html).toContain("설치한 뒤 다시 열면 시험 대화에서 켤 수 있어요.");
+    expect(html).toContain("설치한 뒤 다시 열면 테스트 대화에서 켤 수 있어요.");
   });
 
   test("시작하는 동안에는 시작 단추가 잠긴다", () => {
     expect(
-      buttonNamed(render(trialOf({ starting: true })), "시험 대화에서 돌려 보기")?.disabled,
+      buttonNamed(render(trialOf({ starting: true })), "테스트 대화에서 돌려 보기")?.disabled,
     ).toBe(true);
   });
 
@@ -211,7 +211,7 @@ describe("시험 시작 줄", () => {
       }),
     );
     expect(html).toContain("이 엔진에는 아직 없는 기능이에요.");
-    expect(html).toContain("시험 대화 thr_01234567는 만들었지만 이 그룹을 켜지 못했어요.");
+    expect(html).toContain("테스트 대화 thr_01234567는 만들었지만 이 그룹을 켜지 못했어요.");
   });
 });
 
@@ -417,7 +417,7 @@ describe("다시 돌려 검사", () => {
   test("연결이 없으면 모두 잠기고 연결하라는 글이 이유가 된다. 개발 모드 켜기는 없다", () => {
     const html = renderToString(<ReplayBar replay={replayOf({ lock: "offline" })} />);
     expect(html).toContain('aria-disabled="true"');
-    expect(html).toContain("엔진에 연결되면 시험을 돌릴 수 있어요.");
+    expect(html).toContain("엔진에 연결되면 테스트을 돌릴 수 있어요.");
     expect(buttonNamed(html, "개발 모드 켜기…")).toBeUndefined();
   });
 
@@ -479,10 +479,10 @@ describe("다시 돌려 검사", () => {
   });
 });
 
-describe("시험 결과 목록", () => {
-  test("개발 모드면 시험 결과, 배포 앱이면 읽기 전용 지난 결과와 까닭이 설명 아이콘 뒤에 있다", () => {
+describe("테스트 결과 목록", () => {
+  test("개발 모드면 테스트 결과, 배포 앱이면 읽기 전용 지난 결과와 까닭이 설명 아이콘 뒤에 있다", () => {
     const dev = renderToString(<ReplayBar replay={replayOf({ devMode: true, lock: null })} />);
-    expect(dev).toContain("시험 결과");
+    expect(dev).toContain("테스트 결과");
     expect(dev).not.toContain("배포 앱에서는 지난 결과를 읽기만 해요.");
     const released = renderToString(<ReplayBar replay={replayOf()} />);
     expect(released).toContain("지난 결과");
@@ -520,10 +520,10 @@ describe("시험 결과 목록", () => {
 
   test("기록이 없으면 빈 글이고, 읽는 중·오프라인·읽기 실패를 각각 보인다", () => {
     const cases: readonly (readonly [TabRead<readonly ExtTestRecord[]>, string])[] = [
-      [{ kind: "ready", value: [], stale: false }, "아직 이 그룹의 시험 결과가 없어요"],
+      [{ kind: "ready", value: [], stale: false }, "아직 이 그룹의 테스트 결과가 없어요"],
       [{ kind: "loading" }, "불러오는 중…"],
       [{ kind: "offline" }, "엔진에 연결되어 있지 않아 목록을 읽지 못해요."],
-      [{ kind: "error" }, "시험 결과를 불러오지 못했어요."],
+      [{ kind: "error" }, "테스트 결과를 불러오지 못했어요."],
     ];
     for (const [results, text] of cases) {
       const html = renderToString(

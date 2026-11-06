@@ -113,13 +113,13 @@ describe("테스트 화면 목록 상태", () => {
   test("a list that is still loading shows the skeleton, not the empty line", () => {
     const markup = html({ read: { kind: "loading" } });
     expect(markup).toContain('data-slot="skeleton"');
-    expect(markup).not.toContain("아직 돌린 시험이 없어요");
+    expect(markup).not.toContain("아직 돌린 테스트이 없어요");
   });
 
   test("offline says the list could not be read and locks the new test button", () => {
     const markup = html({ read: { kind: "offline" }, online: false });
     expect(markup).toContain("엔진에 연결되어 있지 않아 목록을 읽지 못해요.");
-    expect(isDisabled(buttonTagOf(markup, "새 시험"))).toBe(true);
+    expect(isDisabled(buttonTagOf(markup, "새 테스트"))).toBe(true);
   });
 
   test("an error offers a retry and says the list could not be read", () => {
@@ -130,14 +130,14 @@ describe("테스트 화면 목록 상태", () => {
 
   test("an empty list that has loaded says there are no tests yet", () => {
     const markup = html({ read: { kind: "ready", value: [], stale: false } });
-    expect(markup).toContain("아직 돌린 시험이 없어요");
+    expect(markup).toContain("아직 돌린 테스트이 없어요");
     expect(markup).not.toContain('data-slot="skeleton"');
   });
 
   test("test-run.dev-only-locked: with the engine connected the list reads and the new test button is open", () => {
     const markup = html();
     expect(markup).toContain("review");
-    expect(isDisabled(buttonTagOf(markup, "새 시험"))).toBe(false);
+    expect(isDisabled(buttonTagOf(markup, "새 테스트"))).toBe(false);
   });
 });
 
@@ -186,7 +186,7 @@ describe("테스트 화면 상세", () => {
   });
 });
 
-describe("새 시험 시트", () => {
+describe("새 테스트 시트", () => {
   test("a Test run draft shows the target field, asks for a target before it can start, and has no replay commit limit", () => {
     const empty = renderToString(
       <NewTestForm
@@ -254,6 +254,6 @@ describe("새 시험 시트", () => {
 describe("테스트 화면 알림", () => {
   test("a created Test run notice names the conversation after its target", () => {
     const markup = html({ ui: { ...UI, notice: { kind: "created", name: "demo-plugin" } } });
-    expect(markup).toContain("demo-plugin 시험 대화를 만들었어요.");
+    expect(markup).toContain("demo-plugin 테스트 대화를 만들었어요.");
   });
 });
