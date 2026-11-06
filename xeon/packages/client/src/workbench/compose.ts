@@ -473,8 +473,9 @@ export function outlineOf(draft: FlowDraft): readonly OutlineRow[] {
     },
     ...draft.transitions
       .filter((edge) => edge.from === node.id)
-      .map((edge) => ({
-        id: `edge:${edge.from}>${edge.to}`,
+      .map((edge, index) => ({
+        // 같은 두 노드 사이 전이가 여럿이므로 번호를 넣어 줄 키가 겹치지 않게 한다
+        id: `edge:${edge.from}>${edge.to}#${index}`,
         depth: 1 as const,
         kind: "transition" as const,
         label: edge.event ?? edge.to,
