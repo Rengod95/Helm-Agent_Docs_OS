@@ -1261,6 +1261,7 @@
   "desktop.threads.compact.skipped.already": "It was just summarized, so there is nothing more to shrink.",
   "desktop.threads.compact.skipped.disabled": "Conversation summary is turned off. You can turn it on in Settings.",
   "desktop.threads.compact.skipped.nothing": "There isn't enough content yet to summarize.",
+  "desktop.threads.compact.skipped.threshold": "Not enough has built up to summarize yet. Compaction starts at about {tokens} tokens.",
   "desktop.threads.menu.cancel": "Cancel",
   "desktop.threads.menu.close": "Close",
   "desktop.threads.menu.compact": "Summarize conversation",

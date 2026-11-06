@@ -1261,6 +1261,7 @@
   "desktop.threads.compact.skipped.already": "방금 요약한 대화라 더 줄일 내용이 없어요.",
   "desktop.threads.compact.skipped.disabled": "대화 요약이 꺼져 있어요. 설정에서 켤 수 있어요.",
   "desktop.threads.compact.skipped.nothing": "아직 요약할 만큼 쌓인 내용이 없어요.",
+  "desktop.threads.compact.skipped.threshold": "아직 요약할 만큼 쌓인 내용이 없어요. 약 {tokens}토큰부터 요약해요.",
   "desktop.threads.menu.cancel": "취소",
   "desktop.threads.menu.close": "닫기",
   "desktop.threads.menu.compact": "대화 요약",

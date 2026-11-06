@@ -84,6 +84,7 @@ export type CommandDeps = {
 
 /** 첨부 크기 상한 설정 키(L2.dialog, 호스트 값) */
 const ATTACHMENT_LIMIT_KEY = "l2.dialog.attachments.maxBytes";
+const COMPACT_KEEP_KEY = "l1.context.keepRecentTokens";
 
 /**
  * 이미 해결된 승인("다른 곳에서 처리됨")을 카드에 보이는 시간(ms). 뒤에 대기열에서 뺀다.
@@ -268,6 +269,14 @@ export function createCommands(deps: CommandDeps): Commands {
       );
       if (!got.ok) return null;
       const value = got.value.settings.find((s) => s.key === ATTACHMENT_LIMIT_KEY)?.value;
+      return typeof value === "number" && value > 0 ? value : null;
+    },
+    async compactKeepTokens() {
+      const got = await withConnection((c) =>
+        c.request("settings.get", { keys: [COMPACT_KEEP_KEY] }),
+      );
+      if (!got.ok) return null;
+      const value = got.value.settings.find((s) => s.key === COMPACT_KEEP_KEY)?.value;
       return typeof value === "number" && value > 0 ? value : null;
     },
     async interrupt(threadId) {
