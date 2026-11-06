@@ -22,6 +22,7 @@ import { BASE_ENV_POLICY, buildChildEnv } from "./env-builder.ts";
 import type { ExecPlatformProvider } from "./provider.ts";
 import { forwardFileSystem } from "./forward.ts";
 import { acquireSecretEnv, type SecretEnvSource } from "./secret-env.ts";
+import { createChildLedger } from "./child-ledger.ts";
 import { spillUsageBytes, type SpillError } from "./spill-store.ts";
 import { getShellConfig, NodeExecutionEnv, resolvePath } from "./upstream/env/node.ts";
 import { formatSize, truncateHead, truncateHeadOf } from "./upstream/truncate.ts";
@@ -176,8 +177,17 @@ export function createExecService(options: ExecServiceOptions, deps: ExecService
     });
   }
 
+  // 비정상 종료로 남은 이전 호스트의 자식 그룹을 시작할 때 거두고, 이 호스트의 자식은 장부에 적는다(L0.exec.spec §3.8)
+  const childLedger = createChildLedger({
+    dir: options.tempDir,
+    platform: deps.platform,
+    ...(deps.logger === undefined ? {} : { logger: deps.logger }),
+  });
+  childLedger.sweep();
+
   function createEnv(cwd: string): ExecutionEnv {
     const inner = new NodeExecutionEnv({
+      childLedger,
       cwd,
       platform: deps.platform,
       ...(options.shellPath === undefined ? {} : { shellPath: options.shellPath }),

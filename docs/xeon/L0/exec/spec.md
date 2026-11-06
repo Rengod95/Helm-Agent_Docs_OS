@@ -512,6 +512,8 @@ export function createExecService(
 - `tempDir`는 `createTempDir`·`createTempFile`과 spill 파일의 위치다(PATCHES P19). 있으면 그 디렉터리를 0700으로 만들고(없을 때) 아래에 `tmp-XXXX/`(0700)를 두며, 임시 파일은 0600이다. 없으면 원본대로 OS 임시 폴더다. 운영 조립은 항상 `<fresnel.os dirs.state>/spill`을 넘긴다 [결정: m2 마감 G2-05].
 - `spillMaxBytes`는 `tempDir` 아래 사용량이 상한 이상이면 새 spill을 시작하지 않는다. 호출자가 준 `spill`도 같다. 규칙은 3.8.2절이다.
 
+- 자식 프로세스 정리(PATCHES P20): 서비스는 띄운 셸의 pid를 `tempDir` 옆 `fresnel-exec-children/` 장부에 적고 끝나면 지운다. 프로세스가 `exit`로 끝나면 장부가 남은 자식 그룹에 SIGKILL을 보내고, SIGKILL로 죽어 못 보낸 것은 다음 서비스 생성 때 `sweep`이 거둔다(죽은 호스트 pid, 같은 부팅, 자기 그룹의 리더인 줄만). 앱 강제 종료는 사이드카가 stdin 닫힘을 보고 종료 절차를 밟는 길이 먼저고, 이 장부는 그 길이 끊겼을 때의 안전망이다 [근거: `packages/platform-exec/src/child-ledger.ts`]
+
 ### 3.8.1 무인 경로 시간 상한 [결정: M3-REQ-46]
 
 - 일반 대화의 `l0.exec.defaultTimeoutMs`는 0(제한 없음)을 유지한다. 예약·루프처럼 사람이 없는 경로는 `withUnattendedTimeout(shell, capMs)`(`src/unattended.ts`)로 `Shell`을 감싼다. 감싼 `exec`는 호출의 `timeout`(초)을 `capMs / 1000` 이하로 맞춘다. 호출자가 더 짧은 값을 주면 그 값이 이기고, 없거나 0이거나 더 길면 상한으로 바꾼다. 상한은 호출자가 넘긴다.
