@@ -4,6 +4,7 @@ import {
   mergeNotices,
   NOTICE_KEEP,
   noticeKindId,
+  noticeResolved,
   noticeTitleViewOf,
   noticeToastVisible,
   threadBySeqOf,
@@ -142,5 +143,17 @@ describe("noticeTitleViewOf", () => {
 
   test("an error from a source the app does not know keeps its own title", () => {
     expect(noticeTitleViewOf(of("error", "dialog.notified", "x"))).toBeNull();
+  });
+});
+
+describe("noticeResolved", () => {
+  const waiting: Notice = { ...notice(1, "승인이 필요해요: edit"), kind: "approval_waiting" };
+  test("an approval notice is resolved once its thread has no pending approval", () => {
+    expect(noticeResolved({ notice: waiting, threadId: thr(1) }, new Set())).toBe(true);
+    expect(noticeResolved({ notice: waiting, threadId: thr(1) }, new Set([thr(1)]))).toBe(false);
+  });
+  test("an unknown thread or another kind is never called resolved", () => {
+    expect(noticeResolved({ notice: waiting, threadId: null }, new Set())).toBe(false);
+    expect(noticeResolved({ notice: notice(2), threadId: thr(1) }, new Set())).toBe(false);
   });
 });

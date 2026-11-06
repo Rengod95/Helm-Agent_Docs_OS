@@ -5,6 +5,7 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import { Alert, Button, EmptyState, Skeleton, toast } from "@caustic/react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
+  useApprovalMirror,
   useLinkPhase,
   useThread,
   useThreadSummaries,
@@ -14,6 +15,7 @@ import { useCommands } from "./commands.ts";
 import {
   mergeNotices,
   noticeKindId,
+  noticeResolved,
   noticeTitleViewOf,
   threadBySeqOf,
   noticeToastVisible,
@@ -136,6 +138,8 @@ export function InboxNotices(): ReactNode {
   const phase = useLinkPhase();
   const [load, setLoad] = useState<Load>("loading");
   const [entries, setEntries] = useState<readonly NoticeEntry[]>([]);
+  const approvals = useApprovalMirror();
+  const waitingThreads = new Set(approvals.ids.flatMap((id) => approvals.byId[id]?.threadId ?? []));
 
   // 대화 이름을 붙이려고 최근 대화별로 알림을 읽는다. 목록이 바뀔 때마다 다시 읽지 않도록 값은 ref로 든다
   const summaries = useThreadSummaries();
@@ -227,7 +231,11 @@ export function InboxNotices(): ReactNode {
       <ul className="m-0 grid list-none gap-2 p-0">
         {entries.map(({ notice, threadId }) => (
           <li key={notice.seq} className="grid gap-0.5">
-            <span className="dim">{t(noticeKindId(notice.kind))}</span>
+            <span className="dim">
+              {noticeResolved({ notice, threadId }, waitingThreads)
+                ? t("desktop.notices.kind.resolved")
+                : t(noticeKindId(notice.kind))}
+            </span>
             <span>{noticeTitleText(notice)}</span>
             {notice.body === null ? null : <span className="dim">{notice.body}</span>}
             {threadId === null ? null : <ThreadName threadId={threadId} />}
