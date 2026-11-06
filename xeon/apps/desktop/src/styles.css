@@ -47,12 +47,6 @@
     color: var(--accent-fg);
     border-color: var(--accent);
   }
-  button.link:not([data-slot]) {
-    background: none;
-    border: 0;
-    padding: 0;
-    color: var(--accent);
-  }
   textarea:not([data-slot]),
   input[type="text"]:not([data-slot]) {
     font: inherit;
@@ -256,35 +250,11 @@
     padding: 4px 12px;
     border-top: 1px solid var(--border);
   }
-  .dialog-backdrop {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.4);
-  }
-  .dialog {
-    max-width: 440px;
-    padding: 16px 20px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--panel);
-  }
-  .dialog h2 {
-    margin: 0 0 8px;
-    font-size: 15px;
-  }
   .field {
     display: flex;
     flex-direction: column;
     gap: 2px;
     max-width: 420px;
     margin: 6px 0;
-  }
-  .setup-banner {
-    padding: 6px 12px;
-    border-bottom: 1px solid var(--border);
-    background: var(--panel);
   }
 }

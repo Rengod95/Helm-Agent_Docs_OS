@@ -1,3 +1,4 @@
+import { Button } from "@caustic/react";
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
@@ -113,10 +114,10 @@ export function TrustCardBody(props: {
         <div className="dim">{t("desktop.trust.card.warning")}</div>
         <div className="approval-actions">
           {card.buttons.map((button) => (
-            <button
+            <Button
               key={`${button.choice.kind}:${button.choice.verdict}`}
-              type="button"
-              className={button.primary ? "primary" : undefined}
+              size="sm"
+              variant={button.primary ? "solid" : "outline"}
               disabled={sending === "sending"}
               title={button.savedPath ?? undefined}
               onClick={() => {
@@ -124,7 +125,7 @@ export function TrustCardBody(props: {
               }}
             >
               {button.text}
-            </button>
+            </Button>
           ))}
           {sending === "sending" ? (
             <span className="dim">{t("desktop.trust.card.sendingStatus")}</span>

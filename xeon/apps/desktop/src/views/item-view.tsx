@@ -1,3 +1,4 @@
+import { Button } from "@caustic/react";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { ItemId, ItemRecord, JsonObject, JsonValue } from "@fresnel/contracts/conversation";
@@ -34,16 +35,16 @@ function Collapsible(props: { readonly summary: string; readonly children: React
   const [open, setOpen] = useState(false);
   return (
     <div className="collapsible">
-      <button
-        type="button"
-        className="link"
+      <Button
+        size="xs"
+        variant="ghost"
         aria-expanded={open}
         onClick={() => {
           setOpen((v) => !v);
         }}
       >
         {open ? "▾" : "▸"} {props.summary}
-      </button>
+      </Button>
       {open ? props.children : null}
     </div>
   );

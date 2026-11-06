@@ -1,3 +1,4 @@
+import { Alert, Button } from "@caustic/react";
 import type { ReactNode } from "react";
 import { t } from "@fresnel/client/i18n";
 import { useShellActions } from "../state/shell/index.ts";
@@ -11,17 +12,22 @@ export function SetupBanner(): ReactNode {
   const needed = useSetupNeeded();
   if (!needed) return null;
   return (
-    <div className="setup-banner" role="status">
-      <span>{setupRequiredText()}</span>{" "}
-      <button
-        type="button"
-        className="primary"
-        onClick={() => {
-          shell.updatePlace({ screen: "first-run" });
-        }}
-      >
-        {t("desktop.setup.openSettings.button")}
-      </button>
-    </div>
+    <Alert
+      tone="warning"
+      size="sm"
+      action={
+        <Button
+          size="sm"
+          variant="solid"
+          onClick={() => {
+            shell.updatePlace({ screen: "first-run" });
+          }}
+        >
+          {t("desktop.setup.openSettings.button")}
+        </Button>
+      }
+    >
+      {setupRequiredText()}
+    </Alert>
   );
 }
