@@ -52,7 +52,7 @@ function fromTurnCompleted(event: DurableEventEnvelope): Notice | null {
     case "completed":
       return notice(event, "completed", "작업이 끝났어요", null);
     case "failed":
-      return notice(event, "error", "턴이 실패했다", error);
+      return notice(event, "error", "턴이 실패했어요", error);
     // 사용자가 직접 끊은 턴은 알리지 않는다
     case "interrupted":
       return null;
@@ -67,11 +67,11 @@ function fromGoalSettled(event: DurableEventEnvelope): Notice | null {
   const { status, judgments } = parsed.value;
   switch (status) {
     case "met":
-      return notice(event, "completed", "목표를 달성했다", `판정 ${judgments}회`);
+      return notice(event, "completed", "목표를 달성했어요", `판정 ${judgments}회`);
     case "limit_reached":
-      return notice(event, "completed", "목표 판정 한도에 도달했다", `판정 ${judgments}회`);
+      return notice(event, "completed", "목표 판정 한도에 도달했어요", `판정 ${judgments}회`);
     case "judge_failed":
-      return notice(event, "error", "목표 판정에 실패했다", null);
+      return notice(event, "error", "목표 판정에 실패했어요", null);
     case "active":
     case "cleared":
       return null;
@@ -90,7 +90,7 @@ function fromApprovalRequested(event: DurableEventEnvelope): Notice | null {
     case "plan":
       return notice(event, "approval_waiting", "승인이 필요해요: plan", null);
     case "question":
-      return notice(event, "question_waiting", "질문에 답이 필요하다", null);
+      return notice(event, "question_waiting", "질문에 답이 필요해요", null);
     // 검토 승인은 §4.7.1 표에 없다 [미결]
     case "review":
       return null;
@@ -111,7 +111,7 @@ function fromAgentSettled(event: DurableEventEnvelope): Notice | null {
     case "completed":
       return notice(event, "background_completed", "백그라운드 작업이 끝났어요", null);
     case "error":
-      return notice(event, "error", "백그라운드 작업이 실패했다", error);
+      return notice(event, "error", "백그라운드 작업이 실패했어요", error);
     case "aborted":
       return null;
     default:
@@ -128,7 +128,7 @@ function fromRunFinished(event: DurableEventEnvelope): Notice | null {
     case "completed":
       return notice(event, "background_completed", "예약 작업이 끝났어요", null);
     case "failed":
-      return notice(event, "error", "예약 작업이 실패했다", null);
+      return notice(event, "error", "예약 작업이 실패했어요", null);
     case "aborted":
     case "awaiting_approval":
       return null;
@@ -152,8 +152,8 @@ function fromDialogNotified(event: DurableEventEnvelope): Notice | null {
 export function unreadableInputNotice(reason: UnreadableInputReason): NotifyEmitInputValue {
   return {
     kind: "error",
-    title: "읽을 수 없는 입력이 큐에 있다",
-    body: `큐에 넣은 입력을 읽지 못해 건너뛴다(${reason}). 큐에서 지우고 다시 보내 달라.`,
+    title: "읽을 수 없는 입력이 큐에 있어요",
+    body: `큐에 넣은 입력을 읽지 못해 건너뛰었어요(${reason}). 큐에서 지우고 다시 보내 주세요.`,
     origin: "tasks",
   };
 }

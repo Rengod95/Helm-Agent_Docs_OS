@@ -36,6 +36,7 @@ M3a 구현(`xeon/packages/group-learning`)에서 아래를 문서에 맞췄다. 
 
 - 대기열: 도구 `execute`와 명령 처리기가 호출마다 ambient를 연다(M3-REQ-102, X.primitives.spec §4.6.6). 그래서 후보 행과 검토 행은 설계대로 비공개 기록 아홉 종(`grp.learning.proposal.*`, `grp.learning.fork.*`)을 `recordPrivate`로 쓰고 투영기(`learningProjector`)가 `x_learning_*`로 접는다(§3.7.1, §3.7.2). 사용자 결정의 공개 레코드(`skill.approved`·`rejected`·`applied`)는 `record`로, 상태는 `commit`·`updateState`로 쓴다. 조립 루트가 넘기는 것은 읽기 면(`LearningQueueReader`)과 목록 면(`LearningQueueApi.list`)뿐이고 쓰기 포트는 없다. 호스트는 결정과 지연 정리를 `/learning` 명령으로 실행한다(§6.2). `onDispose`에는 ambient가 없다.
 - 상태 `lastTurnId`와 `lastItemId`(§3.2)를 더했다. `lastTurnId`는 같은 turn의 `boundary.settle.after` 재발화를 한 번으로 만든다(§4.2). `lastItemId`는 수동 검토의 포크 위치다(§4.3).
+- 상태 커밋은 판 충돌(`state_conflict`)이면 최신 상태를 다시 읽어 값을 새로 만들고 최대 3번까지 다시 낸다 [제안]. 위임을 기다리는 사이 자식이 정착하면 검토 종료 구독과 `boundary.settle.after`가 같은 상태 문서에 겹쳐 쓰기 때문이다. 다시 낼 때 `lastTurnId`가 이미 이 turn이면 그만둔다.
 - 승인과 수정에 판(`revision`)을 필수로 둔다. F wire `proposal.decide`와 같다(§3.6, §6.2).
 - 스킬 `patch` 본문은 L2 `skills.patch`의 치환 목록(JSON)이다. 통합 diff는 쓰지 않는다(§3.5).
 
