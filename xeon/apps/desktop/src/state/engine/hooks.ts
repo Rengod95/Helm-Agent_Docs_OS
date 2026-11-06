@@ -84,6 +84,7 @@ export const useOpenThread = (): ThreadSummary | undefined => useEngine(sel.sele
 export const useOpenThreadRunning = (): boolean => useEngine(sel.selectOpenThreadRunning);
 export const useThreadRunning = (id: ThreadId): boolean =>
   useEngine((s) => sel.selectThreadRunning(s, id));
+export const useLastUserText = (): string | null => useEngine(sel.selectLastUserText);
 export const useTurnFailure = (id: ThreadId | null): string | null =>
   useEngine((s) => sel.selectTurnFailure(s, id));
 /** 대화별 실패로 끝난 마지막 turn의 문장. 진행 중 칸이 예약 실패 행을 고른다 */
