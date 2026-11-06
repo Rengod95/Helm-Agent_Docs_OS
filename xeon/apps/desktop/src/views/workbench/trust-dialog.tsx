@@ -1,6 +1,7 @@
 // O-10 확장 신뢰 확인: 사용자·프로젝트 위치의 확장을 켜기 전에 등급과 훅 수를 보인다. 기본 초점은 "취소"다.
 // "처음 켜는" 기록이 없어서 지금은 꺼져 있던 user·project 확장을 켤 때마다 묻는다 [제안: 기본값].
 import { t, type MessageId } from "@fresnel/client/i18n";
+import { extNameOf } from "@fresnel/client/workbench";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
 import { Button, Dialog, DialogClose, ListDescription, ListDescriptionRow } from "@caustic/react";
 import type { ReactNode } from "react";
@@ -36,9 +37,7 @@ export function TrustDialog(props: {
       onOpenChange={(open) => {
         if (!open) props.onCancel();
       }}
-      title={
-        entry === null ? "" : t("desktop.workbench.trust.heading", { name: entry.displayName })
-      }
+      title={entry === null ? "" : t("desktop.workbench.trust.heading", { name: extNameOf(entry) })}
       description={entry === null ? "" : t("desktop.workbench.trust.lead")}
       footer={
         <>
