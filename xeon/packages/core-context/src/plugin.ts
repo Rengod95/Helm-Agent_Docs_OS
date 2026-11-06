@@ -11,6 +11,7 @@ import {
   OsPortKey,
   SecretServicePortKey,
   SessionPortKey,
+  StoreServicePortKey,
 } from "@fresnel/contracts/services";
 import { ExtHostPortKey, hostOf, type BuiltinExtensionModule } from "@fresnel/ext-host";
 import { createContextService } from "./service.ts";
@@ -55,6 +56,8 @@ export function createContextExtension(
       // 모델 입력 단계 사후 가림(L0.secrets.spec §3.5.1). 시크릿 서비스가 없으면 가리지 않는다
       const secrets = ext.ports.get(SecretServicePortKey);
       const session = host.port(SessionPortKey);
+      // 이미지 blob 자리표시를 요청에서 푼다. store 포트가 없으면 풀지 않는다
+      const store = ext.ports.get(StoreServicePortKey);
       if (options.ids !== undefined) producer ??= session.producer("core.context");
       host.providePort(
         ContextPortKey,
@@ -66,6 +69,9 @@ export function createContextExtension(
           ...(options.ids === undefined || producer === undefined
             ? {}
             : { ids: options.ids, producer }),
+          ...(store === undefined
+            ? {}
+            : { readBlobByHash: (sha256: string) => store.readBlobByHash(sha256) }),
           ...(secrets === undefined ? {} : { redactor: secrets.redactor }),
           ...(os === undefined ? {} : { logger: os.logger(manifest.name) }),
         }),

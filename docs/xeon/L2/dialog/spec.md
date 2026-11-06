@@ -904,7 +904,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 | 큰 파일, 바이너리 | 위에 해당하지 않음 | 저장하지 않음(`blob: null`) | 경로만 적은 텍스트 하나. 모델은 read 도구로 읽는다 |
 | URL | `http(s)://` | 저장하지 않음 | `<attachment url="…"/>` 텍스트 하나. 내용을 가져오지 않는다 |
 
-- 큰 바이너리는 `sys_blobs` 참조(`BlobRef`)로 저장한다(F.records.spec §3.4, `L2.readme` §5.4). 입력 파트의 이미지 base64는 사용자 입력 기록 때 records의 문자열 분리 규칙으로 같은 해시의 blob 자리표시로 바뀐다. 같은 바이트는 같은 해시라 blob이 두 번 저장되지 않는다.
+- 큰 바이너리는 `sys_blobs` 참조(`BlobRef`)로 저장한다(F.records.spec §3.4, `L2.readme` §5.4). 입력 파트의 이미지 base64는 사용자 입력 기록 때 records의 문자열 분리 규칙으로 같은 해시의 blob 자리표시로 바뀐다. 같은 바이트는 같은 해시라 blob이 두 번 저장되지 않는다. 64 KiB 미만 이미지는 분리되지 않아 `data`가 등록 때의 자리표시 그대로 기록되고, 모델 요청 조립이 자리표시를 base64로 푼다(L1.context.spec §4.1).
 - `workspace.images`는 정의 `requires`다(`L2.readme` §6). 호출 시 `unavailable`이면 원본 바이트를 크기 한도만 검사해 직접 blob 등록하고 `image.resized: false`로 둔다 [제안]. 리사이즈는 `workspace.images`의 2차 기능이다(`L2.readme` 각주 ws).
 - 한도: 첨부 하나 `l2.dialog.attachments.maxBytes`(기본 20 MiB). 넘으면 `attachment_too_large`. 이미지는 모델 provider 한도(긴 변 픽셀 등)를 `workspace.images`가 맞춘다.
 - 블롭 고정은 하지 않는다 [해소 S-15: core-persistence의 `p_blob_refs`가 `blob:sha256:<hex>` 자리표시를 모은다]. `add`는 `StoreService.pinBlob`과 `unpinBlob`을 부르지 않는다. 이 패키지는 블롭 참조를 자기 표나 상태에 적지 않는다. `BlobRef`는 `attachment.blob`으로 호출자에게만 돌아가고, 이미지 참조는 입력 파트의 `blob:sha256:<hex>` 자리표시뿐이다. 자리표시는 `p_blob_refs`(core-persistence `blobHashesOf`)가 보지 않으므로, 이 참조를 GC로부터 지키는 방법은 `core-persistence` 쪽에서 정한다(L0.store §10 S-15). 첨부를 버리거나 턴이 소비하는 시점을 이 패키지가 알 수 없어 고정하면 풀리지 않는다. 시험은 `test/attachments.test.ts`의 "블롭 고정은 하지 않는다" 묶음이다.
