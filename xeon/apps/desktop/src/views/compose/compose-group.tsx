@@ -123,9 +123,26 @@ export function GroupBlocks(props: {
 function GroupBody(props: {
   readonly composition: CompositionDecl;
   readonly link: TabLink;
+  readonly onMake: (composition: CompositionDecl) => void;
 }): ReactNode {
   const check = useCheck(props.composition, props.link);
-  return <GroupBlocks composition={props.composition} check={check} />;
+  return (
+    <>
+      {/* 시안 머리의 "복제해서 고치기": 설치된 선언을 새 그룹 초안으로 넘긴다(흐름 보기의 "만들기"와 같은 길) */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Button
+          size="xs"
+          variant="solid"
+          onClick={() => {
+            props.onMake(props.composition);
+          }}
+        >
+          {t("desktop.compose.group.clone")}
+        </Button>
+      </div>
+      <GroupBlocks composition={props.composition} check={check} />
+    </>
+  );
 }
 
 /** 흐름 보기의 입력. `draft`가 없으면 설치된 선언을 읽기 전용으로 보인다. 고치기 시작과 되돌리기는 `onDraft`로 초안을 넘긴다 */
@@ -199,7 +216,11 @@ export function GroupSource(props: {
         const composition = compositionOf(detail.manifest);
         if (composition.kind === "none") return <NoComposition />;
         return props.mode === "group" ? (
-          <GroupBody composition={composition.composition} link={props.link} />
+          <GroupBody
+            composition={composition.composition}
+            link={props.link}
+            onMake={props.onMake}
+          />
         ) : (
           <FlowBody
             composition={composition.composition}

@@ -144,7 +144,7 @@ describe("Y9 test-run pause", () => {
   });
 });
 
-describe("새 시험 시작", () => {
+describe("새 테스트 시작", () => {
   test("a Test run start sends ext.test.run with the testRun kind and the target, and returns the test id", async () => {
     const calls: ExtTestRunParams[] = [];
     const base = fakeCommands();

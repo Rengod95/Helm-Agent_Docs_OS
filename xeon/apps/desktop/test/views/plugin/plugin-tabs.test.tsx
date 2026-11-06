@@ -104,4 +104,15 @@ describe("plugin tabs", () => {
     expect(html).toContain("이 화면을 열 수 없어요: bad tree");
     expect(html).not.toContain("Helm 패널");
   });
+
+  test("the pages tab puts the per-chat switch list above the plugin screen, always expanded", async () => {
+    const html = await render(
+      [uiEntryOf({ extension: "other", id: "page", placement: "page", title: "쪽 화면" })],
+      "pages",
+    );
+    const heading = html.indexOf("이 대화에서 끄기");
+    expect(heading).toBeGreaterThanOrEqual(0);
+    expect(heading).toBeLessThan(html.indexOf("쪽 화면"));
+    expect(html).not.toContain('data-slot="accordion');
+  });
 });

@@ -42,6 +42,13 @@ describe("GroupBlocks", () => {
     expect(html).not.toContain('role="alert"');
   });
 
+  test("한 블록이 골라진 채로 열려 그 블록의 연결선이 처음부터 보인다", () => {
+    const html = renderToString(
+      <GroupBlocks composition={COMPOSITION} check={{ kind: "done", issues: [] }} />,
+    );
+    expect(html.match(/aria-current="true"/g)?.length).toBe(1);
+  });
+
   test("검사 오류는 띠에 개수로, 해당 블록에 코드와 문장으로 보인다", () => {
     const html = renderToString(
       <GroupBlocks
