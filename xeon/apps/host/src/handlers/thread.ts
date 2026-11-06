@@ -240,18 +240,18 @@ export function createThreadCloseHandler(
   engine: Engine,
   hub: () => ConnectionHub,
 ): WireHandler<"thread.close"> {
-  return (params, context) => {
+  return async (params, context) => {
     const { threadId } = params;
     requireThread(engine, threadId, "thread.close");
     const conn = hub().state(context.connectionId);
     if (conn === undefined || conn.phase === "closed") {
-      return Promise.reject(wireError("request.cancelled"));
+      throw wireError("request.cancelled");
     }
     conn.openThreads.delete(threadId);
     conn.writeThreads.delete(threadId);
     conn.observedThreads.delete(threadId);
-    hub().releaseUnused([threadId]);
-    return Promise.resolve({});
+    await hub().releaseUnused([threadId]);
+    return {};
   };
 }
 

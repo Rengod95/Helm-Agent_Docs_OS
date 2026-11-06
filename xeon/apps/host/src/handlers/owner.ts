@@ -84,7 +84,7 @@ export async function claimWrite(
     }
     const conn = hub.state(connectionId);
     if (conn === undefined || conn.phase === "closed") {
-      hub.releaseUnused([threadId]);
+      await hub.releaseUnused([threadId]);
       throw wireError("request.cancelled");
     }
     conn.openThreads.add(threadId);

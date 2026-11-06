@@ -1,4 +1,4 @@
-import { detach, parse } from "@fresnel/contracts";
+import { attemptAsync, detach, parse } from "@fresnel/contracts";
 import {
   checkEnvelope,
   classifyMethodName,
@@ -269,21 +269,40 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
     return { kind: "result", result };
   }
 
+  /** 쓰기로 연 연결이 없어졌지만 turn이 도는 중이라 쥐고 있는 thread. turn이 끝나면(활동 변화) 다시 판정한다 */
+  const deferredRelease = new Set<ThreadId>();
+
+  async function releaseOne(threadId: ThreadId): Promise<void> {
+    const released = await attemptAsync(() => engine.ports.locks.release(threadId));
+    if (!released.ok) {
+      log.error("lease.release_failed", { threadId, message: messageOf(released.error.cause) });
+    }
+  }
+
   /**
-   * HS-27: 연결이 떠난 뒤 그 thread를 쓰기로 연 연결이 이 프로세스에 더 없고 진행 중인 turn이 없으면 잠금을 푼다.
-   * 서비스 모드만 이렇게 한다. in-process·stdio는 프로세스 종료 때 커널이 푼다.
+   * HS-27: 그 thread를 쓰기로 연 연결이 이 프로세스에 더 없고 진행 중인 turn이 없으면 잠금을 푼다. 서비스와 앱(stdio)이 이렇게 한다.
+   * in-process(CLI)는 명령 하나로 끝나 프로세스 종료 때 커널이 푼다. turn 때문에 못 놓은 thread는 turn이 끝날 때 다시 본다.
    */
-  function releaseUnused(threads: readonly ThreadId[]): void {
-    if (engine.mode !== "service") return;
+  async function releaseUnused(threads: readonly ThreadId[]): Promise<void> {
+    if (engine.mode === "in-process") return;
+    const releases: Promise<unknown>[] = [];
     for (const threadId of threads) {
       const stillOpen = Array.from(internals.connections.values()).some((other) =>
         other.writeThreads.has(threadId),
       );
-      if (stillOpen || engine.ports.turns.isLive(threadId)) continue;
-      detach(engine.ports.locks.release(threadId), (caught) => {
-        log.error("lease.release_failed", { threadId, message: messageOf(caught) });
-      });
+      if (stillOpen) {
+        deferredRelease.delete(threadId);
+        continue;
+      }
+      if (engine.ports.turns.isLive(threadId)) {
+        deferredRelease.add(threadId);
+        continue;
+      }
+      deferredRelease.delete(threadId);
+      if (!engine.ports.locks.holds(threadId)) continue;
+      releases.push(releaseOne(threadId));
     }
+    await Promise.all(releases);
   }
 
   function serve(transport: Transport, serveOptions: ServeOptions): ServedConnection {
@@ -356,7 +375,7 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
       state.writeThreads.clear();
       internals.connections.delete(connectionId);
       internals.served.delete(connectionId);
-      releaseUnused(written);
+      detach(releaseUnused(written), () => {});
       emitSize();
       closedWaiter.resolve(closing.override ?? info);
     }
@@ -622,6 +641,7 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
     return served;
   }
 
+  const disposers: (() => void)[] = [];
   const hub: ConnectionHub = {
     get size() {
       return internals.connections.size;
@@ -657,9 +677,14 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
       fanout.watchObserved();
     },
     dispose() {
+      for (const off of disposers) off();
       fanout.stop();
     },
   };
   const fanout = startEventFanout(engine, hub);
+  const offActivity = engine.ports.activity.onChange(() => {
+    if (deferredRelease.size > 0) detach(releaseUnused(Array.from(deferredRelease)), () => {});
+  });
+  disposers.push(offActivity);
   return hub;
 }
