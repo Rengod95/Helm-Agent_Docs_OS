@@ -1896,6 +1896,7 @@
   "desktop.plugin.thread.globalOff": "Off everywhere. Turn it on in LightCraft to use it here.",
   "desktop.plugin.thread.intro": "Turning this off applies only to this conversation. The global setting stays as it is.",
   "desktop.plugin.thread.loadFailed": "Could not read this conversation's state.",
+  "desktop.plugin.thread.locked": "This conversation is in use somewhere else, so the switch could not be changed. Close it there and try again.",
   "desktop.plugin.thread.noThread": "No conversation is open. Open one to turn a plugin off for it only.",
   "desktop.plugin.thread.off": "Off in this conversation",
   "desktop.plugin.thread.retry": "Try again",

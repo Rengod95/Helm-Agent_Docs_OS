@@ -17,7 +17,7 @@ import { Alert, Badge, Skeleton, Switch, toast, type ToastOptions } from "@caust
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLinkPhase, useOpenThreadId } from "../../state/engine/index.ts";
-import { useCommands, type WorkbenchCommands } from "../commands.ts";
+import { useCommands, type CommandError, type WorkbenchCommands } from "../commands.ts";
 import { ExtName } from "../workbench/ext-row.tsx";
 import { linkOf, type LinkState } from "../runtime/runtime-tab.tsx";
 import { detachVoid, reloadOnExtChanges } from "../workbench/controller.ts";
@@ -63,6 +63,11 @@ export interface ThreadSwitchPort {
   readonly notify: (options: ToastOptions) => void;
 }
 
+/** 실패 토스트의 제목. 다른 프로세스가 이 대화의 쓰기 소유를 쥐고 있으면 그 이유를 말하고, 그 밖의 실패는 저장 실패다 */
+function failureTitleOf(error: CommandError): MessageId {
+  return error.kind === "locked" ? "desktop.plugin.thread.locked" : "desktop.plugin.thread.failed";
+}
+
 /**
  * 스위치 하나를 이 대화에 쓴다. 쓰는 동안은 목표 값을 보이고, 끝나면 목록을 다시 읽는다.
  * 실패하면 다시 읽은 원래 값으로 돌아가고 다시 시도 토스트를 띄운다. 성공은 적용 대기가 없을 때만 토스트를 띄운다.
@@ -82,7 +87,7 @@ export async function writeThreadSwitch(
   if (!done.ok) {
     port.notify({
       tone: "danger",
-      title: t("desktop.plugin.thread.failed"),
+      title: t(failureTitleOf(done.error)),
       dismissLabel: t("desktop.workbench.toast.dismiss"),
       actionLabel: t("desktop.plugin.thread.retry"),
       onAction: () => {

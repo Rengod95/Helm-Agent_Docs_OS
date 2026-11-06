@@ -239,6 +239,8 @@ function portFor(
 
 const saved = (): Promise<Result<null, CommandError>> => Promise.resolve(ok(null));
 const failed = (): Promise<Result<null, CommandError>> => Promise.resolve(err({ kind: "failed" }));
+const locked = (): Promise<Result<null, CommandError>> =>
+  Promise.resolve(err({ kind: "locked", ownerKind: "app", options: ["observe", "fork"] }));
 
 /** 다음 턴이 끝날 때까지 기다리는 한 바퀴. 명령과 다시 읽기는 모두 바로 풀린다 */
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
@@ -326,6 +328,26 @@ describe("이 대화에서 끄기: 클릭과 쓰기", () => {
     expect(requests).toEqual([
       { key: "ext.web.enabled", value: false, scope: "launch", threadId: THREAD },
       { key: "ext.web.enabled", value: false, scope: "launch", threadId: THREAD },
+    ]);
+  });
+
+  test("다른 프로세스가 쥔 대화는 저장 실패 대신 이유 한 문장을 띄우고, 다시 시도 단추를 단다", async () => {
+    const { port, notes } = portFor(locked, ready(WEB));
+    await writeThreadSwitch(port, THREAD, WEB, false);
+    expect(
+      notes.map(({ tone, title, actionLabel, dismissLabel }) => ({
+        tone,
+        title,
+        actionLabel,
+        dismissLabel,
+      })),
+    ).toEqual([
+      {
+        tone: "danger",
+        title: "다른 곳에서 이 대화를 쓰고 있어서 바꾸지 못했어요. 그 대화를 닫고 다시 해 봐요.",
+        actionLabel: t("desktop.plugin.thread.retry"),
+        dismissLabel: "닫기",
+      },
     ]);
   });
 

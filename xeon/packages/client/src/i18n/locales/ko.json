@@ -1896,6 +1896,7 @@
   "desktop.plugin.thread.globalOff": "전역에서 꺼져 있어요. 크래프트에서 켜면 쓸 수 있어요.",
   "desktop.plugin.thread.intro": "여기서 끄면 이 대화에만 적용돼요. 전역 설정은 그대로예요.",
   "desktop.plugin.thread.loadFailed": "이 대화의 상태를 읽지 못했어요.",
+  "desktop.plugin.thread.locked": "다른 곳에서 이 대화를 쓰고 있어서 바꾸지 못했어요. 그 대화를 닫고 다시 해 봐요.",
   "desktop.plugin.thread.noThread": "열린 대화가 없어요. 대화를 열면 이 대화에서 끌 수 있어요.",
   "desktop.plugin.thread.off": "이 대화에서 꺼짐",
   "desktop.plugin.thread.retry": "다시 시도",
