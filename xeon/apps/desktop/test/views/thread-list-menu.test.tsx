@@ -13,6 +13,8 @@ function frozen<T>(state: T): ReadonlyStore<T> {
   return { getState: () => state, getInitialState: () => state, subscribe: () => () => {} };
 }
 
+const LONG_TITLE = "긴".repeat(200);
+
 function mirror(): EngineMirror {
   const h = harness();
   h.store.ingest({
@@ -20,6 +22,7 @@ function mirror(): EngineMirror {
     threads: [
       summary(thr(1), { title: "첫 대화" }),
       summary(thr(2), { title: "닫은 대화", status: "closed" }),
+      summary(thr(3), { title: LONG_TITLE }),
     ],
   });
   h.store.flush();
@@ -40,6 +43,15 @@ describe("thread list row menu", () => {
     const out = html(<ThreadList />);
     expect(out).toContain("첫 대화 메뉴");
     expect(out).toContain("닫은 대화 메뉴");
+  });
+});
+
+describe("thread list long titles", () => {
+  test("a 200 character title keeps the whole title as tooltip and the list column cannot grow", () => {
+    const out = html(<ThreadList />);
+    expect(out).toContain(`title="${LONG_TITLE}"`);
+    expect(out).toContain("grid-cols-[minmax(0,1fr)]");
+    expect(out).toContain("min-w-0 flex-1 truncate");
   });
 });
 

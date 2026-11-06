@@ -24,7 +24,11 @@ function ChatHeaderOf(props: { readonly id: ThreadId }): ReactNode {
   const title = thread.title ?? t("desktop.threads.untitled");
   return (
     <HeadRow
-      title={<h1 className="m-0 min-w-0 truncate text-text-primary">{title}</h1>}
+      title={
+        <h1 title={title} className="m-0 min-w-0 truncate text-text-primary">
+          {title}
+        </h1>
+      }
       menu={<ThreadRowMenu id={props.id} title={title} status={thread.status} />}
     />
   );
@@ -36,7 +40,7 @@ function HeadRow(props: { readonly title: ReactNode; readonly menu: ReactNode })
   const actions = useShellActions();
   if (startOpen && props.title === null) return null;
   return (
-    <header className="mx-auto grid w-full max-w-184 flex-none px-3">
+    <header className="mx-auto grid w-full max-w-184 flex-none grid-cols-[minmax(0,1fr)] px-3">
       <div className="flex h-10 min-w-0 items-center gap-1">
         {startOpen ? null : (
           <IconButton

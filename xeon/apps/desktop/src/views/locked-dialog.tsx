@@ -85,7 +85,7 @@ export function LockedDialogView(props: {
       aria-label={t("desktop.lockedDialog.inUse")}
       footer={
         <>
-          <Button size="sm" variant="outline" disabled={busy} onClick={props.onClose}>
+          <Button size="sm" variant="outline" autoFocus disabled={busy} onClick={props.onClose}>
             {t("desktop.lockedDialog.close.button")}
           </Button>
           {locked.options.includes("observe") ? (
