@@ -10,6 +10,7 @@ import {
   useTurnFailure,
 } from "../state/engine/index.ts";
 import { useCommands } from "./commands.ts";
+import { ResumeBand } from "./resume-band.tsx";
 import { RecordedItem, StreamingRow } from "./item-view.tsx";
 import { VirtualList, type VirtualRow } from "./virtual-list.tsx";
 
@@ -65,6 +66,7 @@ export function Transcript(): ReactNode {
       <>
         <Notice>{t("desktop.transcript.empty")}</Notice>
         {failureNotice}
+        <ResumeBand />
       </>
     );
   }
@@ -78,6 +80,7 @@ export function Transcript(): ReactNode {
         }
       />
       {failureNotice}
+      <ResumeBand />
     </>
   );
 }

@@ -132,6 +132,58 @@ describe("tool results", () => {
   });
 });
 
+function callItem(n: number, resultN: number, name: string): ItemRecord {
+  const base = assistantItem(n, "");
+  if (base.kind !== "assistant") throw new Error("assistantItem must build an assistant item");
+  return {
+    ...base,
+    message: {
+      ...base.message,
+      content: [{ type: "toolCall", id: `call-${resultN}`, name, arguments: { path: "a.txt" } }],
+      stopReason: "toolUse",
+    },
+  };
+}
+
+describe("one row per tool call", () => {
+  test("a denied call shows the denied label on the call row and its result draws nothing", () => {
+    const h = openedHarness();
+    ingestRecords(h, [
+      callItem(1, 2, "bash"),
+      toolResultItem(2, "bash", "[fresnel:denied_by_user] The user denied this tool call.", true),
+    ]);
+    const call = visibleText(render(<RecordedItem id={itm(1)} />, h));
+    expect(call).toContain(t("desktop.item.status.denied"));
+    expect(call).toContain(t("desktop.item.denied.body"));
+    expect(call).not.toContain("fresnel:denied_by_user");
+    expect(call).not.toContain(t("desktop.item.status.failed"));
+    expect(render(<RecordedItem id={itm(2)} />, h)).toBe("");
+  });
+
+  test("a failed call says failed once with its message and an ok call is not marked failed", () => {
+    const h = openedHarness();
+    ingestRecords(h, [
+      callItem(1, 2, "read"),
+      toolResultItem(2, "read", "[not_found] File not found: missing.txt", true),
+      callItem(3, 4, "read"),
+      toolResultItem(4, "read", "hello", false),
+    ]);
+    const failed = visibleText(render(<RecordedItem id={itm(1)} />, h));
+    expect(failed.split(t("desktop.item.status.failed"))).toHaveLength(2);
+    expect(failed).toContain("File not found: missing.txt");
+    expect(failed).not.toContain("[not_found]");
+    const ok = visibleText(render(<RecordedItem id={itm(3)} />, h));
+    expect(ok).not.toContain(t("desktop.item.status.failed"));
+  });
+
+  test("a call that never got a result in an idle thread is marked interrupted, not done", () => {
+    const h = openedHarness();
+    ingestRecords(h, [callItem(1, 9, "bash")]);
+    const call = visibleText(render(<RecordedItem id={itm(1)} />, h));
+    expect(call).toContain(t("desktop.item.status.interrupted"));
+  });
+});
+
 describe("streaming rows", () => {
   test("a streamed text part shows its latest text while the message is busy", () => {
     const h = openedHarness();

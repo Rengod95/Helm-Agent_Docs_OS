@@ -2,6 +2,7 @@
 import { assertNever } from "@fresnel/contracts";
 import type { AssistantMessage, StreamFn } from "@fresnel/contracts/conversation";
 import { abortedStream } from "../streams.ts";
+import { keepReceivedText } from "./partial-content.ts";
 import type { RequestInput } from "./prepare-request.ts";
 import { emitMessageStart, emitMessageUpdate } from "./sink.ts";
 import { saltAssistantMessage, saltStreamEvent, toolCallSalt } from "./tool-call-ids.ts";
@@ -119,7 +120,7 @@ export async function streamResponse(
         break;
       case "done":
       case "error": {
-        const final = await result();
+        const final = keepReceivedText(await result(), partial);
         if (!started) await emitMessageStart(run, { ...final });
         return final;
       }

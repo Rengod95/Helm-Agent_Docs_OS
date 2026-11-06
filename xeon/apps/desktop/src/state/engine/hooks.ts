@@ -55,6 +55,10 @@ export const useThreadSummaries = (): readonly ThreadSummary[] =>
 export const useTranscriptItemIds = (): readonly ItemId[] => useEngine(sel.selectTranscriptItemIds);
 export const useItem = (id: ItemId): ItemRecord | undefined =>
   useEngine((s) => sel.selectItem(s, id));
+export const useToolResult = (toolCallId: string): ItemRecord | undefined =>
+  useEngine((s) => sel.selectToolResult(s, toolCallId));
+export const useHasToolCall = (toolCallId: string): boolean =>
+  useEngine((s) => sel.selectHasToolCall(s, toolCallId));
 export const useStreamingIds = (): readonly ItemId[] => useEngine(sel.selectStreamingIds);
 export const useStreamingItem = (id: ItemId): StreamingItem | undefined =>
   useEngine((s) => sel.selectStreamingItem(s, id));
@@ -76,6 +80,8 @@ export const useTranscriptStatus = (): "none" | "loading" | "ready" | "error" =>
 export const useOpenThreadId = (): ThreadId | null => useEngine(sel.selectOpenThreadId);
 export const useUnlistedApprovals = (id: ThreadId): number =>
   useEngine((s) => sel.selectUnlistedApprovals(s, id));
+export const useOpenThread = (): ThreadSummary | undefined => useEngine(sel.selectOpenThread);
+export const useOpenThreadRunning = (): boolean => useEngine(sel.selectOpenThreadRunning);
 export const useThreadRunning = (id: ThreadId): boolean =>
   useEngine((s) => sel.selectThreadRunning(s, id));
 export const useTurnFailure = (id: ThreadId | null): string | null =>

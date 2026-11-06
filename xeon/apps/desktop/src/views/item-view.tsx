@@ -5,7 +5,15 @@ import { assertNever } from "@fresnel/contracts";
 import type { ItemId, ItemRecord, JsonObject, JsonValue } from "@fresnel/contracts/conversation";
 import { memo, useState, type NamedExoticComponent, type ReactNode } from "react";
 import { cardOf, provenanceOf } from "../plugin-ui/placements.ts";
-import { useItem, useOpenThreadId, usePartText, useStreamingItem } from "../state/engine/index.ts";
+import {
+  useHasToolCall,
+  useItem,
+  useOpenThreadId,
+  useOpenThreadRunning,
+  usePartText,
+  useStreamingItem,
+  useToolResult,
+} from "../state/engine/index.ts";
 import { usePluginUiState } from "./plugin/plugin-context.tsx";
 import { EntrySurface } from "./plugin/plugin-view.tsx";
 
@@ -77,7 +85,9 @@ function Collapsible(props: { readonly summary: string; readonly children: React
 function ToolRow(props: {
   readonly name: string;
   readonly detail?: string;
-  readonly status: "done" | "failed";
+  readonly status: "done" | "failed" | "running";
+  /** 실패 알약의 글. 기본은 "실패"다(거부, 중단은 따로 쓴다) */
+  readonly failedLabel?: string;
   readonly output?: string;
 }): ReactNode {
   const { output } = props;
@@ -86,7 +96,8 @@ function ToolRow(props: {
       name={props.name}
       detail={props.detail}
       status={props.status}
-      failedLabel={t("desktop.item.status.failed")}
+      activity={t("desktop.item.toolRunning")}
+      failedLabel={props.failedLabel ?? t("desktop.item.status.failed")}
       collapsible={output !== undefined}
       defaultOpen={props.status === "failed"}
     >
@@ -127,6 +138,93 @@ function CustomBody(props: {
   );
 }
 
+const DENIED_CODE = "fresnel:denied_by_user";
+const CODE_PREFIX = /^\[([^\]]+)\]\s*/;
+
+/** 결과 글머리의 `[코드] ` 꼬리표를 읽는다. 없으면 코드는 null이다 */
+function splitCode(text: string): { readonly code: string | null; readonly body: string } {
+  const found = CODE_PREFIX.exec(text);
+  if (found === null) return { code: null, body: text };
+  return { code: found[1] ?? null, body: text.slice(found[0].length) };
+}
+
+type ResultView = {
+  readonly status: "done" | "failed";
+  readonly failedLabel?: string;
+  readonly output: string;
+};
+
+/** 도구 결과 item을 행 상태로 옮긴다. 거부와 중단은 알약이 "거부함", "중단됨"이고 내부 오류 코드는 본문에 드러내지 않는다 */
+function resultViewOf(item: ItemRecord): ResultView | null {
+  if (item.kind !== "toolResult") return null;
+  const text = textOf(item.message.content);
+  if (!item.message.isError && item.status === "completed") {
+    return { status: "done", output: clip(text) };
+  }
+  const { code, body } = splitCode(text);
+  if (code === DENIED_CODE) {
+    return {
+      status: "failed",
+      failedLabel: t("desktop.item.status.denied"),
+      output: t("desktop.item.denied.body"),
+    };
+  }
+  if (item.status === "interrupted") {
+    return {
+      status: "failed",
+      failedLabel: t("desktop.item.status.interrupted"),
+      output: clip(body),
+    };
+  }
+  return { status: "failed", output: clip(body) };
+}
+
+/** 호출 하나에 행 하나. 결과가 오면 같은 행이 결과를 따른다. 결과가 없으면 실행 중이거나(대화가 실행 중) 끝내 못 받은 것이다 */
+function CallRow(props: {
+  readonly callId: string;
+  readonly name: string;
+  readonly detail: string;
+}): ReactNode {
+  const result = useToolResult(props.callId);
+  const running = useOpenThreadRunning();
+  const view = result === undefined ? null : resultViewOf(result);
+  if (view === null) {
+    return running ? (
+      <ToolRow name={props.name} detail={props.detail} status="running" />
+    ) : (
+      <ToolRow
+        name={props.name}
+        detail={props.detail}
+        status="failed"
+        failedLabel={t("desktop.item.status.interrupted")}
+      />
+    );
+  }
+  return (
+    <ToolRow
+      name={props.name}
+      detail={props.detail}
+      status={view.status}
+      {...(view.failedLabel === undefined ? {} : { failedLabel: view.failedLabel })}
+      output={view.output}
+    />
+  );
+}
+
+/** 결과 item 한 줄. 짝이 되는 호출 행이 화면에 있으면 그리지 않는다(그 행이 결과를 보인다) */
+function ResultRow(props: { readonly item: ItemRecord }): ReactNode {
+  const view = resultViewOf(props.item);
+  if (view === null || props.item.kind !== "toolResult") return null;
+  return (
+    <ToolRow
+      name={props.item.message.toolName}
+      status={view.status}
+      {...(view.failedLabel === undefined ? {} : { failedLabel: view.failedLabel })}
+      output={view.output}
+    />
+  );
+}
+
 function RecordBody(props: { readonly item: ItemRecord }): ReactNode {
   const item = props.item;
   switch (item.kind) {
@@ -159,11 +257,11 @@ function RecordBody(props: { readonly item: ItemRecord }): ReactNode {
                 );
               case "toolCall":
                 return (
-                  <ToolRow
+                  <CallRow
                     key={key}
+                    callId={block.id}
                     name={block.name}
                     detail={clip(JSON.stringify(block.arguments))}
-                    status="done"
                   />
                 );
               default:
@@ -173,13 +271,7 @@ function RecordBody(props: { readonly item: ItemRecord }): ReactNode {
         </>
       );
     case "toolResult":
-      return (
-        <ToolRow
-          name={item.message.toolName}
-          status={item.message.isError ? "failed" : "done"}
-          output={clip(textOf(item.message.content))}
-        />
-      );
+      return <ResultRow item={item} />;
     case "system":
       return <p className={QUIET_CLASS}>{textOf(item.message.content)}</p>;
     case "custom":
@@ -192,7 +284,10 @@ function RecordBody(props: { readonly item: ItemRecord }): ReactNode {
 export const RecordedItem: NamedExoticComponent<{ readonly id: ItemId }> = memo(
   function RecordedItem(props: { readonly id: ItemId }): ReactNode {
     const item = useItem(props.id);
+    const pairedCall = useHasToolCall(item?.kind === "toolResult" ? item.message.toolCallId : "");
     if (item === undefined) return null;
+    // 짝이 되는 호출 행이 결과를 따라 보이므로 결과 item은 따로 그리지 않는다(호출 하나에 행 하나)
+    if (item.kind === "toolResult" && pairedCall) return null;
     // display가 거짓인 확장 item은 모델 문맥 전용이라 화면에 그리지 않는다(F.conversation.spec 3.5.2)
     if (item.kind === "custom" && !item.message.display) return null;
     // system item은 요청 앞에 붙는 시스템 프롬프트다. 모델 문맥 전용이라 그리지 않는다(L4.desktop.spec §4.13)
