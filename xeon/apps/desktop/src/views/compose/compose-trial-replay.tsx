@@ -24,7 +24,7 @@ import type { SettingsJump } from "../../state/ui/index.ts";
 import { useCommands, type Commands, type TestCommands } from "../commands.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
 import { ReplayResult, type TagTone } from "../tests/test-detail.tsx";
-import { startReplay } from "../tests/tests-actions.ts";
+import { startTest } from "../tests/tests-actions.ts";
 import {
   durationTextOf,
   noticeTextOf,
@@ -59,7 +59,7 @@ export async function replayTrialRun(
   tests: TestCommands,
   group: string,
 ): Promise<ReplayRunOutcome> {
-  const started = await startReplay(tests, { kind: "replay", target: group });
+  const started = await startTest(tests, { kind: "replay", target: group });
   if (!started.ok) return { ok: false, failure: started.failure };
   const listed = await tests.list();
   if (!listed.ok) return { ok: true, report: null };

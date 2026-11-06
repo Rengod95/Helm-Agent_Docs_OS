@@ -51,7 +51,7 @@ export function NewTestSheet(props: NewTestSheetProps): ReactNode {
   const { draft, devMode, sending, handlers } = props;
   const formId = useId();
   const plan = draft === null ? null : submitPlanOf(draft, devMode);
-  const canStart = plan !== null && (plan.kind === "run" || plan.kind === "create-test-run");
+  const canStart = plan !== null && plan.kind === "run";
   return (
     <Sheet
       size="sm"
@@ -156,23 +156,21 @@ export function NewTestForm(props: {
       {current.lock === null && !current.startable ? (
         <Alert tone="info">{t("desktop.tests.lock.unwired")}</Alert>
       ) : null}
-      {draft.kind === "testRun" ? null : (
-        <Field label={t("desktop.tests.sheet.target")} error={errorOf("target")}>
-          <div className="flex items-center gap-1.5">
-            <Input
-              size="xs"
-              spellCheck={false}
-              value={draft.target}
-              className="font-mono"
-              containerClassName="min-w-0 flex-1"
-              onValueChange={(value) => {
-                onChange({ ...draft, target: value });
-              }}
-            />
-            <InfoTip text={t("desktop.tests.sheet.targetHint")} />
-          </div>
-        </Field>
-      )}
+      <Field label={t("desktop.tests.sheet.target")} error={errorOf("target")}>
+        <div className="flex items-center gap-1.5">
+          <Input
+            size="xs"
+            spellCheck={false}
+            value={draft.target}
+            className="font-mono"
+            containerClassName="min-w-0 flex-1"
+            onValueChange={(value) => {
+              onChange({ ...draft, target: value });
+            }}
+          />
+          <InfoTip text={t("desktop.tests.sheet.targetHint")} />
+        </div>
+      </Field>
       {draft.kind === "replay" ? (
         <Field label={t("desktop.tests.sheet.maxCommits")} error={errorOf("maxCommits")}>
           <Input

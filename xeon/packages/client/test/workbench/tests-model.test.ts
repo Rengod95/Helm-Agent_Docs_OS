@@ -70,6 +70,10 @@ const draft = (over: Partial<NewTestDraft> = {}): NewTestDraft => ({
   ...over,
 });
 
+/** Test run 초안. 대상은 비어 있는 것이 기본이다 */
+const testRun = (over: Partial<NewTestDraft> = {}): NewTestDraft =>
+  draft({ kind: "testRun", target: "", ...over });
+
 describe("P-19 테스트 모델", () => {
   test("test-run.dev-only-locked: outside dev mode replay, benchmark and core diff are locked by the dev badge, Test run and the list stay open", () => {
     const items = newTestItemsOf(false);
@@ -206,7 +210,37 @@ describe("P-19 테스트 모델", () => {
     expect(draftErrorsOf(draft({ kind: "benchmark", runs: "51" }))).toEqual([
       { field: "runs", reason: "range" },
     ]);
-    expect(draftErrorsOf(draft({ kind: "testRun", target: "" }))).toEqual([]);
+    expect(draftErrorsOf(draft({ kind: "testRun", target: "" }))).toEqual([
+      { field: "target", reason: "required" },
+    ]);
+    expect(
+      draftErrorsOf(draft({ kind: "testRun", target: "demo-plugin", maxCommits: "0" })),
+    ).toEqual([]);
+  });
+
+  test("a Test run needs a target of at most 96 characters and no replay commit limit, and its start plan carries the trimmed target", () => {
+    expect(submitPlanOf(NEW_TEST_DEFAULT, false)).toEqual({
+      kind: "invalid",
+      errors: [{ field: "target", reason: "required" }],
+    });
+    expect(submitPlanOf(testRun({ target: "   " }), false)).toEqual({
+      kind: "invalid",
+      errors: [{ field: "target", reason: "required" }],
+    });
+    expect(submitPlanOf(testRun({ target: "x".repeat(97) }), false)).toEqual({
+      kind: "invalid",
+      errors: [{ field: "target", reason: "tooLong" }],
+    });
+    expect(submitPlanOf(testRun({ target: "  demo-plugin  ", maxCommits: "0" }), false)).toEqual({
+      kind: "run",
+      params: { kind: "testRun", target: "demo-plugin" },
+      confirm: false,
+    });
+    expect(submitPlanOf(testRun({ target: "demo-plugin" }), true)).toEqual({
+      kind: "run",
+      params: { kind: "testRun", target: "demo-plugin" },
+      confirm: false,
+    });
   });
 
   test("the screen reducer keeps pause state per Test run and resets the sheet on close", () => {

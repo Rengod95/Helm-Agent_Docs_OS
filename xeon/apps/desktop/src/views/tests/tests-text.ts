@@ -1,5 +1,5 @@
 // 테스트 화면의 글 고르기. 모델의 값을 메시지 키로 바꾼다(글은 카탈로그에만 있다). 명령 오류는 화면이 쓰는 실패 종류로 줄인다.
-import { activeLocale, type MessageId } from "@fresnel/client/i18n";
+import { activeLocale, type MessageArgs, type MessageId } from "@fresnel/client/i18n";
 import {
   durationOf,
   type CutCell,
@@ -147,6 +147,11 @@ const FAILURE_NOTICE: Readonly<Record<TestFailure, MessageId>> = {
   rejected: "desktop.tests.notice.failed.rejected",
   failed: "desktop.tests.notice.failed.failed",
 };
+
+/** 알림 글의 넣을 값. 시험 대화를 만들었을 때만 대화 이름(대상 확장 이름)이 든다 */
+export function noticeArgsOf(notice: TestsNotice): MessageArgs {
+  return notice.kind === "created" ? { name: notice.name } : {};
+}
 
 export function noticeTextOf(notice: TestsNotice): MessageId {
   switch (notice.kind) {

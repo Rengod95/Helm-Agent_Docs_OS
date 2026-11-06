@@ -8,6 +8,7 @@ import {
   testsUiReducer,
   type RunControl,
   type TestRowVM,
+  type TestsNotice,
 } from "@fresnel/client/workbench";
 import { assertNever, attemptAsync, detach, rethrow } from "@fresnel/contracts";
 import type { ReplayReport } from "@fresnel/contracts/services";
@@ -17,9 +18,14 @@ import { useLinkPhase } from "../../state/engine/index.ts";
 import { useShell, type WorkbenchContext } from "../../state/shell/index.ts";
 import { useCommands } from "../commands.ts";
 import { tabLinkOf } from "../workbench/tab-read.ts";
-import { createTestRunThread, phaseOf, runControl, startReplay } from "./tests-actions.ts";
+import { phaseOf, runControl, startTest } from "./tests-actions.ts";
 import { useTestList } from "./tests-read.ts";
 import { TestsView, type TestsViewHandlers } from "./tests-view.tsx";
+
+/** 시작에 성공한 뒤의 알림. Test run은 대상 이름을 붙인 시험 대화를 만든 것이다 */
+function startNoticeOf(params: ExtTestRunParams): TestsNotice {
+  return params.kind === "testRun" ? { kind: "created", name: params.target } : { kind: "started" };
+}
 
 /** 맥락 칸이 시험 대화나 대화이면 그 대화 id, 아니면 null(목록을 거르지 않는다) */
 function threadScopeOf(context: WorkbenchContext): string | null {
@@ -80,11 +86,11 @@ export function TestsScreen(): ReactNode {
 
   const startNow = async (params: ExtTestRunParams): Promise<void> => {
     dispatch({ type: "sending", sending: true });
-    const started = await startReplay(commands.tests, params);
+    const started = await startTest(commands.tests, params);
     dispatch({ type: "sending", sending: false });
     if (started.ok) {
       dispatch({ type: "sheetClose" });
-      dispatch({ type: "notice", notice: { kind: "started" } });
+      dispatch({ type: "notice", notice: startNoticeOf(params) });
       list.reload();
       return;
     }
@@ -96,18 +102,6 @@ export function TestsScreen(): ReactNode {
     if (draft === null) return;
     const plan = submitPlanOf(draft, ui.devMode);
     switch (plan.kind) {
-      case "create-test-run": {
-        dispatch({ type: "sending", sending: true });
-        const made = await createTestRunThread(commands.tests);
-        dispatch({ type: "sending", sending: false });
-        if (made.ok) {
-          dispatch({ type: "sheetClose" });
-          dispatch({ type: "notice", notice: { kind: "created" } });
-        } else {
-          dispatch({ type: "notice", notice: { kind: "failed", failure: made.failure } });
-        }
-        return;
-      }
       case "run":
         if (plan.confirm) dispatch({ type: "confirmOpen", params: plan.params });
         else await startNow(plan.params);

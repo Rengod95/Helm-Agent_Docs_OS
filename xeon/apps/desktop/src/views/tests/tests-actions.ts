@@ -40,8 +40,8 @@ export async function phaseOf(tests: TestCommands, threadId: string): Promise<st
   return got.ok ? got.value.phase : null;
 }
 
-/** replay 시험 시작. 성공하면 시험 id를 돌려준다 */
-export async function startReplay(
+/** 시험 시작(`ext.test.run`). replay와 Test run이 같은 호출을 쓴다. 성공하면 시험 id를 돌려준다 */
+export async function startTest(
   tests: TestCommands,
   params: ExtTestRunParams,
 ): Promise<ActionOutcome<string>> {

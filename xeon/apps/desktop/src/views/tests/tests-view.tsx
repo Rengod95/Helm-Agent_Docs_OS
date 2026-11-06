@@ -35,6 +35,7 @@ import {
   KIND_FILTER_TEXT,
   KIND_TEXT,
   NEW_KIND_TEXT,
+  noticeArgsOf,
   noticeTextOf,
   STATE_TEXT,
   STATUS_FILTER_TEXT,
@@ -106,7 +107,7 @@ export function TestsView(props: TestsViewProps): ReactNode {
             dismissLabel={t("desktop.tests.sheet.close")}
             onDismiss={handlers.dismissNotice}
           >
-            {t(noticeTextOf(ui.notice))}
+            {t(noticeTextOf(ui.notice), noticeArgsOf(ui.notice))}
           </Alert>
         )}
         {ready && props.read.value.length > 0 ? (

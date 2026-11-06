@@ -232,9 +232,8 @@ function integerOf(text: string): number | null {
   return /^\d+$/.test(trimmed) ? Number(trimmed) : null;
 }
 
-/** 입력 검사. Test run은 대상 이름을 쓰지 않으므로 검사할 것이 없다 */
+/** 입력 검사. 대상 이름은 모든 종류가 쓰고, 최대 커밋 수는 replay만, 실행 횟수는 벤치마크만 쓴다 */
 export function draftErrorsOf(draft: NewTestDraft): readonly NewTestError[] {
-  if (draft.kind === "testRun") return [];
   const errors: NewTestError[] = [];
   const target = draft.target.trim();
   if (target === "") errors.push({ field: "target", reason: "required" });
@@ -259,7 +258,6 @@ export type SubmitPlan =
   | { readonly kind: "locked"; readonly lock: Exclude<NewTestLock, null> }
   | { readonly kind: "unwired" }
   | { readonly kind: "invalid"; readonly errors: readonly NewTestError[] }
-  | { readonly kind: "create-test-run" }
   /** `confirm`이 참이면 실행 전에 예상 실행 수와 비용 범위를 확인한다 */
   | { readonly kind: "run"; readonly params: ExtTestRunParams; readonly confirm: boolean };
 
@@ -271,7 +269,11 @@ export function submitPlanOf(draft: NewTestDraft, devMode: boolean): SubmitPlan 
   if (errors.length > 0) return { kind: "invalid", errors };
   switch (draft.kind) {
     case "testRun":
-      return { kind: "create-test-run" };
+      return {
+        kind: "run",
+        params: { kind: "testRun", target: draft.target.trim() },
+        confirm: item.costConfirm,
+      };
     case "replay":
       return {
         kind: "run",

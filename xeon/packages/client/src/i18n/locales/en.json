@@ -2724,7 +2724,7 @@
   "desktop.tests.confirm.body": "This test costs money on every run. Check the number of runs and the cost range before starting.",
   "desktop.tests.confirm.start": "Start",
   "desktop.tests.confirm.cancel": "Cancel",
-  "desktop.tests.notice.created": "Created a test conversation.",
+  "desktop.tests.notice.created": "Created a test conversation named {name}.",
   "desktop.tests.notice.started": "Started the test.",
   "desktop.tests.notice.copied": "Copied the JSON.",
   "desktop.tests.notice.copyFailed": "Could not copy.",

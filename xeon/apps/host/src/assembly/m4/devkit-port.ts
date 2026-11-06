@@ -381,8 +381,10 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
       });
     }
     const workspace = params.options?.workspace;
+    // 대화 이름은 대상 확장 이름이다(사람이 정한 제목이라 자동 제목이 덮지 않는다)
     const created = await deps.threads.create({
       ...(workspace === undefined ? {} : { workspace }),
+      title: params.target,
       testRun: true,
     });
     const marked = await markTestRun(

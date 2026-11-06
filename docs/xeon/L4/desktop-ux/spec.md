@@ -2579,6 +2579,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 - 전체 보고서는 개발 모드에서만 [결정: 2026-11-04 사용자]: 위 전체 보고서(절단 띠, 첫 차이, 효과 수, "JSON 복사")는 개발 모드(`l3.authoring.devMode`)에서만 보입니다. 배포 앱의 replay 행 상세는 판정과 절단 수만 읽기 전용 목록(시안 `c01-trials` `ReplayDetail`)으로 보입니다.
 - Test run 멈춤 [결정: 2026-10-31 사용자]: 실행 중 Test run 행의 "멈춤"은 다음 단계 경계에서 실제로 멈추고 drive 락을 쥔 채 둡니다. "이어서", "한 경계씩"이 있습니다(W-48). 행을 고르면 아래 상세에 트레이스 막대(§6.22.5)와 경계 기록이 보입니다.
 - 맥락: 맥락 칸이 시험이면 그 Test run의 결과만, 대화면 그 대화를 대상으로 한 시험만 보입니다(§4.9.3).
+- 새 Test run 시작: 대상 확장 이름을 적어야 시작합니다. 설치되어 실린 확장이어야 하고, 아니면 이유를 알림으로 보입니다. 성공하면 "{이름} 시험 대화를 만들었어요."를 보이고 목록을 다시 읽습니다. 끝내는 wire가 없어 기록은 `running`으로 남고, 호스트를 다시 띄운 뒤 처음 읽을 때 `failed`로 바뀝니다 [미결].
 - replay 결과 읽기: `replayDrive`는 첫 실패에서 멈추지 않고 모든 커밋 시점을 끊어 다시 돌립니다. 그래서 상세는 절단 띠(커밋 수만큼 칸, 다른 칸 강조)로 보입니다. 이벤트열이 하나라도 다르면 `failure` 없이 `ok: false`이고 판정 배지는 "digest 다름"입니다. `effects-doubled`·`effects-mismatch`는 모든 절단이 같을 때만 나오므로 "digest 다름"과 함께 보이지 않습니다. 절단의 효과 수는 판정 없이 참고 값으로만 보입니다. wire `ReplayReport`는 칸별 `cuts`(커밋 순, `commitIndex`·`equal`·`firstDiff`, 최대 1000칸)를 싣습니다 [결정: 2026-11-04 사용자 지시에 따른 기본값]. 화면은 아직 `passed`만 읽어 칸을 커밋 수만큼 그리고 모든 절단이 같을 때만 칠합니다. 칸별 "다름" 강조는 화면이 `cuts`를 읽도록 바꾼 뒤이고 그 일은 클라이언트 몫입니다. 호스트 `ext.test.run`(replay)과 `ext.test.list` 처리기는 HS-112에 따라 들어와 있습니다 [결정: 2026-11-04 사용자 지시에 따른 기본값].
 - 개발 모드 판정: 호스트와 같은 `l3.authoring.devMode` 설정을 읽습니다(`settings.get`). 이 키가 아직 카탈로그에 없어 지금은 읽히지 않고 배포 앱은 늘 개발 모드가 아닌 것으로 잠급니다 `[gap:W-29]`.
 - 코어 변경 검사의 실행과 상세(보호 경로 변경 파일 목록)는 이 화면에만 둡니다. P-20은 마지막 결과 한 줄과 링크만 보입니다(DP-23).
@@ -2602,8 +2603,8 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 | 기능 | wire |
 |---|---|
-| 새 시험(O-12) | `ext.test.run { kind, target, options }`과 진행 이벤트 `[gap:W-29]`. 켬/끔 비교는 `kind` 값 하나를 더합니다 [제안] [불일치: 2026-11-04 T-MEAS-TERM, wire 표의 `kind`는 `replay`·`testRun` 둘뿐이고 진행 이벤트 이름도 아직 없다. 이름 `ext.test.*`는 그대로 둔다 [결정: 2026-11-03 제안 기본값 자동 승인]] |
-| Test run 만들기 | `thread.create { workspace?, testRun: true, profileId? }`(`profileId`는 `testRun`이 참일 때만, 만들면서 `thread` 층에 적용). 새 시험(O-12)의 Test run 종류도 이 호출로 만듭니다. 이렇게 만든 대화는 `ext.test.list`에 기록이 없어 목록에 나타나지 않습니다 [미결] [근거: `apps/host/src/handlers/m4/devkit.ts`, 기록은 `ext.test.run`만 남긴다] |
+| 새 시험(O-12) | `ext.test.run { kind, target, options }`과 진행 이벤트 `[gap:W-29]`. Test run 종류는 `kind: "testRun"`과 대상 확장 이름으로 시작합니다. 켬/끔 비교는 `kind` 값 하나를 더합니다 [제안] [불일치: 2026-11-04 T-MEAS-TERM, wire 표의 `kind`는 `replay`·`testRun` 둘뿐이고 진행 이벤트 이름도 아직 없다. 이름 `ext.test.*`는 그대로 둔다 [결정: 2026-11-03 제안 기본값 자동 승인]] |
+| Test run 만들기 | 새 시험(O-12)의 Test run 종류는 `ext.test.run { kind: "testRun", target }`으로 만듭니다. 대화 이름은 대상 확장 이름이고, 그 확장을 이 대화에서 켜며, `ext.test.list`에 `running` 기록을 남깁니다 [근거: `apps/host/src/assembly/m4/devkit-port.ts`의 `testRunThread`]. 제작 화면의 "새 Test run으로"(프로필 적용)는 `thread.create { workspace?, testRun: true, profileId? }`(`profileId`는 `testRun`이 참일 때만, 만들면서 `thread` 층에 적용)로 대화만 만들고, 이 대화는 `ext.test.list`에 기록이 없어 목록에 나타나지 않습니다 [미결] [근거: `apps/desktop/src/views/compose/compose-profile.tsx`] |
 | 이벤트 비교 열기 | 두 이벤트열을 나란히(`[gap:C-20]`) |
 | 다시 실행 | 같은 인자로 `ext.test.run` |
 
@@ -2800,7 +2801,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 |---|---|---|---|---|---|
 | O-10 | 확장 신뢰 확인 | `Dialog kind="alert"` | 요청 등급, 설치 위치 상한, 쓰는 연산(on, post, drive, 저장, 리소스 등록), 훅 목록 | 켜기, 취소 | 처음 켜는 `user`·`project` 위치 확장. 기본 초점 "취소" |
 | O-11 | 되돌리기 확인 | `Dialog kind="alert"` | 지금 버전, 되돌릴 버전, 상태 스키마 버전 차이 | 되돌리기 | 상태 마이그레이션이 없으면 경고. 대체 단계는 §6.24.1 |
-| O-12 | 새 시험 | `Sheet side="right"` | 종류(켬/끔 비교 포함), 대상, 프로필, 옵션(replay `maxCommits` 기본 200, benchmark `--runs` 1~50, 켬/끔 비교 케이스 묶음·반복 수) | `ext.test.run` `[gap:W-29]` | 비용 드는 시험과 켬/끔 비교는 예상 실행 수와 비용 범위 확인(§6.26). replay·benchmark·diff는 개발 모드만 |
+| O-12 | 새 시험 | `Sheet side="right"` | 종류(켬/끔 비교 포함), 대상, 프로필, 옵션(replay `maxCommits` 기본 200, benchmark `--runs` 1~50, 켬/끔 비교 케이스 묶음·반복 수) | `ext.test.run` `[gap:W-29]` | 비용 드는 시험과 켬/끔 비교는 예상 실행 수와 비용 범위 확인(§6.26). replay·benchmark·diff는 개발 모드만. Test run은 대상(확장 이름)을 받아 `ext.test.run { kind: "testRun", target }`으로 시작하고, 대화 이름은 대상 이름입니다(§6.26) |
 | O-13 | 대화 내보내기 | `Dialog` | 대화 제목, 형식(Markdown·JSON), 저장 창(데스크톱) 또는 내려받기(웹) | 저장…(데스크톱) · 내려받기(웹), 취소, 실패 뒤 다시 시도 | 행 메뉴 "내보내기…"와 대화 머리 ⋯가 연다. 읽기는 `thread.export`를 쪽마다 불러 `next`가 없을 때까지 이어 받는다(쪽 상한 5000, 앞 `next`와 같은 값이 다시 오면 실패). 읽는 동안과 저장 창이 떠 있는 동안은 닫지 못한다. 저장 창에서 취소하면 대화 상자를 그대로 둔다. 읽기 실패와 저장 실패는 문장을 가르고 한 줄로 보인다. 시크릿 값은 어느 형식에도 없고 이름만 남는다는 한 줄을 늘 보인다. 목업의 "도구 결과 포함"과 "런타임 행 포함" 칸은 와이어가 형식만 받으므로 두지 않는다. 웹은 저장 창이 없어 파일 위치를 고르지 않고 내려받는다 [구현: 2026-11-04, 대화 내보내기 트랙] |
 
 ## 7. 화면 사이 흐름

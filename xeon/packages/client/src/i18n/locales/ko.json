@@ -2724,7 +2724,7 @@
   "desktop.tests.confirm.body": "이 시험은 실행마다 비용이 들어요. 실행 수와 비용 범위를 확인한 뒤 시작해요.",
   "desktop.tests.confirm.start": "시작",
   "desktop.tests.confirm.cancel": "취소",
-  "desktop.tests.notice.created": "시험 대화를 만들었어요.",
+  "desktop.tests.notice.created": "{name} 시험 대화를 만들었어요.",
   "desktop.tests.notice.started": "시험을 시작했어요.",
   "desktop.tests.notice.copied": "JSON을 복사했어요.",
   "desktop.tests.notice.copyFailed": "복사하지 못했어요.",
