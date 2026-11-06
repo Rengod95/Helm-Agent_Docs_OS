@@ -21,7 +21,9 @@ export const layerNameOf = (layer: string): string => {
 };
 
 const HEAD_FIRST = "[&_table]:table-fixed [&_thead_th]:bg-transparent";
-const HEAD_REST = "[&_table]:table-fixed [&_thead_th]:bg-transparent [&_thead]:sr-only";
+// 둘째 표부터는 머리글을 눈에서만 숨긴다(sr-only는 열 너비 계산에서 빠져 표마다 열이 어긋난다). 읽기 도구에는 그대로 남는다
+const HEAD_REST =
+  "[&_table]:table-fixed [&_thead_th]:bg-transparent [&_thead_tr]:h-0! [&_thead_th]:h-0! [&_thead_th]:leading-[0] [&_thead_th]:border-0 [&_thead_th]:overflow-hidden [&_thead_th]:p-0! [&_thead_th]:text-[0] [&_thead_th]:opacity-0";
 
 export function LayerList(props: {
   readonly onToggle: (name: string, target: boolean) => void;

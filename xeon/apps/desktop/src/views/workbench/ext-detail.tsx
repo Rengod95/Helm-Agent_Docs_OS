@@ -18,8 +18,11 @@ import type { ExtGetResult, ExtListEntry } from "@fresnel/contracts/wire";
 import {
   Alert,
   Button,
+  IconButton,
   ListDescription,
   ListDescriptionRow,
+  Menu,
+  MenuItem,
   Progress,
   Skeleton,
   StatusDot,
@@ -30,6 +33,7 @@ import {
   TabsTrigger,
   type TableColumn,
 } from "@caustic/react";
+import { Ellipsis } from "@caustic/react/icons";
 import { useEffect, useState, type ReactNode } from "react";
 import { useCommands } from "../commands.ts";
 import { useHandlerFailures, useLinkPhase, useOpenThreadId } from "../../state/engine/index.ts";
@@ -37,7 +41,8 @@ import { useShellActions, type ShellActions } from "../../state/shell/index.ts";
 import { usePluginUiState } from "../plugin/plugin-context.tsx";
 import { InfoTip } from "../craft/info-tip.tsx";
 import { AutoOffNotice } from "./craft-parts.tsx";
-import { ExtSwitch, RemoveButton, kindText, lockText, stateText, stateTone } from "./ext-row.tsx";
+import { kindText, lockText, stateText, stateTone } from "./ext-row.tsx";
+import { removableOf } from "./remove-model.ts";
 import { MetricsTab } from "./metrics-tab.tsx";
 import { scopeText } from "./source-badge.tsx";
 import { ScreensTab } from "./screens-tab.tsx";
@@ -441,10 +446,35 @@ export function ExtDetail(props: {
           </div>
         </div>
         <div className="flex flex-none items-center gap-2">
-          <ExtSwitch row={row} onToggle={props.onToggle} />
-          {/* 잠긴 이유는 설명 한 줄이라 정보 아이콘 뒤에 둔다(DP-58). 스위치 툴팁과 같은 글이다 */}
+          {/* 시안 c02 머리: "끄기" 단추 하나와 "…" 메뉴. 켜기·끄기 요청은 스위치와 같은 `onToggle`이다 */}
+          <Button
+            size="xs"
+            variant="outline"
+            disabled={row.lock !== null || row.pendingTarget !== null}
+            onClick={() => {
+              props.onToggle(!row.on);
+            }}
+          >
+            {t(row.on ? "desktop.workbench.detail.turnOff" : "desktop.workbench.detail.turnOn")}
+          </Button>
+          {/* 잠긴 이유는 설명 한 줄이라 정보 아이콘 뒤에 둔다(DP-58) */}
           {row.lock === null ? null : <InfoTip text={lockText(row.lock)} />}
-          <RemoveButton entry={entry} onRemove={props.onRemove} />
+          {removableOf(entry) ? (
+            <Menu
+              size="sm"
+              align="end"
+              aria-label={t("desktop.workbench.detail.menu")}
+              trigger={
+                <IconButton size="sm" variant="ghost" label={t("desktop.workbench.detail.menu")}>
+                  <Ellipsis aria-hidden />
+                </IconButton>
+              }
+            >
+              <MenuItem onSelect={props.onRemove}>{t("desktop.workbench.remove.open")}</MenuItem>
+            </Menu>
+          ) : (
+            <InfoTip text={t("desktop.workbench.remove.locked")} />
+          )}
         </div>
       </header>
       <AutoOffNotice entry={entry} onKeepOn={props.onKeepOn} onKeepOff={props.onKeepOff} />
