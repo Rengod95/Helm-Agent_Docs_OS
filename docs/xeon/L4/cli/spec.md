@@ -834,7 +834,7 @@ export interface GroupTemplatesPort {
   2. 사용자의 선택을 `approval.respond { approvalId, decision, answer?, remember? }`로 보낸다.
   3. `approval.resolved` 이벤트가 오면 프롬프트를 닫는다. 다른 클라이언트가 먼저 답한 경우도 같다.
   4. print 모드는 프롬프트를 열 수 없으므로 답을 자동으로 보내고 승인마다 stderr에 한 줄 알린다. 기본(플래그 없음)은 모든 승인에 `decision: "deny"`로 답한다(`createAutoDeny`). 엔진은 사전 허용 규칙(`l1.tools.rules`, L1.tools 정책)을 승인 요청 전에 적용하므로, CLI가 받는 `approval.requested`는 사전 허용되지 않은 요청이다. 그래서 기본 모드는 사전 허용 규칙만 적용하고 나머지는 거부한다 [결정: review.m3-design-inputs D-M3-14 c](§10 8번).
-     - `--auto-approve`는 옵션이다 [결정: 오케스트레이터 기본값, M3b B1-SCH]. 도구 승인(`form.kind === "tool"`)만 `{ decision: "allow" }`로 한 번 허용한다. `remember`는 보내지 않는다(호스트가 `once`로 본다). 승인마다 stderr에 `승인 요청 "<제목>"을 --auto-approve로 허용했다`를 쓴다. 응답이 적용되지 않았으면 이유를 붙이고, 응답 수단이 없으면 그 사실을 붙인다(`createAutoAllow`).
+     - `--auto-approve`는 옵션이다 [결정: 오케스트레이터 기본값, M3b B1-SCH]. 도구 승인(`form.kind === "tool"`)만 `{ decision: "allow" }`로 한 번 허용한다. `remember`는 보내지 않는다(호스트가 `once`로 본다). 승인마다 stderr에 `승인 요청 "<제목>"을 --auto-approve로 허용했다`를 쓴다. 응답이 적용되지 않았으면 이유를 붙이고(`already_resolved`는 아래 한 줄로 바꾼다), 응답 수단이 없으면 그 사실을 붙인다(`createAutoAllow`).
      - 질문, 계획, 검토 승인은 사람이 답해야 하므로 이 플래그로도 거부한다. 거부 알림은 기본과 같다. 자동 응답은 사람의 답(질문 번호, 수정 요청 내용)을 대신하지 않는다.
      - 알림에는 승인 제목만 쓴다. 본문(명령, 인자, `secret://` 핸들)은 쓰지 않는다.
   5. payload 모양은 `L1.tools.spec` 소관이다. CLI는 제목·본문·질문 여부만 읽는다.
@@ -850,7 +850,7 @@ export interface GroupTemplatesPort {
      - 프롬프트는 한 번에 하나다. 입력 줄이 읽는 중에 승인이 오면 입력 줄을 닫고 승인을 먼저 묻는다.
      - 대화를 열 때 이전 기록을 다 그린 뒤 `approval.list { threadId }`로 아직 답하지 않은 승인을 되살려 묻는다(재시작 뒤 복원). 이벤트로 이미 받은 승인은 `approvalId`로 중복을 거른다.
      - `approval.resolved`가 먼저 오면 "다른 곳에서 이미 답한 승인이다"를 보이고 프롬프트를 닫는다.
-     - `approval.respond`가 `applied: false`이면 `reason`에 따라 처리를 나눈다 [결정: m2c G2-10]. `answer_invalid`는 `detail`을 보이고 같은 질문을 다시 묻는다(요청이 아직 대기 중이다). `commit_failed`는 "승인 응답을 기록하지 못했다"를 알리고 다시 묻는다. 두 이유로 3번 적용되지 않으면 이 승인을 대기로 남기고 포기한다(재시작 뒤 `approval.list`가 다시 묻는다). `already_resolved`와 이유를 알리지 않는 호스트는 "다른 곳에서 이미 답한 승인이다", `unknown_approval`은 "host가 모르는 승인이다. 재시작으로 사라졌을 수 있다"를 보이고 프롬프트를 닫는다. print 모드의 자동 거부가 적용되지 않으면 이유를 stderr에 남긴다.
+     - `approval.respond`가 `applied: false`이면 `reason`에 따라 처리를 나눈다 [결정: m2c G2-10]. `answer_invalid`는 `detail`을 보이고 같은 질문을 다시 묻는다(요청이 아직 대기 중이다). `commit_failed`는 "승인 응답을 기록하지 못했다"를 알리고 다시 묻는다. 두 이유로 3번 적용되지 않으면 이 승인을 대기로 남기고 포기한다(재시작 뒤 `approval.list`가 다시 묻는다). `already_resolved`와 이유를 알리지 않는 호스트는 "다른 곳에서 이미 답한 승인이다", `unknown_approval`은 "host가 모르는 승인이다. 재시작으로 사라졌을 수 있다"를 보이고 프롬프트를 닫는다. print 모드의 자동 응답(허용·거부)이 적용되지 않으면 이유를 stderr에 남긴다. 다만 이유가 `already_resolved`이면(이어 받은 대화가 되살린 승인을 앱 같은 다른 곳에서 이미 답했다) 거부·허용을 말하지 않고 `승인 요청 "<제목>"은 이미 처리되어 있다` 한 줄만 쓴다 [결정: 오케스트레이터 기본값, rtF T-8].
   7. 동의 표시 [결정: m2c G2-10. 요건의 정본은 `L1.tools.spec`이고 CLI는 아래를 보인다]: 사용자가 허용하는 것이 무엇인지 카드에서 알 수 있어야 한다.
      - 도구 카드는 인자 요약(120자) 아래에 실행할 `command` 전체(40줄까지, 넘으면 "…(n줄 생략)")와 `secretEnv`의 시크릿 참조(`이름=secret://…`)을 보인다. 승인이 시크릿 사용의 증거라서 명령과 핸들을 보고 허용해야 한다. `secret://` 참조 모양이 아닌 값은 값을 보이지 않고 "(참조 형식이 올바르지 않음)"만 쓴다. 인자가 BlobRef면 상세 줄이 없다.
      - 요청 주체(`origin.caller`)가 `main`이 아니면 첫 줄에 보인다: `background`는 백그라운드 작업, `host`는 호스트, `subagent:<이름>`은 서브에이전트, `ext:<이름>`은 확장이다.

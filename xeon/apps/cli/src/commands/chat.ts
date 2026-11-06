@@ -121,6 +121,10 @@ async function runPrint(
  */
 function autoNotice(view: { readonly title: string }, result: AutoResult): string {
   const title = view.title;
+  // 이어 받은 대화가 되살린 승인은 다른 곳에서 이미 답했을 수 있다: 거부·허용을 말하지 않고 처리됐다는 한 줄만 남긴다
+  if (result.kind === "notApplied" && result.reason === "already_resolved") {
+    return t("cli.chat.autoNotice.alreadyResolved", { title });
+  }
   if (result.decision === "allow") {
     switch (result.kind) {
       case "applied":

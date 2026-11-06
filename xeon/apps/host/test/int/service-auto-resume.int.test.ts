@@ -9,12 +9,7 @@ import { startService, type ServiceHandle } from "../../src/index.ts";
 import { createStdioTransport } from "../../src/transport/stdio.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
-import {
-  connectedClient,
-  manualTime,
-  scratchRuntimeDir,
-  wireErrorOf,
-} from "../fixtures/service-harness.ts";
+import { connectedClient, manualTime, scratchRuntimeDir } from "../fixtures/service-harness.ts";
 import { answeringModels } from "../fixtures/tape-host.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS } from "../fixtures/wire-client.ts";
@@ -48,6 +43,20 @@ async function started(runtimeDir: string): Promise<ServiceHandle> {
 }
 
 /** 서비스가 thread를 쥘 때까지(3002) 짧게 다시 시도한다. 시한은 시험 시간 제한이 맡는다 */
+/** 서비스가 시작 때 표식이 남은 thread를 이어 실행하기 시작할 때까지(`resumeAttempts`가 오른다). 그 전에 응답하면 응답이 소유를 빌려 이어 실행과 부딪힌다 */
+function untilResumed(client: HostConnection, threadId: string): Promise<void> {
+  const deadline = Date.now() + 15_000;
+  return repeatAsync<void>(async () => {
+    const row = (await client.request("thread.list", {})).threads.find(
+      (thread) => thread.threadId === threadId,
+    );
+    if ((row?.resumable?.resumeAttempts ?? 0) > 0) return { value: undefined };
+    if (Date.now() >= deadline) throw new Error("the service did not resume the thread in time");
+    await Bun.sleep(25);
+    return undefined;
+  });
+}
+
 function respondWhenOwned(client: HostConnection, approvalId: string): Promise<unknown> {
   const deadline = Date.now() + 15_000;
   return repeatAsync<unknown>(async () => {
@@ -102,7 +111,7 @@ realTest(
 
       process.chdir(workspace);
 
-      // 2. 자동 재개가 꺼진 서비스: thread를 쥐지 않으므로 응답은 소유가 없어 3002다
+      // 2. 자동 재개가 꺼진 서비스: thread를 쥐지 않고 표식만 남아 있다(응답하면 소유를 빌려 커밋하지만 turn은 이어지지 않는다, HS-52)
       const offRuntime = scratchRuntimeDir();
       const off = await started(offRuntime.dir);
       try {
@@ -111,11 +120,6 @@ realTest(
           (row) => row.threadId === created.threadId,
         );
         expect(listed?.resumable).not.toBeNull();
-        const refused = await wireErrorOf(
-          client.request("approval.respond", { approvalId: asked.id, decision: "allow" }),
-        );
-        expect(refused).toBeInstanceOf(WireError);
-        expect(refused.code).toBe(3002);
         await client.close();
       } finally {
         await off.shutdown("stop");
@@ -137,7 +141,8 @@ realTest(
           from: "head",
           filter: { threadIds: [created.threadId] },
         });
-        // 서비스가 시작 때 thread를 쥘 때까지 응답은 3002다. 쥔 뒤에는 응답이 적용된다
+        // 서비스가 시작 때 thread를 쥐고 이어 실행한 뒤 응답이 적용된다
+        await untilResumed(client, created.threadId);
         const applied = await respondWhenOwned(client, asked.id);
         expect(applied).toEqual({ applied: true });
         const done = await collected.waitFor((event) => event.kind === "turn.completed");
