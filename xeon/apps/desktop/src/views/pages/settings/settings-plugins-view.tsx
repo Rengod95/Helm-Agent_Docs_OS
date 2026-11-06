@@ -35,12 +35,16 @@ function Row(props: {
 }): ReactNode {
   const { entry, row } = props;
   return (
-    <div className="flex min-h-8 min-w-0 items-center gap-3 py-2">
-      <span className="min-w-0 flex-1 truncate text-ui font-medium">
-        <ExtName row={row} />
-      </span>
-      <span className={`flex-none ${MUTED}`}>{originText(entry.origin)}</span>
-      <span className={`flex-none ${MUTED}`}>{stateText(row.state)}</span>
+    <div className="flex min-h-8 min-w-0 items-center gap-2.5 py-2">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="text-ui font-medium text-text-primary">
+          <ExtName row={row} />
+        </span>
+        <span className={MUTED}>{originText(entry.origin)}</span>
+        {row.state === "on" || row.state === "off" ? null : (
+          <span className={MUTED}>{stateText(row.state)}</span>
+        )}
+      </div>
       <Switch
         size="sm"
         checked={row.on}

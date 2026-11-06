@@ -40,6 +40,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Account rotation",
+          "labelArgs": {
+            "name": "Account rotation"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -64,6 +68,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Account rotation isolation",
+          "labelArgs": {
+            "name": "Account rotation"
+          },
+          "labelKey": "settings.ext.isolation.label",
           "order": 20,
           "tab": "plugins",
           "widget": "select"
@@ -87,6 +95,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Plugin Builder",
+          "labelArgs": {
+            "name": "Plugin Builder"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -110,6 +122,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Artifacts and reviews",
+          "labelArgs": {
+            "name": "Artifacts and reviews"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -133,6 +149,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Dialog",
+          "labelArgs": {
+            "name": "Dialog"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -156,6 +176,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Knowledge and memory",
+          "labelArgs": {
+            "name": "Knowledge and memory"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -179,6 +203,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable MCP client",
+          "labelArgs": {
+            "name": "MCP client"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -202,6 +230,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Schedules",
+          "labelArgs": {
+            "name": "Schedules"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -225,6 +257,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Web tools",
+          "labelArgs": {
+            "name": "Web tools"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -248,6 +284,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Work management",
+          "labelArgs": {
+            "name": "Work management"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -271,6 +311,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Workspace tools",
+          "labelArgs": {
+            "name": "Workspace tools"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -294,6 +338,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Subagents",
+          "labelArgs": {
+            "name": "Subagents"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -317,6 +365,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Context",
+          "labelArgs": {
+            "name": "Context"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -340,6 +392,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Agent loop",
+          "labelArgs": {
+            "name": "Agent loop"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -363,6 +419,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Model gateway",
+          "labelArgs": {
+            "name": "Model gateway"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -386,6 +446,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Session persistence",
+          "labelArgs": {
+            "name": "Session persistence"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -409,6 +473,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Task engine",
+          "labelArgs": {
+            "name": "Task engine"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -432,6 +500,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Tool runtime",
+          "labelArgs": {
+            "name": "Tool runtime"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -532,6 +604,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Helm",
+          "labelArgs": {
+            "name": "Helm"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -556,6 +632,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Helm isolation",
+          "labelArgs": {
+            "name": "Helm"
+          },
+          "labelKey": "settings.ext.isolation.label",
           "order": 20,
           "tab": "plugins",
           "widget": "select"
@@ -635,6 +715,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Dialog area bridge",
+          "labelArgs": {
+            "name": "Dialog area bridge"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -658,6 +742,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Dialog bridge",
+          "labelArgs": {
+            "name": "Dialog bridge"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -681,6 +769,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Group service",
+          "labelArgs": {
+            "name": "Group service"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -704,6 +796,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Proposals bridge",
+          "labelArgs": {
+            "name": "Proposals bridge"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -727,6 +823,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Learning",
+          "labelArgs": {
+            "name": "Learning"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -801,6 +901,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Anthropic OAuth provider",
+          "labelArgs": {
+            "name": "Anthropic OAuth provider"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -825,6 +929,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Anthropic OAuth provider isolation",
+          "labelArgs": {
+            "name": "Anthropic OAuth provider"
+          },
+          "labelKey": "settings.ext.isolation.label",
           "order": 20,
           "tab": "plugins",
           "widget": "select"
