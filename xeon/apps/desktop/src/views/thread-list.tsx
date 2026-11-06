@@ -25,7 +25,8 @@ import {
 import { useSelectedThreadId } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
 import { pickWorkspaceFolder, type FolderPickInvoke } from "./folder-pick.ts";
-import { blankThreadIn, recentWorkspacesOf, type RecentWorkspace } from "./new-thread-model.ts";
+import { useStartNewThread } from "./new-thread-flow.ts";
+import { recentWorkspacesOf, type RecentWorkspace } from "./new-thread-model.ts";
 import { folderLabel, groupByWorkspace } from "./thread-groups.ts";
 import { ThreadRowMenu } from "./thread-row-menu.tsx";
 import { checkWorkspaceInput, createFailureText, workspaceHint } from "./workspace-model.ts";
@@ -92,7 +93,7 @@ function OtherFolder(props: {
   readonly folderPick: FolderPickInvoke | undefined;
   readonly creating: boolean;
   readonly recent: readonly RecentWorkspace[];
-  readonly onCreate: (path: string | undefined) => void;
+  readonly onCreate: (path: string | null) => void;
   readonly onPickFailed: () => void;
 }): ReactNode {
   const [open, setOpen] = useState(false);
@@ -114,7 +115,7 @@ function OtherFolder(props: {
   const create = (): void => {
     if (props.creating || workspace.kind === "invalid") return;
     setOpen(false);
-    props.onCreate(workspace.kind === "path" ? workspace.path : undefined);
+    props.onCreate(workspace.kind === "path" ? workspace.path : null);
   };
   return (
     <Dialog
@@ -232,22 +233,18 @@ export function ThreadList(props: {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const create = async (path: string | undefined): Promise<void> => {
+  const startThread = useStartNewThread(props.folderPick);
+  /** `path`: 글은 그 폴더, `undefined`는 보던 폴더(없으면 고르기), `null`은 대화 상자의 "폴더 없이 만들기" */
+  const create = async (path: string | null | undefined): Promise<void> => {
     setError(null);
-    // 보낸 것 없는 빈 새 대화가 그 폴더에 이미 있으면 새로 만들지 않고 그리로 간다
-    const blank = blankThreadIn(threads, path ?? null);
-    if (blank !== null) {
-      commands.selectThread(blank);
-      commands.requestComposer(null);
-      return;
-    }
     setCreating(true);
-    const result = await commands.createThread(path);
+    const result = await startThread(path);
     setCreating(false);
-    if (!result.ok) setError(createFailureText(result.error, path !== undefined));
-    else commands.requestComposer(null);
+    if (result.kind === "failed")
+      setError(createFailureText(result.error, typeof path === "string"));
+    else if (result.kind === "pickFailed") setError(t("desktop.workspace.pickFailed"));
   };
-  const start = (path: string | undefined): void => {
+  const start = (path: string | null | undefined): void => {
     detach(create(path), rethrow);
   };
 

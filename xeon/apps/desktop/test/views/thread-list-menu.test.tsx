@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { renderToString } from "react-dom/server";
 import type { EngineMirror } from "../../src/state/engine/index.ts";
 import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
+import { createShellStore, ShellStoreContext } from "../../src/state/shell/index.ts";
 import { createUiStore, type UiState } from "../../src/state/ui/store.ts";
 import { Providers } from "../../src/views/providers.tsx";
 import { ThreadList } from "../../src/views/thread-list.tsx";
@@ -33,7 +34,7 @@ function html(node: React.ReactNode): string {
   const ui = frozen<UiState>(createUiStore().read.getState());
   return renderToString(
     <Providers engine={frozen(mirror())} ui={ui} commands={fakeCommands()}>
-      {node}
+      <ShellStoreContext value={createShellStore(1280)}>{node}</ShellStoreContext>
     </Providers>,
   );
 }

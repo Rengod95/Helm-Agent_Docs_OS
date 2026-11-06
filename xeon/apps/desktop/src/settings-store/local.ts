@@ -80,6 +80,8 @@ export const LOCAL: {
   readonly motionReduce: LocalKey<TBoolean>;
   /** 화면 확대 비율(%). 허용 값은 `ZOOM_STEPS`다 */
   readonly zoomPercent: LocalKey<TInteger>;
+  /** 마지막에 보던 대화 id. 앱을 다시 켜면 이 대화를 연다(없어졌으면 빈 무대). 빈 글은 보던 대화가 없다는 뜻이다 */
+  readonly lastThread: LocalKey<TString>;
 } = {
   sidebarOpen: localKey("l4.desktop.window.sidebarOpen", Type.Boolean()),
   sidebarWidth: localKey(
@@ -115,6 +117,7 @@ export const LOCAL: {
   notifyScheduleFailed: localKey("l4.desktop.window.notify.scheduleFailed", Type.Boolean()),
   motionReduce: localKey("l4.desktop.appearance.motion", Type.Boolean()),
   zoomPercent: localKey("l4.desktop.appearance.zoom", Type.Integer({ minimum: 90, maximum: 200 })),
+  lastThread: localKey("l4.desktop.window.lastThread", Type.String({ maxLength: 128 })),
 };
 
 type LocalSettingsError =

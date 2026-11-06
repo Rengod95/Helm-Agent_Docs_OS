@@ -57,3 +57,16 @@ describe("palette use counts", () => {
     await app.stop();
   });
 });
+
+describe("last viewed thread", () => {
+  test("nothing saved reads as none, a saved id reads back and is kept in the local file, and an empty save clears it", async () => {
+    const { app, fake } = await liveApp({});
+    expect(app.commands.lastThreadId()).toBeNull();
+    expect(await app.commands.saveLastThread(thr(1))).toBe(true);
+    expect(app.commands.lastThreadId()).toBe(thr(1));
+    expect(fake.settingsFile["l4.desktop.window.lastThread"]).toBe(thr(1));
+    expect(await app.commands.saveLastThread(null)).toBe(true);
+    expect(app.commands.lastThreadId()).toBeNull();
+    await app.stop();
+  });
+});
