@@ -334,14 +334,21 @@ export function textOf(result: AgentToolResult | undefined): string {
   return result.content.map((part) => (part.type === "text" ? part.text : "")).join("\n");
 }
 
-/** 조건이 참이 될 때까지 이벤트 루프를 양보한다. 고정 지연 대신 조건 대기(TS-03) */
-export async function until(condition: () => boolean, attempts: number = 5000): Promise<void> {
+/**
+ * 조건이 참이 될 때까지 이벤트 루프를 양보하며 기다린다. 고정 지연 대신 조건 대기(TS-03).
+ * 상한은 양보 횟수가 아니라 시간이다: 부하에서는 한 번 양보하는 데 걸리는 시간이 늘어 횟수 상한이 먼저 바닥난다.
+ */
+export async function until(condition: () => boolean, timeoutMs: number = 30_000): Promise<void> {
+  return untilBefore(condition, performance.now() + timeoutMs);
+}
+
+async function untilBefore(condition: () => boolean, deadline: number): Promise<void> {
   if (condition()) return;
-  if (attempts <= 0) throw new Error("condition was not met");
+  if (performance.now() >= deadline) throw new Error("condition was not met");
   await new Promise<void>((resolve) => {
     setImmediate(resolve);
   });
-  return until(condition, attempts - 1);
+  return untilBefore(condition, deadline);
 }
 
 /** 거부된 이유를 돌려준다. 거부되지 않으면 undefined. bun의 rejects 매처는 await-thenable 규칙과 맞지 않아 쓴다 */
