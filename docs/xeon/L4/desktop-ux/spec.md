@@ -1141,7 +1141,7 @@ compact 폭(720 이하)과 사이드바 시트:
 - 복사: 화면에서 복사되는 글은 그려진 글이므로 값이 없습니다. 메시지 복사([제안], 위 표)를 만들면 그려진 텍스트를 써야 합니다. 지금은 트랜스크립트에 복사 동작이 없고 진단 복사(`copyDiagnostics`)만 있으며, 진단 묶음에는 대화 내용이 들어가지 않습니다(`FS-13`).
 - 범위 밖: 승인 카드(P-03)의 도구 인자와 설정 화면은 이 표식을 쓰지 않습니다 [미결]. 내보내기 `db export`는 가리지 않고 확인을 받습니다(`L4.cli.spec` §4.13).
 - 바로 가기 키: Enter 보내기, ⇧Enter 줄바꿈, ⌘. 중단, ⌘L 입력창 초점, `/` 자동 완성(↑↓ 이동, Tab 채우기), ⌘⇧A 다음 승인 카드, 카드 안 Y·N·⇧Y.
-- 접근성: 트랜스크립트는 `role="log"`, `aria-live="polite"`이며 스트리밍 조각은 문장 단위로만 알립니다 [제안]. 승인 카드가 생기면 "승인 요청: bash"를 한 번 알립니다. 입력창 `inputLabel="메시지"`, `sendLabel="보내기"`, `stopLabel="중단"`.
+- 접근성: 트랜스크립트 스크롤 영역은 `role="region"`, 이름 "대화 기록", `tabindex="0"`이라 Tab으로 들어가 PageUp/PageDown/Home/End와 방향키로 움직이고 안쪽 초점 고리가 보입니다(`views/virtual-list.tsx`). 스트리밍 글자는 읽지 않고, 승인 요청과 턴 완료·실패는 앱의 polite 안내 영역 하나가 짧게 알립니다(§6.0 실시간 안내). 입력창 `inputLabel="메시지"`, `sendLabel="보내기"`, `stopLabel="중단"`.
 - caustic: `Message`(user 버블, agent 세리프), `MessageCode`, `Thinking`, `ToolCall`, `ActivityTree`(서브에이전트와 Helm 렌즈 진행), `AgentRequest`(kind `permission`, `review`, `proposal`), `ChoiceGroup`(질문), `Plan`(계획 단계 미리보기), `Composer`, `Suggestions`, `Alert`, `Card`, `Dialog`, `EmptyState`, `Skeleton`, `ScrollArea`. Markdown 렌더는 caustic 밖입니다 `[gap:C-06]`.
 
 ### 6.7 P-03 받은 요청과 승인 카드

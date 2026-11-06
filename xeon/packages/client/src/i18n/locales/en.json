@@ -1883,6 +1883,7 @@
   "desktop.threads.status.running": "Running",
   "desktop.threads.unlistedApprovals": "Waiting for approval, but the list could not be loaded",
   "desktop.threads.untitled": "Untitled",
+  "desktop.transcript.label": "Conversation history",
   "desktop.transcript.empty": "No messages yet.",
   "desktop.transcript.loadFailed": "Could not load the conversation.",
   "desktop.transcript.loading": "Loading the conversation…",

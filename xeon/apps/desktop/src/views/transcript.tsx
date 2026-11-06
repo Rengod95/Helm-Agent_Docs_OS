@@ -72,6 +72,7 @@ export function Transcript(): ReactNode {
       <VirtualList
         rows={rows}
         followTail
+        label={t("desktop.transcript.label")}
         renderRow={(row) =>
           row.live ? <StreamingRow id={row.id} /> : <RecordedItem id={row.id} />
         }

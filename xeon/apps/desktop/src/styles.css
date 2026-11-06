@@ -100,6 +100,10 @@
     overflow-y: auto;
     contain: strict;
   }
+  /* contain: strict가 바깥 그림자를 잘라 내므로 초점 고리는 안쪽에 그린다 */
+  .scroller:focus-visible {
+    box-shadow: inset 0 0 0 3px var(--cs-color-focus-ring);
+  }
   .notice {
     flex: 1;
     display: flex;
