@@ -3027,7 +3027,7 @@ Fresnel 데스크톱 앱의 "대화" 화면을 비즈니스 로직 없는 셸 �
 
 - `AppShell` 하나로 창 전체를 만듭니다. 순서: `AppShellTitlebar`, `AppShellStart`, `AppShellStage`, `AppShellEnd`. 상태 표시줄은 `AppShell` 아래(같은 창 안)에 높이 28px로 직접 만듭니다(caustic에 없음).
 - 시작 영역: `SidePanel side="start" preset="inspector" label="대화와 이동"`, 폭 272px, 끌어서 240~360px. 위에 `ListNavigation kind="navigation"` 여섯 항목(대화, 받은 요청, 제안, 예약, 연결, 플러그인 화면)과 배지, 아래에 `ListNavigation kind="sessions"` 대화 목록(작업 폴더 묶음), 맨 아래 "설정" 항목.
-- 시작 영역의 "플러그인 UI" 구역(시안 `_shell/start-panel.tsx`): 작업대 영역의 내비 아래에 묶음 제목 "플러그인 UI"로 설치된 플러그인 화면(`page` 항목과 Helm이 아닌 확장의 `panel` 항목)을 행마다 보입니다. 행은 화면 제목과 확장 이름(mono)이고 꺼진 확장은 연하게 "꺼짐"을 보입니다. 누르면 대화 영역의 "플러그인 화면"으로 가서 그 화면을 고릅니다(구현: `views/plugin/plugin-pick.ts`의 `requestPluginScreen`, `pluginUiRowsOf`). `x.ui.apps`가 꺼져 있거나 화면이 없으면 구역을 그리지 않습니다 [제안].
+- 시작 영역의 "플러그인 UI" 구역(시안 `_shell/start-panel.tsx`): 작업대 영역의 내비 아래에 묶음 제목 "플러그인 UI"로 설치된 플러그인 화면(`page` 항목과 Helm이 아닌 확장의 `panel` 항목)을 행마다 보입니다. 행은 화면 제목과 확장 이름(mono)이고 꺼진 확장은 연하게 "꺼짐"을 보입니다. 누르면 대화 영역의 "플러그인 화면"으로 가서 그 화면을 고릅니다(구현: `views/plugin/plugin-pick.ts`의 `requestPluginScreen`, `pluginUiRowsOf`). `x.ui.apps`가 꺼져 있거나 화면이 없으면 구역을 그리지 않습니다 [결정: 오케스트레이터 기본값, 시안 `_shell/start-panel.tsx`].
 - 무대: 머리(대화 제목, 작업 폴더, 목표 칩, "탐구"·"작업" 버튼, 더보기 `Menu`), 트랜스크립트(스크롤), 입력창(`Composer`, 아래 고정).
 - 끝 영역: `SidePanel side="end" preset="pane" label="맥락 패널"`, 폭 352px. `Tabs` 세 개(받은 요청, 탐구, 작업). 받은 요청 탭만 내용을 채우고, 탐구·작업 탭은 `EmptyState`("셸 목업에서는 비어 있어요")입니다.
 - 제목 띠: 왼쪽 사이드바 토글 `IconButton`, `Breadcrumb`(로컬 / ~/code/fresnel / 캐시 무효화 조사). 오른쪽 "명령 또는 대화 찾기 ⌘K" 버튼, 받은 요청 `IconButton`(배지 5), 설정 `IconButton`.
