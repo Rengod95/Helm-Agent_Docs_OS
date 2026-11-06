@@ -1916,6 +1916,7 @@
   "desktop.status.cell.goal.openWork": "작업 탭 열기",
   "desktop.status.cell.link.catchUp": "엔진이 돌아오면 다시 맞춰요. 완성된 항목만 다시 받아요.",
   "desktop.status.cell.link.down": "엔진이 없어 연결이 끊겼어요. 대화는 읽기만 돼요.",
+  "desktop.status.cell.link.live": "엔진과 실시간으로 연결되어 있어요.",
   "desktop.status.cell.link.title": "연결",
   "desktop.status.cell.live.empty": "지금 진행 중인 일이 없어요.",
   "desktop.status.cell.live.failed": "실패 · {reason}",

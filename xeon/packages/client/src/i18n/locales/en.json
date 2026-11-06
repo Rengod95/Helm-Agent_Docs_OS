@@ -1916,6 +1916,7 @@
   "desktop.status.cell.goal.openWork": "Open Work tab",
   "desktop.status.cell.link.catchUp": "We resync when the engine is back. Only finished items are fetched again.",
   "desktop.status.cell.link.down": "The connection is down because the engine is not running. Conversations are read-only.",
+  "desktop.status.cell.link.live": "Connected to the engine in real time.",
   "desktop.status.cell.link.title": "Connection",
   "desktop.status.cell.live.empty": "Nothing is in progress right now.",
   "desktop.status.cell.live.failed": "Failed · {reason}",
