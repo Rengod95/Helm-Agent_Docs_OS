@@ -128,6 +128,7 @@ Commands
   chat                      Interactive mode (default). Switches to print mode when the terminal is not interactive
   chat -p <input>           Print mode: run one turn with this input and write the reply to stdout
                             -p - or a bare -p reads all of stdin as the input
+  chat -p <input> --quiet   Do not write the one-line usage summary to stderr at the end
   chat -p <input> --json    JSON mode: write the JSON-RPC messages exchanged with the engine, one per line
   chat -p <input> --auto-approve
                             Print mode: approve a tool call once. Questions, plans, and reviews are declined
@@ -166,6 +167,8 @@ Commands
                             Create a group skeleton. The default is an observe group, --drive makes a drive group,
                             and --policy makes a policy group. The target folder must be empty, and dependencies are not installed
   doctor [--json]           Diagnose the engine, storage, secret store, terminal, and search providers
+  usage [--thread <id>] [--json]
+                            Model usage (tokens, cost, calls). Without a conversation it is the total of all conversations
   version [--json]          Show the version
 
 Common flags
