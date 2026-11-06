@@ -87,7 +87,11 @@ export function SettingsFileEditorView(props: SettingsFileEditorProps): ReactNod
         </Button>
       }
     >
-      <div data-slot="settings-file-editor" className="grid gap-3 py-3" onKeyDown={onKey}>
+      <div
+        data-slot="settings-file-editor"
+        className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 py-3"
+        onKeyDown={onKey}
+      >
         <div className="flex flex-wrap items-center gap-2">
           <SegmentedControl
             size="xs"

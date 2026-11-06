@@ -32,7 +32,7 @@ export const WRAPPER_MAX_OUTPUT_TOKENS = 512;
 export function wrapperManifest(): WebProviderManifest {
   return {
     name: "builtin-wrapper",
-    displayName: "Built-in search (model provider)",
+    displayName: "내장 검색(모델 제공자)",
     services: ["search"],
     // 포트가 모델 provider로 보낸다. GuardedHttp를 쓰지 않으므로 endpoint가 없다
     endpoints: [],

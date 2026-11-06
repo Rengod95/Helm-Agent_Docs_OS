@@ -38,11 +38,28 @@ export interface UpdaterStatus {
   readonly currentVersion: string;
 }
 
-/** 설정과 현재 버전을 읽는다. 답이 모양과 다르거나 명령이 거부되면 `unreadable`이다 */
+/** 셸이 답하지 않을 때 확인을 끝내는 기다림의 기본 상한. 셸의 확인 상한(30초)보다 길다 */
+export const REPLY_DEADLINE_MS = 40_000;
+
+/** 응답을 시간 안에 기다린다. 시간이 넘으면 거부로 바꾼다(늦게 온 답은 버린다) */
+function withDeadline(work: () => Promise<unknown>, ms: number): Promise<unknown> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const expired = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error("update command timed out"));
+    }, ms);
+  });
+  return Promise.race([work(), expired]).finally(() => {
+    clearTimeout(timer);
+  });
+}
+
+/** 설정과 현재 버전을 읽는다. 답이 모양과 다르거나 명령이 거부되거나 시간이 넘으면 `unreadable`이다 */
 export async function readUpdaterStatus(
   invoke: UpdateInvoke,
+  deadlineMs: number = REPLY_DEADLINE_MS,
 ): Promise<Result<UpdaterStatus, "unreadable">> {
-  const reply = await attemptAsync(() => invoke("update_status"));
+  const reply = await attemptAsync(() => withDeadline(() => invoke("update_status"), deadlineMs));
   if (!reply.ok) return err("unreadable");
   const configured = fieldOf(reply.value, "configured");
   const currentVersion = fieldOf(reply.value, "currentVersion");
@@ -52,9 +69,12 @@ export async function readUpdaterStatus(
   return ok({ configured, currentVersion });
 }
 
-/** 새 버전이 있는지 확인한다. 명령이 거부되면 `other` 실패다 */
-export async function checkForUpdate(invoke: UpdateInvoke): Promise<CheckOutcome> {
-  const reply = await attemptAsync(() => invoke("update_check"));
+/** 새 버전이 있는지 확인한다. 명령이 거부되거나 시간이 넘으면 `other` 실패다 */
+export async function checkForUpdate(
+  invoke: UpdateInvoke,
+  deadlineMs: number = REPLY_DEADLINE_MS,
+): Promise<CheckOutcome> {
+  const reply = await attemptAsync(() => withDeadline(() => invoke("update_check"), deadlineMs));
   if (!reply.ok) return { kind: "failed", reason: "other" };
   return checkOutcomeOf(reply.value);
 }

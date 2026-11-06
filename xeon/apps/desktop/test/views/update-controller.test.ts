@@ -328,3 +328,30 @@ describe("subscribers", () => {
     expect(h.controller.getState()).toEqual({ kind: "unconfigured" });
   });
 });
+
+describe("a shell that never answers", () => {
+  test("the quiet check ends as a failure instead of spinning forever, and the user can retry", async () => {
+    const calls: string[] = [];
+    const controller = createUpdateController({
+      invoke: (command) => {
+        calls.push(command);
+        return new Promise<unknown>(() => undefined);
+      },
+      createChannel: () => ({ tag: "channel" }),
+      replyDeadlineMs: 20,
+    });
+    expect(controller.getState()).toEqual({ kind: "checking" });
+    await controller.start();
+    expect(controller.getState()).toEqual({
+      kind: "failed",
+      stage: "check",
+      reason: "other",
+      version: null,
+      notes: null,
+    });
+    expect(calls).toEqual(["update_status", "update_check"]);
+    await controller.retry();
+    expect(calls).toEqual(["update_status", "update_check", "update_check"]);
+    expect(controller.getState().kind).toBe("failed");
+  });
+});

@@ -14,6 +14,7 @@ import {
   downloadUpdate,
   installUpdate,
   readUpdaterStatus,
+  REPLY_DEADLINE_MS,
   type UpdateChannelOf,
   type UpdateInvoke,
 } from "./update-invoke.ts";
@@ -22,6 +23,9 @@ import {
 // 겹침을 맡는다. 확인, 내려받기, 설치 가운데 하나가 도는 동안의 다른 호출은 무시한다.
 // 화면은 `useSyncExternalStore(controller.subscribe, controller.getState)`로 읽는다. 설치가 성공하면 앱이 다시 시작되므로
 // 설치 호출은 돌아오지 않는다.
+
+/** 설정 읽기는 로컬 호출이라 짧게 기다린다 */
+const STATUS_DEADLINE_MS = 5_000;
 
 export interface UpdateController {
   /** 지금 상태. 바뀌지 않으면 같은 객체를 돌려준다 */
@@ -44,9 +48,12 @@ export interface UpdateController {
 export interface UpdatePort {
   readonly invoke: UpdateInvoke;
   readonly createChannel: UpdateChannelOf;
+  /** 셸이 답하지 않을 때 확인을 실패로 끝내는 기다림(밀리초). 생략하면 `REPLY_DEADLINE_MS` */
+  readonly replyDeadlineMs?: number;
 }
 
 export function createUpdateController(port: UpdatePort): UpdateController {
+  const deadlineMs = port.replyDeadlineMs ?? REPLY_DEADLINE_MS;
   let state: UpdateState = INITIAL_UPDATE_STATE;
   let version: string | null = null;
   let busy = false;
@@ -74,7 +81,7 @@ export function createUpdateController(port: UpdatePort): UpdateController {
 
   const start = (): Promise<void> =>
     run(async () => {
-      const status = await readUpdaterStatus(port.invoke);
+      const status = await readUpdaterStatus(port.invoke, Math.min(deadlineMs, STATUS_DEADLINE_MS));
       if (status.ok) {
         version = status.value.currentVersion;
         emit();
@@ -85,14 +92,14 @@ export function createUpdateController(port: UpdatePort): UpdateController {
       }
       // 설정을 읽지 못했으면 확인 명령이 설정 안 됨을 알려 준다(명령이 같은 규칙으로 답한다)
       dispatch({ kind: "checkStarted" });
-      dispatch({ kind: "checkFinished", outcome: await checkForUpdate(port.invoke) });
+      dispatch({ kind: "checkFinished", outcome: await checkForUpdate(port.invoke, deadlineMs) });
     });
 
   const check = (): Promise<void> =>
     run(async () => {
       if (!canCheck(state)) return;
       dispatch({ kind: "checkStarted" });
-      dispatch({ kind: "checkFinished", outcome: await checkForUpdate(port.invoke) });
+      dispatch({ kind: "checkFinished", outcome: await checkForUpdate(port.invoke, deadlineMs) });
     });
 
   const download = (): Promise<void> =>
