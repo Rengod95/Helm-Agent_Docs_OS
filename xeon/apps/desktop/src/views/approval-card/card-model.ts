@@ -109,6 +109,7 @@ export function threadLinkVisibleOf(input: {
 export type CardTitleView =
   | { readonly id: "desktop.approvals.title.tool"; readonly params: { readonly tool: string } }
   | { readonly id: "desktop.approvals.title.plan" }
+  | { readonly id: "desktop.approvals.title.web"; readonly params: { readonly host: string } }
   | {
       readonly id: "desktop.approvals.title.write.memory" | "desktop.approvals.title.write.skill";
       readonly params: { readonly name: string; readonly opId: MessageId };
@@ -129,6 +130,8 @@ const WRITE_OP_ID: Readonly<Record<string, MessageId>> = {
   external: "desktop.approvals.title.write.op.external",
   rollback: "desktop.approvals.title.write.op.rollback",
 };
+/** 웹 접근 승인의 제목 원문(cap-web `webApprovalTitle`) */
+const WEB_TITLE = /^Allow web access to (.+)\?$/;
 const WRITE_TITLE = /^Approve (\S+) on (?:skill (.+)|(.+) memory)\?$/;
 
 export function cardTitleViewOf(request: ApprovalRequestedPayload): CardTitleView | null {
@@ -139,6 +142,8 @@ export function cardTitleViewOf(request: ApprovalRequestedPayload): CardTitleVie
   if (body.kind === "plan" && request.title === "Review the plan") {
     return { id: "desktop.approvals.title.plan" };
   }
+  const web = body.kind === "tool" ? WEB_TITLE.exec(request.title) : null;
+  if (web !== null) return { id: "desktop.approvals.title.web", params: { host: web[1] ?? "" } };
   const write = body.kind === "tool" ? WRITE_TITLE.exec(request.title) : null;
   const opId = write === null ? undefined : WRITE_OP_ID[write[1] ?? ""];
   if (write !== null && opId !== undefined) {

@@ -18,6 +18,8 @@ export function approvalAnnouncement(request: ApprovalRequestedPayload): Announc
     return { id: "desktop.announce.approval", params: { what: view.params.tool } };
   if (view !== null && view.id === "desktop.approvals.title.plan")
     return { id: "desktop.announce.approval.plan" };
+  if (view !== null && view.id === "desktop.approvals.title.web")
+    return { id: "desktop.announce.approval", params: { what: view.params.host } };
   if (view !== null) {
     return {
       id:

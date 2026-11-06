@@ -24,6 +24,7 @@ import {
 import {
   PERMISSION_MODE_STRICTNESS,
   type ApprovalApplyOutcome,
+  type CallerId,
   type ApprovalOrigin,
   type ApprovalWaitFailure,
   type OpenedApproval,
@@ -65,10 +66,12 @@ export interface ApprovalDeps {
   /** 활성 호출 표에서 origin의 호출을 찾는다. 없으면 턴 밖의 요청(그룹 코드)이다 */
   readonly callOf: (origin: ApprovalOrigin) => ActiveCall | undefined;
   /**
-   * 도구 호출 id 없이 올라온 요청(기능 서비스의 도메인 승인)의 표면 thread를 찾는다. 하위 대화에서 도는 호출이면 부모 쪽 표면이다.
-   * 없으면 요청한 thread가 표면이다
+   * 도구 호출 id 없이 올라온 요청(기능 서비스의 도메인 승인)의 표면 thread와 요청자를 찾는다. 하위 대화에서 도는 호출이면 부모 쪽 표면과
+   * `subagent:<이름>`이다. 없으면 요청한 thread가 표면이고 origin은 그대로다
    */
-  readonly surfaceOf?: (threadId: ThreadId) => ThreadId | undefined;
+  readonly requesterOf?: (
+    threadId: ThreadId,
+  ) => { readonly surfaceThreadId: ThreadId; readonly caller: CallerId } | undefined;
   /** 계획 승인의 `{ mode }`를 적용한다(ToolService.setMode "plan_approval") */
   readonly setMode: (threadId: ThreadId, mode: PermissionMode) => Promise<ModeChangeResult>;
   readonly modeOf: (threadId: ThreadId) => PermissionMode;
@@ -412,8 +415,9 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     if (issue !== undefined) return err(invalidRequest(issue));
 
     const call = deps.callOf(input.origin);
+    const requester = call === undefined ? deps.requesterOf?.(input.origin.threadId) : undefined;
     const surfaceThreadId =
-      call?.run.surfaceThreadId ?? deps.surfaceOf?.(input.origin.threadId) ?? input.origin.threadId;
+      call?.run.surfaceThreadId ?? requester?.surfaceThreadId ?? input.origin.threadId;
     const knownId = byKey.get(keyOf(surfaceThreadId, input.requestKey));
     const known = knownId === undefined ? undefined : byId.get(knownId);
     if (known !== undefined) return ok(opened(known));
@@ -434,8 +438,15 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     const onExpire = input.onExpire;
     // 기능 어댑터는 CallContext에서 origin을 만들고 거기에 stepId가 없다. 활성 호출이 알면 그 단계로 채워 모든 승인 기록의 origin이 같은 값을 갖게 한다
     const stepId = input.origin.stepId ?? call?.run.stepId ?? null;
+    // 하위 대화 호출 안에서 올라온 요청은 요청자를 그 호출의 것으로 채운다(기능 어댑터는 caller를 main으로 쓴다)
+    const caller =
+      requester !== undefined && requester.surfaceThreadId !== input.origin.threadId
+        ? requester.caller
+        : input.origin.caller;
     const origin: ApprovalOrigin =
-      stepId === input.origin.stepId ? input.origin : { ...input.origin, stepId };
+      stepId === input.origin.stepId && caller === input.origin.caller
+        ? input.origin
+        : { ...input.origin, stepId, caller };
     const payload = {
       origin,
       requestKey: input.requestKey,

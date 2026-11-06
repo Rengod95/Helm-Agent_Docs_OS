@@ -1965,6 +1965,7 @@
   "desktop.threads.reloadButton": "Reload",
   "desktop.threads.resumableBadge": "Can resume",
   "desktop.approvals.title.tool": "Run tool \"{tool}\"?",
+  "desktop.approvals.title.web": "Allow web access to {host}?",
   "desktop.approvals.title.plan": "Review the plan",
   "desktop.approvals.title.write.memory": "Write {name} memory: {op}",
   "desktop.approvals.title.write.skill": "Write skill {name}: {op}",

@@ -174,6 +174,8 @@ test("a request without toolCallId from a child thread lands on the surface thre
   const [request] = h.runtime.approvals.pending(h.thread);
   expect(request?.surfaceThreadId).toBe(h.thread);
   expect(request?.origin.threadId).toBe(child);
+  // 기능 어댑터가 main으로 쓴 요청자는 활성 호출의 요청자로 채워진다
+  expect(request?.origin.caller).toBe("subagent:explorer");
   expect(h.runtime.approvals.pending(child)).toEqual([]);
   await h.runtime.approvals.respond(request?.approvalId ?? "", {
     decision: "answer",
