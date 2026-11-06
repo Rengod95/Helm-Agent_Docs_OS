@@ -49,8 +49,11 @@ export function ExtName(props: { readonly row: ExtRowVM }): ReactNode {
   const { row } = props;
   return (
     <span className="min-w-0 truncate">
-      {row.displayName !== null && <span className="text-text-primary">{row.displayName} </span>}
-      <span className="font-mono text-mono-sm text-text-tertiary">{row.name}</span>
+      {row.displayName !== null ? (
+        <span className="text-text-primary">{row.displayName}</span>
+      ) : (
+        <span className="font-mono text-mono-sm text-text-tertiary">{row.name}</span>
+      )}
     </span>
   );
 }

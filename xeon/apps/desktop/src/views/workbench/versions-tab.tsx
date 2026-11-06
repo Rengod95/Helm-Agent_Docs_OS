@@ -7,7 +7,7 @@ import {
   type VersionsLoad,
   type VersionsView,
 } from "@fresnel/client/workbench";
-import { detach, rethrow } from "@fresnel/contracts";
+import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
 import {
   Alert,
@@ -16,11 +16,14 @@ import {
   ListDescription,
   ListDescriptionRow,
   Skeleton,
+  Table,
   toast,
+  type TableColumn,
 } from "@caustic/react";
 import { History, RotateCcw } from "@caustic/react/icons";
 import { useEffect, useState, type ReactNode } from "react";
 import { useCommands } from "../commands.ts";
+import { PLAIN_TABLE } from "./tab-body.tsx";
 import { RollbackDialog } from "./rollback-dialog.tsx";
 
 type Load = { readonly kind: "loading" } | VersionsLoad;
@@ -154,39 +157,13 @@ export function VersionsPanel(props: {
 
   return (
     <>
-      {/* 한 줄: 판 번호(mono)와 지금 표지, 둘째 줄에 설치 시각 · 출처. 되돌리기는 끝에 둔다 */}
-      <ul className="m-0 grid list-none gap-1.5 p-0">
-        {view.rows.map((row) => (
-          <li key={row.version} className="flex min-w-0 items-center gap-2">
-            <span className="grid min-w-0 flex-1 gap-0">
-              <span className="inline-flex items-center gap-1.5 text-ui-dense">
-                <span className="font-mono text-mono-sm text-text-primary">{row.version}</span>
-                {row.current && (
-                  <Badge size="xs" variant="soft">
-                    {t("desktop.workbench.versions.current")}
-                  </Badge>
-                )}
-              </span>
-              <span className="truncate text-ui-xs text-text-tertiary">
-                {`${row.installedAt ?? t("desktop.workbench.versions.inApp")} · ${t(SOURCE_TEXT[row.source])}`}
-              </span>
-            </span>
-            {row.canRollback && (
-              <Button
-                size="xs"
-                variant="ghost"
-                iconStart={<RotateCcw />}
-                disabled={props.locked}
-                onClick={() => {
-                  setTarget(row);
-                }}
-              >
-                {t("desktop.workbench.versions.rollback")}
-              </Button>
-            )}
-          </li>
-        ))}
-      </ul>
+      <VersionsTable
+        rows={view.rows}
+        locked={props.locked}
+        onPick={(row) => {
+          setTarget(row);
+        }}
+      />
       <RollbackDialog
         current={current}
         target={target}
@@ -199,6 +176,85 @@ export function VersionsPanel(props: {
         }}
       />
     </>
+  );
+}
+
+/** 이력 표의 열 */
+type VersionColumn = "version" | "source" | "installed" | "act";
+
+const VERSION_COLUMNS: readonly VersionColumn[] = ["version", "source", "installed", "act"];
+
+/** 표 열의 키(문자열)를 열 이름으로 바꾼다. 열 이름이 아니면 undefined */
+function versionColumnOf(key: string): VersionColumn | undefined {
+  return VERSION_COLUMNS.find((column) => column === key);
+}
+
+/**
+ * 전체 단계의 이력 표(wb-opus 버전 탭): 버전(mono, 지금 표지), 출처, 설치 시각(없으면 "앱에 든 버전"), 되돌리기 단추.
+ * 행 사이 선 없이 표 하나로 읽는다. 저장 형식과 매니페스트 해시는 이 읽기에 없어 칸을 두지 않는다.
+ */
+function VersionsTable(props: {
+  readonly rows: readonly VersionRowVM[];
+  readonly locked: boolean;
+  readonly onPick: (row: VersionRowVM) => void;
+}): ReactNode {
+  const columns: TableColumn[] = [
+    { key: "version", header: t("desktop.workbench.versions.col.version") },
+    { key: "source", header: t("desktop.workbench.versions.col.source") },
+    { key: "installed", header: t("desktop.workbench.versions.installed") },
+    { key: "act", header: "" },
+  ];
+  return (
+    <Table
+      variant="ghost"
+      size="xs"
+      aria-label={t("desktop.workbench.detail.tab.versions")}
+      className={PLAIN_TABLE}
+      columns={columns}
+      rows={props.rows.map((_, index) => ({ id: String(index) }))}
+      renderCell={(picked, column) => {
+        const row = props.rows[Number(picked.id)];
+        const name = versionColumnOf(column.key);
+        if (row === undefined || name === undefined) return null;
+        switch (name) {
+          case "version":
+            return (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="font-mono text-mono-sm text-text-primary">{row.version}</span>
+                {row.current && (
+                  <Badge size="xs" variant="soft">
+                    {t("desktop.workbench.versions.current")}
+                  </Badge>
+                )}
+              </span>
+            );
+          case "source":
+            return <span className="text-text-secondary">{t(SOURCE_TEXT[row.source])}</span>;
+          case "installed":
+            return (
+              <span className="text-text-secondary">
+                {row.installedAt ?? t("desktop.workbench.versions.inApp")}
+              </span>
+            );
+          case "act":
+            return row.canRollback ? (
+              <Button
+                size="xs"
+                variant="ghost"
+                iconStart={<RotateCcw />}
+                disabled={props.locked}
+                onClick={() => {
+                  props.onPick(row);
+                }}
+              >
+                {t("desktop.workbench.versions.rollback")}
+              </Button>
+            ) : null;
+          default:
+            return assertNever(name, "VersionsTable");
+        }
+      }}
+    />
   );
 }
 

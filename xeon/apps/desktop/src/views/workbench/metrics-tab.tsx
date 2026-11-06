@@ -47,12 +47,12 @@ function GroupMetricsBody(props: { readonly metrics: GroupMetricsVM | null }): R
   const { metrics } = props;
   if (metrics === null) return <p className={MUTED}>{t("desktop.workbench.metrics.off")}</p>;
   return (
-    <div className="grid gap-4 text-ui-sm">
-      <section aria-label={t("desktop.workbench.metrics.tokens")} className="grid gap-1.5">
+    <div className="grid gap-3 text-ui-sm">
+      <section aria-label={t("desktop.workbench.metrics.tokens")} className="grid gap-2">
         <h4 className="m-0 min-w-0 truncate text-ui-dense font-semibold text-text-primary">
           {t("desktop.workbench.metrics.tokens")}
         </h4>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-4 compact:grid-cols-4">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-3 compact:grid-cols-4">
           {metrics.tokens.map((cell) => (
             <Cell key={cell.key} label={t(TOKEN_TEXT[cell.key])} value={numberText(cell.value)} />
           ))}
@@ -65,7 +65,7 @@ function GroupMetricsBody(props: { readonly metrics: GroupMetricsVM | null }): R
           <InfoTip text={t("desktop.workbench.metrics.costNote")} />
         </p>
       </section>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-4 compact:grid-cols-5">
+      <div className="grid grid-cols-2 gap-x-6 gap-y-3 compact:grid-cols-5">
         <Cell
           label={t("desktop.workbench.metrics.lead")}
           value={t(LEAD_TEXT[metrics.lead.unit], { value: metrics.lead.value })}

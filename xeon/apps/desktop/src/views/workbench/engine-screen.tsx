@@ -11,8 +11,10 @@ export function EngineScreen(): ReactNode {
   const link = useLinkBanner();
   const engine = useEngineState();
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 p-6">
-      <h1 className="text-ui-strong text-text-primary">{t("desktop.workbench.engine.title")}</h1>
+    <div className="mx-auto flex min-h-0 w-full max-w-240 flex-1 flex-col gap-4 px-3 pt-6 pb-4">
+      <h1 className="text-title-3 font-bold text-text-primary">
+        {t("desktop.workbench.engine.title")}
+      </h1>
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-ui-sm">
         <dt className="text-text-tertiary">{t("desktop.workbench.engine.phase")}</dt>
         <dd className="font-mono">

@@ -1,7 +1,7 @@
 // 개요와 확장 화면이 같이 쓰는 부품: 목록 상태 띠(읽는 중·오류·오프라인)와 켜기 요청, 자동 꺼짐 알림(플러그인 카드와 오른쪽 "플러그인" 탭).
-// 찾기 막대와 개수 줄은 확장 화면이 쓴다.
+// 찾기 막대는 확장 화면이 쓴다.
 import { t } from "@fresnel/client/i18n";
-import { countsOf, keepOffOf, type HookNotice } from "@fresnel/client/workbench";
+import { keepOffOf, type HookNotice } from "@fresnel/client/workbench";
 import { Alert, Button, Input, Skeleton } from "@caustic/react";
 import { Bug } from "@fresnel/contracts";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
@@ -40,19 +40,6 @@ export function useToggleRequest(controller: WorkbenchController): {
       />
     ),
   };
-}
-
-export function CountsLine(): ReactNode {
-  const counts = useWorkbench(countsOf);
-  return (
-    <p className="text-ui-sm text-text-tertiary">
-      {t("desktop.workbench.counts", {
-        total: counts.total,
-        on: counts.on,
-        auto: counts.autoDisabled,
-      })}
-    </p>
-  );
 }
 
 export function SearchField(): ReactNode {

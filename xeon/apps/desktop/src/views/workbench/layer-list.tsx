@@ -7,6 +7,9 @@ import type { ReactNode } from "react";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
 import { ExtCell, extColumnOf } from "./ext-row.tsx";
 
+const HEAD_FIRST = "[&_table]:table-fixed [&_thead_th]:bg-transparent";
+const HEAD_REST = "[&_table]:table-fixed [&_thead_th]:bg-transparent [&_thead]:sr-only";
+
 export function LayerList(props: {
   readonly onToggle: (name: string, target: boolean) => void;
 }): ReactNode {
@@ -17,30 +20,25 @@ export function LayerList(props: {
   // 머리글은 그릴 때 고른다. 말투(로케일)가 연결 뒤에 바뀔 수 있다
   const columns: TableColumn[] = [
     { key: "name", header: t("desktop.workbench.col.name") },
-    { key: "layer", header: t("desktop.workbench.col.layer") },
-    { key: "kind", header: t("desktop.workbench.col.kind") },
-    { key: "grade", header: t("desktop.workbench.col.grade") },
-    { key: "state", header: t("desktop.workbench.col.state") },
-    { key: "version", header: t("desktop.workbench.col.version"), align: "end" },
-    { key: "switch", header: t("desktop.workbench.col.switch") },
+    { key: "state", header: t("desktop.workbench.col.state"), width: 320 },
+    { key: "switch", header: t("desktop.workbench.col.switch"), align: "end", width: 96 },
   ];
   return (
     <div className="grid gap-4">
-      {groups.map((group) => {
+      {groups.map((group, index) => {
         const byName = new Map(group.rows.map((row) => [row.name, row] as const));
         return (
           <section key={group.layer} aria-label={group.layer} className="grid gap-1">
-            <div className="flex items-baseline gap-2 px-2 pb-1">
-              <h3 className="m-0 font-mono text-ui-sm font-semibold text-text-primary">
-                {group.layer}
-              </h3>
-              <span className="text-ui-xs text-text-tertiary tabular-nums">
+            <div className="flex min-h-7 items-center gap-2 px-2">
+              <h3 className="m-0 text-title-3 font-semibold text-text-primary">{group.layer}</h3>
+              <span className="ms-auto text-ui-xs text-text-tertiary tabular-nums">
                 {t("desktop.workbench.layers.count", { on: group.on, total: group.total })}
               </span>
             </div>
             <Table
               variant="ghost"
               size="xs"
+              className={index === 0 ? HEAD_FIRST : HEAD_REST}
               dividers={false}
               columns={columns}
               rows={group.rows.map((row) => ({ id: row.name }))}

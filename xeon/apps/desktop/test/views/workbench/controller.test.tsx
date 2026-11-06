@@ -245,7 +245,6 @@ describe("목록이 다시 읽히면 자동 꺼짐 표시는 스토어를 따른
 
     const before = renderSeeded(pickGroup(store.actions.snapshot(), "review"));
     expect(before).toContain(reenableText);
-    expect(before).toContain(t("desktop.workbench.counts", { total: 2, on: 1, auto: 1 }));
 
     const stop = reloadOnExtChanges(commands.workbench, () => controller.reload());
     seen.listed = [WEB, REVIEW_ON];
@@ -255,7 +254,6 @@ describe("목록이 다시 읽히면 자동 꺼짐 표시는 스토어를 따른
     expect(store.actions.snapshot().entries).toEqual([WEB, REVIEW_ON]);
     const after = renderSeeded(pickGroup(store.actions.snapshot(), "review"));
     expect(after).not.toContain(reenableText);
-    expect(after).toContain(t("desktop.workbench.counts", { total: 2, on: 2, auto: 0 }));
 
     stop();
     expect(seen.listener).toBeNull();

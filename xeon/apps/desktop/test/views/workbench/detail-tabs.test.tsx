@@ -27,7 +27,7 @@ const badgesOf = (html: string): string[] =>
 
 /** 설정 탭의 값 칸 글, 그린 순서대로 */
 const settingValuesOf = (html: string): string[] =>
-  [...html.matchAll(/ms-auto text-text-secondary">([^<]*)</g)].map((m) => m[1] ?? "");
+  [...html.matchAll(/data-slot="setting-value"[^>]*>([^<]*)</g)].map((m) => m[1] ?? "");
 
 /** 측정 탭의 값과 이름(caustic CardStat 칸의 label·value), 그린 순서대로 */
 const valuesOf = (html: string): string[] =>
