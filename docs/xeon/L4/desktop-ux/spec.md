@@ -2699,7 +2699,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 - 세 열이 층을 나눕니다. 왼쪽 `L1·L2`: 맥락에서 기능을 주는 확장(provider)과 기능 포트. 가운데 `L3`: 그룹 머리(이름, 층·종류·신뢰·버전, 상태 스키마, drive 락 상한, 설정 키) 아래에 슬롯 블록. 오른쪽 `F`: 블록이 내는 것(공개 기록 `grp.<그룹>.*`, 입력 큐 post, 비공개 상태 문서 `x_<그룹>_state`).
 - 블록 하나 = 그룹 안 코드 한 덩어리(`composition` 항목 하나). 머리에 슬롯, 이름, 연산(`on`, `post`, `drive`, `record`, `scope`). 몸에 훅 이름과 fold·실패 규칙, 한 줄 요약, 왼쪽 소비 포트(기능 id, `requires` 표시), 오른쪽 출력 포트.
-- 그룹 보기는 내는 것이 있는 첫 블록을 고른 채로 열어 그 블록의 선이 처음부터 보이고, 머리 아래에 "복제해서 고치기"(`desktop.compose.group.clone`)가 있습니다. 누르면 읽은 선언을 새 그룹 초안으로 넘깁니다(흐름 보기의 "만들기"와 같은 길). 왼쪽 provider 열은 선언에 제공자 정보가 없어 아직 없습니다.
+- 그룹 보기는 내는 것이 있는 첫 블록을 고른 채로 열어 그 블록의 선이 처음부터 보이고, 머리 아래에 "복제해서 고치기"(`desktop.compose.group.clone`)가 있습니다. 누르면 읽은 선언을 새 그룹 초안으로 넘깁니다(흐름 보기의 "만들기"와 같은 길). 왼쪽 provider 열은 선언에 제공자 정보가 없어 아직 없습니다 [근거: apps/desktop/src/views/compose/compose-group-canvas.tsx].
 - 선은 포트끼리만 잇습니다. `optional`과 `requires`를 선 모양으로 구분하고, provider가 꺼진 포트는 빈 점입니다.
 - Helm 참고 구성의 블록 일곱: 신호 감지, 렌즈 주입, 단계 머신(drive), 쓰기 거부(`tool.call.before` first), 지식 소비, 발견 기록, 상태 복원. 이 분해는 Helm이 `composition`을 선언한 뒤의 모양입니다(X-9, X-16).
 - 검사(인라인): 블록 마지막 줄에 문장과 검사 코드(mono). 실패 블록은 invalid 상태, 관련 선은 invalid 선. 캔버스 바로 위에 `Alert tone="danger"` 하나로 개수와 막힌 동작(DP-28). 검사는 `ext.validateComposition`(W-47)이 하고 Plugin Builder AU-003·AU-004와 같은 규칙입니다.
