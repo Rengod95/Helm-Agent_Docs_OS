@@ -569,7 +569,8 @@ export interface GroupTemplatesPort {
   - 대화형은 `{ storeId, seq: 0 }`, `filter.threadIds`로 구독해 이전 대화를 접힌 형태(user·assistant 텍스트만)로 그리고, 저장 위치 이후부터 전체 형태로 그린다.
 - `replay.outOfRange`:
   - `storeMismatch`: 위치를 버리고 `from: "head"`로 다시 구독한다. "저장소가 바뀌어 이전 기록을 이어 받지 못했다"를 알린다.
-  - `tooFar`, `beforeOldest`: 대화형은 `from: "head"`로 다시 구독하고 알린다. print 모드도 같다.
+  - `beforeOldest`: 보관 정리로 재전송 하한이 올라 있으면 오류 details의 `oldestReplayableSeq`부터 다시 구독해 남은 이전 기록을 그린다. `sessions show`와 `--resume` 모두 같다 [결정: 오케스트레이터 기본값, scJ].
+  - `tooFar`: 대화형은 `from: "head"`로 다시 구독하고 알린다. print 모드도 같다.
 - 구간 검사(F wire §4.5): `applyBatch`가 `from ≠ position.seq`를 받으면 `gap`을 돌려준다. CLI는 마지막 `to`부터 다시 구독한다.
 - 상태 파일 갱신: `events.batch`를 반영할 때마다 메모리의 위치를 바꾸고, 파일 쓰기는 turn 경계(`turn.completed`)와 종료 때 한다 [제안]. 강제 종료로 파일이 덜 갱신돼도 더 이른 위치부터 구독하므로 이벤트를 놓치지 않는다. 다시 받은 이벤트는 `applyBatch`가 seq로 걸러 중복 출력하지 않는다.
 

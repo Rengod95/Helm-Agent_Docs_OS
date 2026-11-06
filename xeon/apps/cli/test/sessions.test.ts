@@ -101,6 +101,19 @@ test("sessions show draws the durable events as a transcript and unsubscribes", 
   expect(h.closed()).toBe(true);
 });
 
+test("sessions show reads from the replay floor when the home trimmed older events", async () => {
+  const h = harness({ server: { replayFloor: 1 } });
+  const turn = turnId(1);
+  h.seed(T1, [
+    userItem(turn, 1, "안녕"),
+    assistantItem(turn, 2, { text: "반가워" }),
+    turnCompleted(turn),
+  ]);
+  expect(await h.run(["sessions", "show", T1])).toBe(EXIT.ok);
+  expect(h.stderrText()).not.toContain("replay");
+  expect(h.stdoutText()).toContain("반가워");
+});
+
 test("sessions show --json prints the events as one JSON document", async () => {
   const h = harness();
   const turn = turnId(1);

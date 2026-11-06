@@ -561,6 +561,15 @@ export async function openChatSession(
     } catch (caught) {
       if (caught instanceof WireError && caught.data.kind === "replay.outOfRange") {
         const reason = caught.data.details?.["reason"];
+        const floor = caught.data.details?.["oldestReplayableSeq"];
+        // 보관 정리로 하한이 오른 홈: 하한부터 다시 구독해 남은 이전 기록을 그린다(L4.cli.spec §4.4)
+        if (reason === "beforeOldest" && typeof floor === "number" && from !== "head") {
+          const result = await connection.request("events.subscribe", {
+            from: { storeId: from.storeId, seq: floor },
+            filter: { threadIds: [threadId] },
+          });
+          return { result, fellBack: false };
+        }
         await emit([
           {
             kind: "notice",

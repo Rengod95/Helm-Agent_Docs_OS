@@ -1,13 +1,15 @@
 import { t } from "@fresnel/client/i18n";
 import { assertNever, attemptAsync, err, ok, type Result } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type {
-  EventsBatchParams,
-  EventWire,
-  HostConnection,
-  StoreId,
-  ThreadListResult,
-  ThreadSummary,
+import {
+  WireError,
+  type EventsBatchParams,
+  type EventsSubscribeResult,
+  type EventWire,
+  type HostConnection,
+  type StoreId,
+  type ThreadListResult,
+  type ThreadSummary,
 } from "@fresnel/contracts/wire";
 import type { SessionsCommand } from "../cli/command.ts";
 import type { EngineHandle } from "../engine.ts";
@@ -93,6 +95,27 @@ interface ReadOutcome {
   readonly ops: readonly RenderOp[];
 }
 
+/**
+ * 0부터 구독한다. 보관 정리로 재전송 하한이 올라 있으면(`replay.outOfRange` beforeOldest) 호스트가 알려 준 하한부터 다시 구독한다
+ * (L4.cli.spec §4.4, L4.host-service.spec HS-13)
+ */
+async function subscribeFromFloor(
+  connection: HostConnection,
+  storeId: StoreId,
+  threadId: ThreadId,
+): Promise<EventsSubscribeResult> {
+  const filter = { threadIds: [threadId] };
+  try {
+    return await connection.request("events.subscribe", { from: { storeId, seq: 0 }, filter });
+  } catch (caught) {
+    if (!(caught instanceof WireError) || caught.data.kind !== "replay.outOfRange") throw caught;
+    const details = caught.data.details;
+    const floor = details?.["oldestReplayableSeq"];
+    if (details?.["reason"] !== "beforeOldest" || typeof floor !== "number") throw caught;
+    return connection.request("events.subscribe", { from: { storeId, seq: floor }, filter });
+  }
+}
+
 /** 세션의 내구 이벤트를 처음부터 머리(headSeq)까지 읽는다. 구독은 읽은 뒤 해제한다 */
 async function readThread(
   handle: EngineHandle,
@@ -147,10 +170,7 @@ async function readThread(
     settle();
   });
   try {
-    const subscribed = await connection.request("events.subscribe", {
-      from: { storeId: handle.storeId, seq: 0 },
-      filter: { threadIds: [threadId] },
-    });
+    const subscribed = await subscribeFromFloor(connection, handle.storeId, threadId);
     state.sub = subscribed.sub;
     state.head = subscribed.headSeq;
     state.storeId = subscribed.storeId;
