@@ -46,7 +46,7 @@ describe("appearance prefs", () => {
   test("applying sets the attribute and zoom, and 100% clears them", () => {
     const root = rootOf();
     applyAppearance(root, { motion: "reduce", zoom: 125 });
-    expect(root.dataset).toEqual({ motion: "reduce" });
+    expect(root.dataset).toEqual({ motion: "reduce", zoom: "125" });
     expect(root.style.zoom).toBe("1.25");
     applyAppearance(root, { motion: "system", zoom: 100 });
     expect(root.dataset).toEqual({});
@@ -64,7 +64,7 @@ describe("appearance prefs", () => {
       [LOCAL.motionReduce.key]: true,
       [LOCAL.zoomPercent.key]: 200,
     });
-    expect(root.dataset).toEqual({ motion: "reduce" });
+    expect(root.dataset).toEqual({ motion: "reduce", zoom: "200" });
     expect(root.style.zoom).toBe("2");
     expect(port.get()).toEqual({ motion: "reduce", zoom: 200 });
 
