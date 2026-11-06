@@ -200,7 +200,12 @@ describe("host status, service mode and stopping the service", () => {
     const loaded = await app.commands.connection.load();
     expect(loaded).toEqual({
       ok: true,
-      value: { host: HOST_STATUS, serviceEnabled: true, remoteAllowRespond: false },
+      value: {
+        host: HOST_STATUS,
+        serviceEnabled: true,
+        restartPending: false,
+        remoteAllowRespond: false,
+      },
     });
     expect(
       params.filter((entry) => entry.method === "settings.get").map((entry) => entry.params),
@@ -224,7 +229,12 @@ describe("host status, service mode and stopping the service", () => {
     const loaded = await app.commands.connection.load();
     expect(loaded).toEqual({
       ok: true,
-      value: { host: HOST_STATUS, serviceEnabled: true, remoteAllowRespond: null },
+      value: {
+        host: HOST_STATUS,
+        serviceEnabled: true,
+        restartPending: false,
+        remoteAllowRespond: null,
+      },
     });
     await app.stop();
   });

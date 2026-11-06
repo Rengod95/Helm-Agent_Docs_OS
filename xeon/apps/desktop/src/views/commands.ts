@@ -304,6 +304,8 @@ export type ConnectTarget =
 export interface ConnectionSnapshot {
   readonly host: WireResult<"host.status">;
   readonly serviceEnabled: boolean;
+  /** 서비스 모드를 켜 두었지만 엔진을 다시 시작해야 켜진다(`settings.get`의 `pendingUntil: "restart"`). 예약 화면과 같은 근거다 */
+  readonly restartPending: boolean;
   readonly remoteAllowRespond: boolean | null;
 }
 

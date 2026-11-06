@@ -81,6 +81,7 @@ describe("desktop render with ui.locale=en", () => {
             idleShutdownAt: null,
           },
           serviceEnabled: true,
+          restartPending: false,
           remoteAllowRespond: true,
         },
       }),

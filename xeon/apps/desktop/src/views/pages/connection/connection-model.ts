@@ -489,6 +489,7 @@ export function connectionReducer(
         ...state,
         status: { kind: "ready", snapshot: action.snapshot },
         serviceEnabled: action.snapshot.serviceEnabled,
+        restartNeeded: action.snapshot.restartPending,
         remoteAllowRespond: action.snapshot.remoteAllowRespond,
       };
     case "statusFailed":

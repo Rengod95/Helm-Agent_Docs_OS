@@ -400,6 +400,26 @@ describe("the list, selection and status follow their actions", () => {
     expect(typed.form).toEqual({ label: "mac", address: "", errors: NO_FORM_ERRORS });
   });
 
+  test("a service mode left pending a restart by the schedule screen shows the restart badge on load", () => {
+    const loaded = connectionReducer(withItems([]), {
+      type: "statusLoaded",
+      snapshot: {
+        host: {
+          mode: "in-process",
+          pid: 1,
+          startedAt: "2026-11-04T01:00:00.000Z",
+          connections: 0,
+          liveTurns: 0,
+          idleShutdownAt: null,
+        },
+        serviceEnabled: true,
+        restartPending: true,
+        remoteAllowRespond: null,
+      },
+    });
+    expect(loaded.restartNeeded).toBe(true);
+  });
+
   test("a service mode change marks that a restart is needed", () => {
     const loaded = connectionReducer(withItems([]), {
       type: "statusLoaded",
@@ -413,6 +433,7 @@ describe("the list, selection and status follow their actions", () => {
           idleShutdownAt: null,
         },
         serviceEnabled: false,
+        restartPending: false,
         remoteAllowRespond: true,
       },
     });
@@ -443,6 +464,7 @@ function statusWith(remoteAllowRespond: boolean | null): ConnectionState {
         idleShutdownAt: null,
       },
       serviceEnabled: true,
+      restartPending: false,
       remoteAllowRespond,
     },
   });
