@@ -1712,6 +1712,7 @@
   "desktop.status.cell.link.down": "엔진이 없어 연결이 끊겼어요. 대화는 읽기만 돼요.",
   "desktop.status.cell.link.title": "연결",
   "desktop.status.cell.live.empty": "지금 진행 중인 일이 없어요.",
+  "desktop.status.cell.live.failed": "실패 · {reason}",
   "desktop.status.cell.live.schedule": "예약",
   "desktop.status.cell.live.thread": "대화",
   "desktop.status.cell.live.title": "진행 중",

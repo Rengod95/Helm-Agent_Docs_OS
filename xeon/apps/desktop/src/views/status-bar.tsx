@@ -1,3 +1,4 @@
+import { TriangleAlert } from "@caustic/react/icons";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
@@ -12,6 +13,7 @@ import {
   useRunningCount,
   useStatusItems,
   useThreadSummaries,
+  useTurnFailures,
   type EngineState,
   type Link,
 } from "../state/engine/index.ts";
@@ -193,6 +195,10 @@ export interface LiveRow {
   readonly kind: LiveKind;
   readonly threadId: ThreadId;
   readonly title: string | null;
+  /** 예약에서 시작한 대화의 마지막 turn이 실패로 끝났다. 점을 빨갛게 하고 묶음을 목록 맨 위로 올린다 */
+  readonly failed: boolean;
+  /** 실패 이유 한 줄(거울의 turn 실패 문장). 실패 행만 가진다 */
+  readonly reason: string | null;
 }
 
 const LIVE_KINDS: readonly LiveKind[] = ["thread", "trial", "schedule"];
@@ -209,15 +215,47 @@ function liveKindOf(thread: ThreadSummary): LiveKind {
   return "thread";
 }
 
-/** 실행 중인 대화를 종류별 행으로 바꾼다. 목록 순서(거울의 순서)를 따른다 */
-export function liveRowsOf(threads: readonly ThreadSummary[]): LiveRow[] {
-  return threads
-    .filter((thread) => thread.status === "running")
-    .map((thread) => ({
-      kind: liveKindOf(thread),
-      threadId: thread.threadId,
-      title: thread.title,
-    }));
+/**
+ * 진행 중 목록의 행. 실행 중인 대화와, 예약에서 시작했고 마지막 turn이 실패로 끝난 대화를 모은다.
+ * 실패는 거울의 턴 실패 기록(`failures`, 대화 id → 문장)과 대화의 origin(schedule)으로 정한다. 실패 행이 앞에 오고, 나머지는 거울의 목록 순서를 따른다.
+ * origin은 목록 읽기(`thread.list`)에서만 오므로 이 연결에서 새로 시작한 예약 대화에는 origin이 없어 실패 행도 생기지 않는다.
+ */
+export function liveRowsOf(
+  threads: readonly ThreadSummary[],
+  failures: Readonly<Record<string, string>>,
+): LiveRow[] {
+  const failed: LiveRow[] = [];
+  const running: LiveRow[] = [];
+  for (const thread of threads) {
+    const reason = failures[thread.threadId] ?? null;
+    if (thread.origin?.kind === "schedule" && reason !== null) {
+      failed.push(liveRowOf(thread, true, reason));
+    } else if (thread.status === "running") {
+      running.push(liveRowOf(thread, false, null));
+    }
+  }
+  return [...failed, ...running];
+}
+
+function liveRowOf(thread: ThreadSummary, failed: boolean, reason: string | null): LiveRow {
+  return {
+    kind: liveKindOf(thread),
+    threadId: thread.threadId,
+    title: thread.title,
+    failed,
+    reason,
+  };
+}
+
+/** 묶음 순서. 실패 행이 든 묶음을 맨 위로 올리고, 나머지는 `LIVE_KINDS` 순서를 지킨다 */
+export function liveKindsOf(rows: readonly LiveRow[]): readonly LiveKind[] {
+  const failing = LIVE_KINDS.filter((kind) => rows.some((row) => row.failed && row.kind === kind));
+  return [...failing, ...LIVE_KINDS.filter((kind) => !failing.includes(kind))];
+}
+
+/** 진행 중 칸의 점. 실패 행이 하나라도 있으면 빨강이고, 없으면 점을 그리지 않는다 */
+export function liveDotOf(rows: readonly LiveRow[]): StatusDot | undefined {
+  return rows.some((row) => row.failed) ? "danger" : undefined;
 }
 
 function LinkCell(props: { readonly phase: Link["phase"]; readonly attempt: number }): ReactNode {
@@ -253,8 +291,8 @@ function EngineCell(props: { readonly engine: EngineState | null }): ReactNode {
   );
 }
 
-/** 진행 중 목록의 묶음들. 묶음마다 머리 글과 행이 있다 */
-function LiveList(props: {
+/** 진행 중 목록의 묶음들. 묶음마다 머리 글과 행이 있다. 실패 행이 든 묶음은 맨 위에 온다 */
+export function LiveList(props: {
   readonly rows: readonly LiveRow[];
   readonly goTo: GoToThread | null;
   readonly close: () => void;
@@ -262,7 +300,7 @@ function LiveList(props: {
   const { rows, goTo, close } = props;
   return (
     <div className="grid gap-2">
-      {LIVE_KINDS.map((kind) => {
+      {liveKindsOf(rows).map((kind) => {
         const items = rows.filter((row) => row.kind === kind);
         if (items.length === 0) return null;
         return (
@@ -285,8 +323,33 @@ function LiveRowLine(props: {
 }): ReactNode {
   const { row, goTo, close } = props;
   const name = row.title ?? t("desktop.threads.untitled");
+  const failure =
+    row.reason === null ? null : t("desktop.status.cell.live.failed", { reason: row.reason });
+  // 실패 행은 색 면의 아이콘과 "실패 · 이유" 줄을 함께 둔다. 색만으로 뜻을 주지 않는다
+  const content = (
+    <>
+      {row.failed ? (
+        <span
+          aria-hidden
+          className="inline-grid size-5 flex-none place-items-center rounded-md bg-danger-soft text-danger-text"
+        >
+          <TriangleAlert className="size-3.5" />
+        </span>
+      ) : null}
+      <span className="grid min-w-0 flex-1 gap-0.5">
+        <span className="truncate">{name}</span>
+        {failure === null ? null : (
+          <span className="truncate text-ui-xs text-danger-text" title={failure}>
+            {failure}
+          </span>
+        )}
+      </span>
+    </>
+  );
   if (goTo === null)
-    return <span className="min-w-0 truncate text-ui-sm text-text-primary">{name}</span>;
+    return (
+      <div className="flex min-w-0 items-center gap-2 text-ui-sm text-text-primary">{content}</div>
+    );
   return (
     <button
       type="button"
@@ -296,7 +359,7 @@ function LiveRowLine(props: {
         close();
       }}
     >
-      <span className="min-w-0 flex-1 truncate">{name}</span>
+      {content}
     </button>
   );
 }
@@ -304,13 +367,14 @@ function LiveRowLine(props: {
 /** "진행 중 n" 칸과 Popover(N-58). 목록이 비면 빈 글을 보인다. 행을 누르면 그 대화로 가고 Popover를 닫는다 */
 function LiveCell(): ReactNode {
   const running = useRunningCount();
-  const rows = liveRowsOf(useThreadSummaries());
+  const rows = liveRowsOf(useThreadSummaries(), useTurnFailures());
   const goTo = useGoToThread();
   const [open, setOpen] = useState(false);
   return (
     <StatusCell
       cellId="live"
       text={t("desktop.status.running", { count: running })}
+      dot={liveDotOf(rows)}
       title={t("desktop.status.cell.live.title")}
       wide
       open={open}

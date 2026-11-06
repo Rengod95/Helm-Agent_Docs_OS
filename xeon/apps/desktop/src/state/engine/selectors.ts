@@ -87,6 +87,9 @@ export const selectThreadRunning = (s: EngineMirror, id: ThreadId): boolean =>
   s.threads.byId[id]?.status === "running";
 export const selectTurnFailure = (s: EngineMirror, id: ThreadId | null): string | null =>
   id === null ? null : (s.turnFailures[id] ?? null);
+/** 대화별 실패로 끝난 마지막 turn의 문장. 거울의 기록 객체를 그대로 준다 */
+export const selectTurnFailures = (s: EngineMirror): Readonly<Record<string, string>> =>
+  s.turnFailures;
 /** thread의 가장 최근 turn id. 대화가 없거나 목록에도 거울의 turn.started에도 turn이 없으면 null이다(최근 실행은 잠긴다) */
 export const selectLatestTurnId = (s: EngineMirror, id: ThreadId | null): TurnId | null =>
   id === null ? null : (s.latestTurnId[id] ?? null);

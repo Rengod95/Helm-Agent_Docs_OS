@@ -1712,6 +1712,7 @@
   "desktop.status.cell.link.down": "The connection is down because the engine is not running. Conversations are read-only.",
   "desktop.status.cell.link.title": "Connection",
   "desktop.status.cell.live.empty": "Nothing is in progress right now.",
+  "desktop.status.cell.live.failed": "Failed · {reason}",
   "desktop.status.cell.live.schedule": "Schedules",
   "desktop.status.cell.live.thread": "Conversations",
   "desktop.status.cell.live.title": "In progress",

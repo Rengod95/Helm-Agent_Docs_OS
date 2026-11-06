@@ -8,7 +8,7 @@ import { createUiStore } from "../../src/state/ui/index.ts";
 import type { SafeModeSnapshot } from "../../src/views/commands.ts";
 import { Providers } from "../../src/views/providers.tsx";
 import { SafeModeCard } from "../../src/views/safe-mode-card.tsx";
-import { SafeModeChip } from "../../src/views/safe-mode-chip.tsx";
+import { SafeModeActions, SafeModeChip } from "../../src/views/safe-mode-chip.tsx";
 import { SafeModeContext } from "../../src/views/safe-mode-context.ts";
 import { ShellRestartContext } from "../../src/views/shell-restart-context.ts";
 import { harness } from "../state/helpers.ts";
@@ -79,6 +79,24 @@ function buttonOf(markup: string, label: string): string {
 /** 단추가 누를 수 없는지. 클래스의 `disabled:` 변형과 구분하려고 속성을 본다 */
 function isDisabled(button: string): boolean {
   return button.includes(' disabled=""');
+}
+
+/** 상태 칸 단추 하나의 마크업(`data-bar-cell`부터 닫는 단추 전까지). 칸이 없으면 빈 글 */
+function cellOf(markup: string, cellId: string): string {
+  const start = markup.indexOf(`data-bar-cell="${cellId}"`);
+  if (start < 0) return "";
+  const end = markup.indexOf("</button>", start);
+  return markup.slice(start, end < 0 ? undefined : end);
+}
+
+/** 칸의 점 값(`data-bar-dot`). 점이 없으면 null */
+function dotOf(cell: string): string | null {
+  return /data-bar-dot="([^"]+)"/.exec(cell)?.[1] ?? null;
+}
+
+/** 칸에 보이는 글. 글 칸은 숫자와 같이 `tabular-nums` 줄 뒤에 온다 */
+function textOf(cell: string): string | null {
+  return /tabular-nums">([^<]*)</.exec(cell)?.[1] ?? null;
 }
 
 describe("the safe mode suggestion card", () => {
@@ -154,20 +172,27 @@ describe("the safe mode chip in the status bar", () => {
     setActiveLocale(previous);
   });
 
-  test("in safe mode the shell shows the chip, the cause in the tip, and the turn-off button", () => {
+  // Popover 본문은 열 때만 그려지므로 칸은 닫힌 모양(표지 글과 점)을 보고, 본문은 `SafeModeActions`를 직접 그린다.
+  // 칸 설명(꺼진 것과 원인)은 `safeModeTipOf`가 만들고 safe-mode-model 시험이 값을 본다.
+
+  test("in safe mode the chip is a status cell with a warning dot and the words", () => {
     const html = render(<SafeModeChip />, { snapshot: SAFE, shell: true, running: true });
-    expect(html).toContain('data-slot="safe-mode-chip"');
-    expect(html).toContain("안전 모드</span>");
-    expect(html).toContain(
-      "꺼진 것: 그룹, 사용자·프로젝트 확장, X 훅. 원인: 설정에서 기본으로 켜 뒀어요",
-    );
+    const cell = cellOf(html, "safe-mode");
+    expect(dotOf(cell)).toBe("warning");
+    expect(textOf(cell)).toBe("안전 모드");
+    expect(html).not.toContain('data-slot="safe-mode-chip"');
+  });
+
+  test("in the shell the popover body holds the turn-off button enabled, and the setting note behind an info icon", () => {
+    const html = render(<SafeModeActions />, { snapshot: SAFE, shell: true, running: true });
     expect(isDisabled(buttonOf(html, "안전 모드 끄고 다시 시작"))).toBe(false);
     expect(html).toContain("설정의 기본값은 그대로라서 앱을 다시 켜면 안전 모드로 열려요.");
+    expect(html).toContain("설명 보기");
   });
 
   test("a safe mode from a launch option or startup failures has the button but not the setting note", () => {
     for (const cause of ["flag", "startupFailures"] as const) {
-      const html = render(<SafeModeChip />, {
+      const html = render(<SafeModeActions />, {
         snapshot: { ...SAFE, cause },
         shell: true,
         running: true,
@@ -178,19 +203,25 @@ describe("the safe mode chip in the status bar", () => {
   });
 
   test("the turn-off button waits until the engine runs or has failed", () => {
-    const starting = render(<SafeModeChip />, { snapshot: SAFE, shell: true, running: false });
+    const starting = render(<SafeModeActions />, {
+      snapshot: SAFE,
+      shell: true,
+      running: false,
+    });
     expect(isDisabled(buttonOf(starting, "안전 모드 끄고 다시 시작"))).toBe(true);
   });
 
-  test("on the web the chip stays but the button and its note do not", () => {
+  test("on the web the chip keeps its dot and words, and the body draws nothing", () => {
     const html = render(<SafeModeChip />, { snapshot: SAFE, shell: false, running: true });
-    expect(html).toContain('data-slot="safe-mode-chip"');
-    expect(html).not.toContain("안전 모드 끄고 다시 시작");
-    expect(html).not.toContain("설정의 기본값은 그대로라서");
+    const cell = cellOf(html, "safe-mode");
+    expect(dotOf(cell)).toBe("warning");
+    expect(textOf(cell)).toBe("안전 모드");
+    expect(render(<SafeModeActions />, { snapshot: SAFE, shell: false, running: true })).toBe("");
   });
 
   test("the chip is hidden when safe mode is off, even with a suggestion", () => {
     expect(render(<SafeModeChip />, { snapshot: SUGGEST, shell: true, running: true })).toBe("");
     expect(render(<SafeModeChip />, { snapshot: null, shell: true, running: true })).toBe("");
+    expect(render(<SafeModeChip />, { snapshot: SUGGEST, shell: false, running: true })).toBe("");
   });
 });
