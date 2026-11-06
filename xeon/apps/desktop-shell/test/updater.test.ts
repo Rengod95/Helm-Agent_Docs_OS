@@ -37,6 +37,7 @@ function harness(options: {
     env: {},
     platform: "darwin",
     paths: {
+      configDir: "/cfg",
       userData: "/fake/userData",
       logs: "/fake/logs",
       resources: "/fake/resources",
@@ -62,6 +63,10 @@ function harness(options: {
     emit: () => undefined,
     showMainWindow: () => undefined,
     onQuit: () => undefined,
+    handleScheme: () => undefined,
+    windows: () => [],
+    windowOptions: () => undefined,
+    onWindow: () => undefined,
   };
   createUpdaterModule({
     backend: options.backend,

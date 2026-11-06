@@ -23,6 +23,8 @@ export interface FakeCtx {
   readonly schemes: Map<string, (request: Request) => Response | Promise<Response>>;
   /** 등록된 종료 정리를 등록 역순으로 돌린다 */
   quit(): Promise<void>;
+  /** showMainWindow를 부른 횟수 */
+  readonly shown: { count: number };
   readonly dir: string;
   readonly env: Record<string, string | undefined>;
 }
@@ -45,6 +47,7 @@ export function fakeCtx(
   const env: Record<string, string | undefined> = { ...options.env };
   const caller: IpcCaller = { sender: Object.create(null) };
   const windows: BrowserWindow[] = [];
+  const shown = { count: 0 };
   const ctx: ShellContext = {
     env,
     platform: "darwin",
@@ -79,6 +82,9 @@ export function fakeCtx(
     emit: (name) => {
       emitted.push(name);
     },
+    showMainWindow: () => {
+      shown.count += 1;
+    },
     onQuit: (cleanup) => {
       cleanups.unshift(cleanup);
     },
@@ -103,6 +109,7 @@ export function fakeCtx(
         await cleanup();
       }, Promise.resolve());
     },
+    shown,
     dir,
     env,
   };

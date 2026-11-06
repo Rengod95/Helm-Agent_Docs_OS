@@ -16,7 +16,7 @@ function contextWith(registry: CommandRegistry): ShellContext {
   return {
     env: {},
     platform: "darwin",
-    paths: { userData: "", logs: "", resources: "", ui: "" },
+    paths: { userData: "", configDir: "", logs: "", resources: "", ui: "" },
     dialogs: {
       openFolder: () => Promise.resolve(null),
       openFile: () => Promise.resolve(null),
@@ -30,6 +30,10 @@ function contextWith(registry: CommandRegistry): ShellContext {
     emit: () => {},
     showMainWindow: () => {},
     onQuit: () => {},
+    handleScheme: () => undefined,
+    windows: () => [],
+    windowOptions: () => undefined,
+    onWindow: () => undefined,
   };
 }
 

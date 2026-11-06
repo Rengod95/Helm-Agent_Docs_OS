@@ -38,7 +38,7 @@ function fakeShell(): FakeShell {
   const ctx: ShellContext = {
     env: {},
     platform: "darwin",
-    paths: { userData: "/data", logs: "/logs", resources: "/res", ui: "/ui" },
+    paths: { userData: "/data", configDir: "/cfg", logs: "/logs", resources: "/res", ui: "/ui" },
     dialogs: {
       openFolder: () => Promise.resolve(null),
       openFile: () => Promise.resolve(null),
@@ -56,6 +56,10 @@ function fakeShell(): FakeShell {
       window.shows += 1;
     },
     onQuit: () => undefined,
+    handleScheme: () => undefined,
+    windows: () => [],
+    windowOptions: () => undefined,
+    onWindow: () => undefined,
   };
   return { ctx, handlers, emitted, window };
 }
