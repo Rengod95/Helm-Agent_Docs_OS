@@ -186,6 +186,7 @@ describe("fresnel.devkit and its wire methods", () => {
       files: [],
       shell: [],
       drives: false,
+      screens: [],
       warnings: [{ severity: "warning", code: "AU-006", path: "/ui", message: "m" }],
     });
     roundTrip(WIRE_METHODS["ext.remove"].result, { name: "n", appliesAt: "restart" });
