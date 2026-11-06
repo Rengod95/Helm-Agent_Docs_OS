@@ -162,6 +162,35 @@ describe("M4 dialog area methods", () => {
     ).toBe(false);
   });
 
+  test("knowledge.skills.list takes an optional thread and returns skills with the reasons others were left out", () => {
+    const params = WIRE_METHODS["knowledge.skills.list"].params;
+    expect(parse(params, {}).ok).toBe(true);
+    expect(parse(params, { threadId: "thr_1" }).ok).toBe(true);
+    expect(parse(params, { threadId: "" }).ok).toBe(false);
+    const listed = {
+      skills: [
+        { name: "scigreet-hello", description: "Greets.", scope: "project", modelInvocable: true },
+        { name: "home", description: "", scope: "user", modelInvocable: false },
+      ],
+      diagnostics: [
+        {
+          severity: "warning",
+          message: "project skills are not loaded",
+          path: "/w/.fresnel/skills",
+        },
+      ],
+    };
+    roundTrip(WIRE_METHODS["knowledge.skills.list"].result, listed);
+    const result = WIRE_METHODS["knowledge.skills.list"].result;
+    expect(
+      parse(result, { ...listed, skills: [{ ...listed.skills[0], scope: "global" }] }).ok,
+    ).toBe(false);
+    expect(
+      parse(result, { ...listed, diagnostics: [{ ...listed.diagnostics[0], severity: "info" }] })
+        .ok,
+    ).toBe(false);
+  });
+
   test("work.plans.versions takes a thread and a plan id, and returns every version of the plan", () => {
     expect(
       parse(WIRE_METHODS["work.plans.versions"].params, { threadId: "thr_1", planId: "p1" }).ok,

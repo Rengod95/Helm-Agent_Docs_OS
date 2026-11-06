@@ -372,6 +372,59 @@ export const SkillViewResultSchema: TUnsafe<SkillViewResult> = Type.Unsafe<Skill
   SkillViewResultShape satisfies SchemaProof<SkillViewResult, typeof SkillViewResultShape>,
 );
 
+/**
+ * `knowledge.skills.list`(W-14b). 이 대화가 쓸 수 있는 스킬과, 색인에서 빠진 스킬의 이유(형식 오류, 폴더 신뢰 안 됨 등). `threadId`를 주면
+ * 그 대화의 작업 폴더 기준이다. 슬래시 목록의 "스킬" 묶음이 읽는다 [결정: 오케스트레이터 기본값, scI]
+ */
+export interface SkillListParams {
+  readonly threadId?: string;
+}
+const SkillListParamsShape = request({ threadId: Type.Optional(ThreadRef) });
+export const SkillListParamsSchema: TUnsafe<Req<SkillListParams>> = Type.Unsafe<
+  Req<SkillListParams>
+>(SkillListParamsShape satisfies SchemaProof<Req<SkillListParams>, typeof SkillListParamsShape>);
+export interface SkillListEntry {
+  readonly name: string;
+  /** 모델이 보는 잘린 설명 */
+  readonly description: string;
+  readonly scope: SkillScope;
+  /** 모델이 스스로 부를 수 있는가. 거짓이면 사용자가 슬래시로만 부른다 */
+  readonly modelInvocable: boolean;
+}
+export interface SkillListDiagnostic {
+  readonly severity: "warning" | "collision";
+  readonly message: string;
+  readonly path: string;
+}
+export interface SkillListResult {
+  readonly skills: readonly SkillListEntry[];
+  readonly diagnostics: readonly SkillListDiagnostic[];
+}
+export const SKILL_LIST_MAX = 2000;
+export const SKILL_DIAGNOSTICS_MAX = 200;
+const SkillListResultShape = closed({
+  skills: Type.Array(
+    closed({
+      name: Id,
+      description: Type.String({ maxLength: 1024 }),
+      scope: SkillScopeSchema,
+      modelInvocable: Type.Boolean(),
+    }),
+    { maxItems: SKILL_LIST_MAX },
+  ),
+  diagnostics: Type.Array(
+    closed({
+      severity: Type.Union([Type.Literal("warning"), Type.Literal("collision")]),
+      message: Type.String({ maxLength: 512 }),
+      path: Type.String({ maxLength: 1024 }),
+    }),
+    { maxItems: SKILL_DIAGNOSTICS_MAX },
+  ),
+});
+export const SkillListResultSchema: TUnsafe<SkillListResult> = Type.Unsafe<SkillListResult>(
+  SkillListResultShape satisfies SchemaProof<SkillListResult, typeof SkillListResultShape>,
+);
+
 /** `work.plans.versions`(W-18). 계획 하나의 모든 판. 판의 모양은 `PlanVersionSchema`(capabilities/defs/work.ts)다 */
 export interface PlanVersionsParams {
   readonly threadId: string;
@@ -463,6 +516,7 @@ export interface DialogAreaSchemas {
   "host.clients": Io<U<NoParams>, U<HostClientsResult>>;
   "turn.withdraw": Io<U<Req<TurnWithdrawParams>>, U<TurnWithdrawResult>>;
   "knowledge.skills.view": Io<U<Req<SkillViewParams>>, U<SkillViewResult>>;
+  "knowledge.skills.list": Io<U<Req<SkillListParams>>, U<SkillListResult>>;
   "work.plans.versions": Io<U<Req<PlanVersionsParams>>, U<PlanVersionsOutputValue>>;
   "knowledge.memory.read": Io<U<Req<MemoryReadParams>>, U<MemoryReadOutput>>;
   "knowledge.memory.add": Io<U<Req<MemoryAddParams>>, U<MemoryWriteOutput>>;
@@ -484,6 +538,7 @@ export const DIALOG_AREA_METHODS: Table = {
   "host.clients": m4(NoParamsSchema, HostClientsResultSchema),
   "turn.withdraw": m4(TurnWithdrawParamsSchema, TurnWithdrawResultSchema),
   "knowledge.skills.view": m4(SkillViewParamsSchema, SkillViewResultSchema),
+  "knowledge.skills.list": m4(SkillListParamsSchema, SkillListResultSchema),
   "work.plans.versions": m4(PlanVersionsParamsSchema, PlanVersionsOutput),
   "knowledge.memory.read": m4(MemoryReadParamsSchema, MemoryReadOutputSchema),
   "knowledge.memory.add": m4(MemoryAddParamsSchema, MemoryWriteOutputSchema),
