@@ -587,6 +587,7 @@ Fresnel 데스크톱
 
 - `help.shortcuts`는 O-09를 연다(§6.20). 셸이 처리하지 않는 나머지 동작은 `App`의 `onAction`이 맡는다.
 - `approval.next`(⌘⇧A): 대기 승인 목록(엔진 거울의 순서)에서 초점이 있는 카드의 다음 카드로 옮긴다. 초점이 없거나 목록에 없으면 첫 카드다. 마지막 카드 다음은 처음 카드다(`views/approval-focus-model.ts`의 `nextApprovalId`). 카드 머리(`[data-approval-kind]`, tabIndex -1)에 초점을 준다. 화면에 카드가 없으면 아무 일도 없다.
+- 초점 돌려주기: 승인 카드에 답해 카드가 사라지고 초점이 BODY로 떨어지면, 그 카드 뒤의 다음 대기 카드로(없으면 남은 첫 카드로), 대기 카드가 없으면 입력창으로 초점을 준다. 턴이 끝났을 때(진행 중 → 아님) 초점이 BODY면 입력창으로 준다. 초점이 다른 곳에 있으면 건드리지 않는다(`views/focus-return.tsx`, 순수 판정은 `approval-focus-model.ts`).
 - `thread.next`·`thread.prev`(⌥⌘↓ / ⌥⌘↑): 사이드바 대화 목록 순서(최근 활동 먼저)로 옮긴다. 끝에서 처음으로, 처음에서 끝으로 돈다(`views/thread-step-model.ts`의 `stepThreadId`). 고르기는 대화 목록 행과 같은 `commands.selectThread`다. 영역은 바꾸지 않는다.
 - `composer.focus`(⌘L): 대화가 열려 있으면 대화 영역의 대화 화면으로 바꾸고 입력창에 초점을 준다. 입력창은 `UiState.composerRequest`를 받아 지운다(`views/composer.tsx`).
 - 명령 팔레트(S-02)의 구현 노트는 §6.2에 있다.

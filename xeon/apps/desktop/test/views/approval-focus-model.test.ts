@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { nextApprovalId } from "../../src/views/approval-focus-model.ts";
+import {
+  focusAfterApprovalChange,
+  focusAfterTurnEnd,
+  focusIsLost,
+  nextApprovalId,
+} from "../../src/views/approval-focus-model.ts";
 
 describe("nextApprovalId (approval.next)", () => {
   test("nothing pending gives no card, focused or not", () => {
@@ -25,5 +30,40 @@ describe("nextApprovalId (approval.next)", () => {
   test("a single pending card is its own next", () => {
     expect(nextApprovalId(["alpha"], "alpha")).toBe("alpha");
     expect(nextApprovalId(["alpha"], null)).toBe("alpha");
+  });
+});
+
+describe("focus return (scD 1-1)", () => {
+  test("answering the only card sends focus to the composer", () => {
+    expect(focusAfterApprovalChange(["alpha"], [], true)).toEqual({ kind: "composer" });
+  });
+
+  test("the next card after the removed one gets focus, else the first remaining", () => {
+    expect(focusAfterApprovalChange(["a", "b", "c"], ["a", "c"], true)).toEqual({
+      kind: "card",
+      id: "c",
+    });
+    expect(focusAfterApprovalChange(["a", "b", "c"], ["a", "b"], true)).toEqual({
+      kind: "card",
+      id: "a",
+    });
+  });
+
+  test("nothing happens when focus is elsewhere or no card went away", () => {
+    expect(focusAfterApprovalChange(["a", "b"], ["b"], false)).toBeNull();
+    expect(focusAfterApprovalChange(["a"], ["a", "b"], true)).toBeNull();
+  });
+
+  test("focus is lost only on BODY or nothing", () => {
+    expect(focusIsLost(null)).toBe(true);
+    expect(focusIsLost({ tagName: "BODY" })).toBe(true);
+    expect(focusIsLost({ tagName: "TEXTAREA" })).toBe(false);
+  });
+
+  test("the composer is focused when a turn ends with lost focus", () => {
+    expect(focusAfterTurnEnd(true, false, true)).toBe(true);
+    expect(focusAfterTurnEnd(true, false, false)).toBe(false);
+    expect(focusAfterTurnEnd(false, false, true)).toBe(false);
+    expect(focusAfterTurnEnd(true, true, true)).toBe(false);
   });
 });

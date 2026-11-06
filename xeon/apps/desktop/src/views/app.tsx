@@ -19,6 +19,7 @@ import { SettingsPage } from "./pages/settings/settings-screen.tsx";
 import { firstRunAutoOpenDue } from "./pages/first-run/first-run-model.ts";
 import { useShellActions, type Area } from "../state/shell/index.ts";
 import { nextApprovalId } from "./approval-focus-model.ts";
+import { FocusReturn, focusApprovalCard } from "./focus-return.tsx";
 import { stepThreadId } from "./thread-step-model.ts";
 import { useSetupNeeded } from "./setup-needed.ts";
 import type { ShellRegistry } from "./shell/registry.ts";
@@ -57,15 +58,6 @@ function focusedApprovalOf(ids: readonly EventId[]): EventId | null {
   if (!(active instanceof HTMLElement)) return null;
   const card = active.closest<HTMLElement>('[data-slot="approval-card-item"]');
   return ids.find((id) => id === card?.dataset.approvalId) ?? null;
-}
-
-/** 승인 카드의 초점 자리(카드 머리 root, tabIndex -1)로 초점을 준다. 카드가 화면에 없으면 아무 일도 없다 */
-function focusApprovalCard(id: EventId): void {
-  const cards = Array.from(
-    document.querySelectorAll<HTMLElement>('[data-slot="approval-card-item"]'),
-  );
-  const card = cards.find((element) => element.dataset.approvalId === id);
-  card?.querySelector<HTMLElement>("[data-approval-kind]")?.focus();
 }
 
 /** 앱 동작이 실패했음을 토스트로 알린다. 오류 토스트는 자동으로 닫히지 않는다(§4.6) */
@@ -296,6 +288,7 @@ export function App(props: AppProps): ReactNode {
         </FileSaveContext>
       </SafeModeProvider>
       <NoticeToasts />
+      <FocusReturn />
       {/* 셸 다리는 대화 열기와 "새 대화"를 App의 함수로 받는다. 대화 이동 문맥은 Shell 안에만 있어 여기서 준다 */}
       <ShellBridges
         onNewThread={() => {
