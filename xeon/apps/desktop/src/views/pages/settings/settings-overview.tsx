@@ -5,6 +5,7 @@ import { detach, rethrow } from "@fresnel/contracts";
 import type { SettingsView } from "@fresnel/client/settings";
 import type { ReactNode } from "react";
 import { useCommands } from "../../commands.ts";
+import { useDesktopShell } from "../../desktop-shell-context.ts";
 import { useSafeMode } from "../../safe-mode-context.ts";
 import { pathTermOf, shortenHome, type SettingsPathRow } from "./settings-file-paths.ts";
 import { SettingSection } from "./settings-section.tsx";
@@ -37,6 +38,8 @@ export function OverviewPanels(props: {
   readonly filePaths: readonly SettingsPathRow[];
 }): ReactNode {
   const commands = useCommands();
+  const shell = useDesktopShell();
+  const versions = commands.versions();
   const { overview, diagnostics } = props.view;
   const safeMode = useSafeMode();
   const changed = Object.entries(overview.countsByScope).reduce(
@@ -66,8 +69,59 @@ export function OverviewPanels(props: {
           </ListDescription>
         </SettingSection>
       )}
-      <SettingSection title={t("desktop.settings.overview.state")}>
+      <SettingSection title={t("desktop.settings.about.title")}>
+        <ListDescription
+          variant="ghost"
+          size="xs"
+          aria-label={t("desktop.settings.about.title")}
+          className={ROWS_CLASS}
+        >
+          <ListDescriptionRow term={t("desktop.settings.about.appVersion")} mono>
+            {versions.app}
+          </ListDescriptionRow>
+          <ListDescriptionRow term={t("desktop.settings.about.engineVersion")} mono>
+            {versions.engine ?? t("desktop.settings.about.engineUnknown")}
+          </ListDescriptionRow>
+        </ListDescription>
         {props.updatePanel}
+        <div className="flex flex-wrap items-center gap-2" data-slot="settings-about-actions">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              detach(
+                commands.copyDiagnostics().then((ok) => {
+                  if (ok) toast({ tone: "success", title: t("desktop.settings.overview.copied") });
+                  return undefined;
+                }),
+                rethrow,
+              );
+            }}
+          >
+            {t("desktop.settings.overview.copyDiagnostics")}
+          </Button>
+          {shell === null ? null : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                detach(
+                  shell.invoke("open_log_dir").then(
+                    () => undefined,
+                    () => {
+                      toast({ tone: "danger", title: t("desktop.settings.about.openLogsFailed") });
+                    },
+                  ),
+                  rethrow,
+                );
+              }}
+            >
+              {t("desktop.settings.about.openLogs")}
+            </Button>
+          )}
+        </div>
+      </SettingSection>
+      <SettingSection title={t("desktop.settings.overview.state")}>
         <ListDescription
           variant="ghost"
           size="xs"
@@ -105,27 +159,7 @@ export function OverviewPanels(props: {
         </ListDescription>
       </SettingSection>
       {diagnostics.length === 0 ? null : (
-        <SettingSection
-          title={t("desktop.settings.diagnostics.title")}
-          end={
-            <Button
-              size="xs"
-              variant="ghost"
-              onClick={() => {
-                detach(
-                  commands.copyDiagnostics().then((ok) => {
-                    if (ok)
-                      toast({ tone: "success", title: t("desktop.settings.overview.copied") });
-                    return undefined;
-                  }),
-                  rethrow,
-                );
-              }}
-            >
-              {t("desktop.settings.overview.copyDiagnostics")}
-            </Button>
-          }
-        >
+        <SettingSection title={t("desktop.settings.diagnostics.title")}>
           <ul className="m-0 grid list-none gap-1 p-0">
             {diagnostics.map((diagnostic) => {
               const tone = diagnosticToneOf(diagnostic.code);

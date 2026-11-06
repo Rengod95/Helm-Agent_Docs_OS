@@ -92,6 +92,8 @@ export interface SettingsController {
   /** 초안을 저장한다. 로컬 항목은 로컬 저장소에, 엔진 항목은 settings.set으로 보낸다. 클라이언트 검사가 실패하면 보내지 않는다 */
   commit(key: SettingKey): Promise<void>;
   discard(key: SettingKey): void;
+  /** 다른 곳에서 값이 바뀐 초안을 그대로 둔다. 이 뒤에야 저장할 수 있다 */
+  keepDraft(key: SettingKey): void;
   /** 범위 값을 지운다. 로컬 항목은 기본값으로 되돌린다 */
   reset(key: SettingKey, scope: Exclude<SettingScope, "managed">): Promise<void>;
   restartHost(): Promise<void>;
@@ -333,6 +335,8 @@ export function createSettingsController(port: SettingsHostPort): SettingsContro
     const def = current.defs.get(key);
     const draft = current.drafts.get(key);
     if (def === undefined || draft === undefined) return Promise.resolve();
+    // 다른 곳에서 바뀐 값은 덮어쓰지 않는다. "새 값 쓰기"나 "내 값 유지"를 고른 뒤에 저장한다(scA-4-2)
+    if (current.remoteChanged.has(key)) return Promise.resolve();
     const setting = current.values.get(key);
     const scope =
       current.scopes.get(key) ??
@@ -419,6 +423,9 @@ export function createSettingsController(port: SettingsHostPort): SettingsContro
     commit,
     discard(key) {
       dispatch({ type: "draftDiscarded", key });
+    },
+    keepDraft(key) {
+      dispatch({ type: "remoteKept", key });
     },
     reset,
     restartHost,

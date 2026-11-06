@@ -31,6 +31,7 @@ const handlers: FieldHandlers = {
   change: noop,
   commit: noop,
   discard: noop,
+  keepDraft: noop,
   selectScope: noop,
   reset: noop,
 };

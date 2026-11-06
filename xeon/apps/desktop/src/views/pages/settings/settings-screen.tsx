@@ -265,6 +265,9 @@ export function SettingsPage(props: {
     commit: (key) => {
       detach(saveKey(key), rethrow);
     },
+    keepDraft: (key) => {
+      controller?.keepDraft(key);
+    },
     discard: (key) => {
       controller?.discard(key);
     },

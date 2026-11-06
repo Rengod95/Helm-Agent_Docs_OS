@@ -802,6 +802,8 @@ export interface Commands {
   noteRestartNeeded(reason: RestartReason): void;
   /** 진단 묶음을 클립보드에 쓴다 */
   copyDiagnostics(): Promise<boolean>;
+  /** 앱과 엔진 버전. 엔진은 아직 연결하지 못했으면 `null`이다 */
+  versions(): { readonly app: string; readonly engine: string | null };
 }
 
 export const CommandsContext: React.Context<Commands | null> = createContext<Commands | null>(null);
