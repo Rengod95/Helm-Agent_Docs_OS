@@ -1,5 +1,6 @@
 import { t } from "@fresnel/client/i18n";
 import { slashLineOf, type CommandRowVM } from "@fresnel/client/settings";
+import type { WireResult } from "@fresnel/contracts/wire";
 
 // 입력창의 슬래시 명령. `/`를 치면 뜨는 목록과, 앱이 직접 하는 명령(`/compact [지침]` → `thread.compact`),
 // 모르는 `/명령`을 보내기 전의 확인을 순수하게 정한다(화면은 composer.tsx). 목록 후보는 앱 명령과 엔진 명령(`command.list`)이다.
@@ -15,7 +16,12 @@ export type SlashMenuRow = {
   readonly description: string;
   /** 인자 안내. 없으면 null */
   readonly hint: string | null;
+  /** 묶음. 앱·엔진 명령은 `command`, 대화에 실린 스킬은 `skill` */
+  readonly group: "command" | "skill";
 };
+
+/** 이 대화가 쓸 수 있는 스킬과 싣지 못한 이유(`knowledge.skills.list`) */
+export type SkillsVM = WireResult<"knowledge.skills.list">;
 
 function appRowsOf(): readonly SlashMenuRow[] {
   return [
@@ -24,6 +30,7 @@ function appRowsOf(): readonly SlashMenuRow[] {
       label: "/compact",
       description: t("desktop.composer.slash.compact.description"),
       hint: t("desktop.composer.slash.compact.hint"),
+      group: "command",
     },
   ];
 }
@@ -39,6 +46,7 @@ function isAppName(name: string): boolean {
 export function slashMenuOf(
   draft: string,
   engineRows: readonly CommandRowVM[],
+  skills: SkillsVM | null = null,
 ): readonly SlashMenuRow[] {
   if (!draft.startsWith("/") || /\s/.test(draft)) return [];
   const typed = draft.slice(1);
@@ -49,8 +57,36 @@ export function slashMenuOf(
       label: row.label,
       description: row.description,
       hint: row.hint,
+      group: "command",
     }));
-  return [...appRowsOf(), ...engine].filter((row) => row.name.startsWith(typed));
+  // 같은 이름의 명령이 있으면 명령이 이긴다. 모델이 못 부르는 스킬은 사용자가 직접 부르는 스킬이라고 알린다
+  const taken = new Set([...appRowsOf(), ...engine].map((row) => row.name));
+  const skillRows = (skills?.skills ?? [])
+    .filter((skill) => !taken.has(skill.name))
+    .map((skill): SlashMenuRow => ({
+      name: skill.name,
+      label: `/${skill.name}`,
+      description: skill.description,
+      hint: skill.modelInvocable ? null : t("desktop.composer.slash.skills.hidden"),
+      group: "skill",
+    }));
+  return [...appRowsOf(), ...engine, ...skillRows].filter((row) => row.name.startsWith(typed));
+}
+
+/**
+ * 싣지 못한 스킬의 이유 한 줄씩. 글이 `/`뿐이면 모두, 이름을 치는 중이면 경로에 그 글이 든 것만 낸다(왜 안 보이는지 찾는 사람이 본다).
+ * 폴더를 신뢰하지 않아 뺀 알림은 사람 말로 바꾸고, 나머지는 엔진 문구를 그대로 잇는다.
+ */
+export function slashIssuesOf(draft: string, skills: SkillsVM | null): readonly string[] {
+  if (skills === null || !draft.startsWith("/") || /\s/.test(draft)) return [];
+  const typed = draft.slice(1);
+  return skills.diagnostics
+    .filter((item) => typed === "" || item.path.includes(typed))
+    .map((item) =>
+      item.message.includes("is not trusted")
+        ? t("desktop.composer.slash.skills.untrusted")
+        : t("desktop.composer.slash.skills.issue", { message: item.message }),
+    );
 }
 
 /** 목록에서 고른 행이 입력창에 채우는 글. 이어서 인자를 칠 수 있게 공백을 붙인다 */
@@ -86,10 +122,13 @@ export function appSlashOf(text: string): AppSlash | null {
 export function unknownSlashOf(
   text: string,
   engineRows: readonly CommandRowVM[] | null,
+  skills: SkillsVM | null = null,
 ): string | null {
   if (engineRows === null) return null;
   const line = slashLineOf(text);
   if (line === null) return null;
   if (isAppName(line.name)) return null;
+  // 대화에 실린 스킬은 모델이 읽는 이름이라 그대로 보낸다
+  if (skills?.skills.some((skill) => skill.name === line.name) === true) return null;
   return engineRows.some((row) => row.name === line.name) ? null : line.name;
 }

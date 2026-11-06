@@ -21,5 +21,9 @@ export function createSkillCommands(withConnection: WithConnection): SkillComman
       }
       return viewed;
     },
+    list: (threadId) =>
+      withConnection((c) =>
+        c.request("knowledge.skills.list", threadId === null ? {} : { threadId }),
+      ),
   };
 }
