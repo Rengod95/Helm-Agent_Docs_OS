@@ -24,7 +24,7 @@
 - 절단 띠는 `ReplayReport.cuts`의 커밋마다 칸 하나를 그립니다. 같은 절단은 회색 칸, 다른 절단은 붉은 칸입니다(시안 c01-trials). 칸이 200개를 넘으면 나머지는 정보 아이콘 뒤에 수로 적습니다.
 - 화면은 "시험 대화" 구역(Test run)과 "재실행 검사 · 성능 측정 · 보호 경로 검사" 구역(replay)으로 나눕니다. 고른 행의 상세는 그 행의 구역 아래에 펼칩니다. 설명 글은 정보 아이콘(`InfoTip`, DP-58) 뒤에 둡니다. 720 아래 폭은 표 대신 두 줄 목록입니다(`compact`).
 - Test run의 멈춤 표지는 명령 결과가 든 값입니다. 목록에는 표지가 없습니다. "멈춤" 뒤에는 "이어서"와 "한 경계씩"만 보이고, 새 턴을 여는 동작은 없습니다.
-- 새 시험의 Test run은 대상(확장 이름)을 받아 `ext.test.run { kind: "testRun", target }`으로 시작합니다. 대화 이름은 대상 이름이고, 그 확장을 이 대화에서 켜며, `ext.test.list`에 `running` 기록을 남깁니다. 시작에 성공하면 "{이름} 시험 대화를 만들었어요." 알림을 보이고 목록을 다시 읽어 "실행 중" 행이 나타납니다. 행을 고르면 멈춤·이어서·한 경계씩이 보입니다.
+- 새 시험의 Test run은 대상(확장 이름)과 과제(필수)를 받아 `ext.test.run { kind: "testRun", target }`으로 시작하고, 돌려받은 `threadId`의 대화를 열어 과제를 첫 턴으로 보냅니다(`sendTestPrompt`). 대화 이름은 대상 이름이고, 그 확장을 이 대화에서 켜며, `ext.test.list`에 `running` 기록을 남깁니다. 시작에 성공하면 "{이름} 시험 대화를 만들었어요." 알림을 보이고 목록을 다시 읽어 "실행 중" 행이 나타납니다. 행을 고르면 멈춤·이어서·한 경계씩이 보입니다.
 - Test run 기록은 끝내는 wire가 없어 `running`으로 남습니다. 호스트를 다시 띄운 뒤 처음 읽을 때 `failed`로 바뀝니다(`test-record-store.ts`의 `interruptedOf`) [미결].
 - 맥락 칸이 시험이나 대화이면 그 대화 id의 Test run만 보입니다. replay 기록에는 대화가 없어 대화 맥락에서는 보이지 않습니다.
 - 글은 모두 `desktop.tests.*` 메시지 키입니다. 색은 caustic 토큰 클래스만 씁니다. caustic `Button`과 `Badge`는 `tone` prop이 lint(`no-deprecated`)에 걸려 `variant`만 씁니다. 판정 표지는 `Tag`(`test-detail.tsx`)를 씁니다.

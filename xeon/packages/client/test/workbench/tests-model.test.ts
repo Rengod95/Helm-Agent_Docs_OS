@@ -72,7 +72,7 @@ const draft = (over: Partial<NewTestDraft> = {}): NewTestDraft => ({
 
 /** Test run 초안. 대상은 비어 있는 것이 기본이다 */
 const testRun = (over: Partial<NewTestDraft> = {}): NewTestDraft =>
-  draft({ kind: "testRun", target: "", ...over });
+  draft({ kind: "testRun", target: "", prompt: "1+1은?", ...over });
 
 describe("P-19 테스트 모델", () => {
   test("test-run.dev-only-locked: outside dev mode replay, benchmark and core diff are locked by the dev badge, Test run and the list stay open", () => {
@@ -105,6 +105,7 @@ describe("P-19 테스트 모델", () => {
     expect(submitPlanOf(draft({ kind: "replay" }), true)).toEqual({
       kind: "run",
       params: { kind: "replay", target: "review", options: { maxCommits: 200 } },
+      prompt: null,
       confirm: false,
     });
     expect(submitPlanOf(draft({ kind: "benchmark" }), true)).toEqual({ kind: "unwired" });
@@ -210,18 +211,31 @@ describe("P-19 테스트 모델", () => {
     expect(draftErrorsOf(draft({ kind: "benchmark", runs: "51" }))).toEqual([
       { field: "runs", reason: "range" },
     ]);
-    expect(draftErrorsOf(draft({ kind: "testRun", target: "" }))).toEqual([
+    expect(draftErrorsOf(draft({ kind: "testRun", target: "", prompt: "do it" }))).toEqual([
       { field: "target", reason: "required" },
     ]);
     expect(
-      draftErrorsOf(draft({ kind: "testRun", target: "demo-plugin", maxCommits: "0" })),
+      draftErrorsOf(
+        draft({ kind: "testRun", target: "demo-plugin", prompt: "do it", maxCommits: "0" }),
+      ),
     ).toEqual([]);
+    expect(draftErrorsOf(draft({ kind: "testRun", target: "demo-plugin", prompt: "  " }))).toEqual([
+      { field: "prompt", reason: "required" },
+    ]);
+    expect(
+      draftErrorsOf(draft({ kind: "testRun", target: "demo-plugin", prompt: "x".repeat(8001) })),
+    ).toEqual([{ field: "prompt", reason: "tooLong" }]);
+    // replay는 과제가 없어도 된다
+    expect(draftErrorsOf(draft({ kind: "replay", prompt: "" }))).toEqual([]);
   });
 
   test("a Test run needs a target of at most 96 characters and no replay commit limit, and its start plan carries the trimmed target", () => {
     expect(submitPlanOf(NEW_TEST_DEFAULT, false)).toEqual({
       kind: "invalid",
-      errors: [{ field: "target", reason: "required" }],
+      errors: [
+        { field: "target", reason: "required" },
+        { field: "prompt", reason: "required" },
+      ],
     });
     expect(submitPlanOf(testRun({ target: "   " }), false)).toEqual({
       kind: "invalid",
@@ -234,11 +248,13 @@ describe("P-19 테스트 모델", () => {
     expect(submitPlanOf(testRun({ target: "  demo-plugin  ", maxCommits: "0" }), false)).toEqual({
       kind: "run",
       params: { kind: "testRun", target: "demo-plugin" },
+      prompt: "1+1은?",
       confirm: false,
     });
     expect(submitPlanOf(testRun({ target: "demo-plugin" }), true)).toEqual({
       kind: "run",
       params: { kind: "testRun", target: "demo-plugin" },
+      prompt: "1+1은?",
       confirm: false,
     });
   });

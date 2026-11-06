@@ -10,7 +10,8 @@ import {
   type TestRowVM,
   type TestsNotice,
 } from "@fresnel/client/workbench";
-import { assertNever, attemptAsync, detach, rethrow } from "@fresnel/contracts";
+import { assertNever, attemptAsync, detach, parse, rethrow } from "@fresnel/contracts";
+import { ThreadIdSchema } from "@fresnel/contracts/conversation";
 import type { ReplayReport } from "@fresnel/contracts/services";
 import type { ExtTestRunParams } from "@fresnel/contracts/wire";
 import { useEffect, useReducer, type ReactNode } from "react";
@@ -18,7 +19,7 @@ import { useLinkPhase } from "../../state/engine/index.ts";
 import { useShell, type WorkbenchContext } from "../../state/shell/index.ts";
 import { useCommands } from "../commands.ts";
 import { tabLinkOf } from "../workbench/tab-read.ts";
-import { phaseOf, runControl, startTest } from "./tests-actions.ts";
+import { phaseOf, runControl, sendTestPrompt, startTest } from "./tests-actions.ts";
 import { useTestList } from "./tests-read.ts";
 import { TestsView, type TestsViewHandlers } from "./tests-view.tsx";
 
@@ -84,9 +85,25 @@ export function TestsScreen(): ReactNode {
     };
   }, [commands, online, selectedRunning, selectedThread]);
 
-  const startNow = async (params: ExtTestRunParams): Promise<void> => {
+  const startNow = async (params: ExtTestRunParams, prompt: string | null): Promise<void> => {
     dispatch({ type: "sending", sending: true });
     const started = await startTest(commands.tests, params);
+    if (started.ok && prompt !== null && started.value.threadId !== null) {
+      // 시험 대화를 열고 과제를 첫 턴으로 보낸다. 대화는 이미 만들어졌으므로 보내지 못해도 목록은 다시 읽는다
+      const threadId = parse(ThreadIdSchema, started.value.threadId);
+      const sent = threadId.ok
+        ? await sendTestPrompt(commands, threadId.value, prompt, crypto.randomUUID())
+        : null;
+      if (sent === null || !sent.ok) {
+        dispatch({ type: "sending", sending: false });
+        dispatch({
+          type: "notice",
+          notice: { kind: "failed", failure: sent === null ? "failed" : sent.failure },
+        });
+        list.reload();
+        return;
+      }
+    }
     dispatch({ type: "sending", sending: false });
     if (started.ok) {
       dispatch({ type: "sheetClose" });
@@ -104,7 +121,7 @@ export function TestsScreen(): ReactNode {
     switch (plan.kind) {
       case "run":
         if (plan.confirm) dispatch({ type: "confirmOpen", params: plan.params });
-        else await startNow(plan.params);
+        else await startNow(plan.params, plan.prompt);
         return;
       case "locked":
       case "unwired":
@@ -157,8 +174,10 @@ export function TestsScreen(): ReactNode {
     },
     confirmRun: () => {
       const params = ui.confirm;
+      const prompt =
+        ui.sheet !== null && params?.kind === "testRun" ? ui.sheet.prompt.trim() : null;
       dispatch({ type: "confirmClose" });
-      if (params !== null) detach(startNow(params), rethrow);
+      if (params !== null) detach(startNow(params, prompt), rethrow);
     },
     cancelRun: () => {
       dispatch({ type: "confirmClose" });

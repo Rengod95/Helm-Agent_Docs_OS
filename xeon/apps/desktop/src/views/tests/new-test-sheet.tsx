@@ -24,6 +24,7 @@ import {
   RadioGroup,
   RadioGroupItem,
   Sheet,
+  Textarea,
 } from "@caustic/react";
 import { Lock } from "@caustic/react/icons";
 import type { ExtTestRunParams } from "@fresnel/contracts/wire";
@@ -171,6 +172,22 @@ export function NewTestForm(props: {
           <InfoTip text={t("desktop.tests.sheet.targetHint")} />
         </div>
       </Field>
+      {draft.kind === "testRun" ? (
+        <Field label={t("desktop.tests.sheet.prompt")} error={errorOf("prompt")}>
+          <div className="flex items-start gap-1.5">
+            <Textarea
+              size="xs"
+              rows={4}
+              value={draft.prompt}
+              className="min-w-0 flex-1 resize-none"
+              onChange={(event) => {
+                onChange({ ...draft, prompt: event.currentTarget.value });
+              }}
+            />
+            <InfoTip text={t("desktop.tests.sheet.promptHint")} />
+          </div>
+        </Field>
+      ) : null}
       {draft.kind === "replay" ? (
         <Field label={t("desktop.tests.sheet.maxCommits")} error={errorOf("maxCommits")}>
           <Input

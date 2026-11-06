@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { renderToString } from "react-dom/server";
-import { err, ok } from "@fresnel/contracts";
+import { err, ok, parse } from "@fresnel/contracts";
+import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
 import {
   ALL_TESTS,
   INITIAL_TESTS_UI,
@@ -9,7 +10,12 @@ import {
   type TestsUiState,
 } from "@fresnel/client/workbench";
 import type { ExtTestRecord, ExtTestRunParams } from "@fresnel/contracts/wire";
-import { phaseOf, runControl, startTest } from "../../../src/views/tests/tests-actions.ts";
+import {
+  phaseOf,
+  runControl,
+  sendTestPrompt,
+  startTest,
+} from "../../../src/views/tests/tests-actions.ts";
 import { TestsView, type TestsViewHandlers } from "../../../src/views/tests/tests-view.tsx";
 import { fakeCommands } from "../fake-commands.ts";
 
@@ -17,6 +23,11 @@ import { fakeCommands } from "../fake-commands.ts";
 // 새 턴을 여는 동작은 화면에 없고, 명령 대역은 멈춤·단계 읽기 말고는 아무 것도 받지 않았어야 한다.
 
 const NOOP = (): void => {};
+function threadIdOf(raw: string): ThreadId {
+  const parsed = parse(ThreadIdSchema, raw);
+  if (!parsed.ok) throw new Error(`bad thread id ${raw}`);
+  return parsed.value;
+}
 const handlers: TestsViewHandlers = {
   select: NOOP,
   filter: NOOP,
@@ -158,7 +169,7 @@ describe("새 테스트 시작", () => {
       },
     });
     const outcome = await startTest(commands.tests, { kind: "testRun", target: "demo-plugin" });
-    expect(outcome).toEqual({ ok: true, value: "t-7" });
+    expect(outcome).toEqual({ ok: true, value: { testId: "t-7", threadId: "thr_7" } });
     expect(calls).toEqual([{ kind: "testRun", target: "demo-plugin" }]);
   });
 
@@ -171,5 +182,38 @@ describe("새 테스트 시작", () => {
     });
     const outcome = await startTest(commands.tests, { kind: "testRun", target: "demo-plugin" });
     expect(outcome).toEqual({ ok: false, failure: "rejected" });
+  });
+
+  test("the Test run task opens the test conversation and is sent as its first turn, and a send failure is reported as a value", async () => {
+    const calls: string[] = [];
+    const sent = await sendTestPrompt(
+      {
+        selectThread: (id) => {
+          calls.push(`select ${id}`);
+        },
+        sendTurn: (id, text, requestId) => {
+          calls.push(`send ${id} ${text} ${requestId}`);
+          return Promise.resolve(ok(null));
+        },
+      },
+      threadIdOf("thr_00000000000000000000000007"),
+      "1+1은?",
+      "req-1",
+    );
+    expect(sent).toEqual({ ok: true, value: null });
+    expect(calls).toEqual([
+      "select thr_00000000000000000000000007",
+      "send thr_00000000000000000000000007 1+1은? req-1",
+    ]);
+    const failed = await sendTestPrompt(
+      {
+        selectThread: NOOP,
+        sendTurn: () => Promise.resolve(err({ kind: "offline" })),
+      },
+      threadIdOf("thr_00000000000000000000000007"),
+      "1+1은?",
+      "req-2",
+    );
+    expect(failed).toEqual({ ok: false, failure: "offline" });
   });
 });
