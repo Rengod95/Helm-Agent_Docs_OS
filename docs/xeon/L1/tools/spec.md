@@ -1009,7 +1009,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 1. 모델이 광고하지 않은 도구를 부름(전역 deny로 뺀 도구 포함): `prepare` 2단계는 광고 목록을 다시 보지 않고 등록 표에서 이름을 찾는다. 등록되지 않은 이름이면 `[fresnel:tool_unavailable]` 오류 결과(`settled`)다. 등록된 도구면 5a·5b를 지나므로 전역 deny 규칙이 그 호출을 거부한다.
 2. 인자 검증 실패: 예외를 던지지 않고 `isError: true` 도구 결과로 모델에 돌아간다. 효과 이벤트는 없다. 루프는 계속된다(§4.2 4단계, core-tools `validate.ts`).
-3. `tool.call.before` 핸들러 예외 또는 결정 스키마 위반: `FIRST_DENY.tool_call`(`{ block: true, reason: "extension handler failed" }`)로 거부한다(F.extensions.spec §3.5, §5 사례 2). ext-host 디스패치 호출 자체가 실패해도 같은 거부로 본다(fail-closed).
+3. `tool.call.before` 핸들러 예외 또는 결정 스키마 위반: `FIRST_DENY.tool_call`(`{ block: true, reason: "extension handler failed" }`)로 거부한다(F.extensions.spec §3.5, §5 사례 2). ext-host 디스패치 호출 자체가 실패해도 같은 거부로 본다(fail-closed). 이 거부의 도구 결과 `details`는 UI·로그용으로 `{ code: "denied_by_extension", hook: "tool.call.before", extension, outcome, reason }`를 싣는다. `outcome`은 핸들러 결정이면 `blocked`(`reason`은 그 사유), 예외·시간 초과·스키마 위반·중단으로 대체됐거나 디스패처가 실패했으면 `threw`(`reason`은 null)이고, 디스패처 실패만 `extension`이 null이다. 모델에 가는 본문(`content`)은 바뀌지 않는다 [결정: 오케스트레이터 기본값, scI].
 4. 정책 규칙의 정규식이 잘못됨: 적재 때 그 규칙만 빼고 진단을 남긴다. 평가는 나머지 규칙으로 한다. managed 규칙이 빠지면 설정 화면에 오류 배지를 보인다(L4.settings-ui.spec).
 5. 승인 대기 중 턴 취소: §4.7 8번. 승인 대기 중 프로세스 강제 종료: §4.7 재개.
 6. 승인 대기 중 클라이언트 재접속: 클라이언트는 `events.subscribe`로 미해결 `approval.requested`를 다시 받는다. 호스트는 `ApprovalService.pending`으로 현재 목록을 줄 수도 있다.

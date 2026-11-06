@@ -313,6 +313,83 @@ test("a dispatcher exception is also a denial (fail closed)", async () => {
   expect(kindsOf(h)).toEqual(["item.recorded"]);
 });
 
+test("a tool.call.before decision names its extension in details and keeps the model text", async () => {
+  const h = await createHarness();
+  registerWorkspace(h);
+  await installHandlers(h, "guard", ["tool.call.before"], (g) => {
+    g.on("tool.call.before", () => ({ block: true, reason: "no reads today" }));
+  });
+  const out = await callTool(h.runtime.tools, h.run(), {
+    id: "call_16",
+    name: "read",
+    args: { path: "a" },
+  });
+  expect(out.blocked).toBe("[fresnel:denied_by_extension] no reads today");
+  expect(out.outcome.message.details).toEqual({
+    code: "denied_by_extension",
+    hook: "tool.call.before",
+    extension: "guard",
+    outcome: "blocked",
+    reason: "no reads today",
+  });
+});
+
+test("a tool.call.before handler that throws is details threw with its extension, the model text unchanged", async () => {
+  const h = await createHarness();
+  registerWorkspace(h);
+  await installHandlers(h, "bad-guard", ["tool.call.before"], (g) => {
+    g.on("tool.call.before", () => {
+      throw new Error("boom");
+    });
+  });
+  const out = await callTool(h.runtime.tools, h.run(), {
+    id: "call_17",
+    name: "read",
+    args: { path: "a" },
+  });
+  expect(out.blocked).toBe("[fresnel:denied_by_extension] extension handler failed");
+  expect(out.outcome.message.details).toEqual({
+    code: "denied_by_extension",
+    hook: "tool.call.before",
+    extension: "bad-guard",
+    outcome: "threw",
+    reason: null,
+  });
+});
+
+test("a dispatcher failure is details threw with no extension name", async () => {
+  const h = await createHarness();
+  registerWorkspace(h);
+  const failing = createToolRuntimeWith(h, {
+    dispatch: () => Promise.reject(new Error("dispatcher down")),
+  });
+  const out = await callTool(failing.tools, h.run(), {
+    id: "call_18",
+    name: "read",
+    args: { path: "a" },
+  });
+  expect(out.blocked).toBe("[fresnel:denied_by_extension] extension handler failed");
+  expect(out.outcome.message.details).toEqual({
+    code: "denied_by_extension",
+    hook: "tool.call.before",
+    extension: null,
+    outcome: "threw",
+    reason: null,
+  });
+});
+
+test("a denial that is not from a hook carries no hook details", async () => {
+  const h = await createHarness();
+  registerWorkspace(h);
+  const out = await callTool(h.runtime.tools, h.run(), {
+    id: "call_19",
+    name: "no_such_tool",
+    args: {},
+  });
+  expect(out.blocked).toBe("[fresnel:tool_unavailable] Tool no_such_tool is not available.");
+  expect(out.outcome.message.details).toBeUndefined();
+});
+
 test("tool_result_handler_throw_skipped: one failing handler does not turn the result into an error", async () => {
   const h = await createHarness();
   registerWorkspace(h);

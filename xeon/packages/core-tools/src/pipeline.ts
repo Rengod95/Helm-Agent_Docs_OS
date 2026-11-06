@@ -138,14 +138,37 @@ interface Finished {
   readonly itemId: ItemId | null;
 }
 
-/** 실행 전에 막은 이유 */
+/** 실행 전에 막은 이유. `details`는 UI·로그용이고 모델에 가는 본문은 `reason`뿐이다 */
 interface Denied {
   readonly reason: string;
   readonly terminate: boolean;
+  readonly details: JsonObject | null;
 }
 
-function denied(reason: string, terminate: boolean = false): Denied {
-  return { reason, terminate };
+function denied(
+  reason: string,
+  terminate: boolean = false,
+  details: JsonObject | null = null,
+): Denied {
+  return { reason, terminate, details };
+}
+
+/**
+ * `tool.call.before`가 막은 호출의 UI용 details(L1.tools §5 사례 3). `blocked`는 핸들러가 결정을 냈다는 뜻이고 `threw`는
+ * 핸들러 실패나 디스패처 실패를 거부로 바꾼 것이다. 확장을 특정하지 못하면 `extension`은 null이다
+ */
+function hookDenialDetails(
+  outcome: "blocked" | "threw",
+  extension: string | null,
+  reason: string | null,
+): JsonObject {
+  return {
+    code: "denied_by_extension",
+    hook: "tool.call.before",
+    extension,
+    outcome,
+    reason,
+  };
 }
 
 function userShellFailure(text: string, code: string): ToolResultRecord {
@@ -234,10 +257,14 @@ function closedKey(run: ToolRunContext, toolCallId: string): string {
   return `${run.threadId}\0${toolCallId}`;
 }
 
-function rejectedResult(reason: string, terminate: boolean): RawToolResult {
+function rejectedResult(
+  reason: string,
+  terminate: boolean,
+  details: JsonObject | null = null,
+): RawToolResult {
   return {
     content: [{ type: "text", text: reason }],
-    details: null,
+    details,
     isError: true,
     ...(terminate ? { terminate: true } : {}),
   };
@@ -453,14 +480,28 @@ export function createPipeline(
       });
       const decision = outcome.decision;
       if (decision === undefined) return undefined;
+      // 대체된 결정(실패·시간 초과·스키마 위반)은 핸들러가 던진 것과 같은 "오류" 거부다. 모델 본문은 두 경우 모두 그대로 둔다
+      const extension = outcome.decidedBy?.extension ?? null;
+      if (outcome.substituted) {
+        return denied(
+          `[fresnel:denied_by_extension] ${decision.reason}`,
+          decision.terminate === true,
+          hookDenialDetails("threw", extension, null),
+        );
+      }
       return denied(
         `[fresnel:denied_by_extension] ${decision.reason}`,
         decision.terminate === true,
+        hookDenialDetails("blocked", extension, decision.reason),
       );
     } catch (error) {
       // 디스패처 자체의 실패도 거부다(fail-closed, L1.tools.spec §5 사례 3)
       warn("tools.tool_call_dispatch_failed", { toolCallId, message: messageOf(error) });
-      return denied(`[fresnel:denied_by_extension] ${FIRST_DENY["tool.call.before"].reason}`);
+      return denied(
+        `[fresnel:denied_by_extension] ${FIRST_DENY["tool.call.before"].reason}`,
+        false,
+        hookDenialDetails("threw", null, null),
+      );
     }
   }
 
@@ -807,11 +848,12 @@ export function createPipeline(
     const settle = async (
       reason: string,
       terminate: boolean = false,
+      details: JsonObject | null = null,
     ): Promise<CallPreparation> => ({
       kind: "settled",
       outcome: await recordWithoutEffect(run, call, {
         state: "rejected",
-        result: rejectedResult(reason, terminate),
+        result: rejectedResult(reason, terminate, details),
         silent: user,
       }),
     });
@@ -859,7 +901,7 @@ export function createPipeline(
     }
     if (verdict !== undefined) {
       forget(state);
-      return settle(verdict.reason, verdict.terminate);
+      return settle(verdict.reason, verdict.terminate, verdict.details);
     }
     return { kind: "ready", call: { toolCall: call, args: checked.value } };
   }
