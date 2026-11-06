@@ -586,6 +586,10 @@ describe("module wiring", () => {
     const response = await handler(new Request("fresnel-view://helm/1.0.0/app.js"));
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("1");
+    // 프레임 주소는 `#n=<nonce>` 조각을 단다(buildAppUrl). 조각은 요청 대상이 아니므로 같은 파일이 나온다
+    const withNonce = await handler(new Request("fresnel-view://helm/1.0.0/app.js#n=abc123"));
+    expect(withNonce.status).toBe(200);
+    expect(await withNonce.text()).toBe("1");
   });
 
   test("the handler sees the URL after WHATWG dot-segment normalization", async () => {
