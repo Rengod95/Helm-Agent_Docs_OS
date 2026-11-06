@@ -8,7 +8,7 @@ import {
   SelectOption,
   Textarea,
 } from "@caustic/react";
-import { ArrowUp, Paperclip } from "@caustic/react/icons";
+import { ArrowUp, Plus } from "@caustic/react/icons";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ModelEntry } from "@fresnel/contracts/wire";
@@ -41,7 +41,6 @@ import {
   type AttachmentSource,
 } from "./attachment-model.ts";
 import { AttachmentRow } from "./composer-attachments.tsx";
-import { InfoTip } from "./craft/info-tip.tsx";
 import { pickAttachmentFile } from "./folder-pick.ts";
 import { useFolderPick } from "./folder-pick-context.ts";
 import { useCommands, type BusyInputMode, type CommandError } from "./commands.ts";
@@ -463,15 +462,14 @@ function ComposerFor(props: {
             <IconButton
               label={attachBlocked ?? t("desktop.composer.attach.button")}
               size="xs"
-              variant="ghost"
+              aria-description={t("desktop.composer.attach.info")}
               disabled={attachBlocked !== null}
               onClick={() => {
                 detach(pickFile(), rethrow);
               }}
             >
-              <Paperclip aria-hidden />
+              <Plus aria-hidden />
             </IconButton>
-            <InfoTip text={t("desktop.composer.attach.info")} />
             <SegmentedControl
               size="xs"
               aria-label={t("desktop.composer.mode.label")}

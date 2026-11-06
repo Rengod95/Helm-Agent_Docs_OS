@@ -4,7 +4,7 @@ import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { storeFailureOfExitCode, type StatusItemRecord } from "@fresnel/contracts/records";
-import type { ThreadSummary } from "@fresnel/contracts/wire";
+import type { ExtUiEntry, ThreadSummary } from "@fresnel/contracts/wire";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { nativeEntriesOf, originTitleOf } from "../plugin-ui/placements.ts";
 import {
@@ -100,11 +100,20 @@ function StatusCells(): ReactNode {
   const threadId = useSelectedThreadId();
   if (threadId === null) return null;
   return nativeEntriesOf(plugin.groups.status, plugin.inactive).map((entry) => (
+    <StatusCellBox key={screenKeyOf(entry)} entry={entry} />
+  ));
+}
+
+/** 값을 읽지 못한 칸은 감춘다. 표면은 그대로 두어 읽기 폴링이 이어지고 값이 오면 다시 보인다 */
+function StatusCellBox(props: { readonly entry: ExtUiEntry }): ReactNode {
+  const { entry } = props;
+  const [failed, setFailed] = useState(false);
+  return (
     <div
-      key={screenKeyOf(entry)}
-      className="flex min-w-0 max-w-[24ch] items-center gap-1 truncate"
+      className={`flex min-w-0 max-w-[24ch] items-center gap-1 truncate${failed ? " hidden" : ""}`}
       title={originTitleOf(entry)}
       data-status-cell={screenKeyOf(entry)}
+      data-status-failed={failed ? "" : undefined}
     >
       <span
         className="shrink-0 text-ui-sm text-text-secondary"
@@ -112,9 +121,9 @@ function StatusCells(): ReactNode {
       >
         {entry.extension}
       </span>
-      <EntrySurface entry={entry} dense />
+      <EntrySurface entry={entry} dense onFailed={setFailed} />
     </div>
-  ));
+  );
 }
 
 const STATUS_TONE_CLASS: Readonly<Record<NonNullable<StatusItemRecord["tone"]>, string>> = {
