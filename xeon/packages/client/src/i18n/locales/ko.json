@@ -2606,6 +2606,8 @@
   "desktop.tests.duration.sec": "{value}초",
   "desktop.tests.duration.min": "{value}분",
   "desktop.tests.detail.heading": "결과",
+  "desktop.tests.detail.verdict": "판정",
+  "desktop.tests.detail.cutTerm": "절단",
   "desktop.tests.detail.limit": "테이프 재생은 응답이 고정되어 “결과가 나아졌나”에 답하지 못해요.",
   "desktop.tests.detail.cut": "절단 {commits}개 중 {passed}개가 같아요.",
   "desktop.tests.detail.cutHidden": "나머지 {hidden}칸은 그리지 않았어요.",

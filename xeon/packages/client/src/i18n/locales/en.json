@@ -2606,6 +2606,8 @@
   "desktop.tests.duration.sec": "{value} s",
   "desktop.tests.duration.min": "{value} min",
   "desktop.tests.detail.heading": "Result",
+  "desktop.tests.detail.verdict": "Verdict",
+  "desktop.tests.detail.cutTerm": "Cuts",
   "desktop.tests.detail.limit": "Tape replay pins the responses, so it cannot answer whether the result got better.",
   "desktop.tests.detail.cut": "{passed} of {commits} cuts matched.",
   "desktop.tests.detail.cutHidden": "The other {hidden} cells are not drawn.",
