@@ -49,7 +49,12 @@ suite("real sandbox network policy (srt proxy)", () => {
       },
     });
     // NO_PROXY가 루프백을 프록시 밖으로 보내므로 --noproxy ''로 프록시를 강제한다
-    const fetchCode = `curl -s --noproxy '' -o /dev/null -w '%{http_code}' --max-time 8 http://127.0.0.1:${String(listener.port)}/`;
+    // srt는 중계기가 뜨기를 최대 0.3초만 기다리고 명령을 시작한다. 부하가 큰 CI에서는 중계기가 아직 안 뜬 채 curl이 돌아
+    // 000이 될 수 있다. 시간을 기다리지 않고, 프록시 포트가 연결을 받는다는 신호가 올 때까지 bash 내장 /dev/tcp로 확인한다
+    const relayReady =
+      "port=${HTTP_PROXY##*:}; port=${port%/}; n=0; " +
+      'until (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; do n=$((n+1)); [ "$n" -lt 20000 ] || break; done; ';
+    const fetchCode = `${relayReady}curl -s --noproxy '' -o /dev/null -w '%{http_code}' --max-time 8 http://127.0.0.1:${String(listener.port)}/`;
     const codeWith = async (blockedDomains: readonly string[]): Promise<string> => {
       const box = await startRealSandbox({ blockedDomains });
       try {
