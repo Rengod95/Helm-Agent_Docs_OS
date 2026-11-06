@@ -16,6 +16,7 @@
         "since": "0.1.0",
         "ui": {
           "label": "Accept the terms-of-service risk notice",
+          "labelKey": "settings.ext.accountRotation.acknowledgeRisk.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -460,7 +461,9 @@
         "since": "0.1.0",
         "ui": {
           "help": "When an inquiry signal fires: off only records it, suggest posts a proposal message, auto requests the inquiry right away",
+          "helpKey": "settings.ext.helm.autoStart.help",
           "label": "Helm auto start",
+          "labelKey": "settings.ext.helm.autoStart.label",
           "order": 200,
           "tab": "plugins",
           "widget": "select"
@@ -503,7 +506,9 @@
         "since": "0.1.0",
         "ui": {
           "help": "Turn, sub-agent, and token limits used by a Helm inquiry. Overrides x.primitives.driveDefaultLimits for Helm only, and cannot exceed the ceiling x.primitives.driveLimits.",
+          "helpKey": "settings.ext.helm.driveLimits.help",
           "label": "Helm drive limits",
+          "labelKey": "settings.ext.helm.driveLimits.label",
           "order": 210,
           "tab": "plugins",
           "widget": "table"
@@ -576,10 +581,13 @@
         "since": "0.1.0",
         "ui": {
           "help": "Number of exploration perspectives one inquiry runs in parallel. If it exceeds the remaining spawn budget, only the first lenses run",
+          "helpKey": "settings.ext.helm.maxLenses.help",
           "label": "Helm lens count",
+          "labelKey": "settings.ext.helm.maxLenses.label",
           "order": 220,
           "tab": "plugins",
           "unit": "items",
+          "unitKey": "settings.ext.helm.maxLenses.unit",
           "widget": "number"
         }
       }
@@ -601,7 +609,9 @@
         "since": "0.1.0",
         "ui": {
           "help": "Blocks write tool calls before execution in the divergent and exploration phases",
+          "helpKey": "settings.ext.helm.writeGuard.help",
           "label": "Helm write blocking",
+          "labelKey": "settings.ext.helm.writeGuard.label",
           "order": 230,
           "tab": "plugins",
           "widget": "toggle"
@@ -737,6 +747,7 @@
         "since": "0.1.0",
         "ui": {
           "label": "Accept the terms-of-service risk notice",
+          "labelKey": "settings.ext.providerAnthropicOauth.acknowledgeRisk.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -766,6 +777,7 @@
         "since": "0.1.0",
         "ui": {
           "label": "OAuth token secret reference",
+          "labelKey": "settings.ext.providerAnthropicOauth.credential.label",
           "order": 20,
           "tab": "plugins",
           "widget": "text"
