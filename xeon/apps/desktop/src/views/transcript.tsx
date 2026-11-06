@@ -4,6 +4,7 @@ import type { ItemId } from "@fresnel/contracts/conversation";
 import { useMemo, type ReactNode } from "react";
 import {
   useOpenThreadId,
+  useLastUserItemId,
   useStreamingIds,
   useTranscriptItemIds,
   useTranscriptFailure,
@@ -44,6 +45,7 @@ export function Transcript(): ReactNode {
   const commands = useCommands();
   const failure = useTurnFailure(threadId);
   const unsentId = useUnsentUserItemId();
+  const lastUserId = useLastUserItemId();
   // 진행 중 item은 열린 thread의 것만 보인다
   const rows = useMemo<readonly Row[]>(
     () => [
@@ -87,6 +89,7 @@ export function Transcript(): ReactNode {
       <VirtualList
         rows={rows}
         followTail
+        ownTailKey={lastUserId}
         label={t("desktop.transcript.label")}
         renderRow={(row) =>
           row.live ? (
