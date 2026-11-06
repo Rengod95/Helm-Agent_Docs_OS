@@ -134,6 +134,8 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
   const guardExecution = createGuardExecution(ctx);
   const threads = new Map<ThreadId, ThreadRuntime>();
   const leaves = new Map<ThreadId, EventId>();
+  /** 사용자가 중단한 thread. 큐에 남은 입력을 자동으로 시작하지 않는다. 새 입력(`admit`)이나 `resume`이 풀어 준다 */
+  const heldQueues = new Set<ThreadId>();
 
   // 커밋한 쪽과 무관하게 활성 가지의 마지막 이벤트를 따라간다(도구 커밋 포함)
   const unsubscribeCommits = deps.session.feed.onCommit((batch) => {
@@ -298,6 +300,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
 
   /** 유휴 thread의 큐 입력으로 turn을 연다. 같은 thread의 중복 시작은 하나로 합친다 */
   function startFromQueue(thread: ThreadRuntime): Promise<StartOutcome | undefined> {
+    if (heldQueues.has(thread.threadId)) return Promise.resolve(undefined);
     if (thread.starting !== null) return thread.starting;
     if (thread.running !== null) return Promise.resolve(undefined);
     const queued = deps.tasks.inputs.peek(thread.threadId, ["steer", "followUp"]);
@@ -580,6 +583,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
   // ── LoopService ─────────────────────────────────────────────────────
 
   async function admit(request: AdmitRequest): Promise<Result<AdmitResult, LoopError>> {
+    heldQueues.delete(request.threadId);
     const requestId = request.requestId ?? deps.ids.next("evt");
     if (requestId.length < 1 || requestId.length > 64) {
       return err({ kind: "input_invalid", message: "requestId must be 1-64 characters" });
@@ -947,12 +951,25 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     runChildTurn,
     async interrupt(threadId, turnId) {
       const running = threads.get(threadId)?.running;
-      if (running === null || running === undefined) return false;
+      if (running === null || running === undefined) {
+        // 이전 프로세스가 남긴 열린 turn이면 실행 중인 것이 없어도 중단은 그것을 interrupted로 닫는다(L1.loop.spec §4.4)
+        const open = deps.session.query.openTurn(threadId);
+        if (!open.ok || open.value === undefined) return false;
+        if (turnId !== undefined && open.value.turnId !== turnId) return false;
+        const stale = runtimeOf(threadId);
+        heldQueues.add(threadId);
+        const closed = await stale.gate.run(0, () => closeStaleOpenTurn(stale));
+        return closed.ok;
+      }
       if (turnId !== undefined && running.turnId !== turnId) return false;
       const ticket = await deps.tasks.abort(running.scope, { code: "user", message: null });
-      return ticket.ok && ticket.value.status !== "already_settled";
+      const aborted = ticket.ok && ticket.value.status !== "already_settled";
+      // 중단은 멈추려는 뜻이다. 큐에 남은 입력은 사용자가 보내거나 이어서 실행할 때까지 시작하지 않는다
+      if (aborted) heldQueues.add(threadId);
+      return aborted;
     },
     async resume(threadId) {
+      heldQueues.delete(threadId);
       const thread = runtimeOf(threadId);
       if (thread.running !== null) return ok({ status: "nothing" });
       const begun = Promise.withResolvers<Result<ResumeResult, LoopError>>();
