@@ -48,7 +48,7 @@ const logsDir =
     : path.join(app.getPath("userData"), "logs");
 
 function resourcesDir(): string {
-  return app.isPackaged ? process.resourcesPath : path.resolve(import.meta.dirname, "..");
+  return app.isPackaged ? process.resourcesPath : path.resolve(import.meta.dirname, "..", "..");
 }
 
 function uiDir(): string {
