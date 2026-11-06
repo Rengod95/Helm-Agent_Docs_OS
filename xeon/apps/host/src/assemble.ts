@@ -134,6 +134,7 @@ import {
   BUILTIN_GROUP_NAMES,
   followBuiltinEnabled,
   followExtEnabled,
+  followThreadEnabled,
 } from "./assembly/ext-enabled.ts";
 import { loadExternalExtensions } from "./assembly/external.ts";
 import { createExtUiVersionSource } from "./assembly/m4/ext-ui-version-source.ts";
@@ -975,7 +976,12 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       }
     });
 
-    external.unfollowBuiltin = followBuiltinEnabled({
+    const unfollowThread = followThreadEnabled({
+      onChange: (listener) => settings.onChange(listener),
+      value: (key, threadId) => settings.value(key, threadId),
+      toggles: registrationToggleSourceOf(ext),
+    });
+    const unfollowGlobal = followBuiltinEnabled({
       onChange: (listener) => settings.onChange(listener),
       value: (key) => settings.value(key),
       host: ext,
@@ -987,6 +993,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         operations.autoDisabler.clearLedger(`ext:${name}`);
       },
     });
+    external.unfollowBuiltin = () => {
+      unfollowGlobal();
+      unfollowThread();
+    };
 
     // 3a. 외부 훅 단위. 안전 모드에서는 싣지 않는다(X.operations.spec §4.6.2)
     await externalHooks.install(ext, safeMode, operations.tiers);

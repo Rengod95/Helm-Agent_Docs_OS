@@ -1,5 +1,11 @@
 import { detach, type Logger } from "@fresnel/contracts";
-import type { ExtHost, ExtensionLoader, OperationsPolicy } from "@fresnel/ext-host";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type {
+  ExtHost,
+  ExtensionLoader,
+  OperationsPolicy,
+  RegistrationToggleSourceOf,
+} from "@fresnel/ext-host";
 import type { SettingsChange } from "../types.ts";
 
 // 일반 켜기 스위치(`settings.set ext.<이름>.enabled true`)를 "다시 켜기"(`ext.reenable`)와 같은 결과로 만든다.
@@ -52,6 +58,8 @@ export function followExtEnabled(deps: ExtEnabledFollowDeps): () => void {
     if (pending) deps.autoDisabler.reenable(key);
   };
   return deps.onChange((change) => {
+    // 대화에서만 바꾼 값(`launch`)은 그 대화의 등록 요청이다(`followThreadEnabled`)
+    if (change.threadId !== null) return;
     for (const settingKey of change.keys) {
       const name = extNameOfEnabledKey(settingKey);
       const value = name === undefined ? undefined : deps.value(settingKey);
@@ -84,6 +92,7 @@ export interface BuiltinEnabledFollowDeps {
  */
 export function followBuiltinEnabled(deps: BuiltinEnabledFollowDeps): () => void {
   return deps.onChange((change) => {
+    if (change.threadId !== null) return;
     const names = deps.names();
     for (const settingKey of change.keys) {
       const name = extNameOfEnabledKey(settingKey);
@@ -102,3 +111,31 @@ export function followBuiltinEnabled(deps: BuiltinEnabledFollowDeps): () => void
 
 /** 설정 값(`ext.<이름>.enabled`)이 켜짐을 정하는 내장 그룹. 정적 카탈로그에 예약 키가 있는 것만이다(HS-113). 시험이 더하는 단위는 매니페스트 기본을 따른다 */
 export const BUILTIN_GROUP_NAMES: readonly string[] = ["learning", "authoring"];
+
+export interface ThreadEnabledFollowDeps {
+  readonly onChange: (listener: (change: SettingsChange) => void) => () => void;
+  /** 대화에서 본 카탈로그 키의 유효 값 */
+  readonly value: (key: string, threadId: ThreadId) => unknown;
+  /** 그 대화만의 켜기·끄기 요청 통로. 다음 단계 경계에서 적용된다 */
+  readonly toggles: RegistrationToggleSourceOf;
+}
+
+/**
+ * 이 대화에서 끄기·켜기(`settings.set ext.<이름>.enabled`, 범위 `launch`)를 그 대화의 등록 요청으로 옮긴다.
+ * 값만 저장하고 등록에는 닿지 않아, 성공이라고 했는데 스위치가 켜진 채였다(rtC R-4). 적용은 다음 단계 경계이고 목록은 그동안 `disabling`·`enabling`을 보인다.
+ */
+export function followThreadEnabled(deps: ThreadEnabledFollowDeps): () => void {
+  return deps.onChange((change) => {
+    const threadId = change.threadId;
+    if (threadId === null) return;
+    for (const settingKey of change.keys) {
+      const name = extNameOfEnabledKey(settingKey);
+      if (name === undefined) continue;
+      const value = deps.value(settingKey, threadId);
+      if (typeof value !== "boolean") continue;
+      for (const scope of deps.toggles.scopes().filter((entry) => entry.extension === name)) {
+        deps.toggles.request(scope.id, value, "request", threadId);
+      }
+    }
+  });
+}

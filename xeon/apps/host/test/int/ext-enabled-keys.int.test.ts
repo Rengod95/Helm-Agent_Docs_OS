@@ -67,10 +67,42 @@ realTest(
     await connection.request("settings.set", { key, value: true, scope: "user" });
     await Bun.sleep(300);
     // 단계 경계가 없으면 켜짐은 "enabling"으로 대기한다(다음 경계에서 적용). 꺼짐 상태로 남지 않는다
-    expect(["enabling", "enabled"]).toContain(await statusOf());
+    expect(["enabling", "enabled"]).toContain((await statusOf()) ?? "");
     await connection.request("settings.set", { key, value: false, scope: "user" });
     await Bun.sleep(300);
     expect(await statusOf()).toBe("disabled");
+    await connection.close();
+    await host.close();
+    home.dispose();
+  },
+  60_000,
+);
+
+// 이 대화에서 끄기(`launch`)가 그 대화의 등록에 닿는다: 목록이 끄는 중·꺼짐을 보이고 다른 대화는 그대로다(rtC R-4).
+realTest(
+  "a per-thread off request reaches that thread's registration and leaves other threads alone",
+  async () => {
+    const home = useEngineHome();
+    const host = await startInProcessHost({ devChecks: true });
+    const connection = createHostConnection(host.client);
+    await connection.request("host.hello", HELLO_PARAMS);
+    const first = await connection.request("thread.create", {});
+    const second = await connection.request("thread.create", {});
+    const key = "ext.cap-web.enabled";
+    const registrationOf = async (threadId: typeof first.threadId): Promise<string | undefined> => {
+      const listed = await connection.request("ext.list", { threadId });
+      const entry = listed.extensions.find((item) => item.name === "cap-web");
+      return entry?.registration ?? entry?.status;
+    };
+    await connection.request("settings.set", {
+      key,
+      value: false,
+      scope: "launch",
+      threadId: first.threadId,
+    });
+    await Bun.sleep(1500);
+    expect(["disabling", "disabled"]).toContain((await registrationOf(first.threadId)) ?? "");
+    expect(await registrationOf(second.threadId)).toBe("enabled");
     await connection.close();
     await host.close();
     home.dispose();
