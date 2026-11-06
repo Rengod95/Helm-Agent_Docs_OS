@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ThreadCompactResult, TurnResumeResult } from "@fresnel/contracts/wire";
 import { summary, thr, trn } from "../state/helpers.ts";
-import { engineFake, makeApp, until } from "./support.ts";
+import { engineFake, makeApp, makeAppOver, until } from "./support.ts";
 
 // 명령 팔레트가 쓰는 명령(`compactThread`, `resumeTurn`, `runCommandLine`)과 실행 횟수 저장(`paletteUses`, `savePaletteUses`)을
 // 가짜 엔진과 가짜 셸 위에서 끝까지 돌린다. 값은 `toEqual`로 비교한다.
@@ -67,6 +67,18 @@ describe("last viewed thread", () => {
     expect(fake.settingsFile["l4.desktop.window.lastThread"]).toBe(thr(1));
     expect(await app.commands.saveLastThread(null)).toBe(true);
     expect(app.commands.lastThreadId()).toBeNull();
+    await app.stop();
+  });
+});
+
+describe("app version", () => {
+  test("the version the shell reports wins over the bundle's package.json version, and the bundle value is the fallback", async () => {
+    const engine = engineFake([summary(thr(1))]);
+    let live: string | null = null;
+    const app = makeAppOver(engine.fake.ipc, { appVersion: "0.0.0", liveAppVersion: () => live });
+    expect(app.commands.versions().app).toBe("0.0.0");
+    live = "1.2.3";
+    expect(app.commands.versions().app).toBe("1.2.3");
     await app.stop();
   });
 });

@@ -57,6 +57,7 @@ import {
   groupNameOf,
   groupWhatOf,
   recommendStateOf,
+  startBlockedOf,
   stepTitleOf,
   summaryOf,
 } from "./first-run-text.ts";
@@ -172,6 +173,7 @@ export function FirstRunView(props: FirstRunViewProps): ReactNode {
   };
   const doneCount = model === null ? 0 : model.steps.filter((step) => step.done).length;
   const ready = model?.readyToChat === true;
+  const startBlocked = startBlockedOf(model);
   const start = (
     <Button
       size="sm"
@@ -238,6 +240,11 @@ export function FirstRunView(props: FirstRunViewProps): ReactNode {
               {props.reason === null ? null : ` ${props.reason}`}
             </Alert>
           ) : null}
+          {startBlocked === null ? null : (
+            <p role="status" className="m-0 text-ui-sm text-text-secondary">
+              {t(startBlocked)}
+            </p>
+          )}
           <StepList {...props} keyFormRef={keyFormRef} />
           {props.notice === null ? null : (
             <p role="status" className="m-0 text-ui-sm text-text-secondary">
@@ -618,12 +625,30 @@ function KeyFailure(props: {
   readonly onRetry: () => void;
 }): ReactNode {
   const [helpOpen, setHelpOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
   const { entry } = props;
   return (
     <div className="grid gap-2">
       <Alert tone="danger" layout="inline" size="sm">
         {entry.text}
       </Alert>
+      {entry.detail === undefined ? null : (
+        <span className="flex min-w-0 flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-expanded={detailOpen}
+            onClick={() => {
+              setDetailOpen((open) => !open);
+            }}
+          >
+            {t("desktop.firstRun.key.details")}
+          </Button>
+          {detailOpen ? (
+            <span className="font-mono text-mono-sm text-text-tertiary">{entry.detail}</span>
+          ) : null}
+        </span>
+      )}
       {entry.keystore === undefined ? null : (
         <span className="flex min-w-0 flex-wrap items-center gap-2">
           <Button size="sm" variant="solid" onClick={props.onRetry}>

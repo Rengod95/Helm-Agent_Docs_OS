@@ -40,7 +40,14 @@ export type KeyOutcome =
   /** 이 연결에서는 화면이 값을 받을 수 없다. 터미널 명령을 안내한다 */
   | { readonly kind: "terminal" }
   /** 키체인 실패(`keystore`)나 시간 초과(`timeout`, 키체인 창이 응답을 기다리는 경우)라서 화면이 "다시 시도"와 "도움말 열기"를 함께 보인다 */
-  | { readonly kind: "failed"; readonly text: string; readonly keystore: boolean };
+  | {
+      readonly kind: "failed";
+      /** 사람이 할 일을 한 문장으로. 종료 코드 같은 기술 문구는 넣지 않는다 */
+      readonly text: string;
+      readonly keystore: boolean;
+      /** 기술 문구("종료 코드 3" 등). 화면은 "자세히" 뒤에 둔다. 없으면 생략한다 */
+      readonly detail?: string;
+    };
 
 const ENCODER = new TextEncoder();
 
@@ -59,15 +66,19 @@ export function keyErrorText(error: KeyRegisterError): string {
     case "keystore":
       return t("client.settings.key.keystore");
     case "rejected":
-      // 사이드카의 영어 문장(`detail`)은 보이지 않는다: 터미널 안내가 섞여 있다
-      return error.exitCode === null
-        ? t("client.settings.key.rejectedNoCode")
-        : t("client.settings.key.rejectedCode", { exitCode: error.exitCode });
+      // 사이드카의 영어 문장(`detail`)은 보이지 않는다: 터미널 안내가 섞여 있다. 종료 코드는 `keyErrorDetail`이 "자세히"용으로 준다
+      return t("client.settings.key.rejected");
     case "failed":
       return t("client.settings.key.failed");
     default:
       return assertNever(error, "KeyRegisterError");
   }
+}
+
+/** "자세히" 뒤에 둘 기술 문구. 종료 코드가 있는 거절만 있다 */
+export function keyErrorDetail(error: KeyRegisterError): string | null {
+  if (error.kind !== "rejected" || error.exitCode === null) return null;
+  return t("client.settings.key.detailExitCode", { exitCode: error.exitCode });
 }
 
 /**
@@ -87,10 +98,12 @@ export async function submitKey(
     const result = await registrar.registerKey(secretName, action, bytes);
     if (result.ok) return { kind: "registered" };
     if (result.error.kind === "unavailable") return { kind: "terminal" };
+    const detail = keyErrorDetail(result.error);
     return {
       kind: "failed",
       text: keyErrorText(result.error),
       keystore: result.error.kind === "keystore" || result.error.kind === "timeout",
+      ...(detail === null ? {} : { detail }),
     };
   } finally {
     bytes.fill(0);

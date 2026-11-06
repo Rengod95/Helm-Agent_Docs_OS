@@ -115,7 +115,10 @@ export function makeApp(fake: FakeIpc): App {
 }
 
 /** 셸 쪽을 직접 정한 ipc(예: mockIPC 위의 실제 ipc.ts)로 앱을 만든다 */
-export function makeAppOver(ipc: DesktopIpc): App {
+export function makeAppOver(
+  ipc: DesktopIpc,
+  extra: Partial<Parameters<typeof createApp>[0]> = {},
+): App {
   return createApp({
     ipc,
     clock: { now: () => Date.now() },
@@ -132,5 +135,6 @@ export function makeAppOver(ipc: DesktopIpc): App {
     appVersion: "0.0.0",
     frameFallbackMs: 20,
     logSink: () => {},
+    ...extra,
   });
 }

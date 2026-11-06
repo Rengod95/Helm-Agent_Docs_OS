@@ -217,11 +217,12 @@ export function FirstRunScreen(): ReactNode {
           setKeyEntry({ state: "failed", text: t("desktop.settings.keyValue.empty") });
           return;
         case "failed":
-          setKeyEntry(
-            outcome.keystore
-              ? { state: "failed", text: outcome.text, keystore: { name, action, providerId } }
-              : { state: "failed", text: outcome.text },
-          );
+          setKeyEntry({
+            state: "failed",
+            text: outcome.text,
+            ...(outcome.detail === undefined ? {} : { detail: outcome.detail }),
+            ...(outcome.keystore ? { keystore: { name, action, providerId } } : {}),
+          });
           return;
         default:
           assertNever(outcome, "KeyOutcome");

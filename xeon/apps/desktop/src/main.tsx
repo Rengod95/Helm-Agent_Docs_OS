@@ -81,6 +81,10 @@ if (container === null) {
   const mac = navigator.platform.startsWith("Mac");
   // 사람 재인증 창은 macOS에서만 있다(셸의 `os_reauth`는 다른 OS에서 항상 unavailable). 그 밖은 값 보기가 잠긴다
   const revealGate = mac ? createOsReauthGate(osReauth) : UNAVAILABLE_GATE;
+  // 앱 버전은 셸의 업데이트 상태에서 읽는다. 컨트롤러는 앱 다음에 만들어지므로 자리를 먼저 둔다
+  const updateRef: { current: ReturnType<typeof createUpdateController> | null } = {
+    current: null,
+  };
   const app = createApp({
     localSettings,
     languages: navigator.languages.length > 0 ? navigator.languages : [navigator.language],
@@ -103,10 +107,12 @@ if (container === null) {
     monotonic: () => performance.now(),
     clipboard: navigator.clipboard,
     appVersion: pkg.version,
+    liveAppVersion: () => updateRef.current?.currentVersion() ?? null,
     frameFallbackMs: 100,
   });
   // 업데이트는 열 때 한 번 조용히 확인한다. 설정이 안 됐으면 칸과 줄이 "설정되지 않았어요"로 끝나고 토스트는 없다
   const updateController = createUpdateController(updatePort);
+  updateRef.current = updateController;
   detach(updateController.start(), rethrow);
   // OS 알림 전달기. 듣기는 셸 다리가 연결이 살아 있을 때 건다(`notices.onDelivered`는 연결이 바뀌면 끊긴다)
   const notifier = createOsNotifier({

@@ -45,6 +45,18 @@ export function summaryOf(step: StepState, model: FirstRunModel): MessageId {
   }
 }
 
+/**
+ * "대화 시작"이 꺼져 있을 때 왜인지 한 줄. 키가 먼저고 그다음 기본 모델이다. 시작할 수 있거나 점검 결과가 아직 없으면 null이다.
+ * 외부 도구 단계는 시작 조건이 아니다(`readyToChat`)
+ */
+export function startBlockedOf(model: FirstRunModel | null): MessageId | null {
+  if (model === null || model.readyToChat) return null;
+  const done = (id: StepId): boolean => model.steps.some((step) => step.id === id && step.done);
+  if (!done("key")) return "desktop.firstRun.chat.blockedKey";
+  if (!done("model")) return "desktop.firstRun.chat.blockedModel";
+  return null;
+}
+
 const GROUP_NAME_ID: Readonly<Record<GroupRowId, MessageId>> = {
   helm: "desktop.firstRun.group.helm.name",
   learning: "desktop.firstRun.group.learning.name",

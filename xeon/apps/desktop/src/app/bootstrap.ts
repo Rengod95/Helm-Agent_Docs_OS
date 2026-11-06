@@ -26,6 +26,11 @@ export type AppEnv = {
   readonly monotonic: () => number;
   readonly clipboard: { writeText(text: string): Promise<void> };
   readonly appVersion: string;
+  /**
+   * 실행 중인 앱의 버전을 셸에서 읽은 값. 화면 번들의 `package.json` 버전은 릴리스 태그가 아니라 소스의 값(0.0.0)이라,
+   * 릴리스 앱은 셸이 아는 버전(`update_status.currentVersion`)을 써야 한다. 아직 못 읽었으면 null이고 `appVersion`으로 보인다
+   */
+  readonly liveAppVersion?: () => string | null;
   /** 프레임 커밋 상한(ms). 숨겨진 창에서 rAF가 멈춰도 이 안에 큐를 비운다 */
   readonly frameFallbackMs: number;
   /** 로그 줄을 밖으로 보낼 곳(warn 이상). 기본은 개발자 도구 콘솔이다 */
@@ -129,7 +134,10 @@ export function createApp(env: AppEnv): App {
     engine,
     ui,
     journal,
-    versions: () => ({ app: env.appVersion, engine: session.engineVersion() }),
+    versions: () => ({
+      app: env.liveAppVersion?.() ?? env.appVersion,
+      engine: session.engineVersion(),
+    }),
     clipboard: env.clipboard,
     engineSwitch,
     logger: log.logger,
