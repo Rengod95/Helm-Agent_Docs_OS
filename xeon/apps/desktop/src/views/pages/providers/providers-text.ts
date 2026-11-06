@@ -88,19 +88,29 @@ export interface MessageRef {
   readonly args: MessageArgs;
 }
 
-/** 토큰, 요청, 캐시 같은 개수. 1000 미만은 그대로, 그 이상은 천 단위로 줄인다(41,000은 41천) */
+/** 토큰, 요청, 캐시 같은 개수. 1000 미만은 그대로, 그 이상은 상태 줄과 같은 형식으로 줄인다(41,000은 41.0k, 1,200,000은 1.2M) */
 function countRefOf(amount: number): MessageRef {
   const count = Math.round(amount);
   if (count < 1000) return { id: "desktop.providers.usage.count.plain", args: { count } };
+  if (count < 1_000_000) {
+    return {
+      id: "desktop.providers.usage.count.thousand",
+      args: { count: (count / 1000).toFixed(1) },
+    };
+  }
   return {
-    id: "desktop.providers.usage.count.thousand",
-    args: { count: Math.round(count / 1000) },
+    id: "desktop.providers.usage.count.million",
+    args: { count: (count / 1_000_000).toFixed(1) },
   };
 }
 
-/** 비용. 달러 두 자리다 */
+/** 비용. 0이거나 1센트 이상이면 소수 둘, 그 밑이면 소수 넷이다(센트 밑이 `$0.00`으로 보이지 않게). 0.0001 밑은 "< $0.0001"이다 */
 function usdRefOf(amount: number): MessageRef {
-  return { id: "desktop.providers.usage.usd", args: { amount: amount.toFixed(2) } };
+  if (amount > 0 && amount < 0.0001) {
+    return { id: "desktop.providers.usage.usd.tiny", args: {} };
+  }
+  const digits = amount === 0 || amount >= 0.01 ? 2 : 4;
+  return { id: "desktop.providers.usage.usd", args: { amount: amount.toFixed(digits) } };
 }
 
 /** 게이지 값 하나의 키. 비용은 달러, 나머지는 개수다 */

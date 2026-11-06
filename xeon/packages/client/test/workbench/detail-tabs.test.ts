@@ -201,6 +201,7 @@ describe("측정 탭 값", () => {
     expect(costText(3.1)).toBe("$3.10");
     expect(costText(0.01)).toBe("$0.01");
     expect(costText(0.004)).toBe("$0.0040");
+    expect(costText(0.00003)).toBe("< $0.0001");
   });
 
   test("측정 값은 토큰 네 칸(입력, 출력, 캐시 읽기, 캐시 쓰기)과 나머지 수를 그대로 옮긴다", () => {
