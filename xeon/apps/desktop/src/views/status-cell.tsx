@@ -68,7 +68,7 @@ export function StatusCell(props: StatusCellProps): ReactNode {
           title={collapseIcon === undefined ? undefined : text}
         >
           {collapseIcon === undefined ? null : (
-            <span aria-hidden data-bar-icon className="hidden shrink-0">
+            <span aria-hidden data-bar-icon className="shrink-0">
               {collapseIcon}
             </span>
           )}

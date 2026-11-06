@@ -151,7 +151,10 @@
 
 /* 상태 줄이 좁으면(compact) 덜 중요한 칸(연결, 모델, 사용량)은 글을 접고 아이콘(연결은 점)만 보인다. 글은 화면 낭독용으로 남고 단추 title이 툴팁이다 */
 @layer components {
-  @container (max-width: 820px) {
+  [data-bar-icon] {
+    display: none;
+  }
+  @container (max-width: 600px) {
     [data-bar-collapsible] [data-bar-text] {
       position: absolute;
       width: 1px;
