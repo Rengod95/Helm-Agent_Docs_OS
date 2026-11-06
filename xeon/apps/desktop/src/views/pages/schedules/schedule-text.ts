@@ -90,7 +90,7 @@ export const FILTER_ID: Readonly<Record<"enabled" | "all", MessageId>> = {
 };
 
 /** 간격을 사람이 읽는 단위로: 3600초는 1시간마다, 나누어떨어지지 않으면 분, 그것도 아니면 초 */
-export function intervalSummaryOf(seconds: number): MessageRef {
+function intervalSummaryOf(seconds: number): MessageRef {
   if (seconds > 0 && seconds % 3600 === 0) {
     return message("desktop.schedules.summary.everyHours", { count: seconds / 3600 });
   }
