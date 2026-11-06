@@ -3,6 +3,7 @@ import type { SpawnOutcome, TurnOutcome } from "@fresnel/contracts/extensions";
 import { assertNever } from "@fresnel/contracts";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { TRANSITIONS, transition, type HelmEvent } from "../../src/phase.ts";
+import { finishedNotice } from "../../src/prompts.ts";
 import { reactionOf, type HelmReaction } from "../../src/reaction.ts";
 import type { HelmFailure } from "../../src/failures.ts";
 import { INITIAL_HELM_STATE, type HelmPhase, type HelmState } from "../../src/state.ts";
@@ -114,6 +115,7 @@ test("transitions.finish-resets-inquiry", () => {
     rounds: 1,
     lensCount: 2,
     failedLenses: 0,
+    skippedLenses: 0,
     findingCount: 1,
     appliedTurnId: TURN,
   });
@@ -189,6 +191,35 @@ test("explored keeps partial results and fails only when no lens is done", () =>
   });
   expect(allFailed.finished).toMatchObject({ outcome: "failed", failedLenses: 1, lensCount: 2 });
   expect(allFailed.state.phase).toBe("idle");
+});
+
+test("a lens that never ran is counted as skipped and named in the finished notice", () => {
+  const state = at("explore");
+  const done = transition(state, {
+    type: "explored",
+    results: [
+      {
+        lensId: "analogy",
+        outcome: {
+          ok: true,
+          value: {
+            childThreadId: THREAD,
+            status: "completed",
+            answer: '```json\n{"findings":[{"claim":"x","sources":[],"confidence":"high"}]}\n```',
+          },
+        },
+      },
+    ],
+  });
+  expect(done.state.lenses.map((lens) => lens.status)).toEqual(["done", "skipped"]);
+  const finished = transition(done.state, {
+    type: "converged",
+    findings: [],
+    context: [],
+  }).finished;
+  expect(finished).toMatchObject({ lensCount: 2, failedLenses: 0, skippedLenses: 1 });
+  if (finished === undefined) throw new Error("the inquiry did not finish");
+  expect(JSON.stringify(finishedNotice(finished))).toContain("1개 건너뜀");
 });
 
 test("converged with no findings finishes as empty", () => {

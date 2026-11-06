@@ -186,6 +186,7 @@ xeon/packages/group-helm/
 | 29 | `knowledge.untrusted-text-wrapped` | 외부 텍스트가 표지로 감싸지고, 본문 안 표지 문자열이 이스케이프된다. 본문 내용에 따라 전이가 바뀌지 않는다 |
 | 30 | `commands.start-stop-status` | `/helm start 주제`가 `pending` 커밋, 탐구 중 start는 오류, `/helm stop`이 `stopRequested` 커밋, `status`는 상태를 바꾸지 않음 |
 | 31 | `disable.at-step-boundary-releases-lease` | 탐구 중 disable 요청 뒤 다음 단계 경계에서 `lease.released`(`disabled`) 1건, 핸들러 미호출, 상태 보존, 다시 켜면 같은 단계에서 이어짐 |
+| 31a | `disable.while-explorer-waits` | 하위 대화가 답을 기다리며 부모 대화가 실행 중일 때 disable 요청이 락 신호를 abort하고 scope가 `disabled`에 닿음 |
 | 32 | `coexist.learning-on-while-helm-holds-lease` | 테스트 호스트에 drive를 쓰지 않는 가짜 그룹(학습 그룹 역할, `group-learning` import 없음)을 함께 켜고, Helm drive 락 중에도 그 그룹의 on 핸들러와 post가 동작 |
 | 33 | `coexist.waiting-lease-keeps-signals` | 다른 그룹이 drive 락을 가진 동안 `pending` 유지, `phase` `idle`, 신호 기록 계속, 쓰기 거부 없음 |
 | 34 | `restore.invalid-state-resets` | `thread.start`에서 탐구 단계인데 `inquiryId`가 없는 상태면 초기 상태 커밋과 `inquiry.finished`(`failed`). 스키마 위반 상태는 X가 Registration을 켜지 않아 이 핸들러까지 오지 않는다 |

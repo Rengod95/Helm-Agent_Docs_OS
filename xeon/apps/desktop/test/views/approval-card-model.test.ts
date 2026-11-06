@@ -186,6 +186,16 @@ describe("card title", () => {
   });
 });
 
+describe("web access card title", () => {
+  test("the web access title becomes a Korean title with the host", () => {
+    expect(
+      cardTitleViewOf(
+        requestWith({ title: "Allow web access to www.joda.org?", body: toolBody("web.fetch") }),
+      ),
+    ).toEqual({ id: "desktop.approvals.title.web", params: { host: "www.joda.org" } });
+  });
+});
+
 describe("knowledge write card title", () => {
   test("a memory write title names the store and the operation", () => {
     expect(

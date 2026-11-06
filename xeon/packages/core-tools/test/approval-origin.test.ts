@@ -127,3 +127,59 @@ test("a subagent policy approval records the definition name in the caller", asy
   await done;
   expect(requestedPayloads(h)[0]?.payload.origin.caller).toBe("subagent:reviewer");
 });
+
+test("a request without toolCallId from a child thread lands on the surface thread of the child's active call", async () => {
+  const h = await createHarness();
+  const child = h.deps.ids.next("thr");
+  const run = {
+    ...h.run(),
+    threadId: child,
+    surfaceThreadId: h.thread,
+    caller: "subagent:explorer" as const,
+    depth: 1,
+  };
+  expectOk(
+    h.runtime.tools.register({
+      kind: "direct",
+      orderKey: "core.test",
+      tool: directTool(
+        "web_like",
+        async (_toolCallId, _params, signal) => {
+          // 기능 서비스의 도메인 승인: 도구 호출 id를 모르는 origin
+          await h.runtime.approvals.request(
+            {
+              origin: {
+                threadId: child,
+                turnId: run.turnId,
+                stepId: null,
+                toolCallId: null,
+                caller: "subagent:explorer",
+              },
+              requestKey: "web-1",
+              title: "Allow web access",
+              body: QUESTION,
+              remember: ["once"],
+            },
+            signal,
+          );
+          return { content: [{ type: "text", text: "done" }], details: null };
+        },
+        { replay: "safe" },
+      ),
+      policy: { risk: "read" },
+    }),
+  );
+  const done = callTool(h.runtime.tools, run, { id: "call_w1", name: "web_like", args: {} });
+  await until(() => h.runtime.approvals.pending(h.thread).length === 1);
+  const [request] = h.runtime.approvals.pending(h.thread);
+  expect(request?.surfaceThreadId).toBe(h.thread);
+  expect(request?.origin.threadId).toBe(child);
+  // 기능 어댑터가 main으로 쓴 요청자는 활성 호출의 요청자로 채워진다
+  expect(request?.origin.caller).toBe("subagent:explorer");
+  expect(h.runtime.approvals.pending(child)).toEqual([]);
+  await h.runtime.approvals.respond(request?.approvalId ?? "", {
+    decision: "answer",
+    answer: { note: { selected: [], text: "x" } },
+  });
+  await done;
+});

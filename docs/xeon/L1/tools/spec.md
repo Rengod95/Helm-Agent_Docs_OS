@@ -687,7 +687,7 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 | `approval.requested` | 예 | `ApprovalRequestedPayload` | `approval:<threadId>:<requestKey>:request` |
 | `approval.resolved` | 예 | `ApprovalResolvedPayload` | `approval:<approvalId>:resolve` |
 
-- 이벤트는 `surfaceThreadId` 대화에 기록한다. 그래야 서브에이전트의 승인 요청이 부모 대화 구독자에게 보인다. 요청을 낸 대화는 payload `origin.threadId`에 남는다 [제안].
+- 이벤트는 `surfaceThreadId` 대화에 기록한다. 그래야 서브에이전트의 승인 요청이 부모 대화 구독자에게 보인다. 요청을 낸 대화는 payload `origin.threadId`에 남는다 [제안]. 도구 호출 id 없이 올라온 요청(기능 서비스의 도메인 승인)도 같다: 요청한 대화에 진행 중인 도구 호출이 있으면 그 호출의 `surfaceThreadId`를 쓴다(`ApprovalDeps.surfaceOf`). 그렇지 않으면 요청한 대화가 표면이다. 하위 대화를 표면으로 두면 쓰기 소유가 없어 답이 `thread.locked`로 거절된다.
 - [제안] 이벤트 소유: `effect.*`, `approval.*`는 `tool-runtime`(core-tools) 소유다. eng.context-map.design §5.1 표의 `tool.` 행을 F 이름 `effect.`로 바꾸도록 요청한다(§8.4).
 - requestId 길이: `approval:<threadId>:<requestKey>:request`는 `thr_` ULID(30자) + 키 48자로 64자를 넘을 수 있다. 64자를 넘으면 `approval:` + `sha256(threadId + ":" + 키 부분)` 앞 32자 + `:request`로 바꾼다 [제안].
 - 키 부분: 도구 승인의 `requestKey`는 `toolCallId`에서 F `requestKeyFor(raw, sha256Hex)`(`@fresnel/contracts/records`, `commitKeyPart`(F.records.spec §3.9, eng.transactions.design §4.7, U-13) 위에 선 유일한 요청 키 변환, 상한 `APPROVAL_REQUEST_KEY_MAX`)로 만든다. core-tools는 자기 함수를 두지 않고 `sha256HexSync`를 넘겨 이 함수를 부른다 [결정: 통합 검토 L6]. `toolCallId`는 provider가 정하는 밖의 값이라 커밋 키 알파벳 밖 문자를 가질 수 있기 때문이다. 결과가 48자를 넘으면 `h_` + 원문 sha256 앞 40자로 줄인다. 호출자가 직접 넘긴 `requestKey`도 커밋 키에 넣기 전에 `commitKeyPart`를 거친다(`h_` + 해시 40자 형식은 그대로 쓴다) [제안].

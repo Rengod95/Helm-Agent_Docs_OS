@@ -161,7 +161,9 @@ export function suggestionNotice(crossed: readonly HelmSignalKind[]): PostItem {
 }
 
 export function finishedNotice(finished: InquiryFinishedPayload): PostItem {
-  const base = `[helm] 탐구를 마쳤습니다(${finished.outcome}). 발견 ${String(finished.findingCount)}개, 렌즈 ${String(finished.lensCount)}개 중 ${String(finished.failedLenses)}개 실패.`;
+  const skipped = finished.skippedLenses ?? 0;
+  const skippedText = skipped > 0 ? `, ${String(skipped)}개 건너뜀(답을 받지 못해 돌지 않음)` : "";
+  const base = `[helm] 탐구를 마쳤습니다(${finished.outcome}). 발견 ${String(finished.findingCount)}개, 렌즈 ${String(finished.lensCount)}개 중 ${String(finished.failedLenses)}개 실패${skippedText}.`;
   const limit = finished.limit === undefined ? "" : ` 임대 상한(${finished.limit})에 도달했습니다.`;
   const reason = finished.reason === undefined ? "" : ` 사유: ${finished.reason}`;
   return notice("status", `${base}${limit}${reason}`);

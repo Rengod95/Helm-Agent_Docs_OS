@@ -80,6 +80,8 @@ export interface InquiryFinishedPayload {
   rounds: number;
   lensCount: number;
   failedLenses: number;
+  /** 돌지 못하고 끝난 렌즈 수. 이 칸이 없는 옛 기록은 0으로 읽는다 */
+  skippedLenses?: number;
   findingCount: number;
   appliedTurnId: string | null;
   limit?: "turns" | "spawns" | "tokens";
@@ -98,6 +100,7 @@ const finishedShape = Type.Object({
   rounds: Type.Integer({ minimum: 0 }),
   lensCount: Type.Integer({ minimum: 0 }),
   failedLenses: Type.Integer({ minimum: 0 }),
+  skippedLenses: Type.Optional(Type.Integer({ minimum: 0 })),
   findingCount: Type.Integer({ minimum: 0 }),
   appliedTurnId: Type.Union([Type.String(), Type.Null()]),
   limit: Type.Optional(

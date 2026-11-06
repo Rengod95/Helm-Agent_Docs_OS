@@ -65,6 +65,7 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
         ? undefined
         : { run: state.run, effectId: state.intent?.effectId ?? null };
     },
+    requesterOf: (threadId) => calls.requesterOf(threadId),
     modeOf: (threadId) => deps.config(threadId).mode,
     setMode: (threadId, mode) => tools.setMode(threadId, mode, "plan_approval"),
   });

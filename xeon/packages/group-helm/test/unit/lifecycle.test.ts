@@ -241,3 +241,31 @@ test("lease.wait-rejected-clears-pending: after the wait limit the pending reque
   expect(notices).toHaveLength(1);
   expect(notices[0]?.requestId).toMatch(/^helm:h[a-z2-7]{13}:idle:0:rejected$/);
 });
+
+test("disable.while-explorer-waits: turning Helm off aborts the waiting spawn and the scope reaches disabled", async () => {
+  const holder: { rig?: Rig } = {};
+  const seen = Promise.withResolvers<void>();
+  const aborted = Promise.withResolvers<void>();
+  const rig = await createRig({
+    onSpawn: async (request) => {
+      // 부모 대화는 spawn 동안 실행 중이라 유휴 적용이 없다. 자식 대화는 열려 있고 승인 답을 기다린다
+      holder.rig?.t.loop.setRunning(request.threadId, true);
+      seen.resolve();
+      // 승인 답을 기다리는 explorer처럼 임대 신호가 abort될 때까지 끝나지 않는다
+      await new Promise<void>((resolve) => {
+        if (request.signal.aborted) resolve();
+        else request.signal.addEventListener("abort", () => resolve(), { once: true });
+      });
+      holder.rig?.t.loop.setRunning(request.threadId, false);
+      aborted.resolve();
+    },
+  });
+  holder.rig = rig;
+  await rig.command("start 캐시 무효화");
+  await rig.settle("s");
+  await seen.promise;
+  rig.t.host.registration("helm")?.disable();
+  await aborted.promise;
+  await rig.drain(8, "idle");
+  expect(rig.t.host.registration("helm")?.status).toBe("disabled");
+});

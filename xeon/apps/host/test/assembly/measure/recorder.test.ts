@@ -29,14 +29,15 @@ const logger: Logger = {
 
 function event(
   seq: number,
-  kind: "step.completed" | "turn.completed",
+  kind: "step.completed" | "turn.completed" | "agent.spawned",
   payload: unknown,
+  threadId: ThreadId = THREAD,
 ): DurableEventEnvelope {
   return {
     id: ids.next("evt"),
     kind,
     version: 1,
-    threadId: THREAD,
+    threadId,
     turnId: TURN,
     stepId: null,
     recordedAt: AT + seq,
@@ -415,6 +416,84 @@ test("a main call that rewrites the whole prefix after the cache expired is reco
         },
       ],
     ]);
+  } finally {
+    stop();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("calls from a child thread are attributed to the group that owns the spawn and to its parent thread", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "measure-owner-"));
+  const listeners = new Set<CommitListener>();
+  let meterListener: ((record: UsageRecord) => void) | undefined;
+  const child: ThreadId = ids.next("thr");
+  const { stop } = startMeasurement({
+    dir,
+    session: {
+      feed: {
+        onCommit: (listener: CommitListener) => {
+          listeners.add(listener);
+          return () => {
+            listeners.delete(listener);
+          };
+        },
+      },
+    },
+    usage: {
+      subscribe: (listener) => {
+        meterListener = listener;
+        return () => {
+          meterListener = undefined;
+        };
+      },
+    },
+    trace: TRACE,
+    enabled: () => true,
+    logger,
+    now: () => AT,
+  });
+  try {
+    const spawned = event(
+      1,
+      "agent.spawned",
+      {
+        childThreadId: child,
+        agent: "explorer",
+        requestId: "helm:habc:spawn:1:analogy",
+        owner: { kind: "drive", turnId: null, scopeId: "helm", leaseId: "lease-1" },
+        caller: "subagent:explorer",
+        depth: 1,
+        background: false,
+        fork: null,
+        modelRole: "subagent",
+      },
+      THREAD,
+    );
+    for (const listener of listeners) listener({ firstSeq: 1, lastSeq: 1, events: [spawned] });
+    // 하위 대화의 웹 검색 호출: Turn 밖이라 바로 쓰인다
+    meterListener?.({
+      ...call(AT + 10, AT + 20, AT + 30),
+      threadId: child,
+      turnId: null,
+      role: "search",
+    });
+    // 부모 대화의 호출은 귀속이 붙지 않는다
+    meterListener?.({ ...call(AT + 40, AT + 50, AT + 60), turnId: null, role: "summary" });
+    await Promise.resolve();
+    await Promise.resolve();
+    const peek = openMeasureStore(join(dir, "measure.db"));
+    if (!peek.ok) throw new Bug("the measure database must open");
+    const calls = peek.value.callsOfRoles(["search", "summary"], undefined);
+    peek.value.close();
+    if (!calls.ok) throw new Bug("the measure database must be readable");
+    const byRole = new Map(calls.value.map((row) => [row.tags["role"], row.tags] as const));
+    expect(byRole.get("search")).toMatchObject({
+      scope: "helm",
+      ownerThread: THREAD,
+      ownerRequest: "helm:habc:spawn:1:analogy",
+    });
+    expect(byRole.get("summary")?.["scope"]).toBeUndefined();
+    expect(byRole.get("summary")?.["ownerThread"]).toBeUndefined();
   } finally {
     stop();
     rmSync(dir, { recursive: true, force: true });

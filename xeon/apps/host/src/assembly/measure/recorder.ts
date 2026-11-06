@@ -6,7 +6,11 @@ import {
   type StepContextWarning,
 } from "@fresnel/contracts/conversation";
 import type { TraceReadPort } from "@fresnel/contracts/extensions";
-import type { CommitBatch, EventFeed } from "@fresnel/contracts/records";
+import {
+  AgentSpawnedPayloadSchema,
+  type CommitBatch,
+  type EventFeed,
+} from "@fresnel/contracts/records";
 import type { UsageMeter, UsageRecord } from "@fresnel/contracts/services";
 import {
   DEFAULT_RETENTION_DAYS,
@@ -130,6 +134,32 @@ function callRecord(call: UsageRecord): MeasureRecord {
       model: call.modelId,
       stopReason: call.stopReason,
       ...(call.scopeId === null ? {} : { scope: call.scopeId }),
+    },
+  };
+}
+
+/** 하위 대화를 만든 쪽. 그 대화에서 나간 호출(하위 에이전트의 main, 웹 검색)을 소유 그룹과 부모 대화에 귀속하는 데 쓴다 */
+interface ChildOwner {
+  readonly scopeId: string | null;
+  readonly parentThreadId: string;
+  readonly requestId: string;
+}
+
+/** 소유 하위 대화 표의 상한. 넘으면 가장 먼저 들어온 것부터 뺀다 */
+const MAX_CHILD_OWNERS = 500;
+
+/** 호출 행에 소유 하위 대화의 귀속을 더한다: 호출 자신의 scope가 없으면 소유 그룹이, 부모 대화와 자식 요청 id는 항상 */
+function ownedCallRecord(record: MeasureRecord, owner: ChildOwner | undefined): MeasureRecord {
+  if (owner === undefined) return record;
+  return {
+    ...record,
+    tags: {
+      ...(owner.scopeId === null || record.tags["scope"] !== undefined
+        ? {}
+        : { scope: owner.scopeId }),
+      ...record.tags,
+      ownerThread: owner.parentThreadId,
+      ownerRequest: owner.requestId,
     },
   };
 }
@@ -269,12 +299,14 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
   /** thread별로 가장 나중에 끝난 Turn. Turn 밖 호출(제목 등)이 어느 Turn 뒤의 호출인지 붙이는 데 쓴다 */
   const lastTurnOfThread = new Map<string, string>();
   const priorMainCall = new Map<string, PriorCall>();
+  /** 하위 대화 id → 만든 쪽. `agent.spawned` 커밋이 채운다(자식의 첫 호출보다 먼저 커밋된다) */
+  const childOwners = new Map<string, ChildOwner>();
   let pendingCalls = 0;
 
   const offUsage = deps.usage.subscribe((call) => {
     if (!deps.enabled() || pendingCalls >= MAX_PENDING_CALLS) return;
     pendingCalls += 1;
-    const record = callRecord(call);
+    const record = ownedCallRecord(callRecord(call), childOwners.get(call.threadId));
     if (call.turnId === null) {
       // Turn 밖 호출(제목, 요약, 검색, 판정)은 다음 Turn을 기다리지 않고 바로 쓴다. 어느 Turn 뒤의 호출인지는 `afterTurn` 태그로 남긴다
       const after = lastTurnOfThread.get(call.threadId);
@@ -371,6 +403,20 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
   const off = deps.session.feed.onCommit((batch) => {
     if (!deps.enabled()) return;
     for (const event of batch.events) {
+      if (event.kind === "agent.spawned") {
+        const spawned = parse(AgentSpawnedPayloadSchema, event.payload);
+        if (spawned.ok) {
+          const { owner } = spawned.value;
+          childOwners.set(spawned.value.childThreadId, {
+            scopeId: owner.kind === "tool" ? null : owner.scopeId,
+            parentThreadId: event.threadId,
+            requestId: spawned.value.requestId,
+          });
+          const oldest =
+            childOwners.size > MAX_CHILD_OWNERS ? childOwners.keys().next() : undefined;
+          if (oldest !== undefined && oldest.done !== true) childOwners.delete(oldest.value);
+        }
+      }
       pending.push(...stepRecords(event));
       const record = turnRecord(event);
       if (record === undefined) continue;

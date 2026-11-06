@@ -66,6 +66,8 @@ export interface TurnCallVM {
   readonly totalTokens: number;
   readonly cacheRead: number;
   readonly usd: number;
+  /** 호출을 소유 그룹에 귀속한 scope(`call` 행의 `scope` 태그). 귀속이 없으면 빈 글자 */
+  readonly scope: string;
 }
 
 /** 훅 발화 시간줄의 한 칸: 핸들러 하나의 실행 */
@@ -129,6 +131,12 @@ export interface PluginShareVM {
   readonly tokens: number;
   /** `tokens`가 훅 글자 수에서 추정한 값이면 true */
   readonly tokensEstimated: boolean;
+  /** 이 플러그인(그룹)에 귀속된 모델 호출의 토큰 합(탐구 하위 에이전트, 웹 검색 포함). 귀속된 호출이 없으면 0 */
+  readonly callTokens: number;
+  /** 귀속된 모델 호출의 비용 합(USD) */
+  readonly callUsd: number;
+  /** 귀속된 모델 호출 수 */
+  readonly callCount: number;
 }
 
 /** 글자 수에서 토큰을 추정한다. 모델 호출 쪽 추정(pi-ai, core-context `textTokens`)과 같은 글자 수 / 4 올림이다 */
@@ -197,6 +205,7 @@ function callsOf(rows: readonly MeasureRow[]): readonly TurnCallVM[] {
       totalTokens: num(row, "totalTokens"),
       cacheRead: num(row, "cacheRead"),
       usd: num(row, "usd"),
+      scope: tag(row, "scope"),
     }));
 }
 
@@ -306,6 +315,7 @@ function pluginsOf(
   hooks: readonly HookEventVM[],
   bars: readonly CompositionBarVM[],
   cache: readonly CacheEventVM[],
+  calls: readonly TurnCallVM[],
 ): readonly PluginShareVM[] {
   const byOwner = new Map<string, { -readonly [K in keyof PluginShareVM]: PluginShareVM[K] }>();
   const slot = (owner: string): { -readonly [K in keyof PluginShareVM]: PluginShareVM[K] } => {
@@ -321,6 +331,9 @@ function pluginsOf(
       hookChars: 0,
       tokens: 0,
       tokensEstimated: false,
+      callTokens: 0,
+      callUsd: 0,
+      callCount: 0,
     };
     byOwner.set(owner, made);
     return made;
@@ -339,6 +352,14 @@ function pluginsOf(
         slot(segment.owner).sectionTokens += segment.tokens;
       }
     }
+  }
+  // 소유 그룹에 귀속된 모델 호출(drive turn, 하위 에이전트, 웹 검색)은 그 그룹의 몫이다
+  for (const call of calls) {
+    if (call.scope === "") continue;
+    const share = slot(call.scope);
+    share.callTokens += call.totalTokens;
+    share.callUsd += call.usd;
+    share.callCount += 1;
   }
   // 캐시 사건의 원인이 이 Turn의 플러그인으로 적힌 때만 그 플러그인 몫에 센다(`context-hook` 같은 종류 이름은 플러그인이 아니다)
   for (const event of cache) {
@@ -374,7 +395,7 @@ export function turnViewOf(result: MeasureTurnResult): TurnViewState {
       hookTotalMs: hooks.reduce((sum, hook) => sum + hook.ms, 0),
       bars,
       cache,
-      plugins: pluginsOf(hooks, bars, cache),
+      plugins: pluginsOf(hooks, bars, cache, calls),
     },
   };
 }

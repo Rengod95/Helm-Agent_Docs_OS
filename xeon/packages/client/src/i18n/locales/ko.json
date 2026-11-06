@@ -1966,6 +1966,7 @@
   "desktop.threads.reloadButton": "다시 읽기",
   "desktop.threads.resumableBadge": "이어서 실행",
   "desktop.approvals.title.tool": "도구 \"{tool}\" 실행을 허용할까요?",
+  "desktop.approvals.title.web": "{host}에 웹으로 접근하도록 허용할까요?",
   "desktop.approvals.title.plan": "계획을 검토해 주세요",
   "desktop.approvals.title.write.memory": "{name} 기억 쓰기: {op}",
   "desktop.approvals.title.write.skill": "{name} 스킬 쓰기: {op}",
