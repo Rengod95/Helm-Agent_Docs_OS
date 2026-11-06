@@ -3,7 +3,7 @@ import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { storeFailureOfExitCode, type StatusItemRecord } from "@fresnel/contracts/records";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { nativeEntriesOf, originTitleOf } from "../plugin-ui/placements.ts";
 import {
   useApprovalCount,
@@ -23,6 +23,17 @@ import { RestartLine } from "./restart-line.tsx";
 import { SafeModeChip } from "./safe-mode-chip.tsx";
 import { StatusCell, type StatusDot } from "./status-cell.tsx";
 import { useGoToThread, type GoToThread } from "./thread-link.ts";
+import { useUpdate } from "./update-context.ts";
+import type { UpdateController } from "./update-controller.ts";
+import {
+  needsRunningConfirm,
+  progressPercentOf,
+  retryStepOf,
+  shouldAutoInstall,
+  updateCellOf,
+  updateDescriptionOf,
+} from "./update-model.ts";
+import { UpdateBody, UpdateRestartDialog } from "./update-parts.tsx";
 
 const LINK_TEXT: Readonly<Record<Link["phase"], MessageId>> = {
   offline: "desktop.status.link.offline",
@@ -321,6 +332,94 @@ function LiveCell(): ReactNode {
   );
 }
 
+/**
+ * 업데이트 칸(B-10, d02 `upd`). 내려받기와 설치 단계에서만 보인다. 확인 단계와 최신 상태는 설정 줄이 맡는다.
+ * 문맥이 없으면(웹) 아무것도 그리지 않는다.
+ */
+function UpdateCell(): ReactNode {
+  const controller = useUpdate();
+  if (controller === null) return null;
+  return <UpdateCellOf controller={controller} />;
+}
+
+/**
+ * 업데이트 칸의 동작. 설치는 진행 중인 턴을 멈추므로 턴이 있으면 다시 시작 확인을 먼저 묻는다(기본 초점은 "나중에").
+ * "턴이 끝나면"을 고르면 턴이 0이 되고 파일이 준비된 때 한 번 설치한다. 설치가 실패하면 다시 자동으로 설치하지 않는다.
+ */
+function UpdateCellOf(props: { readonly controller: UpdateController }): ReactNode {
+  const { controller } = props;
+  // 서버 렌더(시험)도 같은 상태를 읽으므로 서버 스냅숏으로 `getState`를 함께 준다
+  const state = useSyncExternalStore(
+    controller.subscribe,
+    controller.getState,
+    controller.getState,
+  );
+  const running = useRunningCount();
+  const [open, setOpen] = useState(false);
+  const [asking, setAsking] = useState(false);
+  // "턴이 끝나면"을 골랐는지. 그릴 값이 아니고 턴이 0이 될 때 한 번 쓰는 표식이라 상태 대신 참조에 둔다
+  const afterTurn = useRef(false);
+  useEffect(() => {
+    if (!shouldAutoInstall(afterTurn.current, running, state)) return;
+    afterTurn.current = false;
+    detach(controller.installAndRestart(), rethrow);
+  }, [controller, running, state]);
+  const cell = updateCellOf(state);
+  if (!cell.showCell) return null;
+  const percent = progressPercentOf(state);
+  const description = updateDescriptionOf(state);
+  const install = (): void => {
+    if (needsRunningConfirm(state, running)) setAsking(true);
+    else detach(controller.installAndRestart(), rethrow);
+  };
+  return (
+    <>
+      <StatusCell
+        cellId="update"
+        text={t(cell.text, percent === null ? undefined : { percent })}
+        dot={cell.dot}
+        title={t("desktop.update.cell.title")}
+        description={description === undefined ? undefined : t(description)}
+        wide
+        open={open}
+        onOpenChange={setOpen}
+        body={
+          <UpdateBody
+            state={state}
+            currentVersion={controller.currentVersion()}
+            handlers={{
+              download: () => {
+                detach(controller.download(), rethrow);
+              },
+              install,
+              retry: () => {
+                // 설치 단계에서 멈춘 것을 다시 하는 것은 설치와 같으므로 턴을 묻는다
+                if (retryStepOf(state) === "install") install();
+                else detach(controller.retry(), rethrow);
+              },
+            }}
+          />
+        }
+      />
+      <UpdateRestartDialog
+        open={asking}
+        turns={running}
+        onLater={() => {
+          setAsking(false);
+        }}
+        onAfterTurn={() => {
+          setAsking(false);
+          afterTurn.current = true;
+        }}
+        onNow={() => {
+          setAsking(false);
+          detach(controller.installAndRestart(), rethrow);
+        }}
+      />
+    </>
+  );
+}
+
 export function StatusBar(): ReactNode {
   const commands = useCommands();
   const engine = useEngineState();
@@ -337,6 +436,7 @@ export function StatusBar(): ReactNode {
       <EngineCell engine={engine} />
       <LinkCell phase={banner.phase} attempt={banner.attempt} />
       <SafeModeChip />
+      <UpdateCell />
       <LiveCell />
       {approvals > 0 ? (
         <span className="warn">{t("desktop.status.approvals", { count: approvals })}</span>

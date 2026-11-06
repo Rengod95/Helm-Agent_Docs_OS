@@ -403,3 +403,15 @@ describe("restore section", () => {
     expect(html(propsOf({ view, tab: "advanced", query: "기본" }))).not.toContain("RESTORE PANEL");
   });
 });
+
+describe("update line section", () => {
+  test("the update line sits on the overview tab only, and a search hides it", () => {
+    const view = viewOf([MODEL], SETTINGS);
+    const line = <p>UPDATE LINE</p>;
+    expect(html(propsOf({ view, tab: "overview", updatePanel: line }))).toContain("UPDATE LINE");
+    expect(html(propsOf({ view, tab: "models", updatePanel: line }))).not.toContain("UPDATE LINE");
+    expect(
+      html(propsOf({ view, tab: "overview", query: "기본", updatePanel: line })),
+    ).not.toContain("UPDATE LINE");
+  });
+});

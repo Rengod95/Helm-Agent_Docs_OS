@@ -78,6 +78,8 @@ export interface SettingsPageProps {
   readonly rotationPanel: ReactNode;
   /** 사용량 (이 대화) 패널(P-11). 게이지 자리가 있는 탭(예산과 한도, 계정과 제공자) 맨 위에 보인다 */
   readonly usagePanel: ReactNode;
+  /** 앱 업데이트 줄(B-10). 개요 탭 맨 위에 보인다. 웹이나 문맥이 없으면 `null`이다 */
+  readonly updatePanel?: ReactNode | undefined;
   readonly handlers: SettingsPageHandlers;
 }
 
@@ -309,6 +311,7 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
   const fields = tabView.fields.filter((field) => !panelOwnedOf(field));
   return (
     <FormLayoutSection title={tabView.label}>
+      {tab === "overview" ? props.updatePanel : null}
       {tab === "overview" ? <OverviewSummary view={view} /> : null}
       {tab === "tools" ? props.toolsPanel : null}
       {tab === "advanced" ? props.restorePanel : null}
