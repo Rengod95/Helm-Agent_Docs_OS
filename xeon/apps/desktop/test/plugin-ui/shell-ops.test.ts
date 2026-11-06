@@ -245,7 +245,7 @@ describe("writeSetting", () => {
       err({ kind: "denied", detail: "setting_secret" }),
     );
     expect(await h.backend.writeSetting("ext.helm.nothing", "v")).toEqual(
-      err({ kind: "denied", detail: "setting_secret" }),
+      err({ kind: "failed", detail: "setting_unknown" }),
     );
     expect(h.calls.map((call) => call.method)).toEqual(["settings.list", "settings.list"]);
   });

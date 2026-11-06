@@ -433,7 +433,9 @@ export function createBridgeBackend(deps: BridgeBackendDeps): BridgeBackend {
       const defs = await onWire((connection) => connection.request("settings.list", {}));
       if (!defs.ok) return defs;
       const def = defs.value.defs.find((candidate) => candidate.key === key);
-      if (def === undefined || def.secret === true) return fail("denied", "setting_secret");
+      // 정의가 없는 키와 비밀 키는 이유를 갈라 돌려준다
+      if (def === undefined) return fail("failed", "setting_unknown");
+      if (def.secret === true) return fail("denied", "setting_secret");
       const written = await onWire((connection) =>
         connection.request("settings.set", { key, value, scope: "user" }),
       );
