@@ -12,7 +12,7 @@ export interface OutputBlock {
 /** 펼친 출력에 싣는 줄 수. 넘으면 앞부분만 싣는다. 높이는 화면이 따로 묶고 안쪽에서 스크롤한다 */
 export const OUTPUT_VIEW_MAX_LINES = 200;
 /** 줄 수와 별개로 싣는 글자 수 상한(한 줄이 매우 긴 출력 보호) */
-export const OUTPUT_VIEW_MAX_CHARS = 20000;
+const OUTPUT_VIEW_MAX_CHARS = 20000;
 
 const TRUNCATED_NOTICE = "[fresnel:output_truncated]";
 

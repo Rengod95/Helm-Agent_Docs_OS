@@ -61,9 +61,8 @@ function parseEntry(text: string): LedgerEntry | undefined {
   if (!parsed.ok) return undefined;
   const value = parsed.value;
   if (typeof value !== "object" || value === null) return undefined;
-  const hostPid: unknown = Reflect.get(value, "hostPid");
-  const pid: unknown = Reflect.get(value, "pid");
-  const bootMs: unknown = Reflect.get(value, "bootMs");
+  if (!("hostPid" in value) || !("pid" in value) || !("bootMs" in value)) return undefined;
+  const { hostPid, pid, bootMs } = value;
   if (typeof hostPid !== "number" || typeof pid !== "number" || typeof bootMs !== "number")
     return undefined;
   return { hostPid, pid, bootMs };
