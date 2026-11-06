@@ -5,7 +5,7 @@ domain: desktop
 kind: spec
 status: draft
 depends_on: [adr.0008, adr.0006, adr.0010, adr.0014, F.wire-settings.spec, L4.host-service.spec, eng.dependency-rules.guide, eng.toolchain.guide, eng.testing.guide, L0.os.spec, L0.process.spec]
-binds: [xeon/apps/desktop/**]
+binds: [xeon/apps/desktop/**, xeon/apps/desktop-shell/**]
 ---
 
 # L4 데스크톱 (desktop)
@@ -775,3 +775,60 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 17. (닫힘) [결정: 2026-11-04 사용자] 새 대화의 작업 폴더를 운영체제 폴더 선택 창으로 고른다(§4.16). V1(§4.11)의 "셸 명령으로 감싸 쓴다"를 따른다. `src-tauri/Cargo.toml`에 `tauri-plugin-dialog = "=2.8.4"`를 더했다(tauri 2.12.3과 맞는 최신 2.x). 셸 명령 `pick_folder`(§3.3)가 Rust에서 부른다. WebView에는 dialog 권한을 주지 않는다. `capabilities/default.json`에는 `allow-pick-folder` 하나만 더했다. `Cargo.lock`은 패키지 세 개가 늘었다: `rfd` 0.17.2, `tauri-plugin-dialog` 2.8.4, `tauri-plugin-fs` 2.7.1(파일 1.3 KB 증가). 맥에서 창이 뜨고 고른 경로가 입력란에 들어가는 동작은 이 변경으로 확인하지 않았다. 맥 확인이 남아 있다.
 18. [결정: adr.0016] 화면 문자열은 `packages/client`의 ko·en 카탈로그 id(ICU MessageFormat 부분집합)로 만들고 `Intl` 기반 포트(`packages/client/src/i18n/format.ts`)로 풉니다. ADR-0016 §3.1의 react-intl은 승인 전이라 쓰지 않습니다 [결정: 오케스트레이터 기본값]. 로케일은 `l4.ui.locale`(기본 auto: OS 로케일, 없으면 영어)을 따르고, 날짜·숫자는 `Intl`로 표시합니다. 엔진 오류는 `kind`와 인자로 받아 화면이 문장을 만듭니다. 비-`.tsx` 문장은 카탈로그 id입니다(M3b B4-I18N). 설정 정의(`settings-store/defs.ts`)의 `labelKey`·`helpKey`는 `settings.l4.desktop.<키>.label|help`이고, `views/*-model.ts`와 `views/setup-needed.ts`는 `desktop.*` id이며, 턴 실패 기본 문장(`state/engine/failure-text.ts`)은 `desktop.engine.turnFailureUnknown`입니다. `fresnel/hardcoded-korean` 규칙이 L4 `src`의 한국어 리터럴을 막습니다. [미결] `.tsx` 뷰(`views/*.tsx`, `main.tsx`)의 한국어 리터럴은 M4 화면 재작성에서 옮깁니다. 로케일은 `app/locale.ts`가 정합니다. 연결 전에는 설정을 읽을 수 없으므로 첫 렌더 전에 WebView 언어 단서(`navigator.languages`의 첫 항목)로 `setActiveLocale`을 부르고(지원하지 않는 언어와 단서 없음은 `en`), 엔진에 연결되면 `settings.get`으로 `l4.ui.locale`을 읽어 바로잡습니다. `settings.invalidated`가 이 키(또는 빈 키 목록)를 알리면 다시 읽고, 로케일이 바뀌면 `main.tsx`가 `key`가 로케일인 트리를 다시 그립니다. 턴 실패 기본 문장은 reduce 시점의 로케일로 풀려 거울(`turnFailures`)에 저장되므로, 나중에 로케일을 바꿔도 저장된 문장은 다시 풀리지 않습니다.
 19. [미결] `os_reauth`(§4.17)의 실제 인증 창과 취소 종류는 Mac에서 확인하지 않았다(`review.macos-checklist` M-05). 값 보기 화면은 이 명령을 쓰도록 이어졌다(`RevealGate`, §4.17) [근거: review.macos-checklist M-05].
+
+## 11. 셸 구현을 Electron으로 바꾼다 (ADR 성격)
+
+[결정: 2026-11-06 사용자] 데스크톱 셸 구현을 Tauri(Rust)에서 Electron(TypeScript)으로 바꾼다. 근거는 시험 빌드의 측정이다(squircle `corner-shape` 지원, 크래프트 휠 스크롤 끊김 해소. 대가는 크기 약 3배, 메모리 약 +145 MiB). 같은 UI가 두 셸에서 돌고, Electron이 같은 기능을 모두 갖춘 뒤에 Tauri와 Rust 셸을 지운다. 이 절의 Tauri 관련 문장은 그때 정리한다.
+
+### 11.1 구조
+
+- 위치는 새 워크스페이스 `xeon/apps/desktop-shell/`(`@fresnel/desktop-shell`)다. 이유: 메인 프로세스와 preload는 Node/Electron 타입, UI는 DOM 타입을 쓰므로 tsconfig가 갈린다. 번들(`out/main.mjs`, `out/preload.cjs`)과 패키징, knip·층 검사 항목이 UI와 섞이지 않는다. UI(`apps/desktop`)는 이 패키지를 import하지 않고 preload가 내놓는 좁은 API로만 만난다.
+- 패키징 도구는 `@electron/packager`다. 설정 없이 `.app`만 만들고 서명·공증·업데이트 피드는 뒤 단계가 따로 붙일 수 있어 `electron-builder`보다 얇다.
+- 메인 프로세스 `src/main.ts`는 창, `app://` 스킴(UI 번들), IPC 입구, `ShellContext`를 만들고 `src/main/modules.ts`의 모듈 목록을 엮을 뿐이다. 기능은 `src/main/<기능>.ts`가 `register(ctx: ShellContext)`를 내보내 붙는다. ctx는 `env`, `platform`, `paths`, `dialogs`, `openExternal`, `handle(command, handler)`, `channel(caller, value)`, `emit(name)`, `onQuit(cleanup)`이다. 모듈은 `electron`을 타입으로만 import해 `bun test`가 가짜 ctx로 돌린다.
+- renderer에는 `window.fresnelShell`(`invoke`, `openChannel`, `closeChannel`, `listen`) 하나만 내놓는다. 명령은 모듈이 `ctx.handle`로 등록하면 `invoke`로 닿는다. 등록되지 않은 명령은 `unknown-command`로 거부한다. `ShellError`의 값은 Tauri 명령의 `Err(...)`와 같은 자리로 거절 값이 되고 다른 오류는 `internal`로 바뀌어 내용이 밖으로 나가지 않는다.
+- UI는 `apps/desktop/src/shell/`의 어댑터가 실행 때 Electron(`window.fresnelShell`)인지 Tauri(`__TAURI_INTERNALS__`)인지 고른다. 웹 빌드는 둘 다 없다. `@tauri-apps/*`를 import하는 파일은 `src/shell/tauri-bridge.ts`뿐이다.
+
+### 11.2 보안
+
+`contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`. 모든 IPC는 발신 프레임이 최상위 프레임이고 `app://localhost`일 때만 핸들러에 닿는다(`fresnel-view://` 프레임은 닿지 못한다). 창 안 이동과 새 창은 막고, 밖으로 여는 일은 `open_external`(스킴 허용 목록)뿐이다. CSP는 Tauri 설정과 같은 수준이다. Tauri capability와의 대응표는 `L4.desktop.design` §15에 있다. 새 IPC 보안 모델의 최종 검토는 사용자 몫이다.
+
+### 11.3 실행
+
+`just desktop-run-electron`(Tauri `just desktop-run`은 그대로). 단일 인스턴스 잠금은 이 앱의 userData 기준이라 Tauri 셸과 서로 막지 않는다(§11.6).
+
+### 11.4 이 단계의 범위
+
+이 단계는 엔진 릴레이, 엔진 수명, 복원, 설정, 키 등록, 앱 루트와 `fresnel-view://`, 외부 열기, 폴더·파일 선택, 파일 저장, 창 위치, 앱 로그, PATH 보정, inspect 소켓을 옮긴다. 트레이, OS 알림, 업데이트, 재인증, 단일 인스턴스와 셸 의도는 다음 단계, 서명·공증·릴리스 묶음과 고지는 그 다음 단계, Tauri·Rust 삭제는 마지막이다.
+
+### 11.5 명령별 Electron 대응
+
+| Tauri 명령 | Electron 구현(`apps/desktop-shell/src/main/`) | 비고 |
+|---|---|---|
+| `desktop_settings_read`, `desktop_settings_write` | `desktop-settings.ts` | 같은 파일 `<configDir>/desktop-settings.json`(Tauri `app_config_dir`)을 읽고 쓴다. 키 검사, 64 KiB 상한, 거부 코드는 같다. JSON 파서가 `2.0`을 정수와 구별하지 못해 `2.0`, `5e3`을 정수로 받는다(UI는 쓰지 않는다). 진단 문구에 오류 위치(줄, 열)가 없다 |
+| `secret_register` | `secret-entry.ts` | 번들된 사이드카 `fresnel secret <동작> <이름>`을 `@fresnel/platform-process/piped`의 `spawnPiped`로 한 번 실행하고 값은 stdin에만 쓴다. 30초 제한, 한 번에 하나, 요청 본문은 쓴 뒤 0으로 덮는다. 앱 로그에는 `secret entry <동작> <이름>: <결과>`만 남는다 |
+| `app_roots_set`, `fresnel-view://` | `view-scheme.ts` | `protocol.handle`과 `registerSchemesAsPrivileged`(standard, secure, supportFetchAPI, corsEnabled). 허용 루트, 경로 규칙, 확장자 표, 16 MiB 상한, 프레임 CSP는 Rust와 같다. WHATWG URL이 `.`, `..` 마디를 먼저 접어 프레임의 `..`은 403이 아니라 400이다 |
+| `open_external` | `open-external.ts` | 스킴 허용 목록은 Rust와 같다(http, https) |
+| `pick_folder`, `pick_file`, `save_file` | `dialogs.ts` | `dialog.showOpenDialog`, `showSaveDialog`. 파일 이름 정리와 200자 상한은 Rust와 같다 |
+| (Tauri에 없음) 창 위치·크기 기억 | `window-state.ts` | `window.rs`는 창 다시 열기만 하고 위치를 기억하지 않는다. Electron 쪽에 새로 넣었고 파일은 `window-state-electron.json`이다 |
+| 앱 로그 | `lib/applog.ts` | `<logs>/fresnel-desktop.log`(macOS `~/Library/Logs/dev.fresnel.desktop/`), 줄 단위, 제어 문자는 공백 |
+| PATH 보정 | `env-path.ts`, `lib/env-path.ts` | 엔진과 `fresnel secret` 자식의 환경에만 적용한다(Rust `engine_env`와 같다) |
+| `engine_attach`, `engine_write`, `engine_ack`, `engine_detach` | `engine.ts`, `engine/relay.ts` | 신용 기반 ack(창 4 MiB, 확인 단위 256 KiB), 세대별 줄 버퍼, 쓰기 대기열 16개는 Rust와 같다. 채널은 preload가 `{$channel: id}`로 넘기고 바이트 명령은 `{body, headers}`로 온다. 거부 코드는 같은 kebab-case 문자열이다 |
+| `engine_restart`, `engine_retarget`, `db_restore` | `engine.ts`, `engine/supervisor.ts`, `engine/policy.ts`, `engine/launcher.ts` | 세대 관리, 크래시 재시작(10분 창, 지수 백오프), 안전 모드, service 대상, 정상 종료 순서(EOF, 유예, 그룹 종료)는 Rust와 같다. 프로세스 기동은 `@fresnel/platform-process/piped`다(DR-07). 차이: 기동이 비동기라 기동 중 종료 요청이 오면 새 엔진을 낡은 것으로 보고 멈춘다. 엔진 프로세스가 끝나면 남은 손자 프로세스도 같이 끝난다. `FRESNEL_REMOTE_TOKEN`은 Rust처럼 환경 전체 상속으로 간다 |
+| (디버그) inspect 소켓 | `inspect.ts` | `<로그 폴더>/inspect.sock`, 줄 단위 JSON-RPC 2.0, `state.dump`, `viewport.snapshot`(`webContents.capturePage`, PNG는 파일로 쓰고 경로만 응답). Electron은 릴리스에도 코드가 들어가므로 환경 변수 `FRESNEL_DESKTOP_INSPECT=1`일 때만 켜진다. 패키징은 이 변수를 설정하지 않는다 |
+| SIGTERM, SIGINT | `main.ts` | 첫 신호는 정상 종료(onQuit), 종료 중 두 번째 신호는 즉시 종료 |
+
+### 11.6 OS 기능의 Electron 대응 (§4.17, §4.18)
+
+명령 이름과 인자·응답 모양은 Tauri와 같다(UI가 두 셸에서 같은 코드로 돈다). 모듈은 `src/main/<기능>.ts`(electron을 import하지 않는 로직, `bun test`로 시험)와 `<기능>-shell.ts`(Electron 어댑터)로 나뉜다. 어댑터는 시험하지 않고 셸을 띄워 확인한다.
+
+**트레이** (`tray.ts`, `tray-shell.ts`): Electron `Tray`와 메뉴(열기, 새 대화, 진행 중 n[비활성], 끝내기). macOS는 템플릿 이미지(`assets/tray.png`, 높이 18pt). 글은 `tray_update`가 보낸 것이고 80자(코드 포인트) 상한이다. 트레이를 만들지 못하면 `{kind:"unavailable"}`이고 닫기 동작 `tray`는 `quit`처럼 움직인다(`close-behavior.ts`, Tauri `effective_close_behavior`와 같은 표). 닫기 동작의 설정값은 설정 모듈이 `setConfiguredCloseBehavior`로 넣는다(기본 `tray`).
+
+**셸 의도와 단일 인스턴스** (`intents.ts`, `shell-intents.ts`, `single-instance.ts`): 큐는 Tauri와 같다(최대 8개, 30초, 끝이 같은 `openThread`는 시각만 갱신). `shell_take_intents`와 `shell-intent` 이벤트도 같다. 잠금은 Electron `requestSingleInstanceLock()`이고 `app.ready` 전에(모듈의 `beforeReady`) 잡아, 두 번째 실행은 창을 만들기 전에 끝난다. 이 앱의 userData 기준이라 Tauri 셸(다른 데이터 폴더와 플러그인 잠금)과 서로 막지 않는다. `second-instance`와 `open-url`은 창을 앞으로 가져오기만 한다(URL 스킴은 아직 없다).
+
+**OS 알림** (`notify-os.ts`, `notify-os-shell.ts`): Electron `Notification`. 제목 80자, 본문 400자, 제어 문자 제거는 Tauri와 같고 문구는 UI가 카탈로그 문자열과 대화 제목으로 만든다(`notice.body`는 쓰지 않는다). 알림 클릭은 `click` 이벤트로 바로 `openThread` 의도를 큐에 넣고 창을 앞으로 가져온다. Tauri의 30초 기억(`notify_take_target`)은 필요 없어 이 명령은 항상 `null`을 준다(UI 호환용으로 남긴다). Electron에는 알림 권한 조회가 없어 `notify_permission`은 `Notification.isSupported()`로 `granted`/`denied`를 답한다.
+
+**업데이트** (`updater.ts`, `updater-shell.ts`): `electron-updater`(승인된 새 의존성). 피드는 `Resources/update-feed.json`(`{provider:"generic", url}`)이고 이 파일이 없거나 비면 `notConfigured`라 앱은 정상이며 `electron-updater`는 적재되지 않는다. 상태 모델과 이유 코드는 Tauri와 같다. 서버가 404가 아닌 오류 상태(`HttpError.statusCode`)로 답하면 `network`, 404와 `latest.yml` 없음은 `no_release`다. 설치가 성공하면 앱이 끝나므로 `update_install_restart`는 Tauri처럼 답하지 않는다(UI는 `installing`에 머문다). 피드 값과 서명 인증서는 사용자 몫이라 자리만 있다(파일을 두지 않는다).
+
+모듈이 앱 로그를 남길 때는 모두 `lib/applog.ts`의 `appLogOf(ctx)` 하나를 쓴다.
+
+**재인증** (`os-reauth.ts, `os-reauth-shell.ts`): `systemPreferences.promptTouchID()`. [미결] 동작 차이: Tauri는 `DeviceOwnerAuthentication`이라 Touch ID가 없는 Mac에서 기기 암호 창으로 갔지만 Electron API는 Touch ID만 지원한다. Touch ID가 없는 기기는 `unavailable`이다. 기기 암호까지 쓰려면 네이티브 애드온이 필요해 사용자가 정할 일이다. 오류 문구 분류는 Mac 실기 확인 전이다(`review.macos-checklist` M-05). macOS가 아닌 OS는 `unavailable`이다.

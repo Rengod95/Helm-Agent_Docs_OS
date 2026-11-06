@@ -3,10 +3,11 @@ import { parse } from "@fresnel/contracts";
 import { SecretNameSchema } from "@fresnel/contracts/capabilities";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import type { DesktopIpc, RestartOptions } from "../../src/transport/ipc.ts";
-import { createTauriIpc } from "../../src/transport/ipc.ts";
+import { createDesktopIpc } from "../../src/transport/ipc.ts";
+import { selectShellBridge } from "../../src/shell/index.ts";
 import type { FakeIpc } from "./fake-ipc.ts";
 
-// 실제 `createTauriIpc`(invoke, Channel)를 Tauri 쪽 모의(`@tauri-apps/api/mocks`의 mockIPC) 위에서 돌린다.
+// 실제 `createDesktopIpc`(invoke, Channel)를 Tauri 쪽 모의(`@tauri-apps/api/mocks`의 mockIPC) 위에서 돌린다.
 // 셸 역할은 `FakeIpc`가 맡고, 이 파일은 셸 명령(engine_*)을 FakeIpc 호출로, FakeIpc의 출력을 Channel 메시지로 옮긴다.
 // mockIPC는 invoke의 세 번째 인자(헤더 `x-fresnel-epoch`)를 콜백에 넘기지 않는다. 세대 검사는 Rust 시험(relay.rs)이 맡고,
 // 여기서는 가장 최근 attach의 세대를 쓴다.
@@ -164,7 +165,7 @@ export function tauriMockIpc(fake: FakeIpc): {
     throw new Error(`unexpected command ${cmd}`);
   });
   return {
-    ipc: createTauriIpc(),
+    ipc: createDesktopIpc(selectShellBridge()),
     calls,
     sendRawState: (value) => {
       raw.state(value);

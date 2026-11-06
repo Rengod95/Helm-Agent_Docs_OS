@@ -77,6 +77,8 @@ layout:
       release-workflow: ".github/workflows/fresnel-release.yml"
       # 데스크톱 화면 구성과 UX(M4). 화면 렌더러 경로이고 desktop binds 안에 들어간다
       desktop-ux: "xeon/apps/desktop/src/views/**"
+      # Electron 셸(L4.desktop.spec §11). 도메인은 desktop이고 binds만 이 경로를 더한다
+      desktop-shell: "xeon/apps/desktop-shell/**"
   plugins:
     - path: "xeon/plugins/provider-anthropic-oauth/**"
       docs: [L1.readme, L1.models.spec, L1.models.plan]

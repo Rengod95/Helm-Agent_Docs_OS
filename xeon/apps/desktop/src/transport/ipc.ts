@@ -1,4 +1,3 @@
-import { Channel, invoke } from "@tauri-apps/api/core";
 import {
   attemptAsync,
   err,
@@ -22,8 +21,9 @@ import {
   type TUnion,
   type TUnknown,
 } from "typebox";
+import type { ShellBridge } from "../shell/bridge.ts";
 
-// L4.desktop.spec 3.3. @tauri-apps/*를 import하는 파일은 이 파일과 src/shell/**뿐이다(W2).
+// L4.desktop.spec 3.3. @tauri-apps/*를 import하는 파일은 src/shell/tauri-bridge.ts뿐이다(W2). 이 파일은 ShellBridge만 안다(L4.desktop.design §15.1).
 // 테스트는 DesktopIpc 가짜를 주입한다(eng.testing.guide TS-05).
 
 const IsoTimeSchema: TString = Type.String({ format: "date-time", maxLength: 32 });
@@ -298,24 +298,20 @@ function restartArgs(options: RestartOptions = {}): RestartOptions {
   };
 }
 
-/** @tauri-apps/api의 invoke와 Channel로 DesktopIpc를 만든다 */
-export function createTauriIpc(): DesktopIpc {
+/** 셸 다리(Tauri 또는 Electron)로 DesktopIpc를 만든다 */
+export function createDesktopIpc(bridge: ShellBridge): DesktopIpc {
   return {
     async attach(onBytes, onState) {
-      const bytes = new Channel();
-      // oxlint-disable-next-line unicorn/prefer-add-event-listener -- Tauri Channel은 EventTarget이 아니라 onmessage 대입이 유일한 수신 방법이다 (@tauri-apps/api core.d.ts)
-      bytes.onmessage = (message) => {
+      const bytes = bridge.createChannel((message) => {
         const chunk = bytesOf(message);
         if (chunk !== null) onBytes(chunk);
-      };
-      const state = new Channel();
-      // oxlint-disable-next-line unicorn/prefer-add-event-listener -- Tauri Channel은 EventTarget이 아니라 onmessage 대입이 유일한 수신 방법이다 (@tauri-apps/api core.d.ts)
-      state.onmessage = (message) => {
+      });
+      const state = bridge.createChannel((message) => {
         const parsed = parseEngineState(message);
         if (parsed.ok) onState(parsed.value);
-      };
+      });
       const raw = await call<unknown>("engine_attach", () =>
-        invoke<unknown>("engine_attach", { onBytes: bytes, onState: state }),
+        bridge.invoke("engine_attach", { onBytes: bytes, onState: state }),
       );
       if (!raw.ok) return raw;
       const parsed = parseAttachResult(raw.value);
@@ -325,27 +321,27 @@ export function createTauriIpc(): DesktopIpc {
     },
     write: (epoch, chunk) =>
       call("engine_write", async () => {
-        await invoke("engine_write", chunk, { headers: { "x-fresnel-epoch": String(epoch) } });
+        await bridge.invokeBytes("engine_write", chunk, { "x-fresnel-epoch": String(epoch) });
         return null;
       }),
     ack: (epoch, bytes) =>
       call("engine_ack", async () => {
-        await invoke("engine_ack", { epoch, bytes });
+        await bridge.invoke("engine_ack", { epoch, bytes });
         return null;
       }),
     restart: (options) =>
       call("engine_restart", async () => {
-        await invoke("engine_restart", restartArgs(options));
+        await bridge.invoke("engine_restart", restartArgs(options));
         return null;
       }),
     retarget: (target) =>
       call("engine_retarget", async () => {
-        await invoke("engine_retarget", { target });
+        await bridge.invoke("engine_retarget", { target });
         return null;
       }),
     async dbRestore(backupDir) {
       const raw = await call<unknown>("db_restore", () =>
-        invoke<unknown>("db_restore", { backupDir }),
+        bridge.invoke("db_restore", { backupDir }),
       );
       if (!raw.ok) return raw;
       const parsed = parse(DbRestoreReplySchema, raw.value);
@@ -353,7 +349,7 @@ export function createTauriIpc(): DesktopIpc {
     },
     async readSettings() {
       const raw = await call<unknown>("desktop_settings_read", () =>
-        invoke<unknown>("desktop_settings_read"),
+        bridge.invoke("desktop_settings_read"),
       );
       if (!raw.ok) return raw;
       const parsed = parse(SettingsFileSchema, raw.value);
@@ -363,12 +359,12 @@ export function createTauriIpc(): DesktopIpc {
     },
     writeSettings: (key, value) =>
       call("desktop_settings_write", async () => {
-        await invoke("desktop_settings_write", { key, value });
+        await bridge.invoke("desktop_settings_write", { key, value });
         return null;
       }),
     detach: (epoch) =>
       call("engine_detach", async () => {
-        await invoke("engine_detach", { epoch });
+        await bridge.invoke("engine_detach", { epoch });
         return null;
       }),
     async registerSecret(name, action, value) {
@@ -378,7 +374,7 @@ export function createTauriIpc(): DesktopIpc {
       body.set(head, 0);
       body.set(value, head.byteLength);
       try {
-        const sent = await attemptAsync(() => invoke("secret_register", body));
+        const sent = await attemptAsync(() => bridge.invokeBytes("secret_register", body));
         return sent.ok
           ? { ok: true, value: null }
           : { ok: false, error: parseSecretRegisterError(sent.error.cause) };

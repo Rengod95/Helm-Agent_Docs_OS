@@ -55,6 +55,15 @@
       ],
       "ignore": ["mockups/**"]
     },
+    "apps/desktop-shell": {
+      "entry": [
+        "src/main.ts",
+        "src/preload.ts",
+        "src/main/*.ts",
+        "scripts/*.ts",
+        "test/**/*.test.ts"
+      ]
+    },
     "apps/host": {
       "entry": [
         "test/**/*.test.ts",

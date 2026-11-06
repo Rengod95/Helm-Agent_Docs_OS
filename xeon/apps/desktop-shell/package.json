@@ -1,0 +1,32 @@
+{
+  "name": "@fresnel/desktop-shell",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/bundle/main.mjs",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test scripts",
+    "typecheck": "tsc -b",
+    "test": "bash ../../scripts/test-pkg.sh",
+    "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test scripts",
+    "build": "bun scripts/build.ts",
+    "package": "bun scripts/package.ts"
+  },
+  "dependencies": {
+    "@fresnel/contracts": "workspace:*",
+    "@fresnel/platform-process": "workspace:*",
+    "electron-updater": "catalog:"
+  },
+  "devDependencies": {
+    "@electron/packager": "catalog:",
+    "@types/bun": "catalog:",
+    "electron": "catalog:"
+  },
+  "fresnel": {
+    "layer": "L4",
+    "domain": "desktop-shell"
+  }
+}
