@@ -1,7 +1,7 @@
 import { Button, Message, ToolCall } from "@caustic/react";
 import { ChevronRight, Globe } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
-import { assertNever } from "@fresnel/contracts";
+import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import { normalizeExternalLink } from "@fresnel/client/views/app";
 import type { ItemId, ItemRecord, JsonObject, JsonValue } from "@fresnel/contracts/conversation";
 import {
@@ -23,6 +23,7 @@ import {
   useToolCallAwaitingApproval,
   useToolResult,
 } from "../state/engine/index.ts";
+import { useCommands } from "./commands.ts";
 import { fileChangeViewOfArgs } from "./approval-form.ts";
 import { bubbleOf } from "./attachment-bubble-model.ts";
 import { FileChangeDiff } from "./file-change-view.tsx";
@@ -477,7 +478,38 @@ function ResultRow(props: { readonly item: ItemRecord }): ReactNode {
   );
 }
 
-function RecordBody(props: { readonly item: ItemRecord }): ReactNode {
+/** 응답 없이 끝난 사용자 말풍선 아래 표식과 다시 보내기. 모델 문맥은 건드리지 않는다(화면 표식만) */
+function UnsentNote(props: { readonly text: string }): ReactNode {
+  const commands = useCommands();
+  const threadId = useOpenThreadId();
+  const [busy, setBusy] = useState(false);
+  return (
+    <footer className={`${NOTE_CLASS} flex items-center justify-end gap-2`} data-unsent="true">
+      <span>{t("desktop.item.unsent")}</span>
+      {threadId === null || props.text === "" ? null : (
+        <Button
+          size="xs"
+          variant="outline"
+          loading={busy}
+          onClick={() => {
+            setBusy(true);
+            detach(
+              commands.sendTurn(threadId, props.text, crypto.randomUUID()).then(() => {
+                setBusy(false);
+                return undefined;
+              }),
+              rethrow,
+            );
+          }}
+        >
+          {t("desktop.turnFailure.action.resend")}
+        </Button>
+      )}
+    </footer>
+  );
+}
+
+function RecordBody(props: { readonly item: ItemRecord; readonly unsent: boolean }): ReactNode {
   const item = props.item;
   switch (item.kind) {
     case "user": {
@@ -490,6 +522,7 @@ function RecordBody(props: { readonly item: ItemRecord }): ReactNode {
             </Message>
           )}
           <MessageAttachments attachments={bubble.attachments} />
+          {props.unsent ? <UnsentNote text={bubble.text} /> : null}
         </>
       );
     }
@@ -538,42 +571,42 @@ function RecordBody(props: { readonly item: ItemRecord }): ReactNode {
   }
 }
 
-export const RecordedItem: NamedExoticComponent<{ readonly id: ItemId }> = memo(
-  function RecordedItem(props: { readonly id: ItemId }): ReactNode {
-    const item = useItem(props.id);
-    const pairedCall = useHasToolCall(item?.kind === "toolResult" ? item.message.toolCallId : "");
-    if (item === undefined) return null;
-    // 짝이 되는 호출 행이 결과를 따라 보이므로 결과 item은 따로 그리지 않는다(호출 하나에 행 하나)
-    if (item.kind === "toolResult" && pairedCall) return null;
-    // display가 거짓인 확장 item은 모델 문맥 전용이라 화면에 그리지 않는다(F.conversation.spec 3.5.2)
-    if (item.kind === "custom" && !item.message.display) return null;
-    // system item은 요청 앞에 붙는 시스템 프롬프트다. 모델 문맥 전용이라 그리지 않는다(L4.desktop.spec §4.13)
-    if (item.kind === "system") return null;
-    // 내용 없이 실패한 어시스턴트 item은 보일 것이 없다. 실패 원인은 트랜스크립트 아래 경고 한 곳에만 보인다
-    if (
-      item.kind === "assistant" &&
-      item.status === "failed" &&
-      item.message.content.length === 0
-    ) {
-      return null;
-    }
-    const interrupted = item.status === "failed" || item.status === "interrupted";
-    // 실패한 도구 결과는 도구 줄의 "실패" 알약이 이미 알리므로 아래 줄을 또 적지 않는다
-    const showNote = interrupted && !(item.kind === "toolResult" && item.message.isError);
-    return (
-      <article className={ROW_CLASS} data-status={item.status}>
-        <RecordBody item={item} />
-        {showNote ? (
-          <footer className={NOTE_CLASS}>
-            {item.status === "failed"
-              ? t("desktop.item.status.failed")
-              : t("desktop.item.status.interrupted")}
-          </footer>
-        ) : null}
-      </article>
-    );
-  },
-);
+export const RecordedItem: NamedExoticComponent<{
+  readonly id: ItemId;
+  readonly unsent?: boolean;
+}> = memo(function RecordedItem(props: {
+  readonly id: ItemId;
+  readonly unsent?: boolean;
+}): ReactNode {
+  const item = useItem(props.id);
+  const pairedCall = useHasToolCall(item?.kind === "toolResult" ? item.message.toolCallId : "");
+  if (item === undefined) return null;
+  // 짝이 되는 호출 행이 결과를 따라 보이므로 결과 item은 따로 그리지 않는다(호출 하나에 행 하나)
+  if (item.kind === "toolResult" && pairedCall) return null;
+  // display가 거짓인 확장 item은 모델 문맥 전용이라 화면에 그리지 않는다(F.conversation.spec 3.5.2)
+  if (item.kind === "custom" && !item.message.display) return null;
+  // system item은 요청 앞에 붙는 시스템 프롬프트다. 모델 문맥 전용이라 그리지 않는다(L4.desktop.spec §4.13)
+  if (item.kind === "system") return null;
+  // 내용 없이 실패한 어시스턴트 item은 보일 것이 없다. 실패 원인은 트랜스크립트 아래 경고 한 곳에만 보인다
+  if (item.kind === "assistant" && item.status === "failed" && item.message.content.length === 0) {
+    return null;
+  }
+  const interrupted = item.status === "failed" || item.status === "interrupted";
+  // 실패한 도구 결과는 도구 줄의 "실패" 알약이 이미 알리므로 아래 줄을 또 적지 않는다
+  const showNote = interrupted && !(item.kind === "toolResult" && item.message.isError);
+  return (
+    <article className={ROW_CLASS} data-status={item.status}>
+      <RecordBody item={item} unsent={props.unsent === true} />
+      {showNote ? (
+        <footer className={NOTE_CLASS}>
+          {item.status === "failed"
+            ? t("desktop.item.status.failed")
+            : t("desktop.item.status.interrupted")}
+        </footer>
+      ) : null}
+    </article>
+  );
+});
 
 /** 작성 중 커서(시안 p02-opus StreamingText). 글은 그대로 두고 끝에 깜빡이는 막대 하나를 붙인다 */
 function StreamingText(props: { readonly text: string; readonly live: boolean }): ReactNode {

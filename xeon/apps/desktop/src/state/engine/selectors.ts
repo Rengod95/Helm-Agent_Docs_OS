@@ -133,6 +133,31 @@ export const selectOpenThreadRunning = (s: EngineMirror): boolean => {
 };
 export const selectTurnFailure = (s: EngineMirror, id: ThreadId | null): string | null =>
   id === null ? null : (s.turnFailures[id] ?? null);
+/**
+ * 응답 없이 끝난 사용자 말 item. 열린 대화의 마지막으로 보이는 item이 사용자 말이고(내용 없이 실패한 어시스턴트 item은 건너뛴다), 대화가 쉬는 중이며, 이어서 실행할 표식과 진행 중 item이 없을 때다.
+ * 실패 문장은 이 연결에서만 거울에 있으므로 다시 켠 뒤에도 같은 표식이 서도록 기록의 모양으로 정한다(화면 표식만, 모델 문맥은 엔진 몫).
+ */
+export const selectUnsentUserItemId = (s: EngineMirror): ItemId | null => {
+  const transcript = s.transcript;
+  if (transcript?.status !== "ready") return null;
+  const thread = s.threads.byId[transcript.threadId];
+  if (thread === undefined || thread.status !== "idle" || thread.resumable !== null) return null;
+  // 화면에 그리지 않는 item(시스템, display가 거짓인 확장, 내용 없이 실패한 어시스턴트)은 건너뛰고 그 앞의 item을 본다(item-view의 같은 규칙)
+  for (let i = transcript.itemIds.length - 1; i >= 0; i -= 1) {
+    const id = transcript.itemIds[i];
+    const item = id === undefined ? undefined : transcript.items[id];
+    if (id === undefined || item === undefined) return null;
+    const hidden =
+      item.kind === "system" ||
+      (item.kind === "custom" && !item.message.display) ||
+      (item.kind === "assistant" &&
+        (item.status === "failed" || item.status === "interrupted") &&
+        item.message.content.length === 0);
+    if (hidden) continue;
+    return item.kind === "user" ? id : null;
+  }
+  return null;
+};
 /** 열린 대화의 마지막 사용자 메시지 글. 다시 보내기가 쓴다. 첨부는 싣지 않는다. 글이 없으면 null이다 */
 export const selectLastUserText = (s: EngineMirror): string | null => {
   const transcript = s.transcript;

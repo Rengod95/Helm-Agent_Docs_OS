@@ -8,6 +8,7 @@ import {
   useTranscriptItemIds,
   useTranscriptStatus,
   useTurnFailure,
+  useUnsentUserItemId,
 } from "../state/engine/index.ts";
 import { useCommands } from "./commands.ts";
 import { TurnFailureRow } from "./turn-failure-row.tsx";
@@ -30,6 +31,7 @@ export function Transcript(): ReactNode {
   const live = useStreamingIds();
   const commands = useCommands();
   const failure = useTurnFailure(threadId);
+  const unsentId = useUnsentUserItemId();
   // 진행 중 item은 열린 thread의 것만 보인다
   const rows = useMemo<readonly Row[]>(
     () => [
@@ -74,7 +76,11 @@ export function Transcript(): ReactNode {
         followTail
         label={t("desktop.transcript.label")}
         renderRow={(row) =>
-          row.live ? <StreamingRow id={row.id} /> : <RecordedItem id={row.id} />
+          row.live ? (
+            <StreamingRow id={row.id} />
+          ) : (
+            <RecordedItem id={row.id} unsent={row.id === unsentId} />
+          )
         }
       />
       {failureNotice}

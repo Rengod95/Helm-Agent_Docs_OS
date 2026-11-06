@@ -3,7 +3,7 @@
 import { t } from "@fresnel/client/i18n";
 import { EmptyState, IconButton, Toaster } from "@caustic/react";
 import { PanelLeft } from "@caustic/react/icons";
-import { useEffect, useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { EndPanel, wellWidthOf } from "./end-panel.tsx";
 import type { ContextProfile } from "./context-picker.tsx";
 import { resolveKeymap, type ActionId } from "./keybindings.ts";
@@ -11,7 +11,7 @@ import { runShellAction, resolveShortcut } from "./shortcuts.ts";
 import type { ShellRegistry } from "./registry.ts";
 import { StartPanel } from "./start-panel.tsx";
 import { useShell, useShellActions } from "../../state/shell/index.ts";
-import { toastPlace } from "./toaster-slot.ts";
+import { toastBottomPx, toastPlace } from "./toaster-slot.ts";
 import { GoToThreadContext } from "../thread-link.ts";
 
 const STAGE_ID = "stage";
@@ -109,6 +109,35 @@ function Stage(props: {
   return <EmptyState surface="none" title={t("desktop.shell.screen.missing")} />;
 }
 
+/** 입력창과 그 위 카드 묶음(`data-toast-avoid`)의 위쪽 끝. 없으면 null. 크기나 화면이 바뀌면 다시 잰다 */
+function useToastBottom(): number {
+  const [bottom, setBottom] = useState(toastBottomPx(null, 0));
+  useEffect(() => {
+    const measure = (): void => {
+      const el = document.querySelector("[data-toast-avoid]");
+      setBottom(
+        toastBottomPx(el === null ? null : el.getBoundingClientRect().top, window.innerHeight),
+      );
+    };
+    measure();
+    const resize = new ResizeObserver(measure);
+    resize.observe(document.body);
+    const mutate = new MutationObserver(() => {
+      const el = document.querySelector("[data-toast-avoid]");
+      if (el !== null) resize.observe(el);
+      measure();
+    });
+    mutate.observe(document.body, { childList: true, subtree: true });
+    window.addEventListener("resize", measure);
+    return () => {
+      resize.disconnect();
+      mutate.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+  return bottom;
+}
+
 function ShellToaster(props: { readonly registry: ShellRegistry }): ReactNode {
   const layout = useShell((s) => s.layout);
   const open = useShell((s) => s.endOpen);
@@ -116,16 +145,17 @@ function ShellToaster(props: { readonly registry: ShellRegistry }): ReactNode {
   const tabId = useShell((s) => s.places[s.area].endTab);
   const screen = useShell((s) => s.places[s.area].screen);
   const tabs = props.registry.endTabs(area, screen);
+  const bottom = useToastBottom();
   const place = toastPlace(layout, open, wellWidthOf(tabs.find((x) => x.id === tabId) ?? tabs[0]));
-  // 자리는 오른쪽 아래, 상태 표시줄과 입력창 위다(bottom-40). 대화 머리와 첫 줄을 가리지 않는다. 오류 토스트는 caustic이 닫지 않으므로 닫기 단추와 닫힘 시간은 notices.tsx가 정한다
+  // 자리는 오른쪽 아래, 상태 표시줄과 입력창 위다. 입력창과 그 위 카드 묶음(`data-toast-avoid`)이 있으면 그 위로 올려 승인 단추를 덮지 않는다(`toastBottomPx`). 대화 머리와 첫 줄을 가리지 않는다. 오류 토스트는 caustic이 닫지 않으므로 닫기 단추와 닫힘 시간은 notices.tsx가 정한다
   return (
     <Toaster
       label={t("desktop.shell.toast.label")}
-      className="bottom-40 transition-[inset] duration-quick"
+      className="transition-[inset] duration-quick"
       style={
         place.kind === "center-bottom"
-          ? { insetInline: "0.5rem" }
-          : { insetInlineEnd: `${String(place.endPx)}px` }
+          ? { insetInline: "0.5rem", bottom }
+          : { insetInlineEnd: `${String(place.endPx)}px`, bottom }
       }
     />
   );

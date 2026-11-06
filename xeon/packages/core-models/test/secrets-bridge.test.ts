@@ -117,6 +117,31 @@ describe("secret_ref_resolved_at_request_time_only", () => {
     });
   });
 
+  test("a host_mismatch denial also names the requested host", async () => {
+    const h = createHarness({ tape: ONE_TURN });
+    const parsed = parseSecretRef("secret://tape-key");
+    if (!parsed.ok) throw new Error("the fixture reference is valid");
+    const { handle } = parsed.value;
+    const resolver = createSecretResolver(
+      {
+        ...h.secrets.service,
+        lease: () => Promise.resolve(err({ kind: "denied", handle, reason: "host_mismatch" })),
+      },
+      { targetOf: () => ({ host: "proxy.example.com", port: null }) },
+    );
+    const resolved = await resolver.resolve("secret://tape-key", "tape", "model.provider:tape");
+    expect(resolved).toEqual({
+      ok: false,
+      error: {
+        kind: "secret_unresolved",
+        providerId: "tape",
+        secretName: "tape-key",
+        reason:
+          "secret tape-key could not be leased (denied: host_mismatch, host=proxy.example.com)",
+      },
+    });
+  });
+
   test("the log names the secret reference and never the value", async () => {
     const lines: LogLine[] = [];
     const h = createHarness({ tape: ONE_TURN, logger: memoryLogger(lines) });

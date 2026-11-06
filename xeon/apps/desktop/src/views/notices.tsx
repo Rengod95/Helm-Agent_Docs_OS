@@ -14,6 +14,7 @@ import {
   type NoticeEntry,
 } from "./notices-model.ts";
 import { turnFailureOf } from "./turn-failure-model.ts";
+import { useSelectedThreadId } from "../state/ui/index.ts";
 import { useGoToThread } from "./thread-link.ts";
 
 // 앱 안 알림(B-08). OS 알림은 플러그인 승인이 없어 하지 않는다. 받은 요청 탭에 목록을 두고,
@@ -44,6 +45,12 @@ export function NoticeToasts(): ReactNode {
   const phase = useLinkPhase();
   const failures = useTurnFailures();
   const open = useRef<FailureToasts>({ byId: new Map(), seen: new Set() });
+  // 지금 보는 대화의 실패는 대화 끝의 오류 줄이 같은 문장과 단추를 보인다. 토스트는 내지 않는다
+  const selected = useRef<ThreadId | null>(null);
+  const selectedId = useSelectedThreadId();
+  useEffect(() => {
+    selected.current = selectedId;
+  }, [selectedId]);
   useEffect(() => {
     if (phase !== "live") return undefined;
     const timers = new Set<ReturnType<typeof setTimeout>>();
@@ -51,10 +58,18 @@ export function NoticeToasts(): ReactNode {
       const { notice } = delivered;
       if (!noticeToastVisible(notice)) return;
       const isTurnFailure = notice.kind === "error" && notice.sourceType === "turn.completed";
+      if (isTurnFailure && delivered.threadId !== null && delivered.threadId === selected.current) {
+        return;
+      }
       const view = isTurnFailure && notice.body !== null ? turnFailureOf(notice.body) : null;
       const id = toast({
         tone: notice.kind === "error" ? "danger" : "neutral",
-        title: view === null ? noticeTitleText(notice) : t(view.text),
+        title:
+          view === null
+            ? noticeTitleText(notice)
+            : view.params === undefined
+              ? t(view.text)
+              : t(view.text, view.params),
         // 원문은 대화의 오류 줄이 "자세히"로 보인다. 토스트에는 싣지 않는다
         ...(notice.body === null || isTurnFailure ? {} : { description: notice.body }),
         ...(notice.kind === "error"

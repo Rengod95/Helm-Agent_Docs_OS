@@ -35,3 +35,18 @@ test("상태 코드와 오류 종류별 분류와 단추", () => {
     expect([error, view.kind, view.action]).toEqual([error, kind, action]);
   }
 });
+
+test("host_mismatch는 키 오류와 나뉘어 호스트와 제공자 설정 단추를 준다", () => {
+  const error =
+    "secret_unresolved: secret k could not be leased (denied: host_mismatch, host=proxy.example.com)";
+  expect(turnFailureOf(error)).toEqual({
+    kind: "host_mismatch",
+    text: "desktop.turnFailure.hostMismatch",
+    action: "open-providers",
+    params: { host: "proxy.example.com" },
+    detail: error,
+  });
+  const bare = "secret_unresolved: secret k could not be leased (denied: host_mismatch)";
+  expect(turnFailureOf(bare).text).toBe("desktop.turnFailure.hostMismatchAny");
+  expect(turnFailureOf(bare).kind).toBe("host_mismatch");
+});

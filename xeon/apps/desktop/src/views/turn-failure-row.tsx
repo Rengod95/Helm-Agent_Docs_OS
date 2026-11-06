@@ -15,6 +15,7 @@ const DETAIL_MAX = 1200;
 
 const ACTION_TEXT = {
   "reregister-key": "desktop.turnFailure.action.reregisterKey",
+  "open-providers": "desktop.turnFailure.action.openProviders",
   "change-model": "desktop.turnFailure.action.changeModel",
   resend: "desktop.turnFailure.action.resend",
 } as const;
@@ -64,6 +65,10 @@ export function TurnFailureRow(props: {
       commands.requestSettingsJump({ tab: "secrets", key: null });
       return;
     }
+    if (kind === "open-providers") {
+      commands.requestSettingsJump({ tab: "providers", key: null });
+      return;
+    }
     if (kind === "change-model") {
       openModelPicker();
       return;
@@ -103,7 +108,9 @@ export function TurnFailureRow(props: {
           </span>
         }
       >
-        <span className="min-w-0 [overflow-wrap:anywhere]">{t(view.text)}</span>
+        <span className="min-w-0 [overflow-wrap:anywhere]">
+          {view.params === undefined ? t(view.text) : t(view.text, view.params)}
+        </span>
       </Alert>
     </div>
   );

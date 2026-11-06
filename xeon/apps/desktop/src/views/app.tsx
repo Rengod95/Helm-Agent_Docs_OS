@@ -18,6 +18,7 @@ import { runThreadCompact } from "./thread-compact.ts";
 import { SettingsPage } from "./pages/settings/settings-screen.tsx";
 import { firstRunAutoOpenDue } from "./pages/first-run/first-run-model.ts";
 import { useShellActions, type Area } from "../state/shell/index.ts";
+import { PaletteRestartDialog } from "./restart-confirm-dialog.tsx";
 import { nextApprovalId } from "./approval-focus-model.ts";
 import { useShowChat } from "./plugin/plugin-view.tsx";
 import { LiveAnnouncer } from "./live-announcer.tsx";
@@ -85,6 +86,7 @@ export function App(props: AppProps): ReactNode {
   const commands = useCommands();
   const screen = useScreen();
   const selected = useSelectedThreadId();
+  const [restartAsking, setRestartAsking] = useState(false);
   const reviewTarget = useReviewTarget();
   const shell = useShellActions();
   const threads = useThreadSummaries();
@@ -204,7 +206,7 @@ export function App(props: AppProps): ReactNode {
         shell.toggleArea();
         return;
       case "engine.restart":
-        detach(commands.restartEngine(), rethrow);
+        setRestartAsking(true);
         return;
       case "diagnostics.copy":
         detach(commands.copyDiagnostics(), rethrow);
@@ -301,6 +303,12 @@ export function App(props: AppProps): ReactNode {
         onGoToThread={openThread}
       />
       <LockedDialog />
+      <PaletteRestartDialog
+        open={restartAsking}
+        onClose={() => {
+          setRestartAsking(false);
+        }}
+      />
       <PluginUiHost />
       <CommandOutputSheet />
       <ShortcutHelpDialog

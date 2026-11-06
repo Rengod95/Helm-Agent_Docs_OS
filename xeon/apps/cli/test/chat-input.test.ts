@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { ChatCommand } from "../src/cli/command.ts";
-import { readAllText, resolvePrintInput } from "../src/commands/chat-input.ts";
+import { STDIN_IDLE_MS, readAllText, resolvePrintInput } from "../src/commands/chat-input.ts";
 
 function stream(...chunks: readonly (string | Uint8Array)[]): ReadableStream<Uint8Array> {
   return new ReadableStream<Uint8Array>({
@@ -83,4 +83,30 @@ test("an input over 1 MiB is a usage failure with code 2, whichever way it arriv
       error: { code: 2 },
     },
   );
+});
+
+function openStream(): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({ start() {} });
+}
+
+test("-p text with a piped stdin that never sends or closes does not wait for EOF", async () => {
+  const started = Date.now();
+  const result = await resolvePrintInput(command("hi"), { stdin: openStream(), terminal: PIPED });
+  expect(result).toEqual({ ok: true, value: "hi" });
+  expect(Date.now() - started).toBeLessThan(STDIN_IDLE_MS * 4);
+});
+
+test("-p text still appends stdin that arrives in time, and -p - keeps waiting for EOF", async () => {
+  const slow = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      controller.enqueue(new TextEncoder().encode("a"));
+      await new Promise((resolve) => setTimeout(resolve, STDIN_IDLE_MS + 200));
+      controller.enqueue(new TextEncoder().encode("b"));
+      controller.close();
+    },
+  });
+  expect(await resolvePrintInput(command("q"), { stdin: slow, terminal: PIPED })).toEqual({
+    ok: true,
+    value: "q\n\nab",
+  });
 });

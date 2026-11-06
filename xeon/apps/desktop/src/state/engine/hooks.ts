@@ -88,6 +88,7 @@ export const useOpenThread = (): ThreadSummary | undefined => useEngine(sel.sele
 export const useOpenThreadRunning = (): boolean => useEngine(sel.selectOpenThreadRunning);
 export const useThreadRunning = (id: ThreadId): boolean =>
   useEngine((s) => sel.selectThreadRunning(s, id));
+export const useUnsentUserItemId = (): ItemId | null => useEngine(sel.selectUnsentUserItemId);
 export const useLastUserText = (): string | null => useEngine(sel.selectLastUserText);
 export const useTurnFailure = (id: ThreadId | null): string | null =>
   useEngine((s) => sel.selectTurnFailure(s, id));
