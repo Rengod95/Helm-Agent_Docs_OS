@@ -90,7 +90,7 @@ export function OverviewPanels(props: {
           </ListDescriptionRow>
         </ListDescription>
         {props.updatePanel}
-        <div className="flex flex-wrap items-center gap-2" data-slot="settings-about-actions">
+        <div className="flex flex-wrap items-center gap-2 pt-2" data-slot="settings-about-actions">
           <Button
             size="sm"
             variant="outline"
