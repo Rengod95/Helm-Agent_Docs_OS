@@ -110,7 +110,11 @@ function Burden(props: {
             </OpenButton>
           );
         }
-        if (column.key === "tokens") return numberText(row.tokensPerTurn);
+        if (column.key === "tokens") {
+          return row.tokensEstimated
+            ? t("desktop.measure.perf.tokensEstimated", { count: numberText(row.tokensPerTurn) })
+            : numberText(row.tokensPerTurn);
+        }
         if (column.key === "cost") {
           return row.costUsd === null ? (
             <span className="text-text-tertiary">{t("desktop.measure.perf.costUnknown")}</span>

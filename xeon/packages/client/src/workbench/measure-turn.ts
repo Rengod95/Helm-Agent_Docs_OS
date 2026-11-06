@@ -73,6 +73,8 @@ export interface HookEventVM {
   readonly hook: string;
   readonly registrationId: string;
   readonly ms: number;
+  /** 이 핸들러가 문맥에 넣은 글자 수. 모르면 0 */
+  readonly size: number;
   readonly outcome: OutcomeVM;
 }
 
@@ -119,6 +121,17 @@ export interface PluginShareVM {
   readonly sectionTokens: number;
   /** 원인 소유자가 이 플러그인으로 적힌 캐시 사건 수 */
   readonly cacheEvents: number;
+  /** 이 플러그인의 훅이 문맥에 넣은 글자 수의 합 */
+  readonly hookChars: number;
+  /** 이 Turn에서 이 플러그인이 문맥에 더한 토큰. 절 토큰과 훅 글자 수 추정(`estimateTokens`) 가운데 큰 쪽이다(같은 글을 두 번 세지 않는다) */
+  readonly tokens: number;
+  /** `tokens`가 훅 글자 수에서 추정한 값이면 true */
+  readonly tokensEstimated: boolean;
+}
+
+/** 글자 수에서 토큰을 추정한다. 모델 호출 쪽 추정(pi-ai, core-context `textTokens`)과 같은 글자 수 / 4 올림이다 */
+export function estimateTokens(chars: number): number {
+  return Math.ceil(chars / 4);
 }
 
 export interface TurnViewVM {
@@ -179,6 +192,7 @@ function hooksOf(rows: readonly MeasureRow[]): readonly HookEventVM[] {
         hook: tag(row, "hook"),
         registrationId: tag(row, "registrationId"),
         ms: num(row, "ms"),
+        size: num(row, "size"),
         outcome: outcomeOf(tag(row, "result")),
       },
     }))
@@ -251,6 +265,9 @@ function pluginsOf(
       problems: 0,
       sectionTokens: 0,
       cacheEvents: 0,
+      hookChars: 0,
+      tokens: 0,
+      tokensEstimated: false,
     };
     byOwner.set(owner, made);
     return made;
@@ -260,6 +277,7 @@ function pluginsOf(
     const share = slot(hook.registrationId);
     share.hookMs += hook.ms;
     share.handlers += 1;
+    share.hookChars += hook.size;
     if (hook.outcome.problem) share.problems += 1;
   }
   for (const bar of bars) {
@@ -273,6 +291,11 @@ function pluginsOf(
   for (const event of cache) {
     const share = byOwner.get(event.owner);
     if (share !== undefined) share.cacheEvents += 1;
+  }
+  for (const share of byOwner.values()) {
+    const hookTokens = estimateTokens(share.hookChars);
+    share.tokensEstimated = hookTokens > share.sectionTokens;
+    share.tokens = share.tokensEstimated ? hookTokens : share.sectionTokens;
   }
   return [...byOwner.values()].toSorted(
     (a, b) =>

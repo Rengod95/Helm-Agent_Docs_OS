@@ -69,12 +69,17 @@ function PluginRows(props: {
             >
               <span className="font-mono text-text-primary">{share.owner}</span>
               <span className="ms-auto text-text-tertiary tabular-nums">
-                {t("desktop.measure.turn.pluginRow", {
-                  ms: share.hookMs,
-                  tokens: share.sectionTokens,
-                  problems: share.problems,
-                  cache: share.cacheEvents,
-                })}
+                {t(
+                  share.tokensEstimated
+                    ? "desktop.measure.turn.pluginRowEstimated"
+                    : "desktop.measure.turn.pluginRow",
+                  {
+                    ms: share.hookMs,
+                    tokens: share.tokens,
+                    problems: share.problems,
+                    cache: share.cacheEvents,
+                  },
+                )}
               </span>
             </Button>
           </li>

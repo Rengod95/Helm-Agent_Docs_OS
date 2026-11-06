@@ -83,8 +83,28 @@ describe("turnViewOf", () => {
     ]);
     expect(view.hookTotalMs).toBe(905);
     expect(view.plugins).toEqual([
-      { owner: "acme", hookMs: 900, handlers: 2, problems: 1, sectionTokens: 70, cacheEvents: 1 },
-      { owner: "helm", hookMs: 5, handlers: 1, problems: 0, sectionTokens: 30, cacheEvents: 0 },
+      {
+        owner: "acme",
+        hookMs: 900,
+        handlers: 2,
+        problems: 1,
+        sectionTokens: 70,
+        cacheEvents: 1,
+        hookChars: 0,
+        tokens: 70,
+        tokensEstimated: false,
+      },
+      {
+        owner: "helm",
+        hookMs: 5,
+        handlers: 1,
+        problems: 0,
+        sectionTokens: 30,
+        cacheEvents: 0,
+        hookChars: 0,
+        tokens: 30,
+        tokensEstimated: false,
+      },
     ]);
     expect(view.bars).toEqual([
       {
@@ -127,6 +147,30 @@ describe("turnViewOf", () => {
       },
     ]);
     expect(view.summary).toBeNull();
+  });
+
+  test("a plugin with no section tokens gets an estimate from the characters its hooks added", () => {
+    const state = turnViewOf({
+      enabled: true,
+      rows: [
+        {
+          at: 1,
+          kind: "hook",
+          metrics: { ms: 3, seq: 1, step: 0, size: 1466 },
+          tags: { hook: "context", registrationId: "cap-dialog", result: "modified" },
+        },
+        {
+          at: 1,
+          kind: "hook",
+          metrics: { ms: 1, seq: 2, step: 0, size: 509 },
+          tags: { hook: "context", registrationId: "cap-dialog", result: "modified" },
+        },
+      ],
+    });
+    if (state.kind !== "ready") throw new Error("ready expected");
+    expect(
+      state.view.plugins.map((p) => [p.owner, p.hookChars, p.tokens, p.tokensEstimated]),
+    ).toEqual([["cap-dialog", 1975, 494, true]]);
   });
 
   test("reads a cache expiry row with the rewritten tokens and the gap", () => {

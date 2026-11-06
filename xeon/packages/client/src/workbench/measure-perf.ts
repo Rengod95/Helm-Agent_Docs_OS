@@ -90,7 +90,10 @@ export interface BurdenRowVM {
   readonly owner: string;
   readonly turns: number;
   readonly sectionTokens: number;
+  /** 문맥에 더한 토큰의 Turn당 평균(절 토큰, 없으면 훅 글자 수 추정) */
   readonly tokensPerTurn: number;
+  /** 한 Turn이라도 훅 글자 수에서 추정한 값이 들었으면 true. 화면은 추정이라고 밝힌다 */
+  readonly tokensEstimated: boolean;
   readonly hookMs: number;
   readonly msPerTurn: number;
   readonly problems: number;
@@ -218,6 +221,8 @@ export function perfViewOf(
     {
       turns: number;
       sectionTokens: number;
+      tokens: number;
+      estimated: boolean;
       hookMs: number;
       problems: number;
       cacheEvents: number;
@@ -230,6 +235,8 @@ export function perfViewOf(
       const row = owners.get(plugin.owner) ?? {
         turns: 0,
         sectionTokens: 0,
+        tokens: 0,
+        estimated: false,
         hookMs: 0,
         problems: 0,
         cacheEvents: 0,
@@ -238,6 +245,8 @@ export function perfViewOf(
       };
       row.turns += 1;
       row.sectionTokens += plugin.sectionTokens;
+      row.tokens += plugin.tokens;
+      row.estimated = row.estimated || plugin.tokensEstimated;
       row.hookMs += plugin.hookMs;
       row.problems += plugin.problems;
       row.cacheEvents += plugin.cacheEvents;
@@ -253,7 +262,8 @@ export function perfViewOf(
       owner,
       turns: row.turns,
       sectionTokens: row.sectionTokens,
-      tokensPerTurn: Math.round(row.sectionTokens / row.turns),
+      tokensPerTurn: Math.round(row.tokens / row.turns),
+      tokensEstimated: row.estimated,
       hookMs: row.hookMs,
       msPerTurn: Math.round(row.hookMs / row.turns),
       problems: row.problems,
@@ -263,7 +273,7 @@ export function perfViewOf(
     }))
     .toSorted(
       (a, b) =>
-        b.hookMs - a.hookMs || b.sectionTokens - a.sectionTokens || a.owner.localeCompare(b.owner),
+        b.hookMs - a.hookMs || b.tokensPerTurn - a.tokensPerTurn || a.owner.localeCompare(b.owner),
     );
 
   return { kind: "ready", view: { changes, signals, toRead, burden, curve } };
