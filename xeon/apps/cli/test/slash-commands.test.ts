@@ -379,3 +379,61 @@ test("/compact is built in: it wins over an engine command with the same name an
   expect(s.h.methods()).not.toContain("command.run");
   expect(s.h.completer()?.("/co")).toEqual(["/compact"]);
 });
+
+function printChat(handlers: FakeHandlers) {
+  const h = createHarness({
+    env: { NO_COLOR: "1" },
+    server: { onTurn: answer("ok"), handlers },
+  });
+  harnesses.push(h);
+  return h;
+}
+
+const HELM: CommandListResult["commands"][number] = {
+  name: "helm",
+  description: "Helm",
+  argumentHint: null,
+  args: [],
+  kind: "action",
+  source: "extension",
+  origin: "helm",
+  hasShell: false,
+};
+
+test("-p with a registered engine command runs it through command.run and never starts a turn", async () => {
+  const h = printChat({
+    "command.list": () => ({ commands: [HELM] }),
+    "command.run": () => ({ status: "done", name: "helm", message: "단계: 대기", result: null }),
+  });
+  expect(await h.run(["chat", "-p", "/helm status"])).toBe(EXIT.ok);
+  expect(h.stdoutText()).toContain("단계: 대기\n");
+  expect(runParams(h)).toEqual([
+    { threadId: expect.stringMatching(/^thr_/), text: "/helm status" },
+  ]);
+  expect(h.methods()).not.toContain("turn.start");
+});
+
+test("-p with an unknown slash name is still model input", async () => {
+  const h = printChat({ "command.list": () => ({ commands: [HELM] }) });
+  expect(await h.run(["chat", "-p", "/etc/hosts 파일을 설명해"])).toBe(EXIT.ok);
+  expect(h.methods()).not.toContain("command.run");
+  expect(
+    h.server().requests.find((request) => request.method === "turn.start")?.params,
+  ).toMatchObject({ input: "/etc/hosts 파일을 설명해" });
+});
+
+test("-p with an engine command that fails exits with an error and starts no turn", async () => {
+  const h = printChat({
+    "command.list": () => ({ commands: [HELM] }),
+    "command.run": () => {
+      throw new WireError(4000, "developer text", {
+        kind: "cap.dialog.commands.command_args_invalid",
+        retryable: false,
+        details: { message: "bad" },
+      });
+    },
+  });
+  expect(await h.run(["chat", "-p", "/helm x"])).toBe(EXIT.error);
+  expect(h.stderrText()).toContain("fresnel: 명령 인자가 선언에 맞지 않다: bad");
+  expect(h.methods()).not.toContain("turn.start");
+});

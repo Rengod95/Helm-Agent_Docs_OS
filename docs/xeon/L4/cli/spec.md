@@ -892,6 +892,7 @@ export interface GroupTemplatesPort {
     - 실패는 기능 오류(`cap.dialog.commands.*`)와 `thread.notFound`로 온다. 문구는 §4.10 표다.
     - `/help`는 `command.list`가 알려 준 명령을 "엔진 명령" 아래에 보인다. Tab 완성은 명령 이름과 첫 인자의 `choices`를 쓴다. 목록은 `command.list { threadId }`로 읽는다 [결정: m2c G1-01]. 호스트가 프로젝트 명령(`.fresnel/commands`)을 그 대화의 작업 폴더 기준으로 읽게 하려는 것이다. 대화형을 시작할 때 한 번 읽고, `/resume`으로 대화를 바꾸면 새 대화의 id로 다시 읽는다.
     - `host.hello`의 `features`에 `command.run`이 없는 호스트에서는 부르지 않고 모르는 명령으로 처리한다.
+    - print 모드(`-p`)도 입력이 `command.list`에 있는 엔진 명령 이름으로 시작하면 대화형처럼 `command.run`으로 실행하고 모델을 부르지 않는다(`src/slash.ts`의 `runPrintSlash`). 결과 `done`은 stdout에, 실패는 stderr에 쓰고 종료 코드는 1이다. 결과 `expanded`는 그 텍스트를 turn으로 보낸다. 내장 명령과 목록에 없는 이름, 목록을 읽지 못한 경우는 이전처럼 모델 입력이다(`-p "/etc/hosts를 설명해"`가 명령 오류가 되지 않게) [제안: 기본값]. 내장 명령(`/set`, `/compact` 등)은 print 모드에서 아직 명령으로 풀지 않는다.
 - 별칭 표는 `src/slash.ts`의 상수 하나에 둔다. 키 이름이 없는 별칭은 등록하지 않는다. 현재 별칭은 `/model` → `l1.models.default` 하나다.
 - Tab 완성: `/set ` 뒤는 launch 범위를 허용하는 키, 줄 첫 단어는 슬래시 이름이다. 키 목록은 대화형을 시작할 때 `settings.list`로 한 번 읽는다.
 - 실패한 슬래시 명령(없는 키, 허용되지 않은 범위)은 두 줄 오류를 stderr에 쓰고 입력을 이어 받는다.

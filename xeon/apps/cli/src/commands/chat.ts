@@ -27,6 +27,7 @@ import { createJsonTap, type JsonTap, type JsonTapMode } from "../render/json-ta
 import { createLockPrompt } from "../render/lock.ts";
 import { createTextSink, type RenderSink } from "../render/text-sink.ts";
 import { CLI_SETTING_KEYS } from "../settings.ts";
+import { runPrintSlash, type EngineSlashContext } from "../slash.ts";
 import { wireSignals, type SignalWiring } from "../signals.ts";
 import { createMinimalSink, runInteractive } from "../tui/minimal.ts";
 import { resolvePrintInput } from "./chat-input.ts";
@@ -89,8 +90,12 @@ async function runPrint(
   session: ChatSession,
   input: string,
   jsonMode: boolean,
+  slash: Omit<EngineSlashContext, "engineCommands">,
 ): Promise<ExitCode> {
-  const sent = await session.sendTurn(input);
+  // 엔진에 등록된 명령(`/helm status`, `/goal …`)은 대화형처럼 명령으로 실행한다. 모델을 부르지 않는다
+  const ran = await runPrintSlash(input, slash);
+  if (ran.kind === "ran") return ran.failed ? EXIT.error : EXIT.ok;
+  const sent = await session.sendTurn(ran.kind === "send" ? ran.text : input);
   const end = await sent.done;
   await session.idle();
   if (jsonMode && end.status !== "completed") {
@@ -351,7 +356,13 @@ async function chatWork(
             },
           },
         })
-      : await runPrint(ctx, opened.value, input, jsonMode);
+      : await runPrint(ctx, opened.value, input, jsonMode, {
+          io,
+          connection: handle.connection,
+          supports: (feature) => handle.supports(feature),
+          threadId: () => opened.value.threadId,
+          signal: exitAbort.signal,
+        });
     // print 모드(JSON 모드 제외)는 끝에 이 대화의 사용량을 stderr에 한 줄로 알린다. --quiet이면 내지 않는다
     if (!interactive && !jsonMode && !command.quiet) {
       await printUsageLine(ctx, handle, opened.value.threadId);

@@ -181,6 +181,12 @@ export function completionsOf(
   return [];
 }
 
+/** 엔진 명령 실행이 쓰는 문맥의 부분. print 모드도 이것만 준다 */
+export type EngineSlashContext = Pick<
+  SlashContext,
+  "io" | "connection" | "supports" | "engineCommands" | "threadId" | "signal"
+>;
+
 export interface SlashContext {
   readonly io: Pick<CliIo, "stdout" | "stderr" | "readLine">;
   readonly connection: HostConnection;
@@ -207,7 +213,7 @@ function describeSetting(setting: EffectiveSetting): string {
   return `${setting.key} = ${showValue(setting.value)}  (${setting.source.scope})`;
 }
 
-async function failWith(ctx: SlashContext, caught: unknown): Promise<SlashOutcome> {
+async function failWith(ctx: Pick<SlashContext, "io">, caught: unknown): Promise<SlashOutcome> {
   const failure = failureOfCaught(caught);
   if (failure === undefined) throw caught;
   await ctx.io.stderr(renderFailure(failure));
@@ -291,7 +297,7 @@ async function resume(ctx: SlashContext, target: string | null): Promise<SlashOu
   }
 }
 
-function unknownSlash(ctx: SlashContext, name: string): Promise<SlashOutcome> {
+function unknownSlash(ctx: EngineSlashContext, name: string): Promise<SlashOutcome> {
   return ctx.io
     .stderr(`${t("cli.slash.unknown", { name })}\n${slashHelp(ctx.engineCommands())}`)
     .then(() => "continue");
@@ -369,7 +375,7 @@ function doneText(result: Extract<CommandRunResult, { status: "done" }>): string
 }
 
 async function confirmShell(
-  ctx: SlashContext,
+  ctx: Pick<SlashContext, "io" | "signal">,
   name: string,
   shell: readonly { readonly index: number; readonly command: string }[],
 ): Promise<boolean> {
@@ -382,7 +388,7 @@ async function confirmShell(
 
 /** 엔진에 등록한 명령을 command.run으로 실행한다(G1-01). 출력은 done.message와 done.result다 */
 async function runEngineCommand(
-  ctx: SlashContext,
+  ctx: EngineSlashContext,
   name: string,
   text: string,
   confirmed = false,
@@ -461,4 +467,47 @@ export async function runSlash(command: SlashCommand, ctx: SlashContext): Promis
     default:
       return assertNever(command, "SlashCommand");
   }
+}
+
+/** print 모드(`-p`)가 슬래시 줄을 처리한 결과 */
+export type PrintSlashOutcome =
+  /** 엔진 명령이 아니다. 줄을 대화 입력으로 보낸다 */
+  | { readonly kind: "chat" }
+  /** 명령이 펼친 텍스트를 대화 입력으로 보낸다 */
+  | { readonly kind: "send"; readonly text: string }
+  /** 명령을 실행했다. 실패는 stderr에 알렸다 */
+  | { readonly kind: "ran"; readonly failed: boolean };
+
+/**
+ * print 모드의 입력이 엔진에 등록된 명령(`command.list`에 있는 이름)이면 대화형처럼 `command.run`으로 실행한다(§4.12).
+ * 내장 명령, 모르는 이름, 목록을 읽지 못한 경우는 이전처럼 모델 입력이다(`-p "/etc/hosts를 설명해"` 같은 글이 명령 오류가 되지 않게)
+ */
+export async function runPrintSlash(
+  text: string,
+  ctx: Omit<EngineSlashContext, "engineCommands">,
+): Promise<PrintSlashOutcome> {
+  const line = text.trim();
+  if (!line.startsWith("/")) return { kind: "chat" };
+  const command = parseSlash(line);
+  if (command.kind !== "engine") return { kind: "chat" };
+  const engine = await loadEngineCommands(ctx.connection, ctx.supports, ctx.threadId());
+  if (!engine.some((candidate) => candidate.name === command.name)) return { kind: "chat" };
+  let failed = false;
+  const outcome = await runEngineCommand(
+    {
+      ...ctx,
+      io: {
+        ...ctx.io,
+        stderr: (message) => {
+          failed = true;
+          return ctx.io.stderr(message);
+        },
+      },
+      engineCommands: () => engine,
+    },
+    command.name,
+    command.text,
+  );
+  if (typeof outcome === "object") return { kind: "send", text: outcome.send };
+  return { kind: "ran", failed };
 }
