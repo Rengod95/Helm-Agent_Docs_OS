@@ -1,9 +1,17 @@
 import { Button, Message, ToolCall } from "@caustic/react";
-import { ChevronRight } from "@caustic/react/icons";
+import { ChevronRight, Globe } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
+import { normalizeExternalLink } from "@fresnel/client/views/app";
 import type { ItemId, ItemRecord, JsonObject, JsonValue } from "@fresnel/contracts/conversation";
-import { memo, useEffect, useState, type NamedExoticComponent, type ReactNode } from "react";
+import {
+  Fragment,
+  memo,
+  useEffect,
+  useState,
+  type NamedExoticComponent,
+  type ReactNode,
+} from "react";
 import { cardOf, provenanceOf } from "../plugin-ui/placements.ts";
 import {
   useHasToolCall,
@@ -16,9 +24,20 @@ import {
 } from "../state/engine/index.ts";
 import { bubbleOf } from "./attachment-bubble-model.ts";
 import { MessageAttachments } from "./message-attachments.tsx";
-import { usePluginUiState } from "./plugin/plugin-context.tsx";
 import { EntrySurface } from "./plugin/plugin-view.tsx";
+import { usePluginUi, usePluginUiState } from "./plugin/plugin-context.tsx";
+import { useGoToThread } from "./thread-link.ts";
 import { toolOutputOf } from "./tool-output-model.ts";
+import {
+  AGENT_TOOL,
+  WEB_TOOLS,
+  agentHeadOf,
+  agentResultOf,
+  citedLinksOf,
+  reportFoldOf,
+  webSourcesOf,
+  type WebSource,
+} from "./tool-extras-model.ts";
 
 // 확정 item과 진행 중 item의 한 행(시안 _chat-rt/items.tsx ItemView). 행 부품은 자기 id만 구독한다(FS-19).
 // 사용자 글은 말풍선, 어시스턴트 글은 말풍선 없는 글이고 역할 이름은 적지 않는다. 도구 호출과 결과는 ToolCall 한 줄이다.
@@ -97,28 +116,48 @@ function ToolRow(props: {
   readonly output?: string;
   /** 엔진 또는 화면이 잘랐을 때 전체 줄 수와 보인 줄 수 */
   readonly cut?: { readonly shown: number; readonly total: number };
+  /** 실행 중 글. 없으면 "실행 중"(경과 시간 포함) */
+  readonly runningLabel?: (seconds: number) => string;
+  /** 출력 아래에 덧붙이는 것(접은 나머지, 자식 대화 링크) */
+  readonly foot?: ReactNode;
+  /** 끝난 뒤에도 펼쳐 둔다(하위 에이전트의 보고는 결과 블록이다) */
+  readonly openWhenDone?: boolean;
 }): ReactNode {
   const { output } = props;
   const elapsed = useElapsedSeconds(props.status === "running");
+  // 실행 중에 그려진 행이 나중에 끝나도 초기 값만 읽으면 접힌 채로 남는다. 상태가 바뀔 때 펼칠지 다시 정한다
+  const wantOpen = props.status === "failed" || props.openWhenDone === true;
+  const [open, setOpen] = useState(wantOpen);
+  const [seenStatus, setSeenStatus] = useState(props.status);
+  if (seenStatus !== props.status) {
+    setSeenStatus(props.status);
+    setOpen(wantOpen);
+  }
   return (
     <ToolCall
       name={props.name}
       detail={props.detail}
       status={props.status}
       activity={
-        elapsed > 0
-          ? t("desktop.item.toolRunningFor", { seconds: elapsed })
-          : t("desktop.item.toolRunning")
+        props.runningLabel !== undefined
+          ? props.runningLabel(elapsed)
+          : elapsed > 0
+            ? t("desktop.item.toolRunningFor", { seconds: elapsed })
+            : t("desktop.item.toolRunning")
       }
       failedLabel={props.failedLabel ?? t("desktop.item.status.failed")}
-      collapsible={output !== undefined}
-      defaultOpen={props.status === "failed"}
+      collapsible={output !== undefined || props.foot !== undefined}
+      open={open}
+      onOpenChange={setOpen}
     >
-      {output === undefined ? null : (
+      {output === undefined && props.foot === undefined ? null : (
         <>
-          <pre className={`${MONO_CLASS} ${OUTPUT_BOX_CLASS}`} tabIndex={0}>
-            {output}
-          </pre>
+          {output === undefined || output === "" ? null : (
+            <pre className={`${MONO_CLASS} ${OUTPUT_BOX_CLASS}`} tabIndex={0}>
+              {output}
+            </pre>
+          )}
+          {props.foot}
           {props.cut === undefined ? null : (
             <p className={NOTE_CLASS}>
               {t("desktop.item.output.partial", {
@@ -212,6 +251,10 @@ function resultViewOf(item: ItemRecord): ResultView | null {
     return { status: "done", output: shown.text, ...cut };
   }
   const { code, body } = splitCode(shown.text);
+  // 하위 에이전트를 멈추면 엔진은 오류 결과에 details.status "aborted"를 싣는다. 실패가 아니라 중단이다
+  const agentAborted =
+    item.message.toolName === AGENT_TOOL &&
+    agentResultOf(shown.text, item.message.details, true).outcome === "aborted";
   if (code === DENIED_CODE) {
     return {
       status: "failed",
@@ -219,7 +262,12 @@ function resultViewOf(item: ItemRecord): ResultView | null {
       output: t("desktop.item.denied.body"),
     };
   }
-  if (item.status === "interrupted" || code === "fresnel:aborted" || code === "aborted") {
+  if (
+    item.status === "interrupted" ||
+    code === "fresnel:aborted" ||
+    code === "aborted" ||
+    agentAborted
+  ) {
     return {
       status: "failed",
       failedLabel: t("desktop.item.status.interrupted"),
@@ -230,14 +278,139 @@ function resultViewOf(item: ItemRecord): ResultView | null {
   return { status: "failed", output: body, ...cut };
 }
 
+/** 열 때 한 번 확인을 거쳐 OS 브라우저로 보낸다. 거부하면 아무 일도 없다 */
+function useOpenSource(): (url: string) => void {
+  const { confirm, openExternal } = usePluginUi();
+  return (url) => {
+    const link = normalizeExternalLink(url);
+    if (link === undefined) return;
+    void confirm
+      .request({
+        kind: "external",
+        extension: "",
+        trust: "builtin",
+        action: link.display,
+        ...(link.punycodeHost === undefined ? {} : { punycodeHost: link.punycodeHost }),
+        label: undefined,
+        paramsSummary: "",
+        approval: false,
+      })
+      .then((answer) => (answer === "allow" ? openExternal(link.href) : undefined));
+  };
+}
+
+/** 출처 칩 줄. 칩은 도메인과 제목을 보이고, 누르면 확인 뒤 외부 브라우저로 연다 */
+function SourceChips(props: { readonly sources: readonly WebSource[] }): ReactNode {
+  return props.sources.length === 0 ? null : <SourceChipList sources={props.sources} />;
+}
+
+function SourceChipList(props: { readonly sources: readonly WebSource[] }): ReactNode {
+  const open = useOpenSource();
+  return (
+    <ul
+      className="m-0 flex list-none flex-wrap gap-1 p-0"
+      aria-label={t("desktop.item.sources.label")}
+    >
+      {props.sources.map((source) => (
+        <li key={source.url}>
+          <Button
+            size="xs"
+            variant="outline"
+            title={source.url}
+            onClick={() => {
+              open(source.url);
+            }}
+          >
+            <Globe aria-hidden />
+            {source.title === source.domain ? source.domain : `${source.domain} · ${source.title}`}
+          </Button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** 하위 에이전트 행. 머리는 정의 이름과 할 일, 끝나면 자식의 보고(길면 접기)와 자식 대화 링크 */
+function AgentRow(props: {
+  readonly args: JsonObject;
+  readonly result: ItemRecord | undefined;
+  readonly running: boolean;
+}): ReactNode {
+  const goTo = useGoToThread();
+  const detail = agentHeadOf(props.args);
+  const result = props.result;
+  if (result === undefined || result.kind !== "toolResult") {
+    return (
+      <ToolRow
+        name={AGENT_TOOL}
+        detail={detail}
+        status={props.running ? "running" : "failed"}
+        {...(props.running
+          ? {
+              runningLabel: (seconds: number) =>
+                seconds > 0
+                  ? t("desktop.item.agent.runningFor", { seconds })
+                  : t("desktop.item.agent.running"),
+            }
+          : { failedLabel: t("desktop.item.status.interrupted") })}
+      />
+    );
+  }
+  const view = resultViewOf(result);
+  if (view === null) return null;
+  const parsed = agentResultOf(view.output, result.message.details, result.message.isError);
+  // 중단된 하위 에이전트의 본문은 엔진의 영어 안내 한 줄뿐이라 알약("중단됨")이 대신한다
+  const fold = reportFoldOf(parsed.outcome === "aborted" ? "" : parsed.body);
+  const childId = parsed.childThreadId;
+  const foot = (
+    <>
+      {fold.rest === null ? null : (
+        <Collapsible summary={t("desktop.item.agent.more")}>
+          <pre className={`${MONO_CLASS} ${OUTPUT_BOX_CLASS}`} tabIndex={0}>
+            {fold.rest}
+          </pre>
+        </Collapsible>
+      )}
+      {childId === null || goTo === null ? null : (
+        <div className="justify-self-start">
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={() => {
+              goTo(childId);
+            }}
+          >
+            {t("desktop.item.agent.openChild")}
+          </Button>
+        </div>
+      )}
+    </>
+  );
+  return (
+    <ToolRow
+      name={AGENT_TOOL}
+      detail={detail}
+      status={view.status}
+      {...(view.failedLabel === undefined ? {} : { failedLabel: view.failedLabel })}
+      output={fold.head}
+      foot={foot}
+      openWhenDone
+    />
+  );
+}
+
 /** 호출 하나에 행 하나. 결과가 오면 같은 행이 결과를 따른다. 결과가 없으면 실행 중이거나(대화가 실행 중) 끝내 못 받은 것이다 */
 function CallRow(props: {
   readonly callId: string;
   readonly name: string;
   readonly detail: string;
+  readonly args: JsonObject;
 }): ReactNode {
   const result = useToolResult(props.callId);
   const running = useOpenThreadRunning();
+  if (props.name === AGENT_TOOL) {
+    return <AgentRow args={props.args} result={result} running={running} />;
+  }
   const view = result === undefined ? null : resultViewOf(result);
   if (view === null) {
     return running ? (
@@ -251,15 +424,20 @@ function CallRow(props: {
       />
     );
   }
+  const sources =
+    WEB_TOOLS.includes(props.name) && view.status === "done" ? webSourcesOf(view.output) : [];
   return (
-    <ToolRow
-      name={props.name}
-      detail={props.detail}
-      status={view.status}
-      {...(view.failedLabel === undefined ? {} : { failedLabel: view.failedLabel })}
-      output={view.output}
-      {...(view.cut === undefined ? {} : { cut: view.cut })}
-    />
+    <>
+      <ToolRow
+        name={props.name}
+        detail={props.detail}
+        status={view.status}
+        {...(view.failedLabel === undefined ? {} : { failedLabel: view.failedLabel })}
+        output={view.output}
+        {...(view.cut === undefined ? {} : { cut: view.cut })}
+      />
+      <SourceChips sources={sources} />
+    </>
   );
 }
 
@@ -302,9 +480,12 @@ function RecordBody(props: { readonly item: ItemRecord }): ReactNode {
             switch (block.type) {
               case "text":
                 return (
-                  <Message key={key}>
-                    <p className={TEXT_CLASS}>{block.text}</p>
-                  </Message>
+                  <Fragment key={key}>
+                    <Message>
+                      <p className={TEXT_CLASS}>{block.text}</p>
+                    </Message>
+                    <SourceChips sources={citedLinksOf(block.text, 6)} />
+                  </Fragment>
                 );
               case "thinking":
                 return (
@@ -321,6 +502,7 @@ function RecordBody(props: { readonly item: ItemRecord }): ReactNode {
                     callId={block.id}
                     name={block.name}
                     detail={clip(JSON.stringify(block.arguments))}
+                    args={block.arguments}
                   />
                 );
               default:

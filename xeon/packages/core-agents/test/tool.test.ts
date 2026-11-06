@@ -31,6 +31,51 @@ describe("the agent tool", () => {
     expect(h.tools.suspended()).toBe(0);
   });
 
+  test("a wait that throws after the parent call was aborted comes back as an aborted result", async () => {
+    const h = openHarness();
+    const controller = new AbortController();
+    const tools = {
+      suspendWhile: <T>(): Promise<T> => {
+        controller.abort();
+        return Promise.reject(new Error("stopped"));
+      },
+    };
+    const registration = agentToolRegistration(h.service, h.tasks, tools);
+    h.openToolCall("tc-abort");
+    const result = await registration.tool.execute(
+      "tc-abort",
+      { agent: "explorer", task: "look" },
+      controller.signal,
+      () => {},
+    );
+    expect(result.isError).toBe(true);
+    expect(result.details).toEqual({ childThreadId: null, status: "aborted" });
+    expect(result.content[0]).toEqual({
+      type: "text",
+      text: "[fresnel:aborted] Subagent aborted",
+    });
+  });
+
+  test("a wait that throws without an abort is rethrown", async () => {
+    const h = openHarness();
+    const tools = {
+      suspendWhile: <T>(): Promise<T> => Promise.reject(new Error("boom")),
+    };
+    const registration = agentToolRegistration(h.service, h.tasks, tools);
+    h.openToolCall("tc-boom");
+    const outcome = await Promise.resolve()
+      .then(() =>
+        registration.tool.execute(
+          "tc-boom",
+          { agent: "explorer", task: "look" },
+          new AbortController().signal,
+          () => {},
+        ),
+      )
+      .catch((error: unknown) => error);
+    expect(outcome instanceof Error ? outcome.message : "not an error").toBe("boom");
+  });
+
   test("it is registered as a direct tool of the spawn class with replay safe", () => {
     const h = openHarness();
     const registration = agentToolRegistration(h.service, h.tasks, h.tools);

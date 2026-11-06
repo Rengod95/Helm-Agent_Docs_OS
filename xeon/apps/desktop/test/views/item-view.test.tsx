@@ -7,6 +7,8 @@ import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
 import { createUiStore } from "../../src/state/ui/store.ts";
 import { RecordedItem, StreamingRow } from "../../src/views/item-view.tsx";
 import { Providers } from "../../src/views/providers.tsx";
+import { PluginUiProvider } from "../../src/views/plugin/plugin-context.tsx";
+import { emptyPluginUi } from "./plugin/support.tsx";
 import { SUB, delta, itm, openedHarness, recorded, thr, userItem } from "../state/helpers.ts";
 import { fakeCommands } from "./fake-commands.ts";
 
@@ -265,5 +267,100 @@ describe("streaming rows", () => {
     expect(visibleText(html)).toContain("read");
     expect(visibleText(html)).toContain("src/mai");
     expect(visibleText(html)).toContain(t("desktop.item.toolRunning"));
+  });
+});
+
+function renderWithPlugin(node: ReactNode, h: Harness): string {
+  return render(<PluginUiProvider value={emptyPluginUi()}>{node}</PluginUiProvider>, h);
+}
+
+function agentCall(n: number, resultN: number): ItemRecord {
+  const base = callItem(n, resultN, "agent");
+  if (base.kind !== "assistant") throw new Error("assistant item expected");
+  return {
+    ...base,
+    message: {
+      ...base.message,
+      content: [
+        {
+          type: "toolCall",
+          id: `call-${resultN}`,
+          name: "agent",
+          arguments: { agent: "explore", task: "이 폴더를 조사해" },
+        },
+      ],
+    },
+  };
+}
+
+function agentResult(n: number, text: string, status: string, isError: boolean): ItemRecord {
+  const base = toolResultItem(n, "agent", text, isError);
+  if (base.kind !== "toolResult") throw new Error("toolResult item expected");
+  return {
+    ...base,
+    message: { ...base.message, details: { childThreadId: "thr_child", status } },
+  };
+}
+
+describe("agent row", () => {
+  test("shows the definition name and task as the head and the child report as the result", () => {
+    const h = openedHarness();
+    ingestRecords(h, [
+      agentCall(1, 2),
+      agentResult(2, "폴더에는 파일 3개가 있어요.", "completed", false),
+    ]);
+    const text = visibleText(renderWithPlugin(<RecordedItem id={itm(1)} />, h));
+    expect(text).toContain("explore · 이 폴더를 조사해");
+    expect(text).toContain("폴더에는 파일 3개가 있어요.");
+    expect(text).not.toContain('"agent"');
+  });
+
+  test("a stopped subagent says interrupted, not failed", () => {
+    const h = openedHarness();
+    ingestRecords(h, [
+      agentCall(1, 2),
+      agentResult(2, "[fresnel:aborted] Subagent aborted", "aborted", true),
+    ]);
+    const text = visibleText(renderWithPlugin(<RecordedItem id={itm(1)} />, h));
+    expect(text).toContain(t("desktop.item.status.interrupted"));
+    expect(text).not.toContain(t("desktop.item.status.failed"));
+    expect(text).not.toContain("Subagent aborted");
+  });
+
+  test("an errored subagent says failed with the reason", () => {
+    const h = openedHarness();
+    ingestRecords(h, [
+      agentCall(1, 2),
+      agentResult(2, "[fresnel:subagent_error] boom", "error", true),
+    ]);
+    const text = visibleText(renderWithPlugin(<RecordedItem id={itm(1)} />, h));
+    expect(text).toContain(t("desktop.item.status.failed"));
+    expect(text).toContain("boom");
+  });
+});
+
+describe("web source chips", () => {
+  test("a web_search result draws a chip per source with the domain and title", () => {
+    const h = openedHarness();
+    ingestRecords(h, [
+      callItem(1, 2, "web_search"),
+      toolResultItem(
+        2,
+        "web_search",
+        "[s1] Bun (2025-04-30) https://bun.sh/docs\n[s2] Node https://nodejs.org",
+        false,
+      ),
+    ]);
+    const html = renderWithPlugin(<RecordedItem id={itm(1)} />, h);
+    const text = visibleText(html);
+    expect(text).toContain("bun.sh · Bun");
+    expect(text).toContain("nodejs.org · Node");
+  });
+
+  test("an answer with a link draws a chip for it", () => {
+    const h = openedHarness();
+    ingestRecords(h, [assistantItem(1, "자세한 것은 https://bun.sh/docs 를 보세요")]);
+    const text = visibleText(renderWithPlugin(<RecordedItem id={itm(1)} />, h));
+    expect(text).toContain("bun.sh");
   });
 });

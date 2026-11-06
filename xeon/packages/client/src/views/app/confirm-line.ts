@@ -35,6 +35,15 @@ export function confirmLineText(request: ConfirmRequest): string {
   const extension = request.extension;
   switch (request.kind) {
     case "external":
+      // 확장 없이 대화 화면의 출처 칩이 연 것이면 확장 이름이 없다
+      if (extension === "") {
+        return request.punycodeHost === undefined
+          ? t("client.view.confirm.externalChat", { url: request.action })
+          : t("client.view.confirm.externalChatPunycode", {
+              url: request.action,
+              host: request.punycodeHost,
+            });
+      }
       return request.punycodeHost === undefined
         ? t("client.view.confirm.external", { extension, url: request.action })
         : t("client.view.confirm.externalPunycode", {
