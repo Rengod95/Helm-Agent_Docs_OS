@@ -165,11 +165,15 @@ const COLUMNS: readonly TableColumn[] = [
   { name: "nested", kind: "json", options: null, required: false },
 ];
 
+// 키가 카탈로그에 없으면 열 머리는 열 이름 그대로다(열 이름 글을 시험에서 그대로 찾는다)
+const UNKNOWN_TABLE_KEY = "l9.fixture.table";
+
 function rowsProps(
   rows: RowsTableViewProps["rows"],
   over: Partial<RowsTableViewProps> = {},
 ): RowsTableViewProps {
   return {
+    settingKey: UNKNOWN_TABLE_KEY,
     columns: COLUMNS,
     rows,
     maxItems: null,
@@ -183,6 +187,23 @@ function rowsProps(
 }
 
 describe("RowsTableView", () => {
+  test("column headers show the catalog sentence of the setting's column", () => {
+    const columns: readonly TableColumn[] = [
+      { name: "id", kind: "string", options: null, required: true },
+      { name: "apiKeyRef", kind: "string", options: null, required: false },
+    ];
+    const html = renderToString(
+      <RowsTableView
+        {...rowsProps([{ id: "anthropic", apiKeyRef: null }], {
+          settingKey: "l1.models.providers",
+          columns,
+        })}
+      />,
+    );
+    expect(html).toContain("API 키(시크릿 참조)");
+    expect(html).not.toContain("apiKeyRef");
+  });
+
   test("no row says so and the add button is there", () => {
     const html = renderToString(<RowsTableView {...rowsProps([])} />);
     expect(html).toContain(t("desktop.settings.table.empty"));
@@ -274,6 +295,7 @@ describe("FixedTableView", () => {
 
   function fixedProps(over: Partial<FixedTableViewProps> = {}): FixedTableViewProps {
     return {
+      settingKey: UNKNOWN_TABLE_KEY,
       columns,
       values: { low: 1, high: 3 },
       editable: true,
@@ -288,6 +310,23 @@ describe("FixedTableView", () => {
     expect(html).toContain("low");
     expect(html).toContain("high");
     expect(html).toContain('value="3"');
+  });
+
+  test("a retry property shows its catalog column sentence", () => {
+    const retryColumns: readonly TableColumn[] = [
+      { name: "maxRetries", kind: "integer", options: null, required: true },
+    ];
+    const html = renderToString(
+      <FixedTableView
+        {...fixedProps({
+          settingKey: "l1.models.retry",
+          columns: retryColumns,
+          values: { maxRetries: 3 },
+        })}
+      />,
+    );
+    expect(html).toContain("최대 재시도 횟수");
+    expect(html).not.toContain("maxRetries");
   });
 
   test("a refused value shows its sentence", () => {

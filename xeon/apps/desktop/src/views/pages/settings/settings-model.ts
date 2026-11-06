@@ -325,6 +325,14 @@ export function optionLabelOf(key: SettingKey, option: string | number): string 
   return tKey(`${base}.option.${camel(text)}`, text);
 }
 
+/**
+ * 표 열 머리의 화면 글. 카탈로그에 `settings.<설정 키>.column.<열 이름>`이 있으면 그 문장이고, 없으면 열 이름 그대로다.
+ * 열 이름은 속성 이름이라(`apiKeyRef`) 보통 그대로 쓰고, `-`·`_`만 camelCase로 바꾼다.
+ */
+export function columnLabelOf(key: SettingKey, column: string): string {
+  return tKey(`settings.${camel(key)}.column.${camel(column)}`, column);
+}
+
 /** 화면 문자열을 원래 옵션 값(문자열 또는 숫자)으로 되돌린다. 맞는 옵션이 없으면 `null`이다 */
 export function optionOf(
   options: readonly (string | number)[],

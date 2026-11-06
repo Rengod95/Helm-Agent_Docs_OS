@@ -213,6 +213,7 @@ function TableEditor(props: DedicatedEditorProps): ReactNode {
       if (rows === null) return unreadable;
       return (
         <RowsTableView
+          settingKey={field.key}
           columns={widget.columns}
           rows={rows}
           maxItems={widget.maxItems}
@@ -265,6 +266,7 @@ function TableEditor(props: DedicatedEditorProps): ReactNode {
       if (values === null) return unreadable;
       return (
         <FixedTableView
+          settingKey={field.key}
           columns={widget.columns}
           values={values}
           editable={editable}

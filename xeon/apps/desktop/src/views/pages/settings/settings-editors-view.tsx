@@ -2,9 +2,16 @@ import { Alert, Button, Input, NumberField, Select, SelectOption, Switch } from 
 import { t } from "@fresnel/client/i18n";
 import type { TableColumn } from "@fresnel/client/settings";
 import { assertNever } from "@fresnel/contracts";
+import type { SettingKey } from "@fresnel/contracts/settings";
 import type { PolicyEffect, PolicyRule } from "@fresnel/contracts/services";
 import type { ReactNode } from "react";
-import { numberValueOf, optionOf, optionTextOf, textValueOf } from "./settings-model.ts";
+import {
+  columnLabelOf,
+  numberValueOf,
+  optionOf,
+  optionTextOf,
+  textValueOf,
+} from "./settings-model.ts";
 import {
   PRIORITY_DEFAULT,
   RULE_EFFECTS,
@@ -381,6 +388,8 @@ function CellControl(props: {
 }
 
 export interface RowsTableViewProps {
+  /** 표가 속한 설정 키. 열 머리 글을 카탈로그에서 찾는다(`columnLabelOf`) */
+  readonly settingKey: SettingKey;
   readonly columns: readonly TableColumn[];
   readonly rows: readonly Row[];
   readonly maxItems: number | null;
@@ -395,6 +404,7 @@ export interface RowsTableViewProps {
 export function RowsTableView(props: RowsTableViewProps): ReactNode {
   const { columns, rows, editable } = props;
   const full = props.maxItems !== null && rows.length >= props.maxItems;
+  const labelOf = (name: string): string => columnLabelOf(props.settingKey, name);
   return (
     <div className="flex flex-col gap-3">
       {rows.length === 0 ? (
@@ -405,11 +415,11 @@ export function RowsTableView(props: RowsTableViewProps): ReactNode {
             <li key={item.key} data-slot="table-row" className="flex flex-wrap items-center gap-2">
               {columns.map((column) => (
                 <label key={column.name} className="flex items-center gap-1">
-                  <span className="text-ui-sm text-text-secondary">{column.name}</span>
+                  <span className="text-ui-sm text-text-secondary">{labelOf(column.name)}</span>
                   <CellControl
                     column={column}
                     value={item.row[column.name]}
-                    label={column.name}
+                    label={labelOf(column.name)}
                     disabled={!editable || column.kind === "json"}
                     onChange={(value) => {
                       props.onCell(item.index, column.name, value);
@@ -506,6 +516,8 @@ export function RecordTableView(props: RecordTableViewProps): ReactNode {
 }
 
 export interface FixedTableViewProps {
+  /** 표가 속한 설정 키. 열 머리 글을 카탈로그에서 찾는다(`columnLabelOf`) */
+  readonly settingKey: SettingKey;
   readonly columns: readonly TableColumn[];
   readonly values: Row;
   readonly editable: boolean;
@@ -515,15 +527,16 @@ export interface FixedTableViewProps {
 
 /** fixed 모양. 속성마다 한 줄이고, 줄을 더하거나 지우지 않는다 */
 export function FixedTableView(props: FixedTableViewProps): ReactNode {
+  const labelOf = (name: string): string => columnLabelOf(props.settingKey, name);
   return (
     <div className="flex flex-col gap-2">
       {props.columns.map((column) => (
         <label key={column.name} className="flex flex-wrap items-center gap-2">
-          <span className="w-40 text-ui-sm text-text-secondary">{column.name}</span>
+          <span className="w-40 text-ui-sm text-text-secondary">{labelOf(column.name)}</span>
           <CellControl
             column={column}
             value={props.values[column.name]}
-            label={column.name}
+            label={labelOf(column.name)}
             disabled={!props.editable || column.kind === "json"}
             onChange={(value) => {
               props.onCell(column.name, value);

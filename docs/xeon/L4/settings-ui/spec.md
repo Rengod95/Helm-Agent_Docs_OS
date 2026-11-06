@@ -642,6 +642,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 - [결정: M3b B3-SET] `table`은 세 모양을 더 받는다. `fixed`는 `properties`가 고정된 원시 값 객체이고 `additionalProperties`가 없다(열 = 속성 이름, 예: `l1.models.thinkingBudgets`의 레벨별 토큰 예산 여섯 개). `record`는 `additionalProperties`나 TypeBox `Type.Record`가 내는 항목 하나짜리 `patternProperties`를 값 스키마로 읽고, 값이 객체 같은 중첩 값이면 `값` 열이 `json`(읽기만, 편집은 파일 편집기)이다. 널을 허용하는 원시 값(`anyOf [X, null]`, `type: [X, "null"]`)은 그 원시 값으로 본다. 모델 참조(`provider/modelId`)는 `text`다: `l1.models.routing.*`는 `text`로 선언한다.
 - 위젯이 `widgetMismatch`이거나 알 수 없는 값(`unknownWidget`)이면 그 항목을 `readonly`로 그리고 진단을 advanced 탭에 모은다. 편집은 파일 편집기로만 한다 [제안].
 - 표 열 하나가 원시 타입이나 enum이 아니면(중첩 객체) 그 열은 JSON 접힘 보기로 읽기만 하고, 그 열 편집은 파일 편집기로 넘긴다 [제안].
+- 표 열 머리와 선택지 값은 카탈로그 문장으로 보인다: `settings.<설정 키>.column.<열 이름>`, `settings.<설정 키>.option.<값>`(값의 `-`·`_`는 camelCase). 없으면 열 이름이나 값 그대로 보인다 [제안].
 
 #### 4.2.2 값이 없을 때
 

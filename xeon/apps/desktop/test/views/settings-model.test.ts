@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { activeLocale, setActiveLocale } from "@fresnel/client/i18n";
 import { reduceSettings, TAB_ORDER, settingsViewOf } from "@fresnel/client/settings";
 import { thr } from "../state/helpers.ts";
 import {
   advancedGroupsOf,
   allFieldsOf,
+  columnLabelOf,
   dirtyKeysOf,
   fallbackScopeOf,
   fieldControlOf,
@@ -343,6 +345,37 @@ describe("advanced tab groups and option labels", () => {
     expect(optionLabelOf("l0.sandbox.onUnavailable", "run_unsandboxed")).toBe("격리 없이 실행");
     expect(optionLabelOf("l0.secrets.ageKey.source", "auto-file")).toBe("자동(파일 우선)");
     expect(optionLabelOf("l9.unknown.key", "raw-value")).toBe("raw-value");
+  });
+
+  test("the desktop, CLI, and model option labels are Korean sentences", () => {
+    expect(optionLabelOf("l4.desktop.window.closeBehavior", "tray")).toBe("트레이에 남기기");
+    expect(optionLabelOf("l4.desktop.window.closeBehavior", "quit")).toBe("앱 끝내기");
+    expect(optionLabelOf("l4.ui.locale", "auto")).toBe("시스템 설정 따르기");
+    expect(optionLabelOf("l4.cli.theme", "dark")).toBe("어둡게");
+    expect(optionLabelOf("l4.cli.outputMode", "json")).toBe("JSON");
+    expect(optionLabelOf("l1.models.cacheRetention", "long")).toBe("길게");
+  });
+
+  test("an English session shows the English option labels", () => {
+    const previous = activeLocale();
+    setActiveLocale("en");
+    try {
+      expect(optionLabelOf("l4.desktop.window.closeBehavior", "tray")).toBe("Keep in tray");
+      expect(optionLabelOf("l4.ui.locale", "ko")).toBe("Korean");
+      expect(columnLabelOf("l1.models.retry", "baseDelayMs")).toBe("Base delay (ms)");
+    } finally {
+      setActiveLocale(previous);
+    }
+  });
+});
+
+describe("columnLabelOf", () => {
+  test("a table column shows its catalog sentence, and an unknown column shows its name", () => {
+    expect(columnLabelOf("l1.models.retry", "maxRetries")).toBe("최대 재시도 횟수");
+    expect(columnLabelOf("l1.models.providers", "apiKeyRef")).toBe("API 키(시크릿 참조)");
+    expect(columnLabelOf("l1.models.thinkingBudgets", "xhigh")).toBe("아주 높게");
+    expect(columnLabelOf("l1.models.retry", "unknownColumn")).toBe("unknownColumn");
+    expect(columnLabelOf("l9.unknown.table", "rawColumn")).toBe("rawColumn");
   });
 });
 
