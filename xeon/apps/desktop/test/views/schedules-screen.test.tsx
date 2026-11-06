@@ -8,6 +8,7 @@ import {
   ScheduleScreenView,
   type ScheduleScreenHandlers,
 } from "../../src/views/pages/schedules/schedules-view.tsx";
+import { ServiceOffNotice } from "../../src/views/pages/schedules/schedule-service-notice.tsx";
 import { RunsBody } from "../../src/views/pages/schedules/schedule-runs-sheet.tsx";
 import {
   INITIAL_SCHEDULE_STATE,
@@ -152,6 +153,13 @@ describe("schedules screen server render", () => {
     const markup = html(loaded);
     expect(markup).toContain("서비스 모드가 꺼져 있어");
     expect(markup).toContain("서비스 켜기");
+  });
+
+  test("the sheet's service notice says schedules stop with the app and offers the turn-on action", () => {
+    const markup = renderToString(<ServiceOffNotice canEnable onEnable={NOOP} />);
+    expect(markup).toContain("앱을 끄면 예약이 돌지 않아요.");
+    expect(markup).toContain("서비스 켜기");
+    expect(markup).not.toContain('disabled=""');
   });
 
   test("the list offers the on and all filters, and the rows show the next run and the last run as ages", () => {

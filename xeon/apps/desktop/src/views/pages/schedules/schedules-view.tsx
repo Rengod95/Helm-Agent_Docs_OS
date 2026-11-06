@@ -176,6 +176,9 @@ export function ScheduleScreenView(props: ScheduleScreenViewProps): ReactNode {
         onChange={handlers.sheetChange}
         onSubmit={handlers.sheetSubmit}
         onClose={handlers.sheetClose}
+        serviceModeOff={state.serviceModeOff}
+        canEnableService={acting}
+        onEnableService={handlers.enableService}
       />
       <ScheduleRunsSheet
         runs={state.runs}

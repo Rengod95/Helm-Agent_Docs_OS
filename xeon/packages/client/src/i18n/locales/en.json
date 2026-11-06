@@ -1112,6 +1112,7 @@
   "desktop.schedules.cancelDialog.keep": "Keep it",
   "desktop.schedules.sheet.copyTitle": "Duplicate schedule",
   "desktop.schedules.sheet.save": "Save",
+  "desktop.schedules.sheet.serviceOff": "Schedules don't run while the app is closed.",
   "desktop.schedules.sheet.discard": "Discard",
   "desktop.schedules.form.title": "Title",
   "desktop.schedules.form.trigger": "Trigger",
