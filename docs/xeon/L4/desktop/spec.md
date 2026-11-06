@@ -824,3 +824,5 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 **트레이** (`tray.ts`, `tray-shell.ts`): Electron `Tray`와 메뉴(열기, 새 대화, 진행 중 n[비활성], 끝내기). macOS는 템플릿 이미지(`assets/tray.png`, 높이 18pt). 글은 `tray_update`가 보낸 것이고 80자(코드 포인트) 상한이다. 트레이를 만들지 못하면 `{kind:"unavailable"}`이고 닫기 동작 `tray`는 `quit`처럼 움직인다(`close-behavior.ts`, Tauri `effective_close_behavior`와 같은 표). 닫기 동작의 설정값은 설정 모듈이 `setConfiguredCloseBehavior`로 넣는다(기본 `tray`).
 
 **셸 의도와 단일 인스턴스** (`intents.ts`, `shell-intents.ts`, `single-instance.ts`): 큐는 Tauri와 같다(최대 8개, 30초, 끝이 같은 `openThread`는 시각만 갱신). `shell_take_intents`와 `shell-intent` 이벤트도 같다. 잠금은 Electron `requestSingleInstanceLock()`이고 이 앱의 userData 기준이라 Tauri 셸(다른 데이터 폴더와 플러그인 잠금)과 서로 막지 않는다. `second-instance`와 `open-url`은 창을 앞으로 가져오기만 한다(URL 스킴은 아직 없다).
+
+**OS 알림** (`notify-os.ts`, `notify-os-shell.ts`): Electron `Notification`. 제목 80자, 본문 400자, 제어 문자 제거는 Tauri와 같고 문구는 UI가 카탈로그 문자열과 대화 제목으로 만든다(`notice.body`는 쓰지 않는다). 알림 클릭은 `click` 이벤트로 바로 `openThread` 의도를 큐에 넣고 창을 앞으로 가져온다. Tauri의 30초 기억(`notify_take_target`)은 필요 없어 이 명령은 항상 `null`을 준다(UI 호환용으로 남긴다). Electron에는 알림 권한 조회가 없어 `notify_permission`은 `Notification.isSupported()`로 `granted`/`denied`를 답한다.
