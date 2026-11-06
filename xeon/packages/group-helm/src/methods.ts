@@ -185,7 +185,7 @@ export const helmMethodDecls: ExtMethodDecl[] = [
 
 // ── 읽기 ────────────────────────────────────────────────────────────────────
 
-type ReadApi = Pick<GroupApi<HelmState>, "state" | "readRecords">;
+type ReadApi = Pick<GroupApi<HelmState>, "readRecords">;
 
 const INQUIRIES_MAX = 50;
 
@@ -234,8 +234,8 @@ async function finishedInquiries(g: ReadApi): Promise<readonly InquirySummary[]>
 }
 
 /** 탐구 목록. 현재 탐구가 맨 앞이고 끝난 탐구는 최신 순이다. 최대 50개 */
-async function inquiriesOf(g: ReadApi): Promise<InquiriesView> {
-  const current = currentOf(g.state());
+async function inquiriesOf(g: ReadApi, state: Readonly<HelmState>): Promise<InquiriesView> {
+  const current = currentOf(state);
   const finished = await finishedInquiries(g);
   const all = current === undefined ? finished : [current, ...finished];
   return { inquiries: all.slice(0, INQUIRIES_MAX) };
@@ -256,8 +256,11 @@ function findingOfRecord(payload: DiscoveryRecordedPayload): HelmFinding {
  * 발견 목록. 현재 탐구는 상태의 발견을 그대로 준다. 끝난 탐구는 `grp.helm.discovery.recorded` 기록에서 모은다
  * (종료 기록은 발견 수만 싣는다). 모르는 탐구 id는 빈 목록이다
  */
-async function findingsOf(g: ReadApi, inquiryId: string): Promise<FindingsView> {
-  const state = g.state();
+async function findingsOf(
+  g: ReadApi,
+  state: Readonly<HelmState>,
+  inquiryId: string,
+): Promise<FindingsView> {
   if (state.inquiryId === inquiryId) return { inquiryId, findings: [...state.findings] };
   const records = await g.readRecords({ kind: "grp.helm.discovery.recorded" });
   const found = records.flatMap((record) => {
@@ -278,19 +281,28 @@ function inquiryIdOf(params: unknown): string | undefined {
 
 export type HelmMethodsApi = Pick<GroupApi<HelmState>, "state" | "readRecords" | "registerMethod">;
 
+/** 확장 메서드 처리기가 받는 호출 맥락(`group-sdk`의 `registerMethod` 처리기의 둘째 인자) */
+type ExtMethodCallContext = Parameters<
+  Parameters<HelmMethodsApi["registerMethod"]>[1]["handler"]
+>[1];
+
 /**
  * 처리기 세 개를 등록한다(setup 안에서). 스레드가 없는 호출은 상태에 닿을 수 없으므로 빈 값을 준다:
  * status는 대기 상태 보기, inquiries는 빈 목록, findings는 빈 발견 목록이다.
+ * 재시작 뒤 아직 열지 않은 대화(`ctx.threadOpen === false`)는 상태 문서가 없으므로 상태는 초기값으로 보고 기록만 읽는다:
+ * 끝난 탐구와 발견은 기록에 있어 앱을 다시 켠 뒤에도 읽힌다.
  * 입력은 호스트가 선언 스키마로 이미 검사했으므로 findings의 형식 실패는 호스트 결함이다
  */
 export function registerHelmMethods(g: HelmMethodsApi): void {
+  /** 상태 문서를 읽을 수 있는 호출인가: thread에 묶였고 그 thread가 열려 있다 */
+  const stateOf = (ctx: ExtMethodCallContext): Readonly<HelmState> =>
+    ctx.threadId === null || ctx.threadOpen === false ? INITIAL_HELM_STATE : g.state();
   g.registerMethod("status", {
-    handler: (_params, ctx) =>
-      Promise.resolve(viewOf(ctx.threadId === null ? INITIAL_HELM_STATE : g.state())),
+    handler: (_params, ctx) => Promise.resolve(viewOf(stateOf(ctx))),
   });
   g.registerMethod("inquiries", {
     handler: (_params, ctx) =>
-      ctx.threadId === null ? Promise.resolve({ inquiries: [] }) : inquiriesOf(g),
+      ctx.threadId === null ? Promise.resolve({ inquiries: [] }) : inquiriesOf(g, stateOf(ctx)),
   });
   g.registerMethod("findings", {
     handler: (params, ctx) => {
@@ -300,7 +312,7 @@ export function registerHelmMethods(g: HelmMethodsApi): void {
       }
       return ctx.threadId === null
         ? Promise.resolve({ inquiryId, findings: [] })
-        : findingsOf(g, inquiryId);
+        : findingsOf(g, stateOf(ctx), inquiryId);
     },
   });
 }

@@ -38,8 +38,17 @@ function answer(label: string, text: string) {
   };
 }
 
+/** 80자를 넘는 출처 제목: 엄격한 스키마는 보고 전체를 거절해 보고 원문이 주장이 되던 것(fxHR) */
+const LONG_TITLE =
+  "orbitN: A symplectic integrator for planetary systems dominated by a central mass";
+
 function report(claim: string): string {
-  return `\`\`\`json\n${JSON.stringify({ findings: [{ claim, sources: [], confidence: "medium" }] })}\n\`\`\``;
+  const sources =
+    claim === "관점 하나"
+      ? [{ origin: "web", ref: "https://arxiv.org/pdf/2306.03737", title: LONG_TITLE }]
+      : [];
+  const body = JSON.stringify({ findings: [{ claim, sources, confidence: "medium" }] });
+  return `<subagent_report agent="explorer" thread="thr_x" status="completed">\n앞 설명\n\`\`\`json\n${body}\n\`\`\`\n뒤 설명\n</subagent_report>`;
 }
 
 /** `/helm start` 하나로 발산, 렌즈 셋, 적용 한 번이 도는 테이프 */
@@ -169,6 +178,44 @@ realTest(
 
     await raw.close();
     await host.close();
+
+    // 앱을 다시 켠 뒤(같은 홈, 새 호스트): 끝난 탐구와 발견이 그대로 읽힌다. 주장은 보고 원문이 아니라 나뉜 주장이고, 긴 출처 제목은 80자로 잘린다
+    const again = await startInProcessHost({
+      devChecks: true,
+      defaultPluginsDir: bundleRoot,
+      buildModels: tapeBuildModels(tapeProvider(inquiryPlayer())),
+    });
+    const rawAgain = rawClient(again.client);
+    await call(rawAgain, "host.hello", { ...HELLO_PARAMS });
+    const restarted = resultOf(await call(rawAgain, "ext.helm.inquiries", { threadId }));
+    const restartedList = restarted["inquiries"];
+    if (!Array.isArray(restartedList)) throw new Error("inquiries is not a list");
+    expect(restartedList).toHaveLength(1);
+    expect(restartedList[0]).toMatchObject({
+      topic: "캐시 무효화",
+      status: "finished",
+      outcome: "applied",
+      findingCount: 3,
+    });
+    const restartedId = isRecord(restartedList[0]) ? restartedList[0]["inquiryId"] : undefined;
+    const restartedFound = resultOf(
+      await call(rawAgain, "ext.helm.findings", { threadId, inquiryId: restartedId }),
+    );
+    const restartedFindings = restartedFound["findings"];
+    if (!Array.isArray(restartedFindings)) throw new Error("findings is not a list");
+    const first = restartedFindings.find((item) => isRecord(item) && item["claim"] === "관점 하나");
+    expect(first).toMatchObject({
+      claim: "관점 하나",
+      confidence: "medium",
+      sources: [
+        { origin: "web", ref: "https://arxiv.org/pdf/2306.03737", title: LONG_TITLE.slice(0, 80) },
+      ],
+    });
+    expect(
+      restartedFindings.map((item) => (isRecord(item) ? String(item["claim"]) : "")).toSorted(),
+    ).toEqual(["관점 둘", "관점 셋", "관점 하나"].toSorted());
+    await rawAgain.close();
+    await again.close();
     home.dispose();
   },
   90_000,

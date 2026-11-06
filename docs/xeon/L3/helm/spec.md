@@ -804,7 +804,7 @@ export function registerHelmMethods(g: Pick<GroupApi<HelmState>, "state" | "read
 - 경로: JSON Pointer다. `each`가 도는 가지 안에서 경로의 첫 마디가 그 `as`와 같으면 항목 안을, 그 밖이면 문서를 본다. 이 규칙은 렌더러가 정하고 이 트리는 그 규칙에 맞춰 쓴다 [제안].
 - 조건: `eq`와 `ne`는 값을 비교한다. `null`도 값이라서 대기 중인 탐구 없음은 `inquiryId`가 `null`인지로 본다. `exists`와 `missing`은 경로만 본다. 조건이 거짓인 가지는 그리지 않는다.
 - 속성: `props.text`(글자), `props.label`(단추와 입력의 글자), `props.step`(단계 노드 식별자), `props.title`, `props.max`, `props.command`, `props.name`, `props.placeholder`, `props.submitLabel`만 쓴다. 색, 크기 숫자, CSS, HTML은 없다(DP-08).
-- 단추: `props.command`에는 같은 확장의 슬래시 명령 이름을 적고, `helm start`처럼 하위 명령 낱말을 붙일 수 있다(첫 낱말이 이름, 나머지가 인자 앞머리). 탐구 시작은 주제를 적는 `TextField`(`name: "arg"`)가 든 `Form`이라 `/helm start <주제>`를 보내고, 주제를 비우면 `/helm start`만 보내 주제는 이 대화의 마지막 사용자 입력에서 뽑은 용어로 정해진다. 누른 뒤의 연결은 렌더러 규칙이다(§10 미결 16).
+- 단추: `props.command`에는 같은 확장의 슬래시 명령 이름을 적고, `helm start`처럼 하위 명령 낱말을 붙일 수 있다(첫 낱말이 이름, 나머지가 인자 앞머리). 탐구 시작은 주제를 적는 `TextField`(`name: "arg"`)가 든 `Form`이라 `/helm start <주제>`를 보내고, 주제를 비우면 `/helm start`만 보내 주제는 현재 turn 입력에서 뽑은 용어 앞 3개(없으면 마지막 신호의 근거 용어)를 ", "로 이은 글로 정해진다(칸의 안내 글은 "비우면 마지막 입력에서 뽑은 낱말로 정해요"). 주제 칸은 `maxLength: 300`이라 300자까지만 받고 머리 줄에 글자 수를 보인다. 확인 줄이 `args`를 요약하는 상한(400자)과 `decide`의 `args` 상한(2000자)보다 앞서 막아, 길어서 조용히 거절되는 일이 없게 한다(Helm은 주제를 500자에서 자른다). 누른 뒤의 연결은 렌더러 규칙이다(§10 미결 16).
 - 단계 칩: 단계 이름만 낸다. "탐색 2/3 렌즈"처럼 렌즈 수를 세는 표시는 바인딩에 세는 식이 없어 쓰지 않는다(§10 미결 17).
 - 상한 Meter: 발견 수를 24에 대어 보인다. 24는 상태 발견 상한(`HelmState.findings`의 `maxItems`)이다. drive lock와 턴 상한은 상태 보기에 수치가 없어 Meter로 보이지 않는다(§10 미결 15).
 - 단계 노드: 패널과 페이지의 단계 표시는 `Stepper`이고, 자식 `Text`의 `props.step`이 단계 이름, `props.text`가 한글 이름이다.
@@ -848,7 +848,7 @@ export function registerHelmMethods(g: Pick<GroupApi<HelmState>, "state" | "read
 | methods.findings.unknown | 같은 파일 | 모르는 탐구 id는 빈 목록 |
 | methods.params | 같은 파일 | 스키마 위반은 `params_invalid`이고 turn과 spawn이 늘지 않는다 |
 | methods.threadless | 같은 파일 | 스레드 없는 호출은 대기 기본 보기와 빈 목록 |
-| methods.closed-thread | 같은 파일 | 열려 있지 않은 스레드(끝난 하위 대화 등)에 묶인 호출은 스레드 없는 호출로 다뤄 던지지 않는다(호스트 `ExtMethods.call`이 `threadId`를 null로 바꾼다) |
+| methods.closed-thread | 같은 파일 | 열려 있지 않은 스레드(끝난 하위 대화, 재시작 뒤 아직 열지 않은 대화)에 묶인 호출은 던지지 않는다. 읽기 전용 메서드는 `ctx.threadOpen === false`로 받아 상태는 초기값(대기)으로 보고 기록만 읽는다: `inquiries`와 `findings`는 끝난 탐구와 발견을 재시작 뒤에도 준다. 한 번도 열린 적 없는 스레드는 기록이 없어 빈 목록이다 |
 | methods.result | 같은 파일 | 세 메서드 모두 대기, 진행, 끝난 뒤에 `ok`다(결과 검사 통과) |
 | composition.defined | `test/unit/composition.test.ts` | `helmGroup.manifest.group.composition`이 정의되고 두 매니페스트와 `validateGroupDef`에 오류가 없다 |
 | composition.phases | 같은 파일 | 선언된 전이 스무 행이 `TRANSITIONS` 표와 행마다 같다 |
@@ -1153,7 +1153,7 @@ export function helmDrive(g: GroupApi<HelmState>, marker: ExplorationMarker): Dr
 //                  yield는 커밋 없이 반환한다. 성공이면 아무것도 하지 않는다
 ```
 
-- 답 원문(`SpawnOutcome.answer`)은 상태에 두지 않는다 [제안]. `explored` 전이가 렌즈별 답에 `parseExplorerAnswer`(순수 함수)를 실행해 `findings`를 채우고, `converge` 분기는 지식 요약과 정리(`dedupeFindings`: 같은 `claim` 정규화 문자열 제거, 상한 24개, 커밋 전 `fitState`)만 한다. 그래서 `converge`에서 재호출돼도 서브에이전트 결과를 다시 받을 필요가 없다.
+- 답 원문(`SpawnOutcome.answer`)은 상태에 두지 않는다 [제안]. `explored` 전이가 렌즈별 답에 `parseExplorerAnswer`(순수 함수)를 실행해 `findings`를 채우고, `converge` 분기는 지식 요약과 정리(`dedupeFindings`: 같은 `claim` 정규화 문자열 제거, 상한 24개, 커밋 전 `fitState`)만 한다. 그래서 `converge`에서 재호출돼도 서브에이전트 결과를 다시 받을 필요가 없다. `parseExplorerAnswer`는 하위 에이전트 보고 표지(`<subagent_report …>`)를 뗀 글에서 JSON 코드 블록을 뒤에서부터 찾아 발견마다 `claim`(주장), `sources`(근거와 출처), `confidence`(신뢰도)로 나눈다. 글이 상한을 넘으면(출처 `title` 80자 등) 그 발견을 거절하지 않고 상한에서 자르고, 모양이 틀린 출처(`origin`을 모르는 것, 빈 `ref`)와 `claim`이 빈 발견만 버리며, 모르는 `confidence`는 `low`다. 모양이 맞는 발견이 하나도 없을 때만 표지를 뗀 답 전체를 `low` 신뢰 발견 1건의 `claim`으로 둔다 [근거: `packages/group-helm/src/findings.ts`, `packages/group-helm/test/unit/pure.test.ts`의 실제 보고 모양 시험].
 - 단계 하나를 처리할 때마다 커밋하고 반환하므로, 재호출된 함수는 커밋된 `phase`에 해당하는 분기 하나만 실행한다. 사용자 의사코드의 `while` 반복은 X의 재호출이 대신한다.
 - 병렬 spawn은 `Promise.all`과 `guarded`로 받는다. `guarded`가 예상 가능한 실패를 값으로 바꾸므로 렌즈 하나의 실패가 다른 렌즈의 결과를 지우지 않는다. 이전 판의 `Promise.allSettled`는 알 수 없는 예외까지 값으로 바꿔 삼키므로 쓰지 않는다.
 - 상한: `DriveOptions.limits`는 `minLimits(x.primitives.driveLimits, ext.helm.driveLimits)`를 넘지 않는다. Helm은 `ext.helm.driveLimits`를 넘겨 X 일반 기본값 `x.primitives.driveDefaultLimits`를 덮어쓰고, X가 천장 `x.primitives.driveLimits`로 다시 자른다(review.decisions-2 U-12)(F.extensions.spec §3.2 `DriveOptions` 주석, §6). [가정] group-sdk은 drive 락을 새로 받을 때 `DriveOptions`를 설정에서 다시 읽는다.

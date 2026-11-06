@@ -197,6 +197,21 @@ describe("NativeTree tabs, forms and links", () => {
     expect(out).toContain("탐구 시작");
   });
 
+  test("a TextField with maxLength limits the input and shows the count, and one without shows none", () => {
+    const limited = html(
+      node("Form", { command: "helm start" }, [
+        node("TextField", { name: "arg", label: "주제", value: "부동소수", maxLength: 300 }),
+      ]),
+    );
+    expect(limited).toContain('maxLength="300"');
+    expect(limited).toContain(">4/300<");
+    const open = html(
+      node("Form", { command: "helm start" }, [node("TextField", { name: "arg", label: "주제" })]),
+    );
+    expect(open).not.toContain("maxLength");
+    expect(open).not.toContain("/300");
+  });
+
   test("a ThreadLink shows its text", () => {
     const out = html(node("ThreadLink", { text: "Open thread", thread: "t-1" }));
     expect(out).toContain("Open thread");

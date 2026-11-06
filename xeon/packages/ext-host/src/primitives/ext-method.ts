@@ -19,6 +19,11 @@ import type { ResourceRecord, ResourceRegistry } from "./resources.ts";
 /** 처리기가 받는 호출 맥락. threadId는 호출이 thread에 묶였을 때만 있다 */
 export interface ExtMethodCallContext {
   readonly threadId: ThreadId | null;
+  /**
+   * `threadId`가 있어도 그 thread가 이 프로세스에서 열려 있지 않으면 false다(재시작 뒤 아직 열지 않은 대화). 읽기 전용 메서드에만 이 값이 선다:
+   * 열린 thread의 상태 문서(`g.state()`)는 없고, 기록 읽기(`g.readRecords`)만 된다. 값이 없으면 열린 것으로 본다
+   */
+  readonly threadOpen?: boolean;
   /** 호출 하나의 id. threadId가 있으면 디스패치 키 `method:<callId>`가 된다 */
   readonly callId: string;
   /** 호출한 쪽이 취소하거나 scope 세대가 닫히면 abort된다. 예산을 넘겨도 abort된다(ExtHostDeps.methodRun이 있을 때) */
@@ -353,17 +358,19 @@ export function createExtMethods(deps: ExtMethodsDeps): ExtMethods {
       }));
     },
     async call(rawInput) {
-      // 열려 있지 않은 thread(끝난 하위 대화 등)에 묶인 호출은 thread 없는 호출로 다룬다. 처리기가 상태에 닿다가 no_thread로 던지지 않게 한다
-      const input =
-        rawInput.threadId !== null && !core.threads.has(rawInput.threadId)
-          ? { ...rawInput, threadId: null }
-          : rawInput;
+      // 열려 있지 않은 thread(끝난 하위 대화, 재시작 뒤 아직 열지 않은 대화)에 묶인 호출은 켜짐 판정에서 thread 없는 호출로 다룬다.
+      // 처리기가 상태에 닿다가 no_thread로 던지지 않게 한다. 읽기 전용 메서드는 처리기에 원래 thread id를 `threadOpen: false`와 함께 주어
+      // 기록을 읽을 수 있게 한다(끝난 탐구 목록이 재시작 뒤에도 읽힌다)
+      const requested = rawInput.threadId;
+      const threadOpen = requested === null || core.threads.has(requested);
+      const input = threadOpen ? rawInput : { ...rawInput, threadId: null };
       const found = registered().find(
         ({ record }) => record.extension === input.extension && record.name === input.verb,
       );
       if (found === undefined)
         return absentOutcome(core, input.extension, input.verb, input.threadId);
       const { record, entry } = found;
+      const keptThread = !threadOpen && entry.decl.readOnly ? requested : input.threadId;
       const generation = openGenerationOf(core, record.scopeId, input.threadId);
       if (generation === undefined) return { kind: "extension_off" };
       if (input.signal.aborted) return { kind: "aborted" };
@@ -394,7 +401,13 @@ export function createExtMethods(deps: ExtMethodsDeps): ExtMethods {
         (handlerSignal, gate) =>
           entry.handler(
             input.params,
-            { threadId: input.threadId, callId, signal: handlerSignal, caller: input.caller },
+            {
+              threadId: keptThread,
+              ...(keptThread !== null && !threadOpen ? { threadOpen: false } : {}),
+              callId,
+              signal: handlerSignal,
+              caller: input.caller,
+            },
             gate,
           ),
         signal,

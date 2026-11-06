@@ -165,6 +165,20 @@ export const selectUnsentUserItemId = (s: EngineMirror): ItemId | null => {
   }
   return null;
 };
+/**
+ * 열린 대화에서 종류(`customType`)가 주어진 것 가운데 하나인 확장 기록의 수. 확장 화면이 "무언가 끝났다"를 이 수가 늘어나는 것으로 알아
+ * 다시 읽는다(Helm의 탐구 끝 기록과 발견 기록). 대화가 아직 읽히지 않았으면 0이다. 숫자 하나라서 값이 같으면 다시 그리지 않는다
+ */
+export const selectCustomCount = (s: EngineMirror, kinds: readonly string[]): number => {
+  const transcript = s.transcript;
+  if (transcript?.status !== "ready") return 0;
+  let count = 0;
+  for (const id of transcript.itemIds) {
+    const item = transcript.items[id];
+    if (item?.kind === "custom" && kinds.includes(item.message.customType)) count += 1;
+  }
+  return count;
+};
 /** 열린 대화의 마지막 사용자 메시지 글. 다시 보내기가 쓴다. 첨부는 싣지 않는다. 글이 없으면 null이다 */
 export const selectLastUserText = (s: EngineMirror): string | null => {
   const transcript = s.transcript;

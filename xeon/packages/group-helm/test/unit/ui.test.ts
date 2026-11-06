@@ -61,6 +61,7 @@ const ALLOWED_PROPS: ReadonlySet<string> = new Set([
   "command",
   "name",
   "placeholder",
+  "maxLength",
   "submitLabel",
 ]);
 
@@ -328,7 +329,8 @@ test("ui.form: the page and panel start with a Form that sends `helm start` plus
         props: {
           name: "arg",
           label: "주제",
-          placeholder: "비우면 이 대화의 마지막 질문을 주제로 써요",
+          placeholder: "비우면 마지막 입력에서 뽑은 낱말로 정해요",
+          maxLength: 300,
         },
       },
     ],

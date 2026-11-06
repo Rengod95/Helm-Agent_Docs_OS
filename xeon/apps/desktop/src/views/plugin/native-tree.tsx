@@ -987,9 +987,22 @@ function TextFieldNode({ node }: NodeProps): ReactNode {
     nonEmpty(textProp(node, "name")),
     textProp(node, "value") ?? "",
   );
+  // `maxLength`가 있으면 칸이 그 글자 수까지만 받고, 머리 줄에 "지금 글자 수/상한"을 보인다(넘치게 붙여 넣으면 상한까지 자른다)
+  const limit = numberProp(node, "maxLength");
+  const max = limit !== undefined && Number.isInteger(limit) && limit > 0 ? limit : undefined;
   return (
-    <Field label={nonEmpty(textProp(node, "label"))}>
-      <Input value={value} placeholder={textProp(node, "placeholder")} onValueChange={setValue} />
+    <Field
+      label={nonEmpty(textProp(node, "label"))}
+      {...(max === undefined ? {} : { count: `${String(value.length)}/${String(max)}` })}
+    >
+      <Input
+        value={value}
+        placeholder={textProp(node, "placeholder")}
+        {...(max === undefined ? {} : { maxLength: max })}
+        onValueChange={(next) => {
+          setValue(max === undefined ? next : next.slice(0, max));
+        }}
+      />
     </Field>
   );
 }

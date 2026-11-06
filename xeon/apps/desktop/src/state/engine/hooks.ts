@@ -110,6 +110,8 @@ export const useOpenThreadRunning = (): boolean => useEngine(sel.selectOpenThrea
 export const useThreadRunning = (id: ThreadId): boolean =>
   useEngine((s) => sel.selectThreadRunning(s, id));
 export const useUnsentUserItemId = (): ItemId | null => useEngine(sel.selectUnsentUserItemId);
+export const useCustomCount = (kinds: readonly string[]): number =>
+  useEngine((s) => sel.selectCustomCount(s, kinds));
 export const useLastUserText = (): string | null => useEngine(sel.selectLastUserText);
 export const useTurnFailure = (id: ThreadId | null): string | null =>
   useEngine((s) => sel.selectTurnFailure(s, id));
