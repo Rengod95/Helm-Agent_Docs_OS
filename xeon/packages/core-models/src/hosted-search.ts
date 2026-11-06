@@ -277,13 +277,15 @@ export function createHostedSearch(deps: HostedSearchDeps): HostedSearchPort {
           deny: request.domains.deny.length,
         });
       }
+      const requestId = request.origin?.requestId ?? null;
       const accumulator = createStreamAccumulator();
       const stream = deps.start({
         ctx: {
-          threadId: HOSTED_SEARCH_THREAD,
-          turnId: null,
+          threadId: request.origin?.threadId ?? HOSTED_SEARCH_THREAD,
+          turnId: request.origin?.turnId ?? null,
           stepId: null,
           role: "search",
+          ...(requestId === null ? {} : { requestId }),
           signal,
         },
         provider: binding.provider,
