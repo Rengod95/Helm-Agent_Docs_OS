@@ -226,6 +226,8 @@ export interface AgentView {
   readonly parentThreadId: ThreadId;
   /** 자식 requestId(L1.agents.spec §4.5) */
   readonly requestId: string;
+  /** 자식을 만든 쪽의 종류(`agent.spawned.owner.kind`). 엔진 내부 일(scope)과 하위 에이전트(tool, drive)를 가른다 */
+  readonly ownerKind?: "tool" | "drive" | "scope";
   readonly ownerTurnId: TurnId | null;
   readonly background: boolean;
   readonly depth: number;

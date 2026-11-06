@@ -131,6 +131,7 @@ describe("p_agents", () => {
       childThreadId: spawned.childThreadId,
       parentThreadId: parent.threadId,
       requestId: "req-1",
+      ownerKind: "tool",
       ownerTurnId: turn.turnId,
       background: false,
       depth: 1,
