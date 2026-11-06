@@ -116,13 +116,13 @@ html:root {
     color: var(--cs-color-text-primary);
   }
   /* caustic 부품이 아닌 머리 제목 h1(대화 머리·페이지 머리)은 16/22 700. 제목 2(16/600)보다 굵기로 한 단계 위다.
-   설정 화면 제목(data-title="page", _settings/frame)만 한 단계 큰 20/28 700. 글자 크기·굵기만. */
+   설정 화면 제목(data-page-title, 시안은 data-title="page")만 한 단계 큰 20/28 700. 글자 크기·굵기만. */
   html:root h1:not([data-slot]) {
     font-size: 16px;
     line-height: 22px;
     font-weight: 700;
   }
-  html:root h1[data-title="page"]:not([data-slot]) {
+  html:root h1[data-page-title]:not([data-slot]) {
     font-size: 20px;
     line-height: 28px;
   }
