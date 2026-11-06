@@ -19,7 +19,7 @@ function wiringOf(
   port: DevkitPort | undefined,
   devMode: () => boolean = () => false,
 ): AuthoringWiring {
-  return { devkit: () => port, devMode };
+  return { devkit: () => port, devMode, workspaceOf: () => undefined };
 }
 
 test("authoring unit: a builtin L3 group that stays off by default", () => {

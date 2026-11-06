@@ -200,3 +200,39 @@ test("authoring.restore: thread.start tells the model about an open session and 
     ],
   ]);
 });
+
+test("authoring.target-dir: a relative dir resolves inside the working folder, an absolute dir stays, no folder refuses a relative dir", async () => {
+  const rig = await createGroupRig({ workspaceOf: () => "/work/space" });
+  const outside = await rig.call("authoring_start", {
+    kind: "plugin-group",
+    name: "demo",
+    dir: "../other",
+  });
+  expect(outside).toMatchObject({ ok: false, error: { kind: "outside_workspace" } });
+  expect(rig.state().phase).toBe("idle");
+  const relative = await rig.call("authoring_start", {
+    kind: "plugin-group",
+    name: "demo",
+    dir: "./demo",
+  });
+  expect(relative).toMatchObject({ ok: true, sessionId: "auth-demo" });
+  expect(rig.state().dir).toBe("/work/space/demo");
+});
+
+test("authoring.target-dir: without a working folder a relative dir opens no session and an absolute dir does", async () => {
+  const rig = await createGroupRig();
+  const refused = await rig.call("authoring_start", {
+    kind: "plugin-group",
+    name: "demo",
+    dir: "./demo",
+  });
+  expect(refused).toMatchObject({ ok: false, error: { kind: "needs_folder" } });
+  expect(rig.state()).toMatchObject({ phase: "idle", dir: null, sessionId: null });
+  const absolute = await rig.call("authoring_start", {
+    kind: "plugin-group",
+    name: "demo",
+    dir: "/abs/demo/../demo",
+  });
+  expect(absolute).toMatchObject({ ok: true });
+  expect(rig.state().dir).toBe("/abs/demo");
+});

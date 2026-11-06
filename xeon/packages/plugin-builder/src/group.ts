@@ -1,4 +1,5 @@
 import { defineManifest } from "@fresnel/contracts/extensions";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { DevkitService } from "@fresnel/contracts/services";
 import { defineGroup, type GroupManifest, type GroupModule } from "@fresnel/group-sdk";
 import { authoringWriteGuard } from "./guard.ts";
@@ -44,6 +45,8 @@ export interface AuthoringDeps {
   readonly devMode?: () => boolean;
   /** 같은 검사 오류가 남는 고치기 반복 한도. 기본 3(`l3.authoring.fixLoopLimit`) */
   readonly fixLoopLimit?: () => number;
+  /** 대화의 작업 폴더(절대 경로). 상대 `dir`을 푸는 기준이고 없으면 상대 경로로 세션을 열지 않는다 */
+  readonly workspaceOf?: (threadId: ThreadId) => string | undefined;
 }
 
 const DEFAULT_FIX_LOOP_LIMIT = 3;
@@ -58,6 +61,7 @@ export function createAuthoringGroup(deps: AuthoringDeps): GroupModule {
         devkit: deps.devkit,
         devMode: deps.devMode ?? (() => false),
         fixLoopLimit: deps.fixLoopLimit ?? (() => DEFAULT_FIX_LOOP_LIMIT),
+        workspaceOf: deps.workspaceOf ?? (() => undefined),
       }))
         g.registerTool(def);
       // 쓰기 범위 가드(§4.2). 대화가 열려 있는 동안만 켜지고, 이 그룹이 꺼지면 핸들러도 풀린다
