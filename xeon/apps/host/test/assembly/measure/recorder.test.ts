@@ -338,3 +338,85 @@ test("a call outside any turn is written at once and names the turn it came afte
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("a main call that rewrites the whole prefix after the cache expired is recorded as a cache event", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "measure-recorder-"));
+  const listeners = new Set<CommitListener>();
+  let meterListener: ((record: UsageRecord) => void) | undefined;
+  const { stop } = startMeasurement({
+    dir,
+    session: {
+      feed: {
+        onCommit: (listener: CommitListener) => {
+          listeners.add(listener);
+          return () => {
+            listeners.delete(listener);
+          };
+        },
+      },
+    },
+    usage: {
+      subscribe: (listener) => {
+        meterListener = listener;
+        return () => {
+          meterListener = undefined;
+        };
+      },
+    },
+    enabled: () => true,
+    logger,
+    now: () => AT,
+  });
+  try {
+    const base = call(AT + 100, AT + 180, AT + 400);
+    const withCache = (cacheRead: number, cacheWrite: number, startedAt: number): UsageRecord => ({
+      ...base,
+      startedAt,
+      recordedAt: startedAt + 300,
+      usage: { ...base.usage, cacheRead, cacheWrite },
+    });
+    meterListener?.(withCache(12_000, 600, AT + 100));
+    // 5분 뒤: 읽은 것 없이 접두 전체를 다시 쓴다
+    meterListener?.(withCache(0, 13_456, AT + 400_000));
+    // 바로 이어진 호출: 읽고 조금만 쓴다
+    meterListener?.(withCache(13_456, 40, AT + 401_000));
+    for (const listener of listeners) {
+      listener({
+        firstSeq: 1,
+        lastSeq: 1,
+        events: [
+          event(1, "turn.completed", {
+            status: "completed",
+            stepCount: 3,
+            usage: null,
+            error: null,
+          }),
+        ],
+      });
+    }
+    await Promise.resolve();
+    const peek = openMeasureStore(join(dir, "measure.db"));
+    if (!peek.ok) throw new Bug("the measure database must open");
+    const rows = peek.value.turn(THREAD, TURN);
+    peek.value.close();
+    if (!rows.ok) throw new Bug("the measure database must be readable");
+    expect(
+      rows.value.filter((row) => row.kind === "cache").map((row) => [row.tags, row.metrics]),
+    ).toEqual([
+      [
+        { code: "cache_expired", owner: "ttl" },
+        {
+          step: 2,
+          cacheWrite: 13_456,
+          priorCacheWrite: 600,
+          cacheRead: 0,
+          priorCacheRead: 12_000,
+          gapMs: 399_600 - 0,
+        },
+      ],
+    ]);
+  } finally {
+    stop();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

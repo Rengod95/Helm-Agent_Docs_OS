@@ -110,6 +110,8 @@ describe("turnViewOf", () => {
         at: 12,
         added: null,
         removed: null,
+        cacheWrite: null,
+        gapMs: null,
       },
       {
         step: 1,
@@ -120,9 +122,40 @@ describe("turnViewOf", () => {
         at: null,
         added: null,
         removed: null,
+        cacheWrite: null,
+        gapMs: null,
       },
     ]);
     expect(view.summary).toBeNull();
+  });
+
+  test("reads a cache expiry row with the rewritten tokens and the gap", () => {
+    const state = turnViewOf({
+      enabled: true,
+      rows: [
+        {
+          at: 1,
+          kind: "cache",
+          metrics: { step: 2, cacheWrite: 13_456, gapMs: 399_600 },
+          tags: { code: "cache_expired", owner: "ttl" },
+        },
+      ],
+    });
+    if (state.kind !== "ready") throw new Error("ready expected");
+    expect(state.view.cache).toEqual([
+      {
+        step: 2,
+        code: "cache_expired",
+        owner: "ttl",
+        from: "",
+        to: "",
+        at: null,
+        added: null,
+        removed: null,
+        cacheWrite: 13_456,
+        gapMs: 399_600,
+      },
+    ]);
   });
 
   test("reads the turn row and call rows; missing numbers become 0 or null", () => {

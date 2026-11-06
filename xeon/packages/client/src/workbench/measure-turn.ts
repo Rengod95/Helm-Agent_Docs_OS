@@ -104,6 +104,9 @@ export interface CacheEventVM {
   readonly at: number | null;
   readonly added: number | null;
   readonly removed: number | null;
+  /** 캐시 만료(`cache_expired`)일 때 다시 쓴 캐시 토큰과 앞 호출과의 간격(ms). 아니면 null */
+  readonly cacheWrite: number | null;
+  readonly gapMs: number | null;
 }
 
 /** 플러그인 하나가 이 Turn에 낸 몫. 점수가 아니라 칸마다 따로 보인다 */
@@ -225,6 +228,8 @@ function cacheOf(rows: readonly MeasureRow[]): readonly CacheEventVM[] {
         at: at === null || at < 0 ? null : at,
         added: numOrNull(row, "added"),
         removed: numOrNull(row, "removed"),
+        cacheWrite: numOrNull(row, "cacheWrite"),
+        gapMs: numOrNull(row, "gapMs"),
       };
     })
     .toSorted((a, b) => a.step - b.step);
