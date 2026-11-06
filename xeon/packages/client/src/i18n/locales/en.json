@@ -1872,6 +1872,7 @@
   "desktop.status.engine.stopped": "Engine stopped",
   "desktop.status.engine.stopping": "Engine stopping",
   "desktop.status.engine.storeCorrupt": "The store file is corrupt. Restore it from a backup or the pre-migration snapshot.",
+  "desktop.status.engine.dataDirPermission": "The engine could not start: the data folder permissions are too open. Set the folder to 700, then press Restart engine.",
   "desktop.status.engine.storeFutureVersion": "The store is newer than this app. Update the app.",
   "desktop.status.engine.storeMigrationFailed": "Store migration failed. Roll back to the pre-migration snapshot.",
   "desktop.status.link.attempt": "({attempt}/3)",

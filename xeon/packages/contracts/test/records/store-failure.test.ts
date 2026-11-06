@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
+  STARTUP_FAILURE_EXIT_CODES,
   STORE_FAILURE_EXIT_CODES,
+  startupFailureOfExitCode,
   STORE_FAILURE_KINDS,
   storeFailureOfExitCode,
   storeFailureKindOf,
@@ -74,4 +76,12 @@ test("the store failure exit codes round-trip and other codes map to nothing", (
   expect(storeFailureOfExitCode(72)).toBe("migration_failed");
   expect(storeFailureOfExitCode(1)).toBeUndefined();
   expect(storeFailureOfExitCode(null)).toBeUndefined();
+});
+
+test("the data folder permission failure has its own exit code that does not collide with the store codes", () => {
+  expect(STARTUP_FAILURE_EXIT_CODES).toEqual({ data_dir_permission: 73 });
+  expect(startupFailureOfExitCode(73)).toBe("data_dir_permission");
+  expect(startupFailureOfExitCode(72)).toBeUndefined();
+  expect(startupFailureOfExitCode(null)).toBeUndefined();
+  expect(storeFailureOfExitCode(73)).toBeUndefined();
 });
