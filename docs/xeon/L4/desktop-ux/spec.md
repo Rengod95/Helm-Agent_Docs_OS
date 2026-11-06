@@ -1661,6 +1661,7 @@ compact 폭(720 이하)과 사이드바 시트:
 - 잠금: `canSetRemoteRespond`는 상태를 읽었고, 값을 알고, 다른 명령이나 연결 진행이 없을 때만 참이다. 오프라인이면 값을 보이고 잠근다.
 - 시험: `test/views/connection-model.test.ts`(잠금 규칙, 값 반영, 재시작 필요 표시가 없음), `test/views/connection-screen.test.tsx`(줄 문장과 알 수 없음 문장), `test/app/connection-commands.test.ts`(두 번의 `settings.get` 인자, 모르는 키의 처리, 다른 실패, `settings.set` 인자).
 - 빠진 것: `l2.schedule.remote.enabled`는 읽지 않는다(이 줄에 필요 없다). 원격 연결 단계는 `[gap:W-08]` 그대로다. `l2.schedule.remote.allowRespond` 정의가 cap-schedule에 생기기 전까지 이 줄은 "알리지 않음" 상태다 [gap: L2 schedule §6 정의 없음].
+- "진단 복사"(시안 p08 아래 단추 줄): 오른쪽 열 아래 줄에 "엔진 다시 시작" 왼쪽에 ghost 단추로 둡니다. 설정 개요와 상태 막대와 같은 `copyDiagnostics`를 부르고 복사하면 "복사했어요" 토스트를 띄웁니다. 시안의 "원격 예약 허용" 스위치(`l2.schedule.remote.enabled`)와 "지금 대상"의 "대기 예약" 행은 엔진 설정 카탈로그와 `host.status`에 값이 없어 두지 않았습니다 [미결: 엔진에 키와 값이 생기면 잇습니다, dfB14].
 
 ### 6.13 P-09 설정
 

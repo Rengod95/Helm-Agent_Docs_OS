@@ -30,6 +30,8 @@ import { engineMessageOf, stepMessageOf, timeTextOf } from "./connection-text.ts
 /** 상태 열이 내는 동작. 화면 핸들러의 일부다 */
 interface StatusHandlers {
   readonly restart: () => void;
+  /** 진단 정보를 클립보드에 복사한다 */
+  readonly copyDiagnostics: () => void;
   readonly backToLocal: () => void;
   readonly setServiceMode: (enabled: boolean) => void;
   readonly setRemoteRespond: (enabled: boolean) => void;
@@ -347,9 +349,11 @@ export function ConnectionDetailPanel(props: ConnectionDetailProps): ReactNode {
               </Button>
             ) : null}
             <span className="flex-1" />
+            <Button size="sm" variant="ghost" onClick={handlers.copyDiagnostics}>
+              {t("desktop.connection.status.copyDiagnostics")}
+            </Button>
             <Button
               size="sm"
-
               variant="soft"
               loading={restarting}
               disabled={state.busy}

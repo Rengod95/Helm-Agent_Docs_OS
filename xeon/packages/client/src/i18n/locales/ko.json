@@ -1224,6 +1224,8 @@
   "desktop.connection.status.remoteRespondHint": "꺼져 있으면 원격 연결에서는 승인 요청에 답할 수 없어요.",
   "desktop.connection.status.remoteRespondUnknown": "\"원격 응답 허용\"은 이 엔진이 아직 알리지 않아서 바꿀 수 없어요. 위 서비스 모드 스위치와는 따로예요.",
   "desktop.connection.status.restartNeeded": "재시작 필요",
+  "desktop.connection.status.copyDiagnostics": "진단 복사",
+  "desktop.connection.status.copied": "복사했어요",
   "desktop.connection.status.restart": "엔진 다시 시작",
   "desktop.connection.status.stopService": "서비스 멈추기",
   "desktop.connection.status.loading": "상태를 읽고 있어요.",
