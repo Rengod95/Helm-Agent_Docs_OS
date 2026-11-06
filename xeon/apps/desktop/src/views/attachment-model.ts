@@ -93,6 +93,30 @@ export function chipsReady(chips: readonly AttachChip[]): boolean {
   return chips.every((c) => c.status === "ready");
 }
 
+/** 보내기를 막는 첨부가 있을 때 왜 못 보내는지 한 문장. 막을 것이 없으면 null */
+export function sendBlockedText(chips: readonly AttachChip[]): string | null {
+  const failed = chips.find((c) => c.status === "failed" && c.failure !== null);
+  const failure = failed?.failure ?? null;
+  if (failed !== undefined && failure !== null) {
+    return t("desktop.composer.attach.blocked.failed", {
+      name: failed.name,
+      reason: failureText(failure),
+    });
+  }
+  if (chips.some((c) => c.status === "uploading")) {
+    return t("desktop.composer.attach.blocked.uploading");
+  }
+  return null;
+}
+
+/** 칩에 보일 이미지 미리보기 data URL. 이미지 데이터 소스가 아니면 null */
+export function chipPreviewOf(chip: AttachChip): string | null {
+  const source = chip.source;
+  if (source.kind !== "data" || !source.mime.startsWith("image/") || chip.status === "failed")
+    return null;
+  return `data:${source.mime};base64,${source.data}`;
+}
+
 export function readyParts(chips: readonly AttachChip[]): AttachmentParts {
   return chips.flatMap((c) => (c.status === "ready" && c.parts !== null ? c.parts : []));
 }

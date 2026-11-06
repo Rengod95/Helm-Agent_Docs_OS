@@ -1,6 +1,6 @@
 import type { EventId } from "@fresnel/contracts/conversation";
 import { assertNever, detach, rethrow, type Result } from "@fresnel/contracts";
-import type { WireResult } from "@fresnel/contracts/wire";
+import type { ThreadSummary, WireResult } from "@fresnel/contracts/wire";
 import { t } from "@fresnel/client/i18n";
 import { toast } from "@caustic/react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -31,6 +31,8 @@ import { FileSaveContext } from "./file-save-context.ts";
 import { NoticeToasts } from "./notices.tsx";
 import { SafeModeProvider } from "./safe-mode-provider.tsx";
 import { ShellBridges } from "./shell-bridges.tsx";
+import { blankThreadIn, planNewThread } from "./new-thread-model.ts";
+import { pickWorkspaceFolder } from "./folder-pick.ts";
 import { ThreadList } from "./thread-list.tsx";
 import { installFileDropGuard } from "./file-drop-guard.ts";
 
@@ -155,12 +157,42 @@ export function App(props: AppProps): ReactNode {
         return assertNever(run, "PaletteRun");
     }
   };
+  /** 새 대화(⌘N, 팔레트, 빈 무대 단추): 보던 작업 폴더로 열고, 보낸 것 없는 빈 대화가 있으면 그리로 가고, 폴더를 모르면 폴더 고르기를 연다. 열리면 입력창에 초점 */
+  const startNewThread = async (): Promise<void> => {
+    const plan = planNewThread(threads, selected);
+    showChat();
+    const goTo = (threadId: ThreadSummary["threadId"]): void => {
+      commands.selectThread(threadId);
+      commands.requestComposer(null);
+    };
+    if (plan.kind === "open") return goTo(plan.threadId);
+    let workspace: string | undefined;
+    if (plan.kind === "create") workspace = plan.workspace;
+    else if (props.folderPick !== undefined) {
+      const picked = await pickWorkspaceFolder(props.folderPick);
+      if (!picked.ok) {
+        toast({ tone: "danger", title: t("desktop.workspace.pickFailed") });
+        return;
+      }
+      if (picked.value === undefined) return;
+      workspace = picked.value;
+    }
+    // 고른 폴더(폴더 선택 창이 없는 환경이면 폴더 없음)에 빈 새 대화가 이미 있으면 새로 만들지 않는다
+    const blank = blankThreadIn(threads, workspace ?? null);
+    if (blank !== null) return goTo(blank);
+    const created = await commands.createThread(workspace);
+    if (!created.ok) {
+      notifyActionFailed();
+      return;
+    }
+    commands.requestComposer(null);
+  };
   const runCommand = (id: PaletteCommandId): void => {
     // 실행 횟수는 팔레트 밖의 바로 가기로 실행한 것도 센다. 저장하지 못하면 이번 실행만 세지 않는다
     detach(commands.savePaletteUses(countedUse(commands.paletteUses(), id)), rethrow);
     switch (id) {
       case "thread.new":
-        detach(commands.createThread(), rethrow);
+        detach(startNewThread(), rethrow);
         return;
       case "turn.interrupt":
         if (selected !== null) detach(commands.interrupt(selected), rethrow);

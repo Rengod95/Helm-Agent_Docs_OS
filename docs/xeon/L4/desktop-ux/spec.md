@@ -1105,7 +1105,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 실행 중 입력 | `turn.start`가 큐에 넣고 `input.queued`가 큐 모드를 실음. 입력창 큐 모드 선택(steer, followUp)은 기본값은 "끝난 뒤"(followUp)이고 대화를 바꾸면 돌아간다. 설정 카탈로그에 기본 모드 키는 없다(`steeringMode`·`followUpMode`는 큐를 비우는 방식이라 뜻이 다르다) [결정: 2026-11-06 메인, 옛 가정 `l1.tasks.queue.defaultMode`는 카탈로그에 없어 버림] |
 | 중단 | `turn.interrupt { threadId }` |
 | 이어서 실행 | `turn.resume { threadId }` → resumed, closed, nothing |
-| 첨부 | `attachments.add { threadId, source }` 결과의 `parts`를 `turn.start` 입력에 글과 함께 넣는다. 파일 고르기는 입력창 왼쪽 `+` 단추(시안 `Composer`의 `onAttach`, 정보 아이콘 없음. 이미지와 텍스트 파일이 그대로 전달된다는 안내는 단추의 설명(`aria-description`)에 두고, 시크릿 경고는 숨기지 않고 입력창 위 한 줄(`data-composer-secret-warning`)로 보인다: 글이 키·토큰·개인 키처럼 보이면(`looksLikeSecret`) "시크릿처럼 보이는 값이 들어 있어요", 첨부가 있으면 "시크릿이 든 파일은 붙이지 마세요")로 한다(데스크톱 로컬 엔진은 셸 `pick_file`의 경로 소스, 원격과 웹은 `<input type=file>`의 `data` 소스), 끌어 놓기와 클립보드 붙여넣기(`data` 소스). 크기 상한은 `settings.get l2.dialog.attachments.maxBytes`(호스트 값)로 미리 읽고, 넘는 파일은 올리지 않고 칩에 실패로 보인다. 호스트 거절은 `issues[].message`의 `attachment_too_large: `·`attachment_type_unsupported: ` 머리로 가른다. 턴이 도는 중과 입력창 잠금 중에는 단추·놓기·붙여넣기를 막는다. 첨부가 있으면 슬래시 명령으로 풀지 않는다 |
+| 첨부 | `attachments.add { threadId, source }` 결과의 `parts`를 `turn.start` 입력에 글과 함께 넣는다. 파일 고르기는 입력창 왼쪽 `+` 단추(시안 `Composer`의 `onAttach`, 정보 아이콘 없음. 이미지와 텍스트 파일이 그대로 전달된다는 안내는 단추의 설명(`aria-description`)에 두고, 시크릿 경고는 숨기지 않고 입력창 위 한 줄(`data-composer-secret-warning`)로 보인다: 글이 키·토큰·개인 키처럼 보이면(`looksLikeSecret`) "시크릿처럼 보이는 값이 들어 있어요", 첨부가 있으면 "시크릿이 든 파일은 붙이지 마세요")로 한다(데스크톱 로컬 엔진은 셸 `pick_file`의 경로 소스, 원격과 웹은 `<input type=file>`의 `data` 소스), 끌어 놓기와 클립보드 붙여넣기(`data` 소스). 크기 상한은 `settings.get l2.dialog.attachments.maxBytes`(호스트 값)로 미리 읽고, 넘는 파일은 올리지 않고 칩에 실패로 보인다. 호스트 거절은 `issues[].message`의 `attachment_too_large: `·`attachment_type_unsupported: ` 머리로 가른다. 턴이 도는 중과 입력창 잠금 중에는 단추·놓기·붙여넣기를 막는다. 첨부가 있으면 슬래시 명령으로 풀지 않는다. 입력 위 칩은 이미지면 작은 썸네일이다. 올리지 못한 칩(크기 초과 등)이나 올리는 중인 칩이 있는 채로 Enter를 누르면 보내지 않고 입력창 위에 이유 한 문장을 보이며(글은 그대로), 칩의 "빼기"를 누르면 초점이 입력창으로 돌아간다. 보낸 말풍선은 `<attachment …>` 태그와 본문을 보이지 않고 글만 말풍선에 두며, 첨부는 아래에 파일 칩과 이미지 썸네일로 보인다(`views/attachment-bubble-model.ts`). 호스트 blob 자리표시자뿐인 이미지는 썸네일 바이트가 없어 이름 칩으로 보인다 [미결: 썸네일은 blob 읽기 wire가 필요하다] [근거: `packages/cap-dialog/src/attachments/service.ts` 이미지 파트의 자리표시자] |
 | 모델 바꾸기(이 대화) | `settings.set { key: "l1.models.default", scope: "launch", threadId }` |
 | 승인 응답 | `approval.respond { approvalId, decision, answer?, remember? }`, 결과 `approvalFailureOf` |
 | 신뢰 결정 | `trust.decide { workspace, choice }` |
@@ -2093,7 +2093,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | O-04 | `trust.get` → `trustCardOf` | `trust.decide { choice }` | 입력창 위 카드, 대화 상자 아님 |
 | O-05 | 시크릿 이름 | `SecretRevealPort.reveal` | 기본 초점 "취소", 실패 사유 문장 |
 | O-06 | 참조와 영향 | 삭제 동작 | `tone="danger"`, 기본 초점 "취소" |
-| O-07 | 최근 작업 폴더 `selectRecentWorkspaces` | `thread.create { workspace? }`, 검사 `checkWorkspaceInput` | OS 폴더 고르기는 `pick_folder`(W-19). 대화 목록은 작업 폴더별 묶음(머리의 `+`가 그 폴더에서 새 대화)이고, 폴더 입력란은 목록 아래 "다른 폴더에서 시작…" 팝오버 안에서 경로를 직접 적는 길로 남는다 [근거: `views/thread-list.tsx`, `views/thread-groups.ts`] |
+| O-07 | 최근 작업 폴더 `selectRecentWorkspaces` | `thread.create { workspace? }`, 검사 `checkWorkspaceInput` | OS 폴더 고르기는 `pick_folder`(W-19). 대화 목록은 작업 폴더별 묶음(머리의 `+`가 그 폴더에서 새 대화, 보낸 것 없는 빈 대화가 있으면 그리로 감)이고 ⌘N은 보던 폴더에서 열거나 폴더가 없으면 폴더 고르기 창을 연다(`L4.desktop.spec` §4.16), 폴더 입력란은 목록 아래 "다른 폴더에서 시작…" 팝오버 안에서 경로를 직접 적는 길로 남는다 [근거: `views/thread-list.tsx`, `views/thread-groups.ts`] |
 | O-08 | §6.11 | `schedule.create` | 닫을 때 초안 확인 |
 | O-09 | §4.8 표 | 없음 | `[gap:C-11]` |
 

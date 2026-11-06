@@ -39,6 +39,7 @@ import {
   sourceOfFile,
   type AttachChip,
   type AttachmentSource,
+  sendBlockedText,
 } from "./attachment-model.ts";
 import { AttachmentRow } from "./composer-attachments.tsx";
 import { pickAttachmentFile } from "./folder-pick.ts";
@@ -318,8 +319,13 @@ function ComposerFor(props: {
   const send = async (): Promise<void> => {
     const text = draftRef.current.trim();
     const parts = readyParts(chips);
-    if ((text === "" && parts.length === 0) || !chipsReady(chips)) return;
     if (props.disabledReason !== null) return;
+    if (!chipsReady(chips)) {
+      // 올리지 못했거나 올리는 중인 첨부가 있으면 왜 못 보내는지 말한다(글은 그대로 둔다)
+      setError(sendBlockedText(chips));
+      return;
+    }
+    if (text === "" && parts.length === 0) return;
     if (!latch.current.tryAcquire()) return;
     setSending(true);
     setError(null);
@@ -405,6 +411,9 @@ function ComposerFor(props: {
         chips={chips}
         onRemove={(id) => {
           setChips((current) => current.filter((c) => c.id !== id));
+          setError(null);
+          // 지운 단추는 사라지므로 초점이 BODY로 떨어지지 않게 입력창으로 돌린다
+          textarea.current?.focus();
         }}
         onRetry={retry}
       />
