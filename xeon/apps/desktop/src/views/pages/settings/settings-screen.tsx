@@ -35,6 +35,7 @@ import { useSettingsFilePaths } from "./settings-file-paths.ts";
 import { RestorePanel } from "./settings-restore-screen.tsx";
 import { ToolsWebPanel, useToolsWebState } from "../tools-web/tools-web-screen.tsx";
 import {
+  fileClosesOnTabMoveOf,
   fileDirtyOf,
   fileEditableOf,
   fileEditorReducer,
@@ -197,6 +198,10 @@ export function SettingsPage(props: {
   const moveTo = (to: SettingsTab): void => {
     setTab(to);
     setQuery("");
+    // 열린 설정 파일 칸은 탭을 옮기면 닫는다. 고친 초안이 있거나 저장 중이면 잃지 않게 그대로 둔다
+    if (fileClosesOnTabMoveOf(file)) {
+      dispatchFile({ type: "closed" });
+    }
   };
 
   const requestTab = (to: SettingsTab): void => {

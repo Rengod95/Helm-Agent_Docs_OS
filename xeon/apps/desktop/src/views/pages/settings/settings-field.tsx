@@ -518,11 +518,11 @@ function ChoiceField(props: {
       {selectControlOf(options.length) === "radio" ? (
         <RadioGroup
           aria-label={field.label}
-          orientation={options.length <= 4 ? "horizontal" : "vertical"}
+          orientation="horizontal"
           value={text}
           disabled={disabled}
           onValueChange={choose}
-          className={options.length <= 4 ? "min-h-7 gap-5" : "gap-1"}
+          className="min-h-7 gap-x-5 gap-y-1"
         >
           {options.map((option) => (
             <RadioGroupItem key={optionTextOf(option)} value={optionTextOf(option)}>

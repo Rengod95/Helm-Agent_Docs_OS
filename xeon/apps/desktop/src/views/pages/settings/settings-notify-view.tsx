@@ -7,6 +7,7 @@ import { useDesktopShell } from "../../desktop-shell-context.ts";
 import type { NotifyStatus, NotifyStatusStore } from "../../os-notify.ts";
 import { permissionViewOf, type NotifyCategory, type NotifyPrefs } from "../../os-notify-model.ts";
 import type { NotifyPrefsPort } from "../../os-notify-prefs.ts";
+import { SettingSection } from "./settings-section.tsx";
 
 // 설정 "실행과 서비스" 탭 맨 위의 OS 알림 묶음(B-10, d02 `NotifySettings`). 종류마다 켜고 끄는 스위치 셋이고,
 // 설명은 정보 아이콘 뒤에 둔다. 마지막 전달이 실패했거나 권한이 막혔으면 경고 한 줄을 위에 보인다.
@@ -74,38 +75,36 @@ export function NotifyPanelView(props: NotifyPanelViewProps): ReactNode {
   const { prefs, status, onChange } = props;
   const view = permissionViewOf(status.permission, status.lastDeliveryFailed);
   return (
-    <section
-      aria-label={t("desktop.notifySettings.label")}
-      data-slot="settings-notify"
-      data-notify-state={view.kind}
-      className="grid gap-3 py-3"
-    >
-      <span className="text-ui-strong text-text-primary">{t("desktop.notifySettings.label")}</span>
-      {view.kind === "denied" || view.kind === "failed" ? (
-        <Alert tone="warning" size="sm">
-          {t(view.text)}
-        </Alert>
-      ) : null}
-      {ROWS.map((row) => (
-        <div key={row.category} className="flex items-center justify-between gap-3">
-          <span className="flex items-center gap-2 text-body text-text-primary">
-            {t(row.label)}
-            <InfoTip text={t(row.info)} />
-          </span>
-          <Switch
-            size="sm"
-            aria-label={t(row.label)}
-            checked={prefs[row.category]}
-            onCheckedChange={(on) => {
-              onChange(row.category, on);
-            }}
-          />
+    <div data-slot="settings-notify" data-notify-state={view.kind}>
+      <SettingSection title={t("desktop.notifySettings.label")}>
+        {view.kind === "denied" || view.kind === "failed" ? (
+          <Alert tone="warning" size="sm">
+            {t(view.text)}
+          </Alert>
+        ) : null}
+        {ROWS.map((row) => (
+          <div key={row.category} className="flex items-center justify-between gap-3 py-3">
+            <span className="flex items-center gap-2 text-body text-text-primary">
+              {t(row.label)}
+              <InfoTip text={t(row.info)} />
+            </span>
+            <Switch
+              size="sm"
+              aria-label={t(row.label)}
+              checked={prefs[row.category]}
+              onCheckedChange={(on) => {
+                onChange(row.category, on);
+              }}
+            />
+          </div>
+        ))}
+        <div className="grid gap-1 pt-3">
+          {view.kind === "prompt" || view.kind === "unknown" ? (
+            <p className="text-ui-sm text-text-tertiary">{t(view.text)}</p>
+          ) : null}
+          <p className="text-ui-sm text-text-tertiary">{t("desktop.notifySettings.focusOnly")}</p>
         </div>
-      ))}
-      {view.kind === "prompt" || view.kind === "unknown" ? (
-        <p className="text-ui-sm text-text-tertiary">{t(view.text)}</p>
-      ) : null}
-      <p className="text-ui-sm text-text-tertiary">{t("desktop.notifySettings.focusOnly")}</p>
-    </section>
+      </SettingSection>
+    </div>
   );
 }
