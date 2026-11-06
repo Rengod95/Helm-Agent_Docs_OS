@@ -19,6 +19,7 @@ import { SettingsPage } from "./pages/settings/settings-screen.tsx";
 import { firstRunAutoOpenDue } from "./pages/first-run/first-run-model.ts";
 import { useShellActions, type Area } from "../state/shell/index.ts";
 import { nextApprovalId } from "./approval-focus-model.ts";
+import { LiveAnnouncer } from "./live-announcer.tsx";
 import { FocusReturn, focusApprovalCard } from "./focus-return.tsx";
 import { stepThreadId } from "./thread-step-model.ts";
 import { useSetupNeeded } from "./setup-needed.ts";
@@ -289,6 +290,7 @@ export function App(props: AppProps): ReactNode {
       </SafeModeProvider>
       <NoticeToasts />
       <FocusReturn />
+      <LiveAnnouncer />
       {/* 셸 다리는 대화 열기와 "새 대화"를 App의 함수로 받는다. 대화 이동 문맥은 Shell 안에만 있어 여기서 준다 */}
       <ShellBridges
         onNewThread={() => {
