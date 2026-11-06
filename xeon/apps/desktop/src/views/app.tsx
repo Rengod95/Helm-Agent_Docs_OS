@@ -9,6 +9,7 @@ import { useReviewTarget, useScreen, useSelectedThreadId } from "../state/ui/ind
 import { CommandOutputSheet } from "./command-output-sheet.tsx";
 import { useCommands, type CommandError } from "./commands.ts";
 import { LockedDialog } from "./locked-dialog.tsx";
+import { runThreadCompact } from "./thread-compact.ts";
 import { SettingsPage } from "./pages/settings/settings-screen.tsx";
 import { firstRunAutoOpenDue } from "./pages/first-run/first-run-model.ts";
 import { useShellActions, type Area } from "../state/shell/index.ts";
@@ -219,7 +220,7 @@ export function App(props: AppProps): ReactNode {
         if (selected !== null) detach(notifyIfFailed(commands.forkThread(selected)), rethrow);
         return;
       case "thread.compact":
-        if (selected !== null) detach(notifyIfFailed(commands.compactThread(selected)), rethrow);
+        if (selected !== null) runThreadCompact(commands, selected);
         return;
       case "turn.resume":
         if (selected !== null) detach(notifyIfFailed(commands.resumeTurn(selected)), rethrow);

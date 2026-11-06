@@ -146,8 +146,12 @@ function factsOf(
 }
 
 /** 정의의 문구. 메시지 키가 있으면 현재 로케일의 카탈로그 문장을 쓰고, 없으면 정의에 적힌 문구를 그대로 쓴다 */
-function textOf(text: string, key: string | undefined): string {
-  return key === undefined ? text : tKey(key, text);
+function textOf(
+  text: string,
+  key: string | undefined,
+  args?: Readonly<Record<string, string>>,
+): string {
+  return key === undefined ? text : tKey(key, text, args);
 }
 
 /** 설명. 설명 문구와 키가 모두 없으면 null이다 */
@@ -170,7 +174,7 @@ function fieldOf(
     key: def.key,
     tab,
     order: ui.order,
-    label: textOf(ui.label, ui.labelKey),
+    label: textOf(ui.label, ui.labelKey, ui.labelArgs),
     help: helpOf(ui),
     widget,
     value: facts.value,

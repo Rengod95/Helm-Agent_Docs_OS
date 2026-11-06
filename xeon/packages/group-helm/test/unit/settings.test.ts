@@ -28,6 +28,25 @@ test("settings.defs-pass-check", () => {
   }
 });
 
+test("settings.labels-point-to-catalog-keys", () => {
+  expect(
+    Object.values(helmSettings.defs).map((def) => [def.key, def.ui?.labelKey, def.ui?.helpKey]),
+  ).toEqual([
+    ["ext.helm.autoStart", "settings.ext.helm.autoStart.label", "settings.ext.helm.autoStart.help"],
+    [
+      "ext.helm.driveLimits",
+      "settings.ext.helm.driveLimits.label",
+      "settings.ext.helm.driveLimits.help",
+    ],
+    ["ext.helm.maxLenses", "settings.ext.helm.maxLenses.label", "settings.ext.helm.maxLenses.help"],
+    [
+      "ext.helm.writeGuard",
+      "settings.ext.helm.writeGuard.label",
+      "settings.ext.helm.writeGuard.help",
+    ],
+  ]);
+});
+
 test("the drive limits schema accepts partial limits and rejects zero turns and unknown fields", () => {
   const schema = helmSettings.defs.driveLimits.type;
   expect(parse(schema, { maxTurns: 2 }).ok).toBe(true);

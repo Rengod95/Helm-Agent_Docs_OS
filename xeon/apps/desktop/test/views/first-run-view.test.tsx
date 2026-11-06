@@ -320,6 +320,8 @@ describe("first-run screen server render", () => {
             name: "Haiku 5.5",
             contextWindow: 200000,
             reasoning: true,
+            inputPrice: null,
+            outputPrice: null,
           },
         ],
         modelInput: "anthropic/claude-nonexistent-9",

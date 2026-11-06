@@ -11,6 +11,14 @@ function compareRefs(a: string, b: string): number {
   return a < b ? -1 : 1;
 }
 
+/** 가격 한 칸. 입력과 출력이 모두 0이면 카탈로그에 가격이 없는 것이라 null이다 */
+function priceOf(
+  value: number,
+  cost: { readonly input: number; readonly output: number },
+): number | null {
+  return cost.input === 0 && cost.output === 0 ? null : value;
+}
+
 export function createModelsListHandler(engine: Engine): WireHandler<"models.list"> {
   const { models } = engine.ports;
   return () => {
@@ -23,6 +31,9 @@ export function createModelsListHandler(engine: Engine): WireHandler<"models.lis
         name: info.name,
         contextWindow: info.contextWindow,
         reasoning: info.reasoning,
+        // 카탈로그가 가격을 모르면 0이다. 0을 값으로 믿지 않고 "모름"(null)으로 싣는다
+        inputPrice: priceOf(info.cost.input, info.cost),
+        outputPrice: priceOf(info.cost.output, info.cost),
       }));
     return Promise.resolve({ models: listed });
   };

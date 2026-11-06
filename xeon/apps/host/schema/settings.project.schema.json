@@ -19,6 +19,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Account rotation",
+          "labelArgs": {
+            "name": "Account rotation"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -42,6 +46,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Plugin Builder",
+          "labelArgs": {
+            "name": "Plugin Builder"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -65,6 +73,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Artifacts and reviews",
+          "labelArgs": {
+            "name": "Artifacts and reviews"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -88,6 +100,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Dialog",
+          "labelArgs": {
+            "name": "Dialog"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -111,6 +127,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Knowledge and memory",
+          "labelArgs": {
+            "name": "Knowledge and memory"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -134,6 +154,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable MCP client",
+          "labelArgs": {
+            "name": "MCP client"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -157,6 +181,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Schedules",
+          "labelArgs": {
+            "name": "Schedules"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -180,6 +208,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Web tools",
+          "labelArgs": {
+            "name": "Web tools"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -203,6 +235,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Work management",
+          "labelArgs": {
+            "name": "Work management"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -226,6 +262,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Workspace tools",
+          "labelArgs": {
+            "name": "Workspace tools"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -249,6 +289,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Subagents",
+          "labelArgs": {
+            "name": "Subagents"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -272,6 +316,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Context",
+          "labelArgs": {
+            "name": "Context"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -295,6 +343,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Agent loop",
+          "labelArgs": {
+            "name": "Agent loop"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -318,6 +370,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Model gateway",
+          "labelArgs": {
+            "name": "Model gateway"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -341,6 +397,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Session persistence",
+          "labelArgs": {
+            "name": "Session persistence"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -364,6 +424,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Task engine",
+          "labelArgs": {
+            "name": "Task engine"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -387,6 +451,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Tool runtime",
+          "labelArgs": {
+            "name": "Tool runtime"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -416,7 +484,9 @@
         "since": "0.1.0",
         "ui": {
           "help": "When an inquiry signal fires: off only records it, suggest posts a proposal message, auto requests the inquiry right away",
+          "helpKey": "settings.ext.helm.autoStart.help",
           "label": "Helm auto start",
+          "labelKey": "settings.ext.helm.autoStart.label",
           "order": 200,
           "tab": "plugins",
           "widget": "select"
@@ -459,7 +529,9 @@
         "since": "0.1.0",
         "ui": {
           "help": "Turn, sub-agent, and token limits used by a Helm inquiry. Overrides x.primitives.driveDefaultLimits for Helm only, and cannot exceed the ceiling x.primitives.driveLimits.",
+          "helpKey": "settings.ext.helm.driveLimits.help",
           "label": "Helm drive limits",
+          "labelKey": "settings.ext.helm.driveLimits.label",
           "order": 210,
           "tab": "plugins",
           "widget": "table"
@@ -483,6 +555,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Helm",
+          "labelArgs": {
+            "name": "Helm"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -508,10 +584,13 @@
         "since": "0.1.0",
         "ui": {
           "help": "Number of exploration perspectives one inquiry runs in parallel. If it exceeds the remaining spawn budget, only the first lenses run",
+          "helpKey": "settings.ext.helm.maxLenses.help",
           "label": "Helm lens count",
+          "labelKey": "settings.ext.helm.maxLenses.label",
           "order": 220,
           "tab": "plugins",
           "unit": "items",
+          "unitKey": "settings.ext.helm.maxLenses.unit",
           "widget": "number"
         }
       }
@@ -533,7 +612,9 @@
         "since": "0.1.0",
         "ui": {
           "help": "Blocks write tool calls before execution in the divergent and exploration phases",
+          "helpKey": "settings.ext.helm.writeGuard.help",
           "label": "Helm write blocking",
+          "labelKey": "settings.ext.helm.writeGuard.label",
           "order": 230,
           "tab": "plugins",
           "widget": "toggle"
@@ -557,6 +638,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Dialog area bridge",
+          "labelArgs": {
+            "name": "Dialog area bridge"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -580,6 +665,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Dialog bridge",
+          "labelArgs": {
+            "name": "Dialog bridge"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -603,6 +692,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Group service",
+          "labelArgs": {
+            "name": "Group service"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -626,6 +719,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Proposals bridge",
+          "labelArgs": {
+            "name": "Proposals bridge"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -649,6 +746,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Learning",
+          "labelArgs": {
+            "name": "Learning"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -672,6 +773,10 @@
         "since": "0.1.0",
         "ui": {
           "label": "Enable Anthropic OAuth provider",
+          "labelArgs": {
+            "name": "Anthropic OAuth provider"
+          },
+          "labelKey": "settings.ext.enabled.label",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"

@@ -9,7 +9,16 @@ test("models.list gives the selectable models with their context windows and tak
   const { connection } = host.connect();
   await connection.request("host.hello", HELLO_PARAMS);
   expect(await connection.request("models.list", {})).toEqual({
-    models: [{ ref: "tape/tape-1", name: "Tape One", contextWindow: 8192, reasoning: false }],
+    models: [
+      {
+        ref: "tape/tape-1",
+        name: "Tape One",
+        contextWindow: 8192,
+        reasoning: false,
+        inputPrice: null,
+        outputPrice: null,
+      },
+    ],
   });
   expect(host.fake.acquisitions).toEqual([]);
   await connection.close();

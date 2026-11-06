@@ -182,6 +182,7 @@ export const SettingUiSchema: TObject<{
   order: TInteger;
   label: TString;
   labelKey: TOptional<TString>;
+  labelArgs: TOptional<TRecord<string, TString>>;
   help: TOptional<TString>;
   helpKey: TOptional<TString>;
   unit: TOptional<TString>;
@@ -196,6 +197,8 @@ export const SettingUiSchema: TObject<{
     label: Type.String({ minLength: 1, maxLength: 80 }),
     /** 라벨의 메시지 키(M3-REQ-21). 생성 TS id로 선언하고 호스트·화면이 같은 키를 쓴다 */
     labelKey: Type.Optional(MessageKeySchema),
+    /** 라벨 문장의 인자(예: 예약 키 라벨의 확장 이름). 키가 있을 때만 쓴다 */
+    labelArgs: Type.Optional(Type.Record(Type.String(), Type.String({ maxLength: 80 }))),
     help: Type.Optional(Type.String({ maxLength: 500 })),
     /** 설명의 메시지 키 */
     helpKey: Type.Optional(MessageKeySchema),

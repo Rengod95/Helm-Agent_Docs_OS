@@ -25,6 +25,7 @@ export const accountRotationSettings: SettingGroup<
       widget: "toggle",
       order: 10,
       label: "Accept the terms-of-service risk notice",
+      labelKey: "settings.ext.accountRotation.acknowledgeRisk.label",
     },
     since: "0.1.0",
   },

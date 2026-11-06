@@ -386,9 +386,25 @@ describe("default model list", () => {
       name: "Haiku 5.5",
       contextWindow: 200000,
       reasoning: true,
+      inputPrice: null,
+      outputPrice: null,
     },
-    { ref: "anthropic/claude-sonnet-5-5", name: "", contextWindow: 200000, reasoning: true },
-    { ref: "openai/gpt-x", name: "GPT X", contextWindow: 100000, reasoning: false },
+    {
+      ref: "anthropic/claude-sonnet-5-5",
+      name: "",
+      contextWindow: 200000,
+      reasoning: true,
+      inputPrice: 2,
+      outputPrice: 10,
+    },
+    {
+      ref: "openai/gpt-x",
+      name: "GPT X",
+      contextWindow: 100000,
+      reasoning: false,
+      inputPrice: null,
+      outputPrice: null,
+    },
   ];
 
   test("models group by provider in list order and fall back to the id when the name is empty", () => {

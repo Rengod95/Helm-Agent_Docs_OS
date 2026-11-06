@@ -153,6 +153,15 @@ test("settings: reserved defs shape", () => {
     allowedScopes: ["managed", "user"],
     range: { enum: ["none", "process"] },
   });
+  expect(enabled?.ui).toMatchObject({
+    label: "Enable set-shape",
+    labelKey: "settings.ext.enabled.label",
+    labelArgs: { name: "set-shape" },
+  });
+  expect(isolation?.ui).toMatchObject({
+    labelKey: "settings.ext.isolation.label",
+    labelArgs: { name: "set-shape" },
+  });
   for (const def of external.defs) {
     expect(checkSettingDef(def)).toEqual([]);
     expect(def.ui?.tab).toBe("plugins");
