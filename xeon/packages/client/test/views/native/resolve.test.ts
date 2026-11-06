@@ -98,13 +98,7 @@ describe("resolveTree on the group-helm inquiry tree", () => {
           props: { title: "지난 탐구" },
           children: [{ type: "List", props: {}, children: [] }],
         },
-        {
-          type: "Row",
-          props: {},
-          children: [
-            { type: "Button", props: { label: "탐구 멈춤", command: "helm-stop" }, children: [] },
-          ],
-        },
+        { type: "Button", props: { label: "탐구 멈춤", command: "helm stop" }, children: [] },
       ],
     });
   });
@@ -118,6 +112,31 @@ describe("resolveTree on the group-helm inquiry tree", () => {
       type: "EmptyState",
       props: { text: "진행 중인 탐구가 없습니다" },
       children: [],
+    });
+  });
+
+  test("with no lease the start Form shows its topic field and the stop button is omitted", () => {
+    const idle = {
+      status: { phase: "idle", lease: "none", findings: 0, lenses: [], inquiryId: null },
+      findings: { findings: [] },
+      inquiries: { inquiries: [] },
+    };
+    const resolved = resolveTree(loadHelmTree("helm-inquiry.view.json"), input(idle));
+    expect(resolved.issues).toEqual([]);
+    expect(resolved.root?.children.at(-1)).toEqual({
+      type: "Form",
+      props: { command: "helm start", submitLabel: "탐구 시작" },
+      children: [
+        {
+          type: "TextField",
+          props: {
+            name: "arg",
+            label: "주제",
+            placeholder: "비우면 이 대화의 마지막 질문을 주제로 써요",
+          },
+          children: [],
+        },
+      ],
     });
   });
 

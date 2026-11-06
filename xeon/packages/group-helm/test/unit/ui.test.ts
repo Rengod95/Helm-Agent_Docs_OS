@@ -59,6 +59,9 @@ const ALLOWED_PROPS: ReadonlySet<string> = new Set([
   "title",
   "max",
   "command",
+  "name",
+  "placeholder",
+  "submitLabel",
 ]);
 
 const TREE_DIR = join(import.meta.dir, "../../ui");
@@ -303,13 +306,45 @@ test("ui.trees: every tree file parses, passes validateUiTree and uses only cata
       "Meter",
       "ActivityTree",
       "EmptyState",
+      "Form",
       "Row",
       "Section",
       "Stack",
       "Stepper",
       "Text",
+      "TextField",
     ].toSorted(),
   );
+});
+
+test("ui.form: the page and panel start with a Form that sends `helm start` plus a topic field, and stop with a button, by lease", async () => {
+  const start: UiNode = {
+    type: "Form",
+    props: { command: "helm start", submitLabel: "탐구 시작" },
+    when: { path: "/status/lease", op: "eq", value: "none" },
+    children: [
+      {
+        type: "TextField",
+        props: {
+          name: "arg",
+          label: "주제",
+          placeholder: "비우면 이 대화의 마지막 질문을 주제로 써요",
+        },
+      },
+    ],
+  };
+  const stop: UiNode = {
+    type: "Button",
+    props: { label: "탐구 멈춤", command: "helm stop" },
+    when: { path: "/status/lease", op: "ne", value: "none" },
+  };
+  const trees = await Promise.all(
+    ["./ui/helm-inquiry.view.json", "./ui/helm-panel.view.json"].map((file) => treeOf(file)),
+  );
+  expect(trees.map((tree) => (tree.children ?? []).slice(-2))).toEqual([
+    [start, stop],
+    [start, stop],
+  ]);
 });
 
 test("ui.trees: props hold letters and the few selectors only, no colors, sizes or markup", async () => {

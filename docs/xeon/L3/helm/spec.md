@@ -801,8 +801,8 @@ export function registerHelmMethods(g: Pick<GroupApi<HelmState>, "state" | "read
 - 데이터 문서: 페이지, 패널, 단계 칩은 메서드 결과를 메서드 이름 아래 둔 문서 `{ status, inquiries, findings }`를 읽는다. 카드는 payload 자체를 문서로 읽는다.
 - 경로: JSON Pointer다. `each`가 도는 가지 안에서 경로의 첫 마디가 그 `as`와 같으면 항목 안을, 그 밖이면 문서를 본다. 이 규칙은 렌더러가 정하고 이 트리는 그 규칙에 맞춰 쓴다 [제안].
 - 조건: `eq`와 `ne`는 값을 비교한다. `null`도 값이라서 대기 중인 탐구 없음은 `inquiryId`가 `null`인지로 본다. `exists`와 `missing`은 경로만 본다. 조건이 거짓인 가지는 그리지 않는다.
-- 속성: `props.text`(글자), `props.label`(단추 글자), `props.step`(단계 노드 식별자), `props.title`, `props.max`, `props.command`만 쓴다. 색, 크기 숫자, CSS, HTML은 없다(DP-08).
-- 단추: `props.command`에 같은 확장의 명령 기여 id를 적는다. 누른 뒤의 연결은 렌더러 규칙이다(§10 미결 16).
+- 속성: `props.text`(글자), `props.label`(단추와 입력의 글자), `props.step`(단계 노드 식별자), `props.title`, `props.max`, `props.command`, `props.name`, `props.placeholder`, `props.submitLabel`만 쓴다. 색, 크기 숫자, CSS, HTML은 없다(DP-08).
+- 단추: `props.command`에는 같은 확장의 슬래시 명령 이름을 적고, `helm start`처럼 하위 명령 낱말을 붙일 수 있다(첫 낱말이 이름, 나머지가 인자 앞머리). 탐구 시작은 주제를 적는 `TextField`(`name: "arg"`)가 든 `Form`이라 `/helm start <주제>`를 보내고, 주제를 비우면 `/helm start`만 보내 주제는 이 대화의 마지막 사용자 입력에서 뽑은 용어로 정해진다. 누른 뒤의 연결은 렌더러 규칙이다(§10 미결 16).
 - 단계 칩: 단계 이름만 낸다. "탐색 2/3 렌즈"처럼 렌즈 수를 세는 표시는 바인딩에 세는 식이 없어 쓰지 않는다(§10 미결 17).
 - 상한 Meter: 발견 수를 24에 대어 보인다. 24는 상태 발견 상한(`HelmState.findings`의 `maxItems`)이다. drive lock와 턴 상한은 상태 보기에 수치가 없어 Meter로 보이지 않는다(§10 미결 15).
 - 단계 노드: 패널과 페이지의 단계 표시는 `Stepper`이고, 자식 `Text`의 `props.step`이 단계 이름, `props.text`가 한글 이름이다.

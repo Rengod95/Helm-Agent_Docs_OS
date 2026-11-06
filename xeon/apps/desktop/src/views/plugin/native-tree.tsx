@@ -66,7 +66,10 @@ export type NativeLink =
   | { readonly kind: "approval"; readonly id: string };
 
 export interface NativeTreeActions {
-  /** Button.command / Form.command: a slash command name WITHOUT the slash, plus form values (empty for Button) */
+  /**
+   * Button.command / Form.command: a slash command name WITHOUT the slash, optionally followed by subcommand words
+   * ("helm start"), plus form values (empty for Button). A field named `arg` contributes its value alone
+   */
   readonly runCommand: (
     name: string,
     values: Readonly<Record<string, string | number | boolean>>,
