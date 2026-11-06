@@ -2,12 +2,7 @@ import { t } from "@fresnel/client/i18n";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { ScrollArea } from "@caustic/react";
 import type { ReactNode } from "react";
-import {
-  useApprovalIds,
-  useApprovalMirror,
-  useOpenThreadId,
-  useThreadSummaries,
-} from "../state/engine/index.ts";
+import { useApprovalMirror, useOpenThreadId, useThreadSummaries } from "../state/engine/index.ts";
 import { InboxNotices } from "./notices.tsx";
 import { ApprovalCardList } from "./approval-card/approval-card.tsx";
 import {
@@ -80,8 +75,12 @@ export function InboxApprovals(props: {
 export type InboxFilter = "all" | "approvals" | "notices";
 
 export function ApprovalQueue(): ReactNode {
-  const ids = useApprovalIds();
+  const approvals = useApprovalMirror();
   const openThreadId = useOpenThreadId();
+  // 열린 대화의 승인만 트랜스크립트 끝에 둔다. 다른 대화의 승인은 받은 요청과 사이드바 수가 맡는다
+  const ids = inboxRowsOf(approvals.ids, approvals.byId)
+    .filter((row) => row.threadId === openThreadId)
+    .map((row) => row.id);
   if (ids.length === 0) return null;
   return (
     // 입력창 바로 위 띠. 높이는 화면의 40%까지만 차지하고, 넘는 카드는 띠 안의 스크롤 영역에서 넘긴다.

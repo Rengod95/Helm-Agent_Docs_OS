@@ -322,3 +322,36 @@ describe("approval memory", () => {
     expect(html(toolRequest({ command: "ls" }))).not.toContain("이 대화에서 항상");
   });
 });
+
+describe("approval queue per conversation", () => {
+  test("shows only the open conversation's approvals; others stay in the inbox", () => {
+    const h = openedHarness();
+    h.store.ingest({ type: "threads", threads: [] });
+    const here = toolRequest({ command: "echo here" });
+    const elsewhere: ApprovalRequestedPayload = {
+      ...toolRequest({ command: "echo elsewhere" }),
+      surfaceThreadId: thr(2),
+    };
+    h.store.ingest({
+      type: "approvals",
+      approvals: [
+        { approvalId: evt(7), seq: 4, request: elsewhere },
+        { approvalId: evt(8), seq: 5, request: here },
+      ],
+    });
+    h.store.flush();
+    const state = h.store.read.getState();
+    expect(state.approvals.ids).toEqual([evt(7), evt(8)]);
+    const out = renderToString(
+      <Providers
+        engine={frozen(state)}
+        ui={frozen<UiState>(createUiStore().read.getState())}
+        commands={commands}
+      >
+        <ApprovalQueue />
+      </Providers>,
+    );
+    expect(out).toContain("echo here");
+    expect(out).not.toContain("echo elsewhere");
+  });
+});
