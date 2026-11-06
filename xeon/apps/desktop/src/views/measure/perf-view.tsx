@@ -13,14 +13,11 @@ import {
 import { assertNever } from "@fresnel/contracts";
 import { Button, Table, type TableColumn } from "@caustic/react";
 import type { ReactNode } from "react";
-import { MUTED, TabBody } from "../workbench/tab-body.tsx";
+import { MUTED, PLAIN_TABLE, TabBody } from "../workbench/tab-body.tsx";
+import { SectionTitle } from "./measure-parts.tsx";
 import type { PerfInput } from "./perf-read.ts";
 
 const SECTION = "grid gap-1.5";
-
-function Heading(props: { readonly children: ReactNode }): ReactNode {
-  return <h3 className="m-0 text-ui-sm font-semibold text-text-primary">{props.children}</h3>;
-}
 
 function numberText(value: number): string {
   return t("desktop.workbench.metrics.number", { value: Math.round(value * 100) / 100 });
@@ -84,7 +81,8 @@ function Burden(props: {
 }): ReactNode {
   if (props.rows.length === 0)
     return <p className={MUTED}>{t("desktop.measure.perf.burdenNone")}</p>;
-  // 읽기 전용 표: caustic Table을 ghost로, 행 사이 선 없이 쓴다(DP-26). 플러그인 이름만 그 플러그인의 가장 무거운 Turn으로 내려간다
+  // 읽기 전용 표: caustic Table을 ghost로, 행 사이 선과 머리 바탕 없이 쓴다(DP-26, `PLAIN_TABLE`). 숫자 열은 오른쪽 맞춤과 tabular 숫자다.
+  // 플러그인 이름만 그 플러그인의 가장 무거운 Turn으로 내려간다
   const byOwner = new Map(props.rows.map((row) => [row.owner, row] as const));
   const columns: TableColumn[] = [
     { key: "plugin", header: t("desktop.measure.perf.col.plugin") },
@@ -99,6 +97,7 @@ function Burden(props: {
       variant="ghost"
       size="xs"
       dividers={false}
+      className={PLAIN_TABLE}
       columns={columns}
       rows={props.rows.map((row) => ({ id: row.owner }))}
       renderCell={(picked, column) => {
@@ -111,28 +110,23 @@ function Burden(props: {
             </OpenButton>
           );
         }
-        if (column.key === "tokens") {
-          return <span className="font-mono">{numberText(row.tokensPerTurn)}</span>;
-        }
+        if (column.key === "tokens") return numberText(row.tokensPerTurn);
         if (column.key === "cost") {
+          return row.costUsd === null ? (
+            <span className="text-text-tertiary">{t("desktop.measure.perf.costUnknown")}</span>
+          ) : (
+            numberText(row.costUsd)
+          );
+        }
+        if (column.key === "time") return t("desktop.measure.ms", { ms: row.msPerTurn });
+        if (column.key === "cache") return row.cacheEvents;
+        if (column.key === "problems") {
+          // 실패가 있는 플러그인은 글자를 진하게 둔다(시안 측정 표의 실패 칸)
           return (
-            <span className="font-mono text-text-tertiary">
-              {row.costUsd === null
-                ? t("desktop.measure.perf.costUnknown")
-                : numberText(row.costUsd)}
+            <span className={row.problems > 0 ? "text-text-primary" : "text-text-tertiary"}>
+              {row.problems}
             </span>
           );
-        }
-        if (column.key === "time") {
-          return (
-            <span className="font-mono">{t("desktop.measure.ms", { ms: row.msPerTurn })}</span>
-          );
-        }
-        if (column.key === "cache") {
-          return <span className="font-mono">{row.cacheEvents}</span>;
-        }
-        if (column.key === "problems") {
-          return <span className="font-mono">{row.problems}</span>;
         }
         return null;
       }}
@@ -159,8 +153,10 @@ function Curve(props: {
   return (
     <figure className="m-0 grid gap-0.5">
       <figcaption className="text-ui-sm text-text-tertiary">{props.label}</figcaption>
+      {/* 가장자리의 점이 눈금 밖으로 나가도 잘리지 않게 넘침을 보인다 */}
       <svg
         viewBox={`0 0 ${CURVE_W} ${CURVE_H}`}
+        overflow="visible"
         className="h-16 w-full max-w-144"
         role="img"
         aria-label={props.label}
@@ -206,7 +202,7 @@ function Ready(props: {
   return (
     <div className="grid gap-5 text-ui-sm">
       <section aria-label={t("desktop.measure.perf.changes")} className={SECTION}>
-        <Heading>{t("desktop.measure.perf.changes")}</Heading>
+        <SectionTitle title={t("desktop.measure.perf.changes")} />
         {view.changes.length === 0 ? (
           <p className={MUTED}>{t("desktop.measure.perf.changesNone")}</p>
         ) : (
@@ -220,7 +216,7 @@ function Ready(props: {
         )}
       </section>
       <section aria-label={t("desktop.measure.perf.signals")} className={SECTION}>
-        <Heading>{t("desktop.measure.perf.signals")}</Heading>
+        <SectionTitle title={t("desktop.measure.perf.signals")} />
         {view.signals.length === 0 ? (
           <p className={MUTED}>{t("desktop.measure.perf.signalsNone")}</p>
         ) : (
@@ -243,7 +239,7 @@ function Ready(props: {
         )}
       </section>
       <section aria-label={t("desktop.measure.perf.toRead")} className={SECTION}>
-        <Heading>{t("desktop.measure.perf.toRead")}</Heading>
+        <SectionTitle title={t("desktop.measure.perf.toRead")} />
         {view.toRead.length === 0 ? (
           <p className={MUTED}>{t("desktop.measure.perf.toReadNone")}</p>
         ) : (
@@ -263,11 +259,17 @@ function Ready(props: {
         )}
       </section>
       <section aria-label={t("desktop.measure.perf.burden")} className={SECTION}>
-        <Heading>{t("desktop.measure.perf.burden")}</Heading>
+        <SectionTitle title={t("desktop.measure.perf.burden")} />
         <Burden rows={view.burden} onOpenTurn={props.onOpenTurn} />
       </section>
       <section aria-label={t("desktop.measure.perf.curve")} className={SECTION}>
-        <Heading>{t("desktop.measure.perf.curve")}</Heading>
+        {/* 잘린 곡선의 범위 글은 정보 아이콘 뒤에 둔다. 번호가 읽은 목록 안의 차례라는 설명을 함께 담는다(DP-58) */}
+        <SectionTitle
+          title={t("desktop.measure.perf.curve")}
+          info={
+            props.capped ? t("desktop.measure.perf.capped", { count: props.turnCount }) : undefined
+          }
+        />
         {view.curve.length === 0 ? null : (
           <>
             <Curve
@@ -283,9 +285,6 @@ function Ready(props: {
               onOpenTurn={props.onOpenTurn}
             />
           </>
-        )}
-        {props.capped && (
-          <p className={MUTED}>{t("desktop.measure.perf.capped", { count: props.turnCount })}</p>
         )}
       </section>
     </div>

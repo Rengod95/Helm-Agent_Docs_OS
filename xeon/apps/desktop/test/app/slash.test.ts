@@ -105,6 +105,7 @@ describe("slash input goes to command.run", () => {
       commands: ["git status"],
       text: "/review",
       requestId: "req-6",
+      whenBusy: "followUp",
     });
     expect(methodsOf(params, "turn.start")).toBe(0);
     // 가짜 엔진은 같은 답을 다시 주므로 확인 대기가 다시 서 있다. 이 시험은 두 번째 호출이 보낸 params만 본다
@@ -133,6 +134,48 @@ describe("slash input goes to command.run", () => {
     expect(app.ui.read.getState().shellConfirm).toBeNull();
     expect(await app.commands.confirmShell()).toEqual({ ok: true, value: null });
     expect(methodsOf(params, "command.run")).toBe(1);
+    await app.stop();
+  });
+
+  test("an expanded template sent with steer goes to turn.start as whenBusy steer", async () => {
+    const { app, params } = await liveApp({
+      results: { "command.run": { status: "expanded", name: "review", text: "검토해 줘" } },
+    });
+    await app.commands.sendTurn(thr(1), "/review src", "req-12", undefined, "steer");
+    expect(params.find((entry) => entry.method === "turn.start")?.params).toEqual({
+      threadId: thr(1),
+      input: "검토해 줘",
+      requestId: "req-12",
+      whenBusy: "steer",
+    });
+    await app.stop();
+  });
+
+  test("a confirmed shell template keeps the whenBusy the person chose before the confirmation", async () => {
+    let runs = 0;
+    const { app, params } = await liveApp({
+      resultFor: (method) => {
+        if (method !== "command.run") return undefined;
+        runs += 1;
+        // 첫 응답은 확인을 묻고, 확인한 두 번째 응답은 펼친 글을 준다
+        return runs === 1
+          ? {
+              status: "needs_confirmation",
+              name: "review",
+              shell: [{ index: 0, command: "git status" }],
+            }
+          : { status: "expanded", name: "review", text: "검토해 줘" };
+      },
+    });
+    await app.commands.sendTurn(thr(1), "/review", "req-13", undefined, "steer");
+    expect(app.ui.read.getState().shellConfirm?.whenBusy).toBe("steer");
+    await app.commands.confirmShell();
+    expect(params.find((entry) => entry.method === "turn.start")?.params).toEqual({
+      threadId: thr(1),
+      input: "검토해 줘",
+      requestId: "req-13",
+      whenBusy: "steer",
+    });
     await app.stop();
   });
 
@@ -191,6 +234,18 @@ describe("attachments", () => {
       input: [{ type: "text", text: "/helm start" }, PART],
       requestId: "req-9",
       whenBusy: "followUp",
+    });
+    await app.stop();
+  });
+
+  test("a turn with attachments keeps the chosen whenBusy", async () => {
+    const { app, params } = await liveApp({});
+    await app.commands.sendTurn(thr(1), "보여 줘", "req-14", [PART], "steer");
+    expect(params.find((entry) => entry.method === "turn.start")?.params).toEqual({
+      threadId: thr(1),
+      input: [{ type: "text", text: "보여 줘" }, PART],
+      requestId: "req-14",
+      whenBusy: "steer",
     });
     await app.stop();
   });

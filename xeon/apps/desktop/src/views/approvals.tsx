@@ -1,4 +1,5 @@
 import { t } from "@fresnel/client/i18n";
+import { ScrollArea } from "@caustic/react";
 import type { ReactNode } from "react";
 import { useApprovalIds, useOpenThreadId } from "../state/engine/index.ts";
 import { InboxNotices } from "./notices.tsx";
@@ -48,15 +49,20 @@ export function ApprovalQueue(): ReactNode {
   const openThreadId = useOpenThreadId();
   if (ids.length === 0) return null;
   return (
-    // 대기열이 길면 이 자리만 스크롤한다(입력창과 바닥 고정 요소는 밀리지 않는다)
+    // 입력창 바로 위 띠. 높이는 화면의 40%까지만 차지하고, 넘는 카드는 띠 안의 스크롤 영역에서 넘긴다.
+    // 머리(개수)는 스크롤 밖에 둬 늘 보인다. 카드의 응답 단추 줄은 카드 안에서 바닥에 붙는다(approval-card.tsx).
     <section
-      className="grid max-h-80 gap-2 overflow-y-auto px-3"
+      className="flex min-h-0 max-h-[40dvh] flex-col gap-2"
       aria-label={t("desktop.approvals.queue.label")}
     >
-      <h2 className="m-0 text-ui-strong text-text-primary">
+      <h2 className="m-0 flex-none px-3 text-ui-strong text-text-primary">
         {t("desktop.approvals.queue.title", { count: ids.length })}
       </h2>
-      <ApprovalCardList ids={ids} within={openThreadId} />
+      <ScrollArea label={t("desktop.approvals.queue.label")} className="min-h-0 flex-1">
+        <div className="px-3 py-1.5">
+          <ApprovalCardList ids={ids} within={openThreadId} />
+        </div>
+      </ScrollArea>
     </section>
   );
 }

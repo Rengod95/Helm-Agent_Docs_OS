@@ -99,6 +99,12 @@ export interface ExportDocument {
   readonly itemCount: number;
 }
 
+/**
+ * 실행 중에 보낸 입력이 들어갈 자리(`turn.start`의 `whenBusy`). `steer`는 다음 도구 라운드 뒤, `followUp`은 이번 턴이 끝난 뒤다.
+ * 입력창의 "바로 / 끝난 뒤" 단추가 고른다. 데스크톱 입력창의 기본은 `followUp`이다.
+ */
+export type BusyInputMode = "steer" | "followUp";
+
 export type CommandError =
   | { readonly kind: "offline" }
   /** 연결된 host에 그 메서드가 없다(-32601). 아직 구현하지 않은 host나 오래된 엔진이다 */
@@ -662,11 +668,13 @@ export interface Commands {
   createThread(workspace?: string): Promise<Result<null, CommandError>>;
   /** requestId는 같은 입력의 재시도가 같은 값을 쓰도록 호출자가 만든다(spec 4.13) */
   /** `attachments`는 `addAttachment`가 돌려준 입력 파트다. 있으면 슬래시 명령으로 풀지 않고 글과 함께 대화 입력으로 보낸다 */
+  /** `whenBusy`는 실행 중일 때 입력이 들어갈 자리다. 생략하면 `followUp`(끝난 뒤)이다 */
   sendTurn(
     threadId: ThreadId,
     text: string,
     requestId: string,
     attachments?: AttachmentParts,
+    whenBusy?: BusyInputMode,
   ): Promise<Result<null, CommandError>>;
   /** `attachments.add`: 첨부 하나를 엔진에 올리고 입력 파트를 받는다. 쓰기 소유를 얻지 않는다 */
   addAttachment(

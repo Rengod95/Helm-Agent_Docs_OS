@@ -3,6 +3,7 @@ import { err, ok } from "@fresnel/contracts";
 import type { QueuedInput } from "../../src/state/engine/index.ts";
 import {
   COMPOSITION_END_GRACE_MS,
+  busyModeOf,
   chipInputs,
   composerDisabledReason,
   createEnterGuard,
@@ -62,6 +63,19 @@ describe("createEnterGuard", () => {
 
   test("keyCode 229 alone (no composition events seen) does not send", () => {
     expect(createEnterGuard().isSendEnter(enter({ keyCode: 229 }), 1000)).toBe(false);
+  });
+});
+
+describe("busyModeOf", () => {
+  test("the two toggle values come back as the turn.start whenBusy they name", () => {
+    expect(busyModeOf("steer")).toBe("steer");
+    expect(busyModeOf("followUp")).toBe("followUp");
+  });
+
+  test("any other value is not a toggle value, so the toggle keeps its mode", () => {
+    expect(busyModeOf("aside")).toBeNull();
+    expect(busyModeOf("바로")).toBeNull();
+    expect(busyModeOf("")).toBeNull();
   });
 });
 

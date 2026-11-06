@@ -17,6 +17,7 @@ import type { UiStore } from "../state/ui/index.ts";
 import type {
   ApprovalDecision,
   AttachmentParts,
+  BusyInputMode,
   CommandError,
   Commands,
 } from "../views/commands.ts";
@@ -94,11 +95,12 @@ export function createCommands(deps: CommandDeps): Commands {
     text: string,
     requestId: string,
     attachments: AttachmentParts = [],
+    whenBusy: BusyInputMode = "followUp",
   ): Promise<Result<null, CommandError>> => {
     const input = attachments.length === 0 ? text : turnInputOf(text, attachments);
     const started = await withWriteConnection((c) =>
-      // 실행 중이면 입력은 turn 뒤의 큐에 들어가 칩이 된다(F.wire-settings §3.3.1 0a). 이미 도는 turn이 없으면 whenBusy는 무시된다
-      c.request("turn.start", { threadId, input, requestId, whenBusy: "followUp" }),
+      // 실행 중이면 입력은 whenBusy 자리의 큐에 들어가 칩이 된다(F.wire-settings §3.3.1 0a). 기본은 followUp(끝난 뒤)이다. 이미 도는 turn이 없으면 whenBusy는 무시된다
+      c.request("turn.start", { threadId, input, requestId, whenBusy }),
     );
     if (!started.ok) {
       showLockedIfLocked(threadId, started.error);
@@ -117,6 +119,7 @@ export function createCommands(deps: CommandDeps): Commands {
     line: SlashLine,
     requestId: string,
     confirmed: boolean,
+    whenBusy: BusyInputMode,
   ): Promise<Result<null, CommandError>> => {
     const ran = await withWriteConnection((c) =>
       c.request("command.run", {
@@ -126,16 +129,17 @@ export function createCommands(deps: CommandDeps): Commands {
       }),
     );
     if (!ran.ok) {
-      if (ran.error.kind === "unsupported") return startTurn(threadId, line.text, requestId);
+      if (ran.error.kind === "unsupported")
+        return startTurn(threadId, line.text, requestId, [], whenBusy);
       showLockedIfLocked(threadId, ran.error);
       return ran;
     }
     const step = slashStepOf(ran.value);
     switch (step.kind) {
       case "chat":
-        return startTurn(threadId, line.text, requestId);
+        return startTurn(threadId, line.text, requestId, [], whenBusy);
       case "send":
-        return startTurn(threadId, step.text, requestId);
+        return startTurn(threadId, step.text, requestId, [], whenBusy);
       case "confirm":
         ui.actions.askShellConfirm({
           threadId,
@@ -143,6 +147,7 @@ export function createCommands(deps: CommandDeps): Commands {
           commands: step.commands,
           text: line.text,
           requestId,
+          whenBusy,
         });
         return ok(null);
       case "show":
@@ -176,14 +181,14 @@ export function createCommands(deps: CommandDeps): Commands {
       session.link()?.openThread(created.value.threadId);
       return ok(null);
     },
-    async sendTurn(threadId, text, requestId, attachments) {
+    async sendTurn(threadId, text, requestId, attachments, whenBusy = "followUp") {
       // 첨부가 있으면 슬래시 명령으로 풀지 않는다(첨부 파트가 명령 인자로 흘러가지 않게)
       if (attachments !== undefined && attachments.length > 0)
-        return startTurn(threadId, text, requestId, attachments);
+        return startTurn(threadId, text, requestId, attachments, whenBusy);
       // `/`로 시작하는 줄은 엔진에 등록한 슬래시 명령일 수 있다(`/helm`, `/learning`): 대화 입력이 아니라 `command.run`으로 먼저 보낸다
       const line = slashLineOf(text);
-      if (line === null) return startTurn(threadId, text, requestId);
-      return runSlash(threadId, line, requestId, false);
+      if (line === null) return startTurn(threadId, text, requestId, [], whenBusy);
+      return runSlash(threadId, line, requestId, false, whenBusy);
     },
     async confirmShell() {
       const pending = ui.read.getState().shellConfirm;
@@ -191,7 +196,7 @@ export function createCommands(deps: CommandDeps): Commands {
       ui.actions.clearShellConfirm();
       const line = slashLineOf(pending.text);
       if (line === null) return ok(null);
-      return runSlash(pending.threadId, line, pending.requestId, true);
+      return runSlash(pending.threadId, line, pending.requestId, true, pending.whenBusy);
     },
     cancelShell: () => ui.actions.clearShellConfirm(),
     dismissCommandOutput: () => ui.actions.dismissCommandOutput(),

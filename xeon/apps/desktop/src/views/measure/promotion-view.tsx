@@ -4,8 +4,8 @@ import type { TabRead } from "@fresnel/client/workbench";
 import type { WireResult } from "@fresnel/contracts/wire";
 import { Table, type TableColumn } from "@caustic/react";
 import type { ReactNode } from "react";
-import { InfoTip } from "../craft/info-tip.tsx";
-import { MUTED, TabBody } from "../workbench/tab-body.tsx";
+import { MUTED, PLAIN_TABLE, TabBody } from "../workbench/tab-body.tsx";
+import { SectionTitle } from "./measure-parts.tsx";
 
 export type PromotionReport = WireResult<"group.promotion">;
 type Candidate = PromotionReport["candidates"][number];
@@ -42,11 +42,13 @@ export function PromotionBody(props: { readonly report: PromotionReport }): Reac
         variant="ghost"
         size="xs"
         dividers={false}
+        className={PLAIN_TABLE}
         columns={columns}
         rows={report.candidates.map((candidate) => ({ id: keyOf(candidate) }))}
         renderCell={(picked, column) => {
           const candidate = byKey.get(picked.id);
           if (candidate === undefined) return null;
+          // 이름(도구, 제공자)은 식별자라 mono로 두고, 숫자 열은 표가 오른쪽 맞춤과 tabular 숫자를 준다
           if (column.key === "tool") {
             return <span className="font-mono text-text-primary">{candidate.tool}</span>;
           }
@@ -58,9 +60,7 @@ export function PromotionBody(props: { readonly report: PromotionReport }): Reac
               <span className="font-mono text-text-tertiary">{candidate.consumers.join(", ")}</span>
             );
           }
-          if (column.key === "userCalls") {
-            return <span className="font-mono">{candidate.userCalls}</span>;
-          }
+          if (column.key === "userCalls") return candidate.userCalls;
           return null;
         }}
       />
@@ -71,10 +71,10 @@ export function PromotionBody(props: { readonly report: PromotionReport }): Reac
 export function PromotionView(props: { readonly read: TabRead<PromotionReport> }): ReactNode {
   return (
     <section className="grid gap-1.5">
-      <h2 className="m-0 flex items-center gap-1 text-text-primary">
-        {t("desktop.measure.promotion.title")}
-        <InfoTip text={t("desktop.measure.promotion.info")} />
-      </h2>
+      <SectionTitle
+        title={t("desktop.measure.promotion.title")}
+        info={t("desktop.measure.promotion.info")}
+      />
       <TabBody read={props.read} render={(report) => <PromotionBody report={report} />} />
     </section>
   );

@@ -51,7 +51,7 @@ function ChatScreen(): ReactNode {
       <SetupBanner />
       <Transcript />
       {/* 대화 열 폭(시안 46rem)에 맞춰 입력창 위 카드들을 같은 가운데 열에 둔다 */}
-      <div className="mx-auto grid w-full max-w-184 flex-none">
+      <div className="mx-auto grid min-h-0 w-full max-w-184 flex-none">
         <TrustCard />
         <ApprovalQueue />
         <SafeModeCard />

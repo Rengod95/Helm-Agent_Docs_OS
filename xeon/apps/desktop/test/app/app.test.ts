@@ -40,6 +40,23 @@ describe("app session over a fake shell and fake engine", () => {
     await app.stop();
   });
 
+  test("a sent line carries the chosen whenBusy to turn.start, and followUp when none is given", async () => {
+    const { fake, params } = engineFake();
+    const app = makeApp(fake);
+    await until(() => app.engine.read.getState().threads.status === "ready", "threads ready");
+    await app.commands.sendTurn(thr(1), "hi", "req-1");
+    await app.commands.sendTurn(thr(1), "hi again", "req-2", undefined, "steer");
+    await app.commands.sendTurn(thr(1), "hi last", "req-3", undefined, "followUp");
+    expect(
+      params.filter((entry) => entry.method === "turn.start").map((entry) => entry.params),
+    ).toEqual([
+      { threadId: thr(1), input: "hi", requestId: "req-1", whenBusy: "followUp" },
+      { threadId: thr(1), input: "hi again", requestId: "req-2", whenBusy: "steer" },
+      { threadId: thr(1), input: "hi last", requestId: "req-3", whenBusy: "followUp" },
+    ]);
+    await app.stop();
+  });
+
   test("commands report offline before the engine is connected", async () => {
     const fake = fakeIpc({ state: { kind: "starting", source: "sidecar", attempt: 0 } });
     const app = makeApp(fake);

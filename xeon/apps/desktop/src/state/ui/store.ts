@@ -45,6 +45,8 @@ type ShellConfirm = {
   readonly text: string;
   /** 확인 뒤 템플릿이 펼쳐져 `turn.start`로 갈 때 쓰는 요청 id */
   readonly requestId: string;
+  /** 확인 뒤 `turn.start`의 `whenBusy`(입력창 모드). `BusyInputMode`와 같은 값 */
+  readonly whenBusy: "steer" | "followUp";
 };
 
 /**

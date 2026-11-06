@@ -273,7 +273,11 @@ function PendingCard(props: {
         onKeyDown={onKeyDown}
       >
         {bodyNode}
-        <div data-slot="approval-actions" className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        {/* 대기열 띠 안에서 카드 본문이 스크롤될 때 응답 단추 줄이 바닥에 붙어 늘 닿는다(sticky, 배경은 카드 면과 같다) */}
+        <div
+          data-slot="approval-actions"
+          className="sticky bottom-0 flex flex-wrap items-center gap-1.5 bg-surface-base pt-1.5"
+        >
           {leading.map((action) => (
             <ActionButton
               key={action.id}

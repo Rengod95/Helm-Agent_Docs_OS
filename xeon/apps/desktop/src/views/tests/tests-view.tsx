@@ -83,7 +83,7 @@ export function TestsView(props: TestsViewProps): ReactNode {
       className="flex min-h-0 flex-1 flex-col overflow-y-auto"
     >
       <div className="mx-auto grid w-full max-w-240 gap-5 px-3 pt-4 pb-8">
-        <header className="flex h-10 min-w-0 items-center gap-2">
+        <header className="flex h-10 min-w-0 items-center gap-2 pe-8">
           <h1 id="tests-screen-title" className="m-0 min-w-0 truncate text-text-primary">
             {t("desktop.tests.title")}
           </h1>

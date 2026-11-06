@@ -11,9 +11,10 @@ import {
 } from "@fresnel/client/workbench";
 import { assertNever } from "@fresnel/contracts";
 import type { MeasureTurnResult } from "@fresnel/contracts/wire";
-import { Button } from "@caustic/react";
+import { Button, StatusDot } from "@caustic/react";
 import { useState, type ReactNode } from "react";
 import { MUTED, TabBody } from "../workbench/tab-body.tsx";
+import { SectionTitle } from "./measure-parts.tsx";
 import {
   cacheCodeText,
   cacheDetailText,
@@ -32,10 +33,6 @@ const PART_CLASS: Readonly<Record<string, string>> = {
   volatile: "bg-danger-soft",
   history: "bg-success-soft",
 };
-
-function Heading(props: { readonly children: ReactNode }): ReactNode {
-  return <h4 className="m-0 text-ui-sm font-semibold text-text-secondary">{props.children}</h4>;
-}
 
 function numberText(value: number): string {
   return t("desktop.workbench.metrics.number", { value });
@@ -71,7 +68,7 @@ function PluginRows(props: {
               onClick={() => props.onFocus(active ? null : share.owner)}
             >
               <span className="font-mono text-text-primary">{share.owner}</span>
-              <span className="ms-auto text-text-tertiary">
+              <span className="ms-auto text-text-tertiary tabular-nums">
                 {t("desktop.measure.turn.pluginRow", {
                   ms: share.hookMs,
                   tokens: share.sectionTokens,
@@ -110,8 +107,13 @@ function HookRows(props: {
               </span>
               <span className="font-mono text-text-primary">{hook.hook}</span>
               <span className="font-mono text-text-secondary">{hook.registrationId}</span>
-              <span className="text-text-secondary">{outcomeText(hook.outcome)}</span>
-              <span className="ms-auto font-mono text-text-primary">
+              {/* 실패와 예산 초과는 빨간 점과 글로 둔다(점이 색을 맡고 글은 보조 글색). 나머지 결과는 글 한 줄이다 */}
+              {hook.outcome.problem ? (
+                <StatusDot tone="danger" label={outcomeText(hook.outcome)} />
+              ) : (
+                <span className="text-text-secondary">{outcomeText(hook.outcome)}</span>
+              )}
+              <span className="ms-auto tabular-nums text-text-primary">
                 {t("desktop.measure.ms", { ms: hook.ms })}
               </span>
             </div>
@@ -139,7 +141,7 @@ function Bar(props: { readonly bar: CompositionBarVM; readonly focus: string | n
         <span className="text-text-tertiary">
           {t("desktop.measure.turn.stepOf", { step: bar.step })}
         </span>
-        <span className="ms-auto font-mono text-text-primary">
+        <span className="ms-auto tabular-nums text-text-primary">
           {t("desktop.measure.turn.barTotal", {
             total: numberText(bar.total),
             tools: numberText(bar.tools),
@@ -193,15 +195,15 @@ function ReadyView(props: { readonly view: TurnViewVM }): ReactNode {
         </p>
       )}
       <section aria-label={t("desktop.measure.turn.plugins")} className="grid gap-1">
-        <Heading>{t("desktop.measure.turn.plugins")}</Heading>
+        <SectionTitle level={3} title={t("desktop.measure.turn.plugins")} />
         <PluginRows plugins={view.plugins} focus={focus} onFocus={setFocus} />
       </section>
       <section aria-label={t("desktop.measure.turn.hooks")} className="grid gap-1">
-        <Heading>{t("desktop.measure.turn.hooks")}</Heading>
+        <SectionTitle level={3} title={t("desktop.measure.turn.hooks")} />
         <HookRows hooks={view.hooks} focus={focus} />
       </section>
       <section aria-label={t("desktop.measure.turn.bars")} className="grid gap-1">
-        <Heading>{t("desktop.measure.turn.bars")}</Heading>
+        <SectionTitle level={3} title={t("desktop.measure.turn.bars")} />
         {view.bars.length === 0 ? (
           <p className={MUTED}>{t("desktop.measure.turn.barsNone")}</p>
         ) : (
@@ -213,7 +215,7 @@ function ReadyView(props: { readonly view: TurnViewVM }): ReactNode {
         )}
       </section>
       <section aria-label={t("desktop.measure.turn.cache")} className="grid gap-1">
-        <Heading>{t("desktop.measure.turn.cache")}</Heading>
+        <SectionTitle level={3} title={t("desktop.measure.turn.cache")} />
         {view.cache.length === 0 ? (
           <p className={MUTED}>{t("desktop.measure.turn.cacheNone")}</p>
         ) : (

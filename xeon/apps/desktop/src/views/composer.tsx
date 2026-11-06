@@ -1,5 +1,11 @@
 import { t } from "@fresnel/client/i18n";
-import { Button, IconButton, Textarea } from "@caustic/react";
+import {
+  Button,
+  IconButton,
+  SegmentedControl,
+  SegmentedControlItem,
+  Textarea,
+} from "@caustic/react";
 import { ArrowUp, Paperclip } from "@caustic/react/icons";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
@@ -35,8 +41,13 @@ import { AttachmentRow } from "./composer-attachments.tsx";
 import { InfoTip } from "./craft/info-tip.tsx";
 import { pickAttachmentFile } from "./folder-pick.ts";
 import { useFolderPick } from "./folder-pick-context.ts";
-import { useCommands, type CommandError } from "./commands.ts";
-import { composerDisabledReason, createEnterGuard, createSendLatch } from "./composer-model.ts";
+import { useCommands, type BusyInputMode, type CommandError } from "./commands.ts";
+import {
+  busyModeOf,
+  composerDisabledReason,
+  createEnterGuard,
+  createSendLatch,
+} from "./composer-model.ts";
 import { QueuedInputs } from "./queued-inputs.tsx";
 import { useSetupNeeded } from "./setup-needed.ts";
 
@@ -73,6 +84,8 @@ function ComposerFor(props: {
   const request = useComposerRequest();
   const folderPick = useFolderPick();
   const [chips, setChips] = useState<readonly AttachChip[]>([]);
+  // 실행 중에 보낸 글이 들어갈 자리. 기본은 끝난 뒤(followUp)라 모드 단추를 건드리지 않으면 예전 동작과 같다
+  const [mode, setMode] = useState<BusyInputMode>("followUp");
   const [dragging, setDragging] = useState(false);
   const [attachNote, setAttachNote] = useState<string | null>(null);
   const limit = useRef<number | null>(null);
@@ -204,6 +217,7 @@ function ComposerFor(props: {
       text,
       requestId.current,
       parts.length === 0 ? undefined : parts,
+      mode,
     );
     latch.current.release();
     setSending(false);
@@ -250,7 +264,7 @@ function ComposerFor(props: {
     detach(send(), rethrow);
   };
 
-  // 입력창 부품은 caustic Textarea다. 글과 Enter 처리는 이 파일이 맡고, 단추 줄(첨부·중단·보내기)은 Textarea의 아래 칸에 둔다.
+  // 입력창 부품은 caustic Textarea다. 글과 Enter 처리는 이 파일이 맡고, 단추 줄(첨부·바로/끝난 뒤·중단·보내기)은 Textarea의 아래 칸에 둔다.
   // caustic Composer를 쓰지 않는 까닭: 실행 중에는 Enter가 보내기를 막고 단추가 중단으로 바뀌는데, 앱은 실행 중에도 큐에 넣으며 보내고 중단을 따로 둔다.
   // 또 Composer는 글이 빈 첨부만의 보내기를 막는다.
   return (
@@ -344,6 +358,23 @@ function ComposerFor(props: {
               <Paperclip aria-hidden />
             </IconButton>
             <InfoTip text={t("desktop.composer.attach.info")} />
+            <SegmentedControl
+              size="xs"
+              aria-label={t("desktop.composer.mode.label")}
+              value={mode}
+              onValueChange={(value) => {
+                const next = busyModeOf(value);
+                if (next !== null) setMode(next);
+              }}
+              disabled={props.disabledReason !== null}
+            >
+              <SegmentedControlItem value="steer">
+                {t("desktop.composer.mode.steer")}
+              </SegmentedControlItem>
+              <SegmentedControlItem value="followUp">
+                {t("desktop.composer.mode.followUp")}
+              </SegmentedControlItem>
+            </SegmentedControl>
           </>
         }
         submit={

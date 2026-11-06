@@ -479,12 +479,35 @@ describe("overview tab sections", () => {
       }),
     );
     expect(withPaths).toContain(t("desktop.settings.overview.files.title"));
-    expect(withPaths).toContain("/home/me/.fresnel/settings.json");
+    expect(withPaths).toContain("~/.fresnel/settings.json");
+    expect(withPaths).not.toContain("/home/me");
     expect(withPaths).toContain("/repo/.fresnel/settings.json");
     expect(withPaths).toContain("/etc/fresnel/managed.json");
     expect(withPaths).toContain(t("desktop.settings.overview.files.managed"));
     expect(html(propsOf({ view, tab: "overview" }))).not.toContain(
       t("desktop.settings.overview.files.title"),
     );
+  });
+
+  test("the first card sits at the top of the column when no notice is shown, and a notice goes above it", () => {
+    const plain = html(
+      propsOf({
+        view,
+        tab: "overview",
+        filePaths: [{ scope: "user", path: "/home/me/.fresnel/settings.json" }],
+      }),
+    );
+    // 알림 칸이 없으면 첫 카드가 내용 칸의 첫 자식이다(`first:pt-0`이 걸린다)
+    expect(plain).toMatch(/py-12"><section/);
+    const offline = html(
+      propsOf({
+        view,
+        tab: "overview",
+        readOnly: true,
+        filePaths: [{ scope: "user", path: "/home/me/.fresnel/settings.json" }],
+      }),
+    );
+    expect(offline).toContain(t("desktop.settings.offline"));
+    expect(offline).not.toMatch(/py-12"><section/);
   });
 });

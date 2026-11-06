@@ -35,6 +35,8 @@ describe("TurnView", () => {
     expect(out).toContain("acme");
     expect(out).toContain("812ms");
     expect(out).toContain("실패");
+    // 실패 결과는 빨간 점(StatusDot danger)과 함께 보인다
+    expect(out).toContain('data-tone="danger"');
     expect(out).toContain("brand_new");
     expect(out).toContain("캐시 접두가 바뀜");
     expect(out).toContain("합치기 훅");

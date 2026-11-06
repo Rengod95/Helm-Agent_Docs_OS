@@ -16,6 +16,7 @@ import { useCallback, type ReactNode } from "react";
 import { InfoTip } from "../craft/info-tip.tsx";
 import { useLinkPhase, useOpenThreadId } from "../../state/engine/index.ts";
 import { useCommands } from "../commands.ts";
+import { SectionTitle } from "../measure/measure-parts.tsx";
 import { TabBody, MUTED } from "./tab-body.tsx";
 import { tabLinkOf, useTabRead } from "./tab-read.ts";
 
@@ -49,9 +50,7 @@ function GroupMetricsBody(props: { readonly metrics: GroupMetricsVM | null }): R
   return (
     <div className="grid gap-3 text-ui-sm">
       <section aria-label={t("desktop.workbench.metrics.tokens")} className="grid gap-2">
-        <h4 className="m-0 min-w-0 truncate text-ui-dense font-semibold text-text-primary">
-          {t("desktop.workbench.metrics.tokens")}
-        </h4>
+        <SectionTitle level={3} title={t("desktop.workbench.metrics.tokens")} />
         <div className="grid grid-cols-2 gap-x-6 gap-y-3 compact:grid-cols-4">
           {metrics.tokens.map((cell) => (
             <Cell key={cell.key} label={t(TOKEN_TEXT[cell.key])} value={numberText(cell.value)} />

@@ -52,7 +52,7 @@ export function ComposeScreen(): ReactNode {
     >
       {/* 시안 WB_WIDTH와 같은 가운데 폭(60rem, 좌우 여백 3). 머리와 본문이 같은 열에 선다 */}
       <div className="mx-auto flex w-full max-w-240 flex-col gap-4 px-3 pt-6 pb-8">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 pe-8">
           <h1 id="compose-screen-title" className="m-0 flex items-center gap-1 text-text-primary">
             {t("desktop.compose.title")}
             <InfoTip text={t("desktop.compose.readonly")} />

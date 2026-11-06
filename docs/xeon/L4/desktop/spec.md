@@ -541,7 +541,7 @@ WebView 엔진 차이로 생기는 웹 API 제약 [제안. 각 항목은 M2 첫 
 
 ### 4.14 최소 설정 화면 [결정: M2 마감 D-b, G2-08]
 
-`L4.settings-ui.spec`의 전체 화면(12탭, 시크릿 관리 패널)은 M3다. M2에는 데스크톱에서 첫 대화를 시작하는 데 필요한 것만 둔다. 상태 표시줄의 "설정" 단추가 연다(`Screen = "settings"`, `src/views/settings.tsx`). 판단과 변환은 `@fresnel/client/settings`(`xeon/packages/client/src/settings/`)의 순수 함수가 하고, wire 호출은 `src/app/setup.ts`가 한다.
+`L4.settings-ui.spec`의 전체 화면(12탭, 시크릿 관리 패널)은 M3다. M2에는 데스크톱에서 첫 대화를 시작하는 데 필요한 것만 둔다. 시작 영역 아래의 "설정"(⌘,)이 연다(`Screen = "settings"`, `src/views/settings.tsx`). 판단과 변환은 `@fresnel/client/settings`(`xeon/packages/client/src/settings/`)의 순수 함수가 하고, wire 호출은 `src/app/setup.ts`가 한다.
 
 | 영역 | 내용 | 쓰는 wire |
 |---|---|---|

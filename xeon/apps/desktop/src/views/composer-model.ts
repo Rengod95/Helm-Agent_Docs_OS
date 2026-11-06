@@ -1,7 +1,7 @@
 import { t } from "@fresnel/client/i18n";
 import { assertNever, type Result } from "@fresnel/contracts";
 import type { Link, QueuedInput } from "../state/engine/index.ts";
-import type { CommandError } from "./commands.ts";
+import type { BusyInputMode, CommandError } from "./commands.ts";
 import { setupRequiredText } from "./setup-needed.ts";
 
 // 입력창의 Enter 판정과 중복 전송 방지. 화면 부품에서 떼어 순수하게 시험한다.
@@ -61,6 +61,14 @@ export function createSendLatch(): SendLatch {
       held = false;
     },
   };
+}
+
+/**
+ * 입력창 모드 단추가 내는 값을 `BusyInputMode`로 좁힌다. 알 수 없는 값은 null이라 호출하는 쪽이 고르지 않는다(단언 없이).
+ */
+export function busyModeOf(value: string): BusyInputMode | null {
+  if (value === "steer" || value === "followUp") return value;
+  return null;
 }
 
 /** 입력창을 잠그는 이유. null이면 보낼 수 있다 */

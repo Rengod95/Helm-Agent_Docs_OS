@@ -3,7 +3,7 @@ import { activeLocale, catalogOf, setActiveLocale, type Locale } from "@fresnel/
 import { renderToString } from "react-dom/server";
 import type { EngineMirror, EngineState } from "../../src/state/engine/index.ts";
 import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
-import { createUiStore } from "../../src/state/ui/store.ts";
+import { createUiStore, type UiState } from "../../src/state/ui/store.ts";
 import { PluginUiProvider } from "../../src/views/plugin/plugin-context.tsx";
 import { Providers } from "../../src/views/providers.tsx";
 import {
@@ -18,7 +18,7 @@ import {
 } from "../../src/views/status-bar.tsx";
 import { fakeCommands } from "./fake-commands.ts";
 import { emptyPluginUi } from "./plugin/support.tsx";
-import { evt, harness, STORE, SUB, summary, thr, trn } from "../state/helpers.ts";
+import { approvalRequest, evt, harness, STORE, SUB, summary, thr, trn } from "../state/helpers.ts";
 
 // 상태 표시줄의 칸(B-09, d02). 점과 글, Popover 설명과 진행 중 묶음을 값으로 본다.
 // Popover의 본문은 열 때만 그려서 서버 렌더에는 나오지 않으므로, 본문의 묶음은 `liveRowsOf`로 시험한다.
@@ -326,5 +326,120 @@ describe("status bar server render", () => {
     expect(html).toContain('data-bar-cell="live"');
     expect(html).toContain("진행 중 2");
     expect(html).not.toContain("끝난 대화");
+  });
+});
+
+/** 대화 하나가 돌고 승인 하나가 기다리는 거울. 승인은 `approval.requested` 사실로 넣는다 */
+function mirrorWithApproval(): EngineMirror {
+  const h = harness();
+  h.store.ingest({
+    type: "subscribed",
+    sub: SUB,
+    storeId: STORE,
+    start: 5,
+    live: true,
+    from: "head",
+  });
+  h.store.ingest({
+    type: "threads",
+    threads: [summary(thr(1), { status: "running", title: "캐시 무효화 조사" })],
+  });
+  h.store.ingest({
+    type: "batch",
+    sub: SUB,
+    from: 5,
+    to: 6,
+    caughtUp: true,
+    facts: [
+      {
+        type: "approval.requested",
+        seq: 6,
+        eventId: evt(6),
+        threadId: thr(1),
+        turnId: null,
+        at: "t",
+        request: approvalRequest(thr(1)),
+      },
+    ],
+  });
+  h.store.flush();
+  return h.store.read.getState();
+}
+
+/** 상태 표시줄을 주어진 거울과 ui 상태로 그린다. 서버 렌더는 시작 상태를 읽으므로 고른 상태를 두 값으로 준다 */
+function barWithUi(state: EngineMirror, ui: UiState): string {
+  const frozenUi: ReadonlyStore<UiState> = {
+    getState: () => ui,
+    getInitialState: () => ui,
+    subscribe: () => () => {},
+  };
+  return renderToString(
+    <Providers engine={frozenStore(state)} ui={frozenUi} commands={fakeCommands()}>
+      <PluginUiProvider value={emptyPluginUi()}>
+        <StatusBar />
+      </PluginUiProvider>
+    </Providers>,
+  );
+}
+
+/** 칸의 식별자가 HTML에 나타나는 순서 */
+const cellIdsOf = (html: string): string[] =>
+  [...html.matchAll(/data-bar-cell="([^"]*)"/g)].map((match) => match[1] ?? "");
+
+/** 칸 id와 실패 단추 글이 HTML에 나타나는 순서 */
+function sequenceOf(html: string): string[] {
+  const pattern = /data-bar-cell="([^"]*)"|>(엔진 다시 시작|다시 연결|진단 복사)</g;
+  return [...html.matchAll(pattern)].map((match) => match[1] ?? match[2] ?? "");
+}
+
+/** 칸의 글을 HTML에서 읽는다. 칸이 없으면 null */
+function cellTextOf(html: string, cellId: string): string | null {
+  const from = html.indexOf(`data-bar-cell="${cellId}"`);
+  if (from < 0) return null;
+  const match = /tabular-nums">([^<]*)</.exec(html.slice(from));
+  return match?.[1] ?? null;
+}
+
+describe("status bar cell order", () => {
+  let previous: Locale = "ko";
+  beforeEach(() => {
+    previous = activeLocale();
+    setActiveLocale("ko");
+  });
+  afterEach(() => {
+    setActiveLocale(previous);
+  });
+
+  test("engine and link lead on the left, and in-progress then approvals follow the spacer on the right", () => {
+    const html = barWith(mirrorWithApproval());
+    expect(cellIdsOf(html)).toEqual(["engine", "link", "live", "approvals"]);
+    const spacer = html.indexOf('class="grow"');
+    expect(html.indexOf('data-bar-cell="link"')).toBeLessThan(spacer);
+    expect(spacer).toBeLessThan(html.indexOf('data-bar-cell="live"'));
+  });
+
+  test("the approval cell reads its count, and is absent when no approval waits", () => {
+    expect(cellTextOf(barWith(mirrorWithApproval()), "approvals")).toBe("승인 1");
+    expect(cellIdsOf(barWith(mirrorWithFailure()))).toEqual(["engine", "link", "live"]);
+  });
+
+  test("the bar has no settings button, the sidebar footer is the way to settings", () => {
+    expect(barWith(mirrorWithApproval())).not.toContain("설정");
+  });
+
+  test("failure buttons sit beside their cells: restart after the engine, reconnect and copy after the link", () => {
+    const h = harness();
+    h.store.ingest({ type: "engine", state: FAILED });
+    h.store.flush();
+    const ui = createUiStore();
+    ui.actions.setConnectError("hello:1002");
+    expect(sequenceOf(barWithUi(h.store.read.getState(), ui.read.getState()))).toEqual([
+      "engine",
+      "엔진 다시 시작",
+      "link",
+      "다시 연결",
+      "진단 복사",
+      "live",
+    ]);
   });
 });

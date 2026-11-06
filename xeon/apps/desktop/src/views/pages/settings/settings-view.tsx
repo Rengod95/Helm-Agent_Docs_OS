@@ -273,29 +273,33 @@ function Body(props: SettingsPageProps): ReactNode {
     );
   }
   const restart = restartCountOf(view);
+  // 알림 띠는 알림이 있을 때만 그린다. 빈 띠 칸이 첫 구역 앞에 남으면 구역이 첫 자식이 아니어서 `first:pt-0`이 안 걸리고 위가 24px 떤다(시안도 띠가 없으면 없다)
+  const notices = props.readOnly || restart !== 0 || props.restartError !== null;
   return (
     <>
-      <div className="grid gap-2 pb-3 empty:hidden">
-        {props.readOnly ? <Alert tone="info">{t("desktop.settings.offline")}</Alert> : null}
-        {restart === 0 ? null : (
-          <Alert
-            tone="warning"
-            action={
-              <Button
-                size="xs"
-                variant="outline"
-                disabled={props.readOnly}
-                onClick={handlers.restart}
-              >
-                {t("desktop.settings.restart.button")}
-              </Button>
-            }
-          >
-            {view.restartBanner?.text ?? ""}
-          </Alert>
-        )}
-        {props.restartError === null ? null : <Alert tone="danger">{props.restartError}</Alert>}
-      </div>
+      {notices ? (
+        <div className="grid gap-2 pb-3">
+          {props.readOnly ? <Alert tone="info">{t("desktop.settings.offline")}</Alert> : null}
+          {restart === 0 ? null : (
+            <Alert
+              tone="warning"
+              action={
+                <Button
+                  size="xs"
+                  variant="outline"
+                  disabled={props.readOnly}
+                  onClick={handlers.restart}
+                >
+                  {t("desktop.settings.restart.button")}
+                </Button>
+              }
+            >
+              {view.restartBanner?.text ?? ""}
+            </Alert>
+          )}
+          {props.restartError === null ? null : <Alert tone="danger">{props.restartError}</Alert>}
+        </div>
+      ) : null}
       <FieldList {...props} view={view} />
     </>
   );

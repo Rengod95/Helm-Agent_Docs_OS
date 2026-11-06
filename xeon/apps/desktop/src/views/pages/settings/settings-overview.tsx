@@ -6,7 +6,7 @@ import type { SettingsView, ViewDiagnostic } from "@fresnel/client/settings";
 import type { ReactNode } from "react";
 import { useCommands } from "../../commands.ts";
 import { useSafeMode } from "../../safe-mode-context.ts";
-import { pathTermOf, type SettingsPathRow } from "./settings-file-paths.ts";
+import { pathTermOf, shortenHome, type SettingsPathRow } from "./settings-file-paths.ts";
 import { SettingSection } from "./settings-section.tsx";
 import { diagnosticIdOf, TONE_CLASS } from "./settings-text.ts";
 
@@ -52,7 +52,7 @@ export function OverviewPanels(props: {
                 mono
                 copyValue={row.path}
               >
-                {row.path}
+                {shortenHome(row.path)}
               </ListDescriptionRow>
             ))}
           </ListDescription>

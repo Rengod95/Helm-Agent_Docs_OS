@@ -399,6 +399,21 @@ function LiveCell(): ReactNode {
   );
 }
 
+/** "승인 n" 칸. 답을 기다리는 승인이 있을 때만 그린다(0이면 칸을 두지 않는다). 시안처럼 점은 없고 글만 있다 */
+function ApprovalsCell(props: { readonly count: number }): ReactNode {
+  const [open, setOpen] = useState(false);
+  return (
+    <StatusCell
+      cellId="approvals"
+      text={t("desktop.status.approvals", { count: props.count })}
+      title={t("desktop.status.cell.approvals.title")}
+      description={t("desktop.status.cell.approvals.description", { count: props.count })}
+      open={open}
+      onOpenChange={setOpen}
+    />
+  );
+}
+
 /**
  * 업데이트 칸(B-10, d02 `upd`). 내려받기와 설치 단계에서만 보인다. 확인 단계와 최신 상태는 설정 줄이 맡는다.
  * 문맥이 없으면(웹) 아무것도 그리지 않는다.
@@ -498,31 +513,12 @@ export function StatusBar(): ReactNode {
   const copy = async (): Promise<void> => {
     setCopied(await commands.copyDiagnostics());
   };
+  // 왼쪽은 엔진과 연결 칸이고, 그 뒤에 안전 모드·업데이트·다시 시작 줄·연결 실패 글·대화와 확장의 칸이 붙는다(시안 `startExtra`).
+  // 실패 단추는 자기 칸 옆에 둔다(시안 `inline`). 오른쪽은 진행 중과 승인 칸이다. 시안의 모델·사용량·목표·Helm 칸은
+  // 클라이언트에 값이 없어 아직 없고, 알림 칸은 개수를 거울이 들고 있지 않아 아직 없다.
   return (
     <footer className="statusbar" role="status">
       <EngineCell engine={engine} />
-      <LinkCell phase={banner.phase} attempt={banner.attempt} />
-      <SafeModeChip />
-      <UpdateCell />
-      <LiveCell />
-      {approvals > 0 ? (
-        <span className="warn">{t("desktop.status.approvals", { count: approvals })}</span>
-      ) : null}
-      <RestartLine reasons={restartNeeded} />
-      {connectError === null ? null : (
-        <span className="error">{t("desktop.status.connectFailed", { error: connectError })}</span>
-      )}
-      <StatusItems />
-      <StatusCells />
-      <span className="grow" />
-      <button
-        type="button"
-        onClick={() => {
-          commands.showScreen("settings");
-        }}
-      >
-        {t("desktop.status.settingsButton")}
-      </button>
       {engine?.kind === "failed" ? (
         <button
           type="button"
@@ -533,6 +529,7 @@ export function StatusBar(): ReactNode {
           {t("desktop.status.restartEngineButton")}
         </button>
       ) : null}
+      <LinkCell phase={banner.phase} attempt={banner.attempt} />
       {banner.phase === "failed" || connectError !== null ? (
         <>
           <button
@@ -560,6 +557,17 @@ export function StatusBar(): ReactNode {
           )}
         </>
       ) : null}
+      <SafeModeChip />
+      <UpdateCell />
+      <RestartLine reasons={restartNeeded} />
+      {connectError === null ? null : (
+        <span className="error">{t("desktop.status.connectFailed", { error: connectError })}</span>
+      )}
+      <StatusItems />
+      <StatusCells />
+      <span className="grow" />
+      <LiveCell />
+      {approvals > 0 ? <ApprovalsCell count={approvals} /> : null}
     </footer>
   );
 }
