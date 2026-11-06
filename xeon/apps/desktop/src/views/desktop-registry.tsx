@@ -67,7 +67,7 @@ function InboxScreen(): ReactNode {
   const [filter, setFilter] = useState<InboxFilter>("all");
   return (
     <section aria-labelledby="inbox-heading" className="flex min-h-0 flex-1 flex-col">
-      <header className="mx-auto flex min-h-10 w-full max-w-[46rem] flex-none flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1">
+      <header className="mx-auto flex min-h-10 w-full max-w-184 flex-none flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1">
         <h1 id="inbox-heading" className="m-0 me-1 font-ui text-ui-strong text-text-primary">
           {t("desktop.shell.nav.inbox")}
         </h1>
@@ -89,7 +89,7 @@ function InboxScreen(): ReactNode {
         </SegmentedControl>
       </header>
       <ScrollArea label={t("desktop.shell.nav.inbox")} className="min-h-0 flex-1">
-        <div className="mx-auto w-full max-w-[46rem] px-3 pb-4 pt-1">
+        <div className="mx-auto w-full max-w-184 px-3 pb-4 pt-1">
           <InboxApprovals show={filter} />
         </div>
       </ScrollArea>
