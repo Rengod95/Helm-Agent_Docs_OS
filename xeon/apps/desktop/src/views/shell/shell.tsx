@@ -188,7 +188,7 @@ function ShellFrame(props: ShellProps): ReactNode {
               id={STAGE_ID}
               tabIndex={-1}
               aria-label={t("desktop.shell.stage.label")}
-              className="flex min-w-0 flex-1 flex-col outline-none"
+              className="flex min-w-0 flex-1 flex-col pe-9 outline-none"
             >
               <Stage
                 registry={props.registry}
