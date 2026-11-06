@@ -1,19 +1,22 @@
-import { Alert, Badge, Button, FormLayoutSection, List, ListRow, Skeleton } from "@caustic/react";
+import { Alert, Badge, Button, EmptyState, List, ListRow, Tooltip } from "@caustic/react";
 import { t } from "@fresnel/client/i18n";
 import type { ToolsWebView, WebRecommendation, WebSection, WebToolRow } from "@fresnel/client";
 import type { ReactNode } from "react";
 import { TONE_CLASS } from "../settings/settings-text.ts";
 import { OrderedList, type OrderedItem } from "../shared/ordered-list.tsx";
+import { InfoTip, ListSkeleton, PanelBlock } from "../shared/panel-parts.tsx";
 import {
   displayOrderOf,
   pinnedOf,
   providerStateOf,
   type ProviderState,
 } from "./tools-web-model.ts";
-import { providerStateIdOf, recommendationStateIdOf } from "./tools-web-text.ts";
+import { originIdOf, providerStateIdOf, recommendationStateIdOf } from "./tools-web-text.ts";
 
 // 도구와 웹 화면(P-12)의 그림. 상태와 명령은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
-// 검색 순서만 바꿀 수 있다. 브라우저 순서와 가져오기 순서는 wire에 설정이 없어 읽기만 한다(§4.11, §10 19).
+// 그림은 목업 `p12-tools-web/app.tsx`를 따른다: 검색(순서 바꾸기), 브라우저, 가져오기, 권장.
+// 정상 상태는 글을 두지 않고, 키가 없거나 쓸 수 없는 행만 상태 글을 보인다. 설명은 정보 아이콘 뒤에 둔다.
+// 검색 순서만 바꿀 수 있다. 브라우저, 가져오기 순서는 wire에 설정이 없어 읽기만 한다(§4.11, §10 19).
 
 export type WebLoad =
   | { readonly status: "loading" }
@@ -33,15 +36,18 @@ export interface ToolsWebViewProps {
 export function ToolsWebPanelView(props: ToolsWebViewProps): ReactNode {
   const { load, offline } = props;
   if (load.status === "loading") {
-    if (offline) return <Alert tone="info">{t("desktop.tools.offline")}</Alert>;
+    if (offline) return <EmptyState size="sm" surface="none" title={t("desktop.tools.offline")} />;
     return (
-      <div className="flex flex-col gap-2">
-        <p role="status" className="text-ui-sm text-text-tertiary">
-          {t("desktop.tools.loading")}
-        </p>
-        <Skeleton height={40} />
-        <Skeleton height={40} />
-        <Skeleton height={40} />
+      <div className="grid gap-6">
+        <PanelBlock title={t("desktop.tools.search.title")}>
+          <ListSkeleton label={t("desktop.tools.loading")} />
+        </PanelBlock>
+        <PanelBlock title={t("desktop.tools.browse.title")}>
+          <ListSkeleton label={t("desktop.tools.loading")} />
+        </PanelBlock>
+        <PanelBlock title={t("desktop.tools.fetch.title")}>
+          <ListSkeleton label={t("desktop.tools.loading")} />
+        </PanelBlock>
       </div>
     );
   }
@@ -49,6 +55,7 @@ export function ToolsWebPanelView(props: ToolsWebViewProps): ReactNode {
     return (
       <Alert
         tone="danger"
+        layout="inline"
         action={
           <Button size="xs" variant="outline" onClick={props.onRetry}>
             {t("desktop.tools.retry")}
@@ -61,64 +68,81 @@ export function ToolsWebPanelView(props: ToolsWebViewProps): ReactNode {
   }
   const view = load.view;
   return (
-    <div className="flex flex-col gap-4">
+    <div className="grid gap-6">
       <SearchSection
         section={view.search}
         editable={!offline}
         saveError={props.saveError}
         onMove={props.onMove}
       />
-      <BrowseSection section={view.browse} />
+      <ReadOnlySection
+        title={t("desktop.tools.browse.title")}
+        emptyText={t("desktop.tools.browse.empty")}
+        rows={view.browse.rows}
+      />
+      <ReadOnlySection
+        title={t("desktop.tools.fetch.title")}
+        emptyText={t("desktop.tools.fetch.empty")}
+        rows={view.fetch.rows}
+      />
       <RecommendationSection items={view.recommendations} />
-      {view.noticesPending.length === 0 ? null : (
-        <p className="text-ui-sm text-text-tertiary">
-          {t("desktop.tools.notices", { count: view.noticesPending.length })}
-        </p>
-      )}
     </div>
   );
 }
 
-/** 행 하나의 글 조각: 상태, 현재, 고정, 고지, 가격 오래됨. 색과 글을 함께 쓴다 */
-function RowDetail(props: { readonly row: WebToolRow }): ReactNode {
-  const { row } = props;
+/** 출처 글(목업 행의 설명 줄). 내장, 플러그인, 사용자 설정 */
+function OriginText(props: { readonly row: WebToolRow }): ReactNode {
   return (
-    <span className="flex flex-wrap items-center gap-1">
-      {row.current ? (
-        <Badge className={TONE_CLASS.accent}>{t("desktop.tools.current")}</Badge>
-      ) : null}
-      {row.pinned ? (
-        <Badge className={TONE_CLASS.info}>{t("desktop.tools.pinned.badge")}</Badge>
-      ) : null}
-      {row.noticePending ? (
-        <Badge className={TONE_CLASS.warning}>{t("desktop.tools.notice.pending")}</Badge>
-      ) : null}
-      {row.price?.stale === true ? (
-        <Badge className={TONE_CLASS.warning}>{t("desktop.tools.price.stale")}</Badge>
-      ) : null}
-      <span className="text-ui-sm text-text-secondary">{row.note}</span>
+    <span className="font-mono text-mono-sm text-text-tertiary">
+      {t(originIdOf(props.row.origin))}
     </span>
   );
 }
 
-/** 목록 행의 글 조각과 끝 배지. 행 목록의 객체 안에서 요소를 직접 쓰지 않으려고 함수로 뺐다 */
-function detailOf(row: WebToolRow): ReactNode {
-  return <RowDetail row={row} />;
-}
-
-function endOf(row: WebToolRow): ReactNode {
-  return <StateBadge row={row} />;
-}
-
-const STATE_TONE: Readonly<Record<ProviderState, keyof typeof TONE_CLASS>> = {
-  ready: "success",
-  "needs-key": "warning",
-  unavailable: "neutral",
+const STATE_TEXT_CLASS: Readonly<Record<Exclude<ProviderState, "ready">, string>> = {
+  "needs-key": "text-warning-text",
+  unavailable: "text-danger-text",
 };
 
-function StateBadge(props: { readonly row: WebToolRow }): ReactNode {
-  const state = providerStateOf(props.row);
-  return <Badge className={TONE_CLASS[STATE_TONE[state]]}>{t(providerStateIdOf(state))}</Badge>;
+/**
+ * 행 끝(목업 End): 첫 사용 안내 배지, 상태 글(정상은 비움), 설명 아이콘, 가격 경고, 현재 배지.
+ * 가격 경고는 가격표 기준일을 툴팁으로 준다.
+ */
+function RowEnd(props: { readonly row: WebToolRow }): ReactNode {
+  const { row } = props;
+  const state = providerStateOf(row);
+  return (
+    <span className="flex items-center gap-3 text-ui-sm">
+      {row.noticePending ? (
+        <Badge size="sm" className={TONE_CLASS.info}>
+          {t("desktop.tools.notice.pending")}
+        </Badge>
+      ) : null}
+      {state === "ready" ? null : (
+        <span className={STATE_TEXT_CLASS[state]}>{t(providerStateIdOf(state))}</span>
+      )}
+      {state === "ready" ? null : <InfoTip text={row.note} />}
+      <span className="w-28 truncate text-end text-text-tertiary">
+        {row.price?.stale === true ? (
+          <Tooltip content={t("desktop.tools.price.asOf", { date: row.price.asOf })}>
+            <span
+              tabIndex={0}
+              className="rounded-sm text-warning-text outline-none focus-visible:focus-ring"
+            >
+              {t("desktop.tools.price.stale")}
+            </span>
+          </Tooltip>
+        ) : null}
+      </span>
+      <span className="w-10 text-end">
+        {row.current ? (
+          <Badge size="sm" className={TONE_CLASS.neutral}>
+            {t("desktop.tools.current")}
+          </Badge>
+        ) : null}
+      </span>
+    </span>
+  );
 }
 
 function SearchSection(props: {
@@ -133,67 +157,92 @@ function SearchSection(props: {
   const items: OrderedItem[] = displayOrderOf(section).flatMap((id) => {
     const row = byId.get(id);
     if (row === undefined) return [];
-    return [{ id, title: row.displayName, detail: detailOf(row), end: endOf(row) }];
+    const detail = <OriginText row={row} />;
+    const end = <RowEnd row={row} />;
+    return [{ id, title: row.displayName, detail, end }];
   });
+  const explanation =
+    pinned === null
+      ? t("desktop.tools.search.auto")
+      : t("desktop.tools.search.pinned", { id: pinned });
   return (
-    <FormLayoutSection title={t("desktop.tools.search.title")}>
-      {pinned === null ? (
-        <p className="text-ui-sm text-text-secondary">{t("desktop.tools.search.auto")}</p>
-      ) : (
-        <p className="text-ui-sm text-text-secondary">
-          {t("desktop.tools.search.pinned", { id: pinned })}
-        </p>
-      )}
+    <PanelBlock title={t("desktop.tools.search.title")} end={<InfoTip text={explanation} />}>
       {items.length === 0 ? (
-        <p className="text-ui-sm text-text-tertiary">{t("desktop.tools.search.empty")}</p>
+        <p className="m-0 py-0.5 text-ui text-text-secondary">{t("desktop.tools.search.empty")}</p>
       ) : (
         <OrderedList
           label={t("desktop.tools.order.label")}
           items={items}
           editable={props.editable}
+          numbered
           onMove={props.onMove}
         />
       )}
-      {props.saveError === null ? null : <Alert tone="danger">{props.saveError}</Alert>}
-    </FormLayoutSection>
+      {props.saveError === null ? null : (
+        <p role="alert" className="m-0 text-ui-sm text-danger-text">
+          {props.saveError}
+        </p>
+      )}
+    </PanelBlock>
   );
 }
 
-function BrowseSection(props: { readonly section: WebSection }): ReactNode {
-  const { rows } = props.section;
+/** 브라우저와 가져오기 묶음: 순서 바꾸기가 없는 읽기 목록이다 */
+function ReadOnlySection(props: {
+  readonly title: string;
+  readonly emptyText: string;
+  readonly rows: readonly WebToolRow[];
+}): ReactNode {
   return (
-    <FormLayoutSection title={t("desktop.tools.browse.title")}>
-      {rows.length === 0 ? (
-        <p className="text-ui-sm text-text-tertiary">{t("desktop.tools.browse.empty")}</p>
+    <PanelBlock title={props.title}>
+      {props.rows.length === 0 ? (
+        <p className="m-0 py-0.5 text-ui text-text-secondary">{props.emptyText}</p>
       ) : (
-        <List aria-label={t("desktop.tools.browse.title")}>
-          {rows.map((row) => (
+        <List aria-label={props.title} size="xs" variant="ghost">
+          {props.rows.map((row) => (
             <ListRow
               key={row.id}
               title={row.displayName}
-              description={<RowDetail row={row} />}
-              end={<StateBadge row={row} />}
+              description={<OriginText row={row} />}
+              end={<RowEnd row={row} />}
             />
           ))}
         </List>
       )}
-    </FormLayoutSection>
+    </PanelBlock>
+  );
+}
+
+const RECOMMEND_TEXT_CLASS: Readonly<Record<WebRecommendation["state"], string>> = {
+  "not-installed": "text-text-tertiary",
+  "needs-key": "text-warning-text",
+  ready: "text-text-secondary",
+  unavailable: "text-danger-text",
+};
+
+/** 권장 한 줄의 끝: 상태 글(정상은 비움)과 설명 아이콘 */
+function RecommendEnd(props: { readonly item: WebRecommendation }): ReactNode {
+  const { item } = props;
+  return (
+    <span className="flex items-center gap-3 text-ui-sm">
+      {item.state === "ready" ? null : (
+        <span className={RECOMMEND_TEXT_CLASS[item.state]}>
+          {t(recommendationStateIdOf(item.state))}
+        </span>
+      )}
+      {item.state === "ready" || item.hint === "" ? null : <InfoTip text={item.hint} />}
+    </span>
   );
 }
 
 function RecommendationSection(props: { readonly items: readonly WebRecommendation[] }): ReactNode {
   return (
-    <FormLayoutSection title={t("desktop.tools.recommend.title")}>
-      <List aria-label={t("desktop.tools.recommend.title")}>
+    <PanelBlock title={t("desktop.tools.recommend.title")}>
+      <List aria-label={t("desktop.tools.recommend.title")} size="xs" variant="ghost">
         {props.items.map((item) => (
-          <ListRow
-            key={item.providerId}
-            title={item.label}
-            description={item.hint === "" ? undefined : item.hint}
-            end={<Badge>{t(recommendationStateIdOf(item.state))}</Badge>}
-          />
+          <ListRow key={item.providerId} title={item.label} end={<RecommendEnd item={item} />} />
         ))}
       </List>
-    </FormLayoutSection>
+    </PanelBlock>
   );
 }

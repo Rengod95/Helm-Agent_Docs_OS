@@ -3,9 +3,12 @@ import {
   Badge,
   Button,
   Dialog,
-  DialogAction,
   DialogClose,
+  EmptyState,
+  IconButton,
   Input,
+  Menu,
+  MenuItem,
   NumberField,
   Progress,
   Select,
@@ -14,12 +17,13 @@ import {
   Switch,
   TagInput,
 } from "@caustic/react";
-import { TriangleAlert } from "@caustic/react/icons";
+import { Ellipsis, Lock, TriangleAlert, X } from "@caustic/react/icons";
 import { activeLocale, t } from "@fresnel/client/i18n";
 import type { AccountEntry, RateLimitEntry, RotationState } from "@fresnel/client";
 import type { UsageGauge, UsageUnit } from "@fresnel/contracts/wire";
 import type { ReactNode } from "react";
 import { TONE_CLASS } from "../settings/settings-text.ts";
+import { InfoTip, PanelBlock } from "../shared/panel-parts.tsx";
 import { OrderedList, type OrderedItem } from "../shared/ordered-list.tsx";
 import {
   ON_LIMIT_ACTIONS,
@@ -38,7 +42,6 @@ import {
   onLimitIdOf,
   resetTextOf,
   roleIdOf,
-  rotationStateIdOf,
   unitIdOf,
   windowIdOf,
   type FieldName,
@@ -46,6 +49,7 @@ import {
 
 // 계정과 제공자, 예산과 한도 화면(P-11)의 그림. 상태는 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
 // 값은 `providers-screen.tsx`가 검사해서 넘기고, 이 그림은 보여 주고 콜백을 부를 뿐이다.
+// 그림은 목업 `p11-accounts/parts.tsx`와 `app.tsx`를 따른다. 설명은 정보 아이콘 뒤에, 경고와 오류는 글로 보인다.
 
 /** 읽을 수 없는 값의 안내. 그 항목은 고칠 수 없고 파일로 본다 */
 export function UnreadableNote(props: { readonly message: string }): ReactNode {
@@ -56,13 +60,23 @@ export function UnreadableNote(props: { readonly message: string }): ReactNode {
   );
 }
 
-/** 칸 검사 실패의 한 줄. 칸 이름과 함께 말한다 */
+/** 칸 검사 실패의 한 줄. 칸 이름과 함께 말한다(목업의 칸 아래 오류 글) */
 function ErrorNote(props: { readonly message: string | null }): ReactNode {
   if (props.message === null) return null;
   return (
-    <Alert tone="warning" variant="ghost" size="sm">
+    <p role="alert" className="m-0 text-ui-sm text-danger-text">
       {props.message}
-    </Alert>
+    </p>
+  );
+}
+
+/** 잠긴 이유의 한 줄(목업 LockNote): 자물쇠 아이콘과 글 하나 */
+function LockLine(props: { readonly text: string }): ReactNode {
+  return (
+    <p className="m-0 flex min-w-0 items-center gap-1.5 text-ui-sm text-text-tertiary">
+      <Lock aria-hidden className="size-icon-xs flex-none" />
+      <span>{props.text}</span>
+    </p>
   );
 }
 
@@ -87,36 +101,29 @@ export interface UsagePanelViewProps {
   readonly onRetry: () => void;
 }
 
-/** 사용량 (이 대화) 패널(P-11 맨 위 블록). 게이지마다 caustic `Progress`와 글을 함께 그린다 */
+/** 사용량 패널(P-11 맨 위 블록, 목업 UsageSection). 게이지마다 막대와 글을 한 줄에 그린다 */
 export function UsagePanelView(props: UsagePanelViewProps): ReactNode {
   return (
-    <div className="flex flex-col gap-2" data-slot="usage-panel">
-      <span className="text-ui-strong text-text-primary">{t("desktop.providers.usage.title")}</span>
+    <PanelBlock title={t("desktop.providers.usage.title")}>
       <UsageBody {...props} />
-    </div>
+    </PanelBlock>
   );
 }
 
 function UsageBody(props: UsagePanelViewProps): ReactNode {
   const { load } = props;
   if (!props.hasThread) {
-    return <p className="text-ui-sm text-text-tertiary">{t("desktop.providers.usage.noThread")}</p>;
+    return <EmptyState size="sm" surface="none" title={t("desktop.providers.usage.noThread")} />;
   }
-  if (props.offline) return <Alert tone="info">{t("desktop.providers.usage.offline")}</Alert>;
-  if (load.status === "loading") {
-    return (
-      <div className="flex flex-col gap-2">
-        <p role="status" className="text-ui-sm text-text-tertiary">
-          {t("desktop.providers.usage.loading")}
-        </p>
-        <Skeleton height={40} />
-      </div>
-    );
+  if (props.offline) {
+    return <EmptyState size="sm" surface="none" title={t("desktop.providers.usage.offline")} />;
   }
+  if (load.status === "loading") return <UsageSkeleton />;
   if (load.status === "failed") {
     return (
       <Alert
         tone="danger"
+        layout="inline"
         action={
           <Button size="xs" variant="outline" onClick={props.onRetry}>
             {t("desktop.providers.usage.retry")}
@@ -128,10 +135,10 @@ function UsageBody(props: UsagePanelViewProps): ReactNode {
     );
   }
   if (load.gauges.length === 0) {
-    return <p className="text-ui-sm text-text-tertiary">{t("desktop.providers.usage.empty")}</p>;
+    return <EmptyState size="sm" surface="none" title={t("desktop.providers.usage.empty")} />;
   }
   return (
-    <ul className="flex flex-col gap-3">
+    <ul className="m-0 grid list-none gap-1 p-0">
       {load.gauges.map((gauge) => (
         <li key={gauge.id}>
           <UsageRow gauge={gauge} />
@@ -141,14 +148,29 @@ function UsageBody(props: UsagePanelViewProps): ReactNode {
   );
 }
 
+/** 읽는 중의 자리(목업 d03 D-loading): 줄 세 개. 읽는 중 글은 이름으로만 남는다 */
+function UsageSkeleton(): ReactNode {
+  return (
+    <div
+      role="status"
+      aria-label={t("desktop.providers.usage.loading")}
+      className="grid gap-3 py-1"
+    >
+      <Skeleton width="40%" height={12} />
+      <Skeleton width="52%" height={12} />
+      <Skeleton width="28%" height={12} />
+    </div>
+  );
+}
+
 function amountTextOf(unit: UsageUnit, amount: number): string {
   const ref = amountRefOf(unit, amount);
   return t(ref.id, ref.args);
 }
 
 /**
- * 게이지 한 줄. 이름과 단위, 쓴 양, 막대, 한도와 재설정 시각(알 때만)을 보인다. 막대의 이름은 스크린 리더 문장이다
- * ("anthropic 토큰 41천, 한도 모름"). 한도와 재설정 시각을 모두 모르면 그 사실을 한 문장으로 말한다.
+ * 게이지 한 줄(목업 Gauge). 이름, 막대, 쓴 양과 한도 글을 한 줄에 둔다. 한도를 모르면 막대 대신 빈 막대 자리와
+ * "한도 모름"을 보인다(숫자를 지어내지 않는다). 재설정 시각은 알 때만 정보 아이콘 뒤에 있다. 줄의 이름은 스크린 리더 문장이다.
  */
 function UsageRow(props: { readonly gauge: UsageGauge }): ReactNode {
   const { gauge } = props;
@@ -162,7 +184,7 @@ function UsageRow(props: { readonly gauge: UsageGauge }): ReactNode {
   const value = amountTextOf(gauge.unit, gauge.used);
   const limitText =
     gauge.limit === null
-      ? null
+      ? t("desktop.providers.usage.limitUnknown")
       : t("desktop.providers.usage.limit", { limit: amountTextOf(gauge.unit, gauge.limit) });
   const resetText =
     gauge.resetsAt === null
@@ -170,28 +192,25 @@ function UsageRow(props: { readonly gauge: UsageGauge }): ReactNode {
       : t("desktop.providers.usage.resets", {
           time: resetTextOf(gauge.resetsAt, activeLocale()),
         });
-  const sentence = t("desktop.providers.usage.sentence", {
-    label,
-    value,
-    limit: limitText ?? t("desktop.providers.usage.limitUnknown"),
-  });
-  const details = [limitText, resetText].filter((text): text is string => text !== null);
+  const sentence = t("desktop.providers.usage.sentence", { label, value, limit: limitText });
   const fraction = usageFractionOf(gauge);
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-ui-sm text-text-primary">{label}</span>
-        <span className="text-ui-sm text-text-secondary">{value}</span>
-      </div>
-      <Progress
-        size="sm"
-        value={fraction ?? undefined}
-        indeterminate={fraction === null}
-        label={sentence}
-      />
-      <p className="text-ui-sm text-text-tertiary">
-        {details.length === 0 ? t("desktop.providers.usage.unknown") : details.join(" · ")}
-      </p>
+    <div
+      role="group"
+      aria-label={sentence}
+      className="flex min-w-0 items-center gap-3 py-1 text-ui"
+    >
+      <span className="w-36 flex-none truncate text-text-secondary">{label}</span>
+      {fraction === null ? (
+        <span aria-hidden className="h-1 min-w-0 flex-1 rounded-full bg-neutral-soft" />
+      ) : (
+        <Progress className="min-w-0 flex-1" value={fraction} size="sm" decorative />
+      )}
+      <span className="flex flex-none items-center gap-2 tabular-nums">
+        <span className="font-mono text-mono text-text-primary">{value}</span>
+        <span className="text-ui-sm text-text-tertiary">{limitText}</span>
+        {resetText === null ? null : <InfoTip text={resetText} />}
+      </span>
     </div>
   );
 }
@@ -215,67 +234,63 @@ export interface RotationRowViewProps {
   readonly onCancel: () => void;
 }
 
-const ROTATION_TONE: Readonly<Record<RotationState, keyof typeof TONE_CLASS>> = {
-  off: "neutral",
-  needsNotice: "warning",
-  on: "success",
-};
-
 /**
- * 계정 회전 행(P-11). 스위치는 회전이 도는 `on`에서만 켜져 있다. 고지에 동의하지 않은 채 켜면
- * 위험 확인 대화 상자(caustic `Dialog kind="alert"`)가 먼저 뜬다.
+ * 계정 회전 행(P-11, 목업 계정 회전 줄). 글 제목, 스위치, 그리고 회전이 도는 `on`에서만 "위험 확인함" 배지다.
+ * 고지에 동의하지 않은 채 켜면 위험 확인 대화 상자(caustic `Dialog kind="alert"`)가 먼저 뜬다.
  */
 export function RotationRowView(props: RotationRowViewProps): ReactNode {
   const { state, editable } = props;
   const title = t("desktop.providers.rotation.title");
   return (
-    <div data-slot="rotation-row" className="flex flex-col gap-2 py-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-ui-strong text-text-primary">{title}</span>
-        {state === null ? null : (
-          <Badge className={TONE_CLASS[ROTATION_TONE[state]]}>{t(rotationStateIdOf(state))}</Badge>
-        )}
-        <Switch
-          aria-label={title}
-          checked={state === "on"}
-          disabled={!editable}
-          onCheckedChange={(next) => {
-            props.onToggle(next);
-          }}
-        />
-      </div>
+    <div data-slot="rotation-row" className="grid gap-1.5 py-3">
+      <span className="text-ui font-medium text-text-primary">{title}</span>
+      <Switch
+        size="sm"
+        aria-label={title}
+        checked={state === "on"}
+        disabled={!editable}
+        onCheckedChange={(next) => {
+          props.onToggle(next);
+        }}
+      />
+      {state === "on" ? (
+        <p className="m-0 flex items-center gap-2 text-ui-sm text-text-tertiary">
+          <Badge size="sm" className={TONE_CLASS.warning} icon={<TriangleAlert />}>
+            {t("desktop.providers.rotation.acknowledged")}
+          </Badge>
+        </p>
+      ) : null}
       {state === "needsNotice" ? (
         <Alert tone="warning" variant="ghost" size="sm">
           {t("desktop.providers.rotation.warning")}
         </Alert>
       ) : null}
-      {props.lockedText === null ? null : (
-        <p className="text-ui-sm text-text-tertiary">{props.lockedText}</p>
-      )}
+      {props.lockedText === null ? null : <LockLine text={props.lockedText} />}
       {props.error === null ? null : (
-        <Alert tone="warning" variant="ghost" size="sm">
+        <p role="alert" className="m-0 text-ui-sm text-danger-text">
           {props.error}
-        </Alert>
+        </p>
       )}
       <Dialog
         kind="alert"
+        size="sm"
+        tone="warning"
         open={props.asking}
         onOpenChange={(open) => {
           if (!open) props.onCancel();
         }}
-        icon={<TriangleAlert />}
         title={t("desktop.providers.rotation.confirm.title")}
         description={props.notice}
         footer={
           <>
             <DialogClose asChild>
-              <Button variant="outline" size="sm" autoFocus>
+              <Button size="sm" variant="outline" autoFocus>
                 {t("desktop.providers.rotation.confirm.cancel")}
               </Button>
             </DialogClose>
-            <DialogAction onClick={props.onConfirm}>
+            <Button size="sm" variant="solid" onClick={props.onConfirm}>
               {t("desktop.providers.rotation.confirm.accept")}
-            </DialogAction>
+            </Button>
           </>
         }
       />
@@ -312,15 +327,17 @@ export interface AccountPoolViewProps {
   readonly onExpand: (provider: string) => void;
   readonly onMove: (provider: string, orderedIds: readonly string[]) => void;
   readonly onPriority: (entry: AccountEntry, priority: number) => void;
+  /** 예비율 칸을 바꿨다. 검사는 화면이 한다(`onPriority`와 같은 길) */
+  readonly onReserve: (entry: AccountEntry, reservePct: number) => void;
   readonly onRemove: (entry: AccountEntry) => void;
 }
 
 export function AccountPoolView(props: AccountPoolViewProps): ReactNode {
   const { pools, editable } = props;
   return (
-    <div className="flex flex-col gap-3">
+    <div className="grid gap-4">
       {pools.length === 0 ? (
-        <p className="text-ui-sm text-text-tertiary">{t("desktop.providers.pool.empty")}</p>
+        <EmptyState size="sm" surface="none" title={t("desktop.providers.pool.empty")} />
       ) : (
         pools.map((pool) => <PoolGroup key={pool.provider} pool={pool} {...props} />)
       )}
@@ -341,41 +358,19 @@ function PoolGroup(props: AccountPoolViewProps & { readonly pool: ProviderPool }
   const items: OrderedItem[] = fold.shown.map((entry) => ({
     id: entry.accountId,
     title: entry.accountId,
-    detail: t("desktop.providers.pool.detail", {
-      credential: entry.credential,
-      reservePct: entry.reservePct,
-    }),
+    detail: <span className="font-mono text-mono-sm text-text-tertiary">{entry.credential}</span>,
     end: (
-      <span className="flex items-center gap-2">
-        <NumberField
-          appearance="stepper"
-          commitMode="release"
-          aria-label={t("desktop.providers.field.priority")}
-          value={entry.priority}
-          min={0}
-          max={1000}
-          step={1}
-          disabled={!editable}
-          onValueChange={(next) => {
-            props.onPriority(entry, next);
-          }}
-        />
-        <Button
-          size="xs"
-          variant="outline"
-          disabled={!editable}
-          onClick={() => {
-            props.onRemove(entry);
-          }}
-        >
-          {t("desktop.providers.pool.remove")}
-        </Button>
-      </span>
+      <AccountCells
+        entry={entry}
+        editable={editable}
+        onPriority={props.onPriority}
+        onReserve={props.onReserve}
+        onRemove={props.onRemove}
+      />
     ),
   }));
   return (
-    <div className="flex flex-col gap-2">
-      <span className="text-ui-strong text-text-primary">{pool.provider}</span>
+    <PanelBlock title={pool.provider}>
       <OrderedList
         label={t("desktop.providers.pool.listLabel", { provider: pool.provider })}
         items={items}
@@ -391,7 +386,7 @@ function PoolGroup(props: AccountPoolViewProps & { readonly pool: ProviderPool }
           </span>
           <Button
             size="xs"
-            variant="outline"
+            variant="ghost"
             onClick={() => {
               props.onExpand(pool.provider);
             }}
@@ -400,7 +395,77 @@ function PoolGroup(props: AccountPoolViewProps & { readonly pool: ProviderPool }
           </Button>
         </div>
       )}
-    </div>
+    </PanelBlock>
+  );
+}
+
+/** 계정 한 줄의 끝 칸(목업 AccountGrid의 우선, 예비 %, 메뉴). 메뉴에는 지우기만 있다 */
+function AccountCells(props: {
+  readonly entry: AccountEntry;
+  readonly editable: boolean;
+  readonly onPriority: (entry: AccountEntry, priority: number) => void;
+  readonly onReserve: (entry: AccountEntry, reservePct: number) => void;
+  readonly onRemove: (entry: AccountEntry) => void;
+}): ReactNode {
+  const { entry, editable } = props;
+  return (
+    <span className="flex items-center gap-2">
+      <span className="text-ui-sm text-text-tertiary">{t("desktop.providers.field.priority")}</span>
+      <NumberField
+        size="xs"
+        containerClassName="w-24"
+        aria-label={`${entry.accountId} ${t("desktop.providers.field.priority")}`}
+        value={entry.priority}
+        min={0}
+        max={1000}
+        step={1}
+        commitMode="release"
+        disabled={!editable}
+        onValueChange={(next) => {
+          props.onPriority(entry, next);
+        }}
+      />
+      <span className="text-ui-sm text-text-tertiary">
+        {t("desktop.providers.field.reservePct")}
+      </span>
+      <NumberField
+        size="xs"
+        unit="%"
+        containerClassName="w-24"
+        aria-label={`${entry.accountId} ${t("desktop.providers.field.reservePct")}`}
+        value={entry.reservePct}
+        min={0}
+        max={100}
+        step={1}
+        commitMode="release"
+        disabled={!editable}
+        onValueChange={(next) => {
+          props.onReserve(entry, next);
+        }}
+      />
+      <Menu
+        align="end"
+        trigger={
+          <IconButton
+            size="xs"
+            variant="ghost"
+            label={t("desktop.providers.pool.menu", { account: entry.accountId })}
+            disabled={!editable}
+          >
+            <Ellipsis />
+          </IconButton>
+        }
+      >
+        <MenuItem
+          tone="danger"
+          onSelect={() => {
+            props.onRemove(entry);
+          }}
+        >
+          {t("desktop.providers.pool.remove")}
+        </MenuItem>
+      </Menu>
+    </span>
   );
 }
 
@@ -412,66 +477,70 @@ function AccountAddForm(props: {
 }): ReactNode {
   const { draft, editable, onDraft } = props;
   return (
-    <div className="flex flex-col gap-2">
-      <span className="text-ui-sm text-text-secondary">{t("desktop.providers.pool.add")}</span>
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          aria-label={t("desktop.providers.field.provider")}
-          placeholder={t("desktop.providers.field.provider")}
-          value={draft.provider}
-          disabled={!editable}
-          onValueChange={(next) => {
-            onDraft({ ...draft, provider: next });
-          }}
-        />
-        <Input
-          aria-label={t("desktop.providers.field.accountId")}
-          placeholder={t("desktop.providers.field.accountId")}
-          value={draft.accountId}
-          disabled={!editable}
-          onValueChange={(next) => {
-            onDraft({ ...draft, accountId: next });
-          }}
-        />
-        <Input
-          aria-label={t("desktop.providers.field.credential")}
-          placeholder="secret://"
-          value={draft.credential}
-          disabled={!editable}
-          onValueChange={(next) => {
-            onDraft({ ...draft, credential: next });
-          }}
-        />
-        <NumberField
-          appearance="stepper"
-          commitMode="release"
-          aria-label={t("desktop.providers.field.priority")}
-          value={draft.priority}
-          min={0}
-          max={1000}
-          step={1}
-          disabled={!editable}
-          onValueChange={(next) => {
-            onDraft({ ...draft, priority: next });
-          }}
-        />
-        <NumberField
-          appearance="stepper"
-          commitMode="release"
-          aria-label={t("desktop.providers.field.reservePct")}
-          value={draft.reservePct}
-          min={0}
-          max={100}
-          step={1}
-          disabled={!editable}
-          onValueChange={(next) => {
-            onDraft({ ...draft, reservePct: next });
-          }}
-        />
-        <Button size="sm" variant="outline" disabled={!editable} onClick={props.onAdd}>
-          {t("desktop.providers.pool.add")}
-        </Button>
-      </div>
+    <div className="flex flex-wrap items-center gap-2">
+      <Input
+        size="sm"
+        aria-label={t("desktop.providers.field.provider")}
+        placeholder={t("desktop.providers.field.provider")}
+        value={draft.provider}
+        disabled={!editable}
+        onValueChange={(next) => {
+          onDraft({ ...draft, provider: next });
+        }}
+      />
+      <Input
+        size="sm"
+        aria-label={t("desktop.providers.field.accountId")}
+        placeholder={t("desktop.providers.field.accountId")}
+        value={draft.accountId}
+        disabled={!editable}
+        onValueChange={(next) => {
+          onDraft({ ...draft, accountId: next });
+        }}
+      />
+      <Input
+        size="sm"
+        aria-label={t("desktop.providers.field.credential")}
+        placeholder="secret://"
+        value={draft.credential}
+        disabled={!editable}
+        onValueChange={(next) => {
+          onDraft({ ...draft, credential: next });
+        }}
+      />
+      <NumberField
+        size="sm"
+        appearance="stepper"
+        containerClassName="w-36"
+        commitMode="release"
+        aria-label={t("desktop.providers.field.priority")}
+        value={draft.priority}
+        min={0}
+        max={1000}
+        step={1}
+        disabled={!editable}
+        onValueChange={(next) => {
+          onDraft({ ...draft, priority: next });
+        }}
+      />
+      <NumberField
+        size="sm"
+        appearance="stepper"
+        containerClassName="w-36"
+        commitMode="release"
+        aria-label={t("desktop.providers.field.reservePct")}
+        value={draft.reservePct}
+        min={0}
+        max={100}
+        step={1}
+        disabled={!editable}
+        onValueChange={(next) => {
+          onDraft({ ...draft, reservePct: next });
+        }}
+      />
+      <Button size="xs" variant="ghost" disabled={!editable} onClick={props.onAdd}>
+        {t("desktop.providers.pool.add")}
+      </Button>
     </div>
   );
 }
@@ -489,84 +558,123 @@ export interface RateLimitViewProps {
   readonly onRemove: (provider: string) => void;
 }
 
+/** 레이트 리밋 표(목업 RateRow). 머리 줄과 provider마다 한 줄: 간격, 한도 도달 시, 최대 대기, 지우기 */
 export function RateLimitView(props: RateLimitViewProps): ReactNode {
   const { rows, editable } = props;
   return (
-    <div className="flex flex-col gap-3">
-      <p className="text-ui-sm text-text-tertiary">{t("desktop.providers.rate.defaultNote")}</p>
+    <div className="grid gap-2">
       {rows.length === 0 ? (
-        <p className="text-ui-sm text-text-tertiary">{t("desktop.providers.rate.empty")}</p>
+        <EmptyState size="sm" surface="none" title={t("desktop.providers.rate.empty")} />
       ) : (
-        <ul className="flex flex-col gap-2">
+        <div
+          role="table"
+          aria-label={t("desktop.providers.rate.table")}
+          className="grid overflow-x-auto"
+        >
+          <div role="row" className="flex items-center gap-2 pb-1 text-ui-sm text-text-tertiary">
+            <span role="columnheader" className="w-28 flex-none">
+              {t("desktop.providers.field.provider")}
+            </span>
+            <span role="columnheader" className="w-32 flex-none">
+              {t("desktop.providers.field.minIntervalMs")}
+            </span>
+            <span role="columnheader" className="w-28 flex-none">
+              {t("desktop.providers.field.onLimit")}
+            </span>
+            <span role="columnheader" className="w-36 flex-none">
+              {t("desktop.providers.field.maxWaitMs")}
+            </span>
+            <span role="columnheader" className="w-7 flex-none">
+              <span className="sr-only">{t("desktop.providers.rate.remove")}</span>
+            </span>
+          </div>
           {rows.map((row) => (
-            <li key={row.provider} className="flex flex-wrap items-center gap-2">
-              <span className="w-32 text-ui-strong text-text-primary">{row.provider}</span>
-              <NumberField
-                appearance="stepper"
-                commitMode="release"
-                aria-label={`${row.provider} ${t("desktop.providers.field.minIntervalMs")}`}
-                value={row.policy.minIntervalMs}
-                min={0}
-                max={3_600_000}
-                step={100}
-                disabled={!editable}
-                onValueChange={(next) => {
-                  props.onChange(row.provider, { minIntervalMs: next });
-                }}
-              />
-              <Select
-                aria-label={`${row.provider} ${t("desktop.providers.field.onLimit")}`}
-                value={row.policy.onLimit}
-                disabled={!editable}
-                onValueChange={(next) => {
-                  const action = ON_LIMIT_ACTIONS.find((candidate) => candidate === next);
-                  if (action !== undefined) props.onChange(row.provider, { onLimit: action });
-                }}
+            <div key={row.provider} role="row" className="flex items-center gap-2 py-0.5">
+              <span
+                role="cell"
+                className="w-28 flex-none truncate font-mono text-mono text-text-primary"
               >
-                {ON_LIMIT_ACTIONS.map((action) => (
-                  <SelectOption key={action} value={action}>
-                    {t(onLimitIdOf(action))}
-                  </SelectOption>
-                ))}
-              </Select>
-              <NumberField
-                appearance="stepper"
-                commitMode="release"
-                aria-label={`${row.provider} ${t("desktop.providers.field.maxWaitMs")}`}
-                value={row.policy.maxWaitMs}
-                min={0}
-                max={3_600_000}
-                step={1000}
-                disabled={!editable}
-                onValueChange={(next) => {
-                  props.onChange(row.provider, { maxWaitMs: next });
-                }}
-              />
-              <Button
+                {row.provider}
+              </span>
+              <span role="cell" className="w-32 flex-none">
+                <NumberField
+                  size="xs"
+                  unit="ms"
+                  commitMode="release"
+                  aria-label={`${row.provider} ${t("desktop.providers.field.minIntervalMs")}`}
+                  value={row.policy.minIntervalMs}
+                  min={0}
+                  max={3_600_000}
+                  step={100}
+                  disabled={!editable}
+                  onValueChange={(next) => {
+                    props.onChange(row.provider, { minIntervalMs: next });
+                  }}
+                />
+              </span>
+              <span role="cell" className="w-28 flex-none">
+                <Select
+                  size="xs"
+                  className="w-full"
+                  aria-label={`${row.provider} ${t("desktop.providers.field.onLimit")}`}
+                  value={row.policy.onLimit}
+                  disabled={!editable}
+                  onValueChange={(next) => {
+                    const action = ON_LIMIT_ACTIONS.find((candidate) => candidate === next);
+                    if (action !== undefined) props.onChange(row.provider, { onLimit: action });
+                  }}
+                >
+                  {ON_LIMIT_ACTIONS.map((action) => (
+                    <SelectOption key={action} value={action}>
+                      {t(onLimitIdOf(action))}
+                    </SelectOption>
+                  ))}
+                </Select>
+              </span>
+              <span role="cell" className="w-36 flex-none">
+                <NumberField
+                  size="xs"
+                  unit="ms"
+                  commitMode="release"
+                  aria-label={`${row.provider} ${t("desktop.providers.field.maxWaitMs")}`}
+                  value={row.policy.maxWaitMs}
+                  min={0}
+                  max={3_600_000}
+                  step={1000}
+                  disabled={!editable}
+                  onValueChange={(next) => {
+                    props.onChange(row.provider, { maxWaitMs: next });
+                  }}
+                />
+              </span>
+              <IconButton
                 size="xs"
-                variant="outline"
+                variant="ghost"
+                label={`${row.provider} ${t("desktop.providers.rate.remove")}`}
                 disabled={!editable}
                 onClick={() => {
                   props.onRemove(row.provider);
                 }}
               >
-                {t("desktop.providers.rate.remove")}
-              </Button>
-            </li>
+                <X />
+              </IconButton>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
       <div className="flex flex-wrap items-center gap-2">
         <Input
+          size="sm"
           aria-label={t("desktop.providers.field.provider")}
           placeholder={t("desktop.providers.field.provider")}
           value={props.draftProvider}
           disabled={!editable}
           onValueChange={props.onDraftProvider}
         />
-        <Button size="sm" variant="outline" disabled={!editable} onClick={props.onAdd}>
+        <Button size="xs" variant="ghost" disabled={!editable} onClick={props.onAdd}>
           {t("desktop.providers.rate.add")}
         </Button>
+        <InfoTip text={t("desktop.providers.rate.defaultNote")} />
       </div>
       <ErrorNote message={props.error} />
     </div>
@@ -587,6 +695,7 @@ function RoleRow(props: {
     <label className="flex flex-wrap items-center gap-2">
       <span className="w-28 text-ui-sm text-text-secondary">{t(roleIdOf(role))}</span>
       <Input
+        size="sm"
         aria-label={t(roleIdOf(role))}
         placeholder={t("desktop.providers.roles.default")}
         defaultValue={props.value}
@@ -639,7 +748,7 @@ export function ChainMapView(props: ChainMapViewProps): ReactNode {
   return (
     <div className="flex flex-col gap-2">
       {empty ? (
-        <p className="text-ui-sm text-text-tertiary">{t("desktop.providers.chain.empty")}</p>
+        <EmptyState size="sm" surface="none" title={t("desktop.providers.chain.empty")} />
       ) : null}
       {ROLE_IDS.map((role) => (
         <div key={role} className="flex flex-wrap items-start gap-2">

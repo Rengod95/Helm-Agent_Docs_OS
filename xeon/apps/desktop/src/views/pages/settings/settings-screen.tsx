@@ -393,9 +393,6 @@ export function SettingsPage(props: {
     retry: () => {
       if (controller !== null) detach(controller.load(), rethrow);
     },
-    back: () => {
-      commands.showScreen("chat");
-    },
     fields,
     promptSave: () => {
       const move = pending;

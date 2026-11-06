@@ -1,94 +1,56 @@
 import { t } from "@fresnel/client/i18n";
-import { Alert, Badge, Button } from "@caustic/react";
-import { useId, type ReactNode } from "react";
+import { Button, ListDescriptionRow, Skeleton } from "@caustic/react";
+import type { ReactNode } from "react";
 import { InfoTip } from "../../craft/info-tip.tsx";
-import {
-  clientRowOf,
-  clientsShown,
-  type ClientRow,
-  type ClientsState,
-} from "./connection-model.ts";
+import { clientRowOf, clientsShown, type ClientsState } from "./connection-model.ts";
 import { transportMessageOf } from "./connection-text.ts";
 
-// 상태 카드 안의 "연결된 클라이언트" 목록(W-12). 목록은 `host.clients`가 준다. 연결이 없거나 엔진이 이 메서드를 모르면
-// 자리를 숨기고(연결 수 줄과 오프라인 경고가 알린다), 읽지 못하면 작은 경고와 다시 시도를 보인다.
-// 이름이 없는 연결은 전송 종류 이름으로 부른다.
+// 상태 목록의 "연결된 클라이언트" 한 줄(W-12). 목록은 `host.clients`가 준다. 연결이 없거나 엔진이 이 메서드를 모르면 줄을 숨기고,
+// 읽지 못하면 줄 안에 경고와 다시 시도를 보인다. 값은 이름 목록이고 이 앱은 "이 앱"으로 부른다. 이름이 없으면 전송 종류 이름이다.
+// 설명은 정보 아이콘 뒤에 둔다.
 
-export interface ConnectedClientsProps {
+interface ConnectedClientsRowProps {
   readonly state: ClientsState;
   readonly onRetry: () => void;
 }
 
-export function ConnectedClients(props: ConnectedClientsProps): ReactNode {
+export function ConnectedClientsRow(props: ConnectedClientsRowProps): ReactNode {
   const { state, onRetry } = props;
-  const headingId = useId();
   if (!clientsShown(state)) return null;
+  const term = (
+    <span className="inline-flex items-center gap-1">
+      {t("desktop.connection.clients.heading")}
+      <InfoTip text={t("desktop.connection.clients.info")} />
+    </span>
+  );
   return (
-    <section aria-labelledby={headingId} className="grid gap-2">
-      <div className="flex items-center gap-1">
-        <h3 id={headingId} className="text-ui-strong text-text-primary">
-          {t("desktop.connection.clients.heading")}
-        </h3>
-        <InfoTip text={t("desktop.connection.clients.info")} />
-      </div>
+    <ListDescriptionRow term={term}>
       {state.kind === "loading" ? (
-        <p role="status" className="text-ui-sm text-text-tertiary">
-          {t("desktop.connection.clients.loading")}
-        </p>
+        <span role="status" className="inline-flex items-center gap-2">
+          <Skeleton width="8rem" height={12} />
+          <span className="sr-only">{t("desktop.connection.clients.loading")}</span>
+        </span>
       ) : null}
       {state.kind === "failed" ? (
-        <Alert
-          tone="danger"
-          size="sm"
-          action={
-            <Button size="xs" variant="outline" onClick={onRetry}>
-              {t("desktop.connection.retry")}
-            </Button>
-          }
-        >
+        <span role="alert" className="inline-flex flex-wrap items-center gap-2 text-danger-text">
           {t("desktop.connection.clients.loadFailed")}
-        </Alert>
+          <Button size="xs" variant="outline" onClick={onRetry}>
+            {t("desktop.connection.retry")}
+          </Button>
+        </span>
       ) : null}
-      {state.kind === "ready" && state.clients.length === 0 ? (
-        <p className="text-ui-sm text-text-tertiary">{t("desktop.connection.clients.empty")}</p>
-      ) : null}
-      {state.kind === "ready" && state.clients.length > 0 ? (
-        <ul className="grid gap-2">
-          {state.clients.map((client) => {
-            const row = clientRowOf(client);
-            return <ClientItem key={row.id} row={row} />;
-          })}
-        </ul>
-      ) : null}
-    </section>
-  );
-}
-
-function ClientItem(props: { readonly row: ClientRow }): ReactNode {
-  const { row } = props;
-  const transport = t(transportMessageOf(row.transport));
-  // 이름이 없으면 전송 종류가 이름 자리에 가고 둘째 줄에는 버전만 남는다
-  const title = row.name ?? transport;
-  const detail: string[] = [];
-  if (row.name !== null) detail.push(transport);
-  if (row.version !== null) detail.push(row.version);
-  return (
-    <li className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border border-border-default bg-surface-base px-3 py-2">
-      <div className="min-w-0 flex-1">
-        <p className="flex flex-wrap items-center gap-2 text-ui text-text-primary">
-          <span className="min-w-0 break-all">{title}</span>
-          {row.self ? <Badge size="xs">{t("desktop.connection.clients.self")}</Badge> : null}
-        </p>
-        {detail.length === 0 ? null : (
-          <p className="text-ui-sm text-text-tertiary">{detail.join(" · ")}</p>
-        )}
-      </div>
-      <p className="text-ui-sm text-text-secondary">
-        {t("desktop.connection.clients.threads", {
-          write: row.writeThreads,
-          observe: row.observedThreads,
-        })}
-      </p>
-    </li>
+      {state.kind === "ready" && state.clients.length === 0
+        ? t("desktop.connection.clients.empty")
+        : null}
+      {state.kind === "ready" && state.clients.length > 0
+        ? state.clients
+            .map((client) => {
+              const row = clientRowOf(client);
+              if (row.self) return t("desktop.connection.clients.self");
+              return row.name ?? t(transportMessageOf(row.transport));
+            })
+            .join(", ")
+        : null}
+    </ListDescriptionRow>
   );
 }

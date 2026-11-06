@@ -84,18 +84,18 @@ describe("WorkView states", () => {
     expect(markup).not.toContain(t("desktop.work.tasks.empty"));
   });
 
-  test("empty goal: the panel says there is no goal and offers the condition form", () => {
+  test("empty goal: the panel offers the condition form only, with no goal text (mockup S5)", () => {
     const state = withTasks(withGoal(null), []);
     const markup = html(state);
-    expect(markup).toContain(t("desktop.work.goal.empty"));
     expect(markup).toContain(t("desktop.work.goal.set.submit"));
+    expect(markup).not.toContain(t("desktop.work.goal.clear"));
     expect(markup).toContain(t("desktop.work.tasks.empty"));
   });
 
   test("reading: both panels show skeletons and no empty text", () => {
     const markup = html(INITIAL_WORK_STATE);
     expect(markup).toContain('data-slot="skeleton"');
-    expect(markup).not.toContain(t("desktop.work.goal.empty"));
+    expect(markup).not.toContain(t("desktop.work.goal.set.submit"));
     expect(markup).not.toContain(t("desktop.work.tasks.empty"));
   });
 
@@ -145,7 +145,7 @@ describe("WorkView states", () => {
       task(index + 1, index < 60 ? "done" : "pending"),
     );
     const markup = html(withTasks(withGoal(ACTIVE), tasks));
-    expect(markup).toContain(t("desktop.work.tasks.expandDone", { count: 60 }));
+    expect(markup).toContain(t("desktop.work.tasks.done"));
     expect(markup).not.toContain("작업 1<");
     expect(markup).toContain("작업 101");
   });
@@ -171,7 +171,7 @@ describe("WorkView plan card (W-18)", () => {
     const markup = html(withTasks(withGoal(null), []));
     expect(markup).not.toContain(t("desktop.work.plan.heading"));
     expect(markup).not.toContain(t("desktop.work.plan.info"));
-    expect(markup).not.toContain(t("desktop.work.plan.versions.open"));
+    expect(buttonOf(markup, t("desktop.work.plan.versions.open"))).toBe("");
   });
 
   test("a plan shows its latest version's title, number and status, and the view button", () => {
@@ -185,9 +185,8 @@ describe("WorkView plan card (W-18)", () => {
     expect(markup).not.toContain("첫 계획");
     expect(markup).toContain(t("desktop.work.plan.version", { version: 2 }));
     expect(markup).toContain(t("desktop.work.plan.status.submitted"));
+    // 한 줄의 "보기"가 판 목록을 연다(mockups/p14 계획 줄)
     expect(buttonOf(markup, t("desktop.work.plan.versions.open"))).not.toBe("");
-    expect(buttonOf(markup, t("desktop.work.plan.view"))).not.toBe("");
-    expect(markup).toContain(t("desktop.work.plan.view.info"));
     // 정보 아이콘의 설명 글은 숨은 글로 늘 나간다
     expect(markup).toContain(t("desktop.work.plan.info"));
   });
@@ -211,7 +210,7 @@ describe("WorkView plan card (W-18)", () => {
     });
     const markup = html(missing);
     expect(markup).toContain(t("desktop.work.plan.notFound"));
-    expect(markup).not.toContain(t("desktop.work.plan.versions.open"));
+    expect(buttonOf(markup, t("desktop.work.plan.versions.open"))).toBe("");
   });
 
   test("read error: the card says the plan could not be read, with a retry", () => {
@@ -228,7 +227,7 @@ describe("WorkView plan card (W-18)", () => {
   test("a plan read with no versions reads as not found", () => {
     const markup = html(withPlanLoaded([]));
     expect(markup).toContain(t("desktop.work.plan.notFound"));
-    expect(markup).not.toContain(t("desktop.work.plan.versions.open"));
+    expect(buttonOf(markup, t("desktop.work.plan.versions.open"))).toBe("");
   });
 });
 

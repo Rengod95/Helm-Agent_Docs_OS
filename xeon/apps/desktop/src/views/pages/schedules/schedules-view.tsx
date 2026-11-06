@@ -11,7 +11,7 @@ import {
   SegmentedControlItem,
   Skeleton,
 } from "@caustic/react";
-import { Plus, TriangleAlert } from "@caustic/react/icons";
+import { CalendarClock, TriangleAlert } from "@caustic/react/icons";
 import { useId, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import type { ScheduleDraft } from "./schedule-draft.ts";
 import {
@@ -66,78 +66,95 @@ export function ScheduleScreenView(props: ScheduleScreenViewProps): ReactNode {
   return (
     <section
       aria-labelledby={headingId}
-      className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4"
+      className="flex min-h-0 flex-1 flex-col"
       onKeyDown={handlers.onKey}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 id={headingId} className="text-ui-strong text-text-primary">
+      <header className="flex h-10 flex-none items-center gap-2 px-3">
+        <h1
+          id={headingId}
+          className="m-0 flex min-w-0 flex-1 items-baseline gap-2 text-ui-strong text-text-primary"
+        >
           {t("desktop.schedules.title")}
         </h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <SegmentedControl
-            size="sm"
-            aria-label={t("desktop.schedules.filter.label")}
-            value={state.filter}
-            disabled={!acting}
-            onValueChange={(value) => {
-              const filter = filterOf(value);
-              if (filter !== null) handlers.filter(filter);
-            }}
-          >
-            <SegmentedControlItem value="enabled">{t(FILTER_ID.enabled)}</SegmentedControlItem>
-            <SegmentedControlItem value="all">{t(FILTER_ID.all)}</SegmentedControlItem>
-          </SegmentedControl>
-          <Button size="sm" iconStart={<Plus />} disabled={!acting} onClick={handlers.openNew}>
-            {t("desktop.schedules.new")}
-          </Button>
+        <SegmentedControl
+          size="xs"
+          aria-label={t("desktop.schedules.filter.label")}
+          value={state.filter}
+          disabled={!acting}
+          onValueChange={(value) => {
+            const filter = filterOf(value);
+            if (filter !== null) handlers.filter(filter);
+          }}
+        >
+          <SegmentedControlItem value="enabled">{t(FILTER_ID.enabled)}</SegmentedControlItem>
+          <SegmentedControlItem value="all">{t(FILTER_ID.all)}</SegmentedControlItem>
+        </SegmentedControl>
+        <Button size="sm" variant="solid" disabled={!acting} onClick={handlers.openNew}>
+          {t("desktop.schedules.new")}
+        </Button>
+      </header>
+      <div className="min-h-0 flex-1 overflow-auto px-3 pb-3">
+        <div className="grid gap-2">
+          {state.serviceModeOff ? (
+            <Alert
+              tone="warning"
+              size="sm"
+              action={
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  disabled={!acting}
+                  onClick={handlers.enableService}
+                >
+                  {t("desktop.schedules.service.enable")}
+                </Button>
+              }
+            >
+              {t("desktop.schedules.service.warning")}
+            </Alert>
+          ) : null}
+          {state.list.kind === "failed" ? (
+            <Alert
+              tone="danger"
+              size="sm"
+              action={
+                <Button size="xs" variant="ghost" disabled={!acting} onClick={handlers.retry}>
+                  {t("desktop.schedules.retry")}
+                </Button>
+              }
+            >
+              {t(
+                state.list.reason === "unsupported"
+                  ? "desktop.schedules.unsupported"
+                  : "desktop.schedules.listFailed",
+              )}
+            </Alert>
+          ) : null}
+          {isOffline(state) ? (
+            <Alert tone="neutral" size="sm">
+              {t("desktop.schedules.offline")}
+            </Alert>
+          ) : null}
+          {state.notice === null ? null : (
+            <Alert
+              size="sm"
+              tone={state.notice.tone === "danger" ? "danger" : "success"}
+              dismissible
+              dismissLabel={t("desktop.schedules.dismiss")}
+              onDismiss={handlers.dismissNotice}
+            >
+              {t(state.notice.text.id, state.notice.text.args)}
+            </Alert>
+          )}
+          <ScheduleBody
+            state={state}
+            rows={rows}
+            locale={locale}
+            openable={openable}
+            handlers={handlers}
+          />
         </div>
       </div>
-      {state.serviceModeOff ? (
-        <Alert
-          tone="warning"
-          action={
-            <Button size="xs" variant="outline" disabled={!acting} onClick={handlers.enableService}>
-              {t("desktop.schedules.service.enable")}
-            </Button>
-          }
-        >
-          {t("desktop.schedules.service.warning")}
-        </Alert>
-      ) : null}
-      {state.list.kind === "failed" ? (
-        <Alert
-          tone="danger"
-          action={
-            <Button size="xs" variant="outline" disabled={!acting} onClick={handlers.retry}>
-              {t("desktop.schedules.retry")}
-            </Button>
-          }
-        >
-          {t(
-            state.list.reason === "unsupported"
-              ? "desktop.schedules.unsupported"
-              : "desktop.schedules.listFailed",
-          )}
-        </Alert>
-      ) : null}
-      {isOffline(state) ? <Alert tone="info">{t("desktop.schedules.offline")}</Alert> : null}
-      {state.notice === null ? null : (
-        <Alert
-          tone={state.notice.tone === "danger" ? "danger" : "success"}
-          dismissible
-          dismissLabel={t("desktop.schedules.dismiss")}
-          onDismiss={handlers.dismissNotice}
-        >
-          {t(state.notice.text.id, state.notice.text.args)}
-        </Alert>
-      )}
-      <ScheduleBody
-        state={state}
-        rows={rows}
-        locale={locale}
-        openable={openable}
-        handlers={handlers}
-      />
       <CancelDialog rows={rows} cancelId={state.cancelId} handlers={handlers} />
       <ScheduleSheet
         sheet={state.sheet}
@@ -169,10 +186,15 @@ function ScheduleBody(props: {
   const { state, rows, locale, openable, handlers } = props;
   if (state.list.kind === "loading" && state.items.length === 0) {
     return (
-      <div role="status" aria-busy="true" className="grid gap-2">
+      <div role="status" aria-busy="true" className="grid gap-3 pt-2">
         <span className="sr-only">{t("desktop.schedules.loading")}</span>
-        {[0, 1, 2].map((line) => (
-          <Skeleton key={line} height={40} />
+        {[0, 1, 2, 3, 4].map((line) => (
+          <div key={line} className="flex gap-6">
+            <Skeleton width="30%" height={12} />
+            <Skeleton width="15%" height={12} />
+            <Skeleton width="12%" height={12} />
+            <Skeleton width="18%" height={12} />
+          </div>
         ))}
       </div>
     );
@@ -181,17 +203,16 @@ function ScheduleBody(props: {
     if (state.list.kind !== "ready") return null;
     return (
       <EmptyState
-        size="md"
+        size="sm"
+        surface="none"
+        icon={<CalendarClock />}
         title={t("desktop.schedules.empty")}
-        description={t("desktop.schedules.emptyHint")}
-        actions={[
-          {
-            label: t("desktop.schedules.new"),
-            icon: <Plus />,
-            disabled: !canAct(state),
-            onClick: handlers.openNew,
-          },
-        ]}
+        actions={
+          <Button size="sm" variant="solid" disabled={!canAct(state)} onClick={handlers.openNew}>
+            {t("desktop.schedules.new")}
+          </Button>
+        }
+        className="pt-16"
       />
     );
   }

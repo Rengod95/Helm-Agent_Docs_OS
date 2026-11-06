@@ -6,26 +6,25 @@ import {
   Alert,
   Badge,
   Button,
-  Chip,
   CodeDiff,
   CodeDiffLine,
   Dialog,
   DialogAction,
   DialogClose,
   EmptyState,
-  List,
-  ListRow,
+  ListDescription,
+  ListDescriptionRow,
   RadioGroup,
   RadioGroupItem,
+  ScrollArea,
   SegmentedControl,
   SegmentedControlItem,
   Select,
   SelectOption,
   Skeleton,
   Textarea,
-  Tooltip,
 } from "@caustic/react";
-import { TriangleAlert } from "@caustic/react/icons";
+import { Sparkles, TriangleAlert } from "@caustic/react/icons";
 import { useId, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { InfoTip } from "../../craft/info-tip.tsx";
 import { relativeAgeOf } from "../shared/relative-age.ts";
@@ -35,9 +34,7 @@ import {
   effectiveScopeOf,
   selectedRowOf,
   visibleRowsOf,
-  type Editor,
   type KindFilter,
-  type ListState,
   type ProposalFilter,
   type ProposalsState,
   type SkillPeek,
@@ -56,6 +53,8 @@ import {
 } from "./proposals-text.ts";
 
 // 제안 화면(P-06)의 그림. 상태와 동작은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
+// 무대는 머리(제목, 상태 칸, 종류·출처 칸), 가운데 두 열(목록 listbox, 상세), 결정 줄로 나뉜다(mockups/p06-proposals와 같다).
+// 두 열은 투명 면 위에서 간격으로만 나누고, 스크롤은 열마다 `ScrollArea` 하나씩이다.
 // 바로 가기 키의 뜻은 `proposalKeyIntentOf`가, 실제 동작은 `proposals-screen.tsx`가 맡는다.
 
 /** 화면 동작. 속성 형태라 핸들러를 `onClick`에 그대로 넘긴다 */
@@ -91,27 +90,84 @@ const STATUS_ITEMS: readonly StatusFilter[] = ["pending", "applied", "all"];
 const SOURCE_ITEMS: readonly SourceFilter[] = ["all", "learning", "knowledge"];
 const KIND_ITEMS: readonly KindFilter[] = ["all", "skill", "memory", "feedback", "script"];
 
+const LIST_DESC =
+  "rounded-none [--cs-size-list-term:6rem] [&_[data-slot=list-description-row]]:px-0";
+
+/** 결정 단추의 면. 거절은 자리가 왼쪽이라 글만, 수정과 되돌리기는 테두리, 승인은 채움이다 */
+const ACTION_VARIANT: Readonly<Record<ProposalAction, "solid" | "outline" | "ghost">> = {
+  approve: "solid",
+  edit: "outline",
+  reject: "ghost",
+  revert: "ghost",
+};
+
 export function ProposalsView(props: ProposalsViewProps): ReactNode {
   const { state, live, handlers } = props;
   const headingId = useId();
   const rows =
     state.list.status === "ready" ? visibleRowsOf(state.list.rows, state.filter.kind) : [];
   const selected = selectedRowOf(rows, state.selectedKey);
+  // 읽은 목록이 비었으면 두 열 대신 빈 상태 한 개를 가운데에 둔다(P-06 S6)
+  const emptyList = state.list.status === "ready" && rows.length === 0;
   return (
     <section
       aria-labelledby={headingId}
-      className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4"
+      className="flex min-h-0 flex-1 flex-col px-1.5 outline-none"
       onKeyDown={handlers.onKey}
     >
-      <h1 id={headingId} className="text-ui-strong text-text-primary">
-        {t("desktop.proposals.title")}
-      </h1>
-      {live ? null : (
-        <Alert tone="warning" layout="inline">
-          {t("desktop.proposals.offline")}
-        </Alert>
-      )}
-      <FilterBar filter={state.filter} onChange={handlers.filterChange} />
+      <header className="flex min-h-10 flex-none flex-wrap items-center gap-x-2 gap-y-1 py-1">
+        <h1 id={headingId} className="m-0 me-1 font-ui text-ui-strong text-text-primary">
+          {t("desktop.proposals.title")}
+        </h1>
+        <SegmentedControl
+          size="xs"
+          aria-label={t("desktop.proposals.filter.status.label")}
+          value={state.filter.status}
+          onValueChange={(value) => {
+            const next = STATUS_ITEMS.find((item) => item === value);
+            if (next !== undefined) handlers.filterChange({ ...state.filter, status: next });
+          }}
+        >
+          {STATUS_ITEMS.map((item) => (
+            <SegmentedControlItem key={item} value={item}>
+              {t(statusFilterIdOf(item))}
+            </SegmentedControlItem>
+          ))}
+        </SegmentedControl>
+        <span aria-hidden className="flex-1" />
+        <Select
+          size="xs"
+          aria-label={t("desktop.proposals.filter.kind.label")}
+          value={state.filter.kind}
+          onValueChange={(value) => {
+            const next = KIND_ITEMS.find((item) => item === value);
+            if (next !== undefined) handlers.filterChange({ ...state.filter, kind: next });
+          }}
+          className="w-32"
+        >
+          {KIND_ITEMS.map((item) => (
+            <SelectOption key={item} value={item}>
+              {t(kindFilterIdOf(item))}
+            </SelectOption>
+          ))}
+        </Select>
+        <Select
+          size="xs"
+          aria-label={t("desktop.proposals.filter.source.label")}
+          value={state.filter.source}
+          onValueChange={(value) => {
+            const next = SOURCE_ITEMS.find((item) => item === value);
+            if (next !== undefined) handlers.filterChange({ ...state.filter, source: next });
+          }}
+          className="w-36"
+        >
+          {SOURCE_ITEMS.map((item) => (
+            <SelectOption key={item} value={item}>
+              {t(sourceFilterIdOf(item))}
+            </SelectOption>
+          ))}
+        </Select>
+      </header>
       {state.notice === null ? null : (
         <Alert
           tone={state.notice.tone === "danger" ? "danger" : "success"}
@@ -122,16 +178,43 @@ export function ProposalsView(props: ProposalsViewProps): ReactNode {
           {state.notice.text}
         </Alert>
       )}
-      <div className="grid min-h-0 flex-1 gap-3 compact:grid-cols-[minmax(15rem,20rem)_minmax(0,1fr)]">
-        <ListPane state={state} rows={rows} live={live} handlers={handlers} />
-        <DetailPane
-          state={state}
-          selected={selected}
-          live={live}
-          openable={props.openable}
-          handlers={handlers}
-        />
-      </div>
+      {state.list.status === "ready"
+        ? state.list.unavailableTexts.map((text) => (
+            <Alert key={text} tone="warning">
+              {text}
+            </Alert>
+          ))
+        : null}
+      {emptyList ? (
+        <div className="grid min-h-0 flex-1 place-items-center">
+          <EmptyState
+            icon={<Sparkles />}
+            surface="none"
+            title={t(
+              state.filter.status === "pending" && state.filter.kind === "all"
+                ? "client.settings.proposals.empty"
+                : "desktop.proposals.filteredEmpty",
+            )}
+          />
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col gap-4 compact:flex-row">
+          <ListPane
+            state={state}
+            rows={rows}
+            selectedKey={selected?.key ?? null}
+            live={live}
+            handlers={handlers}
+          />
+          <DetailPane
+            state={state}
+            selected={selected}
+            live={live}
+            openable={props.openable}
+            handlers={handlers}
+          />
+        </div>
+      )}
       <ConfirmDialog
         state={state}
         rows={state.list.status === "ready" ? state.list.rows : []}
@@ -147,152 +230,117 @@ export function ProposalsView(props: ProposalsViewProps): ReactNode {
   );
 }
 
-function FilterBar(props: {
-  readonly filter: ProposalFilter;
-  readonly onChange: (filter: ProposalFilter) => void;
+function ListPane(props: {
+  readonly state: ProposalsState;
+  readonly rows: readonly ProposalRowVM[];
+  readonly selectedKey: string | null;
+  readonly live: boolean;
+  readonly handlers: ProposalsHandlers;
 }): ReactNode {
-  const { filter, onChange } = props;
+  const { state, rows, selectedKey, live, handlers } = props;
+  const label = t("desktop.proposals.list.label");
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <SegmentedControl
-        size="sm"
-        aria-label={t("desktop.proposals.filter.status.label")}
-        value={filter.status}
-        onValueChange={(value) => {
-          const next = STATUS_ITEMS.find((item) => item === value);
-          if (next !== undefined) onChange({ ...filter, status: next });
-        }}
-      >
-        {STATUS_ITEMS.map((item) => (
-          <SegmentedControlItem key={item} value={item}>
-            {t(statusFilterIdOf(item))}
-          </SegmentedControlItem>
-        ))}
-      </SegmentedControl>
-      <Select
-        size="sm"
-        aria-label={t("desktop.proposals.filter.source.label")}
-        value={filter.source}
-        onValueChange={(value) => {
-          const next = SOURCE_ITEMS.find((item) => item === value);
-          if (next !== undefined) onChange({ ...filter, source: next });
-        }}
-      >
-        {SOURCE_ITEMS.map((item) => (
-          <SelectOption key={item} value={item}>
-            {t(sourceFilterIdOf(item))}
-          </SelectOption>
-        ))}
-      </Select>
-      <Select
-        size="sm"
-        aria-label={t("desktop.proposals.filter.kind.label")}
-        value={filter.kind}
-        onValueChange={(value) => {
-          const next = KIND_ITEMS.find((item) => item === value);
-          if (next !== undefined) onChange({ ...filter, kind: next });
-        }}
-      >
-        {KIND_ITEMS.map((item) => (
-          <SelectOption key={item} value={item}>
-            {t(kindFilterIdOf(item))}
-          </SelectOption>
-        ))}
-      </Select>
+    <div className="flex min-h-0 flex-1 flex-col compact:w-80 compact:flex-none">
+      <ScrollArea label={label} className="min-h-0 flex-1">
+        {state.list.status === "loading" ? (
+          <div role="status" aria-busy="true" className="grid gap-4 px-2.5 py-2">
+            <span className="sr-only">{t("desktop.proposals.loading")}</span>
+            {[0, 1, 2, 3, 4].map((line) => (
+              <div key={line} className="grid gap-1.5">
+                <Skeleton width="70%" height={14} />
+                <Skeleton width="40%" height={10} />
+              </div>
+            ))}
+          </div>
+        ) : state.list.status === "failed" ? (
+          <Alert
+            tone="danger"
+            action={
+              <Button size="xs" variant="outline" onClick={handlers.retry}>
+                {t("desktop.proposals.retry")}
+              </Button>
+            }
+          >
+            {t("desktop.proposals.load.failed")}
+          </Alert>
+        ) : (
+          <div className="grid gap-1 pb-2">
+            <ul role="listbox" aria-label={label} className="m-0 grid list-none gap-0.5 p-0">
+              {rows.map((row) => {
+                const age = relativeAgeOf(row.createdAt, state.readAt);
+                return (
+                  <Row
+                    key={row.key}
+                    row={row}
+                    age={t(age.id, age.args)}
+                    selected={row.key === selectedKey}
+                    onSelect={() => {
+                      handlers.select(row.key);
+                    }}
+                  />
+                );
+              })}
+            </ul>
+            {state.list.nextCursor === null ? null : (
+              <Button
+                size="xs"
+                variant="ghost"
+                className="ms-1 justify-self-start"
+                loading={state.list.loadingMore}
+                disabled={!live || state.list.loadingMore}
+                onClick={handlers.loadMore}
+              >
+                {t("desktop.proposals.more")}
+              </Button>
+            )}
+          </div>
+        )}
+      </ScrollArea>
     </div>
   );
 }
 
-function ListPane(props: {
-  readonly state: ProposalsState;
-  readonly rows: readonly ProposalRowVM[];
-  readonly live: boolean;
-  readonly handlers: ProposalsHandlers;
+/** 목록의 한 행. 첫 줄은 종류와 대상, 둘째 줄은 상태 말이나 충돌이다. 대기 중인 것은 겹치는 스킬이 있을 때만 "충돌"을 단다 */
+function Row(props: {
+  readonly row: ProposalRowVM;
+  readonly age: string;
+  readonly selected: boolean;
+  readonly onSelect: () => void;
 }): ReactNode {
-  const { state, rows, live, handlers } = props;
-  const list: ListState = state.list;
-  if (list.status === "loading") {
-    return (
-      <div role="status" aria-busy="true" className="grid content-start gap-2">
-        <span className="sr-only">{t("desktop.proposals.loading")}</span>
-        {[0, 1, 2, 3, 4].map((line) => (
-          <Skeleton key={line} height={44} />
-        ))}
-      </div>
-    );
-  }
-  if (list.status === "failed") {
-    return (
-      <Alert
-        tone="danger"
-        action={
-          <Button size="xs" variant="outline" onClick={handlers.retry}>
-            {t("desktop.proposals.retry")}
-          </Button>
-        }
-      >
-        {t("desktop.proposals.load.failed")}
-      </Alert>
-    );
-  }
+  const { row, age, selected, onSelect } = props;
+  const pending = row.status === "pending";
+  const conflicted = row.conflictsWith !== null;
+  const note = pending ? (conflicted ? t("desktop.proposals.conflict") : null) : row.statusLabel;
   return (
-    <div className="flex min-w-0 flex-col gap-2">
-      {list.unavailableTexts.map((text) => (
-        <Alert key={text} tone="warning">
-          {text}
-        </Alert>
-      ))}
-      {rows.length === 0 ? (
-        <EmptyState
-          size="sm"
-          title={t(
-            state.filter.status === "pending" && state.filter.kind === "all"
-              ? "client.settings.proposals.empty"
-              : "desktop.proposals.filteredEmpty",
+    <li role="option" aria-selected={selected}>
+      <Button
+        variant="ghost"
+        onClick={onSelect}
+        className={[
+          "h-auto w-full min-w-0 items-start justify-start gap-2.5 rounded-lg px-2.5 py-2 text-left font-normal whitespace-normal",
+          selected ? "bg-control-raised shadow-[inset_0_0_0_1px_var(--cs-color-control-edge)]" : "",
+        ].join(" ")}
+      >
+        <span className="grid min-w-0 flex-1 gap-0.5">
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span className="shrink-0 text-ui-sm text-text-secondary">{row.kindLabel}</span>
+            <span className="min-w-0 truncate font-mono text-mono-sm text-text-primary">
+              {row.target}
+            </span>
+          </span>
+          {note === null ? null : (
+            <span
+              className={`min-w-0 truncate text-ui-xs ${pending && conflicted ? "text-warning-text" : "text-text-tertiary"}`}
+            >
+              {note}
+            </span>
           )}
-        />
-      ) : (
-        <List aria-label={t("desktop.proposals.list.label")}>
-          {rows.map((row) => {
-            const age = relativeAgeOf(row.createdAt, state.readAt);
-            return (
-              <ListRow
-                key={row.key}
-                title={`${row.kindLabel}: ${row.target}`}
-                description={[
-                  row.sourceLabel,
-                  row.statusLabel,
-                  t("desktop.proposals.evidence", { count: row.evidenceCount }),
-                  t(age.id, age.args),
-                ].join(" · ")}
-                end={
-                  row.conflictsWith === null ? undefined : (
-                    <Chip size="sm" tone="warning" variant="soft">
-                      {t("desktop.proposals.conflict")}
-                    </Chip>
-                  )
-                }
-                aria-current={row.key === state.selectedKey ? "true" : undefined}
-                onClick={() => {
-                  handlers.select(row.key);
-                }}
-              />
-            );
-          })}
-        </List>
-      )}
-      {list.nextCursor === null ? null : (
-        <Button
-          size="sm"
-          variant="outline"
-          loading={list.loadingMore}
-          disabled={!live || list.loadingMore}
-          onClick={handlers.loadMore}
-        >
-          {t("desktop.proposals.more")}
-        </Button>
-      )}
-    </div>
+        </span>
+        <span className="shrink-0 whitespace-nowrap text-ui-xs tabular-nums text-text-tertiary">
+          {age}
+        </span>
+      </Button>
+    </li>
   );
 }
 
@@ -305,175 +353,220 @@ function DetailPane(props: {
 }): ReactNode {
   const { state, selected, live, openable, handlers } = props;
   const headingId = useId();
-  if (selected === null) {
+  if (state.list.status === "loading") {
     return (
-      <div className="flex min-h-0 items-start justify-center p-4 text-body text-text-secondary">
-        {t("desktop.proposals.detail.empty")}
+      <div className="grid min-w-0 flex-1 content-start gap-2 pt-1">
+        <Skeleton width="45%" height={18} />
+        <Skeleton height={80} />
+        <Skeleton height={160} radius="xl" />
       </div>
     );
   }
+  if (selected === null) return null;
   const scope = effectiveScopeOf(selected, state.scope);
-  const editing = state.editor.mode !== "none" && state.editor.key === selected.key;
   const actionsEnabled = live && !state.busy;
   const threadId = selected.evidenceThreadIds.find((id) => openable(id));
   const conflict = selected.conflictsWith;
+  const label = `${selected.kindLabel}: ${selected.target}`;
+  const editing = state.editor.mode !== "none" && state.editor.key === selected.key;
   return (
-    <section
-      aria-labelledby={headingId}
-      className="flex min-w-0 flex-col gap-3 rounded-lg border border-border-subtle p-4"
-    >
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 id={headingId} className="min-w-0 flex-1 text-ui-strong text-text-primary">
-          {selected.kindLabel}: {selected.target}
+    <section aria-labelledby={headingId} className="flex min-h-0 min-w-0 flex-1 flex-col pe-1.5">
+      <div className="flex min-h-8 flex-none items-center gap-2">
+        <h2
+          id={headingId}
+          className="m-0 flex min-w-0 items-baseline gap-2 text-ui-strong font-semibold text-text-primary"
+        >
+          {selected.kindLabel}
+          <span className="truncate font-mono text-mono-md font-medium">{selected.target}</span>
         </h2>
-        <Badge>{selected.statusLabel}</Badge>
-        <Badge>{selected.sourceLabel}</Badge>
-        <span className="text-caption text-text-secondary">
-          {t("desktop.proposals.revision", { rev: selected.revision })}
-        </span>
+        {selected.status === "pending" ? null : <Badge size="xs">{selected.statusLabel}</Badge>}
       </div>
-      {selected.afterUntrusted ? (
-        <Alert tone="warning" layout="inline" icon={<TriangleAlert />}>
-          {t("desktop.proposals.detail.untrusted")}
-        </Alert>
-      ) : null}
-      {conflict === null ? null : (
-        <Alert
-          tone="info"
-          action={
-            <Button
-              size="xs"
-              variant="outline"
-              disabled={!live}
-              onClick={() => {
-                handlers.skillOpen({ name: conflict, threadId: threadId ?? null });
-              }}
+      <ScrollArea label={label} className="min-h-0 flex-1">
+        <div className="grid gap-3 pt-1 pb-2">
+          {live ? null : <Alert tone="warning">{t("desktop.proposals.offline")}</Alert>}
+          {selected.afterUntrusted ? (
+            <Alert tone="warning">{t("desktop.proposals.detail.untrusted")}</Alert>
+          ) : null}
+          {conflict === null ? null : (
+            <Alert
+              tone="warning"
+              action={
+                <Button
+                  size="xs"
+                  variant="outline"
+                  disabled={!live}
+                  onClick={() => {
+                    handlers.skillOpen({ name: conflict, threadId: threadId ?? null });
+                  }}
+                >
+                  {t("desktop.proposals.skill.open")}
+                </Button>
+              }
             >
-              {t("desktop.proposals.skill.open")}
-            </Button>
-          }
-        >
-          {t("desktop.proposals.detail.conflict", { target: conflict })}
-        </Alert>
-      )}
-      {selected.rationale === null ? null : (
-        <div className="flex flex-col gap-1">
-          <h3 className="text-ui-sm font-semibold text-text-primary">
-            {t("desktop.proposals.detail.rationale")}
-          </h3>
-          <p className="whitespace-pre-wrap text-body text-text-secondary">{selected.rationale}</p>
+              {t("desktop.proposals.detail.conflict", { target: conflict })}
+            </Alert>
+          )}
+          <ListDescription variant="ghost" size="xs" className={LIST_DESC}>
+            <ListDescriptionRow term={t("desktop.proposals.detail.source")}>
+              {selected.sourceLabel}
+            </ListDescriptionRow>
+            {selected.rationale === null ? null : (
+              <ListDescriptionRow term={t("desktop.proposals.detail.rationale")}>
+                <span className="whitespace-pre-wrap">{selected.rationale}</span>
+              </ListDescriptionRow>
+            )}
+            {threadId === undefined ? null : (
+              <ListDescriptionRow term={t("desktop.proposals.detail.evidence")}>
+                <span className="flex items-center gap-2">
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    disabled={!actionsEnabled}
+                    onClick={() => {
+                      handlers.openThread(threadId);
+                    }}
+                  >
+                    {t("desktop.proposals.detail.openThread")}
+                  </Button>
+                </span>
+              </ListDescriptionRow>
+            )}
+            {selected.scopeChoice === null || !selected.actions.includes("approve") ? null : (
+              <ListDescriptionRow term={t("desktop.proposals.detail.scope")}>
+                <RadioGroup
+                  size="sm"
+                  orientation="horizontal"
+                  aria-label={t("desktop.proposals.detail.scope")}
+                  value={scope ?? ""}
+                  disabled={!actionsEnabled}
+                  onValueChange={(value) => {
+                    const next = selected.scopeChoice?.allowed.find((item) => item === value);
+                    if (next !== undefined) handlers.scopeChange(next);
+                  }}
+                >
+                  {selected.scopeChoice.allowed.map((item) => (
+                    <RadioGroupItem key={item} value={item}>
+                      {t(scopeIdOf(item))}
+                    </RadioGroupItem>
+                  ))}
+                </RadioGroup>
+              </ListDescriptionRow>
+            )}
+          </ListDescription>
+          {state.editor.mode === "edit" && editing ? (
+            <Textarea
+              size="sm"
+              rows={12}
+              aria-label={t("desktop.proposals.edit.label")}
+              className="font-mono text-mono-sm"
+              maxLength={200_000}
+              value={state.editor.text}
+              disabled={state.busy}
+              onChange={(event) => {
+                handlers.editorChange(event.target.value);
+              }}
+            />
+          ) : (
+            <DiffView key={selected.key} diff={selected.diff} label={label} />
+          )}
+          {state.editor.mode === "reject" && editing ? (
+            <Textarea
+              size="sm"
+              rows={2}
+              autoFocus
+              aria-label={t("desktop.proposals.reject.label")}
+              maxLength={500}
+              value={state.editor.text}
+              disabled={state.busy}
+              onChange={(event) => {
+                handlers.editorChange(event.target.value);
+              }}
+            />
+          ) : null}
         </div>
-      )}
-      <div className="flex flex-wrap items-center gap-2 text-caption text-text-secondary">
-        <span>{t("desktop.proposals.evidence", { count: selected.evidenceCount })}</span>
-        {threadId === undefined ? null : (
-          <Button
-            size="xs"
-            variant="outline"
-            disabled={!actionsEnabled}
-            onClick={() => {
-              handlers.openThread(threadId);
-            }}
-          >
-            {t("desktop.proposals.detail.openThread")}
-          </Button>
-        )}
-      </div>
-      <DiffView
-        key={selected.key}
-        diff={selected.diff}
-        label={`${selected.kindLabel}: ${selected.target}`}
-      />
-      {selected.scopeChoice === null || !selected.actions.includes("approve") ? null : (
-        <RadioGroup
-          aria-label={t("desktop.proposals.detail.scope")}
-          value={scope ?? ""}
-          disabled={!actionsEnabled}
-          onValueChange={(value) => {
-            const next = selected.scopeChoice?.allowed.find((item) => item === value);
-            if (next !== undefined) handlers.scopeChange(next);
-          }}
-        >
-          {selected.scopeChoice.allowed.map((item) => (
-            <RadioGroupItem key={item} value={item}>
-              {t(scopeIdOf(item))}
-            </RadioGroupItem>
-          ))}
-        </RadioGroup>
-      )}
-      {editing ? <EditorPane editor={state.editor} busy={state.busy} handlers={handlers} /> : null}
-      <div className="flex flex-wrap items-center gap-2">
-        {selected.actions.map((action) => (
-          <ActionButton
-            key={action}
-            action={action}
-            enabled={actionsEnabled}
-            live={live}
-            onClick={() => {
-              handlers.act(action);
-            }}
-          />
-        ))}
-      </div>
+      </ScrollArea>
+      <DecisionRow state={state} selected={selected} live={live} handlers={handlers} />
     </section>
+  );
+}
+
+/** 결정 줄. 거절은 시작 쪽, 수정·승인·되돌리기는 끝 쪽이고, 고치는 중에는 저장과 취소만 보인다 */
+function DecisionRow(props: {
+  readonly state: ProposalsState;
+  readonly selected: ProposalRowVM;
+  readonly live: boolean;
+  readonly handlers: ProposalsHandlers;
+}): ReactNode {
+  const { state, selected, live, handlers } = props;
+  const busy = state.busy;
+  const editor = state.editor;
+  if (editor.mode !== "none" && editor.key === selected.key) {
+    return (
+      <div className="flex min-h-11 flex-none flex-wrap items-center gap-1.5 py-1">
+        <span aria-hidden className="flex-1" />
+        <Button size="sm" variant="ghost" disabled={busy} onClick={handlers.editorCancel}>
+          {t("desktop.proposals.action.cancel")}
+        </Button>
+        <Button
+          size="sm"
+          variant="solid"
+          loading={busy}
+          disabled={!live || busy}
+          onClick={handlers.editorSubmit}
+        >
+          {t(
+            editor.mode === "edit"
+              ? "desktop.proposals.action.save"
+              : "desktop.proposals.action.reject",
+          )}
+        </Button>
+      </div>
+    );
+  }
+  const enabled = live && !busy;
+  const leading = selected.actions.filter((action) => action === "reject");
+  const trailing = selected.actions.filter((action) => action !== "reject");
+  return (
+    <div className="flex min-h-11 flex-none flex-wrap items-center gap-1.5 py-1">
+      {leading.map((action) => (
+        <ActionButton
+          key={action}
+          action={action}
+          enabled={enabled}
+          onClick={() => {
+            handlers.act(action);
+          }}
+        />
+      ))}
+      <span aria-hidden className="flex-1" />
+      {trailing.map((action) => (
+        <ActionButton
+          key={action}
+          action={action}
+          enabled={enabled}
+          onClick={() => {
+            handlers.act(action);
+          }}
+        />
+      ))}
+    </div>
   );
 }
 
 function ActionButton(props: {
   readonly action: ProposalAction;
   readonly enabled: boolean;
-  readonly live: boolean;
   readonly onClick: () => void;
 }): ReactNode {
-  const { action, enabled, live } = props;
-  const button = (
+  return (
     <Button
       size="sm"
-      variant={action === "approve" ? "solid" : "outline"}
-      disabled={!enabled}
+      variant={ACTION_VARIANT[props.action]}
+      disabled={!props.enabled}
       onClick={props.onClick}
     >
-      {t(actionLabelIdOf(action))}
+      {t(actionLabelIdOf(props.action))}
     </Button>
-  );
-  if (live) return button;
-  return (
-    <Tooltip content={t("desktop.offline.hint")}>
-      <span className="inline-flex">{button}</span>
-    </Tooltip>
-  );
-}
-
-function EditorPane(props: {
-  readonly editor: Editor;
-  readonly busy: boolean;
-  readonly handlers: ProposalsHandlers;
-}): ReactNode {
-  const { editor, busy, handlers } = props;
-  if (editor.mode === "none") return null;
-  const edit = editor.mode === "edit";
-  const label = t(edit ? "desktop.proposals.edit.label" : "desktop.proposals.reject.label");
-  return (
-    <div className="flex flex-col gap-2">
-      <Textarea
-        aria-label={label}
-        rows={edit ? 8 : 3}
-        maxLength={edit ? 200_000 : 500}
-        value={editor.text}
-        disabled={busy}
-        onChange={(event) => {
-          handlers.editorChange(event.target.value);
-        }}
-      />
-      <div className="flex items-center gap-2">
-        <Button size="sm" loading={busy} onClick={handlers.editorSubmit}>
-          {t(edit ? "desktop.proposals.action.save" : "desktop.proposals.action.reject")}
-        </Button>
-        <Button size="sm" variant="outline" disabled={busy} onClick={handlers.editorCancel}>
-          {t("desktop.proposals.action.cancel")}
-        </Button>
-      </div>
-    </div>
   );
 }
 
@@ -484,11 +577,14 @@ function DiffView(props: { readonly diff: string; readonly label: string }): Rea
   const folded = !expanded && lines.length > DIFF_FOLD_LINES;
   const shown = folded ? lines.slice(0, DIFF_FOLD_LINES) : lines;
   return (
-    <div className="flex flex-col gap-2">
-      <h3 className="text-ui-sm font-semibold text-text-primary">
-        {t("desktop.proposals.detail.diff")}
-      </h3>
-      <CodeDiff aria-label={props.label} filename={props.label} actions={false}>
+    <div className="grid gap-2">
+      <CodeDiff
+        aria-label={props.label}
+        filename={props.label}
+        actions={false}
+        size="sm"
+        radius="xl"
+      >
         {shown.map((line) => (
           <CodeDiffLine key={line.number} kind={line.kind} number={line.number}>
             {line.text}
@@ -499,6 +595,7 @@ function DiffView(props: { readonly diff: string; readonly label: string }): Rea
         <Button
           size="xs"
           variant="ghost"
+          className="justify-self-start"
           onClick={() => {
             setExpanded(true);
           }}

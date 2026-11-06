@@ -34,8 +34,8 @@ const HANDLERS: ReviewHandlers = {
   commentRemove: NOOP,
   approveRemaining: NOOP,
   submit: NOOP,
-  approveAll: NOOP,
   deny: NOOP,
+  retryWrite: NOOP,
   key: NOOP,
 };
 
@@ -63,7 +63,7 @@ const NOTE = { path: "docs/cache.md", change: "modified" as const, binary: false
 
 function view(overrides: Partial<ReviewOpenView>): ReviewOpenView {
   return {
-    head: { title: "캐시 만료 수정", round: 1 },
+    head: { title: "캐시 만료 수정", round: 1, thread: null },
     body: {
       kind: "ready",
       files: reviewFilesOf(
@@ -76,6 +76,8 @@ function view(overrides: Partial<ReviewOpenView>): ReviewOpenView {
     },
     live: true,
     busy: false,
+    observing: false,
+    resolved: false,
     state: INITIAL_REVIEW_STATE,
     failure: undefined,
     failureDetail: undefined,
@@ -136,9 +138,31 @@ describe("review screen states", () => {
     const html = render(view({ live: false }));
     expect(html).toContain(t("desktop.review.offline"));
     expect(disabledOf(html, t("desktop.review.submit"))).toBe(true);
-    expect(disabledOf(html, t("desktop.approvals.review.approveAll.button"))).toBe(true);
     expect(disabledOf(html, t("desktop.review.deny"))).toBe(true);
     expect(disabledOf(html, t("desktop.review.hunk.approve"))).toBe(false);
+  });
+
+  test("observing: another window writes this conversation, so decisions and submit are locked and a retry is offered", () => {
+    const html = render(view({ observing: true }));
+    expect(html).toContain(t("desktop.review.observing"));
+    expect(disabledOf(html, t("desktop.review.submit"))).toBe(true);
+    expect(disabledOf(html, t("desktop.review.hunk.approve"))).toBe(true);
+    expect(disabledOf(html, t("desktop.composer.retryWrite.button"))).toBe(false);
+  });
+
+  test("resolved elsewhere: the last diff stays on screen read-only, with a neutral sentence, and nothing can be answered", () => {
+    const html = render(view({ resolved: true }));
+    expect(html).toContain(t("desktop.review.resolved"));
+    expect(html).toContain(CACHE.path);
+    expect(disabledOf(html, t("desktop.review.submit"))).toBe(true);
+    expect(disabledOf(html, t("desktop.review.deny"))).toBe(true);
+    expect(disabledOf(html, t("desktop.review.hunk.approve"))).toBe(true);
+  });
+
+  test("the header names the conversation the review came from, next to the round", () => {
+    const html = render(view({ head: { title: "캐시 만료 수정", round: 2, thread: "캐시 작업" } }));
+    expect(html).toContain("캐시 작업");
+    expect(html).toContain(t("desktop.approvals.review.round", { round: 2 }));
   });
 
   test("pending hunks block submit until the rest is approved, and the blocked reason says how many", () => {
@@ -208,8 +232,10 @@ describe("review screen states", () => {
 });
 
 describe("the submit result table, the key hints, and the line comments", () => {
-  test("the footer line shows the key hints", () => {
-    expect(render(view({}))).toContain(t("desktop.review.keys"));
+  test("the key hints sit behind the footer's info icon, so the footer shows no hint line of its own", () => {
+    const html = render(view({}));
+    expect(html).toContain(t("desktop.review.keys"));
+    expect(html).toContain('aria-label="' + t("desktop.craft.infoTip.label") + '"');
   });
 
   test("a closed review with a result shows the rows, the delivery line, and a close button", () => {
@@ -275,13 +301,19 @@ describe("the submit result table, the key hints, and the line comments", () => 
     expect(html).toContain("autofocus");
   });
 
-  test("a line comment shows its line before its text", () => {
+  test("a line comment sits right after its line, before the next hunk", () => {
     const draft = addReviewComment(INITIAL_REVIEW_STATE.draft, "f0h0", "ms 단위 주석 필요", {
       side: "new",
       number: 11,
     });
     const html = render(view({ state: withState({ draft }) }));
-    expect(html).toContain(`${t("desktop.review.comment.line", { number: 11 })} ms 단위 주석 필요`);
+    // 파일 열의 의견 목록에도 같은 글이 있으므로, 줄 뒤에서부터 찾는다
+    const line = html.indexOf("return atMs + ttlMs");
+    const note = html.indexOf("ms 단위 주석 필요", line);
+    const nextHunk = html.indexOf("@@ -40,2", line);
+    expect(line).toBeGreaterThan(-1);
+    expect(note).toBeGreaterThan(line);
+    expect(note).toBeLessThan(nextHunk);
   });
 
   test("the focused hunk is marked once, so the keyboard cursor shows", () => {

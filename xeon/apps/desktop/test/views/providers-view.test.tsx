@@ -45,6 +45,7 @@ function poolProps(
     onExpand: NOOP,
     onMove: NOOP,
     onPriority: NOOP,
+    onReserve: NOOP,
     onRemove: NOOP,
     ...over,
   };
@@ -57,15 +58,15 @@ describe("AccountPoolView", () => {
     expect(html).toContain(t("desktop.providers.pool.add"));
   });
 
-  test("accounts show their credential reference and reserve, and their provider", () => {
+  test("accounts show their credential reference, their reserve as an editable value, and their provider", () => {
     const html = renderToString(
       <AccountPoolView {...poolProps([account("work", 0), account("personal", 10)])} />,
     );
     expect(html).toContain("anthropic");
     expect(html).toContain("work");
-    expect(html).toContain(
-      t("desktop.providers.pool.detail", { credential: "secret://work", reservePct: 10 }),
-    );
+    expect(html).toContain("secret://work");
+    expect(html).toContain(`aria-label="work ${t("desktop.providers.field.reservePct")}"`);
+    expect(html).toContain('value="10"');
   });
 
   test("a provider with more than twenty accounts folds the rest and offers to show all", () => {
@@ -257,8 +258,9 @@ describe("usage panel", () => {
     expect(html).toContain('aria-label="anthropic 토큰 41천, 한도 모름"');
     expect(html).toContain("anthropic 토큰");
     expect(html).toContain("41천");
-    expect(html).toContain("한도와 재설정 시각은 아직 몰라요");
-    expect(html).toContain('data-state="indeterminate"');
+    expect(html).toContain(t("desktop.providers.usage.limitUnknown"));
+    // 한도를 모르면 막대에 숫자를 지어내지 않는다(빈 막대 자리만 보인다)
+    expect(html).not.toContain("aria-valuenow");
   });
 
   test("a known limit is shown as a fraction of it and the reset line stays out until the wire gives one", () => {
@@ -270,10 +272,11 @@ describe("usage panel", () => {
         })}
       />,
     );
-    expect(html).toContain('aria-label="anthropic 토큰 41천, 한도 100천"');
-    expect(html).toContain('aria-valuenow="41"');
-    expect(html).toContain("한도 100천");
-    expect(html).not.toContain("한도와 재설정 시각은 아직 몰라요");
+    expect(html).toContain('aria-label="anthropic 토큰 41천, 100천 중"');
+    // 막대는 장식(aria-hidden)이고 채운 비율은 글 줄의 이름 문장이 말한다. 막대 칸에는 비율만 들어간다
+    expect(html).toContain("--cs-progress:41%");
+    expect(html).toContain("100천 중");
+    expect(html).not.toContain(t("desktop.providers.usage.limitUnknown"));
     expect(html).not.toContain("재설정");
   });
 
@@ -330,18 +333,18 @@ describe("unreadable values and the rotation row", () => {
     expect(html).toContain(t("desktop.providers.pool.unreadable"));
   });
 
-  test("the rotation switch is on only in the on state, and the badge names each state", () => {
+  test("the rotation switch is on only in the on state, and only the on state shows the acknowledged badge", () => {
     const off = renderToString(<RotationRowView {...rotationProps({ state: "off" })} />);
     const needsNotice = renderToString(
       <RotationRowView {...rotationProps({ state: "needsNotice" })} />,
     );
     const on = renderToString(<RotationRowView {...rotationProps({ state: "on" })} />);
-    expect(off).toContain("꺼짐");
     expect(off).toContain('aria-checked="false"');
-    expect(needsNotice).toContain("고지 동의 필요");
+    expect(off).not.toContain(t("desktop.providers.rotation.acknowledged"));
     expect(needsNotice).toContain('aria-checked="false"');
-    expect(on).toContain("켜짐");
+    expect(needsNotice).not.toContain(t("desktop.providers.rotation.acknowledged"));
     expect(on).toContain('aria-checked="true"');
+    expect(on).toContain(t("desktop.providers.rotation.acknowledged"));
   });
 
   test("only the needs-notice state shows the terms warning", () => {

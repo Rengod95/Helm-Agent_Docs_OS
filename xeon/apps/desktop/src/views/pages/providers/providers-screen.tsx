@@ -107,6 +107,14 @@ function AccountPoolEditor(props: DedicatedEditorProps): ReactNode {
         }
         write(withAccount(list, checked.value));
       }}
+      onReserve={(entry, reservePct) => {
+        const checked = checkAccount({ ...entry, reservePct });
+        if (!checked.ok) {
+          setError(invalidTextOf(checked.error.field));
+          return;
+        }
+        write(withAccount(list, checked.value));
+      }}
       onRemove={(entry: AccountEntry) => {
         write(withoutAccount(list, entry.provider, entry.accountId));
       }}

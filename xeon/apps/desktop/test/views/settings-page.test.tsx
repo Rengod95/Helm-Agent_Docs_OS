@@ -28,7 +28,6 @@ const handlers: SettingsPageHandlers = {
   keyIntent: NOOP,
   restart: NOOP,
   retry: NOOP,
-  back: NOOP,
   fields: {
     edit: NOOP,
     change: NOOP,

@@ -129,7 +129,7 @@ describe("connection screen server render", () => {
   });
 });
 
-describe("the connected clients list under the status card", () => {
+describe("the connected clients row in the status list", () => {
   const STATUS: ConnectionAction = {
     type: "statusLoaded",
     snapshot: {
@@ -162,53 +162,57 @@ describe("the connected clients list under the status card", () => {
     self: true,
   };
 
-  test("each client shows its name, or its transport when it has none, with the version and the thread counts", () => {
+  test("the row names each client, and a client without a name shows its transport", () => {
     const markup = html(stateAfter(STATUS, { type: "clientsLoaded", clients: [NAMED, BARE] }));
     expect(markup).toContain("연결된 클라이언트");
-    expect(markup).toContain("fresnel-cli");
-    expect(markup).toContain("표준 입출력(stdio) · 1.2.0");
-    expect(markup).toContain("대화: 쓰기 2개 · 보기 1개");
-    expect(markup).toContain("서비스 연결");
-    expect(markup).not.toContain("서비스 연결 · ");
-    expect(markup).toContain("대화: 쓰기 0개 · 보기 3개");
+    expect(markup).toContain("fresnel-cli, 이 앱");
+    const unnamed = html(
+      stateAfter(STATUS, {
+        type: "clientsLoaded",
+        clients: [{ ...BARE, self: false }],
+      }),
+    );
+    expect(unnamed).toContain("서비스 연결");
+    expect(unnamed).not.toContain("이 앱");
   });
 
-  test("only the client that is this app gets the this-app badge", () => {
+  test("only the client that is this app gets the this-app name", () => {
     const both = html(stateAfter(STATUS, { type: "clientsLoaded", clients: [NAMED, BARE] }));
     expect(both.split("이 앱").length - 1).toBe(1);
     const named = html(stateAfter(STATUS, { type: "clientsLoaded", clients: [NAMED] }));
     expect(named).not.toContain("이 앱");
   });
 
-  test("an empty list says there are no connected clients and shows no client row", () => {
+  test("an empty list says there are no connected clients in the row's value", () => {
     const markup = html(stateAfter(STATUS, { type: "clientsLoaded", clients: [] }));
-    expect(markup).toContain("연결된 클라이언트가 없어요");
-    expect(markup).not.toContain("대화: 쓰기");
+    expect(markup).toContain("연결된 클라이언트");
+    expect(markup).toContain(">없어요<");
+    expect(markup).not.toContain("fresnel-cli");
   });
 
   test("while the list is read it says so and does not claim the list is empty", () => {
     const markup = html(stateAfter(STATUS));
     expect(markup).toContain("연결된 클라이언트를 읽고 있어요.");
-    expect(markup).not.toContain("연결된 클라이언트가 없어요");
+    expect(markup).not.toContain(">없어요<");
   });
 
-  test("a failed read shows a small alert with a retry button and keeps the status card's rows", () => {
+  test("a failed read shows a small alert with a retry button and keeps the status rows", () => {
     const markup = html(stateAfter(STATUS, { type: "clientsFailed", reason: "failed" }));
     expect(markup).toContain("클라이언트 목록을 읽지 못했어요");
     expect(markup).toContain("다시 시도");
-    expect(markup).toContain("현재 대상");
-    expect(markup).toContain("연결 수");
-    expect(markup).not.toContain("연결된 클라이언트가 없어요");
+    expect(markup).toContain("지금 대상");
+    expect(markup).toContain("상태");
+    expect(markup).not.toContain(">없어요<");
   });
 
-  test("an engine without the method hides the list and keeps only the connection count", () => {
+  test("an engine without the method hides the row and keeps the status rows", () => {
     const markup = html(stateAfter(STATUS, { type: "clientsFailed", reason: "unsupported" }));
     expect(markup).not.toContain("연결된 클라이언트");
     expect(markup).not.toContain("클라이언트 목록을 읽지 못했어요");
-    expect(markup).toContain("연결 수");
+    expect(markup).toContain("상태");
   });
 
-  test("offline hides the list, and the status card shows its offline alert", () => {
+  test("offline hides the row, and the status card shows its offline alert", () => {
     const markup = html(
       stateAfter(
         { type: "statusFailed", reason: "offline" },
@@ -219,7 +223,7 @@ describe("the connected clients list under the status card", () => {
     expect(markup).toContain("엔진에 연결되어 있지 않아요");
   });
 
-  test("the info icon explains what the list shows", () => {
+  test("the info icon explains what the row shows", () => {
     const markup = html(stateAfter(STATUS, { type: "clientsLoaded", clients: [NAMED] }));
     expect(markup).toContain(
       "이 엔진에 붙어 있는 앱과 도구예요. 쓰기 중인 대화 수와 보기만 하는 대화 수를 보여줘요.",

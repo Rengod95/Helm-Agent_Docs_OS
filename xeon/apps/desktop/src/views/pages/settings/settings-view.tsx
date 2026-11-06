@@ -4,14 +4,16 @@ import {
   Dialog,
   DialogAction,
   DialogClose,
-  FormLayoutSection,
   Input,
   ListNavigation,
+  ListNavigationGroup,
   ListNavigationItem,
+  ScrollArea,
   Select,
   SelectOption,
   Skeleton,
 } from "@caustic/react";
+import { Search } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import { TAB_ORDER, TAB_SPECS, type FieldVM, type SettingsView } from "@fresnel/client/settings";
 import type { SettingKey, SettingsTab } from "@fresnel/contracts/settings";
@@ -26,10 +28,13 @@ import {
   type SettingsKeyIntent,
 } from "./settings-model.ts";
 import { FieldRow, type DedicatedEditors, type FieldHandlers } from "./settings-field.tsx";
+import { SettingSection } from "./settings-section.tsx";
 import { diagnosticIdOf } from "./settings-text.ts";
 
 // 설정 화면(P-09)의 그림. 상태와 명령은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
-// 탭 목록은 세로 `ListNavigation`이고 720 이하 폭에서는 `Select`다. 찾기는 라벨·키·설명을 본다.
+// 틀은 P-09 시안(`_settings/frame.tsx`)을 따른다. 왼쪽은 키 찾기와 탭 목록(지금 탭은 올린 흰 칸), 오른쪽은 큰 제목과 머리 아래 선,
+// 그 아래 구역마다 제목과 카드 하나다. 스크롤은 오른쪽 내용 자리 하나가 한다.
+// 탭 목록은 세로 `ListNavigation`이고 720 이하 폭에서는 찾기 칸 아래 `Select`다. 찾기는 라벨·키·설명을 본다.
 // 시크릿 탭은 `secretsPanel`(P-10 시크릿 화면)을 그대로 넣는다. 표와 전용 편집기는 요약만 보인다(`settings-field.tsx`).
 
 export interface SettingsPageHandlers {
@@ -39,12 +44,11 @@ export interface SettingsPageHandlers {
   readonly keyIntent: (intent: SettingsKeyIntent) => void;
   readonly restart: () => void;
   readonly retry: () => void;
-  readonly back: () => void;
   readonly fields: FieldHandlers;
   readonly promptSave: () => void;
   readonly promptDiscard: () => void;
   readonly promptStay: () => void;
-  /** 탭의 "파일로 보기"를 누르면 편집기를 연다(범위는 사용자) */
+  /** 머리 끝의 "파일로 보기"를 누르면 편집기를 연다(범위는 사용자) */
   readonly openFile: () => void;
 }
 
@@ -82,7 +86,7 @@ export interface SettingsPageProps {
 }
 
 export function SettingsPageView(props: SettingsPageProps): ReactNode {
-  const { handlers } = props;
+  const { handlers, tab, query, readOnly, fileOpen, narrow } = props;
   const headingId = useId();
   const onKey = (event: KeyboardEvent<HTMLElement>): void => {
     // 묻는 대화 상자가 열려 있으면 그 키는 대화 상자의 것이다. 포털의 키 입력도 이 자리까지 올라오므로 여기서 막는다
@@ -101,72 +105,83 @@ export function SettingsPageView(props: SettingsPageProps): ReactNode {
     if (intent === "save") event.preventDefault();
     handlers.keyIntent(intent);
   };
+  // "파일로 보기"는 P-09 시안처럼 머리 끝에 둔다. 찾는 중이나 시크릿 탭에는 없다
+  const fileAction =
+    query.trim() === "" && tab !== "secrets" ? (
+      <Button variant="ghost" size="xs" disabled={readOnly || fileOpen} onClick={handlers.openFile}>
+        {t("desktop.settings.file.open.button")}
+      </Button>
+    ) : null;
   return (
     <section
       aria-labelledby={headingId}
-      className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4"
+      className="-m-1.5 mb-0 flex min-h-0 min-w-0 flex-1"
       onKeyDown={onKey}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 id={headingId} className="text-ui-strong text-text-primary">
-          {t("desktop.settings.title")}
-        </h1>
-        <Button variant="outline" size="sm" onClick={handlers.back}>
-          {t("desktop.settings.backToChat.button")}
-        </Button>
+      {narrow ? null : <TabColumn {...props} />}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <header className="flex h-16 flex-none items-center gap-2 border-b border-border-subtle ps-6 pe-6">
+          <h1
+            id={headingId}
+            className="m-0 min-w-0 flex-1 truncate font-ui text-ui-strong font-bold text-text-primary"
+          >
+            {t("desktop.settings.title")}
+          </h1>
+          {fileAction === null ? null : (
+            <div className="flex flex-none items-center">{fileAction}</div>
+          )}
+        </header>
+        {narrow ? <NarrowTabs {...props} /> : null}
+        <ScrollArea label={t("desktop.settings.title")} className="min-h-0 flex-1">
+          <div className="max-w-[64rem] px-6 py-12">
+            <Body {...props} />
+          </div>
+        </ScrollArea>
       </div>
-      <div className={props.narrow ? "flex flex-col gap-4" : "flex min-h-0 flex-1 gap-4"}>
-        <TabColumn {...props} />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-          <Body {...props} />
-        </div>
-      </div>
-      <p className="text-ui-sm text-text-tertiary">{t("desktop.settings.keys.hint")}</p>
       <PromptDialog prompt={props.prompt} handlers={handlers} />
     </section>
   );
 }
 
-/** 탭 목록과 찾기 칸. 720 이하 폭에서는 탭 목록이 선택 상자다 */
-function TabColumn(props: SettingsPageProps): ReactNode {
-  const { handlers, tab, narrow } = props;
-  const searchLabel = t("desktop.settings.search.label");
+/** 찾기 칸. 탭 열과 좁은 폭의 탭 칸이 같이 쓴다 */
+function SearchField(props: SettingsPageProps): ReactNode {
   return (
-    <div className={narrow ? "flex flex-col gap-2" : "flex w-56 shrink-0 flex-col gap-2"}>
-      <Input
-        type="search"
-        aria-label={searchLabel}
-        placeholder={t("desktop.settings.search.placeholder")}
-        value={props.query}
-        spellCheck={false}
-        onValueChange={handlers.query}
-      />
-      {narrow ? (
-        <Select
-          aria-label={t("desktop.settings.tabs.select")}
-          value={tab}
-          onValueChange={(next) => {
-            const found = TAB_ORDER.find((candidate) => candidate === next);
-            if (found !== undefined) handlers.select(found);
-          }}
-        >
-          {TAB_ORDER.map((id) => (
-            <SelectOption key={id} value={id}>
-              {TAB_SPECS[id].label}
-            </SelectOption>
-          ))}
-        </Select>
-      ) : (
-        <ListNavigation
-          kind="pages"
-          aria-label={t("desktop.settings.tabs.label")}
-          onKeyDown={(event) => {
-            // ↑↓은 탭 목록에서 옆 탭으로 옮긴다(§6.13). 옮긴 뒤의 초점은 그대로 둔다
-            if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-            event.preventDefault();
-            handlers.select(tabStep(tab, TAB_ORDER, event.key === "ArrowDown" ? 1 : -1));
-          }}
-        >
+    <Input
+      type="search"
+      size="xs"
+      variant="soft"
+      prefix={<Search />}
+      aria-label={t("desktop.settings.search.label")}
+      placeholder={t("desktop.settings.search.placeholder")}
+      value={props.query}
+      spellCheck={false}
+      containerClassName="min-w-0 flex-1"
+      onValueChange={props.handlers.query}
+    />
+  );
+}
+
+/** 왼쪽 탭 열. 찾기 칸은 머리 높이에 맞추고, 지금 탭은 올린 흰 칸으로 보인다 */
+function TabColumn(props: SettingsPageProps): ReactNode {
+  const { handlers, tab } = props;
+  return (
+    <div className="flex w-52 flex-none flex-col border-e border-border-subtle ps-3 pe-2">
+      <div className="flex h-16 flex-none items-center">
+        <SearchField {...props} />
+      </div>
+      <ListNavigation
+        kind="pages"
+        size="sm"
+        aria-label={t("desktop.settings.tabs.label")}
+        className="pb-2"
+        onKeyDown={(event) => {
+          // ↑↓은 탭 목록에서 옆 탭으로 옮긴다(§6.13). 옮긴 뒤의 초점은 그대로 둔다
+          if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+          event.preventDefault();
+          handlers.select(tabStep(tab, TAB_ORDER, event.key === "ArrowDown" ? 1 : -1));
+        }}
+      >
+        <ListNavigationGroup>
           {TAB_ORDER.map((id) => (
             <ListNavigationItem
               key={id}
@@ -178,8 +193,34 @@ function TabColumn(props: SettingsPageProps): ReactNode {
               {TAB_SPECS[id].label}
             </ListNavigationItem>
           ))}
-        </ListNavigation>
-      )}
+        </ListNavigationGroup>
+      </ListNavigation>
+    </div>
+  );
+}
+
+/** 720 이하 폭의 찾기 칸과 탭 고르기. 탭 열 대신 머리 아래에 둔다 */
+function NarrowTabs(props: SettingsPageProps): ReactNode {
+  const { handlers, tab } = props;
+  return (
+    <div className="grid gap-2 border-b border-border-subtle px-6 py-3">
+      <SearchField {...props} />
+      <Select
+        size="xs"
+        aria-label={t("desktop.settings.tabs.select")}
+        value={tab}
+        className="w-[min(20rem,100%)]"
+        onValueChange={(next) => {
+          const found = TAB_ORDER.find((candidate) => candidate === next);
+          if (found !== undefined) handlers.select(found);
+        }}
+      >
+        {TAB_ORDER.map((id) => (
+          <SelectOption key={id} value={id}>
+            {TAB_SPECS[id].label}
+          </SelectOption>
+        ))}
+      </Select>
     </div>
   );
 }
@@ -219,52 +260,37 @@ function Body(props: SettingsPageProps): ReactNode {
   const restart = restartCountOf(view);
   return (
     <>
-      {props.readOnly ? <Alert tone="info">{t("desktop.settings.offline")}</Alert> : null}
-      {restart === 0 ? null : (
-        <Alert
-          tone="warning"
-          action={
-            <Button
-              size="xs"
-              variant="outline"
-              disabled={props.readOnly}
-              onClick={handlers.restart}
-            >
-              {t("desktop.settings.restart.button")}
-            </Button>
-          }
-        >
-          {view.restartBanner?.text ?? ""}
-        </Alert>
-      )}
-      {props.restartError === null ? null : <Alert tone="danger">{props.restartError}</Alert>}
+      <div className="grid gap-2 pb-3 empty:hidden">
+        {props.readOnly ? <Alert tone="info">{t("desktop.settings.offline")}</Alert> : null}
+        {restart === 0 ? null : (
+          <Alert
+            tone="warning"
+            action={
+              <Button
+                size="xs"
+                variant="outline"
+                disabled={props.readOnly}
+                onClick={handlers.restart}
+              >
+                {t("desktop.settings.restart.button")}
+              </Button>
+            }
+          >
+            {view.restartBanner?.text ?? ""}
+          </Alert>
+        )}
+        {props.restartError === null ? null : <Alert tone="danger">{props.restartError}</Alert>}
+      </div>
       <FieldList {...props} view={view} />
     </>
   );
 }
 
-/**
- * 항목 목록 위의 자리. 탭을 고른 자리에는 "파일로 보기" 줄을 두고, 찾기 자리와 시크릿 탭에는 두지 않는다.
- * 편집기는 탭과 찾기 어디서나 열린 채로 보인다(초안을 가리지 않으려고).
- */
+/** 파일 편집기(열려 있을 때)와 항목 목록. 편집기는 탭과 찾기 어디서나 열린 채로 보인다(초안을 가리지 않으려고) */
 function FieldList(props: SettingsPageProps & { readonly view: SettingsView }): ReactNode {
-  const { query, tab, readOnly, fileOpen, fileEditor, handlers } = props;
-  const tabMode = query.trim() === "" && tab !== "secrets";
   return (
     <>
-      {tabMode ? (
-        <div className="flex justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={readOnly || fileOpen}
-            onClick={handlers.openFile}
-          >
-            {t("desktop.settings.file.open.button")}
-          </Button>
-        </div>
-      ) : null}
-      {fileEditor}
+      {props.fileEditor}
       <FieldItems {...props} />
     </>
   );
@@ -295,9 +321,9 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
     return (
       <>
         {groups.map((group) => (
-          <FormLayoutSection key={group.tab} title={group.label}>
+          <SettingSection key={group.tab} title={group.label}>
             {group.fields.map(rowOf)}
-          </FormLayoutSection>
+          </SettingSection>
         ))}
       </>
     );
@@ -308,23 +334,28 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
   // 검색 순서는 도구와 웹 패널이 그린다. 패널이 있는 탭은 빈 항목 문장 대신 패널을 보인다
   const fields = tabView.fields.filter((field) => !panelOwnedOf(field));
   return (
-    <FormLayoutSection title={tabView.label}>
-      {tab === "overview" ? <OverviewSummary view={view} /> : null}
-      {tab === "tools" ? props.toolsPanel : null}
-      {tab === "advanced" ? props.restorePanel : null}
-      {tabView.gauge === null ? null : props.usagePanel}
-      {tab === "providers" ? props.rotationPanel : null}
-      {fields.length === 0 && tabView.emptyText !== null && tab !== "tools" ? (
-        <p className="text-ui-sm text-text-tertiary">{tabView.emptyText}</p>
+    <>
+      <SettingSection title={tabView.label}>
+        {tab === "overview" ? <OverviewSummary view={view} /> : null}
+        {tab === "tools" ? props.toolsPanel : null}
+        {tab === "advanced" ? props.restorePanel : null}
+        {tabView.gauge === null ? null : props.usagePanel}
+        {tab === "providers" ? props.rotationPanel : null}
+        {fields.length === 0 && tabView.emptyText !== null && tab !== "tools" ? (
+          <p className="text-ui-sm text-text-tertiary">{tabView.emptyText}</p>
+        ) : null}
+        {fields.map(rowOf)}
+      </SettingSection>
+      {tab === "overview" && view.diagnostics.length > 0 ? (
+        <DiagnosticsSection view={view} />
       ) : null}
-      {fields.map(rowOf)}
-    </FormLayoutSection>
+    </>
   );
 }
 
-/** 개요 탭의 요약과 화면 진단. 잠긴 항목과 재시작 대기는 개요에서 셀 수 있다 */
+/** 개요 탭의 요약. 잠긴 항목과 재시작 대기는 개요에서 셀 수 있다 */
 function OverviewSummary(props: { readonly view: SettingsView }): ReactNode {
-  const { overview, diagnostics } = props.view;
+  const { overview } = props.view;
   const lines = [
     t("desktop.settings.overview.locked", { count: overview.locked.length }),
     t("desktop.settings.overview.pendingRestart", { count: overview.pendingRestart.length }),
@@ -332,30 +363,36 @@ function OverviewSummary(props: { readonly view: SettingsView }): ReactNode {
     t("desktop.settings.overview.deprecated", { count: overview.deprecatedInUse.length }),
   ];
   return (
-    <div className="flex flex-col gap-2">
-      <ul className="text-ui-sm text-text-secondary">
-        {lines.map((line) => (
-          <li key={line}>{line}</li>
+    <ul className="m-0 grid list-none gap-1 p-0 text-ui-sm text-text-secondary">
+      {lines.map((line) => (
+        <li key={line}>{line}</li>
+      ))}
+    </ul>
+  );
+}
+
+/** 화면 진단. 개요 탭 아래 구역 하나다(P-15 시안): 키는 글꼴 mono로, 문장은 그 옆에 둔다 */
+function DiagnosticsSection(props: { readonly view: SettingsView }): ReactNode {
+  const { diagnostics } = props.view;
+  return (
+    <SettingSection
+      title={t("desktop.settings.diagnostics.title")}
+      end={<span className="text-ui-xs tabular-nums text-text-tertiary">{diagnostics.length}</span>}
+    >
+      <ul className="m-0 grid list-none gap-1 p-0 text-ui-sm">
+        {diagnostics.map((diagnostic) => (
+          <li
+            key={`${diagnostic.code}:${diagnostic.key}`}
+            className="flex min-w-0 items-baseline gap-2"
+          >
+            <code className="shrink-0 font-mono text-mono-sm text-text-secondary">
+              {diagnostic.key}
+            </code>
+            <span className="truncate text-text-primary">{t(diagnosticIdOf(diagnostic.code))}</span>
+          </li>
         ))}
       </ul>
-      {diagnostics.length === 0 ? null : (
-        <div className="flex flex-col gap-1">
-          <span className="text-ui-strong text-text-primary">
-            {t("desktop.settings.diagnostics.title")}
-          </span>
-          <ul className="text-ui-sm text-text-secondary">
-            {diagnostics.map((diagnostic) => (
-              <li key={`${diagnostic.code}:${diagnostic.key}`}>
-                {t("desktop.settings.diagnostics.line", {
-                  key: diagnostic.key,
-                  problem: t(diagnosticIdOf(diagnostic.code)),
-                })}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
+    </SettingSection>
   );
 }
 
