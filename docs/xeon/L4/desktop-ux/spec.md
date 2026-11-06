@@ -1108,7 +1108,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 신뢰 카드 | 작업 폴더 자원과 선택지 | `trust.get { workspace }` → `trustCardOf` |
 | 띠 | 설정 필요, 오프라인, 관찰 중, 이어서 실행, turn 실패 | `useSetupNeeded`, 연결 상태, `observing`, `ThreadSummary.resumable`, `turnFailures` |
 | 입력창 | 텍스트, 첨부, 승인 모드 칩(대화별, 아래 전역 요소의 "승인 모드"), 모델(대화별 `Select`: `models.list`, `thread.setModel`), 큐 모드, 문맥 링, 보내기·중단 | `composerDisabledReason`, `createEnterGuard`, `createSendLatch`, `PermissionModeSelect`, `useThreadPermissionMode`, `ModelSelect`, `useThreadModel`, `useModelChoices` |
-| 슬래시 자동 완성 | `/`로 시작하면 명령 목록 | `command.list` → `completeSlash` |
+| 슬래시 자동 완성 | `/`로 시작하고 이름을 치는 중이면 입력창 위에 명령 목록(앱 명령 `/compact [지침]`이 먼저, 그 뒤 엔진 명령 `command.list`). ↑↓로 고르고 Tab으로 채우고 Esc로 닫는다. 고른 행이 입력과 다르면 Enter는 채우기만 하고 같으면 보낸다. `/compact [지침]`은 모델로 보내지 않고 "대화 요약"과 같은 `thread.compact { threadId, instructions? }`로 가며 결과는 같은 토스트로 보인다(앱 명령이 엔진 명령보다 앞선다, CLI `/compact`와 같다). 앱도 엔진도 모르는 `/명령`은 보내기 전에 "모르는 명령이에요 · 그대로 보내기"로 묻는다(명령 목록을 읽지 못했으면 묻지 않고 보낸다). 앱 명령은 `/compact`뿐이다 [기본값: `/new`, `/model`은 입력창이 대화·모델 고르기 흐름에 닿지 않아 뺐다] | `views/composer-slash.ts`(`slashMenuOf`, `appSlashOf`, `unknownSlashOf`), `command.list` → `completeSlash`, `compactThread` |
 
 | 기능 | wire 또는 view-model |
 |---|---|

@@ -260,8 +260,13 @@ export function createCommands(deps: CommandDeps): Commands {
       if (!done.ok) showLockedIfLocked(threadId, done.error);
       return done.ok ? ok(done.value.withdrawn) : done;
     },
-    compactThread: (threadId) =>
-      withWriteConnection((c) => c.request("thread.compact", { threadId })),
+    compactThread: (threadId, instructions) =>
+      withWriteConnection((c) =>
+        c.request(
+          "thread.compact",
+          instructions === undefined ? { threadId } : { threadId, instructions },
+        ),
+      ),
     async renameThread(threadId, title) {
       const done = await withWriteConnection((c) =>
         c.request("thread.rename", { threadId, title }),

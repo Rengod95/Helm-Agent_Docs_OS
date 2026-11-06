@@ -9,6 +9,7 @@ import {
   Textarea,
 } from "@caustic/react";
 import { ArrowUp, Plus } from "@caustic/react/icons";
+import type { CommandRowVM } from "@fresnel/client/settings";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { PermissionMode } from "@fresnel/contracts/services";
@@ -66,6 +67,14 @@ import {
   useThreadModel,
   useThreadPermissionMode,
 } from "./model-usage.ts";
+import {
+  appSlashOf,
+  slashFillOf,
+  slashMenuOf,
+  slashMoveOf,
+  unknownSlashOf,
+} from "./composer-slash.ts";
+import { runThreadCompact } from "./thread-compact.ts";
 import { permissionModeOptionsOf, switchModeOf } from "./permission-mode-model.ts";
 import { QueuedInputs } from "./queued-inputs.tsx";
 import { useSetupNeeded } from "./setup-needed.ts";
@@ -276,6 +285,11 @@ function ComposerFor(props: {
   const [dragging, setDragging] = useState(false);
   const [attachNote, setAttachNote] = useState<string | null>(null);
   const limit = useRef<number | null>(null);
+  // 슬래시 목록: 엔진 명령(`command.list`)은 `/`를 처음 칠 때 읽는다. 못 읽으면 null이라 앱 명령만 보이고 모르는 명령 확인은 하지 않는다
+  const [engineRows, setEngineRows] = useState<readonly CommandRowVM[] | null>(null);
+  const [menuIndex, setMenuIndex] = useState(0);
+  const [menuDismissed, setMenuDismissed] = useState(false);
+  const [unknownName, setUnknownName] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const attachBlocked = attachDisabledReason({
     composerReason: props.disabledReason,
@@ -293,6 +307,25 @@ function ComposerFor(props: {
       rethrow,
     );
   }, [commands]);
+
+  const startsSlash = draft.startsWith("/");
+  useEffect(() => {
+    if (!startsSlash) return undefined;
+    let live = true;
+    detach(
+      commands.commandList(props.threadId).then((listed) => {
+        if (live) setEngineRows(listed.ok ? listed.value : null);
+        return undefined;
+      }),
+      rethrow,
+    );
+    return () => {
+      live = false;
+    };
+  }, [commands, props.threadId, startsSlash]);
+  const menuRows = menuDismissed ? [] : slashMenuOf(draft, engineRows ?? []);
+  const menuActive = menuRows.length > 0;
+  const activeRow = menuRows[Math.min(menuIndex, menuRows.length - 1)];
 
   const upload = async (id: string, source: AttachmentSource): Promise<void> => {
     const added = await commands.addAttachment(props.threadId, source);
@@ -389,7 +422,23 @@ function ComposerFor(props: {
   // sending 상태는 비동기라 연속 Enter를 못 막는다. 동기 잠금으로 막는다
   const latch = useRef(createSendLatch());
 
-  const send = async (): Promise<void> => {
+  const loadEngineRows = async (): Promise<readonly CommandRowVM[] | null> => {
+    const listed = await commands.commandList(props.threadId);
+    const rows = listed.ok ? listed.value : null;
+    setEngineRows(rows);
+    return rows;
+  };
+  const fillSlash = (index: number): void => {
+    const row = menuRows[index];
+    if (row === undefined) return;
+    const next = slashFillOf(row);
+    draftRef.current = next;
+    setDraft(next);
+    setMenuIndex(0);
+    textarea.current?.focus();
+  };
+  /** `force`는 모르는 명령 확인에서 "그대로 보내기"를 눌렀을 때다 */
+  const send = async (force = false): Promise<void> => {
     const text = draftRef.current.trim();
     const parts = readyParts(chips);
     if (props.disabledReason !== null) return;
@@ -399,7 +448,29 @@ function ComposerFor(props: {
       return;
     }
     if (text === "" && parts.length === 0) return;
+    if (parts.length === 0 && !force) {
+      // 앱이 직접 하는 명령(`/compact [지침]`)은 모델로 보내지 않고 대화 요약으로 간다
+      const app = appSlashOf(text);
+      if (app !== null) {
+        draftRef.current = "";
+        setDraft("");
+        setError(null);
+        setUnknownName(null);
+        runThreadCompact(commands, props.threadId, app.instructions ?? undefined);
+        return;
+      }
+      // 앱도 엔진도 모르는 `/명령`은 모델로 보내기 전에 한 번 묻는다
+      if (text.startsWith("/")) {
+        const rows = engineRows ?? (await loadEngineRows());
+        const unknown = unknownSlashOf(text, rows);
+        if (unknown !== null) {
+          setUnknownName(unknown);
+          return;
+        }
+      }
+    }
     if (!latch.current.tryAcquire()) return;
+    setUnknownName(null);
     setSending(true);
     setError(null);
     // 보내는 즉시 비운다. 남은 조합 글자가 두 번째 메시지가 되지 않게 한다
@@ -438,9 +509,27 @@ function ComposerFor(props: {
     }
     textarea.current?.focus();
     commands.settleComposerRequest();
-  }, [request, commands, selectedThread, props.threadId]);
+  }, [request, commands, selectedThread, props.threadId, draftRef]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
+    // 슬래시 목록이 열려 있으면 위아래로 고르고 Tab으로 채우고 Esc로 닫는다(한글 조합 중에는 건드리지 않는다)
+    if (menuActive && !event.nativeEvent.isComposing) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        setMenuIndex(slashMoveOf(menuIndex, menuRows.length, event.key === "ArrowDown" ? 1 : -1));
+        return;
+      }
+      if (event.key === "Tab" && !event.shiftKey) {
+        event.preventDefault();
+        fillSlash(Math.min(menuIndex, menuRows.length - 1));
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMenuDismissed(true);
+        return;
+      }
+    }
     // 한글 조합 중의 Enter는 글자 확정이다. 보내지 않는다(WebKit은 keyCode 229, compositionend가 먼저)
     if (
       !guard.current.isSendEnter(
@@ -456,6 +545,11 @@ function ComposerFor(props: {
     )
       return;
     event.preventDefault();
+    // 목록에서 고른 행이 입력과 다르면 Enter는 보내지 않고 그 행으로 채운다. 이미 같으면 보낸다
+    if (menuActive && activeRow !== undefined && activeRow.label !== draftRef.current.trim()) {
+      fillSlash(Math.min(menuIndex, menuRows.length - 1));
+      return;
+    }
     detach(send(), rethrow);
   };
 
@@ -528,9 +622,65 @@ function ComposerFor(props: {
           {secretWarning}
         </p>
       )}
+      {menuActive ? (
+        <ul
+          id="composer-slash-list"
+          role="listbox"
+          aria-label={t("desktop.composer.slash.label")}
+          data-composer-slash-list
+          className="m-0 grid list-none gap-0.5 rounded-2xl bg-neutral-well p-1.5"
+        >
+          {menuRows.map((row, index) => (
+            <li
+              key={row.name}
+              id={`composer-slash-${row.name}`}
+              role="option"
+              aria-selected={index === Math.min(menuIndex, menuRows.length - 1)}
+              className="flex cursor-default items-baseline gap-2 rounded-xl px-2.5 py-1.5 text-ui-sm text-text-secondary aria-selected:bg-neutral-graphic aria-selected:text-text-primary"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                fillSlash(index);
+              }}
+              onMouseEnter={() => {
+                setMenuIndex(index);
+              }}
+            >
+              <span className="text-ui-strong text-text-primary">{row.label}</span>
+              {row.hint === null ? null : <span>{row.hint}</span>}
+              <span className="min-w-0 truncate">{row.description}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {unknownName === null ? null : (
+        <p
+          role="status"
+          data-composer-slash-unknown
+          className="m-0 flex flex-wrap items-center gap-2 px-1 text-ui-sm text-warning-text"
+        >
+          <span>
+            {t("desktop.composer.slash.unknown")} · /{unknownName}
+          </span>
+          <Button
+            type="button"
+            size="xs"
+            variant="outline"
+            onClick={() => {
+              detach(send(true), rethrow);
+            }}
+          >
+            {t("desktop.composer.slash.sendAsIs")}
+          </Button>
+        </p>
+      )}
       <Textarea
         ref={textarea}
         aria-label={t("desktop.composer.input.label")}
+        aria-autocomplete={menuActive ? "list" : undefined}
+        aria-controls={menuActive ? "composer-slash-list" : undefined}
+        aria-activedescendant={
+          menuActive && activeRow !== undefined ? `composer-slash-${activeRow.name}` : undefined
+        }
         variant="solid"
         size="md"
         radius="2xl"
@@ -544,6 +694,9 @@ function ComposerFor(props: {
         onChange={(event) => {
           draftRef.current = event.currentTarget.value;
           setDraft(event.currentTarget.value);
+          setMenuIndex(0);
+          setMenuDismissed(false);
+          setUnknownName(null);
         }}
         onKeyDown={onKeyDown}
         onPaste={onPaste}

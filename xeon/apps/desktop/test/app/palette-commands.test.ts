@@ -25,6 +25,17 @@ describe("palette thread actions", () => {
     await app.stop();
   });
 
+  test("compaction with instructions sends them with the thread id for the input box /compact", async () => {
+    const skipped: ThreadCompactResult = { status: "skipped", why: "nothing_to_summarize" };
+    const { app, params } = await liveApp({ results: { "thread.compact": skipped } });
+    await app.commands.compactThread(thr(1), "결정만 남겨 줘");
+    expect(paramsOf(params, "thread.compact")).toEqual({
+      threadId: thr(1),
+      instructions: "결정만 남겨 줘",
+    });
+    await app.stop();
+  });
+
   test("resuming a run sends the thread id and a resumed result comes back as the host sent it", async () => {
     const resumed: TurnResumeResult = { status: "resumed", turnId: trn(1), from: "tools" };
     const { app, params } = await liveApp({ results: { "turn.resume": resumed } });
