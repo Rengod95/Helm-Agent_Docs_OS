@@ -101,3 +101,12 @@ test("the built CSS carries the local SUIT font-face and nothing remote", async 
   expect(css).not.toMatch(/@import\s+(?:url\()?["']?https?:/);
   expect(css).not.toMatch(/url\(\s*["']?https?:/);
 }, 60_000);
+
+test("forced-colors rules exist for the input border and the selected states", () => {
+  const forced = /@media \(forced-colors: active\)\s*\{[\s\S]*$/.exec(STYLES)?.[0] ?? "";
+  expect(forced).toContain('[data-slot="textarea"]');
+  expect(forced).toContain("border: 1px solid CanvasText");
+  expect(forced).toContain('[data-slot="segmented-control-item"][data-state="checked"]');
+  expect(forced).toContain('[data-slot="list-navigation-item"][aria-current="page"]');
+  expect(forced).toContain("background: Highlight");
+});

@@ -182,3 +182,35 @@
     transition-duration: 0s !important;
   }
 }
+
+/* 강제 색(`forced-colors: active`, Windows 고대비): 브라우저가 배경·그림자·분할선 색을 지워 입력창 경계와 선택 표시가 사라진다.
+   시스템 색(Canvas, CanvasText, Highlight, HighlightText)으로 경계와 선택을 다시 그린다. caustic 부품이 배경색·그림자로만 선택과 경계를 그리는 것이
+   원인이라 앱 CSS에서 덮는다(caustic 쪽 수정은 하지 않는다). 유틸리티 층의 클래스를 이기려고 !important를 쓴다(층 안 !important는 앞선 층이 이긴다). */
+@layer components {
+  @media (forced-colors: active) {
+    [data-slot="textarea"] {
+      border: 1px solid CanvasText !important;
+    }
+    [data-slot="textarea"]:focus-within {
+      outline: 2px solid Highlight;
+      outline-offset: 1px;
+    }
+    [data-slot="segmented-control"] {
+      border: 1px solid ButtonBorder !important;
+    }
+    [data-slot="segmented-control-item"][data-state="checked"],
+    [data-slot="list-navigation-item"][aria-current="page"] {
+      forced-color-adjust: none;
+      background: Highlight !important;
+      color: HighlightText !important;
+      outline: 2px solid CanvasText;
+      outline-offset: -2px;
+    }
+    [data-slot="segmented-control-item"][data-state="checked"] * {
+      color: HighlightText !important;
+    }
+    [data-slot="list-navigation-item"][aria-current="page"] * {
+      color: HighlightText !important;
+    }
+  }
+}
