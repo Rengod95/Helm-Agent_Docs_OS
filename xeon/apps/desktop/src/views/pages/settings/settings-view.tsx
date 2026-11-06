@@ -111,12 +111,12 @@ export interface SettingsPageProps {
 export function SettingsPageView(props: SettingsPageProps): ReactNode {
   const { handlers, tab, query, readOnly, fileOpen, narrow } = props;
   const headingId = useId();
-  // 머리 제목은 고른 탭 이름이다(P-09 시안 `_settings/frame.tsx`). 찾는 중에는 화면 이름이다
+  // 머리 제목은 고른 탭 이름이다(P-09 시안 `_settings/frame.tsx`). 찾는 중에는 `'찾는 글' 찾은 항목`이다(시안 `search.tsx`)
   const titleOf =
     query.trim() === ""
       ? (props.view?.tabs.find((candidate) => candidate.id === tab)?.label ??
         t("desktop.settings.title"))
-      : t("desktop.settings.title");
+      : t("desktop.settings.search.resultsTitle", { query: query.trim() });
   const onKey = (event: KeyboardEvent<HTMLElement>): void => {
     // 묻는 대화 상자가 열려 있으면 그 키는 대화 상자의 것이다. 포털의 키 입력도 이 자리까지 올라오므로 여기서 막는다
     if (props.prompt !== null) return;
@@ -353,7 +353,8 @@ function titledCardsOf(tab: SettingsTab, fields: readonly FieldVM[]): readonly T
 function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }): ReactNode {
   const { view, query, tab, hasThread, readOnly, saved, handlers } = props;
   const rowHandlers = handlers.fields;
-  const rowOf = (field: FieldVM): ReactNode => (
+  // 설정 키는 찾기 결과에서만 라벨 옆에 보인다(시안 `_settings/row.tsx` showKey)
+  const rowOf = (field: FieldVM, showKey: boolean): ReactNode => (
     <FieldRow
       key={field.key}
       field={field}
@@ -362,6 +363,7 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
       saved={saved.has(field.key)}
       editors={props.editors}
       handlers={rowHandlers}
+      showKey={showKey}
     />
   );
   if (query.trim() !== "") {
@@ -375,7 +377,7 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
       <>
         {groups.map((group) => (
           <SettingSection key={group.tab} title={group.label}>
-            {group.fields.map(rowOf)}
+            {group.fields.map((field) => rowOf(field, true))}
           </SettingSection>
         ))}
       </>
@@ -418,7 +420,7 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
         >
           {tab === "advanced" ? props.restorePanel : null}
           {emptyText === null ? null : <p className="text-ui-sm text-text-tertiary">{emptyText}</p>}
-          {groups.general.map(rowOf)}
+          {groups.general.map((field) => rowOf(field, false))}
         </SettingSection>
       ) : null}
       {cards?.map((card) =>
@@ -428,14 +430,14 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
             label={tabView.label}
             title={card.title}
           >
-            {card.fields.map(rowOf)}
+            {card.fields.map((field) => rowOf(field, false))}
           </SettingSection>
         ),
       )}
       {tab === "appearance" ? props.appearancePanel : null}
       {groups.operator.length === 0 ? null : (
         <SettingSection title={t("desktop.settings.advanced.operator.title")}>
-          {groups.operator.map(rowOf)}
+          {groups.operator.map((field) => rowOf(field, false))}
         </SettingSection>
       )}
     </>

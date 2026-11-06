@@ -101,6 +101,8 @@ export interface FieldRowProps {
   readonly saved: boolean;
   readonly editors: DedicatedEditors;
   readonly handlers: FieldHandlers;
+  /** 찾기 결과에서만 참이다. 라벨 옆에 설정 키를 보인다(시안 `_settings/row.tsx` showKey) */
+  readonly showKey?: boolean | undefined;
 }
 
 /** 항목 아래 오류 문장. 저장 오류가 있으면 그것을, 없으면 초안의 첫 검사 문장이다 */
@@ -201,7 +203,7 @@ export function InfoTip(props: {
 }
 
 export function FieldRow(props: FieldRowProps): ReactNode {
-  const { field, editable, hasThread, saved, editors, handlers } = props;
+  const { field, editable, hasThread, saved, editors, handlers, showKey = false } = props;
   const titleId = useId();
   const lockId = useId();
   const disabled = !editable;
@@ -228,6 +230,11 @@ export function FieldRow(props: FieldRowProps): ReactNode {
             </span>
           </span>
           {explain.length === 0 ? null : <InfoTip label={field.label} lines={explain} />}
+          {showKey ? (
+            <span className="min-w-0 truncate font-mono text-mono-sm text-text-tertiary">
+              {field.key}
+            </span>
+          ) : null}
         </div>
         <div className="flex flex-none items-center gap-2">
           {editable && scopeChoiceShown(field) ? (

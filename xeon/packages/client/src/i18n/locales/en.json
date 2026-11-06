@@ -1725,6 +1725,7 @@
   "desktop.settings.search.label": "Find setting",
   "desktop.settings.search.noMatch": "No matching settings",
   "desktop.settings.search.placeholder": "Search by name, key, or description",
+  "desktop.settings.search.resultsTitle": "Results for “{query}”",
   "desktop.settings.shadowed.item": "{scope} also has a value",
   "desktop.settings.shadowed.title": "{count} shadowed scopes",
   "desktop.settings.tabs.label": "Settings tabs",

@@ -694,6 +694,8 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | 기본값 복귀 | `settings.reset` | §4.3.7 |
 | 폐기 | `EffectiveSetting.deprecated`, `SettingDefWire.deprecated` | §4.3.8 |
 
+- [제안] 찾기 결과(찾는 글이 있을 때)는 머리 제목을 `‘찾는 글’ 찾은 항목`으로 바꾸고, 맞는 항목을 탭 이름의 제목 카드로 묶는다. 각 항목은 라벨 옆에 설정 키를 연한 고정폭 글(`showKey`, 시안 `_settings/row.tsx`)로 보이고, 재시작 필요 항목은 위 §4.3.2의 `재시작 필요` 배지를 그대로 단다. 찾기 입력란은 라벨·키·설명을 모두 보므로 문구를 "이름, 키, 설명으로 찾아요"로 둔다(시안의 "키 찾기"보다 넓다).
+
 #### 4.3.1 범위 배지
 
 [제안] 배지는 색과 글자를 함께 쓴다. 색만으로 구분하지 않는다(§4.8.1).

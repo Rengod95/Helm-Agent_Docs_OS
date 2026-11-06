@@ -321,6 +321,51 @@ describe("page layout", () => {
   });
 });
 
+describe("search results", () => {
+  const RESTART = defOf(
+    "l0.process.port",
+    "execution",
+    "number",
+    { type: "integer" },
+    { runtimeChange: "restart" },
+    { order: 1, label: "프로세스 포트" },
+  );
+
+  test("while searching the header reads the trimmed query in quotes and 찾은 항목, and a plain page shows no such header", () => {
+    const view = viewOf([MODEL, STEPS], SETTINGS);
+    const found = html(propsOf({ view, query: " 단계 " }));
+    expect(found).toContain(">‘단계’ 찾은 항목</h1>");
+    expect(found).not.toContain(`>${t("desktop.settings.title")}</h1>`);
+    expect(html(propsOf({ view, tab: "models" }))).not.toContain("찾은 항목");
+  });
+
+  test("each search result shows its setting key beside its label", () => {
+    const view = viewOf([MODEL, STEPS, LOCKED], SETTINGS);
+    const out = html(propsOf({ view, query: "l1." }));
+    for (const key of [MODEL.key, STEPS.key, LOCKED.key]) {
+      expect(rowOf(out, key)).toContain(`>${key}</span>`);
+    }
+  });
+
+  test("without a search the rows show no setting key", () => {
+    const view = viewOf([MODEL, STEPS], SETTINGS);
+    const out = html(propsOf({ view, tab: "models" }));
+    expect(rowOf(out, MODEL.key)).toContain("기본 모델");
+    expect(rowOf(out, MODEL.key)).not.toContain(`>${MODEL.key}</span>`);
+  });
+
+  test("a search result whose setting needs a restart shows the 재시작 필요 chip, and a live one does not", () => {
+    const view = viewOf(
+      [RESTART, MODEL],
+      [settingOf(RESTART.key, 7000, { runtimeChange: "restart" }), settingOf(MODEL.key, "sonnet")],
+    );
+    const restart = html(propsOf({ view, query: "포트" }));
+    expect(rowOf(restart, RESTART.key)).toContain(t("client.settings.runtime.restart"));
+    const live = html(propsOf({ view, query: "기본" }));
+    expect(rowOf(live, MODEL.key)).not.toContain(t("client.settings.runtime.restart"));
+  });
+});
+
 describe("notify section", () => {
   // OS 알림 묶음(B-10)은 "실행과 서비스" 탭 맨 위에 보이고, 다른 탭에는 보이지 않는다
   const RESTART_LIMIT = defOf(

@@ -1725,6 +1725,7 @@
   "desktop.settings.search.label": "키 찾기",
   "desktop.settings.search.noMatch": "찾는 설정이 없어요",
   "desktop.settings.search.placeholder": "이름, 키, 설명으로 찾아요",
+  "desktop.settings.search.resultsTitle": "‘{query}’ 찾은 항목",
   "desktop.settings.shadowed.item": "{scope} 범위에도 값이 있어요",
   "desktop.settings.shadowed.title": "가려진 범위 {count}개",
   "desktop.settings.tabs.label": "설정 탭",
