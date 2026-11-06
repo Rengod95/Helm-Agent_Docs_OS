@@ -85,6 +85,11 @@ export function fileDirtyOf(state: FileEditorState): boolean {
   return state.doc !== null && state.draft !== state.doc.text;
 }
 
+/** 탭을 옮길 때 열린 파일 칸을 닫아도 되는가: 열려 있고, 고친 초안이 없고, 저장 중이 아니다 */
+export function fileClosesOnTabMoveOf(state: FileEditorState): boolean {
+  return state.phase !== "closed" && !fileDirtyOf(state) && !state.saving;
+}
+
 /** 초안을 바꿀 수 있는 상태인가: 원문을 읽었고, 쓸 수 있는 파일이고, 저장 중이 아니다. 연결은 화면이 따로 본다 */
 function draftWritableOf(state: FileEditorState): boolean {
   return (

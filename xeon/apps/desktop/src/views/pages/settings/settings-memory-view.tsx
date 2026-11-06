@@ -4,6 +4,7 @@ import { detach, rethrow } from "@fresnel/contracts";
 import type { MemoryStore, MemoryStoreView } from "@fresnel/contracts/capabilities";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { InfoTip } from "../../craft/info-tip.tsx";
+import { SettingSection } from "./settings-section.tsx";
 import { useCommands } from "../../commands.ts";
 import type { CommandError } from "../../commands.ts";
 
@@ -66,43 +67,43 @@ function previewOf(text: string): string {
 export function MemoryPanelView(props: MemoryPanelViewProps): ReactNode {
   const { load, notice, busy } = props;
   return (
-    <section
-      aria-label={t("desktop.memory.label")}
-      data-slot="settings-memory"
-      data-memory-state={load.kind}
-      className="grid gap-3 py-3"
-    >
-      <span className="flex items-center gap-2 text-ui-strong text-text-primary">
-        {t("desktop.memory.label")}
-        <InfoTip text={t("desktop.memory.info")} />
-      </span>
-      {notice === null ? null : (
-        <Alert tone="warning" size="sm">
-          {t(notice)}
-        </Alert>
-      )}
-      {load.kind === "loading" ? (
-        <p className="text-ui-sm text-text-tertiary">{t("desktop.memory.loading")}</p>
-      ) : null}
-      {load.kind === "failed" ? (
-        <Alert tone="danger" size="sm">
-          {t(load.unsupported ? "desktop.memory.unsupported" : "desktop.memory.loadFailed")}
-        </Alert>
-      ) : null}
-      {load.kind === "ready"
-        ? STORES.map((spec) => (
-            <StoreGroup
-              key={spec.store}
-              spec={spec}
-              view={load.stores.find((candidate) => candidate.store === spec.store)}
-              busy={busy}
-              props={props}
-            />
-          ))
-        : null}
+    <div data-slot="settings-memory" data-memory-state={load.kind}>
+      <SettingSection
+        title={
+          <span className="flex items-center gap-2">
+            {t("desktop.memory.label")}
+            <InfoTip text={t("desktop.memory.info")} />
+          </span>
+        }
+      >
+        {notice === null ? null : (
+          <Alert tone="warning" size="sm">
+            {t(notice)}
+          </Alert>
+        )}
+        {load.kind === "loading" ? (
+          <p className="text-ui-sm text-text-tertiary">{t("desktop.memory.loading")}</p>
+        ) : null}
+        {load.kind === "failed" ? (
+          <Alert tone="danger" size="sm">
+            {t(load.unsupported ? "desktop.memory.unsupported" : "desktop.memory.loadFailed")}
+          </Alert>
+        ) : null}
+        {load.kind === "ready"
+          ? STORES.map((spec) => (
+              <StoreGroup
+                key={spec.store}
+                spec={spec}
+                view={load.stores.find((candidate) => candidate.store === spec.store)}
+                busy={busy}
+                props={props}
+              />
+            ))
+          : null}
+      </SettingSection>
       <EditorDialog props={props} />
       <RemoveDialog props={props} />
-    </section>
+    </div>
   );
 }
 
@@ -115,7 +116,7 @@ function StoreGroup(args: {
   const { spec, view, busy, props } = args;
   if (view === undefined) return null;
   return (
-    <div data-memory-store={spec.store} className="grid gap-2">
+    <div data-memory-store={spec.store} className="grid gap-2 py-3">
       <div className="flex items-center justify-between gap-3">
         <span className="flex items-center gap-2 text-body text-text-primary">
           {t(spec.title)}

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   fileCloseableOf,
+  fileClosesOnTabMoveOf,
   fileDirtyOf,
   fileDiscardableOf,
   fileEditableOf,
@@ -248,5 +249,15 @@ describe("saving", () => {
     const clean = ready();
     expect(fileSaveableOf(clean, true)).toBe(false);
     expect(fileEditorReducer(clean, { type: "saveStarted", seq: 2 })).toBe(clean);
+  });
+});
+
+describe("tab move", () => {
+  test("an open untouched editor closes, a closed one, an edited draft and a saving one do not", () => {
+    expect(fileClosesOnTabMoveOf(initialFileEditor)).toBe(false);
+    expect(fileClosesOnTabMoveOf(ready())).toBe(true);
+    const edited = fileEditorReducer(ready(), { type: "edited", text: `${TEXT} ` });
+    expect(fileClosesOnTabMoveOf(edited)).toBe(false);
+    expect(fileClosesOnTabMoveOf({ ...ready(), saving: true })).toBe(false);
   });
 });
