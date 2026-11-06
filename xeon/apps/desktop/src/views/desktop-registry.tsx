@@ -9,8 +9,15 @@ import {
   WandSparkles,
 } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
-import { ScrollArea, SegmentedControl, SegmentedControlItem } from "@caustic/react";
-import { ApprovalQueue, InboxApprovals, type InboxFilter } from "./approvals.tsx";
+import {
+  ScrollArea,
+  Select,
+  SelectOption,
+  SegmentedControl,
+  SegmentedControlItem,
+} from "@caustic/react";
+import { ApprovalQueue, InboxApprovals, useInboxThreads, type InboxFilter } from "./approvals.tsx";
+import { INBOX_SORTS, inboxThreadOf, type InboxSort, type InboxThread } from "./inbox-model.ts";
 import { ChatHeader } from "./chat-header.tsx";
 import { Composer } from "./composer.tsx";
 import { SafeModeCard } from "./safe-mode-card.tsx";
@@ -68,6 +75,14 @@ function InboxTab(): ReactNode {
 /** 받은 요청 화면(시안 p03). 왼쪽 내비의 "받은 요청"이 무대에 연다. 끝 영역 탭과 같은 목록을 그린다 */
 function InboxScreen(): ReactNode {
   const [filter, setFilter] = useState<InboxFilter>("all");
+  const [thread, setThread] = useState<InboxThread>("all");
+  const [sort, setSort] = useState<InboxSort>("oldest");
+  const threads = useInboxThreads();
+  // 고른 대화가 대기 승인이 없어졌으면 셀렉트와 목록 모두 `모든 대화`로 본다(inbox-model의 inboxThreadOf)
+  const threadValue = inboxThreadOf(
+    thread,
+    threads.map((choice) => choice.id),
+  );
   return (
     <section aria-labelledby="inbox-heading" className="flex min-h-0 flex-1 flex-col">
       <header className="mx-auto flex min-h-10 w-full max-w-184 flex-none flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1">
@@ -90,10 +105,45 @@ function InboxScreen(): ReactNode {
             {t("desktop.inbox.filter.notices")}
           </SegmentedControlItem>
         </SegmentedControl>
+        <span aria-hidden className="flex-1" />
+        <Select
+          size="xs"
+          aria-label={t("desktop.inbox.thread.label")}
+          value={threadValue}
+          onValueChange={(value) => {
+            if (value === "all") {
+              setThread("all");
+              return;
+            }
+            const next = threads.find((choice) => choice.id === value);
+            if (next !== undefined) setThread(next.id);
+          }}
+          className="w-36"
+        >
+          <SelectOption value="all">{t("desktop.inbox.thread.all")}</SelectOption>
+          {threads.map((choice) => (
+            <SelectOption key={choice.id} value={choice.id}>
+              {choice.title ?? t("desktop.approvals.card.thread.untitled")}
+            </SelectOption>
+          ))}
+        </Select>
+        <Select
+          size="xs"
+          aria-label={t("desktop.inbox.sort.label")}
+          value={sort}
+          onValueChange={(value) => {
+            const next = INBOX_SORTS.find((item) => item === value);
+            if (next !== undefined) setSort(next);
+          }}
+          className="w-32"
+        >
+          <SelectOption value="oldest">{t("desktop.inbox.sort.oldest")}</SelectOption>
+          <SelectOption value="newest">{t("desktop.inbox.sort.newest")}</SelectOption>
+        </Select>
       </header>
       <ScrollArea label={t("desktop.shell.nav.inbox")} className="min-h-0 flex-1">
         <div className="mx-auto w-full max-w-184 px-3 pb-4 pt-1">
-          <InboxApprovals show={filter} />
+          <InboxApprovals show={filter} thread={threadValue} sort={sort} />
         </div>
       </ScrollArea>
     </section>
