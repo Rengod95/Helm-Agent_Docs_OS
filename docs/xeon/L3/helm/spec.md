@@ -461,6 +461,7 @@ export const InquiryFinishedPayloadSchema = Type.Object({
   rounds: Type.Integer({ minimum: 0 }),
   lensCount: Type.Integer({ minimum: 0 }),
   failedLenses: Type.Integer({ minimum: 0 }),
+  skippedLenses: Type.Optional(Type.Integer({ minimum: 0 })),   // 돌지 못하고 끝난 렌즈 수. 종료 알림이 "N개 건너뜀"으로 말한다
   findingCount: Type.Integer({ minimum: 0 }),
   appliedTurnId: Type.Union([Type.String(), Type.Null()]),
   limit: Type.Optional(Type.Union([Type.Literal("turns"), Type.Literal("spawns"), Type.Literal("tokens")])),

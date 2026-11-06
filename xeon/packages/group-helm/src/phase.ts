@@ -85,6 +85,7 @@ function finishedOf(
     rounds: state.round,
     lensCount: state.lenses.length,
     failedLenses: state.lenses.filter((lens) => lens.status === "failed").length,
+    skippedLenses: state.lenses.filter((lens) => lens.status === "skipped").length,
     findingCount: state.findings.length,
     appliedTurnId: extra.appliedTurnId ?? state.appliedTurnId,
     ...(extra.limit === undefined ? {} : { limit: extra.limit }),
