@@ -7,6 +7,12 @@ import { Type, type TUnsafe } from "typebox";
 // 이 파일은 DOM을 쓰지 않는다. 화면은 `helm-results.tsx`가 그린다. 모양은 group-helm의 `methods.ts`(결과 스키마)를 따른다.
 // 스키마는 `Type.Unsafe<T>`에 `SchemaProof`로 붙여, 정적 타입과 스키마가 어긋나면 컴파일이 막는다(TY-26).
 
+/** 대화에 쌓이면 탐구 목록이 달라졌다는 뜻인 확장 기록의 종류: Helm의 단계·끝 안내와 끝 기록(`group-helm`의 `prompts.ts`, `composition.ts`) */
+export const HELM_CHANGE_KINDS: readonly string[] = [
+  "grp.helm.notice.status",
+  "grp.helm.inquiry.finished",
+];
+
 /** 출처 한 건. `ref`는 URL 또는 지식 항목 참조다 */
 export interface HelmSourceView {
   readonly origin: "web" | "knowledge" | "session";

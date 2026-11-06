@@ -3,12 +3,13 @@ import { t } from "@fresnel/client/i18n";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useLinkPhase, useOpenThreadId } from "../../state/engine/index.ts";
+import { useCustomCount, useLinkPhase, useOpenThreadId } from "../../state/engine/index.ts";
 import { useCommands, type Commands } from "../commands.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
 import { linkOf, type LinkState } from "../runtime/runtime-tab.tsx";
 import { detachVoid, reloadOnExtChanges } from "../workbench/controller.ts";
 import {
+  HELM_CHANGE_KINDS,
   captionOf,
   findingsOf,
   helmResultsLabelsOf,
@@ -24,7 +25,7 @@ import {
 
 // 대화 옆 Helm 패널의 "탐구 결과" 구역(플러그인 화면 목록 아래). 열린 대화의 탐구 목록을 읽고, 펼친 탐구의 발견을 읽어
 // Markdown으로 클립보드에 복사한다. 파일로 저장하지 않는다. 대화 카드 "탐구 결과"(helm-finished)는 Helm의 Plugin UI 기여이고,
-// 이 구역은 앱 쪽 보기다. 읽기는 `ext.helm.inquiries`와 `ext.helm.findings`를 연결으로 부른다(탐구가 끝나도 목록을 자동으로 다시 읽지 않는다. 갱신은 "다시 읽기"로 한다).
+// 이 구역은 앱 쪽 보기다. 읽기는 `ext.helm.inquiries`와 `ext.helm.findings`를 연결으로 부른다(탐구의 단계 안내와 끝 안내가 대화에 쌓이면 목록을 다시 읽고, "다시 읽기"로도 읽는다).
 
 /** Helm 확장의 이름. 패널 탭과 같다 */
 const HELM_EXTENSION = "helm";
@@ -330,6 +331,27 @@ function HelmResultsSection(props: {
     },
     [commands, threadId],
   );
+
+  // 탐구의 단계 안내와 끝 안내가 대화에 쌓이면 목록(과 펼친 탐구의 발견)을 다시 읽는다. 처음 본 수는 기준으로만 삼는다
+  const changes = useCustomCount(HELM_CHANGE_KINDS);
+  const seenChanges = useRef<{ readonly threadId: ThreadId | null; readonly count: number } | null>(
+    null,
+  );
+  useEffect(() => {
+    const before = seenChanges.current;
+    seenChanges.current = { threadId, count: changes };
+    if (!live || threadId === null || before === null || before.threadId !== threadId) return;
+    if (before.count === changes) return;
+    detachVoid(reload());
+    if (expandedId === null) return;
+    // 펼친 탐구의 발견은 읽는 중 표시로 바꾸지 않고 읽은 값이 오면 바꾼다
+    detachVoid(
+      readFindings(commands.pluginUi, threadId, expandedId).then((next) => {
+        setFindings((current) => ({ ...current, [expandedId]: next }));
+        return undefined;
+      }),
+    );
+  }, [changes, commands, expandedId, live, reload, threadId]);
 
   const onToggle = (inquiryId: string): void => {
     setCopied(null);
