@@ -6,7 +6,9 @@ import { wireError } from "@fresnel/contracts/wire";
 import { err, ok } from "@fresnel/contracts";
 import type { ExtInstallResult } from "@fresnel/contracts/wire";
 import {
+  accessIsEmpty,
   applyInstalled,
+  bridgeAccessOf,
   INITIAL_INSTALL_FLOW,
   pickOutcomeOf,
   installDoneOf,
@@ -32,6 +34,7 @@ const PREVIEW: InstallPreview = {
   files: [],
   shell: [],
   drives: false,
+  screens: [],
   warnings: [],
 };
 
@@ -231,5 +234,43 @@ describe("폴더 고르기", () => {
     expect(pickOutcomeOf(err({ kind: "threw", cause: new Error("x") }))).toEqual({
       kind: "failed",
     });
+  });
+});
+
+describe("화면과 다리 권한", () => {
+  const withScreens: InstallPreview = {
+    ...PREVIEW,
+    screens: [
+      {
+        id: "all",
+        title: "Perm all",
+        placement: "page",
+        mode: "app",
+        capabilities: ["files", "notify", "settingsWrite", "secrets"],
+      },
+      {
+        id: "tool",
+        title: "Tool",
+        placement: "page",
+        mode: "app",
+        capabilities: ["notify"],
+      },
+      { id: "plain", title: "Plain", placement: "page", mode: "native", capabilities: [] },
+    ],
+  };
+
+  test("권한마다 한 줄로 모으고 시크릿, 설정 쓰기, 파일만 강조한다", () => {
+    expect(bridgeAccessOf(withScreens)).toEqual([
+      { capability: "secrets", strong: true, screens: ["Perm all"] },
+      { capability: "settingsWrite", strong: true, screens: ["Perm all"] },
+      { capability: "files", strong: true, screens: ["Perm all"] },
+      { capability: "notify", strong: false, screens: ["Perm all", "Tool"] },
+    ]);
+  });
+
+  test("선언이 없으면 비어 있고 확인 화면은 '요청 없음'을 보인다", () => {
+    expect(bridgeAccessOf(PREVIEW)).toEqual([]);
+    expect(accessIsEmpty(PREVIEW)).toBe(true);
+    expect(accessIsEmpty(withScreens)).toBe(false);
   });
 });
