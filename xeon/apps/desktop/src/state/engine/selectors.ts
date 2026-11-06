@@ -118,6 +118,19 @@ export const selectOpenThreadRunning = (s: EngineMirror): boolean => {
 };
 export const selectTurnFailure = (s: EngineMirror, id: ThreadId | null): string | null =>
   id === null ? null : (s.turnFailures[id] ?? null);
+/**
+ * 응답 없이 끝난 사용자 말 item. 열린 대화의 마지막 item이 사용자 말이고, 대화가 쉬는 중이며, 이어서 실행할 표식과 진행 중 item이 없을 때다.
+ * 실패 문장은 이 연결에서만 거울에 있으므로 다시 켠 뒤에도 같은 표식이 서도록 기록의 모양으로 정한다(화면 표식만, 모델 문맥은 엔진 몫).
+ */
+export const selectUnsentUserItemId = (s: EngineMirror): ItemId | null => {
+  const transcript = s.transcript;
+  if (transcript?.status !== "ready") return null;
+  const thread = s.threads.byId[transcript.threadId];
+  if (thread === undefined || thread.status !== "idle" || thread.resumable !== null) return null;
+  const lastId = transcript.itemIds.at(-1);
+  if (lastId === undefined) return null;
+  return transcript.items[lastId]?.kind === "user" ? lastId : null;
+};
 /** 열린 대화의 마지막 사용자 메시지 글. 다시 보내기가 쓴다. 첨부는 싣지 않는다. 글이 없으면 null이다 */
 export const selectLastUserText = (s: EngineMirror): string | null => {
   const transcript = s.transcript;

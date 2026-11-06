@@ -1601,6 +1601,7 @@
   "desktop.item.thinking": "Thinking",
   "desktop.item.toolRunning": "Running",
   "desktop.item.toolRunningFor": "Running · {seconds}s",
+  "desktop.item.unsent": "Not sent",
   "desktop.lockedDialog.close.button": "Close",
   "desktop.lockedDialog.failed": "Could not run it. Press again to retry.",
   "desktop.lockedDialog.fork.button": "Fork and keep writing",
