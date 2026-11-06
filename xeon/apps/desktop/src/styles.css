@@ -69,8 +69,6 @@
   .threads {
     width: 260px;
     flex: none;
-    border-right: 1px solid var(--border);
-    background: var(--panel);
     overflow-y: auto;
     padding: 8px;
     display: flex;
