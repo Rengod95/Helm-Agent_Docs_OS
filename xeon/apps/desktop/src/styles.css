@@ -66,44 +66,21 @@
 }
 
 @layer components {
-  .threads {
-    width: 260px;
-    flex: none;
-    overflow-y: auto;
-    padding: 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .threads ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .thread {
-    width: 100%;
-    text-align: left;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    background: transparent;
-    border-color: transparent;
-  }
-  .thread-row {
-    position: relative;
-  }
   .thread-menu {
     position: absolute;
     top: 4px;
     right: 4px;
     opacity: 0;
   }
-  .thread-row:hover .thread-menu,
-  .thread-row:focus-within .thread-menu,
-  .thread-menu:has([aria-expanded="true"]) {
+  /* 대화 목록 행 ⋯(thread-list.tsx): 행에 올리거나 초점이 있거나 고른 행이거나 메뉴가 열렸을 때만 보인다 */
+  [data-row-menu] button {
+    opacity: 0;
+  }
+  [data-slot="list-navigation-item"]:hover + [data-row-menu] button,
+  [data-row-menu]:hover button,
+  [data-row-menu]:focus-within button,
+  [data-row-menu][data-current] button,
+  [data-row-menu]:has([aria-expanded="true"]) button {
     opacity: 1;
   }
   /* 대화 머리 ⋯(chat-header.tsx)는 행처럼 떠 있지 않고 늘 보인다 */
@@ -127,32 +104,6 @@
     position: static;
     opacity: 1;
   }
-  .thread.selected {
-    background: var(--bg);
-    border-color: var(--border);
-  }
-  .thread-title {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .thread-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    font-size: 12px;
-    color: var(--dim);
-  }
-  .badge {
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 0 6px;
-  }
-  .badge.run {
-    color: var(--live);
-    border-color: var(--live);
-  }
-  .badge.warn,
   .warn {
     color: var(--warn);
   }

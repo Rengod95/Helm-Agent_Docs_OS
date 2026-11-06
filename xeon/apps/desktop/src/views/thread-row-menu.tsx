@@ -51,6 +51,8 @@ export function ThreadRowMenu(props: {
   readonly id: ThreadId;
   readonly title: string;
   readonly status: "idle" | "running" | "closed";
+  /** 대화 목록 행 뒤에 겹쳐 놓을 때 true. 자리는 바깥 칸이 정한다 */
+  readonly bare?: boolean;
 }): ReactNode {
   const commands = useCommands();
   const [renaming, setRenaming] = useState(false);
@@ -61,16 +63,21 @@ export function ThreadRowMenu(props: {
 
   return (
     <>
-      <span className="thread-menu">
+      <span className={props.bare === true ? "contents" : "thread-menu"}>
         <Menu
           size="sm"
           align="end"
           aria-label={t("desktop.threads.menu.label", { title: props.title })}
           trigger={
             <IconButton
-              size="sm"
+              size={props.bare === true ? "xs" : "sm"}
               variant="ghost"
               label={t("desktop.threads.menu.label", { title: props.title })}
+              className={
+                props.bare === true
+                  ? "pointer-events-auto bg-control-raised shadow-[inset_0_0_0_1px_var(--cs-color-control-edge)]"
+                  : undefined
+              }
             >
               <Ellipsis aria-hidden />
             </IconButton>

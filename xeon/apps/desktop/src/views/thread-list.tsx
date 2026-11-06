@@ -1,170 +1,258 @@
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { ThreadSummary } from "@fresnel/contracts/wire";
+import {
+  Button,
+  EmptyState,
+  Input,
+  ListNavigation,
+  ListNavigationGroup,
+  ListNavigationItem,
+  Popover,
+} from "@caustic/react";
 import { memo, useState, type ReactNode } from "react";
 import {
-  useRecentWorkspaces,
-  useThread,
-  useThreadIds,
   useThreadsStatus,
+  useThreadSummaries,
   useUnlistedApprovals,
 } from "../state/engine/index.ts";
 import { useSelectedThreadId } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
 import { pickWorkspaceFolder, type FolderPickInvoke } from "./folder-pick.ts";
+import { folderLabel, groupByWorkspace } from "./thread-groups.ts";
 import { ThreadRowMenu } from "./thread-row-menu.tsx";
 import { checkWorkspaceInput, createFailureText, workspaceHint } from "./workspace-model.ts";
 
-/** 폴더 후보로 보이는 기존 대화의 작업 폴더 수 */
-const RECENT_WORKSPACES = 8;
+const UNTITLED_LABEL =
+  "[&_[data-slot=list-navigation-label]]:italic [&_[data-slot=list-navigation-label]]:text-text-tertiary";
 
-const ThreadRow = memo(function ThreadRow(props: { readonly id: ThreadId }): ReactNode {
+/** 행 오른쪽 짧은 글자. 이어서 실행, 닫힘, 승인 수 중 하나(시안: 행 meta는 짧게) */
+function metaOf(thread: ThreadSummary): string | undefined {
+  if (thread.resumable !== null) return t("desktop.threads.resumableBadge");
+  if (thread.status === "closed") return t("desktop.threads.closedBadge");
+  if (thread.pendingApprovals > 0) {
+    return t("desktop.threads.approvalsBadge", { count: thread.pendingApprovals });
+  }
+  return undefined;
+}
+
+const ThreadRow = memo(function ThreadRow(props: { readonly thread: ThreadSummary }): ReactNode {
   const commands = useCommands();
-  const thread = useThread(props.id);
-  const selected = useSelectedThreadId() === props.id;
-  const unlisted = useUnlistedApprovals(props.id);
-  if (thread === undefined) return null;
+  const id: ThreadId = props.thread.threadId;
+  const selected = useSelectedThreadId() === id;
+  const unlisted = useUnlistedApprovals(id);
+  const title = props.thread.title ?? t("desktop.threads.untitled");
   return (
-    <li className="thread-row">
-      <button
-        type="button"
-        className={selected ? "thread selected" : "thread"}
-        aria-current={selected ? "true" : undefined}
-        onClick={() => {
-          commands.selectThread(props.id);
+    <>
+      <ListNavigationItem
+        current={selected}
+        {...(props.thread.status === "running" ? { status: "running" as const } : {})}
+        meta={metaOf(props.thread)}
+        title={unlisted > 0 ? t("desktop.threads.unlistedApprovals") : undefined}
+        className={props.thread.title === null ? UNTITLED_LABEL : undefined}
+        onSelect={() => {
+          commands.selectThread(id);
         }}
       >
-        <span className="thread-title">{thread.title ?? t("desktop.threads.untitled")}</span>
-        <span className="thread-meta">
-          {thread.status === "running" ? (
-            <span className="badge run">{t("desktop.threads.runningBadge")}</span>
-          ) : null}
-          {thread.status === "closed" ? (
-            <span className="badge">{t("desktop.threads.closedBadge")}</span>
-          ) : null}
-          {thread.resumable === null ? null : (
-            <span className="badge warn">{t("desktop.threads.resumableBadge")}</span>
-          )}
-          {thread.pendingApprovals > 0 ? (
-            <span className="badge warn">
-              {t("desktop.threads.approvalsBadge", { count: thread.pendingApprovals })}
-            </span>
-          ) : null}
-          {unlisted > 0 ? (
-            <span className="dim">{t("desktop.threads.unlistedApprovals")}</span>
-          ) : null}
-        </span>
-      </button>
-      <ThreadRowMenu
-        id={props.id}
-        title={thread.title ?? t("desktop.threads.untitled")}
-        status={thread.status}
-      />
-    </li>
+        {title}
+      </ListNavigationItem>
+      {/* 행 뒤 높이 0인 칸에 ⋯를 겹친다(caustic 행에 동작 자리가 없다). 보임 규칙은 styles.css [data-row-menu] */}
+      <li
+        data-row-menu=""
+        data-current={selected ? "" : undefined}
+        className="pointer-events-none relative -mt-control-sm flex h-control-sm list-none items-center justify-end pe-1"
+      >
+        <ThreadRowMenu id={id} title={title} status={props.thread.status} bare />
+      </li>
+    </>
   );
 });
+
+/** 다른 폴더(경로를 적거나 고른 폴더)에서 새 대화를 여는 작은 창 */
+function OtherFolder(props: {
+  readonly folderPick: FolderPickInvoke | undefined;
+  readonly creating: boolean;
+  readonly onCreate: (path: string | undefined) => void;
+  readonly onPickFailed: () => void;
+}): ReactNode {
+  const [text, setText] = useState("");
+  const workspace = checkWorkspaceInput(text);
+  const hint = workspaceHint(workspace);
+  const folderPick = props.folderPick;
+  const pick = async (invoke: FolderPickInvoke): Promise<void> => {
+    const picked = await pickWorkspaceFolder(invoke);
+    if (!picked.ok) {
+      props.onPickFailed();
+      return;
+    }
+    if (picked.value !== undefined) setText(picked.value);
+  };
+  return (
+    <Popover
+      size="sm"
+      arrow={false}
+      side="bottom"
+      align="start"
+      anchor={
+        <Button size="xs" variant="ghost" className="justify-self-start">
+          {t("desktop.threads.otherFolder")}
+        </Button>
+      }
+    >
+      <div className="grid w-64 gap-2">
+        <label className="grid gap-1 text-ui-sm text-text-secondary">
+          {t("desktop.threads.workspaceLabel")}
+          <Input
+            size="sm"
+            placeholder="/Users/me/project"
+            value={text}
+            invalid={hint !== null}
+            onValueChange={setText}
+          />
+        </label>
+        {hint === null ? null : <div className="text-ui-sm text-danger-text">{hint}</div>}
+        <div className="flex gap-2">
+          {folderPick === undefined ? null : (
+            <Button
+              size="sm"
+              variant="outline"
+
+              disabled={props.creating}
+              onClick={() => detach(pick(folderPick), rethrow)}
+            >
+              {t("desktop.workspace.pickFolderButton")}
+            </Button>
+          )}
+          <Button
+            size="sm"
+            disabled={props.creating || workspace.kind === "invalid"}
+            onClick={() => {
+              props.onCreate(workspace.kind === "path" ? workspace.path : undefined);
+            }}
+          >
+            {t("desktop.threads.newButton")}
+          </Button>
+        </div>
+      </div>
+    </Popover>
+  );
+}
 
 export function ThreadList(props: {
   /** 폴더 선택 창을 부르는 invoke. 없으면(웹 등) 고르기 단추를 보이지 않는다 */
   readonly folderPick?: FolderPickInvoke | undefined;
 }): ReactNode {
   const commands = useCommands();
-  const ids = useThreadIds();
+  const threads = useThreadSummaries();
   const status = useThreadsStatus();
-  const recent = useRecentWorkspaces(RECENT_WORKSPACES);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // 마지막에 쓴 폴더를 입력란에 남겨 같은 프로젝트에서 대화를 여러 개 여는 일이 쉽다
-  const [workspaceText, setWorkspaceText] = useState("");
-  const workspace = checkWorkspaceInput(workspaceText);
-  const hint = workspaceHint(workspace);
-  const folderPick = props.folderPick;
 
-  const create = async (): Promise<void> => {
-    if (workspace.kind === "invalid") return;
-    const path = workspace.kind === "path" ? workspace.path : undefined;
+  const create = async (path: string | undefined): Promise<void> => {
     setCreating(true);
     setError(null);
     const result = await commands.createThread(path);
     setCreating(false);
     if (!result.ok) setError(createFailureText(result.error, path !== undefined));
   };
-
-  // 취소는 입력란을 그대로 둔다. 창을 못 연 실패도 입력란은 그대로 두고 한 줄로만 알린다
-  const pick = async (invoke: FolderPickInvoke): Promise<void> => {
-    const picked = await pickWorkspaceFolder(invoke);
-    if (!picked.ok) {
-      setError(t("desktop.workspace.pickFailed"));
-      return;
-    }
-    if (picked.value === undefined) return;
-    setWorkspaceText(picked.value);
-    setError(null);
+  const start = (path: string | undefined): void => {
+    detach(create(path), rethrow);
   };
 
+  const groups = groupByWorkspace(threads);
   return (
-    <nav className="threads" aria-label={t("desktop.threads.listLabel")}>
-      <label className="field">
-        <span>{t("desktop.threads.workspaceLabel")}</span>
-        <input
-          type="text"
-          list="workspace-recent"
-          placeholder="/Users/me/project"
-          value={workspaceText}
-          onChange={(event) => {
-            setWorkspaceText(event.currentTarget.value);
-            setError(null);
+    <div className="grid gap-1">
+      <ListNavigation
+        aria-label={t("desktop.threads.listLabel")}
+        kind="sessions"
+        size="sm"
+        as="div"
+      >
+        {groups.map((group) => (
+          <ListNavigationGroup
+            key={group.workspace ?? ""}
+            heading={
+              group.workspace === null ? (
+                t("desktop.threads.noFolder")
+              ) : (
+                <span className="font-mono text-mono-sm normal-case" title={group.workspace}>
+                  {folderLabel(group.workspace)}
+                </span>
+              )
+            }
+            addLabel={
+              group.workspace === null
+                ? t("desktop.threads.newButton")
+                : t("desktop.threads.newIn", { folder: folderLabel(group.workspace) })
+            }
+            onAdd={() => {
+              start(group.workspace ?? undefined);
+            }}
+          >
+            {group.items.map((thread) => (
+              <ThreadRow key={thread.threadId} thread={thread} />
+            ))}
+          </ListNavigationGroup>
+        ))}
+      </ListNavigation>
+      {status === "loading" && threads.length === 0 ? (
+        <div className="px-2 text-ui-sm text-text-tertiary">{t("desktop.threads.loading")}</div>
+      ) : null}
+      {status === "error" ? (
+        <EmptyState
+          size="sm"
+          surface="none"
+          title={t("desktop.threads.loadFailed")}
+          actions={
+            <Button
+              size="xs"
+
+              variant="outline"
+              onClick={() => {
+                commands.reloadThreads();
+              }}
+            >
+              {t("desktop.threads.reloadButton")}
+            </Button>
+          }
+        />
+      ) : null}
+      {status === "ready" && threads.length === 0 ? (
+        <EmptyState
+          size="sm"
+          surface="none"
+          title={t("desktop.threads.empty")}
+          actions={
+            <Button
+              size="xs"
+
+              variant="outline"
+              disabled={creating}
+              onClick={() => {
+                start(undefined);
+              }}
+            >
+              {t("desktop.threads.newButton")}
+            </Button>
+          }
+        />
+      ) : null}
+      <div className="px-1.5">
+        <OtherFolder
+          folderPick={props.folderPick}
+          creating={creating}
+          onCreate={start}
+          onPickFailed={() => {
+            setError(t("desktop.workspace.pickFailed"));
           }}
         />
-        <datalist id="workspace-recent">
-          {recent.map((path) => (
-            <option key={path} value={path} />
-          ))}
-        </datalist>
-      </label>
-      {folderPick === undefined ? null : (
-        <button type="button" disabled={creating} onClick={() => detach(pick(folderPick), rethrow)}>
-          {t("desktop.workspace.pickFolderButton")}
-        </button>
-      )}
-      {hint === null ? null : <div className="error">{hint}</div>}
-      <button
-        type="button"
-        className="primary"
-        onClick={() => detach(create(), rethrow)}
-        disabled={creating || workspace.kind === "invalid"}
-      >
-        {t("desktop.threads.newButton")}
-      </button>
+      </div>
       {error === null ? null : (
-        <div className="error" role="alert">
+        <div role="alert" className="px-2 text-ui-sm text-danger-text">
           {error}
         </div>
       )}
-      {status === "loading" && ids.length === 0 ? (
-        <div className="dim pad">{t("desktop.threads.loading")}</div>
-      ) : null}
-      {status === "error" ? (
-        <div className="pad">
-          {t("desktop.threads.loadFailed")}{" "}
-          <button
-            type="button"
-            onClick={() => {
-              commands.reloadThreads();
-            }}
-          >
-            {t("desktop.threads.reloadButton")}
-          </button>
-        </div>
-      ) : null}
-      {status === "ready" && ids.length === 0 ? (
-        <div className="dim pad">{t("desktop.threads.empty")}</div>
-      ) : null}
-      <ul>
-        {ids.map((id) => (
-          <ThreadRow key={id} id={id} />
-        ))}
-      </ul>
-    </nav>
+    </div>
   );
 }

@@ -52,8 +52,6 @@ export const useThreadSummaries = (): readonly ThreadSummary[] =>
       }),
     ),
   );
-export const useRecentWorkspaces = (limit: number): readonly string[] =>
-  useEngine(useShallow((s: EngineMirror) => sel.selectRecentWorkspaces(s, limit)));
 export const useTranscriptItemIds = (): readonly ItemId[] => useEngine(sel.selectTranscriptItemIds);
 export const useItem = (id: ItemId): ItemRecord | undefined =>
   useEngine((s) => sel.selectItem(s, id));
