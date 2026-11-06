@@ -540,6 +540,45 @@ describe("threads", () => {
     ]);
   });
 
+  test("thread.list reports a stored running thread as idle when its marked turn has no live scope", async () => {
+    const h = harness();
+    const stale = ids.next("thr");
+    const live = ids.next("thr");
+    const liveTurn = ids.next("trn");
+    const rowOf = (threadId: ThreadId, turnId: typeof liveTurn): ThreadSummaryRow => ({
+      ...markedRow(threadId),
+      status: "running",
+      marker: { turnId, runningSince: 1, resumeAttempts: 0 },
+    });
+    const session = partial<SessionService>({
+      threads: partial<SessionService["threads"]>({
+        list: () => ({
+          threads: [rowOf(stale, TURN), rowOf(live, liveTurn)],
+          nextCursor: null,
+        }),
+      }),
+      query: partial<SessionService["query"]>({ agentOfChild: () => ok(undefined) }),
+      feed: h.deps.session.feed,
+    });
+    const tasks: TaskService = {
+      ...h.deps.tasks,
+      find: (kind, id) =>
+        kind === "turn" && id === liveTurn ? h.deps.tasks.find("thread", live) : undefined,
+    };
+    const { ports } = createEnginePorts({ ...h.deps, session, tasks });
+    const listed = await ports.threads.list({});
+    expect(
+      listed.threads.map((thread) => ({
+        id: thread.threadId,
+        status: thread.status,
+        resumable: thread.resumable !== null,
+      })),
+    ).toEqual([
+      { id: stale, status: "idle", resumable: true },
+      { id: live, status: "running", resumable: true },
+    ]);
+  });
+
   test("a refused create is a store.* wire error, not a Bug", async () => {
     const h = harness();
     h.state.threadsCreate = err({ kind: "busy" });

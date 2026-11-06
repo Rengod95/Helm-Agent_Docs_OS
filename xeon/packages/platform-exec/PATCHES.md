@@ -28,6 +28,7 @@
 | P17 | `env/node.ts`(`resolvePath`, `getShellConfig`) | `startBackground`(`src/background.ts`, `src/service.ts`)가 포크 `exec`와 같은 셸 선택과 `~` 경로 해석을 쓰도록 두 함수에 `export`만 더한다. 동작은 같다 | `test/background.int.test.ts` |
 | P18 | `env/node.ts`(`exec`의 `waitForChildProcess` 연결), `env/node-watch.ts`(`#schedulePoll`, `#scheduleFlush`, `#scheduleSettle`, `#logFlushFailure`) | `eng.typescript.guide` TY-22와 스캔 `fresnel/no-void-promise` 적용. `void <호출식>`으로 버리던 Promise를 `detach`(F)에 넘기고 실패는 Logger에 남긴다. 옵션 `logger`가 없으면 기록하지 않는다. 남기는 사건은 `exec.child_exit_failed`(error)와 `exec.watch_flush_failed`(error)다. `onChildExit`가 던지면 실행을 `spawn_error`로 정착시켜 호출자가 영영 기다리지 않게 한다. 정상 경로의 동작은 같다 | `tsc -b`, 원본 시험 |
 | P19 | `env/node.ts`(`NodeExecutionEnv` 생성 옵션 `tempRoot`, `createTempDir`, `createTempFile`) | 임시 디렉터리와 spill 파일 위치. 옵션 `tempRoot`가 있으면 `createTempDir`이 그 디렉터리(없으면 0700으로 만든다) 아래에 `mkdtemp`하고, 없으면 원본대로 OS 임시 폴더를 쓴다. `createTempFile`은 파일을 0600으로 만든다. 평문 출력 spill이 OS 임시 폴더(다른 사용자가 읽을 수 있는 위치, 재부팅 정책에 맡김)에 남던 것을 상태 디렉터리 아래 소유자 전용으로 옮긴다 | `test/spill-dir.int.test.ts` |
+| P20 | `env/node.ts`(`NodeExecutionEnv` 생성 옵션 `childLedger`, `exec`의 `activeChildPids.add`·`settle`) | 띄운 자식의 pid를 `ChildLedger`(`src/child-ledger.ts`)에 적고 끝나면 지운다. 프로세스 `exit`에서 장부가 남은 그룹을 죽인다(`killAll`). 호스트가 SIGKILL로 죽어 남은 자식은 다음 시작의 `sweep`이 거둔다. 옵션이 없으면 동작은 같다 | `test/child-ledger.int.test.ts` |
 
 ## 서식
 

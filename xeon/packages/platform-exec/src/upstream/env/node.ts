@@ -59,6 +59,8 @@ import {
   type WatchChange,
   type WatchTarget,
 } from "./index.ts";
+// FRESNEL-PATCH: P20
+import type { ChildLedger } from "../../child-ledger.ts";
 import { LineScanner } from "./line-scan.ts";
 import { NodeFileWatcher, type NodeWatchOptions } from "./node-watch.ts";
 
@@ -665,6 +667,8 @@ export class NodeExecutionEnv implements ExecutionEnv {
   // FRESNEL-PATCH: P19
   private tempRoot: string | undefined;
   private activeChildPids = new Set<number>();
+  // FRESNEL-PATCH: P20
+  private childLedger: ChildLedger | undefined;
 
   // FRESNEL-PATCH: P3
   constructor(options: {
@@ -677,6 +681,8 @@ export class NodeExecutionEnv implements ExecutionEnv {
     logger?: Logger;
     // FRESNEL-PATCH: P19
     tempRoot?: string;
+    // FRESNEL-PATCH: P20
+    childLedger?: ChildLedger;
   }) {
     this.cwd = options.cwd;
     // FRESNEL-PATCH: P3
@@ -693,6 +699,8 @@ export class NodeExecutionEnv implements ExecutionEnv {
     this.logger = options.logger;
     // FRESNEL-PATCH: P19
     this.tempRoot = options.tempRoot;
+    // FRESNEL-PATCH: P20
+    this.childLedger = options.childLedger;
   }
 
   async watch(
@@ -830,6 +838,8 @@ export class NodeExecutionEnv implements ExecutionEnv {
         if (timeoutId) clearTimeout(timeoutId);
         if (signal) signal.removeEventListener("abort", onAbort);
         if (child?.pid) this.activeChildPids.delete(child.pid);
+        // FRESNEL-PATCH: P20
+        if (child?.pid) this.childLedger?.remove(child.pid);
         resolve(result);
       };
       const pauseOutput = () => {
@@ -907,6 +917,8 @@ export class NodeExecutionEnv implements ExecutionEnv {
           windowsHide: true,
         });
         if (child.pid) this.activeChildPids.add(child.pid);
+        // FRESNEL-PATCH: P20
+        if (child.pid) this.childLedger?.add(child.pid);
         if (stdinCommand !== undefined) {
           child.stdin?.on("error", () => {});
           child.stdin?.end(stdinCommand);
