@@ -286,7 +286,30 @@ test("thread.delete keeps a lock that a connection already held", async () => {
   await connection.close();
 });
 
-test("turn.interrupt needs the ownership and reports whether a turn was stopped", async () => {
+test("turn.interrupt borrows the lock when nobody holds it, gives it back, and is thread.locked for another owner", async () => {
+  const free = createFakeHost({
+    overrides: { turns: { interrupt: () => Promise.resolve(true) } },
+  });
+  const freeThread = free.fake.seedThread();
+  const first = await open(free);
+  // 비정상 종료 뒤처럼 아무도 쥐지 않은 thread도 중단으로 닫는다
+  expect(await first.connection.request("turn.interrupt", { threadId: freeThread })).toEqual({
+    interrupted: true,
+  });
+  expect(free.fake.held.has(freeThread)).toBe(false);
+  await first.connection.close();
+
+  const locked = createFakeHost({ lockedBy: "app" });
+  const lockedThread = locked.fake.seedThread();
+  const second = await open(locked);
+  const denied = await wireErrorOf(
+    second.connection.request("turn.interrupt", { threadId: lockedThread }),
+  );
+  expect(denied.code).toBe(3002);
+  await second.connection.close();
+});
+
+test("turn.interrupt reports whether a turn was stopped", async () => {
   const seen: (string | undefined)[] = [];
   const host = createFakeHost({
     overrides: {
@@ -300,7 +323,6 @@ test("turn.interrupt needs the ownership and reports whether a turn was stopped"
   });
   const threadId = host.fake.seedThread();
   const { connection } = await open(host);
-  expect((await wireErrorOf(connection.request("turn.interrupt", { threadId }))).code).toBe(3002);
   await connection.request("thread.open", { threadId, mode: "write" });
   expect(await connection.request("turn.interrupt", { threadId })).toEqual({ interrupted: true });
   expect(seen).toEqual([undefined]);

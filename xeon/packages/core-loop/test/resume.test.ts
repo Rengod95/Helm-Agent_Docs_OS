@@ -535,3 +535,47 @@ test("closing_an_open_turn_logs_no_run_rejection", async () => {
     { status: "completed" },
   ]);
 });
+
+test("interrupt_closes_a_stale_open_turn_left_by_a_crashed_process", async () => {
+  const h = await createHarness({ tools: [{ name: "read" }], script: [read("c1"), text("lost")] });
+  await startAndCrash(h, (key) => /^step:.*:0:end$/.test(key), "after");
+  const h2 = await h.restart({ tools: [{ name: "read" }], script: [text("never")] });
+  expect(await h2.loop.interrupt(h2.threadId)).toBe(true);
+  await h2.settle();
+  const done = h2.fake
+    .events(h2.threadId)
+    .filter((event) => event.kind === "turn.completed")
+    .map((event) => event.payload);
+  expect(done).toHaveLength(1);
+  expect(done[0]).toMatchObject({ status: "interrupted" });
+  expect(h2.models.requests).toHaveLength(0);
+  // 닫은 뒤에는 중단할 것이 없고 이어서 실행할 것도 없다
+  expect(await h2.loop.interrupt(h2.threadId)).toBe(false);
+  const resumed = await h2.loop.resume(h2.threadId);
+  expect(resumed.ok && resumed.value).toEqual({ status: "nothing" });
+});
+
+test("a_queued_follow_up_does_not_start_after_a_user_interrupt_until_resume", async () => {
+  const h = await createHarness({
+    script: [{ kind: "stall", partialText: "part" }, text("second")],
+  });
+  await h.loop.admit({ threadId: h.threadId, content: "go", via: "interactive" });
+  await h.tick();
+  const queued = await h.loop.admit({
+    threadId: h.threadId,
+    content: "later",
+    via: "interactive",
+    whenBusy: "followUp",
+  });
+  expect(queued.ok && queued.value.status).toBe("queued");
+  expect(await h.loop.interrupt(h.threadId)).toBe(true);
+  await h.settle();
+  expect(h.models.requests).toHaveLength(1);
+  expect(countKind(h.fake.events(h.threadId), "turn.completed")).toBe(1);
+
+  const resumed = await h.loop.resume(h.threadId);
+  expect(resumed.ok && resumed.value).toEqual({ status: "nothing" });
+  await h.settle();
+  expect(h.models.requests).toHaveLength(2);
+  expect(countKind(h.fake.events(h.threadId), "turn.completed")).toBe(2);
+});

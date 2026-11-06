@@ -33,6 +33,38 @@ export const selectTranscriptItemIds = (s: EngineMirror): readonly ItemId[] =>
   s.transcript?.status === "ready" ? s.transcript.itemIds : NO_ITEMS;
 export const selectItem = (s: EngineMirror, id: ItemId): ItemRecord | undefined =>
   s.transcript?.status === "ready" ? s.transcript.items[id] : undefined;
+// 호출 id → 결과 item. 확정 item 맵이 바뀔 때만 다시 만든다(호출 행마다 전체를 훑지 않는다)
+const resultIndexCache = new WeakMap<object, ReadonlyMap<string, ItemRecord>>();
+function resultIndexOf(
+  items: Readonly<Record<string, ItemRecord>>,
+): ReadonlyMap<string, ItemRecord> {
+  const known = resultIndexCache.get(items);
+  if (known !== undefined) return known;
+  const index = new Map<string, ItemRecord>();
+  for (const item of Object.values(items)) {
+    if (item.kind === "toolResult") index.set(item.message.toolCallId, item);
+  }
+  resultIndexCache.set(items, index);
+  return index;
+}
+/** 호출 id의 결과 item. 아직 없으면 undefined다 */
+export const selectToolResult = (s: EngineMirror, toolCallId: string): ItemRecord | undefined =>
+  s.transcript?.status === "ready" ? resultIndexOf(s.transcript.items).get(toolCallId) : undefined;
+const callIndexCache = new WeakMap<object, ReadonlySet<string>>();
+function callIndexOf(items: Readonly<Record<string, ItemRecord>>): ReadonlySet<string> {
+  const known = callIndexCache.get(items);
+  if (known !== undefined) return known;
+  const ids = new Set<string>();
+  for (const item of Object.values(items)) {
+    if (item.kind !== "assistant") continue;
+    for (const block of item.message.content) if (block.type === "toolCall") ids.add(block.id);
+  }
+  callIndexCache.set(items, ids);
+  return ids;
+}
+/** 이 호출 id를 가진 호출 블록이 확정 기록에 있는가 */
+export const selectHasToolCall = (s: EngineMirror, toolCallId: string): boolean =>
+  s.transcript?.status === "ready" && callIndexOf(s.transcript.items).has(toolCallId);
 export const selectStreamingIds = (s: EngineMirror): readonly ItemId[] => s.streaming.itemIds;
 export const selectStreamingItem = (s: EngineMirror, id: ItemId): StreamingItem | undefined =>
   s.streaming.items[id];
@@ -75,6 +107,15 @@ export const selectUnlistedApprovals = (s: EngineMirror, id: ThreadId): number =
 /** 이 thread에 진행 중인 turn이 있는지. 입력창이 중단 버튼을 보일지 정한다 */
 export const selectThreadRunning = (s: EngineMirror, id: ThreadId): boolean =>
   s.threads.byId[id]?.status === "running";
+export const selectOpenThread = (s: EngineMirror): ThreadSummary | undefined => {
+  const id = selectOpenThreadId(s);
+  return id === null ? undefined : s.threads.byId[id];
+};
+/** 열린 대화가 실행 중인가. 열린 대화가 없으면 아니다 */
+export const selectOpenThreadRunning = (s: EngineMirror): boolean => {
+  const id = selectOpenThreadId(s);
+  return id !== null && selectThreadRunning(s, id);
+};
 export const selectTurnFailure = (s: EngineMirror, id: ThreadId | null): string | null =>
   id === null ? null : (s.turnFailures[id] ?? null);
 /** 대화별 실패로 끝난 마지막 turn의 문장. 거울의 기록 객체를 그대로 준다 */

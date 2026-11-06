@@ -224,6 +224,27 @@ describe("streaming slot", () => {
     expect(s.threads.byId[T]?.status).toBe("idle");
   });
 
+  test("turn.completed clears the recovery marker so the resume band goes away", () => {
+    const turn = trn(1);
+    const done: DurableFact = {
+      type: "turn.completed",
+      seq: 6,
+      eventId: evt(6),
+      threadId: T,
+      turnId: turn,
+      at: "t",
+      payload: { status: "interrupted", stepCount: 0, usage: null, error: "owner_cancelled" },
+    };
+    const marked = {
+      ...summary(T),
+      status: "running" as const,
+      resumable: { turnId: turn, runningSince: "2026-11-07T00:00:00.000Z", resumeAttempts: 0 },
+    };
+    const s = run([head(5), { type: "threads", threads: [marked] }, batch(5, 6, [done])]);
+    expect(s.threads.byId[T]?.status).toBe("idle");
+    expect(s.threads.byId[T]?.resumable).toBeNull();
+  });
+
   test("engine going down clears streaming and link", () => {
     const s = run([
       head(5),
