@@ -165,7 +165,8 @@ export function createWorkbenchCommands(
     },
     scaffold: (input) => withConnection((c) => c.request("ext.scaffold", input)),
     validateDir: (dir) => withConnection((c) => c.request("ext.validate", { dir })),
-    packDir: (dir) => withConnection((c) => c.request("ext.package", { dir })),
+    packDir: (dir, out) =>
+      withConnection((c) => c.request("ext.package", out === undefined ? { dir } : { dir, out })),
     versions: (name) => withConnection((c) => c.request("ext.versions", { name })),
     async rollback(name, version, clearState) {
       const done = await withConnection((c) =>
