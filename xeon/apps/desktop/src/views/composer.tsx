@@ -121,6 +121,13 @@ function modeErrorText(error: CommandError): string {
   return t("desktop.composer.approvalMode.error");
 }
 
+/**
+ * 입력창 아래 줄 틀. caustic 꼬리 줄의 보내기 칸은 줄어들지 못해(min-width auto) 900폭·150%에서 모델 칩이 보내기 단추를 창 밖으로 민다.
+ * 보내기 칸이 줄어들게 하고(모델 칩의 글이 먼저 잘린다) 왼쪽 단추 칸(`+`, 모드)은 줄어들지 않게 한다
+ */
+export const COMPOSER_FOOTER_CLASS =
+  "[&_[data-slot=textarea-footer]]:gap-2 [&_[data-slot=textarea-actions]]:shrink-0 [&_[data-slot=textarea-submit]]:min-w-0";
+
 const RING_C = 50.27;
 const USAGE_WARNING = 80;
 const USAGE_DANGER = 95;
@@ -757,6 +764,7 @@ function ComposerFor(props: {
         tone={dragging ? "accent" : "neutral"}
         rows={2}
         className="resize-none"
+        containerClassName={COMPOSER_FOOTER_CLASS}
         value={draft}
         placeholder={props.disabledReason ?? t("desktop.composer.placeholder")}
         disabled={props.disabledReason !== null}
