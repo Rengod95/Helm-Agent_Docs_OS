@@ -121,7 +121,9 @@ export function createSkills(deps: SkillsDeps): SkillsRuntime {
     return workspace === undefined || workspace === "" ? undefined : workspace;
   };
 
-  const reindex = async (threadId?: string): Promise<Result<ReindexResult, KnowledgeFailure>> => {
+  const reindexNow = async (
+    threadId?: string,
+  ): Promise<Result<ReindexResult, KnowledgeFailure>> => {
     const resolved = await deps.roots(threadId);
     const result = await reindexSkills(deps, resolved.roots, {
       dropOutOfScopeProjects: deps.workspaceOf !== undefined,
@@ -143,9 +145,19 @@ export function createSkills(deps: SkillsDeps): SkillsRuntime {
     return result;
   };
 
+  // 재색인은 한 번에 하나씩 돈다. 같은 대화의 turn 시작과 `list`·`view`가 겹쳐도 파일 상태 표를 두 번 쓰지 않는다
+  const reindex = (threadId?: string): Promise<Result<ReindexResult, KnowledgeFailure>> => {
+    const run = syncing.then(
+      () => reindexNow(threadId),
+      () => reindexNow(threadId),
+    );
+    syncing = run;
+    return run;
+  };
+
   const syncNow = async (threadId: string): Promise<Result<void, KnowledgeFailure>> => {
     if (hasSynced && workspaceKey(threadId) === syncedWorkspace) return ok(undefined);
-    const reindexed = await reindex(threadId);
+    const reindexed = await reindexNow(threadId);
     return reindexed.ok ? ok(undefined) : reindexed;
   };
 

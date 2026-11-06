@@ -624,6 +624,42 @@ describe("the thread workspace is the project folder", () => {
     expect(fs.has("/proj/.fresnel/skills/gamma/SKILL.md")).toBe(false);
   });
 
+  test("skills put in the workspace and the user folder mid-conversation reach the next turn", async () => {
+    WORKSPACES.clear();
+    const { t, fs } = await boot({
+      prepare: workspaceSkills,
+      workspaceOf: (threadId) => WORKSPACES.get(threadId),
+      projectTrust: () => Promise.resolve(true),
+    });
+    const a = await startedThread(t, "/ws-a");
+    expect(await firstBlock(t, a, "a-1")).toContain("<name>alpha</name>");
+    putSkill(fs, "/ws-a/.fresnel/skills", "scigreet-hello", { description: "Greets in Korean." });
+    putSkill(fs, USER_SKILLS, "home-skill", { description: "From the home folder." });
+    const [delta, ...rest] = await agentStart(t, a, "a-2");
+    expect(rest).toEqual([]);
+    expect(delta?.customType).toBe("knowledge.index-delta");
+    expect(delta?.content).toBe(
+      "스킬 인덱스 변경: 추가 home-skill(From the home folder.), scigreet-hello(Greets in Korean.)",
+    );
+    expect(await agentStart(t, a, "a-3")).toEqual([]);
+  });
+
+  test("trust granted after the first turn loads the project skills on the next turn", async () => {
+    WORKSPACES.clear();
+    let trusted = false;
+    const { t } = await boot({
+      prepare: workspaceSkills,
+      workspaceOf: (threadId) => WORKSPACES.get(threadId),
+      projectTrust: () => Promise.resolve(trusted),
+    });
+    const a = await startedThread(t, "/ws-a");
+    expect(await firstBlock(t, a, "a-1")).not.toContain("<name>alpha</name>");
+    trusted = true;
+    const [delta] = await agentStart(t, a, "a-2");
+    expect(delta?.customType).toBe("knowledge.index-delta");
+    expect(delta?.content).toBe("스킬 인덱스 변경: 추가 alpha(Only in workspace A.)");
+  });
+
   test("an untrusted workspace contributes nothing and its skills are not read", async () => {
     WORKSPACES.clear();
     const { t } = await boot({
