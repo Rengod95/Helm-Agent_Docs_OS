@@ -2099,7 +2099,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 #### 구현 노트 (O-03과 O-09, 트랙 chat3)
 
 - O-03 명령 결과 시트(`views/command-output-sheet.tsx`, 모델 `views/command-output-model.ts`): 동작 슬래시 명령의 `command.run` `done { message, result }`가 `UiState.commandOutput`에 들어가면 `Sheet side="right"`가 연다. 결과 JSON은 접혀 있다. 복사는 `commands.copyText`(클립보드)로 메시지와 JSON을 한 글로 쓰고, 닫기는 `dismissCommandOutput`이다. 파싱은 바꾸지 않았다(`app/commands.ts`의 `runSlash`는 `show`에서 그대로 연다). 시트는 `App`에 한 번 붙는다.
-- O-09 바로 가기 키 도움말(`views/shortcut-help-dialog.tsx`, 모델 `views/shortcut-help-model.ts`): 표는 `ACTION_IDS` 순서의 22행이고 키는 `resolveKeymap`(사용자 덮어쓰기 반영)과 `formatKey`(macOS 기호)로 쓴다. 동작 이름은 `desktop.shortcuts.action.*` 문장이다. `help.shortcuts`는 셸이 처리하지 않아 `App`의 `onAction`이 `helpOpen` 상태를 켠다(이번 변경에서 연결했다). 열린 동안은 `Shell`의 `modalOpen`으로 Esc가 끝 영역을 닫지 않게 한다.
+- O-09 바로 가기 키 도움말(`views/shortcut-help-dialog.tsx`, 모델 `views/shortcut-help-model.ts`): 목록은 `ACTION_IDS` 순서의 23행이고 키는 `resolveKeymap`(사용자 덮어쓰기 반영)과 `formatKey`(macOS 기호)로 쓴다. 동작 이름은 `desktop.shortcuts.action.*` 문장이다. `help.shortcuts`는 셸이 처리하지 않아 `App`의 `onAction`이 `helpOpen` 상태를 켠다(이번 변경에서 연결했다). 열린 동안은 `Shell`의 `modalOpen`으로 Esc가 끝 영역을 닫지 않게 한다. 모양은 시안 `o09-shortcuts`다: `Dialog size="lg"`에 찾기 `Input`(동작 이름·묶음 이름·동작 id·키 글자로 거른다), 두 열 묶음(왼쪽 어디서나·이동·대화, 오른쪽 패널·영역; 동작이 없는 묶음은 감춘다), 낱키마다 `Kbd`(`shortcutRowsOf`의 `parts`), 바닥 `닫기`. 거른 결과가 없으면 `desktop.shortcuts.empty`를 보인다. 입력창·승인 카드 키(시안 묶음)와 `설정에서 바꾸기`는 키 맵 밖이거나 이동 경로가 없어 넣지 않았다.
 - C-11은 앱 조합(`Dialog` + `Table` + `Kbd`)으로 해결했다. 빠진 것: `thread.new`와 `turn.interrupt`를 뺀 나머지 셸 밖 동작(`composer.focus`, `thread.next|prev`, `approval.next`)은 이번 변경에서 연결하지 않았다(§4.8 구현 노트에서 연결했다). 키를 고치는 화면은 이 표에 없다.
 
 ### 6.21 LightCraft 공통 규칙

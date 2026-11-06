@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { ACTION_IDS, DEFAULT_KEYMAP, resolveKeymap } from "../../src/views/shell/keybindings.ts";
-import { ACTION_LABEL_IDS, shortcutRowsOf } from "../../src/views/shortcut-help-model.ts";
+import {
+  ACTION_LABEL_IDS,
+  filterShortcutRows,
+  keyPartsOf,
+  SHORTCUT_COLUMNS,
+  shortcutRowsOf,
+} from "../../src/views/shortcut-help-model.ts";
 
 // 바로 가기 키 도움말(O-09)의 표 모델. 행은 `ACTION_IDS` 순서이고 키는 `formatKey`로 쓴다. 값은 `toEqual`로 비교한다.
 
@@ -9,9 +15,27 @@ describe("shortcutRowsOf", () => {
     const rows = shortcutRowsOf(DEFAULT_KEYMAP, true);
     expect(rows.map((row) => row.id)).toEqual([...ACTION_IDS]);
     expect(rows.slice(0, 3)).toEqual([
-      { id: "palette.open", label: "desktop.shortcuts.action.paletteOpen", keys: "⌘K" },
-      { id: "thread.new", label: "desktop.shortcuts.action.threadNew", keys: "⌘N" },
-      { id: "nav.1", label: "desktop.shortcuts.action.nav1", keys: "⌘1" },
+      {
+        id: "palette.open",
+        label: "desktop.shortcuts.action.paletteOpen",
+        group: "anywhere",
+        keys: "⌘K",
+        parts: ["⌘", "K"],
+      },
+      {
+        id: "thread.new",
+        label: "desktop.shortcuts.action.threadNew",
+        group: "anywhere",
+        keys: "⌘N",
+        parts: ["⌘", "N"],
+      },
+      {
+        id: "nav.1",
+        label: "desktop.shortcuts.action.nav1",
+        group: "navigate",
+        keys: "⌘1",
+        parts: ["⌘", "1"],
+      },
     ]);
     expect(rows.find((row) => row.id === "panel.inbox")?.keys).toBe("⇧⌘I");
     expect(rows.find((row) => row.id === "thread.next")?.keys).toBe("⌥⌘↓");
@@ -19,7 +43,9 @@ describe("shortcutRowsOf", () => {
     expect(rows.find((row) => row.id === "nav.6")).toEqual({
       id: "nav.6",
       label: "desktop.shortcuts.action.nav6",
+      group: "navigate",
       keys: "⌘6",
+      parts: ["⌘", "6"],
     });
   });
 
@@ -38,5 +64,51 @@ describe("shortcutRowsOf", () => {
 
   test("every action has a label id", () => {
     expect(Object.keys(ACTION_LABEL_IDS).toSorted()).toEqual([...ACTION_IDS].toSorted());
+  });
+});
+
+const text = (id: string): string => id;
+
+describe("groups, key chips and search", () => {
+  test("rows carry their group and the key split into chips", () => {
+    const mac = shortcutRowsOf(DEFAULT_KEYMAP, true);
+    expect(mac.find((row) => row.id === "panel.inbox")).toEqual({
+      id: "panel.inbox",
+      label: "desktop.shortcuts.action.panelInbox",
+      group: "panel",
+      keys: "⇧⌘I",
+      parts: ["⇧", "⌘", "I"],
+    });
+    const other = shortcutRowsOf(DEFAULT_KEYMAP, false);
+    expect(other.find((row) => row.id === "panel.inbox")?.parts).toEqual(["Ctrl", "Shift", "I"]);
+  });
+
+  test("a trailing plus is a key, not a separator", () => {
+    expect(keyPartsOf("Ctrl++", false)).toEqual(["Ctrl", "+"]);
+  });
+
+  test("every group in the columns holds at least one default action", () => {
+    const rows = shortcutRowsOf(DEFAULT_KEYMAP, true);
+    for (const group of SHORTCUT_COLUMNS.flat()) {
+      expect(rows.some((row) => row.group === group)).toBe(true);
+    }
+  });
+
+  test("search matches the action label, group label, id or keys and an empty query keeps all", () => {
+    const rows = shortcutRowsOf(DEFAULT_KEYMAP, true);
+    expect(filterShortcutRows(rows, "  ", text)).toEqual(rows);
+    expect(filterShortcutRows(rows, "panelinbox", text).map((row) => row.id)).toEqual([
+      "panel.inbox",
+    ]);
+    expect(filterShortcutRows(rows, "group.area", text).map((row) => row.id)).toEqual([
+      "area.toggle",
+      "area.chat",
+      "area.workbench",
+    ]);
+    expect(filterShortcutRows(rows, "thread.NEXT", text).map((row) => row.id)).toEqual([
+      "thread.next",
+    ]);
+    expect(filterShortcutRows(rows, "⇧⌘i", text).map((row) => row.id)).toEqual(["panel.inbox"]);
+    expect(filterShortcutRows(rows, "no-such", text)).toEqual([]);
   });
 });
