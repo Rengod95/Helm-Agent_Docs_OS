@@ -415,7 +415,21 @@ export function failureOfWire(error: WireError): Failure {
         code: EXIT.usage,
       };
     }
-    case "settings.scopeNotAllowed":
+    case "settings.scopeNotAllowed": {
+      const reason = detailText(error, "reason");
+      const key = detailText(error, "key") ?? t("cli.errors.common.thisKey");
+      // 범위 자체는 허용인데 지금 쓸 수 없는 이유가 있으면 그 이유를 말한다("허용 범위: …"가 방금 쓴 범위를 포함해 모순이 되지 않게)
+      if (
+        reason === "workspaceRequired" ||
+        reason === "untrustedProject" ||
+        reason === "managedReadOnly"
+      ) {
+        return {
+          message: t(`cli.errors.wire.settingsScopeNotAllowed.${reason}.message`, { key }),
+          fix: t(`cli.errors.wire.settingsScopeNotAllowed.${reason}.fix`),
+          code: EXIT.usage,
+        };
+      }
       return {
         message: t("cli.errors.wire.settingsScopeNotAllowed.message", {
           key: detailText(error, "key") ?? t("cli.errors.common.thisKey"),
@@ -425,6 +439,7 @@ export function failureOfWire(error: WireError): Failure {
         }),
         code: EXIT.usage,
       };
+    }
     case "settings.locked":
       return {
         message: t("cli.errors.wire.settingsLocked.message", {

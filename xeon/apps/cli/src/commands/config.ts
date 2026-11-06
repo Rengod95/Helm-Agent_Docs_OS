@@ -1,9 +1,11 @@
 import { t } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { EffectiveSetting, SettingDefWire, SettingSource } from "@fresnel/contracts/settings";
 import type { HostConnection } from "@fresnel/contracts/wire";
 import type { CommandIo, HostCommand } from "@fresnel/host";
 import type { ConfigCommand } from "../cli/command.ts";
+import { renderFailure } from "../errors.ts";
 import { EXIT, exitCodeOfHost, type ExitCode } from "../exit-codes.ts";
 import { interpretRaw } from "../settings-input.ts";
 import { cliSettingGroups } from "../settings.ts";
@@ -31,15 +33,41 @@ export function formatSettings(settings: readonly EffectiveSetting[]): string {
   return lines.length === 0 ? "" : `${lines.join("\n")}\n`;
 }
 
+/**
+ * project·local 범위와 작업 폴더 설정 파일은 thread의 작업 폴더로 찾는다(F wire §3.3.1 `settings.*`의 `threadId`). 그래서 이 작업 폴더의
+ * 가장 최근 대화를 짝으로 보낸다. 대화가 없으면 undefined다
+ */
+async function folderThreadOf(
+  handle: { readonly connection: HostConnection; readonly supports: (method: string) => boolean },
+  workspace: string,
+): Promise<ThreadId | undefined> {
+  if (!handle.supports("thread.list")) return undefined;
+  const listed = await handle.connection.request("thread.list", { workspace, limit: 1 });
+  return listed.threads[0]?.threadId;
+}
+
+/** 이 작업 폴더에 대화가 없어 project·local 범위를 쓸 곳을 정하지 못했다 */
+async function noFolderThread(ctx: CommandContext, scope: string): Promise<ExitCode> {
+  await ctx.io.stderr(
+    renderFailure({
+      message: t("cli.errors.config.noFolderThread.message", { scope }),
+      fix: t("cli.errors.config.noFolderThread.fix"),
+    }),
+  );
+  return EXIT.usage;
+}
+
 async function runConfigGet(
   ctx: CommandContext,
   command: Extract<ConfigCommand, { kind: "config.get" }>,
 ): Promise<ExitCode> {
   return withEngine(ctx, async (handle) => {
-    const result = await handle.connection.request(
-      "settings.get",
-      command.keys.length === 0 ? {} : { keys: [...command.keys] },
-    );
+    // 작업 폴더의 대화가 있으면 그 폴더의 project·local 파일 값도 유효 값에 들어온다
+    const threadId = await folderThreadOf(handle, ctx.workspace);
+    const result = await handle.connection.request("settings.get", {
+      ...(command.keys.length === 0 ? {} : { keys: [...command.keys] }),
+      ...(threadId === undefined ? {} : { threadId }),
+    });
     if (command.output === "json") {
       await ctx.io.stdout(`${JSON.stringify(result.settings, null, 2)}\n`);
     } else {
@@ -55,10 +83,14 @@ async function runConfigSet(
   command: Extract<ConfigCommand, { kind: "config.set" }>,
 ): Promise<ExitCode> {
   return withEngine(ctx, async (handle) => {
+    const threadId = await folderThreadOf(handle, ctx.workspace);
+    const needsFolder = command.scope === "project" || command.scope === "local";
+    if (needsFolder && threadId === undefined) return noFolderThread(ctx, command.scope);
     const result = await handle.connection.request("settings.set", {
       key: command.key,
       value: interpretRaw(command.raw),
       scope: command.scope,
+      ...(needsFolder && threadId !== undefined ? { threadId } : {}),
     });
     await ctx.io.stdout(formatSettings([result.setting]));
     return EXIT.ok;
@@ -71,9 +103,13 @@ async function runConfigReset(
   command: Extract<ConfigCommand, { kind: "config.reset" }>,
 ): Promise<ExitCode> {
   return withEngine(ctx, async (handle) => {
+    const threadId = await folderThreadOf(handle, ctx.workspace);
+    const needsFolder = command.scope === "project" || command.scope === "local";
+    if (needsFolder && threadId === undefined) return noFolderThread(ctx, command.scope);
     const result = await handle.connection.request("settings.reset", {
       key: command.key,
       scope: command.scope,
+      ...(needsFolder && threadId !== undefined ? { threadId } : {}),
     });
     await ctx.io.stdout(formatSettings([result.setting]));
     return EXIT.ok;

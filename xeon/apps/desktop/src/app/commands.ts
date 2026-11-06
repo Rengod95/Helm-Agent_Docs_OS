@@ -4,7 +4,15 @@ import {
   slashStepOf,
   type SlashLine,
 } from "@fresnel/client/settings";
-import { assertNever, attemptAsync, err, ok, type Logger, type Result } from "@fresnel/contracts";
+import {
+  assertNever,
+  attemptAsync,
+  detach,
+  err,
+  ok,
+  type Logger,
+  type Result,
+} from "@fresnel/contracts";
 import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
 import {
   buildDiagnostics,
@@ -96,6 +104,19 @@ export function createCommands(deps: CommandDeps): Commands {
     }
   };
 
+  /**
+   * 보던 대화를 떠난다(HS-27). 호스트에 `thread.close`를 보내 이 연결의 쓰기 소유 기록을 지우면, turn이 돌지 않을 때 호스트가 쓰기 소유를
+   * 놓아 CLI가 이어 쓸 수 있다. 실패해도 화면 전환은 막지 않는다
+   */
+  const leaveSelected = (next: ThreadId | null): void => {
+    const previous = ui.read.getState().selectedThreadId;
+    if (previous === null || previous === next) return;
+    detach(
+      withConnection((c) => c.request("thread.close", { threadId: previous })),
+      () => {},
+    );
+  };
+
   const startTurn = async (
     threadId: ThreadId,
     text: string,
@@ -171,6 +192,7 @@ export function createCommands(deps: CommandDeps): Commands {
 
   return {
     selectThread(threadId) {
+      leaveSelected(threadId);
       // 이전 thread의 진행 조각이 새 thread 화면의 첫 커밋과 섞이지 않게 큐를 먼저 비운다(design 8절)
       engine.flush();
       ui.actions.selectThread(threadId);
@@ -182,6 +204,7 @@ export function createCommands(deps: CommandDeps): Commands {
       );
       if (!created.ok) return created;
       // 목록에는 thread.started 이벤트가 들어온다. 선택은 화면 상태라 바로 한다
+      leaveSelected(created.value.threadId);
       engine.flush();
       ui.actions.selectThread(created.value.threadId);
       session.link()?.openThread(created.value.threadId);
@@ -420,6 +443,7 @@ export function createCommands(deps: CommandDeps): Commands {
       if (!forked.ok) return forked;
       ui.actions.dismissLocked();
       // 목록에는 thread.started 이벤트가 들어온다. 선택은 화면 상태라 바로 한다
+      leaveSelected(forked.value.threadId);
       engine.flush();
       ui.actions.selectThread(forked.value.threadId);
       session.link()?.openThread(forked.value.threadId);

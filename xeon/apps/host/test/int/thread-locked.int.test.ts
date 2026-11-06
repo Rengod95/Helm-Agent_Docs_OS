@@ -102,6 +102,44 @@ describe("thread-locked-alternatives", () => {
   );
 
   realTest(
+    "the app host gives the write owner back on thread.close so the CLI and the app can alternate (HS-27)",
+    async () => {
+      const streams = stdioStreams();
+      const exit = startStdioHost({
+        readable: streams.clientToServer.readable,
+        writable: streams.serverToClient.writable,
+        assemble: { devChecks: true },
+        handleSignals: false,
+      });
+      const appClient = createHostConnection(
+        createStdioTransport({
+          readable: streams.serverToClient.readable,
+          writable: streams.clientToServer.writable,
+        }),
+      );
+      await appClient.request("host.hello", HELLO_PARAMS);
+      const created = await appClient.request("thread.create", {});
+
+      const cli = await startInProcessHost({ devChecks: true });
+      const cliClient = await connect(cli);
+      const held = await lockedError(
+        cliClient.request("thread.rename", { threadId: created.threadId, title: "from cli" }),
+      );
+      expect(held.data.details).toMatchObject({ ownerKind: "app" });
+
+      await appClient.request("thread.close", { threadId: created.threadId });
+      await cliClient.request("thread.rename", { threadId: created.threadId, title: "from cli" });
+      // CLI의 한 번 쓰고 놓는 호출이 끝났으니 앱이 다시 쓸 수 있다
+      await cliClient.close();
+      await cli.close();
+      await appClient.request("thread.rename", { threadId: created.threadId, title: "from app" });
+
+      await appClient.close();
+      expect((await exit).code).toBe(0);
+    },
+  );
+
+  realTest(
     "a lock released by the owner can be taken by the other host (the kernel frees it with the process)",
     async () => {
       const owner = await startInProcessHost({ devChecks: true });

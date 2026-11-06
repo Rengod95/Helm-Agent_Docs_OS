@@ -119,10 +119,10 @@ export interface ConnectionHub {
   /** HS-31 1단계: 이미 받은 요청은 끝까지 처리하고, 새 요청은 5002로 거절한다 */
   beginShutdown(): void;
   /**
-   * 쓰기로 연 연결이 더 없고 진행 중인 turn이 없는 thread의 잠금을 놓는다(HS-27). 서비스 모드만 놓고 나머지는 프로세스 종료 때 커널이 푼다
+   * 쓰기로 연 연결이 더 없고 진행 중인 turn이 없는 thread의 잠금을 놓는다(HS-27). 서비스와 앱(stdio)이 놓고 in-process는 프로세스 종료 때 커널이 푼다. 놓는 일이 끝나면 풀린다
    * [spec에 더한 메서드: thread.close와 연결 종료가 같은 판정을 쓴다]
    */
-  releaseUnused(threadIds: readonly ThreadId[]): void;
+  releaseUnused(threadIds: readonly ThreadId[]): Promise<void>;
   /** 관찰 중인 thread가 생겼으면 폴링을 시작한다(HS-16). 관찰할 thread가 없어지면 폴링은 저절로 멈춘다 */
   watchObserved(): void;
   /** 커밋 알림 구독을 푼다. 엔진을 닫기 전에 부른다 */
