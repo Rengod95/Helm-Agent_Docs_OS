@@ -261,9 +261,16 @@ export function foldableOf(value: unknown): boolean {
   return typeof value === "object" && value !== null;
 }
 
-/** 도구와 웹 패널이 맡는 항목인가(검색 순서). 패널이 그리므로 탭의 항목 목록에서는 뺀다 */
+/** 확장 켜짐 키. "플러그인과 그룹" 탭의 실행 화면(`PluginsPanel`)이 스위치로 그리므로 항목 목록에서는 뺀다 */
+const EXT_ENABLED_KEY = /^ext\.[^.]+\.enabled$/;
+
+/** 도구와 웹 패널이 맡는 항목인가(검색 순서)과 확장 켜짐 스위치. 패널이 그리므로 탭의 항목 목록에서는 뺀다 */
 export function panelOwnedOf(field: FieldVM): boolean {
-  return field.editor === "searchOrder" || field.key === SEARCH_ORDER_KEY;
+  return (
+    field.editor === "searchOrder" ||
+    field.key === SEARCH_ORDER_KEY ||
+    EXT_ENABLED_KEY.test(field.key)
+  );
 }
 
 /**

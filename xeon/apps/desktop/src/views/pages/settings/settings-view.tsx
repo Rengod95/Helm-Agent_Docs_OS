@@ -91,6 +91,8 @@ export interface SettingsPageProps {
   readonly filePaths: readonly SettingsPathRow[];
   /** OS 알림 묶음(B-10). "실행과 서비스" 탭 맨 위에 보인다. 웹이나 문맥이 없으면 `null`이다 */
   readonly notifyPanel?: ReactNode | undefined;
+  /** "플러그인과 그룹" 탭 맨 위의 실행 화면(그룹·플러그인 목록) */
+  readonly pluginsPanel?: ReactNode | undefined;
   /** 외관 탭의 접근성 묶음 */
   readonly appearancePanel?: ReactNode | undefined;
   readonly handlers: SettingsPageHandlers;
@@ -359,6 +361,7 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
     <>
       {tab === "execution" ? props.notifyPanel : null}
       {tab === "tools" ? props.toolsPanel : null}
+      {tab === "plugins" ? props.pluginsPanel : null}
       {tabView.gauge === null ? null : props.usagePanel}
       {tab === "providers" && props.rotationPanel !== null ? (
         <PanelBlock title={t("desktop.providers.rotation.title")}>{props.rotationPanel}</PanelBlock>
@@ -378,7 +381,10 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
     <>
       {panels}
       {hasCard ? (
-        <SettingSection label={tabView.label}>
+        <SettingSection
+          label={tabView.label}
+          title={tab === "plugins" ? t("desktop.settings.plugins.settings") : undefined}
+        >
           {tab === "advanced" ? props.restorePanel : null}
           {emptyText === null ? null : <p className="text-ui-sm text-text-tertiary">{emptyText}</p>}
           {groups.general.map(rowOf)}
