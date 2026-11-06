@@ -29,6 +29,7 @@ import {
   type SettingsKeyIntent,
 } from "./settings-model.ts";
 import { FieldRow, type DedicatedEditors, type FieldHandlers } from "./settings-field.tsx";
+import { RestartButtons, type RestartChoice } from "../../restart-confirm-dialog.tsx";
 import { PanelBlock } from "../shared/panel-parts.tsx";
 import type { SettingsPathRow } from "./settings-file-paths.ts";
 import { OverviewPanels } from "./settings-overview.tsx";
@@ -40,12 +41,19 @@ import { SettingSection } from "./settings-section.tsx";
 // 탭 목록은 세로 `ListNavigation`이고 720 이하 폭에서는 찾기 칸 아래 `Select`다. 찾기는 라벨·키·설명을 본다.
 // 시크릿 탭은 `secretsPanel`(P-10 시크릿 화면)을 그대로 넣는다. 표와 전용 편집기는 요약만 보인다(`settings-field.tsx`).
 
+/** 개요 띠의 "엔진 재시작". 멈출 턴이 있으면 확인 창을 거치고, 보내는 동안 진행 표시, 거절되면 실패 토스트를 띄운다(`RestartButtons`) */
+const RESTART_CHOICE: RestartChoice = {
+  id: "settings",
+  label: "desktop.settings.restart.button",
+  variant: "outline",
+  options: { confirmed: true },
+};
+
 export interface SettingsPageHandlers {
   readonly select: (tab: SettingsTab) => void;
   readonly query: (text: string) => void;
   /** ⌘S, Esc 같은 화면 바로 가기. ⌘F는 이 그림이 찾기 칸에 초점을 준다 */
   readonly keyIntent: (intent: SettingsKeyIntent) => void;
-  readonly restart: () => void;
   readonly retry: () => void;
   readonly fields: FieldHandlers;
   readonly promptSave: () => void;
@@ -287,14 +295,7 @@ function Body(props: SettingsPageProps): ReactNode {
             <Alert
               tone="warning"
               action={
-                <Button
-                  size="xs"
-                  variant="outline"
-                  disabled={props.readOnly}
-                  onClick={handlers.restart}
-                >
-                  {t("desktop.settings.restart.button")}
-                </Button>
+                <RestartButtons choices={[RESTART_CHOICE]} size="xs" allowed={!props.readOnly} />
               }
             >
               {view.restartBanner?.text ?? ""}

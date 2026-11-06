@@ -406,3 +406,23 @@ export function restartCountOf(view: SettingsView): number {
 export function allFieldsOf(view: SettingsView): readonly FieldVM[] {
   return view.tabs.flatMap((tab) => tab.fields);
 }
+
+/**
+ * 숫자 칸이 알려 주는 글 초안을 컨트롤러가 어떻게 받는가. 쓸 수 있는 글은 초안으로 올린다. 글이 비워졌을 때(칸이 끝났다고 알림)
+ * 초안이 있으면: Esc였으면 버리고, 아니면(블러나 Enter. 올린 초안이 칸의 값이라 칸은 `onValueChange`를 따로 부르지 않는다) 저장한다.
+ * 저장 호출이 이미 간 뒤의 알림(`committing`)은 건드리지 않는다.
+ */
+export function numberDraftActionOf(
+  draft: { readonly dirty: boolean; readonly error: string | null; readonly value: number | null },
+  state: { readonly fieldDirty: boolean; readonly committing: boolean; readonly escaped: boolean },
+):
+  | { readonly kind: "edit"; readonly value: number }
+  | { readonly kind: "discard" }
+  | { readonly kind: "commit" }
+  | null {
+  if (draft.dirty && draft.error === null && draft.value !== null) {
+    return { kind: "edit", value: draft.value };
+  }
+  if (draft.dirty || !state.fieldDirty || state.committing) return null;
+  return state.escaped ? { kind: "discard" } : { kind: "commit" };
+}
