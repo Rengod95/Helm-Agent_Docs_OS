@@ -1521,7 +1521,7 @@
   "desktop.plugin.frame.reason.renderException": "The view threw while rendering, so it was closed",
   "desktop.plugin.frame.reason.renderExceptionInfo": "The view's code raised an exception while drawing. Check the plugin's log.",
   "desktop.plugin.frame.reason.readyTimeout": "No ready signal arrived in time, so the view was closed",
-  "desktop.plugin.frame.reason.readyTimeoutInfo": "The frame did not send its ready signal to the parent window in time. Read the nonce from the URL fragment #n=<nonce> and send {v: 1, ready: true, bridge, nonce} back.",
+  "desktop.plugin.frame.reason.readyTimeoutInfo": "The frame did not send its ready signal to the parent window in time. Read the nonce from the URL fragment #n=<nonce> and send back a message with v, ready, bridge and nonce.",
   "desktop.plugin.frame.reason.bridgeFormat": "The ready signal did not follow the contract, so the view was closed",
   "desktop.plugin.frame.reason.bridgeFormatInfo": "The ready signal's shape, bridge range, or nonce was wrong. Read the nonce from the URL fragment #n=<nonce> and send it back unchanged.",
   "desktop.plugin.frame.reason.limitExceeded": "A limit was exceeded, so the view was closed",

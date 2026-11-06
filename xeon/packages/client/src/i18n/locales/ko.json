@@ -1521,7 +1521,7 @@
   "desktop.plugin.frame.reason.renderException": "화면을 그리다 오류가 나서 닫혔어요",
   "desktop.plugin.frame.reason.renderExceptionInfo": "화면 코드가 그리는 중 예외를 던졌어요. 플러그인 로그를 확인하세요.",
   "desktop.plugin.frame.reason.readyTimeout": "준비 신호가 오지 않아 닫혔어요",
-  "desktop.plugin.frame.reason.readyTimeoutInfo": "프레임이 시간 안에 부모 창으로 ready 신호를 보내지 않았어요. 주소 조각 #n=<nonce>를 읽어 {v: 1, ready: true, bridge, nonce}로 되돌려야 해요.",
+  "desktop.plugin.frame.reason.readyTimeoutInfo": "프레임이 시간 안에 부모 창으로 ready 신호를 보내지 않았어요. 주소 조각 #n=<nonce>를 읽어 v, ready, bridge, nonce를 담아 되돌려야 해요.",
   "desktop.plugin.frame.reason.bridgeFormat": "준비 신호의 모양이 규약과 달라 닫혔어요",
   "desktop.plugin.frame.reason.bridgeFormatInfo": "ready 신호의 모양, bridge 범위, nonce 중 하나가 맞지 않았어요. nonce는 주소 조각 #n=<nonce>에서 읽어 그대로 되돌려야 해요.",
   "desktop.plugin.frame.reason.limitExceeded": "허용 한도를 넘어 닫혔어요",
