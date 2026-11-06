@@ -104,6 +104,21 @@ export const selectUnlistedApprovals = (s: EngineMirror, id: ThreadId): number =
   }
   return Math.max(0, pending - listed);
 };
+/** thread에서 답을 기다리는 승인 수. 거울 목록과 요약 수 중 큰 쪽이다(resume-band와 같은 기준) */
+export const selectThreadApprovals = (s: EngineMirror, id: ThreadId): number => {
+  let listed = 0;
+  for (const approvalId of s.approvals.ids) {
+    if (s.approvals.byId[approvalId]?.threadId === id) listed += 1;
+  }
+  return Math.max(listed, s.threads.byId[id]?.pendingApprovals ?? 0);
+};
+/** 이 도구 호출이 승인을 기다리는 중인지(승인 요청의 origin.toolCallId 짝) */
+export const selectToolCallAwaitingApproval = (s: EngineMirror, toolCallId: string): boolean => {
+  for (const approvalId of s.approvals.ids) {
+    if (s.approvals.byId[approvalId]?.request.origin.toolCallId === toolCallId) return true;
+  }
+  return false;
+};
 /** 이 thread에 진행 중인 turn이 있는지. 입력창이 중단 버튼을 보일지 정한다 */
 export const selectThreadRunning = (s: EngineMirror, id: ThreadId): boolean =>
   s.threads.byId[id]?.status === "running";
