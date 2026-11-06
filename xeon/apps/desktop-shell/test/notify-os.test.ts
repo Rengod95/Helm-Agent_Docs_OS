@@ -5,6 +5,7 @@ import { sharedIntents } from "../src/main/intents.ts";
 import {
   clean,
   createNotifyOsModule,
+  NOTIFY_FAILED_EVENT,
   permissionWordOf,
   SHOW_FAILED_LOG,
   validThreadId,
@@ -76,23 +77,23 @@ interface FakePorts {
   readonly ports: NotifyOsPorts;
   readonly state: FakeState;
   /** 띄운 알림과 그 클릭 콜백 */
-  readonly shown: { notice: ShownNotice; click: () => void }[];
+  readonly shown: { notice: ShownNotice; click: () => void; fail: () => void }[];
   readonly logs: string[];
 }
 
 function fakePorts(): FakePorts {
   const state: FakeState = { permission: "granted", permissionThrows: false, showMode: "shows" };
-  const shown: { notice: ShownNotice; click: () => void }[] = [];
+  const shown: { notice: ShownNotice; click: () => void; fail: () => void }[] = [];
   const logs: string[] = [];
   const ports: NotifyOsPorts = {
     permission: () => {
       if (state.permissionThrows) throw new Error("permission read failed");
       return state.permission;
     },
-    show: (notice, onClick) => {
+    show: (notice, onClick, onFailed) => {
       if (state.showMode === "throws") throw new Error(`cannot show ${notice.title}`);
       if (state.showMode === "false") return false;
-      shown.push({ notice, click: onClick });
+      shown.push({ notice, click: onClick, fail: onFailed });
       return true;
     },
     log: (line) => {
@@ -248,6 +249,23 @@ describe("notify_os replies", () => {
       ok: true,
       value: { kind: "failed" },
     });
+    expect(fake.logs).toEqual(["notify: not shown (reason: show_failed)"]);
+  });
+});
+
+describe("failure after shown", () => {
+  test("a late OS failure logs the fixed line and emits notify-failed to the UI", async () => {
+    const { shell, fake } = setup();
+    expect(await dispatch(shell, "notify_os", { title: "비밀 제목" })).toEqual({
+      ok: true,
+      value: { kind: "shown" },
+    });
+    expect(shell.emitted).toEqual([]);
+    const shownNotice = fake.shown[0];
+    if (shownNotice === undefined) throw new Error("the notice was not shown");
+    shownNotice.fail();
+    expect(shell.emitted).toEqual(["notify-failed"]);
+    expect(NOTIFY_FAILED_EVENT).toBe("notify-failed");
     expect(fake.logs).toEqual(["notify: not shown (reason: show_failed)"]);
   });
 });

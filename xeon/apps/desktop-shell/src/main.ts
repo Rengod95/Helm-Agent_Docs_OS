@@ -16,6 +16,7 @@ import { shouldQuitWhenWindowsClosed } from "./main/close-behavior.ts";
 import { createCommandRegistry } from "./main/commands.ts";
 import type { ShellContext } from "./main/context.ts";
 import { isTrustedFrame, isUiUrl } from "./main/frame-check.ts";
+import { shellEnvOf } from "./main/lib/packaged-env.ts";
 import { MODULES } from "./main/modules.ts";
 import { CHANNEL_KEY, SHELL_CHANNELS } from "./shared/channels.ts";
 
@@ -53,7 +54,7 @@ function resourcesDir(): string {
 }
 
 function uiDir(): string {
-  const override = process.env["FRESNEL_UI_DIR"];
+  const override = shellEnvOf(process.env, app.isPackaged)["FRESNEL_UI_DIR"];
   // 개발 중에는 Tauri와 같은 UI 번들(`just desktop-ui`의 출력)을 쓴다
   const dev = path.join(resourcesDir(), "..", "desktop", "src-tauri", "ui");
   return path.resolve(override ?? (app.isPackaged ? path.join(resourcesDir(), "ui") : dev));
@@ -88,7 +89,7 @@ function createContext(
   showMainWindow: () => void,
 ): ShellContext {
   return {
-    env: process.env,
+    env: shellEnvOf(process.env, app.isPackaged),
     platform: process.platform,
     paths: {
       userData: app.getPath("userData"),

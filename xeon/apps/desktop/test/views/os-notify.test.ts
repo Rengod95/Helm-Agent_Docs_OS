@@ -52,6 +52,7 @@ function harnessOf(options: {
   const results: NotifyOutcome[] = [];
   let listener: ((delivered: NotifyDeliveredParams) => void) | null = null;
   let unsubscribed = 0;
+  let failureListener: (() => void) | null = null;
   let clock = 0;
   const reply: Reply = options.reply ?? SHOWN;
   const port: OsNotifyPort = {
@@ -60,6 +61,12 @@ function harnessOf(options: {
       return () => {
         listener = null;
         unsubscribed += 1;
+      };
+    },
+    subscribeFailure: (next) => {
+      failureListener = next;
+      return () => {
+        failureListener = null;
       };
     },
     invoke: (command, args) => {
@@ -85,6 +92,10 @@ function harnessOf(options: {
     at: (ms: number): void => {
       clock = ms;
     },
+    failLater: (): void => {
+      failureListener?.();
+    },
+    failureListening: () => failureListener !== null,
     unsubscribed: () => unsubscribed,
     listening: () => listener !== null,
   };
@@ -100,6 +111,22 @@ function permissionReply(answer: string, requested = "granted"): Reply {
 }
 
 const BUILD = { origin: { kind: "user" as const }, title: "빌드 실패 분석" };
+
+describe("a failure the shell reports after shown", () => {
+  test("marks the last delivery as failed and stops listening with the notifier", async () => {
+    const h = harnessOf({ reply: permissionReply("granted"), threads: { [T1]: BUILD } });
+    const stop = h.notifier.listen();
+    h.deliver(deliveredOf(T1, "completed"));
+    await settle();
+    expect(h.notifier.status.get().lastDeliveryFailed).toBe(false);
+    h.failLater();
+    expect(h.notifier.status.get()).toEqual({ permission: "granted", lastDeliveryFailed: true });
+    expect(h.results).toEqual(["shown", "failed"]);
+    expect(h.failureListening()).toBe(true);
+    stop();
+    expect(h.failureListening()).toBe(false);
+  });
+});
 
 describe("the notifier sends the plan", () => {
   test("a finished turn is shown with its title, body, and thread after one permission read", async () => {

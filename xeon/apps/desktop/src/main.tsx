@@ -17,7 +17,7 @@ import { createShellStore, ShellStoreContext } from "./state/shell/index.ts";
 import { selectThread } from "./state/engine/index.ts";
 import { persistShell, restoreShell } from "./views/shell/persist.ts";
 import { DesktopShellContext, type DesktopShell } from "./views/desktop-shell-context.ts";
-import { createOsNotifier, type OsNotifyInvoke } from "./views/os-notify.ts";
+import { createOsNotifier, NOTIFY_FAILED_EVENT, type OsNotifyInvoke } from "./views/os-notify.ts";
 import { notifyPrefsOf, notifyPrefsPortOf } from "./views/os-notify-prefs.ts";
 import { SHELL_INTENT_EVENT, type SubscribeShellIntent } from "./views/shell-intents.ts";
 import type { FileSaveInvoke } from "./views/file-save.ts";
@@ -52,6 +52,17 @@ const updatePort: UpdatePort = { invoke: updateInvoke, createChannel: updateChan
 const osNotifyInvoke: OsNotifyInvoke = (command, args) => invoke(command, args);
 const subscribeShellIntent: SubscribeShellIntent = (onWake) =>
   shellBridge.listen(SHELL_INTENT_EVENT, onWake);
+
+// 셸이 알림을 띄운 뒤 OS가 실패하면 보내는 이벤트(Electron 셸). 다리의 `listen`이 약속을 돌려주므로 해제는 약속이 풀린 뒤에 한다
+const subscribeNotifyFailure = (onFailed: () => void): (() => void) => {
+  const pending = shellBridge.listen(NOTIFY_FAILED_EVENT, onFailed);
+  return () => {
+    detach(
+      pending.then((stop) => stop()),
+      rethrow,
+    );
+  };
+};
 
 // WebView 진입점. 스토어와 연결은 createApp이 만들고 여기서는 화면에 붙이기만 한다.
 const container = document.getElementById("root");
@@ -99,6 +110,7 @@ if (container === null) {
   const notifier = createOsNotifier({
     subscribe: (listener) => app.commands.notices.onDelivered(listener),
     invoke: osNotifyInvoke,
+    subscribeFailure: subscribeNotifyFailure,
     isFocused: () => document.hasFocus(),
     prefs: () => notifyPrefsOf(localSettings),
     threadOf: (threadId) => selectThread(app.engine.read.getState(), threadId),

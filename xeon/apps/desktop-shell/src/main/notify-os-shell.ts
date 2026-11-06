@@ -3,21 +3,12 @@
 import { Notification } from "electron";
 import type { ShellModule } from "./context.ts";
 import { appLogOf } from "./lib/applog.ts";
-import {
-  createNotifyOsModule,
-  permissionWordOf,
-  SHOW_FAILED_LOG,
-  type ShownNotice,
-} from "./notify-os.ts";
+import { createNotifyOsModule, permissionWordOf, type ShownNotice } from "./notify-os.ts";
 
 /** 떠 있는 알림. 눌림 이벤트를 받으려고 닫히거나 눌리거나 실패할 때까지 든다 */
 const live = new Set<Notification>();
 
-function showNotice(
-  notice: ShownNotice,
-  onClick: () => void,
-  log: (line: string) => void,
-): boolean {
+function showNotice(notice: ShownNotice, onClick: () => void, onFailed: () => void): boolean {
   if (!Notification.isSupported()) return false;
   const note = new Notification({
     title: notice.title,
@@ -33,10 +24,10 @@ function showNotice(
     onClick();
   });
   note.once("close", release);
-  // 띄운 뒤에 실패하면 답은 이미 `shown`이라 로그로만 남긴다
+  // 띄운 뒤에 실패하면 답은 이미 `shown`이라 로그와 UI 이벤트로 알린다(`onFailed`)
   note.once("failed", () => {
     release();
-    log(SHOW_FAILED_LOG);
+    onFailed();
   });
   note.show();
   return true;
@@ -52,7 +43,7 @@ export const notifyOsShellModule: ShellModule = {
     };
     createNotifyOsModule({
       permission: () => permissionWordOf(Notification.isSupported()),
-      show: (notice, onClick) => showNotice(notice, onClick, log),
+      show: (notice, onClick, onFailed) => showNotice(notice, onClick, onFailed),
       log,
     }).register(ctx);
   },

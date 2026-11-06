@@ -13,6 +13,9 @@ import {
   type PermissionState,
 } from "./os-notify-model.ts";
 
+/** 셸이 띄운 뒤의 OS 실패를 알리는 이벤트 이름. 셸 `notify-os.ts`의 `NOTIFY_FAILED_EVENT`와 같다 */
+export const NOTIFY_FAILED_EVENT = "notify-failed";
+
 export type OsNotifyCommand = "notify_permission" | "notify_request_permission" | "notify_os";
 
 /** `notify_os`의 인자. Rust가 `thread_id`로 받는다(Tauri가 camelCase를 옮긴다) */
@@ -43,6 +46,11 @@ export interface OsNotifyPort {
   /** `notify.delivered` 구독. 반환값은 해제 함수다. 연결이 바뀌면 호출자가 다시 건다 */
   readonly subscribe: (listener: (delivered: NotifyDeliveredParams) => void) => () => void;
   readonly invoke: OsNotifyInvoke;
+  /**
+   * 셸이 띄운 뒤의 실패(`notify_os`가 `shown`으로 답한 알림을 OS가 나중에 실패 처리함)를 알리는 이벤트 구독.
+   * 받으면 마지막 전달 실패로 기록한다. Electron 셸만 보낸다. 없어도 된다
+   */
+  readonly subscribeFailure?: ((listener: () => void) => () => void) | undefined;
   /** 앱 창이 앞에 있는가 */
   readonly isFocused: () => boolean;
   /** 종류별 켜짐. 보낼 때마다 읽는다 */
@@ -153,6 +161,15 @@ export function createOsNotifier(port: OsNotifyPort): OsNotifier {
         };
       },
     },
-    listen: () => port.subscribe(onDelivered),
+    listen: () => {
+      const stopDelivered = port.subscribe(onDelivered);
+      const stopFailure = port.subscribeFailure?.(() => {
+        record("failed");
+      });
+      return () => {
+        stopDelivered();
+        stopFailure?.();
+      };
+    },
   };
 }

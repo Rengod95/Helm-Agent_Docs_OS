@@ -13,6 +13,9 @@ const LINE_BREAKS: ReadonlySet<string> = new Set(["\n", "\r", "\t"]);
 /** Unicode 제어 문자(Cc). Rust `char::is_control`과 같다. 0x7f와 0x80~0x9f도 든다 */
 const CONTROL = /\p{Cc}/u;
 
+/** 띄운 뒤(답이 `shown`인 뒤)에 OS가 실패를 알리면 UI에 보내는 이벤트. UI 알림 전달기가 듣고 마지막 전달 실패로 기록한다 */
+export const NOTIFY_FAILED_EVENT = "notify-failed";
+
 /** 앱 로그에 남는 줄. 제목과 본문과 대화 id는 넣지 않는다 */
 export const SHOW_FAILED_LOG = "notify: not shown (reason: show_failed)";
 
@@ -33,8 +36,8 @@ export interface ShownNotice {
 export interface NotifyOsPorts {
   /** 권한 글. 읽다 던지면 `prompt`로 답한다 */
   readonly permission: () => NotifyPermission;
-  /** 알림을 띄운다. OS가 받으면 `true`다. 사용자가 누르면 `onClick`을 한 번 부른다. 던지면 띄우지 못한 것이다 */
-  readonly show: (notice: ShownNotice, onClick: () => void) => boolean;
+  /** 알림을 띄운다. OS가 받으면 `true`다. 사용자가 누르면 `onClick`을 한 번 부른다. 던지면 띄우지 못한 것이다. 받은 뒤 OS가 실패를 알리면 `onFailed`를 부른다 */
+  readonly show: (notice: ShownNotice, onClick: () => void, onFailed: () => void) => boolean;
   /** 앱 로그 한 줄 */
   readonly log: (line: string) => void;
 }
@@ -104,7 +107,14 @@ function notifyOs(ctx: ShellContext, ports: NotifyOsPorts, args: unknown): Notif
     ctx.emit(INTENT_EVENT);
   };
   // 던지거나 `false`면 띄우지 못한 것이다. 이유는 고정 한 줄로만 남긴다
-  const shown = attempt(() => ports.show({ title, body: body === "" ? null : body }, onClick));
+  // 받은 뒤의 실패는 답이 이미 `shown`이라 로그와 UI 이벤트로 알린다
+  const onFailed = (): void => {
+    ports.log(SHOW_FAILED_LOG);
+    ctx.emit(NOTIFY_FAILED_EVENT);
+  };
+  const shown = attempt(() =>
+    ports.show({ title, body: body === "" ? null : body }, onClick, onFailed),
+  );
   if (shown.ok && shown.value) return { kind: "shown" };
   ports.log(SHOW_FAILED_LOG);
   return { kind: "failed" };
