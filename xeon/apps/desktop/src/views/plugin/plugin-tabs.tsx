@@ -9,6 +9,7 @@ import { watchExtensionChanges } from "../../plugin-ui/watch.ts";
 import { useLinkPhase } from "../../state/engine/index.ts";
 import { useCommands } from "../commands.ts";
 import { ConfirmHost } from "./confirm-host.tsx";
+import { HelmResults } from "./helm-results.tsx";
 import { usePluginUi, usePluginUiState } from "./plugin-context.tsx";
 import { PluginView, screenKeyOf } from "./plugin-view.tsx";
 import { ThreadSwitches } from "./thread-switches.tsx";
@@ -58,11 +59,21 @@ function EntryList(props: { readonly items: readonly PlacedEntry[] }): ReactNode
   );
 }
 
-/** 대화 영역 옆 Helm 패널. `helm` 확장의 `panel` 항목을 그린다 */
+/**
+ * 대화 영역 옆 Helm 패널. `helm` 확장의 `panel` 항목을 그린다. 화면 목록 아래에 "탐구 결과" 구역을 둔다.
+ * 구역은 자기 높이를 제한하고 안에서 스크롤해, 화면(프레임)이 아래로 밀려나지 않는다
+ */
 export function HelmPanelTab(): ReactNode {
   const state = usePluginUiState();
   const items = state.groups.panel.filter(({ entry }) => entry.extension === HELM_EXTENSION);
-  return <EntryList items={items} />;
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <EntryList items={items} />
+      <div className="max-h-[40vh] flex-none overflow-y-auto">
+        <HelmResults />
+      </div>
+    </div>
+  );
 }
 
 /**

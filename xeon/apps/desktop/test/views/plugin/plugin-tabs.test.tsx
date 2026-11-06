@@ -85,6 +85,15 @@ describe("plugin tabs", () => {
     expect(html).toContain("이 확장은 화면을 내지 않아요");
   });
 
+  test("the Helm tab keeps its screen list and puts the inquiry results section under it", async () => {
+    const html = (
+      await render([uiEntryOf({ id: "panel", placement: "panel", title: "Helm 패널" })], "helm")
+    ).replaceAll("<!-- -->", "");
+    expect(html).toContain("Helm 패널");
+    expect(html).toContain("탐구 결과");
+    expect(html.indexOf("Helm 패널")).toBeLessThan(html.indexOf("탐구 결과"));
+  });
+
   test("the pages tab lists pages and non-helm panels, and shows an invalid entry's reason", async () => {
     const html = await render(
       [

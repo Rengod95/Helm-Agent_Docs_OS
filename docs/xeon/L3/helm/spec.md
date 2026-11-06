@@ -783,6 +783,7 @@ export function registerHelmMethods(g: Pick<GroupApi<HelmState>, "state" | "read
 - `status`: `viewOf`를 그대로 쓴다. `lease`는 `/helm status`와 같다(탐구 중이면 `held`, 시작을 기다리면 `waiting`, 그 밖은 `none`). drive lock의 수치 상한은 이 결과에 없다(§10 미결 15).
 - `inquiries`: 현재 탐구가 맨 앞이다. 진행 중이면 `running`, 시작을 기다리면 `pending`이다. 끝난 탐구는 `grp.helm.inquiry.finished` 기록에서 읽는다. 기록에는 시각이 없어 `finishedAt`은 두지 않는다. 기록은 쓴 순서(오래된 것부터)로 읽히므로 `dedupeInquiryFinished`로 중복을 지운 뒤 뒤집어 최신 순으로 낸다. 50개에서 자른다.
 - `findings`: 탐구 id가 상태의 `inquiryId`와 같으면 상태의 발견을 그대로 준다(`followUp` 포함). 그 밖이면 `grp.helm.discovery.recorded` 기록에서 그 탐구의 발견을 모은다. 종료 기록은 발견 수(`findingCount`)만 싣고 발견 내용은 싣지 않으므로 발견 목록의 원천으로 쓰지 않는다. 발견 기록에는 `followUp`이 없다. 같은 claim은 한 번만 내고(`dedupeFindings`), 24개에서 자른다. 모르는 탐구 id는 빈 목록이다(오류가 아니다).
+- 소비자: 데스크톱 대화 옆 Helm 패널의 "탐구 결과" 구역(`L4.desktop-ux` §6.9)이 `inquiries`와 `findings`를 읽는다. 앱은 열린 대화가 있고 연결이 살아 있을 때만 부른다. 결과는 `unknown`으로 받아 모양을 검사하고, 맞지 않으면 "결과를 읽지 못했어요"로 보인다. 이 구역은 메서드 결과를 그대로 보일 뿐이라 메서드와 기록을 바꾸지 않는다. Markdown 복사는 앱만 하는 일이라 확장의 기여로 두지 않는다.
 - 발견 기록은 apply 단계가 끝날 때 쓴다(완료, 실패, 예산 소진 모두). 적용 turn까지 가지 못하고 끝난 탐구(탐색 중 멈춤, 수렴 실패, 발견 없음으로 끝남)는 발견 기록이 없어 `findings`가 빈 목록이다. 그 발견은 종료 기록에 남지 않는다(§10 미결 18).
 
 #### Plugin UI 기여 일곱
@@ -806,6 +807,7 @@ export function registerHelmMethods(g: Pick<GroupApi<HelmState>, "state" | "read
 - 단계 칩: 단계 이름만 낸다. "탐색 2/3 렌즈"처럼 렌즈 수를 세는 표시는 바인딩에 세는 식이 없어 쓰지 않는다(§10 미결 17).
 - 상한 Meter: 발견 수를 24에 대어 보인다. 24는 상태 발견 상한(`HelmState.findings`의 `maxItems`)이다. drive lock와 턴 상한은 상태 보기에 수치가 없어 Meter로 보이지 않는다(§10 미결 15).
 - 단계 노드: 패널과 페이지의 단계 표시는 `Stepper`이고, 자식 `Text`의 `props.step`이 단계 이름, `props.text`가 한글 이름이다.
+- 대화 카드와 패널 구역: 트랜스크립트에 남는 끝난 탐구 카드(`helm-finished`, 제목 "탐구 결과")가 Helm의 UI 기여다. 패널의 "탐구 결과" 구역은 이 기여가 아니라 앱 쪽 보기다. 같은 종료 기록과 발견을 앱이 메서드로 다시 읽어 그린다. 그래서 위 일곱 기여의 표와 `ui/` 화면 파일에는 패널 구역을 두지 않는다.
 
 #### 구성 선언
 
