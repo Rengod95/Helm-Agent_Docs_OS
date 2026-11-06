@@ -69,7 +69,14 @@ test("thread.compact is implemented, so the hello features list it", async () =>
 
 test("a compaction returns the outcome and the position that includes the committed event", async () => {
   const { host, asked } = compactingHost(
-    () => ok({ status: "compacted", eventId: EVENT, tokensBefore: 91_000, fromExtension: "guard" }),
+    () =>
+      ok({
+        status: "compacted",
+        eventId: EVENT,
+        tokensBefore: 91_000,
+        tokensAfter: 18_000,
+        fromExtension: "guard",
+      }),
     (fake, threadId) => {
       fake.fake.commit([{ kind: "thread.compacted", threadId }]);
     },
@@ -84,6 +91,7 @@ test("a compaction returns the outcome and the position that includes the commit
     status: "compacted",
     eventId: EVENT,
     tokensBefore: 91_000,
+    tokensAfter: 18_000,
     fromExtension: "guard",
     position: { storeId: host.fake.engine.storeId, seq: host.fake.events.length },
   });

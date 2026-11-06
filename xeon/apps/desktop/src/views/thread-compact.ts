@@ -30,7 +30,7 @@ export function compactNoticeOf(
       return {
         tone: "success",
         id: "desktop.threads.compact.done",
-        args: { tokens: value.tokensBefore },
+        args: { before: value.tokensBefore, after: value.tokensAfter },
       };
     }
     if (value.why === "disabled") {

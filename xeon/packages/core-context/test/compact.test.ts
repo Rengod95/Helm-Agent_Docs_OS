@@ -128,7 +128,12 @@ describe("compaction_is_non_destructive", () => {
     const outcome = valueOf(await h.service.compact(h.log.threadId, request()));
     const compacted = present(h.log.events.findLast((event) => event.kind === "thread.compacted"));
     expect(compacted.payload).toMatchObject({ usage: { input: 321, output: 12 } });
-    expect(outcome.status === "compacted" && outcome.tokensBefore).toBeGreaterThan(0);
+    const recorded = parse(CompactedPayloadSchema, compacted.payload);
+    expect(recorded.ok).toBe(true);
+    if (!recorded.ok) return;
+    if (outcome.status !== "compacted") throw new Error("expected a compaction");
+    expect(recorded.value.tokensAfter).toBe(outcome.tokensAfter);
+    expect(outcome.tokensBefore).toBeGreaterThan(0);
   });
 
   test("the compaction record carries the reason and an estimated tokensAfter below tokensBefore", async () => {

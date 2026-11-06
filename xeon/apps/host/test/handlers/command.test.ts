@@ -126,7 +126,7 @@ test("command.run takes the write ownership like turn.start, then hands over the
   const done: WireResult<"command.run"> = {
     status: "done",
     name: "plan",
-    message: "계획 모드를 시작했습니다.",
+    message: "계획 모드를 시작했어요. 이전 승인 모드: 기본 (실행마다 묻기)",
     result: { mode: "plan" },
   };
   const host = createFakeHost({

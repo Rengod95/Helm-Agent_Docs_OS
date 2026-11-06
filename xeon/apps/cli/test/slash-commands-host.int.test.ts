@@ -49,7 +49,7 @@ test("/help, /tasks and /plan come from the real engine, and command.list carrie
   expect(out).toContain("엔진 명령\n");
   expect(out).toMatch(/\/plan .*\n/);
   expect(out).toMatch(/\/tasks .*\n/);
-  expect(out).toContain("계획 모드를 시작했습니다");
+  expect(out).toContain("계획 모드를 시작했어요. 이전 승인 모드:");
   expect(out).toContain("(no tasks)");
   const listed = cli.sent("command.list");
   expect(listed).toHaveLength(1);

@@ -5,18 +5,23 @@ import { evt, STORE } from "../state/helpers.ts";
 import { compactNoticeOf } from "../../src/views/thread-compact.ts";
 
 describe("compactNoticeOf", () => {
-  test("요약했으면 엔진이 준 요약 전 토큰 수를 싣는다", () => {
+  test("요약했으면 엔진이 준 요약 전·뒤 토큰 수를 싣는다", () => {
     expect(
       compactNoticeOf(
         ok({
           status: "compacted",
           eventId: evt(1),
           tokensBefore: 12_500,
+          tokensAfter: 3_100,
           fromExtension: null,
           position: { storeId: STORE, seq: 3 },
         }),
       ),
-    ).toEqual({ tone: "success", id: "desktop.threads.compact.done", args: { tokens: 12_500 } });
+    ).toEqual({
+      tone: "success",
+      id: "desktop.threads.compact.done",
+      args: { before: 12_500, after: 3_100 },
+    });
   });
   test("요약할 것이 없으면 이유별 안내다", () => {
     expect(compactNoticeOf(ok({ status: "skipped", why: "disabled" }))).toEqual({

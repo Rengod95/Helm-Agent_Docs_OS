@@ -210,7 +210,13 @@ export function createFakeContext(options: {
         return ok({ status: "skipped", why: "nothing_to_summarize" });
       }
       const eventId = await commitCompaction(threadId);
-      return ok({ status: "compacted", eventId, tokensBefore: 1000, fromExtension: null });
+      return ok({
+        status: "compacted",
+        eventId,
+        tokensBefore: 1000,
+        tokensAfter: 300,
+        fromExtension: null,
+      });
     },
     async shouldCompact(): Promise<CompactCheck> {
       await Promise.resolve();
