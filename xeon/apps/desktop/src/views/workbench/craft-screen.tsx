@@ -8,6 +8,7 @@ import { CraftBody } from "../craft/craft-screen.tsx";
 import { detachVoid, useWorkbenchController } from "./controller.ts";
 import { useCraftSource } from "./craft-source.ts";
 import { AutoOffActionsContext, ListStatusBand, useToggleRequest } from "./craft-parts.tsx";
+import { BuilderEntry } from "./builder-entry.tsx";
 import { HookAnswersContext } from "./hook-notice.tsx";
 
 export function CraftScreen(): ReactNode {
@@ -47,6 +48,7 @@ export function CraftScreen(): ReactNode {
         </AutoOffActionsContext>
       )}
       {toggle.dialog}
+      <BuilderEntry controller={controller} />
     </div>
   );
 }
