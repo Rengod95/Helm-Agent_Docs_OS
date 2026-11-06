@@ -1999,6 +1999,7 @@
   "desktop.workbench.detail.settings.unset": "Not set",
   "desktop.workbench.detail.settings.source": "Value source",
   "desktop.workbench.detail.settings.wins": "{scope} wins",
+  "desktop.workbench.detail.settings.shadowed": "Values in other scopes are hidden",
   "desktop.workbench.detail.settings.readOnly": "Read only",
   "desktop.workbench.detail.settings.slot": "Drawn by the extension",
   "desktop.workbench.metrics.notGroup": "Only groups are measured. This extension is not a group, so it has no measurements.",

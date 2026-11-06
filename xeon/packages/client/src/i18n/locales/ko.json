@@ -1999,6 +1999,7 @@
   "desktop.workbench.detail.settings.unset": "설정하지 않았어요",
   "desktop.workbench.detail.settings.source": "값 출처",
   "desktop.workbench.detail.settings.wins": "{scope} 범위가 이김",
+  "desktop.workbench.detail.settings.shadowed": "다른 범위 값이 가려져 있어요",
   "desktop.workbench.detail.settings.readOnly": "읽기 전용",
   "desktop.workbench.detail.settings.slot": "확장이 그린 부분",
   "desktop.workbench.metrics.notGroup": "그룹만 측정해요. 이 확장은 그룹이 아니라서 측정값이 없어요.",
