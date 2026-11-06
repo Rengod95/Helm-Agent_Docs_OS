@@ -301,7 +301,13 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
           if (!link.ok) throw wireErrorOfStore(link.error, "thread.list child lookup");
           if (link.value !== undefined) row = { ...row, marker: null };
         }
-        const summary = threadSummaryOf(row);
+        // 열린 turn의 표식이 있는데 이 프로세스에 그 turn의 범위가 없으면 turn은 이미 멈췄다(강제 종료 뒤 재시작). 저장된 상태는 running으로
+        // 남아 있으므로 idle로 알려 화면이 거짓 "실행 중"을 그리지 않게 한다. 표식은 그대로라 "이어서 실행"은 남는다
+        const stale =
+          row.status === "running" &&
+          listed.marker !== null &&
+          tasks.find("turn", listed.marker.turnId) === undefined;
+        const summary = threadSummaryOf(stale ? { ...row, status: "idle" } : row);
         if (!summary.ok) {
           throw wireError("internal", {
             message: `thread.list: ${summary.error.field} of ${row.threadId} is not a valid time`,

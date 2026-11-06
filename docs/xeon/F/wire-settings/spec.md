@@ -488,6 +488,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 - [결정: m2-plan F.5] in-process 접속의 wire 밖 값 전달은 `@fresnel/contracts/services`의 `SecretOutOfBandPort`다(`services/secret-admin.ts`). CLI가 값 입력 수단(`SecretEntryOffer`)이나 열람 수단(`SecretRevealOffer`)을 이 포트에 맡긴 뒤 `secret.beginEntry`나 `secret.beginReveal`을 보내면, 호스트 처리기가 같은 이름의 맡긴 수단 하나를 꺼내 `SecretAdminService`에 넘긴다. 맡긴 수단은 한 번 쓰이면 비워진다. 서비스 접속에는 이 포트가 없다. 구현은 `@fresnel/host`다.
 - [제안] `turn.start`의 `requestId`는 같은 연결 재시도의 중복 제출을 막는 멱등 키다. 같은 thread에서 같은 키가 오면 처음 발급한 `turnId`를 돌려준다. 의미 정본은 `F.conversation.spec` §3.5의 `requestId`다(`TurnStartedPayload.requestId`, 사용자 `ItemRecord.requestId`). 브랜드 없는 문자열이다.
 - [결정: m2-plan F.6] `ThreadSummary`는 `thread.list`의 결과 원소다(`wire/methods.ts` `ThreadSummarySchema`, §10 미결 9). 필드는 `L1.persistence.spec` §3.4 `ThreadSummaryRow`를 따르고 시각은 IsoTime 문자열이다.
+- `thread.list`는 저장된 상태가 `running`이어도 `resumable`의 turn 범위가 이 프로세스에 없으면 `status`를 `idle`로 알린다. 강제 종료 뒤 재시작에서 turn은 이미 멈췄기 때문이다. `resumable`은 그대로라 "이어서 실행"은 남는다 [근거: `apps/host/src/assembly/ports.ts`]
 
   ```ts
   // wire/methods.ts
