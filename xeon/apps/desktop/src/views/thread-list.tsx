@@ -43,13 +43,12 @@ const LIST_COLUMN =
 
 /** 행 오른쪽 짧은 글자. 이어서 실행, 닫힘, 승인 수 중 하나(시안: 행 meta는 짧게) */
 function metaOf(thread: ThreadSummary): ReactNode {
-  // 이어서 실행은 아이콘 하나로 보인다(시안 threadMeta의 RotateCcw). 글은 스크린 리더와 툴팁에 두어 제목을 자르지 않는다
+  // 이어서 실행은 아이콘과 글(시안 threadMeta의 RotateCcw + 이어서 실행)
   if (thread.resumable !== null) {
-    const label = t("desktop.threads.resumableBadge");
     return (
-      <span className="inline-flex items-center" title={label}>
+      <span className="inline-flex items-center gap-1">
         <RotateCcw aria-hidden className="size-icon-xs" />
-        <span className="sr-only">{label}</span>
+        {t("desktop.threads.resumableBadge")}
       </span>
     );
   }
