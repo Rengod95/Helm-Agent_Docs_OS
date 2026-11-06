@@ -1,7 +1,7 @@
 // 테스트 화면의 동작 묶음. 명령을 부르고 결과를 화면 상태에 넣을 값으로 바꾼다(React를 쓰지 않아 명령 대역만으로 시험한다).
 import { assertNever, type Result } from "@fresnel/contracts";
 import type { RunControl, TestFailure } from "@fresnel/client/workbench";
-import type { ExtTestRunParams } from "@fresnel/contracts/wire";
+import type { ExtListEntry, ExtTestRunParams } from "@fresnel/contracts/wire";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { Commands, CommandError, TestCommands } from "../commands.ts";
 import { testFailureOf } from "./tests-text.ts";
@@ -72,4 +72,14 @@ export async function sendTestPrompt(
 ): Promise<ActionOutcome<null>> {
   commands.selectThread(threadId);
   return outcomeOf(await commands.sendTurn(threadId, prompt, requestId));
+}
+
+/**
+ * 새 Test run의 대상으로 고를 수 있는 이름. 호스트는 설치 폴더가 있고 실린 확장만 받으므로, 호스트 단위(`builtin`: core-·cap-·host- 묶음)와
+ * 안전 모드로 빠진 것은 뺀다. `origin`이 없으면(옛 호스트) 거르지 않는다
+ */
+export function targetNamesOf(entries: readonly ExtListEntry[]): readonly string[] {
+  return entries
+    .filter((entry) => entry.safeModeExcluded === null && entry.origin !== "builtin")
+    .map((entry) => entry.name);
 }

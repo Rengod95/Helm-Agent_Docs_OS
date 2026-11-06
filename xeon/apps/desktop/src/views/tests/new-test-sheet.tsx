@@ -45,11 +45,15 @@ export interface NewTestSheetProps {
   readonly draft: NewTestDraft | null;
   readonly devMode: boolean;
   readonly sending: boolean;
+  /** 대상으로 고를 수 있는 확장 이름(`ext.list`). 읽지 못했으면 빈 목록 */
+  readonly targetNames: readonly string[];
+  /** 시작이 실패했을 때의 이유 글. 시트가 화면 알림을 가리므로 시트 안에도 보인다. 없으면 null */
+  readonly failure: string | null;
   readonly handlers: NewTestHandlers;
 }
 
 export function NewTestSheet(props: NewTestSheetProps): ReactNode {
-  const { draft, devMode, sending, handlers } = props;
+  const { draft, devMode, sending, targetNames, failure, handlers } = props;
   const formId = useId();
   const plan = draft === null ? null : submitPlanOf(draft, devMode);
   const canStart = plan !== null && plan.kind === "run";
@@ -87,6 +91,8 @@ export function NewTestSheet(props: NewTestSheetProps): ReactNode {
           id={formId}
           draft={draft}
           devMode={devMode}
+          targetNames={targetNames}
+          failure={failure}
           onChange={handlers.change}
           onSubmit={handlers.submit}
         />
@@ -104,10 +110,15 @@ export function NewTestForm(props: {
   readonly id: string;
   readonly draft: NewTestDraft;
   readonly devMode: boolean;
+  /** 대상으로 고를 수 있는 확장 이름. 빈 목록이면 고르기 줄을 그리지 않는다 */
+  readonly targetNames?: readonly string[];
+  /** 시작이 실패한 이유. 있으면 맨 위에 경고로 보인다 */
+  readonly failure?: string | null;
   readonly onChange: (draft: NewTestDraft) => void;
   readonly onSubmit: () => void;
 }): ReactNode {
   const { draft, devMode, onChange } = props;
+  const targetNames = props.targetNames ?? [];
   const items = newTestItemsOf(devMode);
   const current = newTestItemOf(draft.kind, devMode);
   const errors = draftErrorsOf(draft);
@@ -125,6 +136,11 @@ export function NewTestForm(props: {
         props.onSubmit();
       }}
     >
+      {props.failure === undefined || props.failure === null ? null : (
+        <Alert tone="danger" size="sm">
+          {props.failure}
+        </Alert>
+      )}
       <Field label={t("desktop.tests.sheet.kind")} group>
         <RadioGroup
           size="sm"
@@ -171,6 +187,24 @@ export function NewTestForm(props: {
           />
           <InfoTip text={t("desktop.tests.sheet.targetHint")} />
         </div>
+        {draft.kind === "testRun" && targetNames.length > 0 ? (
+          <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1">
+            <span className={MUTED}>{t("desktop.tests.sheet.targetPick")}</span>
+            {targetNames.map((name) => (
+              <Button
+                key={name}
+                size="xs"
+                variant={draft.target === name ? "soft" : "outline"}
+                className="font-mono"
+                onClick={() => {
+                  onChange({ ...draft, target: name });
+                }}
+              >
+                {name}
+              </Button>
+            ))}
+          </div>
+        ) : null}
       </Field>
       {draft.kind === "testRun" ? (
         <Field label={t("desktop.tests.sheet.prompt")} error={errorOf("prompt")}>
@@ -179,7 +213,8 @@ export function NewTestForm(props: {
               size="xs"
               rows={4}
               value={draft.prompt}
-              className="min-w-0 flex-1 resize-none"
+              className="resize-none"
+              containerClassName="min-w-0 flex-1"
               onChange={(event) => {
                 onChange({ ...draft, prompt: event.currentTarget.value });
               }}

@@ -114,7 +114,7 @@ describe("내장 세그먼트", () => {
     const items = await itemsOf(h, status.api, thread);
     expect(items.find((item) => item.id === "core.turn")).toMatchObject({ text: "대기" });
     expect(items.find((item) => item.id === "core.usage")).toMatchObject({
-      text: "1.5k 토큰 · $0.03",
+      text: "턴 합계 1.5k 토큰 · $0.03",
     });
     status.onEvent(
       event(thread, "turn.completed", {
@@ -127,7 +127,7 @@ describe("내장 세그먼트", () => {
     expect(
       (await itemsOf(h, status.api, thread)).find((item) => item.id === "core.usage"),
     ).toMatchObject({
-      text: "3.0k 토큰 · $0.06",
+      text: "턴 합계 3.0k 토큰 · $0.06",
     });
   });
 
@@ -182,7 +182,7 @@ describe("내장 세그먼트", () => {
     expect(
       (await itemsOf(h, status.api, thread)).find((item) => item.id === "core.usage"),
     ).toMatchObject({
-      text: "1.5k 토큰 · $0.03",
+      text: "턴 합계 1.5k 토큰 · $0.03",
     });
   });
 

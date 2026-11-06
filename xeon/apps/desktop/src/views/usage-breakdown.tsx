@@ -1,5 +1,5 @@
 // 사용량 내역(N-3). 상태 줄 사용량 칸과 입력창 문맥 링을 누르면 열리는 Popover의 본문이다.
-// 이 대화의 합계(`usage.get`의 session 게이지: 토큰, 비용, 요청, 캐시 읽기·쓰기)와, 가장 나중 Turn의 입력·출력·캐시·비용과 호출 한 줄(`measure.turn`)을 보인다.
+// 이 대화의 합계(`usage.get`의 session 게이지: 토큰, 비용, 요청, 캐시 읽기·쓰기)와, 가장 나중 턴의 입력·출력·캐시·비용과 호출 한 줄(`measure.turn`)을 보인다.
 // 값을 지어내지 않는다. 측정이 꺼졌거나 Turn 기록이 없으면 Turn 줄은 두지 않는다.
 import { t } from "@fresnel/client/i18n";
 import { costText, turnViewOf } from "@fresnel/client/workbench";
@@ -20,7 +20,7 @@ export interface UsageTotals {
   readonly cacheWrite: number;
 }
 
-/** 가장 나중 Turn의 내역. 호출 수는 main 호출만 센다 */
+/** 가장 나중 턴의 내역. 호출 수는 main 호출만 센다 */
 export interface TurnBreakdown {
   readonly input: number;
   readonly output: number;

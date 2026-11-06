@@ -79,6 +79,8 @@ export function createConnectionCommands(deps: ConnectionDeps): ConnectionComman
       const settings = await run((c) => c.request("settings.get", { keys: [SERVICE_ENABLED_KEY] }));
       if (!settings.ok) return settings;
       const setting = settings.value.settings.find((item) => item.key === SERVICE_ENABLED_KEY);
+      // 켜 두었지만 엔진이 다시 시작해야 켜지는 중이면 예약 화면 띠와 같은 근거(`pendingUntil`)로 알린다
+      const restartPending = setting?.pendingUntil === "restart";
       // 원격 응답 허용은 따로 읽는다. 엔진이 모르는 키 하나 때문에 `settings.get`이 통째로 거절되면 상태 카드 전체를 잃는다
       const remote = await run((c) => c.request("settings.get", { keys: [REMOTE_RESPOND_KEY] }));
       if (!remote.ok) {
@@ -87,12 +89,18 @@ export function createConnectionCommands(deps: ConnectionDeps): ConnectionComman
         return ok({
           host: host.value,
           serviceEnabled: setting?.value === true,
+          restartPending,
           remoteAllowRespond: null,
         });
       }
       const allow = remote.value.settings.find((item) => item.key === REMOTE_RESPOND_KEY);
       const remoteAllowRespond = typeof allow?.value === "boolean" ? allow.value : null;
-      return ok({ host: host.value, serviceEnabled: setting?.value === true, remoteAllowRespond });
+      return ok({
+        host: host.value,
+        serviceEnabled: setting?.value === true,
+        restartPending,
+        remoteAllowRespond,
+      });
     },
     async clients(): Promise<Result<readonly HostClientView[], CommandError>> {
       // 목록은 상태 카드와 따로 읽는다. 이 읽기가 실패해도 `load`의 값은 그대로 쓴다(화면이 두 읽기를 따로 가진다)

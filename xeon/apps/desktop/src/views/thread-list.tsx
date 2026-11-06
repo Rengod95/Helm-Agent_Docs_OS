@@ -38,8 +38,11 @@ import { checkWorkspaceInput, createFailureText, workspaceHint } from "./workspa
 /** 대화 상자가 닫히며 초점을 되돌리는 시간(ms)보다 넉넉히 */
 const DIALOG_CLOSE_MS = 300;
 
-/** 하위 대화 행은 부모보다 한 칸 들여 쓴다 */
-const CHILD_ROW = "ms-4";
+/**
+ * 하위 대화 행은 부모보다 한 칸 들여 쓴다. caustic 행은 `w-full`이라 왼쪽 여백만 더하면 그만큼 오른쪽으로 넘쳐 끝 배지("하위")가
+ * 잘린다. 폭을 `w-auto`로 풀고 여백을 뺀 폭 안에 가둬 제목이 줄고 배지는 그대로 보이게 한다
+ */
+export const CHILD_ROW = "ms-4 w-auto max-w-[calc(100%-1rem)]";
 
 const UNTITLED_LABEL =
   "[&_[data-slot=list-navigation-label]]:italic [&_[data-slot=list-navigation-label]]:text-text-tertiary";

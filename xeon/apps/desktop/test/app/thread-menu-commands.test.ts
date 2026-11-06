@@ -68,4 +68,12 @@ describe("thread row menu commands", () => {
     expect(listed).toEqual({ ok: true, value: { notices: [], nextSeq: 0 } });
     expect(paramsOf(params, "notify.list")).toEqual([{ afterSeq: 0 }]);
   });
+
+  test("notices list for one thread adds that thread to the request", async () => {
+    const { app, params } = await liveApp({
+      results: { "notify.list": { notices: [], nextSeq: 0 } },
+    });
+    await app.commands.notices.list(thr(2));
+    expect(paramsOf(params, "notify.list")).toEqual([{ afterSeq: 0, threadId: thr(2) }]);
+  });
 });

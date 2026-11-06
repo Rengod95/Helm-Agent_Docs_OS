@@ -65,6 +65,7 @@ function viewOf(ui: TestsUiState, threadId: string) {
       scoped={false}
       selectedPaused={ui.paused[threadId] === true}
       selectedPhase={ui.phase[threadId] ?? null}
+      targetNames={[]}
       handlers={handlers}
     />,
   );

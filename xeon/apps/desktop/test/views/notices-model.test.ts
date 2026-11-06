@@ -6,6 +6,7 @@ import {
   noticeKindId,
   noticeTitleViewOf,
   noticeToastVisible,
+  threadBySeqOf,
 } from "../../src/views/notices-model.ts";
 import { checkTitle, deleteFailureId } from "../../src/views/thread-row-menu.tsx";
 import { thr } from "../state/helpers.ts";
@@ -16,6 +17,20 @@ const notice = (seq: number, title = `n${seq}`): Notice => ({
   body: null,
   seq,
   sourceType: "turn.completed",
+});
+
+describe("threadBySeqOf", () => {
+  test("maps each notice seq to the thread whose scoped list held it", () => {
+    const found = threadBySeqOf([
+      { threadId: thr(1), notices: [notice(4), notice(9)] },
+      { threadId: thr(2), notices: [notice(7)] },
+    ]);
+    expect([...found]).toEqual([
+      [4, thr(1)],
+      [9, thr(1)],
+      [7, thr(2)],
+    ]);
+  });
 });
 
 describe("mergeNotices", () => {

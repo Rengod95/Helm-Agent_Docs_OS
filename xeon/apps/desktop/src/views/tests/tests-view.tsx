@@ -72,6 +72,8 @@ export interface TestsViewProps {
   readonly compact?: boolean;
   readonly selectedPaused: boolean;
   readonly selectedPhase: string | null;
+  /** 새 Test run의 대상으로 고를 수 있는 확장 이름 */
+  readonly targetNames: readonly string[];
   readonly handlers: TestsViewHandlers;
 }
 
@@ -119,6 +121,8 @@ export function TestsView(props: TestsViewProps): ReactNode {
         draft={ui.sheet}
         devMode={ui.devMode}
         sending={ui.sending}
+        targetNames={props.targetNames}
+        failure={ui.notice?.kind === "failed" ? t(noticeTextOf(ui.notice)) : null}
         handlers={handlers.sheet}
       />
       <RunConfirmDialog
