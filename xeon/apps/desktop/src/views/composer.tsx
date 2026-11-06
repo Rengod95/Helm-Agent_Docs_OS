@@ -406,7 +406,7 @@ function ComposerFor(props: {
   const secretWarning = secretWarningOf(draft, chips.length > 0);
   return (
     <form
-      className="grid gap-1.5"
+      className="grid min-w-0 gap-1.5"
       onDragOver={(event) => {
         if (attachBlocked !== null) return;
         event.preventDefault();

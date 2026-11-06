@@ -174,6 +174,9 @@ function createWindow(windows: Set<BrowserWindow>, hooks: WindowHooks): BrowserW
   const win = new BrowserWindow({
     width: 1100,
     height: 760,
+    // 창 최소 크기(desktop-ux 스펙의 창 구성 [제안] 720×480): 이보다 좁으면 입력창이 넘친다
+    minWidth: 720,
+    minHeight: 480,
     title: "Fresnel",
     ...extra,
     webPreferences: {

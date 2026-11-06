@@ -5,6 +5,7 @@
 @import "@caustic/react/styles.css";
 @import "@caustic/tokens/fonts.css";
 @import "./type-scale.css";
+@import "./high-contrast.css";
 @import "./views/craft/orbit.css";
 @import "./views/craft/link.css";
 @import "./views/transcript-caret.css";
@@ -117,6 +118,10 @@
     background: var(--panel);
     padding: 4px 12px;
     font-size: 12px;
+    /* 칸이 겹치거나 잘리지 않게 넘치면 다음 줄로 보낸다. 폭 판정은 창이 아니라 이 줄의 폭이다(앱 확대도 반영) */
+    flex-wrap: wrap;
+    row-gap: 2px;
+    container-type: inline-size;
   }
   .statusbar .grow {
     flex: 1;
@@ -125,12 +130,48 @@
     padding: 1px 8px;
     font-size: 12px;
   }
+  /* 입력창 아래 단추 줄(caustic Textarea 푸터)은 좁으면 줄을 바꿔 보내기·모델 단추가 밀려나지 않게 한다 */
+  [data-slot="textarea-footer"] {
+    flex-wrap: wrap;
+    row-gap: 4px;
+    min-width: 0;
+  }
+  [data-slot="textarea-actions"] {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
   .field {
     display: flex;
     flex-direction: column;
     gap: 2px;
     max-width: 420px;
     margin: 6px 0;
+  }
+}
+
+/* 상태 줄이 좁으면(compact) 덜 중요한 칸(연결, 모델, 사용량)은 글을 접고 아이콘(연결은 점)만 보인다. 글은 화면 낭독용으로 남고 단추 title이 툴팁이다 */
+@layer components {
+  [data-bar-icon] {
+    display: none;
+  }
+  @container (max-width: 600px) {
+    [data-bar-collapsible] [data-bar-text] {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+    [data-bar-collapsible] [data-bar-icon] {
+      display: inline-flex;
+    }
+    [data-bar-collapsible] [data-bar-trailing] {
+      display: none;
+    }
+    /* 점이 있는 칸은 점이 아이콘 노릇을 하므로 아이콘은 겹쳐 그리지 않는다 */
+    [data-bar-collapsible]:has([data-bar-dot]) [data-bar-icon] {
+      display: none;
+    }
   }
 }
 
@@ -143,5 +184,37 @@
     animation-duration: 0s !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0s !important;
+  }
+}
+
+/* 강제 색(`forced-colors: active`, Windows 고대비): 브라우저가 배경·그림자·분할선 색을 지워 입력창 경계와 선택 표시가 사라진다.
+   시스템 색(Canvas, CanvasText, Highlight, HighlightText)으로 경계와 선택을 다시 그린다. caustic 부품이 배경색·그림자로만 선택과 경계를 그리는 것이
+   원인이라 앱 CSS에서 덮는다(caustic 쪽 수정은 하지 않는다). 유틸리티 층의 클래스를 이기려고 !important를 쓴다(층 안 !important는 앞선 층이 이긴다). */
+@layer components {
+  @media (forced-colors: active) {
+    [data-slot="textarea"] {
+      border: 1px solid CanvasText !important;
+    }
+    [data-slot="textarea"]:focus-within {
+      outline: 2px solid Highlight;
+      outline-offset: 1px;
+    }
+    [data-slot="segmented-control"] {
+      border: 1px solid ButtonBorder !important;
+    }
+    [data-slot="segmented-control-item"][data-state="checked"],
+    [data-slot="list-navigation-item"][aria-current="page"] {
+      forced-color-adjust: none;
+      background: Highlight !important;
+      color: HighlightText !important;
+      outline: 2px solid CanvasText;
+      outline-offset: -2px;
+    }
+    [data-slot="segmented-control-item"][data-state="checked"] * {
+      color: HighlightText !important;
+    }
+    [data-slot="list-navigation-item"][aria-current="page"] * {
+      color: HighlightText !important;
+    }
   }
 }

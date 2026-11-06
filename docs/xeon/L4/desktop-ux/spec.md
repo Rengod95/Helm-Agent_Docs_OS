@@ -445,10 +445,10 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 | 시작 영역 | `AppShellStart` > `SidePanel side="start" preset="inspector"`, `ListNavigation` | 272(240~360), 끌어서 조절 | compact(720 이하)에서 전체 폭 시트, 토글로 엽니다 |
 | 무대 | `AppShellStage stageLabel` | 나머지 | 최소 480 [제안] |
 | 끝 영역 | `AppShellEnd` > `SidePanel side="end" preset="pane"`, `Tabs` | 352(320~480) | medium(1100 이하)에서 무대 위 시트 |
-| 상태 표시줄 | 앱 부품 `StatusBar` `[gap:C-03]`: `Badge`, `Button size="xs" variant="ghost"`, `Popover`, `Progress` | 높이 28 [제안] | compact에서 대상·엔진·승인만 |
+| 상태 표시줄 | 앱 부품 `StatusBar` `[gap:C-03]`: `Badge`, `Button size="xs" variant="ghost"`, `Popover`, `Progress` | 높이 28 [제안] | 줄 안쪽 폭 600px 이하(앱 확대 반영)에서 연결·모델·사용량 칸은 글을 접고 아이콘(연결은 점)과 툴팁만 보이고, 넘치면 다음 줄로 넘어갑니다. `role="status"`는 줄 전체가 아니라 엔진 상태 한 줄만 갖습니다 |
 | 떠 있는 층 | `AppShellOverlay`, `Toaster`, `Dialog`, `Sheet` | | |
 
-- 창 최소 크기는 720×480입니다 [제안]. 그보다 좁으면 옛 Tauri 구현(커밋 424f338a)은 창 최소값으로 막았습니다. 현재 Electron 셸의 창 생성(`apps/desktop-shell/src/main.ts`)에는 최소 크기가 없습니다.
+- 창 최소 크기는 720×480입니다 [제안]. 그보다 좁으면 옛 Tauri 구현(커밋 424f338a)은 창 최소값으로 막았습니다. Electron 셸의 창 생성(`apps/desktop-shell/src/main.ts`)은 2026-11-07에 `minWidth: 720`, `minHeight: 480`을 둡니다(스펙 [제안] 값 그대로).
 - 사이드바와 끝 영역의 열림 상태와 폭은 UI 스토어에 두고 `l4.desktop.window.*`에 저장합니다 [제안] `[gap:V-14]`.
 
 ### 4.2 주 내비게이션
@@ -3272,7 +3272,7 @@ export const palette = [
 | V-11 | 사용량 게이지 행(`UsageGauge` → 막대와 문장) | `packages/client/src/settings` |
 | V-12 | 계획 승인 보기와 답 만들기 | `apps/desktop/src/views/approval-form.ts`에 추가 |
 | V-13 | 상태 표시줄 칸 모델 | `apps/desktop/src/views` |
-| V-14 | 데스크톱 로컬 설정 저장소(창, 패널, 테마, 바로 가기 키, 첫 실행 표시) | `apps/desktop/src/settings-store/local.ts`(T-SHELL 구현: `LOCAL` 키 표, `createLocalSettings`, 셸 명령 `desktop_settings_read`·`desktop_settings_write`). 키는 `l4.desktop.window.{sidebarOpen,sidebarWidth,endOpen,endWidth,area.current,area.chat,area.workbench}`, `l4.desktop.appearance.keybindings`, `l4.desktop.appearance.motion`(움직임 줄이기, boolean), `l4.desktop.appearance.zoom`(확대 %, 90·100·125·150·200), `l4.desktop.firstRun.searchHintDismissed`. 움직임·확대는 엔진과 셸 설정에 해당 키가 없어 렌더러 값으로 둔다(`views/appearance-prefs.ts`: `<html data-motion="reduce">`와 `<html>`의 `zoom`, 설정 "외관" 탭의 접근성 묶음 `settings-appearance-view.tsx`). 고대비는 OS의 강제 색이라 화면 안에서 켤 수 없어 넣지 않았다. 테마와 캔버스 순서 키는 소유 트랙이 `LOCAL`에 더함 |
+| V-14 | 데스크톱 로컬 설정 저장소(창, 패널, 테마, 바로 가기 키, 첫 실행 표시) | `apps/desktop/src/settings-store/local.ts`(T-SHELL 구현: `LOCAL` 키 표, `createLocalSettings`, 셸 명령 `desktop_settings_read`·`desktop_settings_write`). 키는 `l4.desktop.window.{sidebarOpen,sidebarWidth,endOpen,endWidth,area.current,area.chat,area.workbench}`, `l4.desktop.appearance.keybindings`, `l4.desktop.appearance.motion`(움직임 줄이기, boolean), `l4.desktop.appearance.zoom`(확대 %, 90·100·125·150·200), `l4.desktop.firstRun.searchHintDismissed`. 움직임·확대는 엔진과 셸 설정에 해당 키가 없어 렌더러 값으로 둔다(`views/appearance-prefs.ts`: `<html data-motion="reduce">`와 `<html>`의 `zoom`, 설정 "외관" 탭의 접근성 묶음 `settings-appearance-view.tsx`). 강제 색(`forced-colors`)은 OS가 켜므로 화면 안 설정은 없고 `styles.css`가 시스템 색으로 경계와 선택을 보인다. `prefers-contrast: more`는 앱이 토큰을 올려야 하므로 `high-contrast.css`가 경계·보조 글자 색 토큰만 올린다(2026-11-07 [기본값], 제품 요구인지는 사용자 결정 대기). 테마와 캔버스 순서 키는 소유 트랙이 `LOCAL`에 더함 |
 | V-15 | 바로 가기 키 표(동작 id ↔ 키) | `apps/desktop/src/views/shell/keybindings.ts`(T-SHELL 구현: §4.8의 동작 22개 `ACTION_IDS`, `DEFAULT_KEYMAP`, 사용자 덮어쓰기 `resolveKeymap`) |
 | V-16 | 확장 행 모델과 거르기·정렬(층, 종류, 등급, 상태) | `packages/client/src/workbench` [제안] |
 | V-17 | 층 × 확장 지도 모델(칸 tone, 경고) | 같은 곳 |
