@@ -206,6 +206,12 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     skills: {
       view: () => Promise.resolve(err({ kind: "unsupported" })),
     },
+    memory: {
+      read: () => Promise.resolve(err({ kind: "unsupported" })),
+      add: () => Promise.resolve(err({ kind: "unsupported" })),
+      replace: () => Promise.resolve(err({ kind: "unsupported" })),
+      remove: () => Promise.resolve(err({ kind: "unsupported" })),
+    },
     usage: {
       get: () => Promise.resolve(err({ kind: "unsupported" })),
     },

@@ -110,6 +110,8 @@ export interface SettingsPageProps {
   readonly notifyPanel?: ReactNode | undefined;
   /** "플러그인과 그룹" 탭 맨 위의 실행 화면(그룹·플러그인 목록) */
   readonly pluginsPanel?: ReactNode | undefined;
+  /** "대화와 컨텍스트" 탭의 기억 구역(W-19) */
+  readonly memoryPanel?: ReactNode | undefined;
   /** 외관 탭의 접근성 묶음 */
   readonly appearancePanel?: ReactNode | undefined;
   readonly handlers: SettingsPageHandlers;
@@ -424,6 +426,7 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
   const panels = (
     <>
       {tab === "execution" ? props.notifyPanel : null}
+      {tab === "sessions" ? props.memoryPanel : null}
       {tab === "tools" ? props.toolsPanel : null}
       {tab === "plugins" ? props.pluginsPanel : null}
       {tabView.gauge === null ? null : props.usagePanel}
