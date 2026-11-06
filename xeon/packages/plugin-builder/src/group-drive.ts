@@ -10,7 +10,7 @@ export interface DriveApi {
   commit(next: AuthoringState): Promise<unknown>;
   post(
     item: PostItem,
-    options: { readonly when: "next"; readonly requestId: string },
+    options: { readonly when: "next" | "followUp"; readonly requestId: string },
   ): Promise<unknown>;
 }
 
@@ -46,6 +46,18 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveFn<Auth
       requestId: `${requestKey(state, what)}:n`.slice(0, 64),
     });
 
+  // 사람이 답한 뒤 턴이 끊긴 채 멈추지 않게, 답의 결과를 모델에 알리는 followUp 입력으로 같은 흐름이 이어지게 한다
+  const resume = (state: Readonly<AuthoringState>, what: string, text: string) =>
+    g.post(
+      {
+        kind: "context",
+        customType: "grp.authoring.notice.status",
+        content: `[authoring] ${text}`,
+        display: false,
+      },
+      { when: "followUp", requestId: `${requestKey(state, what)}:r`.slice(0, 64) },
+    );
+
   return async (loop, st) => {
     const ask: Ask = (request) => loop.ask(request);
     if (st.phase === "intent" && !st.intentConfirmed && st.name !== null) {
@@ -56,14 +68,21 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveFn<Auth
       const yes =
         outcome.status === "answered" &&
         outcome.answer["confirm"]?.selected.includes("yes") === true;
-      if (yes) await g.commit({ ...st, phase: "compose", intentConfirmed: true });
-      else {
+      if (yes) {
+        await g.commit({ ...st, phase: "compose", intentConfirmed: true });
+        await resume(
+          st,
+          "intent",
+          "the user confirmed the kind and the name: continue with authoring_compose and authoring_scaffold",
+        );
+      } else {
         await g.commit({ ...INITIAL_AUTHORING_STATE });
         await tell(
           st,
           "intent",
           "the user did not confirm the kind and the name: the session was closed",
         );
+        await resume(st, "intent", "the user did not confirm: ask what they want to change");
       }
       return;
     }
@@ -79,6 +98,13 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveFn<Auth
       await g.commit(
         yes ? { ...st, pending: null, sameErrorRuns: 0 } : { ...st, pending: null, phase: "done" },
       );
+      await resume(
+        st,
+        "fix",
+        yes
+          ? "the user wants to keep fixing: continue with authoring_validate"
+          : "the user stopped fixing: the session is done",
+      );
       return;
     }
     if (st.pending === "trial") {
@@ -91,19 +117,22 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveFn<Auth
         outcome.answer["confirm"]?.selected.includes("yes") === true;
       if (!yes) {
         await g.commit({ ...st, pending: null, denied: "trial" });
+        await resume(st, "trial", "the user declined the Test run");
         return;
       }
       if (st.dir === null) return;
       const started = await devkit.testRun({ target: st.dir });
-      if (started.ok)
+      if (started.ok) {
         await g.commit({ ...st, pending: null, trial: { threadId: started.value.threadId } });
-      else {
+        await resume(st, "trial", "the Test run started");
+      } else {
         await g.commit({ ...st, pending: null });
         await tell(
           st,
           "trial",
           `the Test run did not start: ${started.error.kind} ${started.error.message}`,
         );
+        await resume(st, "trial", "the Test run did not start");
       }
       return;
     }
@@ -126,11 +155,14 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveFn<Auth
             files: packed.value.files.length,
           },
         });
+        await resume(st, "package", "the extension was packed: continue with authoring_install");
       } else if (packed.error.kind === "denied") {
         await g.commit({ ...st, pending: null, denied: "package" });
+        await resume(st, "package", "the user declined packing");
       } else {
         await g.commit({ ...st, pending: null });
         await tell(st, "package", `packaging failed: ${packed.error.kind} ${packed.error.message}`);
+        await resume(st, "package", "packing failed");
       }
       return;
     }
@@ -148,11 +180,14 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveFn<Auth
           location: linked.value.location,
         },
       });
+      await resume(st, "install", "the extension was installed");
     } else if (linked.error.kind === "denied") {
       await g.commit({ ...st, pending: null, denied: "install" });
+      await resume(st, "install", "the user declined installing");
     } else {
       await g.commit({ ...st, pending: null });
       await tell(st, "install", `installing failed: ${linked.error.kind} ${linked.error.message}`);
+      await resume(st, "install", "installing failed");
     }
   };
 }

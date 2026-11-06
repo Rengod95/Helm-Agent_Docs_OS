@@ -188,7 +188,8 @@ test("authoring.restore: thread.start tells the model about an open session and 
   expect(rig.t.queue.items).toEqual([]);
   await confirmedSession(rig);
   await resume("r1");
-  expect(rig.t.queue.items.map((item) => [item.requestId, item.item])).toEqual([
+  const restored = rig.t.queue.items.filter((item) => item.requestId === "authoring:restore:demo");
+  expect(restored.map((item) => [item.requestId, item.item])).toEqual([
     [
       "authoring:restore:demo",
       {
@@ -265,4 +266,40 @@ test("authoring.stop: an open session closes to idle, keeps the files, and a new
   const none = await rig.call("authoring_stop", {});
   expect(none).toMatchObject({ ok: true, status: "closed" });
   expect(await rig.call("authoring_stop", {})).toEqual({ ok: true, status: "none", closed: null });
+});
+
+test("authoring.resume: an answer to the confirmation queues a followUp so the same flow continues without the user typing", async () => {
+  const rig = await createGroupRig();
+  await rig.call("authoring_start", { kind: "plugin-group", name: "demo", dir: DIR });
+  await rig.t.boundary(rig.thread).turnSettled();
+  await rig.t.settled();
+  expect(rig.t.queue.items.filter((item) => item.when === "followUp")).toEqual([]);
+  await rig.answer("yes");
+  const resumed = rig.t.queue.items.filter((item) => item.when === "followUp");
+  expect(resumed.map((item) => [item.requestId, item.item])).toEqual([
+    [
+      "authoring:intent:demo:0:r",
+      {
+        kind: "context",
+        customType: "grp.authoring.notice.status",
+        content:
+          "[authoring] the user confirmed the kind and the name: continue with authoring_compose and authoring_scaffold",
+        display: false,
+      },
+    ],
+  ]);
+});
+
+test("authoring.resume: a declined package also queues a followUp so the model can answer the user", async () => {
+  const rig = await createGroupRig();
+  await confirmedSession(rig);
+  await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
+  await rig.call("authoring_validate", { sessionId: "auth-demo" });
+  await rig.call("authoring_package", { sessionId: "auth-demo" });
+  await rig.t.boundary(rig.thread).turnSettled();
+  await rig.t.settled();
+  await rig.answer("no");
+  const resumed = rig.t.queue.items.filter((item) => item.requestId.endsWith(":r"));
+  expect(resumed.map((item) => item.when)).toEqual(["followUp", "followUp"]);
+  expect(resumed.at(-1)?.item).toMatchObject({ content: "[authoring] the user declined packing" });
 });
