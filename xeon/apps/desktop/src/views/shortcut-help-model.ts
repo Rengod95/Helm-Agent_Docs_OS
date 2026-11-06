@@ -84,11 +84,7 @@ const ACTION_GROUP: Readonly<Record<ActionId, ShortcutGroupId>> = {
 };
 
 /** 키 맵 밖의 고정 키(바꿀 수 없다). 입력창은 `composer.tsx`의 Enter 처리, 승인 카드는 `approval-card/card-model.ts`의 `approvalKeyOf`가 정본이다 */
-export type FixedShortcutId =
-  | "composer.send"
-  | "composer.newline"
-  | "approval.allow"
-  | "approval.deny";
+type FixedShortcutId = "composer.send" | "composer.newline" | "approval.allow" | "approval.deny";
 
 export interface ShortcutRow {
   readonly id: ActionId | FixedShortcutId;

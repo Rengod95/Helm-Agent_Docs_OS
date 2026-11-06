@@ -9,6 +9,7 @@ import { Providers } from "../../src/views/providers.tsx";
 import {
   engineDescriptionOf,
   engineDotOf,
+  goalCellOf,
   liveDotOf,
   liveKindsOf,
   LiveList,
@@ -533,5 +534,22 @@ describe("status bar model and usage cells", () => {
       "live",
       "approvals",
     ]);
+  });
+});
+
+const goal = (status: "active" | "met" | "exhausted" | "cleared") =>
+  ({ condition: "c", status, judged: 2, maxJudgments: 3, lastVerdict: null }) as const;
+
+describe("status bar goal cell", () => {
+  test("an active goal reads judged over max with its state in the description", () => {
+    expect(goalCellOf(goal("active"))).toEqual({
+      text: "목표 2/3",
+      description: "판정 2/3 · 진행 중",
+    });
+    expect(goalCellOf(goal("exhausted"))?.description).toBe("판정 2/3 · 멈춤");
+  });
+  test("no goal or a cleared one leaves no cell", () => {
+    expect(goalCellOf(null)).toBeNull();
+    expect(goalCellOf(goal("cleared"))).toBeNull();
   });
 });
