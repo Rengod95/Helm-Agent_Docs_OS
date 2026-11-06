@@ -4,9 +4,10 @@ import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { storeFailureOfExitCode, type StatusItemRecord } from "@fresnel/contracts/records";
-import type { ExtUiEntry, ThreadSummary } from "@fresnel/contracts/wire";
+import type { ExtUiEntry, ThreadSummary, WireResult } from "@fresnel/contracts/wire";
 import {
   useCallback,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -27,6 +28,7 @@ import {
   type EngineState,
   type Link,
 } from "../state/engine/index.ts";
+import { ShellStoreContext } from "../state/shell/index.ts";
 import { useConnectError, useRestartNeeded, useSelectedThreadId } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
 import {
@@ -517,6 +519,7 @@ function ThreadUsageCells(props: { readonly threadId: ThreadId }): ReactNode {
     <>
       {model.ref === null ? null : <ModelCell model={model.ref} />}
       {usage === null ? null : <TokensCell usage={usage} />}
+      <GoalCell threadId={props.threadId} />
     </>
   );
 }
@@ -533,6 +536,82 @@ function DefaultModelCell(): ReactNode {
   const phase = useLinkPhase();
   const model = useDefaultModel();
   return phase === "live" ? <ModelCell model={model} /> : null;
+}
+
+type GoalWire = WireResult<"goal.status">["goal"];
+
+/** 목표 칸의 글과 Popover 설명. 목표가 없거나 해제됐으면 null이다(칸을 두지 않는다). 글은 "목표 판정/최대"(DP-25) */
+export function goalCellOf(goal: GoalWire): {
+  readonly text: string;
+  readonly description: string;
+} | null {
+  if (goal === null || goal.status === "cleared") return null;
+  const judged = t("desktop.work.goal.judged", { judged: goal.judged, max: goal.maxJudgments });
+  const state = t(
+    goal.status === "active"
+      ? "desktop.work.goal.status.active"
+      : goal.status === "met"
+        ? "desktop.work.goal.status.met"
+        : "desktop.work.goal.status.exhausted",
+  );
+  return {
+    text: t("desktop.status.goal", { judged: goal.judged, max: goal.maxJudgments }),
+    description: `${judged} · ${state}`,
+  };
+}
+
+/** 열린 대화의 목표를 읽는다. 연결이 살아 있고 턴이 돌고 있지 않을 때 읽는다(턴이 끝나면 판정이 바뀌었을 수 있다). 읽지 못하면 칸을 두지 않는다 */
+function useThreadGoal(threadId: ThreadId): GoalWire {
+  const commands = useCommands();
+  const live = useLinkPhase() === "live";
+  const running = useThreadRunning(threadId);
+  const [goal, setGoal] = useState<GoalWire>(null);
+  useEffect(() => {
+    if (!live || running) return undefined;
+    let stale = false;
+    const read = async (): Promise<void> => {
+      const result = await commands.work.goal(threadId);
+      if (!stale) setGoal(result.ok ? result.value.goal : null);
+    };
+    detach(read(), rethrow);
+    return () => {
+      stale = true;
+    };
+  }, [commands, threadId, live, running]);
+  return goal;
+}
+
+/** "목표" 칸(시안 `goal`). 값은 `goal.status`의 판정 횟수/최대다. 누르면 Popover가 열리고 작업 탭으로 가는 단추가 있다 */
+function GoalCell(props: { readonly threadId: ThreadId }): ReactNode {
+  const goal = useThreadGoal(props.threadId);
+  const shell = useContext(ShellStoreContext);
+  const [open, setOpen] = useState(false);
+  const cell = goalCellOf(goal);
+  if (cell === null) return null;
+  return (
+    <StatusCell
+      cellId="goal"
+      text={cell.text}
+      title={t("desktop.work.goal.heading")}
+      description={cell.description}
+      body={
+        shell === null ? undefined : (
+          <Button
+            size="xs"
+            variant="outline"
+            onClick={() => {
+              shell.actions.openEndTab("work", "chat");
+              setOpen(false);
+            }}
+          >
+            {t("desktop.status.cell.goal.openWork")}
+          </Button>
+        )
+      }
+      open={open}
+      onOpenChange={setOpen}
+    />
+  );
 }
 
 /** "승인 n" 칸. 답을 기다리는 승인이 있을 때만 그린다(0이면 칸을 두지 않는다). 시안처럼 점은 없고 글만 있다 */
@@ -651,7 +730,7 @@ export function StatusBar(): ReactNode {
   };
   // 왼쪽은 엔진과 연결 칸이고, 그 뒤에 안전 모드·업데이트·다시 시작 줄·연결 실패 글·대화와 확장의 칸이 붙는다(시안 `startExtra`).
   // 실패 단추는 자기 칸 옆에 둔다(시안 `inline`). 오른쪽은 진행 중, 모델, 사용량, 승인 칸이다. 모델과 사용량 칸은 열린 대화가 있고
-  // 값을 읽었을 때만 그린다. 시안의 목표·Helm 칸은 클라이언트에 맞는 값이 없어 아직 없고, 알림 칸은 개수를 거울이 들고 있지 않아 아직 없다.
+  // 값을 읽었을 때만 그린다. 목표 칸은 `goal.status`를 읽어 그린다. 시안의 Helm 칸은 클라이언트에 맞는 값이 없고(탐구 단계를 거울이 들고 있지 않다), 알림 칸은 개수를 거울이 들고 있지 않아 아직 없다.
   return (
     <footer className="statusbar">
       {/* 줄 전체를 낭독 영역으로 두면 갱신마다 읽힌다. 사용자가 알아야 할 바뀜(엔진 상태)만 이 한 줄이 맡는다 */}

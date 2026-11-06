@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 import type { Keymap } from "./shell/keybindings.ts";
 import {
   filterShortcutRows,
+  fixedShortcutRowsOf,
   SHORTCUT_COLUMNS,
   SHORTCUT_GROUP_LABEL_IDS,
   shortcutRowsOf,
@@ -35,7 +36,11 @@ function KeyChips(props: { readonly row: ShortcutRow }): ReactNode {
 
 export function ShortcutHelpDialog(props: ShortcutHelpDialogProps): ReactNode {
   const [query, setQuery] = useState("");
-  const rows = filterShortcutRows(shortcutRowsOf(props.keymap, props.mac), query, t);
+  const rows = filterShortcutRows(
+    [...shortcutRowsOf(props.keymap, props.mac), ...fixedShortcutRowsOf(props.mac)],
+    query,
+    t,
+  );
   return (
     <Dialog
       open={props.open}
