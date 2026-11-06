@@ -89,11 +89,22 @@ export const FILTER_ID: Readonly<Record<"enabled" | "all", MessageId>> = {
   all: "desktop.schedules.filter.all",
 };
 
+/** 간격을 사람이 읽는 단위로: 3600초는 1시간마다, 나누어떨어지지 않으면 분, 그것도 아니면 초 */
+function intervalSummaryOf(seconds: number): MessageRef {
+  if (seconds > 0 && seconds % 3600 === 0) {
+    return message("desktop.schedules.summary.everyHours", { count: seconds / 3600 });
+  }
+  if (seconds > 0 && seconds % 60 === 0) {
+    return message("desktop.schedules.summary.everyMinutes", { count: seconds / 60 });
+  }
+  return message("desktop.schedules.summary.everySeconds", { count: seconds });
+}
+
 /** 트리거 한 줄 요약(표의 "트리거" 칸) */
 export function triggerSummaryOf(trigger: ScheduleTrigger, locale: Locale): MessageRef {
   switch (trigger.kind) {
     case "interval":
-      return message("desktop.schedules.summary.interval", { seconds: trigger.everySeconds });
+      return intervalSummaryOf(trigger.everySeconds);
     case "at":
       return message("desktop.schedules.summary.at", { time: timeTextOf(trigger.atMs, locale) });
     case "file_watch":

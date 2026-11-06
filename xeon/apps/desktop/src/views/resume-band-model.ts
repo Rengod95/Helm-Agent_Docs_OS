@@ -7,13 +7,20 @@ export type ResumeBandView =
   | { readonly kind: "crashed"; readonly runningSince: string; readonly turnId: string }
   | { readonly kind: "held"; readonly queued: number };
 
-/** `queued`는 거울의 대기 입력 수다. 요약의 `queuedInputs`는 목록을 읽을 때만 채워지므로 쓰지 않는다 */
+/**
+ * `queued`는 거울의 대기 입력 수다. 요약의 `queuedInputs`는 목록을 읽을 때만 채워지므로 쓰지 않는다.
+ * `approvals`는 그 대화에서 답을 기다리는 승인 수다(거울 목록과 요약 수 중 큰 쪽). 승인을 기다리는 턴은 열린 채 살아 있다:
+ * 엔진이 다시 열릴 때 recover가 죽은 턴의 대기 승인을 정리하므로, 승인이 남아 있으면 앱이 멈춘 턴이 아니다.
+ * 이때 복구 표식은 남지만 "중단된 턴" 띠는 내지 않는다
+ */
 export function resumeBandOf(
   thread: ThreadSummary | undefined,
   queued: number,
+  approvals: number,
 ): ResumeBandView | null {
   if (thread === undefined) return null;
   if (thread.resumable !== null) {
+    if (approvals > 0) return null;
     return {
       kind: "crashed",
       runningSince: thread.resumable.runningSince,

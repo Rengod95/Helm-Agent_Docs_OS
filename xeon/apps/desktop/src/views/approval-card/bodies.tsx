@@ -2,6 +2,7 @@ import { t, type MessageId } from "@fresnel/client/i18n";
 import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
 import {
   Alert,
+  Badge,
   ChoiceGroup,
   ChoiceGroupItem,
   Input,
@@ -95,30 +96,6 @@ function ReplaceDetails(props: { readonly view: ToolReplaceView }): ReactNode {
   );
 }
 
-function SecretsNote(props: { readonly secrets: ToolApprovalView["secrets"] }): ReactNode {
-  if (props.secrets.length === 0) return null;
-  return (
-    <div role="note" className="mt-1.5">
-      <div>{t("desktop.approvals.secrets.title")}</div>
-      <ul className="mt-0.5 list-disc pl-5">
-        {props.secrets.map((secret) => (
-          <li key={secret.name}>
-            <code>{secret.name}</code>
-            {secret.handle === null ? (
-              <> {t("desktop.approvals.secret.invalidHandle")}</>
-            ) : (
-              <>
-                {" "}
-                ← <code>{secret.handle}</code>
-              </>
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
 function ArgsFold(props: { readonly view: ToolApprovalView }): ReactNode {
   const { view } = props;
   if (view.argsStored)
@@ -164,21 +141,41 @@ export function ToolBody(props: { readonly body: ToolApprovalBody }): ReactNode 
   return (
     <>
       {replace === null ? null : <ReplaceDetails view={replace} />}
-      <div className="text-ui-sm text-text-secondary">
-        {t("desktop.approvals.tool.summary", { toolName: view.toolName, risk: view.risk })}
-      </div>
+      {/* 시안 tool-approval: 명령, 위험도, 시크릿 참조를 한 목록(ListDescription)으로 보인다 */}
+      <ListDescription
+        variant="ghost"
+        size="xs"
+        aria-label={t("desktop.approvals.tool.summary", {
+          toolName: view.toolName,
+          risk: view.risk,
+        })}
+        className="rounded-none [--cs-size-list-term:7rem] [&_[data-slot=list-description-row]]:px-0"
+      >
+        {view.command === null ? null : (
+          <ListDescriptionRow term={t("desktop.approvals.command.label")} mono>
+            <span className="whitespace-pre-wrap break-all">{view.command}</span>
+          </ListDescriptionRow>
+        )}
+        <ListDescriptionRow term={t("desktop.approvals.replace.risk")}>
+          <Badge size="xs">{view.risk}</Badge>
+        </ListDescriptionRow>
+        {view.secrets.map((secret) => (
+          <ListDescriptionRow key={secret.name} term={t("desktop.approvals.secret.term")} mono>
+            <span className="break-all">
+              {secret.name}
+              {secret.handle === null
+                ? ` ${t("desktop.approvals.secret.invalidHandle")}`
+                : ` ← ${secret.handle}`}
+            </span>
+          </ListDescriptionRow>
+        ))}
+      </ListDescription>
       {ruleId === null ? null : (
         <div className="text-ui-sm text-text-secondary">
           {t("desktop.approvals.rule", { id: ruleId })}
         </div>
       )}
-      {view.command === null ? null : (
-        <MessageCode aria-label={t("desktop.approvals.command.label")} className={BLOCK_CODE}>
-          {view.command}
-        </MessageCode>
-      )}
       {change === null ? null : <FileChangeBlock view={change} />}
-      <SecretsNote secrets={view.secrets} />
       <ArgsFold view={view} />
     </>
   );

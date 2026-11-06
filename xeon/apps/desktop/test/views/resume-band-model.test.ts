@@ -31,6 +31,7 @@ test("a leftover recovery marker shows the crashed band even while the status sa
       },
     }),
     0,
+    0,
   );
   expect(view).toEqual({
     kind: "crashed",
@@ -40,13 +41,13 @@ test("a leftover recovery marker shows the crashed band even while the status sa
 });
 
 test("queued input left in an idle thread shows the held band with its count", () => {
-  expect(resumeBandOf(summary({}), 2)).toEqual({ kind: "held", queued: 2 });
+  expect(resumeBandOf(summary({}), 2, 0)).toEqual({ kind: "held", queued: 2 });
 });
 
 test("no band for a quiet thread, a running thread with a queue, or no thread", () => {
-  expect(resumeBandOf(summary({}), 0)).toBeNull();
-  expect(resumeBandOf(summary({ status: "running" }), 3)).toBeNull();
-  expect(resumeBandOf(undefined, 1)).toBeNull();
+  expect(resumeBandOf(summary({}), 0, 0)).toBeNull();
+  expect(resumeBandOf(summary({ status: "running" }), 3, 0)).toBeNull();
+  expect(resumeBandOf(undefined, 1, 0)).toBeNull();
 });
 
 test("the crashed band closes once that turn's resume has started and not before", () => {
@@ -56,9 +57,20 @@ test("the crashed band closes once that turn's resume has started and not before
       resumable: { turnId: trn(1), runningSince: "2026-11-07T00:00:00.000Z", resumeAttempts: 0 },
     }),
     0,
+    0,
   );
   expect(resumeBandClosed(view, null)).toBe(false);
   expect(resumeBandClosed(view, trn(2))).toBe(false);
   expect(resumeBandClosed(view, trn(1))).toBe(true);
   expect(resumeBandClosed({ kind: "held", queued: 1 }, trn(1))).toBe(false);
+});
+
+test("a turn waiting on an approval keeps its marker but shows no crashed band", () => {
+  const marked = summary({
+    status: "running",
+    pendingApprovals: 1,
+    resumable: { turnId: trn(1), runningSince: "2026-11-07T00:00:00.000Z", resumeAttempts: 0 },
+  });
+  expect(resumeBandOf(marked, 0, 1)).toBeNull();
+  expect(resumeBandOf(marked, 0, 0)?.kind).toBe("crashed");
 });

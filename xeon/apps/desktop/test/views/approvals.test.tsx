@@ -97,7 +97,7 @@ describe("tool approval card", () => {
     expect(out).toContain("deploy --prod");
     expect(out).toContain("TOKEN");
     expect(out).toContain("secret://prod/token");
-    expect(out).toContain("이 호출이 사용할 시크릿");
+    expect(out).toContain("시크릿");
     expect(out).toContain("bash");
     expect(out).toContain("execute");
   });
@@ -105,7 +105,7 @@ describe("tool approval card", () => {
   test("a call with no secrets shows no secret block", () => {
     const out = html(toolRequest({ command: "ls" }));
     expect(out).toContain("ls");
-    expect(out).not.toContain("이 호출이 사용할 시크릿");
+    expect(out).not.toContain("시크릿");
   });
 });
 
@@ -380,5 +380,38 @@ describe("approval memory", () => {
       "이 대화에서 항상",
     );
     expect(html(toolRequest({ command: "ls" }))).not.toContain("이 대화에서 항상");
+  });
+});
+
+describe("approval queue per conversation", () => {
+  test("shows only the open conversation's approvals; others stay in the inbox", () => {
+    const h = openedHarness();
+    h.store.ingest({ type: "threads", threads: [] });
+    const here = toolRequest({ command: "echo here" });
+    const elsewhere: ApprovalRequestedPayload = {
+      ...toolRequest({ command: "echo elsewhere" }),
+      surfaceThreadId: thr(2),
+    };
+    h.store.ingest({
+      type: "approvals",
+      approvals: [
+        { approvalId: evt(7), seq: 4, request: elsewhere },
+        { approvalId: evt(8), seq: 5, request: here },
+      ],
+    });
+    h.store.flush();
+    const state = h.store.read.getState();
+    expect(state.approvals.ids).toEqual([evt(7), evt(8)]);
+    const out = renderToString(
+      <Providers
+        engine={frozen(state)}
+        ui={frozen<UiState>(createUiStore().read.getState())}
+        commands={commands}
+      >
+        <ApprovalQueue />
+      </Providers>,
+    );
+    expect(out).toContain("echo here");
+    expect(out).not.toContain("echo elsewhere");
   });
 });
