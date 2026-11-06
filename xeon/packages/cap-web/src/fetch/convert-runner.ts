@@ -69,6 +69,20 @@ interface Pending {
   readonly resolve: (outcome: Result<ConvertResult, ConvertFailure>) => void;
 }
 
+/**
+ * 컴파일 사이드카에서 워커 모듈의 묶음 안 경로. `build-sidecar`가 `apps/desktop`을 작업 폴더로 두고 워커를 추가 진입점으로 묶으면
+ * 그 폴더 기준 상대 경로에서 `.ts`를 `.js`로 바꾼 이름으로 `/$bunfs/root/` 아래에 들어간다(Bun 1.4.3). `new URL`로 풀면 `..`이
+ * 뿌리 위로 잘려 못 찾으므로 문자열 그대로 쓴다. 이 값이 어긋나면 컴파일 시험(scripts/sidecar-worker.test.ts)이 잡는다
+ */
+const COMPILED_WORKER_PATH = "/$bunfs/root/../../packages/cap-web/src/fetch/convert-worker.js";
+
+function workerEntry(): string | URL {
+  // 묶음 안 모듈의 import.meta.url은 원본 소스 경로를 가리키므로 실행 진입점(Bun.main)으로 묶음 안인지 본다
+  return Bun.main.startsWith("/$bunfs/")
+    ? COMPILED_WORKER_PATH
+    : new URL("./convert-worker.ts", import.meta.url);
+}
+
 export interface WorkerRunnerOptions {
   readonly timeoutMs?: number;
 }
@@ -101,7 +115,7 @@ export function createWorkerConvertRunner(options: WorkerRunnerOptions = {}): Co
 
   function ensure(): Worker {
     if (worker !== undefined) return worker;
-    const created = new Worker(new URL("./convert-worker.ts", import.meta.url));
+    const created = new Worker(workerEntry());
     created.on("message", (data: unknown) => {
       if (typeof data !== "object" || data === null) return;
       const id: unknown = Reflect.get(data, "id");

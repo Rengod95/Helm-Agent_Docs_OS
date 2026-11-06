@@ -67,14 +67,38 @@ test("the plugin provides fresnel.agents, registers the agent tool and the deny 
       log: NOOP_LOG,
       holder: HOLDER,
       parentToken: (threadId) => session.tokenOf(threadId),
-      builtinDefinitions: [EXPLORER],
+      builtinDefinitions: [
+        EXPLORER,
+        { ...EXPLORER, name: "learning-review", description: "internal" },
+      ],
+      unlistedDefinitions: ["learning-review"],
     }),
   );
   expect(installed.setups.map((setup) => setup.status)).toEqual(["applied"]);
 
   const service = host.host.ports.get(AgentServicePortKey);
-  expect(service?.definitions().map((definition) => definition.name)).toEqual(["explorer"]);
-  expect(tools.directTool("agent")).toBeDefined();
+  expect(service?.definitions().map((definition) => definition.name)).toEqual([
+    "explore",
+    "explorer",
+    "general",
+    "learning-review",
+  ]);
+  expect(service?.definition("explore")).toMatchObject({
+    source: { kind: "builtin" },
+    tools: ["read", "ls", "grep", "find"],
+  });
+  expect(service?.definition("general")?.tools).toBeUndefined();
+  const description = tools.directTool("agent")?.tool.description ?? "";
+  expect(description).toContain("- general: General-purpose worker");
+  expect(description).toContain("- explore: Read-only explorer");
+  expect(description).toContain("- explorer:");
+  expect(description).not.toContain("learning-review");
+  // 정의가 바뀌면 다음 광고의 설명에 바로 반영된다
+  const undefine = service?.define({ ...EXPLORER, name: "late-one", description: "added later" });
+  expect(tools.directTool("agent")?.tool.description).toContain("- late-one: added later");
+  expect(tools.registered.filter((entry) => entry.kind === "direct")).toHaveLength(1);
+  undefine?.();
+  expect(tools.directTool("agent")?.tool.description).not.toContain("late-one");
   expect((tools.rules.get(AGENTS_RULE_SOURCE) ?? []).length).toBe(4);
 
   const parent = ids.next("thr");

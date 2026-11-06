@@ -6,6 +6,7 @@ import {
   priceNumberText,
   sessionUsageOf,
   tokenCountText,
+  withLimit,
 } from "../../src/views/model-usage.ts";
 
 function gauge(over: Partial<UsageGauge>): UsageGauge {
@@ -149,5 +150,13 @@ describe("tokenCountText", () => {
     expect(tokenCountText(950)).toBe("950");
     expect(tokenCountText(41_000)).toBe("41k");
     expect(tokenCountText(1_200_000)).toBe("1.2M");
+  });
+});
+
+describe("withLimit", () => {
+  test("swaps the window and recomputes the percent, tokens unchanged, capped at 100", () => {
+    const usage = { tokens: 50_000, percent: 25, limit: 200_000 };
+    expect(withLimit(usage, 1_000_000)).toEqual({ tokens: 50_000, percent: 5, limit: 1_000_000 });
+    expect(withLimit(usage, 40_000)).toEqual({ tokens: 50_000, percent: 100, limit: 40_000 });
   });
 });

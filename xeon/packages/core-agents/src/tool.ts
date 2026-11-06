@@ -87,16 +87,33 @@ function failed(message: string): AgentToolResult {
   };
 }
 
+const AGENT_TOOL_BASE_DESCRIPTION =
+  "Run a subagent in its own conversation and get its final report. Use it for self-contained research or exploration whose intermediate steps you do not need.";
+
+/** 쓸 수 있는 정의 이름과 한 줄 설명을 도구 설명에 붙인다. `unlisted`는 내부용 정의라 모델에게 광고하지 않는다 */
+function agentToolDescription(
+  definitions: readonly { readonly name: string; readonly description: string }[],
+  unlisted: readonly string[],
+): string {
+  const listed = definitions.filter((definition) => !unlisted.includes(definition.name));
+  if (listed.length === 0) return AGENT_TOOL_BASE_DESCRIPTION;
+  const lines = listed.map((definition) => {
+    const first = definition.description.split("\n")[0] ?? "";
+    return `- ${definition.name}: ${first}`;
+  });
+  return `${AGENT_TOOL_BASE_DESCRIPTION}\nSet \`agent\` to one of these names:\n${lines.join("\n")}`;
+}
+
 function createAgentTool(
   service: AgentServiceImpl,
   tasks: AgentsTasks,
   tools: Pick<AgentsTools, "suspendWhile">,
+  unlisted: readonly string[],
 ): AgentTool<typeof AgentToolParameters> {
   return {
     name: AGENT_TOOL_NAME,
     label: "Subagent",
-    description:
-      "Run a subagent in its own conversation and get its final report. Use it for self-contained research or exploration whose intermediate steps you do not need.",
+    description: agentToolDescription(service.definitions(), unlisted),
     parameters: AgentToolParameters,
     replay: "safe",
     async execute(toolCallId, params, signal): Promise<AgentToolResult> {
@@ -170,11 +187,12 @@ export function agentToolRegistration(
   service: AgentServiceImpl,
   tasks: AgentsTasks,
   tools: Pick<AgentsTools, "suspendWhile">,
+  unlisted: readonly string[] = [],
 ): DirectToolRegistration {
   return {
     kind: "direct",
     orderKey: "core.agents",
-    tool: createAgentTool(service, tasks, tools),
+    tool: createAgentTool(service, tasks, tools, unlisted),
     policy: { risk: "exec", classes: ["spawn"] },
   };
 }

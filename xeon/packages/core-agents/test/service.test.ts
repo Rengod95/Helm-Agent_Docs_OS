@@ -143,6 +143,7 @@ describe("spawn", () => {
     const unknown = await h.service.spawn({ agent: "ghost", task: "t" }, origin);
     expect(unknown).toMatchObject({ status: "error", report: null, reused: false });
     expect(unknown.answer).toContain("agents.unknown_definition");
+    expect(unknown.answer).toContain('no subagent definition named "ghost". Available: explorer');
     const deep = await h.service.spawn(
       { agent: "explorer", task: "t" },
       { ...origin, depth: 1, ownerRequestId: "tool:tc-2" },

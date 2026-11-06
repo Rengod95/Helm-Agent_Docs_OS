@@ -31,7 +31,7 @@ export function SettingSection(props: SettingSectionProps): ReactNode {
         </div>
       )}
       <div
-        className={`mt-1 grid divide-y divide-border-subtle rounded-2xl bg-surface-base px-4 py-3 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] [&>:first-child]:pt-0 [&>:last-child]:pb-0 ${OWN_PAD}`}
+        className={`@container mt-1 grid divide-y divide-border-subtle rounded-2xl bg-surface-base px-4 py-3 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] [&>:first-child]:pt-0 [&>:last-child]:pb-0 ${OWN_PAD}`}
       >
         {props.children}
       </div>

@@ -485,6 +485,8 @@ export type AgentJudgedPayload = JudgeRecord;
 ### 4.9 서브에이전트 정의 (정의 파일 로더는 2차)
 
 - 형식: 마크다운 파일. 프런트매터 `name`, `description`, `tools`(glob 목록), `model`(모델 역할 이름), `permissions`(`mode`, `rules`), 본문은 `prompt`다(`_research/item-catalog.md` L1-g "서브에이전트 정의 파일", Claude Code·omp·opencode 공통 형태).
+- 내장 정의 둘 [제안]: 코어가 출처 `builtin`으로 `general`(부모가 쓸 수 있는 도구 전부, 일반 작업)과 `explore`(`read`, `ls`, `grep`, `find`만, 쓰기와 셸은 허용 목록에 없어 거부)를 싣는다. 프롬프트는 짧게, 모델 역할은 `subagent`(생략 기본값)다. 같은 이름의 사용자·확장·작업 폴더 정의가 덮는다. 정의 파일 없이도 `agent` 도구가 바로 쓰인다(시나리오 scE S5).
+- `agent` 도구 설명은 쓸 수 있는 정의 이름과 한 줄 설명(`description`의 첫 줄)을 싣는다. 정의가 등록·해제되면 도구를 다시 등록해 다음 턴 광고에 반영한다. 내부용 정의(학습 검토 `learning-review`)는 조립 루트가 `unlistedDefinitions`로 넘긴 이름이라 광고에서 뺀다. 계약에 `hidden` 표시는 없어 이 이름 목록으로 대신한다 [제안]. 위임은 이름으로 계속 부를 수 있다. 없는 이름을 부르면 `agents.unknown_definition` 메시지에 쓸 수 있는 이름 목록을 붙인다(§5 사례 1).
 - 위치 우선순위: 작업 폴더 > 사용자 > 확장 > 내장 [제안]. 같은 이름은 앞쪽이 이긴다. 결정 문구 "작업 폴더 > 사용자 > 내장"에 확장(매니페스트 `components.agents`, F.extensions.spec §3.1)을 사용자와 내장 사이에 넣었다. [가정] 작업 폴더와 사용자 디렉터리 경로(예: `.fresnel/agents/*.md`, 사용자 설정 디렉터리의 `agents/*.md`)는 L0.os.spec이 정한다.
 - `model` 필드는 L1.models.spec 라우팅 기준으로 해석한다. 값이 `ModelRole`(`main`, `review`, `summary`, `subagent`, `judge`, `search`) 중 하나면 그 역할로 고르고, 그 밖의 값은 `subagent` 역할의 `RoleOverrides.ref`(모델 참조 문자열)로 넘긴다(L1.models.spec 역할 표 `subagent` 행). 참조 해석에 실패하면 정의 적재 진단을 남기고 `subagent` 역할 기본값을 쓴다 [제안].
 - 파서: pi `coding-agent/src/utils/frontmatter.ts`(40줄) 포크 + `yaml` 2.9. 검증은 `AgentDefinitionSchema`(TypeBox)로 한다. 잘못된 파일은 그 정의만 빼고 진단으로 남긴다.
@@ -496,7 +498,7 @@ export type AgentJudgedPayload = JudgeRecord;
 
 ## 5. 실패와 경계 사례
 
-1. 없는 정의 이름: `agents.unknown_definition`. 도구 경로는 `isError: true` 결과로 모델에 돌아간다.
+1. 없는 정의 이름: `agents.unknown_definition`(메시지에 `Available: <이름들>`을 붙인다). 도구 경로는 `isError: true` 결과로 모델에 돌아간다.
 2. 깊이 한도 초과: `agents.depth_exceeded`. 보통은 `agent` 도구가 광고되지 않아 생기지 않는다. 모델이 광고되지 않은 도구를 부르면 L1.tools.spec §5 사례 1이다.
 3. 부모 turn 취소(포그라운드): 취소 의도가 소유 트리를 따라 자식으로 전파된다. 자식의 열린 도구 호출이 정착하고, 자식 turn이 `aborted`로 끝나고, `agent.settled{ status: "aborted" }`가 커밋된 뒤에 부모 turn이 종결한다(eng.transactions.design §6.2 규칙 4·5). 백그라운드 자식은 계속된다.
 4. 취소 의도가 커밋된 부모 turn 아래에서 새 spawn: `agents.parent_aborting`. 새 자식을 만들지 않는다.

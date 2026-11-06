@@ -473,3 +473,57 @@ test("context gives the last finished call's total tokens against that model's w
   );
   expect(await broken.context(THREAD_A, SIGNAL)).toBeUndefined();
 });
+
+function callAt(seq: number): DurableEventEnvelope {
+  return recordedEvent(seq, THREAD_A, "anthropic", {
+    input: 100,
+    output: 20,
+    cacheRead: 0,
+    cacheWrite: 0,
+    cost: 0,
+  });
+}
+
+function compactedAt(seq: number, tokensAfter: number | undefined): DurableEventEnvelope {
+  return {
+    ...callAt(seq),
+    kind: "thread.compacted",
+    payload: {
+      summary: "s",
+      firstKeptEventId: ids.next("evt"),
+      tokensBefore: 120,
+      details: null,
+      usage: null,
+      fromExtension: null,
+      ...(tokensAfter === undefined ? {} : { tokensAfter }),
+    },
+  };
+}
+
+test("context after a summary is the engine's estimate after summarising, until the next call replaces it", async () => {
+  const { meter } = fakeMeter();
+  const contextOf = async (events: readonly DurableEventEnvelope[]) =>
+    createUsageSource(
+      meter,
+      async (_threadId, query) =>
+        ok(events.filter((event) => event.kind.startsWith(query.kindPrefix))),
+      () => 200_000,
+    ).context(THREAD_A, SIGNAL);
+  expect(await contextOf([callAt(1), compactedAt(2, 30)])).toEqual({
+    model: "anthropic/anthropic-model",
+    used: 30,
+    limit: 200_000,
+  });
+  // 요약 뒤에 호출이 있으면 그 호출이 이긴다
+  expect(await contextOf([callAt(1), compactedAt(2, 30), callAt(3)])).toEqual({
+    model: "anthropic/anthropic-model",
+    used: 120,
+    limit: 200_000,
+  });
+  // 요약 뒤 크기를 모르는 옛 기록은 마지막 호출 값을 그대로 둔다
+  expect(await contextOf([callAt(1), compactedAt(2, undefined)])).toEqual({
+    model: "anthropic/anthropic-model",
+    used: 120,
+    limit: 200_000,
+  });
+});

@@ -633,7 +633,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | `select` | 단일 선택 목록. 선택지 8개 이하면 라디오 묶음, 넘으면 드롭다운 | `range.enum`(표시 순서 그대로) | D8. `range.enum`이 없으면 불일치. 선택지는 원시 값이 아니라 카탈로그 `settings.<설정 키>.option.<값>`(값의 `-`·`_`는 camelCase)의 라벨로 보이고, 없으면 값 그대로 보인다 |
 | `number` | 숫자 입력 + 단위 꼬리표 | `range.min`, `range.max`, `type.type === "integer"`이면 정수 단계, `ui.unit` | D8. 칸이 받지 못하는 글(범위 밖, 숫자 아님, 빈 칸)은 칸 안에 초안으로 남고 칸 아래에 이유 문장을 보인다(범위는 `range`에서 만든다) |
 | `text` | 한 줄 입력 | `type.minLength`, `type.maxLength`, `type.pattern` | `type.type === "string"` |
-| `list` | 원소 추가·삭제·순서 변경 목록 | `type.items.type`(string, number, integer, boolean), `type.maxItems` | `type.type === "array"`이고 `items`가 원시 타입 |
+| `list` | 원소 추가·삭제·순서 변경 목록 | `type.items.type`(string, number, integer, boolean), `type.maxItems` | `type.type === "array"`이고 `items`가 원시 타입. 원소가 열거형(`options` 있음)이면 선택지마다 토글 칩 하나이고 칩 글은 `select`와 같은 `settings.<설정 키>.option.<값>` 라벨이며 켠 순서가 값의 순서다(`TagInput`은 표시 라벨 prop이 없어 앱이 감싼다: `apps/desktop/src/views/pages/settings/settings-tag-list.tsx`). 자유 입력 목록은 `TagInput` 그대로다 |
 | `table` | 행 추가·삭제 표. `rows` 모양은 열이 `items.properties` 순서, `record` 모양은 "이름"·"값" 두 열 | `rows`: `type.items.properties`, `type.items.required`, 열의 `enum`. `record`: `type.additionalProperties`의 원시 타입 | `rows`: `type.type === "array"`이고 `items.type === "object"`. `record`: `type.type === "object"`이고 `additionalProperties`가 원시 타입 스키마(예: `l4.desktop.appearance.keybindings`, `L4.desktop.spec` §6) |
 | `secret` | 참조 선택기(`secret://<이름>`)와 상태 칩. 값 입력란 없음(§4.6) | `secret: true`, `type.pattern` | D3. `secret`이 거짓이면 불일치 |
 | `readonly` | 값 표시. 객체·배열은 JSON 접힘 보기 | 없음 | 없음 |
@@ -696,6 +696,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | 폐기 | `EffectiveSetting.deprecated`, `SettingDefWire.deprecated` | §4.3.8 |
 
 - [제안] 찾기 결과(찾는 글이 있을 때)는 머리 제목을 `‘찾는 글’ 찾은 항목`으로 바꾸고, 맞는 항목을 탭 이름의 제목 카드로 묶는다. 각 항목은 라벨 옆에 설정 키를 연한 고정폭 글(`showKey`, 시안 `_settings/row.tsx`)로 보이고, 재시작 필요 항목은 위 §4.3.2의 `재시작 필요` 배지를 그대로 단다. 찾기 입력란은 라벨·키·설명을 모두 보므로 문구를 "이름, 키, 설명으로 찾아요"로 둔다(시안의 "키 찾기"보다 넓다).
+- [제안] 좁은 폭: 탭 열(208px)과 본문이 같이 들어가지 않으면(화면 자신의 폭 640px 미만, 앱 확대가 들어가도 요소 좌표라 같다) 셸이 compact가 아니어도 탭 열을 접고 찾기 칸 아래 선택 상자를 쓴다. 탭 열은 자기 안에서 세로로 스크롤해 목록 끝이 상태 줄 밑으로 가지 않는다. 항목 머리의 범위·적용 시점 표시는 좁으면 라벨 아래 줄로 내려가고, 설명 목록(개요)은 카드 폭 26rem 미만에서 라벨 아래 한 열로 쌓이며, 표 편집기는 표 안에서만 가로 스크롤한다(`apps/desktop/src/views/pages/settings/settings-view.tsx`).
 
 #### 4.3.1 범위 배지
 

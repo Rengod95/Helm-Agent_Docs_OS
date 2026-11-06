@@ -42,7 +42,7 @@ import {
 } from "@fresnel/cap-schedule";
 import { dialogPlugin, type ChunkNumbering } from "@fresnel/cap-dialog";
 import { knowledgePlugin } from "@fresnel/cap-knowledge";
-import { APPROVAL_SOURCE } from "@fresnel/group-learning";
+import { APPROVAL_SOURCE, REVIEW_AGENT_NAME } from "@fresnel/group-learning";
 import { workPlugin } from "@fresnel/cap-work";
 import { workspacePlugin } from "@fresnel/cap-workspace";
 import { readUnattendedTimeoutMs } from "@fresnel/platform-exec";
@@ -352,6 +352,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           ...(deps.agentDefinitions === undefined
             ? {}
             : { builtinDefinitions: deps.agentDefinitions }),
+          unlistedDefinitions: [REVIEW_AGENT_NAME],
           loop: (resolve) =>
             openingChildThreads(resolve, deps.ext, deps.logger.child({ component: "core-agents" })),
           loadIndex,
