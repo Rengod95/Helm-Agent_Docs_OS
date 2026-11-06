@@ -2,14 +2,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
-import { WireError, type EventWire } from "@fresnel/contracts/wire";
+import type { EventWire } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
 import { createStdioTransport } from "../../src/transport/stdio.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { APPROVAL_COMMAND } from "../fixtures/approval-tape.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
-import { rejectionOf } from "../fixtures/rejection.ts";
 import { answeringModels } from "../fixtures/tape-host.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS } from "../fixtures/wire-client.ts";
@@ -98,37 +97,29 @@ realTest(
       expect(thread?.pendingApprovals).toBe(1);
       expect(thread?.resumable).not.toBeNull();
 
-      // 소유 없이는 응답할 수 없다: 요청이 속한 thread를 쥔 호스트만 응답을 커밋한다
-      const refused = await rejectionOf(
-        connection.request("approval.respond", { approvalId: asked.id, decision: "allow" }),
-      );
-      expect(refused).toBeInstanceOf(WireError);
-      if (refused instanceof WireError) expect(refused.code).toBe(3002);
-
-      // turn.resume이 쓰기 소유를 얻으며 미해결 요청을 메모리 대기 목록으로 되살리고(HS-52), 끊긴 turn을 이어 실행한다(G1-02).
-      // 열린 turn은 thread마다 하나라 turn id를 받지 않는다: 결과의 turnId가 승인을 기다리던 그 turn이다
-      const resumed = await connection.request("turn.resume", { threadId: created.threadId });
-      expect(resumed).toMatchObject({ status: "resumed", turnId: asked.turnId });
-
-      // 재개만으로는 turn이 끝나지 않는다. 응답이 와야 같은 도구 호출이 이어진다
-      expect(kindsOf(collected.events)).not.toContain("turn.completed");
+      // 소유하지 않아도 응답은 필요한 소유를 한 번 얻어서(미해결 요청을 되살리며, HS-52) 커밋하고 놓는다.
+      // turn은 이어지지 않는다: 이어 실행은 turn.resume이다(HS-74)
       const answered = await connection.request("approval.respond", {
         approvalId: asked.id,
         decision: "allow",
       });
       expect(answered).toEqual({ applied: true });
+      expect(kindsOf(collected.events)).not.toContain("turn.completed");
+      expect(
+        (await connection.request("approval.list", { threadId: created.threadId })).approvals,
+      ).toEqual([]);
+
+      // turn.resume이 쓰기 소유를 얻고 끊긴 turn을 이어 실행한다(G1-02). 이미 해결된 승인이라 도구 호출이 이어진다
+      const resumed = await connection.request("turn.resume", { threadId: created.threadId });
+      expect(resumed).toMatchObject({ status: "resumed", turnId: asked.turnId });
       const done = await collected.waitFor((event) => event.kind === "turn.completed");
       expect(done.turnId).toBe(asked.turnId);
       expect(done.payload).toMatchObject({ status: "completed" });
       const ran = collected.events.filter((event) => event.kind === "item.recorded");
       expect(JSON.stringify(ran)).toContain("approved-by-user");
       expect(APPROVAL_COMMAND).toContain("approved-by-user");
-      // 이 호스트가 본 이벤트는 모두 첫 호스트가 본 마지막 seq 뒤이고 겹치지 않는다
       const seqs = collected.events.map((event) => event.seq);
       expect(new Set(seqs).size).toBe(seqs.length);
-      expect(
-        (await connection.request("approval.list", { threadId: created.threadId })).approvals,
-      ).toEqual([]);
 
       await connection.close();
       await host.close();

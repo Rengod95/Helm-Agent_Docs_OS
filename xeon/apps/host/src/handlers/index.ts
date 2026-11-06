@@ -95,7 +95,7 @@ export function createWireHandlers(
     "turn.resume": createTurnResumeHandler(engine, hub),
     "events.subscribe": createEventsSubscribeHandler(engine, hub),
     "events.unsubscribe": createEventsUnsubscribeHandler(hub),
-    "approval.respond": createApprovalRespondHandler(engine),
+    "approval.respond": createApprovalRespondHandler(engine, hub),
     "approval.list": createApprovalListHandler(engine),
     "settings.get": createSettingsGetHandler(engine),
     "settings.set": createSettingsSetHandler(engine, hub),

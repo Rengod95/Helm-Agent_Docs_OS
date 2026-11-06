@@ -72,17 +72,40 @@ test("approval.respond passes the response on when this process owns the approva
   await connection.close();
 });
 
-test("approval.respond for a thread another process owns is thread.locked and is not forwarded", async () => {
+test("approval.respond without write ownership acquires it once, answers, and gives it back (HS-52)", async () => {
   const located: Located = { threadId: undefined };
   const responded: WireParams<"approval.respond">[] = [];
   const host = hostWithApproval(located, responded);
+  const threadId = host.fake.seedThread();
+  located.threadId = threadId;
+  const connection = await open(host);
+  expect(await connection.request("approval.respond", PARAMS)).toEqual({ applied: true });
+  expect(responded).toEqual([PARAMS]);
+  expect(host.fake.acquisitions).toEqual([{ threadId, kind: "cli" }]);
+  expect(host.fake.released).toEqual([threadId]);
+  await connection.close();
+});
+
+test("approval.respond for a thread another process owns is thread.locked and is not forwarded", async () => {
+  const located: Located = { threadId: undefined };
+  const responded: WireParams<"approval.respond">[] = [];
+  const host = createFakeHost({
+    lockedBy: "cli",
+    overrides: {
+      approvals: {
+        locate: () => Promise.resolve(ok(located.threadId)),
+        respond: (params) => {
+          responded.push(params);
+          return Promise.resolve({ applied: true });
+        },
+      },
+    },
+  });
   located.threadId = host.fake.seedThread();
   const connection = await open(host);
   const error = await wireErrorOf(connection.request("approval.respond", PARAMS));
   expect(error.code).toBe(3002);
   expect(responded).toEqual([]);
-  // 응답을 위해 잠금을 얻지는 않는다
-  expect(host.fake.acquisitions).toEqual([]);
   await connection.close();
 });
 
