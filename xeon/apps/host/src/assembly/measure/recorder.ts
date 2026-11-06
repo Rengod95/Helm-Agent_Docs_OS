@@ -142,6 +142,8 @@ function callRecord(call: UsageRecord): MeasureRecord {
 interface ChildOwner {
   readonly scopeId: string | null;
   readonly parentThreadId: string;
+  /** 자식을 띄운 때의 부모 Turn. 없으면(Turn 밖 drive) 그때 가장 나중에 끝난 부모 Turn이다. 부모 Turn을 읽을 때 자식 호출을 합치는 근거 */
+  readonly parentTurnId: string | null;
   readonly requestId: string;
 }
 
@@ -160,6 +162,7 @@ function ownedCallRecord(record: MeasureRecord, owner: ChildOwner | undefined): 
       ...record.tags,
       ownerThread: owner.parentThreadId,
       ownerRequest: owner.requestId,
+      ...(owner.parentTurnId === null ? {} : { ownerTurn: owner.parentTurnId }),
     },
   };
 }
@@ -410,6 +413,7 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
           childOwners.set(spawned.value.childThreadId, {
             scopeId: owner.kind === "tool" ? null : owner.scopeId,
             parentThreadId: event.threadId,
+            parentTurnId: event.turnId ?? lastTurnOfThread.get(event.threadId) ?? null,
             requestId: spawned.value.requestId,
           });
           const oldest =

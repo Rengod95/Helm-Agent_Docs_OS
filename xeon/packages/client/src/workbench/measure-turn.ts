@@ -193,20 +193,35 @@ function summaryOf(rows: readonly MeasureRow[]): TurnSummaryVM | null {
   };
 }
 
+/** 이 Turn이 띄운 하위 대화의 호출 행인가(호스트가 부모 Turn을 읽을 때 합친 행, `viaChild` 태그) */
+function isChildCall(row: MeasureRow): boolean {
+  return tag(row, "viaChild") === "1";
+}
+
+/**
+ * 이 Turn 자신의 모델 호출. 하위 대화의 호출(`viaChild`)은 시간줄·Turn 합계에 넣지 않는다: 하위 대화를 따로 읽을 때 그 Turn에 이미 있고,
+ * 부모 시간줄과 겹치기 때문이다. 소유 그룹의 몫(플러그인 부담)에만 센다(`childCallsOf`)
+ */
 function callsOf(rows: readonly MeasureRow[]): readonly TurnCallVM[] {
-  return rows
-    .filter((row) => row.kind === "call")
-    .map((row) => ({
-      role: tag(row, "role"),
-      model: tag(row, "model"),
-      startedAt: numOrNull(row, "startedAt"),
-      durationMs: num(row, "durationMs"),
-      firstTokenMs: numOrNull(row, "firstTokenMs"),
-      totalTokens: num(row, "totalTokens"),
-      cacheRead: num(row, "cacheRead"),
-      usd: num(row, "usd"),
-      scope: tag(row, "scope"),
-    }));
+  return callRowsToVM(rows.filter((row) => row.kind === "call" && !isChildCall(row)));
+}
+
+function childCallsOf(rows: readonly MeasureRow[]): readonly TurnCallVM[] {
+  return callRowsToVM(rows.filter((row) => row.kind === "call" && isChildCall(row)));
+}
+
+function callRowsToVM(rows: readonly MeasureRow[]): readonly TurnCallVM[] {
+  return rows.map((row) => ({
+    role: tag(row, "role"),
+    model: tag(row, "model"),
+    startedAt: numOrNull(row, "startedAt"),
+    durationMs: num(row, "durationMs"),
+    firstTokenMs: numOrNull(row, "firstTokenMs"),
+    totalTokens: num(row, "totalTokens"),
+    cacheRead: num(row, "cacheRead"),
+    usd: num(row, "usd"),
+    scope: tag(row, "scope"),
+  }));
 }
 
 function phasesOf(calls: readonly TurnCallVM[]): readonly PhaseVM[] {
@@ -395,7 +410,7 @@ export function turnViewOf(result: MeasureTurnResult): TurnViewState {
       hookTotalMs: hooks.reduce((sum, hook) => sum + hook.ms, 0),
       bars,
       cache,
-      plugins: pluginsOf(hooks, bars, cache, calls),
+      plugins: pluginsOf(hooks, bars, cache, [...calls, ...childCallsOf(result.rows)]),
     },
   };
 }

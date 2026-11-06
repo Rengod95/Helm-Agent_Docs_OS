@@ -484,8 +484,19 @@ test("calls from a child thread are attributed to the group that owns the spawn 
     const peek = openMeasureStore(join(dir, "measure.db"));
     if (!peek.ok) throw new Bug("the measure database must open");
     const calls = peek.value.callsOfRoles(["search", "summary"], undefined);
+    // 부모 Turn을 읽으면 그 Turn이 띄운 하위 대화의 호출이 한 번 합쳐지고(저장은 한 행뿐), 부모의 Turn 밖 호출은 합쳐지지 않는다
+    const parentTurn = peek.value.turn(THREAD, TURN);
     peek.value.close();
-    if (!calls.ok) throw new Bug("the measure database must be readable");
+    if (!calls.ok || !parentTurn.ok) throw new Bug("the measure database must be readable");
+    const merged = parentTurn.value.filter((row) => row.tags["viaChild"] === "1");
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({
+      kind: "call",
+      threadId: child,
+      metrics: { totalTokens: 135, usd: 0.5 },
+      tags: { role: "search", scope: "helm", ownerTurn: TURN },
+    });
+    expect(calls.value.filter((row) => row.tags["role"] === "search")).toHaveLength(1);
     const byRole = new Map(calls.value.map((row) => [row.tags["role"], row.tags] as const));
     expect(byRole.get("search")).toMatchObject({
       scope: "helm",
