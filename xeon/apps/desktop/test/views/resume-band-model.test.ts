@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
-import { resumeBandClosed, resumeBandOf } from "../../src/views/resume-band-model.ts";
+import { resumeBandClosed, resumeBandOf, rowResumable } from "../../src/views/resume-band-model.ts";
 import { thr, trn } from "../state/helpers.ts";
 
 function summary(patch: Partial<ThreadSummary>): ThreadSummary {
@@ -73,4 +73,14 @@ test("a turn waiting on an approval keeps its marker but shows no crashed band",
   });
   expect(resumeBandOf(marked, 0, 1)).toBeNull();
   expect(resumeBandOf(marked, 0, 0)?.kind).toBe("crashed");
+});
+
+test("the sidebar row offers resume only for a marked thread that waits for no approval", () => {
+  const marked = summary({
+    status: "running",
+    resumable: { turnId: trn(1), runningSince: "2026-11-07T00:00:00.000Z", resumeAttempts: 0 },
+  });
+  expect(rowResumable(marked, 0)).toBe(true);
+  expect(rowResumable(marked, 1)).toBe(false);
+  expect(rowResumable(summary({}), 0)).toBe(false);
 });

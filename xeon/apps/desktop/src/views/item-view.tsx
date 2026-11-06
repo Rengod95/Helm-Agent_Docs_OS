@@ -20,6 +20,7 @@ import {
   useOpenThreadRunning,
   usePartText,
   useStreamingItem,
+  useToolCallAwaitingApproval,
   useToolResult,
 } from "../state/engine/index.ts";
 import { fileChangeViewOfArgs } from "./approval-form.ts";
@@ -120,6 +121,8 @@ function ToolRow(props: {
   readonly cut?: { readonly shown: number; readonly total: number };
   /** 실행 중 글. 없으면 "실행 중"(경과 시간 포함) */
   readonly runningLabel?: (seconds: number) => string;
+  /** 승인을 기다리는 호출. 경과 시간을 세지 않고 "승인 기다리는 중"을 보인다 */
+  readonly awaitingApproval?: boolean;
   /** 출력 아래에 덧붙이는 것(접은 나머지, 자식 대화 링크) */
   readonly foot?: ReactNode;
   /** 끝난 뒤에도 펼쳐 둔다(하위 에이전트의 보고는 결과 블록이다) */
@@ -128,7 +131,8 @@ function ToolRow(props: {
   readonly diff?: ReactNode;
 }): ReactNode {
   const { output } = props;
-  const elapsed = useElapsedSeconds(props.status === "running");
+  const awaiting = props.awaitingApproval === true && props.status === "running";
+  const elapsed = useElapsedSeconds(props.status === "running" && !awaiting);
   // 실행 중에 그려진 행이 나중에 끝나도 초기 값만 읽으면 접힌 채로 남는다. 상태가 바뀔 때 펼칠지 다시 정한다
   const wantOpen = props.status === "failed" || props.openWhenDone === true;
   const [open, setOpen] = useState(wantOpen);
@@ -143,11 +147,13 @@ function ToolRow(props: {
       detail={props.detail}
       status={props.status}
       activity={
-        props.runningLabel !== undefined
-          ? props.runningLabel(elapsed)
-          : elapsed > 0
-            ? t("desktop.item.toolRunningFor", { seconds: elapsed })
-            : t("desktop.item.toolRunning")
+        awaiting
+          ? t("desktop.item.toolAwaitingApproval")
+          : props.runningLabel !== undefined
+            ? props.runningLabel(elapsed)
+            : elapsed > 0
+              ? t("desktop.item.toolRunningFor", { seconds: elapsed })
+              : t("desktop.item.toolRunning")
       }
       failedLabel={props.failedLabel ?? t("desktop.item.status.failed")}
       collapsible={output !== undefined || props.foot !== undefined}
@@ -415,6 +421,7 @@ function CallRow(props: {
 }): ReactNode {
   const result = useToolResult(props.callId);
   const running = useOpenThreadRunning();
+  const awaitingApproval = useToolCallAwaitingApproval(props.callId);
   if (props.name === AGENT_TOOL) {
     return <AgentRow args={props.args} result={result} running={running} />;
   }
@@ -423,7 +430,12 @@ function CallRow(props: {
   const view = result === undefined ? null : resultViewOf(result);
   if (view === null) {
     return running ? (
-      <ToolRow name={props.name} detail={detail} status="running" />
+      <ToolRow
+        name={props.name}
+        detail={detail}
+        status="running"
+        awaitingApproval={awaitingApproval}
+      />
     ) : (
       <ToolRow
         name={props.name}

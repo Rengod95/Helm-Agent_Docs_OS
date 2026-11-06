@@ -40,3 +40,11 @@ export function resumeBandOf(
 export function resumeBandClosed(view: ResumeBandView | null, resumedTurn: string | null): boolean {
   return view !== null && view.kind === "crashed" && resumedTurn === view.turnId;
 }
+
+/**
+ * 사이드바 행이 "이어서 실행"을 보일지. 띠(`resumeBandOf`)와 같은 기준이다: 복구 표식이 있어도 승인을 기다리면
+ * 멈춘 턴이 아니므로 행은 "승인 N"만 보인다
+ */
+export function rowResumable(thread: ThreadSummary, approvals: number): boolean {
+  return thread.resumable !== null && approvals === 0;
+}

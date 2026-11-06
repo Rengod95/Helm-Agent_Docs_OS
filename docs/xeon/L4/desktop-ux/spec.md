@@ -188,7 +188,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 - 단계
   1. 예약 화면(P-07)에서 "새 예약"을 누르면 시트가 열립니다.
   2. 트리거(간격, 시각, 파일 감시, 원격, 루프)를 고르고 프롬프트, 작업 폴더, 제목을 넣습니다.
-  3. 서비스 모드가 꺼져 있으면 시트 아래에 경고와 "서비스 켜기"가 보입니다. 저장 결과가 `service_mode_off` 경고를 실으면 그대로 보입니다.
+  3. 서비스 모드가 꺼져 있으면 만들기·고치기·복제 시트 아래에 "앱을 끄면 예약이 돌지 않아요." 경고와 "서비스 켜기"가 보입니다(예약 화면 위 띠와 같은 동작 `schedule.enableService`, 설정 `l0.process.service.enabled`를 쓰고 엔진 다시 시작은 위 띠가 안내합니다). 저장 결과가 `service_mode_off` 경고를 실으면 그대로 보입니다.
   4. 목록에서 다음 실행 시각과 마지막 실행 결과를 봅니다. 마지막 실행 행을 누르면 그 실행이 만든 대화가 열립니다.
   5. 실행이 끝나면 알림(`background_completed` 또는 `error`)이 옵니다.
 - 거치는 화면: P-07, P-08, S-05, P-02
@@ -811,7 +811,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 - 기능: 사이드바·끝 영역 토글, 폭 끌기(`ResizeHandle`), 대화 고르기(`selectThread`), 새 대화(O-07), 대화 행 메뉴(이름 바꾸기 `thread.rename`, 분기 `thread.fork`, 컴팩션 `thread.compact`(누르면 진행 토스트, 끝나면 엔진이 준 요약 전 토큰 수나 요약하지 않은 이유를 한 줄로, 실패하면 이유별 문장을 닫기 전까지 보인다), 내보내기 `thread.export`(O-13), 닫기 `thread.close`, 삭제 `thread.delete` + O-06).
 - 대화 행 메뉴 구현 [근거: `apps/desktop/src/views/thread-row-menu.tsx`]: 행 오른쪽 ⋯ 버튼(행에 마우스를 올리거나 초점이 있거나 메뉴가 열려 있을 때 보임)에 이름 바꾸기(1~200자, 앞뒤 공백 제거), 분기, 대화 요약, 내보내기, 닫기, 지우기를 둡니다. 실행 중인 대화는 분기와 닫기, 지우기를 막고 지우기 확인 창이 이유를 말합니다. 닫힌 대화는 요약과 닫기를 막습니다. 지우기는 확인 창(`kind=alert`)을 거치고, 열릴 때 초점은 "취소"에 있고 Esc로 닫으며 닫으면 ⋯ 단추로 돌아옵니다(Enter로 지우지 않습니다). 같은 모양의 확인 창(잠금 안내 포함)도 안전한 단추가 첫 초점입니다. 긴 제목은 행과 대화 머리에서 한 줄 말줄임이고 사이드바는 가로로 밀리지 않으며 전체 제목은 툴팁입니다. 그리고 분기한 대화가 가리키는 대화는 host가 `thread.hasForks`로 거절해 그 이유를 창 안에 보입니다. 지운 뒤에는 목록을 다시 읽고, 열려 있던 대화였다면 선택을 풉니다. 그 밖의 실패는 오류 토스트입니다. 내보내기는 O-13 대화 상자를 엽니다(§6.31, 와이어 W-51). 예약 지우기는 이 구현에 없습니다(사용자 몫).
 - 상태: 대화 목록 빈 경우 "아직 대화가 없어요" + "새 대화" (`EmptyState variant="dashed"`), 읽는 중 `Skeleton` 5행, 읽기 실패 "대화 목록을 읽지 못했어요" + "다시 읽기", 오프라인은 목록 유지와 흐린 표시, 긴 목록은 폴더 묶음 접기와 50개 뒤 "더 보기"(`nextCursor`).
-- 대화 행: 제목(없으면 "제목 없음"), 배지 `실행 중`(running), `이어서 실행`(resumable), `승인 N`, `잠김`(다른 소유자, 알 수 있을 때), `예약`(schedule이 만든 대화) (출처는 `ThreadSummary.origin`) [근거: `packages/contracts/src/wire-settings/wire/methods.ts:443`].
+- 대화 행: 제목(없으면 "제목 없음"), 배지 `실행 중`(running), `이어서 실행`(resumable이면서 답을 기다리는 승인이 없을 때만. 승인을 기다리는 턴은 멈춘 턴이 아니므로 `승인 N`만 보입니다. 띠와 같은 기준 `rowResumable`), `승인 N`, `잠김`(다른 소유자, 알 수 있을 때), `예약`(schedule이 만든 대화) (출처는 `ThreadSummary.origin`) [근거: `packages/contracts/src/wire-settings/wire/methods.ts:443`].
 - 접근성: 시작 영역은 `SidePanel label="대화와 이동"`(aside 랜드마크), 무대는 `main`, 건너뛰기 링크 `skipLabel="본문으로"`. 대화 목록은 `ListNavigation`의 단일 선택 목록이고 화살표로 이동합니다.
 - caustic: `AppShell`, `AppShellTitlebar`, `AppShellStart`, `AppShellStage`, `AppShellEnd`, `AppShellOverlay`, `SidePanel`, `ListNavigation`(kind `navigation`, `sessions`), `ResizeHandle`, `Breadcrumb`, `IconButton`, `Badge`, `Menu`, `Tabs`, `EmptyState`, `Skeleton`.
 
@@ -1133,7 +1133,7 @@ compact 폭(720 이하)과 사이드바 시트:
   - 오류: 읽기 실패 "대화를 읽지 못했어요" + "다시 읽기"(G), turn 실패는 트랜스크립트 아래 `Alert tone="danger"`(`role="alert"`), 이유 문장은 host가 준 그대로(F).
   - 오프라인: 트랜스크립트는 남기고 입력은 지우지 않음, 보내기 잠금(C).
   - 권한 필요: 설정 필요 띠와 입력창 잠금(D), 신뢰 카드(O-04), 관찰 중 잠금(E), 잠김 대화 상자(O-01).
-  - 긴 내용: 가상 스크롤과 맨 아래 따라가기, "새 메시지 N" 버튼, 도구 결과는 펼친 출력을 앞 200줄·2만 자까지 싣고 높이 상한(320px)과 안쪽 스크롤을 둡니다. 잘렸으면(화면이 자르거나 엔진이 `details.truncation`으로 알린 경우) 출력 아래에 "N줄 중 M줄만 보여요" 한 줄을 보입니다. 엔진의 영어 안내 줄은 숨깁니다. 실행 중인 도구 행은 "실행 중 · N초"로 경과 시간을 보이고, 중단(`[fresnel:aborted]`·`[aborted]`)은 알약이 "중단됨"입니다 [근거: `apps/desktop/src/views/tool-output-model.ts`, `item-view.tsx`]. 인자 4000자 상한(H). 하위 에이전트(`agent`) 행은 머리가 "정의 이름 · 할 일 첫 줄"이고 실행 중이면 "하위 에이전트 실행 중 · N초", 끝나면 자식의 보고를 펼친 결과 블록으로 보입니다(12줄을 넘으면 "보고 전체 보기"로 접음). 결과 `details.childThreadId`가 있고 이동 문맥이 있으면 "하위 대화 열기" 링크를 둡니다. 멈춘 하위 에이전트(`details.status` `aborted`)는 알약이 "중단됨", 오류는 "실패"와 이유입니다. 자식의 도구 호출 진행은 거울이 열린 대화만 담아 보이지 않습니다 [gap: 자식 대화 구독]. 웹 도구(`web_search`, `web_fetch`) 결과 행 아래에는 결과 글의 `[sN] 제목 주소` 줄에서 읽은 출처 칩(도메인 · 제목)을 두고, 어시스턴트 글에 든 http(s) 링크도 칩으로 보입니다. 칩을 누르면 확인 줄("브라우저에서 "…" 주소를 열까요?")을 거쳐 외부 브라우저로 엽니다 [근거: `apps/desktop/src/views/tool-extras-model.ts`, `item-view.tsx`]. 가상 목록은 caustic에 없습니다 `[gap:C-04]`.
+  - 긴 내용: 가상 스크롤과 맨 아래 따라가기, "새 메시지 N" 버튼, 도구 결과는 펼친 출력을 앞 200줄·2만 자까지 싣고 높이 상한(320px)과 안쪽 스크롤을 둡니다. 잘렸으면(화면이 자르거나 엔진이 `details.truncation`으로 알린 경우) 출력 아래에 "N줄 중 M줄만 보여요" 한 줄을 보입니다. 엔진의 영어 안내 줄은 숨깁니다. 실행 중인 도구 행은 "실행 중 · N초"로 경과 시간을 보이되, 그 호출이 답을 기다리는 승인(요청의 `origin.toolCallId` 짝)이 있으면 "승인 기다리는 중"으로 바꾸고 시간을 세지 않으며, 중단(`[fresnel:aborted]`·`[aborted]`)은 알약이 "중단됨"입니다 [근거: `apps/desktop/src/views/tool-output-model.ts`, `item-view.tsx`]. 인자 4000자 상한(H). 하위 에이전트(`agent`) 행은 머리가 "정의 이름 · 할 일 첫 줄"이고 실행 중이면 "하위 에이전트 실행 중 · N초", 끝나면 자식의 보고를 펼친 결과 블록으로 보입니다(12줄을 넘으면 "보고 전체 보기"로 접음). 결과 `details.childThreadId`가 있고 이동 문맥이 있으면 "하위 대화 열기" 링크를 둡니다. 멈춘 하위 에이전트(`details.status` `aborted`)는 알약이 "중단됨", 오류는 "실패"와 이유입니다. 자식의 도구 호출 진행은 거울이 열린 대화만 담아 보이지 않습니다 [gap: 자식 대화 구독]. 웹 도구(`web_search`, `web_fetch`) 결과 행 아래에는 결과 글의 `[sN] 제목 주소` 줄에서 읽은 출처 칩(도메인 · 제목)을 두고, 어시스턴트 글에 든 http(s) 링크도 칩으로 보입니다. 칩을 누르면 확인 줄("브라우저에서 "…" 주소를 열까요?")을 거쳐 외부 브라우저로 엽니다 [근거: `apps/desktop/src/views/tool-extras-model.ts`, `item-view.tsx`]. 가상 목록은 caustic에 없습니다 `[gap:C-04]`.
 - 상호작용
   - 도구 호출 행은 기본 접힘이고 실패하면 펼칩니다. 실행 중 도구는 `ToolCall status="running"`의 스펙트럼 테두리를 씁니다.
   - 승인 카드는 트랜스크립트 끝(요청한 턴 아래)과 끝 영역 받은 요청에 같은 카드로 보입니다. 한쪽에서 답하면 `approval.resolved`로 양쪽에서 사라집니다(FS-02). 트랜스크립트 끝에는 열린 대화의 승인만 두고, 다른 대화의 승인은 받은 요청과 사이드바 수가 맡습니다(시험: `test/views/approvals.test.tsx`의 `approval queue per conversation`).

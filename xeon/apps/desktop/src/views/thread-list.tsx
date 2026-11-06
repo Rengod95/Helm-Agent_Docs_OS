@@ -20,6 +20,7 @@ import { memo, useState, type ReactNode } from "react";
 import {
   useThreadsStatus,
   useThreadSummaries,
+  useThreadApprovals,
   useUnlistedApprovals,
 } from "../state/engine/index.ts";
 import { useSelectedThreadId } from "../state/ui/index.ts";
@@ -27,6 +28,7 @@ import { useCommands } from "./commands.ts";
 import { pickWorkspaceFolder, type FolderPickInvoke } from "./folder-pick.ts";
 import { useStartNewThread } from "./new-thread-flow.ts";
 import { recentWorkspacesOf, type RecentWorkspace } from "./new-thread-model.ts";
+import { rowResumable } from "./resume-band-model.ts";
 import { folderLabel, groupByWorkspace } from "./thread-groups.ts";
 import { ThreadRowMenu } from "./thread-row-menu.tsx";
 import { checkWorkspaceInput, createFailureText, workspaceHint } from "./workspace-model.ts";
@@ -42,9 +44,9 @@ const LIST_COLUMN =
   "grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1 [&_ul]:grid-cols-[minmax(0,1fr)] [&_[data-slot=list-navigation-item]]:min-w-0 [&_[data-slot=list-navigation-item]]:grid-cols-[minmax(0,1fr)]";
 
 /** 행 오른쪽 짧은 글자. 이어서 실행, 닫힘, 승인 수 중 하나(시안: 행 meta는 짧게) */
-function metaOf(thread: ThreadSummary): ReactNode {
+function metaOf(thread: ThreadSummary, approvals: number): ReactNode {
   // 이어서 실행은 아이콘과 글(시안 threadMeta의 RotateCcw + 이어서 실행)
-  if (thread.resumable !== null) {
+  if (rowResumable(thread, approvals)) {
     return (
       <span className="inline-flex items-center gap-1">
         <RotateCcw aria-hidden className="size-icon-xs" />
@@ -53,8 +55,8 @@ function metaOf(thread: ThreadSummary): ReactNode {
     );
   }
   if (thread.status === "closed") return t("desktop.threads.closedBadge");
-  if (thread.pendingApprovals > 0) {
-    return t("desktop.threads.approvalsBadge", { count: thread.pendingApprovals });
+  if (approvals > 0) {
+    return t("desktop.threads.approvalsBadge", { count: approvals });
   }
   return undefined;
 }
@@ -64,6 +66,7 @@ const ThreadRow = memo(function ThreadRow(props: { readonly thread: ThreadSummar
   const id: ThreadId = props.thread.threadId;
   const selected = useSelectedThreadId() === id;
   const unlisted = useUnlistedApprovals(id);
+  const approvals = useThreadApprovals(id);
   const title = props.thread.title ?? t("desktop.threads.untitled");
   return (
     <>
@@ -75,7 +78,7 @@ const ThreadRow = memo(function ThreadRow(props: { readonly thread: ThreadSummar
               statusLabels: { running: t("desktop.threads.status.running") },
             }
           : {})}
-        meta={metaOf(props.thread)}
+        meta={metaOf(props.thread, approvals)}
         title={unlisted > 0 ? `${title}\n${t("desktop.threads.unlistedApprovals")}` : title}
         className={props.thread.title === null ? UNTITLED_LABEL : undefined}
         onSelect={() => {

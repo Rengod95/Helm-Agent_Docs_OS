@@ -13,6 +13,7 @@ import {
   Switch,
   Textarea,
 } from "@caustic/react";
+import { ServiceOffNotice } from "./schedule-service-notice.tsx";
 import { LocalizedTagInput } from "../../localized-tag-input.tsx";
 import { useId, type ReactNode } from "react";
 import {
@@ -35,6 +36,10 @@ export interface ScheduleSheetProps {
   readonly onChange: (draft: ScheduleDraft) => void;
   readonly onSubmit: () => void;
   readonly onClose: () => void;
+  /** 서비스 모드가 꺼져 있다. 앱을 끄면 예약이 돌지 않는다는 안내와 "서비스 켜기"를 시트 아래에 보인다(SC-07) */
+  readonly serviceModeOff: boolean;
+  readonly canEnableService: boolean;
+  readonly onEnableService: () => void;
 }
 
 function textOf(ref: MessageRef | undefined): ReactNode {
@@ -85,7 +90,12 @@ export function ScheduleSheet(props: ScheduleSheetProps): ReactNode {
       }
     >
       {sheet === null ? null : (
-        <SheetForm id={formId} sheet={sheet} onChange={onChange} onSubmit={onSubmit} />
+        <div className="grid gap-3.5">
+          <SheetForm id={formId} sheet={sheet} onChange={onChange} onSubmit={onSubmit} />
+          {props.serviceModeOff ? (
+            <ServiceOffNotice canEnable={props.canEnableService} onEnable={props.onEnableService} />
+          ) : null}
+        </div>
       )}
     </Sheet>
   );
