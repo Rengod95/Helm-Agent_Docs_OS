@@ -636,7 +636,7 @@ function ComposerFor(props: {
               id={`composer-slash-${row.name}`}
               role="option"
               aria-selected={index === Math.min(menuIndex, menuRows.length - 1)}
-              className="flex cursor-default items-baseline gap-2 rounded-xl px-2.5 py-1.5 text-ui-sm text-text-secondary aria-selected:bg-neutral-graphic aria-selected:text-text-primary"
+              className="flex cursor-default items-baseline gap-2 rounded-xl px-2.5 py-1.5 text-ui-sm text-text-secondary aria-selected:bg-neutral-hover aria-selected:text-text-primary"
               onMouseDown={(event) => {
                 event.preventDefault();
                 fillSlash(index);
