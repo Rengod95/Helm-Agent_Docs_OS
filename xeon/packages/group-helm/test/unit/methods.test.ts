@@ -372,3 +372,25 @@ test("result check: every method result passes the declared result schema in eac
     "ok",
   ]);
 });
+
+test("closed-thread: calls bound to a thread that is no longer open answer like a call without a thread", async () => {
+  const rig = await createRig();
+  await rig.command("start 캐시 무효화");
+  await rig.drain();
+  await rig.t.host.closeThread(rig.thread);
+  const idle = {
+    enabled: true,
+    phase: "idle",
+    inquiryId: null,
+    topic: null,
+    lenses: [],
+    findings: 0,
+    lease: "none",
+  };
+  expect(await call(rig, "status", {})).toEqual({ kind: "ok", value: idle });
+  expect(await call(rig, "inquiries", {})).toEqual({ kind: "ok", value: { inquiries: [] } });
+  expect(await call(rig, "findings", { inquiryId: "hqqqqqqqqqqqqq" })).toMatchObject({
+    kind: "ok",
+  });
+  expect(await call(rig, "status", {}, rig.t.newThread())).toEqual({ kind: "ok", value: idle });
+});

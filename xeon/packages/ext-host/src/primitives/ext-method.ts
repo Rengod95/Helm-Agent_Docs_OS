@@ -352,7 +352,12 @@ export function createExtMethods(deps: ExtMethodsDeps): ExtMethods {
         scopeId: record.scopeId,
       }));
     },
-    async call(input) {
+    async call(rawInput) {
+      // 열려 있지 않은 thread(끝난 하위 대화 등)에 묶인 호출은 thread 없는 호출로 다룬다. 처리기가 상태에 닿다가 no_thread로 던지지 않게 한다
+      const input =
+        rawInput.threadId !== null && !core.threads.has(rawInput.threadId)
+          ? { ...rawInput, threadId: null }
+          : rawInput;
       const found = registered().find(
         ({ record }) => record.extension === input.extension && record.name === input.verb,
       );
