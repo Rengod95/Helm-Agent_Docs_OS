@@ -52,6 +52,11 @@ describe("picked path text", () => {
   });
 });
 
+function ownLength(value: unknown): number | undefined {
+  const content: unknown = Object.getOwnPropertyDescriptor(value, "content")?.value;
+  return typeof content === "string" ? content.length : undefined;
+}
+
 describe("pick commands", () => {
   test("pick_folder and pick_file answer the absolute path or null on cancel", async () => {
     const fake = fakeCtx();
@@ -197,7 +202,13 @@ describe("pick_file_read command", () => {
     fake.dialogs.file = target;
     expect(await fake.call("pick_file_read", { path: "/etc/passwd" })).toEqual({
       ok: true,
-      value: { name: "notes.md", content: "# 메모\n" },
+      value: {
+        name: "notes.md",
+        path: target,
+        size: Buffer.byteLength("# 메모\n"),
+        encoding: "utf8",
+        content: "# 메모\n",
+      },
     });
   });
 
@@ -208,22 +219,37 @@ describe("pick_file_read command", () => {
     expect(await fake.call("pick_file_read")).toEqual({ ok: true, value: null });
   });
 
-  test("a file over the limit is refused unread", async () => {
+  test("a file over 64 MiB is refused unread, a 300 KiB file is read", async () => {
     const fake = fakeCtx();
     dialogsModule.register(fake.ctx);
-    const target = path.join(fake.dir, "big.txt");
-    writeFileSync(target, "x".repeat(PICK_READ_MAX_BYTES + 1));
-    fake.dialogs.file = target;
+    expect(PICK_READ_MAX_BYTES).toBe(67_108_864);
+    const mid = path.join(fake.dir, "mid.txt");
+    writeFileSync(mid, "x".repeat(300_000));
+    fake.dialogs.file = mid;
+    const read = await fake.call("pick_file_read");
+    expect(read.ok && ownLength(read.value)).toBe(300_000);
+    const big = path.join(fake.dir, "big.txt");
+    writeFileSync(big, Buffer.alloc(PICK_READ_MAX_BYTES + 1));
+    fake.dialogs.file = big;
     expect(await fake.call("pick_file_read")).toEqual({ ok: false, error: "too-large" });
   });
 
-  test("a file that is not UTF-8 text is refused", async () => {
+  test("a file that is not UTF-8 text comes back as base64 bytes", async () => {
     const fake = fakeCtx();
     dialogsModule.register(fake.ctx);
     const target = path.join(fake.dir, "bin.dat");
     writeFileSync(target, new Uint8Array([0xff, 0xfe, 0x00, 0xc3]));
     fake.dialogs.file = target;
-    expect(await fake.call("pick_file_read")).toEqual({ ok: false, error: "not-text" });
+    expect(await fake.call("pick_file_read")).toEqual({
+      ok: true,
+      value: {
+        name: "bin.dat",
+        path: target,
+        size: 4,
+        encoding: "base64",
+        content: "//4Aww==",
+      },
+    });
   });
 
   test("a picked path that vanished answers read_failed", async () => {
