@@ -103,6 +103,6 @@ type WorkbenchContext =
 
 ## 알려진 틈
 
-- 대화 목록 행의 "테스트" 묶음, 대화 행 메뉴, 시작 영역 폭 끌기와 `sidebarWidth`·`endWidth` 저장은 아직 연결하지 않았습니다(키는 `LOCAL`에 있음).
+- 대화 목록 행의 "테스트" 묶음, 시작 영역 폭 끌기와 `sidebarWidth`·`endWidth` 저장은 아직 연결하지 않았습니다(키는 `LOCAL`에 있음).
 - 셸의 탭 포커스 이동, axe 점검은 T-A11Y가 합니다.
 - 시안(`mockups/_shell`)의 `line-grid`·`type-variants`·`radius` CSS는 가져오지 않았습니다(T-LANG 되돌림, 크래프트의 선 격자는 T-BENCH).

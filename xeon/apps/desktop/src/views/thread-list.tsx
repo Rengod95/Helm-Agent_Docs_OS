@@ -10,6 +10,7 @@ import {
   ListNavigationGroup,
   ListNavigationItem,
   Popover,
+  Skeleton,
 } from "@caustic/react";
 import { memo, useState, type ReactNode } from "react";
 import {
@@ -197,7 +198,15 @@ export function ThreadList(props: {
         ))}
       </ListNavigation>
       {status === "loading" && threads.length === 0 ? (
-        <div className="px-2 text-ui-sm text-text-tertiary">{t("desktop.threads.loading")}</div>
+        <div
+          role="status"
+          aria-label={t("desktop.threads.loading")}
+          className="grid gap-1.5 px-2 pt-1"
+        >
+          {[70, 55, 82, 48, 64].map((w) => (
+            <Skeleton key={w} className="h-4" style={{ width: `${w}%` }} />
+          ))}
+        </div>
       ) : null}
       {status === "error" ? (
         <EmptyState
@@ -207,7 +216,6 @@ export function ThreadList(props: {
           actions={
             <Button
               size="xs"
-
               variant="outline"
               onClick={() => {
                 commands.reloadThreads();
@@ -226,7 +234,6 @@ export function ThreadList(props: {
           actions={
             <Button
               size="xs"
-
               variant="outline"
               disabled={creating}
               onClick={() => {

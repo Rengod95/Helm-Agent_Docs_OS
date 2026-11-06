@@ -62,12 +62,16 @@ export function ContextPicker(props: {
         }}
         className="min-w-0 flex-1"
       >
-        <SelectOption value="all">{t("desktop.shell.context.all")}</SelectOption>
+        <SelectOption value="all">
+          {t("desktop.shell.context.label")} · {t("desktop.shell.context.all")}
+        </SelectOption>
         <SelectGroup>
           <SelectHeading>{t("desktop.shell.context.thread")}</SelectHeading>
           {named.map((th) => (
             <SelectOption key={th.id} value={`thread:${th.id}`}>
-              {th.title}
+              {context.kind === "thread" && context.threadId === th.id
+                ? `${t("desktop.shell.context.thread")} · ${th.title}`
+                : th.title}
             </SelectOption>
           ))}
         </SelectGroup>
@@ -75,7 +79,9 @@ export function ContextPicker(props: {
           <SelectHeading>{t("desktop.shell.context.profile")}</SelectHeading>
           {props.profiles.map((p) => (
             <SelectOption key={p.id} value={`profile:${p.id}`}>
-              {p.title}
+              {context.kind === "profile" && context.profileId === p.id
+                ? `${t("desktop.shell.context.profile")} · ${p.title}`
+                : p.title}
             </SelectOption>
           ))}
         </SelectGroup>
@@ -83,7 +89,9 @@ export function ContextPicker(props: {
           <SelectHeading>{t("desktop.shell.context.trial")}</SelectHeading>
           {named.map((th) => (
             <SelectOption key={th.id} value={`trial:${th.id}`}>
-              {th.title}
+              {context.kind === "trial" && context.threadId === th.id
+                ? `${t("desktop.shell.context.trial")} · ${th.title}`
+                : th.title}
             </SelectOption>
           ))}
         </SelectGroup>
@@ -102,6 +110,8 @@ export function ContextPicker(props: {
                 ? t("desktop.shell.context.unpinLabel")
                 : t("desktop.shell.context.pinLabel")
             }
+            // 고정이면 옅은 바탕 하나로 말한다(토글 모양은 caustic이 잉크 면으로 칠해 너무 세다)
+            className={context.pinned ? "bg-fill-hover text-text-primary" : undefined}
             onClick={() => {
               if (context.pinned) actions.unpinThread();
               else actions.pinThread(context.threadId);

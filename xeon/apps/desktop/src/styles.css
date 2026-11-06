@@ -60,12 +60,6 @@
 }
 
 @layer components {
-  .thread-menu {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    opacity: 0;
-  }
   /* 대화 목록 행 ⋯(thread-list.tsx): 행에 올리거나 초점이 있거나 고른 행이거나 메뉴가 열렸을 때만 보인다 */
   [data-row-menu] button {
     opacity: 0;
@@ -75,27 +69,6 @@
   [data-row-menu]:focus-within button,
   [data-row-menu][data-current] button,
   [data-row-menu]:has([aria-expanded="true"]) button {
-    opacity: 1;
-  }
-  /* 대화 머리 ⋯(chat-header.tsx)는 행처럼 떠 있지 않고 늘 보인다 */
-  .chat-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    border-bottom: 1px solid var(--border);
-  }
-  .chat-header :where(h1) {
-    flex: 1;
-    min-width: 0;
-    margin: 0;
-    font-size: 14px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .chat-header .thread-menu {
-    position: static;
     opacity: 1;
   }
   .warn {
@@ -158,72 +131,6 @@
     text-align: center;
     padding: 16px;
   }
-  .composer {
-    border-top: 1px solid var(--border);
-    padding: 8px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .composer-dragging {
-    outline: 2px dashed var(--accent);
-    outline-offset: -2px;
-  }
-  .composer-drop-hint {
-    color: var(--dim);
-    text-align: center;
-  }
-  .composer-attachments {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-  .composer-actions-spacer {
-    flex: 1;
-  }
-  .composer-actions {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 8px;
-  }
-  .approvals {
-    border-top: 1px solid var(--border);
-    background: var(--panel);
-    padding: 8px 16px;
-    max-height: 40%;
-    overflow-y: auto;
-  }
-  .approvals h2 {
-    font-size: 13px;
-    margin: 0 0 6px;
-  }
-  .approvals ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .approval {
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px;
-    background: var(--bg);
-  }
-  .approval-title {
-    font-weight: 600;
-  }
-  .approval-actions {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    margin-top: 6px;
-  }
   .statusbar {
     display: flex;
     gap: 14px;
@@ -239,16 +146,6 @@
   .statusbar :where(button:not([data-slot])) {
     padding: 1px 8px;
     font-size: 12px;
-  }
-  .approvals .trust-resources {
-    margin: 2px 0 0;
-    padding-left: 18px;
-    display: block;
-    list-style: disc;
-  }
-  .observing {
-    padding: 4px 12px;
-    border-top: 1px solid var(--border);
   }
   .field {
     display: flex;

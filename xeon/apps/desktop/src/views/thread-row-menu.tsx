@@ -63,75 +63,73 @@ export function ThreadRowMenu(props: {
 
   return (
     <>
-      <span className={props.bare === true ? "contents" : "thread-menu"}>
-        <Menu
-          size="sm"
-          align="end"
-          aria-label={t("desktop.threads.menu.label", { title: props.title })}
-          trigger={
-            <IconButton
-              size={props.bare === true ? "xs" : "sm"}
-              variant="ghost"
-              label={t("desktop.threads.menu.label", { title: props.title })}
-              className={
-                props.bare === true
-                  ? "pointer-events-auto bg-control-raised shadow-[inset_0_0_0_1px_var(--cs-color-control-edge)]"
-                  : undefined
-              }
-            >
-              <Ellipsis aria-hidden />
-            </IconButton>
-          }
+      <Menu
+        size="sm"
+        align="end"
+        aria-label={t("desktop.threads.menu.label", { title: props.title })}
+        trigger={
+          <IconButton
+            size={props.bare === true ? "xs" : "sm"}
+            variant="ghost"
+            label={t("desktop.threads.menu.label", { title: props.title })}
+            className={
+              props.bare === true
+                ? "pointer-events-auto bg-control-raised shadow-[inset_0_0_0_1px_var(--cs-color-control-edge)]"
+                : undefined
+            }
+          >
+            <Ellipsis aria-hidden />
+          </IconButton>
+        }
+      >
+        <MenuItem
+          onSelect={() => {
+            setRenaming(true);
+          }}
         >
-          <MenuItem
-            onSelect={() => {
-              setRenaming(true);
-            }}
-          >
-            {t("desktop.threads.menu.rename")}
-          </MenuItem>
-          <MenuItem
-            disabled={running}
-            onSelect={() => {
-              run(commands.forkThread(props.id));
-            }}
-          >
-            {t("desktop.threads.menu.fork")}
-          </MenuItem>
-          <MenuItem
-            disabled={running || closed}
-            onSelect={() => {
-              run(commands.compactThread(props.id));
-            }}
-          >
-            {t("desktop.threads.menu.compact")}
-          </MenuItem>
-          <MenuItem
-            onSelect={() => {
-              setExporting(true);
-            }}
-          >
-            {t("desktop.threads.menu.export")}
-          </MenuItem>
-          <MenuSeparator />
-          <MenuItem
-            disabled={running || closed}
-            onSelect={() => {
-              run(commands.closeThread(props.id));
-            }}
-          >
-            {t("desktop.threads.menu.close")}
-          </MenuItem>
-          <MenuItem
-            tone="danger"
-            onSelect={() => {
-              setDeleting(true);
-            }}
-          >
-            {t("desktop.threads.menu.delete")}
-          </MenuItem>
-        </Menu>
-      </span>
+          {t("desktop.threads.menu.rename")}
+        </MenuItem>
+        <MenuItem
+          disabled={running}
+          onSelect={() => {
+            run(commands.forkThread(props.id));
+          }}
+        >
+          {t("desktop.threads.menu.fork")}
+        </MenuItem>
+        <MenuItem
+          disabled={running || closed}
+          onSelect={() => {
+            run(commands.compactThread(props.id));
+          }}
+        >
+          {t("desktop.threads.menu.compact")}
+        </MenuItem>
+        <MenuItem
+          onSelect={() => {
+            setExporting(true);
+          }}
+        >
+          {t("desktop.threads.menu.export")}
+        </MenuItem>
+        <MenuSeparator />
+        <MenuItem
+          disabled={running || closed}
+          onSelect={() => {
+            run(commands.closeThread(props.id));
+          }}
+        >
+          {t("desktop.threads.menu.close")}
+        </MenuItem>
+        <MenuItem
+          tone="danger"
+          onSelect={() => {
+            setDeleting(true);
+          }}
+        >
+          {t("desktop.threads.menu.delete")}
+        </MenuItem>
+      </Menu>
       {renaming ? (
         <RenameDialog
           id={props.id}
