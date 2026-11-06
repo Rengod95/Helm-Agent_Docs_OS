@@ -122,7 +122,7 @@ export const WIDGET_SPECS: Readonly<Record<WidgetName, WidgetSpec>> = {
   Switch: { props: { label: STRING, name: STRING }, binds: ["checked"], children: "none" },
   Select: { props: { label: STRING, name: STRING }, binds: ["value", "options"], children: "none" },
   TextField: {
-    props: { label: STRING, name: STRING, placeholder: STRING },
+    props: { label: STRING, name: STRING, placeholder: STRING, maxLength: NUMBER },
     binds: ["value"],
     children: "none",
   },
