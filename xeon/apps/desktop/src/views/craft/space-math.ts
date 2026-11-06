@@ -335,7 +335,7 @@ vec3 toLin(vec3 c){
   c = max(c, 0.0);
   return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
 }
-vec3 toSrgb(vec3 l){
+vec3 linearToDisplay(vec3 l){
   l = clamp(l, 0.0, 1.0);
   return mix(l * 12.92, 1.055 * pow(l, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, l));
 }
@@ -346,7 +346,7 @@ vec3 capPeak(vec3 c, float cap){
   float knee = 0.6 * cap;
   float yo = y;
   if (y > knee) yo = knee + (cap - knee) * (1.0 - exp(-(y - knee) / (cap - knee)));
-  return toSrgb(lin * (yo / max(y, 1e-6)));
+  return linearToDisplay(lin * (yo / max(y, 1e-6)));
 }
 
 void main(){
