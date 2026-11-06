@@ -235,15 +235,27 @@ export function startLink(deps: LinkDeps): EngineLink {
     deps.store.ingest({ type: "status", threadId, items: listed.value.items });
   };
 
+  /**
+   * 가장 나중에 시작한 읽기만 결과를 거울에 넣는다. 같은 thread를 두 번 열면(재설정 뒤 다시 읽기와 화면이 여는 읽기) 앞 읽기가
+   * 뒤 읽기의 `loading`을 오류로 바꾸거나 낡은 스냅샷으로 되돌리지 못하게 한다.
+   */
+  let transcriptRun = 0;
   const loadTranscript = async (threadId: ThreadId): Promise<void> => {
+    transcriptRun += 1;
+    const mine = transcriptRun;
     deps.store.ingest({ type: "transcript_opening", threadId });
     let round = 0;
+    const failures: SnapshotError["kind"][] = [];
     await repeatAsync<undefined>(async () => {
       round += 1;
       const loaded = await deps.transcripts.load(threadId);
+      if (mine !== transcriptRun) return { value: undefined };
       if (!loaded.ok) {
-        deps.logger.warn("desktop.link.snapshot_failed", { reason: loaded.error.kind });
-        deps.store.ingest({ type: "transcript_failed", threadId });
+        failures.push(loaded.error.kind);
+        deps.logger.warn("desktop.link.snapshot_failed", { reason: loaded.error.kind, round });
+        // 엔진이 막 떴거나 저장소가 바뀐 중(unavailable)이나 시간 초과는 일시적일 수 있어 한도 안에서 다시 읽는다. 요청 자체의 실패(failed)는 이유를 보인다
+        if (loaded.error.kind !== "failed" && round < MAX_SYNC_ATTEMPTS) return undefined;
+        deps.store.ingest({ type: "transcript_failed", threadId, reason: loaded.error.kind });
         return { value: undefined };
       }
       const snapshot = loaded.value;
@@ -254,19 +266,29 @@ export function startLink(deps: LinkDeps): EngineLink {
       if (
         t === null ||
         t.threadId !== threadId ||
-        t.status === "ready" ||
+        t.status !== "loading" ||
         round >= MAX_SYNC_ATTEMPTS
       ) {
         return { value: undefined };
       }
-      deps.logger.warn("desktop.link.snapshot_stale", { round });
+      deps.logger.warn("desktop.link.snapshot_stale", {
+        round,
+        asOfSeq: snapshot.asOfSeq,
+        sinceSeq: t.sinceSeq,
+        cursorSeq: deps.store.read.getState().cursor?.seq ?? -1,
+      });
       return undefined;
     });
+    if (mine !== transcriptRun) return;
     // 오래된 스냅샷만 세 번 받았으면 loading이 남는다. 오류로 바꿔 사용자가 다시 읽게 한다
     deps.store.flush();
     const left = deps.store.read.getState().transcript;
     if (left !== null && left.status === "loading" && left.threadId === threadId) {
-      deps.store.ingest({ type: "transcript_failed", threadId });
+      deps.store.ingest({
+        type: "transcript_failed",
+        threadId,
+        reason: failures.at(-1) ?? "stale",
+      });
     }
   };
 

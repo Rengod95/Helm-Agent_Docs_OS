@@ -1,11 +1,12 @@
 import { Button } from "@caustic/react";
-import { t } from "@fresnel/client/i18n";
+import { t, type MessageId } from "@fresnel/client/i18n";
 import type { ItemId } from "@fresnel/contracts/conversation";
 import { useMemo, type ReactNode } from "react";
 import {
   useOpenThreadId,
   useStreamingIds,
   useTranscriptItemIds,
+  useTranscriptFailure,
   useTranscriptStatus,
   useTurnFailure,
   useUnsentUserItemId,
@@ -24,8 +25,19 @@ function Notice(props: { readonly children: ReactNode }): ReactNode {
   return <div className="notice">{props.children}</div>;
 }
 
+/** 대화를 읽지 못한 이유별 한 줄 */
+const TRANSCRIPT_FAILURE_ID: Readonly<
+  Record<"unavailable" | "failed" | "timeout" | "stale", MessageId>
+> = {
+  unavailable: "desktop.transcript.loadFailed.unavailable",
+  failed: "desktop.transcript.loadFailed.failed",
+  timeout: "desktop.transcript.loadFailed.timeout",
+  stale: "desktop.transcript.loadFailed.stale",
+};
+
 export function Transcript(): ReactNode {
   const status = useTranscriptStatus();
+  const failureReason = useTranscriptFailure();
   const threadId = useOpenThreadId();
   const ids = useTranscriptItemIds();
   const live = useStreamingIds();
@@ -46,6 +58,7 @@ export function Transcript(): ReactNode {
     return (
       <Notice>
         {t("desktop.transcript.loadFailed")}{" "}
+        {failureReason === null ? null : `${t(TRANSCRIPT_FAILURE_ID[failureReason])} `}
         <Button
           size="xs"
           variant="outline"

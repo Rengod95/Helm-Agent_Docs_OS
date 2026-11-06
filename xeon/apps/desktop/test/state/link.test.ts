@@ -587,9 +587,64 @@ describe("loading, failure and restoration after a reset", () => {
     await pump(h);
     link.openThread(thr(1));
     await pump(h);
-    expect(h.store.read.getState().transcript).toEqual({ status: "error", threadId: thr(1) });
+    expect(h.store.read.getState().transcript).toEqual({
+      status: "error",
+      threadId: thr(1),
+      reason: "failed",
+    });
     link.openThread(thr(1));
     await pump(h);
+    expect(h.store.read.getState().transcript?.status).toBe("ready");
+  });
+
+  test("two overlapping reads of the same thread: the earlier one cannot turn the later one's loading into an error", async () => {
+    const h = harness();
+    const resolvers: ((r: Result<TranscriptSnapshot, SnapshotError>) => void)[] = [];
+    const transcripts: TranscriptPort = {
+      load: () =>
+        new Promise((resolve) => {
+          resolvers.push(resolve);
+        }),
+    };
+    const fake = fakeConnection({
+      ...subscribeLive(),
+      "thread.list": () => Promise.resolve(listEmpty),
+    });
+    const link = start(h, fake, transcripts);
+    await pump(h);
+    link.openThread(thr(1));
+    await pump(h);
+    link.openThread(thr(1));
+    await pump(h);
+    expect(resolvers.length).toBe(2);
+    // 앞 읽기가 먼저 끝난다: 거울은 ready가 되고, 뒤 읽기가 다시 loading으로 만든 뒤에도 앞 읽기는 오류를 내지 않는다
+    resolvers[0]?.(snap(9, [userItem(1)]));
+    await pump(h);
+    resolvers[1]?.(snap(9, [userItem(1)]));
+    await pump(h);
+    expect(h.store.read.getState().transcript?.status).toBe("ready");
+  });
+
+  test("an unavailable read (engine not ready) is retried and recovers; a failed request says why", async () => {
+    const h = harness();
+    let calls = 0;
+    const transcripts: TranscriptPort = {
+      load: () => {
+        calls += 1;
+        return Promise.resolve(
+          calls < 3 ? { ok: false, error: { kind: "unavailable" } } : snap(9, [userItem(1)]),
+        );
+      },
+    };
+    const fake = fakeConnection({
+      ...subscribeLive(),
+      "thread.list": () => Promise.resolve(listEmpty),
+    });
+    const link = start(h, fake, transcripts);
+    await pump(h);
+    link.openThread(thr(1));
+    await pump(h);
+    expect(calls).toBe(3);
     expect(h.store.read.getState().transcript?.status).toBe("ready");
   });
 

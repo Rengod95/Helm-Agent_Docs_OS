@@ -249,7 +249,10 @@ export function reduceMirror(state: EngineMirror, input: MirrorInput): Reduced<E
       const t = state.transcript;
       if (t === null || t.status !== "loading" || t.threadId !== input.threadId)
         return keep(state, "foreign");
-      return keep({ ...state, transcript: { status: "error", threadId: t.threadId } }, "applied");
+      return keep(
+        { ...state, transcript: { status: "error", threadId: t.threadId, reason: input.reason } },
+        "applied",
+      );
     }
     case "transcript_closed":
       return keep({ ...state, transcript: null }, "applied");

@@ -401,17 +401,21 @@ describe("loading and failure states, approval restoration", () => {
 
   test("transcript_failed only applies to the loading transcript of that thread", () => {
     const loading = reduceAll(live(), { type: "transcript_opening", threadId: thr(1) });
-    expect(reduceMirror(loading, { type: "transcript_failed", threadId: thr(2) }).note).toBe(
-      "foreign",
-    );
-    expect(reduceAll(loading, { type: "transcript_failed", threadId: thr(1) }).transcript).toEqual({
+    expect(
+      reduceMirror(loading, { type: "transcript_failed", threadId: thr(2), reason: "failed" }).note,
+    ).toBe("foreign");
+    expect(
+      reduceAll(loading, { type: "transcript_failed", threadId: thr(1), reason: "failed" })
+        .transcript,
+    ).toEqual({
       status: "error",
       threadId: thr(1),
+      reason: "failed",
     });
     // 다시 열면 loading으로 돌아간다
     const again = reduceAll(
       loading,
-      { type: "transcript_failed", threadId: thr(1) },
+      { type: "transcript_failed", threadId: thr(1), reason: "failed" },
       { type: "transcript_opening", threadId: thr(1) },
     );
     expect(again.transcript?.status).toBe("loading");

@@ -180,4 +180,11 @@ export type MirrorInput =
    */
   | { readonly type: "approval_dismissed"; readonly approvalId: EventId }
   | { readonly type: "threads_failed" }
-  | { readonly type: "transcript_failed"; readonly threadId: ThreadId };
+  | {
+      readonly type: "transcript_failed";
+      readonly threadId: ThreadId;
+      /** 읽지 못한 이유. `stale`은 낡은 스냅샷만 받은 경우다 */
+      readonly reason: TranscriptFailureReason;
+    };
+
+type TranscriptFailureReason = "unavailable" | "failed" | "timeout" | "stale";
