@@ -31,6 +31,9 @@ import { folderLabel, groupByWorkspace } from "./thread-groups.ts";
 import { ThreadRowMenu } from "./thread-row-menu.tsx";
 import { checkWorkspaceInput, createFailureText, workspaceHint } from "./workspace-model.ts";
 
+/** 대화 상자가 닫히며 초점을 되돌리는 시간(ms)보다 넉넉히 */
+const DIALOG_CLOSE_MS = 300;
+
 const UNTITLED_LABEL =
   "[&_[data-slot=list-navigation-label]]:italic [&_[data-slot=list-navigation-label]]:text-text-tertiary";
 
@@ -247,6 +250,16 @@ export function ThreadList(props: {
   const start = (path: string | null | undefined): void => {
     detach(create(path), rethrow);
   };
+  // 새 대화 대화 상자는 닫히면서 초점을 자기 단추로 되돌린다. 닫힌 뒤에 입력창 초점을 한 번 더 요청한다
+  const startFromDialog = (path: string | null): void => {
+    const run = async (): Promise<void> => {
+      await create(path);
+      window.setTimeout(() => {
+        commands.requestComposer(null);
+      }, DIALOG_CLOSE_MS);
+    };
+    detach(run(), rethrow);
+  };
 
   const groups = groupByWorkspace(threads);
   const recent = recentWorkspacesOf(threads);
@@ -338,7 +351,7 @@ export function ThreadList(props: {
           folderPick={props.folderPick}
           creating={creating}
           recent={recent}
-          onCreate={start}
+          onCreate={startFromDialog}
           onPickFailed={() => {
             setError(t("desktop.workspace.pickFailed"));
           }}
