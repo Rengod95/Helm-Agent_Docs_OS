@@ -62,8 +62,17 @@ export function activeStateOf(
     onActiveBranch: true,
   });
   if (!found.ok) return found;
-  if (found.value === undefined) return ok(undefined);
-  return storedStateOf(found.value);
+  if (found.value !== undefined) return storedStateOf(found.value);
+  // 이 thread에 자기 상태 이벤트가 없으면 갈라져 나온 thread일 수 있다: 가지는 출처 thread의 이벤트까지 이어지므로
+  // 사슬 전체에서 찾는다. `loadSnapshot`이 캐시에 싣는 판과 같은 값이어야 `expectStateRev`가 어긋나지 않는다(X.primitives.spec §4.6.1)
+  const chain = branchEvents(tx, threadId, STATE_FILTER);
+  if (!chain.ok) return chain;
+  for (const event of chain.value.toReversed()) {
+    const stored = storedStateOf(event);
+    if (!stored.ok) return stored;
+    if (stored.value.scopeId === scopeId) return stored;
+  }
+  return ok(undefined);
 }
 
 /** 활성 가지 위 scope의 lease.acquired 수(= 임대 차수). 임대가 없었으면 0 */
