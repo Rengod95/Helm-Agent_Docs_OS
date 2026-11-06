@@ -1,6 +1,6 @@
 /* caustic 부품과 토큰(셸). Tailwind가 이 폴더의 유틸리티 클래스를 만든다.
    옛 화면 규칙은 무층으로 두지 않는다. 무층 규칙은 특이도와 상관없이 caustic의 base·components·utilities 층을 이긴다.
-   그래서 옛 요소 규칙은 base 층에서 :where()로 특이도 0이 되게 하고 caustic 부품([data-slot])은 뺀다. 옛 클래스 규칙은 components 층이다.
+   그래서 옛 요소 규칙은 base 층에 두고 caustic 부품([data-slot])은 뺀다. :where()로 특이도를 0으로 만들면 같은 base 층의 Tailwind preflight(button 등)에 져서 옛 단추가 맨 글자로 보이므로 감싸지 않는다. 옛 클래스 규칙은 components 층이다.
    무층으로 남는 것은 :root 변수 선언뿐이다(apps/desktop/test/styles/styles-css.test.ts가 지킨다). */
 @import "@caustic/react/styles.css";
 @import "@caustic/tokens/fonts.css";
@@ -29,7 +29,7 @@
   #root {
     height: 100%;
   }
-  :where(button:not([data-slot])) {
+  button:not([data-slot]) {
     font: inherit;
     color: inherit;
     background: var(--panel);
@@ -38,23 +38,23 @@
     padding: 4px 10px;
     cursor: pointer;
   }
-  :where(button:not([data-slot]):disabled) {
+  button:not([data-slot]):disabled {
     opacity: 0.5;
     cursor: default;
   }
-  :where(button.primary:not([data-slot])) {
+  button.primary:not([data-slot]) {
     background: var(--accent);
     color: var(--accent-fg);
     border-color: var(--accent);
   }
-  :where(button.link:not([data-slot])) {
+  button.link:not([data-slot]) {
     background: none;
     border: 0;
     padding: 0;
     color: var(--accent);
   }
-  :where(textarea:not([data-slot])),
-  :where(input[type="text"]:not([data-slot])) {
+  textarea:not([data-slot]),
+  input[type="text"]:not([data-slot]) {
     font: inherit;
     color: inherit;
     background: var(--bg);

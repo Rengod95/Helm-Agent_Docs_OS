@@ -78,7 +78,7 @@ test("the checker flags an unlayered element rule and a :root font override", ()
   expect(unlayeredStyleRules(sample)).toEqual(["button", ":root", ".a"]);
 });
 
-test("old element rules sit in the base layer at specificity zero and skip caustic parts", () => {
+test("old element rules sit in the base layer, skip caustic parts, and outrank preflight", () => {
   const base = blocksOf(STYLES).find((block) => block.prelude === "@layer base");
   expect(base).toBeDefined();
   const selectors = blocksOf(base?.body ?? "")
@@ -87,7 +87,9 @@ test("old element rules sit in the base layer at specificity zero and skip caust
   expect(selectors.length).toBeGreaterThan(0);
   for (const selector of selectors) {
     for (const part of selector.split(",").map((piece) => piece.trim())) {
-      expect(part).toMatch(/^:where\(.+\[data-slot\].*\)$/);
+      // :where()는 특이도 0이라 같은 base 층의 preflight에 진다
+      expect(part.startsWith(":where(")).toBe(false);
+      expect(part).toContain(":not([data-slot])");
     }
   }
 });
