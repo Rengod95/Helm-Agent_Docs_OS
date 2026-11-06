@@ -7,8 +7,8 @@ import type { ReactNode } from "react";
 import { useLinkPhase } from "../../state/engine/index.ts";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
 import { AUTHORING_EXT, builderOf, forwardStateOf } from "../compose/compose-code.tsx";
-import { useCommands } from "../commands.ts";
-import { useShowChat } from "../plugin/plugin-view.tsx";
+import { useFolderPick } from "../folder-pick-context.ts";
+import { useStartNewThread } from "../new-thread-flow.ts";
 import { tabLinkOf } from "./tab-read.ts";
 import { lockText } from "./ext-row.tsx";
 import type { WorkbenchController } from "./controller.ts";
@@ -34,9 +34,8 @@ export function builderSentenceOf(state: Forward): string {
 
 export function BuilderEntry(props: { readonly controller: WorkbenchController }): ReactNode {
   const { controller } = props;
-  const commands = useCommands();
   const actions = useWorkbenchActions();
-  const showChat = useShowChat();
+  const startThread = useStartNewThread(useFolderPick() ?? undefined);
   const request = useWorkbench((s) => s.builder);
   const entries = useWorkbench((s) => s.entries);
   const link = tabLinkOf(useLinkPhase());
@@ -46,16 +45,17 @@ export function BuilderEntry(props: { readonly controller: WorkbenchController }
   // 켜기가 다음 단계 경계를 기다리는 중이면 새 대화가 그 경계를 만든다. 켜기에서 멈추지 않고 대화 열기로 간다(rtC R-3)
   const state: Forward = enabling && base.kind === "enable" ? { kind: "make" } : base;
 
+  // 새 대화를 여는 길은 하나다(R5). 보던 대화에 작업 폴더가 있으면 그 폴더에서, 없으면 폴더 고르기 창을 먼저 연다.
+  // 제작 대화가 폴더 없이 열려 상대 경로로 막히지 않게 한다(취소하면 아무것도 만들지 않고 상자는 그대로 둔다)
   const open = (): void => {
     detach(
-      commands.createThread().then((made) => {
-        if (!made.ok) {
+      startThread().then((made) => {
+        if (made.kind === "failed" || made.kind === "pickFailed") {
           toast({ tone: "danger", title: t("desktop.craft.builder.openFailed") });
           return undefined;
         }
+        if (made.kind === "cancelled" || made.kind === "busy") return undefined;
         actions.closeBuilder();
-        // 크래프트에서 열었으면 영역도 대화로 옮겨야 제작 대화가 보인다(rtC R-3)
-        showChat();
         toast({ tone: "success", title: t("desktop.craft.builder.opened") });
         return undefined;
       }),

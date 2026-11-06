@@ -1,12 +1,19 @@
 import { parse } from "@fresnel/contracts";
-import { toJsonValue, type JsonValue } from "@fresnel/contracts/conversation";
+import { toJsonValue, type JsonValue, type ThreadId } from "@fresnel/contracts/conversation";
 import { CompositionDeclSchema, type ToolResourceDef } from "@fresnel/contracts/extensions";
 import type { DevkitError, DevkitService } from "@fresnel/contracts/services";
 import { checkGroupName } from "@fresnel/group-sdk";
 import { Type, type TSchema } from "typebox";
 import { CATALOG_VERSION } from "./catalog.ts";
-import { errorKeyOf, sessionOpen, type AuthoringState, type PendingAction } from "./group-state.ts";
+import {
+  errorKeyOf,
+  INITIAL_AUTHORING_STATE,
+  sessionOpen,
+  type AuthoringState,
+  type PendingAction,
+} from "./group-state.ts";
 import { replayInDevMode } from "./release.ts";
+import { resolveTargetDir } from "./target-dir.ts";
 
 // L3.authoring.spec §3.2 모델 도구 아홉. 도구는 입력 검사, 대화 상태 커밋, 결과 요약만 하고 일은 `fresnel.devkit` 서비스가 한다.
 // 사람 확인이 필요한 단계(시험, 묶기, 설치, 고치기 한도)는 도구가 요청(`pending`)만 커밋하고 drive가 `loop.ask`로 확인한 뒤 실행한다(A-4).
@@ -21,6 +28,7 @@ export const AUTHORING_TOOL_NAMES = [
   "authoring_replay",
   "authoring_package",
   "authoring_install",
+  "authoring_stop",
 ] as const;
 
 /** 도구가 쓰는 상태 문서 면. `RegistrationApi`의 부분형이다 */
@@ -36,6 +44,8 @@ export interface ToolsEnv {
   readonly devMode: () => boolean;
   /** 같은 검사 오류가 남는 고치기 반복 한도(`l3.authoring.fixLoopLimit`, 기본 3) */
   readonly fixLoopLimit: () => number;
+  /** 대화의 작업 폴더(절대 경로). 없으면 undefined. 상대 `dir`을 푸는 기준이다 */
+  readonly workspaceOf: (threadId: ThreadId) => string | undefined;
 }
 
 const sessionShape = { sessionId: Type.String({ minLength: 1, maxLength: 80 }) };
@@ -79,16 +89,16 @@ function tool(
   description: string,
   parameters: TSchema,
   risk: "read" | "write",
-  run: (input: Record<string, unknown>) => Promise<JsonValue>,
+  run: (input: Record<string, unknown>, threadId: ThreadId) => Promise<JsonValue>,
 ): ToolResourceDef {
-  const execute: Execute = async (args) => {
+  const execute: Execute = async (args, ctx) => {
     const parsed = parse(parameters, args);
     if (!parsed.ok) return refusal("invalid_input", `${name}: the input does not match the schema`);
     const input: Record<string, unknown> =
       typeof args === "object" && args !== null && !Array.isArray(args)
         ? Object.fromEntries(Object.entries(args))
         : {};
-    return run(input);
+    return run(input, ctx.threadId);
   };
   return { name, description, parameters, replay: "unsafe", risk, execute };
 }
@@ -171,10 +181,13 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
       { additionalProperties: false },
     ),
     "read",
-    async (input) => {
+    async (input, threadId) => {
       const state = env.g.state();
       if (sessionOpen(state))
-        return refusal("session_open", `finish or stop the open session ${state.sessionId ?? ""}`);
+        return refusal(
+          "session_open",
+          `the session ${state.sessionId ?? ""} is still open: call authoring_stop first, then start again`,
+        );
       const name = str(input, "name");
       const kindId = str(input, "kind");
       const entry = (await devkit.kinds()).find((found) => found.id === kindId);
@@ -184,6 +197,17 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
       const checked = checkGroupName(name);
       if (!checked.ok)
         return refusal("invalid_name", `name ${name} is not allowed (${checked.error.reason})`);
+      const target = resolveTargetDir(str(input, "dir"), env.workspaceOf(threadId));
+      if (!target.ok)
+        return target.kind === "needs_folder"
+          ? refusal(
+              "needs_folder",
+              "this conversation has no working folder and dir is not absolute: ask the user which folder to create the extension in (the app lets them pick one, or they can type an absolute path), then call authoring_start with that absolute dir",
+            )
+          : refusal(
+              "outside_workspace",
+              "a relative dir must stay inside the working folder: use a path inside it or an absolute dir",
+            );
       const kind = entry.id;
       const sessionId = `auth-${name}`;
       await env.g.commit({
@@ -192,7 +216,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
         sessionId,
         kind,
         name,
-        dir: str(input, "dir"),
+        dir: target.dir,
         displayName: optStr(input, "displayName") ?? null,
         intentConfirmed: false,
         composition: null,
@@ -412,5 +436,30 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
     },
   );
 
-  return [kinds, start, compose, scaffold, validate, trial, replay, pack, install];
+  const stop = tool(
+    "authoring_stop",
+    "Close the open authoring session (the files already created stay). Use it to start again in another folder or when the user wants to stop.",
+    Type.Object(
+      { sessionId: Type.Optional(Type.String({ minLength: 1, maxLength: 80 })) },
+      { additionalProperties: false },
+    ),
+    "read",
+    async (input) => {
+      const state = env.g.state();
+      if (!sessionOpen(state) && state.sessionId === null)
+        return { ok: true, status: "none", closed: null };
+      const wanted = optStr(input, "sessionId");
+      if (wanted !== undefined && wanted !== state.sessionId)
+        return refusal("unknown_session", `the open session is ${state.sessionId ?? "none"}`);
+      await env.g.commit({ ...INITIAL_AUTHORING_STATE });
+      return {
+        ok: true,
+        status: "closed",
+        closed: state.sessionId,
+        files: [...state.files],
+      };
+    },
+  );
+
+  return [kinds, start, compose, scaffold, validate, trial, replay, pack, install, stop];
 }

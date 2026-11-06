@@ -1,4 +1,5 @@
 import { err, ok } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ExtensionUnit } from "@fresnel/ext-host";
 import type { DevkitService } from "@fresnel/contracts/services";
 import { createAuthoringGroup, type AuthoringDeps } from "@fresnel/plugin-builder";
@@ -21,6 +22,8 @@ export interface AuthoringWiring {
   readonly devkit: () => DevkitPort | undefined;
   /** 개발 모드 판정(`l3.authoring.devMode`의 현재 값). 조립 루트가 설정 값을 읽어 준다. 그룹은 도구를 부를 때마다 부른다 */
   readonly devMode: () => boolean;
+  /** 대화의 작업 폴더. 상대 `dir`을 푸는 기준이다 */
+  readonly workspaceOf: (threadId: ThreadId) => string | undefined;
 }
 
 const NOT_READY = { kind: "io", message: "the devkit is not ready yet" } as const;
@@ -86,7 +89,11 @@ export function devkitServiceOf(wiring: AuthoringWiring): DevkitService {
 
 /** 그룹이 받는 의존. `devMode`는 함수 그대로 넘겨 설정을 바꾸면 다음 도구 호출부터 따라간다 */
 export function authoringDepsOf(wiring: AuthoringWiring): AuthoringDeps {
-  return { devkit: devkitServiceOf(wiring), devMode: wiring.devMode };
+  return {
+    devkit: devkitServiceOf(wiring),
+    devMode: wiring.devMode,
+    workspaceOf: wiring.workspaceOf,
+  };
 }
 
 export function authoringUnit(wiring: AuthoringWiring, loadIndex: number): ExtensionUnit {

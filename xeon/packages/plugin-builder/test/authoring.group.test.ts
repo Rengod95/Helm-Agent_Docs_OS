@@ -18,7 +18,7 @@ async function confirmedSession(rig: GroupRig): Promise<void> {
   await rig.answer("yes");
 }
 
-test("authoring.manifest: builtin plugin group, default off, nine tools registered", async () => {
+test("authoring.manifest: builtin plugin group, default off, ten tools registered", async () => {
   expect(authoringManifest.name).toBe("authoring");
   expect(authoringManifest.defaultEnabled).toBe(false);
   expect(authoringManifest.trust).toEqual({ level: "builtin" });
@@ -188,7 +188,8 @@ test("authoring.restore: thread.start tells the model about an open session and 
   expect(rig.t.queue.items).toEqual([]);
   await confirmedSession(rig);
   await resume("r1");
-  expect(rig.t.queue.items.map((item) => [item.requestId, item.item])).toEqual([
+  const restored = rig.t.queue.items.filter((item) => item.requestId === "authoring:restore:demo");
+  expect(restored.map((item) => [item.requestId, item.item])).toEqual([
     [
       "authoring:restore:demo",
       {
@@ -199,4 +200,118 @@ test("authoring.restore: thread.start tells the model about an open session and 
       },
     ],
   ]);
+});
+
+test("authoring.target-dir: a relative dir resolves inside the working folder, an absolute dir stays, no folder refuses a relative dir", async () => {
+  const rig = await createGroupRig({ workspaceOf: () => "/work/space" });
+  const outside = await rig.call("authoring_start", {
+    kind: "plugin-group",
+    name: "demo",
+    dir: "../other",
+  });
+  expect(outside).toMatchObject({ ok: false, error: { kind: "outside_workspace" } });
+  expect(rig.state().phase).toBe("idle");
+  const relative = await rig.call("authoring_start", {
+    kind: "plugin-group",
+    name: "demo",
+    dir: "./demo",
+  });
+  expect(relative).toMatchObject({ ok: true, sessionId: "auth-demo" });
+  expect(rig.state().dir).toBe("/work/space/demo");
+});
+
+test("authoring.target-dir: without a working folder a relative dir opens no session and an absolute dir does", async () => {
+  const rig = await createGroupRig();
+  const refused = await rig.call("authoring_start", {
+    kind: "plugin-group",
+    name: "demo",
+    dir: "./demo",
+  });
+  expect(refused).toMatchObject({ ok: false, error: { kind: "needs_folder" } });
+  expect(rig.state()).toMatchObject({ phase: "idle", dir: null, sessionId: null });
+  const absolute = await rig.call("authoring_start", {
+    kind: "plugin-group",
+    name: "demo",
+    dir: "/abs/demo/../demo",
+  });
+  expect(absolute).toMatchObject({ ok: true });
+  expect(rig.state().dir).toBe("/abs/demo");
+});
+
+test("authoring.stop: an open session closes to idle, keeps the files, and a new session opens in another folder", async () => {
+  const rig = await createGroupRig();
+  await confirmedSession(rig);
+  await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
+  expect(rig.state().files).toHaveLength(2);
+  const blocked = await rig.call("authoring_start", {
+    kind: "plugin-group",
+    name: "demo",
+    dir: "/work/other",
+  });
+  expect(blocked).toMatchObject({ ok: false, error: { kind: "session_open" } });
+  const wrong = await rig.call("authoring_stop", { sessionId: "auth-nope" });
+  expect(wrong).toMatchObject({ ok: false, error: { kind: "unknown_session" } });
+  const stopped = await rig.call("authoring_stop", { sessionId: "auth-demo" });
+  expect(stopped).toMatchObject({ ok: true, status: "closed", closed: "auth-demo" });
+  expect(rig.state()).toMatchObject({ phase: "idle", sessionId: null, dir: null, files: [] });
+  // 가드는 풀리고, 같은 이름으로 다른 폴더에 다시 열 수 있다
+  expect(await rig.guard("write", "write", { path: "/elsewhere/a.ts" })).toBeUndefined();
+  const again = await rig.call("authoring_start", {
+    kind: "plugin-group",
+    name: "demo",
+    dir: "/work/other",
+  });
+  expect(again).toMatchObject({ ok: true, sessionId: "auth-demo" });
+  expect(rig.state().dir).toBe("/work/other");
+  const none = await rig.call("authoring_stop", {});
+  expect(none).toMatchObject({ ok: true, status: "closed" });
+  expect(await rig.call("authoring_stop", {})).toEqual({ ok: true, status: "none", closed: null });
+});
+
+test("authoring.resume: an answer to the confirmation queues a followUp so the same flow continues without the user typing", async () => {
+  const rig = await createGroupRig();
+  await rig.call("authoring_start", { kind: "plugin-group", name: "demo", dir: DIR });
+  await rig.t.boundary(rig.thread).turnSettled();
+  await rig.t.settled();
+  expect(rig.t.queue.items.filter((item) => item.when === "followUp")).toEqual([]);
+  await rig.answer("yes");
+  const resumed = rig.t.queue.items.filter((item) => item.when === "followUp");
+  expect(resumed.map((item) => [item.requestId, item.item])).toEqual([
+    [
+      "authoring:intent:demo:0:r",
+      {
+        kind: "context",
+        customType: "grp.authoring.notice.status",
+        content:
+          "[authoring] the user confirmed the kind and the name: continue with authoring_compose and authoring_scaffold",
+        display: false,
+      },
+    ],
+  ]);
+});
+
+test("authoring.resume: a declined package also queues a followUp so the model can answer the user", async () => {
+  const rig = await createGroupRig();
+  await confirmedSession(rig);
+  await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
+  await rig.call("authoring_validate", { sessionId: "auth-demo" });
+  await rig.call("authoring_package", { sessionId: "auth-demo" });
+  await rig.t.boundary(rig.thread).turnSettled();
+  await rig.t.settled();
+  await rig.answer("no");
+  const resumed = rig.t.queue.items.filter((item) => item.requestId.endsWith(":r"));
+  expect(resumed.map((item) => item.when)).toEqual(["followUp", "followUp"]);
+  expect(resumed.at(-1)?.item).toMatchObject({ content: "[authoring] the user declined packing" });
+});
+
+test("authoring.card-text: the confirmation cards are Korean and name the kind and the folder", async () => {
+  const rig = await createGroupRig();
+  await rig.call("authoring_start", { kind: "single-plugin", name: "demo", dir: DIR });
+  await rig.t.boundary(rig.thread).turnSettled();
+  await rig.t.settled();
+  const request = rig.approvals.created[0];
+  expect(JSON.stringify(request?.body)).toContain('플러그인 \\"demo\\"을 /work/demo에 만들까요?');
+  expect(JSON.stringify(request?.body)).toContain('"label":"예"');
+  expect(JSON.stringify(request?.body)).toContain('"label":"아니요"');
+  expect(request?.title).toBe("플러그인 빌더");
 });

@@ -33,8 +33,8 @@ function cardOf(text: string): AskCard {
         id: CONFIRM_QUESTION,
         text,
         options: [
-          { id: CONFIRM_YES, label: "Yes", recommended: true },
-          { id: CONFIRM_NO, label: "No" },
+          { id: CONFIRM_YES, label: "예", recommended: true },
+          { id: CONFIRM_NO, label: "아니요" },
         ],
         multiSelect: false,
         allowFreeText: false,
@@ -72,7 +72,7 @@ export async function packWithConfirmation(
   const yes = await confirmed(
     ask,
     requestIdOf("package", input.dir, round),
-    `Package ${input.dir}?`,
+    `다음 폴더를 묶을까요? ${input.dir}`,
   );
   if (!yes) return err({ kind: "denied", message: "packaging was not confirmed" });
   return devkit.pack(input);
@@ -85,7 +85,11 @@ export async function installWithConfirmation(
   source: string,
   round = 0,
 ): Promise<Result<LinkResult, DevkitError>> {
-  const yes = await confirmed(ask, requestIdOf("install", source, round), `Install ${source}?`);
+  const yes = await confirmed(
+    ask,
+    requestIdOf("install", source, round),
+    `다음 묶음을 설치할까요? ${source}`,
+  );
   if (!yes) return err({ kind: "denied", message: "installing was not confirmed" });
   return devkit.link({ source });
 }

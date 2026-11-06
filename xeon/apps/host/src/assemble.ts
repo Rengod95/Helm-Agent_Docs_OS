@@ -928,6 +928,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         authoring: {
           devkit: () => portsHandle?.ports.m4.devkit,
           devMode: () => settings.value("l3.authoring.devMode") === true,
+          workspaceOf,
         },
         ...(options.defaultGroups === undefined ? {} : { defaultGroups: options.defaultGroups }),
         safeMode,
