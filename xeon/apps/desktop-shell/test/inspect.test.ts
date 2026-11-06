@@ -491,7 +491,13 @@ describe("stale socket and regular files (server.rs 시험)", () => {
 
     const server = must(await bindSocket(file));
     expect(lstatSync(file).isSocket()).toBe(true);
+    // allowHalfOpen 서버라 받은 쪽은 클라이언트가 끊어도 스스로 닫히지 않는다(Linux).
+    // 운영 코드는 멈출 때 연결을 직접 닫으니(startInspectServer) 시험도 받은 쪽을 닫는다
+    const accepted = new Promise<Socket>((resolve) => {
+      server.once("connection", resolve);
+    });
     const client = await connect(file);
+    (await accepted).destroy();
     client.destroy();
     await closeRaw(server);
 
