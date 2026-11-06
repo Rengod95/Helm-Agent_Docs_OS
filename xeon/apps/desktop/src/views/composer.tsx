@@ -2,6 +2,8 @@ import { t } from "@fresnel/client/i18n";
 import {
   Button,
   IconButton,
+  Popover,
+  PopoverTitle,
   SegmentedControl,
   SegmentedControlItem,
   Select,
@@ -29,6 +31,7 @@ import {
   useThreadRunning,
 } from "../state/engine/index.ts";
 import { useComposerRequest, useObserving, useSelectedThreadId } from "../state/ui/index.ts";
+import { UsageBreakdownBody } from "./usage-breakdown.tsx";
 import {
   attachDisabledReason,
   baseNameOf,
@@ -223,12 +226,15 @@ export function ModelSelect(props: {
 export function UsageRing(props: {
   readonly percent: number | null;
   readonly disabled: boolean;
+  /** 있으면 링을 눌러 토큰·비용 내역 Popover를 연다 */
+  readonly threadId?: ThreadId;
 }): ReactNode {
+  const [open, setOpen] = useState(false);
   if (props.percent === null) return null;
   const pct = Math.min(100, Math.max(0, props.percent));
   const tone: RingTone = pct > USAGE_DANGER ? "danger" : pct > USAGE_WARNING ? "warning" : "accent";
   const color = props.disabled ? "text-disabled-text" : RING_TEXT[tone];
-  return (
+  const ring = (
     <svg
       data-level={tone === "accent" ? undefined : tone}
       role="img"
@@ -248,6 +254,29 @@ export function UsageRing(props: {
         className="stroke-current transition-[stroke-dashoffset] duration-gentle ease-standard"
       />
     </svg>
+  );
+  if (props.threadId === undefined) return ring;
+  return (
+    <Popover
+      open={open}
+      onOpenChange={setOpen}
+      side="top"
+      align="end"
+      size="sm"
+      anchor={
+        <Button
+          size="xs"
+          variant="ghost"
+          className="h-6 px-1"
+          aria-label={t("desktop.usage.breakdown.open")}
+        >
+          {ring}
+        </Button>
+      }
+    >
+      <PopoverTitle>{t("desktop.status.cell.tokens.title")}</PopoverTitle>
+      <UsageBreakdownBody threadId={props.threadId} />
+    </Popover>
   );
 }
 
@@ -628,7 +657,11 @@ function ComposerFor(props: {
                 }}
               />
             )}
-            <UsageRing percent={usage?.percent ?? null} disabled={props.disabledReason !== null} />
+            <UsageRing
+              percent={usage?.percent ?? null}
+              disabled={props.disabledReason !== null}
+              threadId={props.threadId}
+            />
             {running ? (
               <IconButton
                 type="button"
