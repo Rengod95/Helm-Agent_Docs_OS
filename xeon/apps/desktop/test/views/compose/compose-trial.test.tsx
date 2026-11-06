@@ -188,7 +188,7 @@ describe("시험 시작 줄", () => {
   test("연결이 없으면 시작이 잠기고 연결하라는 줄이 보인다", () => {
     const html = render(trialOf({ online: false }), "offline");
     expect(buttonNamed(html, "테스트 대화에서 돌려 보기")?.disabled).toBe(true);
-    expect(html).toContain("엔진에 연결되면 테스트을 돌릴 수 있어요.");
+    expect(html).toContain("엔진에 연결되면 테스트를 돌릴 수 있어요.");
   });
 
   test("설치되지 않은 그룹은 잠기고, 이유가 보이고 설명이 정보 아이콘에 있다", () => {
@@ -417,7 +417,7 @@ describe("다시 돌려 검사", () => {
   test("연결이 없으면 모두 잠기고 연결하라는 글이 이유가 된다. 개발 모드 켜기는 없다", () => {
     const html = renderToString(<ReplayBar replay={replayOf({ lock: "offline" })} />);
     expect(html).toContain('aria-disabled="true"');
-    expect(html).toContain("엔진에 연결되면 테스트을 돌릴 수 있어요.");
+    expect(html).toContain("엔진에 연결되면 테스트를 돌릴 수 있어요.");
     expect(buttonNamed(html, "개발 모드 켜기…")).toBeUndefined();
   });
 
