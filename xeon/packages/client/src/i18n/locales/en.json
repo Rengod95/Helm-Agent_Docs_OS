@@ -1541,7 +1541,7 @@
   "desktop.approvals.queue.label": "Approval queue",
   "desktop.approvals.queue.title": "Pending approvals: {count}",
   "desktop.approvals.secret.invalidHandle": "(invalid reference format)",
-  "desktop.approvals.secrets.title": "Secrets this call uses",
+  "desktop.approvals.secret.term": "Secret",
   "desktop.approvals.sendingStatus": "Sending…",
   "desktop.approvals.tool.summary": "Tool {toolName} · Risk {risk}",
   "desktop.composer.error.failed": "The message could not be sent.",

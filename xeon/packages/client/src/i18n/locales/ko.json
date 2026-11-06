@@ -1541,7 +1541,7 @@
   "desktop.approvals.queue.label": "승인 대기열",
   "desktop.approvals.queue.title": "승인 대기 {count}",
   "desktop.approvals.secret.invalidHandle": "(참조 형식이 올바르지 않음)",
-  "desktop.approvals.secrets.title": "이 호출이 사용할 시크릿",
+  "desktop.approvals.secret.term": "시크릿",
   "desktop.approvals.sendingStatus": "보내는 중…",
   "desktop.approvals.tool.summary": "도구 {toolName} · 위험도 {risk}",
   "desktop.composer.error.failed": "보내지 못했어요.",

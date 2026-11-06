@@ -97,7 +97,7 @@ describe("tool approval card", () => {
     expect(out).toContain("deploy --prod");
     expect(out).toContain("TOKEN");
     expect(out).toContain("secret://prod/token");
-    expect(out).toContain("이 호출이 사용할 시크릿");
+    expect(out).toContain("시크릿");
     expect(out).toContain("bash");
     expect(out).toContain("execute");
   });
@@ -105,7 +105,7 @@ describe("tool approval card", () => {
   test("a call with no secrets shows no secret block", () => {
     const out = html(toolRequest({ command: "ls" }));
     expect(out).toContain("ls");
-    expect(out).not.toContain("이 호출이 사용할 시크릿");
+    expect(out).not.toContain("시크릿");
   });
 });
 
