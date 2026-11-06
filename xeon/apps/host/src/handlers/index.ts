@@ -90,7 +90,7 @@ export function createWireHandlers(
     "thread.compact": createThreadCompactHandler(engine, hub),
     "thread.export": createThreadExportHandler(engine),
     "turn.start": createTurnStartHandler(engine, hub),
-    "turn.interrupt": createTurnInterruptHandler(engine),
+    "turn.interrupt": createTurnInterruptHandler(engine, hub),
     "turn.withdraw": createTurnWithdrawHandler(engine),
     "turn.resume": createTurnResumeHandler(engine, hub),
     "events.subscribe": createEventsSubscribeHandler(engine, hub),

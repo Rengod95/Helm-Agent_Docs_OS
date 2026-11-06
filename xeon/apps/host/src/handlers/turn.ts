@@ -11,7 +11,7 @@ import type { ConnectionHub } from "../connection-types.ts";
 import type { Engine, WithdrawFailure } from "../types.ts";
 import { wireErrorOfStore } from "../store-error.ts";
 import { titleFromInput } from "../title.ts";
-import { claimWrite, threadLocked } from "./owner.ts";
+import { claimWrite, threadLocked, withWriteOwner } from "./owner.ts";
 import { requireOwned } from "./thread.ts";
 
 // L4.host-service.spec §3.4 M1 표, HS-22, HS-28. turn.start: 쓰기 소유를 확인하고 없으면 암묵 획득한 뒤 입력을 제출한다.
@@ -112,16 +112,23 @@ export function createTurnResumeHandler(
   };
 }
 
-/** 쓰기 소유자만(HS-28). 중단할 turn이 있었으면 `interrupted: true`다 */
-export function createTurnInterruptHandler(engine: Engine): WireHandler<"turn.interrupt"> {
+/**
+ * 쓰기 소유자만(HS-28). 중단할 turn이 있었으면 `interrupted: true`다. 소유를 쥐지 않았으면 이 호출이 한 번 얻어서 쓰고 놓는다
+ * (`withWriteOwner`): 비정상 종료 뒤 열린 turn만 남은 thread도 중단으로 닫을 수 있어야 한다. 다른 소유자가 쥐고 있으면 `thread.locked`다
+ */
+export function createTurnInterruptHandler(
+  engine: Engine,
+  hub: () => ConnectionHub,
+): WireHandler<"turn.interrupt"> {
   const { ports } = engine;
   return async (params) => {
     const { threadId } = params;
     const exists = ports.threads.exists(threadId);
     if (!exists.ok) throw wireErrorOfStore(exists.error, "turn.interrupt thread lookup");
     if (!exists.value) throw wireError("thread.notFound", { details: { threadId } });
-    requireOwned(engine, threadId);
-    return { interrupted: await ports.turns.interrupt(threadId, params.turnId) };
+    return await withWriteOwner(engine, hub(), threadId, async () => ({
+      interrupted: await ports.turns.interrupt(threadId, params.turnId),
+    }));
   };
 }
 
