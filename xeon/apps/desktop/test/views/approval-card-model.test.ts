@@ -186,6 +186,41 @@ describe("card title", () => {
   });
 });
 
+describe("knowledge write card title", () => {
+  test("a memory write title names the store and the operation", () => {
+    expect(
+      cardTitleViewOf(
+        requestWith({
+          title: "Approve memory.add on user memory?",
+          body: toolBody("memory_manage"),
+        }),
+      ),
+    ).toEqual({
+      id: "desktop.approvals.title.write.memory",
+      params: { name: "user", opId: "desktop.approvals.title.write.op.memory.add" },
+    });
+  });
+
+  test("a skill write title names the skill, and an unknown operation stays as written", () => {
+    expect(
+      cardTitleViewOf(
+        requestWith({
+          title: "Approve skill.write_file on skill deploy?",
+          body: toolBody("skill_manage"),
+        }),
+      ),
+    ).toEqual({
+      id: "desktop.approvals.title.write.skill",
+      params: { name: "deploy", opId: "desktop.approvals.title.write.op.skill.writeFile" },
+    });
+    expect(
+      cardTitleViewOf(
+        requestWith({ title: "Approve nuke.all on user memory?", body: toolBody("memory_manage") }),
+      ),
+    ).toBeNull();
+  });
+});
+
 describe("plan mode label", () => {
   test("known modes map to catalog keys and an unknown mode keeps its raw value", () => {
     expect(modeLabelIdOf("default")).toBe("desktop.approvals.plan.mode.default");

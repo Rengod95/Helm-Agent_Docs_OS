@@ -7,6 +7,7 @@ import { Alert, Button } from "@caustic/react";
 import type { ReactNode } from "react";
 import { issueToneOf } from "./compose-check.tsx";
 import { MONO } from "./compose-new-group-form.tsx";
+import { issueTextOf } from "./compose-wire-text.ts";
 
 export type DirCheck =
   | { readonly kind: "done"; readonly issues: readonly DevkitIssue[] }
@@ -60,10 +61,10 @@ export function CheckNotice(props: { readonly check: DirCheck }): ReactNode {
         <ul className="m-0 grid list-none gap-1.5 p-0">
           {check.issues.map((issue) => (
             <li
-              key={`${issue.code}:${issue.path}:${issue.message}`}
+              key={`${issue.code}:${issue.path}:${issueTextOf(issue)}`}
               className={`text-footnote ${issueToneOf(issue.severity)}`}
             >
-              <span className="font-mono">{issue.code}</span> {issue.message}
+              <span className="font-mono">{issue.code}</span> {issueTextOf(issue)}
             </li>
           ))}
         </ul>

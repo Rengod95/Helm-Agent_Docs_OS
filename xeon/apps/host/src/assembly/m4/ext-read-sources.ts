@@ -107,6 +107,20 @@ function enabledSourceOf(
   }
 }
 
+/** 대화 범위(launch)에 저장된 켜짐 값이 이 대화의 상태다. 그 범위에 값이 없으면 undefined(전역 값을 따른다) */
+export function launchStatusOf(
+  catalog: SettingCatalog,
+  layers: ScopeStack,
+  extension: string,
+): RegistrationStatus | undefined {
+  const def = catalog.get(`ext.${extension}.enabled`);
+  if (def === undefined) return undefined;
+  const { setting } = resolveSetting(def, layers);
+  if (setting.source.scope !== "launch") return undefined;
+  if (setting.value === true) return "enabled";
+  return setting.value === false ? "disabled" : undefined;
+}
+
 /** 확장 목록 한 줄의 재료: 호스트가 올린 내장 단위, 로더가 찾아낸 외부 확장, 로더의 진단 */
 export interface ExtensionRecordsDeps {
   readonly units: () => readonly ExtensionUnit[];
@@ -328,7 +342,14 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
       env.ext.registrations().map((info) => ({ id: info.id, status: info.status })),
     threadStatus(threadId, registrationId): RegistrationStatus | undefined {
       const id = threadIdOf(threadId);
-      return id === undefined ? undefined : view.threadStatus(id, registrationId);
+      if (id === undefined) return undefined;
+      const live = view.threadStatus(id, registrationId);
+      if (live !== undefined) return live;
+      // 다시 시작한 뒤 쥐지 않은 대화: 확장 호스트에 대화 상태가 없다. 대화 범위(launch)에 저장된 값이 있으면 그것이 이 대화의 값이다
+      const extension = extensionOf(registrationId);
+      return extension === undefined
+        ? undefined
+        : launchStatusOf(catalog, layersOf(env.settings, threadId), extension);
     },
     enabledSource(registrationId, threadId) {
       const extension = extensionOf(registrationId);

@@ -8,6 +8,7 @@ import type { WireManifestIssue } from "@fresnel/contracts/wire";
 import { Alert } from "@caustic/react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useCommands } from "../commands.ts";
+import { issueTextOf } from "./compose-wire-text.ts";
 
 /** 검사 읽기. 구성이 선언되어 있을 때만 부른다 */
 export type CheckRead =
@@ -48,10 +49,10 @@ export function IssueList(props: { readonly issues: readonly WireManifestIssue[]
     <ul className="m-0 grid list-none gap-1.5 p-0">
       {props.issues.map((issue) => (
         <li
-          key={`${issue.code}:${issue.path}:${issue.message}`}
+          key={`${issue.code}:${issue.path}:${issueTextOf(issue)}`}
           className={`text-footnote ${issueToneOf(issue.severity)}`}
         >
-          <span className="font-mono">{issue.code}</span> {issue.message}
+          <span className="font-mono">{issue.code}</span> {issueTextOf(issue)}
         </li>
       ))}
     </ul>

@@ -137,7 +137,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 - 목표: 선택지를 고르거나 계획을 승인·수정 요청합니다.
 - 단계
   1. 질문 카드에서 라디오나 체크박스로 고르고 필요하면 직접 입력합니다. 추천 선택지에 표시가 있습니다.
-  2. 계획 카드는 계획 본문을 Markdown으로 보이고 "승인", "수정 요청(피드백 입력)", "거부"를 둡니다. 승인 뒤 모드(`nextModes`)를 고릅니다. 모드는 원시값이 아니라 라벨(기본 / 편집 자동 허용 / 계획 모드 유지 / 모두 허용)로 보이고, 카드 제목은 엔진의 영어 제목 대신 "도구 \"edit\"을 실행할까요?", "계획을 검토해 주세요"입니다. 알림 토스트와 받은 요청 목록의 제목도 같은 해요체입니다(알림 종류와 출처 이벤트로 고르고 원문 문장은 비교하지 않습니다) [근거: rtAB-R4]. 긴 계획은 본문만 최대 높이(28dvh, 20rem 안쪽) 안에서 스크롤하고 단추 줄은 카드 아래에 늘 보입니다. 스크롤 영역이 초점을 받아 키보드 순서는 본문 → 단추입니다 [근거: rtAB-R4 남은 것, fxLO].
+  2. 계획 카드는 계획 본문을 Markdown으로 보이고 "승인", "수정 요청(피드백 입력)", "거부"를 둡니다. 승인 뒤 모드(`nextModes`)를 고릅니다. 모드는 원시값이 아니라 라벨(기본 / 편집 자동 허용 / 계획 모드 유지 / 모두 허용)로 보이고, 카드 제목은 엔진의 영어 제목 대신 "도구 \"edit\" 실행을 허용할까요?", "계획을 검토해 주세요"입니다. 알림 토스트와 받은 요청 목록의 제목도 같은 해요체입니다(알림 종류와 출처 이벤트로 고르고 원문 문장은 비교하지 않습니다) [근거: rtAB-R4]. 긴 계획은 본문만 최대 높이(28dvh, 20rem 안쪽) 안에서 스크롤하고 단추 줄은 카드 아래에 늘 보입니다. 스크롤 영역이 초점을 받아 키보드 순서는 본문 → 단추입니다 [근거: rtAB-R4 남은 것, fxLO].
   3. 다른 기기나 다른 대화에 있어도 받은 요청 패널에서 같은 카드로 답합니다.
 - 거치는 화면: P-02, P-03
 - 성공 기준: 질문마다 선택이나 입력이 있어야 "답하기"가 켜집니다. 계획 거부는 `{feedback}`을 실어 보냅니다.
@@ -789,7 +789,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 - 상태 여섯 가지(빈, 읽는 중, 오류, 오프라인, 권한 필요, 긴 내용)를 화면마다 적습니다. 해당 없으면 "해당 없음"이라 씁니다.
 - 오프라인 공통: 연결 상태가 `live`가 아니면 쓰기 버튼을 잠그고 "엔진에 연결되면 할 수 있어요"를 `Tooltip`으로 보입니다. 읽은 데이터는 그대로 두고 화면 머리에 `Alert tone="warning" layout="inline"`을 둡니다.
 - 문구: 문장은 해요체, 라벨은 명사구입니다(`L4.settings-ui.spec` §4.8). 현재 M2 화면의 합니다체 문구도 M4에서 해요체로 맞춥니다 [결정: 오케스트레이터 기본값]. 문구는 메시지 키로 둡니다(adr.0016).
-- 접근성 공통: caustic 규칙(대상 24×24 이상, 키보드 초점 고리, axe 위반 0)을 따릅니다. 실시간 영역은 `aria-live="polite"`이고 오류만 `role="alert"`입니다. 앱에는 눈에 안 보이는 polite 안내 영역이 하나 있어 새 승인 요청("승인이 필요해요: edit")과 턴 완료·실패("답이 끝났어요", "답이 실패했어요")를 한 줄씩 알립니다. 스트리밍 글자는 안내하지 않습니다(`views/live-announcer.tsx`, 문장은 `announce-model.ts`). 상태 줄의 `role="status"`는 따로 둡니다(상태 줄 트랙 소관). 모든 아이콘 버튼은 `label`이 있습니다. 움직임은 `prefers-reduced-motion`을 따릅니다.
+- 접근성 공통: caustic 규칙(대상 24×24 이상, 키보드 초점 고리, axe 위반 0)을 따릅니다. 실시간 영역은 `aria-live="polite"`이고 오류만 `role="alert"`입니다. 앱에는 눈에 안 보이는 polite 안내 영역이 하나 있어 새 승인 요청("승인이 필요해요: edit")과 턴 완료·실패("답이 끝났어요", "답이 실패했어요")를 한 줄씩 알립니다. 스트리밍 글자는 안내하지 않습니다(`views/live-announcer.tsx`, 문장은 `announce-model.ts`). 승인 요청은 이 영역이 낭독하므로 같은 문장이 토스트 영역에서 되풀이되지 않게 승인 알림은 토스트로 띄우지 않습니다(`noticeToastVisible`, 목록과 OS 알림은 그대로). 기억·스킬 쓰기 승인 카드 제목(`Approve memory.add on user memory?`)은 "user 기억 쓰기: 추가"로 보이고, 칩 삭제 단추 이름은 "<값> 빼기"(`localized-tag-input.tsx`), 새 그룹 시작점 카드와 AU-012 경고는 한국어(`compose-wire-text.ts`), 그룹 켜기 확인창의 훅 줄에는 훅과 "대화를 직접 이어 가는" 그룹을 설명하는 정보 아이콘이 있습니다. 상태 줄의 `role="status"`는 따로 둡니다(상태 줄 트랙 소관). 모든 아이콘 버튼은 `label`이 있습니다. 움직임은 `prefers-reduced-motion`을 따릅니다.
 - 시간 표시는 상대 시각("3분 전")이고 `Tooltip`에 절대 시각을 둡니다.
 
 ### 6.1 S-01 앱 셸
@@ -3283,7 +3283,7 @@ export const palette = [
 | V-11 | 사용량 게이지 행(`UsageGauge` → 막대와 문장) | `packages/client/src/settings` |
 | V-12 | 계획 승인 보기와 답 만들기 | `apps/desktop/src/views/approval-form.ts`에 추가 |
 | V-13 | 상태 표시줄 칸 모델 | `apps/desktop/src/views` |
-| V-14 | 데스크톱 로컬 설정 저장소(창, 패널, 테마, 바로 가기 키, 첫 실행 표시) | `apps/desktop/src/settings-store/local.ts`(T-SHELL 구현: `LOCAL` 키 표, `createLocalSettings`, 셸 명령 `desktop_settings_read`·`desktop_settings_write`). 키는 `l4.desktop.window.{sidebarOpen,sidebarWidth,endOpen,endWidth,area.current,area.chat,area.workbench}`, `l4.desktop.appearance.keybindings`, `l4.desktop.appearance.motion`(움직임 줄이기, boolean), `l4.desktop.appearance.zoom`(확대 %, 90·100·125·150·200), `l4.desktop.firstRun.searchHintDismissed`. 움직임·확대는 엔진과 셸 설정에 해당 키가 없어 렌더러 값으로 둔다(`views/appearance-prefs.ts`: `<html data-motion="reduce">`와 `<html>`의 `zoom`, 설정 "외관" 탭의 접근성 묶음 `settings-appearance-view.tsx`). 강제 색(`forced-colors`)은 OS가 켜므로 화면 안 설정은 없고 `styles.css`가 시스템 색으로 경계와 선택을 보인다. `prefers-contrast: more`는 앱이 토큰을 올려야 하므로 `high-contrast.css`가 경계·보조 글자 색 토큰만 올린다(2026-11-07 [기본값], 제품 요구인지는 사용자 결정 대기). 테마와 캔버스 순서 키는 소유 트랙이 `LOCAL`에 더함 |
+| V-14 | 데스크톱 로컬 설정 저장소(창, 패널, 테마, 바로 가기 키, 첫 실행 표시) | `apps/desktop/src/settings-store/local.ts`(T-SHELL 구현: `LOCAL` 키 표, `createLocalSettings`, 셸 명령 `desktop_settings_read`·`desktop_settings_write`). 키는 `l4.desktop.window.{sidebarOpen,sidebarWidth,endOpen,endWidth,area.current,area.chat,area.workbench}`, `l4.desktop.appearance.keybindings`, `l4.desktop.appearance.motion`(움직임 줄이기, boolean), `l4.desktop.appearance.zoom`(확대 %, 90·100·125·150·200), `l4.desktop.firstRun.searchHintDismissed`. 움직임·확대는 엔진과 셸 설정에 해당 키가 없어 렌더러 값으로 둔다(`views/appearance-prefs.ts`: `<html data-motion="reduce">`와 `<html>`의 `zoom`, 설정 "외관" 탭의 접근성 묶음 `settings-appearance-view.tsx`). `<html data-zoom>`는 확대 %이고, 확대 중 목록·팝오버가 앵커 자리에 뜨도록 `styles.css`가 Radix 자리 감싸개의 확대를 1로 되돌리고 안쪽 내용에 다시 건다. 강제 색(`forced-colors`)은 OS가 켜므로 화면 안 설정은 없고 `styles.css`가 시스템 색으로 경계와 선택을 보인다(현재 대화 행은 `list-navigation-link`의 `aria-current="page"`). `prefers-contrast: more`는 앱이 토큰을 올려야 하므로 `high-contrast.css`가 경계·보조 글자 색 토큰만 올린다(2026-11-07 [기본값], 제품 요구인지는 사용자 결정 대기). 테마와 캔버스 순서 키는 소유 트랙이 `LOCAL`에 더함 |
 | V-15 | 바로 가기 키 표(동작 id ↔ 키) | `apps/desktop/src/views/shell/keybindings.ts`(T-SHELL 구현: §4.8의 동작 22개 `ACTION_IDS`, `DEFAULT_KEYMAP`, 사용자 덮어쓰기 `resolveKeymap`) |
 | V-16 | 확장 행 모델과 거르기·정렬(층, 종류, 등급, 상태) | `packages/client/src/workbench` [제안] |
 | V-17 | 층 × 확장 지도 모델(칸 tone, 경고) | 같은 곳 |

@@ -11,9 +11,9 @@ import {
   SegmentedControlItem,
   Sheet,
   Switch,
-  TagInput,
   Textarea,
 } from "@caustic/react";
+import { LocalizedTagInput } from "../../localized-tag-input.tsx";
 import { useId, type ReactNode } from "react";
 import {
   expiresInputOf,
@@ -248,7 +248,7 @@ function TriggerInputs(props: {
       return (
         <>
           <Field label={t("desktop.schedules.form.paths")} size="sm" error={error("paths")}>
-            <TagInput
+            <LocalizedTagInput
               size="sm"
               value={[...draft.paths]}
               placeholder={t("desktop.schedules.form.pathsPlaceholder")}

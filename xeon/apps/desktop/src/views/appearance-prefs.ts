@@ -46,6 +46,9 @@ export function applyAppearance(root: AppearanceRoot, prefs: AppearancePrefs): v
   if (prefs.motion === "reduce") root.dataset["motion"] = "reduce";
   else delete root.dataset["motion"];
   root.style.zoom = prefs.zoom === 100 ? "" : String(prefs.zoom / 100);
+  // 팝오버 자리 보정이 확대 단계를 CSS에서 알 수 있게 한다(styles.css `data-zoom`)
+  if (prefs.zoom === 100) delete root.dataset["zoom"];
+  else root.dataset["zoom"] = String(prefs.zoom);
 }
 
 export function appearancePortOf(local: LocalSettings, root: AppearanceRoot): AppearancePort {

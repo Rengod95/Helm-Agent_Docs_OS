@@ -207,7 +207,8 @@
       border: 1px solid ButtonBorder !important;
     }
     [data-slot="segmented-control-item"][data-state="checked"],
-    [data-slot="list-navigation-item"][aria-current="page"] {
+    [data-slot="list-navigation-link"][aria-current="page"],
+    [data-slot="list-navigation-sub-link"][aria-current="page"] {
       forced-color-adjust: none;
       background: Highlight !important;
       color: HighlightText !important;
@@ -217,8 +218,47 @@
     [data-slot="segmented-control-item"][data-state="checked"] * {
       color: HighlightText !important;
     }
-    [data-slot="list-navigation-item"][aria-current="page"] * {
+    [data-slot="list-navigation-link"][aria-current="page"] *,
+    [data-slot="list-navigation-sub-link"][aria-current="page"] * {
       color: HighlightText !important;
     }
+  }
+}
+
+/* 앱 확대는 `<html>`의 `zoom`이다. 팝오버(Radix Popper)는 뷰포트 좌표를 계산해 `transform: translate`로 두는데, 그 변환도 확대가 곱해져
+   확대 값만큼 더 밀린다(150%에서 목록이 화면 밖 구석에 뜸). 자리를 잡는 감싸개만 확대를 1로 되돌리고 안쪽 내용에 확대를 다시 건다.
+   Radix가 화면 픽셀로 재서 넘기는 select 칸 폭·남은 높이는 안쪽 확대가 한 번 더 곱하므로 확대로 나눈다. */
+@layer components {
+  [data-zoom="90"] [data-radix-popper-content-wrapper] {
+    zoom: 1.111111;
+  }
+  [data-zoom="90"] [data-radix-popper-content-wrapper] > * {
+    zoom: 0.9;
+    min-width: calc(var(--radix-select-trigger-width, 0px) / 0.9) !important;
+    max-height: calc(var(--radix-select-content-available-height, 100vh) / 0.9) !important;
+  }
+  [data-zoom="125"] [data-radix-popper-content-wrapper] {
+    zoom: 0.8;
+  }
+  [data-zoom="125"] [data-radix-popper-content-wrapper] > * {
+    zoom: 1.25;
+    min-width: calc(var(--radix-select-trigger-width, 0px) / 1.25) !important;
+    max-height: calc(var(--radix-select-content-available-height, 100vh) / 1.25) !important;
+  }
+  [data-zoom="150"] [data-radix-popper-content-wrapper] {
+    zoom: 0.666667;
+  }
+  [data-zoom="150"] [data-radix-popper-content-wrapper] > * {
+    zoom: 1.5;
+    min-width: calc(var(--radix-select-trigger-width, 0px) / 1.5) !important;
+    max-height: calc(var(--radix-select-content-available-height, 100vh) / 1.5) !important;
+  }
+  [data-zoom="200"] [data-radix-popper-content-wrapper] {
+    zoom: 0.5;
+  }
+  [data-zoom="200"] [data-radix-popper-content-wrapper] > * {
+    zoom: 2;
+    min-width: calc(var(--radix-select-trigger-width, 0px) / 2) !important;
+    max-height: calc(var(--radix-select-content-available-height, 100vh) / 2) !important;
   }
 }

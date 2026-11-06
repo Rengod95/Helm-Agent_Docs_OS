@@ -5,6 +5,7 @@ import { extNameOf } from "@fresnel/client/workbench";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
 import { Button, Dialog, DialogClose, ListDescription, ListDescriptionRow } from "@caustic/react";
 import type { ReactNode } from "react";
+import { InfoTip } from "../craft/info-tip.tsx";
 
 /** 설명 목록 자리: 줄 머리 8rem, 바깥 칸 없이 */
 const LD = "rounded-none [--cs-size-list-term:8rem] [&_[data-slot=list-description-row]]:px-0";
@@ -74,6 +75,7 @@ export function TrustDialog(props: {
           </ListDescriptionRow>
           <ListDescriptionRow term={t("desktop.workbench.detail.tab.hooks")}>
             {t("desktop.install.parts.hooks", { count: entry.hookCount })}
+            <InfoTip text={t("desktop.install.info.parts")} />
           </ListDescriptionRow>
         </ListDescription>
       )}

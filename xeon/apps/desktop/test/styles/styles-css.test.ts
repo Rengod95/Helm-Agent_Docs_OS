@@ -107,7 +107,7 @@ test("forced-colors rules exist for the input border and the selected states", (
   expect(forced).toContain('[data-slot="textarea"]');
   expect(forced).toContain("border: 1px solid CanvasText");
   expect(forced).toContain('[data-slot="segmented-control-item"][data-state="checked"]');
-  expect(forced).toContain('[data-slot="list-navigation-item"][aria-current="page"]');
+  expect(forced).toContain('[data-slot="list-navigation-link"][aria-current="page"]');
   expect(forced).toContain("background: Highlight");
 });
 
@@ -117,4 +117,16 @@ test("prefers-contrast: more raises the border and secondary text tokens", () =>
   expect(contrast).toContain("@media (prefers-contrast: more)");
   expect(contrast).toContain("--cs-color-border-default:");
   expect(contrast).toContain("--cs-color-text-secondary:");
+});
+
+test("popover wrappers cancel the app zoom for every zoom step and the select list divides the measured size", () => {
+  for (const step of [90, 125, 150, 200]) {
+    const scale = String(step / 100);
+    const rule = new RegExp(
+      `\\[data-zoom="${String(step)}"\\] \\[data-radix-popper-content-wrapper\\] \\{\\s*zoom: ${String(100 / step).slice(0, 5)}`,
+    );
+    expect(STYLES).toMatch(rule);
+    expect(STYLES).toContain(`zoom: ${scale};`);
+    expect(STYLES).toContain(`var(--radix-select-trigger-width, 0px) / ${scale}`);
+  }
 });
