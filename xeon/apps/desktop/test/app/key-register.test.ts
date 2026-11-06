@@ -1,12 +1,11 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
 import { SecretNameSchema } from "@fresnel/contracts/capabilities";
-import { mockIPC } from "@tauri-apps/api/mocks";
 import { submitKey, type KeyField, type KeyOutcome } from "@fresnel/client/settings";
-import { rejectLikeShell, tauriMockIpc } from "../transport/tauri-mock.ts";
+import { rejectLikeShell, shellMockIpc } from "../transport/shell-mock.ts";
 import { engineFake, makeAppOver, until } from "./support.ts";
 
-// 키 등록의 앱 쪽 흐름(L4.desktop.spec §4.14.1): 실제 createApp과 ipc.ts를 mockIPC 위에서 돌린다.
+// 키 등록의 앱 쪽 흐름(L4.desktop.spec §4.14.1): 실제 createApp과 ipc.ts를 Electron 다리 위에서 돌린다.
 // 입력란 -> submitKey -> commands.setup.registerKey -> ipc.registerSecret -> invoke("secret_register", 원시 바이트).
 // 값은 가짜다. 값이 상태, 로그, wire에 없고 셸로 가는 본문 바이트는 호출이 끝난 뒤 0이어야 한다.
 
@@ -37,7 +36,7 @@ function inputOf(initial: string): { field: KeyField; shown: () => string } {
 }
 
 async function liveApp(fake: ReturnType<typeof engineFake> = engineFake()) {
-  const shell = tauriMockIpc(fake.fake);
+  const shell = shellMockIpc(fake.fake);
   disposers.push(shell.dispose);
   const app = makeAppOver(shell.ipc);
   await until(() => app.engine.read.getState().link.phase === "live", "live link");
@@ -141,10 +140,10 @@ describe("shell errors on the page side", () => {
   ];
   for (const item of cases) {
     test(`${item.label} becomes ${JSON.stringify(item.outcome)}`, async () => {
-      const { app } = await liveApp();
+      const { app, shell } = await liveApp();
       // 연결이 선 뒤에 셸 대역을 이 시험의 거부로 바꾼다
-      mockIPC((cmd) =>
-        cmd === "secret_register" ? rejectLikeShell(item.reject) : Promise.resolve(null),
+      shell.overrideReply((cmd) =>
+        cmd === "secret_register" ? rejectLikeShell(item.reject) : null,
       );
       const outcome = await submitKey(app.commands.setup, name, "add", inputOf(FAKE).field);
       expect(outcome).toEqual(item.outcome);

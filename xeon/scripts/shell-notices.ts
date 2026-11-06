@@ -1,6 +1,5 @@
 #!/usr/bin/env bun
-// Third-party notices for the npm dependencies of the Electron desktop shell (apps/desktop-shell), the counterpart of
-// rust-notices.ts. `bun build` folds the shell's production dependency closure (workspace packages, electron-updater and what
+// Third-party notices for the npm dependencies of the Electron desktop shell (apps/desktop-shell). `bun build` folds the shell's production dependency closure (workspace packages, electron-updater and what
 // it pulls in) into dist/bundle/main.mjs, so those packages ship inside Fresnel.app. Electron and Chromium are not listed here:
 // their own files (LICENSE, LICENSES.chromium.html) are copied into the app by apps/desktop-shell/scripts/package.ts.
 // The file apps/desktop-shell/resources/THIRD-PARTY-NOTICES-SHELL.txt is committed and copied into Resources/licenses/.

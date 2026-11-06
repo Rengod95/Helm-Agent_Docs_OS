@@ -441,7 +441,7 @@ describe("registration (secret_entry.rs SecretEntry::register)", () => {
   });
 });
 
-describe("planning the sidecar command (secret_entry.rs TauriEntryLauncher::launch)", () => {
+describe("planning the sidecar command (secret_entry.rs, 옛 Tauri 구현(커밋 424f338a))", () => {
   const base: EntryPlanInputs = {
     env: { PATH: "/usr/bin", HOME: HOME, BUN_OPTIONS: "--inspect" },
     platform: "darwin",

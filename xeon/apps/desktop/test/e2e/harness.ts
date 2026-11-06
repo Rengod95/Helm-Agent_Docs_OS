@@ -5,8 +5,8 @@ import { attempt, parseJson } from "@fresnel/contracts";
 import { WIRE_PROTOCOL_VERSION } from "@fresnel/contracts/wire";
 
 // 엔진 프로세스를 stdio JSON-RPC로 모는 시험 도구(G4-03). 컴파일한 사이드카 바이너리와 소스 진입(`bun apps/cli/src/main.ts host --stdio`)을
-// 같은 모양으로 다뤄서 같은 요청열의 응답과 이벤트열을 견줄 수 있게 한다. 앱(Tauri 셸)은 거치지 않는다: 셸의 몫(릴레이, 종료 순서)은
-// Rust 시험이 맡고, 여기서는 엔진 쪽 바이트 계약과 종료 뒤 잔존 프로세스를 본다.
+// 같은 모양으로 다뤄서 같은 요청열의 응답과 이벤트열을 견줄 수 있게 한다. 앱(Electron 셸)은 거치지 않는다: 셸의 몫(릴레이, 종료 순서)은
+// 셸 패키지(apps/desktop-shell) 시험이 맡고, 여기서는 엔진 쪽 바이트 계약과 종료 뒤 잔존 프로세스를 본다.
 // Bun.spawn은 DR-07의 desktop-test-spawn 허용(test 범위)이다.
 
 export type Message = Readonly<Record<string, unknown>>;

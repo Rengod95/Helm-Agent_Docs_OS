@@ -23,7 +23,7 @@ import {
 } from "typebox";
 import type { ShellBridge } from "../shell/bridge.ts";
 
-// L4.desktop.spec 3.3. @tauri-apps/*를 import하는 파일은 src/shell/tauri-bridge.ts뿐이다(W2). 이 파일은 ShellBridge만 안다(L4.desktop.design §15.1).
+// L4.desktop.spec 3.3. 셸 호출은 모두 src/shell 어댑터를 거친다(W2). 이 파일은 ShellBridge만 안다(L4.desktop.design §15.1).
 // 테스트는 DesktopIpc 가짜를 주입한다(eng.testing.guide TS-05).
 
 const IsoTimeSchema: TString = Type.String({ format: "date-time", maxLength: 32 });
@@ -171,7 +171,7 @@ const DbRestoreReplySchema: TObject<{ exitCode: TInteger; stdout: TString; stder
 export type DbRestoreReply = Static<typeof DbRestoreReplySchema>;
 
 /**
- * 키 등록 명령(`secret_register`)의 오류. 셸이 `{kind, ...}` 객체로 거부한다(src-tauri/src/secret_entry.rs).
+ * 키 등록 명령(`secret_register`)의 오류. 셸이 `{kind, ...}` 객체로 거부한다(셸 모듈 `secret_register`).
  * `unknown`은 IPC 자체가 실패했거나 셸이 모르는 모양을 돌려준 경우다.
  */
 export type SecretRegisterError =
@@ -298,7 +298,7 @@ function restartArgs(options: RestartOptions = {}): RestartOptions {
   };
 }
 
-/** 셸 다리(Tauri 또는 Electron)로 DesktopIpc를 만든다 */
+/** 셸 다리(Electron)로 DesktopIpc를 만든다 */
 export function createDesktopIpc(bridge: ShellBridge): DesktopIpc {
   return {
     async attach(onBytes, onState) {

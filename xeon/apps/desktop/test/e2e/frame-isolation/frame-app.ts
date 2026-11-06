@@ -26,7 +26,7 @@ function probe(name, work) {
     probes[name] = "threw:" + error.name;
   }
 }
-probe("tauri", () => [typeof window.__TAURI__, typeof window.__TAURI_INTERNALS__, typeof window.__TAURI_IPC__].join("/"));
+probe("shellGlobals", () => [typeof window.fresnelShell, typeof window.require, typeof window.process].join("/"));
 probe("parentDom", () => window.parent.document.title);
 probe("topDom", () => window.top.document.title);
 probe("localStorage", () => window.localStorage.length);

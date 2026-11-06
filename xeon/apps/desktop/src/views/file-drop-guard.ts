@@ -1,4 +1,4 @@
-// `dragDropEnabled: false`(tauri.conf.json)에서는 Tauri가 파일 끌어놓기를 가로채지 않고 WebView에 HTML5 이벤트가 온다.
+// Electron 셸은 파일 끌어놓기를 가로채지 않고 WebView에 HTML5 이벤트가 온다.
 // 놓을 곳이 아닌 데(입력창 밖, 첨부가 막힌 입력창)에 파일을 놓으면 WebView가 그 파일 주소로 이동해 앱 화면이 사라진다.
 // 창 수준에서 이미 처리되지 않은 파일 끌기는 놓기를 막는다. 입력창은 자기 `dragover`/`drop`에서 먼저 `preventDefault`를 부르므로 건드리지 않는다.
 

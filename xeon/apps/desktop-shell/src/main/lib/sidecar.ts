@@ -8,7 +8,7 @@ export const SIDECAR_NAME = "fresnel";
 /** 사이드카를 엔진으로 띄울 때의 인자. 개발 덮어쓰기 인자가 이것으로 끝나야 쓸 수 있다 */
 export const SIDECAR_ARGS = ["host", "--stdio"] as const;
 
-/** `<플랫폼>-<아키텍처>`에서 Tauri 목표 삼중항으로 가는 표. 여기 없는 조합은 사이드카가 없다 */
+/** `<플랫폼>-<아키텍처>`에서 Rust 목표 삼중항으로 가는 표. 여기 없는 조합은 사이드카가 없다 */
 const TRIPLES: ReadonlyMap<string, string> = new Map([
   ["darwin-arm64", "aarch64-apple-darwin"],
   ["darwin-x64", "x86_64-apple-darwin"],

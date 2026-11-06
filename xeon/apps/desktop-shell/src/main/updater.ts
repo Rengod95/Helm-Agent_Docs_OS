@@ -223,7 +223,7 @@ export function createUpdaterModule(ports: UpdaterPorts): ShellModule {
     const result = attempt(() => ports.backend.quitAndInstall());
     if (!result.ok) return failureReply("install", classifyError(result.error.cause), ports.log);
     // 설치가 앱 종료를 시작한다. 엔진을 내리는 일은 ecore가 ctx.onQuit에 건 정리가 before-quit에서 맡는다(Rust의 supervisor.shutdown 자리).
-    // UI는 Tauri처럼 성공 답이 오지 않는다고 본다(installing에 머문다). 그래서 답하지 않고 앱이 끝나기를 기다린다
+    // UI는 성공 답이 오지 않는다고 본다(installing에 머문다). 그래서 답하지 않고 앱이 끝나기를 기다린다
     return new Promise<UpdateReply>(() => undefined);
   };
 

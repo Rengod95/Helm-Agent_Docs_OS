@@ -1,15 +1,15 @@
 #!/usr/bin/env bun
 // Desktop speed and size (Y17, T-PERF, eng.performance.guide section 2.2). Real model calls: none.
-//   desktop-benchmark size                    release app size: shell binary + bundled sidecar (+ embedded UI) against the 500 MiB cap
+//   desktop-benchmark size                    size of the bundled Electron app Fresnel.app (shell + sidecar + UI) against the 500 MiB cap
 //   desktop-benchmark startup [--runs <n>]    start the release app on a clean home: window on screen, first screen painted, idle memory
 //   desktop-benchmark frame [--frames <n>]    Orbit CPU time per frame with the 77-extension fixture (apps/desktop/test/benchmark)
 //   desktop-benchmark trace [--turns <n>] [--rounds <n>]   Turn cost with the handler trace off and on, with heap (apps/host/test/benchmark)
 //   desktop-benchmark all                     size, frame, trace, startup
-// size and startup need `just desktop-sidecar host`, `just desktop-ui release` and `just desktop-build` first. startup needs a GUI session
+// size and startup need `just desktop-sidecar host`, `just desktop-ui release` and `just desktop-build-electron` first. startup needs a GUI session
 // and macOS (window list, screencapture); without them it exits 2 and the values stay "못 잼".
 // "First screen" is the first screenshot of the app window that is no longer near-blank (PNG larger than FIRST_SCREEN_MIN_BYTES). The poll takes
 // a screenshot per step, so the value carries a resolution of about POLL_NOTE_MS. Idle memory is the summed resident set of the app, its engine
-// child and the WebKit helper processes that appeared during the run; shared pages are counted once per process, so it overstates.
+// child and the Electron helper processes (renderer, GPU, utility), which are children of the app; shared pages are counted once per process, so it overstates.
 // Exit codes: 0 measured, 1 bad arguments, 2 environment (nothing built, no GUI session, not macOS).
 import { existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -21,12 +21,13 @@ export const SIZE_CAP_BYTES: number = 500 * 1024 * 1024;
 export const FIRST_SCREEN_MIN_BYTES = 100_000;
 export const POLL_NOTE_MS = 300;
 const SIDECAR_NAME = "fresnel";
-const SHELL_NAME = "fresnel-desktop";
+const APP_NAME = "Fresnel.app";
 
 const MIB = 1024 * 1024;
 export const mib = (bytes: number): number => Math.round((bytes / MIB) * 10) / 10;
 
 export interface SizeParts {
+  /** Fresnel.app minus the sidecar (Electron, the bundled UI, assets, notices) */
   readonly shellBytes: number;
   readonly sidecarBytes: number;
   readonly uiBytes: number;
@@ -41,7 +42,7 @@ export interface SizeReport {
   readonly verdict: "within" | "over";
 }
 
-/** The shell binary embeds the UI bundle, so the app is shell + sidecar. The UI size is reported for reference and not added again. */
+/** The app is shell + sidecar. The UI bundle sits inside the shell part: its size is reported for reference and not added again. */
 export function sizeReport(parts: SizeParts): SizeReport {
   const total = parts.shellBytes + parts.sidecarBytes;
   return {
@@ -77,24 +78,18 @@ export function parsePs(text: string): ProcRow[] {
   return rows;
 }
 
-const isWebKit = (command: string): boolean => command.includes("com.apple.WebKit.");
-
 export interface MemoryReport {
   readonly totalMib: number;
   readonly shellMib: number;
-  readonly engineMib: number;
-  readonly webkitMib: number;
+  /** the sidecar and the Electron helper processes under the app */
+  readonly childrenMib: number;
 }
 
 const mibOfKb = (kb: number): number => Math.round((kb / 1024) * 10) / 10;
 const r1 = (n: number | undefined): number => Math.round((n ?? Number.NaN) * 10) / 10;
 
-/** App tree (the pid and its descendants) plus WebKit helpers that were not running before the launch. */
-export function idleMemory(
-  rows: readonly ProcRow[],
-  appPid: number,
-  webkitBefore: ReadonlySet<number>,
-): MemoryReport {
+/** App tree: the main process (shell) and its descendants (the sidecar and the Electron helpers). */
+export function idleMemory(rows: readonly ProcRow[], appPid: number): MemoryReport {
   const tree = new Set<number>([appPid]);
   let grew = true;
   while (grew) {
@@ -107,18 +102,15 @@ export function idleMemory(
     }
   }
   let shell = 0;
-  let engine = 0;
-  let webkit = 0;
+  let children = 0;
   for (const row of rows) {
     if (row.pid === appPid) shell += row.rssKb;
-    else if (tree.has(row.pid)) engine += row.rssKb;
-    else if (isWebKit(row.command) && !webkitBefore.has(row.pid)) webkit += row.rssKb;
+    else if (tree.has(row.pid)) children += row.rssKb;
   }
   return {
-    totalMib: mibOfKb(shell + engine + webkit),
+    totalMib: mibOfKb(shell + children),
     shellMib: mibOfKb(shell),
-    engineMib: mibOfKb(engine),
-    webkitMib: mibOfKb(webkit),
+    childrenMib: mibOfKb(children),
   };
 }
 
@@ -138,15 +130,14 @@ export function isFirstScreen(pngBytes: number): boolean {
 // ---- running parts (not unit tested: they need a built app and a GUI) ----
 
 const root = resolve(import.meta.dirname, "..");
-const releaseDir = join(
-  process.env["CARGO_TARGET_DIR"] ??
-    join(
-      process.env["XDG_CACHE_HOME"] ?? join(process.env["HOME"] ?? "", ".cache"),
-      "fresnel",
-      "cargo-target",
-    ),
-  "release",
+const appDir = join(
+  process.env["FRESNEL_APP_OUT"] ?? join(root, "apps/desktop-shell/dist-app"),
+  "Fresnel-darwin-arm64",
+  APP_NAME,
 );
+const appBinary = join(appDir, "Contents/MacOS/Fresnel");
+const appResources = join(appDir, "Contents/Resources");
+const SIDECAR_FILE = `${SIDECAR_NAME}-aarch64-apple-darwin`;
 
 function assertNever(value: never): never {
   return fail(1, `unhandled mode ${String(value)}`);
@@ -167,22 +158,20 @@ function emit(metric: string, unit: string, value: number | string, note: string
 }
 
 function measureSize(): void {
-  const shell = join(releaseDir, SHELL_NAME);
-  const sidecar = join(releaseDir, SIDECAR_NAME);
-  const ui = join(root, "apps/desktop/dist/ui");
-  for (const file of [shell, sidecar]) {
-    if (!existsSync(file))
-      fail(
-        2,
-        `${file} is missing: run just desktop-sidecar host, just desktop-ui release, just desktop-build`,
-      );
-  }
+  const sidecar = join(appResources, SIDECAR_FILE);
+  const ui = join(appResources, "ui");
+  if (!existsSync(appDir) || !existsSync(sidecar))
+    fail(
+      2,
+      `${appDir} (or its sidecar) is missing: run just desktop-sidecar host, just desktop-ui release, just desktop-build-electron`,
+    );
+  const sidecarBytes = statSync(sidecar).size;
   const report = sizeReport({
-    shellBytes: statSync(shell).size,
-    sidecarBytes: statSync(sidecar).size,
+    shellBytes: Math.max(0, dirBytes(appDir) - sidecarBytes),
+    sidecarBytes,
     uiBytes: existsSync(ui) ? dirBytes(ui) : 0,
   });
-  const note = `shell ${String(report.shellMib)} MiB + sidecar ${String(report.sidecarMib)} MiB (UI ${String(report.uiMib)} MiB is inside the shell); cap ${String(report.capMib)} MiB; bare release binaries, no .app bundle or installer`;
+  const note = `shell ${String(report.shellMib)} MiB (UI ${String(report.uiMib)} MiB inside) + sidecar ${String(report.sidecarMib)} MiB; cap ${String(report.capMib)} MiB; Fresnel.app, unsigned or signed, no zip`;
   emit("app_size_mib", "mib", report.totalMib, note);
   emit("app_size_verdict", "text", report.verdict, note);
 }
@@ -232,11 +221,6 @@ interface StartupRun {
 async function startupOnce(bin: string, probe: string): Promise<StartupRun> {
   const home = mkdtempSync(join(tmpdir(), "fresnel-bench-"));
   const shot = join(home, "window.png");
-  const webkitBefore = new Set(
-    psRows()
-      .filter((r) => isWebKit(r.command))
-      .map((r) => r.pid),
-  );
   const began = performance.now();
   const child = Bun.spawn([bin], {
     stdout: "ignore",
@@ -273,7 +257,7 @@ async function startupOnce(bin: string, probe: string): Promise<StartupRun> {
       }
     }
     await Bun.sleep(10_000);
-    const memory = idleMemory(psRows(), child.pid, webkitBefore);
+    const memory = idleMemory(psRows(), child.pid);
     return { windowMs, firstScreenMs, memory };
   } finally {
     child.kill();
@@ -285,9 +269,8 @@ async function startupOnce(bin: string, probe: string): Promise<StartupRun> {
 async function measureStartup(runs: number): Promise<void> {
   if (process.platform !== "darwin")
     fail(2, "startup is measured on macOS only (window list, screencapture)");
-  const bin = join(releaseDir, SHELL_NAME);
-  if (!existsSync(bin) || !existsSync(join(releaseDir, SIDECAR_NAME)))
-    fail(2, `${bin} or its sidecar is missing: run just desktop-build`);
+  const bin = appBinary;
+  if (!existsSync(bin)) fail(2, `${bin} is missing: run just desktop-build-electron`);
   const probeDir = mkdtempSync(join(tmpdir(), "fresnel-bench-probe-"));
   const probe = buildWindowProbe(probeDir);
   const results: StartupRun[] = [];
@@ -306,7 +289,7 @@ async function measureStartup(runs: number): Promise<void> {
   emit("window_ms_p50", "ms", r1(median(results.map((r) => r.windowMs))), note);
   emit("first_screen_ms_p50", "ms", r1(median(results.map((r) => r.firstScreenMs))), note);
   emit("first_screen_ms_max", "ms", r1(Math.max(...results.map((r) => r.firstScreenMs))), note);
-  for (const key of ["totalMib", "shellMib", "engineMib", "webkitMib"] as const) {
+  for (const key of ["totalMib", "shellMib", "childrenMib"] as const) {
     emit(
       `idle_rss_${key.replace("Mib", "")}_mib_p50`,
       "mib",

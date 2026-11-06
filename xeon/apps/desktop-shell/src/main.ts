@@ -21,7 +21,7 @@ import { MODULES } from "./main/modules.ts";
 import { CHANNEL_KEY, SHELL_CHANNELS } from "./shared/channels.ts";
 
 const SCHEME = "app";
-/** Tauri 설정(tauri.conf.json csp)과 같은 수준 */
+/** 옛 Tauri 구현(커밋 424f338a)의 CSP와 같은 수준 */
 const CSP = "default-src 'self'; connect-src 'self'; frame-src fresnel-view:";
 const MIME: Readonly<Record<string, string>> = {
   ".html": "text/html; charset=utf-8",
@@ -40,7 +40,7 @@ protocol.registerSchemesAsPrivileged([
   ...MODULES.flatMap((module) => module.schemes ?? []),
 ]);
 
-// Electron 전용 상태(캐시, 세션)는 Tauri 앱 폴더와 섞이지 않게 따로 둔다. 설정 파일은 configDir에서 둘이 같이 읽는다
+// Electron 전용 상태(캐시, 세션)는 설정 폴더(configDir)와 섞이지 않게 따로 둔다
 const IDENTIFIER = "dev.fresnel.desktop";
 const configDir = path.join(app.getPath("appData"), IDENTIFIER);
 app.setPath("userData", path.join(app.getPath("appData"), `${IDENTIFIER}.electron`));
@@ -55,7 +55,7 @@ function resourcesDir(): string {
 
 function uiDir(): string {
   const override = shellEnvOf(process.env, app.isPackaged)["FRESNEL_UI_DIR"];
-  // 개발 중에는 Tauri와 같은 UI 번들(`just desktop-ui`의 출력)을 쓴다
+  // 개발 중에는 `just desktop-ui`의 출력(apps/desktop/dist/ui)을 쓴다
   const dev = path.join(resourcesDir(), "..", "desktop", "dist", "ui");
   return path.resolve(override ?? (app.isPackaged ? path.join(resourcesDir(), "ui") : dev));
 }

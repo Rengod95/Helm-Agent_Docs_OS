@@ -1,7 +1,7 @@
 // 프레임 전용 URI 스킴 `fresnel-view://<확장이름>/<버전>/<경로>`(ADR-0021 §3.6.2, §3.6.3, X.loading-trust.spec §4.3.4)와 app root 목록 명령 `app_roots_set`.
 // 프레임 파일은 이 스킴으로만 나온다. 앱 자원, 다른 확장의 파일, app root 밖은 나오지 않는다.
 //
-// Rust 원본(`apps/desktop/src-tauri/src/view_scheme.rs`)과 같은 동작이다. 경로 규칙은 TS `resolveAppFile`과 같다(한 번만 퍼센트 디코딩).
+// 옛 Tauri 구현(커밋 424f338a)의 `view_scheme.rs`와 같은 동작이다. 경로 규칙은 TS `resolveAppFile`과 같다(한 번만 퍼센트 디코딩).
 // 응답 헤더와 CSP 글자는 `packages/client/src/views/app/scheme.ts`와 같고, test/view-scheme.test.ts가 그 글자를 맞춰 본다.
 //
 // 보안 메모(고치기 전에 읽는다):

@@ -1,5 +1,5 @@
 // @electron/packager로 Fresnel.app(macOS arm64)을 만든다(L4.desktop.spec §11.7). UI 번들과 엔진 사이드카는 Resources에 넣고
-// (Tauri externalBin과 같은 자리), 고지 파일은 Resources/licenses/에 모은다. 서명과 공증은 이 스크립트가 아니라
+// (옛 Tauri 구현의 externalBin과 같은 자리), 고지 파일은 Resources/licenses/에 모은다. 서명과 공증은 이 스크립트가 아니라
 // xeon/scripts/electron-sign.sh가 하고(`just desktop-sign-electron`), 업데이트 피드(Resources/update-feed.json)는
 // build/update-feed.json이 있을 때만 넣는다(값은 사용자 몫).
 // env: FRESNEL_RELEASE_VERSION (앱 버전, 기본은 package.json), FRESNEL_APP_OUT (출력 폴더, 기본 dist-app)

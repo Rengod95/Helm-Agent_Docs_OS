@@ -74,7 +74,7 @@ test("every triple resolves to its bun target and an unknown one lists the known
   expect(describeError(unknown.error)).toContain("x86_64-unknown-linux-gnu");
 });
 
-test("output names follow the Tauri externalBin convention, .exe on Windows only", () => {
+test("output names follow the <name>-<triple> convention, .exe on Windows only", () => {
   expect(outputFileName("fresnel", "aarch64-apple-darwin")).toBe("fresnel-aarch64-apple-darwin");
   expect(outputFileName("fresnel", "x86_64-unknown-linux-gnu")).toBe(
     "fresnel-x86_64-unknown-linux-gnu",
@@ -191,7 +191,7 @@ test("an out-dir request writes there and leaves the development sidecar path al
   expect(result.ok && result.value.outFile).toBe("/o/rel/fresnel-x86_64-unknown-linux-gnu");
   expect(calls.dirs).toEqual(["/o/rel"]);
   expect(calls.args[0]?.at(-1)).toBe("/o/rel/fresnel-x86_64-unknown-linux-gnu");
-  expect(calls.args[0]?.join(" ")).not.toContain("src-tauri");
+  expect(calls.args[0]?.join(" ")).not.toContain("dist/sidecar");
 });
 
 test("the Windows build writes an .exe", async () => {

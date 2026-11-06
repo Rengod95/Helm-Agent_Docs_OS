@@ -42,10 +42,10 @@ function fakeShell(reply: (command: string, args: unknown) => unknown): {
 }
 
 describe("selectShellBridge", () => {
-  test("picks Electron when the preload API exists and Tauri otherwise", () => {
+  test("picks Electron when the preload API exists and an unavailable bridge otherwise", () => {
     const shell = fakeShell(() => null);
     expect(selectShellBridge({ fresnelShell: shell.api }).kind).toBe("electron");
-    expect(selectShellBridge({ fresnelShell: undefined }).kind).toBe("tauri");
+    expect(selectShellBridge({ fresnelShell: undefined }).kind).toBe("none");
   });
 });
 

@@ -10,7 +10,7 @@ import {
   sizeReport,
 } from "./desktop-benchmark.ts";
 
-test("the app size is shell plus sidecar, compared with the 500 MiB cap", () => {
+test("the app size is shell plus sidecar (Fresnel.app), compared with the 500 MiB cap", () => {
   const MIB = 1024 * 1024;
   expect(sizeReport({ shellBytes: 14 * MIB, sidecarBytes: 96 * MIB, uiBytes: 3 * MIB })).toEqual({
     totalMib: 110,
@@ -30,30 +30,22 @@ test("the app size is shell plus sidecar, compared with the 500 MiB cap", () => 
 });
 
 test("ps lines parse and bad lines are skipped", () => {
-  expect(
-    parsePs("  10     1  2048 /a/fresnel-desktop\nnot a row\n 11 10 1024 /a/fresnel\n"),
-  ).toEqual([
-    { pid: 10, ppid: 1, rssKb: 2048, command: "/a/fresnel-desktop" },
+  expect(parsePs("  10     1  2048 /a/Fresnel\nnot a row\n 11 10 1024 /a/fresnel\n")).toEqual([
+    { pid: 10, ppid: 1, rssKb: 2048, command: "/a/Fresnel" },
     { pid: 11, ppid: 10, rssKb: 1024, command: "/a/fresnel" },
   ]);
 });
 
-test("idle memory sums the app tree and only the WebKit helpers that are new", () => {
+test("idle memory sums the main process and its children, not unrelated processes", () => {
   const rows = parsePs(
     [
-      "10 1 2048 /a/fresnel-desktop",
-      "11 10 1024 /a/fresnel",
-      "12 1 512 /System/WebKit.framework/XPCServices/com.apple.WebKit.WebContent.xpc/x",
-      "13 1 4096 /System/WebKit.framework/XPCServices/com.apple.WebKit.WebContent.xpc/x",
-      "14 1 8192 /usr/bin/other",
+      "10 1 2048 /a/Fresnel.app/Contents/MacOS/Fresnel",
+      "11 10 1024 /a/Fresnel.app/Contents/Resources/fresnel",
+      "12 10 512 /a/Fresnel Helper (Renderer)",
+      "13 1 4096 /usr/bin/unrelated",
     ].join("\n"),
   );
-  expect(idleMemory(rows, 10, new Set([13]))).toEqual({
-    totalMib: 3.5,
-    shellMib: 2,
-    engineMib: 1,
-    webkitMib: 0.5,
-  });
+  expect(idleMemory(rows, 10)).toEqual({ totalMib: 3.5, shellMib: 2, childrenMib: 1.5 });
 });
 
 test("median of odd and even counts, and none", () => {

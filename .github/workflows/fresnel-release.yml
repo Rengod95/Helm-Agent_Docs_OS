@@ -6,7 +6,7 @@ name: Fresnel Release
 # Signing and notarization (macOS) need the repository secrets APPLE_CERTIFICATE_P12_BASE64, APPLE_CERTIFICATE_PASSWORD,
 # APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD. Without them the archive is reported UNSIGNED (warning and job summary), and a v* tag run fails.
 # The macOS job also builds the bundled Electron app (xeon/scripts/release-electron.sh --smoke: Fresnel.app, signing step, launch smoke,
-# zip) beside the Tauri archive; the Tauri path stays until the Rust shell is removed (L4.release.spec §3.5).
+# zip) beside the CLI release archive (L4.release.spec §3.5).
 on:
   workflow_dispatch:
   push:

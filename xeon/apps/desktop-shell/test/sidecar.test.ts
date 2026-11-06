@@ -73,7 +73,7 @@ describe("sidecar lookup", () => {
     ).toEqual({ bundled: true, file: bundled });
   });
 
-  test("a development run falls back to the src-tauri binaries folder", () => {
+  test("a development run falls back to the apps/desktop/dist/sidecar folder", () => {
     expect(
       resolveSidecar({
         platform: "darwin",

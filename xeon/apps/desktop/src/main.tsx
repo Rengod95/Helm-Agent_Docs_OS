@@ -30,25 +30,25 @@ import { UpdateContext } from "./views/update-context.ts";
 import { createUpdateController, type UpdatePort } from "./views/update-controller.ts";
 import type { UpdateChannelOf, UpdateInvoke } from "./views/update-invoke.ts";
 
-// 셸 호출은 모두 어댑터(src/shell)를 거친다. 실행 때 Electron(preload의 window.fresnelShell)인지 Tauri인지 고른다
+// 셸 호출은 모두 어댑터(src/shell)를 거친다. 실행 때 Electron(preload의 window.fresnelShell)이 있는지 고른다
 const shellBridge = selectShellBridge();
 const invoke = (command: string, args?: Readonly<Record<string, unknown>>): Promise<unknown> =>
   shellBridge.invoke(command, args);
 
 const osReauth: OsReauthInvoke = (command, args) => invoke(command, args);
 
-// 폴더 선택 창은 모든 OS에서 Rust가 띄운다(플러그인 권한은 WebView에 주지 않는다)
+// 폴더 선택 창은 모든 OS에서 셸이 띄운다(플러그인 권한은 WebView에 주지 않는다)
 const folderPick: FolderPickInvoke = (command) => invoke(command);
 
-// 저장 창도 Rust가 띄운다. 내용을 넘기는 인자는 `save_file`의 `suggestedName`, `content`다(Tauri가 snake_case로 옮긴다)
+// 저장 창도 셸이 띄운다. 내용을 넘기는 인자는 `save_file`의 `suggestedName`, `content`다
 const fileSave: FileSaveInvoke = (command, args) => invoke(command, args);
 
-// 업데이트 명령(B-10)도 Rust가 부른다. 확인, 내려받기, 설치는 Rust의 `updater.rs`가 하고, 내려받기 진행만 채널로 받는다
+// 업데이트 명령(B-10)도 셸이 부른다. 확인, 내려받기, 설치는 셸이 하고, 내려받기 진행만 채널로 받는다
 const updateInvoke: UpdateInvoke = (command, args) => invoke(command, args);
 const updateChannel: UpdateChannelOf = (onMessage) => shellBridge.createChannel(onMessage);
 const updatePort: UpdatePort = { invoke: updateInvoke, createChannel: updateChannel };
 
-// OS 알림, 트레이, 셸 의도 명령도 Rust가 부른다(WebView에는 알림 플러그인 권한을 주지 않는다). 깨우기 이벤트만 셸 다리의 `listen`으로 듣는다
+// OS 알림, 트레이, 셸 의도 명령도 셸이 부른다(WebView에는 알림 플러그인 권한을 주지 않는다). 깨우기 이벤트만 셸 다리의 `listen`으로 듣는다
 const osNotifyInvoke: OsNotifyInvoke = (command, args) => invoke(command, args);
 const subscribeShellIntent: SubscribeShellIntent = (onWake) =>
   shellBridge.listen(SHELL_INTENT_EVENT, onWake);
@@ -77,7 +77,7 @@ if (container === null) {
   const shell = createShellStore(window.innerWidth);
   const registry = createDesktopRegistry();
   const mac = navigator.platform.startsWith("Mac");
-  // 사람 재인증 창은 macOS에서만 있다(Rust `os_reauth`는 다른 OS에서 항상 unavailable). 그 밖은 값 보기가 잠긴다
+  // 사람 재인증 창은 macOS에서만 있다(셸의 `os_reauth`는 다른 OS에서 항상 unavailable). 그 밖은 값 보기가 잠긴다
   const revealGate = mac ? createOsReauthGate(osReauth) : UNAVAILABLE_GATE;
   const app = createApp({
     localSettings,

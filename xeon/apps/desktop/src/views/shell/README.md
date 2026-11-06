@@ -78,9 +78,9 @@ type WorkbenchContext =
 
 ## 로컬 설정(V-14)과 셸 명령
 
-- `settings-store/local.ts`의 `LOCAL` 키 표와 `createLocalSettings(ipc)`. 읽을 때와 쓸 때 스키마로 검사합니다. 새 키는 `LOCAL`에 더하고 Rust `desktop_settings_write`의 허용 접두사(`l4.desktop.window.`, `appearance.`, `firstRun.`, `workbench.`) 안에 둡니다.
-- 셸 명령(Tauri): `engine_retarget { target }`(W-08), `desktop_settings_read`, `desktop_settings_write { key, value }`. 모두 `DesktopIpc`(`transport/ipc.ts`)로 부르고 `capabilities/default.json`에 허용이 있습니다.
-- OS 폴더 고르기(W-19)는 새 외부 의존(`tauri-plugin-dialog`) 승인이 필요해 아직 없습니다. 승인 전에는 O-07이 폴더 경로를 입력란으로 받습니다.
+- `settings-store/local.ts`의 `LOCAL` 키 표와 `createLocalSettings(ipc)`. 읽을 때와 쓸 때 스키마로 검사합니다. 새 키는 `LOCAL`에 더하고 셸 `desktop_settings_write`의 허용 접두사(`l4.desktop.window.`, `appearance.`, `firstRun.`, `workbench.`) 안에 둡니다.
+- 셸 명령: `engine_retarget { target }`(W-08), `desktop_settings_read`, `desktop_settings_write { key, value }`. 모두 `DesktopIpc`(`transport/ipc.ts`)로 부릅니다.
+- OS 폴더 고르기(W-19)는 셸 명령이 띄웁니다(`src/views/folder-pick.ts`).
 
 ## 폭 단계
 

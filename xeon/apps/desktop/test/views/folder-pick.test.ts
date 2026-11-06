@@ -18,7 +18,7 @@ function replying(reply: () => Promise<unknown>): {
   return { invoke, calls };
 }
 
-/** Tauri는 Rust가 준 `Err(String)`으로 거절한다. 이유는 `unknown`으로 받아 그 값을 그대로 던진다 */
+/** 셸은 오류 코드 문자열로 거절한다. 이유는 `unknown`으로 받아 그 값을 그대로 던진다 */
 function rejectingWith(reason: unknown): ReturnType<typeof replying> {
   return replying(async () => {
     throw reason;

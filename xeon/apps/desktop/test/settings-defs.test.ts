@@ -26,14 +26,6 @@ function accepts(def: SettingDef, value: unknown): boolean {
   return validateSettingValue(def, value).ok;
 }
 
-/** 머리글부터 첫 `\n}`까지의 본문. 함수 블록만 보므로 시험 코드나 다른 블록의 같은 문자열과 섞이지 않는다. */
-function blockAfter(text: string, header: RegExp): string {
-  const match = header.exec(text);
-  if (match === null) throw new Error(`no block matches ${header.source}`);
-  const end = text.indexOf("\n}", match.index);
-  return text.slice(match.index, end);
-}
-
 test("the group declares exactly the three l4.desktop keys of spec §6", () => {
   expect(DESKTOP_SETTING_DEFS.map((def) => def.key).toSorted()).toEqual([
     "l4.desktop.engine.restartLimit",
@@ -90,23 +82,27 @@ test("each declaration passes the contract's definition rules", () => {
   }
 });
 
-// Rust 쪽 기본값은 bun test가 부를 수 없어서 소스 글자로 맞춘다(sidecar-config.test.ts와 같은 방식).
-// 두 쪽이 어긋나면 셸이 쓰는 값과 설정 화면이 보이는 기본값이 달라진다. 블록을 함수 단위로 잘라 보므로
-// engine.rs 시험 코드의 같은 숫자에 맞아 통과하지 않는다.
-test("the defaults and ranges equal the Rust shell constants", () => {
-  const engine = readFileSync(join(root, "src-tauri/src/engine.rs"), "utf8");
-  const settings = readFileSync(join(root, "src-tauri/src/desktop_settings.rs"), "utf8");
+// Electron 셸의 기본값은 이 패키지의 bun test가 부를 수 없어서 소스 글자로 맞춘다(sidecar-config.test.ts와 같은 방식).
+// 두 쪽이 어긋나면 셸이 쓰는 값과 설정 화면이 보이는 기본값이 달라진다.
+test("the defaults and ranges equal the Electron shell constants", () => {
+  const policy = readFileSync(join(root, "../desktop-shell/src/main/engine/policy.ts"), "utf8");
+  const settings = readFileSync(
+    join(root, "../desktop-shell/src/main/desktop-settings.ts"),
+    "utf8",
+  );
+  const closeBehavior = readFileSync(
+    join(root, "../desktop-shell/src/main/close-behavior.ts"),
+    "utf8",
+  );
 
-  const engineDefault = blockAfter(engine, /impl Default for EngineConfig \{/);
-  expect(engineDefault).toContain("Duration::from_millis(7000)");
-  expect(engineDefault).toContain("restart_limit: 3,");
+  expect(policy).toContain("DEFAULT_SHUTDOWN_GRACE_MS: number = 7_000;");
+  expect(policy).toContain("DEFAULT_RESTART_LIMIT: number = 3;");
   expect(grace.default).toBe(7000);
   expect(restart.default).toBe(3);
 
-  const closeEnum = blockAfter(settings, /pub enum CloseBehavior \{/);
-  expect(closeEnum).toMatch(/#\[default\]\s+Tray,/);
+  expect(closeBehavior).toContain('const state: CloseState = { configured: "tray"');
   expect(close.default).toBe("tray");
 
-  expect(settings).toContain("SHUTDOWN_GRACE_MS_RANGE: RangeInclusive<i64> = 1000..=180_000;");
-  expect(settings).toContain("RESTART_LIMIT_RANGE: RangeInclusive<i64> = 0..=10;");
+  expect(settings).toContain("SHUTDOWN_GRACE_MS_RANGE: IntRange = { min: 1000, max: 180_000 };");
+  expect(settings).toContain("RESTART_LIMIT_RANGE: IntRange = { min: 0, max: 10 };");
 });

@@ -33,7 +33,7 @@ export interface PluginUiRuntimeDeps {
   readonly withConnection: <T>(
     run: (connection: HostConnection) => Promise<T>,
   ) => Promise<Result<T, unknown>>;
-  /** Tauri `invoke`(운영) 또는 가짜(시험). 프레임을 못 쓰는 기기에서는 `undefined`이고 앱 root는 보내지 않는다 */
+  /** 셸 `invoke`(운영) 또는 가짜(시험). 프레임을 못 쓰는 기기에서는 `undefined`이고 앱 root는 보내지 않는다 */
   readonly appRootsInvoke: AppRootsInvoke | undefined;
   /** 이 기기가 프레임을 쓸 수 있는가. Windows는 전용 스킴 주소가 달라 대상이 아니다 */
   readonly framesSupported: boolean;

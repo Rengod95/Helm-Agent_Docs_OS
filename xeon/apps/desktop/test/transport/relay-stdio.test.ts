@@ -5,7 +5,7 @@ import {
   ACK_UNIT_BYTES,
   attachRelay,
   openEngineConnection,
-} from "../../src/transport/tauri-stdio.ts";
+} from "../../src/transport/relay-stdio.ts";
 import { fakeIpc, requestId } from "./fake-ipc.ts";
 
 const deps = {

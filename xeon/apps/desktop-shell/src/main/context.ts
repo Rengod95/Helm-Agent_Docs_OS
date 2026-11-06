@@ -20,9 +20,9 @@ export interface ShellChannel {
 export type CommandHandler = (caller: IpcCaller, args: unknown) => unknown;
 
 export interface ShellPaths {
-  /** Electron userData(`<appData>/dev.fresnel.desktop.electron`). 브라우저 캐시 같은 Electron 전용 상태가 들어가며 Tauri 폴더와 섞이지 않는다 */
+  /** Electron userData(`<appData>/dev.fresnel.desktop.electron`). 브라우저 캐시 같은 Electron 전용 상태가 들어가며 설정 폴더와 섞이지 않는다 */
   readonly userData: string;
-  /** Tauri `app_config_dir`와 같은 폴더(`<appData>/dev.fresnel.desktop`). 데스크톱 설정 파일을 두 셸이 같이 읽는다 */
+  /** 설정 폴더(`<appData>/dev.fresnel.desktop`). 데스크톱 설정 파일이 여기 있다(옛 Tauri 앱과 같은 폴더라 설정이 이어진다) */
   readonly configDir: string;
   /** 앱 로그 폴더. macOS는 `~/Library/Logs/dev.fresnel.desktop` */
   readonly logs: string;

@@ -131,14 +131,9 @@ release-smoke:
 desktop-ui mode="release":
     {{bun}} run --cwd apps/desktop {{ if mode == "dev" { "build:ui:dev" } else { "build:ui" } }}
 
-# 데스크톱 개발 실행 (cargo run, 사이드카 필요: 없으면 종료코드 2). just verify 밖
+# 데스크톱 개발 실행: 셸을 번들하고 electron으로 띄운다. 화면은 `just desktop-ui`, 사이드카는 `just desktop-sidecar host`를 먼저 해 둔다(없으면 종료코드 2). 개발 실행이라 inspect 소켓(`<로그 폴더>/inspect.sock`, FRESNEL_DESKTOP_INSPECT=1)이 켜진다. just verify 밖
 [group('local')]
 desktop-run:
-    bash apps/desktop/scripts/cargo.sh run
-
-# Electron 셸 개발 실행(전환 1단계, Tauri와 따로 돈다): 셸을 번들하고 electron으로 띄운다. 화면은 `just desktop-ui`, 사이드카는 `just desktop-sidecar host`를 먼저 해 둔다(없으면 종료코드 2). 단일 인스턴스 잠금이 없어 Tauri `desktop-run`과 동시에 떠도 서로 막지 않는다. 개발 실행이라 inspect 소켓(`<로그 폴더>/inspect.sock`, FRESNEL_DESKTOP_INSPECT=1)이 켜진다. just verify 밖
-[group('local')]
-desktop-run-electron:
     #!/usr/bin/env bash
     set -euo pipefail
     [ -f apps/desktop/dist/ui/index.html ] || { echo "화면 번들이 없다: just desktop-ui" >&2; exit 2; }
@@ -168,12 +163,12 @@ desktop-sign-electron *flags:
 desktop-smoke-electron:
     bash ../scripts/guard.sh run -- {{bun}} scripts/electron-smoke.ts apps/desktop-shell/dist-app/Fresnel-darwin-arm64/Fresnel.app
 
-# Electron 셸 npm 고지(apps/desktop-shell/resources/THIRD-PARTY-NOTICES-SHELL.txt, `desktop-notices`의 Rust 고지와 같은 방식): 인자 없으면 다시 쓰고, --check면 커밋된 파일이 의존과 맞는지만 본다(다르면 종료코드 1). 앱에는 Resources/licenses/로 들어간다 (scripts/shell-notices.ts)
+# Electron 셸 npm 고지(apps/desktop-shell/resources/THIRD-PARTY-NOTICES-SHELL.txt): 인자 없으면 다시 쓰고, --check면 커밋된 파일이 의존과 맞는지만 본다(다르면 종료코드 1). 앱에는 Resources/licenses/로 들어간다 (scripts/shell-notices.ts)
 [group('local')]
 desktop-notices-electron *flags:
     {{bun}} scripts/shell-notices.ts {{flags}}
 
-# Electron 릴리즈 묶음: 화면, 사이드카, 셸, Fresnel.app, 서명(시크릿 없으면 UNSIGNED), Fresnel-<version>-arm64.zip과 .sha256을 FRESNEL_RELEASE_OUT(기본 dist/release-electron)에 만든다. Tauri `release-archive`는 그대로. macOS arm64만 (scripts/release-electron.sh)
+# Electron 릴리즈 묶음: 화면, 사이드카, 셸, Fresnel.app, 서명(시크릿 없으면 UNSIGNED), Fresnel-<version>-arm64.zip과 .sha256을 FRESNEL_RELEASE_OUT(기본 dist/release-electron)에 만든다. `release-archive`는 CLI 릴리즈 아카이브라 그대로다. macOS arm64만 (scripts/release-electron.sh)
 [group('local')]
 release-archive-electron:
     scripts/release-electron.sh
@@ -187,26 +182,6 @@ release-smoke-electron:
 [group('local')]
 desktop-shell-test:
     {{bun}} run --cwd apps/desktop-shell test
-
-# 데스크톱 앱 릴리스 빌드 (cargo build --release, 사이드카 필요: 없으면 종료코드 2). 설치 파일 번들은 D10. just verify 밖
-[group('local')]
-desktop-build:
-    bash apps/desktop/scripts/cargo.sh build
-
-# 데스크톱 Rust 셸 단위 시험 (cargo test: 릴레이, 엔진 수명). 사이드카 불필요, cargo 없으면 종료코드 2. just verify 밖
-[group('local')]
-desktop-test:
-    bash apps/desktop/scripts/cargo.sh test
-
-# fresnel-view:// 프레임이 실제 Tauri 창에서 IPC에 닿는지 보는 실기 시험(ADR-0021 3.6.2). 창을 띄우므로 GUI 세션이 있는 맥에서만. GUI 세션이 없으면 종료코드 2. just verify 밖
-[group('local')]
-desktop-ipc-probe:
-    bash apps/desktop/scripts/cargo.sh probe
-
-# 데스크톱 Rust 셸 고지: 인자 없으면 apps/desktop/src-tauri/resources/THIRD-PARTY-NOTICES-RUST.txt를 다시 쓰고, --check면 그 파일이 Cargo.lock과 맞는지만 본다(다르면 종료코드 1, cargo가 없으면 2). just verify 밖 (scripts/rust-notices.ts)
-[group('local')]
-desktop-notices *flags:
-    {{bun}} scripts/rust-notices.ts {{flags}}
 
 # 실제 provider로 모델 테이프 녹화 <scenario>: 비용이 들어 --yes 없이는 계획만 보이고 종료코드 3 (scripts/tape-record.ts, D-e)
 [group('local')]

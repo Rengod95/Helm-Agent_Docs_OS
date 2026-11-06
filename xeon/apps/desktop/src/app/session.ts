@@ -13,7 +13,7 @@ import {
   openEngineConnection,
   type EngineConnectionDeps,
   type RelayPort,
-} from "../transport/tauri-stdio.ts";
+} from "../transport/relay-stdio.ts";
 
 // 엔진 연결 수명. 셸 상태가 running일 때 연결을 열고, 아닐 때 닫는다.
 // 엔진이 다시 뜨면 새 attach로 새 세대의 스트림을 받아 hello부터 다시 한다(L4.desktop.design 10절 규칙 4).

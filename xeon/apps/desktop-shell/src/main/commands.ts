@@ -1,7 +1,7 @@
 // 명령 등록부. ipcMain 없이 시험할 수 있도록 순수 코드로 둔다.
 import type { CommandHandler, IpcCaller } from "./context.ts";
 
-/** 핸들러가 거절할 때 던진다. `payload`가 그대로 renderer의 거절 값이 된다(Tauri 명령의 `Err(String)`, `Err({kind})`와 같은 자리) */
+/** 핸들러가 거절할 때 던진다. `payload`가 그대로 renderer의 거절 값이 된다(문자열 코드나 `{kind}` 객체) */
 export class ShellError extends Error {
   readonly payload: unknown;
   constructor(payload: unknown) {

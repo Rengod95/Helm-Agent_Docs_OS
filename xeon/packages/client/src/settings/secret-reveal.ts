@@ -35,7 +35,7 @@ export type RevealGrant =
   | { readonly kind: "value"; readonly bytes: Uint8Array }
   | { readonly kind: "shown_by_host" };
 
-/** 재인증을 거쳐 값을 여는 수단. 셸(Tauri 명령, OS 인증)이나 wire 어댑터가 구현한다 */
+/** 재인증을 거쳐 값을 여는 수단. 셸(명령, OS 인증)이나 wire 어댑터가 구현한다 */
 export interface SecretRevealPort {
   reveal(name: SecretName): Promise<Result<RevealGrant, RevealFailure>>;
 }

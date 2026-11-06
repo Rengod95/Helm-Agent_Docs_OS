@@ -7,7 +7,7 @@ export function createShellIntentsModule(): ShellModule {
     name: "shell-intents",
     register(ctx) {
       ctx.handle("shell_take_intents", () => sharedIntents.take(Date.now()));
-      // Tauri 셸은 알림 클릭 대상을 이 명령으로 가져갔다. Electron 셸은 클릭을 의도로 바로 큐에 넣고 `shell-intent`를 보내므로 가져갈 대상이 없어 항상 null이다
+      // 옛 Tauri 구현은 알림 클릭 대상을 이 명령으로 가져갔다. 이 셸은 클릭을 의도로 바로 큐에 넣고 `shell-intent`를 보내므로 가져갈 대상이 없어 항상 null이다
       ctx.handle("notify_take_target", () => null);
     },
   };

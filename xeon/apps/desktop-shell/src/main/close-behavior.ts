@@ -1,4 +1,4 @@
-// 창을 모두 닫았을 때 앱을 끝낼지(L4.desktop.spec §4.18). Tauri `effective_close_behavior`와 같은 규칙이다.
+// 창을 모두 닫았을 때 앱을 끝낼지(L4.desktop.spec §4.18). 옛 Tauri 구현(커밋 424f338a)의 `effective_close_behavior`와 같은 규칙이다.
 // 설정이 `tray`여도 트레이가 없으면 `quit`처럼 움직인다(창을 닫았는데 앱이 보이지 않게 남는 일을 막는다).
 // 값을 쓰는 쪽: 트레이 모듈이 `setTrayActive`, 설정 모듈(ecore)이 `setConfiguredCloseBehavior`.
 

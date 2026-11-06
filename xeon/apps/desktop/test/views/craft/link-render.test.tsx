@@ -50,7 +50,7 @@ describe("LinkView render", () => {
     expect(html).toContain('aria-label="연결된 플러그인"');
     // 관계 하나마다 종류 점이 하나 이상 나온다
     expect(html.split('class="craft-link-dot"').length - 1).toBeGreaterThan(0);
-    // 스타일은 link.css가 낸다. 인라인 <style>은 Tauri CSP가 막으므로 화면이 내지 않는다(이 줄은 예전에 <style> 안의 글자로 통과했다)
+    // 스타일은 link.css가 낸다. 인라인 <style>은 셸 CSP가 막으므로 화면이 내지 않는다(이 줄은 예전에 <style> 안의 글자로 통과했다)
     expect(html).not.toContain("<style");
   });
 

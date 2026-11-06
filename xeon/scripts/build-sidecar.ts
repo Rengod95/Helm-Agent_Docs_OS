@@ -132,7 +132,7 @@ export function hostTriple(platform: string, arch: string): Result<string, Build
     : succeed(triple);
 }
 
-/** `<name>-<triple>`, with `.exe` for Windows triples (Tauri externalBin naming, adr.0008 3.2). */
+/** `<name>-<triple>`, with `.exe` for Windows triples (the naming the Electron packaging and the dev lookup expect). */
 export function outputFileName(name: string, triple: string): string {
   return triple.includes("-windows-") ? `${name}-${triple}.exe` : `${name}-${triple}`;
 }

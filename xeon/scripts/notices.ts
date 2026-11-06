@@ -432,7 +432,7 @@ function countOf(count: number): string {
  * (packages with identical text share it, see textGroups), each followed by the packages that carry it with name, version,
  * header copyright lines and source link. Packages without a license file come last, with their notes. `carrier` names the
  * file that ships the notice, for the sentence about a license with no text in it (the release archive by default;
- * rust-notices.ts names its own file).
+ * shell-notices.ts names its own file).
  */
 export function groupedNoticesText(items: readonly NoticeItem[], carrier = "The archive"): string {
   if (items.length === 0) return "";
