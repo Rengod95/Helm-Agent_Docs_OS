@@ -20,6 +20,8 @@ export function approvalFailureOf(
   decision: "allow" | "deny" | "answer",
 ): ApprovalFailureView | null {
   if (!sent.ok) {
+    // 다른 프로세스(터미널 등)가 이 대화를 쥐고 있다(3002): 이유를 말해야 사용자가 그쪽을 끝낸다
+    if (sent.error.kind === "locked") return { kind: "locked" };
     // 스키마에 맞지 않는 질문 답은 host가 -32602로 거절한다
     return sent.error.kind === "rejected" &&
       sent.error.code === INVALID_PARAMS &&

@@ -26,6 +26,10 @@ describe("approvalFailureOf", () => {
     expect(approvalFailureOf(ok({ applied: false, reason: "commit_failed" }), "allow")).toEqual({
       kind: "failed",
     });
+    // 다른 프로세스가 대화를 쥐고 있으면(3002) 이유를 말한다
+    expect(
+      approvalFailureOf(err({ kind: "locked", ownerKind: "cli", options: [] }), "allow"),
+    ).toEqual({ kind: "locked" });
   });
 
   test("applied false without a reason is unapplied", () => {
