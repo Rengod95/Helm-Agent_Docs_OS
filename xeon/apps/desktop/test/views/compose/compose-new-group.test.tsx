@@ -69,7 +69,7 @@ describe("StartGrid", () => {
     const html = renderToString(
       <StartGrid points={POINTS} selected="single-plugin" onPick={NOOP} />,
     );
-    const chosen = radioWith(html, "플러그인 하나");
+    const chosen = radioWith(html, "단일 플러그인");
     expect(chosen).toContain('aria-checked="true"');
     expect(chosen).toContain('aria-disabled="false"');
     expect(chosen).toContain('tabindex="0"');
@@ -141,7 +141,7 @@ describe("StartPicker", () => {
       <StartPicker read={read} selected={null} onPick={NOOP} onRetry={NOOP} />,
     );
     expect(html).toContain('role="radiogroup"');
-    expect(html).toContain("플러그인 하나");
+    expect(html).toContain("단일 플러그인");
     expect(html).toContain("마지막으로 읽은 값이에요.");
   });
 });
@@ -295,5 +295,19 @@ describe("MadeResult", () => {
     );
     expect(buttonWith(html, "검사 다시 돌리기")).toContain('aria-busy="true"');
     expect(buttonWith(html, "설치 묶음 만들기")).not.toContain('aria-busy="true"');
+  });
+});
+
+describe("engine-provided English texts", () => {
+  test("the known kinds and the AU-012 warning are shown in Korean, unknown ones as written", async () => {
+    const { kindTitleOf, issueTextOf } =
+      await import("../../../src/views/compose/compose-wire-text.ts");
+    expect(kindTitleOf("plugin-group", "Plugin group")).toBe("플러그인 그룹");
+    expect(kindTitleOf("single-plugin", "Single plugin")).toBe("단일 플러그인");
+    expect(kindTitleOf("future-kind", "Future")).toBe("Future");
+    expect(
+      issueTextOf({ code: "AU-012", message: "the replay discipline scan did not run" }),
+    ).toContain("재생 규율 검사");
+    expect(issueTextOf({ code: "AU-001", message: "bad manifest" })).toBe("bad manifest");
   });
 });

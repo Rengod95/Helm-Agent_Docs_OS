@@ -15,6 +15,7 @@ import {
 import { useState, type ReactNode } from "react";
 import { CanvasHost } from "./compose-canvas-host.tsx";
 import { PRODUCT_TEXT } from "./compose-text.ts";
+import { issueTextOf } from "./compose-wire-text.ts";
 
 const BLOCK_X = 0;
 const BLOCK_WIDTH = 330;
@@ -128,7 +129,7 @@ function BlockNode(props: {
           role="alert"
           className={`m-0 text-footnote ${issue.severity === "error" ? "text-danger-text" : "text-warning-text"}`}
         >
-          <span className="font-mono">{issue.code}</span> {issue.message}
+          <span className="font-mono">{issue.code}</span> {issueTextOf(issue)}
         </p>
       ))}
     </NodeGraphNode>

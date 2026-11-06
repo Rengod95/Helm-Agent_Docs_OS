@@ -175,7 +175,9 @@ function PendingCard(props: {
       ? request.title
       : titleView.id === "desktop.approvals.title.tool"
         ? t(titleView.id, titleView.params)
-        : t(titleView.id);
+        : titleView.id === "desktop.approvals.title.plan"
+          ? t(titleView.id)
+          : t(titleView.id, { name: titleView.params.name, op: t(titleView.params.opId) });
   const origin = approvalOriginView(request.origin.caller);
   const expiry = approvalExpiryOf(request);
   const actionSize: ActionSize = body.kind === "plan" || body.kind === "review" ? "sm" : "xs";

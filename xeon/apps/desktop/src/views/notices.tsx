@@ -10,6 +10,7 @@ import {
   mergeNotices,
   noticeKindId,
   noticeTitleViewOf,
+  noticeToastVisible,
   type NoticeEntry,
 } from "./notices-model.ts";
 import { turnFailureOf } from "./turn-failure-model.ts";
@@ -48,6 +49,7 @@ export function NoticeToasts(): ReactNode {
     const timers = new Set<ReturnType<typeof setTimeout>>();
     const off = commands.notices.onDelivered((delivered) => {
       const { notice } = delivered;
+      if (!noticeToastVisible(notice)) return;
       const isTurnFailure = notice.kind === "error" && notice.sourceType === "turn.completed";
       const view = isTurnFailure && notice.body !== null ? turnFailureOf(notice.body) : null;
       const id = toast({

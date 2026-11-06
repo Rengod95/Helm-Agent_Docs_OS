@@ -108,7 +108,28 @@ export function threadLinkVisibleOf(input: {
 /** 카드 제목의 카탈로그 키. 엔진이 영어로 만든 제목(도구 승인, 계획 승인)만 한국어로 바꾸고, 그 밖의 제목(시크릿 사용, 질문)은 원문이다 */
 export type CardTitleView =
   | { readonly id: "desktop.approvals.title.tool"; readonly params: { readonly tool: string } }
-  | { readonly id: "desktop.approvals.title.plan" };
+  | { readonly id: "desktop.approvals.title.plan" }
+  | {
+      readonly id: "desktop.approvals.title.write.memory" | "desktop.approvals.title.write.skill";
+      readonly params: { readonly name: string; readonly opId: MessageId };
+    };
+
+/** 지식 쓰기 승인(기억·스킬)의 동작 이름 키. 제목 원문은 `Approve <op> on <대상>?`이다(cap-knowledge `titleOf`) */
+const WRITE_OP_ID: Readonly<Record<string, MessageId>> = {
+  "skill.create": "desktop.approvals.title.write.op.skill.create",
+  "skill.edit": "desktop.approvals.title.write.op.skill.edit",
+  "skill.patch": "desktop.approvals.title.write.op.skill.patch",
+  "skill.write_file": "desktop.approvals.title.write.op.skill.writeFile",
+  "skill.archive": "desktop.approvals.title.write.op.skill.archive",
+  "skill.delete": "desktop.approvals.title.write.op.skill.delete",
+  "memory.add": "desktop.approvals.title.write.op.memory.add",
+  "memory.replace": "desktop.approvals.title.write.op.memory.replace",
+  "memory.remove": "desktop.approvals.title.write.op.memory.remove",
+  "memory.batch": "desktop.approvals.title.write.op.memory.batch",
+  external: "desktop.approvals.title.write.op.external",
+  rollback: "desktop.approvals.title.write.op.rollback",
+};
+const WRITE_TITLE = /^Approve (\S+) on (?:skill (.+)|(.+) memory)\?$/;
 
 export function cardTitleViewOf(request: ApprovalRequestedPayload): CardTitleView | null {
   const { body } = request;
@@ -117,6 +138,18 @@ export function cardTitleViewOf(request: ApprovalRequestedPayload): CardTitleVie
   }
   if (body.kind === "plan" && request.title === "Review the plan") {
     return { id: "desktop.approvals.title.plan" };
+  }
+  const write = body.kind === "tool" ? WRITE_TITLE.exec(request.title) : null;
+  const opId = write === null ? undefined : WRITE_OP_ID[write[1] ?? ""];
+  if (write !== null && opId !== undefined) {
+    const skill = write[2];
+    if (skill !== undefined) {
+      return { id: "desktop.approvals.title.write.skill", params: { name: skill, opId } };
+    }
+    return {
+      id: "desktop.approvals.title.write.memory",
+      params: { name: write[3] ?? "", opId },
+    };
   }
   return null;
 }

@@ -5,6 +5,7 @@ import {
   NOTICE_KEEP,
   noticeKindId,
   noticeTitleViewOf,
+  noticeToastVisible,
 } from "../../src/views/notices-model.ts";
 import { checkTitle, deleteFailureId } from "../../src/views/thread-row-menu.tsx";
 import { thr } from "../state/helpers.ts";
@@ -116,6 +117,12 @@ describe("noticeTitleViewOf", () => {
       id: "desktop.notices.title.approvalPlan",
     });
     expect(noticeTitleViewOf(of("approval_waiting", "approval.requested", "no colon"))).toBeNull();
+  });
+
+  test("an approval notice is not toasted because the live announcer already reads it", () => {
+    expect(noticeToastVisible(of("approval_waiting", "approval.requested", "a: edit"))).toBe(false);
+    expect(noticeToastVisible(of("completed", "turn.completed", "done"))).toBe(true);
+    expect(noticeToastVisible(of("question_waiting", "approval.requested", "q"))).toBe(true);
   });
 
   test("an error from a source the app does not know keeps its own title", () => {

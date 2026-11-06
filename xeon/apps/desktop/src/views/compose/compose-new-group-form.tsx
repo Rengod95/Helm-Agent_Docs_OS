@@ -12,6 +12,7 @@ import { assertNever } from "@fresnel/contracts";
 import type { ExtensionKind, KindEntry } from "@fresnel/contracts/services";
 import { Alert, Button, EmptyState, Field, Input, Skeleton } from "@caustic/react";
 import type { ReactNode } from "react";
+import { kindTitleOf } from "./compose-wire-text.ts";
 
 export const MUTED = "m-0 text-ui-sm text-text-tertiary";
 export const MONO = "m-0 break-all font-mono text-mono-sm text-text-secondary";
@@ -137,7 +138,7 @@ export function StartGrid(props: {
             <span
               className={`text-title-3 ${point.selectable ? "text-text-primary" : "text-text-tertiary"}`}
             >
-              {point.title}
+              {kindTitleOf(point.id, point.title)}
             </span>
             <StatusNote status={point.status} />
           </div>

@@ -1,4 +1,5 @@
-import { Chip, TagInput } from "@caustic/react";
+import { Chip } from "@caustic/react";
+import { LocalizedTagInput } from "../../localized-tag-input.tsx";
 import type { ReactNode } from "react";
 import type { SettingKey } from "@fresnel/contracts/settings";
 import { optionLabelOf, optionOf, optionTextOf } from "./settings-model.ts";
@@ -18,7 +19,7 @@ export function SettingTagList(props: {
   const { settingKey, options, value, onChange } = props;
   if (options === null) {
     return (
-      <TagInput
+      <LocalizedTagInput
         aria-label={props.label}
         containerClassName="max-w-[28rem]"
         value={[...value]}

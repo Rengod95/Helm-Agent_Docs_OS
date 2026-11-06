@@ -70,6 +70,14 @@ export function noticeTitleViewOf(notice: Notice): NoticeTitleView | null {
   }
 }
 
+/**
+ * 이 알림을 화면 토스트로도 알리나. 새 승인 요청은 낭독 영역(`live-announcer.tsx`)이 이미 읽고, 토스트 영역과 토스트 자체도 낭독 영역이라
+ * 같은 문장이 세 번 읽힌다. 승인 알림은 목록과 OS 알림, 대화의 승인 카드와 사이드바 승인 수로 알리고 토스트는 띄우지 않는다
+ */
+export function noticeToastVisible(notice: Notice): boolean {
+  return notice.kind !== "approval_waiting";
+}
+
 /** 같은 seq는 한 번만 둔다(목록 읽기와 전달 알림이 겹칠 수 있다). 새것이 위로 오고 상한을 넘으면 오래된 것을 버린다 */
 export function mergeNotices(
   current: readonly NoticeEntry[],

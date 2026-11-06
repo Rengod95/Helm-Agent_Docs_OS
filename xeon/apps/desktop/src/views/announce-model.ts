@@ -16,7 +16,17 @@ export function approvalAnnouncement(request: ApprovalRequestedPayload): Announc
   const view = cardTitleViewOf(request);
   if (view !== null && view.id === "desktop.approvals.title.tool")
     return { id: "desktop.announce.approval", params: { what: view.params.tool } };
-  if (view !== null) return { id: "desktop.announce.approval.plan" };
+  if (view !== null && view.id === "desktop.approvals.title.plan")
+    return { id: "desktop.announce.approval.plan" };
+  if (view !== null) {
+    return {
+      id:
+        view.id === "desktop.approvals.title.write.skill"
+          ? "desktop.announce.approval.write.skill"
+          : "desktop.announce.approval.write.memory",
+      params: { name: view.params.name },
+    };
+  }
   return { id: "desktop.announce.approval", params: { what: request.title } };
 }
 

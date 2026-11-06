@@ -15,8 +15,8 @@ import {
   SelectOption,
   Skeleton,
   Switch,
-  TagInput,
 } from "@caustic/react";
+import { LocalizedTagInput } from "../../localized-tag-input.tsx";
 import { Ellipsis, Lock, TriangleAlert, X } from "@caustic/react/icons";
 import { activeLocale, t } from "@fresnel/client/i18n";
 import type { AccountEntry, RateLimitEntry, RotationState } from "@fresnel/client";
@@ -776,7 +776,7 @@ export function ChainMapView(props: ChainMapViewProps): ReactNode {
       {ROLE_IDS.map((role) => (
         <div key={role} className="flex flex-wrap items-start gap-2">
           <span className="w-28 pt-2 text-ui-sm text-text-secondary">{t(roleIdOf(role))}</span>
-          <TagInput
+          <LocalizedTagInput
             aria-label={t(roleIdOf(role))}
             value={[...(chains[role] ?? [])]}
             disabled={!editable}

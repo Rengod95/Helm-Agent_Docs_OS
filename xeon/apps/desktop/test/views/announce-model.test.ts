@@ -46,6 +46,17 @@ describe("approval announcement", () => {
     });
   });
 
+  test("a memory or skill write approval is announced in Korean with the target name", () => {
+    expect(approvalAnnouncement(toolRequest("Approve memory.add on user memory?"))).toEqual({
+      id: "desktop.announce.approval.write.memory",
+      params: { name: "user" },
+    });
+    expect(approvalAnnouncement(toolRequest("Approve skill.create on skill deploy?"))).toEqual({
+      id: "desktop.announce.approval.write.skill",
+      params: { name: "deploy" },
+    });
+  });
+
   test("an unknown title is announced as is", () => {
     expect(approvalAnnouncement(toolRequest("Something else"))).toEqual({
       id: "desktop.announce.approval",
