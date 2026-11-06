@@ -54,3 +54,17 @@ test("an answered user item, a running thread and an empty thread are not unsent
   expect(selectUnsentUserItemId(mirrorOf([userItem(1)], "running"))).toBeNull();
   expect(selectUnsentUserItemId(mirrorOf([], "idle"))).toBeNull();
 });
+
+test("a hollow failed assistant item after the user item is skipped, a failed one with content is not", () => {
+  const hollow: ItemRecord = { ...REPLY, status: "failed", itemId: itm(3) };
+  const empty: ItemRecord = { ...hollow, message: { ...hollow.message, content: [] } };
+  expect(selectUnsentUserItemId(mirrorOf([userItem(1), empty], "idle"))).toBe(itm(1));
+  expect(selectUnsentUserItemId(mirrorOf([userItem(1), hollow], "idle"))).toBeNull();
+  const system: ItemRecord = {
+    itemId: itm(4),
+    status: "completed",
+    kind: "system",
+    message: { role: "system", content: "s", timestamp: 0 },
+  };
+  expect(selectUnsentUserItemId(mirrorOf([userItem(1), system, empty], "idle"))).toBe(itm(1));
+});
