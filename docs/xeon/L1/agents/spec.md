@@ -504,6 +504,7 @@ export type AgentJudgedPayload = JudgeRecord;
 4. 취소 의도가 커밋된 부모 turn 아래에서 새 spawn: `agents.parent_aborting`. 새 자식을 만들지 않는다.
 5. 자식 실행 중 프로세스 강제 종료: 재개 때 부모의 열린 `agent` 도구 호출은 `replay: "safe"`라 다시 실행되고 §4.5 멱등으로 같은 자식을 이어 받는다. 자식 대화는 자기 체크포인트에서 재개한다.
 6. 자식 모델 오류: 자식 turn `error` → `agent.settled{ status: "error" }` → 부모에 `[fresnel:subagent_error]` 블록.
+6a. 부모의 `agent` 도구 호출이 멈춰(신호 중단) 자식을 기다리던 대기가 던지면, 도구는 `isError: true`, `details { childThreadId: null, status: "aborted" }`, 글머리 `[fresnel:aborted]` 결과를 돌려준다. 던진 값 그대로는 "unknown error"가 되어 화면에서 "실패"로 보이기 때문이다(L4.desktop-ux가 "중단됨"으로 보인다). 멈춤이 아닌 던짐은 그대로 다시 던진다.
 7. 백그라운드 자식 정착 시 부모 대화가 닫혀 있음: 보고 입력은 `agent.settled`와 같은 커밋으로 부모 큐에 남고 대화를 다시 열 때 배치된다. 부모 대화가 삭제되었으면 보고를 버리고 `agent.settled`만 남긴다(자식 대화 쪽 기록은 남는다) [제안].
 8. 판정 모델 오류(네트워크, 스키마 위반 아님): `{ kind: "failed" }`. 실행 수에 넣지 않는다 [제안]. 연속 실패의 처리는 완료 게이트(L1.loop.spec)가 정한다.
 9. 정의 파일 프런트매터 파싱 오류(2차): 그 파일만 빼고 진단(`agents.definition_invalid`, 파일 경로와 YAML 오류 위치)을 남긴다. 같은 이름의 하위 우선순위 정의가 있으면 그것을 쓴다.

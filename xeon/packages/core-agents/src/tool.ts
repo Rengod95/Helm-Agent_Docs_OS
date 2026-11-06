@@ -1,5 +1,6 @@
 // 모델 도구 `agent`(L1.agents.spec §3.3, AG-10). 순서 키 `core.agents`, risk exec, classes ["spawn"], replay safe.
 // 재실행해도 같은 requestId(`tool:<toolCallId>:spawn:0`)라 기존 자식을 돌려받는다(§4.5)이므로 safe다.
+import { attemptAsync, rethrow } from "@fresnel/contracts";
 import { Type, type TBoolean, type TObject, type TOptional, type TString } from "typebox";
 import {
   isId,
@@ -76,6 +77,17 @@ function toResult(outcome: SpawnResult): AgentToolResult {
     details,
     structuredContent: details,
     isError: outcome.status !== "completed",
+  };
+}
+
+/** 부모 호출이 멈춰 자식을 기다리다 끝났다. 화면은 `details.status`가 "aborted"이면 "중단됨"으로 보인다 */
+function abortedResult(): AgentToolResult {
+  const details: JsonValue = { childThreadId: null, status: "aborted" };
+  return {
+    content: [{ type: "text", text: "[fresnel:aborted] Subagent aborted" }],
+    details,
+    structuredContent: details,
+    isError: true,
   };
 }
 
@@ -158,26 +170,33 @@ function createAgentTool(
       }
       // 자식의 도구 호출도 `tools` 슬롯이 필요하다. 이 호출이 슬롯을 쥔 채 자식을 기다리면 슬롯 수만큼의 `agent` 호출이 교착한다
       // (규칙 C2). 기다리는 동안 슬롯을 내려놓는다
-      const outcome = await tools.suspendWhile(
-        owner.threadId,
-        toolCallId,
-        service.spawn(
-          {
-            agent: params.agent,
-            task: params.task,
-            requestId: derivedRequestId(ownerRequestId, 0),
-          },
-          {
-            parentThreadId: owner.threadId,
-            owner: { kind: "tool", turnId: owner.turnId, toolCallId },
-            caller: parent.caller,
-            depth: parent.depth,
-            ownerRequestId,
-            signal,
-          },
+      const settled = await attemptAsync(() =>
+        tools.suspendWhile(
+          owner.threadId,
+          toolCallId,
+          service.spawn(
+            {
+              agent: params.agent,
+              task: params.task,
+              requestId: derivedRequestId(ownerRequestId, 0),
+            },
+            {
+              parentThreadId: owner.threadId,
+              owner: { kind: "tool", turnId: owner.turnId, toolCallId },
+              caller: parent.caller,
+              depth: parent.depth,
+              ownerRequestId,
+              signal,
+            },
+          ),
         ),
       );
-      return toResult(outcome);
+      if (!settled.ok) {
+        // 부모 호출을 멈추면 대기가 던지면서 끝난다. 던진 값 그대로는 "unknown error"가 되므로 중단 결과로 돌려준다
+        if (signal.aborted) return abortedResult();
+        return rethrow(settled.error.cause);
+      }
+      return toResult(settled.value);
     },
   };
 }
