@@ -30,6 +30,7 @@ import { CLI_SETTING_KEYS } from "../settings.ts";
 import { wireSignals, type SignalWiring } from "../signals.ts";
 import { createMinimalSink, runInteractive } from "../tui/minimal.ts";
 import { resolvePrintInput } from "./chat-input.ts";
+import { printUsageLine } from "./usage.ts";
 import { applyOverrides } from "./overrides.ts";
 import { offerTurnResume } from "./resume-turn.ts";
 import { noteUndecidedTrust, offerTrust } from "./trust.ts";
@@ -351,6 +352,10 @@ async function chatWork(
           },
         })
       : await runPrint(ctx, opened.value, input, jsonMode);
+    // print 모드(JSON 모드 제외)는 끝에 이 대화의 사용량을 stderr에 한 줄로 알린다. --quiet이면 내지 않는다
+    if (!interactive && !jsonMode && !command.quiet) {
+      await printUsageLine(ctx, handle, opened.value.threadId);
+    }
     holder.approvals?.dispose();
     if (keeper.writeFailed) {
       // 상태 파일은 캐시라 대화는 계속했다. 다음 --continue가 이 세션을 못 찾을 수 있음을 알린다

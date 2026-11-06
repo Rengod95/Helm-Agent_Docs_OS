@@ -98,6 +98,10 @@ export async function runCli(argv: readonly string[], io: CliIo, deps: CliDeps):
       const { runSchedule } = await import("./commands/schedule.ts");
       return runSchedule(ctx, command);
     }
+    case "usage": {
+      const { runUsage } = await import("./commands/usage.ts");
+      return runUsage(ctx, command);
+    }
     case "doctor": {
       const { runDoctor } = await import("./commands/doctor.ts");
       return runDoctor(ctx, command);

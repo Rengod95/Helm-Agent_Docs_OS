@@ -23,6 +23,7 @@ function command(input: string | null): ChatCommand {
     overrides: [],
     safeMode: false,
     autoApprove: false,
+    quiet: false,
   };
 }
 

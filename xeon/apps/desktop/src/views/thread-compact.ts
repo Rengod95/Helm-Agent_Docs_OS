@@ -61,6 +61,7 @@ export function compactNoticeOf(
 export function runThreadCompact(
   commands: Pick<Commands, "compactThread">,
   threadId: ThreadId,
+  instructions?: string,
 ): void {
   const progress = toast({
     tone: "info",
@@ -68,7 +69,7 @@ export function runThreadCompact(
     duration: 0,
   });
   detach(
-    commands.compactThread(threadId).then((result) => {
+    commands.compactThread(threadId, instructions).then((result) => {
       toast.dismiss(progress);
       // 요약 직후 상태 줄 문맥 크기를 요약 뒤 값으로 다시 읽게 한다
       if (result.ok && result.value.status === "compacted") bumpUsageEpoch();

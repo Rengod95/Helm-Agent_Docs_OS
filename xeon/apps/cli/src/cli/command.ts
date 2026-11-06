@@ -43,6 +43,8 @@ export interface ChatCommand {
   readonly safeMode: boolean;
   /** `--auto-approve`: print 모드에서 도구 승인을 한 번 허용한다. 대화형에서는 쓰지 못한다(L4.cli.spec §4.11 4번) */
   readonly autoApprove: boolean;
+  /** `--quiet`: print 모드가 끝에 stderr로 내는 사용량 한 줄을 내지 않는다 */
+  readonly quiet: boolean;
 }
 
 export type SessionsCommand =
@@ -197,6 +199,12 @@ interface VersionCommand {
   readonly kind: "version";
   readonly output: OutputMode;
 }
+/** `usage [--thread <id>] [--json]`: 모델 사용량(토큰, 비용, 호출 수). `threadId`가 없으면 모든 대화의 합이다 */
+export interface UsageCommand {
+  readonly kind: "usage";
+  readonly threadId: ThreadId | null;
+  readonly output: OutputMode;
+}
 interface HelpCommand {
   readonly kind: "help";
   readonly topic: string | null;
@@ -232,6 +240,7 @@ export type CliCommand =
   | CliHostCommand
   | DoctorCommand
   | VersionCommand
+  | UsageCommand
   | HelpCommand;
 
 export interface GlobalOptions {
@@ -561,6 +570,7 @@ const CHAT_FLAGS: FlagTable = {
   "--set": { value: "required", repeat: true },
   "--safe-mode": { value: "none" },
   "--auto-approve": { value: "none" },
+  "--quiet": { value: "none" },
 };
 
 function parseChat(
@@ -653,6 +663,7 @@ function parseChat(
     overrides,
     safeMode: has(flags, "--safe-mode"),
     autoApprove: has(flags, "--auto-approve"),
+    quiet: has(flags, "--quiet"),
   });
 }
 
@@ -1819,6 +1830,29 @@ function parseDb(acc: GlobalAcc, rest: readonly string[]): Result<DbCommand, Usa
   }
 }
 
+function parseUsage(acc: GlobalAcc, rest: readonly string[]): Result<UsageCommand, UsageError> {
+  const scanned = scanArgs(acc, rest, {
+    "--thread": { value: "required" },
+    "--json": { value: "none" },
+  });
+  if (!scanned.ok) return scanned;
+  if (scanned.value.positionals.length > 0) {
+    return err(
+      usage(
+        "unexpectedArgument",
+        t("cli.usage.noPositional.message", { command: "usage" }),
+        t("cli.usage.usageCommand.fix"),
+      ),
+    );
+  }
+  const threadText = valueOf(scanned.value, "--thread");
+  if (threadText === null)
+    return ok({ kind: "usage", threadId: null, output: outputOf(scanned.value) });
+  const threadId = threadIdOf(threadText);
+  if (!threadId.ok) return threadId;
+  return ok({ kind: "usage", threadId: threadId.value, output: outputOf(scanned.value) });
+}
+
 function parseJsonOnly(
   acc: GlobalAcc,
   kind: "doctor" | "version",
@@ -1948,6 +1982,7 @@ const COMMAND_WORDS: ReadonlySet<string> = new Set([
   "group",
   "doctor",
   "version",
+  "usage",
   "help",
 ]);
 
@@ -1988,6 +2023,8 @@ function commandOf(
       return parseJsonOnly(acc, "doctor", rest);
     case "version":
       return parseJsonOnly(acc, "version", rest);
+    case "usage":
+      return parseUsage(acc, rest);
     case "help":
       return ok({ kind: "help", topic: rest[0] ?? null });
     // fresnel-disable-next-line fresnel/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)

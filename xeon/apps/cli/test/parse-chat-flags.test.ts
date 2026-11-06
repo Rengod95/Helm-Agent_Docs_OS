@@ -33,6 +33,7 @@ test("no arguments on a tty is the interactive chat", () => {
     overrides: [],
     safeMode: false,
     autoApprove: false,
+    quiet: false,
   });
   expect(chat(["chat"])).toEqual(chat([]));
 });
@@ -77,6 +78,7 @@ test("--auto-approve is accepted in print mode, sets autoApprove, and is off by 
     mode: "print",
     input: "x",
     autoApprove: true,
+    quiet: false,
   });
   expect(chat(["--auto-approve"], PIPE_IN)).toMatchObject({ mode: "print", autoApprove: true });
   expect(chat(["chat", "-p", "x"]).autoApprove).toBe(false);

@@ -117,7 +117,8 @@ test("interactive chat asks the card before the thread exists, stores the picked
   expect(await cli.harness.run(["chat", "-p", "안녕"])).toBe(EXIT.ok);
   expect(cli.harness.stdoutText()).toContain("안녕하세요");
   expect(cli.harness.stdoutText()).not.toContain("불러오려는 자원");
-  expect(cli.harness.stderrText()).toBe("");
+  // print 모드는 끝에 사용량 한 줄을 stderr에 쓴다. 그 밖에는 아무것도 없다
+  expect(cli.harness.stderrText().replace(/^사용량: .*\n/, "")).toBe("");
 }, 60_000);
 
 test("enter at the card postpones: nothing is stored and the chat goes on untrusted", async () => {

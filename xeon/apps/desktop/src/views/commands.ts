@@ -718,7 +718,10 @@ export interface Commands {
    */
   withdrawInput(threadId: ThreadId, requestId: string): Promise<Result<boolean, CommandError>>;
   /** `thread.compact`: 지금 대화를 요약한다(수동 컴팩션). 요약할 것이 없으면 결과가 `skipped`로 와서 오류가 아니다 */
-  compactThread(threadId: ThreadId): Promise<Result<WireResult<"thread.compact">, CommandError>>;
+  compactThread(
+    threadId: ThreadId,
+    instructions?: string,
+  ): Promise<Result<WireResult<"thread.compact">, CommandError>>;
   /** `thread.rename`: 대화 제목을 바꾼다. 목록 제목은 `thread.updated` 이벤트가 거울에 넣는다 */
   renameThread(threadId: ThreadId, title: string): Promise<Result<null, CommandError>>;
   /**
