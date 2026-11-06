@@ -56,6 +56,7 @@ export function SchedulesScreen(): ReactNode {
         type: "listLoaded",
         items: listed.value.items,
         serviceModeOff: listed.value.serviceModeOff,
+        serviceRestartPending: listed.value.serviceRestartPending,
         nowMs: Date.now(),
       });
     } else {
@@ -134,9 +135,14 @@ export function SchedulesScreen(): ReactNode {
     const written = await commands.schedule.enableService();
     dispatch({ type: "busy", busy: false });
     if (!written.ok) return failNotice(commandErrorOf(written.error));
+    const { restartPending } = written.value;
+    dispatch({ type: "serviceEnabled", restartPending });
+    // 엔진이 다시 시작해야 켜지면 알림이 그렇게 말하고 "지금 다시 시작"을 붙인다. 이미 켜진 채로 대기가 없으면 예전 글이다
     dispatch({
       type: "notice",
-      notice: noticeOf(message("desktop.schedules.service.enabled"), "success"),
+      notice: restartPending
+        ? noticeOf(message("desktop.schedules.service.enabledRestart"), "success", "restartEngine")
+        : noticeOf(message("desktop.schedules.service.enabled"), "success"),
     });
     await load();
   };

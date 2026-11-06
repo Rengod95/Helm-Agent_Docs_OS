@@ -15,6 +15,18 @@ type Run = <T>(
   work: (connection: HostConnection) => Promise<T>,
 ) => Promise<Result<T, CommandError>>;
 
+/**
+ * 서비스 모드 값이 바뀌었는데 엔진이 아직 다시 시작하지 않았는가. 호스트가 `pendingUntil: "restart"`를 싣는다(엔진이
+ * 처음 본 값과 다를 때만). 등록 상태 자체를 읽는 wire는 없어서 이 값이 "다시 시작해야 켜진다"의 근거다.
+ */
+function restartPendingOf(
+  settings: readonly { readonly key: string; readonly pendingUntil: string | null }[],
+): boolean {
+  return settings.some(
+    (setting) => setting.key === SERVICE_ENABLED_KEY && setting.pendingUntil === "restart",
+  );
+}
+
 export function createScheduleCommands(run: Run): ScheduleCommands {
   return {
     async list(params) {
@@ -30,6 +42,7 @@ export function createScheduleCommands(run: Run): ScheduleCommands {
       const snapshot: ScheduleSnapshot = {
         items: listed.value.items,
         serviceModeOff: serviceModeWarning(values),
+        serviceRestartPending: restartPendingOf(settings.value.settings),
       };
       return ok(snapshot);
     },
@@ -42,7 +55,8 @@ export function createScheduleCommands(run: Run): ScheduleCommands {
       const written = await run((c) =>
         c.request("settings.set", { key: SERVICE_ENABLED_KEY, value: true, scope: SCOPE }),
       );
-      return written.ok ? ok(null) : written;
+      if (!written.ok) return written;
+      return ok({ restartPending: restartPendingOf([written.value.setting]) });
     },
   };
 }

@@ -1,5 +1,9 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { activeLocale, setActiveLocale, type Locale } from "@fresnel/client/i18n";
 import { renderToString } from "react-dom/server";
+import type { EngineMirror } from "../../src/state/engine/index.ts";
+import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
+import { createUiStore } from "../../src/state/ui/index.ts";
 import {
   ScheduleScreenView,
   type ScheduleScreenHandlers,
@@ -7,11 +11,17 @@ import {
 import { RunsBody } from "../../src/views/pages/schedules/schedule-runs-sheet.tsx";
 import {
   INITIAL_SCHEDULE_STATE,
+  noticeOf,
   type RunsState,
   scheduleReducer,
   type ScheduleState,
 } from "../../src/views/pages/schedules/schedule-model.ts";
+import { message } from "../../src/views/pages/schedules/schedule-text.ts";
+import { Providers } from "../../src/views/providers.tsx";
+import { ShellRestartContext } from "../../src/views/shell-restart-context.ts";
 import type { ScheduleListItem } from "@fresnel/contracts/capabilities";
+import { harness } from "../state/helpers.ts";
+import { fakeCommands } from "./fake-commands.ts";
 
 // 예약 화면의 서버 렌더. 상태는 reducer로 만들고 동작 핸들러는 아무것도 하지 않는 것으로 둔다.
 // 클릭과 키 입력은 DOM이 없어 시험하지 못한다(뜻은 schedule-model.test.ts가 본다).
@@ -83,12 +93,39 @@ function html(state: ScheduleState): string {
   );
 }
 
+/**
+ * 엔진이 running인 거울. 서버 렌더는 스토어의 초기 값을 읽으므로 상태를 두 값으로 둔다(safe-mode-view 시험과 같은 방식).
+ * 다시 시작 단추는 엔진이 running이고 셸이 있을 때만 나온다.
+ */
+function runningEngine(): ReadonlyStore<EngineMirror> {
+  const h = harness();
+  h.store.ingest({ type: "engine", state: { kind: "running", source: "sidecar", pid: 1 } });
+  h.store.flush();
+  const state = h.store.read.getState();
+  return { getState: () => state, getInitialState: () => state, subscribe: () => () => undefined };
+}
+
+/** 다시 시작 단추가 달릴 수 있는 맥락(running 엔진, 셸 있음)으로 화면을 그린다 */
+function shellHtml(state: ScheduleState, shell: boolean): string {
+  const ui = createUiStore();
+  return renderToString(
+    <ShellRestartContext value={shell}>
+      <Providers engine={runningEngine()} ui={ui.read} commands={fakeCommands()}>
+        <ScheduleScreenView state={state} locale="ko" openable={() => false} handlers={handlers} />
+      </Providers>
+    </ShellRestartContext>,
+  );
+}
+
+const countOf = (markup: string, text: string): number => markup.split(text).length - 1;
+
 describe("schedules screen server render", () => {
   test("an empty list that has loaded says there are no schedules and offers a new one", () => {
     const loaded = scheduleReducer(INITIAL_SCHEDULE_STATE, {
       type: "listLoaded",
       items: [],
       serviceModeOff: false,
+      serviceRestartPending: false,
       nowMs: NOW,
     });
     const markup = html(loaded);
@@ -109,6 +146,7 @@ describe("schedules screen server render", () => {
       type: "listLoaded",
       items: [],
       serviceModeOff: true,
+      serviceRestartPending: false,
       nowMs: NOW,
     });
     const markup = html(loaded);
@@ -121,6 +159,7 @@ describe("schedules screen server render", () => {
       type: "listLoaded",
       items: [ROW],
       serviceModeOff: false,
+      serviceRestartPending: false,
       nowMs: NOW,
     });
     const markup = html(withRow);
@@ -146,6 +185,87 @@ const body = (runs: RunsState): string =>
       onClose={NOOP}
     />,
   );
+
+describe("service mode turned on, restart pending", () => {
+  let previous: Locale = "ko";
+  beforeEach(() => {
+    previous = activeLocale();
+    setActiveLocale("ko");
+  });
+  afterEach(() => {
+    setActiveLocale(previous);
+  });
+
+  const enabledWithNotice = scheduleReducer(
+    scheduleReducer(INITIAL_SCHEDULE_STATE, {
+      type: "listLoaded",
+      items: [],
+      serviceModeOff: true,
+      serviceRestartPending: false,
+      nowMs: NOW,
+    }),
+    { type: "serviceEnabled", restartPending: true },
+  );
+  const notified = scheduleReducer(enabledWithNotice, {
+    type: "notice",
+    notice: noticeOf(
+      message("desktop.schedules.service.enabledRestart"),
+      "success",
+      "restartEngine",
+    ),
+  });
+
+  test("after turning it on, the notice says the engine must restart and one restart button sits with it", () => {
+    const markup = shellHtml(notified, true);
+    expect(markup).toContain("서비스 모드를 켜 두었어요. 엔진을 다시 시작해야 켜져요.");
+    expect(markup).not.toContain("서비스 모드를 켰어요.");
+    expect(markup).not.toContain("서비스 켜기");
+    expect(markup).not.toContain("서비스 모드가 꺼져 있어");
+    expect(countOf(markup, "지금 다시 시작")).toBe(1);
+  });
+
+  test("with no notice showing, the banner keeps the restart line and one restart button", () => {
+    const pending = scheduleReducer(INITIAL_SCHEDULE_STATE, {
+      type: "listLoaded",
+      items: [],
+      serviceModeOff: false,
+      serviceRestartPending: true,
+      nowMs: NOW,
+    });
+    const markup = shellHtml(pending, true);
+    expect(markup).toContain("엔진을 다시 시작해야 서비스 모드가 켜져요.");
+    expect(markup).not.toContain("서비스 켜기");
+    expect(markup).not.toContain("서비스 모드가 꺼져 있어");
+    expect(countOf(markup, "지금 다시 시작")).toBe(1);
+  });
+
+  test("without a desktop shell the restart line stays as text and shows no button", () => {
+    const pending = scheduleReducer(INITIAL_SCHEDULE_STATE, {
+      type: "listLoaded",
+      items: [],
+      serviceModeOff: false,
+      serviceRestartPending: true,
+      nowMs: NOW,
+    });
+    const markup = shellHtml(pending, false);
+    expect(markup).toContain("엔진을 다시 시작해야 서비스 모드가 켜져요.");
+    expect(markup).not.toContain("지금 다시 시작");
+  });
+
+  test("once the restart is done the banner and the button are gone", () => {
+    const done = scheduleReducer(INITIAL_SCHEDULE_STATE, {
+      type: "listLoaded",
+      items: [],
+      serviceModeOff: false,
+      serviceRestartPending: false,
+      nowMs: NOW,
+    });
+    const markup = shellHtml(done, true);
+    expect(markup).not.toContain("엔진을 다시 시작해야");
+    expect(markup).not.toContain("지금 다시 시작");
+    expect(markup).not.toContain("서비스 켜기");
+  });
+});
 
 describe("schedule run history body", () => {
   test("each run shows its outcome and the host's error text", () => {

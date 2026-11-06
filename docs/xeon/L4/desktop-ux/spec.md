@@ -1530,7 +1530,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 항목 | 출처 |
 |---|---|
 | 행: 예약, 트리거, 다음 실행, 마지막 실행(상태 글자 색과 상대 시각). 꺼진 행은 칸을 흐리게 두고 배지를 쓰지 않는다. 반복 수, 멈춘 이유, 켜짐 칸은 시안(p07)에 없어 뺐다(실패 사유는 실행 기록 시트에서 본다) [결정: 시안 P-07 NOTES] | `schedule.list { enabled? }` → `{ entry, lastRun }` `[gap:V-04]` |
-| 서비스 모드 경고 | `settings.get { keys: ["l0.process.service.enabled", "l2.schedule.timers.whenServiceOff"] }`, `host.status.mode` |
+| 서비스 모드 경고 | `settings.get { keys: ["l0.process.service.enabled", "l2.schedule.timers.whenServiceOff"] }`, `host.status.mode`. 다시 시작 대기는 같은 응답의 `pendingUntil: "restart"`로 정한다 |
 | 실행 기록 | `schedule.runs` |
 
 | 기능 | wire |
@@ -1541,7 +1541,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 지금 실행 | `schedule.fire { scheduleId }`(원격 트리거만) |
 | 마지막 실행 대화 열기 | `lastRun.threadId` → P-02 |
 | 복제 | 시트를 같은 값으로 열기(로컬) |
-| 서비스 켜기 | P-08 또는 `settings.set { key: "l0.process.service.enabled", value: true }` |
+| 서비스 켜기 | P-08 또는 `settings.set { key: "l0.process.service.enabled", value: true }`. 결과의 `setting.pendingUntil`이 `restart`면 "다시 시작 대기" 알림 |
 
 - 시트 입력: 트리거 종류 `SegmentedControl`(간격, 시각, 파일 감시, 원격, 루프). 간격은 초(1~31536000)로 `NumberField`에 단위 "초"를 붙여 쓴다. 시각은 날짜·시각 입력(`datetime-local`)이다(시안의 `DatePicker`와 시간 칸은 날짜와 시각을 한 값으로 합치는 자리가 아직 없어 쓰지 않았다. 최소 간격 300초는 칸 아래 오류 글로만 보인다). 파일 감시는 경로 목록(1~16)과 debounce, 루프는 간격·최대 반복·만료. 오류 값 문장: `interval_too_short`("최소 {minSeconds}초예요"), `at_in_past`, `invalid_trigger`, `limit_reached`, `store_failed`.
 - 상태
@@ -1550,6 +1550,7 @@ compact 폭(720 이하)과 사이드바 시트:
   - 오류: `ok: false`는 입력란 아래, 목록 읽기 실패는 표 위 `Alert`.
   - 오프라인: 목록 유지, 동작 잠금.
   - 권한 필요: 서비스 모드 꺼짐 경고와 "서비스 켜기", `not_remote`(지금 실행 불가).
+  - 다시 시작 대기: 서비스 모드를 켰지만 엔진이 아직 다시 시작하지 않았으면(`pendingUntil: "restart"`) 띠가 "엔진을 다시 시작해야 서비스 모드가 켜져요"와 "지금 다시 시작"을 보입니다. 켜자마자는 알림이 "서비스 모드를 켜 두었어요. 엔진을 다시 시작해야 켜져요."와 "지금 다시 시작"을 붙이고, 그 알림이 보이는 동안 띠는 숨겨 단추가 하나만 보이게 합니다. 재시작으로 대기가 풀리면 목록을 다시 읽을 때 띠와 그 알림이 사라집니다. 셸이 없는 웹에서는 글만 보이고 단추는 없습니다.
   - 긴 내용: 200개 상한, 프롬프트는 2줄 뒤 접기.
 - 바로 가기 키: ⌘N(이 화면에서는 새 예약), ↑↓ 행, Enter 마지막 실행 대화, ⌫ 취소(확인).
 - 접근성: 표는 `Table` 머리와 정렬, 상태는 문자와 색 둘 다.
@@ -1562,8 +1563,8 @@ compact 폭(720 이하)과 사이드바 시트:
 - 행 메뉴(W-07, 트랙 h7sched로 일곱 항목): 행 끝의 `[...]`(`IconButton`, `Menu`)에 항목을 둔다. 꺼진 행은 "다시 켜기"(`schedule.update { scheduleId, enabled: true }`), 모든 행은 "실행 기록"(`schedule.runs { scheduleId }`, 읽기 전용 `Sheet`: 읽는 중, 비었음, 읽기 실패 Alert와 다시 읽기, 결과 글자(색)·시작 시각·호스트가 준 오류 글·그 실행의 대화 열기)과 "고치기…"(O-08 시트를 제목·프롬프트만 남겨 열고 `schedule.update`로 저장. 트리거와 작업 폴더는 와이어가 받지 않아 "복제해서 새로 만들라"고 안내, 제목은 비워 지울 수 없다)를 둔다. 다시 켜기 응답의 `enabled`가 거짓이면(지난 `at`, 끝난 반복: L2.schedule §4.4.9 [미결] 14) 성공으로 보이지 않고 "다시 켤 수 없어요" 오류를 띄운다. 아래 네 항목의 설명은 그대로다. [근거: `apps/desktop/src/views/pages/schedules/schedule-model.ts` `rowMenuOf`, `schedules-screen.tsx` `reenableSchedule`]
 - 행 메뉴: 행 끝의 `[...]`(`IconButton`, `Menu`)에 네 항목을 둔다. 항목과 잠금은 `rowMenuOf`가 정한다: 마지막 실행 대화 열기(대화 id가 있을 때만, 목록에 없으면 잠금), 지금 실행(원격 트리거 행만, `schedule.fire { scheduleId }`), 취소(켜진 행만, 기존 O-06 확인), 복제(늘, O-08 시트를 같은 값으로 연다). 마지막 실행 칸은 그 실행의 대화가 목록에 있으면 누를 수 있다(`Button`). 원격 행의 "지금 실행"과 꺼진 행의 "다시 켜기"는 칸 옆에 바로 둔다(시안 p07, d03). Enter로 대화를 여는 키는 그대로다.
 - 상대 시각: 다음 실행은 `dueAgeOf`가 "곧", "N분 뒤", "14:20", "내일 09:00"을 만들고, 그 밖은 절대 시각이다. 마지막 실행은 끝난 때(없으면 시작한 때, 그도 없으면 잡은 때)를 "N분 전"으로 쓴다. 절대 시각을 `Tooltip`으로 보이는 것은 시안에 없어 뺐다. 기준 시각은 목록을 마지막으로 읽은 때(`state.nowMs`)다. "완료 어제"의 "어제"는 아직 없어 "1일 전"으로 쓴다 [미결].
-- 경고: 서비스 모드 꺼짐 띠와 "서비스 켜기"는 이미 있던 그대로다. 행의 멈춘 이유 칸은 시안에 없어 뺐다(`stoppedReason`은 데이터로만 남는다). `l2.schedule.timers.whenServiceOff`와 `host.status.mode`는 읽지 않는다(L2 schedule §4.4.6에서 자동 기동은 M4에 구현하지 않기로 했다).
-- 시험: `test/views/schedule-model.test.ts`(거르기 인자, 정렬과 갱신, 행 메뉴 항목과 잠금, 다음 실행과 마지막 실행 문장, 카탈로그 키), `test/views/relative-age.test.ts`(`dueAgeOf`), `test/views/schedules-screen.test.tsx`(서버 렌더: 거르기 칸, 상대 시각, 메뉴 단추), `test/app/schedule-commands.test.ts`(가짜 엔진: list 인자, fire 인자와 결과, 복제한 시트의 create 인자).
+- 경고: 서비스 모드 꺼짐 띠와 "서비스 켜기"는 이미 있던 그대로다. 다시 시작 대기는 `pendingUntil`만 본다(등록 파일의 상태를 데스크톱이 읽는 wire는 없다. `fresnel service status`는 CLI 명령이다). 띠의 "지금 다시 시작"은 `RestartNowButton`(엔진이 running이고 셸이 있을 때만 보인다)을 쓴다. 행의 멈춘 이유 칸은 시안에 없어 뺐다(`stoppedReason`은 데이터로만 남는다). `l2.schedule.timers.whenServiceOff`와 `host.status.mode`는 읽지 않는다(L2 schedule §4.4.6에서 자동 기동은 M4에 구현하지 않기로 했다).
+- 시험: `test/views/schedule-model.test.ts`(거르기 인자, 정렬과 갱신, 행 메뉴 항목과 잠금, 다음 실행과 마지막 실행 문장, 카탈로그 키), `test/views/relative-age.test.ts`(`dueAgeOf`), `test/views/schedules-screen.test.tsx`(서버 렌더: 거르기 칸, 상대 시각, 메뉴 단추, 다시 시작 대기 띠와 알림), `test/app/schedule-commands.test.ts`(가짜 엔진: list 인자, fire 인자와 결과, 복제한 시트의 create 인자, 다시 시작 대기 값).
 - 빠진 것: 메뉴 항목은 열어야 그려지므로 서버 렌더에서는 보이지 않는다(뜻은 모델 시험이 본다). 실행 기록은 `lastRun`만 쓴다(`schedule.runs` wire는 있다). `schedule.list`의 `before` 쪽 나누기는 쓰지 않는다(200개 상한).
 
 ### 6.12 P-08 연결

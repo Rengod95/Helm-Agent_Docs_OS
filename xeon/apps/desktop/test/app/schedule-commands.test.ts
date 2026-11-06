@@ -43,16 +43,16 @@ const RUN: RunView = {
   skippedCount: 0,
 };
 
-/** 설정 한 줄(`settings.get`의 값 모양). 시험 값은 서비스 모드 키 하나다 */
-function serviceSetting(value: unknown) {
+/** 설정 한 줄(`settings.get`의 값 모양). 시험 값은 서비스 모드 키 하나다. `pendingUntil`은 엔진이 다시 시작해야 할 때만 "restart"다 */
+function serviceSetting(value: unknown, pendingUntil: "restart" | null = null) {
   return {
     key: "l0.process.service.enabled",
     value,
     source: { scope: "user" },
     locked: false,
     shadowed: [],
-    runtimeChange: "live",
-    pendingUntil: null,
+    runtimeChange: "restart",
+    pendingUntil,
     deprecated: false,
   };
 }
@@ -76,7 +76,10 @@ describe("schedule.list maps the list and the service-mode setting", () => {
       },
     });
     const listed = await app.commands.schedule.list({});
-    expect(listed).toEqual({ ok: true, value: { items: [ITEM], serviceModeOff: true } });
+    expect(listed).toEqual({
+      ok: true,
+      value: { items: [ITEM], serviceModeOff: true, serviceRestartPending: false },
+    });
     await app.stop();
   });
 
@@ -88,7 +91,25 @@ describe("schedule.list maps the list and the service-mode setting", () => {
       },
     });
     const listed = await app.commands.schedule.list({});
-    expect(listed).toEqual({ ok: true, value: { items: [], serviceModeOff: false } });
+    expect(listed).toEqual({
+      ok: true,
+      value: { items: [], serviceModeOff: false, serviceRestartPending: false },
+    });
+    await app.stop();
+  });
+
+  test("a service mode turned on without a restart reports the restart as pending", async () => {
+    const { app } = await liveApp({
+      results: {
+        "schedule.list": { ok: true, items: [] },
+        "settings.get": { settings: [serviceSetting(true, "restart")] },
+      },
+    });
+    const listed = await app.commands.schedule.list({});
+    expect(listed).toEqual({
+      ok: true,
+      value: { items: [], serviceModeOff: false, serviceRestartPending: true },
+    });
     await app.stop();
   });
 
@@ -164,15 +185,24 @@ describe("schedule create, cancel, fire and enable return the host's values", ()
 
   test("enableService writes the service key at user scope with the value true", async () => {
     const { app, params } = await liveApp({
-      results: { "settings.set": { setting: serviceSetting(true) } },
+      results: { "settings.set": { setting: serviceSetting(true, "restart") } },
     });
     const enabled = await app.commands.schedule.enableService();
-    expect(enabled).toEqual({ ok: true, value: null });
+    expect(enabled).toEqual({ ok: true, value: { restartPending: true } });
     expect(paramsOf(params, "settings.set")).toEqual({
       key: "l0.process.service.enabled",
       value: true,
       scope: "user",
     });
+    await app.stop();
+  });
+
+  test("enableService reports no restart needed when the engine already runs with the service on", async () => {
+    const { app } = await liveApp({
+      results: { "settings.set": { setting: serviceSetting(true) } },
+    });
+    const enabled = await app.commands.schedule.enableService();
+    expect(enabled).toEqual({ ok: true, value: { restartPending: false } });
     await app.stop();
   });
 

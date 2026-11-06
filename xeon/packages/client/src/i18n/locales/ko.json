@@ -1063,6 +1063,8 @@
   "desktop.schedules.service.warning": "서비스 모드가 꺼져 있어 앱을 닫으면 예약이 멈춰요.",
   "desktop.schedules.service.enable": "서비스 켜기",
   "desktop.schedules.service.enabled": "서비스 모드를 켰어요.",
+  "desktop.schedules.service.enabledRestart": "서비스 모드를 켜 두었어요. 엔진을 다시 시작해야 켜져요.",
+  "desktop.schedules.service.restartNeeded": "엔진을 다시 시작해야 서비스 모드가 켜져요.",
   "desktop.schedules.listFailed": "예약 목록을 읽지 못했어요.",
   "desktop.schedules.unsupported": "연결한 엔진이 예약을 아직 지원하지 않아요.",
   "desktop.schedules.offline": "연결이 끊겨 있어요. 마지막으로 읽은 목록을 보여 드려요.",

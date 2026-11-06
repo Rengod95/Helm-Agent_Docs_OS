@@ -18,6 +18,7 @@ import {
   keyIntentOf,
   listFailureOf,
   listParamsOf,
+  noticeOf,
   rowMenuOf,
   rowsOf,
   scheduleReducer,
@@ -78,6 +79,7 @@ function loaded(items: readonly ScheduleListItem[], serviceModeOff = false): Sch
     type: "listLoaded",
     items,
     serviceModeOff,
+    serviceRestartPending: false,
     nowMs: NOW,
   });
 }
@@ -116,6 +118,7 @@ describe("list state and rows", () => {
       type: "listLoaded",
       items: [LATER, SOONER],
       serviceModeOff: false,
+      serviceRestartPending: false,
       nowMs: NOW,
     });
     expect(refreshed.selectedId).toBe("sch_bb2");
@@ -127,6 +130,7 @@ describe("list state and rows", () => {
       type: "listLoaded",
       items: [SOONER],
       serviceModeOff: false,
+      serviceRestartPending: false,
       nowMs: NOW,
     });
     expect(refreshed.selectedId).toBe("sch_cc3");
@@ -171,6 +175,99 @@ describe("list state and rows", () => {
   test("the service-mode flag comes with the list", () => {
     expect(loaded([], true).serviceModeOff).toBe(true);
     expect(loaded([], false).serviceModeOff).toBe(false);
+  });
+
+  test("turning the service on without a restart leaves the restart pending and clears the off flag", () => {
+    const off = loaded([], true);
+    expect(off.serviceRestartPending).toBe(false);
+    const enabled = scheduleReducer(off, { type: "serviceEnabled", restartPending: true });
+    expect(enabled.serviceModeOff).toBe(false);
+    expect(enabled.serviceRestartPending).toBe(true);
+  });
+
+  test("a list that reports the restart as done clears the pending flag", () => {
+    const pending = scheduleReducer(loaded([], true), {
+      type: "serviceEnabled",
+      restartPending: true,
+    });
+    const reloaded = scheduleReducer(pending, {
+      type: "listLoaded",
+      items: [],
+      serviceModeOff: false,
+      serviceRestartPending: false,
+      nowMs: NOW,
+    });
+    expect(reloaded.serviceRestartPending).toBe(false);
+    expect(reloaded.serviceModeOff).toBe(false);
+  });
+
+  test("a turn-on that needs no restart clears the off flag and leaves no restart pending", () => {
+    const enabled = scheduleReducer(loaded([], true), {
+      type: "serviceEnabled",
+      restartPending: false,
+    });
+    expect(enabled.serviceModeOff).toBe(false);
+    expect(enabled.serviceRestartPending).toBe(false);
+  });
+
+  test("a list that still reports the restart pending keeps the restart notice", () => {
+    const withNotice = scheduleReducer(
+      scheduleReducer(loaded([], true), { type: "serviceEnabled", restartPending: true }),
+      {
+        type: "notice",
+        notice: noticeOf(
+          { id: "desktop.schedules.service.enabledRestart", args: {} },
+          "success",
+          "restartEngine",
+        ),
+      },
+    );
+    const reloaded = scheduleReducer(withNotice, {
+      type: "listLoaded",
+      items: [],
+      serviceModeOff: false,
+      serviceRestartPending: true,
+      nowMs: NOW,
+    });
+    expect(reloaded.notice?.action).toBe("restartEngine");
+  });
+
+  test("a list that reports the restart done drops the restart notice but keeps other notices", () => {
+    const withRestartNotice = scheduleReducer(
+      scheduleReducer(loaded([], true), { type: "serviceEnabled", restartPending: true }),
+      {
+        type: "notice",
+        notice: noticeOf(
+          { id: "desktop.schedules.service.enabledRestart", args: {} },
+          "success",
+          "restartEngine",
+        ),
+      },
+    );
+    const dropped = scheduleReducer(withRestartNotice, {
+      type: "listLoaded",
+      items: [],
+      serviceModeOff: false,
+      serviceRestartPending: false,
+      nowMs: NOW,
+    });
+    expect(dropped.notice).toBeNull();
+    const other = scheduleReducer(loaded([]), {
+      type: "notice",
+      notice: noticeOf({ id: "desktop.schedules.cancelled", args: {} }, "success"),
+    });
+    const kept = scheduleReducer(other, {
+      type: "listLoaded",
+      items: [],
+      serviceModeOff: false,
+      serviceRestartPending: false,
+      nowMs: NOW,
+    });
+    expect(kept.notice).toEqual({
+      tone: "success",
+      text: { id: "desktop.schedules.cancelled", args: {} },
+      action: null,
+    });
   });
 
   test("the prompt fold toggles per row", () => {
@@ -259,9 +356,9 @@ describe("sheet, cancel confirm and notices", () => {
     const text: MessageRef = { id: "desktop.schedules.cancelled", args: {} };
     const set = scheduleReducer(loaded([]), {
       type: "notice",
-      notice: { tone: "success", text },
+      notice: { tone: "success", text, action: null },
     });
-    expect(set.notice).toEqual({ tone: "success", text });
+    expect(set.notice).toEqual({ tone: "success", text, action: null });
     expect(scheduleReducer(set, { type: "notice", notice: null }).notice).toBeNull();
   });
 });

@@ -1063,6 +1063,8 @@
   "desktop.schedules.service.warning": "Service mode is off, so schedules stop when the app closes.",
   "desktop.schedules.service.enable": "Turn on service",
   "desktop.schedules.service.enabled": "Service mode is on.",
+  "desktop.schedules.service.enabledRestart": "Service mode is set to on. Restart the engine to turn it on.",
+  "desktop.schedules.service.restartNeeded": "Service mode turns on after the engine restarts.",
   "desktop.schedules.listFailed": "Couldn't read the schedule list.",
   "desktop.schedules.unsupported": "The connected engine doesn't support schedules yet.",
   "desktop.schedules.offline": "You're offline. Showing the last schedule list that was read.",
