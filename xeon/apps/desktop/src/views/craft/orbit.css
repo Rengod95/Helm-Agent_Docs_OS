@@ -216,12 +216,20 @@
 .craft-label[data-group] {
   --craft-tint: var(--cs-color-info-graphic);
   --craft-edge: 62%;
-  --craft-solid: color-mix(in oklab, var(--cs-color-surface-raised) 90%, var(--cs-color-info-graphic));
+  --craft-solid: color-mix(
+    in oklab,
+    var(--cs-color-surface-raised) 90%,
+    var(--cs-color-info-graphic)
+  );
 }
 .craft-label[data-fail] {
   --craft-tint: var(--cs-color-danger-graphic);
   --craft-edge: 62%;
-  --craft-solid: color-mix(in oklab, var(--cs-color-surface-raised) 93%, var(--cs-color-danger-graphic));
+  --craft-solid: color-mix(
+    in oklab,
+    var(--cs-color-surface-raised) 93%,
+    var(--cs-color-danger-graphic)
+  );
 }
 /* 포인터를 따라오는 안쪽 빛(변수 두 개는 포인터 이동 때 DOM에서 바로 쓴다) */
 .craft-label::before {
