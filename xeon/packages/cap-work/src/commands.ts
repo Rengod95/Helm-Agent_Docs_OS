@@ -32,13 +32,22 @@ function optionsOf(ctx: CommandActionContext) {
   };
 }
 
+/** 사용자가 직접 할 수 있는 거부는 한국어 해요체 한 줄로 말한다(영어 사유와 원시 코드를 보이지 않는다). 설정 이름은 설정 화면의 글과 같다 */
+const USER_FACING_REFUSALS: Readonly<Record<string, string>> = {
+  plan_not_approved:
+    "계획을 승인해야 계획 모드를 나갈 수 있어요. 계획을 승인하거나, 설정의 '계획 승인 필수'를 꺼 주세요.",
+  plan_mode_inactive: "지금은 계획 모드가 아니에요.",
+};
+
 /** 서비스 거부를 사용자에게 보일 한 줄로 바꾼다. 그 밖의 예외는 그대로 둔다 */
 async function reported(work: () => Promise<CommandActionResult>): Promise<CommandActionResult> {
   try {
     return await work();
   } catch (caught) {
-    if (isCapabilityError(caught))
-      return { message: `[${caught.data.code}] ${caught.data.message}` };
+    if (isCapabilityError(caught)) {
+      const known = USER_FACING_REFUSALS[caught.data.code];
+      return { message: known ?? `[${caught.data.code}] ${caught.data.message}` };
+    }
     throw caught;
   }
 }

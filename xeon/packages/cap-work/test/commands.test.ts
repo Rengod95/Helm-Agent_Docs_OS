@@ -122,7 +122,16 @@ describe("work commands", () => {
   test("a service refusal reaches the user as one line instead of an exception", async () => {
     const { registry } = await boot();
     const result = await registry.run("plan", ["exit"]);
-    expect(result.message).toBe("[plan_mode_inactive] Plan mode is not active.");
+    expect(result.message).toBe("지금은 계획 모드가 아니에요.");
+  });
+
+  test("leaving plan mode before the plan is approved says what to do, in Korean", async () => {
+    const { registry } = await boot();
+    await registry.run("plan", []);
+    const result = await registry.run("plan", ["exit"]);
+    expect(result.message).toBe(
+      "계획을 승인해야 계획 모드를 나갈 수 있어요. 계획을 승인하거나, 설정의 '계획 승인 필수'를 꺼 주세요.",
+    );
   });
 
   test("/tasks prints the checklist", async () => {
