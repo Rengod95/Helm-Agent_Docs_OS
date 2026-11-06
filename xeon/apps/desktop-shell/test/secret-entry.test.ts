@@ -19,6 +19,7 @@ import {
   planEntryCommand,
   registerSecretEntry,
   secretEntryModule,
+  isKeyStoreFailure,
 } from "../src/main/secret-entry.ts";
 import { fakeCtx, type FakeCtx } from "./support/fake-ctx.ts";
 
@@ -270,6 +271,29 @@ describe("registration (secret_entry.rs SecretEntry::register)", () => {
       },
     });
     expect(logText(fake)).toMatch(/ secret entry add anthropic-api-key: rejected \(exit 1\)\n$/u);
+  });
+
+  test("a key store failure from the sidecar becomes the keystore kind without its English text", async () => {
+    const fake = fakeCtx();
+    const { launcher } = fakeLauncher([
+      {
+        kind: "exit",
+        code: 1,
+        stderr: [
+          "fresnel: Could not create the age key in the OS key store (add_failed)\n",
+          "Fix: Allow keychain access and run again. fresnel config set l0.secrets.ageKey.source file\n",
+        ],
+      },
+    ]);
+    const reply = await commandOf(
+      fake,
+      entryWith(fake, launcher),
+    )(makeBody("add anthropic-api-key", FAKE_VALUE));
+    expect(reply).toEqual({ ok: false, error: { kind: "keystore" } });
+    expect(
+      isKeyStoreFailure("복호화 키를 아직 쓸 수 없다 (OS 키 저장소가 없어 파일 키가 필요하다)"),
+    ).toBe(true);
+    expect(isKeyStoreFailure("시크릿 제공자(sops)를 쓸 수 없다 (not_registered)")).toBe(false);
   });
 
   test("child output that contains the value is dropped entirely", async () => {

@@ -65,12 +65,14 @@ export type SecretEntryError =
   | { readonly kind: "busy" }
   | { readonly kind: "timeout" }
   | { readonly kind: "unavailable"; readonly detail: string }
+  /** 사이드카가 OS 키 저장소(키체인 등)에 키를 만들거나 읽지 못했다. 화면은 이 종류로 한국어 문장과 해결 단추를 보인다 */
+  | { readonly kind: "keystore" }
   | { readonly kind: "rejected"; readonly exitCode: number | null; readonly detail: string };
 
 /** 실행 단계에서 나올 수 있는 거부(본문 검사 거부는 실행 전에 끝난다) */
 type RunFailure = Extract<
   SecretEntryError,
-  { readonly kind: "unavailable" | "rejected" | "timeout" }
+  { readonly kind: "unavailable" | "rejected" | "timeout" | "keystore" }
 >;
 
 export interface ParsedEntry {
@@ -252,11 +254,19 @@ async function runEntry(
   }
   const wroteAll = await written;
   if (exit.code === 0 && wroteAll) return ok(null);
-  return err({
-    kind: "rejected",
-    exitCode: exit.code,
-    detail: summarize(stderrOf(), request.value),
-  });
+  const detail = summarize(stderrOf(), request.value);
+  if (isKeyStoreFailure(detail)) return err({ kind: "keystore" });
+  return err({ kind: "rejected", exitCode: exit.code, detail });
+}
+
+/**
+ * 사이드카 오류 문장이 OS 키 저장소 실패를 말하는가. 사이드카는 종류 코드를 따로 주지 않고 문장(영어, 한국어)만 stderr에 쓴다.
+ * 문장 중 "OS key store"와 "OS 키 저장소"가 키 저장소 오류(`cli.errors.secret.keyStore`, `keyUnavailable.fileAccessDenied`)에만 나온다.
+ */
+const KEY_STORE_TEXT = /OS key store|OS 키 저장소/iu;
+
+export function isKeyStoreFailure(detail: string): boolean {
+  return KEY_STORE_TEXT.test(detail);
 }
 
 /** 자식 stderr를 앞쪽 상한까지 모은다. 돌려주는 함수는 끝난 뒤에 부른다 */
@@ -326,6 +336,8 @@ function outcomeText(result: Result<null, RunFailure>): string {
       return "unavailable";
     case "timeout":
       return "timeout";
+    case "keystore":
+      return "keystore";
     case "rejected":
       return `rejected (exit ${failure.exitCode === null ? "none" : String(failure.exitCode)})`;
     default:
