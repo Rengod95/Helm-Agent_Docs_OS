@@ -152,7 +152,10 @@ describe("model-only and failed items", () => {
     const shown = render(<Transcript />, h);
     expect(shown.match(/role="alert"/g)?.length).toBe(1);
     expect(shown.match(/실패/g)).toBeNull();
-    expect(shown).toContain("anthropic/claude-sonnet-5.5 is not in the catalog");
+    // 원문은 "자세히" 뒤에 있고 줄에는 한국어 문장과 모델 바꾸기 단추가 보인다
+    expect(shown).toContain("이 모델을 찾을 수 없어요");
+    expect(shown).toContain("모델 바꾸기");
+    expect(shown).not.toContain("is not in the catalog");
   });
 });
 
@@ -173,13 +176,14 @@ describe("turn failure", () => {
           threadId: thr(1),
           turnId: trn(1),
           at: "t",
-          payload: { status: "failed", stepCount: 0, usage: null, error: "missing api key" },
+          payload: { status: "failed", stepCount: 0, usage: null, error: "401 invalid x-api-key" },
         },
       ],
     });
     h.store.flush();
     const shown = render(<Transcript />, h);
-    expect(shown).toContain("missing api key");
+    expect(shown).toContain("키가 맞지 않아요");
+    expect(shown).toContain("키 다시 등록");
     expect(shown).toContain('role="alert"');
     h.store.ingest({
       type: "batch",
@@ -199,6 +203,6 @@ describe("turn failure", () => {
       ],
     });
     h.store.flush();
-    expect(render(<Transcript />, h)).not.toContain("missing api key");
+    expect(render(<Transcript />, h)).not.toContain("키가 맞지 않아요");
   });
 });

@@ -106,11 +106,11 @@ function ShellToaster(props: { readonly registry: ShellRegistry }): ReactNode {
   const screen = useShell((s) => s.places[s.area].screen);
   const tabs = props.registry.endTabs(area, screen);
   const place = toastPlace(layout, open, wellWidthOf(tabs.find((x) => x.id === tabId) ?? tabs[0]));
-  // 위치만 바꾼다. 토스트 규칙(4초, danger는 머묾)은 caustic 그대로다
+  // 자리는 위쪽 끝이라 입력창과 보내기 단추를 가리지 않는다. 오류 토스트는 caustic이 닫지 않으므로 닫기 단추와 닫힘 시간은 notices.tsx가 정한다
   return (
     <Toaster
       label={t("desktop.shell.toast.label")}
-      className="bottom-10 transition-[inset] duration-quick"
+      className="top-14 bottom-auto transition-[inset] duration-quick"
       style={
         place.kind === "center-bottom"
           ? { insetInline: "0.5rem" }
