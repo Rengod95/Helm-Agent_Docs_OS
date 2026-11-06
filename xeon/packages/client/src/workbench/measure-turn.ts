@@ -59,6 +59,8 @@ export interface TurnSummaryVM {
 export interface TurnCallVM {
   readonly role: string;
   readonly model: string;
+  /** 요청을 보낸 시각(ms). 옛 기록처럼 모르면 null */
+  readonly startedAt: number | null;
   readonly durationMs: number;
   readonly firstTokenMs: number | null;
   readonly totalTokens: number;
@@ -134,9 +136,26 @@ export function estimateTokens(chars: number): number {
   return Math.ceil(chars / 4);
 }
 
+/**
+ * 한 Turn의 단계 한 칸. `model`은 모델 호출 한 번이고, `wait`는 한 main 호출이 끝난 뒤 다음 main 호출이 시작할 때까지의 틈이다.
+ * 이 틈은 도구 실행과 승인 대기를 합친 시간이다(측정 행이 둘을 가르지 않는다)
+ */
+export interface PhaseVM {
+  readonly kind: "model" | "wait";
+  /** 첫 호출 시작에서 이 칸이 시작한 때까지(ms) */
+  readonly atMs: number;
+  readonly ms: number;
+  /** model일 때만 */
+  readonly role: string;
+  readonly model: string;
+  readonly firstTokenMs: number | null;
+}
+
 export interface TurnViewVM {
   readonly summary: TurnSummaryVM | null;
   readonly calls: readonly TurnCallVM[];
+  /** 모델 호출과 호출 사이 틈을 시간 순으로. 시작 시각을 아는 호출만 든다 */
+  readonly phases: readonly PhaseVM[];
   readonly hooks: readonly HookEventVM[];
   readonly hookTotalMs: number;
   readonly bars: readonly CompositionBarVM[];
@@ -172,12 +191,46 @@ function callsOf(rows: readonly MeasureRow[]): readonly TurnCallVM[] {
     .map((row) => ({
       role: tag(row, "role"),
       model: tag(row, "model"),
+      startedAt: numOrNull(row, "startedAt"),
       durationMs: num(row, "durationMs"),
       firstTokenMs: numOrNull(row, "firstTokenMs"),
       totalTokens: num(row, "totalTokens"),
       cacheRead: num(row, "cacheRead"),
       usd: num(row, "usd"),
     }));
+}
+
+function phasesOf(calls: readonly TurnCallVM[]): readonly PhaseVM[] {
+  const timed = calls.flatMap((call) =>
+    call.startedAt === null ? [] : [{ call, startedAt: call.startedAt }],
+  );
+  const sorted = timed.toSorted((a, b) => a.startedAt - b.startedAt);
+  const first = sorted[0];
+  if (first === undefined) return [];
+  const out: PhaseVM[] = [];
+  let lastMainEnd: number | null = null;
+  for (const { call, startedAt } of sorted) {
+    if (call.role === "main" && lastMainEnd !== null && startedAt > lastMainEnd) {
+      out.push({
+        kind: "wait",
+        atMs: lastMainEnd - first.startedAt,
+        ms: startedAt - lastMainEnd,
+        role: "",
+        model: "",
+        firstTokenMs: null,
+      });
+    }
+    out.push({
+      kind: "model",
+      atMs: startedAt - first.startedAt,
+      ms: call.durationMs,
+      role: call.role,
+      model: call.model,
+      firstTokenMs: call.firstTokenMs,
+    });
+    if (call.role === "main") lastMainEnd = startedAt + call.durationMs;
+  }
+  return out;
 }
 
 function hooksOf(rows: readonly MeasureRow[]): readonly HookEventVM[] {
@@ -310,11 +363,13 @@ export function turnViewOf(result: MeasureTurnResult): TurnViewState {
   const hooks = hooksOf(result.rows);
   const bars = barsOf(result.rows);
   const cache = cacheOf(result.rows);
+  const calls = callsOf(result.rows);
   return {
     kind: "ready",
     view: {
       summary: summaryOf(result.rows),
-      calls: callsOf(result.rows),
+      calls,
+      phases: phasesOf(calls),
       hooks,
       hookTotalMs: hooks.reduce((sum, hook) => sum + hook.ms, 0),
       bars,

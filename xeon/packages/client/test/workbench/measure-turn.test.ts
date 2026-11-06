@@ -15,6 +15,13 @@ const hook = (
   tags: { hook: "context", registrationId, result },
 });
 
+const callRow = (role: string, startedAt: number, durationMs: number): MeasureRow => ({
+  at: startedAt + durationMs,
+  kind: "call",
+  metrics: { startedAt, durationMs, firstTokenMs: 400 },
+  tags: { role, model: "haiku" },
+});
+
 const ctx: MeasureRow = {
   at: 1,
   kind: "ctx",
@@ -173,6 +180,24 @@ describe("turnViewOf", () => {
     ).toEqual([["cap-dialog", 1975, 494, true]]);
   });
 
+  test("lays model calls and the waits between main calls on one timeline", () => {
+    const state = turnViewOf({
+      enabled: true,
+      rows: [
+        callRow("main", 10_000, 2800),
+        callRow("main", 38_000, 2200),
+        callRow("summary", 50_000, 500),
+      ],
+    });
+    if (state.kind !== "ready") throw new Error("ready expected");
+    expect(state.view.phases.map((p) => [p.kind, p.atMs, p.ms, p.role])).toEqual([
+      ["model", 0, 2800, "main"],
+      ["wait", 2800, 25_200, ""],
+      ["model", 28_000, 2200, "main"],
+      ["model", 40_000, 500, "summary"],
+    ]);
+  });
+
   test("reads a cache expiry row with the rewritten tokens and the gap", () => {
     const state = turnViewOf({
       enabled: true,
@@ -230,6 +255,7 @@ describe("turnViewOf", () => {
       {
         role: "main",
         model: "m",
+        startedAt: null,
         durationMs: 40,
         firstTokenMs: null,
         totalTokens: 0,
