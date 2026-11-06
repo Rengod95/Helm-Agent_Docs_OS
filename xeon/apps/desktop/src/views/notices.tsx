@@ -4,12 +4,18 @@ import type { Notice } from "@fresnel/contracts/capabilities";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { Alert, Button, EmptyState, Skeleton, toast } from "@caustic/react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { useLinkPhase, useThread, useTurnFailures } from "../state/engine/index.ts";
+import {
+  useLinkPhase,
+  useThread,
+  useThreadSummaries,
+  useTurnFailures,
+} from "../state/engine/index.ts";
 import { useCommands } from "./commands.ts";
 import {
   mergeNotices,
   noticeKindId,
   noticeTitleViewOf,
+  threadBySeqOf,
   noticeToastVisible,
   type NoticeEntry,
 } from "./notices-model.ts";
@@ -31,6 +37,9 @@ interface FailureToasts {
   /** 거울이 이 대화의 실패를 가진 것을 본 토스트 id. 알림이 거울보다 먼저 와도 바로 닫지 않는다 */
   readonly seen: Set<number>;
 }
+
+/** 알림에 대화 이름을 붙이려고 알림을 따로 읽는 최근 대화 수 */
+const NAMED_THREADS = 30;
 
 /** 알림 제목. 아는 원문은 앱 말투로 바꾸고 모르는 것은 원문 그대로다 */
 function noticeTitleText(notice: Notice): string {
@@ -128,24 +137,39 @@ export function InboxNotices(): ReactNode {
   const [load, setLoad] = useState<Load>("loading");
   const [entries, setEntries] = useState<readonly NoticeEntry[]>([]);
 
+  // 대화 이름을 붙이려고 최근 대화별로 알림을 읽는다. 목록이 바뀔 때마다 다시 읽지 않도록 값은 ref로 든다
+  const summaries = useThreadSummaries();
+  const recentIds = useRef<readonly ThreadId[]>([]);
+  useEffect(() => {
+    recentIds.current = summaries.slice(0, NAMED_THREADS).map((summary) => summary.threadId);
+  }, [summaries]);
+
   const read = useCallback((): void => {
-    detach(
-      commands.notices.list().then((listed) => {
-        if (!listed.ok) {
-          setLoad("error");
-          return undefined;
-        }
-        setEntries((now) =>
-          mergeNotices(
-            now,
-            listed.value.notices.map((notice) => ({ notice, threadId: null })),
-          ),
-        );
-        setLoad("ready");
-        return undefined;
-      }),
-      rethrow,
-    );
+    const run = async (): Promise<void> => {
+      const listed = await commands.notices.list();
+      if (!listed.ok) {
+        setLoad("error");
+        return;
+      }
+      const scoped = await Promise.all(
+        recentIds.current.map(async (threadId) => {
+          const got = await commands.notices.list(threadId);
+          return { threadId, notices: got.ok ? got.value.notices : [] };
+        }),
+      );
+      const threads = threadBySeqOf(scoped);
+      setEntries((now) =>
+        mergeNotices(
+          now,
+          listed.value.notices.map((notice) => ({
+            notice,
+            threadId: threads.get(notice.seq) ?? null,
+          })),
+        ),
+      );
+      setLoad("ready");
+    };
+    detach(run(), rethrow);
   }, [commands]);
 
   useEffect(() => {

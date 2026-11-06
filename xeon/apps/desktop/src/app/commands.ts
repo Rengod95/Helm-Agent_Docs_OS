@@ -426,7 +426,13 @@ export function createCommands(deps: CommandDeps): Commands {
     memory: createMemoryCommands(withConnection, withWriteConnection),
     usage: createUsageCommands(withConnection),
     notices: {
-      list: () => withConnection((c) => c.request("notify.list", { afterSeq: 0 })),
+      list: (threadId) =>
+        withConnection((c) =>
+          c.request(
+            "notify.list",
+            threadId === undefined ? { afterSeq: 0 } : { afterSeq: 0, threadId },
+          ),
+        ),
       onDelivered(listener) {
         const connection = session.connection();
         return connection === null

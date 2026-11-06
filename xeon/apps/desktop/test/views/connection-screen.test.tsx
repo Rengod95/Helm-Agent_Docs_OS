@@ -125,7 +125,9 @@ describe("connection screen server render", () => {
       type: "statusLoaded",
       snapshot: { host, serviceEnabled: true, remoteAllowRespond: null },
     });
-    expect(html(unknown)).toContain("이 엔진은 이 설정을 아직 알리지 않아서 바꿀 수 없어요.");
+    expect(html(unknown)).toContain(
+      "은 이 엔진이 아직 알리지 않아서 바꿀 수 없어요. 위 서비스 모드 스위치와는 따로예요.",
+    );
   });
 });
 

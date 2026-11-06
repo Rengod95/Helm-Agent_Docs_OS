@@ -1220,7 +1220,7 @@
   "desktop.connection.status.serviceModeHint": "When on, schedules keep running after the app closes. Restart the engine to apply a change.",
   "desktop.connection.status.remoteRespond": "Allow remote replies",
   "desktop.connection.status.remoteRespondHint": "When off, remote connections cannot answer approval requests.",
-  "desktop.connection.status.remoteRespondUnknown": "This engine does not report this setting yet, so it cannot be changed.",
+  "desktop.connection.status.remoteRespondUnknown": "\"Allow remote replies\" is not reported by this engine yet, so it cannot be changed. It is separate from the service mode switch above.",
   "desktop.connection.status.restartNeeded": "Restart needed",
   "desktop.connection.status.restart": "Restart engine",
   "desktop.connection.status.stopService": "Stop service",

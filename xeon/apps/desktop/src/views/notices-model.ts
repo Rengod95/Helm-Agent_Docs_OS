@@ -92,3 +92,16 @@ export function mergeNotices(
   }
   return [...seen.values()].toSorted((a, b) => b.notice.seq - a.notice.seq).slice(0, NOTICE_KEEP);
 }
+
+/** 알림 목록은 알림의 대화를 싣지 않는다. 대화별로 읽은 목록에서 알림 seq(DB 전역 단조)를 대화로 잇는다. 같은 seq가 둘이면 먼저 온 것이 이긴다 */
+export function threadBySeqOf(
+  reads: readonly { readonly threadId: ThreadId; readonly notices: readonly Notice[] }[],
+): ReadonlyMap<number, ThreadId> {
+  const found = new Map<number, ThreadId>();
+  for (const read of reads) {
+    for (const notice of read.notices) {
+      if (!found.has(notice.seq)) found.set(notice.seq, read.threadId);
+    }
+  }
+  return found;
+}

@@ -1220,7 +1220,7 @@
   "desktop.connection.status.serviceModeHint": "켜면 앱을 닫은 뒤에도 예약이 실행돼요. 바꾸면 엔진을 다시 시작해야 적용돼요.",
   "desktop.connection.status.remoteRespond": "원격 응답 허용",
   "desktop.connection.status.remoteRespondHint": "꺼져 있으면 원격 연결에서는 승인 요청에 답할 수 없어요.",
-  "desktop.connection.status.remoteRespondUnknown": "이 엔진은 이 설정을 아직 알리지 않아서 바꿀 수 없어요.",
+  "desktop.connection.status.remoteRespondUnknown": "\"원격 응답 허용\"은 이 엔진이 아직 알리지 않아서 바꿀 수 없어요. 위 서비스 모드 스위치와는 따로예요.",
   "desktop.connection.status.restartNeeded": "재시작 필요",
   "desktop.connection.status.restart": "엔진 다시 시작",
   "desktop.connection.status.stopService": "서비스 멈추기",

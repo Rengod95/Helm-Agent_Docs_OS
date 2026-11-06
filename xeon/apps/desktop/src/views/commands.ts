@@ -684,8 +684,8 @@ interface PluginUiCommands {
  * 부르는 부품이 연결 상태가 바뀔 때 다시 건다.
  */
 interface NoticeCommands {
-  /** `notify.list { afterSeq: 0 }`: 지금까지 쌓인 알림 */
-  list(): Promise<Result<WireResult<"notify.list">, CommandError>>;
+  /** `notify.list { afterSeq: 0 }`: 지금까지 쌓인 알림. 대화를 주면 그 대화의 알림만(결과에는 대화가 없어 이 호출로 알림의 대화를 안다) */
+  list(threadId?: ThreadId): Promise<Result<WireResult<"notify.list">, CommandError>>;
   /** `notify.delivered` 알림마다 `listener`를 부른다. 반환값은 구독 해제 */
   onDelivered(listener: (delivered: NotifyDeliveredParams) => void): () => void;
 }
