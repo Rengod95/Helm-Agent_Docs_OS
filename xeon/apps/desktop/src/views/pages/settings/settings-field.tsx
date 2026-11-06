@@ -18,7 +18,6 @@ import {
   Select,
   SelectOption,
   Switch,
-  TagInput,
   Tooltip,
 } from "@caustic/react";
 import { Check, CircleHelp, Lock } from "@caustic/react/icons";
@@ -56,6 +55,7 @@ import {
   writableOf,
 } from "./settings-model.ts";
 import { TONE_CLASS } from "./settings-text.ts";
+import { SettingTagList } from "./settings-tag-list.tsx";
 
 // 설정 항목 한 줄(P-09)의 그림. 줄은 제목 하나와 컨트롤 하나로 이루어진다(P-09 `_settings/row.tsx`, c04).
 //   머리: 제목(라벨) · 정보 아이콘(설명은 아이콘 뒤 말풍선과 화면 낭독기 설명) ………… 저장됨 또는 저장 중 또는 적용 시점
@@ -306,14 +306,15 @@ export function FieldRow(props: FieldRowProps): ReactNode {
       ) : null}
       {control === "tags" ? (
         <Field disabled={disabled} error={errorText}>
-          <TagInput
-            aria-label={field.label}
-            containerClassName="max-w-[28rem]"
-            value={[...tagsOf(field.value)]}
+          <SettingTagList
+            settingKey={field.key}
+            label={field.label}
+            value={tagsOf(field.value)}
+            options={field.widget.kind === "list" ? field.widget.options : null}
             disabled={disabled}
             invalid={errorText !== null}
-            onValueChange={(next) => {
-              handlers.edit(field.key, next);
+            onChange={(next) => {
+              handlers.edit(field.key, [...next]);
             }}
           />
         </Field>
