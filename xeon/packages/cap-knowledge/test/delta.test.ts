@@ -250,11 +250,14 @@ describe("turn context", () => {
     const world = await createWorld();
     await created(world, "deploy", "Deploy steps.");
     const finishReindex = Promise.withResolvers<void>();
+    let calls = 0;
     const turns = createTurnContext({
       skills: {
         ...world.runtime.skills,
+        // 첫 호출(시작의 재색인)만 멈춰 둔다
         reindex: async (threadId) => {
-          await finishReindex.promise;
+          calls += 1;
+          if (calls === 1) await finishReindex.promise;
           return world.runtime.skills.reindex(threadId);
         },
       },
@@ -267,6 +270,35 @@ describe("turn context", () => {
     expect((await turns.beforeAgentStart(THREAD))?.customType).toBe(INDEX_MESSAGE_TYPE);
     finishReindex.resolve();
     await resuming;
+  });
+
+  test("a turn that waits past the deadline adds nothing and leaves the state, so the next turn gets the block", async () => {
+    const world = await createWorld();
+    await created(world, "deploy", "Deploy steps.");
+    const finishReindex = Promise.withResolvers<void>();
+    let calls = 0;
+    const turns = createTurnContext({
+      skills: {
+        ...world.runtime.skills,
+        reindex: async (threadId) => {
+          calls += 1;
+          if (calls === 1) await finishReindex.promise;
+          return world.runtime.skills.reindex(threadId);
+        },
+      },
+      memory: world.runtime.memory,
+      logger: world.deps.logger,
+      waitMs: 20,
+    });
+    const starting = turns.start(THREAD, "new");
+    expect(await turns.beforeAgentStart(THREAD)).toBeUndefined();
+    // 버려진 turn은 상태를 남기지 않았다
+    expect(turns.size()).toBe(0);
+    finishReindex.resolve();
+    await starting;
+    const next = await turns.beforeAgentStart(THREAD);
+    expect(next?.customType).toBe(INDEX_MESSAGE_TYPE);
+    expect(next?.content).toContain("<name>deploy</name>");
   });
 
   test("a resumed session does not repeat the first-turn block and starts from the current index", async () => {

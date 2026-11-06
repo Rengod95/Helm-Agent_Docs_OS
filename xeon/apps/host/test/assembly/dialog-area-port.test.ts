@@ -856,6 +856,89 @@ describe("skillViewResultOf", () => {
   });
 });
 
+describe("skillList", () => {
+  test("the index and its diagnostics are mapped, hidden skills included, with the thread's host context", async () => {
+    const seen: { input: unknown; options: CallOptions | undefined }[] = [];
+    const order: string[] = [];
+    const port = portFor({
+      skills: {
+        reindex: () => {
+          order.push("reindex");
+          return Promise.resolve({
+            added: 0,
+            changed: 0,
+            removed: 0,
+            indexVersion: 3,
+            diagnostics: [],
+          });
+        },
+        list: (input, options) => {
+          order.push("list");
+          seen.push({ input, options });
+          return Promise.resolve({
+            skills: [
+              {
+                name: "scigreet-hello",
+                description: "Greets.",
+                scope: "project",
+                createdBy: "unknown",
+                treeHash: "b".repeat(64),
+                modelInvocable: true,
+              },
+            ],
+            budget: { limitChars: 8000, usedChars: 10, omitted: 0 },
+            indexVersion: 3,
+            diagnostics: [
+              {
+                severity: "warning",
+                message: "project skills are not loaded",
+                path: "/w/.fresnel/skills",
+              },
+            ],
+          });
+        },
+      },
+    });
+    expect(await port.skillList(THREAD, signal)).toEqual({
+      ok: true,
+      value: {
+        skills: [
+          {
+            name: "scigreet-hello",
+            description: "Greets.",
+            scope: "project",
+            modelInvocable: true,
+          },
+        ],
+        diagnostics: [
+          {
+            severity: "warning",
+            message: "project skills are not loaded",
+            path: "/w/.fresnel/skills",
+          },
+        ],
+      },
+    });
+    // 목록은 다시 훑은 뒤에 읽는다
+    expect(order).toEqual(["reindex", "list"]);
+    expect(seen[0]?.input).toEqual({ includeHidden: true });
+    expect(seen[0]?.options?.context).toEqual({ threadId: THREAD, caller: { kind: "host" } });
+  });
+
+  test("a missing skills service and an unknown thread are reported as failures without a read", async () => {
+    expect(await portFor({}).skillList(THREAD, signal)).toEqual({
+      ok: false,
+      error: { kind: "unavailable" },
+    });
+    expect(
+      await portFor({ exists: () => ok(false), skills: {} }).skillList(THREAD, signal),
+    ).toEqual({
+      ok: false,
+      error: { kind: "thread_not_found", threadId: THREAD },
+    });
+  });
+});
+
 describe("skillView", () => {
   test("a thread the store does not know is thread_not_found, and no skill is read", async () => {
     const asked: string[] = [];

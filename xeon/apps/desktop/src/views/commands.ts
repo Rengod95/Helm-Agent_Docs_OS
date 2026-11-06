@@ -229,6 +229,8 @@ export interface SkillCommands {
     name: string,
     threadId?: string,
   ): Promise<Result<WireResult<"knowledge.skills.view">, SkillViewError>>;
+  /** `knowledge.skills.list`. 이 대화가 쓸 수 있는 스킬과 싣지 못한 이유. 슬래시 목록의 "스킬" 묶음이 읽는다. 스킬 설정이 꺼져 있으면 `unsupported` */
+  list(threadId: string | null): Promise<Result<WireResult<"knowledge.skills.list">, CommandError>>;
 }
 
 /**

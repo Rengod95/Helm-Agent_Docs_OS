@@ -17,6 +17,7 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { PermissionMode } from "@fresnel/contracts/services";
 import type { ModelEntry } from "@fresnel/contracts/wire";
 import {
+  Fragment,
   useEffect,
   useRef,
   useState,
@@ -74,9 +75,11 @@ import {
 import {
   appSlashOf,
   slashFillOf,
+  slashIssuesOf,
   slashMenuOf,
   slashMoveOf,
   unknownSlashOf,
+  type SkillsVM,
 } from "./composer-slash.ts";
 import { runThreadCompact } from "./thread-compact.ts";
 import { permissionModeOptionsOf, switchModeOf } from "./permission-mode-model.ts";
@@ -323,6 +326,8 @@ function ComposerFor(props: {
   const limit = useRef<number | null>(null);
   // 슬래시 목록: 엔진 명령(`command.list`)은 `/`를 처음 칠 때 읽는다. 못 읽으면 null이라 앱 명령만 보이고 모르는 명령 확인은 하지 않는다
   const [engineRows, setEngineRows] = useState<readonly CommandRowVM[] | null>(null);
+  // 이 대화에 실린 스킬(`knowledge.skills.list`). 못 읽으면(스킬 설정이 꺼짐 등) null이라 스킬 묶음이 없다
+  const [skillsView, setSkillsView] = useState<SkillsVM | null>(null);
   const [menuIndex, setMenuIndex] = useState(0);
   const [menuDismissed, setMenuDismissed] = useState(false);
   const [unknownName, setUnknownName] = useState<string | null>(null);
@@ -355,11 +360,19 @@ function ComposerFor(props: {
       }),
       rethrow,
     );
+    detach(
+      commands.skills.list(props.threadId).then((listed) => {
+        if (live) setSkillsView(listed.ok ? listed.value : null);
+        return undefined;
+      }),
+      rethrow,
+    );
     return () => {
       live = false;
     };
   }, [commands, props.threadId, startsSlash]);
-  const menuRows = menuDismissed ? [] : slashMenuOf(draft, engineRows ?? []);
+  const menuRows = menuDismissed ? [] : slashMenuOf(draft, engineRows ?? [], skillsView);
+  const menuIssues = menuDismissed ? [] : slashIssuesOf(draft, skillsView);
   const menuActive = menuRows.length > 0;
   const activeRow = menuRows[Math.min(menuIndex, menuRows.length - 1)];
 
@@ -498,7 +511,7 @@ function ComposerFor(props: {
       // 앱도 엔진도 모르는 `/명령`은 모델로 보내기 전에 한 번 묻는다
       if (text.startsWith("/")) {
         const rows = engineRows ?? (await loadEngineRows());
-        const unknown = unknownSlashOf(text, rows);
+        const unknown = unknownSlashOf(text, rows, skillsView);
         if (unknown !== null) {
           setUnknownName(unknown);
           return;
@@ -658,7 +671,7 @@ function ComposerFor(props: {
           {secretWarning}
         </p>
       )}
-      {menuActive ? (
+      {menuActive || menuIssues.length > 0 ? (
         <ul
           id="composer-slash-list"
           role="listbox"
@@ -667,23 +680,43 @@ function ComposerFor(props: {
           className="m-0 grid list-none gap-0.5 rounded-2xl bg-neutral-well p-1.5"
         >
           {menuRows.map((row, index) => (
+            <Fragment key={row.name}>
+              {row.group === "skill" && menuRows[index - 1]?.group !== "skill" ? (
+                <li
+                  role="presentation"
+                  data-composer-slash-group="skill"
+                  className="px-2.5 pt-1.5 text-ui-sm text-text-tertiary"
+                >
+                  {t("desktop.composer.slash.skills.group")}
+                </li>
+              ) : null}
+              <li
+                id={`composer-slash-${row.name}`}
+                role="option"
+                aria-selected={index === Math.min(menuIndex, menuRows.length - 1)}
+                className="flex cursor-default items-baseline gap-2 rounded-xl px-2.5 py-1.5 text-ui-sm text-text-secondary aria-selected:bg-neutral-hover aria-selected:text-text-primary"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  fillSlash(index);
+                }}
+                onMouseEnter={() => {
+                  setMenuIndex(index);
+                }}
+              >
+                <span className="text-ui-strong text-text-primary">{row.label}</span>
+                {row.hint === null ? null : <span>{row.hint}</span>}
+                <span className="min-w-0 truncate">{row.description}</span>
+              </li>
+            </Fragment>
+          ))}
+          {menuIssues.map((issue) => (
             <li
-              key={row.name}
-              id={`composer-slash-${row.name}`}
-              role="option"
-              aria-selected={index === Math.min(menuIndex, menuRows.length - 1)}
-              className="flex cursor-default items-baseline gap-2 rounded-xl px-2.5 py-1.5 text-ui-sm text-text-secondary aria-selected:bg-neutral-hover aria-selected:text-text-primary"
-              onMouseDown={(event) => {
-                event.preventDefault();
-                fillSlash(index);
-              }}
-              onMouseEnter={() => {
-                setMenuIndex(index);
-              }}
+              key={issue}
+              role="presentation"
+              data-composer-slash-issue
+              className="px-2.5 py-1 text-ui-sm text-warning-text"
             >
-              <span className="text-ui-strong text-text-primary">{row.label}</span>
-              {row.hint === null ? null : <span>{row.hint}</span>}
-              <span className="min-w-0 truncate">{row.description}</span>
+              {issue}
             </li>
           ))}
         </ul>

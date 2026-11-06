@@ -34,7 +34,7 @@ test("m4-defaults: the 66 M4 methods all have a handler and notImplemented match
   if (table === undefined) throw new Error("the handler table was not captured");
 
   const names = m4Methods();
-  expect(names).toHaveLength(66);
+  expect(names).toHaveLength(67);
   const actual = names.map((name) => ({
     name,
     hasHandler: typeof table[name] === "function",

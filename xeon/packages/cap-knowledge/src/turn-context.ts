@@ -29,6 +29,11 @@ export interface TurnContextDeps {
     snapshotBlock(threadId: string): Promise<Result<string, KnowledgeFailure>>;
   };
   readonly logger: Logger;
+  /**
+   * turn 시작이 시작 작업과 재색인을 기다리는 최대 시간(ms). hook 체인 예산(10초)보다 짧아야 한다: 예산을 넘기면 체인이 turn의
+   * 블록을 버리는데 상태에는 기록되어 그 대화가 스킬 목록을 못 받는다. 기본 5000
+   */
+  readonly waitMs?: number;
 }
 
 type SessionStartReason = "startup" | "reload" | "new" | "resume" | "fork";
@@ -48,7 +53,27 @@ function joinBlocks(blocks: readonly string[]): string {
   return blocks.filter((block) => block !== "").join("\n\n");
 }
 
+const DEFAULT_WAIT_MS = 5000;
+
+/** `work`가 `ms` 안에 끝나면 true, 아니면 false. 늦게 끝나는 작업은 그대로 둔다(결과를 쓰지 않는다) */
+async function withDeadline(ms: number, work: () => Promise<void>): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const expired = new Promise<boolean>((resolve) => {
+    timer = setTimeout(() => resolve(false), ms);
+  });
+  const finished = (async (): Promise<boolean> => {
+    await work();
+    return true;
+  })();
+  try {
+    return await Promise.race([finished, expired]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export function createTurnContext(deps: TurnContextDeps): TurnContext {
+  const waitMs = deps.waitMs ?? DEFAULT_WAIT_MS;
   // 세션별로 마지막으로 모델에게 알린 인덱스. 항목이 있으면 첫 turn 블록을 이미 넣었다(재개한 세션은 기록에 있다고 본다)
   const states = new Map<string, IndexSnapshot>();
   // 시작이 진행 중인 세션의 시작 작업. 거부가 없는 값이다. turn은 이것이 끝난 뒤에 상태를 읽는다
@@ -128,11 +153,19 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
   return {
     start: (threadId, reason) => track(threadId, startSession(threadId, reason)),
     beforeAgentStart: async (threadId) => {
-      // 시작은 턴을 기다리지 않는다(재색인은 파일과 DB만 읽고 쓰고, turn을 기다리는 호출이 없다). 그래서 턴이 시작을 기다려도 교착이 없다
-      const pending = starting.get(threadId);
-      if (pending !== undefined) await pending;
-      const synced = await deps.skills.syncFor(threadId);
-      if (!synced.ok) warn("knowledge.context.reindex_failed", threadId, synced.error);
+      // 시작은 턴을 기다리지 않는다(재색인은 파일과 DB만 읽고 쓰고, turn을 기다리는 호출이 없다). 그래서 턴이 시작을 기다려도 교착이 없다.
+      // 기다림은 `waitMs`로 끊는다. 끊으면 이번 turn은 아무것도 더하지 않고 상태도 건드리지 않아, 다음 turn이 블록을 다시 시도한다
+      const settled = await withDeadline(waitMs, async () => {
+        const pending = starting.get(threadId);
+        if (pending !== undefined) await pending;
+        // 대화 중에 둔 스킬과 그 사이에 준 신뢰를 이번 turn이 보게 한다. 작업 폴더가 그대로여도 매 turn 다시 훑는다
+        const refreshed = await deps.skills.reindex(threadId);
+        if (!refreshed.ok) warn("knowledge.context.reindex_failed", threadId, refreshed.error);
+      });
+      if (!settled) {
+        deps.logger.warn("knowledge.context.reindex_timeout", { threadId, waitMs });
+        return undefined;
+      }
       const state = states.get(threadId);
       if (state === undefined) return introduce(threadId);
       return delta(threadId, state);
