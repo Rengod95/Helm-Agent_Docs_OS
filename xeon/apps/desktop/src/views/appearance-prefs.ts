@@ -15,7 +15,7 @@ export interface AppearancePrefs {
   readonly zoom: number;
 }
 
-export const DEFAULT_APPEARANCE: AppearancePrefs = { motion: "system", zoom: 100 };
+const DEFAULT_APPEARANCE: AppearancePrefs = { motion: "system", zoom: 100 };
 
 /** 설정 화면이 쓰는 면. 쓰기는 저장에 성공했는지만 돌려준다. 저장되면 화면에도 바로 건다 */
 export interface AppearancePort {

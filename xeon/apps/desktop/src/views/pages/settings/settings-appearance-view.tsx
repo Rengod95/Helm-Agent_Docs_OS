@@ -48,7 +48,7 @@ function AppearancePanelBound(props: { readonly port: AppearancePort }): ReactNo
   );
 }
 
-export interface AppearancePanelViewProps {
+interface AppearancePanelViewProps {
   readonly prefs: AppearancePrefs;
   readonly onMotion: (motion: MotionPref) => void;
   readonly onZoom: (zoom: number) => void;
@@ -70,7 +70,7 @@ function Row(props: {
   );
 }
 
-export function AppearancePanelView(props: AppearancePanelViewProps): ReactNode {
+function AppearancePanelView(props: AppearancePanelViewProps): ReactNode {
   const { prefs } = props;
   return (
     <SettingSection title={t("desktop.settings.appearance.title")}>
