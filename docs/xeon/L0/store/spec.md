@@ -138,6 +138,8 @@ export interface StoreService {
   /** 트랜잭션 밖에서만 부른다(TX-04). 같은 해시면 파일을 다시 쓰지 않는다 */
   putBlob(bytes: Uint8Array, mediaType: string | null): Result<BlobRef, BlobError>;
   readBlob(ref: BlobRef): Result<Uint8Array, BlobError>;
+  /** 자리표시 `blob:sha256:<hex>`처럼 해시만 아는 호출자용. 크기 대조 없이 읽는다 */
+  readBlobByHash(sha256: string): Result<Uint8Array, BlobError>;
   /** 범위 핸들 소유자(`cap.*`, `ext.*`)의 블롭 참조 기록(M3-REQ-62). 트랜잭션 밖에서 부른다. 블롭 행이 없으면 `blob_missing`. 등록 안 된 소유자는 Bug(store.prefix_not_owned) */
   pinBlob(owner: string, sha256: string, refKey: string): Result<void, BlobError>;
   /** `(owner, refKey)` 참조를 모두 해제한다. 해제한 행 수를 돌려준다 */
@@ -741,8 +743,9 @@ macOS `fullfsync` [제안]:
   8. `write`에서 `sys_blobs`에 `INSERT … ON CONFLICT(sha256) DO UPDATE SET last_put_at = excluded.last_put_at`.
   9. `ok(BlobRef{ type: "blob", sha256, size, mediaType })`.
 - 이벤트 커밋 전에 블롭 쓰기가 끝나야 한다. 이벤트 envelope 256 KiB 초과 값은 블롭으로 옮긴다(EV-04, `F.records.spec` §3.4 규칙 3·4). 필드별 분리 기준(EV-04의 16 KiB 제안)과 분리 실행은 `L1.persistence.spec` 몫이다. adr.0004 §6 미결 "블롭 분리 임계 크기와 해시 함수" 중 해시 함수는 이 문서가 SHA-256으로 정한다 [제안].
+- `readBlobByHash(sha256)`: `ref.size` 대조만 빼고 `readBlob`과 같다(해시 모양 검사, `blob_missing`, 테스트 빌드의 해시 재검증). 컨텍스트 조립이 이미지 자리표시를 풀 때 쓴다(L1.context.spec §4.1).
 - `readBlob(ref)`: 파일이 없으면 `blob_missing`. 크기가 `ref.size`와 다르면 `blob_corrupt{size}`. 해시 재검증은 테스트·디버그 빌드에서만 하고 다르면 `blob_corrupt{hash}` [제안].
-- 읽기 실패 정책: store는 오류만 돌려준다. 컨텍스트 조립(L1 context)이 `[fresnel:blob_missing sha256:<hex>]` 같은 자리 문장으로 바꿔 모델에 보내고 재생은 멈추지 않는다 [제안, `L1.context.spec` 확인 필요].
+- 읽기 실패 정책: store는 오류만 돌려준다. 컨텍스트 조립(L1 context)이 읽을 수 없는 이미지 blob을 `[이미지를 읽지 못함]` text 파트로 바꿔 모델에 보내고 재생은 멈추지 않는다(L1.context.spec §4.1 이미지 자리표시 풀기).
 
 GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙만 차용, `_research/packages.md §2.3`):
 

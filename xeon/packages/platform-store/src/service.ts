@@ -75,6 +75,9 @@ export function assembleStoreService(parts: StoreServiceParts): StoreService {
     readBlob(ref: BlobRef): Result<Uint8Array, BlobError> {
       return parts.blobs.readBlob(ref);
     },
+    readBlobByHash(sha256: string): Result<Uint8Array, BlobError> {
+      return parts.blobs.readBlobByHash(sha256);
+    },
     pinBlob(owner: string, sha256: string, refKey: string): Result<void, BlobError> {
       parts.assertPinOwner(owner);
       return parts.blobs.pinRef(sha256, owner, refKey);
