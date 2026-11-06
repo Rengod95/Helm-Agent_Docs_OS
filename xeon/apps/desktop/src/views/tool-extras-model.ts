@@ -44,6 +44,14 @@ export interface AgentResult {
 
 const CODE_PREFIX = /^\[([^\]]+)\]\s*/;
 
+const REPORT_OPEN = /^<subagent_report[^>]*>\n?/;
+const REPORT_CLOSE = /\n?<\/subagent_report>\s*$/;
+
+/** 엔진이 자식 보고를 감싼 `<subagent_report …>` 표지를 뗀다. 화면에는 보고 글만 보인다 */
+function unwrapReport(text: string): string {
+  return text.replace(REPORT_OPEN, "").replace(REPORT_CLOSE, "");
+}
+
 /** 결과의 `details.status`(엔진: completed·aborted·error)와 글머리 꼬리표로 결과를 읽는다 */
 export function agentResultOf(
   text: string,
@@ -54,7 +62,7 @@ export function agentResultOf(
   const status = d["status"];
   const childThreadId = strOf(d["childThreadId"]);
   const found = CODE_PREFIX.exec(text);
-  const body = found === null ? text : text.slice(found[0].length);
+  const body = unwrapReport(found === null ? text : text.slice(found[0].length));
   const code = found?.[1] ?? null;
   if (status === "aborted" || code === "fresnel:aborted" || code === "aborted") {
     return { childThreadId, outcome: "aborted", body };

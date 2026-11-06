@@ -31,6 +31,11 @@ describe("agentResultOf", () => {
       body: "요약",
     });
   });
+  test("the engine's report wrapper tag is not part of the shown report", () => {
+    const wrapped =
+      '<subagent_report agent="explore" status="completed">\n요약 글\n</subagent_report>';
+    expect(agentResultOf(wrapped, { status: "completed" }, false).body).toBe("요약 글");
+  });
   test("an aborted run is aborted, not an error", () => {
     expect(agentResultOf("", { childThreadId: "thr_1", status: "aborted" }, true).outcome).toBe(
       "aborted",

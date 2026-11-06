@@ -125,6 +125,14 @@ function ToolRow(props: {
 }): ReactNode {
   const { output } = props;
   const elapsed = useElapsedSeconds(props.status === "running");
+  // 실행 중에 그려진 행이 나중에 끝나도 초기 값만 읽으면 접힌 채로 남는다. 상태가 바뀔 때 펼칠지 다시 정한다
+  const wantOpen = props.status === "failed" || props.openWhenDone === true;
+  const [open, setOpen] = useState(wantOpen);
+  const [seenStatus, setSeenStatus] = useState(props.status);
+  if (seenStatus !== props.status) {
+    setSeenStatus(props.status);
+    setOpen(wantOpen);
+  }
   return (
     <ToolCall
       name={props.name}
@@ -139,7 +147,8 @@ function ToolRow(props: {
       }
       failedLabel={props.failedLabel ?? t("desktop.item.status.failed")}
       collapsible={output !== undefined || props.foot !== undefined}
-      defaultOpen={props.status === "failed" || props.openWhenDone === true}
+      open={open}
+      onOpenChange={setOpen}
     >
       {output === undefined && props.foot === undefined ? null : (
         <>
@@ -350,7 +359,7 @@ function AgentRow(props: {
   const view = resultViewOf(result);
   if (view === null) return null;
   const parsed = agentResultOf(view.output, result.message.details, result.message.isError);
-  const fold = reportFoldOf(view.output);
+  const fold = reportFoldOf(parsed.body);
   const childId = parsed.childThreadId;
   const foot = (
     <>
