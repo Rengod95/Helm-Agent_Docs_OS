@@ -715,7 +715,7 @@ export interface GroupTemplatesPort {
     [참고] 서비스 모드: 사용 안 함 (in-process)
     [ok]   터미널: stdin TTY, stdout TTY, 100열, 색 사용
   검색 provider
-    검색 provider: auto → Built-in search (model provider) (builtin-wrapper)
+    검색 provider: auto → 내장 검색(모델 제공자) (builtin-wrapper)
     권장 키 플러그인: Exa(키 필요 — fresnel secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치해 주세요)
   웹 provider
     [ok]   builtin-wrapper  내장 · 검색 · 순위 1 · 현재 · 사용할 수 있어요

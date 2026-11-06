@@ -2890,7 +2890,7 @@
   "desktop.providers.chain.empty": "No fallback models",
   "desktop.providers.chain.unreadable": "The fallback chain value cannot be read. Fix it in the file view",
   "desktop.providers.chain.max": "Up to {count} fallback models per role",
-  "desktop.providers.usage.title": "Usage · this conversation",
+  "desktop.providers.usage.title": "Usage",
   "desktop.providers.usage.noThread": "Pick a conversation to see its usage.",
   "desktop.providers.usage.offline": "Not connected, so usage cannot be shown.",
   "desktop.providers.usage.loading": "Reading usage.",
