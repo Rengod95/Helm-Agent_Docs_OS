@@ -94,6 +94,9 @@ export const selectTranscriptStatus = (s: EngineMirror): "none" | "loading" | "r
   s.transcript === null ? "none" : s.transcript.status;
 export const selectOpenThreadId = (s: EngineMirror): ThreadId | null =>
   s.transcript?.threadId ?? null;
+/** 엔진이 열어 본문까지 받은 대화. 다시 켠 뒤 고른 채로만 남은 대화와 열리는 중인 대화는 아니다 */
+export const selectReadyThreadId = (s: EngineMirror): ThreadId | null =>
+  s.transcript?.status === "ready" ? s.transcript.threadId : null;
 /** thread의 대기 승인 수 중 대기열에 항목이 없는 몫. approval.list가 없는 동안 재설정 뒤 복원하지 못한 승인을 알린다 */
 export const selectUnlistedApprovals = (s: EngineMirror, id: ThreadId): number => {
   const pending = s.threads.byId[id]?.pendingApprovals ?? 0;

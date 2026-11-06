@@ -9,7 +9,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import type { PluginShellPort } from "../../plugin-ui/backend.ts";
 import { commandEntriesOf } from "../../plugin-ui/placements.ts";
 import type { PluginUiRuntime } from "../../plugin-ui/runtime.ts";
-import { useSelectedThreadId } from "../../state/ui/index.ts";
+import { useReadyThreadId } from "../../state/engine/index.ts";
 import { useCommands } from "../commands.ts";
 import type { ConfirmQueue } from "./confirm-host.tsx";
 import { runDecided } from "./native-run.ts";
@@ -122,7 +122,7 @@ export function createEntryCommandRunner(options: {
 export function usePluginCommandRunner(): (extension: string, id: string) => void {
   const { runtime, confirm, openExternal } = usePluginUi();
   const commands = useCommands();
-  const threadId = useSelectedThreadId();
+  const threadId = useReadyThreadId();
   const [runners] = useState(() => new Map<string, EntryCommandRunner>());
   useEffect(
     () => () => {

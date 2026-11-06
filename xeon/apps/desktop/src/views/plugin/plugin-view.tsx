@@ -18,7 +18,7 @@ import { useContext, useEffect, useState, useSyncExternalStore, type ReactNode }
 import { createBridgeBackend, type PluginShellPort } from "../../plugin-ui/backend.ts";
 import { newFrameNonce, type PluginUiRuntime } from "../../plugin-ui/runtime.ts";
 import { ShellStoreContext } from "../../state/shell/index.ts";
-import { useSelectedThreadId } from "../../state/ui/index.ts";
+import { useReadyThreadId } from "../../state/engine/index.ts";
 import { useCommands } from "../commands.ts";
 import { NativeTree } from "./native-tree.tsx";
 import { readTreeOf, treeActionsOf } from "./native-run.ts";
@@ -354,7 +354,7 @@ function FrameBody(props: {
 }): ReactNode {
   const { entry, loaded, runtime } = props;
   const plugin = usePluginUi();
-  const threadId = useSelectedThreadId();
+  const threadId = useReadyThreadId();
   const session = useSession(
     entry,
     loaded.context,
@@ -440,7 +440,7 @@ export function NativeSurface(props: {
   const { entry, loaded, doc, dense = false, onFailed } = props;
   const { runtime, openExternal, shell } = usePluginUi();
   const commands = useCommands();
-  const threadId = useSelectedThreadId();
+  const threadId = useReadyThreadId();
   const session = useSession(entry, loaded.context, threadId, runtime, openExternal, shell);
   const [backend] = useState(() => session.makeBackend(() => {}));
   const key = screenKeyOf(entry);
@@ -525,7 +525,7 @@ export function EntrySurface(props: {
 }): ReactNode {
   const { entry, dense = false, doc, onFailed } = props;
   const { runtime } = usePluginUi();
-  const threadId = useSelectedThreadId();
+  const threadId = useReadyThreadId();
   const loaded = useLoaded(runtime, entry, threadId);
   if (loaded === undefined) return <Note dense={dense} text={t("desktop.plugin.state.loading")} />;
   if (loaded === "offline") return <Note dense={dense} text={t("desktop.plugin.state.offline")} />;
@@ -540,7 +540,7 @@ export function EntrySurface(props: {
 export function PluginView(props: { readonly entry: ExtUiEntry }): ReactNode {
   const { entry } = props;
   const { runtime } = usePluginUi();
-  const threadId = useSelectedThreadId();
+  const threadId = useReadyThreadId();
   const loaded = useLoaded(runtime, entry, threadId);
   const key = screenKeyOf(entry);
   const frameDisabled = useDisabled(runtime, key);
