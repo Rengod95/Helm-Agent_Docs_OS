@@ -20,6 +20,8 @@ import type { SettingKey, SettingsTab } from "@fresnel/contracts/settings";
 import { useId, type KeyboardEvent, type ReactNode } from "react";
 import {
   advancedGroupsOf,
+  budgetsGroupsOf,
+  modelsGroupsOf,
   panelOwnedOf,
   restartCountOf,
   searchGroupsOf,
@@ -321,6 +323,32 @@ function FieldList(props: SettingsPageProps & { readonly view: SettingsView }): 
   );
 }
 
+/** 제목 카드 하나. 제목이 없는 카드는 탭 이름을 라벨로 쓰는 나머지 카드다 */
+interface TitledCard {
+  readonly title: string | undefined;
+  readonly fields: readonly FieldVM[];
+}
+
+/** 모델과 예산 탭을 제목 카드 목록으로 나눈다(카드 순서는 시안과 같다). 다른 탭은 `null`이라 한 카드로 그린다 */
+function titledCardsOf(tab: SettingsTab, fields: readonly FieldVM[]): readonly TitledCard[] | null {
+  if (tab === "models") {
+    const groups = modelsGroupsOf(fields);
+    return [
+      { title: t("desktop.settings.models.basic"), fields: groups.basic },
+      { title: t("desktop.settings.models.routing"), fields: groups.routing },
+      { title: undefined, fields: groups.rest },
+    ];
+  }
+  if (tab === "budgets") {
+    const groups = budgetsGroupsOf(fields);
+    return [
+      { title: t("desktop.settings.budgets.budget"), fields: groups.budget },
+      { title: t("desktop.settings.budgets.rateLimit"), fields: groups.rateLimit },
+    ];
+  }
+  return null;
+}
+
 /** 찾기 결과나 고른 탭의 항목. 시크릿 탭은 시크릿 화면이 자리를 차지한다 */
 function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }): ReactNode {
   const { view, query, tab, hasThread, readOnly, saved, handlers } = props;
@@ -376,12 +404,14 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
     return (
       <OverviewPanels view={view} updatePanel={props.updatePanel} filePaths={props.filePaths} />
     );
+  // 모델과 예산 탭은 제목 카드로 나눈다(시안 p09 `models-tab`, p11 `BudgetsTab`). 항목이 없으면 아래 한 카드가 빈 항목 문장을 맡는다
+  const cards = fields.length === 0 ? null : titledCardsOf(tab, fields);
   // 고급 탭은 운영자용 항목을 따로 묶어 제목으로 가른다(시안 `_settings`의 구역 모양)
   const groups = tab === "advanced" ? advancedGroupsOf(fields) : { general: fields, operator: [] };
   return (
     <>
       {panels}
-      {hasCard ? (
+      {cards === null && hasCard ? (
         <SettingSection
           label={tabView.label}
           title={tab === "plugins" ? t("desktop.settings.plugins.settings") : undefined}
@@ -391,6 +421,17 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
           {groups.general.map(rowOf)}
         </SettingSection>
       ) : null}
+      {cards?.map((card) =>
+        card.fields.length === 0 ? null : (
+          <SettingSection
+            key={card.title ?? tabView.label}
+            label={tabView.label}
+            title={card.title}
+          >
+            {card.fields.map(rowOf)}
+          </SettingSection>
+        ),
+      )}
       {tab === "appearance" ? props.appearancePanel : null}
       {groups.operator.length === 0 ? null : (
         <SettingSection title={t("desktop.settings.advanced.operator.title")}>

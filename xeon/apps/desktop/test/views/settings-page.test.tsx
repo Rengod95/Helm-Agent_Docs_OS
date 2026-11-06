@@ -216,6 +216,62 @@ describe("field rows", () => {
   });
 });
 
+describe("models and budgets cards", () => {
+  const ROUTE = defOf(
+    "l1.models.routing.review",
+    "models",
+    "text",
+    { type: "string" },
+    {},
+    { order: 2, label: "검토 모델" },
+  );
+  const REST = defOf(
+    "l1.models.allowedModels",
+    "models",
+    "text",
+    { type: "string" },
+    {},
+    { order: 3, label: "허용 모델" },
+  );
+  const RATE = defOf(
+    "l1.models.rateLimit",
+    "budgets",
+    "text",
+    { type: "string" },
+    {},
+    { order: 2, label: "레이트 리밋 정책" },
+  );
+
+  test("the models tab draws the basic and routing cards with their titles, in that order", () => {
+    const view = viewOf(
+      [MODEL, ROUTE, REST],
+      [settingOf(MODEL.key, "sonnet"), settingOf(ROUTE.key, "haiku"), settingOf(REST.key, "x")],
+    );
+    const out = html(propsOf({ view, tab: "models" }));
+    const basic = out.indexOf(`>${t("desktop.settings.models.basic")}</h2>`);
+    const routing = out.indexOf(`>${t("desktop.settings.models.routing")}</h2>`);
+    expect(basic).toBeGreaterThan(-1);
+    expect(routing).toBeGreaterThan(basic);
+  });
+
+  test("a models card with no fields is not drawn", () => {
+    const view = viewOf([MODEL], [settingOf(MODEL.key, "sonnet")]);
+    const out = html(propsOf({ view, tab: "models" }));
+    expect(out).toContain(`>${t("desktop.settings.models.basic")}</h2>`);
+    expect(out).not.toContain(`>${t("desktop.settings.models.routing")}</h2>`);
+  });
+
+  test("the budgets tab draws the budget card and the rate limit card with their titles", () => {
+    const view = viewOf([STEPS, RATE], [settingOf(STEPS.key, 3), settingOf(RATE.key, "x")]);
+    const out = html(propsOf({ view, tab: "budgets" }));
+    const budget = out.indexOf(`>${t("desktop.settings.budgets.budget")}</h2>`);
+    const rateLimit = out.indexOf(`>${t("desktop.settings.budgets.rateLimit")}</h2>`);
+    expect(budget).toBeGreaterThan(-1);
+    expect(rateLimit).toBeGreaterThan(budget);
+    expect(out).toContain("레이트 리밋 정책");
+  });
+});
+
 describe("page layout", () => {
   test("a narrow window shows the tabs as one select, a wide one as a tab list", () => {
     const wide = html(propsOf({ narrow: false }));

@@ -965,6 +965,7 @@ sequenceDiagram
   - 공유 패키지로 내린다. L4 아래 층에 화면 view-model을 두는 것이 층 뜻과 맞는지 정해야 한다.
   - `apps/` 아래 라이브러리 패키지(앱이 아닌 L4 패키지)를 허용한다. DR-10과 `architecture.layers.spec` §10 "같은 층 예외"를 바꾸는 일이다.
   - CLI는 `fresnel config`(F `checkSettingWrite` 기반)만 쓰고 view-model을 공유하지 않는다.
+- 모델 탭은 제목 카드 `기본`(`l1.models.default`, `l1.models.thinkingLevel`, `l1.agents.judge.maxRuns`)과 `라우팅`(`l1.models.routing.*`, `l1.models.groupRouting`), 제목 없는 나머지 카드로, 예산과 한도 탭은 `예산`과 `레이트 리밋`(`l1.models.rateLimit`) 카드로 그린다. 키가 어느 카드에 드는지는 `settings-model.ts`의 `modelsGroupsOf`·`budgetsGroupsOf`가 정하는 화면 배치이고, 값·기본값·검사·저장 범위는 바꾸지 않는다. 항목이 없는 카드는 그리지 않는다. 시안의 하루 비용 한도와 한도 도달 시 동작(시안 p11), 폴백 체인(시안 p09)은 이 저장소에 설정 키가 없어 그리지 않는다 [제안].
 
 ### 4.10 첫 실행 권장 화면 (M3)
 
