@@ -166,7 +166,3 @@ export function rejectedNotice(): PostItem {
     "[helm] 임대 대기 상한을 넘어 탐구 요청을 거두었습니다. 다시 시작하려면 /helm start 를 쓰세요.",
   );
 }
-
-export function statusNotice(text: string): PostItem {
-  return notice("status", text);
-}

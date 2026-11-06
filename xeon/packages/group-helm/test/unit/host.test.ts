@@ -99,23 +99,21 @@ test("commands.start-stop-status", async () => {
   expect(statesOf(rig).at(-1)?.pending).toMatchObject({ topic: "캐시 무효화", source: "command" });
   const commits = statesOf(rig).length;
   // 탐구 중(대기 포함) start는 오류이고 상태를 바꾸지 않는다
-  await rig.command("start 다른 주제");
-  await rig.command("status");
+  const again = await rig.command("start 다른 주제");
+  const status = await rig.command("status");
   await rig.settle("k2");
   expect(statesOf(rig)).toHaveLength(commits);
-  const texts = noticeTexts(rig);
-  expect(texts.some((text) => text.includes("이미 탐구 중"))).toBe(true);
-  expect(texts.some((text) => text.includes("임대: waiting") && text.includes("캐시 무효화"))).toBe(
-    true,
-  );
+  expect(again).toBe("이미 탐구 중이거나 시작을 기다리는 탐구가 있습니다.");
+  expect(status).toContain("임대: waiting");
+  expect(status).toContain("캐시 무효화");
+  // 명령 결과는 모델 입력 대기열에 쌓이지 않는다
+  expect(noticeTexts(rig)).toEqual([]);
   // stop은 대기 중인 요청을 지운다
   await rig.command("stop");
   await rig.settle("k3");
   expect(statesOf(rig).at(-1)?.pending).toBeNull();
   // 잘못된 하위 명령은 사용법을 알린다
-  await rig.command("explode");
-  await rig.settle("k4");
-  expect(noticeTexts(rig).some((text) => text.includes("사용법"))).toBe(true);
+  expect(await rig.command("explode")).toContain("사용법");
 });
 
 test("commands: stop issued while the lenses run ends the inquiry stopped before the apply turn", async () => {
