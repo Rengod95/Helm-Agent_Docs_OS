@@ -2,7 +2,7 @@
 // 그룹은 구성원마다 열 하나를 같은 생명선에 놓아 구성원 사이 손 넘김이 보이게 한다.
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { PHASES } from "@fresnel/client/workbench/canvas";
-import { Alert, Button, Chip, type ChipProps, Tooltip } from "@caustic/react";
+import { Alert, Button, Chip, type ChipProps, Meter, Tooltip } from "@caustic/react";
 import type { TraceFailureReason } from "@fresnel/contracts/extensions";
 import type { ReactNode } from "react";
 import { InfoTip } from "./info-tip.tsx";
@@ -49,6 +49,14 @@ const MOMENT_LABEL: ReadonlyMap<string, MessageId> = new Map<string, MessageId>(
   ["boundary.settle.after", "desktop.craft.detail.moment.boundary.settle.after"],
   ["thread.shutdown", "desktop.craft.detail.moment.thread.shutdown"],
 ]);
+
+/** 순간 id의 이름. 표에 없는 훅(33개의 나머지)은 undefined라 id만 보인다 */
+export function hookLabelOf(id: string): MessageId | undefined {
+  return MOMENT_LABEL.get(id);
+}
+
+/** 걸린 시간 막대의 눈금: 시안과 같이 1.5초에서 꽉 찬다. 넘는 시간은 꽉 찬 막대로 보인다 */
+const RUN_SCALE_MS = 1500;
 
 const VALUE_LABEL: Record<ValueKind, MessageId> = {
   thread: "desktop.craft.detail.value.thread",
@@ -134,8 +142,9 @@ export function VerbChip({ verb }: { readonly verb: Verb }): ReactNode {
 }
 
 /**
- * 최근 실행 기록 한 개의 카드. 위 왼쪽은 순간 이름, 위 오른쪽은 걸린 시간, 가운데는 실패 이유(있을 때만) 경고 한 줄,
- * 아래는 결과 칩이다. 하는 일 설명은 이 카드에 없고 규칙 이름표의 정보 아이콘에 있다(DP-58).
+ * 최근 실행 기록 한 개의 카드(시안 StepCard의 recent 칸). 위는 순간 이름, 가운데는 걸린 시간 막대와 숫자,
+ * 그다음 실패 이유(있을 때만) 경고 한 줄, 맨 아래는 결과 칩이다. 하는 일 설명은 이 카드에 없고 규칙 이름표의
+ * 정보 아이콘에 있다(DP-58).
  */
 export function TraceCard({
   title,
@@ -147,22 +156,30 @@ export function TraceCard({
   const time = timeLabel(mark.ms);
   const timeKey: MessageId =
     time.unit === "ms" ? "desktop.craft.detail.time.ms" : "desktop.craft.detail.time.s";
+  const timeText = t(timeKey, { n: time.n });
   const reason = mark.reason === null ? null : RESULT_REASON[mark.reason];
+  const failed = mark.result === "failed";
   return (
-    <div className="grid border-t border-border-subtle pt-2">
-      <div className="grid gap-0.75">
-        <div className="flex min-w-0 items-baseline justify-between gap-3">
-          <span className="min-w-0 text-ui-strong text-text-primary">{title}</span>
-          <span className="flex-none font-mono text-mono-sm tabular-nums text-text-secondary">
-            {t(timeKey, { n: time.n })}
-          </span>
-        </div>
-        {reason !== null && (
-          <Alert tone="danger" size="sm" radius="lg">
-            {t(reason)}
-          </Alert>
-        )}
+    <div className="grid gap-1.5 border-t border-border-subtle pt-2">
+      <span className="min-w-0 text-ui-strong text-text-primary">{title}</span>
+      <div className="flex items-center gap-2">
+        <Meter
+          className="flex-1"
+          value={mark.ms}
+          max={RUN_SCALE_MS}
+          level={failed ? "danger" : "normal"}
+          label={t("desktop.craft.detail.run.duration")}
+          valueText={timeText}
+        />
+        <span className="flex-none font-mono text-mono-sm tabular-nums text-text-secondary">
+          {timeText}
+        </span>
       </div>
+      {reason !== null && (
+        <Alert tone="danger" size="sm" radius="lg">
+          {t(reason)}
+        </Alert>
+      )}
       <div className="mt-4 flex flex-wrap items-center gap-1.5">
         <Chip size="sm" {...OUTCOME_CHIP[mark.result]}>
           {t(OUTCOME_LABEL[mark.result])}
@@ -192,17 +209,22 @@ function StepCard({
   part,
   nameOf,
   marks,
+  grouped,
 }: {
   readonly part: Part;
   readonly nameOf: (id: string) => string;
   /** 최근 실행이면 이 순간의 기록(없으면 빈 목록). 예시 흐름이면 null */
   readonly marks: readonly RunMark[] | null;
+  /** 그룹이면 참: 카드 위에 그룹 색 가는 줄을 단다(실패하면 위험 테두리가 이긴다) */
+  readonly grouped: boolean;
 }): ReactNode {
   // 이 순간에 실패가 남았으면 테두리를 위험 색으로 바꾼다(시안 StepCard의 failed)
   const failed = marks?.some((mark) => mark.result === "failed") === true;
+  const accent = grouped && !failed;
   return (
     <div
-      className={`grid gap-2 rounded-lg border bg-surface-base px-3 py-2.5 ${failed ? "border-danger-border" : "border-border-default"}`}
+      className={`grid gap-2 rounded-lg border bg-surface-base px-3 py-2.5 ${failed ? "border-danger-border" : "border-border-default"} ${accent ? "border-t-2" : ""}`}
+      style={accent ? { borderTopColor: "var(--cs-color-info-graphic)" } : undefined}
     >
       <div className="flex flex-wrap items-center gap-2">
         <VerbChip verb={part.verb} />
@@ -377,6 +399,7 @@ function MomentRow({
               part={part}
               nameOf={nameOf}
               marks={marks === null ? null : (recs ?? [])}
+              grouped={grouped}
             />
           );
         }

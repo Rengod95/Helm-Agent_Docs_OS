@@ -21,7 +21,7 @@ import {
 } from "@fresnel/client/workbench/canvas";
 import type { HooksOrderSetResult } from "@fresnel/contracts/wire";
 import { attemptAsync, assertNever, detach, rethrow } from "@fresnel/contracts";
-import { Badge, Button, Card, SectionHeader } from "@caustic/react";
+import { Badge, Button, Card, IconButton, SectionHeader } from "@caustic/react";
 import { GripVertical, Lock, Plus, TriangleAlert } from "@caustic/react/icons";
 import {
   useCallback,
@@ -283,7 +283,7 @@ export function Strata(): ReactNode {
       className="h-full overflow-y-auto"
       style={panelOpen ? { paddingRight: PANEL_W + 24 } : undefined}
     >
-      <div className="mx-auto grid max-w-[960px] gap-3 px-4 pb-10 pt-4">
+      <div className="mx-auto grid max-w-[960px] gap-3 px-4 pb-10 pt-24">
         <Card variant="surface" size="sm" shadow="3" className="gap-0 p-2">
           <SectionHeader
             size="sm"
@@ -389,7 +389,7 @@ function Next(): ReactNode {
 function FoldTag({ fold }: { readonly fold: Fold }): ReactNode {
   return (
     <span className="inline-flex items-center gap-1">
-      <span className="cursor-default rounded-md border border-border-subtle px-1.5 py-px text-footnote text-text-secondary">
+      <span className="cursor-default text-footnote text-text-tertiary underline decoration-dotted decoration-border-strong underline-offset-4">
         {t(FOLD_LABEL[fold])}
       </span>
       <InfoTip text={t(FOLD_TIP[fold])} />
@@ -465,15 +465,15 @@ export function HookRow({
           withBuiltin={def.builtin}
           movable={movable}
         />
-        <Button
-          variant="ghost"
+        <IconButton
           size="sm"
-          iconStart={<Plus />}
+          variant="ghost"
+          label={t("desktop.craft.strata.add")}
           className="border border-dashed border-border-strong"
           onClick={() => ctx.add(def.id)}
         >
-          {t("desktop.craft.strata.add")}
-        </Button>
+          <Plus aria-hidden />
+        </IconButton>
         {line !== null && <RowWarningLine line={line} />}
       </div>
     </div>

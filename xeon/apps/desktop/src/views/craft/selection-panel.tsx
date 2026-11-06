@@ -8,7 +8,9 @@ import {
   CardFooter,
   CardHeader,
   CardHeading,
+  CardMeta,
   CardTitle,
+  Chip,
   IconButton,
   List,
   ListRow,
@@ -17,9 +19,9 @@ import {
   Switch,
 } from "@caustic/react";
 import { X } from "@caustic/react/icons";
-import { t } from "@fresnel/client/i18n";
+import { t, type MessageId } from "@fresnel/client/i18n";
 import { extOf } from "@fresnel/client/workbench";
-import type { CanvasGroup, CanvasPlugin, Sel } from "@fresnel/client/workbench/canvas";
+import type { CanvasGroup, CanvasPlugin, Origin, Sel } from "@fresnel/client/workbench/canvas";
 import { isOn } from "@fresnel/client/workbench/canvas";
 import type { ReactNode } from "react";
 import { ExtNotice } from "../workbench/craft-parts.tsx";
@@ -27,9 +29,17 @@ import { HookNoticeFor } from "../workbench/hook-notice.tsx";
 import { useWorkbench } from "../../state/workbench/index.ts";
 import { useCraft } from "./craft-context.tsx";
 import { groupOnCount } from "./orbit-model.ts";
-import { layerName } from "./orbit-names.ts";
+import { layerName, layerTitle } from "./orbit-names.ts";
+import { InfoTip } from "./info-tip.tsx";
 import { Mark, shapeOf } from "./marks.tsx";
+import { Provides } from "./provides.tsx";
 import { useSwitch } from "./use-switch.ts";
+
+const ORIGIN_TEXT: Record<Origin, MessageId> = {
+  builtin: "desktop.craft.detail.origin.builtin",
+  user: "desktop.craft.detail.origin.user",
+  project: "desktop.craft.detail.origin.project",
+};
 
 /** 패널의 폭(화면 px). 지도는 이만큼 오른쪽을 비우고 맞춘다 */
 export const PANEL_W = 320;
@@ -70,6 +80,7 @@ function HookBody({ hook }: { readonly hook: string }): ReactNode {
     <Frame
       mark={<Mark shape="diamond" size={22} group={false} on failing />}
       title={hook}
+      grouped={false}
       onClose={() => dispatch({ t: "clear" })}
       action={null}
     >
@@ -83,7 +94,10 @@ function HookBody({ hook }: { readonly hook: string }): ReactNode {
 interface SwitchRowProps {
   readonly name: string;
   readonly on: boolean;
+  /** 켜짐·꺼짐 말고 알려 줄 상태(자동 꺼짐, 일부만 켜짐). 짧아서 줄로 보인다 */
   readonly partial: string;
+  /** 설명 한 줄(그룹과 함께 바뀐다). 정보 아이콘 뒤에 둔다(DP-58) */
+  readonly tip: string;
   readonly disabled: boolean;
   readonly onChange: (next: boolean) => void;
 }
@@ -92,8 +106,9 @@ function SwitchRow(props: SwitchRowProps): ReactNode {
   return (
     <div className="grid gap-1">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-body text-text-primary">
+        <span className="inline-flex items-center gap-1 text-body text-text-primary">
           {props.on ? t("desktop.craft.orbit.state.on") : t("desktop.craft.orbit.state.off")}
+          {props.tip !== "" && <InfoTip text={props.tip} />}
         </span>
         <Switch
           size="sm"
@@ -113,6 +128,12 @@ function SwitchRow(props: SwitchRowProps): ReactNode {
 function Frame(props: {
   readonly mark: ReactNode;
   readonly title: string;
+  /** 이름 밑의 한 줄(역할). 없으면 줄을 두지 않는다 */
+  readonly sub?: string | undefined;
+  /** 이름 밑의 작은 표찰 줄(층, 그룹, 버전, 출처) */
+  readonly meta?: ReactNode;
+  /** 그룹이거나 그룹에 든 것이면 참: 맨 위에 그룹 색 가는 줄을 단다 */
+  readonly grouped: boolean;
   readonly onClose: () => void;
   readonly children: ReactNode;
   readonly action: ReactNode;
@@ -127,6 +148,13 @@ function Frame(props: {
       className="craft-glass animate-enter absolute right-3 top-27 z-20 flex max-h-[calc(100%-120px)] flex-col gap-0 overflow-hidden"
       style={{ width: PANEL_W }}
     >
+      {props.grouped && (
+        <span
+          aria-hidden
+          className="absolute inset-x-0 top-0 h-0.5"
+          style={{ background: "var(--cs-color-info-graphic)" }}
+        />
+      )}
       <div className="grid gap-2 pb-3">
         <CardHeader headerAlign="center">
           {props.mark}
@@ -144,6 +172,12 @@ function Frame(props: {
             <X aria-hidden />
           </IconButton>
         </CardHeader>
+        {props.sub !== undefined && (
+          <div className="truncate text-body text-text-secondary">{props.sub}</div>
+        )}
+        {props.meta !== undefined && (
+          <div className="flex flex-wrap items-center gap-1.5">{props.meta}</div>
+        )}
       </div>
       {/* 가운데만 길면 스크롤한다. 머리와 아래 줄(하는 일)은 고정이다 */}
       <ScrollArea className="-mx-1 min-h-0 flex-1" label={t("desktop.craft.orbit.panel.content")}>
@@ -166,11 +200,8 @@ function PluginBody({ plugin }: { readonly plugin: CanvasPlugin }): ReactNode {
   const grouped = plugin.group !== undefined;
   // 그룹에 든 플러그인이면 그룹이 쥔 설정도 중요한 것에 함께 보인다
   const owner = source.snapshot.groups.find((g) => g.id === plugin.group);
-  const inGroup = grouped
-    ? t("desktop.craft.orbit.panel.groupWide", {
-        group: groupName(source.snapshot.groups, plugin.group),
-      })
-    : "";
+  const groupLabel = grouped ? groupName(source.snapshot.groups, plugin.group) : "";
+  const inGroup = grouped ? t("desktop.craft.orbit.panel.groupWide", { group: groupLabel }) : "";
   return (
     <Frame
       mark={
@@ -184,17 +215,47 @@ function PluginBody({ plugin }: { readonly plugin: CanvasPlugin }): ReactNode {
         />
       }
       title={plugin.name}
+      sub={plugin.role}
+      meta={
+        <>
+          <Badge size="xs" variant="outline">
+            {layerTitle(plugin.layer)}
+          </Badge>
+          {grouped && (
+            <Chip size="xs" tone="info" variant="soft">
+              {groupLabel}
+            </Chip>
+          )}
+          {plugin.version !== undefined && <CardMeta>v{plugin.version}</CardMeta>}
+          {!grouped && <CardMeta>{t(ORIGIN_TEXT[plugin.origin])}</CardMeta>}
+        </>
+      }
+      grouped={grouped}
       onClose={() => dispatch({ t: "clear" })}
       action={
-        <Button size="sm" variant="solid" onClick={() => dispatch({ t: "detail", id: plugin.id })}>
-          {t("desktop.craft.orbit.panel.details")}
-        </Button>
+        <>
+          <Button
+            size="sm"
+            variant="solid"
+            onClick={() => dispatch({ t: "detail", id: plugin.id })}
+          >
+            {t("desktop.craft.orbit.panel.details")}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => source.openBuilder(plugin.hooks[0] ?? null)}
+          >
+            {t("desktop.craft.orbit.panel.build")}
+          </Button>
+        </>
       }
     >
       <SwitchRow
         name={plugin.name}
         on={on}
-        partial={health?.autoOff === true ? t("desktop.craft.orbit.state.autoOff") : inGroup}
+        partial={health?.autoOff === true ? t("desktop.craft.orbit.state.autoOff") : ""}
+        tip={inGroup}
         disabled={sw.pending !== null}
         onChange={(next) => sw.set(plugin.id, next)}
       />
@@ -225,22 +286,8 @@ function PluginBody({ plugin }: { readonly plugin: CanvasPlugin }): ReactNode {
         </div>
       )}
       <section className="grid gap-1.5">
-        <SectionHeader size="xs" headingLevel={3} title={t("desktop.craft.orbit.panel.does")} />
-        {plugin.role !== undefined && (
-          <p className="m-0 text-body text-text-primary">{plugin.role}</p>
-        )}
-        <div className="flex flex-wrap gap-1.5">
-          {plugin.hooks.map((h) => (
-            <Badge key={h} mono size="sm">
-              {h}
-            </Badge>
-          ))}
-          {plugin.provides.map((c) => (
-            <Badge key={c} mono size="sm" variant="outline">
-              {c}
-            </Badge>
-          ))}
-        </div>
+        <SectionHeader size="xs" headingLevel={3} title={t("desktop.craft.detail.config.title")} />
+        <Provides plugin={plugin} />
       </section>
     </Frame>
   );
@@ -264,32 +311,44 @@ function GroupBody({ group }: { readonly group: CanvasGroup }): ReactNode {
     <Frame
       mark={<Mark shape="diamond" size={22} group on={all} />}
       title={group.name}
+      sub={group.role}
+      meta={
+        <>
+          <Chip size="xs" tone="info" variant="soft">
+            {t("term.pluginGroup")}
+          </Chip>
+          <CardMeta>v{group.version}</CardMeta>
+          <CardMeta>{t(ORIGIN_TEXT[group.origin])}</CardMeta>
+          {group.config !== undefined && (
+            <Badge size="xs" mono>
+              {group.config}
+            </Badge>
+          )}
+        </>
+      }
+      grouped
       onClose={() => dispatch({ t: "clear" })}
       action={
-        <Button size="sm" variant="solid" onClick={() => dispatch({ t: "detail", id: group.id })}>
-          {t("desktop.craft.orbit.panel.details")}
-        </Button>
+        <>
+          <Button size="sm" variant="solid" onClick={() => dispatch({ t: "detail", id: group.id })}>
+            {t("desktop.craft.orbit.panel.details")}
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => source.openBuilder(null)}>
+            {t("desktop.craft.orbit.panel.build")}
+          </Button>
+        </>
       }
     >
       <SwitchRow
         name={group.name}
         on={all}
         partial={partial}
+        tip=""
         disabled={sw.pending !== null}
         onChange={(next) => sw.set(group.id, next)}
       />
       {sw.failure !== null && <SwitchFailed />}
       <ExtNotice name={group.id} />
-      {group.config !== undefined && (
-        <div className="flex items-center gap-2">
-          <span className="text-footnote text-text-tertiary">
-            {t("desktop.craft.orbit.panel.config")}
-          </span>
-          <Badge size="xs" mono>
-            {group.config}
-          </Badge>
-        </div>
-      )}
       <section className="grid gap-1.5">
         <SectionHeader size="xs" headingLevel={3} title={t("desktop.craft.orbit.panel.members")} />
         <List
