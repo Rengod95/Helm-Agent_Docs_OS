@@ -9,19 +9,44 @@ import { ApprovalCardList } from "./approval-card/approval-card.tsx";
 // 대화 이름 링크는 트랜스크립트 밖에서만 보인다: 트랜스크립트 끝은 열린 대화를 `within`으로 넘기고, 받은 요청은 넘기지 않는다.
 
 /** 끝 영역 받은 요청 탭. 트랜스크립트 아래와 같은 카드를 쓴다(`approval.resolved`로 함께 사라진다) */
-export function InboxApprovals(): ReactNode {
+export function InboxApprovals(props: { readonly show?: InboxFilter }): ReactNode {
   const ids = useApprovalIds();
+  const show = props.show ?? "all";
+  const heads = show === "all";
   return (
     <div className="grid gap-4">
-      {ids.length === 0 ? (
-        <div className="dim">{t("desktop.approvals.inbox.empty")}</div>
-      ) : (
-        <ApprovalCardList ids={ids} label={t("desktop.approvals.queue.label")} />
+      {show === "notices" ? null : (
+        <section className="grid gap-2">
+          {heads ? (
+            <h2 className="text-ui-strong text-text-primary">
+              {t("desktop.inbox.filter.approvals")}
+            </h2>
+          ) : null}
+          {ids.length === 0 ? (
+            <div className="text-ui-sm text-text-tertiary">
+              {t("desktop.approvals.inbox.empty")}
+            </div>
+          ) : (
+            <ApprovalCardList ids={ids} label={t("desktop.approvals.queue.label")} />
+          )}
+        </section>
       )}
-      <InboxNotices />
+      {show === "approvals" ? null : (
+        <section className="grid gap-2">
+          {heads ? (
+            <h2 className="text-ui-strong text-text-primary">
+              {t("desktop.inbox.filter.notices")}
+            </h2>
+          ) : null}
+          <InboxNotices />
+        </section>
+      )}
     </div>
   );
 }
+
+/** 받은 요청 화면의 구역 거르기: 모두, 승인, 알림 */
+export type InboxFilter = "all" | "approvals" | "notices";
 
 export function ApprovalQueue(): ReactNode {
   const ids = useApprovalIds();

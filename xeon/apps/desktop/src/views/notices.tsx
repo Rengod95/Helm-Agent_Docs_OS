@@ -128,7 +128,7 @@ export function InboxNotices(): ReactNode {
         </Alert>
       ) : null}
       {load === "ready" && entries.length === 0 ? (
-        <EmptyState title={t("desktop.notices.empty")} />
+        <EmptyState size="sm" surface="none" title={t("desktop.notices.empty")} />
       ) : null}
       <ul className="m-0 grid list-none gap-2 p-0">
         {entries.map(({ notice, threadId }) => (

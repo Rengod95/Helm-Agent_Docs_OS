@@ -15,7 +15,7 @@ import { ContextPicker, type ContextProfile } from "./context-picker.tsx";
 import { formatKey, type Keymap } from "./keybindings.ts";
 import { NAV_BY_AREA } from "./nav.ts";
 import type { Area } from "../../state/shell/index.ts";
-import type { ShellRegistry } from "./registry.ts";
+import type { ScreenDef, ShellRegistry } from "./registry.ts";
 import { useShell, useShellActions } from "../../state/shell/index.ts";
 
 // 지금 화면 표시는 굵기 하나로 한다
@@ -57,6 +57,27 @@ function AreaSwitch(props: { readonly onSwitch: (area: Area) => void }): ReactNo
   );
 }
 
+/** 내비 줄 하나. 배지는 화면이 준 부품으로 읽어 값이 바뀌면 이 줄만 다시 그린다 */
+function NavRow(props: {
+  readonly def: ScreenDef | undefined;
+  readonly label: string;
+  readonly active: boolean;
+  readonly onSelect: () => void;
+}): ReactNode {
+  const row = (badge: number | undefined): ReactNode => (
+    <ListNavigationItem
+      icon={props.def?.icon}
+      className={props.active ? ACTIVE_LABEL : undefined}
+      count={badge === undefined || badge <= 0 ? undefined : badge}
+      onSelect={props.onSelect}
+    >
+      {props.label}
+    </ListNavigationItem>
+  );
+  const Badge = props.def?.Badge;
+  return Badge === undefined ? row(undefined) : <Badge render={row} />;
+}
+
 export function StartPanel(props: StartPanelProps): ReactNode {
   const area = useShell((s) => s.area);
   const screen = useShell((s) => s.places[s.area].screen);
@@ -93,24 +114,17 @@ export function StartPanel(props: StartPanelProps): ReactNode {
           size="sm"
         >
           <ListNavigationGroup>
-            {items.map((item) => {
-              const def = props.registry.screen(item.id);
-              const active = !props.settingsOpen && item.id === screen;
-              const badge = def?.badge?.();
-              return (
-                <ListNavigationItem
-                  key={item.id}
-                  icon={def?.icon}
-                  className={active ? ACTIVE_LABEL : undefined}
-                  count={badge === undefined || badge <= 0 ? undefined : badge}
-                  onSelect={() => {
-                    props.onNavigate(item.id);
-                  }}
-                >
-                  {t(item.label)}
-                </ListNavigationItem>
-              );
-            })}
+            {items.map((item) => (
+              <NavRow
+                key={item.id}
+                def={props.registry.screen(item.id)}
+                label={t(item.label)}
+                active={!props.settingsOpen && item.id === screen}
+                onSelect={() => {
+                  props.onNavigate(item.id);
+                }}
+              />
+            ))}
           </ListNavigationGroup>
         </ListNavigation>
         {area === "chat" ? props.threadList : null}

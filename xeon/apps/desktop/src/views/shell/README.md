@@ -26,7 +26,7 @@ S-01 앱 셸의 자리(슬롯), 영역 바꾸기, 맥락 모델의 정본 설명
 
 | 슬롯 | 누가 채우나 | 어떻게 |
 |---|---|---|
-| 무대(가운데) | 화면 트랙 | `registry.registerScreen({ id, area, label, icon, badge?, render })`(`desktop-registry.tsx`에 더함). `id`는 내비 항목 id(`nav.ts`)와 같다 |
+| 무대(가운데) | 화면 트랙 | `registry.registerScreen({ id, area, label, icon, Badge?, render })`(`desktop-registry.tsx`에 더함). `Badge`는 개수를 읽어 `render`로 넘기는 부품이라 값이 바뀌면 내비 줄이 따라 바뀐다. `id`는 내비 항목 id(`nav.ts`)와 같다 |
 | 오른쪽 탭 | 화면 트랙, 플러그인 well | `registry.registerEndTab({ id, area, label, icon, badge?, alwaysMounted?, width?, screens?, render })`. `badge`는 `TabBadge`(`read`, `subscribe`)라서 칸 숫자와 well 머리 글("플러그인 2")이 값이 바뀌면 따라 바뀐다. `alwaysMounted`는 탭을 열지 않아도 막대와 함께 그리는 부품(데이터를 읽어 두는 자리). 막대 칸 6개 뒤는 "더 보기" |
 | 왼쪽 대화 목록 | 대화 트랙 | `Shell`의 `threadList` 속성 |
 | 상태 표시줄(S-03) | 대화 트랙 | `Shell`의 `statusBar` 속성(지금 `status-bar.tsx`) |
