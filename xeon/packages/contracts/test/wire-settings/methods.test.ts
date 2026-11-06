@@ -767,3 +767,15 @@ describe("M2 method schemas are written out", () => {
     }
   });
 });
+
+describe("thread.setModel", () => {
+  test("takes a provider/id string or null and answers with the position it reached", () => {
+    const { params, result, stage } = WIRE_METHODS["thread.setModel"];
+    expect(stage).toBe("M4");
+    expect(parse(params, { threadId: THREAD, model: "anthropic/claude-haiku-5-5" }).ok).toBe(true);
+    expect(parse(params, { threadId: THREAD, model: null }).ok).toBe(true);
+    expect(parse(params, { threadId: THREAD, model: "" }).ok).toBe(false);
+    expect(parse(params, { threadId: THREAD }).ok).toBe(false);
+    expect(parse(result, { position: { storeId: STORE, seq: 3 } }).ok).toBe(true);
+  });
+});

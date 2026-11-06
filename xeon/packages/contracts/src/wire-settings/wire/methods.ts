@@ -441,6 +441,7 @@ export const ThreadSummarySchema: TObject<{
   lastTurnId: TOptional<typeof TurnIdSchema>;
   origin: TOptional<typeof ThreadOriginSchema>;
   testRun: TOptional<typeof TestRunMarkerSchema>;
+  model: TOptional<TString>;
 }> = Type.Object(
   {
     threadId: ThreadIdSchema,
@@ -469,6 +470,8 @@ export const ThreadSummarySchema: TObject<{
     origin: Type.Optional(ThreadOriginSchema),
     /** Test run 표지(W-34, X-14). Test run이 아니면 생략한다 */
     testRun: Type.Optional(TestRunMarkerSchema),
+    /** 이 대화가 다음 turn부터 쓰도록 정한 모델 참조(`provider/id`). 정하지 않았으면 생략한다(기본 모델 `l1.models.default`) */
+    model: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
   },
   { additionalProperties: false },
 );
@@ -640,6 +643,24 @@ export type ThreadRevertParams = Static<typeof ThreadRevertParamsSchema>;
 export const ThreadRevertResultSchema: TObject<{ position: typeof StreamPositionSchema }> =
   Type.Object({ position: StreamPositionSchema }, { additionalProperties: false });
 export type ThreadRevertResult = Static<typeof ThreadRevertResultSchema>;
+
+/**
+ * thread.setModel params. 대화가 다음 turn부터 쓸 모델을 정한다(`thread.updated { model }`를 커밋). `model`은 `provider/id`이고
+ * 카탈로그에 없으면 `jsonrpc.invalidParams`로 거절한다. null이면 지정을 거두고 기본 모델로 돌아간다. 진행 중인 turn은 이미 묶은 모델로 끝난다.
+ */
+export const ThreadSetModelParamsSchema: TObject<{
+  threadId: typeof ThreadIdSchema;
+  model: TUnion<[TString, TNull]>;
+}> = Type.Object(
+  { threadId: ThreadIdSchema, model: Nullable(Type.String({ minLength: 1, maxLength: 200 })) },
+  { additionalProperties: false },
+);
+export type ThreadSetModelParams = Static<typeof ThreadSetModelParamsSchema>;
+
+/** `position`은 모델 변경 이벤트를 반영한 저장소 위치다(`thread.rename`과 같은 규칙) */
+export const ThreadSetModelResultSchema: TObject<{ position: typeof StreamPositionSchema }> =
+  Type.Object({ position: StreamPositionSchema }, { additionalProperties: false });
+export type ThreadSetModelResult = Static<typeof ThreadSetModelResultSchema>;
 
 /**
  * thread.rename params. 대화 제목을 바꾼다(`thread.updated { title }`를 커밋). 제목은 1~200자이고 지우는 길은 없다.
@@ -1572,6 +1593,10 @@ interface WireSchemas
     params: WithMeta<typeof ThreadRenameParamsSchema>;
     result: typeof ThreadRenameResultSchema;
   };
+  "thread.setModel": {
+    params: WithMeta<typeof ThreadSetModelParamsSchema>;
+    result: typeof ThreadSetModelResultSchema;
+  };
   "thread.compact": {
     params: WithMeta<typeof ThreadCompactParamsSchema>;
     result: typeof ThreadCompactResultSchema;
@@ -1807,6 +1832,7 @@ export const WIRE_METHODS: {
   "thread.fork": spec(withMeta(ThreadForkParamsSchema), ThreadForkResultSchema, "M2"),
   "thread.revert": spec(withMeta(ThreadRevertParamsSchema), ThreadRevertResultSchema, "M2"),
   "thread.rename": spec(withMeta(ThreadRenameParamsSchema), ThreadRenameResultSchema, "M2"),
+  "thread.setModel": spec(withMeta(ThreadSetModelParamsSchema), ThreadSetModelResultSchema, "M4"),
   "thread.compact": spec(withMeta(ThreadCompactParamsSchema), ThreadCompactResultSchema, "M2"),
   "thread.export": spec(withMeta(ThreadExportParamsSchema), ThreadExportResultSchema, "M4"),
   "turn.start": spec(withMeta(TurnStartParamsSchema), TurnStartResultSchema, "M1"),

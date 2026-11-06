@@ -78,6 +78,18 @@ describe("threadSummaryOf", () => {
     ).toBe(true);
   });
 
+  test("the model is carried when the thread chose one and omitted otherwise", () => {
+    const chosen = threadSummaryOf(row({ model: "anthropic/claude-haiku-5-5" }));
+    expect(chosen.ok).toBe(true);
+    if (!chosen.ok) return;
+    expect(chosen.value.model).toBe("anthropic/claude-haiku-5-5");
+    expect(parse(ThreadSummarySchema, chosen.value).ok).toBe(true);
+    const plain = threadSummaryOf(row({}));
+    expect(plain.ok).toBe(true);
+    if (!plain.ok) return;
+    expect("model" in plain.value).toBe(false);
+  });
+
   test("the last turn id is carried when the thread has a turn and omitted when it has none", () => {
     const last = must(TurnIdSchema, rawId("trn", 2));
     const withTurn = threadSummaryOf(row({ lastTurnId: last }));

@@ -310,6 +310,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | thread | `thread.fork` | `{ threadId: ThreadId, at?: ItemId }` | `{ threadId: ThreadId, position: StreamPosition }` | M2 |
 | thread | `thread.revert` | `{ threadId: ThreadId, to: ItemId }` | `{ position: StreamPosition }` | M2 |
 | thread | `thread.rename` | `{ threadId: ThreadId, title: string(1..200) }` | `{ position: StreamPosition }` | M2 |
+| thread | `thread.setModel` | `{ threadId: ThreadId, model: string(1..200) \| null }` | `{ position: StreamPosition }` | M4 |
 | thread | `thread.compact` | `{ threadId: ThreadId, instructions?: string(1..20000) }` | `{ status: "compacted", eventId: EventId, tokensBefore: integer, fromExtension: string \| null, position: StreamPosition }`, `{ status: "skipped", why: "nothing_to_summarize"\|"last_entry_is_compaction"\|"disabled" }` | M2 |
 | thread | `thread.export` | `{ threadId: ThreadId, format: "markdown"\|"json", after?: ItemId }` | `{ format: "markdown"\|"json", filename: string(1..200), chunk: string, next?: ItemId, itemCount: integer }`. 쪽 나누기, 가림, 파일 이름은 §3.4.7 | M4 |
 | turn | `turn.start` | `{ threadId: ThreadId, input: TurnStartInput, requestId?: string(1..64), whenBusy?: "steer"\|"followUp"\|"aside" }` | `{ turnId: TurnId, queued?: true }`. `whenBusy`와 `queued`는 §3.3.1 0a | M1 |
@@ -423,6 +424,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   - 결과 `skipped`는 요약할 것이 없거나(`nothing_to_summarize`), 마지막 항목이 이미 컴팩션이거나(`last_entry_is_compaction`), `l1.context.autoCompact` 같은 설정으로 꺼져 있다(`disabled`)는 뜻이다. 아무것도 커밋하지 않았고 오류가 아니다.
   - 실패는 오류 값이다. 확장이 `thread.compact.before`에서 막으면 `thread.cancelledByExtension`(3006, `point: "thread.compact.before"`), 요약을 만들거나 커밋하지 못하면 `thread.compactFailed`(3008, `reason`)다. 요청이 취소되면 `request.cancelled`(5001)다. 저장소 오류는 `store.*`(5003~5007)다. 오류에 모델 출력이나 제공자 응답 본문은 싣지 않는다.
 - [결정: m2c G2-12] `thread.rename`은 대화 제목을 바꾼다. 목록이 모두 "제목 없음"으로 보이는 문제(`L1.persistence.spec` §4.10.5 `setTitle`)를 클라이언트가 풀 길이다. 호스트는 `thread.updated { title }`를 커밋하고 그 위치를 `position`으로 돌려준다. 제목은 1~200자이며(`ThreadSummary.title`, `thread.create`의 `title`과 같은 상한) 지우는 길은 없다. 쓰기 소유가 필요해서 `turn.start`처럼 암묵 획득을 한 번 시도하고 실패하면 `thread.locked`(3002)다. 없는 thread는 `thread.notFound`(3001), 닫힌 thread는 `thread.closed`(3007)다. 진행 중인 turn이 있어도 바꿀 수 있다.
+- [결정: 오케스트레이터 기본값, M4 T-MODEL] `thread.setModel`은 대화가 다음 turn부터 쓸 모델을 정한다. 스펙에 정해진 전환 계약이 없어(CLI의 `/model`은 `l1.models.default` 별칭뿐이다, `L4.cli.spec` 슬래시 명령) 가장 작은 계약으로 낸다. 호스트는 `thread.updated { model }`를 커밋하고 그 위치를 `position`으로 돌려준다. `model`은 `provider/id`이고 L1.models 카탈로그(`ModelService.list`)에 없으면 `jsonrpc.invalidParams`(`/model`)로 거절한다. null은 지정을 거두어 기본 모델로 돌아간다. 쓰기 소유 규칙과 오류는 `thread.rename`과 같다(3001, 3002, 3007). 진행 중인 turn은 이미 묶은 모델로 끝나고 다음 turn부터 바뀐다. `ThreadSummary.model`이 저장된 값을 보이고 생략이면 기본 모델이다. 모델을 바꿀 때 비용·캐시 경고를 보일지는 사용자 정책이라 정하지 않았다 [미결].
   - 첫 입력에서 제목을 정하는 규칙(M2): 첫 `turn.start` 입력의 앞 80자(줄바꿈은 공백 하나로)를 제목으로 쓴다. 정하는 주체는 호스트이고 이 메서드와 같은 커밋 경로를 쓴다. 이미 제목이 있는 thread는 바꾸지 않는다. 모델이 만드는 자동 제목은 M3다.
 - [결정: m2c G1-07] 시크릿 wire 보강 네 가지다(`L4.host-service.spec` §10 19번, 23번).
   - `secret.test`의 결과는 `state`에 `decryptable`, `length`, `sha256Prefix`를 더했다(`L0.secrets.spec`의 `SecretTestResult`). `length`는 값의 바이트 수, `sha256Prefix`는 SHA-256 hex 앞 8자(소문자)이고 값이 없거나 풀 수 없으면 둘 다 null이다. 값은 어디에도 싣지 않는다. 앞 8자는 사람이 같은 값인지 견주는 표시용이고 감사 기록과 로그에는 남기지 않는다. 필드는 모두 필수라 옛 모양(`state`만)은 거부한다.
@@ -507,6 +509,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
     lastTurnId: Type.Optional(TurnIdSchema),     // 대화의 마지막 turn id(ThreadSummaryRow.lastTurnId). turn이 없으면 생략. 데스크톱이 최근 실행의 기준 턴으로 쓴다
     origin: Type.Optional(ThreadOriginSchema),   // M4, W-16. { kind: "user" } | { kind: "schedule", scheduleId } | { kind: "remote" }
     testRun: Type.Optional(TestRunMarkerSchema), // M4, W-34. { profileId, target, paused }. Test run이 아니면 생략
+    model: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })), // M4, T-MODEL. 대화가 다음 turn부터 쓰도록 정한 `provider/id`. 정하지 않았으면 생략(기본 모델)
   }, { additionalProperties: false });
   ```
 
@@ -577,6 +580,7 @@ export interface WireMethodMap {
   "thread.fork":       { params: ThreadForkParams;       result: ThreadForkResult };
   "thread.revert":     { params: ThreadRevertParams;     result: ThreadRevertResult };
   "thread.rename":     { params: ThreadRenameParams;     result: ThreadRenameResult };
+  "thread.setModel":   { params: ThreadSetModelParams;   result: ThreadSetModelResult };
   "thread.compact":    { params: ThreadCompactParams;    result: ThreadCompactResult };
   "turn.start":        { params: TurnStartParams;        result: TurnStartResult };
   "turn.interrupt":    { params: TurnInterruptParams;    result: TurnInterruptResult };
