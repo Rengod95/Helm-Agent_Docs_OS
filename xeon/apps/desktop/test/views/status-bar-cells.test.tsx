@@ -467,24 +467,28 @@ describe("status bar model and usage cells", () => {
   });
 
   test("the tokens cell shows the count and draws the bar only when the limit is known", () => {
-    const known = renderToString(<TokensCell usage={{ tokens: 41_000, percent: 40 }} />);
-    expect(cellTextOf(known, "tokens")).toBe("41k");
+    const known = renderToString(
+      <TokensCell usage={{ tokens: 41_000, percent: 40, limit: 100_000 }} />,
+    );
+    expect(cellTextOf(known, "tokens")).toBe("41k / 100k");
     expect(known).toContain('data-slot="progress"');
     expect(known).toContain("--cs-progress:40%");
-    const unknown = renderToString(<TokensCell usage={{ tokens: 41_000, percent: null }} />);
+    const unknown = renderToString(
+      <TokensCell usage={{ tokens: 41_000, percent: null, limit: null }} />,
+    );
     expect(cellTextOf(unknown, "tokens")).toBe("41k");
     expect(unknown).not.toContain('data-slot="progress"');
   });
 
   test("the tokens sentence names the tokens, and the percent only when the limit is known", () => {
-    expect(tokensDescriptionOf({ tokens: 41_000, percent: null })).toBe(
+    expect(tokensDescriptionOf({ tokens: 41_000, percent: null, limit: null })).toBe(
       "지금 문맥에 41k 토큰이 있어요.",
     );
-    expect(tokensDescriptionOf({ tokens: 41_000, percent: 40.4 })).toBe(
+    expect(tokensDescriptionOf({ tokens: 41_000, percent: 40.4, limit: 100_000 })).toBe(
       "지금 문맥에 41k 토큰이 있고, 문맥 창의 40%예요.",
     );
     setActiveLocale("en");
-    expect(tokensDescriptionOf({ tokens: 41_000, percent: 40 })).toBe(
+    expect(tokensDescriptionOf({ tokens: 41_000, percent: 40, limit: 100_000 })).toBe(
       "The context holds 41k tokens right now, 40% of the context window.",
     );
   });

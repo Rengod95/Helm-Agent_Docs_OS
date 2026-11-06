@@ -20,6 +20,8 @@ export function modelLabelOf(ref: string): string {
 export interface SessionUsage {
   readonly tokens: number;
   readonly percent: number | null;
+  /** 한도(문맥 창 토큰 수). `usage.get`의 `context`가 있을 때만 안다 */
+  readonly limit: number | null;
 }
 
 /**
@@ -36,6 +38,7 @@ export function sessionUsageOf(result: {
     return {
       tokens: context.used,
       percent: Math.min(100, (context.used / context.limit) * 100),
+      limit: context.limit,
     };
   }
   const own = result.gauges.filter((g) => g.window === "session" && g.unit === "tokens");
@@ -45,7 +48,7 @@ export function sessionUsageOf(result: {
     const f = usageFractionOf(g);
     return f === null ? [] : [f];
   });
-  return { tokens, percent: fractions.length === 0 ? null : Math.max(...fractions) };
+  return { tokens, percent: fractions.length === 0 ? null : Math.max(...fractions), limit: null };
 }
 
 /** 입력창 모델 select의 값. 대화가 정한 모델을 거두고 기본 모델로 돌아가는 줄이다 */

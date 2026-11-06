@@ -452,7 +452,11 @@ export function TokensCell(props: { readonly usage: SessionUsage }): ReactNode {
   return (
     <StatusCell
       cellId="tokens"
-      text={tokenCountText(usage.tokens)}
+      text={
+        usage.limit === null
+          ? tokenCountText(usage.tokens)
+          : `${tokenCountText(usage.tokens)} / ${tokenCountText(usage.limit)}`
+      }
       trailing={usage.percent === null ? undefined : <TokenBar percent={usage.percent} />}
       title={t("desktop.status.cell.tokens.title")}
       description={tokensDescriptionOf(usage)}

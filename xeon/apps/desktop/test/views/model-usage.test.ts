@@ -37,12 +37,13 @@ describe("sessionUsageOf", () => {
         gauge({ unit: "usd", used: 3 }),
       ],
     });
-    expect(usage).toEqual({ tokens: 41_000, percent: 41 });
+    expect(usage).toEqual({ tokens: 41_000, percent: 41, limit: null });
   });
   test("한도를 모르면 비율이 없다", () => {
     expect(sessionUsageOf({ gauges: [gauge({ used: 500 })] })).toEqual({
       tokens: 500,
       percent: null,
+      limit: null,
     });
   });
   test("해당 게이지가 없으면 null이다", () => {
@@ -54,14 +55,14 @@ describe("sessionUsageOf", () => {
       gauges: [gauge({ used: 900_000 })],
       context: { model: "anthropic/claude-haiku-5-5", used: 50_000, limit: 200_000 },
     });
-    expect(usage).toEqual({ tokens: 50_000, percent: 25 });
+    expect(usage).toEqual({ tokens: 50_000, percent: 25, limit: 200_000 });
   });
   test("문맥이 창을 넘으면 비율은 100에서 멈춘다", () => {
     const usage = sessionUsageOf({
       gauges: [],
       context: { model: "a/b", used: 300, limit: 200 },
     });
-    expect(usage).toEqual({ tokens: 300, percent: 100 });
+    expect(usage).toEqual({ tokens: 300, percent: 100, limit: 200 });
   });
 });
 
