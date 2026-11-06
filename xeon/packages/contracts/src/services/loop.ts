@@ -16,7 +16,7 @@ import type {
 import type { StoreError } from "../records/index.ts";
 import type { ChildLimits } from "./agents.ts";
 import type { InputMode, TaskScope } from "./tasks.ts";
-import type { AdvertisedToolset, CallerId, PolicyCeiling } from "./tools.ts";
+import type { AdvertisedToolset, CallerId, PolicyCeiling, RunSource } from "./tools.ts";
 
 // L1.loop.spec §3.1. 구현은 core-loop다. LoopService는 LoopPort(F.extensions.spec §3.2.1)를 확장한다.
 // 포트의 status와 이름이 겹치는 상세 상태는 threadStatus로 둔다.
@@ -89,6 +89,8 @@ export interface ChildTurnRequest {
     readonly ceiling: PolicyCeiling;
     readonly surfaceThreadId: ThreadId;
     readonly interactive: boolean;
+    /** 자식을 띄운 그룹(scope 또는 drive 소유자)의 출처. 승인 카드가 보인다 */
+    readonly source?: RunSource;
     readonly allow?: readonly string[];
     /** 거부할 도구 이름 glob. 광고 목록에서 빼지 않고 실행 시점에 거부한다 [제안: M3-REQ-10, `ChildToolPolicy.deny`] */
     readonly deny?: readonly string[];

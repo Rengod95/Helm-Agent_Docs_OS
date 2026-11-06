@@ -187,6 +187,8 @@ export interface ToolRunContext {
   readonly surfaceThreadId: ThreadId;
   /** 자식 대화면 부모의 정책 관점. 있으면 정책 결정에 ceiling 단계를 적용한다(§4.5, L1.agents.spec §4.3) */
   readonly ceiling?: PolicyCeiling;
+  /** 그룹(scope·drive 소유자)이 띄운 자식 대화면 그 출처(`RunSource`). core-agents가 `ChildTurnRequest.tools.source`로 주고 승인 origin이 이어 받는다. 모델의 `agent` 도구가 띄운 자식에는 싣지 않는다 */
+  readonly source?: RunSource;
   readonly signal: AbortSignal;
   /** 소유 컨텍스트의 초안 생성기. core-loop가 자기 생산자로 만든다(eng.context-map.design CM-01) */
   readonly drafts: ToolRunDrafts;
@@ -470,6 +472,17 @@ export interface ApprovalOrigin {
   /** 이 요청을 일으킨 도구 호출. 질문·계획 도구도 도구 호출이므로 보통 채워진다 */
   readonly toolCallId: string | null;
   readonly caller: CallerId;
+  /**
+   * 그룹(Helm 등)이 띄운 하위 대화의 요청이면 그 출처. 화면이 "렌즈 실패 사례 · grp:helm"으로 보인다.
+   * `caller`와 `interactive`는 바꾸지 않는다. 승인 서비스가 활성 호출의 `ToolRunContext.source`로 채운다 [결정: 2026-10-31 사용자, fxHL]
+   */
+  readonly source?: RunSource;
+}
+
+/** 자식 대화를 띄운 소유 그룹의 출처. `scopeId`는 그룹 등록 id, `label`은 그룹이 `SpawnSpec.label`로 준 이름(없으면 null) */
+export interface RunSource {
+  readonly scopeId: string;
+  readonly label: string | null;
 }
 
 export interface ToolApprovalBody {

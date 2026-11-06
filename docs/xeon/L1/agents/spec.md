@@ -200,7 +200,7 @@ export type ChildStatus =
 export const AGENT_REPORT_TYPE = "agent.report" as const;
 ```
 
-- F 대응: `SpawnSpec{ agent, task, requestId?, background? }`와 `SpawnOutcome{ childThreadId, status, answer? }`(F.extensions.spec §3.2)는 그대로 쓴다. `SpawnRequest`, `SpawnResult`는 선택 필드를 더한 확장형이다. `SpawnOutcome.answer`에는 `report.text`를 넣는다.
+- F 대응: `SpawnSpec{ agent, task, requestId?, background?, label? }`(`label`은 그룹이 띄운 자식의 승인 출처 이름이다. scope·drive 소유 자식의 `ChildTurnRequest.tools.source = { scopeId, label }`로 가고 도구 소유 자식에는 없다)와 `SpawnOutcome{ childThreadId, status, answer? }`(F.extensions.spec §3.2)는 그대로 쓴다. `SpawnRequest`, `SpawnResult`는 선택 필드를 더한 확장형이다. `SpawnOutcome.answer`에는 `report.text`를 넣는다.
 - `LoopHandle.spawn(spec)`(drive): X가 `AgentService.spawn(spec, origin)`으로 넘긴다. `origin.owner`는 `{ kind: "drive" }`, `ownerRequestId`는 X가 정한 `spec.requestId ?? "${lineageId}:${순번}"`이다(F.extensions.spec §4.6).
 - `spec.background: true`인 `LoopHandle.spawn`은 `delegate`와 같은 경로를 쓰고 바로 `{ childThreadId, status: "running" }`을 돌려준다. F `SpawnOutcome.status`에 `"running"`이 없어 추가를 요청한다(§8.3 F 요청 2).
 - `DelegateRequest`는 L3.group-sdk.spec §3.4 `DelegateSpec`(`agent`, `task`, `requestId`, `report`, `toolPolicy.deny`, `forkFrom`)을 받는다. 대응: `toolPolicy` → `tools`, `forkFrom: ItemId` → `fork: { at: "item", itemId }`. 학습 그룹의 `snapshot{ threadId, upToEventId }`(L3.learning.spec §3)는 `fork: { at: "event", eventId: upToEventId }`이고, 학습 그룹의 `allowTools`·`enforceAtDispatch`는 `tools.allow`·`tools.keepParentList`다.

@@ -456,6 +456,8 @@ export interface SpawnSpec {
   readonly task: string;
   readonly requestId?: string;
   readonly background?: boolean;
+  /** 사람에게 보일 이름(승인 카드의 출처 "렌즈 실패 사례 · grp:helm"). 1~64자, 생략하면 정의 이름 */
+  readonly label?: string;
 }
 
 export interface SpawnOutcome {

@@ -10,7 +10,7 @@ import type {
 import type { Result } from "../base/index.ts";
 import type { PortKey } from "../extensions/index.ts";
 import type { BlobRef, ReadFailure, StoreError } from "../records/index.ts";
-import type { CallerId, PermissionMode, ToolRisk } from "./tools.ts";
+import type { CallerId, PermissionMode, RunSource, ToolRisk } from "./tools.ts";
 
 // L1.tools.spec §3.6. 구현은 core-tools다. 승인 요청은 내구 이벤트 approval.requested로 나가고
 // 응답은 호스트 메서드 approval.respond로 들어온다(review.decisions-2 U-02).
@@ -55,6 +55,8 @@ export interface ApprovalOrigin {
   /** 이 요청을 일으킨 도구 호출. 질문·계획 도구도 도구 호출이므로 보통 채워진다 */
   readonly toolCallId: string | null;
   readonly caller: ApprovalCaller;
+  /** 하위 대화를 띄운 그룹의 출처. 하위 대화의 요청에만 있다 */
+  readonly source?: RunSource;
 }
 
 export interface ToolApprovalBody {

@@ -97,6 +97,10 @@ test("the external loader loads Helm from the user extension dir at user trust a
   await drainRounds(t, thread, 8);
   expect(t.loop.turns).toHaveLength(2);
   expect(t.loop.spawns).toHaveLength(3);
+  // 승인 카드의 출처 이름: 렌즈마다 "렌즈 <제목>"이 SpawnSpec.label로 간다
+  for (const spawned of t.loop.spawns) {
+    expect(spawned.spec.label).toMatch(/^렌즈 \S/);
+  }
   expect(world.fakes.tasks.created).toHaveLength(2);
   const finished = t.records
     .events(thread)

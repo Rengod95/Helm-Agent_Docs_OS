@@ -186,6 +186,17 @@ export interface ToolRunDrafts {
   waitingCheckpoint(pending: readonly PendingToolCall[]): DurableEventDraft;
 }
 
+/**
+ * 자식 대화를 띄운 소유 그룹의 출처. 승인 카드의 "렌즈 실패 사례 · grp:helm"이 이 값에서 나온다.
+ * Turn 정체성(`caller`)과 `interactive`는 바꾸지 않는다
+ */
+export interface RunSource {
+  /** 소유 그룹(scope)의 등록 id. 화면은 `grp:<scopeId>`로 보인다 */
+  readonly scopeId: string;
+  /** 사람이 읽는 이름(그룹이 `SpawnSpec.label`로 준 값). 없으면 null */
+  readonly label: string | null;
+}
+
 /** 루프(core-loop)가 단계마다 만들어 넘기는 실행 맥락. 대화마다 하나 */
 export interface ToolRunContext {
   readonly threadId: ThreadId;
@@ -200,6 +211,8 @@ export interface ToolRunContext {
   readonly surfaceThreadId: ThreadId;
   /** 자식 대화면 부모의 정책 관점. 있으면 정책 결정에 ceiling 단계를 적용한다 */
   readonly ceiling?: PolicyCeiling;
+  /** 이 대화를 그룹이 띄웠으면 그 출처. 승인 origin이 이어 받는다 */
+  readonly source?: RunSource;
   readonly signal: AbortSignal;
   /** 소유 컨텍스트의 초안 생성기. core-loop가 자기 생산자로 만든다 */
   readonly drafts: ToolRunDrafts;

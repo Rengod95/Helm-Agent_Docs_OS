@@ -1,4 +1,4 @@
-import type { CallerId } from "@fresnel/contracts/services";
+import type { CallerId, RunSource } from "@fresnel/contracts/services";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { CallState } from "./types.ts";
 
@@ -10,9 +10,13 @@ export interface CallTable {
   put(state: CallState): void;
   remove(state: CallState): void;
   /** thread에서 진행 중인 도구 호출의 요청자(caller)와 표면 thread. 진행 중인 호출이 없으면 undefined */
-  requesterOf(
-    threadId: ThreadId,
-  ): { readonly surfaceThreadId: ThreadId; readonly caller: CallerId } | undefined;
+  requesterOf(threadId: ThreadId):
+    | {
+        readonly surfaceThreadId: ThreadId;
+        readonly caller: CallerId;
+        readonly source?: RunSource;
+      }
+    | undefined;
 }
 
 function keyOf(threadId: ThreadId, toolCallId: string): string {
@@ -33,7 +37,11 @@ export function createCallTable(): CallTable {
     requesterOf: (threadId) => {
       for (const state of table.values()) {
         if (state.threadId === threadId) {
-          return { surfaceThreadId: state.run.surfaceThreadId, caller: state.run.caller };
+          return {
+            surfaceThreadId: state.run.surfaceThreadId,
+            caller: state.run.caller,
+            ...(state.run.source === undefined ? {} : { source: state.run.source }),
+          };
         }
       }
       return undefined;
