@@ -224,6 +224,17 @@ interface NodeProps {
   readonly onPick: (id: string) => void;
 }
 
+/** 점의 이름이 속한 그룹의 이름표와 같은가(그룹 대표 점) */
+function sameAsGroupName(
+  snapshot: CanvasSnapshot,
+  p: CanvasPlugin,
+  contrib: Parameters<typeof groupShown>[2],
+): boolean {
+  const gid = p.group;
+  if (gid === undefined || !groupShown(snapshot, gid, contrib)) return false;
+  return snapshot.groups.some((g) => g.id === gid && g.name === p.name);
+}
+
 /** 점 하나와 이름표. 가리킴은 이 점만 다시 그린다 */
 const Node = memo(function Node(props: NodeProps): ReactNode {
   const { plugin: p, x, y, right, lit, picked, dim, chip, groupName, onPick } = props;
@@ -377,6 +388,8 @@ export function Orbit(): ReactNode {
       const d = dotOf.get(p.id);
       if (d === undefined) return [];
       const forced = lit.ids.has(p.id) || picked === p.id;
+      // 그룹 이름표와 같은 이름의 대표 점은 이름표를 따로 달지 않는다(같은 말이 두 번 보이지 않게)
+      if (!forced && sameAsGroupName(snapshot, p, state.contrib)) return [];
       const dim = isDimmed(p, lit, state.kind, state.contrib, state.query);
       const priority = dim
         ? -1

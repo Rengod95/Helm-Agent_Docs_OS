@@ -70,6 +70,12 @@ describe("Orbit with 77 plugins", () => {
     expect(html.match(/data-group=""[^>]*aria-label="/g)?.length).toBe(11);
   });
 
+  test("a group's lead dot does not repeat the group name as a second label", () => {
+    // 그룹 이름표(data-group 단추)가 이름을 한 번 그리고, 같은 이름의 대표 점은 이름표를 달지 않는다
+    expect(html.match(/>Helm<\/button>/g)?.length).toBe(1);
+    expect(html.match(/craft-label[^>]*>Helm</g)?.length).toBe(1);
+  });
+
   test("the zoom bar and the finder are on the map", () => {
     expect(html).toContain('aria-label="찾기"');
     expect(html).toContain('aria-label="확대"');
