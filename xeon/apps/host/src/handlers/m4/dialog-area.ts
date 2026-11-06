@@ -1,10 +1,18 @@
 import { assertNever, type Result } from "@fresnel/contracts";
 import type { ReadFailure } from "@fresnel/contracts/records";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
-import type { PlanVersionsOutputValue } from "@fresnel/contracts/capabilities";
+import type {
+  MemoryReadOutput,
+  MemoryWriteOutput,
+  PlanVersionsOutputValue,
+} from "@fresnel/contracts/capabilities";
 import {
   wireError,
   type GoalStatusResult,
+  type MemoryAddParams,
+  type MemoryReadParams,
+  type MemoryRemoveParams,
+  type MemoryReplaceParams,
   type ReviewGetResult,
   type ScheduleRunsParams,
   type ScheduleRunsResult,
@@ -40,7 +48,7 @@ export type DialogAreaFailure =
 export type DialogAreaOutcome<T> = Result<T, DialogAreaFailure>;
 
 /** `unknown` 실패가 가리키는 params 이름. 와이어 issue의 path가 된다 */
-type UnknownPath = "reviewId" | "scheduleId" | "planId" | "name";
+type UnknownPath = "reviewId" | "scheduleId" | "planId" | "name" | "entryId" | "baseHash";
 
 /** 처리기가 쓰는 포트 */
 export interface DialogAreaPort {
@@ -69,9 +77,31 @@ export interface DialogAreaPort {
     planId: string,
     signal: AbortSignal,
   ): Promise<DialogAreaOutcome<PlanVersionsOutputValue>>;
+  /** 기억 읽기(W-19). 기억 설정이 꺼져 있으면 `unavailable` */
+  memoryRead(
+    params: MemoryReadParams,
+    signal: AbortSignal,
+  ): Promise<DialogAreaOutcome<MemoryReadOutput>>;
+  /** 기억 쓰기(W-19). 사람이 연 호출이라 승인 없이 적용한다 */
+  memoryAdd(
+    params: MemoryAddParams,
+    signal: AbortSignal,
+  ): Promise<DialogAreaOutcome<MemoryWriteOutput>>;
+  memoryReplace(
+    params: MemoryReplaceParams,
+    signal: AbortSignal,
+  ): Promise<DialogAreaOutcome<MemoryWriteOutput>>;
+  memoryRemove(
+    params: MemoryRemoveParams,
+    signal: AbortSignal,
+  ): Promise<DialogAreaOutcome<MemoryWriteOutput>>;
 }
 
 export type DialogAreaMethods =
+  | "knowledge.memory.read"
+  | "knowledge.memory.add"
+  | "knowledge.memory.replace"
+  | "knowledge.memory.remove"
   | "review.get"
   | "goal.status"
   | "work.tasks.list"
@@ -88,6 +118,8 @@ const UNKNOWN_LABEL: Readonly<Record<UnknownPath, string>> = {
   scheduleId: "schedule",
   planId: "plan",
   name: "skill",
+  entryId: "memory entry",
+  baseHash: "file version (changed outside, read again)",
 };
 
 function invalid(path: string, message: string): WireError {
@@ -179,6 +211,14 @@ export function createDialogAreaHandlers(
         ),
         "knowledge.skills.view",
       ),
+    "knowledge.memory.read": (params, context) =>
+      unwrapped(port.memoryRead(params, context.signal), "knowledge.memory.read"),
+    "knowledge.memory.add": (params, context) =>
+      unwrapped(port.memoryAdd(params, context.signal), "knowledge.memory.add"),
+    "knowledge.memory.replace": (params, context) =>
+      unwrapped(port.memoryReplace(params, context.signal), "knowledge.memory.replace"),
+    "knowledge.memory.remove": (params, context) =>
+      unwrapped(port.memoryRemove(params, context.signal), "knowledge.memory.remove"),
     "work.plans.versions": (params, context) =>
       unwrapped(
         port.plansVersions(threadIdOf(params.threadId), params.planId, context.signal),

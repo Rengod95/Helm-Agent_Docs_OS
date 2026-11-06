@@ -681,3 +681,45 @@ test("turn.withdraw keeps the store kind of a queue failure", async () => {
   expect(error.code).toBe(wireError("store.busy").code);
   await connection.close();
 });
+
+test("knowledge.memory.replace hands the entry, the text and the base hash to the port, and a stale base becomes invalidParams on baseHash", async () => {
+  const asked: { store: string; entryId: string; text: string; baseHash: string }[] = [];
+  const host = createFakeHost({
+    overrides: {
+      dialogArea: {
+        memoryReplace: (params) => {
+          asked.push({
+            store: params.store,
+            entryId: params.entryId,
+            text: params.text,
+            baseHash: params.baseHash,
+          });
+          return Promise.resolve(err({ kind: "unknown", path: "baseHash", id: "" }));
+        },
+      },
+    },
+  });
+  const connection = await open(host);
+  const params = {
+    store: "user",
+    entryId: "0123456789ab",
+    text: "답은 짧게",
+    baseHash: "b".repeat(64),
+  } as const;
+  const failed = await wireErrorOf(connection.request("knowledge.memory.replace", params));
+  expect(failed.code).toBe(wireError("jsonrpc.invalidParams").code);
+  expect(asked).toEqual([params]);
+  await connection.close();
+});
+
+test("knowledge.memory.read without the memory feature answers methodNotFound", async () => {
+  const host = createFakeHost({
+    overrides: {
+      dialogArea: { memoryRead: () => Promise.resolve(err({ kind: "unavailable" })) },
+    },
+  });
+  const connection = await open(host);
+  const failed = await wireErrorOf(connection.request("knowledge.memory.read", {}));
+  expect(failed.code).toBe(wireError("jsonrpc.methodNotFound").code);
+  await connection.close();
+});

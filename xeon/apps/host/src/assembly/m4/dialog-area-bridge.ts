@@ -1,5 +1,7 @@
 import { ok } from "@fresnel/contracts";
 import {
+  KnowledgeMemory,
+  KnowledgeMemoryKey,
   KnowledgeSkills,
   KnowledgeSkillsKey,
   WorkGoals,
@@ -25,6 +27,8 @@ export type GoalsApi = CapabilityApi<typeof WorkGoals>;
 export type TasksApi = CapabilityApi<typeof WorkTasks>;
 /** `knowledge.skills` 기능의 서비스 API. `knowledge.skills.view`가 쓴다 */
 export type SkillsApi = CapabilityApi<typeof KnowledgeSkills>;
+/** `knowledge.memory` 기능의 서비스 API. `knowledge.memory.*` wire가 쓴다 */
+export type MemoryApi = CapabilityApi<typeof KnowledgeMemory>;
 /** `work.plans` 기능의 서비스 API. `work.plans.versions`가 쓴다 */
 export type PlansApi = CapabilityApi<typeof WorkPlans>;
 
@@ -32,6 +36,7 @@ export interface DialogAreaHolder {
   goals: GoalsApi | undefined;
   tasks: TasksApi | undefined;
   skills: SkillsApi | undefined;
+  memory: MemoryApi | undefined;
   plans: PlansApi | undefined;
   /** 리뷰 본문 읽기(`review.get`). 산출물 확장이 올라와 있을 때만 있다 */
   reviews: ReviewTextReader | undefined;
@@ -42,6 +47,7 @@ export function createDialogAreaHolder(): DialogAreaHolder {
     goals: undefined,
     tasks: undefined,
     skills: undefined,
+    memory: undefined,
     plans: undefined,
     reviews: undefined,
   };
@@ -71,6 +77,17 @@ function isSkillsApi(value: unknown): value is SkillsApi {
     value !== null &&
     "view" in value &&
     typeof value.view === "function"
+  );
+}
+
+function isMemoryApi(value: unknown): value is MemoryApi {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "read" in value &&
+    typeof value.read === "function" &&
+    "replace" in value &&
+    typeof value.replace === "function"
   );
 }
 
@@ -110,6 +127,7 @@ export function dialogAreaBridgePlugin(holder: DialogAreaHolder, loadIndex: numb
           { id: WorkTasks.id, range: `^${WorkTasks.version}` },
           { id: WorkPlans.id, range: `^${WorkPlans.version}` },
           { id: KnowledgeSkills.id, range: `^${KnowledgeSkills.version}` },
+          { id: KnowledgeMemory.id, range: `^${KnowledgeMemory.version}` },
         ],
       },
     ],
@@ -136,11 +154,18 @@ export function dialogAreaBridgePlugin(holder: DialogAreaHolder, loadIndex: numb
         logger.warn("dialog_area.skills_missing", {
           effect: "knowledge.skills.view is not available",
         });
+      const memory: unknown = g.capability(KnowledgeMemoryKey);
+      if (isMemoryApi(memory)) holder.memory = memory;
+      else
+        logger.warn("dialog_area.memory_missing", {
+          effect: "knowledge.memory.* is not available",
+        });
       g.onDispose(() => {
         holder.goals = undefined;
         holder.tasks = undefined;
         holder.plans = undefined;
         holder.skills = undefined;
+        holder.memory = undefined;
       });
       return ok(undefined);
     });
