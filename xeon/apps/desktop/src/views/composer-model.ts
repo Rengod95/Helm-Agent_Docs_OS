@@ -158,3 +158,20 @@ function withdrawFailureText(error: Exclude<CommandError, { readonly kind: "lock
       return assertNever(error, "CommandError");
   }
 }
+
+// 비밀처럼 보이는 값을 가리는 패턴. 값 자체는 어디에도 남기지 않고 모양만 본다.
+const SECRET_SHAPES: readonly RegExp[] = [
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
+  /\bsk-[A-Za-z0-9_-]{20,}/,
+  /\b(?:ghp|gho|ghs|github_pat)_[A-Za-z0-9_]{20,}/,
+  /\bAKIA[0-9A-Z]{16}\b/,
+  /\bxox[abprs]-[A-Za-z0-9-]{10,}/,
+  /\bAIza[0-9A-Za-z_-]{30,}/,
+  /\bBearer\s+[A-Za-z0-9._~+/-]{20,}=*/,
+  /\b(?:api[_-]?key|secret|token|password|passwd)\s*[:=]\s*["']?[A-Za-z0-9._~+/-]{12,}/i,
+];
+
+/** 입력 글이 비밀 값(API 키, 토큰, 개인 키 등)처럼 보이는가. 입력창 위 경고 한 줄을 보일지 정한다 */
+export function looksLikeSecret(text: string): boolean {
+  return SECRET_SHAPES.some((shape) => shape.test(text));
+}

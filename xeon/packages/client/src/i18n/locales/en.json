@@ -1493,6 +1493,7 @@
   "desktop.composer.queue.withdraw.placed": "Already sent to the model",
   "desktop.composer.queue.withdraw.retry": "Try again",
   "desktop.composer.retryWrite.button": "Retry writing",
+  "desktop.composer.secret.warning": "This looks like a secret. It will be sent to the model as it is.",
   "desktop.composer.send.button": "Send",
   "desktop.composer.usage.label": "Context {percent}%",
   "desktop.item.imagePlaceholder": "[Image]",

@@ -1493,6 +1493,7 @@
   "desktop.composer.queue.withdraw.placed": "이미 들어갔어요",
   "desktop.composer.queue.withdraw.retry": "다시 시도",
   "desktop.composer.retryWrite.button": "쓰기 다시 시도",
+  "desktop.composer.secret.warning": "시크릿처럼 보이는 값이 들어 있어요. 보내면 모델에 그대로 전달돼요.",
   "desktop.composer.send.button": "보내기",
   "desktop.composer.usage.label": "문맥 {percent}%",
   "desktop.item.imagePlaceholder": "[이미지]",
