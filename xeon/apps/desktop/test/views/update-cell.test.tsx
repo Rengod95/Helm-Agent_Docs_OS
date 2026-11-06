@@ -234,6 +234,12 @@ describe("settings update line", () => {
     expect(html).toContain(t("desktop.update.check.button"));
   });
 
+  test("the title is the term of a list row like the other overview rows (rtE R-6a)", () => {
+    const html = lineOf({ kind: "current" });
+    const term = html.match(/data-slot="list-description-term"[^>]*>([^<]*)</);
+    expect(term?.[1]).toBe(t("desktop.update.line.title"));
+  });
+
   test("the status sentence follows each state", () => {
     expect(lineOf({ kind: "checking" })).toContain(t("desktop.update.line.checking"));
     expect(lineOf(AVAILABLE)).toContain(t("desktop.update.line.available", { version: "0.4.2" }));

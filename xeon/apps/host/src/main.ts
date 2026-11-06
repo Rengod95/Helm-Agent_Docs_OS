@@ -1,6 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { assertNever, detach } from "@fresnel/contracts";
-import { STORE_FAILURE_EXIT_CODES } from "@fresnel/contracts/records";
+import { STARTUP_FAILURE_EXIT_CODES, STORE_FAILURE_EXIT_CODES } from "@fresnel/contracts/records";
 import type { SecretOutOfBandPort } from "@fresnel/contracts/services";
 import type { StdioTransportOptions, Transport } from "@fresnel/contracts/wire";
 import { AssembleError } from "./assemble.ts";
@@ -79,9 +79,12 @@ export async function startInProcessHost(
  * 시한을 넘기면 창구가 `exit(1)`로 프로세스를 끝낸다(L0.process.spec §4.2).
  */
 /** 저장소를 열지 못한 시작 실패는 분류별 종료 코드로 알린다. 앱 셸이 종료 코드만 전달하기 때문이다 */
-function startupExitCodeOf(caught: unknown): 1 | 70 | 71 | 72 {
+function startupExitCodeOf(caught: unknown): 1 | 70 | 71 | 72 | 73 {
   if (!(caught instanceof AssembleError)) return 1;
   for (const issue of caught.issues) {
+    if (issue.code === "plugin" && issue.failure === "data_dir_permission") {
+      return STARTUP_FAILURE_EXIT_CODES.data_dir_permission;
+    }
     if (issue.code !== "store") continue;
     if (issue.failure === "future_version") return STORE_FAILURE_EXIT_CODES.future_version;
     if (issue.failure === "corrupt") return STORE_FAILURE_EXIT_CODES.corrupt;
@@ -174,7 +177,7 @@ async function writeText(stream: WritableStream<Uint8Array>, text: string): Prom
 export async function runHostCommand(
   command: HostCommand,
   io: CommandIo,
-): Promise<0 | 1 | 2 | 70 | 71 | 72> {
+): Promise<0 | 1 | 2 | 70 | 71 | 72 | 73> {
   switch (command.kind) {
     case "host-stdio": {
       const exit = await startStdioHost({ readable: io.stdin, writable: io.stdout });

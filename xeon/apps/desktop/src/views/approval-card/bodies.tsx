@@ -50,6 +50,19 @@ type ReviewView = Extract<ApprovalBody, { kind: "review" }>["review"];
 
 const BLOCK_CODE = "block max-h-40 overflow-auto whitespace-pre-wrap break-words";
 
+const RISK_TEXT: Readonly<Record<string, MessageId>> = {
+  read: "desktop.approvals.risk.read",
+  write: "desktop.approvals.risk.write",
+  exec: "desktop.approvals.risk.exec",
+  execute: "desktop.approvals.risk.exec",
+};
+
+/** 위험도 값(read·write·exec)을 카탈로그 문구로 바꾼다. 모르는 값은 그대로 보인다 (rtE R-10) */
+function riskLabelOf(risk: string): string {
+  const id = RISK_TEXT[risk];
+  return id === undefined ? risk : t(id);
+}
+
 const TRUST_TEXT: Readonly<Record<NonNullable<ToolReplaceView["trust"]>, MessageId>> = {
   builtin: "desktop.approvals.replace.trust.builtin",
   user: "desktop.approvals.replace.trust.user",
@@ -81,10 +94,10 @@ function ReplaceDetails(props: { readonly view: ToolReplaceView }): ReactNode {
         )}
         <ListDescriptionRow term={t("desktop.approvals.replace.risk")}>
           {view.originalRisk === view.effectiveRisk
-            ? view.effectiveRisk
+            ? riskLabelOf(view.effectiveRisk)
             : t("desktop.approvals.replace.risk.value", {
-                originalRisk: view.originalRisk,
-                effectiveRisk: view.effectiveRisk,
+                originalRisk: riskLabelOf(view.originalRisk),
+                effectiveRisk: riskLabelOf(view.effectiveRisk),
               })}
         </ListDescriptionRow>
       </ListDescription>
@@ -147,7 +160,7 @@ export function ToolBody(props: { readonly body: ToolApprovalBody }): ReactNode 
         size="xs"
         aria-label={t("desktop.approvals.tool.summary", {
           toolName: view.toolName,
-          risk: view.risk,
+          risk: riskLabelOf(view.risk),
         })}
         className="rounded-none [--cs-size-list-term:7rem] [&_[data-slot=list-description-row]]:px-0"
       >
@@ -157,7 +170,7 @@ export function ToolBody(props: { readonly body: ToolApprovalBody }): ReactNode 
           </ListDescriptionRow>
         )}
         <ListDescriptionRow term={t("desktop.approvals.replace.risk")}>
-          <Badge size="xs">{view.risk}</Badge>
+          <Badge size="xs">{riskLabelOf(view.risk)}</Badge>
         </ListDescriptionRow>
         {view.secrets.map((secret) => (
           <ListDescriptionRow key={secret.name} term={t("desktop.approvals.secret.term")} mono>

@@ -3,7 +3,11 @@ import { Layers, Link2, Sparkles, TriangleAlert } from "@caustic/react/icons";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import { storeFailureOfExitCode, type StatusItemRecord } from "@fresnel/contracts/records";
+import {
+  startupFailureOfExitCode,
+  storeFailureOfExitCode,
+  type StatusItemRecord,
+} from "@fresnel/contracts/records";
 import type { ExtUiEntry, ThreadSummary, WireResult } from "@fresnel/contracts/wire";
 import {
   useCallback,
@@ -96,6 +100,10 @@ export function engineTextOf(state: EngineState | null | undefined): MessageId {
   if (state.kind === "failed" || state.kind === "restarting") {
     const failure = storeFailureOfExitCode(state.lastExit.code);
     if (failure !== undefined) return STORE_FAILURE_TEXT[failure];
+    // 사용자가 폴더 권한을 줄여 고칠 수 있는 시작 실패는 이유와 다음 할 일을 한 줄로 보인다(rtE R-9)
+    if (startupFailureOfExitCode(state.lastExit.code) === "data_dir_permission") {
+      return "desktop.status.engine.dataDirPermission";
+    }
   }
   return ENGINE_TEXT[state.kind];
 }

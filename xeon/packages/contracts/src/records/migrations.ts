@@ -90,6 +90,21 @@ export const STORE_FAILURE_EXIT_CODES: {
   readonly migration_failed: 72;
 } = { future_version: 70, corrupt: 71, migration_failed: 72 };
 
+/**
+ * 저장소 밖의 시작 실패 가운데 사용자가 직접 고칠 수 있는 것의 종료 코드. 앱 셸이 종료 코드만 전달하므로 분류마다 코드를 둔다.
+ * `data_dir_permission`: 데이터 폴더 권한이 소유자 밖에도 열려 있다(`permission_too_open`). 폴더를 700으로 줄이면 풀린다
+ */
+export const STARTUP_FAILURE_EXIT_CODES: { readonly data_dir_permission: 73 } = {
+  data_dir_permission: 73,
+};
+
+/** 순수 함수. 종료 코드를 사용자가 고칠 수 있는 시작 실패 분류로 되돌린다. 표에 없는 코드는 undefined다 */
+export function startupFailureOfExitCode(code: number | null): "data_dir_permission" | undefined {
+  return code === STARTUP_FAILURE_EXIT_CODES.data_dir_permission
+    ? "data_dir_permission"
+    : undefined;
+}
+
 /** 순수 함수. 종료 코드를 저장소 열기 실패 분류로 되돌린다. 표에 없는 코드(신호로 끝난 null 포함)는 undefined다 */
 export function storeFailureOfExitCode(
   code: number | null,

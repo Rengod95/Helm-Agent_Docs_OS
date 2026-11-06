@@ -290,7 +290,8 @@ function PendingCard(props: {
             aria-label={t("desktop.approvals.plan.scrollLabel")}
             // 키보드로 방향키 스크롤을 하려면 스크롤 영역이 초점을 받아야 한다
             tabIndex={0}
-            className="flex max-h-[min(20rem,28dvh)] flex-col gap-2 overflow-y-auto"
+            // 자식(코드 블록의 overflow-auto)이 flex 축소로 min-height 0까지 눌리지 않게 shrink-0이다. 최대 높이는 대기열 띠(40dvh)에서 카드 머리·단추 줄·띠 머리를 뺀 몫이라 단추 줄이 띠 밖으로 밀리지 않는다(rtE R-1)
+            className="flex max-h-[clamp(6rem,calc(40dvh-10rem),20rem)] flex-col gap-2 overflow-y-auto [&>*]:shrink-0"
           >
             {bodyNode}
           </div>

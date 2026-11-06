@@ -93,7 +93,7 @@ export interface CliDeps {
   readonly runHostCommand: (
     command: HostCommand,
     io: CommandIo,
-  ) => Promise<0 | 1 | 2 | 70 | 71 | 72>;
+  ) => Promise<0 | 1 | 2 | 70 | 71 | 72 | 73>;
   /**
    * `host --stdio`의 본체. l4.cli.* 설정 그룹을 카탈로그에 넣으려고 runHostCommand 대신 이것을 부른다(§3.3 표).
    * 실제 값은 @fresnel/host의 startStdioHost

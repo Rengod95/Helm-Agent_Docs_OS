@@ -180,7 +180,13 @@ export type AssembleIssue =
   | { readonly code: "store"; readonly message: string; readonly failure: StoreFailureKind }
   | { readonly code: "missingService"; readonly service: string }
   /** 내장 플러그인(또는 extraPlugins) 하나의 설치가 실패했다. spec이 정한 세 code에 더한 값이다(deviation) */
-  | { readonly code: "plugin"; readonly plugin: string; readonly message: string };
+  | {
+      readonly code: "plugin";
+      readonly plugin: string;
+      readonly message: string;
+      /** 사용자가 직접 고칠 수 있는 시작 실패의 분류. 종료 코드로 앱 셸에 전해진다(`STARTUP_FAILURE_EXIT_CODES`) */
+      readonly failure?: "data_dir_permission";
+    };
 
 /**
  * 종료 협조(L0.process.spec §4.2). 참여자는 확장과 L0 서비스, 호스트 자신이다. `request`는 참여자를 등록 역순으로

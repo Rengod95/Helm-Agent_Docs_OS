@@ -112,8 +112,13 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
     last += 1;
 
   // 내용이 늘면 바닥에 붙어 있던 경우에만 따라 내려간다. 사용자가 위로 올렸으면 건드리지 않는다
+  // 목록이 다른 대화의 것으로 바뀌면(첫 행 키가 달라지면) 이전 대화에서 위로 올려 둔 위치를 잇지 않고 다시 바닥에 붙는다(rtE R-11)
+  const firstKey = useRef<string | undefined>(undefined);
   useLayoutEffect(() => {
     const el = scroller.current;
+    const head = keys[0];
+    if (firstKey.current !== undefined && head !== firstKey.current) stuck.current = true;
+    firstKey.current = head;
     if (el !== null && followTail && stuck.current) el.scrollTop = el.scrollHeight;
   });
 

@@ -30,3 +30,9 @@ test("a store failure exit code selects its own message and other exits keep the
   );
   expect(engineTextOf(undefined)).toBe("desktop.status.engine.checking");
 });
+
+test("the data folder permission exit code tells the reason and the next step (rtE R-9)", () => {
+  expect(engineTextOf({ kind: "failed", attempts: 3, lastExit: exitAt(73) })).toBe(
+    "desktop.status.engine.dataDirPermission",
+  );
+});

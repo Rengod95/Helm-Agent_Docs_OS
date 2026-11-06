@@ -227,6 +227,9 @@ function splitCode(text: string): { readonly code: string | null; readonly body:
   return { code: found[1] ?? null, body: text.slice(found[0].length) };
 }
 
+/** 중단된 도구 행에 엔진이 본문으로 싣는 영어 한 낱말 */
+const INTERRUPT_WORDS: ReadonlySet<string> = new Set(["aborted", "Aborted", "cancelled"]);
+
 type ResultView = {
   readonly status: "done" | "failed";
   readonly failedLabel?: string;
@@ -248,6 +251,14 @@ function useElapsedSeconds(active: boolean): number {
     };
   }, [active]);
   return active ? seconds : 0;
+}
+
+/** 엔진이 영어 문장으로 돌려주는 흔한 실패를 코드나 종류로 골라 카탈로그 문구로 바꾼다. 원문은 바꾸지 않고 보이는 본문만 바꾼다 (rtE R-10) */
+function localizedFailureBody(code: string | null, body: string): string {
+  if (code === "plan_mode_inactive" || body.trim() === "Plan mode is not active.") {
+    return t("desktop.item.planInactive.body");
+  }
+  return body;
 }
 
 /** 도구 결과 item을 행 상태로 옮긴다. 거부와 중단은 알약이 "거부함", "중단됨"이고 내부 오류 코드는 본문에 드러내지 않는다 */
@@ -284,11 +295,11 @@ function resultViewOf(item: ItemRecord): ResultView | null {
     return {
       status: "failed",
       failedLabel: t("desktop.item.status.interrupted"),
-      output: body,
+      output: INTERRUPT_WORDS.has(body.trim()) ? t("desktop.item.interrupted.body") : body,
       ...cut,
     };
   }
-  return { status: "failed", output: body, ...cut };
+  return { status: "failed", output: localizedFailureBody(code, body), ...cut };
 }
 
 /** 열 때 한 번 확인을 거쳐 OS 브라우저로 보낸다. 거부하면 아무 일도 없다 */

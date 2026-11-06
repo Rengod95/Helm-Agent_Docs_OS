@@ -620,7 +620,16 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     if (!registered.ok) {
       const { reason, cause } = registered.error;
       throw new AssembleError(
-        [{ code: "plugin", plugin: name, message: `${name} failed to start (${reason})` }],
+        [
+          {
+            code: "plugin",
+            plugin: name,
+            message: `${name} failed to start (${reason})`,
+            ...(reason === "permission_too_open"
+              ? { failure: "data_dir_permission" as const }
+              : {}),
+          },
+        ],
         { cause },
       );
     }

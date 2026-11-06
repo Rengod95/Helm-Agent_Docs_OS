@@ -40,7 +40,8 @@ export async function runHostStdio(
     },
   });
   if (exit.message !== undefined) await io.stderr(`fresnel: ${exit.message}\n`);
-  return exit.code === 0 ? EXIT.ok : EXIT.error;
+  // 시작 실패의 분류 코드(70~73)는 앱 셸이 읽으므로 그대로 돌려준다. 그 밖의 실패는 1이다
+  return exit.code === 0 ? EXIT.ok : exit.code >= 70 ? exit.code : EXIT.error;
 }
 
 /** 원격 서비스에 중계한다. stdin이 닫히면 0, 원격이 끊기거나 중계가 실패하면 1, 접속에 실패하면 연결 오류의 종료 코드다 */
