@@ -82,6 +82,96 @@ test("parseExplorerAnswer reads a JSON block, falls back to one low-confidence f
   expect(parseExplorerAnswer("x", long)[0]?.claim).toHaveLength(1000);
 });
 
+// 실제 explorer 보고 모양: 하위 에이전트 표지로 감싼 글 안에 앞 설명, JSON 코드 블록, 뒤 설명이 든다. 첫 출처 제목이 81자라 엄격한 스키마가 거절하던 것
+const REAL_TITLE =
+  "orbitN: A symplectic integrator for planetary systems dominated by a central mass";
+const REAL_REPORT = [
+  '<subagent_report agent="explorer" thread="thr_01M6SGAEJ3HCHJ8Q17SRKDPK9G" status="completed">',
+  "다른 분야에서 같은 구조의 문제와 해법을 찾았습니다.",
+  "",
+  "```json",
+  JSON.stringify(
+    {
+      findings: [
+        {
+          claim: "Kahan 보상 합산은 천체 궤도 적분기에서 반올림 오차를 줄이려고 구현되어 있다.",
+          sources: [{ origin: "web", ref: "https://arxiv.org/pdf/2306.03737", title: REAL_TITLE }],
+          confidence: "high",
+          followUp: "천체 적분기에서 Kahan 합산이 오차 누적을 얼마나 줄였는지 정리",
+        },
+        {
+          claim: "재배열 방법의 대응은 트리 합산이다.",
+          sources: [
+            { origin: "web", ref: "https://arxiv.org/pdf/2107.01604", title: "Error Bounds" },
+            { origin: "blog", ref: "https://example.com/x" },
+            { origin: "web", ref: "" },
+          ],
+          confidence: "medium",
+        },
+        { claim: "   ", sources: [], confidence: "low" },
+        { claim: "출처와 신뢰도가 없는 주장", confidence: "certain" },
+      ],
+    },
+    null,
+    2,
+  ),
+  "```",
+  "",
+  "생물, 경제 쪽에서는 맞는 자료를 찾지 못했습니다.",
+  "</subagent_report>",
+].join("\n");
+
+test("parseExplorerAnswer splits a real explorer report into claim, sources and confidence without keeping the report text", () => {
+  expect(parseExplorerAnswer("analogy", REAL_REPORT)).toEqual([
+    {
+      id: "analogy-1",
+      lensId: "analogy",
+      claim: "Kahan 보상 합산은 천체 궤도 적분기에서 반올림 오차를 줄이려고 구현되어 있다.",
+      sources: [
+        {
+          origin: "web",
+          ref: "https://arxiv.org/pdf/2306.03737",
+          title: REAL_TITLE.slice(0, 80),
+        },
+      ],
+      confidence: "high",
+      followUp: "천체 적분기에서 Kahan 합산이 오차 누적을 얼마나 줄였는지 정리",
+    },
+    {
+      id: "analogy-2",
+      lensId: "analogy",
+      claim: "재배열 방법의 대응은 트리 합산이다.",
+      sources: [{ origin: "web", ref: "https://arxiv.org/pdf/2107.01604", title: "Error Bounds" }],
+      confidence: "medium",
+    },
+    {
+      id: "analogy-3",
+      lensId: "analogy",
+      claim: "출처와 신뢰도가 없는 주장",
+      sources: [],
+      confidence: "low",
+    },
+  ]);
+});
+
+test("parseExplorerAnswer drops the subagent report wrapper from the fallback finding too", () => {
+  const prose =
+    '<subagent_report agent="explorer" thread="thr_x" status="completed">\n찾지 못했습니다.\n</subagent_report>';
+  expect(parseExplorerAnswer("analogy", prose)).toEqual([
+    {
+      id: "analogy-1",
+      lensId: "analogy",
+      claim: "찾지 못했습니다.",
+      sources: [],
+      confidence: "low",
+    },
+  ]);
+  const badBlock =
+    '<subagent_report agent="explorer">\n```json\n{"findings":[{"claim":""}]}\n```\n</subagent_report>';
+  expect(parseExplorerAnswer("analogy", badBlock)[0]?.sources).toEqual([]);
+  expect(parseExplorerAnswer("analogy", badBlock)[0]?.claim).not.toContain("subagent_report");
+});
+
 test("dedupeFindings removes repeated claims after normalizing and caps at 24", () => {
   expect(
     dedupeFindings([finding(1, "Cache  Miss"), finding(2, "cache miss"), finding(3, "other")]).map(
