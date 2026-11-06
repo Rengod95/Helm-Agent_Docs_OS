@@ -19,6 +19,7 @@ import { SettingsPage } from "./pages/settings/settings-screen.tsx";
 import { firstRunAutoOpenDue } from "./pages/first-run/first-run-model.ts";
 import { useShellActions, type Area } from "../state/shell/index.ts";
 import { nextApprovalId } from "./approval-focus-model.ts";
+import { useShowChat } from "./plugin/plugin-view.tsx";
 import { LiveAnnouncer } from "./live-announcer.tsx";
 import { FocusReturn, focusApprovalCard } from "./focus-return.tsx";
 import { stepThreadId } from "./thread-step-model.ts";
@@ -126,9 +127,10 @@ export function App(props: AppProps): ReactNode {
   useEffect(() => {
     if (reviewTarget !== null) shell.updatePlace({ screen: "review", scroll: 0 });
   }, [reviewTarget, shell]);
+  const showChatScreen = useShowChat();
   const openThread = (threadId: string): void => {
-    shell.switchArea("chat");
-    commands.showScreen("chat");
+    // 플러그인 화면처럼 대화가 아닌 화면에서도 대화 화면으로 간다(scD 3-2)
+    showChatScreen();
     // 대화 id의 타입은 엔진 거울의 요약이 갖고 있다. 거울에 없는 대화는 열지 않는다
     const found = threads.find((summary) => summary.threadId === threadId);
     if (found !== undefined) commands.selectThread(found.threadId);

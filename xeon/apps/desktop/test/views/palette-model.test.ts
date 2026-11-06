@@ -4,6 +4,7 @@ import {
   commandValue,
   countedUse,
   decodeValue,
+  enterRunsFirstRow,
   groupCellsOf,
   matchesQuery,
   moreValue,
@@ -424,5 +425,20 @@ describe("approvalOriginView", () => {
     expect(approvalOriginView("host")).toEqual({ kind: "host" });
     expect(approvalOriginView("subagent:렌즈")).toEqual({ kind: "subagent", name: "렌즈" });
     expect(approvalOriginView("ext:helm")).toEqual({ kind: "group", name: "helm" });
+  });
+});
+
+describe("enterRunsFirstRow (scD 3-1)", () => {
+  const typed = { key: "Enter", composing: false, query: "설정", hasActiveRow: false };
+
+  test("Enter after typing with no chosen row runs the first row", () => {
+    expect(enterRunsFirstRow(typed)).toBe(true);
+  });
+
+  test("a chosen row, an empty query, composition or another key leave Enter alone", () => {
+    expect(enterRunsFirstRow({ ...typed, hasActiveRow: true })).toBe(false);
+    expect(enterRunsFirstRow({ ...typed, query: "" })).toBe(false);
+    expect(enterRunsFirstRow({ ...typed, composing: true })).toBe(false);
+    expect(enterRunsFirstRow({ ...typed, key: "ArrowDown" })).toBe(false);
   });
 });
