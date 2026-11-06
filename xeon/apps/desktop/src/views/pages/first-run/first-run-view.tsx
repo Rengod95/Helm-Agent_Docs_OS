@@ -205,7 +205,7 @@ export function FirstRunView(props: FirstRunViewProps): ReactNode {
           {props.reason === null ? null : ` ${props.reason}`}
         </Alert>
       ) : null}
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
+      <div className="grid items-start gap-4 medium:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
         <Stepper
           variant="checklist"
           title={t("desktop.firstRun.steps.label")}

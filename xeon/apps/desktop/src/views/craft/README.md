@@ -10,7 +10,7 @@
 - `recentRuns`의 턴 id는 엔진 거울의 `latestTurnId`(thread별 가장 최근 턴)입니다. 목록을 읽을 때 `ThreadSummary.lastTurnId`로 먼저 채우고 이후 `turn.started` 사실이 덮어쓰므로 앱을 다시 켠 뒤에도 잠기지 않습니다. 분기해 자기 턴이 없는 대화만 첫 턴까지 잠깁니다.
 - 자세히 보기(`detail`)는 확장 화면의 상세(`ExtDetail`)와 같은 값입니다. 한쪽에서 열면 다른 쪽에도 그 확장이 보입니다.
 - `orderPort`의 타입은 `m4/order`의 wire를 옮겨 적은 `order-wire.ts`입니다. 병합 뒤 `@fresnel/contracts`의 타입으로 바꾸고 그 파일을 지웁니다.
-- 스타일: 지도는 `orbit.css`(`src/styles.css`가 가져옴), 링크는 `link-style.ts`의 문자열입니다. 색은 caustic 토큰만이고 셰이더 상수만 예외입니다(`space-math.ts`).
+- 스타일: 지도는 `orbit.css`(`src/styles.css`가 가져옴), 링크는 `link.css`입니다(둘 다 인라인 `<style>`은 Tauri CSP가 막습니다). 색은 caustic 토큰만이고 셰이더 상수만 예외입니다(`space-math.ts`).
 
 ## 규칙
 

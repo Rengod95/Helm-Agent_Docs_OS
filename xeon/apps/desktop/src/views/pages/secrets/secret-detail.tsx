@@ -192,7 +192,7 @@ function ValueCell(props: SecretDetailProps): ReactNode {
 
   return (
     <span className="flex flex-wrap items-center gap-2">
-      <span aria-hidden="true" className="tracking-widest text-text-tertiary">
+      <span aria-hidden="true" className="tracking-[0.1em] text-text-tertiary">
         ••••••••
       </span>
       <span className="sr-only">{t("desktop.secrets.value.hidden")}</span>

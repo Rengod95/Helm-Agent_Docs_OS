@@ -377,7 +377,7 @@ export function ProfilePanel(props: {
       ) : null}
       {draft === null ? null : (
         <>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2 compact:grid-cols-2">
             <Field label={t("desktop.compose.profile.id")}>
               <Input
                 size="sm"

@@ -48,7 +48,7 @@ function EntryList(props: { readonly items: readonly PlacedEntry[] }): ReactNode
   const current: ExtUiEntry | undefined =
     props.items.find(({ entry }) => screenKeyOf(entry) === picked)?.entry ?? props.items[0]?.entry;
   if (current === undefined) {
-    return <p className="p-3 text-sm text-muted-foreground">{t("desktop.plugin.state.empty")}</p>;
+    return <p className="p-3 text-ui text-text-secondary">{t("desktop.plugin.state.empty")}</p>;
   }
   return (
     <div className="flex min-h-0 flex-1 flex-col">

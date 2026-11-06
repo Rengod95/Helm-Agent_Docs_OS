@@ -67,8 +67,8 @@ function Note(props: { readonly text: string; readonly dense?: boolean }): React
     <p
       className={
         props.dense === true
-          ? "px-1 text-xs text-muted-foreground"
-          : "p-3 text-sm text-muted-foreground"
+          ? "px-1 text-ui-sm text-text-secondary"
+          : "p-3 text-ui text-text-secondary"
       }
     >
       {props.text}
@@ -81,17 +81,17 @@ function Header(props: { readonly entry: ExtUiEntry }): ReactNode {
   const trust = entry.trust === "managed" ? "user" : entry.trust;
   return (
     <header className="flex items-baseline gap-2 border-b px-3 py-2">
-      <h2 className="text-sm font-medium">
+      <h2 className="text-ui font-medium">
         {extMessageOf(entry.messages, activeLocale(), entry.title)}
       </h2>
-      <span className="text-xs text-muted-foreground">
+      <span className="text-ui-sm text-text-secondary">
         {entry.extension} · v{entry.version}
       </span>
-      <span className="text-xs text-muted-foreground">
+      <span className="text-ui-sm text-text-secondary">
         {t(`client.view.confirm.trust.${trust}`)}
       </span>
       {entry.trust === "project" ? (
-        <span className="text-xs">{t("client.view.confirm.projectBadge")}</span>
+        <span className="text-ui-sm">{t("client.view.confirm.projectBadge")}</span>
       ) : null}
     </header>
   );

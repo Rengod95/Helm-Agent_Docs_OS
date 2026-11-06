@@ -309,7 +309,7 @@ function BodyPane(props: { readonly view: ReviewOpenView }): ReactNode {
   }
   const selected = files.find((file) => file.path === view.state.selectedPath) ?? files[0];
   return (
-    <div className="grid min-h-0 flex-1 gap-3 md:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]">
+    <div className="grid min-h-0 flex-1 gap-3 compact:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]">
       <FileList files={files} view={view} selectedPath={selected?.path ?? null} />
       {selected === undefined ? null : <FilePane file={selected} view={view} />}
     </div>

@@ -122,7 +122,7 @@ export function ProposalsView(props: ProposalsViewProps): ReactNode {
           {state.notice.text}
         </Alert>
       )}
-      <div className="grid min-h-0 flex-1 gap-3 md:grid-cols-[minmax(15rem,20rem)_minmax(0,1fr)]">
+      <div className="grid min-h-0 flex-1 gap-3 compact:grid-cols-[minmax(15rem,20rem)_minmax(0,1fr)]">
         <ListPane state={state} rows={rows} live={live} handlers={handlers} />
         <DetailPane
           state={state}
@@ -602,7 +602,7 @@ export function SkillCompare(props: {
   const { peek, proposed, live, handlers } = props;
   if (peek.status === "closed") return null;
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className="grid gap-3 compact:grid-cols-2">
       <section className="flex min-w-0 flex-col gap-2">
         <h3 className="text-ui-sm font-semibold text-text-primary">
           {t("desktop.proposals.skill.proposed")}

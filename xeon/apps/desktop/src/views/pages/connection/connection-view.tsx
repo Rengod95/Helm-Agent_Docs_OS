@@ -76,7 +76,7 @@ export function ConnectionScreenView(props: ConnectionScreenViewProps): ReactNod
           {t(state.notice.id)}
         </Alert>
       )}
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="grid items-start gap-4 medium:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <TargetsPanel state={state} handlers={handlers} />
         <ConnectionStatusCard state={state} engine={engine} locale={locale} handlers={handlers} />
       </div>
