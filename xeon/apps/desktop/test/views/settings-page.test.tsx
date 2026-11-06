@@ -483,6 +483,8 @@ describe("widget controls", () => {
     const out = html(propsOf({ view, tab: "models", hasThread: true }));
     expect(out).toContain('role="switch"');
     expect(out).toContain('role="radio"');
+    expect(out).toContain('aria-orientation="horizontal"');
+    expect(out).not.toContain('aria-orientation="vertical"');
     expect(out).toContain(t("client.settings.scope.user"));
     expect(out).toContain(t("desktop.settings.shadowed.title", { count: 1 }));
     expect(out).toContain(t("desktop.settings.field.itemCount", { count: 1 }));

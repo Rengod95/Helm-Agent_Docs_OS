@@ -552,6 +552,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 4. 개요(overview) 탭은 `ui.tab: "overview"`인 정의의 항목과 함께 요약(`OverviewVM`)을 보인다. 요약은 다른 탭 항목으로 가는 바로 가기 목록이다. 그래서 규칙 2의 "정확히 한 곳"은 요약 목록을 세지 않는다.
    - 개요의 "설정 파일" 카드는 사용자·프로젝트·관리 정책 줄을 이 순서로 늘 보인다(연결이 살아 있을 때). 경로를 모르면(`settings.readFile`의 `path`가 null, 작업 폴더 없는 프로젝트 범위나 읽기 실패) 그 줄의 값은 `없음`이고 복사 단추는 없다 [근거: apps/desktop/src/views/pages/settings/settings-overview.tsx].
    - 열린 설정 파일 칸은 탭을 옮기면 닫는다. 고친 초안이 있거나 저장 중이면 초안을 잃지 않게 그대로 둔다 [제안] [근거: apps/desktop/src/views/pages/settings/settings-file-model.ts `fileClosesOnTabMoveOf`].
+   - "실행과 서비스" 탭의 OS 알림 구역도 같은 모양의 카드 하나로 담는다. 선택지가 둘 이상인 라디오 항목은 개수와 상관없이 가로로 놓고, 넓이가 모자라면 줄을 바꾼다 [제안] [근거: apps/desktop/src/views/pages/settings/settings-notify-view.tsx, settings-field.tsx].
    - "대화와 컨텍스트" 탭의 기억 구역은 다른 구역과 같은 제목과 카드 하나(`SettingSection`)에 담는다 [제안] [근거: apps/desktop/src/views/pages/settings/settings-memory-view.tsx].
 5. 폐기된 정의(`deprecated` 있음)는 `settings.list({includeDeprecated: true})`로 받는다. 유효 값 출처가 `default`이면 화면에 보이지 않고, 사용자가 값을 둔 경우에만 항목과 폐기 배지를 보인다 [제안].
 6. 각 정의가 어느 탭에 들어갈지는 정의의 `ui.tab`이 정한다. 아래 표의 "들어오는 층·키 네임스페이스"는 키 소유 층이 탭을 고를 때 쓰는 기본 배치 안내다 [제안]. 설정 화면은 네임스페이스로 탭을 바꾸지 않는다.
