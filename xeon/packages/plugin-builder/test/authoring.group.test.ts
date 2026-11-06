@@ -18,7 +18,7 @@ async function confirmedSession(rig: GroupRig): Promise<void> {
   await rig.answer("yes");
 }
 
-test("authoring.manifest: builtin plugin group, default off, nine tools registered", async () => {
+test("authoring.manifest: builtin plugin group, default off, ten tools registered", async () => {
   expect(authoringManifest.name).toBe("authoring");
   expect(authoringManifest.defaultEnabled).toBe(false);
   expect(authoringManifest.trust).toEqual({ level: "builtin" });
@@ -235,4 +235,34 @@ test("authoring.target-dir: without a working folder a relative dir opens no ses
   });
   expect(absolute).toMatchObject({ ok: true });
   expect(rig.state().dir).toBe("/abs/demo");
+});
+
+test("authoring.stop: an open session closes to idle, keeps the files, and a new session opens in another folder", async () => {
+  const rig = await createGroupRig();
+  await confirmedSession(rig);
+  await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
+  expect(rig.state().files).toHaveLength(2);
+  const blocked = await rig.call("authoring_start", {
+    kind: "plugin-group",
+    name: "demo",
+    dir: "/work/other",
+  });
+  expect(blocked).toMatchObject({ ok: false, error: { kind: "session_open" } });
+  const wrong = await rig.call("authoring_stop", { sessionId: "auth-nope" });
+  expect(wrong).toMatchObject({ ok: false, error: { kind: "unknown_session" } });
+  const stopped = await rig.call("authoring_stop", { sessionId: "auth-demo" });
+  expect(stopped).toMatchObject({ ok: true, status: "closed", closed: "auth-demo" });
+  expect(rig.state()).toMatchObject({ phase: "idle", sessionId: null, dir: null, files: [] });
+  // 가드는 풀리고, 같은 이름으로 다른 폴더에 다시 열 수 있다
+  expect(await rig.guard("write", "write", { path: "/elsewhere/a.ts" })).toBeUndefined();
+  const again = await rig.call("authoring_start", {
+    kind: "plugin-group",
+    name: "demo",
+    dir: "/work/other",
+  });
+  expect(again).toMatchObject({ ok: true, sessionId: "auth-demo" });
+  expect(rig.state().dir).toBe("/work/other");
+  const none = await rig.call("authoring_stop", {});
+  expect(none).toMatchObject({ ok: true, status: "closed" });
+  expect(await rig.call("authoring_stop", {})).toEqual({ ok: true, status: "none", closed: null });
 });

@@ -5,7 +5,13 @@ import type { DevkitError, DevkitService } from "@fresnel/contracts/services";
 import { checkGroupName } from "@fresnel/group-sdk";
 import { Type, type TSchema } from "typebox";
 import { CATALOG_VERSION } from "./catalog.ts";
-import { errorKeyOf, sessionOpen, type AuthoringState, type PendingAction } from "./group-state.ts";
+import {
+  errorKeyOf,
+  INITIAL_AUTHORING_STATE,
+  sessionOpen,
+  type AuthoringState,
+  type PendingAction,
+} from "./group-state.ts";
 import { replayInDevMode } from "./release.ts";
 import { resolveTargetDir } from "./target-dir.ts";
 
@@ -22,6 +28,7 @@ export const AUTHORING_TOOL_NAMES = [
   "authoring_replay",
   "authoring_package",
   "authoring_install",
+  "authoring_stop",
 ] as const;
 
 /** 도구가 쓰는 상태 문서 면. `RegistrationApi`의 부분형이다 */
@@ -429,5 +436,30 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
     },
   );
 
-  return [kinds, start, compose, scaffold, validate, trial, replay, pack, install];
+  const stop = tool(
+    "authoring_stop",
+    "Close the open authoring session (the files already created stay). Use it to start again in another folder or when the user wants to stop.",
+    Type.Object(
+      { sessionId: Type.Optional(Type.String({ minLength: 1, maxLength: 80 })) },
+      { additionalProperties: false },
+    ),
+    "read",
+    async (input) => {
+      const state = env.g.state();
+      if (!sessionOpen(state) && state.sessionId === null)
+        return { ok: true, status: "none", closed: null };
+      const wanted = optStr(input, "sessionId");
+      if (wanted !== undefined && wanted !== state.sessionId)
+        return refusal("unknown_session", `the open session is ${state.sessionId ?? "none"}`);
+      await env.g.commit({ ...INITIAL_AUTHORING_STATE });
+      return {
+        ok: true,
+        status: "closed",
+        closed: state.sessionId,
+        files: [...state.files],
+      };
+    },
+  );
+
+  return [kinds, start, compose, scaffold, validate, trial, replay, pack, install, stop];
 }
