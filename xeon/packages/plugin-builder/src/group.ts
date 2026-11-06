@@ -20,7 +20,7 @@ export const authoringManifest: GroupManifest = defineManifest({
   schemaVersion: 2,
   name: "authoring",
   version: "0.1.0",
-  displayName: "Plugin Builder",
+  displayName: "플러그인 빌더",
   description: "플러그인과 플러그인 그룹을 만드는 도구, 단계 머신, 쓰기 범위 가드",
   entry: "./src/index.ts",
   defaultEnabled: false,

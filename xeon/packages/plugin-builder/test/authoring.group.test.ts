@@ -303,3 +303,15 @@ test("authoring.resume: a declined package also queues a followUp so the model c
   expect(resumed.map((item) => item.when)).toEqual(["followUp", "followUp"]);
   expect(resumed.at(-1)?.item).toMatchObject({ content: "[authoring] the user declined packing" });
 });
+
+test("authoring.card-text: the confirmation cards are Korean and name the kind and the folder", async () => {
+  const rig = await createGroupRig();
+  await rig.call("authoring_start", { kind: "single-plugin", name: "demo", dir: DIR });
+  await rig.t.boundary(rig.thread).turnSettled();
+  await rig.t.settled();
+  const request = rig.approvals.created[0];
+  expect(JSON.stringify(request?.body)).toContain('플러그인 \\"demo\\"을 /work/demo에 만들까요?');
+  expect(JSON.stringify(request?.body)).toContain('"label":"예"');
+  expect(JSON.stringify(request?.body)).toContain('"label":"아니요"');
+  expect(request?.title).toBe("플러그인 빌더");
+});

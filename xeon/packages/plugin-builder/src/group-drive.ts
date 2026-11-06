@@ -25,14 +25,19 @@ function confirmCard(text: string): AskCard {
         id: "confirm",
         text,
         options: [
-          { id: "yes", label: "Yes", recommended: true },
-          { id: "no", label: "No" },
+          { id: "yes", label: "예", recommended: true },
+          { id: "no", label: "아니요" },
         ],
         multiSelect: false,
         allowFreeText: false,
       },
     ],
   };
+}
+
+/** 확인 카드에 쓰는 종류 이름 */
+function kindLabelOf(kind: AuthoringState["kind"]): string {
+  return kind === "plugin-group" ? "플러그인 그룹" : "플러그인";
 }
 
 function requestKey(state: Readonly<AuthoringState>, what: string): string {
@@ -63,7 +68,7 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveFn<Auth
     if (st.phase === "intent" && !st.intentConfirmed && st.name !== null) {
       const outcome = await loop.ask({
         requestId: requestKey(st, "intent"),
-        card: confirmCard(`Create ${st.kind ?? "extension"} "${st.name}" in ${st.dir ?? ""}?`),
+        card: confirmCard(`${kindLabelOf(st.kind)} "${st.name}"을 ${st.dir ?? ""}에 만들까요?`),
       });
       const yes =
         outcome.status === "answered" &&
@@ -90,7 +95,7 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveFn<Auth
     if (st.pending === "fix_limit") {
       const outcome = await loop.ask({
         requestId: requestKey(st, "fix"),
-        card: confirmCard("The same errors remain after several fixes. Keep fixing?"),
+        card: confirmCard("여러 번 고쳐도 같은 오류가 남아 있어요. 계속 고칠까요?"),
       });
       const yes =
         outcome.status === "answered" &&
@@ -110,7 +115,7 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveFn<Auth
     if (st.pending === "trial") {
       const outcome = await loop.ask({
         requestId: requestKey(st, "trial"),
-        card: confirmCard("Start a Test run of the extension? It uses the model."),
+        card: confirmCard("만든 확장을 테스트로 돌려 볼까요? 모델을 써서 비용이 들어요."),
       });
       const yes =
         outcome.status === "answered" &&
