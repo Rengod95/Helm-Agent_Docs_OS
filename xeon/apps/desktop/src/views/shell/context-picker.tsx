@@ -84,26 +84,30 @@ export function ContextPicker(props: {
             </SelectOption>
           ))}
         </SelectGroup>
-        <SelectGroup>
-          <SelectHeading>{t("desktop.shell.context.profile")}</SelectHeading>
-          {props.profiles.map((p) => (
-            <SelectOption key={p.id} value={`profile:${p.id}`}>
-              {context.kind === "profile" && context.profileId === p.id
-                ? `${t("desktop.shell.context.profile")} · ${p.title}`
-                : p.title}
-            </SelectOption>
-          ))}
-        </SelectGroup>
-        <SelectGroup>
-          <SelectHeading>{t("desktop.shell.context.trial")}</SelectHeading>
-          {trials.map((th) => (
-            <SelectOption key={th.id} value={`trial:${th.id}`}>
-              {context.kind === "trial" && context.threadId === th.id
-                ? `${t("desktop.shell.context.trial")} · ${th.title}`
-                : th.title}
-            </SelectOption>
-          ))}
-        </SelectGroup>
+        {props.profiles.length === 0 ? null : (
+          <SelectGroup>
+            <SelectHeading>{t("desktop.shell.context.profile")}</SelectHeading>
+            {props.profiles.map((p) => (
+              <SelectOption key={p.id} value={`profile:${p.id}`}>
+                {context.kind === "profile" && context.profileId === p.id
+                  ? `${t("desktop.shell.context.profile")} · ${p.title}`
+                  : p.title}
+              </SelectOption>
+            ))}
+          </SelectGroup>
+        )}
+        {trials.length === 0 ? null : (
+          <SelectGroup>
+            <SelectHeading>{t("desktop.shell.context.trial")}</SelectHeading>
+            {trials.map((th) => (
+              <SelectOption key={th.id} value={`trial:${th.id}`}>
+                {context.kind === "trial" && context.threadId === th.id
+                  ? `${t("desktop.shell.context.trial")} · ${th.title}`
+                  : th.title}
+              </SelectOption>
+            ))}
+          </SelectGroup>
+        )}
       </Select>
       {context.kind === "thread" ? (
         <Tooltip

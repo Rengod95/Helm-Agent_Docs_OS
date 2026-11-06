@@ -148,7 +148,10 @@ function useThreadList(
 
 function Section(props: { readonly title: string; readonly children: ReactNode }): ReactNode {
   return (
-    <section aria-label={props.title} className="grid content-start gap-2 border-b p-3">
+    <section
+      aria-label={props.title}
+      className="grid content-start gap-2 border-b border-border-subtle p-3 pe-12"
+    >
       {/* 구역 머리는 시안의 SectionTitle 역할(본문 크기, 굵은 글, 선 없음) */}
       <h3 className="m-0 text-ui-dense font-semibold text-text-primary">{props.title}</h3>
       {props.children}

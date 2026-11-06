@@ -1509,6 +1509,7 @@
   "desktop.lockedDialog.owner.unknown": "another process",
   "desktop.plugin.frame.disabled": "This view has been turned off. Turn it back on to load it again from the start.",
   "desktop.plugin.frame.loading": "Loading…",
+  "desktop.plugin.header.backToChat": "Back to chat",
   "desktop.plugin.frame.reenable": "Turn back on",
   "desktop.plugin.state.disabled": "This extension is turned off",
   "desktop.plugin.state.empty": "This extension does not provide views",

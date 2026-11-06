@@ -57,6 +57,29 @@ describe("plugin tabs", () => {
     expect(html).not.toContain(">쪽<");
   });
 
+  test("the shell header has a back-to-chat button, and an app entry also gets the plugin-app marker", async () => {
+    const native = await render(
+      [uiEntryOf({ id: "panel", placement: "panel", title: "Helm 패널" })],
+      "helm",
+    );
+    expect(native).toContain(">대화로<");
+    expect(native).not.toContain(">플러그인 앱<");
+    const app = await render(
+      [
+        uiEntryOf({
+          id: "frame",
+          placement: "page",
+          mode: "app",
+          title: "프레임",
+          app: { root: "./ui", entry: "index.html", bridge: "^1.0.0", reason: "그래프" },
+        }),
+      ],
+      "pages",
+    );
+    expect(app).toContain(">대화로<");
+    expect(app.replaceAll("<!-- -->", "")).toContain("플러그인 앱");
+  });
+
   test("the Helm tab says the extension has no views when nothing is placed", async () => {
     const html = await render([], "helm");
     expect(html).toContain("이 확장은 화면을 내지 않아요");
