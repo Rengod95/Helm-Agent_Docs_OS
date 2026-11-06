@@ -81,12 +81,33 @@ export interface BridgeBackend {
   resize(height: number): void;
   /** 진단 줄. op와 크기만 온다 */
   diagnostic(line: { readonly op: string; readonly size: number }): void;
+  /** OS 파일 창에서 사용자가 고른 파일 하나의 이름과 글 내용. 취소면 `null`. 경로는 프레임에 주지 않는다 */
+  pickFile(): Promise<BackendResult<{ readonly name: string; readonly content: string } | null>>;
+  /** OS 폴더 창에서 사용자가 고른 폴더의 이름(마지막 조각)만. 취소면 `null`. 경로와 안의 파일은 주지 않는다 */
+  pickFolder(): Promise<BackendResult<{ readonly name: string } | null>>;
+  /** OS 저장 창에서 사용자가 정한 곳에 내용을 쓴다. 취소면 `saved`가 거짓이다. 경로는 주지 않는다 */
+  saveFile(
+    suggestedName: string,
+    content: string,
+  ): Promise<BackendResult<{ readonly saved: boolean }>>;
+  /** OS 알림 하나. 제목에는 실행기가 확장 이름을 붙여 넘긴다 */
+  notify(title: string, body: string): Promise<BackendResult<{ readonly shown: boolean }>>;
+  /** 확장 접두 설정 키 하나를 사용자 범위에 쓴다. 비밀 키인지는 이 쪽에서 정의로 다시 본다 */
+  writeSetting(key: string, value: string | number | boolean): Promise<BackendResult<unknown>>;
+  /** 같은 이름의 비밀 키가 이미 있는가. 덮어쓰기를 확인 줄에 따로 보이려고 확인 전에 묻는다 */
+  secretExists(secretName: string): Promise<BackendResult<boolean>>;
+  /** 비밀 키 값을 셸에만 보낸다(`overwrite`면 덮어쓰기). 값은 응답, 로그, 오류에 담지 않는다 */
+  registerSecret(
+    secretName: string,
+    value: string,
+    overwrite: boolean,
+  ): Promise<BackendResult<null>>;
 }
 
 export type ConfirmAnswer = "allow" | "deny";
 
 /** 확인 줄이 묻는 동작의 종류 */
-type ConfirmKind = "call" | "command" | "approval" | "external";
+type ConfirmKind = "call" | "command" | "approval" | "external" | "secret";
 
 /** 프레임 `call`·`command`·`requestApproval`·외부 링크 앞의 확인 줄(§3.4). 글은 매니페스트에서 온 값(확장 이름, 동사)과 정규화한 주소로만 만든다. 프레임이 준 글은 쓰지 않는다 */
 export interface ConfirmRequest {
@@ -104,6 +125,8 @@ export interface ConfirmRequest {
   readonly paramsSummary: string;
   /** 표준 승인 카드가 따로 뜨는 메서드인가(그 카드는 끌 수 없다) */
   readonly approval: boolean;
+  /** `secret`이고 같은 이름의 키가 이미 있어 덮어쓰게 되면 참. 확인 문구가 덮어쓴다고 따로 말한다 */
+  readonly overwrite?: boolean;
 }
 
 export interface BridgeHostOptions {
@@ -141,6 +164,8 @@ export const CONFIRM_DENY_STREAK = 3;
 export const CONFIRM_COOLDOWN_MS = 5000;
 /** 읽기 길 동시 처리 상한 */
 export const QUERY_INFLIGHT_MAX = 8;
+/** 셸 기능 예산. 창을 여는 op(`pickFile`, `pickFolder`, `saveFile`)와 `registerSecret`은 `post`와 같은 5초 1번이고, 알림과 설정 쓰기는 분당 상한이다 */
+const WINDOW_BUDGET_MS = 60000;
 /** `post`, `requestApproval` 화면당 예산: 5초에 1번, 미결 5개 */
 export const POST_MIN_INTERVAL_MS = 5000;
 export const POST_OUTSTANDING_MAX = 5;
@@ -155,6 +180,12 @@ const SUBSTANTIVE_OPS: ReadonlySet<string> = new Set([
   "command",
   "post",
   "requestApproval",
+  "pickFile",
+  "pickFolder",
+  "saveFile",
+  "notify",
+  "writeSetting",
+  "registerSecret",
 ]);
 
 function paramParts(params: Readonly<Record<string, unknown>>): string[] {
@@ -258,6 +289,10 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
   let queriesInflight = 0;
   const postBudget = createCallBudget();
   const navigateBudget = createCallBudget();
+  const dialogBudget = createCallBudget();
+  const secretBudget = createCallBudget();
+  const notifyBudget = createWindowBudget(UI_LIMITS.notifyPerMinute, WINDOW_BUDGET_MS);
+  const settingBudget = createWindowBudget(UI_LIMITS.settingWritesPerMinute, WINDOW_BUDGET_MS);
   let confirmTimer: TimerHandle | undefined;
   let confirmResolve: ((answer: ConfirmAnswer) => void) | undefined;
 
@@ -300,6 +335,7 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
     params: Readonly<Record<string, unknown>>,
     approval: boolean,
     punycodeHost?: string,
+    overwrite?: boolean,
   ): Promise<BridgeError | undefined> {
     if (options.clock.now() < cooldownUntil) {
       count("confirm_denied");
@@ -319,6 +355,7 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
       label,
       paramsSummary: summarizeParams(params),
       approval,
+      ...(overwrite === true ? { overwrite } : {}),
     });
     if (outcome === "allow") {
       denyStreak = 0;
@@ -334,7 +371,7 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
   }
 
   /** `post`, `requestApproval`, `navigate`의 화면당 예산. 넘으면 오류 이름을 돌려주고 장부에 센다 */
-  function budgetError(budget: CallBudget): BridgeError | undefined {
+  function budgetError(budget: Pick<CallBudget, "admit">): BridgeError | undefined {
     if (!budget.admit(options.clock.now())) {
       count("limit_exceeded");
       return { kind: "rate_limited" };
@@ -436,6 +473,100 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
     return result.ok ? result.value : failed("failed");
   }
 
+  /** 창을 여는 셸 기능. 예산을 쓰고 OS 창의 답만 돌려준다(경로는 백엔드가 이미 걸렀다) */
+  async function runDialog(
+    action: Extract<RunnableAction, { op: "pickFile" | "pickFolder" | "saveFile" }>,
+  ): Promise<BackendResult<unknown>> {
+    const over = budgetError(dialogBudget);
+    if (over !== undefined) return { ok: false, error: over };
+    const before = stillRunnable();
+    if (before !== undefined) return { ok: false, error: before };
+    dialogBudget.begin();
+    const result = await attemptAsync((): Promise<BackendResult<unknown>> => {
+      switch (action.op) {
+        case "pickFile":
+          return backend.pickFile();
+        case "pickFolder":
+          return backend.pickFolder();
+        case "saveFile":
+          return backend.saveFile(action.suggestedName, action.content);
+        default:
+          return assertNever(action, "DialogAction");
+      }
+    });
+    dialogBudget.end();
+    // 창이 떠 있는 동안 꺼졌으면 고른 내용은 건네지 않는다
+    const after = stillRunnable();
+    if (after !== undefined) return { ok: false, error: after };
+    if (!result.ok) return failed("failed");
+    if (result.value.ok && sizeOf(result.value.value) > UI_LIMITS.fileBytes * 2) {
+      count("limit_exceeded");
+      return failed("too_large");
+    }
+    return result.value;
+  }
+
+  async function runNotify(
+    action: Extract<RunnableAction, { op: "notify" }>,
+  ): Promise<BackendResult<unknown>> {
+    const over = budgetError(notifyBudget);
+    if (over !== undefined) return { ok: false, error: over };
+    const before = stillRunnable();
+    if (before !== undefined) return { ok: false, error: before };
+    // 알림에 확장 이름이 보인다. 이름은 매니페스트 값이고 프레임이 정할 수 없다
+    const title = `${options.context().extension} · ${action.title}`;
+    const result = await attemptAsync(() => backend.notify(title, action.body));
+    return result.ok ? result.value : failed("failed");
+  }
+
+  async function runWriteSetting(
+    action: Extract<RunnableAction, { op: "writeSetting" }>,
+  ): Promise<BackendResult<unknown>> {
+    const over = budgetError(settingBudget);
+    if (over !== undefined) return { ok: false, error: over };
+    const before = stillRunnable();
+    if (before !== undefined) return { ok: false, error: before };
+    const result = await attemptAsync(() => backend.writeSetting(action.key, action.value));
+    if (!result.ok) return failed("failed");
+    return result.value.ok ? { ok: true, value: null } : result.value;
+  }
+
+  /** 비밀 키 등록. 매번 확인 줄을 거치고 덮어쓰기는 줄에 따로 보인다. 줄에는 이름만 보이고 값은 어디에도 나오지 않는다 */
+  async function runRegisterSecret(
+    action: Extract<RunnableAction, { op: "registerSecret" }>,
+  ): Promise<BackendResult<unknown>> {
+    const over = budgetError(secretBudget);
+    if (over !== undefined) return { ok: false, error: over };
+    secretBudget.begin();
+    try {
+      const before = stillRunnable();
+      if (before !== undefined) return { ok: false, error: before };
+      const existing = await attemptAsync(() => backend.secretExists(action.secretName));
+      if (!existing.ok) return failed("failed");
+      if (!existing.value.ok) return existing.value;
+      const overwrite = existing.value.value;
+      const refused = await confirmGate(
+        "secret",
+        action.secretName,
+        undefined,
+        {},
+        false,
+        undefined,
+        overwrite,
+      );
+      if (refused !== undefined) return { ok: false, error: refused };
+      const off = await gone();
+      if (off !== undefined) return { ok: false, error: off };
+      const result = await attemptAsync(() =>
+        backend.registerSecret(action.secretName, action.value, overwrite),
+      );
+      if (!result.ok) return failed("failed");
+      return result.value.ok ? { ok: true, value: null } : result.value;
+    } finally {
+      secretBudget.end();
+    }
+  }
+
   async function run(action: RunnableAction): Promise<BackendResult<unknown>> {
     switch (action.op) {
       case "query":
@@ -522,6 +653,16 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
         return runPosted(action);
       case "navigate":
         return runNavigate(action);
+      case "pickFile":
+      case "pickFolder":
+      case "saveFile":
+        return runDialog(action);
+      case "notify":
+        return runNotify(action);
+      case "writeSetting":
+        return runWriteSetting(action);
+      case "registerSecret":
+        return runRegisterSecret(action);
       case "resize":
         backend.resize(action.height);
         return { ok: true, value: null };
@@ -569,6 +710,23 @@ function createCallBudget(): CallBudget {
     },
     end() {
       outstanding -= 1;
+    },
+  };
+}
+
+/** 창 안에서 `max`번까지만 받는다. 창이 지나면 처음부터 센다 */
+function createWindowBudget(max: number, windowMs: number): Pick<CallBudget, "admit"> {
+  let start = Number.NEGATIVE_INFINITY;
+  let used = 0;
+  return {
+    admit(now) {
+      if (now - start >= windowMs) {
+        start = now;
+        used = 0;
+      }
+      if (used >= max) return false;
+      used += 1;
+      return true;
     },
   };
 }

@@ -2,6 +2,7 @@ import { Type } from "typebox";
 import {
   BRIDGE_OPS,
   UI_LIMITS,
+  type BridgeCapability,
   type BridgeError,
   type BridgeOp,
   type BridgeRequest,
@@ -36,6 +37,10 @@ export interface BridgePolicyContext {
   readonly settingPrefixes: readonly string[];
   /** 매니페스트가 선언한 설정 키. 여기 없는 키는 값을 주지 않고 상태(설정됨/없음)만 준다(B2 후속, 2026-11-04) */
   readonly declaredSettingKeys: ReadonlySet<string>;
+  /** 이 화면의 앱 선언 `capabilities`. 선언에 없는 셸 기능 op는 `not_declared`다(ADR-0021 §3.4.3) */
+  readonly capabilities: ReadonlySet<BridgeCapability>;
+  /** `writeSetting`으로 쓸 수 있는 키: 매니페스트 `userConfig`가 선언했고 `sensitive`가 아닌 키. 접두 검사는 따로 한다 */
+  readonly writableSettingKeys: ReadonlySet<string>;
   /** 이 확장이 등록한 슬래시 명령 이름(앞 `/` 없음) */
   readonly ownCommands: ReadonlySet<string>;
   /** 신뢰 등급이 `post`를 허용하는가. 기본은 `defaultAllowPost(trust)`다 */
@@ -47,6 +52,11 @@ export interface BridgePolicyContext {
 /** 신뢰 등급별 `post` 기본값. 내장 확장만 대화에 글을 올린다. 사용자·프로젝트 확장은 승인 카드(`requestApproval`)로만 사용자에게 묻는다 */
 export function defaultAllowPost(trust: "builtin" | "user" | "project"): boolean {
   return trust === "builtin";
+}
+
+/** 확장의 비밀 키 전체 이름. `--`는 확장 이름과 꼬리 사이에만 있어서 다른 확장의 이름과 겹치지 않는다 */
+export function secretNameOf(extension: string, suffix: string): string {
+  return `ext--${extension}--${suffix}`;
 }
 
 /** 코어 이벤트 허용 목록(§3.4 `events`). `turn.*`, `lease.*`는 접두, 나머지는 같은 이름만이다 */
@@ -121,6 +131,40 @@ const NavigateArgs = Type.Object(
   },
   { additionalProperties: false },
 );
+// 셸 기능 op의 인자(ADR-0021 §3.4.3). 크기 상한은 글자 수로 먼저 걸고 바이트 상한은 판정에서 본다
+const PickArgs = Type.Optional(Type.Object({}, { additionalProperties: false }));
+const SaveFileArgs = Type.Object(
+  {
+    suggestedName: Type.String({ minLength: 1, maxLength: 200 }),
+    content: Type.String({ maxLength: UI_LIMITS.fileBytes }),
+  },
+  { additionalProperties: false },
+);
+/** 제목은 확장 이름 접두(최대 32자와 구분자)가 붙어도 셸의 80자 상한 안에 들게 40자까지다 */
+const NOTIFY_TITLE_MAX = 40;
+const NotifyArgs = Type.Object(
+  {
+    title: Type.String({ minLength: 1, maxLength: NOTIFY_TITLE_MAX }),
+    body: Type.Optional(Type.String({ maxLength: 400 })),
+  },
+  { additionalProperties: false },
+);
+const WriteSettingArgs = Type.Object(
+  {
+    key: SettingKeySchema,
+    value: Type.Union([Type.String({ maxLength: 2048 }), Type.Number(), Type.Boolean()]),
+  },
+  { additionalProperties: false },
+);
+/** 비밀 키 이름의 꼬리. 앞에 `ext--<확장>--`가 붙어 셸의 64자 상한(`^[a-z][a-z0-9-]{1,63}$`) 안에 든다. `--`는 쓸 수 없다 */
+const SECRET_SUFFIX_MAX = 24;
+const RegisterSecretArgs = Type.Object(
+  {
+    name: Type.String({ pattern: `^[a-z][a-z0-9-]{0,${SECRET_SUFFIX_MAX - 1}}$` }),
+    value: Type.String({ minLength: 1, maxLength: 4096 }),
+  },
+  { additionalProperties: false },
+);
 const ResizeArgs = Type.Object(
   { height: Type.Integer({ minimum: 0, maximum: 4096 }) },
   { additionalProperties: false },
@@ -178,6 +222,21 @@ export type BridgeAction =
       readonly target: NavigateTarget;
       /** 외부 링크는 셸이 확인한 뒤 OS 브라우저로 연다(§3.6.1) */
       readonly needsShellConfirm: boolean;
+    }
+  | { readonly op: "pickFile" }
+  | { readonly op: "pickFolder" }
+  | { readonly op: "saveFile"; readonly suggestedName: string; readonly content: string }
+  | { readonly op: "notify"; readonly title: string; readonly body: string }
+  | {
+      readonly op: "writeSetting";
+      readonly key: string;
+      readonly value: string | number | boolean;
+    }
+  | {
+      readonly op: "registerSecret";
+      /** 셸에 등록할 전체 이름 `ext--<확장>--<꼬리>`. 확장이 정한 것은 꼬리뿐이다 */
+      readonly secretName: string;
+      readonly value: string;
     }
   | { readonly op: "resize"; readonly height: number }
   | { readonly op: "log"; readonly size: number }
@@ -398,6 +457,68 @@ export function decide(request: BridgeRequest, context: BridgePolicyContext): De
         };
       }
       return { ok: true, action: { op: "navigate", target, needsShellConfirm: false } };
+    }
+    case "pickFile":
+    case "pickFolder": {
+      const parsed = parse(PickArgs, request.args ?? {});
+      if (!parsed.ok) return argsInvalid(parsed.error);
+      if (!context.capabilities.has("files")) return deny("not_declared", "capability");
+      return { ok: true, action: { op: request.op } };
+    }
+    case "saveFile": {
+      const parsed = parse(SaveFileArgs, request.args);
+      if (!parsed.ok) return argsInvalid(parsed.error);
+      if (!context.capabilities.has("files")) return deny("not_declared", "capability");
+      if (new TextEncoder().encode(parsed.value.content).byteLength > UI_LIMITS.fileBytes) {
+        return deny("too_large");
+      }
+      return {
+        ok: true,
+        action: {
+          op: "saveFile",
+          suggestedName: stripUnsafeText(parsed.value.suggestedName, false),
+          content: parsed.value.content,
+        },
+      };
+    }
+    case "notify": {
+      const parsed = parse(NotifyArgs, request.args);
+      if (!parsed.ok) return argsInvalid(parsed.error);
+      if (!context.capabilities.has("notify")) return deny("not_declared", "capability");
+      const title = stripUnsafeText(parsed.value.title, false).trim();
+      if (title === "") return deny("args_invalid", "/title empty");
+      return {
+        ok: true,
+        action: {
+          op: "notify",
+          title,
+          body: stripUnsafeText(parsed.value.body ?? "", false).trim(),
+        },
+      };
+    }
+    case "writeSetting": {
+      const parsed = parse(WriteSettingArgs, request.args);
+      if (!parsed.ok) return argsInvalid(parsed.error);
+      if (!context.capabilities.has("settingsWrite")) return deny("not_declared", "capability");
+      const key = parsed.value.key;
+      if (!settingKeyAllowed(key, context)) return deny("not_declared", "setting_key");
+      // 쓰기는 매니페스트가 선언한 비밀 아닌 키만이다. 선언 없는 키는 접두가 맞아도 쓰지 못한다
+      if (!context.writableSettingKeys.has(key)) return deny("not_declared", "setting_key");
+      return { ok: true, action: { op: "writeSetting", key, value: parsed.value.value } };
+    }
+    case "registerSecret": {
+      const parsed = parse(RegisterSecretArgs, request.args);
+      if (!parsed.ok) return argsInvalid(parsed.error);
+      if (!context.capabilities.has("secrets")) return deny("not_declared", "capability");
+      if (parsed.value.name.includes("--")) return deny("args_invalid", "/name double_hyphen");
+      return {
+        ok: true,
+        action: {
+          op: "registerSecret",
+          secretName: secretNameOf(context.extension, parsed.value.name),
+          value: parsed.value.value,
+        },
+      };
     }
     case "resize": {
       const parsed = parse(ResizeArgs, request.args);

@@ -159,6 +159,24 @@ M4 첫 카탈로그 [제안]:
 - 상태가 `blocked`인 항목은 `authoring_kinds`에 보이되 `authoring_start`가 거부하고 사유를 돌려줍니다. 화면에서는 "준비 중"으로 보입니다.
 - 카탈로그에 없는 모양이 필요하면 에이전트는 가장 가까운 종류로 시작하고 차이를 대화 메모에 남깁니다. 사용자 로컬 카탈로그(§4.4)에 초안 항목을 더할 수도 있습니다.
 
+#### 3.4.1 Plugin App의 셸 기능 다리 API [결정: 2026-11-06 사용자]
+
+`view.frame` 뼈대의 다리 래퍼는 호스트 API 아홉과 셸 기능 여섯을 요청 `{ v: 1, id, op, args }`로 보냅니다(ADR-0021 §3.4, §3.4.3). 셸 기능은 매니페스트 `ui.items[].app.capabilities`에 권한을 적어야 합니다. 적지 않은 권한의 op는 `not_declared`로 돌아옵니다.
+
+| op | 권한 | args | 값 |
+|---|---|---|---|
+| `pickFile` | `files` | 없음 | `{ name, content }` 또는 `null`(취소). 글 파일 256 KiB 이하 |
+| `pickFolder` | `files` | 없음 | `{ name }` 또는 `null`. 이름만 |
+| `saveFile` | `files` | `{ suggestedName, content }` | `{ saved }` |
+| `notify` | `notify` | `{ title, body? }` 제목 40자, 본문 400자 | `{ shown }`. 분당 5개 |
+| `writeSetting` | `settingsWrite` | `{ key, value }` 자기 접두의 선언한 시크릿이 아닌 키 | `null` |
+| `registerSecret` | `secrets` | `{ name, value }` 이름은 소문자·숫자·하이픈 24자 이하, `--` 없음 | `null`. 저장 이름은 `ext--<확장>--<name>` |
+
+- 창을 여는 op(`pickFile`, `pickFolder`, `saveFile`)와 `registerSecret`은 5초에 1번입니다. 넘으면 `rate_limited`입니다.
+- `registerSecret`은 매번 사용자 확인이 뜨고, 사용자가 거절하면 `denied`(`not_confirmed`)입니다.
+- 외부 링크는 `navigate`의 `{ target: { kind: "external", url } }`입니다. 확인 줄 뒤 OS 브라우저가 엽니다.
+- 재인증, 엔진 재시작·대상 변경·DB 복원, 엔진 직접 연결은 다리에 없습니다.
+
 ### 3.5 제작 검사(`AU-NNN`)
 
 [제안] F 검사 결과(`ManifestIssueCode`)는 그대로 보이고, 아래는 Plugin Builder가 더하는 검사입니다. 번호는 지우지 않고 `deprecated`로만 바꿉니다.

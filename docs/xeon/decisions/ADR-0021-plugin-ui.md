@@ -127,6 +127,12 @@ interface ExtMethodDecl {
 | 동작 | `post` | 열린 대화 입력 큐에 넣기 | 신뢰 등급의 `post` 허용, scope 켜짐 | `ext.view.post` (닫음: 아래 2026-11-04 R15) |
 | 동작 | `requestApproval` | 선언된 쓰기 메서드의 사용자 승인 요청. 인자는 `{ threadId, verb, params? }`이고 화면이 쓴 제목·설명은 받지 않는다(카드 글은 엔진이 확장 이름과 동사로 만든다) | 셸 확인 줄(`kind: approval`)을 먼저 거친 뒤 앱이 그리는 표준 승인 카드로만 보임(ADR-0018). 화면은 승인 id만 받음 | `ext.ui.requestApproval` |
 | 동작 | `navigate` | 자기 다른 화면, 대화·턴, 확장 상세(P-17), 자기 설정 구역, 비밀 화면(P-10) 열기, 외부 링크 | 앱 화면은 정해진 목록만. 외부 링크는 셸 확인 줄(`kind: external`)을 거친 뒤 OS 브라우저(Tauri 명령 `open_external`, `http(s)`만) | 클라이언트 |
+| 셸 기능 | `pickFile` | OS 파일 창에서 사용자가 고른 파일 하나의 이름과 글 내용(256 KiB 이하) | 앱 선언 `capabilities`에 `files`. 경로는 주지 않음 | 셸 명령 `pick_file_read` |
+| 셸 기능 | `pickFolder` | OS 폴더 창에서 고른 폴더의 이름 | `files`. 이름만, 경로와 안의 파일은 주지 않음 | 셸 명령 `pick_folder` |
+| 셸 기능 | `saveFile` | 프레임이 준 내용을 OS 저장 창에서 사용자가 정한 곳에 쓰기 | `files`. 제안 이름 200자, 내용 256 KiB. 경로는 주지 않고 `{ saved }`만 | 셸 명령 `save_file` |
+| 셸 기능 | `notify` | OS 알림 | `notify`. 제목 40자(앞에 확장 이름이 붙음), 본문 400자, 화면당 분당 5개 | 셸 명령 `notify_os` |
+| 셸 기능 | `writeSetting` | 자기 설정 키 쓰기(사용자 범위) | `settingsWrite`. 자기 접두이면서 매니페스트 `userConfig`가 선언했고 `sensitive`가 아닌 키만. 값은 글·수·참거짓, 화면당 분당 20번 | `settings.set` |
+| 셸 기능 | `registerSecret` | 자기 시크릿 등록 | `secrets`. 이름은 `ext--<확장>--<꼬리>`로 셸이 붙임(꼬리 24자 이하, `--` 없음). 매번 확인 줄, 덮어쓰기는 줄에 따로 보임 | `secret.list`(있는지), 셸 명령 `secret_register` |
 
 - "사용자 조작 뒤에만"의 판정: 선언형은 렌더러가 누름 이벤트를 압니다. 프레임은 셸이 프레임 안 입력을 볼 수 없으므로, 프레임의 `call`과 `command`는 셸이 띄우는 확인 줄("<확장>이 <동작 라벨>을 하려고 해요")을 거칩니다(`command`까지 거치는 것은 표보다 엄격한 [제안]입니다). 확인 줄은 끌 수 없고 호출마다 뜹니다. 허용한 뒤에도 같은 확장의 다음 호출은 다시 묻고, "이 화면에서 묻지 않기" 같은 선택과 확장별 허용 기억은 두지 않습니다(B2 1안) [결정: 2026-11-04 사용자]. `approval: true` 메서드의 표준 승인 카드는 이 줄과 따로 뜨며 끌 수 없습니다 [제안].
 - `query` 갱신: `invalidateOn`(자기 kind 목록) 이벤트가 오면 다시 부릅니다. 주기 갱신은 5초 이상만 허용합니다 [제안].
@@ -143,7 +149,7 @@ interface ExtMethodDecl {
 #### 3.4.2 프레임 다리
 
 - [제안] 셸은 프레임이 불러와지면 `MessageChannel` 하나를 만들어 포트 하나를 프레임에 한 번만 넘깁니다. 프레임 origin은 불투명이라 대상 origin을 지정할 수 없으므로, 셸은 `iframe.contentWindow`가 보낸 `ready` 메시지에만 포트를 넘깁니다. 그 뒤 모든 메시지는 그 포트로만 오가고, 포트 밖 `message`는 버립니다.
-- 메시지 형식: 요청 `{ v: 1, id, op, args }`, 응답 `{ v: 1, id, ok, value | error }`, 셸이 먼저 보내는 `{ v: 1, push: "theme" | "host" | "event" | "invalidate", value }`입니다. `op`는 §3.4 표의 이름 아홉 개와 `resize`(well 높이 안내), `log`(진단 줄, 길이 상한), `pong`뿐입니다.
+- 메시지 형식: 요청 `{ v: 1, id, op, args }`, 응답 `{ v: 1, id, ok, value | error }`, 셸이 먼저 보내는 `{ v: 1, push: "theme" | "host" | "event" | "invalidate", value }`입니다. `op`는 §3.4 표의 이름 열다섯 개(호스트 API 아홉, 셸 기능 여섯)와 `resize`(well 높이 안내), `log`(진단 줄, 길이 상한), `pong`뿐입니다.
 - 셸은 요청마다 `op` 허용 목록, `args` 스키마, 매니페스트 선언(`methods`, `readsRecordKinds`), 확장 상태(켜짐, 안전 모드)를 확인한 뒤 wire를 부릅니다. 엔진은 같은 검사를 다시 합니다. 판정의 정본은 엔진입니다.
 - 다리 API 버전은 `frame.bridge`(SemVer 범위)로 맞춥니다. 앱이 범위를 채우지 못하면 그 화면은 `invalid`(`bridge_unsupported`)입니다.
 - 다리 클라이언트 라이브러리(`@fresnel/view-bridge` [제안])는 타입 있는 얇은 래퍼만 제공합니다. 판정은 셸 쪽에 있으므로 프레임 코드가 이 라이브러리를 쓰지 않아도 보안이 바뀌지 않습니다.
@@ -193,6 +199,18 @@ interface ExtMethodDecl {
 - 앱 문서: 기존 `default-src 'self'`에 `frame-src fresnel-view:`만 더합니다. `unsafe-eval`, 원격 `script-src`는 더하지 않습니다.
 - 프레임 문서(셸이 응답 헤더로 붙임) [제안]: `default-src 'none'; script-src fresnel-view://<확장이름>/<버전>/; style-src fresnel-view://<확장이름>/<버전>/ 'unsafe-inline'; img-src fresnel-view://<확장이름>/<버전>/ data: blob:; font-src fresnel-view://<확장이름>/<버전>/; media-src fresnel-view://<확장이름>/<버전>/ blob:; connect-src 'none'; frame-src 'none'; worker-src fresnel-view://<확장이름>/<버전>/ blob:; form-action 'none'; base-uri 'none'`. `<확장이름>/<버전>/` 자리는 그 확장 버전의 주소 접두(예: `fresnel-view://helm/1.0.0/`)입니다. 프레임은 불투명 origin이라 `'self'`를 쓰지 않습니다. WebKit은 sandbox 프레임에서 `'self'`를 같은 출처로 풀지 않아 프레임 자기 스크립트가 막히기 때문입니다(`L4.desktop-ux.spec` §6.25). 네트워크 요청, 다른 프레임 열기, `eval`은 막힙니다. 프레임 HTML의 `<meta>` CSP는 이 헤더보다 넓힐 수 없습니다. [결정: 2026-11-04 사용자] 응답에는 `Access-Control-Allow-Origin: *`도 붙입니다. 불투명 origin(`null`) 프레임은 `<script type="module">`을 CORS 모드로 가져오므로 이 헤더가 없으면 모듈 스크립트가 로드되지 않습니다(macOS WKWebView 실기로 확인, `just desktop-ipc-probe`). 프레임 CSP가 `connect-src 'none'`이고 앱 문서 CSP도 이 스킴 fetch를 막아 다른 문서가 이 주소를 읽지 못합니다.
 
+#### 3.4.3 셸 기능 op [결정: 2026-11-06 사용자]
+
+플러그인 화면이 파일 고르기·저장, 외부 링크, OS 알림, 앱 설정 쓰기, 시크릿 등록을 쓸 수 있게 §3.4 표에 op 여섯(`pickFile`, `pickFolder`, `saveFile`, `notify`, `writeSetting`, `registerSecret`)을 더했습니다. 외부 링크는 새 op 없이 `navigate`의 `external`이 그대로 맡습니다(확인 줄 유지).
+
+- 프레임에 셸 IPC를 주지 않습니다(§3.6.4). 앱 본 화면이 다리를 받아 셸 명령을 대신 부릅니다. Electron 셸의 `frame-check`(최상위 `app://localhost`만 IPC)는 그대로입니다.
+- 선언: 앱 선언 `app.capabilities`(`files`, `notify`, `settingsWrite`, `secrets`)에 적은 권한의 op만 쓸 수 있습니다. 적지 않으면 `not_declared`(`detail: "capability"`)입니다. 확장 꺼짐은 `extension_off`, 안전 모드는 `safe_mode`입니다.
+- 파일: 사용자가 OS 창에서 고른 것만 다룹니다. 임의 경로는 받지 않고 프레임은 경로를 알 수 없습니다. 읽기는 그 창이 고른 파일 하나를 셸이 읽어 주는 좁은 명령(`pick_file_read`)이고, 저장은 프레임이 준 제안 이름과 내용만 씁니다(256 KiB 상한, 넘으면 `too_large`). 창을 여는 op는 화면당 5초에 1번입니다(`rate_limited`).
+- 알림: 확장 이름이 제목 앞에 붙습니다(`<확장> · <제목>`). 확장과 화면당 분당 5개이고 넘으면 `rate_limited`입니다. 글 길이는 `notify_os`와 같게 줄입니다.
+- 설정 쓰기: 자기 접두(`ext.<이름>.`, 내장은 `l3.<이름>.`)이면서 매니페스트가 선언한 비밀 아닌 키만 씁니다. 엔진 정의가 비밀이거나 모르는 키면 거부합니다. 비밀 키 값은 `settings` 읽기에서도 여전히 보이지 않습니다.
+- 시크릿 등록: 이름은 확장 이름이 앞에 붙은 `ext--<확장>--<꼬리>`뿐이라 다른 확장의 이름과 겹치지 않습니다. 매번 확인 줄(`kind: secret`)을 거치고, 같은 이름이 이미 있으면 줄이 "덮어쓴다"고 따로 말합니다. 값은 프레임 → 다리 → 셸 stdin으로만 가고 확인 줄, 응답, 오류, 진단 로그에 남지 않습니다. 화면당 5초에 1번입니다.
+- 계속 막는 것: 재인증, 엔진 재시작·대상 변경·DB 복원, 엔진 직접 연결은 op가 없습니다.
+
 #### 3.6.4 wire 직접 연결 없음
 
 - 프레임은 wire 연결, 엔진 소켓, 셸 IPC 어느 것도 받지 않습니다. 프레임이 할 수 있는 일은 다리의 `op`뿐이고, 다리는 셸 안에서 자기 확장 범위로 좁힌 wire 호출로 바뀝니다. `connect-src 'none'`이라 프레임이 원격 서비스 주소를 알아도 붙을 수 없습니다.
@@ -202,6 +220,7 @@ interface ExtMethodDecl {
 - `settings`는 `secret: true` 키의 값 대신 "설정됨/없음"만 줍니다. 비밀 값 열람과 입력은 `navigate`로 셸 비밀 화면(P-10)을 여는 것뿐입니다.
 - `query`·`call` 결과는 엔진이 마스킹 계층(`L0.secrets.spec` §4.5)을 거쳐 보냅니다. 같은 마스킹이 선언형에도 적용됩니다(§6 미결 6).
 - 다리 메시지는 진단 로그에 op와 크기만 남기고 값은 남기지 않습니다.
+- 예외 하나: `registerSecret`(§3.4.3)은 값을 프레임에서 셸로 보냅니다. 확인 줄에 이름만 보이고, 값은 응답·오류·로그에 남지 않으며 셸 stdin으로만 갑니다 [결정: 2026-11-06 사용자].
 
 #### 3.6.6 승인은 언제나 셸이 그림
 
@@ -220,11 +239,11 @@ interface ExtMethodDecl {
 보안 검토 결과를 다리에 넣습니다. 확인 줄은 항상 켜져 있습니다(B2 1안).
 
 - 외부 링크: 원문에 제어 문자(탭, 줄바꿈 포함), 공백, 방향 제어 글자가 있으면 거부합니다. 통과한 글은 `new URL`로 정규화하고 확인 줄과 OS 브라우저 열기에 둘 다 `href`를 씁니다. 보일 글에서 방향 제어 글자를 빼고, 사용자가 쓴 호스트와 정규화된 호스트가 다르면(국제화 도메인) 퓨니코드 호스트를 함께 보입니다.
-- 확인 줄은 `call`, `command`, `requestApproval`, 외부 링크에 뜹니다(`ConfirmRequest.kind`). 외부 링크 줄은 정규화한 주소(`href`)를 보이고, 승인 요청 줄은 승인을 청할 동사를 보입니다. 허용 뒤 `recheck`로 확장이 꺼지지 않았는지 다시 봅니다.
+- 확인 줄은 `call`, `command`, `requestApproval`, 외부 링크, `registerSecret`에 뜹니다(`ConfirmRequest.kind`). 외부 링크 줄은 정규화한 주소(`href`)를 보이고, 승인 요청 줄은 승인을 청할 동사를 보입니다. 허용 뒤 `recheck`로 확장이 꺼지지 않았는지 다시 봅니다.
 - 확인 줄: 허용·거부는 장부에 센다(거부 `confirm_denied`, 시간 초과 `confirm_timeout`). 연속 3번 거부하면 5초 동안 줄을 띄우지 않고 거부합니다(그 거부도 셉니다). 줄은 확장 신뢰 등급 배지와, `project`이면 프로젝트 배지, 매니페스트 라벨과 실제로 실행될 동사(라벨 옆에 함께, 라벨이 없으면 동사만), 실제로 실행될 params의 요약을 보입니다. `command`는 실행될 `args`를 `args="…"`로 보입니다. 요약에서 제어·방향 제어 글자와 보이지 않는 글자(U+200B, 200C, 200D, 2060, FEFF, 00AD)를 뺍니다. 요약이 400자를 넘으면 앞쪽 키만 보이고 빠진 키 수를 `…(+N)`으로 붙입니다. 값 하나가 400자를 넘어 다 보일 수 없으면 줄을 띄우지 않고 거부합니다(`params_too_long_to_confirm`, 장부에 `confirm_denied`). 시간 초과와 프레임 닫힘 때는 줄에 남은 요청을 `ConfirmQueue.cancel`로 뺍니다. 화면은 줄이 나타난 뒤 500 ms 동안 누름을 무시하고 거부에 처음 초점을 둡니다(UI가 지킬 계약, `confirmButtons().defaultFocus`, `CONFIRM_CLICK_GUARD_MS`).
 - `post`, `requestApproval`, `navigate`: 화면마다 5초에 1번, 미결 5개까지입니다(`navigate`는 같은 한도의 따로 센 예산이고 넘으면 `rate_limited`와 장부 `limit_exceeded`). 제어·방향 제어 글자를 빼고, 카드는 확장 이름과 등급을 보입니다(B3 1안: 기존 질문 카드 + 출처). `post`는 `allowPost`가 참일 때만이고 기본은 `builtin`만 참입니다. 사용자·프로젝트 확장은 `requestApproval`로만 묻습니다.
 - `settings`: 매니페스트에 선언한 키만 값을 돌려줍니다. 선언하지 않은 키와 `secret` 키는 `status`만 줍니다.
-- 장부: 연속 실패를 되돌리는 성공은 일을 한 `query`, `events`, `settings`, `call`, `command`, `post`, `requestApproval`뿐입니다. `host`, `pong`, `resize`, `log`, `navigate`는 되돌리지 않습니다. `query`는 동시 8개까지입니다. params의 `__proto__`는 자료 키로만 다룹니다.
+- 장부: 연속 실패를 되돌리는 성공은 일을 한 `query`, `events`, `settings`, `call`, `command`, `post`, `requestApproval`과 셸 기능 여섯(§3.4.3)뿐입니다. `host`, `pong`, `resize`, `log`, `navigate`는 되돌리지 않습니다. `query`는 동시 8개까지입니다. params의 `__proto__`는 자료 키로만 다룹니다.
 
 #### 3.6.8 테마 토큰 전달
 

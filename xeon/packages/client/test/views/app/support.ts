@@ -106,7 +106,9 @@ export function policyContext(overrides: Partial<BridgePolicyContext> = {}): Bri
     ]),
     readsRecordKinds: ["note.created"],
     settingPrefixes: ["ext.helm.", "l3.helm."],
-    declaredSettingKeys: new Set(["ext.helm.depth"]),
+    declaredSettingKeys: new Set(["ext.helm.depth", "ext.helm.token"]),
+    capabilities: new Set(["files", "notify", "settingsWrite", "secrets"]),
+    writableSettingKeys: new Set(["ext.helm.depth"]),
     ownCommands: new Set(["helm-start"]),
     allowPost: true,
     openThreadId: "thr_1",
@@ -123,7 +125,7 @@ const HOST_SNAPSHOT: HostSnapshot = {
   extension: { enabled: true, trust: "user", safeMode: false },
 };
 
-const okValue = (value: unknown): BackendResult<unknown> => ({ ok: true, value });
+const okValue = <T>(value: T): BackendResult<T> => ({ ok: true, value });
 
 export interface BackendCalls {
   readonly names: string[];
@@ -136,6 +138,7 @@ export interface FakeBackendOptions {
   readonly queryResult?: BackendResult<unknown>;
   readonly settings?: readonly SettingRead[];
   readonly eventRows?: readonly unknown[];
+  readonly secretExists?: boolean;
 }
 
 export function fakeBackend(options: FakeBackendOptions = {}): {
@@ -185,6 +188,34 @@ export function fakeBackend(options: FakeBackendOptions = {}): {
     },
     diagnostic(line) {
       calls.diagnostics.push(line);
+    },
+    pickFile() {
+      calls.names.push("pickFile");
+      return Promise.resolve(okValue({ name: "a.txt", content: "hello" }));
+    },
+    pickFolder() {
+      calls.names.push("pickFolder");
+      return Promise.resolve(okValue({ name: "docs" }));
+    },
+    saveFile(suggestedName, content) {
+      calls.names.push(`saveFile:${suggestedName}:${content}`);
+      return Promise.resolve(okValue({ saved: true }));
+    },
+    notify(title, body) {
+      calls.names.push(`notify:${title}:${body}`);
+      return Promise.resolve(okValue({ shown: true }));
+    },
+    writeSetting(key, value) {
+      calls.names.push(`writeSetting:${key}:${String(value)}`);
+      return Promise.resolve(okValue(null));
+    },
+    secretExists(secretName) {
+      calls.names.push(`secretExists:${secretName}`);
+      return Promise.resolve(okValue(options.secretExists ?? false));
+    },
+    registerSecret(secretName, value, overwrite) {
+      calls.names.push(`registerSecret:${secretName}:${String(value.length)}:${String(overwrite)}`);
+      return Promise.resolve(okValue(null));
     },
   };
   return { backend, calls };
