@@ -92,6 +92,8 @@ export type UiState = {
   readonly observing: Readonly<Record<string, true>>;
   /** 슬래시 명령이 낸 출력. 닫기 전까지 있다 */
   readonly commandOutput: CommandOutput | null;
+  /** 슬래시 명령이 끝난 횟수. 명령이 바꿨을 수 있는 값(목표)을 화면이 다시 읽는 신호다 */
+  readonly commandRuns: number;
   /** 셸 주입 확인 대기. 열려 있는 동안만 있다 */
   readonly shellConfirm: ShellConfirm | null;
   /** 엔진 대상을 바꾸는 중(W-08). 쓰기 명령이 보류되고 입력창이 이를 알린다 */
@@ -120,6 +122,7 @@ interface UiActions {
   dismissLocked(): void;
   setObserving(id: ThreadId, observing: boolean): void;
   showCommandOutput(output: CommandOutput): void;
+  noteCommandRun(): void;
   dismissCommandOutput(): void;
   askShellConfirm(confirm: ShellConfirm): void;
   clearShellConfirm(): void;
@@ -147,6 +150,7 @@ const INITIAL_UI: UiState = {
   locked: null,
   observing: {},
   commandOutput: null,
+  commandRuns: 0,
   shellConfirm: null,
   engineSwitching: false,
   composerRequest: null,
@@ -191,6 +195,7 @@ export function createUiStore(): UiStore {
     showLocked: (locked) => api.setState({ locked }),
     dismissLocked: () => api.setState({ locked: null }),
     showCommandOutput: (commandOutput) => api.setState({ commandOutput }),
+    noteCommandRun: () => api.setState((s) => ({ commandRuns: s.commandRuns + 1 })),
     dismissCommandOutput: () => api.setState({ commandOutput: null }),
     askShellConfirm: (shellConfirm) => api.setState({ shellConfirm }),
     clearShellConfirm: () => api.setState({ shellConfirm: null }),

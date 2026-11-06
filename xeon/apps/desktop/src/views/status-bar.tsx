@@ -33,7 +33,12 @@ import {
   type Link,
 } from "../state/engine/index.ts";
 import { ShellStoreContext } from "../state/shell/index.ts";
-import { useConnectError, useRestartNeeded, useSelectedThreadId } from "../state/ui/index.ts";
+import {
+  useCommandRuns,
+  useConnectError,
+  useRestartNeeded,
+  useSelectedThreadId,
+} from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
 import {
   modelLabelOf,
@@ -576,24 +581,29 @@ export function goalCellOf(goal: GoalWire): {
   };
 }
 
-/** 열린 대화의 목표를 읽는다. 연결이 살아 있고 턴이 돌고 있지 않을 때 읽는다(턴이 끝나면 판정이 바뀌었을 수 있다). 읽지 못하면 칸을 두지 않는다 */
+/** 열린 대화의 목표를 읽는다. 연결이 살아 있으면 대화를 열 때, 턴이 시작·끝날 때, 슬래시 명령이 끝날 때 읽는다(목표가 쉬는 동안에도 칸이 보인다). 읽지 못하면 칸을 두지 않는다 */
 function useThreadGoal(threadId: ThreadId): GoalWire {
   const commands = useCommands();
   const live = useLinkPhase() === "live";
   const running = useThreadRunning(threadId);
+  const commandRuns = useCommandRuns();
   const [goal, setGoal] = useState<GoalWire>(null);
   useEffect(() => {
-    if (!live || running) return undefined;
+    if (!live) return undefined;
     let stale = false;
-    const read = async (): Promise<void> => {
+    // 턴이 시작·끝날 때(running)와 슬래시 명령이 끝날 때(commandRuns)가 다시 읽는 신호다
+    const read = async (_why: {
+      readonly running: boolean;
+      readonly runs: number;
+    }): Promise<void> => {
       const result = await commands.work.goal(threadId);
       if (!stale) setGoal(result.ok ? result.value.goal : null);
     };
-    detach(read(), rethrow);
+    detach(read({ running, runs: commandRuns }), rethrow);
     return () => {
       stale = true;
     };
-  }, [commands, threadId, live, running]);
+  }, [commands, threadId, live, running, commandRuns]);
   return goal;
 }
 

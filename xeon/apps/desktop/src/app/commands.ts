@@ -179,6 +179,7 @@ export function createCommands(deps: CommandDeps): Commands {
       showLockedIfLocked(threadId, ran.error);
       return ran;
     }
+    ui.actions.noteCommandRun();
     const step = slashStepOf(ran.value);
     switch (step.kind) {
       case "chat":
