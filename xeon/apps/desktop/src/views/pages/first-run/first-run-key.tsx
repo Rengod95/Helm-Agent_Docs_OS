@@ -1,4 +1,4 @@
-import { Button, Field, Input } from "@caustic/react";
+import { Button, Input } from "@caustic/react";
 import { t } from "@fresnel/client/i18n";
 import type { KeyField } from "@fresnel/client/settings";
 import type { ReactNode, RefObject } from "react";
@@ -7,6 +7,7 @@ import type { ReactNode, RefObject } from "react";
 // 저장을 누르면 부모가 `field.take()`로 읽는 즉시 비운다. 취소와 사라짐(unmount)도 비운다.
 // caustic `Input`은 안쪽 `ref`를 쓰므로 바깥 `ref`를 넘기면 포커스가 깨진다. 그래서 폼의 `FormData`로 읽고 `reset()`으로 비운다.
 // `formRef`는 화면이 쥔다: ⌘Enter가 `requestSubmit()`으로 저장을 누른다(`first-run-view.tsx`).
+// 값을 적는 한 줄 안내는 이 칸을 쓰는 화면이 둔다(시안처럼 목록 아래).
 
 export function FirstRunKeyForm(props: {
   readonly formRef: RefObject<HTMLFormElement | null>;
@@ -18,7 +19,7 @@ export function FirstRunKeyForm(props: {
   return (
     <form
       ref={formRef}
-      className="grid gap-3"
+      className="flex min-w-0 flex-wrap items-center gap-2"
       autoComplete="off"
       onSubmit={(event) => {
         event.preventDefault();
@@ -33,38 +34,35 @@ export function FirstRunKeyForm(props: {
         });
       }}
     >
-      <Field
-        label={t("desktop.firstRun.key.valueLabel")}
-        hint={t("desktop.firstRun.key.valueNote")}
+      <Input
+        size="xs"
+        type="password"
+        name="key"
+        aria-label={t("desktop.firstRun.key.valueLabel")}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        defaultValue=""
+        disabled={props.busy}
+        containerClassName="min-w-0 flex-1 max-w-80"
+        className="font-mono"
+      />
+      <Button type="submit" size="sm" variant="solid" loading={props.busy}>
+        {t("desktop.settings.save.button")}
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        disabled={props.busy}
+        onClick={() => {
+          formRef.current?.reset();
+          props.onCancel();
+        }}
       >
-        <Input
-          type="password"
-          name="key"
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          defaultValue=""
-          disabled={props.busy}
-        />
-      </Field>
-      <div className="flex flex-wrap gap-2">
-        <Button type="submit" size="sm" loading={props.busy}>
-          {t("desktop.settings.save.button")}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={props.busy}
-          onClick={() => {
-            formRef.current?.reset();
-            props.onCancel();
-          }}
-        >
-          {t("desktop.settings.cancel.button")}
-        </Button>
-      </div>
+        {t("desktop.settings.cancel.button")}
+      </Button>
     </form>
   );
 }
