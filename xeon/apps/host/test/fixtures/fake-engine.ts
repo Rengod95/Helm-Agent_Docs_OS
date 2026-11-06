@@ -13,7 +13,7 @@ import type {
 import type { TestRunControlPort, TraceReadPort } from "@fresnel/contracts/extensions";
 import type { LoopError } from "@fresnel/contracts/services";
 import type { ScopeStack } from "@fresnel/contracts/settings";
-import type { StoreId, StreamPosition } from "@fresnel/contracts/wire";
+import type { StoreId, StreamPosition, ThreadSummary } from "@fresnel/contracts/wire";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import type { ScheduleService } from "@fresnel/cap-schedule";
 import { partial } from "./unsafe.ts";
@@ -192,6 +192,8 @@ export interface FakeEngine {
   seedThread(): ThreadId;
   /** `thread.rename`과 첫 입력 자동 제목이 정한 제목 */
   readonly titles: ReadonlyMap<ThreadId, string>;
+  /** `thread.setModel`이 정한 모델 */
+  readonly chosenModels: ReadonlyMap<ThreadId, string>;
 }
 
 const RECORDED_AT = 1_767_571_200_000;
@@ -223,6 +225,24 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   const threads = new Set<ThreadId>();
   const held = new Set<ThreadId>();
   const titles = new Map<ThreadId, string>();
+  const models = new Map<ThreadId, string>();
+  const summaryOf = (threadId: ThreadId): ThreadSummary => {
+    const model = models.get(threadId);
+    return {
+      threadId,
+      title: titles.get(threadId) ?? null,
+      status: "idle",
+      workspace: null,
+      createdAt: new Date(RECORDED_AT).toISOString(),
+      updatedAt: new Date(RECORDED_AT).toISOString(),
+      headSeq: 0,
+      forkedFrom: null,
+      resumable: null,
+      queuedInputs: 0,
+      pendingApprovals: 0,
+      ...(model === undefined ? {} : { model }),
+    };
+  };
   const submitted: { threadId: ThreadId; requestId: string | undefined }[] = [];
   const acquisitions: { threadId: ThreadId; kind: OwnerKind }[] = [];
   const released: ThreadId[] = [];
@@ -283,19 +303,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       exists: (threadId) => ok(threads.has(threadId)),
       list: () =>
         Promise.resolve({
-          threads: [...threads].map((threadId) => ({
-            threadId,
-            title: titles.get(threadId) ?? null,
-            status: "idle" as const,
-            workspace: null,
-            createdAt: new Date(RECORDED_AT).toISOString(),
-            updatedAt: new Date(RECORDED_AT).toISOString(),
-            headSeq: 0,
-            forkedFrom: null,
-            resumable: null,
-            queuedInputs: 0,
-            pendingApprovals: 0,
-          })),
+          threads: [...threads].map(summaryOf),
           nextCursor: null,
         }),
       fork: () => Promise.reject(new Error("fork is not part of the fake")),
@@ -307,6 +315,13 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         if (!held.has(threadId)) return err({ kind: "not_owner", threadId });
         titles.set(threadId, title);
         commit([{ kind: "thread.updated", threadId, payload: { title } }]);
+        return ok({ position: position() });
+      },
+      setModel(threadId, model) {
+        if (!held.has(threadId)) return err({ kind: "not_owner", threadId });
+        if (model === null) models.delete(threadId);
+        else models.set(threadId, model);
+        commit([{ kind: "thread.updated", threadId, payload: { model } }]);
         return ok({ position: position() });
       },
       compact: () => Promise.reject(new Error("compact is not part of the fake")),
@@ -598,6 +613,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     diagnoseCalls: () => counters.diagnoses,
     secrets,
     titles,
+    chosenModels: models,
     submitted,
     held,
     acquisitions,

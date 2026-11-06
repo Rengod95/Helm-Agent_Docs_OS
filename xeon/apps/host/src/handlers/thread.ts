@@ -305,6 +305,36 @@ export function createThreadRenameHandler(
 }
 
 /**
+ * 대화가 다음 turn부터 쓸 모델을 정한다(M4 T-MODEL). `model`은 `provider/id`이고 카탈로그(`ports.models`)에 없으면 `jsonrpc.invalidParams`다.
+ * null은 지정을 거둔다. 쓰기 소유는 `thread.rename`과 같게 한 번 얻어 본다
+ */
+export function createThreadSetModelHandler(
+  engine: Engine,
+  hub: () => ConnectionHub,
+): WireHandler<"thread.setModel"> {
+  const { ports } = engine;
+  return async (params) => {
+    const { threadId, model } = params;
+    requireThread(engine, threadId, "thread.setModel");
+    if (model !== null) {
+      const slash = model.indexOf("/");
+      const provider = slash < 0 ? "" : model.slice(0, slash);
+      const modelId = slash < 0 ? "" : model.slice(slash + 1);
+      if (!ports.models.modelIds(provider).includes(modelId)) {
+        throw wireError("jsonrpc.invalidParams", {
+          details: { issues: [{ path: "model", message: "model is not in the catalog" }] },
+        });
+      }
+    }
+    return await withWriteOwner(engine, hub(), threadId, () => {
+      const set = ports.threads.setModel(threadId, model);
+      if (!set.ok) throw wireErrorOfLifecycle(set.error, "thread.setModel");
+      return set.value;
+    });
+  };
+}
+
+/**
  * 쓰기 소유자만 지울 수 있다. `fresnel sessions rm`처럼 thread를 열지 않고 지우는 클라이언트를 위해 소유를 쥐지 않았으면 한 번 얻어 본다
  * (HS-28 암묵 획득과 같은 규칙. 표(§3.4)가 "잠금을 얻을 수 없으면 거부"라고 적었다). 얻지 못하면 3002다.
  * 지우지 못했으면 이 호출이 얻은 잠금은 놓되, 그동안 다른 연결이 소유를 이어받았으면 놓지 않는다(`withWriteOwner`).

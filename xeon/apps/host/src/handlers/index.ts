@@ -42,6 +42,7 @@ import {
   createThreadOpenHandler,
   createThreadReadHandler,
   createThreadRenameHandler,
+  createThreadSetModelHandler,
   createThreadRevertHandler,
 } from "./thread.ts";
 import { createTrustHandlers } from "./trust.ts";
@@ -84,6 +85,7 @@ export function createWireHandlers(
     "thread.fork": createThreadForkHandler(engine, hub),
     "thread.revert": createThreadRevertHandler(engine),
     "thread.rename": createThreadRenameHandler(engine, hub),
+    "thread.setModel": createThreadSetModelHandler(engine, hub),
     "thread.compact": createThreadCompactHandler(engine, hub),
     "thread.export": createThreadExportHandler(engine),
     "turn.start": createTurnStartHandler(engine, hub),

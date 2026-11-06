@@ -337,6 +337,14 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       if (!head.ok) return head;
       return ok({ position: { storeId, seq: head.value } });
     },
+    setModel(threadId, model) {
+      // 호출마다 새 키다: 같은 키로 다른 모델을 쓰면 key_reused라 호출 한 번이 모델 한 번이다
+      const set = session.threads.setModel(threadId, model, deps.ids.next("evt"));
+      if (!set.ok) return set;
+      const head = session.feed.headSeq();
+      if (!head.ok) return head;
+      return ok({ position: { storeId, seq: head.value } });
+    },
     hasTitle(threadId) {
       const found = session.query.thread(threadId);
       if (!found.ok) return found;

@@ -343,6 +343,14 @@ export interface ThreadPort {
     threadId: ThreadId,
     title: string,
   ): Result<{ readonly position: StreamPosition }, LifecycleError | ReadFailure>;
+  /**
+   * 쓰기 소유자만. 대화가 다음 turn부터 쓸 모델을 정한다(`thread.updated { model }` 커밋). null이면 지정을 거둔다.
+   * 호출마다 새 요청 키를 만든다. 참조가 카탈로그에 있는지는 처리기가 `models`로 본다
+   */
+  setModel(
+    threadId: ThreadId,
+    model: string | null,
+  ): Result<{ readonly position: StreamPosition }, LifecycleError | ReadFailure>;
   /** 제목이 이미 있는가. 첫 입력 자동 제목이 사람이 정한 제목을 덮지 않게 한다. 모르는 thread는 없는 것(false)이다 */
   hasTitle(threadId: ThreadId): Result<boolean, ReadFailure>;
   /** 제목 값(없으면 null). `thread.export`의 머리말과 파일 이름에 쓴다. 값을 가리지 않는다(처리기가 가린다). 모르는 thread는 null이다 */
