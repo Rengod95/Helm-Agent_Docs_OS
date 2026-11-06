@@ -49,7 +49,7 @@ test("settings_defs_pass_checks", () => {
   });
   expect(tasksSettings.defs["limits.subagents"].ui).toMatchObject({
     order: 20,
-    label: "Concurrent subagents",
+    label: "Concurrent subagents (all)",
   });
   expect(tasksSettings.defs["limits.modelCalls"].ui).toMatchObject({
     order: 30,

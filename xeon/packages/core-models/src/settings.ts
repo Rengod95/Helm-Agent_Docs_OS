@@ -337,7 +337,7 @@ const group = defineSettings("l1.models", {
       widget: "table",
       order: 10,
       label: "Rate limit",
-      help: "provider → { minIntervalMs, onLimit(wait|switch|fail), maxWaitMs }",
+      help: "Per provider: minimum interval (minIntervalMs), what to do at the limit (onLimit: wait, switch or fail), longest wait (maxWaitMs).",
     },
     since: "0.1.0",
   },
