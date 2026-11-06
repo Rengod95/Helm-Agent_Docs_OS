@@ -556,7 +556,7 @@ WebView 엔진 차이로 생기는 웹 API 제약 [제안. 각 항목은 M2 첫 
 - 외부 도구 점검 결과는 `host.status { includeBinaries: true }`의 `binaries`(`HostBinaryReport`)로 받는다(`F.wire-settings.spec` §3.3.1, `L4.host-service.spec` HS-69) [결정: M2 마감 G2-07]. 연결이 결과를 스키마로 검증해 건네므로 화면은 다시 parse하지 않고 `@fresnel/client/settings`의 `diagnostics.ts`가 행으로 바꾼다. 실행 파일 경로는 wire에 없다. 점검은 바이너리마다 자식 프로세스를 띄우므로 설정 화면이 열릴 때와 "다시 확인"에서만 요청한다(`SetupCommands.load({ binaries: true })`). 시작 안내 띠의 읽기(`binaries: false`)와 `settings.invalidated` 뒤 다시 읽기는 점검하지 않고, 화면은 앞서 읽은 점검 결과를 이어 붙인다(`src/app/setup.ts` `keepTools`). `binaries`가 없는 응답(점검을 청하지 않음, 구형 host의 `-32601`), 취소(`request.cancelled`), 읽기 실패는 모두 "받을 수 없음"과 `fresnel doctor` 안내를 보이고, 이 단계는 "확인할 수 없음"으로 표시하되 대화 시작을 막지 않는다. 앱이 보고서를 주입하던 `createApp({ binaryReport })`는 없앴다.
 - `settings.invalidated`를 받으면(`keys`에 `l1.models.`로 시작하는 키가 있거나 `keys`가 빈 알림) 설정 화면과 안내 띠가 `settings.get`으로 다시 읽는다. 구독은 연결이 `live`가 될 때마다 새로 건다. 같은 연결의 `settings.set` 호출자도 알림을 받으므로 저장 직후 화면은 한 번 더 읽는다.
 - 저장이 거절되면(`settings.set`의 3102) 화면은 host가 준 첫 문제의 문장을 그대로 보인다: `저장하지 못했습니다: 알 수 없는 모델 anthropic/claude-sonnet-5.5 (anthropic의 모델: claude-sonnet-5-5, …)`. 기본 모델은 저장하기 전에 host가 카탈로그에서 검사한다(`L4.host-service.spec` HS-78). "provider에 연결"은 그 키의 모델 provider 사용을 허용하는 행위이기도 하다(`L4.host-service.spec` HS-45): 같은 연결을 다시 저장하면 이전 빌드가 빈 정책으로 만든 키의 허용이 다시 맞춰진다 [결정: M2 Mac 실기]. 연결 뒤에는 `secret.meta` 없이 모델 호출이 된다.
-- 모델 키와 기본 모델 단계가 끝나지 않았으면 대화 화면 위에 안내 띠("설정 열기")를 보인다(`src/views/setup-banner.tsx`). 설정을 읽지 못하는 연결에서는 띠를 그리지 않는다.
+- 모델 키와 기본 모델 단계가 끝나지 않았으면 대화 화면 위에 안내 띠("시작 안내 열기")를 보인다(`src/views/setup-banner.tsx`). 설정을 읽지 못하는 연결에서는 띠를 그리지 않는다.
 - 화면의 로컬 상태는 요청 결과와 입력 중인 모델 이름뿐이고 거울에 넣지 않는다(FS-03, FS-04). 키 값은 로컬 상태에도 없다(§4.14.1).
 
 #### 4.14.1 사이드카 연결에서 키 값 받기 [결정: M2 첫 실행 M-12]

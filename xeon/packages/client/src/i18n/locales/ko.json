@@ -1825,7 +1825,7 @@
   "desktop.settings.table.record.add.button": "항목 추가",
   "desktop.settings.table.remove.button": "지우기",
   "desktop.settings.table.unreadable": "이 값은 표 모양이 아니어서 여기서 고칠 수 없어요. 파일로 보기에서 고쳐 주세요.",
-  "desktop.setup.openSettings.button": "설정 열기",
+  "desktop.setup.openGuide.button": "시작 안내 열기",
   "desktop.status.approvals": "승인 {count}",
   "desktop.status.goal": "목표 {judged}/{max}",
   "desktop.status.cell.approvals.description": "답을 기다리는 승인이 {count}개 있어요.",

@@ -1825,7 +1825,7 @@
   "desktop.settings.table.record.add.button": "Add entry",
   "desktop.settings.table.remove.button": "Remove",
   "desktop.settings.table.unreadable": "This value is not in table shape, so it cannot be edited here. Edit it in the file view.",
-  "desktop.setup.openSettings.button": "Open settings",
+  "desktop.setup.openGuide.button": "Open getting started",
   "desktop.status.approvals": "Approvals {count}",
   "desktop.status.goal": "Goal {judged}/{max}",
   "desktop.status.cell.approvals.description": "{count} approvals are waiting for an answer.",
