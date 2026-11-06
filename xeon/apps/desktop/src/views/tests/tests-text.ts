@@ -149,6 +149,7 @@ const FAILURE_NOTICE: Readonly<Record<TestFailure, MessageId>> = {
   offline: "desktop.tests.notice.failed.offline",
   unsupported: "desktop.tests.notice.failed.unsupported",
   rejected: "desktop.tests.notice.failed.rejected",
+  targetNotLoaded: "desktop.tests.notice.failed.targetNotLoaded",
   failed: "desktop.tests.notice.failed.failed",
 };
 

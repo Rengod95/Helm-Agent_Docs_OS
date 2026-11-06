@@ -5,7 +5,7 @@ import type { ExtTestRunParams } from "@fresnel/contracts/wire";
 import { ALL_TESTS, NEW_TEST_DEFAULT, type NewTestDraft, type TestFilter } from "./tests.ts";
 
 /** 명령 실패의 종류(화면이 메시지로 바꾼다). 잠김과 엔진 대상 전환 중은 `failed`로 묶는다 */
-export type TestFailure = "offline" | "unsupported" | "rejected" | "failed";
+export type TestFailure = "offline" | "unsupported" | "rejected" | "targetNotLoaded" | "failed";
 
 export type TestsNotice =
   /** Test run 대화를 만들었다. `name`은 대화 이름이 된 대상 확장 이름이다 */

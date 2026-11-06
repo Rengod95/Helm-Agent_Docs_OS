@@ -14,9 +14,9 @@ import { assertNever, attemptAsync, detach, parse, rethrow } from "@fresnel/cont
 import { ThreadIdSchema } from "@fresnel/contracts/conversation";
 import type { ReplayReport } from "@fresnel/contracts/services";
 import type { ExtTestRunParams } from "@fresnel/contracts/wire";
-import { useEffect, useReducer, type ReactNode } from "react";
+import { useEffect, useReducer, useState, type ReactNode } from "react";
 import { useLinkPhase } from "../../state/engine/index.ts";
-import { useShell, type WorkbenchContext } from "../../state/shell/index.ts";
+import { useShell, useShellActions, type WorkbenchContext } from "../../state/shell/index.ts";
 import { useCommands } from "../commands.ts";
 import { tabLinkOf } from "../workbench/tab-read.ts";
 import { phaseOf, runControl, sendTestPrompt, startTest } from "./tests-actions.ts";
@@ -48,6 +48,7 @@ export function TestsScreen(): ReactNode {
   const online = link === "live";
   const scope = threadScopeOf(useShell((s) => s.context));
   const compact = useShell((s) => s.layout) === "compact";
+  const shell = useShellActions();
   const [ui, dispatch] = useReducer(testsUiReducer, INITIAL_TESTS_UI);
   const list = useTestList(link);
   const records = list.read.kind === "ready" ? list.read.value : [];
@@ -85,6 +86,24 @@ export function TestsScreen(): ReactNode {
     };
   }, [commands, online, selectedRunning, selectedThread]);
 
+  // 새 시험 시트가 열려 있는 동안 고를 수 있는 확장 이름을 읽는다. 읽지 못하면 고르기 줄 없이 입력만 둔다
+  const sheetOpen = ui.sheet !== null;
+  const [targetNames, setTargetNames] = useState<readonly string[]>([]);
+  useEffect(() => {
+    if (!online || !sheetOpen) return undefined;
+    let active = true;
+    const run = async (): Promise<void> => {
+      const got = await commands.workbench.list();
+      if (active && got.ok) {
+        setTargetNames(got.value.filter((e) => e.safeModeExcluded === null).map((e) => e.name));
+      }
+    };
+    detach(run(), rethrow);
+    return () => {
+      active = false;
+    };
+  }, [commands, online, sheetOpen]);
+
   const startNow = async (params: ExtTestRunParams, prompt: string | null): Promise<void> => {
     dispatch({ type: "sending", sending: true });
     const started = await startTest(commands.tests, params);
@@ -106,12 +125,19 @@ export function TestsScreen(): ReactNode {
     }
     dispatch({ type: "sending", sending: false });
     if (started.ok) {
+      // 과제를 보냈으면 화면을 시험 대화로 옮긴다(목록에 남아 있으면 열린 줄 모른다)
+      if (prompt !== null && started.value.threadId !== null) shell.switchArea("chat");
       dispatch({ type: "sheetClose" });
       dispatch({ type: "notice", notice: startNoticeOf(params) });
       list.reload();
       return;
     }
-    dispatch({ type: "notice", notice: { kind: "failed", failure: started.failure } });
+    // Test run의 대상이 설치되어 실린 확장이 아니면 호스트가 거절한다: 일반 거절 글 대신 이유와 고를 곳을 말한다
+    const failure =
+      params.kind === "testRun" && started.failure === "rejected"
+        ? "targetNotLoaded"
+        : started.failure;
+    dispatch({ type: "notice", notice: { kind: "failed", failure } });
   };
 
   const submit = async (): Promise<void> => {
@@ -201,6 +227,7 @@ export function TestsScreen(): ReactNode {
       compact={compact}
       selectedPaused={selectedThread !== null && ui.paused[selectedThread] === true}
       selectedPhase={selectedThread === null ? null : (ui.phase[selectedThread] ?? null)}
+      targetNames={targetNames}
       handlers={handlers}
     />
   );
