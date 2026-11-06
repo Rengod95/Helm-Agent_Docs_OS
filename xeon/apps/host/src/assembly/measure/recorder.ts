@@ -134,6 +134,7 @@ function callRecord(call: UsageRecord): MeasureRecord {
       model: call.modelId,
       stopReason: call.stopReason,
       ...(call.scopeId === null ? {} : { scope: call.scopeId }),
+      ...(call.requestId === undefined ? {} : { request: call.requestId }),
     },
   };
 }

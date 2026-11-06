@@ -510,3 +510,64 @@ test("calls from a child thread are attributed to the group that owns the spawn 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("a web search call made inside a turn carries its tool call id and is written with that turn", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "measure-search-"));
+  const listeners = new Set<CommitListener>();
+  let meterListener: ((record: UsageRecord) => void) | undefined;
+  const { stop } = startMeasurement({
+    dir,
+    session: {
+      feed: {
+        onCommit: (listener: CommitListener) => {
+          listeners.add(listener);
+          return () => {
+            listeners.delete(listener);
+          };
+        },
+      },
+    },
+    usage: {
+      subscribe: (listener) => {
+        meterListener = listener;
+        return () => {
+          meterListener = undefined;
+        };
+      },
+    },
+    trace: TRACE,
+    enabled: () => true,
+    logger,
+    now: () => AT,
+  });
+  try {
+    meterListener?.({
+      ...call(AT + 10, AT + 20, AT + 30),
+      role: "search",
+      requestId: "call_web_1",
+    });
+    const events = [
+      event(1, "turn.completed", { status: "completed", stepCount: 1, usage: null, error: null }),
+    ];
+    for (const listener of listeners) listener({ firstSeq: 1, lastSeq: 1, events });
+    await Promise.resolve();
+    await Promise.resolve();
+    const peek = openMeasureStore(join(dir, "measure.db"));
+    if (!peek.ok) throw new Bug("the measure database must open");
+    const rows = peek.value.turn(THREAD, TURN);
+    peek.value.close();
+    if (!rows.ok) throw new Bug("the measure database must be readable");
+    const searches = rows.value.filter(
+      (row) => row.kind === "call" && row.tags["role"] === "search",
+    );
+    expect(searches).toHaveLength(1);
+    expect(searches[0]).toMatchObject({
+      threadId: THREAD,
+      turnId: TURN,
+      metrics: { totalTokens: 135 },
+      tags: { role: "search", request: "call_web_1" },
+    });
+  } finally {
+    stop();
+  }
+});

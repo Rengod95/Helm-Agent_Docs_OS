@@ -224,6 +224,8 @@ export interface ModelCallContext {
   readonly role: ModelRole;
   /** 사용량을 귀속할 scope. 그룹이 일으킨 호출이면 그 scope */
   readonly scopeId?: RegistrationId;
+  /** 호출을 일으킨 도구 호출 id(웹 검색 등 도구가 부르는 배경 호출). 사용량 기록에 그대로 남는다 */
+  readonly requestId?: string;
   readonly signal?: AbortSignal;
 }
 
@@ -300,6 +302,8 @@ export interface UsageRecord {
   readonly stepId: StepId | null;
   readonly role: ModelRole;
   readonly scopeId: RegistrationId | null;
+  /** 호출을 일으킨 도구 호출 id. 도구가 부른 배경 호출에만 있다 */
+  readonly requestId?: string;
   readonly provider: string;
   readonly modelId: string;
   /** pi-ai Usage 그대로. cost는 calculateCost 결과 */
@@ -479,6 +483,12 @@ export type HostedSearchModel = string;
 export type HostedSearchContinuation = string;
 
 export interface HostedSearchRequest {
+  /** 검색을 부른 도구 실행. 있으면 모델 호출의 사용량이 이 대화·Turn·요청에 귀속하고, 없으면 예약 thread에 모인다 */
+  readonly origin?: {
+    readonly threadId: ThreadId;
+    readonly turnId: TurnId | null;
+    readonly requestId: string | null;
+  };
   readonly model: HostedSearchModel;
   /** 고정 시스템 프롬프트. 예: "Search the web for the user's query and stop. Do not answer." */
   readonly system: string;

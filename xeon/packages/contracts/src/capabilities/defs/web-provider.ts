@@ -1,5 +1,6 @@
 import { Type, type Static, type TLiteral, type TUnion, type TUnsafe } from "typebox";
 import type { Clock, SchemaProof } from "../../base/index.ts";
+import type { ThreadId, TurnId } from "../../conversation/index.ts";
 import type { CapabilityId } from "../ids.ts";
 import {
   CacheUsageSchema,
@@ -220,8 +221,18 @@ export interface SearchDirectives {
   readonly exclude: readonly string[];
 }
 
+/** 검색을 부른 도구 실행. 내장 검색 래퍼가 모델 호출을 이 대화·Turn·요청에 귀속하는 데 쓴다(§4.8.4). 대화 밖 호출에는 없다 */
+export interface ProviderSearchOrigin {
+  readonly threadId: ThreadId;
+  readonly turnId: TurnId | null;
+  /** 도구 호출 id */
+  readonly requestId: string | null;
+}
+
 /** 정규화한 검색 요청. 쿼리 지시어는 앞단이 이미 풀었다(§4.8.5) */
 export interface ProviderSearchRequest {
+  /** 부른 도구 실행. 없으면 대화에 귀속하지 않는다 */
+  readonly origin?: ProviderSearchOrigin;
   readonly terms: string;
   readonly directives: SearchDirectives;
   readonly objective?: string;

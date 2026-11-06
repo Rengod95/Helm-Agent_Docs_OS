@@ -7,7 +7,7 @@ import {
   HOSTED_SEARCH_THREAD,
 } from "../src/hosted-search.ts";
 import { tape, type ModelTape } from "../src/testing/index.ts";
-import { flushMicrotasks } from "@fresnel/ext-host/testing";
+import { fixedIdFactory, flushMicrotasks } from "@fresnel/ext-host/testing";
 import { searchEvents, type SearchEventsInput } from "./support/anthropic-events.ts";
 import { spyDispatcher } from "./support/dispatcher.ts";
 import { createHarness, FAKE_KEY, type Harness } from "./support/harness.ts";
@@ -178,6 +178,29 @@ describe("hosted_search_single_turn", () => {
       input: 300,
       output: 50,
     });
+  });
+
+  test("a call with an origin is recorded under that thread, turn and tool call id", async () => {
+    const h = harness([{ inputTokens: 300, outputTokens: 50 }]);
+    const ids = fixedIdFactory();
+    const origin = { threadId: ids.next("thr"), turnId: ids.next("trn"), requestId: "call_1" };
+    const seen: { threadId: string; turnId: string | null; requestId?: string; role: string }[] =
+      [];
+    h.service.usage.subscribe((record) => {
+      seen.push({
+        threadId: record.threadId,
+        turnId: record.turnId,
+        role: record.role,
+        ...(record.requestId === undefined ? {} : { requestId: record.requestId }),
+      });
+    });
+    await hosted(h).search(request({ origin }), SIGNAL);
+    expect(seen).toEqual([
+      { threadId: origin.threadId, turnId: origin.turnId, role: "search", requestId: "call_1" },
+    ]);
+    expect(h.service.usage.totals({ threadId: HOSTED_SEARCH_THREAD, role: "search" }).calls).toBe(
+      0,
+    );
   });
 
   test("an explicit model reference and the search role routing both pick the model", async () => {

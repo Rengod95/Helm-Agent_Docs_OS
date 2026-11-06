@@ -175,6 +175,7 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
       stepId: ctx.stepId,
       role: ctx.role,
       scopeId: ctx.scopeId ?? null,
+      ...(ctx.requestId === undefined ? {} : { requestId: ctx.requestId }),
       provider: spec.provider,
       modelId: spec.modelId,
       usage: message.usage,

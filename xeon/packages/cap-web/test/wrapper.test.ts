@@ -12,6 +12,7 @@ import {
 import { parseSearchQuery } from "../src/search/query.ts";
 import type { FakeHostedSearch } from "../src/testing/fake-hosted-search.ts";
 import { manualClock } from "./support/clock.ts";
+import { threadIdOf } from "./support/ids.ts";
 import { releaseStores } from "./support/store.ts";
 import { hostedTape } from "./support/tapes.ts";
 import { makeWebWorld } from "./support/web-world.ts";
@@ -95,6 +96,18 @@ describe("builtin wrapper", () => {
     expect(result.items[1]?.publishedAt).toBeUndefined();
     expect(result.items[3]).toMatchObject({ title: "Quote", passages: [{ kind: "snippet" }] });
     expect(result.appliedNatively).toEqual(["domains"]);
+  });
+
+  test("the calling tool run is passed to every hosted request", async () => {
+    const hosted = hostedTape("wrapper-basic");
+    const { provider } = wrapperOver(hosted);
+    const origin = {
+      threadId: threadIdOf(1),
+      turnId: null,
+      requestId: "call_web_1",
+    };
+    await provider.search(request("release notes", { origin }), SIGNAL);
+    expect(hosted.requests[0]?.origin).toEqual(origin);
   });
 
   test("pause_turn continuation limit", async () => {
