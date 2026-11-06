@@ -1592,6 +1592,7 @@
   "desktop.item.status.failed": "Failed",
   "desktop.item.status.interrupted": "Interrupted",
   "desktop.item.thinking": "Thinking",
+  "desktop.item.toolAwaitingApproval": "Waiting for approval",
   "desktop.item.toolRunning": "Running",
   "desktop.item.toolRunningFor": "Running · {seconds}s",
   "desktop.lockedDialog.close.button": "Close",

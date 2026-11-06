@@ -9,7 +9,18 @@ import { RecordedItem, StreamingRow } from "../../src/views/item-view.tsx";
 import { Providers } from "../../src/views/providers.tsx";
 import { PluginUiProvider } from "../../src/views/plugin/plugin-context.tsx";
 import { emptyPluginUi } from "./plugin/support.tsx";
-import { SUB, delta, itm, openedHarness, recorded, thr, userItem } from "../state/helpers.ts";
+import {
+  SUB,
+  approvalRequest,
+  delta,
+  evt,
+  itm,
+  summary,
+  openedHarness,
+  recorded,
+  thr,
+  userItem,
+} from "../state/helpers.ts";
 import { fakeCommands } from "./fake-commands.ts";
 
 // 트랜스크립트 한 행의 그림(시안 _chat-rt ItemView). 사용자 글은 말풍선, 어시스턴트 글은 말풍선 없는 글이고
@@ -209,6 +220,29 @@ describe("one row per tool call", () => {
     expect(failed).not.toContain("[not_found]");
     const ok = visibleText(render(<RecordedItem id={itm(3)} />, h));
     expect(ok).not.toContain(t("desktop.item.status.failed"));
+  });
+
+  test("a running call that waits for approval says so and counts no seconds", () => {
+    const h = openedHarness();
+    ingestRecords(h, [callItem(1, 9, "bash"), callItem(2, 10, "bash")]);
+    h.store.ingest({ type: "threads", threads: [summary(thr(1), { status: "running" })] });
+    const request = approvalRequest(thr(1));
+    h.store.ingest({
+      type: "approvals",
+      approvals: [
+        {
+          approvalId: evt(7),
+          seq: 4,
+          request: { ...request, origin: { ...request.origin, toolCallId: "call-9" } },
+        },
+      ],
+    });
+    h.store.flush();
+    const waiting = visibleText(render(<RecordedItem id={itm(1)} />, h));
+    expect(waiting).toContain(t("desktop.item.toolAwaitingApproval"));
+    expect(waiting).not.toContain(t("desktop.item.toolRunning"));
+    const other = visibleText(render(<RecordedItem id={itm(2)} />, h));
+    expect(other).not.toContain(t("desktop.item.toolAwaitingApproval"));
   });
 
   test("a call that never got a result in an idle thread is marked interrupted, not done", () => {

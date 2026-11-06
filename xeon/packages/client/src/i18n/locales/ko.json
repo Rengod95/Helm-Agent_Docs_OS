@@ -1592,6 +1592,7 @@
   "desktop.item.status.failed": "실패",
   "desktop.item.status.interrupted": "중단됨",
   "desktop.item.thinking": "생각",
+  "desktop.item.toolAwaitingApproval": "승인 기다리는 중",
   "desktop.item.toolRunning": "실행 중",
   "desktop.item.toolRunningFor": "실행 중 · {seconds}초",
   "desktop.lockedDialog.close.button": "닫기",
