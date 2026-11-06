@@ -23,13 +23,15 @@ import {
   useThreadApprovals,
   useUnlistedApprovals,
 } from "../state/engine/index.ts";
-import { useSelectedThreadId } from "../state/ui/index.ts";
+import { useShellActions } from "../state/shell/index.ts";
+import { useScreen, useSelectedThreadId } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
 import { pickWorkspaceFolder, type FolderPickInvoke } from "./folder-pick.ts";
 import { useStartNewThread } from "./new-thread-flow.ts";
 import { recentWorkspacesOf, type RecentWorkspace } from "./new-thread-model.ts";
 import { rowResumable } from "./resume-band-model.ts";
 import { folderLabel, sidebarGroupsOf } from "./thread-groups.ts";
+import { rowOpensChat } from "./thread-nav-model.ts";
 import { ThreadRowMenu } from "./thread-row-menu.tsx";
 import { checkWorkspaceInput, createFailureText, workspaceHint } from "./workspace-model.ts";
 
@@ -70,6 +72,8 @@ const ThreadRow = memo(function ThreadRow(props: {
   readonly child: boolean;
 }): ReactNode {
   const commands = useCommands();
+  const shell = useShellActions();
+  const screen = useScreen();
   const id: ThreadId = props.thread.threadId;
   const selected = useSelectedThreadId() === id;
   const unlisted = useUnlistedApprovals(id);
@@ -93,6 +97,20 @@ const ThreadRow = memo(function ThreadRow(props: {
             .join(" ") || undefined
         }
         onSelect={() => {
+          // 설정이나 받은 요청 같은 전체 쪽이 열려 있으면 그 대화 화면으로 간다(rtE R-5)
+          const model = shell.snapshot();
+          if (
+            rowOpensChat({
+              screen,
+              area: model.area,
+              chatPlaceScreen: model.places.chat.screen,
+            })
+          ) {
+            if (model.area !== "chat") shell.switchArea("chat");
+            commands.showScreen("chat");
+            if (model.places.chat.screen !== "chat")
+              shell.updatePlace({ screen: "chat", scroll: 0 });
+          }
           commands.selectThread(id);
         }}
       >
