@@ -446,6 +446,7 @@ const BUILD_ONLY_CRATES = [
   "cargo_toml@1.0.1",
   "cc@1.10.0",
   "cfg-expr@0.15.8",
+  "cfg_aliases@0.2.2",
   "embed-resource@3.0.12",
   "find-msvc-tools@0.1.15",
   "phf_codegen@0.13.1",
@@ -472,8 +473,8 @@ test("every registry crate in apps/desktop/src-tauri/Cargo.lock has a notice, ex
   const listed = noticeCrates(
     readFileSync(join(DESKTOP_DIR, "resources", "THIRD-PARTY-NOTICES-RUST.txt"), "utf8"),
   );
-  expect(locked.length).toEqual(476);
-  expect(listed.length).toEqual(453);
+  expect(locked.length).toEqual(534);
+  expect(listed.length).toEqual(510);
   expect(locked.filter((crate) => !listed.includes(crate)).toSorted()).toEqual(BUILD_ONLY_CRATES);
   expect(listed.filter((crate) => !locked.includes(crate))).toEqual([]);
 });
