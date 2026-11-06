@@ -706,10 +706,19 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
         });
       }
       const amb = ambient();
-      const thread = threadOf(amb, record);
+      // 읽기만 하므로 열린 thread가 아니어도 된다(재시작 뒤 아직 열지 않은 대화의 읽기 전용 메서드). 문맥은 있어야 한다
+      if (amb === undefined) {
+        throw new PrimitiveError(
+          "no_thread",
+          "no thread context (setup body or detached callback)",
+          {
+            scopeId: record.id,
+          },
+        );
+      }
       const port = portOf(record);
       const queried = await port.queryRecords(
-        thread.threadId,
+        amb.threadId,
         {
           kind: query.kind,
           ...(query.subject === undefined ? {} : { subject: query.subject }),

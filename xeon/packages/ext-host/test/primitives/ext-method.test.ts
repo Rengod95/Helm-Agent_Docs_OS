@@ -323,6 +323,36 @@ test("a throwing handler is threw with a 500 character message and is reported o
   ).toEqual(["method boom threw", "method long threw"]);
 });
 
+test("a read-only method on a thread that is not open gets the thread id with threadOpen false, a writing one gets no thread", async () => {
+  const t = await createTestHost();
+  const thread = t.newThread();
+  const seen: { verb: string; threadId: string | null; threadOpen: boolean | undefined }[] = [];
+  await t.host.install(
+    makeUnit({ name: "calc", methods: [declOf("peek"), writableDeclOf("poke")] }, (g) => {
+      for (const verb of ["peek", "poke"]) {
+        hostOf(g).registerMethod(verb, {
+          handler: (_params, ctx) => {
+            seen.push({ verb, threadId: ctx.threadId, threadOpen: ctx.threadOpen });
+            return Promise.resolve(null);
+          },
+        });
+      }
+    }),
+  );
+  // 열지 않은 thread: 읽기 전용은 원래 id와 threadOpen false, 쓰기는 thread 없는 호출
+  await t.host.methods.call(callOf("calc", "peek", {}, thread));
+  await t.host.methods.call(callOf("calc", "poke", {}, thread));
+  // 연 뒤에는 둘 다 thread id이고 threadOpen 값은 싣지 않는다
+  await t.host.openThread(thread);
+  await t.settled();
+  await t.host.methods.call(callOf("calc", "peek", {}, thread));
+  expect(seen).toEqual([
+    { verb: "peek", threadId: thread, threadOpen: false },
+    { verb: "poke", threadId: null, threadOpen: undefined },
+    { verb: "peek", threadId: thread, threadOpen: undefined },
+  ]);
+});
+
 test("a method of a switched-off Registration is extension_off and is no longer listed", async () => {
   const settled: ExtMethodSettled[] = [];
   const t = await createTestHost({ onMethodSettled: (info) => settled.push(info) });

@@ -848,7 +848,7 @@ export function registerHelmMethods(g: Pick<GroupApi<HelmState>, "state" | "read
 | methods.findings.unknown | 같은 파일 | 모르는 탐구 id는 빈 목록 |
 | methods.params | 같은 파일 | 스키마 위반은 `params_invalid`이고 turn과 spawn이 늘지 않는다 |
 | methods.threadless | 같은 파일 | 스레드 없는 호출은 대기 기본 보기와 빈 목록 |
-| methods.closed-thread | 같은 파일 | 열려 있지 않은 스레드(끝난 하위 대화 등)에 묶인 호출은 스레드 없는 호출로 다뤄 던지지 않는다(호스트 `ExtMethods.call`이 `threadId`를 null로 바꾼다) |
+| methods.closed-thread | 같은 파일 | 열려 있지 않은 스레드(끝난 하위 대화, 재시작 뒤 아직 열지 않은 대화)에 묶인 호출은 던지지 않는다. 읽기 전용 메서드는 `ctx.threadOpen === false`로 받아 상태는 초기값(대기)으로 보고 기록만 읽는다: `inquiries`와 `findings`는 끝난 탐구와 발견을 재시작 뒤에도 준다. 한 번도 열린 적 없는 스레드는 기록이 없어 빈 목록이다 |
 | methods.result | 같은 파일 | 세 메서드 모두 대기, 진행, 끝난 뒤에 `ok`다(결과 검사 통과) |
 | composition.defined | `test/unit/composition.test.ts` | `helmGroup.manifest.group.composition`이 정의되고 두 매니페스트와 `validateGroupDef`에 오류가 없다 |
 | composition.phases | 같은 파일 | 선언된 전이 스무 행이 `TRANSITIONS` 표와 행마다 같다 |

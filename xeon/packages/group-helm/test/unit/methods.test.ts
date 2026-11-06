@@ -373,7 +373,7 @@ test("result check: every method result passes the declared result schema in eac
   ]);
 });
 
-test("closed-thread: calls bound to a thread that is no longer open answer like a call without a thread", async () => {
+test("closed-thread: calls bound to a thread that is no longer open give the idle status and still read the recorded inquiries", async () => {
   const rig = await createRig();
   await rig.command("start 캐시 무효화");
   await rig.drain();
@@ -388,7 +388,20 @@ test("closed-thread: calls bound to a thread that is no longer open answer like 
     lease: "none",
   };
   expect(await call(rig, "status", {})).toEqual({ kind: "ok", value: idle });
-  expect(await call(rig, "inquiries", {})).toEqual({ kind: "ok", value: { inquiries: [] } });
+  // 상태 문서는 없지만(열린 thread가 아니다) 기록은 읽힌다: 끝난 탐구가 앱을 다시 켠 뒤에도 목록에 있다
+  expect(await call(rig, "inquiries", {})).toMatchObject({
+    kind: "ok",
+    value: {
+      inquiries: [
+        { topic: "캐시 무효화", status: "finished", outcome: "applied", findingCount: 3 },
+      ],
+    },
+  });
+  // 한 번도 열린 적 없는 thread에는 기록이 없으므로 빈 목록이다
+  expect(await call(rig, "inquiries", {}, rig.t.newThread())).toEqual({
+    kind: "ok",
+    value: { inquiries: [] },
+  });
   expect(await call(rig, "findings", { inquiryId: "hqqqqqqqqqqqqq" })).toMatchObject({
     kind: "ok",
   });
