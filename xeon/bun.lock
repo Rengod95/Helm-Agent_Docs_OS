@@ -64,6 +64,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@fresnel/contracts": "workspace:*",
+        "@fresnel/platform-process": "workspace:*",
       },
       "devDependencies": {
         "@electron/packager": "catalog:",

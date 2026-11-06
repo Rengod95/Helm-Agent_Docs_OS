@@ -1,13 +1,12 @@
 import { activeLocale, t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import { toast } from "@caustic/react";
-import { Channel, invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { createRoot } from "react-dom/client";
 import pkg from "../package.json" with { type: "json" };
 import { createApp } from "./app/bootstrap.ts";
 import { createLocalSettings, LOCAL } from "./settings-store/index.ts";
-import { createTauriIpc } from "./transport/ipc.ts";
+import { selectShellBridge } from "./shell/index.ts";
+import { createDesktopIpc } from "./transport/ipc.ts";
 import { Providers } from "./views/providers.tsx";
 import { App } from "./views/app.tsx";
 import { createPluginUiRuntime } from "./plugin-ui/runtime.ts";
@@ -31,6 +30,11 @@ import { UpdateContext } from "./views/update-context.ts";
 import { createUpdateController, type UpdatePort } from "./views/update-controller.ts";
 import type { UpdateChannelOf, UpdateInvoke } from "./views/update-invoke.ts";
 
+// 셸 호출은 모두 어댑터(src/shell)를 거친다. 실행 때 Electron(preload의 window.fresnelShell)인지 Tauri인지 고른다
+const shellBridge = selectShellBridge();
+const invoke = (command: string, args?: Readonly<Record<string, unknown>>): Promise<unknown> =>
+  shellBridge.invoke(command, args);
+
 const osReauth: OsReauthInvoke = (command, args) => invoke(command, args);
 
 // 폴더 선택 창은 모든 OS에서 Rust가 띄운다(플러그인 권한은 WebView에 주지 않는다)
@@ -41,15 +45,13 @@ const fileSave: FileSaveInvoke = (command, args) => invoke(command, args);
 
 // 업데이트 명령(B-10)도 Rust가 부른다. 확인, 내려받기, 설치는 Rust의 `updater.rs`가 하고, 내려받기 진행만 채널로 받는다
 const updateInvoke: UpdateInvoke = (command, args) => invoke(command, args);
-const updateChannel: UpdateChannelOf = (onMessage) => new Channel<unknown>(onMessage);
+const updateChannel: UpdateChannelOf = (onMessage) => shellBridge.createChannel(onMessage);
 const updatePort: UpdatePort = { invoke: updateInvoke, createChannel: updateChannel };
 
-// OS 알림, 트레이, 셸 의도 명령도 Rust가 부른다(WebView에는 알림 플러그인 권한을 주지 않는다). 깨우기 이벤트만 Tauri `listen`으로 듣는다
+// OS 알림, 트레이, 셸 의도 명령도 Rust가 부른다(WebView에는 알림 플러그인 권한을 주지 않는다). 깨우기 이벤트만 셸 다리의 `listen`으로 듣는다
 const osNotifyInvoke: OsNotifyInvoke = (command, args) => invoke(command, args);
 const subscribeShellIntent: SubscribeShellIntent = (onWake) =>
-  listen(SHELL_INTENT_EVENT, () => {
-    onWake();
-  });
+  shellBridge.listen(SHELL_INTENT_EVENT, onWake);
 
 // WebView 진입점. 스토어와 연결은 createApp이 만들고 여기서는 화면에 붙이기만 한다.
 const container = document.getElementById("root");
@@ -59,7 +61,7 @@ if (container === null) {
   const root = createRoot(container);
   // 로케일이 바뀌면 문장을 다시 풀도록 트리를 새로 만든다(문장은 렌더 때 현재 로케일로 풀린다)
   const rerender: { current: ((locale: string) => void) | null } = { current: null };
-  const ipc = createTauriIpc();
+  const ipc = createDesktopIpc(shellBridge);
   const localSettings = createLocalSettings(ipc);
   const shell = createShellStore(window.innerWidth);
   const registry = createDesktopRegistry();

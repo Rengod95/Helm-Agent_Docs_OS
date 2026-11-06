@@ -2,13 +2,14 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { createApp } from "../../src/app/bootstrap.ts";
 import { err, ok } from "@fresnel/contracts";
 import { mockIPC, clearMocks } from "@tauri-apps/api/mocks";
-import { createTauriIpc } from "../../src/transport/ipc.ts";
+import { createDesktopIpc } from "../../src/transport/ipc.ts";
+import { selectShellBridge } from "../../src/shell/index.ts";
 import { summary, thr } from "../state/helpers.ts";
 import { engineFake, until } from "../app/support.ts";
 import { fakeIpc } from "./fake-ipc.ts";
 import { tauriMockIpc } from "./tauri-mock.ts";
 
-// createTauriIpc를 mockIPC 위에서: 명령 이름과 인자 모양, Channel 메시지(바이트와 상태)의 해석, 오류 코드 변환을 본다.
+// createDesktopIpc를 mockIPC 위에서: 명령 이름과 인자 모양, Channel 메시지(바이트와 상태)의 해석, 오류 코드 변환을 본다.
 
 const disposers: (() => void)[] = [];
 afterEach(() => {
@@ -21,7 +22,7 @@ function mocked(fake = fakeIpc()): ReturnType<typeof tauriMockIpc> {
   return shell;
 }
 
-describe("createTauriIpc over mockIPC", () => {
+describe("createDesktopIpc over mockIPC", () => {
   test("attach sends two channels, parses the result and delivers bytes and states", async () => {
     const fake = fakeIpc({ state: { kind: "running", source: "sidecar", pid: 7 } });
     const shell = mocked(fake);
@@ -114,7 +115,7 @@ describe("createTauriIpc over mockIPC", () => {
     disposers.push(() => {
       clearMocks();
     });
-    const attached = await createTauriIpc().attach(
+    const attached = await createDesktopIpc(selectShellBridge()).attach(
       () => {},
       () => {},
     );
@@ -156,7 +157,7 @@ describe("db_restore over mockIPC", () => {
     disposers.push(() => {
       clearMocks();
     });
-    expect(await createTauriIpc().dbRestore("/backups/export-1")).toEqual({
+    expect(await createDesktopIpc(selectShellBridge()).dbRestore("/backups/export-1")).toEqual({
       ok: false,
       error: { kind: "invalid", command: "db_restore" },
     });

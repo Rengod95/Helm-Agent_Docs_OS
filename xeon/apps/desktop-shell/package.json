@@ -16,7 +16,8 @@
     "package": "bun scripts/package.ts"
   },
   "dependencies": {
-    "@fresnel/contracts": "workspace:*"
+    "@fresnel/contracts": "workspace:*",
+    "@fresnel/platform-process": "workspace:*"
   },
   "devDependencies": {
     "@electron/packager": "catalog:",

@@ -8,5 +8,8 @@
     "types": ["bun"]
   },
   "include": ["src", "test", "scripts"],
-  "references": [{ "path": "../../packages/contracts" }]
+  "references": [
+    { "path": "../../packages/contracts" },
+    { "path": "../../packages/platform-process" }
+  ]
 }
