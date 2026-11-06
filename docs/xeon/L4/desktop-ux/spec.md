@@ -1233,6 +1233,8 @@ compact 폭(720 이하)과 사이드바 시트:
 | 읽음 처리 | 로컬 커서(`afterSeq`)를 데스크톱 로컬 설정에 저장 [제안] `[gap:W-09]` |
 | 거르기 | 종류(모두, 승인, 제안, 알림), 대화, 정렬(오래된 것 먼저가 기본) |
 
+- 거르기 셀렉트(시안 p03): 대화 셀렉트는 `모든 대화`를 첫 항목으로 두고 그 뒤에 대기 승인이 있는 대화마다 하나를 둡니다. 정렬 셀렉트는 `오래된 것 먼저`(기본)와 `최근 것 먼저`이며 승인의 요청 시각으로 정렬합니다(같은 시각은 대기열 순서). 고른 대화에 대기 승인이 없어지면 `모든 대화`로 보입니다. 두 셀렉트는 승인 구역만 거르고 알림 구역은 거르지 않습니다. 구현: `src/views/inbox-model.ts`, `desktop-registry.tsx`의 `InboxScreen`.
+
 - 승인 카드 규칙
   - 공통 머리: kind 라벨, 대화 이름(누르면 그 대화), 상대 시각, caller 배지(`background`, `subagent:<이름>`, `ext:<이름>`), 원격에서 온 요청이면 "원격" 배지, `expiresAt`이 있으면 "HH:MM에 자동 거부/답"(`onExpire`).
   - 도구: 도구 이름, 위험도(`risk`), `command` 전문(`MessageCode`), `secretEnv` 핸들 목록, 인자 접힘(4000자), BlobRef면 "별도 저장소에 있어요". `ruleId`가 있으면 "규칙 <id> 때문에 물어요".
@@ -1482,7 +1484,7 @@ compact 폭(720 이하)과 사이드바 시트:
 │ 대화               2 │ 예약                                        [켜진 것 | 모두]  [새 예약] │
 │ 받은 요청          5 │ ! 서비스 모드가 꺼져 있어 앱을 닫으면 예약이 멈춰요 [서비스 켜기]       │
 │ 제안               3 │─────────────────────────────────────────────────────────────────────────│
-│>예약              !1 │ 제목            트리거         다음 실행       마지막 실행              │
+│>예약              !1 │ 예약            트리거         다음 실행       마지막 실행              │
 │ 연결                 │ 매일 정리       매일 09:00     내일 09:00      실패 rate_limited  [...] │
 │──────────────────────│ 빌드 감시       파일 src/**    변경 시         완료 3분 전        [...] │
 │ ~/code/fresnel      [+] │ 원격 점검       원격           수동            완료 어제         [실행] │
@@ -1527,7 +1529,7 @@ compact 폭(720 이하)과 사이드바 시트:
 
 | 항목 | 출처 |
 |---|---|
-| 행: 제목, 트리거, 다음 실행, 마지막 실행(상태 글자 색과 상대 시각). 꺼진 행은 칸을 흐리게 두고 배지를 쓰지 않는다. 반복 수, 멈춘 이유, 켜짐 칸은 시안(p07)에 없어 뺐다(실패 사유는 실행 기록 시트에서 본다) [결정: 시안 P-07 NOTES] | `schedule.list { enabled? }` → `{ entry, lastRun }` `[gap:V-04]` |
+| 행: 예약, 트리거, 다음 실행, 마지막 실행(상태 글자 색과 상대 시각). 꺼진 행은 칸을 흐리게 두고 배지를 쓰지 않는다. 반복 수, 멈춘 이유, 켜짐 칸은 시안(p07)에 없어 뺐다(실패 사유는 실행 기록 시트에서 본다) [결정: 시안 P-07 NOTES] | `schedule.list { enabled? }` → `{ entry, lastRun }` `[gap:V-04]` |
 | 서비스 모드 경고 | `settings.get { keys: ["l0.process.service.enabled", "l2.schedule.timers.whenServiceOff"] }`, `host.status.mode` |
 | 실행 기록 | `schedule.runs` |
 
@@ -2096,7 +2098,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | O-04 | `trust.get` → `trustCardOf` | `trust.decide { choice }` | 입력창 위 카드, 대화 상자 아님 |
 | O-05 | 시크릿 이름 | `SecretRevealPort.reveal` | 기본 초점 "취소", 실패 사유 문장 |
 | O-06 | 참조와 영향 | 삭제 동작 | `tone="danger"`, 기본 초점 "취소" |
-| O-07 | 최근 작업 폴더 `selectRecentWorkspaces` | `thread.create { workspace? }`, 검사 `checkWorkspaceInput` | OS 폴더 고르기는 `pick_folder`(W-19). 대화 목록은 작업 폴더별 묶음(머리의 `+`가 그 폴더에서 새 대화, 보낸 것 없는 빈 대화가 있으면 그리로 감)이고 ⌘N은 보던 폴더에서 열거나 폴더가 없으면 폴더 고르기 창을 연다(`L4.desktop.spec` §4.16), 폴더 입력란은 목록 아래 "다른 폴더에서 시작…" 팝오버 안에서 경로를 직접 적는 길로 남는다 [근거: `views/thread-list.tsx`, `views/thread-groups.ts`] |
+| O-07 | 최근 작업 폴더 `recentWorkspacesOf`(서로 다른 작업 폴더, 목록 순서, 최대 5개, "대화 N") | `thread.create { workspace? }`, 검사 `checkWorkspaceInput` | OS 폴더 고르기는 `pick_folder`(W-19). 대화 목록은 작업 폴더별 묶음(머리의 `+`가 그 폴더에서 새 대화, 보낸 것 없는 빈 대화가 있으면 그리로 감)이고 ⌘N은 보던 폴더에서 열거나 폴더가 없으면 폴더 고르기 창을 연다(`L4.desktop.spec` §4.16). 폴더 입력란은 목록 아래 "다른 폴더에서 시작…" 단추가 여는 대화 상자(`Dialog`)에서 경로를 직접 적는 길로 남고, 최근 작업 폴더를 고르면 입력란을 채운다. 만들면 대화 상자가 닫힌다 [근거: `views/thread-list.tsx`(`OtherFolder`), `views/new-thread-model.ts`, `views/thread-groups.ts`] |
 | O-08 | §6.11 | `schedule.create` | 닫을 때 초안 확인 |
 | O-09 | §4.8 표 | 없음 | `[gap:C-11]` |
 

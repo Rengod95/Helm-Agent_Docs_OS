@@ -31,6 +31,29 @@ export function blankThreadIn(
   return blank === undefined ? null : blank.threadId;
 }
 
+/** 최근 작업 폴더 후보의 최대 개수(시안 O-07 "최근") */
+const RECENT_WORKSPACE_MAX = 5;
+
+/** 최근 작업 폴더 한 줄. `path`는 보내는 값(절대 경로)이고 `count`는 그 폴더의 대화 수다 */
+export interface RecentWorkspace {
+  readonly path: string;
+  readonly count: number;
+}
+
+/**
+ * 최근 작업 폴더 후보. 대화 목록은 최근 활동 먼저이므로 폴더가 처음 나온 순서를 그대로 둔다.
+ * 빈 글과 폴더 없음은 뺀다. 대화 수는 그 폴더에 든 모든 대화다. 최대 5개다
+ */
+export function recentWorkspacesOf(threads: readonly ThreadSummary[]): readonly RecentWorkspace[] {
+  const counts = new Map<string, number>();
+  for (const thread of threads) {
+    const path = thread.workspace;
+    if (path === null || path.trim() === "") continue;
+    counts.set(path, (counts.get(path) ?? 0) + 1);
+  }
+  return [...counts].slice(0, RECENT_WORKSPACE_MAX).map(([path, count]) => ({ path, count }));
+}
+
 export function planNewThread(
   threads: readonly ThreadSummary[],
   selectedId: ThreadSummary["threadId"] | null,

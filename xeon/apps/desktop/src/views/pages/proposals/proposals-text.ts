@@ -29,7 +29,7 @@ export function statusFilterIdOf(status: StatusFilter): MessageId {
 export function sourceFilterIdOf(source: SourceFilter): MessageId {
   switch (source) {
     case "all":
-      return "desktop.proposals.filter.all";
+      return "desktop.proposals.filter.source.all";
     case "learning":
       return "client.settings.proposals.source.learning";
     case "knowledge":
@@ -42,7 +42,7 @@ export function sourceFilterIdOf(source: SourceFilter): MessageId {
 export function kindFilterIdOf(kind: KindFilter): MessageId {
   switch (kind) {
     case "all":
-      return "desktop.proposals.filter.all";
+      return "desktop.proposals.filter.kind.all";
     case "skill":
       return "client.settings.proposals.kind.skill";
     case "memory":
