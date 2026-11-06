@@ -110,7 +110,7 @@ function ShellToaster(props: { readonly registry: ShellRegistry }): ReactNode {
   return (
     <Toaster
       label={t("desktop.shell.toast.label")}
-      className="top-14 transition-[inset] duration-quick"
+      className="top-14 bottom-auto transition-[inset] duration-quick"
       style={
         place.kind === "center-bottom"
           ? { insetInline: "0.5rem" }
