@@ -3467,6 +3467,8 @@ DP-11을 caustic 토큰으로 정했습니다(caustic `27fe658`, `bbb094a`, `FOU
 - DP-11c 굵기 단계: 본문 400, 강조·라벨 500, 제목 600. SUIT 400·500은 Geist와 같은 무게로 보입니다. SUIT 600은 큰 제목에서 Geist 600보다 가벼워, `lang="ko"` 아래 18px 이상 600 역할(display, title-1·2 등)은 700으로 그립니다.
 - DP-11d 글자색 단계: primary·secondary·tertiary·placeholder = neutral 11·10·9·8. surface.base 위 대비가 라이트 20 : 11.6 : 7.7 : 5.9, 다크 16.7 : 8.8 : 6.5 : 5.2입니다(이전 라이트 secondary 13.9, 다크 9.9 : 7.0 : 5.7). 모든 단계가 WCAG 4.5:1 이상입니다.
 
+- DP-11e 글자 기준(변형 D, 2026-11-02 사용자 선택)은 앱 `src/type-scale.css`가 시안 `_shell/type-variants.css`와 같은 값으로 준다. 제목 2는 16/22 600, 제목 1은 24/32 600, 손으로 쓴 머리 `h1`은 16/22 700(설정 화면 `data-title="page"`만 20/28 700), 설명 13/19, 글 색 secondary·tertiary는 라이트 L .46·.54, 다크 .72·.64입니다. 머리 `h1`·`h2`는 `text-*` 크기·굵기 클래스를 붙이지 않고 이 규칙을 받습니다. T-LANG의 radius.css는 가져오지 않습니다(2026-11-02 되돌림).
+
 ### 13.3 3차 (2026-10-30)
 
 - DP-12 승인 상세는 caustic `ListDescription`(variant ghost, size xs) 한 목록으로 보입니다. 명령 전문, 위험도(`Badge tone="warning"`), 시크릿 참조(`ENV ← secret://…`), 인자를 행마다 이름표·값으로 둡니다. 따로 흩어진 줄, 이름표 문장, 접기를 두지 않습니다. 카드가 좌우 여백을 주므로 행의 좌우 여백은 0입니다(DP-07).

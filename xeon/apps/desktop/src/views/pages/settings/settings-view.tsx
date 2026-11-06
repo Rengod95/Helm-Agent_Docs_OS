@@ -134,7 +134,8 @@ export function SettingsPageView(props: SettingsPageProps): ReactNode {
         <header className="flex h-16 flex-none items-center gap-2 border-b border-border-subtle ps-6 pe-6">
           <h1
             id={headingId}
-            className="m-0 min-w-0 flex-1 truncate font-ui text-ui-strong font-bold text-text-primary"
+            data-title="page"
+            className="m-0 min-w-0 flex-1 truncate text-text-primary"
           >
             {titleOf}
           </h1>

@@ -186,7 +186,7 @@ export function ReviewView(props: ReviewViewProps): ReactNode {
           <ChevronLeft />
         </IconButton>
         <div className="flex min-w-0 flex-1 items-baseline gap-2.5">
-          <h1 id={headingId} className="m-0 shrink-0 font-ui text-ui-strong text-text-primary">
+          <h1 id={headingId} className="m-0 shrink-0 text-text-primary">
             {open === null ? t("desktop.review.title") : open.head.title}
           </h1>
           {open === null ? null : (

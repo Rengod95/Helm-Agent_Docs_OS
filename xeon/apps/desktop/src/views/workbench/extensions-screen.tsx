@@ -57,9 +57,7 @@ export function ExtensionsScreen(): ReactNode {
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-240 flex-1 flex-col gap-3 px-3 pt-6 pb-4">
       <header className="flex items-start justify-between gap-2">
-        <h1 className="m-0 text-title-3 font-bold text-text-primary">
-          {t("desktop.workbench.list.title")}
-        </h1>
+        <h1 className="m-0 text-text-primary">{t("desktop.workbench.list.title")}</h1>
         <Button
           size="xs"
           variant="outline"

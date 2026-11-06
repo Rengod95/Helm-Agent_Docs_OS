@@ -24,9 +24,7 @@ function ChatHeaderOf(props: { readonly id: ThreadId }): ReactNode {
   const title = thread.title ?? t("desktop.threads.untitled");
   return (
     <HeadRow
-      title={
-        <h1 className="m-0 min-w-0 truncate font-ui text-ui-strong text-text-primary">{title}</h1>
-      }
+      title={<h1 className="m-0 min-w-0 truncate text-text-primary">{title}</h1>}
       menu={<ThreadRowMenu id={props.id} title={title} status={thread.status} />}
     />
   );

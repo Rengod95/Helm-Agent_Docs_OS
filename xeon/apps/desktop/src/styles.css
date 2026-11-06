@@ -4,6 +4,7 @@
    무층으로 남는 것은 :root 변수 선언뿐이다(apps/desktop/test/styles/styles-css.test.ts가 지킨다). */
 @import "@caustic/react/styles.css";
 @import "@caustic/tokens/fonts.css";
+@import "./type-scale.css";
 @import "./views/craft/orbit.css";
 @import "./views/craft/link.css";
 @source "./";
