@@ -21,6 +21,7 @@ import {
 import { useSelectedThreadId } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
 import { pickWorkspaceFolder, type FolderPickInvoke } from "./folder-pick.ts";
+import { blankThreadIn } from "./new-thread-model.ts";
 import { folderLabel, groupByWorkspace } from "./thread-groups.ts";
 import { ThreadRowMenu } from "./thread-row-menu.tsx";
 import { checkWorkspaceInput, createFailureText, workspaceHint } from "./workspace-model.ts";
@@ -154,11 +155,19 @@ export function ThreadList(props: {
   const [error, setError] = useState<string | null>(null);
 
   const create = async (path: string | undefined): Promise<void> => {
-    setCreating(true);
     setError(null);
+    // 보낸 것 없는 빈 새 대화가 그 폴더에 이미 있으면 새로 만들지 않고 그리로 간다
+    const blank = blankThreadIn(threads, path ?? null);
+    if (blank !== null) {
+      commands.selectThread(blank);
+      commands.requestComposer(null);
+      return;
+    }
+    setCreating(true);
     const result = await commands.createThread(path);
     setCreating(false);
     if (!result.ok) setError(createFailureText(result.error, path !== undefined));
+    else commands.requestComposer(null);
   };
   const start = (path: string | undefined): void => {
     detach(create(path), rethrow);
