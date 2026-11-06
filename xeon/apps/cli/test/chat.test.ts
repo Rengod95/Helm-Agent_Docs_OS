@@ -147,7 +147,7 @@ test("thread.locked on turn.start exits 4 with the two-line message", async () =
   });
   expect(await h.run(["chat", "-p", "hello"])).toBe(EXIT.lockDenied);
   expect(h.stderrText()).toBe(
-    "fresnel: 다른 프로세스(service)가 이 대화를 쓰고 있다\n  해결: 끝날 때까지 두거나 새 대화를 연다\n",
+    "fresnel: 다른 프로세스(service)가 이 대화를 쓰고 있다\n  해결: 그 프로세스가 대화를 놓은 뒤 다시 하거나, `fresnel sessions fork <id>`로 분기해 이어 쓴다. 묻지 않고 분기하려면 `fresnel config set l0.process.lockFallback.default fork`\n",
   );
   expect(h.closed()).toBe(true);
 });

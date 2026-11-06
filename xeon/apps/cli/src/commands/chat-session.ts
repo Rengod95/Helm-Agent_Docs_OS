@@ -38,7 +38,7 @@ import {
 import { deliveredOpsOf, handlerFailedOpsOf } from "../render/notices.ts";
 import { approvalViewOf } from "../render/transcript.ts";
 import type { ApprovalSink } from "../render/approval.ts";
-import type { LockOption, LockPrompt } from "../render/lock.ts";
+import type { LockChoice, LockOption, LockPrompt } from "../render/lock.ts";
 import type { RenderSink } from "../render/text-sink.ts";
 import {
   entryFor,
@@ -286,6 +286,15 @@ function lockOptionsOf(error: WireError): readonly LockOption[] {
   return Array.isArray(raw) ? raw.filter(isLockOption) : [];
 }
 
+/** `l0.process.lockFallback.default`. 읽지 못하면 기본값 "ask"로 본다 */
+async function lockFallbackDefault(connection: EngineHandle["connection"]): Promise<string> {
+  const read = await attemptAsync(() =>
+    connection.request("settings.get", { keys: ["l0.process.lockFallback.default"] }),
+  );
+  const value = read.ok ? read.value.settings[0]?.value : undefined;
+  return typeof value === "string" ? value : "ask";
+}
+
 /** 위임은 서비스 전송일 때만 보인다(adr.0006 §3.6 규칙 3, §4.11) */
 function visibleLockOptions(
   options: readonly LockOption[],
@@ -333,12 +342,18 @@ async function openForWrite(
   if (!(caught instanceof WireError) || caught.data.kind !== "thread.locked") throw caught;
   const failure = failureOfWire(caught);
   const choices = visibleLockOptions(lockOptionsOf(caught), handle.transport);
-  if (options.lockPrompt === null || choices.length === 0) return err(failure);
+  if (choices.length === 0) return err(failure);
   const ownerKind = caught.data.details?.["ownerKind"];
-  const choice = await options.lockPrompt(
-    { ownerKind: typeof ownerKind === "string" ? ownerKind : "unknown", options: choices },
-    new AbortController().signal,
-  );
+  // 묻지 못하는 실행(print)은 설정 `l0.process.lockFallback.default`가 "fork"이고 분기가 가능할 때만 분기한다. 관찰은 입력을 보낼 수 없어 4다
+  const choice: LockChoice =
+    options.lockPrompt === null
+      ? choices.includes("fork") && (await lockFallbackDefault(connection)) === "fork"
+        ? "fork"
+        : "cancel"
+      : await options.lockPrompt(
+          { ownerKind: typeof ownerKind === "string" ? ownerKind : "unknown", options: choices },
+          new AbortController().signal,
+        );
   switch (choice) {
     case "observe": {
       await connection.request("thread.open", { threadId, mode: "observe" });

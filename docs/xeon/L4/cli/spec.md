@@ -795,7 +795,7 @@ export interface GroupTemplatesPort {
 | kind | 문구 요지 | 해결 한 줄 | 종료 코드 |
 |---|---|---|---|
 | `thread.notFound` | 대화 `<id>`가 없다 | `fresnel sessions ls`로 id를 확인한다 | 1 |
-| `thread.locked` | 다른 프로세스(`ownerKind`)가 이 대화를 쓰고 있다 | M1: 끝날 때까지 두거나 새 대화를 연다. M2: 프롬프트(§4.11) | 4 |
+| `thread.locked` | 다른 프로세스(`ownerKind`)가 이 대화를 쓰고 있다 | 대화형은 프롬프트(§4.11). 묻지 않는 실행(print)은 설정 `l0.process.lockFallback.default`가 `fork`이면 분기해 이어 쓰고 아니면 4. 안내 문장은 "그 프로세스가 놓은 뒤 다시 하거나 `sessions fork`로 분기"다 | 4 |
 | `thread.closed` | 닫힌 대화라 쓸 수 없다 | `fresnel sessions fork`로 분기하거나 새 대화를 연다 | 1 |
 | `turn.busy` | 진행 중인 turn이 있다 | 끝난 뒤 다시 보낸다 | 1 |
 | `thread.cancelledByExtension` | 확장이 `point`의 작업(컴팩션, 분기, 되감기, 대화 전환)을 막았다. `reason`이 있으면 붙인다 | 확장의 설정을 확인한다 | 1 |
@@ -866,7 +866,7 @@ export interface GroupTemplatesPort {
   - 분기: `thread.fork { threadId }`로 새 대화를 만들어 연다.
   - 위임: 서비스 전송일 때만 보인다. 소유자에게 입력을 보내는 클라이언트가 된다(adr.0006 §3.6 규칙 3).
   - 아무것도 고르지 않으면 4로 끝낸다. M1은 프롬프트 없이 4다.
-  - 구현: 열기(`thread.open { mode: "write" }`)에서 3002를 받으면 묻는다. 글자는 `[o]` 관찰, `[f]` 분기, `[d]` 위임, 엔터는 취소다. 위임은 전송이 `socket`일 때만 보이고 M2에는 서비스 접속이 없어 나오지 않는다. 관찰로 열면 입력 줄은 남아 있되 보낸 줄에는 "관찰 전용이라 입력을 보낼 수 없다"를 알린다. 분기하면 새 id를 `thread.open { mode: "write" }`로 열어 이어 간다. print 모드는 묻지 않고 4다.
+  - 구현: 열기(`thread.open { mode: "write" }`)에서 3002를 받으면 묻는다. 글자는 `[o]` 관찰, `[f]` 분기, `[d]` 위임, 엔터는 취소다. 위임은 전송이 `socket`일 때만 보이고 M2에는 서비스 접속이 없어 나오지 않는다. 관찰로 열면 입력 줄은 남아 있되 보낸 줄에는 "관찰 전용이라 입력을 보낼 수 없다"를 알린다. 분기하면 새 id를 `thread.open { mode: "write" }`로 열어 이어 간다. print 모드는 묻지 않는다. 설정 `l0.process.lockFallback.default`(`ask`·`observe`·`fork`)가 `fork`이고 분기가 가능하면 분기해 이어 쓰고, 아니면 4다(관찰은 입력을 보낼 수 없다). 4의 안내 문장은 소유자가 아직 도는 중이라고 단정하지 않고 "그 프로세스가 놓은 뒤 다시 하거나 `sessions fork`로 분기"를 알린다 [결정: 오케스트레이터 기본값, scF-S1].
 
 ### 4.12 슬래시 명령
 

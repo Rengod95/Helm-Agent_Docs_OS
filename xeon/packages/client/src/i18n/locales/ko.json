@@ -332,7 +332,7 @@
   "cli.errors.wire.threadClosed.message": "닫힌 대화가라 쓸 수 없다: {threadId}",
   "cli.errors.wire.threadHasForks.fix": "분기한 대화를 먼저 지운다 (fresnel sessions ls)",
   "cli.errors.wire.threadHasForks.message": "이 대화에서 분기한 대화가 있어 지울 수 없다",
-  "cli.errors.wire.threadLocked.fix": "끝날 때까지 두거나 새 대화를 연다",
+  "cli.errors.wire.threadLocked.fix": "그 프로세스가 대화를 놓은 뒤 다시 하거나, `fresnel sessions fork <id>`로 분기해 이어 쓴다. 묻지 않고 분기하려면 `fresnel config set l0.process.lockFallback.default fork`",
   "cli.errors.wire.threadLocked.message": "다른 프로세스({ownerKind})가 이 대화를 쓰고 있다",
   "cli.errors.wire.threadNotFound.fix": "fresnel sessions ls로 id를 확인한다",
   "cli.errors.wire.threadNotFound.message": "대화 {threadId}이(가) 없다",

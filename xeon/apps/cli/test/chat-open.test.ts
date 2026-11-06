@@ -40,7 +40,11 @@ interface Opened {
   readonly input: ReturnType<typeof scriptedInput>;
 }
 
-function lockedSession(replies: readonly Reply[], options?: readonly string[]): Opened {
+function lockedSession(
+  replies: readonly Reply[],
+  options?: readonly string[],
+  settings?: Readonly<Record<string, unknown>>,
+): Opened {
   const opens: Record<string, unknown>[] = [];
   const forks: Record<string, unknown>[] = [];
   const input = scriptedInput(replies);
@@ -49,6 +53,7 @@ function lockedSession(replies: readonly Reply[], options?: readonly string[]): 
     env: { NO_COLOR: "1" },
     readLine: (prompt, signal) => input.readLine(prompt, signal),
     server: {
+      ...(settings === undefined ? {} : { settings }),
       knownThreads: [T1, T2],
       onTurn: answer("forked answer"),
       handlers: {
@@ -141,6 +146,22 @@ test("a locked conversation in print mode exits 4 without asking anything", asyn
   expect(await lock.h.run(["chat", "-p", "x", "--resume", T1])).toBe(EXIT.lockDenied);
   expect(lock.input.prompts).toEqual([]);
   expect(lock.h.stderrText()).toContain("다른 프로세스(app)가 이 대화를 쓰고 있다");
+});
+
+test("print mode forks and continues on the branch when lockFallback.default is fork", async () => {
+  const lock = lockedSession([], undefined, { "l0.process.lockFallback.default": "fork" });
+  expect(await lock.h.run(["chat", "-p", "x", "--resume", T1])).toBe(EXIT.ok);
+  expect(lock.input.prompts).toEqual([]);
+  expect(lock.forks).toEqual([{ threadId: T1 }]);
+  expect(lock.h.server().requests.find((r) => r.method === "turn.start")?.params).toMatchObject({
+    threadId: T2,
+  });
+});
+
+test("print mode stays at exit 4 when lockFallback.default is observe", async () => {
+  const lock = lockedSession([], undefined, { "l0.process.lockFallback.default": "observe" });
+  expect(await lock.h.run(["chat", "-p", "x", "--resume", T1])).toBe(EXIT.lockDenied);
+  expect(lock.forks).toEqual([]);
 });
 
 test("a locked conversation on a terminal offers observe and fork; delegate stays hidden without a service", async () => {

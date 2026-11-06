@@ -332,7 +332,7 @@
   "cli.errors.wire.threadClosed.message": "This conversation is closed and cannot be used: {threadId}",
   "cli.errors.wire.threadHasForks.fix": "Remove the forked conversations first (fresnel sessions ls)",
   "cli.errors.wire.threadHasForks.message": "This conversation has forked conversations, so it cannot be removed",
-  "cli.errors.wire.threadLocked.fix": "Wait until it finishes, or open a new conversation",
+  "cli.errors.wire.threadLocked.fix": "Retry after that process releases the conversation, or branch it with `fresnel sessions fork <id>` and continue there. To branch without asking, run `fresnel config set l0.process.lockFallback.default fork`",
   "cli.errors.wire.threadLocked.message": "Another process ({ownerKind}) is using this conversation",
   "cli.errors.wire.threadNotFound.fix": "Check the conversation id with fresnel sessions ls",
   "cli.errors.wire.threadNotFound.message": "Conversation {threadId} does not exist",
