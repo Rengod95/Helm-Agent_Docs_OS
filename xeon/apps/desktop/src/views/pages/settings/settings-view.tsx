@@ -19,6 +19,7 @@ import { TAB_ORDER, TAB_SPECS, type FieldVM, type SettingsView } from "@fresnel/
 import type { SettingKey, SettingsTab } from "@fresnel/contracts/settings";
 import { useId, type KeyboardEvent, type ReactNode } from "react";
 import {
+  advancedGroupsOf,
   panelOwnedOf,
   restartCountOf,
   searchGroupsOf,
@@ -369,6 +370,8 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
     return (
       <OverviewPanels view={view} updatePanel={props.updatePanel} filePaths={props.filePaths} />
     );
+  // 고급 탭은 운영자용 항목을 따로 묶어 제목으로 가른다(시안 `_settings`의 구역 모양)
+  const groups = tab === "advanced" ? advancedGroupsOf(fields) : { general: fields, operator: [] };
   return (
     <>
       {panels}
@@ -376,9 +379,14 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
         <SettingSection label={tabView.label}>
           {tab === "advanced" ? props.restorePanel : null}
           {emptyText === null ? null : <p className="text-ui-sm text-text-tertiary">{emptyText}</p>}
-          {fields.map(rowOf)}
+          {groups.general.map(rowOf)}
         </SettingSection>
       ) : null}
+      {groups.operator.length === 0 ? null : (
+        <SettingSection title={t("desktop.settings.advanced.operator.title")}>
+          {groups.operator.map(rowOf)}
+        </SettingSection>
+      )}
     </>
   );
 }

@@ -6,6 +6,7 @@ import type {
   WidgetVM,
   WritableScope,
 } from "@fresnel/client/settings";
+import { tKey } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { SettingEditor, SettingKey, SettingsTab } from "@fresnel/contracts/settings";
 
@@ -47,6 +48,37 @@ export function tabSwitchOf(input: {
   if (input.to === input.current) return { kind: "stay" };
   if (input.dirtyKeys.length === 0) return { kind: "move", to: input.to };
   return { kind: "ask", to: input.to, keys: input.dirtyKeys };
+}
+
+// ── 고급 탭 구역 ──────────────────────────────────────────────────────────
+
+/** 고급 탭에서 운영자가 만지는 항목. 하트비트, 임대, fsync, FTS5, 수집기, 외부 실행 파일 같은 것이다 */
+const OPERATOR_KEYS: ReadonlySet<string> = new Set([
+  "l0.store.heartbeatMs",
+  "l0.store.leaseTtlMs",
+  "l0.store.macFullFsync",
+  "l0.store.requireFts5",
+  "l0.os.telemetry.enabled",
+  "l0.os.telemetry.exporter",
+  "l0.os.telemetry.endpoint",
+  "l0.secrets.sops.binary",
+  "l2.knowledge.search.likeScanLimit",
+  "l2.knowledge.write.trustedEvidenceSources",
+  "l2.work.goal.delegatedTimeoutSec",
+  "l4.desktop.engine.shutdownGraceMs",
+]);
+
+export interface AdvancedGroups {
+  readonly general: readonly FieldVM[];
+  readonly operator: readonly FieldVM[];
+}
+
+/** 고급 탭의 항목을 일반 항목과 운영자용 항목으로 가른다. 순서는 그대로다 */
+export function advancedGroupsOf(fields: readonly FieldVM[]): AdvancedGroups {
+  return {
+    general: fields.filter((field) => !OPERATOR_KEYS.has(field.key)),
+    operator: fields.filter((field) => OPERATOR_KEYS.has(field.key)),
+  };
 }
 
 // ── 키 찾기 ────────────────────────────────────────────────────────────────
@@ -270,6 +302,20 @@ export function selectControlOf(optionCount: number): "radio" | "select" {
 /** 옵션 값을 화면 문자열로. 라디오와 선택 상자의 값은 문자열이다 */
 export function optionTextOf(option: string | number): string {
   return String(option);
+}
+
+function camel(word: string): string {
+  return word.replace(/[-_]+([A-Za-z0-9])/g, (_, c: string) => c.toUpperCase());
+}
+
+/**
+ * 선택지의 화면 라벨. 카탈로그에 `settings.<설정 키>.option.<값>`이 있으면 그 문장이고, 없으면 값 그대로다.
+ * 키 조각은 영문자와 숫자만 쓰므로 `-`와 `_`로 이은 값은 camelCase로 바꾼다(`disable_execute` → `disableExecute`).
+ */
+export function optionLabelOf(key: SettingKey, option: string | number): string {
+  const text = optionTextOf(option);
+  const base = `settings.${camel(key)}`;
+  return tKey(`${base}.option.${camel(text)}`, text);
 }
 
 /** 화면 문자열을 원래 옵션 값(문자열 또는 숫자)으로 되돌린다. 맞는 옵션이 없으면 `null`이다 */

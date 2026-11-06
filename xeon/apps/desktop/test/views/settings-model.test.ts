@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { reduceSettings, TAB_ORDER, settingsViewOf } from "@fresnel/client/settings";
 import { thr } from "../state/helpers.ts";
 import {
+  advancedGroupsOf,
   allFieldsOf,
   dirtyKeysOf,
   fallbackScopeOf,
@@ -10,6 +11,7 @@ import {
   hasFooter,
   launchChoiceOf,
   numberValueOf,
+  optionLabelOf,
   optionOf,
   pageStatusOf,
   remoteNoticeOf,
@@ -306,5 +308,39 @@ describe("keyboard shortcuts", () => {
     expect(settingsKeyOf({ key: "Escape", metaKey: false, ctrlKey: false })).toBe("discard");
     expect(settingsKeyOf({ key: "s", metaKey: false, ctrlKey: false })).toBeNull();
     expect(settingsKeyOf({ key: "k", metaKey: true, ctrlKey: false })).toBeNull();
+  });
+});
+
+describe("advanced tab groups and option labels", () => {
+  test("operator keys are split from the general ones and keep their order", () => {
+    const keys = [
+      "l1.models.retry",
+      "l0.store.heartbeatMs",
+      "l1.models.cacheRetention",
+      "l0.os.telemetry.endpoint",
+    ];
+    const defs = keys.map((key, order) =>
+      defOf(key, "advanced", "number", { type: "integer" }, {}, { order, label: key }),
+    );
+    const view = viewOf(
+      defs,
+      keys.map((key) => settingOf(key, 1)),
+    );
+    const fields = keys.flatMap((key) => fieldIn(view, key) ?? []);
+    const groups = advancedGroupsOf(fields);
+    expect(groups.general.map((field) => field.key)).toEqual([
+      "l1.models.retry",
+      "l1.models.cacheRetention",
+    ]);
+    expect(groups.operator.map((field) => field.key)).toEqual([
+      "l0.store.heartbeatMs",
+      "l0.os.telemetry.endpoint",
+    ]);
+  });
+
+  test("an option label comes from the catalog and falls back to the raw value", () => {
+    expect(optionLabelOf("l0.sandbox.onUnavailable", "run_unsandboxed")).toBe("격리 없이 실행");
+    expect(optionLabelOf("l0.secrets.ageKey.source", "auto-file")).toBe("자동(파일 우선)");
+    expect(optionLabelOf("l9.unknown.key", "raw-value")).toBe("raw-value");
   });
 });
