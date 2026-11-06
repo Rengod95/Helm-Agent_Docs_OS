@@ -1,6 +1,6 @@
 // OS 알림 명령(B-10, Rust `notify_os.rs` 대응). electron을 값으로 가져오지 않는다. 띄우는 일과 권한 읽기는 `ports`로 받는다.
 // 제목과 본문의 글은 UI(`os-notify.ts`)가 정하고, 셸은 줄이고 거른 뒤 띄운다. 본문 `notice.body`는 쓰지 않는다.
-import { attempt } from "@fresnel/contracts";
+import { attempt, attemptAsync } from "@fresnel/contracts";
 import type { ShellContext, ShellModule } from "./context.ts";
 import { ShellError } from "./commands.ts";
 import { INTENT_EVENT, sharedIntents } from "./intents.ts";
@@ -36,8 +36,12 @@ export interface ShownNotice {
 export interface NotifyOsPorts {
   /** 권한 글. 읽다 던지면 `prompt`로 답한다 */
   readonly permission: () => NotifyPermission;
-  /** 알림을 띄운다. OS가 받으면 `true`다. 사용자가 누르면 `onClick`을 한 번 부른다. 던지면 띄우지 못한 것이다. 받은 뒤 OS가 실패를 알리면 `onFailed`를 부른다 */
-  readonly show: (notice: ShownNotice, onClick: () => void, onFailed: () => void) => boolean;
+  /** 알림을 띄운다. OS가 띄웠다고 알리면 `true`, 실패했다고 알리면 `false`로 끝난다. 사용자가 누르면 `onClick`을 한 번 부른다. 던지면 띄우지 못한 것이다. 답한 뒤 OS가 실패를 알리면 `onFailed`를 부른다 */
+  readonly show: (
+    notice: ShownNotice,
+    onClick: () => void,
+    onFailed: () => void,
+  ) => Promise<boolean>;
   /** 앱 로그 한 줄 */
   readonly log: (line: string) => void;
 }
@@ -91,7 +95,11 @@ function permissionReply(ports: NotifyOsPorts): NotifyPermission {
   return read.ok ? read.value : "prompt";
 }
 
-function notifyOs(ctx: ShellContext, ports: NotifyOsPorts, args: unknown): NotifyReply {
+async function notifyOs(
+  ctx: ShellContext,
+  ports: NotifyOsPorts,
+  args: unknown,
+): Promise<NotifyReply> {
   const request = notifyRequestOf(args);
   const title = clean(request.title, TITLE_MAX_CHARS);
   if (title === "") throw new ShellError("bad-request");
@@ -107,12 +115,12 @@ function notifyOs(ctx: ShellContext, ports: NotifyOsPorts, args: unknown): Notif
     ctx.emit(INTENT_EVENT);
   };
   // 던지거나 `false`면 띄우지 못한 것이다. 이유는 고정 한 줄로만 남긴다
-  // 받은 뒤의 실패는 답이 이미 `shown`이라 로그와 UI 이벤트로 알린다
+  // OS의 답을 기다려 `shown`이나 `failed`로 답한다(프레임이 실제 결과를 받는다). 답한 뒤의 실패는 로그와 UI 이벤트로 알린다
   const onFailed = (): void => {
     ports.log(SHOW_FAILED_LOG);
     ctx.emit(NOTIFY_FAILED_EVENT);
   };
-  const shown = attempt(() =>
+  const shown = await attemptAsync(() =>
     ports.show({ title, body: body === "" ? null : body }, onClick, onFailed),
   );
   if (shown.ok && shown.value) return { kind: "shown" };
