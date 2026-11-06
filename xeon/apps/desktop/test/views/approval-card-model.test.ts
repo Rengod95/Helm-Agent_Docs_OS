@@ -112,6 +112,34 @@ describe("plan fold", () => {
     expect(folded.head.endsWith(`line ${PLAN_FOLD_LINES}`)).toBe(true);
     expect(folded.rest).toBe(`line ${PLAN_FOLD_LINES + 1}\nline ${PLAN_FOLD_LINES + 2}`);
   });
+
+  test("a code fence open at the fold line is closed inside the head", () => {
+    const steps = Array.from({ length: PLAN_FOLD_LINES - 1 }, (_, i) => `step ${i + 1}`);
+    const lines = [...steps, "```", "const a = 1;", "```", "tail"];
+    expect(foldPlanLines(lines.join("\n"), PLAN_FOLD_LINES)).toEqual({
+      head: lines.slice(0, 14).join("\n"),
+      rest: "tail",
+    });
+  });
+
+  test("a code fence that never closes keeps the whole plan in the head", () => {
+    const steps = Array.from({ length: PLAN_FOLD_LINES - 1 }, (_, i) => `step ${i + 1}`);
+    const text = [...steps, "```", "const a = 1;"].join("\n");
+    expect(foldPlanLines(text, PLAN_FOLD_LINES)).toEqual({ head: text, rest: null });
+  });
+
+  test("a fence that closes before the fold line does not move the fold", () => {
+    const lines = [
+      "```",
+      "x",
+      "```",
+      ...Array.from({ length: PLAN_FOLD_LINES + 1 }, (_, i) => `${i}`),
+    ];
+    expect(foldPlanLines(lines.join("\n"), PLAN_FOLD_LINES)).toEqual({
+      head: lines.slice(0, PLAN_FOLD_LINES).join("\n"),
+      rest: lines.slice(PLAN_FOLD_LINES).join("\n"),
+    });
+  });
 });
 
 describe("review totals", () => {

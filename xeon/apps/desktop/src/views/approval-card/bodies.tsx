@@ -29,6 +29,8 @@ import {
   type ToolApprovalView,
   type ToolReplaceView,
 } from "../approval-form.ts";
+import { parseMarkdown } from "../markdown-blocks.ts";
+import { MarkdownView } from "../markdown-view.tsx";
 import {
   FEEDBACK_MAX,
   PLAN_FOLD_LINES,
@@ -368,11 +370,11 @@ export function PlanBody(props: {
         </div>
       ) : (
         <>
-          <MessageCode className={BLOCK_CODE}>{fold.head}</MessageCode>
+          <MarkdownView blocks={parseMarkdown(fold.head)} />
           {fold.rest === null ? null : (
             <details>
               <summary>{t("desktop.approvals.plan.more")}</summary>
-              <MessageCode className={BLOCK_CODE}>{fold.rest}</MessageCode>
+              <MarkdownView blocks={parseMarkdown(fold.rest)} />
             </details>
           )}
         </>

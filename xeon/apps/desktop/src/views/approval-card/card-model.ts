@@ -1,5 +1,6 @@
 import type { MessageId } from "@fresnel/client/i18n";
 import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
+import { closesFence, openFenceAfter } from "../markdown-blocks.ts";
 
 // 승인 카드가 그리는 순수 값(시간 표시, 만료, 키 해석, 계획 접기, 검토 합계). React 밖에서 시험한다(approval-card-model.test.ts).
 // 도구 인자·질문 답 조립은 ../approval-form.ts가 맡는다.
@@ -66,14 +67,24 @@ export function approvalKeyOf(event: ApprovalKeyLike): ApprovalKeyAction | null 
   return null;
 }
 
-/** 계획 본문을 앞 `max`줄과 나머지로 나눈다. 넘는 줄이 없으면 rest는 null */
+/**
+ * 계획 본문을 앞 `max`줄과 나머지로 나눈다. 넘는 줄이 없으면 rest는 null.
+ * 머리가 열린 코드 펜스 안에서 끝나면 펜스를 닫는 줄까지 머리에 넣는다(코드가 둘로 갈라지지 않게). 닫히지 않은 펜스는 글 끝까지가 머리다.
+ */
 export function foldPlanLines(
   text: string,
   max: number,
 ): { readonly head: string; readonly rest: string | null } {
   const lines = text.split("\n");
   if (lines.length <= max) return { head: text, rest: null };
-  return { head: lines.slice(0, max).join("\n"), rest: lines.slice(max).join("\n") };
+  let end = max;
+  const fence = openFenceAfter(lines.slice(0, max));
+  if (fence !== null) {
+    while (end < lines.length && !closesFence(lines[end] ?? "", fence)) end += 1;
+    end = Math.min(end + 1, lines.length);
+  }
+  if (end >= lines.length) return { head: text, rest: null };
+  return { head: lines.slice(0, end).join("\n"), rest: lines.slice(end).join("\n") };
 }
 
 /** 검토 파일 목록의 합계. 파일 수와 hunk 수 */
