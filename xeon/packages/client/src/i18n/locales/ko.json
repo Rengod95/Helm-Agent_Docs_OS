@@ -3674,6 +3674,7 @@
   "desktop.compose.none.body": "이 그룹은 구성을 선언하지 않았어요.",
   "desktop.compose.blocks": "블록",
   "desktop.compose.group.outputs": "기록과 상태",
+  "desktop.compose.group.clone": "복제해서 고치기",
   "desktop.compose.product.record": "기록",
   "desktop.compose.product.post": "입력 큐 post",
   "desktop.compose.product.state": "상태 문서",

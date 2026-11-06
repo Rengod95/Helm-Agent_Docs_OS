@@ -160,7 +160,9 @@ export function GroupCanvas(props: {
   readonly issuesByBlock: ReadonlyMap<string, readonly WireManifestIssue[]>;
 }): ReactNode {
   const { rows } = props;
-  const [selected, setSelected] = useState<string | null>(null);
+  // 시안은 첫 블록을 고른 채로 열어 그 블록의 연결선이 처음부터 보인다
+  const [picked, setPicked] = useState<string | null>(null);
+  const selected = picked ?? rows[0]?.id ?? null;
   const groups = outputGroupsOf(rows);
   const blocksHeight =
     HEAD_HEIGHT +
@@ -190,7 +192,7 @@ export function GroupCanvas(props: {
                 issues={props.issuesByBlock.get(row.id) ?? []}
                 selected={selected === row.id}
                 onSelect={() => {
-                  setSelected(row.id);
+                  setPicked(row.id);
                 }}
               />
             ))}
