@@ -1,4 +1,5 @@
-// 층별 목록. 확장 화면의 본체다. 층마다 caustic `Table` 하나를 그리고(§6.23 열: 이름, 층, 종류, 등급, 상태, 버전, 켜짐), 층 머리에 켜짐 수를 보인다.
+// 확장 목록. 확장 화면의 본체다. caustic `Table` 한 표(시안 c03·e04: 이름, 층, 신뢰 수준, 상태, 켜짐)에 층 순서(L3 → L2 → external → L1)로 행을 늘어놓는다.
+// 층은 열이고, 거르기는 목록 머리의 층·켜짐 Select가 맡는다.
 // 행을 누르거나 Enter·Space로 고르고(확장 묶음이면 그룹, 아니면 플러그인), 고른 행을 다시 고르면 푼다. 행 사이 화살표 이동은 Table이 한다.
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { layerGroups, selectedName } from "@fresnel/client/workbench";
@@ -20,73 +21,58 @@ export const layerNameOf = (layer: string): string => {
   return id === undefined ? layer : t(id);
 };
 
-const HEAD_FIRST = "[&_table]:table-fixed [&_thead_th]:bg-transparent";
-// 둘째 표부터는 머리글을 눈에서만 숨긴다(sr-only는 열 너비 계산에서 빠져 표마다 열이 어긋난다). 읽기 도구에는 그대로 남는다
-const HEAD_REST =
-  "[&_table]:table-fixed [&_thead_th]:bg-transparent [&_thead_tr]:h-0! [&_thead_th]:h-0! [&_thead_th]:leading-[0] [&_thead_th]:border-0 [&_thead_th]:overflow-hidden [&_thead_th]:p-0! [&_thead_th]:text-[0] [&_thead_th]:opacity-0";
-
 export function LayerList(props: {
   readonly onToggle: (name: string, target: boolean) => void;
 }): ReactNode {
   const state = useWorkbench((s) => s);
   const actions = useWorkbenchActions();
   const selected = selectedName(state);
-  const groups = layerGroups(state);
+  const rows = layerGroups(state).flatMap((group) => group.rows);
+  const byName = new Map(rows.map((row) => [row.name, row] as const));
   // 머리글은 그릴 때 고른다. 말투(로케일)가 연결 뒤에 바뀔 수 있다
   const columns: TableColumn[] = [
     { key: "name", header: t("desktop.workbench.col.name") },
-    { key: "origin", header: t("desktop.workbench.col.trust"), width: 140 },
-    { key: "state", header: t("desktop.workbench.col.state"), width: 200 },
-    { key: "switch", header: t("desktop.workbench.col.switch"), align: "end", width: 96 },
+    { key: "layer", header: t("desktop.workbench.col.layer"), width: 130 },
+    { key: "origin", header: t("desktop.workbench.col.trust"), width: 130 },
+    { key: "state", header: t("desktop.workbench.col.state"), width: 170 },
+    { key: "switch", header: t("desktop.workbench.col.switch"), align: "end", width: 80 },
   ];
   return (
-    <div className="grid gap-4">
-      {groups.map((group, index) => {
-        const byName = new Map(group.rows.map((row) => [row.name, row] as const));
+    <Table
+      variant="ghost"
+      size="xs"
+      className="[&_table]:table-fixed [&_thead_th]:bg-transparent"
+      dividers={false}
+      aria-label={t("desktop.workbench.list.title")}
+      columns={columns}
+      rows={rows.map((row) => ({ id: row.name }))}
+      selectionMode="single"
+      selectedKeys={selected === null ? [] : [selected]}
+      onRowActivate={(picked) => {
+        const row = byName.get(picked.id);
+        if (row === undefined) return;
+        if (selected === row.name) actions.clearPick();
+        else if (row.kind === "group") actions.pickGroup(row.name);
+        else actions.pickPlugin(row.name);
+      }}
+      renderCell={(picked, column) => {
+        const row = byName.get(picked.id);
+        if (row === undefined) return null;
+        if (column.key === "layer") {
+          return <span className="text-text-tertiary">{layerNameOf(row.layer)}</span>;
+        }
+        const name = extColumnOf(column.key);
+        if (name === undefined) return null;
         return (
-          <section key={group.layer} aria-label={layerNameOf(group.layer)} className="grid gap-1">
-            <div className="flex min-h-7 items-center gap-2 px-2">
-              <h3 className="m-0 text-title-3 font-semibold text-text-primary">
-                {layerNameOf(group.layer)}
-              </h3>
-              <span className="ms-auto text-ui-xs text-text-tertiary tabular-nums">
-                {t("desktop.workbench.layers.count", { on: group.on, total: group.total })}
-              </span>
-            </div>
-            <Table
-              variant="ghost"
-              size="xs"
-              className={index === 0 ? HEAD_FIRST : HEAD_REST}
-              dividers={false}
-              columns={columns}
-              rows={group.rows.map((row) => ({ id: row.name }))}
-              selectionMode="single"
-              selectedKeys={selected === null ? [] : [selected]}
-              onRowActivate={(picked) => {
-                const row = byName.get(picked.id);
-                if (row === undefined) return;
-                if (selected === row.name) actions.clearPick();
-                else if (row.kind === "group") actions.pickGroup(row.name);
-                else actions.pickPlugin(row.name);
-              }}
-              renderCell={(picked, column) => {
-                const row = byName.get(picked.id);
-                const name = extColumnOf(column.key);
-                if (row === undefined || name === undefined) return null;
-                return (
-                  <ExtCell
-                    row={row}
-                    column={name}
-                    onToggle={(target) => {
-                      props.onToggle(row.name, target);
-                    }}
-                  />
-                );
-              }}
-            />
-          </section>
+          <ExtCell
+            row={row}
+            column={name}
+            onToggle={(target) => {
+              props.onToggle(row.name, target);
+            }}
+          />
         );
-      })}
-    </div>
+      }}
+    />
   );
 }
