@@ -18,6 +18,8 @@ export interface StatusCellProps {
   readonly cellId: string;
   /** 칸에 보이는 글 */
   readonly text: string;
+  /** 글 뒤에 붙는 꼬리(사용량 막대 등). 없으면 그리지 않는다 */
+  readonly trailing?: ReactNode;
   /** 상태 점. 없으면 점을 그리지 않는다 */
   readonly dot?: StatusDot | undefined;
   /** Popover 제목 */
@@ -34,7 +36,7 @@ export interface StatusCellProps {
 }
 
 export function StatusCell(props: StatusCellProps): ReactNode {
-  const { cellId, text, dot, title, description, body, wide, open, onOpenChange } = props;
+  const { cellId, text, trailing, dot, title, description, body, wide, open, onOpenChange } = props;
   return (
     <Popover
       open={open}
@@ -57,6 +59,7 @@ export function StatusCell(props: StatusCellProps): ReactNode {
             />
           )}
           <span className="min-w-0 whitespace-nowrap tabular-nums">{text}</span>
+          {trailing}
         </Button>
       }
     >

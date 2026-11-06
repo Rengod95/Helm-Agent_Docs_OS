@@ -1,14 +1,19 @@
 import { Badge, Button, ListDescription, ListDescriptionRow, toast } from "@caustic/react";
-import { Info, TriangleAlert } from "@caustic/react/icons";
+import { CircleAlert, Info, TriangleAlert } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
-import type { SettingsView, ViewDiagnostic } from "@fresnel/client/settings";
+import type { SettingsView } from "@fresnel/client/settings";
 import type { ReactNode } from "react";
 import { useCommands } from "../../commands.ts";
 import { useSafeMode } from "../../safe-mode-context.ts";
 import { pathTermOf, shortenHome, type SettingsPathRow } from "./settings-file-paths.ts";
 import { SettingSection } from "./settings-section.tsx";
-import { diagnosticIdOf, TONE_CLASS } from "./settings-text.ts";
+import {
+  diagnosticIdOf,
+  diagnosticToneOf,
+  TONE_CLASS,
+  type DiagnosticTone,
+} from "./settings-text.ts";
 
 // 개요 탭(P-09 시안 `overview-tab.tsx`): "설정 파일"(경로는 `settings.readFile`의 `path`), "지금 상태", "화면 진단"(진단 복사) 카드.
 const ROWS_CLASS =
@@ -16,10 +21,13 @@ const ROWS_CLASS =
 
 const count = (n: number): string => t("desktop.settings.overview.count", { count: n });
 
-/** 진단 종류별 줄 표식. 값이 없거나 겹친 것은 경고, 위젯·탭을 모르는 것은 안내다 */
-function toneOf(code: ViewDiagnostic["code"]): "warning" | "info" {
-  return code === "missingValue" || code === "duplicateKey" ? "warning" : "info";
-}
+/** 진단 줄의 아이콘과 아이콘 색(목업 `overview-tab.tsx`의 DIAG 줄과 같다). 색은 글자와 함께 쓴다 */
+const DIAGNOSTIC_ICON = { danger: CircleAlert, warning: TriangleAlert, info: Info };
+const DIAGNOSTIC_ICON_CLASS: Readonly<Record<DiagnosticTone, string>> = {
+  danger: "text-danger-text",
+  warning: "text-warning-text",
+  info: "text-text-tertiary",
+};
 
 export function OverviewPanels(props: {
   readonly view: SettingsView;
@@ -120,8 +128,8 @@ export function OverviewPanels(props: {
         >
           <ul className="m-0 grid list-none gap-1 p-0">
             {diagnostics.map((diagnostic) => {
-              const tone = toneOf(diagnostic.code);
-              const Icon = tone === "warning" ? TriangleAlert : Info;
+              const tone = diagnosticToneOf(diagnostic.code);
+              const Icon = DIAGNOSTIC_ICON[tone];
               return (
                 <li
                   key={`${diagnostic.code}:${diagnostic.key}`}
@@ -129,7 +137,7 @@ export function OverviewPanels(props: {
                 >
                   <Icon
                     aria-hidden
-                    className={`mt-0.5 size-icon-sm flex-none ${tone === "warning" ? "text-warning-text" : "text-text-tertiary"}`}
+                    className={`mt-0.5 size-icon-sm flex-none ${DIAGNOSTIC_ICON_CLASS[tone]}`}
                   />
                   <div className="grid min-w-0 gap-0.5">
                     <span className="text-ui text-text-primary">

@@ -17,6 +17,23 @@ export function diagnosticIdOf(code: ViewDiagnostic["code"]): MessageId {
   return DIAGNOSTIC_ID[code];
 }
 
+/** 화면 진단 한 줄의 표식 종류. 아이콘과 글 색이 함께 간다(§4.8.1) */
+export type DiagnosticTone = "danger" | "warning" | "info";
+
+// 값 모양이 맞지 않아 읽기 전용인 것은 위험(목업 `overview-tab.tsx`의 danger 줄), 값이 없거나 겹친 것은 경고, 위젯·탭을 모르는 것은 안내다
+const DIAGNOSTIC_TONE: Readonly<Record<ViewDiagnostic["code"], DiagnosticTone>> = {
+  widgetMismatch: "danger",
+  unknownWidget: "info",
+  unknownTab: "info",
+  missingValue: "warning",
+  duplicateKey: "warning",
+};
+
+/** 화면 진단 한 줄의 표식 종류. 종류마다 하나다 */
+export function diagnosticToneOf(code: ViewDiagnostic["code"]): DiagnosticTone {
+  return DIAGNOSTIC_TONE[code];
+}
+
 /** 배지 색 한 쌍(바탕, 글자)의 caustic 토큰. 색은 글자와 함께 쓴다(§4.8.1). `Badge`의 `tone` prop은 쓰지 않는다(폐기 표시) */
 export type BadgeTone = "neutral" | "accent" | "success" | "warning" | "info" | "agent";
 

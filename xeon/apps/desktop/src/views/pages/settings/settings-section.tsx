@@ -24,7 +24,7 @@ export function SettingSection(props: SettingSectionProps): ReactNode {
     >
       {props.title === undefined ? null : (
         <div className="sticky top-0 z-[5] flex h-8 items-center gap-2 bg-bg-app">
-          <h2 id={id} className="m-0 flex-1 text-title-2 text-text-secondary">
+          <h2 id={id} className="m-0 flex-1 text-ui-sm font-semibold text-text-secondary">
             {props.title}
           </h2>
           {props.end}

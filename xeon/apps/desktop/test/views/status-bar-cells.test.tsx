@@ -13,7 +13,10 @@ import {
   liveKindsOf,
   LiveList,
   liveRowsOf,
+  ModelCell,
   StatusBar,
+  TokensCell,
+  tokensDescriptionOf,
   type LiveRow,
 } from "../../src/views/status-bar.tsx";
 import { fakeCommands } from "./fake-commands.ts";
@@ -440,6 +443,71 @@ describe("status bar cell order", () => {
       "다시 연결",
       "진단 복사",
       "live",
+    ]);
+  });
+});
+
+describe("status bar model and usage cells", () => {
+  let previous: Locale = "ko";
+  beforeEach(() => {
+    previous = activeLocale();
+    setActiveLocale("ko");
+  });
+  afterEach(() => {
+    setActiveLocale(previous);
+  });
+
+  test("the model cell shows the model name without its provider prefix", () => {
+    expect(
+      cellTextOf(renderToString(<ModelCell model="anthropic/claude-haiku-5-5" />), "model"),
+    ).toBe("claude-haiku-5-5");
+    expect(cellTextOf(renderToString(<ModelCell model="sonnet-5-5" />), "model")).toBe(
+      "sonnet-5-5",
+    );
+  });
+
+  test("the tokens cell shows the count and draws the bar only when the limit is known", () => {
+    const known = renderToString(<TokensCell usage={{ tokens: 41_000, percent: 40 }} />);
+    expect(cellTextOf(known, "tokens")).toBe("41k");
+    expect(known).toContain('data-slot="progress"');
+    expect(known).toContain("--cs-progress:40%");
+    const unknown = renderToString(<TokensCell usage={{ tokens: 41_000, percent: null }} />);
+    expect(cellTextOf(unknown, "tokens")).toBe("41k");
+    expect(unknown).not.toContain('data-slot="progress"');
+  });
+
+  test("the tokens sentence names the tokens, and the percent only when the limit is known", () => {
+    expect(tokensDescriptionOf({ tokens: 41_000, percent: null })).toBe(
+      "이 대화에서 41k 토큰을 썼어요.",
+    );
+    expect(tokensDescriptionOf({ tokens: 41_000, percent: 40.4 })).toBe(
+      "이 대화에서 41k 토큰을 썼고, 한도의 40%예요.",
+    );
+    setActiveLocale("en");
+    expect(tokensDescriptionOf({ tokens: 41_000, percent: 40 })).toBe(
+      "This conversation has used 41k tokens, 40% of the limit.",
+    );
+  });
+
+  test("the model and usage sentences exist in ko and en with their placeholders", () => {
+    const locales: readonly Locale[] = ["ko", "en"];
+    for (const locale of locales) {
+      expect(catalogOf(locale)["desktop.status.cell.model.description"]).toMatch(/\S/);
+      expect(catalogOf(locale)["desktop.status.cell.tokens.description"]).toMatch(/\{tokens\}/);
+      expect(catalogOf(locale)["desktop.status.cell.tokens.limitDescription"]).toMatch(
+        /\{tokens\}.*\{percent\}/,
+      );
+    }
+  });
+
+  test("a selected conversation draws neither cell before a value is read, since the reads run after mount", () => {
+    const ui = createUiStore();
+    ui.actions.selectThread(thr(1));
+    expect(cellIdsOf(barWithUi(mirrorWithApproval(), ui.read.getState()))).toEqual([
+      "engine",
+      "link",
+      "live",
+      "approvals",
     ]);
   });
 });

@@ -1,4 +1,5 @@
 import { t } from "@fresnel/client/i18n";
+import { DEFAULT_MODEL_KEY } from "@fresnel/client/settings";
 import {
   Button,
   IconButton,
@@ -6,7 +7,7 @@ import {
   SegmentedControlItem,
   Textarea,
 } from "@caustic/react";
-import { ArrowUp, Paperclip } from "@caustic/react/icons";
+import { ArrowUp, ChevronDown, Paperclip } from "@caustic/react/icons";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
@@ -41,13 +42,14 @@ import { AttachmentRow } from "./composer-attachments.tsx";
 import { InfoTip } from "./craft/info-tip.tsx";
 import { pickAttachmentFile } from "./folder-pick.ts";
 import { useFolderPick } from "./folder-pick-context.ts";
-import { useCommands, type BusyInputMode, type CommandError } from "./commands.ts";
+import { useCommands, type BusyInputMode, type CommandError, type Commands } from "./commands.ts";
 import {
   busyModeOf,
   composerDisabledReason,
   createEnterGuard,
   createSendLatch,
 } from "./composer-model.ts";
+import { modelLabelOf, useDefaultModel, useSessionUsage } from "./model-usage.ts";
 import { QueuedInputs } from "./queued-inputs.tsx";
 import { useSetupNeeded } from "./setup-needed.ts";
 
@@ -70,12 +72,86 @@ function sendErrorText(error: CommandError): string {
   return t("desktop.composer.error.failed");
 }
 
+const RING_C = 50.27;
+const USAGE_WARNING = 80;
+const USAGE_DANGER = 95;
+type RingTone = "accent" | "warning" | "danger";
+const RING_TEXT: Record<RingTone, string> = {
+  accent: "text-accent-solid",
+  warning: "text-warning-solid",
+  danger: "text-danger-solid",
+};
+
+/** 기본 모델 단추. 대화별 모델을 바꿀 wire가 없어서 누르면 설정의 모델 탭을 기본 모델 줄로 연다 */
+export function ModelButton(props: {
+  readonly label: string;
+  readonly disabled: boolean;
+  readonly onClick: () => void;
+}): ReactNode {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="xs"
+      disabled={props.disabled}
+      iconEnd={<ChevronDown aria-hidden />}
+      className="h-control-inline pl-2 pr-1.5 text-text-tertiary"
+      onClick={props.onClick}
+    >
+      {props.label}
+    </Button>
+  );
+}
+
+/**
+ * 문맥 사용량 링. 한도를 알 때만 그린다(`percent`가 null이면 아무것도 그리지 않는다, 비율을 지어내지 않는다).
+ * 80%를 넘으면 경고, 95%를 넘으면 위험 색이다. 입력창이 꺼져 있으면 흐리게 보인다.
+ */
+export function UsageRing(props: {
+  readonly percent: number | null;
+  readonly disabled: boolean;
+}): ReactNode {
+  if (props.percent === null) return null;
+  const pct = Math.min(100, Math.max(0, props.percent));
+  const tone: RingTone = pct > USAGE_DANGER ? "danger" : pct > USAGE_WARNING ? "warning" : "accent";
+  const color = props.disabled ? "text-disabled-text" : RING_TEXT[tone];
+  return (
+    <svg
+      data-level={tone === "accent" ? undefined : tone}
+      role="img"
+      aria-label={t("desktop.composer.usage.label", { percent: Math.round(pct) })}
+      viewBox="0 0 22 22"
+      className={`size-usage-ring shrink-0 fill-none stroke-3 ${color}`}
+    >
+      <circle cx="11" cy="11" r="8" className="stroke-neutral-track" />
+      <circle
+        cx="11"
+        cy="11"
+        r="8"
+        transform="rotate(-90 11 11)"
+        strokeLinecap="round"
+        strokeDasharray={RING_C}
+        strokeDashoffset={RING_C * (1 - pct / 100)}
+        className="stroke-current transition-[stroke-dashoffset] duration-gentle ease-standard"
+      />
+    </svg>
+  );
+}
+
+/** 기본 모델 단추가 여는 설정 자리: 모델 탭의 기본 모델 줄. 설정을 바꾸지는 않는다 */
+export function openDefaultModelSetting(commands: Pick<Commands, "requestSettingsJump">): void {
+  commands.requestSettingsJump({ tab: "models", key: DEFAULT_MODEL_KEY });
+}
+
 function ComposerFor(props: {
   readonly threadId: ThreadId;
   readonly disabledReason: string | null;
 }): ReactNode {
   const commands = useCommands();
   const running = useThreadRunning(props.threadId);
+  // 기본 모델과 이 대화의 문맥 사용량. 모델은 대화마다 고를 수 없어 기본 모델만 보인다(model-usage.ts)
+  const defaultModel = useDefaultModel();
+  const usage = useSessionUsage(props.threadId, running);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -84,7 +160,7 @@ function ComposerFor(props: {
   const request = useComposerRequest();
   const folderPick = useFolderPick();
   const [chips, setChips] = useState<readonly AttachChip[]>([]);
-  // 실행 중에 보낸 글이 들어갈 자리. 기본은 끝난 뒤(followUp)라 모드 단추를 건드리지 않으면 예전 동작과 같다
+  // 실행 중에 보낸 글이 들어갈 자리. 기본은 끝난 뒤(followUp)다. 시안이 말하는 기본 모드 설정(l1.tasks.queue.defaultMode)은 설정 카탈로그에 없어서 읽지 않는다
   const [mode, setMode] = useState<BusyInputMode>("followUp");
   const [dragging, setDragging] = useState(false);
   const [attachNote, setAttachNote] = useState<string | null>(null);
@@ -264,7 +340,7 @@ function ComposerFor(props: {
     detach(send(), rethrow);
   };
 
-  // 입력창 부품은 caustic Textarea다. 글과 Enter 처리는 이 파일이 맡고, 단추 줄(첨부·바로/끝난 뒤·중단·보내기)은 Textarea의 아래 칸에 둔다.
+  // 입력창 부품은 caustic Textarea다. 글과 Enter 처리는 이 파일이 맡고, 단추 줄(첨부·바로/끝난 뒤·모델·사용량·중단·보내기)은 Textarea의 아래 칸에 둔다.
   // caustic Composer를 쓰지 않는 까닭: 실행 중에는 Enter가 보내기를 막고 단추가 중단으로 바뀌는데, 앱은 실행 중에도 큐에 넣으며 보내고 중단을 따로 둔다.
   // 또 Composer는 글이 빈 첨부만의 보내기를 막는다.
   return (
@@ -379,6 +455,16 @@ function ComposerFor(props: {
         }
         submit={
           <span className="flex items-center gap-1">
+            {defaultModel === null ? null : (
+              <ModelButton
+                label={modelLabelOf(defaultModel)}
+                disabled={props.disabledReason !== null}
+                onClick={() => {
+                  openDefaultModelSetting(commands);
+                }}
+              />
+            )}
+            <UsageRing percent={usage?.percent ?? null} disabled={props.disabledReason !== null} />
             {running ? (
               <IconButton
                 type="button"

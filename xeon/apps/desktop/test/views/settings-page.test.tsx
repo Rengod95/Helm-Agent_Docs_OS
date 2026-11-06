@@ -17,6 +17,7 @@ import {
   type SettingsPageHandlers,
   type SettingsPageProps,
 } from "../../src/views/pages/settings/settings-view.tsx";
+import { diagnosticToneOf } from "../../src/views/pages/settings/settings-text.ts";
 import { defOf, fieldIn, settingOf, stateOf, viewOf } from "./settings-fixtures.ts";
 
 // 설정 화면(P-09)의 서버 렌더. 읽는 중, 실패, 오프라인(읽기 전용), 잠긴 항목의 정책 문장, 필드 오류, 좁은 폭의 탭 선택,
@@ -509,5 +510,70 @@ describe("overview tab sections", () => {
     );
     expect(offline).toContain(t("desktop.settings.offline"));
     expect(offline).not.toMatch(/py-12"><section/);
+  });
+
+  test("every section title uses the mockup's small semibold text", () => {
+    const out = html(propsOf({ view, tab: "overview" }));
+    const headingClasses = [...out.matchAll(/<h2 id="[^"]*" class="([^"]*)"/g)].map(
+      (match) => match[1] ?? "",
+    );
+    expect(headingClasses.length).toBeGreaterThan(0);
+    expect(new Set(headingClasses)).toEqual(
+      new Set(["m-0 flex-1 text-ui-sm font-semibold text-text-secondary"]),
+    );
+  });
+});
+
+describe("화면 진단 card tones", () => {
+  // 값 모양이 맞지 않는 항목(number 위젯에 boolean 값)과 값이 없는 항목을 함께 둔다
+  const MISMATCH = defOf(
+    "l1.models.flag",
+    "models",
+    "number",
+    { type: "boolean" },
+    {},
+    { order: 1, label: "플래그" },
+  );
+  const MISSING = defOf(
+    "l1.budgets.cap",
+    "budgets",
+    "number",
+    { type: "integer" },
+    {},
+    { order: 2, label: "상한" },
+  );
+  const view = viewOf([MISMATCH, MISSING], [settingOf(MISMATCH.key, true)]);
+
+  test("a widgetMismatch row is drawn in the danger tone and a missingValue row in the warning tone", () => {
+    expect(view.diagnostics.map((diagnostic) => diagnostic.code).toSorted()).toEqual([
+      "missingValue",
+      "widgetMismatch",
+    ]);
+    const out = html(propsOf({ view, tab: "overview" }));
+    const rows = out.match(/<li class="[^"]*">[\s\S]*?<\/li>/g) ?? [];
+    const mismatchRow =
+      rows.find((row) => row.includes(t("desktop.settings.diagnostic.widgetMismatch"))) ?? "";
+    const missingRow =
+      rows.find((row) => row.includes(t("desktop.settings.diagnostic.missingValue"))) ?? "";
+    expect(mismatchRow).toContain("text-danger-text");
+    expect(mismatchRow).not.toContain("text-warning-text");
+    expect(missingRow).toContain("text-warning-text");
+    expect(missingRow).not.toContain("text-danger-text");
+  });
+
+  test("each diagnostic code has exactly one tone", () => {
+    expect({
+      widgetMismatch: diagnosticToneOf("widgetMismatch"),
+      unknownWidget: diagnosticToneOf("unknownWidget"),
+      unknownTab: diagnosticToneOf("unknownTab"),
+      missingValue: diagnosticToneOf("missingValue"),
+      duplicateKey: diagnosticToneOf("duplicateKey"),
+    }).toEqual({
+      widgetMismatch: "danger",
+      unknownWidget: "info",
+      unknownTab: "info",
+      missingValue: "warning",
+      duplicateKey: "warning",
+    });
   });
 });

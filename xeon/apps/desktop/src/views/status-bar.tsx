@@ -1,3 +1,4 @@
+import { Progress } from "@caustic/react";
 import { TriangleAlert } from "@caustic/react/icons";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
@@ -12,6 +13,7 @@ import {
   useLinkBanner,
   useRunningCount,
   useStatusItems,
+  useThreadRunning,
   useThreadSummaries,
   useTurnFailures,
   type EngineState,
@@ -19,6 +21,13 @@ import {
 } from "../state/engine/index.ts";
 import { useConnectError, useRestartNeeded, useSelectedThreadId } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
+import {
+  modelLabelOf,
+  tokenCountText,
+  useDefaultModel,
+  useSessionUsage,
+  type SessionUsage,
+} from "./model-usage.ts";
 import { EntrySurface, screenKeyOf } from "./plugin/plugin-view.tsx";
 import { usePluginUiState } from "./plugin/plugin-context.tsx";
 import { RestartLine } from "./restart-line.tsx";
@@ -399,6 +408,79 @@ function LiveCell(): ReactNode {
   );
 }
 
+/**
+ * "모델" 칸(시안 `model`). 대화별 모델을 읽을 wire가 없어 이 대화가 새 턴에 쓰는 기본 모델을 보인다.
+ * 칸 글은 모델 이름만 두고(`provider/` 접두사는 뗀다), 설명이 기본 모델이라는 것을 말한다. 고르는 길은 아직 없어 누를 동작은 없다
+ */
+export function ModelCell(props: { readonly model: string }): ReactNode {
+  const [open, setOpen] = useState(false);
+  return (
+    <StatusCell
+      cellId="model"
+      text={modelLabelOf(props.model)}
+      title={t("desktop.status.cell.model.title")}
+      description={t("desktop.status.cell.model.description")}
+      open={open}
+      onOpenChange={setOpen}
+    />
+  );
+}
+
+/** 사용량 막대(시안 `TokenBar`, C-05 대용). 한도 비율을 알 때만 그린다. 장식이라 숨기고 칸 글이 뜻을 맡는다 */
+function TokenBar(props: { readonly percent: number }): ReactNode {
+  return <Progress value={Math.round(props.percent)} decorative size="xs" className="w-12" />;
+}
+
+/**
+ * 사용량 Popover의 설명. 이 대화에서 쓴 토큰 수를 말하고, 한도를 알 때만 비율을 한 문장 더한다. 비율을 지어내지 않는다
+ */
+export function tokensDescriptionOf(usage: SessionUsage): string {
+  const tokens = tokenCountText(usage.tokens);
+  return usage.percent === null
+    ? t("desktop.status.cell.tokens.description", { tokens })
+    : t("desktop.status.cell.tokens.limitDescription", {
+        tokens,
+        percent: Math.round(usage.percent),
+      });
+}
+
+/** "사용량" 칸(시안 `tokens`). 글은 쓴 토큰 수이고, 한도를 알 때만 칸 뒤에 막대를 붙인다 */
+export function TokensCell(props: { readonly usage: SessionUsage }): ReactNode {
+  const { usage } = props;
+  const [open, setOpen] = useState(false);
+  return (
+    <StatusCell
+      cellId="tokens"
+      text={tokenCountText(usage.tokens)}
+      trailing={usage.percent === null ? undefined : <TokenBar percent={usage.percent} />}
+      title={t("desktop.status.cell.tokens.title")}
+      description={tokensDescriptionOf(usage)}
+      open={open}
+      onOpenChange={setOpen}
+    />
+  );
+}
+
+/** 모델과 사용량 칸을 대화에 맞춰 읽는다. 훅은 대화 id가 있어야 하므로 대화가 있을 때만 이 조각을 그린다 */
+function ThreadUsageCells(props: { readonly threadId: ThreadId }): ReactNode {
+  const running = useThreadRunning(props.threadId);
+  const model = useDefaultModel();
+  const usage = useSessionUsage(props.threadId, running);
+  return (
+    <>
+      {model === null ? null : <ModelCell model={model} />}
+      {usage === null ? null : <TokensCell usage={usage} />}
+    </>
+  );
+}
+
+/** 모델과 사용량 칸(시안 `model`, `tokens`). 대화를 고르지 않았으면 아무것도 그리지 않고, 값을 읽기 전에는 칸을 두지 않는다 */
+function UsageCells(): ReactNode {
+  const threadId = useSelectedThreadId();
+  if (threadId === null) return null;
+  return <ThreadUsageCells threadId={threadId} />;
+}
+
 /** "승인 n" 칸. 답을 기다리는 승인이 있을 때만 그린다(0이면 칸을 두지 않는다). 시안처럼 점은 없고 글만 있다 */
 function ApprovalsCell(props: { readonly count: number }): ReactNode {
   const [open, setOpen] = useState(false);
@@ -514,8 +596,8 @@ export function StatusBar(): ReactNode {
     setCopied(await commands.copyDiagnostics());
   };
   // 왼쪽은 엔진과 연결 칸이고, 그 뒤에 안전 모드·업데이트·다시 시작 줄·연결 실패 글·대화와 확장의 칸이 붙는다(시안 `startExtra`).
-  // 실패 단추는 자기 칸 옆에 둔다(시안 `inline`). 오른쪽은 진행 중과 승인 칸이다. 시안의 모델·사용량·목표·Helm 칸은
-  // 클라이언트에 값이 없어 아직 없고, 알림 칸은 개수를 거울이 들고 있지 않아 아직 없다.
+  // 실패 단추는 자기 칸 옆에 둔다(시안 `inline`). 오른쪽은 진행 중, 모델, 사용량, 승인 칸이다. 모델과 사용량 칸은 열린 대화가 있고
+  // 값을 읽었을 때만 그린다. 시안의 목표·Helm 칸은 클라이언트에 맞는 값이 없어 아직 없고, 알림 칸은 개수를 거울이 들고 있지 않아 아직 없다.
   return (
     <footer className="statusbar" role="status">
       <EngineCell engine={engine} />
@@ -567,6 +649,7 @@ export function StatusBar(): ReactNode {
       <StatusCells />
       <span className="grow" />
       <LiveCell />
+      <UsageCells />
       {approvals > 0 ? <ApprovalsCell count={approvals} /> : null}
     </footer>
   );
