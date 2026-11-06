@@ -3,7 +3,7 @@ import { RotateCcw } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import { useState, type ReactNode } from "react";
-import { useOpenThread, useQueuedInputs } from "../state/engine/index.ts";
+import { useApprovalMirror, useOpenThread, useQueuedInputs } from "../state/engine/index.ts";
 import { useCommands } from "./commands.ts";
 import { resumeBandClosed, resumeBandOf } from "./resume-band-model.ts";
 
@@ -26,7 +26,9 @@ export function ResumeBand(): ReactNode {
   // 이어서 실행이 시작된 turn. 실행이 시작되면 같은 복구 표식의 띠는 닫는다(표식은 turn이 끝나야 지워진다)
   const [resumedTurn, setResumedTurn] = useState<string | null>(null);
   const queued = useQueuedInputs(thread?.threadId ?? null);
-  const view = resumeBandOf(thread, queued.length);
+  const mirror = useApprovalMirror();
+  const listed = mirror.ids.filter((id) => mirror.byId[id]?.threadId === thread?.threadId).length;
+  const view = resumeBandOf(thread, queued.length, Math.max(listed, thread?.pendingApprovals ?? 0));
   if (thread === undefined || view === null) return null;
   const { threadId } = thread;
   if (resumeBandClosed(view, resumedTurn)) return null;
