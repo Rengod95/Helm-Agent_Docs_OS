@@ -535,7 +535,7 @@ export interface GroupTemplatesPort {
 | `-p`가 없고 stdout이 TTY가 아니다 | print. 입력이 없으면(stdin이 TTY) 사용법 오류 2, `inputRequired` |
 | `-p`가 없고 stdin·stdout이 모두 TTY | 대화형 |
 
-- `-p <입력>`과 TTY가 아닌 stdin이 함께 있으면 `-p` 입력 뒤에 빈 줄과 stdin 내용을 붙인다 [제안].
+- `-p <입력>`과 TTY가 아닌 stdin이 함께 있으면 `-p` 입력 뒤에 빈 줄과 stdin 내용을 붙인다 [제안]. `-p <입력>`이 있을 때 stdin이 1초 안에 첫 바이트를 주지 않으면 비어 있다고 보고 기다리지 않는다(열려 있기만 한 파이프에서 끝없이 멈추지 않으려는 것, `STDIN_IDLE_MS`). 첫 바이트가 온 뒤에는 EOF까지 읽는다. `-p -`와 `-p`만 쓴 경우는 EOF까지 기다린다 [기본값].
 - 입력은 UTF-8로 읽고 `TurnStartInput` 문자열로 보낸다. 1 MiB 프레임 한도(`WIRE_LIMITS.maxFrameBytes`)를 넘으면 사용법 오류 2다.
 - `--json`은 print 모드에서만 쓴다. 대화형과 함께 쓰면 2(`jsonRequiresPrint`).
 - `--auto-approve`도 print 모드에서만 쓴다. 대화형과 함께 쓰면 2(`autoApproveRequiresPrint`).
