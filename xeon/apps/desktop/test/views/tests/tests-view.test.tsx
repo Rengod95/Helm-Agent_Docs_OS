@@ -113,7 +113,7 @@ describe("테스트 화면 목록 상태", () => {
   test("a list that is still loading shows the skeleton, not the empty line", () => {
     const markup = html({ read: { kind: "loading" } });
     expect(markup).toContain('data-slot="skeleton"');
-    expect(markup).not.toContain("아직 돌린 테스트이 없어요");
+    expect(markup).not.toContain("아직 돌린 테스트가 없어요");
   });
 
   test("offline says the list could not be read and locks the new test button", () => {
@@ -130,7 +130,7 @@ describe("테스트 화면 목록 상태", () => {
 
   test("an empty list that has loaded says there are no tests yet", () => {
     const markup = html({ read: { kind: "ready", value: [], stale: false } });
-    expect(markup).toContain("아직 돌린 테스트이 없어요");
+    expect(markup).toContain("아직 돌린 테스트가 없어요");
     expect(markup).not.toContain('data-slot="skeleton"');
   });
 

@@ -2101,7 +2101,7 @@
   "desktop.shell.nav.extensions": "Extensions",
   "desktop.shell.nav.plugins": "Plugin pages",
   "desktop.shell.nav.tests": "Test",
-  "desktop.shell.nav.metrics": "Metrics",
+  "desktop.shell.nav.metrics": "Benchmark",
   "desktop.shell.nav.compose": "Compose",
   "desktop.shell.nav.engine": "Engine",
   "desktop.shell.nav.chatGroup": "Chat navigation",
