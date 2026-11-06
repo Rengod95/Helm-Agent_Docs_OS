@@ -34,11 +34,15 @@ function RestartConfirmDialog(props: {
         if (!open) props.onCancel();
       }}
       title={t("desktop.restart.confirm.title")}
-      description={confirm.lines.map((line) => (
-        <span key={line.id} className="block">
-          {t(line.id, { count: line.count })}
-        </span>
-      ))}
+      description={
+        confirm.needed
+          ? confirm.lines.map((line) => (
+              <span key={line.id} className="block">
+                {t(line.id, { count: line.count })}
+              </span>
+            ))
+          : t("desktop.restart.info")
+      }
       footer={
         <>
           <DialogClose asChild>
@@ -169,5 +173,43 @@ export function RestartNowButton(props: {
       <RestartButtons choices={[NOW]} size={props.size} allowed />
       {props.info === undefined ? null : <InfoTip text={props.info} />}
     </span>
+  );
+}
+
+const PALETTE_RESTART: RestartOptions = { confirmed: true };
+
+/**
+ * 팔레트 "엔진 재시작"의 확인 창. 멈출 것이 없어도 항상 묻는다(살아 있는 엔진은 확인받은 요청만 다시 뜬다, W-35).
+ * 확인하면 다시 띄우고, 셸이 거절하면 실패 토스트, 되면 완료 토스트다.
+ */
+export function PaletteRestartDialog(props: {
+  readonly open: boolean;
+  readonly onClose: () => void;
+}): ReactNode {
+  const commands = useCommands();
+  const turns = useRunningCount();
+  const approvals = useApprovalCount();
+  return (
+    <RestartConfirmDialog
+      open={props.open}
+      turns={turns}
+      approvals={approvals}
+      confirmLabel="desktop.restart.now"
+      onCancel={props.onClose}
+      onConfirm={() => {
+        props.onClose();
+        detach(
+          commands.restartEngine(PALETTE_RESTART).then((restarted) => {
+            toast(
+              restarted
+                ? { tone: "success", title: t("desktop.restart.done") }
+                : { tone: "danger", title: t("desktop.restart.failed") },
+            );
+            return undefined;
+          }),
+          rethrow,
+        );
+      }}
+    />
   );
 }
