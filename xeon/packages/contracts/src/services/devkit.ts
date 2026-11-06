@@ -205,9 +205,22 @@ export const DEVKIT_ERROR_KINDS = [
   "io",
 ] as const;
 export type DevkitErrorKind = (typeof DEVKIT_ERROR_KINDS)[number];
+/**
+ * 입력이 거절된 사유 한 건(설치 미리 보기·설치). `code`는 사유 종류이고 화면이 이것으로 문장을 고른다.
+ * `field`는 매니페스트 안 경로(맨 앞 `/` 없이, 예: `plugins/0/hooks`), `line`은 원문에서 그 키를 찾았을 때의 줄이다.
+ * `message`는 검사기가 쓴 원문 문장이라 화면에 그대로 보이지 않는다
+ */
+export interface DevkitReason {
+  readonly code: string;
+  readonly field?: string;
+  readonly line?: number;
+  readonly message?: string;
+}
 export interface DevkitError {
   readonly kind: DevkitErrorKind;
   readonly message: string;
+  /** 거절된 사유 목록. 설치 입력이 검사에서 걸렸을 때만 있다. 없으면 `kind`와 `message`만 본다 */
+  readonly reasons?: readonly DevkitReason[];
 }
 
 export type DevkitResult<T> = Result<T, DevkitError>;

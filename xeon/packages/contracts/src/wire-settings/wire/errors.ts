@@ -78,6 +78,20 @@ const IssuesSchema: TSchema = Type.Array(
   { maxItems: 20 },
 );
 
+/** 입력 거절의 사유 목록(`DevkitReason`). `jsonrpc.invalidParams`에만 붙는다 */
+const ReasonsSchema: TSchema = Type.Array(
+  Type.Object(
+    {
+      code: Type.String({ minLength: 1, maxLength: 64 }),
+      field: Type.Optional(Type.String({ maxLength: 512 })),
+      line: Type.Optional(Type.Integer({ minimum: 1 })),
+      message: Type.Optional(Type.String({ maxLength: 512 })),
+    },
+    { additionalProperties: false },
+  ),
+  { maxItems: 20 },
+);
+
 const KeyDetails: TSchema = Type.Object(
   { key: Type.String({ maxLength: 128 }) },
   { additionalProperties: false },
@@ -177,7 +191,10 @@ export const WIRE_ERRORS: {
     code: -32602,
     kind: "jsonrpc.invalidParams",
     retryable: false,
-    details: Type.Object({ issues: IssuesSchema }, { additionalProperties: false }),
+    details: Type.Object(
+      { issues: IssuesSchema, reasons: Type.Optional(ReasonsSchema) },
+      { additionalProperties: false },
+    ),
   },
   internal: { code: -32603, kind: "internal", retryable: true },
   "host.helloRequired": { code: 1001, kind: "host.helloRequired", retryable: false },
