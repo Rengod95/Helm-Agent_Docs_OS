@@ -140,7 +140,7 @@ export function coreItems(state: CoreState): {
     usage: hasUsage
       ? {
           id: USAGE_SEGMENT,
-          text: `${formatTokens(state.usage.tokens)} 토큰 · ${formatCost(state.usage.cost)}`,
+          text: `턴 합계 ${formatTokens(state.usage.tokens)} 토큰 · ${formatCost(state.usage.cost)}`,
           tone: "normal",
           order: 120,
         }

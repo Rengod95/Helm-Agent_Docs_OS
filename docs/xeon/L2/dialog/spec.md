@@ -879,7 +879,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 |---|---|---|
 | `core.turn` | 대기, 실행 중(단계 n), 승인 대기, 질문 대기 | `turn.started`, 휘발 `turn.progress`, `approval.requested`/`resolved`, `turn.completed` |
 | `core.tools` | 실행 중인 도구 이름(최대 3개) | `tool.execution.before`/`tool.execution.after` 훅(tap) |
-| `core.usage` | 이 대화 누적 토큰과 비용 | `turn.completed.usage` |
+| `core.usage` | "턴 합계 51.7k 토큰 · $0.0022": 이 대화에서 끝난 턴의 누적 토큰과 비용. 제목 같은 배경 호출은 빼므로 문맥 링 팝오버·설정의 "이 대화 합계"(배경 호출 포함)보다 작을 수 있고, 칸 글자가 "턴 합계"라 둘을 구분한다 [결정: 오케스트레이터 기본값, rtF T-1] | `turn.completed.usage` |
 
 - 그룹 상태 세그먼트: 그룹은 `"<자기 이름>.<이름>"` 형식 id로 `setItem`을 부른다(예: `<그룹 이름>.phase`에 "2/3단계"). 다른 소유자의 id를 쓰는 것을 막을 호출자 확인 수단은 §10 D-4다.
 - 표시 순서는 `order`, 같으면 id 바이트 순이다. 설정 `l2.dialog.status.segments`는 표시할 id 목록이다. `"*"`로 끝나는 항목은 접두 일치다(예: `"<그룹 이름>.*"`). 항목 `"*"` 하나는 앞 항목이 고르지 않은 모든 세그먼트다. 같은 id는 한 번만 표시한다.

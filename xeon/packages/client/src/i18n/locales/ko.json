@@ -1889,7 +1889,7 @@
   "desktop.usage.breakdown.total": "이 대화 합계",
   "desktop.usage.breakdown.totalLine": "토큰 {tokens} · 비용 {cost} · 요청 {requests}",
   "desktop.usage.breakdown.cacheLine": "캐시 읽기 {read} · 캐시 쓰기 {write}",
-  "desktop.usage.breakdown.turn": "가장 나중 Turn",
+  "desktop.usage.breakdown.turn": "가장 나중 턴",
   "desktop.usage.breakdown.turnTokens": "입력 {input} · 출력 {output} · 캐시 읽기 {read} · 캐시 쓰기 {write} · 비용 {cost}",
   "desktop.usage.breakdown.turnTime": "모델 호출 {calls}회 · 모델 시간 {model} · 도구·승인 대기 {wait}",
   "desktop.usage.breakdown.seconds": "{value}초",

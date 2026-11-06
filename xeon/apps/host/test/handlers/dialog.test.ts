@@ -27,7 +27,7 @@ async function wireErrorOf(call: Promise<unknown>): Promise<WireError> {
 const ITEMS: WireResult<"status.list"> = {
   items: [
     { id: "core.turn", text: "대기", tone: "normal", order: 100 },
-    { id: "core.usage", text: "1.5k 토큰 · $0.03", tone: "normal", order: 120 },
+    { id: "core.usage", text: "턴 합계 1.5k 토큰 · $0.03", tone: "normal", order: 120 },
   ],
 };
 
