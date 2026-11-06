@@ -809,6 +809,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 | `app_roots_set`, `fresnel-view://` | `view-scheme.ts` | `protocol.handle`과 `registerSchemesAsPrivileged`(standard, secure, supportFetchAPI, corsEnabled). 허용 루트, 경로 규칙, 확장자 표, 16 MiB 상한, 프레임 CSP는 Rust와 같다. WHATWG URL이 `.`, `..` 마디를 먼저 접어 프레임의 `..`은 403이 아니라 400이다 |
 | `open_external` | `open-external.ts` | 스킴 허용 목록은 Rust와 같다(http, https) |
 | `pick_folder`, `pick_file`, `save_file` | `dialogs.ts` | `dialog.showOpenDialog`, `showSaveDialog`. 파일 이름 정리와 200자 상한은 Rust와 같다 |
+| `pick_file_read` (Tauri에 없음) | `dialogs.ts` | 플러그인 화면 다리 `pickFile`용이다(§11.2). 파일 창을 열어 사용자가 고른 파일 하나만 UTF-8로 읽어 `{ name, content }`를 돌려준다(취소면 `null`). 경로 인자가 없고 경로를 돌려주지 않는다. 256 KiB를 넘으면 `too-large`, 글이 아니면 `not-text`, 읽지 못하면 `read_failed`다 [결정: 2026-11-06 사용자] |
 | (Tauri에 없음) 창 위치·크기 기억 | `window-state.ts` | `window.rs`는 창 다시 열기만 하고 위치를 기억하지 않는다. Electron 쪽에 새로 넣었고 파일은 `window-state-electron.json`이다 |
 | 앱 로그 | `lib/applog.ts` | `<logs>/fresnel-desktop.log`(macOS `~/Library/Logs/dev.fresnel.desktop/`), 줄 단위, 제어 문자는 공백 |
 | PATH 보정 | `env-path.ts`, `lib/env-path.ts` | 엔진과 `fresnel secret` 자식의 환경에만 적용한다(Rust `engine_env`와 같다) |

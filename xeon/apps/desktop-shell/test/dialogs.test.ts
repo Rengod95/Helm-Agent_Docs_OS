@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { absolutePathText, bareFileName, dialogsModule } from "../src/main/dialogs.ts";
+import {
+  absolutePathText,
+  bareFileName,
+  dialogsModule,
+  PICK_READ_MAX_BYTES,
+} from "../src/main/dialogs.ts";
 import { fakeCtx } from "./support/fake-ctx.ts";
 
 describe("file name sanitizing", () => {
@@ -180,5 +185,51 @@ describe("save_file command", () => {
       ok: false,
       error: "bad-request",
     });
+  });
+});
+
+describe("pick_file_read command", () => {
+  test("reads only the file the dialog chose and answers its name and text, not its path", async () => {
+    const fake = fakeCtx();
+    dialogsModule.register(fake.ctx);
+    const target = path.join(fake.dir, "notes.md");
+    writeFileSync(target, "# 메모\n", "utf8");
+    fake.dialogs.file = target;
+    expect(await fake.call("pick_file_read", { path: "/etc/passwd" })).toEqual({
+      ok: true,
+      value: { name: "notes.md", content: "# 메모\n" },
+    });
+  });
+
+  test("a cancelled dialog answers null", async () => {
+    const fake = fakeCtx();
+    dialogsModule.register(fake.ctx);
+    fake.dialogs.file = null;
+    expect(await fake.call("pick_file_read")).toEqual({ ok: true, value: null });
+  });
+
+  test("a file over the limit is refused unread", async () => {
+    const fake = fakeCtx();
+    dialogsModule.register(fake.ctx);
+    const target = path.join(fake.dir, "big.txt");
+    writeFileSync(target, "x".repeat(PICK_READ_MAX_BYTES + 1));
+    fake.dialogs.file = target;
+    expect(await fake.call("pick_file_read")).toEqual({ ok: false, error: "too-large" });
+  });
+
+  test("a file that is not UTF-8 text is refused", async () => {
+    const fake = fakeCtx();
+    dialogsModule.register(fake.ctx);
+    const target = path.join(fake.dir, "bin.dat");
+    writeFileSync(target, new Uint8Array([0xff, 0xfe, 0x00, 0xc3]));
+    fake.dialogs.file = target;
+    expect(await fake.call("pick_file_read")).toEqual({ ok: false, error: "not-text" });
+  });
+
+  test("a picked path that vanished answers read_failed", async () => {
+    const fake = fakeCtx();
+    dialogsModule.register(fake.ctx);
+    fake.dialogs.file = path.join(fake.dir, "gone.txt");
+    expect(await fake.call("pick_file_read")).toEqual({ ok: false, error: "read_failed" });
   });
 });

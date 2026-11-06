@@ -1,6 +1,6 @@
 // 폴더와 파일을 고르는 창, 내보내기 저장 창(folder_pick.rs, file_save.rs). 창은 메인 프로세스가 띄우고
 // 렌더러는 고른 절대 경로(취소면 null)만 받는다. 저장 창은 이름을 파일 이름 하나로 줄이고 200자로 자른다.
-import { writeFileSync } from "node:fs";
+import { readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { attempt, attemptAsync } from "@fresnel/contracts";
 import { ShellError } from "./commands.ts";
@@ -9,9 +9,12 @@ import { ownField } from "./lib/narrow.ts";
 
 /** 제안 이름의 글자 상한. 넘는 글자는 버린다 */
 const NAME_LIMIT = 200;
+/** `pick_file_read`가 읽는 파일의 크기 상한(바이트). `UI_LIMITS.fileBytes`와 같다 */
+export const PICK_READ_MAX_BYTES = 262_144;
 /** 쓸 수 있는 이름이 남지 않을 때의 이름 */
 const FALLBACK_NAME = "export.txt";
 const CONTROL_CHAR = /\p{Cc}/u;
+const STRICT_UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
 /** 고른 경로가 절대 경로면 그대로 준다. 상대 경로와 빈 문자열은 null이다(Rust `folder_path_text`) */
 export function absolutePathText(picked: string): string | null {
@@ -58,6 +61,21 @@ export const dialogsModule: ShellModule = {
   register(ctx) {
     ctx.handle("pick_folder", () => askPath(() => ctx.dialogs.openFolder()));
     ctx.handle("pick_file", () => askPath(() => ctx.dialogs.openFile()));
+    // 플러그인 화면 다리(`pickFile`)용. 사용자가 이 창에서 고른 파일 하나만 읽는다. 임의 경로 인자는 없고 경로는 돌려주지 않는다.
+    // 글(UTF-8)이 아니거나 상한을 넘으면 읽지 않고 거절한다
+    ctx.handle("pick_file_read", async () => {
+      const target = await askPath(() => ctx.dialogs.openFile());
+      if (target === null) return null;
+      const size = attempt(() => statSync(target).size);
+      if (!size.ok) throw new ShellError("read_failed");
+      if (size.value > PICK_READ_MAX_BYTES) throw new ShellError("too-large");
+      const bytes = attempt(() => readFileSync(target));
+      if (!bytes.ok) throw new ShellError("read_failed");
+      if (bytes.value.byteLength > PICK_READ_MAX_BYTES) throw new ShellError("too-large");
+      const text = attempt(() => STRICT_UTF8.decode(bytes.value));
+      if (!text.ok) throw new ShellError("not-text");
+      return { name: path.basename(target), content: text.value };
+    });
     ctx.handle("save_file", async (_caller, args) => {
       const request = saveRequestOf(args);
       const answer = await attemptAsync(() =>
