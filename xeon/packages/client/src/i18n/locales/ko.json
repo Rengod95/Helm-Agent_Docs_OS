@@ -1577,6 +1577,7 @@
   "desktop.composer.model.error": "모델을 바꾸지 못했어요.",
   "desktop.composer.model.label": "이 대화의 모델",
   "desktop.composer.model.price": "${input} / ${output} (100만 토큰)",
+  "desktop.composer.model.contextCost": "이 문맥을 보내면 약 {cost}",
   "desktop.composer.model.priceUnknown": "가격 모름",
   "desktop.composer.observing.notice": "관찰 중이에요.",
   "desktop.composer.placeholder": "메시지를 입력하세요. Enter로 보내고 Shift+Enter로 줄을 바꿔요.",

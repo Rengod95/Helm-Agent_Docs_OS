@@ -1577,6 +1577,7 @@
   "desktop.composer.model.error": "Could not change the model.",
   "desktop.composer.model.label": "Model for this conversation",
   "desktop.composer.model.price": "${input} / ${output} per 1M tokens",
+  "desktop.composer.model.contextCost": "sending this context costs about {cost}",
   "desktop.composer.model.priceUnknown": "price unknown",
   "desktop.composer.observing.notice": "You are watching this conversation.",
   "desktop.composer.placeholder": "Type a message. Press Enter to send and Shift+Enter for a new line.",
