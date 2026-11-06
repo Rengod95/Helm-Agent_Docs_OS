@@ -175,7 +175,7 @@ export type ServiceRegistration = Static<typeof ServiceRegistration>;
 | 4 | 유휴 종료 조건 | 연결 0 + live task 0 + 대기 예약 0일 때만 종료한다. 시작 직후 유예를 둔다. 승인 대기 세션은 live로 본다 [결정: review.m3-design-inputs D-M3-13 행 2]. 근거는 작성자 제안과 같다(Claude Code는 권한 프롬프트에서 멈춘 세션을 계속 실행으로 본다, `CC/agent-view.md:819`) | pi 10초/1초 유예 |
 | 5 | 인증 | 로컬은 Unix 소켓 + 파일 권한. 1차 원격 중 SSH 터널은 같은 소켓을 쓰므로 같은 규칙이다. 소켓을 사설망에 TCP로 열 때만 토큰(`host.hello` `auth`)이 필수다 [결정: review.m3-design-inputs D-M3-16 c]. 2차 TCP·WebSocket은 무작위 토큰 필수, `initialize` 전에 인증한다. 비루프백 리스너의 무인증 기동을 금지한다 | Codex app-server |
 | 6 | 부모-자식 수명 | 자식 엔진은 stdin EOF 임대로 정리한다. 서비스는 `detached` + `unref`로 부모에서 분리한다 | opencode `standalone.ts:23-27`, pi `PX/process.ts:40-70` |
-| 7 | 종료 협조 | 먼저 종료 요청을 보내고 안전 경계에서 체크포인트한 뒤 종료한다. 서비스는 SIGTERM으로 요청하고 시한 뒤 SIGKILL한다. 데스크톱 자식 엔진은 Tauri 셸 플러그인이 SIGKILL만 보내므로 stdin으로 `shutdown` 요청을 먼저 보낸다(ADR-0008) | opencode 3초, `_research/notes/arch-2.md §5` 1행 |
+| 7 | 종료 협조 | 먼저 종료 요청을 보내고 안전 경계에서 체크포인트한 뒤 종료한다. 서비스는 SIGTERM으로 요청하고 시한 뒤 SIGKILL한다. 데스크톱 자식 엔진은 옛 Tauri 구현(커밋 424f338a)의 Tauri 셸 플러그인이 SIGKILL만 보냈으므로 stdin으로 `shutdown` 요청을 먼저 보낸다(ADR-0008) | opencode 3초, `_research/notes/arch-2.md §5` 1행 |
 | 8 | 단일 장애점 | 서비스가 죽어도 DB와 복구 표식이 남으므로 다음 `ensure`가 재개 후보를 제시한다. 서비스 소실을 감지한 클라이언트는 안전하게 멈춘다 | Claude Code 감독자 소실 시 1분 뒤 정지 |
 
 ## 4. 결과

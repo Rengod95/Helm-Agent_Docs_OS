@@ -10,7 +10,7 @@ Fresnel（暂定名）是一个对话式智能体运行时。整个运行时按�
 
 | 路径 | 内容 |
 |------|------|
-| `xeon/` | 工作区：引擎、宿主、CLI 和桌面应用（基于 Bun 的 TypeScript，Rust 的 Tauri 外壳） |
+| `xeon/` | 工作区：引擎、宿主、CLI 和桌面应用（基于 Bun 的 TypeScript，Electron 外壳） |
 | `docs/xeon/` | 产品规划、各层规格与实施计划、具有约束力的工程规则 |
 | `packages/agent-docs-init/` | `@helmdocs/init`，Agent Docs OS 安装工具（与运行时相互独立的工具） |
 

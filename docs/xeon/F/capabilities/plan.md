@@ -73,7 +73,7 @@ P6 해시 선택 [제안]:
 
 | 안 | 장점 | 단점 |
 |---|---|---|
-| Web Crypto `crypto.subtle.digest("SHA-256")` (채택 제안) | 패키지 의존 없음. Bun 1.4, Tauri WebView, 브라우저 공통 표준. 구현 코드 몇 줄 | 비동기라 `toolsetFingerprint`가 `Promise`를 반환한다 |
+| Web Crypto `crypto.subtle.digest("SHA-256")` (채택 제안) | 패키지 의존 없음. Bun 1.4, 데스크톱 WebView(Electron의 Chromium, 옛 Tauri 구현(커밋 424f338a)은 Tauri WebView), 브라우저 공통 표준. 구현 코드 몇 줄 | 비동기라 `toolsetFingerprint`가 `Promise`를 반환한다 |
 | 순수 TS SHA-256 (약 80줄) | 동기 함수. 런타임 전역에 의존하지 않음 | 직접 유지할 암호 코드가 생긴다. 테스트 벡터 검증 필요 |
 
 - 두 안 모두 F에 런타임 의존을 늘리지 않는다. 호출자(L1.context)는 요청을 만들 때 이미 비동기이므로 Web Crypto 안을 제안한다.

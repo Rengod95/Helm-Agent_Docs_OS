@@ -44,7 +44,7 @@ binds: [xeon/packages/platform-os/**]
 | 용어 | 뜻 |
 |---|---|
 | provider | OS·환경마다 바뀌는 내부 구현 단위. `src/providers/` 또는 기능 디렉터리 아래 `darwin.ts`, `linux.ts`, `win32.ts`로 둔다(`L0.readme` §3.1) |
-| 환경 provider | OS 대신 배포 환경 기준으로 고르는 provider. 예: `desktop-tauri` 알림 provider. L4가 플러그인 설정으로 넘긴다 |
+| 환경 provider | OS 대신 배포 환경 기준으로 고르는 provider. 예: `desktop-tauri`(옛 이름) 알림 provider. L4가 플러그인 설정으로 넘긴다 |
 | 번들 바이너리 | 앱과 함께 배포되는 실행 파일(예: `@vscode/ripgrep` 플랫폼 패키지의 `rg`) |
 | 시스템 바이너리 | 사용자가 OS에 설치한 실행 파일(`PATH`에서 찾는다) |
 | drvfs | WSL에서 Windows 드라이브를 마운트한 파일 시스템(`/mnt/c` 등). WSL2에서는 9p 프로토콜이다 |
@@ -396,7 +396,7 @@ export type BinaryError =
 
 1. 번들 후보: `resource` 디렉터리의 바이너리 목록 파일(`binaries.lock.json`, 빌드 때 생성. 이름, 플랫폼, 상대 경로, SHA-256, 버전)에 이름이 있으면 그 파일을 쓴다. 목록은 `generateBinariesLock(resourceDir, inputs, fs)`가 만든다. 항목은 이름·플랫폼·아키텍처 순으로 정렬해 같은 입력이 같은 본문을 내고, resource 디렉터리 밖을 가리키는 경로와 중복 항목은 오류 값이다.
    - 소스 실행(`bun run`): `@vscode/ripgrep`이 제공하는 경로를 그대로 쓴다. 서비스 설정에 `bundledSource`가 없으면 이 연결(`createRipgrepSource`)이 기본이다. 플랫폼 패키지가 없어 모듈이 던지면 번들 없음으로 보고 시스템 후보로 간다. 버전은 `rg --version`에서 읽고, 읽지 못하면 `version_unreadable`이다. 설치 때 npm 락파일의 무결성 해시로 검증되므로 실행 시 해시 검사는 생략한다. postinstall 다운로드는 하지 않는다. pi tools-manager의 해시 없는 다운로드는 쓰지 않는다(`_research/packages.md` §4.2 L0-f).
-   - 컴파일 바이너리(`bun build --compile`)와 Tauri 사이드카 [가정]: 번들 파일은 실행 파일 안에 내장되어 바로 실행할 수 없다. 그래서 `cache/bin/<sha256 앞 16자>/<이름>`으로 꺼낸 뒤 SHA-256을 다시 계산해 목록 값과 비교하고, 같을 때만 실행 권한을 주고 경로를 돌려준다. 이미 꺼낸 파일이 있으면 해시만 다시 확인한다. 불일치하면 `integrity_mismatch`이고 그 파일을 실행하지 않는다. 내장과 추출 방식은 `L0.os.plan`의 실측 작업이 확정한다.
+   - 컴파일 바이너리(`bun build --compile`)와 데스크톱 사이드카 [가정] (옛 Tauri 구현(커밋 424f338a)은 Tauri 사이드카, 지금은 Electron 묶음의 `Resources`, `L4.desktop.spec` §11.7): 번들 파일은 실행 파일 안에 내장되어 바로 실행할 수 없다. 그래서 `cache/bin/<sha256 앞 16자>/<이름>`으로 꺼낸 뒤 SHA-256을 다시 계산해 목록 값과 비교하고, 같을 때만 실행 권한을 주고 경로를 돌려준다. 이미 꺼낸 파일이 있으면 해시만 다시 확인한다. 불일치하면 `integrity_mismatch`이고 그 파일을 실행하지 않는다. 내장과 추출 방식은 `L0.os.plan`의 실측 작업이 확정한다.
 2. 시스템 후보: `allowSystem`이 true이면 `PATH`를 앞에서부터 찾는다(Windows는 `PATHEXT` 확장자 포함). 찾으면 `<이름> --version`(age는 `--version`, bwrap은 `--version`)을 실행해 첫 줄에서 버전을 읽는다. 읽지 못하면 `version_unreadable`이다. `security`와 `secret-tool`은 버전 옵션이 없으므로 버전 확인을 건너뛰고 `version`을 빈 문자열로 둔다. 이 둘에는 `minVersion`을 줄 수 없다 [제안].
 3. 둘 다 없으면 `not_found`. `hint`는 OS별 설치 안내 문구다(예: Linux bwrap: "bubblewrap 패키지를 설치한다"). 이 실패는 사용자 환경 문제이고 호출자는 코드를 고칠 대상으로 다루지 않는다. CLI는 환경 문제 종료코드(2 계열)로 끝낸다 [제안: 종료코드 체계는 `L4.cli.spec`].
 
@@ -448,7 +448,7 @@ export type NotifyError =
 ```ts
 // platform-os 내부: src/notify/provider.ts
 export interface NotifierProvider {
-  /** provider id. 예: "os.os.notify/darwin", "os.os.notify/desktop-tauri" */
+  /** provider id. 예: "os.os.notify/darwin", "os.os.notify/desktop-tauri"(옛 이름) */
   readonly id: string;
   available(signal: AbortSignal): Promise<boolean>;
   send(n: OsNotification, signal: AbortSignal): Promise<Result<void, NotifyError>>;
@@ -463,13 +463,13 @@ export function buildNotifyCommand(info: OsInfo, n: OsNotification): readonly st
 | `linux` | `notify-send --app-name=Fresnel <title> <body>` | 무음. 첫 실패 때 진단 로그 한 번(`notify.unavailable`) |
 | `win32` | PowerShell 토스트(`-NoProfile`, 인자는 `-EncodedCommand`로 전달) | 무음 + 진단 한 번 |
 | `none` | 무동작 | — |
-| `desktop-tauri` | 데스크톱 앱에서는 엔진이 사이드카라 Tauri API를 직접 부를 수 없다. L4 host가 wire 알림으로 UI에 넘기고 UI가 Tauri 알림을 띄운다. 이 provider는 L4가 구현해 플러그인 설정으로 주입한다 | — |
+| `desktop-tauri`(옛 이름) | 데스크톱 앱에서는 엔진이 사이드카라 셸 API를 직접 부를 수 없다. L4 host가 wire 알림으로 UI에 넘기고 UI가 셸 명령 `notify_os`로 OS 알림을 띄운다(Electron `Notification`, `L4.desktop.spec` §11.6). 이 provider는 L4가 구현해 플러그인 설정으로 주입한다 | — |
 
 - 선택: L4가 환경 provider를 넘기면 그것을 쓴다. 넘기지 않으면 `select.ts`가 OS provider를 고른다. 선택 기준은 배포 환경이 먼저이고 OS가 다음이다.
 - 켜기·끄기: 이 패키지는 알림 켜기·종류 설정을 두지 않는다. 알림을 보낼지는 호출자(`cap-dialog`)가 `l2.dialog.notify.os`와 종류별 키(`l2.dialog.notify.<kind>`)로 정하고, 이 패키지는 받은 알림을 그대로 내보낸다 [결정: review.decisions-2 S-04]. `notify`가 `disabled`를 돌려주는 경우는 M3 이전 빌드와 조립 루트가 provider `none`을 고른 경우뿐이다.
 - 시크릿: 알림 본문과 제목은 OS 알림 센터에 남는다. 호출자는 마스킹한 문자열만 넘기고, `platform-os`도 보내기 전에 로거와 같은 `redact`를 한 번 더 적용한다 [제안]. 도구 인자, 프롬프트 본문 원문은 넣지 않는다.
 - WSL [결정: M3-REQ-50]: linux provider가 그대로 쓰이며 `notify-send`가 없으면 `unavailable`이다. Windows 토스트 상호운용(`powershell.exe` 호출)은 쓰지 않는다. `win32` provider는 M3 범위 밖이라 `createOsNotifierProvider`가 undefined를 돌려주고 `notify`는 `disabled`다.
-- 구현 값: `createOsNotifierProvider({ info, run, logger, binaryFs, pathEnv, linuxCommand? })`가 provider를, `createNotify({ provider, clock, redact })`가 `OsService.notify`를 만든다. `available()`은 darwin에서 PATH에 `osascript` 실행 파일이 있는지만 보고 판단한다(§3.6의 PATH 탐색과 같은 `lookupOnPath`를 쓰고 `osascript`를 실행하지 않는다). 없으면 `false`다 [제안]. linux argv는 `notify-send --app-name=<표시 이름> -- <title> <body>`이고 `--`는 `-`로 시작하는 문자열이 옵션으로 읽히지 않게 한다. 제목 80자, 본문 400자로 자르고 마스킹은 자르기 전에 적용한다. 같은 `kind`·`threadId` 알림은 1초 안에 하나만 보내고 둘째부터는 `ok`로 건너뛴다(보내기에 실패하면 기록하지 않아 재시도할 수 있다). `PlatformOsConfig.notifier`는 provider를 주입하고(`desktop-tauri` 등), `null`이면 provider none이다. 클라이언트 창이 앞에 있어도 기본으로 보내고 끄는 설정은 호출자(`cap-dialog`)가 갖는다.
+- 구현 값: `createOsNotifierProvider({ info, run, logger, binaryFs, pathEnv, linuxCommand? })`가 provider를, `createNotify({ provider, clock, redact })`가 `OsService.notify`를 만든다. `available()`은 darwin에서 PATH에 `osascript` 실행 파일이 있는지만 보고 판단한다(§3.6의 PATH 탐색과 같은 `lookupOnPath`를 쓰고 `osascript`를 실행하지 않는다). 없으면 `false`다 [제안]. linux argv는 `notify-send --app-name=<표시 이름> -- <title> <body>`이고 `--`는 `-`로 시작하는 문자열이 옵션으로 읽히지 않게 한다. 제목 80자, 본문 400자로 자르고 마스킹은 자르기 전에 적용한다. 같은 `kind`·`threadId` 알림은 1초 안에 하나만 보내고 둘째부터는 `ok`로 건너뛴다(보내기에 실패하면 기록하지 않아 재시도할 수 있다). `PlatformOsConfig.notifier`는 provider를 주입하고(`desktop-tauri`(옛 이름) 등), `null`이면 provider none이다. 클라이언트 창이 앞에 있어도 기본으로 보내고 끄는 설정은 호출자(`cap-dialog`)가 갖는다.
 - 같은 `threadId`·`kind` 알림이 1초 안에 반복되면 하나만 보낸다(`Scheduler` 기반 디바운스) [제안].
 
 ### 3.8 파일 감시 (2차)
@@ -599,7 +599,7 @@ export interface PlatformOsConfig {
   readonly resourceDir: string;
   readonly logSink: LogSink;
   readonly logRedact: LogRedact;
-  /** 배포 환경 provider. 예: desktop-tauri 알림 */
+  /** 배포 환경 provider. 예: desktop-tauri(옛 이름) 알림 */
   readonly notifier?: NotifierProvider;
 }
 /** L0 등록 단위. 조립 루트가 ExtHost.registerPlatform으로 등록한다. PlatformModule은 X.primitives.spec §3.2의 정의다 */
@@ -767,7 +767,7 @@ export interface WorktreeOps {
 | `L0.process.spec` | 소켓 파일 이름 상한(3.2절 runtime 길이 규칙의 여유 24바이트)을 확정한다(반영됨: `L0.process.spec` §4.4.1 `SOCKET_RELATIVE_PATH_MAX_BYTES`) |
 | `L0.secrets.spec` | 로그·알림·텔레메트리용 마스킹 함수 `(text: string) => string`을 서비스로 제공한다. 조립 루트가 `logRedact`에 연결한다 |
 | `X.primitives.spec` | `PlatformModule`, `PlatformContext`, `ExtHost.registerPlatform`(§3.2)과 등록 실패 경로(`setup`이 던지면 `registerPlatform`이 던진다) |
-| `L4.host-service.spec`, `L4.desktop.spec` | `resourceDir`, `logSink`, `desktop-tauri` 알림 provider를 플러그인 설정으로 넘긴다 |
+| `L4.host-service.spec`, `L4.desktop.spec` | `resourceDir`, `logSink`, `desktop-tauri`(옛 이름) 알림 provider를 플러그인 설정으로 넘긴다 |
 
 F에 요청:
 

@@ -60,7 +60,7 @@ binds: []
 | B-06 | 시크릿 | 시크릿 서비스(L0.secrets) | 모델 컨텍스트, 이벤트 DB, 로그, 자식 env | 참조(`secret://`)만 넘고 값은 넘지 않습니다 |
 | B-07 | 네트워크 | 엔진 | 인터넷, 사설망, 루프백 서비스 | `web.fetch`, `web.search`, MCP HTTP |
 | B-08 | 호스트 전송 | 엔진 | 클라이언트(CLI in-process, 데스크톱 stdio, M3 서비스 소켓) | wire 요청, 승인 응답 |
-| B-09 | 데스크톱 WebView | Tauri 셸 | WebView UI | 바이트 릴레이. CSP `default-src 'self'` |
+| B-09 | 데스크톱 WebView | Electron 셸 | WebView UI | 바이트 릴레이. CSP `default-src 'self'` |
 | B-10 | 다른 Fresnel 프로세스 | 한 엔진 | 같은 DB·상태 파일을 여는 다른 엔진 | 쓰기 경합 |
 
 ## 4. 위협과 통제
@@ -77,7 +77,7 @@ binds: []
 | T-08 | 검색어가 의도하지 않은 수신자에게 나감 | B-07 | 사용자가 설정한 provider만 체인에 넣음. SearXNG 자동 탐침 없음. SearXNG provider는 [결정: 2026-11-04 사용자 B15]로 없앴다. 키 플러그인은 등록이 동의 | ADR-0005 §3.3(2026-10-25 개정) | 미구현(감지 제거는 T5) | H1(T5), 키 플러그인 첫 사용 고지 [제안] |
 | T-09 | 사용자·작업 폴더 확장 코드가 엔진 권한으로 실행 | B-04 | 신뢰 등급 × 허용 연산 표, 설치 위치 상한, 예약 이름 거부. 외부 확장 로더는 M3 | `X.loading-trust.spec` §4.6, `review.m2-plan` §8 D9 | 가짜 | M3 외부 로더, 프로세스 격리는 2차(보안 경계 아님) |
 | T-10 | 로컬·원격 클라이언트가 엔진을 조작 | B-08 | 비루프백 리스너 없음. 데스크톱은 자식 stdio. M3 원격은 SSH 터널·사설망 | `L4.host-service.spec` §4.11, `review.decisions-2` U-11, ADR-0006 | 가짜(전송 적합성 시험) | M3 서비스 소켓 권한 |
-| T-11 | WebView에 원격 콘텐츠가 들어와 IPC를 부름 | B-09 | CSP `default-src 'self'`, 셸은 바이트만 릴레이 | `L4.desktop.spec`, `src-tauri/tauri.conf.json` | 없음(WebView e2e 없음) | G4-03 e2e(T7), 원격 점검 디버그 기능은 `cfg(debug_assertions)` 아래(T7) |
+| T-11 | WebView에 원격 콘텐츠가 들어와 IPC를 부름 | B-09 | CSP `default-src 'self'`, 셸은 바이트만 릴레이 | `L4.desktop.spec`, 옛 Tauri 구현(커밋 424f338a)의 `src-tauri/tauri.conf.json`, Electron 셸 `apps/desktop-shell/src/main.ts`(CSP) | 없음(WebView e2e 없음) | G4-03 e2e(T7), 원격 점검 디버그 기능은 옛 Tauri 구현(커밋 424f338a)의 `cfg(debug_assertions)` 아래(T7) |
 | T-12 | 두 엔진이 같은 DB·상태 파일을 동시에 씀 | B-10 | 대화 OS 잠금과 `sys_leases.epoch` 펜싱, `thread.locked` 대안 | ADR-0004, `L0.store.spec` | 실측(Linux 두 프로세스 시험) | G1-10 `fileLock`(T3), G2-09 single-instance(T7) |
 | T-13 | 상태 파일과 임시 파일이 평문으로 남음 | A-3, A-4 | spill 파일을 상태 디렉터리로 옮김(M2), `secretEnv` 호출은 spill 끔 | `L0.exec.plan` §7 R-9, `L0.exec.spec` §10 미결 4 | 미구현(현재 OS 임시 폴더) | G2-05(T3), GC·회전·상한은 M3 |
 | T-14 | 업데이트·마이그레이션이 사용자 DB를 손상 | A-3 | 마이그레이션 전 `VACUUM INTO` 스냅샷, 손상과 미래 버전 오류 구분 | `L0.store.spec` | 미구현 | G2-06(T1, T3, T2) |

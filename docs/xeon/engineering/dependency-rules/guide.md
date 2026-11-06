@@ -301,7 +301,7 @@ import { MAX_STEPS } from "./turn.ts";   // DR-06: turn.ts ↔ step.ts
 | `age-encryption` | `platform-secrets` | `L0.secrets.plan` SC-13(파일 폴백 키 생성) |
 | `cordis`, `@cordisjs/*`, `vendor/cordis` | `ext-host` | DR-11 |
 | `@swc/core` | `group-sdk`의 `src/testing/**`(`./testing` 하위 경로, `scanDriveSource`)와 dependency-cruiser 파서. group-sdk의 다른 운영 소스는 import하지 않고, 사이드카·데스크톱·플러그인 번들에 넣지 않는다(번들 확인은 M3-27) | `L3.group-sdk.plan` §2(G-19, H-14·H-18 drive 정적 검사) [결정: 2026-10-28 사용자 승인] |
-| `@tauri-apps/*` | `apps/desktop` | foundation-plan §2 데스크톱 행 |
+| `electron`, `electron-updater` | `apps/desktop-shell`(옛 `@tauri-apps/*`는 `apps/desktop`, 커밋 424f338a) | `L4.desktop.spec` §11.1, §11.6 |
 | `react`, `react-dom`, `zustand` | `apps/desktop`. 앱 안 import 위치는 `eng.frontend-state.guide` FS-06이 더 좁힌다 | adr.0010 §3.3 [결정: 2026-10-24 사용자 지시] |
 | `@caustic/react`, `@caustic/tokens` | `apps/desktop`. 원본은 git submodule `xeon/external/caustic`(github.com/Rengod95/caustic, private, `main` 추적)이고 루트 워크스페이스가 두 패키지만 싣는다. caustic 내부 의존(Radix, lucide-react 등)은 caustic이 고르고 Fresnel 패키지가 직접 import하지 않는다. 갱신은 Dependabot `gitsubmodule`이 PR로 올리고 CI 통과 뒤 자동 병합한다. 수동 갱신은 `just caustic-update` | [결정: 2026-10-29 사용자 지시] 데스크톱 디자인 시스템·컴포넌트는 caustic |
 | `node:*`, `bun:*`, Bun 전역 | F(`contracts`)에서 금지 | 06 R4를 F에 한정해 옮긴다. F는 데스크톱 WebView에서도 import되므로 런타임 중립이어야 한다 [제안] |
@@ -509,7 +509,7 @@ await ext.dispatch({ name: "tool.call.before", fold: "first" }, payload);   // D
 - 분기 표현: `process.platform`, `process.arch`, `os.platform()`, `os.type()`, `os.release()`, `navigator.platform`, WSL 판정(`WSL_DISTRO_NAME`, `/proc/version` 읽기), 플랫폼별 경로 상수(`"/usr/lib"`, `"C:\\"`, `"~/Library"`).
 - 허용 위치: `packages/platform-*/src/**`. 인터페이스는 F에 두고, L0 패키지가 OS별 구현을 고른다.
 - 소비자(X, L1~L4)는 인터페이스만 쓴다. 예: 경로는 `platform-os`의 서비스로, 프로세스는 `platform-exec`로, 시크릿은 `platform-secrets`로 받는다.
-- `apps/desktop`의 Tauri Rust 코드(`src-tauri/`)는 이 규칙 밖이다. TS 쪽 UI 코드는 이 규칙을 따른다.
+- 옛 Tauri 구현(커밋 424f338a)의 `apps/desktop/src-tauri/`(Rust 코드)는 이 규칙 밖이었고 2026-11-06에 지웠다. TS 쪽 UI 코드는 이 규칙을 따른다.
 
 이유: 첫 지원 OS는 macOS와 Linux(WSL 포함)이고 Windows 네이티브는 나중이다(`_research/decisions-log.md` 2026-10-19). OS 분기가 L0 밖에 흩어지면 Windows를 더할 때 고칠 곳을 찾을 수 없다.
 

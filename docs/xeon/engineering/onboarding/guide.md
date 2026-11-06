@@ -19,7 +19,7 @@ binds: []
 
 ### ON-01 도구는 mise와 just로 받는다
 
-- 필요한 것: `mise`, `just` 1.58 이상. `mise`가 `xeon/mise.toml`의 bun 1.4.3과 Rust 1.99.1을 설치합니다(`cd xeon && mise install`).
+- 필요한 것: `mise`, `just` 1.58 이상. `mise`가 `xeon/mise.toml`의 bun 1.4.3을 설치합니다(`cd xeon && mise install`). Rust 1.99.1은 옛 Tauri 구현(커밋 424f338a)에서만 쓰였고 지금은 없습니다.
 - `bun`을 직접 부르지 않습니다. mise 심이 전역 판을 몰라 실패합니다. 항상 `just <레시피>`로 부릅니다.
 - 선택 도구와 쓰는 곳은 아래와 같습니다. 없으면 해당 시험이나 기능만 종료코드 2로 알리거나 건너뜁니다.
 
@@ -28,7 +28,7 @@ binds: []
 | `sops` 3.13.3, `age` 1.3.2 | 시크릿 기본 provider, `platform-secrets` 실제 시험(E7) | 실제 시험이 건너뛰어지고 `just exit-tests`가 실패 |
 | `bubblewrap`, `socat`(Linux) | 샌드박스 `bash`(M1 종료 조건) | 셸 도구가 꺼짐, 샌드박스 int 시험 종료코드 2 |
 | `rg` | 파일 검색(`@vscode/ripgrep`이 기본 제공) | 내장 바이너리 사용 |
-| Tauri 시스템 패키지(Linux `libwebkit2gtk-4.1`) | `just desktop-*` | 종료코드 2 |
+| 옛 Tauri 구현(커밋 424f338a)의 시스템 패키지(Linux `libwebkit2gtk-4.1`) | `just desktop-*` | 종료코드 2 |
 | `gitleaks`, `lefthook` | 커밋 전 훅 | 훅이 돌지 않음. `lefthook install`로 설치 |
 
 - 외부 바이너리의 필수·선택 표와 첫 실행 점검의 정본은 `L0.os.spec`입니다(G2-07, PLT 트랙).
@@ -53,7 +53,7 @@ just test scripts                # xeon/scripts
 just exit-tests                  # 종료 조건 시험, 건너뜀이 있으면 실패
 ```
 
-- `just test`는 대상마다 `scripts/guard.sh run`의 메모리 상한(기본 1.5G)과 시간 상한(기본 300초) 아래에서 돕니다. 여러 시험, 빌드, cargo, 브라우저를 동시에 돌리지 않습니다. 작은 기기에서는 VM이 멈춥니다.
+- `just test`는 대상마다 `scripts/guard.sh run`의 메모리 상한(기본 1.5G)과 시간 상한(기본 300초) 아래에서 돕니다. 여러 시험, 빌드, 브라우저를 동시에 돌리지 않습니다. 작은 기기에서는 VM이 멈춥니다.
 - 시험은 값을 비교합니다. 수정이 없으면 실패해야 합니다(`eng.testing.guide`).
 
 ### ON-04 읽을 문서는 라우팅으로 고른다

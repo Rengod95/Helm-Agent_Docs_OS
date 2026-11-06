@@ -126,7 +126,7 @@ interface ExtMethodDecl {
 | 동작 | `command` | 자기 슬래시 명령 실행 | 자기 확장이 등록한 명령만 | `command.run` |
 | 동작 | `post` | 열린 대화 입력 큐에 넣기 | 신뢰 등급의 `post` 허용, scope 켜짐 | `ext.view.post` (닫음: 아래 2026-11-04 R15) |
 | 동작 | `requestApproval` | 선언된 쓰기 메서드의 사용자 승인 요청. 인자는 `{ threadId, verb, params? }`이고 화면이 쓴 제목·설명은 받지 않는다(카드 글은 엔진이 확장 이름과 동사로 만든다) | 셸 확인 줄(`kind: approval`)을 먼저 거친 뒤 앱이 그리는 표준 승인 카드로만 보임(ADR-0018). 화면은 승인 id만 받음 | `ext.ui.requestApproval` |
-| 동작 | `navigate` | 자기 다른 화면, 대화·턴, 확장 상세(P-17), 자기 설정 구역, 비밀 화면(P-10) 열기, 외부 링크 | 앱 화면은 정해진 목록만. 외부 링크는 셸 확인 줄(`kind: external`)을 거친 뒤 OS 브라우저(Tauri 명령 `open_external`, `http(s)`만) | 클라이언트 |
+| 동작 | `navigate` | 자기 다른 화면, 대화·턴, 확장 상세(P-17), 자기 설정 구역, 비밀 화면(P-10) 열기, 외부 링크 | 앱 화면은 정해진 목록만. 외부 링크는 셸 확인 줄(`kind: external`)을 거친 뒤 OS 브라우저(셸 명령 `open_external`, `http(s)`만. 옛 Tauri 구현(커밋 424f338a)의 Tauri 명령이고 Electron도 같은 이름을 쓴다, `L4.desktop.spec` §11.5) | 클라이언트 |
 
 - "사용자 조작 뒤에만"의 판정: 선언형은 렌더러가 누름 이벤트를 압니다. 프레임은 셸이 프레임 안 입력을 볼 수 없으므로, 프레임의 `call`과 `command`는 셸이 띄우는 확인 줄("<확장>이 <동작 라벨>을 하려고 해요")을 거칩니다(`command`까지 거치는 것은 표보다 엄격한 [제안]입니다). 확인 줄은 끌 수 없고 호출마다 뜹니다. 허용한 뒤에도 같은 확장의 다음 호출은 다시 묻고, "이 화면에서 묻지 않기" 같은 선택과 확장별 허용 기억은 두지 않습니다(B2 1안) [결정: 2026-11-04 사용자]. `approval: true` 메서드의 표준 승인 카드는 이 줄과 따로 뜨며 끌 수 없습니다 [제안].
 - `query` 갱신: `invalidateOn`(자기 kind 목록) 이벤트가 오면 다시 부릅니다. 주기 갱신은 5초 이상만 허용합니다 [제안].
@@ -186,7 +186,7 @@ interface ExtMethodDecl {
 
 1. [제안] 프레임은 `<iframe sandbox="allow-scripts">`입니다. `allow-same-origin`, `allow-popups`, `allow-modals`, `allow-forms`, `allow-top-navigation`, `allow-downloads`를 주지 않습니다. 그래서 프레임 문서의 origin은 불투명이고, 앱 문서의 DOM, 저장소, 쿠키에 닿지 못하며 창을 열거나 앱을 다른 곳으로 이동시키지 못합니다.
 2. [제안] 프레임 파일은 셸이 등록한 전용 URI 스킴(`fresnel-view://<확장이름>/<버전>/<경로>`)으로만 제공합니다. 셸은 확장 패키지의 `frame.root` 아래 파일만 읽고, `..`, 폴더 밖을 가리키는 심볼릭 링크, 절대 경로를 거부합니다. 앱 자원과 다른 확장 파일은 이 스킴으로 나오지 않습니다.
-3. [결정: 2026-11-04 사용자] Tauri IPC는 프레임에 닿지 않아야 하지만, 이를 막는 것은 capability 허용 목록이 아닙니다. Tauri는 `register_uri_scheme_protocol`로 등록한 스킴을 로컬 출처로 봅니다(`Webview::is_local_url`). 그래서 `fresnel-view://` 프레임의 호출도 메인 창 capability(`capabilities/default.json`)의 ACL 대상이고, "허용 목록에 `fresnel-view:`를 넣지 않는다"는 통제는 존재하지 않습니다. 실제로 막는 것은 (a) 호출 본문에 든 invoke 키(`__TAURI_INVOKE_KEY__`)를 프레임이 알 수 없다는 점입니다. 키는 메인 프레임에만 주입되고(`for_main_frame_only: true`), 프레임 origin은 불투명이라 부모 문서를 읽지 못합니다. (b) sandbox 프레임이 `ipc://` fetch를 보내면 `Origin: null`이라 Tauri가 요청을 구문 분석 단계에서 버립니다. 남는 길은 wry의 IPC 메시지 핸들러입니다. macOS 실기(2026-11-04, `just desktop-ipc-probe`, WKWebView)에서 프레임에 `window.ipc`는 없고 `webkit.messageHandlers.ipc`는 있으며, 키 없이 흉내 낸 호출은 Tauri에 도달해 `__TAURI_INVOKE_KEY__ expected … but received …`로 거부됐습니다. 즉 프레임은 IPC에 "닿지만" 키가 없어 아무것도 못 합니다. `__TAURI__`, `__TAURI_INTERNALS__`, 부모의 키와 `__TAURI_INTERNALS__` 읽기(SecurityError), 프레임 `localStorage`(SecurityError), `window.origin`(`null`)은 시험이 확인합니다. Linux(WebKitGTK)는 같은 시험을 그 기기에서 돌려야 합니다. 명령 안에서 호출한 프레임을 알아보는 길은 Tauri가 주지 않으므로(`tauri::ipc::Request`는 본문과 헤더만 가진다) 명령 쪽 "메인 프레임만" 보호는 두지 못합니다. 대신 민감한 명령이 스스로 입력을 좁힙니다(`app_roots_set`은 확장 설치 폴더 밖과 `/`, 홈을 거부). Windows는 wry가 초기화 스크립트를 하위 프레임에도 넣으므로(`for_main_frame_only`가 무시됨) 이 통제가 성립하지 않습니다. 그래서 Windows 빌드는 프레임 모드를 켜지 않습니다. 이 동작은 데스크톱 빌드 e2e(`just desktop-ipc-probe`)로 확인한 뒤에만 프레임 모드를 켭니다(§6 미결 1). 확인 전 빌드는 `x.ui.apps`(기본 `true`) [제안]를 `false`로 고정합니다.
+3. [결정: 2026-11-04 사용자] (옛 Tauri 구현(커밋 424f338a)의 기록. 셸은 2026-11-06 Electron으로 바뀌었다, `L4.desktop.spec` §11.2) 옛 Tauri IPC는 프레임에 닿지 않아야 하지만, 이를 막는 것은 capability 허용 목록이 아닙니다. Tauri는 `register_uri_scheme_protocol`로 등록한 스킴을 로컬 출처로 봅니다(`Webview::is_local_url`). 그래서 `fresnel-view://` 프레임의 호출도 메인 창 capability(`capabilities/default.json`)의 ACL 대상이고, "허용 목록에 `fresnel-view:`를 넣지 않는다"는 통제는 존재하지 않습니다. 실제로 막는 것은 (a) 호출 본문에 든 invoke 키(`__TAURI_INVOKE_KEY__`)를 프레임이 알 수 없다는 점입니다. 키는 메인 프레임에만 주입되고(`for_main_frame_only: true`), 프레임 origin은 불투명이라 부모 문서를 읽지 못합니다. (b) sandbox 프레임이 `ipc://` fetch를 보내면 `Origin: null`이라 Tauri가 요청을 구문 분석 단계에서 버립니다. 남는 길은 wry의 IPC 메시지 핸들러입니다. macOS 실기(2026-11-04, `just desktop-ipc-probe`(지금은 지웠다), WKWebView)에서 프레임에 `window.ipc`는 없고 `webkit.messageHandlers.ipc`는 있으며, 키 없이 흉내 낸 호출은 Tauri에 도달해 `__TAURI_INVOKE_KEY__ expected … but received …`로 거부됐습니다. 즉 프레임은 IPC에 "닿지만" 키가 없어 아무것도 못 합니다. `__TAURI__`, `__TAURI_INTERNALS__`, 부모의 키와 `__TAURI_INTERNALS__` 읽기(SecurityError), 프레임 `localStorage`(SecurityError), `window.origin`(`null`)은 시험이 확인합니다. Linux(WebKitGTK)는 같은 시험을 그 기기에서 돌려야 합니다. 명령 안에서 호출한 프레임을 알아보는 길은 Tauri가 주지 않으므로(`tauri::ipc::Request`는 본문과 헤더만 가진다) 명령 쪽 "메인 프레임만" 보호는 두지 못합니다. 대신 민감한 명령이 스스로 입력을 좁힙니다(`app_roots_set`은 확장 설치 폴더 밖과 `/`, 홈을 거부). Windows는 wry가 초기화 스크립트를 하위 프레임에도 넣으므로(`for_main_frame_only`가 무시됨) 이 통제가 성립하지 않습니다. 그래서 Windows 빌드는 프레임 모드를 켜지 않습니다. 이 동작은 데스크톱 빌드 e2e(`just desktop-ipc-probe`)로 확인한 뒤에만 프레임 모드를 켭니다(§6 미결 1). 확인 전 빌드는 `x.ui.apps`(기본 `true`) [제안]를 `false`로 고정합니다.
 
 #### 3.6.3 CSP
 
@@ -228,7 +228,7 @@ interface ExtMethodDecl {
 
 #### 3.6.8 테마 토큰 전달
 
-- 셸은 처음과 테마가 바뀔 때 `push: "theme"`로 caustic 토큰 값(CSS 사용자 속성 이름과 값), 라이트·다크, 밀도, 로케일, `prefers-reduced-motion`, 한글 타이포 규칙(DP-11)을 보냅니다. [결정: 2026-11-04 사용자] `fresnel-view://_caustic/tokens.css`는 두지 않습니다. 프레임 CSP의 `style-src`는 그 확장 버전 접두만 허용해 그 주소를 막고, Rust 셸도 `_` 이름을 거부했습니다. 토큰은 이 푸시의 값을 프레임이 `:root`에 적용해 씁니다(`style-src`가 `'unsafe-inline'`을 허용).
+- 셸은 처음과 테마가 바뀔 때 `push: "theme"`로 caustic 토큰 값(CSS 사용자 속성 이름과 값), 라이트·다크, 밀도, 로케일, `prefers-reduced-motion`, 한글 타이포 규칙(DP-11)을 보냅니다. [결정: 2026-11-04 사용자] `fresnel-view://_caustic/tokens.css`는 두지 않습니다. 프레임 CSP의 `style-src`는 그 확장 버전 접두만 허용해 그 주소를 막고, 옛 Tauri 구현(커밋 424f338a)의 Rust 셸도 `_` 이름을 거부했습니다. 토큰은 이 푸시의 값을 프레임이 `:root`에 적용해 씁니다(`style-src`가 `'unsafe-inline'`을 허용).
 - 프레임 안 모양을 caustic에 맞추는 일은 플러그인 몫입니다. 셸은 머리와 상자 경계를 그려 프레임 화면이 앱 화면처럼 보이지 않게 합니다(§3.6.6).
 
 #### 3.6.9 위협 표
@@ -299,7 +299,7 @@ interface ExtMethodDecl {
 ### 4.2 감수할 점
 
 - 프레임 모드는 플러그인 JS를 앱과 같은 WebView 프로세스에서 돌립니다. sandbox와 CSP가 DOM, IPC, 네트워크를 막아도 CPU·메모리 폭주는 셸 반응을 늦출 수 있습니다(T-18). 생존 확인과 내리기로 줄일 뿐 없애지 못합니다.
-- Tauri iframe에 IPC가 노출되지 않는지를 플랫폼마다 확인해야 하고, 확인 전에는 프레임을 켤 수 없습니다.
+- 옛 Tauri 구현(커밋 424f338a)에서는 Tauri iframe에 IPC가 노출되지 않는지를 플랫폼마다 확인해야 하고, 확인 전에는 프레임을 켤 수 없습니다.
 - 프레임 화면은 caustic 모양을 자동으로 따르지 않습니다. 셸 경계로 구분은 되지만 모양이 앱과 다를 수 있습니다.
 - 앱에 렌더러, 스키마 검사, 바인딩 해석, 프레임 호스트, 다리, 화면 장부가 생깁니다. F와 X에 매니페스트 필드, 메서드 등록, 예산 등급, 로더 진단, 전용 스킴 파일 제공이 늘어납니다.
 - 선언형 표현식을 좁게 두어 복잡한 화면 논리는 엔진 쪽 `query` 처리기로 옮겨야 합니다.
@@ -320,7 +320,7 @@ interface ExtMethodDecl {
 
 ## 6. 미결 사항
 
-1. [해소: 2026-11-04] Tauri iframe의 IPC 노출과 전용 URI 스킴 등록을 macOS·Linux에서 e2e로 확인하는 일. [결정: 2026-11-04 사용자] `x.ui.apps`는 격리 시험이 이 Mac에서 통과한 뒤 기본을 켠다. 통과했다: `frame-isolation.e2e.test.ts`가 macOS WKWebView에서 9개 모두 통과했고(`FRESNEL_E2E_WEBVIEW_BACKEND=webkit`), 실제 Tauri 창 시험(`just desktop-ipc-probe`)에서 프레임이 `__TAURI__`, invoke 키, IPC에 닿지 못했다(추측한 키의 호출은 거부). 그래서 `x.ui.apps` 기본은 켬이다. `x.ui.allowProjectApps`는 기본 끔을 유지하고 Windows는 클라이언트가 값과 상관없이 끈다. Linux 데스크톱 빌드의 실기 확인은 남았다.
+1. [해소: 2026-11-04] 옛 Tauri 구현(커밋 424f338a)의 iframe IPC 노출과 전용 URI 스킴 등록을 macOS·Linux에서 e2e로 확인하는 일. [결정: 2026-11-04 사용자] `x.ui.apps`는 격리 시험이 이 Mac에서 통과한 뒤 기본을 켠다. 통과했다: `frame-isolation.e2e.test.ts`가 macOS WKWebView에서 9개 모두 통과했고(`FRESNEL_E2E_WEBVIEW_BACKEND=webkit`), 실제 Tauri 창 시험(`just desktop-ipc-probe`, 지금은 지웠다)에서 프레임이 `__TAURI__`, invoke 키, IPC에 닿지 못했다(추측한 키의 호출은 거부). 그래서 `x.ui.apps` 기본은 켬이다. `x.ui.allowProjectApps`는 기본 끔을 유지하고 Windows는 클라이언트가 값과 상관없이 끈다. Linux 데스크톱 빌드의 실기 확인은 남았다.
 2. [결정: 2026-11-02 M4 T-F] 매니페스트 `ui`(옛 `views`), `UiContribution`, `AppDecl`(옛 `FrameDecl`), `UiNode`(옛 `ViewNode`), `ExtMethodDecl`(확장 수준 `methods`), 다리 메시지 스키마의 정본은 `F.extensions.spec` §3.1.1(`extensions/ui.ts`, `extensions/ext-method.ts`)입니다. 위젯 카탈로그 이름 목록은 F에 두지 않고 렌더러(`packages/client`)가 정합니다. F는 `type`의 문법만 봅니다. 이 문서 본문의 `views`, `frame`, `slot` 같은 옛 이름은 ADR-0022 §3.6 표가 새 이름을 정합니다.
 3. [결정: 2026-11-04 사용자, R15 닫음. 아래 각 항목은 이미 닫혔다] 확장 wire 메서드 열기(`F.wire-settings.spec` §4.2 [제안] 확정), `ext.view.post`·`ext.view.requestApproval`, `g.registerMethod`(L3). 확장 메서드 등록 API `hostOf(g).registerMethod`는 [결정: 2026-11-02 M4 T-XV] 정했고 구현했다(X.primitives.spec §3.8, §3.9.2, §4.12). `g.registerMethod`(L3 group-sdk)와 wire 디스패치 `ext.<확장>.<동사>`는 [결정: 2026-11-02 M4 T-GK] 닫았다(`F.wire-settings.spec` §4.2, `L4.host-service.spec` HS-109). `ext.view.post`·`ext.view.requestApproval`(이제 `ext.ui.post`·`ext.ui.requestApproval`)은 [결정: 2026-11-03 M4 T-UIPOST] `threadId`를 필수로 더해 열었다(`F.wire-settings.spec` §4.2, `X.primitives.spec` §4.13, HS-108).
 4. [미결] `X.operations.spec` 예산 등급 `view`(기본 5,000ms)와 확장 메서드 실패의 장부 반영.

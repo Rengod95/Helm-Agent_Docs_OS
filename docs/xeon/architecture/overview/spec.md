@@ -52,7 +52,7 @@ Fresnel 전체 구조를 처음 읽는 사람과 에이전트를 위한 진입 �
 | 전송 | 쓰는 곳 | 엔진 프로세스 | 연결 | 인증 | 단계 |
 |---|---|---|---|---|---|
 | in-process | CLI 기본(`fresnel chat`) | CLI 프로세스 자신 | 메모리 채널 | 필요 없음 | 1차 |
-| 자식 프로세스 stdio | 데스크톱(Tauri 2) | `bun build --compile` 사이드카 | stdin/stdout JSON-RPC | 필요 없음(부모-자식 파이프) | 데스크톱 M2 이후 |
+| 자식 프로세스 stdio | 데스크톱(Electron 셸) | `bun build --compile` 사이드카 | stdin/stdout JSON-RPC | 필요 없음(부모-자식 파이프) | 데스크톱 M2 이후 |
 | 서비스(로컬) | `fresnel service`(자동 기동, 유휴 종료), CLI·앱이 함께 접속 | 공유 서비스 프로세스 | 로컬 Unix 소켓 | 파일 권한 | 1차, OS 서비스 등록은 2차 |
 | 서비스(원격) | 다른 기기의 원격 클라이언트 | 공유 서비스 프로세스 | 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결 | SSH·사설망 인증과 소켓 파일 권한 | 1차(M3) [결정: review.decisions-2 U-11] |
 | 서비스(원격, 내장) | 터널 없이 접속하는 원격 클라이언트 | 공유 서비스 프로세스 | TLS + WebSocket | 무작위 토큰, `initialize` 전에 검사. 비루프백 무인증 기동 금지 | 2차 [결정: review.decisions-2 U-11] |
@@ -168,7 +168,7 @@ ADR 본문은 `decisions/`에 있다. 각 행의 결정은 사용자 결정 기�
 | [ADR-0005](../../decisions/ADR-0005-web-search-default.md) | [결정] 무료 웹 검색 기본값 | 모델 도구는 provider 내장 검색, 서비스 API `web.search`는 내장 검색 래퍼, 무료 크레딧 API는 플러그인 권장. 키 없는 스크레이핑 제외. [결정: 2026-11-04 사용자 B15] SearXNG는 없앴다 |
 | [ADR-0006](../../decisions/ADR-0006-process-service-mode.md) | [결정] 프로세스 구조와 서비스 모드 | 엔진 라이브러리, Runtime API 하나, 전송 교체. `fresnel service`는 1차, OS 서비스 등록은 2차 |
 | [ADR-0007](../../decisions/ADR-0007-ext-points.md) | [결정] 훅 4연산 | `on`(fold `tap`/`first`/`chain`), `post`(`steer`/`followUp`/`next`), `drive`(배타 drive 락, 상한 `{maxTurns, maxSpawns, maxTokens}`), `scope`(단계 경계 토글). 훅 종류와 이름 목록은 [제안](미합의) |
-| [ADR-0008](../../decisions/ADR-0008-desktop-tauri.md) | [결정] 데스크톱 Tauri 2 | 시스템 WebView, 3플랫폼. 엔진은 `bun build --compile` 사이드카, UI와 stdio JSON-RPC로 연결 |
+| [ADR-0008](../../decisions/ADR-0008-desktop-tauri.md) | [결정] 데스크톱 Tauri 2. 2026-11-06 Electron으로 대체(ADR-0008 상태 갱신, 옛 구현 커밋 424f338a) | 옛 결정: 시스템 WebView, 3플랫폼. 엔진은 `bun build --compile` 사이드카, UI와 stdio JSON-RPC로 연결 |
 
 ### 4.3 기존 저장소·docs/design과의 관계
 

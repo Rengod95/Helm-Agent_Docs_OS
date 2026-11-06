@@ -39,7 +39,7 @@ binds: [xeon/packages/platform-process/**]
 | 대화 소유 잠금 구현(OS 잠금, `sys_leases`) | `L0.store.spec` §4.7 |
 | 복구 표식(`p_threads`의 `running_since`·`resume_attempts`)과 재개 커밋(`thread.resumed`) | `L1.persistence.spec` §2·§4.8 |
 | 결과 불명 도구 호출의 재실행 판정(`replay: safe`) | `L1.persistence.spec`, `eng.transactions.design` §5 |
-| 데스크톱 쪽 사이드카 spawn(Rust) | `L4.desktop.spec`, adr.0008 §3.3 |
+| 데스크톱 쪽 사이드카 spawn(옛 Tauri 구현(커밋 424f338a)은 Rust, 지금은 Electron 셸의 `@fresnel/platform-process/piped`) | `L4.desktop.spec`, adr.0008 §3.3 |
 | 도구 셸 실행과 백그라운드 셸 작업의 spawn | `L0.exec.spec`(`fresnel.exec`). 외부 훅 실행과 격리 확장 자식 기동(`ProcessPort`)은 이 문서 §4.8이다 |
 | 예약 작업 테이블과 틱 | `L2.schedule.spec`. 이 문서는 유휴 판정의 입력만 받는다 |
 
@@ -170,7 +170,7 @@ store와 process는 서로 import하지 못한다(DR-02). 두 패키지는 recor
 
 ### 3.2 패키지 공개 API (L0 platform-process)
 
-조립 루트(`apps/host`)만 아래 함수를 import한다(DR-14 예외 2). 8절 표에서 `L4.cli.spec`·`L4.desktop.spec`을 소비자로 적은 항목은 `apps/host`를 거쳐 쓰는 경우다. `apps/cli`는 엔진을 같은 프로세스에서 여는 조립 루트로 `apps/host`를 쓰고, 이 함수들은 `apps/host`가 다시 내보내는 진입점으로만 쓴다. `apps/desktop`(Tauri 쪽)은 wire 메서드로만 결과를 받는다 [제안].
+조립 루트(`apps/host`)만 아래 함수를 import한다(DR-14 예외 2). 8절 표에서 `L4.cli.spec`·`L4.desktop.spec`을 소비자로 적은 항목은 `apps/host`를 거쳐 쓰는 경우다. `apps/cli`는 엔진을 같은 프로세스에서 여는 조립 루트로 `apps/host`를 쓰고, 이 함수들은 `apps/host`가 다시 내보내는 진입점으로만 쓴다. `apps/desktop`(데스크톱 쪽. 옛 Tauri 구현(커밋 424f338a)에서는 Tauri 쪽을 포함했다)은 wire 메서드로만 결과를 받는다 [제안].
 
 ```ts
 // xeon/packages/platform-process/src/transport/index.ts
@@ -529,7 +529,7 @@ socket(`listenSocket`, `connectSocket`):
 
 1. 자식 엔진(`fresnel host --stdio`)은 시작 때 `watchChildLease`를 건다. stdin은 stdio 전송이 읽는 스트림 하나뿐이라(reader를 둘 붙일 수 없다) 감시는 전송의 `onClose`(`eof` 또는 `error`)를 듣는다.
 2. 종료 요청은 두 경로로 온다.
-   - `host.shutdown` 요청(§8.1 FR-P1): 데스크톱은 SIGKILL만 보내는 Tauri 셸 플러그인 제약 때문에 신호 전에 이 요청을 먼저 보낸다(adr.0006 §3.7 7번, adr.0008 §3.3 [제안] 3번). 응답을 받은 뒤 데스크톱이 프로세스를 정리한다.
+   - `host.shutdown` 요청(§8.1 FR-P1): 데스크톱은 신호 전에 이 요청을 먼저 보낸다(Electron 셸의 종료 순서, `apps/desktop-shell/src/main/engine/supervisor.ts`. 근거는 옛 Tauri 구현(커밋 424f338a)의 Tauri 셸 플러그인이 SIGKILL만 보내던 제약이었다. adr.0006 §3.7 7번, adr.0008 §3.3 [제안] 3번). 응답을 받은 뒤 데스크톱이 프로세스를 정리한다.
    - stdin EOF: 데스크톱이 비정상 종료해도 OS가 파이프 쓰기 끝을 닫는다.
 3. 어느 경로든 `ProcessShutdown.request(reason)`을 부른다. 처리 순서:
    1. `signal`을 중단한다. 루프(L1)는 안전 경계에서 이 신호를 보고 새 단계를 시작하지 않는다. 진행 중 스트리밍은 버린다(재개 때 같은 단계를 다시 보낸다, `eng.transactions.design` §5.4 K1).
@@ -797,7 +797,7 @@ L2.mcp가 stdio 서버의 표준 입출력을 SDK 전송으로 감싸려면 스�
 | 서비스 전송 | Unix 소켓 | Unix 소켓. WSL은 리눅스 쪽 경로(`/mnt/*` 금지) | 대안 비교표 아래, [미결 P-6] |
 | 협조 종료 신호 | SIGTERM | SIGTERM | SIGTERM이 협조 종료로 전달되지 않는다. 전송 메시지 `host.shutdown`이 유일한 협조 경로 |
 | 자식 분리 | `detached` + `unref`(새 대화) | 같음 | `detached`는 새 콘솔 창을 만들 수 있다. `windowsHide: true` 필수 [가정] |
-| 사이드카 정리 | stdin EOF 프로세스 락 | 같음 | 같음. Tauri의 job 핸들 정리는 확인되지 않았다(adr.0008 §4.2) |
+| 사이드카 정리 | stdin EOF 프로세스 락 | 같음 | 같음. 옛 Tauri 구현(커밋 424f338a)의 job 핸들 정리는 확인되지 않았다(adr.0008 §4.2) |
 | 프로세스 지문 | `sysctl kern.proc.pid`의 시작 시각 또는 `ps -o lstart=` [가정] | `/proc/<pid>/stat` 22번째 필드(부팅 뒤 클록 틱) + `/proc/sys/kernel/random/boot_id` | `GetProcessTimes` 생성 시각 [가정] |
 | OS 서비스 등록 | launchd 사용자 에이전트 | systemd 사용자 유닛. WSL은 systemd 켜짐 여부에 따른다 | 미정(작업 스케줄러 또는 Windows 서비스) |
 | 프로세스 트리 종료 | 프로세스 그룹 kill | 같음 | `taskkill /T` 또는 job 객체 [가정] |
@@ -870,7 +870,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 
 | id | 대상 | 요청 | 이유 |
 |---|---|---|---|
-| FR-P1 | F.wire-settings.spec §3.3.1 | 메서드 `host.shutdown { reason: "client_exit"\|"version_replace"\|"user", deadlineMs?: integer }` → `{ accepted: boolean }`를 더한다(M2). 응답은 참여자 처리가 끝난 뒤 보낸다 | Tauri가 SIGKILL만 보내고 Windows에 SIGTERM 협조가 없어 전송 메시지가 협조 종료의 유일한 공통 경로다(adr.0006 §3.7 7번, adr.0008 §3.3) |
+| FR-P1 | F.wire-settings.spec §3.3.1 | 메서드 `host.shutdown { reason: "client_exit"\|"version_replace"\|"user", deadlineMs?: integer }` → `{ accepted: boolean }`를 더한다(M2). 응답은 참여자 처리가 끝난 뒤 보낸다 | 옛 Tauri 구현(커밋 424f338a)은 SIGKILL만 보냈고 Windows에 SIGTERM 협조가 없어 전송 메시지가 협조 종료의 유일한 공통 경로다(adr.0006 §3.7 7번, adr.0008 §3.3) |
 | FR-P2 | F.wire-settings.spec §3.3.1, §10 미결 4 | `host.hello` params에 `auth?: { token: string }`을 더하고 오류 `host.authFailed`를 정한다 | 서비스 모드 인증을 hello 전에 끝낸다(adr.0006 §3.2) |
 | FR-P3 | F.wire-settings.spec(새 파일 `wire/service-registration.ts`) | `ServiceRegistrationSchema`를 F에 둔다 | CLI·데스크톱(L4)과 platform-process가 같은 스키마를 읽는다. L4 앱끼리 import하지 않는다(DR-10) |
 | FR-P4 | L0.os.spec | `runtimeDir()`, `processStartFingerprint(pid)`, `userId()`를 `OsService`에 둔다(반영됨: `dirs.runtime`, `processStartFingerprint`, `userId`, `L0.os.spec` §3.10) | DR-13. L0끼리는 서비스로만 협력한다 |

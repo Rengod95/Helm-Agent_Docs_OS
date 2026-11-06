@@ -1,5 +1,7 @@
 # 22. 테스트 전략
 
+> 2026-11-06: 데스크톱 셸은 Tauri에서 Electron으로 바뀌었고 Tauri와 Rust 셸은 저장소에서 제거했다(마지막 Tauri 커밋 424f338a). 아래 Tauri 서술은 당시 설계 기록이다. 현재 구조는 docs/xeon/L4/desktop/spec.md §11을 따른다.
+
 - 작성: 2026-10-12, T1(2b단계 테스트 전략). 기준 결정은 브리프 결정 1~64이다. 01~21, 24, 26과 조정자 판정(`docs/design/process/rulings-stage2a.md`)의 2026-10-12 판을 읽고 썼다. 판정 범위는 J-01~J-351다. 다른 문서가 2a 통합 중이라 13:00 무렵 판에서 한 번 더 맞췄다(§3.19의 ID 범위).
 - 상태: 2b단계 초안. T2의 23(구현 계획)과 교차 확인 예정.
 - 소유: 테스트 계층과 패키지별 담당, 테스트 도구와 폴더·이름 규칙, 결정성 장치(시계·ID 주입, 모델 테이프), 픽스처 규칙, 유즈케이스 대본(`ScenarioScript`) 형식과 하네스, 수용 기준 추적표, 장애 주입 방법과 시나리오, 적합성 시험 묶음, 모델 품질 평가와 커널 테스트의 경계, `just verify`의 테스트 범위와 테스트 레시피, 플래키·느린 테스트 규칙, 다른 문서 테스트 ID의 추적 색인.
@@ -108,7 +110,7 @@
 | D22-11 | 시각 기준 이미지는 서버(WSL)에서 고정 판 Playwright 브라우저로 만들고 Git 밖(`~/projects/helm/design/visual-baselines/`)에 둔다. Git에는 이미지별 sha256 잠금 파일만 둔다. 시각 회귀는 verify에 넣지 않고 화면 작업의 완료 기준(`just ui-visual`, `just shot`)으로 둔다 | 사용자 규칙(바이너리 Git 금지, 화면이면 `just shot`). 21 §6.3 서버 기준 |
 | D22-12 | 재시도로 플래키를 숨기지 않는다(Vitest `retry: 0`). 플래키는 격리 목록에 기한 7일로 올리고, D0 계층의 플래키는 격리도 허용하지 않는다 | 결정적이어야 할 테스트의 흔들림은 결정성 결함이다 |
 | D22-13 | 모델 품질 평가는 `just eval-*` 레시피로만 돌고 verify에 넣지 않는다. 운영 DB를 쓰지 않고 평가 데이터 디렉터리를 쓴다 | 15 §3.15.1, X3-8-27 |
-| D22-14 | 호스팅 CI에서 테스트를 돌리지 않는다. 예외는 Windows 셸 스모크 하나로, 20의 `app-build-win-ci` 수동 워크플로 안에서만 돈다 | 06 O-11(비밀·SOPS 키가 서버에만 있음), 20 §3.13.4 |
+| D22-14 | 호스팅 CI에서 테스트를 돌리지 않는다. 예외는 셸 검사다. Electron 셸의 macOS 워크플로(`fresnel-macos.yml`, 수동 실행 또는 `ci:macos` 라벨)가 돈다. 옛 Tauri 구현(커밋 424f338a)의 Windows 수동 워크플로 `app-build-win-ci`는 저장소에 없다 | 06 O-11(비밀·SOPS 키가 서버에만 있음), 20 §3.13.4 |
 | D22-15 | 줄 커버리지를 관문으로 쓰지 않는다. 관문은 추적 색인 완결성(D22-2)과 `@helm/kernel`·`@helm/domain`의 분기 커버리지 하한 하나다 | 커버리지 수치로는 위반 테스트가 있는지 알 수 없다. 커널에서는 분기 하나가 규칙 하나다 |
 | D22-16 | 테스트가 운영 데이터와 운영 데몬을 건드리지 않도록 테스트 공통 준비에서 막는다: 운영 데이터 디렉터리(`/srv/volumes/helm/data`)와 운영 소켓을 여는 코드는 테스트에서 예외를 던진다. 포트는 항상 임시 포트(0)를 쓴다 | 17 T17-26처럼 정식 데몬이 같은 서버에서 돈다 |
 
@@ -130,7 +132,7 @@
 | `sec` | 보안·격리 | 인증, 격리, 비밀, 주입(18 §3.17, 13 T-SB, 16 마스킹) | 통합 또는 실제 샌드박스 | 테이프 | D0/D1 | Vitest, bash | `just test`, `just daemon-systest` |
 | `ui` | UI 부품·화면 | 부품 동작, 접근성, 키보드, IME, 선형 텍스트, 금지 패턴, 수명주기(21 §6.3), 화면 조립(20 §3.13.2) | 브라우저 모드 또는 jsdom | 없음(VM 고정 데이터) | D0 | Storybook + `@storybook/addon-vitest`, `@testing-library/react`, axe-core | `just ui-test` |
 | `visual` | 시각 회귀 | 이야기·화면 캡처를 기준 이미지와 비교 | 서버의 고정 판 브라우저 | 없음 | D1(허용 차이) | Playwright `toHaveScreenshot` | `just ui-visual`, `just shot`, `just mobile-shot` |
-| `e2e` | E2E | 앱(웹 대체 실행 또는 Tauri 셸) + FakeDaemon 또는 실제 데몬 | 브라우저·앱 프로세스 | 테이프(실제 데몬일 때) | D1 | Playwright, WebdriverIO `@wdio/tauri-service` | `just app-e2e`, `just mobile-e2e`, `just app-verify-mac`, `just e2e-real` |
+| `e2e` | E2E | 앱(웹 대체 실행 또는 Electron 셸) + FakeDaemon 또는 실제 데몬 | 브라우저·앱 프로세스 | 테이프(실제 데몬일 때) | D1 | Playwright, Electron 실행 스모크(`scripts/electron-smoke.ts`) | `just app-e2e`, `just mobile-e2e`, `just desktop-smoke-electron`, `just e2e-real` |
 | `perf` | 성능 | NFR-P·저장소·커널 목표 수치(§3.13) | 서버 고정 환경 | 없음 또는 테이프 | D2 | `vitest bench`, 측정 스크립트 | `just perf` |
 | `sys` | 시스템 | systemd 단위, 설치·업그레이드, 실제 샌드박스, `/proc` 노출(17 시스템 종류, 18 시스템 종류) | 이 서버, 일회성 user unit | 테이프 | D1 | bash(`ops/test/`) | `just daemon-systest` |
 | `eval` | 모델 품질 평가 | 실제 모델의 다양성·근거율·요약 누락·판정 일치(§3.14) | 평가 데이터 디렉터리 | 실제 모델 | D2 | 평가 하네스 | `just eval-*` |
@@ -170,7 +172,7 @@
 | `@helm/ui-tokens` | unit(대비 관문) | 21/U1, 21/TK-09 | 없음 |
 | `@helm/ui` | ui, visual | 21/TK-01~11, 21/U2~U9, 03/UT-08, 04/UT-14, 05/UT-04~07, 05/UT-13~14 | 이야기 고정 데이터(`packages/ui/src/fixtures`, 21 §6.1) |
 | `@helm/client-react` | unit | 20/DM-26, 20/DM-28 | 가짜 `PlatformAdapter`(20 §3.14) |
-| `apps/desktop` | ui, e2e, unit(Rust `cargo test`) | 03/UT-01~07, 04/UT-01~17, 05/UT-08~14, 20/DM-*, 20/IT-01~20 | 화면 뷰 표본(`test/fixtures/views`) |
+| `apps/desktop` | ui, e2e, unit(셸 단위는 `apps/desktop-shell`의 `bun test`. 옛 Rust `cargo test`는 커밋 424f338a) | 03/UT-01~07, 04/UT-01~17, 05/UT-08~14, 20/DM-*, 20/IT-01~20 | 화면 뷰 표본(`test/fixtures/views`) |
 | `apps/mobile` | unit, ui, e2e | 26/T26-12~14·T26-19~27·T26-34~35, 03/UT-09 | 26 §6.1 |
 | `apps/cli` | unit, int | 17/T17-24·T17-32·T17-33, 06/S8 | 없음 |
 | `scripts/` | unit | 06/S2, 07/V1·V7 | 가짜 워크스페이스 fixture(06 §3.5.2) |
@@ -188,8 +190,8 @@
 | DOM 단위 | `@testing-library/react` 16, jsdom 30, `fake-indexeddb` | 정확한 버전 | 20 §3.13.1~2 |
 | 접근성 | axe-core | 정확한 버전 | §3.12.4 |
 | 웹 E2E·시각 | `@playwright/test` 1.64(20 §3.13.4) + 그 판이 내려받는 Chromium·WebKit | 정확한 버전, 브라우저도 그 판에 묶임 | 기준 이미지 환경(§3.12.2) |
-| 셸 E2E | WebdriverIO + `@wdio/tauri-service` 1.5.0 | 정확한 버전 | 20 §3.13.4. macOS(Mac), Windows(수동 워크플로) |
-| Rust | `cargo test`(`helm-desktop-core`) | `rust-toolchain.toml` | 20 §6.1 |
+| 셸 스모크 | Electron 실행 스모크(`scripts/electron-smoke.ts`) | `electron` 정확한 판(카탈로그, 45.2.3) | `docs/xeon/L4/desktop/spec.md` §11.7. macOS(화면이 있는 로그인 환경). 옛 WebdriverIO `@wdio/tauri-service`는 커밋 424f338a |
+| 셸 단위 | `bun test`(`apps/desktop-shell/test/`, `just desktop-shell-test`) | `bun.lock` 고정 | `docs/xeon/L4/desktop/spec.md` §11.5. 옛 Rust `cargo test`(`helm-desktop-core`)는 커밋 424f338a |
 | 시스템 시험 | bash(`ops/test/`), `systemd-run --user`, `systemd-analyze` | | 17 §6.2 |
 | 성능 | `vitest bench`(함수 수준), 측정 스크립트(`tests/perf/*.ts`, 종단 수준) | | §3.13 |
 | 커버리지 | Vitest V8 커버리지 | | §3.17.2 |
@@ -1353,11 +1355,11 @@ S1 묶음은 §3.11.3에 따라 bwrap 설치 뒤에 돈다. 설치 전에는 SB-
 | 층 | 대상 | 도구 | 데이터 | 계층·레시피 |
 |---|---|---|---|---|
 | 부품 | L0~L2 부품, 시각화 부품(21 §3.7·§3.8) | Storybook play 함수 + `@storybook/addon-vitest`(Vitest 브라우저 모드, Chromium) | `packages/ui/src/fixtures`(한국어 VM 고정 데이터, 21 §6.3) | ui, `just ui-test` |
-| 화면 조립 | `screens/*/useScreenModel.ts`, 훅(`useView`, `useCommand`) | `@testing-library/react` + jsdom + Tauri `mockIPC` | `test/fixtures/views/*.json`(데몬 대본이 만든 뷰 표본, §3.6.2) | ui, `just test`(앱 프로젝트) |
+| 화면 조립 | `screens/*/useScreenModel.ts`, 훅(`useView`, `useCommand`) | `@testing-library/react` + jsdom + 셸 목(`apps/desktop/test/app/support.ts`, 옛 Tauri `mockIPC`는 커밋 424f338a) | `test/fixtures/views/*.json`(데몬 대본이 만든 뷰 표본, §3.6.2) | ui, `just test`(앱 프로젝트) |
 | 앱 단위 | 연결 계층, 동기화, 초안, 딥 링크, 알림 규칙 | Vitest(node) + `fake-indexeddb` + 19 가짜 전송 | | unit, `just test` |
-| Rust 코어 | 프로필 검증, SSH 인자, WS-over-stream, blob 캐시 | `cargo test -p helm-desktop-core` | 표본 파일 | unit, `just app-check` |
+| 셸 메인 프로세스 | 설정 파일, 엔진 릴레이, 창 위치, 셸 의도 큐(`apps/desktop-shell/src/main/`) | `bun test`(`apps/desktop-shell/test/`, 가짜 ctx는 `fake-context.ts`) | 가짜 ctx | unit, `just desktop-shell-test` |
 | 웹 E2E | 앱 웹 번들(브라우저 대체 실행) + `FakeDaemon` | Playwright(Chromium, WebKit) | `FakeDaemon` 고정 데이터 | e2e, `just app-e2e` |
-| 셸 스모크 | Tauri 앱 실행·연결·창 숨기기 | WebdriverIO + `@wdio/tauri-service` | `FakeDaemon` | e2e, `just app-verify-mac`(Mac), Windows 수동 워크플로 |
+| 셸 스모크 | 묶은 Electron 앱 실행, 창 위치 복원, 트레이 생성, 두 번째 실행, 종료(spec §11.7) | Electron 실행 스모크(`scripts/electron-smoke.ts`) | 깨끗한 홈(`CFFIXED_USER_HOME`) | e2e, `just desktop-smoke-electron`(Mac) |
 | 실제 데몬 E2E | 앱 + 실제 데몬(테이프 모델) | Playwright(웹) 또는 사람 | `HELM_ROOT=/srv/volumes/helm/e2e` | e2e, `just e2e-real` + manual |
 | 시각 회귀 | 이야기(`packages/ui/tests/visual/`)·화면 캡처 | Playwright `toHaveScreenshot` | 정적 Storybook 빌드, `FakeDaemon` 고정 데이터 | visual, `just ui-visual`, `just shot`, `just mobile-shot` |
 | 수동 | 알림 클릭, 트레이, 배지, 키체인, 로그인 시 시작, 딥 링크(설치 앱), 실제 IME, 잠자기 | 체크리스트(20 §6.2) | | manual |
@@ -1437,7 +1439,7 @@ S1 묶음은 §3.11.3에 따라 bwrap 설치 뒤에 돈다. 설치 전에는 SB-
 | 22/E2E-UC15 | 입력 → 가벼운 작업 결과 확인 → 승격 제안 질문 | UC-15/basic, UC-15/A1 |
 | 22/E2E-UC17 | 두 브라우저 컨텍스트(두 기기)에서 같은 홈·복귀 요약 | UC-17/basic |
 
-**셸 스모크**: 20 DM-30(앱이 뜨고 가짜 데몬에 연결해 홈 표시, 창 닫기 = 숨기기). macOS는 `just app-verify-mac`(Mac이 잠들어 있으면 종료 코드 2), Windows는 `app-build-win-ci` 수동 워크플로 안에서(D22-14).
+**셸 스모크**: 옛 Tauri 구현(커밋 424f338a)의 20 DM-30(앱이 뜨고 가짜 데몬에 연결해 홈 표시, 창 닫기 = 숨기기)은 Electron 셸에서 `just desktop-smoke-electron`(묶은 앱, 화면이 있는 로그인 환경이 없으면 종료 코드 2)으로 바뀌었다(`docs/xeon/L4/desktop/spec.md` §11.7). Windows 셸 스모크는 Electron 셸에 아직 없다(D22-14).
 
 **실제 데몬 E2E(`just e2e-real`, 02 §6 E2E 행, 01 §3.8.3 항목 3)**
 
@@ -1547,14 +1549,14 @@ S1 묶음은 §3.11.3에 따라 bwrap 설치 뒤에 돈다. 설치 전에는 SB-
 | `test` | 빠른 계층 전부: `unit`, `prop`(고정 시드), `contract`, `int`(`*.slow` 제외), `scenario`(`runtime` 모드 MVP 대본), `conf`(같은 프로세스 세 리스너, FakeDaemon, 어댑터), `fault`(같은 프로세스), `sec`(통합), 앱의 Vitest 프로젝트(jsdom·node), 골든 비교, 비밀 카나리아 | 22 |
 | `test-trace` | §3.4.3 추적 검사 | 22 |
 | `vendor-verify`, `licenses` 일치 | 07 I2, V8 | 07 |
-| `app-check` | `cargo fmt --check`, `clippy`, `cargo test -p helm-desktop-core`, capability·CSP 정적 검사 | 20 |
+| `app-check` | 옛 Tauri 구현(커밋 424f338a)의 `cargo fmt --check`, `clippy`, `cargo test -p helm-desktop-core`, capability·CSP 정적 검사. Electron 셸은 `just desktop-shell-test`(`bun test`)가 맡고, IPC 발신 프레임 검사(`app://localhost`)는 `commands.test.ts`가 시험한다 | 20 |
 | `ui-check`, `ui-test` | 21 정적 검사(토큰 생성물·대비 관문 포함), 부품 동작·접근성·키보드·IME·선형 텍스트·금지 패턴·수명주기 | 21 |
 | `mobile-check` | 26 단위·컴포넌트 시험(워크스페이스 `test`에 포함) | 26 |
 | secrets, gitleaks | 테스트 비밀 허용 접두사(§3.6.4) | 06 |
 
 - `_verify-steps`는 그 단계를 만드는 23 WBS 행이 끝날 때 더한다. 예: `app-check`는 Rust 크레이트 행 뒤, `ui-test`는 `@helm/ui` 첫 행 뒤, `mobile-check`는 `apps/mobile` 첫 행 뒤. 그 단계에 필요한 도구(cargo, Playwright 브라우저)를 설치하는 사람 작업은 그 행보다 먼저 둔다(23). 단계가 들어간 뒤 도구가 없으면 종료 코드 2로 끝난다(환경 문제를 감추지 않는다).
 - 시간 목표: 서버에서 `just verify` 전체 5분 이하, 상한 10분 [제안]. 넘으면 가장 느린 파일부터 원인을 보고(실제 시간 대기, 큰 픽스처 재생성), 고칠 수 없으면 `*.slow.test.ts`로 옮기고 이유를 파일 머리 주석에 쓴다.
-- 종료 코드 2 조건(환경 문제, 코드를 고치지 않고 보고): pnpm·cargo·Playwright 브라우저(부품 시험용 Chromium)가 없음, 임시 디렉터리를 만들 수 없음. bwrap·sshd·Mac은 verify의 조건이 아니다.
+- 종료 코드 2 조건(환경 문제, 코드를 고치지 않고 보고): pnpm·Playwright 브라우저(부품 시험용 Chromium)가 없음, 임시 디렉터리를 만들 수 없음. bwrap·sshd·Mac은 verify의 조건이 아니다.
 
 #### 3.15.2 넣지 않는 것
 
@@ -1598,7 +1600,7 @@ S1 묶음은 §3.11.3에 따라 bwrap 설치 뒤에 돈다. 설치 전에는 SB-
 ### 3.16 CI [제안]
 
 - 호스팅 CI에서 테스트를 돌리지 않는다(06 O-11, D22-14). `just verify`와 `just test-all`은 서버에서 사람이나 에이전트가 레시피로 돌린다.
-- 예외: Windows 앱 빌드(`app-build-win-ci`, 20 §3.12.2)가 쓰는 GitHub Actions 워크플로 `desktop-windows.yml` 안에서 셸 스모크(20 DM-30)를 함께 돈다. 브랜치 push가 필요하므로 사람 확인 뒤에만 실행한다. 이 워크플로는 비밀을 쓰지 않는다(가짜 데몬).
+- 예외: 옛 Tauri 구현(커밋 424f338a)에서는 Windows 앱 빌드 워크플로 `desktop-windows.yml`(`app-build-win-ci`, 20 §3.12.2) 안에서 셸 스모크(20 DM-30)를 함께 돌렸다. 지금 저장소에 그 워크플로는 없다. Electron 셸의 실행 스모크는 `fresnel-macos.yml`의 macOS 묶음 단계(`just release-smoke-electron`)가 돌린다. 워크플로 실행은 사람 확인 뒤에만 한다.
 - 17 §6.2·19 §6.3·10 §6.2의 "CI" 표현은 각각 "verify"(10: 시드 20개), "`daemon-systest`에서만"(17), "`test-conformance-ssh`"(19)로 읽는다(§5.2).
 - 야간 실행 [제안, 기본 꺼짐]: 사용자 systemd 타이머 `helm-test-nightly.timer`가 `just test-deep`을 돌리고 실패하면 17의 `helm-alert@`로 알리는 구성. MVP 구현 중에는 끄고, M11-12(운영 데몬 설치) 뒤에 켠다(23 §5.2 "22"(3), Q22-04).
 
@@ -2065,4 +2067,4 @@ S1 묶음은 §3.11.3에 따라 bwrap 설치 뒤에 돈다. 설치 전에는 SB-
 - 설계 문서(2026-10-12 판): 01 §3.5.2, §3.8, §3.11, §6 / 02 §2.7, §3.1, §3.4~§3.22 수용 기준, §3.23, §3.24, §6 / 03 §6 / 04 §6 / 05 §6 / 06 §3.3, §3.4.14, §3.5, §3.12, §3.13.6, §3.15, §3.16, §4 F13·F16, §6, §7 O-11 / 07 §3.10, §3.19, §6 / 08 §6 / 09 §3.8.4, §3.15.2, §6 / 10 §3.8, §3.15, §3.16, §3.17, §6 / 11 §6 / 12 §3.3, §6(CR-1~CR-4는 §3.7) / 13 §3.6.1, §3.11.7, §6 / 14 §6 / 15 §3.15, §6 / 16 §6 / 17 §3.14, §6.2 / 18 §3.11, §3.17 / 19 §6 / 20 §3.12.2, §3.13, §3.14, §6 / 21 §3.2.5, §6.1, §6.3, §6.4, §6.6(2a 개정판) / 26 §2.4, §3.6.2, §6. 시작 때(12:42 무렵)와 끝낼 때(13:14 무렵) 두 번 §5·§6을 대조했다.
 - 원천: `docs/design/process/sources/helm-canon-2.md` §1.23, §1.25, §3.16, §7.2, §7.3, §9.6, §9.9, §9.14(57개), 체크리스트 "22 테스트 전략" / `conversation-extracts-3.md` X3-4-11, X3-8-24~27, X3-10-03~05 / `pi-api-facts-1.md` §2.10(faux 제공자 [원문 `ai/src/providers/faux.ts:54-146, 455, 532, 704`]).
 - 실험 자료(이 문서가 다시 실행하지 않음): `experiments/helm-toy/helm.mjs`(대화 발췌 3 X3-10-03에 [실험] 기록), `experiments/helm-kernel-v02/test/*.mjs`(canon-2 §9.14 [실험: 57 pass]), `.helm-design-work/P4/fork-proto/test/`(07 §3.19 [실험: 173 pass]).
-- 도구 사실: Vitest·Playwright·Storybook·WebdriverIO 판은 06 §3.12.1, 20 §3.13, 21 §6.5의 표기를 따른다. fast-check 판과 Playwright `emulateMedia`의 `contrast`·`reducedTransparency` 지원은 [지식]이며 구현 때 확인한다.
+- 도구 사실: Vitest·Playwright·Storybook 판은 06 §3.12.1, 20 §3.13, 21 §6.5의 표기를 따른다(WebdriverIO는 옛 Tauri 셸용이었고 커밋 424f338a 뒤 쓰지 않는다). fast-check 판과 Playwright `emulateMedia`의 `contrast`·`reducedTransparency` 지원은 [지식]이며 구현 때 확인한다.

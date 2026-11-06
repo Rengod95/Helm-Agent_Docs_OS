@@ -86,7 +86,7 @@ L0는 OS와 실행 환경에 따라 달라지는 내부 부분을 공통 인터�
 | 항목 | 규칙 |
 |---|---|
 | 인터페이스 | 도메인마다 `<Domain>Provider` 꼴의 내부 계약을 둔다. 이 계약은 패키지 안에만 있고 F에 두지 않는다. F에 두는 것은 소비자가 쓰는 서비스 인터페이스(`OsService` 등)다. provider는 서비스 구현이 OS별 부분을 호출하는 내부 경계다 |
-| 구현 파일 | `src/providers/{darwin,linux,win32}.ts` 또는 기능 디렉터리 아래 같은 이름의 파일(`key/`, `lock/`, `registrar/`, `notify/`, `watch/`. 예: `lock/posix.ts`, `registrar/launchd.ts`, `none.ts`). secrets의 `providers/`는 값 제공자(sops) 디렉터리이고 이 표의 OS provider 규칙 밖이다. WSL은 별도 파일 없이 linux provider가 `OsInfo.isWsl` 플래그로 변종 동작을 고른다. 배포 환경에 따라 바뀌는 구현은 OS 이름 대신 환경 id를 쓴다(예: `desktop-tauri`). 환경별 구현은 L4가 플러그인 설정으로 넘긴다 |
+| 구현 파일 | `src/providers/{darwin,linux,win32}.ts` 또는 기능 디렉터리 아래 같은 이름의 파일(`key/`, `lock/`, `registrar/`, `notify/`, `watch/`. 예: `lock/posix.ts`, `registrar/launchd.ts`, `none.ts`). secrets의 `providers/`는 값 제공자(sops) 디렉터리이고 이 표의 OS provider 규칙 밖이다. WSL은 별도 파일 없이 linux provider가 `OsInfo.isWsl` 플래그로 변종 동작을 고른다. 배포 환경에 따라 바뀌는 구현은 OS 이름 대신 환경 id를 쓴다(예: `desktop-tauri`(옛 이름, 옛 Tauri 구현(커밋 424f338a)에서 붙음)). 환경별 구현은 L4가 플러그인 설정으로 넘긴다 |
 | 선택 위치 | `src/select.ts` 한 곳. `process.platform`, `process.arch`, `os.platform()`, WSL 판정(`WSL_DISTRO_NAME`, `/proc/version`)을 읽는 코드는 이 파일에만 둔다. provider 파일(`src/providers/*` 포함)도 이 값을 읽지 않고 `select.ts`가 고른 결과로만 쓰인다 |
 | WSL 판정 | 기준은 `L0.os.spec` §3.1 하나다: `platform === "linux"`이고 `WSL_DISTRO_NAME`이 비어 있지 않거나 `/proc/version`에 `microsoft` 또는 `WSL`(대소문자 무시)이 있으면 WSL이다. exec·secrets·store도 이 기준을 쓴다. 예외: sandbox는 그 위에서 WSL1(`/proc/version`에 `Microsoft`가 있고 `WSL2`가 없음)과 WSL2를 나눈다(`L0.sandbox.spec` §3.5) |
 | 지원 밖 OS | `select.ts`는 throw하지 않고 값으로 돌려준다(`eng.dependency-rules.guide` DR-13 좋은 예). 그 뒤 동작은 도메인마다 다르다. os·exec: `Result`의 `unsupported_platform`(os는 `unsupported_arch`도)을 받으면 서비스를 등록하지 않고 등록 실패로 알린다(`L0.os.spec` §3.10, `L0.exec.spec` §5.1). os가 등록되지 않으면 나머지 L0도 시작하지 않는다. sandbox: `SandboxProvider`(`kind: "none"`)를 돌려주고 서비스는 등록된 채 `status()`가 `unsupported_os`, 실행은 `onUnavailable` 정책을 따른다(`L0.sandbox.spec` §3.5, §4.5). store: `LockProvider` `none`으로 DB 프로세스 락만 쓴다. process: `OsServiceRegistrar` `none`이 `unsupported`를 돌려준다. secrets: win32 동작은 [미결](`L0.secrets.spec` §10 7번). 어느 경우에도 프로세스를 죽이지 않는다 |
@@ -107,7 +107,7 @@ L0는 OS와 실행 환경에 따라 달라지는 내부 부분을 공통 인터�
 provider id [미결]: 계획 v2는 "os.* provider"라고만 적었고 provider id 이름 규칙(예: `os.exec.shell`, `os.store.lock`)을 정의한 적이 없다. 작성자 권고안은 다음과 같다.
 
 - 슬롯 id는 `os.<도메인>.<슬롯>`이다. 예: `os.exec.shell`, `os.sandbox.isolate`, `os.secrets.key`, `os.process.registrar`, `os.store.lock`, `os.os.notify`, `os.os.watch`. platform-os 자신의 슬롯도 기계적 일관성을 위해 `os.os.`를 쓴다.
-- 구현 id는 `darwin`, `linux`, `win32`, `none`(무동작) 또는 환경 id(`desktop-tauri`)다. 전체 표기는 `<슬롯 id>/<구현 id>`다. 예: `os.store.lock/linux`, `os.os.notify/desktop-tauri`.
+- 구현 id는 `darwin`, `linux`, `win32`, `none`(무동작) 또는 환경 id(`desktop-tauri`, 옛 이름)다. 전체 표기는 `<슬롯 id>/<구현 id>`다. 예: `os.store.lock/linux`, `os.os.notify/desktop-tauri`(옛 이름).
 - 용도는 진단 출력, 로그 필드(`provider`), 환경별 provider 주입 시 대상 지정이다. 설정 키로 provider를 바꾸는 기능은 두지 않는다.
 
 ### 3.2 외부 의존 소유
@@ -243,7 +243,7 @@ L0가 정하지 않는 것:
 | [결정] 샌드박스는 `@anthropic-ai/sandbox-runtime` | `_research/foundation-plan.md` §2 샌드박스 행 |
 | [결정] 공유 서비스 모드 `fresnel service`(자동 기동, 유휴 종료)는 1차, OS 서비스 등록은 2차. 원격 사용은 1차(M3)이고 서비스 소켓을 SSH 터널·사설망으로 연결한다 [결정: review.decisions-2 U-11] | `_research/foundation-plan.md` §1 표 2번, adr.0006 |
 | [결정] DI는 Cordis 하나. L0는 ext-host `ExtHost.registerPlatform`으로 서비스를 등록한다(DR-14 예외, review.decisions-2 U-17) | `_research/decisions-log.md` 2026-10-21 결정(3차), adr.0002 |
-| [결정] Bun 1.4 런타임, 데스크톱은 Tauri 2 + `bun build --compile` 사이드카 | `_research/foundation-plan.md` §1 표 3번, §2 |
+| [결정] Bun 1.4 런타임, 데스크톱은 Tauri 2(옛 Tauri 구현, 커밋 424f338a. 2026-11-06 Electron으로 바뀜, `L4.desktop.spec` §11) + `bun build --compile` 사이드카 | `_research/foundation-plan.md` §1 표 3번, §2 |
 
 ## 8. 수용 기준
 

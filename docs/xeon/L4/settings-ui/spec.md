@@ -14,7 +14,7 @@ binds: [xeon/packages/client/src/settings/**]
 
 - [결정] 모든 설정은 F5 설정 스키마 하나에서 L4 화면, 설정 파일, 명령을 함께 만든다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 6, `F.wire-settings.spec` §4.9).
 - [결정] 추론 예산, 라우팅, 레이트 리밋, 계정 회전은 L4 클라이언트 설정 화면에서 조작할 수 있어야 한다(`_research/decisions-log.md` 2026-10-21 결정(2차)). 마일스톤은 M3다(`product.scope.spec` I14). 레이트 리밋·계정 회전 설정을 2차로 미루지 않고 M3 화면에 넣는다 [결정: review.decisions-2 U-21].
-- [결정] 데스크톱은 Tauri 2이고 UI와 엔진은 stdio JSON-RPC로 연결한다(adr.0008).
+- [결정] 데스크톱 셸은 Electron이고(2026-11-06, `L4.desktop.spec` §11. 옛 Tauri 구현(커밋 424f338a)은 Tauri 2였다, adr.0008) UI와 엔진은 stdio JSON-RPC로 연결한다.
 
 ## 1. 목적과 범위
 
@@ -659,7 +659,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 
 - 키 단위 편집기의 범위별 스키마는 `F.wire-settings.spec` §4.10의 규칙 3(type + range 병합)과 규칙 4(그 범위가 `allowedScopes`에 없는 키는 제외)를 따른다. 그래서 키 단위 편집 결과는 파일 단위 편집기와 같은 판정을 받는다.
 - 원문 입력은 `F.wire-settings.spec` §4.11 규칙대로 JSON으로 먼저 해석하고, 실패하면 문자열로 본다.
-- 파일 단위 편집기를 데스크톱 파일 시스템 접근(Tauri fs)으로 직접 쓰는 안은 [제안]하지 않는다. 호스트의 `settings.set` 경로와 쓰는 곳이 둘이 되고, 파일 감시와 검사(§4.8)를 우회하기 때문이다.
+- 파일 단위 편집기를 데스크톱 파일 시스템 접근(옛 Tauri 구현(커밋 424f338a)의 Tauri fs)으로 직접 쓰는 안은 [제안]하지 않는다. 호스트의 `settings.set` 경로와 쓰는 곳이 둘이 되고, 파일 감시와 검사(§4.8)를 우회하기 때문이다.
 
 #### 4.2.4 탭별 전용 편집기
 
@@ -914,10 +914,10 @@ sequenceDiagram
 | 안 | 흐름 | 값이 지나는 곳 | 장점 | 단점 | F 변경 |
 |---|---|---|---|---|---|
 | A. wire 전용 메서드 | WebView 입력란 → `secret.put {name, value}` → 호스트 → L0.secrets | WebView DOM, JSON-RPC 프레임, 호스트 메모리 | 구현이 단순하다. CLI와 데스크톱이 같은 메서드를 쓴다 | 값이 DOM과 wire를 지난다. 요청 로그·추적·개발 검사에서 가림 규칙을 따로 지켜야 한다. "시크릿 키의 DOM에 값 없음" 기준을 만족하지 못한다 | 값을 싣는 메서드 추가, 로그 가림 규칙 |
-| B. Tauri command | WebView 입력란 → Rust command → sops·키체인 직접 호출 | WebView DOM, Tauri IPC, Rust 프로세스 | wire를 지나지 않는다 | 값이 DOM을 지난다. 시크릿 저장 로직이 L0.secrets(TS)와 Rust 두 곳에 생긴다. 메타·감사 기록이 엔진 밖에서 생긴다 | 없음(대신 desktop에 시크릿 로직) |
+| B. Tauri command(옛 Tauri 구현(커밋 424f338a)의 안) | WebView 입력란 → Rust command → sops·키체인 직접 호출 | WebView DOM, Tauri IPC, Rust 프로세스 | wire를 지나지 않는다 | 값이 DOM을 지난다. 시크릿 저장 로직이 L0.secrets(TS)와 Rust 두 곳에 생긴다. 메타·감사 기록이 엔진 밖에서 생긴다 | 없음(대신 desktop에 시크릿 로직) |
 | C. L0.secrets 흐름 위임 | WebView는 `secret.beginEntry {name, action}` 같은 값 없는 요청만 보낸다 → 호스트의 L0.secrets가 OS 보안 입력(키체인 대화상자, pinentry 등)이나 터미널 프롬프트를 띄워 값을 직접 받는다 → 결과 상태만 돌려준다 | L0.secrets와 OS 입력 창 | 값이 DOM, wire, 이벤트 어디에도 없다. 열람(`secret.beginReveal`)도 같은 경로로 OS 창에 한 번 보이고 닫힌다. CLI의 `secret add`(stdin) 흐름과 소유 위치가 같다(`_research/secrets.md` §6.6) | OS별 보안 입력 구현이 필요하다(L0.os·L0.secrets). Linux에 pinentry가 없으면 대체 경로가 필요하다 | 값 없는 메서드 추가 |
 
-- [제안] C안을 쓴다. CLI의 `secret add/set/rotate`도 같은 값 없는 `secret.beginEntry`를 쓴다(`L4.cli.spec` §4.7). 메서드 이름은 단수 `secret.*`이고 `L4.readme` §8.1 표가 정본이다. M3 전까지(M2)의 사이드카 연결에는 호스트가 값을 받을 수단이 없다(HS-44). 이 연결의 최소 설정 화면은 C안 대신 B안의 변형을 쓴다 [결정: M2 첫 실행 M-12]: 화면 안의 등록 창이 값을 한 번 받아 Rust 셸에 넘기고, 셸은 번들된 `fresnel secret add|set`을 실행해 stdin에 한 번 쓴다. 시크릿 저장 로직은 Rust에 새로 생기지 않고 CLI의 것을 그대로 쓴다. 약점은 B안과 같다(값이 DOM과 Tauri IPC를 지난다). 규칙과 약점은 `L4.desktop.spec` §4.14.1이다. 셸 경로가 없으면 `fresnel secret add <이름>` 명령 안내로 돌아간다(이 명령은 stdin으로 값을 받는다, `_research/secrets.md` §6.6). M3의 시크릿 탭은 C안을 쓴다.
+- [제안] C안을 쓴다. CLI의 `secret add/set/rotate`도 같은 값 없는 `secret.beginEntry`를 쓴다(`L4.cli.spec` §4.7). 메서드 이름은 단수 `secret.*`이고 `L4.readme` §8.1 표가 정본이다. M3 전까지(M2)의 사이드카 연결에는 호스트가 값을 받을 수단이 없다(HS-44) [근거: HS-44]. 이 연결의 최소 설정 화면은 C안 대신 B안의 변형을 쓴다 [결정: M2 첫 실행 M-12]: 화면 안의 등록 창이 값을 한 번 받아 셸에 넘기고(옛 Tauri 구현(커밋 424f338a)은 Rust 셸, 지금은 Electron `secret-entry.ts`, `L4.desktop.spec` §11.5), 셸은 번들된 `fresnel secret add|set`을 실행해 stdin에 한 번 쓴다. 시크릿 저장 로직은 셸에 새로 생기지 않고 CLI의 것을 그대로 쓴다. 약점은 B안과 같다(값이 DOM과 셸 IPC를 지난다). 규칙과 약점은 `L4.desktop.spec` §4.14.1이다. 셸 경로가 없으면 `fresnel secret add <이름>` 명령 안내로 돌아간다(이 명령은 stdin으로 값을 받는다, `_research/secrets.md` §6.6). M3의 시크릿 탭은 C안을 쓴다.
 - [결정: review.decisions-2 U-20] 값 열람 경로는 M2 CLI `fresnel secret reveal`(`L4.cli.spec` §4.7)과 M3 이 화면의 "값 보기" 둘이다. 에이전트 경로에는 열람이 없다. 이 화면의 열람은 C안 경로(`secret.beginReveal`, OS 인증 재확인)를 쓴다.
 - [제안] C안에서 셸 포트 `openSecretFlow`는 desktop이 호스트 메서드를 불러 구현한다. settings-ui는 결과 상태(`SecretFlowOutcome`)만 받는다.
 - C안이 OS에서 불가능한 경우의 대체로 A안을 쓸지는 [미결]이다(§10 미결 2). A안을 쓰면 값이 wire를 지나므로 `L4.readme` §4 시크릿 행, `L4.desktop.spec` E11, `L0.secrets.spec` §8.3 R4의 전제를 함께 고쳐야 한다. 그때도 입력란은 한 번 쓰고 비우는 별도 창에 두고, view-model 상태에는 넣지 않는다.
@@ -1072,7 +1072,7 @@ sequenceDiagram
 | 요구 | 각 층 spec(X, L0~L4) | "설정 노출" 표의 `ui` 필드. 탭 배치는 §4.1.1 안내를 참고한다 |
 | 제공 | `L4.cli.spec` | 없음. view-model 공유는 §10 미결 12 |
 | 제공 | `@fresnel/client/web` (adr.0020) | `toolsWebViewOf`, `orderUpdateOf`, `moveInOrder`와 타입(§3.6). 사용처는 `fresnel doctor`(다음 유닛)와 M4 설정 화면이다 |
-| 참고 | `adr.0008` | Tauri 2 WebView 렌더링, stdio JSON-RPC 연결 |
+| 참고 | `adr.0008` | 옛 Tauri 2 WebView 렌더링(커밋 424f338a), stdio JSON-RPC 연결. 셸은 Electron이다(`L4.desktop.spec` §11) |
 
 ## 9. 수용 기준
 

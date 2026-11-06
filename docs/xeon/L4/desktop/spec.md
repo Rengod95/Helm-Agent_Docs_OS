@@ -14,8 +14,8 @@ binds: [xeon/apps/desktop/**, xeon/apps/desktop-shell/**]
 
 ### 1.1 정하는 것
 
-- 데스크톱 앱의 프로세스 구조: Tauri core(Rust), WebView(TS UI), 엔진 사이드카.
-- UI와 엔진을 잇는 경로. Rust 릴레이와 WebView 쪽 F `Transport`(kind `"stdio"`) 구현의 경계.
+- 데스크톱 앱의 프로세스 구조: Electron 메인 프로세스(TypeScript), WebView(TS UI, Electron 렌더러), 엔진 사이드카.
+- UI와 엔진을 잇는 경로. 셸 메인 프로세스의 바이트 릴레이와 WebView 쪽 F `Transport`(kind `"stdio"`) 구현의 경계.
 - 엔진 사이드카의 수명 규칙(기동, 정상 종료, 비정상 종료, 재기동)과 장애 처리.
 - 서비스 모드(M3)에서 사이드카 대신 서비스 소켓에 접속하는 경로.
 - 메모리 예산의 측정 대상, 측정법, 줄이는 수단.
@@ -36,7 +36,7 @@ binds: [xeon/apps/desktop/**, xeon/apps/desktop-shell/**]
 
 ### 1.3 근거
 
-- [결정] Tauri 2.12 셸(시스템 WebView)을 쓰고, 엔진은 `bun build --compile` 사이드카이며, UI와 엔진은 stdio JSON-RPC로 연결한다(adr.0008 §3.1~§3.3, `_research/foundation-plan.md §1` 결정 3).
+- [결정] 엔진은 `bun build --compile` 사이드카이고, UI와 엔진은 stdio JSON-RPC로 연결한다(adr.0008 §3.1~§3.3, `_research/foundation-plan.md §1` 결정 3). 셸은 처음에 Tauri 2.12(시스템 WebView)였다(옛 Tauri 구현, 커밋 424f338a). 2026-11-06 사용자 결정으로 Electron이 되었다(§11).
 - [결정] 엔진을 UI 프로세스 안에 넣지 않는다. 확장의 블로킹·크래시가 UI를 멈추지 않게 하기 위해서다(adr.0008 §3.3, `_research/process.md §6.1`).
 - [결정] 데스크톱은 메모리 우선 3플랫폼이다(`_research/decisions-log.md` 2026-10-21 결정(3차)).
 - [결정] 데스크톱 본체는 M2다(`product.scope.spec` I2, `_research/foundation-plan.md §5` P4). 이번 실행(M1)은 스캐폴드까지다.
@@ -46,8 +46,8 @@ binds: [xeon/apps/desktop/**, xeon/apps/desktop-shell/**]
 
 | 용어 | 뜻 |
 |---|---|
-| 셸 | Tauri core 프로세스(Rust). 창, 트레이, 사이드카 수명, 바이트 릴레이를 맡는다 |
-| WebView | 시스템 WebView(macOS WKWebView, Linux WebKitGTK, Windows WebView2)에서 도는 TS UI |
+| 셸 | Electron 메인 프로세스(TypeScript, `apps/desktop-shell/`). 창, 트레이, 엔진 사이드카 수명, 바이트 릴레이를 맡는다. 옛 셸은 Tauri core(Rust)였다(옛 Tauri 구현, 커밋 424f338a) |
+| WebView | Electron 렌더러(Chromium)에서 도는 TS UI. 옛 Tauri 구현(커밋 424f338a)은 시스템 WebView(macOS WKWebView, Linux WebKitGTK, Windows WebView2)였다 |
 | 엔진 사이드카 | `bun build --compile`로 만든 엔진 바이너리. `bundle.externalBin`으로 앱에 들어간다 |
 | 릴레이 | 셸이 엔진의 stdin/stdout(또는 서비스 소켓) 바이트를 WebView와 주고받는 경로. JSON-RPC를 해석하지 않는다 |
 | 엔진 공급원 | WebView가 접속하는 엔진의 출처. `"sidecar"`(앱이 띄운 자식) 또는 `"service"`(`fresnel service`, M3) |
@@ -64,64 +64,64 @@ thread, turn, item은 `F.conversation.spec`의 용어다. 화면 문구의 "대�
 ```mermaid
 flowchart LR
   subgraph APP["데스크톱 앱"]
-    core["Tauri core (Rust)<br/>engine.rs: spawn·종료·재기동<br/>relay.rs: 바이트 릴레이"]
-    web["WebView (TS UI)<br/>transport/tauri-stdio.ts<br/>views/*, settings/*"]
+    core["Electron 메인 프로세스 (TS)<br/>engine.ts: spawn·종료·재기동<br/>engine/relay.ts: 바이트 릴레이"]
+    web["WebView (TS UI)<br/>transport/relay-stdio.ts<br/>views/*, settings/*"]
   end
   eng["엔진 사이드카<br/>fresnel host --stdio"]
   svc["fresnel service (M3)<br/>Unix 소켓"]
   kids["손자 프로세스<br/>bash, MCP 서버"]
-  web <-->|"Tauri IPC: invoke + Channel (바이트)"| core
+  web <-->|"셸 IPC (window.fresnelShell): invoke + 채널 (바이트)"| core
   core <-->|"stdin/stdout JSON Lines"| eng
   core <-.->|"소켓 바이트 (M3)"| svc
   eng --> kids
 ```
 
-- 프로세스는 셋이다. 셸, WebView(플랫폼에 따라 WebView 엔진이 보조 프로세스를 더 띄운다, §3.7), 엔진 사이드카.
+- 프로세스는 셋이다. 셸(Electron 메인 프로세스), WebView(Chromium이 헬퍼 프로세스를 더 띄운다, §4.10), 엔진 사이드카.
 - [제안] 엔진 사이드카는 앱 하나에 하나다. 창이 여럿이어도 같은 엔진을 쓴다. M2는 창 하나만 연다.
 
 ### 3.2 연결 경로 비교
 
 | 안 | 내용 | spawn 위치 | envelope 검사 | 판정 |
 |---|---|---|---|---|
-| (a) Rust 바이트 릴레이 + WebView TS 전송 | 셸이 사이드카를 띄우고 stdout 바이트를 그대로 WebView에 넘긴다. WebView의 TS가 F `StdioTransportFactory`로 JSON Lines 프레이밍을 하고 `HostConnection`이 envelope를 검사한다 | Rust 한 곳 | TS(F 함수) 한 곳 | [제안] 채택 |
-| (b) WebView가 JS shell 플러그인으로 직접 spawn | `Command.sidecar("binaries/fresnel").spawn()`을 WebView에서 부른다 | WebView | TS | 탈락 |
-| (c) Rust가 JSON-RPC를 해석 | 셸이 메시지를 파싱하고 Tauri 명령·이벤트로 바꿔 WebView에 준다 | Rust | Rust와 TS 두 곳 | 탈락 |
+| (a) 셸 바이트 릴레이 + WebView TS 전송 | 셸이 사이드카를 띄우고 stdout 바이트를 그대로 WebView에 넘긴다. WebView의 TS가 F `StdioTransportFactory`로 JSON Lines 프레이밍을 하고 `HostConnection`이 envelope를 검사한다. 옛 Tauri 구현(커밋 424f338a)의 릴레이는 Rust였다 | 셸 한 곳 | TS(F 함수) 한 곳 | [제안] 채택 |
+| (b) WebView가 JS shell 플러그인으로 직접 spawn (옛 Tauri 구현의 탈락안) | `Command.sidecar("binaries/fresnel").spawn()`을 WebView에서 부른다 | WebView | TS | 탈락 |
+| (c) Rust가 JSON-RPC를 해석 (옛 Tauri 구현의 탈락안) | 셸이 메시지를 파싱하고 Tauri 명령·이벤트로 바꿔 WebView에 준다 | Rust | Rust와 TS 두 곳 | 탈락 |
 
 (a)를 고르는 근거:
 
-1. spawn 위치가 Rust 한 곳이다. adr.0008 §3.3 제안 1번(엔진 spawn은 Rust 한 곳, `CommandChild`를 앱 상태에 보관)을 그대로 만족한다. (b)는 플러그인이 정상 종료 때 SIGKILL만 보내고(`_research/notes/arch-2.md §3.2` 기본 kill 행), WebView 새로고침이나 창 재생성 때 `CommandChild` 핸들이 페이지와 함께 사라진다.
-2. envelope·메서드·params 검사 로직이 F(`checkEnvelope`, `WIRE_METHODS`) 한 벌로 남는다. (c)는 같은 검사를 Rust로 다시 써야 하고, F 스키마가 바뀔 때마다 두 곳을 고쳐야 한다.
+1. spawn 위치가 셸 한 곳이다. adr.0008 §3.3 제안 1번(엔진 spawn은 한 곳, 자식 핸들을 앱 상태에 보관)을 그대로 만족한다. 옛 Tauri 구현(커밋 424f338a)에서도 spawn은 Rust 한 곳이었다. (b)는 옛 Tauri 구현 기준으로 플러그인이 정상 종료 때 SIGKILL만 보내고(`_research/notes/arch-2.md §3.2` 기본 kill 행), WebView 새로고침이나 창 재생성 때 `CommandChild` 핸들이 페이지와 함께 사라졌다.
+2. envelope·메서드·params 검사 로직이 F(`checkEnvelope`, `WIRE_METHODS`) 한 벌로 남는다. (c)는 옛 Tauri 구현 기준으로 같은 검사를 Rust로 다시 써야 하고, F 스키마가 바뀔 때마다 두 곳을 고쳐야 한다.
 3. 데스크톱 TS는 CLI와 같은 `HostConnection`을 쓴다. 그래서 같은 테이프에서 CLI와 데스크톱의 호스트 메시지 열이 같은지 비교할 수 있다(§9 D-03).
 4. DR-10과 맞는다. `apps/desktop`은 `@fresnel/host`를 import하지 않고 바이너리를 실행한다(`eng.dependency-rules.guide` DR-10).
-5. WebView에 `shell:allow-spawn`을 줄 필요가 없다. 셸 권한을 WebView에 열지 않는다(§3.5).
+5. WebView에 셸 실행 권한을 줄 필요가 없다. 셸 권한을 WebView에 열지 않는다(§3.5). 옛 Tauri 구현(커밋 424f338a)은 `shell:allow-spawn`을 WebView용으로 두지 않았다.
 
 (a)의 비용:
 
-- 바이트가 Tauri IPC를 한 번 더 지난다. 큰 프레임(최대 `WIRE_LIMITS.maxFrameBytes` 1 MiB)의 복사 비용은 S3 spike에서 잰다(`L4.desktop.plan`).
+- 바이트가 셸 IPC를 한 번 더 지난다(옛 Tauri 구현은 Tauri IPC, 커밋 424f338a). 큰 프레임(최대 `WIRE_LIMITS.maxFrameBytes` 1 MiB)의 복사 비용은 S3 spike에서 잰다(`L4.desktop.plan`).
 - WebView 새로고침은 같은 stdio 연결 위에서 새 클라이언트가 시작되는 일이다. 연결 재설정은 F 클라이언트 알림 `$/connectionReset`(M2)으로 한다(§4.5, `F.wire-settings.spec` §4).
 
 ### 3.3 셸과 WebView 사이 IPC
 
-[제안] 셸은 아래 엔진 중계 명령 다섯 개와 키 등록 명령 하나(`secret_register`, 이 표 아래), 폴더 선택 명령 하나(`pick_folder`, 이 표 아래), 파일 선택 명령 하나(`pick_file`, 이 표 아래), 파일 저장 명령 하나(`save_file`, 이 표 아래), 사람 재인증 명령 하나(`os_reauth`, 이 표 아래), 앱 root 목록 명령 하나(`app_roots_set`, 이 표 아래)와, 엔진 대상 바꾸기(`engine_retarget`), 데이터베이스 복원(`db_restore`, §4.3), 데스크톱 설정 읽기·쓰기(`desktop_settings_read`·`desktop_settings_write`, §3.6), 외부 링크 열기(`open_external`)만 WebView에 연다. 허용 목록 `src-tauri/capabilities/default.json`은 중계 다섯 명령에 이 열 명령을 더한 열여섯 개에, 업데이트 넷(`update_status`, `update_check`, `update_download`, `update_install_restart`), 셸 의도 하나(`shell_take_intents`), 트레이 하나(`tray_update`), OS 알림 넷(`notify_permission`, `notify_request_permission`, `notify_os`, `notify_take_target`)을 더한 스물여섯 개다(§4.18). 명령 이름은 Rust `#[tauri::command]` 함수 이름이다. 모두 비동기 명령이라 UI 프로세스의 메인 스레드를 막지 않는다.
+[제안] 셸은 아래 엔진 중계 명령 다섯 개와 키 등록 명령 하나(`secret_register`, 이 표 아래), 폴더 선택 명령 하나(`pick_folder`, 이 표 아래), 파일 선택 명령 하나(`pick_file`, 이 표 아래), 파일 저장 명령 하나(`save_file`, 이 표 아래), 사람 재인증 명령 하나(`os_reauth`, 이 표 아래), 앱 root 목록 명령 하나(`app_roots_set`, 이 표 아래)와, 엔진 대상 바꾸기(`engine_retarget`), 데이터베이스 복원(`db_restore`, §4.3), 데스크톱 설정 읽기·쓰기(`desktop_settings_read`·`desktop_settings_write`, §3.6), 외부 링크 열기(`open_external`)만 WebView에 연다. 셸이 여는 명령은 중계 다섯 명령에 이 열 명령을 더한 열여섯 개에, 업데이트 넷(`update_status`, `update_check`, `update_download`, `update_install_restart`), 셸 의도 하나(`shell_take_intents`), 트레이 하나(`tray_update`), OS 알림 넷(`notify_permission`, `notify_request_permission`, `notify_os`, `notify_take_target`)을 더한 스물여섯 개다(§4.18). 셸 쪽에서는 모듈이 `ctx.handle(이름, ...)`으로 등록한 명령만 닿는다(§11.1). 명령 이름은 옛 Tauri 구현(커밋 424f338a)의 Rust `#[tauri::command]` 함수 이름과 같다. 모두 비동기 명령이라 UI 프로세스의 메인 스레드를 막지 않는다. 옛 허용 목록은 `src-tauri/capabilities/default.json`에 있었다.
 
 | 명령 | 인자 | 결과 | 뜻 |
 |---|---|---|---|
-| `engine_attach` | `onBytes: Channel<ArrayBuffer>`, `onState: Channel<EngineState>` | `AttachResult` | 현재 페이지에 릴레이를 붙인다. 이전 세대 릴레이는 끊는다 |
+| `engine_attach` | `onBytes`(바이트 채널, `ArrayBuffer`), `onState`(상태 채널, `EngineState`) | `AttachResult` | 현재 페이지에 릴레이를 붙인다. 이전 세대 릴레이는 끊는다 |
 | `engine_write` | 원시 바이트 본문(`Uint8Array`), 헤더 `x-fresnel-epoch` | `null` | 엔진 stdin(또는 소켓)에 쓴다. 세대가 다르면 거부한다. 본문은 줄(프레임) 단위이고 2 MiB 이하다 |
 | `engine_ack` | `epoch: number`, `bytes: number` | `null` | `onBytes`로 받은 바이트 중 처리를 끝낸 양을 알린다(신용 반환). 세대가 다르면 무시한다 |
 | `engine_restart` | `safeMode?: boolean`, `confirmed?: boolean` | `null` | 사용자가 재기동을 고를 때 부른다. `failed`면 확인 없이 다시 띄운다. 엔진이 살아 있으면 `confirmed: true`일 때만 `engine_retarget`과 같은 길(정상 종료 뒤 재기동, 자동 재기동 횟수에 세지 않음)로 다시 띄우고, 아니면 `not-confirmed`로 거부한다. 엔진이 없으면(시작 중, 재기동 대기 중) `engine-not-running`이다. `safeMode`를 참으로 주면 안전 모드(`host --stdio --safe-mode`)로 띄운다. 값은 앱을 켜 둔 동안 남아 자동 재기동에도 쓰고, 생략하면 지금 값을 그대로 쓴다(고른 적이 없으면 플래그를 붙이지 않아 호스트가 설정 `x.operations.safeMode.default`를 따른다). `false`로 주면 `host --stdio --no-safe-mode`로 띄워 설정으로 켠 안전 모드도 이번에 끈다(설정 값은 그대로다). 원격 대상에는 어느 플래그도 붙지 않고, 참으로 주면 확인 여부와 관계없이 `bad-request`다 |
 | `engine_detach` | `epoch: number` | `null` | 페이지가 내려갈 때 릴레이를 끊는다. 엔진은 끄지 않는다. `epoch`가 현재 연결일 때만 끊으므로 새로고침 뒤 늦게 온 이전 페이지의 호출이 새 연결을 끊지 못한다 |
 
 - 키 등록 명령 `secret_register`는 엔진 중계가 아니다. 원시 바이트 본문 `<동작> <이름>\n<값>`(동작은 `add` 또는 `set`)을 받아 번들된 사이드카를 `fresnel secret <동작> <이름>`으로 한 번 실행하고, 값을 그 stdin에 한 번 쓴 뒤 닫고, 끝나기를 기다려 `null`을 돌려준다. 거부는 `{ kind, ... }` 객체다: `bad-request`, `empty`, `too-large`(값 8 KiB 초과), `busy`(이미 진행 중), `timeout`(30초), `unavailable { detail }`(사이드카를 띄우지 못함), `rejected { exitCode, detail }`(자식이 0이 아닌 코드로 끝남). 규칙과 약점은 §4.14.1이다.
-- 폴더 선택 명령 `pick_folder`는 엔진 중계가 아니다. 인자가 없고, 고른 절대 경로를 문자열로, 취소하면 `null`을 돌려준다. Rust가 `tauri-plugin-dialog`의 `pick_folder` 콜백을 부르고 그 답을 비동기로 기다린다(`src-tauri/src/folder_pick.rs`). 창을 열지 못하면 `Err("dialog_unavailable")`로 거부한다. `file://` 주소와 UTF-8이 아닌 경로는 취소와 같이 `null`이다. WebView에는 `dialog:*` 권한을 주지 않는다. Rust의 플러그인 API는 capability 검사를 받지 않는다([가정], §3.5와 같다). §4.16과 §10 17번이다.
-- 파일 선택 명령 `pick_file`은 `pick_folder`와 같은 모양이다(인자 없음, 고른 파일 하나의 절대 경로 또는 `null`, 창을 열지 못하면 `Err("dialog_unavailable")`, `src-tauri/src/folder_pick.rs`). 입력창 첨부 단추가 부르고(L4.desktop-ux §4.13 첨부), 경로는 `attachments.add { source: { kind: "path" } }`로 엔진에 넘긴다. 셸은 파일 내용을 읽지 않는다. WebView에는 `allow-pick-file` 하나만 더하고 `dialog:*` 권한은 주지 않는다. 맥에서 창이 뜨는 동작은 확인하지 않았다. 창 설정 `dragDropEnabled`는 `false`다. 기본값(true)에서는 Tauri가 파일 끌어놓기를 가로채 WebView에 HTML5 `drop`이 오지 않아, 입력창 끌어놓기 첨부가 동작하지 않는다. 부작용 점검: 기본값이 `true`일 때 깨지는 쪽은 창 안 HTML5 끌기이고, `false`는 이를 그대로 둔다(창 안 끌기, 구성 캔버스·훅 줄 끌기는 포인터 이벤트라 이 설정과 무관하다). 반대로 `false`에서는 놓을 곳이 아닌 데 놓은 파일로 WebView가 그 파일 주소로 이동할 수 있어, 앱이 창 수준 `dragover`·`drop`에서 처리되지 않은 파일 끌기를 막는다(`views/file-drop-guard.ts`). 맥에서 실제로 끌어 보는 확인은 하지 않았다.
-- 저장 명령 `save_file`은 엔진 중계가 아니다. 인자는 제안 파일 이름 `suggestedName`과 내용 `content`다. 내용은 화면이 `thread.export`의 쪽을 끝까지 이어 받아 만든 글이고, 셸은 글을 만들지 않는다. Rust가 `tauri-plugin-dialog`의 `save_file` 콜백을 부르고 저장 창의 답을 비동기로 기다린 뒤, 고른 절대 경로에 `content`를 UTF-8로 쓴다(`src-tauri/src/file_save.rs`). 저장하면 그 절대 경로 문자열을, 취소하면 `null`을 돌려준다. 창을 열지 못하면 `Err("dialog_unavailable")`, 쓰지 못하거나 고른 경로가 UTF-8 절대 경로가 아니면 `Err("write_failed")`로 거부한다. 오류 문구에는 경로나 OS 오류를 싣지 않는다. 제안 이름은 경로 구분자 앞부분을 버리고 제어 문자를 뺀 뒤 200자로 자른다(`../x`는 `x`, 남는 것이 없거나 `.`, `..`이면 `export.txt`). WebView에는 `allow-save-file` 하나만 더하고 `dialog:*` 권한은 주지 않는다. 웹은 이 명령이 없으므로 브라우저 내려받기(`Blob`과 임시 `<a download>`)로 같은 글을 보낸다(L4.desktop-ux §6.31 O-13). 맥에서 저장 창이 뜨고 파일이 쓰이는 동작은 이 변경으로 확인하지 않았다.
-- 앱 root 목록 명령 `app_roots_set`은 엔진 중계가 아니다. 인자는 `entries`(확장 이름, 버전, 등급, 폴더 경로의 목록)이고, 건너뛴 항목의 `{ index, kind }` 목록을 돌려준다(`src-tauri/src/view_scheme.rs`). 메인 창만 부를 수 있다(capability `allow-app-roots-set`). 목록을 통째로 바꾸고, 폴더가 그 확장의 설치 폴더 안이 아니거나 `/`, 홈 폴더, 홈 폴더를 품은 폴더면 그 항목만 거부한다. 같은 `(이름, 버전)`이 여러 등급으로 오면 높은 등급이 이긴다. 목록 수나 모양이 틀리면 `too_many` 같은 kind 문자열로 거부한다. `fresnel-view://` 프레임이 이 파일을 읽는 길은 ADR-0021 §3.6이다.
-- 사람 재인증 명령 `os_reauth`는 엔진 중계가 아니다. 인자는 시스템 창에 보일 사유 한 줄(`{ reason }`)이다. 성공하면 `{ verifiedAtMs }`(인증이 끝난 시각, epoch 밀리초)를, 실패하면 `{ kind }` 객체를 돌려준다. `kind`는 `cancelled`, `denied`, `unavailable`, `failed` 넷이다. macOS에서는 `LAContext`로 Touch ID나 기기 암호 창을 띄운다(`src-tauri/src/os_reauth.rs`). 규칙과 오류 표는 §4.17이다. [결정: 2026-11-04 사용자, B8 2안] 이 명령은 값 보기 화면이 부른다(§4.17). 값은 이 명령이 다루지 않는다.
+- 폴더 선택 명령 `pick_folder`는 엔진 중계가 아니다. 인자가 없고, 고른 절대 경로를 문자열로, 취소하면 `null`을 돌려준다. Electron 셸은 `dialog.showOpenDialog`로 고르고 답을 비동기로 기다린다(`dialogs.ts`, §11.5). 창을 열지 못하면 `Err("dialog_unavailable")`로 거부한다. 옛 Tauri 구현(커밋 424f338a)에서 `file://` 주소와 UTF-8이 아닌 경로는 취소와 같이 `null`이었다. 옛 구현은 `tauri-plugin-dialog`의 `pick_folder` 콜백을 Rust(`src-tauri/src/folder_pick.rs`)에서 부르고, WebView에 `dialog:*` 권한을 주지 않았다. 옛 구현의 Rust 플러그인 API는 capability 검사를 받지 않았다([가정], §3.5와 같다). §4.16과 §10 17번이다.
+- 파일 선택 명령 `pick_file`은 `pick_folder`와 같은 모양이다(인자 없음, 고른 파일 하나의 절대 경로 또는 `null`, 창을 열지 못하면 `Err("dialog_unavailable")`, Electron 셸은 `dialogs.ts`의 `dialog.showOpenDialog`). 입력창 첨부 단추가 부르고(L4.desktop-ux §4.13 첨부), 경로는 `attachments.add { source: { kind: "path" } }`로 엔진에 넘긴다. 셸은 파일 내용을 읽지 않는다. 옛 Tauri 구현(커밋 424f338a)은 capability `allow-pick-file` 하나만 더하고 `dialog:*` 권한은 주지 않았다. 맥에서 창이 뜨는 동작은 확인하지 않았다. 옛 Tauri 구현(커밋 424f338a)의 창 설정 `dragDropEnabled`는 `false`였다. 기본값(true)에서는 Tauri가 파일 끌어놓기를 가로채 WebView에 HTML5 `drop`이 오지 않아, 입력창 끌어놓기 첨부가 동작하지 않았다. Electron 셸은 이 설정을 두지 않는다. 끌어놓기 첨부가 Electron에서 도는지는 확인하지 않았다 [미확인]. 옛 구현 기준 부작용 점검: 기본값이 `true`일 때 깨지는 쪽은 창 안 HTML5 끌기이고, `false`는 이를 그대로 둔다(창 안 끌기, 구성 캔버스·훅 줄 끌기는 포인터 이벤트라 이 설정과 무관하다). 반대로 옛 구현에서 `false`였을 때는 놓을 곳이 아닌 데 놓은 파일로 WebView가 그 파일 주소로 이동할 수 있어, 앱이 창 수준 `dragover`·`drop`에서 처리되지 않은 파일 끌기를 막는다(`views/file-drop-guard.ts`). 맥에서 실제로 끌어 보는 확인은 하지 않았다.
+- 저장 명령 `save_file`은 엔진 중계가 아니다. 인자는 제안 파일 이름 `suggestedName`과 내용 `content`다. 내용은 화면이 `thread.export`의 쪽을 끝까지 이어 받아 만든 글이고, 셸은 글을 만들지 않는다. Electron 셸은 `dialog.showSaveDialog`로 저장 창을 띄우고 답을 비동기로 기다린 뒤, 고른 절대 경로에 `content`를 UTF-8로 쓴다(`dialogs.ts`). 옛 Tauri 구현(커밋 424f338a)은 `tauri-plugin-dialog`의 `save_file` 콜백을 Rust(`src-tauri/src/file_save.rs`)에서 불렀다. 저장하면 그 절대 경로 문자열을, 취소하면 `null`을 돌려준다. 창을 열지 못하면 `Err("dialog_unavailable")`, 쓰지 못하거나 고른 경로가 UTF-8 절대 경로가 아니면 `Err("write_failed")`로 거부한다. 오류 문구에는 경로나 OS 오류를 싣지 않는다. 제안 이름은 경로 구분자 앞부분을 버리고 제어 문자를 뺀 뒤 200자로 자른다(`../x`는 `x`, 남는 것이 없거나 `.`, `..`이면 `export.txt`). 옛 Tauri 구현(커밋 424f338a)은 capability `allow-save-file` 하나만 더하고 `dialog:*` 권한은 주지 않았다. 웹은 이 명령이 없으므로 브라우저 내려받기(`Blob`과 임시 `<a download>`)로 같은 글을 보낸다(L4.desktop-ux §6.31 O-13). 맥에서 저장 창이 뜨고 파일이 쓰이는 동작은 이 변경으로 확인하지 않았다.
+- 앱 root 목록 명령 `app_roots_set`은 엔진 중계가 아니다. 인자는 `entries`(확장 이름, 버전, 등급, 폴더 경로의 목록)이고, 건너뛴 항목의 `{ index, kind }` 목록을 돌려준다(`apps/desktop-shell/src/main/view-scheme.ts`, 옛 구현은 `src-tauri/src/view_scheme.rs`). 메인 창만 부를 수 있다(옛 Tauri 구현은 capability `allow-app-roots-set`, Electron은 신뢰 프레임 검사, §11.2). 목록을 통째로 바꾸고, 폴더가 그 확장의 설치 폴더 안이 아니거나 `/`, 홈 폴더, 홈 폴더를 품은 폴더면 그 항목만 거부한다. 같은 `(이름, 버전)`이 여러 등급으로 오면 높은 등급이 이긴다. 목록 수나 모양이 틀리면 `too_many` 같은 kind 문자열로 거부한다. `fresnel-view://` 프레임이 이 파일을 읽는 길은 ADR-0021 §3.6이다.
+- 사람 재인증 명령 `os_reauth`는 엔진 중계가 아니다. 인자는 시스템 창에 보일 사유 한 줄(`{ reason }`)이다. 성공하면 `{ verifiedAtMs }`(인증이 끝난 시각, epoch 밀리초)를, 실패하면 `{ kind }` 객체를 돌려준다. `kind`는 `cancelled`, `denied`, `unavailable`, `failed` 넷이다. macOS에서는 Touch ID 창을 띄운다(Electron은 `systemPreferences.promptTouchID`, §11.6). 옛 Tauri 구현(커밋 424f338a)은 `LAContext`로 Touch ID나 기기 암호 창을 띄웠다(`src-tauri/src/os_reauth.rs`). 규칙과 오류 표는 §4.17이다. [결정: 2026-11-04 사용자, B8 2안] 이 명령은 값 보기 화면이 부른다(§4.17). 값은 이 명령이 다루지 않는다.
 - 오류 값은 kebab-case 문자열 코드다: `epoch-stale`, `engine-not-running`, `engine-stopping`, `not-confirmed`, `too-large`, `bad-request`.
-- `onBytes`의 메시지는 엔진 stdout 바이트 그대로이고 완성된 줄(`\n`으로 끝나는 바이트열)만 담는다. 종류 표지나 세대 접두사는 없다. attach마다 `Channel`이 따로이므로 세대는 `AttachResult.epoch`로 안다. 셸은 줄 끝이 오지 않은 꼬리를 쥐고 있다가 줄이 완성되면 보낸다.
+- `onBytes`의 메시지는 엔진 stdout 바이트 그대로이고 완성된 줄(`\n`으로 끝나는 바이트열)만 담는다. 종류 표지나 세대 접두사는 없다. attach마다 채널이 따로이므로 세대는 `AttachResult.epoch`로 안다. 셸은 줄 끝이 오지 않은 꼬리를 쥐고 있다가 줄이 완성되면 보낸다.
 - 신용 기반 역압 [결정: `L4.desktop.plan` §3.1.1 S3 조건 1]: 셸은 보낸 바이트에서 `engine_ack`로 돌려받은 바이트를 뺀 값이 4 MiB를 넘으면 더 보내지 않는다. 이 동안 엔진 stdout 읽기가 멈추고 엔진의 stdout 쓰기가 막힌다. WebView는 처리한 바이트가 256 KiB 쌓일 때마다 `engine_ack(epoch, bytes)`를 부른다(창은 확인 단위의 16배라 확인이 늦어도 송신이 멎지 않는다). 미확인 바이트가 창 이하이면 다음 묶음을 보낸다(묶음 하나가 창을 넘을 수 있어 큰 프레임도 멈추지 않는다).
-- 쓰기 경로 [결정: S3 조건 2]: `engine_write`는 쓰기 전용 스레드의 대기열(16개)에 넣고 돌아온다. 대기열이 차면 그 호출만 비동기로 기다리고 다른 명령은 막히지 않는다. 막힌 쓰기는 앱 상태의 락을 쥐지 않는다.
+- 쓰기 경로 [결정: S3 조건 2]: `engine_write`는 쓰기 대기열(16개, `engine/relay.ts`)에 넣고 돌아온다. 옛 Tauri 구현(커밋 424f338a)은 쓰기 전용 스레드의 대기열로 같은 규칙을 맞췄다. 대기열이 차면 그 호출만 비동기로 기다리고 다른 명령은 막히지 않는다. 막힌 쓰기는 앱 상태의 락을 쥐지 않는다.
 
 - `onState`의 값은 JSON이고 아래 스키마로 검사한다. 셸이 보낸 값도 WebView 입장에서는 프로세스 밖에서 온 값이기 때문이다.
 
@@ -166,7 +166,7 @@ export type AttachResult = Static<typeof AttachResultSchema>;
 - `running`의 `pid`는 서비스 공급원일 때 `null`이다. 서비스 pid는 `host.status`로 본다.
 - 코드에서는 `isolatedDeclarations` 때문에 각 스키마 상수에 명시 타입 주석을 단다(`F.wire-settings.spec` §3.0과 같은 규칙). 위 블록은 줄여 쓴 것이다.
 
-WebView 쪽은 Tauri API를 아래 인터페이스 뒤에 숨긴다. 테스트는 이 인터페이스의 가짜를 주입한다(`eng.testing.guide` TS-05의 주입 원칙).
+WebView 쪽은 셸 API(`window.fresnelShell`)를 아래 인터페이스 뒤에 숨긴다. 테스트는 이 인터페이스의 가짜를 주입한다(`eng.testing.guide` TS-05의 주입 원칙).
 
 ```ts
 // xeon/apps/desktop/src/transport/ipc.ts (계속)
@@ -177,8 +177,8 @@ export interface DesktopIpc {
   detach(): Promise<void>;
 }
 
-/** @tauri-apps/api의 invoke와 Channel로 DesktopIpc를 만든다. @tauri-apps/*를 import하는 유일한 파일이다(§4.9 규칙 W2). */
-export declare function createTauriIpc(): DesktopIpc;
+/** 셸 다리(`ShellBridge`, `src/shell/bridge.ts`)로 DesktopIpc를 만든다. `window.fresnelShell`을 읽는 곳은 `src/shell/**`뿐이다(§4.9 규칙 W2). */
+export declare function createDesktopIpc(bridge: ShellBridge): DesktopIpc;
 ```
 
 ### 3.4 WebView 쪽 전송과 연결
@@ -186,7 +186,7 @@ export declare function createTauriIpc(): DesktopIpc;
 [제안] WebView는 F의 `StdioTransportFactory`에 릴레이로 만든 스트림 쌍을 넘긴다. 프레이밍(JSON Lines, 1 MiB 한도)은 `StdioTransportFactory` 구현이 하고, envelope 검사는 `HostConnection`이 한다(`F.wire-settings.spec` §3.1 `Transport` 주석).
 
 ```ts
-// xeon/apps/desktop/src/transport/tauri-stdio.ts
+// xeon/apps/desktop/src/transport/relay-stdio.ts
 import type {
   HostConnection, StdioTransportFactory, Transport, StreamPosition, WireResult,
 } from "@fresnel/contracts/wire";
@@ -201,7 +201,7 @@ export interface RelayPort {
   onState(listener: (state: EngineState) => void): () => void;
 }
 
-/** engine_attach를 부르고 Channel을 ReadableStream으로, engine_write를 WritableStream으로 감싼다. */
+/** engine_attach를 부르고 채널을 ReadableStream으로, engine_write를 WritableStream으로 감싼다. */
 export declare function attachRelay(ipc: DesktopIpc): Promise<RelayPort>;
 
 export interface EngineConnectionDeps {
@@ -244,11 +244,11 @@ export declare function resubscribe(
 
 [제안] 사이드카 이름은 `fresnel`이고 인자는 `host --stdio`다(adr.0008 §3.2 제안, `L4.host-service.spec` §3.2 [제안]). 확정은 `L4.host-service.spec`이 한다. `xeon/apps/desktop/README.md`와 `eng.toolchain.guide` TC-10은 `apps/host` 단독 사이드카로 적고 있어 어긋난다(§10 미결 1).
 
-- 이름, 인자, triple 목록은 한 곳(`xeon/apps/desktop/sidecar.json`, `L4.desktop.plan` §2)에 모은다. `tauri.conf.json`의 `bundle.externalBin`, capabilities, Rust 상수는 이 파일과 같아야 하고 테스트가 대조한다. 이름이 바뀌면 이 파일 하나와 그 파생물만 고친다.
-- 파일 위치는 `src-tauri/binaries/fresnel-<target-triple>`(Windows는 `.exe`)다(adr.0008 §3.2).
-- 번들 리소스 `resources/THIRD-PARTY-NOTICES-RUST.txt`(Rust 크레이트 고지)는 `just desktop-notices`가 만들고, `--check`가 `Cargo.lock`과 맞는지 검사한다(`L4.release.spec` §6).
-- [제안] (a)안에서는 WebView가 spawn하지 않으므로 capabilities에 `shell:allow-spawn`을 WebView용으로 두지 않는다. adr.0008 §3.2의 capabilities 발췌(`args: ["host", "--stdio"]` 고정)는 (b)안으로 되돌릴 때의 형식으로 남긴다. [가정] Rust API(`app.shell().sidecar()`)는 capabilities 검사를 받지 않는다. S1 spike에서 확인한다.
-- [제안] 셸 플러그인의 JS API(`@tauri-apps/plugin-shell`)는 앱에 넣지 않는다.
+- 이름, 인자, triple 목록은 한 곳(`xeon/apps/desktop/sidecar.json`, `L4.desktop.plan` §2)에 모은다. 옛 Tauri 구현(커밋 424f338a)에서는 `tauri.conf.json`의 `bundle.externalBin`, capabilities, Rust 상수가 이 파일과 같아야 했고 테스트가 대조했다. 이름이 바뀌면 이 파일 하나와 그 파생물만 고친다.
+- 개발 사이드카 파일 위치는 `xeon/apps/desktop/dist/sidecar/fresnel-<target-triple>`(Windows는 `.exe`)다(adr.0008 §3.2). 옛 Tauri 구현(커밋 424f338a)은 `src-tauri/binaries/`였다.
+- 옛 Tauri 구현(커밋 424f338a)의 번들 리소스 `resources/THIRD-PARTY-NOTICES-RUST.txt`(Rust 크레이트 고지)는 `just desktop-notices`가 만들고, `--check`가 `Cargo.lock`과 맞는지 검사했다(`L4.release.spec` §6). 현재 셸 npm 고지는 `resources/THIRD-PARTY-NOTICES-SHELL.txt`이고 `just desktop-notices-electron`이 만든다(§11.9).
+- [제안] (a)안에서는 WebView가 spawn하지 않으므로 WebView에 셸 실행 권한을 주지 않는다. adr.0008 §3.2의 capabilities 발췌(`args: ["host", "--stdio"]` 고정)는 (b)안으로 되돌릴 때의 형식으로 남긴다. [가정] 옛 Tauri 구현(커밋 424f338a)의 Rust API(`app.shell().sidecar()`)는 capabilities 검사를 받지 않았다. WSL2 WebKitGTK에서 S1로 확인했다(§10 미결 14). Electron 셸은 명령을 `ctx.handle`로 등록하고 신뢰 프레임만 받는다(§11.2).
+- [제안] 셸 플러그인의 JS API(옛 Tauri 구현의 `@tauri-apps/plugin-shell`, 커밋 424f338a)는 앱에 넣지 않았다. Electron 셸은 `window.fresnelShell`만 내놓는다(§11.1).
 
 ### 3.6 데스크톱 설정 저장소
 
@@ -272,9 +272,9 @@ export interface DesktopSettingsStore {
 }
 ```
 
-- 파일 위치는 Tauri 앱 설정 디렉터리(`app_config_dir`)의 `desktop-settings.json`이고, 범위는 `user` 하나다. 형식은 전체 설정 키를 쓰는 평평한 JSON 객체다. 예: `{"l4.desktop.window.closeBehavior":"tray","l4.desktop.engine.shutdownGraceMs":5000,"l4.desktop.engine.restartLimit":2}`. 셸은 시작할 때 한 번 읽는다(§4.2 1단계). 구현은 `src-tauri/src/desktop_settings.rs`다.
+- 파일 위치는 앱 설정 디렉터리(`<configDir>`, 옛 Tauri 구현(커밋 424f338a)의 `app_config_dir`)의 `desktop-settings.json`이고, 범위는 `user` 하나다. 형식은 전체 설정 키를 쓰는 평평한 JSON 객체다. 예: `{"l4.desktop.window.closeBehavior":"tray","l4.desktop.engine.shutdownGraceMs":5000,"l4.desktop.engine.restartLimit":2}`. 셸은 시작할 때 한 번 읽는다(§4.2 1단계). 구현은 `apps/desktop-shell/src/main/desktop-settings.ts`다(옛 구현은 `src-tauri/src/desktop_settings.rs`, 커밋 424f338a).
 - 읽기 규칙. 파일이 없으면 기본값이고 진단은 없다. 파일이 64 KiB를 넘거나, JSON이 아니거나, 최상위가 객체가 아니면 모든 키를 기본값으로 쓰고 진단을 한 줄 남긴다. 값 하나가 타입이나 범위에 맞지 않으면 그 키만 기본값을 쓰고 진단을 한 줄 남긴다. 범위는 `closeBehavior`가 `"quit"`·`"tray"`, `shutdownGraceMs`가 정수 1000~180000, `restartLimit`이 정수 0~10이다. 알 수 없는 키는 진단 없이 무시한다. 진단은 키 이름과 이유만 담고 값은 담지 않는다(E11).
-- 쓰기는 아직 없다. 셸이 파일을 쓰는 명령 `desktop_settings_read`, `desktop_settings_write`는 M4 설정 화면(B3-SET) 때 더한다 [미결: M4 settings-ui / B3-SET]. 그 전까지 파일은 직접 고친다.
+- 쓰기는 셸 명령 `desktop_settings_read`, `desktop_settings_write`가 한다(§3.3, §11.5). 옛 Tauri 구현(커밋 424f338a)에는 이 명령이 없었고 M4 설정 화면(B3-SET) 때 더할 예정이었다 [미결: M4 settings-ui / B3-SET]. 옛 구현에서는 파일을 직접 고쳤다.
 - 이 저장소는 시크릿 키를 두지 않는다. `l4.desktop.*`에는 `secret: true` 키가 없다.
 
 ### 3.7 메모리 측정 인터페이스
@@ -305,14 +305,14 @@ export interface MemorySample {
 
 ### 4.1 엔진 수명 규칙
 
-adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로 정리한다. 모두 Rust `engine.rs` 한 곳에서 구현한다.
+adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로 정리한다. 옛 Tauri 구현(커밋 424f338a)은 모두 Rust `engine.rs` 한 곳에서 구현했고, 현재는 셸 메인 프로세스의 `engine.ts`와 `engine/` 모듈이 맡는다(§11.5).
 
 | # | 규칙 | 근거 | 표지 |
 |---|---|---|---|
-| E1 | 엔진 spawn은 `engine.rs`의 한 함수에서만 한다. WebView와 다른 Rust 모듈은 spawn하지 않는다 | adr.0008 §3.3 제안 1, arch-2 §5 5행 | [제안] |
-| E2 | 엔진 감독자(`State<Arc<Supervisor>>`)가 pid와 쓰기 손잡이를 앱 상태에 보관하고, `CommandChild`는 stdin 쓰기 전용 스레드가 쥔다. 종료는 pid로 프로세스 그룹에 신호를 보낸다(Unix `killpg`, Windows `taskkill /T`). 그래서 막힌 쓰기가 종료 경로를 막지 않는다. `RunEvent::Exit`에서도 남은 그룹을 종료한다. Rust API로 띄운 사이드카는 플러그인이 추적하지 않는다 | arch-2 §3.2 맵 등록 경로 행, `L4.desktop.plan` §3.1.1 S3 조건 2 | [제안] |
-| E3 | 프로세스 그룹을 켠다(`set_process_group`). 강제 종료는 그룹 전체에 보낸다 | arch-2 §3.2 그룹 범위 행, §5 3행 | [제안] |
-| E4 | 종료할 때는 신호 전에 stdin으로 `host.shutdown` 요청을 쓰고 stdin을 닫는다. `RunEvent::ExitRequested`에서 `prevent_exit()`로 종료를 미루고, 엔진 프로세스가 끝나거나 `l4.desktop.engine.shutdownGraceMs`가 지나면 다음 단계로 넘어간다(§4.3) | adr.0008 §3.3 제안 3, arch-2 §3.3, §5 1행 | [제안]. `host.shutdown`은 F 변경 요청(§10 미결 2) |
+| E1 | 엔진 spawn은 `engine/launcher.ts`의 `pipedLauncher` 한 곳에서만 한다. WebView와 다른 모듈은 엔진을 띄우지 않는다(키 등록의 `fresnel secret` 자식은 엔진이 아니다, §4.14.1) | adr.0008 §3.3 제안 1, arch-2 §5 5행 | [제안] |
+| E2 | 엔진 감독자(`engine/supervisor.ts`)가 자식 핸들과 쓰기 대기열(16개, `engine/relay.ts`)을 쥔다. 종료는 `PipedChild.signalTree`가 프로세스 그룹에 신호를 보낸다(음수 pid, Windows는 트리). 그래서 막힌 쓰기가 종료 경로를 막지 않게 한다. 앱 종료 때도 남은 그룹을 끝낸다(§4.3). 옛 Tauri 구현(커밋 424f338a)은 `State<Arc<Supervisor>>`가 pid와 쓰기 손잡이를 보관했고, `CommandChild`를 쓰기 전용 스레드가 쥐었으며, 종료는 `killpg`와 `taskkill /T`를 썼다. Rust API로 띄운 사이드카는 플러그인이 추적하지 않았다 | arch-2 §3.2 맵 등록 경로 행, `L4.desktop.plan` §3.1.1 S3 조건 2 | [제안] |
+| E3 | 프로세스 그룹을 켠다(옛 Tauri 구현은 `set_process_group`, 커밋 424f338a). 강제 종료는 그룹 전체에 보낸다(Electron 셸은 `PipedChild.signalTree`) | arch-2 §3.2 그룹 범위 행, §5 3행 | [제안] |
+| E4 | 종료할 때는 신호 전에 stdin으로 `host.shutdown` 요청을 쓰고 stdin을 닫는다. 앱 종료 요청(`before-quit`)에서 `preventDefault()`로 종료를 미루고, 엔진 프로세스가 끝나거나 `l4.desktop.engine.shutdownGraceMs`가 지나면 다음 단계로 넘어간다(§4.3). 옛 Tauri 구현(커밋 424f338a)은 `RunEvent::ExitRequested`에서 `prevent_exit()`를 불렀다 | adr.0008 §3.3 제안 3, arch-2 §3.3, §5 1행 | [제안]. `host.shutdown`은 F 변경 요청(§10 미결 2) |
 | E5 | 엔진은 stdin EOF를 읽으면 안전 경계에서 체크포인트하고 종료한다(stdin EOF 프로세스 락). 앱이 어떻게 끝나든 OS가 파이프 쓰기 끝을 닫으므로 앱 SIGKILL에서도 엔진이 스스로 끝난다 | adr.0008 §3.3 [결정], adr.0006 §3.7 6번 | 엔진 쪽 구현은 `L4.host-service.spec` |
 | E6 | 엔진의 cwd와 엔진에 넘기는 모든 경로를 절대 경로로 둔다. cwd는 사용자 홈 디렉터리의 절대 경로다 | adr.0008 §3.3 제안 4, arch-2 §4.2 | [제안] |
 | E7 | 엔진 환경에서 `BUN_OPTIONS`를 지운다. PATH에는 없는 도구 디렉터리만 뒤에 붙인다(아래 항목). 그 밖의 환경은 상속한다 | adr.0008 §3.3 제안 4, arch-2 §4.2 | [제안] |
@@ -323,11 +323,11 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 
 - E5의 체크포인트 시한: 엔진은 EOF 뒤 `l0.process.shutdown.timeoutMs`(기본 3000ms) 안에 종료한다(`L0.process.spec` §6, `L4.host-service.spec` HS-31, HS-32). S4 측정(WSL2, 20회)에서 idle 호스트의 EOF → 종료는 중앙값 약 28 ms, 최대 61 ms였다. 기본값은 종료 경로에 충분하고, 진행 중 turn이 있을 때의 체크포인트 시간은 [미확인]이다(`L4.desktop.plan` §3.1.1 S4).
 - E8의 확인: `L0.os.spec`이 CLI와 엔진 사이드카에 같은 데이터 디렉터리를 돌려주는지는 그 문서의 수용 기준에 요구한다.
-- E7의 PATH 보강: Finder로 띄운 macOS 앱의 PATH는 `/usr/bin:/bin:/usr/sbin:/sbin`뿐이라 sops, age, rg를 찾지 못합니다. `src-tauri/src/env_path.rs`의 `augment_path`는 기존 항목과 순서를 그대로 두고, 없는 디렉터리만 이 순서로 뒤에 붙입니다: `/opt/homebrew/bin`, `/opt/homebrew/sbin`, `/usr/local/bin`, `<홈>/.local/bin`, `<홈>/.nix-profile/bin`(뒤의 둘은 홈이 있을 때만). 이미 있는 디렉터리는 중복하지 않고, 빈 항목은 버립니다. PATH 키가 없으면 붙인 디렉터리만 담은 키를 맨 뒤에 넣습니다. 붙일 수 없는 값이면 원래 PATH를 씁니다. 엔진과 `fresnel secret` 자식(§4.14.1)이 같은 함수를 씁니다. 홈은 E6의 작업 디렉터리입니다.
+- E7의 PATH 보강: Finder로 띄운 macOS 앱의 PATH는 `/usr/bin:/bin:/usr/sbin:/sbin`뿐이라 sops, age, rg를 찾지 못합니다. `apps/desktop-shell/src/main/env-path.ts`의 `augmentPath`(옛 Tauri 구현은 `src-tauri/src/env_path.rs`의 `augment_path`, 커밋 424f338a)는 기존 항목과 순서를 그대로 두고, 없는 디렉터리만 이 순서로 뒤에 붙입니다: `/opt/homebrew/bin`, `/opt/homebrew/sbin`, `/usr/local/bin`, `<홈>/.local/bin`, `<홈>/.nix-profile/bin`(뒤의 둘은 홈이 있을 때만). 이미 있는 디렉터리는 중복하지 않고, 빈 항목은 버립니다. PATH 키가 없으면 붙인 디렉터리만 담은 키를 맨 뒤에 넣습니다. 붙일 수 없는 값이면 원래 PATH를 씁니다. 엔진과 `fresnel secret` 자식(§4.14.1)이 같은 함수를 씁니다. 홈은 E6의 작업 디렉터리입니다.
 
 ### 4.2 기동 순서
 
-1. 셸이 시작하면 데스크톱 설정 파일을 읽는다(§3.6). 파일이 없거나 읽지 못하면 기본값을 쓴다. 틀린 값은 그 키만 기본값을 쓰고, 진단은 앱 로그에 남긴다. 읽은 엔진 값은 `EngineConfig::from_values`로 바꿔 엔진 감독자에 넘긴다(M3-38).
+1. 셸이 시작하면 데스크톱 설정 파일을 읽는다(§3.6). 파일이 없거나 읽지 못하면 기본값을 쓴다. 틀린 값은 그 키만 기본값을 쓰고, 진단은 앱 로그에 남긴다. 읽은 엔진 값은 `engineConfigFrom`으로 바꿔 엔진 감독자에 넘긴다(M3-38. 옛 Tauri 구현(커밋 424f338a)의 `EngineConfig::from_values`).
 2. (M3) 서비스 사용 설정(`l0.process.service.enabled`)이 켜져 있으면 §4.8 서비스 경로로 가고, 꺼져 있으면 3으로 간다. M2는 이 단계 없이 3으로 간다.
    - 이 키는 엔진 카탈로그의 user·managed 범위 파일 값이고, 셸과 WebView는 `l4.desktop.*` 로컬 저장소(§3.6)만 읽는다. `resolveLaunchMode`는 `@fresnel/host` 안에 있어 desktop이 import할 수 없다(W6, DR-10). 그래서 읽기 경로를 따로 둔다.
 
@@ -337,7 +337,7 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
    | 2 | `l0.process.service.enabled`를 `l4.desktop.*` 로컬 저장소에 거울 값으로 둔다 | 추가 프로세스가 없다 | 엔진 쪽 값과 어긋날 수 있다. CLI나 파일로 바꾼 값을 셸이 알 수단이 없고, 관리 범위 잠금도 따로 읽어야 한다 |
 
    [제안] 안 1을 쓴다. 명령이 실패하면(바이너리 없음, 종료코드 0 아님, JSON 해석 실패) 사이드카 경로(3단계)로 가고 진단을 남긴다.
-3. `engine.rs`가 사이드카를 E1~E7 조건으로 띄우고 상태를 `starting`으로 둔다.
+3. 엔진 감독자가 사이드카를 E1~E7 조건으로 띄우고 상태를 `starting`으로 둔다.
 4. 첫 stdout 바이트가 오거나 WebView가 붙어 `host.hello` 응답이 돌아오면 `running`이 된다. [제안] 셸은 JSON을 해석하지 않으므로 `running` 판정은 "프로세스가 살아 있고 stdout이 열려 있음"이다. 기동 실패(바이너리 없음, 실행 권한 없음, 즉시 종료)는 `restarting` 또는 `failed`로 간다.
 5. WebView가 로드되면 `openEngineConnection`이 `engine_attach` → 연결 재설정(§4.5) → `host.hello` → `resubscribe` 순서로 연결을 연다.
 
@@ -345,7 +345,7 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 
 창을 닫고 닫기 동작이 `"quit"`이거나, 메뉴에서 종료를 고르면 다음 순서를 따른다.
 
-1. `RunEvent::ExitRequested`에서 엔진이 살아 있으면 `api.prevent_exit()`를 부르고 상태를 `stopping`으로 바꾼다.
+1. 종료 요청(`before-quit`)에서 엔진이 살아 있으면 `preventDefault()`를 부르고 상태를 `stopping`으로 바꾼다(옛 Tauri 구현은 `RunEvent::ExitRequested`와 `prevent_exit()`였다, 커밋 424f338a).
 2. 셸이 프레임 경계에서 stdin에 `host.shutdown` 요청 한 줄을 쓴다. 요청 id는 `shell:shutdown:<n>` 꼴이다. WebView의 `HostConnection`은 자기가 발급하지 않은 id의 응답을 무시한다.
 3. 셸이 stdin을 닫는다(E5 EOF 프로세스 락과 같은 경로). `host.shutdown`이 F에 없어 엔진이 `-32601`로 거부해도 EOF로 같은 체크포인트 종료가 일어난다.
 4. 엔진 프로세스 종료를 `l4.desktop.engine.shutdownGraceMs` 동안 확인한다. 셸은 JSON을 해석하지 않으므로 "응답 대기"는 프로세스 종료 확인으로 대신한다 [제안].
@@ -354,11 +354,11 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 
 - 불변식 [제안]: 셸 대기 `l4.desktop.engine.shutdownGraceMs`는 엔진 시한 `l0.process.shutdown.timeoutMs` + 2000 이상이어야 한다. 두 값의 단위는 모두 ms다. 셸 대기가 엔진 시한과 같거나 짧으면 엔진의 체크포인트 커밋과 그룹 SIGKILL이 경합한다. 셸은 엔진 카탈로그를 읽지 않으므로 이 관계는 기본값(7000 ≥ 3000 + 2000)으로 지킨다. 사용자가 `l0.process.shutdown.timeoutMs`를 5000 넘게 올리면 `shutdownGraceMs`도 함께 올려야 한다 [가정: 두 값을 자동으로 맞추는 수단은 없다].
 
-- [확인: `L4.desktop.plan` §3.1.1 S1, WSL2 WebKitGTK] 앱이 SIGTERM을 받을 때 처리기를 두지 않으면 `RunEvent::ExitRequested`도 `Exit`도 오지 않고 프로세스가 바로 사라진다. `signal-hook` 처리기에서 `app.exit(0)`을 부르면 `ExitRequested`(code `Some(0)`)와 `Exit`가 와서 같은 순서를 탄다. 그러므로 Unix에서는 셸이 SIGTERM·SIGINT 처리기를 둔다 [제안 유지]. 처리기가 없는 경우와 앱 SIGKILL은 E5(EOF 프로세스 락)만이 방어다. macOS는 미측정이다.
+- [확인: `L4.desktop.plan` §3.1.1 S1, WSL2 WebKitGTK] 옛 Tauri 구현(커밋 424f338a)에서 앱이 SIGTERM을 받을 때 처리기를 두지 않으면 `RunEvent::ExitRequested`도 `Exit`도 오지 않고 프로세스가 바로 사라졌다. `signal-hook` 처리기에서 `app.exit(0)`을 부르면 `ExitRequested`(code `Some(0)`)와 `Exit`가 와서 같은 순서를 탔다. 그러므로 Unix에서는 셸이 SIGTERM·SIGINT 처리기를 둔다 [제안 유지]. Electron 셸의 `main.ts`도 두 신호를 정상 종료 순서로 보낸다(첫 신호는 종료, 종료 중 두 번째 신호는 즉시 끝낸다). 처리기가 없는 경우와 앱 SIGKILL은 E5(EOF 프로세스 락)만이 방어다. macOS는 미측정이다.
 - 닫기 동작이 `"tray"`이고 창이 모두 닫혀 생긴 종료(`ExitRequested`의 `code`가 없음)는 이 순서를 타지 않는다. `should_prevent_exit`가 참이면 `prevent_exit()`로 막고 셸과 엔진을 남긴다(§6). 명시 종료(코드가 있는 `app.exit`, 신호)는 닫기 동작과 관계없이 이 순서를 탄다.
-- 데이터베이스 복원(`db_restore`)이 도는 동안에는 엔진이 내려가 있어 살아 있는 엔진이 없다 [근거: apps/desktop/src-tauri/src/engine.rs `on_exit_requested`]. 이때의 종료 요청은 `Allow`가 아니라 막는다(`ExitAction::PreventUntilRestore`). 셸이 복원이 끝나기를 기다렸다가 `app.exit(0)`을 다시 부르면 위 순서를 탄다. 복원 중의 두 번째 요청은 그냥 막는다. 막지 않으면 CLI가 도는 채로 앱이 끝나 결과(보고서)를 잃는다. 신호(SIGTERM)도 같다: 복원이 끝날 때까지(CLI 시한 안) 종료가 미뤄진다. macOS에서 `ExitRequested` 없이 `Exit`만 오는 경로(아래)는 막지 못한다.
-- [미확인: macOS, 소스 읽기] `tauri-runtime-wry` 2.12.3과 `tao` 0.37.2에는 `applicationShouldTerminate` 처리가 보이지 않는다. 그래서 메뉴의 종료(Cmd+Q)가 `ExitRequested` 없이 `RunEvent::Exit`만 낼 수 있다. 그러면 이 순서 대신 `Exit`의 그룹 종료만 돈다. Mac에서 확인해야 한다.
-- [확인: S1] 5단계의 그룹 SIGKILL은 EOF 처리 시한 뒤에 한다. `Exit`에서 곧바로 그룹 SIGKILL을 하면 엔진이 새 "세션"으로 띄운 손자(E9 위반 구성)를 정리할 기회를 잃어 그 손자가 남았다. 프로세스 그룹을 끄면(E3 위반) 그룹 SIGKILL이 손자에 미치지 않았다.
+- 데이터베이스 복원(`db_restore`)이 도는 동안에는 엔진이 내려가 있어 살아 있는 엔진이 없다 [근거: 옛 Tauri 구현(커밋 424f338a)의 `apps/desktop/src-tauri/src/engine.rs` `on_exit_requested`. Electron 셸은 `engine/supervisor.ts`의 `onExitRequested`]. 이때의 종료 요청은 `allow`가 아니라 막는다(`ExitAction`의 `preventUntilRestore`). 셸이 복원이 끝나기를 기다렸다가 `app.exit(0)`을 다시 부르면 위 순서를 탄다. 복원 중의 두 번째 요청은 그냥 막는다. 막지 않으면 CLI가 도는 채로 앱이 끝나 결과(보고서)를 잃는다. 신호(SIGTERM)도 같다: 복원이 끝날 때까지(CLI 시한 안) 종료가 미뤄진다. macOS에서 `ExitRequested` 없이 `Exit`만 오는 경로(아래)는 막지 못한다.
+- [미확인: macOS, 소스 읽기] 옛 Tauri 구현(커밋 424f338a)의 `tauri-runtime-wry` 2.12.3과 `tao` 0.37.2에는 `applicationShouldTerminate` 처리가 보이지 않았다. 그래서 메뉴의 종료(Cmd+Q)가 `ExitRequested` 없이 `RunEvent::Exit`만 낼 수 있었다. 그러면 이 순서 대신 `Exit`의 그룹 종료만 돌았다. Electron 셸에서 Cmd+Q가 `before-quit`을 거치는지는 Mac에서 확인해야 한다 [미확인].
+- [확인: S1] 5단계의 그룹 SIGKILL은 EOF 처리 시한 뒤에 한다. 옛 Tauri 구현(커밋 424f338a)처럼 `Exit`에서 곧바로 그룹 SIGKILL을 하면 엔진이 새 "세션"으로 띄운 손자(E9 위반 구성)를 정리할 기회를 잃어 그 손자가 남았다. 프로세스 그룹을 끄면(E3 위반) 그룹 SIGKILL이 손자에 미치지 않았다.
 
 ### 4.4 비정상 종료와 재기동
 
@@ -366,7 +366,7 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 |---|---|
 | 엔진이 `stopping`이 아닐 때 끝남(크래시, OOM, 신호) | 상태를 `restarting`으로 바꾸고 재기동 정책(아래)을 따른다. WebView에는 `onState`로 알린다 |
 | 앱(셸)이 SIGKILL이나 크래시로 끝남 | 셸 코드가 실행되지 않는다. 엔진은 E5로 체크포인트 후 종료한다. 엔진이 프로세스 그룹 리더이므로 손자는 엔진의 EOF 처리(E9)로 정리된다 |
-| Windows에서 앱 크래시 | 플러그인의 job 핸들이 닫혀도 프로세스가 남는다(arch-2 §3.2 Windows job 행). E5가 1차 방어다. [미결] kill-on-close job을 셸이 직접 만들지(§10 미결 7) |
+| Windows에서 앱 크래시 | 옛 Tauri 구현(커밋 424f338a)에서는 플러그인의 job 핸들이 닫혀도 프로세스가 남았다(arch-2 §3.2 Windows job 행). E5가 1차 방어다. [미결] kill-on-close job을 셸이 직접 만들지(§10 미결 7) |
 | WebView 프로세스만 죽음(WebView 엔진 크래시) | 셸과 엔진은 산다. 셸이 창을 다시 만들고 새 페이지가 §4.5로 다시 붙는다 |
 | 엔진이 stdout을 닫았지만 프로세스는 산다 | 프로토콜 고장으로 본다. 그룹 SIGKILL 후 재기동 정책을 따른다 |
 
@@ -403,10 +403,10 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 ### 4.8 서비스 모드 연동 (M3)
 
 - `l4.host-service`의 서비스 사용 설정이 켜져 있으면 셸은 사이드카를 stdio 엔진으로 띄우지 않고 서비스 소켓에 접속한다(adr.0006 §3.4 "CLI와 데스크톱은 서비스 사용 설정이 켜져 있으면 시작할 때 `ensure`를 부르고 service 전송으로 접속한다"). 설정을 읽는 경로는 §4.2 2단계(`fresnel service launch-mode --json`)다.
-- WebView는 소켓을 열 수 없다. 셸이 `relay.rs`의 같은 바이트 파이프 추상화로 소켓 바이트를 중계한다. WebView 쪽 코드(§3.4)는 바뀌지 않는다.
+- WebView는 소켓을 열 수 없다. 셸이 소켓 바이트를 중계한다(Electron 셸은 `engine_retarget`의 service 대상을 `engine/launcher.ts`와 `engine/supervisor.ts`에서 맡는다, §11.5. 옛 Tauri 구현은 `relay.rs`의 같은 바이트 파이프 추상화였다, 커밋 424f338a). WebView 쪽 코드(§3.4)는 바뀌지 않는다.
 
 ```rust
-// xeon/apps/desktop/src-tauri/src/relay.rs (층 규칙 밖. 모양만 적는다)
+// 옛 Tauri 구현(커밋 424f338a)의 xeon/apps/desktop/src-tauri/src/relay.rs (층 규칙 밖. 모양만 적는다. Electron 셸의 대응 코드는 engine/ 모듈에 있다)
 pub trait EnginePipe: Send {
     fn write_frame(&mut self, bytes: &[u8]) -> std::io::Result<()>;   // 프레임 경계 단위
     fn close_write(&mut self) -> std::io::Result<()>;                // sidecar: stdin 닫기, service: 소켓 half-close
@@ -418,7 +418,7 @@ pub enum PipeSource { Sidecar(SidecarPipe), Service(SocketPipe) }
 - 서비스 공급원에서 앱을 닫아도 서비스와 진행 중 turn은 계속된다. §4.3의 `host.shutdown`과 그룹 SIGKILL은 서비스에 보내지 않는다. 셸은 소켓만 닫는다.
 - 원격 서비스(M3-REQ-44, `L4.host-service.spec` HS-87·HS-89)는 셸을 바꾸지 않는다. 사용자 설정 `l0.process.service.remote`(또는 사이드카 인자)에 주소가 있으면 사이드카 `fresnel host --stdio`가 엔진을 열지 않고 원격 서비스 소켓(SSH 터널, 사설망)에 stdin/stdout을 중계한다. 셸은 평소처럼 사이드카의 바이트만 중계하고 `EngineState.source`는 `"sidecar"`다. 원격이 끊기면 사이드카가 종료코드 1로 끝나므로 §4.4 재기동 정책이 그대로 적용된다. 주소 문법이 틀리면 종료코드 2, 접속 실패는 3이다. 화면 쪽 설정 항목은 M4다 [결정: 오케스트레이터 기본값].
 - 서비스가 사라지면(소켓 EOF) 셸은 `restarting`으로 두고 `ensure`를 다시 부른다. 재기동 정책은 §4.4와 같다.
-- 알림 [결정: review.decisions-2 S-04]: 알림은 1차(M3)다. 켜기 기본값, 종류 목록, 탭은 `L2.dialog.spec`의 `l2.dialog.notify.*` 정의(`notify.os`, `notify.completed`, `notify.approvalWaiting`, `notify.questionWaiting`, `notify.error`, `notify.backgroundCompleted`, 탭 `execution`)를 따른다. 데스크톱은 전달 수단으로 Tauri 알림 플러그인(`tauri-plugin-notification`)을 쓴다. 사건 원천은 `events.batch`의 내구 이벤트(승인 요청 등)다. 창이 앞에 있어도 기본으로 OS 알림을 보내고, 설정으로 끌 수 있다 [결정: review.m3-design-inputs D-M3-17]. 웹·모바일 푸시 알림은 후순위다. 사용자 알림 전용 wire(알림 이벤트 kind나 메서드)는 M1에 넣지 않고 M2 계획에서 정한다(review.decisions-2 U-04, §10 미결 5).
+- 알림 [결정: review.decisions-2 S-04]: 알림은 1차(M3)다. 켜기 기본값, 종류 목록, 탭은 `L2.dialog.spec`의 `l2.dialog.notify.*` 정의(`notify.os`, `notify.completed`, `notify.approvalWaiting`, `notify.questionWaiting`, `notify.error`, `notify.backgroundCompleted`, 탭 `execution`)를 따른다. 데스크톱은 전달 수단으로 Electron `Notification`을 쓴다(§11.6). 옛 Tauri 구현(커밋 424f338a)은 `tauri-plugin-notification`을 썼다. 사건 원천은 `events.batch`의 내구 이벤트(승인 요청 등)다. 창이 앞에 있어도 기본으로 OS 알림을 보내고, 설정으로 끌 수 있다 [결정: review.m3-design-inputs D-M3-17]. 웹·모바일 푸시 알림은 후순위다. 사용자 알림 전용 wire(알림 이벤트 kind나 메서드)는 M1에 넣지 않고 M2 계획에서 정한다(review.decisions-2 U-04, §10 미결 5).
 
 ### 4.9 앱 내부 모듈 경계
 
@@ -427,10 +427,10 @@ pub enum PipeSource { Sidecar(SidecarPipe), Service(SocketPipe) }
 | # | 규칙 | 이유 |
 |---|---|---|
 | W1 | `src/transport/**`는 `src/views/**`를 import하지 않는다 | 전송 코드는 화면 코드에 의존하지 않는다. M1 적합성 테스트가 화면 없이 전송만 돈다 |
-| W2 | `@tauri-apps/*`는 `src/transport/ipc.ts`와 `src/shell/**`(창, 트레이, 알림)만 import한다 | Tauri 의존을 교체 가능한 좁은 면에 둔다. 테스트는 `DesktopIpc` 가짜를 쓴다 |
-| W3 | 설정 view-model(`@fresnel/client/settings`, settings-ui 소유)은 React와 Tauri를 import하지 않는다. `@fresnel/contracts`와 typebox만 쓴다 [결정: adr.0020] | 경계: 화면 생성·검증·표시는 settings-ui, 셸·수명·전송·패키징은 desktop |
+| W2 | `window.fresnelShell`을 읽는 코드는 `src/shell/**`뿐이다(`selectShellBridge`) | 셸 의존을 교체 가능한 좁은 면에 둔다. 테스트는 `DesktopIpc` 가짜나 셸 API 가짜(`test/transport/shell-mock.ts`)를 쓴다. 옛 Tauri 구현(커밋 424f338a)은 `@tauri-apps/*`를 `src/transport/ipc.ts`와 `src/shell/**`에서 import했다 |
+| W3 | 설정 view-model(`@fresnel/client/settings`, settings-ui 소유)은 React와 셸 API를 import하지 않는다. `@fresnel/contracts`와 typebox만 쓴다 [결정: adr.0020] | 경계: 화면 생성·검증·표시는 settings-ui, 셸·수명·전송·패키징은 desktop |
 | W4 | `src/views/**`는 `@fresnel/client/settings`의 진입점만 import한다 | 설정 화면 진입점 하나만 연다 |
-| W5 | TS 코드에 OS 분기를 두지 않는다. 플랫폼 차이는 Rust가 처리하고, WebView에는 기능 유무(`features`)로만 전달한다 | `eng.dependency-rules.guide` DR-13. `src-tauri/`는 규칙 밖 |
+| W5 | TS 코드에 OS 분기를 두지 않는다. 플랫폼 차이는 셸(Electron 메인 프로세스)이 처리하고, WebView에는 기능 유무(`features`)로만 전달한다 | `eng.dependency-rules.guide` DR-13. 옛 Tauri 구현(커밋 424f338a)의 `src-tauri/` Rust는 규칙 밖이었다 |
 | W6 | `@fresnel/host`, `@fresnel/cli`를 import하지 않는다 | DR-10 |
 | W7 | WebView 코드는 `node:*`, `bun:*`, Bun 전역을 쓰지 않는다. `test/**`와 빌드 스크립트는 예외다 | WebView에는 Bun 런타임이 없다 |
 
@@ -444,9 +444,9 @@ pub enum PipeSource { Sidecar(SidecarPipe), Service(SocketPipe) }
 
 | 플랫폼 | WebView 프로세스 | 측정 | 비고 |
 |---|---|---|---|
-| macOS | WKWebView는 `com.apple.WebKit.WebContent`, `com.apple.WebKit.Networking`, `com.apple.WebKit.GPU` XPC 프로세스를 따로 띄운다 [가정] | `ps -o rss=`로 RSS, `footprint <pid>`로 phys_footprint | XPC 프로세스의 부모는 앱이 아닌 launchd다 [가정]. 앱 pid로 찾을 수 없으므로 실행 직후 생긴 WebKit 프로세스를 이름과 시각으로 묶는다 |
-| Linux | WebKitGTK는 `WebKitWebProcess`, `WebKitNetworkProcess`를 자식으로 띄운다 [가정] | `/proc/<pid>/smaps_rollup`의 `Rss`와 `Pss` | 공유 라이브러리 중복을 빼려면 `Pss` 합을 함께 본다 |
-| Windows | WebView2는 `msedgewebview2.exe` 여러 개(브라우저, 렌더러, GPU, 유틸리티)를 띄운다 [가정] | 프로세스 트리의 Working Set과 Private Bytes(`Get-Process`, 성능 카운터) | 같은 사용자 로그온의 다른 앱과 WebView2 브라우저 프로세스를 공유할 수 있다 [가정] |
+| macOS | Electron은 Chromium 헬퍼 프로세스(`Helper`, `GPU`, `Renderer`, `Plugin`, §11.8)를 띄운다 [가정]. 옛 Tauri 구현(커밋 424f338a)의 WKWebView는 `com.apple.WebKit.WebContent`, `com.apple.WebKit.Networking`, `com.apple.WebKit.GPU` XPC 프로세스를 따로 띄웠다 [가정] | `ps -o rss=`로 RSS, `footprint <pid>`로 phys_footprint | 옛 구현에서 XPC 프로세스의 부모는 launchd였다 [가정]. 그래서 실행 직후 생긴 WebKit 프로세스를 이름과 시각으로 묶었다. Electron 헬퍼의 부모 관계는 확인하지 않았다 [미확인] |
+| Linux | 옛 Tauri 구현(커밋 424f338a)의 WebKitGTK는 `WebKitWebProcess`, `WebKitNetworkProcess`를 자식으로 띄웠다 [가정]. Electron 셸의 Linux 묶음은 이 단계에서 만들지 않는다(§11.7) | `/proc/<pid>/smaps_rollup`의 `Rss`와 `Pss` | 공유 라이브러리 중복을 빼려면 `Pss` 합을 함께 본다 |
+| Windows | 옛 Tauri 구현(커밋 424f338a)의 WebView2는 `msedgewebview2.exe` 여러 개(브라우저, 렌더러, GPU, 유틸리티)를 띄웠다 [가정]. Electron 셸의 Windows 묶음은 이 단계에서 만들지 않는다(§11.7) | 프로세스 트리의 Working Set과 Private Bytes(`Get-Process`, 성능 카운터) | 옛 구현(WebView2) 기준으로 같은 사용자 로그온의 다른 앱과 브라우저 프로세스를 공유할 수 있었다 [가정] |
 
 예산 항목 [가정, 측정 뒤 확정(§10 미결 8)]:
 
@@ -457,7 +457,7 @@ pub enum PipeSource { Sidecar(SidecarPipe), Service(SocketPipe) }
 | B3 스트리밍 | 토큰 스트리밍 1분 | B1 + 50 MB 이하, 종료 30초 뒤 B1 + 10% 이내로 복귀 |
 | B4 창 닫힘 | 트레이 유지 모드에서 창을 닫음 | WebView 프로세스 0개, 셸 + 사이드카만 |
 
-- 위 수치는 측정 전 출발점이다. `_research/stack-status.md §7-H`의 벤더 주장(Tauri 30–50MB)과 3차 측정(idle 42MB)은 버전 기준이 다르고 tauri#5889 논쟁(Chromium 공유 메모리 미차감)이 있다. 그래서 예산의 근거로 쓰지 않고, 측정 방법의 한계(공유 메모리 집계 방식에 따라 합이 달라짐)로만 적는다.
+- 위 수치는 측정 전 출발점이다. `_research/stack-status.md §7-H`의 벤더 주장(옛 Tauri 구현 기준 30–50MB)과 3차 측정(옛 Tauri 구현의 idle 42MB, 커밋 424f338a)은 버전 기준이 다르고 tauri#5889 논쟁(Chromium 공유 메모리 미차감)이 있다. 그래서 예산의 근거로 쓰지 않고, 측정 방법의 한계(공유 메모리 집계 방식에 따라 합이 달라짐)로만 적는다.
 
 줄이는 수단 [제안]:
 
@@ -472,24 +472,24 @@ pub enum PipeSource { Sidecar(SidecarPipe), Service(SocketPipe) }
 
 | 플랫폼 | 순위 | WebView | 상태 |
 |---|---|---|---|
-| macOS | 1순위 | WKWebView | [결정] 첫 지원 OS(`_research/decisions-log.md` 2026-10-19 답). 최소 macOS 14, Apple Silicon(arm64)만 지원하고 Intel macOS는 빌드하지 않는다 [결정: review.m3-design-inputs D-M3-25 행 2·3]. Tauri 2 기본 최소값은 10.13이고 WKWebView `isInspectable`은 13.3이 필요하다 |
-| Linux | 1순위 | WebKitGTK | [결정] 첫 지원 OS. x86_64와 arm64를 빌드한다 [결정: review.m3-design-inputs D-M3-25 행 2]. WebKitGTK 4.1 [가정]. WSL의 WSLg에서 GUI 앱 지원 수준은 [미결](§10 미결 9) |
-| Windows | 나중 | WebView2 | [가정] 나중에 지원하지만 빌드 대상에서 빼지 않는다(adr.0008 §2) |
+| macOS | 1순위 | Chromium(Electron 셸, §11.1). 옛 Tauri 구현(커밋 424f338a)은 WKWebView | [결정] 첫 지원 OS(`_research/decisions-log.md` 2026-10-19 답). 최소 macOS 14, Apple Silicon(arm64)만 지원하고 Intel macOS는 빌드하지 않는다 [결정: review.m3-design-inputs D-M3-25 행 2·3]. 옛 Tauri 구현(커밋 424f338a)에서 Tauri 2 기본 최소값은 10.13이었고 WKWebView `isInspectable`은 13.3이 필요했다. Electron 셸의 최소 macOS 값은 이 문서에서 정하지 않았다 [미확인] |
+| Linux | 1순위 | Chromium(Electron 셸). 옛 Tauri 구현(커밋 424f338a)은 WebKitGTK | [결정] 첫 지원 OS. x86_64와 arm64를 빌드한다 [결정: review.m3-design-inputs D-M3-25 행 2]. 옛 Tauri 구현의 WebKitGTK 4.1 [가정]. Electron 셸의 Linux 묶음은 이 단계에서 만들지 않는다(§11.7). WSL의 WSLg에서 GUI 앱 지원 수준은 [미결](§10 미결 9) |
+| Windows | 나중 | WebView2(옛 Tauri 구현, 커밋 424f338a). Electron 셸의 Windows 묶음은 이 단계에서 만들지 않는다(§11.7) | [가정] 나중에 지원하지만 빌드 대상에서 빼지 않는다(adr.0008 §2) |
 
-WebView 엔진 차이로 생기는 웹 API 제약 [제안. 각 항목은 M2 첫 주에 플랫폼별로 확인한다]:
+WebView 엔진 차이로 생기는 웹 API 제약 [제안. 각 항목은 M2 첫 주에 플랫폼별로 확인한다. 옛 Tauri 구현(커밋 424f338a)의 WebView 기준이고, Electron 셸(Chromium)에서는 항목마다 다시 확인한다]:
 
 | # | 항목 | 제약 | 대응 |
 |---|---|---|---|
-| V1 | 파일 열기·저장 | File System Access API(`showOpenFilePicker`)는 Chromium 계열에만 있다 [가정] | Tauri dialog 플러그인을 셸 명령으로 감싸 쓴다 |
-| V2 | 웹 알림 | WebView의 `Notification` API 동작이 플랫폼마다 다르다 [가정] | Tauri 알림 플러그인을 쓴다(§4.8) |
+| V1 | 파일 열기·저장 | File System Access API(`showOpenFilePicker`)는 Chromium 계열에만 있다 [가정] | 셸 명령(`pick_folder`, `pick_file`, `save_file`)으로 감싸 쓴다(Electron은 `dialog.showOpenDialog`와 `showSaveDialog`, §11.5) |
+| V2 | 웹 알림 | WebView의 `Notification` API 동작이 플랫폼마다 다르다 [가정] | 셸 알림을 쓴다(Electron `Notification`, §4.8, §11.6) |
 | V3 | 클립보드 | 비동기 Clipboard API의 읽기 권한과 사용자 제스처 요구가 엔진마다 다르다 [가정] | 쓰기만 Web API, 읽기는 셸 명령 |
-| V4 | 출처(origin) | 앱 페이지의 출처가 플랫폼마다 다르다(macOS·Linux `tauri://localhost`, Windows `http://tauri.localhost`) [가정] | `localStorage`·`sessionStorage` 키를 출처에 기대지 않는다. 출처 비교 코드를 두지 않는다 |
-| V5 | JS·CSS 기능 기준 | WebKitGTK 버전이 배포판마다 다르고, WKWebView 버전은 macOS 버전에 묶인다 | 빌드 타깃을 최소 지원 macOS(14)의 Safari 버전에 맞춘다 [결정: review.m3-design-inputs D-M3-25 행 3] |
+| V4 | 출처(origin) | Electron 셸의 앱 페이지 출처는 `app://localhost`다(§11.2). 옛 Tauri 구현(커밋 424f338a)은 플랫폼마다 출처가 달랐다(macOS·Linux `tauri://localhost`, Windows `http://tauri.localhost`) [가정] | `localStorage`·`sessionStorage` 키를 출처에 기대지 않는다. 출처 비교 코드를 두지 않는다 |
+| V5 | JS·CSS 기능 기준 | 옛 Tauri 구현(커밋 424f338a)에서 WebKitGTK 버전은 배포판마다 다르고 WKWebView 버전은 macOS 버전에 묶였다. Electron 셸은 Chromium을 앱에 묶으므로 이 묶임은 옛 구현의 사실이다 [가정] | 빌드 타깃을 최소 지원 macOS(14)의 Safari 버전에 맞춘다 [결정: review.m3-design-inputs D-M3-25 행 3] |
 | V6 | WebGPU, WebCodecs, 미디어 캡처 | 엔진마다 가용성이 다르다 | M2 범위에서 쓰지 않는다 |
 | V7 | 스크롤과 글꼴 렌더링 | 오버레이 스크롤바, 글꼴 대체가 다르다 | 가상 스크롤 높이 계산을 실제 측정값으로 한다. 고정 행 높이를 가정하지 않는다 |
-| V8 | 개발자 도구 | 릴리스 빌드에서 열지 않는다 | Tauri `devtools` 기능은 개발 빌드에서만 켠다 |
+| V8 | 개발자 도구 | 릴리스 빌드에서 열지 않는다 | 옛 Tauri 구현(커밋 424f338a)은 `devtools` 기능을 개발 빌드에서만 켰다. Electron 셸의 개발자 도구 설정은 이 저장소에서 확인하지 않았다 [미확인] |
 
-Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
+옛 Tauri 구현(커밋 424f338a)의 Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`). Electron 셸에는 WebView2가 없어 이 비교는 옛 구현의 기록이다:
 
 | 모드 | 설치 크기 증가 | 설치 중 인터넷 | 보안 패치 | 판정 |
 |---|---|---|---|---|
@@ -498,7 +498,7 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 | `offlineInstaller` | +약 127 MB | 불필요 | 시스템 런타임 | 오프라인 설치 요청 때 별도 산출물 |
 | `fixedRuntime` | +약 180 MB | 불필요 | 앱이 직접 관리 | 쓰지 않는다 |
 
-- 기본값 근거: Windows 10·11은 대부분 WebView2 런타임이 이미 있고 [가정], 시스템 런타임이 보안 패치에 유리하다고 공식 문서가 적는다(`§7-G`). 설치 크기는 메모리 우선 방침과 같은 방향이다.
+- 기본값 근거(옛 Tauri 구현, 커밋 424f338a): Windows 10·11은 대부분 WebView2 런타임이 이미 있고 [가정], 시스템 런타임이 보안 패치에 유리하다고 공식 문서가 적는다(`§7-G`). 설치 크기는 메모리 우선 방침과 같은 방향이다.
 
 ### 4.12 프런트엔드
 
@@ -508,7 +508,7 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 - 전역 상태 코드가 따르는 규칙은 `eng.frontend-state.guide`(FS-01~FS-23)다. 엔진 이벤트는 순수 reducer 하나로만 거울에 들어가고, 쓰기 미들웨어는 reducer 단계 세 개(journal → guard → invariants)이며, Zustand 미들웨어는 쓰지 않는다.
 - §4.10 줄이는 수단 4(`stream.chunk` 합치기)는 프레임마다 한 번 커밋하는 입력 큐로 구현한다(`L4.desktop.design` §8).
 - 비교 기준(TS 7 에디터 지원, 번들 크기·메모리, 빌드 도구, DOM 없는 시험)과 후보 비교는 `L4/desktop/_research/state-management.md`와 adr.0010 §5에 있다. 이전 판의 [제안](Preact + `@preact/signals`)은 adr.0010이 대체했다.
-- `react`, `react-dom`, `zustand`는 `apps/desktop`만 import한다(`eng.dependency-rules.guide` DR-07). `@tauri-apps/*`는 `apps/desktop`만 import한다(DR-07 표). `src-tauri/` 안 Rust 코드는 층 규칙 밖이다(DR-13 마지막 항목). TS 쪽은 층 규칙과 §4.9를 따른다.
+- `react`, `react-dom`, `zustand`는 `apps/desktop`만 import한다(`eng.dependency-rules.guide` DR-07). 옛 Tauri 구현(커밋 424f338a)에서 `@tauri-apps/*`는 `apps/desktop`만 import했고, `src-tauri/` 안 Rust 코드는 층 규칙 밖이었다(DR-13 마지막 항목). 현재 `@tauri-apps/*` 의존은 두지 않는다(§11.1). TS 쪽은 층 규칙과 §4.9를 따른다.
 
 ### 4.13 화면 구성
 
@@ -566,11 +566,11 @@ M2 첫 실행에서 깨끗한 Mac에는 `fresnel` 명령이 설치되어 있지 
 | 경로 | 값이 지나는 곳 | 약점 |
 |---|---|---|
 | 서비스 쪽 OS 입력 창(M3) | OS 입력 창과 L0.secrets | 서비스 모드가 있어야 한다. M2에는 없다 |
-| Rust 셸이 번들된 `fresnel secret`을 실행하고 stdin에 한 번 쓴다(채택) | WebView 입력란, Tauri IPC 본문, 셸의 요청 버퍼, 자식 stdin 파이프 | 값이 DOM과 IPC를 지난다(`L4.settings-ui.spec` §4.6.4 B안과 같은 약점). 아래 약점 항목 |
+| 셸이 번들된 `fresnel secret`을 실행하고 stdin에 한 번 쓴다(채택. 옛 Tauri 구현(커밋 424f338a)에서는 Rust 셸이 실행했고, Electron 셸은 `secret-entry.ts`가 한다) | WebView 입력란, IPC 본문, 셸의 요청 버퍼, 자식 stdin 파이프 | 값이 DOM과 IPC를 지난다(`L4.settings-ui.spec` §4.6.4 B안과 같은 약점). 아래 약점 항목 |
 
-채택한 경로는 시크릿 저장 로직을 Rust에 두지 않는다. 저장은 ADR-0014대로 사이드카 바이너리가 곧 `fresnel` CLI라는 점을 쓴다. 셸은 CLI와 같은 `secret add|set`을 한 번 실행할 뿐이어서 메타, 감사, SOPS 쓰기 규칙이 엔진 한 곳에 남는다.
+채택한 경로는 시크릿 저장 로직을 셸(Rust 또는 Electron 메인 프로세스)에 두지 않는다. 저장은 ADR-0014대로 사이드카 바이너리가 곧 `fresnel` CLI라는 점을 쓴다. 셸은 CLI와 같은 `secret add|set`을 한 번 실행할 뿐이어서 메타, 감사, SOPS 쓰기 규칙이 엔진 한 곳에 남는다.
 
-흐름(`src-tauri/src/secret_entry.rs`, `xeon/packages/client/src/settings/key-entry.ts`):
+흐름(옛 Tauri 구현(커밋 424f338a)의 `src-tauri/src/secret_entry.rs`, Electron 셸의 `apps/desktop-shell/src/main/secret-entry.ts`, `xeon/packages/client/src/settings/key-entry.ts`):
 
 1. 화면이 "키 등록"에서 값 없는 `secret.beginEntry`를 먼저 부른다. `started: true`(값을 호스트가 받음)면 기존 흐름대로 provider에 연결한다. `started: false`이거나 메서드가 없으면(`unsupported`) 화면 안에 등록 창을 연다.
 2. 등록 창은 제어하지 않는 `type="password"` 입력란이다. 값은 DOM 노드에만 있고 React 상태, zustand 거울, props에 들어가지 않는다. 저장을 누르면 `submitKey`가 첫 `await` 전에 입력란을 읽고 곧바로 비우며, 앞뒤 공백과 줄바꿈을 지운 뒤 UTF-8 바이트 배열 하나로 바꾼다. 취소와 창이 사라지는 것도 입력란을 비운다.
@@ -583,17 +583,17 @@ M2 첫 실행에서 깨끗한 Mac에는 `fresnel` 명령이 설치되어 있지 
 규칙:
 
 - 한 번에 하나만 등록한다. 진행 중에 또 오면 `busy`다.
-- 자식의 인자와 환경 변수에 값이 없다. 셸 로그(`applog`)에는 `secret entry <동작> <이름>: <결과 종류>`만 쓴다. 요청 구조체의 `Debug` 출력에는 값 길이만 있다.
+- 자식의 인자와 환경 변수에 값이 없다. 셸 로그(`applog`)에는 `secret entry <동작> <이름>: <결과 종류>`만 쓴다. 옛 Tauri 구현(커밋 424f338a)의 요청 구조체 `Debug` 출력에는 값 길이만 있었다.
 - `secret rotate`는 CLI가 비TTY를 거부하므로(`L4.cli.spec` §4.7) 이 경로는 `add`와 `set`만 쓴다.
-- 개발 빌드에서 `FRESNEL_DESKTOP_ENGINE_BIN`과 `FRESNEL_DESKTOP_ENGINE_ARGS`가 `... host --stdio`로 끝나면 그 앞부분에 `secret <동작> <이름>`을 이어 쓴다. 그 모양이 아니면 번들 사이드카를 쓴다. 덮어쓴 엔진에도 안전 모드 플래그와 대상 인자가 `host --stdio` 뒤에 같은 규칙으로 붙는다(`engine.rs`의 `dev_override_argv`, 단위 시험이 있다).
+- 개발 빌드에서 `FRESNEL_DESKTOP_ENGINE_BIN`과 `FRESNEL_DESKTOP_ENGINE_ARGS`가 `... host --stdio`로 끝나면 그 앞부분에 `secret <동작> <이름>`을 이어 쓴다. 그 모양이 아니면 번들 사이드카를 쓴다. 덮어쓴 엔진에도 안전 모드 플래그와 대상 인자가 `host --stdio` 뒤에 같은 규칙으로 붙는다(옛 Tauri 구현(커밋 424f338a)의 `engine.rs` `dev_override_argv`, 단위 시험이 있었다. Electron 셸은 `engine/launcher.ts`와 `secret-entry.ts`의 `devOverrideOf`가 맡는다).
 - 사이드카를 띄우지 못하면(`unavailable`) 화면은 기존 터미널 명령 안내로 돌아간다.
 
 약점(받아들인 것):
 
 - 값이 WebView 안에 있다. password 입력란은 화면에 보이지 않을 뿐 DOM 노드의 `value`이고, 읽는 순간 JS 문자열이 하나 생긴다. 문자열은 지울 수 없어 가비지 수집 전까지 WebView 힙에 남는다. 바이트 배열과 입력란만 덮는다.
-- Tauri IPC 본문과 셸의 요청 버퍼는 Tauri가 쥐고 있어 셸이 덮지 못한다.
+- IPC 본문의 전송 사본은 셸이 덮지 못한다 [가정]. 옛 Tauri 구현(커밋 424f338a)에서는 Tauri IPC 본문과 셸의 요청 버퍼를 Tauri가 쥐고 있었다.
 - 같은 사용자의 다른 프로세스가 `ps`로 자식의 인자를 보는 길에는 값이 없지만, 실행 중인 WebView 프로세스 메모리를 읽는 공격자에게는 열려 있다. 값 없는 경로(C안)가 가능한 서비스 쪽 OS 입력 창(M3)이 생기면 그쪽을 먼저 쓴다.
-- 디버그 빌드의 점검 소켓 `viewport.snapshot`은 보이는 영역을 이미지로 저장한다. password 입력란은 점으로 그려지므로 값이 이미지에 남지 않는다(§4.15) [가정: WKWebView 실측 전].
+- 디버그 빌드의 점검 소켓 `viewport.snapshot`은 보이는 영역을 이미지로 저장한다. password 입력란은 점으로 그려지므로 값이 이미지에 남지 않는다(§4.15) [가정: 실측 전. 옛 Tauri 구현(커밋 424f338a)은 WKWebView, Electron 셸은 `webContents.capturePage`].
 
 ### 4.15 원격 점검 Phase 1 [제안: M2 마감 T7]
 
@@ -601,20 +601,20 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 
 | 부분 | 내용 | 코드 |
 |---|---|---|
-| 로그 파일 | `tauri-plugin-log`의 `LogDir` 대상(`fresnel-desktop-debug.log`)과 표준 출력. 수준 info, 파일 하나, 2 MB에서 새로 시작(`KeepOne`). 들어가는 줄은 셸 로그(`applog.rs`)와 같은 줄이고, 시작할 때 `fresnel-desktop <버전> started` 한 줄이 먼저 온다 | `main.rs` `debug_log_plugin`, `applog.rs` `AppLog::line` |
-| 상태 덤프 | 줄 단위 JSON-RPC 2.0 `state.dump`: 앱 이름·버전·pid·가동 시간, 엔진 상태(IPC 상태 채널과 같은 직렬화), 릴레이 세대, 메인 창 크기·가시·포커스·최소화, 로그 폴더. 대화 내용과 시크릿 값은 싣지 않는다 | `src-tauri/src/inspect/mod.rs`, `probe.rs` |
-| 뷰포트 스냅샷 | `viewport.snapshot`: WKWebView가 보이는 영역을 PNG로 `<LogDir>/snapshots/viewport-<ms>.png`에 저장하고 `{ path, bytes, mime }`을 돌려준다. 이미지 바이트는 응답에 없다. macOS만 되고 그 밖은 오류(-32000)다 | `inspect/snapshot_macos.rs` |
-| 듣는 곳 | Unix 도메인 소켓 하나(기본 `<LogDir>/inspect.sock`, 환경 변수 `FRESNEL_DESKTOP_INSPECT_SOCKET`으로 바꾼다). 소켓 파일 0600. 소켓 폴더는 없으면 앱이 0700으로 만들고(위쪽 폴더는 기본 권한), 이미 있으면 권한을 바꾸지 않는다. 이미 있는 폴더는 앱 사용자 소유이고 other 쓰기가 없을 때만 쓰며, `/tmp` 같은 공용 폴더는 `PermissionDenied`로 거절하고 소켓을 열지 않는다(M2 마감 재검토 11). 동시 접속 4개, 요청 줄 16 KiB 상한. 모르는 메서드는 -32601이고 읽기 전용이다 | `inspect/server.rs` |
+| 로그 파일 | 셸 앱 로그는 `<logs>/fresnel-desktop.log`다(`lib/applog.ts`, §11.5). 옛 Tauri 구현(커밋 424f338a)은 `tauri-plugin-log`의 `LogDir` 대상(`fresnel-desktop-debug.log`)과 표준 출력을 썼고, 수준 info, 파일 하나, 2 MB에서 새로 시작(`KeepOne`)했다. 들어가는 줄은 셸 로그와 같은 줄이었고, 시작할 때 `fresnel-desktop <버전> started` 한 줄이 먼저 왔다. Electron 쪽 회전은 확인하지 않았다 [미확인] | `lib/applog.ts`. 옛 구현: `main.rs` `debug_log_plugin`, `applog.rs` `AppLog::line` |
+| 상태 덤프 | 줄 단위 JSON-RPC 2.0 `state.dump`: 앱 이름·버전·pid·가동 시간, 엔진 상태(IPC 상태 채널과 같은 직렬화), 릴레이 세대, 메인 창 크기·가시·포커스·최소화, 로그 폴더. 대화 내용과 시크릿 값은 싣지 않는다 | `apps/desktop-shell/src/main/inspect.ts`(옛 구현은 `src-tauri/src/inspect/mod.rs`, `probe.rs`, 커밋 424f338a) |
+| 뷰포트 스냅샷 | `viewport.snapshot`: 보이는 영역을 PNG로 `<LogDir>/snapshots/viewport-<ms>.png`에 저장하고 `{ path, bytes, mime }`을 돌려준다. 이미지 바이트는 응답에 없다. Electron 셸은 `webContents.capturePage`로 PNG를 파일로 쓰고 경로만 답한다(§11.5). 옛 Tauri 구현(커밋 424f338a)은 WKWebView 영역을 찍어 macOS만 되고 그 밖은 오류(-32000)였다 | `inspect.ts`(옛 구현: `inspect/snapshot_macos.rs`) |
+| 듣는 곳 | Unix 도메인 소켓 하나(기본 `<LogDir>/inspect.sock`, 환경 변수 `FRESNEL_DESKTOP_INSPECT_SOCKET`으로 바꾼다). 소켓 파일 0600. 소켓 폴더는 없으면 앱이 0700으로 만들고(위쪽 폴더는 기본 권한), 이미 있으면 권한을 바꾸지 않는다. 이미 있는 폴더는 앱 사용자 소유이고 other 쓰기가 없을 때만 쓰며, `/tmp` 같은 공용 폴더는 `PermissionDenied`로 거절하고 소켓을 열지 않는다(M2 마감 재검토 11). 동시 접속 4개, 요청 줄 16 KiB 상한. 모르는 메서드는 -32601이고 읽기 전용이다. 옛 Tauri 구현(커밋 424f338a)의 규칙이고, Electron 쪽은 소켓 폴더 0700, 스냅샷 파일 0600, 동시 접속 4개, 요청 줄 16 KiB 상한을 `inspect.ts`에서 확인했다. 소켓 파일 권한과 나머지 경로 검사는 확인하지 않았다 [미확인] | `inspect.ts`(옛 구현: `inspect/server.rs`) |
 
-- 모두 `cfg(debug_assertions)` 아래다. `mod inspect;`와 로그 플러그인 등록, `start_inspect` 호출이 디버그 빌드에만 컴파일된다. `Relay::state`·`current_epoch`도 디버그와 시험에서만 열린다.
+- 옛 Tauri 구현(커밋 424f338a)에서는 모두 `cfg(debug_assertions)` 아래였다. `mod inspect;`와 로그 플러그인 등록, `start_inspect` 호출이 디버그 빌드에만 컴파일됐다. `Relay::state`·`current_epoch`도 디버그와 시험에서만 열렸다. Electron 셸은 환경 변수 `FRESNEL_DESKTOP_INSPECT=1`일 때만 켜진다(§11.5).
 - 릴리스 확인(릴리스 후보마다, 사람이 한다):
-  1. `cargo build --release`(`just desktop-build`)가 경고 없이 끝난다. WSL에서는 `cargo check --release`로 확인했다.
+  1. `just desktop-build-electron`이 끝난다(§11.7). 옛 Tauri 구현(커밋 424f338a)에서는 `cargo build --release`(`just desktop-build`)가 경고 없이 끝나는지 봤고, WSL에서는 `cargo check --release`로 확인했다.
   2. 실행 중인 릴리스 앱의 `lsof -U -p <pid>`에 `inspect.sock`이 없고, 로그 폴더에 `inspect.sock`이 만들어지지 않는다.
-  3. 릴리스 바이너리에서 `strings <앱 바이너리> | grep -c 'viewport.snapshot'`이 0이다.
+  3. 릴리스 바이너리에서 `strings <앱 바이너리> | grep -c 'viewport.snapshot'`이 0이다(옛 Tauri 구현의 확인, 커밋 424f338a). Electron 셸은 코드가 묶음에 들어가므로 이 검사 대신 `just desktop-smoke-electron`의 "inspect 소켓이 꺼져 있음" 검사를 본다(§11.7).
 - 소스 수준 보장은 `test/inspect-guard.test.ts`가 시험한다(`mod inspect;`와 호출 시점의 cfg 줄, 소켓 생성이 `inspect` 밖에 없음, 로그 플러그인 cfg). 위 1~3은 컴파일 산출물 확인이라 자동화하지 않았다.
-- `tauri-plugin-log`는 crate 의존성이라 릴리스 빌드에도 링크 대상이다. 등록하지 않으므로 파일도 소켓도 생기지 않는다. 의존성을 디버그 전용으로 줄이는 일은 하지 않았다(`cfg(debug_assertions)`로 의존성을 나눌 수 없다).
-- 로그 파일이 0바이트였던 것은 플러그인이 받을 `log` 호출이 앱에 없었기 때문으로 봅니다 [가정: Mac 실기 확인 전]. `AppLog::line`은 같은 줄을 대상 `fresnel_desktop`의 `log` info 기록으로도 냅니다. 릴리스 빌드에는 기록기가 없어 이 호출은 아무 일도 하지 않습니다. 시작 줄은 앱 이름과 버전만 싣습니다(E11).
-- 스냅샷 구현은 macOS에서만 컴파일된다. WSL에서는 컴파일도 시험도 못 했고 Mac 확인이 필요하다 [가정](`review.macos-checklist`에 더할 항목).
+- 옛 Tauri 구현(커밋 424f338a)에서 `tauri-plugin-log`는 crate 의존성이라 릴리스 빌드에도 링크 대상이다. 등록하지 않으므로 파일도 소켓도 생기지 않는다. 의존성을 디버그 전용으로 줄이는 일은 하지 않았다(`cfg(debug_assertions)`로 의존성을 나눌 수 없다).
+- 옛 Tauri 구현(커밋 424f338a)에서 로그 파일이 0바이트였던 것은 플러그인이 받을 `log` 호출이 앱에 없었기 때문으로 봅니다 [가정: Mac 실기 확인 전]. 옛 `AppLog::line`은 같은 줄을 대상 `fresnel_desktop`의 `log` info 기록으로도 냈고, 릴리스 빌드에는 기록기가 없어 이 호출은 아무 일도 하지 않았습니다. 시작 줄은 앱 이름과 버전만 싣습니다(E11).
+- 옛 Tauri 구현(커밋 424f338a)의 스냅샷은 macOS에서만 컴파일됐고, WSL에서는 컴파일도 시험도 못 했다. Electron 쪽 `viewport.snapshot`(`webContents.capturePage`)의 동작은 이 문서에서 확인하지 않았고 Mac 확인이 필요하다 [가정](`review.macos-checklist`에 더할 항목).
 
 ### 4.16 새 대화의 작업 폴더 [결정: M2 마감 G2-02]
 
@@ -629,13 +629,13 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 
 시크릿 값 보기는 사람이 기기 인증을 마친 뒤에만 열린다(L0.secrets §4.9.1, `reveal`의 `os-auth` 증거). 셸은 그 인증 창을 띄우는 명령만 준다. 이 명령은 값을 보지 않는다. 값 보기 화면(`SecretsPanel`)이 값 경로(`secret.beginReveal`)보다 먼저 이 명령을 부른다(`createOsReauthGate`, `src/app/secret-reveal-gate.ts`). 사이드카(stdio)와 서비스 연결은 재인증을 통과해도 `secret.beginReveal`이 `started: false`라 값은 열리지 않고 `not_started` 문장을 보인다(desktop-ux W-10).
 
-- 구현: `src-tauri/src/os_reauth.rs`. macOS에서는 `objc2-local-authentication` 0.3.2(`=` 고정, 기능 `LAContext`와 `block2`)의 `LAContext.evaluatePolicy`에 `LAPolicy::DeviceOwnerAuthentication`을 준다. 답은 reply 블록으로 비동기에 오고, 명령은 그 답을 기다리기만 한다. 명령이 `async`라서 메인 스레드는 막히지 않는다. 다른 OS에서는 항상 `unavailable`이다.
+- 구현: 셸 메인 프로세스의 `apps/desktop-shell/src/main/os-reauth.ts`(분류)와 `os-reauth-shell.ts`(어댑터). macOS에서는 `systemPreferences.promptTouchID()`로 Touch ID 창을 띄운다(§11.6). 다른 OS에서는 항상 `unavailable`이다. 옛 Tauri 구현(커밋 424f338a)은 `src-tauri/src/os_reauth.rs`에서 `objc2-local-authentication` 0.3.2(`=` 고정, 기능 `LAContext`와 `block2`)의 `LAContext.evaluatePolicy`에 `LAPolicy::DeviceOwnerAuthentication`을 주었다. 답은 reply 블록으로 비동기에 왔고, 명령은 그 답을 기다리기만 했다. 명령이 `async`라서 메인 스레드는 막히지 않았다.
 - 사유 문구: 제어 문자는 공백으로 바꾸고, 공백은 한 칸으로 줄이고, 120자까지 쓴다. 비면 `Fresnel`이다.
 - 로그: 사유와 값은 앱 로그에 쓰지 않는다. 결과 종류만 `os reauth: ok` 꼴로 남긴다.
 - 성공 증거: `verifiedAtMs`는 인증이 끝난 시각이다. 화면은 이를 `HumanReauth { method: "os-auth", verifiedAt }`로 넘긴다(`src/views/os-reauth.ts`의 `requestOsReauth`). reveal은 이 시각에서 60초 안의 증거만 받는다(L0.secrets §4.9.1). 셸은 시각을 저장하지 않는다.
 - 오류 종류: 답이 `{ kind }` 객체가 아니거나 모르는 종류면 TS 쪽에서 `failed`로 읽는다.
 
-| kind | 뜻 | LAError 코드(NSInteger) |
+| kind | 뜻 | 옛 Tauri 구현(커밋 424f338a)의 LAError 코드(NSInteger) |
 |---|---|---|
 | `cancelled` | 사람이 창을 닫았다, 시스템이나 앱이 인증을 끊었다 | UserCancel -2, UserFallback -3, SystemCancel -4, AppCancel -9 |
 | `denied` | 인증이 거절됐다(암호가 틀림, 생체 인증 실패) | AuthenticationFailed -1 |
@@ -643,27 +643,27 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 | `failed` | 그 밖의 실패 | InvalidContext -10, 여기 없는 코드 |
 
 - 값 보기 연결 [결정: 2026-11-04 사용자, B8 2안: 재인증 먼저, 그다음 보기]: 앱 진입점(`main.tsx`)이 macOS에서만 `createOsReauthGate`를 `RevealGateContext`에 넣는다. 그 밖의 OS와 웹은 `UNAVAILABLE_GATE`라 값 보기가 잠기고 이유를 보인다. 게이트는 시크릿 이름마다 이 명령을 한 번 부르고 통과했을 때만 값 경로를 연다. 창이 떠 있는 동안 같은 이름의 호출은 그 창의 결과를 함께 기다려 창이 두 번 뜨지 않고, 다른 이름의 호출은 앞의 창이 닫힌 뒤에 자기 창을 띄운다. `cancelled`와 `denied`는 "재인증을 취소했어요", `unavailable`은 잠김 문장, `failed`는 일반 실패로 보인다. 사유 문구에는 시크릿 이름만 싣고 값은 어디에도 싣지 않는다. `osascript` 방식(`platform-secrets/src/os-auth.ts`)은 그대로 둔다.
-- 확인 상태: 코드 매핑과 문구 정리는 값으로 시험했다. 실제 Touch ID 창과 취소 동작은 Mac에서 아직 돌리지 않았다(`review.macos-checklist` M-05).
+- 확인 상태: 옛 Tauri 구현(커밋 424f338a)의 코드 매핑과 문구 정리는 값으로 시험했다. Electron 셸의 분류는 Mac 실기 확인 전이다. 실제 Touch ID 창과 취소 동작은 Mac에서 아직 돌리지 않았다(`review.macos-checklist` M-05).
 
 ### 4.18 앱 업데이트, 트레이, OS 알림 [결정: 2026-11-06 사용자, B-10 승인]
 
-이 절의 의존성(`tauri-plugin-updater` 2.14.1, `tauri-plugin-notification` 2.8.0, `tauri`의 `tray-icon`·`image-png` 기능)은 사용자가 승인했다. 나머지 설계 선택은 [제안]이다. WebView에는 세 플러그인의 권한을 주지 않고, 아래 앱 명령만 `capabilities/default.json`에 연다(W2, `src/shell/**`가 부른다).
+이 절의 의존성(옛 Tauri 구현(커밋 424f338a)의 `tauri-plugin-updater` 2.14.1, `tauri-plugin-notification` 2.8.0, `tauri`의 `tray-icon`·`image-png` 기능)은 사용자가 승인했다. Electron 셸의 `electron-updater`도 승인된 새 의존성이다(§11.6). 나머지 설계 선택은 [제안]이다. WebView에는 플러그인 권한을 주지 않고, 아래 앱 명령만 셸이 등록해 연다(W2, `src/shell/**`가 부른다). 옛 구현은 `capabilities/default.json`에 열었다.
 
-**업데이트** (`src-tauri/src/updater.rs`)
-- 설정 자리: `tauri.conf.json`의 `plugins.updater.pubkey`(서명 공개키)와 `plugins.updater.endpoints`(배포 주소 목록). 둘 중 하나라도 비었거나 틀리면 `is_configured`가 거짓이고 플러그인을 등록하지 않는다. 앱은 정상으로 돌고 `update_check`는 `{ kind: "notConfigured" }`를 돌려준다. 키를 만들거나 배포 서버를 정하는 일은 사용자 몫이다(`L4.release.spec` §5).
-- 명령: `update_status`(설정 여부, 현재 버전), `update_check`(`notConfigured`, `upToDate`, `available { version, notes }`, `offline`, `failed { reason }`), `update_download`(진행을 `Channel`로 `progress { downloaded, total }`, 끝나면 `ready`), `update_install_restart`(설치, 엔진 정상 종료, 다시 시작). 이유 코드는 `signature`, `no_release`, `network`, `busy`, `nothing_to_download`, `nothing_to_install`, `other`이고 주소와 키는 담지 않는다. 확인은 30초가 지나면 `offline`으로 본다.
-- 서명 불일치는 설치하지 않고 "그래도 설치"를 두지 않는다. 설치가 실패하면 엔진은 그대로다.
+**업데이트** (`apps/desktop-shell/src/main/updater.ts`, `updater-shell.ts`. 옛 구현은 `src-tauri/src/updater.rs`, 커밋 424f338a)
+- 설정 자리: `Resources/update-feed.json`(§11.10). 파일이 없거나 비면 `notConfigured`이고 `electron-updater`는 적재되지 않는다. 옛 Tauri 구현(커밋 424f338a)은 `tauri.conf.json`의 `plugins.updater.pubkey`(서명 공개키)와 `plugins.updater.endpoints`(배포 주소 목록)를 설정 자리로 썼고, 둘 중 하나라도 비었거나 틀리면 `is_configured`가 거짓이고 플러그인을 등록하지 않았다. 앱은 정상으로 돌고 `update_check`는 `{ kind: "notConfigured" }`를 돌려준다. 키를 만들거나 배포 서버를 정하는 일은 사용자 몫이다(`L4.release.spec` §5).
+- 명령: `update_status`(설정 여부, 현재 버전), `update_check`(`notConfigured`, `upToDate`, `available { version, notes }`, `offline`, `failed { reason }`), `update_download`(진행을 채널로 `progress { downloaded, total }`, 끝나면 `ready`), `update_install_restart`(설치. 엔진은 앱 종료 정리(`before-quit`)에서 내려가고, 설치가 성공하면 앱이 끝나므로 답하지 않는다, §11.6). 이유 코드는 `signature`, `no_release`, `network`, `busy`, `nothing_to_download`, `nothing_to_install`, `other`이고 주소와 키는 담지 않는다. 확인은 30초가 지나면 `offline`으로 본다.
+- 서명 불일치는 설치하지 않고 "그래도 설치"를 두지 않는다(Electron 셸은 sha512 무결성 검사와 Squirrel.Mac 서명 확인을 쓴다, §11.10. 옛 Tauri 구현은 minisign 공개키로 확인했다, 커밋 424f338a). 설치가 실패하면 엔진은 그대로다.
 - 화면 상태(`src/views/update-model.ts`): `unconfigured`, `checking`, `current`, `available`, `downloading`, `ready`, `failed`, `offline`. 상태 표시줄 업데이트 칸과 설정의 업데이트 줄이 같은 상태를 쓴다(`L4.desktop-ux.spec` 시안 `d02`). 다시 시작 전에 진행 중 turn이 있으면 확인을 거친다.
 
-**트레이** (`src-tauri/src/tray.rs`, `shell_intent.rs`)
-- 메뉴: 열기, 새 대화, 진행 중 n(눌리지 않는 줄), 끝내기. 글은 WebView가 `tray_update`로 보낸 현재 언어의 문구다(처음에는 영어). macOS 메뉴 막대 아이콘은 템플릿 이미지다(`icons/tray.png`).
+**트레이** (`apps/desktop-shell/src/main/tray.ts`, `tray-shell.ts`, `intents.ts`. 옛 구현은 `src-tauri/src/tray.rs`, `shell_intent.rs`, 커밋 424f338a)
+- 메뉴: 열기, 새 대화, 진행 중 n(눌리지 않는 줄), 끝내기. 글은 WebView가 `tray_update`로 보낸 현재 언어의 문구다(처음에는 영어). macOS 메뉴 막대 아이콘은 템플릿 이미지다(`assets/tray.png`, 옛 구현은 `icons/tray.png`).
 - 창이 없을 때의 "새 대화"는 창을 다시 만들고 의도 큐(`shell_take_intents`, 30초 안의 것만)에 `newThread`를 둔다. WebView는 시작할 때와 `shell-intent` 이벤트를 받을 때 큐를 비운다.
-- "끝내기"는 `app.exit(0)`이라 §4.3 정상 종료 순서를 탄다.
+- "끝내기"는 `app.quit()`이라 §4.3 정상 종료 순서를 탄다(옛 Tauri 구현은 `app.exit(0)`이었다).
 
-**OS 알림** (`src-tauri/src/notify_os.rs`)
+**OS 알림** (`apps/desktop-shell/src/main/notify-os.ts`, `notify-os-shell.ts`. 옛 구현은 `src-tauri/src/notify_os.rs`, 커밋 424f338a)
 - 호스트가 `notify.delivered`를 모든 클라이언트에 보낸다(`L2.dialog.spec` §4.7.2). 데스크톱 화면은 창이 앞에 있지 않을 때만 `notify_os { title, body, threadId }`로 OS 알림을 띄운다. 제목은 80자, 본문은 400자로 줄이고 제어 문자를 지운다. 종류별 켬/끔은 데스크톱 로컬 키(`l4.desktop.window.notify.*`)다.
-- 알림을 눌렀을 때 그 대화로 가는 길: 알림 플러그인은 데스크톱 알림 눌림을 이 셸이 쓰는 방식으로 돌려주지 않는다. 그래서 셸이 마지막 알림의 대화를 30초 동안 기억하고(`notify_take_target`), 앱이 앞으로 올라오면 화면이 그 대화를 연다.
-- 권한: `notify_permission`, `notify_request_permission`은 `granted`, `denied`, `prompt`를 돌려준다. 데스크톱 플러그인은 권한 상태를 알려 주지 않아 지금은 항상 `granted`이고, 전달이 실패하면 설정에 "알림을 보내지 못했어요"로 보인다 [미결] [근거: `src-tauri/src/notify_os.rs`, Mac 실기 확인 전].
+- 알림을 눌렀을 때 그 대화로 가는 길: 알림의 `click`에서 셸이 `openThread` 의도를 큐에 넣고 창을 앞으로 가져온다(§11.6). `notify_take_target`은 항상 `null`을 준다(UI 호환용). 옛 Tauri 구현(커밋 424f338a)은 알림 플러그인이 눌림을 돌려주지 않아 셸이 마지막 알림의 대화를 30초 동안 기억했고(`notify_take_target`), 앱이 앞으로 올라오면 화면이 그 대화를 열었다.
+- 권한: `notify_permission`, `notify_request_permission`은 `granted`, `denied`, `prompt`를 돌려준다(Electron은 `Notification.isSupported()`로 `granted`나 `denied`를 답한다, §11.6). 옛 Tauri 구현(커밋 424f338a)의 플러그인은 권한 상태를 알려 주지 않아 항상 `granted`였고, 전달이 실패하면 설정에 "알림을 보내지 못했어요"로 보인다 [미결] [근거: 옛 Tauri 구현(커밋 424f338a)의 `src-tauri/src/notify_os.rs`, Mac 실기 확인 전]. Electron 셸은 OS가 실패를 알리면 `notify-failed` 이벤트로 설정의 "전달 실패" 경고를 켠다(§11.6).
 
 ## 5. 실패와 경계 사례
 
@@ -677,9 +677,9 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 | `engine_write`의 세대가 현재와 다름 | 거부한다. 이전 페이지의 늦은 쓰기가 새 연결에 섞이지 않게 한다 |
 | 종료 중(`stopping`)에 사용자 입력 | 입력창을 잠그고 "종료 중"을 보인다. 엔진은 `host.shuttingDown`(5002)을 돌려줄 수 있다 |
 | 종료 시한 초과 | 그룹 SIGKILL. 진행 중 turn은 다음 실행 때 이어서 실행 후보가 된다 |
-| 앱 두 개를 동시에 실행 | [결정: M2 마감 G2-09] `tauri-plugin-single-instance`를 가장 먼저 등록한다. 두 번째 인스턴스는 다른 초기화(엔진 기동, DB)를 하기 전에 첫 인스턴스에 알리고 끝나며, 첫 인스턴스는 메인 창이 없으면 `tauri.conf.json`의 `main` 항목으로 다시 만들고, 메인 창을 보이고 최소화를 풀고 포커스를 준다(`src-tauri/src/window.rs` `ensure_main`, `focus_main`). 다른 프로세스(CLI)와 같은 thread를 쓰려는 경우는 대화 잠금 규칙(adr.0006 §3.6)과 `thread.locked`(3002) 대안을 따른다 |
+| 앱 두 개를 동시에 실행 | [결정: M2 마감 G2-09] 셸이 `app.requestSingleInstanceLock()`을 `app.ready` 전에 잡는다(`single-instance.ts`). 두 번째 인스턴스는 창을 만들기 전에 끝나고, 첫 인스턴스는 `second-instance`에서 `showMainWindow`를 불러 메인 창이 없으면 새로 만들고, 있으면 최소화를 풀고 보이고 포커스를 준다(`main.ts`). 옛 Tauri 구현(커밋 424f338a)은 `tauri-plugin-single-instance`와 `src-tauri/src/window.rs`의 `ensure_main`·`focus_main`을 썼다. 다른 프로세스(CLI)와 같은 thread를 쓰려는 경우는 대화 잠금 규칙(adr.0006 §3.6)과 `thread.locked`(3002) 대안을 따른다 |
 | `thread.locked` | 관찰·분기 선택 대화 상자를 보인다. 위임은 서비스 공급원에서만 보인다 |
-| WebKitGTK가 설치되지 않은 Linux | 앱이 뜨지 않는다. 패키지 의존(`L4.desktop.plan` §3 D10)으로 막는다 |
+| WebKitGTK가 설치되지 않은 Linux(옛 Tauri 구현, 커밋 424f338a) | 앱이 뜨지 않았다. 패키지 의존(`L4.desktop.plan` §3 D10)으로 막았다. Electron 셸의 Linux 묶음은 이 단계에서 만들지 않는다(§11.7) |
 | WSL에서 WSLg가 없음 | [미결] 지원 범위(§10 미결 9). 지원하지 않으면 시작 시 안내 문구를 띄운다 |
 | 데스크톱 설정 파일 손상 | JSON이 아니거나 최상위가 객체가 아니거나 64 KiB를 넘으면 모든 키를 기본값으로 쓴다. 키 하나가 타입이나 범위에 맞지 않으면 그 키만 기본값을 쓴다. 진단은 앱 로그에 키 이름과 이유만 남긴다(§3.6, `F.wire-settings.spec` §4.8 파일 값 규칙과 같다) |
 | Finder로 띄운 앱에서 sops, age, rg를 찾지 못함 | PATH 보강(E7)으로 Homebrew와 `~/.local/bin`, `~/.nix-profile/bin`을 찾습니다. 그래도 없으면 키 등록은 `rejected`로 끝나고 자식의 오류 문구를 보입니다(§4.14.1) |
@@ -700,9 +700,9 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 | `l4.desktop.update.auto` | boolean | `false` | - | restart | `managed`, `user` | advanced / toggle | (선언하지 않는다. §4.18) |
 | `l4.desktop.firstRun.searchHintDismissed` | boolean | `false` | - | live | `user` | tools / toggle | M3 |
 
-- `closeBehavior`의 `tray`: 창을 닫으면 WebView를 해제하고(§4.10 수단 5) 셸과 엔진만 남는다. 진행 중 turn이 계속된다. `quit`이면 §4.3 정상 종료를 탄다. 기본값은 `tray`다 [결정: 2026-11-06 사용자, B-10 승인]. 트레이 아이콘을 만들지 못한 기기에서는 `tray`여도 `quit`처럼 움직인다(`effective_close_behavior`, 창을 닫았는데 앱이 보이지 않게 남는 일을 막는다). 설정을 바꾸면 바로 적용된다(`desktop_settings_write`가 상태를 갱신한다).
-- 트레이 유지 뒤 창을 다시 여는 길은 두 가지다. 두 번째 실행(단일 실행 알림)과 macOS Dock 클릭(`RunEvent::Reopen`)은 메인 창이 없으면 `tauri.conf.json`의 `main` 항목으로 창을 만들고 앞으로 가져온다(`window.rs` `ensure_main`). 새 페이지는 `engine_attach`로 다시 붙는다(§4.5). 세 번째 길은 트레이 메뉴의 "열기"다(§4.18).
-- [미결] 트레이 유지 e2e(plan `tray-close-no-webview`, D-10)는 Mac에서만 돌린다. Linux에서는 종료 결정 함수와 `ensure_main` 시험까지만 확인했다.
+- `closeBehavior`의 `tray`: 창을 닫으면 WebView를 해제하고(§4.10 수단 5) 셸과 엔진만 남는다. 진행 중 turn이 계속된다. `quit`이면 §4.3 정상 종료를 탄다. 기본값은 `tray`다 [결정: 2026-11-06 사용자, B-10 승인]. 트레이 아이콘을 만들지 못한 기기에서는 `tray`여도 `quit`처럼 움직인다(Electron `close-behavior.ts`, 옛 Tauri 구현(커밋 424f338a)의 `effective_close_behavior`와 같은 표. 창을 닫았는데 앱이 보이지 않게 남는 일을 막는다). 설정을 바꾸면 바로 적용된다(`desktop_settings_write`가 상태를 갱신한다).
+- 트레이 유지 뒤 창을 다시 여는 길은 두 가지다. 하나는 두 번째 실행(단일 실행 알림)이고, 셸이 `showMainWindow`로 메인 창이 없으면 새로 만들고 앞으로 가져온다(`main.ts`). 다른 하나는 트레이 메뉴의 "열기"다(§4.18). 새 페이지는 `engine_attach`로 다시 붙는다(§4.5). 옛 Tauri 구현(커밋 424f338a)에는 macOS Dock 클릭(`RunEvent::Reopen`)으로 창을 여는 길도 있었다(`window.rs` `ensure_main`). Electron 셸은 `activate` 처리기를 두지 않는다(저장소 검색으로 확인).
+- [미결] 트레이 유지 e2e(plan `tray-close-no-webview`, D-10)는 Mac에서만 돌린다. 옛 Tauri 구현(커밋 424f338a)은 Linux에서 종료 결정 함수와 `ensure_main` 시험까지만 확인했다.
 - `restartLimit` 0은 자동 재기동을 끈다는 뜻이다.
 - `firstRun.searchHintDismissed`: 첫 실행 권장 화면(`L4.settings-ui.spec` §4.10)을 처음 연 뒤 닫으면 참이 된다. 참이면 첫 실행 때 자동으로 띄우지 않고 `tools` 탭 묶음에만 보인다 [제안].
 - `shutdownGraceMs`의 기본 7000은 엔진 체크포인트 시한 `l0.process.shutdown.timeoutMs` 기본 3000에 2000을 더한 하한(5000)보다 2000 크다. 여유분은 엔진 시한을 5000까지 올려도 불변식이 깨지지 않게 둔 값이다. 하한 규칙은 `service stop`의 "`l0.process.shutdown.timeoutMs` + 2000ms 뒤 SIGKILL"(`L4.host-service.spec` SV-07)과 같다 [제안]. 불변식은 §4.3에 둔다. S1 측정 뒤 확정한다.
@@ -749,7 +749,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 - D-10. 트레이 유지 모드에서 창을 닫으면 WebView 엔진 프로세스가 0개가 되고, 진행 중 turn은 계속되며, 창을 다시 열면 D-04와 같이 이어진다.
 - D-11. 엔진 프로세스 환경에 `BUN_OPTIONS`가 없고 cwd가 절대 경로다. PATH에 Finder 기본 경로 뒤로 도구 디렉터리가 붙고(E7), 이미 있는 항목은 중복되지 않는다.
 - D-12. `check-layers.ts` 앱 내부 규칙이 W1·W2·W6 위반 샘플 import를 거부한다.
-- D-13. 두 번째 앱 실행은 첫 인스턴스의 메인 창을 앞으로 가져오고 스스로 끝난다. 엔진이 둘 뜨지 않는다(`window.rs` 시험은 창 조회와 레이블 일치까지, 실제 두 프로세스 확인은 Mac에서 한다).
+- D-13. 두 번째 앱 실행은 첫 인스턴스의 메인 창을 앞으로 가져오고 스스로 끝난다. 엔진이 둘 뜨지 않는다(옛 Tauri 구현(커밋 424f338a)의 `window.rs` 시험은 창 조회와 레이블 일치까지였다. Electron 쪽은 묶기 스모크가 두 번째 실행 뒤 창이 하나로 남는지 본다(§11.7). 실제 두 프로세스 확인은 Mac에서 한다).
 - D-14. 릴리스 빌드에는 점검 소켓과 `viewport.snapshot`이 없다(§4.15 릴리스 확인).
 - D-15. 설정 화면은 외부 도구 점검 결과를 `host.status { includeBinaries: true }`의 `binaries`에서 읽고, 시작 안내 띠와 `settings.invalidated` 뒤 다시 읽기는 `includeBinaries`를 보내지 않는다. 컴파일 사이드카가 소스 진입과 같은 도구 목록(이름, 구분, 쓰는 곳, 영향)을 돌려주고 응답에 실행 파일 경로가 없다(`test/e2e/sidecar.e2e.test.ts`).
 - D-16. 새 대화는 입력한 폴더를 `thread.create`의 `workspace`로 그대로 보내고, 입력이 비면 `workspace` 키를 보내지 않으며, 상대 경로는 보내지 않는다. 호스트가 거부한 폴더(`-32602`)로는 대화가 선택되지 않는다.
@@ -762,82 +762,82 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 4. [결정: review.decisions-2 U-04] 이어서 실행 후보를 wire로 알리는 방법(`ThreadSummary` 필드 또는 이벤트)은 M1에 넣지 않고 M2 계획에서 정한다.
 5. [결정: review.decisions-2 U-04] 사용자 알림 wire(알림 이벤트 kind나 메서드)는 M1에 넣지 않고 M2 계획에서 정한다. 그 전에는 내구 이벤트 kind로 알림 대상을 고른다(§4.8).
 6. [미결] `l4.desktop.*` 값의 저장 위치. 제안은 데스크톱 로컬 파일(엔진 카탈로그 밖)이다. 대안은 F에 클라이언트 카탈로그 등록을 더해 엔진 설정 계층에 넣는 것이다. 관리 범위 잠금을 로컬 파일에서 어떻게 읽을지도 함께 정한다.
-7. [미결] Windows 크래시 때 엔진이 남는 문제. 셸이 kill-on-close job object를 직접 만들지, 플러그인 상류에 요청할지(adr.0008 §6, arch-2 §5 4행).
+7. [미결] Windows 크래시 때 엔진이 남는 문제. 셸이 kill-on-close job object를 직접 만들지, 플러그인 상류에 요청할지(adr.0008 §6, arch-2 §5 4행. 플러그인 상류 요청은 옛 Tauri 구현(커밋 424f338a)의 길이다).
 8. [미결] 메모리 예산 수치(§4.10 B1~B4). S5 측정 뒤 확정한다.
-9. [미결] WSL(WSLg)에서 데스크톱 앱의 지원 수준. 지원, 비공식 동작, 미지원 중 고른다. 참고: WSLg(XWayland, llvmpipe)에서 Tauri 창이 열리고 S1·S3이 돌았다(`L4.desktop.plan` §3.1.1).
-10. [결정: review.m3-design-inputs D-M3-25 행 3] 최소 지원 macOS는 14이고 arm64만이다. Linux는 x86_64·arm64이고 WebKitGTK 4.1은 [가정]으로 둔다. 실측 뒤 배포판 목록을 적는다. 빌드 타깃(V5)이 여기에 묶인다.
+9. [미결] WSL(WSLg)에서 데스크톱 앱의 지원 수준. 지원, 비공식 동작, 미지원 중 고른다. 참고: 옛 Tauri 구현(커밋 424f338a)에서 WSLg(XWayland, llvmpipe)에서 Tauri 창이 열리고 S1·S3이 돌았다(`L4.desktop.plan` §3.1.1).
+10. [결정: review.m3-design-inputs D-M3-25 행 3] 최소 지원 macOS는 14이고 arm64만이다. Linux는 x86_64·arm64이고 옛 Tauri 구현(커밋 424f338a)의 WebKitGTK 4.1은 [가정]으로 둔다. 실측 뒤 배포판 목록을 적는다. 빌드 타깃(V5)이 여기에 묶인다.
 11. (닫힘) 프런트엔드 프레임워크와 상태 라이브러리는 React 19 + Zustand 5다(adr.0010, 2026-10-24). 상태 모델은 `L4.desktop.design`, 규칙은 `eng.frontend-state.guide`다.
-12. [결정: 2026-11-06 사용자, B-10 승인] `tauri-plugin-updater`, `tauri-plugin-notification`, Tauri `tray-icon` 기능을 쓴다(§4.18). 서명 공개키와 배포 주소는 사용자 몫이고 `tauri.conf.json`에 빈 자리만 있다. 값이 비면 업데이트는 "설정되지 않음"으로 꺼진다.
-13. [미결] 장수명 엔진에서 stdio 유지와 로컬 소켓 전환(adr.0008 §6, arch-2 §5 6행). 이 문서는 stdio를 전제로 쓴다. S3 spike(`L4.desktop.plan` §3.1.1) 판정 [제안]: stdio를 유지하되 릴레이에 신용 기반 역압(Channel 무제어 송신은 지속 대용량에서 정지했다), 락 밖 비동기 stdin 쓰기, 세대별 줄 버퍼를 둔다. 세 조건은 M2 DESK.2에서 `relay.rs`에 구현됐고(`L4.desktop.plan` §3.2.1), Linux/WSL2에서 32 MB 연속 송신이 손실·중복 없이 지났다. macOS·Windows 재측정 뒤 확정한다.
-14. [가정] (Tauri `Channel`의 원시 바이트 전송과 Rust API 사이드카의 capabilities 비적용은 WSL2 WebKitGTK에서 S1·S3으로 확인했다. macOS, Windows는 미확인이다.) WebView 엔진 보조 프로세스 구성, 웹 API 제약 V1~V8은 실행으로 확인하지 않았다. M2 spike와 첫 주 확인 목록에서 확인한다.
-15. (닫힘, M2 첫 실행 M-12) 사이드카 연결에서 모델 키 값을 받는 수단은 Rust 셸이 번들된 `fresnel secret add|set <이름>`을 한 번 실행하고 값을 그 stdin에 한 번 쓰는 길이다(§4.14.1). 값 없는 `secret.beginEntry`는 호스트가 받을 수 있는 연결(서비스, M3)에서만 쓰이고 사이드카는 이 경로로 화면 안의 등록 창을 연다. 받아들인 약점(값이 DOM, JS 문자열, Tauri IPC 본문을 지남)은 §4.14.1에 적었다. 남은 [미결]: (a) 실행 중인 사이드카 엔진이 별도 프로세스가 쓴 등록을 `secret.list`에서 곧바로 보는지는 실제 기기에서 확인하지 않았다(화면은 등록 뒤 `secret.list`를 다시 읽는다). (b) 등록이 `not_registered`로 실패하는 호스트 쪽 원인(`l0.secrets.sops.files` 기본값 `[]`, `L0.secrets.spec` §10 4번, HS-45 `newMeta`)은 이 앱이 아니라 호스트가 고쳐야 한다. 이 경로는 자식의 오류 문구를 그대로 보인다.
+12. [결정: 2026-11-06 사용자, B-10 승인] `tauri-plugin-updater`, `tauri-plugin-notification`, Tauri `tray-icon` 기능을 쓴다(§4.18. 옛 Tauri 구현(커밋 424f338a)의 의존이다. Electron 셸의 의존은 §11.6이다). 서명 공개키와 배포 주소는 사용자 몫이고 옛 구현은 `tauri.conf.json`에 빈 자리만 있었다(Electron 셸은 `Resources/update-feed.json`, §11.10). 값이 비면 업데이트는 "설정되지 않음"으로 꺼진다.
+13. [미결] 장수명 엔진에서 stdio 유지와 로컬 소켓 전환(adr.0008 §6, arch-2 §5 6행). 이 문서는 stdio를 전제로 쓴다. S3 spike(`L4.desktop.plan` §3.1.1) 판정 [제안]: stdio를 유지하되 릴레이에 신용 기반 역압(Channel 무제어 송신은 지속 대용량에서 정지했다), 락 밖 비동기 stdin 쓰기, 세대별 줄 버퍼를 둔다. 세 조건은 M2 DESK.2에서 옛 Tauri 구현(커밋 424f338a)의 `relay.rs`에 구현됐고(`L4.desktop.plan` §3.2.1), Electron 셸에서는 `engine/relay.ts`가 같은 조건을 맡는다(§11.5). 옛 구현에서 Linux/WSL2의 32 MB 연속 송신이 손실·중복 없이 지났다. macOS·Windows 재측정 뒤 확정한다.
+14. [가정] (옛 Tauri 구현(커밋 424f338a)의 Tauri `Channel`의 원시 바이트 전송과 Rust API 사이드카의 capabilities 비적용은 WSL2 WebKitGTK에서 S1·S3으로 확인했다. macOS, Windows는 미확인이다.) Electron 셸의 보조 프로세스 구성과 웹 API 제약 V1~V8은 실행으로 확인하지 않았다. M2 spike와 첫 주 확인 목록에서 확인한다.
+15. (닫힘, M2 첫 실행 M-12) 사이드카 연결에서 모델 키 값을 받는 수단은 셸이 번들된 `fresnel secret add|set <이름>`을 한 번 실행하고 값을 그 stdin에 한 번 쓰는 길이다(옛 Tauri 구현(커밋 424f338a)은 Rust 셸이 했고, Electron 셸도 같은 길이다. §4.14.1). 값 없는 `secret.beginEntry`는 호스트가 받을 수 있는 연결(서비스, M3)에서만 쓰이고 사이드카는 이 경로로 화면 안의 등록 창을 연다. 받아들인 약점(값이 DOM, JS 문자열, IPC 본문을 지남)은 §4.14.1에 적었다. 남은 [미결]: (a) 실행 중인 사이드카 엔진이 별도 프로세스가 쓴 등록을 `secret.list`에서 곧바로 보는지는 실제 기기에서 확인하지 않았다(화면은 등록 뒤 `secret.list`를 다시 읽는다). (b) 등록이 `not_registered`로 실패하는 호스트 쪽 원인(`l0.secrets.sops.files` 기본값 `[]`, `L0.secrets.spec` §10 4번, HS-45 `newMeta`)은 이 앱이 아니라 호스트가 고쳐야 한다. 이 경로는 자식의 오류 문구를 그대로 보인다.
 16. (닫힘, M2 마감 G2-07) 외부 바이너리 점검 결과를 전하는 길은 `host.status`의 `includeBinaries` 요청과 결과의 `binaries`다(F 변경, `L4.host-service.spec` HS-69). 앱이 보고서를 주입하던 방식은 없앴다(§4.14).
-17. (닫힘) [결정: 2026-11-04 사용자] 새 대화의 작업 폴더를 운영체제 폴더 선택 창으로 고른다(§4.16). V1(§4.11)의 "셸 명령으로 감싸 쓴다"를 따른다. `src-tauri/Cargo.toml`에 `tauri-plugin-dialog = "=2.8.4"`를 더했다(tauri 2.12.3과 맞는 최신 2.x). 셸 명령 `pick_folder`(§3.3)가 Rust에서 부른다. WebView에는 dialog 권한을 주지 않는다. `capabilities/default.json`에는 `allow-pick-folder` 하나만 더했다. `Cargo.lock`은 패키지 세 개가 늘었다: `rfd` 0.17.2, `tauri-plugin-dialog` 2.8.4, `tauri-plugin-fs` 2.7.1(파일 1.3 KB 증가). 맥에서 창이 뜨고 고른 경로가 입력란에 들어가는 동작은 이 변경으로 확인하지 않았다. 맥 확인이 남아 있다.
+17. (닫힘) [결정: 2026-11-04 사용자] 새 대화의 작업 폴더를 운영체제 폴더 선택 창으로 고른다(§4.16). V1(§4.11)의 "셸 명령으로 감싸 쓴다"를 따른다. 옛 Tauri 구현(커밋 424f338a)은 `src-tauri/Cargo.toml`에 `tauri-plugin-dialog = "=2.8.4"`를 더했고(tauri 2.12.3과 맞는 최신 2.x), 셸 명령 `pick_folder`(§3.3)를 Rust에서 불렀다. WebView에는 dialog 권한을 주지 않았다. 옛 `capabilities/default.json`에는 `allow-pick-folder` 하나만 더했다. 옛 구현의 `Cargo.lock`은 패키지 세 개가 늘었다: `rfd` 0.17.2, `tauri-plugin-dialog` 2.8.4, `tauri-plugin-fs` 2.7.1(파일 1.3 KB 증가). 맥에서 창이 뜨고 고른 경로가 입력란에 들어가는 동작은 이 변경으로 확인하지 않았다. 맥 확인이 남아 있다.
 18. [결정: adr.0016] 화면 문자열은 `packages/client`의 ko·en 카탈로그 id(ICU MessageFormat 부분집합)로 만들고 `Intl` 기반 포트(`packages/client/src/i18n/format.ts`)로 풉니다. ADR-0016 §3.1의 react-intl은 승인 전이라 쓰지 않습니다 [결정: 오케스트레이터 기본값]. 로케일은 `l4.ui.locale`(기본 auto: OS 로케일, 없으면 영어)을 따르고, 날짜·숫자는 `Intl`로 표시합니다. 엔진 오류는 `kind`와 인자로 받아 화면이 문장을 만듭니다. 비-`.tsx` 문장은 카탈로그 id입니다(M3b B4-I18N). 설정 정의(`settings-store/defs.ts`)의 `labelKey`·`helpKey`는 `settings.l4.desktop.<키>.label|help`이고, `views/*-model.ts`와 `views/setup-needed.ts`는 `desktop.*` id이며, 턴 실패 기본 문장(`state/engine/failure-text.ts`)은 `desktop.engine.turnFailureUnknown`입니다. `fresnel/hardcoded-korean` 규칙이 L4 `src`의 한국어 리터럴을 막습니다. [미결] `.tsx` 뷰(`views/*.tsx`, `main.tsx`)의 한국어 리터럴은 M4 화면 재작성에서 옮깁니다. 로케일은 `app/locale.ts`가 정합니다. 연결 전에는 설정을 읽을 수 없으므로 첫 렌더 전에 WebView 언어 단서(`navigator.languages`의 첫 항목)로 `setActiveLocale`을 부르고(지원하지 않는 언어와 단서 없음은 `en`), 엔진에 연결되면 `settings.get`으로 `l4.ui.locale`을 읽어 바로잡습니다. `settings.invalidated`가 이 키(또는 빈 키 목록)를 알리면 다시 읽고, 로케일이 바뀌면 `main.tsx`가 `key`가 로케일인 트리를 다시 그립니다. 턴 실패 기본 문장은 reduce 시점의 로케일로 풀려 거울(`turnFailures`)에 저장되므로, 나중에 로케일을 바꿔도 저장된 문장은 다시 풀리지 않습니다.
 19. [미결] `os_reauth`(§4.17)의 실제 인증 창과 취소 종류는 Mac에서 확인하지 않았다(`review.macos-checklist` M-05). 값 보기 화면은 이 명령을 쓰도록 이어졌다(`RevealGate`, §4.17) [근거: review.macos-checklist M-05].
 
 ## 11. 셸 구현을 Electron으로 바꾼다 (ADR 성격)
 
-[결정: 2026-11-06 사용자] 데스크톱 셸 구현을 Tauri(Rust)에서 Electron(TypeScript)으로 바꾼다. 근거는 시험 빌드의 측정이다(squircle `corner-shape` 지원, 크래프트 휠 스크롤 끊김 해소. 대가는 크기 약 3배, 메모리 약 +145 MiB). 같은 UI가 두 셸에서 돌고, Electron이 같은 기능을 모두 갖춘 뒤에 Tauri와 Rust 셸을 지운다. 이 절의 Tauri 관련 문장은 그때 정리한다.
+[결정: 2026-11-06 사용자] 데스크톱 셸 구현을 Tauri(Rust)에서 Electron(TypeScript)으로 바꾼다. 근거는 시험 빌드의 측정이다(squircle `corner-shape` 지원, 크래프트 휠 스크롤 끊김 해소. 대가는 크기 약 3배, 메모리 약 +145 MiB). 같은 UI가 두 셸에서 돌다가, Electron이 같은 기능을 모두 갖춘 뒤 옛 Tauri와 Rust 셸을 저장소에서 지웠다(§11.11). 이 절의 Tauri 관련 문장은 옛 구현 기록으로 고쳤다.
 
 ### 11.1 구조
 
 - 위치는 새 워크스페이스 `xeon/apps/desktop-shell/`(`@fresnel/desktop-shell`)다. 이유: 메인 프로세스와 preload는 Node/Electron 타입, UI는 DOM 타입을 쓰므로 tsconfig가 갈린다. 번들(`out/main.mjs`, `out/preload.cjs`)과 패키징, knip·층 검사 항목이 UI와 섞이지 않는다. UI(`apps/desktop`)는 이 패키지를 import하지 않고 preload가 내놓는 좁은 API로만 만난다.
 - 패키징 도구는 `@electron/packager`다. 설정 없이 `.app`만 만들고 서명·공증·업데이트 피드는 뒤 단계가 따로 붙일 수 있어 `electron-builder`보다 얇다.
 - 메인 프로세스 `src/main.ts`는 창, `app://` 스킴(UI 번들), IPC 입구, `ShellContext`를 만들고 `src/main/modules.ts`의 모듈 목록을 엮을 뿐이다. 기능은 `src/main/<기능>.ts`가 `register(ctx: ShellContext)`를 내보내 붙는다. ctx는 `env`, `platform`, `paths`, `dialogs`, `openExternal`, `handle(command, handler)`, `channel(caller, value)`, `emit(name)`, `onQuit(cleanup)`이다. 모듈은 `electron`을 타입으로만 import해 `bun test`가 가짜 ctx로 돌린다.
-- renderer에는 `window.fresnelShell`(`invoke`, `openChannel`, `closeChannel`, `listen`) 하나만 내놓는다. 명령은 모듈이 `ctx.handle`로 등록하면 `invoke`로 닿는다. 등록되지 않은 명령은 `unknown-command`로 거부한다. `ShellError`의 값은 Tauri 명령의 `Err(...)`와 같은 자리로 거절 값이 되고 다른 오류는 `internal`로 바뀌어 내용이 밖으로 나가지 않는다.
-- UI는 `apps/desktop/src/shell/`의 어댑터가 실행 때 Electron(`window.fresnelShell`)인지 Tauri(`__TAURI_INTERNALS__`)인지 고른다. 웹 빌드는 둘 다 없다. `@tauri-apps/*`를 import하는 파일은 `src/shell/tauri-bridge.ts`뿐이다.
+- renderer에는 `window.fresnelShell`(`invoke`, `openChannel`, `closeChannel`, `listen`) 하나만 내놓는다. 명령은 모듈이 `ctx.handle`로 등록하면 `invoke`로 닿는다. 등록되지 않은 명령은 `unknown-command`로 거부한다. `ShellError`의 값은 옛 Tauri 명령(커밋 424f338a)의 `Err(...)`와 같은 자리로 거절 값이 되고 다른 오류는 `internal`로 바뀌어 내용이 밖으로 나가지 않는다.
+- UI는 `apps/desktop/src/shell/`의 `selectShellBridge`가 실행 때 고른다. `window.fresnelShell`(preload)이 있으면 Electron 다리(`electron-bridge.ts`)를, 없으면(웹 빌드) 명령이 `shell-unavailable`로 거부되는 다리를 쓴다. 옛 Tauri 다리(`tauri-bridge.ts`, `__TAURI_INTERNALS__`)와 `@tauri-apps/*` 의존은 저장소에서 지웠다(옛 구현은 커밋 424f338a에 있다, §11.11).
 
 ### 11.2 보안
 
-`contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`. 모든 IPC는 발신 프레임이 최상위 프레임이고 `app://localhost`일 때만 핸들러에 닿는다(`fresnel-view://` 프레임은 닿지 못한다). 창 안 이동과 새 창은 막고, 밖으로 여는 일은 `open_external`(스킴 허용 목록)뿐이다. CSP는 Tauri 설정과 같은 수준이다. Tauri capability와의 대응표는 `L4.desktop.design` §15에 있다. 새 IPC 보안 모델의 최종 검토는 사용자 몫이다.
+`contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`. 모든 IPC는 발신 프레임이 최상위 프레임이고 `app://localhost`일 때만 핸들러에 닿는다(`fresnel-view://` 프레임은 닿지 못한다). 창 안 이동과 새 창은 막고, 밖으로 여는 일은 `open_external`(스킴 허용 목록)뿐이다. CSP는 옛 Tauri 설정(커밋 424f338a)과 같은 수준이다. 옛 Tauri capability와의 대응표는 `L4.desktop.design` §15에 있다. 새 IPC 보안 모델의 최종 검토는 사용자 몫이다.
 
 ### 11.3 실행
 
-`just desktop-run-electron`(Tauri `just desktop-run`은 그대로). 단일 인스턴스 잠금은 이 앱의 userData 기준이라 Tauri 셸과 서로 막지 않는다(§11.6).
+`just desktop-run`이 Electron 셸을 띄운다(옛 `desktop-run-electron`은 없어졌고, 옛 Tauri 개발 실행은 커밋 424f338a의 `just desktop-run`이었다). 단일 인스턴스 잠금은 Electron 앱의 userData 기준이다(§11.6).
 
 ### 11.4 이 단계의 범위
 
-이 단계는 엔진 릴레이, 엔진 수명, 복원, 설정, 키 등록, 앱 루트와 `fresnel-view://`, 외부 열기, 폴더·파일 선택, 파일 저장, 창 위치, 앱 로그, PATH 보정, inspect 소켓을 옮긴다. 트레이, OS 알림, 업데이트, 재인증, 단일 인스턴스와 셸 의도는 2단계(§11.6)에서 옮겼고, 묶은 앱, 서명·공증 자리, 릴리스 절차, 고지, 업데이트 피드 자리는 3단계(§11.7~§11.10)다. Tauri·Rust 삭제는 마지막이다.
+1단계는 엔진 릴레이, 엔진 수명, 복원, 설정, 키 등록, 앱 루트와 `fresnel-view://`, 외부 열기, 폴더·파일 선택, 파일 저장, 창 위치, 앱 로그, PATH 보정, inspect 소켓을 옮겼다. 트레이, OS 알림, 업데이트, 재인증, 단일 인스턴스와 셸 의도는 2단계(§11.6)에서 옮겼고, 묶은 앱, 서명·공증 자리, 릴리스 절차, 고지, 업데이트 피드 자리는 3단계(§11.7~§11.10)에서 만들었다. Tauri·Rust 삭제는 마지막 단계였고 2026-11-06에 끝냈다(§11.11).
 
 ### 11.5 명령별 Electron 대응
 
-| Tauri 명령 | Electron 구현(`apps/desktop-shell/src/main/`) | 비고 |
+| 명령 | Electron 구현(`apps/desktop-shell/src/main/`) | 비고(옛 Tauri 구현, 커밋 424f338a와 비교) |
 |---|---|---|
-| `desktop_settings_read`, `desktop_settings_write` | `desktop-settings.ts` | 같은 파일 `<configDir>/desktop-settings.json`(Tauri `app_config_dir`)을 읽고 쓴다. 키 검사, 64 KiB 상한, 거부 코드는 같다. JSON 파서가 `2.0`을 정수와 구별하지 못해 `2.0`, `5e3`을 정수로 받는다(UI는 쓰지 않는다). 진단 문구에 오류 위치(줄, 열)가 없다 |
+| `desktop_settings_read`, `desktop_settings_write` | `desktop-settings.ts` | 같은 파일 `<configDir>/desktop-settings.json`(옛 Tauri 구현의 `app_config_dir`)을 읽고 쓴다. 키 검사, 64 KiB 상한, 거부 코드는 옛 구현과 같다. JSON 파서가 `2.0`을 정수와 구별하지 못해 `2.0`, `5e3`을 정수로 받는다(UI는 쓰지 않는다). 진단 문구에 오류 위치(줄, 열)가 없다 |
 | `secret_register` | `secret-entry.ts` | 번들된 사이드카 `fresnel secret <동작> <이름>`을 `@fresnel/platform-process/piped`의 `spawnPiped`로 한 번 실행하고 값은 stdin에만 쓴다. 30초 제한, 한 번에 하나, 요청 본문은 쓴 뒤 0으로 덮는다. 앱 로그에는 `secret entry <동작> <이름>: <결과>`만 남는다 |
-| `app_roots_set`, `fresnel-view://` | `view-scheme.ts` | `protocol.handle`과 `registerSchemesAsPrivileged`(standard, secure, supportFetchAPI, corsEnabled). 허용 루트, 경로 규칙, 확장자 표, 16 MiB 상한, 프레임 CSP는 Rust와 같다. WHATWG URL이 `.`, `..` 마디를 먼저 접어 프레임의 `..`은 403이 아니라 400이다 |
-| `open_external` | `open-external.ts` | 스킴 허용 목록은 Rust와 같다(http, https) |
-| `pick_folder`, `pick_file`, `save_file` | `dialogs.ts` | `dialog.showOpenDialog`, `showSaveDialog`. 파일 이름 정리와 200자 상한은 Rust와 같다 |
-| (Tauri에 없음) 창 위치·크기 기억 | `window-state.ts` | `window.rs`는 창 다시 열기만 하고 위치를 기억하지 않는다. Electron 쪽에 새로 넣었고 파일은 `window-state-electron.json`이다 |
+| `app_roots_set`, `fresnel-view://` | `view-scheme.ts` | `protocol.handle`과 `registerSchemesAsPrivileged`(standard, secure, supportFetchAPI, corsEnabled). 허용 루트, 경로 규칙, 확장자 표, 16 MiB 상한, 프레임 CSP는 옛 구현과 같다. WHATWG URL이 `.`, `..` 마디를 먼저 접어 프레임의 `..`은 403이 아니라 400이다 |
+| `open_external` | `open-external.ts` | 스킴 허용 목록은 옛 구현과 같다(http, https) |
+| `pick_folder`, `pick_file`, `save_file` | `dialogs.ts` | `dialog.showOpenDialog`, `showSaveDialog`. 파일 이름 정리와 200자 상한은 옛 구현과 같다 |
+| (옛 Tauri 구현에 없음) 창 위치·크기 기억 | `window-state.ts` | 옛 구현의 `window.rs`는 창 다시 열기만 하고 위치를 기억하지 않았다. Electron 쪽에 새로 넣었고 파일은 `window-state-electron.json`이다 |
 | 앱 로그 | `lib/applog.ts` | `<logs>/fresnel-desktop.log`(macOS `~/Library/Logs/dev.fresnel.desktop/`), 줄 단위, 제어 문자는 공백 |
-| PATH 보정 | `env-path.ts`, `lib/env-path.ts` | 엔진과 `fresnel secret` 자식의 환경에만 적용한다(Rust `engine_env`와 같다) |
-| `engine_attach`, `engine_write`, `engine_ack`, `engine_detach` | `engine.ts`, `engine/relay.ts` | 신용 기반 ack(창 4 MiB, 확인 단위 256 KiB), 세대별 줄 버퍼, 쓰기 대기열 16개는 Rust와 같다. 채널은 preload가 `{$channel: id}`로 넘기고 바이트 명령은 `{body, headers}`로 온다. 거부 코드는 같은 kebab-case 문자열이다 |
-| `engine_restart`, `engine_retarget`, `db_restore` | `engine.ts`, `engine/supervisor.ts`, `engine/policy.ts`, `engine/launcher.ts` | 세대 관리, 크래시 재시작(10분 창, 지수 백오프), 안전 모드, service 대상, 정상 종료 순서(EOF, 유예, 그룹 종료)는 Rust와 같다. 프로세스 기동은 `@fresnel/platform-process/piped`다(DR-07). 차이: 기동이 비동기라 기동 중 종료 요청이 오면 새 엔진을 낡은 것으로 보고 멈춘다. 엔진 프로세스가 끝나면 남은 손자 프로세스도 같이 끝난다. `FRESNEL_REMOTE_TOKEN`은 Rust처럼 환경 전체 상속으로 간다 |
+| PATH 보정 | `env-path.ts`, `lib/env-path.ts` | 엔진과 `fresnel secret` 자식의 환경에만 적용한다(옛 구현의 Rust `engine_env`와 같다) |
+| `engine_attach`, `engine_write`, `engine_ack`, `engine_detach` | `engine.ts`, `engine/relay.ts` | 신용 기반 ack(창 4 MiB, 확인 단위 256 KiB), 세대별 줄 버퍼, 쓰기 대기열 16개는 옛 구현과 같다. 채널은 preload가 `{$channel: id}`로 넘기고 바이트 명령은 `{body, headers}`로 온다. 거부 코드는 같은 kebab-case 문자열이다 |
+| `engine_restart`, `engine_retarget`, `db_restore` | `engine.ts`, `engine/supervisor.ts`, `engine/policy.ts`, `engine/launcher.ts` | 세대 관리, 크래시 재시작(10분 창, 지수 백오프), 안전 모드, service 대상, 정상 종료 순서(EOF, 유예, 그룹 종료)는 옛 구현과 같다. 프로세스 기동은 `@fresnel/platform-process/piped`다(DR-07). 차이: 기동이 비동기라 기동 중 종료 요청이 오면 새 엔진을 낡은 것으로 보고 멈춘다. 엔진 프로세스가 끝나면 남은 손자 프로세스도 같이 끝난다. `FRESNEL_REMOTE_TOKEN`은 옛 구현처럼 환경 전체 상속으로 간다 |
 | (디버그) inspect 소켓 | `inspect.ts` | `<로그 폴더>/inspect.sock`, 줄 단위 JSON-RPC 2.0, `state.dump`, `viewport.snapshot`(`webContents.capturePage`, PNG는 파일로 쓰고 경로만 응답). Electron은 릴리스에도 코드가 들어가므로 환경 변수 `FRESNEL_DESKTOP_INSPECT=1`일 때만 켜진다. 묶은 앱(`app.isPackaged`)은 `ctx.env`에서 개발용 변수(`FRESNEL_DESKTOP_INSPECT`, `FRESNEL_DESKTOP_INSPECT_SOCKET`, `FRESNEL_DESKTOP_ENGINE_BIN`, `FRESNEL_DESKTOP_ENGINE_ARGS`, `FRESNEL_UI_DIR`)를 지워서(`lib/packaged-env.ts`) 사용자 셸 환경에 남은 값으로는 소켓이 열리지 않고 엔진과 화면 번들도 Resources 것만 쓴다. 시험 `packaged-env.test.ts`가 막고, 묶기 스모크가 실제 묶은 앱에 변수를 켜고 띄워 소켓 파일이 없음을 확인한다(§11.7) |
 | SIGTERM, SIGINT | `main.ts` | 첫 신호는 정상 종료(onQuit), 종료 중 두 번째 신호는 즉시 종료 |
 
 ### 11.6 OS 기능의 Electron 대응 (§4.17, §4.18)
 
-명령 이름과 인자·응답 모양은 Tauri와 같다(UI가 두 셸에서 같은 코드로 돈다). 모듈은 `src/main/<기능>.ts`(electron을 import하지 않는 로직, `bun test`로 시험)와 `<기능>-shell.ts`(Electron 어댑터)로 나뉜다. 어댑터는 시험하지 않고 셸을 띄워 확인한다.
+명령 이름과 인자·응답 모양은 옛 Tauri 구현(커밋 424f338a)과 같다(UI가 두 셸에서 같은 코드로 돌았다). 모듈은 `src/main/<기능>.ts`(electron을 import하지 않는 로직, `bun test`로 시험)와 `<기능>-shell.ts`(Electron 어댑터)로 나뉜다. 어댑터는 시험하지 않고 셸을 띄워 확인한다.
 
-**트레이** (`tray.ts`, `tray-shell.ts`): Electron `Tray`와 메뉴(열기, 새 대화, 진행 중 n[비활성], 끝내기). macOS는 템플릿 이미지(`assets/tray.png`, 높이 18pt). 글은 `tray_update`가 보낸 것이고 80자(코드 포인트) 상한이다. 트레이를 만들지 못하면 `{kind:"unavailable"}`이고 닫기 동작 `tray`는 `quit`처럼 움직인다(`close-behavior.ts`, Tauri `effective_close_behavior`와 같은 표). 닫기 동작의 설정값은 설정 모듈이 `setConfiguredCloseBehavior`로 넣는다(기본 `tray`).
+**트레이** (`tray.ts`, `tray-shell.ts`): Electron `Tray`와 메뉴(열기, 새 대화, 진행 중 n[비활성], 끝내기). macOS는 템플릿 이미지(`assets/tray.png`, 높이 18pt). 글은 `tray_update`가 보낸 것이고 80자(코드 포인트) 상한이다. 트레이를 만들지 못하면 `{kind:"unavailable"}`이고 닫기 동작 `tray`는 `quit`처럼 움직인다(`close-behavior.ts`, 옛 Tauri 구현(커밋 424f338a)의 `effective_close_behavior`와 같은 표). 닫기 동작의 설정값은 설정 모듈이 `setConfiguredCloseBehavior`로 넣는다(기본 `tray`).
 
-**셸 의도와 단일 인스턴스** (`intents.ts`, `shell-intents.ts`, `single-instance.ts`): 큐는 Tauri와 같다(최대 8개, 30초, 끝이 같은 `openThread`는 시각만 갱신). `shell_take_intents`와 `shell-intent` 이벤트도 같다. 잠금은 Electron `requestSingleInstanceLock()`이고 `app.ready` 전에(모듈의 `beforeReady`) 잡아, 두 번째 실행은 창을 만들기 전에 끝난다. 이 앱의 userData 기준이라 Tauri 셸(다른 데이터 폴더와 플러그인 잠금)과 서로 막지 않는다. `second-instance`와 `open-url`은 창을 앞으로 가져오기만 한다(URL 스킴은 아직 없다).
+**셸 의도와 단일 인스턴스** (`intents.ts`, `shell-intents.ts`, `single-instance.ts`): 큐는 옛 Tauri 구현(커밋 424f338a)과 같다(최대 8개, 30초, 끝이 같은 `openThread`는 시각만 갱신). `shell_take_intents`와 `shell-intent` 이벤트도 같다. 잠금은 Electron `requestSingleInstanceLock()`이고 `app.ready` 전에(모듈의 `beforeReady`) 잡아, 두 번째 실행은 창을 만들기 전에 끝난다. 이 앱의 userData 기준이다. 옛 Tauri 셸은 다른 데이터 폴더와 플러그인 잠금을 써서 두 셸이 서로 막지 않았다. `second-instance`와 `open-url`은 창을 앞으로 가져오기만 한다(URL 스킴은 아직 없다).
 
-**OS 알림** (`notify-os.ts`, `notify-os-shell.ts`): Electron `Notification`. 제목 80자, 본문 400자, 제어 문자 제거는 Tauri와 같고 문구는 UI가 카탈로그 문자열과 대화 제목으로 만든다(`notice.body`는 쓰지 않는다). 알림 클릭은 `click` 이벤트로 바로 `openThread` 의도를 큐에 넣고 창을 앞으로 가져온다. Tauri의 30초 기억(`notify_take_target`)은 필요 없어 이 명령은 항상 `null`을 준다(UI 호환용으로 남긴다). Electron에는 알림 권한 조회가 없어 `notify_permission`은 `Notification.isSupported()`로 `granted`/`denied`를 답한다. `notify_os`가 `shown`으로 답한 뒤 OS가 실패를 알리면(Electron `failed` 이벤트) 셸이 앱 로그에 고정 한 줄을 남기고 이벤트 `notify-failed`를 UI에 보낸다. UI 알림 전달기(`views/os-notify.ts`)가 이 이벤트를 듣고 마지막 전달 실패로 기록해 설정의 "전달 실패" 경고가 켜진다(B-10). Tauri 셸은 이 이벤트를 보내지 않는다.
+**OS 알림** (`notify-os.ts`, `notify-os-shell.ts`): Electron `Notification`. 제목 80자, 본문 400자, 제어 문자 제거는 옛 구현과 같고 문구는 UI가 카탈로그 문자열과 대화 제목으로 만든다(`notice.body`는 쓰지 않는다). 알림 클릭은 `click` 이벤트로 바로 `openThread` 의도를 큐에 넣고 창을 앞으로 가져온다. 옛 Tauri 구현(커밋 424f338a)의 30초 기억(`notify_take_target`)은 필요 없어 이 명령은 항상 `null`을 준다(UI 호환용으로 남긴다). Electron에는 알림 권한 조회가 없어 `notify_permission`은 `Notification.isSupported()`로 `granted`/`denied`를 답한다. `notify_os`가 `shown`으로 답한 뒤 OS가 실패를 알리면(Electron `failed` 이벤트) 셸이 앱 로그에 고정 한 줄을 남기고 이벤트 `notify-failed`를 UI에 보낸다. UI 알림 전달기(`views/os-notify.ts`)가 이 이벤트를 듣고 마지막 전달 실패로 기록해 설정의 "전달 실패" 경고가 켜진다(B-10). 옛 Tauri 셸은 이 이벤트를 보내지 않았다.
 
-**업데이트** (`updater.ts`, `updater-shell.ts`): `electron-updater`(승인된 새 의존성). 피드는 `Resources/update-feed.json`(`{provider:"generic", url}`)이고 이 파일이 없거나 비면 `notConfigured`라 앱은 정상이며 `electron-updater`는 적재되지 않는다. 상태 모델과 이유 코드는 Tauri와 같다. 서버가 404가 아닌 오류 상태(`HttpError.statusCode`)로 답하면 `network`, 404와 `latest.yml` 없음은 `no_release`다. 설치가 성공하면 앱이 끝나므로 `update_install_restart`는 Tauri처럼 답하지 않는다(UI는 `installing`에 머문다). 피드 값과 서명 인증서는 사용자 몫이라 자리만 있다(파일을 두지 않는다).
+**업데이트** (`updater.ts`, `updater-shell.ts`): `electron-updater`(승인된 새 의존성). 피드는 `Resources/update-feed.json`(`{provider:"generic", url}`)이고 이 파일이 없거나 비면 `notConfigured`라 앱은 정상이며 `electron-updater`는 적재되지 않는다. 상태 모델과 이유 코드는 옛 구현과 같다. 서버가 404가 아닌 오류 상태(`HttpError.statusCode`)로 답하면 `network`, 404와 `latest.yml` 없음은 `no_release`다. 설치가 성공하면 앱이 끝나므로 `update_install_restart`는 옛 Tauri 구현(커밋 424f338a)처럼 답하지 않는다(UI는 `installing`에 머문다). 피드 값과 서명 인증서는 사용자 몫이라 자리만 있다(파일을 두지 않는다).
 
 모듈이 앱 로그를 남길 때는 모두 `lib/applog.ts`의 `appLogOf(ctx)` 하나를 쓴다.
 
-**재인증** (`os-reauth.ts, `os-reauth-shell.ts`): `systemPreferences.promptTouchID()`. [미결] 동작 차이: Tauri는 `DeviceOwnerAuthentication`이라 Touch ID가 없는 Mac에서 기기 암호 창으로 갔지만 Electron API는 Touch ID만 지원한다. Touch ID가 없는 기기는 `unavailable`이다. 기기 암호까지 쓰려면 네이티브 애드온이 필요해 사용자가 정할 일이다. 오류 문구 분류는 Mac 실기 확인 전이다(`review.macos-checklist` M-05). macOS가 아닌 OS는 `unavailable`이다.
+**재인증** (`os-reauth.ts`, `os-reauth-shell.ts`): `systemPreferences.promptTouchID()`. [미결] 동작 차이: 옛 Tauri 구현(커밋 424f338a)은 `DeviceOwnerAuthentication`이라 Touch ID가 없는 Mac에서 기기 암호 창으로 갔지만 Electron API는 Touch ID만 지원한다. Touch ID가 없는 기기는 `unavailable`이다. 기기 암호까지 쓰려면 네이티브 애드온이 필요해 사용자가 정할 일이다. 오류 문구 분류는 Mac 실기 확인 전이다(`review.macos-checklist` M-05). macOS가 아닌 OS는 `unavailable`이다.
 
 ### 11.7 묶은 앱 (3단계)
 
 `just desktop-build-electron`(`apps/desktop-shell/scripts/package.ts`, `scripts/package-lib.ts`)이 `@electron/packager`로 `Fresnel.app`(macOS arm64)을 `apps/desktop-shell/dist-app/Fresnel-darwin-arm64/`에 만든다. 화면 번들(`just desktop-ui`)과 사이드카(`just desktop-sidecar host`)가 없으면 종료코드 2다. Windows와 Linux 묶기는 이 단계에서 하지 않는다(적어만 둔다: packager는 `platform`과 `arch`만 바꾸면 되지만 사이드카 triple, 트레이 아이콘, 서명 도구가 따로 필요하다).
 
-- 앱 버전은 `FRESNEL_RELEASE_VERSION`(없으면 셸 `package.json`의 `0.0.0`), 번들 식별자는 `dev.fresnel.desktop`(Tauri와 같다. Tauri 셸은 마지막 단계에서 지우므로 둘이 한 기기에 동시에 설치되는 일은 정해 두지 않는다).
+- 앱 버전은 `FRESNEL_RELEASE_VERSION`(없으면 셸 `package.json`의 `0.0.0`), 번들 식별자는 `dev.fresnel.desktop`(옛 Tauri 구현과 같았다. 옛 Tauri 셸은 2026-11-06에 저장소에서 지웠고, 두 셸이 한 기기에 같이 설치되는 일은 정해 두지 않았다).
 - Resources: `app.asar`(셸 번들 `dist/bundle/main.mjs`, `preload.cjs`와 `package.json`뿐이다. `src`, `test`, `scripts`, `resources`, `build`, `node_modules`는 뺀다), `ui/`(화면 번들), `fresnel-aarch64-apple-darwin`(엔진 사이드카), `assets/tray.png`, `licenses/`(§11.9), 그리고 `build/update-feed.json`이 있으면 `update-feed.json`(§11.10).
 - 크기 줄이기: asar는 켰다. Chromium 로캘 폴더(`*.lproj`)는 `en`과 `ko`만 남기고 지운다(UI 카탈로그가 ko·en이고 나머지 로캘은 en으로 돌아간다. 앱 Resources와 Electron Framework Resources에서 271개). 줄어드는 양은 작다: 측정값은 357 MiB에서 353.9 MiB다. 크기의 대부분은 Electron 프레임워크(약 250 MiB)와 엔진 사이드카(약 98 MiB)다. 앱 전체 크기 상한 500 MiB(`desktop-benchmark.ts`의 `SIZE_CAP_BYTES`)는 지킨다. 압축한 zip은 161 MiB다.
 - 개발용 환경 변수는 묶은 앱에서 켜지지 않는다(§11.5의 inspect 줄과 `lib/packaged-env.ts`). 시험은 `packaged-env.test.ts`(변수 목록, 묶은 앱의 환경에서 inspect 모듈이 아무것도 등록하지 않음)와 실행 스모크의 "inspect 소켓이 꺼져 있음" 검사다.
@@ -845,16 +845,23 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 
 ### 11.8 서명과 공증 자리 (3단계)
 
-`just desktop-sign-electron`(`scripts/electron-sign.sh`)이 Electron 앱의 서명 단계와 공증 단계다. 절차와 종료코드는 `L4.release.spec` §4.2에 있다. 코드 단위가 여럿이라(주 실행 파일, 헬퍼 앱 4개(Helper, GPU, Renderer, Plugin), Electron Framework와 그 dylib·crashpad 핸들러, Mantle, ReactiveObjC, Squirrel, 엔진 사이드카) 안쪽부터 하나씩 하드닝 런타임과 `apps/desktop-shell/build/entitlements.mac.plist`로 서명한다. entitlements는 `com.apple.security.cs.allow-jit`과 `allow-unsigned-executable-memory` 둘이다(V8과, 엔진 사이드카에 든 JavaScriptCore가 실행 중에 코드를 만든다). 라이브러리 검증 예외, 네트워크·파일 entitlements, 샌드박스는 쓰지 않는다. Apple 서명 시크릿 여섯 개가 없으면 Tauri `release-smoke`처럼 서명 없이 지나가며 `UNSIGNED`를 출력한다. 시크릿 값은 만들지도 출력하지도 않는다(사용자 몫). 실제 서명과 공증은 시크릿 등록 뒤에 Mac에서 해 봐야 하며 이 변경으로 실행하지 않았다.
+`just desktop-sign-electron`(`scripts/electron-sign.sh`)이 Electron 앱의 서명 단계와 공증 단계다. 절차와 종료코드는 `L4.release.spec` §4.2에 있다. 코드 단위가 여럿이라(주 실행 파일, 헬퍼 앱 4개(Helper, GPU, Renderer, Plugin), Electron Framework와 그 dylib·crashpad 핸들러, Mantle, ReactiveObjC, Squirrel, 엔진 사이드카) 안쪽부터 하나씩 하드닝 런타임과 `apps/desktop-shell/build/entitlements.mac.plist`로 서명한다. entitlements는 `com.apple.security.cs.allow-jit`과 `allow-unsigned-executable-memory` 둘이다(V8과, 엔진 사이드카에 든 JavaScriptCore가 실행 중에 코드를 만든다). 라이브러리 검증 예외, 네트워크·파일 entitlements, 샌드박스는 쓰지 않는다. Apple 서명 시크릿 여섯 개가 없으면 옛 Tauri 구현(커밋 424f338a)의 `release-smoke`처럼 서명 없이 지나가며 `UNSIGNED`를 출력한다. 시크릿 값은 만들지도 출력하지도 않는다(사용자 몫). 실제 서명과 공증은 시크릿 등록 뒤에 Mac에서 해 봐야 하며 이 변경으로 실행하지 않았다.
 
 ### 11.9 오픈소스 고지 (3단계)
 
 묶은 앱의 `Resources/licenses/`에 다음이 들어간다: `LICENSE.electron`(Electron `LICENSE`), `LICENSES.chromium.html`(Chromium과 그 의존의 라이선스, Electron 배포물에 든 것), `THIRD-PARTY-NOTICES-SHELL.txt`(셸 번들에 든 npm 의존, electron-updater 포함), `THIRD-PARTY-NOTICES.txt`(엔진 사이드카: Bun 런타임과 `apps/host`·`apps/cli`의 npm 의존, 아카이브의 고지와 같은 생성기). 앱 안에 오픈소스 고지 화면은 아직 없고(화면 디자인은 이 단계 밖), 이 파일 목록이 고지다. 화면을 만들 때는 이 폴더를 읽는다. [근거: `xeon/apps/desktop-shell/scripts/package.ts`]
 
-셸 npm 고지는 Rust 고지와 같은 방식이다: `just desktop-notices-electron`(`scripts/shell-notices.ts`)이 `apps/desktop-shell/resources/THIRD-PARTY-NOTICES-SHELL.txt`를 다시 쓰고, `--check`는 커밋된 파일이 의존과 맞는지만 본다(`shell-notices.test.ts`가 같은 비교를 시험으로 돈다). 수집은 `notices.ts`의 `collectNotices`를 셸 패키지에서 시작해 쓴다(`dependencies`만, 워크스페이스 패키지는 훑되 싣지 않음). 번들러가 실제로 넣은 모듈이 아니라 package.json 의존 닫힘이라 번들에 안 든 패키지가 더 실릴 수 있다(99개, 과잉 쪽이라 고지 누락은 없다). `lazy-val`은 npm 패키지에 라이선스 파일이 없어 `notices.ts`의 `NO_LICENSE_FILE`에 더했다(package.json이 MIT를 선언한다. 저장소 쪽 파일은 확인하지 않았다). 개발 의존인 `electron`과 `@electron/packager`는 앱에 들어가지 않고 Electron의 라이선스는 위 두 파일이 맡는다. [근거: `xeon/scripts/shell-notices.ts`]
+셸 npm 고지는 옛 Tauri 구현(커밋 424f338a)의 Rust 고지(`THIRD-PARTY-NOTICES-RUST.txt`)와 같은 방식이다: `just desktop-notices-electron`(`scripts/shell-notices.ts`)이 `apps/desktop-shell/resources/THIRD-PARTY-NOTICES-SHELL.txt`를 다시 쓰고, `--check`는 커밋된 파일이 의존과 맞는지만 본다(`shell-notices.test.ts`가 같은 비교를 시험으로 돈다). 수집은 `notices.ts`의 `collectNotices`를 셸 패키지에서 시작해 쓴다(`dependencies`만, 워크스페이스 패키지는 훑되 싣지 않음). 번들러가 실제로 넣은 모듈이 아니라 package.json 의존 닫힘이라 번들에 안 든 패키지가 더 실릴 수 있다(99개, 과잉 쪽이라 고지 누락은 없다). `lazy-val`은 npm 패키지에 라이선스 파일이 없어 `notices.ts`의 `NO_LICENSE_FILE`에 더했다(package.json이 MIT를 선언한다. 저장소 쪽 파일은 확인하지 않았다). 개발 의존인 `electron`과 `@electron/packager`는 앱에 들어가지 않고 Electron의 라이선스는 위 두 파일이 맡는다. [근거: `xeon/scripts/shell-notices.ts`]
 
 ### 11.10 업데이트 피드 자리와 서명 검증 (3단계)
 
 - 자리: `Resources/update-feed.json`, 내용은 `{"provider":"generic","url":"<배포 주소>"}`(§11.6 업데이트). 묶기는 `apps/desktop-shell/build/update-feed.json`이 있으면 그 파일을 Resources에 넣고 없으면 넣지 않는다(앱은 `notConfigured`로 돈다). 배포 주소의 값과 파일 커밋은 사용자 몫이다.
 - 서버가 주는 것: electron-updater 일반 제공자는 `<배포 주소>/latest-mac.yml`(버전, 파일 이름, sha512, 크기)과 그 파일이 가리키는 zip을 읽는다. 이 저장소는 아직 `latest-mac.yml`을 만들지 않는다(`release-archive-electron`은 zip과 `.sha256`만 낸다). 만드는 일과 올리는 일은 [미결]이고 사용자 몫이다. zip 이름에 `arm64`가 들어 있어(`Fresnel-<버전>-arm64.zip`) arm64 Mac이 이 파일을 고른다. [근거: `xeon/apps/desktop-shell/src/main/updater-shell.ts`]
-- 검증(electron-updater 문서 기준이며 이 저장소에서 실제 피드로 실행해 보지 않았다): 내려받은 zip의 sha512를 `latest-mac.yml` 값과 맞춰 보고(무결성. 어긋나면 오류 문구에 sha512가 들어가 `failed(signature)`로 분류된다, `updater.ts`), macOS에서 설치는 Squirrel.Mac이 한다. Squirrel.Mac은 새 앱의 코드 서명이 지금 실행 중인 앱의 서명과 같은 서명자인지 확인하므로(진위) 앱이 Developer ID로 서명돼 있어야 하고, 서명 없는 앱은 macOS에서 자동 업데이트가 설치까지 가지 못한다. electron-updater의 `publisherName` 검증은 Windows용이라 쓰지 않는다. 즉 Tauri의 minisign 공개키 같은 별도 업데이트 키는 없고, 신뢰는 Apple 서명과 배포 주소(HTTPS)에 있다. 서버 주소가 뚫리면 sha512만으로는 막지 못하지만 서명자가 다른 zip은 Squirrel.Mac이 거부한다.
+- 검증(electron-updater 문서 기준이며 이 저장소에서 실제 피드로 실행해 보지 않았다): 내려받은 zip의 sha512를 `latest-mac.yml` 값과 맞춰 보고(무결성. 어긋나면 오류 문구에 sha512가 들어가 `failed(signature)`로 분류된다, `updater.ts`), macOS에서 설치는 Squirrel.Mac이 한다. Squirrel.Mac은 새 앱의 코드 서명이 지금 실행 중인 앱의 서명과 같은 서명자인지 확인하므로(진위) 앱이 Developer ID로 서명돼 있어야 하고, 서명 없는 앱은 macOS에서 자동 업데이트가 설치까지 가지 못한다. electron-updater의 `publisherName` 검증은 Windows용이라 쓰지 않는다. 즉 옛 Tauri 구현(커밋 424f338a)의 minisign 공개키 같은 별도 업데이트 키는 없고, 신뢰는 Apple 서명과 배포 주소(HTTPS)에 있다. 서버 주소가 뚫리면 sha512만으로는 막지 못하지만 서명자가 다른 zip은 Squirrel.Mac이 거부한다.
+
+### 11.11 Tauri 제거 완료
+
+- 2026-11-06에 Tauri 셸과 Rust 코드를 저장소에서 지웠다. Tauri 원본이 마지막으로 남은 커밋은 `424f338a`다.
+- 옛 구현은 `git show 424f338a:xeon/apps/desktop/src-tauri/<path>`로 본다(예: `engine.rs`, `relay.rs`, `view_scheme.rs`, `secret_entry.rs`, `updater.rs`, `tray.rs`, `notify_os.rs`, `os_reauth.rs`, `desktop_settings.rs`, `window.rs`, `inspect/`).
+- §11.3의 실행 명령은 `just desktop-run`이다. Tauri용 `desktop-build`, `desktop-test`, `desktop-ipc-probe`, `desktop-notices`와 `desktop-run-electron`은 없어졌다.
+- `@tauri-apps/*` 의존, `tauri.conf.json`, `capabilities/default.json`, `mise.toml`의 Rust, cargo·rust-notices 스크립트는 저장소에서 빠졌다.
