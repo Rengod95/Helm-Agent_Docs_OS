@@ -131,7 +131,7 @@ export function SettingsPageView(props: SettingsPageProps): ReactNode {
     >
       {narrow ? null : <TabColumn {...props} />}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="flex h-16 flex-none items-center gap-2 border-b border-border-subtle ps-6 pe-6">
+        <header className="flex h-16 flex-none items-center gap-2 border-b border-border-subtle ps-6 pe-11">
           <h1
             id={headingId}
             data-page-title=""
