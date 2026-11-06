@@ -101,8 +101,12 @@ type Action = {
   readonly look: "solid" | "soft" | "ghost";
 };
 
+/** 단추 크기: 도구·질문 카드는 xs, 계획·검토 카드는 sm (caustic AgentRequest의 단추 크기와 같다) */
+type ActionSize = "xs" | "sm";
+
 function ActionButton(props: {
   readonly action: Action;
+  readonly size: ActionSize;
   readonly disabled: boolean;
   readonly onRespond: (decision: ApprovalDecision) => void;
 }): ReactNode {
@@ -112,6 +116,7 @@ function ActionButton(props: {
     <Button
       type="button"
       data-action={action.id}
+      size={props.size}
       variant={action.look}
       disabled={props.disabled || decision === null}
       onClick={() => {
@@ -165,6 +170,7 @@ function PendingCard(props: {
 
   const origin = approvalOriginView(request.origin.caller);
   const expiry = approvalExpiryOf(request);
+  const actionSize: ActionSize = body.kind === "plan" || body.kind === "review" ? "sm" : "xs";
   const review = body.kind === "review" ? body.review : null;
   const threadName = thread?.title ?? t("desktop.approvals.card.thread.untitled");
   // 대화 이름이 링크인 것은 트랜스크립트 밖의 카드이고, 열 수 있는 대화(거울에 있음, 이동 문맥이 있음)일 때다
@@ -267,14 +273,21 @@ function PendingCard(props: {
         onKeyDown={onKeyDown}
       >
         {bodyNode}
-        <div data-slot="approval-actions" className="mt-2 flex flex-wrap items-center gap-2">
+        <div data-slot="approval-actions" className="mt-1.5 flex flex-wrap items-center gap-1.5">
           {leading.map((action) => (
-            <ActionButton key={action.id} action={action} disabled={busy} onRespond={respond} />
+            <ActionButton
+              key={action.id}
+              action={action}
+              size={actionSize}
+              disabled={busy}
+              onRespond={respond}
+            />
           ))}
           {body.kind === "review" ? (
             <Button
               type="button"
               data-action="open"
+              size={actionSize}
               variant="outline"
               disabled={busy}
               onClick={openReview}
@@ -284,11 +297,21 @@ function PendingCard(props: {
           ) : null}
           <span aria-hidden className="flex-1" />
           {trailing.map((action) => (
-            <ActionButton key={action.id} action={action} disabled={busy} onRespond={respond} />
+            <ActionButton
+              key={action.id}
+              action={action}
+              size={actionSize}
+              disabled={busy}
+              onRespond={respond}
+            />
           ))}
-          {busy ? <span className="dim">{t("desktop.approvals.sendingStatus")}</span> : null}
+          {busy ? (
+            <span className="text-ui-sm text-text-secondary">
+              {t("desktop.approvals.sendingStatus")}
+            </span>
+          ) : null}
           {sendState === undefined || sendState === "sending" ? null : (
-            <span className="error" role="alert" data-failure={sendState}>
+            <span className="text-ui-sm text-danger-text" role="alert" data-failure={sendState}>
               {t(APPROVAL_FAILURE_ID[sendState])}
               {detail === undefined ? null : ` (${detail})`}
             </span>
@@ -386,7 +409,7 @@ export function ApprovalCardList(props: {
 }): ReactNode {
   const within = props.within ?? null;
   return (
-    <ul aria-label={props.label}>
+    <ul className="m-0 grid gap-2 p-0" aria-label={props.label}>
       {props.ids.map((id) => (
         <ApprovalCard key={id} id={id} within={within} />
       ))}

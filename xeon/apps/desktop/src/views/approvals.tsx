@@ -33,11 +33,6 @@ export function InboxApprovals(props: { readonly show?: InboxFilter }): ReactNod
       )}
       {show === "approvals" ? null : (
         <section className="grid gap-2">
-          {heads ? (
-            <h2 className="text-ui-strong text-text-primary">
-              {t("desktop.inbox.filter.notices")}
-            </h2>
-          ) : null}
           <InboxNotices />
         </section>
       )}
@@ -53,8 +48,14 @@ export function ApprovalQueue(): ReactNode {
   const openThreadId = useOpenThreadId();
   if (ids.length === 0) return null;
   return (
-    <section className="approvals" aria-label={t("desktop.approvals.queue.label")}>
-      <h2>{t("desktop.approvals.queue.title", { count: ids.length })}</h2>
+    // 대기열이 길면 이 자리만 스크롤한다(입력창과 바닥 고정 요소는 밀리지 않는다)
+    <section
+      className="grid max-h-80 gap-2 overflow-y-auto px-4"
+      aria-label={t("desktop.approvals.queue.label")}
+    >
+      <h2 className="m-0 text-ui-strong text-text-primary">
+        {t("desktop.approvals.queue.title", { count: ids.length })}
+      </h2>
       <ApprovalCardList ids={ids} within={openThreadId} />
     </section>
   );
