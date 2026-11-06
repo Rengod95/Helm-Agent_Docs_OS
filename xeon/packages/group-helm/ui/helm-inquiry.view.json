@@ -89,19 +89,24 @@
       ]
     },
     {
-      "type": "Row",
+      "type": "Form",
+      "props": { "command": "helm start", "submitLabel": "탐구 시작" },
+      "when": { "path": "/status/lease", "op": "eq", "value": "none" },
       "children": [
         {
-          "type": "Button",
-          "props": { "label": "탐구 시작", "command": "helm-start" },
-          "when": { "path": "/status/lease", "op": "eq", "value": "none" }
-        },
-        {
-          "type": "Button",
-          "props": { "label": "탐구 멈춤", "command": "helm-stop" },
-          "when": { "path": "/status/lease", "op": "ne", "value": "none" }
+          "type": "TextField",
+          "props": {
+            "name": "arg",
+            "label": "주제",
+            "placeholder": "비우면 이 대화의 마지막 질문을 주제로 써요"
+          }
         }
       ]
+    },
+    {
+      "type": "Button",
+      "props": { "label": "탐구 멈춤", "command": "helm stop" },
+      "when": { "path": "/status/lease", "op": "ne", "value": "none" }
     }
   ]
 }

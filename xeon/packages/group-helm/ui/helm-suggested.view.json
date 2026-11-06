@@ -15,6 +15,6 @@
         }
       ]
     },
-    { "type": "Button", "props": { "label": "탐구 시작", "command": "helm-start" } }
+    { "type": "Button", "props": { "label": "탐구 시작", "command": "helm start" } }
   ]
 }

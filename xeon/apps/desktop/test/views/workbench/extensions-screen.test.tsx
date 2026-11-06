@@ -14,7 +14,11 @@ import type { ExtListEntry } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
 import { createWorkbenchStore } from "../../../src/state/workbench/index.ts";
 import { ExtensionsScreen } from "../../../src/views/workbench/extensions-screen.tsx";
-import { needsTrustConfirm } from "../../../src/views/workbench/trust-dialog.tsx";
+import {
+  GroupAbout,
+  needsTrustConfirm,
+  toggleRouteOf,
+} from "../../../src/views/workbench/trust-dialog.tsx";
 import { entry, inContexts, screenStore } from "./support.tsx";
 
 function render(prepare?: (state: WorkbenchState) => WorkbenchState): string {
@@ -265,5 +269,29 @@ describe("신뢰 확인(O-10)", () => {
     expect(needsTrustConfirm(entry("a", { origin: "project" }))).toBe(true);
     expect(needsTrustConfirm(entry("a", { origin: "builtin" }))).toBe(false);
     expect(needsTrustConfirm(entry("a", { origin: "managed" }))).toBe(false);
+  });
+});
+
+describe("켜고 끄기 확인의 길(toggleRouteOf)과 Helm 설명", () => {
+  test("꺼져 있던 user 확장을 켜면 신뢰 확인, 그룹을 끄면 끄기 확인, 나머지는 바로", () => {
+    const user = entry("web", { origin: "user", status: "disabled" });
+    const group = entry("review", { isGroup: true, origin: "builtin", status: "enabled" });
+    const plain = entry("web", { origin: "builtin", status: "enabled" });
+    expect(toggleRouteOf(user, true)).toBe("trust");
+    expect(toggleRouteOf(group, false)).toBe("off-confirm");
+    expect(toggleRouteOf(group, true)).toBe("direct");
+    expect(toggleRouteOf(plain, false)).toBe("direct");
+    expect(toggleRouteOf(undefined, false)).toBe("direct");
+  });
+
+  test("Helm의 '이 그룹이 하는 일'은 문단 넷(머리와 세 줄)이고 다른 그룹에는 없다", () => {
+    const helm = renderToString(<GroupAbout name="helm" />);
+    expect(Array.from(helm.matchAll(/<p[^>]*>([^<]*)<\/p>/g), (m) => m[1])).toEqual([
+      t("desktop.workbench.trust.about.helm.heading"),
+      t("desktop.workbench.trust.about.helm.explore"),
+      t("desktop.workbench.trust.about.helm.inject"),
+      t("desktop.workbench.trust.about.helm.cost"),
+    ]);
+    expect(renderToString(<GroupAbout name="review" />)).toBe("");
   });
 });

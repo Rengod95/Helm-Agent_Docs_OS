@@ -72,6 +72,20 @@ export async function readTreeOf(
 }
 
 /**
+ * 명령 인자 글을 만든다. 순서는 하위 명령 낱말, 이름이 `arg`인 입력의 값(이름 없이 값만), 나머지 `필드=값`이다.
+ * `arg`의 빈 글(공백만 있는 것 포함)은 빼서 끝에 빈칸이 남지 않는다
+ */
+function commandArgsOf(
+  words: readonly string[],
+  values: Readonly<Record<string, string | number | boolean>>,
+): string {
+  const { arg, ...fields } = values;
+  const bare = arg === undefined ? "" : String(arg).trim();
+  const pairs = Object.entries(fields).map(([field, value]) => `${field}=${String(value)}`);
+  return [...words, ...(bare === "" ? [] : [bare]), ...pairs].join(" ");
+}
+
+/**
  * 선언형 화면의 동작 묶음. `Button`·`Form`의 명령은 `command` 동작으로 실행기를 거치고(확인 줄, 쿨다운, 장부),
  * 대화 링크는 `openChat`으로 간다. 외부 링크는 확인 줄이 아직 없어 열지 않는다
  */
@@ -84,10 +98,10 @@ export function treeActionsOf(options: {
 }): NativeTreeActions {
   const { runner, context, ledger, screenKey, openChat } = options;
   return {
-    runCommand(name, values) {
-      const args = Object.entries(values)
-        .map(([field, value]) => `${field}=${String(value)}`)
-        .join(" ");
+    runCommand(command, values) {
+      // `helm start`는 명령 이름 `helm`과 인자 앞머리 `start`다. 판정(`decide`)은 이름만 보고, 인자는 실행 글에 붙는다
+      const [name = "", ...words] = command.trim().split(/\s+/u);
+      const args = commandArgsOf(words, values);
       // 프레임의 `command`와 같은 길이다: `decide`(자기 확장이 등록한 명령만), 확인 줄, 쿨다운, 장부
       const run = async (): Promise<void> => {
         const done = await runDecided(runner, context(), "command", { name, args });

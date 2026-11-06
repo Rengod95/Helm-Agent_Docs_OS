@@ -207,6 +207,104 @@ describe("a command button waits for the confirm line", () => {
   });
 });
 
+describe("a command with subcommand words runs the first word and sends the rest as args", () => {
+  const helmCommands = [{ name: "helm", origin: "helm" }];
+
+  /** 명령 하나를 누르고 확인 줄에서 허용한다. 줄이 보인 요청과 실제로 보낸 `command.run`을 돌려준다 */
+  async function pressAndAllow(
+    name: string,
+    values: Readonly<Record<string, string | number | boolean>>,
+  ): Promise<{ readonly request: unknown; readonly sent: unknown[] }> {
+    const connection = fakeConnection({
+      "command.run": () =>
+        Promise.resolve({ status: "done", name: "helm", message: null, result: null }),
+    });
+    const context = contextOf(helmCommands);
+    const queue = createConfirmQueue();
+    const runner = runnerOf(backendOf(connection, context), context, queue);
+    const actions = treeActionsOf({
+      runner,
+      context: () => context,
+      ledger: createScreenLedger(),
+      screenKey: SCREEN_KEY,
+      openChat: () => {},
+    });
+    actions.runCommand(name, values);
+    await settle();
+    const request = queue.current()?.request;
+    queue.current()?.answer("allow");
+    await settle();
+    return { request, sent: commandCallsOf(connection) };
+  }
+
+  test("`helm start` with a typed topic sends the topic after the subcommand word", async () => {
+    const { request, sent } = await pressAndAllow("helm start", { arg: "부동소수 오차" });
+    expect(request).toEqual({
+      kind: "command",
+      extension: "helm",
+      trust: "user",
+      action: "/helm",
+      label: undefined,
+      paramsSummary: 'args="start 부동소수 오차"',
+      approval: false,
+    });
+    expect(sent).toEqual([
+      {
+        method: "command.run",
+        params: { threadId: OPEN_THREAD, text: "/helm start 부동소수 오차" },
+      },
+    ]);
+  });
+
+  test("an empty topic sends only the subcommand word, with no trailing space", async () => {
+    const { sent } = await pressAndAllow("helm start", { arg: "" });
+    expect(sent).toEqual([
+      { method: "command.run", params: { threadId: OPEN_THREAD, text: "/helm start" } },
+    ]);
+  });
+
+  test("a topic of only spaces counts as empty, and a surrounding space is trimmed", async () => {
+    expect((await pressAndAllow("helm start", { arg: "   " })).sent).toEqual([
+      { method: "command.run", params: { threadId: OPEN_THREAD, text: "/helm start" } },
+    ]);
+    expect((await pressAndAllow("helm start", { arg: " 지연 " })).sent).toEqual([
+      { method: "command.run", params: { threadId: OPEN_THREAD, text: "/helm start 지연" } },
+    ]);
+  });
+
+  test("the topic comes before the other fields, which follow as field=value", async () => {
+    const { sent } = await pressAndAllow("helm start", { depth: 2, arg: "캐시" });
+    expect(sent).toEqual([
+      {
+        method: "command.run",
+        params: { threadId: OPEN_THREAD, text: "/helm start 캐시 depth=2" },
+      },
+    ]);
+  });
+
+  test("`helm stop` with no fields sends `/helm stop`", async () => {
+    const { request, sent } = await pressAndAllow("helm stop", {});
+    expect(request).toEqual({
+      kind: "command",
+      extension: "helm",
+      trust: "user",
+      action: "/helm",
+      label: undefined,
+      paramsSummary: 'args="stop"',
+      approval: false,
+    });
+    expect(sent).toEqual([
+      { method: "command.run", params: { threadId: OPEN_THREAD, text: "/helm stop" } },
+    ]);
+  });
+
+  test("the first word alone decides the registered command, so an unregistered one is refused", async () => {
+    const { request, sent } = await pressAndAllow("someone else", { arg: "x" });
+    expect(request).toBeUndefined();
+    expect(sent).toEqual([]);
+  });
+});
+
 describe("the surface draws a fixed document on the first render", () => {
   test("a Chip bound to the status document shows its resolved text", () => {
     const connection = fakeConnection({});

@@ -186,6 +186,17 @@ describe("NativeTree tabs, forms and links", () => {
     expect(out).toContain(">Start</button>");
   });
 
+  test("a TextField shows its label and its placeholder", () => {
+    const out = html(
+      node("Form", { command: "helm start", submitLabel: "탐구 시작" }, [
+        node("TextField", { name: "arg", label: "주제", placeholder: "비우면 마지막 질문" }),
+      ]),
+    );
+    expect(out).toContain(">주제<");
+    expect(out).toContain('placeholder="비우면 마지막 질문"');
+    expect(out).toContain("탐구 시작");
+  });
+
   test("a ThreadLink shows its text", () => {
     const out = html(node("ThreadLink", { text: "Open thread", thread: "t-1" }));
     expect(out).toContain("Open thread");
