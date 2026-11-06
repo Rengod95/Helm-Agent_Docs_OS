@@ -13,6 +13,7 @@ import { singleInstanceShellModule } from "./single-instance-shell.ts";
 import { trayShellModule } from "./tray-shell.ts";
 import { viewSchemeModule } from "./view-scheme.ts";
 import { windowStateModule } from "./window-state.ts";
+import { updaterShellModule } from "./updater-shell.ts";
 
 /** 단일 인스턴스 잠금이 가장 먼저 와야 한다(두 번째 실행이 다른 초기화를 하기 전에 끝난다) */
 export const MODULES: readonly ShellModule[] = [
@@ -29,4 +30,5 @@ export const MODULES: readonly ShellModule[] = [
   trayShellModule,
   notifyOsShellModule,
   osReauthShellModule,
+  updaterShellModule,
 ];

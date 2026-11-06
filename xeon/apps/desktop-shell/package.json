@@ -17,7 +17,8 @@
   },
   "dependencies": {
     "@fresnel/contracts": "workspace:*",
-    "@fresnel/platform-process": "workspace:*"
+    "@fresnel/platform-process": "workspace:*",
+    "electron-updater": "catalog:"
   },
   "devDependencies": {
     "@electron/packager": "catalog:",
