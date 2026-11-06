@@ -811,6 +811,8 @@
   "client.view.confirm.trust.user": "직접 설치",
   "client.view.confirm.trust.project": "이 작업 폴더에서 옴",
   "client.view.confirm.projectBadge": "작업 폴더",
+  "desktop.composer.approvalMode.error": "승인 모드를 바꾸지 못했어요.",
+  "desktop.composer.approvalMode.label": "이 대화의 승인 모드",
   "desktop.composer.attach.blocked.failed": "첨부 ‘{name}’을 올리지 못해 보낼 수 없어요. {reason}. 칩의 ‘빼기’를 눌러 지우면 보낼 수 있어요.",
   "desktop.composer.attach.blocked.uploading": "첨부를 올리는 중이라 아직 보낼 수 없어요. 끝나면 Enter를 다시 눌러 주세요.",
   "desktop.composer.attach.button": "첨부",

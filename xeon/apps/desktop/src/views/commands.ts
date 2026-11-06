@@ -105,6 +105,9 @@ export interface ExportDocument {
  */
 export type BusyInputMode = "steer" | "followUp";
 
+/** 입력창 승인 모드 칩이 고를 수 있는 모드. `plan`과 `bypass`는 칩으로 들어가는 목표가 아니다(계획 승인과 설정이 정한다) */
+export type SwitchMode = "default" | "acceptEdits";
+
 export type CommandError =
   | { readonly kind: "offline" }
   /** 연결된 host에 그 메서드가 없다(-32601). 아직 구현하지 않은 host나 오래된 엔진이다 */
@@ -700,6 +703,18 @@ export interface Commands {
    * 값은 `thread.updated` 이벤트가 거울의 대화 요약(`ThreadSummary.model`)에 넣는다. 카탈로그에 없는 모델은 host가 거절한다
    */
   setThreadModel(threadId: ThreadId, model: string | null): Promise<Result<null, CommandError>>;
+  /**
+   * `settings.set { key: "l1.tools.permissionMode", scope: "launch", threadId }`: 이 대화의 권한 모드를 정한다(세션 범위 값이라 대화마다 따로).
+   * 같은 값을 `ToolService.setMode`가 쓰는 세션 층에 쓰므로 `mode(threadId)`가 그 값을 읽는다. 쓰기 소유를 요구하므로 잠기면 `locked`다
+   */
+  setThreadMode(threadId: ThreadId, mode: SwitchMode): Promise<Result<null, CommandError>>;
+  /** `settings.get { keys: ["l1.tools.permissionMode"], threadId }`의 값을 검사 없이 돌려준다. 네 모드인지는 `permissionModeOf`가 본다 */
+  readThreadMode(threadId: ThreadId): Promise<Result<unknown, CommandError>>;
+  /**
+   * 이 대화의 권한 모드가 바뀌었을 수 있으면 부른다. 설정 쓰기는 `settings.invalidated`, 계획 승인처럼 호스트 안에서 쓴 세션 값은
+   * `events.batch`의 `settings.changed` 기록으로 온다. 반환값은 구독 해제
+   */
+  onThreadModeChanged(threadId: ThreadId, listener: () => void): () => void;
   /** `models.list`: 대화가 고를 수 있는 모델(문맥 창 포함). 요청 결과라 거울에 넣지 않는다(FS-03) */
   listModels(): Promise<Result<WireResult<"models.list">, CommandError>>;
   /** `thread.close`: 대화를 닫는다(열린 turn이 있으면 host가 `turn_running`으로 거절한다). 닫힘 표시는 `thread.closed` 이벤트가 한다 */

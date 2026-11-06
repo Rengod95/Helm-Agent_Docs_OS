@@ -811,6 +811,8 @@
   "client.view.confirm.trust.user": "Installed by you",
   "client.view.confirm.trust.project": "From this work folder",
   "client.view.confirm.projectBadge": "Work folder",
+  "desktop.composer.approvalMode.error": "Could not change the approval mode.",
+  "desktop.composer.approvalMode.label": "Approval mode",
   "desktop.composer.attach.blocked.failed": "Can't send because \"{name}\" didn't upload. {reason}. Remove it with the chip's \"Remove\" button to send.",
   "desktop.composer.attach.blocked.uploading": "An attachment is still uploading. Press Enter again when it finishes.",
   "desktop.composer.attach.button": "Attach",

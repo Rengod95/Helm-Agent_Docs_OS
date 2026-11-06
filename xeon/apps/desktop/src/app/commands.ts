@@ -23,6 +23,11 @@ import type {
 } from "../views/commands.ts";
 import { turnInputOf } from "../views/attachment-model.ts";
 import { collectExport } from "../views/export-model.ts";
+import {
+  PERMISSION_MODE_KEY,
+  modeChangeConcerns,
+  modeEventConcerns,
+} from "../views/permission-mode-model.ts";
 import { approvalFailureOf } from "./approval-outcome.ts";
 import { errorOf } from "./command-error.ts";
 import { createConnectionCommands } from "./connection.ts";
@@ -245,6 +250,40 @@ export function createCommands(deps: CommandDeps): Commands {
       );
       if (!done.ok) showLockedIfLocked(threadId, done.error);
       return done.ok ? ok(null) : done;
+    },
+    async setThreadMode(threadId, mode) {
+      const done = await withWriteConnection((c) =>
+        c.request("settings.set", {
+          key: PERMISSION_MODE_KEY,
+          value: mode,
+          scope: "launch",
+          threadId,
+        }),
+      );
+      if (!done.ok) showLockedIfLocked(threadId, done.error);
+      return done.ok ? ok(null) : done;
+    },
+    async readThreadMode(threadId) {
+      const got = await withConnection((c) =>
+        c.request("settings.get", { keys: [PERMISSION_MODE_KEY], threadId }),
+      );
+      if (!got.ok) return got;
+      return ok(got.value.settings.find((setting) => setting.key === PERMISSION_MODE_KEY)?.value);
+    },
+    onThreadModeChanged(threadId, listener) {
+      const connection = session.connection();
+      if (connection === null) return () => {};
+      // 설정 쓰기는 `settings.invalidated`로, 계획 승인 같은 호스트 안의 세션 쓰기는 `events.batch`의 `settings.changed` 기록으로 온다
+      const offSettings = connection.onNotification("settings.invalidated", (params) => {
+        if (modeChangeConcerns(params, threadId)) listener();
+      });
+      const offEvents = connection.onNotification("events.batch", (params) => {
+        if (modeEventConcerns(params, threadId)) listener();
+      });
+      return () => {
+        offSettings();
+        offEvents();
+      };
     },
     listModels: () => withConnection((c) => c.request("models.list", {})),
     async closeThread(threadId) {

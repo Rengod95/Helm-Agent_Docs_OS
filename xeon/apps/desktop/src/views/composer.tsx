@@ -11,6 +11,7 @@ import {
 import { ArrowUp, Plus } from "@caustic/react/icons";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { PermissionMode } from "@fresnel/contracts/services";
 import type { ModelEntry } from "@fresnel/contracts/wire";
 import {
   useEffect,
@@ -45,7 +46,8 @@ import {
 import { AttachmentRow } from "./composer-attachments.tsx";
 import { pickAttachmentFile } from "./folder-pick.ts";
 import { useFolderPick } from "./folder-pick-context.ts";
-import { useCommands, type BusyInputMode, type CommandError } from "./commands.ts";
+import { useCommands, type BusyInputMode, type CommandError, type SwitchMode } from "./commands.ts";
+import { modeLabelIdOf } from "./approval-card/card-model.ts";
 import {
   busyModeOf,
   composerDisabledReason,
@@ -62,7 +64,9 @@ import {
   useModelChoices,
   useSessionUsage,
   useThreadModel,
+  useThreadPermissionMode,
 } from "./model-usage.ts";
+import { permissionModeOptionsOf, switchModeOf } from "./permission-mode-model.ts";
 import { QueuedInputs } from "./queued-inputs.tsx";
 import { useSetupNeeded } from "./setup-needed.ts";
 
@@ -93,6 +97,14 @@ function modelErrorText(error: CommandError): string {
   return t("desktop.composer.model.error");
 }
 
+/** 승인 모드를 바꾸지 못했을 때의 문장. 잠김과 연결 끊김은 보낼 때와 같은 문장이고 나머지는 승인 모드 문장이다 */
+function modeErrorText(error: CommandError): string {
+  if (error.kind === "offline" || error.kind === "switching" || error.kind === "locked") {
+    return sendErrorText(error);
+  }
+  return t("desktop.composer.approvalMode.error");
+}
+
 const RING_C = 50.27;
 const USAGE_WARNING = 80;
 const USAGE_DANGER = 95;
@@ -102,6 +114,44 @@ const RING_TEXT: Record<RingTone, string> = {
   warning: "text-warning-solid",
   danger: "text-danger-solid",
 };
+
+/** 승인 모드 칩의 글. 모르는 모드는 원시값이다(approval-card/bodies.tsx의 `modeLabelOf`와 같은 규칙) */
+function permissionModeLabelOf(mode: PermissionMode): string {
+  const id = modeLabelIdOf(mode);
+  return id === null ? mode : t(id);
+}
+
+/**
+ * 대화별 승인 모드 칩(입력창 모델 칸 왼쪽). 값은 이 대화의 `l1.tools.permissionMode`(대화 범위)다.
+ * 고를 수 있는 것은 기본과 편집 자동 허용뿐이다. 지금이 계획이나 모두 허용이면 그 글을 칩에 보이고, 메뉴에서는 고를 수 없다.
+ */
+export function PermissionModeSelect(props: {
+  /** 지금 이 대화의 승인 모드 */
+  readonly mode: PermissionMode;
+  readonly disabled: boolean;
+  /** 고른 모드. 계획과 모두 허용으로는 바꾸지 않는다(고를 수 없는 줄이라 여기 오지 않는다) */
+  readonly onChange: (mode: SwitchMode) => void;
+}): ReactNode {
+  return (
+    <Select
+      size="xs"
+      aria-label={t("desktop.composer.approvalMode.label")}
+      value={props.mode}
+      disabled={props.disabled}
+      onValueChange={(value) => {
+        const next = switchModeOf(value);
+        if (next !== null && next !== props.mode) props.onChange(next);
+      }}
+      className="w-auto text-text-tertiary"
+    >
+      {permissionModeOptionsOf(props.mode).map((option) => (
+        <SelectOption key={option.mode} value={option.mode} disabled={!option.selectable}>
+          {permissionModeLabelOf(option.mode)}
+        </SelectOption>
+      ))}
+    </Select>
+  );
+}
 
 /**
  * 대화별 모델 select(시안 `sonnet-5-5 ⌄`). 값은 대화가 정한 모델이고 정하지 않았으면 기본 모델이다.
@@ -203,6 +253,8 @@ function ComposerFor(props: {
   // 이 대화의 모델(정하지 않았으면 기본 모델)과 문맥 사용량(model-usage.ts)
   const defaultModel = useDefaultModel();
   const threadModel = useThreadModel(props.threadId, defaultModel);
+  // 이 대화의 승인 모드 칩(설정 l1.tools.permissionMode, 대화 범위). 모르는 동안은 칩을 그리지 않는다
+  const permission = useThreadPermissionMode(props.threadId);
   const modelChoices = useModelChoices();
   const usage = useSessionUsage(props.threadId, running);
   const [draft, setDraft] = useState("");
@@ -527,6 +579,21 @@ function ComposerFor(props: {
         }
         submit={
           <span className="flex items-center gap-1">
+            {permission.mode === null ? null : (
+              <PermissionModeSelect
+                mode={permission.mode}
+                disabled={props.disabledReason !== null}
+                onChange={(next) => {
+                  detach(
+                    permission.choose(next).then((result) => {
+                      if (!result.ok) setError(modeErrorText(result.error));
+                      return undefined;
+                    }),
+                    rethrow,
+                  );
+                }}
+              />
+            )}
             {threadModel.ref === null ? null : (
               <ModelSelect
                 current={threadModel.ref}
