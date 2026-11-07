@@ -100,12 +100,21 @@ export function toolEnded(state: CoreState, toolCallId: string): CoreState {
 
 type Tone = "normal" | "busy" | "warn" | "error";
 
-const TURN_TEXT: Readonly<Record<CoreState["turn"], { text: string; tone: Tone }>> = {
-  idle: { text: "대기", tone: "normal" },
-  running: { text: "실행 중", tone: "busy" },
-  approval: { text: "승인 대기", tone: "warn" },
-  question: { text: "질문 대기", tone: "warn" },
+/**
+ * `text`는 키를 모르는 소비자(CLI, 옛 클라이언트)를 위한 글이고, 클라이언트는 `textKey`를 현재 로케일로 푼다
+ * (키의 정본은 클라이언트 메시지 카탈로그 `desktop.status.core.*`).
+ */
+const TURN_TEXT: Readonly<
+  Record<CoreState["turn"], { text: string; textKey: string; tone: Tone }>
+> = {
+  idle: { text: "대기", textKey: "desktop.status.core.turn.idle", tone: "normal" },
+  running: { text: "실행 중", textKey: "desktop.status.core.turn.running", tone: "busy" },
+  approval: { text: "승인 대기", textKey: "desktop.status.core.turn.approval", tone: "warn" },
+  question: { text: "질문 대기", textKey: "desktop.status.core.turn.question", tone: "warn" },
 };
+
+/** 사용량 칸의 키. 인자는 숫자(`tokens`, `usd`)이고 모양은 클라이언트가 로케일에 맞게 만든다 */
+export const USAGE_TEXT_KEY = "desktop.status.core.usage";
 
 function formatTokens(tokens: number): string {
   if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
@@ -132,7 +141,15 @@ export function coreItems(state: CoreState): {
   const more = names.length > MAX_TOOL_NAMES ? ` +${names.length - MAX_TOOL_NAMES}` : "";
   const hasUsage = state.usage.tokens > 0 || state.usage.cost > 0;
   return {
-    turn: seen ? { id: TURN_SEGMENT, text: turnText.text, tone: turnText.tone, order: 100 } : null,
+    turn: seen
+      ? {
+          id: TURN_SEGMENT,
+          text: turnText.text,
+          textKey: turnText.textKey,
+          tone: turnText.tone,
+          order: 100,
+        }
+      : null,
     tools:
       names.length === 0
         ? null
@@ -141,6 +158,8 @@ export function coreItems(state: CoreState): {
       ? {
           id: USAGE_SEGMENT,
           text: `턴 합계 ${formatTokens(state.usage.tokens)} 토큰 · ${formatCost(state.usage.cost)}`,
+          textKey: USAGE_TEXT_KEY,
+          textArgs: { tokens: state.usage.tokens, usd: state.usage.cost },
           tone: "normal",
           order: 120,
         }

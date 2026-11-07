@@ -54,6 +54,7 @@ import { RestartLine } from "./restart-line.tsx";
 import { UsageBreakdownBody } from "./usage-breakdown.tsx";
 import { SafeModeChip } from "./safe-mode-chip.tsx";
 import { StatusCell, type StatusDot } from "./status-cell.tsx";
+import { statusItemText } from "./status-item-text.ts";
 import { useGoToThread, type GoToThread } from "./thread-link.ts";
 import { useUpdate } from "./update-context.ts";
 import type { UpdateController } from "./update-controller.ts";
@@ -179,17 +180,20 @@ const STATUS_TONE_CLASS: Readonly<Record<NonNullable<StatusItemRecord["tone"]>, 
 function StatusItems(): ReactNode {
   const threadId = useSelectedThreadId();
   const items = useStatusItems(threadId);
-  return items.map((item) => (
-    <span
-      key={item.id}
-      className={`min-w-0 max-w-[32ch] truncate ${STATUS_TONE_CLASS[item.tone ?? "normal"]}`}
-      title={item.text}
-      data-status-item={item.id}
-      aria-busy={item.tone === "busy" ? true : undefined}
-    >
-      {item.text}
-    </span>
-  ));
+  return items.map((item) => {
+    const text = statusItemText(item);
+    return (
+      <span
+        key={item.id}
+        className={`min-w-0 max-w-[32ch] truncate ${STATUS_TONE_CLASS[item.tone ?? "normal"]}`}
+        title={text}
+        data-status-item={item.id}
+        aria-busy={item.tone === "busy" ? true : undefined}
+      >
+        {text}
+      </span>
+    );
+  });
 }
 
 /** 엔진 한 줄: 상태와, 실행 중이면 어디서 도는지. 상태 표시줄과 첫 실행 바닥글이 같이 쓴다 */

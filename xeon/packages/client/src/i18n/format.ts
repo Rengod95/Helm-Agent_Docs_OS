@@ -2,7 +2,7 @@ import { assertNever } from "@fresnel/contracts";
 
 // ADR-0016 §3.1. ICU MessageFormat 부분집합을 `Intl`만으로 푸는 포맷 포트와 기본 구현.
 // FormatJS(`@formatjs/intl`)는 승인 전이라 쓰지 않는다 [결정: 오케스트레이터 기본값]. 승인되면 같은 포트 뒤에 어댑터를 둔다.
-// 지원: `{name}`, `{n, number[, integer|percent]}`, `{d, date|time[, short|medium|long]}`,
+// 지원: `{name}`, `{n, number[, integer|percent|compact|usd]}`, `{d, date|time[, short|medium|long]}`,
 //       `{n, plural, =0{..} one{..} other{..}}`(`#`은 숫자), `{x, select, a{..} other{..}}`, 따옴표 이스케이프(`'{'`).
 
 export type MessageArg = string | number | Date;
@@ -164,13 +164,7 @@ function render(
           out += `{${node.name}}`;
         } else if (node.type === "number") {
           const n = typeof value === "number" ? value : Number(value);
-          const options: Intl.NumberFormatOptions =
-            node.style === "integer"
-              ? { maximumFractionDigits: 0 }
-              : node.style === "percent"
-                ? { style: "percent" }
-                : {};
-          out += new Intl.NumberFormat(locale, options).format(n);
+          out += numberText(locale, node.style, n);
         } else {
           const when = value instanceof Date ? value : new Date(value);
           const style = dateStyle(node.style);
@@ -206,6 +200,37 @@ function render(
     }
   }
   return out;
+}
+
+/** 비용 자릿수. 0이거나 1센트 이상이면 소수 둘, 그 밑이면 소수 넷이다 */
+function usdDigits(usd: number): number {
+  return usd === 0 || usd >= 0.01 ? 2 : 4;
+}
+
+/** `{n, number, <style>}`의 글. `compact`는 큰 수를 줄여 적고(1.3만, 13.1K), `usd`는 달러 비용이다(0.0001 밑은 `< `를 붙인다) */
+function numberText(locale: string, style: string, n: number): string {
+  if (style === "integer")
+    return new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(n);
+  if (style === "percent") return new Intl.NumberFormat(locale, { style: "percent" }).format(n);
+  if (style === "compact") {
+    return new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 }).format(
+      n,
+    );
+  }
+  if (style === "usd") {
+    const tiny = n > 0 && n < 0.0001;
+    const shown = tiny ? 0.0001 : n;
+    const digits = usdDigits(shown);
+    const text = new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: "USD",
+      currencyDisplay: "narrowSymbol",
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    }).format(shown);
+    return tiny ? `< ${text}` : text;
+  }
+  return new Intl.NumberFormat(locale).format(n);
 }
 
 /** 기본 포트: `Intl.NumberFormat`·`DateTimeFormat`·`PluralRules`만 쓴다. 날짜와 시각은 UTC로 보인다(ADR-0016 §3.1 4) */

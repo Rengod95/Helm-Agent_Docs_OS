@@ -769,6 +769,10 @@ export type StatusItem = {
   tone?: "normal" | "busy" | "warn" | "error";
   /** 작을수록 앞. 생략하면 500 */
   order?: number;
+  /** 클라이언트 메시지 카탈로그의 키. 클라이언트가 현재 로케일로 풀고, 모르는 키나 키가 없으면 `text`를 그대로 보인다 */
+  textKey?: string;
+  /** `textKey` 문장의 인자. 숫자는 클라이언트가 로케일에 맞게 적는다 */
+  textArgs?: Record<string, string | number>;
 };
 const statusItemShape = Type.Object(
   {
@@ -783,6 +787,13 @@ const statusItemShape = Type.Object(
       ]),
     ),
     order: Type.Optional(Type.Integer({ minimum: 0, maximum: 999 })),
+    textKey: Type.Optional(Type.String({ pattern: "^[a-z][a-zA-Z0-9.]{0,79}$" })),
+    textArgs: Type.Optional(
+      Type.Record(
+        Type.String({ pattern: "^[a-z][a-zA-Z0-9]{0,31}$" }),
+        Type.Union([Type.String({ maxLength: 120 }), Type.Number()]),
+      ),
+    ),
   },
   { additionalProperties: false },
 );

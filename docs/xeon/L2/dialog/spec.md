@@ -414,6 +414,10 @@ export const StatusItemSchema = Type.Object(
     tone: Type.Optional(Type.Union([Type.Literal("normal"), Type.Literal("busy"), Type.Literal("warn"), Type.Literal("error")])),
     /** 작을수록 앞. 생략하면 500 */
     order: Type.Optional(Type.Integer({ minimum: 0, maximum: 999 })),
+    /** 클라이언트 메시지 카탈로그 키. 클라이언트가 현재 로케일로 풀고, 모르는 키나 키가 없으면 `text` 그대로 보인다 */
+    textKey: Type.Optional(Type.String({ pattern: "^[a-z][a-zA-Z0-9.]{0,79}$" })),
+    /** `textKey` 문장의 인자. 숫자는 클라이언트가 로케일에 맞게 적는다 */
+    textArgs: Type.Optional(Type.Record(Type.String({ pattern: "^[a-z][a-zA-Z0-9]{0,31}$" }), Type.Union([Type.String({ maxLength: 120 }), Type.Number()]))),
   },
   { additionalProperties: false },
 );
@@ -881,6 +885,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 | `core.tools` | 실행 중인 도구 이름(최대 3개) | `tool.execution.before`/`tool.execution.after` 훅(tap) |
 | `core.usage` | "턴 합계 51.7k 토큰 · $0.0022": 이 대화에서 끝난 턴의 누적 토큰과 비용. 제목 같은 배경 호출은 빼므로 문맥 링 팝오버·설정의 "이 대화 합계"(배경 호출 포함)보다 작을 수 있고, 칸 글자가 "턴 합계"라 둘을 구분한다 [결정: 오케스트레이터 기본값, rtF T-1] | `turn.completed.usage` |
 
+- 내장 세그먼트의 글 [결정: 오케스트레이터 기본값, fxLC]. 엔진은 로케일을 모르므로 문장을 만들지 않는다. `core.turn`은 `textKey`(`desktop.status.core.turn.idle|running|approval|question`)를, `core.usage`는 `textKey: desktop.status.core.usage`와 숫자 인자 `textArgs: { tokens, usd }`를 보낸다. 클라이언트가 현재 로케일 문장으로 풀고 토큰은 `Intl` compact, 비용은 USD 통화 형식(소수 둘 또는 넷, 0.0001 밑은 `< $0.0001`)으로 적는다(`{n, number, compact|usd}`, `client/i18n/format.ts`). `text`는 키를 모르는 소비자(CLI, 옛 클라이언트)를 위한 한국어 글이고 `textKey` 없는 칸(그룹이 올린 것)은 `text`가 그대로 보인다.
 - 그룹 상태 세그먼트: 그룹은 `"<자기 이름>.<이름>"` 형식 id로 `setItem`을 부른다(예: `<그룹 이름>.phase`에 "2/3단계"). 다른 소유자의 id를 쓰는 것을 막을 호출자 확인 수단은 §10 D-4다.
 - 표시 순서는 `order`, 같으면 id 바이트 순이다. 설정 `l2.dialog.status.segments`는 표시할 id 목록이다. `"*"`로 끝나는 항목은 접두 일치다(예: `"<그룹 이름>.*"`). 항목 `"*"` 하나는 앞 항목이 고르지 않은 모든 세그먼트다. 같은 id는 한 번만 표시한다.
 - 변경은 휘발 이벤트 `dialog.status`(전체 스냅숏)로 나간다. 스냅숏은 스레드마다 마지막 상태 하나만 메모리에 둔다. 같은 단계 안의 변경은 100 ms 단위로 묶는다 [제안]. 첫 변경부터 100 ms 뒤에 마지막 상태를 한 이벤트로 내보낸다.

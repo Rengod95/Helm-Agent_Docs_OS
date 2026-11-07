@@ -101,6 +101,7 @@ describe("내장 세그먼트", () => {
       (await itemsOf(h, status.api, thread)).find((item) => item.id === "core.turn"),
     ).toMatchObject({
       text: "실행 중",
+      textKey: "desktop.status.core.turn.running",
       tone: "busy",
     });
     status.onEvent(
@@ -112,10 +113,17 @@ describe("내장 세그먼트", () => {
       }),
     );
     const items = await itemsOf(h, status.api, thread);
-    expect(items.find((item) => item.id === "core.turn")).toMatchObject({ text: "대기" });
-    expect(items.find((item) => item.id === "core.usage")).toMatchObject({
-      text: "턴 합계 1.5k 토큰 · $0.03",
+    expect(items.find((item) => item.id === "core.turn")).toMatchObject({
+      text: "대기",
+      textKey: "desktop.status.core.turn.idle",
     });
+    const usage = items.find((item) => item.id === "core.usage");
+    expect(usage).toMatchObject({
+      text: "턴 합계 1.5k 토큰 · $0.03",
+      textKey: "desktop.status.core.usage",
+    });
+    expect(usage?.textArgs?.["tokens"]).toBe(1500);
+    expect(usage?.textArgs?.["usd"]).toBeCloseTo(0.03, 10);
     status.onEvent(
       event(thread, "turn.completed", {
         status: "completed",
