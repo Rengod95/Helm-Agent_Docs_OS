@@ -189,7 +189,9 @@ function PendingCard(props: {
           ? t(titleView.id)
           : titleView.id === "desktop.approvals.title.web"
             ? t(titleView.id, titleView.params)
-            : t(titleView.id, { name: titleView.params.name, op: t(titleView.params.opId) });
+            : titleView.id === "desktop.approvals.title.mcpStart"
+              ? t(titleView.id, titleView.params)
+              : t(titleView.id, { name: titleView.params.name, op: t(titleView.params.opId) });
   const origin = approvalOriginView(request.origin.caller, request.origin.source);
   const expiry = approvalExpiryOf(request);
   const actionSize: ActionSize = body.kind === "plan" || body.kind === "review" ? "sm" : "xs";

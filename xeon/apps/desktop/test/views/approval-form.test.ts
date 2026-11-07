@@ -3,7 +3,11 @@ import {
   answerOf,
   fileChangeViewOf,
   fileChangeViewOfArgs,
+  mcpSourceViewOf,
+  mcpStartViewOf,
   setPickText,
+  shellLineOf,
+  shellWordOf,
   toolApprovalView,
   toolReplaceView,
   togglePick,
@@ -185,6 +189,131 @@ describe("toolReplaceView", () => {
     expect(toolReplaceView(replaceBody({ extension: "x" }))).toBeNull();
     expect(toolReplaceView(replaceBody({ tool: "write", extension: "" }))).toBeNull();
     expect(toolReplaceView(replaceBody({ type: "blob", sha256: "ab" }))).toBeNull();
+  });
+});
+
+const startBody = (args: ToolApprovalBody["args"], toolName = "mcp_start"): ToolApprovalBody => ({
+  toolName,
+  risk: "exec",
+  args,
+  argsHash: "h",
+  ruleId: "mcp.start",
+});
+
+const START_ARGS = {
+  server: "gh",
+  source: "settings:user",
+  command: "gh-mcp",
+  args: ["--stdio"],
+  cwd: null,
+  envNames: ["LOG_LEVEL"],
+  secretEnv: { GITHUB_TOKEN: "secret://gh-token" },
+  definitionHash: "h",
+};
+
+describe("mcpStartViewOf", () => {
+  test("shows the full command line with its args, the source, the folder, the env names and the secret handles", () => {
+    expect(
+      mcpStartViewOf(
+        startBody({
+          ...START_ARGS,
+          args: ["--stdio", "--note=it's here"],
+          cwd: "/srv/gh",
+        }),
+      ),
+    ).toEqual({
+      server: "gh",
+      reason: "secret",
+      source: { kind: "user" },
+      commandLine: "gh-mcp --stdio '--note=it'\\''s here'",
+      cwd: "/srv/gh",
+      envNames: ["LOG_LEVEL"],
+      secrets: [{ name: "GITHUB_TOKEN", handle: "secret://gh-token" }],
+      changed: null,
+    });
+  });
+
+  test("a project command without secrets is asked because the project defines it", () => {
+    expect(
+      mcpStartViewOf(
+        startBody({
+          ...START_ARGS,
+          source: "mcpjson:project",
+          command: "node-srv",
+          args: [],
+          envNames: [],
+          secretEnv: {},
+        }),
+      ),
+    ).toEqual({
+      server: "gh",
+      reason: "project",
+      source: { kind: "project" },
+      commandLine: "node-srv",
+      cwd: null,
+      envNames: [],
+      secrets: [],
+      changed: null,
+    });
+    expect(mcpStartViewOf(startBody({ ...START_ARGS, secretEnv: {}, envNames: [] }))?.reason).toBe(
+      "other",
+    );
+  });
+
+  test("a changed record keeps the known fields in the fixed order and the previous command line", () => {
+    const view = mcpStartViewOf(
+      startBody({
+        ...START_ARGS,
+        command: "gh-mcp-next",
+        changed: {
+          fields: ["secretEnv", "command", "env"],
+          before: { command: "gh-mcp-old", args: ["--stdio", "a b"], cwd: "/old" },
+        },
+      }),
+    );
+    expect(view?.changed).toEqual({
+      fields: ["command", "env", "secretEnv"],
+      beforeCommandLine: "gh-mcp-old --stdio 'a b'",
+    });
+  });
+
+  test("an unknown changed field is dropped and a malformed changed record gives no changed view", () => {
+    expect(
+      mcpStartViewOf(
+        startBody({
+          ...START_ARGS,
+          changed: { fields: ["command", "bogus"], before: { command: "x", args: [], cwd: null } },
+        }),
+      )?.changed,
+    ).toEqual({ fields: ["command"], beforeCommandLine: "x" });
+    expect(mcpStartViewOf(startBody({ ...START_ARGS, changed: "yes" }))?.changed).toBeNull();
+  });
+
+  test("another tool, a stored blob, a missing server and a non-list args have no start view", () => {
+    expect(mcpStartViewOf(startBody(START_ARGS, "bash"))).toBeNull();
+    expect(
+      mcpStartViewOf(startBody({ type: "blob", sha256: "a".repeat(64), size: 1, mediaType: null })),
+    ).toBeNull();
+    expect(mcpStartViewOf(startBody({ ...START_ARGS, server: "" }))).toBeNull();
+    expect(mcpStartViewOf(startBody({ ...START_ARGS, args: "--stdio" }))).toBeNull();
+  });
+});
+
+describe("mcp start source and shell words", () => {
+  test("the known sources read as words, an extension shows its name, and anything else stays as written", () => {
+    expect(mcpSourceViewOf("mcpjson:project")).toEqual({ kind: "project" });
+    expect(mcpSourceViewOf("settings:user")).toEqual({ kind: "user" });
+    expect(mcpSourceViewOf("ext:github")).toEqual({ kind: "extension", name: "github" });
+    expect(mcpSourceViewOf("ext:")).toEqual({ kind: "raw", value: "ext:" });
+    expect(mcpSourceViewOf("plugin:x")).toEqual({ kind: "raw", value: "plugin:x" });
+  });
+
+  test("a plain word stays bare, and an empty or spaced word is single-quoted", () => {
+    expect(shellWordOf("/usr/bin/node")).toBe("/usr/bin/node");
+    expect(shellWordOf("--port=3000")).toBe("--port=3000");
+    expect(shellWordOf("")).toBe("''");
+    expect(shellWordOf("a b")).toBe("'a b'");
+    expect(shellLineOf("gh-mcp", ["--stdio", "", "x y"])).toBe("gh-mcp --stdio '' 'x y'");
   });
 });
 

@@ -127,6 +127,83 @@ const fileRequest = (
   },
 });
 
+/** 화면 글만 남긴다: 주석과 태그를 지우고 글자 실체를 푼다(서버 렌더의 텍스트 노드를 비교한다) */
+function visibleText(markup: string): string {
+  return markup
+    .replace(/<!-- -->/g, "")
+    .replace(/<[^>]*>/g, "")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#x27;", "'")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&amp;", "&");
+}
+
+/** 기동 승인 요청. 저장된 제목은 엔진이 쓴 영어 그대로다 */
+function startRequest(args: Record<string, unknown>): ApprovalRequestedPayload {
+  return {
+    ...toolRequest({}),
+    title: 'Start MCP server "gh" with secret://gh-token?',
+    body: {
+      kind: "tool",
+      tool: {
+        toolName: "mcp_start",
+        risk: "exec",
+        args: JSON.parse(JSON.stringify(args)),
+        argsHash: "h",
+        ruleId: "mcp.start",
+      },
+    },
+  };
+}
+
+const START_ARGS = {
+  server: "gh",
+  source: "settings:user",
+  command: "gh-mcp",
+  args: ["--stdio", "--log", "a b"],
+  cwd: "/srv/gh",
+  envNames: ["LOG_LEVEL"],
+  secretEnv: { GITHUB_TOKEN: "secret://gh-token" },
+  definitionHash: "h",
+};
+
+describe("MCP start approval card", () => {
+  test("shows the Korean title, the full command line with its args, the source, the folder, the names and the secret handle, not the English title or the rule id", () => {
+    const markup = html(startRequest(START_ARGS));
+    const text = visibleText(markup);
+    expect(text).toContain('MCP 서버 "gh" 시작할까요?');
+    expect(text).toContain("gh-mcp --stdio --log 'a b'");
+    expect(text).toContain("사용자 설정");
+    expect(text).toContain("/srv/gh");
+    expect(text).toContain("LOG_LEVEL");
+    expect(text).toContain("GITHUB_TOKEN ← secret://gh-token");
+    expect(text).toContain("시크릿을 쓰는 서버라서 실행 전에 확인해요");
+    expect(text).not.toContain("Start MCP server");
+    expect(text).not.toContain("바뀜");
+    expect(markup).not.toContain("mcp.start");
+    expect(text).not.toContain("mcp.start");
+  });
+
+  test("a changed definition shows the badge, what changed, and the before and after command lines", () => {
+    const text = visibleText(
+      html(
+        startRequest({
+          ...START_ARGS,
+          command: "gh-mcp-next",
+          changed: {
+            fields: ["command", "secretEnv"],
+            before: { command: "gh-mcp", args: ["--stdio"], cwd: null },
+          },
+        }),
+      ),
+    );
+    expect(text).toContain("바뀜");
+    expect(text).toContain("바뀐 곳: 명령, 시크릿");
+    expect(text).toContain("이전: gh-mcp --stdio / 지금: gh-mcp-next --stdio --log 'a b'");
+  });
+});
+
 describe("file change approval card", () => {
   test("an edit shows the path, the changed lines, and the raw args behind 자세히", () => {
     const out = html(

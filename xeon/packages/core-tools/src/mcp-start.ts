@@ -1,4 +1,4 @@
-import { detach, type Clock, type Logger } from "@fresnel/contracts";
+import { canonicalJson, detach, type Clock, type Logger } from "@fresnel/contracts";
 import { parseSecretRef, type SecretHandle } from "@fresnel/contracts/capabilities";
 import type { JsonValue, ThreadId } from "@fresnel/contracts/conversation";
 import { requestKeyFor } from "@fresnel/contracts/records";
@@ -15,6 +15,7 @@ import { sha256HexSync } from "./util.ts";
 // 정의가 바뀌면 해시가 달라져 다시 묻는다. 승인 요청(kind `tool`)의 본문에 정의 해시를 싣는다(`argsHash`와 `args.definitionHash`).
 // 서버는 도구 호출이 아니라 연결 때 뜨므로 이 승인은 호출 안이 아닌 대화(`threadId`)에 묶인 비차단 요청이다.
 // 승인 UI는 L4, 증거를 받아 쓰는 일은 L2.mcp와 L0.process가 한다. 값은 이 파일에 오지 않는다.
+// 직전에 허용된 정의와 해시가 다르면 승인 본문 `args.changed`에 바뀐 필드와 이전 명령을 싣는다(처음 묻는 정의에는 없다).
 
 /** 기동 승인 본문의 도구 이름과 규칙 id */
 export const MCP_START_TOOL_NAME = "mcp_start";
@@ -22,6 +23,10 @@ export const MCP_START_RULE_ID = "mcp.start";
 /** 기동 승인에 쓰는 `UseCtx.purpose` 접두. `platform-secrets`의 `MCP_START_PURPOSE_PREFIX`와 같은 값이다 */
 const PURPOSE_PREFIX = "mcp.start:";
 const TITLE_MAX = 120;
+
+/** 승인 본문 `changed.fields`가 가리키는 정의 필드. 순서가 `fields`의 순서다 */
+const CHANGED_FIELDS = ["command", "args", "cwd", "source", "env", "secretEnv"] as const;
+export type McpStartChangedField = (typeof CHANGED_FIELDS)[number];
 
 /** 기동 승인 대상 정의. 시크릿 값은 없고 참조만 있다 */
 export interface McpStartDefinition {
@@ -81,11 +86,57 @@ function titleOf(server: string, handles: readonly SecretHandle[], command: stri
   return `${head}${String(handles.length)} secrets?`.slice(0, TITLE_MAX);
 }
 
-/** 승인 요청 본문. 정의 해시가 `argsHash`와 `args.definitionHash`에 실린다(M3-REQ-75) */
+/** 허용된 정의의 요약. 바뀐 곳을 찾는 데만 쓴다. env 값은 복사하지 않고 다이제스트로만 비교한다 */
+interface DefinitionSummary {
+  readonly source: string;
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly cwd: string | null;
+  readonly envDigest: string;
+  readonly secretEnv: Readonly<Record<string, string>>;
+}
+
+function summaryOf(definition: McpStartDefinition): DefinitionSummary {
+  return {
+    source: definition.source,
+    command: definition.command,
+    args: [...definition.args],
+    cwd: definition.cwd,
+    envDigest: sha256HexSync(canonicalJson(definition.env)),
+    secretEnv: { ...definition.secretEnv },
+  };
+}
+
+/** 두 요약에서 다른 필드를 `CHANGED_FIELDS` 순서로 돌려준다. `secretEnv`는 이름과 참조 전체를 본다(참조만 바뀌어도 잡는다) */
+function changedFieldsOf(
+  before: DefinitionSummary,
+  after: DefinitionSummary,
+): McpStartChangedField[] {
+  const differs: Readonly<Record<McpStartChangedField, boolean>> = {
+    command: before.command !== after.command,
+    args: canonicalJson(before.args) !== canonicalJson(after.args),
+    cwd: before.cwd !== after.cwd,
+    source: before.source !== after.source,
+    env: before.envDigest !== after.envDigest,
+    secretEnv: canonicalJson(before.secretEnv) !== canonicalJson(after.secretEnv),
+  };
+  return CHANGED_FIELDS.filter((field) => differs[field]);
+}
+
+/** 승인 본문 `args.changed`: 바뀐 필드와 이전 정의의 명령, 인자, 실행 폴더. JSON 값만 싣고 env 값은 싣지 않는다 */
+function changedArgOf(before: DefinitionSummary, after: DefinitionSummary): JsonValue {
+  return {
+    fields: changedFieldsOf(before, after),
+    before: { command: before.command, args: [...before.args], cwd: before.cwd },
+  };
+}
+
+/** 승인 요청 본문. 정의 해시가 `argsHash`와 `args.definitionHash`에 실린다(M3-REQ-75). `changed`는 바뀐 정의일 때만 있다 */
 function mcpStartApprovalInput(
   definition: McpStartDefinition,
   definitionHash: string,
   handles: readonly SecretHandle[],
+  changed: JsonValue | null,
 ): Omit<ApprovalRequestInput, "origin"> & { readonly requestKey: string } {
   const args: Record<string, JsonValue> = {
     server: definition.server,
@@ -97,6 +148,8 @@ function mcpStartApprovalInput(
     secretEnv: { ...definition.secretEnv },
     definitionHash,
   };
+  // 처음 묻는 정의에는 `changed` 키가 없다
+  if (changed !== null) args["changed"] = changed;
   return {
     requestKey: requestKeyFor(
       `mcpstart:${definition.server}:${definitionHash.slice(0, 24)}`,
@@ -120,10 +173,12 @@ function mcpStartApprovalInput(
 interface Held {
   readonly hash: string;
   readonly evidence: ApprovalEvidence;
+  /** 허용된 정의의 요약. 다음 정의가 바뀌었을 때 `changed`를 만든다 */
+  readonly summary: DefinitionSummary;
 }
 
 export function createMcpStartGate(deps: McpStartGateDeps): McpStartGate {
-  /** 서버 id → 마지막으로 승인받은 정의 해시와 증거. 정의가 바뀌면 해시가 달라 맞지 않는다 */
+  /** 서버 id → 마지막으로 승인받은 정의 해시, 증거, 요약. 정의가 바뀌면 해시가 달라 맞지 않는다. 프로세스 안에만 둔다 */
   const held = new Map<string, Held>();
   const listeners = new Set<(server: string) => void>();
   /** 응답을 기다리는 승인 id */
@@ -141,7 +196,12 @@ export function createMcpStartGate(deps: McpStartGateDeps): McpStartGate {
     for (const listener of listeners) listener(server);
   }
 
-  function watch(server: string, hash: string, approvalId: string): void {
+  function watch(
+    server: string,
+    hash: string,
+    summary: DefinitionSummary,
+    approvalId: string,
+  ): void {
     if (waiting.has(approvalId)) return;
     waiting.add(approvalId);
     detach(
@@ -151,6 +211,7 @@ export function createMcpStartGate(deps: McpStartGateDeps): McpStartGate {
         if (waited.value.decision === "allow") {
           held.set(server, {
             hash,
+            summary,
             evidence: {
               approvalId: waited.value.approvalId,
               scope: "per-session",
@@ -213,7 +274,14 @@ export function createMcpStartGate(deps: McpStartGateDeps): McpStartGate {
       const refused = await policyVerdict(definition, handles);
       if (refused !== undefined) return { kind: "denied", reason: refused };
       if (context.threadId === undefined) return { kind: "pending" };
-      const input = mcpStartApprovalInput(definition, hash, handles);
+      const summary = summaryOf(definition);
+      // 허용된 정의가 있고 해시가 다르면 바뀐 정의다. 그때만 `changed`를 싣는다
+      const previous = held.get(definition.server);
+      const changed =
+        previous === undefined || previous.hash === hash
+          ? null
+          : changedArgOf(previous.summary, summary);
+      const input = mcpStartApprovalInput(definition, hash, handles, changed);
       const opened = await deps.approvals.open({
         ...input,
         origin: {
@@ -227,7 +295,7 @@ export function createMcpStartGate(deps: McpStartGateDeps): McpStartGate {
       if (!opened.ok) return { kind: "denied", reason: "the start approval could not be recorded" };
       const { request, resolution } = opened.value;
       if (resolution === null) {
-        watch(definition.server, hash, request.approvalId);
+        watch(definition.server, hash, summary, request.approvalId);
         return { kind: "pending" };
       }
       if (resolution.decision !== "allow") {
@@ -239,7 +307,7 @@ export function createMcpStartGate(deps: McpStartGateDeps): McpStartGate {
         grantedAt: deps.clock.now(),
         expiresAt: null,
       };
-      held.set(definition.server, { hash, evidence });
+      held.set(definition.server, { hash, evidence, summary });
       return { kind: "approved", evidence };
     },
     onResolved(listener) {

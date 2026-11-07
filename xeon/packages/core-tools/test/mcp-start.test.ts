@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { expect, test } from "bun:test";
 import { canonicalJson } from "@fresnel/contracts";
 import { parseSecretRef } from "@fresnel/contracts/capabilities";
+import type { JsonValue } from "@fresnel/contracts/conversation";
+import type { ApprovalBody } from "@fresnel/contracts/services";
 import { createMcpStartGate, type McpStartDefinition } from "../src/mcp-start.ts";
 import { fakeApprovals, fakeSecretChecker } from "../src/testing/index.ts";
 import { expectOk, until } from "./support/harness.ts";
@@ -181,4 +183,88 @@ test("a secretless project command asks once per definition hash and only a chan
   expect(await gate.check(changed, { threadId: thread })).toEqual({ kind: "pending" });
   expect(world.approvals.pending(thread)).toHaveLength(1);
   expect((await gate.check(plain, { threadId: thread })).kind).toBe("approved");
+});
+
+/** 기동 승인 본문의 기대 값. `changed`는 바뀐 정의를 물을 때만 넘긴다(처음 묻는 정의에는 키가 없다) */
+function bodyOf(definition: McpStartDefinition, changed?: JsonValue): ApprovalBody {
+  const args = {
+    server: definition.server,
+    source: definition.source,
+    command: definition.command,
+    args: [...definition.args],
+    cwd: definition.cwd,
+    envNames: Object.keys(definition.env).toSorted(),
+    secretEnv: { ...definition.secretEnv },
+    definitionHash: hashOf(definition),
+    ...(changed === undefined ? {} : { changed }),
+  };
+  return {
+    kind: "tool",
+    tool: {
+      toolName: "mcp_start",
+      risk: "exec",
+      args,
+      argsHash: hashOf(definition),
+      ruleId: "mcp.start",
+    },
+  };
+}
+
+// 바뀐 정의는 다시 묻고, 승인 본문 `args.changed`가 바뀐 필드와 이전 명령·인자·실행 폴더를 싣는다.
+test("a first ask has no changed key, and a redefined command asks again with the exact changed record", async () => {
+  const { world, thread, gate } = await setup();
+  const resolved: string[] = [];
+  gate.onResolved((server) => resolved.push(server));
+  await gate.check(DEFINITION, { threadId: thread });
+  const [first] = world.approvals.pending(thread);
+  expect(first?.body).toEqual(bodyOf(DEFINITION));
+  await world.approvals.respond(first?.approvalId ?? "", { decision: "allow" });
+  await until(() => resolved.length > 0);
+
+  const redefined: McpStartDefinition = { ...DEFINITION, command: "gh-mcp-next" };
+  expect(await gate.check(redefined, { threadId: thread })).toEqual({ kind: "pending" });
+  const [next] = world.approvals.pending(thread);
+  expect(next?.body).toEqual(
+    bodyOf(redefined, {
+      fields: ["command"],
+      before: { command: "gh-mcp", args: ["--stdio"], cwd: null },
+    }),
+  );
+});
+
+test("the changed record names every field that differs in the fixed order, and an env value change alone counts as env", async () => {
+  const { world, thread, gate } = await setup();
+  const resolved: string[] = [];
+  gate.onResolved((server) => resolved.push(server));
+  await gate.check(DEFINITION, { threadId: thread });
+  const [first] = world.approvals.pending(thread);
+  await world.approvals.respond(first?.approvalId ?? "", { decision: "allow" });
+  await until(() => resolved.length > 0);
+
+  // 값만 바뀐 env는 이름이 같아도 정의가 달라 다시 묻는다
+  const envOnly: McpStartDefinition = { ...DEFINITION, env: { LOG_LEVEL: "debug" } };
+  expect(await gate.check(envOnly, { threadId: thread })).toEqual({ kind: "pending" });
+  const [envRequest] = world.approvals.pending(thread);
+  expect(envRequest?.body).toEqual(
+    bodyOf(envOnly, {
+      fields: ["env"],
+      before: { command: "gh-mcp", args: ["--stdio"], cwd: null },
+    }),
+  );
+  await world.approvals.respond(envRequest?.approvalId ?? "", { decision: "allow" });
+  await until(() => resolved.length > 1);
+
+  const moved: McpStartDefinition = {
+    ...envOnly,
+    args: ["--stdio", "--write"],
+    cwd: "/srv/gh",
+  };
+  expect(await gate.check(moved, { threadId: thread })).toEqual({ kind: "pending" });
+  const [movedRequest] = world.approvals.pending(thread);
+  expect(movedRequest?.body).toEqual(
+    bodyOf(moved, {
+      fields: ["args", "cwd"],
+      before: { command: "gh-mcp", args: ["--stdio"], cwd: null },
+    }),
+  );
 });

@@ -113,6 +113,141 @@ export function toolApprovalView(body: ToolApprovalBody): ToolApprovalView {
   };
 }
 
+// ── 기동 승인(mcp_start) ─────────────────────────────────────────────────
+
+/** 기동 승인의 도구 이름. core-tools `MCP_START_TOOL_NAME`과 같은 값이다(데스크톱은 core-tools를 가져오지 않는다) */
+export const MCP_START_APPROVAL_TOOL = "mcp_start";
+
+/** 출처 문자열이 뜻하는 곳. 모르는 값은 원문 그대로 보인다 */
+export type McpSourceView =
+  | { readonly kind: "project" }
+  | { readonly kind: "user" }
+  | { readonly kind: "extension"; readonly name: string }
+  | { readonly kind: "raw"; readonly value: string };
+
+/** 바뀐 정의 필드. 화면에 나열되는 순서다 */
+export type McpChangedField = "command" | "args" | "cwd" | "source" | "env" | "secretEnv";
+const MCP_CHANGED_FIELDS: readonly McpChangedField[] = [
+  "command",
+  "args",
+  "cwd",
+  "source",
+  "env",
+  "secretEnv",
+];
+
+/** 직전에 허용된 정의와 달라졌을 때의 값. `beforeCommandLine`은 이전 명령과 인자를 한 줄로 보인 것이다 */
+export type McpChangedView = {
+  readonly fields: readonly McpChangedField[];
+  readonly beforeCommandLine: string;
+};
+
+/** 묻는 까닭. 시크릿을 쓰면 `secret`, 프로젝트 출처면 `project`, 그 밖은 `other`다 */
+export type McpReason = "secret" | "project" | "other";
+
+export type McpStartView = {
+  readonly server: string;
+  readonly reason: McpReason;
+  readonly source: McpSourceView;
+  /** 실행할 명령과 인자를 셸 모양 한 줄로 */
+  readonly commandLine: string;
+  readonly cwd: string | null;
+  /** 평문 env의 이름. 값은 승인 본문에 없다 */
+  readonly envNames: readonly string[];
+  /** `secretEnv`로 넘기는 시크릿 참조 */
+  readonly secrets: readonly SecretUse[];
+  /** 직전에 허용한 정의와 달라졌을 때만 있다 */
+  readonly changed: McpChangedView | null;
+};
+
+const SHELL_PLAIN = /^[A-Za-z0-9_./:=@%+,-]+$/;
+
+/** 셸에 넘겨도 뜻이 같은 글은 그대로 두고, 나머지는 작은따옴표로 감싼다(안의 작은따옴표는 '\'' 로 바꾼다) */
+export function shellWordOf(word: string): string {
+  if (SHELL_PLAIN.test(word)) return word;
+  return `'${word.replaceAll("'", "'\\''")}'`;
+}
+
+/** 명령과 인자를 셸 모양 한 줄로 바꾼다. 카드가 실행될 명령 줄로 보인다 */
+export function shellLineOf(command: string, args: readonly string[]): string {
+  return clip([command, ...args].map(shellWordOf).join(" "), COMMAND_TEXT_MAX).text;
+}
+
+/** 글 목록. 목록이 아니거나 글이 아닌 항목이 있으면 null이다 */
+function stringListOf(value: JsonValue | undefined): readonly string[] | null {
+  if (!isUnknownArray(value)) return null;
+  const out: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string") return null;
+    out.push(item);
+  }
+  return out;
+}
+
+/** 출처 문자열을 뜻으로 바꾼다. `ext:<이름>`은 확장 이름이다 */
+export function mcpSourceViewOf(source: string): McpSourceView {
+  if (source === "mcpjson:project") return { kind: "project" };
+  if (source === "settings:user") return { kind: "user" };
+  if (source.startsWith("ext:") && source.length > "ext:".length)
+    return { kind: "extension", name: source.slice("ext:".length) };
+  return { kind: "raw", value: source };
+}
+
+/** `args.changed`를 읽는다. 모양이 맞지 않으면 null이라 바뀜 표식은 없다. 모르는 필드 이름은 뺀다 */
+function mcpChangedViewOf(value: JsonValue | undefined): McpChangedView | null {
+  if (!isRecord(value)) return null;
+  const fields = stringListOf(value["fields"]);
+  const before = value["before"];
+  if (fields === null || !isRecord(before)) return null;
+  const command = textOf(before["command"]);
+  const beforeArgs = stringListOf(before["args"]);
+  if (command === null || beforeArgs === null) return null;
+  return {
+    fields: MCP_CHANGED_FIELDS.filter((field) => fields.includes(field)),
+    beforeCommandLine: shellLineOf(command, beforeArgs),
+  };
+}
+
+function mcpReasonOf(secrets: readonly SecretUse[], source: McpSourceView): McpReason {
+  if (secrets.length > 0) return "secret";
+  return source.kind === "project" ? "project" : "other";
+}
+
+/**
+ * 기동 승인 본문을 카드가 그리는 값으로 바꾼다. 다른 도구이거나 인자 모양이 맞지 않으면 null이라 일반 도구 승인으로 그린다.
+ * 명령은 인자까지 한 줄로 보이고, 평문 env는 이름만 보인다.
+ */
+export function mcpStartViewOf(body: ToolApprovalBody): McpStartView | null {
+  const { args } = body;
+  if (body.toolName !== MCP_START_APPROVAL_TOOL || isBlobRef(args)) return null;
+  const server = textOf(args["server"]);
+  const source = textOf(args["source"]);
+  const command = textOf(args["command"]);
+  const argList = stringListOf(args["args"]);
+  const envNames = stringListOf(args["envNames"]);
+  if (
+    server === null ||
+    source === null ||
+    command === null ||
+    argList === null ||
+    envNames === null
+  )
+    return null;
+  const secrets = secretsOf(args);
+  const sourceView = mcpSourceViewOf(source);
+  const cwd = args["cwd"];
+  return {
+    server,
+    reason: mcpReasonOf(secrets, sourceView),
+    source: sourceView,
+    commandLine: shellLineOf(command, argList),
+    cwd: typeof cwd === "string" ? cwd : null,
+    envNames,
+    secrets,
+    changed: mcpChangedViewOf(args["changed"]),
+  };
+}
+
 // ── 파일 변경(edit, write) ───────────────────────────────────────────────
 
 /** 파일 변경 미리보기의 한 줄. `context`는 바뀌지 않은 앞뒤 줄이다 */

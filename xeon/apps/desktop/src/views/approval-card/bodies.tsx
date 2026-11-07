@@ -1,4 +1,5 @@
 import { t, type MessageId } from "@fresnel/client/i18n";
+import { assertNever } from "@fresnel/contracts";
 import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
 import {
   Alert,
@@ -16,11 +17,16 @@ import {
   QUESTION_TEXT_MAX,
   REVIEW_CHANGE_ID,
   fileChangeViewOf,
+  mcpStartViewOf,
   setPickText,
   toolApprovalView,
   toolReplaceView,
   togglePick,
   type FileChangeView,
+  type McpChangedField,
+  type McpChangedView,
+  type McpSourceView,
+  type McpStartView,
   type QuestionDraft,
   type QuestionItem,
   type ToolApprovalBody,
@@ -109,6 +115,66 @@ function ReplaceDetails(props: { readonly view: ToolReplaceView }): ReactNode {
   );
 }
 
+/** 기동 승인의 출처 글. 프로젝트 파일, 사용자 설정, 확장 이름은 뜻으로, 모르는 값은 원문으로 보인다 */
+function mcpSourceTextOf(source: McpSourceView): string {
+  switch (source.kind) {
+    case "project":
+      return t("desktop.approvals.mcpStart.source.project");
+    case "user":
+      return t("desktop.approvals.mcpStart.source.user");
+    case "extension":
+      return t("desktop.approvals.mcpStart.source.extension", { name: source.name });
+    case "raw":
+      return source.value;
+    default:
+      return assertNever(source, "mcp start source");
+  }
+}
+
+const MCP_REASON_TEXT: Readonly<Record<McpStartView["reason"], MessageId>> = {
+  secret: "desktop.approvals.mcpStart.reason.secret",
+  project: "desktop.approvals.mcpStart.reason.project",
+  other: "desktop.approvals.mcpStart.reason.other",
+};
+
+const MCP_FIELD_TEXT: Readonly<Record<McpChangedField, MessageId>> = {
+  command: "desktop.approvals.mcpStart.field.command",
+  args: "desktop.approvals.mcpStart.field.args",
+  cwd: "desktop.approvals.mcpStart.field.cwd",
+  source: "desktop.approvals.mcpStart.field.source",
+  env: "desktop.approvals.mcpStart.field.env",
+  secretEnv: "desktop.approvals.mcpStart.field.secretEnv",
+};
+
+/** 기동 승인이 직전에 허용한 정의와 달라졌을 때: 바뀜 표식, 바뀐 곳, 이전과 지금의 명령 줄 */
+function McpChangedBlock(props: {
+  readonly changed: McpChangedView;
+  readonly commandLine: string;
+}): ReactNode {
+  const { changed } = props;
+  const fields = changed.fields.map((field) => t(MCP_FIELD_TEXT[field])).join(", ");
+  return (
+    <div className="grid gap-1">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-2">
+        <Badge size="xs" className="bg-warning-tint text-warning-text">
+          {t("desktop.approvals.mcpStart.changed.badge")}
+        </Badge>
+        {changed.fields.length === 0 ? null : (
+          <span className="text-ui-sm text-text-secondary">
+            {t("desktop.approvals.mcpStart.changed.fields", { fields })}
+          </span>
+        )}
+      </div>
+      <div className="text-ui-sm text-text-secondary break-all">
+        {t("desktop.approvals.mcpStart.changed.line", {
+          before: changed.beforeCommandLine,
+          after: props.commandLine,
+        })}
+      </div>
+    </div>
+  );
+}
+
 function ArgsFold(props: { readonly view: ToolApprovalView }): ReactNode {
   const { view } = props;
   if (view.argsStored)
@@ -149,11 +215,17 @@ function FileChangeBlock(props: { readonly view: FileChangeView }): ReactNode {
 export function ToolBody(props: { readonly body: ToolApprovalBody }): ReactNode {
   const view = toolApprovalView(props.body);
   const replace = toolReplaceView(props.body);
+  const mcp = mcpStartViewOf(props.body);
   const change = fileChangeViewOf(props.body);
   const { ruleId } = props.body;
+  // 기동 승인은 명령에 인자를 붙인 한 줄을 보인다. `command`만으로는 실행될 것이 다 보이지 않는다
+  const command = mcp === null ? view.command : mcp.commandLine;
   return (
     <>
       {replace === null ? null : <ReplaceDetails view={replace} />}
+      {mcp === null || mcp.changed === null ? null : (
+        <McpChangedBlock changed={mcp.changed} commandLine={mcp.commandLine} />
+      )}
       {/* 시안 tool-approval: 명령, 위험도, 시크릿 참조를 한 목록(ListDescription)으로 보인다 */}
       <ListDescription
         variant="ghost"
@@ -164,9 +236,24 @@ export function ToolBody(props: { readonly body: ToolApprovalBody }): ReactNode 
         })}
         className="rounded-none [--cs-size-list-term:7rem] [&_[data-slot=list-description-row]]:px-0"
       >
-        {view.command === null ? null : (
+        {command === null ? null : (
           <ListDescriptionRow term={t("desktop.approvals.command.label")} mono>
-            <span className="whitespace-pre-wrap break-all">{view.command}</span>
+            <span className="whitespace-pre-wrap break-all">{command}</span>
+          </ListDescriptionRow>
+        )}
+        {mcp === null ? null : (
+          <ListDescriptionRow term={t("desktop.approvals.mcpStart.field.source")}>
+            {mcpSourceTextOf(mcp.source)}
+          </ListDescriptionRow>
+        )}
+        {mcp === null || mcp.cwd === null ? null : (
+          <ListDescriptionRow term={t("desktop.approvals.mcpStart.field.cwd")} mono>
+            <span className="break-all">{mcp.cwd}</span>
+          </ListDescriptionRow>
+        )}
+        {mcp === null || mcp.envNames.length === 0 ? null : (
+          <ListDescriptionRow term={t("desktop.approvals.mcpStart.field.env")} mono>
+            <span className="break-all">{mcp.envNames.join(", ")}</span>
           </ListDescriptionRow>
         )}
         <ListDescriptionRow term={t("desktop.approvals.replace.risk")}>
@@ -183,7 +270,11 @@ export function ToolBody(props: { readonly body: ToolApprovalBody }): ReactNode 
           </ListDescriptionRow>
         ))}
       </ListDescription>
-      {ruleId === null ? null : (
+      {/* 기동 승인은 규칙 id 대신 묻는 까닭을 사람 말로 보인다 */}
+      {mcp === null ? null : (
+        <div className="text-ui-sm text-text-secondary">{t(MCP_REASON_TEXT[mcp.reason])}</div>
+      )}
+      {mcp !== null || ruleId === null ? null : (
         <div className="text-ui-sm text-text-secondary">
           {t("desktop.approvals.rule", { id: ruleId })}
         </div>

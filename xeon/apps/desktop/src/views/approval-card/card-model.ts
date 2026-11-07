@@ -1,5 +1,6 @@
 import type { MessageId } from "@fresnel/client/i18n";
 import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
+import { mcpStartViewOf } from "../approval-form.ts";
 
 // 승인 카드가 그리는 순수 값(시간 표시, 만료, 키 해석, 계획 접기, 검토 합계). React 밖에서 시험한다(approval-card-model.test.ts).
 // 도구 인자·질문 답 조립은 ../approval-form.ts가 맡는다.
@@ -105,11 +106,15 @@ export function threadLinkVisibleOf(input: {
   return input.openable && input.within !== input.threadId;
 }
 
-/** 카드 제목의 카탈로그 키. 엔진이 영어로 만든 제목(도구 승인, 계획 승인)만 한국어로 바꾸고, 그 밖의 제목(시크릿 사용, 질문)은 원문이다 */
+/** 카드 제목의 카탈로그 키. 엔진이 영어로 만든 제목(도구 승인, 계획 승인, 기동 승인)만 한국어로 바꾸고, 그 밖의 제목(시크릿 사용, 질문)은 원문이다 */
 export type CardTitleView =
   | { readonly id: "desktop.approvals.title.tool"; readonly params: { readonly tool: string } }
   | { readonly id: "desktop.approvals.title.plan" }
   | { readonly id: "desktop.approvals.title.web"; readonly params: { readonly host: string } }
+  | {
+      readonly id: "desktop.approvals.title.mcpStart";
+      readonly params: { readonly server: string };
+    }
   | {
       readonly id: "desktop.approvals.title.write.memory" | "desktop.approvals.title.write.skill";
       readonly params: { readonly name: string; readonly opId: MessageId };
@@ -136,6 +141,10 @@ const WRITE_TITLE = /^Approve (\S+) on (?:skill (.+)|(.+) memory)\?$/;
 
 export function cardTitleViewOf(request: ApprovalRequestedPayload): CardTitleView | null {
   const { body } = request;
+  // 기동 승인은 저장된 영어 제목 대신 인자의 서버 이름으로 그린다(인자 모양이 맞지 않으면 원문)
+  const mcp = body.kind === "tool" ? mcpStartViewOf(body.tool) : null;
+  if (mcp !== null)
+    return { id: "desktop.approvals.title.mcpStart", params: { server: mcp.server } };
   if (body.kind === "tool" && request.title === `Allow tool "${body.tool.toolName}"?`) {
     return { id: "desktop.approvals.title.tool", params: { tool: body.tool.toolName } };
   }
