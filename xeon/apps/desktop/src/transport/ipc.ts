@@ -16,6 +16,7 @@ import {
   type TLiteral,
   type TNull,
   type TObject,
+  type TOptional,
   type TRecord,
   type TString,
   type TUnion,
@@ -37,6 +38,7 @@ const EngineExitSchema: TObject<{
   code: TUnion<[TInteger, TNull]>;
   signal: TUnion<[TInteger, TNull]>;
   at: TString;
+  detail: TOptional<TUnion<[TString, TNull]>>;
 }> = Type.Object(
   {
     /** 신호로 끝나면 null */
@@ -44,6 +46,8 @@ const EngineExitSchema: TObject<{
     /** Windows는 항상 null */
     signal: Type.Union([Type.Integer(), Type.Null()]),
     at: IsoTimeSchema,
+    /** 죽은 엔진의 stderr 첫 줄(영어, 사이드카·CLI가 쓴다). 연결 실패 원인을 고르는 데 쓴다. 없으면 생략하거나 null이다 */
+    detail: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   },
   { additionalProperties: false },
 );

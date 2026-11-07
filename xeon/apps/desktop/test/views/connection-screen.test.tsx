@@ -249,3 +249,52 @@ describe("the connected clients row in the status list", () => {
     );
   });
 });
+
+describe("the connection failure banner shows the cause line and the fix line", () => {
+  const ENTRY: TargetEntry = {
+    id: "b1",
+    label: "build-box",
+    address: "ssh://me@build/run/fresnel.sock",
+  };
+
+  /** 원격 대상으로 붙다가 엔진이 `detail`을 남기고 멈춘 상태 */
+  function failedWith(detail: string): ConnectionState {
+    return stateAfter(
+      { type: "targetsChanged", items: [ENTRY], notice: null, added: null },
+      { type: "select", choice: { kind: "remote", entry: ENTRY } },
+      {
+        type: "connectStarted",
+        target: { kind: "remote", entry: ENTRY },
+        observed: { engine: null, link: "offline", connectError: null },
+      },
+      {
+        type: "engineSeen",
+        observed: {
+          engine: {
+            kind: "failed",
+            attempts: 3,
+            lastExit: { code: 3, signal: null, at: "2026-11-04T01:00:00.000Z", detail },
+          },
+          link: "offline",
+          connectError: null,
+        },
+      },
+    );
+  }
+
+  test("the cause sits first and the fix line sits under it", () => {
+    const markup = html(failedWith("The service socket does not exist"));
+    const cause = markup.indexOf("서비스 소켓이 없어요.");
+    const fix = markup.indexOf("원격 서비스가 켜져 있는지, 주소가 맞는지 확인해요.");
+    expect(cause).toBeGreaterThan(-1);
+    expect(fix).toBeGreaterThan(cause);
+    expect(markup).not.toContain("잠시 뒤 다시 해 봐요.");
+  });
+
+  test("a target that needs a token says so and names the environment variable, with no token field", () => {
+    const markup = html(failedWith("The remote access token is missing"));
+    expect(markup).toContain("이 대상은 토큰이 필요해요.");
+    expect(markup).toContain("앱을 FRESNEL_REMOTE_TOKEN 환경 변수와 함께 열어요.");
+    expect(markup).not.toContain('type="password"');
+  });
+});

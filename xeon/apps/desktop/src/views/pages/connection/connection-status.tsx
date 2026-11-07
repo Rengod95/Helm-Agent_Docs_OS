@@ -1,4 +1,4 @@
-import { attachErrorKey } from "@fresnel/client";
+import { attachErrorKey, attachFixKey } from "@fresnel/client";
 import { updateLineKey } from "@fresnel/client/settings";
 import { t, type Locale } from "@fresnel/client/i18n";
 import {
@@ -162,7 +162,8 @@ function FailureAlert(props: {
         </span>
       }
     >
-      {t(attachErrorKey(failure.kind))}
+      <span className="block">{t(attachErrorKey(failure.kind))}</span>
+      <span className="block text-ui-sm">{t(attachFixKey(failure.kind))}</span>
     </Alert>
   );
 }

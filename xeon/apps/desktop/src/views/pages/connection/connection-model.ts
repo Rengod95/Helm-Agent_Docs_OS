@@ -293,8 +293,8 @@ const PROTOCOL_CODES: ReadonlySet<number> = new Set([
 
 /**
  * 세션이 남긴 연결 실패 코드(`ui.connectError`)를 연결 실패 종류로 바꾼다. 형식은 `session.ts`가 쓰는 세 가지다:
- * `hello:<코드>`(wire 오류 코드), `attach:<셸 명령 코드>`, `engine_not_running`. 세션은 터널 실패 코드를 남기지 않으므로
- * 터널이 실패하면 엔진이 멈춘 실패(`failed`)로 보이고 `other`가 된다. 종류가 없는 실패는 `other`다.
+ * `hello:<코드>`(wire 오류 코드), `attach:<셸 명령 코드>`, `engine_not_running`. 터널과 소켓의 원인은 여기에 없고
+ * 엔진이 멈춘 원인(`attachFailureOfExit`)으로 본다. 종류가 없는 실패는 `other`다.
  */
 export function attachFailureOf(connectError: string | null): AttachFailureKind | null {
   if (connectError === null) return null;
@@ -303,6 +303,37 @@ export function attachFailureOf(connectError: string | null): AttachFailureKind 
   if (code === WIRE_ERRORS["host.authFailed"].code) return "auth";
   if (PROTOCOL_CODES.has(code)) return "protocol";
   return "other";
+}
+
+/**
+ * 엔진 stderr 첫 줄(영어)의 특징 문구와 종류. 순서가 뜻을 가른다: 호스트 키 줄은 "ssh tunnel" 줄 안에도 함께 오므로
+ * `hostKey`를 `tunnel`보다 먼저 본다.
+ */
+const EXIT_DETAIL_KINDS: readonly (readonly [string, AttachFailureKind])[] = [
+  ["socket does not exist", "socketMissing"],
+  ["refused the connection", "refused"],
+  ["cannot be accessed", "permission"],
+  ["did not respond in time", "timeout"],
+  ["host key verification failed", "hostKey"],
+  ["ssh tunnel", "tunnel"],
+  ["token is missing", "tokenMissing"],
+  ["token does not match", "auth"],
+];
+
+/**
+ * 멈춘 엔진의 종료 원인을 연결 실패 종류로 바꾼다. 원인은 종료 코드가 아니라 `detail`(stderr 첫 줄)의 문구로 고른다.
+ * 종료 코드 3(환경 문제)은 셸이 자동 재시도를 하지 않는다는 뜻이고 종류는 `detail`이 정한다. 문구가 없거나 모르는
+ * 줄이면 `other`다. 대소문자는 가리지 않는다.
+ */
+export function attachFailureOfExit(exit: {
+  readonly code: number | null;
+  readonly detail?: string | null;
+}): AttachFailureKind {
+  const detail = exit.detail;
+  if (detail === null || detail === undefined) return "other";
+  const text = detail.toLowerCase();
+  const found = EXIT_DETAIL_KINDS.find(([phrase]) => text.includes(phrase));
+  return found === undefined ? "other" : found[1];
 }
 
 // ── 연결된 클라이언트 ──────────────────────────────────────────────────
@@ -444,7 +475,7 @@ function observe(state: ConnectionState, observed: EngineObservation): Connectio
     case "restarting":
       return withPending(moved, "restarting", engine.attempt);
     case "failed":
-      return fail(moved, "other", "restart");
+      return fail(moved, attachFailureOfExit(engine.lastExit), "restart");
     case "running":
       if (observed.link === "live") return succeed(moved);
       if (observed.link === "failed") return fail(moved, "other", "restart");
