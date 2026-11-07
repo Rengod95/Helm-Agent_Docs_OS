@@ -21,7 +21,7 @@ function issueLine(issue: DevkitIssue): string {
     issue.file === undefined
       ? ""
       : ` (${issue.file}${issue.line === undefined ? "" : `:${issue.line}`})`;
-  return `  ${issue.severity} ${issue.code} ${issue.path}: ${issue.message}${place}`;
+  return `  ${issue.severity} ${issue.code} ${issue.path === "" ? "/" : issue.path}: ${issue.message}${place}`;
 }
 
 async function printIssues(ctx: CommandContext, issues: readonly DevkitIssue[]): Promise<void> {
