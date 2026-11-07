@@ -375,8 +375,8 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 
 - 백오프: 1번째 재기동은 즉시, 그다음은 1초, 2초, 4초, 이후 8초 상한으로 늘린다.
 - 횟수 상한: 10분 창 안에서 `l4.desktop.engine.restartLimit`(기본 3)번까지 자동 재기동한다. 넘으면 `failed`로 두고 화면에 수동 재기동 버튼을 보인다(`engine_restart`).
-- 종료코드 3(환경 문제: 원격 소켓 없음, 접속 거부, SSH 호스트 키 실패)은 되풀이해도 같으므로 자동 재기동 횟수를 쓰지 않고 바로 `failed`로 두며 수동 재시작만 기다린다. [결정: 사용자 지시 fxRM 2026-11-07]
-- `EngineExit.detail`은 그 세대 stderr의 첫 비어 있지 않은 줄(앞뒤 공백 제거, 200자까지)이고, 없으면 null이다. 셸은 문장을 고르지 않고 UI가 원인 문장을 고른다. 종료 기록은 `restarting`과 `failed` 상태의 `lastExit`로 간다. [결정: 사용자 지시 fxRM 2026-11-07]
+- 종료코드 3(환경 문제: 원격 소켓 없음, 접속 거부, SSH 호스트 키 실패)은 되풀이해도 같으므로 자동 재기동 횟수를 쓰지 않고 바로 `failed`로 두며 수동 재시작만 기다린다. [결정: 오케스트레이터 기본값, fxRM]
+- `EngineExit.detail`은 그 세대 stderr의 첫 비어 있지 않은 줄(앞뒤 공백 제거, 200자까지)이고, 없으면 null이다. 셸은 문장을 고르지 않고 UI가 원인 문장을 고른다. 종료 기록은 `restarting`과 `failed` 상태의 `lastExit`로 간다. [결정: 오케스트레이터 기본값, fxRM]
 - 10분 동안 재기동 없이 `running`이 유지되면 횟수를 0으로 되돌린다.
 - 재기동한 엔진은 같은 DB를 연다. 엔진은 열 때 복구하므로(adr.0006 §3.1) 진행 중이던 turn은 비정상 종료 표식으로 남는다.
 - [가정] 위 수치(백오프 단계, 10분 창)는 측정 근거 없는 초기값이다.
@@ -421,7 +421,7 @@ pub enum PipeSource { Sidecar(SidecarPipe), Service(SocketPipe) }
 - 서비스 공급원에서 앱을 닫아도 서비스와 진행 중 turn은 계속된다. §4.3의 `host.shutdown`과 그룹 SIGKILL은 서비스에 보내지 않는다. 셸은 소켓만 닫는다.
 - 원격 서비스(M3-REQ-44, `L4.host-service.spec` HS-87·HS-89)는 셸을 바꾸지 않는다. 사용자 설정 `l0.process.service.remote`(또는 사이드카 인자)에 주소가 있으면 사이드카 `fresnel host --stdio`가 엔진을 열지 않고 원격 서비스 소켓(SSH 터널, 사설망)에 stdin/stdout을 중계한다. 셸은 평소처럼 사이드카의 바이트만 중계하고 `EngineState.source`는 `"sidecar"`다. 원격이 끊기면 사이드카가 종료코드 1로 끝나므로 §4.4 재기동 정책이 그대로 적용된다. 주소 문법이 틀리면 종료코드 2, 접속 실패는 3이다. 화면 쪽 설정 항목은 M4다 [결정: 오케스트레이터 기본값].
 - 서비스가 사라지면(소켓 EOF) 셸은 `restarting`으로 두고 `ensure`를 다시 부른다. 재기동 정책은 §4.4와 같다.
-- 대상 표시 (데스크톱 상태 표시줄과 연결 화면): 상태 표시줄 첫 칸은 원격 대상이면 "원격 · 이름"을 보이고, 연결 화면을 떠났다 돌아와도 현재 대상을 맞게 보이며, 대상 목록 행에 주소를 보이고, 마지막 대상은 기억하지 않는다(앱을 켜면 이 컴퓨터) [결정: 사용자].
+- 대상 표시 (데스크톱 상태 표시줄과 연결 화면): 상태 표시줄 첫 칸은 원격 대상이면 "원격 · 이름"을 보이고, 연결 화면을 떠났다 돌아와도 현재 대상을 맞게 보이며, 대상 목록 행에 주소를 보이고, 마지막 대상은 아직 기억하지 않는다(앱을 켜면 이 컴퓨터). 기억할지는 [미결: 사용자 결정].
 - 알림 [결정: review.decisions-2 S-04]: 알림은 1차(M3)다. 켜기 기본값, 종류 목록, 탭은 `L2.dialog.spec`의 `l2.dialog.notify.*` 정의(`notify.os`, `notify.completed`, `notify.approvalWaiting`, `notify.questionWaiting`, `notify.error`, `notify.backgroundCompleted`, 탭 `execution`)를 따른다. 데스크톱은 전달 수단으로 Electron `Notification`을 쓴다(§11.6). 옛 Tauri 구현(커밋 424f338a)은 `tauri-plugin-notification`을 썼다. 사건 원천은 `events.batch`의 내구 이벤트(승인 요청 등)다. 창이 앞에 있어도 기본으로 OS 알림을 보내고, 설정으로 끌 수 있다 [결정: review.m3-design-inputs D-M3-17]. 웹·모바일 푸시 알림은 후순위다. 사용자 알림 전용 wire(알림 이벤트 kind나 메서드)는 M1에 넣지 않고 M2 계획에서 정한다(review.decisions-2 U-04, §10 미결 5).
 
 ### 4.9 앱 내부 모듈 경계
