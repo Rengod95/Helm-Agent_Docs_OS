@@ -12,6 +12,7 @@ import { harness, thr } from "../state/helpers.ts";
 import { renderToString } from "react-dom/server";
 import { createUiStore } from "../../src/state/ui/index.ts";
 import { Providers } from "../../src/views/providers.tsx";
+import { HostNoticesContext } from "../../src/views/host-notices-context.ts";
 import { fakeCommands } from "./fake-commands.ts";
 import { DESKTOP_SETTING_DEFS } from "../../src/settings-store/defs.ts";
 import {
@@ -875,5 +876,58 @@ describe("shadowed winner in the page", () => {
     expect(out).toContain(
       t("desktop.settings.field.scope.sr", { scope: t("client.settings.scope.local") }),
     );
+  });
+});
+
+describe("overview tab problem banner", () => {
+  const view = viewOf([MODEL, STEPS, LOCKED], SETTINGS);
+  const PROBLEM = {
+    scope: "user" as const,
+    path: "/home/me/.fresnel/settings.json",
+    reason: "invalid_json" as const,
+    line: 3,
+    column: 5,
+  };
+
+  /** 알림 값을 준 자리에서 그린다. 개요 탭의 맨 위 띠는 이 값을 읽는다 */
+  function htmlWithProblem(props: SettingsPageProps): string {
+    const h = harness();
+    h.store.ingest({ type: "engine", state: { kind: "running", source: "sidecar", pid: 1 } });
+    h.store.flush();
+    const state = h.store.read.getState();
+    const engine = {
+      getState: () => state,
+      getInitialState: () => state,
+      subscribe: () => () => undefined,
+    };
+    return renderToString(
+      <Providers engine={engine} ui={createUiStore().read} commands={fakeCommands()}>
+        <HostNoticesContext value={{ settingsProblems: [PROBLEM] }}>
+          <SettingsPageView {...props} />
+        </HostNoticesContext>
+      </Providers>,
+    );
+  }
+
+  test("the overview tab opens with the banner and its open-file action", () => {
+    const out = htmlWithProblem(propsOf({ view, tab: "overview" }));
+    expect(out).toContain(t("desktop.settings.problem.title"));
+    expect(out).toContain(t("desktop.settings.problem.openFile"));
+    expect(out.indexOf(t("desktop.settings.problem.title"))).toBeLessThan(
+      out.indexOf(t("desktop.settings.overview.state")),
+    );
+  });
+
+  test("the banner stays on the overview tab only", () => {
+    expect(htmlWithProblem(propsOf({ view, tab: "providers" }))).not.toContain(
+      t("desktop.settings.problem.title"),
+    );
+  });
+
+  test("the open-file action is locked while the file editor is open or the link is offline", () => {
+    const open = htmlWithProblem(propsOf({ view, tab: "overview", fileOpen: true }));
+    expect(open).toContain('disabled=""');
+    const offline = htmlWithProblem(propsOf({ view, tab: "overview", readOnly: true }));
+    expect(offline).toContain('disabled=""');
   });
 });

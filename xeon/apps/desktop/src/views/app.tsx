@@ -41,6 +41,7 @@ import type { FileSaveInvoke } from "./file-save.ts";
 import { FileSaveContext } from "./file-save-context.ts";
 import { NoticeToasts } from "./notices.tsx";
 import { SafeModeProvider } from "./safe-mode-provider.tsx";
+import { HostNoticesProvider } from "./host-notices-provider.tsx";
 import { ShellBridges } from "./shell-bridges.tsx";
 import { useStartNewThread } from "./new-thread-flow.ts";
 import { ThreadList } from "./thread-list.tsx";
@@ -282,26 +283,28 @@ export function App(props: AppProps): ReactNode {
   return (
     <FolderPickContext value={props.folderPick ?? null}>
       <SafeModeProvider>
-        <FileSaveContext value={props.fileSave ?? null}>
-          <Shell
-            palette={
-              <Palette mac={props.mac} keyOverrides={props.keyOverrides} onRun={runPalette} />
-            }
-            onAction={onAction}
-            modalOpen={helpOpen}
-            registry={props.registry}
-            keyOverrides={props.keyOverrides}
-            mac={props.mac}
-            settingsOpen={screen === "settings"}
-            onSettingsOpenChange={(open) => {
-              commands.showScreen(open ? "settings" : "chat");
-            }}
-            settingsScreen={<SettingsPage folderPick={props.folderPick} />}
-            threadList={<ThreadList folderPick={props.folderPick} />}
-            statusBar={<StatusBar />}
-            onGoToThread={openThread}
-          />
-        </FileSaveContext>
+        <HostNoticesProvider>
+          <FileSaveContext value={props.fileSave ?? null}>
+            <Shell
+              palette={
+                <Palette mac={props.mac} keyOverrides={props.keyOverrides} onRun={runPalette} />
+              }
+              onAction={onAction}
+              modalOpen={helpOpen}
+              registry={props.registry}
+              keyOverrides={props.keyOverrides}
+              mac={props.mac}
+              settingsOpen={screen === "settings"}
+              onSettingsOpenChange={(open) => {
+                commands.showScreen(open ? "settings" : "chat");
+              }}
+              settingsScreen={<SettingsPage folderPick={props.folderPick} />}
+              threadList={<ThreadList folderPick={props.folderPick} />}
+              statusBar={<StatusBar />}
+              onGoToThread={openThread}
+            />
+          </FileSaveContext>
+        </HostNoticesProvider>
       </SafeModeProvider>
       <NoticeToasts />
       <FocusReturn />

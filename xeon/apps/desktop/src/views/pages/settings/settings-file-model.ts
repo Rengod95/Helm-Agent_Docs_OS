@@ -1,7 +1,9 @@
-import { assertNever } from "@fresnel/contracts";
+import { t } from "@fresnel/client/i18n";
+import { assertNever, jsonErrorPosition } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { SettingsReadFileResult, SettingsWritableFileScope } from "@fresnel/contracts/wire";
 import type { CommandError } from "../../commands.ts";
+import { errorText } from "../../settings.tsx";
 
 // 설정 파일 편집기(P-09 "파일로 보기")의 순수 모델. 읽은 원문, 고치는 초안, 저장, 충돌, 다시 읽기의 전이를 값으로 만든다.
 // 호스트를 부르지 않고 DOM도 보지 않는다. 명령은 `settings-screen.tsx`가 부르고, 응답은 번호(`seq`)가 맞을 때만 반영한다.
@@ -79,6 +81,24 @@ export type FileEditorAction =
   | { readonly type: "saveConflicted"; readonly seq: number }
   | { readonly type: "saveFailed"; readonly seq: number; readonly error: CommandError }
   | { readonly type: "savedMarkCleared" };
+
+/**
+ * host가 파일 전체 검사에서 주는 첫 문장(`settings.fileInvalid`의 issues[0], path "")이다. 화면은 이 영어 문장을 보이지 않고 메시지 키로 바꾼다.
+ * 올바른 JSON이 아니어도 같은 문장이 온다(apps/host/src/handlers/settings.ts `checkFileText`).
+ */
+export const FILE_NOT_OBJECT_DETAIL = "the settings file must be a JSON object";
+
+/**
+ * 저장 실패 문장. host가 객체가 아니라고 한 초안은 문법 위치(`jsonErrorPosition`)가 있으면 그 줄과 칸을 붙이고,
+ * 위치가 없으면(올바른 JSON인데 배열 등) 객체여야 한다는 문장만 쓴다. 다른 오류는 `errorText`가 쓴다.
+ * `draft`는 저장을 보낸 원문이다. 저장이 실패해도 초안은 그대로 남으므로 편집기의 `draft`를 넘긴다.
+ */
+export function fileErrorTextOf(error: CommandError, draft: string): string {
+  if (error.kind !== "rejected" || error.detail !== FILE_NOT_OBJECT_DETAIL) return errorText(error);
+  const position = jsonErrorPosition(draft);
+  if (position === undefined) return t("desktop.settings.file.notObject");
+  return t("desktop.settings.file.syntaxAt", { line: position.line, column: position.column });
+}
 
 /** 초안이 읽은 원문과 다른가. 읽기 전에는 다르지 않다 */
 export function fileDirtyOf(state: FileEditorState): boolean {

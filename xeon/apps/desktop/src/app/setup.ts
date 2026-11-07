@@ -20,6 +20,7 @@ import type {
   CommandError,
   DefaultGroupId,
   GroupsSnapshot,
+  HostNoticesSnapshot,
   SafeModeSnapshot,
   SearchSnapshot,
   SetupCommands,
@@ -82,6 +83,11 @@ export function safeModeOf(status: WireResult<"host.status">): SafeModeSnapshot 
     startupFailures: status.startupFailures ?? 0,
     suggest: status.suggestSafeMode === true,
   };
+}
+
+/** `host.status`의 호스트 알림 칸을 화면 값으로 바꾼다. 문제 칸이 없으면(문제가 없거나 구형 호스트) 빈 목록이다 */
+export function hostNoticesOf(status: WireResult<"host.status">): HostNoticesSnapshot {
+  return { settingsProblems: status.settingsProblems ?? [] };
 }
 
 export function createSetupCommands(
@@ -187,6 +193,15 @@ export function createSetupCommands(
         return status;
       }
       return ok(safeModeOf(status.value));
+    },
+    async loadHostNotices() {
+      const status = await run((c) => c.request("host.status", {}));
+      if (!status.ok) {
+        // 화면은 이 실패를 아무것도 그리지 않는 것으로 받는다(알림은 화면을 막지 않는 부가 정보다). 원인만 남긴다
+        logger.warn("desktop.hostNotices.read_failed", { reason: status.error.kind });
+        return status;
+      }
+      return ok(hostNoticesOf(status.value));
     },
     async setGroupEnabled(group, enabled) {
       const written = await run((c) =>

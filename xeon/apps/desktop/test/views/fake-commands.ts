@@ -60,6 +60,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       setDefaultModel: () => Promise.resolve(ok(null)),
       loadGroups: () => Promise.resolve(err({ kind: "unsupported" })),
       loadSafeMode: () => Promise.resolve(err({ kind: "unsupported" })),
+      loadHostNotices: () => Promise.resolve(err({ kind: "unsupported" })),
       setGroupEnabled: () => Promise.resolve(ok(null)),
       loadSearch: () => Promise.resolve(err({ kind: "unsupported" })),
       dismissSearchHint: () => Promise.resolve(ok(null)),

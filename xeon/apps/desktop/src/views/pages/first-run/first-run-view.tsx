@@ -29,7 +29,7 @@ import {
 } from "@fresnel/client/settings";
 import { t } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
-import type { ModelEntry } from "@fresnel/contracts/wire";
+import type { ModelEntry, SettingsFileProblem } from "@fresnel/contracts/wire";
 import type { SecretName } from "@fresnel/contracts/capabilities";
 import { useId, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import type { DefaultGroupId } from "../../commands.ts";
@@ -53,6 +53,7 @@ import {
   type StepState,
 } from "./first-run-model.ts";
 import { FirstRunKeyForm } from "./first-run-key.tsx";
+import { SettingsProblemBannerView } from "../../settings-problem-banner.tsx";
 import {
   groupNameOf,
   groupWhatOf,
@@ -92,6 +93,8 @@ export interface FirstRunViewHandlers {
   readonly openLightCraft: () => void;
   /** 대화를 새로 만들고 대화 화면으로 간다("대화 시작") */
   readonly startChat: () => void;
+  /** 설정 화면을 연다(맨 위 경고 띠의 "파일로 보기") */
+  readonly openSettings: () => void;
 }
 
 export interface FirstRunViewProps {
@@ -112,6 +115,8 @@ export interface FirstRunViewProps {
   readonly notice: string | null;
   /** 바닥글의 엔진 한 줄(상태·출처·연결)이다. 상태 표시줄과 같은 문장을 쓴다. 문장은 화면이 만든다 */
   readonly engineState: string;
+  /** 읽지 못한 설정 파일의 첫 문제(`host.status.settingsProblems`). 있으면 화면 맨 위에 경고 띠를 그린다 */
+  readonly settingsProblem: SettingsFileProblem | null;
   readonly handlers: FirstRunViewHandlers;
 }
 
@@ -215,6 +220,12 @@ export function FirstRunView(props: FirstRunViewProps): ReactNode {
       </header>
       <div className="min-h-0 flex-1 overflow-auto">
         <div className="mx-auto grid w-full max-w-184 gap-2 px-3 pt-1 pb-6">
+          {props.settingsProblem === null ? null : (
+            <SettingsProblemBannerView
+              problem={props.settingsProblem}
+              onOpenFile={handlers.openSettings}
+            />
+          )}
           {status === "offline" ? (
             <Alert tone="warning" layout="inline" size="sm">
               {t("desktop.firstRun.offline")}

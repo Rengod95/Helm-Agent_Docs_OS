@@ -21,7 +21,9 @@ import {
   type SearchSnapshot,
 } from "../../commands.ts";
 import { errorText } from "../../settings.tsx";
+import { useHostNotices } from "../../host-notices-context.ts";
 import { useModelChoices } from "../../model-usage.ts";
+import { firstSettingsProblemOf } from "../../settings-problem-model.ts";
 import { engineLineOf, linkTextOf } from "../../status-bar.tsx";
 import {
   firstRunModelOf,
@@ -59,6 +61,7 @@ export function FirstRunScreen(): ReactNode {
   const phase = useLinkPhase();
   const live = phase === "live";
   const engine = useEngineState();
+  const notices = useHostNotices();
   const [setup, setSetup] = useState<Loaded<SetupSnapshot>>({ kind: "loading" });
   const [search, setSearch] = useState<Loaded<SearchSnapshot>>({ kind: "loading" });
   const [groups, setGroups] = useState<Loaded<GroupsSnapshot>>({ kind: "loading" });
@@ -298,6 +301,9 @@ export function FirstRunScreen(): ReactNode {
   const openStep: StepId = open ?? model?.next ?? "tools";
 
   const handlers: FirstRunViewHandlers = {
+    openSettings: () => {
+      commands.showScreen("settings");
+    },
     open: (step) => {
       setOpen(step);
     },
@@ -346,6 +352,7 @@ export function FirstRunScreen(): ReactNode {
       keyEntry={keyEntry}
       notice={notice}
       engineState={`${engineLineOf(engine)} · ${t(linkTextOf(phase))}`}
+      settingsProblem={firstSettingsProblemOf(notices?.settingsProblems ?? [])}
       handlers={handlers}
     />
   );

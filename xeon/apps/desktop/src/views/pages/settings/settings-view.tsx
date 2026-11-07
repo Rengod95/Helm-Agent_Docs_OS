@@ -462,6 +462,8 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
         updatePanel={props.updatePanel}
         filePaths={props.filePaths}
         trustPanel={props.trustPanel}
+        onOpenFile={handlers.openFile}
+        openFileDisabled={props.readOnly || props.fileOpen}
       />
     );
   // 모델과 예산 탭은 제목 카드로 나눈다(시안 p09 `models-tab`, p11 `BudgetsTab`). 항목이 없으면 아래 한 카드가 빈 항목 문장을 맡는다
