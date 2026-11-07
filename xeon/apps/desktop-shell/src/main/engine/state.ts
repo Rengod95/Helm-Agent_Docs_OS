@@ -11,6 +11,8 @@ export interface EngineExit {
   readonly signal: number | null;
   /** RFC 3339 UTC 시각 */
   readonly at: string;
+  /** 그 세대 stderr의 첫 비어 있지 않은 줄(앞뒤 공백 제거, 200자까지). 없으면 null. 원인 문장은 UI가 고른다 */
+  readonly detail?: string | null;
 }
 
 /** 페이지에 보이는 엔진 상태. `kind`로 나뉜다 */

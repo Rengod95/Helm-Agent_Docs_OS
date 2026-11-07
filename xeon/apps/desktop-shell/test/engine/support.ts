@@ -203,6 +203,11 @@ export class FakeEngine {
     this.queue.push({ kind: "stdout", bytes: enc(text) });
   }
 
+  /** stderr에 조각 하나를 보낸다 */
+  stderr(text: string): void {
+    this.queue.push({ kind: "stderr", bytes: enc(text) });
+  }
+
   /** 엔진이 코드로 끝났다 */
   crash(code: number): void {
     this.queue.push({ kind: "terminated", code, signal: null });
