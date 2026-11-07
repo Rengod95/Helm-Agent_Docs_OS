@@ -242,7 +242,7 @@ export function toConnectTarget(choice: TargetChoice): ConnectTarget {
  * 엔진이 붙은 대상을 화면의 고른 대상으로 바꾼다. 원격은 주소가 같은 목록 항목을 찾고, 목록에 없으면 이 기기로 둔다
  * (지운 대상에 붙어 있어도 고른 칸은 이 기기다).
  */
-export function choiceOfEngineTarget(
+function choiceOfEngineTarget(
   items: readonly TargetEntry[],
   target: EngineTargetView,
 ): TargetChoice {

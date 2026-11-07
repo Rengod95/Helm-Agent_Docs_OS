@@ -196,13 +196,16 @@ describe("desktop setting labels in the catalog", () => {
 describe("connection failure cause and fix lines in the catalog", () => {
   // 연결 실패 종류마다 원인 한 줄과 해결 한 줄(`.fix`)을 둔다. 문장은 연결 화면이 `t()`로 만든다
   const KO: Readonly<Record<AttachFailureKind, readonly [string, string]>> = {
-    socketMissing: ["서비스 소켓이 없어요.", "원격 서비스가 켜져 있는지, 주소가 맞는지 확인해요."],
+    socketMissing: [
+      "서비스가 그 주소에 없어요.",
+      "원격 서비스가 켜져 있는지, 주소가 맞는지 확인해요.",
+    ],
     refused: ["서비스가 연결을 거절했어요.", "서비스가 그 주소와 포트에서 듣고 있는지 확인해요."],
     timeout: [
       "서비스가 제때 답하지 않았어요.",
       "서비스가 켜져 있고 네트워크가 이어졌는지 확인한 뒤 다시 해 봐요.",
     ],
-    permission: ["서비스 소켓에 접근할 수 없어요.", "소켓 파일과 폴더의 소유자와 권한을 확인해요."],
+    permission: ["서비스에 접근할 수 없어요.", "서비스 파일과 폴더의 소유자와 권한을 확인해요."],
     tunnel: [
       "SSH 터널을 열지 못했어요.",
       "주소와 SSH 접속을 확인해요. 비밀번호 없이 접속되는 키나 ssh-agent가 필요해요.",

@@ -28,7 +28,7 @@ export const DEFAULT_SHUTDOWN_GRACE_MS: number = 7_000;
 /** `l4.desktop.engine.restartLimit`의 기본값 */
 export const DEFAULT_RESTART_LIMIT: number = 3;
 /** 종료 기록에 싣는 stderr 첫 줄의 상한(글자 수). 원인 문장을 고르는 것은 UI다 */
-export const ENGINE_DETAIL_MAX_CHARS: number = 200;
+const ENGINE_DETAIL_MAX_CHARS: number = 200;
 /** 종료코드 3은 환경 문제(원격 소켓 없음, 접속 거부, SSH 호스트 키 실패)라 되풀이해도 같다. 자동 재기동하지 않는다 */
 export const ENV_EXIT_CODE: number = 3;
 

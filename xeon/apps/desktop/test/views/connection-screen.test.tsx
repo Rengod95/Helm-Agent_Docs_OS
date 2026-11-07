@@ -300,7 +300,7 @@ describe("the connection failure banner shows the cause line and the fix line", 
 
   test("the cause sits first and the fix line sits under it", () => {
     const markup = html(failedWith("The service socket does not exist"));
-    const cause = markup.indexOf("서비스 소켓이 없어요.");
+    const cause = markup.indexOf("서비스가 그 주소에 없어요.");
     const fix = markup.indexOf("원격 서비스가 켜져 있는지, 주소가 맞는지 확인해요.");
     expect(cause).toBeGreaterThan(-1);
     expect(fix).toBeGreaterThan(cause);
