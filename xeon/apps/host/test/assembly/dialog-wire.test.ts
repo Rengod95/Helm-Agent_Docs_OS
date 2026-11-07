@@ -186,7 +186,7 @@ const NOTICE: Notice = {
 /** 대화에 묶이지 않은 알림(예약 실행의 실패). 대화 없는 알림의 seq는 기준값 이상이다 */
 const THREADLESS: Notice = {
   kind: "error",
-  title: "예약 작업이 실패했어요",
+  title: "A scheduled run failed",
   body: "start_failed",
   seq: THREADLESS_NOTICE_SEQ_BASE + 1,
   sourceType: "schedule.run_finished",

@@ -4,7 +4,7 @@ import type { RunRecord, ScheduleEntry, ScheduleService } from "@fresnel/cap-sch
 import { threadlessNoticeOf, threadlessNoticesOf } from "../../src/assembly/threadless-notices.ts";
 
 // 대화에 묶이지 않은 알림(L4.desktop-ux 예약 절). 예약이 대화를 열기 전에 실패한 실행(`failed`이고 `threadId`가 없는 기록)만 알림이 된다.
-// 알림은 실행 기록에서 계산하므로 같은 기록은 늘 같은 알림이다(seq는 실행 id의 해시).
+// 알림은 실행 기록에서 계산하므로 같은 기록은 늘 같은 알림이다(seq는 끝난 시각과 실행 id 해시).
 
 const CLAIMED_MS = 1_800_000_000_000;
 const ENDED_MS = 1_800_000_120_000;
@@ -50,7 +50,7 @@ test("a failed run without a thread becomes an error notice with its reason, the
   const notice = threadlessNoticeOf(runOf());
   expect(notice).toEqual({
     kind: "error",
-    title: "예약 작업이 실패했어요",
+    title: "A scheduled run failed",
     body: "start_failed",
     seq: expect.any(Number),
     sourceType: "schedule.run_finished",
@@ -66,7 +66,7 @@ test("a run that never got an end time is dated by its claim", () => {
 
 test("the same run gives the same seq every time, and different runs give different seqs", () => {
   const first = threadlessNoticeOf(runOf({ runId: "run_same" }));
-  const again = threadlessNoticeOf(runOf({ runId: "run_same", endedAt: ENDED_MS + 5_000 }));
+  const again = threadlessNoticeOf(runOf({ runId: "run_same", threadId: null }));
   expect(first?.seq).toBe(again?.seq);
   const other = threadlessNoticeOf(runOf({ runId: "run_other" }));
   expect(other?.seq).toBeGreaterThanOrEqual(THREADLESS_NOTICE_SEQ_BASE);
@@ -138,7 +138,7 @@ test("over a schedule with two entries only the thread-less failures become noti
   expect(threadlessNoticesOf(schedule)).toEqual([
     {
       kind: "error",
-      title: "예약 작업이 실패했어요",
+      title: "A scheduled run failed",
       body: "start_failed",
       seq: expect.any(Number),
       sourceType: "schedule.run_finished",
@@ -146,11 +146,25 @@ test("over a schedule with two entries only the thread-less failures become noti
     },
     {
       kind: "error",
-      title: "예약 작업이 실패했어요",
+      title: "A scheduled run failed",
       body: "host_exit",
       seq: expect.any(Number),
       sourceType: "schedule.run_finished",
       createdAt: ENDED_MS + 1_000,
     },
   ]);
+});
+
+test("a later failure always has a larger seq, whatever its run id hashes to", () => {
+  const seqs = Array.from({ length: 50 }, (_, index) => {
+    const run = runOf({
+      runId: `run_${String(index)}x${String(index * 7)}`,
+      status: "failed",
+      reason: "start_failed",
+      endedAt: 1_790_000_000_000 + index,
+    });
+    return threadlessNoticeOf(run)?.seq ?? 0;
+  });
+  expect(seqs).toEqual(seqs.toSorted((a, b) => a - b));
+  expect(new Set(seqs).size).toBe(50);
 });

@@ -34,7 +34,7 @@ const ERROR: Notice = {
 /** 대화 없는 실패 알림(예약 실행이 대화를 열기 전에 실패). seq는 기준값 이상이다 */
 const THREADLESS: Notice = {
   kind: "error",
-  title: "예약 작업이 실패했어요",
+  title: "A scheduled run failed",
   body: "start_failed",
   seq: THREADLESS_NOTICE_SEQ_BASE + 3,
   sourceType: "schedule.run_finished",
