@@ -1,5 +1,5 @@
 import { assertNever } from "@fresnel/contracts";
-import { COMMAND_NAME_PATTERN } from "@fresnel/contracts/capabilities";
+import { COMMAND_NAME_PATTERN, type CommandSource } from "@fresnel/contracts/capabilities";
 import type { JsonValue } from "@fresnel/contracts/conversation";
 import type { CommandListResult, CommandRunResult } from "@fresnel/contracts/wire";
 
@@ -32,6 +32,8 @@ export type CommandRowVM = {
   readonly kind: "template" | "action";
   /** 등록 주체. 표시용 */
   readonly origin: string;
+  /** 출처 묶음(`command.list`의 `source`). 입력창 목록이 프로젝트·사용자 칩을 고를 때 쓴다 */
+  readonly source: CommandSource;
   /** 템플릿 본문에 셸 주입이 있어 실행 전에 확인이 필요하다 */
   readonly needsShellConfirm: boolean;
   /** 첫 인자가 고를 수 있는 값. 없으면 빈 배열 */
@@ -48,6 +50,7 @@ export function commandListView(result: CommandListResult): readonly CommandRowV
       hint: command.argumentHint,
       kind: command.kind,
       origin: command.origin,
+      source: command.source,
       needsShellConfirm: command.hasShell,
       firstChoices: command.args[0]?.choices ?? [],
     }))

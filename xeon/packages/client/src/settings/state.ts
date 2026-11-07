@@ -11,7 +11,7 @@ import { mergeCatalogs, type CatalogSources } from "./catalog.ts";
 import { affectedKeys } from "./invalidation.ts";
 import { t } from "../i18n/index.ts";
 import { resolveWidget } from "./widget-map.ts";
-import { buildSettingsView } from "./view.ts";
+import { buildSettingsView, type ScopeFileValues } from "./view.ts";
 import { checkClientValue, coerceInput } from "./write-flow.ts";
 import type {
   FieldError,
@@ -49,6 +49,8 @@ export interface SettingsState {
   readonly engineOffline: boolean;
   /** 키별 유효 값(`settings.get` 결과) */
   readonly values: ReadonlyMap<SettingKey, EffectiveSetting>;
+  /** 가려진 범위의 값을 보이려고 읽은 범위 파일 원문(`settings.readFile`). 읽지 못한 범위는 항목이 없다 */
+  readonly scopeFiles: ScopeFileValues;
   readonly drafts: ReadonlyMap<SettingKey, FieldDraft>;
   /** 사용자가 고른 쓰기 범위. 없으면 기본 범위를 쓴다 */
   readonly scopes: ReadonlyMap<SettingKey, WritableScope>;
@@ -75,6 +77,12 @@ export type SettingsAction =
   | { readonly type: "valuesLoaded"; readonly settings: readonly EffectiveSetting[] }
   /** 데스크톱 로컬 저장소에서 값이 바뀌었다. 상태(load 단계)는 건드리지 않는다 */
   | { readonly type: "valueChanged"; readonly setting: EffectiveSetting }
+  /** 범위 파일 하나를 읽었다. `values`가 null이면 읽지 못한 것이라 그 범위의 값을 지운다 */
+  | {
+      readonly type: "scopeFileRead";
+      readonly scope: SettingScope;
+      readonly values: ReadonlyMap<SettingKey, unknown> | null;
+    }
   | { readonly type: "loadFailed"; readonly error: FieldError }
   | { readonly type: "draftEdited"; readonly key: SettingKey; readonly raw: unknown }
   | { readonly type: "draftDiscarded"; readonly key: SettingKey }
@@ -118,6 +126,7 @@ export const initialSettingsState: SettingsState = {
   duplicateKeys: [],
   engineOffline: false,
   values: new Map(),
+  scopeFiles: new Map(),
   drafts: new Map(),
   scopes: new Map(),
   saving: new Set(),
@@ -251,6 +260,14 @@ export function reduceSettings(state: SettingsState, action: SettingsAction): Se
     }
     case "valueChanged":
       return { ...state, values: withEntry(state.values, action.setting.key, action.setting) };
+    case "scopeFileRead":
+      return {
+        ...state,
+        scopeFiles:
+          action.values === null
+            ? withoutEntry(state.scopeFiles, action.scope)
+            : withEntry(state.scopeFiles, action.scope, action.values),
+      };
     case "loadFailed":
       return { ...state, status: "failed", loadError: action.error };
     case "draftEdited":
@@ -328,14 +345,16 @@ export function reduceSettings(state: SettingsState, action: SettingsAction): Se
 
 function overlayField(field: FieldVM, state: SettingsState): FieldVM {
   const draft = state.drafts.get(field.key);
-  const scope = state.scopes.get(field.key);
+  const chosen = state.scopes.get(field.key);
   const origin = state.origins.get(field.key) ?? "engine";
   // 엔진 원천 항목은 엔진이 없을 때 읽기 전용이다. 바꿀 수 있었던 항목에만 안내 문장을 보인다(§4.1.3)
   const unlinked = origin === "engine" && state.engineOffline;
   return {
     ...field,
     value: draft === undefined ? field.value : draft.value,
-    selectedScope: scope ?? field.selectedScope,
+    // 사용자가 고른 범위는 지금 쓸 수 있을 때만 칸에 보인다(저장과 같은 규칙, badges.chosenWriteScope)
+    selectedScope:
+      chosen !== undefined && field.writableScopes.includes(chosen) ? chosen : field.selectedScope,
     origin,
     editable: field.editable && !unlinked,
     offlineNote: unlinked && field.editable ? t("client.settings.origin.engineOffline") : null,
@@ -358,6 +377,7 @@ export function settingsViewOf(state: SettingsState): SettingsView {
     defs: [...state.defs.values()],
     values: state.values,
     hasThread: state.threadId !== null,
+    fileValues: state.scopeFiles,
   });
   return {
     ...view,

@@ -1,12 +1,15 @@
 import { describe, expect, test } from "bun:test";
+import type { CommandRowVM } from "@fresnel/client/settings";
 import { renderToString } from "react-dom/server";
 import {
   ModelSelect,
   PermissionModeSelect,
+  SlashRow,
   UsageRing,
   ownsComposerRequest,
   secretWarningOf,
 } from "../../src/views/composer.tsx";
+import { slashMenuOf, type SlashMenuRow } from "../../src/views/composer-slash.ts";
 import { thr } from "../state/helpers.ts";
 
 // 입력창 단추 줄의 모델 select와 문맥 사용량 링. 효과가 없는 서버 렌더로만 본다(DOM이 없다).
@@ -123,5 +126,67 @@ describe("composer focus request owner", () => {
     expect(ownsComposerRequest(thr(2), thr(1))).toBe(false);
     expect(ownsComposerRequest(thr(2), thr(2))).toBe(true);
     expect(ownsComposerRequest(null, thr(1))).toBe(true);
+  });
+});
+
+/** 태그와 주석을 떼고 화면에 보이는 글만 남긴다 */
+function visibleText(html: string): string {
+  return html.replace(/<!--[\s\S]*?-->/g, "").replace(/<[^>]*>/g, "");
+}
+
+const noop = (): void => {};
+
+/** 목록에서 이름으로 행 하나를 고른다. 없으면 시험이 실패한다 */
+function menuRow(draft: string, engine: readonly CommandRowVM[], name: string): SlashMenuRow {
+  const found = slashMenuOf(draft, engine).find((row) => row.name === name);
+  if (found === undefined) throw new Error(`no slash row named ${name}`);
+  return found;
+}
+
+function commandRow(
+  name: string,
+  description: string,
+  source: CommandRowVM["source"],
+  hint: string | null,
+): CommandRowVM {
+  return {
+    name,
+    label: `/${name}`,
+    description,
+    hint,
+    kind: "template",
+    origin: "test",
+    source,
+    needsShellConfirm: false,
+    firstChoices: [],
+  };
+}
+
+describe("slash row", () => {
+  test("a project command shows the Project chip between its name and its hint and description", () => {
+    const row = menuRow("/hel", [commandRow("hello", "인사", "project", "[이름]")], "hello");
+    const markup = renderToString(
+      <SlashRow row={row} selected={false} onFill={noop} onHover={noop} />,
+    );
+    expect(markup).toContain('id="composer-slash-hello"');
+    expect(markup).toContain('aria-selected="false"');
+    expect(markup).toContain("data-composer-slash-source");
+    expect(visibleText(markup)).toBe("/hello프로젝트[이름]인사");
+  });
+
+  test("a user command shows the User chip", () => {
+    const row = menuRow("/mine", [commandRow("mine", "내 명령", "user", null)], "mine");
+    const markup = renderToString(<SlashRow row={row} selected onFill={noop} onHover={noop} />);
+    expect(markup).toContain('aria-selected="true"');
+    expect(visibleText(markup)).toBe("/mine사용자내 명령");
+  });
+
+  test("a built-in command shows no chip", () => {
+    const row = menuRow("/helm", [commandRow("helm", "탐구", "builtin", null)], "helm");
+    const markup = renderToString(
+      <SlashRow row={row} selected={false} onFill={noop} onHover={noop} />,
+    );
+    expect(markup).not.toContain("data-composer-slash-source");
+    expect(visibleText(markup)).toBe("/helm탐구");
   });
 });

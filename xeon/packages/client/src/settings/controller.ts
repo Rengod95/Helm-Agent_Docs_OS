@@ -1,19 +1,21 @@
-import { Bug, attemptAsync, detach, rethrow } from "@fresnel/contracts";
+import { Bug, attemptAsync, detach, parseJson, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
   EffectiveSetting,
   SettingKey,
   SettingScope,
+  SettingSource,
   SettingDefWire,
 } from "@fresnel/contracts/settings";
 import type {
   HostConnection,
+  SettingsFileScope,
   Unsubscribe,
   WireParams,
   WireRequestOptions,
 } from "@fresnel/contracts/wire";
 import { t } from "../i18n/index.ts";
-import { defaultWriteScope, writableScopes } from "./badges.ts";
+import { chosenWriteScope } from "./badges.ts";
 import { invalidationConcerns, type SettingsInvalidation } from "./invalidation.ts";
 import {
   initialSettingsState,
@@ -112,6 +114,34 @@ function requestOptions(signal: AbortSignal | undefined): WireRequestOptions | u
   return signal === undefined ? undefined : { signal };
 }
 
+/** 가려진 범위가 파일에 쓴 값을 읽을 범위. `launch`와 `default`는 파일이 없다 */
+function fileScopeOf(scope: SettingSource["scope"]): SettingsFileScope | null {
+  return scope === "default" || scope === "launch" ? null : scope;
+}
+
+/** 값이 가려진 범위 가운데 파일에서 읽을 범위. 같은 범위는 한 번만 읽는다 */
+function shadowedFileScopesOf(
+  values: ReadonlyMap<SettingKey, EffectiveSetting>,
+): readonly SettingsFileScope[] {
+  const scopes = new Set<SettingsFileScope>();
+  for (const setting of values.values()) {
+    for (const source of setting.shadowed) {
+      const scope = fileScopeOf(source.scope);
+      if (scope !== null) scopes.add(scope);
+    }
+  }
+  return [...scopes];
+}
+
+/** 범위 파일 원문(JSON 객체)을 키별 값으로 바꾼다. 파일이 JSON 객체가 아니면 null이다(호스트가 같은 파일을 같은 식으로 읽는다) */
+function valuesOfSettingsFile(text: string): ReadonlyMap<SettingKey, unknown> | null {
+  const parsed = parseJson(text);
+  if (!parsed.ok) return null;
+  const json = parsed.value;
+  if (typeof json !== "object" || json === null || Array.isArray(json)) return null;
+  return new Map(Object.entries(json));
+}
+
 function transientError(): FieldError {
   return { kind: "transient", message: t("client.settings.field.transient") };
 }
@@ -204,7 +234,7 @@ export function createSettingsController(port: SettingsHostPort): SettingsContro
 
   /**
    * 키 목록의 유효 값을 다시 읽는다. 키가 비면 전체다. 로컬 값은 바로 읽고, 엔진 값은 연결이 있을 때만 읽는다.
-   * 응답은 도착한 순서대로 반영한다
+   * 응답은 도착한 순서대로 반영한다. 가려진 범위의 파일 값도 이때 다시 읽는다.
    */
   async function refreshValues(
     keys: readonly SettingKey[],
@@ -229,6 +259,7 @@ export function createSettingsController(port: SettingsHostPort): SettingsContro
       return false;
     }
     dispatch({ type: "valuesLoaded", settings: [...got.value.settings, ...local] });
+    await refreshScopeFiles();
     return true;
   }
 
@@ -256,10 +287,46 @@ export function createSettingsController(port: SettingsHostPort): SettingsContro
         return;
       }
       dispatch(onSaved(outcome.setting, seq));
+      // 저장으로 가려진 범위의 파일이 바뀌었을 수 있어 다시 읽는다(알림을 기다리지 않는다)
+      await refreshScopeFiles();
     })();
     inFlight.set(key, work);
     await work;
     if (inFlight.get(key) === work) inFlight.delete(key);
+  }
+
+  /** 가려진 범위 파일 읽기 번호. 겹친 읽기는 마지막 것만 반영한다 */
+  let scopeFileSeq = 0;
+
+  /** 엔진 연결이 살아 있을 때 범위 파일 하나를 읽는다. 읽지 못했거나 파일이 JSON 객체가 아니면 null이다 */
+  async function readScopeFile(
+    scope: SettingsFileScope,
+  ): Promise<ReadonlyMap<SettingKey, unknown> | null> {
+    const link = liveLink();
+    if (link === null) return null;
+    const threadId = port.currentThreadId();
+    // 작업 폴더 범위(project, local)는 대화가 있어야 경로가 정해진다. user는 대화를 보내지 않는다(파일 편집기와 같다)
+    const folderScope = scope === "project" || scope === "local";
+    if (folderScope && threadId === null) return null;
+    const params = folderScope && threadId !== null ? { scope, threadId } : { scope };
+    const read = await attemptAsync(() => link.request("settings.readFile", params));
+    return read.ok ? valuesOfSettingsFile(read.value.text) : null;
+  }
+
+  /**
+   * 가려진 범위의 파일을 다시 읽어 `scopeFiles`를 채운다(§4.3.4). 읽기는 실패해도 설정 읽기를 실패시키지 않는다.
+   * 가려진 범위가 없으면 할 일이 없다.
+   */
+  async function refreshScopeFiles(): Promise<void> {
+    const seq = ++scopeFileSeq;
+    const scopes = shadowedFileScopesOf(state.values);
+    const read = await Promise.all(
+      scopes.map(async (scope) => ({ scope, values: await readScopeFile(scope) })),
+    );
+    if (seq !== scopeFileSeq) return;
+    for (const entry of read) {
+      dispatch({ type: "scopeFileRead", scope: entry.scope, values: entry.values });
+    }
   }
 
   /** 같은 키의 진행 중 쓰기가 끝난 뒤 `rerun`을 한다. 진행 중인 쓰기가 없으면 null이다 */
@@ -338,9 +405,13 @@ export function createSettingsController(port: SettingsHostPort): SettingsContro
     // 다른 곳에서 바뀐 값은 덮어쓰지 않는다. "새 값 쓰기"나 "내 값 유지"를 고른 뒤에 저장한다(scA-4-2)
     if (current.remoteChanged.has(key)) return Promise.resolve();
     const setting = current.values.get(key);
-    const scope =
-      current.scopes.get(key) ??
-      defaultWriteScope(writableScopes(def, setting, current.threadId !== null));
+    // 화면의 범위 선택 칸과 같은 값이다(사용자가 고른 범위, 없으면 유효 값을 정한 범위)
+    const scope = chosenWriteScope(
+      def,
+      setting,
+      current.threadId !== null,
+      current.scopes.get(key),
+    );
     const plan = planWrite(def, setting, draft.value, scope, current.threadId);
     if (plan.kind === "blocked") return blocked(key, plan.error);
     const sent = draft.value;

@@ -4,6 +4,8 @@ import {
   toSettingDefWire,
   type EffectiveSetting,
   type SettingDefWire,
+  type SettingKey,
+  type SettingScope,
 } from "@fresnel/contracts/settings";
 import { activeLocale, setActiveLocale, type Locale } from "../../src/i18n/index.ts";
 import {
@@ -12,6 +14,7 @@ import {
   buildSettingsView,
   settingsViewKeys,
   type FieldVM,
+  type ScopeFileValues,
   type SettingsView,
   type ViewDiagnostic,
 } from "../../src/settings/index.ts";
@@ -185,10 +188,18 @@ describe("field facts", () => {
       shadowed: [{ scope: "user", path: "/home/user/.fresnel/settings.json" }],
     });
     const field = fieldOf(viewOf([def], valuesOf(setting)), "l1.models.review");
-    expect(field?.scope).toEqual({ scope: "project", text: "작업 폴더", tone: "project" });
+    expect(field?.scope).toEqual({ scope: "project", text: "프로젝트", tone: "project" });
     expect(field?.filePath).toBe("/work/.fresnel/settings.json");
-    expect(field?.shadowed).toEqual([{ scope: "user", path: "/home/user/.fresnel/settings.json" }]);
-    expect(field?.selectedScope).toBe("user");
+    // 파일을 읽지 않았으면 가려진 값은 모른다(unknown)
+    expect(field?.shadowed).toEqual([
+      {
+        scope: "user",
+        path: "/home/user/.fresnel/settings.json",
+        value: { kind: "unknown" },
+      },
+    ]);
+    // 기본 쓰기 범위는 이 값을 정한 범위(project)다. 사용자 범위가 아니다
+    expect(field?.selectedScope).toBe("project");
     expect(field?.canReset).toBe(true);
     expect(field?.editable).toBe(true);
     expect(field?.widget).toEqual({
@@ -632,3 +643,125 @@ function bannerOf(
   setActiveLocale(locale);
   return viewOf(defs, valuesOf(...settings)).restartBanner?.text;
 }
+
+// 값이 같은 키를 user=2, project=4, local=6으로 정한 경우. 유효 값은 local이고 가려진 값은 project 4, user 2다.
+describe("shadowed scopes with values (user 2, project 4, local 6)", () => {
+  const KEY = "ext.helm.maxLenses";
+  const def = wireDef({
+    key: KEY,
+    type: { type: "integer" },
+    range: { min: 1, max: 20 },
+    default: 3,
+    ui: { tab: "plugins", widget: "number", order: 1, label: "렌즈 최대 개수" },
+  });
+  const setting = effectiveOf(KEY, 6, {
+    source: { scope: "local", path: "/work/.fresnel/settings.local.json" },
+    shadowed: [
+      { scope: "project", path: "/work/.fresnel/settings.json" },
+      { scope: "user", path: "/home/user/.fresnel/settings.json" },
+    ],
+  });
+  const fileValues: ScopeFileValues = new Map<SettingScope, ReadonlyMap<SettingKey, unknown>>([
+    ["project", new Map<SettingKey, unknown>([[KEY, 4]])],
+    ["user", new Map<SettingKey, unknown>([[KEY, 2]])],
+  ]);
+
+  test("the shown scope and the selected write scope are the winning local scope", () => {
+    const view = buildSettingsView({
+      defs: [def],
+      values: valuesOf(setting),
+      hasThread: true,
+      fileValues,
+    });
+    const field = fieldOf(view, KEY);
+    expect(field?.scope).toEqual({ scope: "local", text: "로컬", tone: "local" });
+    expect(field?.selectedScope).toBe("local");
+    expect(field?.writableScopes).toEqual(["user", "project", "local", "launch"]);
+    expect(field?.value).toBe(6);
+  });
+
+  test("the hidden scopes carry their file values, strongest first, with project and user apart", () => {
+    const view = buildSettingsView({
+      defs: [def],
+      values: valuesOf(setting),
+      hasThread: true,
+      fileValues,
+    });
+    expect(fieldOf(view, KEY)?.shadowed).toEqual([
+      {
+        scope: "project",
+        path: "/work/.fresnel/settings.json",
+        value: { kind: "value", value: 4 },
+      },
+      {
+        scope: "user",
+        path: "/home/user/.fresnel/settings.json",
+        value: { kind: "value", value: 2 },
+      },
+    ]);
+  });
+
+  test("without file values the hidden values are unknown, not guessed", () => {
+    const field = fieldOf(viewOf([def], valuesOf(setting)), KEY);
+    expect(field?.shadowed.map((item) => item.value)).toEqual([
+      { kind: "unknown" },
+      { kind: "unknown" },
+    ]);
+  });
+
+  test("a file value that fails the definition check is unknown", () => {
+    const bad: ScopeFileValues = new Map<SettingScope, ReadonlyMap<SettingKey, unknown>>([
+      ["project", new Map<SettingKey, unknown>([[KEY, "four"]])],
+    ]);
+    const view = buildSettingsView({
+      defs: [def],
+      values: valuesOf(setting),
+      hasThread: true,
+      fileValues: bad,
+    });
+    expect(fieldOf(view, KEY)?.shadowed[0]?.value).toEqual({ kind: "unknown" });
+  });
+
+  test("a hidden launch scope has no file and stays unknown", () => {
+    const launched = effectiveOf(KEY, 6, {
+      source: { scope: "local", path: "/work/.fresnel/settings.local.json" },
+      shadowed: [{ scope: "launch" }],
+    });
+    const view = buildSettingsView({
+      defs: [def],
+      values: valuesOf(launched),
+      hasThread: true,
+      fileValues,
+    });
+    expect(fieldOf(view, KEY)?.shadowed).toEqual([
+      { scope: "launch", path: null, value: { kind: "unknown" } },
+    ]);
+  });
+
+  test("a secret key never carries a hidden value, even when the file holds a reference", () => {
+    const SECRET = "ext.helm.apiToken";
+    const secretDef = wireDef({
+      key: SECRET,
+      type: { type: "string" },
+      secret: true,
+      ui: { tab: "plugins", widget: "secret", order: 2, label: "토큰" },
+    });
+    const secretSetting = effectiveOf(SECRET, "secret://helm-token", {
+      source: { scope: "local", path: "/work/.fresnel/settings.local.json" },
+      shadowed: [{ scope: "project", path: "/work/.fresnel/settings.json" }],
+    });
+    const view = buildSettingsView({
+      defs: [secretDef],
+      values: valuesOf(secretSetting),
+      hasThread: true,
+      fileValues: new Map<SettingScope, ReadonlyMap<SettingKey, unknown>>([
+        ["project", new Map<SettingKey, unknown>([[SECRET, "secret://old-token"]])],
+      ]),
+    });
+    const field = fieldOf(view, SECRET);
+    expect(field?.shadowed).toEqual([
+      { scope: "project", path: "/work/.fresnel/settings.json", value: { kind: "secret" } },
+    ]);
+    expect(JSON.stringify(field?.shadowed)).not.toContain("old-token");
+  });
+});

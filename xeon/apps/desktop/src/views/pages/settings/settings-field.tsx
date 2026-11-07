@@ -49,6 +49,7 @@ import {
   remoteNoticeOf,
   scopeChoiceShown,
   selectControlOf,
+  shadowedSummaryOf,
   tagsOf,
   textValueOf,
   valueSummaryOf,
@@ -609,7 +610,10 @@ function deprecatedTextOf(field: FieldVM): string {
   return `${head} ${t("desktop.settings.field.deprecatedReplaced", { label: deprecated.replacedByLabel })}`;
 }
 
-/** 다른 범위에 같은 키 값이 있어 가려져 있을 때의 접힌 안내 */
+/**
+ * 다른 범위에 같은 키 값이 있어 가려져 있을 때의 접힌 안내. 펼치면 가려진 범위의 값을 강한 범위 순으로 한 줄에 보인다
+ * (설명이라 접힘 안에 둔다. 항목의 저장 범위 선택은 이 값과 같은 범위다).
+ */
 function ShadowedNote(props: { readonly field: FieldVM }): ReactNode {
   return (
     <Accordion variant="ghost">
@@ -618,13 +622,7 @@ function ShadowedNote(props: { readonly field: FieldVM }): ReactNode {
           {t("desktop.settings.shadowed.title", { count: props.field.shadowed.length })}
         </AccordionTrigger>
         <AccordionContent>
-          <ul className="text-ui-sm text-text-secondary">
-            {props.field.shadowed.map((item) => (
-              <li key={`${item.scope}:${item.path ?? ""}`}>
-                {t("desktop.settings.shadowed.item", { scope: scopeText(item.scope) })}
-              </li>
-            ))}
-          </ul>
+          <p className="text-ui-sm text-text-secondary">{shadowedSummaryOf(props.field)}</p>
         </AccordionContent>
       </AccordionItem>
     </Accordion>

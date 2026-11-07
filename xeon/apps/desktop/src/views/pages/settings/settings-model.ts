@@ -2,11 +2,13 @@ import type {
   BadgeScope,
   FieldVM,
   SettingsView,
+  ShadowedVM,
   TabVM,
   WidgetVM,
   WritableScope,
 } from "@fresnel/client/settings";
-import { tKey } from "@fresnel/client/i18n";
+import { scopeText } from "@fresnel/client/settings";
+import { t, tKey } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { SettingEditor, SettingKey, SettingsTab } from "@fresnel/contracts/settings";
 
@@ -425,6 +427,52 @@ export function valueSummaryOf(value: unknown): ValueSummary {
     return { kind: "text", text: String(value) };
   }
   return { kind: "text", text: JSON.stringify(value) };
+}
+
+// ── 가려진 값 ──────────────────────────────────────────────────────────────
+
+/** 값 하나의 화면 글. 표와 객체는 원소 수로, 빈 값은 빈 값 글로 보인다(항목 요약과 같은 규칙) */
+function valueTextOf(value: unknown): string {
+  const summary = valueSummaryOf(value);
+  switch (summary.kind) {
+    case "empty":
+      return t("desktop.settings.field.emptyValue");
+    case "count":
+      return t("desktop.settings.field.itemCount", { count: summary.count });
+    case "text":
+      return summary.text;
+    default:
+      return assertNever(summary, "ValueSummary");
+  }
+}
+
+/** 가려진 범위 하나의 글. 시크릿은 값 대신 "값 가려짐"이고, 파일에서 못 읽은 범위는 그 사실만 보인다 */
+function shadowedItemOf(item: ShadowedVM): string {
+  const scope = scopeText(item.scope);
+  switch (item.value.kind) {
+    case "value":
+      return t("desktop.settings.shadowed.item", {
+        scope,
+        value: valueTextOf(item.value.value),
+      });
+    case "secret":
+      return t("desktop.settings.shadowed.item", {
+        scope,
+        value: t("desktop.secrets.value.hidden"),
+      });
+    case "unknown":
+      return t("desktop.settings.shadowed.unknown", { scope });
+    default:
+      return assertNever(item.value, "ShadowedValueVM");
+  }
+}
+
+/**
+ * 가려진 범위의 요약 한 줄(§4.3.4 [결정: 오케스트레이터 기본값, fxPT]). 강한 범위부터 약한 범위 순으로 `프로젝트 4 · 사용자 2`처럼 잇는다.
+ * 가려진 범위가 없으면 빈 글이다. 값은 접힘 영역 안에만 보인다.
+ */
+export function shadowedSummaryOf(field: FieldVM): string {
+  return field.shadowed.map(shadowedItemOf).join(t("desktop.settings.shadowed.separator"));
 }
 
 // ── 바로 가기 키 ───────────────────────────────────────────────────────────

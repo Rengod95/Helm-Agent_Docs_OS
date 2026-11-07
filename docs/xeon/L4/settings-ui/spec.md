@@ -265,10 +265,10 @@ export interface FieldVM {
   readonly scope: ScopeBadge;
   readonly runtime: RuntimeBadge;
   readonly lock: LockInfo | null;
-  readonly shadowed: readonly ShadowedVM[];
+  readonly shadowed: readonly ShadowedVM[];   // 각 원소는 범위·경로와 값(ShadowedValueVM, §4.3.4)
   readonly filePath: string | null;
   readonly writableScopes: readonly WritableScope[];
-  readonly selectedScope: WritableScope | null;
+  readonly selectedScope: WritableScope | null;   // 범위 선택 칸의 값이자 쓰기 범위(§4.3.6)
   readonly canReset: boolean;
   readonly editable: boolean;
   readonly deprecated: DeprecatedVM | null;
@@ -709,12 +709,13 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 |---|---|---|---|
 | `managed` | 관리 | `--badge-managed`(적갈색 계열) | 자물쇠 |
 | `user` | 사용자 | `--badge-user`(파랑 계열) | 없음 |
-| `project` | 작업 폴더 | `--badge-project`(초록 계열) | 없음 |
+| `project` | 프로젝트 | `--badge-project`(초록 계열) | 없음 |
 | `local` | 로컬 | `--badge-local`(보라 계열) | 없음 |
 | `launch` | 대화 | `--badge-launch`(주황 계열) | 없음 |
 | `default` | 기본값 | `--badge-default`(회색) | 없음 |
 
 - 색 값은 desktop 테마가 정한다. 배지 글자와 배경의 대비는 4.5:1 이상이다.
+- `project`의 글자는 "프로젝트"다. 예전 "작업 폴더"는 `local`(로컬)과 한 이름으로 읽혀서 바꾼다. 범위 선택 칸과 가려진 값 요약도 같은 글자를 쓴다 [결정: 오케스트레이터 기본값, fxPT].
 
 #### 4.3.2 runtimeChange 배지와 대기 표시
 
@@ -733,8 +734,10 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 
 #### 4.3.4 가려진 값
 
-- `shadowed`가 비어 있지 않으면 "다른 범위의 값이 가려져 있어요"와 가려진 범위 배지 목록(우선순위 순)과 경로를 접힘 영역에 보인다(`F.wire-settings.spec` §4.7 규칙 5).
-- `shadowed`에는 값이 없다. 화면은 가려진 값을 보이지 않는다.
+- `shadowed`가 비어 있지 않으면 "가려진 범위 N개"를 접힘 영역 머리로 보인다(`F.wire-settings.spec` §4.7 규칙 5). 펼치면 가려진 범위의 값을 강한 범위 순으로 한 줄에 보인다. 예: `프로젝트 4 · 사용자 2`. 프로젝트와 로컬은 따로 적는다 [결정: 오케스트레이터 기본값, fxPT].
+- wire의 `shadowed`에는 값이 없다(범위와 경로만, `F.wire-settings.spec` §4.7) [근거: packages/contracts/src/wire-settings/settings/effective.ts `SettingSourceSchema`]. 값은 화면이 `settings.readFile`로 그 범위 파일을 읽어 채운다. 파일에 없거나 정의 검사에 못 미치면 "프로젝트 값을 읽지 못했어요"로 보인다. `launch` 범위는 파일이 없어 값을 모른다. [결정: 오케스트레이터 기본값, fxPT]
+- 시크릿 항목의 가려진 값은 값 대신 "값 가려짐"이다. 참조 문자열도 싣지 않는다 [결정: 오케스트레이터 기본값, fxPT].
+- 접힘 영역은 설명이므로 정보 아이콘과 같이 한 번의 펼침 뒤에 둔다. 저장 범위 칸의 값은 이 값과 같은 범위다(§4.3.6) [결정: 오케스트레이터 기본값, fxPT].
 
 #### 4.3.5 저장 파일 경로
 
@@ -746,7 +749,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 1. 후보는 `allowedScopes`에서 `managed`를 뺀 값이다. 화면은 managed에 쓰지 않는다.
 2. 잠겼으면 후보가 없다.
 3. `currentThreadId()`가 null이면 `launch`를 뺀다. `settings.set`의 launch 쓰기에는 `threadId`가 필요하기 때문이다.
-4. 기본 선택은 `user`다. user가 후보에 없으면 project, local, launch 순으로 첫 값이다.
+4. 기본 선택은 유효 값을 정한 범위다(`source.scope`). 그 범위가 후보에 없거나 값이 기본값이면 `user`이고, user가 후보에 없으면 project, local, launch 순으로 첫 값이다 [결정: 오케스트레이터 기본값, fxPT]. 범위 선택 칸은 이 값을 보이고, 저장은 칸이 보이는 범위에 쓴다(`settings.set`의 `scope`와 `threadId`). 사용자가 칸을 바꾸면 그 범위가 쓰기 범위다.
 5. `launch`은 범위 선택 목록에 넣지 않고 "이번 대화에만 적용" 확인란으로 보인다. 켜면 쓰기 범위가 launch가 되고 `threadId`를 함께 보낸다.
 6. 후보가 하나도 없으면 항목은 읽기 전용이고 "이 화면에서는 바꿀 수 없어요"를 보인다.
 7. 범위 밖 범위는 선택지에 나타나지 않는다. 서버가 `settings.scopeNotAllowed`를 돌려주면 §4.4.4대로 처리한다.
@@ -1091,7 +1094,7 @@ sequenceDiagram
 - AC4. `SettingWidget` 8값 각각이 `resolveWidget`에서 같은 `kind`의 `WidgetVM`으로 바뀌고, 렌더러가 8종 모두를 그린다. `number`는 `range.min`·`max`·`ui.unit`을, `select`는 `range.enum`을 담는다.
 - AC5. `locked: true`인 항목은 `editable: false`, `writableScopes: []`, `canReset: false`다. 이 항목에 `commit`을 불러도 `settings.set`이 나가지 않는다.
 - AC6. 시크릿 키에 참조 아닌 문자열을 `edit`한 뒤의 상태를 `JSON.stringify`한 결과, 컨트롤러가 남긴 로그, `FieldError` 객체, 렌더링 결과 DOM 어디에도 그 문자열이 없다.
-- AC7. 쓰기 범위 선택지는 `allowedScopes`에서 managed를 뺀 집합의 부분집합이다. `allowedScopes`에 없는 범위는 선택지에 없다. thread가 없으면 launch가 없다. 기본 선택은 user(있을 때)다.
+- AC7. 쓰기 범위 선택지는 `allowedScopes`에서 managed를 뺀 집합의 부분집합이다. `allowedScopes`에 없는 범위는 선택지에 없다 [근거: packages/client/src/settings/badges.ts `writableScopes`]. thread가 없으면 launch가 없다. 기본 선택은 유효 값을 정한 범위(후보에 있을 때), 아니면 user(있을 때)다 [결정: 오케스트레이터 기본값, fxPT].
 - AC8. `settings.changed` 이벤트를 받으면 그 키를 `settings.get`으로 다시 읽고 `FieldVM.value`와 배지가 새 `EffectiveSetting`으로 바뀐다. 이벤트 `payload.value`는 상태에 들어가지 않는다.
 - AC9. `settings.set` 실패의 `data.kind` 다섯 가지(`settings.invalidValue`, `settings.scopeNotAllowed`, `settings.locked`, `settings.secretValue`, `settings.unknownKey`)와 `settings.scopeNotAllowed`의 `details.reason: "workspaceRequired"`가 각각 §4.4.4 표의 `FieldError.kind`와 뒤따르는 동작으로 바뀐다. 서버 `message` 문자열은 `FieldError.message`에 없다.
 - AC10. `pendingUntil: "restart"`인 항목 수와 재시작 띠의 개수가 같다.

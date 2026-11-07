@@ -161,11 +161,23 @@ export function planWrite(
       error: { kind: "invalidValue", message: invalidMessage(def), issues: checked.error },
     };
   }
-  const params: WireParams<"settings.set"> =
-    scope === "launch" && threadId !== null
-      ? { key: def.key, value, scope, threadId }
-      : { key: def.key, value, scope };
+  const params: WireParams<"settings.set"> = {
+    key: def.key,
+    value,
+    ...scopeArgsOf(scope, threadId),
+  };
   return { kind: "send", params };
+}
+
+/**
+ * 범위 인자. `user`는 대화를 보내지 않는다. `project`와 `local`은 대화의 작업 폴더를 정하려고 보낸다(호스트는 대화가 없으면
+ * 그 범위에 쓰지 않는다). `launch`는 대화가 있어야 쓴다. 파일 편집기의 범위 인자와 같은 규칙이다.
+ */
+function scopeArgsOf(
+  scope: WritableScope,
+  threadId: ThreadId | null,
+): { readonly scope: WritableScope; readonly threadId?: ThreadId } {
+  return scope === "user" || threadId === null ? { scope } : { scope, threadId };
 }
 
 /** `settings.reset` 요청을 만들거나 막는다. 범위 검사는 쓰기와 같다 */
@@ -177,10 +189,7 @@ export function planReset(
 ): ResetPlan {
   const blocked = blockedBy(def, setting, scope, threadId);
   if (blocked !== null) return { kind: "blocked", error: blocked };
-  const params: WireParams<"settings.reset"> =
-    scope === "launch" && threadId !== null
-      ? { key: def.key, scope, threadId }
-      : { key: def.key, scope };
+  const params: WireParams<"settings.reset"> = { key: def.key, ...scopeArgsOf(scope, threadId) };
   return { kind: "send", params };
 }
 

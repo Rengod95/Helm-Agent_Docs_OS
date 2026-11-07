@@ -270,7 +270,7 @@ describe("origin routing", () => {
     expect(host.local.writes).toEqual([]);
     expect(host.controller.getState().errors.get(CLOSE_KEY)).toEqual({
       kind: "scopeNotAllowed",
-      message: "작업 폴더 범위에는 저장할 수 없어요",
+      message: "프로젝트 범위에는 저장할 수 없어요",
       allowed: ["user"],
     });
   });
