@@ -1,4 +1,4 @@
-import { Button, Message, ToolCall } from "@caustic/react";
+import { Badge, Button, Message, ToolCall } from "@caustic/react";
 import { ChevronRight, Globe } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
@@ -163,6 +163,8 @@ function ToolRow(props: {
   readonly openWhenDone?: boolean;
   /** 펼친 본문에서 결과 글 위에 놓는 그림(edit·write의 diff). 결과가 없는 행에서는 그리지 않는다 */
   readonly diff?: ReactNode;
+  /** MCP 도구의 서버 이름. 줄 머리에 칩으로 보인다(결과의 `details.server`) */
+  readonly server?: string;
 }): ReactNode {
   const { output } = props;
   const awaiting = props.awaitingApproval === true && props.status === "running";
@@ -178,7 +180,16 @@ function ToolRow(props: {
   return (
     <ToolCall
       name={props.name}
-      detail={props.detail}
+      detail={
+        props.server === undefined ? (
+          props.detail
+        ) : (
+          <>
+            <Badge size="xs">{t("desktop.item.toolServer", { server: props.server })}</Badge>
+            {props.detail === undefined ? null : ` ${props.detail}`}
+          </>
+        )
+      }
       status={props.status}
       activity={
         awaiting
@@ -290,6 +301,15 @@ type ResultView = {
   /** 훅이 막은 거부(`details`의 `denied_by_extension`). 있으면 경고 빛깔이고 알약 글과 본문이 훅 문구다 */
   readonly hook?: HookDenialView;
 };
+
+/** MCP 도구 결과의 서버 이름(`details.server`). 문자열이 아니면 없다. 실행 중인 호출은 결과가 없어 이름도 없다 */
+function serverOfResult(item: ItemRecord): string | undefined {
+  if (item.kind !== "toolResult") return undefined;
+  const { details } = item.message;
+  if (details === undefined || !isJsonObject(details)) return undefined;
+  const server = details["server"];
+  return typeof server === "string" && server !== "" ? server : undefined;
+}
 
 /** 훅 거부의 본문 한 줄. 확장 이름을 모르면 이름 없는 글을 쓴다 */
 function hookDenialText(hook: HookDenialView): string {
@@ -541,6 +561,7 @@ function CallRow(props: {
       />
     );
   }
+  const server = result === undefined ? undefined : serverOfResult(result);
   const sources =
     WEB_TOOLS.includes(props.name) && view.status === "done" ? webSourcesOf(view.output) : [];
   return (
@@ -554,6 +575,7 @@ function CallRow(props: {
         {...(view.cut === undefined ? {} : { cut: view.cut })}
         {...(view.hook === undefined ? {} : { hook: view.hook })}
         diff={change === null ? undefined : <FileChangeDiff view={change} />}
+        {...(server === undefined ? {} : { server })}
       />
       <SourceChips sources={sources} />
     </>
@@ -564,6 +586,7 @@ function CallRow(props: {
 function ResultRow(props: { readonly item: ItemRecord }): ReactNode {
   const view = resultViewOf(props.item);
   if (view === null || props.item.kind !== "toolResult") return null;
+  const server = serverOfResult(props.item);
   return (
     <ToolRow
       name={props.item.message.toolName}
@@ -571,6 +594,7 @@ function ResultRow(props: { readonly item: ItemRecord }): ReactNode {
       {...(view.failedLabel === undefined ? {} : { failedLabel: view.failedLabel })}
       output={view.output}
       {...(view.hook === undefined ? {} : { hook: view.hook })}
+      {...(server === undefined ? {} : { server })}
     />
   );
 }

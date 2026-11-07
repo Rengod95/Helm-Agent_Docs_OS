@@ -126,6 +126,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
   2. 입력창에 쓰고 Enter로 보냅니다. 응답이 흐르고 도구 호출이 접힌 행으로 보입니다.
   3. 승인이 필요한 호출이 오면 트랜스크립트 끝과 받은 요청 패널에 카드가 뜹니다. 상태 표시줄의 승인 수가 늘어납니다.
   4. 명령 전문, 인자, 쓸 시크릿 참조을 보고 "허용", "거부" 중 하나를 고릅니다(승인 기억은 요청 단위뿐입니다).
+     MCP 서버 도구의 카드는 서버 이름 칩(`서버 <이름>`)을 보입니다. 서버가 알린 성질이 있으면 "서버가 알린 성질: 읽기 전용, 파괴적"처럼 한 줄로 보이고, 그 아래에 "서버가 스스로 알린 것이라 믿을 수 없어요" 경고를 늘 보입니다(정보 아이콘 뒤에 두지 않습니다). 묻는 규칙 줄(`규칙 <id> 때문에 물어요`)은 정보 아이콘 뒤에 두고, `mcp.default`는 "MCP 도구는 기본으로 물어봐요 (규칙 mcp.default)"로 풉니다. 이 표시는 허용·거부 결정을 바꾸지 않습니다 [결정: 오케스트레이터 기본값, fxMC].
   5. 실행 중에 입력하면 큐 모드(steer, followUp)로 들어갑니다.
   6. 필요하면 ⌘. 로 중단합니다.
 - 거치는 화면: P-02, P-03, S-03
@@ -273,6 +274,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
      - 승인을 기다리는 턴(대기 승인이 있는 대화)은 복구 표식이 남아도 "중단된 턴" 띠를 내지 않습니다. 엔진이 다시 열릴 때 recover가 죽은 턴의 대기 승인을 정리하므로, 승인이 남아 있으면 살아 있는 턴입니다(`resumeBandOf`의 `approvals`, 시험: `test/views/resume-band-model.test.ts`).
      - [제안] 사용자가 중단한 뒤 큐에 남은 입력(`queuedInputs > 0`, 대화가 `idle`)은 자동으로 시작하지 않습니다. 띠가 "대기 중인 메시지 N개가 있어요"와 "보내기"(`turn.resume`)를 보입니다 [결정: 기본값, scB-S4]. N은 입력창 위 칩과 같은 기준(`chipInputs`)으로 센 사용자에게 보이는 입력 수입니다. 숨은 내부 입력(`display: false`, Helm `grp.helm.*`)만 남았으면 띠를 내지 않고, 섞여 있으면 보이는 것만 셉니다 [결정: 오케스트레이터 기본값, rtG]. 숨은 내부 입력이 쉬는 대화에 남아 있을 때 모델로 가는 때는 스펙에 없습니다(결정 목록 거리: 다음 사용자 말과 함께 보낼지, 버릴지).
      - 도구 호출은 호출 하나에 행 하나입니다. 행의 상태 알약은 결과를 따릅니다: 성공은 완료, 실패는 "실패", 사용자가 거부하면 "거부함", 중단된 호출은 "중단됨", 결과가 없고 대화가 실행 중이면 "실행 중"입니다. 결과 기록은 따로 그리지 않고 같은 행의 본문으로 보입니다. 내부 오류 코드(`[코드] `)는 본문에 드러내지 않습니다(scB-S3).
+     - MCP 서버 도구의 행은 결과의 `details.server`가 문자열이면 줄 머리에 서버 이름 칩(`서버 <이름>`)을 보입니다. 실행 중인 호출은 결과가 없어 칩이 없습니다 [결정: 오케스트레이터 기본값, fxMC].
      - `edit`·`write` 행은 상세에 파일 경로를 보이고, 결과가 있으면 펼친 본문에서 결과 글 위에 파일 변경 diff를 보입니다(승인 카드와 같은 그림, `apps/desktop/src/views/file-change-view.tsx`). 파일을 되돌리는 길은 없습니다. 엔진에 파일 변경 기록이 없어 되돌리기는 엔진 작업으로 남깁니다 [gap: 파일 변경 기록 없음].
      - 도구 호출은 실행 중에도 행 하나입니다. 어시스턴트 기록의 호출 행이 이미 "실행 중"으로 보이면, 같은 호출의 실행 진행 항목(`item.started`의 `toolCallId`)은 따로 그리지 않습니다. 인자가 긴 호출(`submit_plan`)은 행 안에서 한 줄 말줄임이고 대화 칸 밖으로 밀리지 않습니다(행 열 폭 `minmax(0,1fr)`) [근거: scB-S3, rtAB-R4].
      - "이어서 실행"이 시작됐다는 답(`turn.resume` → `resumed`)을 받으면 그 복구 표식의 "중단된 턴" 띠를 닫습니다. 표식은 턴이 끝나야 지워지고 그 사이 상태는 `running`이므로, 상태가 아니라 답받은 턴 id로 가립니다(`resumeBandClosed`) [근거: rtAB-R6]. 중단 뒤 "보내기"는 엔진이 대기 입력을 새 턴으로 시작하고, 중단된 턴의 부분 답은 "중단됨"으로 그대로 남습니다. 컨텍스트 조립이 중단된 어시스턴트 항목을 다음 요청에서 빼므로(L1.persistence §4.8) 새 턴은 앞 글을 모르고 처음부터 답할 수 있습니다 [rtAB-R2: 화면과 엔진 기록은 정상, 표시 문제 아님].
@@ -2019,7 +2021,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 권장 | `WebRecommendation`(Exa, Brave, 상태 not-installed, needs-key, ready, unavailable) |
 | 병렬, robots | `ToolsWebView.parallel`, `robots` |
 | 나머지 항목(정책, 캐시, 한도, MCP) | `buildSettingsView`의 `tools` 탭 필드 |
-| MCP 서버 목록과 상태 | `[gap:W-15]` |
+| MCP 서버 목록과 상태 | `mcp.servers`, `mcp.serverAction`(호스트 근거: `apps/host/src/handlers/m4/ext-read.ts`)과 사용자 범위 `l2.mcp.servers` 표(`settings.readFile`, `settings.set`). 구역은 구현됐다(아래 구현 노트) [근거: `apps/desktop/src/views/pages/settings/settings-mcp-screen.tsx`] [결정: 오케스트레이터 기본값, fxMC] |
 
 | 기능 | view-model 또는 wire |
 |---|---|
@@ -2045,7 +2047,14 @@ compact 폭(720 이하)과 사이드바 시트:
 - 키: 행에 초점이 있을 때 ↑·↓ 또는 Alt+↑·↓가 한 칸 옮긴다(`keyboardMoveOf`, Alt 여부는 가르지 않는다). 손잡이의 Space 잡기와 끌기는 caustic `List reorderable`이 맡는다.
 - SearXNG 제거 [결정: 2026-11-04 사용자 B15]: P-12 화면은 SearXNG 행, 순서, 고정, 고지를 그리지 않는다(`visibleWebViewOf`, 시험 `tools-web-model.test.ts`). 이 결정의 범위는 P-12 화면뿐이다. 엔진과 클라이언트 패키지에는 SearXNG 코드가 없고(`packages/cap-web`, `packages/client`, `packages/contracts`에 0건), `apps/host/test/assembly/settings-engine.test.ts`가 `l2.web.search.searxng.url`이 카탈로그에 없음을 확인한다. 화면의 걸러내기는 방어용이다.
 - 상태: 행의 상태 글은 키 없음, 쓸 수 없음만 쓰고 정상(쓸 수 있음)은 글을 두지 않는다. 권장 목록은 설치 안 됨, 키 없음, 쓸 수 없음을 쓴다. 사유(행의 `note`)와 권장 힌트는 정보 아이콘 뒤에 둔다. 가져오기 구역(`fetch`)을 그린다. 브라우저와 가져오기 행은 순서를 바꾸지 않는다(wire에 설정이 없다, §10 19). 목업의 SearXNG 행과 "provider·병렬·robots" 칸은 이 패널이 아니라 설정 항목 줄이 그린다.
-- 빠진 것 [gap]: 권장 목록의 "키 등록" 바로 가기는 P-10 시크릿 화면으로 옮기는 명령이 없어 문장 힌트만 보인다. MCP 서버 목록은 [gap:W-15] 그대로다.
+- MCP 서버 구역(W-15) [결정: 오케스트레이터 기본값, fxMC]: 도구와 웹 탭에서 검색 순서 패널 아래, 나머지 항목 위에 "MCP 서버" 구역을 둡니다. 설정 키 `l2.mcp.servers`는 일반 표로 그리지 않고 이 구역이 맡습니다(`panelOwnedOf`, 찾기 묶음에서도 뺀다). 파일: `xeon/apps/desktop/src/views/pages/settings/settings-mcp-model.ts`(행 모델, 폼 초안과 정의 변환, 사용자 표 재조립), `settings-mcp-text.ts`(문장 id), `settings-mcp-view.tsx`(그림), `settings-mcp-screen.tsx`(읽기와 쓰기), `xeon/apps/desktop/src/app/mcp.ts`(명령).
+  - 명령: `commands.mcp.servers()`(`mcp.servers`), `commands.mcp.serverAction(server, action)`(`mcp.serverAction`), `commands.mcp.setUserTable(table)`(`settings.set { key: "l2.mcp.servers", scope: "user" }`). 값은 사용자 범위 표 전체다. 화면은 `settings.readFile { scope: "user" }`로 표를 읽고 그 서버만 바꿔 쓴다. 표를 읽지 못하면(파일이 객체가 아니거나 표가 객체가 아니면) 쓰지 않는다.
+  - 행: 이름(표시 이름이 있으면 그 아래에 id), 출처 칩(`.mcp.json`, 설정, 확장 <이름>), 상태 칩(연결됨, 연결 중, 다시 연결 중, 시작 실패, 꺼짐, 막힘)과 막힌 사유 한 줄(승인 대기의 설명은 정보 아이콘 뒤). 마지막 오류는 시각과 함께 보인다. 숨은 도구는 `숨은 도구 n개 · <사유>` 한 줄로 접힌 상태에서도 보인다. 행동은 다시 시작, 항상 끄기(이미 막혔으면 차단 풀기)이고, 설정에 둔 서버는 고치기와 지우기를 더한다. 펴면 도구 목록과 실패한 서버의 마지막 오류 출력(코드 글꼴)을 보인다.
+  - 폼: 이름(`^[a-z][a-z0-9-]{0,31}$`), 표시 이름(80자 이내), 전송 방식(stdio, http, sse). stdio는 명령(필수), 인자(줄마다 하나), 환경 변수 행. http와 sse는 주소(`^https?://`)와 헤더 행. 이름이 KEY, TOKEN, SECRET, PASSWORD를 포함하는데 `secret://` 참조가 아닌 값이 있으면 경고를 늘 보인다. 지우기는 확인 한 단계를 거치고 되돌릴 수 없다고 알린다. `.mcp.json`과 확장이 등록한 서버는 읽기만 하고 고치는 곳을 정보 아이콘 뒤에 둔다. 사용자 전용 `mcp.json`은 두지 않는다(결정 B23).
+  - 시작 실패 알림(F4·F6): 목록을 읽을 때 `failed`인 서버를 토스트 한 번으로 알린다(`서버 <이름>이 시작되지 않았어요: <오류 첫 줄>`). 같은 서버와 같은 오류 시각은 이 앱 실행 안에서 다시 알리지 않는다. 서버 변경을 밀어 주는 wire 알림은 없다 [근거: `packages/contracts/src/wire-settings/wire/methods.ts`의 `ServerNotificationSchemas`]. 그래서 구역이 열릴 때, 다시 불러오기 때, 행동과 저장과 지우기 뒤에만 읽는다. 구역이 닫혀 있을 때 생긴 실패는 다음에 구역을 열거나 다시 불러올 때 알린다.
+  - 찾기: 찾는 글이 구역의 글에 맞으면 찾기 결과의 "도구와 웹" 자리에 구역을 그린다.
+  - 빠진 것 [미결: 엔진 끄기가 대화별이 아님, fxMC 보고]: 서버별 "이 대화에서 끄기"는 만들지 않았다. `cap-mcp`의 `disable({ server })`는 서버 하나를 끄지만 그 상태는 대화와 무관한 엔진 전체의 것이고, `mcp.serverAction`에는 그 행동이 없다 [근거: `packages/cap-mcp/src/client/service.ts`의 `disable`, `packages/cap-mcp/src/client/registry.ts`의 `sessionDisabled`].
+- 빠진 것 [gap]: 권장 목록의 "키 등록" 바로 가기는 P-10 시크릿 화면으로 옮기는 명령이 없어 문장 힌트만 보인다.
 
 ### 6.17 P-13 플러그인과 그룹
 
@@ -3322,7 +3331,7 @@ export const palette = [
 | W-12 | 연결된 클라이언트 목록 | P-08 | 구현됨. `host.clients`가 있다 [근거: `apps/host/src/handlers/host.ts`]. 화면은 상태 카드 아래에 목록으로 보인다 | `host.clients` |
 | W-13 | 시크릿 사용 기록 | P-10 | 구현됨. `secret.audit`가 있다 [근거: `apps/host/src/handlers/secret.ts`]. 기록 개수 상한은 없다 [결정: 2026-11-04 사용자]. 대화 칸은 `secret.audit`의 `threadId`를 거울의 `thread.list` 제목으로 바꿔 보인다(W-13 화면 쪽 일이고 와이어는 그대로) | `secret.audit { name, limit? }` |
 | W-14 | 스킬 본문 읽기(충돌 비교) | P-06 | 구현됨. `knowledge.skills.view { name, threadId? }`가 있다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`]. P-06 화면이 쓴다: 충돌하는 스킬 보기 대화 상자가 `commands.skills.view`로 한 번 읽는다 | `knowledge.skills.view { name, threadId? }` |
-| W-15 | 플러그인·그룹·MCP 서버 목록과 메타(층, 종류, 버전, 설치 위치, 유효 등급, tier, `ScopeStatus`, 진단, 자동 꺼짐, 안전 모드 제외 사유), 설치 | P-12, P-13, P-16, P-01, 런타임 탭 | `ext.list`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`]. MCP 서버 목록 wire(`mcp.servers`)는 없다 [근거: `apps/host/src`, `packages/contracts/src`에서 그 이름 grep 0건] | `ext.list { threadId? }`, `mcp.servers` [미결]. 설치는 W-32 |
+| W-15 | 플러그인·그룹·MCP 서버 목록과 메타(층, 종류, 버전, 설치 위치, 유효 등급, tier, `ScopeStatus`, 진단, 자동 꺼짐, 안전 모드 제외 사유), 설치 | P-12, P-13, P-16, P-01, 런타임 탭 | `ext.list`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`]. MCP 서버 목록 wire는 있다: `mcp.servers`와 `mcp.serverAction`(`restart`·`blockAlways`·`unblock`) [근거: `apps/host/src/handlers/m4/ext-read.ts`, `packages/contracts/src/wire-settings/wire/ext-read.ts`]. 화면은 설정 도구와 웹 탭의 "MCP 서버" 구역이다 [근거: `apps/desktop/src/views/pages/settings/settings-mcp-screen.tsx`, `apps/desktop/src/app/mcp.ts`] [결정: 오케스트레이터 기본값, fxMC]. 서버별 "이 대화에서 끄기"는 없다 [미결: 엔진 끄기가 대화별이 아님, fxMC 보고]. 시작 실패 알림은 목록을 읽을 때만 한다(서버 변경 알림이 wire에 없다) [근거: `packages/contracts/src/wire-settings/wire/methods.ts`]. | `ext.list { threadId? }`, `mcp.servers { threadId? }`, `mcp.serverAction { server, action, threadId? }`. 서버 정의의 추가·수정·삭제는 `settings.set { key: "l2.mcp.servers", scope: "user", value }`(값은 서버 정의 전체다). 이 대화에서 끄기는 서버마다 없고 `ext.list`의 `cap-mcp` 한 단위만 대화별로 끈다. 화면 주의: `l2.mcp.servers`의 일반 표는 항목 추가 때 `null`을 써서 검사에 걸린다(`settings-editors-screen.tsx`의 `defaultCellOf(valueColumn) ?? null`), 그래서 이 키는 전용 구역이 맡는다. 설치는 W-32 |
 | W-16 | 이벤트 id로 item 읽기, 대화 출처(예약, 원격) | P-06, S-01 | 구현됨. `thread.read`의 `around` 인자와 `ThreadSummary.origin`이 있다 [근거: `apps/host/src/assembly/thread-read.ts`, `packages/contracts/src/wire-settings/wire/methods.ts:443`] | `thread.read`에 `around` 인자, `ThreadSummary.origin` |
 | W-17 | 큐에 넣은 입력 철회 | P-02 | 구현됨. `turn.withdraw { threadId, requestId }`가 있다 [근거: `apps/host/src/handlers/turn.ts`]. 데스크톱은 입력창 위 칩의 "철회" 단추로 부르고, 칩은 `input.queued`로 생겨 `input.placed`·`input.withdrawn`으로 사라진다. 실행 중 보낸 사용자 글은 `turn.start { whenBusy: "followUp" }`로 큐에 들어가 칩이 된다(F.wire-settings §3.3.1 0a) | `turn.withdraw { threadId, requestId }` |
 | W-18 | 계획 버전 목록 | P-14 | 구현됨. `work.plans.versions { threadId, planId }`가 있다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`] | `work.plans.versions { threadId, planId }` |

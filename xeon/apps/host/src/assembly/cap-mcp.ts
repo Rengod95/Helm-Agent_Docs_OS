@@ -1,5 +1,5 @@
 import { detach, err, ok } from "@fresnel/contracts";
-import { McpClient, McpClientKey } from "@fresnel/contracts/capabilities";
+import { McpClient, McpClientKey, type CapabilityApi } from "@fresnel/contracts/capabilities";
 import {
   defineManifest,
   McpPortKey,
@@ -63,6 +63,8 @@ export interface HostMcpOptions {
   readonly workspaceOf: (threadId: string) => string | undefined;
   /** stdio 서버를 띄우는 포트(L0 platform-process). 없으면 stdio 서버는 연결에 실패한다 */
   readonly process?: McpProcessPort;
+  /** 기능 공급자가 올라왔을 때 한 번 부른다. 확장 읽기 wire(`mcp.servers`)가 상태를 읽는 데 쓴다 */
+  readonly onClient?: (client: CapabilityApi<typeof McpClient>) => void;
   readonly loadIndex?: number;
 }
 
@@ -171,6 +173,7 @@ export function hostMcpPlugin(options: HostMcpOptions): ExtensionUnit {
       });
       host.providePort(McpPortKey, runtime.service);
       host.provide(McpClientKey, runtime.service.client);
+      options.onClient?.(runtime.service.client);
 
       // 세션 시작 연결은 시작을 막지 않는다. 서버 도구는 연결되면 다음 turn 시작에 도구 표에 오른다
       detach(runtime.load(options.signal), (caught) => {

@@ -187,6 +187,11 @@ describe("the tools panel owns the search order", () => {
     expect(dedicatedEditorOf(byHint)).toBeNull();
   });
 
+  test("the MCP server table is the MCP section's, and the other tools fields are not", () => {
+    expect(panelOwnedOf(fieldOf("l2.mcp.servers", "tools", "table"))).toBe(true);
+    expect(panelOwnedOf(fieldOf("l2.mcp.importMcpJson", "tools", "toggle"))).toBe(false);
+  });
+
   test("an extension enabled key is the plugins panel's, its isolation key is not", () => {
     expect(panelOwnedOf(fieldOf("ext.helm.enabled", "plugins", "toggle"))).toBe(true);
     expect(panelOwnedOf(fieldOf("ext.helm.isolation", "plugins", "select"))).toBe(false);

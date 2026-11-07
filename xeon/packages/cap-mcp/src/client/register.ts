@@ -55,7 +55,10 @@ export function createToolServiceRegistrar(host: DirectToolHost): McpToolRegistr
         orderKey: tool.orderKey,
         tool: agentTool,
         hints: tool.hints,
-        policy: { mcpServer: tool.server },
+        policy: {
+          mcpServer: tool.server,
+          ...(tool.declared === undefined ? {} : { mcpDeclared: tool.declared }),
+        },
         executeWithContinuation,
       });
       return registered.ok ? ok(registered.value) : err(conflict(registered.error));

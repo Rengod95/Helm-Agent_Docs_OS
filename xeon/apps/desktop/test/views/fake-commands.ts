@@ -199,6 +199,11 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       providers: () => Promise.resolve(err({ kind: "unsupported" })),
       setOrder: () => Promise.resolve(ok(null)),
     },
+    mcp: {
+      servers: () => Promise.resolve(err({ kind: "unsupported" })),
+      serverAction: () => Promise.resolve(err({ kind: "unsupported" })),
+      setUserTable: () => Promise.resolve(ok(null)),
+    },
     proposals: {
       list: () => Promise.resolve(err({ kind: "unsupported" })),
       decide: () => Promise.resolve(err({ kind: "unsupported" })),

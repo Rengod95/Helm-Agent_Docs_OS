@@ -5,6 +5,7 @@ import {
   fileChangeViewOfArgs,
   mcpSourceViewOf,
   mcpStartViewOf,
+  mcpToolViewOf,
   setPickText,
   shellLineOf,
   shellWordOf,
@@ -537,5 +538,47 @@ describe("fileChangeViewOf", () => {
         }),
       ),
     ).toBeNull();
+  });
+});
+
+/** MCP 서버 도구의 승인 본문. 서버 정보는 `mcp`로 넘긴다 */
+function mcpTool(mcp?: ToolApprovalBody["mcp"]): ToolApprovalBody {
+  return {
+    toolName: "echo",
+    risk: "exec",
+    args: { text: "hi" },
+    argsHash: "h",
+    ruleId: "mcp.default",
+    ...(mcp === undefined ? {} : { mcp }),
+  };
+}
+
+describe("mcpToolViewOf", () => {
+  test("an ordinary tool or a body from before the server name existed has no MCP view", () => {
+    expect(mcpToolViewOf(tool({ command: "ls" }))).toBeNull();
+  });
+
+  test("the server name is kept, and only the traits the server declared true are listed, in screen order", () => {
+    expect(
+      mcpToolViewOf(
+        mcpTool({
+          server: "qa",
+          declared: {
+            openWorldHint: true,
+            destructiveHint: true,
+            readOnlyHint: true,
+            idempotentHint: false,
+          },
+        }),
+      ),
+    ).toEqual({ server: "qa", declared: ["readOnly", "destructive", "openWorld"] });
+  });
+
+  test("a server that declares nothing, or only false traits, has the name and an empty list", () => {
+    expect(mcpToolViewOf(mcpTool({ server: "qa" }))).toEqual({ server: "qa", declared: [] });
+    expect(mcpToolViewOf(mcpTool({ server: "qa", declared: { readOnlyHint: false } }))).toEqual({
+      server: "qa",
+      declared: [],
+    });
   });
 });

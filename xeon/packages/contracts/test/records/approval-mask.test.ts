@@ -68,6 +68,32 @@ describe("maskApprovalRequest", () => {
     expect(JSON.stringify(masked)).not.toContain(VALUE);
   });
 
+  test("an MCP server name and its declared hints survive masking, and a marked server name is masked", () => {
+    const mcpBody = {
+      kind: "tool",
+      tool: {
+        toolName: "echo",
+        risk: "exec",
+        args: { text: "hi" },
+        argsHash: "hash-2",
+        ruleId: "mcp.default",
+        mcp: { server: `qa-${VALUE}`, declared: { readOnlyHint: true } },
+      },
+    };
+    const payload = build('Allow tool "echo"?', mcpBody);
+    const server = `qa-${VALUE}`;
+    const unmarked = maskApprovalRequest(payload, [kvLeaf("/title", 'Allow tool "echo"?')]);
+    expect(unmarked?.body.kind === "tool" && unmarked.body.tool.mcp).toStrictEqual({
+      server,
+      declared: { readOnlyHint: true },
+    });
+    const marked = maskApprovalRequest(payload, [kvLeaf("/body/tool/mcp/server", server)]);
+    expect(marked?.body.kind === "tool" && marked.body.tool.mcp).toStrictEqual({
+      server: "qa-[REDACTED:kv]",
+      declared: { readOnlyHint: true },
+    });
+  });
+
   test("without leaves the request is returned as it is", () => {
     const payload = build("Run bash", TOOL_BODY);
     expect(maskApprovalRequest(payload, undefined)).toBe(payload);

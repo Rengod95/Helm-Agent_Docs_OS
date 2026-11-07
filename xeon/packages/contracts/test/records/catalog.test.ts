@@ -236,6 +236,56 @@ describe("requested kinds (F.records.spec 3.3.1)", () => {
     rejects(entry, { ...base, at: -1 });
   });
 
+  test("an MCP tool approval carries the server and the server's declared hints; an old body without mcp still reads", () => {
+    const base = PAYLOAD_FIXTURES["approval.requested"];
+    const tool = {
+      toolName: "echo",
+      risk: "exec",
+      args: { text: "hi" },
+      argsHash: SHA,
+      ruleId: "mcp.default",
+    };
+    const withMcp = {
+      ...base,
+      body: {
+        kind: "tool",
+        tool: {
+          ...tool,
+          mcp: { server: "qa", declared: { readOnlyHint: true, destructiveHint: false } },
+        },
+      },
+    };
+    const parsed = parse(ApprovalRequestedPayloadSchema, withMcp);
+    expect(
+      parsed.ok && parsed.value.body.kind === "tool" && parsed.value.body.tool.mcp,
+    ).toStrictEqual({
+      server: "qa",
+      declared: { readOnlyHint: true, destructiveHint: false },
+    });
+    // 서버 이름만 있어도 된다(알린 성질은 선택)
+    const nameOnly = { ...base, body: { kind: "tool", tool: { ...tool, mcp: { server: "qa" } } } };
+    expect(parse(ApprovalRequestedPayloadSchema, nameOnly).ok).toBe(true);
+    // 옛 기록(mcp 없음)은 그대로 읽힌다
+    const old = parse(ApprovalRequestedPayloadSchema, { ...base, body: { kind: "tool", tool } });
+    expect(old.ok && old.value.body.kind === "tool" && old.value.body.tool.mcp).toBe(undefined);
+    // 모르는 키와 빈 서버 이름은 거부한다
+    const extra = {
+      ...base,
+      body: { kind: "tool", tool: { ...tool, mcp: { server: "qa", trust: true } } },
+    };
+    expect(parse(ApprovalRequestedPayloadSchema, extra).ok).toBe(false);
+    const hintExtra = {
+      ...base,
+      body: {
+        kind: "tool",
+        tool: { ...tool, mcp: { server: "qa", declared: { openWorldHint: true, x: 1 } } },
+      },
+    };
+    expect(parse(ApprovalRequestedPayloadSchema, hintExtra).ok).toBe(false);
+    const empty = { ...base, body: { kind: "tool", tool: { ...tool, mcp: { server: "" } } } };
+    expect(parse(ApprovalRequestedPayloadSchema, empty).ok).toBe(false);
+  });
+
   test("approval.requested body kinds are tool, question, plan, review only", () => {
     const base = PAYLOAD_FIXTURES["approval.requested"];
     const question = {

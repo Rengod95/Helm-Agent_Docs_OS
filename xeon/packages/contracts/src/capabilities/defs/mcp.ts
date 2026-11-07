@@ -7,7 +7,7 @@ import {
   type TUnion,
   type TUnsafe,
 } from "typebox";
-import type { SchemaProof, SchemaSound } from "../../base/index.ts";
+import { assertNever, type SchemaProof, type SchemaSound } from "../../base/index.ts";
 import {
   JsonObjectSchema,
   JsonValueSchema,
@@ -191,6 +191,10 @@ export type McpServerStatus = {
   lastError?: { code: string; message: string; at: number };
   /** blocked일 때 사유: "denied_by_policy" | "not_in_allowlist" | "managed_only" | "untrusted_project" | "approval_required" | "sandbox_unavailable" */
   blockedReason?: McpBlockedReason;
+  /** 연결된 서버가 광고했지만 노출하지 않은 도구와 사유(예: name_conflict). 없으면 생략 */
+  hiddenTools?: { name: string; reason: string }[];
+  /** 마지막 연결 실패 때 서버 stderr의 끝 줄들(마스킹, 최대 5줄). 연결되면 비운다. 없으면 생략 */
+  stderrTail?: string[];
 };
 const mcpServerStatusShape = Type.Object({
   server: McpServerIdSchema,
@@ -206,6 +210,10 @@ const mcpServerStatusShape = Type.Object({
     Type.Object({ code: Type.String(), message: Type.String(), at: Type.Integer() }),
   ),
   blockedReason: Type.Optional(McpBlockedReasonSchema),
+  hiddenTools: Type.Optional(
+    Type.Array(Type.Object({ name: Type.String(), reason: Type.String() })),
+  ),
+  stderrTail: Type.Optional(Type.Array(Type.String())),
 });
 export const McpServerStatusSchema: TUnsafe<McpServerStatus> = Type.Unsafe<McpServerStatus>(
   mcpServerStatusShape satisfies SchemaProof<McpServerStatus, typeof mcpServerStatusShape>,
@@ -640,12 +648,59 @@ export function wrapUntrustedMcp(server: string, text: string): string {
   return `${UNTRUSTED_MCP_OPEN} server="${server}">\n${neutralized}\n${UNTRUSTED_MCP_CLOSE}`;
 }
 
+/**
+ * 서버가 꺼졌거나 막힌 이유를 모델이 할 일과 함께 영어로 적는다. 연결 중이거나 실패한 서버에는 사유를 붙이지 않는다
+ * (실패는 `error:` 코드가 따로 보인다).
+ */
+function serverReason(server: McpServerStatus): string | undefined {
+  if (server.state === "disabled") return "disabled (setting or turned off for this conversation)";
+  if (server.state !== "blocked") return undefined;
+  switch (server.blockedReason) {
+    case "approval_required":
+      return "waiting for the user to approve starting this server; tell the user to approve the pending start card, its tools join at the next step after approval (do not conclude that no MCP tools exist)";
+    case "denied_by_policy":
+    case "not_in_allowlist":
+    case "managed_only":
+      return "blocked by settings (deniedServers/allowlist/managed policy)";
+    case "untrusted_project":
+      return "project folder not trusted";
+    case "sandbox_unavailable":
+      return "cannot start: sandbox unavailable on this machine";
+    case undefined:
+      return "blocked (reason unknown)";
+    default:
+      return assertNever(server.blockedReason, "serverReason");
+  }
+}
+
+/** 노출하지 않은 도구 사유의 영어 설명. 모르는 사유는 코드만 보인다 */
+const HIDDEN_REASON_TEXT: ReadonlyMap<string, string> = new Map([
+  ["name_conflict", "another server exposes the same tool name"],
+  ["name_invalid", "the name is not a valid tool name"],
+  ["schema_invalid", "the input schema is not supported"],
+  ["denied", "the server definition denies this tool"],
+  ["not_allowed", "the server definition does not allow this tool"],
+]);
+
+function hiddenToolText(tool: { name: string; reason: string }): string {
+  // 숨은 도구 이름은 서버가 정한 값이라 검증되지 않았다. 따옴표로 묶어 데이터로 보인다
+  const explanation = HIDDEN_REASON_TEXT.get(tool.reason);
+  const reason = explanation === undefined ? tool.reason : `${tool.reason}: ${explanation}`;
+  return `${JSON.stringify(tool.name)} (${reason})`;
+}
+
+function serverLine(server: McpServerStatus): string {
+  const error = server.lastError === undefined ? "" : ` error: ${server.lastError.code}`;
+  const reason = serverReason(server);
+  const hidden = server.hiddenTools ?? [];
+  const hiddenPart =
+    hidden.length === 0 ? "" : `; hidden tools: ${hidden.map(hiddenToolText).join(", ")}`;
+  return `${server.server} ${server.state} ${server.toolCount} tools${error}${reason === undefined ? "" : ` - ${reason}`}${hiddenPart}`;
+}
+
 /** 서버 목록의 모델용 렌더링 */
 export function renderServers(out: ListServersOutputValue): ToolContent {
-  const lines = out.servers.map(
-    (s) =>
-      `${s.server} ${s.state} ${s.toolCount} tools${s.lastError ? ` error: ${s.lastError.code}` : ""}`,
-  );
+  const lines = out.servers.map(serverLine);
   return { content: [{ type: "text", text: lines.join("\n") }], structuredContent: out };
 }
 

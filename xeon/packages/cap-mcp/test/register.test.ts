@@ -53,7 +53,11 @@ describe("tool registrars", () => {
       idempotent: false,
       openWorld: true,
     });
-    expect(registration.policy).toEqual({ mcpServer: "stub" });
+    // 서버가 알린 성질은 표시용으로 정책 메타에 실린다(정책 입력인 힌트와는 다르다)
+    expect(registration.policy).toStrictEqual({
+      mcpServer: "stub",
+      mcpDeclared: { readOnlyHint: true },
+    });
     expect(registration.tool.replay).toBe("never");
     expect(registration.tool.executionMode).toBe("parallel");
     const executed = await registration.tool.execute("call-1", {}, signal, () => undefined);

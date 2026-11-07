@@ -10,6 +10,7 @@ import {
   modeLabelIdOf,
   PLAN_FOLD_LINES,
   reviewTotalsOf,
+  ruleTextIdOf,
   threadLinkVisibleOf,
 } from "../../src/views/approval-card/card-model.ts";
 import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
@@ -278,5 +279,13 @@ describe("plan mode label", () => {
     expect(modeLabelIdOf("default")).toBe("desktop.approvals.plan.mode.default");
     expect(modeLabelIdOf("acceptEdits")).toBe("desktop.approvals.plan.mode.acceptEdits");
     expect(modeLabelIdOf("custom-mode")).toBeNull();
+  });
+});
+
+describe("rule text", () => {
+  test("the default MCP rule gets its own sentence, and any other rule keeps the generic sentence with its name", () => {
+    expect(ruleTextIdOf("mcp.default")).toBe("desktop.approvals.rule.mcpDefault");
+    expect(ruleTextIdOf("mcp.qa.echo")).toBe("desktop.approvals.rule");
+    expect(ruleTextIdOf("default.bash-ask")).toBe("desktop.approvals.rule");
   });
 });

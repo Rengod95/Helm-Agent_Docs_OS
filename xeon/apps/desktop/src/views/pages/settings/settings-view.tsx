@@ -30,6 +30,7 @@ import {
   advancedGroupsOf,
   budgetsGroupsOf,
   modelsGroupsOf,
+  mcpSectionMatchesOf,
   panelOwnedOf,
   restartCountOf,
   searchGroupsOf,
@@ -97,6 +98,8 @@ export interface SettingsPageProps {
   readonly editors: DedicatedEditors;
   /** 도구와 웹 탭의 패널(P-12). 탭이 `tools`일 때 항목 위에 보인다 */
   readonly toolsPanel: ReactNode;
+  /** 도구와 웹 탭의 "MCP 서버" 구역(W-15). 검색 순서 아래, 나머지 항목 위에 보인다. 찾기에서는 찾는 글이 구역에 맞을 때 도구와 웹 자리에 보인다 */
+  readonly mcpPanel?: ReactNode | undefined;
   /** 데이터 구역(고급 탭): 백업 만들기, 데이터 복원, 저장 공간을 이 순서로 담는다. 고급 탭을 고르고 찾기가 비었을 때 항목 위에 보인다 */
   readonly restorePanel: ReactNode;
   /** 계정 회전 행(P-11). 탭이 `providers`일 때 게이지 아래, 항목 위에 보인다. 값이 없으면 `null`이다 */
@@ -412,7 +415,9 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
     const groups = searchGroupsOf(view.tabs, query);
     // 기억 구역은 찾는 글이 구역 이름이나 기억 글에 맞을 때 "대화와 컨텍스트" 자리에 든다. 값을 못 읽었으면 맞지 않는다
     const memoryFound = props.memoryMatches?.(query) ?? false;
-    if (groups.length === 0 && !memoryFound) {
+    // "MCP 서버" 구역은 찾는 글이 그 표의 글에 맞을 때 "도구와 웹" 자리에 든다(표 항목은 찾기 묶음에 넣지 않는다)
+    const mcpFound = mcpSectionMatchesOf(view.tabs, query);
+    if (groups.length === 0 && !memoryFound && !mcpFound) {
       return (
         <p className="text-ui-sm text-text-tertiary">{t("desktop.settings.search.noMatch")}</p>
       );
@@ -424,6 +429,7 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
           return (
             <Fragment key={id}>
               {id === "sessions" && memoryFound ? props.memoryFindPanel : null}
+              {id === "tools" && mcpFound ? props.mcpPanel : null}
               {group === undefined ? null : (
                 <SettingSection title={group.label}>
                   {group.fields.map((field) => rowOf(field, true))}
@@ -445,6 +451,7 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
       {tab === "execution" ? props.notifyPanel : null}
       {tab === "sessions" ? props.memoryPanel : null}
       {tab === "tools" ? props.toolsPanel : null}
+      {tab === "tools" ? props.mcpPanel : null}
       {tab === "plugins" ? props.pluginsPanel : null}
       {tabView.gauge === null ? null : props.usagePanel}
       {tab === "providers" && props.rotationPanel !== null ? (

@@ -113,6 +113,42 @@ export function toolApprovalView(body: ToolApprovalBody): ToolApprovalView {
   };
 }
 
+// ── MCP 도구 승인 ───────────────────────────────────────────────────────
+
+/** 서버가 알린 성질 가운데 카드가 보이는 것. 화면 순서대로 놓는다 */
+export type McpDeclaredKind = "readOnly" | "destructive" | "idempotent" | "openWorld";
+
+/** 서버가 알린 성질 목록. 값이 참인 것만 보인다(거짓이나 없는 것은 알리지 않은 것과 같다) */
+const MCP_DECLARED_KEYS: readonly (readonly [McpDeclaredKind, keyof McpDeclared])[] = [
+  ["readOnly", "readOnlyHint"],
+  ["destructive", "destructiveHint"],
+  ["idempotent", "idempotentHint"],
+  ["openWorld", "openWorldHint"],
+];
+
+type McpDeclared = NonNullable<NonNullable<ToolApprovalBody["mcp"]>["declared"]>;
+
+export type McpToolView = {
+  /** 서버 이름(칩). 서버가 준 값이라 원문으로 보인다 */
+  readonly server: string;
+  /** 서버가 알린 성질 가운데 참인 것. 알린 것이 없으면 빈 목록이다 */
+  readonly declared: readonly McpDeclaredKind[];
+};
+
+/**
+ * MCP 서버 도구의 승인 본문을 카드 값으로 바꾼다. 서버 이름이 없는 본문(MCP가 아닌 도구, 옛 기록)은 null이다.
+ * 알린 성질은 서버의 자기 선언이라 정책을 바꾸지 않고, 카드는 그것을 믿을 수 없다는 글을 함께 보인다.
+ */
+export function mcpToolViewOf(body: ToolApprovalBody): McpToolView | null {
+  const mcp = body.mcp;
+  if (mcp === undefined) return null;
+  const declared: McpDeclared = mcp.declared ?? {};
+  return {
+    server: mcp.server,
+    declared: MCP_DECLARED_KEYS.filter(([, key]) => declared[key] === true).map(([kind]) => kind),
+  };
+}
+
 // ── 기동 승인(mcp_start) ─────────────────────────────────────────────────
 
 /** 기동 승인의 도구 이름. core-tools `MCP_START_TOOL_NAME`과 같은 값이다(데스크톱은 core-tools를 가져오지 않는다) */

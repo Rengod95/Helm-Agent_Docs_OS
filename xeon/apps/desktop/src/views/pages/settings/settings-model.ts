@@ -11,6 +11,7 @@ import { scopeText } from "@fresnel/client/settings";
 import { createTranslator, isLocale, t, tKey, UI_LOCALE_KEY } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { SettingEditor, SettingKey, SettingsTab } from "@fresnel/contracts/settings";
+import { MCP_SERVERS_KEY } from "./settings-mcp-model.ts";
 
 // 설정 화면(P-09)의 순수 모델. 탭 고르기, 키 찾기, 탭 옮길 때 초안 묻기, 입력 칸 고르기, 화면 상태를 값으로 만든다.
 // 입력은 `SettingsView`(client)와 화면 상태뿐이다. 호스트를 부르지 않고 DOM도 보지 않는다.
@@ -162,7 +163,9 @@ export function searchGroupsOf(tabs: readonly TabVM[], query: string): readonly 
     .map((tab) => ({
       tab: tab.id,
       label: tab.label,
-      fields: tab.fields.filter((field) => fieldMatches(field, query)),
+      fields: tab.fields.filter(
+        (field) => field.key !== MCP_SERVERS_KEY && fieldMatches(field, query),
+      ),
     }))
     .filter((group) => group.fields.length > 0);
 }
@@ -318,12 +321,20 @@ export function foldableOf(value: unknown): boolean {
 /** 확장 켜짐 키. "플러그인과 그룹" 탭의 실행 화면(`PluginsPanel`)이 스위치로 그리므로 항목 목록에서는 뺀다 */
 const EXT_ENABLED_KEY = /^ext\.[^.]+\.enabled$/;
 
-/** 도구와 웹 패널이 맡는 항목인가(검색 순서)과 확장 켜짐 스위치. 패널이 그리므로 탭의 항목 목록에서는 뺀다 */
+/** 도구와 웹 패널이 맡는 항목인가(검색 순서, MCP 서버 표)과 확장 켜짐 스위치. 패널이나 구역이 그리므로 탭의 항목 목록에서는 뺀다 */
 export function panelOwnedOf(field: FieldVM): boolean {
   return (
     field.editor === "searchOrder" ||
     field.key === SEARCH_ORDER_KEY ||
+    field.key === MCP_SERVERS_KEY ||
     EXT_ENABLED_KEY.test(field.key)
+  );
+}
+
+/** 찾는 글이 "MCP 서버" 구역에 맞는가. 맞으면 찾기 결과에 구역을 그린다(표 항목은 찾기 묶음에서 뺀다, `searchGroupsOf`) */
+export function mcpSectionMatchesOf(tabs: readonly TabVM[], query: string): boolean {
+  return tabs.some((tab) =>
+    tab.fields.some((field) => field.key === MCP_SERVERS_KEY && fieldMatches(field, query)),
   );
 }
 

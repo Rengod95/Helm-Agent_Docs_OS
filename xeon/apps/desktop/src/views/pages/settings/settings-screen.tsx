@@ -37,6 +37,7 @@ import { BackupPanel } from "./settings-backup-screen.tsx";
 import { RestorePanel } from "./settings-restore-screen.tsx";
 import { StoragePanel } from "./settings-storage-screen.tsx";
 import { ToolsWebPanel, useToolsWebState } from "../tools-web/tools-web-screen.tsx";
+import { McpServersPanel } from "./settings-mcp-screen.tsx";
 import {
   fileClosesOnTabMoveOf,
   fileDirtyOf,
@@ -461,6 +462,7 @@ export function SettingsPage(props: {
       fileOpen={file.phase !== "closed"}
       editors={EDITORS}
       toolsPanel={<ToolsWebPanel state={toolsWeb} live={live} />}
+      mcpPanel={<McpServersPanel />}
       restorePanel={
         <>
           <BackupPanel folderPick={props.folderPick} />

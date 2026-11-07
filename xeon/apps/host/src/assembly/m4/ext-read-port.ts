@@ -1,4 +1,4 @@
-import { assertNever, err, ok, type Result } from "@fresnel/contracts";
+import { assertNever, attemptAsync, err, ok, parse, type Result } from "@fresnel/contracts";
 import {
   effectiveLayer,
   HOOKS,
@@ -9,6 +9,14 @@ import {
   type PluginEntry,
   type RegistrationStatus,
 } from "@fresnel/contracts/extensions";
+import {
+  type McpClient,
+  McpServerDefSchema,
+  type CapabilityApi,
+  type McpServerDef,
+  type McpServerStatus,
+  type McpToolInfo,
+} from "@fresnel/contracts/capabilities";
 import type { GroupStatus } from "@fresnel/contracts/services";
 import {
   resolveSetting,
@@ -19,6 +27,10 @@ import {
 import type {
   CapabilityBinding,
   EnabledSource,
+  McpDefinitionView,
+  McpServerOrigin,
+  McpServerRow,
+  McpToolRow,
   ExtBindingEdge,
   ExtOrigin,
   ExtDiagnostic,
@@ -38,6 +50,7 @@ import type {
   SafeModeCause,
   SettingWriter,
 } from "@fresnel/contracts/wire";
+import { readMcpSettings } from "@fresnel/cap-mcp";
 import {
   checkOrder,
   hookOrderValue,
@@ -92,7 +105,7 @@ interface ExtHealthStats {
 
 interface SettingExplainSource {
   readonly catalog: SettingCatalog;
-  readonly layers: (threadId: string) => ScopeStack;
+  readonly layers: (threadId: string | undefined) => ScopeStack;
   /** 프로필·Test run 맥락이 그 값을 쓴 쪽이면 그 맥락. 없으면 undefined(T-WB가 채운다) */
   readonly writerContext?: (
     key: string,
@@ -139,6 +152,8 @@ export interface ExtReadSources {
   enabledSource(registrationId: string, threadId: string | undefined): EnabledSource;
   /** `ext.<이름>.enabled`가 managed 범위에서 잠겼는가 */
   managedLocked(name: string): boolean;
+  /** `mcp.client` 기능의 공급자. 아직 올라오지 않았으면 undefined(MCP 목록은 빈 목록이다) */
+  mcpClient(): McpClientPort | undefined;
   health(name: string): ExtHealthStats;
   autoDisabled(name: string): boolean;
   /** "끌까요" 질문(결정 2026-11-04 사용자). 묻는 중이 아니면 null */
@@ -215,6 +230,7 @@ export const EMPTY_EXT_READ_SOURCES: ExtReadSources = {
   threadStatus: () => undefined,
   enabledSource: () => "default",
   managedLocked: () => false,
+  mcpClient: () => undefined,
   health: () => ({
     consecutiveFailures: 0,
     windowFailures: 0,
@@ -335,6 +351,10 @@ function unknownExtension(name: string): ExtReadResult<never> {
   return err({ kind: "unknown_extension", name });
 }
 
+function unknownMcpServer(server: string): ExtReadResult<never> {
+  return err({ kind: "unknown_mcp_server", server });
+}
+
 function representative(entries: readonly PluginEntry[]): PluginEntry | undefined {
   return entries.find((entry) => entry.root) ?? entries[0];
 }
@@ -362,6 +382,141 @@ function statusOf(
 ): RegistrationStatus {
   if (!loaded) return "disabled";
   return infos.get(registrationId) ?? "disabled";
+}
+
+/** MCP 읽기가 쓰는 `mcp.client` 메서드 셋. 원천이 이것만 감싼다 */
+export type McpClientPort = Pick<
+  CapabilityApi<typeof McpClient>,
+  "listServers" | "listTools" | "reconnect"
+>;
+
+const MCP_SERVERS_KEY = "l2.mcp.servers";
+const MCP_DENIED_KEY = "l2.mcp.deniedServers";
+
+/** 서버 출처 접두에서 화면 묶음을 정한다. `ext:` 말고 다른 접두는 cap-mcp가 만들지 않는다(시험이 고정한다) */
+function originOfSource(source: string): McpServerOrigin {
+  if (source.startsWith("mcpjson:")) return "mcpjson";
+  if (source.startsWith("settings:")) return "settings";
+  return "extension";
+}
+
+/** 사용자 범위 층의 원시 값. 층이 없거나 키가 없으면 undefined */
+function userValueOf(layers: ScopeStack, key: string): unknown {
+  return layers.find((layer) => layer.scope === "user")?.values.get(key);
+}
+
+/** `l2.mcp.servers`의 사용자 범위 항목 하나. 표가 아니거나 항목이 없으면 undefined */
+function userDefinitionOf(layers: ScopeStack, server: string): unknown {
+  const table = userValueOf(layers, MCP_SERVERS_KEY);
+  if (typeof table !== "object" || table === null || Array.isArray(table)) return undefined;
+  return Object.entries(table).find(([id]) => id === server)?.[1];
+}
+
+/** `l2.mcp.deniedServers`의 사용자 범위 목록. 목록이 아니면 빈 목록이다 */
+function userDeniedOf(layers: ScopeStack): readonly string[] {
+  const value = userValueOf(layers, MCP_DENIED_KEY);
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string")
+    : [];
+}
+
+/** 차단 목록에 서버가 있는가. 서버 id 그대로와 `id:<서버 id>` 항목을 모두 본다(cap-mcp `evaluateServer`와 같다) */
+function deniedHas(list: readonly string[], server: string): boolean {
+  return list.includes(server) || list.includes(`id:${server}`);
+}
+
+/** 저장된 서버 정의를 화면용 평탄한 모양으로 편다. 저장 모양이 맞지 않으면 undefined */
+function definitionViewOf(raw: unknown): McpDefinitionView | undefined {
+  const parsed = parse(McpServerDefSchema, raw);
+  if (!parsed.ok) return undefined;
+  const { transport, ...rest }: McpServerDef = parsed.value;
+  const { type, ...fields } = transport;
+  return { ...rest, transport: type, ...fields };
+}
+
+function declaredOf(tool: McpToolInfo): McpToolRow["declared"] {
+  const annotations = tool.annotations;
+  if (annotations === undefined) return undefined;
+  return {
+    ...(annotations.readOnlyHint === undefined ? {} : { readOnlyHint: annotations.readOnlyHint }),
+    ...(annotations.destructiveHint === undefined
+      ? {}
+      : { destructiveHint: annotations.destructiveHint }),
+  };
+}
+
+function toolRowOf(tool: McpToolInfo): McpToolRow {
+  const declared = declaredOf(tool);
+  return {
+    name: tool.name,
+    ...(tool.title === undefined ? {} : { title: tool.title }),
+    exposed: tool.exposed,
+    ...(tool.hiddenReason === undefined ? {} : { hiddenReason: tool.hiddenReason }),
+    ...(declared === undefined ? {} : { declared }),
+  };
+}
+
+/** 상태 한 줄. 도구 목록은 호출자가 연결된 서버에만 채워 넣는다 */
+function serverRowOf(input: {
+  readonly status: McpServerStatus;
+  readonly tools: readonly McpToolInfo[];
+  readonly alwaysBlocked: boolean;
+  readonly layers: ScopeStack;
+}): McpServerRow {
+  const { status } = input;
+  const editable = status.source === "settings:user";
+  const definition = editable
+    ? definitionViewOf(userDefinitionOf(input.layers, status.server))
+    : undefined;
+  return {
+    server: status.server,
+    ...(status.title === undefined ? {} : { title: status.title }),
+    source: status.source,
+    origin: originOfSource(status.source),
+    state: status.state,
+    ...(status.blockedReason === undefined ? {} : { blockedReason: status.blockedReason }),
+    transport: status.transport,
+    toolCount: status.toolCount,
+    ...(status.lastError === undefined ? {} : { lastError: { ...status.lastError } }),
+    ...(status.stderrTail === undefined ? {} : { stderrTail: [...status.stderrTail] }),
+    ...(status.hiddenTools === undefined
+      ? {}
+      : {
+          hiddenTools: status.hiddenTools.map((hidden) => ({
+            name: hidden.name,
+            reason: hidden.reason,
+          })),
+        }),
+    tools: input.tools.map(toolRowOf),
+    alwaysBlocked: input.alwaysBlocked,
+    editable,
+    ...(definition === undefined ? {} : { definition }),
+  };
+}
+
+/** 모든 서버의 상태 줄을 id 바이트 순으로. 연결된 서버만 도구 목록을 읽는다(읽기가 실패하면 도구 없이 둔다) */
+async function serverRowsOf(
+  client: McpClientPort,
+  layers: ScopeStack,
+  signal: AbortSignal,
+): Promise<readonly McpServerRow[]> {
+  const listed = await client.listServers({}, { signal });
+  const denied = readMcpSettings(layers).deniedServers;
+  const rows = await Promise.all(
+    listed.servers.map(async (status) => {
+      const tools =
+        status.state === "connected"
+          ? await attemptAsync(() => client.listTools({ server: status.server }, { signal }))
+          : undefined;
+      return serverRowOf({
+        status,
+        tools: tools === undefined || !tools.ok ? [] : tools.value.tools,
+        alwaysBlocked: deniedHas(denied, status.server),
+        layers,
+      });
+    }),
+  );
+  return rows.toSorted((a, b) => byText(a.server, b.server));
 }
 
 export function createExtReadPort(
@@ -578,6 +733,13 @@ export function createExtReadPort(
       }
     }
     return edges;
+  }
+
+  /** 사용자 범위의 차단 목록을 쓴다. 비면 설정을 지워 기본값(`[]`)으로 돌린다 */
+  function writeDenied(next: readonly string[]): Promise<Result<void, ProfileWriteFailure>> {
+    return next.length === 0
+      ? deps.env.settings.reset("user", MCP_DENIED_KEY, undefined)
+      : deps.env.settings.write("user", MCP_DENIED_KEY, [...next], undefined);
   }
 
   const port: ExtReadPort = {
@@ -938,6 +1100,58 @@ export function createExtReadPort(
       const rows = defaultRowsOf(hook).map(previewRowOf);
       const preview = previewOrder(hook, params.order, rows);
       return Promise.resolve(ok(previewResultOf(preview)));
+    },
+
+    async mcpServers(params, signal) {
+      const thread = await checkThread(params.threadId, signal);
+      if (!thread.ok) return thread;
+      const client = sources.mcpClient();
+      if (client === undefined) return ok({ servers: [] });
+      return ok({
+        servers: await serverRowsOf(client, sources.settings.layers(params.threadId), signal),
+      });
+    },
+
+    async mcpServerAction(params, signal) {
+      const thread = await checkThread(params.threadId, signal);
+      if (!thread.ok) return thread;
+      const client = sources.mcpClient();
+      if (client === undefined) return unknownMcpServer(params.server);
+      const listed = await client.listServers({}, { signal });
+      if (!listed.servers.some((status) => status.server === params.server)) {
+        return unknownMcpServer(params.server);
+      }
+      const layers = sources.settings.layers(params.threadId);
+      const denied = userDeniedOf(layers);
+      switch (params.action) {
+        case "restart":
+          await client.reconnect({ server: params.server }, { signal });
+          break;
+        case "blockAlways": {
+          if (deniedHas(denied, params.server)) break;
+          const written = await writeDenied([...denied, params.server]);
+          if (!written.ok) {
+            return err({ kind: "write_failed", key: MCP_DENIED_KEY, failure: written.error });
+          }
+          break;
+        }
+        case "unblock": {
+          const next = denied.filter(
+            (entry) => entry !== params.server && entry !== `id:${params.server}`,
+          );
+          if (next.length === denied.length) break;
+          const written = await writeDenied(next);
+          if (!written.ok) {
+            return err({ kind: "write_failed", key: MCP_DENIED_KEY, failure: written.error });
+          }
+          break;
+        }
+        default:
+          return assertNever(params.action, "McpServerAction");
+      }
+      const rows = await serverRowsOf(client, sources.settings.layers(params.threadId), signal);
+      const row = rows.find((entry) => entry.server === params.server);
+      return row === undefined ? unknownMcpServer(params.server) : ok(row);
     },
   };
   return port;

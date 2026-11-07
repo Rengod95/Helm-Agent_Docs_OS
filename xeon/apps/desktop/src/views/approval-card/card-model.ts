@@ -168,6 +168,14 @@ export function cardTitleViewOf(request: ApprovalRequestedPayload): CardTitleVie
   return null;
 }
 
+/**
+ * 규칙 id를 사람 말로 풀 문구의 키. `mcp.default`(MCP 도구의 기본 물음)만 풀고, 모르는 id는 일반 문장(규칙 이름 그대로)이다.
+ * 풀이 문구는 내부 이름을 괄호로 함께 보인다.
+ */
+export function ruleTextIdOf(ruleId: string): MessageId {
+  return ruleId === "mcp.default" ? "desktop.approvals.rule.mcpDefault" : "desktop.approvals.rule";
+}
+
 const MODE_LABEL: Readonly<Record<string, MessageId>> = {
   default: "desktop.approvals.plan.mode.default",
   acceptEdits: "desktop.approvals.plan.mode.acceptEdits",

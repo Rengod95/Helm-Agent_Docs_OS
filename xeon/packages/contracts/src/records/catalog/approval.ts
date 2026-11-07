@@ -74,6 +74,22 @@ const REVIEW_ID_PATTERN = `^rvw_${ULID}$`;
 const ARTIFACT_ID_PATTERN = `^art_${ULID}$`;
 const HUNK_ID_PATTERN = "^f[0-9]{1,4}h[0-9]{1,4}$";
 
+/** MCP 서버가 도구 annotations로 알린 성질(값이 있는 것만). 서버의 자기 선언이라 신뢰하지 않는다: 화면 표시에만 쓴다 */
+const McpDeclaredHintsSchema: TObject<{
+  readOnlyHint: TOptional<TBoolean>;
+  destructiveHint: TOptional<TBoolean>;
+  idempotentHint: TOptional<TBoolean>;
+  openWorldHint: TOptional<TBoolean>;
+}> = Type.Object(
+  {
+    readOnlyHint: Type.Optional(Type.Boolean()),
+    destructiveHint: Type.Optional(Type.Boolean()),
+    idempotentHint: Type.Optional(Type.Boolean()),
+    openWorldHint: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+
 const ToolApprovalDetail: TObject<{
   toolName: TString;
   capability: TOptional<TObject<{ id: TString; method: TString }>>;
@@ -81,6 +97,7 @@ const ToolApprovalDetail: TObject<{
   args: TUnion<[TUnsafe<JsonObject>, typeof BlobRefSchema]>;
   argsHash: TString;
   ruleId: TUnion<[TString, TNull]>;
+  mcp: TOptional<TObject<{ server: TString; declared: TOptional<typeof McpDeclaredHintsSchema> }>>;
 }> = Type.Object(
   {
     toolName: Type.String({ minLength: 1, maxLength: 128 }),
@@ -97,6 +114,16 @@ const ToolApprovalDetail: TObject<{
     args: Type.Union([JsonObjectSchema, BlobRefSchema]),
     argsHash: Type.String({ minLength: 1, maxLength: 128 }),
     ruleId: Nullable(Type.String({ minLength: 1, maxLength: 128 })),
+    /** MCP 서버 도구면 서버 이름과 서버가 알린 성질. 옛 기록에는 없다 */
+    mcp: Type.Optional(
+      Type.Object(
+        {
+          server: Type.String({ minLength: 1, maxLength: 128 }),
+          declared: Type.Optional(McpDeclaredHintsSchema),
+        },
+        { additionalProperties: false },
+      ),
+    ),
   },
   { additionalProperties: false },
 );

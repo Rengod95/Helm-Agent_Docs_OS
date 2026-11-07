@@ -44,6 +44,8 @@ const EXT_READ_METHODS: readonly WireMethodName[] = [
   "hooks.order.set",
   "hooks.order.reset",
   "hooks.order.preview",
+  "mcp.servers",
+  "mcp.serverAction",
 ];
 
 const EMPTY_TRACE: TraceReadPort = {

@@ -208,6 +208,28 @@ describe("mcp schemas", () => {
     expect(parse(McpServerStatusSchema, { ...blocked, blockedReason: "sleeping" }).ok).toBe(false);
   });
 
+  test("hiddenTools and stderrTail are optional status fields with fixed shapes", () => {
+    const status = {
+      server: "beta",
+      source: "settings:user",
+      state: "connected",
+      transport: "stdio",
+      toolCount: 0,
+      promptCount: 0,
+    };
+    const withExtras = {
+      ...status,
+      hiddenTools: [{ name: "search", reason: "name_conflict" }],
+      stderrTail: ["fatal: out of cheese"],
+    };
+    expect(parse(McpServerStatusSchema, status).ok).toBe(true);
+    expect(parse(McpServerStatusSchema, withExtras).ok).toBe(true);
+    expect(parse(McpServerStatusSchema, { ...status, hiddenTools: [{ name: "search" }] }).ok).toBe(
+      false,
+    );
+    expect(parse(McpServerStatusSchema, { ...status, stderrTail: "one line" }).ok).toBe(false);
+  });
+
   test("callTool accepts a first round and a continuation from round 2", () => {
     const first = { server: "github", tool: "create_issue", arguments: { title: "x" } };
     expect(parse(CallToolInput, first).ok).toBe(true);
@@ -320,6 +342,92 @@ describe("mcp renderers", () => {
       }),
     );
     expect(text).toBe("a connected 2 tools\nb failed 0 tools error: connect_timeout");
+  });
+
+  test("renderServers says why a server is blocked or off, in words the model can act on", () => {
+    const text = firstText(
+      renderServers({
+        servers: [
+          {
+            server: "gh",
+            source: "settings:user",
+            state: "blocked",
+            transport: "stdio",
+            toolCount: 0,
+            promptCount: 0,
+            blockedReason: "approval_required",
+          },
+          {
+            server: "fs",
+            source: "settings:user",
+            state: "blocked",
+            transport: "stdio",
+            toolCount: 0,
+            promptCount: 0,
+            blockedReason: "denied_by_policy",
+          },
+          {
+            server: "web",
+            source: "mcpjson:project",
+            state: "blocked",
+            transport: "http",
+            toolCount: 0,
+            promptCount: 0,
+            blockedReason: "untrusted_project",
+          },
+          {
+            server: "box",
+            source: "settings:user",
+            state: "blocked",
+            transport: "stdio",
+            toolCount: 0,
+            promptCount: 0,
+            blockedReason: "sandbox_unavailable",
+            lastError: { code: "sandbox_unavailable", message: "m", at: 1 },
+          },
+          {
+            server: "off",
+            source: "settings:user",
+            state: "disabled",
+            transport: "stdio",
+            toolCount: 0,
+            promptCount: 0,
+          },
+        ],
+      }),
+    );
+    expect(text.split("\n")).toEqual([
+      "gh blocked 0 tools - waiting for the user to approve starting this server; tell the user to approve the pending start card, its tools join at the next step after approval (do not conclude that no MCP tools exist)",
+      "fs blocked 0 tools - blocked by settings (deniedServers/allowlist/managed policy)",
+      "web blocked 0 tools - project folder not trusted",
+      "box blocked 0 tools error: sandbox_unavailable - cannot start: sandbox unavailable on this machine",
+      "off disabled 0 tools - disabled (setting or turned off for this conversation)",
+    ]);
+  });
+
+  test("renderServers appends hidden tools with their reasons and quotes the names", () => {
+    const text = firstText(
+      renderServers({
+        servers: [
+          {
+            server: "beta",
+            source: "settings:user",
+            state: "connected",
+            transport: "stdio",
+            toolCount: 1,
+            promptCount: 0,
+            hiddenTools: [
+              { name: "search", reason: "name_conflict" },
+              { name: "bad name!", reason: "name_invalid" },
+              { name: "odd", reason: "unknown_reason" },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(text).toBe(
+      'beta connected 1 tools; hidden tools: "search" (name_conflict: another server exposes the same tool name), "bad name!" (name_invalid: the name is not a valid tool name), "odd" (unknown_reason)',
+    );
   });
 
   test("renderResources prints server, uri and title", () => {

@@ -16,6 +16,7 @@ import type {
   ApprovalEvidence,
   ExecService,
   ExposureMode,
+  McpDeclaredHints,
   OutputLimits,
   Slot,
   ToolClass,
@@ -84,6 +85,8 @@ export interface ToolEntry {
   readonly ref: ToolRef;
   readonly capability: { readonly id: CapabilityId; readonly method: string } | undefined;
   readonly mcpServer: string | undefined;
+  /** MCP 서버가 알린 성질(표시용). 정책 입력이 아니다 */
+  readonly mcpDeclared?: McpDeclaredHints | undefined;
   readonly risk: ToolRisk;
   readonly classes: readonly ToolClass[];
   readonly hints: NonNullable<ToolSpec["hints"]>;

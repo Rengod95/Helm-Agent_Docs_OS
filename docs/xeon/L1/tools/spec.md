@@ -494,6 +494,8 @@ export interface ToolApprovalBody {
   readonly argsHash: string;
   /** ask를 낸 규칙. 모드가 낸 ask면 null */
   readonly ruleId: string | null;
+  /** MCP 서버 도구면 서버 이름과 서버가 알린 성질. 표시용이고 신뢰하지 않는다(정책과 승인 결정에 쓰지 않는다). 옛 기록과 MCP가 아닌 도구에는 싣지 않는다 [결정: 오케스트레이터 기본값, fxMC] */
+  readonly mcp?: { readonly server: string; readonly declared?: McpDeclaredHints };
 }
 
 export interface PlanApprovalBody {
@@ -909,6 +911,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 승인 카드(`approval.requested`를 받아 `approval.respond`를 보내는 클라이언트 화면. L4 CLI와 데스크톱)가 지켜야 하는 요건이다 [결정: M2 마감 G2-10]. 사용자가 무엇에 동의하는지 정확히 알고 누르게 하는 것이 목적이다. 카드 구현은 L4 문서가 정하고, 이 절은 화면과 무관하게 보여야 하는 정보를 정한다.
 
 1. 도구 승인(`tool`)은 도구 이름, 위험 등급(`risk`), 실제로 실행될 인자를 보인다. 인자가 `BlobRef`이거나 길어서 줄이면 줄였다는 표시와 전체를 볼 수 있는 길을 둔다. 줄인 인자만 보고 허용하게 두지 않는다.
+   MCP 서버 도구면 서버 이름(`mcp.server`)을 보인다. 서버가 알린 성질(`mcp.declared`)이 있으면 그것을 보이면서 서버가 스스로 알린 것이라 믿을 수 없다는 경고를 함께 보인다. 이 표시는 승인 결정을 바꾸지 않는다 [결정: 오케스트레이터 기본값, fxMC].
 2. 누가 요청했는지(`origin.caller`: 주 대화는 `main`, `subagent:<이름>`, `background`, `ext:<확장>`, `host`)와 어느 대화인지(`surfaceThreadId`와 `origin.threadId`가 다르면 서브에이전트 대화의 요청이다)를 보인다.
 3. 묻는 이유를 보인다. `ruleId`가 있으면 그 규칙이 물었다는 것을, 없으면 권한 모드가 물었다는 것을 말한다. 시크릿 사용 승인(`secret.use`)은 쓰이는 시크릿 참조 이름을 보인다(값은 보이지 않는다).
 4. 기억 범위는 요청 단위(`once`, 이번 호출만)뿐이라 선택지를 두지 않는다 [결정: 2026-10-31 사용자, 점검 2026-11-04]. 요청이 제안하지 않은 범위를 선택지로 만들지 않는다.

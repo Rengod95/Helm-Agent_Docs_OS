@@ -391,10 +391,12 @@ export function createMcp(deps: McpDeps): McpRuntime {
   }
 
   function statusOf(snapshot: ServerSnapshot): McpServerStatus {
-    const exposed =
-      snapshot.state === "connected"
-        ? (exposure().get(snapshot.definition.id) ?? []).filter((info) => info.exposed).length
-        : 0;
+    const infos =
+      snapshot.state === "connected" ? (exposure().get(snapshot.definition.id) ?? []) : [];
+    // 노출하지 않은 도구는 사유와 함께 보인다(이름 충돌이면 뒤쪽 서버의 도구가 숨는다)
+    const hiddenTools = infos.flatMap((info) =>
+      info.exposed ? [] : [{ name: info.name, reason: info.hiddenReason ?? "hidden" }],
+    );
     return {
       server: snapshot.definition.id,
       ...(snapshot.definition.def.title === undefined
@@ -406,8 +408,10 @@ export function createMcp(deps: McpDeps): McpRuntime {
       ...(snapshot.protocolVersion === undefined
         ? {}
         : { protocolVersion: snapshot.protocolVersion }),
-      toolCount: exposed,
+      toolCount: infos.filter((info) => info.exposed).length,
       promptCount: snapshot.prompts.length,
+      ...(hiddenTools.length === 0 ? {} : { hiddenTools }),
+      ...(snapshot.stderrTail.length === 0 ? {} : { stderrTail: [...snapshot.stderrTail] }),
       ...(snapshot.lastError === undefined ? {} : { lastError: { ...snapshot.lastError } }),
       ...(snapshot.blockedReason === undefined ? {} : { blockedReason: snapshot.blockedReason }),
     };
@@ -491,9 +495,10 @@ export function createMcp(deps: McpDeps): McpRuntime {
       ) {
         throw mcpError(method, "denied", `tool ${input.tool} is denied by the approval mode`);
       }
+      const timeoutMs = callMsOf(lease.definition, settings);
       const result = await lease.connection.callTool(input.tool, input.arguments, {
         signal: env.signal,
-        timeoutMs: callMsOf(lease.definition, settings),
+        timeoutMs,
         ...(continuation === undefined
           ? {}
           : {
@@ -503,7 +508,12 @@ export function createMcp(deps: McpDeps): McpRuntime {
               },
             }),
       });
-      if (!result.ok) throw failureToError(method, result.error, deps.masker);
+      if (!result.ok)
+        throw failureToError(method, result.error, deps.masker, {
+          server: input.server,
+          tool: input.tool,
+          timeoutMs,
+        });
       if (result.value.kind === "input_required") {
         return inputRequiredOutput(method, input.server, round, result.value, settings);
       }
@@ -529,9 +539,10 @@ export function createMcp(deps: McpDeps): McpRuntime {
     const round = input.continuation?.round ?? 1;
     checkRound(method, round, settings);
     return await withConnection(method, input.server, async (lease) => {
+      const timeoutMs = callMsOf(lease.definition, settings);
       const result = await lease.connection.getPrompt(input.name, input.arguments, {
         signal: env.signal,
-        timeoutMs: callMsOf(lease.definition, settings),
+        timeoutMs,
         ...(input.continuation === undefined
           ? {}
           : {
@@ -541,7 +552,11 @@ export function createMcp(deps: McpDeps): McpRuntime {
               },
             }),
       });
-      if (!result.ok) throw failureToError(method, result.error, deps.masker);
+      if (!result.ok)
+        throw failureToError(method, result.error, deps.masker, {
+          server: input.server,
+          timeoutMs,
+        });
       if (result.value.kind === "input_required") {
         return inputRequiredOutput(method, input.server, round, result.value, settings);
       }
@@ -567,9 +582,10 @@ export function createMcp(deps: McpDeps): McpRuntime {
     const round = input.continuation?.round ?? 1;
     checkRound(method, round, settings);
     return await withConnection(method, input.server, async (lease) => {
+      const timeoutMs = callMsOf(lease.definition, settings);
       const result = await lease.connection.readResource(input.uri, {
         signal: env.signal,
-        timeoutMs: callMsOf(lease.definition, settings),
+        timeoutMs,
         ...(input.continuation === undefined
           ? {}
           : {
@@ -579,7 +595,11 @@ export function createMcp(deps: McpDeps): McpRuntime {
               },
             }),
       });
-      if (!result.ok) throw failureToError(method, result.error, deps.masker);
+      if (!result.ok)
+        throw failureToError(method, result.error, deps.masker, {
+          server: input.server,
+          timeoutMs,
+        });
       if (result.value.kind === "input_required") {
         return inputRequiredOutput(method, input.server, round, result.value, settings);
       }
@@ -742,11 +762,12 @@ export function createMcp(deps: McpDeps): McpRuntime {
     const method = "listResources";
     const listed = await attemptAsync(() =>
       withConnection(method, server, async (lease) => {
+        const timeoutMs = callMsOf(lease.definition, settings);
         const page = await lease.connection.listResources(input.cursor?.[server], {
           signal: env.signal,
-          timeoutMs: callMsOf(lease.definition, settings),
+          timeoutMs,
         });
-        if (!page.ok) throw failureToError(method, page.error, deps.masker);
+        if (!page.ok) throw failureToError(method, page.error, deps.masker, { server, timeoutMs });
         return page.value;
       }),
     );

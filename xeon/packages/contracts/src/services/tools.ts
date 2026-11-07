@@ -75,12 +75,25 @@ export interface OutputLimits {
   readonly maxBytes?: number;
 }
 
+/**
+ * MCP 서버가 도구 annotations로 스스로 알린 성질(값이 있는 것만). 서버의 자기 선언이라 믿지 않는다:
+ * 정책 입력이 아니고(정책은 `trustAnnotations`가 켜진 힌트만 본다) 승인 카드와 도구 행의 표시에만 쓴다.
+ */
+export interface McpDeclaredHints {
+  readonly readOnlyHint?: boolean;
+  readonly destructiveHint?: boolean;
+  readonly idempotentHint?: boolean;
+  readonly openWorldHint?: boolean;
+}
+
 /** 도구 하나의 정책 메타. ToolSpec에 없는 필드를 core-tools가 받는 자리 */
 export interface ToolPolicyMeta {
   readonly risk?: ToolRisk;
   readonly classes?: readonly ToolClass[];
   /** MCP 서버 도구면 서버 이름. 정책 resource.mcpServer와 대조한다 */
   readonly mcpServer?: string;
+  /** MCP 서버 도구면 서버가 알린 성질. 표시용이고 정책 입력이 아니다 */
+  readonly mcpDeclared?: McpDeclaredHints;
 }
 
 export interface ToolMeta extends Required<Pick<ToolPolicyMeta, "risk" | "classes">> {
@@ -90,6 +103,8 @@ export interface ToolMeta extends Required<Pick<ToolPolicyMeta, "risk" | "classe
   readonly ref: ToolRef;
   readonly capability?: { readonly id: CapabilityId; readonly method: string };
   readonly mcpServer?: string;
+  /** MCP 서버 도구의 서버 자기 선언 성질(표시용). 없으면 서버가 아무것도 알리지 않았다 */
+  readonly mcpDeclared?: McpDeclaredHints;
   readonly hints: NonNullable<ToolSpec["hints"]>;
   /** 미선언은 "unsafe" */
   readonly replay: ReplayPolicy;

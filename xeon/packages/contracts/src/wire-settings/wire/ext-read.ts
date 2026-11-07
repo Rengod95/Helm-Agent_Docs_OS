@@ -16,7 +16,15 @@ import {
   UiNodeSchema,
 } from "../../extensions/index.ts";
 import type { SchemaProof } from "../../base/index.ts";
-import { SemVerSchema } from "../../capabilities/index.ts";
+import {
+  McpApprovalModeSchema,
+  McpBlockedReasonSchema,
+  McpServerStateSchema,
+  SemVerSchema,
+  type McpApprovalMode,
+  type McpBlockedReason,
+  type McpServerState,
+} from "../../capabilities/index.ts";
 import { closed, request, type Req } from "./schema-kit.ts";
 
 // F.wire-settings.spec §3.3.4(M4 확장 읽기). L4.desktop-ux.spec §10.1 W-15, W-20~W-26, W-31, W-33, W-35~W-42, W-47.
@@ -1161,3 +1169,182 @@ const ExtValidateResultShape = closed({
 export const ExtValidateResultSchema: TUnsafe<ExtValidateResult> = Type.Unsafe<ExtValidateResult>(
   ExtValidateResultShape satisfies SchemaProof<ExtValidateResult, typeof ExtValidateResultShape>,
 );
+
+// ── MCP 서버 목록과 행동(W-15). `mcp.servers`·`mcp.serverAction`. 상태는 `mcp.client`(cap-mcp)가, 설정 값은 설정 층이 준다 ──
+
+/** 서버 출처 묶음: `.mcp.json` 파일(`mcpjson:*`), 설정(`settings:*`), 확장 등록(`ext:*`) */
+export const MCP_SERVER_ORIGINS = ["mcpjson", "settings", "extension"] as const;
+export type McpServerOrigin = (typeof MCP_SERVER_ORIGINS)[number];
+const McpServerOriginShape = Type.Union(MCP_SERVER_ORIGINS.map((name) => Type.Literal(name)));
+
+/**
+ * 서버 정의를 평탄하게 편 모양. 전송 종류는 `transport` 문자열이고 나머지는 그 전송의 필드다. 화면이 `l2.mcp.servers` 항목을 다시 쓸 때
+ * 이 모양을 저장 모양(`McpServerDef`)으로 되돌린다. `title`·`tools`·`timeouts`·`trustAnnotations`·`sandbox`는 저장된 값 그대로다(잃지 않게 싣는다)
+ */
+export interface McpDefinitionView {
+  readonly transport: "stdio" | "http" | "sse";
+  readonly title?: string;
+  readonly command?: string;
+  readonly args?: string[];
+  readonly cwd?: string;
+  readonly env?: Record<string, string>;
+  readonly url?: string;
+  readonly headers?: Record<string, string>;
+  readonly oauth?: boolean;
+  readonly enabled?: boolean;
+  readonly tools?: {
+    readonly allow?: string[];
+    readonly deny?: string[];
+    readonly approval?: Record<string, McpApprovalMode>;
+  };
+  readonly timeouts?: { readonly connectMs?: number; readonly callMs?: number };
+  readonly trustAnnotations?: boolean;
+  readonly sandbox?: boolean;
+}
+const McpDefinitionViewShape = closed({
+  transport: Type.Union([Type.Literal("stdio"), Type.Literal("http"), Type.Literal("sse")]),
+  title: Type.Optional(Type.String({ maxLength: 80 })),
+  command: Type.Optional(Type.String({ maxLength: 4096 })),
+  args: Type.Optional(Type.Array(Type.String({ maxLength: 4096 }), { maxItems: 256 })),
+  cwd: Type.Optional(Type.String({ maxLength: 4096 })),
+  env: Type.Optional(
+    Type.Record(Type.String({ maxLength: 128 }), Type.String({ maxLength: 8192 })),
+  ),
+  url: Type.Optional(Type.String({ maxLength: 4096 })),
+  headers: Type.Optional(
+    Type.Record(Type.String({ maxLength: 128 }), Type.String({ maxLength: 8192 })),
+  ),
+  oauth: Type.Optional(Type.Boolean()),
+  enabled: Type.Optional(Type.Boolean()),
+  tools: Type.Optional(
+    closed({
+      allow: Type.Optional(Type.Array(Type.String(), { maxItems: 500 })),
+      deny: Type.Optional(Type.Array(Type.String(), { maxItems: 500 })),
+      approval: Type.Optional(Type.Record(Type.String(), McpApprovalModeSchema)),
+    }),
+  ),
+  timeouts: Type.Optional(
+    closed({
+      connectMs: Type.Optional(Type.Integer({ minimum: 1000, maximum: 600000 })),
+      callMs: Type.Optional(Type.Integer({ minimum: 1000, maximum: 3600000 })),
+    }),
+  ),
+  trustAnnotations: Type.Optional(Type.Boolean()),
+  sandbox: Type.Optional(Type.Boolean()),
+});
+export const McpDefinitionViewSchema: TUnsafe<McpDefinitionView> = Type.Unsafe<McpDefinitionView>(
+  McpDefinitionViewShape satisfies SchemaProof<McpDefinitionView, typeof McpDefinitionViewShape>,
+);
+
+/** 도구 하나. `name`은 서버가 광고한 이름이다. `declared`는 서버가 알린 성질(주석이 믿을 수 없다고 보인다) */
+export interface McpToolRow {
+  readonly name: string;
+  readonly title?: string;
+  readonly exposed: boolean;
+  readonly hiddenReason?: string;
+  readonly declared?: { readonly readOnlyHint?: boolean; readonly destructiveHint?: boolean };
+}
+const McpToolRowShape = closed({
+  name: Name,
+  title: Type.Optional(Type.String({ maxLength: 512 })),
+  exposed: Type.Boolean(),
+  hiddenReason: Type.Optional(Type.String({ maxLength: 128 })),
+  declared: Type.Optional(
+    closed({
+      readOnlyHint: Type.Optional(Type.Boolean()),
+      destructiveHint: Type.Optional(Type.Boolean()),
+    }),
+  ),
+});
+
+/**
+ * 서버 한 줄(`mcp.servers`, `mcp.serverAction`의 결과). `state`·`blockedReason`·`lastError`·`hiddenTools`·`stderrTail`은 `McpServerStatus`에서
+ * 그대로 옮긴다. `lastError.at`은 밀리초 정수다(상태 표와 같다). `tools`는 연결된 서버만 채운다(아니면 빈 배열).
+ * `alwaysBlocked`는 설정 `l2.mcp.deniedServers`(모든 범위의 합집합)에 이 서버가 있다는 뜻이다. `editable`은 사용자 설정에서 온 서버이고,
+ * 그때만 `definition`을 싣는다. 이 대화에서 끄기는 MCP 서버마다 없다(전체 MCP 연결 한 단위만 대화별로 끌 수 있다, `ext.list`의 `cap-mcp`)
+ */
+export interface McpServerRow {
+  readonly server: string;
+  readonly title?: string;
+  /** 정의 출처 그대로(`settings:user`, `mcpjson:project`, `ext:<이름>` 등) */
+  readonly source: string;
+  readonly origin: McpServerOrigin;
+  readonly state: McpServerState;
+  readonly blockedReason?: McpBlockedReason;
+  readonly transport: "stdio" | "http" | "sse";
+  readonly toolCount: number;
+  readonly lastError?: { readonly code: string; readonly message: string; readonly at: number };
+  readonly stderrTail?: readonly string[];
+  readonly hiddenTools?: readonly { readonly name: string; readonly reason: string }[];
+  readonly tools: readonly McpToolRow[];
+  readonly alwaysBlocked: boolean;
+  readonly editable: boolean;
+  readonly definition?: McpDefinitionView;
+}
+const McpServerRowShape = closed({
+  server: Name,
+  title: Type.Optional(Type.String({ maxLength: 80 })),
+  source: Type.String({ maxLength: 512 }),
+  origin: McpServerOriginShape,
+  state: McpServerStateSchema,
+  blockedReason: Type.Optional(McpBlockedReasonSchema),
+  transport: Type.Union([Type.Literal("stdio"), Type.Literal("http"), Type.Literal("sse")]),
+  toolCount: Count,
+  lastError: Type.Optional(closed({ code: Name, message: Line, at: Type.Integer({ minimum: 0 }) })),
+  stderrTail: Type.Optional(Type.Array(Line, { maxItems: 5 })),
+  hiddenTools: Type.Optional(Type.Array(closed({ name: Name, reason: Name }), { maxItems: 500 })),
+  tools: Type.Array(McpToolRowShape, { maxItems: 1000 }),
+  alwaysBlocked: Type.Boolean(),
+  editable: Type.Boolean(),
+  definition: Type.Optional(McpDefinitionViewSchema),
+});
+export const McpServerRowSchema: TUnsafe<McpServerRow> = Type.Unsafe<McpServerRow>(
+  McpServerRowShape satisfies SchemaProof<McpServerRow, typeof McpServerRowShape>,
+);
+
+/** `mcp.servers`(W-15). `threadId`는 설정 층과 대화의 존재를 가리는 데만 쓴다(MCP 상태는 대화와 무관하게 하나다) */
+export interface McpServersParams {
+  readonly threadId?: string;
+}
+const McpServersParamsShape = request({ threadId: Type.Optional(ThreadRef) });
+export const McpServersParamsSchema: TUnsafe<Req<McpServersParams>> = Type.Unsafe<
+  Req<McpServersParams>
+>(McpServersParamsShape satisfies SchemaProof<Req<McpServersParams>, typeof McpServersParamsShape>);
+export interface McpServersResult {
+  /** 서버 id의 바이트 순 */
+  readonly servers: readonly McpServerRow[];
+}
+const McpServersResultShape = closed({
+  servers: Type.Array(McpServerRowShape, { maxItems: 500 }),
+});
+export const McpServersResultSchema: TUnsafe<McpServersResult> = Type.Unsafe<McpServersResult>(
+  McpServersResultShape satisfies SchemaProof<McpServersResult, typeof McpServersResultShape>,
+);
+
+/**
+ * `mcp.serverAction`(W-15). `restart`은 다시 연결한다. `blockAlways`·`unblock`은 설정 `l2.mcp.deniedServers`(사용자 범위)에 서버 id를 더하거나 뺀다.
+ * 차단과 풀기는 다음 단계 경계에 적용된다(`nextTurn`), 그래서 돌려주는 `state`는 아직 옛 값일 수 있다. 알 수 없는 서버는 `mcp.serverNotFound`다.
+ * 서버 정의의 추가·수정·삭제는 이 메서드가 아니라 `settings.set { key: "l2.mcp.servers", scope: "user", value }`다
+ */
+export const MCP_SERVER_ACTIONS = ["restart", "blockAlways", "unblock"] as const;
+export type McpServerAction = (typeof MCP_SERVER_ACTIONS)[number];
+export interface McpServerActionParams {
+  readonly server: string;
+  readonly action: McpServerAction;
+  readonly threadId?: string;
+}
+const McpServerActionParamsShape = request({
+  server: Name,
+  action: Type.Union(MCP_SERVER_ACTIONS.map((name) => Type.Literal(name))),
+  threadId: Type.Optional(ThreadRef),
+});
+export const McpServerActionParamsSchema: TUnsafe<Req<McpServerActionParams>> = Type.Unsafe<
+  Req<McpServerActionParams>
+>(
+  McpServerActionParamsShape satisfies SchemaProof<
+    Req<McpServerActionParams>,
+    typeof McpServerActionParamsShape
+  >,
+);
+/** `mcp.serverAction`의 결과는 바뀐 서버 한 줄이다(`McpServerRowSchema`) */
+export type McpServerActionResult = McpServerRow;

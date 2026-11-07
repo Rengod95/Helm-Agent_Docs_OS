@@ -28,8 +28,10 @@ type ExtReadError =
   | { readonly kind: "managed_locked"; readonly name: string }
   /** 그런 이름의 훅이 없다 */
   | { readonly kind: "unknown_hook"; readonly hook: string }
-  /** 설정 쓰기가 실패했다. 키는 `x.operations.hookOrder` 또는 `x.operations.hookDisabled`다 */
-  | { readonly kind: "write_failed"; readonly key: string; readonly failure: ProfileWriteFailure };
+  /** 설정 쓰기가 실패했다. 키는 `x.operations.hookOrder`, `x.operations.hookDisabled`, `l2.mcp.deniedServers`다 */
+  | { readonly kind: "write_failed"; readonly key: string; readonly failure: ProfileWriteFailure }
+  /** 그런 id의 MCP 서버가 없다(`mcp.serverAction`) */
+  | { readonly kind: "unknown_mcp_server"; readonly server: string };
 
 export type ExtReadResult<T> = Result<T, ExtReadError>;
 
@@ -60,6 +62,8 @@ export interface ExtReadPort {
   readonly orderSet: PortCall<"hooks.order.set">;
   readonly orderReset: PortCall<"hooks.order.reset">;
   readonly orderPreview: PortCall<"hooks.order.preview">;
+  readonly mcpServers: PortCall<"mcp.servers">;
+  readonly mcpServerAction: PortCall<"mcp.serverAction">;
   /** 저장 쓰기 실패를 wire 오류로 옮기는 조립의 함수들(`ProfileTestRunPort.errors`와 같은 것) */
   readonly errors: HostErrorMappers;
 }
@@ -84,7 +88,9 @@ export type ExtReadMethods =
   | "hooks.order.get"
   | "hooks.order.set"
   | "hooks.order.reset"
-  | "hooks.order.preview";
+  | "hooks.order.preview"
+  | "mcp.servers"
+  | "mcp.serverAction";
 
 function wireErrorOf(
   error: ExtReadError,
@@ -110,6 +116,8 @@ function wireErrorOf(
       return wireError("hooks.notFound", { details: { hook: error.hook } });
     case "write_failed":
       return wireErrorOfWrite(error.key, error.failure, errors, where);
+    case "unknown_mcp_server":
+      return wireError("mcp.serverNotFound", { details: { server: error.server } });
     default:
       return assertNever(error, "ExtReadError");
   }
@@ -162,5 +170,9 @@ export function createExtReadHandlers(port: ExtReadPort): Pick<WireHandlers, Ext
       settle("hooks.order.reset", port.orderReset(params, context.signal)),
     "hooks.order.preview": (params, context) =>
       settle("hooks.order.preview", port.orderPreview(params, context.signal)),
+    "mcp.servers": (params, context) =>
+      settle("mcp.servers", port.mcpServers(params, context.signal)),
+    "mcp.serverAction": (params, context) =>
+      settle("mcp.serverAction", port.mcpServerAction(params, context.signal)),
   };
 }

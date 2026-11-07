@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { renderServers } from "@fresnel/contracts/capabilities";
 import type { JsonObject } from "@fresnel/contracts/conversation";
 import { orderedOf } from "../src/client/dynamic-tools.ts";
 import { buildWorld, startWorld } from "./support/world.ts";
@@ -46,6 +47,28 @@ describe("tool names", () => {
     const listed = await world.runtime.service.client.listTools({ server: "stub" });
     expect(listed.tools.find((tool) => tool.name === "read")?.hiddenReason).toBe("name_conflict");
     expect(listed.tools.find((tool) => tool.name === "extra")?.exposed).toBe(true);
+    await world.runtime.shutdown();
+  });
+
+  test("a name-conflict loser shows its hidden tool on its status and in the listing", async () => {
+    const world = buildWorld({
+      servers: {
+        beta: { stub: { era: "modern", tools: [{ name: "search" }] } },
+        alpha: { stub: { era: "modern", tools: [{ name: "search" }] } },
+      },
+    });
+    await startWorld(world);
+    const beta = await world.runtime.service.client.status({ server: "beta" });
+    expect(beta.hiddenTools).toEqual([{ name: "search", reason: "name_conflict" }]);
+    const alpha = await world.runtime.service.client.status({ server: "alpha" });
+    expect(alpha.hiddenTools).toBeUndefined();
+    const listed = await world.runtime.service.client.listServers({});
+    expect(renderServers(listed).content).toEqual([
+      {
+        type: "text",
+        text: 'alpha connected 1 tools\nbeta connected 0 tools; hidden tools: "search" (name_conflict: another server exposes the same tool name)',
+      },
+    ]);
     await world.runtime.shutdown();
   });
 

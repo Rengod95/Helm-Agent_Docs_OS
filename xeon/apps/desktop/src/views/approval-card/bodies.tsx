@@ -18,6 +18,7 @@ import {
   REVIEW_CHANGE_ID,
   fileChangeViewOf,
   mcpStartViewOf,
+  mcpToolViewOf,
   setPickText,
   toolApprovalView,
   toolReplaceView,
@@ -25,8 +26,10 @@ import {
   type FileChangeView,
   type McpChangedField,
   type McpChangedView,
+  type McpDeclaredKind,
   type McpSourceView,
   type McpStartView,
+  type McpToolView,
   type QuestionDraft,
   type QuestionItem,
   type ToolApprovalBody,
@@ -39,8 +42,10 @@ import {
   foldPlanLines,
   modeLabelIdOf,
   reviewTotalsOf,
+  ruleTextIdOf,
 } from "./card-model.ts";
 import { FileChangeDiff } from "../file-change-view.tsx";
+import { InfoTip } from "../craft/info-tip.tsx";
 
 /** 승인 뒤 모드의 화면 글. 모르는 모드는 원시값이다 */
 function modeLabelOf(mode: string): string {
@@ -212,17 +217,58 @@ function FileChangeBlock(props: { readonly view: FileChangeView }): ReactNode {
   );
 }
 
+const MCP_DECLARED_TEXT: Readonly<Record<McpDeclaredKind, MessageId>> = {
+  readOnly: "desktop.approvals.mcpTool.hint.readOnly",
+  destructive: "desktop.approvals.mcpTool.hint.destructive",
+  idempotent: "desktop.approvals.mcpTool.hint.idempotent",
+  openWorld: "desktop.approvals.mcpTool.hint.openWorld",
+};
+
+/**
+ * MCP 서버 도구 승인의 머리: 서버 이름 칩, 서버가 알린 성질(있을 때 한 줄), 그 성질을 믿을 수 없다는 경고.
+ * 경고는 정보 아이콘 뒤에 숨기지 않고 성질 줄과 함께 늘 보인다. 승인 결정은 이 값과 상관없다(정책 불변).
+ */
+function McpToolBlock(props: { readonly view: McpToolView }): ReactNode {
+  const { view } = props;
+  const hasDeclared = view.declared.length > 0;
+  const hints = view.declared.map((kind) => t(MCP_DECLARED_TEXT[kind])).join(", ");
+  return (
+    <div className="grid gap-1.5">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-2">
+        <Badge size="xs">{t("desktop.approvals.mcpTool.server", { server: view.server })}</Badge>
+        {hasDeclared ? (
+          <span className="text-ui-sm text-text-secondary">
+            {t("desktop.approvals.mcpTool.declared", { hints })}
+          </span>
+        ) : null}
+      </div>
+      {hasDeclared ? (
+        <Alert tone="warning" layout="inline">
+          {t("desktop.approvals.mcpTool.untrusted")}
+        </Alert>
+      ) : null}
+    </div>
+  );
+}
+
 export function ToolBody(props: { readonly body: ToolApprovalBody }): ReactNode {
   const view = toolApprovalView(props.body);
   const replace = toolReplaceView(props.body);
   const mcp = mcpStartViewOf(props.body);
+  const mcpTool = mcpToolViewOf(props.body);
   const change = fileChangeViewOf(props.body);
   const { ruleId } = props.body;
   // 기동 승인은 명령에 인자를 붙인 한 줄을 보인다. `command`만으로는 실행될 것이 다 보이지 않는다
   const command = mcp === null ? view.command : mcp.commandLine;
+  // 규칙 이름은 정보 아이콘 뒤에 둔다. 기동 승인은 규칙 대신 묻는 까닭을 사람 말로 보인다(아래)
+  const ruleTip =
+    mcp !== null || ruleId === null ? null : (
+      <InfoTip text={t(ruleTextIdOf(ruleId), { id: ruleId })} />
+    );
   return (
     <>
       {replace === null ? null : <ReplaceDetails view={replace} />}
+      {mcpTool === null ? null : <McpToolBlock view={mcpTool} />}
       {mcp === null || mcp.changed === null ? null : (
         <McpChangedBlock changed={mcp.changed} commandLine={mcp.commandLine} />
       )}
@@ -258,6 +304,7 @@ export function ToolBody(props: { readonly body: ToolApprovalBody }): ReactNode 
         )}
         <ListDescriptionRow term={t("desktop.approvals.replace.risk")}>
           <Badge size="xs">{riskLabelOf(view.risk)}</Badge>
+          {ruleTip}
         </ListDescriptionRow>
         {view.secrets.map((secret) => (
           <ListDescriptionRow key={secret.name} term={t("desktop.approvals.secret.term")} mono>
@@ -273,11 +320,6 @@ export function ToolBody(props: { readonly body: ToolApprovalBody }): ReactNode 
       {/* 기동 승인은 규칙 id 대신 묻는 까닭을 사람 말로 보인다 */}
       {mcp === null ? null : (
         <div className="text-ui-sm text-text-secondary">{t(MCP_REASON_TEXT[mcp.reason])}</div>
-      )}
-      {mcp !== null || ruleId === null ? null : (
-        <div className="text-ui-sm text-text-secondary">
-          {t("desktop.approvals.rule", { id: ruleId })}
-        </div>
       )}
       {change === null ? null : <FileChangeBlock view={change} />}
       <ArgsFold view={view} />

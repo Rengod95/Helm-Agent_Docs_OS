@@ -1,5 +1,6 @@
 import type { ToolHints } from "@fresnel/contracts/capabilities";
 import type { JsonObject } from "@fresnel/contracts/conversation";
+import type { McpDeclaredHints } from "@fresnel/contracts/services";
 import type { RawToolAnnotations } from "../adapter.ts";
 
 // L2.mcp.spec §3.4. 서버가 광고한 annotations를 ToolHints로 옮긴다. annotations는 서버의 자기 선언이라
@@ -60,4 +61,27 @@ export function mapAnnotations(
     },
     details: undefined,
   };
+}
+
+/**
+ * 서버가 알린 성질 가운데 값이 있는 것. 신뢰 여부와 상관없이 원본을 싣는다: 승인 카드와 도구 행이 "서버가 알린 성질"로 보인다.
+ * 정책 입력은 `mapAnnotations`의 힌트뿐이라, 이 값은 정책을 바꾸지 않는다.
+ */
+export function declaredHintsOf(
+  annotations: RawToolAnnotations | undefined,
+): McpDeclaredHints | undefined {
+  if (annotations === undefined) return undefined;
+  const declared: McpDeclaredHints = {
+    ...(annotations.readOnlyHint === undefined ? {} : { readOnlyHint: annotations.readOnlyHint }),
+    ...(annotations.destructiveHint === undefined
+      ? {}
+      : { destructiveHint: annotations.destructiveHint }),
+    ...(annotations.idempotentHint === undefined
+      ? {}
+      : { idempotentHint: annotations.idempotentHint }),
+    ...(annotations.openWorldHint === undefined
+      ? {}
+      : { openWorldHint: annotations.openWorldHint }),
+  };
+  return Object.keys(declared).length === 0 ? undefined : declared;
 }

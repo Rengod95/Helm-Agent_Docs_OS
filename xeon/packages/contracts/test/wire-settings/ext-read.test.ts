@@ -3,6 +3,7 @@ import { parse } from "../../src/base/index.ts";
 import type { TSchema } from "typebox";
 import {
   HostStatusResultSchema,
+  WIRE_ERRORS,
   WIRE_METHODS,
   classifyMethodName,
   extMethodName,
@@ -565,5 +566,90 @@ describe("M4 ext read methods", () => {
     expect(parse(preview, { ...withRisk, valueChanges: [fractionalTier] }).ok).toBe(false);
     const longSkips = Array.from({ length: 769 }, () => skip);
     expect(parse(preview, { ...withRisk, skips: longSkips }).ok).toBe(false);
+  });
+});
+
+describe("M4 MCP server methods", () => {
+  const connected = {
+    server: "fixture",
+    source: "settings:user",
+    origin: "settings",
+    state: "connected",
+    transport: "stdio",
+    toolCount: 1,
+    tools: [{ name: "echo", exposed: true, declared: { readOnlyHint: true } }],
+    alwaysBlocked: false,
+    editable: true,
+    definition: {
+      transport: "stdio",
+      command: "npx",
+      args: ["-y", "fixture-server"],
+      env: { TOKEN: "secret://token" },
+      enabled: true,
+    },
+  };
+  const approval = {
+    server: "remote",
+    source: "mcpjson:project",
+    origin: "mcpjson",
+    state: "blocked",
+    blockedReason: "approval_required",
+    transport: "stdio",
+    toolCount: 0,
+    lastError: { code: "approval_required", message: "waiting for approval", at: 1762473600000 },
+    stderrTail: ["starting"],
+    hiddenTools: [{ name: "dup", reason: "name_conflict" }],
+    tools: [],
+    alwaysBlocked: true,
+    editable: false,
+  };
+
+  test("mcp.servers result round trips rows by value and rejects bad origin, state and extra fields", () => {
+    const result = WIRE_METHODS["mcp.servers"].result;
+    roundTrip(result, { servers: [connected, approval] });
+    roundTrip(result, { servers: [] });
+    expect(parse(result, { servers: [{ ...approval, origin: "user" }] }).ok).toBe(false);
+    expect(parse(result, { servers: [{ ...approval, state: "stopped" }] }).ok).toBe(false);
+    expect(parse(result, { servers: [{ ...approval, blockedReason: "other" }] }).ok).toBe(false);
+    expect(parse(result, { servers: [{ ...approval, guessed: true }] }).ok).toBe(false);
+    expect(
+      parse(result, { servers: [{ ...connected, tools: [{ name: "x", exposed: "yes" }] }] }).ok,
+    ).toBe(false);
+    expect(
+      parse(result, {
+        servers: [{ ...connected, definition: { transport: "ws", command: "npx" } }],
+      }).ok,
+    ).toBe(false);
+  });
+
+  test("mcp.servers takes an optional threadId and nothing else", () => {
+    const params = WIRE_METHODS["mcp.servers"].params;
+    roundTrip(params, {});
+    roundTrip(params, { threadId: "thr_01HZX3QK0EXAMPLE" });
+    expect(parse(params, { server: "fixture" }).ok).toBe(false);
+  });
+
+  test("mcp.serverAction takes a server, one of three actions and an optional thread, and answers one row", () => {
+    const params = WIRE_METHODS["mcp.serverAction"].params;
+    roundTrip(params, { server: "fixture", action: "restart" });
+    roundTrip(params, {
+      server: "fixture",
+      action: "blockAlways",
+      threadId: "thr_01HZX3QK0EXAMPLE",
+    });
+    roundTrip(params, { server: "fixture", action: "unblock" });
+    // 대화별 끄기는 서버마다 없다(전체 MCP 연결 한 단위만 대화별로 끈다). 그 행동은 거절한다
+    expect(parse(params, { server: "fixture", action: "disableForThread" }).ok).toBe(false);
+    expect(parse(params, { server: "fixture", action: "enableForThread" }).ok).toBe(false);
+    expect(parse(params, { server: "fixture", action: "disable" }).ok).toBe(false);
+    expect(parse(params, { action: "restart" }).ok).toBe(false);
+    roundTrip(WIRE_METHODS["mcp.serverAction"].result, approval);
+  });
+
+  test("mcp.servers and mcp.serverAction are core methods and the unknown-server error is 3406", () => {
+    expect(classifyMethodName("mcp.servers")).toBe("core");
+    expect(classifyMethodName("mcp.serverAction")).toBe("core");
+    expect(WIRE_ERRORS["mcp.serverNotFound"].code).toBe(3406);
+    expect(WIRE_ERRORS["mcp.serverNotFound"].retryable).toBe(false);
   });
 });

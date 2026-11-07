@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { ok } from "@fresnel/contracts";
 import { backoffDelayMs } from "../src/client/backoff.ts";
-import type { StubOutcome } from "../src/testing/stub-server.ts";
+import { createStubServer, type StubOutcome } from "../src/testing/stub-server.ts";
 import { flush } from "./support/flush.ts";
 import { rejection } from "./support/rejection.ts";
 import { buildWorld, startWorld, type World } from "./support/world.ts";
@@ -96,8 +97,45 @@ describe("reconnect", () => {
       world.runtime.service.client.callTool({ server: "stub", tool: "echo", arguments: {} }),
     );
     expect(failure).toMatchObject({ data: { code: "server_disconnected", retryable: true } });
+    const status = await world.runtime.service.client.status({ server: "stub" });
+    expect(status.lastError).toMatchObject({
+      code: "server_disconnected",
+      message: "서버 stub의 연결이 끊겼어요. 자동으로 다시 연결해요",
+    });
     await world.runtime.shutdown();
   });
+
+  test("a failed connect keeps the masked stderr tail until a connect succeeds", async () => {
+    const silent = createStubServer({ era: "modern", tools, silentHandshake: true });
+    const working = createStubServer({ era: "modern", tools });
+    let opens = 0;
+    const world = buildWorld({
+      servers: { stub: { stub: { era: "modern", tools }, def: { timeouts: { connectMs: 1000 } } } },
+      user: { "reconnect.maxAttempts": 1 },
+      secrets: ["hunter2"],
+      transportsFor: () => ({
+        open() {
+          opens += 1;
+          const stub = opens === 1 ? silent : working;
+          const stderr = ["boot ok", "token hunter2 rejected"];
+          return Promise.resolve(ok({ transport: stub.connect(), stderrTail: () => stderr }));
+        },
+      }),
+    });
+    await startWorld(world);
+    const failed = await world.runtime.service.client.status({ server: "stub" });
+    expect(failed.state).toBe("failed");
+    expect(failed.stderrTail).toEqual(["boot ok", "token [REDACTED] rejected"]);
+    expect(JSON.stringify(failed)).not.toContain("hunter2");
+    expect(failed.lastError?.message.startsWith("서버 stub에 연결하지 못했어요: ")).toBe(true);
+
+    await world.runtime.service.client.reconnect({ server: "stub" });
+    const connected = await world.runtime.service.client.status({ server: "stub" });
+    expect(connected.state).toBe("connected");
+    expect(connected.stderrTail).toBeUndefined();
+    expect(connected.lastError).toBeUndefined();
+    await world.runtime.shutdown();
+  }, 10000);
 
   test("in-flight call finishes on removal", async () => {
     const gate = Promise.withResolvers<void>();
