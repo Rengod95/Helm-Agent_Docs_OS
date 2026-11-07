@@ -35,10 +35,12 @@ function row(overrides: Partial<ProposalRow>): ProposalRow {
     evidence: [{ eventId: "evt_1", threadId: THREAD }],
     conflictsWith: null,
     reason: null,
+    note: null,
     revision: 3,
     scope: null,
     afterUntrusted: false,
     createdAt: 1000,
+    expiresAt: 1000 + 30 * 86_400_000,
     ...overrides,
   };
 }
@@ -84,6 +86,17 @@ describe("proposalListView", () => {
     expect(vm({ kind: "memory" }).scopeChoice).toBeNull();
   });
 
+  test("the reject note and the pending expiry pass through unchanged", () => {
+    expect(vm({ status: "rejected", note: "이 팀 한정", expiresAt: null })).toMatchObject({
+      note: "이 팀 한정",
+      expiresAt: null,
+    });
+    expect(vm({ status: "pending", note: null, expiresAt: 2000 })).toMatchObject({
+      note: null,
+      expiresAt: 2000,
+    });
+  });
+
   test("warnings and evidence count are carried, an empty list says why, and an unreadable source is named", () => {
     const flagged = vm({
       destructive: true,
@@ -103,6 +116,7 @@ describe("proposalListView", () => {
     });
     expect(empty.rows).toEqual([]);
     expect(empty.emptyText).toBe("대기 중인 제안이 없어요");
+    expect(empty.unavailable).toEqual(["knowledge"]);
     expect(empty.unavailableTexts).toEqual(["지식 제안을 불러오지 못했어요"]);
     expect(empty.nextCursor).toBe("next");
   });

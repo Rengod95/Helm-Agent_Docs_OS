@@ -1,4 +1,4 @@
-import { attemptAsync, rethrow, type Result } from "@fresnel/contracts";
+import { attemptAsync, ok, rethrow, type Result } from "@fresnel/contracts";
 import {
   isId,
   type ItemId,
@@ -13,6 +13,8 @@ import type { GroupApi, GroupUsageDelta } from "@fresnel/group-sdk";
 import type { LearningDeps } from "./deps.ts";
 import type { LearningWriter } from "./proposals/ops.ts";
 import { eventKindOf, payloadOf } from "./proposals/events.ts";
+import type { Proposal } from "./proposals/proposal.ts";
+import type { StoreResult } from "./proposals/reader.ts";
 import { reviewFinishedPayload } from "./records.ts";
 import type { CommandReport } from "./results.ts";
 import {
@@ -23,6 +25,7 @@ import {
   type ReviewSettled,
 } from "./review/fork.ts";
 import { LEARNING_PROPOSE_TOOL } from "./review/policy.ts";
+import { rejectionsForPrompt } from "./review/rejected.ts";
 import type { LearningSettings, LearningSettingDefs, SettingsUnavailable } from "./settings.ts";
 import type { LearningState } from "./state.ts";
 import { advanceCounters, afterDelegateFailure, applyTurn, type TurnTally } from "./triggers.ts";
@@ -166,6 +169,13 @@ async function finishReview(
   if (first !== null) await commitFresh(g, first, outcomeOf);
 }
 
+/** 검토 지시에 싣는 최근 거절 목록을 대기열에서 읽는다(§4.5 규칙 9). 읽기 실패는 그대로 돌려준다 */
+async function recentRejections(deps: LearningDeps): Promise<StoreResult<readonly Proposal[]>> {
+  const rows = await deps.reader.listProposals({ statuses: ["rejected"] });
+  if (!rows.ok) return rows;
+  return ok(rejectionsForPrompt(rows.value, deps.clock.now()));
+}
+
 export function registerTriggers(env: HandlerEnv): void {
   const { g, deps, writer } = env;
   const tallies = new Map<string, OpenTally>();
@@ -266,10 +276,17 @@ export function registerTriggers(env: HandlerEnv): void {
       await commitIfChanged(advanceCounters(before, tally), payload.turnId);
       return;
     }
+    const rejected = await recentRejections(deps);
+    // 거절 목록을 읽지 못하면 같은 방식으로 검토를 시작하지 않는다. 카운터는 올린 채 두어 다음 turn에 다시 시도한다(§4.5 규칙 9)
+    if (!rejected.ok) {
+      await commitIfChanged(withItem(advanceCounters(before, tally)), payload.turnId);
+      return;
+    }
     const spec = buildReviewSpec({
       parent: { threadId: hctx.threadId, upToItemId: lastItemId },
       requestId: decision.requestId,
       reasons: decision.reasons,
+      rejected: rejected.value,
       settings: settings.value,
       contextWindow: null,
     });
@@ -364,12 +381,15 @@ export function createReviewControls(env: HandlerEnv): {
       if (lastItem === null) {
         return { kind: "review", result: { ok: false, error: { kind: "learning.noSnapshot" } } };
       }
+      const rejected = await recentRejections(deps);
+      if (!rejected.ok) return { kind: "review", result: { ok: false, error: rejected.error } };
       const epoch = state.epoch + 1;
       const requestId = manualReviewId(epoch);
       const spec = buildReviewSpec({
         parent: { threadId, upToItemId: lastItem },
         requestId,
         reasons: ["manual"],
+        rejected: rejected.value,
         settings: settings.value,
         contextWindow: null,
       });

@@ -21,10 +21,12 @@ const ROW: WireResult<"proposal.list">["proposals"][number] = {
   evidence: [],
   conflictsWith: null,
   reason: null,
+  note: null,
   revision: 1,
   scope: "user",
   afterUntrusted: false,
   createdAt: 1000,
+  expiresAt: 1000 + 30 * 86_400_000,
 };
 
 async function open(host: FakeHost) {

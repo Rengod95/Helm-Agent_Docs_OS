@@ -13,11 +13,14 @@ import type {
 import type { KnowledgeProposalWire } from "@fresnel/cap-knowledge";
 import {
   decisionCommandLine,
+  proposalView,
   type CommandReport,
   type DecisionResult,
   type LearningError,
   type LearningQueueApi,
+  type LearningQueueReader,
   type ProposalDecision,
+  type ProposalFilter,
   type ProposalView,
 } from "@fresnel/group-learning";
 import type { LearningRunner } from "./learning.ts";
@@ -46,6 +49,11 @@ const TIE_PAD = 50;
 export interface ProposalPortDeps {
   /** 학습 그룹이 켜져 있으면 대기열 면, 꺼졌거나 안전 모드면 undefined */
   readonly learning: () => LearningQueueApi | undefined;
+  /**
+   * 학습 기록을 읽는 저장소 면(세션 DB의 투영). 그룹이 꺼져 있어도 남아 있다. 그룹이 실리지 않은 구성(안전 모드, 기본 그룹 끔)이면 undefined
+   * 꺼진 그룹의 목록은 이 면으로 읽는다. 결정은 그룹이 돌 때만 된다
+   */
+  readonly learningStore: () => LearningQueueReader | undefined;
   /** 결정과 지연 정리를 `/learning` 명령으로 실행한다(기록을 쓰므로 대화가 필요하다) */
   readonly runner: LearningRunner;
   /** 지식 기능이 있으면 대기열 어댑터, 없으면 undefined */
@@ -71,10 +79,12 @@ function learningRowOf(view: ProposalView): ProposalRow {
     ),
     conflictsWith: view.conflictsWith,
     reason: view.reason,
+    note: view.note,
     revision: view.revision,
     scope: view.kind === "skill" ? view.scope : null,
     afterUntrusted: view.afterUntrusted,
     createdAt: view.createdAt,
+    expiresAt: view.expiresAt,
   };
 }
 
@@ -129,6 +139,12 @@ function decideFailure(
   detail?: string,
 ): ProposalDecideResult {
   return { ok: false, reason, ...(detail === undefined ? {} : { detail }) };
+}
+
+/** 목록 요청의 상태 거름을 학습 쪽 거름으로 바꾼다. 상태 거름이 없으면 undefined, 학습 상태가 하나도 없으면 빈 배열이다 */
+function learningStatusesOf(params: ProposalListParams): ProposalFilter["statuses"] {
+  const statuses = params.status?.filter((status) => LEARNING_STATUSES.has(status));
+  return statuses?.flatMap((status) => (status === "stale" ? [] : [status]));
 }
 
 /** 학습 대기열의 오류를 결정 실패 이유로 옮긴다(L3.learning.spec §3.9 → F wire `PROPOSAL_DECIDE_FAILURES`) */
@@ -225,13 +241,32 @@ function learningDecision(params: ProposalDecideParams): ProposalDecision {
 }
 
 export function createProposalPort(deps: ProposalPortDeps): ProposalPort {
-  /** 학습 출처의 행. 읽지 못하면 undefined(출처를 `unavailable`에 올린다) */
+  /**
+   * 그룹이 꺼져 있을 때의 학습 목록: 저장소의 기록을 읽기만 한다(과거 기록과 대기 행이 그대로 보인다). 그룹이 돌지 않으므로 정리는 하지 않는다.
+   * 만료 일수는 그룹 설정이라 이 경로에서 알 수 없어 대기 행의 만료 시각은 비운다 [결정: 오케스트레이터 기본값, fxLM]
+   */
+  async function storedLearningRows(
+    params: ProposalListParams,
+  ): Promise<readonly ProposalRow[] | undefined> {
+    const store = deps.learningStore();
+    if (store === undefined) return undefined;
+    const statuses = learningStatusesOf(params);
+    if (statuses !== undefined && statuses.length === 0) return [];
+    const listed = await store.listProposals(statuses === undefined ? {} : { statuses });
+    if (!listed.ok) {
+      deps.report("proposal.learning_list_failed", { error: listed.error.kind });
+      return undefined;
+    }
+    return listed.value.map((proposal) => learningRowOf(proposalView(proposal, null)));
+  }
+
+  /** 학습 출처의 행. 읽지 못하면 undefined(출처를 `unavailable`에 올린다). 그룹이 꺼져 있으면 저장소에서 읽는다 */
   async function learningRows(
     params: ProposalListParams,
     signal: AbortSignal,
   ): Promise<readonly ProposalRow[] | undefined> {
     const api = deps.learning();
-    if (api === undefined) return undefined;
+    if (api === undefined) return storedLearningRows(params);
     // 화면을 열 때 지연 정리가 돈다: 만료와 승인된 미적용 재적용(L3.learning.spec §4.5 규칙 7). `/learning queue`가 진입 때 정리하므로
     // 그 명령을 열린 대화에서 실행한다. 대화가 없거나 실패해도 목록은 읽는다
     const swept = await deps.runner.run("queue", undefined, signal);
@@ -239,16 +274,10 @@ export function createProposalPort(deps: ProposalPortDeps): ProposalPort {
       deps.report("proposal.sweep_skipped", { detail: swept.detail });
     else if (swept.report.kind === "error")
       deps.report("proposal.sweep_failed", { error: swept.report.error.kind });
-    const statuses = params.status?.filter((status) => LEARNING_STATUSES.has(status));
+    const statuses = learningStatusesOf(params);
     // 학습 상태가 하나도 없는 필터(예: stale만)는 학습 쪽에서 빈 목록이다
     if (statuses !== undefined && statuses.length === 0) return [];
-    const listed = await api.list(
-      statuses === undefined
-        ? {}
-        : {
-            statuses: statuses.flatMap((status) => (status === "stale" ? [] : [status])),
-          },
-    );
+    const listed = await api.list(statuses === undefined ? {} : { statuses });
     if (!listed.ok) {
       deps.report("proposal.learning_list_failed", { error: listed.error.kind });
       return undefined;

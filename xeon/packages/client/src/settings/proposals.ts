@@ -63,6 +63,10 @@ export type ProposalRowVM = {
   readonly conflictsWith: string | null;
   /** 거절·실패 사유 코드(출처가 정한 값) */
   readonly reason: string | null;
+  /** 거절할 때 사용자가 적은 메모. 값 그대로 옮긴다(화면 문구는 화면이 정한다) */
+  readonly note: string | null;
+  /** 대기 중인 제안의 만료 시각(epoch ms). 대기 상태가 아니면 null. 값 그대로 옮긴다 */
+  readonly expiresAt: number | null;
   readonly diff: string;
   /**
    * 제안이 새로 쓰는 본문. wire는 본문을 따로 싣지 않아 diff의 추가 줄에서 되살린다. 새 본문 전체를 싣는 연산(create, add,
@@ -85,6 +89,8 @@ export type ProposalRowVM = {
 
 export type ProposalListVM = {
   readonly rows: readonly ProposalRowVM[];
+  /** 읽지 못한 출처. 화면이 출처별로 문구를 고르고, 꺼진 출처는 오류가 아니라 따로 보인다 */
+  readonly unavailable: readonly ProposalSource[];
   /** 읽지 못한 출처의 안내 문구 */
   readonly unavailableTexts: readonly string[];
   /** 행이 없을 때의 이유 문구. 행이 있으면 null */
@@ -130,6 +136,8 @@ function rowOf(row: ProposalRow): ProposalRowVM {
     afterUntrusted: row.afterUntrusted,
     conflictsWith: row.conflictsWith,
     reason: row.reason,
+    note: row.note,
+    expiresAt: row.expiresAt,
     diff: row.diff,
     proposedText: FULL_BODY_OPS.has(row.op) ? addedTextOf(row.diff) : null,
     rationale: row.rationale,
@@ -147,6 +155,7 @@ export function proposalListView(result: ProposalListResult): ProposalListVM {
   const unavailableTexts = result.unavailable.map((source) => t(UNAVAILABLE_TEXTS[source]));
   return {
     rows,
+    unavailable: result.unavailable,
     unavailableTexts,
     emptyText: rows.length === 0 ? t("client.settings.proposals.empty") : null,
     nextCursor: result.nextCursor,

@@ -101,6 +101,7 @@ const REASONS: readonly Extract<ProposeResult, { ok: false }>["reason"][] = [
   "invalid",
   "limit",
   "name_exists",
+  "already_rejected",
   "unavailable",
 ];
 

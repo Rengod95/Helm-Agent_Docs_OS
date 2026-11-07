@@ -121,8 +121,16 @@ export function applyLearningEvent(rows: ProjectionRows, event: LearningEvent): 
   if (mapped === undefined) return;
   const next = transition(row, mapped, atOf(event));
   if (!next.ok) return;
+  rows.putProposal(withEventFields(next.value, event));
+}
+
+/** 전이가 정하지 않는 값 가운데 이벤트가 싣는 것을 행에 옮긴다. 그 밖의 사건은 행의 값을 그대로 둔다 */
+function withEventFields(next: Proposal, event: LearningEvent): Proposal {
   // 적용 실패로 되돌아온 사유는 전이가 정한 사유 대신 이벤트가 적은 사유다(`rollback_refused`, `apply_failed`)
-  rows.putProposal(
-    event.kind === "proposal.apply_failed" ? { ...next.value, reason: event.reason } : next.value,
-  );
+  if (event.kind === "proposal.apply_failed") return { ...next, reason: event.reason };
+  // 거절 메모: 거절 기록이 싣지 않으면 null이다(수정 중 스캔이 막은 거절도 메모가 없다)
+  if (event.kind === "proposal.decided" && event.status === "rejected") {
+    return { ...next, note: event.note ?? null };
+  }
+  return next;
 }

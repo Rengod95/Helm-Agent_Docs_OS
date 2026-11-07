@@ -11,6 +11,9 @@ import { Type, type TUnsafe } from "typebox";
 // [제안] 후보에 본문 `body`와 부모 thread `threadId`, 스킬 설명 `description`을 더했다. 본문은 blob을 쓰지 않고 비공개 기록 `proposal.created`·`proposal.edited`의 payload에 실리고
 // 투영이 행에 둔다. diff는 기록에 싣지 않고 투영기가 본문에서 만든다.
 
+/** 거절 메모의 글자 상한. 결정 명령, 투영의 읽기, 대기열 행이 같은 값을 쓴다 [제안] */
+export const PROPOSAL_NOTE_MAX = 500;
+
 export type ProposalKind = "skill" | "memory" | "feedback" | "script";
 /** 삭제 연산은 없다. 스킬은 archive만 둔다 */
 export type ProposalOp = "create" | "patch" | "add_file" | "archive" | "add" | "replace" | "remove";
@@ -68,6 +71,8 @@ export interface Proposal {
   /** 신뢰할 수 없는 입력(웹, MCP 결과)을 읽은 뒤 만든 후보(§3.5) */
   readonly afterUntrusted: boolean;
   readonly reason: ProposalReason | null;
+  /** 사용자가 거절할 때 적은 메모(앞뒤 공백을 뗀 1~500자). 거절 전이나 메모가 없으면 null */
+  readonly note: string | null;
   /** 스캔 규칙 이름만 남긴다. 걸린 문자열은 남기지 않는다(§4.6 3) */
   readonly findings: readonly string[];
   /** 적용 뒤 L2-d 원장 항목 id */
@@ -127,6 +132,7 @@ const shape = Type.Object(
       Type.Literal("rollback_refused"),
       Type.Null(),
     ]),
+    note: Type.Union([Type.String({ maxLength: PROPOSAL_NOTE_MAX }), Type.Null()]),
     findings: Type.Array(Type.String({ maxLength: 64 }), { maxItems: 64 }),
     ledgerId: Type.Union([Type.String(), Type.Null()]),
     createdAt: Type.Integer({ minimum: 0 }),
@@ -179,15 +185,23 @@ export interface ProposalView {
   readonly evidence: readonly { readonly eventId: string; readonly threadId: string }[];
   readonly conflictsWith: string | null;
   readonly reason: ProposalReason | null;
+  /** 거절할 때 적은 메모. 없으면 null */
+  readonly note: string | null;
   readonly revision: number;
   readonly scope: "user" | "project";
   readonly afterUntrusted: boolean;
   readonly createdAt: number;
+  /** 대기 후보의 만료 시각(epoch ms) = createdAt + 만료 일수. 대기 상태가 아니면 null */
+  readonly expiresAt: number | null;
   /** L4 통합 목록의 출처 열(REQ-LN-10). 이 그룹의 행은 항상 "learning" */
   readonly source: "learning";
 }
 
-export function proposalView(proposal: Proposal): ProposalView {
+/**
+ * 화면용 한 행. `expiryDays`는 설정 `queue.expiryDays`이고 설정을 읽지 못하면 null이다(만료 시각을 모른다).
+ * 순수 함수다: 설정은 호출하는 쪽이 읽어 넘긴다
+ */
+export function proposalView(proposal: Proposal, expiryDays: number | null): ProposalView {
   return {
     id: proposal.id,
     kind: proposal.kind,
@@ -203,10 +217,15 @@ export function proposalView(proposal: Proposal): ProposalView {
     })),
     conflictsWith: proposal.conflictsWith,
     reason: proposal.reason,
+    note: proposal.note,
     revision: proposal.revision,
     scope: proposal.scope,
     afterUntrusted: proposal.afterUntrusted,
     createdAt: proposal.createdAt,
+    expiresAt:
+      proposal.status === "pending" && expiryDays !== null
+        ? proposal.createdAt + expiryDays * 86_400_000
+        : null,
     source: "learning",
   };
 }

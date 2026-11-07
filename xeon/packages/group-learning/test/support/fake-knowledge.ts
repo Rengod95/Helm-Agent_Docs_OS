@@ -38,6 +38,8 @@ export interface FakeKnowledge {
   effects(): number;
   readonly scans: string[];
   readonly rollbacks: string[];
+  /** 참이면 `ledger.rollback`이 `rollback_conflict`로 거절한다(그 사이 기억이 바뀌었다) */
+  refuseRollback: boolean;
   /** 모든 메서드 호출 수(읽기 포함). on 핸들러가 기능을 부르지 않는지 센다(ADR-0015) */
   calls(): number;
   /** 비어 있지 않으면 `ledger.scan`이 이 규칙으로 block 판정을 낸다 */
@@ -111,6 +113,7 @@ export function fakeKnowledge(): FakeKnowledge {
     calls: () => callCount,
     scans,
     rollbacks,
+    refuseRollback: false,
     scanBlocks: [],
     trustEvidence: true,
     down: false,
@@ -310,6 +313,11 @@ export function fakeKnowledge(): FakeKnowledge {
     },
     rollback: (input, options) => {
       rollbacks.push(options?.requestId ?? "");
+      if (self.refuseRollback) {
+        return Promise.reject(
+          failure("knowledge.ledger", "rollback", "rollback_conflict", "the memory changed since"),
+        );
+      }
       return Promise.resolve(applied(sha(`rollback:${input.ledgerId}`)));
     },
   });

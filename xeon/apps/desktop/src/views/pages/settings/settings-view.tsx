@@ -18,6 +18,7 @@ import { t } from "@fresnel/client/i18n";
 import { TAB_ORDER, TAB_SPECS, type FieldVM, type SettingsView } from "@fresnel/client/settings";
 import type { SettingKey, SettingsTab } from "@fresnel/contracts/settings";
 import {
+  Fragment,
   useCallback,
   useId,
   useState,
@@ -112,6 +113,10 @@ export interface SettingsPageProps {
   readonly pluginsPanel?: ReactNode | undefined;
   /** "대화와 컨텍스트" 탭의 기억 구역(W-19) */
   readonly memoryPanel?: ReactNode | undefined;
+  /** 설정 찾기 글에 기억 구역이 맞는가. 맞으면 찾기 결과에 "기억" 묶음을 `memoryFindPanel`로 보인다 */
+  readonly memoryMatches?: ((query: string) => boolean) | undefined;
+  /** 설정 찾기 결과의 기억 묶음(찾는 글이 든 글만). `memoryMatches`가 맞을 때만 보인다 */
+  readonly memoryFindPanel?: ReactNode | undefined;
   /** 외관 탭의 접근성 묶음 */
   readonly appearancePanel?: ReactNode | undefined;
   readonly handlers: SettingsPageHandlers;
@@ -403,18 +408,28 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
   );
   if (query.trim() !== "") {
     const groups = searchGroupsOf(view.tabs, query);
-    if (groups.length === 0) {
+    // 기억 구역은 찾는 글이 구역 이름이나 기억 글에 맞을 때 "대화와 컨텍스트" 자리에 든다. 값을 못 읽었으면 맞지 않는다
+    const memoryFound = props.memoryMatches?.(query) ?? false;
+    if (groups.length === 0 && !memoryFound) {
       return (
         <p className="text-ui-sm text-text-tertiary">{t("desktop.settings.search.noMatch")}</p>
       );
     }
     return (
       <>
-        {groups.map((group) => (
-          <SettingSection key={group.tab} title={group.label}>
-            {group.fields.map((field) => rowOf(field, true))}
-          </SettingSection>
-        ))}
+        {TAB_ORDER.map((id) => {
+          const group = groups.find((candidate) => candidate.tab === id);
+          return (
+            <Fragment key={id}>
+              {id === "sessions" && memoryFound ? props.memoryFindPanel : null}
+              {group === undefined ? null : (
+                <SettingSection title={group.label}>
+                  {group.fields.map((field) => rowOf(field, true))}
+                </SettingSection>
+              )}
+            </Fragment>
+          );
+        })}
       </>
     );
   }

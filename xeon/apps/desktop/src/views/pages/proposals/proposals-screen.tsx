@@ -6,6 +6,7 @@ import {
   type ProposalRowVM,
   type ProposalScope,
 } from "@fresnel/client/settings";
+import type { ToggleRequest } from "@fresnel/client/workbench";
 import { detach, rethrow } from "@fresnel/contracts";
 import {
   useCallback,
@@ -18,10 +19,12 @@ import {
 import { useLinkPhase, useThreadSummaries } from "../../../state/engine/index.ts";
 import { useShellActions } from "../../../state/shell/index.ts";
 import { useCommands } from "../../commands.ts";
+import { useProposalPending } from "../../proposal-pending-context.tsx";
 import {
   confirmActionOf,
   effectiveScopeOf,
   INITIAL_PROPOSALS_STATE,
+  learningStateOf,
   listParamsOf,
   moveSelectionOf,
   overlayOpenOf,
@@ -30,12 +33,13 @@ import {
   selectedRowOf,
   skillFailureOf,
   visibleRowsOf,
+  type NoticeTone,
   type ProposalFilter,
   type ProposalPage,
   type ProposalsState,
   type SkillRequest,
 } from "./proposals-model.ts";
-import { commandErrorIdOf, decisionErrorIdOf, doneNoticeIdOf } from "./proposals-text.ts";
+import { commandErrorIdOf, decisionErrorIdOf, doneNoticeOf } from "./proposals-text.ts";
 import { ProposalsView, type ProposalsHandlers } from "./proposals-view.tsx";
 
 // 제안 화면(P-06)의 동작. 목록과 결정은 `commands.proposals`로 부르고, 상태는 `proposalsReducer`가 든다.
@@ -49,6 +53,8 @@ export function ProposalsScreen(): ReactNode {
   const live = useLinkPhase() === "live";
   const threads = useThreadSummaries();
   const shell = useShellActions();
+  // 결정 뒤에 사이드바 배지와 받은 요청 제안 줄의 수를 다시 읽는다
+  const refreshPending = useProposalPending().refresh;
   const [state, dispatch] = useReducer(proposalsReducer, INITIAL_PROPOSALS_STATE);
   // 늦게 온 읽기가 새 읽기를 덮지 않도록 읽기마다 번호를 매긴다
   const latestRead = useRef(0);
@@ -66,7 +72,7 @@ export function ProposalsScreen(): ReactNode {
       }
       const page: ProposalPage = {
         rows: listed.value.rows,
-        unavailableTexts: listed.value.unavailableTexts,
+        unavailable: listed.value.unavailable,
         nextCursor: listed.value.nextCursor,
       };
       dispatch({ type: "listLoaded", page, append, readAt: Date.now() });
@@ -79,7 +85,21 @@ export function ProposalsScreen(): ReactNode {
     if (live) detach(read(state.filter, null, false), rethrow);
   }, [live, read, state.filter]);
 
-  const notify = (tone: "success" | "danger", text: string): void => {
+  // 학습 그룹의 켜짐은 확장 목록에서 읽는다(목록의 안내 줄이 쓴다). 확장이 바뀌면 다시 읽는다
+  const readLearning = useCallback(async (): Promise<void> => {
+    const listed = await commands.workbench.list();
+    dispatch({ type: "learningRead", learning: learningStateOf(listed.ok ? listed.value : null) });
+  }, [commands]);
+
+  useEffect(() => {
+    if (!live) return undefined;
+    detach(readLearning(), rethrow);
+    return commands.workbench.onChanged(() => {
+      detach(readLearning(), rethrow);
+    });
+  }, [commands, live, readLearning]);
+
+  const notify = (tone: NoticeTone, text: string): void => {
     dispatch({ type: "noticeSet", notice: { tone, text } });
   };
 
@@ -96,6 +116,7 @@ export function ProposalsScreen(): ReactNode {
     dispatch({ type: "busyChanged", busy: true });
     const result = await commands.proposals.decide(params.value);
     dispatch({ type: "busyChanged", busy: false });
+    refreshPending();
     if (!result.ok) {
       notify("danger", t(commandErrorIdOf(result.error)));
       return;
@@ -109,8 +130,20 @@ export function ProposalsScreen(): ReactNode {
     }
     dispatch({ type: "editorClosed" });
     dispatch({ type: "confirmClosed" });
-    notify("success", t(doneNoticeIdOf(action, outcome.applied)));
+    // 알림은 결과 행의 상태를 본다: 되돌리기는 `reverted`일 때만 성공이다(원장이 거절하면 `applied`로 남는다)
+    const done = doneNoticeOf(action, outcome.applied, outcome.proposal.status);
+    notify(done.tone, t(done.textId));
     await read(state.filter, null, false);
+  };
+
+  /** 학습 그룹 켜기: 스위치와 같은 확장 쓰기다. 끝나면 켜짐 상태를 다시 읽는다 */
+  const turnLearningOn = async (request: ToggleRequest): Promise<void> => {
+    const done = await commands.workbench.toggle(request);
+    if (!done.ok) {
+      notify("danger", t(commandErrorIdOf(done.error)));
+      return;
+    }
+    await readLearning();
   };
 
   /** 동작 하나. 입력이 필요하면 편집기를, 확인이 필요하면 대화 상자를 연다 */
@@ -229,6 +262,9 @@ export function ProposalsScreen(): ReactNode {
     },
     dismissNotice: () => {
       dispatch({ type: "noticeSet", notice: null });
+    },
+    learningTurnOn: (request) => {
+      detach(turnLearningOn(request), rethrow);
     },
     onKey,
   };

@@ -1,7 +1,13 @@
 import { assertNever } from "@fresnel/contracts";
-import type { MessageId } from "@fresnel/client/i18n";
-import type { ProposalAction, ProposalScope, DecisionError } from "@fresnel/client/settings";
+import type { Locale, MessageId } from "@fresnel/client/i18n";
+import type {
+  DecisionError,
+  ProposalAction,
+  ProposalRowVM,
+  ProposalScope,
+} from "@fresnel/client/settings";
 import type { SkillScope } from "@fresnel/contracts/capabilities";
+import type { ProposalSource } from "@fresnel/contracts/wire";
 import type { CommandError } from "../../commands.ts";
 import type {
   KindFilter,
@@ -71,26 +77,66 @@ export function actionLabelIdOf(action: ProposalAction): MessageId {
   }
 }
 
-/** 결정이 적용되었을 때의 알림. 승인만 하고 아직 적용하지 않았으면 따로 말한다 */
-export function doneNoticeIdOf(action: ProposalAction, applied: boolean): MessageId {
+/** 결정이 끝난 뒤의 알림 하나: 톤과 문장 id */
+export interface DoneNotice {
+  readonly tone: "success" | "warning";
+  readonly textId: MessageId;
+}
+
+/**
+ * 결정이 끝난 뒤의 알림. 되돌리기는 성공을 행이 `reverted`가 됐을 때만 말한다. 원장이 거절하면(그 사이 기억이 바뀌었다) 행은 `applied`로
+ * 그대로 남으므로 경고를 보인다. 승인만 하고 아직 적용하지 않았으면 따로 말한다(`applied`가 거짓)
+ */
+export function doneNoticeOf(
+  action: ProposalAction,
+  applied: boolean,
+  status: ProposalRowVM["status"],
+): DoneNotice {
   switch (action) {
     case "approve":
-      return applied
-        ? "desktop.proposals.done.approved"
-        : "desktop.proposals.done.approvedNotApplied";
+      return {
+        tone: "success",
+        textId: applied
+          ? "desktop.proposals.done.approved"
+          : "desktop.proposals.done.approvedNotApplied",
+      };
     case "edit":
-      return "desktop.proposals.done.edited";
+      return { tone: "success", textId: "desktop.proposals.done.edited" };
     case "reject":
-      return "desktop.proposals.done.rejected";
+      return { tone: "success", textId: "desktop.proposals.done.rejected" };
     case "revert":
-      return "desktop.proposals.done.reverted";
+      return status === "reverted"
+        ? { tone: "success", textId: "desktop.proposals.done.reverted" }
+        : { tone: "warning", textId: "desktop.proposals.done.revertRefused" };
     default:
       return assertNever(action, "ProposalAction");
   }
 }
 
+/** 읽지 못한 출처의 문장. 문장은 `@fresnel/client/settings`의 것과 같은 id다 */
+export function unavailableTextIdOf(source: ProposalSource): MessageId {
+  switch (source) {
+    case "learning":
+      return "client.settings.proposals.unavailable.learning";
+    case "knowledge":
+      return "client.settings.proposals.unavailable.knowledge";
+    default:
+      return assertNever(source, "ProposalSource");
+  }
+}
+
 export function scopeIdOf(scope: ProposalScope): MessageId {
   return scope === "user" ? "desktop.proposals.scope.user" : "desktop.proposals.scope.project";
+}
+
+/**
+ * 대기 제안의 만료 날짜 글(지역 날짜, 시각은 빼고 "2033년 6월 17일" 꼴). 문장의 "{date}에"가 끝 마침표와 엇나가지 않도록 긴 날짜 스타일을 쓴다
+ * [결정: 오케스트레이터 기본값, fxLM]
+ */
+export function expiryDateTextOf(expiresAt: number, locale: Locale): string {
+  return new Intl.DateTimeFormat(locale, { year: "numeric", month: "long", day: "numeric" }).format(
+    new Date(expiresAt),
+  );
 }
 
 /** 스킬의 출처(범위)의 문장. 사용자와 작업 폴더는 적용 범위와 같은 글을 쓴다 */

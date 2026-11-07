@@ -1,10 +1,22 @@
+import { t } from "@fresnel/client/i18n";
 import type { ProposalAction, ProposalRowVM, ProposalScope } from "@fresnel/client/settings";
+import {
+  INITIAL_WORKBENCH,
+  isOn,
+  toggleRequestOf,
+  type ToggleRequest,
+} from "@fresnel/client/workbench";
 import { assertNever } from "@fresnel/contracts";
-import type { ProposalListParams, ProposalSource, WireResult } from "@fresnel/contracts/wire";
+import type {
+  ExtListEntry,
+  ProposalListParams,
+  ProposalSource,
+  WireResult,
+} from "@fresnel/contracts/wire";
 import type { SkillViewError } from "../../commands.ts";
 
 // 제안 화면(P-06)의 순수 모델. 거르기, 목록 상태, 상세의 편집기·확인·범위, 바로 가기 키 뜻을 다룬다.
-// 값은 `toEqual`로 비교한다. 서버 호출과 문장 만들기는 `proposals-screen.tsx`가 한다.
+// 값은 `toEqual`로 비교한다. 서버 호출은 `proposals-screen.tsx`가 한다. 문장은 화면이 만들되, 행 제목(`rowTitleOf`)만 제안 내용으로 정하려고 `t()`를 쓴다.
 
 export type StatusFilter = "pending" | "applied" | "all";
 export type SourceFilter = "all" | ProposalSource;
@@ -33,10 +45,10 @@ export function listParamsOf(filter: ProposalFilter, cursor: string | null): Pro
   };
 }
 
-/** 한 쪽의 읽은 결과. 더 보기는 쪽을 이어 붙인다 */
+/** 한 쪽의 읽은 결과. 더 보기는 쪽을 이어 붙인다. 읽지 못한 출처는 문장이 아니라 출처로 든다(꺼진 출처를 화면이 가려야 해서) */
 export interface ProposalPage {
   readonly rows: readonly ProposalRowVM[];
-  readonly unavailableTexts: readonly string[];
+  readonly unavailable: readonly ProposalSource[];
   readonly nextCursor: string | null;
 }
 
@@ -54,11 +66,23 @@ type Editor =
 /** 확인 대화 상자가 묻는 동작. 되돌리기는 늘, 승인은 지우거나 덮어쓰는 제안만 묻는다 */
 type Confirm = { readonly key: string; readonly action: "approve" | "revert" } | null;
 
+/** 알림의 톤. 경고는 결정이 끝났지만 원하는 결과가 아닐 때(되돌리기 거절)다 */
+export type NoticeTone = "success" | "warning" | "danger";
+
 interface Notice {
-  readonly tone: "success" | "danger";
+  readonly tone: NoticeTone;
   /** 이미 문장으로 바꾼 글(화면 언어). 상태에는 id가 아니라 글이 든다 */
   readonly text: string;
 }
+
+/**
+ * 학습 그룹의 켜짐 상태(목록 위 안내를 정한다). `unknown`은 확장 목록을 못 읽었다는 뜻이다. `off`는 꺼져 있거나 안전 모드라 돌지 않는다.
+ * `turnOn`은 켜기 요청이고, 잠겼거나(안전 모드, 관리 그룹) 그룹이 실리지 않았으면 null이다
+ */
+export type LearningState =
+  | { readonly status: "unknown" }
+  | { readonly status: "on" }
+  | { readonly status: "off"; readonly turnOn: ToggleRequest | null };
 
 /** 충돌 스킬 본문을 읽는 요청. `threadId`는 프로젝트 스킬을 찾을 작업 폴더를 정하는 근거 대화다(없으면 null) */
 export interface SkillRequest {
@@ -92,6 +116,7 @@ export interface ProposalsState {
   readonly busy: boolean;
   readonly notice: Notice | null;
   readonly skill: SkillPeek;
+  readonly learning: LearningState;
 }
 
 export const INITIAL_PROPOSALS_STATE: ProposalsState = {
@@ -105,6 +130,7 @@ export const INITIAL_PROPOSALS_STATE: ProposalsState = {
   busy: false,
   notice: null,
   skill: { status: "closed" },
+  learning: { status: "unknown" },
 };
 
 export type ProposalsAction =
@@ -139,7 +165,9 @@ export type ProposalsAction =
       readonly request: SkillRequest;
       readonly failure: SkillPeekFailure;
     }
-  | { readonly type: "skillClosed" };
+  | { readonly type: "skillClosed" }
+  /** 확장 목록을 읽어 학습 그룹의 켜짐 상태를 정했다 */
+  | { readonly type: "learningRead"; readonly learning: LearningState };
 
 /** 읽기 응답이 지금 대화 상자가 기다리는 요청의 것인가. 닫았거나 다른 스킬을 연 뒤의 늦은 응답은 버린다 */
 function isPendingFor(peek: SkillPeek, request: SkillRequest): boolean {
@@ -183,7 +211,7 @@ export function proposalsReducer(state: ProposalsState, action: ProposalsAction)
           status: "ready",
           loadingMore: false,
           rows,
-          unavailableTexts: action.page.unavailableTexts,
+          unavailable: action.page.unavailable,
           nextCursor: action.page.nextCursor,
         },
         selectedKey: action.append || kept ? state.selectedKey : null,
@@ -237,9 +265,38 @@ export function proposalsReducer(state: ProposalsState, action: ProposalsAction)
         : state;
     case "skillClosed":
       return { ...state, skill: { status: "closed" } };
+    case "learningRead":
+      return { ...state, learning: action.learning };
     default:
       return assertNever(action, "ProposalsAction");
   }
+}
+
+/** 학습 그룹의 확장 이름 */
+const LEARNING_GROUP = "learning";
+
+/** 학습 그룹의 켜짐 상태를 확장 목록으로 정한다. 목록을 못 읽었으면 unknown이다. 목록에 학습 그룹이 없으면 실리지 않은 것이라 꺼짐이다 */
+export function learningStateOf(entries: readonly ExtListEntry[] | null): LearningState {
+  if (entries === null) return { status: "unknown" };
+  const entry = entries.find((candidate) => candidate.name === LEARNING_GROUP);
+  if (entry === undefined) return { status: "off", turnOn: null };
+  if (isOn(entry) && entry.safeModeExcluded === null) return { status: "on" };
+  // 켜기 요청은 스위치와 같은 모델이 만든다(잠긴 확장은 요청이 없다)
+  const plan = toggleRequestOf({ ...INITIAL_WORKBENCH, entries }, LEARNING_GROUP, true);
+  return { status: "off", turnOn: plan.ok ? plan.request : null };
+}
+
+/**
+ * 목록 위에 보일 읽지 못한 출처. 학습 그룹이 꺼져 있으면 학습 쪽은 오류가 아니라 꺼짐 줄이 말하므로 뺀다.
+ * 꺼진 동안 학습 기록은 저장소에서 읽으므로 보통 학습 쪽은 읽지 못한 출처가 아니다
+ */
+export function unavailableShownOf(
+  unavailable: readonly ProposalSource[],
+  learning: LearningState,
+): readonly ProposalSource[] {
+  return learning.status === "off"
+    ? unavailable.filter((source) => source !== "learning")
+    : unavailable;
 }
 
 /** 대화 상자나 편집기가 열려 있는가. 열려 있으면 목록의 바로 가기 키는 쉰다(포털 대화 상자의 키 입력도 화면까지 올라온다) */
@@ -261,6 +318,67 @@ export function selectedRowOf(
   selectedKey: string | null,
 ): ProposalRowVM | null {
   return rows.find((row) => row.key === selectedKey) ?? null;
+}
+
+/** 행 제목의 글 길이 상한(글자 수). 넘으면 이 수에서 끊고 "…"을 붙인다 [결정: 오케스트레이터 기본값, fxLM] */
+const ROW_TITLE_MAX = 60;
+
+/** 글 한 줄을 다듬는다: 여러 칸 공백은 한 칸으로 줄이고 앞뒤 공백은 뗀다 */
+function collapsedOf(line: string): string {
+  return line.replace(/\s+/g, " ").trim();
+}
+
+/** 글 줄들의 첫 글 줄. 다듬은 뒤 빈 줄은 건너뛴다. 글 줄이 없으면 null */
+function firstTextOf(lines: readonly string[]): string | null {
+  for (const line of lines) {
+    const text = collapsedOf(line);
+    if (text !== "") return text;
+  }
+  return null;
+}
+
+/** diff에서 `sign`으로 시작하는 줄의 글(머리 부호 한 글자를 뗀 값)들 */
+function signedLinesOf(diff: string, sign: "+" | "-"): readonly string[] {
+  return diff
+    .split("\n")
+    .filter((line) => line.startsWith(sign))
+    .map((line) => line.slice(1));
+}
+
+/** 스킬 대상의 이름: 첫 `/` 앞이다. 대상은 `<이름>` 또는 지원 파일을 붙인 `<이름>/<파일>`이다 */
+function skillNameOf(target: string): string {
+  return target.split("/")[0] ?? target;
+}
+
+/** 글을 `max`자에서 끊는다. 넘지 않으면 그대로다. 글자는 코드 점 단위로 센다 */
+function cutTextOf(text: string, max: number): string {
+  const chars = Array.from(text);
+  return chars.length <= max ? text : `${chars.slice(0, max).join("")}…`;
+}
+
+/**
+ * 목록 행의 제목: 사람이 읽는 한 줄이다. 내부 대상(경로, 영역/id)은 상세 머리에만 두고 제목에는 쓰지 않는다 [결정: 오케스트레이터 기본값, fxLM]
+ * - 스킬: "스킬 <이름>". 지우기는 "스킬 지우기: <이름>"이다
+ * - 그 밖의 종류: 더하는 글의 첫 글 줄(60자에서 끊음). 지우기는 지울 글의 첫 줄이고, 글이 없으면 종류 이름만 쓴다
+ */
+export function rowTitleOf(row: ProposalRowVM): string {
+  const removing = row.op === "remove" || row.op === "archive";
+  if (row.kind === "skill") {
+    const name = skillNameOf(row.target);
+    return removing
+      ? t("desktop.proposals.row.title.removeNamed", { kind: row.kindLabel, name })
+      : `${row.kindLabel} ${name}`;
+  }
+  const text =
+    firstTextOf(signedLinesOf(row.diff, "+")) ??
+    (row.op === "remove" ? firstTextOf(signedLinesOf(row.diff, "-")) : null);
+  const summary = text === null ? null : cutTextOf(text, ROW_TITLE_MAX);
+  if (removing) {
+    return summary === null
+      ? t("desktop.proposals.row.title.remove", { kind: row.kindLabel })
+      : t("desktop.proposals.row.title.removeNamed", { kind: row.kindLabel, name: summary });
+  }
+  return summary ?? row.kindLabel;
 }
 
 /** 지금 적용할 범위: 고른 값이 있으면 그것, 없으면 행의 기본. 범위를 고를 수 없는 행은 null */

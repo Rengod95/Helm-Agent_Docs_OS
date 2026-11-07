@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
 import { ThreadIdSchema } from "@fresnel/contracts/conversation";
 import { proposalListView, type ProposalRowVM } from "@fresnel/client/settings";
-import type { ProposalRow, WireResult } from "@fresnel/contracts/wire";
+import type { ExtListEntry, ProposalRow, WireResult } from "@fresnel/contracts/wire";
 import {
   confirmActionOf,
   DIFF_FOLD_LINES,
@@ -10,18 +10,27 @@ import {
   effectiveScopeOf,
   INITIAL_FILTER,
   INITIAL_PROPOSALS_STATE,
+  learningStateOf,
   listParamsOf,
   moveSelectionOf,
   overlayOpenOf,
   proposalKeyIntentOf,
   proposalsReducer,
+  rowTitleOf,
   selectedRowOf,
   skillFailureOf,
+  unavailableShownOf,
   visibleRowsOf,
+  type LearningState,
   type ProposalPage,
   type ProposalsState,
   type SkillRequest,
 } from "../../src/views/pages/proposals/proposals-model.ts";
+import {
+  doneNoticeOf,
+  expiryDateTextOf,
+  unavailableTextIdOf,
+} from "../../src/views/pages/proposals/proposals-text.ts";
 
 // 제안 화면(P-06)의 순수 모델. 값은 `toEqual`로 비교한다. 행은 client의 `proposalListView`로 만든다(타입 단언 없이).
 
@@ -37,7 +46,7 @@ function wire(overrides: Partial<ProposalRow>): ProposalRow {
     id: "p1",
     kind: "skill",
     op: "create",
-    target: "skills/review.md",
+    target: "review",
     status: "pending",
     destructive: false,
     diff: "+ line",
@@ -45,10 +54,12 @@ function wire(overrides: Partial<ProposalRow>): ProposalRow {
     evidence: [{ eventId: "evt_1", threadId: THREAD }],
     conflictsWith: null,
     reason: null,
+    note: null,
     revision: 3,
     scope: null,
     afterUntrusted: false,
     createdAt: 1_000,
+    expiresAt: 1_000 + 30 * 86_400_000,
     ...overrides,
   };
 }
@@ -65,7 +76,7 @@ function rowVM(overrides: Partial<ProposalRow>): ProposalRowVM {
 }
 
 function pageOf(rows: readonly ProposalRowVM[], nextCursor: string | null = null): ProposalPage {
-  return { rows, unavailableTexts: [], nextCursor };
+  return { rows, unavailable: [], nextCursor };
 }
 
 function loaded(state: ProposalsState, page: ProposalPage, append = false): ProposalsState {
@@ -122,7 +133,7 @@ describe("proposalsReducer", () => {
       status: "ready",
       loadingMore: false,
       rows: [first],
-      unavailableTexts: [],
+      unavailable: [],
       nextCursor: "cur-2",
     });
   });
@@ -227,6 +238,114 @@ describe("effectiveScopeOf and confirmActionOf", () => {
   });
 });
 
+describe("doneNoticeOf", () => {
+  test("a revert the ledger performed is a success; one it refused stays applied and is a warning, never a success", () => {
+    // 성공: 원장이 되돌려 행이 `reverted`가 됐다(엔진은 `applied: false`)
+    expect(doneNoticeOf("revert", false, "reverted")).toEqual({
+      tone: "success",
+      textId: "desktop.proposals.done.reverted",
+    });
+    // 거절: 그 사이 기억이 바뀌어 행이 `applied`로 남았다(엔진은 `applied: true`, reason rollback_refused)
+    expect(doneNoticeOf("revert", true, "applied")).toEqual({
+      tone: "warning",
+      textId: "desktop.proposals.done.revertRefused",
+    });
+    // 상태를 모르면 되돌렸다고 말하지 않는다
+    expect(doneNoticeOf("revert", false, "applied")).toEqual({
+      tone: "warning",
+      textId: "desktop.proposals.done.revertRefused",
+    });
+  });
+
+  test("approve says whether it was applied; edit and reject are plain successes", () => {
+    expect(doneNoticeOf("approve", true, "applied")).toEqual({
+      tone: "success",
+      textId: "desktop.proposals.done.approved",
+    });
+    expect(doneNoticeOf("approve", false, "approved")).toEqual({
+      tone: "success",
+      textId: "desktop.proposals.done.approvedNotApplied",
+    });
+    expect(doneNoticeOf("edit", false, "pending")).toEqual({
+      tone: "success",
+      textId: "desktop.proposals.done.edited",
+    });
+    expect(doneNoticeOf("reject", false, "rejected")).toEqual({
+      tone: "success",
+      textId: "desktop.proposals.done.rejected",
+    });
+  });
+});
+
+describe("unavailableTextIdOf and unavailableShownOf", () => {
+  const OFF: LearningState = { status: "off", turnOn: null };
+
+  test("each unreadable source has its own sentence", () => {
+    expect(unavailableTextIdOf("learning")).toBe("client.settings.proposals.unavailable.learning");
+    expect(unavailableTextIdOf("knowledge")).toBe(
+      "client.settings.proposals.unavailable.knowledge",
+    );
+  });
+
+  test("with learning off, a learning read gap is not an error; the knowledge gap still shows", () => {
+    expect(unavailableShownOf(["learning", "knowledge"], OFF)).toEqual(["knowledge"]);
+    expect(unavailableShownOf(["learning"], OFF)).toEqual([]);
+    expect(unavailableShownOf(["learning"], { status: "on" })).toEqual(["learning"]);
+    expect(unavailableShownOf(["learning"], { status: "unknown" })).toEqual(["learning"]);
+  });
+});
+
+/** 확장 목록의 한 항목. 학습 그룹의 켜짐 상태 시험에만 쓴다 */
+function extEntry(overrides: Partial<ExtListEntry>): ExtListEntry {
+  return {
+    name: "learning",
+    displayName: "Learning",
+    layer: "L3",
+    isGroup: true,
+    version: "0.1.0",
+    location: "builtin",
+    requestedGrade: "builtin",
+    effectiveGrade: "builtin",
+    tier: null,
+    status: "enabled",
+    plugins: [],
+    diagnostics: [],
+    autoDisabled: false,
+    safeModeExcluded: null,
+    hookCount: 0,
+    ...overrides,
+  };
+}
+
+describe("learningStateOf", () => {
+  test("an unread extension list is unknown; a running group is on", () => {
+    expect(learningStateOf(null)).toEqual({ status: "unknown" });
+    expect(learningStateOf([extEntry({ status: "enabled" })])).toEqual({ status: "on" });
+  });
+
+  test("a disabled group is off and offers the same switch write the extension list uses", () => {
+    expect(learningStateOf([extEntry({ status: "disabled" })])).toEqual({
+      status: "off",
+      turnOn: { key: "ext.learning.enabled", value: true, scope: "user" },
+    });
+  });
+
+  test("a group the safe mode left out is off with no switch; a managed group is off with no switch", () => {
+    expect(learningStateOf([extEntry({ status: "disabled", safeModeExcluded: "flag" })])).toEqual({
+      status: "off",
+      turnOn: null,
+    });
+    expect(learningStateOf([extEntry({ status: "disabled", enabledSource: "managed" })])).toEqual({
+      status: "off",
+      turnOn: null,
+    });
+  });
+
+  test("a list without the learning group means it is not loaded here: off, no switch", () => {
+    expect(learningStateOf([extEntry({ name: "helm" })])).toEqual({ status: "off", turnOn: null });
+  });
+});
+
 describe("moveSelectionOf", () => {
   const rows = [rowVM({ id: "a" }), rowVM({ id: "b" }), rowVM({ id: "c" })];
 
@@ -285,6 +404,110 @@ describe("diffLinesOf", () => {
   test("the fold limit is 500 lines", () => {
     expect(DIFF_FOLD_LINES).toBe(500);
     expect(diffLinesOf(Array.from({ length: 501 }, () => "x").join("\n")).length).toBe(501);
+  });
+});
+
+describe("rowTitleOf", () => {
+  test("a one-line feedback is titled by its sentence, which is short enough to keep whole", () => {
+    const row = rowVM({
+      kind: "feedback",
+      op: "add",
+      target: "user/work-style",
+      diff: "+ 커밋 메시지는 feat/fix/chore 중 하나로 쓰고 한 줄로 쓴다. 팀 규칙이다.",
+    });
+    expect(rowTitleOf(row)).toEqual(
+      "커밋 메시지는 feat/fix/chore 중 하나로 쓰고 한 줄로 쓴다. 팀 규칙이다.",
+    );
+  });
+
+  test("a title longer than 60 characters is cut after 60 and an ellipsis follows", () => {
+    const row = rowVM({ kind: "memory", op: "add", target: "user", diff: `+ ${"가".repeat(61)}` });
+    expect(rowTitleOf(row)).toEqual(`${"가".repeat(60)}…`);
+  });
+
+  test("the first line with text is used: blank and space-only lines are skipped and inner runs of spaces collapse", () => {
+    const row = rowVM({
+      kind: "memory",
+      op: "replace",
+      target: "user/0123456789ab",
+      diff: "@@ replace user/0123456789ab\n+   \n+ 첫  번째 \n+ 둘째",
+    });
+    expect(rowTitleOf(row)).toEqual("첫 번째");
+  });
+
+  test("a skill is titled by its name, whether the target is the bare name or a file under it", () => {
+    expect(
+      rowTitleOf(
+        rowVM({ kind: "skill", op: "create", target: "cache-debug", diff: "+ # cache-debug" }),
+      ),
+    ).toEqual("스킬 cache-debug");
+    expect(
+      rowTitleOf(
+        rowVM({
+          kind: "skill",
+          op: "add_file",
+          target: "cache-debug/references/notes.md",
+          diff: "+ 참고",
+        }),
+      ),
+    ).toEqual("스킬 cache-debug");
+  });
+
+  test("removing a skill names it; removing a memory names the first removed line; with nothing to name it says the kind", () => {
+    expect(
+      rowTitleOf(
+        rowVM({
+          kind: "skill",
+          op: "archive",
+          target: "cache-debug",
+          diff: "@@ archive cache-debug",
+        }),
+      ),
+    ).toEqual("스킬 지우기: cache-debug");
+    expect(
+      rowTitleOf(
+        rowVM({
+          kind: "memory",
+          op: "remove",
+          target: "user/0123456789ab",
+          diff: "@@ remove user/0123456789ab\n- 커밋 메시지는 한 줄로 쓴다.",
+        }),
+      ),
+    ).toEqual("메모리 지우기: 커밋 메시지는 한 줄로 쓴다.");
+    expect(
+      rowTitleOf(
+        rowVM({
+          kind: "memory",
+          op: "remove",
+          target: "user/0123456789ab",
+          diff: "@@ remove user/0123456789ab",
+        }),
+      ),
+    ).toEqual("메모리 지우기");
+  });
+
+  test("a memory replace is titled by its new text, and a feedback with no text gives its kind alone", () => {
+    expect(
+      rowTitleOf(
+        rowVM({
+          kind: "memory",
+          op: "replace",
+          target: "user/0123456789ab",
+          diff: "@@ replace user/0123456789ab\n+ 새 기억 한 줄",
+        }),
+      ),
+    ).toEqual("새 기억 한 줄");
+    expect(
+      rowTitleOf(rowVM({ kind: "feedback", op: "add", target: "user/work-style", diff: "" })),
+    ).toEqual("피드백");
+  });
+});
+
+describe("expiryDateTextOf", () => {
+  test("the expiry date is a long local date in the locale, with no time", () => {
+    const at = new Date(2033, 5, 17, 12).getTime();
+    expect(expiryDateTextOf(at, "ko")).toEqual("2033년 6월 17일");
+    expect(expiryDateTextOf(at, "en")).toEqual("June 17, 2033");
   });
 });
 
@@ -405,5 +628,16 @@ describe("overlayOpenOf", () => {
     });
     expect(overlayOpenOf(skillOpen)).toBe(true);
     expect(overlayOpenOf(proposalsReducer(skillOpen, { type: "skillClosed" }))).toBe(false);
+  });
+});
+
+describe("learning state", () => {
+  test("a read stores the learning state, and a closed screen starts unknown", () => {
+    expect(INITIAL_PROPOSALS_STATE.learning).toEqual({ status: "unknown" });
+    const off = proposalsReducer(INITIAL_PROPOSALS_STATE, {
+      type: "learningRead",
+      learning: { status: "off", turnOn: null },
+    });
+    expect(off.learning).toEqual({ status: "off", turnOn: null });
   });
 });

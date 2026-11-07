@@ -28,10 +28,12 @@ const ROW: ProposalRow = {
   evidence: [{ eventId: "evt_1", threadId: THREAD }],
   conflictsWith: null,
   reason: null,
+  note: null,
   revision: 3,
   scope: null,
   afterUntrusted: false,
   createdAt: 1000,
+  expiresAt: 1000 + 30 * 86_400_000,
 };
 
 async function liveApp(extra: EngineExtra) {
@@ -92,7 +94,11 @@ describe("proposal.decide", () => {
   test("an approval sends the row's identity, the revision seen and the chosen scope", async () => {
     const { app, params } = await liveApp({
       results: {
-        "proposal.decide": { ok: true, proposal: { ...ROW, status: "applied" }, applied: true },
+        "proposal.decide": {
+          ok: true,
+          proposal: { ...ROW, status: "applied", expiresAt: null },
+          applied: true,
+        },
       },
     });
     const decided = await app.commands.proposals.decide({
@@ -159,6 +165,34 @@ describe("proposal.decide", () => {
   });
 });
 
+describe("proposal.decide revert outcomes", () => {
+  test("a refused revert comes back applied with its reason, so the row keeps its revert action", async () => {
+    const { app } = await liveApp({
+      results: {
+        "proposal.decide": {
+          ok: true,
+          proposal: { ...ROW, status: "applied", reason: "rollback_refused", expiresAt: null },
+          applied: true,
+        },
+      },
+    });
+    const decided = await app.commands.proposals.decide({
+      source: "learning",
+      id: "p1",
+      decision: "revert",
+    });
+    expect(decided).toEqual({
+      ok: true,
+      value: {
+        kind: "done",
+        applied: true,
+        proposal: { ...expectedAppliedVM(), reason: "rollback_refused" },
+      },
+    });
+    await app.stop();
+  });
+});
+
 /** 적용 뒤 행의 화면 값. 상태 문장과 행 동작만 본다 */
 function expectedAppliedVM(): ProposalRowVM {
   return {
@@ -177,6 +211,7 @@ function expectedAppliedVM(): ProposalRowVM {
     afterUntrusted: false,
     conflictsWith: null,
     reason: null,
+    note: null,
     diff: "+ line",
     proposedText: "line",
     rationale: null,
@@ -185,5 +220,6 @@ function expectedAppliedVM(): ProposalRowVM {
     revision: 3,
     scopeChoice: { allowed: ["user", "project"], initial: "user" },
     createdAt: 1000,
+    expiresAt: null,
   };
 }

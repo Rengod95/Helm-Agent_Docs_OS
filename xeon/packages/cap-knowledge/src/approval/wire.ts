@@ -62,7 +62,7 @@ function reasonOf(status: ProposalStatus): string | null {
 
 /**
  * 지식 대기열의 제안 하나를 합친 목록의 행으로 옮긴다. `destructive`는 기준 해시를 요구하는 연산(기존 내용을 바꾸거나 지움)과
- * 롤백이다(L2.knowledge.spec §4.4.2). 학습 대기열에만 있는 필드(근거 이벤트, 유사 스킬, 사유 설명)는 빈 값이다.
+ * 롤백이다(L2.knowledge.spec §4.4.2). 학습 대기열에만 있는 필드(근거 이벤트, 유사 스킬, 사유 설명, 거절 메모, 만료 시각)는 빈 값이다.
  */
 export function proposalRowOf(proposal: Proposal): ProposalRow {
   const { target } = proposal;
@@ -79,10 +79,12 @@ export function proposalRowOf(proposal: Proposal): ProposalRow {
     evidence: [],
     conflictsWith: null,
     reason: reasonOf(proposal.status),
+    note: null,
     revision: 1,
     scope: target.kind === "skill" ? (target.scope ?? "user") : null,
     afterUntrusted: proposal.afterUntrusted === true,
     createdAt: proposal.createdAt,
+    expiresAt: null,
   };
 }
 

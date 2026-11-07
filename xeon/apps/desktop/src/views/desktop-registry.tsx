@@ -18,6 +18,7 @@ import {
 } from "@caustic/react";
 import { ApprovalQueue, InboxApprovals, useInboxThreads, type InboxFilter } from "./approvals.tsx";
 import { INBOX_SORTS, inboxThreadOf, type InboxSort, type InboxThread } from "./inbox-model.ts";
+import { useProposalPending } from "./proposal-pending-context.tsx";
 import { ChatHeader } from "./chat-header.tsx";
 import { Composer } from "./composer.tsx";
 import { SafeModeCard } from "./safe-mode-card.tsx";
@@ -182,11 +183,13 @@ const SCHEDULES_SCREEN: ScreenDef = {
   render: () => <SchedulesScreen />,
 };
 
+// 내비 배지는 대기 제안 수다(0이면 안 보인다). 수는 `ProposalPendingProvider`가 읽는다(SC-06 1단계)
 const PROPOSALS_SCREEN: ScreenDef = {
   id: "proposals",
   area: "chat",
   label: "desktop.shell.nav.proposals",
   icon: <Lightbulb />,
+  Badge: (p) => p.render(useProposalPending().count),
   render: () => <ProposalsScreen />,
 };
 

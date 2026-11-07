@@ -38,6 +38,7 @@ test("fork.uses-item-fork-point: item fork, no report, read-only tool policy and
     parent: { threadId: THREAD, upToItemId: ITEM },
     requestId: reviewRequestId(7),
     reasons: ["user_turns", "tool_iterations"],
+    rejected: [],
     settings: { ...SETTINGS, model: "review" },
     contextWindow: 200_000,
   });
@@ -70,6 +71,7 @@ test("fork.uses-item-fork-point: item fork, no report, read-only tool policy and
         parent: { threadId: THREAD, upToItemId: ITEM },
         requestId: "learning:review:1",
         reasons: ["manual"],
+        rejected: [],
         settings: SETTINGS,
         contextWindow: null,
       }),

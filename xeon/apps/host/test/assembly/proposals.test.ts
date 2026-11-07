@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { ok } from "@fresnel/contracts";
+import { err, ok } from "@fresnel/contracts";
 import { CapabilityError, type CallOptions } from "@fresnel/contracts/capabilities";
 import type {
   ProposalDecideParams,
@@ -12,7 +12,10 @@ import {
   type DecisionResult,
   type LearningError,
   type LearningQueueApi,
+  type LearningQueueReader,
+  type Proposal,
   type ProposalDecision,
+  type ProposalFilter,
   type ProposalView,
 } from "@fresnel/group-learning";
 import type { LearningRunner } from "../../src/assembly/learning.ts";
@@ -38,10 +41,12 @@ function view(patch: Partial<ProposalView> & { id: string }): ProposalView {
     evidence: [{ eventId: "evt_1", threadId: THREAD }],
     conflictsWith: null,
     reason: null,
+    note: null,
     revision: 1,
     scope: "user",
     afterUntrusted: false,
     createdAt: 1000,
+    expiresAt: 1000 + 30 * 86_400_000,
     source: "learning",
     ...patch,
   };
@@ -60,10 +65,43 @@ function row(patch: Partial<ProposalRow> & { id: string }): ProposalRow {
     evidence: [],
     conflictsWith: null,
     reason: null,
+    note: null,
     revision: 1,
     scope: null,
     afterUntrusted: false,
     createdAt: 1000,
+    expiresAt: null,
+    ...patch,
+  };
+}
+
+/** 저장소에 남은 학습 기록 하나(투영 행). 그룹이 꺼져 있을 때의 목록이 읽는다 */
+function stored(patch: Partial<Proposal> & { id: string }): Proposal {
+  return {
+    kind: "skill",
+    op: "create",
+    target: "release-notes",
+    diff: "+ x",
+    body: "x",
+    description: null,
+    bodyHash: "0".repeat(64),
+    baseHash: null,
+    rationale: "asked twice",
+    evidenceEventIds: ["evt_1"],
+    threadId: THREAD,
+    status: "pending",
+    reviewId: null,
+    conflictsWith: null,
+    destructive: false,
+    scope: "user",
+    afterUntrusted: false,
+    reason: null,
+    note: null,
+    findings: [],
+    ledgerId: null,
+    createdAt: 1000,
+    updatedAt: 1000,
+    revision: 1,
     ...patch,
   };
 }
@@ -72,6 +110,8 @@ interface Calls {
   /** 명령 실행기가 받은 줄과 실행 대화 */
   readonly runs: { line: string; preferred: string | undefined }[];
   readonly sweeps: number[];
+  /** 저장소 면이 받은 거름(그룹이 꺼져 있을 때의 목록) */
+  readonly storeLists: ProposalFilter[];
   readonly knowledgeLists: {
     input: KnowledgeProposalListInput;
     options: CallOptions | undefined;
@@ -82,6 +122,8 @@ interface Calls {
 
 function rig(options: {
   readonly learning?: readonly ProposalView[] | "down";
+  /** 그룹이 꺼져 있어도 남은 학습 기록. 없으면(undefined) 학습 그룹이 실리지 않은 구성이다. "error"면 읽기가 실패한다 */
+  readonly store?: readonly Proposal[] | "error";
   readonly knowledge?: readonly ProposalRow[] | "down" | "throws";
   /** 결정 명령 줄의 후보 id를 받아 명령이 낼 결정 결과를 정한다 */
   readonly decide?: (proposalId: string) => DecisionResult;
@@ -93,6 +135,7 @@ function rig(options: {
   const calls: Calls = {
     runs: [],
     sweeps: [],
+    storeLists: [],
     knowledgeLists: [],
     knowledgeDecides: [],
     reports: [],
@@ -181,8 +224,31 @@ function rig(options: {
         });
       }),
   };
+  const reader: LearningQueueReader = {
+    getProposal: () => Promise.resolve(ok(undefined)),
+    listProposals: (filter) => {
+      calls.storeLists.push(filter);
+      if (options.store === "error") {
+        return Promise.resolve(
+          err({ kind: "learning.storeUnavailable", detail: "the projection is down" }),
+        );
+      }
+      const all = options.store ?? [];
+      return Promise.resolve(
+        ok(
+          all.filter(
+            (found) => filter.statuses === undefined || filter.statuses.includes(found.status),
+          ),
+        ),
+      );
+    },
+    getReviewByChild: () => Promise.resolve(ok(undefined)),
+    getReview: () => Promise.resolve(ok(undefined)),
+    listReviews: () => Promise.resolve(ok([])),
+  };
   const port = createProposalPort({
     learning: () => (options.learning === "down" ? undefined : api),
+    learningStore: () => (options.store === undefined ? undefined : reader),
     runner,
     knowledge: () => (options.knowledge === "down" ? undefined : wire),
     report: (message) => {
@@ -236,6 +302,14 @@ test("proposal.list maps a learning row: scope only for skills, evidence with a 
         reason: "base_stale",
         createdAt: 900,
       }),
+      view({
+        id: "prop_rejected",
+        status: "rejected",
+        reason: "user_rejected",
+        note: "이 팀 한정",
+        expiresAt: null,
+        createdAt: 800,
+      }),
     ],
     knowledge: [],
   });
@@ -253,10 +327,12 @@ test("proposal.list maps a learning row: scope only for skills, evidence with a 
     evidence: [{ eventId: "evt_1", threadId: THREAD }],
     conflictsWith: null,
     reason: null,
+    note: null,
     revision: 1,
     scope: "project",
     afterUntrusted: false,
     createdAt: 1000,
+    expiresAt: 1000 + 30 * 86_400_000,
   });
   expect(proposals[1]).toMatchObject({
     kind: "memory",
@@ -264,6 +340,13 @@ test("proposal.list maps a learning row: scope only for skills, evidence with a 
     afterUntrusted: true,
     conflictsWith: "other",
     reason: "base_stale",
+  });
+  // 거절 메모와 만료 시각(대기 상태가 아니면 없음)은 그대로 옮긴다
+  expect(proposals[2]).toMatchObject({
+    id: "prop_rejected",
+    status: "rejected",
+    note: "이 팀 한정",
+    expiresAt: null,
   });
 });
 
@@ -286,6 +369,60 @@ test("proposal.list reports a source it cannot read and still returns the other"
   expect(throwing.calls.reports).toEqual(["proposal.knowledge_list_failed"]);
   const both = await rig({ learning: "down", knowledge: "down" }).port.list({}, SIGNAL);
   expect(both).toEqual({ proposals: [], nextCursor: null, unavailable: ["learning", "knowledge"] });
+});
+
+test("proposal.list reads the stored learning history while the group is off: no sweep, the rows keep their status, and a pending row has no expiry", async () => {
+  const off = rig({
+    learning: "down",
+    knowledge: [],
+    store: [
+      stored({ id: "prop_applied", status: "applied", createdAt: 3000 }),
+      stored({ id: "prop_pending", status: "pending", createdAt: 2000 }),
+      stored({ id: "prop_rejected", status: "rejected", reason: "user_rejected", createdAt: 1000 }),
+    ],
+  });
+  const listed = await off.port.list({}, SIGNAL);
+  expect(listed.unavailable).toEqual([]);
+  expect(listed.proposals.map((entry) => [entry.id, entry.status, entry.expiresAt])).toEqual([
+    ["prop_applied", "applied", null],
+    ["prop_pending", "pending", null],
+    ["prop_rejected", "rejected", null],
+  ]);
+  // 꺼진 그룹은 정리를 돌리지 않는다(정리는 그룹의 명령이다)
+  expect(off.calls.runs).toEqual([]);
+  // 결정은 그룹이 돌 때만 되므로 꺼진 동안에는 `unavailable`이다
+  expect(
+    await off.port.decide(
+      { source: "learning", id: "prop_pending", decision: "approve", revision: 1 },
+      SIGNAL,
+    ),
+  ).toEqual({ ok: false, reason: "unavailable", detail: "learning group is not running" });
+  expect(off.calls.runs).toEqual([]);
+});
+
+test("proposal.list with the group off filters the stored rows by status and skips the store for a stale-only filter", async () => {
+  const off = rig({
+    learning: "down",
+    knowledge: [],
+    store: [
+      stored({ id: "prop_applied", status: "applied", createdAt: 3000 }),
+      stored({ id: "prop_pending", status: "pending", createdAt: 2000 }),
+    ],
+  });
+  const applied = await off.port.list({ status: ["applied"] }, SIGNAL);
+  expect(applied.proposals.map((entry) => entry.id)).toEqual(["prop_applied"]);
+  expect(off.calls.storeLists).toEqual([{ statuses: ["applied"] }]);
+  // 학습 상태가 없는 거름(stale만)은 저장소를 읽지 않고 빈 목록이다
+  const stale = await off.port.list({ status: ["stale"] }, SIGNAL);
+  expect(stale).toEqual({ proposals: [], nextCursor: null, unavailable: [] });
+  expect(off.calls.storeLists).toEqual([{ statuses: ["applied"] }]);
+});
+
+test("proposal.list with the group off and a store that fails still reports learning as unavailable, and says why", async () => {
+  const broken = rig({ learning: "down", knowledge: [], store: "error" });
+  const listed = await broken.port.list({}, SIGNAL);
+  expect(listed).toEqual({ proposals: [], nextCursor: null, unavailable: ["learning"] });
+  expect(broken.calls.reports).toEqual(["proposal.learning_list_failed"]);
 });
 
 test("proposal.list with a source filter reads only that source and does not call the other", async () => {

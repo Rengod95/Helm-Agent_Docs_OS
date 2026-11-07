@@ -15,7 +15,7 @@ import type { KnowledgeFailure, KnowledgePort } from "./knowledge.ts";
 import { isExpired, transition, type ProposalEvent } from "./queue.ts";
 import { preScan } from "./scan.ts";
 import { parseTarget } from "./target.ts";
-import { proposalView, type Proposal, type ProposalView } from "./proposal.ts";
+import { PROPOSAL_NOTE_MAX, proposalView, type Proposal, type ProposalView } from "./proposal.ts";
 import type { LearningQueueReader, ProposalFilter } from "./reader.ts";
 
 // L3.learning.spec §4.5 승인 대기열의 결정 경로. 명령 처리기에서 돈다(재실행되는 코드가 아니고 ambient가 있다, §4.5 규칙 6). 상태 변화는 모두 비공개 기록(`LearningWriter.event`)으로 남기고
@@ -101,6 +101,15 @@ function revertKey(proposal: Pick<Proposal, "id">): string {
   return `learning:revert:${proposal.id}`;
 }
 
+/**
+ * 거절 메모를 기록에 싣는 값으로 바꾼다: 앞뒤 공백을 떼고 글자 상한까지만 남긴다. 비면 없다(기록에 싣지 않는다).
+ * 명령 줄로 온 메모는 상한 검사를 거치지 않으므로 여기서 자른다
+ */
+function noteOf(text: string | undefined): string | undefined {
+  const trimmed = text?.trim() ?? "";
+  return trimmed === "" ? undefined : trimmed.slice(0, PROPOSAL_NOTE_MAX);
+}
+
 export function createQueueOps(deps: QueueOpsDeps): QueueOps {
   const { reader, writer, clock } = deps;
 
@@ -109,6 +118,17 @@ export function createQueueOps(deps: QueueOpsDeps): QueueOps {
     if (!found.ok) return found;
     if (found.value === undefined) return err({ kind: "learning.notFound", proposalId: id });
     return ok(found.value);
+  }
+
+  /** 지금 설정의 만료 일수. 설정을 읽지 못하면 null이다(만료 시각을 모른다) */
+  function expiryDaysOf(): number | null {
+    const settings = deps.settings();
+    return settings.ok ? settings.value.expiryDays : null;
+  }
+
+  /** 화면 행. 만료 시각은 지금 설정의 만료 일수로 정한다 */
+  function viewOf(proposal: Proposal): ProposalView {
+    return proposalView(proposal, expiryDaysOf());
   }
 
   async function announce(
@@ -206,7 +226,7 @@ export function createQueueOps(deps: QueueOpsDeps): QueueOps {
     if (!applied.ok) return { ok: false, error: applied.error };
     return {
       ok: true,
-      proposal: proposalView(applied.value.proposal),
+      proposal: viewOf(applied.value.proposal),
       applied: applied.value.proposal.status === "applied",
     };
   }
@@ -272,7 +292,7 @@ export function createQueueOps(deps: QueueOpsDeps): QueueOps {
       await announce(blocked.value, "rejected");
       return {
         ok: true,
-        proposal: proposalView({ ...blocked.value, findings: [...scanned.value.rules] }),
+        proposal: viewOf({ ...blocked.value, findings: [...scanned.value.rules] }),
         applied: false,
       };
     }
@@ -284,7 +304,7 @@ export function createQueueOps(deps: QueueOpsDeps): QueueOps {
       bodyHash,
       at,
     });
-    return { ok: true, proposal: proposalView(edited.value), applied: false };
+    return { ok: true, proposal: viewOf(edited.value), applied: false };
   }
 
   async function revert(row: Proposal, signal: AbortSignal): Promise<DecisionResult> {
@@ -317,7 +337,7 @@ export function createQueueOps(deps: QueueOpsDeps): QueueOps {
     );
     return {
       ok: true,
-      proposal: proposalView(next.value),
+      proposal: viewOf(next.value),
       applied: next.value.status === "applied",
     };
   }
@@ -325,7 +345,9 @@ export function createQueueOps(deps: QueueOpsDeps): QueueOps {
   return {
     async list(filter) {
       const rows = await reader.listProposals(filter);
-      return rows.ok ? ok(rows.value.map(proposalView)) : rows;
+      if (!rows.ok) return rows;
+      const expiryDays = expiryDaysOf();
+      return ok(rows.value.map((row) => proposalView(row, expiryDays)));
     },
     async decide(decision, signal) {
       const row = await get(decision.proposalId);
@@ -341,6 +363,7 @@ export function createQueueOps(deps: QueueOpsDeps): QueueOps {
           const at = clock.now();
           const next = transition(row.value, { kind: "reject" }, at);
           if (!next.ok) return { ok: false, error: next.error };
+          const note = noteOf(decision.note);
           await writer.event({
             kind: "proposal.decided",
             id: row.value.id,
@@ -348,10 +371,16 @@ export function createQueueOps(deps: QueueOpsDeps): QueueOps {
             status: "rejected",
             reason: "user_rejected",
             scope: row.value.scope,
+            ...(note === undefined ? {} : { note }),
             at,
           });
           await announce(next.value, "rejected");
-          return { ok: true, proposal: proposalView(next.value), applied: false };
+          // 투영기가 거절된 행에 같은 메모를 둔다. 명령이 돌려주는 값도 그 행과 같아야 한다
+          return {
+            ok: true,
+            proposal: viewOf({ ...next.value, note: note ?? null }),
+            applied: false,
+          };
         }
         default:
           return assertNever(decision, "ProposalDecision");
