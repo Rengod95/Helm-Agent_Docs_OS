@@ -1,6 +1,6 @@
 // 확장 지우기(B-04, `ext.remove`)의 순수 판단: 어떤 행을 지울 수 있나, 결과를 어떤 문장으로 알리나.
 import { assertNever } from "@fresnel/contracts";
-import type { MessageId } from "@fresnel/client/i18n";
+import { activeLocale, type MessageId } from "@fresnel/client/i18n";
 import type { Placement } from "@fresnel/contracts/extensions";
 import type {
   ExtListEntry,
@@ -11,6 +11,7 @@ import type {
 } from "@fresnel/contracts/wire";
 import type { CommandError } from "../commands.ts";
 import { stripUnsafeText } from "@fresnel/client/views/app";
+import { extMessageOf } from "@fresnel/client/views/native";
 
 /**
  * 이 확장을 쓰는 프로필의 제목. 프로필의 `enable`에 이름이 있는 것만 센다. `disable`에만 적힌 프로필은 이 확장을 끄는 것이라 쓰는 것이 아니다.
@@ -34,13 +35,16 @@ export interface PluginViewRow {
 
 /** 이 확장이 낸 화면 항목(플러그인 뷰)을 항목 순서대로 준다. 확장이 꺼져 있거나 고장 난 항목도 지우면 빠지므로 넣는다 */
 export function pluginViewsOf(
-  entries: readonly Pick<ExtUiEntry, "extension" | "id" | "title" | "placement">[],
+  entries: readonly Pick<ExtUiEntry, "extension" | "id" | "title" | "placement" | "messages">[],
   name: string,
 ): readonly PluginViewRow[] {
   return entries
     .filter((entry) => entry.extension === name)
     .map((entry) => {
-      const title = stripUnsafeText(entry.title, false).trim();
+      const title = stripUnsafeText(
+        extMessageOf(entry.messages, activeLocale(), entry.title),
+        false,
+      ).trim();
       return { id: entry.id, title: title === "" ? entry.id : title, placement: entry.placement };
     });
 }

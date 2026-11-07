@@ -3,27 +3,27 @@
   "children": [
     {
       "type": "Chip",
-      "props": { "text": "대기" },
+      "props": { "text": "helm.phase.idle" },
       "when": { "path": "/status/phase", "op": "eq", "value": "idle" }
     },
     {
       "type": "Chip",
-      "props": { "text": "발산" },
+      "props": { "text": "helm.phase.diverge" },
       "when": { "path": "/status/phase", "op": "eq", "value": "diverge" }
     },
     {
       "type": "Chip",
-      "props": { "text": "다른 분야 탐색" },
+      "props": { "text": "helm.phase.explore" },
       "when": { "path": "/status/phase", "op": "eq", "value": "explore" }
     },
     {
       "type": "Chip",
-      "props": { "text": "수렴" },
+      "props": { "text": "helm.phase.converge" },
       "when": { "path": "/status/phase", "op": "eq", "value": "converge" }
     },
     {
       "type": "Chip",
-      "props": { "text": "적용" },
+      "props": { "text": "helm.phase.apply" },
       "when": { "path": "/status/phase", "op": "eq", "value": "apply" }
     }
   ]

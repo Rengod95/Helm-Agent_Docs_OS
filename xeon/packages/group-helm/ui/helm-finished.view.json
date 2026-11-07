@@ -15,7 +15,7 @@
         {
           "type": "Badge",
           "props": {
-            "text": "적용됨"
+            "text": "helm.outcome.applied"
           },
           "when": {
             "path": "/outcome",
@@ -26,7 +26,7 @@
         {
           "type": "Badge",
           "props": {
-            "text": "발견 없음"
+            "text": "helm.outcome.empty"
           },
           "when": {
             "path": "/outcome",
@@ -37,7 +37,7 @@
         {
           "type": "Badge",
           "props": {
-            "text": "멈춤"
+            "text": "helm.outcome.stopped"
           },
           "when": {
             "path": "/outcome",
@@ -48,7 +48,7 @@
         {
           "type": "Badge",
           "props": {
-            "text": "상한에 걸림"
+            "text": "helm.outcome.limit"
           },
           "when": {
             "path": "/outcome",
@@ -59,7 +59,7 @@
         {
           "type": "Badge",
           "props": {
-            "text": "실패"
+            "text": "helm.outcome.failed"
           },
           "when": {
             "path": "/outcome",
@@ -70,7 +70,7 @@
         {
           "type": "Text",
           "props": {
-            "text": "발견"
+            "text": "helm.findings"
           }
         },
         {

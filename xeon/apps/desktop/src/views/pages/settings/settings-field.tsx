@@ -55,6 +55,7 @@ import {
   valueSummaryOf,
   writableOf,
 } from "./settings-model.ts";
+import { isCommitEnter } from "../../ime-enter.ts";
 import { TONE_CLASS } from "./settings-text.ts";
 import { SettingTagList } from "./settings-tag-list.tsx";
 
@@ -297,7 +298,7 @@ export function FieldRow(props: FieldRowProps): ReactNode {
               if (field.dirty) handlers.commit(field.key);
             }}
             onKeyDown={(event) => {
-              if (event.key === "Enter" && field.dirty) {
+              if (isCommitEnter(event) && field.dirty) {
                 event.preventDefault();
                 handlers.commit(field.key);
               }

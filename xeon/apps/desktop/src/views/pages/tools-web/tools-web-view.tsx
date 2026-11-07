@@ -8,6 +8,7 @@ import { InfoTip, ListSkeleton, PanelBlock } from "../shared/panel-parts.tsx";
 import {
   displayOrderOf,
   pinnedOf,
+  providerNameOf,
   providerStateOf,
   type ProviderState,
 } from "./tools-web-model.ts";
@@ -159,7 +160,7 @@ function SearchSection(props: {
     if (row === undefined) return [];
     const detail = <OriginText row={row} />;
     const end = <RowEnd row={row} />;
-    return [{ id, title: row.displayName, detail, end }];
+    return [{ id, title: providerNameOf(row), detail, end }];
   });
   const explanation =
     pinned === null
@@ -202,7 +203,7 @@ function ReadOnlySection(props: {
           {props.rows.map((row) => (
             <ListRow
               key={row.id}
-              title={row.displayName}
+              title={providerNameOf(row)}
               description={<OriginText row={row} />}
               end={<RowEnd row={row} />}
             />

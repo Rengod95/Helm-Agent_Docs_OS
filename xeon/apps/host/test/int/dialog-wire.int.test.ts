@@ -64,6 +64,7 @@ realTest(
       expect(status.items).toContainEqual({
         id: "core.turn",
         text: "대기",
+        textKey: "desktop.status.core.turn.idle",
         tone: "normal",
         order: 100,
       });

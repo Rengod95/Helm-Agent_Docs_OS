@@ -1,4 +1,6 @@
+import { activeLocale } from "@fresnel/client/i18n";
 import { stripUnsafeText } from "@fresnel/client/views/app";
+import { extMessageOf } from "@fresnel/client/views/native";
 import type { Placement } from "@fresnel/contracts/extensions";
 import type { ExtUiEntry } from "@fresnel/contracts/wire";
 import { appsAllowed } from "./policy-context.ts";
@@ -87,11 +89,14 @@ export function commandEntriesOf(
 }
 
 /**
- * 확장이 낸 글 하나의 표시 이름: `<확장> · <제목>`. 제목은 방향 제어 글자와 제어 문자를 뺀다. 제목이 비면 화면 id를 쓴다.
+ * 확장이 낸 글 하나의 표시 이름: `<확장> · <제목>`. 제목이 메시지 키면 현재 로케일 문구로 푼다(ADR-0021 §3.8). 제목은 방향 제어 글자와 제어 문자를 뺀다. 제목이 비면 화면 id를 쓴다.
  * 확장 이름이 앞에 와서 셸의 행동 이름으로 읽히지 않는다(보고 2, 3)
  */
 export function originTitleOf(entry: ExtUiEntry): string {
-  const title = stripUnsafeText(entry.title, false).trim();
+  const title = stripUnsafeText(
+    extMessageOf(entry.messages, activeLocale(), entry.title),
+    false,
+  ).trim();
   return `${entry.extension} · ${title === "" ? entry.id : title}`;
 }
 

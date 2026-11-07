@@ -11,6 +11,7 @@ import {
   type RelKind,
   type Sel,
 } from "@fresnel/client/workbench/canvas";
+import { activeLocale } from "@fresnel/client/i18n";
 
 /** 주도 보유자: 주도를 선언하고 켜져 있는 첫 플러그인(목록 순서). 없으면 undefined */
 function driveHolderOf(snapshot: CanvasSnapshot): CanvasPlugin | undefined {
@@ -75,7 +76,7 @@ export interface LinkRow {
   readonly list: readonly Relation[];
 }
 
-/** 상대마다 한 줄. 관계 수가 많은 순, 같으면 이름순(한글 정렬) */
+/** 상대마다 한 줄. 관계 수가 많은 순, 같으면 이름순(현재 로케일 정렬) */
 export function rowsOf(rels: readonly Relation[]): LinkRow[] {
   const by = new Map<string, { other: CanvasPlugin; list: Relation[] }>();
   for (const rel of rels) {
@@ -84,7 +85,8 @@ export function rowsOf(rels: readonly Relation[]): LinkRow[] {
     else row.list.push(rel);
   }
   return [...by.values()].toSorted(
-    (a, b) => b.list.length - a.list.length || a.other.name.localeCompare(b.other.name, "ko"),
+    (a, b) =>
+      b.list.length - a.list.length || a.other.name.localeCompare(b.other.name, activeLocale()),
   );
 }
 

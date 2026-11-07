@@ -603,6 +603,8 @@ Fresnel 데스크톱
 | `area.chat` / `area.workbench` | ⌥⌘1 / ⌥⌘2 | 대화 영역 / LightCraft 영역 [제안] |
 
 - 입력창 안에서는 Enter 보내기, ⇧Enter 줄바꿈, ↑(빈 입력) 마지막 입력 다시 불러오기 [제안], `/` 슬래시 자동 완성입니다. 한글 조합 중 Enter는 보내지 않습니다(`composer-model.ts`).
+- 한 줄 입력의 Enter 저장(대화 이름 바꾸기, 설정 글 편집기와 글 칸, 모델 제공자 모델 칸, 크래프트 컴포즈 이름 칸)도 한글 조합 중에는 저장하지 않습니다. 조합 중(`isComposing`)이거나 `keyCode` 229인 Enter는 글자를 확정하는 키이고, 조합이 끝난 뒤의 Enter만 저장합니다(`views/ime-enter.ts`의 `isCommitEnter`) [결정: 오케스트레이터 기본값, fxLC].
+- 영어 화면의 잔여 한국어 정리 [결정: 오케스트레이터 기본값, fxLC]: 표시 언어 선택지는 각 언어의 자기 이름(`한국어`, `English`)으로 고정하고 도움말은 raw 값(`auto`, `en`)을 쓰지 않으며, 내장 검색 행 이름은 `desktop.firstRun.search.builtin`(엔진의 `builtin-wrapper` 이름 대신), 크기 단위 `formatBytes`와 크래프트 링크 행 정렬은 현재 로케일의 `Intl`을 쓰고, 어시스턴트 글의 긴 토큰은 `overflow-wrap: break-word`로 쉴 곳에서 먼저 줄을 바꾼다. 크래프트의 영어 이름 `LightCraft`는 용어 정본(`terms.json` workbench, ko `크래프트`)이라 그대로 둔다.
 - 승인 카드에 초점이 있으면 `Y` 허용, `N` 거부입니다 [제안]. `⇧Y`는 카드 키가 아닙니다. 문자 키는 입력란 밖에서만 받습니다.
 
 #### 구현 노트 (바로 가기 동작과 명령 팔레트, 트랙 chat3)

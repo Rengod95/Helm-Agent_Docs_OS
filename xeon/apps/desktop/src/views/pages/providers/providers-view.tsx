@@ -22,6 +22,7 @@ import { activeLocale, t } from "@fresnel/client/i18n";
 import type { AccountEntry, RateLimitEntry, RotationState } from "@fresnel/client";
 import type { UsageGauge, UsageUnit } from "@fresnel/contracts/wire";
 import { useState, type ReactNode } from "react";
+import { isCommitEnter } from "../../ime-enter.ts";
 import { TONE_CLASS } from "../settings/settings-text.ts";
 import { InfoTip, PanelBlock } from "../shared/panel-parts.tsx";
 import { OrderedList, type OrderedItem } from "../shared/ordered-list.tsx";
@@ -728,7 +729,7 @@ function RoleRow(props: {
           props.onCommit(role, event.currentTarget.value);
         }}
         onKeyDown={(event) => {
-          if (event.key === "Enter") props.onCommit(role, event.currentTarget.value);
+          if (isCommitEnter(event)) props.onCommit(role, event.currentTarget.value);
         }}
       />
     </label>

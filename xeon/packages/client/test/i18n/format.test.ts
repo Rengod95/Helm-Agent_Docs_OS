@@ -41,6 +41,16 @@ test("number, date and time use Intl and UTC", () => {
   expect(fmt.format("en", "{d, time, short}", { d: when })).toBe("11:30 PM");
 });
 
+test("compact and usd number styles follow the locale", () => {
+  expect(fmt.format("en", "{n, number, compact}", { n: 13_100 })).toBe("13.1K");
+  expect(fmt.format("en", "{n, number, compact}", { n: 950 })).toBe("950");
+  expect(fmt.format("ko", "{n, number, compact}", { n: 13_100 })).toBe("1.3만");
+  expect(fmt.format("en", "{c, number, usd}", { c: 0.0017 })).toBe("$0.0017");
+  expect(fmt.format("en", "{c, number, usd}", { c: 0.03 })).toBe("$0.03");
+  expect(fmt.format("en", "{c, number, usd}", { c: 0 })).toBe("$0.00");
+  expect(fmt.format("en", "{c, number, usd}", { c: 0.00001 })).toBe("< $0.0001");
+});
+
 test("apostrophe quotes only before a brace", () => {
   expect(fmt.format("en", "don't", {})).toBe("don't");
   expect(fmt.format("en", "use '{'braces'}' and it''s", {})).toBe("use {braces} and it's");

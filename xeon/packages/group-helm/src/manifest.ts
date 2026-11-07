@@ -10,7 +10,7 @@ import { helmUi } from "./ui-decl.ts";
 export const helmManifest: GroupManifest = defineManifest({
   schemaVersion: 2,
   name: "helm",
-  version: "0.1.0",
+  version: "0.1.1",
   displayName: "Helm",
   description: "탐구, 새 관점, 모르는 분야 지식을 현재 작업에 적용하는 플러그인 그룹",
   entry: "./dist/index.js",

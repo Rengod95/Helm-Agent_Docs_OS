@@ -45,3 +45,18 @@ export function helmInquiryDoc(inquiryId: string | null): unknown {
     inquiries: { inquiries: [] },
   };
 }
+
+/** helm 화면 문구 카탈로그(`locales/ko.json`). 키가 풀린 한국어 화면을 시험하려고 읽는다 */
+export function helmKoMessages(): Readonly<Record<string, string>> {
+  const json: unknown = JSON.parse(
+    readFileSync(join(import.meta.dir, "../../../../group-helm/locales/ko.json"), "utf8"),
+  );
+  if (typeof json !== "object" || json === null || Array.isArray(json)) {
+    throw new Error("group-helm locales/ko.json is not an object");
+  }
+  return Object.fromEntries(
+    Object.entries(json).flatMap(([key, value]) =>
+      typeof value === "string" ? [[key, value]] : [],
+    ),
+  );
+}

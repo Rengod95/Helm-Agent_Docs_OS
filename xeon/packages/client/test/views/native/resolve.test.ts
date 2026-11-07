@@ -5,15 +5,20 @@ import {
   type ResolvedNode,
   type ResolvedTree,
 } from "../../../src/views/native/resolve.ts";
-import { helmInquiryDoc, loadHelmTree } from "./fixtures.ts";
+import { helmInquiryDoc, helmKoMessages, loadHelmTree } from "./fixtures.ts";
 
 // 2026-11-03T00:00:00Z
 const NOW = Date.UTC(2026, 10, 3, 0, 0, 0);
 
-const input = (doc: unknown): { doc: unknown; locale: string; nowMs: number } => ({
+// helm 화면의 글은 메시지 키라서, 아래 기대값이 한국어 문장 그대로 남도록 그 문장 표를 "en" 자리에 싣는다(키 풀이만 시험한다)
+const MESSAGES = { en: helmKoMessages() };
+const input = (
+  doc: unknown,
+): { doc: unknown; locale: string; nowMs: number; messages: typeof MESSAGES } => ({
   doc,
   locale: "en-US",
   nowMs: NOW,
+  messages: MESSAGES,
 });
 
 const text = (value: string): ResolvedNode => ({

@@ -58,8 +58,8 @@ const PREVIEW_CHARS = 400;
 /** 한 행의 읽기 열(시안 READ_WIDTH)과 행 사이 간격(시안 로그의 gap-4). 행 사이 간격은 아래쪽 pb-4가 맡는다 */
 // 한 열 격자는 열 폭을 minmax(0,1fr)로 고정한다. 그렇지 않으면 긴 도구 인자 한 줄이 열을 대화 칸 밖으로 민다
 const ROW_CLASS = "mx-auto grid w-full min-w-0 max-w-184 grid-cols-[minmax(0,1fr)] gap-2 px-3 pb-4";
-/** 글. 줄바꿈을 살리고 붙은 긴 토큰도 열 안에서 줄을 넘긴다 */
-const TEXT_CLASS = "m-0 whitespace-pre-wrap [overflow-wrap:anywhere]";
+/** 글. 줄바꿈을 살리고, 붙은 긴 토큰(파일 이름 등)은 쉴 곳(공백, 하이픈, 점 뒤)에서 먼저 줄을 바꾸며 그래도 넘칠 때만 열 끝에서 꺾는다(글자 사이 강제 분리 대신) */
+const TEXT_CLASS = "m-0 whitespace-pre-wrap [overflow-wrap:break-word] [word-break:normal]";
 /** 보조 글(생각, 확장 종류, 출처). 본문보다 작고 흐리다 */
 const QUIET_CLASS = "m-0 text-ui-sm text-text-tertiary";
 /** 실패·중단 줄. 행 맨 아래에 한 줄로 둔다 */

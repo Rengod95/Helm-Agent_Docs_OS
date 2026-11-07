@@ -1,9 +1,18 @@
 import type { ToolsWebView, WebSection, WebToolRow } from "@fresnel/client";
+import { t } from "@fresnel/client/i18n";
 
 // 도구와 웹 화면(P-12)의 순수 모델. SearXNG는 없앴다([결정: 2026-11-04 사용자 B15]): 엔진과 클라이언트에는 SearXNG 코드가 없지만,
 // 화면이 받는 값에 그 id나 이름이 있으면 행과 순서에서 뺀다. 설정 값이 SearXNG를 고정했으면 자동 선택으로 보인다.
 
 const REMOVED_PROVIDER = /searxng/i;
+
+/** 엔진 내장 검색(모델 제공자 래퍼)의 id. 이름은 엔진이 한 가지 글로만 보내므로 화면이 현재 로케일 문구로 바꾼다 */
+const BUILTIN_WRAPPER_ID = "builtin-wrapper";
+
+/** 행의 표시 이름. 내장 검색은 로케일 문구, 나머지는 provider가 낸 이름 그대로다 */
+export function providerNameOf(row: Pick<WebToolRow, "id" | "displayName">): string {
+  return row.id === BUILTIN_WRAPPER_ID ? t("desktop.firstRun.search.builtin") : row.displayName;
+}
 
 /** 화면에서 없애는 provider인가. id와 표시 이름 어느 쪽이든 SearXNG를 가리키면 참이다 */
 export function isRemovedProvider(row: Pick<WebToolRow, "id" | "displayName">): boolean {

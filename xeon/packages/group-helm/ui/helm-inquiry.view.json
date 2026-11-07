@@ -4,7 +4,7 @@
     {
       "type": "Section",
       "props": {
-        "title": "현재 탐구"
+        "title": "helm.current.title"
       },
       "children": [
         {
@@ -19,35 +19,35 @@
               "type": "Text",
               "props": {
                 "step": "idle",
-                "text": "대기"
+                "text": "helm.phase.idle"
               }
             },
             {
               "type": "Text",
               "props": {
                 "step": "diverge",
-                "text": "발산"
+                "text": "helm.phase.diverge"
               }
             },
             {
               "type": "Text",
               "props": {
                 "step": "explore",
-                "text": "다른 분야 탐색"
+                "text": "helm.phase.explore"
               }
             },
             {
               "type": "Text",
               "props": {
                 "step": "converge",
-                "text": "수렴"
+                "text": "helm.phase.converge"
               }
             },
             {
               "type": "Text",
               "props": {
                 "step": "apply",
-                "text": "적용"
+                "text": "helm.phase.apply"
               }
             }
           ]
@@ -63,7 +63,7 @@
             {
               "type": "Badge",
               "props": {
-                "text": "탐구하는 중이에요"
+                "text": "helm.lease.held"
               },
               "when": {
                 "path": "/status/lease",
@@ -74,7 +74,7 @@
             {
               "type": "Badge",
               "props": {
-                "text": "시작을 기다리는 중이에요"
+                "text": "helm.lease.waiting"
               },
               "when": {
                 "path": "/status/lease",
@@ -85,7 +85,7 @@
             {
               "type": "Badge",
               "props": {
-                "text": "쉬는 중이에요"
+                "text": "helm.lease.none"
               },
               "when": {
                 "path": "/status/lease",
@@ -96,7 +96,7 @@
             {
               "type": "Meter",
               "props": {
-                "label": "발견 수",
+                "label": "helm.findings.count",
                 "max": 24
               },
               "bind": {
@@ -128,7 +128,7 @@
                 {
                   "type": "Badge",
                   "props": {
-                    "text": "대기"
+                    "text": "helm.lens.pending"
                   },
                   "when": {
                     "path": "/lens/status",
@@ -139,7 +139,7 @@
                 {
                   "type": "Badge",
                   "props": {
-                    "text": "진행 중"
+                    "text": "helm.lens.running"
                   },
                   "when": {
                     "path": "/lens/status",
@@ -150,7 +150,7 @@
                 {
                   "type": "Badge",
                   "props": {
-                    "text": "끝남"
+                    "text": "helm.lens.done"
                   },
                   "when": {
                     "path": "/lens/status",
@@ -161,7 +161,7 @@
                 {
                   "type": "Badge",
                   "props": {
-                    "text": "실패"
+                    "text": "helm.lens.failed"
                   },
                   "when": {
                     "path": "/lens/status",
@@ -172,7 +172,7 @@
                 {
                   "type": "Badge",
                   "props": {
-                    "text": "건너뜀"
+                    "text": "helm.lens.skipped"
                   },
                   "when": {
                     "path": "/lens/status",
@@ -187,7 +187,7 @@
         {
           "type": "EmptyState",
           "props": {
-            "text": "진행 중인 탐구가 없습니다"
+            "text": "helm.empty.noInquiry"
           },
           "when": {
             "path": "/status/inquiryId",
@@ -200,7 +200,7 @@
     {
       "type": "Section",
       "props": {
-        "title": "발견"
+        "title": "helm.findings"
       },
       "when": {
         "path": "/status/inquiryId",
@@ -229,7 +229,7 @@
                 {
                   "type": "Badge",
                   "props": {
-                    "text": "높음"
+                    "text": "helm.severity.high"
                   },
                   "when": {
                     "path": "/finding/confidence",
@@ -240,7 +240,7 @@
                 {
                   "type": "Badge",
                   "props": {
-                    "text": "보통"
+                    "text": "helm.severity.medium"
                   },
                   "when": {
                     "path": "/finding/confidence",
@@ -251,7 +251,7 @@
                 {
                   "type": "Badge",
                   "props": {
-                    "text": "낮음"
+                    "text": "helm.severity.low"
                   },
                   "when": {
                     "path": "/finding/confidence",
@@ -268,7 +268,7 @@
     {
       "type": "Section",
       "props": {
-        "title": "지난 탐구"
+        "title": "helm.past.title"
       },
       "children": [
         {
@@ -292,7 +292,7 @@
                 {
                   "type": "Badge",
                   "props": {
-                    "text": "시작 대기"
+                    "text": "helm.inquiry.queued"
                   },
                   "when": {
                     "path": "/inquiry/status",
@@ -303,7 +303,7 @@
                 {
                   "type": "Badge",
                   "props": {
-                    "text": "진행 중"
+                    "text": "helm.inquiry.running"
                   },
                   "when": {
                     "path": "/inquiry/status",
@@ -314,7 +314,7 @@
                 {
                   "type": "Badge",
                   "props": {
-                    "text": "끝남"
+                    "text": "helm.inquiry.done"
                   },
                   "when": {
                     "path": "/inquiry/status",
@@ -325,7 +325,7 @@
                 {
                   "type": "Badge",
                   "props": {
-                    "text": "적용됨"
+                    "text": "helm.outcome.applied"
                   },
                   "when": {
                     "path": "/inquiry/outcome",
@@ -336,7 +336,7 @@
                 {
                   "type": "Badge",
                   "props": {
-                    "text": "발견 없음"
+                    "text": "helm.outcome.empty"
                   },
                   "when": {
                     "path": "/inquiry/outcome",
@@ -347,7 +347,7 @@
                 {
                   "type": "Badge",
                   "props": {
-                    "text": "멈춤"
+                    "text": "helm.outcome.stopped"
                   },
                   "when": {
                     "path": "/inquiry/outcome",
@@ -358,7 +358,7 @@
                 {
                   "type": "Badge",
                   "props": {
-                    "text": "상한에 걸림"
+                    "text": "helm.outcome.limit"
                   },
                   "when": {
                     "path": "/inquiry/outcome",
@@ -369,7 +369,7 @@
                 {
                   "type": "Badge",
                   "props": {
-                    "text": "실패"
+                    "text": "helm.outcome.failed"
                   },
                   "when": {
                     "path": "/inquiry/outcome",
@@ -387,7 +387,7 @@
       "type": "Form",
       "props": {
         "command": "helm start",
-        "submitLabel": "탐구 시작"
+        "submitLabel": "helm.start.submit"
       },
       "when": {
         "path": "/status/lease",
@@ -399,8 +399,8 @@
           "type": "TextField",
           "props": {
             "name": "arg",
-            "label": "주제",
-            "placeholder": "비우면 마지막 입력에서 뽑은 낱말로 정해요",
+            "label": "helm.topic.label",
+            "placeholder": "helm.topic.placeholder",
             "maxLength": 300
           }
         }
@@ -409,7 +409,7 @@
     {
       "type": "Button",
       "props": {
-        "label": "탐구 멈춤",
+        "label": "helm.stop.label",
         "command": "helm stop"
       },
       "when": {

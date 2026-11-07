@@ -29,6 +29,7 @@ import {
 } from "@caustic/react";
 import { X } from "@caustic/react/icons";
 import { useState, type ReactNode } from "react";
+import { isCommitEnter } from "../ime-enter.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
 import { IssueList } from "./compose-check.tsx";
 import { NODE_TEXT } from "./compose-text.ts";
@@ -127,7 +128,7 @@ function TextField(props: {
           if (text.trim() !== props.value) props.onCommit(text);
         }}
         onKeyDown={(e) => {
-          if (e.key === "Enter") e.currentTarget.blur();
+          if (isCommitEnter(e)) e.currentTarget.blur();
         }}
       />
     </Field>

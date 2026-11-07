@@ -373,7 +373,9 @@ describe("advanced tab groups and option labels", () => {
     setActiveLocale("en");
     try {
       expect(optionLabelOf("l4.desktop.window.closeBehavior", "tray")).toBe("Keep in tray");
-      expect(optionLabelOf("l4.ui.locale", "ko")).toBe("Korean");
+      expect(optionLabelOf("l4.ui.locale", "ko")).toBe("한국어");
+      expect(optionLabelOf("l4.ui.locale", "en")).toBe("English");
+      expect(optionLabelOf("l4.ui.locale", "auto")).toBe("Follow system");
       expect(columnLabelOf("l1.models.retry", "baseDelayMs")).toBe("Base delay (ms)");
     } finally {
       setActiveLocale(previous);

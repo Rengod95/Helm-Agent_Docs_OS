@@ -13,6 +13,8 @@ export type StatusItemRecord = {
   text: string;
   tone?: "normal" | "busy" | "warn" | "error";
   order?: number;
+  textKey?: string;
+  textArgs?: Record<string, string | number>;
 };
 const statusItemShape = Type.Object(
   {
@@ -27,6 +29,13 @@ const statusItemShape = Type.Object(
       ]),
     ),
     order: Type.Optional(Type.Integer({ minimum: 0, maximum: 999 })),
+    textKey: Type.Optional(Type.String({ pattern: "^[a-z][a-zA-Z0-9.]{0,79}$" })),
+    textArgs: Type.Optional(
+      Type.Record(
+        Type.String({ pattern: "^[a-z][a-zA-Z0-9]{0,31}$" }),
+        Type.Union([Type.String({ maxLength: 120 }), Type.Number()]),
+      ),
+    ),
   },
   { additionalProperties: false },
 );

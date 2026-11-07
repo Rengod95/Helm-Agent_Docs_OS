@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { setActiveLocale } from "@fresnel/client/i18n";
 import {
   attachDisabledReason,
   base64Of,
@@ -62,10 +63,15 @@ describe("failureOf", () => {
 });
 
 describe("sizes", () => {
-  test("formatBytes uses 1024 steps", () => {
-    expect(formatBytes(512)).toBe("512 B");
-    expect(formatBytes(1536)).toBe("1.5 KB");
+  test("formatBytes uses 1024 steps and the locale's number and unit names", () => {
+    setActiveLocale("en");
+    expect(formatBytes(512)).toBe("512 byte");
+    expect(formatBytes(1536)).toBe("1.5 kB");
     expect(formatBytes(20971520)).toBe("20 MB");
+    expect(formatBytes(1_300_000_000)).toBe("1.2 GB");
+    setActiveLocale("ko");
+    expect(formatBytes(1536)).toBe("1.5kB");
+    expect(formatBytes(512)).toBe("512byte");
   });
 
   test("exceedsLimit is false without a known limit and true only above it", () => {
@@ -152,7 +158,9 @@ describe("sendBlockedText", () => {
       parts: null,
     });
     expect(sendBlockedText([chip({}), failed])).toContain("big.bin");
-    expect(sendBlockedText([failed])).toContain("1 KB");
+    setActiveLocale("en");
+    expect(sendBlockedText([failed])).toContain("1 kB");
+    setActiveLocale("ko");
   });
   test("an upload in flight blocks with its own sentence, ready chips do not block", () => {
     expect(sendBlockedText([chip({ status: "uploading", parts: null })])).not.toBeNull();
