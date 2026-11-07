@@ -21,8 +21,11 @@ import {
   installReduce,
   accessIsEmpty,
   bridgeAccessOf,
+  hooksOf,
   warningsOf,
   type BridgeAccess,
+  type InstallHook,
+  type InstallHookPower,
   type InstallFailure,
   type InstallReason,
   type InstallReasonKey,
@@ -59,6 +62,68 @@ const REASON_TEXT: Readonly<Record<InstallReasonKey, MessageId>> = {
   other: "desktop.install.reason.other",
 };
 
+/** 훅 이름의 사람 말 사건 이름. 훅 선언 46개 전부다 */
+const HOOK_EVENT_TEXT: Readonly<Record<string, MessageId>> = {
+  "input.user.before": "desktop.install.hook.event.input.user.before",
+  "input.bash.before": "desktop.install.hook.event.input.bash.before",
+  "input.agent.before": "desktop.install.hook.event.input.agent.before",
+  "request.context.before": "desktop.install.hook.event.request.context.before",
+  "request.system.before": "desktop.install.hook.event.request.system.before",
+  "request.cache.before": "desktop.install.hook.event.request.cache.before",
+  "request.provider.before": "desktop.install.hook.event.request.provider.before",
+  "request.headers.before": "desktop.install.hook.event.request.headers.before",
+  "request.provider.after": "desktop.install.hook.event.request.provider.after",
+  "request.stream": "desktop.install.hook.event.request.stream",
+  "request.model.after": "desktop.install.hook.event.request.model.after",
+  "request.thinking.after": "desktop.install.hook.event.request.thinking.after",
+  "tool.call.before": "desktop.install.hook.event.tool.call.before",
+  "tool.result": "desktop.install.hook.event.tool.result",
+  "tool.execution.before": "desktop.install.hook.event.tool.execution.before",
+  "tool.execution.update": "desktop.install.hook.event.tool.execution.update",
+  "tool.execution.after": "desktop.install.hook.event.tool.execution.after",
+  "boundary.turn.before": "desktop.install.hook.event.boundary.turn.before",
+  "boundary.step.before": "desktop.install.hook.event.boundary.step.before",
+  "boundary.message.before": "desktop.install.hook.event.boundary.message.before",
+  "boundary.message.update": "desktop.install.hook.event.boundary.message.update",
+  "boundary.message.after": "desktop.install.hook.event.boundary.message.after",
+  "boundary.step.after": "desktop.install.hook.event.boundary.step.after",
+  "boundary.settle.before": "desktop.install.hook.event.boundary.settle.before",
+  "boundary.turn.after": "desktop.install.hook.event.boundary.turn.after",
+  "boundary.settle.after": "desktop.install.hook.event.boundary.settle.after",
+  "thread.trust.before": "desktop.install.hook.event.thread.trust.before",
+  "thread.resources": "desktop.install.hook.event.thread.resources",
+  "thread.mcp.after": "desktop.install.hook.event.thread.mcp.after",
+  "thread.start": "desktop.install.hook.event.thread.start",
+  "thread.info.after": "desktop.install.hook.event.thread.info.after",
+  "thread.switch.before": "desktop.install.hook.event.thread.switch.before",
+  "thread.fork.before": "desktop.install.hook.event.thread.fork.before",
+  "thread.compact.before": "desktop.install.hook.event.thread.compact.before",
+  "thread.compact.after": "desktop.install.hook.event.thread.compact.after",
+  "thread.compact.failed": "desktop.install.hook.event.thread.compact.failed",
+  "thread.tree.before": "desktop.install.hook.event.thread.tree.before",
+  "thread.tree.after": "desktop.install.hook.event.thread.tree.after",
+  "thread.shutdown": "desktop.install.hook.event.thread.shutdown",
+  "thread.prompt.before": "desktop.install.hook.event.thread.prompt.before",
+  "thread.prompt.after": "desktop.install.hook.event.thread.prompt.after",
+  "guard.model.before": "desktop.install.hook.event.guard.model.before",
+  "guard.tool.before": "desktop.install.hook.event.guard.tool.before",
+  "guard.output.before": "desktop.install.hook.event.guard.output.before",
+  "lifecycle.agent.settled": "desktop.install.hook.event.lifecycle.agent.settled",
+  "lifecycle.lease.rejected": "desktop.install.hook.event.lifecycle.lease.rejected",
+};
+
+const HOOK_POWER_TEXT: Readonly<Record<InstallHookPower, MessageId>> = {
+  block: "desktop.install.hook.power.block",
+  modify: "desktop.install.hook.power.modify",
+  observe: "desktop.install.hook.power.observe",
+  unknown: "desktop.install.hook.power.unknown",
+};
+
+function hookEventText(id: string): string {
+  const key = HOOK_EVENT_TEXT[id];
+  return key === undefined ? id : t(key);
+}
+
 function warningText(warning: InstallWarning): string {
   switch (warning.kind) {
     case "shell":
@@ -71,6 +136,10 @@ function warningText(warning: InstallWarning): string {
       return t("desktop.install.warn.tools", { tools: warning.tools.join(", ") });
     case "untrusted":
       return t("desktop.install.warn.untrusted");
+    case "toolHooks":
+      return t("desktop.install.warn.toolHooks", {
+        hooks: warning.hooks.map(hookEventText).join(", "),
+      });
     case "checks":
       return t("desktop.install.warn.checks", { count: warning.count });
     default:
@@ -313,6 +382,7 @@ export function InstallDialog(props: {
                 {t("desktop.install.parts.hooks", { count: flow.preview.hooks.length })}
                 {flow.preview.drives ? ` · ${t("desktop.install.parts.drives")}` : ""}
               </span>
+              <InstallHookList hooks={hooksOf(flow.preview)} />
               <span className="text-ui-dense text-text-secondary">
                 {t("desktop.install.parts.screens", { count: flow.preview.screens.length })}
               </span>
@@ -418,5 +488,29 @@ function InstallDoneNote(props: { readonly done: InstallDone }): ReactNode {
       {t(NOT_LOADED_TEXT[done.reason])}
       {done.detail === null ? "" : ` ${done.detail}`}
     </Alert>
+  );
+}
+
+/** 확인 화면의 훅 목록: 훅마다 사건 이름과 할 수 있는 일 한 줄. 도구 호출을 막을 수 있는 훅은 진하게 보인다 */
+export function InstallHookList(props: { readonly hooks: readonly InstallHook[] }): ReactNode {
+  return (
+    <>
+      {props.hooks.map((hook) => (
+        <span
+          key={hook.id}
+          data-blocks-tools={hook.blocksTools ? "true" : undefined}
+          className={
+            hook.blocksTools
+              ? "text-ui-dense font-medium text-text-primary"
+              : "text-ui-xs text-text-tertiary"
+          }
+        >
+          {t("desktop.install.hook.line", {
+            event: hookEventText(hook.id),
+            power: t(HOOK_POWER_TEXT[hook.power]),
+          })}
+        </span>
+      ))}
+    </>
   );
 }

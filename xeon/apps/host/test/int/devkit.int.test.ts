@@ -174,7 +174,7 @@ realTest(
       expect(reinstalled).toMatchObject({ appliesAt: "nextStepBoundary", needsReload: true });
       const versions = await session.connection.request("ext.versions", { name: NAME });
       expect(versions.versions.map((entry) => `${entry.version}:${entry.source}`)).toContain(
-        "0.1.0:authored",
+        "0.1.0:user",
       );
       expect(await session.connection.request("ext.reload", { name: NAME })).toEqual({
         appliesAt: "now",

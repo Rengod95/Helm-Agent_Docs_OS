@@ -1,9 +1,9 @@
 // 버전 탭 그림(§6.24.1): 전체, 대체(기본·사용자 확장), 오류. 그림은 `VersionsPanel`이 `view`대로 그린다.
 import { describe, expect, test } from "bun:test";
-import { t } from "@fresnel/client/i18n";
+import { activeLocale, t } from "@fresnel/client/i18n";
 import { versionsViewOf, type VersionsView } from "@fresnel/client/workbench";
 import { renderToString } from "react-dom/server";
-import { VersionsPanel } from "../../../src/views/workbench/versions-tab.tsx";
+import { installedAtText, VersionsPanel } from "../../../src/views/workbench/versions-tab.tsx";
 
 const render = (view: VersionsView, locked = false): string =>
   renderToString(<VersionsPanel view={view} locked={locked} onRollback={() => undefined} />);
@@ -127,5 +127,22 @@ describe("버전 탭 그림", () => {
     expect(textOf(html)).toBe(t("desktop.workbench.detail.load.failed"));
     expect(valuesOf(html)).toEqual([]);
     expect(html).not.toContain("<button");
+  });
+});
+
+describe("설치 시각 글", () => {
+  test("ISO 시각은 로케일의 날짜와 시간 형식이 되고 원문 ISO는 보이지 않는다", () => {
+    const text = installedAtText("2026-11-06T22:50:31.319Z");
+    expect(text).toBe(
+      new Intl.DateTimeFormat(activeLocale(), { dateStyle: "medium", timeStyle: "short" }).format(
+        new Date("2026-11-06T22:50:31.319Z"),
+      ),
+    );
+    expect(text).not.toContain("T22:50");
+    expect(text).not.toContain(".319Z");
+  });
+
+  test("읽을 수 없는 값은 그대로 둔다", () => {
+    expect(installedAtText("t3")).toBe("t3");
   });
 });

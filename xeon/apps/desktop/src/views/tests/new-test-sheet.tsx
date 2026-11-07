@@ -28,9 +28,18 @@ import {
 } from "@caustic/react";
 import { Lock } from "@caustic/react/icons";
 import type { ExtTestRunParams } from "@fresnel/contracts/wire";
-import { useId, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { InfoTip } from "../craft/info-tip.tsx";
 import { NEW_KIND_TEXT, newTestErrorTextOf } from "./tests-text.ts";
+
+/** 화면에 보일 입력 오류. 칸을 건드렸거나(바꾸거나 벗어남) 보내기를 눌렀을 때만 보인다. 처음 열었을 때는 빨간 오류가 없다 */
+export function visibleErrorsOf<E extends { readonly field: NewTestField }>(
+  errors: readonly E[],
+  touched: readonly NewTestField[],
+  submitted: boolean,
+): readonly E[] {
+  return submitted ? errors : errors.filter((error) => touched.includes(error.field));
+}
 
 const MUTED = "m-0 text-ui-sm text-text-tertiary";
 
@@ -56,7 +65,8 @@ export function NewTestSheet(props: NewTestSheetProps): ReactNode {
   const { draft, devMode, sending, targetNames, failure, handlers } = props;
   const formId = useId();
   const plan = draft === null ? null : submitPlanOf(draft, devMode);
-  const canStart = plan !== null && plan.kind === "run";
+  // 입력이 모자란 채로도 누를 수 있다: 누르면 빠진 칸의 오류가 보인다. 잠김과 미연결 종류만 막는다
+  const canStart = plan !== null && (plan.kind === "run" || plan.kind === "invalid");
   return (
     <Sheet
       size="sm"
@@ -121,7 +131,12 @@ export function NewTestForm(props: {
   const targetNames = props.targetNames ?? [];
   const items = newTestItemsOf(devMode);
   const current = newTestItemOf(draft.kind, devMode);
-  const errors = draftErrorsOf(draft);
+  const [touched, setTouched] = useState<readonly NewTestField[]>([]);
+  const [submitted, setSubmitted] = useState(false);
+  const errors = visibleErrorsOf(draftErrorsOf(draft), touched, submitted);
+  const touch = (field: NewTestField): void => {
+    setTouched((prev) => (prev.includes(field) ? prev : [...prev, field]));
+  };
   const errorOf = (field: NewTestField): string | undefined => {
     const found = errors.find((error) => error.field === field);
     return found === undefined ? undefined : t(newTestErrorTextOf(found));
@@ -133,6 +148,10 @@ export function NewTestForm(props: {
       className="grid min-w-0 gap-4"
       onSubmit={(event) => {
         event.preventDefault();
+        if (draftErrorsOf(draft).length > 0) {
+          setSubmitted(true);
+          return;
+        }
         props.onSubmit();
       }}
     >
@@ -182,7 +201,11 @@ export function NewTestForm(props: {
             className="font-mono"
             containerClassName="min-w-0 flex-1"
             onValueChange={(value) => {
+              touch("target");
               onChange({ ...draft, target: value });
+            }}
+            onBlur={() => {
+              touch("target");
             }}
           />
           <InfoTip text={t("desktop.tests.sheet.targetHint")} />
@@ -197,6 +220,7 @@ export function NewTestForm(props: {
                 variant={draft.target === name ? "soft" : "outline"}
                 className="font-mono"
                 onClick={() => {
+                  touch("target");
                   onChange({ ...draft, target: name });
                 }}
               >
@@ -216,7 +240,11 @@ export function NewTestForm(props: {
               className="resize-none"
               containerClassName="min-w-0 flex-1"
               onChange={(event) => {
+                touch("prompt");
                 onChange({ ...draft, prompt: event.currentTarget.value });
+              }}
+              onBlur={() => {
+                touch("prompt");
               }}
             />
             <InfoTip text={t("desktop.tests.sheet.promptHint")} />
@@ -231,7 +259,11 @@ export function NewTestForm(props: {
             value={draft.maxCommits}
             containerClassName="w-36"
             onValueChange={(value) => {
+              touch("maxCommits");
               onChange({ ...draft, maxCommits: value });
+            }}
+            onBlur={() => {
+              touch("maxCommits");
             }}
           />
         </Field>
@@ -244,7 +276,11 @@ export function NewTestForm(props: {
             value={draft.runs}
             containerClassName="w-36"
             onValueChange={(value) => {
+              touch("runs");
               onChange({ ...draft, runs: value });
+            }}
+            onBlur={() => {
+              touch("runs");
             }}
           />
         </Field>

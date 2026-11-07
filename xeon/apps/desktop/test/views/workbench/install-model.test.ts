@@ -9,6 +9,7 @@ import {
   accessIsEmpty,
   applyInstalled,
   bridgeAccessOf,
+  hooksOf,
   INITIAL_INSTALL_FLOW,
   pickOutcomeOf,
   installDoneOf,
@@ -199,6 +200,40 @@ describe("미리 보기 경고", () => {
       { kind: "tools", tools: ["read_file"] },
       { kind: "untrusted" },
       { kind: "checks", count: 1 },
+    ]);
+  });
+});
+
+describe("설치 확인의 훅 목록", () => {
+  const HOOKED: InstallPreview = {
+    ...PREVIEW,
+    hooks: ["boundary.settle.after", "tool.result", "tool.call.before", "weird.hook"],
+  };
+
+  test("훅마다 할 수 있는 일을 막기, 고치기, 보기, 알 수 없음으로 가르고 막을 수 있는 것을 앞에 둔다", () => {
+    expect(hooksOf(HOOKED)).toEqual([
+      { id: "tool.call.before", power: "block", blocksTools: true },
+      { id: "tool.result", power: "modify", blocksTools: false },
+      { id: "boundary.settle.after", power: "observe", blocksTools: false },
+      { id: "weird.hook", power: "unknown", blocksTools: false },
+    ]);
+  });
+
+  test("도구 호출을 막는 훅은 경고가 되어 권한 없음 문구를 대신한다", () => {
+    expect(warningsOf(HOOKED)).toEqual([{ kind: "toolHooks", hooks: ["tool.call.before"] }]);
+    expect(accessIsEmpty(HOOKED)).toBe(false);
+  });
+
+  test("도구를 막지 않는 훅만 있으면 경고가 없다", () => {
+    const quiet = { ...PREVIEW, hooks: ["thread.switch.before", "tool.result"] };
+    expect(hooksOf(quiet).map((h) => h.blocksTools)).toEqual([false, false]);
+    expect(warningsOf(quiet)).toEqual([]);
+    expect(accessIsEmpty(quiet)).toBe(true);
+  });
+
+  test("guard.tool.before도 도구를 막는다", () => {
+    expect(warningsOf({ ...PREVIEW, hooks: ["guard.tool.before"] })).toEqual([
+      { kind: "toolHooks", hooks: ["guard.tool.before"] },
     ]);
   });
 });
