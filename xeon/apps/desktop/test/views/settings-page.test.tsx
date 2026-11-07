@@ -877,3 +877,53 @@ describe("shadowed winner in the page", () => {
     );
   });
 });
+
+describe("MCP servers section", () => {
+  const MCP = defOf(
+    "l2.mcp.servers",
+    "tools",
+    "table",
+    { type: "object" },
+    {},
+    {
+      order: 300,
+      label: "MCP servers",
+    },
+  );
+  const IMPORT = defOf(
+    "l2.mcp.importMcpJson",
+    "tools",
+    "toggle",
+    { type: "boolean" },
+    {},
+    {
+      order: 301,
+      label: "Import .mcp.json",
+    },
+  );
+  const SETTINGS_VALUES = [
+    settingOf("l2.mcp.servers", {}),
+    settingOf("l2.mcp.importMcpJson", true),
+  ];
+
+  test("the tools tab draws the section in place of the generic table row", () => {
+    const view = viewOf([MCP, IMPORT], SETTINGS_VALUES);
+    const out = html(propsOf({ view, tab: "tools", mcpPanel: <p>MCP PANEL</p> }));
+    expect(out).toContain("MCP PANEL");
+    expect(out).not.toContain('data-key="l2.mcp.servers"');
+    expect(out).toContain('data-key="l2.mcp.importMcpJson"');
+  });
+
+  test("a search for the table's name finds the section and not the table row", () => {
+    const view = viewOf([MCP, IMPORT], SETTINGS_VALUES);
+    const out = html(propsOf({ view, query: "MCP servers", mcpPanel: <p>MCP PANEL</p> }));
+    expect(out).toContain("MCP PANEL");
+    expect(out).not.toContain('data-key="l2.mcp.servers"');
+  });
+
+  test("the section is drawn on the tools tab only", () => {
+    const view = viewOf([MCP, IMPORT], SETTINGS_VALUES);
+    const out = html(propsOf({ view, tab: "providers", mcpPanel: <p>MCP PANEL</p> }));
+    expect(out).not.toContain("MCP PANEL");
+  });
+});

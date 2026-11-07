@@ -46,6 +46,7 @@ import { createSecretCommands } from "./secrets.ts";
 import { createStorageCommands } from "./storage.ts";
 import { createSettingsCommands } from "./settings.ts";
 import { createWebCommands } from "./web.ts";
+import { createMcpCommands } from "./mcp.ts";
 import { createProposalCommands } from "./proposals.ts";
 import { createWorkCommands } from "./work.ts";
 import { createReviewCommands } from "./review.ts";
@@ -471,6 +472,7 @@ export function createCommands(deps: CommandDeps): Commands {
     storage: createStorageCommands({ ipc: deps.ipc, engineSwitch: deps.engineSwitch }),
     settings: createSettingsCommands({ session, ui, local: deps.local }),
     web: createWebCommands(withConnection),
+    mcp: createMcpCommands(withConnection, withWriteConnection),
     proposals: createProposalCommands(withConnection, withWriteConnection),
     work: createWorkCommands(withConnection, withWriteConnection),
     review: createReviewCommands(withConnection),

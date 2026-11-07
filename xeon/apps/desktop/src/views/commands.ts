@@ -38,6 +38,8 @@ import type {
   HooksOrderPreviewResult,
   HooksOrderResetResult,
   HooksOrderSetResult,
+  McpServerAction,
+  McpServerRow,
   Profile,
   ProfileApplyResult,
   ProfileGetResult,
@@ -445,6 +447,19 @@ export interface SetupCommands {
 export interface WebCommands {
   providers(): Promise<Result<ToolsWebView, CommandError>>;
   setOrder(update: OrderUpdate): Promise<Result<null, CommandError>>;
+}
+
+/**
+ * "MCP 서버" 구역(W-15). `servers`와 `serverAction`은 wire 값을 그대로 돌려주고 거울에 넣지 않는다. `setUserTable`은 사용자 범위
+ * `l2.mcp.servers` 표 전체를 `settings.set` 한 번으로 쓴다(값은 호출자가 읽고 고친 표다). 표가 아니라 서버 하나를 고치는 일은 화면이 맡는다.
+ */
+export interface McpCommands {
+  servers(): Promise<Result<readonly McpServerRow[], CommandError>>;
+  serverAction(
+    server: string,
+    action: McpServerAction,
+  ): Promise<Result<McpServerRow, CommandError>>;
+  setUserTable(table: Readonly<Record<string, unknown>>): Promise<Result<null, CommandError>>;
 }
 
 /**
@@ -887,6 +902,8 @@ export interface Commands {
   readonly storage: StorageCommands;
   readonly settings: SettingsCommands;
   readonly web: WebCommands;
+  /** "MCP 서버" 구역(W-15): 서버 목록, 다시 시작과 항상 끄기와 풀기, 사용자 범위 서버 표 쓰기 */
+  readonly mcp: McpCommands;
   readonly proposals: ProposalCommands;
   readonly work: WorkCommands;
   readonly review: ReviewCommands;
