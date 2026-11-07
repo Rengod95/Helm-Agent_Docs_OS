@@ -1805,7 +1805,7 @@
   "desktop.settings.backup.note.ageKey": "Keep the age key separately. On macOS it is in the Keychain item fresnel.age by default; with the file source it is in secrets/age/keys.txt.",
   "desktop.settings.backup.note.excluded": "Not in the backup: settings, secrets, extensions, performance measurement records.",
   "desktop.settings.backup.note.included": "In the backup: conversations and attachments.",
-  "desktop.settings.backup.path.label": "Backup folder path",
+  "desktop.settings.backup.path.label": "Backup target folder",
   "desktop.settings.backup.path.placeholder": "Paste the full path",
   "desktop.settings.backup.running": "Making the backup. Please wait until it finishes…",
   "desktop.settings.backup.title": "Make a backup",

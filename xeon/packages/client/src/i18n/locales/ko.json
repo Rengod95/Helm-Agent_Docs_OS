@@ -1805,7 +1805,7 @@
   "desktop.settings.backup.note.ageKey": "age 키는 따로 보관해야 해요. macOS에서는 기본으로 키체인의 fresnel.age 항목에 있고, 파일 소스를 쓰면 secrets/age/keys.txt에 있어요.",
   "desktop.settings.backup.note.excluded": "백업에 없는 것: 설정, 시크릿, 확장, 성능 측정 기록.",
   "desktop.settings.backup.note.included": "백업에 들어 있는 것: 대화와 첨부 파일.",
-  "desktop.settings.backup.path.label": "백업 폴더 경로",
+  "desktop.settings.backup.path.label": "백업을 만들 폴더 경로",
   "desktop.settings.backup.path.placeholder": "전체 경로를 붙여 넣으세요",
   "desktop.settings.backup.running": "백업을 만드는 중이에요. 끝날 때까지 기다려 주세요…",
   "desktop.settings.backup.title": "백업 만들기",
