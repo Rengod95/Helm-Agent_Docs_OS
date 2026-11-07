@@ -5,6 +5,7 @@ import type { RestoreCommands, RestoreRefusal } from "../../src/views/commands.t
 import {
   createRestoreController,
   restoreBlockOf,
+  sharedRestoreController,
   type RestorePhase,
 } from "../../src/views/pages/settings/settings-restore-model.ts";
 import { RESTORE_REPORT } from "../transport/fake-ipc.ts";
@@ -205,5 +206,32 @@ describe("restoreBlockOf orders the reasons", () => {
     expect(restoreBlockOf({ ...idle, path: "\\\\server\\share" })).toBeNull();
     // 원격이 먼저다
     expect(restoreBlockOf({ ...idle, target: REMOTE, path: "backups" })).toBe("remote");
+  });
+});
+
+describe("the shared controller survives a remount", () => {
+  test("the same port gives the same controller, so a restored report is still there after the screen is rebuilt", async () => {
+    const fake = fakePort();
+    const first = sharedRestoreController(fake.port);
+    first.edit("/backups/export-1");
+    first.ask();
+    await first.confirm();
+    const second = sharedRestoreController(fake.port);
+    expect(second).toBe(first);
+    expect(second.getState().phase).toEqual({ kind: "restored", report: RESTORE_REPORT });
+    expect(sharedRestoreController(fakePort().port)).not.toBe(first);
+  });
+
+  test("a refusal stays in the state and the command ran once", async () => {
+    const fake = fakePort({ reply: err(REFUSAL) });
+    const controller = sharedRestoreController(fake.port);
+    controller.edit("/backups/bad");
+    controller.ask();
+    await controller.confirm();
+    expect(sharedRestoreController(fake.port).getState().phase).toEqual({
+      kind: "refused",
+      refusal: REFUSAL,
+    });
+    expect(fake.calls).toEqual(["/backups/bad"]);
   });
 });
