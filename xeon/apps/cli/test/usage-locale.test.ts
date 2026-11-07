@@ -228,7 +228,7 @@ test("a help topic is English", async () => {
   Creates <folder>/fresnel.sqlite, <folder>/blobs/, and <folder>/manifest.json. The engine is not started.
 
   restore puts an export back in place of the current database. It verifies the backup first, refuses while an engine is running, refuses a backup from a newer version, and keeps the current database in <data directory>/restore-previous/. Run it again if it was interrupted.
-  Secrets are not in the backup: the age key (Keychain item fresnel.age on macOS by default, or secrets/age/keys.txt for the file source) and the config file are not copied. Keep the age key separately.
+  Secrets are not in the backup: the age key (secrets/age/keys.txt in the app data on a new install, or the Keychain item fresnel.age on an older one) and the config file are not copied. Keep the age key separately.
   usage shows the disk use of the data folder and the engine logs. It writes nothing.
   previous-rm deletes the whole copy folder. This cannot be undone.
 `,

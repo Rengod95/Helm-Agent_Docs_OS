@@ -970,7 +970,7 @@ $ fresnel service stop
 $ fresnel db restore ~/backup/fresnel-2026-10-29
 ~/backup/fresnel-2026-10-29에서 데이터베이스를 되돌렸다 (블롭 3개 추가)
 되돌리기 전 데이터베이스는 /home/user/.local/share/fresnel/restore-previous/20261104T001500000Z에 남겼다
-참고: 시크릿은 백업에 들어 있지 않다. age 키는 원래 기기에 있다 (macOS 기본은 키체인의 fresnel.age 항목, 파일 소스를 쓰면 secrets/age/keys.txt). 설정 파일도 백업에 없고 복원은 둘 다 읽거나 복사하지 않는다. 그 키 없이는 저장된 시크릿을 복호화하지 못한다
+참고: 시크릿은 백업에 들어 있지 않다. age 키는 원래 기기에 있다 (새 설치는 앱 데이터의 secrets/age/keys.txt, 예전 설치는 키체인의 fresnel.age 항목일 수 있다). 설정 파일도 백업에 없고 복원은 둘 다 읽거나 복사하지 않는다. 그 키 없이는 저장된 시크릿을 복호화하지 못한다
 ```
 
 #### 4.13.2 저장 공간 보기와 복원 전 사본 지우기 (`db usage`, `db previous-rm`)
