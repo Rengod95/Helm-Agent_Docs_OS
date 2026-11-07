@@ -13,6 +13,7 @@ import {
   healthLoaded,
   hookNoticesLoaded,
   hookNoticesOf,
+  isDetailTab,
   keepOffOf,
   layerGroups,
   listLayersOf,
@@ -29,6 +30,7 @@ import {
   rowOf,
   requestBuilder,
   select,
+  selectDetailTab,
   selectedEntry,
   selectedName,
   setKind,
@@ -226,6 +228,15 @@ describe("workbench model", () => {
     expect(selectedName(opened)).toBeNull();
     expect(selectedEntry(opened)?.name).toBe("web");
     expect(selectedEntry(openDetail(picked, "review"))?.name).toBe("review");
+  });
+
+  test("자세히 보기는 개요 탭으로 열고, 탭을 주면 그 탭으로 열며, 탭을 고르면 그 탭이 된다", () => {
+    expect(INITIAL_WORKBENCH.detailTab).toBe("overview");
+    expect(openDetail(base, "web").detailTab).toBe("overview");
+    const recorded = openDetail(base, "web", "record");
+    expect([recorded.detail, recorded.detailTab]).toEqual(["web", "record"]);
+    expect(selectDetailTab(recorded, "versions").detailTab).toBe("versions");
+    expect([isDetailTab("record"), isDetailTab("nope")]).toEqual([true, false]);
   });
 
   test("목록 갱신은 사라진 확장을 가리키는 선택과 자세히 보기를 풀고 남은 것은 그대로 둔다", () => {

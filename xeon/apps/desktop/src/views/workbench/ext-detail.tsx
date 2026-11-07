@@ -6,7 +6,9 @@ import {
   enabledScopeOf,
   failureRowsOf,
   inspectHookRowsOf,
+  isDetailTab,
   rowOf,
+  type DetailTab,
   type ExtRowVM,
   type FailureRowVM,
   type InspectHookVM,
@@ -396,6 +398,9 @@ function RecordTab(props: { readonly name: string }): ReactNode {
 export function ExtDetail(props: {
   readonly state: WorkbenchState;
   readonly entry: ExtListEntry;
+  /** 지금 고른 탭(스토어 값). 기록 보기처럼 밖에서 연 때 그 탭이다 */
+  readonly tab: DetailTab;
+  readonly onTab: (tab: DetailTab) => void;
   readonly onBack: () => void;
   readonly onToggle: (target: boolean) => void;
   readonly onKeepOn: () => void;
@@ -479,7 +484,14 @@ export function ExtDetail(props: {
       </header>
       <AutoOffNotice entry={entry} onKeepOn={props.onKeepOn} onKeepOff={props.onKeepOff} />
       <PluginScreensLink name={entry.name} />
-      <Tabs defaultValue="overview" variant="soft" size="xs">
+      <Tabs
+        value={props.tab}
+        onValueChange={(value) => {
+          if (isDetailTab(value)) props.onTab(value);
+        }}
+        variant="soft"
+        size="xs"
+      >
         <TabsList>
           <TabsTrigger value="overview">{t("desktop.workbench.detail.tab.overview")}</TabsTrigger>
           <TabsTrigger value="hooks" count={entry.hookCount}>

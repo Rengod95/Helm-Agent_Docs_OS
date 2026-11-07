@@ -98,8 +98,10 @@ function unwrap<T>(result: Result<T, DevkitError>, path: string): T {
  * 확장 이름이 없으면(`ext.remove`) `extension.notFound`, 입출력은 `store.io`다.
  */
 function wireErrorOf(error: DevkitError, path: string): WireError {
+  // 설치 입력이 검사에서 걸린 사유 목록은 같은 `details`에 `reasons`로 싣는다(화면이 사유마다 문장을 고른다)
+  const reasons = error.reasons === undefined ? {} : { reasons: error.reasons };
   const issue = (message: string): WireError =>
-    wireError("jsonrpc.invalidParams", { details: { issues: [{ path, message }] } });
+    wireError("jsonrpc.invalidParams", { details: { issues: [{ path, message }], ...reasons } });
   switch (error.kind) {
     case "safe_mode_active":
       return wireError("extension.safeModeActive", { message: error.message });

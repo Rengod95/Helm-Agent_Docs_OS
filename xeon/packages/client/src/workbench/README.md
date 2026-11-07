@@ -16,6 +16,7 @@
 | `view` | `orbit`(기본), `strata`, `link` | 도구 막대 `setView`. 바꾸면 자세히 보기가 닫힘 |
 | `sel`, `panel` | 캔버스 선택(`Sel`: 에이전트, 층, 플러그인, 그룹, 훅 줄, 내장 슬롯)과 선택 패널이 열렸나. 처음은 `clearSel()` 값 | `pickPlugin`·`pickGroup`·`pickSel`·`clearPick`, 지도·순서·선택 패널 |
 | `detail` | 자세히 보기로 열린 플러그인·그룹 id(루트는 확장 이름). 있으면 캔버스 전체가 그 하나로 바뀜. 선택은 바꾸지 않음 | `openDetail`/`closeDetail` |
+| `detailTab` | 자세히 보기의 탭(`DetailTab`, 처음은 `overview`). `openDetail`의 셋째 인자로 연 때 정하고 탭을 누르면 바뀜. 기록 보기는 `record`로 연다 | `openDetail`(`tab`), `selectDetailTab` |
 | `query`, `kind`, `contrib` | 찾기, 플러그인 종류 거르기(`KindFilter`), 넣어 주는 것 거르기(`Contrib[]`, 토글) | 도구 막대 |
 | `details` | `ext.get` 캐시: 확장 이름 → 결과(매니페스트·훅·기능 엣지) | `detailsLoaded` |
 | `health` | `ext.health` 캐시: 등록 id(`registrationId`) → 실패 장부 | `healthLoaded`(전체를 바꿈) |

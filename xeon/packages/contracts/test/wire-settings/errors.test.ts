@@ -142,6 +142,25 @@ describe("WIRE_ERRORS", () => {
     expect(WIRE_ERRORS["testRun.notPaused"].details).toBeUndefined();
   });
 
+  test("jsonrpc.invalidParams may carry the reasons of a refused install, and refuses a reason with unknown fields", () => {
+    const details = WIRE_ERRORS["jsonrpc.invalidParams"].details;
+    if (details === undefined) throw new Error("details expected");
+    const withReasons = {
+      issues: [{ path: "/source", message: "invalid_input: manifest is not valid" }],
+      reasons: [
+        { code: "unknown_key", field: "entrie", line: 4, message: "unknown top-level key" },
+        { code: "missing_field", field: "entry" },
+      ],
+    };
+    expect(parse(details, withReasons).ok).toBe(true);
+    expect(parse(details, { issues: [] }).ok).toBe(true);
+    expect(parse(details, { issues: [], reasons: [{ code: "" }] }).ok).toBe(false);
+    expect(parse(details, { issues: [], reasons: [{ code: "entry", line: 0 }] }).ok).toBe(false);
+    expect(parse(details, { issues: [], reasons: [{ code: "entry", extra: true }] }).ok).toBe(
+      false,
+    );
+  });
+
   test("code ranges stay in the wire-owned blocks", () => {
     for (const spec of specs) {
       const inJsonRpc = spec.code >= -32768 && spec.code <= -32000;

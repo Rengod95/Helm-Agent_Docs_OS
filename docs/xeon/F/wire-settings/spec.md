@@ -959,7 +959,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | -32700 | `jsonrpc.parseError` | false | JSON으로 읽을 수 없다 | - |
 | -32600 | `jsonrpc.invalidRequest` | false | envelope 위반, 배치, id 형식, 진행 중 id 재사용, 깊이·길이·프레임 한도 | `issue` |
 | -32601 | `jsonrpc.methodNotFound` | false | 모르는 메서드, 또는 opt-in하지 않은 실험 메서드 | `method` |
-| -32602 | `jsonrpc.invalidParams` | false | params 스키마 위반 | `issues: {path, message}[]` |
+| -32602 | `jsonrpc.invalidParams` | false | params 스키마 위반 | `issues: {path, message}[]`, 설치 입력 거절이면 `reasons?: {code, field?, line?, message?}[]`(`DevkitReason`, 최대 20건) [결정: 오케스트레이터 기본값, scI: 사유 목록은 `issues`와 따로 두고 설치 입력만 싣는다] |
 | -32603 | `internal` | true | 내부 오류(정제됨) | - |
 | 1001 | `host.helloRequired` | false | `host.hello` 전에 다른 메서드를 불렀다 | - |
 | 1002 | `host.helloDuplicate` | false | `host.hello`를 두 번 보냈다 | - |

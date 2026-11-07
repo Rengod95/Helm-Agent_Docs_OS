@@ -385,6 +385,8 @@ function headerOf(over: Parameters<typeof entry>[1]): string {
       <ExtDetail
         state={state}
         entry={row}
+        tab="overview"
+        onTab={() => undefined}
         onBack={() => undefined}
         onToggle={() => undefined}
         onKeepOn={() => undefined}

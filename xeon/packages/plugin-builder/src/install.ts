@@ -2,16 +2,17 @@ import { cp, mkdir, readFile, rename, rm, stat } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { err, ok, parseJson, type Result } from "@fresnel/contracts";
 import { EXTENSION_NAME_PATTERN, validateManifest } from "@fresnel/contracts/extensions";
-import type { ExtensionManifest } from "@fresnel/contracts/extensions";
+import type { ExtensionManifest, ManifestIssue } from "@fresnel/contracts/extensions";
 import type {
   DevkitError,
+  DevkitReason,
   InstallPreview,
   LinkInput,
   LinkResult,
 } from "@fresnel/contracts/services";
 import { invalid, io } from "./errors.ts";
 import { folderHash, listAll } from "./pack.ts";
-import { MANIFEST_PATH, validateExtensionDir } from "./validate.ts";
+import { lineOfKey, MANIFEST_PATH, validateExtensionDir } from "./validate.ts";
 
 // L3.authoring.spec §3.3 `link`(W-32). 묶음 폴더를 사용자 확장 위치 `<extensionsDir>/<이름>`에 놓는다.
 // 사람 확인은 호출하는 쪽(그룹 `authoring`, 화면)이 한다. 한 파일 번들이 아닌 엔트리(`.ts` 소스)는 받지 않는다:
@@ -30,36 +31,99 @@ const NAME_REGEX = new RegExp(EXTENSION_NAME_PATTERN);
 /** 매니페스트를 못 읽었을 때: 폴더가 있으면 `no_manifest`, 폴더도 없으면 그 `not_found`다(둘 다 ENOENT라 가르지 않으면 같아 보인다) */
 async function missingManifest(source: string): Promise<Result<never, DevkitError>> {
   const folder = await io(source, () => stat(source));
-  if (!folder.ok) return folder;
-  return err({ kind: "no_manifest", message: `${MANIFEST_PATH} is missing` });
+  if (!folder.ok)
+    return folder.error.kind === "not_found"
+      ? err({ ...folder.error, reasons: [{ code: "folder_missing" }] })
+      : folder;
+  return err({
+    kind: "no_manifest",
+    message: `${MANIFEST_PATH} is missing`,
+    reasons: [{ code: "no_manifest" }],
+  });
 }
 
-/** 설치와 미리 보기가 같이 쓰는 검사. 설치할 수 있는 폴더면 매니페스트를 돌려준다 */
+/** 필드 하나를 가리키는 사유. 줄은 원문에 그 키가 있을 때만 붙는다. 맨 바깥 객체(`field`가 빈 값)면 필드가 없다 */
+function fieldReason(code: string, field: string, text: string): DevkitReason {
+  if (field === "") return { code };
+  const line = lineOfKey(text, field.slice(field.lastIndexOf("/") + 1));
+  return line === undefined ? { code, field } : { code, field, line };
+}
+
+/**
+ * 검사기 발견 한 건을 사유로 바꾼다. 잘못 적은 키는 `unknown_key`(맨 위 키는 경고, 안쪽 키는 `schema is false`)이고,
+ * 빠진 필수 키는 `must have required properties a, b`라 키마다 `missing_field`가 한 건씩 된다.
+ * 그 밖의 스키마 위반은 `invalid_value`, 다른 코드는 그 코드 그대로다(화면이 모르는 코드는 일반 문장을 쓴다)
+ */
+function reasonsOf(found: ManifestIssue, text: string): readonly DevkitReason[] {
+  const field = found.path.replace(/^\//, "");
+  const required = /^must have required propert(?:y|ies) (.+)$/.exec(found.message);
+  if (found.code === "schema" && required !== null)
+    return (required[1] ?? "").split(", ").map((name) => ({
+      code: "missing_field",
+      field: field === "" ? name : `${field}/${name}`,
+      message: found.message,
+    }));
+  const code =
+    found.code === "unknown_key" || (found.code === "schema" && found.message === "schema is false")
+      ? "unknown_key"
+      : found.code === "schema"
+        ? "invalid_value"
+        : found.code;
+  return [{ ...fieldReason(code, field, text), message: found.message }];
+}
+
+/** 설치와 미리 보기가 같이 쓰는 검사. 설치할 수 있는 폴더면 매니페스트를 돌려준다. 거절은 사유 목록을 함께 싣는다 */
 async function readInstallable(source: string): Promise<Result<ExtensionManifest, DevkitError>> {
   if (!isAbsolute(source))
-    return err({ kind: "not_absolute", message: "source must be an absolute path" });
+    return err({
+      kind: "not_absolute",
+      message: "source must be an absolute path",
+      reasons: [{ code: "not_absolute" }],
+    });
   const text = await io(MANIFEST_PATH, () => readFile(join(source, MANIFEST_PATH), "utf8"));
   if (!text.ok) return text.error.kind === "not_found" ? missingManifest(source) : text;
   const json = parseJson(text.value);
-  if (!json.ok) return err(invalid(`${MANIFEST_PATH} is not JSON`));
+  if (!json.ok)
+    return err({
+      kind: "invalid_input",
+      message: `${MANIFEST_PATH} is not JSON`,
+      reasons: [{ code: "manifest_json" }],
+    });
   const checked = validateManifest(json.value);
   const manifest = checked.manifest;
-  // 첫 오류의 사유를 붙인다. 예약 이름(`name_reserved`)처럼 사용자가 고칠 수 있는 이유가 화면에 그대로 보이게 한다
+  // 첫 오류의 사유를 문장에 붙인다. 예약 이름(`name_reserved`)처럼 사용자가 고칠 수 있는 이유가 화면에 그대로 보이게 한다.
+  // 목록에는 오류와 알 수 없는 키 경고를 모두 싣는다(키 철자가 틀리면 그 키와 빠진 필수 키가 함께 나온다)
   const refused = checked.issues.find((entry) => entry.severity === "error");
   if (manifest === undefined || refused !== undefined)
-    return err(
-      invalid(
+    return err({
+      kind: "invalid_input",
+      message:
         refused === undefined
           ? "manifest is not valid"
           : `manifest is not valid: ${refused.message}`,
-      ),
-    );
+      reasons: checked.issues
+        .filter((entry) => entry.severity === "error" || entry.code === "unknown_key")
+        .flatMap((entry) => reasonsOf(entry, text.value)),
+    });
   if (manifest.trust?.level === "builtin")
-    return err({ kind: "denied", message: "AU-002: builtin trust cannot be installed" });
+    return err({
+      kind: "denied",
+      message: "AU-002: builtin trust cannot be installed",
+      reasons: [fieldReason("builtin_trust", "trust/level", text.value)],
+    });
   if (!/\.(js|mjs)$/.test(manifest.entry))
-    return err(invalid("entry must be a bundled single file (run ext.package first)"));
+    return err({
+      kind: "invalid_input",
+      message: "entry must be a bundled single file (run ext.package first)",
+      reasons: [fieldReason("entry_format", "entry", text.value)],
+    });
   const entry = await io(manifest.entry, () => stat(join(source, manifest.entry)));
-  if (!entry.ok) return err(invalid(`entry ${manifest.entry} does not exist`));
+  if (!entry.ok)
+    return err({
+      kind: "invalid_input",
+      message: `entry ${manifest.entry} does not exist`,
+      reasons: [fieldReason("entry_missing", "entry", text.value)],
+    });
   return ok(manifest);
 }
 

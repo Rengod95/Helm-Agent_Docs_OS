@@ -22,6 +22,23 @@ export type WorkbenchView = (typeof WORKBENCH_VIEWS)[number];
 
 export type ListStatus = "idle" | "loading" | "ready" | "error";
 
+/** 자세히 보기의 탭 이름. 확장 상세(`ext-detail.tsx`)의 탭 값과 같다 */
+export const DETAIL_TABS = [
+  "overview",
+  "hooks",
+  "settings",
+  "metrics",
+  "record",
+  "versions",
+  "screens",
+] as const;
+export type DetailTab = (typeof DETAIL_TABS)[number];
+
+/** 탭 값이 자세히 보기의 탭 이름인가. 화면 탭 바가 주는 글을 좁힌다 */
+export function isDetailTab(value: string): value is DetailTab {
+  return DETAIL_TABS.some((tab) => tab === value);
+}
+
 export interface WorkbenchState {
   readonly list: ListStatus;
   /** `ext.list` 결과(이름순이 아니라 호스트가 준 순서) */
@@ -33,6 +50,8 @@ export interface WorkbenchState {
   readonly panel: boolean;
   /** 자세히 보기로 열린 플러그인 또는 그룹 id(루트는 확장 이름, 구성원은 "<확장>/<id>"). 있으면 캔버스 전체가 그 하나로 바뀐다 */
   readonly detail: string | null;
+  /** 자세히 보기의 탭. `openDetail`이 연 때 정하고(기본 개요), 탭을 누르면 `selectDetailTab`이 바꾼다 */
+  readonly detailTab: DetailTab;
   readonly query: string;
   /** 확장 목록 거르기: 층("all"이면 거르지 않는다) */
   readonly listLayer: string;
@@ -62,6 +81,7 @@ export const INITIAL_WORKBENCH: WorkbenchState = {
   view: "orbit",
   ...clearSel(),
   detail: null,
+  detailTab: "overview",
   query: "",
   listLayer: "all",
   listState: "all",
@@ -186,9 +206,18 @@ export function select(s: WorkbenchState, name: string | null): WorkbenchState {
   return name === null ? clearPick(s) : pickPlugin(s, name);
 }
 
-/** 자세히 보기를 연다. 선택은 바꾸지 않는다(필요하면 먼저 `pickPlugin`·`pickGroup`) */
-export function openDetail(s: WorkbenchState, id: string): WorkbenchState {
-  return { ...s, detail: id };
+/** 자세히 보기를 연다. 선택은 바꾸지 않는다(필요하면 먼저 `pickPlugin`·`pickGroup`). `tab`으로 그 탭을 열고, 없으면 개요다 */
+export function openDetail(
+  s: WorkbenchState,
+  id: string,
+  tab: DetailTab = "overview",
+): WorkbenchState {
+  return { ...s, detail: id, detailTab: tab };
+}
+
+/** 자세히 보기 안에서 탭을 고른다 */
+export function selectDetailTab(s: WorkbenchState, tab: DetailTab): WorkbenchState {
+  return { ...s, detailTab: tab };
 }
 
 export function closeDetail(s: WorkbenchState): WorkbenchState {

@@ -45,6 +45,7 @@ import {
   registerWorkbench,
   runtimeEndTab,
 } from "./workbench/index.tsx";
+import { ChatWithRecords } from "./workbench/records-jump.tsx";
 import { HelmPanelTab, PluginPagesTab } from "./plugin/plugin-tabs.tsx";
 import { useApprovalCount, useOpenThread, useThreadIds } from "../state/engine/index.ts";
 import { useState, type ReactNode } from "react";
@@ -259,7 +260,16 @@ const WORK_TAB: EndTabDef = {
 /** 크래프트 화면 셋(개요·확장·엔진)은 `registerWorkbench`가 등록한다. 개요는 캔버스 하나이고 목록을 못 읽으면 띠가 상태를 보인다 */
 export function createDesktopRegistry(): ShellRegistry {
   const registry = createShellRegistry();
-  registry.registerScreen(CHAT_SCREEN);
+  // 워크벤치 스토어는 대화 화면(행의 "기록 보기"), 플러그인 탭, 크래프트 화면이 같이 읽으므로 화면과 탭 등록보다 먼저 만든다
+  const workbench = createWorkbenchStore();
+  registry.registerScreen({
+    ...CHAT_SCREEN,
+    render: () => (
+      <ChatWithRecords store={workbench}>
+        <ChatScreen />
+      </ChatWithRecords>
+    ),
+  });
   registry.registerScreen(INBOX_SCREEN);
   registry.registerScreen(SCHEDULES_SCREEN);
   registry.registerScreen(PROPOSALS_SCREEN);
@@ -270,8 +280,6 @@ export function createDesktopRegistry(): ShellRegistry {
   registry.registerScreen(REVIEW_SCREEN);
   // 막대 순서는 스펙 §4.9.4와 시안 chatRightTabs를 따른다: 받은 요청, 런타임, 작업, 플러그인
   registry.registerEndTab(INBOX_TAB);
-  // 워크벤치 스토어는 플러그인 탭과 크래프트 화면이 같이 읽으므로 탭 등록보다 먼저 만든다
-  const workbench = createWorkbenchStore();
   // 런타임 탭(§4.9.8): 이 대화의 주도 락, 켜진 그룹과 확장, 실패. 훅 알림을 위해 같은 워크벤치 스토어를 받는다
   registry.registerEndTab(runtimeEndTab(workbench));
   registry.registerEndTab(WORK_TAB);
