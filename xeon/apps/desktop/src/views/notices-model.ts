@@ -2,13 +2,24 @@ import type { MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { INPUT_NEEDED_KINDS, type Notice, type NoticeKind } from "@fresnel/contracts/capabilities";
+import { approvalAgeOf } from "./approval-card/card-model.ts";
+import {
+  turnFailureOf,
+  type TurnFailureAction,
+  type TurnFailureView,
+} from "./turn-failure-model.ts";
 
 // 받은 요청 탭의 알림 묶음(p03-inbox)이 쓰는 순수 함수. 목록은 요청 결과이고 거울에 넣지 않는다(FS-03).
 
-/** 화면이 들고 있는 알림 한 건. `threadId`는 `notify.delivered`가 줄 때만 알 수 있다 */
+/**
+ * 화면이 들고 있는 알림 한 건. `threadId`는 대화별 목록이나 `notify.delivered`에서, `deliveredAt`은 `notify.delivered`에서만 안다.
+ * 알림 목록(`notify.list`)의 결과에는 시각이 없어 목록으로만 읽은 알림은 시각이 없다.
+ */
 export interface NoticeEntry {
   readonly notice: Notice;
   readonly threadId: ThreadId | null;
+  /** 전달된 시각(epoch ms). 전달 알림으로 받은 것만 있다 */
+  readonly deliveredAt?: number;
 }
 
 /** 화면에 두는 알림 수 상한(`notify.list`의 한 번 최대 500과 별개로 오래된 것부터 버린다) */
@@ -70,6 +81,83 @@ export function noticeTitleViewOf(notice: Notice): NoticeTitleView | null {
   }
 }
 
+/** 알림 본문 단추 중 알림 목록에서도 되는 것. 모델 고르기와 다시 보내기는 입력창이 있는 대화에서만 되어 뺀다 */
+export type NoticeAction = Extract<TurnFailureAction, "reregister-key" | "open-providers">;
+
+/**
+ * 알림 본문을 화면에 보일 모양. 실패 문장이면 대화의 오류 줄과 같은 문장과 단추이고, 원문은 정보 아이콘 뒤 "자세히"에 둔다.
+ * 실패가 아닌 본문은 원문 그대로 한 줄이다.
+ */
+export type NoticeBodyView =
+  | {
+      readonly kind: "failure";
+      readonly text: MessageId;
+      readonly params?: Readonly<Record<string, string>>;
+      readonly action: NoticeAction | null;
+      /** 정보 아이콘 뒤 "자세히"에 보일 원문. 원문이 없으면 null이다 */
+      readonly detail: string | null;
+    }
+  | { readonly kind: "plain"; readonly text: string };
+
+/** 상태 코드 뒤에 JSON이 붙거나 JSON만 온 본문. 원문을 본문 줄에 그대로 두지 않는다 */
+const RAW_FAILURE = /^\s*(?:\d{3}\s*)?\{/;
+
+function noticeActionOf(action: TurnFailureAction | null): NoticeAction | null {
+  return action === "reregister-key" || action === "open-providers" ? action : null;
+}
+
+function failureViewOf(view: TurnFailureView): NoticeBodyView {
+  return {
+    kind: "failure",
+    text: view.text,
+    ...(view.params === undefined ? {} : { params: view.params }),
+    action: noticeActionOf(view.action),
+    detail: view.detail,
+  };
+}
+
+/**
+ * 알림 본문의 보일 모양. 오류 알림은 대화의 턴 실패 문장으로 바꾼다(`turnFailureOf`). 알 수 없는 오류가 JSON이면 원문 대신
+ * 일반 실패 문장을 보인다. 오류가 아니거나 알 수 없는 평문이면 본문을 그대로 보인다. 본문이 없으면 null이다.
+ */
+export function noticeBodyViewOf(notice: Notice): NoticeBodyView | null {
+  const { body } = notice;
+  if (notice.kind !== "error") return body === null ? null : { kind: "plain", text: body };
+  if (body === null) {
+    return { kind: "failure", text: "desktop.turnFailure.unknown", action: null, detail: null };
+  }
+  const view = turnFailureOf(body);
+  if (view.kind === "unknown" && !RAW_FAILURE.test(body)) return { kind: "plain", text: body };
+  return failureViewOf(view);
+}
+
+/** 지난 시간의 카탈로그 키와 값. 승인 카드의 요청 시각("N분 전")과 같은 말이다 */
+export type NoticeAgeView = {
+  readonly id: MessageId;
+  readonly params?: { readonly count: number };
+};
+
+/** 전달된 뒤 지난 시간. 전달 시각을 모르면(목록으로 읽은 알림) null이라 시각 줄을 그리지 않는다 */
+export function noticeAgeViewOf(
+  now: number,
+  deliveredAt: number | undefined,
+): NoticeAgeView | null {
+  if (deliveredAt === undefined) return null;
+  const age = approvalAgeOf(now, deliveredAt);
+  switch (age.unit) {
+    case "now":
+      return { id: "desktop.approvals.age.now" };
+    case "minutes":
+      return { id: "desktop.approvals.age.minutes", params: { count: age.count } };
+    case "hours":
+      return { id: "desktop.approvals.age.hours", params: { count: age.count } };
+    case "days":
+      return { id: "desktop.approvals.age.days", params: { count: age.count } };
+    default:
+      return assertNever(age, "notice age");
+  }
+}
+
 /**
  * 이 알림을 화면 토스트로도 알리나. 새 승인 요청은 낭독 영역(`live-announcer.tsx`)이 이미 읽고, 토스트 영역과 토스트 자체도 낭독 영역이라
  * 같은 문장이 세 번 읽힌다. 승인 알림은 목록과 OS 알림, 대화의 승인 카드와 사이드바 승인 수로 알리고 토스트는 띄우지 않는다
@@ -78,7 +166,10 @@ export function noticeToastVisible(notice: Notice): boolean {
   return notice.kind !== "approval_waiting";
 }
 
-/** 같은 seq는 한 번만 둔다(목록 읽기와 전달 알림이 겹칠 수 있다). 새것이 위로 오고 상한을 넘으면 오래된 것을 버린다 */
+/**
+ * 같은 seq는 한 번만 둔다(목록 읽기와 전달 알림이 겹칠 수 있다). 새것이 위로 오고 상한을 넘으면 오래된 것을 버린다.
+ * 같은 알림이 두 번 오면 대화와 전달 시각은 아는 쪽을 쓴다.
+ */
 export function mergeNotices(
   current: readonly NoticeEntry[],
   incoming: readonly NoticeEntry[],
@@ -87,11 +178,56 @@ export function mergeNotices(
   for (const entry of current) seen.set(entry.notice.seq, entry);
   for (const entry of incoming) {
     const known = seen.get(entry.notice.seq);
-    // 전달 알림만 대화를 안다. 목록으로 먼저 온 건에 대화를 채운다
-    if (known === undefined || known.threadId === null) seen.set(entry.notice.seq, entry);
+    seen.set(entry.notice.seq, known === undefined ? entry : joinEntries(known, entry));
   }
   return [...seen.values()].toSorted((a, b) => b.notice.seq - a.notice.seq).slice(0, NOTICE_KEEP);
 }
+
+/** 같은 알림의 두 줄을 한 줄로 합친다. 대화와 전달 시각은 먼저 안 쪽이 있으면 그것을 쓴다(목록 읽기는 둘 다 모른다) */
+function joinEntries(known: NoticeEntry, incoming: NoticeEntry): NoticeEntry {
+  const threadId = known.threadId ?? incoming.threadId;
+  const deliveredAt = known.deliveredAt ?? incoming.deliveredAt;
+  return {
+    notice: incoming.notice,
+    threadId,
+    ...(deliveredAt === undefined ? {} : { deliveredAt }),
+  };
+}
+
+/** 목록의 가장 큰 seq. 빈 목록이면 0이다 */
+export function highestSeqOf(entries: readonly NoticeEntry[]): number {
+  return entries.reduce((top, entry) => Math.max(top, entry.notice.seq), 0);
+}
+
+/** 경계 seq 뒤의 알림만 남긴다. 경계 이하는 지운 알림이라 다시 읽혀도 버린다 */
+export function noticesAfter(
+  boundary: number,
+  entries: readonly NoticeEntry[],
+): readonly NoticeEntry[] {
+  return entries.filter((entry) => entry.notice.seq > boundary);
+}
+
+/**
+ * 지운 알림의 경계 seq. 지울 때마다 가장 큰 seq로 올리고 내리지 않는다. 화면이 unmount되어도 남도록 모듈에 하나 둔다.
+ * 앱을 다시 열면 0으로 돌아간다(알림 목록도 그때 다시 읽는다).
+ */
+export interface ClearedBoundary {
+  read(): number;
+  clearThrough(seq: number): void;
+}
+
+export function createClearedBoundary(): ClearedBoundary {
+  let through = 0;
+  return {
+    read: () => through,
+    clearThrough: (seq) => {
+      through = Math.max(through, seq);
+    },
+  };
+}
+
+/** 받은 요청 화면이 지운 알림의 경계. 목록을 읽거나 합칠 때마다 이 값보다 큰 알림만 든다 */
+export const clearedNotices: ClearedBoundary = createClearedBoundary();
 
 /** 알림 목록은 알림의 대화를 싣지 않는다. 대화별로 읽은 목록에서 알림 seq(DB 전역 단조)를 대화로 잇는다. 같은 seq가 둘이면 먼저 온 것이 이긴다 */
 export function threadBySeqOf(

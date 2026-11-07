@@ -18,6 +18,7 @@ import {
 } from "@caustic/react";
 import { ApprovalQueue, InboxApprovals, useInboxThreads, type InboxFilter } from "./approvals.tsx";
 import { INBOX_SORTS, inboxThreadOf, type InboxSort, type InboxThread } from "./inbox-model.ts";
+import { useNoticeFeed } from "./notices.tsx";
 import { useProposalPending } from "./proposal-pending-context.tsx";
 import { ChatHeader } from "./chat-header.tsx";
 import { Composer } from "./composer.tsx";
@@ -85,8 +86,10 @@ function InboxScreen(): ReactNode {
   const [filter, setFilter] = useState<InboxFilter>("all");
   const [thread, setThread] = useState<InboxThread>("all");
   const [sort, setSort] = useState<InboxSort>("oldest");
-  const threads = useInboxThreads();
-  // 고른 대화가 대기 승인이 없어졌으면 셀렉트와 목록 모두 `모든 대화`로 본다(inbox-model의 inboxThreadOf)
+  // 알림 목록은 이 화면이 한 번 읽고, 대화 셀렉트와 알림 구역이 같이 쓴다
+  const feed = useNoticeFeed();
+  const threads = useInboxThreads(feed.entries);
+  // 고른 대화가 승인도 알림도 없어졌으면 셀렉트와 목록 모두 `모든 대화`로 본다(inbox-model의 inboxThreadOf)
   const threadValue = inboxThreadOf(
     thread,
     threads.map((choice) => choice.id),
@@ -151,7 +154,7 @@ function InboxScreen(): ReactNode {
       </header>
       <ScrollArea label={t("desktop.shell.nav.inbox")} className="min-h-0 flex-1">
         <div className="mx-auto w-full max-w-184 px-3 pb-4 pt-1">
-          <InboxApprovals show={filter} thread={threadValue} sort={sort} />
+          <InboxApprovals show={filter} thread={threadValue} sort={sort} feed={feed} />
         </div>
       </ScrollArea>
     </section>
