@@ -1,5 +1,6 @@
 // 기능 모듈 목록. 다음 트랙은 이 배열에 줄을 더한다(모듈 파일은 src/main/<기능>.ts, `register(ctx)`를 내보낸다).
 import type { ShellModule } from "./context.ts";
+import { dbToolsShellModule } from "./db-tools-shell.ts";
 import { desktopSettingsModule } from "./desktop-settings.ts";
 import { dialogsModule } from "./dialogs.ts";
 import { engineModule } from "./engine.ts";
@@ -25,6 +26,7 @@ export const MODULES: readonly ShellModule[] = [
   windowStateModule,
   openExternalModule,
   logFolderShellModule,
+  dbToolsShellModule,
   dialogsModule,
   secretEntryModule,
   viewSchemeModule,
