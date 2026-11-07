@@ -100,8 +100,14 @@ function intervalSummaryOf(seconds: number): MessageRef {
   return message("desktop.schedules.summary.everySeconds", { count: seconds });
 }
 
-/** 트리거 한 줄 요약(표의 "트리거" 칸) */
-export function triggerSummaryOf(trigger: ScheduleTrigger, locale: Locale): MessageRef {
+/**
+ * 트리거 한 줄 요약(표의 "트리거" 칸). 반복은 받지 않는다: 반복은 간격 단위를 고르는 `repeatSummaryOf`(schedule-table.tsx)가
+ * 요약한다
+ */
+export function triggerSummaryOf(
+  trigger: Exclude<ScheduleTrigger, { readonly kind: "repeat" }>,
+  locale: Locale,
+): MessageRef {
   switch (trigger.kind) {
     case "interval":
       return intervalSummaryOf(trigger.everySeconds);
@@ -111,12 +117,6 @@ export function triggerSummaryOf(trigger: ScheduleTrigger, locale: Locale): Mess
       return message("desktop.schedules.summary.fileWatch", { paths: trigger.paths.join(", ") });
     case "remote":
       return message("desktop.schedules.summary.remote");
-    case "repeat":
-      return message("desktop.schedules.summary.repeat", {
-        seconds: trigger.intervalSeconds,
-        max: trigger.maxIterations,
-        until: timeTextOf(trigger.expiresAtMs, locale),
-      });
     default:
       return assertNever(trigger, "ScheduleTrigger");
   }

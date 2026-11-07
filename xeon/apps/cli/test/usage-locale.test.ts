@@ -159,14 +159,14 @@ Commands
   db previous-rm <name> [--yes] [--json]
                             Delete one pre-restore copy. The names are listed by db usage. It cannot be undone
   schedule add <prompt…> (--every <seconds> | --at <time> | --remote | --watch <path>[,…] | --loop <seconds> …)
-                            Create a schedule. If service mode is off, it is only saved and does not run. See fresnel help schedule
+                            Create a schedule. If neither the app nor the service is running, it is only saved and does not run. See fresnel help schedule
   schedule list [--all] [--json]
   schedule cancel <id>      Turn a schedule off
   schedule run <id>         Run a remote schedule once, now
   service start|status|stop|ensure [--json] [--safe-mode] [--listen-tcp <host>:<port> [--allow-non-loopback]]
                             Shared service mode. start and ensure start the service, or attach to it if it is running.
                             status and stop check it and stop it. Safe mode and TCP apply only when a new service starts
-                            Schedules run only in service mode. See fresnel help schedule
+                            Schedules run while the app or the service is running. See fresnel help schedule
   group new <name> [--drive|--policy] [--dir <folder>] [--json]
                             Create a group skeleton. The default is an observe group, --drive makes a drive group,
                             and --policy makes a policy group. The target folder must be empty, and dependencies are not installed
@@ -191,7 +191,7 @@ Exit codes
   );
 });
 
-test("the schedule help topic is English and says schedules run only in service mode", async () => {
+test("the schedule help topic is English and says schedules run while the app or the service is running", async () => {
   expect(await textOf((write) => runHelp("schedule", write))).toBe(
     `Usage: fresnel schedule add <prompt…> (--every <seconds> | --at <time> | --remote | --watch <path>[,<path>…] | --loop <seconds> --max-iterations <n> --expires-in <seconds>)
                        [--title <title>] [--workspace <folder>] [--disabled]
@@ -208,7 +208,7 @@ test("the schedule help topic is English and says schedules run only in service 
   --workspace <folder>   Working folder of the run conversation. If it is omitted, the default folder of the host is used
   --disabled             Create it, but leave it turned off
   --remote is a trigger flag. Give the remote service address before the command (fresnel --remote <address> schedule list)
-  Schedules run only in service mode. If it is off, they are only saved, and one warning line is shown
+  Schedules run while the app or the service is running. Quitting the app (⌘Q) stops them, and closing only its window does not. If neither is running they are only saved, and one warning line is shown
 `,
   );
 });
