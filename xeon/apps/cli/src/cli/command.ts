@@ -12,6 +12,7 @@ import {
   type ThreadId,
 } from "@fresnel/contracts/conversation";
 import { SettingKeySchema, type SettingKey, type SettingScope } from "@fresnel/contracts/settings";
+import { isCopyName } from "../commands/db-usage.ts";
 import { checkGroupName, type GroupTemplateKind } from "../group/rules.ts";
 import { titleProblem } from "../threads.ts";
 
@@ -260,6 +261,20 @@ export type DbCommand =
       readonly kind: "db.restore";
       readonly backupDir: string;
       readonly output: OutputMode;
+      /** `--check`: 사본만 검증하고 아무것도 바꾸지 않는다(앱이 엔진을 내리기 전에 부른다) */
+      readonly check: boolean;
+    }
+  | {
+      /** `db usage [--json]`. 데이터 디렉터리와 상태 디렉터리의 저장 공간을 센다. 아무것도 쓰지 않는다(L4.cli.spec §4.13.2) */
+      readonly kind: "db.usage";
+      readonly output: OutputMode;
+    }
+  | {
+      /** `db previous-rm <이름>`. 복원 전 사본 하나를 지운다. name은 형식 검사를 통과한 값이다(L4.cli.spec §4.13.2) */
+      readonly kind: "db.previous-rm";
+      readonly name: string;
+      readonly output: OutputMode;
+      readonly yes: boolean;
     };
 
 export type CliCommand =
@@ -303,7 +318,8 @@ type UsageErrorCode =
   | "autoApproveRequiresPrint"
   | "inputRequired"
   | "revealRequiresTty"
-  | "invalidGroupName";
+  | "invalidGroupName"
+  | "invalidCopyName";
 
 export interface UsageError {
   readonly code: UsageErrorCode;
@@ -1836,7 +1852,10 @@ function parseDb(acc: GlobalAcc, rest: readonly string[]): Result<DbCommand, Usa
       });
     }
     case "restore": {
-      const scanned = scanArgs(acc, tail, { "--json": { value: "none" } });
+      const scanned = scanArgs(acc, tail, {
+        "--json": { value: "none" },
+        "--check": { value: "none" },
+      });
       if (!scanned.ok) return scanned;
       const [backupDir, ...extra] = scanned.value.positionals;
       if (backupDir === undefined || backupDir === "") {
@@ -1857,14 +1876,74 @@ function parseDb(acc: GlobalAcc, rest: readonly string[]): Result<DbCommand, Usa
           ),
         );
       }
-      return ok({ kind: "db.restore", backupDir, output: outputOf(scanned.value) });
+      return ok({
+        kind: "db.restore",
+        backupDir,
+        output: outputOf(scanned.value),
+        check: has(scanned.value, "--check"),
+      });
+    }
+    case "usage": {
+      const scanned = scanArgs(acc, tail, { "--json": { value: "none" } });
+      if (!scanned.ok) return scanned;
+      if (scanned.value.positionals.length > 0) {
+        return err(
+          usage(
+            "unexpectedArgument",
+            t("cli.usage.noPositional.message", { command: "db usage" }),
+            t("cli.usage.jsonOnly.fix"),
+          ),
+        );
+      }
+      return ok({ kind: "db.usage", output: outputOf(scanned.value) });
+    }
+    case "previous-rm": {
+      const scanned = scanArgs(acc, tail, {
+        "--json": { value: "none" },
+        "--yes": { value: "none" },
+      });
+      if (!scanned.ok) return scanned;
+      const [name, ...extra] = scanned.value.positionals;
+      if (name === undefined || name === "") {
+        return err(
+          usage(
+            "missingArgument",
+            t("cli.usage.db.previousRm.nameMissing.message"),
+            t("cli.usage.db.previousRmSyntax"),
+          ),
+        );
+      }
+      if (extra.length > 0) {
+        return err(
+          usage(
+            "unexpectedArgument",
+            t("cli.usage.tooManyArgs.message", { command: "db previous-rm" }),
+            t("cli.usage.oneName.fix"),
+          ),
+        );
+      }
+      if (!isCopyName(name)) {
+        return err(
+          usage(
+            "invalidCopyName",
+            t("cli.usage.db.previousRm.invalidName.message", { name }),
+            t("cli.usage.db.previousRm.invalidName.fix"),
+          ),
+        );
+      }
+      return ok({
+        kind: "db.previous-rm",
+        name,
+        output: outputOf(scanned.value),
+        yes: has(scanned.value, "--yes"),
+      });
     }
     case undefined:
       return err(
         usage(
           "missingArgument",
           t("cli.usage.subcommandMissing.message", { command: "db" }),
-          t("cli.usage.db.exportSyntax"),
+          t("cli.usage.db.exportFix"),
         ),
       );
     // fresnel-disable-next-line fresnel/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)

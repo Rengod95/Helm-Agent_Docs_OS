@@ -225,7 +225,7 @@ const FAILURES: readonly {
     error: { kind: "not_a_database" },
     code: 3,
     stderr:
-      "fresnel: 데이터베이스 파일이 없거나 SQLite 파일이 아니다\n  해결: fresnel chat을 한 번 실행해 데이터베이스를 만든 뒤 다시 실행한다. 위치는 FRESNEL_HOME으로 바꾼다\n",
+      "fresnel: 현재 데이터베이스 파일(fresnel.db)이 없거나 SQLite 파일이 아니다\n  해결: fresnel chat을 한 번 실행해 데이터베이스를 만든 뒤 다시 실행한다. 위치는 FRESNEL_HOME으로 바꾼다\n",
   },
   {
     name: "busy",
@@ -244,7 +244,7 @@ const FAILURES: readonly {
     error: { kind: "io", code: "EACCES" },
     code: 3,
     stderr:
-      "fresnel: 내보내기 중 입출력 오류가 났다 (EACCES)\n  해결: 대상 폴더와 데이터 디렉터리의 권한과 디스크 상태를 확인한다\n",
+      "fresnel: 내보내기 중 입출력 오류가 났다 (EACCES)\n  해결: 대상 폴더와 데이터 디렉터리(현재 데이터베이스)의 권한과 디스크 상태를 확인한다\n",
   },
 ];
 

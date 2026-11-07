@@ -43,6 +43,7 @@ import { createConnectionCommands } from "./connection.ts";
 import { createScheduleCommands } from "./schedule.ts";
 import { createRestoreCommands } from "./restore.ts";
 import { createSecretCommands } from "./secrets.ts";
+import { createStorageCommands } from "./storage.ts";
 import { createSettingsCommands } from "./settings.ts";
 import { createWebCommands } from "./web.ts";
 import { createProposalCommands } from "./proposals.ts";
@@ -65,8 +66,17 @@ const CREATE_THREAD_TIMEOUT_MS = 30_000;
 
 export type CommandDeps = {
   readonly session: Session;
-  /** 키 등록(`registerSecret`), 엔진 대상 바꾸기(`retarget`), 데이터 복원(`dbRestore`)만 쓴다. 나머지 셸 명령은 세션이 맡는다 */
-  readonly ipc: Pick<DesktopIpc, "registerSecret" | "retarget" | "dbRestore">;
+  /** 키 등록(`registerSecret`), 엔진 대상 바꾸기(`retarget`), 데이터 복원(`dbRestore`), 저장 공간 명령(백업·사용량·사본 지우기·데이터 폴더 열기)만 쓴다. 나머지 셸 명령은 세션이 맡는다 */
+  readonly ipc: Pick<
+    DesktopIpc,
+    | "registerSecret"
+    | "retarget"
+    | "dbRestore"
+    | "dbExport"
+    | "dbUsage"
+    | "dbPreviousRemove"
+    | "openDataDir"
+  >;
   /** 데스크톱 로컬 설정. 원격 대상 목록을 읽고 쓴다(연결 화면) */
   readonly local: Pick<LocalSettings, "load" | "get" | "set">;
   readonly engine: EngineStore;
@@ -454,6 +464,7 @@ export function createCommands(deps: CommandDeps): Commands {
     }),
     secrets: createSecretCommands({ session, ipc: deps.ipc, clipboard: deps.clipboard }),
     restore: createRestoreCommands({ ipc: deps.ipc, engineSwitch: deps.engineSwitch }),
+    storage: createStorageCommands({ ipc: deps.ipc, engineSwitch: deps.engineSwitch }),
     settings: createSettingsCommands({ session, ui, local: deps.local }),
     web: createWebCommands(withConnection),
     proposals: createProposalCommands(withConnection, withWriteConnection),

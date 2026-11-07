@@ -117,6 +117,35 @@ describe("exportDatabase", () => {
     expect(copy.service.readBlob(ref)).toEqual({ ok: true, value: new Uint8Array(BYTES) });
   });
 
+  test("a database whose -wal and -shm are gone (clean shutdown) can be exported", async () => {
+    const dir = own(tempDir());
+    const clock = manualClock();
+    const source = join(dir.path, "src", "fresnel.db");
+    await seedStore(source, clock, [BYTES]);
+    rmSync(`${source}-wal`, { force: true });
+    rmSync(`${source}-shm`, { force: true });
+    const exported = exportDatabase({ dbPath: source, destDir: join(dir.path, "out"), clock });
+    expect(exported).toEqual({
+      ok: true,
+      value: {
+        destDir: join(dir.path, "out"),
+        exportedAt: clock.now(),
+        blobCount: 1,
+        missingBlobs: [],
+      },
+    });
+    const copy = await openTestStore({
+      path: join(dir.path, "out", "fresnel.sqlite"),
+      clock,
+      ids: fixedIdFactory(clock),
+    });
+    own(copy);
+    expect(probeRows(copy)).toEqual([
+      { id: 1, body: "a" },
+      { id: 2, body: "b" },
+    ]);
+  });
+
   test("a database written by a newer engine can be exported", async () => {
     const dir = own(tempDir());
     const clock = manualClock();

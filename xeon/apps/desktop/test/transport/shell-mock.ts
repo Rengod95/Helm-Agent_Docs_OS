@@ -1,6 +1,6 @@
-import { parse } from "@fresnel/contracts";
+import { parse, type Result } from "@fresnel/contracts";
 import { SecretNameSchema } from "@fresnel/contracts/capabilities";
-import type { DesktopIpc, RestartOptions } from "../../src/transport/ipc.ts";
+import type { DesktopIpc, IpcError, RestartOptions } from "../../src/transport/ipc.ts";
 import { createDesktopIpc } from "../../src/transport/ipc.ts";
 import { createElectronBridge, type FresnelShellApi } from "../../src/shell/electron-bridge.ts";
 import type { FakeIpc } from "./fake-ipc.ts";
@@ -58,6 +58,12 @@ function field(args: unknown, name: string): unknown {
 function rejectWith(code: string): Promise<never> {
   // oxlint-disable-next-line prefer-promise-reject-errors -- 셸 명령 오류는 Error가 아니라 문자열로 거부된다 (preload invoke)
   return Promise.reject(code);
+}
+
+/** 셸 명령의 결과를 invoke의 값이나 거부로 옮긴다. 명령 오류는 코드 문자열로, 모양이 틀린 오류는 "invalid"로 거부한다 */
+function settled<T>(result: Result<T, IpcError>): Promise<T> {
+  if (result.ok) return Promise.resolve(result.value);
+  return rejectWith(result.error.kind === "command" ? result.error.code : "invalid");
 }
 
 /** 셸이 `{kind, ...}` 오류 값으로 거부하면 invoke는 그 값(객체)으로 거부된다 */
@@ -163,6 +169,18 @@ export function shellMockIpc(fake: FakeIpc): {
       }
       return restored.value;
     }
+    if (cmd === "db_export") {
+      const parent = field(args, "parent");
+      if (typeof parent !== "string") throw new Error("db_export expects a parent string");
+      return settled(await fake.ipc.dbExport(parent));
+    }
+    if (cmd === "db_usage") return settled(await fake.ipc.dbUsage());
+    if (cmd === "db_previous_remove") {
+      const name = field(args, "name");
+      if (typeof name !== "string") throw new Error("db_previous_remove expects a name string");
+      return settled(await fake.ipc.dbPreviousRemove(name));
+    }
+    if (cmd === "open_data_dir") return settled(await fake.ipc.openDataDir());
     if (cmd === "engine_detach") {
       await fake.ipc.detach(Number(field(args, "epoch")));
       return null;

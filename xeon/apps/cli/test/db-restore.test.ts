@@ -26,11 +26,19 @@ test("db restore takes one folder and an optional --json", () => {
     kind: "db.restore",
     backupDir: "out",
     output: "text",
+    check: false,
+  });
+  expect(parse(["db", "restore", "out", "--check", "--json"])).toEqual({
+    kind: "db.restore",
+    backupDir: "out",
+    output: "json",
+    check: true,
   });
   expect(parse(["db", "restore", "--json", "out"])).toEqual({
     kind: "db.restore",
     backupDir: "out",
     output: "json",
+    check: false,
   });
   expect(parse(["db", "restore"])).toBe("missingArgument");
   expect(parse(["db", "restore", "a", "b"])).toBe("unexpectedArgument");
@@ -72,6 +80,16 @@ test("a restore resolves the folder against -C, runs no engine, and says secrets
   expect(h.stdoutText()).toContain("/state/fresnel-data/restore-previous/20261104T000000000Z");
   expect(h.stderrText()).toContain("secrets/age/keys.txt");
   expect(h.startOptions).toEqual([]);
+});
+
+test("--check only verifies: it passes verifyOnly, restores nothing and prints no secrets notice", async () => {
+  const { h, calls } = harness(ok({ ...REPORT, blobsAdded: 0, previousDir: null }));
+  expect(await h.run(["db", "restore", "out", "--check"])).toBe(EXIT.ok);
+  expect(calls).toEqual([
+    { dbPath: DB_PATH, backupDir: "/work/project/out", clock: h.clock, verifyOnly: true },
+  ]);
+  expect(h.stdoutText()).toBe("/work/project/out는 쓸 수 있는 백업이다 (아무것도 바꾸지 않았다)\n");
+  expect(h.stderrText()).toBe("");
 });
 
 test("--json prints the report as one document", async () => {

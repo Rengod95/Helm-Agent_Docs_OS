@@ -66,7 +66,9 @@ function metaOf(thread: ThreadSummary, approvals: number, child: boolean): React
   if (approvals > 0) {
     return t("desktop.threads.approvalsBadge", { count: approvals });
   }
-  return child ? t("desktop.threads.subBadge") : undefined;
+  if (child) return t("desktop.threads.subBadge");
+  // 분기한 대화는 원본과 제목이 같아 구분이 안 된다. 다른 표식이 없을 때 "분기" 표식을 보인다
+  return thread.forkedFrom === null ? undefined : t("desktop.threads.forkedBadge");
 }
 
 const ThreadRow = memo(function ThreadRow(props: {

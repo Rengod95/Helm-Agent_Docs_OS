@@ -118,8 +118,10 @@ interface RestartPlan {
 }
 
 /** 데이터베이스 복원을 돌리는 CLI의 인자. `fresnel db restore <dir> --json` */
-function restoreArgs(backupDir: string): string[] {
-  return ["db", "restore", backupDir, "--json"];
+function restoreArgs(backupDir: string, check = false): string[] {
+  return check
+    ? ["db", "restore", backupDir, "--check", "--json"]
+    : ["db", "restore", backupDir, "--json"];
 }
 
 function describeError(cause: unknown): string {
@@ -617,6 +619,22 @@ export class Supervisor {
     live: Live | null,
     backupDir: string,
   ): Promise<Result<RestoreOutput, CommandError>> {
+    // 사본이 쓸 수 없으면 엔진을 내리지 않고 그 거절을 그대로 돌려준다. 열린 대화가 끊기지 않고, 설정 화면이 다시 그려지지 않는다
+    const checked = await this.deps.launcher.runOnce(restoreArgs(backupDir, true));
+    if (!checked.ok) {
+      this.deps.log.line(`db restore check could not run: ${checked.error.message}`);
+      return err("storage-failed");
+    }
+    if (checked.value.exitCode !== 0) {
+      this.deps.log.line(
+        `db restore refused before touching the engine exit=${String(checked.value.exitCode)}`,
+      );
+      return ok({
+        exitCode: checked.value.exitCode,
+        stdout: checked.value.stdout,
+        stderr: checked.value.stderr,
+      });
+    }
     if (live !== null) {
       this.deps.relay.setState({ kind: "stopping" });
       const deadline = this.deps.clock.now() + this.deps.config.shutdownGraceMs + RESTORE_SLACK_MS;

@@ -298,6 +298,11 @@ export function createRealDeps(env: Readonly<Record<string, string | undefined>>
       const dirs = resolveOsDirs({ resourceDir: dirname(process.execPath) });
       return dirs.ok ? dirs.value.data : null;
     },
+    // 상태 디렉터리도 같은 방식으로 정한다. `db usage`가 엔진 로그 폴더의 크기를 셀 때 쓴다
+    resolveStateDir: () => {
+      const dirs = resolveOsDirs({ resourceDir: dirname(process.execPath) });
+      return dirs.ok ? dirs.value.state : null;
+    },
     devWireRoundTrip: devWireRoundTripOf(env, Bun.main),
     bunVersion: Bun.version,
     stateFile: env[STATE_FILE_ENV] ?? null,

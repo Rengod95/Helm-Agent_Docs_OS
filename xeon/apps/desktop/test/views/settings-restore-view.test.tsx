@@ -3,6 +3,7 @@ import { renderToString } from "react-dom/server";
 import { t } from "@fresnel/client/i18n";
 import type { EngineTarget, RestoreReport } from "../../src/transport/ipc.ts";
 import type { RestoreRefusal, RestoreRefusalKind } from "../../src/views/commands.ts";
+import { BACKUP_NOTE_IDS } from "../../src/views/pages/settings/settings-backup-model.ts";
 import type {
   RestorePhase,
   RestoreState,
@@ -84,6 +85,11 @@ describe("restore section states", () => {
   test("a failed picker shows its line", () => {
     const out = html(stateOf(), { onPick: NOOP, pickError: t("desktop.workspace.pickFailed") });
     expect(out).toContain(t("desktop.workspace.pickFailed"));
+  });
+
+  test("the info tip carries the included, excluded and age key notes shared with the backup block", () => {
+    const out = html(stateOf());
+    for (const id of BACKUP_NOTE_IDS) expect(out).toContain(t(id));
   });
 });
 

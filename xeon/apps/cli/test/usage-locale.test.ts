@@ -154,6 +154,9 @@ Commands
                             Send a trust decision. When trusted, .mcp.json, project skills, and project commands are read
   db export <folder> [--json] [--yes] Export the storage files read-only, without the engine. The engine may be running
   db restore <folder> [--json] Restore a database from an export. Close the engine first. Secrets need the age key separately
+  db usage [--json]         Show the disk use of the data folder and the engine logs. Writes nothing and does not start the engine
+  db previous-rm <name> [--yes] [--json]
+                            Delete one pre-restore copy. The names are listed by db usage. It cannot be undone
   schedule add <prompt…> (--every <seconds> | --at <time> | --remote | --watch <path>[,…] | --loop <seconds> …)
                             Create a schedule. If service mode is off, it is only saved and does not run. See fresnel help schedule
   schedule list [--all] [--json]
@@ -213,15 +216,20 @@ test("a help topic is English", async () => {
   expect(await textOf((write) => runHelp("db", write))).toBe(
     `Usage: fresnel db export <folder> [--json] [--yes]
        fresnel db restore <folder> [--json]
+       fresnel db usage [--json]
+       fresnel db previous-rm <name> [--yes] [--json]
 
   <folder>      Folder to export to. It is created if it is missing. If it exists, it must be empty. A relative path is based on the working folder (-C)
   --json        Write the export result (destDir, exportedAt, blobCount, missingBlobs) as JSON
   --yes         Skip the confirmation. The copy may contain secret values in plain text. Without a terminal this flag is required
+  <name>        The name of a pre-restore copy, as listed under previous by db usage (for example 20261107T123456789Z)
 
   Creates <folder>/fresnel.sqlite, <folder>/blobs/, and <folder>/manifest.json. The engine is not started.
 
   restore puts an export back in place of the current database. It verifies the backup first, refuses while an engine is running, refuses a backup from a newer version, and keeps the current database in <data directory>/restore-previous/. Run it again if it was interrupted.
-  Secrets are not in the backup: the age key (secrets/age/keys.txt) and the config file are not copied. Keep the age key separately.
+  Secrets are not in the backup: the age key (Keychain item fresnel.age on macOS by default, or secrets/age/keys.txt for the file source) and the config file are not copied. Keep the age key separately.
+  usage shows the disk use of the data folder and the engine logs. It writes nothing.
+  previous-rm deletes the whole copy folder. This cannot be undone.
 `,
   );
 });

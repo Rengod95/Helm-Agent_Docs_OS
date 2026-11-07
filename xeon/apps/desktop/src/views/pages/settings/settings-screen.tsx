@@ -32,7 +32,9 @@ import { UsagePanelView } from "../providers/providers-view.tsx";
 import { SecretsPanel } from "../secrets/secrets-screen.tsx";
 import type { FolderPickInvoke } from "../../folder-pick.ts";
 import { useSettingsFilePaths } from "./settings-file-paths.ts";
+import { BackupPanel } from "./settings-backup-screen.tsx";
 import { RestorePanel } from "./settings-restore-screen.tsx";
+import { StoragePanel } from "./settings-storage-screen.tsx";
 import { ToolsWebPanel, useToolsWebState } from "../tools-web/tools-web-screen.tsx";
 import {
   fileClosesOnTabMoveOf,
@@ -446,7 +448,13 @@ export function SettingsPage(props: {
       fileOpen={file.phase !== "closed"}
       editors={EDITORS}
       toolsPanel={<ToolsWebPanel state={toolsWeb} live={live} />}
-      restorePanel={<RestorePanel folderPick={props.folderPick} />}
+      restorePanel={
+        <>
+          <BackupPanel folderPick={props.folderPick} />
+          <RestorePanel folderPick={props.folderPick} />
+          <StoragePanel />
+        </>
+      }
       updatePanel={<UpdatePanel />}
       filePaths={filePaths}
       notifyPanel={<NotifyPanel />}

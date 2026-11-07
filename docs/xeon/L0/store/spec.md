@@ -798,6 +798,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 
 - 실패 정리: 이 호출이 만든 파일과 디렉터리만 만든 순서의 역순으로 지웁니다. 원래 있던 빈 대상 디렉터리는 지우지 않습니다. 이미 없는 파일과 디렉터리는 지운 것으로 봅니다. 정리 중 다른 쪽이 먼저 지운 경우입니다(§9 21번).
 - 정리 오류 [해소 S-14, 결정]: 정리가 다른 이유로 실패하면(예: 남의 파일이 있어 `ENOTEMPTY`) 원래 오류 대신 정리 오류를 돌려줍니다. 원래 오류는 사라지고 대상에 이 호출이 만든 것이 남을 수 있습니다. 다시 쓰려면 대상을 먼저 비웁니다. 원래 오류를 싣는 필드는 넣지 않습니다. `ExportError`의 값 모양은 L4.cli 문서와 운영 복구 문서(`docs/xeon/engineering/operations/recovery.md`)가 `kind`와 `code`로 적고 있어 이 패키지만으로 바꿀 수 없습니다. 원인 필드는 T-F 백로그(§8.1 FR-S10)입니다. 이 결정은 §9 21번이 고정합니다.
+- 정상 종료 뒤 DB [결정: 오케스트레이터 기본값, fxDL]: `-wal`/`-shm`이 없는 WAL DB는 읽기 전용 연결이 첫 읽기에서 `SQLITE_CANTOPEN`을 냅니다. 그때만 같은 파일을 쓰기 가능 연결로 다시 열어 읽습니다(`VACUUM INTO`는 원본에 쓰지 않습니다). 사본(`fresnel.sqlite`)을 읽는 연결도 같습니다.
 - 잠금 대기: 원본 연결은 `busy_timeout` 5000ms를 씁니다. WAL 모드에서는 다른 프로세스의 쓰기가 읽기를 막지 않습니다.
 - SQLite 로드 [해소 S-13]: 이 함수도 `newDatabase`를 거치므로 첫 연결이 SQLite 로드 상태를 정합니다. 내보내기는 `customSqlitePath`를 읽지 않고 번들 SQLite로 로드 상태를 정하므로, 열기 전에 내보내면 같은 프로세스의 나중 `openStore`가 커스텀 dylib을 지정할 때 `Bug(store.sqlite_already_loaded)`가 됩니다(§9 22번). 호출처 확인(2026-11-03): `apps/host/src`는 `exportDatabase`를 아직 부르지 않습니다. `apps/cli`의 `db export`(`commands/db.ts`, `runtime.ts`)는 엔진과 `openStore` 없이 내보내기만 하는 프로세스입니다. 충돌하는 호출처가 없으므로 이 규칙은 지켜집니다. 호스트가 내보내기를 붙일 때는 `openStore` 뒤에 부릅니다.
 
@@ -809,16 +810,17 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 
 1. 사본 검증: `manifest.json`과 `fresnel.sqlite`가 있는지, `application_id`, `PRAGMA integrity_check`, sys 버전, `sys_blobs`의 블롭 파일(파일이 있으면 내용의 SHA-256이 이름과 같아야 하고, 없으면 manifest의 `missingBlobs`에 있어야 합니다)을 봅니다.
 2. 사본의 sys 버전이 이 빌드의 코드 버전보다 높으면 `future_version`(`backupVersion`, `codeVersion`)으로 거절합니다. 옛 빌드로 새 빌드의 사본을 되돌리는 길은 없습니다.
-3. 엔진 확인: 현재 DB가 있으면 쓰기로 열어 `journal_mode = DELETE`와 `BEGIN EXCLUSIVE`를 시도합니다. 다른 연결이 하나라도 열려 있으면 SQLite가 `SQLITE_BUSY`를 돌려주고 `engine_running`으로 거절합니다. 성공하면 WAL이 DB에 합쳐집니다. 이 확인 뒤 엔진을 띄우지 않는 것은 사용자의 몫입니다.
+3. 엔진 확인: 현재 DB가 있으면 쓰기로 열어 `journal_mode = DELETE`와 `BEGIN EXCLUSIVE`를 시도합니다. 다른 연결이 하나라도 열려 있으면 SQLite가 `SQLITE_BUSY`를 돌려주고 `engine_running`으로 거절합니다. 성공하면 WAL이 DB에 합쳐집니다. 현재 DB가 손상됐거나 SQLite 파일이 아니면(`SQLITE_CORRUPT`, `SQLITE_NOTADB`) 엔진이 쓸 수 없는 파일이므로 거절하지 않고 7번에서 `restore-previous/`로 옮깁니다(0바이트 파일은 빈 DB로 열려 같은 길을 갑니다). 이 단계의 `not_a_database`는 항상 사본 쪽 이야기입니다. [결정: 오케스트레이터 기본값, fxDL] 이 확인 뒤 엔진을 띄우지 않는 것은 사용자의 몫입니다.
 4. 이전 복원이 멈춘 흔적(`fresnel.db.restore-journal`)이 있으면 정리합니다. 옮기는 중이면 되돌리고(`rolled_back`), 다 옮겼으면 준비한 DB를 놓아 끝냅니다(`rolled_forward`).
 5. 블롭을 데이터 디렉터리의 `blobs/`에 더합니다. 이름이 내용 해시라 같은 이름은 같은 내용이고, 있던 블롭은 지우지 않습니다. 복원 뒤 어느 행도 가리키지 않는 블롭은 블롭 GC가 거둡니다.
 6. `fresnel.db.restore-staging`에 사본을 복사하고 다시 검증합니다.
 7. 저널을 `moving`으로 쓰고, 현재 `fresnel.db`, `fresnel.db-wal`, `fresnel.db-shm`을 `<데이터 디렉터리>/restore-previous/<UTC 시각>/`로 옮기고, 저널을 `moved`로 쓰고, 준비 파일을 `fresnel.db`로 바꾸고(rename), 저널을 지웁니다. 새 DB와 옛 `-wal`/`-shm`이 짝이 되지 않게 셋을 함께 옮깁니다. 사본의 DB는 저널 모드가 delete라 새로 생기는 `-wal`/`-shm`은 없고, 엔진이 열 때 WAL로 바꿉니다.
 8. `restore-previous/`는 최근 3개만 남깁니다. 복원 전 DB는 성공한 뒤에도 남아 있어 사용자가 직접 되돌릴 수 있습니다.
 
+- `verifyOnly: true`: 1·2번(사본 검증)만 하고 `RestoreReport`(`blobsAdded` 0, `previousDir` null, `recovered` null)를 돌려줍니다. 현재 DB, 블롭, `restore-previous/`는 건드리지 않습니다. 데스크톱 셸이 엔진을 내리기 전에 사본을 거르는 데 씁니다(`L4.cli` §4.13.1 `--check`). [결정: 오케스트레이터 기본값, fxDL]
 - 어느 단계에서 프로세스가 죽어도 현재 DB는 제자리에 있거나 `restore-previous/`에 있습니다. 같은 명령을 다시 실행하면 4번이 정리한 뒤 복원을 처음부터 합니다. 정리 전에 엔진을 띄우면 `fresnel.db`가 없는 틈에 빈 DB를 만들 수 있으므로 멈춘 복원은 엔진을 띄우기 전에 다시 실행해야 합니다.
 - 오류: `RestoreError`의 kind는 `backup_not_found`, `backup_invalid`(`reason`: `manifest`, `format`, `integrity`, `schema`, `blob_missing`, `blob_hash`), `foreign_database`, `not_a_database`, `future_version`, `engine_running`, `disk_full`, `io`(`code`)입니다.
-- 시크릿: 사본은 설정 파일과 age 키(`secrets/age/keys.txt`)를 담지 않고 이 함수도 그 파일을 읽거나 만들거나 덮어쓰지 않습니다. DB 안의 시크릿 참조를 복호화하려면 원래 기기의 age 키가 따로 있어야 합니다. 이 함수는 시크릿 값을 읽지 않습니다.
+- 시크릿: 사본은 설정 파일과 age 키를 담지 않고(macOS 기본은 키체인 항목 `fresnel.age`, 파일 소스를 쓰면 `secrets/age/keys.txt`) 이 함수도 그 키나 파일을 읽거나 만들거나 덮어쓰지 않습니다. DB 안의 시크릿 참조를 복호화하려면 원래 기기의 age 키가 따로 있어야 합니다. 이 함수는 시크릿 값을 읽지 않습니다.
 - 다른 owner(`sys` 밖)의 버전은 이 함수가 코드 버전을 몰라 검사하지 않습니다. 그 owner의 `migration_future_version`은 다음 열기에서 드러나고, 복원 전 DB는 `restore-previous/`에 있습니다.
 - 테스트용 `hit(point)`는 단계 사이에서 불리며 운영은 넘기지 않습니다.
 

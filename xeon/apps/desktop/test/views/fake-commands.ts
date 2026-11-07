@@ -225,6 +225,14 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       engineTarget: () => null,
       run: () => Promise.resolve(err({ kind: "io", message: "fake", fix: null })),
     },
+    storage: {
+      engineTarget: () => null,
+      usage: () => Promise.resolve(err({ kind: "environment", message: "fake", fix: null })),
+      backup: () => Promise.resolve(err({ kind: "environment", message: "fake", fix: null })),
+      removePrevious: () =>
+        Promise.resolve(err({ kind: "environment", message: "fake", fix: null })),
+      openDataDir: () => Promise.resolve(false),
+    },
     observeThread: () => Promise.resolve(ok(null)),
     forkThread: () => Promise.resolve(ok(null)),
     dismissLocked: () => {},

@@ -1,14 +1,17 @@
 import { ok, type Result } from "@fresnel/contracts";
 import type {
   AttachResult,
+  BackupReport,
   DbRestoreReply,
   DesktopIpc,
   EngineState,
   EngineTarget,
   IpcError,
+  PreviousRemoved,
   RestartOptions,
   RestoreReport,
   SecretRegisterError,
+  StorageUsage,
 } from "../../src/transport/ipc.ts";
 
 const RUNNING: EngineState = { kind: "running", source: "sidecar", pid: 4242 };
@@ -22,6 +25,32 @@ export const RESTORE_REPORT: RestoreReport = {
   previousDir: "/data/restore-previous/20261104T000000",
   recovered: null,
 };
+
+/** 백업이 끝났을 때의 보고서. 기본 `dbExport`가 이것을 stdout으로 돌려준다 */
+export const BACKUP_REPORT: BackupReport = {
+  destDir: "/backups/fresnel-backup-20261107-000000",
+  exportedAt: 1794000000000,
+  blobCount: 3,
+  missingBlobs: [],
+};
+
+/** 저장 공간 사용량. 기본 `dbUsage`가 이것을 stdout으로 돌려준다. 복원 전 사본 하나를 가진다 */
+export const STORAGE_USAGE: StorageUsage = {
+  dataDir: "/data",
+  conversations: 4,
+  attachments: 2,
+  measurements: 0,
+  logs: 12,
+  restorePrevious: 1,
+  previous: [{ name: "20261104T000000000Z", bytes: 4096 }],
+};
+
+/** 복원 전 사본을 지운 결과. 기본 `dbPreviousRemove`가 이것을 stdout으로 돌려준다 */
+export const PREVIOUS_REMOVED: PreviousRemoved = {
+  removed: "20261104T000000000Z",
+  freedBytes: 4096,
+};
+
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
@@ -44,6 +73,14 @@ export type FakeIpc = {
   readonly registered: { readonly name: string; readonly action: string; readonly text: string }[];
   /** `dbRestore` 호출에 넘어온 백업 폴더, 호출 순서 */
   readonly restored: string[];
+  /** `dbExport` 호출에 넘어온 부모 폴더, 호출 순서 */
+  readonly dbExportCalls: string[];
+  /** `dbUsage` 호출 횟수 */
+  readonly dbUsageCalls: number;
+  /** `dbPreviousRemove` 호출에 넘어온 사본 이름, 호출 순서 */
+  readonly dbPreviousRemoveCalls: string[];
+  /** `openDataDir` 호출 횟수 */
+  readonly openDataDirCalls: number;
   epoch(): number;
 };
 
@@ -58,6 +95,14 @@ export type FakeIpcOptions = {
   readonly registerError?: SecretRegisterError;
   /** `dbRestore`가 돌려줄 결과. 없으면 종료 코드 0과 `RESTORE_REPORT`다 */
   readonly dbRestoreResult?: Result<DbRestoreReply, IpcError>;
+  /** `dbExport`가 돌려줄 결과. 없으면 종료 코드 0과 `BACKUP_REPORT`다 */
+  readonly dbExportResult?: Result<DbRestoreReply, IpcError>;
+  /** `dbUsage`가 돌려줄 결과. 없으면 종료 코드 0과 `STORAGE_USAGE`다 */
+  readonly dbUsageResult?: Result<DbRestoreReply, IpcError>;
+  /** `dbPreviousRemove`가 돌려줄 결과. 없으면 종료 코드 0과 `PREVIOUS_REMOVED`다 */
+  readonly dbPreviousRemoveResult?: Result<DbRestoreReply, IpcError>;
+  /** `openDataDir`가 돌려줄 결과. 없으면 성공(`null`)이다 */
+  readonly openDataDirResult?: Result<null, IpcError>;
 };
 
 function ignore(): void {
@@ -76,6 +121,10 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
   const settingsFile: Record<string, unknown> = {};
   const registered: { name: string; action: string; text: string }[] = [];
   const restored: string[] = [];
+  const dbExportCalls: string[] = [];
+  const dbPreviousRemoveCalls: string[] = [];
+  let dbUsageCount = 0;
+  let openDataDirCount = 0;
   const fake: FakeIpc = {
     ipc: {
       attach(bytes, state) {
@@ -133,6 +182,31 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
             ok({ exitCode: 0, stdout: JSON.stringify(RESTORE_REPORT), stderr: "" }),
         );
       },
+      dbExport(parent) {
+        dbExportCalls.push(parent);
+        return Promise.resolve(
+          options.dbExportResult ??
+            ok({ exitCode: 0, stdout: JSON.stringify(BACKUP_REPORT), stderr: "" }),
+        );
+      },
+      dbUsage() {
+        dbUsageCount += 1;
+        return Promise.resolve(
+          options.dbUsageResult ??
+            ok({ exitCode: 0, stdout: JSON.stringify(STORAGE_USAGE), stderr: "" }),
+        );
+      },
+      dbPreviousRemove(name) {
+        dbPreviousRemoveCalls.push(name);
+        return Promise.resolve(
+          options.dbPreviousRemoveResult ??
+            ok({ exitCode: 0, stdout: JSON.stringify(PREVIOUS_REMOVED), stderr: "" }),
+        );
+      },
+      openDataDir() {
+        openDataDirCount += 1;
+        return Promise.resolve(options.openDataDirResult ?? ok(null));
+      },
     },
     emitLine: (value) => onBytes(enc.encode(`${JSON.stringify(value)}\n`)),
     emitBytes: (bytes) => onBytes(bytes),
@@ -145,6 +219,14 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
     settingsFile,
     registered,
     restored,
+    dbExportCalls,
+    dbPreviousRemoveCalls,
+    get dbUsageCalls() {
+      return dbUsageCount;
+    },
+    get openDataDirCalls() {
+      return openDataDirCount;
+    },
     epoch: () => epoch,
   };
   return fake;

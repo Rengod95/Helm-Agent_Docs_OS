@@ -126,7 +126,14 @@ export function SecretsScreenView(props: SecretsScreenViewProps): ReactNode {
           >
             {t("desktop.secrets.title")}
           </h1>
-          <InfoTip text={t("desktop.secrets.intro")} />
+          {/* 키 안내와 백업에서 빠지는 것도 같은 정보 아이콘 뒤에 둔다(백업 구역과 같은 글) */}
+          <InfoTip
+            text={[
+              t("desktop.secrets.intro"),
+              t("desktop.settings.backup.note.ageKey"),
+              t("desktop.settings.backup.note.excluded"),
+            ].join(" ")}
+          />
         </div>
         {state.rows.length === 0 ? null : (
           <Button

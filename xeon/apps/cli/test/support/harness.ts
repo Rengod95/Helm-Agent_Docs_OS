@@ -89,6 +89,8 @@ export interface HarnessOptions {
   readonly restoreDatabase?: CliDeps["restoreDatabase"];
   /** 데이터 디렉터리 위치. null이면 정할 수 없는 상황이다. 없으면 `<임시 폴더>/data` */
   readonly dataDir?: string | null;
+  /** 상태 디렉터리 위치. null이면 정할 수 없는 상황이다. 없으면 `<임시 폴더>/os-state`(만들지 않아 로그는 0이다) */
+  readonly stateDir?: string | null;
   /** `group new`의 파일 작업 가짜. 없으면 템플릿이 없는 메모리 가짜다 */
   readonly groupTemplates?: GroupTemplatesPort;
 }
@@ -342,6 +344,8 @@ export function createHarness(options: HarnessOptions = {}): Harness {
       options.restoreDatabase ??
       (() => Promise.reject(new Error("restoreDatabase was not injected"))),
     resolveDataDir: () => (options.dataDir === undefined ? join(dir, "data") : options.dataDir),
+    resolveStateDir: () =>
+      options.stateDir === undefined ? join(dir, "os-state") : options.stateDir,
   };
 
   return {

@@ -109,3 +109,19 @@ export function createRestoreController(
     },
   };
 }
+
+// 컨트롤러는 명령 묶음마다 하나를 앱이 사는 동안 들고 있는다. 복원이 끝나면 셸이 엔진을 다시 띄우고 설정 화면이 다시 마운트되는데,
+// 컴포넌트가 상태를 들고 있으면 결과 블록(블롭 수, 이전 DB 폴더, age 키 안내)이 그때 사라진다.
+const shared = new WeakMap<object, RestoreController>();
+
+/** `port`마다 한 번만 만든 컨트롤러. 화면이 다시 마운트돼도 같은 상태를 돌려준다 */
+export function sharedRestoreController(
+  port: Pick<RestoreCommands, "engineTarget" | "run"> & object,
+  options: RestoreControllerOptions = {},
+): RestoreController {
+  const known = shared.get(port);
+  if (known !== undefined) return known;
+  const made = createRestoreController(port, options);
+  shared.set(port, made);
+  return made;
+}
