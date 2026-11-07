@@ -47,6 +47,7 @@ import {
   createThreadRevertHandler,
 } from "./thread.ts";
 import { createTrustHandlers } from "./trust.ts";
+import { createWorkspaceHandlers } from "./workspace.ts";
 import { createScheduleHandlers } from "./schedule.ts";
 import { createWebHandlers } from "./web.ts";
 import {
@@ -109,6 +110,7 @@ export function createWireHandlers(
     ...createProposalHandlers(engine),
     ...createSecretHandlers(engine),
     ...createTrustHandlers(engine),
+    ...createWorkspaceHandlers(),
     ...createCommandHandlers(engine, hub),
     ...createWebHandlers(engine),
     ...createScheduleHandlers(engine),

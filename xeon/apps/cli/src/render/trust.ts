@@ -1,6 +1,12 @@
 import { t } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
-import type { TrustChoice, TrustOption, TrustStatus, TrustVia } from "@fresnel/contracts/wire";
+import type {
+  TrustChoice,
+  TrustListEntry,
+  TrustOption,
+  TrustStatus,
+  TrustVia,
+} from "@fresnel/contracts/wire";
 import type { PromptIo } from "./approval.ts";
 
 // L4.cli.spec §4.11 "프로젝트 신뢰". 프로젝트 신뢰 카드: 폴더와 불러오려는 자원을 보이고, host가 만든 선택지에서 번호로 고른다.
@@ -83,6 +89,22 @@ export function describeTrust(status: TrustStatus): string {
     lines.push(`  ${String(index + 1)}) ${optionText(option)}`);
   });
   return `${lines.join("\n")}\n`;
+}
+
+/** 저장된 결정 목록의 글. 한 줄에 폴더 하나이고 `허용 <폴더>` 또는 `거부 <폴더>`다(`fresnel trust list`, 읽기 전용) */
+export function describeTrustList(entries: readonly TrustListEntry[]): string {
+  return entries.map((entry) => `${listVerdictText(entry.verdict)} ${entry.path}\n`).join("");
+}
+
+function listVerdictText(verdict: TrustListEntry["verdict"]): string {
+  switch (verdict) {
+    case "allow":
+      return t("cli.render.trust.listAllow");
+    case "deny":
+      return t("cli.render.trust.listDeny");
+    default:
+      return assertNever(verdict, "TrustListVerdict");
+  }
 }
 
 /** 번호를 읽어 선택지를 고른다. 나중에(엔터, EOF, 중단)면 undefined다 */

@@ -36,6 +36,8 @@ const ADDITIONS: ReadonlySet<string> = new Set([
   "HookSource",
   "LoadedHook",
   "MergedHooks",
+  // 저장된 신뢰 결정 한 줄(`ProjectTrustStore.list`). 조립 루트의 `trust.list`가 이 모양을 받는다 (F wire §3.3.1) [결정: 오케스트레이터 기본값, fxPT]
+  "TrustListing",
 ]);
 
 /** 이번 마일스톤(M0·M1)에 있어야 하는 값 이름 */

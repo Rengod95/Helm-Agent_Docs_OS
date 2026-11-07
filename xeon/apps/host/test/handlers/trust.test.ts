@@ -14,6 +14,14 @@ const STATUS: WireResult<"trust.get"> = {
   verdict: "undecided",
   via: "headless",
   resources: [".mcp.json"],
+  // 결정이 필요한 판정에는 자원 이름이 있다(X.loading-trust.spec §4.7.4). 처리기는 값을 그대로 넘긴다
+  details: {
+    mcpServers: [{ name: "docs", command: "npx", args: ["-y", "docs-server"] }],
+    hooks: [],
+    skills: [],
+    commands: [],
+    extensions: [],
+  },
   options: [
     { choice: { kind: "folder", verdict: "allow" }, label: "trust-folder", savedPath: "/work/app" },
     { choice: { kind: "session", verdict: "allow" }, label: "trust-session", savedPath: null },
@@ -110,4 +118,37 @@ test("trust failures become wire errors: bad workspace and bad choice are invali
   expect(broken.data.kind).toBe("store.io");
   expect(broken.data.details).toEqual({ code: "trust_store" });
   await connection.close();
+});
+
+test("trust.list returns the stored decisions as the port listed them, and an unreadable store is store.io with its own code", async () => {
+  const listed: WireResult<"trust.list"> = {
+    entries: [
+      { path: "/work/app", verdict: "allow", savedAt: "2026-11-07T01:02:03.000Z" },
+      { path: "/work/old", verdict: "deny" },
+    ],
+  };
+  const host = createFakeHost({
+    overrides: {
+      trust: {
+        list: () => Promise.resolve(ok(listed)),
+      },
+    },
+  });
+  const connection = await open(host);
+  expect(await connection.request("trust.list", {})).toEqual(listed);
+  await connection.close();
+
+  const broken = createFakeHost({
+    overrides: {
+      trust: {
+        list: () => Promise.resolve(err({ kind: "store_unreadable", reason: "corrupt" as const })),
+      },
+    },
+  });
+  const brokenConnection = await open(broken);
+  const failure = await wireErrorOf(brokenConnection.request("trust.list", {}));
+  expect(failure.data.kind).toBe("store.io");
+  expect(failure.data.details).toEqual({ code: "trust_store_read" });
+  expect(failure.message).toContain("trust: the stored decisions could not be read (corrupt)");
+  await brokenConnection.close();
 });

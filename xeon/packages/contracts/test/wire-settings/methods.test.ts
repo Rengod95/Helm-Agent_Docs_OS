@@ -527,6 +527,34 @@ describe("M2 method schemas are written out", () => {
     expect(parse(WIRE_METHODS["secret.list"].params, { meta: true, usage: false }).ok).toBe(true);
   });
 
+  test("trust.list and workspace.status take the spec's params and return the spec's shapes", () => {
+    const list = WIRE_METHODS["trust.list"];
+    expect(list.stage).toBe("M4");
+    expect(parse(list.params, {}).ok).toBe(true);
+    expect(parse(list.params, { path: "/work" }).ok).toBe(false);
+    expect(
+      parse(list.result, {
+        entries: [
+          { path: "/work/app", verdict: "allow", savedAt: "2026-11-07T00:00:00.000Z" },
+          { path: "/old", verdict: "deny" },
+        ],
+      }).ok,
+    ).toBe(true);
+    expect(parse(list.result, { entries: [{ path: "/work/app", verdict: "undecided" }] }).ok).toBe(
+      false,
+    );
+    expect(parse(list.result, { entries: [], total: 0 }).ok).toBe(false);
+
+    const status = WIRE_METHODS["workspace.status"];
+    expect(status.stage).toBe("M4");
+    expect(parse(status.params, { workspace: "/work/app" }).ok).toBe(true);
+    expect(parse(status.params, { workspace: "" }).ok).toBe(false);
+    expect(parse(status.params, {}).ok).toBe(false);
+    expect(parse(status.result, { exists: true, path: "/work/app" }).ok).toBe(true);
+    expect(parse(status.result, { exists: "yes", path: "/work/app" }).ok).toBe(false);
+    expect(parse(status.result, { exists: false }).ok).toBe(false);
+  });
+
   test("trust methods take a workspace and a choice, and the status lists the options", () => {
     const { params: getParams, result } = WIRE_METHODS["trust.get"];
     expect(parse(getParams, { workspace: "/work/app" }).ok).toBe(true);
@@ -563,6 +591,54 @@ describe("M2 method schemas are written out", () => {
     expect(parse(result, { ...status, verdict: "maybe" }).ok).toBe(false);
     expect(parse(result, { ...status, via: "somewhere" }).ok).toBe(false);
     expect(parse(result, { ...status, extra: true }).ok).toBe(false);
+  });
+
+  test("trust status details are optional names and commands, never env values", () => {
+    const { result } = WIRE_METHODS["trust.get"];
+    const status = {
+      projectRoot: "/work/app",
+      required: true,
+      verdict: "undecided",
+      via: "headless",
+      resources: [".mcp.json"],
+      options: [
+        {
+          choice: { kind: "folder", verdict: "allow" },
+          label: "trust-folder",
+          savedPath: "/work/app",
+        },
+      ],
+    };
+    const details = {
+      mcpServers: [{ name: "docs", command: "npx", args: ["-y", "docs-server"] }],
+      hooks: ["pre.sh"],
+      skills: ["review"],
+      commands: ["ship"],
+      extensions: ["lint-ext"],
+    };
+    // 옛 결과(details 없음)도 그대로 맞는다
+    expect(parse(result, status).ok).toBe(true);
+    expect(parse(result, { ...status, details }).ok).toBe(true);
+    // 서버 항목에는 env나 url 같은 칸이 없다. 값이 실리면 거부한다
+    expect(
+      parse(result, {
+        ...status,
+        details: {
+          ...details,
+          mcpServers: [{ name: "docs", command: "npx", args: [], env: { TOKEN: "x" } }],
+        },
+      }).ok,
+    ).toBe(false);
+    expect(parse(result, { ...status, details: { ...details, hooks: [""] } }).ok).toBe(false);
+    expect(parse(result, { ...status, details: { ...details, skills: undefined } }).ok).toBe(false);
+    const tooMany = Array.from({ length: 65 }, (_, n) => ({
+      name: `s${n}`,
+      command: "node",
+      args: [],
+    }));
+    expect(parse(result, { ...status, details: { ...details, mcpServers: tooMany } }).ok).toBe(
+      false,
+    );
   });
 
   test("settings.list leaves reserved keys out unless asked", () => {

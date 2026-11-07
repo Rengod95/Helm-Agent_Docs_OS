@@ -741,13 +741,17 @@ export type TrustPortFailure =
   /** `choice`가 질의 결과의 선택지에 없다 */
   | { readonly kind: "invalid_choice" }
   /** 저장 파일이 손상되었거나 쓰지 못했다(잠금을 얻지 못한 것 포함). 기존 결정은 그대로다 */
-  | { readonly kind: "store_failed"; readonly reason: "corrupt" | "io" };
+  | { readonly kind: "store_failed"; readonly reason: "corrupt" | "io" }
+  /** 저장 파일이 손상되었거나 읽지 못했다(`trust.list`). 결정은 건드리지 않는다 */
+  | { readonly kind: "store_unreadable"; readonly reason: "corrupt" | "io" };
 
 /**
  * 프로젝트 신뢰 질의와 결정(HS-58). 엔진은 프롬프트를 띄우지 않으므로 결정이 없는 폴더는 불신(`undecided`)이고,
  * 클라이언트가 폴더에서 thread를 열기 전에 묻고 사람의 결정을 `decide`로 보낸다.
  */
 export interface TrustPort {
+  /** 저장 파일의 결정 목록(읽기 전용, `trust.list`). 아무것도 바꾸지 않는다 */
+  list(signal: AbortSignal): Promise<Result<WireResult<"trust.list">, TrustPortFailure>>;
   /** 판정과 선택지. 아무것도 바꾸지 않는다 */
   get(
     workspace: string,

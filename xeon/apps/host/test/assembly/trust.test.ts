@@ -1,8 +1,17 @@
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterAll, afterEach, expect, test } from "bun:test";
-import type { Logger } from "@fresnel/contracts";
+import { parse, type Logger } from "@fresnel/contracts";
+import { TrustDetailsSchema } from "@fresnel/contracts/wire";
 import { createProjectTrust, type ProjectTrust } from "../../src/assembly/trust.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { openFileLock, type OpenedFileLock } from "../fixtures/file-lock.ts";
@@ -165,6 +174,68 @@ test("the default policy always is trusted without a decision", async () => {
   });
 });
 
+// 카드 미리 보기(X.loading-trust.spec §4.7.4): 결정이 필요한 판정에만 자원 이름을 싣는다. 이름과 명령만 읽고 아무것도 실행하지 않는다.
+test("an undecided project lists its MCP servers by name and command, never an env value, and runs nothing", async () => {
+  const { trust, workspace, root } = await rig();
+  const marker = join(root, "canary-ran");
+  mkdirSync(join(workspace, ".fresnel", "hooks"), { recursive: true });
+  writeFileSync(join(workspace, ".fresnel", "hooks", "canary.sh"), `touch ${marker}\n`);
+  writeFileSync(
+    join(workspace, ".mcp.json"),
+    JSON.stringify({
+      mcpServers: {
+        docs: {
+          command: "npx",
+          args: ["-y", "docs-server"],
+          env: { API_TOKEN: "sk-secret-value-123" },
+        },
+      },
+    }),
+  );
+  const inspected = await trust.inspect(workspace, SIGNAL);
+  expect(inspected.details).toEqual({
+    mcpServers: [{ name: "docs", command: "npx", args: ["-y", "docs-server"] }],
+    hooks: ["canary.sh"],
+    skills: [],
+    commands: [],
+    extensions: [],
+  });
+  expect(parse(TrustDetailsSchema, inspected.details).ok).toBe(true);
+  expect(JSON.stringify(inspected)).not.toContain("sk-secret-value-123");
+  // canary: 훅 파일을 실행하지 않았다
+  expect(existsSync(marker)).toBe(false);
+});
+
+test("a malformed MCP file lists no servers, and the project is still asked", async () => {
+  const { trust, workspace } = await rig();
+  writeFileSync(join(workspace, ".mcp.json"), "{ broken");
+  const inspected = await trust.inspect(workspace, SIGNAL);
+  expect(inspected.result).toMatchObject({ required: true, verdict: "undecided" });
+  expect(inspected.result.resources).toContain(".mcp.json");
+  expect(inspected.details).toEqual({
+    mcpServers: [],
+    hooks: [],
+    skills: [],
+    commands: [],
+    extensions: [],
+  });
+});
+
+test("a denied project keeps its details, and an allowed or trust-free project carries none", async () => {
+  const { trust, workspace } = await rig();
+  const denied = await trust.decide(workspace, { kind: "folder", verdict: "deny" }, SIGNAL);
+  if (!denied.ok) throw new Error("expected the decision to be applied");
+  expect(denied.value.details).not.toBeNull();
+
+  const allowed = await trust.decide(workspace, { kind: "folder", verdict: "allow" }, SIGNAL);
+  if (!allowed.ok) throw new Error("expected the decision to be applied");
+  expect(allowed.value.details).toBeNull();
+
+  const empty = realpathSync(mkdtempSync(join(tmpdir(), "xh-trust-bare-")));
+  cleanup.push(empty);
+  expect((await trust.inspect(empty, SIGNAL)).details).toBeNull();
+});
+
 // G1-10: CLI의 `fresnel trust`와 데스크톱 카드는 각자의 호스트 프로세스로 같은 trust.json에 쓴다. 서비스가 다른 두 신뢰 저장소가
 // 동시에 결정을 저장해도 어느 쪽 결정도 잃지 않는다(잠금이 없으면 나중 쓰기가 앞 쓰기를 덮는다).
 test("two hosts deciding at the same time lose no decision", async () => {
@@ -201,3 +272,22 @@ function entryPathsOf(stored: unknown): string[] {
   const entries: unknown = stored.entries;
   return typeof entries === "object" && entries !== null ? Object.keys(entries).toSorted() : [];
 }
+
+test("list reads the saved decisions, leaves session decisions out, and reports a corrupt file without touching it", async () => {
+  const { trust, workspace, trustFile } = await rig();
+  expect(await trust.list()).toEqual({ ok: true, value: [] });
+  await trust.decide(workspace, { kind: "session", verdict: "deny" }, SIGNAL);
+  expect(await trust.list()).toEqual({ ok: true, value: [] });
+  await trust.decide(workspace, { kind: "folder", verdict: "allow" }, SIGNAL);
+  // 클록은 1000ms다(rig)
+  expect(await trust.list()).toEqual({
+    ok: true,
+    value: [{ path: workspace, verdict: "allow", savedAt: "1970-01-01T00:00:01.000Z" }],
+  });
+  writeFileSync(trustFile, "{ not json");
+  expect(await trust.list()).toEqual({
+    ok: false,
+    error: { kind: "corrupt", reason: "not valid JSON" },
+  });
+  expect(readFileSync(trustFile, "utf8")).toBe("{ not json");
+});

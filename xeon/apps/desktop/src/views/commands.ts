@@ -60,9 +60,11 @@ import type {
   SettingsWritableFileScope,
   SettingsWriteFileResult,
   TrustChoice,
+  TrustListResult,
   TrustStatus,
   WireParams,
   WireResult,
+  WorkspaceStatusResult,
 } from "@fresnel/contracts/wire";
 import type {
   CommandRowVM,
@@ -157,6 +159,16 @@ export type ApprovalDecision =
 interface TrustCommands {
   status(workspace: string): Promise<Result<TrustStatus, CommandError>>;
   decide(workspace: string, choice: TrustChoice): Promise<Result<TrustStatus, CommandError>>;
+  /** `trust.list`: 저장된 결정 목록(읽기 전용). 설정 화면의 "신뢰한 폴더" 구역이 읽는다 */
+  list(): Promise<Result<TrustListResult, CommandError>>;
+}
+
+/**
+ * 작업 폴더의 존재(`workspace.status`). 대화 화면의 띠가 대화를 열 때와 연결이 살아날 때 묻는다(F wire §3.3.1).
+ * 구형 host에는 메서드가 없어 `unsupported`이고, 그때 띠는 그리지 않는다.
+ */
+interface WorkspaceCommands {
+  status(workspace: string): Promise<Result<WorkspaceStatusResult, CommandError>>;
 }
 
 /** `schedule.list` 값 + 서비스 모드 꺼짐 여부와 다시 시작 대기 여부(`settings.get`의 `l0.process.service.enabled`) */
@@ -809,6 +821,7 @@ export interface Commands {
    */
   retargetEngine(target: EngineTarget, graceMs: number): Promise<Result<null, CommandError>>;
   readonly trust: TrustCommands;
+  readonly workspace: WorkspaceCommands;
   readonly setup: SetupCommands;
   /** 크래프트(`workbench`)의 확장 읽기·켜기·되돌리기 */
   readonly workbench: WorkbenchCommands;

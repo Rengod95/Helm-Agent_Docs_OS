@@ -1,12 +1,17 @@
-import { AgentRequest, Button } from "@caustic/react";
-import { t } from "@fresnel/client/i18n";
+import { AgentRequest, Button, toast } from "@caustic/react";
+import { t, type MessageId } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { TrustChoice } from "@fresnel/contracts/wire";
 import { useEffect, useState, type ReactNode } from "react";
 import { useLinkPhase, useOpenThreadId, useThread } from "../state/engine/index.ts";
 import { useCommands } from "./commands.ts";
-import { trustCardOf, type TrustCardView } from "./trust-model.ts";
+import {
+  trustCardOf,
+  trustedToastOf,
+  type TrustCardDetails,
+  type TrustCardView,
+} from "./trust-model.ts";
 
 // 프로젝트 신뢰 확인(G1-03). 열린 대화의 작업 폴더가 신뢰가 필요한 자원(`.mcp.json`, 프로젝트 스킬·명령·설정)을 갖고
 // 결정이 없을 때 승인 대기열과 같은 모양의 카드를 보인다. 판정은 `trust.get`의 요청 결과라 거울에 넣지 않고
@@ -70,9 +75,11 @@ function TrustCardFor(props: { readonly threadId: ThreadId }): ReactNode {
           setSending("failed");
           return undefined;
         }
-        // host가 저장한 뒤의 판정으로 카드를 바꾼다. 신뢰했다면 카드는 사라진다
+        // host가 저장한 뒤의 판정으로 카드를 바꾼다. 신뢰했다면 카드는 사라지고, 무엇을 신뢰했는지 토스트로 알린다
         setSending("idle");
         setLoaded({ workspace, card: trustCardOf(decided.value) });
+        const message = trustedToastOf(decided.value, choice);
+        if (message !== null) toast({ tone: "success", title: message });
         return undefined;
       }),
       rethrow,
@@ -104,6 +111,7 @@ export function TrustCardBody(props: {
         subtitle={card.projectRoot}
         actions={[]}
       >
+        {card.details === null ? null : <TrustDetailRows details={card.details} />}
         {card.resources.length === 0 ? null : (
           <div className="grid gap-1">
             <div className="text-ui-sm text-text-secondary">
@@ -147,5 +155,52 @@ export function TrustCardBody(props: {
         </div>
       </AgentRequest>
     </section>
+  );
+}
+
+/**
+ * 줄마다 키를 붙인다. 같은 줄이 여러 번 나와도(`review.md`와 `review.txt`가 둘 다 `review`) 키가 겹치지 않도록 같은 줄의 몇 번째인지 붙인다.
+ * 키는 `줄#번호`라 줄 안에 `#`이 있어도 마지막 `#` 뒤만 번호다
+ */
+function keyedLines(
+  items: readonly string[],
+): readonly { readonly key: string; readonly text: string }[] {
+  const seen = new Map<string, number>();
+  return items.map((text) => {
+    const count = (seen.get(text) ?? 0) + 1;
+    seen.set(text, count);
+    return { key: `${text}#${String(count)}`, text };
+  });
+}
+
+/** 자원 이름 묶음. 비어 있지 않은 묶음만 보이고, 항목은 이름 그대로(MCP는 실행 명령 줄) 고정폭으로 보인다 */
+function TrustDetailRows(props: { readonly details: TrustCardDetails }): ReactNode {
+  const groups: readonly {
+    readonly label: MessageId;
+    readonly items: readonly string[];
+  }[] = [
+    { label: "desktop.trust.card.details.mcpServers", items: props.details.mcpServers },
+    { label: "desktop.trust.card.details.hooks", items: props.details.hooks },
+    { label: "desktop.trust.card.details.skills", items: props.details.skills },
+    { label: "desktop.trust.card.details.commands", items: props.details.commands },
+    { label: "desktop.trust.card.details.extensions", items: props.details.extensions },
+  ];
+  return (
+    <>
+      {groups
+        .filter((group) => group.items.length > 0)
+        .map((group) => (
+          <div key={group.label} className="grid gap-1">
+            <div className="text-ui-sm text-text-secondary">{t(group.label)}</div>
+            <ul className="m-0 list-disc pl-5">
+              {keyedLines(group.items).map((line) => (
+                <li key={line.key}>
+                  <code>{line.text}</code>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+    </>
   );
 }

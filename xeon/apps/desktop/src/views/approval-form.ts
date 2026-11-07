@@ -116,7 +116,7 @@ export function toolApprovalView(body: ToolApprovalBody): ToolApprovalView {
 // ── 기동 승인(mcp_start) ─────────────────────────────────────────────────
 
 /** 기동 승인의 도구 이름. core-tools `MCP_START_TOOL_NAME`과 같은 값이다(데스크톱은 core-tools를 가져오지 않는다) */
-export const MCP_START_APPROVAL_TOOL = "mcp_start";
+const MCP_START_APPROVAL_TOOL = "mcp_start";
 
 /** 출처 문자열이 뜻하는 곳. 모르는 값은 원문 그대로 보인다 */
 export type McpSourceView =
@@ -143,7 +143,7 @@ export type McpChangedView = {
 };
 
 /** 묻는 까닭. 시크릿을 쓰면 `secret`, 프로젝트 출처면 `project`, 그 밖은 `other`다 */
-export type McpReason = "secret" | "project" | "other";
+type McpReason = "secret" | "project" | "other";
 
 export type McpStartView = {
   readonly server: string;

@@ -191,6 +191,7 @@ export {
   type ProjectTrustResult,
   type ResolveProjectTrustInput,
   type TrustLevel,
+  type TrustListing,
   type TrustLookup,
   type TrustStoreError,
   type TrustVerdict,

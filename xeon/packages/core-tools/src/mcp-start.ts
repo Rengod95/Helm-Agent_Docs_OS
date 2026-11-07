@@ -26,7 +26,7 @@ const TITLE_MAX = 120;
 
 /** 승인 본문 `changed.fields`가 가리키는 정의 필드. 순서가 `fields`의 순서다 */
 const CHANGED_FIELDS = ["command", "args", "cwd", "source", "env", "secretEnv"] as const;
-export type McpStartChangedField = (typeof CHANGED_FIELDS)[number];
+type McpStartChangedField = (typeof CHANGED_FIELDS)[number];
 
 /** 기동 승인 대상 정의. 시크릿 값은 없고 참조만 있다 */
 export interface McpStartDefinition {

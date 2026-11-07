@@ -52,7 +52,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 | 설치 위치 (source) | `builtin`, `managed`, `user`, `project` 넷. 후보를 어디서 찾았는지 나타낸다 |
 | 신뢰 등급 (trust level) | `builtin`, `user`, `project`, `untrusted` 넷. 확장이 할 수 있는 일을 정한다(§4.6) |
 | 작업 폴더 루트 | 신뢰 판정 대상 폴더. 현재 작업 디렉터리(cwd)를 정규화한 경로다 [제안] |
-| 신뢰 필요 자원 | 신뢰 판정 전에 읽거나 실행하면 안 되는 작업 폴더 파일 묶음(§4.7.2) |
+| 신뢰 필요 자원 | 신뢰 판정 전에 읽거나 실행하면 안 되는 작업 폴더 파일 묶음(§4.7.2). 카드 미리 보기가 이름을 읽는 것은 예외다(§4.7.4) |
 | 로드 세대 (generation) | 한 확장의 엔트리를 한 번 실행한 단위. 핫 리로드나 격리 재시작마다 1씩 오른다 |
 | 진단 레코드 | 로드 중 생긴 문제 하나를 적은 `LoadDiagnostic` 값 |
 | 내장 필수 확장 | `essential: true`로 등록된 내장 확장. 이 확장의 실패는 시작 실패다 |
@@ -474,6 +474,11 @@ export interface ProjectTrustStore {
    * 백엔드 쓰기가 실패하면 io를 돌려준다(던지지 않는다, eng.typescript.guide TY-24)
    */
   setMany(updates: readonly TrustUpdate[]): Promise<Result<void, TrustStoreError>>;
+  /**
+   * 저장된 결정 전부를 파일 순서로 돌려준다(읽기만, 파일을 바꾸지 않는다). 없으면 빈 목록, 손상이면 corrupt, 읽기 실패는 io다.
+   * 옛 형식 항목은 savedAt이 없다 [결정: 오케스트레이터 기본값, fxPT] (wire `trust.list`, F.wire-settings §3.3.1)
+   */
+  list(): Promise<Result<readonly TrustListing[], TrustStoreError>>;
 }
 
 /** normalize는 심볼릭 링크를 푼 정규 경로를 돌려준다. clock은 decidedAt에 쓴다. 클래스를 두지 않는다(eng.typescript.guide TY-16) */
@@ -1234,6 +1239,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 | `.agents/skills/`(작업 폴더 루트와 상위 디렉터리, 사용자 홈의 것은 제외) | pi와 같은 공유 스킬 위치(`trust-manager.ts:186-208`) |
 
 - 빈 `.fresnel` 디렉터리는 신뢰를 요구하지 않는다(pi `docs/security.md` "A bare `.pi` directory does not require project trust").
+- [결정: 오케스트레이터 기본값, fxPT] 이 목록의 파일을 "판정 전에 읽지 않는다"는 로드를 가리킨다. 신뢰 카드가 결정 전에 이름을 보이려고 하는 미리 보기는 §4.7.4의 이름 읽기만 한다.
 - `AGENTS.md`, `CLAUDE.md` 같은 컨텍스트 파일은 이 목록에 없다. pi처럼 신뢰와 무관하게 읽힌다. 내용은 모델 입력으로만 쓰이고 코드로 실행되지 않는다. 그래도 신뢰되지 않은 입력으로 본다(pi `docs/security.md` 작업 폴더 신뢰 절).
 
 #### 4.7.3 판정 순서와 선택지
@@ -1281,11 +1287,12 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 | 작업 폴더 확장 | 매니페스트 읽기, import, 엔트리 실행을 하지 않는다. 판정 전에는 매니페스트 JSON도 파싱하지 않는다 | 이 문서 |
 | 작업 폴더 훅(외부 훅 프로토콜, M4) | 실행하지 않는다 | X.operations.spec |
 | 작업 폴더·로컬 설정 파일의 `ext.*` 키와 `x.loading-trust.*` 키 | 유효 값 계산에서 뺀다. 파일에서 지우지 않는다 | 이 문서(규칙), L1.persistence.spec(적용) |
-| 작업 폴더 MCP 서버(`.fresnel/mcp.json`, `.mcp.json`) | 기동하지 않는다 | L2.mcp.spec |
+| 작업 폴더 MCP 서버(`.fresnel/mcp.json`, `.mcp.json`) | 기동하지 않고 로드하지 않는다. 카드 미리 보기는 두 파일을 읽어 서버 이름과 `command`·`args`만 본다(아래) | L2.mcp.spec |
 | 작업 폴더 스킬·프롬프트·에이전트·시스템 프롬프트 파일 | 자원 목록에 넣지 않는다 | L2.knowledge.spec, L1.context.spec |
 
 - 불신(`deny`, `undecided`)이면 위 표의 대상은 이 실행 동안 계속 제외된다. 작업 폴더 후보는 `rejected`(`trust_denied` 또는 `trust_undecided`)로 진단에 남는다. 탐색은 존재 확인만 한 상태이므로 후보 이름은 디렉터리 이름으로 적는다.
 - 작업 폴더 설정 파일의 나머지 키(예: `l1.loop.maxSteps`)를 신뢰 전에 적용할지는 §10 미결 5다. pi는 작업 폴더 설정 전체를 막는다(pi `docs/security.md` "Granting project trust allows Pi to load: project settings").
+- [결정: 오케스트레이터 기본값, fxPT] 신뢰 카드의 자원 이름 미리 보기(조립 루트 `apps/host/src/assembly/trust-preview.ts`의 `previewTrustResources`가 만들고, `trust.get`의 `details`로 간다)는 결정이 필요한 판정(`required`이고 `verdict`가 `allow`가 아님)에만 쓴다. 이름만 읽는다. `.mcp.json`과 `.fresnel/mcp.json`은 JSON으로 파싱해 서버 이름과 `command`·`args`만 뽑는다. `env`·`url`·`headers` 값은 읽고 버린다. `command`가 없거나 빈 문자열인 서버(원격 `url` 서버 등)와 `args`에 문자열이 아닌 값이 있는 서버는 목록에 싣지 않는다(파일 목록에는 남는다). `.fresnel/hooks`·`skills`·`commands`·`extensions`는 항목 이름만 본다. 실행, import, 등록은 하지 않고 이 두 파일 말고는 내용을 읽지 않는다. 파일이 손상되었거나 읽지 못하면 그 파일의 서버 목록을 비우고 진단 `trust.preview_skipped`를 남긴다(던지지 않는다). 목록은 상한(`TRUST_DETAILS_LIMITS`)까지만 싣는다.
 
 #### 4.7.5 저장 파일 손상
 

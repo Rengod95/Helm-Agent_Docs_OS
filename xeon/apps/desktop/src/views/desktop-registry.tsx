@@ -31,6 +31,7 @@ import { ReviewScreen } from "./pages/review/review-screen.tsx";
 import { WorkScreen } from "./pages/work/work-screen.tsx";
 import { SecretsPanel } from "./pages/secrets/secrets-screen.tsx";
 import { TrustCard } from "./trust.tsx";
+import { WorkFolderBand } from "./work-folder-band.tsx";
 import { Transcript } from "./transcript.tsx";
 import {
   createShellRegistry,
@@ -64,6 +65,7 @@ function ChatScreen(): ReactNode {
       {/* 카드가 있을 때만 토스트가 이 카드들 위로 서도록 묶음의 위쪽 끝을 알린다(shell.tsx useToastBottom). 없으면 토스트는 시안 자리다 */}
       <div className="flex flex-none flex-col">
         <div data-toast-avoid className="mx-auto grid min-h-0 w-full max-w-184 flex-none">
+          <WorkFolderBand />
           <TrustCard />
           <ApprovalQueue />
           <SafeModeCard />

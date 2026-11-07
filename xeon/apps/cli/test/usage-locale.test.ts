@@ -150,6 +150,7 @@ Commands
   secret ls|add|set|meta|rotate|rm|test|reveal
                             Manage secrets. Values are read only from a prompt or stdin. Use reveal only in a terminal
   trust [status] [--json]   Show the work folder trust state for this working folder, and the choices
+  trust list [--json]       List the folders that were trusted or denied (read only)
   trust allow|deny [--scope folder|parent|session]
                             Send a trust decision. When trusted, .mcp.json, project skills, and project commands are read
   db export <folder> [--json] [--yes] Export the storage files read-only, without the engine. The engine may be running

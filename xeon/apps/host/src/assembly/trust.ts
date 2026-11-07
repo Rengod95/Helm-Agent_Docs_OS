@@ -7,14 +7,18 @@ import type {
   TrustOption,
   TrustStoreBackend,
 } from "@fresnel/contracts/extensions";
+import type { TrustDetails } from "@fresnel/contracts/wire";
 import {
   createProjectTrustStore,
   resolveProjectTrust,
   trustOptions,
   type ProjectTrustResult,
   type ProjectTrustStore,
+  type TrustListing,
+  type TrustStoreError,
 } from "@fresnel/ext-host";
 import type { FileLock, FileLockError } from "@fresnel/platform-os";
+import { previewTrustResources } from "./trust-preview.ts";
 
 // X.loading-trust.spec §4.7. 프로젝트 신뢰 판정을 조립 루트에서 이어 붙인다: 저장 파일(`<config>/trust.json`), 파일 시스템 포트,
 // 판정 호출. 엔진은 프롬프트를 띄우지 않는다(`headless`): 결정이 없는 프로젝트는 `undecided`(불신)이고, 사람의 결정은 클라이언트가
@@ -36,10 +40,11 @@ export interface ProjectTrustDeps {
   readonly defaultTrust: () => DefaultProjectTrust;
 }
 
-/** 판정 결과와 클라이언트가 보일 수 있는 선택지 */
+/** 판정 결과와 클라이언트가 보일 수 있는 선택지. `details`는 결정이 필요한 판정에만 있다(§4.7.4 카드 미리 보기) */
 export interface TrustInspection {
   readonly result: ProjectTrustResult;
   readonly options: readonly TrustOption[];
+  readonly details: TrustDetails | null;
 }
 
 /** 결정을 반영하지 못한 이유 */
@@ -70,6 +75,11 @@ export interface ProjectTrust {
    * 신뢰 필요 자원이 없어 판정을 건너뛴 폴더에 설정 파일을 새로 쓸지 정할 때 쓴다(그 파일이 생기면 그 폴더는 판정 대상이 된다)
    */
   explicitVerdict(projectRoot: string): Promise<"allow" | "deny" | "none">;
+  /**
+   * 저장 파일의 결정 전부(`trust.list`). 읽기만 한다. 세션 결정은 저장하지 않아 없다. 손상이나 읽기 실패는 저장소 오류다
+   * [결정: 오케스트레이터 기본값, fxPT]
+   */
+  list(): Promise<Result<readonly TrustListing[], TrustStoreError>>;
 }
 
 function errorCode(caught: unknown): string {
@@ -199,12 +209,30 @@ export function createProjectTrust(deps: ProjectTrustDeps): ProjectTrust {
     return result;
   }
 
+  /**
+   * 결정이 필요한 판정(신뢰 필요 자원이 있고 허용이 아님)에만 자원 이름을 미리 본다(§4.7.4). 허용된 폴더는 카드가 없으므로 읽지 않는다.
+   * 정의 파일이 손상되었거나 읽지 못한 자리는 진단 로그로 남기고 목록에서는 뺀다
+   */
+  async function previewOf(result: ProjectTrustResult): Promise<TrustDetails | null> {
+    if (!result.required || result.verdict === "allow") return null;
+    const preview = await previewTrustResources(fs, result.projectRoot);
+    for (const issue of preview.issues) {
+      deps.logger.warn("trust.preview_skipped", {
+        root: result.projectRoot,
+        path: issue.path,
+        reason: issue.reason,
+      });
+    }
+    return preview.details;
+  }
+
   async function inspect(projectRoot: string, signal: AbortSignal): Promise<TrustInspection> {
     const result = await resolveTrust(projectRoot, signal);
     const parent = dirname(result.projectRoot);
     return {
       result,
       options: trustOptions(result.projectRoot, parent === result.projectRoot ? null : parent),
+      details: await previewOf(result),
     };
   }
 
@@ -243,6 +271,7 @@ export function createProjectTrust(deps: ProjectTrustDeps): ProjectTrust {
       if (policy === "never") return "deny";
       return "none";
     },
+    list: () => store.list(),
     async isTrusted(projectRoot, signal) {
       return (await resolveTrust(projectRoot, signal)).trusted;
     },

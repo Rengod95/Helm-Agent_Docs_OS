@@ -36,6 +36,8 @@ export function OverviewPanels(props: {
   readonly updatePanel: ReactNode;
   /** 사용자·프로젝트·관리 정책 설정 파일 경로 줄. 연결이 없으면 빈 목록이다. 경로를 모르면 줄은 `없음`으로 보인다 */
   readonly filePaths: readonly SettingsPathRow[];
+  /** "신뢰한 폴더" 구역(설정 파일 아래). 없으면 아무것도 그리지 않는다 */
+  readonly trustPanel?: ReactNode | undefined;
 }): ReactNode {
   const commands = useCommands();
   const shell = useDesktopShell();
@@ -75,6 +77,7 @@ export function OverviewPanels(props: {
           </ListDescription>
         </SettingSection>
       )}
+      {props.trustPanel}
       <SettingSection title={t("desktop.settings.about.title")}>
         <ListDescription
           variant="ghost"

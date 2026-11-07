@@ -159,6 +159,48 @@ test("paths are normalized for lookup and writing, keys are sorted", async () =>
   });
 });
 
+test("list reads the stored decisions in file order without writing, and omits savedAt for the old format", async () => {
+  const stored = memoryTrustBackend(
+    file({ "/work/app": { verdict: "allow" }, "/work/old": { verdict: "deny" } }),
+  );
+  const before = stored.text();
+  expect(await storeOf(stored).list()).toEqual({
+    ok: true,
+    value: [
+      { path: "/work/app", verdict: "allow", savedAt: "2026-01-01T00:00:00.000Z" },
+      { path: "/work/old", verdict: "deny", savedAt: "2026-01-01T00:00:00.000Z" },
+    ],
+  });
+  expect(stored.text()).toBe(before);
+  expect(stored.calls.updates).toBe(0);
+
+  // 파일이 없으면 빈 목록이다
+  expect(await storeOf(memoryTrustBackend(null)).list()).toEqual({ ok: true, value: [] });
+
+  // 버전 없는 옛 형식은 저장 시각 없이 싣는다
+  const old = memoryTrustBackend(JSON.stringify({ "/a": true, "/b": false, "/c": null }));
+  expect(await storeOf(old).list()).toEqual({
+    ok: true,
+    value: [
+      { path: "/a", verdict: "allow" },
+      { path: "/b", verdict: "deny" },
+    ],
+  });
+
+  // 손상은 corrupt, 읽기 실패는 io다. 둘 다 파일을 바꾸지 않는다
+  const corrupt = memoryTrustBackend("{ not json");
+  expect(await storeOf(corrupt).list()).toEqual({
+    ok: false,
+    error: { kind: "corrupt", reason: "not valid JSON" },
+  });
+  const unreadable = memoryTrustBackend(file({ "/a": { verdict: "allow" } }));
+  unreadable.failReads("permission denied");
+  expect(await storeOf(unreadable).list()).toEqual({
+    ok: false,
+    error: { kind: "io", cause: "permission denied" },
+  });
+});
+
 test("a backend failure is an io error and the store stays usable", async () => {
   const backend = memoryTrustBackend(file({ "/a": { verdict: "allow" } }));
   const store = storeOf(backend);

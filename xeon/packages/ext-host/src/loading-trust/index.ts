@@ -161,6 +161,7 @@ export {
   createProjectTrustStore,
   trustOptions,
   type ProjectTrustStore,
+  type TrustListing,
   type TrustLookup,
   type TrustStoreError,
   type TrustVerdict,

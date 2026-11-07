@@ -106,6 +106,8 @@ export interface SettingsPageProps {
   readonly updatePanel?: ReactNode | undefined;
   /** 개요의 설정 파일 경로 목록(사용자·프로젝트·관리 정책) */
   readonly filePaths: readonly SettingsPathRow[];
+  /** 개요의 "신뢰한 폴더" 구역(읽기 전용). 설정 파일 경로 아래에 보인다. 메서드가 없는 host에서는 `null`이다 */
+  readonly trustPanel?: ReactNode | undefined;
   /** OS 알림 묶음(B-10). "실행과 서비스" 탭 맨 위에 보인다. 웹이나 문맥이 없으면 `null`이다 */
   readonly notifyPanel?: ReactNode | undefined;
   /** "플러그인과 그룹" 탭 맨 위의 실행 화면(그룹·플러그인 목록) */
@@ -440,7 +442,12 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
   const hasCard = tab === "advanced" || fields.length > 0 || emptyText !== null;
   if (tab === "overview")
     return (
-      <OverviewPanels view={view} updatePanel={props.updatePanel} filePaths={props.filePaths} />
+      <OverviewPanels
+        view={view}
+        updatePanel={props.updatePanel}
+        filePaths={props.filePaths}
+        trustPanel={props.trustPanel}
+      />
     );
   // 모델과 예산 탭은 제목 카드로 나눈다(시안 p09 `models-tab`, p11 `BudgetsTab`). 항목이 없으면 아래 한 카드가 빈 항목 문장을 맡는다
   const cards = fields.length === 0 ? null : titledCardsOf(tab, fields);

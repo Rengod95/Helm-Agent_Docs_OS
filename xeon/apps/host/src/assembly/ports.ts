@@ -183,15 +183,16 @@ export function toLogFields(fields: Readonly<Record<string, unknown>>): LogField
   return Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, toLogValue(value)]));
 }
 
-/** 판정과 선택지를 wire `TrustStatus`로 옮긴다 */
+/** 판정과 선택지를 wire `TrustStatus`로 옮긴다. `details`는 미리 본 자원이 있을 때만 싣는다 */
 function trustStatusOf(inspection: TrustInspection): WireResult<"trust.get"> {
-  const { result, options } = inspection;
+  const { result, options, details } = inspection;
   return {
     projectRoot: result.projectRoot,
     required: result.required,
     verdict: result.verdict,
     via: result.via,
     resources: [...result.resources],
+    ...(details === null ? {} : { details }),
     options: options.map((option) => ({
       choice: { kind: option.choice.kind, verdict: option.choice.verdict },
       label: option.label,
@@ -707,6 +708,23 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
   });
 
   const trust: TrustPort = {
+    async list() {
+      const listed = await deps.trust.list();
+      if (!listed.ok) {
+        return err({
+          kind: "store_unreadable",
+          reason: listed.error.kind === "corrupt" ? "corrupt" : "io",
+        });
+      }
+      // 옛 형식 항목은 `savedAt`이 없다. 키를 만들지 않아야 `exactOptionalPropertyTypes`가 맞는다
+      return ok({
+        entries: listed.value.map((entry) =>
+          entry.savedAt === undefined
+            ? { path: entry.path, verdict: entry.verdict }
+            : { path: entry.path, verdict: entry.verdict, savedAt: entry.savedAt },
+        ),
+      });
+    },
     async get(workspace, signal) {
       if (!isAbsolute(workspace)) return err({ kind: "workspace_not_absolute" });
       return ok(trustStatusOf(await deps.trust.inspect(workspace, signal)));
