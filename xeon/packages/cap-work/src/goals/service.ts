@@ -12,6 +12,7 @@ import {
   type GoalJudgeOutputValue,
   type GoalJudgment,
   type GoalRefInput,
+  type GoalStatusInputValue,
   type GoalSetInputValue,
   type GoalStatus,
   type GoalStatusOutputValue,
@@ -149,6 +150,14 @@ function goalIdOf(n: number): Result<GoalId, GoalFailure> {
 
 function activeOf(goals: readonly GoalRow[]): GoalRow | undefined {
   return goals.find((row) => row.goal.status === "active");
+}
+
+/** 가장 최근에 건 목표(`closed` 읽기용: 활성이 없을 때 끝난 목표의 결과를 보인다) */
+function latestOf(goals: readonly GoalRow[]): GoalRow | undefined {
+  return goals.reduce<GoalRow | undefined>(
+    (best, row) => (best === undefined || row.setSeq > best.setSeq ? row : best),
+    undefined,
+  );
 }
 
 /** 판정 이유는 비어 있을 수 없다(스키마 최소 길이 1) */
@@ -523,13 +532,13 @@ export function createGoals(deps: WorkGoalsDeps): GoalsRuntime {
       };
     },
 
-    async status(input: GoalRefInput, options) {
+    async status(input: GoalStatusInputValue, options) {
       const scope = scopeOf(GOALS, "status", options);
       return await queue.run(scope.threadId, (): GoalStatusOutputValue => {
         const goals = read(GOALS, "status", readGoals(deps.reader, scope.threadId));
         const row =
           input.goalId === undefined
-            ? activeOf(goals)
+            ? (activeOf(goals) ?? (input.closed === true ? latestOf(goals) : undefined))
             : goals.find((candidate) => candidate.goal.goalId === input.goalId);
         if (input.goalId !== undefined && row === undefined) {
           throw goalRejection(GOALS, "status", { kind: "not_found", id: input.goalId });

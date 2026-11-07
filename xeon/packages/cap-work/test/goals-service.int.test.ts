@@ -122,6 +122,22 @@ describe("work.goals set and status", () => {
   });
 });
 
+describe("work.goals status closed", () => {
+  test("closed true answers the latest ended goal when none is active, plain status stays null", async () => {
+    const h = await harness();
+    await h.goals.set({ condition: "x" }, h.opts());
+    await h.goals.clear({}, h.opts());
+    expect(await h.goals.status({}, h.opts())).toEqual({ goal: null, recent: [] });
+    const closed = await h.goals.status({ closed: true }, h.opts());
+    expect(closed.goal).toMatchObject({ goalId: "g1", condition: "x", status: "cleared" });
+    await h.goals.set({ condition: "y" }, h.opts());
+    expect((await h.goals.status({ closed: true }, h.opts())).goal).toMatchObject({
+      goalId: "g2",
+      status: "active",
+    });
+  });
+});
+
 describe("work.goals clear", () => {
   test("clearing ends the goal as cleared with a report and a second clear is goal_closed", async () => {
     const h = await harness();

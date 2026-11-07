@@ -581,6 +581,22 @@ export function goalCellOf(goal: GoalWire): {
   };
 }
 
+/**
+ * 읽은 목표 중 칸에 둘 것. 끝난 목표(달성·상한)는 결과와 함께 칸에 남다가 사용자가 다음 말을 보내 턴이 시작되면(`running`)
+ * 내리고, 내린 목표(`dismissed` 키)는 같은 값으로 다시 읽어도 그리지 않는다
+ */
+export function goalShownOf(
+  goal: GoalWire,
+  threadId: ThreadId,
+  running: boolean,
+  dismissed: string | null,
+): { readonly goal: GoalWire; readonly dismissed: string | null } {
+  if (goal === null || goal.status === "active") return { goal, dismissed };
+  const key = `${threadId}|${goal.condition}|${goal.status}|${String(goal.judged)}`;
+  const next = running ? key : dismissed;
+  return { goal: next === key ? null : goal, dismissed: next };
+}
+
 /** 열린 대화의 목표를 읽는다. 연결이 살아 있으면 대화를 열 때, 턴이 시작·끝날 때, 슬래시 명령이 끝날 때 읽는다(목표가 쉬는 동안에도 칸이 보인다). 읽지 못하면 칸을 두지 않는다 */
 function useThreadGoal(threadId: ThreadId): GoalWire {
   const commands = useCommands();
@@ -588,6 +604,9 @@ function useThreadGoal(threadId: ThreadId): GoalWire {
   const running = useThreadRunning(threadId);
   const commandRuns = useCommandRuns();
   const [goal, setGoal] = useState<GoalWire>(null);
+  // 끝난 목표는 사용자가 다음 말을 보내 새 턴이 시작되면 칸에서 내린다. 내린 목표는 같은 값으로 다시 읽어도 그리지 않는다
+  // 키에 대화 id가 들어 있어 다른 대화로 옮겨도 따로 비우지 않는다
+  const dismissed = useRef<string | null>(null);
   useEffect(() => {
     if (!live) return undefined;
     let stale = false;
@@ -597,7 +616,15 @@ function useThreadGoal(threadId: ThreadId): GoalWire {
       readonly runs: number;
     }): Promise<void> => {
       const result = await commands.work.goal(threadId);
-      if (!stale) setGoal(result.ok ? result.value.goal : null);
+      if (stale) return;
+      const shown = goalShownOf(
+        result.ok ? result.value.goal : null,
+        threadId,
+        running,
+        dismissed.current,
+      );
+      dismissed.current = shown.dismissed;
+      setGoal(shown.goal);
     };
     detach(read({ running, runs: commandRuns }), rethrow);
     return () => {

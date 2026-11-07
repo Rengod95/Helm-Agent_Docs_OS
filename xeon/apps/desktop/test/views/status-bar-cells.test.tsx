@@ -10,6 +10,7 @@ import {
   engineDescriptionOf,
   engineDotOf,
   goalCellOf,
+  goalShownOf,
   liveDotOf,
   liveKindsOf,
   LiveList,
@@ -551,5 +552,23 @@ describe("status bar goal cell", () => {
   test("no goal or a cleared one leaves no cell", () => {
     expect(goalCellOf(null)).toBeNull();
     expect(goalCellOf(goal("cleared"))).toBeNull();
+  });
+});
+
+describe("status bar ended goal", () => {
+  test("an ended goal stays with its result until the next turn starts, then stays hidden", () => {
+    const ended = goal("met");
+    const idle = goalShownOf(ended, thr(1), false, null);
+    expect(idle.goal).toEqual(ended);
+    expect(goalCellOf(idle.goal)?.description).toBe("판정 2/3 · 충족");
+    const next = goalShownOf(ended, thr(1), true, idle.dismissed);
+    expect(next.goal).toBeNull();
+    expect(goalShownOf(ended, thr(1), false, next.dismissed).goal).toBeNull();
+  });
+  test("an active goal is always shown and a newer ended goal is not hidden by an older dismissal", () => {
+    expect(goalShownOf(goal("active"), thr(1), true, null).goal).toEqual(goal("active"));
+    const old = goalShownOf(goal("met"), thr(1), true, null);
+    const newer = { ...goal("exhausted"), condition: "d" } as const;
+    expect(goalShownOf(newer, thr(1), false, old.dismissed).goal).toEqual(newer);
   });
 });

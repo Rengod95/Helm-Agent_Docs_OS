@@ -282,7 +282,7 @@ export function createDialogAreaPort(deps: M4PortDeps): DialogAreaPort {
       const api = dialogArea.goals;
       if (api === undefined) return ok({ goal: null });
       const options: CallOptions = { signal, context: hostContext(threadId) };
-      const status = await attemptAsync(() => api.status({}, options));
+      const status = await attemptAsync(() => api.status({ closed: true }, options));
       if (!status.ok) return err(rejectedOf(status.error.cause));
       const { goal } = status.value;
       return ok({ goal: goal === null ? null : goalViewOf(goal) });

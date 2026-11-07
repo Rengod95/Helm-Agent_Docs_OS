@@ -1200,6 +1200,7 @@ export interface JudgePort {
   - `customType`이 `work.` 접두가 아니고 `x.cap-work.…`인 이유: 내장 `cap-*`가 접두 없이 쓸 수 있는 것은 자기 도메인 영역의 이벤트 kind뿐이다. 커스텀 메시지 `customType`은 `RecordKind` 형식(`x.<확장 이름>.…`)을 쓴다(`F.records.spec` §3.2 규칙 3, `F.conversation.spec` §3.5.2). `cap-work`의 확장 이름은 `cap-work`다. 경계 엔트리로는 core kind 중 custom `item.recorded`만 쓸 수 있다(`L1.loop.spec` §3.6).
 - `continuation`은 목표에 기록하는 값이다. 게이트는 `"self"`와 `"external"`을 구별하지 않고 판정과 한 단계 더 돌기만 한다. `goalId`를 가진 루프(`schedule.loops`)와의 결합(`"external"`이면 `work.goals`가 다음 턴을 투입하지 않는다)은 `L2.schedule.spec` §4.1.4가 정한다 [미결: 그 문서의 구현이 들어올 때 확인].
 - `delegated` 판정자 목표는 게이트가 판정하지 않는다. 판정이 `work.goals.judge`로 들어오면 기록하고 종결 여부를 정하지만 다음 단계를 시작하지는 않는다 [미결: 위임 판정자가 미충족 뒤 다음 턴을 시작하는 길(`post`)은 이 구현에 없다. 그룹이 `goals.status`로 결과를 읽고 자기 `drive`로 이어 간다].
+- `goals.status`는 `goalId`가 없으면 활성 목표를 돌려주고 없으면 `null`이다. `closed: true`를 주면 활성이 없을 때 가장 최근에 건 목표(달성·상한·해제로 끝난 것)를 돌려준다. 상태 막대 목표 칸이 끝난 목표의 결과를 보이려고 쓴다 [결정: 오케스트레이터 기본값, rtG]. 시험: `test/goals-service.int.test.ts`.
 - 위임 판정의 대기 시간 제한(`l2.work.goal.delegatedTimeoutSec`)은 이 구현에 없다 [미결: 타이머 주체와 `failure.code = "timeout"` 기록은 위임 판정자를 쓰는 그룹이 생길 때 정한다].
 - `schedule.loops`는 `work.goals`를 선택 의존으로 쓴다(`L2.readme` §6). 루프 종료 조건으로 목표 판정을 쓰는 방법은 `L2.schedule.spec` §4.1.4가 정한다.
 

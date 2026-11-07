@@ -1022,8 +1022,14 @@ const goalRefInputShape = Type.Object(
   { goalId: Type.Optional(GoalIdSchema) },
   { additionalProperties: false },
 );
-export const GoalStatusInput: TUnsafe<GoalRefInput> = Type.Unsafe<GoalRefInput>(
-  goalRefInputShape satisfies SchemaProof<GoalRefInput, typeof goalRefInputShape>,
+/** `closed: true`는 활성 목표가 없을 때 가장 최근에 끝난(달성·상한·해제) 목표를 돌려 달라는 뜻이다 */
+export type GoalStatusInputValue = { goalId?: GoalId; closed?: boolean };
+const goalStatusInputShape = Type.Object(
+  { goalId: Type.Optional(GoalIdSchema), closed: Type.Optional(Type.Boolean()) },
+  { additionalProperties: false },
+);
+export const GoalStatusInput: TUnsafe<GoalStatusInputValue> = Type.Unsafe<GoalStatusInputValue>(
+  goalStatusInputShape satisfies SchemaProof<GoalStatusInputValue, typeof goalStatusInputShape>,
 );
 export const GoalClearInput: TUnsafe<GoalRefInput> = Type.Unsafe<GoalRefInput>(
   goalRefInputShape satisfies SchemaProof<GoalRefInput, typeof goalRefInputShape>,
