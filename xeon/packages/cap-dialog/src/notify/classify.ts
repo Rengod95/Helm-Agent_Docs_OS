@@ -30,6 +30,7 @@ function notice(
     body: body === null ? null : clip(body, BODY_MAX),
     seq: event.seq,
     sourceType: event.kind,
+    createdAt: event.recordedAt,
   };
 }
 

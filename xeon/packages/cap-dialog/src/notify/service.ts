@@ -41,8 +41,13 @@ export interface NotifyService {
 
 interface Subscription {
   readonly kinds: ReadonlySet<NoticeKind> | undefined;
-  readonly listener: (threadId: ThreadId, notice: Notice) => void;
+  readonly listener: (threadId: ThreadId | null, notice: Notice) => void;
 }
+
+/** 대화 없는 알림을 이미 보낸 `seq`를 기억하는 수. 넘으면 비운다(같은 알림이 한 번 더 가는 쪽이 놓치는 쪽보다 낫다) */
+const THREADLESS_SEEN_MAX = 1000;
+/** `list`가 싣는 대화 없는 알림의 최대 수(스키마 상한과 같다). 가장 새 것부터 채운다 */
+const THREADLESS_LIST_MAX = 100;
 
 function storeFailure(error: StoreError): DialogFailure {
   return new DialogFailure("unavailable", `The session store failed (${error.kind}).`, {
@@ -114,11 +119,24 @@ function scanNotices(
   return { notices, nextSeq: cursor };
 }
 
+/** 대화 없는 알림을 종류로 거르고 가장 새 `THREADLESS_LIST_MAX`개를 seq 오름차순으로 돌려준다 */
+function threadlessOf(
+  notices: readonly Notice[],
+  kinds: readonly NoticeKind[] | undefined,
+): Notice[] {
+  return notices
+    .filter((notice) => kinds === undefined || kinds.includes(notice.kind))
+    .toSorted((a, b) => a.seq - b.seq)
+    .slice(-THREADLESS_LIST_MAX);
+}
+
 export function createNotifyService(deps: DialogDeps): NotifyService {
   const subscriptions = new Set<Subscription>();
   /** `${threadId} ${kind}` → 마지막으로 구독자에게 보낸 시각(ms). 창을 지난 항목은 알림이 올 때 지운다 */
   const lastDelivered = new Map<string, number>();
   let watermark = 0;
+  /** 대화 없는 알림 중 이미 구독자에게 보낸 seq */
+  const threadlessSeen = new Set<number>();
 
   const api: NotifyApi = {
     emit: (input, options) =>
@@ -161,8 +179,34 @@ export function createNotifyService(deps: DialogDeps): NotifyService {
           limit: parsed.value.limit ?? LIST_DEFAULT_LIMIT,
           kinds: parsed.value.kinds === undefined ? undefined : new Set(parsed.value.kinds),
         });
-        return Promise.resolve({ notices, nextSeq });
+        // 대화를 거르지 않은 목록에만 대화 없는 알림을 싣는다. 쪽 나누기(`afterSeq`)와 무관하게 가장 새 것이다
+        const threadless =
+          options?.context?.threadId === undefined && deps.threadlessNotices !== undefined
+            ? threadlessOf(deps.threadlessNotices(), parsed.value.kinds)
+            : undefined;
+        return Promise.resolve(
+          threadless === undefined ? { notices, nextSeq } : { notices, nextSeq, threadless },
+        );
       }),
+    publishThreadless: (notice) => {
+      // 같은 실행은 늘 같은 seq다. 한 번만 보낸다. 대화가 없어 1초 묶음은 걸지 않는다(서로 다른 예약의 실패가 겹칠 수 있다)
+      if (threadlessSeen.has(notice.seq)) return;
+      if (threadlessSeen.size >= THREADLESS_SEEN_MAX) threadlessSeen.clear();
+      threadlessSeen.add(notice.seq);
+      for (const subscription of subscriptions) {
+        if (subscription.kinds !== undefined && !subscription.kinds.has(notice.kind)) continue;
+        const delivered = attempt(() => {
+          subscription.listener(null, notice);
+        });
+        if (!delivered.ok) {
+          deps.logger.error("dialog.notify_listener_failed", {
+            threadId: null,
+            kind: notice.kind,
+            seq: notice.seq,
+          });
+        }
+      }
+    },
     subscribe: (filter, listener) => {
       const subscription: Subscription = {
         kinds: filter.kinds === undefined ? undefined : new Set(filter.kinds),
@@ -208,6 +252,7 @@ export function createNotifyService(deps: DialogDeps): NotifyService {
     dispose: () => {
       subscriptions.clear();
       lastDelivered.clear();
+      threadlessSeen.clear();
     },
   };
 }

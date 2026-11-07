@@ -7,6 +7,7 @@ import {
   DialogStatusKey,
   WorkspaceImagesKey,
   type CallContext,
+  type Notice,
 } from "@fresnel/contracts/capabilities";
 import type { IdFactory } from "@fresnel/contracts/conversation";
 import type { ExtensionEntry, PortKey } from "@fresnel/contracts/extensions";
@@ -69,6 +70,10 @@ export interface DialogPluginOptions {
    * 생략하면 이 확장이 따로 센다
    */
   readonly chunkNumbering?: ChunkNumbering;
+  /**
+   * 대화에 묶이지 않은 알림의 원천. 조립 루트가 예약 실행 기록에서 계산해 넘긴다(`DialogDeps.threadlessNotices`). 생략하면 없다
+   */
+  readonly threadlessNotices?: () => readonly Notice[];
   readonly loadIndex?: number;
 }
 
@@ -153,6 +158,7 @@ export function dialogPlugin(options: DialogPluginOptions): ExtensionUnit {
           session === undefined
             ? undefined
             : sessionNoticePort(session, session.producer(DIALOG_PRODUCER), options.ids, logger),
+        threadlessNotices: options.threadlessNotices,
       };
       const runtime = createDialogRuntime(deps);
       host.provide(DialogAskKey, runtime.apis.ask);

@@ -592,10 +592,14 @@ export const NoticeSchema = Type.Object(
     seq: Type.Integer({ minimum: 1 }),
     /** 파생 알림이면 원인 이벤트 type, emit이면 "dialog.notified" */
     sourceType: Type.String({ maxLength: 128 }),
+    /** 알림이 생긴 시각(epoch ms). 파생 알림은 원인 이벤트의 기록 시각, 대화 없는 알림은 사건이 끝난 시각 [결정: 오케스트레이터 기본값, fxSC2] */
+    createdAt: Type.Integer({ minimum: 0 }),
   },
   { additionalProperties: false },
 );
 export type Notice = Static<typeof NoticeSchema>;
+// 대화에 묶이지 않은 알림: `NoticeFeed.publishThreadless(notice)`(구독자 `threadId`는 null)와 `list`의 `threadless`. `seq`는
+// `THREADLESS_NOTICE_SEQ_BASE`(2^40) 이상이다. 내구 이벤트가 없어 호스트가 원천(`DialogDeps.threadlessNotices`)을 준다 [결정: 오케스트레이터 기본값, fxSC2]
 
 export const NotifyEmitInput = Type.Object(
   {
