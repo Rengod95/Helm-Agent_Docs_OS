@@ -892,6 +892,8 @@
   "desktop.inbox.filter.approvals": "승인",
   "desktop.inbox.filter.label": "받은 요청 거르기",
   "desktop.inbox.filter.notices": "알림",
+  "desktop.inbox.proposals.open": "검토하기",
+  "desktop.inbox.proposals.waiting": "새 학습 제안 {count}개가 검토를 기다려요",
   "desktop.inbox.sort.label": "정렬",
   "desktop.inbox.sort.newest": "최근 것 먼저",
   "desktop.inbox.sort.oldest": "오래된 것 먼저",

@@ -9,6 +9,7 @@ import {
 } from "../state/engine/index.ts";
 import { InboxNotices } from "./notices.tsx";
 import { ApprovalCardList } from "./approval-card/approval-card.tsx";
+import { InboxProposalsRow } from "./inbox-proposals-row.tsx";
 import {
   arrangeInboxApprovals,
   inboxRowsOf,
@@ -16,6 +17,7 @@ import {
   type InboxSort,
   type InboxThread,
 } from "./inbox-model.ts";
+import { useProposalPending } from "./proposal-pending-context.tsx";
 
 // 승인 대기열의 마운트 자리 두 곳. 카드 본문과 단추는 approval-card/가 그린다(네 종류가 세 자리에서 같다).
 // 트랜스크립트 끝은 ApprovalQueue, 끝 영역 받은 요청 탭은 InboxApprovals다. P-03 목록은 아직 없어 ApprovalCardList를 그대로 쓴다.
@@ -36,13 +38,15 @@ export function useInboxThreads(): readonly InboxThreadChoice[] {
 }
 
 /** 끝 영역 받은 요청 탭과 받은 요청 화면. 트랜스크립트 아래와 같은 카드를 쓴다(`approval.resolved`로 함께 사라진다).
- * 대화와 정렬은 승인 구역만 거른다. 기본은 모든 대화이고 오래된 것 먼저다 */
+ * 대화와 정렬은 승인 구역만 거른다. 기본은 모든 대화이고 오래된 것 먼저다.
+ * 대기 제안이 있으면 거르기가 "모두"일 때 맨 위에 제안 줄 하나를 둔다(`InboxProposalsRow`). 제안 줄은 대화와 정렬을 받지 않는다 */
 export function InboxApprovals(props: {
   readonly show?: InboxFilter;
   readonly thread?: InboxThread;
   readonly sort?: InboxSort;
 }): ReactNode {
   const approvals = useApprovalMirror();
+  const pending = useProposalPending().count;
   const ids = arrangeInboxApprovals(inboxRowsOf(approvals.ids, approvals.byId), {
     thread: props.thread ?? "all",
     sort: props.sort ?? "oldest",
@@ -51,6 +55,7 @@ export function InboxApprovals(props: {
   const heads = show === "all";
   return (
     <div className="grid gap-4">
+      {show === "all" && pending > 0 ? <InboxProposalsRow count={pending} /> : null}
       {show === "notices" ? null : (
         <section className="grid gap-2">
           {heads ? (

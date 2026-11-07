@@ -19,6 +19,7 @@ import {
 import { useLinkPhase, useThreadSummaries } from "../../../state/engine/index.ts";
 import { useShellActions } from "../../../state/shell/index.ts";
 import { useCommands } from "../../commands.ts";
+import { useProposalPending } from "../../proposal-pending-context.tsx";
 import {
   confirmActionOf,
   effectiveScopeOf,
@@ -52,6 +53,8 @@ export function ProposalsScreen(): ReactNode {
   const live = useLinkPhase() === "live";
   const threads = useThreadSummaries();
   const shell = useShellActions();
+  // 결정 뒤에 사이드바 배지와 받은 요청 제안 줄의 수를 다시 읽는다
+  const refreshPending = useProposalPending().refresh;
   const [state, dispatch] = useReducer(proposalsReducer, INITIAL_PROPOSALS_STATE);
   // 늦게 온 읽기가 새 읽기를 덮지 않도록 읽기마다 번호를 매긴다
   const latestRead = useRef(0);
@@ -113,6 +116,7 @@ export function ProposalsScreen(): ReactNode {
     dispatch({ type: "busyChanged", busy: true });
     const result = await commands.proposals.decide(params.value);
     dispatch({ type: "busyChanged", busy: false });
+    refreshPending();
     if (!result.ok) {
       notify("danger", t(commandErrorIdOf(result.error)));
       return;
