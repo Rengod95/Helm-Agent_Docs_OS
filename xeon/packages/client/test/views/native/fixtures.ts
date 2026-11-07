@@ -36,7 +36,7 @@ export function helmInquiryDoc(inquiryId: string | null): unknown {
       lease: "held",
       findings: 3,
       lenses: [
-        { title: "A", status: "run" },
+        { title: "A", status: "running" },
         { title: "B", status: "done" },
       ],
       inquiryId,

@@ -68,7 +68,7 @@ describe("resolveTree on the group-helm inquiry tree", () => {
               type: "Row",
               props: {},
               children: [
-                { type: "Badge", props: { text: "held" }, children: [] },
+                { type: "Badge", props: { text: "탐구하는 중이에요" }, children: [] },
                 { type: "Meter", props: { label: "발견 수", max: 24, value: 3 }, children: [] },
               ],
             },
@@ -76,8 +76,8 @@ describe("resolveTree on the group-helm inquiry tree", () => {
               type: "ActivityTree",
               props: {},
               children: [
-                { type: "Row", props: {}, children: [text("A"), badge("run")] },
-                { type: "Row", props: {}, children: [text("B"), badge("done")] },
+                { type: "Row", props: {}, children: [text("A"), badge("진행 중")] },
+                { type: "Row", props: {}, children: [text("B"), badge("끝남")] },
               ],
             },
           ],
@@ -89,7 +89,7 @@ describe("resolveTree on the group-helm inquiry tree", () => {
             {
               type: "List",
               props: {},
-              children: [{ type: "Row", props: {}, children: [text("c"), badge("high")] }],
+              children: [{ type: "Row", props: {}, children: [text("c"), badge("높음")] }],
             },
           ],
         },
