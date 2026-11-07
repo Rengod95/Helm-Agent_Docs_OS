@@ -382,3 +382,20 @@ describe("설치 거절 사유", () => {
     expect(installReasonsOf({ kind: "offline" })).toEqual([]);
   });
 });
+
+test("reasons that look the same on screen are listed once", () => {
+  const error = {
+    kind: "rejected",
+    code: -32602,
+    reasons: [
+      { code: "unknown_key", field: "plugins/0/hoks", line: 4, message: "a" },
+      { code: "unknown_key", field: "plugins/0/hoks", line: 4, message: "b" },
+      { code: "version_invalid", message: "c" },
+      { code: "hook_unknown", message: "d" },
+    ],
+  } as const;
+  expect(installReasonsOf(error)).toEqual([
+    { key: "unknown_key", field: "plugins/0/hoks", line: 4 },
+    { key: "other" },
+  ]);
+});

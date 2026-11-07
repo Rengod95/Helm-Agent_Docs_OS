@@ -16,6 +16,7 @@ import {
   INITIAL_INSTALL_FLOW,
   installFailureOf,
   installReasonsOf,
+  installReasonKeyOf,
   pickOutcomeOf,
   installReduce,
   accessIsEmpty,
@@ -378,9 +379,9 @@ export function InstallReasonList(props: {
     <ul className="m-0 grid list-disc gap-1 ps-4 text-ui-dense">
       {props.reasons.map((reason) => {
         const place = placeText(reason);
-        // 목록은 그리는 동안 바뀌지 않으므로 사유의 내용으로 키를 만든다(같은 내용의 사유는 같은 키가 된다)
+        // 같아 보이는 사유는 installReasonsOf가 이미 하나로 줄였으므로 내용 키가 겹치지 않는다
         return (
-          <li key={`${reason.key}|${reason.field ?? ""}|${reason.line ?? ""}`}>
+          <li key={installReasonKeyOf(reason)}>
             {t(REASON_TEXT[reason.key])}
             {place === null ? null : <span className="block text-ui-xs">{place}</span>}
           </li>

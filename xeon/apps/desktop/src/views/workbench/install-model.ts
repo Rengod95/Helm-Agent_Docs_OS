@@ -105,9 +105,23 @@ export function installReasonOf(reason: DevkitReason): InstallReason {
   };
 }
 
-/** 명령 오류가 싣는 거절 사유를 화면 사유로 바꾼다. 거절이 아니거나 사유가 없으면 빈 목록이다 */
+/** 명령 오류가 싣는 거절 사유를 화면 사유로 바꾼다. 거절이 아니거나 사유가 없으면 빈 목록이다. 화면에서 같아 보이는 사유는 한 번만 둔다 */
 export function installReasonsOf(error: CommandError): readonly InstallReason[] {
-  return error.kind === "rejected" ? (error.reasons ?? []).map(installReasonOf) : [];
+  if (error.kind !== "rejected") return [];
+  const seen = new Set<string>();
+  const out: InstallReason[] = [];
+  for (const reason of (error.reasons ?? []).map(installReasonOf)) {
+    const key = installReasonKeyOf(reason);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(reason);
+  }
+  return out;
+}
+
+/** 목록에서 사유 하나를 가르는 키. 화면에 보이는 것(문장 코드, 자리)만 쓴다 */
+export function installReasonKeyOf(reason: InstallReason): string {
+  return `${reason.key}|${reason.field ?? ""}|${reason.line ?? ""}`;
 }
 
 export type InstallAction =
