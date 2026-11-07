@@ -58,7 +58,9 @@ import {
   composerDisabledReason,
   createEnterGuard,
   createSendLatch,
+  engineGoneOf,
   looksLikeSecret,
+  stopBlockedReasonOf,
 } from "./composer-model.ts";
 import {
   DEFAULT_MODEL_CHOICE,
@@ -307,9 +309,14 @@ export function ownsComposerRequest(selected: ThreadId | null, own: ThreadId): b
 function ComposerFor(props: {
   readonly threadId: ThreadId;
   readonly disabledReason: string | null;
+  /** 엔진이 없다(`engineGoneOf`). 그러면 대화가 실행 중이라고 말하지 않고 정지 단추를 누를 수 없게 한다 */
+  readonly engineGone: boolean;
 }): ReactNode {
   const commands = useCommands();
-  const running = useThreadRunning(props.threadId);
+  // 거울의 실행 중 값은 엔진이 없으면 오래된 것이다. 실행 중이라는 판단(첨부 잠금, 사용량)은 엔진이 있을 때만 쓴다
+  const threadRunning = useThreadRunning(props.threadId);
+  const running = threadRunning && !props.engineGone;
+  const stopBlocked = stopBlockedReasonOf(props.engineGone);
   // 이 대화의 모델(정하지 않았으면 기본 모델)과 문맥 사용량(model-usage.ts)
   const defaultModel = useDefaultModel();
   const threadModel = useThreadModel(props.threadId, defaultModel);
@@ -856,13 +863,14 @@ function ComposerFor(props: {
               disabled={props.disabledReason !== null}
               threadId={props.threadId}
             />
-            {running ? (
+            {threadRunning ? (
               <IconButton
                 type="button"
                 variant="solid"
                 radius="full"
                 size="sm"
-                label={t("desktop.composer.interrupt.button")}
+                label={stopBlocked ?? t("desktop.composer.interrupt.button")}
+                disabled={stopBlocked !== null}
                 onClick={() => {
                   detach(commands.interrupt(props.threadId), rethrow);
                 }}
@@ -935,7 +943,12 @@ export function Composer(): ReactNode {
           </Button>
         </div>
       ) : null}
-      <ComposerFor key={threadId} threadId={threadId} disabledReason={disabledReason} />
+      <ComposerFor
+        key={threadId}
+        threadId={threadId}
+        disabledReason={disabledReason}
+        engineGone={engineGoneOf(engine, phase)}
+      />
     </div>
   );
 }

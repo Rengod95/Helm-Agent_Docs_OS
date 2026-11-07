@@ -1,6 +1,12 @@
 import { expect, test } from "bun:test";
+import { t } from "@fresnel/client/i18n";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
-import { resumeBandClosed, resumeBandOf, rowResumable } from "../../src/views/resume-band-model.ts";
+import {
+  crashedBodyOf,
+  resumeBandClosed,
+  resumeBandOf,
+  rowResumable,
+} from "../../src/views/resume-band-model.ts";
 import { chipInputs } from "../../src/views/composer-model.ts";
 import type { QueuedInput } from "../../src/state/engine/index.ts";
 import { evt, thr, trn } from "../state/helpers.ts";
@@ -102,6 +108,17 @@ const hidden = (n: number): QueuedInput =>
     sourceType: "extension",
     preview: { kind: "label", labelKey: "helm", internal: true },
   });
+
+test("the crashed band's sentence names the service for a remote target and the app for this computer", () => {
+  expect(crashedBodyOf(false)).toBe("desktop.resumeBand.crashed.body");
+  expect(crashedBodyOf(true)).toBe("desktop.resumeBand.crashed.bodyService");
+  expect(t(crashedBodyOf(true))).toBe(
+    "서비스 연결이 끊겼다가 돌아왔어요. 이어서 실행하거나 그대로 둘 수 있어요.",
+  );
+  expect(t(crashedBodyOf(false))).toBe(
+    "앱이 다시 시작되며 멈췄어요. 이어서 실행하거나 그대로 둘 수 있어요.",
+  );
+});
 
 test("the held band counts only what the user can see: hidden internal input alone shows no band", () => {
   const idle = summary({});

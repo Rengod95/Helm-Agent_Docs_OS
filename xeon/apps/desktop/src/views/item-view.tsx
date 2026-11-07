@@ -14,8 +14,10 @@ import {
 } from "react";
 import { cardOf, provenanceOf } from "../plugin-ui/placements.ts";
 import {
+  useEngineState,
   useHasToolCall,
   useItem,
+  useLinkPhase,
   useOpenThreadId,
   useOpenThread,
   useOpenThreadRunning,
@@ -27,6 +29,7 @@ import {
 import { useCommands } from "./commands.ts";
 import { fileChangeViewOfArgs } from "./approval-form.ts";
 import { bubbleOf } from "./attachment-bubble-model.ts";
+import { engineGoneOf } from "./composer-model.ts";
 import { FileChangeDiff } from "./file-change-view.tsx";
 import { MessageAttachments } from "./message-attachments.tsx";
 import { EntrySurface } from "./plugin/plugin-view.tsx";
@@ -499,7 +502,9 @@ function CallRow(props: {
   readonly args: JsonObject;
 }): ReactNode {
   const result = useToolResult(props.callId);
-  const running = useOpenThreadRunning();
+  // 엔진이 없으면 열린 대화가 돈다고 거울이 말해도 그 도구는 더 돌지 않는다(실행 중 표시를 하지 않는다)
+  const engineGone = engineGoneOf(useEngineState(), useLinkPhase());
+  const running = useOpenThreadRunning() && !engineGone;
   const awaitingApproval = useToolCallAwaitingApproval(props.callId);
   if (props.name === AGENT_TOOL) {
     return <AgentRow args={props.args} result={result} running={running} />;

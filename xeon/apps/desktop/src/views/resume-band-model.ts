@@ -1,3 +1,4 @@
+import type { MessageId } from "@fresnel/client/i18n";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
 
 // 트랜스크립트 끝의 "이어서 실행" 띠가 무엇을 보일지 정한다(SC-12, P-02). 화면 없이 시험한다.
@@ -47,4 +48,12 @@ export function resumeBandClosed(view: ResumeBandView | null, resumedTurn: strin
  */
 export function rowResumable(thread: ThreadSummary, approvals: number): boolean {
   return thread.resumable !== null && approvals === 0;
+}
+
+/**
+ * 중단 띠의 본문 문장. 원격 대상이면 끊긴 것은 서비스 연결이라 그 문장을, 이 기기면 앱이 다시 시작된 문장을 쓴다.
+ * 끊긴 쪽을 틀리게 말하지 않으려고 대상으로 가른다
+ */
+export function crashedBodyOf(remote: boolean): MessageId {
+  return remote ? "desktop.resumeBand.crashed.bodyService" : "desktop.resumeBand.crashed.body";
 }

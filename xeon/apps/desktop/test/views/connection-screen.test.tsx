@@ -242,6 +242,22 @@ describe("the connected clients row in the status list", () => {
     expect(markup).toContain("엔진에 연결되어 있지 않아요");
   });
 
+  test("a remote target that is offline names the service, not an engine to restart", () => {
+    const markup = html(
+      stateAfter(
+        { type: "targetsChanged", items: targets(1), notice: null, added: null },
+        {
+          type: "engineTargetSeen",
+          target: { kind: "remote", address: "unix:/run/box0.sock", label: "box-0" },
+        },
+        { type: "statusFailed", reason: "offline" },
+        { type: "clientsFailed", reason: "offline" },
+      ),
+    );
+    expect(markup).toContain("서비스에 연결할 수 없어요");
+    expect(markup).not.toContain("엔진을 다시 시작해 봐요");
+  });
+
   test("the info icon explains what the row shows", () => {
     const markup = html(stateAfter(STATUS, { type: "clientsLoaded", clients: [NAMED] }));
     expect(markup).toContain(

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
-import type { QueuedInput } from "../../src/state/engine/index.ts";
+import type { EngineState, QueuedInput } from "../../src/state/engine/index.ts";
 import {
   COMPOSITION_END_GRACE_MS,
   busyModeOf,
@@ -8,9 +8,11 @@ import {
   composerDisabledReason,
   createEnterGuard,
   createSendLatch,
+  engineGoneOf,
   looksLikeSecret,
   queuedModeText,
   queuedPreviewText,
+  stopBlockedReasonOf,
   withdrawStateOf,
   type EnterKeyInput,
 } from "../../src/views/composer-model.ts";
@@ -112,6 +114,45 @@ describe("composerDisabledReason", () => {
       "엔진이 꺼져 있어 보낼 수 없어요.",
     );
     expect(composerDisabledReason({ ...ready, phase: "resync" })).toBe("연결을 맞추는 중이에요.");
+  });
+});
+
+describe("engineGoneOf", () => {
+  const EXIT = { code: 1, signal: null, at: "2026-11-03T00:00:00.000Z" } as const;
+  const RUNNING: EngineState = { kind: "running", source: "sidecar", pid: 1 };
+  const RESTARTING: EngineState = {
+    kind: "restarting",
+    attempt: 1,
+    retryAt: "2026-11-03T00:00:05.000Z",
+    lastExit: EXIT,
+  };
+  const FAILED: EngineState = { kind: "failed", attempts: 3, lastExit: EXIT };
+
+  test("only a running engine on a link that is not down leaves the engine there", () => {
+    expect(engineGoneOf(RUNNING, "live")).toBe(false);
+    expect(engineGoneOf(RUNNING, "syncing")).toBe(false);
+  });
+
+  test("a running engine on a link that is down or failed is gone, since the mirror is stale", () => {
+    expect(engineGoneOf(RUNNING, "offline")).toBe(true);
+    expect(engineGoneOf(RUNNING, "failed")).toBe(true);
+  });
+
+  test("an engine that restarts, failed, or stopped is gone whatever the link says", () => {
+    expect(engineGoneOf(RESTARTING, "live")).toBe(true);
+    expect(engineGoneOf(FAILED, "live")).toBe(true);
+    expect(engineGoneOf({ kind: "stopped" }, "live")).toBe(true);
+  });
+
+  test("an engine not read yet counts as gone, the same as the composer's engine-off reason", () => {
+    expect(engineGoneOf(null, "live")).toBe(true);
+  });
+});
+
+describe("stop button reason", () => {
+  test("a gone engine gives the stop reason, a present one leaves the stop button usable", () => {
+    expect(stopBlockedReasonOf(true)).toBe("엔진이 꺼져 있어 멈출 수 없어요.");
+    expect(stopBlockedReasonOf(false)).toBeNull();
   });
 });
 

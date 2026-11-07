@@ -72,6 +72,19 @@ describe("desktop sentences in English", () => {
     ]);
   });
 
+  test("the engine-gone and service-lost sentences are English", () => {
+    const en = catalogOf("en");
+    expect(en["desktop.composer.stop.engineOff"]).toBe(
+      "The engine is off, so there is nothing to stop.",
+    );
+    expect(en["desktop.status.serviceLost"]).toBe(
+      "Can't reach the service. Check that it is running, then reconnect.",
+    );
+    expect(en["desktop.resumeBand.crashed.bodyService"]).toBe(
+      "The connection to the service was lost and came back. You can continue the turn or leave it.",
+    );
+  });
+
   test("workspace hints and the create failure text are English", () => {
     expect(workspaceHint(checkWorkspaceInput("relative/x"))).toBe(
       "Enter the working folder as an absolute path. Example: /Users/me/project",

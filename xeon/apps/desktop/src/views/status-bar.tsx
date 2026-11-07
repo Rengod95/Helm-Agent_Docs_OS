@@ -42,6 +42,7 @@ import {
   type EngineTargetView,
 } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
+import { engineGoneOf } from "./composer-model.ts";
 import {
   modelLabelOf,
   tokenCountText,
@@ -272,6 +273,15 @@ const LINK_DESCRIPTION: Readonly<Record<Link["phase"], MessageId | undefined>> =
   failed: "desktop.status.cell.link.down",
 };
 
+/**
+ * 연결 Popover의 설명. 원격 대상이 끊기면 안내는 서비스 기준이다("엔진이 없어"가 아니라 서비스가 켜졌는지 보라고 한다).
+ * 이 기기 대상은 `LINK_DESCRIPTION`을 그대로 쓴다
+ */
+export function linkDescriptionOf(phase: Link["phase"], remote: boolean): MessageId | undefined {
+  if (remote && (phase === "offline" || phase === "failed")) return "desktop.status.serviceLost";
+  return LINK_DESCRIPTION[phase];
+}
+
 /** 진행 중 Popover의 묶음 종류. 대화, 테스트 대화(testRun 표식), 예약(origin이 schedule) */
 type LiveKind = "thread" | "trial" | "schedule";
 
@@ -345,7 +355,8 @@ export function liveDotOf(rows: readonly LiveRow[]): StatusDot | undefined {
 function LinkCell(props: { readonly phase: Link["phase"]; readonly attempt: number }): ReactNode {
   const { phase, attempt } = props;
   const [open, setOpen] = useState(false);
-  const description = LINK_DESCRIPTION[phase];
+  const target = useEngineTarget();
+  const description = linkDescriptionOf(phase, target.kind === "remote");
   return (
     <StatusCell
       cellId="link"
@@ -801,6 +812,8 @@ export function StatusBar(): ReactNode {
   const approvals = useApprovalCount();
   const connectError = useConnectError();
   const restartNeeded = useRestartNeeded();
+  // 엔진이 없으면 거울의 "진행 중" 수는 오래된 값이라 그 칸을 그리지 않는다(F-9)
+  const engineGone = engineGoneOf(engine, banner.phase);
   const [copied, setCopied] = useState<boolean | null>(null);
   const copy = async (): Promise<void> => {
     setCopied(await commands.copyDiagnostics());
@@ -829,6 +842,10 @@ export function StatusBar(): ReactNode {
       <LinkCell phase={banner.phase} attempt={banner.attempt} />
       {banner.phase === "failed" || connectError !== null ? (
         <>
+          {/* 원격 대상이 끊기면 안내는 서비스 기준이다. 이 기기 대상은 연결 실패 글과 단추가 맡는다 */}
+          {engineTarget.kind === "remote" ? (
+            <span className="dim">{t("desktop.status.serviceLost")}</span>
+          ) : null}
           <Button
             size="xs"
             variant="outline"
@@ -865,7 +882,7 @@ export function StatusBar(): ReactNode {
       <StatusItems />
       <StatusCells />
       <span className="grow" />
-      <LiveCell />
+      {engineGone ? null : <LiveCell />}
       <UsageCells />
       {approvals > 0 ? <ApprovalsCell count={approvals} /> : null}
     </footer>

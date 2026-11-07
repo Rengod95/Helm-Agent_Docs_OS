@@ -238,7 +238,8 @@ export function ConnectionDetailPanel(props: ConnectionDetailProps): ReactNode {
           )}
           {state.status.kind === "offline" ? (
             <Alert tone="warning" size="sm">
-              {t("desktop.connection.status.offline")}
+              {/* 원격 서비스가 없으면 "엔진을 다시 시작"이 아니라 서비스가 켜졌는지 보라고 한다 */}
+              {remote ? t("desktop.status.serviceLost") : t("desktop.connection.status.offline")}
             </Alert>
           ) : null}
           {state.status.kind === "failed" ? (

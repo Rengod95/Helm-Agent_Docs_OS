@@ -251,6 +251,7 @@ describe("react surface (server render, no DOM)", () => {
     );
     expect(html).toContain("엔진 상태 확인 중");
     expect(html).toContain("연결 없음");
-    expect(html).toContain("진행 중 0");
+    // 엔진을 아직 모르면(`engineGoneOf`) "진행 중" 칸을 그리지 않는다. 거울의 실행 중 수를 믿지 않는다
+    expect(html).not.toContain("진행 중");
   });
 });
