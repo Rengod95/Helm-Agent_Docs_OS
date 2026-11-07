@@ -4,6 +4,7 @@ import { t } from "@fresnel/client/i18n";
 import {
   INITIAL_WORKBENCH,
   listLoaded,
+  type BurdenRowVM,
   type ExtSettingRowVM,
   type GroupMetricsVM,
   type ScreenRowVM,
@@ -268,10 +269,57 @@ const METRICS: GroupMetricsVM = {
 const num = (value: number): string => t("desktop.workbench.metrics.number", { value });
 
 describe("측정 탭 그림", () => {
-  test("그룹이 아니면 읽지 않고 빈 문장만 보인다", () => {
-    const html = renderToString(<MetricsPanel view={{ kind: "none" }} />);
-    expect(textOf(html)).toBe(t("desktop.workbench.metrics.notGroup"));
-    expect(html).not.toContain("<dl");
+  test("그룹이 아니면 성능 측정 화면의 부담 표와 같은 칸(훅 시간, 토큰, 호출, 캐시 사건, 실패)을 보인다", () => {
+    const row: BurdenRowVM = {
+      owner: "docs",
+      turns: 4,
+      sectionTokens: 0,
+      tokensPerTurn: 120,
+      tokensEstimated: true,
+      hookMs: 90,
+      msPerTurn: 23,
+      problems: 2,
+      cacheEvents: 1,
+      costUsd: null,
+      callTokens: 0,
+      callCount: 3,
+      worstTurnId: "turn-1",
+    };
+    const html = renderToString(
+      <MetricsPanel view={{ kind: "plugin", read: ready({ kind: "ready", turns: 4, row }) }} />,
+    );
+    expect(labelsOf(html)).toEqual([
+      t("desktop.measure.perf.col.time"),
+      t("desktop.measure.perf.col.tokens"),
+      t("desktop.workbench.metrics.plugin.calls"),
+      t("desktop.measure.perf.col.cache"),
+      t("desktop.measure.perf.col.problems"),
+    ]);
+    expect(valuesOf(html)).toEqual([
+      t("desktop.measure.ms", { ms: 23 }),
+      t("desktop.measure.perf.tokensEstimated", { count: num(120) }),
+      num(3),
+      num(1),
+      num(2),
+    ]);
+    expect(textOf(html)).toContain(t("desktop.workbench.metrics.plugin.range", { turns: 4 }));
+  });
+
+  test("그룹이 아니고 읽은 Turn에 이 확장이 없거나 읽을 Turn이 없으면 한 문장만 보인다", () => {
+    const unused = renderToString(
+      <MetricsPanel
+        view={{ kind: "plugin", read: ready({ kind: "ready", turns: 3, row: null }) }}
+      />,
+    );
+    expect(textOf(unused)).toBe(t("desktop.workbench.metrics.plugin.unused", { turns: 3 }));
+    const empty = renderToString(
+      <MetricsPanel view={{ kind: "plugin", read: ready({ kind: "empty" }) }} />,
+    );
+    expect(textOf(empty)).toBe(t("desktop.workbench.metrics.plugin.empty"));
+    const off = renderToString(
+      <MetricsPanel view={{ kind: "plugin", read: ready({ kind: "off" }) }} />,
+    );
+    expect(textOf(off)).toBe(t("desktop.workbench.metrics.off"));
   });
 
   test("값이 있으면 토큰 네 칸, 정가 기준 추정 비용, 나머지 칸을 보인다", () => {
