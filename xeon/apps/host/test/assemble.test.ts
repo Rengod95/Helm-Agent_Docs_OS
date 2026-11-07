@@ -222,7 +222,7 @@ const STORE_OPEN_ERRORS: Readonly<
     "dataDirPermission",
     "unavailable",
   ],
-  permission: [{ kind: "permission", path: "/d", mode: 0o755 }, "dataDirPermission", "unavailable"],
+  permission: [{ kind: "permission", path: "/d", mode: 0o755 }, "dataDirUnwritable", "unavailable"],
   foreign_database: [
     { kind: "foreign_database", applicationId: 1 },
     "storeUnavailable",
@@ -235,7 +235,7 @@ const STORE_OPEN_ERRORS: Readonly<
     "unavailable",
   ],
   corrupt: [{ kind: "corrupt", code: "SQLITE_CORRUPT" }, "storeCorrupt", "corrupt"],
-  busy: [{ kind: "busy" }, "storeUnavailable", "unavailable"],
+  busy: [{ kind: "busy" }, "storeBusy", "unavailable"],
   disk_full: [{ kind: "disk_full" }, "storeUnavailable", "unavailable"],
   io: [{ kind: "io", code: "EIO" }, "storeUnavailable", "unavailable"],
   migration_checksum_mismatch: [
@@ -262,8 +262,33 @@ const STORE_OPEN_ERRORS: Readonly<
 
 test("every store open error maps to the CLI name and the guidance class the spec table gives", () => {
   for (const [error, message, failure] of Object.values(STORE_OPEN_ERRORS)) {
-    expect(storeIssueOf(error)).toEqual({ code: "store", message, failure });
+    expect(storeIssueOf(error, true)).toEqual({ code: "store", message, failure });
   }
+});
+
+/** 이슈의 이름과 안내 분류를 한 줄로 만든다 */
+function ioIssueText(code: string, dataDirWritable: boolean): string {
+  const issue = storeIssueOf({ kind: "io", code }, dataDirWritable);
+  return `${issue.message}/${issue.failure}`;
+}
+
+test("an io error that says the data folder cannot be written is dataDirUnwritable, other io errors stay unavailable", () => {
+  for (const code of [
+    "EACCES",
+    "EPERM",
+    "EROFS",
+    "SQLITE_READONLY",
+    "SQLITE_READONLY_DIRECTORY",
+    "SQLITE_PERM",
+  ]) {
+    expect(ioIssueText(code, true)).toBe("dataDirUnwritable/unavailable");
+  }
+  expect(ioIssueText("EIO", true)).toBe("storeUnavailable/unavailable");
+  expect(ioIssueText("ENOTDIR", false)).toBe("storeUnavailable/unavailable");
+  expect(ioIssueText("SQLITE_IOERR_WRITE", true)).toBe("storeUnavailable/unavailable");
+  // SQLITE_CANTOPEN은 데이터 폴더에 쓰기 접근이 없을 때만 쓸 수 없다로 본다
+  expect(ioIssueText("SQLITE_CANTOPEN", false)).toBe("dataDirUnwritable/unavailable");
+  expect(ioIssueText("SQLITE_CANTOPEN", true)).toBe("storeUnavailable/unavailable");
 });
 
 test("a store warning is logged by kind with its safe fields, and a migration snapshot keeps its place", () => {

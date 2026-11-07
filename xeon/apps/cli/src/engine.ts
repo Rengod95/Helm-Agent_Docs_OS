@@ -90,6 +90,10 @@ export type EngineStartErrorKind =
   | "fts5Missing"
   | "sopsMissing"
   | "dataDirPermission"
+  /** 데이터 폴더나 DB 파일에 쓸 수 없다(AssembleIssue "store" dataDirUnwritable). spec의 kind 목록에 더한 값이다 */
+  | "dataDirUnwritable"
+  /** DB를 다른 프로그램이 쓰고 있다(AssembleIssue "store" storeBusy). spec의 kind 목록에 더한 값이다 */
+  | "storeBusy"
   | "storeUnavailable"
   | "storeFutureVersion"
   | "storeCorrupt"
@@ -249,6 +253,18 @@ function storeError(message: string): EngineStartError {
         kind: "dataDirPermission",
         message: t("cli.errors.engineStart.dataDirPermission.message"),
         fix: t("cli.errors.engineStart.dataDirPermission.fix"),
+      };
+    case "dataDirUnwritable":
+      return {
+        kind: "dataDirUnwritable",
+        message: t("cli.errors.engineStart.dataDirUnwritable.message"),
+        fix: t("cli.errors.engineStart.dataDirUnwritable.fix"),
+      };
+    case "storeBusy":
+      return {
+        kind: "storeBusy",
+        message: t("cli.errors.engineStart.storeBusy.message"),
+        fix: t("cli.errors.engineStart.storeBusy.fix"),
       };
     case "storeFutureVersion":
       return {

@@ -1,8 +1,9 @@
-import { mkdirSync } from "node:fs";
+import { accessSync, constants, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { createChunkNumbering } from "@fresnel/cap-dialog";
 import {
   assertNever,
+  attempt,
   attemptAsync,
   Bug,
   detach,
@@ -253,15 +254,52 @@ const STORE_MESSAGE_BY_FAILURE: Readonly<Record<StoreFailureKind, string>> = {
   unavailable: "storeUnavailable",
 };
 
-/** 저장소를 열지 못한 이유를 분류와 CLI가 구별하는 이름으로 옮긴다(L4.host-service.spec §3.3.5 EngineStartError 대응) */
-export function storeIssueOf(error: StoreOpenError): AssembleIssue & { readonly code: "store" } {
+/** 데이터 폴더나 DB 파일에 쓸 수 없다는 뜻의 `io` 코드. SQLite의 READONLY 계열은 `startsWith`로 본다 */
+const UNWRITABLE_IO_CODES: ReadonlySet<string> = new Set([
+  "EACCES",
+  "EPERM",
+  "EROFS",
+  "SQLITE_PERM",
+]);
+
+/**
+ * `io`의 code가 쓸 수 없다는 뜻인가. `SQLITE_CANTOPEN`은 파일을 못 열었다는 뜻이라 데이터 폴더에 쓰기 접근이 없을 때만 쓸 수 없다로 본다
+ */
+function unwritableIo(code: string, dataDirWritable: boolean): boolean {
+  if (code.startsWith("SQLITE_READONLY") || UNWRITABLE_IO_CODES.has(code)) return true;
+  return code === "SQLITE_CANTOPEN" && !dataDirWritable;
+}
+
+/** 저장소를 열지 못한 이유를 분류와 CLI가 구별하는 이름으로 옮긴다(L4.host-service.spec §3.3.5 EngineStartError 대응). `dataDirWritable`은 DB 폴더에 쓰기 접근이 있는가 */
+export function storeIssueOf(
+  error: StoreOpenError,
+  dataDirWritable: boolean,
+): AssembleIssue & { readonly code: "store" } {
   const failure = storeFailureKindOf(error.kind);
   if (error.kind === "fts5_missing") return { code: "store", message: "fts5Missing", failure };
-  if (error.kind === "permission" || error.kind === "unsupported_filesystem") {
+  if (error.kind === "busy") return { code: "store", message: "storeBusy", failure };
+  // 남의 폴더(소유자가 다름)는 이 프로세스가 쓸 수 없는 데이터 폴더다
+  if (error.kind === "permission") return { code: "store", message: "dataDirUnwritable", failure };
+  if (error.kind === "unsupported_filesystem") {
     return { code: "store", message: "dataDirPermission", failure };
+  }
+  if (error.kind === "io" && unwritableIo(error.code, dataDirWritable)) {
+    return { code: "store", message: "dataDirUnwritable", failure };
   }
   return { code: "store", message: STORE_MESSAGE_BY_FAILURE[failure], failure };
 }
+
+/** 데이터 폴더에 이 프로세스가 쓸 수 있는가. 확인하지 못하면 쓸 수 없는 것으로 본다 */
+function dataDirWritableOf(dir: string): boolean {
+  return attempt(() => accessSync(dir, constants.W_OK)).ok;
+}
+
+/** 저장소 밖의 플랫폼 시작 실패(`register`의 `reason`)가 사용자에게 알리는 분류 */
+const PLATFORM_STARTUP_FAILURE: ReadonlyMap<string, "data_dir_permission" | "data_dir_unwritable"> =
+  new Map([
+    ["permission_too_open", "data_dir_permission"],
+    ["permission_too_narrow", "data_dir_unwritable"],
+  ]);
 
 function defaultProjectTrustOf(value: unknown): "ask" | "always" | "never" {
   return value === "always" || value === "never" ? value : "ask";
@@ -619,15 +657,14 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     }
     if (!registered.ok) {
       const { reason, cause } = registered.error;
+      const failure = PLATFORM_STARTUP_FAILURE.get(reason);
       throw new AssembleError(
         [
           {
             code: "plugin",
             plugin: name,
             message: `${name} failed to start (${reason})`,
-            ...(reason === "permission_too_open"
-              ? { failure: "data_dir_permission" as const }
-              : {}),
+            ...(failure === undefined ? {} : { failure }),
           },
         ],
         { cause },
@@ -739,7 +776,11 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       engineVersion: ENGINE_VERSION,
     });
     if (!store.ok) {
-      throw new AssembleError([storeIssueOf(store.error)], { cause: store.error });
+      // 저장소 열기 실패는 환경 문제로 보고 연속 시작 실패에 세지 않는다(X.operations.spec §4.6.4)
+      startupHealth.abandonStartup();
+      throw new AssembleError([storeIssueOf(store.error, dataDirWritableOf(dbDir))], {
+        cause: store.error,
+      });
     }
     opened.store = store.value;
     await register("platform-store", storePlugin(store.value));

@@ -1298,6 +1298,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 
 - L4 호스트는 시작할 때 `StartupHealthStore.beginStartup()`으로 직전까지의 연속 시작 실패 수를 받고, 첫 입력을 받을 준비가 되면 `markStarted()`를 부른다. 시작 도중 프로세스가 죽으면 표시가 남아 다음 시작에서 1이 늘어난다.
 - 구현 [M4 X-21]: 인터페이스와 파일 구현(`<stateDir>/startup-health.json`, `{ failures, starting }`)은 `apps/host/src/assembly/startup-health.ts`가 가진다. 조립(`assemble`)이 `os.dirs.state`가 정해진 직후 `beginStartup()`을 부르고, 엔진이 입력 받을 준비가 되면 `markStarted()`를 부른다. 판정 결과는 `Engine.startup`이고 `host.status`의 `startupFailures`(1 이상일 때)와 `suggestSafeMode`(참일 때)로 나간다. 이미 안전 모드로 떠 있으면 제안하지 않는다. 읽기·쓰기 실패는 기록 없음(0)으로 처리하고 시작을 막지 않는다.
+- 환경 문제로 끝난 시작은 연속 실패에 세지 않는다 [결정: 오케스트레이터 기본값, fxSF]. 저장소를 열지 못했거나(`store` 이슈 전부: 다른 프로그램이 쓰는 DB, 쓸 수 없는 데이터 폴더, 그 밖의 열기 실패, 마이그레이션 실패 포함) 데이터 폴더 권한 문제로 끝난 시작은 `StartupHealthStore.abandonStartup()`으로 "진행 중" 표시만 거둔다. 실패 수는 그대로 두므로 이번 시작은 더해지지 않고, 그 전에 끝나지 못했던 시작은 한 번 센다. 종료 코드는 73~76이다(`STARTUP_FAILURE_EXIT_CODES`, L4.host-service HS-68). 조립이 이 값들 밖의 원인으로 던지면 표시를 거두지 않는다.
 - 연속 실패 수가 `x.operations.safeMode.suggestAfter`(기본 3) 이상이면 시작 화면에 안전 모드 제안을 띄운다. 비대화 실행에서는 stderr에 `--safe-mode` 안내를 한 줄 쓴다. 자동으로 안전 모드에 들어가지 않는다 [제안].
 - 기록 파일 위치는 DB 밖(사용자 상태 디렉터리)이다. DB를 여는 단계에서 실패할 수 있기 때문이다. 경로는 `L4.host-service.spec`이 정한다 [가정].
 

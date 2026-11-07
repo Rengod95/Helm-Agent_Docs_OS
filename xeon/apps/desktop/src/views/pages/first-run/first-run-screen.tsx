@@ -24,7 +24,7 @@ import { errorText } from "../../settings.tsx";
 import { useHostNotices } from "../../host-notices-context.ts";
 import { useModelChoices } from "../../model-usage.ts";
 import { firstSettingsProblemOf } from "../../settings-problem-model.ts";
-import { engineLineOf, linkTextOf } from "../../status-bar.tsx";
+import { engineLineOf, linkTextOf, shownEngineOf } from "../../status-bar.tsx";
 import {
   firstRunModelOf,
   type FirstRunKeyEntry,
@@ -351,7 +351,7 @@ export function FirstRunScreen(): ReactNode {
       modelChoices={modelChoices}
       keyEntry={keyEntry}
       notice={notice}
-      engineState={`${engineLineOf(engine)} · ${t(linkTextOf(phase))}`}
+      engineState={`${engineLineOf(shownEngineOf(engine, phase === "live"))} · ${t(linkTextOf(phase))}`}
       settingsProblem={firstSettingsProblemOf(notices?.settingsProblems ?? [])}
       handlers={handlers}
     />

@@ -250,10 +250,13 @@ export function createNodeDirFs(uid: number | undefined): DirFs {
 
 const DIR_MODE = 0o700;
 const GROUP_OTHER_BITS = 0o077;
+/** 소유자의 쓰기와 실행 비트. 디렉터리에 파일을 만들고 그 안으로 들어가려면 둘 다 있어야 한다 */
+const OWNER_WRITE_EXEC_BITS = 0o300;
 
 /**
  * data, config, cache, state, runtime, tmp를 0o700으로 만들고(이미 있으면 소유자와 권한을 확인하고) 끝낸다.
  * home과 resource는 만들지도 검사하지도 않는다. 권한이 열려 있어도 고치지 않고 실패한다(L0.os.spec §5).
+ * 소유자에게 쓰기·실행이 없으면 `permission_too_narrow`로 실패한다(데이터 폴더를 r-x로 두면 저장소를 열 수 없다) [결정: 오케스트레이터 기본값, fxSF].
  * 중단 신호가 오면 cancelled로 돌려준다.
  */
 export function ensureDirs(
@@ -290,6 +293,9 @@ async function ensureOne(path: string, fs: DirFs): Promise<Result<void, DirsErro
   if (st.uid !== fs.uid) return err({ kind: "not_owned", path });
   if ((st.mode & GROUP_OTHER_BITS) !== 0) {
     return err({ kind: "permission_too_open", path, mode: st.mode & 0o777 });
+  }
+  if ((st.mode & OWNER_WRITE_EXEC_BITS) !== OWNER_WRITE_EXEC_BITS) {
+    return err({ kind: "permission_too_narrow", path, mode: st.mode & 0o777 });
   }
   return ok(undefined);
 }

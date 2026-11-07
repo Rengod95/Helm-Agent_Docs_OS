@@ -109,6 +109,25 @@ test("engine start errors are English, and the catalog conflict names the keys",
     message: "SQLite does not have FTS5",
     fix: "Install SQLite with FTS5 (macOS: brew install sqlite)",
   });
+  // 저장소를 다른 프로그램이 쓰거나 데이터 폴더에 쓸 수 없는 시작 실패는 원인과 해결을 영어로 보인다(종료 코드 3)
+  expect(
+    startErrorOf(
+      new AssembleError([{ code: "store", message: "storeBusy", failure: "unavailable" }]),
+    ),
+  ).toEqual({
+    kind: "storeBusy",
+    message: "The conversation store is in use by another program",
+    fix: "Quit that program (another fresnel process or a database tool), then run again",
+  });
+  expect(
+    startErrorOf(
+      new AssembleError([{ code: "store", message: "dataDirUnwritable", failure: "unavailable" }]),
+    ),
+  ).toEqual({
+    kind: "dataDirUnwritable",
+    message: "Cannot write to the data folder or the database file",
+    fix: "Check the owner and write permission of the data folder and fresnel.db",
+  });
   expect(
     startErrorOf(
       new AssembleError([

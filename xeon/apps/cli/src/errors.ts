@@ -38,6 +38,8 @@ export function exitCodeOfStartError(kind: EngineStartErrorKind): ExitCode {
     case "fts5Missing":
     case "sopsMissing":
     case "dataDirPermission":
+    case "dataDirUnwritable":
+    case "storeBusy":
     case "storeUnavailable":
     case "storeFutureVersion":
     case "storeCorrupt":

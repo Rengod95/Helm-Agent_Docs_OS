@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { chmod, mkdir, stat } from "node:fs/promises";
+import { dirname } from "node:path";
 import { err, ok } from "@fresnel/contracts";
 import type { OsDirs } from "@fresnel/contracts/services";
 import { createNodeDirFs, ensureDirs, type DirFs } from "../src/dirs.ts";
@@ -68,6 +69,24 @@ describe("ensureDirs", () => {
     // 자동으로 고치지 않는다
     expect((await stat(dirs.data)).mode & 0o777).toBe(0o755);
   });
+
+  permissionBits(
+    "권한 검사: 소유자 쓰기·실행이 없는 기존 디렉터리(0500)는 permission_too_narrow이고 고치지 않는다",
+    async () => {
+      const dirs = await makeDirs();
+      // 재귀 생성은 만든 모든 단계에 mode를 주므로 상위는 먼저 0700으로 만들고 데이터 폴더만 0500으로 만든다
+      await mkdir(dirname(dirs.data), { recursive: true, mode: 0o700 });
+      await mkdir(dirs.data, { mode: 0o500 });
+      await chmod(dirs.data, 0o500);
+      const result = await ensureDirs(dirs, createNodeDirFs(uid), new AbortController().signal);
+      expect(result).toEqual({
+        ok: false,
+        error: { kind: "permission_too_narrow", path: dirs.data, mode: 0o500 },
+      });
+      expect((await stat(dirs.data)).mode & 0o777).toBe(0o500);
+      await chmod(dirs.data, 0o700);
+    },
+  );
 
   test("소유 검사: 소유 uid 불일치는 주입된 stat으로 not_owned", async () => {
     const dirs = await makeDirs();

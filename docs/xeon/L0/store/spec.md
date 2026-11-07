@@ -858,6 +858,8 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 | 다른 앱이 SQLite DB를 같은 경로에 둠(`application_id` 0, 테이블 있음) | `foreign_database`(`applicationId: 0`) |
 | 쓰기 중 디스크 가득 | `disk_full`. 롤백되어 행 변화 없음. 같은 `requestId`로 재시도(TX-05) |
 | `busy_timeout` 초과 | `busy` |
+| 열기 중 다른 프로그램이 DB를 `BEGIN EXCLUSIVE`로 쥐어 `busy_timeout`을 넘김 | `busy`. 호스트는 시작을 종료 코드 74(`store_busy`)로 끝내 앱이 "데이터베이스를 다른 프로그램이 쓰고 있어요"를 보인다. 연속 시작 실패 수에는 세지 않는다 [결정: 오케스트레이터 기본값, fxSF] |
+| 데이터 폴더가 소유자에게 쓰기·실행을 주지 않음(r-x), DB 파일이 읽기 전용, 또는 남의 폴더 | 플랫폼 `ensureDirs`가 `permission_too_narrow`로 먼저 거부하거나(L0.os), 열기가 `io`(`EACCES`, `EPERM`, `SQLITE_READONLY_DIRECTORY`, `SQLITE_READONLY` 등)나 `permission`으로 실패한다. 호스트는 이 셋을 종료 코드 75(`data_dir_unwritable`)로 끝내 앱이 "데이터 폴더에 쓸 수 없어요"를 보인다. 그 밖의 `io`(디스크 입출력, 경로)는 76(`store_unavailable`)이다 [결정: 오케스트레이터 기본값, fxSF] |
 | `-wal` 파일만 남은 크래시 | SQLite가 다음 열기에서 복구한다. 별도 처리 없음 |
 | 장시간 읽기 트랜잭션 | 체크포인트가 진행되지 않아 WAL이 커진다. `read` 콜백은 동기라 길게 잡을 수 없다. 다른 프로세스의 읽기는 막을 수 없으므로 `wal_checkpoint` 결과를 진단에 남긴다 |
 | 늦게 깨어난 이전 소유자의 커밋 | `holds`가 거짓 → `lease_lost`, 행 변화 없음 |

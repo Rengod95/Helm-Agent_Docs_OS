@@ -176,7 +176,8 @@ export type AssembleIssue =
   | { readonly code: "catalog"; readonly issues: readonly CatalogIssue[] }
   /**
    * 저장소를 열지 못했다. `failure`는 안내 분류(`F.records.spec` §3.7 7항)이고 `message`는 CLI가 구별하는 이름이다:
-   * `fts5Missing`, `dataDirPermission`, 그 밖은 분류에 맞춰 `storeFutureVersion`, `storeCorrupt`, `storeMigrationFailed`, `storeUnavailable`
+   * `fts5Missing`, `dataDirPermission`(지원하지 않는 파일 시스템), `dataDirUnwritable`(데이터 폴더나 DB 파일에 쓸 수 없다), `storeBusy`(다른 프로그램이 쓰는 중),
+   * 그 밖은 분류에 맞춰 `storeFutureVersion`, `storeCorrupt`, `storeMigrationFailed`, `storeUnavailable`
    */
   | { readonly code: "store"; readonly message: string; readonly failure: StoreFailureKind }
   | { readonly code: "missingService"; readonly service: string }
@@ -186,7 +187,7 @@ export type AssembleIssue =
       readonly plugin: string;
       readonly message: string;
       /** 사용자가 직접 고칠 수 있는 시작 실패의 분류. 종료 코드로 앱 셸에 전해진다(`STARTUP_FAILURE_EXIT_CODES`) */
-      readonly failure?: "data_dir_permission";
+      readonly failure?: "data_dir_permission" | "data_dir_unwritable";
     };
 
 /**

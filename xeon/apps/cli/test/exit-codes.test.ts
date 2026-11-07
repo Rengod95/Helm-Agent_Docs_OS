@@ -31,6 +31,8 @@ test("catalog conflicts, missing services and plugin failures are 1; the rest of
     "fts5Missing",
     "sopsMissing",
     "dataDirPermission",
+    "dataDirUnwritable",
+    "storeBusy",
     "storeUnavailable",
     "storeFutureVersion",
     "storeCorrupt",
@@ -124,4 +126,6 @@ test("the host exit codes map to CLI codes: 70 to 72 (store open failures) are e
   expect(exitCodeOfHost(70)).toBe(3);
   expect(exitCodeOfHost(71)).toBe(3);
   expect(exitCodeOfHost(72)).toBe(3);
+  // 73~76은 사용자가 고칠 수 있는 시작 실패라 모두 환경 문제다
+  for (const code of [73, 74, 75, 76] as const) expect(exitCodeOfHost(code)).toBe(3);
 });
