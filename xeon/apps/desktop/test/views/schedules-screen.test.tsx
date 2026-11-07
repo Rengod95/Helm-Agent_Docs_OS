@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { activeLocale, setActiveLocale, type Locale } from "@fresnel/client/i18n";
+import type { ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import type { EngineMirror } from "../../src/state/engine/index.ts";
 import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
@@ -8,7 +9,10 @@ import {
   ScheduleScreenView,
   type ScheduleScreenHandlers,
 } from "../../src/views/pages/schedules/schedules-view.tsx";
-import { ServiceOffNotice } from "../../src/views/pages/schedules/schedule-service-notice.tsx";
+import {
+  ServiceOffNotice,
+  ServiceRestartNotice,
+} from "../../src/views/pages/schedules/schedule-service-notice.tsx";
 import { RunsBody } from "../../src/views/pages/schedules/schedule-runs-sheet.tsx";
 import {
   INITIAL_SCHEDULE_STATE,
@@ -155,9 +159,10 @@ describe("schedules screen server render", () => {
     expect(markup).toContain("서비스 켜기");
   });
 
-  test("the sheet's service notice says schedules stop with the app and offers the turn-on action", () => {
+  test("the sheet's service notice says quitting the app stops schedules and closing the window does not", () => {
     const markup = renderToString(<ServiceOffNotice canEnable onEnable={NOOP} />);
-    expect(markup).toContain("앱을 끄면 예약이 돌지 않아요.");
+    expect(markup).toContain("앱을 끝내면(⌘Q) 예약이 멈춰요. 창만 닫으면 계속 돌아요.");
+    expect(markup).not.toContain("앱을 끄면");
     expect(markup).toContain("서비스 켜기");
     expect(markup).not.toContain('disabled=""');
   });
@@ -275,8 +280,117 @@ describe("service mode turned on, restart pending", () => {
   });
 });
 
+/** 셸과 엔진 맥락을 둔 채 부품을 그린다(다시 시작 단추는 엔진이 running이고 셸이 있을 때만 나온다) */
+function shellNode(node: ReactNode, shell: boolean): string {
+  const ui = createUiStore();
+  return renderToString(
+    <ShellRestartContext value={shell}>
+      <Providers engine={runningEngine()} ui={ui.read} commands={fakeCommands()}>
+        {node}
+      </Providers>
+    </ShellRestartContext>,
+  );
+}
+
+/** 반복 한 줄이 든 목록을 그린 글. 간격(초)만 바꾼다 */
+function rendersLoopEvery(intervalSeconds: number): string {
+  const item: ScheduleListItem = {
+    ...ROW,
+    entry: {
+      ...ROW.entry,
+      trigger: {
+        kind: "repeat",
+        intervalSeconds,
+        maxIterations: 10,
+        expiresAtMs: NOW + 86_400_000,
+      },
+    },
+  };
+  return html(
+    scheduleReducer(INITIAL_SCHEDULE_STATE, {
+      type: "listLoaded",
+      items: [item],
+      serviceModeOff: false,
+      serviceRestartPending: false,
+      nowMs: NOW,
+    }),
+  );
+}
+
+describe("sheet restart notice and table rows", () => {
+  let previous: Locale = "ko";
+  beforeEach(() => {
+    previous = activeLocale();
+    setActiveLocale("ko");
+  });
+  afterEach(() => {
+    setActiveLocale(previous);
+  });
+
+  test("a restart-pending service shows the restart sentence and one restart button in the sheet", () => {
+    const markup = shellNode(<ServiceRestartNotice />, true);
+    expect(markup).toContain("엔진을 다시 시작해야 서비스 모드가 켜져요.");
+    expect(markup).not.toContain("서비스 켜기");
+    expect(countOf(markup, "지금 다시 시작")).toBe(1);
+  });
+
+  test("without a desktop shell the sheet's restart sentence stays and shows no button", () => {
+    const markup = shellNode(<ServiceRestartNotice />, false);
+    expect(markup).toContain("엔진을 다시 시작해야 서비스 모드가 켜져요.");
+    expect(markup).not.toContain("지금 다시 시작");
+  });
+
+  // 끝난 `at`은 엔진이 다시 켜지 않는다(reenableOf). 취소해 시각이 남은 `at`은 켤 수 있다
+  const finishedAt: ScheduleListItem = {
+    ...ROW,
+    entry: {
+      ...ROW.entry,
+      trigger: { kind: "at", atMs: NOW - 3_600_000 },
+      enabled: false,
+      nextDueAt: null,
+      stoppedReason: "completed",
+    },
+  };
+  const cancelledAt: ScheduleListItem = {
+    ...ROW,
+    entry: {
+      ...ROW.entry,
+      trigger: { kind: "at", atMs: NOW + 3_600_000 },
+      enabled: false,
+      nextDueAt: null,
+      stoppedReason: "cancelled",
+    },
+  };
+
+  test("a finished one-shot schedule has no turn-back-on button, and a cancelled one still does", () => {
+    const finished = scheduleReducer(INITIAL_SCHEDULE_STATE, {
+      type: "listLoaded",
+      items: [finishedAt],
+      serviceModeOff: false,
+      serviceRestartPending: false,
+      nowMs: NOW,
+    });
+    expect(html(finished)).not.toContain("다시 켜기");
+    const cancelled = scheduleReducer(INITIAL_SCHEDULE_STATE, {
+      type: "listLoaded",
+      items: [cancelledAt],
+      serviceModeOff: false,
+      serviceRestartPending: false,
+      nowMs: NOW,
+    });
+    expect(html(cancelled)).toContain("다시 켜기");
+  });
+
+  test("a loop shows its interval as a human duration, not raw seconds", () => {
+    expect(rendersLoopEvery(600)).toContain("10분마다 최대 10회");
+    expect(rendersLoopEvery(3600)).toContain("1시간마다 최대 10회");
+    expect(rendersLoopEvery(90)).toContain("90초마다 최대 10회");
+    expect(rendersLoopEvery(600)).not.toContain("600초마다");
+  });
+});
+
 describe("schedule run history body", () => {
-  test("each run shows its outcome and the host's error text", () => {
+  test("each run shows its outcome and its reason as a sentence, not the host's code", () => {
     const out = body({
       kind: "ready",
       scheduleId: "sch_aa1",
@@ -287,12 +401,62 @@ describe("schedule run history body", () => {
           endedAt: null,
           outcome: "failed",
           threadId: null,
-          error: "디스크가 가득 찼어요",
+          error: "start_failed",
         },
       ],
     });
     expect(out).toContain("실패");
-    expect(out).toContain("디스크가 가득 찼어요");
+    expect(out).toContain("대화를 시작하지 못했어요. 작업 폴더가 있는지 확인해 주세요.");
+    expect(out).not.toContain("start_failed");
+  });
+
+  test("a missed run carries the missed badge and its sentence, and an ordinary skip has neither", () => {
+    const out = body({
+      kind: "ready",
+      scheduleId: "sch_aa1",
+      runs: [
+        {
+          runId: "run_2",
+          startedAt: "2026-11-04T00:00:00.000Z",
+          endedAt: null,
+          outcome: "skipped",
+          threadId: null,
+          error: "missed",
+        },
+        {
+          runId: "run_3",
+          startedAt: "2026-11-04T01:00:00.000Z",
+          endedAt: null,
+          outcome: "skipped",
+          threadId: null,
+          error: "min_interval",
+        },
+      ],
+    });
+    expect(out).toContain(">놓친 실행</span>");
+    expect(out).toContain("앱이 꺼진 동안 놓친 실행이에요. 따라잡지 않고 건너뛰었어요.");
+    expect(out).toContain(
+      "직전 실행 뒤 5분이 지나지 않아 건너뛰었어요. 5분 뒤에 다시 눌러 주세요.",
+    );
+    expect(out.split(">놓친 실행</span>").length - 1).toBe(1);
+  });
+
+  test("a code the screen does not know is named in the fallback sentence", () => {
+    const out = body({
+      kind: "ready",
+      scheduleId: "sch_aa1",
+      runs: [
+        {
+          runId: "run_4",
+          startedAt: "2026-11-04T00:00:00.000Z",
+          endedAt: null,
+          outcome: "failed",
+          threadId: null,
+          error: "disk_full",
+        },
+      ],
+    });
+    expect(out).toContain("이유를 알 수 없어요 (disk_full)");
   });
 
   test("an empty history and a failed read say so", () => {

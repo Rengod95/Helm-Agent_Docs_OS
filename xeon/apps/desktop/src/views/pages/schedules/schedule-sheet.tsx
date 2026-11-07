@@ -1,5 +1,5 @@
 import { t } from "@fresnel/client/i18n";
-import type { ScheduleTriggerKind, TriggerDraft } from "@fresnel/client";
+import { SCHEDULE_BOUNDS, type ScheduleTriggerKind, type TriggerDraft } from "@fresnel/client";
 import { assertNever } from "@fresnel/contracts";
 import {
   Alert,
@@ -13,14 +13,16 @@ import {
   Switch,
   Textarea,
 } from "@caustic/react";
-import { ServiceOffNotice } from "./schedule-service-notice.tsx";
+import { ServiceOffNotice, ServiceRestartNotice } from "./schedule-service-notice.tsx";
 import { LocalizedTagInput } from "../../localized-tag-input.tsx";
-import { useId, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import {
+  clampNoticeOf,
   expiresInputOf,
   expiresTextOf,
   localInputOf,
   msOfLocalInput,
+  typedOverLimitOf,
   type ScheduleDraft,
   type SheetField,
 } from "./schedule-draft.ts";
@@ -36,8 +38,13 @@ export interface ScheduleSheetProps {
   readonly onChange: (draft: ScheduleDraft) => void;
   readonly onSubmit: () => void;
   readonly onClose: () => void;
-  /** 서비스 모드가 꺼져 있다. 앱을 끄면 예약이 돌지 않는다는 안내와 "서비스 켜기"를 시트 아래에 보인다(SC-07) */
+  /** 서비스 모드가 꺼져 있다. 앱을 끝내면 예약이 멈춘다는 안내와 "서비스 켜기"를 시트 아래에 보인다(SC-07) */
   readonly serviceModeOff: boolean;
+  /**
+   * 서비스 모드를 켰지만 엔진을 다시 시작해야 켜진다. 꺼짐 안내가 사라진 자리에 다시 시작 안내를 보인다.
+   * 생략하면 거짓이다(화면이 넘기기 전까지)
+   */
+  readonly serviceRestartPending?: boolean;
   readonly canEnableService: boolean;
   readonly onEnableService: () => void;
 }
@@ -49,6 +56,8 @@ function textOf(ref: MessageRef | undefined): ReactNode {
 function kindOf(value: string): ScheduleTriggerKind | null {
   return TRIGGER_KINDS.find((kind) => kind === value) ?? null;
 }
+
+const DAY_SECONDS = 86_400;
 
 /** 숫자 칸에 보일 값. 빈 글이나 숫자가 아니면 null이다(칸은 비어 보인다) */
 function numberOf(text: string): number | null {
@@ -94,6 +103,8 @@ export function ScheduleSheet(props: ScheduleSheetProps): ReactNode {
           <SheetForm id={formId} sheet={sheet} onChange={onChange} onSubmit={onSubmit} />
           {props.serviceModeOff ? (
             <ServiceOffNotice canEnable={props.canEnableService} onEnable={props.onEnableService} />
+          ) : props.serviceRestartPending === true ? (
+            <ServiceRestartNotice />
           ) : null}
         </div>
       )}
@@ -210,6 +221,48 @@ function SheetForm(props: {
   );
 }
 
+/**
+ * 간격 칸(초). 상한을 넘게 친 값은 커밋할 때 상한으로 줄어든다. 줄였다는 사실을 칸 아래에 알리고, 상한 안의 새 글을 치면 지운다.
+ * 줄인 값은 `SCHEDULE_BOUNDS`의 상한이므로 글에 적는 값도 거기서 읽는다.
+ */
+function IntervalSecondsField(props: {
+  readonly value: string;
+  readonly error: ReactNode;
+  readonly onChange: (text: string) => void;
+}): ReactNode {
+  const max = SCHEDULE_BOUNDS.intervalSeconds.max;
+  const [typed, setTyped] = useState<number | null>(null);
+  const value = numberOf(props.value);
+  return (
+    <Field
+      label={t("desktop.schedules.form.interval")}
+      size="sm"
+      error={props.error}
+      warning={
+        clampNoticeOf(typed, value, max)
+          ? t("desktop.schedules.form.clamped", { max, days: Math.floor(max / DAY_SECONDS) })
+          : undefined
+      }
+    >
+      <NumberField
+        size="sm"
+        aria-label={t("desktop.schedules.form.interval")}
+        unit={t("desktop.schedules.form.unit.seconds")}
+        min={1}
+        max={max}
+        value={value}
+        invalid={props.error !== undefined}
+        onDraftChange={(draft) => {
+          setTyped(typedOverLimitOf(typed, draft, max));
+        }}
+        onValueChange={(next) => {
+          props.onChange(String(next));
+        }}
+      />
+    </Field>
+  );
+}
+
 /** 트리거 종류별 입력. 고른 종류의 칸만 보이고, 검사는 `triggerOfDraft`가 한다 */
 function TriggerInputs(props: {
   readonly draft: TriggerDraft;
@@ -218,29 +271,16 @@ function TriggerInputs(props: {
 }): ReactNode {
   const { draft, error, onChange } = props;
   switch (draft.kind) {
-    case "interval": {
-      const invalid = error("intervalSeconds") !== undefined;
+    case "interval":
       return (
-        <Field
-          label={t("desktop.schedules.form.interval")}
-          size="sm"
+        <IntervalSecondsField
+          value={draft.intervalSeconds}
           error={error("intervalSeconds")}
-        >
-          <NumberField
-            size="sm"
-            aria-label={t("desktop.schedules.form.interval")}
-            unit={t("desktop.schedules.form.unit.seconds")}
-            min={1}
-            max={31536000}
-            value={numberOf(draft.intervalSeconds)}
-            invalid={invalid}
-            onValueChange={(value) => {
-              onChange({ intervalSeconds: String(value) });
-            }}
-          />
-        </Field>
+          onChange={(intervalSeconds) => {
+            onChange({ intervalSeconds });
+          }}
+        />
       );
-    }
     case "at":
       return (
         <Field label={t("desktop.schedules.form.at")} size="sm" error={error("atMs")}>

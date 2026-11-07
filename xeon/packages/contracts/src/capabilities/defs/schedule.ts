@@ -292,6 +292,11 @@ const AtInPastSchema: TObject<{ kind: TLiteral<"at_in_past"> }> = Type.Object(
   { kind: Type.Literal("at_in_past") },
   { additionalProperties: false },
 );
+/**
+ * `invalid_trigger`의 사유 코드: 감시 경로가 앱이 허용한 폴더(설정·데이터·상태 폴더) 밖이다. 호스트가 저장 전에 낸다.
+ * 화면과 CLI는 이 값을 보고 그 경로 칸에 맞는 문장을 쓴다.
+ */
+export const WATCH_PATH_OUTSIDE_ROOTS_REASON = "watch_path_outside_roots";
 const InvalidTriggerSchema: TObject<{ kind: TLiteral<"invalid_trigger">; reason: TString }> =
   Type.Object(
     { kind: Type.Literal("invalid_trigger"), reason: Type.String({ maxLength: 200 }) },

@@ -20,7 +20,12 @@ export {
   buildNotifyCommand,
   type NotifierProvider,
 } from "./notify/provider.ts";
-export { createFileWatcher, type FileWatcher, type WatchBackend } from "./watch/watcher.ts";
+export {
+  createFileWatcher,
+  isWatchPathAllowed,
+  type FileWatcher,
+  type WatchBackend,
+} from "./watch/watcher.ts";
 export { createFsWatchBackend } from "./watch/fs-watch.ts";
 export {
   createWorktreeOps,

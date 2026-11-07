@@ -1,5 +1,5 @@
 import { assertNever } from "@fresnel/contracts";
-import type { ScheduleListItem } from "@fresnel/contracts/capabilities";
+import type { RunView, ScheduleListItem } from "@fresnel/contracts/capabilities";
 import { scheduleListView, type ScheduleRow } from "@fresnel/client";
 import type { ThreadSummary, WireParams, WireResult } from "@fresnel/contracts/wire";
 import type { CommandError } from "../../commands.ts";
@@ -11,7 +11,7 @@ import {
   type ScheduleDraft,
   type SheetErrors,
 } from "./schedule-draft.ts";
-import type { MessageRef, RowAction } from "./schedule-text.ts";
+import { message, runReasonTextOf, type MessageRef, type RowAction } from "./schedule-text.ts";
 
 // 예약 화면(P-07)의 상태 기계. 순수 함수만 둔다: 명령을 부르는 일은 화면이 맡고, 결과를 이 모델의 동작으로 옮긴다.
 // 목록은 요청 결과라 거울에 넣지 않는다(FS-03). 시각이 필요한 동작은 `now`를 받아 시험에서 값을 고정한다.
@@ -28,7 +28,7 @@ type ListState =
 export type NoticeAction = "restartEngine" | null;
 
 export interface Notice {
-  readonly tone: "danger" | "success";
+  readonly tone: "danger" | "success" | "warning";
   readonly text: MessageRef;
   readonly action: NoticeAction;
 }
@@ -416,4 +416,23 @@ export function noticeOf(
   action: NoticeAction = null,
 ): Notice {
   return { tone, text, action };
+}
+
+/**
+ * 지금 실행(`schedule.fire`)의 결과를 알림으로 옮긴다. 호스트가 준 실행 기록의 상태로 정한다: 시작했으면 성공이고,
+ * 건너뛰었으면 경고(예: 직전 실행 뒤 5분이 안 지남), 시작하지 못했으면 오류다. 사유는 실행 기록과 같은 문장을 쓴다.
+ */
+export function fireNoticeOf(run: RunView): Notice {
+  switch (run.status) {
+    case "claimed":
+    case "started":
+    case "finished":
+      return noticeOf(message("desktop.schedules.fired"), "success");
+    case "skipped":
+      return noticeOf(runReasonTextOf(run.reason), "warning");
+    case "failed":
+      return noticeOf(runReasonTextOf(run.reason), "danger");
+    default:
+      return assertNever(run.status, "RunView.status");
+  }
 }

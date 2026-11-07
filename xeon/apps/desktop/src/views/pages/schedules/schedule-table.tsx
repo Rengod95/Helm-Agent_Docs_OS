@@ -1,6 +1,6 @@
 import { t, type Locale } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
-import type { ScheduleListItem } from "@fresnel/contracts/capabilities";
+import type { ScheduleListItem, ScheduleTrigger } from "@fresnel/contracts/capabilities";
 import type { ScheduleRow } from "@fresnel/client";
 import {
   Button,
@@ -19,9 +19,12 @@ import { canAct, rowMenuOf, type ScheduleState } from "./schedule-model.ts";
 import {
   lastRunAtOf,
   lastRunStatusOf,
+  message,
   nextRunTextOf,
   ROW_ACTION_ID,
+  timeTextOf,
   triggerSummaryOf,
+  type MessageRef,
   type RowAction,
   type StatusTone,
 } from "./schedule-text.ts";
@@ -78,6 +81,35 @@ function dimOf(row: ScheduleRow): string {
   return row.enabled ? "" : "opacity-60";
 }
 
+/**
+ * 꺼진 행에 "다시 켜기"를 보일 수 있는가. 지난 시각의 `at`은 엔진이 다시 켜지 않으므로(`reenableOf`) 단추와 메뉴 항목을 숨긴다.
+ * 시각이 남은 꺼진 `at`(취소한 예약)은 켤 수 있다. 끝난 반복은 여기서 가리지 않는다(호스트가 거절하고 시트가 그 글을 보인다).
+ */
+export function canReenableRow(row: ScheduleRow, nowMs: number): boolean {
+  if (row.enabled) return false;
+  const trigger = row.triggerSummary;
+  return !(trigger.kind === "at" && trigger.atMs <= nowMs);
+}
+
+/**
+ * 루프 한 줄 요약: "10분마다 최대 10회, …까지". 단위는 간격 요약과 같다(시간으로 나누어떨어지면 시간, 분이면 분, 아니면 초).
+ * 값은 `desktop.schedules.summary.repeat*`에 채운다.
+ */
+function repeatSummaryOf(
+  trigger: Extract<ScheduleTrigger, { readonly kind: "repeat" }>,
+  locale: Locale,
+): MessageRef {
+  const seconds = trigger.intervalSeconds;
+  const args = { max: trigger.maxIterations, until: timeTextOf(trigger.expiresAtMs, locale) };
+  if (seconds > 0 && seconds % 3600 === 0) {
+    return message("desktop.schedules.summary.repeatHours", { ...args, count: seconds / 3600 });
+  }
+  if (seconds > 0 && seconds % 60 === 0) {
+    return message("desktop.schedules.summary.repeatMinutes", { ...args, count: seconds / 60 });
+  }
+  return message("desktop.schedules.summary.repeatSeconds", { ...args, count: seconds });
+}
+
 export function ScheduleTable(props: ScheduleTableProps): ReactNode {
   const { rows, items, state, locale, openable, handlers } = props;
   const rowById = new Map<string, ScheduleRow>(
@@ -130,7 +162,11 @@ export function ScheduleTable(props: ScheduleTableProps): ReactNode {
     [
       "trigger",
       (row) => {
-        const summary = triggerSummaryOf(row.triggerSummary, locale);
+        const trigger = row.triggerSummary;
+        const summary =
+          trigger.kind === "repeat"
+            ? repeatSummaryOf(trigger, locale)
+            : triggerSummaryOf(trigger, locale);
         return (
           <span className={`font-normal text-text-secondary ${dimOf(row)}`}>
             {t(summary.id, summary.args)}
@@ -148,10 +184,10 @@ export function ScheduleTable(props: ScheduleTableProps): ReactNode {
             </span>
           );
         }
-        const message = nextRunTextOf(row.nextDueAt, state.nowMs, locale);
+        const next = nextRunTextOf(row.nextDueAt, state.nowMs, locale);
         return (
           <span className={`font-normal tabular-nums text-text-secondary ${dimOf(row)}`}>
-            {t(message.id, message.args)}
+            {t(next.id, next.args)}
           </span>
         );
       },
@@ -191,11 +227,15 @@ export function ScheduleTable(props: ScheduleTableProps): ReactNode {
     if (row === undefined) return null;
     const threadId = row.lastRun?.threadId ?? null;
     const menu = rowMenuOf(row, acting, threadId !== null && openable(threadId));
-    const plain = menu.filter((item) => item.action !== "cancel");
+    // 다시 켤 수 없는 행은 칸 옆 단추와 메뉴 항목을 함께 숨긴다(`canReenableRow`)
+    const reenable = canReenableRow(row, state.nowMs);
+    const plain = menu.filter(
+      (item) => item.action !== "cancel" && (item.action !== "reenable" || reenable),
+    );
     const cancel = menu.filter((item) => item.action === "cancel");
     return (
       <div className="flex items-center justify-end gap-0.5">
-        {row.enabled ? null : (
+        {reenable ? (
           <Button
             size="xs"
             variant="outline"
@@ -206,7 +246,7 @@ export function ScheduleTable(props: ScheduleTableProps): ReactNode {
           >
             {t("desktop.schedules.reenable")}
           </Button>
-        )}
+        ) : null}
         {row.triggerKind === "remote" && row.enabled ? (
           <Button
             size="xs"

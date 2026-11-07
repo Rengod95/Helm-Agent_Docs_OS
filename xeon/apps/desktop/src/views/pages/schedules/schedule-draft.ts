@@ -1,8 +1,9 @@
 import { assertNever } from "@fresnel/contracts";
-import type {
-  ScheduleEntryView,
-  ScheduleError,
-  ScheduleTrigger,
+import {
+  WATCH_PATH_OUTSIDE_ROOTS_REASON,
+  type ScheduleEntryView,
+  type ScheduleError,
+  type ScheduleTrigger,
 } from "@fresnel/contracts/capabilities";
 import {
   createParamsOf,
@@ -129,7 +130,10 @@ export function checkDraft(draft: ScheduleDraft, nowMs: number): DraftCheck {
   };
 }
 
-/** `schedule.create`의 `ok: false` 값을 입력란에 붙인다. 간격과 시각은 그 입력란에, 나머지는 시트 위에 붙인다 */
+/**
+ * `schedule.create`의 `ok: false` 값을 입력란에 붙인다. 간격과 시각은 그 입력란에, 감시 경로가 허용 폴더 밖이면 경로 칸에,
+ * 나머지는 시트 위에 붙인다
+ */
 export function sheetErrorsOf(error: ScheduleError): SheetErrors {
   const text = scheduleErrorOf(error);
   switch (error.kind) {
@@ -138,6 +142,13 @@ export function sheetErrorsOf(error: ScheduleError): SheetErrors {
     case "at_in_past":
       return { fields: { atMs: text }, form: null };
     case "invalid_trigger":
+      if (error.reason === WATCH_PATH_OUTSIDE_ROOTS_REASON) {
+        return {
+          fields: { paths: message("desktop.schedules.error.watchPathOutside") },
+          form: null,
+        };
+      }
+      return { fields: {}, form: text };
     case "limit_reached":
     case "not_found":
     case "not_remote":
@@ -147,6 +158,25 @@ export function sheetErrorsOf(error: ScheduleError): SheetErrors {
     default:
       return assertNever(error, "ScheduleError");
   }
+}
+
+/**
+ * 간격 칸에서 상한을 넘게 친 값을 기억한다. 칸은 커밋할 때 상한으로 줄이므로(NumberField `normalize`) 줄인 사실을
+ * 따로 알아야 한다. 칸의 글이 바뀔 때마다 부른다: 상한을 넘은 값이면 그 값을 기억하고, 상한 안의 새 글이면 지운다.
+ * 커밋이 낸 글 변화(`dirty`가 거짓)는 기억을 그대로 둔다.
+ */
+export function typedOverLimitOf(
+  previous: number | null,
+  draft: { readonly value: number | null; readonly dirty: boolean },
+  max: number,
+): number | null {
+  if (draft.value !== null && draft.value > max) return draft.value;
+  return draft.dirty ? null : previous;
+}
+
+/** 줄였다는 안내를 보일지. 상한을 넘게 쳤고 칸이 지금 상한에 있을 때만 보인다 */
+export function clampNoticeOf(typed: number | null, value: number | null, max: number): boolean {
+  return typed !== null && value === max;
 }
 
 /** `datetime-local` 값("YYYY-MM-DDTHH:mm", 지역 시각)을 epoch ms로. 비었거나 읽을 수 없으면 null */

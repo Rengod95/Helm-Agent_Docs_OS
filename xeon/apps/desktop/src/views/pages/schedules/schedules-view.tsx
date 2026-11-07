@@ -148,7 +148,7 @@ export function ScheduleScreenView(props: ScheduleScreenViewProps): ReactNode {
           {state.notice === null ? null : (
             <Alert
               size="sm"
-              tone={state.notice.tone === "danger" ? "danger" : "success"}
+              tone={state.notice.tone}
               dismissible
               dismissLabel={t("desktop.schedules.dismiss")}
               onDismiss={handlers.dismissNotice}
@@ -179,6 +179,7 @@ export function ScheduleScreenView(props: ScheduleScreenViewProps): ReactNode {
         serviceModeOff={state.serviceModeOff}
         canEnableService={acting}
         onEnableService={handlers.enableService}
+        serviceRestartPending={state.serviceRestartPending}
       />
       <ScheduleRunsSheet
         runs={state.runs}

@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
 import type { FileChange, WatchError, WatchHandle } from "@fresnel/contracts/services";
 import { createRawClassifier } from "../src/watch/fs-watch.ts";
-import { createFileWatcher, type WatchBackend } from "../src/watch/watcher.ts";
+import { createFileWatcher, isWatchPathAllowed, type WatchBackend } from "../src/watch/watcher.ts";
 import { manualClock, memoryLogger } from "./support/clock.ts";
 
 interface FakeBackend extends WatchBackend {
@@ -52,6 +52,15 @@ test("a root outside the app dirs is outside_app_dirs, an extra root is allowed"
   );
   expect((await watcher.watch("/work/tree/sub", {}, () => {})).ok).toBe(true);
   expect((await watcher.watch("/app/config", {}, () => {})).ok).toBe(true);
+});
+
+test("isWatchPathAllowed is the same root check the watcher runs", () => {
+  const roots = ["/app/config", "/app/state"];
+  expect(isWatchPathAllowed(roots, "/app/state")).toBe(true);
+  expect(isWatchPathAllowed(roots, "/app/state/schedule/x")).toBe(true);
+  expect(isWatchPathAllowed(roots, "/etc")).toBe(false);
+  expect(isWatchPathAllowed(roots, "/app/config/../../etc")).toBe(false);
+  expect(isWatchPathAllowed(roots, "/app/data")).toBe(false);
 });
 
 test("raw changes are merged per path and delivered once after debounceMs", async () => {

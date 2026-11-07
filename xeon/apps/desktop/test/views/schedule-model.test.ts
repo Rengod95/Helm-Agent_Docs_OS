@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { catalogOf } from "@fresnel/client/i18n";
+import { catalogOf, createTranslator } from "@fresnel/client/i18n";
 import { scheduleRowOf, type ScheduleLastRun } from "@fresnel/client";
 import type { RunView, ScheduleEntryView, ScheduleListItem } from "@fresnel/contracts/capabilities";
 import type { ThreadOrigin } from "@fresnel/contracts/wire";
@@ -14,6 +14,7 @@ import {
 } from "../../src/views/pages/schedules/schedule-draft.ts";
 import {
   canAct,
+  fireNoticeOf,
   INITIAL_SCHEDULE_STATE,
   isOffline,
   keyIntentOf,
@@ -28,11 +29,13 @@ import {
 } from "../../src/views/pages/schedules/schedule-model.ts";
 import {
   FILTER_ID,
+  isMissedReason,
   lastRunAtOf,
   lastRunStatusOf,
   message,
   nextRunTextOf,
   ROW_ACTION_ID,
+  runReasonTextOf,
   type MessageRef,
   SCHEDULE_ERROR_ID,
   scheduleErrorOf,
@@ -817,5 +820,118 @@ describe("run signature of schedule threads", () => {
     const b = summary(thr(3), { status: "running", origin: SCHEDULE });
     expect(scheduleRunSignatureOf([a, b])).toBe(`${thr(2)}:idle|${thr(3)}:running`);
     expect(scheduleRunSignatureOf([b, a])).toBe(scheduleRunSignatureOf([a, b]));
+  });
+});
+
+describe("run reasons and the fire outcome", () => {
+  const ko = createTranslator("ko");
+  const koOf = (ref: MessageRef): string => ko.t(ref.id, ref.args);
+
+  // 호스트가 실행 기록의 `error`로 주는 사유 코드 전부(`RunSkipReason`, `RunFailReason`, 중단)
+  const CODES: readonly string[] = [
+    "missed",
+    "too_old",
+    "min_interval",
+    "overlap",
+    "rate_limited",
+    "host_exit",
+    "start_failed",
+    "run_failed",
+    "aborted",
+  ];
+
+  test("every reason code has its own Korean sentence, and the values are the ones the user reads", () => {
+    expect(koOf(runReasonTextOf("start_failed"))).toBe(
+      "대화를 시작하지 못했어요. 작업 폴더가 있는지 확인해 주세요.",
+    );
+    expect(koOf(runReasonTextOf("min_interval"))).toBe(
+      "직전 실행 뒤 5분이 지나지 않아 건너뛰었어요. 5분 뒤에 다시 눌러 주세요.",
+    );
+    expect(koOf(runReasonTextOf("missed"))).toBe(
+      "앱이 꺼진 동안 놓친 실행이에요. 따라잡지 않고 건너뛰었어요.",
+    );
+    expect(koOf(runReasonTextOf("too_old"))).toBe(
+      "앱이 꺼진 동안 기한이 너무 지나 따라잡지 않고 건너뛰었어요.",
+    );
+    expect(koOf(runReasonTextOf("overlap"))).toBe("이전 실행이 아직 끝나지 않아 건너뛰었어요.");
+    expect(koOf(runReasonTextOf("rate_limited"))).toBe(
+      "한 시간에 시작할 수 있는 실행 수를 넘어 건너뛰었어요.",
+    );
+    expect(koOf(runReasonTextOf("host_exit"))).toBe("앱이 꺼져서 실행이 끝나지 못했어요.");
+    expect(koOf(runReasonTextOf("run_failed"))).toBe(
+      "실행 중에 오류가 났어요. 대화에서 자세한 내용을 확인해 주세요.",
+    );
+    expect(koOf(runReasonTextOf("aborted"))).toBe("실행을 중간에 멈췄어요.");
+  });
+
+  test("every reason code's sentence key exists in both locales", () => {
+    for (const code of CODES) {
+      const id = runReasonTextOf(code).id;
+      expect(catalogOf("ko")[id] === undefined).toBe(false);
+      expect(catalogOf("en")[id] === undefined).toBe(false);
+    }
+  });
+
+  test("an unknown code is named in the fallback sentence, and no reason is said to be unknown", () => {
+    expect(koOf(runReasonTextOf("disk_full"))).toBe("이유를 알 수 없어요 (disk_full)");
+    expect(koOf(runReasonTextOf(null))).toBe("이유를 알 수 없어요.");
+  });
+
+  test("missed and too_old are the missed runs, and no other reason is", () => {
+    expect(CODES.map((code) => isMissedReason(code))).toEqual([
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+    expect(isMissedReason("disk_full")).toBe(false);
+  });
+
+  test("a fire that started says the run was requested, with a success tone and no action", () => {
+    const notice = fireNoticeOf(
+      finishedRunOf({ status: "started", outcome: null, endedAt: null, reason: null }),
+    );
+    expect(notice.tone).toBe("success");
+    expect(notice.action).toBeNull();
+    expect(koOf(notice.text)).toBe("지금 실행을 요청했어요. 결과는 목록에서 확인해 주세요.");
+  });
+
+  test("a fire that min_interval skipped is a warning with the minimum-interval sentence", () => {
+    const notice = fireNoticeOf(
+      finishedRunOf({
+        status: "skipped",
+        outcome: null,
+        endedAt: null,
+        threadId: null,
+        startedAt: null,
+        reason: "min_interval",
+      }),
+    );
+    expect(notice.tone).toBe("warning");
+    expect(notice.action).toBeNull();
+    expect(koOf(notice.text)).toBe(
+      "직전 실행 뒤 5분이 지나지 않아 건너뛰었어요. 5분 뒤에 다시 눌러 주세요.",
+    );
+  });
+
+  test("a fire that could not start is a danger notice with the start-failed sentence", () => {
+    const notice = fireNoticeOf(
+      finishedRunOf({
+        status: "failed",
+        outcome: null,
+        endedAt: NOW,
+        threadId: null,
+        startedAt: null,
+        reason: "start_failed",
+      }),
+    );
+    expect(notice.tone).toBe("danger");
+    expect(notice.action).toBeNull();
+    expect(koOf(notice.text)).toBe("대화를 시작하지 못했어요. 작업 폴더가 있는지 확인해 주세요.");
   });
 });

@@ -15,6 +15,7 @@ import { useCommands } from "../../commands.ts";
 import { checkDraft, checkEditDraft, sheetErrorsOf } from "./schedule-draft.ts";
 import {
   canAct,
+  fireNoticeOf,
   INITIAL_SCHEDULE_STATE,
   keyIntentOf,
   listFailureOf,
@@ -105,7 +106,8 @@ export function SchedulesScreen(): ReactNode {
     dispatch({ type: "busy", busy: false });
     if (!fired.ok) return failNotice(commandErrorOf(fired.error));
     if (!fired.value.ok) return failNotice(scheduleErrorOf(fired.value.error));
-    dispatch({ type: "notice", notice: noticeOf(message("desktop.schedules.fired"), "success") });
+    // 성공 문장은 실행이 시작했을 때만이다. 건너뛰었거나 시작하지 못했으면 호스트의 실행 기록 상태가 알림을 고른다
+    dispatch({ type: "notice", notice: fireNoticeOf(fired.value.run) });
     await load();
   };
 
