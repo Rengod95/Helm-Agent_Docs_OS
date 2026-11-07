@@ -2472,9 +2472,9 @@
         "secret": false,
         "since": "0.2.0",
         "ui": {
-          "help": "0 ignores boundary continue instructions",
+          "help": "0 ignores keep-going requests from the completion check",
           "helpKey": "settings.l1.loop.gate.maxContinues.help",
-          "label": "Max consecutive completion gate continues",
+          "label": "Max continues after the completion check",
           "labelKey": "settings.l1.loop.gate.maxContinues.label",
           "order": 20,
           "tab": "budgets",
@@ -2532,7 +2532,7 @@
         "secret": false,
         "since": "0.3.0",
         "ui": {
-          "label": "Repeated action-error threshold",
+          "label": "Repeated tool call and error threshold",
           "labelKey": "settings.l1.loop.repeat.actionError.label",
           "order": 32,
           "tab": "budgets",
@@ -2560,7 +2560,7 @@
         "secret": false,
         "since": "0.3.0",
         "ui": {
-          "label": "Repeated action-observation threshold",
+          "label": "Repeated tool call and result threshold",
           "labelKey": "settings.l1.loop.repeat.actionObservation.label",
           "order": 31,
           "tab": "budgets",
@@ -2944,7 +2944,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Per provider: minimum interval (minIntervalMs), what to do at the limit (onLimit: wait, switch or fail), longest wait (maxWaitMs).",
+          "help": "Per provider: the minimum gap between requests, what to do at the limit (wait, switch or fail), and the longest wait.",
           "helpKey": "settings.l1.models.rateLimit.help",
           "label": "Rate limit",
           "labelKey": "settings.l1.models.rateLimit.label",
