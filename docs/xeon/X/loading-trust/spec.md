@@ -347,7 +347,7 @@ export interface RemoveResult {
 export interface ExtensionLoader {
   /** 시작 때 한 번. 파이프라인 전체를 실행한다 */
   loadAll(options: LoadOptions): Promise<LoadReport>;
-  /** 작업 폴더 하나를 판정하고 신뢰되면 그 작업 폴더의 확장을 싣는다(서비스 모드, §4.7.8). loadAll 뒤에 부른다 */
+  /** 작업 폴더 하나를 판정하고 신뢰되면 그 작업 폴더의 확장을 싣는다(모든 호스트 모드, §4.7.8). loadAll 뒤에 부른다 */
   loadProject(options: LoadProjectOptions): Promise<ProjectLoadReport>;
   /** ext.<name>.enabled가 거짓에서 참이 되면 부른다. 아직 로드되지 않은 확장을 로드한다 */
   ensureLoaded(name: ExtensionName, signal: AbortSignal): Promise<LoadedExtensionInfo>;
@@ -1294,13 +1294,13 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 - 손상 상태에서 `setMany`는 쓰지 않고 `err({ kind: "corrupt", reason })`를 돌려준다. `resolveProjectTrust`는 저장에 실패해도 결정을 유지하고 결과의 `storeError`로 알린다. 진단 `trust_store_corrupt`를 남기고, L4는 파일 경로와 복구 방법(직접 수정, 초기화 명령)을 보인다.
 - pi 형식(`Record<path, boolean | null>`) 파일을 읽으면 [제안] 손상으로 보지 않고 버전 0으로 읽어 같은 의미로 변환한다. 다음 쓰기 때 버전 1로 바꾼다.
 
-#### 4.7.8 서비스 모드의 작업 폴더 확장 [결정: review.m3-lower-requirements M3-REQ-38, 오케스트레이터 기본값]
+#### 4.7.8 작업 폴더 확장의 적재 시점 [결정: review.m3-lower-requirements M3-REQ-38, 오케스트레이터 기본값]
 
-여러 작업 폴더를 동시에 여는 서비스 프로세스(adr.0006)에서 작업 폴더 확장을 싣는 규칙이다. 시작 때는 작업 폴더를 싣지 않고(`loadAll({ projects: "on_demand" })`), 작업 폴더를 여는 때 `loadProject`가 싣는다.
+작업 폴더 확장을 싣는 규칙이다. 여러 작업 폴더를 동시에 여는 서비스 프로세스(adr.0006)는 시작 때 작업 폴더를 싣지 않고(`loadAll({ projects: "on_demand" })`), 작업 폴더를 여는 때 `loadProject`가 싣는다. 작업 폴더를 여는 때 싣는 경로(`ensure`, `assembly/project-extensions.ts`)는 모든 호스트 모드(in-process, stdio, 서비스)가 같이 쓴다. [결정: 오케스트레이터 기본값, fxPT] in-process·stdio 호스트는 시작 때 `loadAll({ projects: "cwd" })`가 cwd의 작업 폴더를 판정해 이미 실었을 수 있고, 같은 루트는 `alreadyLoaded`로 다시 싣지 않는다. [결정: 오케스트레이터 기본값, fxPT]
 
 1. 단위: 작업 폴더 루트(정규화한 경로) 하나다. 같은 루트는 한 번만 싣는다(`alreadyLoaded`). 적재가 중단되거나 실패하면 그 루트를 기억하지 않아 다음 호출이 다시 싣는다. 서비스 프로세스 안의 확장 이름은 하나뿐이라(§4.2.2) 먼저 실린 작업 폴더의 확장이 이름을 쥐고, 다른 작업 폴더의 같은 이름은 `name_conflict`로 거부된다. 나중 것만 거부하고 먼저 실린 것은 `active`로 두어 실행과 상태 표시가 어긋나지 않는다 [결정: 감사 LT-01]. 같은 묶음 안의 같은 위치 충돌(§4.2.2)만 둘 다 거부한다. 서비스를 다시 띄우면 처음부터 다시 정한다.
-2. 시점: thread를 만들거나 여는 작업 폴더에 대해 호스트가 부른다. 신뢰가 아직 정해지지 않은 폴더는 아무것도 싣지 않고(`trust_undecided`) 결정은 기억하지 않는다. 결정이 나온 뒤 다음 호출이 싣는다.
-3. 프롬프트를 받을 클라이언트: 그 폴더를 연 연결이다. thread가 없는 시점이므로 `thread.trust.before` 훅(thread 필요)은 이 경로에서 발화하지 않는다. 호스트는 wire `trust.get`(선택지)과 `trust.decide`(결정)를 쓰고 `approval.requested`와 같은 A안 모양(F wire, review.decisions-2 U-02)이다. `trust.decide`가 `allow`를 반환하면 호스트가 그 결과를 `trustOverride`로 `loadProject`에 넘긴다. 로더에 직접 프롬프트를 연결하는 구현(`LoadProjectOptions.prompter`)도 같은 규칙을 따르되 그 호출의 `prompter`로만 간다.
+2. 시점: thread를 만들거나 여는 작업 폴더에 대해 모든 호스트 모드가 부른다. 신뢰가 아직 정해지지 않은 폴더(`undecided`)와 거부된 폴더는 아무것도 싣지 않고 묻지도 않는다. `ensure`의 판정은 headless라 프롬프트를 띄우지 않고 저장하지 않으며, 로더를 부르지 않으므로 진단도 남기지 않는다. 결정은 기억하지 않고, 결정이 나온 뒤 다음 호출이 싣는다. [결정: 오케스트레이터 기본값, fxPT]
+3. 프롬프트를 받을 클라이언트: 그 폴더를 연 연결이다. thread가 없는 시점이므로 `thread.trust.before` 훅(thread 필요)은 이 경로에서 발화하지 않는다. 호스트는 wire `trust.get`(선택지)과 `trust.decide`(결정)를 쓰고 `approval.requested`와 같은 A안 모양(F wire, review.decisions-2 U-02)이다. `trust.get`은 아무것도 바꾸지 않는다. `trust.decide`가 `allow`를 반환하면 신뢰 포트가 `ensure`를 다시 불러 그 결과를 `trustOverride`로 `loadProject`에 넘긴다. [결정: 오케스트레이터 기본값, fxPT] 로더에 직접 프롬프트를 연결하는 구현(`LoadProjectOptions.prompter`)도 같은 규칙을 따르되 그 호출의 `prompter`로만 간다.
 4. "이번 세션만" 결정은 서비스 프로세스 수명 동안 유지한다(§10 7번).
 5. 안전 모드이면 판정하지 않고 `safe_mode` 진단만 남긴다.
 6. 작업 폴더 확장이 선언한 설정 그룹(`ext.<name>`)은 시작 때 만든 카탈로그에 없다. 서비스 모드에서 작업 폴더 확장의 설정 키는 카탈로그에 추가되지 않는다 [미결].

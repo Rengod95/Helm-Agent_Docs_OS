@@ -82,6 +82,26 @@ test("loadProject loads a trusted project once and reports alreadyLoaded the sec
   expect(harness.loader.list().map((info) => info.name)).toEqual(["proj-a"]);
 });
 
+test("the cwd project loaded at startup is not loaded again by loadProject for the same root", async () => {
+  await writePlugin(join(projectA, ".fresnel", "extensions"), "proj-a", { name: "proj-a" });
+  const harness = await harnessOf();
+  const startup = await harness.loader.loadAll(
+    harness.options([], { cwd: projectA, trustOverride: true, projects: "cwd" }),
+  );
+  expect(startup.projectTrust).toMatchObject({ trusted: true, via: "override" });
+  expect(startup.extensions.map((info) => info.name)).toEqual(["proj-a"]);
+  // 시작 때 cwd를 이미 실었으므로 작업 폴더를 여는 호출은 같은 루트를 다시 싣지 않는다
+  const opened = await harness.loader.loadProject({
+    projectRoot: projectA,
+    mode: "headless",
+    trustOverride: true,
+    signal,
+  });
+  expect(opened.alreadyLoaded).toBe(true);
+  expect(opened.extensions).toEqual([]);
+  expect(harness.loader.list().map((info) => info.name)).toEqual(["proj-a"]);
+});
+
 test("each workspace is judged on its own: the trusted one loads and the denied one does not", async () => {
   await writePlugin(join(projectA, ".fresnel", "extensions"), "proj-a", { name: "proj-a" });
   await writePlugin(join(projectB, ".fresnel", "extensions"), "proj-b", { name: "proj-b" });

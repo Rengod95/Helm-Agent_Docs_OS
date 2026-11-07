@@ -1242,7 +1242,6 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       trust: projectTrust,
       afterSettingsPrepare: (threadId) => externalHooks.sync(threadId),
       projectExtensions: createProjectExtensions({
-        mode: options.mode,
         loader: () => external.loader,
         trust: projectTrust,
         logger: os.logger("project-ext"),

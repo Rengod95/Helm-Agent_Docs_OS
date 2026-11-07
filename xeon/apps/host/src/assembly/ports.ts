@@ -621,7 +621,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     // 신뢰한 작업 폴더의 project·local 설정을 읽어 둔다. 자원(임대)을 쥐기 전에 해서 실패해도 정리할 것이 없다
     await settings.prepare(threadId);
     await deps.afterSettingsPrepare?.(threadId);
-    // 서비스 모드: 이 thread의 작업 폴더가 신뢰되어 있으면 그 프로젝트의 확장을 싣는다(결정이 없으면 클라이언트가 trust.decide로 정한 뒤 싣는다)
+    // 이 thread의 작업 폴더가 신뢰되어 있으면 그 프로젝트의 확장을 싣는다(모든 호스트 모드. 결정이 없으면 클라이언트가 trust.decide로 정한 뒤 싣는다)
     await deps.projectExtensions.ensure(deps.workspaceOf(threadId), deps.signal);
     const acquired = store.leases.acquire(`thread:${threadId}`, { ...deps.holder, kind });
     if (!acquired.ok) {
@@ -723,7 +723,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       });
       // 어느 키가 바뀌었는지 모르는 변경이다(keys가 빈 알림, F wire §3.3.2)
       deps.settings.notifyChanged({ keys: [], scopes: ["project", "local"], threadId: null });
-      // 서비스 모드: 허용된 작업 폴더의 프로젝트 확장을 지금 싣는다
+      // 허용된 작업 폴더의 프로젝트 확장을 지금 싣는다(모든 호스트 모드)
       await deps.projectExtensions.ensure(workspace, signal);
       return ok(trustStatusOf(decided.value));
     },
