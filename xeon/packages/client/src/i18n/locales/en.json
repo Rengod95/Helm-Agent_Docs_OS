@@ -2149,6 +2149,7 @@
   "desktop.trust.card.details.hooks": "Hooks",
   "desktop.trust.card.details.mcpServers": "MCP servers",
   "desktop.trust.card.details.skills": "Skills",
+  "desktop.trust.card.details.truncated": "Only part of the list is shown. Some definitions were left out because they were over a limit or could not be read.",
   "desktop.trust.card.loadFailed": "Could not read the project trust status.",
   "desktop.trust.card.resources.label": "Resources this work folder tries to load",
   "desktop.trust.card.sendFailed": "Could not send. Press again to retry.",

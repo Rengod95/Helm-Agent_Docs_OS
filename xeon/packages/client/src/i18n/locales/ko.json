@@ -2149,6 +2149,7 @@
   "desktop.trust.card.details.hooks": "훅",
   "desktop.trust.card.details.mcpServers": "MCP 서버",
   "desktop.trust.card.details.skills": "스킬",
+  "desktop.trust.card.details.truncated": "목록 일부만 보여요. 일부 정의는 상한을 넘거나 읽지 못해 빠졌어요.",
   "desktop.trust.card.loadFailed": "작업 폴더 신뢰 상태를 읽지 못했어요.",
   "desktop.trust.card.resources.label": "이 작업 폴더가 불러오려는 자원",
   "desktop.trust.card.sendFailed": "보내지 못했어요. 다시 눌러 보세요.",

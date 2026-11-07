@@ -35,6 +35,8 @@ export type TrustCardDetails = {
   readonly skills: readonly string[];
   readonly commands: readonly string[];
   readonly extensions: readonly string[];
+  /** 목록이 일부만 실렸다(상한으로 잘렸거나 읽지 못한 정의가 있다). 없으면 전부다 */
+  readonly truncated?: boolean;
 };
 
 export type TrustCardView = {
@@ -60,6 +62,7 @@ function detailsOf(details: TrustDetails): TrustCardDetails {
     skills: details.skills,
     commands: details.commands,
     extensions: details.extensions,
+    ...(details.truncated === undefined ? {} : { truncated: details.truncated }),
   };
 }
 

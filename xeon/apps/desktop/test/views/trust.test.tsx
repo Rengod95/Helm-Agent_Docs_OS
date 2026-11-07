@@ -108,6 +108,13 @@ describe("trustCardOf", () => {
       extensions: ["lint-ext"],
     });
   });
+
+  test("a truncated preview is marked on the card, a complete one is not", () => {
+    expect(
+      trustCardOf(status({ details: { ...DETAILS, truncated: true } }))?.details?.truncated,
+    ).toBe(true);
+    expect(trustCardOf(status({ details: DETAILS }))?.details).not.toHaveProperty("truncated");
+  });
 });
 
 describe("TrustCardBody", () => {
@@ -151,6 +158,21 @@ describe("TrustCardBody", () => {
     expect(out).toContain("<code>ship</code>");
     expect(out).toContain("<code>lint-ext</code>");
     expect(out).toContain("<code>.mcp.json</code>");
+  });
+
+  test("a truncated list says that only part of it is shown", () => {
+    const truncated = trustCardOf(status({ details: { ...DETAILS, truncated: true } }));
+    if (truncated === null) throw new Error("fixture must produce a card");
+    const out = renderToString(
+      <TrustCardBody card={truncated} sending="idle" onDecide={() => {}} />,
+    );
+    expect(out).toContain("목록 일부만 보여요");
+    const whole = trustCardOf(status({ details: DETAILS }));
+    if (whole === null) throw new Error("fixture must produce a card");
+    const complete = renderToString(
+      <TrustCardBody card={whole} sending="idle" onDecide={() => {}} />,
+    );
+    expect(complete).not.toContain("목록 일부만 보여요");
   });
 
   test("without details the card lists the file paths only", () => {

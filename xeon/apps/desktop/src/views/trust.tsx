@@ -201,6 +201,11 @@ function TrustDetailRows(props: { readonly details: TrustCardDetails }): ReactNo
             </ul>
           </div>
         ))}
+      {props.details.truncated === true ? (
+        <div className="text-ui-sm text-text-secondary">
+          {t("desktop.trust.card.details.truncated")}
+        </div>
+      ) : null}
     </>
   );
 }

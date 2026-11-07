@@ -525,7 +525,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 ### 4.2 서버 정의 로딩
 
 1. 설정 `l2.mcp.servers`의 유효 값(관리 > … > 사용자 범위 병합, `F.wire-settings.spec` §4.7)을 읽는다.
-2. `l2.mcp.importMcpJson`이 참이고 작업 폴더가 신뢰된 상태면(`thread.trust.before` 훅, `F.extensions.spec` §3.4 27번, 판정은 X `resolveProjectTrust`) 작업 폴더 루트 `.mcp.json`과 `.fresnel/mcp.json`을 읽는다 [결정: review.m2-plan §8 D6]. 신뢰되지 않았으면 파일 내용을 읽지 않고 파일이 있다는 진단(`untrusted_project`)만 남긴다. 파일을 읽지 못하면 서버 이름을 알 수 없어 `blocked` 서버로 나열하지 못한다.
+2. `l2.mcp.importMcpJson`이 참이고 작업 폴더가 신뢰된 상태면(`thread.trust.before` 훅, `F.extensions.spec` §3.4 27번, 판정은 X `resolveProjectTrust`) 작업 폴더 루트 `.mcp.json`과 `.fresnel/mcp.json`을 읽는다 [결정: review.m2-plan §8 D6]. 신뢰되지 않았으면 파일 내용을 읽지 않고 파일이 있다는 진단(`untrusted_project`)만 남긴다. 파일을 읽지 못하면 서버 이름을 알 수 없어 `blocked` 서버로 나열하지 못한다. 예외 [결정: 오케스트레이터 기본값, fxPT]: 신뢰 카드 미리 보기(조립 루트 `trust-preview.ts`, X.loading-trust §4.7.4)는 신뢰 전에 이 두 파일을 읽어 서버 이름과 `command`·`args`만 보인다. 상한은 파일 256 KiB, 파일당 서버 50개, `command`·인자 문자열 512자, `args` 64개다. `env`·`headers`·`url` 값은 읽고 버리며 보이지도 싣지도 않는다. 아무것도 기동하거나 로드하지 않고, 서버 목록은 신뢰 전까지 `blocked`로 남는다.
    - 이름 변환: 소문자로 바꾸고 `[a-z0-9-]` 밖 문자를 `-`로 바꾸고 32자로 자른다. 결과가 형식에 맞지 않거나 1번 목록의 id와 겹치면 그 항목을 건너뛰고 진단을 남긴다.
    - `type` 생략 + `command` 있음 → `stdio`, `type: "http"`·`"streamable-http"` → `http`, `type: "sse"` → `sse`.
    - [결정: M3-REQ-97] `env`·`headers` 값은 `secret://` 참조이거나 평문이다. 평문은 허용하되 이름이 시크릿처럼 보이면 그 서버를 건너뛰고 `plaintext_secret` 진단(값 없음)을 남긴다. 이름은 `_`·`-`·대소문자 경계로 낱말을 나눠 `KEY`, `APIKEY`, `TOKEN`, `SECRET`(S), `PASSWORD`, `PASSWD`, `PWD`, `CREDENTIAL`(S), `AUTH`, `AUTHORIZATION`, `COOKIE`, `BEARER` 중 하나가 있으면 시크릿 이름이다(`MAX_TOKENS`, `KEYBOARD`는 아니다). `secret://`로 시작하는데 참조 형식이 아닌 값은 `invalid_definition`이다(오타가 평문으로 나가지 않게 한다). 같은 검사를 설정 `l2.mcp.servers`와 `registerServer`에도 한다.
@@ -679,7 +679,7 @@ sequenceDiagram
 | 9 | 승인 대기 중 앱 재시작 | 대기 상태 복원. 응답 뒤 새 연결로 재시도(§4.6 7번) |
 | 10 | 시크릿 참조 미등록 | 연결 실패, `lastError.code = "secret_missing"`(L0.secrets 오류 코드를 따른다). 값이나 참조 이름 외 정보는 남기지 않는다 |
 | 11 | `.mcp.json`에 시크릿 이름의 평문 env·header 값, 형식이 틀린 `secret://` 값 | 그 서버만 건너뛰고 진단(값 없음) |
-| 12 | 신뢰하지 않는 작업 폴더의 `.mcp.json` | 읽지 않는다. 상태 `blocked`(`untrusted_project`)로 목록에만 보인다 |
+| 12 | 신뢰하지 않는 작업 폴더의 `.mcp.json` | 읽지 않는다. 예외는 신뢰 카드 미리 보기다: 서버 이름과 `command`·`args`만 상한까지 읽고, 기동하거나 로드하지 않는다(§4.2 2번) [결정: 오케스트레이터 기본값, fxPT]. 상태 `blocked`(`untrusted_project`)로 목록에만 보인다 |
 | 13 | 서버가 2025 사양만 지원 | `auto` 협상으로 2025 연결. MRTR 대신 2025 서버 → 클라이언트 elicitation 요청이 올 수 있다. 수동 모드에서 처리기를 두지 않아 SDK가 그 요청을 오류로 거절한다(`mrtr.test.ts`로 확인) |
 | 14 | 도구 `inputSchema`가 한도 초과 | 노출하지 않음(`schema_invalid`) |
 | 15 | 같은 도구 호출이 병렬로 여럿 | 모두 진행. 서버 쪽 동시성 한도는 서버 몫 |

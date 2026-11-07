@@ -1513,7 +1513,7 @@ export const TrustOptionSchema: TObject<{
 );
 export type TrustOption = Static<typeof TrustOptionSchema>;
 
-/** `TrustDetails`의 상한. 미리 보기는 이 상한까지만 싣고, 넘는 항목은 이름 목록에서 빠진다(파일 목록 `resources`에는 남는다) */
+/** `TrustDetails`의 상한. 미리 보기는 이 상한까지만 싣고, 넘는 항목은 이름 목록에서 빠진다(파일 목록 `resources`에는 남는다). `servers`는 정의 파일 두 개 각각 50개씩이라 100이다(조립 루트 `trust-preview.ts`) */
 export const TRUST_DETAILS_LIMITS: {
   readonly servers: number;
   readonly serverName: number;
@@ -1523,7 +1523,7 @@ export const TRUST_DETAILS_LIMITS: {
   readonly name: number;
   readonly names: number;
 } = {
-  servers: 64,
+  servers: 100,
   serverName: 128,
   command: 1024,
   args: 64,
@@ -1555,6 +1555,7 @@ export const TrustDetailsSchema: TObject<{
   skills: TArray<TString>;
   commands: TArray<TString>;
   extensions: TArray<TString>;
+  truncated: TOptional<TBoolean>;
 }> = Type.Object(
   {
     mcpServers: Type.Array(TrustMcpServerSchema, { maxItems: TRUST_DETAILS_LIMITS.servers }),
@@ -1570,6 +1571,8 @@ export const TrustDetailsSchema: TObject<{
     extensions: Type.Array(Type.String({ minLength: 1, maxLength: TRUST_DETAILS_LIMITS.name }), {
       maxItems: TRUST_DETAILS_LIMITS.names,
     }),
+    /** 목록이 일부만 실렸다: 상한으로 잘렸거나, 너무 커서 읽지 않았거나 읽지 못한 정의 파일이 있다. 없으면 전부 실린 것이다 */
+    truncated: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );

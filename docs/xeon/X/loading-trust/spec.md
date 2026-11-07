@@ -1293,6 +1293,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 - 불신(`deny`, `undecided`)이면 위 표의 대상은 이 실행 동안 계속 제외된다. 작업 폴더 후보는 `rejected`(`trust_denied` 또는 `trust_undecided`)로 진단에 남는다. 탐색은 존재 확인만 한 상태이므로 후보 이름은 디렉터리 이름으로 적는다.
 - 작업 폴더 설정 파일의 나머지 키(예: `l1.loop.maxSteps`)를 신뢰 전에 적용할지는 §10 미결 5다. pi는 작업 폴더 설정 전체를 막는다(pi `docs/security.md` "Granting project trust allows Pi to load: project settings").
 - [결정: 오케스트레이터 기본값, fxPT] 신뢰 카드의 자원 이름 미리 보기(조립 루트 `apps/host/src/assembly/trust-preview.ts`의 `previewTrustResources`가 만들고, `trust.get`의 `details`로 간다)는 결정이 필요한 판정(`required`이고 `verdict`가 `allow`가 아님)에만 쓴다. 이름만 읽는다. `.mcp.json`과 `.fresnel/mcp.json`은 JSON으로 파싱해 서버 이름과 `command`·`args`만 뽑는다. `env`·`url`·`headers` 값은 읽고 버린다. `command`가 없거나 빈 문자열인 서버(원격 `url` 서버 등)와 `args`에 문자열이 아닌 값이 있는 서버는 목록에 싣지 않는다(파일 목록에는 남는다). `.fresnel/hooks`·`skills`·`commands`·`extensions`는 항목 이름만 본다. 실행, import, 등록은 하지 않고 이 두 파일 말고는 내용을 읽지 않는다. 파일이 손상되었거나 읽지 못하면 그 파일의 서버 목록을 비우고 진단 `trust.preview_skipped`를 남긴다(던지지 않는다). 목록은 상한(`TRUST_DETAILS_LIMITS`)까지만 싣는다.
+- [결정: 오케스트레이터 기본값, fxPT] 미리 보기의 상한: 정의 파일 하나는 256 KiB까지만 읽고(넘으면 파싱하지 않고 `too_large`), 파일당 MCP 서버 50개(두 파일 합쳐 100개), 디렉터리당 이름 100개, `command`와 인자 문자열 512자(말줄임표 포함), 인자 64개까지 싣는다. 잘리거나 빠진 자리가 있으면 `details.truncated`가 참이다. 프로젝트 밖을 가리키는 심볼릭 링크 정의 파일은 따르지 않고 `unreadable`이다.
 
 #### 4.7.5 저장 파일 손상
 

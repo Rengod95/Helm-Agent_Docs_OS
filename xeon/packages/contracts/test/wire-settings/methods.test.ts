@@ -631,7 +631,16 @@ describe("M2 method schemas are written out", () => {
     ).toBe(false);
     expect(parse(result, { ...status, details: { ...details, hooks: [""] } }).ok).toBe(false);
     expect(parse(result, { ...status, details: { ...details, skills: undefined } }).ok).toBe(false);
-    const tooMany = Array.from({ length: 65 }, (_, n) => ({
+    // 정의 파일 두 개가 각각 50개까지 싣는다(합 100). 101개는 거부한다
+    const atLimit = Array.from({ length: 100 }, (_, n) => ({
+      name: `s${n}`,
+      command: "node",
+      args: [],
+    }));
+    expect(parse(result, { ...status, details: { ...details, mcpServers: atLimit } }).ok).toBe(
+      true,
+    );
+    const tooMany = Array.from({ length: 101 }, (_, n) => ({
       name: `s${n}`,
       command: "node",
       args: [],
@@ -639,6 +648,10 @@ describe("M2 method schemas are written out", () => {
     expect(parse(result, { ...status, details: { ...details, mcpServers: tooMany } }).ok).toBe(
       false,
     );
+    // truncated는 없거나 참거짓 값이다. 다른 형식은 거부한다
+    expect(parse(result, { ...status, details: { ...details, truncated: true } }).ok).toBe(true);
+    expect(parse(result, { ...status, details: { ...details, truncated: false } }).ok).toBe(true);
+    expect(parse(result, { ...status, details: { ...details, truncated: "yes" } }).ok).toBe(false);
   });
 
   test("settings.list leaves reserved keys out unless asked", () => {
