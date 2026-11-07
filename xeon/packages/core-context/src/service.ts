@@ -77,6 +77,7 @@ export function createContextService(deps: ContextServiceDeps): ContextService {
           ext: deps.ext,
           settings,
           promptInputs: (threadId) => lastInputs.get(threadId),
+          reinject,
           ...(deps.redactor === undefined ? {} : { redactor: deps.redactor }),
           ...(deps.logger === undefined ? {} : { logger: deps.logger }),
         };

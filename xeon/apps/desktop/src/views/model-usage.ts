@@ -202,9 +202,29 @@ let usageEpoch = 0;
 const epochListeners = new Set<() => void>();
 
 /** 요약이 문맥 크기를 바꿨으니 열린 사용량 읽기를 다시 하라고 알린다 */
-export function bumpUsageEpoch(): void {
+function bumpUsageEpoch(): void {
   usageEpoch += 1;
   for (const listener of epochListeners) listener();
+}
+
+// 요약 결과(`thread.compact`의 `tokensAfter`)가 곧 이 대화의 문맥 크기다. 다음 턴이 시작하기 전까지는 다시 읽지 않고 이 값을 보인다.
+// 요약 직후 다시 읽은 값이 0으로 보이던 것을 피한다. 턴이 시작되면 지운다(그 뒤에는 `usage.get`이 마지막 호출의 값을 준다).
+let compactedContext: { readonly threadId: ThreadId; readonly tokens: number } | null = null;
+
+/** 요약이 끝났다. 이 대화의 문맥 크기는 `tokens`(요약 뒤 추정)이고 사용량을 다시 보인다 */
+export function setCompactedContext(threadId: ThreadId, tokens: number): void {
+  compactedContext = { threadId, tokens };
+  bumpUsageEpoch();
+}
+
+/** 이 대화의 요약 뒤 문맥 크기. 요약이 없었거나 턴이 시작해 지워졌으면 null */
+export function compactedContextOf(threadId: ThreadId): number | null {
+  return compactedContext?.threadId === threadId ? compactedContext.tokens : null;
+}
+
+/** 턴이 시작해 요약 뒤 값을 지운다. 이 뒤의 문맥은 `usage.get`이 준다 */
+export function clearCompactedContext(threadId: ThreadId): void {
+  if (compactedContext?.threadId === threadId) compactedContext = null;
 }
 
 function subscribeEpoch(listener: () => void): () => void {
@@ -234,7 +254,16 @@ export function useSessionUsage(threadId: ThreadId, running: boolean): SessionUs
     readonly usage: SessionUsage | null;
   } | null>(null);
   useEffect(() => {
-    if (phase !== "live" || running) return undefined;
+    if (phase !== "live") return undefined;
+    if (running) {
+      clearCompactedContext(threadId);
+      return undefined;
+    }
+    const compacted = compactedContextOf(threadId);
+    if (compacted !== null) {
+      setSlot({ thread: threadId, usage: { tokens: compacted, percent: null, limit: null } });
+      return undefined;
+    }
     let stale = false;
     detach(
       commands.usage.get({ threadId }).then((result) => {

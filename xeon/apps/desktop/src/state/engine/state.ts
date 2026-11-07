@@ -11,7 +11,7 @@ import type {
   TurnId,
 } from "@fresnel/contracts/conversation";
 import type { TransitionEntry } from "@fresnel/client/workbench";
-import type { PlanEventFact, QueuedInputFact } from "./input.ts";
+import type { CompactionFact, PlanEventFact, QueuedInputFact } from "./input.ts";
 import type {
   ApprovalRequestedPayload,
   ReviewAppliedPayload,
@@ -168,6 +168,16 @@ export type PlanRecord = PlanEventFact & { readonly threadId: ThreadId };
 /** 계획 기록 상한(thread마다). 넘으면 그 thread의 가장 오래된 계획부터 버린다 */
 export const PLAN_CAP = 20;
 
+/** 받은 대화 요약 한 건(`thread.compacted`). 사건 시각 `at`(ISO)으로 구분선이 서는 자리를 고른다 */
+export type CompactionRecord = CompactionFact & {
+  readonly threadId: ThreadId;
+  readonly eventId: EventId;
+  readonly at: string;
+};
+
+/** 대화 요약 기록 상한(thread마다). 넘으면 그 thread의 가장 오래된 요약부터 버린다. 요약 본문이 커서 작게 둔다 */
+export const COMPACTION_CAP = 20;
+
 /** 아직 배치되지 않은 대기 입력 한 건. 입력 id는 `input.queued` 이벤트 id다. 철회 칩이 쓴다 */
 export type QueuedInput = QueuedInputFact & {
   readonly inputId: EventId;
@@ -212,6 +222,11 @@ export type EngineMirror = {
    */
   readonly plans: readonly PlanRecord[];
   /**
+   * 받은 대화 요약(내구, `thread.compacted`). 받은 순서이고 thread마다 `COMPACTION_CAP`개까지 둔다.
+   * 연결 전에 낸 요약은 계획과 같은 보조 재생(`backfill`)으로 채운다. 거울을 head부터 다시 맞추면 비운다
+   */
+  readonly compactions: readonly CompactionRecord[];
+  /**
    * 아직 배치되지 않은 대기 입력(내구, `input.queued`). 받은 순서이고 thread마다 `QUEUED_INPUT_CAP`개까지 둔다.
    * `input.placed`·`input.withdrawn`이 오면 뺀다. 연결 전에 든 입력과 계획은 head부터 맞춘 뒤 `work.plan_`·`input.`만 거르는 처음부터의 재생(`backfill`)으로 채운다.
    * 거울을 head부터 다시 맞추면 비운다
@@ -255,6 +270,7 @@ export const INITIAL_MIRROR: EngineMirror = {
   handlerFailures: [],
   transitions: [],
   plans: [],
+  compactions: [],
   queuedInputs: [],
   statusItems: {},
   settledInputs: [],

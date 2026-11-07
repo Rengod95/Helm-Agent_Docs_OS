@@ -11,6 +11,7 @@ import {
   assistantItem,
   binding,
   fixedTokens,
+  tokenEstimator,
   userItem,
 } from "./support/builders.ts";
 import { harness, installHandlers, type Harness } from "./support/harness.ts";
@@ -134,6 +135,28 @@ describe("compaction_is_non_destructive", () => {
     if (outcome.status !== "compacted") throw new Error("expected a compaction");
     expect(recorded.value.tokensAfter).toBe(outcome.tokensAfter);
     expect(outcome.tokensBefore).toBeGreaterThan(0);
+  });
+
+  test("tokensAfter is the content estimate of the context the next assembly sends, never clamped to zero", async () => {
+    // 옛 사용량 기준(tokensBefore)이 요약 대상 내용 추정보다 작아도 0으로 눌리지 않고, 다음 조립 메시지의 내용 추정과 같다
+    const h = await harness({
+      settings: SMALL,
+      models: { contextWindow: 100_000, estimator: fixedTokens(10) },
+    });
+    await buildChat(h, 6);
+    h.fake.replies.push({ kind: "text", text: "SUMMARY ONE" });
+    const outcome = valueOf(await h.service.compact(h.log.threadId, request()));
+    if (outcome.status !== "compacted") throw new Error("expected a compaction");
+    expect(outcome.tokensBefore).toBe(10);
+    const assembled = valueOf(
+      await h.service.assemble(h.log.threadId, h.log.leaf(), assembleOptions(h.log.ids)),
+    );
+    const contentTokens = assembled.messages.reduce(
+      (sum, message) => sum + tokenEstimator.estimateMessage(message),
+      0,
+    );
+    expect(outcome.tokensAfter).toBe(contentTokens);
+    expect(outcome.tokensAfter).toBeGreaterThan(0);
   });
 
   test("the compaction record carries the reason and an estimated tokensAfter below tokensBefore", async () => {

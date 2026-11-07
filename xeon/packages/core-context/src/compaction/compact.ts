@@ -73,6 +73,8 @@ export interface CompactDeps {
   readonly settings: () => ContextSettings;
   /** thread의 가장 최근 조립 입력. 없으면 가지 위 기록된 광고 상태로 새 접두를 만든다 */
   readonly promptInputs: (threadId: ThreadId) => PromptInputs | undefined;
+  /** 컴팩션 뒤 요약 바로 뒤에 다시 넣는 customType(조립과 임계 검사가 쓰는 같은 집합) */
+  readonly reinject: ReadonlySet<string>;
   /** 요약 모델에 보내는 대화 원문의 사후 가림(L0.secrets.spec §3.5.1) */
   readonly redactor?: Pick<Redactor, "mask">;
   readonly logger?: Logger;
@@ -198,6 +200,48 @@ function newPrefixOf(
   return state === undefined ? undefined : { ...state, timestamp };
 }
 
+/**
+ * 컴팩션이 커밋된 뒤의 모델 컨텍스트를 내용으로 센 토큰 수(`tokensAfter`). 머리는 커밋될 것과 같은 자리(가지 끝 뒤)에 둔 가상의 머리로
+ * `effectiveMessages`를 그대로 쓴다. 새 접두 뒤의 응답은 옛 사용량을 쓰지 않으므로(pi-ai `estimateContextTokens`는 접두 시각 뒤의 응답만 본다)
+ * 다음 조립의 추정과 같은 기준이다.
+ */
+function tokensAfterOf(
+  events: readonly DurableEventEnvelope[],
+  projected: readonly (Projected | undefined)[],
+  after: {
+    readonly leafId: EventId;
+    readonly firstKeptEventId: EventId;
+    readonly firstKeptIndex: number;
+    readonly summary: string;
+    readonly recordedAt: number;
+    readonly prefix: SystemMessage | undefined;
+    readonly prefixIndex: number;
+    readonly reinject: ReadonlySet<string>;
+    readonly recentFiles: number;
+    readonly estimate: (message: Message) => number;
+  },
+): number {
+  const head: CompactionHead = {
+    index: events.length,
+    eventId: after.leafId,
+    firstKeptEventId: after.firstKeptEventId,
+    firstKeptIndex: after.firstKeptIndex,
+    summary: after.summary,
+    details: null,
+    recordedAt: after.recordedAt,
+  };
+  const messages = effectiveMessages(
+    events,
+    projected,
+    head,
+    after.prefixIndex,
+    after.prefix,
+    after.reinject,
+    after.recentFiles,
+  );
+  return messages.reduce((sum, message) => sum + after.estimate(message), 0);
+}
+
 function textOf(blocks: readonly { readonly type: string; readonly text?: string }[]): string {
   return blocks.map((block) => (block.type === "text" ? (block.text ?? "") : "")).join("");
 }
@@ -299,6 +343,8 @@ export async function compactThread(
       head,
       prefixIndex,
       systemMessageOf(projected[prefixIndex]),
+      deps.reinject,
+      settings.reinjectRecentFiles,
     ),
   ).tokens;
   const prep = prepareCompaction(view, settings.keepRecentTokens, estimate, tokensBefore);
@@ -415,17 +461,26 @@ export async function compactThread(
   };
   const compactedId = deps.ids.next("evt");
   const stepId = request.stepId ?? null;
-  // 압축 뒤 추정: 요약으로 바뀐 메시지의 토큰을 빼고 요약 한 건을 더한다(추정기가 보는 값이라 실제 청구 토큰과 다를 수 있다)
-  const summarizedTokens = [...prep.messagesToSummarize, ...prep.turnPrefixMessages].reduce(
-    (sum, message) => sum + estimate(message),
-    0,
-  );
-  const summaryTokens = estimate({
-    role: "user",
-    content: summary,
-    timestamp: leafEvent.recordedAt,
+  const keptIndex = events.findIndex((event) => event.id === firstKeptEventId);
+  if (keptIndex < 0) {
+    return err({
+      kind: "projection_failed",
+      message: `firstKeptEventId ${firstKeptEventId} is not on the branch`,
+    });
+  }
+  const prefix = newPrefixOf(deps, threadId, projected, prefixIndex, leafEvent.recordedAt);
+  const tokensAfter = tokensAfterOf(events, projected, {
+    leafId: leafEvent.id,
+    firstKeptEventId,
+    firstKeptIndex: keptIndex,
+    summary,
+    recordedAt: leafEvent.recordedAt,
+    prefix: prefix ?? systemMessageOf(projected[prefixIndex]),
+    prefixIndex,
+    reinject: deps.reinject,
+    recentFiles: settings.reinjectRecentFiles,
+    estimate,
   });
-  const tokensAfter = Math.max(0, Math.round(prep.tokensBefore - summarizedTokens + summaryTokens));
   const drafts = [
     deps.producer.draft({
       id: compactedId,
@@ -447,7 +502,6 @@ export async function compactThread(
       },
     }),
   ];
-  const prefix = newPrefixOf(deps, threadId, projected, prefixIndex, leafEvent.recordedAt);
   if (prefix !== undefined) {
     drafts.push(
       deps.producer.draft({

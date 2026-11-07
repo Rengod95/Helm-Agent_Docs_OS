@@ -14,6 +14,8 @@ import { fakeProvider, textSse } from "./support/provider-http.ts";
 const PROVIDER = "fake-anthropic";
 const MODEL = `${PROVIDER}/claude-test`;
 const RATE_LIMITED = '{"type":"error","error":{"type":"rate_limit_error","message":"slow down"}}';
+const PROMPT_TOO_LONG =
+  '{"type":"error","error":{"type":"invalid_request_error","message":"prompt is too long: 250000 tokens > 200000 maximum"}}';
 const FORBIDDEN =
   '{"type":"error","error":{"type":"permission_error","message":"this key cannot use that model"}}';
 
@@ -150,6 +152,20 @@ describe("retry_state_events_through_the_pipeline", () => {
     expect(seen).toEqual([{ attempt: 1, maxRetries: 3, waitMs: 500 }]);
     expect(message.stopReason).toBe("stop");
   }, 20_000);
+
+  test("a 400 prompt is too long is not retried and classifies as context_overflow", async () => {
+    // Anthropic이 입력이 창을 넘었다고 400으로 답하는 모양. 파이프라인이 재시도하지 않고 종결 메시지로 남겨야 core-loop가 컴팩션한다
+    const provider = fakeProvider(() => ({ status: 400, body: PROMPT_TOO_LONG }));
+    const { service, call } = setup(provider.fetch, 3);
+    const seen: ModelRetryEvent[] = [];
+    const message = await service.stream(call((event) => seen.push(event))).result();
+    expect(provider.seen).toHaveLength(1);
+    expect(seen).toEqual([]);
+    expect(message.stopReason).toBe("error");
+    // 종결 문장은 상태 코드와 응답 본문을 그대로 싣는다. 데스크톱·CLI의 오류 문장 판정이 이 모양을 읽는다
+    expect(message.errorMessage).toBe(`400 ${PROMPT_TOO_LONG}`);
+    expect(service.classify(message, 200_000)).toBe("context_overflow");
+  });
 
   test("a stream cut after the first text is stream_interrupted and classified as transport", async () => {
     // message_start, content_block_start, content_block_delta까지만 보내고 끊는다

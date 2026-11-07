@@ -75,6 +75,17 @@ export type QueuedInputFact = {
   readonly preview: QueuedPreview;
 };
 
+/**
+ * 대화 요약 사실(내구, `thread.compacted`). 요약 본문, 토큰 수, 이유만 싣는다. `details`·`usage`·확장 출처는 화면이 쓰지 않는다.
+ * `tokensAfter`와 `reason`은 옛 기록에 없을 수 있다(없으면 null)
+ */
+export type CompactionFact = {
+  readonly summary: string;
+  readonly tokensBefore: number;
+  readonly tokensAfter: number | null;
+  readonly reason: "manual" | "threshold" | "overflow" | null;
+};
+
 /** 경계에서 payload를 검증한 내구 이벤트. 거울이 쓰지 않는 kind는 other로 위치만 넘긴다 */
 export type DurableFact =
   | (DurableBase & { readonly type: "thread.started"; readonly payload: ThreadStartedPayload })
@@ -97,6 +108,8 @@ export type DurableFact =
   | (DurableBase & { readonly type: "review.applied"; readonly payload: ReviewAppliedPayload })
   | (DurableBase & { readonly type: "review.submitted"; readonly payload: ReviewSubmittedPayload })
   | (DurableBase & { readonly type: "plan.event"; readonly plan: PlanEventFact })
+  /** 대화 요약. 구분선과 "요약 보기"가 쓴다. 사건 id는 `DurableBase.eventId`다 */
+  | (DurableBase & { readonly type: "thread.compacted"; readonly compaction: CompactionFact })
   /** 큐에 든 입력. 입력 id는 이 사실의 `eventId`다 */
   | (DurableBase & { readonly type: "input.queued"; readonly input: QueuedInputFact })
   /** 입력이 turn에 배치됐다. `inputId`는 `input.queued`의 이벤트 id다 */

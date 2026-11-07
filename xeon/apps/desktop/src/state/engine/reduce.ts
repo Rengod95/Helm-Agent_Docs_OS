@@ -32,6 +32,8 @@ import {
   type Transcript,
   RECENT_TURN_CAP,
   type TransitionRecord,
+  COMPACTION_CAP,
+  type CompactionRecord,
   PLAN_CAP,
   type PlanRecord,
   QUEUED_INPUT_CAP,
@@ -150,6 +152,7 @@ export function reduceMirror(state: EngineMirror, input: MirrorInput): Reduced<E
       for (const fact of input.facts) {
         if (
           fact.type === "plan.event" ||
+          fact.type === "thread.compacted" ||
           fact.type === "input.queued" ||
           fact.type === "input.placed" ||
           fact.type === "input.withdrawn"
@@ -724,6 +727,8 @@ function applyFact(state: EngineMirror, fact: DurableFact): EngineMirror {
       }));
     case "plan.event":
       return recordPlan(state, fact);
+    case "thread.compacted":
+      return recordCompaction(state, fact);
     case "input.queued":
       return recordQueued(state, fact);
     case "input.placed":
@@ -806,6 +811,33 @@ function recordPlan(
   }
   const others = state.plans.filter((r) => r !== found);
   return { ...state, plans: capPlans([...others, record], threadId) };
+}
+
+/**
+ * 대화 요약 한 건을 거울에 넣는다. 사건 id가 같으면 한 번만 넣는다(보조 재생과 구독이 같은 사건을 겹쳐 줄 수 있다).
+ * thread마다 `COMPACTION_CAP`개만 두고, 넘으면 그 thread의 가장 오래된 요약부터 버린다.
+ */
+function recordCompaction(
+  state: EngineMirror,
+  fact: Extract<DurableFact, { readonly type: "thread.compacted" }>,
+): EngineMirror {
+  if (state.compactions.some((r) => r.eventId === fact.eventId)) return state;
+  const record: CompactionRecord = {
+    ...fact.compaction,
+    threadId: fact.threadId,
+    eventId: fact.eventId,
+    at: fact.at,
+  };
+  return { ...state, compactions: capCompactions([...state.compactions, record], fact.threadId) };
+}
+
+function capCompactions(
+  list: readonly CompactionRecord[],
+  threadId: ThreadId,
+): readonly CompactionRecord[] {
+  if (list.filter((r) => r.threadId === threadId).length <= COMPACTION_CAP) return list;
+  const oldest = list.findIndex((r) => r.threadId === threadId);
+  return list.filter((_, i) => i !== oldest);
 }
 
 /** thread마다 `PLAN_CAP`개만 두고, 넘으면 그 thread의 가장 오래된 계획을 버린다 */

@@ -22,8 +22,8 @@ export const TOAST_BOTTOM_DEFAULT_PX = 40;
 const TOAST_GAP_PX = 12;
 
 /**
- * 토스트의 아래 간격. 입력창 위에 카드(승인, 신뢰, 안전 모드)가 서 있으면 그 카드 묶음의 위쪽 끝(`avoidTop`, 창 위에서 잰 px)을
- * 알려 주면 그 위로 올려 허용·거부 단추를 덮지 않는다. 카드가 없으면(`null`) 시안 자리다.
+ * 토스트의 아래 간격. 입력창 묶음(카드와 입력창)의 위쪽 끝(`avoidTop`, 창 위에서 잰 px)을 알려 주면 그 위로 올려
+ * 입력창의 모델 고르기와 승인 단추를 덮지 않는다. 묶음이 없으면(`null`) 시안 자리다.
  */
 export function toastBottomPx(avoidTop: number | null, viewportHeight: number): number {
   if (avoidTop === null) return TOAST_BOTTOM_DEFAULT_PX;

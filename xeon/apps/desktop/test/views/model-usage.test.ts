@@ -1,11 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import type { ModelEntry, UsageGauge } from "@fresnel/contracts/wire";
+import { Bug, parse } from "@fresnel/contracts";
+import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
 import {
+  clearCompactedContext,
+  compactedContextOf,
   contextCostText,
   modelLabelOf,
   modelOptionsOf,
   priceNumberText,
   sessionUsageOf,
+  setCompactedContext,
   tokenCountText,
   withLimit,
 } from "../../src/views/model-usage.ts";
@@ -169,5 +174,28 @@ describe("contextCostText", () => {
     expect(contextCostText(10, 0.1)).toBe("< $0.0001");
     expect(contextCostText(null, 3)).toBeNull();
     expect(contextCostText(0, 3)).toBeNull();
+  });
+});
+
+/** 시험용 대화 id. 스키마로 만든다 */
+function threadOf(value: string): ThreadId {
+  const parsed = parse(ThreadIdSchema, value);
+  if (!parsed.ok) throw new Bug(`bad test thread id ${value}`);
+  return parsed.value;
+}
+
+describe("요약 뒤 문맥 크기", () => {
+  const A = threadOf("thr_00000000000000000000000001");
+  const B = threadOf("thr_00000000000000000000000002");
+
+  test("요약 값은 그 대화에만 붙고, 턴이 시작하면 지워진다", () => {
+    expect(compactedContextOf(A)).toBeNull();
+    setCompactedContext(A, 30_000);
+    expect(compactedContextOf(A)).toBe(30_000);
+    expect(compactedContextOf(B)).toBeNull();
+    clearCompactedContext(B);
+    expect(compactedContextOf(A)).toBe(30_000);
+    clearCompactedContext(A);
+    expect(compactedContextOf(A)).toBeNull();
   });
 });

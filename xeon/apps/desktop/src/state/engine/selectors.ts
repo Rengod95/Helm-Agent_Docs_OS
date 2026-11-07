@@ -10,6 +10,7 @@ import type { StatusItemRecord } from "@fresnel/contracts/records";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
 import type { EngineState } from "../../transport/ipc.ts";
 import type {
+  CompactionRecord,
   EngineMirror,
   Link,
   PendingApproval,
@@ -17,8 +18,10 @@ import type {
   ProviderRetry,
   QueuedInput,
   StreamingItem,
+  Transcript,
   TransitionRecord,
 } from "./state.ts";
+import { anchorCompactions, type AnchoredCompaction } from "./compaction-anchor.ts";
 
 // 빈 값은 모듈 상수다. 선택자가 [] 리터럴을 돌려주면 매번 새 참조라 재렌더가 끝나지 않는다
 const NO_ITEMS: readonly ItemId[] = Object.freeze([]);
@@ -26,6 +29,7 @@ const NO_TRANSITIONS: readonly TransitionRecord[] = Object.freeze([]);
 const NO_PLANS: readonly PlanRecord[] = Object.freeze([]);
 const NO_QUEUED: readonly QueuedInput[] = Object.freeze([]);
 const NO_STATUS: readonly StatusItemRecord[] = Object.freeze([]);
+const NO_ANCHORS: readonly AnchoredCompaction[] = Object.freeze([]);
 
 export const selectThread = (s: EngineMirror, id: ThreadId): ThreadSummary | undefined =>
   s.threads.byId[id];
@@ -244,6 +248,40 @@ export const selectPlans = (s: EngineMirror, id: ThreadId | null): readonly Plan
 /** 이 대화의 아직 배치되지 않은 대기 입력(받은 순서, 가장 최근 것이 뒤). 대화가 없으면 빈 목록이다. 배열을 새로 만들므로 훅에서 useShallow로 감싼다 */
 export const selectQueuedInputs = (s: EngineMirror, id: ThreadId | null): readonly QueuedInput[] =>
   id === null ? NO_QUEUED : s.queuedInputs.filter((record) => record.threadId === id);
+
+/**
+ * 이 대화의 요약 구분선 자리. 열린 대화의 확정 item과 요약 기록으로 정한다. 같은 transcript와 같은 기록이면 같은 참조를 돌려준다
+ * (선택자가 매번 새 배열을 내면 재렌더가 끝나지 않는다). 대화가 열려 있지 않거나 읽는 중이면 빈 목록이다.
+ */
+let anchorMemo: {
+  readonly transcript: Transcript;
+  readonly compactions: readonly CompactionRecord[];
+  readonly threadId: ThreadId;
+  readonly anchors: readonly AnchoredCompaction[];
+} | null = null;
+export const selectCompactionAnchors = (
+  s: EngineMirror,
+  id: ThreadId | null,
+): readonly AnchoredCompaction[] => {
+  const t = s.transcript;
+  if (id === null || t === null || t.status !== "ready" || t.threadId !== id) return NO_ANCHORS;
+  if (
+    anchorMemo !== null &&
+    anchorMemo.transcript === t &&
+    anchorMemo.compactions === s.compactions &&
+    anchorMemo.threadId === id
+  ) {
+    return anchorMemo.anchors;
+  }
+  const records = s.compactions.filter((record) => record.threadId === id);
+  const anchors = anchorCompactions(
+    t.itemIds,
+    (itemId) => t.items[itemId]?.message.timestamp,
+    records,
+  );
+  anchorMemo = { transcript: t, compactions: s.compactions, threadId: id, anchors };
+  return anchors;
+};
 
 /** 이 대화의 상태줄 칸(`order` 작은 것이 앞, 같으면 받은 순서). 대화가 없거나 칸이 없으면 빈 목록이다. 배열을 새로 만들므로 훅에서 useShallow로 감싼다 */
 export const selectStatusItems = (

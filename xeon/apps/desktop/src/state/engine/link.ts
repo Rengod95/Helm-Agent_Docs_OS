@@ -47,8 +47,11 @@ export type LinkDeps = {
   readonly openThreadId: () => ThreadId | null;
 };
 
-/** 연결 전 사건을 채우는 보조 구독이 거르는 종류: 계획(`work.plan_submitted`·`work.plan_withdrawn`)과 대기 입력(`input.queued`·`placed`·`withdrawn`) */
-const BACKFILL_PREFIXES: string[] = ["work.plan_", "input."];
+/**
+ * 연결 전 사건을 채우는 보조 구독이 거르는 종류: 계획(`work.plan_submitted`·`work.plan_withdrawn`), 대기 입력(`input.queued`·`placed`·`withdrawn`),
+ * 대화 요약(`thread.compacted`, 구분선이 연결 전 요약을 다시 보이게 한다)
+ */
+const BACKFILL_PREFIXES: string[] = ["work.plan_", "input.", "thread.compacted"];
 
 /** thread.list 페이지 상한(200개씩). 넘으면 앞쪽 페이지만 보인다 */
 const MAX_LIST_PAGES = 10;

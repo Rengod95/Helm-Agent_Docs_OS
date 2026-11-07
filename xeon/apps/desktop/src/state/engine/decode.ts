@@ -15,6 +15,7 @@ import {
 import {
   ApprovalRequestedPayloadSchema,
   ApprovalResolvedPayloadSchema,
+  CompactedPayloadSchema,
   ItemRecordedPayloadSchema,
   LeaseAcquiredPayloadSchema,
   LeaseRejectedPayloadSchema,
@@ -173,6 +174,22 @@ const DURABLE: Readonly<
     const p = parse(ReviewSubmittedPayloadSchema, payload);
     return p.ok
       ? { ...base, type: "review.submitted", payload: p.value }
+      : { ...base, type: "unreadable" };
+  },
+  // 대화 요약(구분선과 요약 보기): 본문과 토큰 수와 이유만 싣는다. 옛 기록은 tokensAfter·reason이 없다
+  "thread.compacted": (base, payload) => {
+    const p = parse(CompactedPayloadSchema, payload);
+    return p.ok
+      ? {
+          ...base,
+          type: "thread.compacted",
+          compaction: {
+            summary: p.value.summary,
+            tokensBefore: p.value.tokensBefore,
+            tokensAfter: p.value.tokensAfter ?? null,
+            reason: p.value.reason ?? null,
+          },
+        }
       : { ...base, type: "unreadable" };
   },
   // 계획 사건(P-14 계획 카드): 계획 id, 판 번호, 제목과 상태만 싣는다. 본문과 산출물은 거울에 들어가지 않는다
