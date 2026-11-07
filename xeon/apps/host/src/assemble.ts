@@ -1231,6 +1231,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       web,
       proposals: createProposalPort({
         learning: () => learning.bridge.api(),
+        // 그룹이 꺼져 있어도 세션 DB의 학습 기록은 남아 있어 목록은 저장소에서 읽는다(결정은 그룹이 돌 때만)
+        learningStore: () => learning.reader.current,
         runner: learning.runner,
         knowledge: () => learning.knowledge.current,
         report: (message, fields) => {

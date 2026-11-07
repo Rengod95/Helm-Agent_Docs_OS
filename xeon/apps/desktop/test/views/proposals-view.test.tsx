@@ -8,6 +8,7 @@ import { renderToString } from "react-dom/server";
 import {
   INITIAL_PROPOSALS_STATE,
   proposalsReducer,
+  type LearningState,
   type ProposalPage,
   type ProposalsState,
   type SkillPeek,
@@ -39,6 +40,7 @@ const HANDLERS: ProposalsHandlers = {
   skillOpen: NOOP,
   skillClose: NOOP,
   dismissNotice: NOOP,
+  learningTurnOn: NOOP,
   onKey: NOOP,
 };
 const NOW = 2_000_000_000_000;
@@ -74,7 +76,7 @@ function wire(overrides: Partial<ProposalRow>): ProposalRow {
 
 function rowsOf(...rows: readonly ProposalRow[]): ProposalPage {
   const view = proposalListView({ proposals: [...rows], nextCursor: null, unavailable: [] });
-  return { rows: view.rows, unavailableTexts: [], nextCursor: null };
+  return { rows: view.rows, unavailable: [], nextCursor: null };
 }
 
 function ready(page: ProposalPage, base: ProposalsState = INITIAL_PROPOSALS_STATE): ProposalsState {
@@ -141,7 +143,7 @@ describe("ProposalsView states", () => {
       type: "listLoaded",
       page: {
         rows: rowsOf(wire({})).rows,
-        unavailableTexts: [t("client.settings.proposals.unavailable.knowledge")],
+        unavailable: ["knowledge"],
         nextCursor: null,
       },
       append: false,
@@ -203,6 +205,73 @@ describe("ProposalsView states", () => {
     const markup = html(selectFirst(ready(page), page.rows));
     expect(markup).toContain(t("desktop.proposals.detail.untrusted"));
     expect(markup).toContain(t("desktop.proposals.detail.conflict", { target: "skills/other.md" }));
+  });
+});
+
+describe("ProposalsView learning off and reverts", () => {
+  const OFF_ON: LearningState = {
+    status: "off",
+    turnOn: { key: "ext.learning.enabled", value: true, scope: "user" },
+  };
+
+  test("learning off is an info line with a turn-on button, not an error, and the stored history stays listed", () => {
+    const page = rowsOf(wire({ status: "applied", source: "learning", target: "skills/old.md" }));
+    const off = proposalsReducer(ready(page), { type: "learningRead", learning: OFF_ON });
+    const markup = html(off);
+    expect(markup).toContain(t("desktop.proposals.learning.off"));
+    expect(buttonOf(markup, t("desktop.proposals.learning.on"))).not.toContain('disabled=""');
+    expect(markup).toContain("skills/old.md");
+    expect(markup).not.toContain(t("client.settings.proposals.unavailable.learning"));
+  });
+
+  test("learning off with the learning read gap from the host shows no learning error", () => {
+    const page: ProposalPage = { rows: [], unavailable: ["learning"], nextCursor: null };
+    const off = proposalsReducer(ready(page), { type: "learningRead", learning: OFF_ON });
+    const markup = html(off);
+    expect(markup).toContain(t("desktop.proposals.learning.off"));
+    expect(markup).not.toContain(t("client.settings.proposals.unavailable.learning"));
+  });
+
+  test("the turn-on button is off while offline, and absent when the group cannot be switched", () => {
+    const page = rowsOf(wire({}));
+    const offline = html(
+      proposalsReducer(ready(page), { type: "learningRead", learning: OFF_ON }),
+      {
+        live: false,
+      },
+    );
+    expect(buttonOf(offline, t("desktop.proposals.learning.on"))).toContain('disabled=""');
+    const locked = html(
+      proposalsReducer(ready(page), {
+        type: "learningRead",
+        learning: { status: "off", turnOn: null },
+      }),
+    );
+    expect(locked).toContain(t("desktop.proposals.learning.off"));
+    expect(locked).not.toContain(t("desktop.proposals.learning.on"));
+  });
+
+  test("learning on shows neither the off line nor a learning error for a read gap the list did not name", () => {
+    const page = rowsOf(wire({}));
+    const on = html(
+      proposalsReducer(ready(page), { type: "learningRead", learning: { status: "on" } }),
+    );
+    expect(on).not.toContain(t("desktop.proposals.learning.off"));
+  });
+
+  test("a refused revert shows the warning sentence, not the reverted one, and the row stays applied with its revert button", () => {
+    const page = rowsOf(
+      wire({ status: "applied", source: "learning", reason: "rollback_refused" }),
+    );
+    const selected = selectFirst(ready(page), page.rows);
+    const refused = proposalsReducer(selected, {
+      type: "noticeSet",
+      notice: { tone: "warning", text: t("desktop.proposals.done.revertRefused") },
+    });
+    const markup = html(refused);
+    expect(markup).toContain(t("desktop.proposals.done.revertRefused"));
+    expect(markup).not.toContain(t("desktop.proposals.done.reverted"));
+    expect(buttonOf(markup, t("desktop.proposals.action.revert"))).not.toContain('disabled=""');
   });
 });
 

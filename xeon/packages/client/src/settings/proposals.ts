@@ -89,6 +89,8 @@ export type ProposalRowVM = {
 
 export type ProposalListVM = {
   readonly rows: readonly ProposalRowVM[];
+  /** 읽지 못한 출처. 화면이 출처별로 문구를 고르고, 꺼진 출처는 오류가 아니라 따로 보인다 */
+  readonly unavailable: readonly ProposalSource[];
   /** 읽지 못한 출처의 안내 문구 */
   readonly unavailableTexts: readonly string[];
   /** 행이 없을 때의 이유 문구. 행이 있으면 null */
@@ -153,6 +155,7 @@ export function proposalListView(result: ProposalListResult): ProposalListVM {
   const unavailableTexts = result.unavailable.map((source) => t(UNAVAILABLE_TEXTS[source]));
   return {
     rows,
+    unavailable: result.unavailable,
     unavailableTexts,
     emptyText: rows.length === 0 ? t("client.settings.proposals.empty") : null,
     nextCursor: result.nextCursor,

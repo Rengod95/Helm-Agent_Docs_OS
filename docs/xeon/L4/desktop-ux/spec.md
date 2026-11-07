@@ -177,9 +177,10 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
   2. 제안 화면(P-06)에서 목록을 상태·종류·출처(학습, 지식)로 거릅니다.
   3. 행을 고르면 오른쪽에 diff, 근거 이벤트, 이유, 충돌 스킬이 보입니다. 웹·MCP를 읽은 뒤 만든 후보는 경고가 붙습니다.
   4. 스킬 후보는 승인 옆에서 범위(사용자, 작업 폴더)를 고릅니다. "수정"은 본문 편집기를 엽니다.
-  5. 적용된 학습 제안은 "되돌리기"가 있습니다.
+  5. 적용된 학습 제안은 "되돌리기"가 있습니다. 그 사이 기억이 바뀌어 원장이 되돌리지 못하면 제안은 "적용됨"으로 그대로 남고, 되돌렸다는 알림 대신 경고가 보입니다.
+  6. 학습 그룹이 꺼져 있으면 목록 위에 정보 줄이 보이고 "켜기"로 다시 켤 수 있습니다. 과거 기록은 그대로 보입니다. 꺼짐은 오류가 아닙니다.
 - 거치는 화면: P-06, S-05
-- 성공 기준: 결정이 `proposal.decide`로 가고 결과가 `decisionOutcomeOf`로 바뀝니다. `revision_mismatch`면 목록을 다시 읽고 문장을 보입니다.
+- 성공 기준: 결정이 `proposal.decide`로 가고 결과가 `decisionOutcomeOf`로 바뀝니다. `revision_mismatch`면 목록을 다시 읽고 문장을 보입니다. 되돌리기의 성공 알림은 행이 `reverted`가 됐을 때만 보입니다. 되돌리기가 거절되면(`rollback_refused`, 행은 `applied`) 경고 `desktop.proposals.done.revertRefused`가 보입니다. 학습이 꺼진 동안 목록은 저장된 기록을 읽고 꺼짐 줄과 "켜기"를 보입니다. [결정: 오케스트레이터 기본값, fxLM]
 
 ### SC-07 예약 만들기와 결과 확인
 
@@ -1473,15 +1474,18 @@ compact 폭(720 이하)과 사이드바 시트:
 | 승인(범위 선택) | `decisionParams(row, "approve", { scope })` → `proposal.decide` → `decisionOutcomeOf` |
 | 수정 | 편집기(`Textarea`, 200000자) → `decisionParams(row, "edit", { body })` |
 | 거절(메모) | `decisionParams(row, "reject", { note })`(500자) |
-| 되돌리기 | `decisionParams(row, "revert")`, O-06 확인 |
+| 되돌리기 | `decisionParams(row, "revert")`, O-06 확인. 알림은 결과 행의 상태로 정한다(`doneNoticeOf`) |
+| 학습 켜기(꺼짐 줄) | `commands.workbench.toggle(toggleRequestOf(...))`, 끝나면 `workbench.list` 다시 읽기 |
 | 거르기 | 상태(대기, 적용됨, 모두), 종류, 출처 |
 | 더 보기 | `nextCursor` |
 
 - 상태
   - 빈: `emptyText` "대기 중인 제안이 없어요".
   - 읽는 중: 목록 `Skeleton` 5행.
-  - 오류: `unavailableTexts`(학습 또는 지식 쪽만 못 읽음)를 목록 위 `Alert`로, 결정 실패는 `FAILURE_TEXTS` 문장과 `reload`가 참이면 목록 다시 읽기.
-  - 오프라인: 결정 버튼 잠금.
+  - 오류: `unavailable` 출처(학습 또는 지식 쪽만 못 읽음)를 목록 위 `Alert`(warning)로, 결정 실패는 `FAILURE_TEXTS` 문장과 `reload`가 참이면 목록 다시 읽기.
+  - 꺼짐(학습): 확장 목록(`workbench.list`)에서 학습 그룹이 켜진 상태(`enabled`, `enabling`)가 아니면(꺼짐, 안전 모드로 빠짐, 목록에 없음: 그룹이 실리지 않은 구성) 목록 위에 정보 줄(`info`) "학습이 꺼져 있어요. 새 제안은 만들어지지 않아요."를 보입니다. 오류 `Alert`가 아닙니다. 꺼진 동안 학습 기록은 저장소에서 읽어 과거 행이 그대로 보이고, 되돌리기 단추도 그대로 둡니다. 결정은 그룹이 돌 때만 되므로 누르면 `unavailable` 문장이 보입니다 [결정: 오케스트레이터 기본값, fxLM]. "켜기" 단추는 스위치와 같은 쓰기(`commands.workbench.toggle`, `settings.set { key: "ext.learning.enabled", scope: "user" }`)를 보내고, 끝나면 확장 목록을 다시 읽습니다. 잠긴 그룹(안전 모드, 관리 그룹)과 실리지 않은 구성은 단추 없이 정보 줄만 보입니다 [결정: 오케스트레이터 기본값, fxLM]. 꺼진 동안 대기 행의 만료 시각은 비웁니다. 만료 일수는 그룹 설정이라 저장소 경로에서는 알 수 없습니다 [결정: 오케스트레이터 기본값, fxLM].
+  - 읽기 실패와 꺼짐의 구별: 호스트는 학습 기록을 저장소에서 읽으므로 꺼짐에서는 학습 출처를 `unavailable`에 올리지 않습니다. 올라오는 경우는 저장소 읽기 실패(오류 `Alert` 유지)나 그룹이 실리지 않은 구성(꺼짐으로 보임)입니다. 와이어는 둘을 가르지 않으므로 화면은 확장 목록(`workbench.list`)으로 가립니다. 확장 목록을 못 읽었으면 꺼짐이라고 말하지 않고 오류를 그대로 보입니다 [결정: 오케스트레이터 기본값, fxLM].
+  - 되돌리기 거절: 원장이 되돌리지 못하면(`rollback_refused`) 행은 "적용됨"으로 그대로 있고, 목록을 다시 읽어 되돌리기 단추를 남깁니다. 알림은 경고(`warning`) `desktop.proposals.done.revertRefused`입니다. 성공 알림은 행이 `reverted`일 때만 보입니다(`doneNoticeOf`). [결정: 오케스트레이터 기본값, fxLM]
   - 권한 필요: `approval_required`, `scope_not_allowed` 문장.
   - 긴 내용: diff 200000자 상한, 상세 패널 `ScrollArea`, 500줄 넘으면 접기.
 - 바로 가기 키: ↑↓ 행, Enter 상세 초점, `a` 승인, `e` 수정, `x` 거절, `u` 되돌리기.
@@ -1498,6 +1502,7 @@ compact 폭(720 이하)과 사이드바 시트:
 - 바로 가기 키: ↑↓(행), `a` 승인, `e` 수정, `x` 거절, `u` 되돌리기. 입력 칸에 초점이 있으면 받지 않는다. Enter로 상세에 초점을 옮기는 동작은 아직 없다.
 - 상태 여섯 가지는 `proposals-view.test.tsx`가 서버 렌더로 본다(빈, 읽는 중, 오류, 오프라인, 권한 필요, 긴 내용). 긴 내용은 줄 500개를 넘으면 나머지를 접는다(`DIFF_FOLD_LINES`).
 - mockup 정렬(2026-11-06, dsgnb 트랙): 목록 행은 mockup `Row`처럼 listbox 옵션이고 출처·근거·판 글은 뺐습니다. 상세는 머리(종류·대상, 상태 배지는 대기가 아닐 때만) → 경고 Alert들(오프라인, 신뢰할 수 없는 입력, 충돌) → `ListDescription`(낸 쪽, 이유, 근거 "대화 열기", 적용 범위 `RadioGroup`) → 읽기 전용 `CodeDiff`(고치는 중에는 본문 `Textarea`) → 결정 줄입니다. 거절은 왼쪽, 수정·승인·되돌리기는 오른쪽입니다. 빈 목록은 두 열 대신 가운데 빈 상태입니다. 유지한 것: 충돌 스킬 대화 상자(W-14, mockup에는 없음), 500줄 접기, 승인·되돌리기 확인 대화 상자(mockup은 바로 실행). 뺀 것: 적용됨 배지의 성공 색(caustic `Badge`의 `tone`이 deprecated라 중립으로 둠), 좁은 폭에서 목록과 상세를 번갈아 보이는 전환(두 열이 쌓여 각자 스크롤).
+- 학습 꺼짐 구현 노트: 호스트 `createProposalPort`(`apps/host/src/assembly/proposals.ts`)는 `learningStore`(저장소에 남은 학습 투영, `learning.reader.current`)로 꺼진 그룹의 목록을 읽는다. 그룹이 실리지 않은 구성(안전 모드, `defaultGroups: false`)은 저장소 면이 없어 `unavailable`에 학습이 오른다(시험 `test/int/proposals.int.test.ts`). 화면의 `learningStateOf`(`proposals-model.ts`)가 확장 목록의 `learning` 항목으로 꺼짐을 정하고 `unavailableShownOf`가 꺼진 동안 학습 쪽 오류를 뺀다.
 - 빠진 것 [gap]: 상세의 적용 범위 라디오는 `scopeChoice`가 있는 스킬 승인에만 보인다. 상대 시각은 목록을 마지막으로 읽은 시각 기준이다(화면을 다시 그리지 않는다).
 
 ### 6.11 P-07 예약

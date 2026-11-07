@@ -116,6 +116,7 @@ describe("proposalListView", () => {
     });
     expect(empty.rows).toEqual([]);
     expect(empty.emptyText).toBe("대기 중인 제안이 없어요");
+    expect(empty.unavailable).toEqual(["knowledge"]);
     expect(empty.unavailableTexts).toEqual(["지식 제안을 불러오지 못했어요"]);
     expect(empty.nextCursor).toBe("next");
   });

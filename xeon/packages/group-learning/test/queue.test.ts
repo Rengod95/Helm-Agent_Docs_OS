@@ -406,6 +406,23 @@ test("queue.revert-uses-ledger: revert calls rollback only and the row becomes r
   expect(knowledge.rollbacks).toEqual([`learning:revert:${id}`]);
 });
 
+test("queue.revert-refused-keeps-applied: a rollback the store refuses leaves the row applied with rollback_refused and a later revert can succeed", async () => {
+  const { id, api, knowledge } = await pendingSkill();
+  const signal = new AbortController().signal;
+  await api.decide({ kind: "approve", proposalId: id, revision: 1 }, signal);
+  knowledge.refuseRollback = true;
+  const refused = await api.decide({ kind: "revert", proposalId: id }, signal);
+  expect(refused).toMatchObject({
+    ok: true,
+    applied: true,
+    proposal: { status: "applied", reason: "rollback_refused" },
+  });
+  expect(knowledge.rollbacks).toEqual([`learning:revert:${id}`]);
+  knowledge.refuseRollback = false;
+  const again = await api.decide({ kind: "revert", proposalId: id }, signal);
+  expect(again).toMatchObject({ ok: true, applied: false, proposal: { status: "reverted" } });
+});
+
 test("queue.sweep-on-command-entry: an approved but unapplied row is applied once with the same key and expired rows are closed", async () => {
   // 결정 도중 적용이 일시 실패해 approved로 남은 상태: L2가 승인 증거를 믿지 않아 쓰기를 자기 대기열로 보냈다
   const knowledge = fakeKnowledge();

@@ -1,6 +1,17 @@
 import type { ProposalAction, ProposalRowVM, ProposalScope } from "@fresnel/client/settings";
+import {
+  INITIAL_WORKBENCH,
+  isOn,
+  toggleRequestOf,
+  type ToggleRequest,
+} from "@fresnel/client/workbench";
 import { assertNever } from "@fresnel/contracts";
-import type { ProposalListParams, ProposalSource, WireResult } from "@fresnel/contracts/wire";
+import type {
+  ExtListEntry,
+  ProposalListParams,
+  ProposalSource,
+  WireResult,
+} from "@fresnel/contracts/wire";
 import type { SkillViewError } from "../../commands.ts";
 
 // 제안 화면(P-06)의 순수 모델. 거르기, 목록 상태, 상세의 편집기·확인·범위, 바로 가기 키 뜻을 다룬다.
@@ -33,10 +44,10 @@ export function listParamsOf(filter: ProposalFilter, cursor: string | null): Pro
   };
 }
 
-/** 한 쪽의 읽은 결과. 더 보기는 쪽을 이어 붙인다 */
+/** 한 쪽의 읽은 결과. 더 보기는 쪽을 이어 붙인다. 읽지 못한 출처는 문장이 아니라 출처로 든다(꺼진 출처를 화면이 가려야 해서) */
 export interface ProposalPage {
   readonly rows: readonly ProposalRowVM[];
-  readonly unavailableTexts: readonly string[];
+  readonly unavailable: readonly ProposalSource[];
   readonly nextCursor: string | null;
 }
 
@@ -54,11 +65,23 @@ type Editor =
 /** 확인 대화 상자가 묻는 동작. 되돌리기는 늘, 승인은 지우거나 덮어쓰는 제안만 묻는다 */
 type Confirm = { readonly key: string; readonly action: "approve" | "revert" } | null;
 
+/** 알림의 톤. 경고는 결정이 끝났지만 원하는 결과가 아닐 때(되돌리기 거절)다 */
+export type NoticeTone = "success" | "warning" | "danger";
+
 interface Notice {
-  readonly tone: "success" | "danger";
+  readonly tone: NoticeTone;
   /** 이미 문장으로 바꾼 글(화면 언어). 상태에는 id가 아니라 글이 든다 */
   readonly text: string;
 }
+
+/**
+ * 학습 그룹의 켜짐 상태(목록 위 안내를 정한다). `unknown`은 확장 목록을 못 읽었다는 뜻이다. `off`는 꺼져 있거나 안전 모드라 돌지 않는다.
+ * `turnOn`은 켜기 요청이고, 잠겼거나(안전 모드, 관리 그룹) 그룹이 실리지 않았으면 null이다
+ */
+export type LearningState =
+  | { readonly status: "unknown" }
+  | { readonly status: "on" }
+  | { readonly status: "off"; readonly turnOn: ToggleRequest | null };
 
 /** 충돌 스킬 본문을 읽는 요청. `threadId`는 프로젝트 스킬을 찾을 작업 폴더를 정하는 근거 대화다(없으면 null) */
 export interface SkillRequest {
@@ -92,6 +115,7 @@ export interface ProposalsState {
   readonly busy: boolean;
   readonly notice: Notice | null;
   readonly skill: SkillPeek;
+  readonly learning: LearningState;
 }
 
 export const INITIAL_PROPOSALS_STATE: ProposalsState = {
@@ -105,6 +129,7 @@ export const INITIAL_PROPOSALS_STATE: ProposalsState = {
   busy: false,
   notice: null,
   skill: { status: "closed" },
+  learning: { status: "unknown" },
 };
 
 export type ProposalsAction =
@@ -139,7 +164,9 @@ export type ProposalsAction =
       readonly request: SkillRequest;
       readonly failure: SkillPeekFailure;
     }
-  | { readonly type: "skillClosed" };
+  | { readonly type: "skillClosed" }
+  /** 확장 목록을 읽어 학습 그룹의 켜짐 상태를 정했다 */
+  | { readonly type: "learningRead"; readonly learning: LearningState };
 
 /** 읽기 응답이 지금 대화 상자가 기다리는 요청의 것인가. 닫았거나 다른 스킬을 연 뒤의 늦은 응답은 버린다 */
 function isPendingFor(peek: SkillPeek, request: SkillRequest): boolean {
@@ -183,7 +210,7 @@ export function proposalsReducer(state: ProposalsState, action: ProposalsAction)
           status: "ready",
           loadingMore: false,
           rows,
-          unavailableTexts: action.page.unavailableTexts,
+          unavailable: action.page.unavailable,
           nextCursor: action.page.nextCursor,
         },
         selectedKey: action.append || kept ? state.selectedKey : null,
@@ -237,9 +264,38 @@ export function proposalsReducer(state: ProposalsState, action: ProposalsAction)
         : state;
     case "skillClosed":
       return { ...state, skill: { status: "closed" } };
+    case "learningRead":
+      return { ...state, learning: action.learning };
     default:
       return assertNever(action, "ProposalsAction");
   }
+}
+
+/** 학습 그룹의 확장 이름 */
+const LEARNING_GROUP = "learning";
+
+/** 학습 그룹의 켜짐 상태를 확장 목록으로 정한다. 목록을 못 읽었으면 unknown이다. 목록에 학습 그룹이 없으면 실리지 않은 것이라 꺼짐이다 */
+export function learningStateOf(entries: readonly ExtListEntry[] | null): LearningState {
+  if (entries === null) return { status: "unknown" };
+  const entry = entries.find((candidate) => candidate.name === LEARNING_GROUP);
+  if (entry === undefined) return { status: "off", turnOn: null };
+  if (isOn(entry) && entry.safeModeExcluded === null) return { status: "on" };
+  // 켜기 요청은 스위치와 같은 모델이 만든다(잠긴 확장은 요청이 없다)
+  const plan = toggleRequestOf({ ...INITIAL_WORKBENCH, entries }, LEARNING_GROUP, true);
+  return { status: "off", turnOn: plan.ok ? plan.request : null };
+}
+
+/**
+ * 목록 위에 보일 읽지 못한 출처. 학습 그룹이 꺼져 있으면 학습 쪽은 오류가 아니라 꺼짐 줄이 말하므로 뺀다.
+ * 꺼진 동안 학습 기록은 저장소에서 읽으므로 보통 학습 쪽은 읽지 못한 출처가 아니다
+ */
+export function unavailableShownOf(
+  unavailable: readonly ProposalSource[],
+  learning: LearningState,
+): readonly ProposalSource[] {
+  return learning.status === "off"
+    ? unavailable.filter((source) => source !== "learning")
+    : unavailable;
 }
 
 /** 대화 상자나 편집기가 열려 있는가. 열려 있으면 목록의 바로 가기 키는 쉰다(포털 대화 상자의 키 입력도 화면까지 올라온다) */
