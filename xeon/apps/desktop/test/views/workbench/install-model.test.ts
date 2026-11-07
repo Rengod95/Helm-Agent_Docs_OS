@@ -16,6 +16,7 @@ import {
   installFailureOf,
   installReasonOf,
   installReasonsOf,
+  installFailureHeadOf,
   installReduce,
   warningsOf,
   type InstallFlow,
@@ -433,4 +434,13 @@ test("reasons that look the same on screen are listed once", () => {
     { key: "unknown_key", field: "plugins/0/hoks", line: 4 },
     { key: "other" },
   ]);
+});
+
+test("a general rejection with reasons says the folder failed the check, not that the path is wrong", () => {
+  const reasons = [{ key: "unknown_key", field: "entrie", line: 5 }] as const;
+  expect(installFailureHeadOf("invalid_input", reasons)).toBe("checked");
+  expect(installFailureHeadOf("other", reasons)).toBe("checked");
+  expect(installFailureHeadOf("invalid_input", [])).toBe("invalid_input");
+  expect(installFailureHeadOf("not_absolute", [{ key: "not_absolute" }])).toBe("not_absolute");
+  expect(installFailureHeadOf("safe_mode", reasons)).toBe("safe_mode");
 });
