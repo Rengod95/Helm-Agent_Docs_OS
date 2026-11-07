@@ -34,6 +34,7 @@ import {
   noticeBodyViewOf,
   noticeKindId,
   noticeResolved,
+  noticeShownAtOf,
   noticesAfter,
   noticeTitleViewOf,
   noticeToastVisible,
@@ -172,12 +173,15 @@ function Detail(props: { readonly text: string }): ReactNode {
   );
 }
 
-/** 알림 본문. 실패는 위험 글 한 줄과 "자세히"와 단추, 평문은 원문 한 줄이다 */
+/** 알림 본문. 실패는 위험 글 한 줄과 "자세히"와 단추, 대화 없는 예약 실패는 사유 글 한 줄, 평문은 원문 한 줄이다 */
 function NoticeBody(props: { readonly view: NoticeBodyView }): ReactNode {
   const commands = useCommands();
   const { view } = props;
   if (view.kind === "plain") {
     return <span className="dim [overflow-wrap:anywhere]">{view.text}</span>;
+  }
+  if (view.kind === "scheduleReason") {
+    return <span className="text-danger-text [overflow-wrap:anywhere]">{bodyTextOf(view)}</span>;
   }
   const { action } = view;
   return (
@@ -236,17 +240,23 @@ function ThreadName(props: { readonly threadId: ThreadId }): ReactNode {
   );
 }
 
+/** 대화 없는 알림의 출처. 예약이 대화를 열기 전에 실패한 알림이면 "예약"이고, 대화 이름 링크는 없다 */
+function ThreadlessOrigin(props: { readonly notice: Notice }): ReactNode {
+  if (props.notice.sourceType !== "schedule.run_finished") return null;
+  return <span className="dim">{t("desktop.notices.origin.schedule")}</span>;
+}
+
 function NoticeRow(props: {
   readonly entry: NoticeEntry;
   readonly waiting: ReadonlySet<string>;
   readonly now: number;
 }): ReactNode {
-  const { notice, threadId, deliveredAt } = props.entry;
+  const { notice, threadId } = props.entry;
   const failed = notice.kind === "error";
   const kind = noticeResolved(props.entry, props.waiting)
     ? t("desktop.notices.kind.resolved")
     : t(noticeKindId(notice.kind));
-  const age = noticeAgeViewOf(props.now, deliveredAt);
+  const age = noticeAgeViewOf(props.now, noticeShownAtOf(props.entry));
   const body = noticeBodyViewOf(notice);
   return (
     <li className="grid gap-0.5">
@@ -255,11 +265,15 @@ function NoticeRow(props: {
           <TriangleAlert aria-hidden className="size-icon-sm shrink-0 text-danger-graphic" />
         ) : null}
         <span className={failed ? "text-danger-text" : "dim"}>{kind}</span>
-        {age === null ? null : <span className="dim">· {t(age.id, age.params)}</span>}
+        <span className="dim">· {t(age.id, age.params)}</span>
       </span>
       <span>{noticeTitleText(notice)}</span>
       {body === null ? null : <NoticeBody view={body} />}
-      {threadId === null ? null : <ThreadName threadId={threadId} />}
+      {threadId === null ? (
+        <ThreadlessOrigin notice={notice} />
+      ) : (
+        <ThreadName threadId={threadId} />
+      )}
     </li>
   );
 }
@@ -300,12 +314,16 @@ export function useNoticeFeed(): NoticeFeed {
         }),
       );
       const threads = threadBySeqOf(scoped);
-      const incoming: readonly NoticeEntry[] = listed.value.notices.map((notice) => ({
-        notice,
-        threadId: threads.get(notice.seq) ?? null,
-      }));
+      const incoming: readonly NoticeEntry[] = [
+        ...listed.value.notices.map((notice) => ({
+          notice,
+          threadId: threads.get(notice.seq) ?? null,
+        })),
+        // 대화 없는 알림은 대화별 목록에 없고, 이 목록의 `threadless`로만 온다
+        ...(listed.value.threadless ?? []).map((notice) => ({ notice, threadId: null })),
+      ];
       // 지운 경계는 읽는 동안 올라갔을 수 있어 합치는 순간에 본다
-      setEntries((now) => mergeNotices(now, noticesAfter(clearedNotices.read(), incoming)));
+      setEntries((now) => mergeNotices(now, noticesAfter(clearedNotices, incoming)));
       setLoad("ready");
     };
     detach(run(), rethrow);
@@ -322,7 +340,7 @@ export function useNoticeFeed(): NoticeFeed {
         threadId: delivered.threadId,
         ...(Number.isNaN(at) ? {} : { deliveredAt: at }),
       };
-      setEntries((now) => mergeNotices(now, noticesAfter(clearedNotices.read(), [entry])));
+      setEntries((now) => mergeNotices(now, noticesAfter(clearedNotices, [entry])));
     });
   }, [commands, phase, read]);
 
@@ -332,7 +350,9 @@ export function useNoticeFeed(): NoticeFeed {
   }, [read]);
 
   const clear = useCallback((): void => {
-    clearedNotices.clearThrough(highestSeqOf(entries));
+    // 보통 알림과 대화 없는 알림은 경계가 따로라 band마다 가장 큰 seq까지 지운다
+    clearedNotices.clearThrough(highestSeqOf(entries, "normal"));
+    clearedNotices.clearThrough(highestSeqOf(entries, "threadless"));
     setEntries([]);
   }, [entries]);
 

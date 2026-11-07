@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
-import type { Notice, NoticeKind } from "@fresnel/contracts/capabilities";
+import {
+  THREADLESS_NOTICE_SEQ_BASE,
+  type Notice,
+  type NoticeKind,
+} from "@fresnel/contracts/capabilities";
 import { Bug } from "@fresnel/contracts";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
 import type { ThreadOrigin } from "@fresnel/contracts/wire";
@@ -29,7 +33,14 @@ const ON: NotifyPrefs = { turnDone: true, approval: true, scheduleFailed: true }
 const SCHEDULE: ThreadOrigin = { kind: "schedule", scheduleId: "daily" };
 
 function notice(kind: NoticeKind, body: string | null = null): Notice {
-  return { kind, title: "원래 제목", body, seq: 7, sourceType: "dialog.notified" };
+  return {
+    kind,
+    title: "원래 제목",
+    body,
+    seq: 7,
+    sourceType: "dialog.notified",
+    createdAt: 1000,
+  };
 }
 
 function inputOf(over: Partial<OsNoticeInput> = {}): OsNoticeInput {
@@ -135,6 +146,57 @@ describe("osNoticeOf window, switches, and text", () => {
 
   test("a notice without a conversation is sent with no thread id", () => {
     expect(planOf({ threadId: null, threadTitle: null })?.threadId).toBeNull();
+  });
+});
+
+describe("osNoticeOf for a scheduled run that failed before its conversation opened", () => {
+  // 대화 없는 예약 실패: 알림의 종류는 오류, 출처는 예약 실행 종료, seq는 대화 없는 알림의 범위다
+  const THREADLESS: Notice = {
+    kind: "error",
+    title: "예약 작업이 실패했어요",
+    body: "start_failed",
+    seq: THREADLESS_NOTICE_SEQ_BASE + 7,
+    sourceType: "schedule.run_finished",
+    createdAt: 1000,
+  };
+  const threadless = (over: Partial<OsNoticeInput> = {}): OsNoticePlan | null =>
+    osNoticeOf({
+      notice: THREADLESS,
+      threadId: null,
+      threadOrigin: null,
+      threadTitle: null,
+      windowFocused: false,
+      prefs: ON,
+      ...over,
+    });
+
+  test("it is sent in the scheduled-failure category with no thread", () => {
+    expect(threadless()).toEqual({
+      category: "scheduleFailed",
+      title: t("desktop.osNotice.what.scheduleFailed"),
+      body: t("desktop.schedules.runs.reason.startFailed"),
+      threadId: null,
+    });
+  });
+
+  test("the body is the reason sentence and never the raw reason code", () => {
+    const plan = threadless();
+    expect(plan?.body).toBe(t("desktop.schedules.runs.reason.startFailed"));
+    expect(plan?.body).not.toContain("start_failed");
+    // 대화가 없으니 "대화에서 볼 수 있어요"라고 하지 않는다
+    expect(plan?.body).not.toBe(t("desktop.osNotice.body.scheduleFailed"));
+  });
+
+  test("the switch for scheduled failures still turns it off", () => {
+    expect(threadless({ prefs: { ...ON, scheduleFailed: false } })).toBeNull();
+  });
+
+  test("it is not sent while the window is in front", () => {
+    expect(threadless({ windowFocused: true })).toBeNull();
+  });
+
+  test("an error from another source with no conversation is still not sent", () => {
+    expect(threadless({ notice: { ...THREADLESS, sourceType: "turn.completed" } })).toBeNull();
   });
 });
 

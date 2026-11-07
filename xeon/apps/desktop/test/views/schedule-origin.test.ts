@@ -20,6 +20,7 @@ function run(runId: string, minutes: number, threadId: string | null): RunRecord
     outcome: threadId === null ? "skipped" : "ok",
     threadId,
     error: null,
+    missed: false,
   };
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
 import { Bug } from "@fresnel/contracts";
+import { THREADLESS_NOTICE_SEQ_BASE } from "@fresnel/contracts/capabilities";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
 import type { NotifyDeliveredParams, ThreadSummary } from "@fresnel/contracts/wire";
 import {
@@ -37,7 +38,14 @@ function settle(): Promise<void> {
 function deliveredOf(threadId: ThreadId | null, kind: NotifyDeliveredParams["notice"]["kind"]) {
   return {
     threadId,
-    notice: { kind, title: "원래 제목", body: "원래 본문", seq: 1, sourceType: "dialog.notified" },
+    notice: {
+      kind,
+      title: "원래 제목",
+      body: "원래 본문",
+      seq: 1,
+      sourceType: "dialog.notified",
+      createdAt: 1000,
+    },
     deliveredAt: "2026-11-06T10:00:00Z",
   } satisfies NotifyDeliveredParams;
 }
@@ -179,6 +187,7 @@ describe("the notifier sends the plan", () => {
         body: "rm -rf secret-body-2",
         seq: 2,
         sourceType: "dialog.notified",
+        createdAt: 2000,
       },
     });
     await settle();
@@ -193,6 +202,30 @@ describe("the notifier sends the plan", () => {
     await settle();
     const sent = h.calls.find((call) => call.command === "notify_os");
     expect(sent?.args).toMatchObject({ threadId: null });
+  });
+
+  test("a scheduled run that failed before its conversation opened goes out as a failure with its reason and no thread id", async () => {
+    const h = harnessOf({});
+    h.notifier.listen();
+    h.deliver({
+      threadId: null,
+      notice: {
+        kind: "error",
+        title: "예약 작업이 실패했어요",
+        body: "start_failed",
+        seq: THREADLESS_NOTICE_SEQ_BASE + 3,
+        sourceType: "schedule.run_finished",
+        createdAt: 1000,
+      },
+      deliveredAt: "2026-11-06T10:00:00Z",
+    });
+    await settle();
+    const sent = h.calls.find((call) => call.command === "notify_os");
+    expect(sent?.args).toEqual({
+      title: t("desktop.osNotice.what.scheduleFailed"),
+      body: t("desktop.schedules.runs.reason.startFailed"),
+      threadId: null,
+    });
   });
 });
 

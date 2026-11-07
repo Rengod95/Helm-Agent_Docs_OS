@@ -8,14 +8,21 @@ import {
   Menu,
   MenuItem,
   MenuSeparator,
+  Popover,
   Table,
   type TableColumn,
   type TableRow,
 } from "@caustic/react";
-import { Ellipsis } from "@caustic/react/icons";
-import type { ReactNode } from "react";
+import { Ellipsis, Info, TriangleAlert } from "@caustic/react/icons";
+import { useState, type ReactNode } from "react";
 import { relativeAgeOf } from "../shared/relative-age.ts";
-import { canAct, rowMenuOf, type ScheduleState } from "./schedule-model.ts";
+import {
+  canAct,
+  missedRunsViewOf,
+  rowMenuOf,
+  watchOutsideViewOf,
+  type ScheduleState,
+} from "./schedule-model.ts";
 import {
   lastRunAtOf,
   lastRunStatusOf,
@@ -32,6 +39,7 @@ import {
 // 예약 표(P-07). 행은 `scheduleListView`가 준 정렬 순서이고 키보드 이동 순서도 이것이다. 상태는 글자 색으로 준다(배지 없음).
 // 원격 예약의 "지금 실행"과 꺼진 예약의 "다시 켜기"는 칸 옆에 바로 둔다. 나머지 동작은 행 메뉴(`Menu`)에 모으고,
 // 항목과 잠금은 `rowMenuOf`가 정한다. 상대 시각은 목록을 읽은 시각(`state.nowMs`) 기준이다.
+// 놓친 실행 수는 마지막 실행 아래 작은 줄로, 허용 밖 감시 경로는 트리거 칸 아래 경고로 보인다. 설명은 정보 아이콘 뒤에 둔다.
 
 /** 행 동작. 속성 형태로 둬서 `handlers.fire`를 그대로 넘겨도 된다 */
 export interface RowHandlers {
@@ -167,9 +175,19 @@ export function ScheduleTable(props: ScheduleTableProps): ReactNode {
           trigger.kind === "repeat"
             ? repeatSummaryOf(trigger, locale)
             : triggerSummaryOf(trigger, locale);
-        return (
+        const text = (
           <span className={`font-normal text-text-secondary ${dimOf(row)}`}>
             {t(summary.id, summary.args)}
+          </span>
+        );
+        // 허용 밖 감시 경로는 경고로 보인다. 경고는 흐리게 하지 않는다
+        const item = entryById.get(row.id);
+        const outside = item === undefined ? null : watchOutsideViewOf(item);
+        if (outside === null) return text;
+        return (
+          <span className="flex min-w-0 flex-col items-start gap-1">
+            {text}
+            <WatchOutsideLine paths={outside.paths} />
           </span>
         );
       },
@@ -195,9 +213,10 @@ export function ScheduleTable(props: ScheduleTableProps): ReactNode {
     [
       "last",
       (row) => {
-        const raw = entryById.get(row.id)?.lastRun ?? null;
+        const item = entryById.get(row.id);
+        const raw = item?.lastRun ?? null;
         const threadId = row.lastRun?.threadId ?? null;
-        return (
+        const last = (
           <LastRunCell
             run={row.lastRun}
             at={raw === null ? null : lastRunAtOf(raw)}
@@ -211,6 +230,15 @@ export function ScheduleTable(props: ScheduleTableProps): ReactNode {
                 : null
             }
           />
+        );
+        // 놓친 실행이 없으면 마지막 실행 칸만 그린다
+        const missed = item === undefined ? null : missedRunsViewOf(item);
+        if (missed === null) return last;
+        return (
+          <span className="flex min-w-0 flex-col items-start gap-0.5">
+            {last}
+            <MissedRunsLine count={missed.count} dim={dimOf(row)} />
+          </span>
         );
       },
     ],
@@ -355,5 +383,67 @@ function LastRunCell(props: {
     >
       {label}
     </Button>
+  );
+}
+
+/**
+ * 정보 아이콘 뒤의 설명 Popover. 누르면 연다. 알림 칸의 "자세히"(`notices.tsx`의 `Detail`)와 같은 모양이다.
+ * Popover 본문은 열 때만 그려진다.
+ */
+function HelpPopover(props: { readonly label: string; readonly children: ReactNode }): ReactNode {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover
+      trigger="click"
+      size="xs"
+      className="craft-glass"
+      open={open}
+      onOpenChange={setOpen}
+      anchor={
+        <IconButton label={props.label} size="xs" variant="ghost">
+          <Info />
+        </IconButton>
+      }
+    >
+      <div className="max-w-96 whitespace-pre-wrap [overflow-wrap:anywhere]">{props.children}</div>
+    </Popover>
+  );
+}
+
+/** 놓친 실행 수 한 줄. 마지막 실행 글 아래에 작은 글로 두고, 설명은 정보 아이콘 뒤에 둔다 */
+function MissedRunsLine(props: { readonly count: number; readonly dim: string }): ReactNode {
+  return (
+    <span className={`inline-flex min-w-0 items-center gap-1 ${props.dim}`}>
+      <span className="text-ui-xs text-text-tertiary">
+        {t("desktop.schedules.missedRuns", { count: props.count })}
+      </span>
+      <HelpPopover label={t("desktop.schedules.missedRuns.help.label")}>
+        {t("desktop.schedules.missedRuns.help")}
+      </HelpPopover>
+    </span>
+  );
+}
+
+/**
+ * 허용 밖 감시 경로 경고. 경고 글은 항상 보이고(주황 글과 삼각형 아이콘), 경로 목록과 고치는 법은 정보 아이콘 뒤에 둔다.
+ */
+function WatchOutsideLine(props: { readonly paths: readonly string[] }): ReactNode {
+  return (
+    <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 text-ui-xs text-warning-text">
+      <TriangleAlert aria-hidden className="size-3.5 flex-none" />
+      <span>{t("desktop.schedules.watchOutside")}</span>
+      <HelpPopover label={t("desktop.schedules.watchOutside.help.label")}>
+        <div className="grid gap-2">
+          <div className="grid gap-1">
+            {props.paths.map((path) => (
+              <span key={path} className="font-mono text-mono-sm text-text-primary">
+                {path}
+              </span>
+            ))}
+          </div>
+          <div>{t("desktop.schedules.watchOutside.help")}</div>
+        </div>
+      </HelpPopover>
+    </span>
   );
 }

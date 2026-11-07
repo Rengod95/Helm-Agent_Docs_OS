@@ -25,7 +25,7 @@ const ENTRY: ScheduleEntryView = {
   stoppedReason: null,
 };
 
-const ITEM: ScheduleListItem = { entry: ENTRY, lastRun: null };
+const ITEM: ScheduleListItem = { entry: ENTRY, lastRun: null, missedRuns: 0 };
 
 const RUN: RunView = {
   runId: "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
@@ -294,6 +294,7 @@ describe("schedule update and runs send their exact wire params", () => {
         outcome: "running",
         threadId: null,
         error: null,
+        missed: false,
       },
       {
         runId: "run_a",
@@ -302,6 +303,7 @@ describe("schedule update and runs send their exact wire params", () => {
         outcome: "failed",
         threadId: "thr_1",
         error: "boom",
+        missed: false,
       },
     ];
     const { app, params } = await liveApp({ results: { "schedule.runs": { runs } } });

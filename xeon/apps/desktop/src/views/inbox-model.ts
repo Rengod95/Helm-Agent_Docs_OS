@@ -1,5 +1,5 @@
 import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
-import type { NoticeEntry } from "./notices-model.ts";
+import { newestFirstOf, type NoticeEntry } from "./notices-model.ts";
 
 // 받은 요청 화면 머리의 대화·정렬 셀렉트가 고르는 값과, 승인 목록과 알림 목록을 거르고 정렬하는 순수 함수(시안 p03).
 // 대화 셀렉트의 항목은 대기 승인이 있는 대화와 알림이 있는 대화를 합친다. 같은 값으로 두 구역을 거른다.
@@ -7,7 +7,7 @@ import type { NoticeEntry } from "./notices-model.ts";
 /** 대화 셀렉트의 값. `all`이면 모든 대화다 */
 export type InboxThread = "all" | ThreadId;
 
-/** 정렬 셀렉트의 값. 요청 시각(승인)과 알림 순번 기준이고 `oldest`가 기본이다 */
+/** 정렬 셀렉트의 값. 요청 시각(승인)과 알림 시각(알림) 기준이고 `oldest`가 기본이다 */
 export type InboxSort = "oldest" | "newest";
 
 export const INBOX_SORTS: readonly InboxSort[] = ["oldest", "newest"];
@@ -77,8 +77,8 @@ export function arrangeInboxApprovals(
 }
 
 /**
- * 거르기와 정렬을 거친 알림. 거르기는 승인과 같은 대화 값을 쓴다. 대화를 모르는 알림은 `모든 대화`에서만 보인다.
- * 정렬은 알림 seq 기준이다(`newest`면 큰 seq가 먼저)
+ * 거르기와 정렬을 거친 알림. 거르기는 승인과 같은 대화 값을 쓴다. 대화를 모르는 알림(대화 없는 예약 실패 포함)은
+ * `모든 대화`에서만 보인다. 정렬은 알림 시각(`createdAt`) 기준이고 같으면 seq다(`newest`면 새것이 먼저)
  */
 export function arrangeInboxNotices(
   entries: readonly NoticeEntry[],
@@ -88,6 +88,8 @@ export function arrangeInboxNotices(
     (entry) => options.thread === "all" || entry.threadId === options.thread,
   );
   return picked.toSorted((a, b) =>
-    options.sort === "newest" ? b.notice.seq - a.notice.seq : a.notice.seq - b.notice.seq,
+    options.sort === "newest"
+      ? newestFirstOf(a.notice, b.notice)
+      : newestFirstOf(b.notice, a.notice),
   );
 }

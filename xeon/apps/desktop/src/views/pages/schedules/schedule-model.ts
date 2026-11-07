@@ -410,6 +410,27 @@ export function selectedItemOf(state: ScheduleState): ScheduleListItem | null {
   return state.items.find((item) => item.entry.id === state.selectedId) ?? null;
 }
 
+/** 놓친 실행 줄의 값. 수는 앱이 꺼진 동안 놓친 기한의 수다 */
+export interface MissedRunsView {
+  readonly count: number;
+}
+
+/** 목록 항목의 놓친 실행 줄. 놓친 실행이 없으면(0) 줄을 그리지 않으므로 null이다 */
+export function missedRunsViewOf(item: ScheduleListItem): MissedRunsView | null {
+  return item.missedRuns >= 1 ? { count: item.missedRuns } : null;
+}
+
+/** 허용 밖 감시 경로 줄의 값. 경로가 하나 이상 있을 때만 준다 */
+export interface WatchOutsideView {
+  readonly paths: readonly string[];
+}
+
+/** 목록 항목의 허용 밖 감시 경로. 경로가 없으면(생략이거나 빈 목록) 줄을 그리지 않으므로 null이다 */
+export function watchOutsideViewOf(item: ScheduleListItem): WatchOutsideView | null {
+  const paths = item.outsideWatchPaths;
+  return paths === undefined || paths.length === 0 ? null : { paths };
+}
+
 export function noticeOf(
   text: MessageRef,
   tone: Notice["tone"],

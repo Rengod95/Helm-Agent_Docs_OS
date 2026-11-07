@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { Notice } from "@fresnel/contracts/capabilities";
+import { t } from "@fresnel/client/i18n";
+import { THREADLESS_NOTICE_SEQ_BASE, type Notice } from "@fresnel/contracts/capabilities";
 import {
   createClearedBoundary,
   highestSeqOf,
@@ -9,6 +10,7 @@ import {
   noticeBodyViewOf,
   noticeKindId,
   noticeResolved,
+  noticeShownAtOf,
   noticesAfter,
   noticeTitleViewOf,
   noticeToastVisible,
@@ -18,12 +20,14 @@ import {
 import { checkTitle, deleteFailureId } from "../../src/views/thread-row-menu.tsx";
 import { thr } from "../state/helpers.ts";
 
+// 시각은 seq에 맞춰 늘린다(목록의 새것 먼저 순서가 seq 순서와 같다). 시각과 seq가 어긋나는 시험은 따로 만든다.
 const notice = (seq: number, title = `n${seq}`): Notice => ({
   kind: "completed",
   title,
   body: null,
   seq,
   sourceType: "turn.completed",
+  createdAt: seq * 1000,
 });
 
 describe("threadBySeqOf", () => {
@@ -109,6 +113,7 @@ const of = (kind: Notice["kind"], sourceType: string, title: string): Notice => 
   body: null,
   seq: 1,
   sourceType,
+  createdAt: 1000,
 });
 
 describe("noticeTitleViewOf", () => {
@@ -173,6 +178,17 @@ const failedTurn = (body: string | null): Notice => ({
   body,
   seq: 1,
   sourceType: "turn.completed",
+  createdAt: 1000,
+});
+
+/** 대화 없이 실패한 예약 실행의 알림. 본문은 실패 사유 코드다 */
+const threadlessFailure = (seq: number, body: string | null, createdAt: number): Notice => ({
+  kind: "error",
+  title: "예약 작업이 실패했어요",
+  body,
+  seq,
+  sourceType: "schedule.run_finished",
+  createdAt,
 });
 
 describe("noticeBodyViewOf", () => {
@@ -232,6 +248,7 @@ describe("noticeBodyViewOf", () => {
         body: '{"done":true}',
         seq: 2,
         sourceType: "turn.completed",
+        createdAt: 2000,
       }),
     ).toEqual({ kind: "plain", text: '{"done":true}' });
     expect(
@@ -241,8 +258,32 @@ describe("noticeBodyViewOf", () => {
         body: null,
         seq: 3,
         sourceType: "turn.completed",
+        createdAt: 3000,
       }),
     ).toBeNull();
+  });
+
+  test("a thread-less scheduled failure shows its reason as a sentence, not the code", () => {
+    expect(
+      noticeBodyViewOf(threadlessFailure(THREADLESS_NOTICE_SEQ_BASE + 1, "start_failed", 1)),
+    ).toEqual({
+      kind: "scheduleReason",
+      text: "desktop.schedules.runs.reason.startFailed",
+      params: {},
+    });
+  });
+
+  test("an unknown reason code is shown inside the unknown-reason sentence", () => {
+    expect(
+      noticeBodyViewOf(threadlessFailure(THREADLESS_NOTICE_SEQ_BASE + 2, "odd_code", 1)),
+    ).toEqual({
+      kind: "scheduleReason",
+      text: "desktop.schedules.runs.reason.unknown",
+      params: { code: "odd_code" },
+    });
+    expect(
+      t("desktop.schedules.runs.reason.unknown", { code: "odd_code" }).includes("odd_code"),
+    ).toBe(true);
   });
 
   test("a failed turn with no body still says it failed, without details", () => {
@@ -257,9 +298,6 @@ describe("noticeBodyViewOf", () => {
 
 describe("noticeAgeViewOf", () => {
   const NOW = 1_000_000_000_000;
-  test("a notice without a delivery time has no age line", () => {
-    expect(noticeAgeViewOf(NOW, undefined)).toBeNull();
-  });
 
   test("the age uses the approval card's words: now, minutes, hours, days", () => {
     expect(noticeAgeViewOf(NOW, NOW - 30_000)).toEqual({ id: "desktop.approvals.age.now" });
@@ -276,10 +314,56 @@ describe("noticeAgeViewOf", () => {
       params: { count: 2 },
     });
   });
+
+  test("a notice read from the list has no delivery time, so its age runs from when it was created", () => {
+    const listed = notice(4);
+    const row: NoticeEntry = { notice: { ...listed, createdAt: NOW - 5 * 60_000 }, threadId: null };
+    expect(noticeAgeViewOf(NOW, noticeShownAtOf(row))).toEqual({
+      id: "desktop.approvals.age.minutes",
+      params: { count: 5 },
+    });
+  });
+
+  test("the shown time is the delivery time when there is one, else the creation time", () => {
+    const created: Notice = { ...notice(4), createdAt: 1000 };
+    expect(noticeShownAtOf({ notice: created, threadId: null })).toBe(1000);
+    expect(noticeShownAtOf({ notice: created, threadId: null, deliveredAt: 5000 })).toBe(5000);
+  });
 });
 
 /** 대화 없는 알림 한 줄(지운 경계 시험용) */
 const entry = (seq: number): NoticeEntry => ({ notice: notice(seq), threadId: null });
+
+/** 대화 없는 예약 실패 한 줄(band 시험용). 시각은 seq와 따로 준다 */
+const threadlessEntry = (seq: number, createdAt: number): NoticeEntry => ({
+  notice: threadlessFailure(seq, "start_failed", createdAt),
+  threadId: null,
+});
+
+describe("mergeNotices order by time, then seq", () => {
+  test("a thread-less notice with a huge seq goes by its creation time, not to the top", () => {
+    const merged = mergeNotices(
+      [],
+      [
+        threadlessEntry(THREADLESS_NOTICE_SEQ_BASE + 9, 100),
+        { notice: { ...notice(5), createdAt: 900 }, threadId: null },
+        { notice: { ...notice(6), createdAt: 300 }, threadId: null },
+      ],
+    );
+    expect(merged.map((e) => e.notice.seq)).toEqual([5, 6, THREADLESS_NOTICE_SEQ_BASE + 9]);
+  });
+
+  test("notices created in the same millisecond keep the larger seq first", () => {
+    const merged = mergeNotices(
+      [],
+      [
+        { notice: { ...notice(3), createdAt: 500 }, threadId: null },
+        { notice: { ...notice(8), createdAt: 500 }, threadId: null },
+      ],
+    );
+    expect(merged.map((e) => e.notice.seq)).toEqual([8, 3]);
+  });
+});
 
 describe("cleared notices", () => {
   test("the boundary only moves up, and notices at or below it are dropped", () => {
@@ -288,23 +372,69 @@ describe("cleared notices", () => {
     boundary.clearThrough(7);
     boundary.clearThrough(3);
     expect(boundary.read()).toBe(7);
-    expect(noticesAfter(boundary.read(), [entry(6), entry(7), entry(8)])).toEqual([entry(8)]);
+    expect(noticesAfter(boundary, [entry(6), entry(7), entry(8)])).toEqual([entry(8)]);
   });
 
   test("a re-read after clearing brings back only the notices newer than the cleared ones", () => {
     const boundary = createClearedBoundary();
     const shown = mergeNotices([], [entry(1), entry(2), entry(3), entry(4), entry(5)]);
-    boundary.clearThrough(highestSeqOf(shown));
+    boundary.clearThrough(highestSeqOf(shown, "normal"));
     // 화면을 떠났다 돌아와 빈 목록에서 다시 읽는다. 지운 1..5는 돌아오지 않고 6, 7만 보인다
-    const reread = mergeNotices(
-      [],
-      noticesAfter(boundary.read(), [1, 2, 3, 4, 5, 6, 7].map(entry)),
-    );
+    const reread = mergeNotices([], noticesAfter(boundary, [1, 2, 3, 4, 5, 6, 7].map(entry)));
     expect(reread.map((e) => e.notice.seq)).toEqual([7, 6]);
   });
 
-  test("the highest seq of nothing is zero", () => {
-    expect(highestSeqOf([])).toBe(0);
+  test("the highest seq of nothing is zero, and each band has its own highest", () => {
+    expect(highestSeqOf([], "normal")).toBe(0);
+    expect(highestSeqOf([], "threadless")).toBe(0);
+    const mixed = [entry(4), threadlessEntry(THREADLESS_NOTICE_SEQ_BASE + 2, 1), entry(9)];
+    expect(highestSeqOf(mixed, "normal")).toBe(9);
+    expect(highestSeqOf(mixed, "threadless")).toBe(THREADLESS_NOTICE_SEQ_BASE + 2);
+  });
+
+  test("clearing through a thread-less seq does not move the normal boundary", () => {
+    const boundary = createClearedBoundary();
+    boundary.clearThrough(THREADLESS_NOTICE_SEQ_BASE + 5);
+    expect(boundary.read()).toBe(0);
+    expect(boundary.readThreadless()).toBe(THREADLESS_NOTICE_SEQ_BASE + 5);
+  });
+
+  test("clearing with a normal and a thread-less notice hides both, but a later normal notice with a small seq and a later thread-less one with a larger seq still show", () => {
+    const boundary = createClearedBoundary();
+    const shown = mergeNotices(
+      [],
+      [entry(3), threadlessEntry(THREADLESS_NOTICE_SEQ_BASE + 10, 100)],
+    );
+    // 화면의 "모두 지우기"는 band마다 가장 큰 seq까지 올린다
+    boundary.clearThrough(highestSeqOf(shown, "normal"));
+    boundary.clearThrough(highestSeqOf(shown, "threadless"));
+    expect(noticesAfter(boundary, shown)).toEqual([]);
+    // 지운 뒤에 온 보통 알림은 지운 가장 큰 보통 seq(3)보다 크기만 하면 보인다. 대화 없는 알림은 경계 band가 따로다
+    const later = [entry(4), threadlessEntry(THREADLESS_NOTICE_SEQ_BASE + 11, 200)];
+    expect(noticesAfter(boundary, later).map((e) => e.notice.seq)).toEqual([
+      4,
+      THREADLESS_NOTICE_SEQ_BASE + 11,
+    ]);
+  });
+
+  test("a later normal notice with a small seq is not hidden by a cleared thread-less notice", () => {
+    const boundary = createClearedBoundary();
+    boundary.clearThrough(THREADLESS_NOTICE_SEQ_BASE + 10);
+    expect(noticesAfter(boundary, [entry(2), entry(3)]).map((e) => e.notice.seq)).toEqual([2, 3]);
+  });
+
+  test("subscribers hear each change of the boundary until they unsubscribe", () => {
+    const boundary = createClearedBoundary();
+    let heard = 0;
+    const off = boundary.subscribe(() => {
+      heard += 1;
+    });
+    boundary.clearThrough(3);
+    boundary.clearThrough(THREADLESS_NOTICE_SEQ_BASE + 1);
+    expect(heard).toBe(2);
+    off();
+    boundary.clearThrough(4);
+    expect(heard).toBe(2);
   });
 
   test("a delivered entry keeps its delivery time when a later list read gives the same notice", () => {

@@ -1,8 +1,14 @@
-import type { MessageId } from "@fresnel/client/i18n";
+import type { MessageArgs, MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import { INPUT_NEEDED_KINDS, type Notice, type NoticeKind } from "@fresnel/contracts/capabilities";
+import {
+  INPUT_NEEDED_KINDS,
+  isThreadlessNoticeSeq,
+  type Notice,
+  type NoticeKind,
+} from "@fresnel/contracts/capabilities";
 import { approvalAgeOf } from "./approval-card/card-model.ts";
+import { runReasonTextOf } from "./pages/schedules/schedule-text.ts";
 import {
   turnFailureOf,
   type TurnFailureAction,
@@ -13,7 +19,7 @@ import {
 
 /**
  * 화면이 들고 있는 알림 한 건. `threadId`는 대화별 목록이나 `notify.delivered`에서, `deliveredAt`은 `notify.delivered`에서만 안다.
- * 알림 목록(`notify.list`)의 결과에는 시각이 없어 목록으로만 읽은 알림은 시각이 없다.
+ * 대화 없는 알림(`threadId`가 null)은 목록의 `threadless`나 `notify.delivered`로 온다. 전달 시각이 없으면 알림의 `createdAt`을 쓴다.
  */
 export interface NoticeEntry {
   readonly notice: Notice;
@@ -97,6 +103,12 @@ export type NoticeBodyView =
       /** 정보 아이콘 뒤 "자세히"에 보일 원문. 원문이 없으면 null이다 */
       readonly detail: string | null;
     }
+  | {
+      /** 대화 없는 예약 실행의 실패 사유. 사유 코드를 카탈로그 문장으로 바꾼 것이라 단추와 "자세히"가 없다 */
+      readonly kind: "scheduleReason";
+      readonly text: MessageId;
+      readonly params: MessageArgs;
+    }
   | { readonly kind: "plain"; readonly text: string };
 
 /** 상태 코드 뒤에 JSON이 붙거나 JSON만 온 본문. 원문을 본문 줄에 그대로 두지 않는다 */
@@ -123,6 +135,11 @@ function failureViewOf(view: TurnFailureView): NoticeBodyView {
 export function noticeBodyViewOf(notice: Notice): NoticeBodyView | null {
   const { body } = notice;
   if (notice.kind !== "error") return body === null ? null : { kind: "plain", text: body };
+  // 대화 없는 예약 실행의 본문은 실패 사유 코드다. 코드를 원문으로 보이지 않고 사유 문장으로 바꾼다
+  if (notice.sourceType === "schedule.run_finished" && body !== null) {
+    const reason = runReasonTextOf(body);
+    return { kind: "scheduleReason", text: reason.id, params: reason.args };
+  }
   if (body === null) {
     return { kind: "failure", text: "desktop.turnFailure.unknown", action: null, detail: null };
   }
@@ -137,13 +154,9 @@ export type NoticeAgeView = {
   readonly params?: { readonly count: number };
 };
 
-/** 전달된 뒤 지난 시간. 전달 시각을 모르면(목록으로 읽은 알림) null이라 시각 줄을 그리지 않는다 */
-export function noticeAgeViewOf(
-  now: number,
-  deliveredAt: number | undefined,
-): NoticeAgeView | null {
-  if (deliveredAt === undefined) return null;
-  const age = approvalAgeOf(now, deliveredAt);
+/** 알림이 보인 뒤 지난 시간. 시각은 `noticeShownAtOf`가 고른 것이다 */
+export function noticeAgeViewOf(now: number, at: number): NoticeAgeView {
+  const age = approvalAgeOf(now, at);
   switch (age.unit) {
     case "now":
       return { id: "desktop.approvals.age.now" };
@@ -158,12 +171,25 @@ export function noticeAgeViewOf(
   }
 }
 
+/** 알림 줄의 시각: 전달된 알림은 전달 시각이고, 목록으로 읽은 알림은 알림이 생긴 시각(`createdAt`)이다 */
+export function noticeShownAtOf(entry: NoticeEntry): number {
+  return entry.deliveredAt ?? entry.notice.createdAt;
+}
+
 /**
  * 이 알림을 화면 토스트로도 알리나. 새 승인 요청은 낭독 영역(`live-announcer.tsx`)이 이미 읽고, 토스트 영역과 토스트 자체도 낭독 영역이라
  * 같은 문장이 세 번 읽힌다. 승인 알림은 목록과 OS 알림, 대화의 승인 카드와 사이드바 승인 수로 알리고 토스트는 띄우지 않는다
  */
 export function noticeToastVisible(notice: Notice): boolean {
   return notice.kind !== "approval_waiting";
+}
+
+/**
+ * 알림의 새것 먼저 순서. 시각(`createdAt`)이 큰 것이 먼저이고, 같으면 seq가 큰 것이 먼저다. 대화 없는 알림의 seq는 실행 id의
+ * 해시라 seq만으로는 시간 순서가 되지 않는다.
+ */
+export function newestFirstOf(a: Notice, b: Notice): number {
+  return b.createdAt - a.createdAt || b.seq - a.seq;
 }
 
 /**
@@ -180,7 +206,9 @@ export function mergeNotices(
     const known = seen.get(entry.notice.seq);
     seen.set(entry.notice.seq, known === undefined ? entry : joinEntries(known, entry));
   }
-  return [...seen.values()].toSorted((a, b) => b.notice.seq - a.notice.seq).slice(0, NOTICE_KEEP);
+  return [...seen.values()]
+    .toSorted((a, b) => newestFirstOf(a.notice, b.notice))
+    .slice(0, NOTICE_KEEP);
 }
 
 /** 같은 알림의 두 줄을 한 줄로 합친다. 대화와 전달 시각은 먼저 안 쪽이 있으면 그것을 쓴다(목록 읽기는 둘 다 모른다) */
@@ -194,34 +222,71 @@ function joinEntries(known: NoticeEntry, incoming: NoticeEntry): NoticeEntry {
   };
 }
 
-/** 목록의 가장 큰 seq. 빈 목록이면 0이다 */
-export function highestSeqOf(entries: readonly NoticeEntry[]): number {
-  return entries.reduce((top, entry) => Math.max(top, entry.notice.seq), 0);
+/**
+ * 알림의 band. 보통 알림과 대화 없는 알림은 seq 범위가 달라(`THREADLESS_NOTICE_SEQ_BASE`) 경계도 따로 둔다.
+ * 대화 없는 알림의 seq가 이 범위에 있어 보통 알림의 경계를 올리면 나중의 보통 알림이 모두 가려지기 때문이다.
+ */
+export type NoticeBand = "normal" | "threadless";
+
+function bandOf(seq: number): NoticeBand {
+  return isThreadlessNoticeSeq(seq) ? "threadless" : "normal";
 }
 
-/** 경계 seq 뒤의 알림만 남긴다. 경계 이하는 지운 알림이라 다시 읽혀도 버린다 */
-export function noticesAfter(
-  boundary: number,
-  entries: readonly NoticeEntry[],
-): readonly NoticeEntry[] {
-  return entries.filter((entry) => entry.notice.seq > boundary);
+/** 목록의 한 band에서 가장 큰 seq. 그 band에 알림이 없으면 0이다 */
+export function highestSeqOf(entries: readonly NoticeEntry[], band: NoticeBand): number {
+  return entries.reduce(
+    (top, entry) => (bandOf(entry.notice.seq) === band ? Math.max(top, entry.notice.seq) : top),
+    0,
+  );
 }
 
 /**
- * 지운 알림의 경계 seq. 지울 때마다 가장 큰 seq로 올리고 내리지 않는다. 화면이 unmount되어도 남도록 모듈에 하나 둔다.
- * 앱을 다시 열면 0으로 돌아간다(알림 목록도 그때 다시 읽는다).
+ * 경계 seq 뒤의 알림만 남긴다. 알림은 자기 band의 경계와 비교한다. 경계 이하는 지운 알림이라 다시 읽혀도 버린다
+ */
+export function noticesAfter(
+  boundary: Pick<ClearedBoundary, "read" | "readThreadless">,
+  entries: readonly NoticeEntry[],
+): readonly NoticeEntry[] {
+  const normal = boundary.read();
+  const threadless = boundary.readThreadless();
+  return entries.filter((entry) => {
+    const through = bandOf(entry.notice.seq) === "threadless" ? threadless : normal;
+    return entry.notice.seq > through;
+  });
+}
+
+/**
+ * 지운 알림의 경계 seq. band마다 따로 둔다. 지울 때마다 그 band의 가장 큰 seq로 올리고 내리지 않는다. 화면이 unmount되어도
+ * 남도록 모듈에 하나 둔다. 앱을 다시 열면 0으로 돌아간다(알림 목록도 그때 다시 읽는다).
  */
 export interface ClearedBoundary {
-  read(): number;
-  clearThrough(seq: number): void;
+  /** 보통 알림의 경계 seq */
+  readonly read: () => number;
+  /** 대화 없는 알림의 경계 seq */
+  readonly readThreadless: () => number;
+  /** `seq`가 속한 band의 경계를 올린다 */
+  readonly clearThrough: (seq: number) => void;
+  /** 경계가 바뀔 때 부른다. 지운 뒤에도 보여야 하는 값이 다시 읽게 한다. 반환값은 해제 함수다 */
+  readonly subscribe: (listener: () => void) => () => void;
 }
 
 export function createClearedBoundary(): ClearedBoundary {
   let through = 0;
+  let throughThreadless = 0;
+  const listeners = new Set<() => void>();
   return {
     read: () => through,
+    readThreadless: () => throughThreadless,
     clearThrough: (seq) => {
-      through = Math.max(through, seq);
+      if (bandOf(seq) === "threadless") throughThreadless = Math.max(throughThreadless, seq);
+      else through = Math.max(through, seq);
+      for (const listener of listeners) listener();
+    },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
     },
   };
 }

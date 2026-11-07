@@ -4,7 +4,7 @@ import { Alert, Button, EmptyState, Sheet, Skeleton } from "@caustic/react";
 import type { ReactNode } from "react";
 import type { RunRecord, RunsState } from "./schedule-model.ts";
 import { STATUS_TEXT_TONE } from "./schedule-table.tsx";
-import { isMissedReason, RUN_OUTCOME_VIEW, runReasonTextOf, timeTextOf } from "./schedule-text.ts";
+import { RUN_OUTCOME_VIEW, runReasonTextOf, timeTextOf } from "./schedule-text.ts";
 
 // 실행 기록 시트(P-07, W-07 `schedule.runs`). 읽기 전용이다. 읽는 중, 비었음, 읽기 실패(목록 바로 위 danger Alert + 다시 읽기),
 // 연결 끊김(다시 읽기 잠금)을 그린다. 실패와 건너뜀의 이유는 호스트의 사유 코드를 문장으로 바꿔 보인다(코드 이름은 보이지 않는다).
@@ -36,8 +36,11 @@ function RunLine(props: {
   const { run, locale, openable, onOpenThread } = props;
   const status = RUN_OUTCOME_VIEW[run.outcome];
   const threadId = run.threadId;
-  // 놓친 실행 표식은 사유 코드가 `missed`·`too_old`인 건너뜀 기록에만 붙는다. 따라잡은 실행(`missed`만 참)은 와이어에 없다
-  const missed = run.error !== null && isMissedReason(run.error);
+  // 놓친 실행 표식은 와이어의 `missed`가 참인 기록(건너뜀과 따라잡아 실행한 것이 모두)에 붙는다
+  const missed = run.missed;
+  // 건너뛴 놓친 실행은 사유 줄이 설명을 맡고, 따라잡아 실행한 기록은 따라잡았다는 줄을 먼저 보인다
+  const skippedMissed = run.missed && run.outcome === "skipped";
+  const caughtUp = run.missed && !skippedMissed;
   const reason = run.error === null ? null : runReasonTextOf(run.error);
   return (
     <li className="grid gap-1 py-1.5">
@@ -64,8 +67,17 @@ function RunLine(props: {
           </Button>
         )}
       </span>
+      {caughtUp ? (
+        <span className="text-ui-sm text-text-secondary">
+          {t("desktop.schedules.runs.caughtUp")}
+        </span>
+      ) : null}
       {reason === null ? null : (
-        <span className={missed ? "text-ui-sm text-text-secondary" : "text-ui-sm text-danger-text"}>
+        <span
+          className={
+            skippedMissed ? "text-ui-sm text-text-secondary" : "text-ui-sm text-danger-text"
+          }
+        >
           {t(reason.id, reason.args)}
         </span>
       )}

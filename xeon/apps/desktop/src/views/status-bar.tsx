@@ -2,6 +2,7 @@ import { Button, Progress } from "@caustic/react";
 import { Layers, Link2, Sparkles, TriangleAlert } from "@caustic/react/icons";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
+import type { Notice } from "@fresnel/contracts/capabilities";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   startupFailureOfExitCode,
@@ -19,6 +20,7 @@ import {
   type ReactNode,
 } from "react";
 import { nativeEntriesOf, originTitleOf } from "../plugin-ui/placements.ts";
+import { runReasonTextOf } from "./pages/schedules/schedule-text.ts";
 import {
   useApprovalCount,
   useEngineState,
@@ -56,6 +58,7 @@ import { usePluginUi, usePluginUiState } from "./plugin/plugin-context.tsx";
 import { RestartLine } from "./restart-line.tsx";
 import { UsageBreakdownBody } from "./usage-breakdown.tsx";
 import { SafeModeChip } from "./safe-mode-chip.tsx";
+import { useScheduleRunFailures } from "./schedule-run-failures.ts";
 import { StatusCell, type StatusDot } from "./status-cell.tsx";
 import { statusItemText } from "./status-item-text.ts";
 import { useGoToThread, type GoToThread } from "./thread-link.ts";
@@ -291,11 +294,14 @@ type LiveKind = "thread" | "trial" | "schedule";
 
 export interface LiveRow {
   readonly kind: LiveKind;
-  readonly threadId: ThreadId;
+  /** 대화의 id. 대화 없이 실패한 예약 실행의 행은 대화가 없어 null이고, 누르면 가는 곳이 없다 */
+  readonly threadId: ThreadId | null;
   readonly title: string | null;
   /** 예약에서 시작한 대화의 마지막 turn이 실패로 끝났다. 점을 빨갛게 하고 묶음을 목록 맨 위로 올린다 */
   readonly failed: boolean;
-  /** 실패 이유 한 줄(거울의 turn 실패 문장). 실패 행만 가진다 */
+  /**
+   * 실패 이유 한 줄. 대화 행은 거울의 turn 실패 문장이고, 대화 없는 예약 실패는 실행의 사유 문장이다. 실패 행만 가진다
+   */
   readonly reason: string | null;
 }
 
@@ -317,10 +323,12 @@ function liveKindOf(thread: ThreadSummary): LiveKind {
  * 진행 중 목록의 행. 실행 중인 대화와, 예약에서 시작했고 마지막 turn이 실패로 끝난 대화를 모은다.
  * 실패는 거울의 턴 실패 기록(`failures`, 대화 id → 문장)과 대화의 origin(schedule)으로 정한다. 실패 행이 앞에 오고, 나머지는 거울의 목록 순서를 따른다.
  * origin은 목록 읽기(`thread.list`)에서 오고, 이 연결에서 새로 시작한 예약 대화는 예약 입력 사실(`input.queued`)로 거울이 채운다.
+ * `scheduleFailures`는 대화 없이 실패한 예약 실행의 알림이다. 예약 묶음의 실패 행으로 대화 행의 실패 뒤, 실행 중인 행 앞에 둔다.
  */
 export function liveRowsOf(
   threads: readonly ThreadSummary[],
   failures: Readonly<Record<string, string>>,
+  scheduleFailures: readonly Notice[] = [],
 ): LiveRow[] {
   const failed: LiveRow[] = [];
   const running: LiveRow[] = [];
@@ -332,7 +340,7 @@ export function liveRowsOf(
       running.push(liveRowOf(thread, false, null));
     }
   }
-  return [...failed, ...running];
+  return [...failed, ...scheduleFailures.map(scheduleFailureRowOf), ...running];
 }
 
 function liveRowOf(thread: ThreadSummary, failed: boolean, reason: string | null): LiveRow {
@@ -342,6 +350,18 @@ function liveRowOf(thread: ThreadSummary, failed: boolean, reason: string | null
     title: thread.title,
     failed,
     reason,
+  };
+}
+
+/** 대화 없이 실패한 예약 실행 한 건의 행. 대화가 없어 이동하지 않고, 사유는 실행 기록의 사유 문장이다 */
+export function scheduleFailureRowOf(notice: Notice): LiveRow {
+  const reason = runReasonTextOf(notice.body);
+  return {
+    kind: "schedule",
+    threadId: null,
+    title: null,
+    failed: true,
+    reason: t(reason.id, reason.args),
   };
 }
 
@@ -407,8 +427,14 @@ export function LiveList(props: {
         return (
           <section key={kind} aria-label={t(LIVE_HEAD[kind])} className="grid gap-0.5">
             <h3 className="m-0 text-ui-xs font-normal text-text-tertiary">{t(LIVE_HEAD[kind])}</h3>
-            {items.map((row) => (
-              <LiveRowLine key={row.threadId} row={row} goTo={goTo} close={close} />
+            {items.map((row, index) => (
+              // 대화 없는 실패 행은 대화 id가 없어 순서 번호로 연다(같은 묶음에 여럿이 올 수 있다)
+              <LiveRowLine
+                key={row.threadId ?? `failure-${index}`}
+                row={row}
+                goTo={goTo}
+                close={close}
+              />
             ))}
           </section>
         );
@@ -423,6 +449,9 @@ function LiveRowLine(props: {
   readonly close: () => void;
 }): ReactNode {
   const { row, goTo, close } = props;
+  // 대화 id는 const로 좁혀 두어야 아래 누름 처리 안에서도 null이 아닌 값으로 읽힌다
+  const { threadId } = row;
+  if (threadId === null) return <ScheduleFailureLine reason={row.reason} />;
   const name = row.title ?? t("desktop.threads.untitled");
   const failure =
     row.reason === null ? null : t("desktop.status.cell.live.failed", { reason: row.reason });
@@ -457,7 +486,7 @@ function LiveRowLine(props: {
       variant="ghost"
       className="-mx-1.5 h-auto min-w-0 justify-start px-1.5 py-1 text-start font-normal"
       onClick={() => {
-        goTo(row.threadId);
+        goTo(threadId);
         close();
       }}
     >
@@ -466,10 +495,32 @@ function LiveRowLine(props: {
   );
 }
 
+/**
+ * 대화 없이 실패한 예약 실행의 한 줄. 이동할 대화가 없어 누를 수 없고, 아이콘과 위험 글로 실패를 보인다.
+ * 글은 "예약 실행이 시작되지 못했어요: 사유"다
+ */
+function ScheduleFailureLine(props: { readonly reason: string | null }): ReactNode {
+  const text = t("desktop.status.cell.live.scheduleRunFailed", {
+    reason: props.reason ?? t("desktop.schedules.runs.reason.none"),
+  });
+  return (
+    <div className="flex min-w-0 items-center gap-2 text-ui-sm text-text-primary">
+      <span
+        aria-hidden
+        className="inline-grid size-5 flex-none place-items-center rounded-md bg-danger-soft text-danger-text"
+      >
+        <TriangleAlert className="size-3.5" />
+      </span>
+      <span className="min-w-0 text-ui-xs text-danger-text [overflow-wrap:anywhere]">{text}</span>
+    </div>
+  );
+}
+
 /** "진행 중 n" 칸과 Popover(N-58). 목록이 비면 빈 글을 보인다. 행을 누르면 그 대화로 가고 Popover를 닫는다 */
 function LiveCell(): ReactNode {
   const running = useRunningCount();
-  const rows = liveRowsOf(useThreadSummaries(), useTurnFailures());
+  const scheduleFailures = useScheduleRunFailures();
+  const rows = liveRowsOf(useThreadSummaries(), useTurnFailures(), scheduleFailures);
   const goTo = useGoToThread();
   const [open, setOpen] = useState(false);
   return (

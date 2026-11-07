@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { activeLocale, catalogOf, setActiveLocale, type Locale } from "@fresnel/client/i18n";
+import { activeLocale, catalogOf, setActiveLocale, t, type Locale } from "@fresnel/client/i18n";
 import { renderToString } from "react-dom/server";
+import { THREADLESS_NOTICE_SEQ_BASE, type Notice } from "@fresnel/contracts/capabilities";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
 import type { EngineMirror, EngineState } from "../../src/state/engine/index.ts";
 import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
@@ -18,6 +19,7 @@ import {
   LiveList,
   liveRowsOf,
   ModelCell,
+  scheduleFailureRowOf,
   StatusBar,
   TokensCell,
   tokensDescriptionOf,
@@ -213,6 +215,97 @@ describe("status bar in-progress cell", () => {
     for (const locale of locales) {
       expect(catalogOf(locale)["desktop.status.cell.live.failed"]).toMatch(/\{reason\}/);
     }
+  });
+
+  test("the scheduled-run failure sentence exists in ko and en with the reason placeholder", () => {
+    const locales: readonly Locale[] = ["ko", "en"];
+    for (const locale of locales) {
+      expect(catalogOf(locale)["desktop.status.cell.live.scheduleRunFailed"]).toMatch(/\{reason\}/);
+    }
+  });
+
+  test("a scheduled run that failed before its conversation opened is a failed row with its reason, no thread, ahead of the running rows", () => {
+    const threadless: Notice = {
+      kind: "error",
+      title: "예약 작업이 실패했어요",
+      body: "start_failed",
+      seq: THREADLESS_NOTICE_SEQ_BASE + 3,
+      sourceType: "schedule.run_finished",
+      createdAt: 100,
+    };
+    const rows = liveRowsOf(
+      [summary(thr(1), { status: "running", title: "캐시 무효화 조사" })],
+      {},
+      [threadless],
+    );
+    expect(rows).toEqual([
+      {
+        kind: "schedule",
+        threadId: null,
+        title: null,
+        failed: true,
+        reason: t("desktop.schedules.runs.reason.startFailed"),
+      },
+      { kind: "thread", threadId: thr(1), title: "캐시 무효화 조사", failed: false, reason: null },
+    ]);
+  });
+
+  test("the schedule row of a thread-less failure is its own row, built from the notice's reason code", () => {
+    const row = scheduleFailureRowOf({
+      kind: "error",
+      title: "예약 작업이 실패했어요",
+      body: "run_failed",
+      seq: THREADLESS_NOTICE_SEQ_BASE + 4,
+      sourceType: "schedule.run_finished",
+      createdAt: 200,
+    });
+    expect(row.reason).toBe(t("desktop.schedules.runs.reason.runFailed"));
+    expect(row.reason).not.toContain("run_failed");
+  });
+
+  test("a thread-less failure alone turns the progress dot red and moves the schedule group to the top", () => {
+    const failedThreadless: LiveRow = {
+      kind: "schedule",
+      threadId: null,
+      title: null,
+      failed: true,
+      reason: "x",
+    };
+    const thread: LiveRow = {
+      kind: "thread",
+      threadId: thr(1),
+      title: null,
+      failed: false,
+      reason: null,
+    };
+    expect(liveDotOf([thread, failedThreadless])).toBe("danger");
+    expect(liveKindsOf([thread, failedThreadless])).toEqual(["schedule", "thread", "trial"]);
+  });
+
+  test("the popover shows a thread-less failure as one danger line with its sentence and no conversation name", () => {
+    const html = renderToString(
+      <LiveList
+        rows={[
+          {
+            kind: "schedule",
+            threadId: null,
+            title: null,
+            failed: true,
+            reason: t("desktop.schedules.runs.reason.startFailed"),
+          },
+        ]}
+        goTo={null}
+        close={() => {}}
+      />,
+    );
+    expect(html).toContain(
+      t("desktop.status.cell.live.scheduleRunFailed", {
+        reason: t("desktop.schedules.runs.reason.startFailed"),
+      }),
+    );
+    expect(html).toContain("bg-danger-soft text-danger-text");
+    expect(html).not.toContain("제목 없음");
+    expect(html).not.toContain("<button");
   });
 });
 
