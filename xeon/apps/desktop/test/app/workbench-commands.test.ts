@@ -503,6 +503,12 @@ describe("크래프트 명령의 wire 호출", () => {
       value: packed,
     });
     expect(paramsOf(params, "ext.package")).toEqual([{ dir: "/w/lens-review" }]);
+    // out을 주면 그대로 싣는다(확장 상세의 내보내기)
+    await app.commands.workbench.packDir("/cfg/extensions/lens", "/cfg/exports/lens-1");
+    expect(paramsOf(params, "ext.package")).toEqual([
+      { dir: "/w/lens-review" },
+      { dir: "/cfg/extensions/lens", out: "/cfg/exports/lens-1" },
+    ]);
     await app.stop();
   });
 

@@ -44,6 +44,7 @@ import { usePluginUiState } from "../plugin/plugin-context.tsx";
 import { InfoTip } from "../craft/info-tip.tsx";
 import { AutoOffNotice } from "./craft-parts.tsx";
 import { kindText, lockText, stateText, stateTone } from "./ext-row.tsx";
+import { ExportExtension } from "./export-extension.tsx";
 import { removableOf } from "./remove-model.ts";
 import { MetricsTab } from "./metrics-tab.tsx";
 import { scopeText } from "./source-badge.tsx";
@@ -464,6 +465,7 @@ export function ExtDetail(props: {
           </Button>
           {/* 잠긴 이유는 설명 한 줄이라 정보 아이콘 뒤에 둔다(DP-58) */}
           {row.lock === null ? null : <InfoTip text={lockText(row.lock)} />}
+          {removableOf(entry) && <ExportExtension entry={entry} />}
           {removableOf(entry) ? (
             <Menu
               size="sm"

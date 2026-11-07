@@ -100,6 +100,40 @@ export interface GroupNewCommand {
   readonly output: OutputMode;
 }
 
+/**
+ * `fresnel author <명령>`(L3.authoring.spec §4.5, L4.cli.spec §3.1). 모델 없이 도는 제작 명령이다.
+ * `scaffold <이름> --dir <폴더> [--group]`, `validate <폴더>`, `pack <폴더> [--out <폴더>]`, `install <폴더> [--yes]`, `remove <이름> [--drop-data] [--yes]`, `ls`
+ */
+export type AuthorCommand =
+  | {
+      readonly kind: "author.scaffold";
+      readonly name: string;
+      readonly dir: string;
+      readonly extensionKind: "single-plugin" | "plugin-group";
+      readonly output: OutputMode;
+    }
+  | { readonly kind: "author.validate"; readonly dir: string; readonly output: OutputMode }
+  | {
+      readonly kind: "author.pack";
+      readonly dir: string;
+      readonly out: string | null;
+      readonly output: OutputMode;
+    }
+  | {
+      readonly kind: "author.install";
+      readonly dir: string;
+      readonly yes: boolean;
+      readonly output: OutputMode;
+    }
+  | {
+      readonly kind: "author.remove";
+      readonly name: string;
+      readonly dropData: boolean;
+      readonly yes: boolean;
+      readonly output: OutputMode;
+    }
+  | { readonly kind: "author.ls"; readonly output: OutputMode };
+
 type TrustScope = "folder" | "parent" | "session";
 
 export type TrustCommand =
@@ -232,6 +266,7 @@ export type CliCommand =
   | ChatCommand
   | SessionsCommand
   | GroupNewCommand
+  | AuthorCommand
   | ConfigCommand
   | SecretCommand
   | TrustCommand
@@ -1981,6 +2016,165 @@ function parseGroup(acc: GlobalAcc, rest: readonly string[]): Result<GroupNewCom
   }
 }
 
+const AUTHOR_SYNTAX = "fresnel author scaffold|validate|pack|install|remove|ls";
+
+function authorOnePositional(
+  scanned: Scanned,
+  command: string,
+  missing: string,
+): Result<string, UsageError> {
+  const [first, ...extra] = scanned.positionals;
+  if (first === undefined || first === "") {
+    return err(
+      usage("missingArgument", t("cli.usage.author.argMissing.message", { command }), missing),
+    );
+  }
+  if (extra.length > 0) {
+    return err(
+      usage(
+        "unexpectedArgument",
+        t("cli.usage.tooManyArgs.message", { command: `author ${command}` }),
+        missing,
+      ),
+    );
+  }
+  return ok(first);
+}
+
+function parseAuthor(acc: GlobalAcc, rest: readonly string[]): Result<AuthorCommand, UsageError> {
+  const [action, ...tail] = rest;
+  switch (action) {
+    case "scaffold": {
+      const scanned = scanArgs(acc, tail, {
+        "--dir": { value: "required" },
+        "--group": { value: "none" },
+        "--json": { value: "none" },
+      });
+      if (!scanned.ok) return scanned;
+      const syntax = t("cli.usage.author.scaffoldSyntax");
+      const name = authorOnePositional(scanned.value, "scaffold", syntax);
+      if (!name.ok) return name;
+      const checked = groupNameOf(name.value);
+      if (!checked.ok) return checked;
+      const dir = valueOf(scanned.value, "--dir");
+      if (dir === null || dir === "") {
+        return err(
+          usage(
+            "missingArgument",
+            t("cli.usage.folderMissing.message", { flag: "--dir" }),
+            t("cli.usage.flag.folderFormat.fix", { flag: "--dir" }),
+          ),
+        );
+      }
+      return ok({
+        kind: "author.scaffold",
+        name: checked.value,
+        dir,
+        extensionKind: has(scanned.value, "--group") ? "plugin-group" : "single-plugin",
+        output: outputOf(scanned.value),
+      });
+    }
+    case "validate": {
+      const scanned = scanArgs(acc, tail, { "--json": { value: "none" } });
+      if (!scanned.ok) return scanned;
+      const dir = authorOnePositional(
+        scanned.value,
+        "validate",
+        t("cli.usage.author.validateSyntax"),
+      );
+      if (!dir.ok) return dir;
+      return ok({ kind: "author.validate", dir: dir.value, output: outputOf(scanned.value) });
+    }
+    case "pack": {
+      const scanned = scanArgs(acc, tail, {
+        "--out": { value: "required" },
+        "--json": { value: "none" },
+      });
+      if (!scanned.ok) return scanned;
+      const dir = authorOnePositional(scanned.value, "pack", t("cli.usage.author.packSyntax"));
+      if (!dir.ok) return dir;
+      const out = valueOf(scanned.value, "--out");
+      if (out === "") {
+        return err(
+          usage(
+            "missingArgument",
+            t("cli.usage.folderMissing.message", { flag: "--out" }),
+            t("cli.usage.flag.folderFormat.fix", { flag: "--out" }),
+          ),
+        );
+      }
+      return ok({ kind: "author.pack", dir: dir.value, out, output: outputOf(scanned.value) });
+    }
+    case "install": {
+      const scanned = scanArgs(acc, tail, {
+        "--yes": { value: "none" },
+        "--json": { value: "none" },
+      });
+      if (!scanned.ok) return scanned;
+      const dir = authorOnePositional(
+        scanned.value,
+        "install",
+        t("cli.usage.author.installSyntax"),
+      );
+      if (!dir.ok) return dir;
+      return ok({
+        kind: "author.install",
+        dir: dir.value,
+        yes: has(scanned.value, "--yes"),
+        output: outputOf(scanned.value),
+      });
+    }
+    case "remove": {
+      const scanned = scanArgs(acc, tail, {
+        "--drop-data": { value: "none" },
+        "--yes": { value: "none" },
+        "--json": { value: "none" },
+      });
+      if (!scanned.ok) return scanned;
+      const name = authorOnePositional(scanned.value, "remove", t("cli.usage.author.removeSyntax"));
+      if (!name.ok) return name;
+      return ok({
+        kind: "author.remove",
+        name: name.value,
+        dropData: has(scanned.value, "--drop-data"),
+        yes: has(scanned.value, "--yes"),
+        output: outputOf(scanned.value),
+      });
+    }
+    case "ls": {
+      const scanned = scanArgs(acc, tail, { "--json": { value: "none" } });
+      if (!scanned.ok) return scanned;
+      if (scanned.value.positionals.length > 0) {
+        return err(
+          usage(
+            "unexpectedArgument",
+            t("cli.usage.noPositional.message", { command: "author ls" }),
+            t("cli.usage.jsonOnly.fix"),
+          ),
+        );
+      }
+      return ok({ kind: "author.ls", output: outputOf(scanned.value) });
+    }
+    case undefined:
+      return err(
+        usage(
+          "missingArgument",
+          t("cli.usage.subcommandMissing.message", { command: "author" }),
+          AUTHOR_SYNTAX,
+        ),
+      );
+    // fresnel-disable-next-line fresnel/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
+    default:
+      return err(
+        usage(
+          "unknownCommand",
+          t("cli.usage.unknownCommand.message", { command: `author ${action}` }),
+          AUTHOR_SYNTAX,
+        ),
+      );
+  }
+}
+
 // ── 진입 ─────────────────────────────────────────────────────────────────
 
 const COMMAND_WORDS: ReadonlySet<string> = new Set([
@@ -1994,6 +2188,7 @@ const COMMAND_WORDS: ReadonlySet<string> = new Set([
   "db",
   "host",
   "group",
+  "author",
   "doctor",
   "version",
   "usage",
@@ -2033,6 +2228,8 @@ function commandOf(
       return parseHost(acc, rest);
     case "group":
       return parseGroup(acc, rest);
+    case "author":
+      return parseAuthor(acc, rest);
     case "doctor":
       return parseJsonOnly(acc, "doctor", rest);
     case "version":

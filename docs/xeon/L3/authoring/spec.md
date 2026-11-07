@@ -265,6 +265,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 
 - `fresnel group new`는 `fresnel.devkit.scaffold`를 부르는 진입점이 됩니다(엔진이 떠 있으면 wire, 아니면 같은 F 함수와 템플릿 파일로 로컬 실행). 결과 파일은 지금과 같아야 합니다(`L3.slots.spec` §3.3.6 R1~R6).
 - `fresnel author <명령>` [제안]은 제작 대화를 CLI에서 엽니다. 모델 없이 `scaffold`, `validate`, `pack`만 쓰는 모드도 둡니다.
+- [결정: 오케스트레이터 기본값, scI] 모델 없는 모드는 `fresnel author scaffold|validate|pack|install|remove|ls`로 구현했습니다(`apps/cli/src/commands/author.ts`). 엔진 wire(`ext.*`)를 부르므로 엔진이 같은 프로세스에 서고, 설치는 `previewInstall` 결과를 보인 뒤 사람 확인(`--yes` 또는 터미널 y)을 받습니다. 제작 대화를 여는 `fresnel author`(하위 명령 없이)는 아직 없습니다 [근거: `apps/cli/src/cli/command.ts`의 `parseAuthor`]. 명령 표는 `L4.cli.spec` §3.1입니다.
 
 ## 5. 실패와 경계 사례
 
