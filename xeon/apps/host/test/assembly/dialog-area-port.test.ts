@@ -275,6 +275,7 @@ describe("runRecordOf", () => {
       outcome: "running",
       threadId: null,
       error: null,
+      missed: false,
     });
     expect(
       runRecordOf(runOf({ status: "started", threadId: "thr_1", startedAt: STARTED_MS })),
@@ -285,6 +286,7 @@ describe("runRecordOf", () => {
       outcome: "running",
       threadId: "thr_1",
       error: null,
+      missed: false,
     });
   });
 
@@ -306,6 +308,7 @@ describe("runRecordOf", () => {
       outcome: "ok",
       threadId: "thr_1",
       error: null,
+      missed: false,
     });
   });
 
@@ -327,6 +330,7 @@ describe("runRecordOf", () => {
       outcome: "failed",
       threadId: "thr_1",
       error: "aborted",
+      missed: false,
     });
   });
 
@@ -349,6 +353,7 @@ describe("runRecordOf", () => {
       outcome: "failed",
       threadId: "thr_1",
       error: "run_failed",
+      missed: false,
     });
   });
 
@@ -362,6 +367,7 @@ describe("runRecordOf", () => {
       outcome: "failed",
       threadId: null,
       error: "start_failed",
+      missed: false,
     });
   });
 
@@ -373,6 +379,7 @@ describe("runRecordOf", () => {
       outcome: "skipped",
       threadId: null,
       error: "overlap",
+      missed: false,
     });
   });
 
@@ -394,7 +401,50 @@ describe("runRecordOf", () => {
       outcome: "running",
       threadId: "thr_1",
       error: null,
+      missed: false,
     });
+  });
+
+  test("a run that catches up a missed deadline is marked missed, and so is a skipped record for a missed or too-old deadline", () => {
+    const caughtUp = runRecordOf(
+      runOf({
+        status: "finished",
+        outcome: "completed",
+        missed: true,
+        threadId: "thr_1",
+        startedAt: STARTED_MS,
+        endedAt: ENDED_MS,
+      }),
+    );
+    expect(caughtUp.missed).toBe(true);
+    const skippedMissed = runRecordOf(
+      runOf({ status: "skipped", missed: true, reason: "missed", skippedCount: 35 }),
+    );
+    expect(skippedMissed.missed).toBe(true);
+    expect(skippedMissed.error).toBe("missed");
+    const skippedTooOld = runRecordOf(
+      runOf({ status: "skipped", missed: true, reason: "too_old", skippedCount: 1 }),
+    );
+    expect(skippedTooOld.missed).toBe(true);
+    expect(skippedTooOld.error).toBe("too_old");
+  });
+
+  test("a run that is not a missed deadline is not marked missed, whatever its outcome", () => {
+    expect(runRecordOf(runOf({ status: "claimed" })).missed).toBe(false);
+    expect(
+      runRecordOf(runOf({ status: "skipped", reason: "overlap", skippedCount: 1 })).missed,
+    ).toBe(false);
+    expect(
+      runRecordOf(
+        runOf({
+          status: "failed",
+          reason: "run_failed",
+          threadId: "thr_1",
+          startedAt: STARTED_MS,
+          endedAt: ENDED_MS,
+        }),
+      ).missed,
+    ).toBe(false);
   });
 });
 
@@ -576,6 +626,7 @@ describe("scheduleRuns", () => {
             outcome: "running",
             threadId: null,
             error: null,
+            missed: false,
           },
           {
             runId: "run_1",
@@ -584,6 +635,7 @@ describe("scheduleRuns", () => {
             outcome: "ok",
             threadId: "thr_1",
             error: null,
+            missed: false,
           },
         ],
       },

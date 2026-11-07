@@ -113,6 +113,19 @@ export function createHostSchedule(deps: HostScheduleDeps): ScheduleService {
   return rejectingOutsideWatchRoots(service, () => allowedWatchRootsOf(deps.os.dirs));
 }
 
+/**
+ * 파일 감시 경로 중 허용 루트 밖이라 감시되지 않는 것. 이미 저장된 예약의 목록 행 경고가 쓴다(저장 때 거절은 `rejectingOutsideWatchRoots`).
+ * 루트는 호출 때 읽는다.
+ */
+export function outsideWatchPathsOf(
+  dirs: Pick<OsDirs, "config" | "data" | "state">,
+): (paths: readonly string[]) => readonly string[] {
+  return (paths) => {
+    const roots = allowedWatchRootsOf(dirs);
+    return paths.filter((path) => !isWatchPathAllowed(roots, path));
+  };
+}
+
 /** 감시를 허용하는 루트: 설정·데이터·상태 폴더다. `platform-os`의 `createOsService`가 감시 루트로 주는 목록과 같다 */
 function allowedWatchRootsOf(dirs: Pick<OsDirs, "config" | "data" | "state">): readonly string[] {
   return [dirs.config, dirs.data, dirs.state];

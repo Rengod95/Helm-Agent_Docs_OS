@@ -1,4 +1,5 @@
 import {
+  listItemOf,
   pageEntries,
   type CancelError,
   type CreateError,
@@ -77,10 +78,7 @@ export function createScheduleHandlers(
         params.before,
         params.limit,
       );
-      const items = page.map((entry) => ({
-        entry: entryViewOf(entry),
-        lastRun: open.service.runs(entry.id, 1)[0] ?? null,
-      }));
+      const items = page.map((entry) => listItemOf(open.service, entry, engine.outsideWatchPaths));
       return nextBefore === undefined ? { ok: true, items } : { ok: true, items, nextBefore };
     },
 

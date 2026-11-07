@@ -341,6 +341,7 @@ function harness(): Harness {
                 body: null,
                 seq: 1,
                 sourceType: "dialog.notified",
+                createdAt: 1,
               },
             });
           },

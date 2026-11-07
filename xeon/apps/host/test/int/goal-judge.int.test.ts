@@ -269,6 +269,7 @@ realTest(
       body: "판정 3회",
       seq: settledEvent.seq,
       sourceType: "work.goal_settled",
+      createdAt: Date.parse(settledEvent.recordedAt),
     };
     expect(seenFirst.map((params) => params.notice)).toEqual([goalNotice]);
     expect(seenFirst.map((params) => params.threadId)).toEqual([created.threadId]);
@@ -283,6 +284,7 @@ realTest(
       body: null,
       seq: turnEvent.seq,
       sourceType: "turn.completed",
+      createdAt: Date.parse(turnEvent.recordedAt),
     };
     expect(listed.notices).toEqual([goalNotice, turnNotice]);
 

@@ -225,6 +225,10 @@ export interface Engine {
    * Scheduler leader가 다른 프로세스에 있다. 거짓이면 `schedule.create`가 `service_mode_off`를 싣는다
    */
   readonly scheduleRuns: () => boolean;
+  /**
+   * 파일 감시 경로 중 허용 범위(설정·데이터·상태 폴더) 밖이라 감시되지 않는 것. `schedule.list`가 행 경고(`outsideWatchPaths`)로 싣는다
+   */
+  readonly outsideWatchPaths: (paths: readonly string[]) => readonly string[];
   /** 안전 모드로 열렸는가(`AssembleOptions.safeMode`). host.status.safeMode의 원천 */
   readonly safeMode: boolean;
   /** 연속 시작 실패 수와 안전 모드 제안. host.status.startupFailures·suggestSafeMode의 원천(W-39) */
@@ -482,9 +486,9 @@ export interface DialogWirePort {
   ): Promise<Result<WireResult<"notify.list">, DialogWireFailure>>;
   /**
    * 알림 전달 구독(`notify.delivered`의 원천). 서비스(`dialog.notify`의 같은 프로세스 구독)가 아직 없으면 붙지 않고, 서비스가 나타나면
-   * 붙는다. 반환 함수로 구독을 푼다. 서비스가 없어지면 붙은 구독은 떼고 다시 나타나면 다시 붙는다
+   * 붙는다. 반환 함수로 구독을 푼다. `threadId`는 대화에 묶이지 않은 알림이면 null이다. 서비스가 없어지면 붙은 구독은 떼고 다시 나타나면 다시 붙는다
    */
-  subscribeNotices(listener: (threadId: ThreadId, notice: Notice) => void): Unsubscribe;
+  subscribeNotices(listener: (threadId: ThreadId | null, notice: Notice) => void): Unsubscribe;
 }
 
 /**

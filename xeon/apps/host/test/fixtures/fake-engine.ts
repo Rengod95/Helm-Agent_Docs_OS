@@ -102,6 +102,8 @@ export interface FakeEngineOptions {
   readonly acquireGate?: Promise<void>;
   /** settings.get이 보는 범위 층 */
   readonly layers?: ScopeStack;
+  /** 허용 범위 밖이라 감시되지 않는 경로를 고른다(`schedule.list`의 `outsideWatchPaths`). 생략하면 아무것도 고르지 않는다 */
+  readonly outsideWatchPaths?: Engine["outsideWatchPaths"];
   /** 코어 카탈로그에 더하는 앱 설정 그룹(예약 키 시험 등) */
   readonly settingGroups?: Parameters<typeof buildEngineCatalog>[0];
   /** 진단 함수를 바꿔 끼운다(`host.status`의 `includeBinaries`). 생략하면 필수 바이너리가 모두 있는 빈 점검이다 */
@@ -172,8 +174,11 @@ export interface FakeEngine {
   ): void;
   /** 설정 변경 신호를 낸다(`SettingsStorePort.onChange` 구독자에게). 실제 엔진에서는 설정 저장소와 신뢰 결정이 낸다 */
   emitSettingsChange(change: SettingsChange): void;
-  /** 알림 하나를 알림 포트의 구독자(`subscribeNotices`)에게 낸다. 실제 엔진에서는 cap-dialog의 알림 서비스가 낸다 */
-  emitNotice(threadId: ThreadId, notice: Notice): void;
+  /**
+   * 알림 하나를 알림 포트의 구독자(`subscribeNotices`)에게 낸다. `threadId`가 null이면 대화에 묶이지 않은 알림이다.
+   * 실제 엔진에서는 cap-dialog의 알림 서비스가 낸다
+   */
+  emitNotice(threadId: ThreadId | null, notice: Notice): void;
   /** 진단 함수가 불린 횟수 */
   readonly diagnoseCalls: () => number;
   /** 다음 turn.start가 turn.busy가 되게 한다 */
@@ -233,7 +238,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   const commitListeners = new Set<(batch: CommitBatch) => void>();
   const volatileListeners = new Set<(event: VolatileEventEnvelope) => void>();
   const settingsListeners = new Set<(change: SettingsChange) => void>();
-  const noticeListeners = new Set<(threadId: ThreadId, notice: Notice) => void>();
+  const noticeListeners = new Set<(threadId: ThreadId | null, notice: Notice) => void>();
   const threads = new Set<ThreadId>();
   const held = new Set<ThreadId>();
   const titles = new Map<ThreadId, string>();
@@ -570,6 +575,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   const engine: Engine = {
     mode: options.mode ?? "in-process",
     scheduleRuns: () => (options.mode ?? "in-process") === "service",
+    outsideWatchPaths: options.outsideWatchPaths ?? (() => []),
     storeId,
     catalog: built.catalog,
     safeMode: false,

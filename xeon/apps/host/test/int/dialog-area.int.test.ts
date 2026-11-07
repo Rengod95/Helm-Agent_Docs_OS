@@ -291,6 +291,7 @@ describe("dialog area over the wire, on the real engine", () => {
                 nextDueAt: service.time.clock.now() + INTERVAL_MS,
               }),
               lastRun: null,
+              missedRuns: 0,
             },
           ],
         });
@@ -371,6 +372,7 @@ describe("dialog area over the wire, on the real engine", () => {
               outcome: "ok",
               threadId: newest.threadId,
               error: null,
+              missed: false,
             },
             {
               runId: oldest.runId,
@@ -379,6 +381,7 @@ describe("dialog area over the wire, on the real engine", () => {
               outcome: "ok",
               threadId: oldest.threadId,
               error: null,
+              missed: false,
             },
           ],
         });
@@ -391,6 +394,7 @@ describe("dialog area over the wire, on the real engine", () => {
               outcome: "ok",
               threadId: newest.threadId,
               error: null,
+              missed: false,
             },
           ],
         });
