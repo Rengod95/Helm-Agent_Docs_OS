@@ -109,6 +109,8 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `fresnel doctor` | FTS5, sops·age, 데이터 디렉터리 권한, 외부 바이너리 점검, 서비스 도달, 터미널 기능, 검색 provider 상태(§4.7.1) 진단 [제안] | `connectEngine` 결과와 wire 조회(`secret.list`, `host.status { includeBinaries: true }`, `settings.get`, `web.providers`)로 판정한다(§4.7.1, §10 5번 임시 결정) | M2 |
 | `fresnel db export <폴더> [--json] [--yes]` | 저장소 파일(데이터 디렉터리의 `fresnel.db`)을 엔진을 띄우지 않고 읽기 전용으로 `<폴더>`에 내보낸다. 엔진이 떠 있어도 된다. 사본에는 시크릿 값이 그대로 있을 수 있어 확인을 받는다(§4.13, [결정: 2026-11-03 사용자]). 상대 경로는 작업 폴더(`-C`) 기준이다(§4.13). 종료코드: 성공 0, 폴더 인자 누락과 비어 있지 않은 대상, `--yes` 없이 터미널이 아닌 실행 2, 확인에서 y가 아닌 답 1, 저장소·디스크 오류와 데이터 디렉터리 위치 실패 3(§4.10) | 없음. `deps.exportDatabase`(`L0.store.spec` §4.10)와 `deps.resolveDataDir`(`resolveOsDirs`)를 부른다 | M3(구현됨, M3b B3-DATA) |
 | `fresnel db restore <폴더> [--json] [--check]` | `db export`가 만든 폴더를 데이터 디렉터리의 `fresnel.db`로 되돌린다. 엔진을 띄우지 않고, 엔진이 떠 있으면 거절한다(§4.13.1). 종료코드: 성공 0, 폴더 인자 누락과 백업 폴더가 아님 2, 사본 검증 실패·더 새 버전의 사본·엔진 실행 중·저장소·디스크 오류와 데이터 디렉터리 위치 실패 3 | 없음. `deps.restoreDatabase`(`L0.store.spec` §4.10.1)와 `deps.resolveDataDir`를 부른다 | M4 [결정: 2026-11-04 사용자] |
+| `fresnel db usage [--json]` | 데이터 디렉터리와 상태 디렉터리가 쓰는 저장 공간을 엔진을 띄우지 않고 센다. 아무것도 쓰지 않는다(§4.13.2). 종료코드: 성공 0, 데이터 디렉터리 위치 실패와 입출력 오류 3 | 없음. `deps.resolveDataDir`와 `deps.resolveStateDir`(`resolveOsDirs`)를 부른다 | 구현됨(§4.13.2) |
+| `fresnel db previous-rm <이름> [--yes] [--json]` | 복원 전 사본 `restore-previous/<이름>` 하나를 재귀로 지운다. 확인은 `--yes` 또는 터미널의 `[y/N]`이다(§4.13.2). 종료코드: 성공 0, 확인 거절 1, 이름·사본·터미널 사용법 오류 2, 위치와 입출력 오류 3 | 없음. `deps.resolveDataDir`를 부른다 | 구현됨(§4.13.2) |
 | `fresnel group new <이름> [--drive\|--policy] [--dir <폴더>] [--json]` | 그룹 골격을 만든다. 기본은 observe 템플릿, `--drive`는 drive, `--policy`는 policy 템플릿이다. 두 플래그를 함께 주면 사용법 오류(2)다. 대상 폴더는 비어 있어야 하고 기본은 작업 폴더의 `<이름>`이다. 엔진에 연결하지 않고 템플릿 파일만 읽는다(§3.8) | 없음. 파일 작업(`CliDeps.groupTemplates`) | M3b(구현됨, M3b B4-GRP) |
 | `fresnel author scaffold <이름> --dir <폴더> [--group] [--json]`, `author validate <폴더> [--json]`, `author pack <폴더> [--out <폴더>] [--json]`, `author install <묶음 폴더> [--yes] [--json]`, `author remove <이름> [--drop-data] [--yes] [--json]`, `author ls [--json]` | 모델 없이 도는 제작 명령이다. 엔진의 `ext.scaffold`, `ext.validate`, `ext.package`, `ext.installPreview`와 `ext.install`, `ext.removePreview`와 `ext.remove`, `ext.list`를 부르고 `@fresnel/plugin-builder`를 직접 읽지 않는다(DR-10). `validate`는 검사 결과를 줄마다 `<심각도> <코드> <경로>: <메시지>`로 stderr에 쓰고 오류가 있으면 1이다. `pack`은 먼저 검사해 오류가 있으면 같은 줄들을 쓰고 1로 끝낸다. `install`은 미리 보기(이름, 버전, 내용 해시, 훅, 네트워크·파일·명령 실행 접근)를 stderr에 쓴 뒤 `--yes`가 있거나 터미널에서 y를 받아야 설치한다. 터미널이 아니고 `--yes`도 없으면 2다. `remove`도 같다. `ls`는 사용자 확장 위치에 설치돼 로더가 읽은 확장(기본 플러그인 포함)을 보인다. [결정: 오케스트레이터 기본값, scI] 이름은 L3.authoring.spec §4.5의 `fresnel author <명령>` [제안]을 따랐다 | `ext.*`(M4) | M4 |
 | `fresnel usage [--thread <id>] [--json]` | 모델 사용량. `usage.get { threadId? }`를 한 번 보내고, session 창 게이지를 provider별로 모아 한 줄씩(토큰, 비용 $, 호출 수, 캐시 읽기·쓰기), provider가 둘 이상이면 합계 줄, `--thread`면 문맥 줄(`context`)을 stdout에 쓴다. `--thread`가 없으면 모든 대화의 합이다. 기록이 비면 안내 한 줄만 쓴다. `--json`은 `usage.get` 결과를 그대로 쓴다. 기간(`--since`)은 `usage.get`이 시간 창을 만들지 않아(`L4.host-service.spec` §10 46번) 받지 않는다 [기본값: CLI 스펙에 사용량 명령이 없어 `fresnel usage [--thread <id>] [--json]`로 정했다] | `usage.get` | M4 |
@@ -451,9 +453,9 @@ export const EXIT: {
 | 코드 | 뜻 | 예 |
 |---|---|---|
 | 0 | 정상 | turn이 `completed`로 끝났다. 명령이 성공했다 |
-| 1 | 일반 오류 | turn이 `failed`, wire 오류(`internal`, `settings.invalidValue` 등), 없는 대화, `EngineStartError`의 `catalogConflict`·`missingService`(설치본·확장 결함이라 환경을 고쳐도 풀리지 않는다), `runHostCommand`의 1, `schedule`의 기대한 실패(없는 예약, 원격 아님, 꺼진 예약, 간격 미달, 상한, 지난 시각) |
-| 2 | 사용법 오류 | 모르는 플래그, 인자 누락, argv에 시크릿 값, `--json`을 대화형에 씀, `--remote` 주소 문법 오류(`EngineStartError`의 `invalidRemote`), `schedule`의 사용법 오류(트리거 없음이나 둘 이상, 값 형식, 예약 id 형식), `db export`의 폴더 인자 누락, `db export`의 대상 폴더가 비어 있음(`dest_not_empty`), `db export`를 `--yes` 없이 터미널이 아닌 곳에서 실행함(§4.13), `db restore`의 폴더 인자 누락과 백업 폴더가 아님(`backup_not_found`) |
-| 3 | 환경 문제 | `EngineStartError`의 나머지 kind(FTS5 없음, sops 없음, 데이터 디렉터리 권한, 저장소 열기 실패, 서비스 도달 불가, 계약 버전 불일치), 서비스 본체(`service`, `config schema`가 부르는 `runHostCommand`)가 저장소를 열지 못한 종료(코드 70~72), `db export`의 저장소·디스크 오류(`foreign_database`, `not_a_database`, `io`, `busy`, `disk_full`), `db restore`의 사본 검증 실패·더 새 버전 사본·엔진 실행 중·저장소·디스크 오류와 데이터 디렉터리 위치를 정하지 못함. `schedule`의 `store_failed`(예약 상태 파일) |
+| 1 | 일반 오류 | turn이 `failed`, wire 오류(`internal`, `settings.invalidValue` 등), 없는 대화, `EngineStartError`의 `catalogConflict`·`missingService`(설치본·확장 결함이라 환경을 고쳐도 풀리지 않는다), `runHostCommand`의 1, `schedule`의 기대한 실패(없는 예약, 원격 아님, 꺼진 예약, 간격 미달, 상한, 지난 시각), `db previous-rm`의 확인에서 `y`가 아닌 답 |
+| 2 | 사용법 오류 | 모르는 플래그, 인자 누락, argv에 시크릿 값, `--json`을 대화형에 씀, `--remote` 주소 문법 오류(`EngineStartError`의 `invalidRemote`), `schedule`의 사용법 오류(트리거 없음이나 둘 이상, 값 형식, 예약 id 형식), `db export`의 폴더 인자 누락, `db export`의 대상 폴더가 비어 있음(`dest_not_empty`), `db export`를 `--yes` 없이 터미널이 아닌 곳에서 실행함(§4.13), `db restore`의 폴더 인자 누락과 백업 폴더가 아님(`backup_not_found`), `db previous-rm`의 사본 이름 형식과 사본 없음, 터미널이 아닌데 `--yes`가 없음 |
+| 3 | 환경 문제 | `EngineStartError`의 나머지 kind(FTS5 없음, sops 없음, 데이터 디렉터리 권한, 저장소 열기 실패, 서비스 도달 불가, 계약 버전 불일치), 서비스 본체(`service`, `config schema`가 부르는 `runHostCommand`)가 저장소를 열지 못한 종료(코드 70~72), `db export`의 저장소·디스크 오류(`foreign_database`, `not_a_database`, `io`, `busy`, `disk_full`), `db restore`의 사본 검증 실패·더 새 버전 사본·엔진 실행 중·저장소·디스크 오류와 데이터 디렉터리 위치를 정하지 못함. `schedule`의 `store_failed`(예약 상태 파일), `db usage`와 `db previous-rm`의 입출력 오류 |
 | 4 | 대화 잠금 실패 후 사용자 거부 | `thread.locked`에서 관찰·분기·위임을 고르지 않았다. M1은 프롬프트 없이 바로 4다 |
 | 129 | SIGHUP | 터미널이 닫혔다(pi print 모드와 같은 값, `~/projects/_ref/pi-src/packages/coding-agent/src/modes/print-mode.ts:60`) |
 | 130 | 중단 | Ctrl+C(SIGINT)로 끝냈다. print 모드 turn이 `interrupted`로 끝났다 |
@@ -830,6 +832,12 @@ export interface GroupTemplatesPort {
 | `db export`, `disk_full` | 저장 공간이 가득 찼다 | 디스크 공간을 비우고 다시 실행한다 | 3 |
 | `db export`, `io`(`code`) | 내보내기 중 입출력 오류가 났다(`code`) | 대상 폴더와 데이터 디렉터리의 권한과 디스크 상태를 확인한다 | 3 |
 | 데이터 디렉터리 위치를 정하지 못함(`db export`) | 데이터 디렉터리 위치를 정하지 못했다 | HOME(Windows는 USERPROFILE)과 FRESNEL_HOME 설정을 확인한다 | 3 |
+| `db previous-rm`, 이름 형식 | 사본 이름이 `^\d{8}T\d{9}Z$` 형식이 아니다. 경로를 만들지 않았다 | `fresnel db usage --json`의 `previous[].name`을 쓴다 | 2 |
+| `db previous-rm`, 사본 없음 | `restore-previous/<이름>`이 없거나 실제 폴더가 아니다(파일과 심볼릭 링크 포함). 아무것도 바꾸지 않았다 | 이름을 `fresnel db usage --json`으로 확인한다 | 2 |
+| `db previous-rm`, 터미널 아님 | 터미널이 아니라서 `--yes` 없이는 지우지 않는다. 아무것도 바꾸지 않았다 | `fresnel db previous-rm <이름> --yes`로 다시 실행한다 | 2 |
+| `db previous-rm`, 확인 거절 | 확인에서 `y`나 `yes`가 아닌 답을 받았다. 아무것도 바꾸지 않았다 | 지우려면 다시 실행해 `y`를 입력한다 | 1 |
+| `db previous-rm`, 삭제 입출력 오류(`code`) | 사본을 지우다 입출력 오류가 났다. 일부만 지워졌을 수 있다 | 폴더 권한과 디스크 상태를 확인하고 남은 파일을 직접 지운다 | 3 |
+| `db usage`, 입출력 오류(`code`) | 저장 공간을 세다 입출력 오류가 났다. 아무것도 바꾸지 않았다 | 폴더 권한과 디스크 상태를 확인한다 | 3 |
 
 ### 4.11 승인 요청과 잠금 프롬프트
 
@@ -945,7 +953,7 @@ $ echo $?
 - WAL: 현재 `fresnel.db`, `fresnel.db-wal`, `fresnel.db-shm`을 함께 `<데이터 디렉터리>/restore-previous/<UTC 시각>/`로 옮깁니다. 복원 전 DB는 성공 뒤에도 남습니다(최근 3개).
 - `<폴더>` 상대 경로는 작업 폴더(`-C`) 기준입니다.
 - 사람용 출력: stdout에 `{backupDir}에서 데이터베이스를 되돌렸다 (블롭 N개 추가)`와, 현재 DB가 있었으면 옮겨 둔 폴더 한 줄을 씁니다. stderr에는 이전 복원을 정리했으면 그 한 줄, 누락 블롭 경고(`db export`와 같은 문구와 열 줄 상한), 그리고 시크릿 안내 한 줄을 씁니다. `--json`이면 `RestoreReport`(`dbPath`, `backupDir`, `blobsAdded`, `missingBlobs`, `previousDir`, `recovered`)를 stdout에 쓰고 stderr에는 쓰지 않습니다.
-- 시크릿: 사본에는 설정 파일과 age 키(`secrets/age/keys.txt`)가 없습니다. 이 명령은 그 파일을 읽거나 복사하거나 사본에 넣지 않고 시크릿 값을 출력하지 않습니다. 복원한 DB가 참조하는 시크릿을 복호화하려면 원래 기기의 age 키를 따로 보관했다가 놓아야 한다고 출력으로 알립니다. `db export`의 경고(`m4/safe2`)는 이 명령이 바꾸지 않습니다.
+- 시크릿: 사본에는 설정 파일과 age 키가 없습니다. age 키는 macOS에서 기본으로 키체인 항목 `fresnel.age`에 있고, 파일 소스를 쓸 때만 `secrets/age/keys.txt`에 있습니다. 이 명령은 그 파일을 읽거나 복사하거나 사본에 넣지 않고 시크릿 값을 출력하지 않습니다. 복원한 DB가 참조하는 시크릿을 복호화하려면 원래 기기의 age 키를 따로 보관했다가 놓아야 한다고 출력으로 알립니다. `db export`의 경고(`m4/safe2`)는 이 명령이 바꾸지 않습니다.
 - 현재 DB가 손상됐거나 0바이트이거나 SQLite 파일이 아니어도 되돌립니다. 옛 파일은 `restore-previous/`로 옮깁니다(`L0.store.spec` §4.10.1 3번). `not_a_database` 문구는 "백업이 깨졌다, 현재 데이터베이스는 바꾸지 않았다"로 백업 쪽만 말하고, 현재 DB 문제는 `db export` 쪽 문구에서 "현재 데이터베이스"라고 부릅니다.
 - `--check`: 사본만 검증하고(`restoreDatabase`의 `verifyOnly`) 현재 DB, 블롭, `restore-previous/`를 건드리지 않습니다. 종료 코드와 오류 문구는 되돌리기와 같고, 성공하면 `{backupDir}는 쓸 수 있는 백업이다` 한 줄(`--json`이면 보고서, `blobsAdded` 0)을 씁니다. 데스크톱 셸이 엔진을 내리기 전에 부릅니다. 엔진 실행 중 거절(`engine_running`)은 이 검사가 보지 않습니다. [결정: 오케스트레이터 기본값, fxDL]
 - 오류 종료 코드: `backup_not_found`는 2, 그 밖은 3입니다. 문구는 값을 싣지 않고 두 줄(무엇, 해결)입니다.
@@ -958,7 +966,53 @@ $ fresnel service stop
 $ fresnel db restore ~/backup/fresnel-2026-10-29
 ~/backup/fresnel-2026-10-29에서 데이터베이스를 되돌렸다 (블롭 3개 추가)
 되돌리기 전 데이터베이스는 /home/user/.local/share/fresnel/restore-previous/20261104T001500000Z에 남겼다
-참고: 시크릿은 백업에 들어 있지 않다. age 키(secrets/age/keys.txt)와 설정 파일은 원래 기기에 있고 복원은 이를 읽거나 복사하지 않는다. 그 키 없이는 저장된 시크릿을 복호화하지 못한다
+참고: 시크릿은 백업에 들어 있지 않다. age 키는 원래 기기에 있다 (macOS 기본은 키체인의 fresnel.age 항목, 파일 소스를 쓰면 secrets/age/keys.txt). 설정 파일도 백업에 없고 복원은 둘 다 읽거나 복사하지 않는다. 그 키 없이는 저장된 시크릿을 복호화하지 못한다
+```
+
+#### 4.13.2 저장 공간 보기와 복원 전 사본 지우기 (`db usage`, `db previous-rm`)
+
+`fresnel db usage [--json]`는 데이터 디렉터리와 상태 디렉터리가 쓰는 저장 공간을 보인다. `fresnel db previous-rm <이름> [--yes] [--json]`는 복원 전 사본 `restore-previous/<이름>` 하나를 지운다. 두 명령 모두 엔진을 띄우지 않는다. 위치는 §4.13과 같이 `resolveOsDirs`가 정하므로 `FRESNEL_HOME`이 적용된다. 데이터 디렉터리는 `deps.resolveDataDir`가, 상태 디렉터리(`OsDirs.state`)는 `deps.resolveStateDir`가 알려 준다. 둘 다 `runtime.ts`가 `resolveOsDirs`로 채운다. 정할 수 없으면 종료 코드 3이다.
+
+`db usage`는 아무것도 쓰지 않는다.
+
+- 집계 대상(바이트): `conversations`는 `fresnel.db`, `fresnel.db-wal`, `fresnel.db-shm`의 합이다. `attachments`는 `blobs/` 아래 전체다. `measurements`는 `measure.db`, `measure.db-wal`, `measure.db-shm`의 합이다. 이 저장소의 어떤 코드도 아직 `measure.db`를 만들지 않으므로 파일이 없으면 0이다 [가정]. `logs`는 상태 디렉터리 아래 `logs/` 전체다(호스트가 `<상태>/logs/<모드>.log`에 쓴다). 상태 디렉터리를 정하지 못하면 0이다. `restorePrevious`는 `restore-previous/` 아래 전체다.
+- `previous`: `restore-previous/`의 바로 아래 실제 폴더 가운데 이름이 `^\d{8}T\d{9}Z$`에 맞는 것마다 `{ name, bytes }`다. 이름 내림차순(최신순)이다. `restore`가 만드는 이름(`stampOf`)과 같은 형식이다.
+- 고정 값: `--json`은 `{ "dataDir": string, "conversations": number, "attachments": number, "measurements": number, "logs": number, "restorePrevious": number, "previous": [ { "name": string, "bytes": number } ] }`인 JSON 문서 하나를 stdout에 쓴다. 사본 이름 형식은 `^\d{8}T\d{9}Z$`다. [결정: 오케스트레이터 기본값, fxDL]
+- 집계는 일반 파일만 센다. 심볼릭 링크는 따라가지도 세지도 않는다. 없는 경로는 0이다. 그 밖의 입출력 오류는 값으로 받아 종료 코드 3으로 끝나고 아무것도 바꾸지 않는다.
+- 텍스트 출력(stdout)은 첫 줄에 `데이터 디렉터리: <절대 경로>`를 쓰고, 이어서 대화, 첨부, 측정, 엔진 로그, 복원 전 사본 합계를 한 줄씩 쓴다. 사본마다 `  <이름>  <크기>` 한 줄을 최신순으로 쓴다. 크기는 KB, MB, GB 가운데 하나를 소수 한 자리로 쓴다.
+
+`db previous-rm`은 사본을 데이터 디렉터리로 되돌리지 않는다. 되돌리는 절차는 `db restore`(§4.13.1)의 몫이다.
+
+- 이름: `^\d{8}T\d{9}Z$`와 정확히 같아야 한다. 아니면 사용법 오류(2)로 끝나고 경로를 만들지 않는다. `..`나 `/`가 든 이름도 여기서 걸린다.
+- 대상: 이름이 맞아도 `restore-previous/<이름>`이 그 바로 아래 실제 폴더가 아니면(없음, 파일, 심볼릭 링크) 사본 없음으로 사용법 오류(2)다. 링크로 밖을 가리키는 사본은 지우지 않는다.
+- 확인: `--yes`가 없고 터미널이면 `[y/N]`을 묻는다(`db export`와 같은 규칙). 묻는 문장에는 폴더 경로와 크기가 있고 되돌릴 수 없다고 적는다. `y` 또는 `yes`만 지운다. 그 밖의 답이면 아무것도 지우지 않고 `지우지 않았다 (아무것도 바꾸지 않았다)`를 stderr에 쓴 뒤 종료 코드 1로 끝난다. `--yes`가 없고 터미널이 아니면 사용법 오류(2)이고 아무것도 지우지 않는다.
+- 지우기: 폴더를 재귀로 지운다. 안의 심볼릭 링크는 링크만 지우고 따라가지 않는다. 성공하면 stdout에 `지웠다: <이름> (<크기>)` 한 줄을 쓴다. `--json`이면 `{ "removed": "<이름>", "freedBytes": <N> }`인 JSON 문서 하나를 쓴다. `freedBytes`는 지우기 전에 잰 일반 파일 바이트 합이다. 종료 코드는 0이다.
+- 지우기 중 입출력 오류는 종료 코드 3이다. 일부만 지워졌을 수 있으므로 남은 파일을 직접 지우라고 알린다.
+
+종료 코드: 0 정상, 1 확인에서 거절, 2 사용법(이름 형식, 사본 없음, 터미널이 아닌데 `--yes` 없음), 3 입출력과 데이터 디렉터리 위치 실패.
+
+예:
+
+```
+$ fresnel db usage
+데이터 디렉터리: /home/user/.fresnel
+대화 저장소: 1.3 KB
+첨부 파일(블롭): 3.0 KB
+측정 데이터: 0.1 KB
+엔진 로그: 0.6 KB
+복원 전 사본 합계: 1.5 KB
+  20261107T090000000Z  0.0 KB
+  20261106T010203004Z  0.5 KB
+$ fresnel db previous-rm 20261106T010203004Z
+복원 전 사본 /home/user/.fresnel/restore-previous/20261106T010203004Z (0.5 KB)을(를) 지울까요? 되돌릴 수 없다 [y/N] n
+지우지 않았다 (아무것도 바꾸지 않았다)
+$ echo $?
+1
+$ fresnel db previous-rm 20261106T010203004Z --yes --json
+{
+  "removed": "20261106T010203004Z",
+  "freedBytes": 500
+}
 ```
 
 ### 4.14 예약 명령
@@ -1089,6 +1143,7 @@ $ fresnel db restore ~/backup/fresnel-2026-10-29
 - AC25. `--remote`(또는 설정 주소)가 있으면 엔진 명령은 엔진을 열지 않고 그 주소로 `attachToService`를 부른다. 주소 문법이 틀리면 엔진을 열지 않고 `invalidRemote`(2)로 끝난다. `host --stdio`는 같은 주소에 중계하고 stdin이 닫히면 0으로 끝난다. 원격 토큰 값은 오류 출력에 없다(HS-87~HS-89). 시험: `test/engine-start.test.ts`, `test/host-stdio.test.ts`, `test/parse-chat-flags.test.ts`.
 - AC26a. `fresnel db restore <폴더>`는 엔진에 연결하지 않는다. `db export`로 낸 사본을 되돌리면 행이 사본과 같고, 복원 중 죽은 뒤 같은 명령을 다시 실행하면 끝나며, 출력은 age 키가 따로 필요하다고 알린다(`test/db-restore.int.test.ts`). 파서, 종료 코드, 두 줄 문구는 `test/db-restore.test.ts`다.
 - AC26. `fresnel db export <폴더>`는 엔진에 연결하지 않는다. 실제 저장소에 행과 블롭을 쓰고 원본을 연 채로 내보낸 사본을 읽기 전용 `openStore`로 열면 행과 블롭 바이트가 원본과 같다(`test/db-export.int.test.ts`). 대상 폴더가 비어 있으면 2, 저장소·디스크 오류는 3이다(`test/db-export.test.ts`).
+- AC26b. `fresnel db usage`와 `fresnel db previous-rm`은 엔진에 연결하지 않는다. `db usage --json`은 §4.13.2의 모양을 한 문서로 쓰고, 값은 임시 폴더에 만든 파일 크기의 합과 같다. `previous-rm`은 이름이 형식에 맞지 않거나 사본이 실제 폴더가 아니면 2로 끝나고 아무것도 지우지 않는다. `--yes`가 없는 터미널 밖의 실행은 2, 확인에서 `y`가 아닌 답은 1이며 둘 다 사본을 남긴다. `--yes`는 사본을 지우고 `freedBytes`에 지우기 전에 잰 바이트 합을 쓴다(`test/db-usage.test.ts`).
 
 - AC26. `fresnel schedule add --every 300 "<프롬프트>"`는 `schedule.create`를 한 번 보내고, `trigger`가 `{ kind: "interval", everySeconds: 300 }`, `prompt`가 입력과 같다. 결과 줄은 `예약했다: <id>  간격 300초  다음 실행 <ISO>`다. 서비스 모드가 꺼져 있으면 stderr에 경고 한 줄이 더 나온다. `--auto-approve`와 `--json`은 알 수 없는 플래그다. `list`는 `{ enabled: true }`를, `--all`은 `{}`를 보낸다. 원격이 아닌 항목에 `schedule run`을 하면 `not_remote` 문구와 종료 코드 1이다. 시험: `test/schedule-parse.test.ts`, `test/schedule.test.ts`, `test/schedule-host.int.test.ts`.
 

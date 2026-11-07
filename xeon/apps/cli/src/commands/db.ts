@@ -1,19 +1,24 @@
+import { rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { assertNever } from "@fresnel/contracts";
+import { assertNever, attemptAsync } from "@fresnel/contracts";
 import { t } from "@fresnel/client/i18n";
 import type { DbCommand } from "../cli/command.ts";
 import { failureOfExport, failureOfRestore, type Failure } from "../errors.ts";
 import { EXIT, type ExitCode } from "../exit-codes.ts";
 import { printFailure, type CommandContext } from "./context.ts";
+import {
+  codeOf,
+  collectUsage,
+  DB_FILE_NAME,
+  findCopy,
+  formatSize,
+  treeBytes,
+  type UsageIoError,
+} from "./db-usage.ts";
 
-// L4.cli.spec §4.13. `fresnel db export <폴더>`는 엔진을 띄우지 않고 저장소 파일을 `exportDatabase`로 내보낸다.
+// L4.cli.spec §4.13, §4.13.2. `fresnel db export <폴더>`는 엔진을 띄우지 않고 저장소 파일을 `exportDatabase`로 내보낸다.
 // 원본은 읽기 전용으로만 열므로 엔진이 떠 있어도 된다. 위치는 데이터 디렉터리(OsDirs.data)의 저장소 파일이다.
-
-/**
- * 저장소 파일 이름. 호스트가 같은 이름으로 연다(apps/host/src/assemble.ts의 DB_FILE_NAME).
- * 호스트가 이 이름을 내보내지 않아 여기 한 번 더 적는다 [미결: 호스트 공개 API로 옮기면 이 상수를 지운다]
- */
-const DB_FILE_NAME = "fresnel.db";
+// `db usage`는 저장 공간을 세고, `db previous-rm <이름>`은 복원 전 사본 하나를 지운다. 둘 다 엔진을 띄우지 않는다.
 
 /** 누락 블롭 경고를 목록으로 보이는 최대 줄 수. 넘으면 나머지는 개수 한 줄로 센다 */
 const MISSING_LIST_CAP = 10;
@@ -41,6 +46,10 @@ export async function runDb(ctx: CommandContext, command: DbCommand): Promise<Ex
       return runExport(ctx, command);
     case "db.restore":
       return runRestore(ctx, command);
+    case "db.usage":
+      return runUsage(ctx, command);
+    case "db.previous-rm":
+      return runPreviousRm(ctx, command);
     default:
       return assertNever(command, "DbCommand");
   }
@@ -48,6 +57,115 @@ export async function runDb(ctx: CommandContext, command: DbCommand): Promise<Ex
 
 type ExportCommand = Extract<DbCommand, { readonly kind: "db.export" }>;
 type RestoreCommand = Extract<DbCommand, { readonly kind: "db.restore" }>;
+type UsageSubcommand = Extract<DbCommand, { readonly kind: "db.usage" }>;
+type PreviousRmCommand = Extract<DbCommand, { readonly kind: "db.previous-rm" }>;
+
+/** 실패를 두 줄로 알리고 종료 코드를 돌려준다 */
+async function reportFailure(ctx: CommandContext, failure: Failure): Promise<ExitCode> {
+  await printFailure(ctx.io, failure);
+  return failure.code;
+}
+
+/** 저장 공간 집계가 입출력 오류를 냈다. 환경 문제(3)다 */
+function usageIoFailure(error: UsageIoError): Failure {
+  return {
+    message: t("cli.db.usage.io.message", { path: error.path, code: error.code }),
+    fix: t("cli.db.usage.io.fix"),
+    code: EXIT.environment,
+  };
+}
+
+/** 사본을 지우다 입출력 오류가 났다. 일부만 지워졌을 수 있다(환경 문제, 3) */
+function removeFailure(error: UsageIoError): Failure {
+  return {
+    message: t("cli.db.previousRm.io.message", { path: error.path, code: error.code }),
+    fix: t("cli.db.previousRm.io.fix"),
+    code: EXIT.environment,
+  };
+}
+
+/** 이름에 맞는 사본이 없다(사용법 오류, 2). 이름은 형식 검사를 통과했다 */
+function noSuchCopyFailure(name: string): Failure {
+  return {
+    message: t("cli.db.previousRm.missing.message", { name }),
+    fix: t("cli.db.previousRm.missing.fix"),
+    code: EXIT.usage,
+  };
+}
+
+/**
+ * `fresnel db usage [--json]`: 데이터 디렉터리와 상태 디렉터리의 저장 공간을 센다(L4.cli.spec §4.13.2).
+ * 엔진을 띄우지 않고 아무것도 쓰지 않는다. 상태 디렉터리를 정하지 못하면 로그는 0이다.
+ */
+async function runUsage(ctx: CommandContext, command: UsageSubcommand): Promise<ExitCode> {
+  const dataDir = ctx.deps.resolveDataDir();
+  if (dataDir === null) return reportFailure(ctx, dataDirFailure());
+  const measured = await collectUsage(dataDir, ctx.deps.resolveStateDir());
+  if (!measured.ok) return reportFailure(ctx, usageIoFailure(measured.error));
+  const report = measured.value;
+  if (command.output === "json") {
+    await ctx.io.stdout(`${JSON.stringify(report, null, 2)}\n`);
+    return EXIT.ok;
+  }
+  const lines = [
+    t("cli.db.usage.dataDir", { dir: report.dataDir }),
+    t("cli.db.usage.conversations", { size: formatSize(report.conversations) }),
+    t("cli.db.usage.attachments", { size: formatSize(report.attachments) }),
+    t("cli.db.usage.measurements", { size: formatSize(report.measurements) }),
+    t("cli.db.usage.logs", { size: formatSize(report.logs) }),
+    t("cli.db.usage.restorePrevious", { size: formatSize(report.restorePrevious) }),
+    ...report.previous.map((copy) =>
+      t("cli.db.usage.previousItem", { name: copy.name, size: formatSize(copy.bytes) }),
+    ),
+  ];
+  await ctx.io.stdout(lines.join(""));
+  return EXIT.ok;
+}
+
+/**
+ * `fresnel db previous-rm <이름> [--yes] [--json]`: 복원 전 사본 하나를 재귀로 지운다(L4.cli.spec §4.13.2).
+ * 이름은 파서가 형식을 검사했다. 여기서는 그 폴더가 restore-previous 바로 아래 실제 폴더인지 본다.
+ * 확인 규칙은 `db export`와 같다: --yes가 없으면 터미널에서 묻고, 터미널이 아니면 종료 코드 2로 거부한다.
+ */
+async function runPreviousRm(ctx: CommandContext, command: PreviousRmCommand): Promise<ExitCode> {
+  const dataDir = ctx.deps.resolveDataDir();
+  if (dataDir === null) return reportFailure(ctx, dataDirFailure());
+  const found = await findCopy(dataDir, command.name);
+  if (!found.ok) return reportFailure(ctx, usageIoFailure(found.error));
+  const path = found.value;
+  if (path === null) return reportFailure(ctx, noSuchCopyFailure(command.name));
+  const measured = await treeBytes(path);
+  if (!measured.ok) return reportFailure(ctx, usageIoFailure(measured.error));
+  const bytes = measured.value;
+  if (!command.yes) {
+    if (!ctx.io.terminal.stdinIsTty) {
+      return reportFailure(ctx, {
+        message: t("cli.db.previousRm.noTerminal.message"),
+        fix: `fresnel db previous-rm ${command.name} --yes`,
+        code: EXIT.usage,
+      });
+    }
+    const question = t("cli.db.previousRm.confirm", { path, size: formatSize(bytes) });
+    if (!(await confirmed(ctx, question))) {
+      await ctx.io.stderr(`${t("cli.db.previousRm.kept")}\n`);
+      return EXIT.error;
+    }
+  }
+  const removed = await attemptAsync(() => rm(path, { recursive: true, force: false }));
+  if (!removed.ok) {
+    return reportFailure(ctx, removeFailure({ path, code: codeOf(removed.error.cause) }));
+  }
+  if (command.output === "json") {
+    await ctx.io.stdout(
+      `${JSON.stringify({ removed: command.name, freedBytes: bytes }, null, 2)}\n`,
+    );
+    return EXIT.ok;
+  }
+  await ctx.io.stdout(
+    `${t("cli.db.previousRm.done", { name: command.name, size: formatSize(bytes) })}\n`,
+  );
+  return EXIT.ok;
+}
 
 /**
  * `fresnel db restore <폴더>`. 엔진을 띄우지 않는다. 엔진이 떠 있으면 거절한다(L0.store.spec §4.10.1).

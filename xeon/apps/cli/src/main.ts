@@ -87,7 +87,9 @@ export async function runCli(argv: readonly string[], io: CliIo, deps: CliDeps):
       return runTrust(ctx, command);
     }
     case "db.export":
-    case "db.restore": {
+    case "db.restore":
+    case "db.usage":
+    case "db.previous-rm": {
       const { runDb } = await import("./commands/db.ts");
       return runDb(ctx, command);
     }

@@ -135,6 +135,11 @@ export interface CliDeps {
    * 정할 수 없으면 null이다. 실제 값은 runtime.ts가 @fresnel/platform-os의 resolveOsDirs로 정한다 [spec에 더한 필드: M3b B3-DATA]
    */
   readonly resolveDataDir: () => string | null;
+  /**
+   * 상태 디렉터리(OsDirs.state)의 절대 경로. 엔진 로그 폴더(`<상태>/logs`)가 여기 있다(`db usage`, L4.cli.spec §4.13.2).
+   * 엔진을 띄우지 않고 위치만 묻는다. 정할 수 없으면 null이다. 실제 값은 runtime.ts가 resolveOsDirs로 정한다 [spec에 더한 필드: db usage]
+   */
+  readonly resolveStateDir: () => string | null;
   /** 조립 옵션 덮어쓰기. 모델 테이프와 테스트용 그룹을 넣는 자리다. 운영 진입은 넘기지 않는다 */
   readonly assemble?: EngineAssembleOverrides;
   /** CLI 상태 파일 위치. 없으면 null(@fresnel/host가 경로 API를 내기 전까지의 틈, engine.ts 참고) */
