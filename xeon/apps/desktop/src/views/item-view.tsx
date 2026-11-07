@@ -3,6 +3,7 @@ import { ChevronRight, Globe } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import { normalizeExternalLink } from "@fresnel/client/views/app";
+import { NOT_STARTED_TEXT, OUTCOME_UNKNOWN_TEXT } from "@fresnel/contracts/records";
 import type { ItemId, ItemRecord, JsonObject, JsonValue } from "@fresnel/contracts/conversation";
 import {
   Fragment,
@@ -267,6 +268,17 @@ function splitCode(text: string): { readonly code: string | null; readonly body:
 /** 중단된 도구 행에 엔진이 본문으로 싣는 영어 한 낱말 */
 const INTERRUPT_WORDS: ReadonlySet<string> = new Set(["aborted", "Aborted", "cancelled"]);
 
+/**
+ * 중단된 도구 행의 본문. 엔진이 모델에 싣는 영어 문장(재개 때 합성한 결과, `OUTCOME_UNKNOWN_TEXT`·`NOT_STARTED_TEXT`)과 영어 한 낱말은
+ * 화면에서는 한국어 안내로 바꾼다. 모델에 가는 글은 그대로다. 그 밖의 본문은 그대로 보인다
+ */
+function interruptedBodyOf(body: string): string {
+  const text = body.trim();
+  if (text === OUTCOME_UNKNOWN_TEXT) return t("desktop.item.interrupted.unknown");
+  if (text === NOT_STARTED_TEXT) return t("desktop.item.interrupted.notStarted");
+  return INTERRUPT_WORDS.has(text) ? t("desktop.item.interrupted.body") : body;
+}
+
 type ResultView = {
   readonly status: "done" | "failed";
   readonly failedLabel?: string;
@@ -361,7 +373,7 @@ function resultViewOf(item: ItemRecord): ResultView | null {
     return {
       status: "failed",
       failedLabel: t("desktop.item.status.interrupted"),
-      output: INTERRUPT_WORDS.has(body.trim()) ? t("desktop.item.interrupted.body") : body,
+      output: interruptedBodyOf(body),
       ...cut,
     };
   }

@@ -38,7 +38,7 @@ export function SafeModeCard(): ReactNode {
   const headingId = useId();
   if (snapshot === null || safeModeSurfaceOf(snapshot, shellRestart) !== "card") return null;
   return (
-    <Card role="alert" aria-labelledby={headingId} size="sm" className="grid min-w-0 gap-3">
+    <Card role="alert" aria-labelledby={headingId} size="sm" className="mt-2 grid min-w-0 gap-3">
       <div className="grid min-w-0 gap-1">
         <h2 id={headingId} className="text-ui-strong text-text-primary">
           {t("desktop.safe.suggest.title", { count: snapshot.startupFailures })}
