@@ -2,10 +2,13 @@ import { t } from "@fresnel/client/i18n";
 import { IconButton } from "@caustic/react";
 import { PanelLeft } from "@caustic/react/icons";
 import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { ThreadSummary } from "@fresnel/contracts/wire";
 import type { ReactNode } from "react";
 import { useThread } from "../state/engine/index.ts";
 import { useShell, useShellActions } from "../state/shell/index.ts";
 import { useSelectedThreadId } from "../state/ui/index.ts";
+import { useScheduleOrigin } from "./schedule-origin.ts";
+import { scheduleOriginTextOf } from "./schedule-origin-model.ts";
 import { ThreadRowMenu } from "./thread-row-menu.tsx";
 
 // 대화 머리(시안 _chat-rt의 ChatHead): 고른 대화의 제목 한 줄과 ⋯ 메뉴(행 메뉴와 같은 메뉴, 명령과 대화 상자도 같다).
@@ -22,15 +25,42 @@ function ChatHeaderOf(props: { readonly id: ThreadId }): ReactNode {
   const thread = useThread(props.id);
   if (thread === undefined) return <HeadRow title={null} menu={null} />;
   const title = thread.title ?? t("desktop.threads.untitled");
+  const origin = thread.origin;
   return (
     <HeadRow
       title={
-        <h1 title={title} className="m-0 min-w-0 truncate text-text-primary">
-          {title}
-        </h1>
+        <>
+          <h1 title={title} className="m-0 min-w-0 truncate text-text-primary">
+            {title}
+          </h1>
+          {/* 예약이 시작한 대화는 제목 뒤에 흐린 예약 줄을 한 줄로 붙인다 */}
+          {origin?.kind === "schedule" ? (
+            <ScheduleOriginLine
+              key={props.id}
+              threadId={props.id}
+              scheduleId={origin.scheduleId}
+              status={thread.status}
+            />
+          ) : null}
+        </>
       }
       menu={<ThreadRowMenu id={props.id} title={title} status={thread.status} />}
     />
+  );
+}
+
+/** 예약 줄. 제목과 순번을 아직 모르면 "예약"만 보인다. 대화가 바뀌면 key로 새로 읽는다 */
+function ScheduleOriginLine(props: {
+  readonly threadId: ThreadId;
+  readonly scheduleId: string;
+  readonly status: ThreadSummary["status"];
+}): ReactNode {
+  const origin = useScheduleOrigin(props.scheduleId, props.threadId, props.status);
+  const text = scheduleOriginTextOf(origin.title, origin.ordinal);
+  return (
+    <span title={text} className="min-w-0 truncate text-ui-sm text-text-tertiary">
+      {text}
+    </span>
   );
 }
 
