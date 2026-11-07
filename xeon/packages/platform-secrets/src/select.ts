@@ -31,6 +31,8 @@ export interface KeySelection {
   readonly fileNotice: boolean;
   /** auto가 파일 폴백으로 떨어졌고 사람이 아직 source를 file로 확인하지 않았다(spec §4.7 5번) */
   readonly unconfirmedFallback: boolean;
+  /** 키 파일이 없어 첫 키를 파일에 새로 만든다(auto, OS 저장소에 키 없음). provision 뒤에 조립이 source를 file로 저장한다 */
+  readonly newFileKey: boolean;
 }
 
 async function osProvider(input: KeySelectInput): Promise<KeyProvider> {
@@ -67,24 +69,43 @@ function fileProvider(input: KeySelectInput): KeyProvider {
 /**
  * source가 file이면 파일, keychain이면 OS provider(쓸 수 없으면 sopsKeyEnv가 오류를 낸다),
  * auto·auto-file이면 OS provider의 probe()가 available일 때 그것(Secret Service 먼저), 아니면 파일 폴백이다.
- * auto에서 파일로 가면 사람이 한 번 확인할 때까지 쓰지 않는다. auto-file은 확인 없이 파일 폴백을 쓰되
+ * auto에서 OS 키 항목이 없다고 확실히 알면(holdsKey가 false, macOS) 파일로 간다. 키 파일이 있으면 그것을 쓰고,
+ * 없으면 첫 키를 파일에 만들도록 newFileKey를 켠다(spec §4.7 9번). 항목을 읽지 못해 모르면 OS provider를 그대로 쓴다.
+ * auto에서 파일 폴백으로 떨어지면 사람이 한 번 확인할 때까지 쓰지 않는다. auto-file은 확인 없이 파일 폴백을 쓰되
  * 키 파일의 권한(0600)과 소유자를 검사한다(file-fallback.ts).
  */
 export async function selectKeyProvider(input: KeySelectInput): Promise<KeySelection> {
   if (input.source === "file") {
-    return { provider: fileProvider(input), fileNotice: true, unconfirmedFallback: false };
+    return {
+      provider: fileProvider(input),
+      fileNotice: true,
+      unconfirmedFallback: false,
+      newFileKey: false,
+    };
   }
   const os = await osProvider(input);
   if (input.source === "keychain") {
-    return { provider: os, fileNotice: false, unconfirmedFallback: false };
+    return { provider: os, fileNotice: false, unconfirmedFallback: false, newFileKey: false };
   }
   if ((await os.probe()).available) {
-    return { provider: os, fileNotice: false, unconfirmedFallback: false };
+    // OS 저장소에 키 항목이 없다고 확실히 알 때만 파일로 간다. 이미 있는 사용자의 키 항목은 건드리지 않는다
+    if (input.source === "auto" && (await os.holdsKey?.()) === false) {
+      const file = fileProvider(input);
+      const state = await file.probe();
+      return {
+        provider: file,
+        fileNotice: true,
+        unconfirmedFallback: false,
+        newFileKey: state.reason === "item_missing",
+      };
+    }
+    return { provider: os, fileNotice: false, unconfirmedFallback: false, newFileKey: false };
   }
   // auto-file(원격 호스트)은 파일 폴백을 설정이 이미 정한 것으로 본다. 고지(fileNotice)는 그대로 낸다
   return {
     provider: fileProvider(input),
     fileNotice: true,
     unconfirmedFallback: input.source !== "auto-file",
+    newFileKey: false,
   };
 }

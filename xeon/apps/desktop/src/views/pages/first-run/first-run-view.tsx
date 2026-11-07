@@ -645,7 +645,9 @@ function KeyFailure(props: {
             {t("desktop.firstRun.key.details")}
           </Button>
           {detailOpen ? (
-            <span className="font-mono text-mono-sm text-text-tertiary">{entry.detail}</span>
+            <span className="font-mono text-mono-sm whitespace-pre-line text-text-tertiary">
+              {entry.detail}
+            </span>
           ) : null}
         </span>
       )}

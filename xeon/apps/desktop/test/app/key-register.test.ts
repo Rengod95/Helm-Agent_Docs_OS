@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
 import { SecretNameSchema } from "@fresnel/contracts/capabilities";
+import { t } from "@fresnel/client/i18n";
 import { submitKey, type KeyField, type KeyOutcome } from "@fresnel/client/settings";
 import { rejectLikeShell, shellMockIpc } from "../transport/shell-mock.ts";
 import { engineFake, makeAppOver, until } from "./support.ts";
@@ -81,22 +82,23 @@ describe("registering a model key from the settings screen", () => {
     await app.stop();
   });
 
-  test("a rejection from the CLI process shows its message and keeps the value out of every result", async () => {
+  test("a rejection whose first line is a CLI sentence shows that sentence and keeps the value out of every result", async () => {
     const { app } = await liveApp(
       engineFake(undefined, undefined, {
         registerError: {
           kind: "rejected",
           exitCode: 1,
-          detail: "시크릿 제공자(sops)를 쓸 수 없다 (not_registered)",
+          detail:
+            "fresnel: 시크릿 제공자(sops)를 쓸 수 없다 (not_registered)\n  해결: l0.secrets.defaultProvider가 sops인지 확인한다",
         },
       }),
     );
     const outcome = await submitKey(app.commands.setup, name, "add", inputOf(FAKE).field);
     expect(outcome).toEqual({
       kind: "failed",
-      text: "키를 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+      text: "시크릿 제공자(sops)를 쓸 수 없다 (not_registered)",
       keystore: false,
-      detail: "종료 코드 1",
+      detail: `${t("cli.errors.secret.providerUnavailable.notRegistered.fix")}\n종료 코드 1`,
     });
     expect(JSON.stringify(outcome)).not.toContain(FAKE);
     await app.stop();

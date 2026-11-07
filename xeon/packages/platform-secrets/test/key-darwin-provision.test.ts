@@ -150,10 +150,44 @@ describe("macOS key provision", () => {
       "provision" in createDarwinKeyProvider({ securityPath: null, exec: exec(fake.runner) }),
     ).toBe(false);
     expect("provision" in createDarwinKeyProvider({ securityPath: SECURITY })).toBe(false);
+    expect("holdsKey" in createDarwinKeyProvider({ securityPath: SECURITY })).toBe(false);
+    expect(
+      "holdsKey" in createDarwinKeyProvider({ securityPath: null, exec: exec(fake.runner) }),
+    ).toBe(false);
+  });
+
+  test("holdsKey reads only the item's presence: found is true, absent is false, a failed lookup is unknown", async () => {
+    const found = fakeSecurity({ existing: "AGE-SECRET-KEY-1EXISTINGFAKEITEM" });
+    const foundProvider = createDarwinKeyProvider({
+      securityPath: SECURITY,
+      exec: exec(found.runner),
+    });
+    expect(await foundProvider.holdsKey?.()).toBe(true);
+    // 조회 한 번뿐이다: -w가 없고 stdin으로 아무것도 보내지 않는다(identity를 읽지도 쓰지도 않는다)
+    expect(found.requests.map((r) => r.argv)).toEqual([
+      [SECURITY, "find-generic-password", "-s", "fresnel.age", "-a", "default"],
+    ]);
+    expect(found.stdins()).toEqual([]);
+
+    const absent = fakeSecurity();
+    const absentProvider = createDarwinKeyProvider({
+      securityPath: SECURITY,
+      exec: exec(absent.runner),
+    });
+    expect(await absentProvider.holdsKey?.()).toBe(false);
+    expect(absent.requests).toHaveLength(1);
+
+    const failing = fakeSecurity({ findExit: 1 });
+    const failingProvider = createDarwinKeyProvider({
+      securityPath: SECURITY,
+      exec: exec(failing.runner),
+    });
+    expect(await failingProvider.holdsKey?.()).toBeNull();
+    expect(failing.stored()).toBeNull();
   });
 
   test("selection hands the exec to the macOS provider", async () => {
-    const fake = fakeSecurity();
+    const fake = fakeSecurity({ existing: "AGE-SECRET-KEY-1EXISTINGFAKEITEM" });
     const chosen = await selectKeyProvider({
       source: "auto",
       filePath: "/nonexistent/keys.txt",

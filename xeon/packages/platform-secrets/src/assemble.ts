@@ -56,6 +56,10 @@ export interface SecretsRuntimeDeps {
   readonly fileLock?: SecretFileLock;
   /** 핸들을 값으로 가진 설정 키 조회. 설정 저장소는 이 층 밖이라 조립 루트가 넘긴다 */
   readonly settingKeysFor?: (handle: SecretHandle) => Promise<readonly string[]>;
+  /**
+   * 첫 키를 파일로 만든 직후 부른다. 조립 루트가 사용자 범위 설정 l0.secrets.ageKey.source = file 을 저장한다(spec §4.7 9번). 실패해도 파일 키는 쓸 수 있으므로 던지지 않는다
+   */
+  readonly onFileKeyCreated?: () => Promise<void>;
 }
 
 export interface SecretsRuntime {
@@ -139,6 +143,7 @@ export function createSecretsRuntime(deps: SecretsRuntimeDeps): SecretsRuntime {
       // 키는 만들어졌고 수신자 기록만 실패했다. 이번 파일은 만들 수 있으므로 진행하고 로그만 남긴다
       logger.warn("secrets.age.recipient_unsaved", { code: saved.error.code });
     }
+    if (chosen.newFileKey && deps.onFileKeyCreated !== undefined) await deps.onFileKeyCreated();
     return ok(made.value.recipient);
   }
 
