@@ -55,11 +55,19 @@ function expectWireResult(method: ScheduleMethod, result: unknown): void {
   expect(parse(WIRE_METHODS[method].result, result).ok).toBe(true);
 }
 
+/** 엔진의 `outsideWatchPaths` 대역. 허용 범위 밖이라 감시되지 않는 경로를 고른다 */
+type OutsideWatchPaths = (paths: readonly string[]) => readonly string[];
+
 function serviceHost(
   schedule: Partial<ScheduleService>,
   mode: "service" | "in-process" | "stdio" = "service",
+  outsideWatchPaths?: OutsideWatchPaths,
 ): FakeHost {
-  return createFakeHost({ mode, overrides: { schedule } });
+  return createFakeHost({
+    mode,
+    overrides: { schedule },
+    ...(outsideWatchPaths === undefined ? {} : { outsideWatchPaths }),
+  });
 }
 
 async function connected(host: FakeHost) {
@@ -275,19 +283,104 @@ test("list filters by enabled and attaches the newest run of each entry", async 
   expect(all).toEqual({
     ok: true,
     items: [
-      { entry: INTERVAL_ENTRY, lastRun: RUN },
-      { entry: off, lastRun: null },
+      { entry: INTERVAL_ENTRY, lastRun: RUN, missedRuns: 0 },
+      { entry: off, lastRun: null, missedRuns: 0 },
     ],
   });
   expectWireResult("schedule.list", all);
+  // 한 줄마다 최근 기록 하나(limit 1)와 놓친 기한을 세려는 보관 기록 전부를 읽는다
   expect(asked).toEqual([
     [SCHEDULE_ID, 1],
+    [SCHEDULE_ID, Number.MAX_SAFE_INTEGER],
     [OTHER_ID, 1],
+    [OTHER_ID, Number.MAX_SAFE_INTEGER],
   ]);
 
   const enabled = await connection.request("schedule.list", { enabled: true });
-  expect(enabled).toEqual({ ok: true, items: [{ entry: INTERVAL_ENTRY, lastRun: RUN }] });
+  expect(enabled).toEqual({
+    ok: true,
+    items: [{ entry: INTERVAL_ENTRY, lastRun: RUN, missedRuns: 0 }],
+  });
   expectWireResult("schedule.list", enabled);
+  await connection.close();
+});
+
+test("list counts the missed deadlines in the retained runs: a skipped missed batch counts its skipped number and a caught-up missed run counts one", async () => {
+  // 최신이 앞이다. 따라잡은 실행 하나(1), 건너뛴 묶음 하나(35), 평범한 실행(0)이라 합은 36이다
+  const caughtUp: RunView = {
+    ...RUN,
+    runId: "run_caughtup",
+    missed: true,
+    status: "finished",
+    outcome: "completed",
+  };
+  const skipped: RunView = {
+    ...RUN,
+    runId: "run_skipped",
+    missed: true,
+    status: "skipped",
+    threadId: null,
+    startedAt: null,
+    outcome: null,
+    reason: "missed",
+    skippedCount: 35,
+  };
+  const plain: RunView = { ...RUN, runId: "run_plain", status: "finished", outcome: "completed" };
+  const retained: RunView[] = [caughtUp, skipped, plain];
+  const host = serviceHost({
+    ...OPENED,
+    list: () => [INTERVAL_ENTRY],
+    runs: (scheduleId, limit) => (scheduleId === SCHEDULE_ID ? retained.slice(0, limit) : []),
+  });
+  const connection = await connected(host);
+  const listed = await connection.request("schedule.list", {});
+  expect(listed).toEqual({
+    ok: true,
+    items: [{ entry: INTERVAL_ENTRY, lastRun: caughtUp, missedRuns: 36 }],
+  });
+  expectWireResult("schedule.list", listed);
+  await connection.close();
+});
+
+test("list names the file-watch paths outside the app's folders, only for file-watch entries, and leaves the key out otherwise", async () => {
+  const outside = "/outside/secret";
+  const fileWatch: ScheduleEntryView = {
+    ...INTERVAL_ENTRY,
+    id: OTHER_ID,
+    trigger: { kind: "file_watch", paths: ["/work/notes", outside], debounceMs: 2000 },
+    nextDueAt: null,
+  };
+  const inside: ScheduleEntryView = {
+    ...INTERVAL_ENTRY,
+    id: "sch_01ARZ3NDEKTSV4RRFFQ69G5FAY",
+    trigger: { kind: "file_watch", paths: ["/work/inbox"], debounceMs: 2000 },
+    nextDueAt: null,
+  };
+  const asked: (readonly string[])[] = [];
+  const host = serviceHost(
+    { ...OPENED, list: () => [INTERVAL_ENTRY, fileWatch, inside], runs: () => [] },
+    "service",
+    (paths) => {
+      asked.push(paths);
+      return paths.filter((path) => path === outside);
+    },
+  );
+  const connection = await connected(host);
+  const listed = await connection.request("schedule.list", {});
+  expect(listed).toEqual({
+    ok: true,
+    items: [
+      { entry: INTERVAL_ENTRY, lastRun: null, missedRuns: 0 },
+      { entry: fileWatch, lastRun: null, missedRuns: 0, outsideWatchPaths: [outside] },
+      { entry: inside, lastRun: null, missedRuns: 0 },
+    ],
+  });
+  if (!listed.ok) throw new Error("the list failed");
+  expect(listed.items[0]).not.toHaveProperty("outsideWatchPaths");
+  expect(listed.items[2]).not.toHaveProperty("outsideWatchPaths");
+  // 감시 경로가 없는 항목은 대역을 부르지 않고, 감시 항목은 자기 경로 전체를 받는다
+  expect(asked).toEqual([["/work/notes", outside], ["/work/inbox"]]);
+  expectWireResult("schedule.list", listed);
   await connection.close();
 });
 

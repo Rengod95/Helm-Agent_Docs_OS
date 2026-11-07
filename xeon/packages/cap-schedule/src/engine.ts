@@ -1,4 +1,12 @@
-import { assertNever, attemptAsync, detach, err, ok, type Result } from "@fresnel/contracts";
+import {
+  assertNever,
+  attempt,
+  attemptAsync,
+  detach,
+  err,
+  ok,
+  type Result,
+} from "@fresnel/contracts";
 import type { Unsubscribe } from "@fresnel/contracts/extensions";
 import { everyMsOf, planDue } from "./due.ts";
 import {
@@ -10,6 +18,7 @@ import {
   type CreateInput,
   type FireError,
   type RunOutcome,
+  type RunFinishedEvent,
   type RunRecord,
   type RunSkipReason,
   type ScheduleDeps,
@@ -106,12 +115,12 @@ function toggleOf(
 function storeCall<T>(
   call: () => PromiseLike<Result<T, StoreFailure>>,
 ): Promise<Result<T, StoreFailure>> {
-  return attemptAsync(call).then((attempt): Result<T, StoreFailure> =>
-    attempt.ok
-      ? attempt.value
+  return attemptAsync(call).then((tried): Result<T, StoreFailure> =>
+    tried.ok
+      ? tried.value
       : err({
           kind: "store_failed",
-          message: attempt.error.cause instanceof Error ? attempt.error.cause.message : "unknown",
+          message: tried.error.cause instanceof Error ? tried.error.cause.message : "unknown",
         }),
   );
 }
@@ -119,6 +128,7 @@ function storeCall<T>(
 export function createScheduleService(deps: ScheduleDeps): ScheduleService {
   const policy = { ...DEFAULT_POLICY, ...deps.policy };
   const listeners = new Set<() => void>();
+  const finishedListeners = new Set<(event: RunFinishedEvent) => void>();
   const watchers = new Map<string, Unsubscribe>();
   /** 파일 감시 항목별 첫 변경 시각. 틱이 디바운스 시간이 지났는지 보고 실행한다 */
   const signals = new Map<string, number>();
@@ -235,6 +245,18 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
 
   function notify(): void {
     for (const listener of listeners) listener();
+  }
+
+  /** 끝난 실행을 알린다. 듣는 쪽의 오류가 엔진을 멈추지 않게 보고만 한다 */
+  function announceFinished(run: RunRecord, message: string | null): void {
+    const title = entryOf(run.scheduleId)?.title ?? null;
+    for (const listener of finishedListeners) {
+      const delivered = attempt(() => {
+        listener({ run, title, message });
+      });
+      if (!delivered.ok)
+        deps.report?.("schedule.run_finished_listener_failed", { runId: run.runId });
+    }
   }
 
   /** 기다리지 않는 작업. 거부는 보고한다(종료가 정착을 기다리지 않으므로 별도 추적은 하지 않는다) */
@@ -407,6 +429,7 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
         reason: "start_failed",
       };
       state = withRun(failed);
+      announceFinished(failed, saved.error.message);
       return failed;
     }
     return await begin(claimed);
@@ -433,6 +456,7 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
       await commit(
         entry.trigger.kind === "repeat" ? withEntry(entry.id, stopPatch("run_failed"), next) : next,
       );
+      announceFinished(failed, result.error.message);
       return failed;
     }
     const startedRun: RunRecord = {
@@ -480,6 +504,7 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
       }
     }
     await commit(next);
+    announceFinished(ended, null);
   }
 
   /** 기한이 된 타이머·루프 항목 하나를 처리한다 */
@@ -779,6 +804,13 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
       listeners.add(listener);
       return () => {
         listeners.delete(listener);
+      };
+    },
+
+    onRunFinished(listener) {
+      finishedListeners.add(listener);
+      return () => {
+        finishedListeners.delete(listener);
       };
     },
 

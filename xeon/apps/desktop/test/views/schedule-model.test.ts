@@ -20,12 +20,14 @@ import {
   keyIntentOf,
   listFailureOf,
   listParamsOf,
+  missedRunsViewOf,
   noticeOf,
   rowMenuOf,
   rowsOf,
   scheduleReducer,
   scheduleRunSignatureOf,
   type ScheduleState,
+  watchOutsideViewOf,
 } from "../../src/views/pages/schedules/schedule-model.ts";
 import {
   FILTER_ID,
@@ -67,7 +69,7 @@ function itemOf(
   entry: Partial<ScheduleEntryView>,
   lastRun: ScheduleListItem["lastRun"] = null,
 ): ScheduleListItem {
-  return { entry: { ...ENTRY, ...entry }, lastRun };
+  return { entry: { ...ENTRY, ...entry }, lastRun, missedRuns: 0 };
 }
 
 const LATER = itemOf({ id: "sch_bb2", title: "나중", nextDueAt: NOW + 3_600_000 });
@@ -774,6 +776,7 @@ describe("edit sheet and run history", () => {
       outcome: "failed" as const,
       threadId: null,
       error: "boom",
+      missed: false,
     };
     const ready = scheduleReducer(started, {
       type: "runsLoaded",
@@ -933,5 +936,68 @@ describe("run reasons and the fire outcome", () => {
     expect(notice.tone).toBe("danger");
     expect(notice.action).toBeNull();
     expect(koOf(notice.text)).toBe("대화를 시작하지 못했어요. 작업 폴더가 있는지 확인해 주세요.");
+  });
+});
+
+describe("missed runs and watched paths", () => {
+  const ko = createTranslator("ko");
+  const en = createTranslator("en");
+  const koOf = (ref: MessageRef): string => ko.t(ref.id, ref.args);
+  const enOf = (ref: MessageRef): string => en.t(ref.id, ref.args);
+
+  test("the missed runs line shows only when the list item counts at least one missed run", () => {
+    expect(missedRunsViewOf(itemOf({ id: "sch_m0" }))).toBeNull();
+    expect(missedRunsViewOf({ ...itemOf({ id: "sch_m1" }), missedRuns: 1 })).toEqual({ count: 1 });
+    expect(missedRunsViewOf({ ...itemOf({ id: "sch_m3" }), missedRuns: 3 })).toEqual({ count: 3 });
+  });
+
+  test("the watched paths line shows only for paths outside the allowed folders", () => {
+    expect(watchOutsideViewOf(itemOf({ id: "sch_w0" }))).toBeNull();
+    const none: ScheduleListItem = { ...itemOf({ id: "sch_w1" }), outsideWatchPaths: [] };
+    expect(watchOutsideViewOf(none)).toBeNull();
+    const some: ScheduleListItem = {
+      ...itemOf({ id: "sch_w2" }),
+      outsideWatchPaths: ["/etc/fresnel", "/tmp/notes"],
+    };
+    expect(watchOutsideViewOf(some)).toEqual({ paths: ["/etc/fresnel", "/tmp/notes"] });
+  });
+
+  test("the missed runs count is a plural in English and a plain count in Korean", () => {
+    expect(enOf(message("desktop.schedules.missedRuns", { count: 1 }))).toBe("1 missed run");
+    expect(enOf(message("desktop.schedules.missedRuns", { count: 2 }))).toBe("2 missed runs");
+    expect(koOf(message("desktop.schedules.missedRuns", { count: 2 }))).toBe("놓친 실행 2회");
+  });
+
+  test("the caught-up line and the outside-folder warning have their Korean and English sentences", () => {
+    expect(koOf(message("desktop.schedules.runs.caughtUp"))).toBe(
+      "앱이 꺼진 동안 밀린 시각을 따라잡아 한 번 실행했어요.",
+    );
+    expect(enOf(message("desktop.schedules.runs.caughtUp"))).toBe(
+      "Caught up one run for a time missed while the app was off.",
+    );
+    expect(koOf(message("desktop.schedules.watchOutside"))).toBe(
+      "허용된 폴더 밖이라 감시되지 않는 경로가 있어요",
+    );
+    expect(enOf(message("desktop.schedules.watchOutside"))).toBe(
+      "Some paths are outside the allowed folders and are not watched",
+    );
+  });
+
+  test("every new sentence and label exists in both locales", () => {
+    const catalogs = [catalogOf("ko"), catalogOf("en")];
+    const ids: readonly string[] = [
+      "desktop.schedules.runs.caughtUp",
+      "desktop.schedules.missedRuns",
+      "desktop.schedules.missedRuns.help.label",
+      "desktop.schedules.missedRuns.help",
+      "desktop.schedules.watchOutside",
+      "desktop.schedules.watchOutside.help.label",
+      "desktop.schedules.watchOutside.help",
+    ];
+    for (const id of ids) {
+      for (const catalog of catalogs) {
+        expect(catalog[id] === undefined).toBe(false);
+      }
+    }
   });
 });

@@ -64,12 +64,18 @@ export const NotifyListParamsSchema: TObject<{
 );
 export type NotifyListParams = Static<typeof NotifyListParamsSchema>;
 
-/** 알림 한 건과 그 thread. `notices`의 원소 모양은 `dialog.notify.list`의 `Notice`다 */
+/** 알림 한 건과 그 thread. `notices`의 원소 모양은 `dialog.notify.list`의 `Notice`다. 알림마다 `createdAt`(시각)이 있다 */
 export const NotifyListResultSchema: TObject<{
   notices: TArray<typeof NoticeSchema>;
   nextSeq: TInteger;
+  threadless: TOptional<TArray<typeof NoticeSchema>>;
 }> = Type.Object(
-  { notices: Type.Array(NoticeSchema, { maxItems: 500 }), nextSeq: Type.Integer() },
+  {
+    notices: Type.Array(NoticeSchema, { maxItems: 500 }),
+    nextSeq: Type.Integer(),
+    /** 대화에 묶이지 않은 알림(예약이 대화를 열기 전에 실패한 실행). `threadId`를 주지 않은 목록에만 싣는다 */
+    threadless: Type.Optional(Type.Array(NoticeSchema, { maxItems: 100 })),
+  },
   { additionalProperties: false },
 );
 export type NotifyListResult = Static<typeof NotifyListResultSchema>;

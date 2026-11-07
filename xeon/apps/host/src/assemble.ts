@@ -93,8 +93,13 @@ import {
   learningLoaded,
   registerLearningProjection,
 } from "./assembly/learning.ts";
-import { createHostSchedule, type ScheduleRunnerPorts } from "./assembly/schedule.ts";
+import {
+  createHostSchedule,
+  outsideWatchPathsOf,
+  type ScheduleRunnerPorts,
+} from "./assembly/schedule.ts";
 import { createStoreScheduleLeader, schedulerLeaderIsLive } from "./assembly/schedule-leader.ts";
+import { threadlessNoticeOf, threadlessNoticesOf } from "./assembly/threadless-notices.ts";
 import { createHandlerFailedEmitter } from "./assembly/handler-failed.ts";
 import { createProposalPort } from "./assembly/proposals.ts";
 import type { WebStatusHolder } from "./assembly/web-providers.ts";
@@ -932,6 +937,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         scheduler: runtime.scheduler,
         ids,
         chunkNumbering,
+        threadlessNotices: () =>
+          scheduleSlot.service === undefined ? [] : threadlessNoticesOf(scheduleSlot.service),
         localIds,
         logger,
         trust: projectTrust,
@@ -1140,12 +1147,19 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       ...(options.schedule === undefined ? {} : { overrides: options.schedule }),
     });
     scheduleSlot.service = schedule;
+    // 대화를 열기 전에 실패한 실행은 대화의 이벤트가 없어 알림이 생기지 않는다. 실행 기록에서 알림을 만들어 구독자(앱, OS 알림)에 보낸다.
+    // 알림 서비스는 대화 확장이 올라온 뒤에 생기므로(`commands.notify`) 실행이 끝나는 순간에 읽는다
+    schedule.onRunFinished((event) => {
+      const notice = threadlessNoticeOf(event.run);
+      if (notice !== null) commands.notify?.publishThreadless(notice);
+    });
     // 예약 플러그인은 서비스가 생긴 뒤에 올린다(`scheduleUnit`). 도구 등록은 core-tools가 이미 올라와 있어야 한다
     const scheduleExtension = scheduleUnit(
       schedule,
       units.length,
       layersSource(settings),
       () => !scheduleRuns(),
+      outsideWatchPathsOf(os.dirs),
     );
     lateUnits.push(scheduleExtension);
     const scheduled = installFailureOf(await ext.install(scheduleExtension));
@@ -1319,6 +1333,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const engine: Engine = {
       mode: options.mode,
       scheduleRuns,
+      outsideWatchPaths: outsideWatchPathsOf(os.dirs),
       storeId: storeId.value,
       catalog: built.catalog,
       syncExtensionKeys: () => {

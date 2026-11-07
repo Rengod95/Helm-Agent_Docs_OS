@@ -133,7 +133,7 @@ describe("schedule.list", () => {
   });
 
   test("an ok result may carry nextBefore, which must be a schedule id", () => {
-    const page = { ok: true, items: [{ entry, lastRun: null }], nextBefore: SCH };
+    const page = { ok: true, items: [{ entry, lastRun: null, missedRuns: 0 }], nextBefore: SCH };
     expect(parsed(list.result, page)).toEqual(page);
     expect(parse(list.result, { ok: true, items: [], nextBefore: "x" }).ok).toBe(false);
   });
@@ -142,8 +142,8 @@ describe("schedule.list", () => {
     const ok = {
       ok: true,
       items: [
-        { entry, lastRun: null },
-        { entry: { ...entry, id: "sch_B1" }, lastRun },
+        { entry, lastRun: null, missedRuns: 0 },
+        { entry: { ...entry, id: "sch_B1" }, lastRun, missedRuns: 2 },
       ],
     };
     expect(parsed(list.result, ok)).toEqual(ok);
@@ -154,7 +154,7 @@ describe("schedule.list", () => {
     for (const error of ERRORS) {
       expect(parsed(list.result, { ok: false, error })).toEqual({ ok: false, error });
     }
-    const item = { entry, lastRun: null };
+    const item = { entry, lastRun: null, missedRuns: 0 };
     expect(
       parse(list.result, { ok: true, items: Array.from({ length: 201 }, () => item) }).ok,
     ).toBe(false);

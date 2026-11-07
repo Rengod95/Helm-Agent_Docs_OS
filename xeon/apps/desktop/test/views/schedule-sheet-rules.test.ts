@@ -102,6 +102,7 @@ function rowOf(trigger: ScheduleTrigger, enabled: boolean): ScheduleRow {
       stoppedReason: enabled ? null : "completed",
     },
     lastRun: null,
+    missedRuns: 0,
   };
   return scheduleRowOf(item);
 }

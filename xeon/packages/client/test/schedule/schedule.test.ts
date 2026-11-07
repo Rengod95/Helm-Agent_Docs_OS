@@ -56,7 +56,7 @@ function itemOf(
   entry: Partial<ScheduleEntryView>,
   lastRun: RunView | null = null,
 ): ScheduleListItem {
-  return { entry: { ...ENTRY, ...entry }, lastRun };
+  return { entry: { ...ENTRY, ...entry }, lastRun, missedRuns: 0 };
 }
 
 describe("scheduleRowOf", () => {

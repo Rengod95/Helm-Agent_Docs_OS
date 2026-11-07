@@ -1166,7 +1166,20 @@ export type Notice = {
   seq: number;
   /** 파생 알림이면 원인 이벤트 type, emit이면 "dialog.notified" */
   sourceType: string;
+  /** 알림이 생긴 시각(epoch ms). 원인 내구 이벤트의 기록 시각이고, 대화 없는 알림은 그 사건이 끝난 시각이다 */
+  createdAt: number;
 };
+
+/**
+ * 대화에 묶이지 않은 알림(예약이 대화를 열기 전에 실패한 실행)의 `seq`가 시작하는 값. 내구 이벤트 seq는 이보다 훨씬 작다.
+ * 대화 없는 알림은 내구 이벤트가 없어 호스트가 이 값에 실행 id의 해시를 더해 정한다(같은 실행은 늘 같은 값이다).
+ */
+export const THREADLESS_NOTICE_SEQ_BASE: number = 2 ** 40;
+
+/** 이 `seq`는 대화에 묶이지 않은 알림의 것인가 */
+export function isThreadlessNoticeSeq(seq: number): boolean {
+  return seq >= THREADLESS_NOTICE_SEQ_BASE;
+}
 const noticeShape = Type.Object(
   {
     kind: NoticeKindSchema,
@@ -1174,6 +1187,7 @@ const noticeShape = Type.Object(
     body: Type.Union([Type.String({ maxLength: 1000 }), Type.Null()]),
     seq: Type.Integer({ minimum: 1 }),
     sourceType: Type.String({ maxLength: 128 }),
+    createdAt: Type.Integer({ minimum: 0 }),
   },
   { additionalProperties: false },
 );
@@ -1221,10 +1235,16 @@ export const NotifyListInput: TUnsafe<NotifyListInputValue> = Type.Unsafe<Notify
   notifyListInputShape satisfies SchemaProof<NotifyListInputValue, typeof notifyListInputShape>,
 );
 
-export type NotifyListOutputValue = { notices: Notice[]; nextSeq: number };
+/** `threadless`는 대화에 묶이지 않은 알림이다. `afterSeq` 쪽 나누기와 무관하게 대화를 거르지 않은 목록에만 싣는다 */
+export type NotifyListOutputValue = {
+  notices: Notice[];
+  nextSeq: number;
+  threadless?: Notice[];
+};
 const notifyListOutputShape = Type.Object({
   notices: Type.Array(NoticeSchema),
   nextSeq: Type.Integer(),
+  threadless: Type.Optional(Type.Array(NoticeSchema, { maxItems: 100 })),
 });
 export const NotifyListOutput: TUnsafe<NotifyListOutputValue> = Type.Unsafe<NotifyListOutputValue>(
   notifyListOutputShape satisfies SchemaProof<NotifyListOutputValue, typeof notifyListOutputShape>,
@@ -1264,10 +1284,16 @@ export const DialogNotifyKey: ServiceKey<CapabilityApi<typeof DialogNotify>> =
 
 /** 같은 프로세스 소비자용 밀어주기 구독. JSON 메서드로 표현할 수 없어 dialog.notify 기능 API 객체에 TS 메서드로 둔다 */
 export interface NoticeFeed {
+  /** `threadId`는 대화에 묶이지 않은 알림이면 null이다(`publishThreadless`) */
   subscribe(
     filter: { readonly kinds?: readonly NoticeKind[] },
-    listener: (threadId: ThreadId, notice: Notice) => void,
+    listener: (threadId: ThreadId | null, notice: Notice) => void,
   ): () => void;
+  /**
+   * 대화에 묶이지 않은 알림을 구독자에게 보낸다. 내구 기록은 남기지 않는다(원천이 따로 목록을 준다). `notice.seq`는
+   * `THREADLESS_NOTICE_SEQ_BASE` 이상이어야 한다. 같은 `seq`는 한 번만 보낸다.
+   */
+  publishThreadless(notice: Notice): void;
 }
 
 // ── 서비스 묶음 ────────────────────────────────────────────────────────

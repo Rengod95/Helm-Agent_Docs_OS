@@ -90,6 +90,7 @@ const ROW: ScheduleListItem = {
     reason: null,
     skippedCount: 0,
   },
+  missedRuns: 0,
 };
 
 function html(state: ScheduleState): string {
@@ -387,6 +388,44 @@ describe("sheet restart notice and table rows", () => {
     expect(rendersLoopEvery(90)).toContain("90초마다 최대 10회");
     expect(rendersLoopEvery(600)).not.toContain("600초마다");
   });
+
+  /** 목록 한 줄을 가진 화면 글. 줄은 `ROW`를 바탕으로 주어진 항목으로 바꾼다 */
+  const listOf = (items: readonly ScheduleListItem[]): string =>
+    html(
+      scheduleReducer(INITIAL_SCHEDULE_STATE, {
+        type: "listLoaded",
+        items,
+        serviceModeOff: false,
+        serviceRestartPending: false,
+        nowMs: NOW,
+      }),
+    );
+
+  test("a missed run count shows under the last run with the count and the help icon, and nothing when there are none", () => {
+    const markup = listOf([{ ...ROW, missedRuns: 2 }]);
+    expect(markup).toContain("놓친 실행 2회");
+    expect(markup).toContain('aria-label="놓친 실행 설명"');
+    expect(markup).toContain("3분 전");
+    expect(listOf([ROW])).not.toContain("놓친 실행");
+    expect(listOf([ROW])).not.toContain("놓친 실행 설명");
+  });
+
+  test("a watched path outside the allowed folders shows a visible warning with its help icon, and no warning without paths", () => {
+    const outside: ScheduleListItem = {
+      ...ROW,
+      entry: {
+        ...ROW.entry,
+        trigger: { kind: "file_watch", paths: ["/Users/me/outside"], debounceMs: 1000 },
+      },
+      outsideWatchPaths: ["/Users/me/outside"],
+    };
+    const markup = listOf([outside]);
+    expect(markup).toContain("허용된 폴더 밖이라 감시되지 않는 경로가 있어요");
+    expect(markup).toContain('aria-label="감시 경로 설명"');
+    expect(countOf(markup, "허용된 폴더 밖이라")).toBe(1);
+    expect(listOf([{ ...outside, outsideWatchPaths: [] }])).not.toContain("허용된 폴더 밖이라");
+    expect(listOf([ROW])).not.toContain("허용된 폴더 밖이라");
+  });
 });
 
 describe("schedule run history body", () => {
@@ -402,6 +441,7 @@ describe("schedule run history body", () => {
           outcome: "failed",
           threadId: null,
           error: "start_failed",
+          missed: false,
         },
       ],
     });
@@ -422,6 +462,7 @@ describe("schedule run history body", () => {
           outcome: "skipped",
           threadId: null,
           error: "missed",
+          missed: true,
         },
         {
           runId: "run_3",
@@ -430,6 +471,7 @@ describe("schedule run history body", () => {
           outcome: "skipped",
           threadId: null,
           error: "min_interval",
+          missed: false,
         },
       ],
     });
@@ -439,6 +481,59 @@ describe("schedule run history body", () => {
       "직전 실행 뒤 5분이 지나지 않아 건너뛰었어요. 5분 뒤에 다시 눌러 주세요.",
     );
     expect(out.split(">놓친 실행</span>").length - 1).toBe(1);
+    expect(out).toContain(
+      '<span class="text-ui-sm text-text-secondary">앱이 꺼진 동안 놓친 실행이에요. 따라잡지 않고 건너뛰었어요.</span>',
+    );
+    expect(out).not.toContain("따라잡아 한 번 실행했어요.");
+  });
+
+  test("a missed run that was caught up has the badge and a neutral caught-up line, and no reason line", () => {
+    const out = body({
+      kind: "ready",
+      scheduleId: "sch_aa1",
+      runs: [
+        {
+          runId: "run_5",
+          startedAt: "2026-11-04T00:00:00.000Z",
+          endedAt: "2026-11-04T00:00:05.000Z",
+          outcome: "ok",
+          threadId: null,
+          error: null,
+          missed: true,
+        },
+      ],
+    });
+    expect(out.split(">놓친 실행</span>").length - 1).toBe(1);
+    expect(out).toContain(
+      '<span class="text-ui-sm text-text-secondary">앱이 꺼진 동안 밀린 시각을 따라잡아 한 번 실행했어요.</span>',
+    );
+    expect(out).not.toContain("앱이 꺼진 동안 놓친 실행이에요");
+    expect(out).not.toContain("text-danger-text");
+  });
+
+  test("a caught-up run that failed shows the caught-up line and its failure reason in danger text", () => {
+    const out = body({
+      kind: "ready",
+      scheduleId: "sch_aa1",
+      runs: [
+        {
+          runId: "run_6",
+          startedAt: "2026-11-04T00:00:00.000Z",
+          endedAt: "2026-11-04T00:00:05.000Z",
+          outcome: "failed",
+          threadId: null,
+          error: "run_failed",
+          missed: true,
+        },
+      ],
+    });
+    expect(out.split(">놓친 실행</span>").length - 1).toBe(1);
+    expect(out).toContain(
+      '<span class="text-ui-sm text-text-secondary">앱이 꺼진 동안 밀린 시각을 따라잡아 한 번 실행했어요.</span>',
+    );
+    expect(out).toContain(
+      '<span class="text-ui-sm text-danger-text">실행 중에 오류가 났어요. 대화에서 자세한 내용을 확인해 주세요.</span>',
+    );
   });
 
   test("a code the screen does not know is named in the fallback sentence", () => {
@@ -453,6 +548,7 @@ describe("schedule run history body", () => {
           outcome: "failed",
           threadId: null,
           error: "disk_full",
+          missed: false,
         },
       ],
     });

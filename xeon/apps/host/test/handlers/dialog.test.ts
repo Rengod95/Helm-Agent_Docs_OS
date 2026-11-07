@@ -271,6 +271,7 @@ const NOTICES: WireResult<"notify.list"> = {
       body: null,
       seq: 7,
       sourceType: "turn.completed",
+      createdAt: 1_000,
     },
   ],
   nextSeq: 7,

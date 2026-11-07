@@ -7,12 +7,19 @@ import {
   type CapabilityApi,
   type DirectCreateMode,
   type ScheduleEntryView,
+  type ScheduleListItem,
   type ScheduleTrigger,
 } from "@fresnel/contracts/capabilities";
 import type { JsonValue } from "@fresnel/contracts/conversation";
 import { approvalCallerOf, type ApprovalService } from "@fresnel/contracts/services";
 import { freshRequestKey, sha256Hex } from "./hash.ts";
-import type { ScheduleEntry, ScheduleService, StoreFailure, TriggerSpec } from "./types.ts";
+import type {
+  RunRecord,
+  ScheduleEntry,
+  ScheduleService,
+  StoreFailure,
+  TriggerSpec,
+} from "./types.ts";
 
 // L2.schedule.spec §4.4.9. 기능 `schedule.entries`(F)의 서비스 구현. 엔진의 `Result`를 경계에서 한 번 `CapabilityError`로 바꾼다.
 // 직접 호출(모델 경로 밖)은 설정 `l2.schedule.entries.directCreate`를 따른다: allow(기본), ask(승인), deny(거부) [결정: 2026-11-03 사용자].
@@ -34,6 +41,11 @@ export interface ScheduleApiOptions {
   readonly approvals?: ScheduleApprovals;
   /** 참이면 서비스 모드가 꺼져 있어 틱이 돌지 않는다. `create` 결과에 `service_mode_off` 경고를 싣는다 */
   readonly serviceModeOff?: () => boolean;
+  /**
+   * 파일 감시 경로 중 허용 범위 밖이라 감시되지 않는 것을 고른다. 목록의 `outsideWatchPaths`가 쓴다.
+   * 허용 범위는 호스트가 안다(감시를 허용하는 폴더는 L0.os의 몫이다). 생략하면 모든 경로가 허용된 것으로 본다
+   */
+  readonly outsideWatchPaths?: (paths: readonly string[]) => readonly string[];
 }
 
 type CreateCallInput = Parameters<CapabilityApi<typeof ScheduleEntries>["create"]>[0];
@@ -64,6 +76,35 @@ export function pageEntries(
   const start = Math.max(0, end - limit);
   const page = entries.slice(start, end);
   return { page, nextBefore: start > 0 ? page[0]?.id : undefined };
+}
+
+/**
+ * 보관 중인 실행 기록에서 놓친 기한의 수. `missed`인 기록마다 센다: 건너뛴 묶음은 `skippedCount`(적어도 1)이고
+ * 따라잡아 실행한 기록은 1이다.
+ */
+export function missedRunsOf(runs: readonly RunRecord[]): number {
+  return runs
+    .filter((run) => run.missed)
+    .reduce((total, run) => total + Math.max(1, run.skippedCount), 0);
+}
+
+/**
+ * 목록 한 줄. 항목, 마지막 실행 기록, 놓친 기한 수와 허용 범위 밖 감시 경로를 싣는다. 기능 API와 와이어 처리기가 같이 쓴다
+ * (`outsideWatchPaths`는 `ScheduleApiOptions`의 같은 이름 옵션이다).
+ */
+export function listItemOf(
+  service: Pick<ScheduleService, "runs">,
+  entry: ScheduleEntry,
+  outsideWatchPaths: ((paths: readonly string[]) => readonly string[]) | undefined,
+): ScheduleListItem {
+  const outside =
+    entry.trigger.kind === "file_watch" ? (outsideWatchPaths?.(entry.trigger.paths) ?? []) : [];
+  return {
+    entry: entryViewOf(entry),
+    lastRun: service.runs(entry.id, 1)[0] ?? null,
+    missedRuns: missedRunsOf(service.runs(entry.id, Number.MAX_SAFE_INTEGER)),
+    ...(outside.length === 0 ? {} : { outsideWatchPaths: [...outside] }),
+  };
 }
 
 function reject(
@@ -237,10 +278,7 @@ export function createScheduleApi(
         input.before,
         input.limit,
       );
-      const items = page.map((entry) => ({
-        entry: entryViewOf(entry),
-        lastRun: service.runs(entry.id, 1)[0] ?? null,
-      }));
+      const items = page.map((entry) => listItemOf(service, entry, deps.outsideWatchPaths));
       return nextBefore === undefined ? { items } : { items, nextBefore };
     },
 

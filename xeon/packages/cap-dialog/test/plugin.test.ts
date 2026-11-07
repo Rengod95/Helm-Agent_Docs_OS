@@ -544,6 +544,7 @@ describe("plugin", () => {
         body: null,
         seq: 11,
         sourceType: "turn.completed",
+        createdAt: 1,
       },
     ]);
     // 저장소 읽기는 피드 대역(빈 로그)을 거친다. list는 알림을 만들지 않고 nextSeq를 0으로 돌려준다

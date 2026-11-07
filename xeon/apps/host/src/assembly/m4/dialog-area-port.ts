@@ -220,6 +220,7 @@ export function runRecordOf(run: RunRecord): ScheduleRunRecord {
     outcome,
     threadId: run.threadId,
     error: outcome === "ok" || outcome === "running" ? null : error,
+    missed: run.missed,
   };
 }
 

@@ -85,9 +85,34 @@ describe("M4 dialog area methods", () => {
           outcome: "running",
           threadId: null,
           error: null,
+          missed: false,
+        },
+        {
+          runId: "r2",
+          startedAt: "2026-10-31T00:05:00.000Z",
+          endedAt: "2026-10-31T00:06:00.000Z",
+          outcome: "ok",
+          threadId: null,
+          error: null,
+          missed: true,
         },
       ],
     });
+    // 놓친 실행 표지는 필수다
+    expect(
+      parse(WIRE_METHODS["schedule.runs"].result, {
+        runs: [
+          {
+            runId: "r1",
+            startedAt: "2026-10-31T00:00:00.000Z",
+            endedAt: null,
+            outcome: "running",
+            threadId: null,
+            error: null,
+          },
+        ],
+      }).ok,
+    ).toBe(false);
     expect(parse(WIRE_METHODS["schedule.runs"].params, { scheduleId: "s", limit: 0 }).ok).toBe(
       false,
     );

@@ -1,12 +1,14 @@
 // OS 알림의 순수 모델(B-10). 알림 종류를 설정 묶음으로 가르고, 보낼 글과 대화를 정하고, 같은 알림을 모으고,
 // 권한 상태를 화면 글로 바꾸고, 알림을 누른 뒤 갈 대화 id를 읽는다. React와 셸을 보지 않는다.
 // 제목과 본문은 알림에 담겨 온 본문을 쓰지 않고 카탈로그 문구와 대화 제목으로만 만든다(명령 전문과 시크릿이 OS 알림 센터에 남지 않게).
+// 예외는 대화 없는 예약 실패의 본문이다. 실패 사유 코드를 카탈로그 사유 문장으로 바꿔 쓴다(대화가 없어 "대화에서 볼 수 있어요"라 하지 않는다).
 // 시험은 값을 비교한다(test/views/os-notify-model.test.ts).
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { Notice, NoticeKind } from "@fresnel/contracts/capabilities";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
 import type { ThreadOrigin } from "@fresnel/contracts/wire";
+import { runReasonTextOf } from "./pages/schedules/schedule-text.ts";
 
 /** 설정 묶음 셋. 턴이 끝남, 승인이나 질문을 기다림, 예약이 실패함 */
 export type NotifyCategory = "turnDone" | "approval" | "scheduleFailed";
@@ -37,9 +39,12 @@ export interface OsNoticeInput {
   readonly prefs: NotifyPrefs;
 }
 
-/** 알림 종류가 어느 묶음인지. 예약 대화의 실패만 묶음에 든다(그 밖의 오류는 OS 알림으로 보내지 않는다) */
-function categoryOf(kind: NoticeKind, origin: ThreadOrigin | null): NotifyCategory | null {
-  switch (kind) {
+/**
+ * 알림 종류가 어느 묶음인지. 예약 실행의 실패만 묶음에 든다(예약 대화의 실패, 그리고 대화를 열기 전에 실패한 예약 실행).
+ * 그 밖의 오류는 OS 알림으로 보내지 않는다
+ */
+function categoryOf(notice: Notice, origin: ThreadOrigin | null): NotifyCategory | null {
+  switch (notice.kind) {
     case "completed":
     case "background_completed":
       return "turnDone";
@@ -47,9 +52,11 @@ function categoryOf(kind: NoticeKind, origin: ThreadOrigin | null): NotifyCatego
     case "question_waiting":
       return "approval";
     case "error":
-      return origin?.kind === "schedule" ? "scheduleFailed" : null;
+      return origin?.kind === "schedule" || notice.sourceType === "schedule.run_finished"
+        ? "scheduleFailed"
+        : null;
     default:
-      return assertNever(kind, "NoticeKind");
+      return assertNever(notice.kind, "NoticeKind");
   }
 }
 
@@ -77,13 +84,23 @@ function threadNameOf(title: string | null): string {
 
 /**
  * 알림 한 건을 보낼지와 무엇을 보낼지 정한다. 창이 앞에 있거나, 묶음이 꺼졌거나, 묶음이 없는 오류면 `null`이다.
- * 제목은 "무엇 · 대화 제목"이고 본문은 종류마다 정한 한 줄이다.
+ * 제목은 "무엇 · 대화 제목"이고 본문은 종류마다 정한 한 줄이다. 대화 없는 예약 실패는 대화 이름이 없어 제목이 "무엇"만이고,
+ * 본문은 실패 사유 문장이다.
  */
 export function osNoticeOf(input: OsNoticeInput): OsNoticePlan | null {
-  const category = categoryOf(input.notice.kind, input.threadOrigin);
+  const category = categoryOf(input.notice, input.threadOrigin);
   if (category === null) return null;
   if (input.windowFocused) return null;
   if (!input.prefs[category]) return null;
+  if (input.threadId === null && input.notice.sourceType === "schedule.run_finished") {
+    const reason = runReasonTextOf(input.notice.body);
+    return {
+      category,
+      title: t(WHAT[input.notice.kind]),
+      body: t(reason.id, reason.args),
+      threadId: null,
+    };
+  }
   const title = t("desktop.osNotice.title", {
     what: t(WHAT[input.notice.kind]),
     thread: threadNameOf(input.threadTitle),

@@ -73,6 +73,7 @@ const RUN: ScheduleRunRecord = {
   outcome: "ok",
   threadId: "thr_1",
   error: null,
+  missed: false,
 };
 
 async function wireErrorOf(call: Promise<unknown>): Promise<WireError> {

@@ -22,7 +22,7 @@ const ENTRY: ScheduleEntryView = {
 };
 
 function itemOf(id: string, lastRun: RunView | null, enabled = true): ScheduleListItem {
-  return { entry: { ...ENTRY, id, enabled }, lastRun };
+  return { entry: { ...ENTRY, id, enabled }, lastRun, missedRuns: 0 };
 }
 
 /** 마지막 실행 기록 하나. 값은 끝난 실행(완료)이고 시험에서 고친다 */

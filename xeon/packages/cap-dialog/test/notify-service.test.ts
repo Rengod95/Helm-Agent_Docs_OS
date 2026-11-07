@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import type { Notice } from "@fresnel/contracts/capabilities";
+import {
+  THREADLESS_NOTICE_SEQ_BASE,
+  type Notice,
+  type NoticeKind,
+} from "@fresnel/contracts/capabilities";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   LIST_DEFAULT_LIMIT,
@@ -18,14 +22,27 @@ import {
 // L2.dialog.spec §3.6, §4.7. emit과 list는 내구 로그에서 읽고, 구독은 피드 이벤트에서 알림을 만든다.
 // 시험은 메모리 내구 로그와 수동 시계를 쓴다. 피드 대역은 커밋마다 notify.onEvent를 부른다.
 
-function setup() {
-  const h = harness();
+/** 대화 없는 알림 원천은 생략하면 없다(그러면 `list`는 `threadless`를 싣지 않는다) */
+function setup(options: { readonly threadlessNotices?: () => readonly Notice[] } = {}) {
+  const h = harness({ threadlessNotices: options.threadlessNotices });
   const port = memoryNotices();
   const notify = createNotifyService({ ...h.deps, notices: port });
   port.listen((event) => {
     notify.onEvent(event);
   });
   return { h, port, notify, api: notify.api };
+}
+
+/** 대화 없는 알림. 호스트가 예약 실행 기록에서 만드는 것과 같은 모양이고 seq만 시험마다 다르게 준다 */
+function threadlessNotice(kind: NoticeKind, seq: number): Notice {
+  return {
+    kind,
+    title: "예약 작업 알림",
+    body: null,
+    seq,
+    sourceType: "schedule.run_finished",
+    createdAt: 1000,
+  };
 }
 
 /** 호출이 거부되면 CapabilityError를 돌려주고, 성공하면 undefined다 */
@@ -51,6 +68,7 @@ describe("emit과 list", () => {
         body: "본문",
         seq: 1,
         sourceType: "dialog.notified",
+        createdAt: 1,
       },
     });
     expect(await api.list({ afterSeq: 0 }, callOptions(thread))).toEqual({
@@ -152,6 +170,7 @@ describe("emit과 list", () => {
           body: null,
           seq: 2,
           sourceType: "approval.requested",
+          createdAt: 1,
         },
       ],
       nextSeq: 3,
@@ -214,7 +233,7 @@ describe("emit과 list", () => {
 describe("구독", () => {
   test("구독자는 턴 완료와 승인 요청을 파생 알림으로 받는다", async () => {
     const { port, api } = setup();
-    const got: [ThreadId, Notice][] = [];
+    const got: [ThreadId | null, Notice][] = [];
     api.subscribe({}, (threadId, notice) => {
       got.push([threadId, notice]);
     });
@@ -230,6 +249,7 @@ describe("구독", () => {
           body: null,
           seq: 1,
           sourceType: "turn.completed",
+          createdAt: 1,
         },
       ],
       [
@@ -240,6 +260,7 @@ describe("구독", () => {
           body: null,
           seq: 2,
           sourceType: "approval.requested",
+          createdAt: 1,
         },
       ],
     ]);
@@ -320,6 +341,7 @@ describe("같은 스레드·같은 종류 묶음", () => {
         body: null,
         seq: 1,
         sourceType: "turn.completed",
+        createdAt: 1,
       },
     ]);
     const listed = await api.list({ afterSeq: 0 }, callOptions(thread));
@@ -344,7 +366,7 @@ describe("같은 스레드·같은 종류 묶음", () => {
 
   test("다른 종류나 다른 스레드는 묶지 않는다", async () => {
     const { port, api } = setup();
-    const got: [ThreadId, Notice][] = [];
+    const got: [ThreadId | null, Notice][] = [];
     api.subscribe({}, (threadId, notice) => {
       got.push([threadId, notice]);
     });
@@ -370,5 +392,134 @@ describe("같은 스레드·같은 종류 묶음", () => {
     port.commit(thread, "agent.settled", agentSettled(thread, "completed", null));
     port.commit(thread, "agent.settled", agentSettled(thread, "completed", null));
     expect(got.map((notice) => notice.seq)).toEqual([1]);
+  });
+});
+
+describe("대화 없는 알림 전달", () => {
+  test("publishThreadless는 구독자에게 스레드 null로 한 번 보낸다", () => {
+    const { api } = setup();
+    const got: [ThreadId | null, Notice][] = [];
+    api.subscribe({}, (threadId, notice) => {
+      got.push([threadId, notice]);
+    });
+    const sent = threadlessNotice("error", THREADLESS_NOTICE_SEQ_BASE + 1);
+    api.publishThreadless(sent);
+    expect(got).toStrictEqual([[null, sent]]);
+  });
+
+  test("같은 seq를 두 번 publish해도 구독자에게는 한 번만 간다", () => {
+    const { api } = setup();
+    const seqs: number[] = [];
+    api.subscribe({}, (_threadId, notice) => {
+      seqs.push(notice.seq);
+    });
+    const sent = threadlessNotice("error", THREADLESS_NOTICE_SEQ_BASE + 1);
+    api.publishThreadless(sent);
+    api.publishThreadless(sent);
+    expect(seqs).toStrictEqual([THREADLESS_NOTICE_SEQ_BASE + 1]);
+  });
+
+  test("같은 밀리초에 publish한 서로 다른 seq는 모두 간다", () => {
+    // 수동 시계는 움직이지 않으므로 두 번의 publish는 같은 밀리초다. 대화 없는 알림은 1초 묶음을 걸지 않는다
+    const { api } = setup();
+    const seqs: number[] = [];
+    api.subscribe({}, (_threadId, notice) => {
+      seqs.push(notice.seq);
+    });
+    api.publishThreadless(threadlessNotice("error", THREADLESS_NOTICE_SEQ_BASE + 1));
+    api.publishThreadless(threadlessNotice("error", THREADLESS_NOTICE_SEQ_BASE + 2));
+    expect(seqs).toStrictEqual([THREADLESS_NOTICE_SEQ_BASE + 1, THREADLESS_NOTICE_SEQ_BASE + 2]);
+  });
+
+  test("kinds 필터에 없는 종류는 구독자에게 보내지 않는다", () => {
+    const { api } = setup();
+    const seqs: number[] = [];
+    api.subscribe({ kinds: ["completed"] }, (_threadId, notice) => {
+      seqs.push(notice.seq);
+    });
+    api.publishThreadless(threadlessNotice("error", THREADLESS_NOTICE_SEQ_BASE + 1));
+    api.publishThreadless(threadlessNotice("completed", THREADLESS_NOTICE_SEQ_BASE + 2));
+    expect(seqs).toStrictEqual([THREADLESS_NOTICE_SEQ_BASE + 2]);
+  });
+
+  test("구독자가 던져도 다른 구독자는 받고 실패는 로그에 남는다", () => {
+    const { h, api } = setup();
+    const seqs: number[] = [];
+    api.subscribe({}, () => {
+      throw new Error("listener bug");
+    });
+    api.subscribe({}, (_threadId, notice) => {
+      seqs.push(notice.seq);
+    });
+    api.publishThreadless(threadlessNotice("error", THREADLESS_NOTICE_SEQ_BASE + 1));
+    expect(seqs).toStrictEqual([THREADLESS_NOTICE_SEQ_BASE + 1]);
+    expect(h.lines.filter((line) => line.event === "dialog.notify_listener_failed")).toStrictEqual([
+      {
+        event: "dialog.notify_listener_failed",
+        fields: { threadId: null, kind: "error", seq: THREADLESS_NOTICE_SEQ_BASE + 1 },
+      },
+    ]);
+  });
+});
+
+describe("list의 대화 없는 알림", () => {
+  test("스레드 문맥이 없으면 대화 없는 알림을 seq 오름차순으로 싣는다", async () => {
+    const { api } = setup({
+      threadlessNotices: () => [
+        threadlessNotice("error", THREADLESS_NOTICE_SEQ_BASE + 3),
+        threadlessNotice("completed", THREADLESS_NOTICE_SEQ_BASE + 1),
+        threadlessNotice("error", THREADLESS_NOTICE_SEQ_BASE + 2),
+      ],
+    });
+    const listed = await api.list({ afterSeq: 0 }, {});
+    expect(listed.threadless?.map((item) => item.seq)).toStrictEqual([
+      THREADLESS_NOTICE_SEQ_BASE + 1,
+      THREADLESS_NOTICE_SEQ_BASE + 2,
+      THREADLESS_NOTICE_SEQ_BASE + 3,
+    ]);
+  });
+
+  test("kinds가 주어지면 그 종류의 대화 없는 알림만 싣는다", async () => {
+    const { api } = setup({
+      threadlessNotices: () => [
+        threadlessNotice("completed", THREADLESS_NOTICE_SEQ_BASE + 1),
+        threadlessNotice("error", THREADLESS_NOTICE_SEQ_BASE + 2),
+        threadlessNotice("error", THREADLESS_NOTICE_SEQ_BASE + 3),
+      ],
+    });
+    const listed = await api.list({ afterSeq: 0, kinds: ["error"] }, {});
+    expect(listed.threadless?.map((item) => item.seq)).toStrictEqual([
+      THREADLESS_NOTICE_SEQ_BASE + 2,
+      THREADLESS_NOTICE_SEQ_BASE + 3,
+    ]);
+  });
+
+  test("대화 없는 알림은 가장 새 100개만 싣는다", async () => {
+    // 역순으로 만들어 두어 정렬도 함께 본다. 150개 중 seq가 가장 큰 100개가 남는다
+    const all = Array.from({ length: 150 }, (_, index) =>
+      threadlessNotice("completed", THREADLESS_NOTICE_SEQ_BASE + 150 - index),
+    );
+    const { api } = setup({ threadlessNotices: () => all });
+    const listed = await api.list({ afterSeq: 0 }, {});
+    expect(listed.threadless?.map((item) => item.seq)).toStrictEqual(
+      Array.from({ length: 100 }, (_, index) => THREADLESS_NOTICE_SEQ_BASE + 51 + index),
+    );
+  });
+
+  test("스레드 문맥이 있으면 threadless 키를 싣지 않는다", async () => {
+    const { port, api } = setup({
+      threadlessNotices: () => [threadlessNotice("error", THREADLESS_NOTICE_SEQ_BASE + 1)],
+    });
+    const thread = newThread();
+    port.commit(thread, "turn.completed", turnCompleted("completed"));
+    const listed = await api.list({ afterSeq: 0 }, callOptions(thread));
+    expect(listed.notices.map((item) => item.seq)).toStrictEqual([1]);
+    expect(Object.keys(listed)).toStrictEqual(["notices", "nextSeq"]);
+  });
+
+  test("대화 없는 알림 원천이 없으면 threadless 키가 없다", async () => {
+    const { api } = setup();
+    const listed = await api.list({ afterSeq: 0 }, {});
+    expect(Object.keys(listed)).toStrictEqual(["notices", "nextSeq"]);
   });
 });

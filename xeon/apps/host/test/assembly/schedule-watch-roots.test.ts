@@ -7,7 +7,11 @@ import { WATCH_PATH_OUTSIDE_ROOTS_REASON } from "@fresnel/contracts/capabilities
 import { err, type Logger, type Result } from "@fresnel/contracts";
 import type { LoopService, OsDirs, OsService, TaskService } from "@fresnel/contracts/services";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
-import { createHostSchedule, type ScheduleRunnerPorts } from "../../src/assembly/schedule.ts";
+import {
+  createHostSchedule,
+  outsideWatchPathsOf,
+  type ScheduleRunnerPorts,
+} from "../../src/assembly/schedule.ts";
 import { openFileLock } from "../fixtures/file-lock.ts";
 import { partial } from "../fixtures/unsafe.ts";
 
@@ -115,4 +119,24 @@ test("the check touches only file-watch triggers", async () => {
     createdBy: "host",
   });
   expect(created.ok).toBe(true);
+});
+
+test("the list-row check names only the watch paths outside the config, data and state folders, in the order given", () => {
+  const root = mkdtempSync(join(tmpdir(), "xh-sch-outside-"));
+  roots.push(root);
+  const outside = outsideWatchPathsOf({
+    config: join(root, "config"),
+    data: join(root, "data"),
+    state: join(root, "state"),
+  });
+  const inside = join(root, "state", "notes");
+  const zeta = join(root, "zeta");
+  const alpha = join(root, "alpha");
+  // 입력 순서를 그대로 지킨다(정렬하지 않는다). 허용 루트 안의 경로는 빠진다
+  expect(outside([zeta, join(root, "config", "a.md"), inside, alpha, join(root, "data")])).toEqual([
+    zeta,
+    alpha,
+  ]);
+  expect(outside([inside, join(root, "data", "x.json")])).toEqual([]);
+  expect(outside([])).toEqual([]);
 });

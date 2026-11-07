@@ -33,7 +33,7 @@ function failureOf(caught: unknown): DialogWireFailure {
   throw caught;
 }
 
-type NoticeListener = (threadId: ThreadId, notice: Notice) => void;
+type NoticeListener = (threadId: ThreadId | null, notice: Notice) => void;
 
 /**
  * 알림 전달 구독을 `holder.notify`에 맞춘다. 구독자가 하나라도 있고 알림 서비스가 있으면 같은 프로세스 구독을 하나 붙이고, 아니면 뗀다.

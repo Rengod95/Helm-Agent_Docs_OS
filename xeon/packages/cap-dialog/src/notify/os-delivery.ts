@@ -23,7 +23,7 @@ export interface OsDeliveryOptions {
   /** `fresnel.os`. 이 함수가 쓰는 것은 `notify`뿐이다 */
   readonly os: Pick<OsService, "notify">;
   /** 대화 한 개의 유효 설정. 세션 범위를 포함하므로 알림마다 읽는다 */
-  readonly settings: (threadId: ThreadId) => DialogSettings;
+  readonly settings: (threadId: ThreadId | undefined) => DialogSettings;
   /** 시크릿 마스킹. 자르기 전에 적용한다(L0.os.spec §3.7). 보내기 전에 값을 가리는 것은 호출자의 몫이다 */
   readonly redactor: Pick<Redactor, "mask">;
   readonly logger: Logger;
@@ -32,7 +32,8 @@ export interface OsDeliveryOptions {
 }
 
 /** `NoticeFeed.subscribe`의 리스너 모양 */
-export type OsDelivery = (threadId: ThreadId, notice: Notice) => void;
+/** `threadId`는 대화에 묶이지 않은 알림이면 null이다. 그 알림은 대화 범위 없는 유효 설정으로 보낸다 */
+export type OsDelivery = (threadId: ThreadId | null, notice: Notice) => void;
 
 /** 알림 종류를 `fresnel.os`의 종류로 옮긴다(§4.7.2 표) */
 function osKindOf(kind: NoticeKind): NotifyKind {
@@ -52,7 +53,7 @@ function osKindOf(kind: NoticeKind): NotifyKind {
 }
 
 /** 보내기 결과를 운영 로그에 남긴다. 어떤 결과도 대화의 실패가 되지 않는다 */
-function report(logger: Logger, threadId: ThreadId, error: NotifyError): void {
+function report(logger: Logger, threadId: ThreadId | null, error: NotifyError): void {
   switch (error.kind) {
     case "disabled":
       // M3 이전 빌드이거나 provider none이다. 정상 구성이라 디버그 로그만 남긴다
@@ -84,7 +85,7 @@ function report(logger: Logger, threadId: ThreadId, error: NotifyError): void {
 async function send(
   os: Pick<OsService, "notify">,
   logger: Logger,
-  threadId: ThreadId,
+  threadId: ThreadId | null,
   notification: OsNotification,
   signal: AbortSignal,
 ): Promise<void> {
@@ -99,13 +100,13 @@ async function send(
 export function createOsDelivery(options: OsDeliveryOptions): OsDelivery {
   const { os, settings, redactor, logger, signal } = options;
   return (threadId, notice) => {
-    const current = settings(threadId);
+    const current = settings(threadId ?? undefined);
     if (!current.notify.os || !current.notify.kinds[notice.kind]) return;
     const notification: OsNotification = {
       kind: osKindOf(notice.kind),
       title: clip(redactor.mask(notice.title).text, OS_TITLE_MAX),
       body: clip(redactor.mask(notice.body ?? "").text, OS_BODY_MAX),
-      threadId,
+      ...(threadId === null ? {} : { threadId }),
     };
     // 기다리지 않는 호출이다. 보내기 자체가 거부되면 잡아서 로그에 남기고, 대화는 계속한다
     detach(send(os, logger, threadId, notification, signal), () => {

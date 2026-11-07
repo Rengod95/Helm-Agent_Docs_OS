@@ -19,7 +19,8 @@ function envelope(threadId: ThreadId, kind: EventKind, payload: unknown): Durabl
     threadId,
     turnId: null,
     stepId: null,
-    recordedAt: 1,
+    // 시각이 시험마다 다르게 둔다. createdAt이 고정값이 아니라 원인 이벤트의 기록 시각에서 왔는지 본다
+    recordedAt: 1_000_000 + seq,
     causationId: null,
     correlationId: null,
     payload,
@@ -93,6 +94,7 @@ describe("classifyNotice: turn.completed", () => {
       title: "작업이 끝났어요",
       body: null,
       seq: event.seq,
+      createdAt: event.recordedAt,
       sourceType: "turn.completed",
     });
   });
@@ -105,6 +107,7 @@ describe("classifyNotice: turn.completed", () => {
       title: "턴이 실패했어요",
       body: "모델 호출 실패",
       seq: event.seq,
+      createdAt: event.recordedAt,
       sourceType: "turn.completed",
     });
   });
@@ -137,6 +140,7 @@ describe("classifyNotice: work.goal_settled", () => {
       title: "목표를 달성했어요",
       body: "판정 2회",
       seq: event.seq,
+      createdAt: event.recordedAt,
       sourceType: "work.goal_settled",
     });
   });
@@ -153,6 +157,7 @@ describe("classifyNotice: work.goal_settled", () => {
       title: "목표 판정 한도에 도달했어요",
       body: "판정 5회",
       seq: event.seq,
+      createdAt: event.recordedAt,
       sourceType: "work.goal_settled",
     });
   });
@@ -169,6 +174,7 @@ describe("classifyNotice: work.goal_settled", () => {
       title: "목표 판정에 실패했어요",
       body: null,
       seq: event.seq,
+      createdAt: event.recordedAt,
       sourceType: "work.goal_settled",
     });
   });
@@ -191,6 +197,7 @@ describe("classifyNotice: approval.requested", () => {
       title: "승인이 필요해요: bash",
       body: null,
       seq: event.seq,
+      createdAt: event.recordedAt,
       sourceType: "approval.requested",
     });
   });
@@ -213,6 +220,7 @@ describe("classifyNotice: approval.requested", () => {
       title: "질문에 답이 필요해요",
       body: null,
       seq: event.seq,
+      createdAt: event.recordedAt,
       sourceType: "approval.requested",
     });
   });
@@ -255,6 +263,7 @@ describe("classifyNotice: agent.settled", () => {
       title: "백그라운드 작업이 끝났어요",
       body: null,
       seq: event.seq,
+      createdAt: event.recordedAt,
       sourceType: "agent.settled",
     });
   });
@@ -267,6 +276,7 @@ describe("classifyNotice: agent.settled", () => {
       title: "백그라운드 작업이 실패했어요",
       body: "자식 실패",
       seq: event.seq,
+      createdAt: event.recordedAt,
       sourceType: "agent.settled",
     });
   });
@@ -287,6 +297,7 @@ describe("classifyNotice: schedule.run_finished", () => {
       title: "예약 작업이 끝났어요",
       body: null,
       seq: event.seq,
+      createdAt: event.recordedAt,
       sourceType: "schedule.run_finished",
     });
   });
@@ -299,6 +310,7 @@ describe("classifyNotice: schedule.run_finished", () => {
       title: "예약 작업이 실패했어요",
       body: null,
       seq: event.seq,
+      createdAt: event.recordedAt,
       sourceType: "schedule.run_finished",
     });
   });
@@ -323,6 +335,7 @@ describe("classifyNotice: dialog.notified", () => {
       title: "그룹 질문",
       body: "요약",
       seq: event.seq,
+      createdAt: event.recordedAt,
       sourceType: "dialog.notified",
     });
   });

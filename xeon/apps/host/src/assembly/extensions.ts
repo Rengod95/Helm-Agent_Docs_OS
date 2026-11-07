@@ -34,6 +34,7 @@ import {
   WorkTasks,
   type AnyCapabilityDef,
   type CapabilityApi,
+  type Notice,
 } from "@fresnel/contracts/capabilities";
 import { artifactsPlugin } from "@fresnel/cap-artifacts";
 import {
@@ -106,6 +107,8 @@ export interface ExtensionDeps {
   readonly ids: IdFactory;
   /** `dialog.status`와 `scope.handler_failed`가 나누는 조각 번호 발급기(한 (thread, turn) 안에서 번호가 겹치지 않는다) */
   readonly chunkNumbering: ChunkNumbering;
+  /** 대화에 묶이지 않은 알림의 원천(예약 실행 기록에서 계산한다). 알림 목록이 읽는다 */
+  readonly threadlessNotices: () => readonly Notice[];
   /** 로컬 id(원장, 캐시 행). L0.os의 createLocalIdFactory */
   readonly localIds: LocalIdFactory;
   readonly logger: Logger;
@@ -229,8 +232,9 @@ export function scheduleUnit(
   loadIndex: number,
   settings: ScheduleSettingsSource,
   serviceModeOff: () => boolean,
+  outsideWatchPaths: (paths: readonly string[]) => readonly string[],
 ): ExtensionUnit {
-  return schedulePlugin({ service, settings, loadIndex, serviceModeOff });
+  return schedulePlugin({ service, settings, loadIndex, serviceModeOff, outsideWatchPaths });
 }
 
 /** 의존 순서로 늘어놓은 기본 확장 단위. loadIndex는 이 순서다 */
@@ -383,6 +387,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           projectTrust: (projectDir) => deps.trust.isTrusted(projectDir, deps.signal),
           workspaceOf: workspaceOfId,
           chunkNumbering: deps.chunkNumbering,
+          threadlessNotices: deps.threadlessNotices,
           loadIndex,
         }),
     ],

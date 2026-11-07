@@ -1,5 +1,10 @@
 import { expect, test } from "bun:test";
-import { CRON_SESSION_KIND, type ScheduleService, type StoreFailure } from "../src/index.ts";
+import {
+  CRON_SESSION_KIND,
+  type RunFinishedEvent,
+  type ScheduleService,
+  type StoreFailure,
+} from "../src/index.ts";
 import {
   createHarness,
   HOUR,
@@ -808,3 +813,83 @@ async function settleAll(h: Harness): Promise<void> {
 function failNow(): never {
   throw new Error("missing run");
 }
+
+test("onRunFinished announces a finished run, a start failure with its message, and a claim that could not be saved", async () => {
+  const h = await started(createHarness());
+  const events: RunFinishedEvent[] = [];
+  const off = h.service.onRunFinished((event) => {
+    events.push(event);
+  });
+  const entry = await created(h.service, {
+    trigger: { kind: "interval", everySeconds: 300 },
+    prompt: "p",
+    title: "daily",
+  });
+
+  // 성공: 정착하면 알린다. 끝난 기록과 예약 제목이 실린다
+  h.clock.now += 300 * SECOND;
+  await h.service.tick();
+  expect(events).toHaveLength(0);
+  h.runner.started[0]?.settle("completed");
+  await settleAll(h);
+  expect(events).toHaveLength(1);
+  expect(events[0]).toMatchObject({
+    title: "daily",
+    message: null,
+    run: { scheduleId: entry.id, status: "finished", outcome: "completed", reason: null },
+  });
+
+  // 시작 실패: 대화가 없고 이유와 실행기의 문장이 실린다
+  h.clock.now += 300 * SECOND;
+  h.runner.failNext = true;
+  await h.service.tick();
+  expect(events).toHaveLength(2);
+  expect(events[1]).toMatchObject({
+    title: "daily",
+    message: "no model",
+    run: { status: "failed", reason: "start_failed", threadId: null },
+  });
+
+  // 대화가 있는 실행의 실패: 이유는 run_failed다
+  h.clock.now += 300 * SECOND;
+  await h.service.tick();
+  h.runner.started[1]?.settle("failed");
+  await settleAll(h);
+  expect(events[2]).toMatchObject({
+    message: null,
+    run: { status: "failed", reason: "run_failed", threadId: "thr_2" },
+  });
+
+  // 청구를 저장하지 못하면 시작하지 않고 실패로 알린다
+  h.clock.now += 300 * SECOND;
+  h.store.failSaves = true;
+  await h.service.tick();
+  expect(events).toHaveLength(4);
+  expect(events[3]?.run).toMatchObject({ status: "failed", reason: "start_failed" });
+  expect(events[3]?.message).not.toBeNull();
+
+  // 건너뜀은 알리지 않고, 해제한 듣는 쪽에는 더 가지 않는다
+  off();
+  h.store.failSaves = false;
+  h.clock.now += 300 * SECOND;
+  h.runner.failNext = true;
+  await h.service.tick();
+  expect(events).toHaveLength(4);
+});
+
+test("a listener that throws does not stop the engine from recording the run", async () => {
+  const reports: string[] = [];
+  const h = await started(createHarness({ report: (message) => reports.push(message) }));
+  h.service.onRunFinished(() => {
+    throw new Error("listener broke");
+  });
+  const entry = await created(h.service, {
+    trigger: { kind: "interval", everySeconds: 300 },
+    prompt: "p",
+  });
+  h.clock.now += 300 * SECOND;
+  h.runner.failNext = true;
+  await h.service.tick();
+  expect(h.service.runs(entry.id)[0]).toMatchObject({ status: "failed", reason: "start_failed" });
+  expect(reports).toContain("schedule.run_finished_listener_failed");
+});

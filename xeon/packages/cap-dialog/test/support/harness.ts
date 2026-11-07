@@ -148,6 +148,8 @@ export interface HarnessOptions {
   readonly commandFiles?: MemoryCommandFiles;
   readonly blobs?: BlobSink | null;
   readonly notices?: NoticePort | null;
+  /** 대화에 묶이지 않은 알림의 원천. 생략하면 없어서 `list`가 `threadless`를 싣지 않는다 */
+  readonly threadlessNotices?: DialogDeps["threadlessNotices"];
   readonly images?: DialogDeps["images"];
   readonly interactive?: DialogDeps["interactive"];
   readonly projectRoot?: (threadId: ThreadId | undefined) => string | null;
@@ -194,6 +196,7 @@ export function harness(options: HarnessOptions = {}): Harness {
     status,
     feed: undefined,
     notices: options.notices ?? undefined,
+    threadlessNotices: options.threadlessNotices,
   };
   return {
     deps,

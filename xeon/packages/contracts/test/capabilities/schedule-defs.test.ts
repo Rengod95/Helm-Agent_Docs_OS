@@ -252,14 +252,36 @@ describe("schedule.entries schemas", () => {
     expect(parse(RunViewSchema, skipped)).toEqual({ ok: true, value: skipped });
   });
 
-  test("a list item holds the entry and its last run or null, and rejects extra fields", () => {
+  test("a list item holds the entry, its last run or null and the missed-run count, and rejects extra fields", () => {
     const items: ScheduleListItem[] = [
-      { entry, lastRun: null },
-      { entry: { ...entry, id: "sch_B" }, lastRun: run },
+      { entry, lastRun: null, missedRuns: 0 },
+      { entry: { ...entry, id: "sch_B" }, lastRun: run, missedRuns: 3 },
     ];
     for (const item of items)
       expect(parse(ScheduleListItemSchema, item)).toEqual({ ok: true, value: item });
-    expect(parse(ScheduleListItemSchema, { entry, lastRun: null, extra: 1 }).ok).toBe(false);
+    expect(
+      parse(ScheduleListItemSchema, { entry, lastRun: null, missedRuns: 0, extra: 1 }).ok,
+    ).toBe(false);
+    // 놓친 수는 필수이고 음수는 안 된다
+    expect(parse(ScheduleListItemSchema, { entry, lastRun: null }).ok).toBe(false);
+    expect(parse(ScheduleListItemSchema, { entry, lastRun: null, missedRuns: -1 }).ok).toBe(false);
+  });
+
+  test("a list item may carry the watch paths outside the allowed folders", () => {
+    const item: ScheduleListItem = {
+      entry,
+      lastRun: null,
+      missedRuns: 0,
+      outsideWatchPaths: ["/work/src/a.ts", "/work/src/b.ts"],
+    };
+    expect(parse(ScheduleListItemSchema, item)).toEqual({ ok: true, value: item });
+    expect(parse(ScheduleListItemSchema, { ...item, outsideWatchPaths: [""] }).ok).toBe(false);
+    expect(
+      parse(ScheduleListItemSchema, {
+        ...item,
+        outsideWatchPaths: Array.from({ length: 17 }, (_, index) => `/p/${String(index)}`),
+      }).ok,
+    ).toBe(false);
   });
 
   test("every error kind is accepted, a wrong detail type or an unknown kind is rejected", () => {
@@ -282,7 +304,7 @@ describe("schedule.entries schemas", () => {
   });
 
   test("the list output holds at most 200 items", () => {
-    const item = { entry, lastRun: null };
+    const item = { entry, lastRun: null, missedRuns: 0 };
     expect(parse(LIST.output, { items: Array.from({ length: 200 }, () => item) }).ok).toBe(true);
     expect(parse(LIST.output, { items: Array.from({ length: 201 }, () => item) }).ok).toBe(false);
   });

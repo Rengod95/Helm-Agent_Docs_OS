@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   CapabilityError,
+  THREADLESS_NOTICE_SEQ_BASE,
   type AttachmentAddOutputValue,
   type CallOptions,
   type Notice,
@@ -179,9 +180,20 @@ const NOTICE: Notice = {
   body: null,
   seq: 7,
   sourceType: "turn.completed",
+  createdAt: 1_000,
 };
 
-type Listener = (threadId: ThreadId, notice: Notice) => void;
+/** 대화에 묶이지 않은 알림(예약 실행의 실패). 대화 없는 알림의 seq는 기준값 이상이다 */
+const THREADLESS: Notice = {
+  kind: "error",
+  title: "A scheduled run failed",
+  body: "start_failed",
+  seq: THREADLESS_NOTICE_SEQ_BASE + 1,
+  sourceType: "schedule.run_finished",
+  createdAt: 2_000,
+};
+
+type Listener = (threadId: ThreadId | null, notice: Notice) => void;
 
 function emptyHolder(): CommandRegistryHolder {
   return {
@@ -194,7 +206,10 @@ function emptyHolder(): CommandRegistryHolder {
   };
 }
 
-/** 알림 서비스 대역. `list`는 호출을 기록하고 NOTICE 하나를 돌려주며, `subscribe`는 구독자를 `subscribers`에 모은다 */
+/**
+ * 알림 서비스 대역. `list`는 호출을 기록하고 NOTICE 하나를 돌려주며, `subscribe`는 구독자를 `subscribers`에 모은다.
+ * `publishThreadless`는 대화 없는 알림을 구독자에게 `null` 대화로 보낸다(cap-dialog의 서비스가 하는 일)
+ */
 function notifyService(seen: Seen[], subscribers: Set<Listener>): NotifyApi {
   return {
     emit: () => Promise.reject(new Error("emit is not part of the fake")),
@@ -207,6 +222,9 @@ function notifyService(seen: Seen[], subscribers: Set<Listener>): NotifyApi {
       return () => {
         subscribers.delete(listener);
       };
+    },
+    publishThreadless: (notice) => {
+      for (const listener of Array.from(subscribers)) listener(null, notice);
     },
   };
 }
@@ -247,6 +265,35 @@ test("notifyList passes afterSeq, kinds and limit to the service, the thread as 
   expect(seen[1]?.options?.context).toEqual({ threadId: THREAD, caller: { kind: "host" } });
 });
 
+test("notifyList without a thread passes the threadless array through unchanged, and a thread's list carries none", async () => {
+  const seen: Seen[] = [];
+  const holder = emptyHolder();
+  holder.notify = {
+    ...notifyService([], new Set()),
+    // 서비스는 대화를 거르지 않은 목록에만 threadless를 싣는다(cap-dialog의 `notify.list`)
+    list: (input, callOptions) => {
+      seen.push({ input, options: callOptions });
+      return Promise.resolve(
+        callOptions?.context?.threadId === undefined
+          ? { notices: [NOTICE], nextSeq: 7, threadless: [THREADLESS] }
+          : { notices: [NOTICE], nextSeq: 7 },
+      );
+    },
+  };
+  const port = createDialogWirePort({ holder });
+  expect(await port.notifyList({ afterSeq: 0 }, SIGNAL)).toEqual({
+    ok: true,
+    value: { notices: [NOTICE], nextSeq: 7, threadless: [THREADLESS] },
+  });
+  expect(seen[0]?.options?.context).toEqual({ caller: { kind: "host" } });
+
+  expect(await port.notifyList({ threadId: THREAD, afterSeq: 0 }, SIGNAL)).toEqual({
+    ok: true,
+    value: { notices: [NOTICE], nextSeq: 7 },
+  });
+  expect(seen[1]?.options?.context).toEqual({ threadId: THREAD, caller: { kind: "host" } });
+});
+
 test("a notify.list capability error becomes a rejection with its code", async () => {
   const holder = emptyHolder();
   holder.notify = {
@@ -264,7 +311,7 @@ test("a notify.list capability error becomes a rejection with its code", async (
 test("subscribeNotices attaches when the service appears later and detaches when it goes away", async () => {
   const holder = emptyHolder();
   const port = createDialogWirePort({ holder });
-  const heard: { threadId: ThreadId; notice: Notice }[] = [];
+  const heard: { threadId: ThreadId | null; notice: Notice }[] = [];
   const subscribers = new Set<Listener>();
   const off = port.subscribeNotices((threadId, notice) => {
     heard.push({ threadId, notice });
@@ -309,5 +356,21 @@ test("subscribeNotices with the service already present delivers each notice onc
   offFirst();
   expect(subscribers.size).toBe(1);
   offSecond();
+  expect(subscribers.size).toBe(0);
+});
+
+test("a thread-less notice the service publishes reaches the subscriber with a null thread", async () => {
+  const holder = emptyHolder();
+  const subscribers = new Set<Listener>();
+  const service = notifyService([], subscribers);
+  holder.notify = service;
+  const port = createDialogWirePort({ holder });
+  const heard: { threadId: ThreadId | null; notice: Notice }[] = [];
+  const off = port.subscribeNotices((threadId, notice) => {
+    heard.push({ threadId, notice });
+  });
+  service.publishThreadless(THREADLESS);
+  expect(heard).toEqual([{ threadId: null, notice: THREADLESS }]);
+  off();
   expect(subscribers.size).toBe(0);
 });

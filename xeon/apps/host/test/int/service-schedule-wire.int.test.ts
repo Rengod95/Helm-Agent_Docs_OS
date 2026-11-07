@@ -178,10 +178,12 @@ describe("service schedule over the wire", () => {
             {
               entry: expect.objectContaining({ id: intervalId, enabled: true }),
               lastRun: null,
+              missedRuns: 0,
             },
             {
               entry: expect.objectContaining({ id: timerId, enabled: true }),
               lastRun: null,
+              missedRuns: 0,
             },
           ],
         });

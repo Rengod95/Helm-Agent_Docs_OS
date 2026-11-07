@@ -1,5 +1,5 @@
 import type { Logger } from "@fresnel/contracts";
-import type { CallContext } from "@fresnel/contracts/capabilities";
+import type { CallContext, Notice } from "@fresnel/contracts/capabilities";
 import type { ApprovalsPortFactory } from "./ports/approvals.ts";
 import type { AttachmentFiles } from "./ports/files.ts";
 import type { ImagesPort } from "./ports/images.ts";
@@ -38,4 +38,9 @@ export interface DialogDeps {
   readonly feed: DialogFeed | undefined;
   /** 내구 알림 저장소(`dialog.notified` 기록과 당겨 읽기). 없으면 `emit`과 `list`는 unavailable이다 */
   readonly notices: NoticePort | undefined;
+  /**
+   * 대화에 묶이지 않은 알림의 원천(예약이 대화를 열기 전에 실패한 실행). 호스트가 예약 실행 기록에서 계산해 준다.
+   * `list`가 대화를 거르지 않은 호출에 싣는다. 없으면 싣지 않는다
+   */
+  readonly threadlessNotices: (() => readonly Notice[]) | undefined;
 }

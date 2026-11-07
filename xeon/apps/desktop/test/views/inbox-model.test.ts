@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Notice } from "@fresnel/contracts/capabilities";
+import { THREADLESS_NOTICE_SEQ_BASE, type Notice } from "@fresnel/contracts/capabilities";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   arrangeInboxApprovals,
@@ -13,14 +13,15 @@ import {
 import type { NoticeEntry } from "../../src/views/notices-model.ts";
 import { evt, thr } from "../state/helpers.ts";
 
-/** 알림 한 건과 그 대화. 종류와 문장은 거르기와 정렬에 쓰이지 않는다 */
-const entryOf = (seq: number, threadId: ThreadId | null): NoticeEntry => {
+/** 알림 한 건과 그 대화. 종류와 문장은 거르기와 정렬에 쓰이지 않는다. 시각은 기본으로 seq에 맞춘다 */
+const entryOf = (seq: number, threadId: ThreadId | null, createdAt = seq * 1000): NoticeEntry => {
   const notice: Notice = {
     kind: "completed",
     title: `n${seq}`,
     body: null,
     seq,
     sourceType: "turn.completed",
+    createdAt,
   };
   return { notice, threadId };
 };
@@ -150,5 +151,37 @@ describe("arrangeInboxNotices", () => {
 
   test("a chosen thread with no notices shows none", () => {
     expect(arrangeInboxNotices(entries, { thread: thr(9), sort: "oldest" })).toEqual([]);
+  });
+
+  test("the notice's creation time decides the order, and the seq breaks a tie", () => {
+    const timed = [entryOf(5, ONE, 100), entryOf(3, TWO, 200), entryOf(7, ONE, 200)];
+    // 오래된 것 먼저: 시각이 작은 5, 같은 시각이면 seq가 작은 3, 그다음 7
+    expect(seqsOf(arrangeInboxNotices(timed, { thread: "all", sort: "oldest" }))).toEqual([
+      5, 3, 7,
+    ]);
+    expect(seqsOf(arrangeInboxNotices(timed, { thread: "all", sort: "newest" }))).toEqual([
+      7, 3, 5,
+    ]);
+  });
+
+  test("a thread-less scheduled failure is shown under all, placed by its time and not by its huge seq", () => {
+    const threadless = entryOf(THREADLESS_NOTICE_SEQ_BASE + 4, null, 150);
+    const timed = [entryOf(1, ONE, 100), threadless, entryOf(2, TWO, 300)];
+    expect(seqsOf(arrangeInboxNotices(timed, { thread: "all", sort: "newest" }))).toEqual([
+      2,
+      THREADLESS_NOTICE_SEQ_BASE + 4,
+      1,
+    ]);
+    expect(seqsOf(arrangeInboxNotices(timed, { thread: "all", sort: "oldest" }))).toEqual([
+      1,
+      THREADLESS_NOTICE_SEQ_BASE + 4,
+      2,
+    ]);
+  });
+
+  test("a thread-less scheduled failure is hidden when a conversation is chosen", () => {
+    const timed = [entryOf(1, ONE, 100), entryOf(THREADLESS_NOTICE_SEQ_BASE + 4, null, 150)];
+    expect(seqsOf(arrangeInboxNotices(timed, { thread: ONE, sort: "newest" }))).toEqual([1]);
+    expect(seqsOf(arrangeInboxNotices(timed, { thread: TWO, sort: "oldest" }))).toEqual([]);
   });
 });

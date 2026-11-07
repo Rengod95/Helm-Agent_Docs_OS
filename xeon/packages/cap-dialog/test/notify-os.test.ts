@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { err, ok, type LogFields, type Logger, type Result } from "@fresnel/contracts";
-import type { Notice, NoticeKind } from "@fresnel/contracts/capabilities";
+import {
+  THREADLESS_NOTICE_SEQ_BASE,
+  type Notice,
+  type NoticeKind,
+} from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
   NotifyError,
   NotifyKind,
@@ -68,7 +73,15 @@ function layer(scope: ScopeLayer["scope"], values: Record<string, unknown>): Sco
 }
 
 function notice(kind: NoticeKind, extra: Partial<Notice> = {}): Notice {
-  return { kind, title: "제목", body: null, seq: 1, sourceType: "turn.completed", ...extra };
+  return {
+    kind,
+    title: "제목",
+    body: null,
+    seq: 1,
+    sourceType: "turn.completed",
+    createdAt: 1,
+    ...extra,
+  };
 }
 
 function warnings(entries: Entry[]): Entry[] {
@@ -80,6 +93,8 @@ interface Setup {
   readonly sent: Sent[];
   readonly entries: Entry[];
   readonly abort: AbortController;
+  /** 설정을 읽을 때 넘어온 대화 범위를 순서대로 담는다. 대화 없는 알림이면 undefined다 */
+  readonly scopes: (ThreadId | undefined)[];
 }
 
 function setup(
@@ -93,14 +108,18 @@ function setup(
   const fake = fakeOs(options.replies);
   const abort = new AbortController();
   const layers = options.layers ?? [];
+  const scopes: (ThreadId | undefined)[] = [];
   const deliver = createOsDelivery({
     os: fake.os,
-    settings: () => readDialogSettings(layers),
+    settings: (threadId) => {
+      scopes.push(threadId);
+      return readDialogSettings(layers);
+    },
     redactor: options.redactor ?? plain,
     logger: levelLogger(entries),
     signal: abort.signal,
   });
-  return { deliver, sent: fake.sent, entries, abort };
+  return { deliver, sent: fake.sent, entries, abort, scopes };
 }
 
 describe("종류 대응과 내용", () => {
@@ -308,5 +327,40 @@ describe("묶음과 신호", () => {
     expect(only?.signal.aborted).toBe(false);
     abort.abort();
     expect(only?.signal.aborted).toBe(true);
+  });
+});
+
+describe("대화 없는 알림", () => {
+  test("threadId 없이 보내고 설정은 대화 범위 없이 읽는다", () => {
+    const { deliver, sent, scopes } = setup();
+    deliver(
+      null,
+      notice("error", {
+        title: "예약 작업이 실패했어요",
+        body: "본문",
+        seq: THREADLESS_NOTICE_SEQ_BASE + 1,
+        sourceType: "schedule.run_finished",
+      }),
+    );
+    expect(scopes).toStrictEqual([undefined]);
+    // threadId 키 자체가 없어야 한다(undefined 값도 toStrictEqual은 다르게 본다)
+    expect(sent.map((call) => call.notification)).toStrictEqual([
+      { kind: "error", title: "예약 작업이 실패했어요", body: "본문" },
+    ]);
+  });
+
+  test("notify.os가 꺼져 있으면 대화 없는 알림도 보내지 않는다", () => {
+    const { deliver, sent, scopes } = setup({
+      layers: [layer("user", { "l2.dialog.notify.os": false })],
+    });
+    deliver(
+      null,
+      notice("completed", {
+        seq: THREADLESS_NOTICE_SEQ_BASE + 1,
+        sourceType: "schedule.run_finished",
+      }),
+    );
+    expect(scopes).toStrictEqual([undefined]);
+    expect(sent).toStrictEqual([]);
   });
 });
