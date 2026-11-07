@@ -121,7 +121,7 @@ test("devkit port: installing over an installed version records the previous ins
   expect(installed.ok && installed.value.version).toBe("0.2.0");
   expect(
     state.recorded.map((input) => [input.name, input.version, input.source, input.extensionDir]),
-  ).toEqual([["replace-demo", "0.1.0", "authored", join(state.extensionsDir, "replace-demo")]]);
+  ).toEqual([["replace-demo", "0.1.0", "user", join(state.extensionsDir, "replace-demo")]]);
   expect(state.recorded[0]?.manifestText).toContain('"version": "0.1.0"');
 });
 

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { renderToString } from "react-dom/server";
 import {
   ALL_TESTS,
+  draftErrorsOf,
   INITIAL_TESTS_UI,
   NEW_TEST_DEFAULT,
   submitPlanOf,
@@ -12,7 +13,7 @@ import {
 } from "@fresnel/client/workbench";
 import type { ReplayReport } from "@fresnel/contracts/services";
 import type { ExtTestRecord } from "@fresnel/contracts/wire";
-import { NewTestForm } from "../../../src/views/tests/new-test-sheet.tsx";
+import { NewTestForm, visibleErrorsOf } from "../../../src/views/tests/new-test-sheet.tsx";
 import { TestsView, type TestsViewHandlers } from "../../../src/views/tests/tests-view.tsx";
 
 // 테스트 화면의 서버 렌더. 상태와 핸들러는 아무것도 하지 않는 것으로 두고 그림의 글만 본다(클릭은 DOM이 없어 시험하지 않는다).
@@ -198,7 +199,9 @@ describe("새 테스트 시트", () => {
         onSubmit={NOOP}
       />,
     );
-    expect(empty).toContain("대상 이름을 적어 주세요.");
+    // 처음 열었을 때는 빨간 오류가 없고, 입력이 모자란 것은 보내기 판정이 안다
+    expect(empty).not.toContain("대상 이름을 적어 주세요.");
+    expect(empty).not.toContain("과제를 적어 주세요.");
     expect(empty).not.toContain("최대 커밋 수");
     expect(submitPlanOf(NEW_TEST_DEFAULT, false).kind).toBe("invalid");
     const named = { ...NEW_TEST_DEFAULT, target: "demo-plugin", prompt: "1+1은?" };
@@ -250,6 +253,23 @@ describe("새 테스트 시트", () => {
       />,
     );
     expect(markup).toContain("작업 폴더를 격리하는 기능이 아직 없어요");
+  });
+});
+
+describe("새 테스트 시트 입력 오류 시점", () => {
+  const errors = draftErrorsOf(NEW_TEST_DEFAULT);
+
+  test("nothing is shown before a field is touched or the form is submitted", () => {
+    expect(errors.map((e) => e.field)).toEqual(["target", "prompt"]);
+    expect(visibleErrorsOf(errors, [], false)).toEqual([]);
+  });
+
+  test("a touched field shows only its own error", () => {
+    expect(visibleErrorsOf(errors, ["target"], false).map((e) => e.field)).toEqual(["target"]);
+  });
+
+  test("submitting shows every error even on untouched fields", () => {
+    expect(visibleErrorsOf(errors, [], true)).toEqual(errors);
   });
 });
 

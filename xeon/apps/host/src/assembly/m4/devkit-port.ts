@@ -473,7 +473,8 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
           await source.history.record({
             name: current.name,
             version: current.version,
-            source: "authored",
+            // 앱 안 설치는 폴더를 가져오는 일이라 사용자가 둔 설치본이다. Plugin Builder 묶음(`authored`)이라는 표시는 폴더에 없다
+            source: "user",
             extensionDir: location,
             manifestText: current.text,
             stateSchemaVersion: source.stateSchemaVersion(current.name),

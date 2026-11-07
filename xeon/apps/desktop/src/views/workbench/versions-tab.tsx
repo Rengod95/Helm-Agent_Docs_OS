@@ -1,6 +1,6 @@
 // P-17 버전 탭(§6.24.1). 기록이 있으면 전체 단계(설치 이력과 되돌리기 O-11), 없거나 읽기를 지원하지 않으면 대체 단계(설치본과 번들 버전 읽기만).
 // `ext.versions`와 `ext.rollback`. 그림을 고르는 것은 `versionsViewOf`(@fresnel/client/workbench)가 한다.
-import { t, type MessageId } from "@fresnel/client/i18n";
+import { activeLocale, t, type MessageId } from "@fresnel/client/i18n";
 import {
   versionsViewOf,
   type VersionRowVM,
@@ -182,6 +182,16 @@ export function VersionsPanel(props: {
   );
 }
 
+/** 설치 시각의 글. 엔진이 준 ISO 시각을 앱의 다른 화면과 같은 로케일의 날짜와 시간 짧은 형식으로 쓴다. 읽을 수 없는 값은 그대로 둔다 */
+export function installedAtText(iso: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return iso;
+  return new Intl.DateTimeFormat(activeLocale(), {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(at);
+}
+
 /** 이력 표의 열 */
 type VersionColumn = "version" | "source" | "installed" | "act";
 
@@ -236,7 +246,9 @@ function VersionsTable(props: {
           case "installed":
             return (
               <span className="text-text-secondary">
-                {row.installedAt ?? t("desktop.workbench.versions.inApp")}
+                {row.installedAt === null
+                  ? t("desktop.workbench.versions.inApp")
+                  : installedAtText(row.installedAt)}
               </span>
             );
           case "act":
