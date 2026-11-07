@@ -10,6 +10,7 @@
 //   tray            the app log says the tray was created (the menu bar cannot be read without Accessibility permission)
 //   inspect off     FRESNEL_DESKTOP_INSPECT=1 is set on purpose and no inspect socket appears (bundled apps ignore it)
 //   second launch   a second start of the same app exits and leaves one window
+//   key save        the bundled sidecar saves a fake model key on a clean home: 0600 key file, SOPS file, source=file (skipped without sops)
 //   quit            SIGTERM ends the app and its engine child
 // Needs macOS with a GUI session and swiftc (window list, screencapture). Every wait has a deadline.
 //   electron-smoke <Fresnel.app>
@@ -24,7 +25,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import {
   FIRST_SCREEN_MIN_BYTES,
   isFirstScreen,
@@ -116,6 +117,14 @@ export function isAddonReport(text: string): boolean {
   );
 }
 
+/** A real sops binary (the mise shim does not work under a temporary HOME, so `mise which` comes first). */
+function findSops(): string | undefined {
+  const viaMise = Bun.spawnSync(["mise", "which", "sops"]);
+  const mise = viaMise.exitCode === 0 ? viaMise.stdout.toString().trim() : "";
+  if (mise !== "" && existsSync(mise)) return mise;
+  return Bun.which("sops") ?? undefined;
+}
+
 const failures: string[] = [];
 function check(name: string, ok: boolean, detail = ""): void {
   process.stdout.write(`${ok ? "PASS" : "FAIL"} ${name}${detail === "" ? "" : `: ${detail}`}\n`);
@@ -204,6 +213,50 @@ if (import.meta.main) {
     isAddonReport(loaded.stdout.toString()),
     `exit ${String(loaded.exitCode)}`,
   );
+
+  // key save: `fresnel secret add` of the bundled sidecar on a clean home (the same child the first-run screen starts).
+  // The value is fake and no model is called. sops is not bundled, so a machine without it skips this step.
+  const sopsPath = findSops();
+  if (sopsPath === undefined) {
+    process.stdout.write("SKIP key save on a clean home: sops not found on this machine\n");
+  } else {
+    const keyWork = mkdtempSync(join(tmpdir(), "fresnel-key-smoke-"));
+    const keyHome = join(keyWork, "home");
+    mkdirSync(keyHome, { recursive: true });
+    const saved = Bun.spawnSync(
+      [join(resources, "fresnel-aarch64-apple-darwin"), "secret", "add", "smoke-key"],
+      {
+        env: {
+          HOME: keyHome,
+          FRESNEL_HOME: join(keyHome, "fresnel"),
+          PATH: `${dirname(sopsPath)}:/usr/bin:/bin:/usr/sbin:/sbin`,
+        },
+        stdin: new TextEncoder().encode("fake-model-key-for-smoke-0000"),
+        timeout: 60_000,
+      },
+    );
+    const keyFile = join(keyHome, "fresnel", "config", "secrets", "age", "keys.txt");
+    const settingsFile = join(keyHome, "fresnel", "config", "settings.json");
+    check(
+      "key save exits 0 on a clean home",
+      saved.exitCode === 0,
+      `exit ${String(saved.exitCode)}`,
+    );
+    check(
+      "key save wrote the age key file with mode 0600",
+      existsSync(keyFile) && (statSync(keyFile).mode & 0o777) === 0o600,
+    );
+    check(
+      "key save wrote the SOPS file",
+      existsSync(join(keyHome, "fresnel", "config", "secrets", "sops", "user.yaml")),
+    );
+    check(
+      "key save recorded source=file in the user settings",
+      existsSync(settingsFile) &&
+        readFileSync(settingsFile, "utf8").includes('"l0.secrets.ageKey.source": "file"'),
+    );
+    rmSync(keyWork, { recursive: true, force: true });
+  }
 
   const work = mkdtempSync(join(tmpdir(), "fresnel-electron-smoke-"));
   const swift = join(work, "probe.swift");
