@@ -60,9 +60,9 @@ function ChatScreen(): ReactNode {
       <SetupBanner />
       <Transcript />
       {/* 대화 열 폭(시안 46rem)에 맞춰 입력창 위 카드들을 같은 가운데 열에 둔다 */}
-      {/* 토스트가 입력창과 이 카드들 위로 서도록 묶음의 위쪽 끝을 알린다(shell.tsx useToastBottom) */}
-      <div data-toast-avoid className="flex flex-none flex-col">
-        <div className="mx-auto grid min-h-0 w-full max-w-184 flex-none">
+      {/* 카드가 있을 때만 토스트가 이 카드들 위로 서도록 묶음의 위쪽 끝을 알린다(shell.tsx useToastBottom). 없으면 토스트는 시안 자리다 */}
+      <div className="flex flex-none flex-col">
+        <div data-toast-avoid className="mx-auto grid min-h-0 w-full max-w-184 flex-none">
           <TrustCard />
           <ApprovalQueue />
           <SafeModeCard />

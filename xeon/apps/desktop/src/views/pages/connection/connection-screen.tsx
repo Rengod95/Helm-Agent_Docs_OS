@@ -1,6 +1,7 @@
 import { removeTarget, type TargetEntry } from "@fresnel/client";
-import { activeLocale, type MessageId } from "@fresnel/client/i18n";
+import { activeLocale, t, type MessageId } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
+import { toast } from "@caustic/react";
 import { useCallback, useEffect, useReducer, useRef, type ReactNode } from "react";
 import { useEngineState, useLinkPhase } from "../../../state/engine/index.ts";
 import { useShellActions } from "../../../state/shell/index.ts";
@@ -247,6 +248,15 @@ export function ConnectionScreen(): ReactNode {
     restart: () => {
       // 엔진 다시 시작은 진행 단계를 따로 잡지 않는다. 멈춘 엔진이 아니면 셸이 거절하고 세션이 다시 잇는다
       detach(commands.restartEngine(), rethrow);
+    },
+    copyDiagnostics: () => {
+      detach(
+        commands.copyDiagnostics().then((ok) => {
+          if (ok) toast({ tone: "success", title: t("desktop.connection.status.copied") });
+          return undefined;
+        }),
+        rethrow,
+      );
     },
     retryClients: () => {
       detach(loadClients(), rethrow);

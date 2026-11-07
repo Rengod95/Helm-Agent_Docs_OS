@@ -244,7 +244,7 @@ const LINK_DESCRIPTION: Readonly<Record<Link["phase"], MessageId | undefined>> =
   offline: "desktop.status.cell.link.down",
   connecting: undefined,
   syncing: "desktop.status.cell.link.catchUp",
-  live: undefined,
+  live: "desktop.status.cell.link.live",
   resync: "desktop.status.cell.link.catchUp",
   reset: "desktop.status.cell.link.catchUp",
   failed: "desktop.status.cell.link.down",

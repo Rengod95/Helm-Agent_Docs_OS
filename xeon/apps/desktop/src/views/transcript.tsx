@@ -16,6 +16,7 @@ import {
 import { MAX_SNAPSHOT_ITEMS } from "../state/engine/thread-reader.ts";
 import { useCommands } from "./commands.ts";
 import { TurnFailureRow } from "./turn-failure-row.tsx";
+import { EmptyThread } from "./empty-thread.tsx";
 import { ResumeBand } from "./resume-band.tsx";
 import { RecordedItem, StreamingRow } from "./item-view.tsx";
 import { VirtualList, type VirtualRow } from "./virtual-list.tsx";
@@ -81,7 +82,7 @@ export function Transcript(): ReactNode {
   if (rows.length === 0) {
     return (
       <>
-        <Notice>{t("desktop.transcript.empty")}</Notice>
+        <EmptyThread />
         {failureNotice}
         <ResumeBand />
       </>

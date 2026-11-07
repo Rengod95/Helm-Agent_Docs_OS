@@ -17,13 +17,13 @@ export function toastPlace(layout: Layout, wellOpen: boolean, wellWidth: number)
   return { kind: "end", endPx: wellOpen ? wellWidth + BAR_AND_GAPS_PX : 56 };
 }
 
-/** 기본 아래 간격(bottom-40 = 10rem): 상태 표시줄과 입력창 위 */
-export const TOAST_BOTTOM_DEFAULT_PX = 160;
+/** 기본 아래 간격(시안 `s04-toast`의 `bottom-10` = 2.5rem = 40px): 상태 표시줄 위 */
+export const TOAST_BOTTOM_DEFAULT_PX = 40;
 const TOAST_GAP_PX = 12;
 
 /**
- * 토스트의 아래 간격. 입력창과 그 위 카드(승인, 신뢰, 안전 모드)가 서는 자리의 위쪽 끝(`avoidTop`, 창 위에서 잰 px)을
- * 알면 그 위로 올려 허용·거부 단추와 입력창을 덮지 않는다. 그 자리가 없으면(설정 등) 기본값이다.
+ * 토스트의 아래 간격. 입력창 위에 카드(승인, 신뢰, 안전 모드)가 서 있으면 그 카드 묶음의 위쪽 끝(`avoidTop`, 창 위에서 잰 px)을
+ * 알려 주면 그 위로 올려 허용·거부 단추를 덮지 않는다. 카드가 없으면(`null`) 시안 자리다.
  */
 export function toastBottomPx(avoidTop: number | null, viewportHeight: number): number {
   if (avoidTop === null) return TOAST_BOTTOM_DEFAULT_PX;

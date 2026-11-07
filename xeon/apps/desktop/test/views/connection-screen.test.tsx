@@ -31,6 +31,7 @@ const handlers: ConnectionScreenHandlers = {
   dismissNotice: NOOP,
   confirmStop: NOOP,
   restart: NOOP,
+  copyDiagnostics: NOOP,
   setServiceMode: NOOP,
   setRemoteRespond: NOOP,
   setStopConfirm: NOOP,
