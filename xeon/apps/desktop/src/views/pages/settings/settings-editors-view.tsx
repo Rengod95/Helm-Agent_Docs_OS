@@ -20,6 +20,7 @@ import {
   type RuleConflict,
   type RuleDraft,
 } from "./settings-rules-model.ts";
+import { isCommitEnter } from "../../ime-enter.ts";
 import { effectIdOf } from "./settings-editors-text.ts";
 import type { SandboxListKind } from "./settings-sandbox-model.ts";
 import { secretChoicesOf } from "./settings-secret-model.ts";
@@ -65,7 +66,7 @@ function CommitInput(props: {
         props.onCommit(event.currentTarget.value);
       }}
       onKeyDown={(event) => {
-        if (event.key === "Enter") props.onCommit(event.currentTarget.value);
+        if (isCommitEnter(event)) props.onCommit(event.currentTarget.value);
       }}
     />
   );

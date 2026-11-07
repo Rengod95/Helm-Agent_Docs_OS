@@ -17,6 +17,7 @@ import {
 import { Ellipsis } from "@caustic/react/icons";
 import { useRef, useState, type ReactNode } from "react";
 import { useCommands, type CommandError } from "./commands.ts";
+import { isCommitEnter } from "./ime-enter.ts";
 import { runThreadCompact } from "./thread-compact.ts";
 import { ThreadExportDialog } from "./thread-export-dialog.tsx";
 
@@ -236,7 +237,7 @@ function RenameDialog(props: {
             setFailed(false);
           }}
           onKeyDown={(event) => {
-            if (event.key === "Enter") save();
+            if (isCommitEnter(event)) save();
           }}
         />
         {failed ? (
