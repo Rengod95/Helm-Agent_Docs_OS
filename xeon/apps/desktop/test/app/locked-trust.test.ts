@@ -112,6 +112,41 @@ describe("trust wire", () => {
     await app.stop();
   });
 
+  test("list sends trust.list with no params and returns the saved folders; the workspace status asks workspace.status", async () => {
+    const { app, params } = await liveApp({
+      results: {
+        "trust.list": { entries: [{ path: "/work/repo", verdict: "allow" }] },
+        "workspace.status": { exists: false, path: "/work/gone" },
+      },
+    });
+    expect(await app.commands.trust.list()).toEqual({
+      ok: true,
+      value: { entries: [{ path: "/work/repo", verdict: "allow" }] },
+    });
+    expect(await app.commands.workspace.status("/work/gone")).toEqual({
+      ok: true,
+      value: { exists: false, path: "/work/gone" },
+    });
+    expect(
+      params.filter((p) => p.method === "trust.list" || p.method === "workspace.status"),
+    ).toEqual([
+      { method: "trust.list", params: {} },
+      { method: "workspace.status", params: { workspace: "/work/gone" } },
+    ]);
+    await app.stop();
+  });
+
+  test("a host without workspace.status reports unsupported, so no band is drawn", async () => {
+    const { app } = await liveApp({
+      errors: { "workspace.status": { code: -32601, kind: "jsonrpc.methodNotFound" } },
+    });
+    expect(await app.commands.workspace.status("/work/gone")).toEqual({
+      ok: false,
+      error: { kind: "unsupported" },
+    });
+    await app.stop();
+  });
+
   test("a host without trust.get reports unsupported, so no card is drawn", async () => {
     const { app } = await liveApp({
       errors: { "trust.get": { code: -32601, kind: "jsonrpc.methodNotFound" } },

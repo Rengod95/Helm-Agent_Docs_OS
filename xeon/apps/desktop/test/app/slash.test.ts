@@ -209,6 +209,7 @@ describe("slash input goes to command.run", () => {
           hint: "<start|stop>",
           kind: "action",
           origin: "group-helm",
+          source: "extension",
           needsShellConfirm: false,
           firstChoices: ["start", "stop"],
         },

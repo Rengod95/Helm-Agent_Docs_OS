@@ -97,6 +97,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `fresnel secret reveal <name>` | 값 열람. 사람 전용이고 TTY에서만 동작한다. OS 인증 재확인이 가능한 플랫폼에서는 재확인한다(§4.7) [결정: review.decisions-2 U-20] | `secret.beginReveal { name }`. 값 필드 없음. F 메서드 추가는 M2 계획에서 정한다(review.decisions-2 U-04) | M2 |
 | `fresnel trust [status] [--json]` | 이 작업 폴더의 신뢰 상태(폴더, 불러오려는 자원, 판정과 출처, 선택지)를 보인다. 신뢰할 자원이 없으면 stderr에 한 줄이다 | `trust.get { workspace }` | M2 |
 | `fresnel trust allow\|deny [--scope folder\|parent\|session]` | 선택지 하나를 host에 보낸다. 범위 기본값은 `folder`. host가 낸 선택지에 없는 조합이면 2다 | `trust.get`, `trust.decide { workspace, choice }` | M2 |
+| `fresnel trust list [--json]` | 저장된 신뢰 결정을 읽기만 한다. 한 줄에 폴더 하나이고 `허용 <폴더>` 또는 `거부 <폴더>`다. 목록이 비면 stdout은 비고 stderr에 한 줄이다. `--json`은 `trust.list`의 결과를 그대로 쓴다. 제거와 바꾸기는 아직 없다 [근거: `xeon/packages/contracts/src/wire-settings/wire/methods.ts`] [결정: 오케스트레이터 기본값, fxPT] | `trust.list` | M4 |
 | `fresnel schedule add <프롬프트…> (--every <초> \| --at <시각> \| --remote \| --watch <경로>[,<경로>…] \| --loop <초> --max-iterations <n> --expires-in <초>) [--title <제목>] [--workspace <폴더>] [--disabled]` | 예약을 만든다. 트리거 플래그는 정확히 하나다(§4.14). 예약은 서비스 모드에서만 실행된다("Schedules run only in service mode."). 서비스 모드가 꺼져 있으면 저장만 되고 실행되지 않는다는 경고를 stderr에 쓴다. 이 문장은 `fresnel help schedule`과 `fresnel --help`의 서비스 줄에 있다 | `schedule.create { trigger, prompt, workspace?, title?, enabled? }` | M3(구현됨, M3b B1-SCH2) |
 | `fresnel schedule list [--all] [--json]` | 예약 목록. 기본은 켜진 항목이고 `--all`은 끈 항목까지 본다. 한 항목이 한 줄이고 `--json`은 항목 배열이다(§4.14) | `schedule.list { enabled? }` | M3(구현됨, M3b B1-SCH2) |
 | `fresnel schedule cancel <id>` | 예약을 끈다. 이미 꺼진 항목은 그대로 둔다 | `schedule.cancel { scheduleId }` | M3(구현됨, M3b B1-SCH2) |
@@ -877,6 +878,7 @@ export interface GroupTemplatesPort {
   4. `trust.get`이나 `trust.decide`가 실패하면 한 줄로 알리고 대화는 계속한다. 작업 폴더는 신뢰하지 않은 채로 열린다. 저장 실패(`store.io`, `details.code: "trust_store"`)는 전용 문구와 종료 코드 3 문구를 쓴다. `trust.json` 쓰기의 프로세스 간 잠금은 host가 맡는다(`fileLock`).
   5. print 모드는 물을 수 없다. 결정이 없으면 stderr에 "작업 폴더 신뢰가 정해지지 않아 <자원>을(를) 읽지 않는다 (fresnel trust로 정한다)"를 한 줄 남긴다. JSON 모드는 메시지 열이 출력 전부라서(AC4) `trust.get`을 부르지 않는다.
   6. `host.hello`의 `features`에 `trust.get`과 `trust.decide`가 없는 호스트에서 `chat`은 조용히 지나가고, `fresnel trust`는 환경 문제(3)로 알린다.
+  7. [결정: 오케스트레이터 기본값, fxPT] `fresnel trust list [--json]`은 `trust.list`로 저장된 결정을 읽기만 한다. 텍스트는 한 줄에 폴더 하나(`허용 <폴더>`, `거부 <폴더>`)이고 목록이 비면 stderr에 한 줄이다. `--json`은 결과를 그대로 쓴다. 이번 실행에서 정한 결정은 저장하지 않으므로 나오지 않는다. `trust.list`가 없는 호스트에서는 환경 문제(3)다. 제거와 바꾸기는 사용자 결정 대기다 [근거: `xeon/packages/contracts/src/wire-settings/wire/methods.ts`].
 - 잠금(M2): `thread.locked` 오류의 `details.options`(`observe`, `fork`, `delegate`) 중 가능한 것만 보인다.
   - 관찰: `thread.open { mode: "observe" }` 뒤 구독만 한다. 입력란을 잠근다.
   - 분기: `thread.fork { threadId }`로 새 대화를 만들어 연다.

@@ -6,7 +6,7 @@ import type { EngineHandle } from "../engine.ts";
 import { failureOfCaught, renderFailure, type Failure } from "../errors.ts";
 import { EXIT, type ExitCode } from "../exit-codes.ts";
 import type { PromptIo } from "../render/approval.ts";
-import { askTrust, describeTrust, optionText } from "../render/trust.ts";
+import { askTrust, describeTrust, describeTrustList, optionText } from "../render/trust.ts";
 import { printFailure, withEngine, type CommandContext } from "./context.ts";
 
 // L4.cli.spec §3.1 trust, §4.11 "프로젝트 신뢰". `fresnel trust`는 이 작업 폴더의 신뢰 상태를 보이고(trust.get),
@@ -43,6 +43,28 @@ async function runStatus(
     await ctx.io.stderr(t("cli.trust.noResources", { root: status.projectRoot }));
   } else {
     await ctx.io.stdout(describeTrust(status));
+  }
+  return EXIT.ok;
+}
+
+/** `fresnel trust list`: 저장된 결정을 읽기만 한다. 목록이 비면 stderr에 한 줄이고 stdout은 비어 있다 */
+async function runList(
+  ctx: CommandContext,
+  handle: EngineHandle,
+  output: "text" | "json",
+): Promise<ExitCode> {
+  if (!handle.supports("trust.list")) {
+    const unsupported = unsupportedFailure();
+    await printFailure(ctx.io, unsupported);
+    return unsupported.code;
+  }
+  const listed = await handle.connection.request("trust.list", {});
+  if (output === "json") {
+    await ctx.io.stdout(`${JSON.stringify(listed, null, 2)}\n`);
+  } else if (listed.entries.length === 0) {
+    await ctx.io.stderr(t("cli.trust.list.empty"));
+  } else {
+    await ctx.io.stdout(describeTrustList(listed.entries));
   }
   return EXIT.ok;
 }
@@ -89,6 +111,8 @@ export async function runTrust(ctx: CommandContext, command: TrustCommand): Prom
     switch (command.kind) {
       case "trust.status":
         return runStatus(ctx, handle, command.output);
+      case "trust.list":
+        return runList(ctx, handle, command.output);
       case "trust.set":
         return runSet(ctx, handle, command);
       default:

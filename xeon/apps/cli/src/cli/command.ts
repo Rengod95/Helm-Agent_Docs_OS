@@ -139,6 +139,8 @@ type TrustScope = "folder" | "parent" | "session";
 
 export type TrustCommand =
   | { readonly kind: "trust.status"; readonly output: OutputMode }
+  /** 저장된 신뢰 결정 목록(읽기 전용). 제거와 바꾸기는 아직 없다 [결정: 오케스트레이터 기본값, fxPT] */
+  | { readonly kind: "trust.list"; readonly output: OutputMode }
   | {
       readonly kind: "trust.set";
       readonly verdict: "allow" | "deny";
@@ -895,12 +897,26 @@ function parseTrust(acc: GlobalAcc, rest: readonly string[]): Result<TrustComman
     }
     return ok({ kind: "trust.status", output: outputOf(scanned.value) });
   }
+  if (action === "list") {
+    const scanned = scanArgs(acc, tail, { "--json": { value: "none" } });
+    if (!scanned.ok) return scanned;
+    if (scanned.value.positionals.length > 0) {
+      return err(
+        usage(
+          "unexpectedArgument",
+          t("cli.usage.noPositional.message", { command: "trust list" }),
+          t("cli.usage.jsonOnly.fix"),
+        ),
+      );
+    }
+    return ok({ kind: "trust.list", output: outputOf(scanned.value) });
+  }
   if (action !== "allow" && action !== "deny") {
     return err(
       usage(
         "unknownCommand",
         t("cli.usage.unknownCommand.message", { command: `trust ${action}` }),
-        t("cli.usage.oneOf.fix", { list: "status, allow, deny" }),
+        t("cli.usage.oneOf.fix", { list: "status, list, allow, deny" }),
       ),
     );
   }

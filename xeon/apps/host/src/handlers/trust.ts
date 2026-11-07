@@ -27,9 +27,24 @@ function trustFailure(failure: TrustPortFailure): WireError {
         message: `trust: the decision could not be stored (${failure.reason})`,
         details: { code: "trust_store" },
       });
+    case "store_unreadable":
+      return wireError("store.io", {
+        message: `trust: the stored decisions could not be read (${failure.reason})`,
+        details: { code: "trust_store_read" },
+      });
     default:
       return assertNever(failure, "TrustPortFailure");
   }
+}
+
+// trust.list는 저장 파일을 읽기만 한다(F wire §3.3.1). 제거와 바꾸기는 아직 없다.
+function createTrustListHandler(engine: Engine): WireHandler<"trust.list"> {
+  const { trust } = engine.ports;
+  return async (_params, context) => {
+    const listed = await trust.list(context.signal);
+    if (!listed.ok) throw trustFailure(listed.error);
+    return listed.value;
+  };
 }
 
 function createTrustGetHandler(engine: Engine): WireHandler<"trust.get"> {
@@ -52,9 +67,10 @@ function createTrustDecideHandler(engine: Engine): WireHandler<"trust.decide"> {
 
 export function createTrustHandlers(
   engine: Engine,
-): Pick<WireHandlers, "trust.get" | "trust.decide"> {
+): Pick<WireHandlers, "trust.get" | "trust.decide" | "trust.list"> {
   return {
     "trust.get": createTrustGetHandler(engine),
     "trust.decide": createTrustDecideHandler(engine),
+    "trust.list": createTrustListHandler(engine),
   };
 }

@@ -1513,12 +1513,78 @@ export const TrustOptionSchema: TObject<{
 );
 export type TrustOption = Static<typeof TrustOptionSchema>;
 
+/** `TrustDetails`의 상한. 미리 보기는 이 상한까지만 싣고, 넘는 항목은 이름 목록에서 빠진다(파일 목록 `resources`에는 남는다). `servers`는 정의 파일 두 개 각각 50개씩이라 100이다(조립 루트 `trust-preview.ts`) */
+export const TRUST_DETAILS_LIMITS: {
+  readonly servers: number;
+  readonly serverName: number;
+  readonly command: number;
+  readonly args: number;
+  readonly arg: number;
+  readonly name: number;
+  readonly names: number;
+} = {
+  servers: 100,
+  serverName: 128,
+  command: 1024,
+  args: 64,
+  arg: 1024,
+  name: 256,
+  names: 256,
+};
+
+/** 신뢰 카드가 보일 MCP 서버 하나. `command`와 `args`는 실행될 그대로이고 `env`·`url`·`headers` 값은 싣지 않는다 */
+export const TrustMcpServerSchema: TObject<{
+  name: TString;
+  command: TString;
+  args: TArray<TString>;
+}> = Type.Object(
+  {
+    name: Type.String({ minLength: 1, maxLength: TRUST_DETAILS_LIMITS.serverName }),
+    command: Type.String({ minLength: 1, maxLength: TRUST_DETAILS_LIMITS.command }),
+    args: Type.Array(Type.String({ maxLength: TRUST_DETAILS_LIMITS.arg }), {
+      maxItems: TRUST_DETAILS_LIMITS.args,
+    }),
+  },
+  { additionalProperties: false },
+);
+
+/** 신뢰 카드가 보일 자원의 이름(이름만 싣는다. 파일 내용은 싣지 않는다). 결정이 필요한 판정에만 있다(X.loading-trust.spec §4.7.4) */
+export const TrustDetailsSchema: TObject<{
+  mcpServers: TArray<typeof TrustMcpServerSchema>;
+  hooks: TArray<TString>;
+  skills: TArray<TString>;
+  commands: TArray<TString>;
+  extensions: TArray<TString>;
+  truncated: TOptional<TBoolean>;
+}> = Type.Object(
+  {
+    mcpServers: Type.Array(TrustMcpServerSchema, { maxItems: TRUST_DETAILS_LIMITS.servers }),
+    hooks: Type.Array(Type.String({ minLength: 1, maxLength: TRUST_DETAILS_LIMITS.name }), {
+      maxItems: TRUST_DETAILS_LIMITS.names,
+    }),
+    skills: Type.Array(Type.String({ minLength: 1, maxLength: TRUST_DETAILS_LIMITS.name }), {
+      maxItems: TRUST_DETAILS_LIMITS.names,
+    }),
+    commands: Type.Array(Type.String({ minLength: 1, maxLength: TRUST_DETAILS_LIMITS.name }), {
+      maxItems: TRUST_DETAILS_LIMITS.names,
+    }),
+    extensions: Type.Array(Type.String({ minLength: 1, maxLength: TRUST_DETAILS_LIMITS.name }), {
+      maxItems: TRUST_DETAILS_LIMITS.names,
+    }),
+    /** 목록이 일부만 실렸다: 상한으로 잘렸거나, 너무 커서 읽지 않았거나 읽지 못한 정의 파일이 있다. 없으면 전부 실린 것이다 */
+    truncated: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+export type TrustDetails = Static<typeof TrustDetailsSchema>;
+
 export const TrustStatusSchema: TObject<{
   projectRoot: TString;
   required: TBoolean;
   verdict: TUnion<[TLiteral<"allow">, TLiteral<"deny">, TLiteral<"undecided">]>;
   via: typeof TrustViaSchema;
   resources: TArray<TString>;
+  details: TOptional<typeof TrustDetailsSchema>;
   options: TArray<typeof TrustOptionSchema>;
 }> = Type.Object(
   {
@@ -1531,6 +1597,8 @@ export const TrustStatusSchema: TObject<{
     via: TrustViaSchema,
     /** 신뢰 필요 자원(프로젝트 루트 기준 상대 경로) */
     resources: Type.Array(Type.String({ minLength: 1, maxLength: 1024 }), { maxItems: 64 }),
+    /** 결정이 필요한 판정(`required`이고 `verdict`가 `allow`가 아님)에만 있다. 신뢰 카드가 이름으로 보일 자원이다(X.loading-trust.spec §4.7.4). 없으면 파일 목록 `resources`만 보인다 */
+    details: Type.Optional(TrustDetailsSchema),
     options: Type.Array(TrustOptionSchema, { maxItems: 8 }),
   },
   { additionalProperties: false },
@@ -1551,6 +1619,54 @@ export const TrustDecideParamsSchema: TObject<{
   { additionalProperties: false },
 );
 export type TrustDecideParams = Static<typeof TrustDecideParamsSchema>;
+
+/** trust.list 항목 하나. 저장 파일의 결정이다. 세션 결정은 저장하지 않으므로 없다. `savedAt`은 버전 없는 옛 파일이면 없다 [결정: 오케스트레이터 기본값, fxPT] */
+export const TrustListEntrySchema: TObject<{
+  path: TString;
+  verdict: TUnion<[TLiteral<"allow">, TLiteral<"deny">]>;
+  savedAt: TOptional<TString>;
+}> = Type.Object(
+  {
+    /** 저장된 정규 폴더 경로(심볼릭 링크를 푼 값) */
+    path: Type.String({ minLength: 1, maxLength: 4096 }),
+    verdict: Type.Union([Type.Literal("allow"), Type.Literal("deny")]),
+    /** 결정을 저장한 시각(ISO 8601, UTC) */
+    savedAt: Type.Optional(Type.String({ maxLength: 64 })),
+  },
+  { additionalProperties: false },
+);
+export type TrustListEntry = Static<typeof TrustListEntrySchema>;
+
+/** trust.list. 읽기 전용이고 인자가 없다. 제거와 바꾸기는 아직 없다(F wire §3.3.1) [결정: 오케스트레이터 기본값, fxPT] */
+export const TrustListParamsSchema: TObject<{}> = Type.Object({}, { additionalProperties: false });
+export type TrustListParams = Static<typeof TrustListParamsSchema>;
+
+export const TrustListResultSchema: TObject<{ entries: TArray<typeof TrustListEntrySchema> }> =
+  Type.Object(
+    { entries: Type.Array(TrustListEntrySchema, { maxItems: 4096 }) },
+    { additionalProperties: false },
+  );
+export type TrustListResult = Static<typeof TrustListResultSchema>;
+
+// ── workspace.* (작업 폴더의 존재. 대화의 작업 폴더가 지금 있는지 클라이언트가 묻는다, F wire §3.3.1) ──
+
+/** workspace.status. 아무것도 바꾸지 않는다. `workspace`는 절대 경로다 [결정: 오케스트레이터 기본값, fxPT] */
+export const WorkspaceStatusParamsSchema: TObject<{ workspace: TString }> = Type.Object(
+  { workspace: Type.String({ minLength: 1, maxLength: 4096 }) },
+  { additionalProperties: false },
+);
+export type WorkspaceStatusParams = Static<typeof WorkspaceStatusParamsSchema>;
+
+/** `exists`는 그 경로가 지금 있는 폴더일 때 참이다(파일이거나 없으면 거짓). `path`는 있으면 정규 경로, 없으면 절대 경로로 정리한 값이다 */
+export const WorkspaceStatusResultSchema: TObject<{ exists: TBoolean; path: TString }> =
+  Type.Object(
+    {
+      exists: Type.Boolean(),
+      path: Type.String({ minLength: 1, maxLength: 4096 }),
+    },
+    { additionalProperties: false },
+  );
+export type WorkspaceStatusResult = Static<typeof WorkspaceStatusResultSchema>;
 
 // ── 모든 요청 params의 _meta (§3.6) ──────────────────────────────────────
 
@@ -1789,6 +1905,14 @@ interface WireSchemas
     params: WithMeta<typeof TrustDecideParamsSchema>;
     result: typeof TrustStatusSchema;
   };
+  "trust.list": {
+    params: WithMeta<typeof TrustListParamsSchema>;
+    result: typeof TrustListResultSchema;
+  };
+  "workspace.status": {
+    params: WithMeta<typeof WorkspaceStatusParamsSchema>;
+    result: typeof WorkspaceStatusResultSchema;
+  };
   "proposal.list": {
     params: WithMeta<typeof ProposalListParamsSchema>;
     result: typeof ProposalListResultSchema;
@@ -1947,6 +2071,12 @@ export const WIRE_METHODS: {
   "secret.beginReveal": spec(SecretNameRequestSchema, SecretBeginRevealResultSchema, "M2"),
   "trust.get": spec(withMeta(TrustGetParamsSchema), TrustStatusSchema, "M2"),
   "trust.decide": spec(withMeta(TrustDecideParamsSchema), TrustStatusSchema, "M2"),
+  "trust.list": spec(withMeta(TrustListParamsSchema), TrustListResultSchema, "M4"),
+  "workspace.status": spec(
+    withMeta(WorkspaceStatusParamsSchema),
+    WorkspaceStatusResultSchema,
+    "M4",
+  ),
   "proposal.list": spec(withMeta(ProposalListParamsSchema), ProposalListResultSchema, "M3"),
   "proposal.decide": spec(ProposalDecideRequestSchema, ProposalDecideResultSchema, "M3"),
   "schedule.create": spec(withMeta(ScheduleCreateInputSchema), ScheduleCreateResultSchema, "M3"),

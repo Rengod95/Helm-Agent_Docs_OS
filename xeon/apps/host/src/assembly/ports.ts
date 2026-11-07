@@ -183,15 +183,16 @@ export function toLogFields(fields: Readonly<Record<string, unknown>>): LogField
   return Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, toLogValue(value)]));
 }
 
-/** 판정과 선택지를 wire `TrustStatus`로 옮긴다 */
+/** 판정과 선택지를 wire `TrustStatus`로 옮긴다. `details`는 미리 본 자원이 있을 때만 싣는다 */
 function trustStatusOf(inspection: TrustInspection): WireResult<"trust.get"> {
-  const { result, options } = inspection;
+  const { result, options, details } = inspection;
   return {
     projectRoot: result.projectRoot,
     required: result.required,
     verdict: result.verdict,
     via: result.via,
     resources: [...result.resources],
+    ...(details === null ? {} : { details }),
     options: options.map((option) => ({
       choice: { kind: option.choice.kind, verdict: option.choice.verdict },
       label: option.label,
@@ -621,7 +622,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     // 신뢰한 작업 폴더의 project·local 설정을 읽어 둔다. 자원(임대)을 쥐기 전에 해서 실패해도 정리할 것이 없다
     await settings.prepare(threadId);
     await deps.afterSettingsPrepare?.(threadId);
-    // 서비스 모드: 이 thread의 작업 폴더가 신뢰되어 있으면 그 프로젝트의 확장을 싣는다(결정이 없으면 클라이언트가 trust.decide로 정한 뒤 싣는다)
+    // 이 thread의 작업 폴더가 신뢰되어 있으면 그 프로젝트의 확장을 싣는다(모든 호스트 모드. 결정이 없으면 클라이언트가 trust.decide로 정한 뒤 싣는다)
     await deps.projectExtensions.ensure(deps.workspaceOf(threadId), deps.signal);
     const acquired = store.leases.acquire(`thread:${threadId}`, { ...deps.holder, kind });
     if (!acquired.ok) {
@@ -707,6 +708,23 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
   });
 
   const trust: TrustPort = {
+    async list() {
+      const listed = await deps.trust.list();
+      if (!listed.ok) {
+        return err({
+          kind: "store_unreadable",
+          reason: listed.error.kind === "corrupt" ? "corrupt" : "io",
+        });
+      }
+      // 옛 형식 항목은 `savedAt`이 없다. 키를 만들지 않아야 `exactOptionalPropertyTypes`가 맞는다
+      return ok({
+        entries: listed.value.map((entry) =>
+          entry.savedAt === undefined
+            ? { path: entry.path, verdict: entry.verdict }
+            : { path: entry.path, verdict: entry.verdict, savedAt: entry.savedAt },
+        ),
+      });
+    },
     async get(workspace, signal) {
       if (!isAbsolute(workspace)) return err({ kind: "workspace_not_absolute" });
       return ok(trustStatusOf(await deps.trust.inspect(workspace, signal)));
@@ -723,7 +741,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       });
       // 어느 키가 바뀌었는지 모르는 변경이다(keys가 빈 알림, F wire §3.3.2)
       deps.settings.notifyChanged({ keys: [], scopes: ["project", "local"], threadId: null });
-      // 서비스 모드: 허용된 작업 폴더의 프로젝트 확장을 지금 싣는다
+      // 허용된 작업 폴더의 프로젝트 확장을 지금 싣는다(모든 호스트 모드)
       await deps.projectExtensions.ensure(workspace, signal);
       return ok(trustStatusOf(decided.value));
     },

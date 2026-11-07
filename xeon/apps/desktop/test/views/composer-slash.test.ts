@@ -1,18 +1,20 @@
 import { describe, expect, test } from "bun:test";
 import type { CommandRowVM } from "@fresnel/client/settings";
+import type { CommandSource } from "@fresnel/contracts/capabilities";
 import {
   appSlashOf,
   slashFillOf,
   slashIssuesOf,
   slashMenuOf,
   slashMoveOf,
+  slashSourceChipOf,
   unknownSlashOf,
   type SkillsVM,
 } from "../../src/views/composer-slash.ts";
 
 // 입력창 슬래시 목록과 `/compact [지침]`, 모르는 `/명령` 판정. 값으로 비교한다.
 
-function row(name: string, description = ""): CommandRowVM {
+function row(name: string, description = "", source: CommandSource = "capability"): CommandRowVM {
   return {
     name,
     label: `/${name}`,
@@ -20,6 +22,7 @@ function row(name: string, description = ""): CommandRowVM {
     hint: null,
     kind: "action",
     origin: "helm",
+    source,
     needsShellConfirm: false,
     firstChoices: [],
   };
@@ -81,7 +84,36 @@ describe("slash menu", () => {
       description: "대화를 요약해 문맥을 줄여요",
       hint: "[지침]",
       group: "command",
+      sourceChip: null,
     });
+  });
+
+  test("a project or user row, and a project or user skill, carries its source chip; the others carry none", () => {
+    const engine = [
+      row("hello", "인사", "project"),
+      row("mine", "내 명령", "user"),
+      row("ext", "확장 명령", "extension"),
+      row("helm", "탐구", "builtin"),
+    ];
+    expect(slashMenuOf("/", engine, SKILLS).map((r) => [r.label, r.sourceChip])).toEqual([
+      ["/compact", null],
+      ["/hello", "프로젝트"],
+      ["/mine", "사용자"],
+      ["/ext", null],
+      ["/helm", null],
+      ["/scigreet-hello", "프로젝트"],
+      ["/home-only", "사용자"],
+      ["/plan", "사용자"],
+    ]);
+  });
+
+  test("the chip text is decided by the source alone", () => {
+    expect(slashSourceChipOf("project")).toBe("프로젝트");
+    expect(slashSourceChipOf("user")).toBe("사용자");
+    expect(slashSourceChipOf("builtin")).toBeNull();
+    expect(slashSourceChipOf("capability")).toBeNull();
+    expect(slashSourceChipOf("extension")).toBeNull();
+    expect(slashSourceChipOf("path")).toBeNull();
   });
 
   test("the skills of the conversation form their own group after the commands, and a command wins a name clash", () => {

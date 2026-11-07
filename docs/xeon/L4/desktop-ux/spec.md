@@ -1131,7 +1131,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 신뢰 카드 | 작업 폴더 자원과 선택지 | `trust.get { workspace }` → `trustCardOf` |
 | 띠 | 설정 필요, 오프라인, 관찰 중, 이어서 실행, turn 실패 | `useSetupNeeded`, 연결 상태, `observing`, `ThreadSummary.resumable`, `turnFailures` |
 | 입력창 | 텍스트, 첨부, 승인 모드 칩(대화별, 아래 전역 요소의 "승인 모드"), 모델(대화별 `Select`: `models.list`, `thread.setModel`), 큐 모드, 문맥 링, 보내기·중단 | `composerDisabledReason`, `createEnterGuard`, `createSendLatch`, `PermissionModeSelect`, `useThreadPermissionMode`, `ModelSelect`, `useThreadModel`, `useModelChoices` |
-| 슬래시 자동 완성 | `/`로 시작하고 이름을 치는 중이면 입력창 위에 명령 목록(앱 명령 `/compact [지침]`이 먼저, 그 뒤 엔진 명령 `command.list`). ↑↓로 고르고 Tab으로 채우고 Esc로 닫는다. 고른 행이 입력과 다르면 Enter는 채우기만 하고 같으면 보낸다. `/compact [지침]`은 모델로 보내지 않고 "대화 요약"과 같은 `thread.compact { threadId, instructions? }`로 가며 결과는 같은 토스트로 보인다(앱 명령이 엔진 명령보다 앞선다, CLI `/compact`와 같다). 요약할 것이 없다는 결과(`nothing_to_summarize`)는 설정 `l1.context.keepRecentTokens`(컴팩션 뒤 유지할 최근 토큰)를 읽어 "아직 요약할 만큼 쌓인 내용이 없어요. 약 n토큰부터 요약해요."로 문턱을 함께 말한다(읽지 못하면 앞 문장만) [결정: 오케스트레이터 기본값, rtG]. 앱도 엔진도 모르는 `/명령`은 보내기 전에 "모르는 명령이에요 · 그대로 보내기"로 묻는다(명령 목록을 읽지 못했으면 묻지 않고 보낸다). 앱 명령은 `/compact`뿐이다 [기본값: `/new`, `/model`은 입력창이 대화·모델 고르기 흐름에 닿지 않아 뺐다]. 명령 뒤에 "스킬" 묶음이 붙는다: 이 대화에 실린 스킬(`knowledge.skills.list { threadId }` → `commands.skills.list`, 모델이 못 부르는 스킬은 "직접 부르는 스킬" 표시)이고, 이름이 명령과 겹치면 명령이 이긴다. 색인에서 빠진 스킬(형식 오류, 폴더 신뢰 안 됨)은 이유를 한 줄씩 목록 끝에 경고색으로 보인다(`/`뿐이면 모두, 이름을 치는 중이면 경로에 그 글이 든 것만). 스킬 이름으로 시작하는 `/이름`은 모르는 명령으로 묻지 않고 그대로 보낸다(모델이 스킬 목록에서 읽는다). 스킬을 못 읽으면(스킬 설정이 꺼짐) 묶음이 없다 [결정: 오케스트레이터 기본값, scI] | `views/composer-slash.ts`(`slashMenuOf`, `slashIssuesOf`, `appSlashOf`, `unknownSlashOf`), `command.list`, `knowledge.skills.list` → `completeSlash`, `compactThread` |
+| 슬래시 자동 완성 | `/`로 시작하고 이름을 치는 중이면 입력창 위에 명령 목록(앱 명령 `/compact [지침]`이 먼저, 그 뒤 엔진 명령 `command.list`). ↑↓로 고르고 Tab으로 채우고 Esc로 닫는다. 고른 행이 입력과 다르면 Enter는 채우기만 하고 같으면 보낸다. `/compact [지침]`은 모델로 보내지 않고 "대화 요약"과 같은 `thread.compact { threadId, instructions? }`로 가며 결과는 같은 토스트로 보인다(앱 명령이 엔진 명령보다 앞선다, CLI `/compact`와 같다). 요약할 것이 없다는 결과(`nothing_to_summarize`)는 설정 `l1.context.keepRecentTokens`(컴팩션 뒤 유지할 최근 토큰)를 읽어 "아직 요약할 만큼 쌓인 내용이 없어요. 약 n토큰부터 요약해요."로 문턱을 함께 말한다(읽지 못하면 앞 문장만) [결정: 오케스트레이터 기본값, rtG]. 앱도 엔진도 모르는 `/명령`은 보내기 전에 "모르는 명령이에요 · 그대로 보내기"로 묻는다(명령 목록을 읽지 못했으면 묻지 않고 보낸다). 앱 명령은 `/compact`뿐이다 [기본값: `/new`, `/model`은 입력창이 대화·모델 고르기 흐름에 닿지 않아 뺐다]. 명령 뒤에 "스킬" 묶음이 붙는다: 이 대화에 실린 스킬(`knowledge.skills.list { threadId }` → `commands.skills.list`, 모델이 못 부르는 스킬은 "직접 부르는 스킬" 표시)이고, 이름이 명령과 겹치면 명령이 이긴다. 색인에서 빠진 스킬(형식 오류, 폴더 신뢰 안 됨)은 이유를 한 줄씩 목록 끝에 경고색으로 보인다(`/`뿐이면 모두, 이름을 치는 중이면 경로에 그 글이 든 것만). 스킬 이름으로 시작하는 `/이름`은 모르는 명령으로 묻지 않고 그대로 보낸다(모델이 스킬 목록에서 읽는다). 스킬을 못 읽으면(스킬 설정이 꺼짐) 묶음이 없다 [결정: 오케스트레이터 기본값, scI]. 명령과 스킬 행에는 출처 칩을 행 이름 옆에 작게 붙인다: 프로젝트 출처(명령은 `command.list`의 `source`가 `project`, 스킬은 `knowledge.skills.list`의 `scope`가 `project`)는 `프로젝트`, 사용자 출처(`user`)는 `사용자`다. 내장(`builtin`), 코드 등록(`capability`), 확장(`extension`), 경로(`path`) 출처는 칩이 없다 [결정: 오케스트레이터 기본값, fxPT] [근거: `views/composer-slash.ts`의 `slashSourceChipOf`] | `views/composer-slash.ts`(`slashMenuOf`, `slashIssuesOf`, `appSlashOf`, `unknownSlashOf`, `slashSourceChipOf`), `views/composer.tsx`(`SlashRow`), `command.list`, `knowledge.skills.list` → `completeSlash`, `compactThread` |
 
 | 기능 | wire 또는 view-model |
 |---|---|
@@ -1729,9 +1729,9 @@ compact 폭(720 이하)과 사이드바 시트:
 
 | 항목 | 출처 |
 |---|---|
-| 탭, 필드, 위젯, 배지, 잠금, 가려진 범위, 폐기 예정, 재시작 띠, 개요 | `settings.list` + `settings.get { threadId }` → `buildSettingsView({ defs, values, hasThread })` → `SettingsView`, `TabVM`, `FieldVM` |
+| 탭, 필드, 위젯, 배지, 잠금, 가려진 범위, 폐기 예정, 재시작 띠, 개요 | `settings.list` + `settings.get { threadId }` → `buildSettingsView({ defs, values, hasThread, fileValues })` → `SettingsView`, `TabVM`, `FieldVM`. 가려진 범위의 값은 `settings.readFile`로 그 범위 파일을 읽어 채운다 [결정: 오케스트레이터 기본값, fxPT] |
 | 범위 글(화면 낭독기 문장), 적용 시점 글 | `scopeBadge`, `runtimeBadge` |
-| 쓰기 범위 후보와 기본 | `writableScopes`, `defaultWriteScope` |
+| 쓰기 범위 후보와 기본 | `writableScopes`, `shownWriteScope`(유효 값을 정한 범위 우선, 없으면 `defaultWriteScope`) [결정: 오케스트레이터 기본값, fxPT] |
 | 잠금 문장 | `lockInfo` |
 | 파일 전용 항목 | `SettingsView.fileOnly`, 파일 편집 `settings.readFile`·`settings.writeFile` |
 | 편집 중 값, 저장 중, 오류, 다른 곳에서 바뀜 | `createSettingsController`(`packages/client/src/settings/controller.ts`)와 `settingsViewOf`(`state.ts`). 변경 알림 `settings.invalidated`는 `invalidationConcerns`로 거른다(`L4.settings-ui` §4.5.4, V-09 구현됨) |
@@ -1752,6 +1752,8 @@ compact 폭(720 이하)과 사이드바 시트:
   - 읽는 중: 탭 목록은 바로, 폼 `Skeleton`.
   - 오류: `FieldError` 7종(`invalidValue`, `scopeNotAllowed`, `locked`, `secretValue`, `unknownKey`, `transient`, `internal`)을 필드 아래 `Field error`로. `ViewDiagnostic`은 개요 탭 아래 "화면 진단"에 모읍니다.
   - 개요 탭의 "설정 파일"(시안 P-09 S7)은 사용자·프로젝트·관리 정책 파일 경로를 `settings.readFile`의 `path`로 읽어 그립니다(프로젝트는 작업 폴더가 있는 대화가 있어야 정해지고, 읽지 못한 범위의 줄은 그리지 않습니다). 경로의 홈은 `~`로 줄여 보이고(`~/.fresnel/settings.json`), 클라이언트가 홈 값을 받지 않아 `/Users/<이름>/`, `/home/<이름>/` 모양만 줄입니다 [제안]. 프로젝트 경로는 열린 대화가 없으면 작업 폴더가 있는 가장 최근 갱신 대화의 폴더로 정합니다 [결정: 2026-11-06 메인]. "화면 진단" 머리 끝의 "진단 복사"는 상태줄과 같은 진단 묶음을 복사합니다.
+  - 개요 탭의 "신뢰한 폴더" 구역 [결정: 오케스트레이터 기본값, fxPT]: "설정 파일" 아래에 저장된 작업 폴더 신뢰 결정을 `trust.list`로 읽어 경로와 허용·거부를 보입니다(읽기 전용). 설명(지울 수 있는 길이 아직 없다 [근거: `xeon/packages/contracts/src/wire-settings/wire/methods.ts`])은 정보 아이콘 뒤에 둡니다. 목록이 비면 빈 상태 글이고, 구형 host에서는 구역을 그리지 않습니다.
+  - 작업 폴더 없음 띠 [결정: 오케스트레이터 기본값, fxPT]: 열린 대화의 작업 폴더가 없으면 입력창 위에 "작업 폴더를 찾을 수 없어요"와 경로를 띠로 보입니다(`workspace.status`). 입력은 막지 않습니다. 대화를 열 때와 연결이 살아날 때 다시 묻습니다.
   - 오프라인: 읽은 값을 보이고 모든 편집 잠금.
   - 권한 필요: 잠금(`managed`) 문장과 정책 파일 경로, 대화 범위는 열린 대화가 있을 때만.
   - 긴 내용: 탭 하나에 40개 넘으면 `FormLayoutSection` 묶음과 묶음 머리 고정, 표 위젯은 20행 뒤 스크롤.

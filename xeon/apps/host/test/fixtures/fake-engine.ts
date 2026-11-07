@@ -483,6 +483,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     trust: {
       get: () => Promise.reject(new Error("trust.get is not part of the fake")),
       decide: () => Promise.reject(new Error("trust.decide is not part of the fake")),
+      list: () => Promise.reject(new Error("trust.list is not part of the fake")),
       ...options.overrides?.trust,
     },
     activity: {

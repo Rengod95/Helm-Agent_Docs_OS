@@ -53,7 +53,7 @@ export interface ExternalLoading {
   }[];
 }
 
-/** 사용자 위치의 외부 확장을 싣는다. 프로젝트 확장은 cwd의 프로젝트만 판정해 싣고, 서비스 모드는 작업 폴더를 여는 때 싣는다(project-extensions.ts) */
+/** 사용자 위치의 외부 확장을 싣는다. 프로젝트 확장은 시작 때 cwd의 프로젝트만 판정해 싣고(서비스 모드는 싣지 않는다), 작업 폴더는 모든 모드가 여는 때 싣는다(project-extensions.ts) */
 export async function loadExternalExtensions(deps: ExternalLoadingDeps): Promise<ExternalLoading> {
   const loader = createExtensionLoader({
     host: deps.ext,

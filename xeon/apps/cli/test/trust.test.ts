@@ -147,6 +147,62 @@ test("trust commands parse: status, allow and deny with a scope", () => {
   expect(parse(["trust", "maybe"])).toBe("unknownCommand");
 });
 
+test("trust list parses with and without --json, and takes no positional argument", () => {
+  expect(parse(["trust", "list"])).toEqual({ kind: "trust.list", output: "text" });
+  expect(parse(["trust", "list", "--json"])).toEqual({ kind: "trust.list", output: "json" });
+  expect(parse(["trust", "list", "/work"])).toBe("unexpectedArgument");
+  expect(parse(["trust", "list", "--scope", "folder"])).toBe("unknownFlag");
+});
+
+test("an unknown trust action names the options including list", () => {
+  const parsed = parseArgv(["trust", "maybe"], TTY, {});
+  expect(parsed.ok).toBe(false);
+  if (parsed.ok) throw new Error("expected a usage error");
+  expect(parsed.error.fix).toBe("status, list, allow, deny 중 하나를 쓴다");
+});
+
+// trust list는 저장된 결정을 읽기만 한다. 목록 행은 `허용 <폴더>` 또는 `거부 <폴더>`다.
+const LISTED = {
+  entries: [
+    { path: "/work/app", verdict: "allow", savedAt: "2026-11-07T01:02:03.000Z" },
+    { path: "/work/old", verdict: "deny" },
+  ],
+};
+
+test("fresnel trust list prints one line per saved folder, allow or deny first", async () => {
+  const seen: unknown[] = [];
+  const { h } = harness({
+    "trust.list": (params) => {
+      seen.push(params);
+      return LISTED;
+    },
+  });
+  expect(await h.run(["trust", "list"])).toBe(EXIT.ok);
+  expect(h.stdoutText()).toBe("허용 /work/app\n거부 /work/old\n");
+  expect(h.stderrText()).toBe("");
+  expect(seen).toEqual([{}]);
+});
+
+test("fresnel trust list --json prints the wire result as is", async () => {
+  const { h } = harness({ "trust.list": () => LISTED });
+  expect(await h.run(["trust", "list", "--json"])).toBe(EXIT.ok);
+  expect(JSON.parse(h.stdoutText())).toEqual(LISTED);
+});
+
+test("an empty trust list says so on stderr and prints nothing on stdout", async () => {
+  const { h } = harness({ "trust.list": () => ({ entries: [] }) });
+  expect(await h.run(["trust", "list"])).toBe(EXIT.ok);
+  expect(h.stdoutText()).toBe("");
+  expect(h.stderrText()).toBe("신뢰하거나 거부한 폴더가 없다\n");
+});
+
+test("a host without trust.list is an environment problem for fresnel trust list", async () => {
+  const { h } = harness({});
+  expect(await h.run(["trust", "list"])).toBe(EXIT.environment);
+  expect(h.stderrText()).toContain("연결한 host가 작업 폴더 신뢰 결정을 아직 지원하지 않는다");
+  expect(h.methods()).not.toContain("trust.list");
+});
+
 test("fresnel trust shows the card for this workspace and asks trust.get with the workspace", async () => {
   const trust = fakeTrust(status());
   const { h } = harness(trust.handlers);

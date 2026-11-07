@@ -6,6 +6,8 @@ import { wireError } from "@fresnel/contracts/wire";
 import { activeLocale, setActiveLocale, type Locale } from "../../src/i18n/index.ts";
 import {
   createSettingsController,
+  settingsViewOf,
+  type FieldVM,
   type SettingsController,
   type SettingsHostPort,
 } from "../../src/settings/index.ts";
@@ -442,5 +444,165 @@ describe("restart and dispose", () => {
     host.fake.emit("settings.invalidated", { keys: [BUDGET], scopes: ["user"], threadId: null });
     await flush();
     expect(calls).toBe(0);
+  });
+});
+
+// ── 가려진 값: user=2, project=4, local=6 ─────────────────────────────────
+// 유효 값은 local(6)이다. 화면의 범위 선택과 기본 쓰기 범위는 local이고, 가려진 값은 파일을 읽어 project 4, user 2로 보인다.
+
+const MAX_LENSES = "ext.helm.maxLenses";
+const MAX_LENSES_DEF = wireDef({
+  key: MAX_LENSES,
+  type: { type: "integer" },
+  range: { min: 1, max: 20 },
+  default: 3,
+  ui: { tab: "plugins", widget: "number", order: 1, label: "렌즈 최대 개수" },
+});
+const LOCAL_WINNER = effectiveOf(MAX_LENSES, 6, {
+  source: { scope: "local", path: "/work/.fresnel/settings.local.json" },
+  shadowed: [
+    { scope: "project", path: "/work/.fresnel/settings.json" },
+    { scope: "user", path: "/home/user/.fresnel/settings.json" },
+  ],
+});
+const SCOPE_FILES: ReadonlyMap<string, string> = new Map([
+  ["user", '{"ext.helm.maxLenses": 2}'],
+  ["project", '{"ext.helm.maxLenses": 4}'],
+  ["local", '{"ext.helm.maxLenses": 6}'],
+]);
+
+/** 범위 파일 읽기 응답. 파일 원문은 `SCOPE_FILES`에서 가져온다 */
+function fileReadOf(scope: string): Promise<{
+  scope: "managed" | "user" | "project" | "local";
+  path: string | null;
+  exists: boolean;
+  readOnly: boolean;
+  text: string;
+  sha256: string | null;
+  unknownKeys: string[];
+}> {
+  if (scope !== "user" && scope !== "project" && scope !== "local") {
+    return Promise.reject(new Error(`unexpected scope ${scope}`));
+  }
+  return Promise.resolve({
+    scope,
+    path: `/fixture/${scope}.json`,
+    exists: true,
+    readOnly: false,
+    text: SCOPE_FILES.get(scope) ?? "",
+    sha256: null,
+    unknownKeys: [],
+  });
+}
+
+function winnerHost(readFile: ConnectionTableReadFile = fileReadOf): Host {
+  return hostFor({
+    thread: THREAD_A,
+    defs: [MAX_LENSES_DEF],
+    table: {
+      "settings.get": () => Promise.resolve({ settings: [LOCAL_WINNER] }),
+      "settings.readFile": (params) => readFile(params.scope),
+    },
+  });
+}
+
+type ConnectionTableReadFile = (scope: string) => ReturnType<typeof fileReadOf>;
+
+function fieldOfState(host: Host, key: string): FieldVM {
+  const view = settingsViewOf(host.controller.getState());
+  const found = view.tabs.flatMap((tab) => tab.fields).find((field) => field.key === key);
+  if (found === undefined) throw new Error(`no field ${key} in the view`);
+  return found;
+}
+
+describe("shadowed values and the write scope", () => {
+  test("the shown scope is the winning local scope, and the hidden values come from the scope files", async () => {
+    const host = winnerHost();
+    await host.controller.load();
+    const field = fieldOfState(host, MAX_LENSES);
+    expect(field.scope.scope).toBe("local");
+    expect(field.selectedScope).toBe("local");
+    expect(field.shadowed).toEqual([
+      {
+        scope: "project",
+        path: "/work/.fresnel/settings.json",
+        value: { kind: "value", value: 4 },
+      },
+      {
+        scope: "user",
+        path: "/home/user/.fresnel/settings.json",
+        value: { kind: "value", value: 2 },
+      },
+    ]);
+    // 가려진 범위 파일만 읽는다. 작업 폴더 범위는 대화를 보내고 user는 보내지 않는다
+    expect(host.fake.calls.filter((call) => call.method === "settings.readFile")).toEqual([
+      { method: "settings.readFile", params: { scope: "project", threadId: THREAD_A } },
+      { method: "settings.readFile", params: { scope: "user" } },
+    ]);
+  });
+
+  test("an in-place edit writes to the shown local scope, with the open thread", async () => {
+    const host = winnerHost();
+    await host.controller.load();
+    host.controller.edit(MAX_LENSES, 7);
+    await host.controller.commit(MAX_LENSES);
+    expect(host.fake.calls.at(-1)).toEqual({
+      method: "settings.set",
+      params: { key: MAX_LENSES, value: 7, scope: "local", threadId: THREAD_A },
+    });
+  });
+
+  test("an explicit scope choice wins over the shown scope and is the write target", async () => {
+    const host = winnerHost();
+    await host.controller.load();
+    host.controller.selectScope(MAX_LENSES, "user");
+    host.controller.edit(MAX_LENSES, 8);
+    await host.controller.commit(MAX_LENSES);
+    expect(host.fake.calls.at(-1)).toEqual({
+      method: "settings.set",
+      params: { key: MAX_LENSES, value: 8, scope: "user" },
+    });
+  });
+
+  test("a scope chosen in a conversation that has closed is no longer the write target", async () => {
+    const host = winnerHost();
+    await host.controller.load();
+    host.controller.selectScope(MAX_LENSES, "user");
+    host.setThread(null);
+    host.controller.edit(MAX_LENSES, 9);
+    await host.controller.commit(MAX_LENSES);
+    expect(host.fake.calls.at(-1)).toEqual({
+      method: "settings.set",
+      params: { key: MAX_LENSES, value: 9, scope: "user" },
+    });
+    const launched = winnerHost();
+    await launched.controller.load();
+    launched.controller.selectScope(MAX_LENSES, "launch");
+    launched.setThread(null);
+    await launched.controller.load();
+    expect(fieldOfState(launched, MAX_LENSES).selectedScope).toBe("local");
+  });
+
+  test("reset clears the shown local scope with the open thread", async () => {
+    const host = winnerHost();
+    await host.controller.load();
+    await host.controller.reset(MAX_LENSES, "local");
+    expect(host.fake.calls.at(-1)).toEqual({
+      method: "settings.reset",
+      params: { key: MAX_LENSES, scope: "local", threadId: THREAD_A },
+    });
+  });
+
+  test("a hidden scope whose file cannot be read is unknown, and the load still succeeds", async () => {
+    const host = winnerHost((scope) =>
+      scope === "project" ? Promise.reject(new Error("read refused")) : fileReadOf(scope),
+    );
+    await host.controller.load();
+    expect(host.controller.getState().status).toBe("ready");
+    const field = fieldOfState(host, MAX_LENSES);
+    expect(field.shadowed.map((item) => item.value)).toEqual([
+      { kind: "unknown" },
+      { kind: "value", value: 2 },
+    ]);
   });
 });

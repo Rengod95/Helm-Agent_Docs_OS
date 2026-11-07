@@ -57,6 +57,34 @@ describe("approval announcement", () => {
     });
   });
 
+  test("a start approval is announced with the server name from its args", () => {
+    const request = toolRequest('Start MCP server "gh" with secret://gh-token?');
+    expect(
+      approvalAnnouncement({
+        ...request,
+        body: {
+          kind: "tool",
+          tool: {
+            toolName: "mcp_start",
+            risk: "exec",
+            args: {
+              server: "gh",
+              source: "settings:user",
+              command: "gh-mcp",
+              args: [],
+              cwd: null,
+              envNames: [],
+              secretEnv: {},
+              definitionHash: "h",
+            },
+            argsHash: "h",
+            ruleId: "mcp.start",
+          },
+        },
+      }),
+    ).toEqual({ id: "desktop.announce.approval.mcpStart", params: { name: "gh" } });
+  });
+
   test("an unknown title is announced as is", () => {
     expect(approvalAnnouncement(toolRequest("Something else"))).toEqual({
       id: "desktop.announce.approval",

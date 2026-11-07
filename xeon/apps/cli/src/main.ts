@@ -82,6 +82,7 @@ export async function runCli(argv: readonly string[], io: CliIo, deps: CliDeps):
       return runSecret(ctx, command);
     }
     case "trust.status":
+    case "trust.list":
     case "trust.set": {
       const { runTrust } = await import("./commands/trust.ts");
       return runTrust(ctx, command);

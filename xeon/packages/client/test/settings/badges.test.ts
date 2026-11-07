@@ -6,6 +6,7 @@ import {
   lockInfo,
   runtimeBadge,
   scopeBadge,
+  shownWriteScope,
   writableScopes,
   type WritableScope,
 } from "../../src/settings/index.ts";
@@ -21,7 +22,7 @@ describe("scope badge", () => {
     expect(scopeBadge({ scope: "user" })).toEqual({ scope: "user", text: "사용자", tone: "user" });
     expect(scopeBadge({ scope: "project" })).toEqual({
       scope: "project",
-      text: "작업 폴더",
+      text: "프로젝트",
       tone: "project",
     });
     expect(scopeBadge({ scope: "local" })).toEqual({ scope: "local", text: "로컬", tone: "local" });
@@ -190,6 +191,56 @@ describe("writable scopes (4.3.6)", () => {
       allowedScopes: ["local", "managed", "user"],
     });
     expect(writableScopes(narrow, undefined, true)).toEqual(["local", "user"]);
+  });
+});
+
+describe("shown write scope (4.3.6 개정)", () => {
+  const def = wireDef({ key: "ext.helm.maxLenses", type: { type: "integer" } });
+
+  test("the winning local scope is shown and written, even with user, project and local set", () => {
+    const local = effectiveOf("ext.helm.maxLenses", 6, {
+      source: { scope: "local", path: "/work/.fresnel/settings.local.json" },
+      shadowed: [{ scope: "project" }, { scope: "user" }],
+    });
+    expect(shownWriteScope(def, local, true)).toBe("local");
+  });
+
+  test("the winning project scope is shown and written", () => {
+    const project = effectiveOf("ext.helm.maxLenses", 4, {
+      source: { scope: "project", path: "/work/.fresnel/settings.json" },
+      shadowed: [{ scope: "user" }],
+    });
+    expect(shownWriteScope(def, project, true)).toBe("project");
+  });
+
+  test("a default value has no winning scope, so user is shown", () => {
+    const fallback = effectiveOf("ext.helm.maxLenses", 3, { source: { scope: "default" } });
+    expect(shownWriteScope(def, fallback, true)).toBe("user");
+    expect(shownWriteScope(def, undefined, true)).toBe("user");
+  });
+
+  test("a winning launch scope is shown only while a thread is open", () => {
+    const launched = effectiveOf("ext.helm.maxLenses", 5, { source: { scope: "launch" } });
+    expect(shownWriteScope(def, launched, true)).toBe("launch");
+    expect(shownWriteScope(def, launched, false)).toBe("user");
+  });
+
+  test("a winning scope the definition does not allow falls back to the default", () => {
+    const narrow = wireDef({
+      key: "ext.helm.maxLenses",
+      type: { type: "integer" },
+      allowedScopes: ["user", "project"],
+    });
+    const local = effectiveOf("ext.helm.maxLenses", 6, { source: { scope: "local" } });
+    expect(shownWriteScope(narrow, local, true)).toBe("user");
+  });
+
+  test("a locked setting has no shown write scope", () => {
+    const locked = effectiveOf("ext.helm.maxLenses", 1, {
+      locked: true,
+      source: { scope: "managed" },
+    });
+    expect(shownWriteScope(def, locked, true)).toBeNull();
   });
 });
 

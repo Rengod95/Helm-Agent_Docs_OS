@@ -1,6 +1,7 @@
 import { t } from "@fresnel/client/i18n";
 import {
   Button,
+  Chip,
   IconButton,
   Popover,
   PopoverTitle,
@@ -82,6 +83,7 @@ import {
   slashMoveOf,
   unknownSlashOf,
   type SkillsVM,
+  type SlashMenuRow,
 } from "./composer-slash.ts";
 import { runThreadCompact } from "./thread-compact.ts";
 import { permissionModeOptionsOf, switchModeOf } from "./permission-mode-model.ts";
@@ -304,6 +306,43 @@ export function UsageRing(props: {
 /** 선택된 대화의 입력창만 초점 요청을 받는다. 선택이 없으면 어느 입력창이든 받는다 */
 export function ownsComposerRequest(selected: ThreadId | null, own: ThreadId): boolean {
   return selected === null || selected === own;
+}
+
+/**
+ * 입력창 위 슬래시 목록의 한 행. 이름 뒤에 출처 칩(프로젝트·사용자)을 작게 붙이고, 인자 안내와 설명이 잇는다.
+ * 칩이 없는 행(내장 명령 등)은 칩 자리가 비어 있다.
+ */
+export function SlashRow(props: {
+  readonly row: SlashMenuRow;
+  readonly selected: boolean;
+  readonly onFill: () => void;
+  readonly onHover: () => void;
+}): ReactNode {
+  const { row } = props;
+  return (
+    <li
+      id={`composer-slash-${row.name}`}
+      role="option"
+      aria-selected={props.selected}
+      className="flex cursor-default items-baseline gap-2 rounded-xl px-2.5 py-1.5 text-ui-sm text-text-secondary aria-selected:bg-neutral-hover aria-selected:text-text-primary"
+      onMouseDown={(event) => {
+        event.preventDefault();
+        props.onFill();
+      }}
+      onMouseEnter={() => {
+        props.onHover();
+      }}
+    >
+      <span className="text-ui-strong text-text-primary">{row.label}</span>
+      {row.sourceChip === null ? null : (
+        <Chip size="xs" variant="outline" data-composer-slash-source>
+          {row.sourceChip}
+        </Chip>
+      )}
+      {row.hint === null ? null : <span>{row.hint}</span>}
+      <span className="min-w-0 truncate">{row.description}</span>
+    </li>
+  );
 }
 
 function ComposerFor(props: {
@@ -714,23 +753,16 @@ function ComposerFor(props: {
                   {t("desktop.composer.slash.skills.group")}
                 </li>
               ) : null}
-              <li
-                id={`composer-slash-${row.name}`}
-                role="option"
-                aria-selected={index === Math.min(menuIndex, menuRows.length - 1)}
-                className="flex cursor-default items-baseline gap-2 rounded-xl px-2.5 py-1.5 text-ui-sm text-text-secondary aria-selected:bg-neutral-hover aria-selected:text-text-primary"
-                onMouseDown={(event) => {
-                  event.preventDefault();
+              <SlashRow
+                row={row}
+                selected={index === Math.min(menuIndex, menuRows.length - 1)}
+                onFill={() => {
                   fillSlash(index);
                 }}
-                onMouseEnter={() => {
+                onHover={() => {
                   setMenuIndex(index);
                 }}
-              >
-                <span className="text-ui-strong text-text-primary">{row.label}</span>
-                {row.hint === null ? null : <span>{row.hint}</span>}
-                <span className="min-w-0 truncate">{row.description}</span>
-              </li>
+              />
             </Fragment>
           ))}
           {menuIssues.map((issue) => (

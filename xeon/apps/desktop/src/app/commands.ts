@@ -430,6 +430,10 @@ export function createCommands(deps: CommandDeps): Commands {
       status: (workspace) => withConnection((c) => c.request("trust.get", { workspace })),
       decide: (workspace, choice) =>
         withWriteConnection((c) => c.request("trust.decide", { workspace, choice })),
+      list: () => withConnection((c) => c.request("trust.list", {})),
+    },
+    workspace: {
+      status: (workspace) => withConnection((c) => c.request("workspace.status", { workspace })),
     },
     workbench: createWorkbenchCommands(withConnection, (listener) => {
       const connection = session.connection();

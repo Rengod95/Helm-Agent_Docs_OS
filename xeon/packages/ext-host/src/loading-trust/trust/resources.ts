@@ -9,7 +9,7 @@ import type { LoaderFs } from "@fresnel/contracts/extensions";
 const FRESNEL_DIR = ".fresnel";
 
 // FRESNEL-PATCH: resource-list
-/** 프로젝트 루트의 Claude Code 형식 MCP 정의. stdio 서버의 실행 명령을 담으므로 신뢰 판정 전에는 읽지 않는다(L2.mcp.spec §4.2) */
+/** 프로젝트 루트의 Claude Code 형식 MCP 정의. stdio 서버의 실행 명령을 담는다. 로드는 신뢰 뒤에만 읽는다(L2.mcp.spec §4.2). 신뢰 카드 미리 보기(apps/host의 `trust-preview.ts`)만 이름과 명령을 읽는다(X.loading-trust.spec §4.7.4) */
 const PROJECT_MCP_JSON = ".mcp.json";
 
 /**

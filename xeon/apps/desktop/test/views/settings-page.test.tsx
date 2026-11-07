@@ -834,3 +834,46 @@ describe("화면 진단 card tones", () => {
     });
   });
 });
+
+// user=2, project=4, local=6: 유효 값은 local이고 화면의 범위 선택은 local을 가리킨다. 가려진 값은 접힘 안에 한 줄로 보인다.
+describe("shadowed winner in the page", () => {
+  test("the scope choice names the winning local scope and the hidden values sit behind the disclosure", () => {
+    const KEY = "ext.helm.maxLenses";
+    const LENSES = defOf(
+      KEY,
+      "plugins",
+      "number",
+      { type: "integer" },
+      {},
+      { order: 1, label: "렌즈" },
+    );
+    const winner = settingOf(KEY, 6, {
+      source: { scope: "local", path: "/work/.fresnel/settings.local.json" },
+      shadowed: [
+        { scope: "project", path: "/work/.fresnel/settings.json" },
+        { scope: "user", path: "/home/user/.fresnel/settings.json" },
+      ],
+    });
+    let state = stateOf([LENSES], [winner], thr(1));
+    state = reduceSettings(state, {
+      type: "scopeFileRead",
+      scope: "project",
+      values: new Map([[KEY, 4]]),
+    });
+    state = reduceSettings(state, {
+      type: "scopeFileRead",
+      scope: "user",
+      values: new Map([[KEY, 2]]),
+    });
+    const view = settingsViewOf(state);
+    const field = fieldIn(view, KEY);
+    expect(field?.selectedScope).toBe("local");
+    expect(field?.writableScopes).toEqual(["user", "project", "local", "launch"]);
+    const out = html(propsOf({ view, tab: "plugins", hasThread: true }));
+    expect(out).toContain(t("desktop.settings.field.scope.label"));
+    expect(out).toContain(t("desktop.settings.shadowed.title", { count: 2 }));
+    expect(out).toContain(
+      t("desktop.settings.field.scope.sr", { scope: t("client.settings.scope.local") }),
+    );
+  });
+});

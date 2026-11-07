@@ -1,5 +1,7 @@
 import { t } from "@fresnel/client/i18n";
 import { slashLineOf, type CommandRowVM } from "@fresnel/client/settings";
+import { assertNever } from "@fresnel/contracts";
+import type { CommandSource, SkillScope } from "@fresnel/contracts/capabilities";
 import type { WireResult } from "@fresnel/contracts/wire";
 
 // 입력창의 슬래시 명령. `/`를 치면 뜨는 목록과, 앱이 직접 하는 명령(`/compact [지침]` → `thread.compact`),
@@ -7,6 +9,9 @@ import type { WireResult } from "@fresnel/contracts/wire";
 
 /** 앱이 입력창에서 직접 하는 명령. 엔진에 같은 이름이 있어도 앱 쪽이 이긴다(CLI `/compact`와 같은 규칙) */
 const APP_SLASH_NAMES = ["compact"] as const;
+
+/** 목록 행의 출처. 명령은 `command.list`의 `source`, 스킬은 `knowledge.skills.list`의 `scope`다 */
+export type SlashSource = CommandSource | SkillScope;
 
 /** 목록의 한 행 */
 export type SlashMenuRow = {
@@ -18,10 +23,32 @@ export type SlashMenuRow = {
   readonly hint: string | null;
   /** 묶음. 앱·엔진 명령은 `command`, 대화에 실린 스킬은 `skill` */
   readonly group: "command" | "skill";
+  /** 출처 칩의 글(`프로젝트`, `사용자`). 칩이 없으면 null */
+  readonly sourceChip: string | null;
 };
 
 /** 이 대화가 쓸 수 있는 스킬과 싣지 못한 이유(`knowledge.skills.list`) */
 export type SkillsVM = WireResult<"knowledge.skills.list">;
+
+/**
+ * 출처 칩의 글. 프로젝트와 사용자 출처에만 붙는다. 내장(`builtin`), 코드 등록(`capability`), 확장(`extension`), 경로(`path`)는
+ * 칩이 없다 [결정: 오케스트레이터 기본값, fxPT]
+ */
+export function slashSourceChipOf(source: SlashSource): string | null {
+  switch (source) {
+    case "project":
+      return t("desktop.composer.slash.source.project");
+    case "user":
+      return t("desktop.composer.slash.source.user");
+    case "builtin":
+    case "capability":
+    case "extension":
+    case "path":
+      return null;
+    default:
+      return assertNever(source, "SlashSource");
+  }
+}
 
 function appRowsOf(): readonly SlashMenuRow[] {
   return [
@@ -31,6 +58,7 @@ function appRowsOf(): readonly SlashMenuRow[] {
       description: t("desktop.composer.slash.compact.description"),
       hint: t("desktop.composer.slash.compact.hint"),
       group: "command",
+      sourceChip: slashSourceChipOf("builtin"),
     },
   ];
 }
@@ -58,6 +86,7 @@ export function slashMenuOf(
       description: row.description,
       hint: row.hint,
       group: "command",
+      sourceChip: slashSourceChipOf(row.source),
     }));
   // 같은 이름의 명령이 있으면 명령이 이긴다. 모델이 못 부르는 스킬은 사용자가 직접 부르는 스킬이라고 알린다
   const taken = new Set([...appRowsOf(), ...engine].map((row) => row.name));
@@ -69,6 +98,7 @@ export function slashMenuOf(
       description: skill.description,
       hint: skill.modelInvocable ? null : t("desktop.composer.slash.skills.hidden"),
       group: "skill",
+      sourceChip: slashSourceChipOf(skill.scope),
     }));
   return [...appRowsOf(), ...engine, ...skillRows].filter((row) => row.name.startsWith(typed));
 }

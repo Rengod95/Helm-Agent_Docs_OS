@@ -88,6 +88,19 @@ function readEntries(text: string | null, migratedAt: string): Result<TrustEntri
   return ok(checked.value.entries);
 }
 
+/** 목록의 항목 하나. `savedAt`은 버전 없는 옛 형식이면 없다(그 형식은 저장 시각을 모른다) [결정: 오케스트레이터 기본값, fxPT] */
+export interface TrustListing {
+  readonly path: string;
+  readonly verdict: "allow" | "deny";
+  readonly savedAt?: string;
+}
+
+/** 버전 없는 옛 형식 파일인가. 목록이 저장 시각을 싣는지 가를 때만 쓴다. 읽을 수 없는 본문은 거짓이다 */
+function isUnversioned(text: string): boolean {
+  const json = parseJson(stripBom(text));
+  return json.ok && isPlainObject(json.value) && !("version" in json.value);
+}
+
 // FRESNEL-PATCH: pi-v0-format
 function readUnversionedFormat(
   data: Readonly<Record<string, unknown>>,
@@ -127,6 +140,11 @@ export interface ProjectTrustStore {
    * 파일이 손상이면 쓰지 않고 `corrupt`를 돌려준다
    */
   setMany(updates: readonly TrustUpdate[]): Promise<Result<void, TrustStoreError>>;
+  /**
+   * 저장된 결정 전부를 파일 순서로 돌려준다. 읽기만 하고 파일을 바꾸지 않는다. 파일이 없으면 빈 목록이다.
+   * 손상이면 `corrupt`, 읽지 못하면 `io`다
+   */
+  list(): Promise<Result<readonly TrustListing[], TrustStoreError>>;
 }
 
 // FRESNEL-PATCH: injected-normalize
@@ -153,6 +171,22 @@ export function createProjectTrustStore(
         if (parent === current) return { kind: "none" };
         current = parent;
       }
+    },
+
+    // 읽기만 한다. 버전 없는 옛 형식은 저장 시각이 없어 `savedAt`을 싣지 않는다
+    async list() {
+      const read = await backend.read();
+      if (!read.ok) return err({ kind: "io", cause: read.reason });
+      if (read.text === null) return ok([]);
+      const entries = readEntries(read.text, "");
+      if (!entries.ok) return err({ kind: "corrupt", reason: entries.error });
+      const unversioned = isUnversioned(read.text);
+      return ok(
+        Object.entries(entries.value).map(([path, entry]): TrustListing => {
+          if (unversioned) return { path, verdict: entry.verdict };
+          return { path, verdict: entry.verdict, savedAt: entry.decidedAt };
+        }),
+      );
     },
 
     // FRESNEL-PATCH: no-lockfile

@@ -13,6 +13,7 @@ import {
   threadLinkVisibleOf,
 } from "../../src/views/approval-card/card-model.ts";
 import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
+import type { ToolApprovalBody } from "../../src/views/approval-form.ts";
 import { thr } from "../state/helpers.ts";
 
 const MINUTE = 60_000;
@@ -182,6 +183,47 @@ describe("card title", () => {
     ).toBeNull();
     expect(
       cardTitleViewOf(requestWith({ title: 'Allow tool "bash"?', body: toolBody("edit") })),
+    ).toBeNull();
+  });
+});
+
+/** 기동 승인 본문. 인자 모양만 바꿔 쓴다 */
+const startBody = (args: ToolApprovalBody["args"]): ApprovalRequestedPayload["body"] => ({
+  kind: "tool",
+  tool: { toolName: "mcp_start", risk: "exec", args, argsHash: "h", ruleId: "mcp.start" },
+});
+
+describe("start card title", () => {
+  const startArgs = {
+    server: "gh",
+    source: "settings:user",
+    command: "gh-mcp",
+    args: [],
+    cwd: null,
+    envNames: [],
+    secretEnv: {},
+    definitionHash: "h",
+  };
+
+  test("the start title names the server from the args, whatever the stored English title says", () => {
+    expect(
+      cardTitleViewOf(
+        requestWith({
+          title: 'Start MCP server "gh" with secret://gh-token?',
+          body: startBody(startArgs),
+        }),
+      ),
+    ).toEqual({ id: "desktop.approvals.title.mcpStart", params: { server: "gh" } });
+  });
+
+  test("a start approval whose args do not have the expected shape keeps the stored title", () => {
+    expect(
+      cardTitleViewOf(
+        requestWith({
+          title: 'Run MCP server "gh" (gh-mcp)?',
+          body: startBody({ server: "gh" }),
+        }),
+      ),
     ).toBeNull();
   });
 });

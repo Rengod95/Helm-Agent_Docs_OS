@@ -6,6 +6,7 @@ import {
   type EffectiveSetting,
   type SettingDefWire,
   type SettingKey,
+  type SettingScope,
   type SettingSource,
   type SettingUi,
   type SettingsTab,
@@ -13,11 +14,11 @@ import {
 import { t, tKey } from "../i18n/index.ts";
 import {
   deprecatedInfo,
-  defaultWriteScope,
   lockInfo,
   runtimeBadge,
   runtimeBadgeOf,
   scopeBadge,
+  shownWriteScope,
   writableScopes,
 } from "./badges.ts";
 import { TAB_ORDER, TAB_SPECS, type TabSpec } from "./tabs.ts";
@@ -33,22 +34,29 @@ import type {
   ScopeBadge,
   SecretFieldVM,
   SettingsView,
+  ShadowedValueVM,
   ShadowedVM,
   TabVM,
   ViewDiagnostic,
   WidgetVM,
   WritableScope,
 } from "./types.ts";
+import { checkClientValue } from "./write-flow.ts";
 import { resolveWidget } from "./widget-map.ts";
 
 // 설정 화면 view-model 조립(L4.settings-ui §4.1, §4.2, §4.3). 정의 목록과 유효 값 목록에서 탭·항목·요약을 만든다.
 // 순수 함수다. 입력은 settings.list 결과 합집합과 settings.get 결과다.
+
+/** 범위 파일을 읽어 얻은 키별 원문 값. 가려진 범위의 값을 보이려고 쓴다(`ShadowedValueVM`) */
+export type ScopeFileValues = ReadonlyMap<SettingScope, ReadonlyMap<SettingKey, unknown>>;
 
 export interface SettingsViewInput {
   readonly defs: readonly SettingDefWire[];
   readonly values: ReadonlyMap<SettingKey, EffectiveSetting>;
   /** 열린 대화가 있는가. 없으면 session 쓰기 범위를 뺀다(§4.3.6) */
   readonly hasThread: boolean;
+  /** 범위 파일을 읽은 값. 없으면 가려진 범위의 값은 `unknown`이다 */
+  readonly fileValues?: ScopeFileValues;
 }
 
 const READONLY: WidgetVM = { kind: "readonly" };
@@ -63,6 +71,8 @@ interface Facts {
   readonly shadowed: readonly ShadowedVM[];
   readonly filePath: string | null;
   readonly writable: readonly WritableScope[];
+  /** 범위 선택 칸의 값이자 기본 쓰기 범위(유효 값을 정한 범위 우선) */
+  readonly selected: WritableScope | null;
   readonly deprecated: DeprecatedVM | null;
   readonly secret: SecretFieldVM | null;
   readonly problem: FieldVM["problem"];
@@ -115,8 +125,33 @@ function secretFieldOf(value: unknown): SecretFieldVM {
   return { ref, status: ref === null ? "unset" : "referenced" };
 }
 
-function shadowedOf(source: SettingSource): ShadowedVM {
-  return { scope: source.scope, path: source.path ?? null };
+/**
+ * 가려진 범위의 값. 시크릿은 값을 싣지 않는다. 파일에 값이 없거나 정의 검사에 못 미치면 `unknown`이다.
+ * `launch`는 파일이 없어 늘 `unknown`이다.
+ */
+function shadowedValueOf(
+  def: SettingDefWire,
+  scope: SettingSource["scope"],
+  fileValues: ScopeFileValues,
+): ShadowedValueVM {
+  if (def.secret === true) return { kind: "secret" };
+  if (scope === "default") return { kind: "unknown" };
+  const values = fileValues.get(scope);
+  if (values === undefined || !values.has(def.key)) return { kind: "unknown" };
+  const value = values.get(def.key);
+  return checkClientValue(def, value).ok ? { kind: "value", value } : { kind: "unknown" };
+}
+
+function shadowedOf(
+  def: SettingDefWire,
+  source: SettingSource,
+  fileValues: ScopeFileValues,
+): ShadowedVM {
+  return {
+    scope: source.scope,
+    path: source.path ?? null,
+    value: shadowedValueOf(def, source.scope, fileValues),
+  };
 }
 
 function factsOf(
@@ -124,6 +159,7 @@ function factsOf(
   setting: EffectiveSetting | undefined,
   catalog: ReadonlyMap<SettingKey, SettingDefWire>,
   hasThread: boolean,
+  fileValues: ScopeFileValues,
 ): Facts {
   const raw: unknown = setting === undefined ? null : setting.value;
   const secret = def.secret === true ? secretFieldOf(raw) : null;
@@ -133,9 +169,10 @@ function factsOf(
     runtime:
       setting === undefined ? runtimeBadgeOf(def.runtimeChange, null) : runtimeBadge(setting),
     lock: setting === undefined ? null : lockInfo(setting),
-    shadowed: (setting?.shadowed ?? []).map(shadowedOf),
+    shadowed: (setting?.shadowed ?? []).map((source) => shadowedOf(def, source, fileValues)),
     filePath: setting?.source.path ?? null,
     writable: writableScopes(def, setting, hasThread),
+    selected: shownWriteScope(def, setting, hasThread),
     deprecated: deprecatedInfo(def, catalog),
     secret,
     problem:
@@ -199,7 +236,7 @@ function fieldOf(
     shadowed: facts.shadowed,
     filePath: facts.filePath,
     writableScopes: facts.writable,
-    selectedScope: defaultWriteScope(facts.writable),
+    selectedScope: facts.selected,
     canReset,
     editable: facts.writable.length > 0 && widget.kind !== "readonly",
     deprecated: facts.deprecated,
@@ -285,6 +322,7 @@ function overviewOf(placed: readonly Placed[]): OverviewVM {
  * - 값이 없는 정의는 읽기 전용이고 `missingValue` 진단을 남긴다(reserved는 값이 없는 것이 정상이라 남기지 않는다).
  */
 export function buildSettingsView(input: SettingsViewInput): SettingsView {
+  const fileValues: ScopeFileValues = input.fileValues ?? new Map();
   const unique = uniqueDefs(input.defs);
   const diagnostics: ViewDiagnostic[] = unique.duplicates.map((key) => ({
     code: "duplicateKey",
@@ -300,7 +338,7 @@ export function buildSettingsView(input: SettingsViewInput): SettingsView {
   for (const def of unique.defs) {
     const setting = input.values.get(def.key);
     if (hiddenAsDeprecated(def, setting)) continue;
-    const facts = factsOf(def, setting, catalog, input.hasThread);
+    const facts = factsOf(def, setting, catalog, input.hasThread, fileValues);
     const deprecated = def.deprecated !== undefined;
     if (setting === undefined && def.stage !== "reserved") {
       diagnostics.push({ code: "missingValue", key: def.key });

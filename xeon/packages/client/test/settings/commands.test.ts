@@ -77,9 +77,11 @@ describe("commandListView and completeSlash", () => {
       hint: "<start|stop>",
       kind: "action",
       origin: "group-helm",
+      source: "extension",
       needsShellConfirm: false,
       firstChoices: ["start", "stop", "status"],
     });
+    expect(rows[2]?.source).toBe("project");
     expect(rows[2]?.needsShellConfirm).toBe(true);
     expect(rows[2]?.firstChoices).toEqual([]);
   });

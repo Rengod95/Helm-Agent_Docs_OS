@@ -161,6 +161,7 @@ export {
   createProjectTrustStore,
   trustOptions,
   type ProjectTrustStore,
+  type TrustListing,
   type TrustLookup,
   type TrustStoreError,
   type TrustVerdict,
@@ -339,7 +340,7 @@ export interface ExtensionLoader {
   /** 시작 때 한 번. 파이프라인 전체를 실행한다 */
   loadAll(options: LoadOptions): Promise<LoadReport>;
   /**
-   * 프로젝트 하나를 판정하고 신뢰되면 그 프로젝트의 확장을 싣는다(서비스 모드, X.loading-trust.spec §4.7.8).
+   * 프로젝트 하나를 판정하고 신뢰되면 그 프로젝트의 확장을 싣는다(작업 폴더를 여는 때, 모든 호스트 모드, X.loading-trust.spec §4.7.8).
    * 같은 루트는 한 번만 싣는다(`alreadyLoaded`). 불신이면 아무것도 싣지 않고 결정은 기억하지 않아 다음 호출이 다시 판정한다.
    * 안전 모드이면 판정하지 않고 `safe_mode` 진단만 남긴다. `loadAll` 뒤에 불러야 한다
    */

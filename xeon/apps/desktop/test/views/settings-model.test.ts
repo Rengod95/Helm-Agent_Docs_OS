@@ -7,6 +7,7 @@ import {
   type FieldVM,
   type SettingsView,
 } from "@fresnel/client/settings";
+import type { SettingScope } from "@fresnel/contracts/settings";
 import { thr } from "../state/helpers.ts";
 import {
   advancedGroupsOf,
@@ -31,6 +32,7 @@ import {
   settingsKeyOf,
   searchGroupsOf,
   selectControlOf,
+  shadowedSummaryOf,
   tabStep,
   tabSwitchOf,
   tagsOf,
@@ -500,5 +502,92 @@ describe("numberDraftActionOf", () => {
   test("a clean report after the value callback or without a draft does nothing", () => {
     expect(numberDraftActionOf(cleared, { ...idle, committing: true })).toBeNull();
     expect(numberDraftActionOf(cleared, { ...idle, fieldDirty: false })).toBeNull();
+  });
+});
+
+// 가려진 값 요약(§4.3.4 개정). user=2, project=4, local=6이면 유효 값은 local이고 요약은 강한 범위 순 `프로젝트 4 · 사용자 2`다.
+describe("shadowed summary", () => {
+  const KEY = "ext.helm.maxLenses";
+  const LENSES = defOf(
+    KEY,
+    "plugins",
+    "number",
+    { type: "integer" },
+    {},
+    { order: 1, label: "렌즈" },
+  );
+  const winner = settingOf(KEY, 6, {
+    source: { scope: "local", path: "/work/.fresnel/settings.local.json" },
+    shadowed: [
+      { scope: "project", path: "/work/.fresnel/settings.json" },
+      { scope: "user", path: "/home/user/.fresnel/settings.json" },
+    ],
+  });
+
+  /** 범위 파일을 읽은 뒤의 화면 항목. 읽은 값은 `scopeFileRead`로 넣는다 */
+  function fieldWithFiles(files: ReadonlyArray<readonly [SettingScope, unknown]>): FieldVM {
+    let state = stateOf([LENSES], [winner], thr(1));
+    for (const [scope, value] of files) {
+      state = reduceSettings(state, {
+        type: "scopeFileRead",
+        scope,
+        values: new Map([[KEY, value]]),
+      });
+    }
+    const field = fieldIn(settingsViewOf(state), KEY);
+    if (field === undefined) throw new Error("field must exist");
+    return field;
+  }
+
+  test("the hidden values read as project then user, with the winning local scope not listed", () => {
+    const field = fieldWithFiles([
+      ["project", 4],
+      ["user", 2],
+    ]);
+    expect(field.scope.scope).toBe("local");
+    expect(field.selectedScope).toBe("local");
+    expect(shadowedSummaryOf(field)).toBe("프로젝트 4 · 사용자 2");
+  });
+
+  test("a secret value is masked, a value that could not be read says so, and no value shows the scope only", () => {
+    const TOKEN = "ext.helm.apiToken";
+    const token = defOf(TOKEN, "plugins", "secret", { type: "string" }, { secret: true });
+    const tokenWinner = settingOf(TOKEN, "secret://helm-token", {
+      source: { scope: "local", path: "/work/.fresnel/settings.local.json" },
+      shadowed: [{ scope: "project", path: "/work/.fresnel/settings.json" }],
+    });
+    let state = stateOf([token], [tokenWinner], thr(1));
+    state = reduceSettings(state, {
+      type: "scopeFileRead",
+      scope: "project",
+      values: new Map([[TOKEN, "secret://old-token"]]),
+    });
+    const secretField = fieldIn(settingsViewOf(state), TOKEN);
+    if (secretField === undefined) throw new Error("field must exist");
+    expect(shadowedSummaryOf(secretField)).toBe("프로젝트 값 가려짐");
+    expect(shadowedSummaryOf(fieldWithFiles([]))).toBe(
+      "프로젝트 값을 읽지 못했어요 · 사용자 값을 읽지 못했어요",
+    );
+  });
+
+  test("a field with no hidden scope has an empty summary", () => {
+    const alone = settingOf(KEY, 3, { source: { scope: "user" } });
+    const field = fieldIn(viewOf([LENSES], [alone]), KEY);
+    if (field === undefined) throw new Error("field must exist");
+    expect(shadowedSummaryOf(field)).toBe("");
+  });
+
+  test("an English session names the scopes in English", () => {
+    const previous = activeLocale();
+    setActiveLocale("en");
+    try {
+      const field = fieldWithFiles([
+        ["project", 4],
+        ["user", 2],
+      ]);
+      expect(shadowedSummaryOf(field)).toBe("Project 4 · User 2");
+    } finally {
+      setActiveLocale(previous);
+    }
   });
 });

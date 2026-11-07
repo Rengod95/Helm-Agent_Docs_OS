@@ -82,9 +82,20 @@ export interface LockInfo {
   readonly text: string;
 }
 
+/**
+ * 가려진 범위의 값. wire의 `shadowed`는 범위와 경로만 싣는다(F.wire-settings §4.7), 그래서 값은 그 범위 파일을 읽어 채운다.
+ * `value`는 정의 검사를 통과한 값이다. `secret`은 시크릿 키라 값을 싣지 않는다(화면은 "값 가려짐"). `unknown`은 읽지 못했거나
+ * 값이 파일에 없는 범위(`launch`는 파일이 없다)다.
+ */
+export type ShadowedValueVM =
+  | { readonly kind: "value"; readonly value: unknown }
+  | { readonly kind: "secret" }
+  | { readonly kind: "unknown" };
+
 export interface ShadowedVM {
   readonly scope: BadgeScope;
   readonly path: string | null;
+  readonly value: ShadowedValueVM;
 }
 
 export interface DeprecatedVM {

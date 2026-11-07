@@ -9,7 +9,7 @@ import { reduceMirror } from "../src/state/engine/reduce.ts";
 import { INITIAL_MIRROR } from "../src/state/engine/state.ts";
 import { composerDisabledReason } from "../src/views/composer-model.ts";
 import { setupRequiredText } from "../src/views/setup-needed.ts";
-import { trustCardOf } from "../src/views/trust-model.ts";
+import { trustCardOf, trustedToastOf } from "../src/views/trust-model.ts";
 import {
   checkWorkspaceInput,
   createFailureText,
@@ -64,7 +64,7 @@ describe("desktop sentences in English", () => {
     );
     expect(card?.buttons.map((button) => button.text)).toEqual([
       "Trust this folder",
-      "Trust the whole parent folder",
+      "Trust the whole parent folder: /work",
       "Trust for this run only",
       "Do not trust this folder",
       "Deny for this run only",
@@ -82,6 +82,26 @@ describe("desktop sentences in English", () => {
     );
     expect(en["desktop.resumeBand.crashed.bodyService"]).toBe(
       "The connection to the service was lost and came back. You can continue the turn or leave it.",
+    );
+  });
+
+  test("the trust toast names the trusted folder in English", () => {
+    const allowed: TrustStatus = {
+      ...trustStatus([
+        {
+          choice: { kind: "parent", verdict: "allow" },
+          label: "trust-parent",
+          savedPath: "/work",
+        },
+      ]),
+      verdict: "allow",
+      via: "store",
+    };
+    expect(trustedToastOf(allowed, { kind: "folder", verdict: "allow" })).toBe(
+      "Trusted this folder: /work/repo",
+    );
+    expect(trustedToastOf(allowed, { kind: "parent", verdict: "allow" })).toBe(
+      "Trusted the parent folder: /work",
     );
   });
 

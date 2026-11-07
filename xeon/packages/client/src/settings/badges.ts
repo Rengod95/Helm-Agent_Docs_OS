@@ -132,3 +132,33 @@ export function writableScopes(
 export function defaultWriteScope(scopes: readonly WritableScope[]): WritableScope | null {
   return DEFAULT_SCOPE_ORDER.find((scope) => scopes.includes(scope)) ?? null;
 }
+
+/**
+ * 범위 선택 칸이 보이는 범위이자 기본 쓰기 범위(§4.3.6 규칙 4 [결정: 오케스트레이터 기본값, fxPT]).
+ * 유효 값을 정한 범위가 쓸 수 있는 범위면 그 범위다(화면에 보이는 값과 저장 범위가 같아야 한다).
+ * 아니면(값이 기본값이거나 정한 범위를 쓸 수 없으면) `defaultWriteScope`다.
+ */
+export function shownWriteScope(
+  def: SettingDefWire,
+  setting: EffectiveSetting | undefined,
+  hasThread: boolean,
+): WritableScope | null {
+  const writable = writableScopes(def, setting, hasThread);
+  const winner = setting?.source.scope;
+  return writable.find((scope) => scope === winner) ?? defaultWriteScope(writable);
+}
+
+/**
+ * 범위 선택 칸의 값과 저장 범위(화면과 저장이 같이 쓴다). 사용자가 고른 범위가 지금 쓸 수 있는 범위면 그것이고,
+ * 아니면(고른 뒤 대화가 바뀌어 쓸 수 없게 됐으면) `shownWriteScope`다.
+ */
+export function chosenWriteScope(
+  def: SettingDefWire,
+  setting: EffectiveSetting | undefined,
+  hasThread: boolean,
+  chosen: WritableScope | undefined,
+): WritableScope | null {
+  const writable = writableScopes(def, setting, hasThread);
+  if (chosen !== undefined && writable.includes(chosen)) return chosen;
+  return shownWriteScope(def, setting, hasThread);
+}
