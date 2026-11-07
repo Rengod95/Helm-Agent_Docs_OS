@@ -444,6 +444,7 @@ export interface ModelError {
 
 - 5~8의 문구 판정은 pi-ai 정규식을 쓰고 Fresnel 정규식을 새로 만들지 않는다. pi-ai에 없는 구분(5와 6)은 `errorMessage`의 HTTP 상태 접두에서 읽는다 [가정: pi-ai 오류 메시지가 상태 코드를 담는다. M-1 테스트에서 확인].
 - [결정: 오케스트레이터 기본값, fxMR] `errorMessage`가 `stream_interrupted: ` 접두로 시작하면 `transport`다. 4번(quota) 앞에서 본다. 접두는 앞부분 답이 온 뒤 끊긴 스트림의 표지이고(§4.5), `ModelErrorKind`에는 넣지 않는다.
+- [결정: 오케스트레이터 기본값, fxMR] 화면과 CLI의 오류 문장은 이 종류를 다시 가르지 않고 문장을 그대로 읽는다(`packages/client`의 `classifyTurnFailure`). 엔진은 `turn.completed.error`에 문장만 싣기 때문이다. 그 판정이 쓰는 표지는 이 절의 접두, §4.5의 `[retry-after=<초>]`, 상태 코드 줄, 제공자 오류 이름뿐이다. 판정 순서와 문장·단추 표는 `L4.desktop-ux.spec`의 턴 실패 안내와 `L4.cli.spec` §4.10을 본다.
 
 ### 3.9 시크릿 다리
 

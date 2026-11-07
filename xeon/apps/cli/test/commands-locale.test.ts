@@ -122,6 +122,28 @@ test("a failed print turn with --json names the error and the fix in English", a
   );
 });
 
+test("a failed print turn names the reason and the fix in English, without the raw JSON", async () => {
+  const h = createHarness({
+    env: { NO_COLOR: "1" },
+    server: {
+      onTurn: (context) => {
+        context.server.commit(context.threadId, [
+          turnCompleted(
+            context.turnId,
+            "failed",
+            '401 {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}',
+          ),
+        ]);
+      },
+    },
+  });
+  harnesses.push(h);
+  expect(await h.run(["chat", "-p", "x"])).toBe(EXIT.error);
+  expect(h.stderrText()).toBe(
+    "fresnel: The API key was not accepted\n  Fix: Register the key again with `fresnel secret set <name>`\n",
+  );
+});
+
 test("--auto-approve says in English that an already resolved approval was handled", async () => {
   const h = createHarness({
     env: { NO_COLOR: "1" },

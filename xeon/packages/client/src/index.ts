@@ -19,6 +19,13 @@ export type {
 export * from "./schedule/index.ts";
 // 연결 대상 view-model(P-08). 셸 쪽은 `.` 진입으로만 client를 쓰므로(위 예약과 같은 이유) 여기서 다시 낸다. 순수 함수와 키 상수만 있다.
 export * from "./connection-targets/index.ts";
+// 실패한 턴의 오류 문장을 종류로 나눈다(화면과 CLI가 같이 쓴다, L1.models.spec §3.8). 순수 함수다.
+export {
+  classifyTurnFailure,
+  STREAM_INTERRUPTED_PREFIX,
+  type TurnFailure,
+  type TurnFailureKind,
+} from "./turn-failure/classify.ts";
 // 웹 검색 view-model(P-01 첫 실행, P-12 도구와 웹). 셸은 `.` 진입으로만 client를 쓰므로 여기서 다시 낸다(DR-10/desktop-client).
 export {
   moveInOrder,

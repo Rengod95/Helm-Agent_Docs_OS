@@ -1,5 +1,6 @@
 // src/state/ui/store.ts
 import type { EventId, JsonValue, ThreadId } from "@fresnel/contracts/conversation";
+import type { SecretName } from "@fresnel/contracts/capabilities";
 import type { SettingKey, SettingsTab } from "@fresnel/contracts/settings";
 import { createStore } from "zustand/vanilla";
 import { readonlyView, type ReadonlyStore } from "../shared/readonly-store.ts";
@@ -67,8 +68,15 @@ export type ComposerRequest = { readonly insert: string | null };
 /** 변경 검토 화면(P-04)이 여는 검토 승인. 화면은 이 승인이 대기열에 있는 동안 보이고, 해결되면 같은 리뷰의 다음 라운드를 따라간다 */
 export type ReviewTarget = { readonly approvalId: EventId; readonly reviewId: string };
 
-/** 설정 화면이 열며 옮길 탭과 항목. `key`가 null이면 탭만 연다. 화면이 받으면 `settleSettingsJump`로 지운다 */
-export type SettingsJump = { readonly tab: SettingsTab; readonly key: SettingKey | null };
+/**
+ * 설정 화면이 열며 옮길 탭과 항목. `key`가 null이면 탭만 연다. `secretName`이 있으면 시크릿 탭에서 그 시크릿을 고른다.
+ * 화면이 받으면 `settleSettingsJump`로 지운다
+ */
+export type SettingsJump = {
+  readonly tab: SettingsTab;
+  readonly key: SettingKey | null;
+  readonly secretName?: SecretName;
+};
 
 /**
  * 다시 시작해야 적용되는 일 하나. 설치 결과(`appliesAt: restart`)와 되돌리기(`restart`)가 만든다.

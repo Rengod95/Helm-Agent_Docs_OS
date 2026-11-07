@@ -8,6 +8,11 @@ import { itemId } from "./support/ids.ts";
 
 const ESC = String.fromCodePoint(27);
 
+/** 실패한 turn 한 줄의 출력(print 모드, 색 없음) */
+function failedTurnText(error: string | null): string | undefined {
+  return pieceOf({ kind: "turnEnd", status: "failed", error }, "print", false)?.text;
+}
+
 function methodOf(line: string): unknown {
   const value: unknown = JSON.parse(line);
   return typeof value === "object" && value !== null && "method" in value
@@ -77,7 +82,27 @@ test("turn ends: nothing for completed, a line for interrupted and failed", () =
     pieceOf({ kind: "turnEnd", status: "interrupted", error: null }, "print", false)?.text,
   ).toBe("turn이 중단되었다\n");
   expect(pieceOf({ kind: "turnEnd", status: "failed", error: "boom" }, "print", false)?.text).toBe(
-    "turn이 실패했다: boom\n",
+    "fresnel: 턴이 실패했어요: boom\n  해결: `fresnel chat --json`으로 원문 오류를 볼 수 있어요\n",
+  );
+});
+
+test("a failed turn names the kind and its fix, never the raw JSON", () => {
+  expect(
+    failedTurnText('401 {"type":"error","error":{"type":"authentication_error","message":"x"}}'),
+  ).toBe(
+    "fresnel: 키가 맞지 않아요\n  해결: `fresnel secret set <이름>`으로 키를 다시 등록해 주세요\n",
+  );
+  expect(failedTurnText("429 rate_limit_error [retry-after=7]")).toBe(
+    "fresnel: 요청이 많아 잠시 막혔어요\n  해결: 7초 뒤 다시 실행해 주세요\n",
+  );
+  expect(failedTurnText("stream_interrupted: 529 overloaded_error")).toBe(
+    "fresnel: 응답이 중간에 끊겼어요\n  해결: 연결을 확인하고 다시 실행해 주세요\n",
+  );
+  expect(failedTurnText(null)).toBe(
+    "fresnel: turn이 실패했다\n  해결: 잠시 뒤 다시 실행해 주세요\n",
+  );
+  expect(failedTurnText("  ")).toBe(
+    "fresnel: turn이 실패했다\n  해결: 잠시 뒤 다시 실행해 주세요\n",
   );
 });
 

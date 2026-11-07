@@ -2,6 +2,7 @@ import { detach, rethrow, type Result } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { PermissionMode } from "@fresnel/contracts/services";
 import type { ModelEntry, UsageContext, UsageGauge } from "@fresnel/contracts/wire";
+import type { SetupSnapshot } from "@fresnel/client/settings";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useLinkPhase, useThread } from "../state/engine/index.ts";
 import { useCommands, type CommandError, type SwitchMode } from "./commands.ts";
@@ -164,18 +165,18 @@ export function tokenCountText(tokens: number): string {
   return `${(tokens / 1_000_000).toFixed(1)}M`;
 }
 
-/** 기본 모델 참조. 연결이 살아 있을 때 읽고 설정이 바뀌면(`settings.invalidated`) 다시 읽는다. 정해지지 않았거나 읽지 못하면 null이다 */
-export function useDefaultModel(): string | null {
+/** 설정 스냅숏(기본 모델과 제공자 목록). 연결이 살아 있을 때 읽고 설정이 바뀌면(`settings.invalidated`) 다시 읽는다. 읽지 못하면 null이다 */
+export function useSetupSnapshot(): SetupSnapshot | null {
   const commands = useCommands();
   const phase = useLinkPhase();
-  const [model, setModel] = useState<string | null>(null);
+  const [snapshot, setSnapshot] = useState<SetupSnapshot | null>(null);
   useEffect(() => {
     if (phase !== "live") return undefined;
     let stale = false;
     const read = (): void => {
       detach(
         commands.setup.load({ binaries: false }).then((result) => {
-          if (!stale) setModel(result.ok ? result.value.defaultModel : null);
+          if (!stale) setSnapshot(result.ok ? result.value : null);
           return undefined;
         }),
         rethrow,
@@ -188,7 +189,12 @@ export function useDefaultModel(): string | null {
       stop();
     };
   }, [commands, phase]);
-  return model;
+  return snapshot;
+}
+
+/** 기본 모델 참조. 정해지지 않았거나 읽지 못하면 null이다 */
+export function useDefaultModel(): string | null {
+  return useSetupSnapshot()?.defaultModel ?? null;
 }
 
 // "대화 요약"이 끝난 직후 사용량을 다시 읽게 하는 신호. 요약은 턴이 아니라 `running`이 바뀌지 않아 따로 알린다.

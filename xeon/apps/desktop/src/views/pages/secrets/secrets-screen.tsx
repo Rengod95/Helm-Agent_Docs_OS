@@ -48,13 +48,22 @@ function messageOf(ref: MessageRef): string {
   return t(ref.id, ref.args);
 }
 
-/** `embedded`: 설정 화면 안에 넣을 때. 설정의 스크롤과 머리 제목을 그대로 쓴다 */
-export function SecretsPanel(props: { readonly embedded?: boolean }): ReactNode {
+/**
+ * `embedded`: 설정 화면 안에 넣을 때. 설정의 스크롤과 머리 제목을 그대로 쓴다.
+ * `focusName`: 설정 점프가 고르라고 준 시크릿. 목록을 읽은 뒤 그 행이 있으면 고르고 `onFocused`를 부른다
+ */
+export function SecretsPanel(props: {
+  readonly embedded?: boolean;
+  readonly focusName?: SecretName | null;
+  readonly onFocused?: () => void;
+}): ReactNode {
   const commands = useCommands();
   const live = useLinkPhase() === "live";
   const gate = useContext(RevealGateContext);
   const [state, dispatch] = useReducer(secretsReducer, gate.available, initialSecretsState);
   const latest = useRef(0);
+  const focusName = props.focusName ?? null;
+  const onFocused = props.onFocused;
 
   // 값 보기 세션은 화면 하나에 하나다. 재인증 관문은 앱 진입점이 넣는다(macOS는 `os_reauth`, 그 밖은 잠김)
   const [session] = useState<RevealSession>(() =>
@@ -135,6 +144,15 @@ export function SecretsPanel(props: { readonly embedded?: boolean }): ReactNode 
       window.clearInterval(timer);
     };
   }, []);
+
+  // 설정 점프가 준 시크릿을 한 번 고른다. 목록이 읽힌 뒤에만 하고, 그 이름의 행이 없으면 고르지 않고 알린다
+  useEffect(() => {
+    if (focusName === null || state.list.kind !== "ready") return;
+    if (state.rows.some((row) => row.name === focusName)) {
+      dispatch({ type: "select", name: focusName });
+    }
+    onFocused?.();
+  }, [focusName, onFocused, state.list.kind, state.rows]);
 
   // 연결이 살아날 때마다 목록을 다시 읽는다. 연결이 없으면 마지막 목록을 두고 오프라인으로 바꾼다
   useEffect(() => {

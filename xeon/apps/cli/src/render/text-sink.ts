@@ -2,6 +2,7 @@ import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import { sequentially } from "../util.ts";
 import type { RenderOp } from "./model.ts";
+import { turnFailureTextOf } from "./turn-failure.ts";
 
 // L4.cli.spec §3.5 RenderSink(text), §4.2, §4.5. 제어 문자 없는 줄 출력이다(print 모드, 비TTY). color가 참일 때만 ANSI를 쓴다.
 // print 모드의 stdout은 응답 텍스트뿐이다(§3.1 "응답 텍스트를 stdout에 쓴다"). 도구 호출·결과·알림은 stderr로 보낸다.
@@ -135,12 +136,21 @@ export function pieceOf(op: RenderOp, layout: TextSinkLayout, color: boolean): P
         ? undefined
         : { target: "stderr", text: `${paint(color, "33", notice)}\n` };
     }
-    case "turnEnd":
+    case "turnEnd": {
       if (op.status === "completed") return undefined;
+      if (op.status === "interrupted") {
+        return {
+          target: "stderr",
+          text: `${paint(color, "31", t("cli.errors.chat.turnInterrupted.message"))}${op.error === null ? "" : `: ${op.error}`}\n`,
+        };
+      }
+      // 실패한 turn은 이유 한 줄과 해결 줄로 보인다. 원문 JSON은 --json 출력에만 남는다
+      const failure = turnFailureTextOf(op.error);
       return {
         target: "stderr",
-        text: `${paint(color, "31", op.status === "interrupted" ? t("cli.errors.chat.turnInterrupted.message") : t("cli.errors.chat.turnFailed.message"))}${op.error === null ? "" : `: ${op.error}`}\n`,
+        text: `${paint(color, "31", `fresnel: ${failure.message}`)}\n  ${t("cli.errors.fixLabel")} ${failure.fix}\n`,
       };
+    }
     case "notice":
       return { target: "stderr", text: `${op.text}\n` };
     default:
