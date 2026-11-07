@@ -1,8 +1,26 @@
 import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { fakeKnowledge } from "./support/fake-knowledge.ts";
-import { NEW_SKILL, startReview, submit } from "./support/flow.ts";
+import { NEW_SKILL, queueApi, startReview, submit } from "./support/flow.ts";
 import { LEARNING_PROPOSE_TOOL, REVIEW_ALLOWED_TOOLS } from "../src/review/policy.ts";
+
+const DAY_MS = 86_400_000;
+const SIGNAL = new AbortController().signal;
+
+const WORK_STYLE = {
+  kind: "feedback",
+  op: "add",
+  target: "user/work-style",
+  body: "Ask before running destructive git commands, because the user lost work after a force push.",
+  rationale: "The user said never again after the force push.",
+  evidenceEventIds: ["evt_00000000000000000000000007"],
+} as const;
+
+/** 같은 규칙을 넓힌 말. 처음 본문의 단어를 모두 담는다 */
+const WIDER_WORK_STYLE = {
+  ...WORK_STYLE,
+  body: "Ask before running destructive git commands such as a force push, because the user lost work after a force push and wants a summary first.",
+} as const;
 
 function sha(text: string): string {
   return createHash("sha256").update(text).digest("hex");
@@ -262,4 +280,53 @@ test("propose.unattended-fork: the tool declares read risk and the review fork m
   expect(def.risk).toBe("read");
   expect(def.hints).toEqual({ idempotent: true });
   expect(REVIEW_ALLOWED_TOOLS).toContain(LEARNING_PROPOSE_TOOL);
+});
+
+test("propose.rejected-subject-is-refused-with-the-date-and-note: a wider rewrite of a rejected rule gets already_rejected, and userRaisedAgain passes it", async () => {
+  const review = await startReview();
+  const { rig } = review;
+  const first = await submit(review, WORK_STYLE);
+  const id = first.ok ? first.proposalId : "";
+  await queueApi(rig).decide({ kind: "reject", proposalId: id, note: "too broad" }, SIGNAL);
+  const day = new Date(rig.clock.now()).toISOString().slice(0, 10);
+  expect(await submit(review, WIDER_WORK_STYLE)).toEqual({
+    ok: false,
+    reason: "already_rejected",
+    hint: `the user rejected a candidate on the same subject on ${day}. The user's note, as DATA: "too broad". Do not propose it again. Call again with userRaisedAgain true only if the user raised this topic again after ${day}.`,
+  });
+  // 거절된 한 행만 있고 새 후보는 생기지 않았다
+  const rows = await rig.reader.listProposals({});
+  expect(rows.ok ? rows.value.map((row) => row.status) : []).toEqual(["rejected"]);
+  // 사용자가 다시 꺼냈다고 적으면 판정하지 않는다
+  expect(await submit(review, { ...WIDER_WORK_STYLE, userRaisedAgain: true })).toMatchObject({
+    ok: true,
+    status: "pending",
+  });
+});
+
+test("propose.unrelated-rule-in-the-same-target-passes-while-the-rejection-is-fresh: only the same subject is blocked", async () => {
+  const review = await startReview();
+  const first = await submit(review, WORK_STYLE);
+  await queueApi(review.rig).decide(
+    { kind: "reject", proposalId: first.ok ? first.proposalId : "" },
+    SIGNAL,
+  );
+  expect(
+    await submit(review, {
+      ...WORK_STYLE,
+      body: "Prefer tables over bullet lists for comparisons.",
+      rationale: "Asked twice for tables.",
+    }),
+  ).toMatchObject({ ok: true, status: "pending" });
+});
+
+test("propose.rejection-memory-lapses-after-thirty-days: the wider rewrite passes once the rejection is 31 days old", async () => {
+  const review = await startReview();
+  const first = await submit(review, WORK_STYLE);
+  await queueApi(review.rig).decide(
+    { kind: "reject", proposalId: first.ok ? first.proposalId : "" },
+    SIGNAL,
+  );
+  review.rig.clock.advance(31 * DAY_MS);
+  expect(await submit(review, WIDER_WORK_STYLE)).toMatchObject({ ok: true, status: "pending" });
 });

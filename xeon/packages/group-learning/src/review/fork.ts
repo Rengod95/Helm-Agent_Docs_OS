@@ -4,7 +4,7 @@ import type { DelegateError, DelegateResult, DelegateSpec } from "@fresnel/group
 import type { LearningSettings } from "../settings.ts";
 import type { LearningState } from "../state.ts";
 import type { ReviewOutcome } from "../proposals/reader.ts";
-import { reviewTask } from "./prompts.ts";
+import { reviewTask, type RejectedItem } from "./prompts.ts";
 import type { ReviewReason } from "./reason.ts";
 import { reviewToolPolicy } from "./policy.ts";
 import { REVIEW_AGENT_NAME } from "./agent.ts";
@@ -43,6 +43,8 @@ export interface BuildReviewInput {
   /** reviewRequestId(epoch) 또는 수동 검토 id. 1~48자 */
   readonly requestId: string;
   readonly reasons: readonly ReviewReason[];
+  /** 최근 사용자 거절 목록(§4.5 규칙 9). 호출하는 쪽이 대기열에서 읽어 넘긴다. 비면 지시에 절을 넣지 않는다 */
+  readonly rejected: readonly RejectedItem[];
   readonly settings: LearningSettings;
   readonly contextWindow: number | null;
 }
@@ -52,7 +54,7 @@ export function buildReviewSpec(input: BuildReviewInput): DelegateSpec {
   const { settings } = input;
   return {
     agent: REVIEW_AGENT_NAME,
-    task: reviewTask(input.reasons),
+    task: reviewTask(input.reasons, input.rejected),
     requestId: input.requestId,
     toolPolicy: reviewToolPolicy(),
     // 시스템 프롬프트와 도구 배열을 부모와 같게 두어 접두 캐시를 공유한다(L1.agents.spec §4.3). 검토 지시는 task가 싣는다

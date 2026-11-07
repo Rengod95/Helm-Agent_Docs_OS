@@ -16,7 +16,7 @@ import type {
 } from "@fresnel/contracts/conversation";
 import { ToolsPortKey, type ToolResourceDef } from "@fresnel/contracts/extensions";
 import type { AgentSettledEventPayload } from "@fresnel/contracts/records";
-import { ok, parse } from "@fresnel/contracts";
+import { err, ok, parse } from "@fresnel/contracts";
 import { AgentServicePortKey } from "@fresnel/contracts/services";
 import { Type } from "typebox";
 import { capabilityDefTable } from "@fresnel/ext-host";
@@ -126,7 +126,7 @@ export interface Rig {
   readonly module: GroupModule;
   readonly values: Map<string, unknown>;
   /** 거짓이면 turn과 정착 뒤에 `host.settled()`를 기다리지 않는다(임대를 쥔 drive가 끝나지 않는 시험). 설정 저장소를 읽을 수 없게 하는 스위치도 여기 있다 */
-  readonly control: { settingsDown: boolean; waitSettled: boolean };
+  readonly control: { settingsDown: boolean; readerDown: boolean; waitSettled: boolean };
   /** 그룹을 올릴 때 X가 낸 이슈(선언 없는 등록 등) */
   readonly installIssues: readonly { readonly severity: string; readonly code: string }[];
   /** 그룹을 끈다: 요청은 다음 단계 경계에서 적용된다 */
@@ -195,10 +195,17 @@ export async function rigOn(
     [...agents.delegated.map((delegation) => delegation.childThreadId), rigThreadId].flatMap(
       (threadId) => t.records.events(threadId),
     );
-  const reader = foldReader(foldedEvents);
+  const control = { settingsDown: false, readerDown: false, waitSettled: true };
+  // 대기열 읽기를 끊는 스위치(거절 목록을 읽지 못하는 시험). 끄면 기록을 접는 읽기 그대로다
+  const queueDown = { kind: "learning.storeUnavailable", detail: "the queue is down" } as const;
+  const folded = foldReader(foldedEvents);
+  const reader: LearningQueueReader = {
+    ...folded,
+    listProposals: (filter) =>
+      control.readerDown ? Promise.resolve(err(queueDown)) : folded.listProposals(filter),
+  };
   const values = new Map<string, unknown>(Object.entries(options.settings ?? {}));
   const tools = new Map<string, ToolResourceDef>();
-  const control = { settingsDown: false, waitSettled: true };
   const module = createLearningGroup({
     clock,
     reader,

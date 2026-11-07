@@ -21,6 +21,7 @@ import type { LearningQueueReader, StoreFailure } from "../proposals/reader.ts";
 import { parseTarget, type ParsedTarget } from "../proposals/target.ts";
 import type { LearningSettings, SettingsUnavailable } from "../settings.ts";
 import { LEARNING_PROPOSE_TOOL } from "./policy.ts";
+import { findRejection, rejectionHint } from "./rejected.ts";
 
 // L3.learning.spec §3.5 제안 도구. 이 도구는 파일을 바꾸지 않는다. 후보 행을 대기열에 넣는 것만 한다(§4.5 규칙 1).
 // 도구 execute는 재실행되는 코드가 아니므로 기능 읽기를 직접 부를 수 있다(ADR-0015 §3.1 1번).
@@ -42,6 +43,8 @@ interface ProposeInput {
   readonly rationale: string;
   /** 근거가 된 부모 대화 이벤트 id. 1개 이상 */
   readonly evidenceEventIds: readonly string[];
+  /** 사용자가 거절 뒤 대화에서 이 주제를 다시 꺼냈을 때만 참. 거절 기억 판정을 건너뛴다(§4.5 규칙 9) */
+  readonly userRaisedAgain?: boolean;
 }
 
 const inputShape = Type.Object(
@@ -62,6 +65,7 @@ const inputShape = Type.Object(
     baseHash: Type.Optional(Type.String({ pattern: "^[0-9a-f]{64}$" })),
     rationale: Type.String({ minLength: 1, maxLength: 2000 }),
     evidenceEventIds: Type.Array(Type.String(), { minItems: 1, maxItems: 32 }),
+    userRaisedAgain: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -79,6 +83,8 @@ type ProposeRefusal =
   | "limit"
   /** create인데 같은 이름의 스킬이 있음. patch와 baseHash로 다시 제안하라는 안내(§4.5 규칙 4) */
   | "name_exists"
+  /** 기간 안에 사용자가 거절한 같은 주제. 힌트의 날짜와 메모를 보고, 사용자가 다시 꺼냈을 때만 `userRaisedAgain: true`로 부른다(§4.5 규칙 9) */
+  | "already_rejected"
   /** 지식 기능이 없거나 일시 실패, 설정을 읽지 못함. 후보 없음 */
   | "unavailable";
 
@@ -169,6 +175,23 @@ async function propose(
   );
   if (same !== undefined) return { ok: true, proposalId: same.id, status: same.status };
 
+  // 거절 기억(§4.5 규칙 9): 기간 안에 사용자가 거절한 같은 주제는 다시 올리지 않는다. 사용자가 다시 꺼냈으면 판정하지 않는다
+  const now = deps.clock.now();
+  const rejected = await deps.reader.listProposals({ statuses: ["rejected"] });
+  if (!rejected.ok) return storeRefusal(rejected.error);
+  const earlier = findRejection(
+    {
+      kind: value.kind,
+      target: value.target,
+      body: value.body,
+      bodyHash,
+      userRaisedAgain: value.userRaisedAgain === true,
+    },
+    rejected.value,
+    now,
+  );
+  if (earlier !== undefined) return refuse("already_rejected", rejectionHint(earlier));
+
   const guard = await guardOf(knowledge.value, value, target.value, open.value, call);
   if (guard.kind === "refused") return guard.result;
 
@@ -180,7 +203,6 @@ async function propose(
   );
   if (!scanned.ok) return refuse("unavailable", "the pre-scan could not run");
   if (scanned.value.kind === "refused") return refuse(scanned.value.why, scanned.value.detail);
-  const now = deps.clock.now();
   const blocked = scanned.value.kind === "blocked";
   const destructive = isDestructiveOp(value.op);
   const base: Proposal = {

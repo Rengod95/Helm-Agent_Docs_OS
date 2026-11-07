@@ -8,6 +8,7 @@ import {
   type TurnTally,
 } from "../src/triggers.ts";
 import { TURN } from "./support/ids.ts";
+import { queueApi, startReview, submit } from "./support/flow.ts";
 import { createRig } from "./support/rig.ts";
 
 const SETTINGS = { userTurns: 10, toolIterations: 10 };
@@ -324,4 +325,45 @@ test("triggers.double-fire-is-counted-once: the same turn settled twice counts o
   expect(rig.agents.delegated).toHaveLength(1);
   expect(rig.state()).toMatchObject({ epoch: 1, userTurnsSinceReview: 0 });
   expect(rig.events("grp.learning.fork.started")).toHaveLength(1);
+});
+
+const FEEDBACK = {
+  kind: "feedback",
+  op: "add",
+  target: "user/work-style",
+  body: "Ask before running destructive git commands, because the user lost work after a force push.",
+  rationale: "The user said never again after the force push.",
+  evidenceEventIds: ["evt_00000000000000000000000007"],
+} as const;
+
+test("triggers.review-task-carries-recent-rejections: the next review instruction lists the candidate the user rejected", async () => {
+  const review = await startReview();
+  const { rig } = review;
+  expect(rig.agents.delegated[0]?.request.task).not.toContain("## Rejected by the user");
+  const accepted = await submit(review, FEEDBACK);
+  const id = accepted.ok ? accepted.proposalId : "";
+  await queueApi(rig).decide(
+    { kind: "reject", proposalId: id, note: "too broad" },
+    new AbortController().signal,
+  );
+  await rig.settle(review.requestId, "completed");
+  await rig.turn();
+  expect(rig.agents.delegated).toHaveLength(2);
+  expect(rig.agents.delegated[1]?.request.task.split("\n").slice(-3)).toEqual([
+    "1. kind: feedback; op: add; target: user/work-style",
+    '   note (DATA): "too broad"',
+    `   body start (DATA): "${FEEDBACK.body}"`,
+  ]);
+});
+
+test("triggers.unreadable-rejections-start-no-review: a failed read keeps the counter and the next turn retries", async () => {
+  const rig = await createRig({ settings: { "l3.learning.trigger.userTurns": 1 } });
+  rig.control.readerDown = true;
+  await rig.turn();
+  expect(rig.agents.delegated).toHaveLength(0);
+  expect(rig.state()).toMatchObject({ epoch: 0, userTurnsSinceReview: 1 });
+  rig.control.readerDown = false;
+  await rig.turn();
+  expect(rig.agents.delegated).toHaveLength(1);
+  expect(rig.state()).toMatchObject({ epoch: 1, userTurnsSinceReview: 0 });
 });
