@@ -1,4 +1,5 @@
 import { assertNever, type Result, type Thrown } from "@fresnel/contracts";
+import { hookFold } from "@fresnel/client/workbench/canvas";
 import type { DevkitReason, InstallPreview } from "@fresnel/contracts/services";
 import { WIRE_ERRORS, type ExtInstallResult } from "@fresnel/contracts/wire";
 import type { CommandError } from "../commands.ts";
@@ -202,7 +203,48 @@ export type InstallWarning =
   | { readonly kind: "files" }
   | { readonly kind: "tools"; readonly tools: readonly string[] }
   | { readonly kind: "untrusted" }
+  /** 도구 호출을 막을 수 있는 훅(`tool.call.before`, `guard.tool.before`). `hooks`는 훅 이름이다 */
+  | { readonly kind: "toolHooks"; readonly hooks: readonly string[] }
   | { readonly kind: "checks"; readonly count: number };
+
+/** 훅이 할 수 있는 일. 훅 선언의 fold가 정한다: first는 막기, chain·collect는 고치기, tap은 보기만 */
+export type InstallHookPower = "block" | "modify" | "observe" | "unknown";
+
+/** 확인 화면이 그릴 훅 한 줄. `id`는 훅 이름이고 화면이 그 이름의 사람 말 사건 이름을 고른다 */
+export interface InstallHook {
+  readonly id: string;
+  readonly power: InstallHookPower;
+  /** 도구 호출을 막을 수 있는가(눈에 띄게 보인다) */
+  readonly blocksTools: boolean;
+}
+
+const TOOL_BLOCKING_HOOKS: ReadonlySet<string> = new Set(["tool.call.before", "guard.tool.before"]);
+
+/** 미리 보기가 든 훅을 줄로 바꾼다. 막을 수 있는 것이 먼저고, 같은 힘 안에서는 선언 순서를 지킨다 */
+export function hooksOf(preview: InstallPreview): readonly InstallHook[] {
+  const rank: Readonly<Record<InstallHookPower, number>> = {
+    block: 0,
+    modify: 1,
+    observe: 2,
+    unknown: 3,
+  };
+  const rows = preview.hooks.map((id): InstallHook => {
+    const fold = hookFold(id);
+    const power: InstallHookPower =
+      fold === undefined
+        ? "unknown"
+        : fold === "first"
+          ? "block"
+          : fold === "tap"
+            ? "observe"
+            : "modify";
+    return { id, power, blocksTools: TOOL_BLOCKING_HOOKS.has(id) };
+  });
+  return rows
+    .map((row, index) => ({ row, index }))
+    .toSorted((a, b) => rank[a.row.power] - rank[b.row.power] || a.index - b.index)
+    .map((entry) => entry.row);
+}
 
 export function warningsOf(preview: InstallPreview): readonly InstallWarning[] {
   const found: InstallWarning[] = [];
@@ -211,6 +253,8 @@ export function warningsOf(preview: InstallPreview): readonly InstallWarning[] {
   if (preview.files.length > 0) found.push({ kind: "files" });
   if (preview.tools.length > 0) found.push({ kind: "tools", tools: preview.tools });
   if (preview.trustRequest === "untrusted") found.push({ kind: "untrusted" });
+  const toolHooks = hooksOf(preview).filter((hook) => hook.blocksTools);
+  if (toolHooks.length > 0) found.push({ kind: "toolHooks", hooks: toolHooks.map((h) => h.id) });
   const checks = preview.warnings.filter((issue) => issue.severity === "warning").length;
   if (checks > 0) found.push({ kind: "checks", count: checks });
   return found;
