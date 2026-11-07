@@ -44,6 +44,8 @@ export interface RestoreOptions {
   /** `exportDatabase`가 만든 폴더 */
   readonly backupDir: string;
   readonly clock: Clock;
+  /** true면 사본만 검증하고 현재 DB·블롭을 건드리지 않는다. 보고서는 `blobsAdded` 0, `previousDir` null이다 */
+  readonly verifyOnly?: boolean;
   /** 테스트가 단계 사이에서 멈추려고 쓴다. 운영은 넘기지 않는다 */
   readonly hit?: (point: RestorePoint) => void;
 }
@@ -425,6 +427,16 @@ export function restoreDatabase(options: RestoreOptions): Result<RestoreReport, 
   if (!hashes.ok) return hashes;
   const present = verifyBlobs(backupDir, hashes.value, manifest.value);
   if (!present.ok) return present;
+  if (options.verifyOnly === true) {
+    return ok({
+      dbPath,
+      backupDir,
+      blobsAdded: 0,
+      missingBlobs: manifest.value.missingBlobs,
+      previousDir: null,
+      recovered: null,
+    });
+  }
 
   const quiet = ensureNoEngine(dbPath);
   if (!quiet.ok) return quiet;

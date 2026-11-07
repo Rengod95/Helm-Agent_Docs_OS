@@ -68,6 +68,7 @@
   "cli.db.export.kept": "Did not export (nothing was changed)",
   "cli.db.export.noTerminal.message": "db export writes a copy that may contain secret values in plain text. It is not a terminal, so it does not run without --yes",
   "cli.db.export.yesFix": "fresnel db export <folder> --yes",
+  "cli.db.restore.checked": "{backupDir} is a usable backup (nothing was changed)\n",
   "cli.db.restore.done": "Restored the database from {backupDir} ({blobsAdded} blobs added)\n",
   "cli.db.restore.previous": "The database from before the restore is kept in {previousDir}\n",
   "cli.db.restore.recovered": "An interrupted restore was cleaned up first ({direction})\n",

@@ -260,6 +260,8 @@ export type DbCommand =
       readonly kind: "db.restore";
       readonly backupDir: string;
       readonly output: OutputMode;
+      /** `--check`: 사본만 검증하고 아무것도 바꾸지 않는다(앱이 엔진을 내리기 전에 부른다) */
+      readonly check: boolean;
     };
 
 export type CliCommand =
@@ -1836,7 +1838,10 @@ function parseDb(acc: GlobalAcc, rest: readonly string[]): Result<DbCommand, Usa
       });
     }
     case "restore": {
-      const scanned = scanArgs(acc, tail, { "--json": { value: "none" } });
+      const scanned = scanArgs(acc, tail, {
+        "--json": { value: "none" },
+        "--check": { value: "none" },
+      });
       if (!scanned.ok) return scanned;
       const [backupDir, ...extra] = scanned.value.positionals;
       if (backupDir === undefined || backupDir === "") {
@@ -1857,7 +1862,12 @@ function parseDb(acc: GlobalAcc, rest: readonly string[]): Result<DbCommand, Usa
           ),
         );
       }
-      return ok({ kind: "db.restore", backupDir, output: outputOf(scanned.value) });
+      return ok({
+        kind: "db.restore",
+        backupDir,
+        output: outputOf(scanned.value),
+        check: has(scanned.value, "--check"),
+      });
     }
     case undefined:
       return err(

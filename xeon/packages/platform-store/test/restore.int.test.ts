@@ -122,6 +122,37 @@ describe("restoreDatabase", () => {
     });
   }
 
+  test("verifyOnly checks the backup and leaves the current database and blobs untouched", async () => {
+    const f = await fixture();
+    const before = readFileSync(f.dbPath);
+    const checked = restoreDatabase({
+      dbPath: f.dbPath,
+      backupDir: f.backup,
+      clock: f.clock,
+      verifyOnly: true,
+    });
+    expect(checked).toEqual({
+      ok: true,
+      value: {
+        dbPath: f.dbPath,
+        backupDir: f.backup,
+        blobsAdded: 0,
+        missingBlobs: [],
+        previousDir: null,
+        recovered: null,
+      },
+    });
+    expect(readFileSync(f.dbPath)).toEqual(before);
+    expect(existsSync(join(f.root, "data", "restore-previous"))).toBe(false);
+    expect(
+      existsSync(join(f.root, "data", "blobs", f.ref.sha256.slice(0, 2), f.ref.sha256.slice(2))),
+    ).toBe(false);
+    writeFileSync(join(f.backup, "manifest.json"), "{");
+    expect(
+      restoreDatabase({ dbPath: f.dbPath, backupDir: f.backup, clock: f.clock, verifyOnly: true }),
+    ).toEqual({ ok: false, error: { kind: "backup_invalid", reason: "manifest" } });
+  });
+
   test("refuses while another connection holds the database and changes nothing", async () => {
     const f = await fixture();
     const live = await openStore(

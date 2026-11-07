@@ -286,6 +286,8 @@ export class FakeLauncher implements Launcher {
   beforeLaunch: (() => void) | null = null;
   /** 다음 `runOnce`의 결과. 한 번 쓰고 나면 기본값(종료 코드 0, 빈 출력)으로 돌아간다 */
   scriptedOnce: Result<OnceOutput, LaunchFailure> | null = null;
+  /** 다음 `--check` 실행(복원 전 사본 검증)의 결과. 기본값은 종료 코드 0. 문이 닫혀 있어도 막히지 않는다 */
+  scriptedCheck: Result<OnceOutput, LaunchFailure> | null = null;
   private readonly behavior: FakeBehavior;
   private onceOpen = true;
   private onceWaiters: (() => void)[] = [];
@@ -321,6 +323,11 @@ export class FakeLauncher implements Launcher {
 
   runOnce(args: readonly string[]): Promise<Result<OnceOutput, LaunchFailure>> {
     this.calls.push(`run-once:${args.join(" ")}`);
+    if (args.includes("--check")) {
+      const scripted = this.scriptedCheck;
+      this.scriptedCheck = null;
+      return Promise.resolve(scripted ?? ok({ exitCode: 0, stdout: "", stderr: "" }));
+    }
     return repeatAsync<Result<OnceOutput, LaunchFailure>>(async () => {
       if (this.onceOpen) return { value: this.takeOnce() };
       await new Promise<void>((resolve) => {

@@ -21,6 +21,7 @@ import {
 
 const LOCAL: EngineTarget = { kind: "local" };
 const EMPTY_OUTPUT = { exitCode: 0, stdout: "", stderr: "" };
+const RUN_ONCE_CHECK_A = "run-once:db restore /backups/a --check --json";
 const RUN_ONCE_BACKUP_A = "run-once:db restore /backups/a --json";
 
 function remote(address: string): EngineTarget {
@@ -544,6 +545,7 @@ describe("database restore (db_restore)", () => {
     await until("relaunch", () => r.launcher.launches() === 2);
     expect(r.launcher.calls).toEqual([
       "launch:1001",
+      RUN_ONCE_CHECK_A,
       "shutdown:1001",
       "stdin-closed:1001",
       "kill:1001",
@@ -575,6 +577,22 @@ describe("database restore (db_restore)", () => {
     );
     expect(r.launcher.calls).toContain(RUN_ONCE_BACKUP_A);
     await until("relaunch", () => r.launcher.launches() === 2);
+  });
+
+  test("a backup the check refuses is answered as is, and the live engine is never stopped", async () => {
+    const r = rig(EOF_EXIT, 3);
+    r.supervisor.start();
+    await runningUntil(r, 1);
+    const stderr = "fresnel: 백업의 manifest.json이 깨져 있다\n";
+    r.launcher.scriptedCheck = ok({ exitCode: 3, stdout: "", stderr });
+    expect(await r.supervisor.restoreDatabase("/backups/a")).toEqual(
+      ok({ exitCode: 3, stdout: "", stderr }),
+    );
+    await r.clock.advance(300);
+    expect(r.launcher.calls).toEqual(["launch:1001", RUN_ONCE_CHECK_A]);
+    expect(r.launcher.launches()).toBe(1);
+    expect(r.sink.kinds()).toEqual(["starting", "running"]);
+    expect(r.supervisor.snapshot().hold).toBe(false);
   });
 
   test("a remote target is refused without stopping the engine", async () => {
@@ -619,7 +637,7 @@ describe("database restore (db_restore)", () => {
     await r.clock.advance(13_000);
     expect(await restore).toEqual(err("engine-stopping"));
     expect(r.supervisor.snapshot().hold).toBe(false);
-    expect(r.launcher.calls.some((call) => call.startsWith("run-once"))).toBe(false);
+    expect(r.launcher.calls).not.toContain(RUN_ONCE_BACKUP_A);
   });
 });
 

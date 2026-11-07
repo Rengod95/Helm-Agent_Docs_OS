@@ -68,6 +68,7 @@
   "cli.db.export.kept": "내보내지 않았다 (아무것도 바꾸지 않았다)",
   "cli.db.export.noTerminal.message": "db export는 시크릿 값이 그대로 든 사본을 만든다. 터미널이 아니므로 --yes 없이는 실행하지 않는다",
   "cli.db.export.yesFix": "fresnel db export <폴더> --yes",
+  "cli.db.restore.checked": "{backupDir}는 쓸 수 있는 백업이다 (아무것도 바꾸지 않았다)\n",
   "cli.db.restore.done": "{backupDir}에서 데이터베이스를 되돌렸다 (블롭 {blobsAdded}개 추가)\n",
   "cli.db.restore.previous": "되돌리기 전 데이터베이스는 {previousDir}에 남겼다\n",
   "cli.db.restore.recovered": "멈춘 복원을 먼저 정리했다 ({direction})\n",

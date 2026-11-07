@@ -65,6 +65,7 @@ async function runRestore(ctx: CommandContext, command: RestoreCommand): Promise
     dbPath: join(dataDir, DB_FILE_NAME),
     backupDir,
     clock: ctx.deps.clock,
+    ...(command.check ? { verifyOnly: true } : {}),
   });
   if (!restored.ok) {
     const failure = failureOfRestore(restored.error);
@@ -72,6 +73,12 @@ async function runRestore(ctx: CommandContext, command: RestoreCommand): Promise
     return failure.code;
   }
   const report = restored.value;
+  // --check는 사본이 쓸 만한지만 알린다. 되돌리지 않았으므로 되돌렸다는 문장과 안내는 쓰지 않는다
+  if (command.check) {
+    if (command.output === "json") await ctx.io.stdout(`${JSON.stringify(report, null, 2)}\n`);
+    else await ctx.io.stdout(t("cli.db.restore.checked", { backupDir: report.backupDir }));
+    return EXIT.ok;
+  }
   if (command.output === "json") {
     await ctx.io.stdout(`${JSON.stringify(report, null, 2)}\n`);
     return EXIT.ok;

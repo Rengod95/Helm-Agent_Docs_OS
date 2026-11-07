@@ -817,6 +817,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 7. 저널을 `moving`으로 쓰고, 현재 `fresnel.db`, `fresnel.db-wal`, `fresnel.db-shm`을 `<데이터 디렉터리>/restore-previous/<UTC 시각>/`로 옮기고, 저널을 `moved`로 쓰고, 준비 파일을 `fresnel.db`로 바꾸고(rename), 저널을 지웁니다. 새 DB와 옛 `-wal`/`-shm`이 짝이 되지 않게 셋을 함께 옮깁니다. 사본의 DB는 저널 모드가 delete라 새로 생기는 `-wal`/`-shm`은 없고, 엔진이 열 때 WAL로 바꿉니다.
 8. `restore-previous/`는 최근 3개만 남깁니다. 복원 전 DB는 성공한 뒤에도 남아 있어 사용자가 직접 되돌릴 수 있습니다.
 
+- `verifyOnly: true`: 1·2번(사본 검증)만 하고 `RestoreReport`(`blobsAdded` 0, `previousDir` null, `recovered` null)를 돌려줍니다. 현재 DB, 블롭, `restore-previous/`는 건드리지 않습니다. 데스크톱 셸이 엔진을 내리기 전에 사본을 거르는 데 씁니다(`L4.cli` §4.13.1 `--check`). [결정: 오케스트레이터 기본값, fxDL]
 - 어느 단계에서 프로세스가 죽어도 현재 DB는 제자리에 있거나 `restore-previous/`에 있습니다. 같은 명령을 다시 실행하면 4번이 정리한 뒤 복원을 처음부터 합니다. 정리 전에 엔진을 띄우면 `fresnel.db`가 없는 틈에 빈 DB를 만들 수 있으므로 멈춘 복원은 엔진을 띄우기 전에 다시 실행해야 합니다.
 - 오류: `RestoreError`의 kind는 `backup_not_found`, `backup_invalid`(`reason`: `manifest`, `format`, `integrity`, `schema`, `blob_missing`, `blob_hash`), `foreign_database`, `not_a_database`, `future_version`, `engine_running`, `disk_full`, `io`(`code`)입니다.
 - 시크릿: 사본은 설정 파일과 age 키(`secrets/age/keys.txt`)를 담지 않고 이 함수도 그 파일을 읽거나 만들거나 덮어쓰지 않습니다. DB 안의 시크릿 참조를 복호화하려면 원래 기기의 age 키가 따로 있어야 합니다. 이 함수는 시크릿 값을 읽지 않습니다.
