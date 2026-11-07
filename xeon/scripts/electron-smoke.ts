@@ -177,7 +177,10 @@ export function evalValueOf(reply: unknown): unknown {
 async function pageEval(port: number, expression: string): Promise<unknown> {
   const listing: unknown = await fetch(`http://127.0.0.1:${String(port)}/json`)
     .then((response) => response.json())
-    .catch(() => undefined);
+    .catch((error: unknown) => {
+      process.stderr.write(`electron-smoke: CDP page list failed: ${String(error)}\n`);
+      return undefined;
+    });
   const address = pageSocketOf(listing);
   if (address === undefined) return undefined;
   const socket = new WebSocket(address);
