@@ -1997,6 +1997,7 @@
   "desktop.status.engine.restarting": "Engine restarting",
   "desktop.status.engine.running": "Engine running",
   "desktop.status.engine.sourceEmbedded": "in app",
+  "desktop.status.engine.sourceRemote": "remote · {name}",
   "desktop.status.engine.sourceService": "service",
   "desktop.status.engine.starting": "Engine starting",
   "desktop.status.engine.stopped": "Engine stopped",

@@ -58,6 +58,21 @@ function targets(count: number): TargetEntry[] {
 }
 
 describe("connection screen server render", () => {
+  test("a remote row shows its address under the name, with the full address as the tooltip", () => {
+    const loaded = stateAfter({
+      type: "targetsChanged",
+      items: [{ id: "b1", label: "build-box", address: "ssh://me@build/run/fresnel.sock" }],
+      notice: null,
+      added: null,
+    });
+    const markup = html(loaded);
+    expect(markup).toContain(
+      '<span class="min-w-0 truncate font-mono text-ui-sm font-normal text-text-tertiary" title="ssh://me@build/run/fresnel.sock">ssh://me@build/run/fresnel.sock</span>',
+    );
+    // 주소는 tooltip과 글에 한 번씩만 나온다(이 기기 줄에는 주소가 없다)
+    expect(markup.split("ssh://me@build/run/fresnel.sock").length - 1).toBe(2);
+  });
+
   test("an empty target list that has loaded says there are no remote targets and offers adding one", () => {
     const loaded = stateAfter({
       type: "targetsChanged",

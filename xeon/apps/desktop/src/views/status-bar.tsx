@@ -36,8 +36,10 @@ import { ShellStoreContext } from "../state/shell/index.ts";
 import {
   useCommandRuns,
   useConnectError,
+  useEngineTarget,
   useRestartNeeded,
   useSelectedThreadId,
+  type EngineTargetView,
 } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
 import {
@@ -192,9 +194,29 @@ function StatusItems(): ReactNode {
   ));
 }
 
-/** 엔진 한 줄: 상태와, 실행 중이면 어디서 도는지. 상태 표시줄과 첫 실행 바닥글이 같이 쓴다 */
-export function engineLineOf(engine: EngineState | null | undefined): string {
-  return `${t(engineTextOf(engine))}${engine?.kind === "running" ? ` (${t(SOURCE_TEXT[engine.source])})` : ""}`;
+/**
+ * 실행 중인 엔진이 어디서 도는지의 글. 원격 대상에 붙었으면 엔진 거울의 `source`(셸 중계도 `sidecar`로 온다)와 상관없이
+ * 대상 이름을 보인다. 이 기기 대상이면 `source`대로 쓴다.
+ */
+function sourceTextOf(
+  engine: Extract<EngineState, { kind: "running" }>,
+  target: EngineTargetView | undefined,
+): string {
+  if (target?.kind === "remote")
+    return t("desktop.status.engine.sourceRemote", { name: target.label });
+  return t(SOURCE_TEXT[engine.source]);
+}
+
+/**
+ * 엔진 한 줄: 상태와, 실행 중이면 어디서 도는지. 상태 표시줄과 첫 실행 바닥글이 같이 쓴다. `target`을 주면(상태 표시줄)
+ * 원격 대상일 때 "원격 · 이름"을 보인다. 첫 실행 바닥글은 대상을 주지 않는다.
+ */
+export function engineLineOf(
+  engine: EngineState | null | undefined,
+  target?: EngineTargetView,
+): string {
+  const source = engine?.kind === "running" ? ` (${sourceTextOf(engine, target)})` : "";
+  return `${t(engineTextOf(engine))}${source}`;
 }
 
 /** 연결 상태의 글. 상태 표시줄과 첫 실행 바닥글이 같이 쓴다 */
@@ -340,11 +362,12 @@ function LinkCell(props: { readonly phase: Link["phase"]; readonly attempt: numb
 
 function EngineCell(props: { readonly engine: EngineState | null }): ReactNode {
   const [open, setOpen] = useState(false);
+  const target = useEngineTarget();
   const description = engineDescriptionOf(props.engine);
   return (
     <StatusCell
       cellId="engine"
-      text={engineLineOf(props.engine)}
+      text={engineLineOf(props.engine, target)}
       dot={engineDotOf(props.engine)}
       title={t("desktop.status.cell.engine.title")}
       description={description === undefined ? undefined : t(description)}
@@ -773,6 +796,7 @@ function UpdateCellOf(props: { readonly controller: UpdateController }): ReactNo
 export function StatusBar(): ReactNode {
   const commands = useCommands();
   const engine = useEngineState();
+  const engineTarget = useEngineTarget();
   const banner = useLinkBanner();
   const approvals = useApprovalCount();
   const connectError = useConnectError();
@@ -788,7 +812,7 @@ export function StatusBar(): ReactNode {
     <footer className="statusbar">
       {/* 줄 전체를 낭독 영역으로 두면 갱신마다 읽힌다. 사용자가 알아야 할 바뀜(엔진 상태)만 이 한 줄이 맡는다 */}
       <span role="status" className="sr-only">
-        {engineLineOf(engine)}
+        {engineLineOf(engine, engineTarget)}
       </span>
       <EngineCell engine={engine} />
       {engine?.kind === "failed" ? (

@@ -1997,6 +1997,7 @@
   "desktop.status.engine.restarting": "엔진 다시 시작 중",
   "desktop.status.engine.running": "엔진 실행 중",
   "desktop.status.engine.sourceEmbedded": "앱 안",
+  "desktop.status.engine.sourceRemote": "원격 · {name}",
   "desktop.status.engine.sourceService": "서비스",
   "desktop.status.engine.starting": "엔진 시작 중",
   "desktop.status.engine.stopped": "엔진 꺼짐",

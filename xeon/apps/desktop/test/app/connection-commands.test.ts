@@ -121,6 +121,7 @@ describe("retarget hands the engine target to the shell", () => {
     const remote = await app.commands.connection.retarget({
       kind: "remote",
       address: SAVED.address,
+      label: SAVED.label,
     });
     // 바꾸는 동안에는 다음 바꾸기가 거절되므로 엔진이 내려갔다 올라오기를 기다린다
     fake.emitState({ kind: "stopping" });
@@ -144,6 +145,7 @@ describe("retarget hands the engine target to the shell", () => {
     const done = await app.commands.connection.retarget({
       kind: "remote",
       address: SAVED.address,
+      label: SAVED.label,
     });
     expect(done).toEqual({ ok: true, value: null });
     expect(app.ui.read.getState().engineSwitching).toBe(true);
@@ -164,7 +166,11 @@ describe("retarget hands the engine target to the shell", () => {
     const { fake } = engineFake([], (n) => (n === 1 ? RUNNING_STATE : { kind: "stopping" }));
     const app = makeApp(fake);
     await until(() => app.engine.read.getState().engine?.kind === "running", "engine running");
-    await app.commands.connection.retarget({ kind: "remote", address: SAVED.address });
+    await app.commands.connection.retarget({
+      kind: "remote",
+      address: SAVED.address,
+      label: SAVED.label,
+    });
     const second = await app.commands.connection.retarget({ kind: "local" });
     expect(second).toEqual({ ok: false, error: "other" });
     expect(fake.retargeted).toEqual([{ kind: "remote", address: SAVED.address }]);
@@ -182,8 +188,53 @@ describe("retarget hands the engine target to the shell", () => {
         }),
     };
     const app = makeAppOver(ipc);
-    const done = await app.commands.connection.retarget({ kind: "remote", address: SAVED.address });
+    const done = await app.commands.connection.retarget({
+      kind: "remote",
+      address: SAVED.address,
+      label: SAVED.label,
+    });
     expect(done).toEqual({ ok: false, error: "other" });
+    await app.stop();
+  });
+
+  test("a successful retarget records the target with its name for the status bar, and the shell gets the address only", async () => {
+    const { fake } = engineFake([], (n) => (n === 1 ? RUNNING_STATE : { kind: "stopping" }));
+    const app = makeApp(fake);
+    await until(() => app.engine.read.getState().engine?.kind === "running", "engine running");
+    expect(app.ui.read.getState().engineTarget).toEqual({ kind: "local" });
+    const done = await app.commands.connection.retarget({
+      kind: "remote",
+      address: SAVED.address,
+      label: SAVED.label,
+    });
+    expect(done).toEqual({ ok: true, value: null });
+    expect(app.ui.read.getState().engineTarget).toEqual({
+      kind: "remote",
+      address: SAVED.address,
+      label: "build-box",
+    });
+    expect(fake.retargeted).toEqual([{ kind: "remote", address: SAVED.address }]);
+    await app.stop();
+  });
+
+  test("a failed retarget leaves the recorded engine target unchanged", async () => {
+    const base = fakeIpc();
+    const ipc: DesktopIpc = {
+      ...base.ipc,
+      retarget: () =>
+        Promise.resolve({
+          ok: false,
+          error: { kind: "command", command: "engine_retarget", code: "bad-request" },
+        }),
+    };
+    const app = makeAppOver(ipc);
+    const done = await app.commands.connection.retarget({
+      kind: "remote",
+      address: SAVED.address,
+      label: SAVED.label,
+    });
+    expect(done).toEqual({ ok: false, error: "other" });
+    expect(app.ui.read.getState().engineTarget).toEqual({ kind: "local" });
     await app.stop();
   });
 });

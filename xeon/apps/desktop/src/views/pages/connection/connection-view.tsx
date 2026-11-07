@@ -132,7 +132,12 @@ function StatusBadge(props: {
   );
 }
 
-function ItemBody(props: { readonly label: string; readonly badge: ReactNode }): ReactNode {
+function ItemBody(props: {
+  readonly label: string;
+  readonly badge: ReactNode;
+  /** 이름 아래 한 줄. 원격 대상은 주소를 보인다 */
+  readonly sub?: ReactNode;
+}): ReactNode {
   return (
     <span className="grid min-w-0 flex-1 gap-0.5 py-1">
       <span className="flex min-w-0 items-center gap-2">
@@ -140,6 +145,7 @@ function ItemBody(props: { readonly label: string; readonly badge: ReactNode }):
         <span className="flex-1" />
         {props.badge}
       </span>
+      {props.sub}
     </span>
   );
 }
@@ -261,7 +267,18 @@ function TargetRow(props: {
           value={valueOfChoice({ kind: "remote", entry })}
           className="mt-1 self-start"
         >
-          <ItemBody label={entry.label} badge={badge} />
+          <ItemBody
+            label={entry.label}
+            badge={badge}
+            sub={
+              <span
+                className="min-w-0 truncate font-mono text-ui-sm font-normal text-text-tertiary"
+                title={entry.address}
+              >
+                {entry.address}
+              </span>
+            }
+          />
         </RadioGroupItem>
       </div>
       <Button variant="ghost" size="xs" disabled={disabled} onClick={onRemove}>

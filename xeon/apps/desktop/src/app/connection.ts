@@ -3,6 +3,7 @@ import { err, ok, type Result } from "@fresnel/contracts";
 import { WIRE_ERRORS, type HostClientView, type HostConnection } from "@fresnel/contracts/wire";
 import { LOCAL, type LocalSettings } from "../settings-store/index.ts";
 import type { UiStore } from "../state/ui/index.ts";
+import type { EngineTarget } from "../transport/ipc.ts";
 import type {
   CommandError,
   ConnectionCommands,
@@ -23,6 +24,11 @@ const REMOTE_RESPOND_KEY = "l2.schedule.remote.allowRespond";
 const UNKNOWN_KEY_CODE = WIRE_ERRORS["settings.unknownKey"].code;
 
 const SCOPE = "user";
+
+/** 셸 계약(`EngineTarget`)은 주소만 든다. 이름은 화면과 상태 표시줄이 쓰므로 셸 인자에 싣지 않는다 */
+function engineTargetOf(target: ConnectTarget): EngineTarget {
+  return target.kind === "local" ? { kind: "local" } : { kind: "remote", address: target.address };
+}
 
 /** `l4.desktop.engine.shutdownGraceMs` 기본값(settings-store/defs.ts, Rust 기본값과 같다) */
 const DEFAULT_SHUTDOWN_GRACE_MS = 7000;
@@ -59,11 +65,13 @@ export function createConnectionCommands(deps: ConnectionDeps): ConnectionComman
       // 바꾸는 동안 쓰기는 옛 엔진으로 가지 않고 `switching`으로 거절된다. 대기 한도는 설정 파일의 값이고 없으면 기본값이다
       await local.load();
       const graceMs = local.get(LOCAL.shutdownGraceMs) ?? DEFAULT_SHUTDOWN_GRACE_MS;
-      const done = await engineSwitch.retarget(target, graceMs);
+      const done = await engineSwitch.retarget(engineTargetOf(target), graceMs);
       if (!done.ok) {
-        // 셸 명령 오류나 바꾸는 중(`switching`)은 연결 실패 종류가 아니다
+        // 셸 명령 오류나 바꾸는 중(`switching`)은 연결 실패 종류가 아니다. 엔진이 붙은 대상도 그대로 둔다
         return err("other");
       }
+      // 바뀐 대상을 적는다. 상태 표시줄 첫 칸과 연결 화면이 이 값을 읽는다(앱을 다시 켜면 이 컴퓨터로 돌아간다)
+      ui.actions.setEngineTarget(target);
       // 연결 루프가 실패로 멈춰 있으면 새 대상으로 다시 붙도록 깨운다. 연결 중이면 아무 일도 없다
       session.reconnect();
       return ok(null);

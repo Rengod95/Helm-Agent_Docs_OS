@@ -10,6 +10,7 @@ import type { MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import { WIRE_ERRORS, type HostClientView } from "@fresnel/contracts/wire";
 import type { EngineState, Link } from "../../../state/engine/index.ts";
+import type { EngineTargetView } from "../../../state/ui/index.ts";
 import type { CommandError, ConnectionSnapshot, ConnectTarget } from "../../commands.ts";
 
 // 연결 화면(P-08)의 상태 기계. 순수 함수만 둔다: 명령을 부르는 일은 화면이 맡고, 결과와 엔진·연결 관찰을 이 모델의 동작으로 옮긴다.
@@ -169,6 +170,8 @@ export type ConnectionAction =
     }
   | { readonly type: "targetsFailed" }
   | { readonly type: "select"; readonly choice: TargetChoice }
+  /** 화면을 열 때 엔진이 붙은 대상으로 고른 칸과 엔진 칸을 맞춘다. 목록을 읽은 뒤에 보낸다 */
+  | { readonly type: "engineTargetSeen"; readonly target: EngineTargetView }
   | { readonly type: "query"; readonly text: string }
   | { readonly type: "formOpened" }
   | { readonly type: "formField"; readonly field: "label" | "address"; readonly value: string }
@@ -228,11 +231,24 @@ export function canConnect(state: ConnectionState): boolean {
   return state.pending === null && !state.busy && !sameChoice(state.selected, state.engineTarget);
 }
 
-/** 셸 명령 인자로 바꾼다. 원격은 주소만 보낸다(토큰은 환경 변수로만 간다) */
+/** 셸 명령 인자로 바꾼다. 원격은 주소와 이름을 싣는다(토큰은 환경 변수로만 간다). 이름은 셸에 가지 않고 상태 표시줄이 쓴다 */
 export function toConnectTarget(choice: TargetChoice): ConnectTarget {
   return choice.kind === "local"
     ? { kind: "local" }
-    : { kind: "remote", address: choice.entry.address };
+    : { kind: "remote", address: choice.entry.address, label: choice.entry.label };
+}
+
+/**
+ * 엔진이 붙은 대상을 화면의 고른 대상으로 바꾼다. 원격은 주소가 같은 목록 항목을 찾고, 목록에 없으면 이 기기로 둔다
+ * (지운 대상에 붙어 있어도 고른 칸은 이 기기다).
+ */
+export function choiceOfEngineTarget(
+  items: readonly TargetEntry[],
+  target: EngineTargetView,
+): TargetChoice {
+  if (target.kind === "local") return LOCAL_CHOICE;
+  const entry = items.find((item) => item.address === target.address);
+  return entry === undefined ? LOCAL_CHOICE : { kind: "remote", entry };
 }
 
 /** 저장할 때 쓰는 대상 id. 밀리초 시각으로 만들고, 같은 id는 `addTarget`이 거부한다 */
@@ -466,6 +482,12 @@ export function connectionReducer(
       return { ...state, list: { kind: "failed" } };
     case "select":
       return { ...state, selected: action.choice };
+    case "engineTargetSeen": {
+      // 진행 중이면 고른 대상과 엔진 대상을 건드리지 않는다. 화면을 열 때 한 번만 부른다
+      if (state.pending !== null) return state;
+      const choice = choiceOfEngineTarget(state.items, action.target);
+      return { ...state, selected: choice, engineTarget: choice };
+    }
     case "query":
       return { ...state, query: action.text };
     case "formOpened":

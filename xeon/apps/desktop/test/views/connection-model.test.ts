@@ -591,3 +591,52 @@ describe("the connected clients list", () => {
     expect(clientsShown({ kind: "unsupported" })).toBe(false);
   });
 });
+
+describe("the screen opens on the engine's current target", () => {
+  const OTHER: TargetEntry = { id: "c", label: "old-box", address: "tcp://10.0.0.9:7421" };
+
+  test("a remote target the engine is on is selected, and the connect button stays off", () => {
+    const state = run(
+      INITIAL_CONNECTION_STATE,
+      { type: "targetsChanged", items: [BUILD, MINI], notice: null, added: null },
+      {
+        type: "engineTargetSeen",
+        target: { kind: "remote", address: BUILD.address, label: "build-box" },
+      },
+    );
+    expect(state.selected).toEqual(REMOTE_BUILD);
+    expect(state.engineTarget).toEqual(REMOTE_BUILD);
+    expect(canConnect(state)).toBe(false);
+  });
+
+  test("a remote target that is no longer in the list falls back to this computer", () => {
+    const state = run(
+      INITIAL_CONNECTION_STATE,
+      { type: "targetsChanged", items: [BUILD], notice: null, added: null },
+      { type: "engineTargetSeen", target: { kind: "remote", address: OTHER.address, label: "x" } },
+    );
+    expect(state.selected).toEqual(LOCAL_CHOICE);
+    expect(state.engineTarget).toEqual(LOCAL_CHOICE);
+  });
+
+  test("this computer as the engine's target keeps the local choice", () => {
+    const state = run(
+      INITIAL_CONNECTION_STATE,
+      { type: "targetsChanged", items: [BUILD], notice: null, added: null },
+      { type: "engineTargetSeen", target: { kind: "local" } },
+    );
+    expect(state.selected).toEqual(LOCAL_CHOICE);
+    expect(state.engineTarget).toEqual(LOCAL_CHOICE);
+    expect(canConnect(state)).toBe(false);
+  });
+
+  test("a seen target does not move a connection that is already in progress", () => {
+    const inProgress = run(withItems([BUILD, MINI]), started({ kind: "remote", entry: MINI }));
+    const after = run(inProgress, {
+      type: "engineTargetSeen",
+      target: { kind: "remote", address: BUILD.address, label: "build-box" },
+    });
+    expect(after).toBe(inProgress);
+    expect(after.engineTarget).toEqual({ kind: "remote", entry: MINI });
+  });
+});

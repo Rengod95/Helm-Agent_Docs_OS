@@ -449,6 +449,44 @@ describe("status bar cell order", () => {
   });
 });
 
+/** 실행 중인 엔진 하나를 든 거울. 엔진 칸의 글이 대상에 따라 어떻게 나는지 본다 */
+function mirrorRunning(): EngineMirror {
+  const h = harness();
+  h.store.ingest({ type: "engine", state: RUNNING });
+  h.store.flush();
+  return h.store.read.getState();
+}
+
+describe("status bar engine cell names the attached target", () => {
+  let previous: Locale = "ko";
+  beforeEach(() => {
+    previous = activeLocale();
+    setActiveLocale("ko");
+  });
+  afterEach(() => {
+    setActiveLocale(previous);
+  });
+
+  test("a remote target shows its name on the engine cell and in the screen reader line", () => {
+    const ui = createUiStore();
+    ui.actions.setEngineTarget({
+      kind: "remote",
+      address: "unix:/run/box.sock",
+      label: "build-box",
+    });
+    const html = barWithUi(mirrorRunning(), ui.read.getState());
+    expect(cellTextOf(html, "engine")).toBe("엔진 실행 중 (원격 · build-box)");
+    expect(html).toContain(
+      '<span role="status" class="sr-only">엔진 실행 중 (원격 · build-box)</span>',
+    );
+  });
+
+  test("this computer keeps the in-app source on the engine cell", () => {
+    const html = barWithUi(mirrorRunning(), createUiStore().read.getState());
+    expect(cellTextOf(html, "engine")).toBe("엔진 실행 중 (앱 안)");
+  });
+});
+
 describe("status bar model and usage cells", () => {
   let previous: Locale = "ko";
   beforeEach(() => {
