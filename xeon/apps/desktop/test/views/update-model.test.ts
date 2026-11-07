@@ -560,6 +560,7 @@ describe("the reason sentences", () => {
       ["busy", "desktop.update.reason.busy"],
       ["nothing_to_download", "desktop.update.reason.nothingToDownload"],
       ["nothing_to_install", "desktop.update.reason.nothingToInstall"],
+      ["config", "desktop.update.reason.config"],
       ["other", "desktop.update.reason.other"],
     ];
     expect(table.map(([reason]) => reasonTextOf(reason))).toEqual(table.map(([, id]) => id));

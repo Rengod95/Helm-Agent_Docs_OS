@@ -1366,6 +1366,7 @@
   "desktop.update.reason.busy": "다른 업데이트 작업이 끝나면 다시 시도해 주세요.",
   "desktop.update.reason.nothingToDownload": "내려받을 업데이트가 없어요. 다시 확인해 주세요.",
   "desktop.update.reason.nothingToInstall": "설치할 파일이 없어요. 다시 내려받아 주세요.",
+  "desktop.update.reason.config": "이 앱에는 업데이트 설정이 빠져 있어서 내려받지 못했어요. 새로 내려받아 설치해 주세요.",
   "desktop.update.reason.other": "업데이트하지 못했어요. 지금 버전은 그대로예요.",
   "desktop.update.popover.availableDesc": "새 버전이 있어요. 설정과 대화는 그대로 남아요.",
   "desktop.update.popover.readyDesc": "받은 파일을 설치하고 앱을 다시 시작해요.",

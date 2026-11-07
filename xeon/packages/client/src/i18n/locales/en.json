@@ -1366,6 +1366,7 @@
   "desktop.update.reason.busy": "Try again when the other update task finishes.",
   "desktop.update.reason.nothingToDownload": "There's no update to download. Check again.",
   "desktop.update.reason.nothingToInstall": "There's no file to install. Download it again.",
+  "desktop.update.reason.config": "This app is missing its update settings, so the download failed. Install a fresh copy of the app.",
   "desktop.update.reason.other": "The update didn't go through. You're still on the current version.",
   "desktop.update.popover.availableDesc": "A new version is available. Your settings and conversations stay as they are.",
   "desktop.update.popover.readyDesc": "Installs the downloaded file and restarts the app.",
