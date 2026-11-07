@@ -1,4 +1,4 @@
-import { t } from "@fresnel/client/i18n";
+import { activeLocale, t } from "@fresnel/client/i18n";
 import type { ProposalAction, ProposalRowVM, ProposalScope } from "@fresnel/client/settings";
 import type { ToggleRequest } from "@fresnel/client/workbench";
 import { assertNever } from "@fresnel/contracts";
@@ -13,6 +13,7 @@ import {
   DialogAction,
   DialogClose,
   EmptyState,
+  Field,
   ListDescription,
   ListDescriptionRow,
   RadioGroup,
@@ -33,6 +34,7 @@ import {
   DIFF_FOLD_LINES,
   diffLinesOf,
   effectiveScopeOf,
+  rowTitleOf,
   selectedRowOf,
   unavailableShownOf,
   visibleRowsOf,
@@ -46,6 +48,7 @@ import {
 } from "./proposals-model.ts";
 import {
   actionLabelIdOf,
+  expiryDateTextOf,
   kindFilterIdOf,
   scopeIdOf,
   skillFailureIdOf,
@@ -345,7 +348,10 @@ function ListPane(props: {
   );
 }
 
-/** 목록의 한 행. 첫 줄은 종류와 대상, 둘째 줄은 상태 말이나 충돌이다. 대기 중인 것은 겹치는 스킬이 있을 때만 "충돌"을 단다 */
+/**
+ * 목록의 한 행. 첫 줄은 제목(제안 내용의 요약, `rowTitleOf`), 둘째 줄은 종류·상태 말·만료 날짜다. 대기 중인 것은 겹치는 스킬이 있을 때만 "충돌"을 달고,
+ * 기한(`expiresAt`)이 있으면 날짜를 단다. 대상 이름은 상세 머리에만 둔다
+ */
 function Row(props: {
   readonly row: ProposalRowVM;
   readonly age: string;
@@ -355,7 +361,17 @@ function Row(props: {
   const { row, age, selected, onSelect } = props;
   const pending = row.status === "pending";
   const conflicted = row.conflictsWith !== null;
-  const note = pending ? (conflicted ? t("desktop.proposals.conflict") : null) : row.statusLabel;
+  const line = [
+    row.kindLabel,
+    pending ? (conflicted ? t("desktop.proposals.conflict") : null) : row.statusLabel,
+    row.expiresAt === null
+      ? null
+      : t("desktop.proposals.row.expires", {
+          date: expiryDateTextOf(row.expiresAt, activeLocale()),
+        }),
+  ]
+    .filter((part): part is string => part !== null)
+    .join(" · ");
   return (
     <li role="option" aria-selected={selected}>
       <Button
@@ -367,19 +383,12 @@ function Row(props: {
         ].join(" ")}
       >
         <span className="grid min-w-0 flex-1 gap-0.5">
-          <span className="flex min-w-0 items-baseline gap-2">
-            <span className="shrink-0 text-ui-sm text-text-secondary">{row.kindLabel}</span>
-            <span className="min-w-0 truncate font-mono text-mono-sm text-text-primary">
-              {row.target}
-            </span>
+          <span className="min-w-0 truncate text-ui text-text-primary">{rowTitleOf(row)}</span>
+          <span
+            className={`min-w-0 truncate text-ui-xs ${pending && conflicted ? "text-warning-text" : "text-text-tertiary"}`}
+          >
+            {line}
           </span>
-          {note === null ? null : (
-            <span
-              className={`min-w-0 truncate text-ui-xs ${pending && conflicted ? "text-warning-text" : "text-text-tertiary"}`}
-            >
-              {note}
-            </span>
-          )}
         </span>
         <span className="shrink-0 whitespace-nowrap text-ui-xs tabular-nums text-text-tertiary">
           {age}
@@ -460,6 +469,11 @@ function DetailPane(props: {
                 <span className="whitespace-pre-wrap">{selected.rationale}</span>
               </ListDescriptionRow>
             )}
+            {selected.note === null || selected.note === "" ? null : (
+              <ListDescriptionRow term={t("desktop.proposals.detail.note")}>
+                <span className="whitespace-pre-wrap">{selected.note}</span>
+              </ListDescriptionRow>
+            )}
             {threadId === undefined ? null : (
               <ListDescriptionRow term={t("desktop.proposals.detail.evidence")}>
                 <span className="flex items-center gap-2">
@@ -498,6 +512,16 @@ function DetailPane(props: {
               </ListDescriptionRow>
             )}
           </ListDescription>
+          {selected.expiresAt === null ? null : (
+            <div className="flex items-center gap-1 text-ui-xs text-text-tertiary">
+              <span>
+                {t("desktop.proposals.detail.expires", {
+                  date: expiryDateTextOf(selected.expiresAt, activeLocale()),
+                })}
+              </span>
+              <InfoTip text={t("desktop.proposals.detail.expiresInfo")} />
+            </div>
+          )}
           {state.editor.mode === "edit" && editing ? (
             <Textarea
               size="sm"
@@ -515,18 +539,20 @@ function DetailPane(props: {
             <DiffView key={selected.key} diff={selected.diff} label={label} />
           )}
           {state.editor.mode === "reject" && editing ? (
-            <Textarea
-              size="sm"
-              rows={2}
-              autoFocus
-              aria-label={t("desktop.proposals.reject.label")}
-              maxLength={500}
-              value={state.editor.text}
-              disabled={state.busy}
-              onChange={(event) => {
-                handlers.editorChange(event.target.value);
-              }}
-            />
+            <Field label={t("desktop.proposals.reject.noteLabel")}>
+              <Textarea
+                size="sm"
+                rows={2}
+                autoFocus
+                placeholder={t("desktop.proposals.reject.notePlaceholder")}
+                maxLength={500}
+                value={state.editor.text}
+                disabled={state.busy}
+                onChange={(event) => {
+                  handlers.editorChange(event.target.value);
+                }}
+              />
+            </Field>
           ) : null}
         </div>
       </ScrollArea>
@@ -615,6 +641,13 @@ function ActionButton(props: {
   );
 }
 
+/**
+ * 변경 줄의 감싸기. caustic 줄은 한 줄 높이(`h-5`)와 `whitespace-pre`라 긴 글이 잘린다. 높이를 글에 맞추고 글을 감싸며,
+ * 내용 칸은 `min-w-0`으로 줄어들게 해 가운데 칸이 글 길이만큼 늘어나지 않게 한다. 번호와 부호 칸은 그대로라 줄 맞춤은 첫 줄에 남는다
+ */
+const DIFF_WRAP =
+  "h-auto min-h-5 whitespace-pre-wrap break-words [&>[data-slot=code-diff-content]]:min-w-0";
+
 /** 변경 보기. 줄 수가 많으면 `DIFF_FOLD_LINES`줄까지만 보이고 나머지는 펼친다 */
 function DiffView(props: { readonly diff: string; readonly label: string }): ReactNode {
   const [expanded, setExpanded] = useState(false);
@@ -631,7 +664,12 @@ function DiffView(props: { readonly diff: string; readonly label: string }): Rea
         radius="xl"
       >
         {shown.map((line) => (
-          <CodeDiffLine key={line.number} kind={line.kind} number={line.number}>
+          <CodeDiffLine
+            key={line.number}
+            kind={line.kind}
+            number={line.number}
+            className={DIFF_WRAP}
+          >
             {line.text}
           </CodeDiffLine>
         ))}

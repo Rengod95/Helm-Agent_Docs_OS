@@ -1,4 +1,4 @@
-import { t } from "@fresnel/client/i18n";
+import { t, type MessageId } from "@fresnel/client/i18n";
 import {
   extNameOf,
   INITIAL_WORKBENCH,
@@ -12,6 +12,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useLinkPhase } from "../../../state/engine/index.ts";
 import { useCommands } from "../../commands.ts";
 import { detachVoid } from "../../workbench/controller.ts";
+import { InfoTip } from "../../craft/info-tip.tsx";
 import { ExtName, stateText } from "../../workbench/ext-row.tsx";
 import { originText } from "../../workbench/trust-dialog.tsx";
 import { SettingSection } from "./settings-section.tsx";
@@ -28,6 +29,18 @@ type Load =
 
 const MUTED = "text-ui-sm text-text-tertiary";
 
+/** 학습 그룹의 확장 이름(`group-learning` 매니페스트의 `name`) */
+const LEARNING_GROUP = "learning";
+
+/**
+ * 그룹 행 옆의 설명 글 id. 확장 목록에는 설명 글 칸이 없어 그룹 이름으로 고른다. 설명을 둔 그룹은 학습뿐이다(스위치가 무엇을 끄는지 알려야 해서)
+ * [결정: 오케스트레이터 기본값, fxLM]. 플러그인과 그 밖의 그룹은 null이다
+ */
+export function groupInfoIdOf(entry: ExtListEntry): MessageId | null {
+  if (!entry.isGroup) return null;
+  return entry.name === LEARNING_GROUP ? "desktop.settings.plugins.learning.info" : null;
+}
+
 function Row(props: {
   readonly entry: ExtListEntry;
   readonly row: ExtRowVM;
@@ -35,6 +48,7 @@ function Row(props: {
   readonly onToggle: (name: string, target: boolean) => void;
 }): ReactNode {
   const { entry, row } = props;
+  const info = groupInfoIdOf(entry);
   return (
     <div className="flex min-h-8 min-w-0 items-center gap-2.5 py-2">
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
@@ -45,6 +59,7 @@ function Row(props: {
         {row.state === "on" || row.state === "off" ? null : (
           <span className={MUTED}>{stateText(row.state)}</span>
         )}
+        {info === null ? null : <InfoTip text={t(info)} />}
       </div>
       <Switch
         size="sm"
@@ -60,7 +75,7 @@ function Row(props: {
 }
 
 /** 그림. 읽는 중이면 Skeleton, 실패하면 오류 한 줄이다 */
-function PluginsPanelView(props: {
+export function PluginsPanelView(props: {
   readonly load: Load;
   readonly busy: ReadonlySet<string>;
   readonly onToggle: (name: string, target: boolean) => void;

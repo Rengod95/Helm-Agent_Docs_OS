@@ -1,3 +1,4 @@
+import { t } from "@fresnel/client/i18n";
 import type { ProposalAction, ProposalRowVM, ProposalScope } from "@fresnel/client/settings";
 import {
   INITIAL_WORKBENCH,
@@ -15,7 +16,7 @@ import type {
 import type { SkillViewError } from "../../commands.ts";
 
 // 제안 화면(P-06)의 순수 모델. 거르기, 목록 상태, 상세의 편집기·확인·범위, 바로 가기 키 뜻을 다룬다.
-// 값은 `toEqual`로 비교한다. 서버 호출과 문장 만들기는 `proposals-screen.tsx`가 한다.
+// 값은 `toEqual`로 비교한다. 서버 호출은 `proposals-screen.tsx`가 한다. 문장은 화면이 만들되, 행 제목(`rowTitleOf`)만 제안 내용으로 정하려고 `t()`를 쓴다.
 
 export type StatusFilter = "pending" | "applied" | "all";
 export type SourceFilter = "all" | ProposalSource;
@@ -317,6 +318,67 @@ export function selectedRowOf(
   selectedKey: string | null,
 ): ProposalRowVM | null {
   return rows.find((row) => row.key === selectedKey) ?? null;
+}
+
+/** 행 제목의 글 길이 상한(글자 수). 넘으면 이 수에서 끊고 "…"을 붙인다 [결정: 오케스트레이터 기본값, fxLM] */
+const ROW_TITLE_MAX = 60;
+
+/** 글 한 줄을 다듬는다: 여러 칸 공백은 한 칸으로 줄이고 앞뒤 공백은 뗀다 */
+function collapsedOf(line: string): string {
+  return line.replace(/\s+/g, " ").trim();
+}
+
+/** 글 줄들의 첫 글 줄. 다듬은 뒤 빈 줄은 건너뛴다. 글 줄이 없으면 null */
+function firstTextOf(lines: readonly string[]): string | null {
+  for (const line of lines) {
+    const text = collapsedOf(line);
+    if (text !== "") return text;
+  }
+  return null;
+}
+
+/** diff에서 `sign`으로 시작하는 줄의 글(머리 부호 한 글자를 뗀 값)들 */
+function signedLinesOf(diff: string, sign: "+" | "-"): readonly string[] {
+  return diff
+    .split("\n")
+    .filter((line) => line.startsWith(sign))
+    .map((line) => line.slice(1));
+}
+
+/** 스킬 대상의 이름: 첫 `/` 앞이다. 대상은 `<이름>` 또는 지원 파일을 붙인 `<이름>/<파일>`이다 */
+function skillNameOf(target: string): string {
+  return target.split("/")[0] ?? target;
+}
+
+/** 글을 `max`자에서 끊는다. 넘지 않으면 그대로다. 글자는 코드 점 단위로 센다 */
+function cutTextOf(text: string, max: number): string {
+  const chars = Array.from(text);
+  return chars.length <= max ? text : `${chars.slice(0, max).join("")}…`;
+}
+
+/**
+ * 목록 행의 제목: 사람이 읽는 한 줄이다. 내부 대상(경로, 영역/id)은 상세 머리에만 두고 제목에는 쓰지 않는다 [결정: 오케스트레이터 기본값, fxLM]
+ * - 스킬: "스킬 <이름>". 지우기는 "스킬 지우기: <이름>"이다
+ * - 그 밖의 종류: 더하는 글의 첫 글 줄(60자에서 끊음). 지우기는 지울 글의 첫 줄이고, 글이 없으면 종류 이름만 쓴다
+ */
+export function rowTitleOf(row: ProposalRowVM): string {
+  const removing = row.op === "remove" || row.op === "archive";
+  if (row.kind === "skill") {
+    const name = skillNameOf(row.target);
+    return removing
+      ? t("desktop.proposals.row.title.removeNamed", { kind: row.kindLabel, name })
+      : `${row.kindLabel} ${name}`;
+  }
+  const text =
+    firstTextOf(signedLinesOf(row.diff, "+")) ??
+    (row.op === "remove" ? firstTextOf(signedLinesOf(row.diff, "-")) : null);
+  const summary = text === null ? null : cutTextOf(text, ROW_TITLE_MAX);
+  if (removing) {
+    return summary === null
+      ? t("desktop.proposals.row.title.remove", { kind: row.kindLabel })
+      : t("desktop.proposals.row.title.removeNamed", { kind: row.kindLabel, name: summary });
+  }
+  return summary ?? row.kindLabel;
 }
 
 /** 지금 적용할 범위: 고른 값이 있으면 그것, 없으면 행의 기본. 범위를 고를 수 없는 행은 null */

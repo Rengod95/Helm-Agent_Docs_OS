@@ -16,6 +16,7 @@ import {
   overlayOpenOf,
   proposalKeyIntentOf,
   proposalsReducer,
+  rowTitleOf,
   selectedRowOf,
   skillFailureOf,
   unavailableShownOf,
@@ -27,6 +28,7 @@ import {
 } from "../../src/views/pages/proposals/proposals-model.ts";
 import {
   doneNoticeOf,
+  expiryDateTextOf,
   unavailableTextIdOf,
 } from "../../src/views/pages/proposals/proposals-text.ts";
 
@@ -44,7 +46,7 @@ function wire(overrides: Partial<ProposalRow>): ProposalRow {
     id: "p1",
     kind: "skill",
     op: "create",
-    target: "skills/review.md",
+    target: "review",
     status: "pending",
     destructive: false,
     diff: "+ line",
@@ -402,6 +404,110 @@ describe("diffLinesOf", () => {
   test("the fold limit is 500 lines", () => {
     expect(DIFF_FOLD_LINES).toBe(500);
     expect(diffLinesOf(Array.from({ length: 501 }, () => "x").join("\n")).length).toBe(501);
+  });
+});
+
+describe("rowTitleOf", () => {
+  test("a one-line feedback is titled by its sentence, which is short enough to keep whole", () => {
+    const row = rowVM({
+      kind: "feedback",
+      op: "add",
+      target: "user/work-style",
+      diff: "+ 커밋 메시지는 feat/fix/chore 중 하나로 쓰고 한 줄로 쓴다. 팀 규칙이다.",
+    });
+    expect(rowTitleOf(row)).toEqual(
+      "커밋 메시지는 feat/fix/chore 중 하나로 쓰고 한 줄로 쓴다. 팀 규칙이다.",
+    );
+  });
+
+  test("a title longer than 60 characters is cut after 60 and an ellipsis follows", () => {
+    const row = rowVM({ kind: "memory", op: "add", target: "user", diff: `+ ${"가".repeat(61)}` });
+    expect(rowTitleOf(row)).toEqual(`${"가".repeat(60)}…`);
+  });
+
+  test("the first line with text is used: blank and space-only lines are skipped and inner runs of spaces collapse", () => {
+    const row = rowVM({
+      kind: "memory",
+      op: "replace",
+      target: "user/0123456789ab",
+      diff: "@@ replace user/0123456789ab\n+   \n+ 첫  번째 \n+ 둘째",
+    });
+    expect(rowTitleOf(row)).toEqual("첫 번째");
+  });
+
+  test("a skill is titled by its name, whether the target is the bare name or a file under it", () => {
+    expect(
+      rowTitleOf(
+        rowVM({ kind: "skill", op: "create", target: "cache-debug", diff: "+ # cache-debug" }),
+      ),
+    ).toEqual("스킬 cache-debug");
+    expect(
+      rowTitleOf(
+        rowVM({
+          kind: "skill",
+          op: "add_file",
+          target: "cache-debug/references/notes.md",
+          diff: "+ 참고",
+        }),
+      ),
+    ).toEqual("스킬 cache-debug");
+  });
+
+  test("removing a skill names it; removing a memory names the first removed line; with nothing to name it says the kind", () => {
+    expect(
+      rowTitleOf(
+        rowVM({
+          kind: "skill",
+          op: "archive",
+          target: "cache-debug",
+          diff: "@@ archive cache-debug",
+        }),
+      ),
+    ).toEqual("스킬 지우기: cache-debug");
+    expect(
+      rowTitleOf(
+        rowVM({
+          kind: "memory",
+          op: "remove",
+          target: "user/0123456789ab",
+          diff: "@@ remove user/0123456789ab\n- 커밋 메시지는 한 줄로 쓴다.",
+        }),
+      ),
+    ).toEqual("메모리 지우기: 커밋 메시지는 한 줄로 쓴다.");
+    expect(
+      rowTitleOf(
+        rowVM({
+          kind: "memory",
+          op: "remove",
+          target: "user/0123456789ab",
+          diff: "@@ remove user/0123456789ab",
+        }),
+      ),
+    ).toEqual("메모리 지우기");
+  });
+
+  test("a memory replace is titled by its new text, and a feedback with no text gives its kind alone", () => {
+    expect(
+      rowTitleOf(
+        rowVM({
+          kind: "memory",
+          op: "replace",
+          target: "user/0123456789ab",
+          diff: "@@ replace user/0123456789ab\n+ 새 기억 한 줄",
+        }),
+      ),
+    ).toEqual("새 기억 한 줄");
+    expect(
+      rowTitleOf(rowVM({ kind: "feedback", op: "add", target: "user/work-style", diff: "" })),
+    ).toEqual("피드백");
+  });
+});
+
+describe("expiryDateTextOf", () => {
+  test("the expiry date is a long local date in the locale, with no time", () => {
+    const at = new Date(2033, 5, 17, 12).getTime();
+    expect(expiryDateTextOf(at, "ko")).toEqual("2033년 6월 17일");
+    expect(expiryDateTextOf(at, "en")).toEqual("June 17, 2033");
   });
 });
 

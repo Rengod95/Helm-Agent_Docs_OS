@@ -56,7 +56,7 @@ function wire(overrides: Partial<ProposalRow>): ProposalRow {
     id: "p1",
     kind: "skill",
     op: "create",
-    target: "skills/cache-debug.md",
+    target: "cache-debug",
     status: "pending",
     destructive: false,
     diff: "+ # cache-debug\n+ 1. 단위를 확인한다",
@@ -151,7 +151,8 @@ describe("ProposalsView states", () => {
     });
     const warned = html(partial);
     expect(warned).toContain(t("client.settings.proposals.unavailable.knowledge"));
-    expect(warned).toContain("skills/cache-debug.md");
+    // 목록 행은 대상 이름이 아니라 제목(스킬 이름)을 보인다
+    expect(warned).toContain("스킬 cache-debug");
   });
 
   test("error from a decision shows its sentence in a notice and keeps the list", () => {
@@ -164,7 +165,7 @@ describe("ProposalsView states", () => {
     );
     const markup = html(withNotice);
     expect(markup).toContain(t("client.settings.proposals.failed.revisionMismatch"));
-    expect(markup).toContain("skills/cache-debug.md");
+    expect(markup).toContain("cache-debug");
   });
 
   test("offline: the banner says so and the decision buttons are disabled, while the read rows stay", () => {
@@ -172,7 +173,7 @@ describe("ProposalsView states", () => {
     const state = selectFirst(ready(page), page.rows);
     const markup = html(state, { live: false });
     expect(markup).toContain(t("desktop.proposals.offline"));
-    expect(markup).toContain("skills/cache-debug.md");
+    expect(markup).toContain("cache-debug");
     expect(buttonOf(markup, t("desktop.proposals.action.approve"))).toContain('disabled=""');
     // 같은 화면을 연결된 상태로 그리면 승인 버튼은 열려 있다(잠금이 연결 상태 때문임을 확인한다)
     const connected = html(state);
@@ -215,12 +216,12 @@ describe("ProposalsView learning off and reverts", () => {
   };
 
   test("learning off is an info line with a turn-on button, not an error, and the stored history stays listed", () => {
-    const page = rowsOf(wire({ status: "applied", source: "learning", target: "skills/old.md" }));
+    const page = rowsOf(wire({ status: "applied", source: "learning", target: "old" }));
     const off = proposalsReducer(ready(page), { type: "learningRead", learning: OFF_ON });
     const markup = html(off);
     expect(markup).toContain(t("desktop.proposals.learning.off"));
     expect(buttonOf(markup, t("desktop.proposals.learning.on"))).not.toContain('disabled=""');
-    expect(markup).toContain("skills/old.md");
+    expect(markup).toContain("스킬 old");
     expect(markup).not.toContain(t("client.settings.proposals.unavailable.learning"));
   });
 
@@ -431,5 +432,106 @@ describe("ProposalsView conflicting skill", () => {
     );
     expect(markup).toContain(t("desktop.proposals.skill.offline"));
     expect(buttonOf(markup, t("desktop.proposals.retry"))).toContain('disabled=""');
+  });
+});
+
+/** 입력 칸의 이름표: 이름표가 가리키는 칸의 id와 글. 이름표가 없으면 null */
+function labelOf(markup: string): { readonly forId: string; readonly text: string } | null {
+  const found = markup.match(/<label[^>]*\sfor="([^"]+)"[^>]*>([^<]*)<\/label>/);
+  return found === null ? null : { forId: found[1] ?? "", text: found[2] ?? "" };
+}
+
+/** 글 칸(textarea)의 id. 칸이 없으면 빈 글 */
+function textareaIdOf(markup: string): string {
+  const found = markup.match(/<textarea[^>]*\sid="([^"]+)"/);
+  return found === null ? "" : (found[1] ?? "");
+}
+
+/** 첫 행을 고르고 거절 메모 칸을 연 상태 */
+function rejecting(page: ProposalPage): ProposalsState {
+  const first = page.rows[0];
+  if (first === undefined) throw new Error("expected a row");
+  return proposalsReducer(selectFirst(ready(page), page.rows), {
+    type: "editorOpened",
+    mode: "reject",
+    key: first.key,
+  });
+}
+
+describe("ProposalsView reject note, row title, diff wrap, and expiry", () => {
+  // 시험 프로세스는 ko로 시작하므로 날짜 글은 ko로 본다(2033-06-17 정오, 지역 시각)
+  const AT = new Date(2033, 5, 17, 12).getTime();
+  const DATE = "2033년 6월 17일";
+
+  test("the reject note field has a visible label that names it and a placeholder, and no aria-label stands in for the label", () => {
+    const page = rowsOf(wire({}));
+    const markup = html(rejecting(page));
+    expect(labelOf(markup)).toEqual({
+      forId: textareaIdOf(markup),
+      text: t("desktop.proposals.reject.noteLabel"),
+    });
+    expect(markup).toContain(`placeholder="${t("desktop.proposals.reject.notePlaceholder")}"`);
+    const textarea = markup.match(/<textarea[^>]*>/);
+    expect(textarea === null ? "" : textarea[0]).not.toContain("aria-label");
+  });
+
+  test("a rejected proposal shows its saved note under the reason in a labelled line; with no note there is no such line", () => {
+    const withNote = rowsOf(wire({ status: "rejected", note: "같은 제안은 다시 만들지 마" }));
+    const markup = html(selectFirst(ready(withNote), withNote.rows));
+    expect(markup).toContain(t("desktop.proposals.detail.note"));
+    expect(markup).toContain("같은 제안은 다시 만들지 마");
+    expect(markup.indexOf(t("desktop.proposals.detail.rationale"))).toBeLessThan(
+      markup.indexOf(t("desktop.proposals.detail.note")),
+    );
+    const withoutNote = rowsOf(wire({ status: "rejected", note: null }));
+    const bare = html(selectFirst(ready(withoutNote), withoutNote.rows));
+    expect(bare).not.toContain(t("desktop.proposals.detail.note"));
+  });
+
+  test("the list row titles the proposal by its content, shows the kind and the expiry, and leaves the internal target out", () => {
+    const sentence = "커밋 메시지는 feat/fix/chore 중 하나로 쓰고 한 줄로 쓴다. 팀 규칙이다.";
+    const page = rowsOf(
+      wire({
+        kind: "feedback",
+        op: "add",
+        target: "user/work-style",
+        diff: `+ ${sentence}`,
+        expiresAt: AT,
+      }),
+    );
+    const markup = html(ready(page));
+    expect(markup).toContain(sentence);
+    expect(markup).toContain(t("desktop.proposals.row.expires", { date: DATE }));
+    expect(markup).toContain(t("client.settings.proposals.kind.feedback"));
+    expect(markup).not.toContain("user/work-style");
+  });
+
+  test("a pending proposal shows its expiry date in the detail with an info icon; a proposal without an expiry shows neither", () => {
+    const page = rowsOf(wire({ expiresAt: AT }));
+    const markup = html(selectFirst(ready(page), page.rows));
+    expect(markup).toContain(t("desktop.proposals.detail.expires", { date: DATE }));
+    expect(markup).toContain(t("desktop.proposals.detail.expiresInfo"));
+    const none = rowsOf(wire({ expiresAt: null }));
+    expect(html(selectFirst(ready(none), none.rows))).not.toContain(
+      t("desktop.proposals.detail.expires", { date: DATE }),
+    );
+    expect(html(selectFirst(ready(none), none.rows))).not.toContain(
+      t("desktop.proposals.detail.expiresInfo"),
+    );
+    expect(html(ready(none))).not.toContain(t("desktop.proposals.row.expires", { date: DATE }));
+  });
+
+  test("a long diff line wraps: its line carries the wrap classes and keeps all 300 characters", () => {
+    const long = "x".repeat(300);
+    const page = rowsOf(wire({ diff: `+ ${long}\n- 짧은 줄` }));
+    const markup = html(selectFirst(ready(page), page.rows));
+    expect(markup).toContain(long);
+    const added = markup.match(/<span data-slot="code-diff-line" data-kind="add" class="([^"]*)"/);
+    const classes = added === null ? [] : (added[1] ?? "").split(" ");
+    expect(classes).toContain("whitespace-pre-wrap");
+    expect(classes).toContain("break-words");
+    expect(classes).toContain("h-auto");
+    expect(classes).not.toContain("whitespace-pre");
+    expect(classes).not.toContain("h-5");
   });
 });

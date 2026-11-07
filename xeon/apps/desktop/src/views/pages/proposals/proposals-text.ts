@@ -1,5 +1,5 @@
 import { assertNever } from "@fresnel/contracts";
-import type { MessageId } from "@fresnel/client/i18n";
+import type { Locale, MessageId } from "@fresnel/client/i18n";
 import type {
   DecisionError,
   ProposalAction,
@@ -127,6 +127,16 @@ export function unavailableTextIdOf(source: ProposalSource): MessageId {
 
 export function scopeIdOf(scope: ProposalScope): MessageId {
   return scope === "user" ? "desktop.proposals.scope.user" : "desktop.proposals.scope.project";
+}
+
+/**
+ * 대기 제안의 만료 날짜 글(지역 날짜, 시각은 빼고 "2033년 6월 17일" 꼴). 문장의 "{date}에"가 끝 마침표와 엇나가지 않도록 긴 날짜 스타일을 쓴다
+ * [결정: 오케스트레이터 기본값, fxLM]
+ */
+export function expiryDateTextOf(expiresAt: number, locale: Locale): string {
+  return new Intl.DateTimeFormat(locale, { year: "numeric", month: "long", day: "numeric" }).format(
+    new Date(expiresAt),
+  );
 }
 
 /** 스킬의 출처(범위)의 문장. 사용자와 작업 폴더는 적용 범위와 같은 글을 쓴다 */
