@@ -99,7 +99,28 @@ export function startSession(deps: SessionDeps): Session {
       return undefined;
     });
     if (isStopped()) return "idle";
-    const opened = await openEngineConnection(deps.transport, relay);
+    // hello에 답이 오기 전에 엔진이 내려가면(대상 전환 실패 등) 그 hello는 영영 답을 못 받는다. 세대가 바뀐 것으로 보고 새로 붙는다
+    const lost = wait();
+    const unlistenOpening = relay.onState((state) => {
+      if (state.kind !== "running") lost.open();
+    });
+    const opening = openEngineConnection(deps.transport, relay);
+    const settled = await Promise.race([
+      opening.then((result) => ({ result })),
+      lost.promise.then(() => null),
+    ]);
+    unlistenOpening();
+    if (settled === null) {
+      detach(
+        opening.then(async (late) => {
+          if (late.ok) await late.value.connection.close();
+          return null;
+        }),
+        report,
+      );
+      return "again";
+    }
+    const opened = settled.result;
     if (!opened.ok) {
       const error = opened.error;
       deps.ui.actions.setConnectError(

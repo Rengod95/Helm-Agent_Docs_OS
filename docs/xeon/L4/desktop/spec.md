@@ -340,6 +340,7 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 3. 엔진 감독자가 사이드카를 E1~E7 조건으로 띄우고 상태를 `starting`으로 둔다.
 4. 첫 stdout 바이트가 오거나 WebView가 붙어 `host.hello` 응답이 돌아오면 `running`이 된다. [제안] 셸은 JSON을 해석하지 않으므로 `running` 판정은 "프로세스가 살아 있고 stdout이 열려 있음"이다. 기동 실패(바이너리 없음, 실행 권한 없음, 즉시 종료)는 `restarting` 또는 `failed`로 간다.
 5. WebView가 로드되면 `openEngineConnection`이 `engine_attach` → 연결 재설정(§4.5) → `host.hello` → `resubscribe` 순서로 연결을 연다.
+   hello 응답을 기다리는 사이 엔진이 `running`을 벗어나면(대상 전환 실패 등) 그 hello는 버리고 새 세대로 다시 attach한다. 실패한 대상 뒤에 다른 대상으로 가도 새로고침 없이 다시 붙는다.
 
 ### 4.3 정상 종료 순서
 

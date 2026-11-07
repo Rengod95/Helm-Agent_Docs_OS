@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { evt, thr } from "../state/helpers.ts";
 import { fakeIpc } from "../transport/fake-ipc.ts";
-import { makeApp, until } from "./support.ts";
+import { engineFake, makeApp, until } from "./support.ts";
 import type { EngineState } from "../../src/transport/ipc.ts";
 
 // 엔진 대상을 바꾸는 동안(W-08) 쓰기를 보류한다. 옛 엔진은 shutdownGraceMs까지 쓰기를 받을 수 있어서다.
@@ -10,7 +10,8 @@ const RUNNING: EngineState = { kind: "running", source: "sidecar", pid: 1 };
 const STOPPING: EngineState = { kind: "stopping" };
 
 async function ready() {
-  const fake = fakeIpc();
+  // 두 번째 attach부터는 내려간 엔진을 돌려준다. 엔진 상태가 내려가면 연결 수명이 새로 attach한다
+  const { fake } = engineFake([], (n) => (n === 1 ? RUNNING : STOPPING));
   const app = makeApp(fake);
   await until(() => app.engine.read.getState().engine?.kind === "running", "engine running");
   return { fake, app };
