@@ -269,12 +269,26 @@ export const RunViewSchema: TObject<{
 );
 export type RunView = Static<typeof RunViewSchema>;
 
-/** 목록 한 줄: 항목과 마지막 실행 기록(없으면 null) */
+/**
+ * 목록 한 줄: 항목과 마지막 실행 기록(없으면 null).
+ * `missedRuns`는 보관 중인 실행 기록에서 앱이 꺼진 동안 놓친 기한의 수다(기한마다 하나이고, 놓친 기한 여럿을 한 줄로 묶은
+ * 건너뜀 기록은 그 묶음의 `skippedCount`만큼 센다. 따라잡아 실행한 기록은 하나로 센다).
+ * `outsideWatchPaths`는 파일 감시 항목의 경로 중 허용 범위(설정·데이터·상태 폴더) 밖이라 감시되지 않는 것이다. 없으면 생략한다.
+ */
 export const ScheduleListItemSchema: TObject<{
   entry: typeof ScheduleEntryViewSchema;
   lastRun: TUnion<[typeof RunViewSchema, TNull]>;
+  missedRuns: TInteger;
+  outsideWatchPaths: TOptional<TArray<TString>>;
 }> = Type.Object(
-  { entry: ScheduleEntryViewSchema, lastRun: Nullable(RunViewSchema) },
+  {
+    entry: ScheduleEntryViewSchema,
+    lastRun: Nullable(RunViewSchema),
+    missedRuns: Type.Integer({ minimum: 0 }),
+    outsideWatchPaths: Type.Optional(
+      Type.Array(Type.String({ minLength: 1, maxLength: 4096 }), { maxItems: 16 }),
+    ),
+  },
   { additionalProperties: false },
 );
 export type ScheduleListItem = Static<typeof ScheduleListItemSchema>;

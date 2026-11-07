@@ -336,7 +336,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | settings | `settings.writeFile` | `{ scope: "user"\|"project"\|"local", text: string, baseSha256: string \| null, threadId?: ThreadId }` | `{ path: string, sha256: string, unknownKeys: string[] }` | M3 |
 | status | `status.list` | `{ threadId: ThreadId }` | `{ items: StatusItem[] }` | M3 |
 | attachments | `attachments.add` | `{ threadId?: ThreadId, source: AttachmentSource }` | `{ attachment: Attachment, parts: (TextContent\|ImageContent)[] }` | M3 |
-| notify | `notify.list` | `{ threadId?: ThreadId, afterSeq: integer, kinds?: NoticeKind[], limit?: integer(1..500) }` | `{ notices: Notice[], nextSeq: integer }` | M3 |
+| notify | `notify.list` | `{ threadId?: ThreadId, afterSeq: integer, kinds?: NoticeKind[], limit?: integer(1..500) }` | `{ notices: Notice[], nextSeq: integer, threadless?: Notice[](최대 100) }`. `Notice`는 `createdAt`(epoch ms)을 싣는다. `threadless`는 대화에 묶이지 않은 알림(예약이 대화를 열기 전에 실패한 실행)이고 `threadId`를 주지 않은 호출에만 싣는다 [결정: 오케스트레이터 기본값, fxSC2] | M3 |
 | web | `web.providers` | `{}` | `{ providers: WebProviderStatus[](최대 64), settings: WebSettings }`. 모양은 아래 글머리 | M3 |
 | usage | `usage.get` | `{ providerId?: string, threadId?: ThreadId }` | `{ gauges: UsageGauge[], asOf: IsoTime, context?: { model: string, used: number, limit: integer } }`(`context`는 M4 T-MODEL) | M3 |
 | secret | `secret.list` | `{ meta?: boolean, usage?: boolean }` | `{ secrets: SecretListEntry[] }` | M2 |
@@ -350,7 +350,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | proposal | `proposal.list` | `{ source?: "learning"\|"knowledge", status?: ProposalStatusWire[], limit?: integer(1..200), cursor?: string }` | `{ proposals: ProposalRow[], nextCursor: string \| null, unavailable: ProposalSource[] }` | M3 |
 | proposal | `proposal.decide` | `{ source, id: string, decision: "approve", revision: integer, scope?: "user"\|"project" }`, `{ source, id, decision: "reject", note?: string }`, `{ source, id, decision: "edit", revision: integer, body: string }`, `{ source, id, decision: "revert" }` | `{ ok: true, proposal: ProposalRow, applied: boolean }`, `{ ok: false, reason: ProposalDecideFailure, detail?: string }` | M3 |
 | schedule | `schedule.create` | `{ trigger: ScheduleTrigger, prompt: string(1..20000), workspace?: string(최대 4096), title?: string(1..200), enabled?: boolean }` | `{ ok: true, entry: ScheduleEntryView, warnings: "service_mode_off"[] }`, `{ ok: false, error: ScheduleError }` | M3 |
-| schedule | `schedule.list` | `{ enabled?: boolean, before?: ScheduleId, limit?: 1..200 }` | `{ ok: true, items: ScheduleListItem[](최대 200), nextBefore?: ScheduleId }`, `{ ok: false, error: ScheduleError }` | M3 |
+| schedule | `schedule.list` | `{ enabled?: boolean, before?: ScheduleId, limit?: 1..200 }` | `{ ok: true, items: ScheduleListItem[](최대 200), nextBefore?: ScheduleId }`. `ScheduleListItem`은 `entry`, `lastRun`에 `missedRuns`(놓친 기한 수)와 선택 `outsideWatchPaths`(허용 범위 밖 감시 경로)를 더한다 [결정: 오케스트레이터 기본값, fxSC2], `{ ok: false, error: ScheduleError }` | M3 |
 | schedule | `schedule.cancel` | `{ scheduleId: ScheduleId }` | `{ ok: true, entry: ScheduleEntryView }`, `{ ok: false, error: ScheduleError }` | M3 |
 | schedule | `schedule.fire` | `{ scheduleId: ScheduleId }` | `{ ok: true, run: RunView }`, `{ ok: false, error: ScheduleError }` | M3 |
 | ext | `ext.list` | `{ threadId?: string }` | `{ extensions: ExtListEntry[] }`. 행은 확장 하나: `isGroup`, 유효 층 `layer`, 대표 Registration의 `status`·`registration?`(대화 상태)·`enabledSource?`, Registration마다 `plugins: { registrationId, id?, layer, status, thread?, inGroup, enabledSource? }[]`, `hookCount`. 행의 `origin`은 실린 위치(`builtin`, `managed`, `user`, `project`)다. 작업 폴더 확장은 신뢰된 작업 폴더에서 로더가 실은 것이 로더 목록에서 바로 나온다. 선택 필드 `keepOffQuestion: { rule: "consecutive"\|"rate", consecutive, windowFailures }`가 있으면 그 확장이 자동 끄기 기준을 넘어 사용자에게 "끌까요"를 묻는 중이고 아직 켜 둔 채다 [결정: 2026-11-04 사용자, 앞선 B5의 시작 3회 질문을 대체]. "끄기"는 `ext.disableConfirm`, "켜 두기"는 `ext.reenable`이다 | M4 (W-15, W-41) |
@@ -389,7 +389,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | knowledge | `knowledge.memory.replace` | `{ store, entryId: string(12 hex), text, baseHash: string(64 hex) }` | 같은 모양. `baseHash`는 읽을 때 받은 `fileHash`다. 그 사이 바깥에서 바뀌었으면 `internal`(`base_stale`)이라 화면이 다시 읽는다 | M4 (W-19) |
 | knowledge | `knowledge.memory.remove` | `{ store, entryId, baseHash }` | 같은 모양. 지운 항목은 원장에 남는다 | M4 (W-19) |
 | schedule | `schedule.update` | `{ scheduleId: string, enabled?: boolean, title?: string, prompt?: string }` | `{ scheduleId, enabled, nextRunAt: IsoTime \| null }` | M4 (W-07) |
-| schedule | `schedule.runs` | `{ scheduleId: string, limit?: integer(1..200) }` | `{ runs: ScheduleRunRecord[] }` | M4 (W-07) |
+| schedule | `schedule.runs` | `{ scheduleId: string, limit?: integer(1..200) }` | `{ runs: ScheduleRunRecord[] }`. `ScheduleRunRecord`는 `missed: boolean`(놓친 기한을 따라잡았거나 놓쳐 건너뜀)을 싣는다 [결정: 오케스트레이터 기본값, fxSC2] | M4 (W-07) |
 | profile | `profile.list` | `{}` | `{ profiles: Profile[], rev: integer }` | M4 (W-46) |
 | profile | `profile.get` | `{ id: string }` | `{ profile: Profile }` | M4 (W-46) |
 | profile | `profile.put` | `{ profile: ProfileInput, baseRev: integer \| null }` | `{ profile: Profile }` | M4 (W-46) |

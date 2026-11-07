@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { parse } from "../../src/index.ts";
+import { isThreadlessNoticeSeq, THREADLESS_NOTICE_SEQ_BASE } from "../../src/capabilities/index.ts";
 import {
   WIRE_ERRORS,
   WIRE_METHODS,
@@ -26,6 +27,7 @@ const notice = {
   body: null,
   seq: 12,
   sourceType: "approval.requested",
+  createdAt: 1_790_000_000_000,
 };
 
 describe("status.list, attachments.add, notify.list", () => {
@@ -75,6 +77,35 @@ describe("status.list, attachments.add, notify.list", () => {
     const result = { notices: [notice], nextSeq: 12 };
     expect(parsed(method.result, result)).toEqual(result);
     expect(parse(method.result, { notices: [{ ...notice, seq: 0 }], nextSeq: 1 }).ok).toBe(false);
+    // 알림마다 시각이 있다
+    const { createdAt: _createdAt, ...untimed } = notice;
+    expect(parse(method.result, { notices: [untimed], nextSeq: 12 }).ok).toBe(false);
+    expect(parse(method.result, { notices: [{ ...notice, createdAt: -1 }], nextSeq: 12 }).ok).toBe(
+      false,
+    );
+  });
+
+  test("notify.list may carry the notices that belong to no conversation", () => {
+    const method = WIRE_METHODS["notify.list"];
+    const threadless = {
+      kind: "error",
+      title: "예약 작업이 실패했어요",
+      body: "start_failed",
+      seq: THREADLESS_NOTICE_SEQ_BASE + 7,
+      sourceType: "schedule.run_finished",
+      createdAt: 1_790_000_000_500,
+    };
+    const result = { notices: [notice], nextSeq: 12, threadless: [threadless] };
+    expect(parsed(method.result, result)).toEqual(result);
+    expect(isThreadlessNoticeSeq(threadless.seq)).toBe(true);
+    expect(isThreadlessNoticeSeq(notice.seq)).toBe(false);
+    expect(
+      parse(method.result, {
+        notices: [],
+        nextSeq: 0,
+        threadless: Array.from({ length: 101 }, () => threadless),
+      }).ok,
+    ).toBe(false);
   });
 
   test("notify.delivered is a server notification carrying the notice", () => {

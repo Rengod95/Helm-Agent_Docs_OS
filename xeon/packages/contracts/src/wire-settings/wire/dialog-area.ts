@@ -238,6 +238,8 @@ export interface ScheduleRunRecord {
   readonly outcome: "running" | "ok" | "failed" | "skipped";
   readonly threadId: string | null;
   readonly error: string | null;
+  /** 앱이 꺼진 동안 밀린 기한을 따라잡아 실행한 기록이거나, 놓쳐서 건너뛴 기록이다(`error`가 `missed`·`too_old`) */
+  readonly missed: boolean;
 }
 export interface ScheduleRunsResult {
   readonly runs: readonly ScheduleRunRecord[];
@@ -256,6 +258,7 @@ const ScheduleRunsResultShape = closed({
       ]),
       threadId: Type.Union([ThreadRef, Type.Null()]),
       error: Type.Union([Type.String({ maxLength: 2000 }), Type.Null()]),
+      missed: Type.Boolean(),
     }),
     { maxItems: 200 },
   ),
