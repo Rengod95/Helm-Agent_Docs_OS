@@ -1,19 +1,12 @@
 import { createHash } from "node:crypto";
 import { access, constants, mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import {
-  assertNever,
-  attemptAsync,
-  err,
-  ok,
-  parseJson,
-  type Logger,
-  type Result,
-} from "@fresnel/contracts";
+import { assertNever, attemptAsync, err, ok, type Logger, type Result } from "@fresnel/contracts";
 import { toJsonValue, type IdFactory, type ThreadId } from "@fresnel/contracts/conversation";
 import type { SessionService } from "@fresnel/contracts/records";
 import type { ScopeStack, SettingKey, SettingScope } from "@fresnel/contracts/settings";
 import type {
+  SettingsFileProblem,
   SettingsFileScope,
   SettingsWritableFileScope,
   Unsubscribe,
@@ -25,7 +18,13 @@ import type {
   SettingsStorePort,
   SettingsWriteFailure,
 } from "../types.ts";
-import type { SettingsEngine } from "./settings-engine.ts";
+import {
+  fileReadOfText,
+  problemOfRead,
+  readSettingsFile,
+  type FileRead,
+  type SettingsEngine,
+} from "./settings-engine.ts";
 import { replaceFileAtomically, type ProjectTrust } from "./trust.ts";
 
 // L4.host-service.spec §3.3.2 SettingsStorePort. 설정 파일 범위의 쓰기와 project·local 파일 읽기는 호스트 소유다
@@ -55,29 +54,6 @@ function errorCode(caught: unknown): string {
     if (typeof code === "string") return code;
   }
   return "UNKNOWN";
-}
-
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-type FileRead =
-  | { readonly kind: "ok"; readonly values: ReadonlyMap<string, unknown> }
-  | { readonly kind: "invalid" }
-  | { readonly kind: "unreadable"; readonly code: string };
-
-/** 설정 파일을 읽는다. 없으면 빈 맵이다. JSON 객체가 아니면 invalid다 */
-async function readSettingsFile(path: string): Promise<FileRead> {
-  let text: string;
-  try {
-    text = await readFile(path, "utf8");
-  } catch (caught) {
-    const code = errorCode(caught);
-    return code === "ENOENT" ? { kind: "ok", values: new Map() } : { kind: "unreadable", code };
-  }
-  const decoded = parseJson(text);
-  if (!decoded.ok || !isRecord(decoded.value)) return { kind: "invalid" };
-  return { kind: "ok", values: new Map(Object.entries(decoded.value)) };
 }
 
 /** 읽은 파일의 값. 읽지 못했으면 이유만 남기고 그 범위는 비운다(값은 싣지 않는다, F wire §4.8) */
@@ -180,7 +156,14 @@ export function createSettingsStore(deps: SettingsStoreDeps): SettingsStorePort 
   ): Promise<Result<ReadonlyMap<string, unknown>, SettingsWriteFailure>> {
     return locked(path, async () => {
       const current = await readSettingsFile(path);
-      if (current.kind === "invalid") return err({ kind: "file_invalid", path } as const);
+      if (current.kind === "invalid") {
+        return err({
+          kind: "file_invalid",
+          path,
+          line: current.line,
+          column: current.column,
+        } as const);
+      }
       if (current.kind === "unreadable") {
         return err({ kind: "file_unwritable", path, code: current.code } as const);
       }
@@ -250,6 +233,8 @@ export function createSettingsStore(deps: SettingsStoreDeps): SettingsStorePort 
         const written = await writeKey(userPath(), key, value);
         if (!written.ok) return written;
         engine.setUserValue(key, value);
+        // 쓰기는 읽을 수 있던 파일에만 되므로 앞서 남은 문제는 풀렸다
+        engine.setUserProblem(undefined);
         return ok(undefined);
       }
       case "launch": {
@@ -307,15 +292,16 @@ export function createSettingsStore(deps: SettingsStoreDeps): SettingsStorePort 
 
   /** 사용자 파일을 JSON 객체로 읽어 메모리 층에 반영한다. 파일 전체를 바꾸는 쓰기 뒤에 부른다 */
   function adoptUserText(text: string): readonly string[] {
-    const decoded = parseJson(text);
-    if (!decoded.ok || !isRecord(decoded.value)) {
-      // 쓰기 전에 호출자가 JSON 객체임을 확인했다. 여기 오면 파일과 메모리가 어긋나므로 기록만 남긴다
+    const read = fileReadOfText(text);
+    if (read.kind !== "ok") {
+      // 쓰기 전에 호출자가 JSON 객체임을 확인했다. 여기 오면 파일과 메모리가 어긋나므로 기록만 남기고 문제로 알린다
       logger.warn("settings.user_text_not_object", {});
+      engine.setUserProblem(problemOfRead("user", userPath(), read));
       return [];
     }
-    const next = new Map(Object.entries(decoded.value));
-    const keys = changedKeys(engine.userValues(), next);
-    engine.replaceUserValues(next);
+    engine.setUserProblem(undefined);
+    const keys = changedKeys(engine.userValues(), read.values);
+    engine.replaceUserValues(read.values);
     return keys;
   }
 
@@ -404,15 +390,32 @@ export function createSettingsStore(deps: SettingsStoreDeps): SettingsStorePort 
     async refreshUserFile(): Promise<void> {
       const path = userPath();
       const read = await readSettingsFile(path);
+      const before = engine.userProblem();
+      const problem = problemOfRead("user", path, read);
       if (read.kind !== "ok") {
-        // 사람이 고치던 중간 상태일 수 있다. 앞 값을 지키고 다음 변경을 기다린다
+        // 사람이 고치던 중간 상태일 수 있다. 앞 값을 지키고 문제만 남긴다. 문제가 바뀌었으면 알린다
         logger.warn("settings.user_reload_skipped", { path, reason: read.kind });
+        engine.setUserProblem(problem);
+        if (!sameValue(before, problem)) {
+          engine.notifyChanged({ keys: [], scopes: ["user"], threadId: null });
+        }
         return;
       }
       const keys = changedKeys(engine.userValues(), read.values);
-      if (keys.length === 0) return;
+      engine.setUserProblem(undefined);
+      if (keys.length === 0) {
+        // 값은 같아도 문제가 방금 풀렸으면 알린다(화면과 CLI가 다시 읽게 한다)
+        if (before !== undefined)
+          engine.notifyChanged({ keys: [], scopes: ["user"], threadId: null });
+        return;
+      }
       engine.replaceUserValues(read.values);
       engine.notifyChanged({ keys, scopes: ["user"], threadId: null });
+    },
+
+    problems(): readonly SettingsFileProblem[] {
+      const problem = engine.userProblem();
+      return problem === undefined ? [] : [problem];
     },
 
     onChange(listener): Unsubscribe {

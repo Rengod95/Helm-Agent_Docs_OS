@@ -43,6 +43,7 @@ const handlers: FirstRunViewHandlers = {
   registerSecret: NOOP,
   openLightCraft: NOOP,
   startChat: NOOP,
+  openSettings: NOOP,
 };
 
 const SETUP: SetupSnapshot = {
@@ -77,6 +78,7 @@ function propsOf(over: Partial<FirstRunViewProps> = {}): FirstRunViewProps {
     keyEntry,
     notice: null,
     engineState: "엔진 실행 중 · 연결됨",
+    settingsProblem: null,
     handlers,
     ...over,
     setup,
@@ -365,5 +367,31 @@ describe("first-run screen server render", () => {
     );
     expect(page).toContain(t("desktop.firstRun.model.missing"));
     expect(page).not.toContain(t("desktop.firstRun.model.locked"));
+  });
+});
+
+describe("first run settings problem banner", () => {
+  test("a settings file the engine could not read shows the banner above everything else", () => {
+    const page = html(
+      propsOf({
+        settingsProblem: {
+          scope: "user",
+          path: "/home/me/.fresnel/settings.json",
+          reason: "invalid_json",
+          line: 3,
+          column: 5,
+        },
+      }),
+    );
+    expect(page).toContain(t("desktop.settings.problem.title"));
+    expect(page).toContain("~/.fresnel/settings.json (3줄 5칸)");
+    expect(page).toContain(t("desktop.settings.problem.openFile"));
+    expect(page.indexOf(t("desktop.settings.problem.title"))).toBeLessThan(
+      page.indexOf(t("desktop.firstRun.step.tools")),
+    );
+  });
+
+  test("without a problem the first run screen draws no banner", () => {
+    expect(html(propsOf())).not.toContain(t("desktop.settings.problem.title"));
   });
 });

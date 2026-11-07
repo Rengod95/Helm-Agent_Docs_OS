@@ -1,10 +1,12 @@
 import { Database } from "bun:sqlite";
-import { existsSync, readdirSync } from "node:fs";
+import { chmodSync, existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { AssembleError, assemble } from "../../src/assemble.ts";
+import { STARTUP_HEALTH_FILE } from "../../src/assembly/startup-health.ts";
 import { startStdioHost } from "../../src/main.ts";
-import { useEngineHome } from "../fixtures/engine-home.ts";
+import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";
+import { writeUserSettings } from "../fixtures/user-settings.ts";
 
 // G2-06: 저장소를 열지 못했을 때 호스트가 안내 분류(F.records.spec §3.7 7항)를 이슈에 싣는다.
 // 실제 DB 파일을 만든 뒤 망가뜨려 실제 열기 오류를 얻는다.
@@ -129,3 +131,65 @@ test("the stdio host exits with one code per store failure so the app shell can 
     failed.dispose();
   }
 }, 60_000); // 데이터베이스를 세 번 만들고 호스트를 세 번 띄운다. 다른 호스트 통합 시험과 같은 상한
+
+// 환경 문제로 끝난 시작은 분류별 종료 코드(74·75·76)와 안내 이슈를 내고, 연속 시작 실패 수에 세지 않는다(X.operations.spec §4.6.4)
+function startupHealthOf(home: EngineHome): unknown {
+  return JSON.parse(readFileSync(join(home.root, "state", STARTUP_HEALTH_FILE), "utf8"));
+}
+
+test("a database another program holds exclusively is storeBusy (exit 74) and the start is not counted", async () => {
+  const home = useEngineHome();
+  try {
+    const path = await createDatabase(home);
+    writeUserSettings(home, { "l0.store.busyTimeoutMs": 0 });
+    const other = new Database(path);
+    other.run("BEGIN EXCLUSIVE");
+    try {
+      expect(await storeIssueOfFailedStart()).toEqual([
+        { code: "store", message: "storeBusy", failure: "unavailable" },
+      ]);
+      expect(await stdioExitOfFailedStart()).toEqual({ code: 74, reason: "startup" });
+    } finally {
+      other.run("ROLLBACK");
+      other.close();
+    }
+    expect(startupHealthOf(home)).toEqual({ failures: 0, starting: false });
+  } finally {
+    home.dispose();
+  }
+}, 60_000);
+
+test("a data folder the owner cannot write to stops the start as dataDirUnwritable (exit 75) before the store is touched", async () => {
+  const home = useEngineHome();
+  try {
+    await createDatabase(home);
+    chmodSync(home.dataDir, 0o500);
+    try {
+      expect(await stdioExitOfFailedStart()).toEqual({ code: 75, reason: "startup" });
+    } finally {
+      chmodSync(home.dataDir, 0o700);
+    }
+    expect(startupHealthOf(home)).toEqual({ failures: 0, starting: false });
+  } finally {
+    home.dispose();
+  }
+}, 60_000);
+
+test("a database file that is read-only is dataDirUnwritable (exit 75), not counted as a failed start", async () => {
+  const home = useEngineHome();
+  try {
+    const path = await createDatabase(home);
+    chmodSync(path, 0o400);
+    try {
+      expect(await storeIssueOfFailedStart()).toEqual([
+        { code: "store", message: "dataDirUnwritable", failure: "unavailable" },
+      ]);
+      expect(await stdioExitOfFailedStart()).toEqual({ code: 75, reason: "startup" });
+    } finally {
+      chmodSync(path, 0o600);
+    }
+    expect(startupHealthOf(home)).toEqual({ failures: 0, starting: false });
+  } finally {
+    home.dispose();
+  }
+}, 60_000);

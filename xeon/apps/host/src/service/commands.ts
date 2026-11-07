@@ -103,7 +103,7 @@ export function serviceStatusText(
 export async function runServiceCommand(
   command: ServiceHostCommand,
   io: CommandIo,
-): Promise<0 | 1 | 2 | 70 | 71 | 72 | 73> {
+): Promise<0 | 1 | 2 | 70 | 71 | 72 | 73 | 74 | 75 | 76> {
   switch (command.kind) {
     case "service-run": {
       const started = await startService({

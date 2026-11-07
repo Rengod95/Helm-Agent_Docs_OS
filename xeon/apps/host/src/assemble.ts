@@ -1,8 +1,9 @@
-import { mkdirSync } from "node:fs";
+import { accessSync, constants, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { createChunkNumbering } from "@fresnel/cap-dialog";
 import {
   assertNever,
+  attempt,
   attemptAsync,
   Bug,
   detach,
@@ -38,7 +39,7 @@ import {
   type TaskService,
   type ToolService,
 } from "@fresnel/contracts/services";
-import { StoreIdSchema } from "@fresnel/contracts/wire";
+import { StoreIdSchema, type StartupNotice } from "@fresnel/contracts/wire";
 import {
   createExtHost,
   createOperationsPolicy,
@@ -259,15 +260,52 @@ const STORE_MESSAGE_BY_FAILURE: Readonly<Record<StoreFailureKind, string>> = {
   unavailable: "storeUnavailable",
 };
 
-/** 저장소를 열지 못한 이유를 분류와 CLI가 구별하는 이름으로 옮긴다(L4.host-service.spec §3.3.5 EngineStartError 대응) */
-export function storeIssueOf(error: StoreOpenError): AssembleIssue & { readonly code: "store" } {
+/** 데이터 폴더나 DB 파일에 쓸 수 없다는 뜻의 `io` 코드. SQLite의 READONLY 계열은 `startsWith`로 본다 */
+const UNWRITABLE_IO_CODES: ReadonlySet<string> = new Set([
+  "EACCES",
+  "EPERM",
+  "EROFS",
+  "SQLITE_PERM",
+]);
+
+/**
+ * `io`의 code가 쓸 수 없다는 뜻인가. `SQLITE_CANTOPEN`은 파일을 못 열었다는 뜻이라 데이터 폴더에 쓰기 접근이 없을 때만 쓸 수 없다로 본다
+ */
+function unwritableIo(code: string, dataDirWritable: boolean): boolean {
+  if (code.startsWith("SQLITE_READONLY") || UNWRITABLE_IO_CODES.has(code)) return true;
+  return code === "SQLITE_CANTOPEN" && !dataDirWritable;
+}
+
+/** 저장소를 열지 못한 이유를 분류와 CLI가 구별하는 이름으로 옮긴다(L4.host-service.spec §3.3.5 EngineStartError 대응). `dataDirWritable`은 DB 폴더에 쓰기 접근이 있는가 */
+export function storeIssueOf(
+  error: StoreOpenError,
+  dataDirWritable: boolean,
+): AssembleIssue & { readonly code: "store" } {
   const failure = storeFailureKindOf(error.kind);
   if (error.kind === "fts5_missing") return { code: "store", message: "fts5Missing", failure };
-  if (error.kind === "permission" || error.kind === "unsupported_filesystem") {
+  if (error.kind === "busy") return { code: "store", message: "storeBusy", failure };
+  // 남의 폴더(소유자가 다름)는 이 프로세스가 쓸 수 없는 데이터 폴더다
+  if (error.kind === "permission") return { code: "store", message: "dataDirUnwritable", failure };
+  if (error.kind === "unsupported_filesystem") {
     return { code: "store", message: "dataDirPermission", failure };
+  }
+  if (error.kind === "io" && unwritableIo(error.code, dataDirWritable)) {
+    return { code: "store", message: "dataDirUnwritable", failure };
   }
   return { code: "store", message: STORE_MESSAGE_BY_FAILURE[failure], failure };
 }
+
+/** 데이터 폴더에 이 프로세스가 쓸 수 있는가. 확인하지 못하면 쓸 수 없는 것으로 본다 */
+function dataDirWritableOf(dir: string): boolean {
+  return attempt(() => accessSync(dir, constants.W_OK)).ok;
+}
+
+/** 저장소 밖의 플랫폼 시작 실패(`register`의 `reason`)가 사용자에게 알리는 분류 */
+const PLATFORM_STARTUP_FAILURE: ReadonlyMap<string, "data_dir_permission" | "data_dir_unwritable"> =
+  new Map([
+    ["permission_too_open", "data_dir_permission"],
+    ["permission_too_narrow", "data_dir_unwritable"],
+  ]);
 
 function defaultProjectTrustOf(value: unknown): "ask" | "always" | "never" {
   return value === "always" || value === "never" ? value : "ask";
@@ -329,11 +367,29 @@ export function threadWorkspaceOf(
 }
 
 /**
+ * 저장소 열기 경고 가운데 시작 때 사용자에게 알릴 것을 호스트 알림으로 바꾼다(`host.status.startupNotices`, F wire §3.3.1).
+ * 지금은 0바이트 DB를 옮긴 일 하나다. 나머지 경고는 로그에만 남는다
+ */
+export function startupNoticesOf(warnings: readonly StoreWarning[]): readonly StartupNotice[] {
+  const notices: StartupNotice[] = [];
+  for (const warning of warnings) {
+    if (warning.kind === "empty_replaced") {
+      notices.push({ kind: "store_empty_replaced", movedTo: warning.movedTo });
+    }
+  }
+  return notices;
+}
+
+/**
  * 저장소 열기 경고를 로그에 남긴다(L0.store.spec §4.6.1). 마이그레이션 전 스냅샷은 사용자 DB를 지키는 복구 수단이라 위치를 info로 남기고,
  * 보관 수를 넘은 옛 스냅샷을 지우지 못한 것은 warn이다. 그 밖의 경고도 종류를 warn으로 남긴다. 값은 싣지 않는다
  */
 export function logStoreWarning(logger: Logger, warning: StoreWarning): void {
   switch (warning.kind) {
+    case "empty_replaced":
+      // 0바이트 DB를 옮기고 빈 새 DB를 만들었다(L0.store.spec §4.4). 데이터가 사라졌을 수 있어 경로를 warn으로 남긴다
+      logger.warn("store.empty_replaced", { path: warning.path, movedTo: warning.movedTo });
+      return;
     case "migration_snapshot":
       logger.info("store.migration_snapshot", {
         path: warning.path,
@@ -625,15 +681,14 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     }
     if (!registered.ok) {
       const { reason, cause } = registered.error;
+      const failure = PLATFORM_STARTUP_FAILURE.get(reason);
       throw new AssembleError(
         [
           {
             code: "plugin",
             plugin: name,
             message: `${name} failed to start (${reason})`,
-            ...(reason === "permission_too_open"
-              ? { failure: "data_dir_permission" as const }
-              : {}),
+            ...(failure === undefined ? {} : { failure }),
           },
         ],
         { cause },
@@ -745,12 +800,18 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       engineVersion: ENGINE_VERSION,
     });
     if (!store.ok) {
-      throw new AssembleError([storeIssueOf(store.error)], { cause: store.error });
+      // 저장소 열기 실패는 환경 문제로 보고 연속 시작 실패에 세지 않는다(X.operations.spec §4.6.4)
+      startupHealth.abandonStartup();
+      throw new AssembleError([storeIssueOf(store.error, dataDirWritableOf(dbDir))], {
+        cause: store.error,
+      });
     }
     opened.store = store.value;
     await register("platform-store", storePlugin(store.value));
     opened.registered = true;
     for (const warning of store.value.warnings) logStoreWarning(logger, warning);
+    // 시작 때 사용자에게 알릴 저장소 일은 포트가 `host.status`에 싣는다(F wire §3.3.1)
+    const startupNotices = startupNoticesOf(store.value.warnings);
 
     const secrets = (options.secretsRuntime ?? createSecretsRuntime)({
       os,
@@ -1210,6 +1271,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // fresnel-disable-next-line fresnel/bug-for-expected -- 엔진 자신의 저장소가 만든 storeId라 형식 검증이 실패하면 코드 결함이다 (eng.typescript.guide TY-24)
     if (!storeId.ok) throw new Bug(`store.invalid_store_id: ${storeService.storeId}`);
     portsHandle = createEnginePorts({
+      startupNotices,
       measure: {
         store: () => measurement.store,
         enabled: () => operations.trace().enabled,

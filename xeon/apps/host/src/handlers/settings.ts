@@ -21,6 +21,7 @@ import { settingProblemOf } from "../settings-problems.ts";
 import type { ConnectionHub } from "../connection-types.ts";
 import type { Engine, SettingsFileFailure, SettingsWriteFailure } from "../types.ts";
 import { threadLocked, withWriteOwner } from "./owner.ts";
+import { settingsFileInvalidDetails } from "../settings-file-details.ts";
 
 // L4.host-service.spec §3.4. settings.get(M1)과 settings.set, settings.reset, settings.list(M2, HOST.2).
 // 값 검사는 F의 checkSettingWrite가 한다. 오류 details에는 값을 싣지 않는다(F wire §4.9 시크릿 값 비표시 규칙 4).
@@ -115,7 +116,7 @@ function writeFailure(
     case "file_invalid":
       return wireError("store.io", {
         message: "settings.write: the settings file is not a JSON object",
-        details: { code: "settings_file_invalid" },
+        details: settingsFileInvalidDetails(failure),
       });
     case "file_unwritable":
       return wireError("store.io", {
@@ -397,7 +398,7 @@ function fileFailure(failure: SettingsFileFailure, scope: SettingsFileScope): Wi
     case "file_invalid":
       return wireError("store.io", {
         message: "settings.writeFile: the settings file is not a JSON object",
-        details: { code: "settings_file_invalid" },
+        details: settingsFileInvalidDetails(failure),
       });
     case "file_unwritable":
       return wireError("store.io", {

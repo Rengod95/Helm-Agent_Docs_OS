@@ -7,6 +7,7 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   startupFailureOfExitCode,
   storeFailureOfExitCode,
+  type StartupFailureKind,
   type StatusItemRecord,
 } from "@fresnel/contracts/records";
 import type { ExtUiEntry, ThreadSummary, WireResult } from "@fresnel/contracts/wire";
@@ -107,18 +108,36 @@ const STORE_FAILURE_TEXT: Readonly<
   migration_failed: "desktop.status.engine.storeMigrationFailed",
 };
 
-/** 저장소를 열지 못해 끝난 엔진은 분류별 안내를 보인다(종료 코드 70~72). 그 밖의 종료는 일반 문구다 */
+/** 사용자가 고칠 수 있는 시작 실패(종료 코드 73~76)의 이유와 다음 할 일을 한 줄로 보인다(rtE R-9) */
+const STARTUP_FAILURE_TEXT: Readonly<Record<StartupFailureKind, MessageId>> = {
+  data_dir_permission: "desktop.status.engine.dataDirPermission",
+  store_busy: "desktop.status.engine.storeBusy",
+  data_dir_unwritable: "desktop.status.engine.dataDirUnwritable",
+  store_unavailable: "desktop.status.engine.storeUnavailable",
+};
+
+/** 저장소를 열지 못해 끝난 엔진은 분류별 안내를 보인다(종료 코드 70~76). 그 밖의 종료는 일반 문구다 */
 export function engineTextOf(state: EngineState | null | undefined): MessageId {
   if (state === undefined || state === null) return "desktop.status.engine.checking";
   if (state.kind === "failed" || state.kind === "restarting") {
     const failure = storeFailureOfExitCode(state.lastExit.code);
     if (failure !== undefined) return STORE_FAILURE_TEXT[failure];
-    // 사용자가 폴더 권한을 줄여 고칠 수 있는 시작 실패는 이유와 다음 할 일을 한 줄로 보인다(rtE R-9)
-    if (startupFailureOfExitCode(state.lastExit.code) === "data_dir_permission") {
-      return "desktop.status.engine.dataDirPermission";
-    }
+    const startup = startupFailureOfExitCode(state.lastExit.code);
+    if (startup !== undefined) return STARTUP_FAILURE_TEXT[startup];
   }
   return ENGINE_TEXT[state.kind];
+}
+
+/**
+ * 화면에 보일 엔진 상태. 셸은 프로세스가 뜨자마자 `running`을 보내므로, 연결이 live가 되기 전의 `running`은 아직 "실행 중"이 아니다.
+ * 곧 실패하는 시작에 초록 점과 "실행 중"이 잠깐 보이지 않도록, 연결이 live가 아니면 "시작 중"으로 보인다
+ */
+export function shownEngineOf(
+  engine: EngineState | null | undefined,
+  linkLive: boolean,
+): EngineState | null | undefined {
+  if (engine?.kind !== "running" || linkLive) return engine;
+  return { kind: "starting", source: engine.source, attempt: 0 };
 }
 
 /**
@@ -249,6 +268,17 @@ export function engineDotOf(engine: EngineState | null | undefined): StatusDot {
     default:
       return assertNever(engine, "EngineState");
   }
+}
+
+/**
+ * 엔진 줄의 "데이터 복원 열기" 단추를 보일지. 저장소가 손상됐거나(종료 코드 71) 마이그레이션에 실패했을(72) 때 실패 또는 다시 시작 중인
+ * 엔진에만 보인다. 누르면 설정의 고급 탭(데이터 복원 구역)이 열린다. 다른 종료 코드에는 단추를 두지 않는다
+ */
+export function engineRestoreShownOf(engine: EngineState | null | undefined): boolean {
+  if (engine === undefined || engine === null) return false;
+  if (engine.kind !== "failed" && engine.kind !== "restarting") return false;
+  const failure = storeFailureOfExitCode(engine.lastExit.code);
+  return failure === "corrupt" || failure === "migration_failed";
 }
 
 /** 엔진 Popover의 설명. 실행 중, 실패, 다시 시작 중에 한 문장을 둔다(시안 defaultStatusCells). 나머지는 칸 글로 충분하다 */
@@ -395,7 +425,7 @@ function LinkCell(props: { readonly phase: Link["phase"]; readonly attempt: numb
   );
 }
 
-function EngineCell(props: { readonly engine: EngineState | null }): ReactNode {
+function EngineCell(props: { readonly engine: EngineState | null | undefined }): ReactNode {
   const [open, setOpen] = useState(false);
   const target = useEngineTarget();
   const description = engineDescriptionOf(props.engine);
@@ -861,14 +891,17 @@ function UpdateCellOf(props: { readonly controller: UpdateController }): ReactNo
 
 export function StatusBar(): ReactNode {
   const commands = useCommands();
-  const engine = useEngineState();
+  const engineRaw = useEngineState();
+  const linkPhase = useLinkPhase();
+  // 화면의 엔진 칸과 줄은 연결이 live인 뒤에만 "실행 중"을 보인다. 엔진 꺼짐 판정은 실제 상태로 한다
+  const engine = shownEngineOf(engineRaw, linkPhase === "live");
   const engineTarget = useEngineTarget();
   const banner = useLinkBanner();
   const approvals = useApprovalCount();
   const connectError = useConnectError();
   const restartNeeded = useRestartNeeded();
   // 엔진이 없으면 거울의 "진행 중" 수는 오래된 값이라 그 칸을 그리지 않는다(F-9)
-  const engineGone = engineGoneOf(engine, banner.phase);
+  const engineGone = engineGoneOf(engineRaw, banner.phase);
   const [copied, setCopied] = useState<boolean | null>(null);
   const copy = async (): Promise<void> => {
     setCopied(await commands.copyDiagnostics());
@@ -892,6 +925,18 @@ export function StatusBar(): ReactNode {
           }}
         >
           {t("desktop.status.restartEngineButton")}
+        </Button>
+      ) : null}
+      {/* 저장소가 손상됐거나 마이그레이션에 실패한 엔진 줄에서 데이터 복원 구역(설정의 고급 탭)을 연다. 엔진이 꺼져 있어도 열린다 */}
+      {engineRestoreShownOf(engine) ? (
+        <Button
+          size="xs"
+          variant="outline"
+          onClick={() => {
+            commands.requestSettingsJump({ tab: "advanced", key: null });
+          }}
+        >
+          {t("desktop.status.engine.openRestore")}
         </Button>
       ) : null}
       <LinkCell phase={banner.phase} attempt={banner.attempt} />

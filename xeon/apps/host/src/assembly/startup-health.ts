@@ -11,6 +11,11 @@ import { shouldSuggestSafeMode } from "@fresnel/ext-host";
 export interface StartupHealthStore {
   /** 이번 시작을 "진행 중"으로 표시하고 직전까지의 연속 실패 수를 돌려준다 */
   beginStartup(): number;
+  /**
+   * 저장소나 데이터 폴더의 환경 문제로 시작이 끝났다. 이번 시작은 연속 실패에 세지 않도록 "진행 중" 표시만 거두고 수는 그대로 둔다
+   * (X.operations.spec §4.6.4). 이전 시작이 끝나지 못했던 것은 그대로 한 번 센다
+   */
+  abandonStartup(): void;
   /** 첫 사용자 입력을 받을 준비가 되면 부른다. 연속 실패 수를 0으로 */
   markStarted(): void;
 }
@@ -55,12 +60,18 @@ function writeRecord(file: string, record: StartupRecord): void {
 /** 상태 디렉터리 아래 파일에 쓰는 구현 */
 export function createFileStartupHealth(stateDir: string): StartupHealthStore {
   const file = join(stateDir, STARTUP_HEALTH_FILE);
+  // beginStartup이 돌려준 수. 환경 문제로 끝날 때 이 수를 그대로 남긴다
+  const counted: { failures: number } = { failures: 0 };
   return {
     beginStartup() {
       const previous = readRecord(file);
       const failures = previous.starting ? previous.failures + 1 : previous.failures;
       writeRecord(file, { failures, starting: true });
+      counted.failures = failures;
       return failures;
+    },
+    abandonStartup() {
+      writeRecord(file, { failures: counted.failures, starting: false });
     },
     markStarted() {
       writeRecord(file, EMPTY_RECORD);

@@ -58,9 +58,11 @@ import type {
   ExtTestRunResult,
   SettingsExplainResult,
   SettingsReadFileResult,
+  SettingsFileProblem,
   SettingsFileScope,
   SettingsWritableFileScope,
   SettingsWriteFileResult,
+  StartupNotice,
   TrustChoice,
   TrustListResult,
   TrustStatus,
@@ -388,6 +390,16 @@ export interface SafeModeSnapshot {
   readonly suggest: boolean;
 }
 
+/**
+ * 호스트가 알리는 것(`host.status`의 `settingsProblems`와 `startupNotices`, F wire §3.3.1). 문제가 없으면 빈 목록이다.
+ * 엔진이 running이 되고 연결이 열리면 한 번 읽고, `settings.invalidated`를 받으면 다시 읽는다(`host-notices-provider.tsx`).
+ * 읽지 못하면 화면은 아무것도 그리지 않는다. `startupNotices`는 이번 시작에서 저장소가 알린 일이다(0바이트 DB를 옮긴 일 등).
+ */
+export interface HostNoticesSnapshot {
+  readonly settingsProblems: readonly SettingsFileProblem[];
+  readonly startupNotices: readonly StartupNotice[];
+}
+
 /** 검색 권장 단계의 값: 웹 provider 상태(`web.providers`)와 "나중에"를 이미 눌렀는지(데스크톱 로컬 설정) */
 export interface SearchSnapshot {
   readonly web: ToolsWebView;
@@ -430,6 +442,8 @@ export interface SetupCommands {
   loadGroups(): Promise<Result<GroupsSnapshot, CommandError>>;
   /** 안전 모드 상태를 읽는다(`host.status`의 `safeMode`, `safeModeCause`, `startupFailures`, `suggestSafeMode`) */
   loadSafeMode(): Promise<Result<SafeModeSnapshot, CommandError>>;
+  /** 호스트 알림을 읽는다(`host.status`의 `settingsProblems`). 읽지 못한 설정 파일이 없으면 빈 목록이다 */
+  loadHostNotices(): Promise<Result<HostNoticesSnapshot, CommandError>>;
   /** 기본 그룹 하나를 켜거나 끈다(`settings.set { key: "ext.<그룹>.enabled", scope: "user" }`). 적용은 다음 단계 경계다 */
   setGroupEnabled(group: DefaultGroupId, enabled: boolean): Promise<Result<null, CommandError>>;
   /** 검색 권장을 읽는다(`web.providers`와 "나중에" 값) */
@@ -438,6 +452,8 @@ export interface SetupCommands {
   dismissSearchHint(): Promise<Result<null, CommandError>>;
   /** `settings.invalidated`를 받으면 부른다. 반환값은 구독 해제 */
   onInvalidated(listener: () => void): () => void;
+  /** 키와 상관없이 `settings.invalidated`를 받으면 부른다(설정 파일 문제 띠가 파일이 고쳐진 것을 따라간다). 반환값은 구독 해제 */
+  onAnyInvalidated(listener: () => void): () => void;
 }
 
 /**

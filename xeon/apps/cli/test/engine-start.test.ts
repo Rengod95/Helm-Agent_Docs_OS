@@ -141,9 +141,11 @@ function storeKind(message: string): string {
   return startErrorOf(new AssembleError([{ code: "store", message, failure: "unavailable" }])).kind;
 }
 
-test("store issues map to fts5Missing, dataDirPermission and storeUnavailable", () => {
+test("store issues map to fts5Missing, dataDirPermission, dataDirUnwritable, storeBusy and storeUnavailable", () => {
   expect(storeKind("fts5Missing")).toBe("fts5Missing");
   expect(storeKind("dataDirPermission")).toBe("dataDirPermission");
+  expect(storeKind("dataDirUnwritable")).toBe("dataDirUnwritable");
+  expect(storeKind("storeBusy")).toBe("storeBusy");
   expect(storeKind("storeUnavailable")).toBe("storeUnavailable");
   expect(storeKind("anything else")).toBe("storeUnavailable");
 });

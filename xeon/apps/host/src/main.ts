@@ -13,6 +13,7 @@ import {
   stopHost,
   stopTurns,
   type HostExit,
+  type HostExitCode,
   type RunningHost,
 } from "./host-runtime.ts";
 
@@ -78,17 +79,33 @@ export async function startInProcessHost(
  * 절차는 엔진의 종료 협조 창구(`Engine.shutdown`)로 요청하므로 확장의 종료 참여자도 시한 안에서 불리고,
  * 시한을 넘기면 창구가 `exit(1)`로 프로세스를 끝낸다(L0.process.spec §4.2).
  */
-/** 저장소를 열지 못한 시작 실패는 분류별 종료 코드로 알린다. 앱 셸이 종료 코드만 전달하기 때문이다 */
-function startupExitCodeOf(caught: unknown): 1 | 70 | 71 | 72 | 73 {
+/**
+ * 저장소를 열지 못했거나 데이터 폴더 문제로 끝난 시작은 분류별 종료 코드로 알린다. 앱 셸이 종료 코드만 전달하기 때문이다.
+ * 저장소의 안내 분류 3개(70~72), 사용자가 고칠 수 있는 시작 실패(73~75), 그 밖의 저장소 열기 실패(76)이다. fts5 없음과 그 밖의 시작 거부는 1이다
+ */
+function startupExitCodeOf(caught: unknown): HostExitCode {
   if (!(caught instanceof AssembleError)) return 1;
   for (const issue of caught.issues) {
-    if (issue.code === "plugin" && issue.failure === "data_dir_permission") {
-      return STARTUP_FAILURE_EXIT_CODES.data_dir_permission;
+    if (issue.code === "plugin") {
+      if (issue.failure === "data_dir_permission") {
+        return STARTUP_FAILURE_EXIT_CODES.data_dir_permission;
+      }
+      if (issue.failure === "data_dir_unwritable") {
+        return STARTUP_FAILURE_EXIT_CODES.data_dir_unwritable;
+      }
+      continue;
     }
     if (issue.code !== "store") continue;
     if (issue.failure === "future_version") return STORE_FAILURE_EXIT_CODES.future_version;
     if (issue.failure === "corrupt") return STORE_FAILURE_EXIT_CODES.corrupt;
     if (issue.failure === "migration_failed") return STORE_FAILURE_EXIT_CODES.migration_failed;
+    if (issue.message === "storeBusy") return STARTUP_FAILURE_EXIT_CODES.store_busy;
+    if (issue.message === "dataDirUnwritable") {
+      return STARTUP_FAILURE_EXIT_CODES.data_dir_unwritable;
+    }
+    if (issue.message === "storeUnavailable" || issue.message === "dataDirPermission") {
+      return STARTUP_FAILURE_EXIT_CODES.store_unavailable;
+    }
   }
   return 1;
 }
@@ -173,11 +190,11 @@ async function writeText(stream: WritableStream<Uint8Array>, text: string): Prom
   }
 }
 
-/** 종료코드를 돌려준다. 0 성공, 1 실패(시작 거부, 서비스 없음 등), 2 사용 오류, 70~72 저장소 열기 실패 분류 */
+/** 종료코드를 돌려준다. 0 성공, 1 실패(시작 거부, 서비스 없음 등), 2 사용 오류, 70~76 시작 실패 분류(`HostExit.code`와 같다) */
 export async function runHostCommand(
   command: HostCommand,
   io: CommandIo,
-): Promise<0 | 1 | 2 | 70 | 71 | 72 | 73> {
+): Promise<0 | 1 | 2 | HostExitCode> {
   switch (command.kind) {
     case "host-stdio": {
       const exit = await startStdioHost({ readable: io.stdin, writable: io.stdout });

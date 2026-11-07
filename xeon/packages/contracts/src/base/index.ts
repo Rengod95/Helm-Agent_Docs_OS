@@ -13,6 +13,7 @@ export {
 } from "./attempt.ts";
 export { repeatAsync, eachAsync, type RepeatDone } from "./repeat.ts";
 export { parse, type ParseError, type ParseIssue } from "./parse.ts";
+export { jsonErrorPosition, type JsonErrorPosition } from "./json-position.ts";
 export type { Clock, Scheduler, TimerHandle, RandomSource } from "./clock.ts";
 export type { Logger, LogLevel, LogValue, LogFields } from "./log.ts";
 export { Nullable } from "./nullable.ts";

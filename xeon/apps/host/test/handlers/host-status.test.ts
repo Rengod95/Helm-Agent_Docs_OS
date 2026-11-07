@@ -60,6 +60,39 @@ const REPORT: BinaryCheckReport = {
   ],
 };
 
+test("host.status names the settings files it could not read, without their text, and omits the field when there are none", async () => {
+  const problem = {
+    scope: "user" as const,
+    path: "/home/u/.config/fresnel/settings.json",
+    reason: "invalid_json" as const,
+    line: 3,
+    column: 5,
+  };
+  const broken = createFakeHost({
+    overrides: { settings: { problems: () => [problem] } },
+  });
+  const brokenStatus = await (await open(broken)).request("host.status", {});
+  expect(brokenStatus).toMatchObject({ settingsProblems: [problem] });
+  const clean = createFakeHost();
+  const cleanStatus = await (await open(clean)).request("host.status", {});
+  expect("settingsProblems" in cleanStatus).toBe(false);
+});
+
+test("host.status names the store notices of this start with the moved path only, and omits the field when there are none", async () => {
+  const notice = {
+    kind: "store_empty_replaced" as const,
+    movedTo: "/data/fresnel.db.broken-20261108T010203456Z",
+  };
+  const replaced = createFakeHost({
+    overrides: { startupNotices: { notices: () => [notice] } },
+  });
+  const replacedStatus = await (await open(replaced)).request("host.status", {});
+  expect(replacedStatus).toMatchObject({ startupNotices: [notice] });
+  const clean = createFakeHost();
+  const cleanStatus = await (await open(clean)).request("host.status", {});
+  expect("startupNotices" in cleanStatus).toBe(false);
+});
+
 test("host.status without includeBinaries has no binaries and runs no check", async () => {
   const host = createFakeHost({ diagnose: () => Promise.resolve({ binaries: ok(REPORT) }) });
   const connection = await open(host);

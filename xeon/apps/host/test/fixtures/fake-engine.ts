@@ -41,6 +41,7 @@ import type {
   OwnerKind,
   SettingsChange,
   SettingsStorePort,
+  StartupNoticePort,
   SubmitOutcome,
   CommandPort,
   DialogWirePort,
@@ -124,6 +125,7 @@ export interface FakeEngineOptions {
     readonly threads?: Partial<ThreadPort>;
     readonly turns?: Partial<TurnPort>;
     readonly settings?: Partial<SettingsStorePort>;
+    readonly startupNotices?: Partial<StartupNoticePort>;
     readonly approvals?: Partial<ApprovalPort>;
     readonly trust?: Partial<TrustPort>;
     readonly commands?: Partial<CommandPort>;
@@ -434,6 +436,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       readFile: () => Promise.reject(new Error("readFile is not part of the fake")),
       writeFile: () => Promise.reject(new Error("writeFile is not part of the fake")),
       refreshUserFile: () => Promise.resolve(),
+      problems: () => [],
       onChange(listener) {
         settingsListeners.add(listener);
         return () => {
@@ -441,6 +444,10 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         };
       },
       ...options.overrides?.settings,
+    },
+    startupNotices: {
+      notices: () => [],
+      ...options.overrides?.startupNotices,
     },
     approvals: {
       locate: () => Promise.resolve(ok(undefined)),

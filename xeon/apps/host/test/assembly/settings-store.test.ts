@@ -214,15 +214,52 @@ test("refreshUserFile reads another process's change and reports only the keys t
   expect(changes).toHaveLength(1);
 });
 
-test("refreshUserFile keeps the previous values while the file is not valid JSON", async () => {
+test("refreshUserFile keeps the previous values while the file is not valid JSON, and reports the problem once", async () => {
   const fx = await rig({ "l1.loop.maxSteps": 3 });
   const { store, engine, changes } = await fx.host();
   writeFileSync(fx.file, "{ half an edit");
   await store.refreshUserFile();
   expect(engine.value("l1.loop.maxSteps")).toBe(3);
-  expect(changes).toEqual([]);
+  expect(store.problems()).toEqual([
+    { scope: "user", path: fx.file, reason: "invalid_json", line: 1, column: 3 },
+  ]);
+  expect(changes).toEqual([{ keys: [], scopes: ["user"], threadId: null }]);
+  // 같은 문제가 그대로면 다시 알리지 않는다
+  await store.refreshUserFile();
+  expect(changes).toHaveLength(1);
   writeFileSync(fx.file, "[1,2]");
   await store.refreshUserFile();
   expect(engine.value("l1.loop.maxSteps")).toBe(3);
-  expect(changes).toEqual([]);
+  expect(store.problems()).toEqual([
+    { scope: "user", path: fx.file, reason: "not_object", line: null, column: null },
+  ]);
+  expect(changes).toHaveLength(2);
+  // 고쳐서 값이 그대로여도 문제가 풀렸음을 한 번 알린다
+  writeFileSync(fx.file, '{"l1.loop.maxSteps":3}');
+  await store.refreshUserFile();
+  expect(store.problems()).toEqual([]);
+  expect(changes).toHaveLength(3);
+  expect(changes[2]).toEqual({ keys: [], scopes: ["user"], threadId: null });
+});
+
+test("a broken user file refuses a key write with its position, and a whole-file write with the right hash clears the problem", async () => {
+  const fx = await rig({});
+  writeFileSync(fx.file, '{\n  "l1.loop.maxSteps": }');
+  const { store, engine } = await fx.host();
+  expect(store.problems()).toEqual([
+    { scope: "user", path: fx.file, reason: "invalid_json", line: 2, column: 23 },
+  ]);
+  const refused = await store.write("user", "l1.loop.maxSteps", 4, undefined);
+  expect(refused).toEqual({
+    ok: false,
+    error: { kind: "file_invalid", path: fx.file, line: 2, column: 23 },
+  });
+  expect(readFileSync(fx.file, "utf8")).toBe('{\n  "l1.loop.maxSteps": }');
+  const read = await store.readFile("user", undefined);
+  if (!read.ok) throw new Error("read failed");
+  const fixed = '{\n  "l1.loop.maxSteps": 4\n}\n';
+  const written = await store.writeFile("user", fixed, read.value.sha256, undefined);
+  expect(written.ok).toBe(true);
+  expect(store.problems()).toEqual([]);
+  expect(engine.value("l1.loop.maxSteps")).toBe(4);
 });

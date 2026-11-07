@@ -20,6 +20,7 @@ import type {
   CommandError,
   DefaultGroupId,
   GroupsSnapshot,
+  HostNoticesSnapshot,
   SafeModeSnapshot,
   SearchSnapshot,
   SetupCommands,
@@ -84,9 +85,20 @@ export function safeModeOf(status: WireResult<"host.status">): SafeModeSnapshot 
   };
 }
 
+/**
+ * `host.status`의 호스트 알림 칸을 화면 값으로 바꾼다. 문제 칸과 시작 알림 칸이 없으면(문제가 없거나 구형 호스트) 빈 목록이다
+ */
+export function hostNoticesOf(status: WireResult<"host.status">): HostNoticesSnapshot {
+  return {
+    settingsProblems: status.settingsProblems ?? [],
+    startupNotices: status.startupNotices ?? [],
+  };
+}
+
 export function createSetupCommands(
   run: Run,
   onInvalidated: (listener: () => void) => () => void,
+  onAnyInvalidated: (listener: () => void) => () => void,
   ipc: Pick<DesktopIpc, "registerSecret">,
   local: Pick<LocalSettings, "load" | "get" | "set">,
   logger: Pick<Logger, "warn">,
@@ -188,6 +200,15 @@ export function createSetupCommands(
       }
       return ok(safeModeOf(status.value));
     },
+    async loadHostNotices() {
+      const status = await run((c) => c.request("host.status", {}));
+      if (!status.ok) {
+        // 화면은 이 실패를 아무것도 그리지 않는 것으로 받는다(알림은 화면을 막지 않는 부가 정보다). 원인만 남긴다
+        logger.warn("desktop.hostNotices.read_failed", { reason: status.error.kind });
+        return status;
+      }
+      return ok(hostNoticesOf(status.value));
+    },
     async setGroupEnabled(group, enabled) {
       const written = await run((c) =>
         c.request("settings.set", { key: GROUP_KEY[group], value: enabled, scope: SCOPE }),
@@ -211,5 +232,6 @@ export function createSetupCommands(
       return written.ok ? ok(null) : err({ kind: "failed" });
     },
     onInvalidated,
+    onAnyInvalidated,
   };
 }

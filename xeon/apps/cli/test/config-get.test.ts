@@ -33,6 +33,73 @@ test("config get --json prints the settings array the host returned (AC3)", asyn
   expect(h.server().requests[1]?.params).toEqual({ keys: ["l4.cli.theme"] });
 });
 
+const BROKEN_FILE = {
+  scope: "user",
+  path: "/home/u/.fresnel/settings.json",
+  reason: "invalid_json",
+  line: 3,
+  column: 5,
+};
+
+/** host.status 응답. 읽지 못한 설정 파일이 있으면 `settingsProblems`를 싣는다 */
+function statusWith(settingsProblems: readonly unknown[]): Record<string, unknown> {
+  return {
+    mode: "in-process",
+    pid: 1,
+    startedAt: "2026-11-01T00:00:00.000Z",
+    connections: 1,
+    liveTurns: 0,
+    idleShutdownAt: null,
+    settingsProblems,
+  };
+}
+
+test("config get warns on stderr about a settings file it could not read, and prints the values as before", async () => {
+  const h = harness({
+    server: {
+      settings: SETTINGS,
+      handlers: { "host.status": () => statusWith([BROKEN_FILE]) },
+    },
+  });
+  expect(await h.run(["config", "get", "l4.cli.theme"])).toBe(0);
+  expect(h.stdoutText()).toBe('l4.cli.theme = "dark"\n  source: default\n');
+  expect(h.stderrText()).toBe(
+    "경고: 설정 파일 /home/u/.fresnel/settings.json (3줄 5칸)을 읽지 못해 그 범위를 기본값으로 본다 (JSON 문법 오류)\n",
+  );
+  expect(h.server().requests.map((request) => request.method)).toEqual([
+    "host.hello",
+    "settings.get",
+    "host.status",
+  ]);
+});
+
+test("config get --json keeps stdout to the JSON and says what is wrong on stderr", async () => {
+  const h = harness({
+    server: {
+      settings: SETTINGS,
+      handlers: {
+        "host.status": () =>
+          statusWith([{ ...BROKEN_FILE, reason: "not_object", line: null, column: null }]),
+      },
+    },
+  });
+  expect(await h.run(["config", "get", "l4.cli.theme", "--json"])).toBe(0);
+  expect(JSON.parse(h.stdoutText())).toEqual([
+    expect.objectContaining({ key: "l4.cli.theme", value: "dark" }),
+  ]);
+  expect(h.stderrText()).toBe(
+    "경고: 설정 파일 /home/u/.fresnel/settings.json을 읽지 못해 그 범위를 기본값으로 본다 (JSON 객체가 아니다)\n",
+  );
+});
+
+test("config get stays quiet when the host reports no settings file it could not read", async () => {
+  const h = harness({
+    server: { settings: SETTINGS, handlers: { "host.status": () => statusWith([]) } },
+  });
+  expect(await h.run(["config", "get", "l4.cli.theme"])).toBe(0);
+  expect(h.stderrText()).toBe("");
+});
+
 test("config get without keys asks for everything", async () => {
   const h = harness({ server: { settings: SETTINGS } });
   expect(await h.run(["config", "get"])).toBe(0);

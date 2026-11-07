@@ -78,10 +78,20 @@ test("the store failure exit codes round-trip and other codes map to nothing", (
   expect(storeFailureOfExitCode(null)).toBeUndefined();
 });
 
-test("the data folder permission failure has its own exit code that does not collide with the store codes", () => {
-  expect(STARTUP_FAILURE_EXIT_CODES).toEqual({ data_dir_permission: 73 });
+test("the startup failures the user can fix have their own exit codes that do not collide with the store codes", () => {
+  expect(STARTUP_FAILURE_EXIT_CODES).toEqual({
+    data_dir_permission: 73,
+    store_busy: 74,
+    data_dir_unwritable: 75,
+    store_unavailable: 76,
+  });
   expect(startupFailureOfExitCode(73)).toBe("data_dir_permission");
+  expect(startupFailureOfExitCode(74)).toBe("store_busy");
+  expect(startupFailureOfExitCode(75)).toBe("data_dir_unwritable");
+  expect(startupFailureOfExitCode(76)).toBe("store_unavailable");
   expect(startupFailureOfExitCode(72)).toBeUndefined();
+  expect(startupFailureOfExitCode(77)).toBeUndefined();
+  expect(startupFailureOfExitCode(1)).toBeUndefined();
   expect(startupFailureOfExitCode(null)).toBeUndefined();
-  expect(storeFailureOfExitCode(73)).toBeUndefined();
+  for (const code of [73, 74, 75, 76]) expect(storeFailureOfExitCode(code)).toBeUndefined();
 });

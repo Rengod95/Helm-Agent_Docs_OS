@@ -750,6 +750,77 @@ describe("M2 method schemas are written out", () => {
     expect(parse(result, { ...base, waitingApprovals: 0 }).ok).toBe(false);
   });
 
+  test("host.status carries the settings files it could not read, with no text of them", () => {
+    const { result } = WIRE_METHODS["host.status"];
+    const base = {
+      mode: "service",
+      pid: 10,
+      startedAt: "2026-10-21T00:00:00.000Z",
+      connections: 1,
+      liveTurns: 0,
+      idleShutdownAt: null,
+    };
+    const broken = {
+      scope: "user",
+      path: "/home/u/.config/fresnel/settings.json",
+      reason: "invalid_json",
+      line: 3,
+      column: 5,
+    };
+    const unreadable = {
+      scope: "user",
+      path: "/home/u/.config/fresnel/settings.json",
+      reason: "unreadable",
+      line: null,
+      column: null,
+      code: "EACCES",
+    };
+    expect(parse(result, { ...base, settingsProblems: [broken, unreadable] }).ok).toBe(true);
+    expect(parse(result, { ...base, settingsProblems: [] }).ok).toBe(true);
+    expect(parse(result, { ...base, settingsProblems: [{ ...broken, text: "{ x" }] }).ok).toBe(
+      false,
+    );
+    expect(parse(result, { ...base, settingsProblems: [{ ...broken, reason: "bad" }] }).ok).toBe(
+      false,
+    );
+    expect(parse(result, { ...base, settingsProblems: [{ ...broken, line: 0 }] }).ok).toBe(false);
+    expect(parse(result, { ...base, settingsProblems: [{ ...broken, line: undefined }] }).ok).toBe(
+      false,
+    );
+    const nine = Array.from({ length: 9 }, () => broken);
+    expect(parse(result, { ...base, settingsProblems: nine }).ok).toBe(false);
+  });
+
+  test("host.status carries the startup notices as kind and the moved path only", () => {
+    const { result } = WIRE_METHODS["host.status"];
+    const base = {
+      mode: "service",
+      pid: 10,
+      startedAt: "2026-10-21T00:00:00.000Z",
+      connections: 1,
+      liveTurns: 0,
+      idleShutdownAt: null,
+    };
+    const replaced = {
+      kind: "store_empty_replaced" as const,
+      movedTo: "/home/u/data/fresnel.db.broken-20261108T010203456Z",
+    };
+    const kept = parse(result, { ...base, startupNotices: [replaced] });
+    expect(kept.ok && kept.value.startupNotices).toEqual([replaced]);
+    expect(parse(result, { ...base, startupNotices: [] }).ok).toBe(true);
+    expect(parse(result, { ...base, startupNotices: [{ ...replaced, path: "/x" }] }).ok).toBe(
+      false,
+    );
+    expect(
+      parse(result, { ...base, startupNotices: [{ ...replaced, kind: "store_other" }] }).ok,
+    ).toBe(false);
+    expect(parse(result, { ...base, startupNotices: [{ ...replaced, movedTo: "" }] }).ok).toBe(
+      false,
+    );
+    const nine = Array.from({ length: 9 }, () => replaced);
+    expect(parse(result, { ...base, startupNotices: nine }).ok).toBe(false);
+  });
+
   test("host.status asks for the external binary check only when includeBinaries is true", () => {
     const { params } = WIRE_METHODS["host.status"];
     expect(parse(params, {}).ok).toBe(true);

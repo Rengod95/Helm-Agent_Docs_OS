@@ -91,18 +91,32 @@ export const STORE_FAILURE_EXIT_CODES: {
 } = { future_version: 70, corrupt: 71, migration_failed: 72 };
 
 /**
- * 저장소 밖의 시작 실패 가운데 사용자가 직접 고칠 수 있는 것의 종료 코드. 앱 셸이 종료 코드만 전달하므로 분류마다 코드를 둔다.
- * `data_dir_permission`: 데이터 폴더 권한이 소유자 밖에도 열려 있다(`permission_too_open`). 폴더를 700으로 줄이면 풀린다
+ * 저장소를 열지 못했거나 데이터 폴더를 쓸 수 없어 끝난 시작 가운데 사용자가 고칠 수 있는 것의 종료 코드. 앱 셸이 종료 코드만 전달하므로 분류마다 코드를 둔다 [결정: 오케스트레이터 기본값, fxSF]
+ * - `data_dir_permission`(73): 데이터 폴더 권한이 소유자 밖에도 열려 있다(`permission_too_open`). 폴더를 700으로 줄이면 풀린다
+ * - `store_busy`(74): DB를 다른 프로그램이 쓰고 있다(`busy`). 그 프로그램을 끝내면 풀린다
+ * - `data_dir_unwritable`(75): 데이터 폴더나 DB 파일에 쓸 수 없다(폴더가 소유자에게 쓰기·실행을 주지 않음, 남의 폴더, 읽기 전용 쓰기 오류). 소유자와 쓰기 권한을 고치면 풀린다
+ * - `store_unavailable`(76): 그 밖에 저장소를 열지 못했다(디스크, 경로, 파일 시스템 종류 등). fts5 없음은 이 표에 없어 1이다
  */
-export const STARTUP_FAILURE_EXIT_CODES: { readonly data_dir_permission: 73 } = {
+export const STARTUP_FAILURE_EXIT_CODES: {
+  readonly data_dir_permission: 73;
+  readonly store_busy: 74;
+  readonly data_dir_unwritable: 75;
+  readonly store_unavailable: 76;
+} = {
   data_dir_permission: 73,
+  store_busy: 74,
+  data_dir_unwritable: 75,
+  store_unavailable: 76,
 };
+export type StartupFailureKind = keyof typeof STARTUP_FAILURE_EXIT_CODES;
 
 /** 순수 함수. 종료 코드를 사용자가 고칠 수 있는 시작 실패 분류로 되돌린다. 표에 없는 코드는 undefined다 */
-export function startupFailureOfExitCode(code: number | null): "data_dir_permission" | undefined {
-  return code === STARTUP_FAILURE_EXIT_CODES.data_dir_permission
-    ? "data_dir_permission"
-    : undefined;
+export function startupFailureOfExitCode(code: number | null): StartupFailureKind | undefined {
+  if (code === STARTUP_FAILURE_EXIT_CODES.data_dir_permission) return "data_dir_permission";
+  if (code === STARTUP_FAILURE_EXIT_CODES.store_busy) return "store_busy";
+  if (code === STARTUP_FAILURE_EXIT_CODES.data_dir_unwritable) return "data_dir_unwritable";
+  if (code === STARTUP_FAILURE_EXIT_CODES.store_unavailable) return "store_unavailable";
+  return undefined;
 }
 
 /** 순수 함수. 종료 코드를 저장소 열기 실패 분류로 되돌린다. 표에 없는 코드(신호로 끝난 null 포함)는 undefined다 */

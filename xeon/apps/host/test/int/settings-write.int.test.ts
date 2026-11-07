@@ -108,7 +108,8 @@ describe("user scope", () => {
         fx.connection.request("settings.set", { key: KEY, value: 7, scope: "user" }),
       );
       expect(error.code).toBe(5006);
-      expect(error.data.details).toEqual({ code: "settings_file_invalid" });
+      // 깨진 설정 파일은 경로를 싣는다. 객체가 아닌 것은 문법 위치가 없어서 줄과 칸을 싣지 않는다
+      expect(error.data.details).toEqual({ code: "settings_file_invalid", path: fx.userFile });
       expect(readFileSync(fx.userFile, "utf8")).toBe("[1, 2]");
       await fx.close();
     },

@@ -10,9 +10,14 @@ import { messageOf } from "./util.ts";
 
 // 호스트 시작과 종료 절차의 공통 부분(L4.host-service.spec §4.8, HS-31). stdio 호스트(main.ts)와 서비스(service/lifetime.ts)가 함께 쓴다.
 
+/**
+ * 호스트가 끝날 때 내는 종료 코드. 0 정상, 1 일반 시작 거부, 70~72 저장소 열기 실패 분류(`STORE_FAILURE_EXIT_CODES`),
+ * 73~76 사용자가 고칠 수 있는 시작 실패(`STARTUP_FAILURE_EXIT_CODES`: 권한, 다른 프로그램이 쓰는 DB, 쓸 수 없는 데이터 폴더, 그 밖의 저장소 열기 실패)
+ */
+export type HostExitCode = 0 | 1 | 70 | 71 | 72 | 73 | 74 | 75 | 76;
+
 export interface HostExit {
-  /** 0 정상, 1 일반 시작 거부, 70~72 저장소 열기 실패 분류(`STORE_FAILURE_EXIT_CODES`), 73 데이터 폴더 권한이 넓음(`STARTUP_FAILURE_EXIT_CODES`) */
-  readonly code: 0 | 1 | 70 | 71 | 72 | 73;
+  readonly code: HostExitCode;
   readonly reason: "eof" | "signal" | "idle" | "stop" | "startup";
   /** 시작 거부(code 1)일 때 이유 한 줄. spec에 더한 선택 필드 */
   readonly message?: string;

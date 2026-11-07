@@ -40,7 +40,7 @@ export async function runHostStdio(
     },
   });
   if (exit.message !== undefined) await io.stderr(`fresnel: ${exit.message}\n`);
-  // 시작 실패의 분류 코드(70~73)는 앱 셸이 읽으므로 그대로 돌려준다. 그 밖의 실패는 1이다
+  // 시작 실패의 분류 코드(70~76)는 앱 셸이 읽으므로 그대로 돌려준다. 그 밖의 실패는 1이다
   return exit.code === 0 ? EXIT.ok : exit.code >= 70 ? exit.code : EXIT.error;
 }
 

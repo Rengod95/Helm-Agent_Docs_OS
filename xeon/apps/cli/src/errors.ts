@@ -38,6 +38,8 @@ export function exitCodeOfStartError(kind: EngineStartErrorKind): ExitCode {
     case "fts5Missing":
     case "sopsMissing":
     case "dataDirPermission":
+    case "dataDirUnwritable":
+    case "storeBusy":
     case "storeUnavailable":
     case "storeFutureVersion":
     case "storeCorrupt":
@@ -57,6 +59,11 @@ export function failureOfStart(error: EngineStartError): Failure {
 function detailText(error: WireError, key: string): string | undefined {
   const value = error.data.details?.[key];
   return typeof value === "string" ? value : undefined;
+}
+
+function detailNumber(error: WireError, key: string): number | undefined {
+  const value = error.data.details?.[key];
+  return typeof value === "number" ? value : undefined;
 }
 
 /** 확장이 막을 수 있는 지점(`thread.cancelledByExtension`의 point)을 사람이 읽는 말로 바꾼다. 모르는 값은 그대로 보인다 */
@@ -319,6 +326,24 @@ function commandFailure(error: WireError): Failure | undefined {
   }
 }
 
+/**
+ * 설정 파일이 JSON 객체가 아니어서 쓰지 않았다(`store.io`, details.code `settings_file_invalid`). 경로를 말하고, JSON 문법 오류면
+ * 줄과 칸도 말한다. 파일을 고치기 전에는 쓰기가 막히므로 해결은 파일을 고치라는 것이다
+ */
+function settingsFileInvalidFailure(error: WireError): Failure {
+  const path = detailText(error, "path") ?? t("cli.errors.common.unknownLocation");
+  const line = detailNumber(error, "line");
+  const column = detailNumber(error, "column");
+  return {
+    message:
+      line === undefined || column === undefined
+        ? t("cli.errors.wire.settingsFileInvalid.message", { path })
+        : t("cli.errors.wire.settingsFileInvalid.messageWithLine", { path, line, column }),
+    fix: t("cli.errors.wire.settingsFileInvalid.fix"),
+    code: EXIT.environment,
+  };
+}
+
 /** wire 오류를 §4.10 표의 문구와 종료 코드로 바꾼다 */
 export function failureOfWire(error: WireError): Failure {
   const kind = error.data.kind;
@@ -507,6 +532,9 @@ export function failureOfWire(error: WireError): Failure {
           fix: t("cli.errors.wire.trustStoreFailed.fix"),
           code: EXIT.environment,
         };
+      }
+      if (detailText(error, "code") === "settings_file_invalid") {
+        return settingsFileInvalidFailure(error);
       }
       return {
         message: t("cli.errors.wire.storeIoFailed.message"),

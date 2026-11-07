@@ -636,9 +636,18 @@ describe("status bar cell order", () => {
 });
 
 /** 실행 중인 엔진 하나를 든 거울. 엔진 칸의 글이 대상에 따라 어떻게 나는지 본다 */
+/** 엔진이 돌고 연결도 live인 거울. 연결이 live가 아니면 엔진 칸은 "시작 중"이다(상태 띠) */
 function mirrorRunning(): EngineMirror {
   const h = harness();
   h.store.ingest({ type: "engine", state: RUNNING });
+  h.store.ingest({
+    type: "subscribed",
+    sub: SUB,
+    storeId: STORE,
+    start: 5,
+    live: true,
+    from: "head",
+  });
   h.store.flush();
   return h.store.read.getState();
 }
@@ -665,6 +674,14 @@ describe("status bar engine cell names the attached target", () => {
     expect(html).toContain(
       '<span role="status" class="sr-only">엔진 실행 중 (원격 · build-box)</span>',
     );
+  });
+
+  test("a running process whose link is not live yet is a starting engine on the cell, not a green running one", () => {
+    const h = harness();
+    h.store.ingest({ type: "engine", state: RUNNING });
+    h.store.flush();
+    const html = barWithUi(h.store.read.getState(), createUiStore().read.getState());
+    expect(cellTextOf(html, "engine")).toBe("엔진 시작 중");
   });
 
   test("this computer keeps the in-app source on the engine cell", () => {

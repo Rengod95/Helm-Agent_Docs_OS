@@ -50,7 +50,7 @@ function fsCode(caught: unknown): string {
 }
 
 /** `20260115T093000123Z`. 이름을 시간순으로 정렬할 수 있다 */
-function compactTimestamp(at: number): string {
+export function compactTimestamp(at: number): string {
   return new Date(at).toISOString().replaceAll(/[-:.]/g, "");
 }
 

@@ -42,8 +42,10 @@ import type {
 } from "@fresnel/contracts/settings";
 import type {
   EventFilter,
+  SettingsFileProblem,
   SettingsFileScope,
   SettingsWritableFileScope,
+  StartupNotice,
   StoreId,
   StreamPosition,
   TurnStartInput,
@@ -175,7 +177,8 @@ export type AssembleIssue =
   | { readonly code: "catalog"; readonly issues: readonly CatalogIssue[] }
   /**
    * 저장소를 열지 못했다. `failure`는 안내 분류(`F.records.spec` §3.7 7항)이고 `message`는 CLI가 구별하는 이름이다:
-   * `fts5Missing`, `dataDirPermission`, 그 밖은 분류에 맞춰 `storeFutureVersion`, `storeCorrupt`, `storeMigrationFailed`, `storeUnavailable`
+   * `fts5Missing`, `dataDirPermission`(지원하지 않는 파일 시스템), `dataDirUnwritable`(데이터 폴더나 DB 파일에 쓸 수 없다), `storeBusy`(다른 프로그램이 쓰는 중),
+   * 그 밖은 분류에 맞춰 `storeFutureVersion`, `storeCorrupt`, `storeMigrationFailed`, `storeUnavailable`
    */
   | { readonly code: "store"; readonly message: string; readonly failure: StoreFailureKind }
   | { readonly code: "missingService"; readonly service: string }
@@ -185,7 +188,7 @@ export type AssembleIssue =
       readonly plugin: string;
       readonly message: string;
       /** 사용자가 직접 고칠 수 있는 시작 실패의 분류. 종료 코드로 앱 셸에 전해진다(`STARTUP_FAILURE_EXIT_CODES`) */
-      readonly failure?: "data_dir_permission";
+      readonly failure?: "data_dir_permission" | "data_dir_unwritable";
     };
 
 /**
@@ -257,6 +260,11 @@ export interface Engine {
   close(): Promise<void>;
 }
 
+/** 엔진을 시작할 때 저장소 등이 알린 일의 읽기 포트(`host.status.startupNotices`의 원천). 엔진이 뜬 뒤에는 바뀌지 않는다. 값은 싣지 않는다 */
+export interface StartupNoticePort {
+  notices(): readonly StartupNotice[];
+}
+
 export interface EnginePorts {
   /** L1.persistence */
   readonly threads: ThreadPort;
@@ -274,6 +282,8 @@ export interface EnginePorts {
   readonly activity: ActivityPort;
   /** L2.schedule 예약 서비스(M3b). 서비스 모드에서만 `start`로 틱을 돌린다. 실행은 이 서비스의 실행 포트가 한다 */
   readonly schedule: ScheduleService;
+  /** 시작할 때 저장소 등이 알린 일(`host.status.startupNotices`) */
+  readonly startupNotices: StartupNoticePort;
   /** L0.os */
   readonly notify: UserNotifyPort;
   /** L0.os */
@@ -587,8 +597,13 @@ export type SettingsWriteFailure =
   | { readonly kind: "untrusted_project"; readonly workspace: string }
   /** managed 범위는 사용자 앱이 쓰지 않는 읽기 전용 파일이다 */
   | { readonly kind: "managed_read_only" }
-  /** 기존 파일이 JSON 객체가 아니다. 덮어쓰면 값을 잃으므로 쓰지 않는다 */
-  | { readonly kind: "file_invalid"; readonly path: string }
+  /** 기존 파일이 JSON 객체가 아니다(JSON 문법 오류 포함). 덮어쓰면 값을 잃으므로 쓰지 않는다. 위치는 JSON 문법 오류일 때만 있다 */
+  | {
+      readonly kind: "file_invalid";
+      readonly path: string;
+      readonly line: number | null;
+      readonly column: number | null;
+    }
   | { readonly kind: "file_unwritable"; readonly path: string; readonly code: string }
   /** session 범위 쓰기 키가 다른 값으로 재사용되었다. 키를 호출마다 새로 만들므로 일어나지 않는 방어 경로다 */
   | { readonly kind: "key_reused"; readonly requestKey: string }
@@ -661,6 +676,8 @@ export interface SettingsStorePort {
    * 읽을 수 없거나 JSON 객체가 아니면 앞 값을 둔다
    */
   refreshUserFile(): Promise<void>;
+  /** 읽지 못해 비운 설정 파일의 문제(`host.status.settingsProblems`의 원천). 값은 싣지 않는다. 문제가 없으면 빈 배열이다 */
+  problems(): readonly SettingsFileProblem[];
   onChange(listener: (change: SettingsChange) => void): Unsubscribe;
 }
 

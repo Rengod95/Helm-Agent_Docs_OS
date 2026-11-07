@@ -121,6 +121,11 @@ export type StoreWarning =
     }
   /** 보관 수를 넘은 옛 스냅샷을 지우지 못했다 */
   | { readonly kind: "snapshot_prune_failed"; readonly path: string; readonly code: string }
+  /**
+   * 쓰기 열기에서 0바이트 DB 파일을 `movedTo`로 옮기고 빈 새 DB를 만들었다(L0.store.spec §4.4 2번). 데이터가 사라졌을 수 있다는 신호다.
+   * 값은 경로만 싣는다. `path`는 옮기기 전 자리, `movedTo`는 옮긴 자리다
+   */
+  | { readonly kind: "empty_replaced"; readonly path: string; readonly movedTo: string }
   | {
       readonly kind: "checkpoint_incomplete";
       readonly busy: number;

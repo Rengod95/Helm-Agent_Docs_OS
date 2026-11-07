@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { parse } from "../../src/index.ts";
 import { SecretEntryMetaSchema } from "../../src/capabilities/index.ts";
-import { WIRE_ERRORS, WIRE_METHODS } from "../../src/wire-settings/wire/index.ts";
+import {
+  SettingsFileProblemSchema,
+  WIRE_ERRORS,
+  WIRE_METHODS,
+} from "../../src/wire-settings/wire/index.ts";
 import {
   EffectiveSettingSchema,
   SettingUiSchema,
@@ -81,6 +85,34 @@ describe("settings.readFile and settings.writeFile", () => {
       parse(invalid.details, { scope: "user", issues: [{ path: "/a", message: "bad" }] }).ok,
     ).toBe(true);
     expect(parse(invalid.details, { scope: "user" }).ok).toBe(false);
+  });
+});
+
+describe("settings file problems", () => {
+  test("a problem names the file and its reason, and its position is optional", () => {
+    const broken = { scope: "user", path: "/home/u/settings.json", reason: "not_object" };
+    expect(parse(SettingsFileProblemSchema, { ...broken, line: null, column: null }).ok).toBe(true);
+    expect(parse(SettingsFileProblemSchema, { ...broken, line: 1, column: 1 }).ok).toBe(true);
+    expect(parse(SettingsFileProblemSchema, { ...broken, line: null }).ok).toBe(false);
+    expect(parse(SettingsFileProblemSchema, { ...broken, scope: "managed", line: 1 }).ok).toBe(
+      false,
+    );
+  });
+
+  test("store.io details may carry the settings file path and position, not other fields", () => {
+    const { details } = WIRE_ERRORS["store.io"];
+    if (details === undefined) throw new Error("details expected");
+    expect(
+      parse(details, {
+        code: "settings_file_invalid",
+        path: "/w/settings.json",
+        line: 1,
+        column: 8,
+      }).ok,
+    ).toBe(true);
+    expect(parse(details, { code: "settings_file_invalid" }).ok).toBe(true);
+    expect(parse(details, { code: "EACCES", line: 0 }).ok).toBe(false);
+    expect(parse(details, { code: "EACCES", text: "{" }).ok).toBe(false);
   });
 });
 

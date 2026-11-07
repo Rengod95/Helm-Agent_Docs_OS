@@ -51,13 +51,19 @@ realTest(
       source: { scope: "user" },
     });
 
-    // 반쯤 고친 파일(JSON이 아님)은 앞 값을 둔다. 알림도 없다
+    // 반쯤 고친 파일(JSON이 아님)은 앞 값을 둔다. 문제가 생겼다는 알림이 키 없이 나가고(O5-1), 값은 그대로다
     const before = seen.length;
     writeFileSync(userFile, "{ half an edit");
+    await until(() => seen.length > before);
     await Bun.sleep(600);
-    expect(seen.length).toBe(before);
+    const after = seen.slice(before);
+    expect(after.length).toBeGreaterThanOrEqual(1);
+    expect(after).toEqual(after.map(() => ({ keys: [], scopes: ["user"], threadId: null })));
     expect((await connection.request("settings.get", { keys: [KEY] })).settings[0]).toMatchObject({
       value: 9,
+    });
+    expect(await connection.request("host.status", {})).toMatchObject({
+      settingsProblems: [expect.objectContaining({ scope: "user", reason: "invalid_json" })],
     });
 
     await connection.close();

@@ -374,7 +374,7 @@ fresnel: 저장된 데이터가 스키마와 다르다 (<표>.<열>)
 
 1. (닫음 2026-11-04) `fresnel db export` 사본을 되돌리는 방법, 엔진을 멈추는 순서, WAL 파일의 처리는 §2.6과 `fresnel db restore`로 정했습니다. 번호는 다른 문장의 참조 때문에 남깁니다. 마이그레이션 스냅샷은 10번입니다.
 2. `store.corrupt`로 판정된 데이터를 고치는 절차가 없습니다.
-3. 저장소 열기 실패는 `future_version`(`storeFutureVersion`), `corrupt`(`storeCorrupt`), `migration_failed`(`storeMigrationFailed`)로 나뉘어 각자 안내를 보이고 종료 코드 3으로 끝납니다(`apps/cli/src/engine.ts`의 `storeError`). 해결 문구는 되돌리는 절차가 정해지기 전이라 "데이터 디렉터리를 그대로 백업"까지만 말합니다 [미결 1].
+3. 저장소 열기 실패는 `future_version`(`storeFutureVersion`), `corrupt`(`storeCorrupt`), `migration_failed`(`storeMigrationFailed`)로 나뉘어 각자 안내를 보이고 종료 코드 3으로 끝납니다(`apps/cli/src/engine.ts`의 `storeError`). `corrupt` 문구는 "데이터 디렉터리를 그대로 복사해 둔 뒤 `fresnel db restore <백업 폴더>`로 되살린다(백업 폴더는 `fresnel db export`로 만든 것)"를 말합니다(§2). `migration_failed` 문구는 데이터 디렉터리를 그대로 복사해 두고 다시 실행하라고 하며, 마이그레이션 전 스냅샷을 되살리는 절차는 없습니다(§8.3 [미결 10] [근거: 이 문서 §8.3의 3번 항목]). 데스크톱은 71·72에서 엔진 줄의 "데이터 복원 열기" 단추로 설정의 고급 탭을 엽니다(`docs/xeon/L4/desktop/spec.md` §5).
 4. 읽기 전용 열기(`openStore({ readOnly: true })`)를 쓰는 제품 명령이 없습니다. DB의 버전 번호를 보여 주는 명령도 없습니다.
 5. 예약 상태 파일을 검사하거나 고치는 도구가 없습니다. 파일 스키마는 소스에서만 확인할 수 있습니다.
 6. 자동으로 꺼진 확장을 다시 켜는 CLI 명령(`fresnel ext enable`)이 없습니다(`X.operations.spec` §4.3.5의 제안).

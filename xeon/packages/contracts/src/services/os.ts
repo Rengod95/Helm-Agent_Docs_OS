@@ -79,6 +79,8 @@ export type DirsError =
   /** 남이 만든 디렉터리 */
   | { readonly kind: "not_owned"; readonly path: string }
   | { readonly kind: "permission_too_open"; readonly path: string; readonly mode: number }
+  /** 소유자에게 쓰기나 실행 권한이 없다(예: r-x 데이터 폴더). 파일을 만들 수 없어 저장소를 열 수 없다 */
+  | { readonly kind: "permission_too_narrow"; readonly path: string; readonly mode: number }
   | { readonly kind: "io"; readonly path: string; readonly code: string }
   /** 중단 신호로 멈췄다. 이미 만든 디렉터리는 그대로 둔다 */
   | { readonly kind: "cancelled" };

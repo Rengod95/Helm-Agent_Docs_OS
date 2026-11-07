@@ -9,12 +9,12 @@ import {
 import { t } from "@fresnel/client/i18n";
 import { scopeText } from "@fresnel/client/settings";
 import type { KeyboardEvent, ReactNode } from "react";
-import { errorText } from "../../settings.tsx";
 import {
   fileCloseableOf,
   fileDirtyOf,
   fileDiscardableOf,
   fileEditableOf,
+  fileErrorTextOf,
   fileSaveableOf,
   fileScopesOf,
   type FileEditorState,
@@ -148,7 +148,7 @@ export function SettingsFileEditorView(props: SettingsFileEditorProps): ReactNod
               ) : undefined
             }
           >
-            {errorText(state.error)}
+            {fileErrorTextOf(state.error, state.draft)}
           </Alert>
         )}
         {showsText && state.doc !== null ? (

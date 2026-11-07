@@ -7,6 +7,8 @@ import type { ReactNode } from "react";
 import { useCommands } from "../../commands.ts";
 import { useDesktopShell } from "../../desktop-shell-context.ts";
 import { useSafeMode } from "../../safe-mode-context.ts";
+import { SettingsProblemBanner } from "../../settings-problem-banner.tsx";
+import { StoreReplacedBanner } from "../../store-replaced-banner.tsx";
 import { pathTermOf, shortenHome, type SettingsPathRow } from "./settings-file-paths.ts";
 import { SettingSection } from "./settings-section.tsx";
 import {
@@ -38,6 +40,10 @@ export function OverviewPanels(props: {
   readonly filePaths: readonly SettingsPathRow[];
   /** "신뢰한 폴더" 구역(설정 파일 아래). 없으면 아무것도 그리지 않는다 */
   readonly trustPanel?: ReactNode | undefined;
+  /** 맨 위 경고 띠의 "파일로 보기"가 여는 동작(범위는 사용자). 없으면 띠에 단추가 없다 */
+  readonly onOpenFile?: (() => void) | undefined;
+  /** "파일로 보기"를 잠글지(읽기 전용 연결이거나 편집기가 열려 있을 때) */
+  readonly openFileDisabled?: boolean | undefined;
 }): ReactNode {
   const commands = useCommands();
   const shell = useDesktopShell();
@@ -50,6 +56,11 @@ export function OverviewPanels(props: {
   );
   return (
     <>
+      <SettingsProblemBanner
+        onOpenFile={props.onOpenFile}
+        openFileDisabled={props.openFileDisabled}
+      />
+      <StoreReplacedBanner />
       {props.filePaths.length === 0 ? null : (
         <SettingSection title={t("desktop.settings.overview.files.title")}>
           <ListDescription

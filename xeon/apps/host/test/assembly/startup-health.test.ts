@@ -27,6 +27,28 @@ test("a start that never reached markStarted adds one to the failure count on th
   expect(createFileStartupHealth(dir).beginStartup()).toBe(2);
 });
 
+test("a start abandoned for an environment problem adds nothing to the count", () => {
+  const dir = stateDir();
+  const first = createFileStartupHealth(dir);
+  expect(first.beginStartup()).toBe(0);
+  first.abandonStartup();
+  expect(JSON.parse(readFileSync(join(dir, STARTUP_HEALTH_FILE), "utf8"))).toEqual({
+    failures: 0,
+    starting: false,
+  });
+  expect(createFileStartupHealth(dir).beginStartup()).toBe(0);
+  expect(createFileStartupHealth(dir).beginStartup()).toBe(1);
+});
+
+test("an unfinished start before the environment problem still counts once", () => {
+  const dir = stateDir();
+  createFileStartupHealth(dir).beginStartup();
+  const env = createFileStartupHealth(dir);
+  expect(env.beginStartup()).toBe(1);
+  env.abandonStartup();
+  expect(createFileStartupHealth(dir).beginStartup()).toBe(1);
+});
+
 test("markStarted resets the count to zero", () => {
   const dir = stateDir();
   createFileStartupHealth(dir).beginStartup();

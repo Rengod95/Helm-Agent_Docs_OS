@@ -2,6 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { wireError } from "@fresnel/contracts/wire";
 import { failureOfWire } from "../src/errors.ts";
 import { EXIT } from "../src/exit-codes.ts";
+import type { FakeHandlers } from "./support/fake-server.ts";
 import { createHarness, type Harness } from "./support/harness.ts";
 import { threadId } from "./support/ids.ts";
 import { def, fakeSettings, summary } from "./support/m2.ts";
@@ -34,6 +35,7 @@ const T1 = threadId(1);
 function harness(
   initial: Record<string, unknown> = {},
   folderThreads: readonly ReturnType<typeof threadId>[] = [T1],
+  extraHandlers: FakeHandlers = {},
 ): {
   h: Harness;
   settings: ReturnType<typeof fakeSettings>;
@@ -48,6 +50,7 @@ function harness(
           threads: folderThreads.map((id) => summary(id)),
           nextCursor: null,
         }),
+        ...extraHandlers,
       },
     },
   });
@@ -139,6 +142,34 @@ test("config list prints every definition with its value, scopes and range; --pr
   expect(text).toContain("쓸 수 있는 범위: user, project, local, launch");
   expect(text).toContain("l1.loop.flag = false");
   expect(text).not.toContain("l4.cli.theme");
+});
+
+test("config list warns on stderr about a settings file it could not read, and lists as before", async () => {
+  const { h } = harness({ "l1.loop.maxSteps": 80 }, [T1], {
+    "host.status": () => ({
+      mode: "in-process",
+      pid: 1,
+      startedAt: "2026-11-01T00:00:00.000Z",
+      connections: 1,
+      liveTurns: 0,
+      idleShutdownAt: null,
+      settingsProblems: [
+        {
+          scope: "user",
+          path: "/home/u/.fresnel/settings.json",
+          reason: "unreadable",
+          line: null,
+          column: null,
+          code: "EACCES",
+        },
+      ],
+    }),
+  });
+  expect(await h.run(["config", "list", "--prefix", "l1.loop"])).toBe(EXIT.ok);
+  expect(h.stdoutText()).toContain("l1.loop.maxSteps = 80");
+  expect(h.stderrText()).toBe(
+    "경고: 설정 파일 /home/u/.fresnel/settings.json을 읽지 못해 그 범위를 기본값으로 본다 (읽기 실패: EACCES)\n",
+  );
 });
 
 test("config list --json pairs each definition with its effective value", async () => {

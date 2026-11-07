@@ -452,6 +452,14 @@ export function createCommands(deps: CommandDeps): Commands {
               if (keys.length === 0 || keys.some((key) => key.startsWith("l1.models."))) listener();
             });
       },
+      (listener) => {
+        const connection = session.connection();
+        return connection === null
+          ? () => {}
+          : connection.onNotification("settings.invalidated", () => {
+              listener();
+            });
+      },
       deps.ipc,
       deps.local,
       deps.logger,
