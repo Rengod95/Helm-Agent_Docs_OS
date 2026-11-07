@@ -103,7 +103,9 @@ export function createHostSchedule(deps: HostScheduleDeps): ScheduleService {
     ...(deps.leader === undefined ? {} : { leader: deps.leader }),
     ...(overrides?.policy === undefined ? {} : { policy: overrides.policy }),
     report: (message, fields) => {
-      deps.logger.error(message, toLogFields(fields));
+      // leader를 내놓는 것은 정상 유휴 종료다(다른 프로세스가 이어받는다). 오류로 남기지 않는다
+      if (message === "schedule.leader_lost") deps.logger.info(message, toLogFields(fields));
+      else deps.logger.error(message, toLogFields(fields));
     },
   });
 }

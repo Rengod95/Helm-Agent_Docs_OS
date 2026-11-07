@@ -34,6 +34,7 @@
   "cli.chat.notice.replayUnavailable": "The saved position cannot be resumed, so output starts from now",
   "cli.chat.notice.storeChanged": "The store changed, so earlier history could not be loaded",
   "cli.chat.waitNotice": "Waiting for the response (a long conversation can take a while to summarize)\n",
+  "cli.chat.resume.approvalElsewhere": "This conversation has a turn waiting for approval in another client. Answer it there; it continues when you do.\n",
   "cli.chat.resume.attempts": ", tried to resume {count, plural, one{# time} other{# times}}",
   "cli.chat.resume.closedAbort": "The turn had an abort request, so it was closed without resuming\n",
   "cli.chat.resume.closedCancelled": "The owner cancelled the turn, so it was closed without resuming\n",

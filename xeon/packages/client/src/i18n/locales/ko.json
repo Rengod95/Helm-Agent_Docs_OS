@@ -34,6 +34,7 @@
   "cli.chat.notice.replayUnavailable": "저장된 위치부터 이어 받을 수 없어 지금부터 보인다",
   "cli.chat.notice.storeChanged": "저장소가 바뀌어 이전 기록을 이어 받지 못했다",
   "cli.chat.waitNotice": "응답을 기다리는 중이다 (대화가 길면 요약하느라 오래 걸릴 수 있다)\n",
+  "cli.chat.resume.approvalElsewhere": "이 대화에는 다른 클라이언트에서 승인을 기다리는 턴이 있다. 거기서 답하면 이어서 실행된다.\n",
   "cli.chat.resume.attempts": ", 이어 실행을 {count}번 시도했다",
   "cli.chat.resume.closedAbort": "중단 요청이 있었던 turn이라 이어 실행하지 않고 닫았다\n",
   "cli.chat.resume.closedCancelled": "소유자가 취소한 turn이라 이어 실행하지 않고 닫았다\n",
