@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mapAnnotations } from "../src/client/annotations.ts";
+import { declaredHintsOf, mapAnnotations } from "../src/client/annotations.ts";
 import { buildApprovalRules, toolRuleKey } from "../src/servers/policy.ts";
 import type { ServerDefinition } from "../src/types.ts";
 import { buildWorld, startWorld } from "./support/world.ts";
@@ -52,6 +52,29 @@ describe("annotations", () => {
     expect(mapped.hints).toEqual({});
     expect(mapped.details).toEqual({ mcpAnnotations: { readOnlyHint: true } });
     expect(mapAnnotations("t", undefined, undefined, false).details).toBeUndefined();
+  });
+
+  test("declared hints keep only the values the server sent, and none when it sent none", () => {
+    expect(declaredHintsOf({ openWorldHint: false, title: "x" })).toStrictEqual({
+      openWorldHint: false,
+    });
+    expect(declaredHintsOf({ title: "x" })).toBeUndefined();
+    expect(declaredHintsOf(undefined)).toBeUndefined();
+  });
+
+  test("declared hints reach the tool for display even when annotations are not trusted, and the policy hints stay empty", async () => {
+    const annotated = { name: "peek", annotations: { readOnlyHint: true } };
+    const untrusted = buildWorld({
+      servers: { stub: { stub: { era: "modern", tools: [annotated, { name: "plain" }] } } },
+    });
+    await startWorld(untrusted);
+    await untrusted.runtime.applyBoundary();
+    const byName = (name: string) =>
+      untrusted.registrar.registered.find((t) => t.wire.name === name);
+    expect(byName("peek")?.declared).toStrictEqual({ readOnlyHint: true });
+    expect(byName("peek")?.hints).toStrictEqual({});
+    expect(byName("plain")?.declared).toBeUndefined();
+    await untrusted.runtime.shutdown();
   });
 
   test("readOnlyHint reaches the tool only when annotations are trusted", async () => {

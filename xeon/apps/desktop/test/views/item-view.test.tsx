@@ -93,6 +93,13 @@ function assistantItem(n: number, text: string): ItemRecord {
   };
 }
 
+/** MCP 도구의 결과: `details`에 서버 이름을 싣는다(cap-mcp `toToolResult`) */
+function mcpResultItem(n: number, toolName: string, server: string): ItemRecord {
+  const base = toolResultItem(n, toolName, "hi", false);
+  if (base.kind !== "toolResult") throw new Error("toolResultItem must build a tool result");
+  return { ...base, message: { ...base.message, details: { server, tool: toolName } } };
+}
+
 function toolResultItem(n: number, toolName: string, text: string, isError: boolean): ItemRecord {
   return {
     itemId: itm(n),
@@ -158,6 +165,22 @@ describe("one row per tool call while it runs", () => {
     h.store.flush();
     expect(render(<StreamingRow id={itm(8)} />, h)).toBe("");
     expect(visibleText(render(<RecordedItem id={itm(1)} />, h))).toContain("read");
+  });
+});
+
+describe("MCP server chip on a tool row", () => {
+  test("a result that names its MCP server shows the server name on the row", () => {
+    const h = openedHarness();
+    ingestRecords(h, [mcpResultItem(1, "echo", "qa")]);
+    const html = render(<RecordedItem id={itm(1)} />, h);
+    expect(visibleText(html)).toContain("서버 qa");
+  });
+
+  test("a result without a server name shows no server chip", () => {
+    const h = openedHarness();
+    ingestRecords(h, [toolResultItem(1, "read", "file body", false)]);
+    const html = render(<RecordedItem id={itm(1)} />, h);
+    expect(visibleText(html)).not.toContain("서버 ");
   });
 });
 

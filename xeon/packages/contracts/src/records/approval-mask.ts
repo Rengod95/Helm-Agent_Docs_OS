@@ -63,6 +63,9 @@ function maskBody(body: Body, leaves: readonly LeafMask[]): Body | null {
                   method: m("/body/tool/capability/method", tool.capability.method),
                 },
               }),
+          ...(tool.mcp === undefined
+            ? {}
+            : { mcp: { ...tool.mcp, server: m("/body/tool/mcp/server", tool.mcp.server) } }),
           args: checked.value,
         },
       };

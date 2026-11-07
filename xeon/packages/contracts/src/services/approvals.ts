@@ -10,7 +10,7 @@ import type {
 import type { Result } from "../base/index.ts";
 import type { PortKey } from "../extensions/index.ts";
 import type { BlobRef, ReadFailure, StoreError } from "../records/index.ts";
-import type { CallerId, PermissionMode, RunSource, ToolRisk } from "./tools.ts";
+import type { CallerId, McpDeclaredHints, PermissionMode, RunSource, ToolRisk } from "./tools.ts";
 
 // L1.tools.spec §3.6. 구현은 core-tools다. 승인 요청은 내구 이벤트 approval.requested로 나가고
 // 응답은 호스트 메서드 approval.respond로 들어온다(review.decisions-2 U-02).
@@ -68,6 +68,8 @@ export interface ToolApprovalBody {
   readonly argsHash: string;
   /** ask를 낸 규칙. 모드가 낸 ask면 null */
   readonly ruleId: string | null;
+  /** MCP 서버 도구면 서버 이름과 서버가 알린 성질. 표시용이고 신뢰하지 않는다. 옛 기록과 MCP가 아닌 도구에는 없다 */
+  readonly mcp?: { readonly server: string; readonly declared?: McpDeclaredHints };
 }
 
 export interface PlanApprovalBody {

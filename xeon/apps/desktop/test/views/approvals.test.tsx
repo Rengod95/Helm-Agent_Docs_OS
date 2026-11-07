@@ -506,3 +506,63 @@ describe("approval queue per conversation", () => {
     expect(out).not.toContain("echo elsewhere");
   });
 });
+
+/** MCP 서버 도구의 승인 요청. 서버 이름과 서버가 알린 성질을 본문에 싣는다 */
+function mcpToolRequest(
+  mcp: NonNullable<Extract<ApprovalRequestedPayload["body"], { kind: "tool" }>["tool"]["mcp"]>,
+  ruleId = "mcp.default",
+): ApprovalRequestedPayload {
+  return {
+    ...toolRequest({ text: "hi" }),
+    title: 'Allow tool "echo"?',
+    body: {
+      kind: "tool",
+      tool: { toolName: "echo", risk: "exec", args: { text: "hi" }, argsHash: "h", ruleId, mcp },
+    },
+  };
+}
+
+describe("MCP tool approval card", () => {
+  test("shows the server name as a chip, the traits the server declared, and a warning that they cannot be trusted", () => {
+    const text = visibleText(
+      html(
+        mcpToolRequest({ server: "qa", declared: { readOnlyHint: true, destructiveHint: true } }),
+      ),
+    );
+    expect(text).toContain("서버 qa");
+    expect(text).toContain("서버가 알린 성질: 읽기 전용, 파괴적");
+    expect(text).toContain("서버가 스스로 알린 것이라 믿을 수 없어요");
+  });
+
+  test("a server that declares nothing shows only the name chip, with no traits line and no warning", () => {
+    const text = visibleText(html(mcpToolRequest({ server: "qa" })));
+    expect(text).toContain("서버 qa");
+    expect(text).not.toContain("서버가 알린 성질");
+    expect(text).not.toContain("믿을 수 없어요");
+  });
+
+  test("the warning is on the card and not in the info icon's hidden text", () => {
+    const markup = html(mcpToolRequest({ server: "qa", declared: { readOnlyHint: true } }));
+    expect(markup).not.toMatch(/class="sr-only"[^>]*>서버가 스스로 알린/);
+    expect(visibleText(markup)).toContain("서버가 스스로 알린 것이라 믿을 수 없어요");
+  });
+
+  test("the default MCP rule is behind the info icon, explained in Korean with its name in parentheses", () => {
+    const markup = html(mcpToolRequest({ server: "qa" }));
+    expect(markup).toMatch(
+      /class="sr-only"[^>]*>MCP 도구는 기본으로 물어봐요 \(규칙 mcp\.default\)<\/span>/,
+    );
+    expect(visibleText(markup)).not.toContain("규칙 mcp.default 때문에");
+  });
+
+  test("another rule keeps its name, and it is also behind the info icon", () => {
+    const markup = html(mcpToolRequest({ server: "qa" }, "mcp.qa.echo"));
+    expect(markup).toMatch(/class="sr-only"[^>]*>규칙 mcp\.qa\.echo 때문에 물어요<\/span>/);
+  });
+
+  test("an ordinary tool card has no server chip and no MCP warning", () => {
+    const text = visibleText(html(toolRequest({ command: "ls" })));
+    expect(text).not.toContain("서버 ");
+    expect(text).not.toContain("믿을 수 없어요");
+  });
+});

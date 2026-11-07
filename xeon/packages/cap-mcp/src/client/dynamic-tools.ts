@@ -24,12 +24,13 @@ import type {
   ReplayPolicy,
   TextContent,
 } from "@fresnel/contracts/conversation";
+import type { McpDeclaredHints } from "@fresnel/contracts/services";
 import type { RawTool } from "../adapter.ts";
 import { asJsonObject } from "../json.ts";
 import { byteOrder } from "../order.ts";
 import { filterTool } from "../servers/policy.ts";
 import type { ServerDefinition } from "../types.ts";
-import { mapAnnotations } from "./annotations.ts";
+import { declaredHintsOf, mapAnnotations } from "./annotations.ts";
 import { schemaProblem } from "./schema-check.ts";
 
 // L2.mcp.spec §3.3~§3.4, §4.5. 서버가 광고한 도구를 모델에게 보이는 동적 도구로 만든다.
@@ -74,6 +75,8 @@ export interface McpDynamicTool {
   readonly executionMode: "parallel";
   /** 신뢰하지 않은 annotations 원본 등 표시용 조각 */
   readonly details: JsonObject | undefined;
+  /** 서버가 알린 성질(값이 있는 것만). 신뢰와 무관하게 있다: 승인 카드와 도구 행의 표시용이다 */
+  readonly declared?: McpDeclaredHints;
   execute(args: JsonObject, context: McpExecuteContext): Promise<McpToolResult>;
 }
 
@@ -292,6 +295,7 @@ export function createDynamicTool(
     server.def.trustAnnotations === true,
   );
   const description = (raw.description ?? raw.title ?? raw.name).slice(0, MAX_TOOL_DESCRIPTION);
+  const declared = declaredHintsOf(raw.annotations);
   return {
     server: server.id,
     serverToolName: raw.name,
@@ -307,6 +311,7 @@ export function createDynamicTool(
     replay: "unsafe",
     executionMode: "parallel",
     details: mapped.details,
+    ...(declared === undefined ? {} : { declared }),
     async execute(args, context) {
       try {
         const output = await invoke(server.id, raw.name, args, context);

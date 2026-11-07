@@ -622,6 +622,14 @@ export function createPipeline(
       toolCallId,
       caller: run.caller,
     };
+    // MCP 서버 도구면 서버 이름을 싣는다. 서버가 알린 성질은 표시용이라 있을 때만 싣고, 정책과 승인 결정에는 쓰지 않는다
+    const mcp =
+      entry.mcpServer === undefined
+        ? undefined
+        : {
+            server: entry.mcpServer,
+            ...(entry.mcpDeclared === undefined ? {} : { declared: entry.mcpDeclared }),
+          };
     const request: ApprovalRequestInput = {
       origin,
       requestKey: input.requestKey,
@@ -635,6 +643,7 @@ export function createPipeline(
           args: input.argsPayload,
           argsHash: input.argsHash,
           ruleId: input.ruleId,
+          ...(mcp === undefined ? {} : { mcp }),
         },
       },
       remember: input.remember,
