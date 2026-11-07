@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { eachAsync, parse, parseJson } from "@fresnel/contracts";
 import { CapabilityError, ScheduleEntries } from "@fresnel/contracts/capabilities";
-import { createScheduleApi } from "../src/index.ts";
+import { createScheduleApi, missedRunsOf, type RunRecord } from "../src/index.ts";
 import { createHarness, MemoryStore, SECOND, type Harness } from "./support/harness.ts";
 
 /** 거부를 기다려 CapabilityError를 돌려준다. 거부하지 않거나 다른 값으로 거부하면 시험이 실패한다 */
@@ -342,5 +342,92 @@ describe("service mode off", () => {
     expect(
       (await on.create({ trigger: { kind: "remote" }, prompt: "a" })).warnings,
     ).toBeUndefined();
+  });
+});
+
+const runOf = (overrides: Partial<RunRecord>): RunRecord => ({
+  runId: "run_x",
+  scheduleId: "sch_1",
+  firedBy: "interval",
+  dueAt: 0,
+  claimedAt: 0,
+  missed: false,
+  status: "finished",
+  threadId: null,
+  startedAt: null,
+  endedAt: null,
+  outcome: null,
+  reason: null,
+  skippedCount: 0,
+  ...overrides,
+});
+
+describe("list: missed runs and watch paths outside the allowed folders", () => {
+  test("missedRunsOf counts a skipped batch by its skippedCount and a caught-up run as one", () => {
+    expect(missedRunsOf([])).toBe(0);
+    expect(
+      missedRunsOf([runOf({}), runOf({ status: "skipped", reason: "overlap", skippedCount: 1 })]),
+    ).toBe(0);
+    expect(
+      missedRunsOf([
+        runOf({ missed: true, status: "skipped", reason: "missed", skippedCount: 35 }),
+        runOf({ missed: true, status: "started", skippedCount: 0 }),
+        runOf({ missed: true, status: "skipped", reason: "too_old", skippedCount: 4 }),
+      ]),
+    ).toBe(40);
+  });
+
+  test("a list item carries the missed-run count of the kept records, 0 without any", async () => {
+    const store = new MemoryStore();
+    const first = createHarness({ store });
+    expect((await first.service.start()).ok).toBe(true);
+    const created = await apiOf(first).create({
+      trigger: { kind: "interval", everySeconds: 300 },
+      prompt: "report",
+    });
+    expect((await apiOf(first).list({})).items[0]?.missedRuns).toBe(0);
+    first.service.stop();
+    // 3시간 꺼져 있었다: 36번의 기한 가운데 하나만 따라잡고 35번은 놓친 채 건너뛴다
+    const second = createHarness({
+      store,
+      clock: { now: first.clock.now + 3 * 3_600_000 + 200 * SECOND },
+    });
+    expect((await second.service.start()).ok).toBe(true);
+    const listed = await apiOf(second).list({});
+    expect(listed.items[0]?.entry.id).toBe(created.entry.id);
+    expect(listed.items[0]?.missedRuns).toBe(36);
+    expect(parse(ScheduleEntries.service.methods.list.output, overTheWire(listed)).ok).toBe(true);
+  });
+
+  test("outsideWatchPaths lists only the watch paths the host says are outside, and only for file watches", async () => {
+    const h = createHarness();
+    const api = createScheduleApi(h.service, {
+      outsideWatchPaths: (paths) => paths.filter((path) => path.startsWith("/outside")),
+    });
+    await api.create({
+      trigger: {
+        kind: "file_watch",
+        paths: ["/inside/a", "/outside/b", "/outside/c"],
+        debounceMs: 1000,
+      },
+      prompt: "w",
+    });
+    await api.create({
+      trigger: { kind: "file_watch", paths: ["/inside/a"], debounceMs: 1000 },
+      prompt: "ok",
+    });
+    await api.create({ trigger: { kind: "interval", everySeconds: 300 }, prompt: "t" });
+    const items = (await api.list({})).items;
+    expect(items.map((item) => item.outsideWatchPaths)).toEqual([
+      ["/outside/b", "/outside/c"],
+      undefined,
+      undefined,
+    ]);
+    // 옵션이 없으면 모든 경로가 허용된 것으로 본다
+    expect((await apiOf(h).list({})).items.map((item) => item.outsideWatchPaths)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ]);
   });
 });

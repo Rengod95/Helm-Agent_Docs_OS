@@ -248,6 +248,17 @@ export type UpdateError =
   | { readonly kind: "limit_reached"; readonly max: number }
   | StoreFailure;
 
+/**
+ * 실행 하나가 끝났다는 알림(`schedule.run_finished`). 성공(`finished`)과 실패(`failed`)에 낸다. 건너뜀은 내지 않는다.
+ * `run.reason`이 실패 이유다. `message`는 시작 실패(`start_failed`)를 낸 실행기의 문장이고, 그 밖에는 null이다(저장하지 않는다).
+ * `title`은 예약의 제목이고 없으면 null이다.
+ */
+export interface RunFinishedEvent {
+  readonly run: RunRecord;
+  readonly title: string | null;
+  readonly message: string | null;
+}
+
 export interface ScheduleService {
   /**
    * 저장소를 읽어 상태를 올린다(한 번만 읽는다). `list`·`runs`는 읽은 뒤의 상태를 낸다.
@@ -276,6 +287,8 @@ export interface ScheduleService {
   /** 켜진 루프 수. `ActivitySnapshot.liveTasks`에 더한다(M3-10) */
   liveSchedulerTasks(): number;
   onChange(listener: () => void): Unsubscribe;
+  /** 실행이 끝날 때마다(성공과 실패, 기록을 저장한 뒤) 부른다. 이 프로세스가 돌린 실행만 알린다 */
+  onRunFinished(listener: (event: RunFinishedEvent) => void): Unsubscribe;
   /** 틱과 감시를 멈추고 진행 중 저장을 기다린다. 진행 중인 실행의 정착은 기다리지 않는다(재시작하면 host_exit로 닫힌다) */
   close(): Promise<void>;
 }

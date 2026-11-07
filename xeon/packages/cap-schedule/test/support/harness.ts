@@ -124,6 +124,8 @@ export function createHarness(
     readonly leader?: ScheduleLeader;
     /** 새 id의 접두. 같은 저장소를 쓰는 두 서비스가 id를 겹치지 않게 한다 */
     readonly idPrefix?: string;
+    /** 엔진이 보고하는 메시지를 받는다 */
+    readonly report?: ScheduleDeps["report"];
   } = {},
 ): Harness {
   const store = options.store ?? new MemoryStore();
@@ -162,6 +164,7 @@ export function createHarness(
     },
     ...(options.leader === undefined ? {} : { leader: options.leader }),
     ...(options.policy === undefined ? {} : { policy: options.policy }),
+    ...(options.report === undefined ? {} : { report: options.report }),
   });
   return { service, store, runner, clock, ticks, watches };
 }

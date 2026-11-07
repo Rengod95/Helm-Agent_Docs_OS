@@ -26,6 +26,8 @@ export interface SchedulePluginOptions {
   readonly settings: ScheduleSettingsSource;
   /** 참이면 서비스 모드가 꺼져 있어 틱이 돌지 않는다. `create` 결과에 `service_mode_off` 경고를 싣는다 */
   readonly serviceModeOff?: () => boolean;
+  /** 파일 감시 경로 중 허용 범위 밖인 것을 고른다. 목록 행의 경고가 쓴다(`ScheduleApiOptions.outsideWatchPaths`) */
+  readonly outsideWatchPaths?: (paths: readonly string[]) => readonly string[];
   readonly loadIndex?: number;
 }
 
@@ -53,6 +55,9 @@ export function schedulePlugin(options: SchedulePluginOptions): ExtensionUnit {
           ...(options.serviceModeOff === undefined
             ? {}
             : { serviceModeOff: options.serviceModeOff }),
+          ...(options.outsideWatchPaths === undefined
+            ? {}
+            : { outsideWatchPaths: options.outsideWatchPaths }),
           ...(approvals === undefined ? {} : { approvals }),
         }),
       );

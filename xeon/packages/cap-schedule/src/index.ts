@@ -1,6 +1,8 @@
 export { upgradeScheduleState } from "./migrate.ts";
 export {
   createScheduleApi,
+  listItemOf,
+  missedRunsOf,
   pageEntries,
   type ScheduleApiOptions,
   type ScheduleApprovals,
@@ -26,6 +28,7 @@ export {
   type CreateInput,
   type FireError,
   type RunFailReason,
+  type RunFinishedEvent,
   type RunOutcome,
   type RunRecord,
   type RunRequest,

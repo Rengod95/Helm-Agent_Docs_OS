@@ -1589,3 +1589,5 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 12. [미결] 기존 대화를 대상으로 하는 예약(§4.4.1). 1차에서 제외를 제안한다.
 13. [미결] 워크트리 연산의 위치(§3.10, §4.3). `L0.os.spec`의 `OsService`에는 워크트리 연산이 없다. L0.os에 `worktree.create/list/remove` 추가를 요청하거나, `fresnel.exec`로 `git worktree` 명령을 실행하는 안 중에서 정한다. `watch`의 `root`가 앱 디렉터리 하위로 제한되는 것(`L0.os.spec` §3.8)도 작업 디렉터리의 파일 감시(`source.type: "file"`)와 맞지 않으므로 함께 요청한다.
 14. [미결] `update`에서 다시 켤 수 없는 항목(지난 `at`, 상한이나 만료에 이른 반복)을 꺼진 항목으로 돌려줄지, 오류 종류로 알릴지 정한다(§4.4.9). 오류 종류를 더하면 `UpdateError`와 와이어 오류 코드가 함께 바뀌므로 F와 함께 정한다.
+
+- 실행 알림 [구현: 2026-11-07, fxSC2]: `ScheduleService.onRunFinished(listener)`는 실행이 성공(`finished`)이나 실패(`failed`)로 기록된 뒤 `RunFinishedEvent { run, title, message }`를 냅니다. `message`는 시작 실패의 실행기 문장이고 저장하지 않습니다. 건너뜀은 내지 않습니다. 목록 항목(`ScheduleListItem`)은 `missedRuns`(보관 기록에서 `missed`인 것의 `max(1, skippedCount)` 합)와 선택 `outsideWatchPaths`(호스트가 준 허용 범위 밖 감시 경로)를 더합니다 [결정: 오케스트레이터 기본값, fxSC2].
