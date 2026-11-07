@@ -32,6 +32,7 @@ function delivered(overrides: Partial<NotifyDeliveredParams> = {}): NotifyDelive
       body: null,
       seq: 7,
       sourceType: "dialog.notified",
+      createdAt: 1_790_000_000_000,
     },
     deliveredAt: "2026-01-05T00:00:00.000Z",
     ...overrides,
@@ -169,6 +170,7 @@ test("a notice with a body puts the body on a second line", () => {
       body: "rm -rf 임시 폴더",
       seq: 8,
       sourceType: "dialog.notified",
+      createdAt: 1_790_000_000_000,
     },
   });
   expect(deliveredText(params, threadId(1))).toBe(
@@ -179,7 +181,16 @@ test("a notice with a body puts the body on a second line", () => {
 test("every notice kind has a Korean label", () => {
   const labels = (["question_waiting", "error", "background_completed"] as const).map((kind) =>
     deliveredText(
-      delivered({ notice: { kind, title: "t", body: null, seq: 1, sourceType: "x" } }),
+      delivered({
+        notice: {
+          kind,
+          title: "t",
+          body: null,
+          seq: 1,
+          sourceType: "x",
+          createdAt: 1_790_000_000_000,
+        },
+      }),
       threadId(1),
     ),
   );
@@ -196,18 +207,39 @@ test("a notice with no thread, or with this thread, shows no suffix", () => {
 test("a notice of another thread ends its first line with (다른 대화)", () => {
   const params = delivered({
     threadId: threadId(2),
-    notice: { kind: "error", title: "턴이 실패했다", body: "timeout", seq: 9, sourceType: "x" },
+    notice: {
+      kind: "error",
+      title: "턴이 실패했다",
+      body: "timeout",
+      seq: 9,
+      sourceType: "x",
+      createdAt: 1_790_000_000_000,
+    },
   });
   expect(deliveredText(params, threadId(1))).toBe("[오류] 턴이 실패했다 (다른 대화)\ntimeout");
 });
 
 test("control characters in the title and body are replaced, and an empty body adds no line", () => {
   const params = delivered({
-    notice: { kind: "completed", title: "a\n b", body: "x\u0007y\r\nz", seq: 1, sourceType: "x" },
+    notice: {
+      kind: "completed",
+      title: "a\n b",
+      body: "x\u0007y\r\nz",
+      seq: 1,
+      sourceType: "x",
+      createdAt: 1_790_000_000_000,
+    },
   });
   expect(deliveredText(params, threadId(1))).toBe("[완료] a b\nx y\nz");
   const empty = delivered({
-    notice: { kind: "completed", title: "t", body: "", seq: 1, sourceType: "x" },
+    notice: {
+      kind: "completed",
+      title: "t",
+      body: "",
+      seq: 1,
+      sourceType: "x",
+      createdAt: 1_790_000_000_000,
+    },
   });
   expect(deliveredText(empty, threadId(1))).toBe("[완료] t");
 });

@@ -76,7 +76,14 @@ test("the trust card is written in English and numbers its options", () => {
 test("a notice of another thread is in English with a bracketed kind", () => {
   const params: NotifyDeliveredParams = {
     threadId: threadId(2),
-    notice: { kind: "completed", title: "Done", body: "x", seq: 7, sourceType: "dialog.notified" },
+    notice: {
+      kind: "completed",
+      title: "Done",
+      body: "x",
+      seq: 7,
+      sourceType: "dialog.notified",
+      createdAt: 1_790_000_000_000,
+    },
     deliveredAt: "2026-01-05T00:00:00.000Z",
   };
   expect(deliveredText(params, threadId(1))).toBe("[done] Done (other conversation)\nx");

@@ -109,6 +109,7 @@ function noticeScenario(options: Omit<HarnessOptions, "server"> = {}): Harness {
             body: null,
             seq: 1,
             sourceType: "dialog.notified",
+            createdAt: 1_790_000_000_000,
           },
           deliveredAt: DELIVERED_AT,
         });
@@ -120,6 +121,7 @@ function noticeScenario(options: Omit<HarnessOptions, "server"> = {}): Harness {
             body: "timeout",
             seq: 2,
             sourceType: "dialog.notified",
+            createdAt: 1_790_000_000_000,
           },
           deliveredAt: DELIVERED_AT,
         });

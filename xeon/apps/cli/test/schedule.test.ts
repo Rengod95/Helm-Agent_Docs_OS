@@ -254,6 +254,7 @@ test("list shows the enabled entries by default, one line each, and --all asks f
       stoppedReason: null,
     },
     lastRun: null,
+    missedRuns: 0,
   };
   const off = {
     entry: {
@@ -285,6 +286,7 @@ test("list shows the enabled entries by default, one line each, and --all asks f
       reason: null,
       skippedCount: 0,
     },
+    missedRuns: 0,
   };
   const handlers: FakeHandlers = {
     "schedule.list": (params) => ({
@@ -328,6 +330,7 @@ test("list --json prints the items array as pretty JSON", async () => {
       stoppedReason: null,
     },
     lastRun: null,
+    missedRuns: 0,
   };
   const h = harness({ "schedule.list": () => ({ ok: true, items: [item] }) });
   expect(await h.run(["schedule", "list", "--json"])).toBe(EXIT.ok);
