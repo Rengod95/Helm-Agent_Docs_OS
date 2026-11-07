@@ -1,4 +1,4 @@
-import { t } from "@fresnel/client/i18n";
+import { activeLocale, t } from "@fresnel/client/i18n";
 import { WIRE_LIMITS, type WireParams } from "@fresnel/contracts/wire";
 import type { AttachmentParts, CommandError } from "./commands.ts";
 
@@ -39,19 +39,21 @@ export function failureOf(error: CommandError, knownLimit: number | null): Attac
   return { kind: "other", error };
 }
 
-/** 사람이 읽는 크기. 1024 단위 */
+/** 사람이 읽는 크기. 1024 단위이고 숫자와 단위 이름은 현재 로케일의 `Intl`이 적는다 */
 export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ["KB", "MB", "GB"];
-  let value = bytes / 1024;
+  const units = ["byte", "kilobyte", "megabyte", "gigabyte"] as const;
+  let value = bytes;
   let unit = 0;
   while (value >= 1024 && unit < units.length - 1) {
     value /= 1024;
     unit += 1;
   }
-  const text =
-    value >= 10 || Number.isInteger(value) ? String(Math.round(value)) : value.toFixed(1);
-  return `${text} ${units[unit]}`;
+  return new Intl.NumberFormat(activeLocale(), {
+    style: "unit",
+    unit: units[unit],
+    unitDisplay: "short",
+    maximumFractionDigits: unit === 0 || value >= 10 ? 0 : 1,
+  }).format(value);
 }
 
 /** 칩에 한 줄로 보이는 실패 이유 */

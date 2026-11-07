@@ -6,7 +6,7 @@ import type {
   WidgetVM,
   WritableScope,
 } from "@fresnel/client/settings";
-import { tKey } from "@fresnel/client/i18n";
+import { createTranslator, isLocale, tKey, UI_LOCALE_KEY } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { SettingEditor, SettingKey, SettingsTab } from "@fresnel/contracts/settings";
 
@@ -373,6 +373,10 @@ function camel(word: string): string {
  */
 export function optionLabelOf(key: SettingKey, option: string | number): string {
   const text = optionTextOf(option);
+  // 표시 언어 선택지는 각 언어가 자기 이름으로 쓴다(`한국어`, `English`). 잘못 바뀐 사람도 자기 언어를 찾는다
+  if (key === UI_LOCALE_KEY && isLocale(text)) {
+    return createTranslator(text).tKey(`settings.l4.ui.locale.option.${text}`, text);
+  }
   // 확장마다 있는 격리 설정(`ext.<이름>.isolation`)은 선택지 문구를 한 벌로 둔다(rtE R-6c)
   const base = /^ext\.[^.]+\.isolation$/.test(key)
     ? "settings.ext.isolation"
