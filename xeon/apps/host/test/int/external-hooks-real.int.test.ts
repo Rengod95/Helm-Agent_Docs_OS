@@ -292,7 +292,10 @@ writeFileSync(process.argv[2] ?? "", JSON.stringify({ child: process.pid, grandc
 await new Promise(() => {});`,
   );
   const r = await rig({
-    defs: [{ id: "slow-one", point: "tool.call.before", command: [...argv, pids], timeoutMs: 300 }],
+    // 부하에서 bun 시작만 300ms를 넘어 pid 파일을 쓰기 전에 끊기므로, 시작할 시간을 주고 그 뒤 기한으로 끊기는지 본다
+    defs: [
+      { id: "slow-one", point: "tool.call.before", command: [...argv, pids], timeoutMs: 3000 },
+    ],
   });
   const outcome = await callTool(r, "k");
   expect(outcome).toMatchObject({ decision: { block: true, terminate: false } });
