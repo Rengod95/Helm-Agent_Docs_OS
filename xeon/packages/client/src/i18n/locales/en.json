@@ -1425,7 +1425,7 @@
   "desktop.firstRun.key.retry": "Try again",
   "desktop.firstRun.key.help": "Open help",
   "desktop.firstRun.key.details": "Details",
-  "desktop.firstRun.key.helpBody": "In Keychain Access, check that the login keychain is unlocked, and allow access if a prompt appears. The app does not switch to keeping the key in a disk file by itself.",
+  "desktop.firstRun.key.helpBody": "In Keychain Access, check that the login keychain is not locked, and allow access if a prompt asks for it. The first key you create is kept in a key file (permissions 0600) in the app data folder. Programs running with the same user permissions can read that file.",
   "desktop.firstRun.key.unavailable": "This connection cannot take a key.",
   "desktop.firstRun.model.placeholder": "Choose a model",
   "desktop.firstRun.model.empty": "No model is available to choose. Check that the key is connected to the provider.",
