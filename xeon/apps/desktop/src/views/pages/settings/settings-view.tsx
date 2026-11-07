@@ -96,7 +96,7 @@ export interface SettingsPageProps {
   readonly editors: DedicatedEditors;
   /** 도구와 웹 탭의 패널(P-12). 탭이 `tools`일 때 항목 위에 보인다 */
   readonly toolsPanel: ReactNode;
-  /** 데이터 복원 구역(고급 탭). 고급 탭을 고르고 찾기가 비었을 때 항목 위에 보인다 */
+  /** 데이터 구역(고급 탭): 백업 만들기, 데이터 복원, 저장 공간을 이 순서로 담는다. 고급 탭을 고르고 찾기가 비었을 때 항목 위에 보인다 */
   readonly restorePanel: ReactNode;
   /** 계정 회전 행(P-11). 탭이 `providers`일 때 게이지 아래, 항목 위에 보인다. 값이 없으면 `null`이다 */
   readonly rotationPanel: ReactNode;

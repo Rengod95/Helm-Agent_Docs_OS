@@ -4,6 +4,7 @@ import { assertNever } from "@fresnel/contracts";
 import type { ReactNode } from "react";
 import type { RestoreReport } from "../../../transport/ipc.ts";
 import { InfoTip } from "./settings-field.tsx";
+import { BACKUP_NOTE_IDS } from "./settings-backup-model.ts";
 import { restoreBlockOf, type RestorePhase, type RestoreState } from "./settings-restore-model.ts";
 
 // 데이터 복원 구역(P-09 고급 탭)의 그림. 상태와 명령은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
@@ -50,7 +51,11 @@ export function RestoreView(props: RestoreViewProps): ReactNode {
         </span>
         <InfoTip
           label={t("desktop.settings.restore.title")}
-          lines={[t("desktop.settings.restore.intro"), t("desktop.settings.restore.path.hint")]}
+          lines={[
+            t("desktop.settings.restore.intro"),
+            t("desktop.settings.restore.path.hint"),
+            ...BACKUP_NOTE_IDS.map((id) => t(id)),
+          ]}
         />
       </div>
       <div className="flex items-center gap-2">
