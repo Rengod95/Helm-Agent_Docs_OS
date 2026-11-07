@@ -8,7 +8,7 @@ import type { CommandError } from "../views/commands.ts";
 // 엔진 대상 바꾸기(W-08) 동안의 쓰기 보류. 대상을 바꾸면 셸이 살아 있는 엔진을 정상 종료 순서로 끝내고(`shutdownGraceMs`까지)
 // 새 대상으로 다시 띄운다. 그 사이 옛 엔진은 쓰기를 아직 받을 수 있어서, 받은 쓰기가 옛 엔진에만 남고 새 엔진에는 없는 일이 생길 수 있다.
 // 그래서 바꾸는 동안 쓰기 명령(`held()`)은 `switching`으로 거절한다. 읽기는 막지 않는다.
-// 보류가 풀리는 때: 엔진 상태가 running을 벗어났다가 다시 running이 될 때, 호출이 실패했을 때, 안전 한도(grace + 연결 여유)가 지났을 때.
+// 보류가 풀리는 때: 엔진 상태가 running을 벗어났다가 다시 running이 되거나 failed가 될 때, 호출이 실패했을 때, 안전 한도(grace + 연결 여유)가 지났을 때.
 
 /** 새 엔진이 뜨고 붙는 데 주는 여유(ms). 한도까지 running이 돌아오지 않아도 보류가 영영 남지 않게 한다 */
 const CONNECT_MARGIN_MS = 15_000;
@@ -78,7 +78,9 @@ export function createEngineSwitch(deps: EngineSwitchDeps): EngineSwitch {
         (mirror) => mirror.engine?.kind ?? null,
         (kind) => {
           if (kind === null) return;
-          if (kind !== "running") state.sawDown = true;
+          // 새 엔진이 시작에 실패해 멈췄으면 보류할 이유가 없다. 풀지 않으면 다른 대상으로 바로 다시 바꿀 수 없다
+          if (kind === "failed") release();
+          else if (kind !== "running") state.sawDown = true;
           else if (state.sawDown) release();
         },
         deps.report,

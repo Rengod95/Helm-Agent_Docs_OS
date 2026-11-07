@@ -72,6 +72,25 @@ describe("engine retarget holds writes", () => {
     await app.stop();
   });
 
+  test("a new engine that fails to start releases the hold so another target can be chosen at once", async () => {
+    const { fake, app } = await ready();
+    await app.commands.retargetEngine({ kind: "remote", address: "10.0.0.2:7000" }, 7000);
+    expect(app.ui.read.getState().engineSwitching).toBe(true);
+    fake.emitState(STOPPING);
+    await until(() => app.engine.read.getState().engine?.kind === "stopping", "stopping");
+    fake.emitState({
+      kind: "failed",
+      attempts: 1,
+      lastExit: { code: 3, signal: null, at: "2026-11-07T00:00:00.000Z", detail: "refused" },
+    });
+    await until(() => !app.ui.read.getState().engineSwitching, "hold released");
+    expect(await app.commands.retargetEngine({ kind: "local" }, 7000)).toEqual({
+      ok: true,
+      value: null,
+    });
+    await app.stop();
+  });
+
   test("a failed retarget releases the hold", async () => {
     const fake = fakeIpc();
     const failing = {
