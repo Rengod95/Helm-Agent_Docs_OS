@@ -28,7 +28,7 @@ export function HostNoticesProvider(props: { readonly children: ReactNode }): Re
       );
     };
     read();
-    const stop = commands.setup.onInvalidated(read);
+    const stop = commands.setup.onAnyInvalidated(read);
     return () => {
       current = false;
       stop();

@@ -65,6 +65,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       loadSearch: () => Promise.resolve(err({ kind: "unsupported" })),
       dismissSearchHint: () => Promise.resolve(ok(null)),
       onInvalidated: () => () => {},
+      onAnyInvalidated: () => () => {},
     },
     tests: {
       list: () => Promise.resolve(ok([])),

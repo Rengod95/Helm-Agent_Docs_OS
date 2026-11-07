@@ -450,6 +450,8 @@ export interface SetupCommands {
   dismissSearchHint(): Promise<Result<null, CommandError>>;
   /** `settings.invalidated`를 받으면 부른다. 반환값은 구독 해제 */
   onInvalidated(listener: () => void): () => void;
+  /** 키와 상관없이 `settings.invalidated`를 받으면 부른다(설정 파일 문제 띠가 파일이 고쳐진 것을 따라간다). 반환값은 구독 해제 */
+  onAnyInvalidated(listener: () => void): () => void;
 }
 
 /**

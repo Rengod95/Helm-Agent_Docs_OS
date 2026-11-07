@@ -98,6 +98,7 @@ export function hostNoticesOf(status: WireResult<"host.status">): HostNoticesSna
 export function createSetupCommands(
   run: Run,
   onInvalidated: (listener: () => void) => () => void,
+  onAnyInvalidated: (listener: () => void) => () => void,
   ipc: Pick<DesktopIpc, "registerSecret">,
   local: Pick<LocalSettings, "load" | "get" | "set">,
   logger: Pick<Logger, "warn">,
@@ -231,5 +232,6 @@ export function createSetupCommands(
       return written.ok ? ok(null) : err({ kind: "failed" });
     },
     onInvalidated,
+    onAnyInvalidated,
   };
 }
