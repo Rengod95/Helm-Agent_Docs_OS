@@ -11,7 +11,7 @@ afterEach(() => {
 });
 
 const WARNING =
-  "경고: 서비스 모드가 꺼져 있어 이 예약은 실행되지 않는다. fresnel service start로 서비스를 띄운 뒤에 실행된다\n";
+  "서비스 모드가 꺼져 있어 이 예약은 앱이나 서비스가 떠 있을 때만 실행된다.\n  해결: 앱을 끈 뒤에도 돌리려면 `fresnel service start`로 서비스를 띄운다.\n";
 
 function start(): RealCli {
   const cli = createRealCli({

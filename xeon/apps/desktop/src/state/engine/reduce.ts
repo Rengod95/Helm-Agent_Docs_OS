@@ -9,7 +9,7 @@ import {
   type ThreadId,
   type TurnId,
 } from "@fresnel/contracts/conversation";
-import type { ThreadSummary } from "@fresnel/contracts/wire";
+import type { ThreadOrigin, ThreadSummary } from "@fresnel/contracts/wire";
 import type { Reduced as SharedReduced } from "../shared/pipeline.ts";
 import type { DurableFact, MirrorInput, VolatileFact } from "./input.ts";
 import { unknownFailureText } from "./failure-text.ts";
@@ -170,7 +170,10 @@ export function reduceMirror(state: EngineMirror, input: MirrorInput): Reduced<E
       const latestTurnId: Record<string, TurnId> = { ...state.latestTurnId };
       const recentTurnIds: Record<string, readonly TurnId[]> = { ...state.recentTurnIds };
       for (const t of input.threads) {
-        byId[t.threadId] = t;
+        // 목록이 출처를 주지 않으면 거울이 `input.queued`로 정한 예약 출처를 지킨다. 목록이 준 출처는 그대로 쓴다
+        const local = state.threads.byId[t.threadId]?.origin;
+        byId[t.threadId] =
+          t.origin === undefined && local !== undefined ? { ...t, origin: local } : t;
         if (t.lastTurnId !== undefined && latestTurnId[t.threadId] === undefined) {
           latestTurnId[t.threadId] = t.lastTurnId;
         }
@@ -689,7 +692,7 @@ function applyFact(state: EngineMirror, fact: DurableFact): EngineMirror {
     case "plan.event":
       return recordPlan(state, fact);
     case "input.queued":
-      return recordQueued(state, fact);
+      return withScheduleOrigin(recordQueued(state, fact), fact);
     case "input.placed":
     case "input.withdrawn":
       return dropQueued(state, fact.inputId);
@@ -797,6 +800,30 @@ function recordQueued(
   return {
     ...state,
     queuedInputs: capQueued([...state.queuedInputs, record], fact.threadId),
+  };
+}
+
+/**
+ * 예약이 넣은 입력이면 그 thread의 출처를 예약으로 정한다. 살아 있는 연결에서 시작한 예약 대화는 `thread.started`에 출처가 없고
+ * `thread.list`가 나중에 줄 때까지 출처가 비어 있어서, 이 사실로 먼저 채운다. 이미 출처가 있으면 그대로 두고, 거울에 thread가 없으면 아무것도 하지 않는다.
+ * 백필(재생)도 같은 `applyFact`를 거치므로 같은 규칙을 따른다.
+ */
+function withScheduleOrigin(
+  state: EngineMirror,
+  fact: Extract<DurableFact, { readonly type: "input.queued" }>,
+): EngineMirror {
+  const scheduleId = fact.input.scheduleId;
+  const current = state.threads.byId[fact.threadId];
+  if (scheduleId === undefined || current === undefined || current.origin !== undefined) {
+    return state;
+  }
+  const origin: ThreadOrigin = { kind: "schedule", scheduleId };
+  return {
+    ...state,
+    threads: {
+      ...state.threads,
+      byId: { ...state.threads.byId, [fact.threadId]: { ...current, origin } },
+    },
   };
 }
 

@@ -1,12 +1,29 @@
 import { describe, expect, test } from "bun:test";
+import type { Notice } from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   arrangeInboxApprovals,
+  arrangeInboxNotices,
+  inboxAllThreadIdsOf,
   inboxRowsOf,
   inboxThreadIdsOf,
   inboxThreadOf,
   type InboxRow,
 } from "../../src/views/inbox-model.ts";
+import type { NoticeEntry } from "../../src/views/notices-model.ts";
 import { evt, thr } from "../state/helpers.ts";
+
+/** 알림 한 건과 그 대화. 종류와 문장은 거르기와 정렬에 쓰이지 않는다 */
+const entryOf = (seq: number, threadId: ThreadId | null): NoticeEntry => {
+  const notice: Notice = {
+    kind: "completed",
+    title: `n${seq}`,
+    body: null,
+    seq,
+    sourceType: "turn.completed",
+  };
+  return { notice, threadId };
+};
 
 // 받은 요청의 대화 셀렉트와 정렬 셀렉트가 승인 목록을 거르고 고르는 순서. 대기열 순서는 승인 id 1, 2, 3이다.
 const ONE = thr(1);
@@ -72,12 +89,9 @@ describe("arrangeInboxApprovals", () => {
     expect(arrangeInboxApprovals(rows, { thread: TWO, sort: "oldest" })).toEqual([evt(2)]);
   });
 
-  test("a chosen thread with no waiting approvals shows every approval", () => {
-    expect(arrangeInboxApprovals(rows, { thread: thr(9), sort: "oldest" })).toEqual([
-      evt(2),
-      evt(3),
-      evt(1),
-    ]);
+  test("a chosen thread with no waiting approvals shows none (the screen maps it to all first)", () => {
+    expect(arrangeInboxApprovals(rows, { thread: thr(9), sort: "oldest" })).toEqual([]);
+    expect(inboxThreadOf(thr(9), inboxThreadIdsOf(rows))).toBe("all");
   });
 
   test("approvals with the same request time keep their queue order in both directions", () => {
@@ -93,5 +107,48 @@ describe("arrangeInboxApprovals", () => {
       evt(1),
       evt(2),
     ]);
+  });
+});
+
+describe("thread choices of the inbox", () => {
+  test("approval threads come first in queue order, then threads that only have notices", () => {
+    const entries = [entryOf(9, thr(3)), entryOf(8, null), entryOf(7, TWO), entryOf(6, thr(4))];
+    expect(inboxAllThreadIdsOf(rows, entries)).toEqual([ONE, TWO, thr(3), thr(4)]);
+  });
+
+  test("with no notices the choices are the approval threads alone", () => {
+    expect(inboxAllThreadIdsOf(rows, [])).toEqual([ONE, TWO]);
+  });
+});
+
+/** 알림 목록의 seq만 뽑는다(순서 시험용) */
+const seqsOf = (list: readonly NoticeEntry[]): readonly number[] =>
+  list.map((entry) => entry.notice.seq);
+
+describe("arrangeInboxNotices", () => {
+  // 알림 seq 1..4: 1과 4는 ONE, 2는 대화를 모름, 3은 TWO
+  const entries = [entryOf(1, ONE), entryOf(2, null), entryOf(3, TWO), entryOf(4, ONE)];
+
+  test("the default order is oldest seq first, and newest reverses it", () => {
+    expect(seqsOf(arrangeInboxNotices(entries, { thread: "all", sort: "oldest" }))).toEqual([
+      1, 2, 3, 4,
+    ]);
+    expect(seqsOf(arrangeInboxNotices(entries, { thread: "all", sort: "newest" }))).toEqual([
+      4, 3, 2, 1,
+    ]);
+  });
+
+  test("all shows the notices without a known thread too", () => {
+    expect(arrangeInboxNotices(entries, { thread: "all", sort: "oldest" })).toHaveLength(4);
+  });
+
+  test("a chosen thread keeps only its notices, and a notice with no known thread is left out", () => {
+    expect(seqsOf(arrangeInboxNotices(entries, { thread: ONE, sort: "oldest" }))).toEqual([1, 4]);
+    expect(seqsOf(arrangeInboxNotices(entries, { thread: ONE, sort: "newest" }))).toEqual([4, 1]);
+    expect(seqsOf(arrangeInboxNotices(entries, { thread: TWO, sort: "oldest" }))).toEqual([3]);
+  });
+
+  test("a chosen thread with no notices shows none", () => {
+    expect(arrangeInboxNotices(entries, { thread: thr(9), sort: "oldest" })).toEqual([]);
   });
 });

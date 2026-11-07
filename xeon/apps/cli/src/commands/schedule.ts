@@ -1,10 +1,11 @@
 import { resolve } from "node:path";
 import { t } from "@fresnel/client/i18n";
 import { assertNever, type Clock } from "@fresnel/contracts";
-import type {
-  ScheduleError,
-  ScheduleListItem,
-  ScheduleTrigger,
+import {
+  WATCH_PATH_OUTSIDE_ROOTS_REASON,
+  type ScheduleError,
+  type ScheduleListItem,
+  type ScheduleTrigger,
 } from "@fresnel/contracts/capabilities";
 import type { ScheduleCommand, ScheduleTriggerArg } from "../cli/command.ts";
 import type { EngineHandle } from "../engine.ts";
@@ -25,9 +26,12 @@ function unsupportedFailure(): Failure {
   };
 }
 
-/** 서비스 모드가 꺼져 있으면 host는 저장만 하고 틱을 돌리지 않는다(apps/host handlers/schedule.ts) */
+/**
+ * 서비스 모드가 꺼져 있으면 host는 저장만 하고 틱을 돌리지 않는다(apps/host handlers/schedule.ts).
+ * 문장과 해결을 실패 문구와 같은 줄 모양으로 낸다. 앱이나 서비스가 떠 있는 동안에는 돈다는 것을 먼저 말한다.
+ */
 function serviceModeOffWarning(): string {
-  return t("cli.schedule.serviceModeOff");
+  return `${t("cli.schedule.serviceModeOff.message")}\n  ${t("cli.errors.fixLabel")} ${t("cli.schedule.serviceModeOff.fix")}\n`;
 }
 
 const LIST_NAME_MAX = 40;
@@ -134,6 +138,14 @@ function failureOf(error: ScheduleError): Failure {
         code: EXIT.error,
       };
     case "invalid_trigger":
+      // 감시 경로가 허용 루트 밖이면 host가 이 사유를 준다. 경로 칸에 맞는 문구를 쓴다
+      if (error.reason === WATCH_PATH_OUTSIDE_ROOTS_REASON) {
+        return {
+          message: t("cli.errors.schedule.watchPathOutside.message"),
+          fix: t("cli.errors.schedule.watchPathOutside.fix"),
+          code: EXIT.error,
+        };
+      }
       return {
         message: t("cli.errors.schedule.invalidTrigger.message", { reason: error.reason }),
         fix: t("cli.errors.schedule.invalidTrigger.fix"),

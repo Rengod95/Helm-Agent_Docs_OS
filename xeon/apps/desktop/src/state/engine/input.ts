@@ -72,6 +72,11 @@ export type QueuedInputFact = {
   readonly requestId: string;
   readonly sourceType: InputQueuedPayload["source"]["type"];
   readonly preview: QueuedPreview;
+  /**
+   * 예약이 넣은 입력의 예약 id(`source.timerId`). 예약 출처가 아니면 없다.
+   * 살아 있는 연결에서 시작한 예약 대화의 출처를 거울에서 정하는 데 쓴다(`thread.started`에는 출처가 없다).
+   */
+  readonly scheduleId?: string;
 };
 
 /** 경계에서 payload를 검증한 내구 이벤트. 거울이 쓰지 않는 kind는 other로 위치만 넘긴다 */

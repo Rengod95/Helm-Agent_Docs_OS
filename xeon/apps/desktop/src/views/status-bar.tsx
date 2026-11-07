@@ -316,7 +316,7 @@ function liveKindOf(thread: ThreadSummary): LiveKind {
 /**
  * 진행 중 목록의 행. 실행 중인 대화와, 예약에서 시작했고 마지막 turn이 실패로 끝난 대화를 모은다.
  * 실패는 거울의 턴 실패 기록(`failures`, 대화 id → 문장)과 대화의 origin(schedule)으로 정한다. 실패 행이 앞에 오고, 나머지는 거울의 목록 순서를 따른다.
- * origin은 목록 읽기(`thread.list`)에서만 오므로 이 연결에서 새로 시작한 예약 대화에는 origin이 없어 실패 행도 생기지 않는다.
+ * origin은 목록 읽기(`thread.list`)에서 오고, 이 연결에서 새로 시작한 예약 대화는 예약 입력 사실(`input.queued`)로 거울이 채운다.
  */
 export function liveRowsOf(
   threads: readonly ThreadSummary[],

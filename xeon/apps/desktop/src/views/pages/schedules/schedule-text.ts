@@ -227,3 +227,38 @@ export const RUN_OUTCOME_VIEW: Readonly<
   failed: { label: message("desktop.schedules.status.failed"), tone: "danger" },
   skipped: { label: message("desktop.schedules.status.skipped"), tone: "neutral" },
 };
+
+/** 실행 기록의 사유 코드. 호스트는 건너뜀·실패 사유(`reason`)를 주고, 끝난 실행이 중단되었으면 `aborted`를 준다 */
+type RunReasonCode = NonNullable<RunView["reason"]> | "aborted";
+
+/** 사유 코드 → 키. 타입이 모든 코드를 갖게 해서 새 코드를 넣으면 빠진 키가 타입 검사에서 드러난다 */
+const RUN_REASON_ID: Readonly<Record<RunReasonCode, MessageId>> = {
+  missed: "desktop.schedules.runs.reason.missed",
+  too_old: "desktop.schedules.runs.reason.tooOld",
+  min_interval: "desktop.schedules.runs.reason.minInterval",
+  overlap: "desktop.schedules.runs.reason.overlap",
+  rate_limited: "desktop.schedules.runs.reason.rateLimited",
+  host_exit: "desktop.schedules.runs.reason.hostExit",
+  start_failed: "desktop.schedules.runs.reason.startFailed",
+  run_failed: "desktop.schedules.runs.reason.runFailed",
+  aborted: "desktop.schedules.runs.reason.aborted",
+};
+
+function isRunReasonCode(value: string): value is RunReasonCode {
+  return Object.hasOwn(RUN_REASON_ID, value);
+}
+
+/** 놓친 실행인가: 앱이 꺼진 동안 밀린 기한이다(`missed`, 너무 오래되어 건너뛴 `too_old`) */
+export function isMissedReason(reason: string): boolean {
+  return reason === "missed" || reason === "too_old";
+}
+
+/**
+ * 실행 기록의 사유 코드를 문장으로. 알 수 없는 코드는 코드를 붙인 문장이고, 사유가 없으면 "이유를 알 수 없어요."다.
+ * 호스트가 준 글을 그대로 보이지 않는다(코드 이름은 사용자에게 뜻이 없다).
+ */
+export function runReasonTextOf(reason: string | null): MessageRef {
+  if (reason === null) return message("desktop.schedules.runs.reason.none");
+  if (isRunReasonCode(reason)) return message(RUN_REASON_ID[reason]);
+  return message("desktop.schedules.runs.reason.unknown", { code: reason });
+}

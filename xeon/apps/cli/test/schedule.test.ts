@@ -173,7 +173,7 @@ test("a host outside service mode saves the entry and the warning goes to stderr
   expect(await h.run(["schedule", "add", "--every", "300", "요약"])).toBe(EXIT.ok);
   expect(h.stdoutText()).toBe("예약했다: sch_1  간격 300초  다음 실행 2026-01-05T00:05:00.000Z\n");
   expect(h.stderrText()).toBe(
-    "경고: 서비스 모드가 꺼져 있어 이 예약은 실행되지 않는다. fresnel service start로 서비스를 띄운 뒤에 실행된다\n",
+    "서비스 모드가 꺼져 있어 이 예약은 앱이나 서비스가 떠 있을 때만 실행된다.\n  해결: 앱을 끈 뒤에도 돌리려면 `fresnel service start`로 서비스를 띄운다.\n",
   );
 });
 
@@ -200,6 +200,13 @@ const CREATE_ERRORS: readonly {
     error: { kind: "invalid_trigger", reason: "watch paths" },
     stderr:
       "fresnel: 트리거 값이 엔진 규칙에 맞지 않다 (watch paths)\n  해결: fresnel help schedule로 트리거 규칙을 확인한다\n",
+    code: EXIT.error,
+  },
+  {
+    kind: "invalid_trigger (watch path outside the app folders)",
+    error: { kind: "invalid_trigger", reason: "watch_path_outside_roots" },
+    stderr:
+      "fresnel: 감시 경로가 앱이 허용한 폴더(설정·데이터·상태 폴더) 밖에 있다\n  해결: --watch에는 설정·데이터·상태 폴더 안의 경로만 쓴다\n",
     code: EXIT.error,
   },
   {

@@ -48,6 +48,15 @@ function isInside(root: string, candidate: string): boolean {
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 }
 
+/**
+ * 감시 경로가 허용 루트 가운데 하나 안에 있는가. 감시 시작(`watch`)과 예약 저장 검사가 이 함수 하나를 같이 쓴다.
+ * 상대 경로는 이 프로세스의 작업 디렉터리 기준으로 풀어 본다(감시가 그렇게 연다).
+ */
+export function isWatchPathAllowed(allowedRoots: readonly string[], path: string): boolean {
+  const target = resolve(path);
+  return allowedRoots.some((root) => isInside(resolve(root), target));
+}
+
 /** glob 하나를 정규식으로 옮긴다. `**`는 경로 구분자를 넘고 `*`와 `?`는 넘지 않는다 */
 function globToRegExp(glob: string): RegExp {
   let source = "";
@@ -92,15 +101,14 @@ function mergeChange(before: FileChange | undefined, next: FileChange): FileChan
 }
 
 export function createFileWatcher(deps: FileWatcherDeps): FileWatcher {
-  const allowed = deps.allowedRoots.map((r) => resolve(r));
   const open = new Set<WatchHandle>();
 
   return {
     async watch(root, opts, onBatch) {
-      const target = resolve(root);
-      if (!allowed.some((a) => isInside(a, target))) {
+      if (!isWatchPathAllowed(deps.allowedRoots, root)) {
         return err({ kind: "outside_app_dirs", path: root });
       }
+      const target = resolve(root);
       const debounceMs = Math.min(
         MAX_WATCH_DEBOUNCE_MS,
         Math.max(0, opts.debounceMs ?? DEFAULT_WATCH_DEBOUNCE_MS),

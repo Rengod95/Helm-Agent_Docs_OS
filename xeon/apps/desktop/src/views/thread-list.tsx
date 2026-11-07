@@ -1,5 +1,5 @@
 import { t } from "@fresnel/client/i18n";
-import { detach, rethrow } from "@fresnel/contracts";
+import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
 import {
@@ -29,9 +29,8 @@ import { useCommands } from "./commands.ts";
 import { pickWorkspaceFolder, type FolderPickInvoke } from "./folder-pick.ts";
 import { useStartNewThread } from "./new-thread-flow.ts";
 import { recentWorkspacesOf, type RecentWorkspace } from "./new-thread-model.ts";
-import { rowResumable } from "./resume-band-model.ts";
 import { folderLabel, sidebarGroupsOf } from "./thread-groups.ts";
-import { rowOpensChat } from "./thread-nav-model.ts";
+import { rowBadgeOf, rowOpensChat } from "./thread-nav-model.ts";
 import { ThreadRowMenu } from "./thread-row-menu.tsx";
 import { checkWorkspaceInput, createFailureText, workspaceHint } from "./workspace-model.ts";
 
@@ -51,24 +50,33 @@ const UNTITLED_LABEL =
 const LIST_COLUMN =
   "grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1 [&_ul]:grid-cols-[minmax(0,1fr)] [&_[data-slot=list-navigation-item]]:min-w-0 [&_[data-slot=list-navigation-item]]:grid-cols-[minmax(0,1fr)]";
 
-/** 행 오른쪽 짧은 글자. 이어서 실행, 닫힘, 승인 수 중 하나(시안: 행 meta는 짧게) */
+/** 행 오른쪽 짧은 글자. 종류는 `rowBadgeOf`가 정한다(시안: 행 meta는 짧게) */
 function metaOf(thread: ThreadSummary, approvals: number, child: boolean): ReactNode {
-  // 이어서 실행은 아이콘과 글(시안 threadMeta의 RotateCcw + 이어서 실행)
-  if (rowResumable(thread, approvals)) {
-    return (
-      <span className="inline-flex items-center gap-1">
-        <RotateCcw aria-hidden className="size-icon-xs" />
-        {t("desktop.threads.resumableBadge")}
-      </span>
-    );
+  const badge = rowBadgeOf(thread, approvals, child);
+  switch (badge) {
+    // 이어서 실행은 아이콘과 글(시안 threadMeta의 RotateCcw + 이어서 실행)
+    case "resumable":
+      return (
+        <span className="inline-flex items-center gap-1">
+          <RotateCcw aria-hidden className="size-icon-xs" />
+          {t("desktop.threads.resumableBadge")}
+        </span>
+      );
+    case "approvals":
+      return t("desktop.threads.approvalsBadge", { count: approvals });
+    case "schedule":
+      return t("desktop.threads.scheduleBadge");
+    case "closed":
+      return t("desktop.threads.closedBadge");
+    case "sub":
+      return t("desktop.threads.subBadge");
+    case "forked":
+      return t("desktop.threads.forkedBadge");
+    case null:
+      return undefined;
+    default:
+      return assertNever(badge, "rowBadgeOf");
   }
-  if (thread.status === "closed") return t("desktop.threads.closedBadge");
-  if (approvals > 0) {
-    return t("desktop.threads.approvalsBadge", { count: approvals });
-  }
-  if (child) return t("desktop.threads.subBadge");
-  // 분기한 대화는 원본과 제목이 같아 구분이 안 된다. 다른 표식이 없을 때 "분기" 표식을 보인다
-  return thread.forkedFrom === null ? undefined : t("desktop.threads.forkedBadge");
 }
 
 const ThreadRow = memo(function ThreadRow(props: {

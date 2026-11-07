@@ -7,13 +7,14 @@ import {
   useApprovalMirror,
   useOpenThreadId,
 } from "../state/engine/index.ts";
-import { InboxNotices } from "./notices.tsx";
+import { InboxNotices, type NoticeFeed } from "./notices.tsx";
+import type { NoticeEntry } from "./notices-model.ts";
 import { ApprovalCardList } from "./approval-card/approval-card.tsx";
 import { InboxProposalsRow } from "./inbox-proposals-row.tsx";
 import {
   arrangeInboxApprovals,
+  inboxAllThreadIdsOf,
   inboxRowsOf,
-  inboxThreadIdsOf,
   type InboxSort,
   type InboxThread,
 } from "./inbox-model.ts";
@@ -26,31 +27,39 @@ import { useProposalPending } from "./proposal-pending-context.tsx";
 /** 대화 셀렉트의 항목 하나: 대기 승인이 있는 대화. 이름이 없으면 title이 null이다 */
 export type InboxThreadChoice = { readonly id: ThreadId; readonly title: string | null };
 
-/** 대기 승인이 있는 대화를 승인 순서대로 돌려준다. 이름은 대화 요약에서 읽고 카드 머리와 같은 값이다 */
-export function useInboxThreads(): readonly InboxThreadChoice[] {
+/**
+ * 대화 셀렉트의 항목: 대기 승인이 있는 대화(승인 순서)와 알림만 있는 대화. 이름은 대화 요약에서 읽고 카드 머리와 같은 값이다.
+ * `noticeEntries`는 받은 요청 화면이 든 알림 목록이다
+ */
+export function useInboxThreads(
+  noticeEntries: readonly NoticeEntry[],
+): readonly InboxThreadChoice[] {
   const approvals = useApprovalMirror();
   // 대기 승인이 있는 대화는 내부 대화여도 이름이 보여야 처리할 수 있다
   const summaries = useAllThreadSummaries();
-  return inboxThreadIdsOf(inboxRowsOf(approvals.ids, approvals.byId)).map((id) => ({
-    id,
-    title: summaries.find((summary) => summary.threadId === id)?.title ?? null,
-  }));
+  return inboxAllThreadIdsOf(inboxRowsOf(approvals.ids, approvals.byId), noticeEntries).map(
+    (id) => ({
+      id,
+      title: summaries.find((summary) => summary.threadId === id)?.title ?? null,
+    }),
+  );
 }
 
 /** 끝 영역 받은 요청 탭과 받은 요청 화면. 트랜스크립트 아래와 같은 카드를 쓴다(`approval.resolved`로 함께 사라진다).
- * 대화와 정렬은 승인 구역만 거른다. 기본은 모든 대화이고 오래된 것 먼저다.
+ * 대화와 정렬은 승인과 알림 구역을 함께 거른다. 기본은 모든 대화이고 오래된 것 먼저다.
  * 대기 제안이 있으면 거르기가 "모두"일 때 맨 위에 제안 줄 하나를 둔다(`InboxProposalsRow`). 제안 줄은 대화와 정렬을 받지 않는다 */
 export function InboxApprovals(props: {
   readonly show?: InboxFilter;
   readonly thread?: InboxThread;
   readonly sort?: InboxSort;
+  /** 받은 요청 화면이 든 알림 목록. 없으면 알림 구역이 자기 목록을 읽는다(끝 영역 탭) */
+  readonly feed?: NoticeFeed | undefined;
 }): ReactNode {
   const approvals = useApprovalMirror();
   const pending = useProposalPending().count;
-  const ids = arrangeInboxApprovals(inboxRowsOf(approvals.ids, approvals.byId), {
-    thread: props.thread ?? "all",
-    sort: props.sort ?? "oldest",
-  });
+  const thread = props.thread ?? "all";
+  const sort = props.sort ?? "oldest";
+  const ids = arrangeInboxApprovals(inboxRowsOf(approvals.ids, approvals.byId), { thread, sort });
   const show = props.show ?? "all";
   const heads = show === "all";
   return (
@@ -74,7 +83,7 @@ export function InboxApprovals(props: {
       )}
       {show === "approvals" ? null : (
         <section className="grid gap-2">
-          <InboxNotices />
+          <InboxNotices feed={props.feed} thread={thread} sort={sort} />
         </section>
       )}
     </div>

@@ -15,12 +15,14 @@ import { useCommands } from "../../commands.ts";
 import { checkDraft, checkEditDraft, sheetErrorsOf } from "./schedule-draft.ts";
 import {
   canAct,
+  fireNoticeOf,
   INITIAL_SCHEDULE_STATE,
   keyIntentOf,
   listFailureOf,
   listParamsOf,
   noticeOf,
   scheduleReducer,
+  scheduleRunSignatureOf,
   selectedItemOf,
   type ScheduleFilter,
 } from "./schedule-model.ts";
@@ -70,6 +72,16 @@ export function SchedulesScreen(): ReactNode {
     else dispatch({ type: "listFailed", reason: "offline" });
   }, [load, live]);
 
+  // 예약 실행이 시작하거나 끝나면(예약 대화의 상태가 바뀌면) 목록을 다시 읽는다. 첫 값은 위의 연결 효과가 읽으므로 건너뛴다
+  const runSignature = scheduleRunSignatureOf(threads);
+  const seenRunSignature = useRef<string | null>(null);
+  useEffect(() => {
+    const previous = seenRunSignature.current;
+    seenRunSignature.current = runSignature;
+    if (previous === null || previous === runSignature || !live) return;
+    detach(load(), rethrow);
+  }, [load, live, runSignature]);
+
   const failNotice = (text: MessageRef): void => {
     dispatch({ type: "notice", notice: noticeOf(text, "danger") });
   };
@@ -94,7 +106,8 @@ export function SchedulesScreen(): ReactNode {
     dispatch({ type: "busy", busy: false });
     if (!fired.ok) return failNotice(commandErrorOf(fired.error));
     if (!fired.value.ok) return failNotice(scheduleErrorOf(fired.value.error));
-    dispatch({ type: "notice", notice: noticeOf(message("desktop.schedules.fired"), "success") });
+    // 성공 문장은 실행이 시작했을 때만이다. 건너뛰었거나 시작하지 못했으면 호스트의 실행 기록 상태가 알림을 고른다
+    dispatch({ type: "notice", notice: fireNoticeOf(fired.value.run) });
     await load();
   };
 

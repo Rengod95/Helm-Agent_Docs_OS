@@ -18,9 +18,11 @@ import {
   type ThreadId,
 } from "@fresnel/contracts/conversation";
 import type { Unsubscribe } from "@fresnel/contracts/extensions";
+import { WATCH_PATH_OUTSIDE_ROOTS_REASON } from "@fresnel/contracts/capabilities";
 import type {
   InputDraft,
   LoopService,
+  OsDirs,
   OsService,
   TaskService,
   WatchHandle,
@@ -38,7 +40,7 @@ import {
   type ScheduleWatcher,
   type StartedRun,
 } from "@fresnel/cap-schedule";
-import type { FileLock } from "@fresnel/platform-os";
+import { isWatchPathAllowed, type FileLock } from "@fresnel/platform-os";
 import type {
   EventFeedPort,
   OwnerKind,
@@ -91,7 +93,7 @@ export interface HostScheduleDeps {
 /** 예약 서비스를 조립한다. 틱과 감시는 `start()`가 시작하므로 호출만으로는 아무것도 돌지 않는다 */
 export function createHostSchedule(deps: HostScheduleDeps): ScheduleService {
   const overrides = deps.overrides;
-  return createScheduleService({
+  const service = createScheduleService({
     clock: overrides?.clock ?? deps.clock,
     store:
       overrides?.store ??
@@ -108,6 +110,34 @@ export function createHostSchedule(deps: HostScheduleDeps): ScheduleService {
       else deps.logger.error(message, toLogFields(fields));
     },
   });
+  return rejectingOutsideWatchRoots(service, () => allowedWatchRootsOf(deps.os.dirs));
+}
+
+/** 감시를 허용하는 루트: 설정·데이터·상태 폴더다. `platform-os`의 `createOsService`가 감시 루트로 주는 목록과 같다 */
+function allowedWatchRootsOf(dirs: Pick<OsDirs, "config" | "data" | "state">): readonly string[] {
+  return [dirs.config, dirs.data, dirs.state];
+}
+
+/**
+ * 허용 루트 밖의 감시 경로가 있으면 저장을 거절한다. 감시는 시작할 때 `outside_app_dirs`로 그 경로만 버리므로,
+ * 저장을 허용하면 예약이 "만들었어요"라고 말하고 아무것도 감시하지 않게 된다. 루트는 필요할 때만 읽는다.
+ */
+function rejectingOutsideWatchRoots(
+  service: ScheduleService,
+  rootsOf: () => readonly string[],
+): ScheduleService {
+  return {
+    ...service,
+    create: async (input) => {
+      if (input.trigger.kind === "file_watch") {
+        const roots = rootsOf();
+        if (!input.trigger.paths.every((path) => isWatchPathAllowed(roots, path))) {
+          return err({ kind: "invalid_trigger", reason: WATCH_PATH_OUTSIDE_ROOTS_REASON });
+        }
+      }
+      return service.create(input);
+    },
+  };
 }
 
 /** 예약 ID. IdFactory는 접두를 고정 목록으로 받으므로 `evt` ULID 본문을 빌려 `sch_`·`run_` 접두를 붙인다. 발급 원천은 같다 */

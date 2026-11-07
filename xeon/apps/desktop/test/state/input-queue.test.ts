@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { EventWire } from "@fresnel/contracts/wire";
+import type { EventWire, ThreadOrigin } from "@fresnel/contracts/wire";
 import { decodeDurable } from "../../src/state/engine/decode.ts";
 import type { DurableFact, MirrorInput } from "../../src/state/engine/input.ts";
 import { reduceMirror } from "../../src/state/engine/reduce.ts";
@@ -10,7 +10,7 @@ import {
   QUEUED_INPUT_CAP,
   type EngineMirror,
 } from "../../src/state/engine/state.ts";
-import { STORE, SUB, evt, thr } from "./helpers.ts";
+import { STORE, SUB, evt, summary, thr } from "./helpers.ts";
 
 // 대기 입력(`input.queued`·`input.placed`·`input.withdrawn`)의 디코드와 거울의 대기 입력 목록(입력창 위 칩).
 // 입력 id는 `input.queued` 이벤트 id다. 배치되거나 거둬지면 목록에서 빠진다. thread마다 `QUEUED_INPUT_CAP`개까지 둔다.
@@ -330,5 +330,107 @@ describe("queued inputs in the mirror", () => {
       from: "head",
     }).state;
     expect(reset.queuedInputs).toEqual([]);
+  });
+});
+
+// 살아 있는 연결에서 시작한 예약 대화의 출처. `thread.started`에는 출처가 없어서 예약 입력(`source.type === "schedule"`)으로 정한다.
+const started = (seq: number, threadId: ThreadId = T): DurableFact =>
+  decodeDurable(wire(seq, "thread.started", { title: null, forkedFrom: null }, threadId));
+const scheduled = (seq: number, timerId: string): DurableFact =>
+  queued(seq, { source: { type: "schedule", timerId } });
+const drive = (inputs: readonly MirrorInput[]): EngineMirror =>
+  inputs.reduce((state, input) => reduceMirror(state, input).state, INITIAL_MIRROR);
+const batchOf = (from: number, to: number, facts: readonly DurableFact[]): MirrorInput => ({
+  type: "batch",
+  sub: SUB,
+  from,
+  to,
+  caughtUp: true,
+  facts: [...facts],
+});
+const headOf: MirrorInput = {
+  type: "subscribed",
+  sub: SUB,
+  storeId: STORE,
+  start: 0,
+  live: true,
+  from: "head",
+};
+
+describe("schedule origin from input.queued", () => {
+  const SCHEDULE_ORIGIN: ThreadOrigin = { kind: "schedule", scheduleId: "sch_1" };
+
+  test("the decoded input carries the timer id only for a schedule source", () => {
+    expect(queued(1, { source: { type: "schedule", timerId: "sch_1" } })).toEqual({
+      type: "input.queued",
+      seq: 1,
+      eventId: evt(1),
+      threadId: T,
+      turnId: null,
+      at: AT,
+      input: {
+        mode: "steer",
+        requestId: "req-1",
+        sourceType: "schedule",
+        scheduleId: "sch_1",
+        preview: { kind: "text", text: "이 파일도 봐 줘" },
+      },
+    });
+    const user = queued(2);
+    expect(user.type === "input.queued" ? "scheduleId" in user.input : null).toBe(false);
+  });
+
+  test("a schedule input on a thread the mirror just started gives that thread the schedule origin", () => {
+    const state = run([started(1), scheduled(2, "sch_1")]);
+    expect(state.threads.byId[T]?.origin).toEqual(SCHEDULE_ORIGIN);
+  });
+
+  test("a user or delegation input leaves the thread's origin undefined", () => {
+    const user = run([started(1), queued(2)]);
+    expect(user.threads.byId[T]?.origin).toBeUndefined();
+    const delegated = run([
+      started(1),
+      queued(2, { source: { type: "delegation", childThreadId: thr(7) } }),
+    ]);
+    expect(delegated.threads.byId[T]?.origin).toBeUndefined();
+  });
+
+  test("an origin the list already gave is not overwritten by a schedule input", () => {
+    const state = drive([
+      headOf,
+      batchOf(0, 1, [started(1)]),
+      {
+        type: "threads",
+        threads: [summary(T, { origin: { kind: "schedule", scheduleId: "sch_0" } })],
+      },
+      batchOf(1, 2, [scheduled(2, "sch_1")]),
+    ]);
+    expect(state.threads.byId[T]?.origin).toEqual({ kind: "schedule", scheduleId: "sch_0" });
+  });
+
+  test("a later thread list without an origin keeps the origin derived from the schedule input", () => {
+    const derived = run([started(1), scheduled(2, "sch_1")]);
+    const refreshed = reduceMirror(derived, {
+      type: "threads",
+      threads: [summary(T, { title: "새 제목" })],
+    }).state;
+    expect(refreshed.threads.byId[T]?.title).toBe("새 제목");
+    expect(refreshed.threads.byId[T]?.origin).toEqual(SCHEDULE_ORIGIN);
+  });
+
+  test("the backfill path derives the same origin for a thread the mirror already has", () => {
+    const base = run([started(1)]);
+    const backfilled = reduceMirror(base, {
+      type: "backfill",
+      storeId: STORE,
+      facts: [scheduled(2, "sch_1")],
+    }).state;
+    expect(backfilled.threads.byId[T]?.origin).toEqual(SCHEDULE_ORIGIN);
+  });
+
+  test("a schedule input for a thread the mirror does not have changes nothing", () => {
+    const state = run([scheduled(1, "sch_1")]);
+    expect(state.threads.byId[T]).toBeUndefined();
+    expect(state.threads.ids).toEqual([]);
   });
 });

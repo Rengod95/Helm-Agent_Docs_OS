@@ -210,14 +210,17 @@ const DURABLE: Readonly<
     // 칩의 글은 호스트가 준 표식을 적용한 복사본에서 만든다. 적용하지 못하면 읽을 수 없는 사실로 둔다(원문은 거울에 들어가지 않는다)
     const masked = maskQueuedInput(p.value, mask);
     if (masked === null) return { ...base, type: "unreadable" };
+    const { source } = masked;
     return {
       ...base,
       type: "input.queued",
       input: {
         mode: masked.mode,
         requestId: masked.requestId,
-        sourceType: masked.source.type,
+        sourceType: source.type,
         preview: queuedPreviewOf(masked.item),
+        // 예약 출처의 입력만 예약 id를 싣는다. 다른 출처에는 키 자체를 두지 않는다
+        ...(source.type === "schedule" ? { scheduleId: source.timerId } : {}),
       },
     };
   },

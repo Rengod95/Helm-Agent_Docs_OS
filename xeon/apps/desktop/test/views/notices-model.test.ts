@@ -1,13 +1,19 @@
 import { describe, expect, test } from "bun:test";
 import type { Notice } from "@fresnel/contracts/capabilities";
 import {
+  createClearedBoundary,
+  highestSeqOf,
   mergeNotices,
   NOTICE_KEEP,
+  noticeAgeViewOf,
+  noticeBodyViewOf,
   noticeKindId,
   noticeResolved,
+  noticesAfter,
   noticeTitleViewOf,
   noticeToastVisible,
   threadBySeqOf,
+  type NoticeEntry,
 } from "../../src/views/notices-model.ts";
 import { checkTitle, deleteFailureId } from "../../src/views/thread-row-menu.tsx";
 import { thr } from "../state/helpers.ts";
@@ -155,5 +161,157 @@ describe("noticeResolved", () => {
   test("an unknown thread or another kind is never called resolved", () => {
     expect(noticeResolved({ notice: waiting, threadId: null }, new Set())).toBe(false);
     expect(noticeResolved({ notice: notice(2), threadId: thr(1) }, new Set())).toBe(false);
+  });
+});
+
+const AUTH_JSON =
+  '401 {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_1"}';
+
+const failedTurn = (body: string | null): Notice => ({
+  kind: "error",
+  title: "턴이 실패했어요",
+  body,
+  seq: 1,
+  sourceType: "turn.completed",
+});
+
+describe("noticeBodyViewOf", () => {
+  test("a 401 JSON body gives the conversation's key sentence and button, the JSON stays in details", () => {
+    expect(noticeBodyViewOf(failedTurn(AUTH_JSON))).toEqual({
+      kind: "failure",
+      text: "desktop.turnFailure.auth",
+      action: "reregister-key",
+      detail: AUTH_JSON,
+    });
+  });
+
+  test("a plain text body that matches no failure is shown as it is", () => {
+    expect(noticeBodyViewOf(failedTurn("뭔지 모를 오류"))).toEqual({
+      kind: "plain",
+      text: "뭔지 모를 오류",
+    });
+  });
+
+  test("unknown JSON never shows the raw JSON, it gives the generic failure sentence", () => {
+    expect(noticeBodyViewOf(failedTurn('{"foo":1}'))).toEqual({
+      kind: "failure",
+      text: "desktop.turnFailure.unknown",
+      action: null,
+      detail: '{"foo":1}',
+    });
+  });
+
+  test("a host mismatch offers the provider settings and names the host", () => {
+    const error =
+      "secret_unresolved: secret k could not be leased (denied: host_mismatch, host=proxy.example.com)";
+    expect(noticeBodyViewOf(failedTurn(error))).toEqual({
+      kind: "failure",
+      text: "desktop.turnFailure.hostMismatch",
+      params: { host: "proxy.example.com" },
+      action: "open-providers",
+      detail: error,
+    });
+  });
+
+  test("a sentence that needs the composer or a resend keeps its text but drops the button", () => {
+    expect(
+      noticeBodyViewOf(failedTurn('404 {"error":{"type":"not_found_error","message":"model: x"}}')),
+    ).toMatchObject({ kind: "failure", text: "desktop.turnFailure.modelNotFound", action: null });
+    expect(noticeBodyViewOf(failedTurn("429 rate limit"))).toMatchObject({
+      kind: "failure",
+      text: "desktop.turnFailure.rateLimited",
+      action: null,
+    });
+  });
+
+  test("a body of another kind stays as it is, and no body is nothing to show", () => {
+    expect(
+      noticeBodyViewOf({
+        kind: "completed",
+        title: "작업이 끝났어요",
+        body: '{"done":true}',
+        seq: 2,
+        sourceType: "turn.completed",
+      }),
+    ).toEqual({ kind: "plain", text: '{"done":true}' });
+    expect(
+      noticeBodyViewOf({
+        kind: "completed",
+        title: "x",
+        body: null,
+        seq: 3,
+        sourceType: "turn.completed",
+      }),
+    ).toBeNull();
+  });
+
+  test("a failed turn with no body still says it failed, without details", () => {
+    expect(noticeBodyViewOf(failedTurn(null))).toEqual({
+      kind: "failure",
+      text: "desktop.turnFailure.unknown",
+      action: null,
+      detail: null,
+    });
+  });
+});
+
+describe("noticeAgeViewOf", () => {
+  const NOW = 1_000_000_000_000;
+  test("a notice without a delivery time has no age line", () => {
+    expect(noticeAgeViewOf(NOW, undefined)).toBeNull();
+  });
+
+  test("the age uses the approval card's words: now, minutes, hours, days", () => {
+    expect(noticeAgeViewOf(NOW, NOW - 30_000)).toEqual({ id: "desktop.approvals.age.now" });
+    expect(noticeAgeViewOf(NOW, NOW - 5 * 60_000)).toEqual({
+      id: "desktop.approvals.age.minutes",
+      params: { count: 5 },
+    });
+    expect(noticeAgeViewOf(NOW, NOW - 3 * 3_600_000)).toEqual({
+      id: "desktop.approvals.age.hours",
+      params: { count: 3 },
+    });
+    expect(noticeAgeViewOf(NOW, NOW - 2 * 86_400_000)).toEqual({
+      id: "desktop.approvals.age.days",
+      params: { count: 2 },
+    });
+  });
+});
+
+/** 대화 없는 알림 한 줄(지운 경계 시험용) */
+const entry = (seq: number): NoticeEntry => ({ notice: notice(seq), threadId: null });
+
+describe("cleared notices", () => {
+  test("the boundary only moves up, and notices at or below it are dropped", () => {
+    const boundary = createClearedBoundary();
+    expect(boundary.read()).toBe(0);
+    boundary.clearThrough(7);
+    boundary.clearThrough(3);
+    expect(boundary.read()).toBe(7);
+    expect(noticesAfter(boundary.read(), [entry(6), entry(7), entry(8)])).toEqual([entry(8)]);
+  });
+
+  test("a re-read after clearing brings back only the notices newer than the cleared ones", () => {
+    const boundary = createClearedBoundary();
+    const shown = mergeNotices([], [entry(1), entry(2), entry(3), entry(4), entry(5)]);
+    boundary.clearThrough(highestSeqOf(shown));
+    // 화면을 떠났다 돌아와 빈 목록에서 다시 읽는다. 지운 1..5는 돌아오지 않고 6, 7만 보인다
+    const reread = mergeNotices(
+      [],
+      noticesAfter(boundary.read(), [1, 2, 3, 4, 5, 6, 7].map(entry)),
+    );
+    expect(reread.map((e) => e.notice.seq)).toEqual([7, 6]);
+  });
+
+  test("the highest seq of nothing is zero", () => {
+    expect(highestSeqOf([])).toBe(0);
+  });
+
+  test("a delivered entry keeps its delivery time when a later list read gives the same notice", () => {
+    const merged = mergeNotices(
+      [{ notice: notice(5), threadId: null, deliveredAt: 1000 }],
+      [{ notice: notice(5), threadId: null }],
+    );
+    expect(merged).toEqual([{ notice: notice(5), threadId: null, deliveredAt: 1000 }]);
   });
 });
