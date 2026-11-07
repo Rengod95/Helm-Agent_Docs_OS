@@ -912,6 +912,10 @@ export interface Commands {
   restartEngine(options?: RestartOptions): Promise<boolean>;
   /** 설치나 되돌리기처럼 다시 시작해야 적용되는 일을 상태 표시줄에 모은다 */
   noteRestartNeeded(reason: RestartReason): void;
+  /** 403으로 실패한 모델을 적는다(입력창 모델 고르기가 그 행에 "이 키로 못 써요"를 단다) */
+  noteModelDenied(key: string): void;
+  /** 턴이 성공한 모델의 403 표시를 지운다 */
+  clearModelDenied(key: string): void;
   /** 진단 묶음을 클립보드에 쓴다 */
   copyDiagnostics(): Promise<boolean>;
   /** 앱과 엔진 버전. 엔진은 아직 연결하지 못했으면 `null`이다 */

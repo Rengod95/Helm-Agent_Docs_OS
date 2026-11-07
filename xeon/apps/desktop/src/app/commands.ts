@@ -531,6 +531,8 @@ export function createCommands(deps: CommandDeps): Commands {
       return restarted;
     },
     noteRestartNeeded: (reason) => ui.actions.noteRestartNeeded(reason),
+    noteModelDenied: (key) => ui.actions.noteModelDenied(key),
+    clearModelDenied: (key) => ui.actions.clearModelDenied(key),
     versions: () => deps.versions(),
     async copyDiagnostics() {
       engine.flush();

@@ -58,6 +58,14 @@ export function turnFailureOf(error: string): TurnFailureView {
   };
 }
 
+/**
+ * 사이드바 대화 줄에 "보내지 못한 대화" 표시를 달지. 마지막 턴이 실패로 끝났을 때만 참이다.
+ * 거울에 실패 문장이 없으면(새로 불러온 대화처럼 알 수 없으면) 거짓이다. 거짓 표시는 달지 않는다.
+ */
+export function unsentRowOf(failure: string | null): boolean {
+  return failure !== null;
+}
+
 /** 모델 참조(`provider/modelId[:추론 레벨]`)에서 제공자 id를 꺼낸다. 참조가 없거나 슬래시가 없으면 null이다 */
 export function providerOfModelRef(ref: string | null): string | null {
   if (ref === null) return null;

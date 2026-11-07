@@ -4,9 +4,12 @@ import {
   ModelSelect,
   PermissionModeSelect,
   UsageRing,
+  defaultRowText,
+  modelOptionText,
   ownsComposerRequest,
   secretWarningOf,
 } from "../../src/views/composer.tsx";
+import type { ModelOption } from "../../src/views/model-usage.ts";
 import { thr } from "../state/helpers.ts";
 
 // 입력창 단추 줄의 모델 select와 문맥 사용량 링. 효과가 없는 서버 렌더로만 본다(DOM이 없다).
@@ -63,6 +66,7 @@ describe("model select", () => {
     chosen: false,
     fallback: "anthropic/claude-haiku-5-5",
     choices: [],
+    denied: {},
     onChange: () => {},
   };
 
@@ -79,6 +83,30 @@ describe("model select", () => {
     const markup = renderToString(<ModelSelect {...props} disabled />);
     const tag = markup.match(/<button[^>]*>/)?.[0] ?? "";
     expect(tag).toMatch(/ disabled=""/);
+  });
+});
+
+describe("denied model hint", () => {
+  // 403으로 실패한 모델의 줄에만 "이 키로 못 써요"가 뒤에 붙는다. 가격 글은 그대로다
+  const option: ModelOption = {
+    value: "anthropic/claude-haiku-5-5",
+    label: "claude-haiku-5-5",
+    contextWindow: null,
+    price: "unknown",
+  };
+
+  test("a denied model's row adds the note after its price text, and a usable one does not", () => {
+    expect(modelOptionText(option, null, false)).toBe("claude-haiku-5-5 · 가격 모름");
+    expect(modelOptionText(option, null, true)).toBe(
+      "claude-haiku-5-5 · 가격 모름 · 이 키로 못 써요",
+    );
+  });
+
+  test("the default row adds the note only when the default model is denied", () => {
+    expect(defaultRowText("claude-haiku-5-5", false)).toBe("기본 모델 · claude-haiku-5-5");
+    expect(defaultRowText("claude-haiku-5-5", true)).toBe(
+      "기본 모델 · claude-haiku-5-5 · 이 키로 못 써요",
+    );
   });
 });
 

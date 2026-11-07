@@ -124,6 +124,11 @@ export type UiState = {
   readonly restartNeeded: readonly RestartReason[];
   /** 엔진이 붙은 대상. 대상 바꾸기가 성공했을 때만 바뀌고, 앱을 켜면 이 컴퓨터다(`EngineTargetView`) */
   readonly engineTarget: EngineTargetView;
+  /**
+   * 이 앱 실행 동안 403(권한 없음)으로 실패한 모델. 키는 `provider/modelId`(추론 레벨 뗌)다. 영속하지 않는다.
+   * 같은 모델로 턴이 성공하면 지운다(`denied-model-model.ts`)
+   */
+  readonly deniedModels: Readonly<Record<string, true>>;
 };
 
 interface UiActions {
@@ -158,6 +163,10 @@ interface UiActions {
   clearRestartNeeded(): void;
   /** 엔진이 붙은 대상을 적는다. 대상 바꾸기가 성공한 뒤에만 부른다 */
   setEngineTarget(target: EngineTargetView): void;
+  /** 403으로 실패한 모델을 적는다. 이미 있으면 상태를 바꾸지 않는다 */
+  noteModelDenied(key: string): void;
+  /** 성공한 모델의 403 표시를 지운다. 없으면 상태를 바꾸지 않는다 */
+  clearModelDenied(key: string): void;
 }
 
 const INITIAL_UI: UiState = {
@@ -178,6 +187,7 @@ const INITIAL_UI: UiState = {
   reviewTarget: null,
   restartNeeded: [],
   engineTarget: { kind: "local" },
+  deniedModels: {},
 };
 
 export type UiStore = { readonly read: ReadonlyStore<UiState>; readonly actions: UiActions };
@@ -235,6 +245,16 @@ export function createUiStore(): UiStore {
     clearRestartNeeded: () =>
       api.setState((s) => (s.restartNeeded.length === 0 ? s : { restartNeeded: [] })),
     setEngineTarget: (engineTarget) => api.setState({ engineTarget }),
+    noteModelDenied: (key) =>
+      api.setState((s) =>
+        s.deniedModels[key] === true ? s : { deniedModels: { ...s.deniedModels, [key]: true } },
+      ),
+    clearModelDenied: (key) =>
+      api.setState((s) => {
+        if (s.deniedModels[key] !== true) return s;
+        const { [key]: _old, ...rest } = s.deniedModels;
+        return { deniedModels: rest };
+      }),
     setObserving: (id, observing) =>
       api.setState((s) => {
         if ((s.observing[id] === true) === observing) return s;

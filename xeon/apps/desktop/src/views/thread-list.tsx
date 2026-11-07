@@ -21,6 +21,7 @@ import {
   useThreadsStatus,
   useThreadSummaries,
   useThreadApprovals,
+  useTurnFailure,
   useUnlistedApprovals,
 } from "../state/engine/index.ts";
 import { useShellActions } from "../state/shell/index.ts";
@@ -33,6 +34,7 @@ import { rowResumable } from "./resume-band-model.ts";
 import { folderLabel, sidebarGroupsOf } from "./thread-groups.ts";
 import { rowOpensChat } from "./thread-nav-model.ts";
 import { ThreadRowMenu } from "./thread-row-menu.tsx";
+import { unsentRowOf } from "./turn-failure-model.ts";
 import { checkWorkspaceInput, createFailureText, workspaceHint } from "./workspace-model.ts";
 
 /** 대화 상자가 닫히며 초점을 되돌리는 시간(ms)보다 넉넉히 */
@@ -51,8 +53,13 @@ const UNTITLED_LABEL =
 const LIST_COLUMN =
   "grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1 [&_ul]:grid-cols-[minmax(0,1fr)] [&_[data-slot=list-navigation-item]]:min-w-0 [&_[data-slot=list-navigation-item]]:grid-cols-[minmax(0,1fr)]";
 
-/** 행 오른쪽 짧은 글자. 이어서 실행, 닫힘, 승인 수 중 하나(시안: 행 meta는 짧게) */
-function metaOf(thread: ThreadSummary, approvals: number, child: boolean): ReactNode {
+/** 행 오른쪽 짧은 글자. 이어서 실행, 닫힘, 승인 수, 보내지 못함 중 하나(시안: 행 meta는 짧게) */
+function metaOf(
+  thread: ThreadSummary,
+  approvals: number,
+  child: boolean,
+  unsent: boolean,
+): ReactNode {
   // 이어서 실행은 아이콘과 글(시안 threadMeta의 RotateCcw + 이어서 실행)
   if (rowResumable(thread, approvals)) {
     return (
@@ -66,6 +73,8 @@ function metaOf(thread: ThreadSummary, approvals: number, child: boolean): React
   if (approvals > 0) {
     return t("desktop.threads.approvalsBadge", { count: approvals });
   }
+  // 첫 답이 오기 전에 실패한 대화는 제목이 사용자 말 그대로라 이 표시로 구분한다(하위·분기 표식보다 먼저)
+  if (unsent) return t("desktop.threads.status.unsent");
   if (child) return t("desktop.threads.subBadge");
   // 분기한 대화는 원본과 제목이 같아 구분이 안 된다. 다른 표식이 없을 때 "분기" 표식을 보인다
   return thread.forkedFrom === null ? undefined : t("desktop.threads.forkedBadge");
@@ -83,7 +92,16 @@ const ThreadRow = memo(function ThreadRow(props: {
   const selected = useSelectedThreadId() === id;
   const unlisted = useUnlistedApprovals(id);
   const approvals = useThreadApprovals(id);
+  const unsent = unsentRowOf(useTurnFailure(id));
   const title = props.thread.title ?? t("desktop.threads.untitled");
+  // 툴팁에는 제목 아래로 알릴 말을 한 줄씩 더한다. 표시가 없으면 제목만 남는다
+  const tooltip = [
+    title,
+    unlisted > 0 ? t("desktop.threads.unlistedApprovals") : null,
+    unsent ? t("desktop.threads.status.unsent") : null,
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
   return (
     <>
       <ListNavigationItem
@@ -93,9 +111,14 @@ const ThreadRow = memo(function ThreadRow(props: {
               status: "running" as const,
               statusLabels: { running: t("desktop.threads.status.running") },
             }
-          : {})}
-        meta={metaOf(props.thread, approvals, props.child)}
-        title={unlisted > 0 ? `${title}\n${t("desktop.threads.unlistedApprovals")}` : title}
+          : unsent
+            ? {
+                status: "failed" as const,
+                statusLabels: { failed: t("desktop.threads.status.unsent") },
+              }
+            : {})}
+        meta={metaOf(props.thread, approvals, props.child, unsent)}
+        title={tooltip}
         className={
           [props.thread.title === null ? UNTITLED_LABEL : "", props.child ? CHILD_ROW : ""]
             .filter((c) => c !== "")
