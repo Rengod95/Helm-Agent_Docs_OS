@@ -298,7 +298,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | 영역 | 메서드 | params | result | 단계 |
 |---|---|---|---|---|
 | host | `host.hello` | `{ protocolVersion: SemVer, client: {name, version, kind: "cli"\|"desktop"\|"other"}, experimental?: FeatureName[], auth?: { token: string } }`(`auth`는 M2) | `{ protocolVersion: SemVer, server: {name, version}, storeId: StoreId, transport: TransportKind, features: FeatureInfo[], experimental: FeatureName[] }` | M1 |
-| host | `host.status` | `{ includeBinaries?: boolean }` | `{ mode: "in-process"\|"stdio"\|"service", pid: integer, startedAt: IsoTime, connections: integer, liveTurns: integer, waitingApprovals?: integer(1..), idleShutdownAt: IsoTime \| null, binaries?: HostBinaryReport, safeMode?: boolean, safeModeCause?: "user"\|"startupFailures"\|"flag", startupFailures?: integer, suggestSafeMode?: boolean }` | M2 |
+| host | `host.status` | `{ includeBinaries?: boolean }` | `{ mode: "in-process"\|"stdio"\|"service", pid: integer, startedAt: IsoTime, connections: integer, liveTurns: integer, waitingApprovals?: integer(1..), idleShutdownAt: IsoTime \| null, binaries?: HostBinaryReport, safeMode?: boolean, safeModeCause?: "user"\|"startupFailures"\|"flag", startupFailures?: integer, suggestSafeMode?: boolean, settingsProblems?: SettingsFileProblem[] }` | M2 |
 | host | `host.shutdown` | `{ reason: "client_exit"\|"version_replace"\|"user", deadlineMs?: integer }` | `{ accepted: boolean }` | M2 |
 | host | `host.clients` | `{}` | `{ clients: { connectionId: string, transport: "in-process"\|"stdio"\|"socket", name?: string, version?: string, writeThreads: integer, observedThreads: integer, self: boolean }[] }`. 연결마다 한 행이고 요청한 연결(`self`)이 맨 앞이다(최대 256개). `name`과 `version`은 `host.hello`를 마친 연결만 싣는다. 인증 토큰은 싣지 않는다 | M4 (W-12) |
 | thread | `thread.list` | `{ cursor?: string, limit?: integer(1..200), workspace?: string }` | `{ threads: ThreadSummary[], nextCursor: string \| null }` | M2 |
@@ -425,6 +425,8 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   - params의 `includeBinaries: true`일 때만 호스트가 점검해 result의 `binaries`에 싣는다. 점검은 바이너리마다 자식 프로세스를 띄워 버전을 확인하므로(`L0.os.spec` §3.6.1) 상태 조회마다 하지 않는다. 생략하거나 거짓이면 `binaries`가 없고 이전 클라이언트의 `host.status`는 그대로 동작한다.
   - `HostBinaryReport`는 `BinaryCheckReport`(`L0.os.spec` §3.6.1)에서 실행 파일 경로(`path`)만 뺀 모양이다: `{ platform, ready, blocking, degraded, items }`. `ready`는 필수 바이너리가 모두 쓸 수 있다는 뜻이고 `blocking`은 쓸 수 없는 필수, `degraded`는 쓸 수 없는 선택 바이너리 이름이다. `items`는 표의 행마다 `{ name, need: "required"\|"optional", usedBy, impact, status }`이고 `status`는 `ok { version, source }`, `missing { hint }`, `too_old { found, required }`, `unusable { reason }` 가운데 하나다. `hint`가 첫 실행 화면의 설치 안내 문구다.
   - 점검이 중단되면(`cancelled`) 결과 없이 `request.cancelled`(5001)로 실패한다. 점검 결과가 `ready: false`여도 요청은 성공이다: 환경 문제의 판단과 안내는 클라이언트가 한다.
+- [결정: 오케스트레이터 기본값, fxSF] `host.status`가 읽지 못한 설정 파일을 알린다(O5-1). 사용자 설정 파일(`user`)이 JSON 문법 오류이거나 JSON 객체가 아니거나 읽기에 실패하면, 시작할 때는 그 범위를 비우고 실행 중 다시 읽을 때는 앞 값을 지킨다(사람이 고치는 중일 수 있다). 두 경우 모두 이유를 result의 `settingsProblems`로 알린다. 항목은 `{ scope, path, reason, line, column, code? }`이고 `reason`은 `invalid_json`, `not_object`, `unreadable` 가운데 하나다. `line`·`column`은 JSON 문법 오류의 첫 위치(1부터 센다)이고 없으면 null이다. `code`는 읽기 오류의 OS 코드다. 파일 내용과 값은 싣지 않는다. 문제가 없으면 필드를 두지 않고, 최대 8개다. 지금은 `user` 범위만 싣는다(`project`·`local`은 같은 모양으로 나중에 더한다). 실행 중에 문제가 생기거나 풀리면 `settings.invalidated`(`keys: []`)를 한 번 보낸다.
+  - 깨진 파일 위에서 `settings.set`·`settings.reset`은 쓰지 않고 `store.io`(5006, `details.code: "settings_file_invalid"`, `path`, `line`과 `column`은 있을 때만)로 거절한다. `settings.writeFile`은 기준 해시(`baseSha256`)가 지금 파일과 같으면 덮어써 고칠 수 있다.
 - [결정: m2c G2-01] `thread.compact`는 사용자가 지금 대화를 요약하라고 요청하는 메서드다(`/compact`). 자동 컴팩션(요청 전 임계, 오버플로우 복구)은 루프가 하고(`L1.loop.spec` §4.2) 이 메서드는 이유 `manual`의 컴팩션 한 번이다(`ContextService.compact`, `CompactRequest.reason`).
   - 쓰기 소유가 필요해서 `turn.start`처럼 암묵 획득을 한 번 시도하고 실패하면 `thread.locked`(3002)다. 진행 중인 turn이 있으면 `turn.busy`(3003)이다: 루프가 같은 가지에 컴팩션을 커밋할 수 있어 끼어들지 않는다. 없는 thread는 `thread.notFound`(3001), 닫힌 thread는 `thread.closed`(3007)다.
   - `instructions`는 `/compact` 뒤에 적은 요약 지침이다. 생략하면 기본 요약 지침을 쓴다. 상한 20000자는 `thread.compact.before`의 `instructions`와 같다.
@@ -1021,7 +1023,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 5003 | `store.busy` | true | 저장소 쓰기 잠금 대기가 시간을 넘었다. 같은 요청을 다시 보내도 된다 | - |
 | 5004 | `store.diskFull` | false | 저장 매체가 가득 찼다. 공간을 비운 뒤 다시 보낸다 | - |
 | 5005 | `store.readOnly` | false | 저장소가 읽기 전용으로 열려 있어 쓸 수 없다 | `reason` |
-| 5006 | `store.io` | false | 저장 매체 입출력 실패. 코드는 OS나 SQLite가 준 값이다 | `code` |
+| 5006 | `store.io` | false | 저장 매체 입출력 실패. 코드는 OS나 SQLite가 준 값이다. 설정 파일이 JSON 객체가 아니면 `code`가 `settings_file_invalid`이다(§3.3.1) | `code`, `settings_file_invalid`이면 `path`, `line?`, `column?` |
 | 5007 | `store.corrupt` | false | 저장된 행이 스키마와 다르다(손상, 수동 편집). 매체 오류(`store.io`)와 복구 안내가 달라서 나눈다. 복구 길은 `F.records.spec` §3.7 7항이다 | `where` |
 
 #### 3.5.3 오류 코드 구간 [제안]

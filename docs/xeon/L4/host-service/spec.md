@@ -341,7 +341,7 @@ export type SettingsWriteFailure =
   | { readonly kind: "workspace_required"; readonly scope: SettingScope }
   | { readonly kind: "untrusted_project"; readonly workspace: string }
   | { readonly kind: "managed_read_only" }
-  | { readonly kind: "file_invalid"; readonly path: string }             // 기존 파일이 JSON 객체가 아니다
+  | { readonly kind: "file_invalid"; readonly path: string; readonly line: number | null; readonly column: number | null }  // 기존 파일이 JSON 객체가 아니다(JSON 문법 오류면 위치를 싣는다, F wire §3.3.1)
   | { readonly kind: "file_unwritable"; readonly path: string; readonly code: string }
   | StoreError;                                                          // thread_not_found 포함
 
@@ -355,8 +355,10 @@ export interface SettingsStorePort {
   readFile(scope: SettingsFileScope, threadId: ThreadId | undefined): Promise<Result<SettingsFileRead, SettingsWriteFailure>>;
   /** 파일 전체를 바꾼다(`settings.writeFile`, HS-98). 파일 잠금 안에서 지금 파일의 해시가 baseSha256과 같을 때만 쓴다 */
   writeFile(scope: "user" | "project" | "local", text: string, baseSha256: string | null, threadId: ThreadId | undefined): Promise<Result<{ path: string; sha256: string }, SettingsWriteFailure | { kind: "conflict"; scope: SettingScope }>>;
-  /** 사용자 설정 파일을 다시 읽어 메모리 층에 반영하고 값이 달라진 키를 알린다(HS-99). 읽을 수 없거나 JSON 객체가 아니면 앞 값을 둔다 */
+  /** 사용자 설정 파일을 다시 읽어 메모리 층에 반영하고 값이 달라진 키를 알린다(HS-99). 읽을 수 없거나 JSON 객체가 아니면 앞 값을 두고 문제를 남긴다 */
   refreshUserFile(): Promise<void>;
+  /** 읽지 못해 비운 사용자 설정 파일의 문제(`host.status.settingsProblems`의 원천). 문제가 없으면 빈 배열이다. 값은 싣지 않는다 */
+  problems(): readonly SettingsFileProblem[];
   onChange(listener: () => void): Unsubscribe;
 }
 

@@ -5,6 +5,7 @@ import type {
   HostBinaryItem,
   HostBinaryReport,
   HostConnection,
+  SettingsFileProblem,
   WebProviderCapability,
   WebProviderOrigin,
 } from "@fresnel/contracts/wire";
@@ -20,6 +21,7 @@ import type { EngineHandle } from "../engine.ts";
 import { failureOfCaught, type Failure } from "../errors.ts";
 import { EXIT, type ExitCode } from "../exit-codes.ts";
 import type { CliIo } from "../io.ts";
+import { settingsProblemReason, settingsProblemWhere } from "../settings-problem.ts";
 import { CLI_VERSION } from "./version.ts";
 import { connectOrReportQuiet, type CommandContext } from "./context.ts";
 
@@ -211,10 +213,35 @@ function binaryCheck(item: HostBinaryItem): DoctorCheck {
 }
 
 /**
- * `host.status { includeBinaries: true }`로 외부 바이너리 점검 결과를 받는다(G2-07, L4.host-service.spec HS-69).
- * 점검은 바이너리마다 자식 프로세스를 띄우므로 doctor만 요청한다. 호스트가 이 요청을 모르거나 점검이 실패해도 doctor는 이어 간다
+ * 설정 파일 항목(`settings.file`). 읽지 못해 비운 파일이 없으면 ok, 있으면 warn이다. 파일 값과 원문은 싣지 않는다(F wire §3.3.1).
+ * 파일이 여럿이면 첫 것을 말하고 나머지는 개수로 덧붙인다
  */
-async function binaryChecks(handle: EngineHandle): Promise<{
+function settingsFileCheck(problems: readonly SettingsFileProblem[]): DoctorCheck {
+  const first = problems[0];
+  if (first === undefined) {
+    return { id: "settings.file", status: "ok", message: t("cli.doctor.settingsFile.ok") };
+  }
+  const message = t("cli.doctor.settingsFile.problem", {
+    path: first.path,
+    where: settingsProblemWhere(first),
+    reason: settingsProblemReason(first),
+  });
+  const more = problems.length - 1;
+  return {
+    id: "settings.file",
+    status: "warn",
+    message:
+      more === 0 ? message : `${message} ${t("cli.doctor.settingsFile.more", { count: more })}`,
+    fix: t("cli.doctor.settingsFile.fix"),
+  };
+}
+
+/**
+ * `host.status { includeBinaries: true }` 한 번으로 외부 바이너리 점검 결과와 설정 파일 상태를 받는다(G2-07, L4.host-service.spec HS-69).
+ * 점검은 바이너리마다 자식 프로세스를 띄우므로 doctor만 요청한다. 호스트가 이 요청을 모르거나 점검이 실패해도 doctor는 이어 간다.
+ * 설정 파일 항목은 이 응답이 있을 때만 낸다(오래된 엔진은 생략한다)
+ */
+async function hostStatusChecks(handle: EngineHandle): Promise<{
   readonly checks: readonly DoctorCheck[];
   readonly report: HostBinaryReport | null;
 }> {
@@ -248,6 +275,7 @@ async function binaryChecks(handle: EngineHandle): Promise<{
       report: null,
     };
   }
+  const settings = settingsFileCheck(status.value.settingsProblems ?? []);
   const report = status.value.binaries;
   if (report === undefined) {
     return {
@@ -257,11 +285,12 @@ async function binaryChecks(handle: EngineHandle): Promise<{
           status: "info",
           message: t("cli.doctor.binary.notIncluded"),
         },
+        settings,
       ],
       report: null,
     };
   }
-  return { checks: report.items.map(binaryCheck), report };
+  return { checks: [...report.items.map(binaryCheck), settings], report };
 }
 
 async function engineChecks(handle: EngineHandle): Promise<{
@@ -297,7 +326,7 @@ async function engineChecks(handle: EngineHandle): Promise<{
       fix: failure.fix,
     });
   }
-  const binaries = await binaryChecks(handle);
+  const binaries = await hostStatusChecks(handle);
   checks.push(...binaries.checks);
   const service = await readOne(handle.connection, "l0.process.service.enabled");
   checks.push({

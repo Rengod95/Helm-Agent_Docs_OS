@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { parseJson } from "@fresnel/contracts";
+import { assertNever, attemptAsync, jsonErrorPosition, parseJson } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { SessionSettingsStore } from "@fresnel/contracts/records";
 import {
@@ -8,6 +8,7 @@ import {
   type ScopeStack,
   type SettingCatalog,
 } from "@fresnel/contracts/settings";
+import type { SettingsFileProblem } from "@fresnel/contracts/wire";
 import type { SettingsChange } from "../types.ts";
 
 // L4.host-service.spec §3.3.2 SettingsStorePort의 읽기 쪽. 설정 파일 범위의 위치·읽기·병합은 호스트 소유다
@@ -17,6 +18,21 @@ import type { SettingsChange } from "../types.ts";
 // 파일 형식은 평평한 객체이고 키는 전체 설정 키다(settingsJsonSchema의 파일 모양).
 // project·local은 신뢰한 작업 폴더의 `.fresnel/settings.json`, `.fresnel/settings.local.json`이다(X.loading-trust.spec §4.7.2).
 // layers가 동기라서 신뢰 판정과 파일 읽기는 설정 저장소(settings-store.ts)가 먼저 하고 결과를 `setWorkspaceFiles`로 넣는다.
+
+/**
+ * 설정 파일 하나를 읽은 결과. 없는 파일은 빈 값이다. 문제는 이유와 위치만 싣고 파일의 값과 원문은 싣지 않는다
+ * (F wire §3.3.1 `settingsProblems`).
+ */
+export type FileRead =
+  | { readonly kind: "ok"; readonly values: ReadonlyMap<string, unknown> }
+  | {
+      readonly kind: "invalid";
+      readonly reason: "invalid_json" | "not_object";
+      /** 첫 문법 오류의 위치. JSON 문법 오류가 아니면(객체가 아닌 경우) null */
+      readonly line: number | null;
+      readonly column: number | null;
+    }
+  | { readonly kind: "unreadable"; readonly code: string };
 
 /** 신뢰한 작업 폴더의 project·local 설정 파일 내용. 파일이 없으면 빈 맵이다 */
 interface WorkspaceSettingFiles {
@@ -28,7 +44,7 @@ interface WorkspaceSettingFiles {
 
 export interface SettingsEngine {
   readonly catalog: SettingCatalog;
-  /** 사용자 설정 파일을 읽는다. 없으면 빈 범위다. 읽을 수 없거나 JSON이 아니면 진단을 남기고 빈 범위다 */
+  /** 사용자 설정 파일을 읽는다. 없으면 빈 범위다. 읽을 수 없거나 JSON이 아니면 진단과 문제를 남기고 빈 범위다 */
   loadUserFile(path: string): Promise<void>;
   /** 세션 범위를 읽을 저장소. 세션 서비스가 올라온 뒤 연결한다 */
   bindSession(store: SessionSettingsStore): void;
@@ -37,6 +53,10 @@ export interface SettingsEngine {
   layers(threadId: ThreadId | undefined): ScopeStack;
   /** 사용자 설정 파일의 경로. `loadUserFile` 전에는 undefined */
   userPath(): string | undefined;
+  /** 사용자 설정 파일을 읽지 못한 이유(`settingsProblems`의 원천). 읽었거나 파일이 없으면 undefined. 값은 싣지 않는다 */
+  userProblem(): SettingsFileProblem | undefined;
+  /** 사용자 범위의 문제를 바꾼다. 파일을 읽거나 쓴 뒤에 부른다. undefined면 문제가 없다 */
+  setUserProblem(problem: SettingsFileProblem | undefined): void;
   /** 사용자 범위 값을 메모리에 반영한다(파일에 쓴 뒤 부른다). value가 undefined면 키를 지운다 */
   setUserValue(key: string, value: unknown): void;
   /** 지금 메모리에 있는 사용자 범위 값 */
@@ -75,15 +95,70 @@ function errorCode(caught: unknown): string {
   return "UNKNOWN";
 }
 
+/** 파일 원문을 JSON 객체로 읽는다. JSON 문법 오류는 첫 오류의 줄과 칸을, 객체가 아니면 위치 없이 이유를 싣는다 */
+export function fileReadOfText(text: string): FileRead {
+  const decoded = parseJson(text);
+  if (!decoded.ok) {
+    const position = jsonErrorPosition(text);
+    return {
+      kind: "invalid",
+      reason: "invalid_json",
+      line: position?.line ?? null,
+      column: position?.column ?? null,
+    };
+  }
+  if (!isRecord(decoded.value)) {
+    return { kind: "invalid", reason: "not_object", line: null, column: null };
+  }
+  return { kind: "ok", values: new Map(Object.entries(decoded.value)) };
+}
+
+/** 설정 파일을 읽는다. 없으면 빈 값이다. 읽기 오류는 OS 오류 코드를 싣는다(값과 원문은 싣지 않는다) */
+export async function readSettingsFile(path: string): Promise<FileRead> {
+  const read = await attemptAsync(() => readFile(path, "utf8"));
+  if (!read.ok) {
+    const code = errorCode(read.error.cause);
+    return code === "ENOENT" ? { kind: "ok", values: new Map() } : { kind: "unreadable", code };
+  }
+  return fileReadOfText(read.value);
+}
+
+/** 읽은 결과가 문제면 그 파일의 `settingsProblems` 값을 만든다. 잘 읽었으면 undefined다 */
+export function problemOfRead(
+  scope: "user",
+  path: string,
+  read: FileRead,
+): SettingsFileProblem | undefined {
+  switch (read.kind) {
+    case "ok":
+      return undefined;
+    case "invalid":
+      return { scope, path, reason: read.reason, line: read.line, column: read.column };
+    case "unreadable":
+      return {
+        scope,
+        path,
+        reason: "unreadable",
+        line: null,
+        column: null,
+        code: read.code.slice(0, 64),
+      };
+    default:
+      return assertNever(read, "FileRead");
+  }
+}
+
 export function createSettingsEngine(catalog: SettingCatalog): SettingsEngine {
   const state: {
     user: ReadonlyMap<string, unknown>;
     userPath: string | undefined;
+    userProblem: SettingsFileProblem | undefined;
     session: SessionSettingsStore | undefined;
     workspaceOf: ((threadId: ThreadId) => string | undefined) | undefined;
   } = {
     user: new Map(),
     userPath: undefined,
+    userProblem: undefined,
     session: undefined,
     workspaceOf: undefined,
   };
@@ -118,28 +193,17 @@ export function createSettingsEngine(catalog: SettingCatalog): SettingsEngine {
     diagnostics,
     async loadUserFile(path) {
       state.userPath = path;
-      let text: string;
-      try {
-        text = await readFile(path, "utf8");
-      } catch (caught) {
-        const code = errorCode(caught);
-        if (code !== "ENOENT") diagnostics.push(`settings.user_unreadable: ${code}`);
-        state.user = new Map();
+      const read = await readSettingsFile(path);
+      state.userProblem = problemOfRead("user", path, read);
+      if (read.kind === "ok") {
+        state.user = read.values;
         return;
       }
-      const decoded = parseJson(text);
-      if (!decoded.ok) {
-        diagnostics.push("settings.user_invalid_json");
-        state.user = new Map();
-        return;
-      }
-      const parsed = decoded.value;
-      if (!isRecord(parsed)) {
-        diagnostics.push("settings.user_not_object");
-        state.user = new Map();
-        return;
-      }
-      state.user = new Map(Object.entries(parsed));
+      // 읽지 못한 범위는 비운다. 이유는 진단과 문제로 알린다(값과 원문은 싣지 않는다)
+      state.user = new Map();
+      if (read.kind === "unreadable") diagnostics.push(`settings.user_unreadable: ${read.code}`);
+      else if (read.reason === "invalid_json") diagnostics.push("settings.user_invalid_json");
+      else diagnostics.push("settings.user_not_object");
     },
     bindSession(store) {
       state.session = store;
@@ -149,6 +213,10 @@ export function createSettingsEngine(catalog: SettingCatalog): SettingsEngine {
     },
     layers,
     userPath: () => state.userPath,
+    userProblem: () => state.userProblem,
+    setUserProblem(problem) {
+      state.userProblem = problem;
+    },
     setUserValue(key, value) {
       const next = new Map(state.user);
       if (value === undefined) next.delete(key);

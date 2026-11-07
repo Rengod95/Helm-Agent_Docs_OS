@@ -23,6 +23,7 @@ import {
   type WireHandlers,
 } from "@fresnel/contracts/wire";
 import type { ProfileStoreFailure, ProfilesChange } from "../../assembly/m4/profile-store.ts";
+import { settingsFileInvalidDetails } from "../settings.ts";
 
 // 프로필·Test run·Trace wire(`spec-deltas/t-wb.md`). 처리기는 값 검사와 오류 옮기기만 하고, 저장·적용·되돌리기는 포트 구현
 // (`assembly/m4/profile-test-run-port.ts`)이 한다. 알림 `profile.changed`는 포트의 `onProfilesChanged`를 연결 허브(`handlers/events.ts`)가 듣고 전체 연결에 보낸다.
@@ -44,7 +45,12 @@ export type ProfileWriteFailure =
   | { readonly kind: "workspace_required"; readonly scope: SettingScope }
   | { readonly kind: "untrusted_project"; readonly workspace: string }
   | { readonly kind: "managed_read_only" }
-  | { readonly kind: "file_invalid"; readonly path: string }
+  | {
+      readonly kind: "file_invalid";
+      readonly path: string;
+      readonly line: number | null;
+      readonly column: number | null;
+    }
   | { readonly kind: "file_unwritable"; readonly path: string; readonly code: string }
   | { readonly kind: "key_reused"; readonly requestKey: string }
   | StoreError;
@@ -181,7 +187,7 @@ export function wireErrorOfWrite(
     case "file_invalid":
       return wireError("store.io", {
         message: `${where}: the settings file is not a JSON object`,
-        details: { code: "settings_file_invalid" },
+        details: settingsFileInvalidDetails(failure),
       });
     case "file_unwritable":
       return wireError("store.io", {

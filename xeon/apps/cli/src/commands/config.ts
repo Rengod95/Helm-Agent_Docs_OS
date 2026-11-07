@@ -1,12 +1,13 @@
 import { t } from "@fresnel/client/i18n";
-import { assertNever } from "@fresnel/contracts";
+import { assertNever, attemptAsync } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { EffectiveSetting, SettingDefWire, SettingSource } from "@fresnel/contracts/settings";
 import type { HostConnection } from "@fresnel/contracts/wire";
 import type { CommandIo, HostCommand } from "@fresnel/host";
 import type { ConfigCommand } from "../cli/command.ts";
-import { renderFailure } from "../errors.ts";
+import { failureOfCaught, renderFailure } from "../errors.ts";
 import { EXIT, exitCodeOfHost, type ExitCode } from "../exit-codes.ts";
+import { settingsProblemReason, settingsProblemWhere } from "../settings-problem.ts";
 import { interpretRaw } from "../settings-input.ts";
 import { cliSettingGroups } from "../settings.ts";
 import { withEngine, type CommandContext } from "./context.ts";
@@ -46,6 +47,31 @@ async function folderThreadOf(
   return listed.threads[0]?.threadId;
 }
 
+/**
+ * 읽지 못해 비운 설정 파일을 stderr에 알린다(`host.status`의 `settingsProblems`). 값은 그대로 stdout에 낸다(F wire §3.3.1).
+ * 호스트가 `host.status`를 모르면 알리지 않는다. 요청이 예상 가능한 이유로 실패해도 설정 값 출력은 그대로 간다
+ */
+async function warnSettingsFiles(
+  ctx: CommandContext,
+  handle: { readonly connection: HostConnection; readonly supports: (method: string) => boolean },
+): Promise<void> {
+  if (!handle.supports("host.status")) return;
+  const status = await attemptAsync(() => handle.connection.request("host.status", {}));
+  if (!status.ok) {
+    if (failureOfCaught(status.error.cause) === undefined) throw status.error.cause;
+    return;
+  }
+  const lines = (status.value.settingsProblems ?? []).map(
+    (problem) =>
+      `${t("cli.config.fileProblem", {
+        path: problem.path,
+        where: settingsProblemWhere(problem),
+        reason: settingsProblemReason(problem),
+      })}\n`,
+  );
+  if (lines.length > 0) await ctx.io.stderr(lines.join(""));
+}
+
 /** 이 작업 폴더에 대화가 없어 project·local 범위를 쓸 곳을 정하지 못했다 */
 async function noFolderThread(ctx: CommandContext, scope: string): Promise<ExitCode> {
   await ctx.io.stderr(
@@ -68,6 +94,7 @@ async function runConfigGet(
       ...(command.keys.length === 0 ? {} : { keys: [...command.keys] }),
       ...(threadId === undefined ? {} : { threadId }),
     });
+    await warnSettingsFiles(ctx, handle);
     if (command.output === "json") {
       await ctx.io.stdout(`${JSON.stringify(result.settings, null, 2)}\n`);
     } else {
@@ -158,6 +185,7 @@ async function runConfigList(
   command: Extract<ConfigCommand, { kind: "config.list" }>,
 ): Promise<ExitCode> {
   return withEngine(ctx, async (handle) => {
+    await warnSettingsFiles(ctx, handle);
     const listed = await handle.connection.request("settings.list", {
       ...(command.prefix === null ? {} : { prefix: command.prefix }),
       ...(command.includeDeprecated ? { includeDeprecated: true } : {}),

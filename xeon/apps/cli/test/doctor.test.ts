@@ -298,6 +298,93 @@ test("doctor --json carries the raw binary report, or null when the engine has n
   expect(without.methods()).not.toContain("host.status");
 });
 
+/** host.status 응답(바이너리 점검 없이). 읽지 못한 설정 파일이 있으면 `settingsProblems`를 싣는다 */
+function statusOf(settingsProblems: readonly unknown[] | undefined): Record<string, unknown> {
+  return {
+    mode: "in-process",
+    pid: 1,
+    startedAt: "2026-10-26T00:00:00.000Z",
+    connections: 1,
+    liveTurns: 0,
+    idleShutdownAt: null,
+    ...(settingsProblems === undefined ? {} : { settingsProblems }),
+  };
+}
+
+test("doctor warns about a settings file it could not read, with its position and the fix", async () => {
+  const h = harness(
+    {},
+    {},
+    {
+      "host.status": () =>
+        statusOf([
+          {
+            scope: "user",
+            path: "/home/u/.fresnel/settings.json",
+            reason: "invalid_json",
+            line: 3,
+            column: 5,
+          },
+        ]),
+    },
+  );
+  expect(await h.run(["doctor"])).toBe(EXIT.ok);
+  expect(h.stdoutText()).toContain(
+    "  [경고] 설정 파일 /home/u/.fresnel/settings.json (3줄 5칸)을 읽지 못해 기본값으로 본다 (JSON 문법 오류)",
+  );
+  expect(h.stdoutText()).toContain(
+    "해결: 파일을 고친 뒤 다시 실행한다(깨진 파일은 덮어쓰지 않는다)",
+  );
+  expect(h.stdoutText()).not.toContain("설정 파일을 읽었다");
+});
+
+test("doctor says the settings files were read when the host reports none broken, and lists the extra ones by count", async () => {
+  const clean = harness({}, {}, { "host.status": () => statusOf([]) });
+  expect(await clean.run(["doctor"])).toBe(EXIT.ok);
+  expect(clean.stdoutText()).toContain("[ok]   설정 파일을 읽었다");
+  const two = harness(
+    {},
+    {},
+    {
+      "host.status": () =>
+        statusOf([
+          {
+            scope: "user",
+            path: "/a/settings.json",
+            reason: "not_object",
+            line: null,
+            column: null,
+          },
+          {
+            scope: "user",
+            path: "/b/settings.json",
+            reason: "unreadable",
+            line: null,
+            column: null,
+            code: "EACCES",
+          },
+        ]),
+    },
+  );
+  expect(await two.run(["doctor"])).toBe(EXIT.ok);
+  expect(two.stdoutText()).toContain(
+    "  [경고] 설정 파일 /a/settings.json을 읽지 못해 기본값으로 본다 (JSON 객체가 아니다) 외 1개",
+  );
+});
+
+test("doctor's JSON carries the settings.file check, and an engine without host.status has none", async () => {
+  const h = harness({}, {}, { "host.status": () => statusOf([]) });
+  expect(await h.run(["doctor", "--json"])).toBe(EXIT.ok);
+  expect(JSON.parse(h.stdoutText())).toMatchObject({
+    checks: expect.arrayContaining([
+      { id: "settings.file", status: "ok", message: "설정 파일을 읽었다" },
+    ]),
+  });
+  const old = harness();
+  expect(await old.run(["doctor"])).toBe(EXIT.ok);
+  expect(old.stdoutText()).not.toContain("설정 파일");
+});
+
 test("a binary check that fails is a warning and doctor goes on", async () => {
   const h = harness(
     {},

@@ -111,6 +111,34 @@ export const SettingsWriteFileResultSchema: TObject<{
 );
 export type SettingsWriteFileResult = Static<typeof SettingsWriteFileResultSchema>;
 
+/**
+ * 설정 파일을 읽지 못한 이유(`host.status.settingsProblems`, F wire §3.3.1). 파일 내용과 값은 싣지 않는다.
+ * `invalid_json`·`not_object`는 `line`·`column`에 위치를 싣고(모르면 null), `unreadable`은 `code`에 OS 오류 코드를 싣는다.
+ */
+export const SettingsFileProblemSchema: TObject<{
+  scope: typeof SettingsWritableFileScopeSchema;
+  path: TString;
+  reason: TUnion<[TLiteral<"invalid_json">, TLiteral<"not_object">, TLiteral<"unreadable">]>;
+  line: TUnion<[TInteger, ReturnType<typeof Type.Null>]>;
+  column: TUnion<[TInteger, ReturnType<typeof Type.Null>]>;
+  code: TOptional<TString>;
+}> = Type.Object(
+  {
+    scope: SettingsWritableFileScopeSchema,
+    path: Type.String({ minLength: 1, maxLength: 4096 }),
+    reason: Type.Union([
+      Type.Literal("invalid_json"),
+      Type.Literal("not_object"),
+      Type.Literal("unreadable"),
+    ]),
+    line: Nullable(Type.Integer({ minimum: 1 })),
+    column: Nullable(Type.Integer({ minimum: 1 })),
+    code: Type.Optional(Type.String({ maxLength: 64 })),
+  },
+  { additionalProperties: false },
+);
+export type SettingsFileProblem = Static<typeof SettingsFileProblemSchema>;
+
 // ── usage.get ────────────────────────────────────────────────────────────
 
 export const UsageWindowSchema: TUnion<

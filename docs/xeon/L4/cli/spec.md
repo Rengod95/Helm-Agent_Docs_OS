@@ -742,6 +742,7 @@ export interface GroupTemplatesPort {
   - `missing`, `too_old`, `unusable`은 `need`가 `required`이면 `[실패]`, `optional`이면 `[경고]`다. 해결 줄은 `missing`이면 호스트가 준 `hint`, `too_old`이면 필요한 버전 이상으로 올리라는 말, `unusable`이면 설치와 실행 권한을 확인하라는 말이다.
   - 보고서의 `ready`가 거짓(필수 바이너리를 쓸 수 없음)이면 종료 코드는 3(환경 문제)이다. 선택 바이너리만 빠졌으면 0이다. HS-69가 "종료코드 2 계열"이라 적은 자리는 CLI 종료 코드 표(§3.6)에서 환경 문제인 3으로 읽는다.
   - `host.hello`의 `features`에 `host.status`가 없거나 응답에 `binaries`가 없으면 "점검 결과를 알리지 않는다"를 `[참고]`로 한 줄 낸다. 점검 요청이 실패하면(`request.cancelled` 등) `[경고]` 한 줄로 알리고 doctor는 이어 간다. 키 플러그인 ID는 `plugin:web-exa`, `plugin:web-brave`(L2.web.spec §4.8)이고, 등록 여부는 `web.providers` 행의 상태가 준다(줄 2).
+- 설정 파일 [결정: 오케스트레이터 기본값, fxSF]: `doctor`는 외부 바이너리 점검과 같은 `host.status` 응답의 `settingsProblems`로 `settings.file` 항목 하나를 낸다. 읽지 못한 설정 파일이 없으면 `[ok]   설정 파일을 읽었다`, 있으면 `[경고]`로 첫 파일의 경로, 위치(JSON 문법 오류일 때), 이유를 말하고 여럿이면 `외 N개`를 덧붙인다. 해결 줄은 `파일을 고친 뒤 다시 실행한다(깨진 파일은 덮어쓰지 않는다)`다. 종료 코드는 바꾸지 않는다. `host.status`를 모르는 엔진에서는 항목을 생략한다.
 - 설정의 시크릿 키(`secret: true`)는 `config get`이 참조 문자열(`secret://<name>`)이나 `null`만 보인다(F wire §4.9).
 
 ### 4.8 설정 명령과 대화 덮어쓰기
@@ -749,6 +750,7 @@ export interface GroupTemplatesPort {
 - 값 해석(`config set`, `--set`, `/set`): `raw`를 먼저 JSON으로 해석하고, 실패하면 문자열로 본다(F wire §4.11).
 - 최종 판정은 host의 `settings.set`이다. host는 `checkSettingWrite`로 범위·잠금·값을 검사한다(F wire §3.9). CLI는 오류 `kind`를 §4.10 표의 문구로 바꾼다.
 - [제안] 미리 검사: `config set`은 `settings.list`의 `SettingDefWire`로 같은 값을 먼저 검사해 왕복 없이 범위 오류를 알린다. 이때 `type`에 `range`를 병합한 스키마(F wire §4.10 3번 규칙)를 `typebox/schema`의 `Check`로 검사한다(`_research/notes/L4-3.md`). 잠금과 시크릿 값 거부는 host만 판정한다. 병합 함수는 F에 공통으로 두자는 제안을 따른다 [미결 §10 4번]. M2 구현은 이 사전 검사를 하지 않고 호스트의 `settings.set` 판정과 오류 문구(§4.10)만 쓴다 [미결 §10 13번].
+- 깨진 설정 파일 [결정: 오케스트레이터 기본값, fxSF]: `config get`과 `config list`는 `host.hello`의 `features`에 `host.status`가 있으면 그 응답의 `settingsProblems`(F wire §3.3.1)를 읽고, 읽지 못해 기본값으로 본 설정 파일마다 stderr에 한 줄을 쓴다: `경고: 설정 파일 <경로>(<줄>줄 <칸>칸)을 읽지 못해 그 범위를 기본값으로 본다 (<이유>)`. 위치는 JSON 문법 오류일 때만 있고(없으면 `(<줄>줄 <칸>칸)`을 뺀다), 이유는 `JSON 문법 오류`, `JSON 객체가 아니다`, `읽기 실패: <OS 코드>` 가운데 하나다. stdout(텍스트·JSON)과 종료 코드(0)는 그대로다. 호스트가 `host.status`를 모르거나 그 요청이 와이어 오류로 실패하면 경고를 내지 않는다. 깨진 파일 위의 `config set`·`config reset`은 쓰지 않고 `store.io`(`details.code: settings_file_invalid`)를 받아 §4.10 문구로 거절한다.
 - `config get` 출력 형식(텍스트):
 
   ```text
@@ -820,6 +822,7 @@ export interface GroupTemplatesPort {
 | `settings.reserved` | 아직 읽는 코드가 없는 예약 키다 | `fresnel config list`로 쓸 수 있는 키를 확인한다 | 2 |
 | `secret.*` | 시크릿 오류별 문구(없음, 사용 중, 제공자·키 없음, 복호화 실패, 재확인 필요 등). 값은 싣지 않는다 | 오류별 한 줄(§4.7) | 제공자·키·쓰기 문제 3, 나머지 1 |
 | `store.corrupt` | 저장된 데이터가 스키마와 다르다(`where`) | `fresnel doctor`를 실행하고 보고한다. 복원하기 전에 데이터 디렉터리를 복사해 둔다 | 1 |
+| `store.io`(`details.code: settings_file_invalid`) | 설정 파일이 JSON 객체가 아니어서 쓰지 않았다(`path`, JSON 문법 오류면 `line`과 `column`) | 파일을 고치거나 옮긴 뒤 다시 실행한다. 깨진 파일은 덮어쓰지 않는다 | 3 |
 | `cap.dialog.commands.*` | 슬래시 명령 실패. `command_args_invalid`는 인자 선언과 다르다, `command_shell_disabled`는 셸 주입 설정이 꺼져 있다 | `/help`로 사용법을 확인한다. 셸 주입은 `l2.dialog.commands.shellInjection`을 확인한다 | 인자 오류 2, 나머지 1 |
 | `protocol.unsupported` | CLI와 엔진의 계약 버전이 다르다 | 같은 버전의 바이너리를 쓰거나 서비스를 다시 띄운다 | 3 |
 | `host.shuttingDown` | 엔진이 종료 중이다 | 잠시 뒤 다시 실행한다 | 1 |

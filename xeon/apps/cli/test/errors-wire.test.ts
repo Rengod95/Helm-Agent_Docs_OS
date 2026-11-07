@@ -43,6 +43,28 @@ test("dedicated secret.* kinds map to the same phrases as the legacy internal de
   ).toBe(EXIT.environment);
 });
 
+test("a settings file that is not a JSON object is a store error that names the file and the position", () => {
+  const path = "/home/u/.fresnel/settings.json";
+  expect(
+    failureOfWire(
+      wireError("store.io", {
+        details: { code: "settings_file_invalid", path, line: 2, column: 8 },
+      }),
+    ),
+  ).toEqual({
+    message: "설정 파일을 읽지 못해 쓰지 않았다 (/home/u/.fresnel/settings.json, 2줄 8칸)",
+    fix: "파일을 고치거나 옮긴 뒤 다시 실행한다. 깨진 파일은 덮어쓰지 않는다",
+    code: EXIT.environment,
+  });
+  expect(
+    failureOfWire(wireError("store.io", { details: { code: "settings_file_invalid", path } }))
+      .message,
+  ).toBe("설정 파일을 읽지 못해 쓰지 않았다 (/home/u/.fresnel/settings.json)");
+  expect(
+    failureOfWire(wireError("store.io", { details: { code: "settings_file_invalid" } })).message,
+  ).toBe("설정 파일을 읽지 못해 쓰지 않았다 (위치 알 수 없음)");
+});
+
 test("the legacy internal details.secret path still works", () => {
   const failure = failureOfWire(
     wireError("internal", { details: { secret: { kind: "in_use", activeLeases: 1 } } }),

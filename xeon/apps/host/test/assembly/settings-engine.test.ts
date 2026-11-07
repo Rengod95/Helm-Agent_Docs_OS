@@ -70,6 +70,55 @@ test("a file that cannot be used leaves an empty scope and one diagnostic withou
   expect(directory.diagnostics[0]).toContain("settings.user_unreadable");
 });
 
+test("the user problem names the file, the reason and the position, and a file that reads again clears it", async () => {
+  const broken = engineOver();
+  const brokenPath = fileWith("problem-broken.json", '{\n  "a": }');
+  await broken.loadUserFile(brokenPath);
+  expect(broken.userProblem()).toEqual({
+    scope: "user",
+    path: brokenPath,
+    reason: "invalid_json",
+    line: 2,
+    column: 8,
+  });
+  const list = engineOver();
+  const listPath = fileWith("problem-list.json", "[1,2]");
+  await list.loadUserFile(listPath);
+  expect(list.userProblem()).toEqual({
+    scope: "user",
+    path: listPath,
+    reason: "not_object",
+    line: null,
+    column: null,
+  });
+  const directory = engineOver();
+  await directory.loadUserFile(scratch);
+  expect(directory.userProblem()).toEqual({
+    scope: "user",
+    path: scratch,
+    reason: "unreadable",
+    line: null,
+    column: null,
+    code: "EISDIR",
+  });
+  const missing = engineOver();
+  await missing.loadUserFile(join(scratch, "problem-missing.json"));
+  expect(missing.userProblem()).toBeUndefined();
+  const fixed = engineOver();
+  await fixed.loadUserFile(fileWith("problem-fixed.json", "{}"));
+  expect(fixed.userProblem()).toBeUndefined();
+  fixed.setUserProblem({
+    scope: "user",
+    path: brokenPath,
+    reason: "not_object",
+    line: null,
+    column: null,
+  });
+  expect(fixed.userProblem()).toMatchObject({ reason: "not_object" });
+  fixed.setUserProblem(undefined);
+  expect(fixed.userProblem()).toBeUndefined();
+});
+
 test("unknown keys have no effective value", () => {
   expect(engineOver().value("l1.nope.missing")).toBeUndefined();
 });

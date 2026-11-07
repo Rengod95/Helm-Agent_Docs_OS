@@ -678,7 +678,16 @@ export const WIRE_ERRORS: {
     code: 5006,
     kind: "store.io",
     retryable: false,
-    details: Type.Object({ code: Type.String({ maxLength: 64 }) }, { additionalProperties: false }),
+    // `code`는 OS나 SQLite가 준 값이다. 설정 파일이 JSON 객체가 아니면(`settings_file_invalid`) 파일 경로와 위치를 더 싣는다(F wire §3.3.1)
+    details: Type.Object(
+      {
+        code: Type.String({ maxLength: 64 }),
+        path: Type.Optional(Type.String({ maxLength: 512 })),
+        line: Type.Optional(Type.Integer({ minimum: 1 })),
+        column: Type.Optional(Type.Integer({ minimum: 1 })),
+      },
+      { additionalProperties: false },
+    ),
   },
   /** 저장된 행이 스키마와 다르다(손상, 수동 편집). 매체 오류(store.io)와 다르게 복구 안내가 달라서 나눈다. `where`는 `<표>.<열>` 같은 위치 이름이다 */
   "store.corrupt": {

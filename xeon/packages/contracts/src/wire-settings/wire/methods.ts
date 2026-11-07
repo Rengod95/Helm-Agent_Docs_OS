@@ -102,6 +102,7 @@ import {
   ScheduleListResultSchema,
 } from "./schedule.ts";
 import {
+  SettingsFileProblemSchema,
   SettingsReadFileParamsSchema,
   SettingsReadFileResultSchema,
   SettingsWriteFileParamsSchema,
@@ -322,6 +323,7 @@ export const HostStatusResultSchema: TObject<{
   >;
   startupFailures: TOptional<TInteger>;
   suggestSafeMode: TOptional<TBoolean>;
+  settingsProblems: TOptional<TArray<typeof SettingsFileProblemSchema>>;
 }> = Type.Object(
   {
     mode: Type.Union([Type.Literal("in-process"), Type.Literal("stdio"), Type.Literal("service")]),
@@ -344,6 +346,8 @@ export const HostStatusResultSchema: TObject<{
     startupFailures: Type.Optional(Type.Integer({ minimum: 1 })),
     /** 연속 시작 실패 수가 `x.operations.safeMode.suggestAfter` 이상이면 참. 거짓이면 생략한다(W-39) */
     suggestSafeMode: Type.Optional(Type.Boolean()),
+    /** 설정 파일을 읽지 못해 그 범위를 비운 파일들. 없으면 생략한다(F wire §3.3.1). 값과 파일 내용은 싣지 않는다 */
+    settingsProblems: Type.Optional(Type.Array(SettingsFileProblemSchema, { maxItems: 8 })),
   },
   { additionalProperties: false },
 );

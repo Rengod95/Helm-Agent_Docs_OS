@@ -223,7 +223,7 @@ test("settings.set maps the port's write failures to wire errors", async () => {
     [{ kind: "untrusted_project", workspace: "/w" }, 3103, "untrustedProject"],
     [{ kind: "managed_read_only" }, 3103, "managedReadOnly"],
     [{ kind: "not_owner", threadId: fixedIdFactory(31).next("thr") }, 3002, undefined],
-    [{ kind: "file_invalid", path: "/p" }, 5006, undefined],
+    [{ kind: "file_invalid", path: "/p", line: null, column: null }, 5006, undefined],
     [{ kind: "file_unwritable", path: "/p", code: "EACCES" }, 5006, undefined],
     [{ kind: "disk_full" }, 5004, undefined],
   ];
@@ -239,8 +239,36 @@ test("settings.set maps the port's write failures to wire errors", async () => {
       );
       expect(error.code).toBe(code);
       if (reason !== undefined) expect(error.data.details).toMatchObject({ reason });
-      // 경로와 값은 응답에 싣지 않는다
-      expect(JSON.stringify(error.data)).not.toContain("/p");
+      // 경로와 값은 응답에 싣지 않는다. 깨진 설정 파일만 경로와 위치를 싣는다(아래 시험)
+      if (failure.kind !== "file_invalid") expect(JSON.stringify(error.data)).not.toContain("/p");
+      await connection.close();
+    }),
+  );
+});
+
+test("a settings file that is not a JSON object is refused with its path, and the position when there is one", async () => {
+  const cases: readonly [SettingsWriteFailure, Readonly<Record<string, unknown>>][] = [
+    [
+      { kind: "file_invalid", path: "/home/u/settings.json", line: 2, column: 8 },
+      { code: "settings_file_invalid", path: "/home/u/settings.json", line: 2, column: 8 },
+    ],
+    [
+      { kind: "file_invalid", path: "/home/u/settings.json", line: null, column: null },
+      { code: "settings_file_invalid", path: "/home/u/settings.json" },
+    ],
+  ];
+  await Promise.all(
+    cases.map(async ([failure, details]) => {
+      const host = createFakeHost({
+        overrides: { settings: { write: () => Promise.resolve(err(failure)) } },
+      });
+      const { connection } = host.connect();
+      await connection.request("host.hello", HELLO_PARAMS);
+      const error = await wireErrorOf(
+        connection.request("settings.set", { key: REPLAY, value: 5000, scope: "user" }),
+      );
+      expect(error.code).toBe(5006);
+      expect(error.data.details).toEqual(details);
       await connection.close();
     }),
   );

@@ -42,6 +42,7 @@ import type {
 } from "@fresnel/contracts/settings";
 import type {
   EventFilter,
+  SettingsFileProblem,
   SettingsFileScope,
   SettingsWritableFileScope,
   StoreId,
@@ -583,8 +584,13 @@ export type SettingsWriteFailure =
   | { readonly kind: "untrusted_project"; readonly workspace: string }
   /** managed 범위는 사용자 앱이 쓰지 않는 읽기 전용 파일이다 */
   | { readonly kind: "managed_read_only" }
-  /** 기존 파일이 JSON 객체가 아니다. 덮어쓰면 값을 잃으므로 쓰지 않는다 */
-  | { readonly kind: "file_invalid"; readonly path: string }
+  /** 기존 파일이 JSON 객체가 아니다(JSON 문법 오류 포함). 덮어쓰면 값을 잃으므로 쓰지 않는다. 위치는 JSON 문법 오류일 때만 있다 */
+  | {
+      readonly kind: "file_invalid";
+      readonly path: string;
+      readonly line: number | null;
+      readonly column: number | null;
+    }
   | { readonly kind: "file_unwritable"; readonly path: string; readonly code: string }
   /** session 범위 쓰기 키가 다른 값으로 재사용되었다. 키를 호출마다 새로 만들므로 일어나지 않는 방어 경로다 */
   | { readonly kind: "key_reused"; readonly requestKey: string }
@@ -657,6 +663,8 @@ export interface SettingsStorePort {
    * 읽을 수 없거나 JSON 객체가 아니면 앞 값을 둔다
    */
   refreshUserFile(): Promise<void>;
+  /** 읽지 못해 비운 설정 파일의 문제(`host.status.settingsProblems`의 원천). 값은 싣지 않는다. 문제가 없으면 빈 배열이다 */
+  problems(): readonly SettingsFileProblem[];
   onChange(listener: (change: SettingsChange) => void): Unsubscribe;
 }
 
