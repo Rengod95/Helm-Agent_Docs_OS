@@ -1,4 +1,5 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { setActiveLocale } from "../../src/i18n/index.ts";
 import type { CommandListResult, CommandRunResult } from "@fresnel/contracts/wire";
 import {
   commandListView,
@@ -66,14 +67,21 @@ describe("slashLineOf", () => {
 });
 
 describe("commandListView and completeSlash", () => {
-  const rows = commandListView(LIST);
+  let rows: ReturnType<typeof commandListView> = [];
+  beforeAll(() => {
+    setActiveLocale("ko");
+    rows = commandListView(LIST);
+  });
+  afterAll(() => {
+    setActiveLocale("ko");
+  });
 
   test("rows are sorted by name and carry label, hint and shell flag", () => {
     expect(rows.map((row) => row.label)).toEqual(["/helm", "/learning", "/review"]);
     expect(rows[0]).toEqual({
       name: "helm",
       label: "/helm",
-      description: "Helm 그룹을 다룬다",
+      description: "탐구를 시작하거나 멈추고 상태를 봐요: /helm start [주제] | stop | status",
       hint: "<start|stop>",
       kind: "action",
       origin: "group-helm",
@@ -93,6 +101,43 @@ describe("commandListView and completeSlash", () => {
     expect(completeSlash(rows, "/helm start now")).toEqual([]);
     expect(completeSlash(rows, "/nope x")).toEqual([]);
     expect(completeSlash(rows, "helm")).toEqual([]);
+  });
+});
+
+const goal = (source: "capability" | "project"): CommandListResult => ({
+  commands: [
+    {
+      name: "goal",
+      description: "완료 조건을 걸고 턴마다 판정한다. status로 보고 clear로 해제한다",
+      argumentHint: "<조건> | status | clear",
+      args: [],
+      kind: "action",
+      source,
+      origin: "cap-work",
+      hasShell: false,
+    },
+  ],
+});
+
+describe("commandListView localizes code-registered commands", () => {
+  test("an English locale replaces the engine text with the catalog text", () => {
+    setActiveLocale("en");
+    const row = commandListView(goal("capability"))[0];
+    expect(row?.description).toBe(
+      "Set a completion condition that is judged every turn. Use status to check and clear to remove it",
+    );
+    expect(row?.hint).toBe("<condition> | status | clear");
+    setActiveLocale("ko");
+  });
+
+  test("a file command keeps its own text", () => {
+    setActiveLocale("en");
+    const row = commandListView(goal("project"))[0];
+    expect(row?.description).toBe(
+      "완료 조건을 걸고 턴마다 판정한다. status로 보고 clear로 해제한다",
+    );
+    expect(row?.hint).toBe("<조건> | status | clear");
+    setActiveLocale("ko");
   });
 });
 

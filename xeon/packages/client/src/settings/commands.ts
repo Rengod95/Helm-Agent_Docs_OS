@@ -2,6 +2,7 @@ import { assertNever } from "@fresnel/contracts";
 import { COMMAND_NAME_PATTERN } from "@fresnel/contracts/capabilities";
 import type { JsonValue } from "@fresnel/contracts/conversation";
 import type { CommandListResult, CommandRunResult } from "@fresnel/contracts/wire";
+import { tKey } from "../i18n/translator.ts";
 
 // 슬래시 명령 view-model(G1-01, L4.host-service.spec HS-72). 입력창이 `/`로 시작하는 줄을 `command.run`에 보내고,
 // `command.list`를 목록·자동완성으로 보인다. 순수 함수만 둔다: 호출과 화면은 앱이 맡는다.
@@ -38,19 +39,40 @@ export type CommandRowVM = {
   readonly firstChoices: readonly string[];
 };
 
+type ListedCommand = CommandListResult["commands"][number];
+
+/**
+ * 코드가 등록한 명령(builtin, capability, extension)의 설명과 인자 안내는 엔진이 로케일을 모르므로 한 가지 글로만 온다.
+ * 카탈로그에 `desktop.composer.slash.<이름>.description|hint`가 있으면 현재 로케일로 풀고, 없으면 온 글 그대로 쓴다.
+ * 파일 명령(project, user)은 사용자 글이라 건드리지 않는다.
+ */
+function localizedText(command: ListedCommand): { description: string; hint: string | null } {
+  if (command.source === "project" || command.source === "user") {
+    return { description: command.description, hint: command.argumentHint };
+  }
+  const base = `desktop.composer.slash.${command.name}`;
+  return {
+    description: tKey(`${base}.description`, command.description),
+    hint: command.argumentHint === null ? null : tKey(`${base}.hint`, command.argumentHint),
+  };
+}
+
 /** `command.list` 결과를 목록 행으로 바꾼다. 이름 순으로 정렬한다 */
 export function commandListView(result: CommandListResult): readonly CommandRowVM[] {
   return result.commands
-    .map((command): CommandRowVM => ({
-      name: command.name,
-      label: `/${command.name}`,
-      description: command.description,
-      hint: command.argumentHint,
-      kind: command.kind,
-      origin: command.origin,
-      needsShellConfirm: command.hasShell,
-      firstChoices: command.args[0]?.choices ?? [],
-    }))
+    .map((command): CommandRowVM => {
+      const text = localizedText(command);
+      return {
+        name: command.name,
+        label: `/${command.name}`,
+        description: text.description,
+        hint: text.hint,
+        kind: command.kind,
+        origin: command.origin,
+        needsShellConfirm: command.hasShell,
+        firstChoices: command.args[0]?.choices ?? [],
+      };
+    })
     .toSorted((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 

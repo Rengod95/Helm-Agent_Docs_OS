@@ -12,7 +12,7 @@ export type ImeKeyEvent = {
 };
 
 /** 이 keydown이 IME가 가로챈 키인가(조합 중이거나 keyCode 229) */
-export function isImeKey(event: ImeKeyEvent): boolean {
+function isImeKey(event: ImeKeyEvent): boolean {
   return event.nativeEvent.isComposing || event.keyCode === IME_PROCESS_KEY_CODE;
 }
 

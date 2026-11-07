@@ -285,6 +285,7 @@ interface ExtMethodDecl {
 - 선언형: 플러그인은 색과 간격을 정하지 않습니다. 렌더러가 caustic 부품과 토큰으로 그리므로 라이트·다크와 §13 원칙이 자동으로 맞습니다.
 - 프레임: 토큰을 받아 플러그인이 맞춥니다(§3.6.8).
 - 문구: `title`과 글 props는 메시지 키(`<확장이름>.<키>`) 또는 문자열입니다. 키는 확장 패키지 `locales/<로케일>.json`에서 찾고, 없으면 영어, 그다음 키 자체입니다(ADR-0016과 같은 순서) [제안]. 프레임은 `host.locale`을 받아 스스로 번역합니다. 호스트는 `ui.messages` 폴더의 `en.json`, `ko.json`을 읽어 `ext.ui.list` 항목의 `messages`로 싣고, 클라이언트가 `title`과 화면 트리의 정적 글 prop(바인드한 값은 제외)을 현재 로케일, 영어, 키 자체 순으로 풉니다 [결정: 2026-11-04 T-I18N 기본값].
+- 구현 메모 [구현: fxLC]: 호스트의 `ui.messages` 읽기와 클라이언트의 풀이(`extMessageOf`: 화면 `title`, 정적 글 prop, 팔레트·상태 칸 표시 이름)는 이미 있었다. Helm은 매니페스트 `ui.messages: "./locales"`와 `locales/en.json`·`ko.json`을 두고 모든 `title`과 화면 글을 `helm.<키>`로 바꿨다(`group-helm/ui/*.view.json`, `ui-decl.ts`; 빌드 `build-plugin.ts`가 `locales/`를 산출물에 싣는다). 사용자 데이터에서 온 글(바인드 값)은 풀지 않는다. 슬래시 명령 설명은 화면 트리가 아니라 엔진이 한 가지 글로만 보내므로, 클라이언트가 코드 등록 명령(builtin, capability, extension)에 한해 `desktop.composer.slash.<이름>.description|hint`를 현재 로케일로 풀고 키가 없으면 엔진 글을 그대로 쓴다(`client/settings/commands.ts`) [결정: 오케스트레이터 기본값, fxLC].
 - 버전: 선언형은 `views.schemaVersion`과 `views.widgets`, 프레임은 `frame.bridge`로 앱과 맞춥니다. 범위를 채우지 못하면 그 화면만 `invalid`이고 확장은 그대로 동작합니다. 화면은 확장 패키지와 같은 버전으로 배포됩니다.
 
 ### 3.9 CLI 대체

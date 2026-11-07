@@ -321,15 +321,15 @@ test("ui.trees: every tree file parses, passes validateUiTree and uses only cata
 test("ui.form: the page and panel start with a Form that sends `helm start` plus a topic field, and stop with a button, by lease", async () => {
   const start: UiNode = {
     type: "Form",
-    props: { command: "helm start", submitLabel: "탐구 시작" },
+    props: { command: "helm start", submitLabel: "helm.start.submit" },
     when: { path: "/status/lease", op: "eq", value: "none" },
     children: [
       {
         type: "TextField",
         props: {
           name: "arg",
-          label: "주제",
-          placeholder: "비우면 마지막 입력에서 뽑은 낱말로 정해요",
+          label: "helm.topic.label",
+          placeholder: "helm.topic.placeholder",
           maxLength: 300,
         },
       },
@@ -337,7 +337,7 @@ test("ui.form: the page and panel start with a Form that sends `helm start` plus
   };
   const stop: UiNode = {
     type: "Button",
-    props: { label: "탐구 멈춤", command: "helm stop" },
+    props: { label: "helm.stop.label", command: "helm stop" },
     when: { path: "/status/lease", op: "ne", value: "none" },
   };
   const trees = await Promise.all(
@@ -376,38 +376,38 @@ test("ui.text: the page and panel show the real status, lens, finding and past i
   const page = await treeOf("./ui/helm-inquiry.view.json");
   const panel = await treeOf("./ui/helm-panel.view.json");
   expect(textsOf(panel, root)).toEqual([
-    "대기",
-    "발산",
-    "다른 분야 탐색",
-    "수렴",
-    "적용",
+    "helm.phase.idle",
+    "helm.phase.diverge",
+    "helm.phase.explore",
+    "helm.phase.converge",
+    "helm.phase.apply",
     "캐시 무효화",
-    "발견",
+    "helm.findings",
     "0",
-    "탐구하는 중이에요",
+    "helm.lease.held",
   ]);
   expect(textsOf(page, root)).toEqual([
-    "대기",
-    "발산",
-    "다른 분야 탐색",
-    "수렴",
-    "적용",
-    "탐구하는 중이에요",
+    "helm.phase.idle",
+    "helm.phase.diverge",
+    "helm.phase.explore",
+    "helm.phase.converge",
+    "helm.phase.apply",
+    "helm.lease.held",
     "다른 분야의 유사 문제",
-    "진행 중",
+    "helm.lens.running",
     "선행 사례와 문헌",
-    "진행 중",
+    "helm.lens.running",
     "기본 원리로 다시 보기",
-    "진행 중",
+    "helm.lens.running",
     "면역 기억을 닮은 재검증",
-    "보통",
+    "helm.severity.medium",
     "선행 사례: 버전 태그 캐시",
-    "보통",
+    "helm.severity.medium",
     "전제: 무효화는 일관성 비용이다",
-    "보통",
+    "helm.severity.medium",
     "캐시 무효화",
-    "끝남",
-    "적용됨",
+    "helm.inquiry.done",
+    "helm.outcome.applied",
   ]);
 });
 
@@ -416,7 +416,12 @@ test("ui.bind: the finished card resolves against the real finished record and s
   const card = await treeOf("./ui/helm-finished.view.json");
   const scope: Scope = { root: real.finished, items: [] };
   expect(unresolvedOf(card, scope)).toEqual([]);
-  expect(textsOf(card, scope)).toEqual(["캐시 무효화", "적용됨", "발견", "3"]);
+  expect(textsOf(card, scope)).toEqual([
+    "캐시 무효화",
+    "helm.outcome.applied",
+    "helm.findings",
+    "3",
+  ]);
 });
 
 test("ui.bind: the suggestion card shows only for a suggested signal and resolves its payload", async () => {
@@ -431,7 +436,12 @@ test("ui.bind: the suggestion card shows only for a suggested signal and resolve
   const card = await treeOf("./ui/helm-suggested.view.json");
   const scope: Scope = { root: payload.value, items: [] };
   expect(unresolvedOf(card, scope)).toEqual([]);
-  expect(textsOf(card, scope)).toEqual(["탐구 신호가 감지되었습니다", "신호", "repeat", "bash"]);
+  expect(textsOf(card, scope)).toEqual([
+    "helm.signal.detected",
+    "helm.signal.label",
+    "repeat",
+    "bash",
+  ]);
   expect(textsOf(card, { root: { ...payload.value, action: "recorded" }, items: [] })).toEqual([]);
 });
 
@@ -463,4 +473,65 @@ test("ui.text: no tree shows a stored English key through a Badge bind", async (
     (node.type === "Badge" && node.bind?.text !== undefined ? 1 : 0) +
     (node.children ?? []).reduce((sum, child) => sum + rawBadges(child), 0);
   expect(trees.map(rawBadges)).toEqual([0, 0, 0]);
+});
+
+// ADR-0021 §3.8: 화면의 제목과 글 prop은 `helm.<키>`이고 `ui.messages` 폴더의 en.json·ko.json이 푼다.
+async function catalogOf(locale: string): Promise<Record<string, string>> {
+  const text = await Bun.file(join(TREE_DIR, "../locales", `${locale}.json`)).text();
+  const parsed = parseJson(text);
+  if (!parsed.ok) throw new Error(`locales/${locale}.json does not parse`);
+  const table: Record<string, string> = {};
+  const object = parsed.value;
+  if (typeof object !== "object" || object === null || Array.isArray(object)) {
+    throw new Error(`locales/${locale}.json is not an object`);
+  }
+  for (const [key, value] of Object.entries(object)) {
+    if (typeof value !== "string") throw new Error(`${locale}.json: ${key} is not a string`);
+    table[key] = value;
+  }
+  return table;
+}
+
+/** 트리의 정적 글 prop(text, label, title, submitLabel, placeholder) 가운데 `helm.` 키 */
+function keysOf(node: UiNode): string[] {
+  const own = Object.entries(node.props ?? {}).flatMap(([name, value]) =>
+    TEXT_PROPS.has(name) && typeof value === "string" && value.startsWith("helm.") ? [value] : [],
+  );
+  return [...own, ...(node.children ?? []).flatMap(keysOf)];
+}
+
+const TEXT_PROPS: ReadonlySet<string> = new Set([
+  "text",
+  "label",
+  "title",
+  "submitLabel",
+  "placeholder",
+]);
+
+test("ui.messages: the manifest names the folder and every title and static text key exists in en.json and ko.json with the same keys", async () => {
+  expect(helmUi.messages).toBe("./locales");
+  const en = await catalogOf("en");
+  const ko = await catalogOf("ko");
+  expect(Object.keys(en).toSorted()).toEqual(Object.keys(ko).toSorted());
+  const trees = await Promise.all(nativeFiles().map(({ file }) => treeOf(file)));
+  const used = new Set([
+    ...trees.flatMap(keysOf),
+    ...helmUi.items.map((item) => item.title).filter((title) => title.startsWith("helm.")),
+  ]);
+  expect([...used].filter((key) => !(key in en) || !(key in ko))).toEqual([]);
+  // 제목은 모두 키다: 한글이나 영어 글자가 바로 박혀 있지 않다
+  expect(helmUi.items.filter((item) => !item.title.startsWith("helm.")).map((i) => i.id)).toEqual(
+    [],
+  );
+  // 영어 카탈로그에는 한글이 없다
+  expect(Object.entries(en).filter(([, text]) => /[가-힣]/u.test(text))).toEqual([]);
+  // 한국어 카탈로그는 옛 화면 글을 그대로 둔다
+  expect(ko["helm.phase.explore"]).toBe("다른 분야 탐색");
+  expect(ko["helm.command.start"]).toBe("탐구 시작…");
+  expect(en["helm.command.start"]).toBe("Start inquiry…");
+});
+
+test("ui.trees: no tree file holds Korean text any more", async () => {
+  const trees = await Promise.all(nativeFiles().map(({ file }) => treeOf(file)));
+  expect(trees.filter((tree) => /[가-힣]/u.test(JSON.stringify(tree)))).toEqual([]);
 });

@@ -185,8 +185,8 @@ describe("slash input goes to command.run", () => {
         "command.list": {
           commands: [
             {
-              name: "helm",
-              description: "Helm 그룹",
+              name: "probe",
+              description: "Probe 그룹",
               argumentHint: "<start|stop>",
               args: [{ name: "action", choices: ["start", "stop"] }],
               kind: "action",
@@ -203,9 +203,9 @@ describe("slash input goes to command.run", () => {
       ok: true,
       value: [
         {
-          name: "helm",
-          label: "/helm",
-          description: "Helm 그룹",
+          name: "probe",
+          label: "/probe",
+          description: "Probe 그룹",
           hint: "<start|stop>",
           kind: "action",
           origin: "group-helm",

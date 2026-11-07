@@ -114,7 +114,7 @@ const TURN_TEXT: Readonly<
 };
 
 /** 사용량 칸의 키. 인자는 숫자(`tokens`, `usd`)이고 모양은 클라이언트가 로케일에 맞게 만든다 */
-export const USAGE_TEXT_KEY = "desktop.status.core.usage";
+const USAGE_TEXT_KEY = "desktop.status.core.usage";
 
 function formatTokens(tokens: number): string {
   if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
