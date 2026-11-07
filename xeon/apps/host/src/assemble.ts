@@ -108,6 +108,7 @@ import { createDialogAreaHolder } from "./assembly/m4/dialog-area-bridge.ts";
 import { registerExtensionKeys } from "./assembly/ext-keys.ts";
 import { createExtensionRecords } from "./assembly/m4/ext-read-sources.ts";
 import type { RequestBodyOffer } from "@fresnel/core-models";
+import type { CapabilityApi, McpClient } from "@fresnel/contracts/capabilities";
 import {
   startMeasurement,
   type HandlerFailureInput,
@@ -818,6 +819,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     /** 로더가 찾아낸 외부 확장(싣지 못한 것 포함). 확장 읽기 목록이 읽는다 */
     /** 그룹 서비스(`host-groups` 단위가 올라올 때마다 채운다). 확장 읽기의 `group.*`가 읽는다 */
     const groupServiceSlot: { current: GroupServiceWithUsage | undefined } = { current: undefined };
+    // `mcp.client` 공급자(cap-mcp가 올라올 때 채운다). 확장 읽기 `mcp.servers`가 읽는다
+    const mcpClientSlot: { current: CapabilityApi<typeof McpClient> | undefined } = {
+      current: undefined,
+    };
     // 외부 로더가 올린 그룹(Helm). 적재가 끝나면 채워진다
     const externalGroups: { manifest: ExtensionManifest; loadIndex: number }[] = [];
     const workspaceOf = threadWorkspaceOf(ext, logger);
@@ -933,6 +938,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         signal: lifetime.signal,
         engineVersion: ENGINE_VERSION,
         ...(mcpProcess === undefined ? {} : { mcpProcess }),
+        onMcpClient: (client) => {
+          mcpClientSlot.current = client;
+        },
         settings,
         workspaceOf,
         db: store.value.root,
@@ -1244,6 +1252,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         loader: () => external.loader,
         now: () => clock.now(),
         groupService: () => groupServiceSlot.current,
+        mcpClient: () => mcpClientSlot.current,
       },
       web,
       proposals: createProposalPort({

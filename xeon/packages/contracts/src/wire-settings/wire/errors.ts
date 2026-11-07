@@ -156,6 +156,7 @@ export type WireErrorKind =
   | "group.notFound"
   | "extension.safeModeActive"
   | "hooks.notFound"
+  | "mcp.serverNotFound"
   | "request.cancelled"
   | "host.shuttingDown"
   | "store.busy"
@@ -646,6 +647,16 @@ export const WIRE_ERRORS: {
     retryable: false,
     details: Type.Object(
       { hook: Type.String({ maxLength: 128 }) },
+      { additionalProperties: false },
+    ),
+  },
+  /** 그 id의 MCP 서버가 정의되어 있지 않다(`mcp.serverAction`). 코드 3406 */
+  "mcp.serverNotFound": {
+    code: 3406,
+    kind: "mcp.serverNotFound",
+    retryable: false,
+    details: Type.Object(
+      { server: Type.String({ maxLength: 128 }) },
       { additionalProperties: false },
     ),
   },

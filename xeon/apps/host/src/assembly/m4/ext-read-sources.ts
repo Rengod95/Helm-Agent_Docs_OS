@@ -36,7 +36,12 @@ import {
 import type { HostErrorMappers } from "../../handlers/m4/profile-test-run.ts";
 import type { SettingsEngine } from "../settings-engine.ts";
 import { operationsSource, primitivesSource } from "../settings-sources.ts";
-import type { ExtensionRecord, ExternalHookView, ExtReadSources } from "./ext-read-port.ts";
+import type {
+  ExtensionRecord,
+  ExternalHookView,
+  ExtReadSources,
+  McpClientPort,
+} from "./ext-read-port.ts";
 
 // 확장 읽기 원천의 실제 구현(`ExtReadSources`). 호스트 조립이 쥔 값(확장 단위 목록, 로더, 운영 정책, 그룹 서비스, 설정 엔진)과 ext-host의
 // 읽기 조회(`extReadViewOf`)를 얇게 감싸 넘긴다. 이 파일은 값을 새로 만들지 않고 원천이 가진 값을 읽는다. 조립 루트 코드(DR-14 예외 2).
@@ -60,6 +65,8 @@ export interface ExtReadAssembly {
   readonly now: () => number;
   /** 그룹 서비스. `host-groups` 단위가 올라올 때 채워지고 그 전에는 없다 */
   readonly groupService: () => GroupServiceWithUsage | undefined;
+  /** `mcp.client` 공급자(cap-mcp가 올라올 때 채운다). 그 전에는 없다 */
+  readonly mcpClient: () => McpClientPort | undefined;
 }
 
 /** 엔진 포트 조립(`ports.ts`)이 더하는 것 */
@@ -361,6 +368,7 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
       if (def === undefined) return false;
       return resolveSetting(def, env.settings.layers(undefined)).setting.locked;
     },
+    mcpClient: () => assembly.mcpClient(),
     health(name) {
       const stats = ledger.stats(`ext:${name}`);
       return {

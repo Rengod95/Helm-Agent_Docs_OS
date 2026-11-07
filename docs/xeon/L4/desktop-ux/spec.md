@@ -1996,7 +1996,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 권장 | `WebRecommendation`(Exa, Brave, 상태 not-installed, needs-key, ready, unavailable) |
 | 병렬, robots | `ToolsWebView.parallel`, `robots` |
 | 나머지 항목(정책, 캐시, 한도, MCP) | `buildSettingsView`의 `tools` 탭 필드 |
-| MCP 서버 목록과 상태 | `[gap:W-15]` |
+| MCP 서버 목록과 상태 | `mcp.servers`, `mcp.serverAction`이 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`]. 화면 구역은 `apps/desktop/src`에 아직 없어 `[gap:W-15]`는 화면 쪽에만 남는다 [결정: 2026-11-07 오케스트레이터 기본값, fxMC] |
 
 | 기능 | view-model 또는 wire |
 |---|---|
@@ -2022,7 +2022,7 @@ compact 폭(720 이하)과 사이드바 시트:
 - 키: 행에 초점이 있을 때 ↑·↓ 또는 Alt+↑·↓가 한 칸 옮긴다(`keyboardMoveOf`, Alt 여부는 가르지 않는다). 손잡이의 Space 잡기와 끌기는 caustic `List reorderable`이 맡는다.
 - SearXNG 제거 [결정: 2026-11-04 사용자 B15]: P-12 화면은 SearXNG 행, 순서, 고정, 고지를 그리지 않는다(`visibleWebViewOf`, 시험 `tools-web-model.test.ts`). 이 결정의 범위는 P-12 화면뿐이다. 엔진과 클라이언트 패키지에는 SearXNG 코드가 없고(`packages/cap-web`, `packages/client`, `packages/contracts`에 0건), `apps/host/test/assembly/settings-engine.test.ts`가 `l2.web.search.searxng.url`이 카탈로그에 없음을 확인한다. 화면의 걸러내기는 방어용이다.
 - 상태: 행의 상태 글은 키 없음, 쓸 수 없음만 쓰고 정상(쓸 수 있음)은 글을 두지 않는다. 권장 목록은 설치 안 됨, 키 없음, 쓸 수 없음을 쓴다. 사유(행의 `note`)와 권장 힌트는 정보 아이콘 뒤에 둔다. 가져오기 구역(`fetch`)을 그린다. 브라우저와 가져오기 행은 순서를 바꾸지 않는다(wire에 설정이 없다, §10 19). 목업의 SearXNG 행과 "provider·병렬·robots" 칸은 이 패널이 아니라 설정 항목 줄이 그린다.
-- 빠진 것 [gap]: 권장 목록의 "키 등록" 바로 가기는 P-10 시크릿 화면으로 옮기는 명령이 없어 문장 힌트만 보인다. MCP 서버 목록은 [gap:W-15] 그대로다.
+- 빠진 것 [gap]: 권장 목록의 "키 등록" 바로 가기는 P-10 시크릿 화면으로 옮기는 명령이 없어 문장 힌트만 보인다. MCP 서버 목록은 wire(`mcp.servers`, `mcp.serverAction`)가 있고 화면 구역은 `apps/desktop/src`에 아직 없다 [근거: `mcp.servers` 호출 grep 0건, gap:W-15 화면, 결정: 2026-11-07 오케스트레이터 기본값, fxMC].
 
 ### 6.17 P-13 플러그인과 그룹
 
@@ -3299,7 +3299,7 @@ export const palette = [
 | W-12 | 연결된 클라이언트 목록 | P-08 | 구현됨. `host.clients`가 있다 [근거: `apps/host/src/handlers/host.ts`]. 화면은 상태 카드 아래에 목록으로 보인다 | `host.clients` |
 | W-13 | 시크릿 사용 기록 | P-10 | 구현됨. `secret.audit`가 있다 [근거: `apps/host/src/handlers/secret.ts`]. 기록 개수 상한은 없다 [결정: 2026-11-04 사용자]. 대화 칸은 `secret.audit`의 `threadId`를 거울의 `thread.list` 제목으로 바꿔 보인다(W-13 화면 쪽 일이고 와이어는 그대로) | `secret.audit { name, limit? }` |
 | W-14 | 스킬 본문 읽기(충돌 비교) | P-06 | 구현됨. `knowledge.skills.view { name, threadId? }`가 있다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`]. P-06 화면이 쓴다: 충돌하는 스킬 보기 대화 상자가 `commands.skills.view`로 한 번 읽는다 | `knowledge.skills.view { name, threadId? }` |
-| W-15 | 플러그인·그룹·MCP 서버 목록과 메타(층, 종류, 버전, 설치 위치, 유효 등급, tier, `ScopeStatus`, 진단, 자동 꺼짐, 안전 모드 제외 사유), 설치 | P-12, P-13, P-16, P-01, 런타임 탭 | `ext.list`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`]. MCP 서버 목록 wire(`mcp.servers`)는 없다 [근거: `apps/host/src`, `packages/contracts/src`에서 그 이름 grep 0건] | `ext.list { threadId? }`, `mcp.servers` [미결]. 설치는 W-32 |
+| W-15 | 플러그인·그룹·MCP 서버 목록과 메타(층, 종류, 버전, 설치 위치, 유효 등급, tier, `ScopeStatus`, 진단, 자동 꺼짐, 안전 모드 제외 사유), 설치 | P-12, P-13, P-16, P-01, 런타임 탭 | `ext.list`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`]. MCP 서버 목록 wire는 있다: `mcp.servers`와 `mcp.serverAction`(`restart`·`blockAlways`·`unblock`) [근거: `apps/host/src/handlers/m4/ext-read.ts`, `packages/contracts/src/wire-settings/wire/ext-read.ts`]. 화면 구역은 아직 없다 [결정: 2026-11-07 오케스트레이터 기본값, fxMC] | `ext.list { threadId? }`, `mcp.servers { threadId? }`, `mcp.serverAction { server, action, threadId? }`. 서버 정의의 추가·수정·삭제는 `settings.set { key: "l2.mcp.servers", scope: "user", value }`(값은 서버 정의 전체다). 이 대화에서 끄기는 서버마다 없고 `ext.list`의 `cap-mcp` 한 단위만 대화별로 끈다. 화면 주의: `l2.mcp.servers`의 일반 표는 항목 추가 때 `null`을 써서 검사에 걸린다(`settings-editors-screen.tsx`의 `defaultCellOf(valueColumn) ?? null`), 그래서 이 키는 전용 구역이 맡는다. 설치는 W-32 |
 | W-16 | 이벤트 id로 item 읽기, 대화 출처(예약, 원격) | P-06, S-01 | 구현됨. `thread.read`의 `around` 인자와 `ThreadSummary.origin`이 있다 [근거: `apps/host/src/assembly/thread-read.ts`, `packages/contracts/src/wire-settings/wire/methods.ts:443`] | `thread.read`에 `around` 인자, `ThreadSummary.origin` |
 | W-17 | 큐에 넣은 입력 철회 | P-02 | 구현됨. `turn.withdraw { threadId, requestId }`가 있다 [근거: `apps/host/src/handlers/turn.ts`]. 데스크톱은 입력창 위 칩의 "철회" 단추로 부르고, 칩은 `input.queued`로 생겨 `input.placed`·`input.withdrawn`으로 사라진다. 실행 중 보낸 사용자 글은 `turn.start { whenBusy: "followUp" }`로 큐에 들어가 칩이 된다(F.wire-settings §3.3.1 0a) | `turn.withdraw { threadId, requestId }` |
 | W-18 | 계획 버전 목록 | P-14 | 구현됨. `work.plans.versions { threadId, planId }`가 있다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`] | `work.plans.versions { threadId, planId }` |

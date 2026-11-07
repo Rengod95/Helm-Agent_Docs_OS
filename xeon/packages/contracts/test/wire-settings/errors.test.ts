@@ -85,6 +85,7 @@ describe("WIRE_ERRORS", () => {
       "group.notFound": 3402,
       "extension.safeModeActive": 3403,
       "hooks.notFound": 3405,
+      "mcp.serverNotFound": 3406,
       "request.cancelled": 5001,
       "host.shuttingDown": 5002,
       "store.busy": 5003,

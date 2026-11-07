@@ -33,6 +33,7 @@ import {
   WorkPlans,
   WorkTasks,
   type AnyCapabilityDef,
+  type CapabilityApi,
 } from "@fresnel/contracts/capabilities";
 import { artifactsPlugin } from "@fresnel/cap-artifacts";
 import {
@@ -154,6 +155,8 @@ export interface ExtensionDeps {
   readonly safeMode?: boolean;
   /** stdio MCP 서버를 띄우는 포트(L0 platform-process). 없으면 stdio 서버는 연결에 실패한다 */
   readonly mcpProcess?: McpProcessPort;
+  /** `mcp.client` 공급자가 올라올 때 부른다(확장 읽기 `mcp.servers`의 원천) */
+  readonly onMcpClient?: (client: CapabilityApi<typeof McpClient>) => void;
   /** AssembleOptions.webPorts */
   readonly webPorts?: AssembleOptions["webPorts"];
   /** AssembleOptions.agentDefinitions */
@@ -420,6 +423,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           reservedToolNames: reservedToolNames,
           workspaceOf: workspaceOfId,
           ...(deps.mcpProcess === undefined ? {} : { process: deps.mcpProcess }),
+          ...(deps.onMcpClient === undefined ? {} : { onClient: deps.onMcpClient }),
           loadIndex,
         }),
     ],
