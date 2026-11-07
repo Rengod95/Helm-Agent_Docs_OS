@@ -1,6 +1,7 @@
 // 묶기 스크립트(package.ts)의 순수 부분. 시험은 test/package-lib.test.ts.
 import { lstatSync, readdirSync, rmSync } from "node:fs";
 import path from "node:path";
+import { feedFromText } from "../src/main/updater.ts";
 
 /** 묶은 앱에 남기는 로캘. UI 카탈로그가 ko와 en뿐이라 나머지 Chromium 로캘 폴더는 지운다. 없는 로캘은 en으로 돌아간다 */
 export const KEPT_LOCALES: readonly string[] = ["en", "ko"];
@@ -65,4 +66,25 @@ export function githubFeedText(repo: string | undefined): string | null {
   const name = match?.[2];
   if (owner === undefined || name === undefined) return null;
   return `${JSON.stringify({ provider: "github", owner, repo: name })}\n`;
+}
+
+/** electron-updater가 내려받기 때 읽는 캐시 폴더 이름(`Resources/app-update.yml`의 `updaterCacheDirName`) */
+export const UPDATER_CACHE_DIR_NAME = "fresnel-updater";
+
+/**
+ * 피드 파일 글(`update-feed.json`)로 `Resources/app-update.yml` 글을 만든다. electron-updater는 이 파일이 없으면 내려받기 전에
+ * ENOENT로 실패한다. 값은 JSON 문자열이라 YAML로도 유효하다. 피드가 쓸 수 없는 모양이면 `null`이다.
+ */
+export function appUpdateYmlText(feedText: string): string | null {
+  const feed = feedFromText(feedText);
+  if (feed === null) return null;
+  const head =
+    feed.provider === "github"
+      ? [
+          "provider: github",
+          `owner: ${JSON.stringify(feed.owner)}`,
+          `repo: ${JSON.stringify(feed.repo)}`,
+        ]
+      : ["provider: generic", `url: ${JSON.stringify(feed.url)}`];
+  return `${[...head, `updaterCacheDirName: ${UPDATER_CACHE_DIR_NAME}`].join("\n")}\n`;
 }

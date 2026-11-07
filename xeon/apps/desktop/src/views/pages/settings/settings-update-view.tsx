@@ -5,7 +5,14 @@ import { useSyncExternalStore, type ReactNode } from "react";
 import { useUpdate } from "../../update-context.ts";
 import type { UpdateController } from "../../update-controller.ts";
 import { ROWS_CLASS } from "./settings-overview.tsx";
-import { canCheck, updateLineOf, type UpdateState } from "../../update-model.ts";
+import { InfoTip } from "../../craft/info-tip.tsx";
+import {
+  canCheck,
+  primaryActionOf,
+  retryStepOf,
+  updateLineOf,
+  type UpdateState,
+} from "../../update-model.ts";
 
 // 설정 개요 탭 맨 위의 업데이트 줄(B-10). 현재 버전, 상태 문구, "업데이트 확인" 단추를 한 줄에 둔다.
 // 설정이 안 됐으면 단추를 숨기고 상태 문구 한 줄만 보인다. 웹에는 업데이트 문맥이 없어 `UpdatePanel`이 아무것도 그리지 않는다.
@@ -32,6 +39,9 @@ function UpdateLine(props: { readonly controller: UpdateController }): ReactNode
       onCheck={() => {
         detach(controller.check(), rethrow);
       }}
+      onDownload={() => {
+        detach(state.kind === "available" ? controller.download() : controller.retry(), rethrow);
+      }}
     />
   );
 }
@@ -41,10 +51,18 @@ export interface UpdateLineViewProps {
   /** 지금 실행 중인 버전. 아직 모르면 `null`이다 */
   readonly currentVersion: string | null;
   readonly onCheck: () => void;
+  /** 내려받기 단추. 새 버전을 찾았거나 내려받기 단계에서 멈췄을 때만 보인다 */
+  readonly onDownload: () => void;
 }
 
 export function UpdateLineView(props: UpdateLineViewProps): ReactNode {
-  const { state, currentVersion, onCheck } = props;
+  const { state, currentVersion, onCheck, onDownload } = props;
+  const downloadAction =
+    primaryActionOf(state) === "download"
+      ? "download"
+      : retryStepOf(state) === "download"
+        ? "retry"
+        : null;
   const line = updateLineOf(state);
   const status = (
     <span role="status" className="text-ui-sm text-text-secondary">
@@ -81,7 +99,19 @@ export function UpdateLineView(props: UpdateLineViewProps): ReactNode {
   return (
     <div className="grid gap-2" data-slot="settings-update" data-update-state={state.kind}>
       {rows}
-      <div>
+      <div className="flex flex-wrap items-center gap-2">
+        {downloadAction === null ? null : (
+          <>
+            <Button size="sm" onClick={onDownload}>
+              {t(
+                downloadAction === "download"
+                  ? "desktop.update.download.button"
+                  : "desktop.update.retry.button",
+              )}
+            </Button>
+            <InfoTip text={t("desktop.update.download.info")} />
+          </>
+        )}
         <Button
           variant="outline"
           size="sm"

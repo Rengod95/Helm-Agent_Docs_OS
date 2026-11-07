@@ -222,7 +222,12 @@ const noop = (): void => {};
 /** 설정 줄을 그린다. 명령은 아무 일도 하지 않는다 */
 function lineOf(state: UpdateState, currentVersion: string | null = VERSION): string {
   return renderToString(
-    <UpdateLineView state={state} currentVersion={currentVersion} onCheck={noop} />,
+    <UpdateLineView
+      state={state}
+      currentVersion={currentVersion}
+      onCheck={noop}
+      onDownload={noop}
+    />,
   );
 }
 
@@ -257,6 +262,29 @@ describe("settings update line", () => {
     expect(
       lineOf({ kind: "failed", stage: "check", reason: "no_release", version: null, notes: null }),
     ).toContain(t("desktop.update.reason.noRelease"));
+  });
+
+  test("the download button shows only when an update was found or a download failed", () => {
+    const download = t("desktop.update.download.button");
+    const retry = t("desktop.update.retry.button");
+    const failedDownload: UpdateState = {
+      kind: "failed",
+      stage: "download",
+      reason: "signature",
+      version: "0.4.2",
+      notes: null,
+    };
+    const found = lineOf(AVAILABLE);
+    expect(found).toContain(`>${download}<`);
+    expect(found).not.toContain(`>${retry}<`);
+    const failed = lineOf(failedDownload);
+    expect(failed).toContain(`>${retry}<`);
+    expect(failed).not.toContain(`>${download}<`);
+    for (const state of [{ kind: "current" } as const, DOWNLOADING, READY]) {
+      const html = lineOf(state);
+      expect(html).not.toContain(`>${download}<`);
+      expect(html).not.toContain(`>${retry}<`);
+    }
   });
 
   test("an unconfigured app shows one sentence and no button", () => {

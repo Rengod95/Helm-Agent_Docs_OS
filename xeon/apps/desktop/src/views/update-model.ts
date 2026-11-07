@@ -16,6 +16,7 @@ export type UpdateReason =
   | "busy"
   | "nothing_to_download"
   | "nothing_to_install"
+  | "config"
   | "other";
 
 export const UPDATE_REASONS: readonly UpdateReason[] = [
@@ -25,6 +26,7 @@ export const UPDATE_REASONS: readonly UpdateReason[] = [
   "busy",
   "nothing_to_download",
   "nothing_to_install",
+  "config",
   "other",
 ];
 
@@ -358,6 +360,7 @@ const REASON_TEXT: Readonly<Record<UpdateReason, MessageId>> = {
   busy: "desktop.update.reason.busy",
   nothing_to_download: "desktop.update.reason.nothingToDownload",
   nothing_to_install: "desktop.update.reason.nothingToInstall",
+  config: "desktop.update.reason.config",
   other: "desktop.update.reason.other",
 };
 

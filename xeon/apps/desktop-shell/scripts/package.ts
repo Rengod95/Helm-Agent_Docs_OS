@@ -1,13 +1,20 @@
 // @electron/packager로 Fresnel.app(macOS arm64)을 만든다(L4.desktop.spec §11.7). UI 번들과 엔진 사이드카는 Resources에 넣고
 // (옛 Tauri 구현의 externalBin과 같은 자리), 고지 파일은 Resources/licenses/에 모은다. 서명과 공증은 이 스크립트가 아니라
-// xeon/scripts/electron-sign.sh가 하고(`just desktop-sign-electron`), 업데이트 피드(Resources/update-feed.json)는
-// build/update-feed.json이나 env FRESNEL_UPDATE_REPO가 있을 때만 넣는다(값은 사용자 몫).
+// xeon/scripts/electron-sign.sh가 하고(`just desktop-sign-electron`), 업데이트 피드(Resources/update-feed.json)와
+// electron-updater용 Resources/app-update.yml은 build/update-feed.json이나 env FRESNEL_UPDATE_REPO가 있을 때만 넣는다(값은 사용자 몫).
 // env: FRESNEL_RELEASE_VERSION (앱 버전, 기본은 package.json), FRESNEL_APP_OUT (출력 폴더, 기본 dist-app)
 // 도구 선택: packager는 설정 없이 .app만 만들고 서명·공증·업데이트는 따로 붙일 수 있어 electron-builder보다 얇다.
-import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { packager } from "@electron/packager";
-import { dirBytes, githubFeedText, localeDirsOf, mibOf, pruneLocales } from "./package-lib.ts";
+import {
+  appUpdateYmlText,
+  dirBytes,
+  githubFeedText,
+  localeDirsOf,
+  mibOf,
+  pruneLocales,
+} from "./package-lib.ts";
 
 const root = import.meta.dirname;
 const shell = path.resolve(root, "..");
@@ -81,6 +88,10 @@ if (!existsSync(feedSource) && generated !== null) {
   feed = path.join(stage, "update-feed.json");
   writeFileSync(feed, generated);
 }
+// electron-updater는 내려받기 전에 Resources/app-update.yml을 읽는다(없으면 ENOENT). 피드가 있으면 그에 맞춰 만든다
+const appUpdateYml = existsSync(feed) ? appUpdateYmlText(readFileSync(feed, "utf8")) : null;
+const appUpdateYmlFile = path.join(stage, "app-update.yml");
+if (appUpdateYml !== null) writeFileSync(appUpdateYmlFile, appUpdateYml);
 const extraResource = [
   path.join(desktop, "dist", "ui"),
   path.join(desktop, "dist", "sidecar", "fresnel-aarch64-apple-darwin"),
@@ -91,6 +102,7 @@ const extraResource = [
   // 기본 플러그인(Helm 등): `just desktop-build-electron`이 scripts/default-plugins.ts로 먼저 만든다. 엔진 사이드카가 Resources/default-plugins/를 설치 원본으로 읽는다
   path.join(shell, "dist", "default-plugins"),
   ...(existsSync(feed) ? [feed] : []),
+  ...(appUpdateYml === null ? [] : [appUpdateYmlFile]),
 ];
 
 const paths = await packager({

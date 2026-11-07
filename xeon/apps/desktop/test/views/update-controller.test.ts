@@ -254,6 +254,53 @@ describe("retrying a failure", () => {
     expect(h.calls.filter((command) => command === "update_download")).toHaveLength(2);
   });
 
+  test("retry after a failed download checks again first and downloads what the new check finds", async () => {
+    let attempts = 0;
+    let latest = "0.4.2";
+    const h = harnessOf(async (command) => {
+      if (command === "update_status") return CONFIGURED;
+      if (command === "update_check") return { kind: "available", version: latest, notes: null };
+      attempts += 1;
+      return attempts === 1 ? { kind: "failed", reason: "signature" } : { kind: "ready" };
+    });
+    await h.controller.start();
+    await h.controller.download();
+    expect(h.controller.getState().kind).toBe("failed");
+    latest = "0.4.3";
+    await h.controller.retry();
+    expect(h.controller.getState()).toEqual({ kind: "ready", version: "0.4.3", notes: null });
+    expect(h.calls).toEqual([
+      "update_status",
+      "update_check",
+      "update_download",
+      "update_check",
+      "update_download",
+    ]);
+  });
+
+  test("retry after a failed download stops at a failed re-check and does not download", async () => {
+    let checks = 0;
+    const h = harnessOf(async (command) => {
+      if (command === "update_status") return CONFIGURED;
+      if (command === "update_check") {
+        checks += 1;
+        return checks === 1 ? AVAILABLE : { kind: "failed", reason: "no_release" };
+      }
+      return { kind: "failed", reason: "signature" };
+    });
+    await h.controller.start();
+    await h.controller.download();
+    await h.controller.retry();
+    expect(h.controller.getState()).toEqual({
+      kind: "failed",
+      stage: "check",
+      reason: "no_release",
+      version: null,
+      notes: null,
+    });
+    expect(h.calls).toEqual(["update_status", "update_check", "update_download", "update_check"]);
+  });
+
   test("an offline check is checked again by retry", async () => {
     let online = false;
     const h = harnessOf(async (command) => {

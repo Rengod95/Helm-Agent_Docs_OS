@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
+  appUpdateYmlText,
   dirBytes,
   githubFeedText,
   isPrunableLocaleDir,
@@ -82,5 +83,24 @@ describe("githubFeedText", () => {
     for (const bad of [undefined, "", "acme", "a/b/c", "a b/c", "/c", "a/"]) {
       expect(githubFeedText(bad)).toBeNull();
     }
+  });
+});
+
+describe("appUpdateYmlText", () => {
+  test("a generic feed becomes app-update.yml with the cache dir name", () => {
+    expect(appUpdateYmlText('{"provider":"generic","url":"http://127.0.0.1:9419/feed"}')).toBe(
+      'provider: generic\nurl: "http://127.0.0.1:9419/feed"\nupdaterCacheDirName: fresnel-updater\n',
+    );
+  });
+
+  test("a github feed keeps owner and repo", () => {
+    expect(appUpdateYmlText(githubFeedText("acme/fresnel.app") ?? "")).toBe(
+      'provider: github\nowner: "acme"\nrepo: "fresnel.app"\nupdaterCacheDirName: fresnel-updater\n',
+    );
+  });
+
+  test("an unusable feed gives nothing", () => {
+    expect(appUpdateYmlText("not json")).toBeNull();
+    expect(appUpdateYmlText('{"provider":"generic","url":" "}')).toBeNull();
   });
 });

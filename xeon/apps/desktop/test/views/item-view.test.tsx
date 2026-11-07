@@ -1,3 +1,4 @@
+import { NOT_STARTED_TEXT, OUTCOME_UNKNOWN_TEXT } from "@fresnel/contracts/records";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
 import type { ItemRecord, JsonObject } from "@fresnel/contracts/conversation";
@@ -543,6 +544,23 @@ describe("engine failure texts are shown in Korean (rtE R-10)", () => {
     expect(text).toContain(t("desktop.item.interrupted.body"));
     expect(text).toContain(t("desktop.item.status.interrupted"));
     expect(text).not.toContain("aborted");
+  });
+
+  test("the recovery sentences the engine records are shown in the catalog language, not in English", () => {
+    const cases: readonly [string, string][] = [
+      [OUTCOME_UNKNOWN_TEXT, t("desktop.item.interrupted.unknown")],
+      [NOT_STARTED_TEXT, t("desktop.item.interrupted.notStarted")],
+    ];
+    for (const [recorded, shown] of cases) {
+      const h = openedHarness();
+      ingestRecords(h, [
+        callItem(1, 2, "bash"),
+        { ...toolResultItem(2, "bash", recorded, true), status: "interrupted" },
+      ]);
+      const text = visibleText(render(<RecordedItem id={itm(1)} />, h));
+      expect(text).toContain(shown);
+      expect(text).not.toContain("The tool call was interrupted");
+    }
   });
 });
 

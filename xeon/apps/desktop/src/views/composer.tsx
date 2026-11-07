@@ -336,6 +336,8 @@ function ComposerFor(props: {
   // 실행 중에 보낸 글이 들어갈 자리. 기본은 끝난 뒤(followUp)다. 시안이 말하는 기본 모드 설정(l1.tasks.queue.defaultMode)은 설정 카탈로그에 없어서 읽지 않는다
   const [mode, setMode] = useState<BusyInputMode>("followUp");
   const [dragging, setDragging] = useState(false);
+  // 첨부가 막힌 때(턴이 도는 중 등) 끌어 놓은 파일을 받지 않았다는 안내. 막힘이 풀렸거나 다시 끌면 지운다
+  const [dropRefused, setDropRefused] = useState(false);
   const [attachNote, setAttachNote] = useState<string | null>(null);
   const limit = useRef<number | null>(null);
   // 슬래시 목록: 엔진 명령(`command.list`)은 `/`를 처음 칠 때 읽는다. 못 읽으면 null이라 앱 명령만 보이고 모르는 명령 확인은 하지 않는다
@@ -468,7 +470,10 @@ function ComposerFor(props: {
   const onDrop = (event: DragEvent<HTMLFormElement>): void => {
     event.preventDefault();
     setDragging(false);
-    if (attachBlocked !== null) return;
+    if (attachBlocked !== null) {
+      setDropRefused(true);
+      return;
+    }
     detach(addFiles([...event.dataTransfer.files]), rethrow);
   };
 
@@ -625,8 +630,9 @@ function ComposerFor(props: {
     <form
       className="grid min-w-0 gap-1.5"
       onDragOver={(event) => {
-        if (attachBlocked !== null) return;
+        // 막혀 있어도 놓을 수는 있게 두어야 브라우저가 파일을 열어 버리지 않고, 못 받는 까닭을 보일 수 있다
         event.preventDefault();
+        setDropRefused(false);
         setDragging(true);
       }}
       onDragLeave={() => {
@@ -649,9 +655,13 @@ function ComposerFor(props: {
         }}
         onRetry={retry}
       />
-      {dragging ? (
+      {dragging || (dropRefused && attachBlocked !== null) ? (
         <p role="status" className="m-0 text-center text-ui-sm text-text-secondary">
-          {t("desktop.composer.attach.dropHint")}
+          {attachBlocked === null
+            ? t("desktop.composer.attach.dropHint")
+            : running
+              ? t("desktop.composer.attach.dropBlocked")
+              : attachBlocked}
         </p>
       ) : null}
       {attachNote === null ? null : (

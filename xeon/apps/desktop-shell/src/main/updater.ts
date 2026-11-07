@@ -44,6 +44,7 @@ export type UpdateFailReason =
   | "busy"
   | "nothing_to_download"
   | "nothing_to_install"
+  | "config"
   | "other";
 
 /** 명령의 답. WebView는 `kind`로 가른다. 설치가 성공하면 앱이 끝나므로 `update_install_restart`는 답하지 않는다 */
@@ -65,7 +66,10 @@ export type DownloadEvent = {
 /** 오류를 나눈 결과. 연결 문제는 `offline`, 나머지는 이유 코드다 */
 export type ErrorClass =
   | { readonly kind: "offline" }
-  | { readonly kind: "failed"; readonly reason: "signature" | "no_release" | "network" | "other" };
+  | {
+      readonly kind: "failed";
+      readonly reason: "signature" | "no_release" | "network" | "config" | "other";
+    };
 
 /**
  * 설정 파일(`update-feed.json`)의 모양. 배포 주소 하나를 가진 `generic`이거나, GitHub Releases 저장소를 가리키는 `github`이다
@@ -137,6 +141,8 @@ export function classifyError(error: unknown): ErrorClass {
   ) {
     return { kind: "failed", reason: "no_release" };
   }
+  // 앱에 업데이트 설정 파일(`app-update.yml`)이 없는 것처럼 로컬 파일이 없다. 묶는 쪽의 문제라 따로 알린다
+  if (code === "ENOENT") return { kind: "failed", reason: "config" };
   // 서버가 답은 했지만 오류 상태(5xx, 403 등)다. electron-updater의 HttpError는 숫자 `statusCode`를 가진다
   if (statusOf(error) !== null) return { kind: "failed", reason: "network" };
   return { kind: "failed", reason: "other" };
@@ -163,17 +169,27 @@ async function within<T>(ms: number, work: () => Promise<T>): Promise<Answer<T>>
   }
 }
 
-/** 실패를 답으로 바꾸고, 로그에는 단계와 이유 코드만 남긴다 */
+/** 로그에 남겨도 되는 오류 코드(`ENOENT` 같은 식별자). 모양이 다르면 `null`이다 */
+export function logCodeOf(error: unknown): string | null {
+  const code = codeOf(error);
+  return code !== null && /^[A-Z0-9_]{1,64}$/u.test(code) ? code : null;
+}
+
+/** 실패를 답으로 바꾸고, 로그에는 단계, 이유 코드, 오류 코드(있으면)만 남긴다 */
 function failureReply(
   stage: "check" | "download" | "install",
   failure: ErrorClass,
   log: (line: string) => void,
+  cause: unknown,
 ): UpdateReply {
   if (failure.kind === "offline") {
     log(`updater: ${stage} stopped (offline)`);
     return { kind: "offline" };
   }
-  log(`updater: ${stage} failed (reason: ${failure.reason})`);
+  const code = logCodeOf(cause);
+  log(
+    `updater: ${stage} failed (reason: ${failure.reason}${code === null ? "" : `, code: ${code}`})`,
+  );
   return { kind: "failed", reason: failure.reason };
 }
 
@@ -211,10 +227,16 @@ export function createUpdaterModule(ports: UpdaterPorts): ShellModule {
     if (!ports.configured) return { kind: "notConfigured" };
     const answer = await within(timeoutMs, () => ports.backend.checkForUpdates());
     if (answer.kind === "timedOut") {
-      return failureReply("check", { kind: "offline" }, ports.log);
+      return failureReply("check", { kind: "offline" }, ports.log, null);
     }
     const result = answer.result;
-    if (!result.ok) return failureReply("check", classifyError(result.error.cause), ports.log);
+    if (!result.ok)
+      return failureReply(
+        "check",
+        classifyError(result.error.cause),
+        ports.log,
+        result.error.cause,
+      );
     const candidate = result.value;
     if (candidate === null) return { kind: "upToDate" };
     found = candidate;
@@ -228,7 +250,13 @@ export function createUpdaterModule(ports: UpdaterPorts): ShellModule {
       channel.send({ kind: "progress", downloaded, total });
     };
     const result = await attemptAsync(() => ports.backend.download(onProgress));
-    if (!result.ok) return failureReply("download", classifyError(result.error.cause), ports.log);
+    if (!result.ok)
+      return failureReply(
+        "download",
+        classifyError(result.error.cause),
+        ports.log,
+        result.error.cause,
+      );
     staged = true;
     return { kind: "ready" };
   };
@@ -236,7 +264,13 @@ export function createUpdaterModule(ports: UpdaterPorts): ShellModule {
   const install = (): UpdateReply | Promise<UpdateReply> => {
     if (!staged) return { kind: "failed", reason: "nothing_to_install" };
     const result = attempt(() => ports.backend.quitAndInstall());
-    if (!result.ok) return failureReply("install", classifyError(result.error.cause), ports.log);
+    if (!result.ok)
+      return failureReply(
+        "install",
+        classifyError(result.error.cause),
+        ports.log,
+        result.error.cause,
+      );
     // 설치가 앱 종료를 시작한다. 엔진을 내리는 일은 ecore가 ctx.onQuit에 건 정리가 before-quit에서 맡는다(Rust의 supervisor.shutdown 자리).
     // UI는 성공 답이 오지 않는다고 본다(installing에 머문다). 그래서 답하지 않고 앱이 끝나기를 기다린다
     return new Promise<UpdateReply>(() => undefined);

@@ -11,6 +11,8 @@
 //   inspect off     FRESNEL_DESKTOP_INSPECT=1 is set on purpose and no inspect socket appears (bundled apps ignore it)
 //   second launch   a second start of the same app exits and leaves one window
 //   quit            SIGTERM ends the app and its engine child
+//   update download a copy of the app is pointed at a local feed (127.0.0.1) and its update button is pressed over CDP; the zip must
+//                   reach the updater cache (download only, nothing is installed). A build with update-feed.json must also ship app-update.yml
 // Needs macOS with a GUI session and swiftc (window list, screencapture). Every wait has a deadline.
 //   electron-smoke <Fresnel.app>
 // exit: 0 all checks passed, 1 a check failed, 2 environment (not macOS, no GUI session, no swiftc, app missing)
@@ -18,11 +20,13 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -116,6 +120,111 @@ export function isAddonReport(text: string): boolean {
   );
 }
 
+/** `latest-mac.yml` of the fake release: one zip, its sha512 (base64) and size. The version is far above any real one so the app offers it. */
+export function latestMacYml(zipName: string, bytes: Uint8Array, version: string): string {
+  const sha512 = createHash("sha512").update(bytes).digest("base64");
+  return [
+    `version: ${version}`,
+    "files:",
+    `  - url: ${zipName}`,
+    `    sha512: ${sha512}`,
+    `    size: ${String(bytes.length)}`,
+    `path: ${zipName}`,
+    `sha512: ${sha512}`,
+    "releaseDate: '2026-01-01T00:00:00.000Z'",
+    "",
+  ].join("\n");
+}
+
+/** A file named `name` with exactly `size` bytes anywhere under `dir`, or `undefined`. */
+export function findSizedFile(dir: string, name: string, size: number): string | undefined {
+  if (!existsSync(dir)) return undefined;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      const found = findSizedFile(path, name, size);
+      if (found !== undefined) return found;
+    } else if (entry.name === name && statSync(path).size === size) {
+      return path;
+    }
+  }
+  return undefined;
+}
+
+/** The debugger WebSocket address of the first page target in a `/json` listing, or `undefined`. */
+export function pageSocketOf(targets: unknown): string | undefined {
+  const items: readonly unknown[] = Array.isArray(targets) ? targets : [];
+  for (const target of items) {
+    if (typeof target !== "object" || target === null) continue;
+    const type: unknown = Object.getOwnPropertyDescriptor(target, "type")?.value;
+    const url: unknown = Object.getOwnPropertyDescriptor(target, "webSocketDebuggerUrl")?.value;
+    if (type === "page" && typeof url === "string") return url;
+  }
+  return undefined;
+}
+
+/** The `result.result.value` of a CDP `Runtime.evaluate` reply, or `undefined`. */
+export function evalValueOf(reply: unknown): unknown {
+  let node: unknown = reply;
+  for (const key of ["result", "result", "value"]) {
+    if (typeof node !== "object" || node === null) return undefined;
+    node = Object.getOwnPropertyDescriptor(node, key)?.value;
+  }
+  return node;
+}
+
+/** Runs `expression` in the first page of an app started with `--remote-debugging-port` and returns its value, or `undefined` on any failure. */
+async function pageEval(port: number, expression: string): Promise<unknown> {
+  const listing: unknown = await fetch(`http://127.0.0.1:${String(port)}/json`)
+    .then((response) => response.json())
+    .catch(() => undefined);
+  const address = pageSocketOf(listing);
+  if (address === undefined) return undefined;
+  const socket = new WebSocket(address);
+  return await new Promise<unknown>((_resolve) => {
+    const timer = setTimeout(() => {
+      socket.close();
+      _resolve(undefined);
+    }, 5000);
+    socket.addEventListener("open", () => {
+      socket.send(
+        JSON.stringify({
+          id: 1,
+          method: "Runtime.evaluate",
+          params: { expression, returnByValue: true },
+        }),
+      );
+    });
+    socket.addEventListener("message", (event) => {
+      clearTimeout(timer);
+      socket.close();
+      const reply: unknown = JSON.parse(String(event.data));
+      _resolve(evalValueOf(reply));
+    });
+    socket.addEventListener("error", () => {
+      clearTimeout(timer);
+      _resolve(undefined);
+    });
+  });
+}
+
+/** Evaluates `script` in the page until it returns true (the app needs a moment to paint and to check the feed). */
+async function pollPage(port: number, script: string, ms = DEADLINE_MS): Promise<boolean> {
+  const began = performance.now();
+  while (performance.now() - began < ms) {
+    // oxlint-disable-next-line no-await-in-loop -- 폴링은 순서대로 한다 (eng.testing.guide TS-05)
+    if ((await pageEval(port, script)) === true) return true;
+    // oxlint-disable-next-line no-await-in-loop -- 폴링은 순서대로 한다 (eng.testing.guide TS-05)
+    await Bun.sleep(500);
+  }
+  return false;
+}
+
+/** Page script: click the first button whose text matches `pattern`; true when one was clicked. */
+function clickScript(pattern: string): string {
+  return `(() => { const b = [...document.querySelectorAll("button")].find((x) => new RegExp(${JSON.stringify(pattern)}, "u").test((x.textContent ?? "").trim())); if (!b) return false; b.click(); return true; })()`;
+}
+
 const failures: string[] = [];
 function check(name: string, ok: boolean, detail = ""): void {
   process.stdout.write(`${ok ? "PASS" : "FAIL"} ${name}${detail === "" ? "" : `: ${detail}`}\n`);
@@ -178,6 +287,12 @@ if (import.meta.main) {
   ]) {
     check(`structure ${rel}`, existsSync(join(resources, rel)));
   }
+  // electron-updater reads app-update.yml before it downloads; a build with a feed but without this file can never update
+  check(
+    "structure app-update.yml accompanies update-feed.json",
+    !existsSync(join(resources, "update-feed.json")) ||
+      existsSync(join(resources, "app-update.yml")),
+  );
   check("structure engine sidecar", existsSync(join(resources, "fresnel-aarch64-apple-darwin")));
 
   // mac-security: the .node file sits in Resources and loads under the app's own Electron runtime (ELECTRON_RUN_AS_NODE).
@@ -329,6 +444,92 @@ if (import.meta.main) {
       () => (third.exitCode === null ? undefined : third.exitCode),
       20_000,
     );
+
+    // update download: a copy of the app, a local feed, the update button over CDP. Only the download is checked, nothing is installed.
+    const copy = join(work, "update-copy", "Fresnel.app");
+    mkdirSync(join(work, "update-copy"), { recursive: true });
+    // cp -R keeps the framework symlinks intact (node's cpSync breaks them and the copy does not start)
+    const copied = Bun.spawnSync(["cp", "-R", app, copy]);
+    check("update copy of the app made", copied.exitCode === 0);
+    const copyResources = join(copy, "Contents", "Resources");
+    const zipName = "Fresnel-999.0.0-arm64-mac.zip";
+    const zipBytes = crypto.getRandomValues(new Uint8Array(300_000));
+    const requested: string[] = [];
+    const served = { zip: false };
+    const feedServer = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch(req) {
+        const name = new URL(req.url).pathname.split("/").pop() ?? "";
+        requested.push(name);
+        if (name === "latest-mac.yml") {
+          return new Response(latestMacYml(zipName, zipBytes, "999.0.0"), {
+            headers: { "content-type": "text/yaml" },
+          });
+        }
+        if (name === zipName) {
+          served.zip = true;
+          return new Response(zipBytes, { headers: { "content-type": "application/zip" } });
+        }
+        return new Response("not found", { status: 404 });
+      },
+    });
+    try {
+      const feedUrl = `http://127.0.0.1:${String(feedServer.port)}/`;
+      const feedText = JSON.stringify({ provider: "generic", url: feedUrl });
+      writeFileSync(join(copyResources, "update-feed.json"), feedText);
+      // the packaged app ships app-update.yml when it was built with a feed; a build without a feed gets the same file here
+      if (!existsSync(join(copyResources, "app-update.yml"))) {
+        writeFileSync(
+          join(copyResources, "app-update.yml"),
+          `provider: generic\nurl: ${JSON.stringify(feedUrl)}\nupdaterCacheDirName: fresnel-updater\n`,
+        );
+      }
+      const portProbe = Bun.serve({
+        hostname: "127.0.0.1",
+        port: 0,
+        fetch: () => new Response(""),
+      });
+      const cdpPort = portProbe.port ?? 0;
+      await portProbe.stop(true);
+      const fourth = Bun.spawn(
+        [join(copy, "Contents", "MacOS", "Fresnel"), `--remote-debugging-port=${String(cdpPort)}`],
+        {
+          env,
+          stdout: "ignore",
+          stderr: "ignore",
+        },
+      );
+      children.push(fourth);
+      const opened = await pollPage(cdpPort, clickScript("^(업데이트|Update)$"));
+      check("update offered in the status bar", opened);
+      const pressed = await pollPage(cdpPort, clickScript("^(내려받기|Download)$"));
+      check("update download button pressed", pressed);
+      const cached = await until(
+        "the update zip in the cache",
+        () =>
+          findSizedFile(
+            join(home, "Library", "Caches", "fresnel-updater"),
+            zipName,
+            zipBytes.length,
+          ),
+        20_000,
+      );
+      check(
+        "update zip downloaded into the updater cache",
+        cached !== undefined && served.zip && requested.includes("latest-mac.yml"),
+        `requests: ${requested.join(",")}`,
+      );
+      check("no download failure in the app log", !logText().includes("download failed"));
+      fourth.kill("SIGTERM");
+      await until(
+        "the update copy to quit",
+        () => (fourth.exitCode === null ? undefined : fourth.exitCode),
+        20_000,
+      );
+    } finally {
+      await feedServer.stop(true);
+    }
   } finally {
     for (const child of children) if (child.exitCode === null) child.kill("SIGKILL");
     rmSync(work, { recursive: true, force: true });

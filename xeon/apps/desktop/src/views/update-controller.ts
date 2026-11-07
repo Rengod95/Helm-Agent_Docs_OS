@@ -119,13 +119,20 @@ export function createUpdateController(port: UpdatePort): UpdateController {
       dispatch({ kind: "installFinished", outcome: await installUpdate(port.invoke) });
     });
 
+  // 내려받기 실패(서명 불일치 등) 뒤의 다시 시도: 캐시된 확인 결과로 같은 실패를 되풀이하지 않도록 먼저 다시 확인하고,
+  // 새 버전이 보이면 내려받는다(피드를 고쳤으면 고친 쪽을 받는다). 확인이 실패하면 그 실패 상태에서 멈춘다
+  const recheckAndDownload = async (): Promise<void> => {
+    await check();
+    if (state.kind === "available") await download();
+  };
+
   const retry = (): Promise<void> => {
     const step = retryStepOf(state);
     switch (step) {
       case "check":
         return check();
       case "download":
-        return download();
+        return recheckAndDownload();
       case "install":
         return installAndRestart();
       case null:

@@ -236,6 +236,29 @@ describe("error classification", () => {
     });
   });
 
+  test("a missing local file such as app-update.yml is config", () => {
+    expect(
+      classifyError(coded("ENOENT", "ENOENT: no such file or directory, open 'app-update.yml'")),
+    ).toEqual({
+      kind: "failed",
+      reason: "config",
+    });
+  });
+
+  test("a download that fails with ENOENT is config and the log keeps the code, not the path", async () => {
+    const { backend } = backendOf({
+      check: () => Promise.resolve(READY_1_2),
+      download: () => Promise.reject(coded("ENOENT", "ENOENT: open '/secret/dir/app-update.yml'")),
+    });
+    const h = harness({ backend });
+    await h.dispatch("update_check", null);
+    expect(await h.dispatch("update_download", { onEvent: CHANNEL })).toEqual({
+      ok: true,
+      value: { kind: "failed", reason: "config" },
+    });
+    expect(h.logs).toEqual(["updater: download failed (reason: config, code: ENOENT)"]);
+  });
+
   test("a server error status that is not 404 is network", () => {
     for (const statusCode of [403, 500, 503]) {
       const error = Object.assign(new Error(`${statusCode} "server said no"`), { statusCode });
@@ -315,7 +338,9 @@ describe("update check", () => {
       ok: true,
       value: { kind: "failed", reason: "no_release" },
     });
-    expect(h.logs).toEqual(["updater: check failed (reason: no_release)"]);
+    expect(h.logs).toEqual([
+      "updater: check failed (reason: no_release, code: ERR_UPDATER_CHANNEL_FILE_NOT_FOUND)",
+    ]);
   });
 
   test("a check that never answers gives up as offline and releases the busy flag", async () => {
