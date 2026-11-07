@@ -1,18 +1,26 @@
 import { assertNever, type Result, type Thrown } from "@fresnel/contracts";
-import type { InstallPreview } from "@fresnel/contracts/services";
+import type { DevkitReason, InstallPreview } from "@fresnel/contracts/services";
 import { WIRE_ERRORS, type ExtInstallResult } from "@fresnel/contracts/wire";
 import type { CommandError } from "../commands.ts";
 
-// 앱 안 설치(Q9)의 순수 부분: 단계 전이, 실패 갈래, 미리 보기를 화면이 그릴 경고 목록으로 바꾸기. 화면은 `install-dialog.tsx`다.
+// 앱 안 설치(Q9)의 순수 부분: 단계 전이, 실패 갈래, 거절 사유 목록, 미리 보기를 화면이 그릴 경고 목록으로 바꾸기. 화면은 `install-dialog.tsx`다.
 
 /** 설치 흐름의 단계. 출처 입력 → 읽는 중 → 권한 확인 → 설치하는 중 → 결과 */
 export type InstallFlow =
-  | { readonly step: "source"; readonly source: string; readonly failure: InstallFailure | null }
+  | {
+      readonly step: "source";
+      readonly source: string;
+      readonly failure: InstallFailure | null;
+      /** 거절된 입력의 사유 목록. 실패가 없거나 사유가 없으면 빈 목록이다 */
+      readonly reasons: readonly InstallReason[];
+    }
   | { readonly step: "previewing"; readonly source: string }
   | {
       readonly step: "confirm";
       readonly preview: InstallPreview;
       readonly failure: InstallFailure | null;
+      /** 설치가 거절된 사유 목록. 실패가 없거나 사유가 없으면 빈 목록이다 */
+      readonly reasons: readonly InstallReason[];
     }
   | { readonly step: "installing"; readonly preview: InstallPreview }
   | {
@@ -35,7 +43,12 @@ export type InstallFailure =
   | "unsupported"
   | "other";
 
-export const INITIAL_INSTALL_FLOW: InstallFlow = { step: "source", source: "", failure: null };
+export const INITIAL_INSTALL_FLOW: InstallFlow = {
+  step: "source",
+  source: "",
+  failure: null,
+  reasons: [],
+};
 
 const SAFE_MODE_CODE = WIRE_ERRORS["extension.safeModeActive"].code;
 const ISSUE_KINDS: Readonly<Record<string, InstallFailure>> = {
@@ -58,26 +71,74 @@ export function installFailureOf(error: CommandError): InstallFailure {
   return (head === undefined ? undefined : ISSUE_KINDS[head]) ?? "other";
 }
 
+/** 화면이 문장을 고르는 거절 사유 코드. 엔진이 보내는 코드 가운데 문장을 가진 것만 든다. 그 밖의 코드는 `other`다 */
+const INSTALL_REASON_CODES = [
+  "not_absolute",
+  "folder_missing",
+  "no_manifest",
+  "manifest_json",
+  "unknown_key",
+  "missing_field",
+  "invalid_value",
+  "entry_format",
+  "entry_missing",
+  "builtin_trust",
+  "name_invalid",
+  "name_reserved",
+] as const;
+export type InstallReasonKey = (typeof INSTALL_REASON_CODES)[number] | "other";
+
+/** 화면이 그릴 거절 사유 한 건. `key`는 문장을 고르는 코드다. `field`(플러그인 파일 안 경로)와 `line`(원문 줄)은 알 때만 있다 */
+export interface InstallReason {
+  readonly key: InstallReasonKey;
+  readonly field?: string;
+  readonly line?: number;
+}
+
+/** 엔진 사유 한 건을 화면 사유로 바꾼다. 검사기 원문 `message`는 버린다(영어 내부 문장이라 보이지 않는다). 모르는 코드는 `other`다 */
+export function installReasonOf(reason: DevkitReason): InstallReason {
+  const key = INSTALL_REASON_CODES.find((known) => known === reason.code) ?? "other";
+  return {
+    key,
+    ...(reason.field === undefined ? {} : { field: reason.field }),
+    ...(reason.line === undefined ? {} : { line: reason.line }),
+  };
+}
+
+/** 명령 오류가 싣는 거절 사유를 화면 사유로 바꾼다. 거절이 아니거나 사유가 없으면 빈 목록이다 */
+export function installReasonsOf(error: CommandError): readonly InstallReason[] {
+  return error.kind === "rejected" ? (error.reasons ?? []).map(installReasonOf) : [];
+}
+
 export type InstallAction =
   | { readonly type: "source"; readonly source: string }
   | { readonly type: "previewStart" }
   | { readonly type: "previewed"; readonly preview: InstallPreview }
-  | { readonly type: "previewFailed"; readonly failure: InstallFailure }
+  | {
+      readonly type: "previewFailed";
+      readonly failure: InstallFailure;
+      readonly reasons: readonly InstallReason[];
+    }
   | { readonly type: "installStart" }
   | {
       readonly type: "installed";
       readonly result: ExtInstallResult;
       readonly reloadFailure: InstallFailure | null;
     }
-  | { readonly type: "installFailed"; readonly failure: InstallFailure }
+  | {
+      readonly type: "installFailed";
+      readonly failure: InstallFailure;
+      readonly reasons: readonly InstallReason[];
+    }
   | { readonly type: "back" };
 
 /** 단계 전이. 맞지 않는 단계에서 온 동작은 흐름을 그대로 둔다 */
 export function installReduce(flow: InstallFlow, action: InstallAction): InstallFlow {
   switch (action.type) {
+    // 출처를 바꾸거나 뒤로 가면 지난 거절과 그 사유는 남기지 않는다
     case "source":
       return flow.step === "source"
-        ? { step: "source", source: action.source, failure: null }
+        ? { step: "source", source: action.source, failure: null, reasons: [] }
         : flow;
     case "previewStart":
       return flow.step === "source" && flow.source.trim() !== ""
@@ -85,11 +146,16 @@ export function installReduce(flow: InstallFlow, action: InstallAction): Install
         : flow;
     case "previewed":
       return flow.step === "previewing"
-        ? { step: "confirm", preview: action.preview, failure: null }
+        ? { step: "confirm", preview: action.preview, failure: null, reasons: [] }
         : flow;
     case "previewFailed":
       return flow.step === "previewing"
-        ? { step: "source", source: flow.source, failure: action.failure }
+        ? {
+            step: "source",
+            source: flow.source,
+            failure: action.failure,
+            reasons: action.reasons,
+          }
         : flow;
     case "installStart":
       return flow.step === "confirm" ? { step: "installing", preview: flow.preview } : flow;
@@ -99,11 +165,16 @@ export function installReduce(flow: InstallFlow, action: InstallAction): Install
         : flow;
     case "installFailed":
       return flow.step === "installing"
-        ? { step: "confirm", preview: flow.preview, failure: action.failure }
+        ? {
+            step: "confirm",
+            preview: flow.preview,
+            failure: action.failure,
+            reasons: action.reasons,
+          }
         : flow;
     case "back":
       return flow.step === "confirm"
-        ? { step: "source", source: flow.preview.source, failure: null }
+        ? { step: "source", source: flow.preview.source, failure: null, reasons: [] }
         : flow;
     default:
       return assertNever(action, "InstallAction");

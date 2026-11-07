@@ -13,9 +13,12 @@ import {
   pickOutcomeOf,
   installDoneOf,
   installFailureOf,
+  installReasonOf,
+  installReasonsOf,
   installReduce,
   warningsOf,
   type InstallFlow,
+  type InstallReason,
 } from "../../../src/views/workbench/install-model.ts";
 
 const PREVIEW: InstallPreview = {
@@ -53,7 +56,7 @@ describe("설치 흐름", () => {
     flow = installReduce(flow, { type: "previewStart" });
     expect(flow).toEqual({ step: "previewing", source: "/plugins/docs-bundle" });
     flow = installReduce(flow, { type: "previewed", preview: PREVIEW });
-    expect(flow).toEqual({ step: "confirm", preview: PREVIEW, failure: null });
+    expect(flow).toEqual({ step: "confirm", preview: PREVIEW, failure: null, reasons: [] });
     flow = installReduce(flow, { type: "installStart" });
     expect(flow).toEqual({ step: "installing", preview: PREVIEW });
     const result = {
@@ -74,21 +77,76 @@ describe("설치 흐름", () => {
       INITIAL_INSTALL_FLOW,
     );
     const reading: InstallFlow = { step: "previewing", source: "/x" };
-    expect(installReduce(reading, { type: "previewFailed", failure: "not_found" })).toEqual({
+    expect(
+      installReduce(reading, { type: "previewFailed", failure: "not_found", reasons: [] }),
+    ).toEqual({
       step: "source",
       source: "/x",
       failure: "not_found",
+      reasons: [],
     });
   });
 
   test("설치 실패는 확인 화면에 남고, 뒤로 가면 출처 입력이다", () => {
     const installing: InstallFlow = { step: "installing", preview: PREVIEW };
-    const failed = installReduce(installing, { type: "installFailed", failure: "source_changed" });
-    expect(failed).toEqual({ step: "confirm", preview: PREVIEW, failure: "source_changed" });
+    const failed = installReduce(installing, {
+      type: "installFailed",
+      failure: "source_changed",
+      reasons: [],
+    });
+    expect(failed).toEqual({
+      step: "confirm",
+      preview: PREVIEW,
+      failure: "source_changed",
+      reasons: [],
+    });
     expect(installReduce(failed, { type: "back" })).toEqual({
       step: "source",
       source: "/plugins/docs-bundle",
       failure: null,
+      reasons: [],
+    });
+  });
+
+  test("미리 보기와 설치의 거절 사유는 실패 갈래와 함께 출처와 확인 화면에 남는다", () => {
+    const reasons: readonly InstallReason[] = [
+      { key: "unknown_key", field: "plugins/0/hoks", line: 12 },
+    ];
+    const reading: InstallFlow = { step: "previewing", source: "/plugins/docs" };
+    expect(
+      installReduce(reading, { type: "previewFailed", failure: "invalid_input", reasons }),
+    ).toEqual({ step: "source", source: "/plugins/docs", failure: "invalid_input", reasons });
+    const installing: InstallFlow = { step: "installing", preview: PREVIEW };
+    expect(
+      installReduce(installing, { type: "installFailed", failure: "invalid_input", reasons }),
+    ).toEqual({ step: "confirm", preview: PREVIEW, failure: "invalid_input", reasons });
+  });
+
+  test("새 출처나 뒤로 가기는 지난 거절과 그 사유를 지운다", () => {
+    const reasons: readonly InstallReason[] = [{ key: "missing_field", field: "plugins/0/hooks" }];
+    const failed: InstallFlow = {
+      step: "source",
+      source: "/plugins/docs",
+      failure: "invalid_input",
+      reasons,
+    };
+    expect(installReduce(failed, { type: "source", source: "/plugins/other" })).toEqual({
+      step: "source",
+      source: "/plugins/other",
+      failure: null,
+      reasons: [],
+    });
+    const confirm: InstallFlow = {
+      step: "confirm",
+      preview: PREVIEW,
+      failure: "invalid_input",
+      reasons,
+    };
+    expect(installReduce(confirm, { type: "back" })).toEqual({
+      step: "source",
+      source: "/plugins/docs-bundle",
+      failure: null,
+      reasons: [],
     });
   });
 });
@@ -283,5 +341,44 @@ describe("화면과 다리 권한", () => {
     expect(bridgeAccessOf(PREVIEW)).toEqual([]);
     expect(accessIsEmpty(PREVIEW)).toBe(true);
     expect(accessIsEmpty(withScreens)).toBe(false);
+  });
+});
+
+describe("설치 거절 사유", () => {
+  test("엔진 사유는 코드와 자리만 남기고 검사기 원문 문장은 버린다", () => {
+    expect(
+      installReasonOf({
+        code: "unknown_key",
+        field: "plugins/0/hoks",
+        line: 12,
+        message: "must NOT have additional properties",
+      }),
+    ).toEqual({ key: "unknown_key", field: "plugins/0/hoks", line: 12 });
+    expect(installReasonOf({ code: "folder_missing" })).toEqual({ key: "folder_missing" });
+  });
+
+  test("화면이 문장을 가진 코드는 그 코드를 쓰고, 모르는 코드는 other다", () => {
+    expect(installReasonOf({ code: "name_reserved" })).toEqual({ key: "name_reserved" });
+    expect(installReasonOf({ code: "hook_unknown", field: "plugins/0/hooks/2" })).toEqual({
+      key: "other",
+      field: "plugins/0/hooks/2",
+    });
+    expect(installReasonOf({ code: "AU-002" })).toEqual({ key: "other" });
+  });
+
+  test("사유는 거절된 명령 오류에서만 얻고, 그 밖에는 빈 목록이다", () => {
+    const rejected = errorOf(
+      wireError("jsonrpc.invalidParams", {
+        details: {
+          issues: [
+            { path: "/source", message: "no_manifest: .fresnel-plugin/plugin.json is missing" },
+          ],
+          reasons: [{ code: "no_manifest" }],
+        },
+      }),
+    );
+    expect(installReasonsOf(rejected)).toEqual([{ key: "no_manifest" }]);
+    expect(installReasonsOf(issue("not_found: manifest"))).toEqual([]);
+    expect(installReasonsOf({ kind: "offline" })).toEqual([]);
   });
 });

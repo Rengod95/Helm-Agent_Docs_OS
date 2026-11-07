@@ -144,4 +144,88 @@ describe("errorOf", () => {
       path: "source",
     });
   });
+
+  test("an install rejection keeps each reason with its field and line, next to the issue", () => {
+    const rejected = wireError("jsonrpc.invalidParams", {
+      details: {
+        issues: [{ path: "/source", message: "invalid_input: manifest is not valid" }],
+        reasons: [
+          {
+            code: "unknown_key",
+            field: "plugins/0/hoks",
+            line: 12,
+            message: "must NOT have additional properties",
+          },
+          { code: "missing_field", field: "plugins/0/hooks" },
+        ],
+      },
+    });
+    expect(errorOf(rejected)).toEqual({
+      kind: "rejected",
+      code: -32602,
+      issue: "invalid_input: manifest is not valid",
+      path: "/source",
+      reasons: [
+        {
+          code: "unknown_key",
+          field: "plugins/0/hoks",
+          line: 12,
+          message: "must NOT have additional properties",
+        },
+        { code: "missing_field", field: "plugins/0/hooks" },
+      ],
+    });
+  });
+
+  test("malformed reasons are ignored and the issue and the input name stay", () => {
+    const emptyCode = wireError("jsonrpc.invalidParams", {
+      details: {
+        issues: [{ path: "/source", message: "not_absolute: source must be an absolute path" }],
+        reasons: [{ code: "" }],
+      },
+    });
+    expect(errorOf(emptyCode)).toEqual({
+      kind: "rejected",
+      code: -32602,
+      issue: "not_absolute: source must be an absolute path",
+      path: "/source",
+    });
+    const notAList = wireError("jsonrpc.invalidParams", {
+      details: {
+        issues: [{ path: "/source", message: "not_absolute: source must be an absolute path" }],
+        reasons: "unknown_key",
+      },
+    });
+    expect(errorOf(notAList)).toEqual({
+      kind: "rejected",
+      code: -32602,
+      issue: "not_absolute: source must be an absolute path",
+      path: "/source",
+    });
+  });
+
+  test("reasons without issues still reject with the reasons, and an empty list adds nothing", () => {
+    const bare = wireError("jsonrpc.invalidParams", {
+      details: { reasons: [{ code: "no_manifest" }] },
+    });
+    expect(errorOf(bare)).toEqual({
+      kind: "rejected",
+      code: -32602,
+      reasons: [{ code: "no_manifest" }],
+    });
+    const empty = wireError("jsonrpc.invalidParams", {
+      details: {
+        issues: [
+          { path: "/source", message: "no_manifest: .fresnel-plugin/plugin.json is missing" },
+        ],
+        reasons: [],
+      },
+    });
+    expect(errorOf(empty)).toEqual({
+      kind: "rejected",
+      code: -32602,
+      issue: "no_manifest: .fresnel-plugin/plugin.json is missing",
+      path: "/source",
+    });
+  });
 });

@@ -9,6 +9,7 @@ import { createContext, useContext } from "react";
 import { Bug, type Result } from "@fresnel/contracts";
 import type { ScheduleListItem, SecretName } from "@fresnel/contracts/capabilities";
 import type {
+  DevkitReason,
   InstallPreview,
   KindEntry,
   PackResult,
@@ -127,6 +128,8 @@ export type CommandError =
       readonly issue?: string;
       /** 입력 거절의 첫 문제가 가리는 입력 이름(예: `planId`). 없으면 없다 */
       readonly path?: string;
+      /** 설치 입력이 검사에서 걸린 사유 목록(`details.reasons`). 화면은 `message` 원문을 보이지 않는다 */
+      readonly reasons?: readonly DevkitReason[];
     }
   | { readonly kind: "failed" }
   /** 엔진 대상을 바꾸는 중이라 쓰기를 보류했다(W-08). 새 엔진이 붙은 뒤 다시 보낸다 */
