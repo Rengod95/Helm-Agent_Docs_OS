@@ -29,6 +29,7 @@ function row(patch: Partial<Proposal> = {}): Proposal {
     scope: "user",
     afterUntrusted: false,
     reason: null,
+    note: null,
     findings: [],
     ledgerId: null,
     createdAt: NOW,
@@ -509,4 +510,58 @@ test("queue.base-stale-refreshes-the-base-hash: approving the returned row again
   );
   expect(second).toMatchObject({ ok: true, applied: true, proposal: { status: "applied" } });
   expect(knowledge.skills.get("release-notes")?.body).toBe("Write good notes. Be brief.");
+});
+
+test("queue.reject-note: the note reaches the returned view and the projected row; without a note both are null", async () => {
+  const { review, id, api } = await pendingSkill();
+  const signal = new AbortController().signal;
+  const rejected = await api.decide({ kind: "reject", proposalId: id, note: "이 팀 한정" }, signal);
+  expect(rejected).toMatchObject({
+    ok: true,
+    proposal: { status: "rejected", reason: "user_rejected", note: "이 팀 한정" },
+  });
+  expect(await review.rig.reader.getProposal(id)).toMatchObject({
+    ok: true,
+    value: { status: "rejected", note: "이 팀 한정" },
+  });
+  const second = await submit(review, { ...NEW_SKILL, target: "second-skill" });
+  const secondId = second.ok ? second.proposalId : "";
+  expect(await api.decide({ kind: "reject", proposalId: secondId }, signal)).toMatchObject({
+    ok: true,
+    proposal: { status: "rejected", note: null },
+  });
+  expect(await review.rig.reader.getProposal(secondId)).toMatchObject({
+    ok: true,
+    value: { status: "rejected", note: null },
+  });
+});
+
+test("queue.reject-note-cap: a note from the command line is trimmed and kept to 500 characters", async () => {
+  const { id, api } = await pendingSkill();
+  const rejected = await api.decide(
+    { kind: "reject", proposalId: id, note: `  ${"가".repeat(600)}  ` },
+    new AbortController().signal,
+  );
+  expect(rejected).toMatchObject({ ok: true, proposal: { note: "가".repeat(500) } });
+});
+
+test("queue.expires-at: a pending row expires after the default 30 days, and the setting changes the day count; a rejected row has no expiry", async () => {
+  const { review, id, api } = await pendingSkill();
+  const signal = new AbortController().signal;
+  const day = 86_400_000;
+  const createdAt = review.rig.clock.now();
+  expect(await api.list({ statuses: ["pending"] })).toMatchObject({
+    ok: true,
+    value: [{ id, status: "pending", createdAt, expiresAt: createdAt + 30 * day }],
+  });
+  review.rig.values.set("l3.learning.queue.expiryDays", 7);
+  expect(await api.list({ statuses: ["pending"] })).toMatchObject({
+    ok: true,
+    value: [{ id, expiresAt: createdAt + 7 * day }],
+  });
+  await api.decide({ kind: "reject", proposalId: id }, signal);
+  expect(await api.list({})).toMatchObject({
+    ok: true,
+    value: [{ id, status: "rejected", expiresAt: null }],
+  });
 });

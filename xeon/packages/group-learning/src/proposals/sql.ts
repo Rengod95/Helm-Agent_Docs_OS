@@ -32,6 +32,7 @@ const PROPOSALS_DDL = `CREATE TABLE x_learning_proposals (
   target          TEXT NOT NULL,
   status          TEXT NOT NULL,
   reason          TEXT,
+  note            TEXT,
   revision        INTEGER NOT NULL,
   body_hash       TEXT NOT NULL,
   base_hash       TEXT,
@@ -103,6 +104,7 @@ function proposalOfRow(row: SqlRow): Proposal | undefined {
     scope: text(row, "scope"),
     afterUntrusted: integer(row, "after_untrusted") === 1,
     reason: text(row, "reason") ?? null,
+    note: text(row, "note") ?? null,
     findings: listOf(row, "findings_json"),
     ledgerId: text(row, "ledger_id") ?? null,
     createdAt: integer(row, "created_at"),
@@ -158,6 +160,7 @@ function proposalParams(proposal: Proposal): SqlValue[] {
     proposal.target,
     proposal.status,
     proposal.reason,
+    proposal.note,
     proposal.revision,
     proposal.bodyHash,
     proposal.baseHash,
@@ -179,9 +182,9 @@ function proposalParams(proposal: Proposal): SqlValue[] {
 }
 
 const UPSERT_PROPOSAL = `INSERT OR REPLACE INTO x_learning_proposals (
-  id, thread_id, kind, op, target, status, reason, revision, body_hash, base_hash, diff, body, description, rationale,
+  id, thread_id, kind, op, target, status, reason, note, revision, body_hash, base_hash, diff, body, description, rationale,
   evidence_json, review_id, conflicts_with, destructive, scope, after_untrusted, findings_json, ledger_id, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
 const UPSERT_REVIEW = `INSERT OR REPLACE INTO x_learning_reviews
  (thread_id, request_id, epoch, child_thread_id, started_at, finished_at, outcome, input_tokens, output_tokens)
@@ -223,7 +226,8 @@ function sqlRows(tx: ProjectionTx): ProjectionRows {
 export function createLearningProjector(onSkipped?: (kind: string) => void): Projector {
   return {
     name: "ext.learning",
-    version: 1,
+    // 2: `x_learning_proposals.note`를 더했다. 버전이 다르면 레지스트리가 기록을 처음부터 다시 접어 표를 만든다
+    version: 2,
     tables: ["x_learning_proposals", "x_learning_reviews"],
     ddl: [
       PROPOSALS_DDL,

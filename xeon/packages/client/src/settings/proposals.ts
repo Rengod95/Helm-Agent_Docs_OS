@@ -63,6 +63,10 @@ export type ProposalRowVM = {
   readonly conflictsWith: string | null;
   /** 거절·실패 사유 코드(출처가 정한 값) */
   readonly reason: string | null;
+  /** 거절할 때 사용자가 적은 메모. 값 그대로 옮긴다(화면 문구는 화면이 정한다) */
+  readonly note: string | null;
+  /** 대기 중인 제안의 만료 시각(epoch ms). 대기 상태가 아니면 null. 값 그대로 옮긴다 */
+  readonly expiresAt: number | null;
   readonly diff: string;
   /**
    * 제안이 새로 쓰는 본문. wire는 본문을 따로 싣지 않아 diff의 추가 줄에서 되살린다. 새 본문 전체를 싣는 연산(create, add,
@@ -130,6 +134,8 @@ function rowOf(row: ProposalRow): ProposalRowVM {
     afterUntrusted: row.afterUntrusted,
     conflictsWith: row.conflictsWith,
     reason: row.reason,
+    note: row.note,
+    expiresAt: row.expiresAt,
     diff: row.diff,
     proposedText: FULL_BODY_OPS.has(row.op) ? addedTextOf(row.diff) : null,
     rationale: row.rationale,

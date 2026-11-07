@@ -35,10 +35,12 @@ function row(overrides: Partial<ProposalRow>): ProposalRow {
     evidence: [{ eventId: "evt_1", threadId: THREAD }],
     conflictsWith: null,
     reason: null,
+    note: null,
     revision: 3,
     scope: null,
     afterUntrusted: false,
     createdAt: 1000,
+    expiresAt: 1000 + 30 * 86_400_000,
     ...overrides,
   };
 }
@@ -82,6 +84,17 @@ describe("proposalListView", () => {
       initial: "user",
     });
     expect(vm({ kind: "memory" }).scopeChoice).toBeNull();
+  });
+
+  test("the reject note and the pending expiry pass through unchanged", () => {
+    expect(vm({ status: "rejected", note: "이 팀 한정", expiresAt: null })).toMatchObject({
+      note: "이 팀 한정",
+      expiresAt: null,
+    });
+    expect(vm({ status: "pending", note: null, expiresAt: 2000 })).toMatchObject({
+      note: null,
+      expiresAt: 2000,
+    });
   });
 
   test("warnings and evidence count are carried, an empty list says why, and an unreadable source is named", () => {

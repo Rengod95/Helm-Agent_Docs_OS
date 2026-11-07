@@ -1,12 +1,13 @@
 import { expect, test } from "bun:test";
 import { toJsonValue } from "@fresnel/contracts/conversation";
-import { LEARNING_EVENT_KINDS } from "../src/index.ts";
+import { decodeEvent, LEARNING_EVENT_KINDS } from "../src/index.ts";
 import {
   RECORD_KIND_PATTERN,
   validateGroupRecord,
   type GroupRecord,
 } from "@fresnel/contracts/extensions";
 import { learningRecordKindDecls, proposedRecordOf } from "../src/records.ts";
+import { payloadOf, type LearningEvent } from "../src/proposals/events.ts";
 import type { Proposal } from "../src/proposals/proposal.ts";
 
 const BASE = { proposalId: "prop_1", target: "release-notes", reviewId: "learning:review:1" };
@@ -94,6 +95,7 @@ function proposal(patch: Partial<Proposal>): Proposal {
     scope: "user",
     afterUntrusted: false,
     reason: null,
+    note: null,
     findings: [],
     ledgerId: null,
     createdAt: 1,
@@ -126,4 +128,58 @@ test("records.proposed-records-carry-no-body-and-match-their-schema", () => {
       ),
     ).toEqual([]);
   }
+});
+
+test("records.decided-note-round-trips: a reject keeps its note through payloadOf and decodeEvent; a record without a note still decodes, and an over-long note is dropped", () => {
+  const withNote: LearningEvent = {
+    kind: "proposal.decided",
+    id: "prop_1",
+    revision: 1,
+    status: "rejected",
+    reason: "user_rejected",
+    scope: "user",
+    note: "이 팀 한정",
+    at: 5,
+  };
+  expect(payloadOf(withNote)).toEqual({
+    id: "prop_1",
+    revision: 1,
+    status: "rejected",
+    reason: "user_rejected",
+    scope: "user",
+    note: "이 팀 한정",
+    at: 5,
+  });
+  expect(decodeEvent("grp.learning.proposal.decided", payloadOf(withNote))).toEqual(withNote);
+  // 메모가 없으면 기록에 싣지 않고, 메모 없는 기록도 그대로 읽힌다
+  const withoutNote: LearningEvent = {
+    kind: "proposal.decided",
+    id: "prop_1",
+    revision: 1,
+    status: "rejected",
+    reason: "user_rejected",
+    scope: "user",
+    at: 5,
+  };
+  expect(payloadOf(withoutNote)).toEqual({
+    id: "prop_1",
+    revision: 1,
+    status: "rejected",
+    reason: "user_rejected",
+    scope: "user",
+    at: 5,
+  });
+  expect(decodeEvent("grp.learning.proposal.decided", payloadOf(withoutNote))).toEqual(withoutNote);
+  // 글자 상한(500)을 넘는 메모는 버리고 결정은 그대로 읽는다
+  expect(
+    decodeEvent("grp.learning.proposal.decided", {
+      id: "prop_1",
+      revision: 1,
+      status: "rejected",
+      reason: "user_rejected",
+      scope: "user",
+      note: "x".repeat(501),
+      at: 5,
+    }),
+  ).toEqual(withoutNote);
 });

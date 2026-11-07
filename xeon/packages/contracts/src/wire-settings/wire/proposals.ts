@@ -76,10 +76,12 @@ export const ProposalRowSchema: TObject<{
   evidence: TArray<typeof ProposalEvidenceSchema>;
   conflictsWith: TUnion<[TString, TNull]>;
   reason: TUnion<[TString, TNull]>;
+  note: TUnion<[TString, TNull]>;
   revision: TInteger;
   scope: TUnion<[TUnion<[TLiteral<"user">, TLiteral<"project">]>, TNull]>;
   afterUntrusted: TBoolean;
   createdAt: TInteger;
+  expiresAt: TUnion<[TInteger, TNull]>;
 }> = Type.Object(
   {
     source: ProposalSourceSchema,
@@ -98,6 +100,8 @@ export const ProposalRowSchema: TObject<{
     conflictsWith: Nullable(Type.String({ maxLength: 4096 })),
     /** 거절·실패 사유 코드(출처가 정한 값) */
     reason: Nullable(Type.String({ maxLength: 64 })),
+    /** 거절할 때 사용자가 적은 메모(1~500자). 학습 출처만 채운다. 지식 출처와 메모가 없는 행은 null */
+    note: Nullable(Type.String({ maxLength: 500 })),
     /** 결정 때 맞춰 보내는 판. 지식 출처는 1 */
     revision: Type.Integer({ minimum: 1 }),
     /** 적용 범위. 스킬만 의미가 있고 그 밖은 null */
@@ -105,6 +109,8 @@ export const ProposalRowSchema: TObject<{
     /** 신뢰할 수 없는 입력을 읽은 뒤 만든 후보. 화면이 경고를 보인다 */
     afterUntrusted: Type.Boolean(),
     createdAt: Type.Integer({ minimum: 0 }),
+    /** 대기 중인 제안의 만료 시각(epoch ms). 대기 상태가 아니거나 만료가 없으면 null. 지식 출처는 null */
+    expiresAt: Nullable(Type.Integer({ minimum: 0 })),
   },
   { additionalProperties: false },
 );

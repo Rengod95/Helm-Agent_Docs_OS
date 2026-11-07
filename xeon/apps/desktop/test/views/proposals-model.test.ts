@@ -45,10 +45,12 @@ function wire(overrides: Partial<ProposalRow>): ProposalRow {
     evidence: [{ eventId: "evt_1", threadId: THREAD }],
     conflictsWith: null,
     reason: null,
+    note: null,
     revision: 3,
     scope: null,
     afterUntrusted: false,
     createdAt: 1_000,
+    expiresAt: 1_000 + 30 * 86_400_000,
     ...overrides,
   };
 }

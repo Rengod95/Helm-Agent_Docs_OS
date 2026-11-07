@@ -38,10 +38,12 @@ function view(patch: Partial<ProposalView> & { id: string }): ProposalView {
     evidence: [{ eventId: "evt_1", threadId: THREAD }],
     conflictsWith: null,
     reason: null,
+    note: null,
     revision: 1,
     scope: "user",
     afterUntrusted: false,
     createdAt: 1000,
+    expiresAt: 1000 + 30 * 86_400_000,
     source: "learning",
     ...patch,
   };
@@ -60,10 +62,12 @@ function row(patch: Partial<ProposalRow> & { id: string }): ProposalRow {
     evidence: [],
     conflictsWith: null,
     reason: null,
+    note: null,
     revision: 1,
     scope: null,
     afterUntrusted: false,
     createdAt: 1000,
+    expiresAt: null,
     ...patch,
   };
 }
@@ -236,6 +240,14 @@ test("proposal.list maps a learning row: scope only for skills, evidence with a 
         reason: "base_stale",
         createdAt: 900,
       }),
+      view({
+        id: "prop_rejected",
+        status: "rejected",
+        reason: "user_rejected",
+        note: "이 팀 한정",
+        expiresAt: null,
+        createdAt: 800,
+      }),
     ],
     knowledge: [],
   });
@@ -253,10 +265,12 @@ test("proposal.list maps a learning row: scope only for skills, evidence with a 
     evidence: [{ eventId: "evt_1", threadId: THREAD }],
     conflictsWith: null,
     reason: null,
+    note: null,
     revision: 1,
     scope: "project",
     afterUntrusted: false,
     createdAt: 1000,
+    expiresAt: 1000 + 30 * 86_400_000,
   });
   expect(proposals[1]).toMatchObject({
     kind: "memory",
@@ -264,6 +278,13 @@ test("proposal.list maps a learning row: scope only for skills, evidence with a 
     afterUntrusted: true,
     conflictsWith: "other",
     reason: "base_stale",
+  });
+  // 거절 메모와 만료 시각(대기 상태가 아니면 없음)은 그대로 옮긴다
+  expect(proposals[2]).toMatchObject({
+    id: "prop_rejected",
+    status: "rejected",
+    note: "이 팀 한정",
+    expiresAt: null,
   });
 });
 

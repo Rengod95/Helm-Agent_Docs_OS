@@ -1,5 +1,10 @@
 import { toJsonValue, type JsonValue } from "@fresnel/contracts/conversation";
-import { parseProposal, type Proposal, type ProposalReason } from "./proposal.ts";
+import {
+  parseProposal,
+  PROPOSAL_NOTE_MAX,
+  type Proposal,
+  type ProposalReason,
+} from "./proposal.ts";
 import type { ReviewOutcome } from "./reader.ts";
 
 // L3.learning.spec §3.7.1 비공개 기록 아홉 종. 이벤트가 정본이고 투영기(`learningProjector`)가 `x_learning_*`를 만든다. 모든 payload는 시각 `at`을 싣는다:
@@ -41,6 +46,8 @@ export type LearningEvent =
       readonly status: "approved" | "rejected";
       readonly reason: ProposalReason | null;
       readonly scope: "user" | "project";
+      /** 거절할 때 사용자가 적은 메모(1~500자). 없으면 싣지 않는다. 투영기가 거절된 행의 `note`로 둔다 */
+      readonly note?: string;
       readonly at: number;
     }
   | {
@@ -219,7 +226,19 @@ export function decodeEvent(kind: string, payload: unknown): LearningEvent | und
       scope === undefined
     )
       return undefined;
-    return { kind: "proposal.decided", id, revision, status, reason, scope, at };
+    // 메모가 글자 상한을 넘으면 그 값만 버린다. 결정 자체는 기록대로 읽는다
+    const note = str(fields, "note");
+    const kept = note !== undefined && note.length <= PROPOSAL_NOTE_MAX ? note : undefined;
+    return {
+      kind: "proposal.decided",
+      id,
+      revision,
+      status,
+      reason,
+      scope,
+      ...(kept === undefined ? {} : { note: kept }),
+      at,
+    };
   }
   if (name === "proposal.applied") {
     const ledgerId = str(fields, "ledgerId");

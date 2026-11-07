@@ -71,10 +71,12 @@ function learningRowOf(view: ProposalView): ProposalRow {
     ),
     conflictsWith: view.conflictsWith,
     reason: view.reason,
+    note: view.note,
     revision: view.revision,
     scope: view.kind === "skill" ? view.scope : null,
     afterUntrusted: view.afterUntrusted,
     createdAt: view.createdAt,
+    expiresAt: view.expiresAt,
   };
 }
 

@@ -28,10 +28,12 @@ const row = {
   evidence: [{ eventId: "evt_1", threadId: rawId("thr", 1) }],
   conflictsWith: null,
   reason: null,
+  note: null,
   revision: 1,
   scope: "user",
   afterUntrusted: false,
   createdAt: 1_790_000_000_000,
+  expiresAt: 1_790_000_000_000 + 30 * 86_400_000,
 };
 
 const knowledgeRow = {
@@ -42,6 +44,7 @@ const knowledgeRow = {
   rationale: null,
   scope: null,
   status: "stale",
+  expiresAt: null,
 };
 
 describe("proposal.* wire (M3-REQ-18, D-M3-32 a)", () => {
@@ -53,6 +56,25 @@ describe("proposal.* wire (M3-REQ-18, D-M3-32 a)", () => {
     expect(accepts(ProposalRowSchema, { ...row, status: "approving" })).toBe(false);
     expect(accepts(ProposalRowSchema, { ...row, revision: 0 })).toBe(false);
     expect(accepts(ProposalRowSchema, { ...row, extra: 1 })).toBe(false);
+  });
+
+  test("the row carries the reject note and the pending expiry; a note is at most 500 characters", () => {
+    expect(
+      accepts(ProposalRowSchema, {
+        ...row,
+        status: "rejected",
+        reason: "user_rejected",
+        note: "이 팀 한정",
+        expiresAt: null,
+      }),
+    ).toBe(true);
+    expect(accepts(ProposalRowSchema, { ...row, note: "x".repeat(500) })).toBe(true);
+    expect(accepts(ProposalRowSchema, { ...row, note: "x".repeat(501) })).toBe(false);
+    expect(accepts(ProposalRowSchema, { ...row, note: 3 })).toBe(false);
+    expect(accepts(ProposalRowSchema, { ...row, expiresAt: null })).toBe(true);
+    expect(accepts(ProposalRowSchema, { ...row, expiresAt: 0 })).toBe(true);
+    expect(accepts(ProposalRowSchema, { ...row, expiresAt: -1 })).toBe(false);
+    expect(accepts(ProposalRowSchema, { ...row, expiresAt: "soon" })).toBe(false);
   });
 
   test("registered as M3 core methods with valid names", () => {

@@ -79,10 +79,12 @@ test("commands.queue-json-matches-view: /learning queue returns ProposalView row
     evidence: [{ eventId: "evt_00000000000000000000000001", threadId: review.rig.thread }],
     conflictsWith: null,
     reason: null,
+    note: null,
     revision: 1,
     scope: "user",
     afterUntrusted: false,
     createdAt: report.views[0]?.createdAt ?? 0,
+    expiresAt: (report.views[0]?.createdAt ?? 0) + 30 * 86_400_000,
     source: "learning",
   });
 });

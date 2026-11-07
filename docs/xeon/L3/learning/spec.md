@@ -395,6 +395,8 @@ export const ProposalSchema = Type.Object({
   afterUntrusted: Type.Boolean(),
   /** 거절·실패 사유 코드 */
   reason: Type.Union([ProposalReasonSchema, Type.Null()]),
+  /** 거절할 때 사용자가 적은 메모. 앞뒤 공백을 뗀 1~500자이고, 거절 전이나 메모가 없으면 null [결정: 오케스트레이터 기본값, fxLM]. 거절 기록 `proposal.decided`의 `note`에서 온다 */
+  note: Type.Union([Type.String({ maxLength: 500 }), Type.Null()]),
   /** 적용 뒤 L2-d 원장 항목 id */
   ledgerId: Type.Union([Type.String(), Type.Null()]),
   createdAt: Type.Integer(),       // 생산자가 넣은 시각(epoch ms). 투영은 시계를 읽지 않는다
@@ -454,7 +456,7 @@ F.records.spec §3.2 규칙 2의 그룹 kind 형식 `grp.<groupId>.<영역>.<이
 | `grp.learning.fork.finished` | `{ requestId, outcome: "completed" \| "aborted" \| "error" \| "budget", proposalIds, usage }` | 포크 종료 통지를 받았을 때 |
 | `grp.learning.proposal.created` | `Proposal`에서 `diff`를 뺀 값(status `pending` 또는 `rejected`). 투영기가 본문에서 diff를 만든다 | 제안 도구 처리 |
 | `grp.learning.proposal.edited` | `{ id, revision, diff, bodyHash }` | 사용자 수정 |
-| `grp.learning.proposal.decided` | `{ id, revision, status: "approved" \| "rejected", reason, decidedAt, scope }` | 사용자 결정. `scope`는 승인 때 고른 범위(§4.5 규칙 8) |
+| `grp.learning.proposal.decided` | `{ id, revision, status: "approved" \| "rejected", reason, scope, note?, at }` | 사용자 결정. `scope`는 승인 때 고른 범위(§4.5 규칙 8). `note`는 거절 메모다: 거절 명령이 메모를 주면 앞뒤 공백을 떼고 500자까지 남기며, 메모가 비면 싣지 않는다. 투영기는 거절된 행의 `note`를 이 값(없으면 null)으로 둔다 [결정: 오케스트레이터 기본값, fxLM]. 메모는 공개 레코드 `grp.learning.skill.rejected`에 싣지 않는다(§3.7.3: 레코드에는 본문과 사용자 글을 싣지 않는다) |
 | `grp.learning.proposal.applied` | `{ id, ledgerId, afterHash }` | L2-d 적용 성공 |
 | `grp.learning.proposal.apply_failed` | `{ id, reason, nextStatus: "pending" \| "rejected", baseHash? }` | L2-d 적용 실패. `pending`으로 돌아올 때 `baseHash`는 그때 읽은 대상의 현재 해시이고 판이 이 값을 새 `baseHash`로 가진다. 없으면 이전 값을 둔다 |
 | `grp.learning.proposal.reverted` | `{ id, ledgerId }` | 원장 롤백 성공 |
@@ -471,7 +473,8 @@ F.records.spec §3.2 규칙 2의 그룹 kind 형식 `grp.<groupId>.<영역>.<이
 /** 투영기. I/O와 시계를 쓰지 않는다(eng.events.design EV-06) */
 export const learningProjector = {
   name: "ext.learning",
-  version: 1,
+  // 2: `x_learning_proposals.note`를 더했다. 레지스트리는 버전이 projector_state와 다르면 이 투영기만 다시 만든다(DROP, DDL, 기록 재생) [결정: 오케스트레이터 기본값, fxLM]
+  version: 2,
   tables: ["x_learning_proposals", "x_learning_reviews"],
   ddl: [PROPOSALS_DDL, REVIEWS_DDL],
   kinds: [
@@ -486,8 +489,11 @@ export const learningProjector = {
 
 | 테이블 | 열 | 키 |
 |---|---|---|
-| `x_learning_proposals` | `id`, `thread_id`, `kind`, `op`, `target`, `status`, `reason`, `revision`, `body_hash`, `base_hash`, `diff`, `body`, `description`, `rationale`, `evidence_json`, `review_id`, `conflicts_with`, `destructive`, `scope`, `after_untrusted`, `findings_json`, `ledger_id`, `created_at`, `updated_at` | `id`. 색인 `x_learning_pstatus (status, created_at)` |
+| `x_learning_proposals` | `id`, `thread_id`, `kind`, `op`, `target`, `status`, `reason`, `note`, `revision`, `body_hash`, `base_hash`, `diff`, `body`, `description`, `rationale`, `evidence_json`, `review_id`, `conflicts_with`, `destructive`, `scope`, `after_untrusted`, `findings_json`, `ledger_id`, `created_at`, `updated_at` | `id`. 색인 `x_learning_pstatus (status, created_at)` |
 | `x_learning_reviews` | `request_id`, `thread_id`, `child_thread_id`, `epoch`, `started_at`, `finished_at`, `outcome`, `input_tokens`, `output_tokens` | `(thread_id, request_id)`. 색인 `x_learning_rchild (child_thread_id)` |
+
+- 버전 2(`note` 열 추가) [결정: 오케스트레이터 기본값, fxLM]: 버전이 다른 투영기는 기록을 처음부터 다시 접어 표를 만든다. 메모 없이 저장된 옛 `proposal.created` 기록은 `note` 필드가 없어 해독하지 못하고 건너뛴다(`onSkipped`). 그래서 버전 2 이전에 만든 대기 후보는 재생 뒤 목록에서 빠진다. 옛 기록을 읽는 호환 처리는 두지 않았다(fxLM 규칙). 옛 `proposal.decided`는 `note` 없이도 해독된다.
+- 거절 메모는 거절 행에만 남는다. 승인·적용·만료 사건은 행의 `note`를 바꾸지 않는다.
 
 #### 3.7.3 공개 레코드 `grp.learning.*`
 
@@ -576,13 +582,19 @@ export interface ProposalView {
   readonly evidence: readonly { readonly eventId: string; readonly threadId: ThreadId }[];
   readonly conflictsWith: string | null;
   readonly reason: Proposal["reason"];
+  /** 거절할 때 적은 메모(§3.6 `note`) */
+  readonly note: string | null;
   readonly revision: number;
   readonly scope: Proposal["scope"];
   readonly afterUntrusted: boolean;
+  /** 대기 상태(`pending`)일 때 `createdAt + l3.learning.queue.expiryDays`일 뒤의 시각(epoch ms), 그 밖은 null. 설정을 읽지 못하면 null [결정: 오케스트레이터 기본값, fxLM] */
+  readonly expiresAt: number | null;
   /** L4 통합 목록의 출처 열(REQ-LN-10). 이 그룹의 행은 항상 "learning" */
   readonly source: "learning";
 }
 ```
+
+`proposalView(proposal, expiryDays)`가 이 값을 만든다. `expiryDays`는 호출하는 쪽이 설정에서 읽어 넘기는 값이고(순수 함수), 목록(`list`)과 결정(`decide`)의 결과가 같은 설정으로 만든다.
 
 1. 목록: `/learning queue --json` 명령 결과(`readonly ProposalView[]`). [가정] 데스크톱은 명령 결과를 wire 명령 호출로 받는다. wire 메서드 이름은 F.wire-settings.spec과 L4.desktop.spec이 정한다.
 2. 결정: `/learning queue approve|reject|edit|revert <id>` 명령(§6.2). 명령 인자는 `ProposalDecision`과 1:1이다.
@@ -749,7 +761,7 @@ Hermes 규칙(`hermes.md` §3.10.1 (가) 1~5)을 단계 경계 이벤트 기준�
 | `pending` | 사용자 수정(`edit`) | `pending` | `revision += 1`, 다시 사전 스캔. 차단이면 `rejected/scan_failed` |
 | `pending` | 사용자 승인(`approve`, revision 일치) | `approved` | `grp.learning.skill.approved`(스킬일 때) |
 | `pending` | 승인 불요 정책(§4.1 끝, 비파괴 연산) | `approved` | 결정 주체 `"policy"` |
-| `pending` | 사용자 거절 | `rejected` | `reason = "user_rejected"` |
+| `pending` | 사용자 거절 | `rejected` | `reason = "user_rejected"`. 메모(`--note`, 앞뒤 공백을 뗀 1~500자)가 있으면 `note`로 행에 남는다(§3.7.1) [결정: 오케스트레이터 기본값, fxLM] |
 | `pending` | 만료(`l3.learning.queue.expiryDays`) | `expired` | 명령 진입 지연 정리(규칙 7) |
 | `approved` | L2-d `apply` 성공 | `applied` | `ledgerId` 기록, `grp.learning.skill.applied`(스킬일 때) |
 | `approved` | L2-d `apply` 실패 `scan_failed` | `rejected` | `reason = "scan_failed"` |
@@ -895,7 +907,7 @@ F.wire-settings.spec §3.8의 `SettingDef`로 선언한다(`settings.ts`, `defin
 | `/learning queue [--json] [--status <s>]` | 대기열 목록(`ProposalView[]`) | 1차 |
 | `/learning queue show <id>` | diff, 근거 이벤트, 사유 | 1차 |
 | `/learning queue approve <id> --revision <n> [--scope user\|project]` | 승인 → 적용. `--revision`은 필수다: 목록에서 본 판과 현재 판이 다르면 `learning.revisionMismatch`다(F wire `proposal.decide`와 같다). `--scope`는 스킬 후보만([결정: review.m3-design-inputs D-M3-09]) | 1차 |
-| `/learning queue reject <id> [--note <text>]` | 거절 | 1차 |
+| `/learning queue reject <id> [--note <text>]` | 거절. `--note`는 거절 메모로 행의 `note`에 남는다(1~500자, §3.7.1) | 1차 |
 | `/learning queue edit <id> --revision <n> <본문>` | 본문 수정 → `edit` 결정. 데스크톱은 편집기에서 받은 본문을 같은 결정으로 보낸다. `--revision`은 필수다 | 1차 |
 | `/learning queue revert <id>` | 원장 롤백 | 1차 |
 | `/learning review [--cancel]` | 임계와 무관하게 지금 검토 시작(`requestId = learning:review:manual:<epoch+1>`) 또는 진행 중 검토 취소 | 1차 |

@@ -210,6 +210,8 @@ async function propose(
     // 이번 turn에 웹·MCP 같은 신뢰할 수 없는 도구 결과를 읽었다(M3-REQ-100). 검토 포크는 부모 스냅샷을 복제하므로 부모가 읽었으면 참이다
     afterUntrusted: ctx.caller.afterUntrusted === true,
     reason: blocked ? "scan_failed" : null,
+    // 메모는 거절할 때 사용자가 적는다. 후보를 만들 때는 없다
+    note: null,
     findings: scanned.value.kind === "blocked" ? [...scanned.value.rules] : [],
     ledgerId: null,
     createdAt: now,
