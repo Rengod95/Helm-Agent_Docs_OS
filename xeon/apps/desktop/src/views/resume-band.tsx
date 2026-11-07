@@ -5,6 +5,7 @@ import { detach, rethrow } from "@fresnel/contracts";
 import { useState, type ReactNode } from "react";
 import { useApprovalMirror, useOpenThread, useQueuedInputs } from "../state/engine/index.ts";
 import { useCommands } from "./commands.ts";
+import { chipInputs } from "./composer-model.ts";
 import { resumeBandClosed, resumeBandOf } from "./resume-band-model.ts";
 
 // 트랜스크립트 끝의 "이어서 실행" 띠(시안 d01-chat-gaps ResumeBand, 스펙 SC-12).
@@ -25,7 +26,8 @@ export function ResumeBand(): ReactNode {
   const [busy, setBusy] = useState(false);
   // 이어서 실행이 시작된 turn. 실행이 시작되면 같은 복구 표식의 띠는 닫는다(표식은 turn이 끝나야 지워진다)
   const [resumedTurn, setResumedTurn] = useState<string | null>(null);
-  const queued = useQueuedInputs(thread?.threadId ?? null);
+  // 숨은 내부 입력(`display: false`)은 칩처럼 띠의 수에서도 뺀다
+  const queued = chipInputs(useQueuedInputs(thread?.threadId ?? null));
   const mirror = useApprovalMirror();
   const listed = mirror.ids.filter((id) => mirror.byId[id]?.threadId === thread?.threadId).length;
   const view = resumeBandOf(thread, queued.length, Math.max(listed, thread?.pendingApprovals ?? 0));

@@ -1,7 +1,9 @@
 import { expect, test } from "bun:test";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
 import { resumeBandClosed, resumeBandOf, rowResumable } from "../../src/views/resume-band-model.ts";
-import { thr, trn } from "../state/helpers.ts";
+import { chipInputs } from "../../src/views/composer-model.ts";
+import type { QueuedInput } from "../../src/state/engine/index.ts";
+import { evt, thr, trn } from "../state/helpers.ts";
 
 function summary(patch: Partial<ThreadSummary>): ThreadSummary {
   return {
@@ -83,4 +85,27 @@ test("the sidebar row offers resume only for a marked thread that waits for no a
   expect(rowResumable(marked, 0)).toBe(true);
   expect(rowResumable(marked, 1)).toBe(false);
   expect(rowResumable(summary({}), 0)).toBe(false);
+});
+
+const input = (over: Partial<QueuedInput>): QueuedInput => ({
+  inputId: evt(1),
+  threadId: thr(1),
+  requestId: "r1",
+  mode: "next",
+  sourceType: "user",
+  preview: { kind: "text", text: "이어서 해 줘" },
+  ...over,
+});
+const hidden = (n: number): QueuedInput =>
+  input({
+    inputId: evt(n),
+    sourceType: "extension",
+    preview: { kind: "label", labelKey: "helm", internal: true },
+  });
+
+test("the held band counts only what the user can see: hidden internal input alone shows no band", () => {
+  const idle = summary({});
+  expect(resumeBandOf(idle, chipInputs([hidden(1), hidden(2)]).length, 0)).toBeNull();
+  const mixed = [hidden(1), input({ inputId: evt(2) }), hidden(3)];
+  expect(resumeBandOf(idle, chipInputs(mixed).length, 0)).toEqual({ kind: "held", queued: 1 });
 });
