@@ -902,7 +902,7 @@ describe("overview tab problem banner", () => {
     };
     return renderToString(
       <Providers engine={engine} ui={createUiStore().read} commands={fakeCommands()}>
-        <HostNoticesContext value={{ settingsProblems: [PROBLEM] }}>
+        <HostNoticesContext value={{ settingsProblems: [PROBLEM], startupNotices: [] }}>
           <SettingsPageView {...props} />
         </HostNoticesContext>
       </Providers>,

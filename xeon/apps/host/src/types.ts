@@ -45,6 +45,7 @@ import type {
   SettingsFileProblem,
   SettingsFileScope,
   SettingsWritableFileScope,
+  StartupNotice,
   StoreId,
   StreamPosition,
   TurnStartInput,
@@ -255,6 +256,11 @@ export interface Engine {
   close(): Promise<void>;
 }
 
+/** 엔진을 시작할 때 저장소 등이 알린 일의 읽기 포트(`host.status.startupNotices`의 원천). 엔진이 뜬 뒤에는 바뀌지 않는다. 값은 싣지 않는다 */
+export interface StartupNoticePort {
+  notices(): readonly StartupNotice[];
+}
+
 export interface EnginePorts {
   /** L1.persistence */
   readonly threads: ThreadPort;
@@ -272,6 +278,8 @@ export interface EnginePorts {
   readonly activity: ActivityPort;
   /** L2.schedule 예약 서비스(M3b). 서비스 모드에서만 `start`로 틱을 돌린다. 실행은 이 서비스의 실행 포트가 한다 */
   readonly schedule: ScheduleService;
+  /** 시작할 때 저장소 등이 알린 일(`host.status.startupNotices`) */
+  readonly startupNotices: StartupNoticePort;
   /** L0.os */
   readonly notify: UserNotifyPort;
   /** L0.os */

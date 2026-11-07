@@ -158,6 +158,7 @@ export function createHostStatusHandler(
     const idleAt = lifecycle?.idleShutdownAt?.() ?? null;
     const activity = engine.ports.activity.snapshot();
     const settingsProblems = engine.ports.settings.problems();
+    const startupNotices = engine.ports.startupNotices.notices();
     const status = {
       mode: engine.mode,
       pid: info.pid,
@@ -174,6 +175,8 @@ export function createHostStatusHandler(
       ...(engine.startup.suggestSafeMode ? { suggestSafeMode: true } : {}),
       // 설정 파일을 읽지 못해 비운 범위가 있을 때만 싣는다(F wire §3.3.1). 값은 싣지 않는다
       ...(settingsProblems.length > 0 ? { settingsProblems: [...settingsProblems] } : {}),
+      // 엔진을 시작할 때 저장소 등이 알린 일이 있을 때만 싣는다(F wire §3.3.1). 값은 경로만 싣는다
+      ...(startupNotices.length > 0 ? { startupNotices: [...startupNotices] } : {}),
     };
     if (params.includeBinaries !== true) return status;
     const diagnosed = await engine.diagnose(context.signal);

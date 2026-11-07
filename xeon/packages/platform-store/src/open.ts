@@ -1,4 +1,4 @@
-import { existsSync, closeSync, openSync, realpathSync, statSync } from "node:fs";
+import { existsSync, closeSync, openSync, realpathSync, renameSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { assertNever, err, ok, type Result } from "@fresnel/contracts";
 import type { FaultInjector, StoreCapabilities } from "@fresnel/contracts/records";
@@ -19,7 +19,7 @@ import { syncCoreOwners } from "./owner-table.ts";
 import { APPLICATION_ID, applyReadPragmas, applyWritePragmas, readIdentity } from "./pragmas.ts";
 import { isStrictBuild, SYS_OWNER } from "./prefix.ts";
 import { createLockProvider, selectPlatformPolicy } from "./select.ts";
-import { MIGRATION_SNAPSHOT_KEEP } from "./snapshot.ts";
+import { compactTimestamp, MIGRATION_SNAPSHOT_KEEP } from "./snapshot.ts";
 import { assembleStoreService, createPinOwnerCheck, createScopedFactory } from "./service.ts";
 import {
   asSqliteFailure,
@@ -47,6 +47,54 @@ function fsCode(caught: unknown): string {
     if (typeof code === "string") return code;
   }
   return "UNKNOWN";
+}
+
+/** 0바이트 DB를 옮긴 자리의 접미사. `<db 파일>.broken-<UTC 시각>`이다(`restore-previous`와 이름이 겹치지 않는다) */
+const EMPTY_DB_SUFFIX = ".broken-";
+/** 옮길 때 같은 접미사를 붙이는 WAL 동반 파일 */
+const SIDECAR_SUFFIXES = ["-wal", "-shm"] as const;
+
+/**
+ * 원본을 새 이름으로 옮긴다. 원본이 없으면 다른 프로세스가 먼저 옮긴 것이라 `false`다. 새 이름이 이미 있으면 덮어쓰지 않고 `io`다
+ */
+function renameAside(from: string, to: string): Result<boolean, StoreOpenError> {
+  if (!existsSync(from)) return ok(false);
+  if (existsSync(to)) return err({ kind: "io", code: "EEXIST" });
+  try {
+    renameSync(from, to);
+    return ok(true);
+  } catch (caught) {
+    if (fsCode(caught) === "ENOENT") return ok(false);
+    return err({ kind: "io", code: fsCode(caught) });
+  }
+}
+
+/**
+ * 쓰기 열기에서 0바이트 DB 파일을 옮긴다(L0.store.spec §4.4 2번). 빈 파일은 뒤에서 빈 새 DB로 채워지므로 데이터가 사라진 신호가
+ * 없다. 옮긴 자리를 돌려주고(`<db 파일>.broken-<UTC 시각>`), 옮길 것이 없으면 undefined다. `-wal`·`-shm`은 먼저 같은 접미사로
+ * 옮긴다. 본 파일을 옮기지 못하면 열기 오류이고 새 DB를 만들지 않는다
+ */
+function moveAsideEmptyDb(
+  dbPath: string,
+  realDir: string,
+  now: number,
+): Result<string | undefined, StoreOpenError> {
+  let size: number;
+  try {
+    size = statSync(dbPath).size;
+  } catch (caught) {
+    if (fsCode(caught) === "ENOENT") return ok(undefined);
+    return err({ kind: "io", code: fsCode(caught) });
+  }
+  if (size !== 0) return ok(undefined);
+  const movedTo = join(realDir, `${basename(dbPath)}${EMPTY_DB_SUFFIX}${compactTimestamp(now)}`);
+  for (const suffix of SIDECAR_SUFFIXES) {
+    const side = renameAside(`${dbPath}${suffix}`, `${movedTo}${suffix}`);
+    if (!side.ok) return side;
+  }
+  const main = renameAside(dbPath, movedTo);
+  if (!main.ok) return main;
+  return ok(main.value ? movedTo : undefined);
 }
 
 /** SQLiteError를 열기 오류로 바꾼다. 그 밖의 예외는 undefined(호출자가 다시 던진다) */
@@ -165,6 +213,18 @@ function openStoreSync(options: OpenStoreOptions): OpenResult {
   const dirReady = ensurePrivateDir(dir, policy.posixPermissions, warnings);
   if (!dirReady.ok) return dirReady;
   const realDir = realpathSync(dir);
+  // 0바이트 DB 파일은 옮긴 뒤 빈 새 DB를 만든다(L0.store.spec §4.4 2번). 읽기 전용은 파일을 건드리지 않아 뒤의 빈 파일 오류가 그대로 난다
+  if (!readOnly) {
+    const moved = moveAsideEmptyDb(options.dbPath, realDir, options.clock.now());
+    if (!moved.ok) return moved;
+    if (moved.value !== undefined) {
+      warnings.push({
+        kind: "empty_replaced",
+        path: join(realDir, basename(options.dbPath)),
+        movedTo: moved.value,
+      });
+    }
+  }
   const isNewFile = !existsSync(options.dbPath);
   try {
     // 새 파일은 0600으로 먼저 만든다. SQLite가 -wal, -shm을 이 파일의 모드에 맞춘다

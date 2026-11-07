@@ -48,7 +48,7 @@ describe("the settings problem banner", () => {
     expect(renderToString(<SettingsProblemBanner />)).toBe("");
     expect(
       renderToString(
-        <HostNoticesContext value={{ settingsProblems: [] }}>
+        <HostNoticesContext value={{ settingsProblems: [], startupNotices: [] }}>
           <SettingsProblemBanner />
         </HostNoticesContext>,
       ),
@@ -57,7 +57,7 @@ describe("the settings problem banner", () => {
 
   test("the banner reads the first problem from the host notices", () => {
     const out = renderToString(
-      <HostNoticesContext value={{ settingsProblems: [PROBLEM] }}>
+      <HostNoticesContext value={{ settingsProblems: [PROBLEM], startupNotices: [] }}>
         <SettingsProblemBanner onOpenFile={() => {}} />
       </HostNoticesContext>,
     );

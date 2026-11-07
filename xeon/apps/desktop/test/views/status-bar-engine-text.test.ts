@@ -6,6 +6,7 @@ import {
   engineDescriptionOf,
   engineDotOf,
   engineLineOf,
+  engineRestoreShownOf,
   engineTextOf,
   shownEngineOf,
 } from "../../src/views/status-bar.tsx";
@@ -149,5 +150,43 @@ describe("a running process is shown as running only while its link is live", ()
     expect(engineTextOf(shownEngineOf(FAILED, false))).toBe(
       "desktop.status.engine.dataDirUnwritable",
     );
+  });
+});
+
+describe("the data restore button shows only where the store is corrupt or its migration failed", () => {
+  const RUNNING: EngineState = { kind: "running", source: "sidecar", pid: 1 };
+
+  test("a failed or restarting engine whose store is corrupt (71) or failed to migrate (72) shows it", () => {
+    expect(engineRestoreShownOf({ kind: "failed", attempts: 3, lastExit: exitAt(71) })).toBe(true);
+    expect(
+      engineRestoreShownOf({
+        kind: "restarting",
+        attempt: 1,
+        retryAt: "2026-11-03T00:00:05.000Z",
+        lastExit: exitAt(71),
+      }),
+    ).toBe(true);
+    expect(engineRestoreShownOf({ kind: "failed", attempts: 3, lastExit: exitAt(72) })).toBe(true);
+    expect(
+      engineRestoreShownOf({
+        kind: "restarting",
+        attempt: 1,
+        retryAt: "2026-11-03T00:00:05.000Z",
+        lastExit: exitAt(72),
+      }),
+    ).toBe(true);
+  });
+
+  test("the other exit codes, the other engine states and no engine show no button", () => {
+    expect(engineRestoreShownOf({ kind: "failed", attempts: 3, lastExit: exitAt(70) })).toBe(false);
+    expect(engineRestoreShownOf({ kind: "failed", attempts: 3, lastExit: exitAt(73) })).toBe(false);
+    expect(engineRestoreShownOf({ kind: "failed", attempts: 3, lastExit: exitAt(1) })).toBe(false);
+    expect(engineRestoreShownOf({ kind: "failed", attempts: 3, lastExit: exitAt(null) })).toBe(
+      false,
+    );
+    expect(engineRestoreShownOf(RUNNING)).toBe(false);
+    expect(engineRestoreShownOf({ kind: "stopped" })).toBe(false);
+    expect(engineRestoreShownOf(null)).toBe(false);
+    expect(engineRestoreShownOf(undefined)).toBe(false);
   });
 });

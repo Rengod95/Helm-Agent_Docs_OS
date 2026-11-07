@@ -39,7 +39,7 @@ import {
   type TaskService,
   type ToolService,
 } from "@fresnel/contracts/services";
-import { StoreIdSchema } from "@fresnel/contracts/wire";
+import { StoreIdSchema, type StartupNotice } from "@fresnel/contracts/wire";
 import {
   createExtHost,
   createOperationsPolicy,
@@ -361,11 +361,29 @@ export function threadWorkspaceOf(
 }
 
 /**
+ * 저장소 열기 경고 가운데 시작 때 사용자에게 알릴 것을 호스트 알림으로 바꾼다(`host.status.startupNotices`, F wire §3.3.1).
+ * 지금은 0바이트 DB를 옮긴 일 하나다. 나머지 경고는 로그에만 남는다
+ */
+export function startupNoticesOf(warnings: readonly StoreWarning[]): readonly StartupNotice[] {
+  const notices: StartupNotice[] = [];
+  for (const warning of warnings) {
+    if (warning.kind === "empty_replaced") {
+      notices.push({ kind: "store_empty_replaced", movedTo: warning.movedTo });
+    }
+  }
+  return notices;
+}
+
+/**
  * 저장소 열기 경고를 로그에 남긴다(L0.store.spec §4.6.1). 마이그레이션 전 스냅샷은 사용자 DB를 지키는 복구 수단이라 위치를 info로 남기고,
  * 보관 수를 넘은 옛 스냅샷을 지우지 못한 것은 warn이다. 그 밖의 경고도 종류를 warn으로 남긴다. 값은 싣지 않는다
  */
 export function logStoreWarning(logger: Logger, warning: StoreWarning): void {
   switch (warning.kind) {
+    case "empty_replaced":
+      // 0바이트 DB를 옮기고 빈 새 DB를 만들었다(L0.store.spec §4.4). 데이터가 사라졌을 수 있어 경로를 warn으로 남긴다
+      logger.warn("store.empty_replaced", { path: warning.path, movedTo: warning.movedTo });
+      return;
     case "migration_snapshot":
       logger.info("store.migration_snapshot", {
         path: warning.path,
@@ -786,6 +804,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     await register("platform-store", storePlugin(store.value));
     opened.registered = true;
     for (const warning of store.value.warnings) logStoreWarning(logger, warning);
+    // 시작 때 사용자에게 알릴 저장소 일은 포트가 `host.status`에 싣는다(F wire §3.3.1)
+    const startupNotices = startupNoticesOf(store.value.warnings);
 
     const secrets = (options.secretsRuntime ?? createSecretsRuntime)({
       os,
@@ -1229,6 +1249,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // fresnel-disable-next-line fresnel/bug-for-expected -- 엔진 자신의 저장소가 만든 storeId라 형식 검증이 실패하면 코드 결함이다 (eng.typescript.guide TY-24)
     if (!storeId.ok) throw new Bug(`store.invalid_store_id: ${storeService.storeId}`);
     portsHandle = createEnginePorts({
+      startupNotices,
       measure: {
         store: () => measurement.store,
         enabled: () => operations.trace().enabled,

@@ -24,6 +24,7 @@ import { Composer } from "./composer.tsx";
 import { SafeModeCard } from "./safe-mode-card.tsx";
 import { SetupBanner } from "./setup-banner.tsx";
 import { SpawnedNotice } from "./spawned-notice.tsx";
+import { StoreReplacedBanner } from "./store-replaced-banner.tsx";
 import { SchedulesScreen } from "./pages/schedules/schedules-screen.tsx";
 import { ConnectionScreen } from "./pages/connection/connection-screen.tsx";
 import { FirstRunScreen } from "./pages/first-run/first-run-screen.tsx";
@@ -61,6 +62,7 @@ function ChatScreen(): ReactNode {
     <div className="flex min-h-0 flex-1 flex-col">
       <ChatHeader />
       <SetupBanner />
+      <StoreReplacedBanner />
       <Transcript />
       {/* 대화 열 폭(시안 46rem)에 맞춰 입력창 위 카드들을 같은 가운데 열에 둔다 */}
       {/* 카드가 있을 때만 토스트가 이 카드들 위로 서도록 묶음의 위쪽 끝을 알린다(shell.tsx useToastBottom). 없으면 토스트는 시안 자리다 */}

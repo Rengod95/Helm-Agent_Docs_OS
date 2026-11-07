@@ -263,6 +263,17 @@ export function engineDotOf(engine: EngineState | null | undefined): StatusDot {
   }
 }
 
+/**
+ * 엔진 줄의 "데이터 복원 열기" 단추를 보일지. 저장소가 손상됐거나(종료 코드 71) 마이그레이션에 실패했을(72) 때 실패 또는 다시 시작 중인
+ * 엔진에만 보인다. 누르면 설정의 고급 탭(데이터 복원 구역)이 열린다. 다른 종료 코드에는 단추를 두지 않는다
+ */
+export function engineRestoreShownOf(engine: EngineState | null | undefined): boolean {
+  if (engine === undefined || engine === null) return false;
+  if (engine.kind !== "failed" && engine.kind !== "restarting") return false;
+  const failure = storeFailureOfExitCode(engine.lastExit.code);
+  return failure === "corrupt" || failure === "migration_failed";
+}
+
 /** 엔진 Popover의 설명. 실행 중, 실패, 다시 시작 중에 한 문장을 둔다(시안 defaultStatusCells). 나머지는 칸 글로 충분하다 */
 export function engineDescriptionOf(engine: EngineState | null | undefined): MessageId | undefined {
   if (engine?.kind === "failed") return "desktop.status.cell.engine.failed";
@@ -859,6 +870,18 @@ export function StatusBar(): ReactNode {
           }}
         >
           {t("desktop.status.restartEngineButton")}
+        </Button>
+      ) : null}
+      {/* 저장소가 손상됐거나 마이그레이션에 실패한 엔진 줄에서 데이터 복원 구역(설정의 고급 탭)을 연다. 엔진이 꺼져 있어도 열린다 */}
+      {engineRestoreShownOf(engine) ? (
+        <Button
+          size="xs"
+          variant="outline"
+          onClick={() => {
+            commands.requestSettingsJump({ tab: "advanced", key: null });
+          }}
+        >
+          {t("desktop.status.engine.openRestore")}
         </Button>
       ) : null}
       <LinkCell phase={banner.phase} attempt={banner.attempt} />

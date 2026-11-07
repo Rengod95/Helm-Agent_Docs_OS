@@ -308,6 +308,22 @@ export const HostBinaryReportSchema: TUnsafe<HostBinaryReport> = Type.Unsafe<Hos
   binaryReportShape satisfies SchemaProof<HostBinaryReport, typeof binaryReportShape>,
 );
 
+/**
+ * 엔진을 시작할 때 저장소 등이 알린 일(`host.status.startupNotices`, F wire §3.3.1). 값은 싣지 않고 경로만 싣는다.
+ * `store_empty_replaced`는 0바이트 DB 파일을 `movedTo`로 옮기고 빈 새 DB를 만들었다는 뜻이다(L0.store.spec §4.4)
+ */
+export const StartupNoticeSchema: TObject<{
+  kind: TLiteral<"store_empty_replaced">;
+  movedTo: TString;
+}> = Type.Object(
+  {
+    kind: Type.Literal("store_empty_replaced"),
+    movedTo: Type.String({ minLength: 1, maxLength: 4096 }),
+  },
+  { additionalProperties: false },
+);
+export type StartupNotice = Static<typeof StartupNoticeSchema>;
+
 export const HostStatusResultSchema: TObject<{
   mode: TUnion<[TLiteral<"in-process">, TLiteral<"stdio">, TLiteral<"service">]>;
   pid: TInteger;
@@ -324,6 +340,7 @@ export const HostStatusResultSchema: TObject<{
   startupFailures: TOptional<TInteger>;
   suggestSafeMode: TOptional<TBoolean>;
   settingsProblems: TOptional<TArray<typeof SettingsFileProblemSchema>>;
+  startupNotices: TOptional<TArray<typeof StartupNoticeSchema>>;
 }> = Type.Object(
   {
     mode: Type.Union([Type.Literal("in-process"), Type.Literal("stdio"), Type.Literal("service")]),
@@ -348,6 +365,8 @@ export const HostStatusResultSchema: TObject<{
     suggestSafeMode: Type.Optional(Type.Boolean()),
     /** 설정 파일을 읽지 못해 그 범위를 비운 파일들. 없으면 생략한다(F wire §3.3.1). 값과 파일 내용은 싣지 않는다 */
     settingsProblems: Type.Optional(Type.Array(SettingsFileProblemSchema, { maxItems: 8 })),
+    /** 엔진을 시작할 때 저장소 등이 알린 일(F wire §3.3.1). 없으면 생략한다. 값은 싣지 않고 경로만 싣는다 */
+    startupNotices: Type.Optional(Type.Array(StartupNoticeSchema, { maxItems: 8 })),
   },
   { additionalProperties: false },
 );

@@ -34,6 +34,7 @@ import {
   StoreIdSchema,
   threadSummaryOf,
   wireError,
+  type StartupNotice,
   type StoreId,
   type ThreadSummary,
   type TurnStartInput,
@@ -154,6 +155,8 @@ export interface PortsDeps {
   readonly dialogArea: DialogAreaHolder;
   /** 확장 읽기 wire(`ext.*`, `group.*`, `hooks.list`)의 원천 재료. 조립 루트가 확장 목록, 운영 정책, 그룹 서비스를 넘긴다 */
   readonly extRead: ExtReadAssembly;
+  /** 시작 때 저장소 등이 알린 일(`host.status.startupNotices`). 없으면 알릴 것이 없는 것이다 */
+  readonly startupNotices?: readonly StartupNotice[] | undefined;
 }
 
 export interface PortsHandle {
@@ -817,12 +820,15 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     },
   };
 
+  // 시작 때 알린 일은 저장소가 열린 뒤 정해져 엔진이 뜬 동안 바뀌지 않는다. 호출마다 복사본을 준다
+  const startupNotices: readonly StartupNotice[] = deps.startupNotices ?? [];
   const ports: EnginePorts = {
     threads,
     turns,
     feed,
     locks,
     settings,
+    startupNotices: { notices: () => [...startupNotices] },
     approvals,
     activity,
     notify,

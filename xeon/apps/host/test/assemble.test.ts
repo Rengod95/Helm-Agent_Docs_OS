@@ -14,6 +14,7 @@ import {
   buildEngineCatalog,
   coreSettingGroups,
   logStoreWarning,
+  startupNoticesOf,
   storeIssueOf,
   threadWorkspaceOf,
 } from "../src/assemble.ts";
@@ -315,6 +316,34 @@ test("a store warning is logged by kind with its safe fields, and a migration sn
     ["warn", "store.snapshot_prune_failed", { path: "/b/old.db", code: "EACCES" }],
     ["warn", "store.warning", { kind: "fts5_missing" }],
   ]);
+});
+
+test("an emptied database that was replaced is logged as a warning with its two paths, and is the one startup notice", () => {
+  const lines: [string, string, LogFields | undefined][] = [];
+  const logger: Logger = {
+    debug: () => undefined,
+    info: (event, fields) => lines.push(["info", event, fields]),
+    warn: (event, fields) => lines.push(["warn", event, fields]),
+    error: () => undefined,
+    child: () => logger,
+  };
+  const replaced: StoreWarning = {
+    kind: "empty_replaced",
+    path: "/d/fresnel.db",
+    movedTo: "/d/fresnel.db.broken-20261108T010203456Z",
+  };
+  logStoreWarning(logger, replaced);
+  expect(lines).toEqual([
+    [
+      "warn",
+      "store.empty_replaced",
+      { path: "/d/fresnel.db", movedTo: "/d/fresnel.db.broken-20261108T010203456Z" },
+    ],
+  ]);
+  expect(startupNoticesOf([{ kind: "fts5_missing" }, replaced])).toEqual([
+    { kind: "store_empty_replaced", movedTo: "/d/fresnel.db.broken-20261108T010203456Z" },
+  ]);
+  expect(startupNoticesOf([{ kind: "fts5_missing" }, { kind: "lock_provider_none" }])).toEqual([]);
 });
 
 test("diagnose reports the external binary table of this platform, and a cancelled signal is a value", async () => {

@@ -6,6 +6,7 @@ import type {
   HostBinaryReport,
   HostConnection,
   SettingsFileProblem,
+  StartupNotice,
   WebProviderCapability,
   WebProviderOrigin,
 } from "@fresnel/contracts/wire";
@@ -237,6 +238,24 @@ function settingsFileCheck(problems: readonly SettingsFileProblem[]): DoctorChec
 }
 
 /**
+ * 시작 때 0바이트 DB를 옮기고 빈 새 DB를 만든 일(`store.replaced`, `host.status.startupNotices`). 그런 일이 없으면 항목을 만들지 않는다.
+ * 있으면 warn이다: 데이터가 사라졌을 수 있고, 원래 파일은 옮긴 자리에 남아 있다(L0.store.spec §4.4)
+ */
+function storeReplacedChecks(notices: readonly StartupNotice[]): readonly DoctorCheck[] {
+  // 지금 알림 종류는 `store_empty_replaced` 하나라 첫 항목이 그 일이다. 종류가 늘면 판별로 고른다
+  const moved = notices[0];
+  if (moved === undefined) return [];
+  return [
+    {
+      id: "store.replaced",
+      status: "warn",
+      message: t("cli.doctor.storeReplaced.message", { path: moved.movedTo }),
+      fix: t("cli.doctor.storeReplaced.fix"),
+    },
+  ];
+}
+
+/**
  * `host.status { includeBinaries: true }` 한 번으로 외부 바이너리 점검 결과와 설정 파일 상태를 받는다(G2-07, L4.host-service.spec HS-69).
  * 점검은 바이너리마다 자식 프로세스를 띄우므로 doctor만 요청한다. 호스트가 이 요청을 모르거나 점검이 실패해도 doctor는 이어 간다.
  * 설정 파일 항목은 이 응답이 있을 때만 낸다(오래된 엔진은 생략한다)
@@ -276,6 +295,7 @@ async function hostStatusChecks(handle: EngineHandle): Promise<{
     };
   }
   const settings = settingsFileCheck(status.value.settingsProblems ?? []);
+  const stored = storeReplacedChecks(status.value.startupNotices ?? []);
   const report = status.value.binaries;
   if (report === undefined) {
     return {
@@ -286,11 +306,12 @@ async function hostStatusChecks(handle: EngineHandle): Promise<{
           message: t("cli.doctor.binary.notIncluded"),
         },
         settings,
+        ...stored,
       ],
       report: null,
     };
   }
-  return { checks: [...report.items.map(binaryCheck), settings], report };
+  return { checks: [...report.items.map(binaryCheck), settings, ...stored], report };
 }
 
 async function engineChecks(handle: EngineHandle): Promise<{

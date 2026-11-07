@@ -24,6 +24,11 @@ const PROBLEM = {
   column: 5,
 };
 
+const MOVED = {
+  kind: "store_empty_replaced" as const,
+  movedTo: "/home/me/.fresnel/data/fresnel.db.broken-20261108T010203456Z",
+};
+
 async function liveApp(extra: EngineExtra) {
   const engine = engineFake([summary(thr(1))], undefined, extra);
   const app = makeApp(engine.fake);
@@ -32,13 +37,21 @@ async function liveApp(extra: EngineExtra) {
 }
 
 describe("the host notices snapshot maps host.status with defaults", () => {
-  test("a host that sends no settings problems reads as an empty list", () => {
-    expect(hostNoticesOf(BASE)).toEqual({ settingsProblems: [] });
+  test("a host that sends no notices reads as empty lists", () => {
+    expect(hostNoticesOf(BASE)).toEqual({ settingsProblems: [], startupNotices: [] });
   });
 
   test("a settings problem is carried over unchanged", () => {
     expect(hostNoticesOf({ ...BASE, settingsProblems: [PROBLEM] })).toEqual({
       settingsProblems: [PROBLEM],
+      startupNotices: [],
+    });
+  });
+
+  test("a startup notice about a moved store file is carried over unchanged", () => {
+    expect(hostNoticesOf({ ...BASE, startupNotices: [MOVED] })).toEqual({
+      settingsProblems: [],
+      startupNotices: [MOVED],
     });
   });
 });
@@ -46,10 +59,13 @@ describe("the host notices snapshot maps host.status with defaults", () => {
 describe("loadHostNotices reads host.status through the engine", () => {
   test("the read asks host.status with empty params and keeps the problem list", async () => {
     const { app, params } = await liveApp({
-      results: { "host.status": { ...BASE, settingsProblems: [PROBLEM] } },
+      results: { "host.status": { ...BASE, settingsProblems: [PROBLEM], startupNotices: [MOVED] } },
     });
     const loaded = await app.commands.setup.loadHostNotices();
-    expect(loaded).toEqual({ ok: true, value: { settingsProblems: [PROBLEM] } });
+    expect(loaded).toEqual({
+      ok: true,
+      value: { settingsProblems: [PROBLEM], startupNotices: [MOVED] },
+    });
     expect(params.filter((entry) => entry.method === "host.status")).toEqual([
       { method: "host.status", params: {} },
     ]);

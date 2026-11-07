@@ -364,6 +364,7 @@ export type StoreWarning =
   | { readonly kind: "fs_unknown"; readonly dir: string }
   | { readonly kind: "fts5_missing" }
   | { readonly kind: "lock_provider_none" }
+  | { readonly kind: "empty_replaced"; readonly path: string; readonly movedTo: string }   // §4.4 2번의 2: 0바이트 DB를 옮기고 새로 만들었다
   | { readonly kind: "read_only"; readonly reason: "future_version"; readonly owner: string; readonly dbVersion: number; readonly codeVersion: number }   // §4.11
   | { readonly kind: "checkpoint_incomplete"; readonly busy: number; readonly log: number; readonly checkpointed: number };
 
@@ -587,6 +588,14 @@ macOS `fullfsync` [제안]:
 10. `StoreService` 객체 조립
 
 `readOnly: true`로 열면 3번의 쓰기 연결 PRAGMA 대신 두 연결 모두 `readonly`로 열고 질의 전용 설정만 걸며, 파일 생성(없는 파일은 `io`/`SQLITE_CANTOPEN`), 4·5·6·8번의 쓰기와 9번의 디렉터리 생성을 하지 않는다. 자세한 규칙은 §4.11이다 [결정: 오케스트레이터 기본값].
+
+2번의 2(쓰기 열기만): `dbPath`가 있고 크기가 0바이트면 빈 새 DB로 채우기 전에 옮긴다 [결정: 오케스트레이터 기본값, fxSF]. 빈 파일은 아래 3번에서 빈 DB로 초기화되어 데이터가 사라진 신호가 없기 때문이다.
+- 옮긴 자리는 같은 폴더(realpath)의 `<db 파일>.broken-<UTC 시각>`이다. 시각은 §4.6.1과 같은 `YYYYMMDDTHHMMSSmmmZ`다. 이름 접두사 `.broken-`은 fxDL의 `restore-previous/` 폴더와 겹치지 않는다.
+- `-wal`, `-shm`이 있으면 같은 접미사(`-wal`, `-shm`)를 붙여 먼저 옮기고, 그다음 본 파일을 옮긴다. WAL에 남은 데이터가 새 DB에 섞이지 않게 하려는 순서다.
+- 옮긴 뒤 열기 경고 `empty_replaced { path(옮기기 전 자리), movedTo }`를 더한다. 값은 경로뿐이다. 이 경고가 호스트의 `host.status.startupNotices`(F wire §3.3.1)와 `store.empty_replaced` 로그가 된다.
+- 옮기지 못하면(권한, 디스크 등) 열기 오류 `io`(`code`는 OS 코드)다. 새 DB를 만들지 않는다. 옮길 자리에 이미 파일이 있으면 덮어쓰지 않고 `io`(`EEXIST`)다. 다른 프로세스가 먼저 옮긴 것(원본이 없음)은 오류가 아니다.
+- 옮긴 자리와 원본 사이의 검사(크기 확인)와 이름 바꾸기 사이에는 짧은 틈이 남는다. 같은 DB를 여러 프로세스가 동시에 처음 여는 드문 경우에만 닿으며, 그 틈 안에서 다른 프로세스가 만든 새 DB를 옮길 수 있다 [미결 S-15] [근거: `packages/platform-store/src/open.ts`의 `moveAsideEmptyDb`].
+- 파일이 없던 경우와 크기가 0이 아닌 경우는 이 절이 바꾸지 않는다. `readOnly` 열기는 옮기지 않고, 0바이트 파일을 `foreign_database`(`applicationId: 0`)로 거절하던 대로 둔다.
 
 종료(`close`):
 
@@ -1001,5 +1010,6 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 - [미결 S-12] F 요청, 스냅샷 실패 전용 오류 kind. 지금은 `migration_failed`의 `code: "snapshot_failed:<코드>"`로 돌려준다(§4.6.1). `MigrationError`에 `migration_snapshot_failed`를 더하고, 손상(`corrupt`)과 미래 버전(`migration_future_version`) 오류를 사용자 안내 문구로 나누는 일은 F·host가 맡는다 [마감 G2-06].
 - [해소 S-13] 내보내기와 열기는 같은 SQLite 로드 규칙(§4.1)을 쓴다. 열기 전에 내보내면 첫 연결이 로드 상태를 번들로 정하고, 같은 프로세스의 나중 커스텀 dylib 열기는 `Bug(store.sqlite_already_loaded)`다(§9 22번). 호출처를 확인했다(2026-11-03): 호스트는 `exportDatabase`를 부르지 않고, CLI `db export`는 열기 없이 내보내기만 한다. 충돌하는 호출처가 없어 닫는다. 호스트가 내보내기를 붙일 때는 `openStore` 뒤에 부른다(§4.10).
 - [해소 S-14] 내보내기 실패 뒤 정리가 실패하면 원래 오류 대신 정리 오류를 돌려준다(결정, §4.10, §9 21번). 원래 오류를 싣는 필드는 T-F 백로그다(§8.1 FR-S10).
+- [미결 S-15] 0바이트 DB를 옮기는 절차(§4.4 2번의 2)의 검사와 이름 바꾸기 사이 틈. 여러 프로세스가 같은 0바이트 DB를 같은 순간 열면 뒤에 온 프로세스가 먼저 만든 새 DB를 옮길 수 있다. 막으려면 열기 전체를 잠금 아래 두어야 하는데, 쓰기 잠금 제공자가 열기 뒤에야 정해져서 지금은 드문 경우로 남긴다 [근거: `packages/platform-store/src/open.ts`의 `openStoreSync` 8번 단계 순서].
 - [해소 S-15] 자리표시(`blob:sha256:<hex>`)로만 커밋 이벤트에 남는 블롭은 후보 (a)로 모은다. `blobHashesOf`가 `detached`와 `effect.*`의 BlobRef에 더해 이벤트 payload의 모든 문자열에서 `blob:sha256:<64자 hex>`를 찾아 `p_blob_refs`에 넣는다(키 이름과 깊이를 가리지 않는다). 해당하는 것은 cap-mcp 내용 블롭, cap-dialog 이미지 첨부, cap-workspace 이미지다. 투영 규칙이 바뀌어 `CORE_PROJECTOR_VERSION`을 5로 올렸고, 다음 열기에서 core 투영기가 기존 이벤트로 다시 만들어지므로 이미 쌓인 DB도 자리표시 참조를 얻는다. 한계: 사용자가 쓴 텍스트에 같은 문자열이 있으면 그 블롭도 남는다(과보존, 안전한 쪽이다). `l0.store.blobGcEnabled`는 이 항목이 해소됐으므로 켤 수 있다. 켜는 결정은 따로 한다 [결정: 오케스트레이터 기본값, 기본 false 유지]. 소유는 `core-persistence`다.
 - [가정] macOS에서 bun:ffi `flock`, `libSystem.B.dylib` 이름, O_CLOEXEC 동작은 실측하지 않았다. Windows 전 구간, WSL `/mnt/c`의 flock도 실측하지 않았다(`_research/notes/L0-2.md §5`).

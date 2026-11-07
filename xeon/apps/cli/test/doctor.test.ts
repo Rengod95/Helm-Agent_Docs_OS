@@ -385,6 +385,35 @@ test("doctor's JSON carries the settings.file check, and an engine without host.
   expect(old.stdoutText()).not.toContain("설정 파일");
 });
 
+test("doctor warns when the store file was empty and was moved aside at start, with the moved path and the fix", async () => {
+  const movedTo = "/home/u/.fresnel/fresnel.db.broken-20261108T010203456Z";
+  const replaced = harness(
+    {},
+    {},
+    {
+      "host.status": () => ({
+        ...statusOf([]),
+        startupNotices: [{ kind: "store_empty_replaced", movedTo }],
+      }),
+    },
+  );
+  expect(await replaced.run(["doctor", "--json"])).toBe(EXIT.ok);
+  expect(JSON.parse(replaced.stdoutText())).toMatchObject({
+    checks: expect.arrayContaining([
+      {
+        id: "store.replaced",
+        status: "warn",
+        message: `저장소 파일이 비어 있어서 새로 만들었다. 원래 파일은 ${movedTo}에 남겨 뒀다`,
+        fix: "옮겨 둔 파일은 지우지 않는다. 대화가 없으면 `fresnel db export`로 만든 백업 폴더를 `fresnel db restore`로 되살린다(먼저 `--check`로 확인할 수 있다)",
+      },
+    ]),
+  });
+  const clean = harness({}, {}, { "host.status": () => statusOf([]) });
+  expect(await clean.run(["doctor"])).toBe(EXIT.ok);
+  expect(clean.stdoutText()).not.toContain("store.replaced");
+  expect(clean.stdoutText()).not.toContain("비어 있어서");
+});
+
 test("a binary check that fails is a warning and doctor goes on", async () => {
   const h = harness(
     {},

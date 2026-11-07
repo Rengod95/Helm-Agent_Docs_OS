@@ -8,6 +8,7 @@ import { useCommands } from "../../commands.ts";
 import { useDesktopShell } from "../../desktop-shell-context.ts";
 import { useSafeMode } from "../../safe-mode-context.ts";
 import { SettingsProblemBanner } from "../../settings-problem-banner.tsx";
+import { StoreReplacedBanner } from "../../store-replaced-banner.tsx";
 import { pathTermOf, shortenHome, type SettingsPathRow } from "./settings-file-paths.ts";
 import { SettingSection } from "./settings-section.tsx";
 import {
@@ -59,6 +60,7 @@ export function OverviewPanels(props: {
         onOpenFile={props.onOpenFile}
         openFileDisabled={props.openFileDisabled}
       />
+      <StoreReplacedBanner />
       {props.filePaths.length === 0 ? null : (
         <SettingSection title={t("desktop.settings.overview.files.title")}>
           <ListDescription

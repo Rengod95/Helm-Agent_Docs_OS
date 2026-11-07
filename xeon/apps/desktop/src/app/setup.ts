@@ -85,9 +85,14 @@ export function safeModeOf(status: WireResult<"host.status">): SafeModeSnapshot 
   };
 }
 
-/** `host.status`의 호스트 알림 칸을 화면 값으로 바꾼다. 문제 칸이 없으면(문제가 없거나 구형 호스트) 빈 목록이다 */
+/**
+ * `host.status`의 호스트 알림 칸을 화면 값으로 바꾼다. 문제 칸과 시작 알림 칸이 없으면(문제가 없거나 구형 호스트) 빈 목록이다
+ */
 export function hostNoticesOf(status: WireResult<"host.status">): HostNoticesSnapshot {
-  return { settingsProblems: status.settingsProblems ?? [] };
+  return {
+    settingsProblems: status.settingsProblems ?? [],
+    startupNotices: status.startupNotices ?? [],
+  };
 }
 
 export function createSetupCommands(

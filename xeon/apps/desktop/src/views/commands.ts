@@ -60,6 +60,7 @@ import type {
   SettingsFileScope,
   SettingsWritableFileScope,
   SettingsWriteFileResult,
+  StartupNotice,
   TrustChoice,
   TrustListResult,
   TrustStatus,
@@ -388,12 +389,13 @@ export interface SafeModeSnapshot {
 }
 
 /**
- * 호스트가 알리는 것(`host.status`의 `settingsProblems`, F wire §3.3.1). 문제가 없으면 빈 목록이다.
+ * 호스트가 알리는 것(`host.status`의 `settingsProblems`와 `startupNotices`, F wire §3.3.1). 문제가 없으면 빈 목록이다.
  * 엔진이 running이 되고 연결이 열리면 한 번 읽고, `settings.invalidated`를 받으면 다시 읽는다(`host-notices-provider.tsx`).
- * 읽지 못하면 화면은 아무것도 그리지 않는다.
+ * 읽지 못하면 화면은 아무것도 그리지 않는다. `startupNotices`는 이번 시작에서 저장소가 알린 일이다(0바이트 DB를 옮긴 일 등).
  */
 export interface HostNoticesSnapshot {
   readonly settingsProblems: readonly SettingsFileProblem[];
+  readonly startupNotices: readonly StartupNotice[];
 }
 
 /** 검색 권장 단계의 값: 웹 provider 상태(`web.providers`)와 "나중에"를 이미 눌렀는지(데스크톱 로컬 설정) */
