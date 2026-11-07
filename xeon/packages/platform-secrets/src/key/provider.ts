@@ -30,6 +30,8 @@ export interface KeyProvider {
    * `write_failed`(code `EEXIST`)로 돌려준다. 파일 폴백과 macOS Keychain이 구현한다(Linux Secret Service는 아직 없다)
    */
   provision?(): Promise<Result<{ readonly recipient: string }, SecretError>>;
+  /** OS 저장소에 age 키 항목이 있는가. 읽을 수 없어 모르면 null. identity는 읽지 않는다 */
+  holdsKey?(): Promise<boolean | null>;
 }
 
 /**

@@ -754,6 +754,23 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       // 같은 사용자의 CLI와 데스크톱 사이드카가 한 SOPS 파일에 동시에 쓰지 않게 하는 프로세스 사이 잠금(L0.secrets.spec §4.6 8번)
       fileLock: osHandle.fileLock,
       settingKeysFor: (handle) => Promise.resolve(settingKeysReferencing(settings, handle)),
+      // 첫 키를 파일로 만들었으면 설정을 file로 저장해 다음부터 OS 키 저장소를 다시 묻지 않게 한다(L0.secrets.spec §4.7 9번). 던지지 않고 이유만 남긴다
+      onFileKeyCreated: async () => {
+        logger.info("secrets.age.file_key_created");
+        const settingsPort = portsHandle?.ports.settings;
+        if (settingsPort === undefined) {
+          logger.warn("secrets.age.source_unsaved", { kind: "not_ready" });
+          return;
+        }
+        const written = await attemptAsync(() =>
+          settingsPort.write("user", "l0.secrets.ageKey.source", "file", undefined),
+        );
+        if (!written.ok) {
+          logger.warn("secrets.age.source_unsaved", { kind: written.error.kind });
+        } else if (!written.value.ok) {
+          logger.warn("secrets.age.source_unsaved", { kind: written.value.error.kind });
+        }
+      },
     });
     await register("platform-secrets", secretsPlatform(secrets.service));
     redact.current = (line) => secrets.service.redactor.mask(line).text;

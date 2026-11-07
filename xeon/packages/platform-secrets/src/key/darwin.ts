@@ -24,7 +24,7 @@ export interface DarwinKeyExec {
 export interface DarwinKeyDeps {
   /** fresnel.os가 해석한 security 절대 경로. 없으면 null */
   readonly securityPath: string | null;
-  /** 있으면 provision을 켠다. 시험은 가짜 실행기를 넣는다 */
+  /** 있으면 provision과 holdsKey를 켠다. 시험은 가짜 실행기를 넣는다 */
   readonly exec?: DarwinKeyExec;
 }
 
@@ -58,6 +58,13 @@ async function lookup(
   if (run.value.exitCode === 0) return ok("found");
   if (run.value.exitCode === EXIT_ITEM_NOT_FOUND) return ok("absent");
   return err(keyStoreFailure("find_failed"));
+}
+
+/** 항목이 있는가. 조회가 실패하면 모른다(null). 선택은 모를 때 OS 제공자를 그대로 쓴다 */
+async function holdsItem(securityPath: string, exec: DarwinKeyExec): Promise<boolean | null> {
+  const found = await lookup(securityPath, exec);
+  if (!found.ok) return null;
+  return found.value === "found";
 }
 
 /**
@@ -129,5 +136,9 @@ export function createDarwinKeyProvider(deps: DarwinKeyDeps): KeyProvider {
     },
   };
   if (securityPath === null || exec === undefined) return base;
-  return { ...base, provision: () => provisionItem(securityPath, exec) };
+  return {
+    ...base,
+    provision: () => provisionItem(securityPath, exec),
+    holdsKey: () => holdsItem(securityPath, exec),
+  };
 }

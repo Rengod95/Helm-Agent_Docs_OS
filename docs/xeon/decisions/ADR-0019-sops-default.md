@@ -32,6 +32,7 @@ binds: [xeon/packages/platform-secrets/**]
 4. [결정] 기본 파일은 `<OsDirs.config>/secrets/sops/user.yaml`, env 이름은 `user`다. `l0.secrets.sops.files`에 항목이 하나라도 있으면 기본 파일을 쓰지 않는다. 첫 `add` 때 파일과 age 키가 없으면 만든다.
 5. [결정] 기본 파일, 메타, 감사 파일, age 키는 모두 `<OsDirs.config>/secrets/` 아래에 두고 샌드박스 보호 행이 이 디렉터리를 덮는다. `OsDirs`는 사용자마다 하나라 CLI와 데스크톱이 같은 비밀을 본다.
 6. [제안] 키체인(macOS Keychain, Secret Service)은 age 키 보관 위치로만 쓴다(`L0.secrets.spec` §3.7). 비밀 값 저장소로 쓰는 제공자는 2차 선택 기능이다.
+   [결정: 2026-11-07 사용자] 처음 설치의 첫 age 키는 키체인이 아니라 앱 데이터 아래 0600 파일(`<OsDirs.config>/secrets/age/keys.txt`)에 둔다. 이미 키체인에 키가 있는 사용자는 그대로다(`L0.secrets.spec` §4.7 9번).
 
 ## 4. 결과
 
