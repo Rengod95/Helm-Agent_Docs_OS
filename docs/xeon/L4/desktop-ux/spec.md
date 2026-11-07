@@ -1721,7 +1721,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 파일로 보기·고치기 | `settings.readFile { scope }` → 편집 → `settings.writeFile { scope, text, baseSha256 }`, 충돌 3107은 "다른 곳에서 바뀌었어요" + 다시 읽기 |
 | 외부 변경 반영 | 알림 `settings.invalidated` → `settings.get` 다시 읽기 |
 | 엔진 재시작 | 셸 IPC `engine_restart` |
-| 키 찾기 | 탭 목록 위 입력란, 라벨·키·도움말 검색(로컬) |
+| 키 찾기 | 탭 목록 위 입력란, 라벨·키·도움말 검색(로컬). "대화와 컨텍스트"의 기억 구역도 구역 이름과 기억 글로 찾는다(아래 기억 구역 §찾기 연동) [결정: 오케스트레이터 기본값, fxLM] |
 
 - 위젯 대응: toggle → `Switch`, select(8개 이하) → `RadioGroup`, select(9개 이상) → `Select`, number → `NumberField`, text → `Input`, list → `TagInput`(원시값) 또는 `List`, table(rows, record, fixed) → 행마다 칸을 나열하는 편집 모드(caustic `Table`은 첫 실행 화면의 읽기 표에만 쓰여서 여기서는 쓰지 않습니다), secret → 시크릿 고르기 `Select`(P-10 목록의 이름. 팝업 모드 `Combobox`는 데스크톱에 쓰인 곳이 없습니다), readonly → 객체와 배열은 JSON 접힘 보기(`Accordion`), 나머지는 글. 전용 편집기 6종(modelRoles, fallbackChain, permissionRules, sandboxLists, searchOrder, accountPool)은 P-11, P-12와 이 화면에 둡니다. 외부 훅 정의(`x.operations.hookDefs`)는 명령 실행이라 키 이름으로 고르는 전용 표(`settings-hook-defs.tsx`)에 그립니다: 경고를 늘 보이고, 새 훅과 고친 훅은 명령을 보여 주는 확인 뒤에만 초안에 들어갑니다. 권한 규칙, 샌드박스 목록, 표, 시크릿 참조의 그림은 `settings-editors-screen.tsx`가 맡고, 모델 역할, 대체 사슬, 계정 풀, 레이트 리밋은 P-11이 `providers-screen.tsx`로 붙였습니다. 검색 순서는 P-12 패널이 맡습니다.
 - 상태
@@ -1759,6 +1759,12 @@ compact 폭(720 이하)과 사이드바 시트:
 - [미결: 제안 화면(P-06)에서 받아들인 기억으로 가는 링크는 만들지 않았다. 제안이 가리키는 기억 항목 id를 화면이 아직 받지 않는다.]
 
 ### 6.14 P-10 시크릿
+- 읽기 시점 [결정: 오케스트레이터 기본값, fxLM]: 설정 화면이 뜨면 읽는다(설정 찾기가 기억 구역을 값으로 물어야 해서 탭과 상관없다). "대화와 컨텍스트" 탭을 고를 때마다 다시 읽는다. 찾기와 정렬 상태는 설정 화면이 떠 있는 동안만 있고 저장하지 않는다.
+- 문맥 줄: 구역 제목 아래 한 줄 "문맥에 약 {tokens}토큰"이 있고, 정보 아이콘에 "대화를 시작할 때 모델에게 보내는 크기를 글자 수/4로 어림한 값이에요."가 있다. 토큰은 두 묶음이 쓴 글자 수의 합을 `estimateTokens`(`@fresnel/client/workbench`, 글자 수를 4로 나눠 올림)로 잰 값이다 [결정: 오케스트레이터 기본값, fxLM]. 읽기 전에는 줄을 그리지 않는다. 설정 화면의 "쓴 글자/한도"와는 다른 셈이다(그것은 글자 수, 이것은 토큰 어림).
+- 찾기와 정렬 [결정: 오케스트레이터 기본값, fxLM]: 두 묶음 합계가 다섯을 넘으면(여섯 이상) 구역 머리 아래에 한 줄이 있다. 찾기 칸(`Input type="search"`, 이름 "기억 찾기", 자리 글 "찾는 글"), 개수 "{shown}/{total}개", 정렬 `Select`(이름 "정렬", "최근 순"이 기본이고 "이름 순")다. 다섯 이하면 칸과 정렬을 두지 않는다. 칸 하나가 두 묶음을 함께 거른다. 찾기는 행에 보이는 글(줄바꿈과 연속 공백을 한 칸으로 줄인 글)을 대소문자를 무시한 부분 글로 맞춘다. 맞는 글이 하나도 없으면 "맞는 기억이 없어요"가 한 줄 보인다. 찾기 결과 0개면 개수는 "0/{total}개"다.
+- 정렬 [결정: 오케스트레이터 기본값, fxLM]: "최근 순"은 파일 순서(넣은 순서, 새 글이 뒤)를 뒤집은 것이다. "이름 순"은 행에 보이는 글을 앱 로케일의 `localeCompare`로 비교하고, 이름이 같으면 파일 순서를 지킨다. 항목의 데이터는 `{ id, text, chars }`뿐이라 날짜와 출처를 담지 않는다 [근거: `xeon/packages/contracts/src/capabilities/defs/knowledge.ts`의 `MemoryEntry`]. 그래서 날짜순과 출처 표시는 그리지 않고, 날짜와 출처를 지어 보이지 않는다.
+- 찾기 연동 [결정: 오케스트레이터 기본값, fxLM]: 설정 찾기 글이 있으면 기억 구역은 찾기 결과의 "대화와 컨텍스트" 자리에 "기억" 묶음으로 든다. 찾는 글이 구역 이름(번역된 "기억"·"Memory", 그리고 영문 "memory")에 맞거나 어느 묶음의 글에 들면 맞는다. 값을 아직 못 읽었으면 맞지 않는다. 묶음에는 찾는 글이 든 글만 보인다. 구역 이름만 맞고 글은 하나도 맞지 않으면 모든 글을 보인다. 찾는 글이 맞지 않는 묶음은 통째로 뺀다. 기억 구역이 맞으면 설정 찾기의 "찾는 설정이 없어요"는 보이지 않는다. 찾기 결과의 기억 묶음은 구역 안 찾기 칸과 문맥 줄을 그리지 않는다.
+- 구현 위치: `settings-memory-view.tsx`는 그림(`MemoryPanelView`, 찾기 결과의 `MemoryFindView`)과 훅(`useMemoryPanel`: 읽기, 명령, 대화 상자, 찾기와 정렬 상태)을 둔다. 훅은 `settings-screen.tsx`가 부르고, `settings-view.tsx`는 `memoryMatches(query)`를 동기로 물어 찾기 결과의 빈 문장을 정한다. 순수 함수는 `settings-memory-model.ts`(`filterEntries`, `sortEntries`, `tokensOf`, `labelOnlyOf`, `findEntriesOf`, `matchesQuery`)다. 시험은 `test/views/settings-memory-model.test.ts`(항목 55개 표에서 "배포"는 한 개), `test/views/memory-panel.test.tsx`(그림과 찾기 결과), `test/views/settings-page.test.tsx`(설정 찾기 연동)다.
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────────────┐

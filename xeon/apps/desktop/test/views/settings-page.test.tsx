@@ -6,6 +6,7 @@ import {
   settingsViewOf,
   type SettingsView,
 } from "@fresnel/client/settings";
+import type { MemoryStoreView } from "@fresnel/contracts/capabilities";
 import { toSettingDefWire } from "@fresnel/contracts/settings";
 import { harness, thr } from "../state/helpers.ts";
 import { renderToString } from "react-dom/server";
@@ -19,7 +20,10 @@ import {
   type SettingsPageProps,
 } from "../../src/views/pages/settings/settings-view.tsx";
 import { diagnosticToneOf } from "../../src/views/pages/settings/settings-text.ts";
+import { MemoryFindView } from "../../src/views/pages/settings/settings-memory-view.tsx";
+import { matchesQuery } from "../../src/views/pages/settings/settings-memory-model.ts";
 import { defOf, fieldIn, settingOf, stateOf, viewOf } from "./settings-fixtures.ts";
+import { ENTRY_TEXTS, memoryPropsOf, storeOf } from "./memory-fixtures.ts";
 
 // 설정 화면(P-09)의 서버 렌더. 읽는 중, 실패, 오프라인(읽기 전용), 잠긴 항목의 정책 문장, 필드 오류, 좁은 폭의 탭 선택,
 // 시크릿 탭의 자리, 찾기 결과를 그린다. 클릭과 키 입력은 DOM이 없어 시험하지 못한다(뜻은 settings-model.test.ts가 본다).
@@ -148,6 +152,30 @@ const SETTINGS = [
     source: { scope: "managed", path: LOCK_PATH },
   }),
 ];
+
+/**
+ * 설정 찾기 화면. `read`가 null이면 기억을 아직 읽는 중이다. 화면이 하는 것과 같이 `matchesQuery`로 기억 구역을 고르고,
+ * 맞으면 찾는 글이 든 글만 그린다
+ */
+function memorySearchOf(query: string, read: readonly MemoryStoreView[] | null): string {
+  const view = viewOf([MODEL, STEPS], SETTINGS);
+  return html(
+    propsOf({
+      view,
+      query,
+      memoryMatches: (text) =>
+        matchesQuery(text, { label: t("desktop.memory.label"), stores: read }),
+      memoryFindPanel: (
+        <MemoryFindView
+          props={memoryPropsOf({
+            load: read === null ? { kind: "loading" } : { kind: "ready", stores: read },
+          })}
+          query={query}
+        />
+      ),
+    }),
+  );
+}
 
 describe("settings page states", () => {
   test("while the values are read the tab list shows at once and the form shows a loading line", () => {
@@ -325,6 +353,34 @@ describe("page layout", () => {
     expect(found).not.toContain("기본 모델");
     const none = html(propsOf({ view, query: "없는말" }));
     expect(none).toContain(t("desktop.settings.search.noMatch"));
+  });
+
+  const READ = [storeOf("user", ENTRY_TEXTS), storeOf("env", [])];
+
+  test("a search for a word in a memory entry shows the memory group with that entry and no no-match line", () => {
+    const out = memorySearchOf("배포", READ);
+    expect(out).toContain('data-slot="settings-memory"');
+    expect(out.match(/data-memory-entry=/g)).toHaveLength(1);
+    expect(out).toContain("금요일에는 배포를 하지 않아요");
+    expect(out).not.toContain(t("desktop.settings.search.noMatch"));
+  });
+
+  test("a search for the section name shows every memory entry under the memory group", () => {
+    const out = memorySearchOf("기억", READ);
+    expect(out.match(/data-memory-entry=/g)).toHaveLength(55);
+    expect(out).not.toContain(t("desktop.settings.search.noMatch"));
+  });
+
+  test("a search that matches neither a setting nor a memory says no match and draws no memory group", () => {
+    const out = memorySearchOf("zzzz", READ);
+    expect(out).toContain(t("desktop.settings.search.noMatch"));
+    expect(out).not.toContain('data-slot="settings-memory"');
+  });
+
+  test("while the memory is still loading it counts as not matching, so the no-match line shows", () => {
+    const out = memorySearchOf("배포", null);
+    expect(out).toContain(t("desktop.settings.search.noMatch"));
+    expect(out).not.toContain('data-slot="settings-memory"');
   });
 
   test("a restart count shows its banner with the restart button", () => {

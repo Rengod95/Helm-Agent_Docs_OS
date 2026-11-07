@@ -5,10 +5,12 @@ import { renderToString } from "react-dom/server";
 import {
   DialogNotice,
   MemoryEditorBody,
+  MemoryFindView,
   MemoryPanelView,
   remainingOf,
   type MemoryPanelViewProps,
 } from "../../src/views/pages/settings/settings-memory-view.tsx";
+import { ENTRY_TEXTS } from "./memory-fixtures.ts";
 
 // 설정 기억 구역(W-19, scE S7). 항목 행, 빈 상태 문장, 쓰기 막힘 경고, 오류 줄, 남은 글자 줄을 HTML로 본다.
 // 대화 상자 본문은 포털이라 서버에서 그리지 않으므로 본문 컴포넌트를 따로 그린다(thread-export-dialog.test.tsx와 같은 방식).
@@ -42,6 +44,10 @@ function propsOf(overrides: Partial<MemoryPanelViewProps>): MemoryPanelViewProps
     editor: { kind: "closed" },
     removing: null,
     busy: false,
+    search: "",
+    sort: "recent",
+    onSearch: () => {},
+    onSort: () => {},
     onOpenAdd: () => {},
     onOpenEdit: () => {},
     onText: () => {},
@@ -306,5 +312,130 @@ describe("memory card", () => {
     expect(html).toContain('data-slot="settings-memory"');
     expect(html).toContain("rounded-2xl");
     expect(html).toContain(`>${t("desktop.memory.label")}<`);
+  });
+});
+
+/** 행의 id를 화면 순서대로 모은다 */
+function idsOfRows(html: string): readonly string[] {
+  return Array.from(html.matchAll(/data-memory-entry="([^"]+)"/g), (match) => match[1] ?? "");
+}
+
+/** 자리 번호를 시험의 id로 바꾼다(`store`가 쓰는 꼴) */
+function idOf(index: number): string {
+  return index.toString(16).padStart(12, "0");
+}
+
+const SIX = ["첫째 글", "둘째 글", "셋째 글", "넷째 글", "다섯째 글", "여섯째 글"];
+
+describe("find, sort, and the context line", () => {
+  test("the find row and the sort select appear only with more than five entries", () => {
+    const five = htmlOf({
+      load: { kind: "ready", stores: [store("user", SIX.slice(0, 5)), store("env", [])] },
+    });
+    expect(five).not.toContain(`aria-label="${t("desktop.memory.search.label")}"`);
+    expect(five).not.toContain(`aria-label="${t("desktop.memory.sort.label")}"`);
+    const six = htmlOf({ load: { kind: "ready", stores: [store("user", SIX), store("env", [])] } });
+    expect(six).toContain(`aria-label="${t("desktop.memory.search.label")}"`);
+    expect(six).toContain(`aria-label="${t("desktop.memory.sort.label")}"`);
+  });
+
+  test("the find input is a search field with its placeholder", () => {
+    const html = htmlOf({
+      load: { kind: "ready", stores: [store("user", SIX), store("env", [])] },
+    });
+    expect(html).toContain('type="search"');
+    expect(html).toContain(`placeholder="${t("desktop.memory.search.placeholder")}"`);
+  });
+
+  test("a find over 55 entries shows only the deploy row and the count 1/55개", () => {
+    const html = htmlOf({
+      load: { kind: "ready", stores: [store("user", ENTRY_TEXTS), store("env", [])] },
+      search: "배포",
+    });
+    expect(idsOfRows(html)).toEqual([idOf(36)]);
+    expect(html).toContain("금요일에는 배포를 하지 않아요");
+    expect(t("desktop.memory.count", { shown: "1", total: "55" })).toEqual("1/55개");
+    expect(html).toContain(t("desktop.memory.count", { shown: "1", total: "55" }));
+  });
+
+  test("a find that matches nothing shows the quiet line and the count 0/55개, and no row", () => {
+    const html = htmlOf({
+      load: { kind: "ready", stores: [store("user", ENTRY_TEXTS), store("env", [])] },
+      search: "zzzz",
+    });
+    expect(t("desktop.memory.search.noMatch")).toEqual("맞는 기억이 없어요");
+    expect(html).toContain(t("desktop.memory.search.noMatch"));
+    expect(html).toContain(t("desktop.memory.count", { shown: "0", total: "55" }));
+    expect(html.match(/data-memory-entry=/g)).toBeNull();
+  });
+
+  test("recent lists the newest entry first, which is the file order reversed", () => {
+    const html = htmlOf({
+      load: { kind: "ready", stores: [store("user", SIX), store("env", [])] },
+    });
+    expect(idsOfRows(html)).toEqual([idOf(5), idOf(4), idOf(3), idOf(2), idOf(1), idOf(0)]);
+  });
+
+  test("name lists the entries in Korean collation of their text", () => {
+    const names = ["다 글", "가 글", "나 글", "라 글", "마 글", "바 글"];
+    const html = htmlOf({
+      load: { kind: "ready", stores: [store("user", names), store("env", [])] },
+      sort: "name",
+    });
+    expect(idsOfRows(html)).toEqual([idOf(1), idOf(2), idOf(0), idOf(3), idOf(4), idOf(5)]);
+  });
+
+  test("the context line shows the tokens of both stores' characters over four, rounded up", () => {
+    const html = htmlOf({
+      load: {
+        kind: "ready",
+        stores: [store("user", ["a".repeat(30)]), store("env", ["b".repeat(10)])],
+      },
+    });
+    expect(t("desktop.memory.context", { tokens: "10" })).toEqual("문맥에 약 10토큰");
+    expect(html).toContain(t("desktop.memory.context", { tokens: "10" }));
+    expect(html).toContain(t("desktop.memory.context.info"));
+  });
+
+  test("the context line is not drawn while the memory is still loading", () => {
+    expect(htmlOf({ load: { kind: "loading" } })).not.toContain("data-memory-context");
+    expect(htmlOf({})).toContain("data-memory-context");
+  });
+});
+
+describe("settings find shows the matching entries as one group", () => {
+  const stores = [store("user", ENTRY_TEXTS), store("env", [])];
+
+  test("the find group has no find row and no context line, and only the matching row", () => {
+    const html = renderToString(
+      <MemoryFindView props={propsOf({ load: { kind: "ready", stores } })} query="배포" />,
+    );
+    expect(html).toContain('data-slot="settings-memory"');
+    expect(idsOfRows(html)).toEqual([idOf(36)]);
+    expect(html).not.toContain(`aria-label="${t("desktop.memory.search.label")}"`);
+    expect(html).not.toContain("data-memory-context");
+  });
+
+  test("a query that only names the section shows every entry", () => {
+    const html = renderToString(
+      <MemoryFindView props={propsOf({ load: { kind: "ready", stores } })} query="기억" />,
+    );
+    expect(idsOfRows(html).length).toEqual(55);
+  });
+
+  test("a store with no matching entry is left out of the find group", () => {
+    const html = renderToString(
+      <MemoryFindView
+        props={propsOf({
+          load: {
+            kind: "ready",
+            stores: [store("user", ENTRY_TEXTS), store("env", ["환경 메모"])],
+          },
+        })}
+        query="배포"
+      />,
+    );
+    expect(html).toContain('data-memory-store="user"');
+    expect(html).not.toContain('data-memory-store="env"');
   });
 });

@@ -1,18 +1,42 @@
-import { Alert, Button, Dialog, DialogAction, DialogClose, Textarea } from "@caustic/react";
-import { t, type MessageId } from "@fresnel/client/i18n";
+import {
+  Alert,
+  Button,
+  Dialog,
+  DialogAction,
+  DialogClose,
+  Input,
+  Select,
+  SelectOption,
+  Textarea,
+} from "@caustic/react";
+import { Search } from "@caustic/react/icons";
+import { activeLocale, t, type MessageId } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
-import type { MemoryStore, MemoryStoreView } from "@fresnel/contracts/capabilities";
+import type { MemoryEntry, MemoryStore, MemoryStoreView } from "@fresnel/contracts/capabilities";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { InfoTip } from "../../craft/info-tip.tsx";
 import { SettingSection } from "./settings-section.tsx";
 import { useCommands } from "../../commands.ts";
 import type { CommandError } from "../../commands.ts";
+import {
+  filterEntries,
+  findEntriesOf,
+  labelOnlyOf,
+  matchesQuery,
+  MEMORY_SORTS,
+  previewOf,
+  sortEntries,
+  tokensOf,
+  type MemorySort,
+} from "./settings-memory-model.ts";
 
 // 설정 "대화와 컨텍스트" 탭의 기억 구역(W-19, 시나리오 scE S7). 엔진의 기억은 항목 목록이라(`USER.md`, `MEMORY.md`의 `§` 구분)
 // 항목마다 한 행이다. 사용자 기억과 환경 기억 두 구역이고, 환경 기억은 작업 폴더별이 아니라 모두가 함께 쓴다.
 // 바깥(CLI, 모델)에서 바뀐 것은 이 구역을 열 때와 창이 다시 앞에 올 때 읽고, 쓰기가 `baseHash` 거절을 받으면 다시 읽는다.
 // 저장과 지우기의 오류는 열린 대화 상자 안에 보이고, 대화 상자가 없을 때만 구역 머리 위에 보인다.
-// 그림은 `MemoryPanelView`, 명령과 읽기는 `MemoryPanel`이 잇는다.
+// 구역 머리에는 문맥 토큰 줄이 있고, 항목이 여섯 넘으면 찾기 칸과 정렬 선택이 두 묶음 위에 한 번 보인다(`settings-memory-model.ts`가 거른다).
+// 설정 찾기가 이 구역을 고르면 `MemoryFindView`가 맞는 글만 "기억" 묶음으로 그린다.
+// 그림은 `MemoryPanelView`와 `MemoryFindView`, 명령과 읽기는 `useMemoryPanel`이 잇는다.
 
 type MemoryLoad =
   | { readonly kind: "loading" }
@@ -41,6 +65,11 @@ export interface MemoryPanelViewProps {
   readonly editor: MemoryEditor;
   readonly removing: MemoryRemoving | null;
   readonly busy: boolean;
+  /** 구역 안 찾기 글. 설정 찾기와 따로 둔다. 빈 글이면 모두 보인다 */
+  readonly search: string;
+  readonly sort: MemorySort;
+  readonly onSearch: (text: string) => void;
+  readonly onSort: (sort: MemorySort) => void;
   readonly onOpenAdd: (store: MemoryStore) => void;
   readonly onOpenEdit: (store: MemoryStore, entryId: string, text: string) => void;
   readonly onText: (text: string) => void;
@@ -66,11 +95,6 @@ const LIMIT_LABEL: Record<MemoryStore, MessageId> = {
   env: "settings.l2.knowledge.memory.envLimitChars.label",
 };
 
-/** 행에 보이는 글. 줄바꿈은 한 줄 안에서 공백으로 보인다 */
-function previewOf(text: string): string {
-  return text.replace(/\s+/g, " ").trim();
-}
-
 /**
  * 저장소 한도에서 이 글이 들어가면 남을 글자 수. 고치는 글이면 그 항목이 쓰던 글자 수를 되돌린다.
  * 셈은 엔진과 같은 코드 포인트이고, 앞뒤 공백은 저장할 때 지워지므로 뺀다. 줄마다 붙는 구분 글자는 셈에 없어서 어림이다.
@@ -85,10 +109,46 @@ export function remainingOf(args: {
   return args.limitChars - args.usedChars + args.oldChars - Array.from(args.text.trim()).length;
 }
 
+/** 기억 구역의 그림. 구역 안 찾기, 정렬, 문맥 줄을 보인다 */
 export function MemoryPanelView(props: MemoryPanelViewProps): ReactNode {
+  return <MemoryCard props={props} finding={null} />;
+}
+
+/**
+ * 설정 찾기가 고른 기억 구역. 구역 안 찾기 칸과 문맥 줄은 없고, 설정 찾기 글이 든 글만 보인다.
+ * 구역 이름만 맞으면 모든 글이 보인다(`labelOnlyOf`).
+ */
+export function MemoryFindView(args: {
+  readonly props: MemoryPanelViewProps;
+  readonly query: string;
+}): ReactNode {
+  return <MemoryCard props={args.props} finding={args.query} />;
+}
+
+/** 구역 하나의 그림. `finding`이 null이면 구역 안 찾기와 정렬을 쓰고, 설정 찾기 글이 있으면 그 글로 거른다 */
+function MemoryCard(args: {
+  readonly props: MemoryPanelViewProps;
+  readonly finding: string | null;
+}): ReactNode {
+  const { props, finding } = args;
   const { load, notice, busy, editor, removing } = props;
   // 대화 상자가 열려 있으면 오류는 그 안에 보인다. 뒤의 구역 머리에 같은 줄을 또 그리지 않는다
   const dialogOpen = editor.kind === "open" || removing !== null;
+  const stores = load.kind === "ready" ? load.stores : [];
+  const total = stores.reduce((sum, view) => sum + view.entries.length, 0);
+  const shownTotal = stores.reduce(
+    (sum, view) => sum + filterEntries(view.entries, props.search).length,
+    0,
+  );
+  const locale = activeLocale();
+  const labelOnly = finding !== null && labelOnlyOf(stores, finding, t("desktop.memory.label"));
+  const rowsOf = (view: MemoryStoreView): readonly MemoryEntry[] => {
+    const picked =
+      finding === null
+        ? filterEntries(view.entries, props.search)
+        : findEntriesOf(view.entries, finding, labelOnly);
+    return sortEntries(picked, props.sort, locale);
+  };
   return (
     <div data-slot="settings-memory" data-memory-state={load.kind} className="min-w-0">
       <SettingSection
@@ -99,6 +159,15 @@ export function MemoryPanelView(props: MemoryPanelViewProps): ReactNode {
           </span>
         }
       >
+        {load.kind === "ready" && finding === null ? (
+          <div className="grid min-w-0 gap-2 py-2">
+            <ContextLine tokens={tokensOf(load.stores)} />
+            {total > 5 ? <FindRow props={props} shown={shownTotal} total={total} /> : null}
+            {total > 0 && shownTotal === 0 ? (
+              <p className="text-ui-sm text-text-tertiary">{t("desktop.memory.search.noMatch")}</p>
+            ) : null}
+          </div>
+        ) : null}
         {notice === null || dialogOpen ? null : (
           <Alert tone="warning" size="sm">
             {t(notice)}
@@ -113,15 +182,20 @@ export function MemoryPanelView(props: MemoryPanelViewProps): ReactNode {
           </Alert>
         ) : null}
         {load.kind === "ready"
-          ? STORES.map((spec) => (
-              <StoreGroup
-                key={spec.store}
-                spec={spec}
-                view={load.stores.find((candidate) => candidate.store === spec.store)}
-                busy={busy}
-                props={props}
-              />
-            ))
+          ? STORES.map((spec) => {
+              const view = stores.find((candidate) => candidate.store === spec.store);
+              return (
+                <StoreGroup
+                  key={spec.store}
+                  spec={spec}
+                  view={view}
+                  rows={view === undefined ? [] : rowsOf(view)}
+                  finding={finding !== null}
+                  busy={busy}
+                  props={props}
+                />
+              );
+            })
           : null}
       </SettingSection>
       <EditorDialog props={props} />
@@ -130,14 +204,70 @@ export function MemoryPanelView(props: MemoryPanelViewProps): ReactNode {
   );
 }
 
+/** 구역 머리 아래의 문맥 토큰 줄. 설명은 정보 아이콘 뒤에 둔다 */
+function ContextLine(args: { readonly tokens: number }): ReactNode {
+  return (
+    <div data-memory-context className="flex items-center gap-1 text-ui-sm text-text-tertiary">
+      {t("desktop.memory.context", { tokens: String(args.tokens) })}
+      <InfoTip text={t("desktop.memory.context.info")} />
+    </div>
+  );
+}
+
+/** 구역 안 찾기 칸, 개수, 정렬 선택. 두 묶음 위에 한 번 보인다 */
+function FindRow(args: {
+  readonly props: MemoryPanelViewProps;
+  readonly shown: number;
+  readonly total: number;
+}): ReactNode {
+  const { props, shown, total } = args;
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <Input
+        type="search"
+        size="xs"
+        variant="soft"
+        prefix={<Search />}
+        aria-label={t("desktop.memory.search.label")}
+        placeholder={t("desktop.memory.search.placeholder")}
+        value={props.search}
+        spellCheck={false}
+        containerClassName="min-w-0 flex-1"
+        onValueChange={props.onSearch}
+      />
+      <span data-memory-count className="shrink-0 text-ui-sm text-text-tertiary">
+        {t("desktop.memory.count", { shown: String(shown), total: String(total) })}
+      </span>
+      <Select
+        size="xs"
+        aria-label={t("desktop.memory.sort.label")}
+        value={props.sort}
+        onValueChange={(value) => {
+          const next = MEMORY_SORTS.find((item) => item === value);
+          if (next !== undefined) props.onSort(next);
+        }}
+        className="w-28"
+      >
+        <SelectOption value="recent">{t("desktop.memory.sort.recent")}</SelectOption>
+        <SelectOption value="name">{t("desktop.memory.sort.name")}</SelectOption>
+      </Select>
+    </div>
+  );
+}
+
 function StoreGroup(args: {
   readonly spec: (typeof STORES)[number];
   readonly view: MemoryStoreView | undefined;
+  /** 보일 글. 찾기와 정렬을 거친 것이다 */
+  readonly rows: readonly MemoryEntry[];
+  /** 설정 찾기 결과인가. 맞는 글이 없는 묶음은 통째로 뺀다 */
+  readonly finding: boolean;
   readonly busy: boolean;
   readonly props: MemoryPanelViewProps;
 }): ReactNode {
-  const { spec, view, busy, props } = args;
+  const { spec, view, rows, finding, busy, props } = args;
   if (view === undefined) return null;
+  if (finding && view.entries.length > 0 && rows.length === 0) return null;
   // 한도를 넘은 묶음은 머리의 글자 수를 경고 색으로 보인다(줄이기 전까지 새 글은 거절될 수 있다)
   const over = view.usedChars > view.limitChars;
   return (
@@ -177,9 +307,9 @@ function StoreGroup(args: {
           <span className="text-body text-text-secondary">{t("desktop.memory.empty")}</span>
           <span className="text-ui-sm text-text-tertiary">{t("desktop.memory.empty.hint")}</span>
         </div>
-      ) : (
+      ) : rows.length === 0 ? null : (
         <ul className="grid min-w-0">
-          {view.entries.map((entry) => (
+          {rows.map((entry) => (
             <li
               key={entry.id}
               data-memory-entry={entry.id}
@@ -387,13 +517,26 @@ function staleOf(error: CommandError): boolean {
   return error.kind === "rejected" && error.path === "baseHash";
 }
 
-export function MemoryPanel(): ReactNode {
+/** 기억 구역의 읽기, 명령, 대화 상자, 구역 안 찾기와 정렬 상태. 설정 화면이 부르고, 그림은 `MemoryPanelView`와 `MemoryFindView`가 그린다 */
+export interface MemoryPanelHook {
+  readonly props: MemoryPanelViewProps;
+  /** 설정 찾기 글에 이 구역이 맞는가. 값을 아직 못 읽었으면 맞지 않는다 */
+  readonly matches: (query: string) => boolean;
+}
+
+/**
+ * `visible`은 설정의 "대화와 컨텍스트" 탭을 고르고 있는가다. 고를 때마다 다시 읽는다.
+ * 설정 찾기는 탭과 상관없이 값이 필요해서 화면이 뜰 때 읽고, 창이 다시 앞에 와도 읽는다.
+ */
+export function useMemoryPanel(visible: boolean): MemoryPanelHook {
   const commands = useCommands();
   const [load, setLoad] = useState<MemoryLoad>({ kind: "loading" });
   const [notice, setNotice] = useState<MessageId | null>(null);
   const [editor, setEditor] = useState<MemoryEditor>({ kind: "closed" });
   const [removing, setRemoving] = useState<MemoryRemoving | null>(null);
   const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<MemorySort>("recent");
 
   const latest = useRef(0);
   const reload = useCallback(async (): Promise<void> => {
@@ -419,6 +562,11 @@ export function MemoryPanel(): ReactNode {
       window.removeEventListener("focus", onFocus);
     };
   }, [reload]);
+
+  // 이 탭을 고를 때마다 바깥에서 바뀐 것을 읽는다. 화면이 뜬 순간의 읽기는 위 효과가 맡는다
+  useEffect(() => {
+    if (visible) detach(reload(), rethrow);
+  }, [visible, reload]);
 
   const hashOf = (store: MemoryStore): string | null => {
     if (load.kind !== "ready") return null;
@@ -467,36 +615,55 @@ export function MemoryPanel(): ReactNode {
     detach(finish(commands.memory.remove(removing.store, removing.entryId, base)), rethrow);
   };
 
-  return (
-    <MemoryPanelView
-      load={load}
-      notice={notice}
-      editor={editor}
-      removing={removing}
-      busy={busy}
-      onOpenAdd={(store) => {
+  // 설정 찾기는 값을 읽은 뒤에만 이 구역을 고른다(읽는 중에는 맞지 않는다)
+  const matches = useCallback(
+    (query: string): boolean =>
+      matchesQuery(query, {
+        label: t("desktop.memory.label"),
+        stores: load.kind === "ready" ? load.stores : null,
+      }),
+    [load],
+  );
+
+  return {
+    matches,
+    props: {
+      load,
+      notice,
+      editor,
+      removing,
+      busy,
+      search,
+      sort,
+      onSearch: (text) => {
+        setSearch(text);
+      },
+      onSort: (next) => {
+        setSort(next);
+      },
+      onOpenAdd: (store) => {
         setNotice(null);
         setEditor({ kind: "open", store, entryId: null, text: "" });
-      }}
-      onOpenEdit={(store, entryId, text) => {
+      },
+      onOpenEdit: (store, entryId, text) => {
         setNotice(null);
         setEditor({ kind: "open", store, entryId, text });
-      }}
-      onText={(text) => {
+      },
+      onText: (text) => {
         setEditor((current) => (current.kind === "open" ? { ...current, text } : current));
-      }}
-      onSave={save}
-      onCloseEditor={() => {
+      },
+      onSave: save,
+      onCloseEditor: () => {
         setEditor({ kind: "closed" });
-      }}
-      onAskRemove={(store, entryId, text) => {
+      },
+      onAskRemove: (store, entryId, text) => {
         setNotice(null);
         setRemoving({ store, entryId, text });
-      }}
-      onConfirmRemove={confirmRemove}
-      onCloseRemove={() => {
+      },
+      onConfirmRemove: confirmRemove,
+      onCloseRemove: () => {
         setRemoving(null);
-      }}
-    />
-  );
+      },
+    },
+  };
 }

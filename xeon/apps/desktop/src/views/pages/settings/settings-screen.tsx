@@ -56,7 +56,7 @@ import { SETTINGS_EDITORS } from "./settings-editors-screen.tsx";
 import { SettingsPageView, type SettingsPageHandlers } from "./settings-view.tsx";
 import { UpdatePanel } from "./settings-update-view.tsx";
 import { NotifyPanel } from "./settings-notify-view.tsx";
-import { MemoryPanel } from "./settings-memory-view.tsx";
+import { MemoryFindView, MemoryPanelView, useMemoryPanel } from "./settings-memory-view.tsx";
 import { PluginsPanel } from "./settings-plugins-view.tsx";
 import { AppearancePanel } from "./settings-appearance-view.tsx";
 
@@ -173,6 +173,8 @@ export function SettingsPage(props: {
   const toolsWeb = useToolsWebState(live);
   const usage = useUsageState(live, threadId);
   const filePaths = useSettingsFilePaths(live, threadId);
+  // 기억 구역은 설정 찾기가 값을 동기로 물어야 해서 이 화면이 읽는다. 대화와 컨텍스트 탭을 고를 때 다시 읽는다
+  const memory = useMemoryPanel(tab === "sessions");
   const jump = useSettingsJump();
   const dirtyKeys = view === null ? [] : dirtyKeysOf(view.tabs);
 
@@ -450,7 +452,9 @@ export function SettingsPage(props: {
       notifyPanel={<NotifyPanel />}
       appearancePanel={<AppearancePanel />}
       pluginsPanel={<PluginsPanel />}
-      memoryPanel={<MemoryPanel />}
+      memoryPanel={<MemoryPanelView {...memory.props} />}
+      memoryMatches={memory.matches}
+      memoryFindPanel={<MemoryFindView props={memory.props} query={query} />}
       rotationPanel={
         view === null ? null : <RotationPanel view={view} live={live} handlers={fields} />
       }
