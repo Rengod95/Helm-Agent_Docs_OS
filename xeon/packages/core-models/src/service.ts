@@ -251,10 +251,24 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
       baseDelayMs: retry.baseDelayMs,
       maxAgentDelayMs: retry.maxDelayMs,
     };
+    // 호출 단계 재시도(retryAssistantCall)도 재시도 알림을 낸다. 던져도 재시도는 이어진다
+    const onRetry = request.onRetry;
     return await retryAssistantCall(
       () => pipeline.start(callOf(request, settings.thinkingBudgets, false)).result(),
       policy,
       request.signal,
+      onRetry === undefined
+        ? undefined
+        : {
+            onRetryScheduled: (attemptNo, maxAttempts, delayMs) => {
+              const notified = attempt(() => {
+                onRetry({ attempt: attemptNo, maxRetries: maxAttempts, waitMs: delayMs });
+              });
+              if (!notified.ok) {
+                deps.logger?.warn("model.retry_listener_failed", { attempt: attemptNo });
+              }
+            },
+          },
     );
   }
 

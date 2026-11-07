@@ -15,7 +15,8 @@ import {
 } from "../state/engine/index.ts";
 import { MAX_SNAPSHOT_ITEMS } from "../state/engine/thread-reader.ts";
 import { useCommands } from "./commands.ts";
-import { TurnFailureRow } from "./turn-failure-row.tsx";
+import { CutMarker, TurnFailureRow } from "./turn-failure-row.tsx";
+import { turnFailureOf } from "./turn-failure-model.ts";
 import { EmptyThread } from "./empty-thread.tsx";
 import { ResumeBand } from "./resume-band.tsx";
 import { RecordedItem, StreamingRow } from "./item-view.tsx";
@@ -79,6 +80,9 @@ export function Transcript(): ReactNode {
   }
   const failureNotice =
     failure === null ? null : <TurnFailureRow threadId={threadId} error={failure} />;
+  // 앞부분 답이 온 뒤 끊긴 응답이면 마지막 답 바로 뒤에 끊김을 표시한다. 자동으로 다시 보내지는 않는다
+  const cutNotice =
+    failure !== null && turnFailureOf(failure).kind === "interrupted" ? <CutMarker /> : null;
   if (rows.length === 0) {
     return (
       <>
@@ -108,6 +112,7 @@ export function Transcript(): ReactNode {
           )
         }
       />
+      {cutNotice}
       {failureNotice}
       <ResumeBand />
     </>

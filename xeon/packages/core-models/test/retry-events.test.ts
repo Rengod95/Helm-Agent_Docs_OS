@@ -135,6 +135,22 @@ describe("retry_state_events_through_the_pipeline", () => {
     expect(service.classify(message)).toBe("permission_denied");
   });
 
+  test("a complete call retried after a 429 announces the call-level retry with its backoff", async () => {
+    // complete는 provider 요청 재시도를 끄고 호출 단계 재시도(retryAssistantCall)만 쓴다. 그 재시도도 알린다
+    let calls = 0;
+    const provider = fakeProvider(() => {
+      calls += 1;
+      if (calls === 1) return { status: 429, body: RATE_LIMITED };
+      return { body: textSse("요약", { input: 10, output: 1 }) };
+    });
+    const { service, call } = setup(provider.fetch, 3);
+    const seen: ModelRetryEvent[] = [];
+    const message = await service.complete(call((event) => seen.push(event)));
+    expect(provider.seen).toHaveLength(2);
+    expect(seen).toEqual([{ attempt: 1, maxRetries: 3, waitMs: 500 }]);
+    expect(message.stopReason).toBe("stop");
+  }, 20_000);
+
   test("a stream cut after the first text is stream_interrupted and classified as transport", async () => {
     // message_start, content_block_start, content_block_delta까지만 보내고 끊는다
     const parts = textSse("앞부분", { input: 10, output: 1 })

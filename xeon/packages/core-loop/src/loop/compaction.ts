@@ -1,5 +1,6 @@
 import type { AssistantMessage, EventId } from "@fresnel/contracts/conversation";
 import type { ResolvedModel } from "@fresnel/contracts/services";
+import { providerRetryListener } from "./provider-retry.ts";
 import { emitNotifications, currentStep, type TurnRun } from "./turn-run.ts";
 
 // L1.loop.spec §4.2 규칙 2a·2b. 컴팩션 두 길을 `fresnel.context`에 잇는다(M2 마감 G2-01, 감사 L1-01).
@@ -26,6 +27,7 @@ export async function compactBeforeRequest(
     contextWindow: resolved.model.contextWindow,
     willRetry: false,
     signal: scope.signal,
+    onRetry: providerRetryListener(run, null),
   });
   if (!outcome.ok) {
     state.compactionBlocked = true;
@@ -73,7 +75,9 @@ export async function recoverFromOverflow(
   if (state.binding === null) return false;
   if (ctx.models.classify(failed, model.contextWindow) !== "context_overflow") return false;
   const step = currentStep(run);
-  const recovery = await ctx.context.recoverOverflow(threadId, step.stepId, failed, state.binding);
+  const recovery = await ctx.context.recoverOverflow(threadId, step.stepId, failed, state.binding, {
+    onRetry: providerRetryListener(run, step.stepId),
+  });
   if (recovery.action === "fail") {
     ctx.logger.warn("loop.overflow_not_recovered", { threadId, turnId, reason: recovery.reason });
     return false;

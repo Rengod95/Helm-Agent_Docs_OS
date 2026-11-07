@@ -20,6 +20,7 @@ import type {
   Link,
   PendingApproval,
   PlanRecord,
+  ProviderRetry,
   QueuedInput,
   StreamingItem,
   TransitionRecord,
@@ -117,6 +118,9 @@ export const useLastUserItemId = (): ItemId | null => useEngine(sel.selectLastUs
 export const useLastUserText = (): string | null => useEngine(sel.selectLastUserText);
 export const useTurnFailure = (id: ThreadId | null): string | null =>
   useEngine((s) => sel.selectTurnFailure(s, id));
+/** 이 대화의 제공자 재시도 대기(휘발). 다음 응답이 오기 시작하거나 턴이 끝나면 null이 된다 */
+export const useRetrying = (id: ThreadId | null): ProviderRetry | null =>
+  useEngine((s) => sel.selectRetrying(s, id));
 /** 대화별 실패로 끝난 마지막 turn의 문장. 진행 중 칸이 예약 실패 행을 고른다 */
 export const useTurnFailures = (): Readonly<Record<string, string>> =>
   useEngine(sel.selectTurnFailures);

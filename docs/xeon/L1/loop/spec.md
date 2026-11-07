@@ -639,6 +639,12 @@ runTurn(req: LoopTurnRequest):
 - 알림: 연속 횟수가 임계에 이르는 단계에서 한 번, 휘발 `turn.updated { status: "running", notice: { code: "repeat_detected", detail: { kind: "action_observation" | "action_error", count } } }`를 낸다(FR-L5). 같은 되풀이가 이어져도 다시 알리지 않고 쌍이 달라지면 새로 센다. 행동-오류는 단계의 모든 호출이 오류일 때다. `l1.loop.repeat.enabled`가 false이면 감지하지 않는다. 설정은 turn 시작 때 한 번 읽는다. 모델 컨텍스트와 내구 기록에는 넣지 않는다.
 - 참고 구현 omp `session/tool-call-loop-redirect.ts`는 AgentSession 결합이라 읽기 자료다(`_research/packages.md` §4.3 L1-b 반복 감지 행).
 
+### 4.10a 제공자 재시도 알림 [결정: 오케스트레이터 기본값, fxMR]
+
+- 모델 호출 ctx(`ModelCallContext.onRetry`)와 요약 호출(`CompactRequest.onRetry`, `recoverOverflow`의 `opts.onRetry`)에 같은 콜백을 싣는다. 콜백은 제공자 요청을 다시 보내기 직전에 `ModelRetryEvent { attempt, maxRetries, waitMs }`로 한 번씩 불린다(L1.models §4.5).
+- 콜백은 그 turn의 휘발 `turn.updated { status: "running", notice: { code: "provider_retry", detail: { attempt, maxRetries, waitMs } } }`를 낸다. `waitMs`는 올림한 정수 ms다. `stepId`는 모델 호출이면 그 단계이고, 임계 컴팩션이면 null이다.
+- 알림은 사용자에게만 보이고 내구 기록과 모델 컨텍스트에 들어가지 않는다. 재시도 조건과 대기 값은 L1.models §4.5가 정하고, 화면의 대기 표시와 지우는 시점은 L4 desktop-ux가 정한다.
+
 ### 4.11 입출력 가드레일
 
 - [결정: adr.0017 §3.6, M3-REQ-109] 가드 훅은 값을 바꾸지 못하고 차단만 하며(`GuardDecision`), 핸들러 예외와 디스패처 실패도 차단이다(fail-closed). 내장 검사는 없다. 차단 사유는 대화 기록에 남는다.
@@ -788,7 +794,7 @@ runChildTurn(req):
 | FR-L2 | (철회) | drive 순번은 X가 `requestId`를 만들 때 쓰고 L1에 넘기지 않는다(`X.primitives.spec` §4.4.4) | `LoopTurnRequest`에 순번 필드가 없다 |
 | FR-L3 | F.records.spec §3.6 | 체크포인트를 T3(assistant 응답 확정 커밋)에도 `next: "tools"`로 쓸 수 있다고 적는다. `leafEventId` 규칙을 "같은 커밋의 마지막 이벤트"로 넓힌다 | 도구 단계 재진입(§4.5) |
 | FR-L4 | F.conversation.spec §3.5.4 | `turn.completed.status` 결정표에 §4.3 추가 행(취소 의도, 단계 상한, drive 예산·신호, 루프 run 실패)과 `error` 코드 값을 더한다 | `stopReason`만으로 정할 수 없는 경우 |
-| FR-L5 | F.conversation.spec §3.5.3 (반영됨: m2 F.8, `TurnNotice`) | `TurnUpdatedPayload`에 선택 필드 `notice?: { code: "repeat_detected" \| "gate_limit"; detail: JsonValue }`를 더한다 | 반복 감지·게이트 상한 알림(§4.9, §4.10) |
+| FR-L5 | F.conversation.spec §3.5.3 (반영됨: m2 F.8, `TurnNotice`) | `TurnUpdatedPayload`에 선택 필드 `notice?: { code: "repeat_detected" \| "gate_limit" \| "provider_retry"; detail: JsonValue }`를 더한다 | 반복 감지·게이트 상한·제공자 재시도 알림(§4.9, §4.10, §4.10a) |
 | FR-L6 | eng.context-map.design §5.1 | 접두 소유표를 F 이름으로 고친다: `turn.`·`step.`·`part.`·`checkpoint.`·`item.`(toolResult 제외) `core.loop`, `input.` `core.tasks`, `effect.`·toolResult `item.recorded` `core.tools` | 옛 이름(`message.`, `session.`, `tool.`) 정리 |
 | FR-L7 | architecture.runtime-flow.design §4.1 | 그림의 `TASKS->>EXT: on input`을 `HOST->>LP: admit`, `LP->>EXT: on input`, `LP->>TASKS: enqueue`로 고친다 | F.extensions §7과 어긋남(§4.1). L1.tasks.spec §7과 같은 요청 |
 | FR-L8 | F.conversation.spec §3.5.3 | (반영됨) `TurnStartedPayload`에 `scopeId: string \| null`을 더한다. drive turn은 drive 락 scope, 그 밖은 null | drive turn 멱등 키 `(scopeId, requestId)`(`X.primitives.spec` §3.6)를 투영 `p_turns`에서 찾는다(`L1.persistence.spec` FR-P10) |

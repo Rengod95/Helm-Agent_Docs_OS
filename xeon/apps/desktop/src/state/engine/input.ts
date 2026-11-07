@@ -4,6 +4,7 @@ import type {
   ItemRecord,
   ItemStartedPayload,
   ItemUpdatedPayload,
+  ProviderRetryDetail,
   ThreadId,
   ThreadStartedPayload,
   ThreadUpdatedPayload,
@@ -80,6 +81,8 @@ export type DurableFact =
   | (DurableBase & { readonly type: "thread.updated"; readonly payload: ThreadUpdatedPayload })
   | (DurableBase & { readonly type: "thread.closed" })
   | (DurableBase & { readonly type: "turn.started" })
+  /** 단계가 시작했다. 제공자 재시도 대기가 끝나 다음 응답을 기다리는 중임을 뜻한다(재시도 대기를 지운다) */
+  | (DurableBase & { readonly type: "step.started" })
   | (DurableBase & { readonly type: "turn.completed"; readonly payload: TurnCompletedPayload })
   | (DurableBase & { readonly type: "item.recorded"; readonly item: ItemRecord })
   | (DurableBase & {
@@ -121,6 +124,12 @@ export type VolatileFact =
     })
   /** 상태줄 칸 전체 스냅숏. 그 thread의 칸을 통째로 바꾼다 */
   | (VolatileBase & { readonly type: "dialog.status"; readonly payload: DialogStatusData })
+  /** 제공자 재시도 대기(휘발 `turn.updated` notice `provider_retry`). `receivedAt`은 이 기기가 받은 시각(ms)이다 */
+  | (VolatileBase & {
+      readonly type: "provider.retry";
+      readonly retry: ProviderRetryDetail;
+      readonly receivedAt: number;
+    })
   | (VolatileBase & { readonly type: "other" });
 
 /** 엔진 거울의 유일한 입력. 엔진 사실(알림, 요청 결과, 셸 상태)과 컨트롤러의 요청 표시만 담는다 */

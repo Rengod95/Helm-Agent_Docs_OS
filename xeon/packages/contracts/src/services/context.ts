@@ -13,7 +13,13 @@ import type {
   Usage,
 } from "../conversation/index.ts";
 import type { PortKey } from "../extensions/index.ts";
-import type { CacheMarks, CachePolicy, ContextUsageEstimate, ModelBinding } from "./models.ts";
+import type {
+  CacheMarks,
+  CachePolicy,
+  ContextUsageEstimate,
+  ModelBinding,
+  ModelRetryEvent,
+} from "./models.ts";
 
 // L1.context.spec §3.1. 구현은 core-context다. 컴팩션 내부 타입(§3.2)은 core-context 안에 둔다.
 
@@ -137,6 +143,8 @@ export interface CompactRequest {
   readonly stepId?: StepId;
   readonly willRetry: boolean;
   readonly signal?: AbortSignal;
+  /** 요약 호출을 다시 보내기 직전에 불린다(L1.models.spec §4.5). 던져도 요청은 이어진다 */
+  readonly onRetry?: (event: ModelRetryEvent) => void;
 }
 
 export type CompactOutcome =
@@ -214,12 +222,13 @@ export interface ContextService {
   estimate(messages: readonly Message[]): ContextUsageEstimate;
   /** agent-core AgentLoopConfig.convertToLlm에 넣는 변환. 던지지 않는다 */
   convertToLlm(messages: readonly AgentMessage[]): Message[];
-  /** 오버플로우 종결 메시지를 받아 단계당 한 번 컴팩션한다 */
+  /** 오버플로우 종결 메시지를 받아 단계당 한 번 컴팩션한다. `opts.onRetry`는 요약 호출의 재시도 알림이다 */
   recoverOverflow(
     threadId: ThreadId,
     stepId: StepId,
     failed: AssistantMessage,
     binding: ModelBinding,
+    opts?: { readonly onRetry?: (event: ModelRetryEvent) => void },
   ): Promise<OverflowRecovery>;
   /** 떠난 가지 요약 초안을 만든다. 커밋은 하지 않는다 */
   summarizeBranch(

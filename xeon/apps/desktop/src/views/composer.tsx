@@ -30,7 +30,9 @@ import {
   useEngineState,
   useLinkPhase,
   useOpenThreadId,
+  useRetrying,
   useThreadRunning,
+  type ProviderRetry,
 } from "../state/engine/index.ts";
 import { useComposerRequest, useObserving, useSelectedThreadId } from "../state/ui/index.ts";
 import { UsageBreakdownBody } from "./usage-breakdown.tsx";
@@ -62,6 +64,7 @@ import {
   looksLikeSecret,
   stopBlockedReasonOf,
 } from "./composer-model.ts";
+import { retryLineOf } from "./retry-status-model.ts";
 import {
   DEFAULT_MODEL_CHOICE,
   modelOptionsOf,
@@ -301,6 +304,38 @@ export function UsageRing(props: {
   );
 }
 
+/**
+ * 제공자 재시도를 기다리는 동안의 상태 줄. 남은 초는 1초마다 다시 센다. `clock`은 시험이 고정한다.
+ * 진행 상태라 경고 빛이 아니고, 초가 매초 바뀌므로 실시간 영역(role=status)으로 알리지 않는다.
+ */
+export function RetryStatus(props: {
+  readonly retry: ProviderRetry;
+  readonly clock?: () => number;
+}): ReactNode {
+  const clock = props.clock ?? Date.now;
+  const [now, setNow] = useState(clock);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(clock());
+    }, 1000);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [clock]);
+  const line = retryLineOf(props.retry, now);
+  return (
+    <p data-composer-retry className="m-0 px-1 text-ui-sm text-text-secondary">
+      {line.soon
+        ? t("desktop.composer.retryingSoon", { attempt: line.attempt, max: line.max })
+        : t("desktop.composer.retrying", {
+            attempt: line.attempt,
+            max: line.max,
+            seconds: line.seconds,
+          })}
+    </p>
+  );
+}
+
 /** 선택된 대화의 입력창만 초점 요청을 받는다. 선택이 없으면 어느 입력창이든 받는다 */
 export function ownsComposerRequest(selected: ThreadId | null, own: ThreadId): boolean {
   return selected === null || selected === own;
@@ -315,6 +350,8 @@ function ComposerFor(props: {
   const commands = useCommands();
   // 거울의 실행 중 값은 엔진이 없으면 오래된 것이다. 실행 중이라는 판단(첨부 잠금, 사용량)은 엔진이 있을 때만 쓴다
   const threadRunning = useThreadRunning(props.threadId);
+  // 제공자 재시도를 기다리는 중이면 입력창 위에 남은 초를 보인다(휘발, 응답이 오기 시작하면 사라진다)
+  const retrying = useRetrying(props.threadId);
   const running = threadRunning && !props.engineGone;
   const stopBlocked = stopBlockedReasonOf(props.engineGone);
   // 이 대화의 모델(정하지 않았으면 기본 모델)과 문맥 사용량(model-usage.ts)
@@ -766,6 +803,7 @@ function ComposerFor(props: {
           </Button>
         </p>
       )}
+      {retrying === null ? null : <RetryStatus key={retrying.at} retry={retrying} />}
       <Textarea
         ref={textarea}
         aria-label={t("desktop.composer.input.label")}

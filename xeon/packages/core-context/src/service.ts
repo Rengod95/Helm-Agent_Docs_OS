@@ -135,7 +135,7 @@ export function createContextService(deps: ContextServiceDeps): ContextService {
     },
     estimate: (messages: readonly Message[]) => deps.models.tokens.estimateContext(messages),
     convertToLlm,
-    recoverOverflow(threadId, stepId, failed, binding) {
+    recoverOverflow(threadId, stepId, failed, binding, opts) {
       if (compactDeps === null) return Promise.resolve(disabledOverflowRecovery());
       return recoverOverflow(
         { ...compactDeps, contextWindowOf },
@@ -143,6 +143,7 @@ export function createContextService(deps: ContextServiceDeps): ContextService {
         stepId,
         failed,
         binding,
+        opts,
       );
     },
     summarizeBranch(threadId, from, to, opts) {

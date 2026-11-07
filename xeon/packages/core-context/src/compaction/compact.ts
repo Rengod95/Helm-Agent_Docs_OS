@@ -21,6 +21,7 @@ import type {
   CompactRequest,
   ContextError,
   ModelService,
+  ModelRetryEvent,
   Redactor,
   ResolvedModel,
 } from "@fresnel/contracts/services";
@@ -209,6 +210,8 @@ export function summarizeVia(
     readonly threadId: ThreadId;
     readonly stepId: StepId | null;
     readonly timestamp: number;
+    /** 요약 호출을 다시 보내기 직전의 재시도 알림. 없으면 알리지 않는다 */
+    readonly onRetry?: (event: ModelRetryEvent) => void;
   },
   /** 요약 모델에 보내는 원문 가림. 없으면 그대로 보낸다 */
   redactor?: Pick<Redactor, "mask">,
@@ -221,6 +224,7 @@ export function summarizeVia(
         stepId: scope.stepId,
         role: "summary",
         ...(req.signal === undefined ? {} : { signal: req.signal }),
+        ...(scope.onRetry === undefined ? {} : { onRetry: scope.onRetry }),
         resolved,
         context: {
           systemPrompt: req.system,
@@ -373,6 +377,7 @@ export async function compactThread(
           threadId,
           stepId: request.stepId ?? null,
           timestamp: leafEvent.recordedAt,
+          ...(request.onRetry === undefined ? {} : { onRetry: request.onRetry }),
         },
         deps.redactor,
       ),

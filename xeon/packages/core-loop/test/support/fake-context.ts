@@ -13,6 +13,7 @@ import type {
   CompactCheck,
   CompactRequest,
   ContextService,
+  ModelRetryEvent,
   ContextComposition,
   ContextWarning,
   OverflowRecovery,
@@ -31,6 +32,8 @@ interface FakeCompaction {
   /** 호출 순서 기록: `should`, `compact`, `overflow`, `assemble` */
   readonly order: string[];
   readonly compactCalls: CompactRequest[];
+  /** 요약 호출이 다시 보내기 전에 알린 재시도. 컴팩션(임계, 오버플로우)을 부를 때마다 `onRetry`로 낸다 */
+  summaryRetries: readonly ModelRetryEvent[];
   readonly overflowCalls: { readonly stepId: string; readonly errorMessage: string | undefined }[];
 }
 
@@ -76,6 +79,7 @@ export function createFakeContext(options: {
     overflowQueue: [],
     order: [],
     compactCalls: [],
+    summaryRetries: [],
     overflowCalls: [],
   };
   const warnings: ContextWarning[] = [];
@@ -203,6 +207,7 @@ export function createFakeContext(options: {
       await Promise.resolve();
       compaction.order.push("compact");
       compaction.compactCalls.push(request);
+      for (const event of compaction.summaryRetries) request.onRetry?.(event);
       if (compaction.compactMode === "fail") {
         return err({ kind: "summary_failed", message: "fake summary failure" });
       }
@@ -226,10 +231,11 @@ export function createFakeContext(options: {
     },
     estimate: () => ({ tokens: 0, usageTokens: 0, trailingTokens: 0, lastUsageIndex: null }),
     convertToLlm,
-    async recoverOverflow(threadId, stepId, failed): Promise<OverflowRecovery> {
+    async recoverOverflow(threadId, stepId, failed, _binding, opts): Promise<OverflowRecovery> {
       await Promise.resolve();
       compaction.order.push("overflow");
       compaction.overflowCalls.push({ stepId, errorMessage: failed.errorMessage });
+      for (const event of compaction.summaryRetries) opts?.onRetry?.(event);
       const next = compaction.overflowQueue.shift();
       if (next === undefined) return { action: "fail", reason: "disabled" };
       if (next !== "retry") return next;

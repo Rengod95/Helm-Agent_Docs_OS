@@ -77,6 +77,13 @@ export function enterReset(state: EngineMirror, reason: ResetReason): EngineMirr
   return { ...state, link };
 }
 
+/** 이 대화의 제공자 재시도 대기를 지운다. 응답이 오기 시작했거나 단계·턴이 시작·끝났다는 뜻이다 */
+function withoutRetrying(state: EngineMirror, threadId: ThreadId): EngineMirror {
+  if (state.retrying[threadId] === undefined) return state;
+  const { [threadId]: _old, ...rest } = state.retrying;
+  return { ...state, retrying: rest };
+}
+
 function withTurnFailure(
   state: EngineMirror,
   threadId: ThreadId,
@@ -101,6 +108,7 @@ export function reduceMirror(state: EngineMirror, input: MirrorInput): Reduced<E
               engine: input.state,
               link: { phase: "offline" },
               streaming: EMPTY_STREAMING,
+              retrying: {},
             },
             "applied",
           );
@@ -319,7 +327,11 @@ function applyChunk(state: EngineMirror, fact: VolatileFact): Reduced<EngineMirr
         toolCallId: p.toolCallId,
         parts: [],
       };
-      return keep({ ...state, streaming: putStreaming(counted, item) }, "applied");
+      // 응답이 오기 시작했다: 제공자 재시도 대기는 끝났다
+      return keep(
+        withoutRetrying({ ...state, streaming: putStreaming(counted, item) }, fact.threadId),
+        "applied",
+      );
     }
     case "item.updated": {
       const update = fact.payload.update;
@@ -330,13 +342,16 @@ function applyChunk(state: EngineMirror, fact: VolatileFact): Reduced<EngineMirr
           const current =
             counted.items[update.delta.itemId] ?? newAssistantItem(fact, update.delta);
           return keep(
-            { ...state, streaming: putStreaming(counted, applyDelta(current, update.delta)) },
+            withoutRetrying(
+              { ...state, streaming: putStreaming(counted, applyDelta(current, update.delta)) },
+              fact.threadId,
+            ),
             "applied",
           );
         }
         case "part_completed":
         case "tool_progress":
-          return keep({ ...state, streaming: counted }, "applied");
+          return keep(withoutRetrying({ ...state, streaming: counted }, fact.threadId), "applied");
         default:
           return assertNever(update, "applyChunk.update");
       }
@@ -367,6 +382,18 @@ function applyChunk(state: EngineMirror, fact: VolatileFact): Reduced<EngineMirr
           statusItems: {
             ...state.statusItems,
             [fact.payload.threadId]: fact.payload.items.slice(0, STATUS_ITEM_CAP),
+          },
+        },
+        "applied",
+      );
+    case "provider.retry":
+      return keep(
+        {
+          ...state,
+          streaming: counted,
+          retrying: {
+            ...state.retrying,
+            [fact.threadId]: { ...fact.retry, at: fact.receivedAt },
           },
         },
         "applied",
@@ -603,7 +630,11 @@ function applyFact(state: EngineMirror, fact: DurableFact): EngineMirror {
               ...running.recentTurnIds,
               [fact.threadId]: withRecentTurn(running.recentTurnIds[fact.threadId], fact.turnId),
             };
-      return withTurnFailure({ ...running, latestTurnId, recentTurnIds }, fact.threadId, null);
+      return withTurnFailure(
+        withoutRetrying({ ...running, latestTurnId, recentTurnIds }, fact.threadId),
+        fact.threadId,
+        null,
+      );
     }
     case "turn.completed": {
       // 닫힌 turn은 복구 표식도 지운다(T6가 표식을 지운다, L1.loop.spec §4.8). 남겨 두면 "이어서 실행" 띠가 그대로 보인다
@@ -615,11 +646,16 @@ function applyFact(state: EngineMirror, fact: DurableFact): EngineMirror {
       const failure =
         fact.payload.status === "failed" ? (fact.payload.error ?? unknownFailureText()) : null;
       return withTurnFailure(
-        { ...done, streaming: dropStreamingTurn(done.streaming, fact.threadId, fact.turnId) },
+        withoutRetrying(
+          { ...done, streaming: dropStreamingTurn(done.streaming, fact.threadId, fact.turnId) },
+          fact.threadId,
+        ),
         fact.threadId,
         failure,
       );
     }
+    case "step.started":
+      return withoutRetrying(state, fact.threadId);
     case "item.recorded":
       // transcript 반영은 applyBatch가 batch 단위로 한 번에 한다
       return { ...state, streaming: settleItem(state.streaming, fact.item.itemId) };

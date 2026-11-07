@@ -81,8 +81,8 @@ export interface ContextService {
   estimate(messages: readonly Message[]): ContextUsageEstimate;
   /** core-loop가 스트림을 열 때 부르는 변환(adr.0009). §4.1 3번 규칙과 같다. 던지지 않는다 */
   convertToLlm(messages: readonly AgentMessage[]): Message[];
-  /** 오버플로우 종결 메시지를 받아 단계당 한 번 컴팩션한다(§4.7) */
-  recoverOverflow(threadId: ThreadId, stepId: StepId, failed: AssistantMessage, binding: ModelBinding): Promise<OverflowRecovery>;
+  /** 오버플로우 종결 메시지를 받아 단계당 한 번 컴팩션한다(§4.7). `opts.onRetry`는 요약 호출의 재시도 알림이다(L1.loop §4.10a) */
+  recoverOverflow(threadId: ThreadId, stepId: StepId, failed: AssistantMessage, binding: ModelBinding, opts?: { readonly onRetry?: (event: ModelRetryEvent) => void }): Promise<OverflowRecovery>;
   /** 떠난 가지 요약 초안을 만든다. 커밋은 하지 않는다(§4.9) */
   summarizeBranch(threadId: ThreadId, from: EventId, to: EventId, opts?: { readonly instructions?: string; readonly signal?: AbortSignal }):
     Promise<Result<BranchSummaryDraft, ContextError>>;
@@ -168,6 +168,8 @@ export interface CompactRequest {
   readonly stepId?: StepId;
   readonly willRetry: boolean;
   readonly signal?: AbortSignal;
+  /** 요약 호출을 다시 보내기 직전에 불린다(L1.models §4.5, L1.loop §4.10a) */
+  readonly onRetry?: (event: ModelRetryEvent) => void;
 }
 export type CompactOutcome =
   | { readonly status: "compacted"; readonly eventId: EventId; readonly tokensBefore: number; readonly fromExtension: string | null }

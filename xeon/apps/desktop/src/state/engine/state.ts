@@ -6,6 +6,7 @@ import type {
   ItemRecord,
   PartId,
   PartKind,
+  ProviderRetryDetail,
   ThreadId,
   TurnId,
 } from "@fresnel/contracts/conversation";
@@ -178,6 +179,9 @@ export const QUEUED_INPUT_CAP = 20;
 /** 끝난 입력 id를 기억하는 수 */
 export const SETTLED_INPUT_CAP = 256;
 
+/** 제공자 재시도 대기 한 건(휘발). `at`은 이 기기가 받은 시각(ms)이다. 남은 초는 `at + waitMs`까지 센다 */
+export type ProviderRetry = ProviderRetryDetail & { readonly at: number };
+
 /** 상태줄 칸 수 상한(`DialogStatusData`의 `items` 상한과 같다) */
 export const STATUS_ITEM_CAP = 32;
 
@@ -222,6 +226,11 @@ export type EngineMirror = {
   readonly settledInputs: readonly EventId[];
   /** 변경 검토 결과(리뷰마다 가장 최근 라운드 하나). 받은 순서대로 가장 새 것이 뒤에 오고 `REVIEW_RESULT_CAP`개까지 둔다 */
   readonly reviewResults: readonly ReviewResult[];
+  /**
+   * thread별 제공자 재시도 대기(휘발 `provider_retry`). 다음 응답이 오기 시작하거나(item 갱신), 단계가 시작하거나, 턴이 끝나면 지운다.
+   * 연결이 끊겨 거울을 head부터 다시 맞추면 비운다(휘발 알림은 저장되지 않는다)
+   */
+  readonly retrying: Readonly<Record<string, ProviderRetry>>;
 };
 
 export const EMPTY_STREAMING: Streaming = {
@@ -250,4 +259,5 @@ export const INITIAL_MIRROR: EngineMirror = {
   statusItems: {},
   settledInputs: [],
   reviewResults: [],
+  retrying: {},
 };

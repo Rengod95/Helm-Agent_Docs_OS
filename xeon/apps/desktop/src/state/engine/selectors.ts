@@ -14,6 +14,7 @@ import type {
   Link,
   PendingApproval,
   PlanRecord,
+  ProviderRetry,
   QueuedInput,
   StreamingItem,
   TransitionRecord,
@@ -140,6 +141,9 @@ export const selectOpenThreadRunning = (s: EngineMirror): boolean => {
 };
 export const selectTurnFailure = (s: EngineMirror, id: ThreadId | null): string | null =>
   id === null ? null : (s.turnFailures[id] ?? null);
+/** 이 대화의 제공자 재시도 대기(휘발). 없으면 null이다 */
+export const selectRetrying = (s: EngineMirror, id: ThreadId | null): ProviderRetry | null =>
+  id === null ? null : (s.retrying[id] ?? null);
 /**
  * 응답 없이 끝난 사용자 말 item. 열린 대화의 마지막으로 보이는 item이 사용자 말이고(내용 없이 실패한 어시스턴트 item은 건너뛴다), 대화가 쉬는 중이며, 이어서 실행할 표식과 진행 중 item이 없을 때다.
  * 실패 문장은 이 연결에서만 거울에 있으므로 다시 켠 뒤에도 같은 표식이 서도록 기록의 모양으로 정한다(화면 표식만, 모델 문맥은 엔진 몫).
