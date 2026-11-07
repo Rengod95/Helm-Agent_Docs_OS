@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { catalogOf } from "@fresnel/client/i18n";
 import { scheduleRowOf, type ScheduleLastRun } from "@fresnel/client";
 import type { RunView, ScheduleEntryView, ScheduleListItem } from "@fresnel/contracts/capabilities";
+import type { ThreadOrigin } from "@fresnel/contracts/wire";
 import {
   checkDraft,
   checkEditDraft,
@@ -22,6 +23,7 @@ import {
   rowMenuOf,
   rowsOf,
   scheduleReducer,
+  scheduleRunSignatureOf,
   type ScheduleState,
 } from "../../src/views/pages/schedules/schedule-model.ts";
 import {
@@ -37,6 +39,7 @@ import {
   timeTextOf,
   triggerSummaryOf,
 } from "../../src/views/pages/schedules/schedule-text.ts";
+import { summary, thr } from "../state/helpers.ts";
 
 // 예약 화면의 상태 기계, 시트 검사, 키 뜻, 문장 키. 시각은 NOW로 고정하고 값으로 비교한다.
 
@@ -782,5 +785,37 @@ describe("edit sheet and run history", () => {
       reason: "offline",
     });
     expect(failed.runs).toEqual({ kind: "failed", scheduleId: "sch_a", reason: "offline" });
+  });
+});
+
+describe("run signature of schedule threads", () => {
+  const SCHEDULE: ThreadOrigin = { kind: "schedule", scheduleId: "daily" };
+
+  test("threads that a user or a remote client started do not count", () => {
+    expect(scheduleRunSignatureOf([summary(thr(1), { status: "running" })])).toBe("");
+    const withUser = [
+      summary(thr(1), { status: "running" }),
+      summary(thr(2), { status: "idle", origin: SCHEDULE }),
+    ];
+    expect(scheduleRunSignatureOf(withUser)).toBe(
+      scheduleRunSignatureOf([summary(thr(2), { status: "idle", origin: SCHEDULE })]),
+    );
+    expect(scheduleRunSignatureOf(withUser)).toBe(`${thr(2)}:idle`);
+  });
+
+  test("a schedule thread that changes status changes the signature, so a run start or end is seen", () => {
+    const idle = scheduleRunSignatureOf([summary(thr(2), { status: "idle", origin: SCHEDULE })]);
+    const running = scheduleRunSignatureOf([
+      summary(thr(2), { status: "running", origin: SCHEDULE }),
+    ]);
+    expect(running).toBe(`${thr(2)}:running`);
+    expect(running).not.toBe(idle);
+  });
+
+  test("the order of the threads does not change the signature", () => {
+    const a = summary(thr(2), { status: "idle", origin: SCHEDULE });
+    const b = summary(thr(3), { status: "running", origin: SCHEDULE });
+    expect(scheduleRunSignatureOf([a, b])).toBe(`${thr(2)}:idle|${thr(3)}:running`);
+    expect(scheduleRunSignatureOf([b, a])).toBe(scheduleRunSignatureOf([a, b]));
   });
 });

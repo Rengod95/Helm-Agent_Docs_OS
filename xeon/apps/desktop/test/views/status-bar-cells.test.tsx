@@ -257,6 +257,66 @@ function mirrorWithFailure(): EngineMirror {
   return h.store.read.getState();
 }
 
+/**
+ * 이 연결에서 시작한 예약 대화가 실패로 끝난 거울. `thread.list`를 읽지 않았고, 출처는 예약 입력 사실(`input.queued`)에서 온다.
+ */
+function mirrorWithLiveScheduleFailure(): EngineMirror {
+  const h = harness();
+  h.store.ingest({
+    type: "subscribed",
+    sub: SUB,
+    storeId: STORE,
+    start: 4,
+    live: true,
+    from: "head",
+  });
+  h.store.ingest({
+    type: "batch",
+    sub: SUB,
+    from: 4,
+    to: 8,
+    caughtUp: true,
+    facts: [
+      {
+        type: "thread.started",
+        seq: 5,
+        eventId: evt(5),
+        threadId: thr(2),
+        turnId: null,
+        at: "t",
+        payload: { title: "매일 정리", forkedFrom: null },
+      },
+      {
+        type: "input.queued",
+        seq: 6,
+        eventId: evt(6),
+        threadId: thr(2),
+        turnId: null,
+        at: "t",
+        input: {
+          mode: "followUp",
+          requestId: "sched-1",
+          sourceType: "schedule",
+          scheduleId: "daily",
+          preview: { kind: "text", text: "캐시를 정리한다" },
+        },
+      },
+      { type: "turn.started", seq: 7, eventId: evt(7), threadId: thr(2), turnId: trn(1), at: "t" },
+      {
+        type: "turn.completed",
+        seq: 8,
+        eventId: evt(8),
+        threadId: thr(2),
+        turnId: trn(1),
+        at: "t",
+        payload: { status: "failed", stepCount: 0, usage: null, error: "rate_limited" },
+      },
+    ],
+  });
+  h.store.flush();
+  return h.store.read.getState();
+}
+
 /** 상태 표시줄 전체를 주어진 거울로 그린다 */
 function barWith(state: EngineMirror): string {
   return renderToString(
@@ -291,6 +351,23 @@ describe("status bar in-progress cell with a failed schedule", () => {
     const html = barWith(h.store.read.getState());
     const live = html.slice(html.indexOf('data-bar-cell="live"'));
     expect(live.slice(0, live.indexOf("</button>"))).not.toContain("data-bar-dot");
+  });
+
+  test("a schedule run started on this connection lands in the schedule group with its failure row first", () => {
+    const state = mirrorWithLiveScheduleFailure();
+    expect(state.threads.byId[thr(2)]?.origin).toEqual({ kind: "schedule", scheduleId: "daily" });
+    expect(liveRowsOf(Object.values(state.threads.byId), state.turnFailures)).toEqual([
+      {
+        kind: "schedule",
+        threadId: thr(2),
+        title: "매일 정리",
+        failed: true,
+        reason: "rate_limited",
+      },
+    ]);
+    const html = barWith(state);
+    const live = html.slice(html.indexOf('data-bar-cell="live"'));
+    expect(live.slice(0, live.indexOf("</button>"))).toContain('data-bar-dot="danger"');
   });
 });
 

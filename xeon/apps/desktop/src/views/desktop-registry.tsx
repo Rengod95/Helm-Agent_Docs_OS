@@ -25,6 +25,7 @@ import { SafeModeCard } from "./safe-mode-card.tsx";
 import { SetupBanner } from "./setup-banner.tsx";
 import { SpawnedNotice } from "./spawned-notice.tsx";
 import { SchedulesScreen } from "./pages/schedules/schedules-screen.tsx";
+import { useFailedScheduleCount } from "./pages/schedules/schedule-badge.ts";
 import { ConnectionScreen } from "./pages/connection/connection-screen.tsx";
 import { FirstRunScreen } from "./pages/first-run/first-run-screen.tsx";
 import { ProposalsScreen } from "./pages/proposals/proposals-screen.tsx";
@@ -175,11 +176,13 @@ const CHAT_SCREEN: ScreenDef = {
   render: () => <ChatScreen />,
 };
 
+// 내비 배지는 마지막 실행이 실패한 예약 수다(0이면 안 보인다). 수는 `schedule-badge.ts`가 읽는다
 const SCHEDULES_SCREEN: ScreenDef = {
   id: "schedules",
   area: "chat",
   label: "desktop.shell.nav.schedules",
   icon: <CalendarClock />,
+  Badge: (p) => p.render(useFailedScheduleCount()),
   render: () => <SchedulesScreen />,
 };
 

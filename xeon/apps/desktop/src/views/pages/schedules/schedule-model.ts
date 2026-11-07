@@ -1,7 +1,7 @@
 import { assertNever } from "@fresnel/contracts";
 import type { ScheduleListItem } from "@fresnel/contracts/capabilities";
 import { scheduleListView, type ScheduleRow } from "@fresnel/client";
-import type { WireParams, WireResult } from "@fresnel/contracts/wire";
+import type { ThreadSummary, WireParams, WireResult } from "@fresnel/contracts/wire";
 import type { CommandError } from "../../commands.ts";
 import {
   draftOfEntry,
@@ -200,6 +200,19 @@ function moved(state: ScheduleState, delta: 1 | -1): ScheduleState {
 /** 거르기 값을 `schedule.list` 인자로 바꾼다. 모두는 빈 인자다(인자를 생략하면 가장 새 200개다) */
 export function listParamsOf(filter: ScheduleFilter): WireParams<"schedule.list"> {
   return filter === "enabled" ? { enabled: true } : {};
+}
+
+/**
+ * 예약이 만든 대화의 `대화 id:상태` 목록을 한 줄로 모은다. 예약 실행이 시작하거나 끝나면(상태가 바뀌면) 값이 바뀌어,
+ * 화면이 목록을 다시 읽을 때를 안다. 예약이 아닌 대화는 뺀다. 대화 id로 정렬하므로 목록 순서가 바뀌어도 값은 같다.
+ */
+export function scheduleRunSignatureOf(threads: readonly ThreadSummary[]): string {
+  return threads
+    .flatMap((thread) =>
+      thread.origin?.kind === "schedule" ? [`${thread.threadId}:${thread.status}`] : [],
+    )
+    .toSorted()
+    .join("|");
 }
 
 export interface RowMenuItem {

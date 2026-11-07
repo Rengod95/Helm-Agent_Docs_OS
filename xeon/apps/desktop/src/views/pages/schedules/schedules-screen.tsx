@@ -21,6 +21,7 @@ import {
   listParamsOf,
   noticeOf,
   scheduleReducer,
+  scheduleRunSignatureOf,
   selectedItemOf,
   type ScheduleFilter,
 } from "./schedule-model.ts";
@@ -69,6 +70,16 @@ export function SchedulesScreen(): ReactNode {
     if (live) detach(load(), rethrow);
     else dispatch({ type: "listFailed", reason: "offline" });
   }, [load, live]);
+
+  // 예약 실행이 시작하거나 끝나면(예약 대화의 상태가 바뀌면) 목록을 다시 읽는다. 첫 값은 위의 연결 효과가 읽으므로 건너뛴다
+  const runSignature = scheduleRunSignatureOf(threads);
+  const seenRunSignature = useRef<string | null>(null);
+  useEffect(() => {
+    const previous = seenRunSignature.current;
+    seenRunSignature.current = runSignature;
+    if (previous === null || previous === runSignature || !live) return;
+    detach(load(), rethrow);
+  }, [load, live, runSignature]);
 
   const failNotice = (text: MessageRef): void => {
     dispatch({ type: "notice", notice: noticeOf(text, "danger") });
