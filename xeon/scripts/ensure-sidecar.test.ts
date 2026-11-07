@@ -148,6 +148,8 @@ function stamp(repo: Repo): string | undefined {
   return existsSync(path) ? readFileSync(path, "utf8").trim() : undefined;
 }
 
+// Each test makes a git repo and spawns bash and git several times: about 1 s on a quiet machine, past bun's 5 s default under load,
+// so each test has 30 s like the process tests in guard.test.ts.
 test("without a binary the first run builds once and writes the stamp", async () => {
   const repo = await makeRepo();
   const run = await ensure(repo);
@@ -157,7 +159,7 @@ test("without a binary the first run builds once and writes the stamp", async ()
   expect(builds(repo)).toBe(1);
   expect(existsSync(join(repo.root, BINARY))).toBe(true);
   expect(stamp(repo)).toMatch(/^[0-9a-f]{64}$/);
-});
+}, 30_000);
 
 test("an unchanged tree reports the binary as current and does not rebuild", async () => {
   const repo = await makeRepo();
@@ -170,7 +172,7 @@ test("an unchanged tree reports the binary as current and does not rebuild", asy
   expect(buildLog(repo)).toBe(logBefore);
   expect(builds(repo)).toBe(1);
   expect(stamp(repo)).toBe(stampBefore);
-});
+}, 30_000);
 
 test("a source changed after the build rebuilds, with its mtime newer than the binary's", async () => {
   const repo = await makeRepo();
@@ -190,7 +192,7 @@ test("a source changed after the build rebuilds, with its mtime newer than the b
   expect(run.stdout).toContain("sources changed or no binary, building");
   expect(builds(repo)).toBe(2);
   expect(stamp(repo)).not.toBe(stampBefore);
-});
+}, 30_000);
 
 test("a binary without its stamp is rebuilt", async () => {
   const repo = await makeRepo();
@@ -204,7 +206,7 @@ test("a binary without its stamp is rebuilt", async () => {
   expect(run.stdout).toContain("sources changed or no binary, building");
   expect(builds(repo)).toBe(2);
   expect(stamp(repo)).toBe(stampBefore);
-});
+}, 30_000);
 
 const reporting = (version: string): string =>
   `#!/usr/bin/env bash\necho '{"cli":"${version}","contract":"0.1.0","bun":"1.0.0"}'\n`;
@@ -223,4 +225,4 @@ test("a binary that reports a release version is stale and is rebuilt, one that 
   expect(run.exitCode).toBe(0);
   expect(run.stdout).toContain("sources changed or no binary, building");
   expect(builds(repo)).toBe(2);
-});
+}, 30_000);
