@@ -171,6 +171,91 @@ const DbRestoreReplySchema: TObject<{ exitCode: TInteger; stdout: TString; stder
 export type DbRestoreReply = Static<typeof DbRestoreReplySchema>;
 
 /**
+ * 백업 보고서(`fresnel db export --json`의 stdout, platform-store `ExportReport`와 같은 모양).
+ * 셸이 보낸 글이므로 스키마로 검사한다(TY-10). 모르는 필드는 거절한다.
+ */
+const BackupReportSchema: TObject<{
+  destDir: TString;
+  exportedAt: TInteger;
+  blobCount: TInteger;
+  missingBlobs: TArray<TString>;
+}> = Type.Object(
+  {
+    destDir: Type.String({ maxLength: 4096 }),
+    exportedAt: Type.Integer({ minimum: 0 }),
+    blobCount: Type.Integer({ minimum: 0 }),
+    missingBlobs: Type.Array(Type.String({ maxLength: 128 })),
+  },
+  { additionalProperties: false },
+);
+export type BackupReport = Static<typeof BackupReportSchema>;
+
+/** 복원 전 사본 하나(`fresnel db usage --json`의 `previous` 원소). 이름은 `db restore`가 만든 UTC 시각 폴더 이름이다 */
+const PreviousCopySchema: TObject<{ name: TString; bytes: TInteger }> = Type.Object(
+  {
+    name: Type.String({ maxLength: 128 }),
+    bytes: Type.Integer({ minimum: 0 }),
+  },
+  { additionalProperties: false },
+);
+
+/** 저장 공간 사용량(`fresnel db usage --json`의 stdout). 개수와 바이트 수는 0 이상의 정수다 */
+const StorageUsageSchema: TObject<{
+  dataDir: TString;
+  conversations: TInteger;
+  attachments: TInteger;
+  measurements: TInteger;
+  logs: TInteger;
+  restorePrevious: TInteger;
+  previous: TArray<typeof PreviousCopySchema>;
+}> = Type.Object(
+  {
+    dataDir: Type.String({ maxLength: 4096 }),
+    conversations: Type.Integer({ minimum: 0 }),
+    attachments: Type.Integer({ minimum: 0 }),
+    measurements: Type.Integer({ minimum: 0 }),
+    logs: Type.Integer({ minimum: 0 }),
+    restorePrevious: Type.Integer({ minimum: 0 }),
+    previous: Type.Array(PreviousCopySchema),
+  },
+  { additionalProperties: false },
+);
+export type StorageUsage = Static<typeof StorageUsageSchema>;
+
+/** 복원 전 사본 하나를 지운 결과(`fresnel db previous-rm <이름> --json`의 stdout) */
+const PreviousRemovedSchema: TObject<{ removed: TString; freedBytes: TInteger }> = Type.Object(
+  {
+    removed: Type.String({ maxLength: 128 }),
+    freedBytes: Type.Integer({ minimum: 0 }),
+  },
+  { additionalProperties: false },
+);
+export type PreviousRemoved = Static<typeof PreviousRemovedSchema>;
+
+/** 셸 `db_export`의 stdout을 읽는다. 종료 코드 0일 때만 이것으로 읽는다(app/storage.ts) */
+export function parseBackupReport(text: string): Result<BackupReport, JsonParseError | ParseError> {
+  const json = parseJson(text);
+  if (!json.ok) return err(json.error);
+  return parse(BackupReportSchema, json.value);
+}
+
+/** 셸 `db_usage`의 stdout을 읽는다. 종료 코드 0일 때만 이것으로 읽는다(app/storage.ts) */
+export function parseStorageUsage(text: string): Result<StorageUsage, JsonParseError | ParseError> {
+  const json = parseJson(text);
+  if (!json.ok) return err(json.error);
+  return parse(StorageUsageSchema, json.value);
+}
+
+/** 셸 `db_previous_remove`의 stdout을 읽는다. 종료 코드 0일 때만 이것으로 읽는다(app/storage.ts) */
+export function parsePreviousRemoved(
+  text: string,
+): Result<PreviousRemoved, JsonParseError | ParseError> {
+  const json = parseJson(text);
+  if (!json.ok) return err(json.error);
+  return parse(PreviousRemovedSchema, json.value);
+}
+
+/**
  * 키 등록 명령(`secret_register`)의 오류. 셸이 `{kind, ...}` 객체로 거부한다(셸 모듈 `secret_register`).
  * `unknown`은 IPC 자체가 실패했거나 셸이 모르는 모양을 돌려준 경우다.
  */
@@ -253,6 +338,17 @@ export interface DesktopIpc {
    * 셸이 거절하면(원격 대상, 이미 진행 중 등) 오류 코드가 `IpcError`로 온다. 종료 코드의 뜻은 app/restore.ts가 나눈다.
    */
   dbRestore(backupDir: string): Promise<Result<DbRestoreReply, IpcError>>;
+  /**
+   * 백업 만들기(`db_export`). 셸이 `parent` 아래에 UTC 시각 이름의 새 폴더를 만들고 `fresnel db export <폴더> --json --yes`를 엔진 없이 실행한다.
+   * 종료 코드의 뜻은 app/storage.ts가 나눈다. 셸이 거절하면 `IpcError`다.
+   */
+  dbExport(parent: string): Promise<Result<DbRestoreReply, IpcError>>;
+  /** 저장 공간 사용량(`db_usage`). `fresnel db usage --json`의 실행 결과를 그대로 준다 */
+  dbUsage(): Promise<Result<DbRestoreReply, IpcError>>;
+  /** 복원 전 사본 하나를 지운다(`db_previous_remove`). 이름 모양은 셸이 먼저 본다 */
+  dbPreviousRemove(name: string): Promise<Result<DbRestoreReply, IpcError>>;
+  /** 데이터 폴더를 OS 파일 관리자로 연다(`open_data_dir`). 셸이 열지 못하면 `IpcError`다 */
+  openDataDir(): Promise<Result<null, IpcError>>;
   /** 데스크톱 로컬 설정 파일의 내용(V-14). 파일이 없으면 빈 객체 */
   readSettings(): Promise<Result<Readonly<Record<string, unknown>>, IpcError>>;
   /** 로컬 설정 한 키를 쓴다. 모르는 키나 범위 밖 값은 셸이 거부한다 */
@@ -300,6 +396,17 @@ function restartArgs(options: RestartOptions = {}): RestartOptions {
   };
 }
 
+/** `db_*` 명령 하나의 실행 결과를 읽는다. 종료 코드와 두 출력의 모양이 맞지 않으면 `invalid`다 */
+async function dbReplyOf(
+  command: string,
+  run: () => Promise<unknown>,
+): Promise<Result<DbRestoreReply, IpcError>> {
+  const raw = await call<unknown>(command, run);
+  if (!raw.ok) return raw;
+  const parsed = parse(DbRestoreReplySchema, raw.value);
+  return parsed.ok ? parsed : { ok: false, error: { kind: "invalid", command } };
+}
+
 /** 셸 다리(Electron)로 DesktopIpc를 만든다 */
 export function createDesktopIpc(bridge: ShellBridge): DesktopIpc {
   return {
@@ -341,13 +448,19 @@ export function createDesktopIpc(bridge: ShellBridge): DesktopIpc {
         await bridge.invoke("engine_retarget", { target });
         return null;
       }),
-    async dbRestore(backupDir) {
-      const raw = await call<unknown>("db_restore", () =>
-        bridge.invoke("db_restore", { backupDir }),
-      );
+    dbRestore: (backupDir) =>
+      dbReplyOf("db_restore", () => bridge.invoke("db_restore", { backupDir })),
+    dbExport: (parent) => dbReplyOf("db_export", () => bridge.invoke("db_export", { parent })),
+    dbUsage: () => dbReplyOf("db_usage", () => bridge.invoke("db_usage")),
+    dbPreviousRemove: (name) =>
+      dbReplyOf("db_previous_remove", () => bridge.invoke("db_previous_remove", { name })),
+    async openDataDir() {
+      const raw = await call<unknown>("open_data_dir", () => bridge.invoke("open_data_dir"));
       if (!raw.ok) return raw;
-      const parsed = parse(DbRestoreReplySchema, raw.value);
-      return parsed.ok ? parsed : { ok: false, error: { kind: "invalid", command: "db_restore" } };
+      // 셸은 연 뒤 아무 값도 싣지 않는다(null). 다른 값은 셸이 보낸 모양이 아니다(TY-10)
+      return raw.value === null
+        ? { ok: true, value: null }
+        : { ok: false, error: { kind: "invalid", command: "open_data_dir" } };
     },
     async readSettings() {
       const raw = await call<unknown>("desktop_settings_read", () =>

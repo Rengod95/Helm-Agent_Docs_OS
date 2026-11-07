@@ -3,7 +3,7 @@ import { createApp } from "../../src/app/bootstrap.ts";
 import { err, ok } from "@fresnel/contracts";
 import { summary, thr } from "../state/helpers.ts";
 import { engineFake, until } from "../app/support.ts";
-import { fakeIpc } from "./fake-ipc.ts";
+import { BACKUP_REPORT, PREVIOUS_REMOVED, STORAGE_USAGE, fakeIpc } from "./fake-ipc.ts";
 import { rawShellIpc, shellMockIpc } from "./shell-mock.ts";
 
 // createDesktopIpc를 Electron 다리 위에서: 명령 이름과 인자 모양, 채널 메시지(바이트와 상태)의 해석, 오류 코드 변환을 본다.
@@ -149,6 +149,80 @@ describe("db_restore over the shell bridge", () => {
     expect(await ipc.dbRestore("/backups/export-1")).toEqual({
       ok: false,
       error: { kind: "invalid", command: "db_restore" },
+    });
+  });
+});
+
+describe("the storage tools over the shell bridge", () => {
+  test("db_export sends the parent folder as parent and hands back the exit code and both outputs", async () => {
+    const reply = { exitCode: 0, stdout: JSON.stringify(BACKUP_REPORT), stderr: "" };
+    const fake = fakeIpc({ dbExportResult: ok(reply) });
+    const shell = mocked(fake);
+    expect(await shell.ipc.dbExport("/Users/me/Desktop")).toEqual({ ok: true, value: reply });
+    expect(shell.calls.map((call) => [call.cmd, call.args])).toEqual([
+      ["db_export", { parent: "/Users/me/Desktop" }],
+    ]);
+    expect(fake.dbExportCalls).toEqual(["/Users/me/Desktop"]);
+  });
+
+  test("db_usage is called without arguments and hands back the usage reply", async () => {
+    const fake = fakeIpc();
+    const shell = mocked(fake);
+    expect(await shell.ipc.dbUsage()).toEqual({
+      ok: true,
+      value: { exitCode: 0, stdout: JSON.stringify(STORAGE_USAGE), stderr: "" },
+    });
+    expect(shell.calls.map((call) => call.cmd)).toEqual(["db_usage"]);
+    expect(fake.dbUsageCalls).toBe(1);
+  });
+
+  test("db_previous_remove sends the copy name as name", async () => {
+    const fake = fakeIpc();
+    const shell = mocked(fake);
+    const name = "20261104T000000000Z";
+    expect(await shell.ipc.dbPreviousRemove(name)).toEqual({
+      ok: true,
+      value: { exitCode: 0, stdout: JSON.stringify(PREVIOUS_REMOVED), stderr: "" },
+    });
+    expect(shell.calls.map((call) => [call.cmd, call.args])).toEqual([
+      ["db_previous_remove", { name }],
+    ]);
+    expect(fake.dbPreviousRemoveCalls).toEqual([name]);
+  });
+
+  test("a string rejection from db_export becomes the command code", async () => {
+    const fake = fakeIpc({
+      dbExportResult: err({ kind: "command", command: "db_export", code: "remote-target" }),
+    });
+    const shell = mocked(fake);
+    expect(await shell.ipc.dbExport("/Users/me/Desktop")).toEqual({
+      ok: false,
+      error: { kind: "command", command: "db_export", code: "remote-target" },
+    });
+  });
+
+  test("open_data_dir sends no arguments and a null reply is success", async () => {
+    const fake = fakeIpc();
+    const shell = mocked(fake);
+    expect(await shell.ipc.openDataDir()).toEqual({ ok: true, value: null });
+    expect(shell.calls.map((call) => call.cmd)).toEqual(["open_data_dir"]);
+    expect(fake.openDataDirCalls).toBe(1);
+  });
+
+  test("a reply to open_data_dir that is not null is an invalid error", async () => {
+    const ipc = rawShellIpc(() => "/data");
+    expect(await ipc.openDataDir()).toEqual({
+      ok: false,
+      error: { kind: "invalid", command: "open_data_dir" },
+    });
+  });
+
+  test("a db_usage reply whose exit code is not an integer is an invalid error", async () => {
+    // 종료 코드가 정수가 아니면 셸이 보낸 값이 아니다(TY-10)
+    const ipc = rawShellIpc(() => ({ exitCode: "0", stdout: "{}", stderr: "" }));
+    expect(await ipc.dbUsage()).toEqual({
+      ok: false,
+      error: { kind: "invalid", command: "db_usage" },
     });
   });
 });

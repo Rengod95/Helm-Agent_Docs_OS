@@ -81,7 +81,14 @@ import type {
   Screen,
   SettingsJump,
 } from "../state/ui/index.ts";
-import type { EngineTarget, RestartOptions, RestoreReport } from "../transport/ipc.ts";
+import type {
+  BackupReport,
+  EngineTarget,
+  PreviousRemoved,
+  RestartOptions,
+  RestoreReport,
+  StorageUsage,
+} from "../transport/ipc.ts";
 import type { PaletteUses } from "./palette/palette-model.ts";
 
 // 화면이 부르는 명령. 구현은 src/app/commands.ts다. 명령은 거울을 바꾸지 않는다(FS-02):
@@ -539,6 +546,43 @@ export interface RestoreCommands {
   run(backupDir: string): Promise<Result<RestoreReport, RestoreRefusal>>;
 }
 
+/**
+ * 저장 공간 명령이 실패한 까닭. `kind`로 화면이 대응을 고르고, `message`는 화면에 보일 문장이다.
+ * `fix`는 해결 한 줄이고, CLI가 그 줄을 주지 않으면 `null`이다.
+ */
+export interface StorageFailure {
+  readonly kind:
+    /** 고른 폴더나 사본 이름이 이 명령에 맞지 않는다(종료 코드 2) */
+    | "usage"
+    /** 디스크, 권한 등 환경 문제(종료 코드 3과 그 밖의 값) */
+    | "environment"
+    /** 확인하지 않아 멈췄다(종료 코드 1) */
+    | "declined"
+    /** 셸이 명령을 거절했다 */
+    | "shell"
+    /** 셸이 알 수 없는 모양을 돌려줬다 */
+    | "bad_reply";
+  readonly message: string;
+  readonly fix: string | null;
+}
+
+/**
+ * 설정 고급 탭의 저장 공간 명령(백업 만들기, 사용량 보기, 복원 전 사본 지우기, 데이터 폴더 열기).
+ * 셸이 `fresnel db export|usage|previous-rm`을 엔진 없이 한 번 돌린다. wire를 지나지 않으므로 연결과 관계없이 셸을 바로 부른다.
+ */
+export interface StorageCommands {
+  /** 이 앱이 셸에 마지막으로 보낸 엔진 대상. 바꾼 적이 없으면 `null`이다(모름) */
+  engineTarget(): EngineTarget | null;
+  /** 데이터 폴더의 사용량과 복원 전 사본 목록 */
+  usage(): Promise<Result<StorageUsage, StorageFailure>>;
+  /** 고른 폴더 아래에 백업 폴더를 새로 만든다. 만든 폴더 보고서를 준다 */
+  backup(parentDir: string): Promise<Result<BackupReport, StorageFailure>>;
+  /** 복원 전 사본 하나를 지운다. 이름은 `usage`가 준 것이다 */
+  removePrevious(name: string): Promise<Result<PreviousRemoved, StorageFailure>>;
+  /** 데이터 폴더를 파일 관리자로 연다. 열었으면 `true`다 */
+  openDataDir(): Promise<boolean>;
+}
+
 /** 성능 측정 화면(P-20, §6.27). 측정 저장소 읽기만 한다. 측정이 꺼져 있으면 `enabled`가 거짓이다 */
 export interface MeasureCommands {
   /** `measure.turn`: 한 Turn의 측정 행(Turn, 호출, 훅, 요청 구성, 캐시 사건) */
@@ -823,6 +867,8 @@ export interface Commands {
   readonly secrets: SecretCommands;
   /** 설정 고급 탭의 데이터 복원(`db_restore`) */
   readonly restore: RestoreCommands;
+  /** 설정 고급 탭의 백업 만들기, 저장 공간 보기, 복원 전 사본 지우기, 데이터 폴더 열기 */
+  readonly storage: StorageCommands;
   readonly settings: SettingsCommands;
   readonly web: WebCommands;
   readonly proposals: ProposalCommands;
