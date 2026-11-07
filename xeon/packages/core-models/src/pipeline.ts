@@ -3,6 +3,7 @@ import {
   lazyStream,
   ModelsError,
   type Context,
+  type FetchFunction,
   type Models,
   type ModelsSimpleStreamOptions,
 } from "@earendil-works/pi-ai";
@@ -20,6 +21,7 @@ import type {
   ModelErrorKind,
 } from "@fresnel/contracts/services";
 import { applyCacheMarks } from "./cache-policy.ts";
+import { STREAM_INTERRUPTED_PREFIX } from "./classify.ts";
 import type { FailureLog } from "./failure-log.ts";
 import type { ProviderOverlay } from "./provider-registry.ts";
 import { passableBudgets } from "./role-table.ts";
@@ -29,6 +31,12 @@ import {
   type ModelSelectSource,
   type ProviderDispatcher,
 } from "./request-points.ts";
+import {
+  createRetryFetch,
+  RETRYING_FETCH_APIS,
+  type LastAttempt,
+  type RetryFetch,
+} from "./retry-fetch.ts";
 import {
   isOauthTokenOnDefaultProvider,
   oauthGuardFailure,
@@ -66,6 +74,8 @@ export interface PipelineDeps {
   /** 헤더 값의 시크릿 참조 해석 */
   readonly resolver: SecretResolver;
   readonly logger?: Logger;
+  /** provider HTTP 요청 함수. 없으면 globalThis.fetch. 시험이 가짜로 바꾼다 */
+  readonly fetch?: FetchFunction;
   /** 가드를 통과한 최종 요청 본문을 받는다. 저장 여부는 받는 쪽이 정한다. 던져도 호출은 막히지 않는다 */
   readonly offerBody?: (offer: RequestBodyOffer) => void;
   /** 계정 회전 설정. null이면 회전하지 않는다(기본 꺼짐, L1.models.spec §4.8) */
@@ -119,6 +129,19 @@ const ZERO_USAGE: AssistantMessage["usage"] = {
   totalTokens: 0,
   cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 };
+
+/**
+ * 종결 오류 문장에 표지를 붙인다. 429로 끝났고 서버가 대기를 알려 줬으면 끝에 `[retry-after=<초, 올림>]`을 붙인다
+ * (rotation의 retryAfterMsOf가 읽는다). 앞부분 답(text 블록)이 이미 왔으면 끊긴 스트림 접두를 붙인다
+ */
+function markedErrorText(message: AssistantMessage, last: LastAttempt | null): string {
+  let text = message.errorMessage ?? "";
+  if (last?.status === 429 && last.serverDelayMs !== null) {
+    text = `${text} [retry-after=${Math.ceil(last.serverDelayMs / 1000)}]`;
+  }
+  const partial = message.content.some((block) => block.type === "text" && block.text.length > 0);
+  return partial ? `${STREAM_INTERRUPTED_PREFIX}${text}` : text;
+}
 
 export function createPipeline(deps: PipelineDeps): Pipeline {
   const dispatchSeq = new Map<string, number>();
@@ -227,6 +250,7 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
     spec: CallSpec,
     api: string,
     keyOf: (point: string) => string,
+    http: RetryFetch,
   ): ModelsSimpleStreamOptions {
     const { ctx } = spec;
     const retry = deps.retry();
@@ -267,10 +291,11 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
       ...(spec.thinkingLevel === "off"
         ? {}
         : { reasoning: spec.thinkingLevel, thinkingBudgets: passableBudgets(spec.budgets) }),
-      // 4: 재시도 수치
+      // 4: 재시도 수치. 재시도 상태를 보려고 감싼 fetch는 다시 보내는 어댑터에만 넣는다(google-*은 custom fetch를 거부한다)
       ...(spec.providerRetries
         ? { maxRetries: retry.maxRetries, maxRetryDelayMs: retry.maxDelayMs }
         : { maxRetries: 0 }),
+      ...(RETRYING_FETCH_APIS.has(api) ? { fetch: http.fetch } : {}),
       ...(spec.options?.maxTokens === undefined ? {} : { maxTokens: spec.options.maxTokens }),
       ...(spec.options?.temperature === undefined ? {} : { temperature: spec.options.temperature }),
       ...(spec.options?.toolChoice === undefined ? {} : { toolChoice: spec.options.toolChoice }),
@@ -445,6 +470,17 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
     const failureMark = deps.failures.mark();
     const model = deps.models.getModel(spec.provider, spec.modelId);
     const setting = deps.providerSetting(spec.provider);
+    // 이 요청의 재시도 상태(시도 횟수, 마지막 응답). 재시도는 provider 요청 단계에서만 하므로 재시도가 꺼진 호출은 0이다
+    const retry = deps.retry();
+    const http = createRetryFetch({
+      base: deps.fetch ?? globalThis.fetch,
+      clock: deps.clock,
+      maxRetries: spec.providerRetries ? retry.maxRetries : 0,
+      maxDelayMs: retry.maxDelayMs,
+      ...(spec.ctx.signal === undefined ? {} : { signal: spec.ctx.signal }),
+      ...(spec.ctx.onRetry === undefined ? {} : { onRetry: spec.ctx.onRetry }),
+      ...(deps.logger === undefined ? {} : { logger: deps.logger }),
+    });
 
     let source: AssistantMessageEventStream;
     // 1: provider가 등록되어 있고 사용할 수 있는지
@@ -475,7 +511,7 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
       const requestModel = baseUrl === null ? model : { ...model, baseUrl };
       try {
         const keyOf = nextCallKey(spec.ctx);
-        const options = requestOptions(spec, model.api, keyOf);
+        const options = requestOptions(spec, model.api, keyOf, http);
         // 요청을 보내기 직전에만 바인딩 변경 지점을 발화한다. 지점 핸들러를 기다리는 동안에도 스트림은 먼저 돌려준다
         source = lazyStream(requestModel, async () => {
           await fireSelectHooks(spec, keyOf);
@@ -508,7 +544,9 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
           });
         }
         const text =
-          failure === null ? (message.errorMessage ?? "") : `${failure.kind}: ${failure.reason}`;
+          failure === null
+            ? markedErrorText(message, http.last())
+            : `${failure.kind}: ${failure.reason}`;
         return { ...message, errorMessage: deps.mask(text) };
       },
       onFirstChunk: () => {

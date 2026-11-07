@@ -317,7 +317,10 @@ describe("link: resync with a gap", () => {
     await pump(h);
     expect(asked).toEqual([
       { from: "head" },
-      { from: { storeId: STORE, seq: 0 }, filter: { kindPrefixes: ["work.plan_", "input."] } },
+      {
+        from: { storeId: STORE, seq: 0 },
+        filter: { kindPrefixes: ["work.plan_", "input.", "thread.compacted"] },
+      },
     ]);
     // 두 대기 입력 중 하나는 이미 배치됐다. 계획 하나는 연결 전에 제출됐다
     fake.emit("events.batch", {

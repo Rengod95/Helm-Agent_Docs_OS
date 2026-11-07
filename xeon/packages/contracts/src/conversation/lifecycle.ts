@@ -161,15 +161,36 @@ export const TurnStartedPayloadSchema: TObject<{
 );
 export type TurnStartedPayload = Static<typeof TurnStartedPayloadSchema>;
 
+/** 제공자 재시도 알림의 detail(`provider_retry`). 값은 모두 정수다(waitMs는 올림한 ms). 화면이 남은 초를 셀 때 쓴다 */
+export const ProviderRetryDetailSchema: TObject<{
+  attempt: TInteger;
+  maxRetries: TInteger;
+  waitMs: TInteger;
+}> = Type.Object(
+  {
+    /** 1부터 센 몇 번째 재시도인가 */
+    attempt: Type.Integer({ minimum: 1 }),
+    maxRetries: Type.Integer({ minimum: 0 }),
+    /** 다시 보내기 전에 기다릴 시간(ms) */
+    waitMs: Type.Integer({ minimum: 0 }),
+  },
+  { additionalProperties: false },
+);
+export type ProviderRetryDetail = Static<typeof ProviderRetryDetailSchema>;
+
 /** 사용자에게만 보이는 휘발 알림(L1.loop.spec §4.9, §4.10, FR-L5). 모델 컨텍스트에는 넣지 않는다 */
 export const TurnNoticeSchema: TObject<{
-  code: TUnion<[TLiteral<"repeat_detected">, TLiteral<"gate_limit">]>;
+  code: TUnion<[TLiteral<"repeat_detected">, TLiteral<"gate_limit">, TLiteral<"provider_retry">]>;
   detail: TUnsafe<JsonValue>;
 }> = Type.Object(
   {
-    /** repeat_detected: 같은 행동-관찰(또는 오류) 쌍이 연속으로 되풀이됨. gate_limit: 완료 게이트 계속 횟수가 상한에 이름 */
-    code: Type.Union([Type.Literal("repeat_detected"), Type.Literal("gate_limit")]),
-    /** 코드별 보조 값. gate_limit은 `{ limit: number }`, repeat_detected는 `{ kind: "action_observation" | "action_error", count: number }` */
+    /** repeat_detected: 같은 행동-관찰(또는 오류) 쌍이 연속으로 되풀이됨. gate_limit: 완료 게이트 계속 횟수가 상한에 이름. provider_retry: 제공자 요청을 다시 보내기 전 대기 */
+    code: Type.Union([
+      Type.Literal("repeat_detected"),
+      Type.Literal("gate_limit"),
+      Type.Literal("provider_retry"),
+    ]),
+    /** 코드별 보조 값. gate_limit은 `{ limit: number }`, repeat_detected는 `{ kind: "action_observation" | "action_error", count: number }`, provider_retry는 `ProviderRetryDetailSchema` */
     detail: JsonValueSchema,
   },
   { additionalProperties: false },

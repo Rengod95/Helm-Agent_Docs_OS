@@ -4,7 +4,7 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import { WIRE_ERRORS, type WireResult } from "@fresnel/contracts/wire";
 import { toast } from "@caustic/react";
 import type { CommandError, Commands } from "./commands.ts";
-import { bumpUsageEpoch } from "./model-usage.ts";
+import { setCompactedContext } from "./model-usage.ts";
 
 // "대화 요약"(`thread.compact`)의 진행 표시와 결과 한 줄. 메뉴와 팔레트가 같이 쓴다.
 // 눌렀을 때 진행 토스트를 띄우고, 끝나면 결과(엔진이 준 `tokensBefore`, 요약할 것이 없는 이유)나 실패 이유를 한 줄로 바꾼다.
@@ -93,8 +93,10 @@ export function runThreadCompact(
         result.value.why === "nothing_to_summarize";
       const keepTokens = nothing ? await commands.compactKeepTokens() : null;
       toast.dismiss(progress);
-      // 요약 직후 상태 줄 문맥 크기를 요약 뒤 값으로 다시 읽게 한다
-      if (result.ok && result.value.status === "compacted") bumpUsageEpoch();
+      // 요약 직후 상태 줄 문맥 크기를 요약 뒤 값(`tokensAfter`)으로 바로 보인다
+      if (result.ok && result.value.status === "compacted") {
+        setCompactedContext(threadId, result.value.tokensAfter);
+      }
       const notice = compactNoticeOf(result, keepTokens);
       toast({
         tone: notice.tone,

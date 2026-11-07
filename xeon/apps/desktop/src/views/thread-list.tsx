@@ -21,6 +21,7 @@ import {
   useThreadsStatus,
   useThreadSummaries,
   useThreadApprovals,
+  useTurnFailure,
   useUnlistedApprovals,
 } from "../state/engine/index.ts";
 import { useShellActions } from "../state/shell/index.ts";
@@ -32,6 +33,7 @@ import { recentWorkspacesOf, type RecentWorkspace } from "./new-thread-model.ts"
 import { folderLabel, sidebarGroupsOf } from "./thread-groups.ts";
 import { rowBadgeOf, rowOpensChat } from "./thread-nav-model.ts";
 import { ThreadRowMenu } from "./thread-row-menu.tsx";
+import { unsentRowOf } from "./turn-failure-model.ts";
 import { checkWorkspaceInput, createFailureText, workspaceHint } from "./workspace-model.ts";
 
 /** 대화 상자가 닫히며 초점을 되돌리는 시간(ms)보다 넉넉히 */
@@ -51,8 +53,13 @@ const LIST_COLUMN =
   "grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1 [&_ul]:grid-cols-[minmax(0,1fr)] [&_[data-slot=list-navigation-item]]:min-w-0 [&_[data-slot=list-navigation-item]]:grid-cols-[minmax(0,1fr)]";
 
 /** 행 오른쪽 짧은 글자. 종류는 `rowBadgeOf`가 정한다(시안: 행 meta는 짧게) */
-function metaOf(thread: ThreadSummary, approvals: number, child: boolean): ReactNode {
-  const badge = rowBadgeOf(thread, approvals, child);
+function metaOf(
+  thread: ThreadSummary,
+  approvals: number,
+  child: boolean,
+  unsent: boolean,
+): ReactNode {
+  const badge = rowBadgeOf(thread, approvals, child, unsent);
   switch (badge) {
     // 이어서 실행은 아이콘과 글(시안 threadMeta의 RotateCcw + 이어서 실행)
     case "resumable":
@@ -68,6 +75,8 @@ function metaOf(thread: ThreadSummary, approvals: number, child: boolean): React
       return t("desktop.threads.scheduleBadge");
     case "closed":
       return t("desktop.threads.closedBadge");
+    case "unsent":
+      return t("desktop.threads.status.unsent");
     case "sub":
       return t("desktop.threads.subBadge");
     case "forked":
@@ -91,7 +100,16 @@ const ThreadRow = memo(function ThreadRow(props: {
   const selected = useSelectedThreadId() === id;
   const unlisted = useUnlistedApprovals(id);
   const approvals = useThreadApprovals(id);
+  const unsent = unsentRowOf(useTurnFailure(id));
   const title = props.thread.title ?? t("desktop.threads.untitled");
+  // 툴팁에는 제목 아래로 알릴 말을 한 줄씩 더한다. 표시가 없으면 제목만 남는다
+  const tooltip = [
+    title,
+    unlisted > 0 ? t("desktop.threads.unlistedApprovals") : null,
+    unsent ? t("desktop.threads.status.unsent") : null,
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
   return (
     <>
       <ListNavigationItem
@@ -101,9 +119,14 @@ const ThreadRow = memo(function ThreadRow(props: {
               status: "running" as const,
               statusLabels: { running: t("desktop.threads.status.running") },
             }
-          : {})}
-        meta={metaOf(props.thread, approvals, props.child)}
-        title={unlisted > 0 ? `${title}\n${t("desktop.threads.unlistedApprovals")}` : title}
+          : unsent
+            ? {
+                status: "failed" as const,
+                statusLabels: { failed: t("desktop.threads.status.unsent") },
+              }
+            : {})}
+        meta={metaOf(props.thread, approvals, props.child, unsent)}
+        title={tooltip}
         className={
           [props.thread.title === null ? UNTITLED_LABEL : "", props.child ? CHILD_ROW : ""]
             .filter((c) => c !== "")

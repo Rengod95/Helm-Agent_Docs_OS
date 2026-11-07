@@ -49,3 +49,5 @@ export const useComposerRequest = (): ComposerRequest | null => useUi((s) => s.c
 export const useSettingsJump = (): SettingsJump | null => useUi((s) => s.settingsJump);
 export const useReviewTarget = (): ReviewTarget | null => useUi((s) => s.reviewTarget);
 export const useRestartNeeded = (): readonly RestartReason[] => useUi((s) => s.restartNeeded);
+/** 403으로 실패한 모델(`provider/modelId` 키). 이 앱 실행 동안만 있다 */
+export const useDeniedModels = (): Readonly<Record<string, true>> => useUi((s) => s.deniedModels);

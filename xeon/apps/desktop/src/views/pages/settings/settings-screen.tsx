@@ -7,6 +7,7 @@ import {
 } from "@fresnel/client/settings";
 import { t } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
+import type { SecretName } from "@fresnel/contracts/capabilities";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { SettingKey, SettingsTab } from "@fresnel/contracts/settings";
 import {
@@ -109,6 +110,8 @@ export function SettingsPage(props: {
   const [binding, setBinding] = useState<Binding>({ live: false, controller: null });
   // 명령 팔레트가 준 요청 가운데 이 화면이 받은 것. 스크롤은 값이 읽힌 뒤 이 요청마다 한 번 한다
   const [taken, setTaken] = useState<SettingsJump | null>(null);
+  // 설정 점프가 고르라고 준 시크릿 이름. 시크릿 화면이 고른 뒤 `onFocused`로 비운다(다시 열 때 옛 이름을 고르지 않게)
+  const [focusSecret, setFocusSecret] = useState<SecretName | null>(null);
   const scrolled = useRef<SettingsJump | null>(null);
   // 설정 파일 편집기(P-09 "파일로 보기"). 읽기와 쓰기마다 번호를 새로 주고, 응답은 그 번호가 맞을 때만 반영된다(reducer)
   const [file, dispatchFile] = useReducer(fileEditorReducer, initialFileEditor);
@@ -238,6 +241,7 @@ export function SettingsPage(props: {
   // 초안이 있으면 묻는 대화 상자가 먼저 뜬다). 요청은 맞춘 뒤 스토어에서 지운다
   if (jump !== null && jump !== taken) {
     setTaken(jump);
+    setFocusSecret(jump.secretName ?? null);
     setQuery("");
     requestTab(jump.tab);
   }
@@ -444,7 +448,15 @@ export function SettingsPage(props: {
       saved={saved}
       restartError={state.restartError?.message ?? null}
       prompt={pending === null ? null : { to: pending.to, count: pending.keys.length }}
-      secretsPanel={<SecretsPanel embedded />}
+      secretsPanel={
+        <SecretsPanel
+          embedded
+          focusName={focusSecret}
+          onFocused={() => {
+            setFocusSecret(null);
+          }}
+        />
+      }
       fileEditor={fileEditor}
       fileOpen={file.phase !== "closed"}
       editors={EDITORS}

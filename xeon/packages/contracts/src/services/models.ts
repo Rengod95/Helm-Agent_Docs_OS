@@ -217,6 +217,13 @@ export interface ResolvedModel {
   readonly cachePolicy: CachePolicy;
 }
 
+/** 재시도 상태 이벤트. attempt는 1부터 센 몇 번째 재시도, waitMs는 다시 보내기 전에 기다릴 시간(ms) */
+export interface ModelRetryEvent {
+  readonly attempt: number;
+  readonly maxRetries: number;
+  readonly waitMs: number;
+}
+
 export interface ModelCallContext {
   readonly threadId: ThreadId;
   readonly turnId: TurnId | null;
@@ -227,6 +234,8 @@ export interface ModelCallContext {
   /** 호출을 일으킨 도구 호출 id(웹 검색 등 도구가 부르는 배경 호출). 사용량 기록에 그대로 남는다 */
   readonly requestId?: string;
   readonly signal?: AbortSignal;
+  /** 제공자 요청을 다시 보내기 직전에 한 번씩 불린다(L1.models.spec §4.5). 던져도 요청은 이어진다 */
+  readonly onRetry?: (event: ModelRetryEvent) => void;
 }
 
 export interface ModelCallOptions {
@@ -456,6 +465,7 @@ export type ModelErrorKind =
   | "overloaded"
   | "context_overflow"
   | "auth"
+  | "permission_denied"
   | "aborted"
   | "transport"
   | "provider_error";

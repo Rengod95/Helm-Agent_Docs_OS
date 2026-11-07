@@ -32,6 +32,8 @@ import {
   type Transcript,
   RECENT_TURN_CAP,
   type TransitionRecord,
+  COMPACTION_CAP,
+  type CompactionRecord,
   PLAN_CAP,
   type PlanRecord,
   QUEUED_INPUT_CAP,
@@ -77,6 +79,13 @@ export function enterReset(state: EngineMirror, reason: ResetReason): EngineMirr
   return { ...state, link };
 }
 
+/** 이 대화의 제공자 재시도 대기를 지운다. 응답이 오기 시작했거나 단계·턴이 시작·끝났다는 뜻이다 */
+function withoutRetrying(state: EngineMirror, threadId: ThreadId): EngineMirror {
+  if (state.retrying[threadId] === undefined) return state;
+  const { [threadId]: _old, ...rest } = state.retrying;
+  return { ...state, retrying: rest };
+}
+
 function withTurnFailure(
   state: EngineMirror,
   threadId: ThreadId,
@@ -101,6 +110,7 @@ export function reduceMirror(state: EngineMirror, input: MirrorInput): Reduced<E
               engine: input.state,
               link: { phase: "offline" },
               streaming: EMPTY_STREAMING,
+              retrying: {},
             },
             "applied",
           );
@@ -142,6 +152,7 @@ export function reduceMirror(state: EngineMirror, input: MirrorInput): Reduced<E
       for (const fact of input.facts) {
         if (
           fact.type === "plan.event" ||
+          fact.type === "thread.compacted" ||
           fact.type === "input.queued" ||
           fact.type === "input.placed" ||
           fact.type === "input.withdrawn"
@@ -322,7 +333,11 @@ function applyChunk(state: EngineMirror, fact: VolatileFact): Reduced<EngineMirr
         toolCallId: p.toolCallId,
         parts: [],
       };
-      return keep({ ...state, streaming: putStreaming(counted, item) }, "applied");
+      // 응답이 오기 시작했다: 제공자 재시도 대기는 끝났다
+      return keep(
+        withoutRetrying({ ...state, streaming: putStreaming(counted, item) }, fact.threadId),
+        "applied",
+      );
     }
     case "item.updated": {
       const update = fact.payload.update;
@@ -333,13 +348,16 @@ function applyChunk(state: EngineMirror, fact: VolatileFact): Reduced<EngineMirr
           const current =
             counted.items[update.delta.itemId] ?? newAssistantItem(fact, update.delta);
           return keep(
-            { ...state, streaming: putStreaming(counted, applyDelta(current, update.delta)) },
+            withoutRetrying(
+              { ...state, streaming: putStreaming(counted, applyDelta(current, update.delta)) },
+              fact.threadId,
+            ),
             "applied",
           );
         }
         case "part_completed":
         case "tool_progress":
-          return keep({ ...state, streaming: counted }, "applied");
+          return keep(withoutRetrying({ ...state, streaming: counted }, fact.threadId), "applied");
         default:
           return assertNever(update, "applyChunk.update");
       }
@@ -370,6 +388,18 @@ function applyChunk(state: EngineMirror, fact: VolatileFact): Reduced<EngineMirr
           statusItems: {
             ...state.statusItems,
             [fact.payload.threadId]: fact.payload.items.slice(0, STATUS_ITEM_CAP),
+          },
+        },
+        "applied",
+      );
+    case "provider.retry":
+      return keep(
+        {
+          ...state,
+          streaming: counted,
+          retrying: {
+            ...state.retrying,
+            [fact.threadId]: { ...fact.retry, at: fact.receivedAt },
           },
         },
         "applied",
@@ -606,7 +636,11 @@ function applyFact(state: EngineMirror, fact: DurableFact): EngineMirror {
               ...running.recentTurnIds,
               [fact.threadId]: withRecentTurn(running.recentTurnIds[fact.threadId], fact.turnId),
             };
-      return withTurnFailure({ ...running, latestTurnId, recentTurnIds }, fact.threadId, null);
+      return withTurnFailure(
+        withoutRetrying({ ...running, latestTurnId, recentTurnIds }, fact.threadId),
+        fact.threadId,
+        null,
+      );
     }
     case "turn.completed": {
       // 닫힌 turn은 복구 표식도 지운다(T6가 표식을 지운다, L1.loop.spec §4.8). 남겨 두면 "이어서 실행" 띠가 그대로 보인다
@@ -618,11 +652,16 @@ function applyFact(state: EngineMirror, fact: DurableFact): EngineMirror {
       const failure =
         fact.payload.status === "failed" ? (fact.payload.error ?? unknownFailureText()) : null;
       return withTurnFailure(
-        { ...done, streaming: dropStreamingTurn(done.streaming, fact.threadId, fact.turnId) },
+        withoutRetrying(
+          { ...done, streaming: dropStreamingTurn(done.streaming, fact.threadId, fact.turnId) },
+          fact.threadId,
+        ),
         fact.threadId,
         failure,
       );
     }
+    case "step.started":
+      return withoutRetrying(state, fact.threadId);
     case "item.recorded":
       // transcript 반영은 applyBatch가 batch 단위로 한 번에 한다
       return { ...state, streaming: settleItem(state.streaming, fact.item.itemId) };
@@ -691,6 +730,8 @@ function applyFact(state: EngineMirror, fact: DurableFact): EngineMirror {
       }));
     case "plan.event":
       return recordPlan(state, fact);
+    case "thread.compacted":
+      return recordCompaction(state, fact);
     case "input.queued":
       return withScheduleOrigin(recordQueued(state, fact), fact);
     case "input.placed":
@@ -773,6 +814,33 @@ function recordPlan(
   }
   const others = state.plans.filter((r) => r !== found);
   return { ...state, plans: capPlans([...others, record], threadId) };
+}
+
+/**
+ * 대화 요약 한 건을 거울에 넣는다. 사건 id가 같으면 한 번만 넣는다(보조 재생과 구독이 같은 사건을 겹쳐 줄 수 있다).
+ * thread마다 `COMPACTION_CAP`개만 두고, 넘으면 그 thread의 가장 오래된 요약부터 버린다.
+ */
+function recordCompaction(
+  state: EngineMirror,
+  fact: Extract<DurableFact, { readonly type: "thread.compacted" }>,
+): EngineMirror {
+  if (state.compactions.some((r) => r.eventId === fact.eventId)) return state;
+  const record: CompactionRecord = {
+    ...fact.compaction,
+    threadId: fact.threadId,
+    eventId: fact.eventId,
+    at: fact.at,
+  };
+  return { ...state, compactions: capCompactions([...state.compactions, record], fact.threadId) };
+}
+
+function capCompactions(
+  list: readonly CompactionRecord[],
+  threadId: ThreadId,
+): readonly CompactionRecord[] {
+  if (list.filter((r) => r.threadId === threadId).length <= COMPACTION_CAP) return list;
+  const oldest = list.findIndex((r) => r.threadId === threadId);
+  return list.filter((_, i) => i !== oldest);
 }
 
 /** thread마다 `PLAN_CAP`개만 두고, 넘으면 그 thread의 가장 오래된 계획을 버린다 */

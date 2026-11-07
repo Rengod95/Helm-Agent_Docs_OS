@@ -2,6 +2,7 @@ import { detach, rethrow, type Result } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { PermissionMode } from "@fresnel/contracts/services";
 import type { ModelEntry, UsageContext, UsageGauge } from "@fresnel/contracts/wire";
+import type { SetupSnapshot } from "@fresnel/client/settings";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useLinkPhase, useThread } from "../state/engine/index.ts";
 import { useCommands, type CommandError, type SwitchMode } from "./commands.ts";
@@ -164,18 +165,18 @@ export function tokenCountText(tokens: number): string {
   return `${(tokens / 1_000_000).toFixed(1)}M`;
 }
 
-/** 기본 모델 참조. 연결이 살아 있을 때 읽고 설정이 바뀌면(`settings.invalidated`) 다시 읽는다. 정해지지 않았거나 읽지 못하면 null이다 */
-export function useDefaultModel(): string | null {
+/** 설정 스냅숏(기본 모델과 제공자 목록). 연결이 살아 있을 때 읽고 설정이 바뀌면(`settings.invalidated`) 다시 읽는다. 읽지 못하면 null이다 */
+export function useSetupSnapshot(): SetupSnapshot | null {
   const commands = useCommands();
   const phase = useLinkPhase();
-  const [model, setModel] = useState<string | null>(null);
+  const [snapshot, setSnapshot] = useState<SetupSnapshot | null>(null);
   useEffect(() => {
     if (phase !== "live") return undefined;
     let stale = false;
     const read = (): void => {
       detach(
         commands.setup.load({ binaries: false }).then((result) => {
-          if (!stale) setModel(result.ok ? result.value.defaultModel : null);
+          if (!stale) setSnapshot(result.ok ? result.value : null);
           return undefined;
         }),
         rethrow,
@@ -188,7 +189,12 @@ export function useDefaultModel(): string | null {
       stop();
     };
   }, [commands, phase]);
-  return model;
+  return snapshot;
+}
+
+/** 기본 모델 참조. 정해지지 않았거나 읽지 못하면 null이다 */
+export function useDefaultModel(): string | null {
+  return useSetupSnapshot()?.defaultModel ?? null;
 }
 
 // "대화 요약"이 끝난 직후 사용량을 다시 읽게 하는 신호. 요약은 턴이 아니라 `running`이 바뀌지 않아 따로 알린다.
@@ -196,9 +202,29 @@ let usageEpoch = 0;
 const epochListeners = new Set<() => void>();
 
 /** 요약이 문맥 크기를 바꿨으니 열린 사용량 읽기를 다시 하라고 알린다 */
-export function bumpUsageEpoch(): void {
+function bumpUsageEpoch(): void {
   usageEpoch += 1;
   for (const listener of epochListeners) listener();
+}
+
+// 요약 결과(`thread.compact`의 `tokensAfter`)가 곧 이 대화의 문맥 크기다. 다음 턴이 시작하기 전까지는 다시 읽지 않고 이 값을 보인다.
+// 요약 직후 다시 읽은 값이 0으로 보이던 것을 피한다. 턴이 시작되면 지운다(그 뒤에는 `usage.get`이 마지막 호출의 값을 준다).
+let compactedContext: { readonly threadId: ThreadId; readonly tokens: number } | null = null;
+
+/** 요약이 끝났다. 이 대화의 문맥 크기는 `tokens`(요약 뒤 추정)이고 사용량을 다시 보인다 */
+export function setCompactedContext(threadId: ThreadId, tokens: number): void {
+  compactedContext = { threadId, tokens };
+  bumpUsageEpoch();
+}
+
+/** 이 대화의 요약 뒤 문맥 크기. 요약이 없었거나 턴이 시작해 지워졌으면 null */
+export function compactedContextOf(threadId: ThreadId): number | null {
+  return compactedContext?.threadId === threadId ? compactedContext.tokens : null;
+}
+
+/** 턴이 시작해 요약 뒤 값을 지운다. 이 뒤의 문맥은 `usage.get`이 준다 */
+export function clearCompactedContext(threadId: ThreadId): void {
+  if (compactedContext?.threadId === threadId) compactedContext = null;
 }
 
 function subscribeEpoch(listener: () => void): () => void {
@@ -228,7 +254,16 @@ export function useSessionUsage(threadId: ThreadId, running: boolean): SessionUs
     readonly usage: SessionUsage | null;
   } | null>(null);
   useEffect(() => {
-    if (phase !== "live" || running) return undefined;
+    if (phase !== "live") return undefined;
+    if (running) {
+      clearCompactedContext(threadId);
+      return undefined;
+    }
+    const compacted = compactedContextOf(threadId);
+    if (compacted !== null) {
+      setSlot({ thread: threadId, usage: { tokens: compacted, percent: null, limit: null } });
+      return undefined;
+    }
     let stale = false;
     detach(
       commands.usage.get({ threadId }).then((result) => {

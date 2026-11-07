@@ -22,6 +22,9 @@ describe("rowBadgeOf", () => {
   test("a thread with no origin mark shows no badge unless it is a child", () => {
     expect(rowBadgeOf(summary(thr(4)), 0, false)).toBeNull();
     expect(rowBadgeOf(summary(thr(4)), 0, true)).toBe("sub");
+    // 보내지 못한 대화 표시는 하위 표식보다 먼저, 승인 수보다 뒤다
+    expect(rowBadgeOf(summary(thr(4)), 0, true, true)).toBe("unsent");
+    expect(rowBadgeOf(summary(thr(4)), 2, false, true)).toBe("approvals");
   });
   test("resumable and pending approvals win over the schedule badge", () => {
     const resumable = summary(thr(5), { origin: FROM_SCHEDULE, resumable: RESUMABLE });

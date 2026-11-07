@@ -31,9 +31,16 @@ import {
   useEngineState,
   useLinkPhase,
   useOpenThreadId,
+  useRetrying,
   useThreadRunning,
+  type ProviderRetry,
 } from "../state/engine/index.ts";
-import { useComposerRequest, useObserving, useSelectedThreadId } from "../state/ui/index.ts";
+import {
+  useComposerRequest,
+  useDeniedModels,
+  useObserving,
+  useSelectedThreadId,
+} from "../state/ui/index.ts";
 import { UsageBreakdownBody } from "./usage-breakdown.tsx";
 import {
   attachDisabledReason,
@@ -63,6 +70,8 @@ import {
   looksLikeSecret,
   stopBlockedReasonOf,
 } from "./composer-model.ts";
+import { retryLineOf } from "./retry-status-model.ts";
+import { modelKeyOf } from "./denied-model-model.ts";
 import {
   DEFAULT_MODEL_CHOICE,
   modelOptionsOf,
@@ -180,12 +189,23 @@ export function PermissionModeSelect(props: {
   );
 }
 
-/**
- * 대화별 모델 select(시안 `sonnet-5-5 ⌄`). 값은 대화가 정한 모델이고 정하지 않았으면 기본 모델이다.
- * 고르면 `thread.setModel`로 이 대화의 다음 turn부터 바뀐다. 대화가 모델을 정했으면 끝에 "기본 모델"로 되돌리는 줄이 있다.
- * 목록은 호스트 카탈로그(`models.list`)다
- */
-function modelOptionText(option: ModelOption, contextTokens: number | null): string {
+/** 모델 행 글. 403으로 실패한 모델이면 뒤에 "이 키로 못 써요"를 붙인다(`denied`) */
+export function modelOptionText(
+  option: ModelOption,
+  contextTokens: number | null,
+  denied: boolean,
+): string {
+  const text = modelPriceText(option, contextTokens);
+  return denied ? `${text} · ${t("desktop.composer.model.denied")}` : text;
+}
+
+/** 기본 모델 줄 글. 기본 모델이 403으로 실패했으면 뒤에 "이 키로 못 써요"를 붙인다 */
+export function defaultRowText(label: string, denied: boolean): string {
+  const text = t("desktop.composer.model.default", { model: label });
+  return denied ? `${text} · ${t("desktop.composer.model.denied")}` : text;
+}
+
+function modelPriceText(option: ModelOption, contextTokens: number | null): string {
   if (option.price === null) return option.label;
   if (option.price === "unknown") {
     return `${option.label} · ${t("desktop.composer.model.priceUnknown")}`;
@@ -200,6 +220,11 @@ function modelOptionText(option: ModelOption, contextTokens: number | null): str
     : `${base} · ${t("desktop.composer.model.contextCost", { cost: estimate })}`;
 }
 
+/**
+ * 대화별 모델 select(시안 `sonnet-5-5 ⌄`). 값은 대화가 정한 모델이고 정하지 않았으면 기본 모델이다.
+ * 고르면 `thread.setModel`로 이 대화의 다음 turn부터 바뀐다. 대화가 모델을 정했으면 끝에 "기본 모델"로 되돌리는 줄이 있다.
+ * 목록은 호스트 카탈로그(`models.list`)다
+ */
 export function ModelSelect(props: {
   /** 지금 쓰는 모델 참조(대화가 정한 모델, 없으면 기본 모델) */
   readonly current: string;
@@ -211,6 +236,8 @@ export function ModelSelect(props: {
   readonly disabled: boolean;
   /** 이 대화의 지금 문맥 토큰. 줄마다 "이 문맥을 보내면 약 얼마"를 보이는 데 쓴다. 모르면 null */
   readonly contextTokens?: number | null;
+  /** 403으로 실패한 모델의 키(`provider/modelId`). 그 행에 "이 키로 못 써요"를 단다 */
+  readonly denied: Readonly<Record<string, true>>;
   /** 모델 참조를 고르면 그 값, 기본 모델로 돌아가면 null */
   readonly onChange: (model: string | null) => void;
 }): ReactNode {
@@ -219,6 +246,11 @@ export function ModelSelect(props: {
     props.current,
     props.chosen ? props.fallback : null,
   );
+  const deniedOf = (value: string): boolean => {
+    // 기본 모델 줄은 기본 모델 참조로 판정한다
+    const key = modelKeyOf(value === DEFAULT_MODEL_CHOICE ? props.fallback : value);
+    return key !== null && props.denied[key] === true;
+  };
   return (
     <Select
       size="xs"
@@ -234,8 +266,8 @@ export function ModelSelect(props: {
       {options.map((option) => (
         <SelectOption key={option.value} value={option.value}>
           {option.value === DEFAULT_MODEL_CHOICE
-            ? t("desktop.composer.model.default", { model: option.label })
-            : modelOptionText(option, props.contextTokens ?? null)}
+            ? defaultRowText(option.label, deniedOf(option.value))
+            : modelOptionText(option, props.contextTokens ?? null, deniedOf(option.value))}
         </SelectOption>
       ))}
     </Select>
@@ -303,6 +335,38 @@ export function UsageRing(props: {
   );
 }
 
+/**
+ * 제공자 재시도를 기다리는 동안의 상태 줄. 남은 초는 1초마다 다시 센다. `clock`은 시험이 고정한다.
+ * 진행 상태라 경고 빛이 아니고, 초가 매초 바뀌므로 실시간 영역(role=status)으로 알리지 않는다.
+ */
+export function RetryStatus(props: {
+  readonly retry: ProviderRetry;
+  readonly clock?: () => number;
+}): ReactNode {
+  const clock = props.clock ?? Date.now;
+  const [now, setNow] = useState(clock);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(clock());
+    }, 1000);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [clock]);
+  const line = retryLineOf(props.retry, now);
+  return (
+    <p data-composer-retry className="m-0 px-1 text-ui-sm text-text-secondary">
+      {line.soon
+        ? t("desktop.composer.retryingSoon", { attempt: line.attempt, max: line.max })
+        : t("desktop.composer.retrying", {
+            attempt: line.attempt,
+            max: line.max,
+            seconds: line.seconds,
+          })}
+    </p>
+  );
+}
+
 /** 선택된 대화의 입력창만 초점 요청을 받는다. 선택이 없으면 어느 입력창이든 받는다 */
 export function ownsComposerRequest(selected: ThreadId | null, own: ThreadId): boolean {
   return selected === null || selected === own;
@@ -354,6 +418,8 @@ function ComposerFor(props: {
   const commands = useCommands();
   // 거울의 실행 중 값은 엔진이 없으면 오래된 것이다. 실행 중이라는 판단(첨부 잠금, 사용량)은 엔진이 있을 때만 쓴다
   const threadRunning = useThreadRunning(props.threadId);
+  // 제공자 재시도를 기다리는 중이면 입력창 위에 남은 초를 보인다(휘발, 응답이 오기 시작하면 사라진다)
+  const retrying = useRetrying(props.threadId);
   const running = threadRunning && !props.engineGone;
   const stopBlocked = stopBlockedReasonOf(props.engineGone);
   // 이 대화의 모델(정하지 않았으면 기본 모델)과 문맥 사용량(model-usage.ts)
@@ -362,6 +428,7 @@ function ComposerFor(props: {
   // 이 대화의 승인 모드 칩(설정 l1.tools.permissionMode, 대화 범위). 모르는 동안은 칩을 그리지 않는다
   const permission = useThreadPermissionMode(props.threadId);
   const modelChoices = useModelChoices();
+  const deniedModels = useDeniedModels();
   const usage = useSessionUsage(props.threadId, running);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -798,6 +865,7 @@ function ComposerFor(props: {
           </Button>
         </p>
       )}
+      {retrying === null ? null : <RetryStatus key={retrying.at} retry={retrying} />}
       <Textarea
         ref={textarea}
         aria-label={t("desktop.composer.input.label")}
@@ -889,6 +957,7 @@ function ComposerFor(props: {
                 choices={modelChoices}
                 disabled={props.disabledReason !== null}
                 contextTokens={usage === null ? null : usage.tokens}
+                denied={deniedModels}
                 onChange={(model) => {
                   detach(
                     commands.setThreadModel(props.threadId, model).then((result) => {

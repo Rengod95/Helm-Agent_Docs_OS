@@ -63,9 +63,31 @@ describe("classify_error_kinds", () => {
     expect(classifyMessage(message("error", "503 service unavailable"))).toBe("overloaded");
   });
 
-  test("401 and 403 are auth", () => {
+  test("401, unauthorized and authentication_error are auth", () => {
     expect(classifyMessage(message("error", "401 invalid x-api-key"))).toBe("auth");
-    expect(classifyMessage(message("error", "403 Forbidden"))).toBe("auth");
+    expect(classifyMessage(message("error", "401 unauthorized"))).toBe("auth");
+    expect(
+      classifyMessage(
+        message("error", '401 {"type":"error","error":{"type":"authentication_error"}}'),
+      ),
+    ).toBe("auth");
+  });
+
+  test("403, permission_error and forbidden are permission_denied, not auth", () => {
+    expect(classifyMessage(message("error", "403 Forbidden"))).toBe("permission_denied");
+    expect(
+      classifyMessage(
+        message("error", '403 {"type":"error","error":{"type":"permission_error","message":"no"}}'),
+      ),
+    ).toBe("permission_denied");
+    expect(classifyMessage(message("error", "forbidden: model not enabled for this key"))).toBe(
+      "permission_denied",
+    );
+  });
+
+  test("a stream cut after partial text is transport, whatever the original wording", () => {
+    expect(classifyMessage(message("error", "stream_interrupted: fetch failed"))).toBe("transport");
+    expect(classifyMessage(message("error", "stream_interrupted: terminated"))).toBe("transport");
   });
 
   test("connection failures are transport", () => {

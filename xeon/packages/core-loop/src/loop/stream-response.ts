@@ -6,6 +6,7 @@ import { keepReceivedText } from "./partial-content.ts";
 import type { RequestInput } from "./prepare-request.ts";
 import { emitMessageStart, emitMessageUpdate } from "./sink.ts";
 import { saltAssistantMessage, saltStreamEvent, toolCallSalt } from "./tool-call-ids.ts";
+import { providerRetryListener } from "./provider-retry.ts";
 import { currentStep, failureText, overrides, type TurnRun } from "./turn-run.ts";
 
 // L1.loop.spec §3.2 단계 3 `streamResponse`. `modelCalls` 슬롯을 잡고 streamFn을 불러 부분 메시지를 이벤트로 낸다.
@@ -25,6 +26,7 @@ function modelStreamFn(run: TurnRun): StreamFn {
       role: "main",
       ...overrides(run),
       signal: scope.signal,
+      onRetry: providerRetryListener(run, step.stepId),
     });
     let slot;
     try {

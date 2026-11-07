@@ -1,8 +1,8 @@
 import { Button } from "@caustic/react";
 import { t, type MessageId } from "@fresnel/client/i18n";
-import type { ItemId } from "@fresnel/contracts/conversation";
 import { useMemo, type ReactNode } from "react";
 import {
+  useCompactionAnchors,
   useOpenThreadId,
   useLastUserItemId,
   useStreamingIds,
@@ -15,15 +15,16 @@ import {
 } from "../state/engine/index.ts";
 import { MAX_SNAPSHOT_ITEMS } from "../state/engine/thread-reader.ts";
 import { useCommands } from "./commands.ts";
-import { TurnFailureRow } from "./turn-failure-row.tsx";
+import { CutMarker, TurnFailureRow } from "./turn-failure-row.tsx";
+import { turnFailureOf } from "./turn-failure-model.ts";
 import { EmptyThread } from "./empty-thread.tsx";
 import { ResumeBand } from "./resume-band.tsx";
 import { RecordedItem, StreamingRow } from "./item-view.tsx";
-import { VirtualList, type VirtualRow } from "./virtual-list.tsx";
+import { CompactionDivider } from "./compaction-divider.tsx";
+import { VirtualList } from "./virtual-list.tsx";
+import { transcriptRowsOf, type TranscriptRow } from "./transcript-rows.ts";
 
 // 목록 부품은 id 배열만 구독한다(FS-19). 델타는 id 배열 참조를 바꾸지 않으므로 이 부품은 다시 그려지지 않는다.
-
-type Row = VirtualRow & { readonly id: ItemId; readonly live: boolean };
 
 function Notice(props: { readonly children: ReactNode }): ReactNode {
   return <div className="notice">{props.children}</div>;
@@ -50,13 +51,11 @@ export function Transcript(): ReactNode {
   const unsentId = useUnsentUserItemId();
   const lastUserId = useLastUserItemId();
   const truncated = useTranscriptTruncated();
-  // 진행 중 item은 열린 thread의 것만 보인다
-  const rows = useMemo<readonly Row[]>(
-    () => [
-      ...ids.map((id): Row => ({ key: id, id, live: false })),
-      ...(status === "ready" ? live.map((id): Row => ({ key: `live:${id}`, id, live: true })) : []),
-    ],
-    [ids, live, status],
+  const anchors = useCompactionAnchors(threadId);
+  // 진행 중 item은 열린 thread의 것만 보인다. 요약 구분선은 자리 item 뒤에 선다(transcript-rows.ts)
+  const rows = useMemo<readonly TranscriptRow[]>(
+    () => transcriptRowsOf({ ids, live, showLive: status === "ready", anchors }),
+    [anchors, ids, live, status],
   );
   if (threadId === null) return <Notice>{t("desktop.transcript.pickThread")}</Notice>;
   if (status === "loading") return <Notice>{t("desktop.transcript.loading")}</Notice>;
@@ -79,6 +78,9 @@ export function Transcript(): ReactNode {
   }
   const failureNotice =
     failure === null ? null : <TurnFailureRow threadId={threadId} error={failure} />;
+  // 앞부분 답이 온 뒤 끊긴 응답이면 마지막 답 바로 뒤에 끊김을 표시한다. 자동으로 다시 보내지는 않는다
+  const cutNotice =
+    failure !== null && turnFailureOf(failure).kind === "interrupted" ? <CutMarker /> : null;
   if (rows.length === 0) {
     return (
       <>
@@ -101,13 +103,16 @@ export function Transcript(): ReactNode {
         ownTailKey={lastUserId}
         label={t("desktop.transcript.label")}
         renderRow={(row) =>
-          row.live ? (
+          row.kind === "compaction" ? (
+            <CompactionDivider record={row.record} />
+          ) : row.live ? (
             <StreamingRow id={row.id} />
           ) : (
             <RecordedItem id={row.id} unsent={row.id === unsentId} />
           )
         }
       />
+      {cutNotice}
       {failureNotice}
       <ResumeBand />
     </>

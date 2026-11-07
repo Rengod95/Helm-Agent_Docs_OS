@@ -109,7 +109,7 @@ function Stage(props: {
   return <EmptyState surface="none" title={t("desktop.shell.screen.missing")} />;
 }
 
-/** 입력창 위 카드 묶음(`data-toast-avoid`)의 위쪽 끝. 카드가 없으면(높이 0) null이라 시안 자리다. 크기나 화면이 바뀌면 다시 잰다 */
+/** 입력창 묶음(`data-toast-avoid`: 카드와 입력창)의 위쪽 끝. 묶음이 없으면(높이 0) null이라 시안 자리다. 크기나 화면이 바뀌면 다시 잰다 */
 function useToastBottom(): number {
   const [bottom, setBottom] = useState(toastBottomPx(null, 0));
   useEffect(() => {
@@ -148,7 +148,7 @@ function ShellToaster(props: { readonly registry: ShellRegistry }): ReactNode {
   const tabs = props.registry.endTabs(area, screen);
   const bottom = useToastBottom();
   const place = toastPlace(layout, open, wellWidthOf(tabs.find((x) => x.id === tabId) ?? tabs[0]));
-  // 자리는 오른쪽 아래, 상태 표시줄과 입력창 위다. 입력창 위 카드 묶음(`data-toast-avoid`)에 카드가 있으면 그 위로 올려 승인 단추를 덮지 않는다(`toastBottomPx`). 대화 머리와 첫 줄을 가리지 않는다. 오류 토스트는 caustic이 닫지 않으므로 닫기 단추와 닫힘 시간은 notices.tsx가 정한다
+  // 자리는 오른쪽 아래, 상태 표시줄 위다. 입력창 묶음(`data-toast-avoid`)이 있으면 그 위로 올려 입력창의 모델 고르기와 승인 단추를 덮지 않는다(`toastBottomPx`). 대화 머리와 첫 줄을 가리지 않는다. 오류 토스트는 caustic이 닫지 않으므로 닫기 단추와 닫힘 시간은 notices.tsx가 정한다
   return (
     <Toaster
       label={t("desktop.shell.toast.label")}

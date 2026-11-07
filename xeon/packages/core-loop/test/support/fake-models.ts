@@ -18,6 +18,7 @@ import type {
 import type {
   ModelBinding,
   ModelError,
+  ModelRetryEvent,
   ModelService,
   ResolvedModel,
   RoleOverrides,
@@ -35,6 +36,8 @@ export type ScriptedResponse =
       readonly content: readonly ScriptedBlock[];
       readonly stopReason: Extract<StopReason, "stop" | "toolUse" | "length" | "deferred">;
       readonly totalTokens?: number;
+      /** 이 응답을 보내기 전에 제공자 재시도가 있었다고 `onRetry`로 알린다(L1.models.spec §4.5) */
+      readonly retries?: readonly ModelRetryEvent[];
     }
   | { readonly kind: "error"; readonly message: string }
   /** `start` 이벤트 없이 종결 이벤트(`done`)만 내는 스트림(원본 streamAssistantResponse의 시작 이벤트 없는 응답) */
@@ -243,6 +246,7 @@ export function createFakeModels(options: {
         throw new Bug("fake-models: the script ran out of responses");
       }
       if (response.kind === "message") {
+        for (const event of response.retries ?? []) ctx.onRetry?.(event);
         return streamOf(eventsOf(response, clock), messageOf(response, clock));
       }
       if (response.kind === "bare") {

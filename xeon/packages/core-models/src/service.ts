@@ -2,6 +2,7 @@ import {
   getSupportedThinkingLevels,
   retryAssistantCall,
   type CredentialStore,
+  type FetchFunction,
   type MutableModels,
   type RetryPolicy,
 } from "@earendil-works/pi-ai";
@@ -75,6 +76,8 @@ export interface ModelServiceDeps {
   /** 없으면 before_provider_request를 발화하지 않는다 */
   readonly dispatcher?: ProviderDispatcher;
   readonly logger?: Logger;
+  /** provider HTTP 요청 함수. 없으면 globalThis.fetch. 시험이 가짜 제공자를 꽂는 자리다 */
+  readonly fetch?: FetchFunction;
   /** 계정 회전 플러그인이 켜져 있는가. 없으면 꺼짐이다(L1.models.spec §4.8, 기본 꺼짐) */
   readonly rotationEnabled?: () => boolean;
   /** 회전의 기다림에 쓴다. 없으면 기다림이 필요한 자리에서 실패한다 */
@@ -207,6 +210,7 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
       policy: policyOf,
     },
     ...(deps.logger === undefined ? {} : { logger: deps.logger }),
+    ...(deps.fetch === undefined ? {} : { fetch: deps.fetch }),
     ...(deps.offerBody === undefined ? {} : { offerBody: deps.offerBody }),
   });
 
@@ -247,10 +251,24 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
       baseDelayMs: retry.baseDelayMs,
       maxAgentDelayMs: retry.maxDelayMs,
     };
+    // 호출 단계 재시도(retryAssistantCall)도 재시도 알림을 낸다. 던져도 재시도는 이어진다
+    const onRetry = request.onRetry;
     return await retryAssistantCall(
       () => pipeline.start(callOf(request, settings.thinkingBudgets, false)).result(),
       policy,
       request.signal,
+      onRetry === undefined
+        ? undefined
+        : {
+            onRetryScheduled: (attemptNo, maxAttempts, delayMs) => {
+              const notified = attempt(() => {
+                onRetry({ attempt: attemptNo, maxRetries: maxAttempts, waitMs: delayMs });
+              });
+              if (!notified.ok) {
+                deps.logger?.warn("model.retry_listener_failed", { attempt: attemptNo });
+              }
+            },
+          },
     );
   }
 

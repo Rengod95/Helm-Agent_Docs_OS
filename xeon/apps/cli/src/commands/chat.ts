@@ -110,9 +110,14 @@ async function runPrint(
         text: t("cli.chat.waitNotice"),
         onWriteFailure: progress.onWriteFailure,
       });
-  const sent = await session.sendTurn(ran.kind === "send" ? ran.text : input);
-  const end = await sent.done;
-  waiting?.stop();
+  let end: TurnEnd;
+  try {
+    const sent = await session.sendTurn(ran.kind === "send" ? ran.text : input);
+    end = await sent.done;
+  } finally {
+    // 보내지 못했거나 오류로 끝나도 안내를 거둔다. 거두지 않으면 오류 뒤에 기다림 안내가 뒤늦게 나온다
+    waiting?.stop();
+  }
   await session.idle();
   if (jsonMode && end.status !== "completed") {
     // JSON 모드는 사람용 출력이 없다. 실패 이유는 stderr에 한 줄 남긴다
@@ -236,7 +241,11 @@ async function chatWork(
           printed.any = true;
           return io.stdout(text);
         },
-        stderr: io.stderr,
+        // 도구 호출 줄은 stderr로 간다. 그 줄도 출력이므로 기다림 안내를 막는다
+        stderr: (text) => {
+          printed.any = true;
+          return io.stderr(text);
+        },
         layout: "print",
         color: colorOn,
       });

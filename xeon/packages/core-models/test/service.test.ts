@@ -3,6 +3,7 @@ import type { AssistantMessageEvent, AssistantMessage } from "@fresnel/contracts
 import type { UsageRecord } from "@fresnel/contracts/services";
 import { fixedIdFactory, flushMicrotasks } from "@fresnel/ext-host/testing";
 import { loadTape, t, tape } from "../src/testing/index.ts";
+import { createTokenEstimator } from "../src/tokens.ts";
 import { createHarness, unwrap } from "./support/harness.ts";
 import { memoryLogger, type LogLine } from "./support/logger.ts";
 import { transcriptOf } from "./support/transcript.ts";
@@ -13,6 +14,32 @@ async function collect(
   const events: AssistantMessageEvent[] = [];
   for await (const event of stream) events.push(event);
   return events;
+}
+
+/** 사용자 글 하나. 시각 `timestamp`로 순서와 요약 전후를 정한다 */
+function userText(timestamp: number, text: string) {
+  return { role: "user" as const, content: text, timestamp };
+}
+
+/** 어시스턴트 글 하나와 제공자가 보고한 총 토큰 */
+function assistantText(timestamp: number, text: string, totalTokens: number): AssistantMessage {
+  return {
+    role: "assistant",
+    content: [{ type: "text", text }],
+    api: "anthropic-messages",
+    provider: "anthropic",
+    model: "claude-x",
+    usage: {
+      input: totalTokens,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+    stopReason: "stop",
+    timestamp,
+  };
 }
 
 afterEach(() => {
@@ -528,6 +555,49 @@ describe("list, tokens, registration", () => {
     const estimate = h.service.tokens.estimateContext(h.context("hello").messages);
     expect(estimate.tokens).toBeGreaterThan(0);
     expect(estimate.lastUsageIndex).toBeNull();
+  });
+
+  test("context estimate: the last reported usage counts and only the messages after it are estimated", () => {
+    // pi-ai estimateContextTokens: 마지막 어시스턴트 사용량 + 그 뒤 메시지의 내용 추정(3.5자당 1토큰)
+    const estimate = createTokenEstimator().estimateContext([
+      userText(1, "a".repeat(35)),
+      assistantText(2, "answer", 5000),
+      userText(3, "b".repeat(35)),
+    ]);
+    expect(estimate).toEqual({
+      tokens: 5010,
+      usageTokens: 5000,
+      trailingTokens: 10,
+      lastUsageIndex: 1,
+    });
+  });
+
+  test("context estimate: a response older than a summary placed before it is not used, so the whole context is estimated", () => {
+    // 컴팩션 뒤 옛 응답의 사용량은 요약 이전 문맥의 크기라 쓰지 않는다. 새 응답이 올 때까지 내용 추정이다
+    const estimate = createTokenEstimator().estimateContext([
+      userText(5, "s".repeat(35)),
+      assistantText(2, "answer", 5000),
+      userText(6, "c".repeat(35)),
+    ]);
+    expect(estimate).toEqual({
+      tokens: 22,
+      usageTokens: 0,
+      trailingTokens: 22,
+      lastUsageIndex: null,
+    });
+  });
+
+  test("context estimate: with no reported usage the whole context is estimated by content", () => {
+    const estimate = createTokenEstimator().estimateContext([
+      userText(1, "a".repeat(35)),
+      userText(2, "b".repeat(35)),
+    ]);
+    expect(estimate).toEqual({
+      tokens: 20,
+      usageTokens: 0,
+      trailingTokens: 20,
+      lastUsageIndex: null,
+    });
   });
 
   test("provider registration is not available before M2", () => {

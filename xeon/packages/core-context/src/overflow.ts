@@ -1,6 +1,6 @@
 import { assertNever } from "@fresnel/contracts";
 import type { AssistantMessage, StepId, ThreadId } from "@fresnel/contracts/conversation";
-import type { ModelBinding, OverflowRecovery } from "@fresnel/contracts/services";
+import type { ModelBinding, ModelRetryEvent, OverflowRecovery } from "@fresnel/contracts/services";
 import { projectBranch, readBranchEvents } from "./branch.ts";
 import { compactThread, hasCompactionFor, type CompactDeps } from "./compaction/compact.ts";
 
@@ -17,6 +17,7 @@ export async function recoverOverflow(
   stepId: StepId,
   _failed: AssistantMessage,
   binding: ModelBinding,
+  opts?: { readonly onRetry?: (event: ModelRetryEvent) => void },
 ): Promise<OverflowRecovery> {
   if (!deps.settings().autoCompact) return disabledOverflowRecovery();
   const read = await readBranchEvents(deps, threadId, undefined, undefined);
@@ -32,6 +33,7 @@ export async function recoverOverflow(
     contextWindow: deps.contextWindowOf(binding),
     stepId,
     willRetry: true,
+    ...(opts?.onRetry === undefined ? {} : { onRetry: opts.onRetry }),
   });
   if (!outcome.ok) return { action: "fail", reason: "compaction_failed" };
   switch (outcome.value.status) {

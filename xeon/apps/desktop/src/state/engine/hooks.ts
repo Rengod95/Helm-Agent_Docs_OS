@@ -14,12 +14,14 @@ import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import type { ReadonlyStore } from "../shared/readonly-store.ts";
 import * as sel from "./selectors.ts";
+import type { AnchoredCompaction } from "./compaction-anchor.ts";
 import type { EngineState } from "../../transport/ipc.ts";
 import type {
   EngineMirror,
   Link,
   PendingApproval,
   PlanRecord,
+  ProviderRetry,
   QueuedInput,
   StreamingItem,
   TransitionRecord,
@@ -117,6 +119,9 @@ export const useLastUserItemId = (): ItemId | null => useEngine(sel.selectLastUs
 export const useLastUserText = (): string | null => useEngine(sel.selectLastUserText);
 export const useTurnFailure = (id: ThreadId | null): string | null =>
   useEngine((s) => sel.selectTurnFailure(s, id));
+/** 이 대화의 제공자 재시도 대기(휘발). 다음 응답이 오기 시작하거나 턴이 끝나면 null이 된다 */
+export const useRetrying = (id: ThreadId | null): ProviderRetry | null =>
+  useEngine((s) => sel.selectRetrying(s, id));
 /** 대화별 실패로 끝난 마지막 turn의 문장. 진행 중 칸이 예약 실패 행을 고른다 */
 export const useTurnFailures = (): Readonly<Record<string, string>> =>
   useEngine(sel.selectTurnFailures);
@@ -132,6 +137,9 @@ export const useHandlerFailures = (): EngineMirror["handlerFailures"] =>
 export const useTransitions = (threadId: ThreadId | null): readonly TransitionRecord[] =>
   useEngine(useShallow((s: EngineMirror) => sel.selectTransitions(s, threadId)));
 /** 이 대화의 계획 기록(받은 순서, 가장 최근 것이 뒤, 대화마다 최대 20개). 계획 카드가 최근 계획의 id를 고른다 */
+/** 이 대화의 요약 구분선 자리(열린 대화의 목록에 끼운다). 같은 기록이면 같은 참조다 */
+export const useCompactionAnchors = (threadId: ThreadId | null): readonly AnchoredCompaction[] =>
+  useEngine((s: EngineMirror) => sel.selectCompactionAnchors(s, threadId));
 export const usePlans = (threadId: ThreadId | null): readonly PlanRecord[] =>
   useEngine(useShallow((s: EngineMirror) => sel.selectPlans(s, threadId)));
 /** 이 대화의 아직 배치되지 않은 대기 입력(받은 순서, 대화마다 최대 20개). 입력창 위 칩이 쓴다 */

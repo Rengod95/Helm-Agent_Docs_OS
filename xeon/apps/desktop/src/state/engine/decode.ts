@@ -3,9 +3,11 @@ import { parse } from "@fresnel/contracts";
 import {
   ItemStartedPayloadSchema,
   ItemUpdatedPayloadSchema,
+  ProviderRetryDetailSchema,
   ThreadStartedPayloadSchema,
   ThreadUpdatedPayloadSchema,
   TurnCompletedPayloadSchema,
+  TurnUpdatedPayloadSchema,
   maskItemRecord,
   type ApprovalMaskEntry,
   type LeafMask,
@@ -13,6 +15,7 @@ import {
 import {
   ApprovalRequestedPayloadSchema,
   ApprovalResolvedPayloadSchema,
+  CompactedPayloadSchema,
   ItemRecordedPayloadSchema,
   LeaseAcquiredPayloadSchema,
   LeaseRejectedPayloadSchema,
@@ -100,6 +103,7 @@ const DURABLE: Readonly<
       : { ...base, type: "item.recorded", item };
   },
   "turn.started": (base) => ({ ...base, type: "turn.started" }),
+  "step.started": (base) => ({ ...base, type: "step.started" }),
   "thread.started": (base, payload) => {
     const p = parse(ThreadStartedPayloadSchema, payload);
     return p.ok
@@ -170,6 +174,22 @@ const DURABLE: Readonly<
     const p = parse(ReviewSubmittedPayloadSchema, payload);
     return p.ok
       ? { ...base, type: "review.submitted", payload: p.value }
+      : { ...base, type: "unreadable" };
+  },
+  // 대화 요약(구분선과 요약 보기): 본문과 토큰 수와 이유만 싣는다. 옛 기록은 tokensAfter·reason이 없다
+  "thread.compacted": (base, payload) => {
+    const p = parse(CompactedPayloadSchema, payload);
+    return p.ok
+      ? {
+          ...base,
+          type: "thread.compacted",
+          compaction: {
+            summary: p.value.summary,
+            tokensBefore: p.value.tokensBefore,
+            tokensAfter: p.value.tokensAfter ?? null,
+            reason: p.value.reason ?? null,
+          },
+        }
       : { ...base, type: "unreadable" };
   },
   // 계획 사건(P-14 계획 카드): 계획 id, 판 번호, 제목과 상태만 싣는다. 본문과 산출물은 거울에 들어가지 않는다
@@ -299,9 +319,26 @@ function decodeHandlerFailed(base: VolatileBase, event: VolatileEventWire): Vola
     : { ...base, type: "other" };
 }
 
-export function decodeVolatile(event: VolatileEventWire): VolatileFact {
+/**
+ * 휘발 `turn.updated`: 제공자 재시도 알림(`provider_retry`)만 `provider.retry` 사실이 된다. 나머지 알림과 모양이 틀린 것은 other다.
+ * `receivedAt`은 이 기기가 받은 시각(ms)이다. 남은 대기 초는 이 시각에서 센다(발신 쪽 시계와 다를 수 있다).
+ */
+function decodeTurnUpdated(base: VolatileBase, payload: unknown, receivedAt: number): VolatileFact {
+  const p = parse(TurnUpdatedPayloadSchema, payload);
+  if (!p.ok || p.value.notice?.code !== "provider_retry") return { ...base, type: "other" };
+  const detail = parse(ProviderRetryDetailSchema, p.value.notice.detail);
+  return detail.ok
+    ? { ...base, type: "provider.retry", retry: detail.value, receivedAt }
+    : { ...base, type: "other" };
+}
+
+export function decodeVolatile(
+  event: VolatileEventWire,
+  receivedAt: number = Date.now(),
+): VolatileFact {
   const base: VolatileBase = { n: event.n, threadId: event.threadId, turnId: event.turnId };
   if (event.kind === "scope.handler_failed") return decodeHandlerFailed(base, event);
+  if (event.kind === "turn.updated") return decodeTurnUpdated(base, event.payload, receivedAt);
   const decode = VOLATILE[event.kind];
   return decode === undefined ? { ...base, type: "other" } : decode(base, event.payload);
 }

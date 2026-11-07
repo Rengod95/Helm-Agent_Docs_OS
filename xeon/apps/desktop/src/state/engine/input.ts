@@ -4,6 +4,7 @@ import type {
   ItemRecord,
   ItemStartedPayload,
   ItemUpdatedPayload,
+  ProviderRetryDetail,
   ThreadId,
   ThreadStartedPayload,
   ThreadUpdatedPayload,
@@ -79,12 +80,25 @@ export type QueuedInputFact = {
   readonly scheduleId?: string;
 };
 
+/**
+ * 대화 요약 사실(내구, `thread.compacted`). 요약 본문, 토큰 수, 이유만 싣는다. `details`·`usage`·확장 출처는 화면이 쓰지 않는다.
+ * `tokensAfter`와 `reason`은 옛 기록에 없을 수 있다(없으면 null)
+ */
+export type CompactionFact = {
+  readonly summary: string;
+  readonly tokensBefore: number;
+  readonly tokensAfter: number | null;
+  readonly reason: "manual" | "threshold" | "overflow" | null;
+};
+
 /** 경계에서 payload를 검증한 내구 이벤트. 거울이 쓰지 않는 kind는 other로 위치만 넘긴다 */
 export type DurableFact =
   | (DurableBase & { readonly type: "thread.started"; readonly payload: ThreadStartedPayload })
   | (DurableBase & { readonly type: "thread.updated"; readonly payload: ThreadUpdatedPayload })
   | (DurableBase & { readonly type: "thread.closed" })
   | (DurableBase & { readonly type: "turn.started" })
+  /** 단계가 시작했다. 제공자 재시도 대기가 끝나 다음 응답을 기다리는 중임을 뜻한다(재시도 대기를 지운다) */
+  | (DurableBase & { readonly type: "step.started" })
   | (DurableBase & { readonly type: "turn.completed"; readonly payload: TurnCompletedPayload })
   | (DurableBase & { readonly type: "item.recorded"; readonly item: ItemRecord })
   | (DurableBase & {
@@ -99,6 +113,8 @@ export type DurableFact =
   | (DurableBase & { readonly type: "review.applied"; readonly payload: ReviewAppliedPayload })
   | (DurableBase & { readonly type: "review.submitted"; readonly payload: ReviewSubmittedPayload })
   | (DurableBase & { readonly type: "plan.event"; readonly plan: PlanEventFact })
+  /** 대화 요약. 구분선과 "요약 보기"가 쓴다. 사건 id는 `DurableBase.eventId`다 */
+  | (DurableBase & { readonly type: "thread.compacted"; readonly compaction: CompactionFact })
   /** 큐에 든 입력. 입력 id는 이 사실의 `eventId`다 */
   | (DurableBase & { readonly type: "input.queued"; readonly input: QueuedInputFact })
   /** 입력이 turn에 배치됐다. `inputId`는 `input.queued`의 이벤트 id다 */
@@ -126,6 +142,12 @@ export type VolatileFact =
     })
   /** 상태줄 칸 전체 스냅숏. 그 thread의 칸을 통째로 바꾼다 */
   | (VolatileBase & { readonly type: "dialog.status"; readonly payload: DialogStatusData })
+  /** 제공자 재시도 대기(휘발 `turn.updated` notice `provider_retry`). `receivedAt`은 이 기기가 받은 시각(ms)이다 */
+  | (VolatileBase & {
+      readonly type: "provider.retry";
+      readonly retry: ProviderRetryDetail;
+      readonly receivedAt: number;
+    })
   | (VolatileBase & { readonly type: "other" });
 
 /** 엔진 거울의 유일한 입력. 엔진 사실(알림, 요청 결과, 셸 상태)과 컨트롤러의 요청 표시만 담는다 */
