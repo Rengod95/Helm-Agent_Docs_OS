@@ -4,9 +4,10 @@ import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import { useState, type ReactNode } from "react";
 import { useApprovalMirror, useOpenThread, useQueuedInputs } from "../state/engine/index.ts";
+import { useEngineTarget } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
 import { chipInputs } from "./composer-model.ts";
-import { resumeBandClosed, resumeBandOf } from "./resume-band-model.ts";
+import { crashedBodyOf, resumeBandClosed, resumeBandOf } from "./resume-band-model.ts";
 
 // 트랜스크립트 끝의 "이어서 실행" 띠(시안 d01-chat-gaps ResumeBand, 스펙 SC-12).
 // 강제 종료 뒤에는 이어서 실행 / 그대로 두기, 중단 뒤 대기 입력이 남았으면 보내기를 준다.
@@ -23,6 +24,7 @@ async function settle(
 export function ResumeBand(): ReactNode {
   const thread = useOpenThread();
   const commands = useCommands();
+  const target = useEngineTarget();
   const [busy, setBusy] = useState(false);
   // 이어서 실행이 시작된 turn. 실행이 시작되면 같은 복구 표식의 띠는 닫는다(표식은 turn이 끝나야 지워진다)
   const [resumedTurn, setResumedTurn] = useState<string | null>(null);
@@ -96,7 +98,7 @@ export function ResumeBand(): ReactNode {
         </span>
       }
     >
-      <b>{t("desktop.resumeBand.crashed.title")}</b> {t("desktop.resumeBand.crashed.body")}
+      <b>{t("desktop.resumeBand.crashed.title")}</b> {t(crashedBodyOf(target.kind === "remote"))}
     </Alert>
   );
 }

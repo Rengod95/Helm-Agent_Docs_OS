@@ -8,6 +8,8 @@ import type { EngineEvents, Launched, Launcher } from "./launcher.ts";
 import {
   createRestartPolicy,
   createStderrSplitter,
+  engineDetailOf,
+  ENV_EXIT_CODE,
   exitOf,
   KILL_SETTLE_MS,
   RESTORE_SLACK_MS,
@@ -16,6 +18,7 @@ import {
   shutdownRequestFrame,
   validateTarget,
   type EngineConfig,
+  type RestartDecision,
   type RestartPolicy,
   type SafeMode,
 } from "./policy.ts";
@@ -349,9 +352,10 @@ export class Supervisor {
       // 바이너리 없음, 실행 권한 없음은 되풀이해도 같다. 재기동하지 않는다(spec 5)
       this.endLaunch();
       this.deps.log.line(`launch failed: ${launched.error.message}`);
+      // 띄우지 못했으니 stderr도 없다
       const kept = await this.failAndWait(
         this.attempt,
-        exitOf(null, null, this.deps.clock.now()),
+        exitOf(null, null, this.deps.clock.now(), null),
         plan.epoch,
       );
       if (!kept) return false;
@@ -407,7 +411,12 @@ export class Supervisor {
     // 복원 때문에 끝낸 엔진이다. 자동 재기동 횟수에 세지 않는다. 보류가 풀리면 맨 위에서 다시 띄운다
     if (after.held) return true;
     const now = this.deps.clock.now();
-    const decision = this.policy.onExit(now);
+    // 종료코드 3은 환경 문제라 되풀이해도 같다. 재기동 정책을 거치지 않고 자동 재기동 없이 바로 `failed`로 둔다.
+    // `attempts`는 `giveUp`과 같은 뜻이라 이 세대까지 쓴 자동 재기동 횟수다(정책 창에 아무것도 더하지 않는다)
+    const decision: RestartDecision =
+      exit.code === ENV_EXIT_CODE
+        ? { kind: "giveUp", attempts: this.attempt }
+        : this.policy.onExit(now);
     if (decision.kind === "giveUp") {
       const kept = await this.failAndWait(decision.attempts, exit, plan.epoch);
       if (!kept) return false;
@@ -489,10 +498,19 @@ export class Supervisor {
     return !this.shared.stopRequested;
   }
 
-  /** 엔진 이벤트를 소비한다. stdout은 세대 전용 스트림으로, stderr는 줄 단위 로그로 보낸다 */
+  /**
+   * 엔진 이벤트를 소비한다. stdout은 세대 전용 스트림으로, stderr는 줄 단위 로그로 보낸다.
+   * 세대의 첫 비어 있지 않은 stderr 줄은 종료 기록의 `detail`로 싣는다(로그에는 아무것도 더 남기지 않는다).
+   */
   private async pump(generation: number, events: EngineEvents): Promise<EngineExit> {
     const stream = this.deps.relay.openStream();
     const splitter = createStderrSplitter();
+    // 객체로 감싸 클로저가 바꾼 값을 TS가 `null`로 좁히지 않게 한다
+    const firstLine: { detail: string | null } = { detail: null };
+    const logStderr = (line: string): void => {
+      this.deps.log.line(`engine[${String(generation)}] stderr: ${line}`);
+      if (firstLine.detail === null) firstLine.detail = engineDetailOf(line);
+    };
     const exit = await repeatAsync<EngineExit | null>(async () => {
       const event = await events.next();
       if (event === null) return { value: null };
@@ -501,9 +519,7 @@ export class Supervisor {
           await stream.push(event.bytes);
           return undefined;
         case "stderr":
-          for (const line of splitter.push(event.bytes)) {
-            this.deps.log.line(`engine[${String(generation)}] stderr: ${line}`);
-          }
+          for (const line of splitter.push(event.bytes)) logStderr(line);
           return undefined;
         case "terminated":
           return { value: exitOf(event.code, event.signal, this.deps.clock.now()) };
@@ -515,13 +531,14 @@ export class Supervisor {
       }
     });
     const tail = splitter.finish();
-    if (tail !== null) this.deps.log.line(`engine[${String(generation)}] stderr: ${tail}`);
+    if (tail !== null) logStderr(tail);
     // E11: 프레임 내용은 남기지 않고 바이트 수만 남긴다
     const stats = stream.finish();
     this.deps.log.line(
       `engine[${String(generation)}] relay forwarded=${String(stats.forwardedBytes)}B dropped=${String(stats.droppedBytes)}B dropped_tail=${String(stats.droppedTailBytes)}B overflowed_lines=${String(stats.overflowedLines)}`,
     );
-    return exit ?? exitOf(null, null, this.deps.clock.now());
+    // 꼬리 줄까지 본 뒤에 붙인다. 끝난 기록이 없으면(스트림만 끝남) 빈 기록이다
+    return { ...(exit ?? exitOf(null, null, this.deps.clock.now())), detail: firstLine.detail };
   }
 
   // -------------------------------------------------------------------------------------------

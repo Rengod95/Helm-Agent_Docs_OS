@@ -151,6 +151,109 @@ describe("crash, backoff and the restart limit (4.4)", () => {
   });
 });
 
+describe("exit records carry the generation's first stderr line (4.4)", () => {
+  /** 시험 시계의 출발 시각. 시계를 움직이지 않은 채 끝난 엔진의 `at`이다 */
+  const AT = "2026-10-24T00:00:00.000Z";
+
+  test("an environment exit (code 3) is not retried: failed with one launch, and a manual restart still works", async () => {
+    // 한도 3: 종료코드 3이 자동 재기동을 쓰면 아래 `restarting`이 보인다
+    const r = rig(EOF_EXIT, 3);
+    r.supervisor.start();
+    await runningUntil(r, 1);
+    r.launcher
+      .engine(0)
+      .stderr("The service socket does not exist\nCheck that the service is running\n");
+    r.launcher.engine(0).crash(3);
+    await until("failed", () => lastKind(r) === "failed");
+    await r.clock.advance(60_000);
+    expect(r.launcher.launches()).toBe(1);
+    expect(r.sink.kinds()).toEqual(["starting", "running", "failed"]);
+    expect(r.relay.state()).toEqual({
+      kind: "failed",
+      attempts: 0,
+      lastExit: { code: 3, signal: null, at: AT, detail: "The service socket does not exist" },
+    });
+    // 수동 재기동은 failed에서 확인 없이 다시 띄운다
+    expect(r.supervisor.restartManually(null, false)).toEqual(ok(undefined));
+    await runningUntil(r, 2);
+    expect(r.launcher.launches()).toBe(2);
+  });
+
+  test("another exit code still restarts, and the record carries its first stderr line", async () => {
+    const r = rig();
+    r.supervisor.start();
+    await runningUntil(r, 1);
+    // 앞의 빈 줄과 공백은 건너뛰고, 앞뒤 공백을 뗀 첫 비어 있지 않은 줄을 싣는다
+    r.launcher.engine(0).stderr("\n  database is locked  \nsecond line\n");
+    r.launcher.engine(0).crash(1);
+    await runningUntil(r, 2);
+    expect(r.sink.kinds()).toEqual(["starting", "running", "restarting", "starting", "running"]);
+    expect(r.sink.states[2]).toEqual({
+      kind: "restarting",
+      attempt: 1,
+      retryAt: AT,
+      lastExit: { code: 1, signal: null, at: AT, detail: "database is locked" },
+    });
+  });
+
+  test("a first line longer than 200 characters is cut to 200 characters, not bytes", async () => {
+    // 가는 한 글자가 UTF-8로 세 바이트라 바이트로 자르면 66글자만 남는다
+    const r = rig(EOF_EXIT, 0);
+    r.supervisor.start();
+    await runningUntil(r, 1);
+    r.launcher.engine(0).stderr(`${"가".repeat(201)}\n`);
+    r.launcher.engine(0).crash(1);
+    await until("failed", () => lastKind(r) === "failed");
+    expect(r.relay.state()).toEqual({
+      kind: "failed",
+      attempts: 0,
+      lastExit: { code: 1, signal: null, at: AT, detail: "가".repeat(200) },
+    });
+  });
+
+  test("leading blank and control-only lines are skipped and the first real line is used", async () => {
+    const r = rig(EOF_EXIT, 0);
+    r.supervisor.start();
+    await runningUntil(r, 1);
+    r.launcher.engine(0).stderr("\n   \n\t\u0007\n  first real line  \nsecond line\n");
+    r.launcher.engine(0).crash(1);
+    await until("failed", () => lastKind(r) === "failed");
+    expect(r.relay.state()).toEqual({
+      kind: "failed",
+      attempts: 0,
+      lastExit: { code: 1, signal: null, at: AT, detail: "first real line" },
+    });
+  });
+
+  test("a last line without a newline, read after the exit, is the detail", async () => {
+    // 줄 끝이 없는 꼬리는 종료 뒤에야 나온다. 그래도 세대의 첫 줄이면 싣는다
+    const r = rig(EOF_EXIT, 0);
+    r.supervisor.start();
+    await runningUntil(r, 1);
+    r.launcher.engine(0).stderr("socket missing");
+    r.launcher.engine(0).crash(1);
+    await until("failed", () => lastKind(r) === "failed");
+    expect(r.relay.state()).toEqual({
+      kind: "failed",
+      attempts: 0,
+      lastExit: { code: 1, signal: null, at: AT, detail: "socket missing" },
+    });
+  });
+
+  test("no stderr gives a null detail", async () => {
+    const r = rig(EOF_EXIT, 0);
+    r.supervisor.start();
+    await runningUntil(r, 1);
+    r.launcher.engine(0).crash(1);
+    await until("failed", () => lastKind(r) === "failed");
+    expect(r.relay.state()).toEqual({
+      kind: "failed",
+      attempts: 0,
+      lastExit: { code: 1, signal: null, at: AT, detail: null },
+    });
+  });
+});
+
 describe("graceful shutdown (4.3)", () => {
   test("writes the request, closes stdin and does not wait for the grace when the engine exits on EOF", async () => {
     const r = rig(EOF_EXIT);

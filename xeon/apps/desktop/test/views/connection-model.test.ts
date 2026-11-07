@@ -1,11 +1,18 @@
 import { describe, expect, test } from "bun:test";
-import { attachErrorKey, TARGET_SEARCH_THRESHOLD, type TargetEntry } from "@fresnel/client";
+import {
+  attachErrorKey,
+  attachFixKey,
+  TARGET_SEARCH_THRESHOLD,
+  type AttachFailureKind,
+  type TargetEntry,
+} from "@fresnel/client";
 import { catalogOf } from "@fresnel/client/i18n";
 import { updateLineKey } from "@fresnel/client/settings";
 import type { HostClientView } from "@fresnel/contracts/wire";
 import type { EngineState, Link } from "../../src/state/engine/index.ts";
 import {
   attachFailureOf,
+  attachFailureOfExit,
   canConnect,
   canSetRemoteRespond,
   checkForm,
@@ -317,6 +324,43 @@ describe("failures keep the target and say how to retry", () => {
     expect(refused.failure).toEqual({ kind: "auth", target: REMOTE_BUILD, retry: "restart" });
   });
 
+  test("a failed engine whose exit line names the cause fails with that kind and keeps the target", () => {
+    const start = run(withItems([BUILD]), started(REMOTE_BUILD));
+    const socket = connectionReducer(
+      start,
+      seen({
+        kind: "failed",
+        attempts: 3,
+        lastExit: {
+          code: 3,
+          signal: null,
+          at: "2026-11-04T01:00:00.000Z",
+          detail: "The service socket does not exist",
+        },
+      }),
+    );
+    expect(socket.pending).toBeNull();
+    expect(socket.failure).toEqual({
+      kind: "socketMissing",
+      target: REMOTE_BUILD,
+      retry: "restart",
+    });
+    const token = connectionReducer(
+      start,
+      seen({
+        kind: "failed",
+        attempts: 3,
+        lastExit: {
+          code: 3,
+          signal: null,
+          at: "2026-11-04T01:00:00.000Z",
+          detail: "The remote access token is missing",
+        },
+      }),
+    );
+    expect(token.failure).toEqual({ kind: "tokenMissing", target: REMOTE_BUILD, retry: "restart" });
+  });
+
   test("a link that failed is an other failure", () => {
     const start = run(withItems([BUILD]), started(REMOTE_BUILD));
     expect(connectionReducer(start, seen(RUNNING, "failed")).failure).toEqual({
@@ -357,8 +401,74 @@ describe("failures keep the target and say how to retry", () => {
     expect(attachFailureOf("engine_not_running")).toBe("other");
   });
 
-  test("the auth failure text tells the user the token comes from the environment", () => {
-    expect(catalogOf("ko")[attachErrorKey("auth")]).toContain("FRESNEL_REMOTE_TOKEN");
+  test("the auth failure's cause says the token is missing or wrong, and its fix line names the environment variable", () => {
+    expect(catalogOf("ko")[attachErrorKey("auth")]).toBe(
+      "원격 서비스가 접속을 거절했어요. 토큰이 없거나 맞지 않아요.",
+    );
+    expect(catalogOf("ko")[attachFixKey("auth")]).toContain("FRESNEL_REMOTE_TOKEN");
+  });
+});
+
+/** 종료 코드 3(환경 문제)으로 죽은 엔진의 첫 줄을 종류로 바꾼다 */
+function kindOf(detail: string | null): AttachFailureKind {
+  return attachFailureOfExit({ code: 3, detail });
+}
+
+describe("the exit detail names the failure cause", () => {
+  test("each known engine stderr first line maps to its failure kind", () => {
+    expect(kindOf("The service socket does not exist")).toBe("socketMissing");
+    expect(kindOf("The service refused the connection")).toBe("refused");
+    expect(kindOf("The service socket cannot be accessed")).toBe("permission");
+    expect(kindOf("The service did not respond in time")).toBe("timeout");
+    expect(kindOf("The remote access token is missing")).toBe("tokenMissing");
+    expect(kindOf("The remote access token does not match")).toBe("auth");
+    expect(kindOf("This build does not include remote access (ssh tunnel)")).toBe("tunnel");
+  });
+
+  test("a host key line inside the ssh tunnel line is the host key kind, not the tunnel kind", () => {
+    expect(kindOf("Could not open the ssh tunnel: Host key verification failed")).toBe("hostKey");
+    expect(kindOf("Could not open the ssh tunnel: closed by remote host")).toBe("tunnel");
+  });
+
+  test("a refused ssh connection is the tunnel kind, not the refused service kind", () => {
+    expect(
+      kindOf("Could not open the ssh tunnel: connect to host build port 22: Connection refused"),
+    ).toBe("tunnel");
+  });
+
+  test("the match ignores case, and a line nobody has seen or no line at all is other", () => {
+    expect(kindOf("THE SERVICE SOCKET DOES NOT EXIST")).toBe("socketMissing");
+    expect(kindOf("The service connection closed before it responded")).toBe("other");
+    expect(kindOf("A line nobody has seen")).toBe("other");
+    expect(kindOf("")).toBe("other");
+    expect(kindOf(null)).toBe("other");
+    expect(attachFailureOfExit({ code: null })).toBe("other");
+  });
+
+  test("the lines reach every kind except protocol, which only the hello codes give", () => {
+    const reached = [
+      kindOf("The service socket does not exist"),
+      kindOf("The service refused the connection"),
+      kindOf("The service socket cannot be accessed"),
+      kindOf("The service did not respond in time"),
+      kindOf("Could not open the ssh tunnel: Host key verification failed"),
+      kindOf("Could not open the ssh tunnel: closed by remote host"),
+      kindOf("The remote access token is missing"),
+      kindOf("The remote access token does not match"),
+      kindOf("A line nobody has seen"),
+    ];
+    expect(reached.toSorted()).toEqual([
+      "auth",
+      "hostKey",
+      "other",
+      "permission",
+      "refused",
+      "socketMissing",
+      "timeout",
+      "tokenMissing",
+      "tunnel",
+    ]);
+    expect(attachFailureOf("hello:1001")).toBe("protocol");
   });
 });
 
@@ -589,5 +699,54 @@ describe("the connected clients list", () => {
     expect(clientsShown({ kind: "failed" })).toBe(true);
     expect(clientsShown({ kind: "offline" })).toBe(false);
     expect(clientsShown({ kind: "unsupported" })).toBe(false);
+  });
+});
+
+describe("the screen opens on the engine's current target", () => {
+  const OTHER: TargetEntry = { id: "c", label: "old-box", address: "tcp://10.0.0.9:7421" };
+
+  test("a remote target the engine is on is selected, and the connect button stays off", () => {
+    const state = run(
+      INITIAL_CONNECTION_STATE,
+      { type: "targetsChanged", items: [BUILD, MINI], notice: null, added: null },
+      {
+        type: "engineTargetSeen",
+        target: { kind: "remote", address: BUILD.address, label: "build-box" },
+      },
+    );
+    expect(state.selected).toEqual(REMOTE_BUILD);
+    expect(state.engineTarget).toEqual(REMOTE_BUILD);
+    expect(canConnect(state)).toBe(false);
+  });
+
+  test("a remote target that is no longer in the list falls back to this computer", () => {
+    const state = run(
+      INITIAL_CONNECTION_STATE,
+      { type: "targetsChanged", items: [BUILD], notice: null, added: null },
+      { type: "engineTargetSeen", target: { kind: "remote", address: OTHER.address, label: "x" } },
+    );
+    expect(state.selected).toEqual(LOCAL_CHOICE);
+    expect(state.engineTarget).toEqual(LOCAL_CHOICE);
+  });
+
+  test("this computer as the engine's target keeps the local choice", () => {
+    const state = run(
+      INITIAL_CONNECTION_STATE,
+      { type: "targetsChanged", items: [BUILD], notice: null, added: null },
+      { type: "engineTargetSeen", target: { kind: "local" } },
+    );
+    expect(state.selected).toEqual(LOCAL_CHOICE);
+    expect(state.engineTarget).toEqual(LOCAL_CHOICE);
+    expect(canConnect(state)).toBe(false);
+  });
+
+  test("a seen target does not move a connection that is already in progress", () => {
+    const inProgress = run(withItems([BUILD, MINI]), started({ kind: "remote", entry: MINI }));
+    const after = run(inProgress, {
+      type: "engineTargetSeen",
+      target: { kind: "remote", address: BUILD.address, label: "build-box" },
+    });
+    expect(after).toBe(inProgress);
+    expect(after.engineTarget).toEqual({ kind: "remote", entry: MINI });
   });
 });

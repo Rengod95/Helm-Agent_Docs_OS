@@ -141,6 +141,28 @@ test("a conversation without the resumable mark never asks", async () => {
   expect(host.calls).toEqual([]);
 });
 
+test("a resumable turn that another client is waiting to approve is announced, not asked", async () => {
+  const host = resumingHandlers([summary(T1, { resumable: RESUMABLE, pendingApprovals: 2 })]);
+  const s = chat([], host.handlers);
+  expect(await s.h.run(["chat", "--resume", T1])).toBe(EXIT.ok);
+  expect(s.h.stdoutText()).toContain(
+    "이 대화에는 다른 클라이언트에서 승인을 기다리는 턴이 있다. 거기서 답하면 이어서 실행된다.\n",
+  );
+  expect(s.input.prompts.some((prompt) => prompt.includes("이어서 실행할까요?"))).toBe(false);
+  expect(s.h.stdoutText()).not.toContain("끊긴 turn이 있다");
+  expect(host.calls).toEqual([]);
+  expect(s.h.methods()).not.toContain("turn.resume");
+});
+
+test("a resumable turn with no pending approval still asks", async () => {
+  const host = resumingHandlers([summary(T1, { resumable: RESUMABLE, pendingApprovals: 0 })]);
+  const s = chat([""], host.handlers);
+  expect(await s.h.run(["chat", "--resume", T1])).toBe(EXIT.ok);
+  expect(s.input.prompts[0]).toBe("이어서 실행할까요? [y/N] ");
+  expect(s.h.stdoutText()).not.toContain("승인을 기다리는 턴");
+  expect(host.calls).toEqual([]);
+});
+
 test("a new conversation and print mode never look for a resumable turn", async () => {
   const host = resumingHandlers([summary(T1, { resumable: RESUMABLE })]);
   const fresh = chat([], host.handlers);

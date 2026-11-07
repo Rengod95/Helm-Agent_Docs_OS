@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type {
   RunRecord,
+  ScheduleLeader,
   ScheduleService,
   ScheduleState,
   ScheduleStore,
@@ -220,11 +221,28 @@ function recordingLogger(warnings: string[]): Logger {
   return self;
 }
 
+/** 보고가 나간 수준과 이름을 적어 두는 로거. `info schedule.leader_lost`처럼 쓴다 */
+function levelLogger(levels: string[]): Logger {
+  const self: Logger = {
+    debug: () => undefined,
+    info: (event) => {
+      levels.push(`info ${event}`);
+    },
+    warn: () => undefined,
+    error: (event) => {
+      levels.push(`error ${event}`);
+    },
+    child: () => self,
+  };
+  return self;
+}
+
 /** 예약 서비스 하나. 틱은 돌리지 않고 시험이 `start`로 상태를 복구하게 한다. 프로세스가 바뀌면 새로 만든다 */
 function serviceOver(
   session: SharedSession,
   stateDir: string,
   log: Logger = logger,
+  leader?: ScheduleLeader,
 ): ScheduleService {
   return createHostSchedule({
     os: partial<OsService>({}),
@@ -236,6 +254,7 @@ function serviceOver(
     ownerKind: "service",
     runnerPorts: () => ({ threads: session.threads, locks: session.locks, feed: session.feed }),
     logger: log,
+    ...(leader === undefined ? {} : { leader }),
     overrides: {
       ticker: { every: () => () => undefined },
       store: createFileScheduleStore(stateDir, realLock),
@@ -423,4 +442,28 @@ describe("the schedule runner after a restart (L2.schedule §4.4.4, L4.host-serv
       await second.close();
     },
   );
+});
+
+describe("a scheduler leader that is released is a normal stop, not an error (schedule.leader_lost)", () => {
+  test("losing the leader is reported once at info level, and nothing is reported at error level", async () => {
+    const root = mkdtempSync(join(tmpdir(), "xh-sch-lead-"));
+    try {
+      const session = sharedSession();
+      const levels: string[] = [];
+      const holds = { value: true };
+      const leader: ScheduleLeader = {
+        tryAcquire: () => ({ holds: () => holds.value, release: () => undefined }),
+      };
+      const service = serviceOver(session, join(root, "schedule"), levelLogger(levels), leader);
+      expect((await service.start()).ok).toBe(true);
+      const before = levels.length;
+      // 다른 프로세스가 leader를 가져갔다: 다음 틱이 잃었음을 알아챈다
+      holds.value = false;
+      await service.tick();
+      expect(levels.slice(before)).toEqual(["info schedule.leader_lost"]);
+      await service.close();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });

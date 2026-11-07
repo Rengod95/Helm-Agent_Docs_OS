@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   addTarget,
   attachErrorKey,
+  attachFixKey,
   type AttachFailureKind,
   filterTargets,
   parseTargetAddress,
@@ -271,14 +272,47 @@ describe("targetsStorageOf", () => {
   });
 });
 
-describe("attachErrorKey", () => {
-  test("each connection failure kind has its own message key", () => {
-    const kinds: readonly AttachFailureKind[] = ["tunnel", "auth", "protocol", "other"];
+describe("attachErrorKey and attachFixKey", () => {
+  const kinds: readonly AttachFailureKind[] = [
+    "tunnel",
+    "hostKey",
+    "auth",
+    "tokenMissing",
+    "protocol",
+    "socketMissing",
+    "refused",
+    "timeout",
+    "permission",
+    "other",
+  ];
+
+  test("each connection failure kind has its own cause key", () => {
     expect(kinds.map((kind) => attachErrorKey(kind))).toEqual([
       "desktop.connection.error.tunnel",
+      "desktop.connection.error.hostKey",
       "desktop.connection.error.auth",
+      "desktop.connection.error.tokenMissing",
       "desktop.connection.error.protocol",
+      "desktop.connection.error.socketMissing",
+      "desktop.connection.error.refused",
+      "desktop.connection.error.timeout",
+      "desktop.connection.error.permission",
       "desktop.connection.error.other",
+    ]);
+  });
+
+  test("each connection failure kind has a fix key next to its cause key", () => {
+    expect(kinds.map((kind) => attachFixKey(kind))).toEqual([
+      "desktop.connection.error.tunnel.fix",
+      "desktop.connection.error.hostKey.fix",
+      "desktop.connection.error.auth.fix",
+      "desktop.connection.error.tokenMissing.fix",
+      "desktop.connection.error.protocol.fix",
+      "desktop.connection.error.socketMissing.fix",
+      "desktop.connection.error.refused.fix",
+      "desktop.connection.error.timeout.fix",
+      "desktop.connection.error.permission.fix",
+      "desktop.connection.error.other.fix",
     ]);
   });
 });

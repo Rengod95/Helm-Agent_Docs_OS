@@ -52,8 +52,14 @@ export async function offerTurnResume(options: {
   const listed = await attemptAsync(() =>
     findThreadSummary(handle.connection, options.workspace, session.threadId),
   );
-  const resumable = listed.ok ? (listed.value?.resumable ?? null) : null;
-  if (resumable === null) return false;
+  const summary = listed.ok ? listed.value : null;
+  const resumable = summary?.resumable ?? null;
+  if (summary === null || resumable === null) return false;
+  // 다른 클라이언트(데스크톱 앱)가 승인을 기다리는 턴은 끊긴 턴이 아니다. 묻지 않고 안내만 한다
+  if (summary.pendingApprovals > 0) {
+    await io.stdout(t("cli.chat.resume.approvalElsewhere"));
+    return false;
+  }
   await io.stdout(describeResumable(resumable));
   const answer = await io.readLine(t("cli.chat.resume.prompt"), options.signal);
   const text = answer?.trim().toLowerCase() ?? "";

@@ -114,6 +114,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `fresnel usage [--thread <id>] [--json]` | 모델 사용량. `usage.get { threadId? }`를 한 번 보내고, session 창 게이지를 provider별로 모아 한 줄씩(토큰, 비용 $, 호출 수, 캐시 읽기·쓰기), provider가 둘 이상이면 합계 줄, `--thread`면 문맥 줄(`context`)을 stdout에 쓴다. `--thread`가 없으면 모든 대화의 합이다. 기록이 비면 안내 한 줄만 쓴다. `--json`은 `usage.get` 결과를 그대로 쓴다. 기간(`--since`)은 `usage.get`이 시간 창을 만들지 않아(`L4.host-service.spec` §10 46번) 받지 않는다 [기본값: CLI 스펙에 사용량 명령이 없어 `fresnel usage [--thread <id>] [--json]`로 정했다] | `usage.get` | M4 |
 | `fresnel version [--json]` | CLI 버전, 계약 버전(`WIRE_PROTOCOL_VERSION`), Bun 버전 | 없음 | M1 |
 
+- `service start`에 `--listen-tcp`를 주었는데 서비스가 이미 떠 있고 그 주소로 열려 있지 않으면, TCP는 열지 않고 stderr에 "the service was already running, so --listen-tcp was not applied; ..." 경고를 쓴다. 종료 코드는 0이다 [결정: 오케스트레이터 기본값, fxRM]. `service status`는 TCP가 열려 있으면 `tcp <호스트>:<포트>` 줄을 보인다(접속 토큰은 보이지 않는다). `idle shutdown`은 유휴 종료 시각이 있으면 `at <ISO>`, 없으면 `none (clients are connected)`로 보인다. `--json` 출력은 그대로다 [결정: 오케스트레이터 기본값, fxRM].
 - 근거: 명령 모양은 omp `config list/get/set/reset`(`_research/settings.md` §1, §3 [S36]), pi 모드 4종(TUI, print, JSON, RPC: `_research/refs/pi.md` "같은 AgentSession을 네 모드가 쓴다", `~/projects/_ref/pi-src/packages/coding-agent/src/modes/`), 시크릿 명령은 `_research/secrets.md` §6.6, 서비스 명령은 adr.0006 §3.4다.
 - [결정] 서비스 모드는 1차이고 OS 서비스 등록은 2차다(adr.0006 §1). [제안] CLI의 `service` 명령은 M3에 둔다. M1·M2는 in-process와 stdio로 충분하고, 서비스 본체는 `L4.host-service.plan`의 일정을 따른다.
 - [제안] M1 host 처리기는 `host.hello`, `thread.create`, `turn.start`, `events.subscribe`, `settings.get` 다섯이다(`F.wire-settings.spec` §3.3.1의 [제안]. M1 범위는 `_research/foundation-plan.md` §5 P4). 그래서 M1의 `config`는 `get`과 로컬 명령 `schema`만 있고, `sessions ls`는 `thread.list`가 생기는 M2다.
@@ -580,6 +581,7 @@ export interface GroupTemplatesPort {
 - 끊긴 turn 이어 실행 [결정: m2c G1-02]:
   - 대화형이 기존 대화(`--continue`, `--resume <id>`, `/resume`)을 열면 이전 기록을 다 그린 뒤, 입력을 받기 전에 `thread.list`에서 그 대화의 요약을 찾는다. 작업 폴더 범위에서 먼저 찾고 없으면 전체에서 찾는다. 쪽은 각 범위 최대 3쪽까지 넘겨 본다.
   - 요약의 `resumable`이 `null`이 아니면 "이 대화에 끊긴 turn이 있다 (시작 <시각>, 이어 실행을 <n>번 시도했다)"를 보이고 `이어서 실행할까요? [y/N]`을 묻는다. `y`일 때만 `turn.resume { threadId }`를 보낸다. 호스트는 자동 재개를 하지 않으므로 CLI도 묻지 않고 부르지 않는다. 호스트가 쓰기 소유를 얻으면서 되살린 미해결 승인(HS-52)이 있으면 그 승인 카드가 이 질문보다 먼저 서고, 카드에 답한 뒤에 이 질문을 한다 [미결 §10 15번] [근거: 이 문서 §10 15번].
+  - 요약의 `pendingApprovals`가 0보다 크면(다른 클라이언트, 예: 데스크톱 앱이 승인을 기다리는 턴) 재개를 묻지 않고 "이 대화에는 다른 클라이언트에서 승인을 기다리는 턴이 있어요. 거기서 답하면 이어서 실행돼요."라는 안내만 한다. 그 턴은 끊긴 것이 아니라 다른 쪽의 답을 기다리는 것이므로 `turn.resume`을 부르지 않는다 [결정: 오케스트레이터 기본값, fxRM].
   - 결과는 `resumed`(이어서 실행한다, 단계 `from`을 보이고 그 turn이 끝날 때까지 기다린다. 진행은 이벤트로 그려진다), `closed`(중단 요청 또는 소유자 취소라 이어 실행하지 않고 닫았다), `nothing`(이어서 실행할 turn이 없다)이다. 실패는 두 줄 오류로 알리고 입력을 이어 받는다.
   - 새 대화, 관찰 전용으로 연 대화, print 모드, `host.hello`의 `features`에 `turn.resume`이 없는 호스트에서는 묻지 않는다. 목록을 읽지 못해도 대화를 막지 않는다.
   - `fresnel sessions ls`는 `resumable`이 있는 대화에 `[이어서 실행 가능]`을 붙인다(구현됨).
@@ -970,6 +972,7 @@ $ fresnel db restore ~/backup/fresnel-2026-10-29
 - `add`의 결과 줄은 `예약했다: <id>  <트리거>  다음 실행 <ISO|없음>`이다. 트리거 요약은 `간격 300초`, `시각 <ISO>`, `감시 <경로들> (디바운스 <ms>ms)`, `원격`, `루프 <초>초 간격, 최대 <n>회, 만료 <ISO>` 가운데 하나다. `warnings`에 `service_mode_off`가 있으면 그 뒤에 stderr로 `경고: 서비스 모드가 꺼져 있어 이 예약은 실행되지 않는다. fresnel service start로 서비스를 띄운 뒤에 실행된다` 한 줄을 쓴다. 종료 코드는 0이다. CLI는 서비스를 띄우지 않는다.
 - `list`는 기본으로 `{ enabled: true }`를, `--all`이면 `{}`를 보낸다. 항목마다 한 줄이고 형식은 `<id>  <on|off>  <트리거>  다음 <ISO|->  마지막 <status>/<outcome|-> <claimedAt ISO>  <제목 또는 프롬프트 앞 40자>`다. 실행 기록이 없으면 `마지막 없음`이다. 제목이 없으면 프롬프트를 쓴다. 줄바꿈과 연속 공백은 한 칸으로 줄인다. `--json`은 항목 배열을 들여쓰기 두 칸으로 쓴다. 항목이 없으면 stderr에 `예약이 없다`를 쓴다. `--json`은 그때도 `[]`를 stdout에 쓴다.
 - `cancel`은 `껐다: <id>`를, `run`은 `실행했다: <id>  run <runId>  <status>`를 쓴다. `run`의 status는 응답을 만든 시점의 기록이다. 원격 예약의 턴은 그 뒤에 끝난다.
+- 예약 엔진이 틱 leader를 내놓는 정상 유휴 종료(`schedule.leader_lost`)는 호스트 로그에 info로 남기고 error로 남기지 않는다. 그 밖의 예약 보고는 모두 error다 [결정: 오케스트레이터 기본값, fxRM].
 - `ok: false` 값은 아래 표의 문구와 종료 코드로 바꾼다. host가 준 메시지 원문은 문구에 싣지 않는다.
 
 | kind | 문구 | 해결 | 종료 코드 |

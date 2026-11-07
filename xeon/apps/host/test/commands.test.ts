@@ -2,14 +2,42 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ServiceRegistration } from "@fresnel/platform-process";
 import { parseHostArgv } from "../src/argv.ts";
 import { buildEngineCatalog } from "../src/assembly/catalog.ts";
 import { runHostCommand, type CommandIo } from "../src/main.ts";
+import { listenTcpNotAppliedNotice, serviceStatusText } from "../src/service/commands.ts";
 import { renderSettingsSchema } from "../src/settings.ts";
 import { useEngineHome } from "./fixtures/engine-home.ts";
 import { writeUserSettings } from "./fixtures/user-settings.ts";
 
 const scratch = mkdtempSync(join(tmpdir(), "xh-cmd-"));
+
+// 접속 토큰은 실행 때 만든다(비밀 스캐너가 소스의 고정 문자열을 시크릿으로 읽는다)
+const TOKEN = ["fixture", "service", "connect", "token"].join("-").padEnd(43, "x");
+const REGISTRATION: ServiceRegistration = {
+  schemaVersion: 1,
+  version: "0.0.1",
+  protocolVersion: "1.0.0",
+  socket: "/tmp/fresnel.sock",
+  pid: 4242,
+  startedAt: 1700000000000,
+  token: TOKEN,
+  storeId: "store-1",
+};
+// TCP 주소는 등록 파일이 더한 필드다(스키마에 없어 교차형으로 적는다)
+const WITH_TCP: ServiceRegistration & { readonly tcp: string } = {
+  ...REGISTRATION,
+  tcp: "127.0.0.1:7777",
+};
+const HOST = {
+  mode: "service",
+  pid: 4242,
+  startedAt: "2023-11-14T22:13:20.000Z",
+  connections: 1,
+  liveTurns: 0,
+  idleShutdownAt: null,
+} as const;
 afterAll(() => {
   rmSync(scratch, { recursive: true, force: true });
 });
@@ -142,6 +170,70 @@ test("parseHostArgv rejects what it does not know", () => {
   expect(parseHostArgv(["host", "--service", "--wat"]).ok).toBe(false);
   expect(parseHostArgv(["host", "--service", "--listen-tcp", "nohost"]).ok).toBe(false);
   expect(parseHostArgv(["host", "--service", "--listen-tcp", "x:99999"]).ok).toBe(false);
+});
+
+test("service status text shows the tcp address and the idle line, and never the token", () => {
+  expect(serviceStatusText(WITH_TCP, HOST)).toBe(
+    [
+      "service running (pid 4242, version 0.0.1)",
+      "socket /tmp/fresnel.sock",
+      "tcp 127.0.0.1:7777",
+      "connections 1, live turns 0",
+      "idle shutdown none (clients are connected)",
+      "",
+    ].join("\n"),
+  );
+  expect(serviceStatusText(WITH_TCP, HOST)).not.toContain(TOKEN);
+});
+
+test("service status text without tcp has no tcp line, and a set idle shutdown time is printed with its time", () => {
+  expect(
+    serviceStatusText(REGISTRATION, {
+      ...HOST,
+      connections: 0,
+      idleShutdownAt: "2023-11-14T22:14:20.000Z",
+      safeMode: true,
+    }),
+  ).toBe(
+    [
+      "service running (pid 4242, version 0.0.1)",
+      "socket /tmp/fresnel.sock",
+      "connections 0, live turns 0",
+      "idle shutdown at 2023-11-14T22:14:20.000Z, safe mode",
+      "",
+    ].join("\n"),
+  );
+});
+
+test("--listen-tcp on a service that is already running is named on stderr and not applied", () => {
+  const warning =
+    'the service was already running, so --listen-tcp was not applied; run "fresnel service stop" and start it again to open TCP\n';
+  expect(
+    listenTcpNotAppliedNotice(
+      { host: "127.0.0.1", port: 7777 },
+      { kind: "connected", registration: REGISTRATION, started: false },
+    ),
+  ).toBe(warning);
+  expect(
+    listenTcpNotAppliedNotice(
+      { host: "127.0.0.1", port: 8888 },
+      { kind: "connected", registration: WITH_TCP, started: false },
+    ),
+  ).toBe(warning);
+  // 요청한 주소로 이미 열려 있으면 알릴 것이 없다
+  expect(
+    listenTcpNotAppliedNotice(
+      { host: "127.0.0.1", port: 7777 },
+      { kind: "connected", registration: WITH_TCP, started: false },
+    ),
+  ).toBeUndefined();
+  // 이 실행이 새로 띄운 서비스이면 옵션이 적용된 것이다
+  expect(
+    listenTcpNotAppliedNotice(
+      { host: "127.0.0.1", port: 7777 },
+      { kind: "connected", registration: WITH_TCP, started: true },
+    ),
+  ).toBeUndefined();
 });
 
 test("parseHostArgv maps host --service and service run to service-run with safe mode and tcp", () => {

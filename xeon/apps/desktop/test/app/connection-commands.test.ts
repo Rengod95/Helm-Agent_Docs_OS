@@ -1,13 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { TARGETS_KEY, type TargetEntry } from "@fresnel/client";
 import { WIRE_ERRORS, type WireResult } from "@fresnel/contracts/wire";
-import type { DesktopIpc, RestartOptions } from "../../src/transport/ipc.ts";
+import type { DesktopIpc, EngineState, RestartOptions } from "../../src/transport/ipc.ts";
 import { summary, thr } from "../state/helpers.ts";
 import { fakeIpc } from "../transport/fake-ipc.ts";
 import { engineFake, makeApp, makeAppOver, until, type EngineExtra } from "./support.ts";
 
 // 연결 화면의 명령(`commands.connection`)을 가짜 ipc 위에서 돌린다. 대상 목록은 로컬 설정 파일의 값으로, 엔진 대상 바꾸기는
 // 셸 명령 인자로, `host.status`와 서비스 모드·멈추기는 엔진 응답으로 본다. 값은 `toEqual`로 비교한다.
+
+const RUNNING_STATE: EngineState = { kind: "running", source: "sidecar", pid: 1 };
 
 const SAVED: TargetEntry = {
   id: "t1",
@@ -113,12 +115,13 @@ describe("saved remote targets live in the local settings file", () => {
 
 describe("retarget hands the engine target to the shell", () => {
   test("a remote target goes out as the address only, and a local one as the local kind", async () => {
-    const fake = fakeIpc();
+    const { fake } = engineFake([], (n) => (n === 1 ? RUNNING_STATE : { kind: "stopping" }));
     const app = makeApp(fake);
     await until(() => app.engine.read.getState().engine?.kind === "running", "engine running");
     const remote = await app.commands.connection.retarget({
       kind: "remote",
       address: SAVED.address,
+      label: SAVED.label,
     });
     // 바꾸는 동안에는 다음 바꾸기가 거절되므로 엔진이 내려갔다 올라오기를 기다린다
     fake.emitState({ kind: "stopping" });
@@ -136,12 +139,13 @@ describe("retarget hands the engine target to the shell", () => {
   });
 
   test("the connection screen's retarget holds writes as switching until the new engine runs", async () => {
-    const fake = fakeIpc();
+    const { fake } = engineFake([], (n) => (n === 1 ? RUNNING_STATE : { kind: "stopping" }));
     const app = makeApp(fake);
     await until(() => app.engine.read.getState().engine?.kind === "running", "engine running");
     const done = await app.commands.connection.retarget({
       kind: "remote",
       address: SAVED.address,
+      label: SAVED.label,
     });
     expect(done).toEqual({ ok: true, value: null });
     expect(app.ui.read.getState().engineSwitching).toBe(true);
@@ -159,10 +163,14 @@ describe("retarget hands the engine target to the shell", () => {
   });
 
   test("a second retarget while the switch is held is reported as other", async () => {
-    const fake = fakeIpc();
+    const { fake } = engineFake([], (n) => (n === 1 ? RUNNING_STATE : { kind: "stopping" }));
     const app = makeApp(fake);
     await until(() => app.engine.read.getState().engine?.kind === "running", "engine running");
-    await app.commands.connection.retarget({ kind: "remote", address: SAVED.address });
+    await app.commands.connection.retarget({
+      kind: "remote",
+      address: SAVED.address,
+      label: SAVED.label,
+    });
     const second = await app.commands.connection.retarget({ kind: "local" });
     expect(second).toEqual({ ok: false, error: "other" });
     expect(fake.retargeted).toEqual([{ kind: "remote", address: SAVED.address }]);
@@ -180,8 +188,53 @@ describe("retarget hands the engine target to the shell", () => {
         }),
     };
     const app = makeAppOver(ipc);
-    const done = await app.commands.connection.retarget({ kind: "remote", address: SAVED.address });
+    const done = await app.commands.connection.retarget({
+      kind: "remote",
+      address: SAVED.address,
+      label: SAVED.label,
+    });
     expect(done).toEqual({ ok: false, error: "other" });
+    await app.stop();
+  });
+
+  test("a successful retarget records the target with its name for the status bar, and the shell gets the address only", async () => {
+    const { fake } = engineFake([], (n) => (n === 1 ? RUNNING_STATE : { kind: "stopping" }));
+    const app = makeApp(fake);
+    await until(() => app.engine.read.getState().engine?.kind === "running", "engine running");
+    expect(app.ui.read.getState().engineTarget).toEqual({ kind: "local" });
+    const done = await app.commands.connection.retarget({
+      kind: "remote",
+      address: SAVED.address,
+      label: SAVED.label,
+    });
+    expect(done).toEqual({ ok: true, value: null });
+    expect(app.ui.read.getState().engineTarget).toEqual({
+      kind: "remote",
+      address: SAVED.address,
+      label: "build-box",
+    });
+    expect(fake.retargeted).toEqual([{ kind: "remote", address: SAVED.address }]);
+    await app.stop();
+  });
+
+  test("a failed retarget leaves the recorded engine target unchanged", async () => {
+    const base = fakeIpc();
+    const ipc: DesktopIpc = {
+      ...base.ipc,
+      retarget: () =>
+        Promise.resolve({
+          ok: false,
+          error: { kind: "command", command: "engine_retarget", code: "bad-request" },
+        }),
+    };
+    const app = makeAppOver(ipc);
+    const done = await app.commands.connection.retarget({
+      kind: "remote",
+      address: SAVED.address,
+      label: SAVED.label,
+    });
+    expect(done).toEqual({ ok: false, error: "other" });
+    expect(app.ui.read.getState().engineTarget).toEqual({ kind: "local" });
     await app.stop();
   });
 });

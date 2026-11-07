@@ -227,6 +227,8 @@ describe("one row per tool call", () => {
 
   test("a running call that waits for approval says so and counts no seconds", () => {
     const h = openedHarness();
+    // 실행 중이라고 말하려면 엔진이 돌고 있어야 한다(`engineGoneOf`). 엔진이 없으면 도구 행은 "중단됨"이다
+    h.store.ingest({ type: "engine", state: { kind: "running", source: "sidecar", pid: 1 } });
     ingestRecords(h, [callItem(1, 9, "bash"), callItem(2, 10, "bash")]);
     h.store.ingest({ type: "threads", threads: [summary(thr(1), { status: "running" })] });
     const request = approvalRequest(thr(1));

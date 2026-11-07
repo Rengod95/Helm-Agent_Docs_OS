@@ -155,12 +155,32 @@ export function targetsStorageOf(value: unknown): readonly TargetEntry[] {
 
 // ── 연결 실패 문장 ─────────────────────────────────────────────────────
 
-/** 연결 실패 종류. 클라이언트에는 `AttachError` union이 없어 화면이 이 넷으로 묶는다 */
-export type AttachFailureKind = "tunnel" | "auth" | "protocol" | "other";
+/**
+ * 연결 실패 종류. 클라이언트에는 `AttachError` union이 없어 화면이 이 값으로 묶는다. 엔진이 멈춘 원인(stderr 첫 줄)과
+ * 세션의 `hello` 실패 코드를 여기로 옮긴다(연결 화면 `attachFailureOfExit`·`attachFailureOf`).
+ */
+export type AttachFailureKind =
+  | "tunnel"
+  | "hostKey"
+  | "auth"
+  | "tokenMissing"
+  | "protocol"
+  | "socketMissing"
+  | "refused"
+  | "timeout"
+  | "permission"
+  | "other";
 
-/** 연결 실패 종류의 메시지 키 */
+/** 연결 실패 원인 한 줄의 메시지 키 */
 export function attachErrorKey(
   kind: AttachFailureKind,
 ): `desktop.connection.error.${AttachFailureKind}` {
   return `desktop.connection.error.${kind}`;
+}
+
+/** 연결 실패 해결 한 줄의 메시지 키. 원인 줄 바로 아래에 보인다 */
+export function attachFixKey(
+  kind: AttachFailureKind,
+): `desktop.connection.error.${AttachFailureKind}.fix` {
+  return `desktop.connection.error.${kind}.fix`;
 }

@@ -1,5 +1,7 @@
 import { basename } from "node:path";
 import { assertNever } from "@fresnel/contracts";
+import type { WireResult } from "@fresnel/contracts/wire";
+import type { EnsureOutcome, ServiceRegistration } from "@fresnel/platform-process";
 import type { CommandIo, HostCommand } from "../host-command.ts";
 import { serviceStatus, serviceStatusView, stopHostService } from "./control.ts";
 import { ensureHostService, type ServiceCommand } from "./ensure.ts";
@@ -56,6 +58,46 @@ export function defaultServiceCommand(
       ...flags,
     ],
   };
+}
+
+/** 등록 파일이 적은 TCP 주소(`host:port`). 없으면 undefined. 등록 스키마는 모르는 필드를 남기므로 `in`으로 좁혀 읽는다 */
+function tcpAddressOf(registration: ServiceRegistration): string | undefined {
+  if (!("tcp" in registration)) return undefined;
+  const { tcp } = registration;
+  return typeof tcp === "string" ? tcp : undefined;
+}
+
+/**
+ * 이미 떠 있는 서비스에 `--listen-tcp`를 요청했을 때의 안내(stderr). 새로 띄운 서비스이거나 요청한 주소로 이미 열려 있으면 없다.
+ * 이 옵션은 새 서비스를 띄울 때만 적용된다
+ */
+export function listenTcpNotAppliedNotice(
+  requested: { readonly host: string; readonly port: number },
+  outcome: EnsureOutcome,
+): string | undefined {
+  if (outcome.kind !== "connected" || outcome.started) return undefined;
+  if (tcpAddressOf(outcome.registration) === `${requested.host}:${String(requested.port)}`) {
+    return undefined;
+  }
+  return 'the service was already running, so --listen-tcp was not applied; run "fresnel service stop" and start it again to open TCP\n';
+}
+
+/** `service status`의 사람용 글(서비스가 떠 있을 때). 접속 토큰은 쓰지 않는다 */
+export function serviceStatusText(
+  registration: ServiceRegistration,
+  host: WireResult<"host.status">,
+): string {
+  const tcp = tcpAddressOf(registration);
+  const idle =
+    host.idleShutdownAt === null ? "none (clients are connected)" : `at ${host.idleShutdownAt}`;
+  return [
+    `service running (pid ${String(registration.pid)}, version ${registration.version})`,
+    `socket ${registration.socket}`,
+    ...(tcp === undefined ? [] : [`tcp ${tcp}`]),
+    `connections ${String(host.connections)}, live turns ${String(host.liveTurns)}`,
+    `idle shutdown ${idle}${host.safeMode === true ? ", safe mode" : ""}`,
+    "",
+  ].join("\n");
 }
 
 export async function runServiceCommand(
@@ -130,6 +172,11 @@ export async function runServiceCommand(
             `the running service is version ${registration.version} and is busy; run "fresnel service stop" to replace it\n`,
           );
         }
+        // `--listen-tcp`는 service start에만 있다. 이 분기는 json이 아니라서 command가 service-start로 좁혀진다
+        if (command.tcp !== undefined) {
+          const notice = listenTcpNotAppliedNotice(command.tcp, outcome);
+          if (notice !== undefined) await write(io.stderr, notice);
+        }
       }
       return 0;
     }
@@ -148,16 +195,7 @@ export async function runServiceCommand(
         return 1;
       }
       const { registration, status: host } = status.value;
-      await write(
-        io.stdout,
-        [
-          `service running (pid ${String(registration.pid)}, version ${registration.version})`,
-          `socket ${registration.socket}`,
-          `connections ${String(host.connections)}, live turns ${String(host.liveTurns)}`,
-          `idle shutdown ${host.idleShutdownAt ?? "none"}${host.safeMode === true ? ", safe mode" : ""}`,
-          "",
-        ].join("\n"),
-      );
+      await write(io.stdout, serviceStatusText(registration, host));
       return 0;
     }
     case "service-stop": {

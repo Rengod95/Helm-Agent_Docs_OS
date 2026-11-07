@@ -4,6 +4,7 @@ export {
   createUiStore,
   type ApprovalFailure,
   type ApprovalSend,
+  type EngineTargetView,
   type LockedOption,
   type LockedThread,
   type RestartReason,

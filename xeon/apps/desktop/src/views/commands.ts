@@ -297,10 +297,13 @@ export interface WorkCommands {
   ): Promise<Result<WireResult<"work.plans.versions">, CommandError>>;
 }
 
-/** 연결 화면이 고른 대상. `local`은 이 기기의 사이드카, `remote`는 서비스 주소다(W-08) */
+/**
+ * 연결 화면이 고른 대상. `local`은 이 기기의 사이드카, `remote`는 서비스 주소다(W-08). `label`은 이름이라 셸에는 가지 않고
+ * 상태 표시줄의 "원격 · 이름"에 쓴다(app/connection.ts)
+ */
 export type ConnectTarget =
   | { readonly kind: "local" }
-  | { readonly kind: "remote"; readonly address: string };
+  | { readonly kind: "remote"; readonly address: string; readonly label: string };
 
 /**
  * 연결 화면이 읽는 host 상태. `host.status` 결과와 서비스 모드 설정 값이다. `remoteAllowRespond`는 원격 응답 허용 값이고,

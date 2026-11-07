@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { activeLocale, catalogOf, setActiveLocale, type Locale } from "@fresnel/client/i18n";
 import { renderToString } from "react-dom/server";
+import type { ThreadSummary } from "@fresnel/contracts/wire";
 import type { EngineMirror, EngineState } from "../../src/state/engine/index.ts";
 import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
 import { createUiStore, type UiState } from "../../src/state/ui/store.ts";
@@ -11,6 +12,7 @@ import {
   engineDotOf,
   goalCellOf,
   goalShownOf,
+  linkDescriptionOf,
   liveDotOf,
   liveKindsOf,
   LiveList,
@@ -217,6 +219,7 @@ describe("status bar in-progress cell", () => {
 /** 예약 대화 하나가 turn 실패로 끝난 거울. 거울의 입력을 실제 순서대로 넣는다 */
 function mirrorWithFailure(): EngineMirror {
   const h = harness();
+  h.store.ingest({ type: "engine", state: RUNNING });
   h.store.ingest({
     type: "subscribed",
     sub: SUB,
@@ -285,10 +288,8 @@ describe("status bar in-progress cell with a failed schedule", () => {
   });
 
   test("without a failure the live cell draws no dot", () => {
-    const h = harness();
-    h.store.ingest({ type: "engine", state: RUNNING });
-    h.store.flush();
-    const html = barWith(h.store.read.getState());
+    const html = barWith(liveMirror([]));
+    expect(cellIdsOf(html)).toContain("live");
     const live = html.slice(html.indexOf('data-bar-cell="live"'));
     expect(live.slice(0, live.indexOf("</button>"))).not.toContain("data-bar-dot");
   });
@@ -300,7 +301,7 @@ function frozenStore(state: EngineMirror): ReadonlyStore<EngineMirror> {
 }
 
 describe("status bar server render", () => {
-  test("each cell draws its text, its dot, and its count from the mirror", () => {
+  test("a failed engine draws its engine and link cells from the mirror, with no in-progress count", () => {
     const h = harness();
     h.store.ingest({ type: "engine", state: FAILED });
     h.store.ingest({
@@ -328,8 +329,20 @@ describe("status bar server render", () => {
     expect(html).toContain('data-bar-dot="danger"');
     expect(html).toContain('data-bar-cell="link"');
     expect(html).toContain("연결 없음");
-    expect(html).toContain('data-bar-cell="live"');
-    expect(html).toContain("진행 중 2");
+    expect(html).not.toContain('data-bar-cell="live"');
+    expect(html).not.toContain("진행 중 2");
+    expect(html).not.toContain("끝난 대화");
+  });
+
+  test("a running engine on a live link draws the in-progress count from the mirror", () => {
+    const html = barWith(
+      liveMirror([
+        summary(thr(1), { status: "running", title: "캐시 무효화 조사" }),
+        summary(thr(3), { status: "running", title: "렌즈 5개로 넓히기", testRun: TEST_RUN }),
+        summary(thr(2), { status: "idle", title: "끝난 대화" }),
+      ]),
+    );
+    expect(cellTextOf(html, "live")).toBe("진행 중 2");
     expect(html).not.toContain("끝난 대화");
   });
 });
@@ -337,6 +350,7 @@ describe("status bar server render", () => {
 /** 대화 하나가 돌고 승인 하나가 기다리는 거울. 승인은 `approval.requested` 사실로 넣는다 */
 function mirrorWithApproval(): EngineMirror {
   const h = harness();
+  h.store.ingest({ type: "engine", state: RUNNING });
   h.store.ingest({
     type: "subscribed",
     sub: SUB,
@@ -438,14 +452,52 @@ describe("status bar cell order", () => {
     h.store.flush();
     const ui = createUiStore();
     ui.actions.setConnectError("hello:1002");
+    // 엔진이 실패했으면 거울의 "진행 중" 수는 오래된 것이라 그 칸은 없다
     expect(sequenceOf(barWithUi(h.store.read.getState(), ui.read.getState()))).toEqual([
       "engine",
       "엔진 다시 시작",
       "link",
       "다시 연결",
       "진단 복사",
-      "live",
     ]);
+  });
+});
+
+/** 실행 중인 엔진 하나를 든 거울. 엔진 칸의 글이 대상에 따라 어떻게 나는지 본다 */
+function mirrorRunning(): EngineMirror {
+  const h = harness();
+  h.store.ingest({ type: "engine", state: RUNNING });
+  h.store.flush();
+  return h.store.read.getState();
+}
+
+describe("status bar engine cell names the attached target", () => {
+  let previous: Locale = "ko";
+  beforeEach(() => {
+    previous = activeLocale();
+    setActiveLocale("ko");
+  });
+  afterEach(() => {
+    setActiveLocale(previous);
+  });
+
+  test("a remote target shows its name on the engine cell and in the screen reader line", () => {
+    const ui = createUiStore();
+    ui.actions.setEngineTarget({
+      kind: "remote",
+      address: "unix:/run/box.sock",
+      label: "build-box",
+    });
+    const html = barWithUi(mirrorRunning(), ui.read.getState());
+    expect(cellTextOf(html, "engine")).toBe("엔진 실행 중 (원격 · build-box)");
+    expect(html).toContain(
+      '<span role="status" class="sr-only">엔진 실행 중 (원격 · build-box)</span>',
+    );
+  });
+
+  test("this computer keeps the in-app source on the engine cell", () => {
+    const html = barWithUi(mirrorRunning(), createUiStore().read.getState());
+    expect(cellTextOf(html, "engine")).toBe("엔진 실행 중 (앱 안)");
   });
 });
 
@@ -570,5 +622,103 @@ describe("status bar ended goal", () => {
     const old = goalShownOf(goal("met"), thr(1), true, null);
     const newer = { ...goal("exhausted"), condition: "d" } as const;
     expect(goalShownOf(newer, thr(1), false, old.dismissed).goal).toEqual(newer);
+  });
+});
+
+/** 실행 중인 엔진과 살아 있는 연결 위의 거울. 연결이 살아 있어야 대화 목록을 믿을 수 있다 */
+function liveMirror(threads: readonly ThreadSummary[]): EngineMirror {
+  const h = harness();
+  h.store.ingest({ type: "engine", state: RUNNING });
+  h.store.ingest({
+    type: "subscribed",
+    sub: SUB,
+    storeId: STORE,
+    start: 5,
+    live: true,
+    from: "head",
+  });
+  h.store.ingest({ type: "threads", threads: [...threads] });
+  h.store.flush();
+  return h.store.read.getState();
+}
+
+describe("status bar in-progress cell follows the engine", () => {
+  let previous: Locale = "ko";
+  beforeEach(() => {
+    previous = activeLocale();
+    setActiveLocale("ko");
+  });
+  afterEach(() => {
+    setActiveLocale(previous);
+  });
+
+  test("a running engine on a live link counts the running conversations", () => {
+    const html = barWith(
+      liveMirror([summary(thr(1), { status: "running", title: "캐시 무효화 조사" })]),
+    );
+    expect(cellIdsOf(html)).toContain("live");
+    expect(cellTextOf(html, "live")).toBe("진행 중 1");
+  });
+
+  test("a failed engine draws no in-progress cell, though the mirror still lists a running conversation", () => {
+    const h = harness();
+    h.store.ingest({ type: "engine", state: FAILED });
+    h.store.ingest({
+      type: "threads",
+      threads: [summary(thr(1), { status: "running", title: "캐시 무효화 조사" })],
+    });
+    h.store.flush();
+    const html = barWith(h.store.read.getState());
+    expect(cellIdsOf(html)).toEqual(["engine", "link"]);
+    expect(html).not.toContain("진행 중 1");
+  });
+
+  test("a down link under a running engine draws no in-progress cell", () => {
+    const stale = liveMirror([summary(thr(1), { status: "running", title: "캐시 무효화 조사" })]);
+    const html = barWith({ ...stale, link: { phase: "offline" } });
+    expect(cellIdsOf(html)).toEqual(["engine", "link"]);
+    expect(html).not.toContain("진행 중 1");
+  });
+});
+
+describe("status bar link cell names the service for a remote target", () => {
+  let previous: Locale = "ko";
+  beforeEach(() => {
+    previous = activeLocale();
+    setActiveLocale("ko");
+  });
+  afterEach(() => {
+    setActiveLocale(previous);
+  });
+
+  test("a remote link that is down names the service, this computer keeps the engine sentence", () => {
+    expect(linkDescriptionOf("offline", true)).toBe("desktop.status.serviceLost");
+    expect(linkDescriptionOf("failed", true)).toBe("desktop.status.serviceLost");
+    expect(linkDescriptionOf("offline", false)).toBe("desktop.status.cell.link.down");
+    expect(linkDescriptionOf("failed", false)).toBe("desktop.status.cell.link.down");
+  });
+
+  test("a remote link that is up or catching up keeps the sentence of its phase", () => {
+    expect(linkDescriptionOf("live", true)).toBe("desktop.status.cell.link.live");
+    expect(linkDescriptionOf("syncing", true)).toBe("desktop.status.cell.link.catchUp");
+    expect(linkDescriptionOf("connecting", true)).toBeUndefined();
+  });
+
+  test("the failure line of a remote target says the service sentence, this computer's does not", () => {
+    const remote = createUiStore();
+    remote.actions.setEngineTarget({
+      kind: "remote",
+      address: "unix:/run/box.sock",
+      label: "build-box",
+    });
+    remote.actions.setConnectError("hello:1002");
+    expect(barWithUi(mirrorRunning(), remote.read.getState())).toContain(
+      "서비스에 연결할 수 없어요. 서비스가 켜져 있는지 확인한 뒤 다시 연결해요.",
+    );
+    const local = createUiStore();
+    local.actions.setConnectError("hello:1002");
+    expect(barWithUi(mirrorRunning(), local.read.getState())).not.toContain(
+      "서비스에 연결할 수 없어요",
+    );
   });
 });

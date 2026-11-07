@@ -27,12 +27,18 @@ export const RESTORE_SLACK_MS: number = 5_000;
 export const DEFAULT_SHUTDOWN_GRACE_MS: number = 7_000;
 /** `l4.desktop.engine.restartLimit`의 기본값 */
 export const DEFAULT_RESTART_LIMIT: number = 3;
+/** 종료 기록에 싣는 stderr 첫 줄의 상한(글자 수). 원인 문장을 고르는 것은 UI다 */
+const ENGINE_DETAIL_MAX_CHARS: number = 200;
+/** 종료코드 3은 환경 문제(원격 소켓 없음, 접속 거부, SSH 호스트 키 실패)라 되풀이해도 같다. 자동 재기동하지 않는다 */
+export const ENV_EXIT_CODE: number = 3;
 
 const ENCODER: TextEncoder = new TextEncoder();
 const DECODER: TextDecoder = new TextDecoder();
 const NEWLINE = 0x0a;
 /** 공백이나 제어 문자. 원격 주소에 들어 있으면 안 된다 */
 const SPACE_OR_CONTROL: RegExp = /[\s\p{Cc}]/u;
+/** 제어 문자 하나. 종료 기록의 원인 문장에서 뺀다 */
+const CONTROL_CHAR: RegExp = /\p{Cc}/gu;
 
 // ---------------------------------------------------------------------------------------------
 // 대상 (W-08)
@@ -196,9 +202,25 @@ export function shutdownRequestFrame(generation: number): Uint8Array {
   return ENCODER.encode(`${line}\n`);
 }
 
-/** 엔진이 끝난 기록. `at`은 RFC 3339 UTC(밀리초까지)다 */
-export function exitOf(code: number | null, signal: number | null, nowMs: number): EngineExit {
-  return { code, signal, at: new Date(nowMs).toISOString() };
+/** 엔진이 끝난 기록. `at`은 RFC 3339 UTC(밀리초까지)다. `detail`을 안 주면 필드를 두지 않는다 */
+export function exitOf(
+  code: number | null,
+  signal: number | null,
+  nowMs: number,
+  detail?: string | null,
+): EngineExit {
+  const at = new Date(nowMs).toISOString();
+  return detail === undefined ? { code, signal, at } : { code, signal, at, detail };
+}
+
+/**
+ * stderr 한 줄을 종료 기록의 원인 문장으로 바꾼다. 제어 문자를 빼고 앞뒤 공백을 떼며, 글자 수 상한에서 자른다.
+ * 비어 있으면 null이다(그러면 호출자는 다음 줄을 본다).
+ */
+export function engineDetailOf(line: string): string | null {
+  const text = line.replace(CONTROL_CHAR, "").trim();
+  if (text === "") return null;
+  return Array.from(text).slice(0, ENGINE_DETAIL_MAX_CHARS).join("");
 }
 
 /** 신호 이름(`SIGKILL`)을 번호로 바꾼다. 모르는 이름이면 null이다 */

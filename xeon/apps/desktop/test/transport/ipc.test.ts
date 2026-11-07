@@ -21,6 +21,23 @@ describe("engine-state-schema", () => {
     for (const state of states) expect(parseEngineState(state).ok).toBe(true);
   });
 
+  test("the exit detail is an optional first stderr line, a string or null", () => {
+    const withDetail: unknown = {
+      kind: "failed",
+      attempts: 3,
+      lastExit: { ...exit, detail: "The service socket does not exist" },
+    };
+    expect(parseEngineState(withDetail).ok).toBe(true);
+    const nullDetail: unknown = {
+      kind: "failed",
+      attempts: 3,
+      lastExit: { ...exit, detail: null },
+    };
+    expect(parseEngineState(nullDetail).ok).toBe(true);
+    const notText: unknown = { kind: "failed", attempts: 3, lastExit: { ...exit, detail: 7 } };
+    expect(parseEngineState(notText).ok).toBe(false);
+  });
+
   test("rejects an unknown kind and extra fields", () => {
     expect(parseEngineState({ kind: "paused" }).ok).toBe(false);
     expect(parseEngineState({ kind: "stopped", extra: 1 }).ok).toBe(false);

@@ -10,6 +10,7 @@ import type { MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import { WIRE_ERRORS, type HostClientView } from "@fresnel/contracts/wire";
 import type { EngineState, Link } from "../../../state/engine/index.ts";
+import type { EngineTargetView } from "../../../state/ui/index.ts";
 import type { CommandError, ConnectionSnapshot, ConnectTarget } from "../../commands.ts";
 
 // 연결 화면(P-08)의 상태 기계. 순수 함수만 둔다: 명령을 부르는 일은 화면이 맡고, 결과와 엔진·연결 관찰을 이 모델의 동작으로 옮긴다.
@@ -169,6 +170,8 @@ export type ConnectionAction =
     }
   | { readonly type: "targetsFailed" }
   | { readonly type: "select"; readonly choice: TargetChoice }
+  /** 화면을 열 때 엔진이 붙은 대상으로 고른 칸과 엔진 칸을 맞춘다. 목록을 읽은 뒤에 보낸다 */
+  | { readonly type: "engineTargetSeen"; readonly target: EngineTargetView }
   | { readonly type: "query"; readonly text: string }
   | { readonly type: "formOpened" }
   | { readonly type: "formField"; readonly field: "label" | "address"; readonly value: string }
@@ -228,11 +231,24 @@ export function canConnect(state: ConnectionState): boolean {
   return state.pending === null && !state.busy && !sameChoice(state.selected, state.engineTarget);
 }
 
-/** 셸 명령 인자로 바꾼다. 원격은 주소만 보낸다(토큰은 환경 변수로만 간다) */
+/** 셸 명령 인자로 바꾼다. 원격은 주소와 이름을 싣는다(토큰은 환경 변수로만 간다). 이름은 셸에 가지 않고 상태 표시줄이 쓴다 */
 export function toConnectTarget(choice: TargetChoice): ConnectTarget {
   return choice.kind === "local"
     ? { kind: "local" }
-    : { kind: "remote", address: choice.entry.address };
+    : { kind: "remote", address: choice.entry.address, label: choice.entry.label };
+}
+
+/**
+ * 엔진이 붙은 대상을 화면의 고른 대상으로 바꾼다. 원격은 주소가 같은 목록 항목을 찾고, 목록에 없으면 이 기기로 둔다
+ * (지운 대상에 붙어 있어도 고른 칸은 이 기기다).
+ */
+function choiceOfEngineTarget(
+  items: readonly TargetEntry[],
+  target: EngineTargetView,
+): TargetChoice {
+  if (target.kind === "local") return LOCAL_CHOICE;
+  const entry = items.find((item) => item.address === target.address);
+  return entry === undefined ? LOCAL_CHOICE : { kind: "remote", entry };
 }
 
 /** 저장할 때 쓰는 대상 id. 밀리초 시각으로 만들고, 같은 id는 `addTarget`이 거부한다 */
@@ -277,8 +293,8 @@ const PROTOCOL_CODES: ReadonlySet<number> = new Set([
 
 /**
  * 세션이 남긴 연결 실패 코드(`ui.connectError`)를 연결 실패 종류로 바꾼다. 형식은 `session.ts`가 쓰는 세 가지다:
- * `hello:<코드>`(wire 오류 코드), `attach:<셸 명령 코드>`, `engine_not_running`. 세션은 터널 실패 코드를 남기지 않으므로
- * 터널이 실패하면 엔진이 멈춘 실패(`failed`)로 보이고 `other`가 된다. 종류가 없는 실패는 `other`다.
+ * `hello:<코드>`(wire 오류 코드), `attach:<셸 명령 코드>`, `engine_not_running`. 터널과 소켓의 원인은 여기에 없고
+ * 엔진이 멈춘 원인(`attachFailureOfExit`)으로 본다. 종류가 없는 실패는 `other`다.
  */
 export function attachFailureOf(connectError: string | null): AttachFailureKind | null {
   if (connectError === null) return null;
@@ -287,6 +303,37 @@ export function attachFailureOf(connectError: string | null): AttachFailureKind 
   if (code === WIRE_ERRORS["host.authFailed"].code) return "auth";
   if (PROTOCOL_CODES.has(code)) return "protocol";
   return "other";
+}
+
+/**
+ * 엔진 stderr 첫 줄(영어)의 특징 문구와 종류. 순서가 뜻을 가른다: 호스트 키 줄은 "ssh tunnel" 줄 안에도 함께 오므로
+ * `hostKey`를 `tunnel`보다 먼저 본다.
+ */
+const EXIT_DETAIL_KINDS: readonly (readonly [string, AttachFailureKind])[] = [
+  ["socket does not exist", "socketMissing"],
+  ["refused the connection", "refused"],
+  ["cannot be accessed", "permission"],
+  ["did not respond in time", "timeout"],
+  ["host key verification failed", "hostKey"],
+  ["ssh tunnel", "tunnel"],
+  ["token is missing", "tokenMissing"],
+  ["token does not match", "auth"],
+];
+
+/**
+ * 멈춘 엔진의 종료 원인을 연결 실패 종류로 바꾼다. 원인은 종료 코드가 아니라 `detail`(stderr 첫 줄)의 문구로 고른다.
+ * 종료 코드 3(환경 문제)은 셸이 자동 재시도를 하지 않는다는 뜻이고 종류는 `detail`이 정한다. 문구가 없거나 모르는
+ * 줄이면 `other`다. 대소문자는 가리지 않는다.
+ */
+export function attachFailureOfExit(exit: {
+  readonly code: number | null;
+  readonly detail?: string | null;
+}): AttachFailureKind {
+  const detail = exit.detail;
+  if (detail === null || detail === undefined) return "other";
+  const text = detail.toLowerCase();
+  const found = EXIT_DETAIL_KINDS.find(([phrase]) => text.includes(phrase));
+  return found === undefined ? "other" : found[1];
 }
 
 // ── 연결된 클라이언트 ──────────────────────────────────────────────────
@@ -428,7 +475,7 @@ function observe(state: ConnectionState, observed: EngineObservation): Connectio
     case "restarting":
       return withPending(moved, "restarting", engine.attempt);
     case "failed":
-      return fail(moved, "other", "restart");
+      return fail(moved, attachFailureOfExit(engine.lastExit), "restart");
     case "running":
       if (observed.link === "live") return succeed(moved);
       if (observed.link === "failed") return fail(moved, "other", "restart");
@@ -466,6 +513,12 @@ export function connectionReducer(
       return { ...state, list: { kind: "failed" } };
     case "select":
       return { ...state, selected: action.choice };
+    case "engineTargetSeen": {
+      // 진행 중이면 고른 대상과 엔진 대상을 건드리지 않는다. 화면을 열 때 한 번만 부른다
+      if (state.pending !== null) return state;
+      const choice = choiceOfEngineTarget(state.items, action.target);
+      return { ...state, selected: choice, engineTarget: choice };
+    }
     case "query":
       return { ...state, query: action.text };
     case "formOpened":

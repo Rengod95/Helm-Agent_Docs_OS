@@ -1,6 +1,6 @@
 import { t } from "@fresnel/client/i18n";
 import { assertNever, type Result } from "@fresnel/contracts";
-import type { Link, QueuedInput } from "../state/engine/index.ts";
+import type { EngineState, Link, QueuedInput } from "../state/engine/index.ts";
 import type { BusyInputMode, CommandError } from "./commands.ts";
 import { setupRequiredText } from "./setup-needed.ts";
 
@@ -84,6 +84,19 @@ export function composerDisabledReason(input: {
   if (input.observing) return t("desktop.composer.disabled.observing");
   if (input.setupNeeded) return setupRequiredText();
   return null;
+}
+
+/**
+ * 엔진이 없는가. 엔진이 돌고 있지 않거나(꺼짐, 다시 시작 중, 실패, 아직 모름) 연결이 끊기면 없다. 연결이 끊기면 거울의 값(실행 중 대화 등)은
+ * 오래된 것이라 "진행 중"이라고 말하지 않는다. 상태 표시줄의 "진행 중 n" 칸과 입력창의 정지 단추가 쓴다
+ */
+export function engineGoneOf(engine: EngineState | null, phase: Link["phase"]): boolean {
+  return engine?.kind !== "running" || phase === "offline" || phase === "failed";
+}
+
+/** 정지 단추를 못 누르게 하는 이유. 엔진이 없으면 그 이유를, 있으면 null이다(정지를 누를 수 있다) */
+export function stopBlockedReasonOf(engineGone: boolean): string | null {
+  return engineGone ? t("desktop.composer.stop.engineOff") : null;
 }
 
 /** 입력창 위 대기 입력 칩 하나의 철회 상태. `withdrawn`과 `placed`는 결과 값이고, 칩은 `input.placed`·`input.withdrawn` 사실로 사라진다 */

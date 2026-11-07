@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { evt, thr } from "../state/helpers.ts";
 import { fakeIpc } from "../transport/fake-ipc.ts";
-import { makeApp, until } from "./support.ts";
+import { engineFake, makeApp, until } from "./support.ts";
 import type { EngineState } from "../../src/transport/ipc.ts";
 
 // 엔진 대상을 바꾸는 동안(W-08) 쓰기를 보류한다. 옛 엔진은 shutdownGraceMs까지 쓰기를 받을 수 있어서다.
@@ -10,7 +10,8 @@ const RUNNING: EngineState = { kind: "running", source: "sidecar", pid: 1 };
 const STOPPING: EngineState = { kind: "stopping" };
 
 async function ready() {
-  const fake = fakeIpc();
+  // 두 번째 attach부터는 내려간 엔진을 돌려준다. 엔진 상태가 내려가면 연결 수명이 새로 attach한다
+  const { fake } = engineFake([], (n) => (n === 1 ? RUNNING : STOPPING));
   const app = makeApp(fake);
   await until(() => app.engine.read.getState().engine?.kind === "running", "engine running");
   return { fake, app };
@@ -68,6 +69,25 @@ describe("engine retarget holds writes", () => {
     expect(await app.commands.retargetEngine(target, 7000)).toEqual({ ok: true, value: null });
     expect(app.ui.read.getState().engineSwitching).toBe(false);
     expect(fake.retargeted).toEqual([target]);
+    await app.stop();
+  });
+
+  test("a new engine that fails to start releases the hold so another target can be chosen at once", async () => {
+    const { fake, app } = await ready();
+    await app.commands.retargetEngine({ kind: "remote", address: "10.0.0.2:7000" }, 7000);
+    expect(app.ui.read.getState().engineSwitching).toBe(true);
+    fake.emitState(STOPPING);
+    await until(() => app.engine.read.getState().engine?.kind === "stopping", "stopping");
+    fake.emitState({
+      kind: "failed",
+      attempts: 1,
+      lastExit: { code: 3, signal: null, at: "2026-11-07T00:00:00.000Z", detail: "refused" },
+    });
+    await until(() => !app.ui.read.getState().engineSwitching, "hold released");
+    expect(await app.commands.retargetEngine({ kind: "local" }, 7000)).toEqual({
+      ok: true,
+      value: null,
+    });
     await app.stop();
   });
 

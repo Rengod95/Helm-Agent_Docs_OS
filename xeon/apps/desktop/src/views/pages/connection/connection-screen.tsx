@@ -2,10 +2,10 @@ import { removeTarget, type TargetEntry } from "@fresnel/client";
 import { activeLocale, t, type MessageId } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import { toast } from "@caustic/react";
-import { useCallback, useEffect, useReducer, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { useEngineState, useLinkPhase } from "../../../state/engine/index.ts";
 import { useShellActions } from "../../../state/shell/index.ts";
-import { useConnectError } from "../../../state/ui/index.ts";
+import { useConnectError, useEngineTarget } from "../../../state/ui/index.ts";
 import { useCommands } from "../../commands.ts";
 import {
   canConnect,
@@ -29,20 +29,24 @@ export function ConnectionScreen(): ReactNode {
   const engine = useEngineState();
   const link = useLinkPhase();
   const connectError = useConnectError();
+  const engineTarget = useEngineTarget();
   const shell = useShellActions();
   const [state, dispatch] = useReducer(connectionReducer, INITIAL_CONNECTION_STATE);
+  // 화면을 열 때 엔진이 붙은 대상을 잡아 둔다. 목록을 읽은 뒤 이 대상으로 고른 칸과 엔진 칸을 맞춘다(떠났다 돌아와도 같은 대상을 고른다)
+  const [openedTarget] = useState(() => engineTarget);
   // 늦게 온 상태 읽기가 새 읽기를 덮지 않도록 읽기마다 번호를 매긴다
   const latest = useRef(0);
   const live = link === "live";
 
   const loadTargets = useCallback(async (): Promise<void> => {
     const loaded = await commands.connection.targets();
-    dispatch(
-      loaded.ok
-        ? { type: "targetsChanged", items: loaded.value, notice: null, added: null }
-        : { type: "targetsFailed" },
-    );
-  }, [commands]);
+    if (!loaded.ok) {
+      dispatch({ type: "targetsFailed" });
+      return;
+    }
+    dispatch({ type: "targetsChanged", items: loaded.value, notice: null, added: null });
+    dispatch({ type: "engineTargetSeen", target: openedTarget });
+  }, [commands, openedTarget]);
 
   // 연결된 클라이언트 목록은 상태 카드와 따로 읽는다. 목록 읽기가 실패하거나 늦어도 상태 카드는 그대로 그려진다
   const latestClients = useRef(0);

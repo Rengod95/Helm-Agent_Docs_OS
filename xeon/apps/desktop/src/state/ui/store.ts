@@ -76,6 +76,14 @@ export type SettingsJump = { readonly tab: SettingsTab; readonly key: SettingKey
  */
 export type RestartReason = { readonly kind: "install" | "rollback"; readonly name: string };
 
+/**
+ * 엔진이 지금 붙은 대상. 원격이면 이름을 함께 든다(상태 표시줄 첫 칸이 "원격 · 이름"을 보인다). 앱을 켜면 이 컴퓨터다.
+ * 마지막 대상은 앱을 다시 켜도 기억하지 않는다.
+ */
+export type EngineTargetView =
+  | { readonly kind: "local" }
+  | { readonly kind: "remote"; readonly address: string; readonly label: string };
+
 export type UiState = {
   readonly selectedThreadId: ThreadId | null;
   /** 응답을 보냈지만 approval.resolved를 아직 받지 못한 승인. 낙관적 표시는 이 스토어에 두고 엔진 거울에는 두지 않는다 */
@@ -106,6 +114,8 @@ export type UiState = {
   readonly reviewTarget: ReviewTarget | null;
   /** 다시 시작해야 적용되는 일. 엔진이 다시 running으로 돌아오면 비운다(app/restart-needed.ts) */
   readonly restartNeeded: readonly RestartReason[];
+  /** 엔진이 붙은 대상. 대상 바꾸기가 성공했을 때만 바뀌고, 앱을 켜면 이 컴퓨터다(`EngineTargetView`) */
+  readonly engineTarget: EngineTargetView;
 };
 
 interface UiActions {
@@ -138,6 +148,8 @@ interface UiActions {
   noteRestartNeeded(reason: RestartReason): void;
   /** 다시 시작이 필요한 일을 모두 지운다. 같은 상태(빈 목록)면 상태를 바꾸지 않는다 */
   clearRestartNeeded(): void;
+  /** 엔진이 붙은 대상을 적는다. 대상 바꾸기가 성공한 뒤에만 부른다 */
+  setEngineTarget(target: EngineTargetView): void;
 }
 
 const INITIAL_UI: UiState = {
@@ -157,6 +169,7 @@ const INITIAL_UI: UiState = {
   settingsJump: null,
   reviewTarget: null,
   restartNeeded: [],
+  engineTarget: { kind: "local" },
 };
 
 export type UiStore = { readonly read: ReadonlyStore<UiState>; readonly actions: UiActions };
@@ -213,6 +226,7 @@ export function createUiStore(): UiStore {
       ),
     clearRestartNeeded: () =>
       api.setState((s) => (s.restartNeeded.length === 0 ? s : { restartNeeded: [] })),
+    setEngineTarget: (engineTarget) => api.setState({ engineTarget }),
     setObserving: (id, observing) =>
       api.setState((s) => {
         if ((s.observing[id] === true) === observing) return s;

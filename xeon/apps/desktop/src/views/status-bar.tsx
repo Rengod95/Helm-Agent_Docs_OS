@@ -36,10 +36,13 @@ import { ShellStoreContext } from "../state/shell/index.ts";
 import {
   useCommandRuns,
   useConnectError,
+  useEngineTarget,
   useRestartNeeded,
   useSelectedThreadId,
+  type EngineTargetView,
 } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
+import { engineGoneOf } from "./composer-model.ts";
 import {
   modelLabelOf,
   tokenCountText,
@@ -192,9 +195,29 @@ function StatusItems(): ReactNode {
   ));
 }
 
-/** 엔진 한 줄: 상태와, 실행 중이면 어디서 도는지. 상태 표시줄과 첫 실행 바닥글이 같이 쓴다 */
-export function engineLineOf(engine: EngineState | null | undefined): string {
-  return `${t(engineTextOf(engine))}${engine?.kind === "running" ? ` (${t(SOURCE_TEXT[engine.source])})` : ""}`;
+/**
+ * 실행 중인 엔진이 어디서 도는지의 글. 원격 대상에 붙었으면 엔진 거울의 `source`(셸 중계도 `sidecar`로 온다)와 상관없이
+ * 대상 이름을 보인다. 이 기기 대상이면 `source`대로 쓴다.
+ */
+function sourceTextOf(
+  engine: Extract<EngineState, { kind: "running" }>,
+  target: EngineTargetView | undefined,
+): string {
+  if (target?.kind === "remote")
+    return t("desktop.status.engine.sourceRemote", { name: target.label });
+  return t(SOURCE_TEXT[engine.source]);
+}
+
+/**
+ * 엔진 한 줄: 상태와, 실행 중이면 어디서 도는지. 상태 표시줄과 첫 실행 바닥글이 같이 쓴다. `target`을 주면(상태 표시줄)
+ * 원격 대상일 때 "원격 · 이름"을 보인다. 첫 실행 바닥글은 대상을 주지 않는다.
+ */
+export function engineLineOf(
+  engine: EngineState | null | undefined,
+  target?: EngineTargetView,
+): string {
+  const source = engine?.kind === "running" ? ` (${sourceTextOf(engine, target)})` : "";
+  return `${t(engineTextOf(engine))}${source}`;
 }
 
 /** 연결 상태의 글. 상태 표시줄과 첫 실행 바닥글이 같이 쓴다 */
@@ -249,6 +272,15 @@ const LINK_DESCRIPTION: Readonly<Record<Link["phase"], MessageId | undefined>> =
   reset: "desktop.status.cell.link.catchUp",
   failed: "desktop.status.cell.link.down",
 };
+
+/**
+ * 연결 Popover의 설명. 원격 대상이 끊기면 안내는 서비스 기준이다("엔진이 없어"가 아니라 서비스가 켜졌는지 보라고 한다).
+ * 이 기기 대상은 `LINK_DESCRIPTION`을 그대로 쓴다
+ */
+export function linkDescriptionOf(phase: Link["phase"], remote: boolean): MessageId | undefined {
+  if (remote && (phase === "offline" || phase === "failed")) return "desktop.status.serviceLost";
+  return LINK_DESCRIPTION[phase];
+}
 
 /** 진행 중 Popover의 묶음 종류. 대화, 테스트 대화(testRun 표식), 예약(origin이 schedule) */
 type LiveKind = "thread" | "trial" | "schedule";
@@ -323,7 +355,8 @@ export function liveDotOf(rows: readonly LiveRow[]): StatusDot | undefined {
 function LinkCell(props: { readonly phase: Link["phase"]; readonly attempt: number }): ReactNode {
   const { phase, attempt } = props;
   const [open, setOpen] = useState(false);
-  const description = LINK_DESCRIPTION[phase];
+  const target = useEngineTarget();
+  const description = linkDescriptionOf(phase, target.kind === "remote");
   return (
     <StatusCell
       cellId="link"
@@ -340,11 +373,12 @@ function LinkCell(props: { readonly phase: Link["phase"]; readonly attempt: numb
 
 function EngineCell(props: { readonly engine: EngineState | null }): ReactNode {
   const [open, setOpen] = useState(false);
+  const target = useEngineTarget();
   const description = engineDescriptionOf(props.engine);
   return (
     <StatusCell
       cellId="engine"
-      text={engineLineOf(props.engine)}
+      text={engineLineOf(props.engine, target)}
       dot={engineDotOf(props.engine)}
       title={t("desktop.status.cell.engine.title")}
       description={description === undefined ? undefined : t(description)}
@@ -773,10 +807,13 @@ function UpdateCellOf(props: { readonly controller: UpdateController }): ReactNo
 export function StatusBar(): ReactNode {
   const commands = useCommands();
   const engine = useEngineState();
+  const engineTarget = useEngineTarget();
   const banner = useLinkBanner();
   const approvals = useApprovalCount();
   const connectError = useConnectError();
   const restartNeeded = useRestartNeeded();
+  // 엔진이 없으면 거울의 "진행 중" 수는 오래된 값이라 그 칸을 그리지 않는다(F-9)
+  const engineGone = engineGoneOf(engine, banner.phase);
   const [copied, setCopied] = useState<boolean | null>(null);
   const copy = async (): Promise<void> => {
     setCopied(await commands.copyDiagnostics());
@@ -788,7 +825,7 @@ export function StatusBar(): ReactNode {
     <footer className="statusbar">
       {/* 줄 전체를 낭독 영역으로 두면 갱신마다 읽힌다. 사용자가 알아야 할 바뀜(엔진 상태)만 이 한 줄이 맡는다 */}
       <span role="status" className="sr-only">
-        {engineLineOf(engine)}
+        {engineLineOf(engine, engineTarget)}
       </span>
       <EngineCell engine={engine} />
       {engine?.kind === "failed" ? (
@@ -805,6 +842,10 @@ export function StatusBar(): ReactNode {
       <LinkCell phase={banner.phase} attempt={banner.attempt} />
       {banner.phase === "failed" || connectError !== null ? (
         <>
+          {/* 원격 대상이 끊기면 안내는 서비스 기준이다. 이 기기 대상은 연결 실패 글과 단추가 맡는다 */}
+          {engineTarget.kind === "remote" ? (
+            <span className="dim">{t("desktop.status.serviceLost")}</span>
+          ) : null}
           <Button
             size="xs"
             variant="outline"
@@ -841,7 +882,7 @@ export function StatusBar(): ReactNode {
       <StatusItems />
       <StatusCells />
       <span className="grow" />
-      <LiveCell />
+      {engineGone ? null : <LiveCell />}
       <UsageCells />
       {approvals > 0 ? <ApprovalsCell count={approvals} /> : null}
     </footer>
