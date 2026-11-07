@@ -38,7 +38,14 @@ describe("cancellation and timeouts", () => {
     const failure = await rejection(
       world.runtime.service.client.callTool({ server: "stub", tool: "hang", arguments: {} }),
     );
-    expect(failure).toMatchObject({ data: { code: "timeout", retryable: true } });
+    expect(failure).toMatchObject({
+      data: {
+        code: "timeout",
+        retryable: true,
+        message:
+          "서버 stub의 도구 hang 호출이 응답하지 않아 1초 뒤 끊었어요 (설정: MCP 호출 제한 시간, l2.mcp.callTimeoutMs)",
+      },
+    });
     await world.runtime.shutdown();
   }, 10000);
 
@@ -53,7 +60,11 @@ describe("cancellation and timeouts", () => {
       world.runtime.service.client.callTool({ server: "stub", tool: "bad", arguments: {} }),
     );
     expect(failure).toMatchObject({
-      data: { code: "upstream_error", detail: { rpcCode: -32602 } },
+      data: {
+        code: "upstream_error",
+        detail: { rpcCode: -32602 },
+        message: "서버 stub의 도구 bad 호출에서 오류가 났어요: bad arguments",
+      },
     });
     await world.runtime.shutdown();
   });

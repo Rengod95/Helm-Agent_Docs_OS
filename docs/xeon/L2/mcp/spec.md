@@ -159,6 +159,10 @@ export const McpServerStatusSchema = Type.Object({
   lastError: Type.Optional(Type.Object({ code: Type.String(), message: Type.String(), at: Type.Integer() })),
   /** blocked일 때 사유: "denied_by_policy" | "not_in_allowlist" | "managed_only" | "untrusted_project" | "approval_required" | "sandbox_unavailable" */
   blockedReason: Type.Optional(Type.String()),
+  /** 노출하지 않는 도구와 사유(예: 다른 서버와 이름이 같아 숨은 `name_conflict`). 이름 규칙은 바꾸지 않는다. connected일 때만, 없으면 생략 [결정: 오케스트레이터 기본값, fxMC] */
+  hiddenTools: Type.Optional(Type.Array(Type.Object({ name: Type.String(), reason: Type.String() }))),
+  /** 마지막 연결 실패 때 서버 stderr 끝 5줄 이하(마스킹함). 연결에 성공하면 비운다 [결정: 오케스트레이터 기본값, fxMC] */
+  stderrTail: Type.Optional(Type.Array(Type.String())),
 });
 
 const ServerRef = Type.Object({ server: McpServerIdSchema });
@@ -630,6 +634,8 @@ sequenceDiagram
 - 복구되면 도구 목록을 다시 읽고 다음 단계 경계에 `toolsAdded`로 넣는다. 정의가 같은 도구는 같은 기계 이름을 다시 쓰므로 `diffToolsets`의 `added`에 들어간다.
 - stdio 서버 프로세스가 죽은 경우도 같은 규칙이다. 재기동은 `fresnel.process`로 한다.
 - 재연결 중 들어온 호출은 §4.5 2번대로 바로 `server_disconnected`다.
+- 오류 문구(fxMC): `failureToError`와 `lastError.message`는 한국어로 서버 id와 이유, 호출 제한 시간이 있으면 시간을 넣는다(예: `서버 qa 호출이 응답하지 않아 15초 뒤 끊었어요 (설정: MCP 호출 제한 시간, l2.mcp.callTimeoutMs)`). 원문은 마스킹 뒤에만 덧붙인다. 코드 문자열(`server_disconnected` 등)은 저장 값이라 그대로다 [결정: 오케스트레이터 기본값, fxMC].
+- 모델용 `mcp_servers`는 상태 사유를 줄에 싣는다. `approval_required`는 "사용자 기동 승인 대기 중이며 승인되면 도구가 다음 단계 경계(§4.9)에 들어온다"고 알려 "MCP 도구 없음"으로 끝내지 않게 한다. 숨은 도구는 이름과 사유를 덧붙인다 [결정: 오케스트레이터 기본값, fxMC].
 - 연결에 성공하면 `lastError`를 지운다. 지난 실패 기록이 연결된 서버에 남아 보이지 않게 하기 위해서다. 저장 상태(`cap_mcp_servers`)의 오류 칸도 같이 비워진다. `blocked` 때의 오류는 그 서버가 다시 시도할 때까지 남는다.
 
 ### 4.9 목록 변경과 진행 중 호출

@@ -47,6 +47,9 @@ interface ServerError {
   readonly at: number;
 }
 
+/** 연결 실패 때 화면에 보이려고 남기는 서버 stderr의 끝 줄 수 */
+const STDERR_SHOWN_LINES = 5;
+
 /** 읽기 전용 스냅숏 */
 export interface ServerSnapshot {
   readonly definition: ServerDefinition;
@@ -57,6 +60,8 @@ export interface ServerSnapshot {
   readonly prompts: readonly RawPrompt[];
   readonly lastError: ServerError | undefined;
   readonly lastConnectedAt: number | undefined;
+  /** 마지막 연결 실패 때 서버 stderr의 끝 줄(마스킹). 연결되면 비어 있다 */
+  readonly stderrTail: readonly string[];
 }
 
 interface SyncEntry {
@@ -102,6 +107,7 @@ interface Entry {
   protocolVersion: string | undefined;
   lastError: ServerError | undefined;
   lastConnectedAt: number | undefined;
+  stderrTail: readonly string[];
   failures: number;
   timer: TimerHandle | undefined;
   /** 연결 시도 세대. 새 시도나 닫기가 오래된 시도의 결과를 무효로 만든다 */
@@ -133,6 +139,7 @@ function freshEntry(definition: ServerDefinition, blockedReason: BlockedReason |
     protocolVersion: undefined,
     lastError: undefined,
     lastConnectedAt: undefined,
+    stderrTail: [],
     failures: 0,
     timer: undefined,
     generation: 0,
@@ -159,6 +166,7 @@ function snapshotOf(entry: Entry): ServerSnapshot {
     prompts: entry.prompts,
     lastError: entry.lastError,
     lastConnectedAt: entry.lastConnectedAt,
+    stderrTail: entry.stderrTail,
   };
 }
 
@@ -212,8 +220,16 @@ export function createRegistry(deps: RegistryDeps): ServerRegistry {
     }, delayMs);
   }
 
+  /** 연결 실패 때 서버 stderr의 끝 줄을 마스킹해 둔다. 저장 전에 마스킹하므로 원문은 남지 않는다 */
+  function keepStderr(entry: Entry, opened: OpenedTransport): void {
+    entry.stderrTail = opened
+      .stderrTail()
+      .slice(-STDERR_SHOWN_LINES)
+      .map((line) => deps.masker.mask(line));
+  }
+
   function failAttempt(entry: Entry, code: string, message: string): void {
-    recordError(entry, code, message);
+    recordError(entry, code, `서버 ${entry.definition.id}에 연결하지 못했어요: ${message}`);
     entry.failures += 1;
     const settings = deps.settings();
     if (entry.failures >= settings.reconnect.maxAttempts) {
@@ -267,6 +283,7 @@ export function createRegistry(deps: RegistryDeps): ServerRegistry {
     if (!connected.ok) {
       const tail = opened.value.stderrTail().slice(-3).join(" | ");
       if (!stale()) {
+        keepStderr(entry, opened.value);
         failAttempt(
           entry,
           connected.error.code,
@@ -298,6 +315,7 @@ export function createRegistry(deps: RegistryDeps): ServerRegistry {
     if (!tools.ok || !prompts.ok) {
       const failure = !tools.ok ? tools.error : prompts.ok ? undefined : prompts.error;
       await connection.close();
+      keepStderr(entry, opened.value);
       failAttempt(entry, failure?.code ?? "protocol_error", failure?.message ?? "listing failed");
       return;
     }
@@ -310,6 +328,7 @@ export function createRegistry(deps: RegistryDeps): ServerRegistry {
     entry.failures = 0;
     // 연결에 성공하면 지난 실패 기록은 낡은 정보다. 남겨 두면 연결된 서버가 오류를 단 채 보인다
     entry.lastError = undefined;
+    entry.stderrTail = [];
     connection.onClose(() => handleClosed(entry, generation));
     setState(entry, "connected");
     deps.onChanged(entry.definition.id);
@@ -320,7 +339,11 @@ export function createRegistry(deps: RegistryDeps): ServerRegistry {
     entry.connection = undefined;
     entry.opened = undefined;
     entry.failures = 0;
-    recordError(entry, "server_disconnected", "the connection to the server was lost");
+    recordError(
+      entry,
+      "server_disconnected",
+      `서버 ${entry.definition.id}의 연결이 끊겼어요. 자동으로 다시 연결해요`,
+    );
     setState(entry, "reconnecting");
     // 연결이 끊긴 순간 서버 도구는 바로 쓸 수 없다. 도구 집합에서 빼는 일은 다음 단계 경계가 한다
     deps.onChanged(entry.definition.id);
@@ -340,7 +363,11 @@ export function createRegistry(deps: RegistryDeps): ServerRegistry {
         server: entry.definition.id,
         message: cause instanceof Error ? deps.masker.mask(cause.message) : "unknown",
       });
-      recordError(entry, "internal", "connection attempt crashed");
+      recordError(
+        entry,
+        "internal",
+        `서버 ${entry.definition.id}에 연결하지 못했어요: 연결 시도 중 내부 오류가 났어요`,
+      );
       setState(entry, "failed");
     });
   }
