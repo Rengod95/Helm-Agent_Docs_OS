@@ -3899,6 +3899,7 @@
   "desktop.install.fail.sourceChanged": "확인한 뒤에 폴더 내용이 바뀌었어요. 다시 확인해 주세요.",
   "desktop.install.fail.notAbsolute": "절대 경로로 적어 주세요.",
   "desktop.install.fail.noManifest": "이 폴더에 플러그인 파일(.fresnel-plugin/plugin.json)이 없어요.",
+  "desktop.install.fail.checked": "이 폴더는 설치 검사에서 걸렸어요. 아래 내용을 고친 뒤 다시 확인해 주세요.",
   "desktop.install.fail.invalidInput": "설치할 수 없는 폴더예요. 절대 경로이고 묶음을 마친 폴더인지 확인해 주세요.",
   "desktop.install.fail.notFound": "폴더를 찾을 수 없어요.",
   "desktop.install.fail.denied": "이 플러그인은 설치할 수 없어요.",

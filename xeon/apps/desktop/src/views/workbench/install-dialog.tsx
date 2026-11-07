@@ -16,6 +16,7 @@ import {
   INITIAL_INSTALL_FLOW,
   installFailureOf,
   installReasonsOf,
+  installFailureHeadOf,
   installReasonKeyOf,
   pickOutcomeOf,
   installReduce,
@@ -26,13 +27,14 @@ import {
   type BridgeAccess,
   type InstallHook,
   type InstallHookPower,
-  type InstallFailure,
+  type InstallFailureHead,
   type InstallReason,
   type InstallReasonKey,
   type InstallWarning,
 } from "./install-model.ts";
 
-const FAILURE_TEXT: Readonly<Record<InstallFailure, MessageId>> = {
+const FAILURE_TEXT: Readonly<Record<InstallFailureHead, MessageId>> = {
+  checked: "desktop.install.fail.checked",
   safe_mode: "desktop.install.fail.safeMode",
   managed_locked: "desktop.install.fail.managedLocked",
   source_changed: "desktop.install.fail.sourceChanged",
@@ -413,7 +415,7 @@ export function InstallDialog(props: {
         )}
         {failure !== null && (
           <Alert tone="danger">
-            {t(FAILURE_TEXT[failure])}
+            {t(FAILURE_TEXT[installFailureHeadOf(failure, reasons)])}
             <InstallReasonList reasons={reasons} />
           </Alert>
         )}

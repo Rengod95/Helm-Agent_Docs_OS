@@ -72,6 +72,17 @@ export function installFailureOf(error: CommandError): InstallFailure {
   return (head === undefined ? undefined : ISSUE_KINDS[head]) ?? "other";
 }
 
+/** 실패 문장 갈래. 일반 거절(`invalid_input`·`other`)에 사유 목록이 있으면 경로를 의심하는 일반 문장 대신 "검사에서 걸렸다"(`checked`)를 쓴다. 사유가 원인을 말하기 때문이다 */
+export type InstallFailureHead = InstallFailure | "checked";
+
+export function installFailureHeadOf(
+  failure: InstallFailure,
+  reasons: readonly InstallReason[],
+): InstallFailureHead {
+  if (reasons.length === 0) return failure;
+  return failure === "invalid_input" || failure === "other" ? "checked" : failure;
+}
+
 /** 화면이 문장을 고르는 거절 사유 코드. 엔진이 보내는 코드 가운데 문장을 가진 것만 든다. 그 밖의 코드는 `other`다 */
 const INSTALL_REASON_CODES = [
   "not_absolute",

@@ -3899,6 +3899,7 @@
   "desktop.install.fail.sourceChanged": "The folder changed after you reviewed it. Review it again.",
   "desktop.install.fail.notAbsolute": "Enter the folder as an absolute path.",
   "desktop.install.fail.noManifest": "This folder has no plugin file (.fresnel-plugin/plugin.json).",
+  "desktop.install.fail.checked": "This folder did not pass the install check. Fix the items below, then check again.",
   "desktop.install.fail.invalidInput": "This folder cannot be installed. Check that it is an absolute path to a packaged folder.",
   "desktop.install.fail.notFound": "The folder was not found.",
   "desktop.install.fail.denied": "This plugin cannot be installed.",
