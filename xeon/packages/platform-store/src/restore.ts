@@ -307,17 +307,29 @@ function addBlobs(
 function ensureNoEngine(dbPath: string): Result<void, RestoreError> {
   if (!existsSync(dbPath)) return ok(undefined);
   return attemptIo(() => {
-    const db = newDatabase(dbPath, { create: false });
     try {
-      db.run("PRAGMA busy_timeout = 0");
-      db.run("PRAGMA journal_mode = DELETE");
-      // 쓰기 잠금까지 받아 다른 프로세스의 마지막 쓰기도 없음을 확인한다
-      db.run("BEGIN EXCLUSIVE");
-      db.run("ROLLBACK");
-    } finally {
-      db.close();
+      const db = newDatabase(dbPath, { create: false });
+      try {
+        db.run("PRAGMA busy_timeout = 0");
+        db.run("PRAGMA journal_mode = DELETE");
+        // 쓰기 잠금까지 받아 다른 프로세스의 마지막 쓰기도 없음을 확인한다
+        db.run("BEGIN EXCLUSIVE");
+        db.run("ROLLBACK");
+      } finally {
+        db.close();
+      }
+    } catch (caught) {
+      // 현재 DB가 손상됐거나 SQLite 파일이 아니면(0바이트는 빈 DB라 해당 없음) 엔진이 쓸 수 없는 파일이다.
+      // 이 상태가 복원이 고쳐야 할 대상이므로 막지 않고 옛 파일을 restore-previous로 옮기는 단계로 간다
+      if (isUnusableCurrentDatabase(caught)) return;
+      throw caught;
     }
   });
+}
+
+function isUnusableCurrentDatabase(caught: unknown): boolean {
+  const code = asSqliteFailure(caught)?.code;
+  return code === "SQLITE_NOTADB" || code === "SQLITE_CORRUPT";
 }
 
 function sideFiles(dbPath: string): readonly string[] {

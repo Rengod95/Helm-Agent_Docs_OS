@@ -123,12 +123,17 @@ function checkDestination(destDir: string): Result<boolean, ExportError> {
   return ok(state.value === "absent");
 }
 
-/** 읽기 전용 연결을 연다. 잠금 대기 시간만 건다. query_only는 걸지 않는다(VACUUM INTO가 그 설정에서 거절된다) */
-function openReadOnly(path: string): Result<SqliteConnection, ExportError> {
+/**
+ * 연결을 연다. 잠금 대기 시간만 건다. query_only는 걸지 않는다(VACUUM INTO가 그 설정에서 거절된다).
+ * 읽기 전용 연결은 WAL DB의 -wal/-shm이 없으면(정상 종료 뒤) 열리지 않는다(SQLITE_CANTOPEN). 그때만 `writable`로 다시 연다
+ */
+function openConnection(path: string, writable: boolean): Result<SqliteConnection, ExportError> {
   return attemptIo((): SqliteConnection => {
-    const db = newDatabase(path, { readonly: true });
+    const db = newDatabase(path, writable ? {} : { readonly: true });
     try {
       db.run(`PRAGMA busy_timeout = ${EXPORT_BUSY_TIMEOUT_MS}`);
+      // 읽기 전용 연결의 CANTOPEN은 첫 읽기에서 나온다. 여기서 드러내 openReadable이 다시 열게 한다
+      db.query("SELECT count(*) FROM sqlite_master").get();
     } catch (caught) {
       db.close();
       throw caught;
@@ -137,10 +142,19 @@ function openReadOnly(path: string): Result<SqliteConnection, ExportError> {
   }, sourceFailureOf);
 }
 
-/** 원본 DB를 읽기 전용으로 연다. 파일이 없으면 not_a_database다 */
+/** 읽기용 연결을 연다. 읽기 전용이 CANTOPEN이면(-wal/-shm이 없는 정상 종료 뒤 DB) 쓰기 가능으로 다시 연다. 내보내기는 이 연결로 읽기만 한다 */
+function openReadable(path: string): Result<SqliteConnection, ExportError> {
+  const readOnly = openConnection(path, false);
+  if (readOnly.ok || readOnly.error.kind !== "io" || readOnly.error.code !== "SQLITE_CANTOPEN") {
+    return readOnly;
+  }
+  return openConnection(path, true);
+}
+
+/** 원본 DB를 연다. 파일이 없으면 not_a_database다 */
 function openSource(dbPath: string): Result<SqliteConnection, ExportError> {
   if (!existsSync(dbPath)) return err({ kind: "not_a_database" });
-  return openReadOnly(dbPath);
+  return openReadable(dbPath);
 }
 
 /** 원본의 표지를 본다. Fresnel 표지가 아니면 다른 앱의 DB(foreign_database)다. 표지 0과 스키마 없음은 빈 파일이다 */
@@ -177,7 +191,7 @@ function makeDirIfMissing(path: string, created: Created): Result<void, ExportEr
 
 /** 복사본의 sys_blobs에서 sha256 목록을 읽는다. 원본이 아니라 복사본을 읽어 내보낸 행과 목록이 같은 내용을 보게 한다 */
 function listBlobs(sqlitePath: string): Result<readonly string[], ExportError> {
-  const copy = openReadOnly(sqlitePath);
+  const copy = openReadable(sqlitePath);
   if (!copy.ok) return copy;
   const db = copy.value;
   try {

@@ -906,7 +906,7 @@ export interface GroupTemplatesPort {
 
 `fresnel db export <폴더>`는 저장소 파일을 `<폴더>`에 내보냅니다. 엔진을 띄우지 않고, 내보내기는 `L0.store.spec` §4.10의 `exportDatabase`가 합니다. 복구와 보관에 쓰는 명령입니다.
 
-- 원본: 데이터 디렉터리(`OsDirs.data`)의 `fresnel.db`입니다. 위치는 호스트와 같은 `resolveOsDirs`가 정하므로 `FRESNEL_HOME`이 적용됩니다. 엔진이 이 파일을 열고 있어도 됩니다. 원본은 읽기 전용으로만 열고 아무것도 쓰지 않습니다.
+- 원본: 데이터 디렉터리(`OsDirs.data`)의 `fresnel.db`입니다. 위치는 호스트와 같은 `resolveOsDirs`가 정하므로 `FRESNEL_HOME`이 적용됩니다. 엔진이 이 파일을 열고 있어도 되고, 정상 종료로 `-wal`/`-shm`이 없어도 됩니다(`L0.store.spec` §4.10). 원본에는 아무것도 쓰지 않습니다.
 - 대상: `<폴더>`가 없으면 만듭니다. 있으면 비어 있어야 합니다. 비어 있지 않으면 `dest_not_empty`로 끝나고(종료 코드 2) 아무것도 바꾸지 않습니다. 상대 경로는 작업 폴더(`-C`, 없으면 현재 폴더) 기준입니다.
 - 사람용 출력(stdout): `exported <N> blobs to <절대 경로>` 한 줄입니다.
 - 누락 블롭: `missingBlobs`의 sha256마다 stderr에 `경고: 블롭 파일이 없어 빠졌다: <sha256>` 한 줄을 씁니다. 열 줄을 넘으면 앞의 열 줄만 쓰고, `경고: 나머지 <M>개도 빠졌다 (전체 <K>개, manifest.json의 missingBlobs)` 한 줄로 개수를 알립니다. 누락 블롭이 있어도 내보내기는 성공이고 종료 코드는 0입니다. 사본에는 복사된 블롭만 있습니다.
@@ -946,6 +946,7 @@ $ echo $?
 - `<폴더>` 상대 경로는 작업 폴더(`-C`) 기준입니다.
 - 사람용 출력: stdout에 `{backupDir}에서 데이터베이스를 되돌렸다 (블롭 N개 추가)`와, 현재 DB가 있었으면 옮겨 둔 폴더 한 줄을 씁니다. stderr에는 이전 복원을 정리했으면 그 한 줄, 누락 블롭 경고(`db export`와 같은 문구와 열 줄 상한), 그리고 시크릿 안내 한 줄을 씁니다. `--json`이면 `RestoreReport`(`dbPath`, `backupDir`, `blobsAdded`, `missingBlobs`, `previousDir`, `recovered`)를 stdout에 쓰고 stderr에는 쓰지 않습니다.
 - 시크릿: 사본에는 설정 파일과 age 키(`secrets/age/keys.txt`)가 없습니다. 이 명령은 그 파일을 읽거나 복사하거나 사본에 넣지 않고 시크릿 값을 출력하지 않습니다. 복원한 DB가 참조하는 시크릿을 복호화하려면 원래 기기의 age 키를 따로 보관했다가 놓아야 한다고 출력으로 알립니다. `db export`의 경고(`m4/safe2`)는 이 명령이 바꾸지 않습니다.
+- 현재 DB가 손상됐거나 0바이트이거나 SQLite 파일이 아니어도 되돌립니다. 옛 파일은 `restore-previous/`로 옮깁니다(`L0.store.spec` §4.10.1 3번). `not_a_database` 문구는 "백업이 깨졌다, 현재 데이터베이스는 바꾸지 않았다"로 백업 쪽만 말하고, 현재 DB 문제는 `db export` 쪽 문구에서 "현재 데이터베이스"라고 부릅니다.
 - 오류 종료 코드: `backup_not_found`는 2, 그 밖은 3입니다. 문구는 값을 싣지 않고 두 줄(무엇, 해결)입니다.
 - 중간에 프로세스가 죽었으면 같은 명령을 다시 실행합니다. 엔진을 먼저 띄우지 않습니다(`L0.store.spec` §4.10.1).
 

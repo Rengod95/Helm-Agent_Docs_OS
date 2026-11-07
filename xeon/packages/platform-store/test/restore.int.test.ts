@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
 import type { BlobRef } from "@fresnel/contracts/records";
@@ -97,6 +97,30 @@ describe("restoreDatabase", () => {
     own(store.opened);
     expect(store.service.readBlob(f.ref)).toEqual({ ok: true, value: new Uint8Array(BYTES) });
   });
+
+  const unusable: ReadonlyArray<readonly [string, (current: Uint8Array) => Uint8Array]> = [
+    ["random bytes", () => Uint8Array.from({ length: 4096 }, (_, i) => (i * 131 + 7) % 256)],
+    ["a zero-byte file", () => new Uint8Array(0)],
+    ["a truncated database", (current) => current.subarray(0, current.byteLength - 1000)],
+  ];
+  for (const [label, damage] of unusable) {
+    test(`restores over a current database that is ${label} and keeps the old file in restore-previous`, async () => {
+      const f = await fixture();
+      for (const side of ["-wal", "-shm"]) rmSync(`${f.dbPath}${side}`, { force: true });
+      const damaged = damage(readFileSync(f.dbPath));
+      writeFileSync(f.dbPath, damaged);
+      const restored = restoreDatabase({ dbPath: f.dbPath, backupDir: f.backup, clock: f.clock });
+      if (!restored.ok) throw new Error(`restore failed: ${restored.error.kind}`);
+      expect(rowsOf(f.dbPath)).toEqual([{ body: "from-backup" }]);
+      const previous = restored.value.previousDir;
+      if (previous === null) throw new Error("previousDir is null");
+      // 엔진 확인이 헤더를 바꿀 수 있어(저널 모드) 바이트가 아니라 옛 파일이 남았는지만 본다
+      expect(existsSync(join(previous, "fresnel.db"))).toBe(true);
+      expect(statSync(join(previous, "fresnel.db")).size).toBeGreaterThanOrEqual(
+        Math.min(damaged.byteLength, 1),
+      );
+    });
+  }
 
   test("refuses while another connection holds the database and changes nothing", async () => {
     const f = await fixture();
