@@ -21,6 +21,7 @@ import { settingProblemOf } from "../settings-problems.ts";
 import type { ConnectionHub } from "../connection-types.ts";
 import type { Engine, SettingsFileFailure, SettingsWriteFailure } from "../types.ts";
 import { threadLocked, withWriteOwner } from "./owner.ts";
+import { settingsFileInvalidDetails } from "../settings-file-details.ts";
 
 // L4.host-service.spec §3.4. settings.get(M1)과 settings.set, settings.reset, settings.list(M2, HOST.2).
 // 값 검사는 F의 checkSettingWrite가 한다. 오류 details에는 값을 싣지 않는다(F wire §4.9 시크릿 값 비표시 규칙 4).
@@ -87,23 +88,6 @@ function scopeNotAllowed(def: SettingDef, scope: SettingScope, reason: string): 
   return wireError("settings.scopeNotAllowed", {
     details: { key: def.key, scope, allowedScopes: [...def.allowedScopes], reason },
   });
-}
-
-/**
- * `settings_file_invalid`(store.io)의 details. 파일 경로와 위치를 싣는다. 위치는 JSON 문법 오류일 때만 있어서 없으면 그 칸을 생략한다
- * (F wire §3.5.2 5006). 파일 내용은 싣지 않는다
- */
-export function settingsFileInvalidDetails(failure: {
-  readonly path: string;
-  readonly line: number | null;
-  readonly column: number | null;
-}): Readonly<Record<string, unknown>> {
-  return {
-    code: "settings_file_invalid",
-    path: failure.path.slice(0, 512),
-    ...(failure.line === null ? {} : { line: failure.line }),
-    ...(failure.column === null ? {} : { column: failure.column }),
-  };
 }
 
 /** 설정 쓰기 실패를 와이어 오류로 옮긴다 */

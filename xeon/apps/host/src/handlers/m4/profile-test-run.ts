@@ -23,7 +23,7 @@ import {
   type WireHandlers,
 } from "@fresnel/contracts/wire";
 import type { ProfileStoreFailure, ProfilesChange } from "../../assembly/m4/profile-store.ts";
-import { settingsFileInvalidDetails } from "../settings.ts";
+import { settingsFileInvalidDetails } from "../../settings-file-details.ts";
 
 // 프로필·Test run·Trace wire(`spec-deltas/t-wb.md`). 처리기는 값 검사와 오류 옮기기만 하고, 저장·적용·되돌리기는 포트 구현
 // (`assembly/m4/profile-test-run-port.ts`)이 한다. 알림 `profile.changed`는 포트의 `onProfilesChanged`를 연결 허브(`handlers/events.ts`)가 듣고 전체 연결에 보낸다.
