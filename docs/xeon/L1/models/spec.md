@@ -416,7 +416,7 @@ export type ModelErrorKind =
   | "provider_unavailable" | "provider_conflict" | "invalid_provider" | "secret_unresolved" | "oauth_token_on_default_provider"
   // 호출 단계 (stopReason "error" 메시지의 분류, classify 결과)
   | "rate_limited" | "quota_exhausted" | "overloaded" | "context_overflow"
-  | "auth" | "aborted" | "transport" | "provider_error";
+  | "auth" | "permission_denied" | "aborted" | "transport" | "provider_error";
 
 export interface ModelError {
   readonly kind: ModelErrorKind;
@@ -437,11 +437,13 @@ export interface ModelError {
 | 4 | pi-ai의 재시도 불가 한도 패턴(`retry.ts:252-257`의 `NON_RETRYABLE_PROVIDER_LIMIT_ERROR_PATTERN`) | `quota_exhausted` |
 | 5 | HTTP 429 또는 레이트 리밋 문구 | `rate_limited` |
 | 6 | HTTP 529, 503, "overloaded" 문구 | `overloaded` |
-| 7 | HTTP 401, 403 | `auth` |
+| 7 | HTTP 401, `unauthorized`, `authentication_error` | `auth` |
+| 7a | HTTP 403, `permission_error`, `forbidden`. 키는 맞지만 이 키로 이 모델을 못 쓴다 | `permission_denied` |
 | 8 | 연결 실패, 시간 초과 | `transport` |
 | 9 | 그 밖 | `provider_error` |
 
 - 5~8의 문구 판정은 pi-ai 정규식을 쓰고 Fresnel 정규식을 새로 만들지 않는다. pi-ai에 없는 구분(5와 6)은 `errorMessage`의 HTTP 상태 접두에서 읽는다 [가정: pi-ai 오류 메시지가 상태 코드를 담는다. M-1 테스트에서 확인].
+- [결정: 오케스트레이터 기본값, fxMR] `errorMessage`가 `stream_interrupted: ` 접두로 시작하면 `transport`다. 4번(quota) 앞에서 본다. 접두는 앞부분 답이 온 뒤 끊긴 스트림의 표지이고(§4.5), `ModelErrorKind`에는 넣지 않는다.
 
 ### 3.9 시크릿 다리
 
@@ -626,7 +628,11 @@ export function resolveRole(input: {
 - [제안] 재시도는 provider 요청 단계 하나에서만 한다. pi-ai의 `retryProviderRequest`가 `maxRetries`와 `maxRetryDelayMs`로 429·5xx를 다시 보낸다. 이중 재시도를 피하려고 루프 쪽 `retryAssistantCall`은 주 루프 호출에 쓰지 않는다(`docs/design/12-runtime-engine.md` §3.3.6의 이중 재시도 근거를 참고).
 - 이미 콘텐츠 이벤트를 낸 뒤의 스트림 오류는 다시 보내지 않고 오류 종결로 끝낸다. 다음 동작은 core-loop가 정한다.
 - `complete` 호출(요약, 판정, 검색)은 `retryAssistantCall`을 쓴다. 콘텐츠를 소비자에게 흘려보내지 않기 때문이다.
-- `quota_exhausted`, `auth`, `context_overflow`는 재시도하지 않는다.
+- `quota_exhausted`, `auth`, `permission_denied`, `context_overflow`는 재시도하지 않는다.
+- [결정: 오케스트레이터 기본값, fxMR] 재시도 상태 이벤트. `ModelCallContext.onRetry?(event)`를 받아, pi-ai가 같은 요청을 다시 보내기 직전에 `ModelRetryEvent { attempt, maxRetries, waitMs }`로 한 번 부른다(`attempt`는 1부터 센 재시도 번호, `waitMs`는 기다릴 시간). pi-ai에는 콜백이 없으므로 요청 옵션 `fetch`로 감싼 fetch가 응답마다 상태를 본다. 재시도 조건은 pi-ai `isRetryableProviderError`와 같다(408·409·429·5xx, `x-should-retry`, 상태 없는 연결 예외). 한도가 남고 서버 대기가 `maxDelayMs` 이하일 때만 낸다. `waitMs`는 `retry-after-ms` → `retry-after`(초 또는 HTTP 날짜) → `min(0.5·2^(attempt−1), 8)`초 추정값 순서로 정한다. `spec.providerRetries`가 거짓인 호출(`complete` 등)은 이벤트를 내지 않는다. 알림이 던져도 요청은 이어지고 `model.retry_listener_failed`를 남긴다.
+- 감싼 fetch는 다시 보내는 어댑터에만 넣는다(`RETRYING_FETCH_APIS`: anthropic-messages, openai-completions, openai-responses, azure-openai-responses). google-*은 custom fetch를 거부하고, mistral·pi-messages는 다시 보내지 않으므로 거짓 재시도 이벤트를 내지 않도록 뺀다.
+- [결정: 오케스트레이터 기본값, fxMR] retry-after 표지. 재시도 한도를 넘어 429로 끝난 최종 오류에 서버 대기가 있으면 종결 문장 끝에 ` [retry-after=<초, 올림>]`을 붙인다(마스킹 전). 계정 회전(§4.8)의 `retryAfterMsOf`가 이 표지를 읽는다.
+- [결정: 오케스트레이터 기본값, fxMR] 끊긴 스트림. 최종 오류인데 메시지에 비어 있지 않은 text 블록이 이미 있으면(앞부분 답이 왔다) 종결 문장을 `stream_interrupted: <원래 문장>`으로 바꾼다. classify는 이 접두를 `transport`로 읽는다(§3.8). 시크릿 오류(`secret_unresolved`)가 있으면 그쪽이 우선한다.
 
 ### 4.6 캐시
 

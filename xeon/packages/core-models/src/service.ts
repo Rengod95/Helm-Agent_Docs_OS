@@ -2,6 +2,7 @@ import {
   getSupportedThinkingLevels,
   retryAssistantCall,
   type CredentialStore,
+  type FetchFunction,
   type MutableModels,
   type RetryPolicy,
 } from "@earendil-works/pi-ai";
@@ -75,6 +76,8 @@ export interface ModelServiceDeps {
   /** 없으면 before_provider_request를 발화하지 않는다 */
   readonly dispatcher?: ProviderDispatcher;
   readonly logger?: Logger;
+  /** provider HTTP 요청 함수. 없으면 globalThis.fetch. 시험이 가짜 제공자를 꽂는 자리다 */
+  readonly fetch?: FetchFunction;
   /** 계정 회전 플러그인이 켜져 있는가. 없으면 꺼짐이다(L1.models.spec §4.8, 기본 꺼짐) */
   readonly rotationEnabled?: () => boolean;
   /** 회전의 기다림에 쓴다. 없으면 기다림이 필요한 자리에서 실패한다 */
@@ -207,6 +210,7 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
       policy: policyOf,
     },
     ...(deps.logger === undefined ? {} : { logger: deps.logger }),
+    ...(deps.fetch === undefined ? {} : { fetch: deps.fetch }),
     ...(deps.offerBody === undefined ? {} : { offerBody: deps.offerBody }),
   });
 
