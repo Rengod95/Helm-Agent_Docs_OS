@@ -15,6 +15,8 @@ import {
   type InstallDone,
   INITIAL_INSTALL_FLOW,
   installFailureOf,
+  installReasonsOf,
+  installReasonKeyOf,
   pickOutcomeOf,
   installReduce,
   accessIsEmpty,
@@ -22,6 +24,8 @@ import {
   warningsOf,
   type BridgeAccess,
   type InstallFailure,
+  type InstallReason,
+  type InstallReasonKey,
   type InstallWarning,
 } from "./install-model.ts";
 
@@ -37,6 +41,22 @@ const FAILURE_TEXT: Readonly<Record<InstallFailure, MessageId>> = {
   offline: "desktop.install.fail.offline",
   unsupported: "desktop.install.fail.unsupported",
   other: "desktop.install.fail.other",
+};
+
+const REASON_TEXT: Readonly<Record<InstallReasonKey, MessageId>> = {
+  not_absolute: "desktop.install.reason.notAbsolute",
+  folder_missing: "desktop.install.reason.folderMissing",
+  no_manifest: "desktop.install.reason.noManifest",
+  manifest_json: "desktop.install.reason.manifestJson",
+  unknown_key: "desktop.install.reason.unknownKey",
+  missing_field: "desktop.install.reason.missingField",
+  invalid_value: "desktop.install.reason.invalidValue",
+  entry_format: "desktop.install.reason.entryFormat",
+  entry_missing: "desktop.install.reason.entryMissing",
+  builtin_trust: "desktop.install.reason.builtinTrust",
+  name_invalid: "desktop.install.reason.nameInvalid",
+  name_reserved: "desktop.install.reason.nameReserved",
+  other: "desktop.install.reason.other",
 };
 
 function warningText(warning: InstallWarning): string {
@@ -98,7 +118,11 @@ export function InstallDialog(props: {
     dispatch(
       got.ok
         ? { type: "previewed", preview: got.value }
-        : { type: "previewFailed", failure: installFailureOf(got.error) },
+        : {
+            type: "previewFailed",
+            failure: installFailureOf(got.error),
+            reasons: installReasonsOf(got.error),
+          },
     );
   };
   const install = async (source: string, sha256: string): Promise<void> => {
@@ -116,11 +140,16 @@ export function InstallDialog(props: {
       dispatch({ type: "installed", result: got.value, reloadFailure });
       props.onInstalled();
     } else {
-      dispatch({ type: "installFailed", failure: installFailureOf(got.error) });
+      dispatch({
+        type: "installFailed",
+        failure: installFailureOf(got.error),
+        reasons: installReasonsOf(got.error),
+      });
     }
   };
 
   const failure = flow.step === "source" || flow.step === "confirm" ? flow.failure : null;
+  const reasons = flow.step === "source" || flow.step === "confirm" ? flow.reasons : [];
   const busy = flow.step === "previewing" || flow.step === "installing";
   return (
     <Dialog
@@ -312,9 +341,53 @@ export function InstallDialog(props: {
         {flow.step === "installing" && (
           <span className="text-ui-xs text-text-secondary">{t("desktop.install.installing")}</span>
         )}
-        {failure !== null && <Alert tone="danger">{t(FAILURE_TEXT[failure])}</Alert>}
+        {failure !== null && (
+          <Alert tone="danger">
+            {t(FAILURE_TEXT[failure])}
+            <InstallReasonList reasons={reasons} />
+          </Alert>
+        )}
       </div>
     </Dialog>
+  );
+}
+
+/** 사유의 자리 문장. 필드와 줄을 다 알면 "필드 · N번째 줄", 하나만 알면 그것만 쓰고, 둘 다 모르면 없다 */
+function placeText(reason: InstallReason): string | null {
+  if (reason.field !== undefined && reason.line !== undefined) {
+    return t("desktop.install.reason.place.fieldLine", {
+      field: reason.field,
+      line: reason.line,
+    });
+  }
+  if (reason.field !== undefined)
+    return t("desktop.install.reason.place.field", { field: reason.field });
+  if (reason.line !== undefined)
+    return t("desktop.install.reason.place.line", { line: reason.line });
+  return null;
+}
+
+/**
+ * 설치가 거절된 사유 목록. 사유마다 한 문장과 알면 자리를 실패 문장 아래에 보인다. 오류 자체라 정보 아이콘 뒤에 두지 않는다.
+ * 검사기 원문 `message`는 여기서 쓰지 않는다. 사유가 없으면 아무것도 그리지 않는다.
+ */
+export function InstallReasonList(props: {
+  readonly reasons: readonly InstallReason[];
+}): ReactNode {
+  if (props.reasons.length === 0) return null;
+  return (
+    <ul className="m-0 grid list-disc gap-1 ps-4 text-ui-dense">
+      {props.reasons.map((reason) => {
+        const place = placeText(reason);
+        // 같아 보이는 사유는 installReasonsOf가 이미 하나로 줄였으므로 내용 키가 겹치지 않는다
+        return (
+          <li key={installReasonKeyOf(reason)}>
+            {t(REASON_TEXT[reason.key])}
+            {place === null ? null : <span className="block text-ui-xs">{place}</span>}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

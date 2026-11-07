@@ -33,6 +33,18 @@ const InvalidParamsDetailsSchema = Type.Object({
     }),
   ),
 });
+/** 설치 입력이 검사에서 걸린 사유 목록(wire/errors.ts `ReasonsSchema`와 같은 한도). 목록만 따로 읽어 문장과 입력 이름은 그대로 둔다 */
+const ReasonsDetailsSchema = Type.Object({
+  reasons: Type.Array(
+    Type.Object({
+      code: Type.String({ minLength: 1, maxLength: 64 }),
+      field: Type.Optional(Type.String({ maxLength: 512 })),
+      line: Type.Optional(Type.Integer({ minimum: 1 })),
+      message: Type.Optional(Type.String({ maxLength: 512 })),
+    }),
+    { maxItems: 20 },
+  ),
+});
 /** 계약의 details 스키마(wire/errors.ts)와 같은 모양. 대안 이름은 모르는 값을 버리려고 문자열로 읽는다 */
 const LockedDetailsSchema = Type.Object({
   ownerKind: Type.String({ maxLength: 32 }),
@@ -72,15 +84,20 @@ export function errorOf(cause: unknown): CommandError {
   }
   if (cause.code === INVALID_PARAMS_CODE) {
     // 설치처럼 입력 문제를 `<종류>: <내용>` 문장으로 알리는 메서드가 있다. 첫 문장을 `issue`에 남긴다(화면이 종류를 가른다).
-    // 입력 이름은 `path`에 남긴다(예: 모르는 계획 id는 `planId`다)
+    // 입력 이름은 `path`에 남긴다(예: 모르는 계획 id는 `planId`다). 설치 입력의 사유 목록은 `reasons`에 남긴다(틀린 목록은 버린다)
     const details = parse(InvalidParamsDetailsSchema, cause.data.details);
     const first = details.ok ? details.value.issues[0] : undefined;
-    if (first !== undefined) {
+    const reasons = parse(ReasonsDetailsSchema, cause.data.details);
+    const list = reasons.ok && reasons.value.reasons.length > 0 ? reasons.value.reasons : undefined;
+    if (first !== undefined || list !== undefined) {
       return {
         kind: "rejected",
         code: cause.code,
-        ...(DEVKIT_ISSUE.test(first.message) ? { issue: first.message } : {}),
-        ...(first.path === undefined ? {} : { path: first.path }),
+        ...(first !== undefined && DEVKIT_ISSUE.test(first.message)
+          ? { issue: first.message }
+          : {}),
+        ...(first?.path === undefined ? {} : { path: first.path }),
+        ...(list === undefined ? {} : { reasons: list }),
       };
     }
   }
