@@ -411,6 +411,8 @@ export const RunOutput = Type.Object({
   sandboxed: Type.Boolean(),
   /** 샌드박스 밖에서 실행한 이유. sandboxed가 거짓일 때만 있다(L0.sandbox.spec §3, L1.tools.spec §4.12 감사 이벤트 tool.sandbox_bypassed의 입력) */
   unsandboxedBy: Type.Optional(Type.Union([Type.Literal("escape"), Type.Literal("run_unsandboxed"), Type.Literal("disabled")])),
+  /** 샌드박스가 막은 것(L0.sandbox.spec §4.2 11번). 막은 것이 없으면 키가 없다. 0이 아닌 종료의 exit_nonzero detail에도 싣는다 [제안: 2026-11-08] */
+  sandboxBlocks: Type.Optional(Type.Array(SandboxBlockSchema)),
 });
 
 export const BashToolParams = Type.Object({

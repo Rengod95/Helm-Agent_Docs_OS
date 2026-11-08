@@ -82,6 +82,7 @@ function secretEnvOf(
 }
 
 function toRunOutput(outcome: BashOutcome, durationMs: number): RunResult {
+  const blocks = outcome.sandbox?.blocks;
   return {
     exitCode: outcome.exitCode,
     output: outcome.output,
@@ -93,6 +94,8 @@ function toRunOutput(outcome: BashOutcome, durationMs: number): RunResult {
     ...(outcome.sandbox?.sandboxed === false && outcome.sandbox.unsandboxedBy !== undefined
       ? { unsandboxedBy: outcome.sandbox.unsandboxedBy }
       : {}),
+    // 샌드박스가 막은 것(L0.sandbox.spec §4.2 11번). L1이 화면과 모델 글의 이유로 바꾼다(L1.tools.spec §4.12.3)
+    ...(blocks === undefined ? {} : { sandboxBlocks: blocks }),
   };
 }
 
