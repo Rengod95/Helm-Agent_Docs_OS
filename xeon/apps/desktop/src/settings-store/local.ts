@@ -80,6 +80,10 @@ export const LOCAL: {
   readonly motionReduce: LocalKey<TBoolean>;
   /** 화면 확대 비율(%). 허용 값은 `ZOOM_STEPS`다 */
   readonly zoomPercent: LocalKey<TInteger>;
+  /** 대화 기록의 생각·도구 표시 정도. 허용 값은 `TRANSCRIPT_DETAILS`다(`views/transcript-detail.ts`). 없으면 "full"이다 */
+  readonly transcriptDetail: LocalKey<
+    TUnion<[TLiteral<"full">, TLiteral<"summary">, TLiteral<"hidden">]>
+  >;
   /** 마지막에 보던 대화 id. 앱을 다시 켜면 이 대화를 연다(없어졌으면 빈 무대). 빈 글은 보던 대화가 없다는 뜻이다 */
   readonly lastThread: LocalKey<TString>;
 } = {
@@ -117,6 +121,10 @@ export const LOCAL: {
   notifyScheduleFailed: localKey("l4.desktop.window.notify.scheduleFailed", Type.Boolean()),
   motionReduce: localKey("l4.desktop.appearance.motion", Type.Boolean()),
   zoomPercent: localKey("l4.desktop.appearance.zoom", Type.Integer({ minimum: 90, maximum: 200 })),
+  transcriptDetail: localKey(
+    "l4.desktop.appearance.transcriptDetail",
+    Type.Union([Type.Literal("full"), Type.Literal("summary"), Type.Literal("hidden")]),
+  ),
   lastThread: localKey("l4.desktop.window.lastThread", Type.String({ maxLength: 128 })),
 };
 
