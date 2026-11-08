@@ -37,6 +37,7 @@ import {
   modeChangeConcerns,
   modeEventConcerns,
 } from "../views/permission-mode-model.ts";
+import { THINKING_LEVEL_KEY, thinkingChangeConcerns } from "../views/thinking-level-model.ts";
 import { approvalFailureOf } from "./approval-outcome.ts";
 import { errorOf } from "./command-error.ts";
 import { createConnectionCommands } from "./connection.ts";
@@ -354,6 +355,32 @@ export function createCommands(deps: CommandDeps): Commands {
         offSettings();
         offEvents();
       };
+    },
+    async setThreadThinking(threadId, level) {
+      const done = await withWriteConnection((c) =>
+        c.request("settings.set", {
+          key: THINKING_LEVEL_KEY,
+          value: level,
+          scope: "launch",
+          threadId,
+        }),
+      );
+      if (!done.ok) showLockedIfLocked(threadId, done.error);
+      return done.ok ? ok(null) : done;
+    },
+    async readThreadThinking(threadId) {
+      const got = await withConnection((c) =>
+        c.request("settings.get", { keys: [THINKING_LEVEL_KEY], threadId }),
+      );
+      if (!got.ok) return got;
+      return ok(got.value.settings.find((setting) => setting.key === THINKING_LEVEL_KEY)?.value);
+    },
+    onThreadThinkingChanged(threadId, listener) {
+      const connection = session.connection();
+      if (connection === null) return () => {};
+      return connection.onNotification("settings.invalidated", (params) => {
+        if (thinkingChangeConcerns(params, threadId)) listener();
+      });
     },
     listModels: () => withConnection((c) => c.request("models.list", {})),
     async closeThread(threadId) {

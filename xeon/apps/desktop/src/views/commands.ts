@@ -1,4 +1,9 @@
-import type { EventId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type {
+  EventId,
+  ModelThinkingLevel,
+  ThreadId,
+  TurnId,
+} from "@fresnel/contracts/conversation";
 import type {
   CompositionDecl,
   ExtTimingsResult,
@@ -839,6 +844,18 @@ export interface Commands {
    * `events.batch`의 `settings.changed` 기록으로 온다. 반환값은 구독 해제
    */
   onThreadModeChanged(threadId: ThreadId, listener: () => void): () => void;
+  /**
+   * `settings.set { key: "l1.models.thinkingLevel", scope: "launch", threadId }`: 이 대화의 추론 레벨을 정한다(세션 범위 값이라 대화마다 따로, 다음 turn부터).
+   * 쓰기 소유를 요구하므로 잠기면 `locked`다
+   */
+  setThreadThinking(
+    threadId: ThreadId,
+    level: ModelThinkingLevel,
+  ): Promise<Result<null, CommandError>>;
+  /** `settings.get { keys: ["l1.models.thinkingLevel"], threadId }`의 값을 검사 없이 돌려준다. 알려진 레벨인지는 `thinkingLevelOf`가 본다 */
+  readThreadThinking(threadId: ThreadId): Promise<Result<unknown, CommandError>>;
+  /** 이 대화의 추론 레벨이 바뀌었을 수 있으면 부른다(`settings.invalidated`). 반환값은 구독 해제 */
+  onThreadThinkingChanged(threadId: ThreadId, listener: () => void): () => void;
   /** `models.list`: 대화가 고를 수 있는 모델(문맥 창 포함). 요청 결과라 거울에 넣지 않는다(FS-03) */
   listModels(): Promise<Result<WireResult<"models.list">, CommandError>>;
   /** `thread.close`: 대화를 닫는다(열린 turn이 있으면 host가 `turn_running`으로 거절한다). 닫힘 표시는 `thread.closed` 이벤트가 한다 */

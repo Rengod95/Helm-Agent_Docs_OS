@@ -1,5 +1,5 @@
 import { detach, rethrow, type Result } from "@fresnel/contracts";
-import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { ModelThinkingLevel, ThreadId } from "@fresnel/contracts/conversation";
 import type { PermissionMode } from "@fresnel/contracts/services";
 import type { ModelEntry, UsageContext, UsageGauge } from "@fresnel/contracts/wire";
 import type { SetupSnapshot } from "@fresnel/client/settings";
@@ -7,6 +7,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { useLinkPhase, useThread } from "../state/engine/index.ts";
 import { useCommands, type CommandError, type SwitchMode } from "./commands.ts";
 import { permissionModeOf } from "./permission-mode-model.ts";
+import { thinkingLevelOf } from "./thinking-level-model.ts";
 import { usageFractionOf } from "./pages/providers/providers-model.ts";
 
 // 입력창의 모델 단추·사용량 링과 상태 막대의 모델·토큰 칸이 같이 쓰는 읽기. 모두 요청 결과라 거울에 넣지 않는다(FS-03).
@@ -364,4 +365,43 @@ export function useThreadPermissionMode(threadId: ThreadId): {
       return result;
     });
   return { mode, choose };
+}
+
+/**
+ * 이 대화의 추론 레벨(설정 `l1.models.thinkingLevel`의 대화 범위 값, 정하지 않았으면 호스트가 준 유효 값). 모르는 동안은 null이다.
+ * 고르기가 이기면 다시 읽고, 다른 곳에서 바뀌면(`settings.invalidated`) 다시 읽는다
+ */
+export function useThreadThinking(threadId: ThreadId): {
+  readonly level: ModelThinkingLevel | null;
+  readonly choose: (next: ModelThinkingLevel) => Promise<Result<null, CommandError>>;
+} {
+  const commands = useCommands();
+  const phase = useLinkPhase();
+  const [level, setLevel] = useState<ModelThinkingLevel | null>(null);
+  const [reads, setReads] = useState(0);
+  useEffect(() => {
+    if (phase !== "live") return undefined;
+    let stale = false;
+    const read = (): void => {
+      detach(
+        commands.readThreadThinking(threadId).then((result) => {
+          if (!stale) setLevel(result.ok ? thinkingLevelOf(result.value) : null);
+          return undefined;
+        }),
+        rethrow,
+      );
+    };
+    read();
+    const stop = commands.onThreadThinkingChanged(threadId, read);
+    return () => {
+      stale = true;
+      stop();
+    };
+  }, [commands, phase, threadId, reads]);
+  const choose = (next: ModelThinkingLevel): Promise<Result<null, CommandError>> =>
+    commands.setThreadThinking(threadId, next).then((result) => {
+      if (result.ok) setReads((count) => count + 1);
+      return result;
+    });
+  return { level, choose };
 }

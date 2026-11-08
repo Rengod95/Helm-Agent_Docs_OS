@@ -14,8 +14,8 @@ import {
 import { ArrowUp, Plus } from "@caustic/react/icons";
 import type { CommandRowVM } from "@fresnel/client/settings";
 import { detach, rethrow } from "@fresnel/contracts";
-import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { PermissionMode } from "@fresnel/contracts/services";
+import type { ModelThinkingLevel, ThreadId } from "@fresnel/contracts/conversation";
+import { THINKING_LEVELS, type PermissionMode } from "@fresnel/contracts/services";
 import type { ModelEntry } from "@fresnel/contracts/wire";
 import {
   Fragment,
@@ -83,7 +83,13 @@ import {
   useSessionUsage,
   useThreadModel,
   useThreadPermissionMode,
+  useThreadThinking,
 } from "./model-usage.ts";
+import {
+  THINKING_LEVEL_LABEL_IDS,
+  thinkingLevelOf,
+  thinkingSelectableOf,
+} from "./thinking-level-model.ts";
 import {
   appSlashOf,
   slashFillOf,
@@ -132,6 +138,14 @@ function modeErrorText(error: CommandError): string {
     return sendErrorText(error);
   }
   return t("desktop.composer.approvalMode.error");
+}
+
+/** 추론 레벨을 바꾸지 못했을 때의 문장. 잠김과 연결 끊김은 보낼 때와 같은 문장이고 나머지는 추론 레벨 문장이다 */
+function thinkingErrorText(error: CommandError): string {
+  if (error.kind === "offline" || error.kind === "switching" || error.kind === "locked") {
+    return sendErrorText(error);
+  }
+  return t("desktop.composer.thinking.error");
 }
 
 /**
@@ -268,6 +282,36 @@ export function ModelSelect(props: {
           {option.value === DEFAULT_MODEL_CHOICE
             ? defaultRowText(option.label, deniedOf(option.value))
             : modelOptionText(option, props.contextTokens ?? null, deniedOf(option.value))}
+        </SelectOption>
+      ))}
+    </Select>
+  );
+}
+
+/**
+ * 대화별 추론 레벨 select. 값은 이 대화의 `l1.models.thinkingLevel`(대화 범위, 다음 turn부터)이다. 모르는 동안과
+ * 추론을 하지 않는 모델에서는 그리지 않는다(부르는 쪽이 정한다)
+ */
+function ThinkingLevelSelect(props: {
+  readonly level: ModelThinkingLevel;
+  readonly disabled: boolean;
+  readonly onChange: (level: ModelThinkingLevel) => void;
+}): ReactNode {
+  return (
+    <Select
+      size="xs"
+      aria-label={t("desktop.composer.thinking.label")}
+      value={props.level}
+      disabled={props.disabled}
+      onValueChange={(value) => {
+        const next = thinkingLevelOf(value);
+        if (next !== null && next !== props.level) props.onChange(next);
+      }}
+      className="w-auto text-text-tertiary"
+    >
+      {THINKING_LEVELS.map((level) => (
+        <SelectOption key={level} value={level}>
+          {t(THINKING_LEVEL_LABEL_IDS[level])}
         </SelectOption>
       ))}
     </Select>
@@ -427,6 +471,7 @@ function ComposerFor(props: {
   const threadModel = useThreadModel(props.threadId, defaultModel);
   // 이 대화의 승인 모드 칩(설정 l1.tools.permissionMode, 대화 범위). 모르는 동안은 칩을 그리지 않는다
   const permission = useThreadPermissionMode(props.threadId);
+  const thinking = useThreadThinking(props.threadId);
   const modelChoices = useModelChoices();
   const deniedModels = useDeniedModels();
   const usage = useSessionUsage(props.threadId, running);
@@ -962,6 +1007,23 @@ function ComposerFor(props: {
                   detach(
                     commands.setThreadModel(props.threadId, model).then((result) => {
                       if (!result.ok) setError(modelErrorText(result.error));
+                      return undefined;
+                    }),
+                    rethrow,
+                  );
+                }}
+              />
+            )}
+            {thinking.level === null ||
+            threadModel.ref === null ||
+            !thinkingSelectableOf(modelChoices, threadModel.ref) ? null : (
+              <ThinkingLevelSelect
+                level={thinking.level}
+                disabled={props.disabledReason !== null}
+                onChange={(next) => {
+                  detach(
+                    thinking.choose(next).then((result) => {
+                      if (!result.ok) setError(thinkingErrorText(result.error));
                       return undefined;
                     }),
                     rethrow,
