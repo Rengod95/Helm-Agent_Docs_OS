@@ -20,7 +20,7 @@ const entry = (ref: string, reasoning: boolean): ModelEntry => ({
 
 describe("thinkingLevelOf", () => {
   test("accepts the seven known levels and nothing else", () => {
-    for (const level of ["off", "minimal", "low", "medium", "high", "xhigh", "max"]) {
+    for (const level of ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const) {
       expect(thinkingLevelOf(level)).toBe(level);
     }
     expect(thinkingLevelOf("High")).toBeNull();

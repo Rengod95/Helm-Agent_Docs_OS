@@ -55,13 +55,22 @@ function mirrorWith(facts: readonly DurableFact[]): EngineMirror {
 
 function html(
   facts: readonly DurableFact[],
-  options: { readonly disabledReason?: string | null; readonly commands?: Commands } = {},
+  options: {
+    readonly disabledReason?: string | null;
+    readonly commands?: Commands;
+    readonly steerable?: (requestId: string) => boolean;
+  } = {},
 ): string {
   const engine = frozen(mirrorWith(facts));
   const ui = frozen<UiState>(createUiStore().read.getState());
   return renderToString(
     <Providers engine={engine} ui={ui} commands={options.commands ?? fakeCommands()}>
-      <QueuedInputs threadId={T} disabledReason={options.disabledReason ?? null} />
+      <QueuedInputs
+        threadId={T}
+        disabledReason={options.disabledReason ?? null}
+        steerable={options.steerable ?? (() => false)}
+        onSteerNow={() => Promise.resolve({ status: "idle" })}
+      />
     </Providers>,
   );
 }
@@ -81,12 +90,24 @@ describe("queued input chips above the composer", () => {
     expect(markup).toContain("이 파일도 봐 줘");
     expect(withdrawButtonTag(markup, "이 파일도 봐 줘")).not.toContain(' disabled=""');
     expect(markup).toContain("철회");
-    expect(markup).toContain("아직 모델에 전달되지 않은 입력만 철회할 수 있어요.");
+    expect(markup).toContain("아직 모델에 전달되지 않은 입력만 철회하거나 지금 반영할 수 있어요.");
   });
 
   test("a followUp chip says it goes in when the turn ends", () => {
     const markup = html([queuedFact(6, "나중에", { mode: "followUp" })]);
     expect(markup).toContain("이번 턴이 끝나면 들어가요");
+  });
+
+  test("an after-the-turn chip this composer sent has an apply-now button; others do not", () => {
+    const facts = [
+      queuedFact(6, "나중에", { mode: "followUp" }),
+      queuedFact(7, "이미 바로", { mode: "steer" }),
+    ];
+    const known = html(facts, { steerable: () => true });
+    expect(known).toContain('aria-label="나중에 지금 반영"');
+    expect(known).not.toContain('aria-label="이미 바로 지금 반영"');
+    expect(html(facts)).not.toContain('지금 반영"');
+    expect(html(facts)).not.toContain("data-queued-steer-now");
   });
 
   test("a delegation input is not drawn as a chip", () => {
