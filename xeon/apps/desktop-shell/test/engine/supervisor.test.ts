@@ -710,6 +710,18 @@ describe("database restore (db_restore)", () => {
     expect(r.sink.kinds()).toEqual(["starting", "running"]);
   });
 
+  test("a service-attached local engine holds the store, so the restore is refused", async () => {
+    const r = rig();
+    r.launcher.viaService = true;
+    r.supervisor.start();
+    await runningUntil(r, 1);
+    expect(await r.supervisor.restoreDatabase("/backups/a")).toEqual(err("remote-target"));
+    await r.clock.advance(300);
+    expect(r.launcher.calls).toEqual(["launch:1001"]);
+    expect(r.supervisor.snapshot().hold).toBe(false);
+    expect(r.sink.kinds()).toEqual(["starting", "running"]);
+  });
+
   test("a second restore while one runs is busy", async () => {
     const r = rig();
     r.supervisor.start();
@@ -741,6 +753,48 @@ describe("database restore (db_restore)", () => {
     expect(await restore).toEqual(err("engine-stopping"));
     expect(r.supervisor.snapshot().hold).toBe(false);
     expect(r.launcher.calls).not.toContain(RUN_ONCE_BACKUP_A);
+  });
+});
+
+describe("the engine source follows the child and the target (service mode)", () => {
+  test("a service-attached local engine runs with source service and is never sent host.shutdown", async () => {
+    const r = rig();
+    r.launcher.viaService = true;
+    r.supervisor.start();
+    await runningUntil(r, 1);
+    expect(r.sink.states).toEqual([
+      { kind: "starting", source: "sidecar", attempt: 0 },
+      { kind: "running", source: "service", pid: 1001 },
+    ]);
+    expect(r.supervisor.onExitRequested()).toBe("preventAndShutdown");
+    await r.supervisor.shutdown();
+    const engine = r.launcher.engine(0);
+    expect(engine.written()).toBe("");
+    expect(engine.stdinClosed()).toBe(true);
+    expect(r.launcher.calls).not.toContain("shutdown:1001");
+    expect(lastKind(r)).toBe("stopped");
+  });
+
+  test("a hand-typed local socket target is a service source from the start", async () => {
+    const r = rig();
+    expect(r.supervisor.retarget(remote("unix:/tmp/x/fresnel.sock"))).toEqual(ok(undefined));
+    r.supervisor.start();
+    await runningUntil(r, 1);
+    expect(r.sink.states).toEqual([
+      { kind: "starting", source: "service", attempt: 0 },
+      { kind: "running", source: "service", pid: 1001 },
+    ]);
+  });
+
+  test("a tcp remote target stays a sidecar source", async () => {
+    const r = rig();
+    expect(r.supervisor.retarget(remote("tcp://host:1234"))).toEqual(ok(undefined));
+    r.supervisor.start();
+    await runningUntil(r, 1);
+    expect(r.sink.states).toEqual([
+      { kind: "starting", source: "sidecar", attempt: 0 },
+      { kind: "running", source: "sidecar", pid: 1001 },
+    ]);
   });
 });
 

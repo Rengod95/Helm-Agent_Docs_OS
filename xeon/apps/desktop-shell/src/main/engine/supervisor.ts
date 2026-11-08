@@ -14,6 +14,7 @@ import {
   KILL_SETTLE_MS,
   RESTORE_SLACK_MS,
   safeModeChosen,
+  isLocalSocketAddress,
   sameTarget,
   shutdownRequestFrame,
   validateTarget,
@@ -60,7 +61,7 @@ interface Live {
   readonly generation: number;
   readonly pid: number;
   readonly pipe: PipeHandle;
-  /** 원격 대상으로 띄운 엔진이다. 원격 엔진에는 host.shutdown을 보내지 않는다 */
+  /** 원격 대상으로 띄운 엔진이거나 서비스 브리지다. 이 엔진에는 host.shutdown을 보내지 않는다(서비스 쪽 엔진을 끄지 않는다) */
   readonly remote: boolean;
   readonly child: Launched;
 }
@@ -134,6 +135,11 @@ function show(value: number | null): string {
 
 function isoAt(ms: number): string {
   return new Date(ms).toISOString();
+}
+
+/** 대상으로 본 공급원. 로컬 소켓 주소는 서비스다. 서비스 브리지인지는 띄운 뒤에야 알 수 있다 */
+function sourceOfTarget(target: EngineTarget): "sidecar" | "service" {
+  return target.kind === "remote" && isLocalSocketAddress(target.address) ? "service" : "sidecar";
 }
 
 export class Supervisor {
@@ -348,7 +354,11 @@ export class Supervisor {
       this.attempt = 0;
       this.policyEpoch = plan.epoch;
     }
-    this.deps.relay.setState({ kind: "starting", source: "sidecar", attempt: this.attempt });
+    this.deps.relay.setState({
+      kind: "starting",
+      source: sourceOfTarget(plan.target),
+      attempt: this.attempt,
+    });
     const launched = await this.deps.launcher.launch(plan.target, plan.safeMode);
     if (!launched.ok) {
       // 바이너리 없음, 실행 권한 없음은 되풀이해도 같다. 재기동하지 않는다(spec 5)
@@ -371,7 +381,9 @@ export class Supervisor {
   /** 띄운 엔진 하나를 등록하고 끝날 때까지 펌프한 뒤, 끝난 이유에 따라 재기동 여부를 정한다 */
   private async runEngine(plan: LaunchPlan, child: Launched): Promise<boolean> {
     const pipe = createPipeWriter(child.stdin, WRITE_QUEUE_FRAMES);
-    const remote = plan.target.kind === "remote";
+    // 서비스 브리지는 로컬 대상으로 띄워도 원격 엔진과 같이 다룬다(host.shutdown을 보내지 않는다)
+    const viaService = child.viaService === true;
+    const remote = plan.target.kind === "remote" || viaService;
     const registered = this.mutate((s) => {
       s.launching = false;
       s.generation += 1;
@@ -384,7 +396,8 @@ export class Supervisor {
     const live = registered.entry;
     const generation = live.generation;
     this.deps.log.line(`engine[${String(generation)}] started pid=${String(child.pid)}`);
-    this.deps.relay.setState({ kind: "running", source: "sidecar", pid: child.pid });
+    const source = viaService ? "service" : sourceOfTarget(plan.target);
+    this.deps.relay.setState({ kind: "running", source, pid: child.pid });
     if (registered.stale) this.detached(this.stopEngine(live, !remote), "stale engine stop");
 
     const exit = await this.pump(generation, child.events);
@@ -600,6 +613,8 @@ export class Supervisor {
       const step = this.mutate((s): Result<Live | null, CommandError> | null => {
         if (s.stopRequested) return err("engine-stopping");
         if (s.target.kind === "remote") return err("remote-target");
+        // 서비스에 붙은 로컬 엔진이 살아 있으면 저장소는 서비스가 쥐고 있다. 그 동안 복원을 돌리지 않는다
+        if (s.live !== null && s.live.remote) return err("remote-target");
         if (s.hold) return err("busy");
         if (!s.launching) {
           s.hold = true;

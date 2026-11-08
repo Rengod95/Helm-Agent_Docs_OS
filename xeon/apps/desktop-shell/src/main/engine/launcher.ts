@@ -69,6 +69,8 @@ export interface Launched {
   readonly stdin: StdinSink;
   /** 프로세스 그룹 전체에 강제 종료를 보낸다. 이미 끝났어도 아무 일도 없다 */
   killGroup(): void;
+  /** 참이면 이 자식은 로컬 백그라운드 서비스에 붙는 브리지다(`service-mode.ts`의 `serviceAwareLauncher`). 없으면 사이드카다 */
+  readonly viaService?: boolean;
 }
 
 /** 띄우지 못한 이유. 사람이 읽는 짧은 문구이며 값이나 토큰은 들어가지 않는다 */
