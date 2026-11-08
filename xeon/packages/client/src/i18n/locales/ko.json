@@ -987,6 +987,7 @@
   "desktop.notices.label": "알림",
   "desktop.notices.loading": "알림을 읽는 중",
   "desktop.notices.offline": "연결이 끊겨 새 알림을 받지 못해요.",
+  "desktop.notices.source": "출처 대화",
   "desktop.notices.origin.schedule": "예약",
   "desktop.notices.retry": "다시 읽기",
   "desktop.notices.title": "알림",

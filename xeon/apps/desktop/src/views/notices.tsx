@@ -5,6 +5,7 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   Alert,
   Button,
+  Chip,
   Dialog,
   DialogAction,
   DialogClose,
@@ -14,7 +15,7 @@ import {
   Skeleton,
   toast,
 } from "@caustic/react";
-import { Info, TriangleAlert } from "@caustic/react/icons";
+import { Info, MessageSquare, TriangleAlert } from "@caustic/react/icons";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   useApprovalMirror,
@@ -35,6 +36,7 @@ import {
   noticeKindId,
   noticeResolved,
   noticeShownAtOf,
+  noticeToneOf,
   noticesAfter,
   noticeTitleViewOf,
   noticeToastVisible,
@@ -207,6 +209,20 @@ function NoticeBody(props: { readonly view: NoticeBodyView }): ReactNode {
 const LINK_CLASS =
   "cursor-pointer border-0 bg-transparent p-0 text-start font-ui text-text-link no-underline underline-offset-2 outline-none hover:underline focus-visible:shadow-focus";
 
+/** 출처 줄의 틀: 대화 아이콘과 이름. 이름이 없으면 줄 자체를 그리지 않는다 */
+function SourceFrame(props: { readonly children: ReactNode }): ReactNode {
+  return (
+    <div
+      role="group"
+      aria-label={t("desktop.notices.source")}
+      className="flex min-w-0 items-center gap-1.5 border-t border-border-subtle pt-1.5 text-ui-sm"
+    >
+      <MessageSquare aria-hidden className="size-icon-sm shrink-0 text-text-tertiary" />
+      {props.children}
+    </div>
+  );
+}
+
 function ThreadName(props: { readonly threadId: ThreadId }): ReactNode {
   const goTo = useGoToThread();
   const thread = useThread(props.threadId);
@@ -218,32 +234,40 @@ function ThreadName(props: { readonly threadId: ThreadId }): ReactNode {
     ) : null;
   if (goTo === null) {
     return (
-      <span className="dim">
-        {tag}
-        {name}
-      </span>
+      <SourceFrame>
+        <span className="dim">
+          {tag}
+          {name}
+        </span>
+      </SourceFrame>
     );
   }
   return (
-    <span className="flex min-w-0 flex-wrap items-baseline">
-      {tag}
-      <button
-        type="button"
-        className={LINK_CLASS}
-        onClick={() => {
-          goTo(props.threadId);
-        }}
-      >
-        {name}
-      </button>
-    </span>
+    <SourceFrame>
+      <span className="flex min-w-0 flex-wrap items-baseline">
+        {tag}
+        <button
+          type="button"
+          className={LINK_CLASS}
+          onClick={() => {
+            goTo(props.threadId);
+          }}
+        >
+          {name}
+        </button>
+      </span>
+    </SourceFrame>
   );
 }
 
 /** 대화 없는 알림의 출처. 예약이 대화를 열기 전에 실패한 알림이면 "예약"이고, 대화 이름 링크는 없다 */
 function ThreadlessOrigin(props: { readonly notice: Notice }): ReactNode {
   if (props.notice.sourceType !== "schedule.run_finished") return null;
-  return <span className="dim">{t("desktop.notices.origin.schedule")}</span>;
+  return (
+    <SourceFrame>
+      <span className="dim">{t("desktop.notices.origin.schedule")}</span>
+    </SourceFrame>
+  );
 }
 
 function NoticeRow(props: {
@@ -253,21 +277,34 @@ function NoticeRow(props: {
 }): ReactNode {
   const { notice, threadId } = props.entry;
   const failed = notice.kind === "error";
-  const kind = noticeResolved(props.entry, props.waiting)
-    ? t("desktop.notices.kind.resolved")
-    : t(noticeKindId(notice.kind));
-  const age = noticeAgeViewOf(props.now, noticeShownAtOf(props.entry));
+  const resolved = noticeResolved(props.entry, props.waiting);
+  const kind = resolved ? t("desktop.notices.kind.resolved") : t(noticeKindId(notice.kind));
+  const shownAt = noticeShownAtOf(props.entry);
+  const age = noticeAgeViewOf(props.now, shownAt);
   const body = noticeBodyViewOf(notice);
   return (
-    <li className="grid gap-0.5">
-      <span className="flex flex-wrap items-center gap-x-1.5 text-ui-sm">
-        {failed ? (
-          <TriangleAlert aria-hidden className="size-icon-sm shrink-0 text-danger-graphic" />
-        ) : null}
-        <span className={failed ? "text-danger-text" : "dim"}>{kind}</span>
-        <span className="dim">· {t(age.id, age.params)}</span>
+    // 한 건이 한 카드다. 위에서 아래로: 상태 배지와 끝난 시각 → 무슨 일(제목) → 내용 → 어느 대화에서(눌러서 이동)
+    <li className="grid gap-1.5 rounded-lg border border-border-subtle bg-surface-raised p-3">
+      <div className="flex items-center gap-2">
+        <Chip
+          size="xs"
+          variant="soft"
+          tone={noticeToneOf(notice.kind, resolved)}
+          icon={failed ? <TriangleAlert aria-hidden /> : undefined}
+        >
+          {kind}
+        </Chip>
+        <time
+          className="ms-auto text-ui-xs tabular-nums text-text-tertiary"
+          dateTime={new Date(shownAt).toISOString()}
+          title={new Date(shownAt).toLocaleString()}
+        >
+          {t(age.id, age.params)}
+        </time>
+      </div>
+      <span className="text-ui-strong text-text-primary [overflow-wrap:anywhere]">
+        {noticeTitleText(notice)}
       </span>
-      <span>{noticeTitleText(notice)}</span>
       {body === null ? null : <NoticeBody view={body} />}
       {threadId === null ? (
         <ThreadlessOrigin notice={notice} />
@@ -446,7 +483,7 @@ function NoticeList(props: {
       {feed.load === "ready" && shown.length === 0 ? (
         <EmptyState size="sm" surface="none" title={t("desktop.notices.empty")} />
       ) : null}
-      <ul className="m-0 grid list-none gap-2 p-0">
+      <ul className="m-0 grid list-none gap-3 p-0">
         {shown.map((entry) => (
           <NoticeRow key={entry.notice.seq} entry={entry} waiting={waiting} now={now} />
         ))}

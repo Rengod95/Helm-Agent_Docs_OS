@@ -315,3 +315,23 @@ export function noticeResolved(entry: NoticeEntry, waitingThreads: ReadonlySet<s
   if (!INPUT_NEEDED_KINDS.includes(entry.notice.kind)) return false;
   return entry.threadId !== null && !waitingThreads.has(entry.threadId);
 }
+
+/** 상태 배지의 색 계열. 풀린 입력 대기는 중립, 기다리는 입력은 경고, 실패는 위험, 끝난 일은 성공이다 */
+export type NoticeTone = "neutral" | "success" | "warning" | "danger" | "info";
+
+export function noticeToneOf(kind: NoticeKind, resolved: boolean): NoticeTone {
+  if (resolved) return "neutral";
+  switch (kind) {
+    case "completed":
+      return "success";
+    case "background_completed":
+      return "info";
+    case "approval_waiting":
+    case "question_waiting":
+      return "warning";
+    case "error":
+      return "danger";
+    default:
+      return assertNever(kind, "noticeToneOf");
+  }
+}

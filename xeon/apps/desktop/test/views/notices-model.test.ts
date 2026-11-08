@@ -10,6 +10,7 @@ import {
   noticeBodyViewOf,
   noticeKindId,
   noticeResolved,
+  noticeToneOf,
   noticeShownAtOf,
   noticesAfter,
   noticeTitleViewOf,
@@ -443,5 +444,16 @@ describe("cleared notices", () => {
       [{ notice: notice(5), threadId: null }],
     );
     expect(merged).toEqual([{ notice: notice(5), threadId: null, deliveredAt: 1000 }]);
+  });
+});
+
+describe("noticeToneOf", () => {
+  test("maps each kind to its badge tone and a resolved wait to neutral", () => {
+    expect(noticeToneOf("completed", false)).toBe("success");
+    expect(noticeToneOf("background_completed", false)).toBe("info");
+    expect(noticeToneOf("approval_waiting", false)).toBe("warning");
+    expect(noticeToneOf("question_waiting", false)).toBe("warning");
+    expect(noticeToneOf("error", false)).toBe("danger");
+    expect(noticeToneOf("approval_waiting", true)).toBe("neutral");
   });
 });

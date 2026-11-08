@@ -987,6 +987,7 @@
   "desktop.notices.label": "Notifications",
   "desktop.notices.loading": "Loading notifications",
   "desktop.notices.offline": "Disconnected, so new notifications won't arrive.",
+  "desktop.notices.source": "From conversation",
   "desktop.notices.origin.schedule": "Scheduled",
   "desktop.notices.retry": "Try again",
   "desktop.notices.title": "Notifications",
