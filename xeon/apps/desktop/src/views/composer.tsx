@@ -167,6 +167,9 @@ function permissionModeLabelOf(mode: PermissionMode): string {
   return id === null ? mode : t(id);
 }
 
+/** 입력창 아래 select 트리거는 ghost다: 배경과 테두리 없이 hover에서만 neutral.hover(2026-11-08). caustic Select의 variant는 목록에만 걸려 앱 클래스로 건다 */
+const GHOST_TRIGGER_CLASS = "w-auto bg-transparent shadow-none hover:bg-neutral-hover";
+
 /**
  * 대화별 승인 모드 칩(입력창 모델 칸 왼쪽). 값은 이 대화의 `l1.tools.permissionMode`(대화 범위)다.
  * 고를 수 있는 것은 기본과 편집 자동 허용뿐이다. 지금이 계획이나 모두 허용이면 그 글을 칩에 보이고, 메뉴에서는 고를 수 없다.
@@ -190,8 +193,8 @@ export function PermissionModeSelect(props: {
       }}
       className={
         permissionModeToneOf(props.mode) === "danger"
-          ? "w-auto text-danger-text"
-          : "w-auto text-text-tertiary"
+          ? `${GHOST_TRIGGER_CLASS} text-danger-text`
+          : `${GHOST_TRIGGER_CLASS} text-text-tertiary`
       }
     >
       {permissionModeOptionsOf(props.mode).map((option) => (
@@ -275,7 +278,7 @@ export function ModelSelect(props: {
         if (value === DEFAULT_MODEL_CHOICE) props.onChange(null);
         else if (value !== props.current) props.onChange(value);
       }}
-      className="w-auto max-w-56 min-w-0 shrink text-text-tertiary"
+      className={`${GHOST_TRIGGER_CLASS} max-w-56 min-w-0 shrink text-text-tertiary`}
     >
       {options.map((option) => (
         <SelectOption key={option.value} value={option.value}>
@@ -307,7 +310,7 @@ function ThinkingLevelSelect(props: {
         const next = thinkingLevelOf(value);
         if (next !== null && next !== props.level) props.onChange(next);
       }}
-      className="w-auto text-text-tertiary"
+      className={`${GHOST_TRIGGER_CLASS} text-text-tertiary`}
     >
       {THINKING_LEVELS.map((level) => (
         <SelectOption key={level} value={level}>
@@ -903,9 +906,10 @@ function ComposerFor(props: {
         rows={1}
         // 한 줄로 시작해 글이 늘면 max-h까지 자란다(field-sizing). 비우면 한 줄로 돌아간다
         className="max-h-48 min-h-0 resize-none [field-sizing:content]"
-        containerClassName={`composer-box ${COMPOSER_FOOTER_CLASS}`}
+        containerClassName={`composer-box rounded-[calc(var(--radius-2xl)+2px)] ${COMPOSER_FOOTER_CLASS}`}
         value={draft}
-        placeholder={props.disabledReason ?? t("desktop.composer.placeholder")}
+        // 안내 글(placeholder)은 없다. 입력을 막은 때만 그 이유를 보인다
+        placeholder={props.disabledReason ?? undefined}
         disabled={props.disabledReason !== null}
         onChange={(event) => {
           draftRef.current = event.currentTarget.value;

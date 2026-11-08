@@ -1824,7 +1824,6 @@
   "desktop.composer.model.priceUnknown": "가격 모름",
   "desktop.composer.model.denied": "이 키로 못 써요",
   "desktop.composer.observing.notice": "관찰 중이에요.",
-  "desktop.composer.placeholder": "메시지를 입력하세요. Enter로 보내고 Shift+Enter로 줄을 바꿔요.",
   "desktop.composer.queue.info": "아직 모델에 전달되지 않은 입력만 철회하거나 지금 반영할 수 있어요. 실행 중 Enter는 끝난 뒤에 보내고, ⌘Enter는 바로 반영해요.",
   "desktop.composer.queue.mode.aside": "다음 모델 요청과 함께 들어가요",
   "desktop.composer.queue.mode.followUp": "이번 턴이 끝나면 들어가요",
