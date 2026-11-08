@@ -157,14 +157,15 @@ const START = uiEntryOf({ id: "helm-start", placement: "command", title: "탐구
 describe("palette plugin group (server render)", () => {
   test("with an open thread a plugin command shows in its group with its extension name", async () => {
     const html = await render({ live: true, titles: [], selected: true, plugins: [START] });
-    expect(html).toContain("플러그인");
+    expect(html).toContain(">플러그인<");
     expect(html).toContain("탐구 시작…");
     expect(html).toContain("helm");
   });
 
   test("without an open thread the plugin group is left out", async () => {
     const html = await render({ live: true, titles: [], selected: false, plugins: [START] });
-    expect(html).not.toContain("플러그인");
+    // 그룹 제목만 본다("플러그인 화면" 화면 줄은 탐색 항목이라 늘 보인다)
+    expect(html).not.toContain(">플러그인<");
     expect(html).not.toContain("탐구 시작…");
   });
 
@@ -176,7 +177,8 @@ describe("palette plugin group (server render)", () => {
       plugins: [START],
       extensions: [extListEntryOf("helm", { status: "disabled" })],
     });
-    expect(html).not.toContain("플러그인");
+    // 그룹 제목만 본다("플러그인 화면" 화면 줄은 탐색 항목이라 늘 보인다)
+    expect(html).not.toContain(">플러그인<");
     expect(html).not.toContain("탐구 시작…");
   });
 
@@ -207,7 +209,8 @@ describe("palette plugin group (server render)", () => {
         uiEntryOf({ id: "off", placement: "command", title: "끈 명령", state: "disabled" }),
       ],
     });
-    expect(html).not.toContain("플러그인");
+    // 그룹 제목만 본다("플러그인 화면" 화면 줄은 탐색 항목이라 늘 보인다)
+    expect(html).not.toContain(">플러그인<");
     expect(html).not.toContain("끈 명령");
   });
 });

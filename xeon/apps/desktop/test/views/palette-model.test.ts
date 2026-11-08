@@ -260,7 +260,6 @@ describe("palette screen navigation", () => {
   test("the current area's nav screens come first, then the other area's", () => {
     expect(screenTargetsOf("chat").map((t) => screenValue(t.area, t.screen))).toEqual([
       "screen:chat:chat",
-      "screen:chat:inbox",
       "screen:chat:proposals",
       "screen:chat:schedules",
       "screen:chat:connection",
@@ -280,7 +279,6 @@ describe("palette screen navigation", () => {
       "compose",
       "engine",
       "chat",
-      "inbox",
       "proposals",
       "schedules",
       "connection",
@@ -299,22 +297,18 @@ describe("palette screen navigation", () => {
   });
 
   test("a screen row carries the nav label keys and the shortcut of its nav item when it has one", () => {
-    const inbox = screenTargetsOf("chat").find((t) => t.screen === "inbox");
-    expect(inbox).toEqual({
-      area: "chat",
-      screen: "inbox",
-      label: "desktop.shell.nav.inbox",
-      areaLabel: "desktop.shell.area.chat",
-      action: "nav.2",
-    });
+    const proposals = screenTargetsOf("chat").find((t) => t.screen === "proposals");
+    expect(proposals?.action).toBe("nav.3");
+    // 받은 요청은 사이드바 탐색에 없다. 화면은 남아 있고 바로 가기 없이 팔레트로만 열린다
+    expect(screenTargetsOf("chat").find((t) => t.screen === "inbox")?.action).toBeUndefined();
     expect(screenTargetsOf("chat").find((t) => t.screen === "overview")?.action).toBeUndefined();
   });
 
   test("a screen value reads back as its area and screen, and an unknown area or a screen of the other area is not a value", () => {
-    expect(decodeValue(screenValue("chat", "inbox"))).toEqual({
+    expect(decodeValue(screenValue("chat", "proposals"))).toEqual({
       kind: "screen",
       area: "chat",
-      screen: "inbox",
+      screen: "proposals",
     });
     expect(decodeValue(screenValue("workbench", "metrics"))).toEqual({
       kind: "screen",

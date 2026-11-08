@@ -23,6 +23,7 @@ export function runShellAction(
       actions.setEndOpen(!model.endOpen);
       return true;
     case "panel.inbox":
+    case "nav.2":
       actions.openEndTab("inbox");
       return true;
     case "panel.helm":
@@ -47,7 +48,6 @@ export function runShellAction(
       settingsOpen.set(true);
       return true;
     case "nav.1":
-    case "nav.2":
     case "nav.3":
     case "nav.4":
     case "nav.5":

@@ -1,4 +1,4 @@
-// 왼쪽 패널 내비 표(§4.9.3). 항목 id는 화면 id(`AreaPlace.screen`)와 같다. 대화 영역은 여섯(플러그인 화면 포함), 작업대 영역은 여섯이고 연결은 대화 쪽이다.
+// 왼쪽 패널 내비 표(§4.9.3). 항목 id는 화면 id(`AreaPlace.screen`)와 같다. 대화 영역은 다섯(플러그인 화면 포함, 받은 요청은 오른쪽 툴바), 작업대 영역은 여섯이고 연결은 대화 쪽이다.
 import type { MessageId } from "@fresnel/client/i18n";
 import type { ActionId } from "./keybindings.ts";
 import type { Area } from "../../state/shell/index.ts";
@@ -12,7 +12,6 @@ export interface NavItem {
 
 const CHAT_NAV: readonly NavItem[] = [
   { id: "chat", label: "desktop.shell.nav.chat", action: "nav.1" },
-  { id: "inbox", label: "desktop.shell.nav.inbox", action: "nav.2" },
   { id: "proposals", label: "desktop.shell.nav.proposals", action: "nav.3" },
   { id: "schedules", label: "desktop.shell.nav.schedules", action: "nav.4" },
   { id: "connection", label: "desktop.shell.nav.connection", action: "nav.5" },
