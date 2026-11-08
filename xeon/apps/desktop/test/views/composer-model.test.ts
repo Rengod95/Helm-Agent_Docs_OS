@@ -3,7 +3,8 @@ import { err, ok } from "@fresnel/contracts";
 import type { EngineState, QueuedInput } from "../../src/state/engine/index.ts";
 import {
   COMPOSITION_END_GRACE_MS,
-  busyModeOf,
+  busyModeOfEnter,
+  steerableQueuedMode,
   chipInputs,
   composerDisabledReason,
   createEnterGuard,
@@ -69,16 +70,20 @@ describe("createEnterGuard", () => {
   });
 });
 
-describe("busyModeOf", () => {
-  test("the two toggle values come back as the turn.start whenBusy they name", () => {
-    expect(busyModeOf("steer")).toBe("steer");
-    expect(busyModeOf("followUp")).toBe("followUp");
+describe("busyModeOfEnter", () => {
+  test("plain Enter queues for after the turn; Cmd or Ctrl Enter steers the running turn", () => {
+    expect(busyModeOfEnter({ metaKey: false, ctrlKey: false })).toBe("followUp");
+    expect(busyModeOfEnter({ metaKey: true, ctrlKey: false })).toBe("steer");
+    expect(busyModeOfEnter({ metaKey: false, ctrlKey: true })).toBe("steer");
   });
+});
 
-  test("any other value is not a toggle value, so the toggle keeps its mode", () => {
-    expect(busyModeOf("aside")).toBeNull();
-    expect(busyModeOf("바로")).toBeNull();
-    expect(busyModeOf("")).toBeNull();
+describe("steerableQueuedMode", () => {
+  test("only after-the-turn items can be applied now", () => {
+    expect(steerableQueuedMode("followUp")).toBe(true);
+    expect(steerableQueuedMode("next")).toBe(true);
+    expect(steerableQueuedMode("steer")).toBe(false);
+    expect(steerableQueuedMode("aside")).toBe(false);
   });
 });
 

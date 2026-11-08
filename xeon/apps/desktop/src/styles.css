@@ -24,7 +24,7 @@
   --warn: var(--cs-color-warning-text);
   --error: var(--cs-color-danger-text);
   --live: var(--cs-color-success-text);
-  --code-bg: var(--cs-color-neutral-well);
+  --code-bg: var(--color-neutral-well);
 }
 
 @layer base {
@@ -280,5 +280,21 @@
     zoom: 2;
     min-width: calc(var(--radix-select-trigger-width, 0px) / 2) !important;
     max-height: calc(var(--radix-select-content-available-height, 100vh) / 2) !important;
+  }
+}
+
+/* 다크 테마의 입력창은 초점이 없을 때도 초점일 때의 모양(채움 neutral.well + 초점 테두리 `--cs-focus-field`)을 쓴다(2026-11-08 사용자 결정).
+   caustic Textarea는 `focus-within`일 때만 그 채움과 그림자를 주므로 앱 CSS에서 같은 값을 평소에도 건다(caustic 쪽 수정은 하지 않는다).
+   `solid` 변형의 채움 유틸리티가 이기지 못하게 !important를 쓴다(층 안 !important는 앞선 층이 이긴다). 앱이 정한 테마(data-theme)가 없으면 시스템 설정을 따른다. */
+@layer components {
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .composer-box[data-slot="textarea"]:not([data-disabled]) {
+      background-color: var(--color-neutral-well) !important;
+      box-shadow: var(--cs-focus-field) !important;
+    }
+  }
+  :root[data-theme="dark"] .composer-box[data-slot="textarea"]:not([data-disabled]) {
+    background-color: var(--color-neutral-well) !important;
+    box-shadow: var(--cs-focus-field) !important;
   }
 }

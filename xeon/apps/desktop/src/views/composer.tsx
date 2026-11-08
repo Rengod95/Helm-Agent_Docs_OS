@@ -1,21 +1,10 @@
 import { t } from "@fresnel/client/i18n";
-import {
-  Button,
-  Chip,
-  IconButton,
-  Popover,
-  PopoverTitle,
-  SegmentedControl,
-  SegmentedControlItem,
-  Select,
-  SelectOption,
-  Textarea,
-} from "@caustic/react";
+import { Button, Chip, IconButton, Select, SelectOption, Textarea } from "@caustic/react";
 import { ArrowUp, Plus } from "@caustic/react/icons";
 import type { CommandRowVM } from "@fresnel/client/settings";
 import { detach, rethrow } from "@fresnel/contracts";
-import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { PermissionMode } from "@fresnel/contracts/services";
+import type { ModelThinkingLevel, ThreadId } from "@fresnel/contracts/conversation";
+import { THINKING_LEVELS, type PermissionMode } from "@fresnel/contracts/services";
 import type { ModelEntry } from "@fresnel/contracts/wire";
 import {
   Fragment,
@@ -41,7 +30,6 @@ import {
   useObserving,
   useSelectedThreadId,
 } from "../state/ui/index.ts";
-import { UsageBreakdownBody } from "./usage-breakdown.tsx";
 import {
   attachDisabledReason,
   baseNameOf,
@@ -59,16 +47,24 @@ import {
 import { AttachmentRow } from "./composer-attachments.tsx";
 import { pickAttachmentFile } from "./folder-pick.ts";
 import { useFolderPick } from "./folder-pick-context.ts";
-import { useCommands, type BusyInputMode, type CommandError, type SwitchMode } from "./commands.ts";
+import {
+  useCommands,
+  type AttachmentParts,
+  type BusyInputMode,
+  type CommandError,
+  type SwitchMode,
+} from "./commands.ts";
 import { modeLabelIdOf } from "./approval-card/card-model.ts";
 import {
-  busyModeOf,
+  busyModeOfEnter,
   composerDisabledReason,
   createEnterGuard,
   createSendLatch,
   engineGoneOf,
   looksLikeSecret,
   stopBlockedReasonOf,
+  withdrawStateOf,
+  type WithdrawState,
 } from "./composer-model.ts";
 import { retryLineOf } from "./retry-status-model.ts";
 import { modelKeyOf } from "./denied-model-model.ts";
@@ -83,7 +79,13 @@ import {
   useSessionUsage,
   useThreadModel,
   useThreadPermissionMode,
+  useThreadThinking,
 } from "./model-usage.ts";
+import {
+  THINKING_LEVEL_LABEL_IDS,
+  thinkingLevelOf,
+  thinkingSelectableOf,
+} from "./thinking-level-model.ts";
 import {
   appSlashOf,
   slashFillOf,
@@ -102,6 +104,12 @@ import { useSetupNeeded } from "./setup-needed.ts";
 // 입력창. 입력 중인 글자는 이 부품만 쓰므로 로컬 상태다(FS-04).
 // requestId는 같은 입력의 재시도가 같은 값을 쓰도록 실패했을 때 유지하고, 성공하면 새로 만든다(spec 4.13).
 // ⌘L과 명령 팔레트의 슬래시 명령은 `ComposerRequest`로 온다. 받으면 초점을 주고 빈 입력창에만 글을 채운 뒤 요청을 지운다.
+
+/** 이 입력창이 실행 중에 보낸 입력. 대기열 칩의 "지금 반영"이 철회한 뒤 같은 내용을 다시 보내는 데 쓴다 */
+interface SentInput {
+  readonly text: string;
+  readonly parts: AttachmentParts;
+}
 
 function newRequestId(): string {
   return crypto.randomUUID();
@@ -134,22 +142,20 @@ function modeErrorText(error: CommandError): string {
   return t("desktop.composer.approvalMode.error");
 }
 
+/** 추론 레벨을 바꾸지 못했을 때의 문장. 잠김과 연결 끊김은 보낼 때와 같은 문장이고 나머지는 추론 레벨 문장이다 */
+function thinkingErrorText(error: CommandError): string {
+  if (error.kind === "offline" || error.kind === "switching" || error.kind === "locked") {
+    return sendErrorText(error);
+  }
+  return t("desktop.composer.thinking.error");
+}
+
 /**
  * 입력창 아래 줄 틀. caustic 꼬리 줄의 보내기 칸은 줄어들지 못해(min-width auto) 900폭·150%에서 모델 칩이 보내기 단추를 창 밖으로 민다.
  * 보내기 칸이 줄어들게 하고(모델 칩의 글이 먼저 잘린다) 왼쪽 단추 칸(`+`, 모드)은 줄어들지 않게 한다
  */
 export const COMPOSER_FOOTER_CLASS =
   "[&_[data-slot=textarea-footer]]:gap-2 [&_[data-slot=textarea-actions]]:shrink-0 [&_[data-slot=textarea-submit]]:min-w-0";
-
-const RING_C = 50.27;
-const USAGE_WARNING = 80;
-const USAGE_DANGER = 95;
-type RingTone = "accent" | "warning" | "danger";
-const RING_TEXT: Record<RingTone, string> = {
-  accent: "text-accent-solid",
-  warning: "text-warning-solid",
-  danger: "text-danger-solid",
-};
 
 /** 승인 모드 칩의 글. 모르는 모드는 원시값이다(approval-card/bodies.tsx의 `modeLabelOf`와 같은 규칙) */
 function permissionModeLabelOf(mode: PermissionMode): string {
@@ -275,63 +281,32 @@ export function ModelSelect(props: {
 }
 
 /**
- * 문맥 사용량 링. 한도를 알 때만 그린다(`percent`가 null이면 아무것도 그리지 않는다, 비율을 지어내지 않는다).
- * 80%를 넘으면 경고, 95%를 넘으면 위험 색이다. 입력창이 꺼져 있으면 흐리게 보인다.
+ * 대화별 추론 레벨 select. 값은 이 대화의 `l1.models.thinkingLevel`(대화 범위, 다음 turn부터)이다. 모르는 동안과
+ * 추론을 하지 않는 모델에서는 그리지 않는다(부르는 쪽이 정한다)
  */
-export function UsageRing(props: {
-  readonly percent: number | null;
+function ThinkingLevelSelect(props: {
+  readonly level: ModelThinkingLevel;
   readonly disabled: boolean;
-  /** 있으면 링을 눌러 토큰·비용 내역 Popover를 연다 */
-  readonly threadId?: ThreadId;
+  readonly onChange: (level: ModelThinkingLevel) => void;
 }): ReactNode {
-  const [open, setOpen] = useState(false);
-  if (props.percent === null) return null;
-  const pct = Math.min(100, Math.max(0, props.percent));
-  const tone: RingTone = pct > USAGE_DANGER ? "danger" : pct > USAGE_WARNING ? "warning" : "accent";
-  const color = props.disabled ? "text-disabled-text" : RING_TEXT[tone];
-  const ring = (
-    <svg
-      data-level={tone === "accent" ? undefined : tone}
-      role="img"
-      aria-label={t("desktop.composer.usage.label", { percent: Math.round(pct) })}
-      viewBox="0 0 22 22"
-      className={`size-usage-ring shrink-0 fill-none stroke-3 ${color}`}
-    >
-      <circle cx="11" cy="11" r="8" className="stroke-neutral-track" />
-      <circle
-        cx="11"
-        cy="11"
-        r="8"
-        transform="rotate(-90 11 11)"
-        strokeLinecap="round"
-        strokeDasharray={RING_C}
-        strokeDashoffset={RING_C * (1 - pct / 100)}
-        className="stroke-current transition-[stroke-dashoffset] duration-gentle ease-standard"
-      />
-    </svg>
-  );
-  if (props.threadId === undefined) return ring;
   return (
-    <Popover
-      open={open}
-      onOpenChange={setOpen}
-      side="top"
-      align="end"
-      size="sm"
-      anchor={
-        <Button
-          size="xs"
-          variant="ghost"
-          className="h-6 px-1"
-          aria-label={t("desktop.usage.breakdown.open")}
-        >
-          {ring}
-        </Button>
-      }
+    <Select
+      size="xs"
+      aria-label={t("desktop.composer.thinking.label")}
+      value={props.level}
+      disabled={props.disabled}
+      onValueChange={(value) => {
+        const next = thinkingLevelOf(value);
+        if (next !== null && next !== props.level) props.onChange(next);
+      }}
+      className="w-auto text-text-tertiary"
     >
-      <PopoverTitle>{t("desktop.status.cell.tokens.title")}</PopoverTitle>
-      <UsageBreakdownBody threadId={props.threadId} />
-    </Popover>
+      {THINKING_LEVELS.map((level) => (
+        <SelectOption key={level} value={level}>
+          {t(THINKING_LEVEL_LABEL_IDS[level])}
+        </SelectOption>
+      ))}
+    </Select>
   );
 }
 
@@ -427,6 +402,7 @@ function ComposerFor(props: {
   const threadModel = useThreadModel(props.threadId, defaultModel);
   // 이 대화의 승인 모드 칩(설정 l1.tools.permissionMode, 대화 범위). 모르는 동안은 칩을 그리지 않는다
   const permission = useThreadPermissionMode(props.threadId);
+  const thinking = useThreadThinking(props.threadId);
   const modelChoices = useModelChoices();
   const deniedModels = useDeniedModels();
   const usage = useSessionUsage(props.threadId, running);
@@ -439,8 +415,9 @@ function ComposerFor(props: {
   const selectedThread = useSelectedThreadId();
   const folderPick = useFolderPick();
   const [chips, setChips] = useState<readonly AttachChip[]>([]);
-  // 실행 중에 보낸 글이 들어갈 자리. 기본은 끝난 뒤(followUp)다. 시안이 말하는 기본 모드 설정(l1.tasks.queue.defaultMode)은 설정 카탈로그에 없어서 읽지 않는다
-  const [mode, setMode] = useState<BusyInputMode>("followUp");
+  // 실행 중에 보낸 글은 기본이 대기열(끝난 뒤, followUp)이고 ⌘Enter가 바로 반영(steer)이다. 모드 토글은 두지 않는다(2026-11-08 사용자 결정).
+  // 대기열 칩의 "지금 반영"은 철회한 뒤 같은 글을 steer로 다시 보내므로, 이 입력창이 보낸 글을 요청 id로 기억한다(거울의 미리보기는 120자에서 잘린다)
+  const sent = useRef(new Map<string, SentInput>());
   const [dragging, setDragging] = useState(false);
   // 첨부가 막힌 때(턴이 도는 중 등) 끌어 놓은 파일을 받지 않았다는 안내. 막힘이 풀렸거나 다시 끌면 지운다
   const [dropRefused, setDropRefused] = useState(false);
@@ -612,7 +589,7 @@ function ComposerFor(props: {
     textarea.current?.focus();
   };
   /** `force`는 모르는 명령 확인에서 "그대로 보내기"를 눌렀을 때다 */
-  const send = async (force = false): Promise<void> => {
+  const send = async (force = false, whenBusy: BusyInputMode = "followUp"): Promise<void> => {
     const text = draftRef.current.trim();
     const parts = readyParts(chips);
     if (props.disabledReason !== null) return;
@@ -650,14 +627,17 @@ function ComposerFor(props: {
     // 보내는 즉시 비운다. 남은 조합 글자가 두 번째 메시지가 되지 않게 한다
     draftRef.current = "";
     setDraft("");
+    const sentId = requestId.current;
+    if (running) sent.current.set(sentId, { text, parts });
     const result = await commands.sendTurn(
       props.threadId,
       text,
-      requestId.current,
+      sentId,
       parts.length === 0 ? undefined : parts,
-      mode,
+      whenBusy,
     );
     latch.current.release();
+    if (!result.ok) sent.current.delete(sentId);
     setSending(false);
     if (result.ok) {
       requestId.current = newRequestId();
@@ -670,6 +650,34 @@ function ComposerFor(props: {
       setDraft(text);
     }
     setError(sendErrorText(result.error));
+  };
+
+  /**
+   * 대기열 칩의 "지금 반영": 칩을 철회하고 같은 내용을 도는 턴에 바로 반영(steer)으로 다시 보낸다. 이 입력창이 보낸 입력이 아니면(기억이 없으면) 하지 않는다.
+   * 철회가 이미 늦었으면(모델에 전달됨) 보내지 않는다. 다시 보내지 못하면 입력창이 비어 있을 때 글을 되돌리고 오류를 보인다
+   */
+  const steerNow = async (queuedRequestId: string): Promise<WithdrawState> => {
+    const record = sent.current.get(queuedRequestId);
+    if (record === undefined) return { status: "idle" };
+    const withdrawn = withdrawStateOf(
+      await commands.withdrawInput(props.threadId, queuedRequestId),
+    );
+    if (withdrawn.status !== "withdrawn") return withdrawn;
+    sent.current.delete(queuedRequestId);
+    const resent = await commands.sendTurn(
+      props.threadId,
+      record.text,
+      newRequestId(),
+      record.parts.length === 0 ? undefined : record.parts,
+      "steer",
+    );
+    if (resent.ok) return withdrawn;
+    if (draftRef.current === "") {
+      draftRef.current = record.text;
+      setDraft(record.text);
+    }
+    setError(sendErrorText(resent.error));
+    return withdrawn;
   };
 
   // 요청은 입력창이 받는 순간 지운다. 입력 중인 글이 있으면 채우지 않고 초점만 준다(글을 지우지 않는다)
@@ -724,10 +732,10 @@ function ComposerFor(props: {
       fillSlash(Math.min(menuIndex, menuRows.length - 1));
       return;
     }
-    detach(send(), rethrow);
+    detach(send(false, busyModeOfEnter(event)), rethrow);
   };
 
-  // 입력창 부품은 caustic Textarea다. 글과 Enter 처리는 이 파일이 맡고, 단추 줄(첨부·바로/끝난 뒤·모델·사용량·중단·보내기)은 Textarea의 아래 칸에 둔다.
+  // 입력창 부품은 caustic Textarea다. 글과 Enter 처리는 이 파일이 맡고, 단추 줄(첨부·승인 모드·모델·추론 레벨·중단·보내기)은 Textarea의 아래 칸에 둔다.
   // caustic Composer를 쓰지 않는 까닭: 실행 중에는 Enter가 보내기를 막고 단추가 중단으로 바뀌는데, 앱은 실행 중에도 큐에 넣으며 보내고 중단을 따로 둔다.
   // 또 Composer는 글이 빈 첨부만의 보내기를 막는다.
   // 경고는 늘 보이게 둔다(정보 아이콘 뒤에 숨기지 않는다): 비밀처럼 보이는 글이나 첨부가 있을 때 입력창 위 한 줄
@@ -750,7 +758,12 @@ function ComposerFor(props: {
         detach(send(), rethrow);
       }}
     >
-      <QueuedInputs threadId={props.threadId} disabledReason={props.disabledReason} />
+      <QueuedInputs
+        threadId={props.threadId}
+        disabledReason={props.disabledReason}
+        steerable={(id) => sent.current.has(id)}
+        onSteerNow={steerNow}
+      />
       <AttachmentRow
         chips={chips}
         onRemove={(id) => {
@@ -879,9 +892,10 @@ function ComposerFor(props: {
         radius="2xl"
         shadow="3"
         tone={dragging ? "accent" : "neutral"}
-        rows={2}
-        className="resize-none"
-        containerClassName={COMPOSER_FOOTER_CLASS}
+        rows={1}
+        // 한 줄로 시작해 글이 늘면 max-h까지 자란다(field-sizing). 비우면 한 줄로 돌아간다
+        className="max-h-48 min-h-0 resize-none [field-sizing:content]"
+        containerClassName={`composer-box ${COMPOSER_FOOTER_CLASS}`}
         value={draft}
         placeholder={props.disabledReason ?? t("desktop.composer.placeholder")}
         disabled={props.disabledReason !== null}
@@ -913,23 +927,6 @@ function ComposerFor(props: {
             >
               <Plus aria-hidden />
             </IconButton>
-            <SegmentedControl
-              size="xs"
-              aria-label={t("desktop.composer.mode.label")}
-              value={mode}
-              onValueChange={(value) => {
-                const next = busyModeOf(value);
-                if (next !== null) setMode(next);
-              }}
-              disabled={props.disabledReason !== null}
-            >
-              <SegmentedControlItem value="steer">
-                {t("desktop.composer.mode.steer")}
-              </SegmentedControlItem>
-              <SegmentedControlItem value="followUp">
-                {t("desktop.composer.mode.followUp")}
-              </SegmentedControlItem>
-            </SegmentedControl>
           </>
         }
         submit={
@@ -969,11 +966,23 @@ function ComposerFor(props: {
                 }}
               />
             )}
-            <UsageRing
-              percent={usage?.percent ?? null}
-              disabled={props.disabledReason !== null}
-              threadId={props.threadId}
-            />
+            {thinking.level === null ||
+            threadModel.ref === null ||
+            !thinkingSelectableOf(modelChoices, threadModel.ref) ? null : (
+              <ThinkingLevelSelect
+                level={thinking.level}
+                disabled={props.disabledReason !== null}
+                onChange={(next) => {
+                  detach(
+                    thinking.choose(next).then((result) => {
+                      if (!result.ok) setError(thinkingErrorText(result.error));
+                      return undefined;
+                    }),
+                    rethrow,
+                  );
+                }}
+              />
+            )}
             {threadRunning ? (
               <IconButton
                 type="button"

@@ -84,7 +84,12 @@ const ACTION_GROUP: Readonly<Record<ActionId, ShortcutGroupId>> = {
 };
 
 /** 키 맵 밖의 고정 키(바꿀 수 없다). 입력창은 `composer.tsx`의 Enter 처리, 승인 카드는 `approval-card/card-model.ts`의 `approvalKeyOf`가 정본이다 */
-type FixedShortcutId = "composer.send" | "composer.newline" | "approval.allow" | "approval.deny";
+type FixedShortcutId =
+  | "composer.send"
+  | "composer.newline"
+  | "composer.steer"
+  | "approval.allow"
+  | "approval.deny";
 
 export interface ShortcutRow {
   readonly id: ActionId | FixedShortcutId;
@@ -133,6 +138,7 @@ export function filterShortcutRows(
 export function fixedShortcutRowsOf(mac: boolean): readonly ShortcutRow[] {
   const enter = mac ? "↩" : "Enter";
   const shift = mac ? "⇧" : "Shift";
+  const command = mac ? "⌘" : "Ctrl";
   const row = (
     id: FixedShortcutId,
     label: MessageId,
@@ -142,6 +148,7 @@ export function fixedShortcutRowsOf(mac: boolean): readonly ShortcutRow[] {
   return [
     row("composer.send", "desktop.shortcuts.action.composerSend", "composer", [enter]),
     row("composer.newline", "desktop.shortcuts.action.composerNewline", "composer", [shift, enter]),
+    row("composer.steer", "desktop.shortcuts.action.composerSteer", "composer", [command, enter]),
     row("approval.allow", "desktop.shortcuts.action.approvalAllow", "approval", ["Y"]),
     row("approval.deny", "desktop.shortcuts.action.approvalDeny", "approval", ["N"]),
   ];

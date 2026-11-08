@@ -9,6 +9,7 @@ import {
   chipInputs,
   queuedModeText,
   queuedPreviewText,
+  steerableQueuedMode,
   withdrawStateOf,
   type WithdrawState,
 } from "./composer-model.ts";
@@ -42,6 +43,9 @@ function QueuedChip(props: {
   readonly input: QueuedInput;
   readonly threadId: ThreadId;
   readonly disabled: boolean;
+  /** 이 입력을 지금 반영할 수 있는가(이 입력창이 보낸 끝난 뒤 입력) */
+  readonly steerable: boolean;
+  readonly onSteerNow: (requestId: string) => Promise<WithdrawState>;
 }): ReactNode {
   const commands = useCommands();
   const [state, setState] = useState<WithdrawState>({ status: "idle" });
@@ -54,6 +58,12 @@ function QueuedChip(props: {
     setState(withdrawStateOf(result));
   };
 
+  const steerNow = async (): Promise<void> => {
+    setState({ status: "withdrawing" });
+    setState(await props.onSteerNow(props.input.requestId));
+  };
+  const canSteer = props.steerable && steerableQueuedMode(props.input.mode);
+
   return (
     <li data-status={state.status} className="max-w-full">
       <Chip size="md" radius="md">
@@ -63,6 +73,20 @@ function QueuedChip(props: {
         <span className="min-w-0 truncate" title={text}>
           {text}
         </span>
+        {canSteer ? (
+          <Button
+            size="xs"
+            variant="outline"
+            data-queued-steer-now
+            disabled={props.disabled || controls.locked}
+            aria-label={t("desktop.composer.queue.steerNow.ariaLabel", { text })}
+            onClick={() => {
+              detach(steerNow(), rethrow);
+            }}
+          >
+            {t("desktop.composer.queue.steerNow.button")}
+          </Button>
+        ) : null}
         <Button
           size="xs"
           variant="ghost"
@@ -101,6 +125,10 @@ function QueuedChip(props: {
 export function QueuedInputs(props: {
   readonly threadId: ThreadId;
   readonly disabledReason: string | null;
+  /** 이 요청 id의 입력을 지금 반영할 수 있는가. 입력창이 보낸 내용을 기억하는 입력만이다 */
+  readonly steerable: (requestId: string) => boolean;
+  /** "지금 반영" 단추. 철회하고 바로 반영으로 다시 보낸 뒤의 칩 상태를 돌려준다 */
+  readonly onSteerNow: (requestId: string) => Promise<WithdrawState>;
 }): ReactNode {
   const chips = chipInputs(useQueuedInputs(props.threadId));
   if (chips.length === 0) return null;
@@ -117,6 +145,8 @@ export function QueuedInputs(props: {
             input={input}
             threadId={props.threadId}
             disabled={props.disabledReason !== null}
+            steerable={props.steerable(input.requestId)}
+            onSteerNow={props.onSteerNow}
           />
         ))}
       </ul>

@@ -64,11 +64,19 @@ export function createSendLatch(): SendLatch {
 }
 
 /**
- * 입력창 모드 단추가 내는 값을 `BusyInputMode`로 좁힌다. 알 수 없는 값은 null이라 호출하는 쪽이 고르지 않는다(단언 없이).
+ * 보내기 Enter가 실행 중 입력을 넣을 자리. 그냥 Enter는 대기열(턴이 끝난 뒤, `followUp`)이고 ⌘Enter(Windows·Linux는 Ctrl+Enter)는
+ * 도는 턴에 바로 반영(`steer`)한다. 도는 턴이 없으면 두 키 모두 그냥 보낸다.
  */
-export function busyModeOf(value: string): BusyInputMode | null {
-  if (value === "steer" || value === "followUp") return value;
-  return null;
+export function busyModeOfEnter(event: {
+  readonly metaKey: boolean;
+  readonly ctrlKey: boolean;
+}): BusyInputMode {
+  return event.metaKey || event.ctrlKey ? "steer" : "followUp";
+}
+
+/** 대기 입력을 지금 반영할 수 있는가. 끝난 뒤 자리의 입력만이고, 이미 바로 반영 자리이거나 곁가지(aside)면 아니다 */
+export function steerableQueuedMode(mode: QueuedInput["mode"]): boolean {
+  return mode === "followUp" || mode === "next";
 }
 
 /** 입력창을 잠그는 이유. null이면 보낼 수 있다 */

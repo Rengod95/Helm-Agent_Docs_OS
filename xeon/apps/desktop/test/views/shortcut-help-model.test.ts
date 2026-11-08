@@ -132,6 +132,13 @@ describe("fixed keys", () => {
         parts: ["⇧", "↩"],
       },
       {
+        id: "composer.steer",
+        label: "desktop.shortcuts.action.composerSteer",
+        group: "composer",
+        keys: "⌘↩",
+        parts: ["⌘", "↩"],
+      },
+      {
         id: "approval.allow",
         label: "desktop.shortcuts.action.approvalAllow",
         group: "approval",
@@ -146,6 +153,13 @@ describe("fixed keys", () => {
         parts: ["N"],
       },
     ]);
+    expect(fixedShortcutRowsOf(false)[2]).toEqual({
+      id: "composer.steer",
+      label: "desktop.shortcuts.action.composerSteer",
+      group: "composer",
+      keys: "Ctrl+Enter",
+      parts: ["Ctrl", "Enter"],
+    });
     expect(fixedShortcutRowsOf(false)[1]).toEqual({
       id: "composer.newline",
       label: "desktop.shortcuts.action.composerNewline",
