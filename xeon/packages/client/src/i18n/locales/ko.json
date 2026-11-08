@@ -2056,7 +2056,7 @@
   "desktop.settings.mcp.action.collapse": "접기",
   "desktop.settings.mcp.form.add.title": "MCP 서버 추가",
   "desktop.settings.mcp.form.edit.title": "MCP 서버 고치기",
-  "desktop.settings.mcp.form.apply.info": "저장한 서버는 다음 턴부터 적용돼요.",
+  "desktop.settings.mcp.form.apply.info": "저장하면 목록에 바로 나타나요. 대화에서는 다음 턴부터 서버 도구를 쓸 수 있어요.",
   "desktop.settings.mcp.form.id": "서버 이름",
   "desktop.settings.mcp.form.title": "표시 이름(선택)",
   "desktop.settings.mcp.form.transport": "전송 방식",

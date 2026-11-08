@@ -291,6 +291,8 @@ export function createMcp(deps: McpDeps): McpRuntime {
   let loadedPrint: string | undefined;
   let boundaryRunning: Promise<unknown> = Promise.resolve();
   let reloading: Promise<unknown> = Promise.resolve();
+  /** 마지막으로 대화를 지정해 정의를 읽은 옵션. 대화 없이 목록을 읽는 쪽(설정 화면)이 같은 대화의 프로젝트 서버를 잃지 않게 한다 */
+  let lastThreadOptions: McpLoadOptions | undefined;
 
   const stateStore: StateStore | undefined =
     deps.store === undefined
@@ -713,13 +715,16 @@ export function createMcp(deps: McpDeps): McpRuntime {
   // ── 서비스 ───────────────────────────────────────────────────────────────
 
   const client: CapabilityApi<typeof McpClient> = {
-    listServers: () =>
-      settle(() => ({
+    listServers: async (_input, options) => {
+      // 목록은 설정의 지금 정의를 따른다. 다음 단계 경계를 기다리지 않는다(추가·고치기·지우기가 바로 보인다). 지문이 같으면 연결을 건드리지 않는다
+      await refreshDefinitions(options?.signal ?? NEVER_ABORTED);
+      return await settle(() => ({
         servers: registry
           .list()
           .map(statusOf)
           .toSorted((a, b) => byteOrder(a.server, b.server)),
-      })),
+      }));
+    },
     status: ({ server }) => settle(() => statusOf(snapshotOrThrow("status", server))),
     connect: async ({ server }) => {
       snapshotOrThrow("connect", server);
@@ -888,6 +893,7 @@ export function createMcp(deps: McpDeps): McpRuntime {
   ): Promise<boolean> {
     const result = await readDefinitions(signal, options);
     if (options?.threadId !== undefined) {
+      lastThreadOptions = options;
       const gained = startThread === undefined;
       startThread = options.threadId;
       // 승인을 올릴 대화가 처음 생겼다: 대화가 없어 기다리기만 하던 서버가 이제 승인을 요청할 수 있다
@@ -902,6 +908,25 @@ export function createMcp(deps: McpDeps): McpRuntime {
     return true;
   }
 
+  /** 정의 읽기는 한 번에 하나씩만 돈다. 지문 비교와 반영이 겹치지 않아야 한다 */
+  function reloadSerialized(
+    signal: AbortSignal,
+    options: McpLoadOptions | undefined,
+  ): Promise<boolean> {
+    const run = reloading.then(
+      () => reloadNow(signal, options),
+      () => reloadNow(signal, options),
+    );
+    reloading = run;
+    return run;
+  }
+
+  /** 처음 읽기(`load`) 전에는 아무것도 하지 않는다. 읽은 뒤에는 마지막 대화의 정의로 다시 읽는다 */
+  async function refreshDefinitions(signal: AbortSignal): Promise<void> {
+    if (loaded === undefined) return;
+    await reloadSerialized(signal, lastThreadOptions);
+  }
+
   const service: McpService = { client, registerServer };
 
   return {
@@ -913,15 +938,7 @@ export function createMcp(deps: McpDeps): McpRuntime {
       resync();
       return result;
     },
-    reload(signal, options) {
-      // 정의 읽기는 한 번에 하나씩만 돈다. 지문 비교와 반영이 겹치지 않아야 한다
-      const run = reloading.then(
-        () => reloadNow(signal, options),
-        () => reloadNow(signal, options),
-      );
-      reloading = run;
-      return run;
-    },
+    reload: reloadSerialized,
     applyBoundary() {
       // 경계 반영은 한 번에 하나씩만 돈다
       const run = boundaryRunning.then(applyBoundaryNow, applyBoundaryNow);

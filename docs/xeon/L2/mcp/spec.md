@@ -642,6 +642,7 @@ sequenceDiagram
 ### 4.9 목록 변경과 진행 중 호출
 
 - 서버 도구 목록 변경(재연결, 2차 구독 알림, `reconnect`)은 메모리에 모아 두고 단계 경계에서 한 번에 반영한다. 반영 시점은 단계를 여는 `boundary.step.before` 훅이다: 앞 단계의 도구 결과가 커밋된 뒤이고 이 단계의 도구 광고 앞이라(`L1.loop.spec` 단계 1), 바뀐 도구가 이 단계부터 보이고 단계 중간에는 도구 표가 바뀌지 않는다(U-01). `request.provider.before`는 광고 뒤라 쓰지 않는다.
+- 목록 즉시 갱신(fxMC2): `client.listServers`는 목록을 만들기 전에 정의를 다시 읽는다(`refreshDefinitions`: `load` 뒤에만, 마지막으로 대화를 지정해 읽은 옵션으로, 아래 지문 비교와 같은 직렬 길). 설정 화면이 서버를 추가·고치기·지우면 다음 `mcp.servers`가 단계 경계를 기다리지 않고 새 정의를 보이고(표시 이름 `title` 포함, 새 서버는 `connecting`부터), 지문이 같으면 연결을 건드리지 않는다. 도구가 모델 도구 집합에 들어가거나 빠지는 때는 그대로 다음 단계 경계다(§4.9) [결정: 오케스트레이터 기본값, fxMC2].
 - 정의 다시 읽기: 같은 `boundary.step.before`에서 조립 루트가 `reload(signal, { threadId })`를 부르면 설정 `l2.mcp.servers`와 `.mcp.json`을 다시 읽고, 서버 정의·작업 폴더 신뢰·`l2.mcp.*` 설정으로 만든 지문이 직전 반영과 다를 때만 서버를 맞춘다(추가는 연결, 삭제는 종료, 바뀐 정의는 재연결). 그래서 `nextTurn`인 `l2.mcp.servers` 변경이 다음 단계부터 적용된다. 읽는 설정 층은 `layers(threadId)`(작업 폴더·로컬 층의 서버 정의가 그 대화에서 보인다)이고, 작업 폴더 루트는 `workspaceOf(threadId)`, 곧 `boundary.step.before`를 낸 대화의 작업 폴더다. 작업 폴더가 없는 대화에는 작업 폴더 출처 정의가 없다(`L2.readme` §5.10). 작업 폴더가 다른 대화가 번갈아 단계를 열면 작업 폴더 출처 정의가 그때마다 바뀌어 재연결이 잦다 [미결 13]. 반영 순서: 새 도구 집합 계산 → `diffToolsets(prev, next)` → L1.context가 `toolsAdded`/`toolsRemoved` 시스템 메시지로 기록(`F.capabilities.spec` §4.5) → `thread.mcp.after` 발화.
 - 직접 등록한 동적 도구의 호출은 `executeWithContinuation`의 `threadId`로 그 대화의 설정 층(`launch` 층 `l2.mcp.result.maxBytes` 등)을 읽는다(`L1.tools.spec` §3.3).
 - 진행 중인 호출은 시작할 때의 연결과 정의로 끝까지 간다. 목록에서 빠진 도구의 진행 중 호출도 끝까지 간다(`F.capabilities.spec` §5 5항).
