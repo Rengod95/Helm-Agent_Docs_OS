@@ -475,6 +475,61 @@ describe("notify section", () => {
   });
 });
 
+describe("permission mode field", () => {
+  const MODES = ["default", "acceptEdits", "plan", "bypass"] as const;
+  const PERMISSION_MODE = defOf(
+    "l1.tools.permissionMode",
+    "permissions",
+    "select",
+    { type: "string", enum: [...MODES] },
+    { range: { enum: [...MODES] } },
+    { order: 10, label: "권한 모드" },
+  );
+  const BYPASS_ALLOWED = defOf(
+    "l1.tools.bypassAllowed",
+    "permissions",
+    "toggle",
+    { type: "boolean" },
+    { allowedScopes: ["managed"] },
+    { order: 20, label: "모두 허용 쓸 수 있음" },
+  );
+
+  test("every mode shows its one-line description under its radio, and the bypass mode also shows the warning line", () => {
+    const view = viewOf([PERMISSION_MODE], [settingOf(PERMISSION_MODE.key, "bypass")]);
+    const out = html(propsOf({ view, tab: "permissions" }));
+    for (const mode of MODES) {
+      expect(out).toContain(t(`settings.l1.tools.permissionMode.optionHelp.${mode}`));
+    }
+    expect(out).toContain('data-slot="radio-group-description"');
+    const warning = out.match(/data-slot="settings-choice-warning"[^>]*>.*?<span>([^<]*)<\/span>/);
+    expect(warning?.[1]).toBe(t("settings.l1.tools.permissionMode.optionHelp.bypass"));
+  });
+
+  test("a mode that is not bypass shows no warning line", () => {
+    const view = viewOf([PERMISSION_MODE], [settingOf(PERMISSION_MODE.key, "default")]);
+    const out = html(propsOf({ view, tab: "permissions" }));
+    expect(out).toContain(t("settings.l1.tools.permissionMode.optionHelp.default"));
+    expect(out).not.toContain('data-slot="settings-choice-warning"');
+  });
+
+  test("a locked switch that is on keeps the on colour and does not take the grey disabled fill", () => {
+    const view = viewOf(
+      [BYPASS_ALLOWED],
+      [
+        settingOf(BYPASS_ALLOWED.key, true, {
+          locked: true,
+          lockReason: "managed_file",
+          source: { scope: "managed", path: LOCK_PATH },
+        }),
+      ],
+    );
+    const out = html(propsOf({ view, tab: "permissions" }));
+    expect(out).toContain('aria-checked="true"');
+    expect(out).toContain("bg-accent-solid");
+    expect(out).not.toContain("disabled:data-[state=checked]:bg-disabled-fill");
+  });
+});
+
 describe("widget controls", () => {
   const TOGGLE = defOf(
     "l4.cli.on",

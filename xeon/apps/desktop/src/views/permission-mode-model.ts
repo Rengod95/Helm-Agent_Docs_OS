@@ -25,6 +25,14 @@ export function switchModeOf(value: string): SwitchMode | null {
   return SWITCH_MODES.find((mode) => mode === value) ?? null;
 }
 
+/**
+ * 칩 글의 색. 모두 허용은 승인 없이 명령과 편집을 실행하므로 위험 색으로 보인다. 나머지 모드는 보통 색이다.
+ * 색은 글과 함께 쓰므로 칩의 글 자체는 바뀌지 않는다
+ */
+export function permissionModeToneOf(mode: PermissionMode): "normal" | "danger" {
+  return mode === "bypass" ? "danger" : "normal";
+}
+
 export interface PermissionModeOption {
   readonly mode: PermissionMode;
   /** 고를 수 있는 줄인가. 지금 모드가 계획이나 모두 허용이면 그 줄은 칩 글을 보이려고만 둔다 */

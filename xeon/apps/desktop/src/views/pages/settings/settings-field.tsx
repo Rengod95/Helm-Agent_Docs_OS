@@ -20,7 +20,7 @@ import {
   Switch,
   Tooltip,
 } from "@caustic/react";
-import { Check, CircleHelp, Lock } from "@caustic/react/icons";
+import { Check, CircleHelp, Lock, TriangleAlert } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import {
   scopeText,
@@ -35,9 +35,11 @@ import { useId, useRef, useState, type ReactNode } from "react";
 import {
   dedicatedEditorOf,
   fallbackScopeOf,
+  choiceWarningOf,
   fieldControlOf,
   foldableOf,
   hasFooter,
+  optionHelpOf,
   type DedicatedEditorKind,
   type FieldControl,
   launchChoiceOf,
@@ -50,6 +52,7 @@ import {
   scopeChoiceShown,
   selectControlOf,
   shadowedSummaryOf,
+  switchClassOf,
   tagsOf,
   textValueOf,
   valueSummaryOf,
@@ -258,6 +261,7 @@ export function FieldRow(props: FieldRowProps): ReactNode {
             aria-label={field.label}
             checked={field.value === true}
             disabled={disabled}
+            className={switchClassOf(field.value === true, disabled)}
             onCheckedChange={(next) => {
               handlers.change(field.key, next);
             }}
@@ -501,7 +505,11 @@ function NumberControl(props: {
   );
 }
 
-/** 고르기 칸. 선택지가 여덟 이하면 라디오 묶음, 넘으면 선택 상자다. 네 개 이하는 한 줄로 늘어놓는다(c04, P-09) */
+/**
+ * 고르기 칸. 선택지가 여덟 이하면 라디오 묶음, 넘으면 선택 상자다. 네 개 이하는 한 줄로 늘어놓는다(c04, P-09).
+ * 선택지에 설명(`optionHelpOf`)이 하나라도 있으면 라디오 묶음을 세로로 놓고 설명을 라벨 아래 한 줄로 보인다.
+ * 경고 선택지를 고르면 묶음 아래에 같은 설명을 경고 줄로 보인다(`choiceWarningOf`). 확인 대화는 없다.
+ */
 function ChoiceField(props: {
   readonly field: FieldVM;
   readonly options: readonly (string | number)[];
@@ -515,19 +523,25 @@ function ChoiceField(props: {
     const option = optionOf(options, next);
     if (option !== null) handlers.change(field.key, option);
   };
+  const described = options.some((option) => optionHelpOf(field.key, option) !== null);
+  const warning = choiceWarningOf(field.key, text);
   return (
     <Field disabled={disabled} error={errorText}>
       {selectControlOf(options.length) === "radio" ? (
         <RadioGroup
           aria-label={field.label}
-          orientation="horizontal"
+          orientation={described ? "vertical" : "horizontal"}
           value={text}
           disabled={disabled}
           onValueChange={choose}
-          className="min-h-7 gap-x-5 gap-y-1"
+          className={described ? "gap-y-2" : "min-h-7 gap-x-5 gap-y-1"}
         >
           {options.map((option) => (
-            <RadioGroupItem key={optionTextOf(option)} value={optionTextOf(option)}>
+            <RadioGroupItem
+              key={optionTextOf(option)}
+              value={optionTextOf(option)}
+              description={optionHelpOf(field.key, option) ?? undefined}
+            >
               {optionLabelOf(field.key, option)}
             </RadioGroupItem>
           ))}
@@ -548,6 +562,16 @@ function ChoiceField(props: {
             </SelectOption>
           ))}
         </Select>
+      )}
+      {warning === null ? null : (
+        <p
+          role="note"
+          data-slot="settings-choice-warning"
+          className="m-0 flex min-w-0 items-start gap-1.5 text-ui-sm text-danger-text"
+        >
+          <TriangleAlert aria-hidden className="mt-0.5 size-icon-xs flex-none" />
+          <span>{warning}</span>
+        </p>
       )}
     </Field>
   );

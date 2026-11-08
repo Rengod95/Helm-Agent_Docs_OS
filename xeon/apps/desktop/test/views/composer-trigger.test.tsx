@@ -85,6 +85,18 @@ describe("approval mode select", () => {
     const tag = markup.match(/<button[^>]*>/)?.[0] ?? "";
     expect(tag).toMatch(/ disabled=""/);
   });
+
+  test("the bypass mode chip uses the danger text colour, the other modes the normal one", () => {
+    const bypass = renderToString(
+      <PermissionModeSelect mode="bypass" disabled={false} onChange={() => {}} />,
+    );
+    const normal = renderToString(
+      <PermissionModeSelect mode="default" disabled={false} onChange={() => {}} />,
+    );
+    expect(bypass.match(/<button[^>]*>/)?.[0] ?? "").toContain("text-danger-text");
+    expect(normal.match(/<button[^>]*>/)?.[0] ?? "").toContain("text-text-tertiary");
+    expect(normal).not.toContain("text-danger-text");
+  });
 });
 
 describe("secret warning line", () => {

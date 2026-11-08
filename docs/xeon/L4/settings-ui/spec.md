@@ -683,6 +683,10 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 - 구현 상태(P-09): 권한 규칙(`l1.tools.rules`), 샌드박스 목록 두 개(`l0.sandbox.writeRoots.extra`, `l0.sandbox.network.blockedDomains`), 외부 훅 표(`x.operations.hookDefs`, `pages/settings/settings-hook-defs.tsx`), 시크릿 참조는 `pages/settings/settings-editors-screen.tsx`의 전용 편집기로 그린다. 표(`table`의 세 모양)는 같은 파일의 표 편집기로 그린다(§4.2.1). 모델 역할, 대체 사슬, 계정 풀, 레이트 리밋은 P-11(`pages/providers`)이, 검색 순서는 P-12 패널이 맡는다. 위의 세 키는 키 이름 목록에 더했다. 값은 모두 `settings.set` 한 번으로 키 하나를 통째로 쓴다. 상세는 L4.desktop-ux §6.13.
 - 전용 편집기를 고르는 기준은 키 이름이다(예: 정의 키가 정해진 목록에 있음). [미결] 키 이름에 묶는 대신 F `SettingUi`에 편집기 힌트 필드를 더할지(§10 미결 8).
 
+- `select`의 선택지 설명 [결정: 2026-11-08]: 선택지마다 카탈로그 `settings.<설정 키>.optionHelp.<값>`(값의 `-`·`_`는 camelCase)이 있으면 설명 한 줄을 라벨 아래에 바로 보인다(정보 아이콘 뒤에 두지 않는다). 설명이 하나라도 있으면 라디오 묶음은 세로로 놓고, 없으면 가로 한 줄이다. 키가 없는 선택지는 설명 줄을 긋지 않는다(키 이름을 보이지 않는다). 구현: `apps/desktop/src/views/pages/settings/settings-model.ts`의 `optionHelpOf`.
+- `select`의 경고 줄 [결정: 2026-11-08]: 고른 값이 경고 선택지면 묶음 아래에 같은 설명을 경고 줄(`role="note"`, 위험 글 색과 경고 아이콘)로 보인다. 경고 선택지는 `l1.tools.permissionMode`의 `bypass`(모두 허용)뿐이다. 확인 대화는 없다. 색은 글과 아이콘으로도 알린다(§4.8.1).
+- `toggle`이 쓸 수 없고 켜진 상태(관리 잠금, 읽기 전용)면 켜진 색을 그대로 두고 살짝 흐린다. caustic 기본은 쓸 수 없는 스위치를 회색 바닥으로 그려 꺼진 것으로 읽히므로 앱이 칸 클래스로 덮는다(`switchClassOf`). 꺼진 스위치와 쓸 수 있는 스위치는 caustic 기본 모양이다.
+
 ### 4.3 항목 공통 표시
 
 `_research/settings.md` §4 화면 공통 규칙을 F 필드에 대응시킨다.
