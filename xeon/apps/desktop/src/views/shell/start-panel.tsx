@@ -1,5 +1,5 @@
 // 왼쪽 패널(S-01 시작 영역). 시안(_shell/start-panel.tsx)과 같은 틀이다.
-//   머리: 찾기 줄(누르면 팔레트) + 시작 영역 닫기 단추 + 영역 바꾸기. 작업대 영역은 머리에 맥락 칸을 더한다.
+//   머리: 영역 바꾸기(대화/크래프트) 줄 + 그 끝의 시작 영역 닫기 단추. 찾기 줄은 없다(명령 팔레트는 ⌘K). 작업대 영역은 머리에 맥락 칸을 더한다.
 //   몸: 영역별 내비 + 대화 목록 슬롯. 스크롤은 몸 하나만 한다.
 //   바닥: 설정. 두 영역 공통이고 늘 같은 자리(hairline 위)에 고정된다.
 // 닫힘(startOpen이 거짓)은 SidePanel의 collapsed로 그린다. compact에서는 셸이 패널을 떠 있는 시트로 올리고, 닫으면 그리지 않는다.
@@ -7,7 +7,6 @@ import { activeLocale, t } from "@fresnel/client/i18n";
 import { extMessageOf } from "@fresnel/client/views/native";
 import {
   IconButton,
-  Input,
   ListNavigation,
   ListNavigationGroup,
   ListNavigationItem,
@@ -15,7 +14,7 @@ import {
   SegmentedControlItem,
   SidePanel,
 } from "@caustic/react";
-import { Compass, IconEmphasisProvider, PanelLeft, Search, Settings } from "@caustic/react/icons";
+import { Compass, IconEmphasisProvider, PanelLeft, Settings } from "@caustic/react/icons";
 import type { ReactNode } from "react";
 import { ContextPicker, type ContextProfile } from "./context-picker.tsx";
 import { NAV_BY_AREA } from "./nav.ts";
@@ -54,41 +53,13 @@ function AreaSwitch(props: { readonly onSwitch: (area: Area) => void }): ReactNo
       onValueChange={(v) => {
         props.onSwitch(v === "workbench" ? "workbench" : "chat");
       }}
-      className="w-full [&>[data-slot=segmented-control-item]]:flex-1 [&_[data-state=checked]]:font-semibold"
+      className="min-w-0 flex-1 [&>[data-slot=segmented-control-item]]:flex-1 [&_[data-state=checked]]:font-semibold"
     >
       <SegmentedControlItem value="chat">{t("desktop.shell.area.chat")}</SegmentedControlItem>
       <SegmentedControlItem value="workbench">
         {t("desktop.shell.area.workbench")}
       </SegmentedControlItem>
     </SegmentedControl>
-  );
-}
-
-/** 찾기 줄. 입력란처럼 보이지만 글을 쓰지 않는다. 누르거나 Enter를 치면 명령 팔레트가 열린다(⌘K와 같다) */
-function SearchField(): ReactNode {
-  const actions = useShellActions();
-  const open = (): void => {
-    actions.setPaletteOpen(true);
-  };
-  return (
-    <Input
-      size="xs"
-      variant="outline"
-      readOnly
-      prefix={<Search />}
-      placeholder={t("desktop.shell.search")}
-      aria-label={t("desktop.shell.search")}
-      aria-haspopup="dialog"
-      onClick={open}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          open();
-        }
-      }}
-      containerClassName="min-w-0 flex-1 bg-transparent! data-[readonly]:bg-transparent! focus-within:bg-transparent!"
-      className="cursor-pointer"
-    />
   );
 }
 
@@ -187,8 +158,9 @@ export function StartPanel(props: StartPanelProps): ReactNode {
       className="[&>[data-slot=side-panel-header]]:min-h-control-lg [&>[data-slot=side-panel-header]]:px-1.5 [&>[data-slot=side-panel-header]]:py-1.5 [&>[data-slot=side-panel-footer]]:px-1.5 [&>[data-slot=side-panel-footer]]:py-2"
       header={
         <div className="grid min-w-0 gap-1.5 pb-1">
+          {/* 영역 탭 줄 끝에 패널 접기 단추를 둔다(찾기 줄은 없다. 명령 팔레트는 ⌘K) */}
           <div className="flex min-w-0 items-center gap-1">
-            <SearchField />
+            <AreaSwitch onSwitch={props.onSwitchArea} />
             <IconButton
               size="sm"
               variant="ghost"
@@ -200,7 +172,6 @@ export function StartPanel(props: StartPanelProps): ReactNode {
               <PanelLeft />
             </IconButton>
           </div>
-          <AreaSwitch onSwitch={props.onSwitchArea} />
           {area === "workbench" ? (
             <ContextPicker profiles={props.profiles} onGoToThread={props.onGoToThread} />
           ) : null}

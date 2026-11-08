@@ -2855,7 +2855,6 @@
   "desktop.workbench.engine.need.required": "필수",
   "desktop.workbench.engine.need.optional": "선택",
   "desktop.shell.screen.missing": "이 화면은 아직 없어요",
-  "desktop.shell.search": "찾기",
   "desktop.shell.settings": "설정",
   "desktop.shell.skip": "본문으로",
   "desktop.shell.stage.label": "본문",
