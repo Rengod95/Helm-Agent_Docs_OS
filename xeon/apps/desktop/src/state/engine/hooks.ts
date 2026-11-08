@@ -113,6 +113,7 @@ export const useOpenThread = (): ThreadSummary | undefined => useEngine(sel.sele
 export const useOpenThreadRunning = (): boolean => useEngine(sel.selectOpenThreadRunning);
 export const useThreadRunning = (id: ThreadId): boolean =>
   useEngine((s) => sel.selectThreadRunning(s, id));
+export const useAwaitingFirstResponse = (): boolean => useEngine(sel.selectAwaitingFirstResponse);
 export const useUnsentUserItemId = (): ItemId | null => useEngine(sel.selectUnsentUserItemId);
 export const useCustomCount = (kinds: readonly string[]): number =>
   useEngine((s) => sel.selectCustomCount(s, kinds));

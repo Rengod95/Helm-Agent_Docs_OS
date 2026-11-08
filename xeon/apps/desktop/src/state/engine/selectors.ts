@@ -183,6 +183,20 @@ export const selectUnsentUserItemId = (s: EngineMirror): ItemId | null => {
   }
   return null;
 };
+/** 열린 대화가 실행 중이고 화면에 그려지는 마지막 item이 내 말이면 참이다(첫 응답을 기다리는 중). 그리지 않는 item(시스템, display가 거짓인 확장)은 건너뛴다 */
+export const selectAwaitingFirstResponse = (s: EngineMirror): boolean => {
+  const transcript = s.transcript;
+  if (transcript?.status !== "ready") return false;
+  if (s.threads.byId[transcript.threadId]?.status !== "running") return false;
+  for (let i = transcript.itemIds.length - 1; i >= 0; i -= 1) {
+    const id = transcript.itemIds[i];
+    const item = id === undefined ? undefined : transcript.items[id];
+    if (item === undefined) return false;
+    if (item.kind === "system" || (item.kind === "custom" && !item.message.display)) continue;
+    return item.kind === "user";
+  }
+  return false;
+};
 /**
  * 열린 대화에서 종류(`customType`)가 주어진 것 가운데 하나인 확장 기록의 수. 확장 화면이 "무언가 끝났다"를 이 수가 늘어나는 것으로 알아
  * 다시 읽는다(Helm의 탐구 끝 기록과 발견 기록). 대화가 아직 읽히지 않았으면 0이다. 숫자 하나라서 값이 같으면 다시 그리지 않는다
