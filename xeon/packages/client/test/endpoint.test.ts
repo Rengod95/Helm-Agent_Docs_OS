@@ -157,3 +157,55 @@ describe("parseServiceEndpoint", () => {
     });
   });
 });
+
+describe("parseServiceEndpoint wss", () => {
+  const pin = "AB".repeat(32);
+
+  test("host and port; a bracketed IPv6 address loses its brackets", () => {
+    expect(parseServiceEndpoint("wss://box.example:8443")).toEqual({
+      ok: true,
+      value: { kind: "wss", host: "box.example", port: 8443 },
+    });
+    expect(parseServiceEndpoint("wss://box.example:8443/")).toEqual({
+      ok: true,
+      value: { kind: "wss", host: "box.example", port: 8443 },
+    });
+    expect(parseServiceEndpoint("wss://[fd7a::1]:8443")).toEqual({
+      ok: true,
+      value: { kind: "wss", host: "fd7a::1", port: 8443 },
+    });
+  });
+
+  test("a pin suffix is kept lowercase", () => {
+    expect(parseServiceEndpoint(`wss://10.0.0.5:8443/pin/${pin}`)).toEqual({
+      ok: true,
+      value: { kind: "wss", host: "10.0.0.5", port: 8443, pin: "ab".repeat(32) },
+    });
+  });
+
+  test("a malformed pin, another path, a missing port and a bad port are named", () => {
+    expect(parseServiceEndpoint("wss://box.example:8443/pin/abcd")).toEqual({
+      ok: false,
+      error: { kind: "invalid", part: "pin" },
+    });
+    expect(parseServiceEndpoint("wss://box.example:8443/wire")).toEqual({
+      ok: false,
+      error: { kind: "invalid", part: "path" },
+    });
+    expect(parseServiceEndpoint("wss://box.example")).toEqual({
+      ok: false,
+      error: { kind: "invalid", part: "host" },
+    });
+    expect(parseServiceEndpoint("wss://box.example:99999")).toEqual({
+      ok: false,
+      error: { kind: "invalid", part: "port" },
+    });
+  });
+
+  test("plain ws:// is not an address kind", () => {
+    expect(parseServiceEndpoint("ws://box.example:8443")).toEqual({
+      ok: false,
+      error: { kind: "unknown_scheme" },
+    });
+  });
+});

@@ -3,7 +3,8 @@ import { Type } from "typebox";
 import { parseServiceEndpoint, type EndpointParseError } from "../endpoint.ts";
 
 // 원격 대상 목록(P-08, 데스크톱 로컬 설정 `TARGETS_KEY`). 주소 문법은 `endpoint.ts`를 그대로 쓰고,
-// 화면이 받을 사유만 바꾼다. 저장하는 주소는 루프백 TCP이거나 Unix·SSH 주소다. 비루프백 TCP는 SSH 터널이나 사설망을 쓴다.
+// 화면이 받을 사유만 바꾼다. 저장하는 주소는 루프백 TCP, Unix, SSH, `wss`(LAN·외부 게이트웨이, TLS)다.
+// 평문 비루프백 `tcp://`는 받지 않는다(L4.remote.spec §9). 다른 컴퓨터는 `wss://`나 `ssh://`로 붙는다.
 
 /** 대상 주소의 해석 결과. 화면이 연결 방식을 고르는 데 쓴다 */
 export type TargetAddress =
@@ -15,7 +16,14 @@ export type TargetAddress =
       readonly port: number | null;
       readonly socket: string;
     }
-  | { readonly kind: "tcp"; readonly host: string; readonly port: number };
+  | { readonly kind: "tcp"; readonly host: string; readonly port: number }
+  /** 게이트웨이 `/wire`. pin은 고정한 서버 지문(소문자 64자리 16진수)이고, 없으면 처음 접속 때 확인해 고정한다 */
+  | {
+      readonly kind: "wss";
+      readonly host: string;
+      readonly port: number;
+      readonly pin: string | null;
+    };
 
 export type TargetAddressReason = "empty" | "bad_format" | "relative_path" | "non_loopback";
 
@@ -24,7 +32,7 @@ export type ParseTargetResult =
   | { readonly ok: false; readonly reason: TargetAddressReason };
 
 /** 받는 형식의 머리. 절대 경로만 쓴 주소(`/abs`)는 여기에 없다 */
-const SCHEMES: readonly string[] = ["unix:", "ssh://", "tcp://"];
+const SCHEMES: readonly string[] = ["unix:", "ssh://", "tcp://", "wss://"];
 /** 루프백으로 보는 TCP 호스트. IPv6는 괄호를 뗀 `::1`이다 */
 const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(["127.0.0.1", "::1", "localhost"]);
 
@@ -81,9 +89,64 @@ export function parseTargetAddress(text: string): ParseTargetResult {
         return { ok: false, reason: "non_loopback" };
       }
       return { ok: true, target: { kind: "tcp", host: endpoint.host, port: endpoint.port } };
+    case "wss":
+      return {
+        ok: true,
+        target: {
+          kind: "wss",
+          host: endpoint.host,
+          port: endpoint.port,
+          pin: endpoint.pin ?? null,
+        },
+      };
     default:
       return assertNever(endpoint, "ServiceEndpoint");
   }
+}
+
+// ── 지문 고정(TOFU)과 토큰 보관 이름 ───────────────────────────────────
+
+/** `wss` 주소의 서버 지문. 다른 종류나 고정 전이면 null이다 */
+export function pinOfAddress(address: string): string | null {
+  const parsed = parseTargetAddress(address);
+  return parsed.ok && parsed.target.kind === "wss" ? parsed.target.pin : null;
+}
+
+export type PinAddressResult =
+  | { readonly ok: true; readonly address: string }
+  | { readonly ok: false; readonly reason: "not_wss" | "bad_fingerprint" };
+
+/**
+ * 사용자가 확인한 지문을 `wss` 주소에 고정한다(`wss://host:port/pin/<sha256>`). 이미 고정돼 있으면 새 지문으로 바꾼다
+ * (지문 변경을 사용자가 다시 확인한 경우). 지문은 64자리 16진수이고 `:` 구분자와 대문자를 받는다.
+ */
+export function pinAddress(address: string, fingerprint: string): PinAddressResult {
+  const parsed = parseTargetAddress(address);
+  if (!parsed.ok || parsed.target.kind !== "wss") return { ok: false, reason: "not_wss" };
+  const pin = fingerprint.replaceAll(":", "").toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(pin)) return { ok: false, reason: "bad_fingerprint" };
+  const { host, port } = parsed.target;
+  const shown = host.includes(":") ? `[${host}]` : host;
+  return { ok: true, address: `wss://${shown}:${String(port)}/pin/${pin}` };
+}
+
+/** 지문 고정을 지운 주소. 지문이 바뀐 서버를 다시 확인할 때 쓴다. `wss`가 아니면 null이다 */
+export function unpinAddress(address: string): string | null {
+  const parsed = parseTargetAddress(address);
+  if (!parsed.ok || parsed.target.kind !== "wss") return null;
+  const { host, port } = parsed.target;
+  return `wss://${host.includes(":") ? `[${host}]` : host}:${String(port)}`;
+}
+
+/**
+ * 기기 토큰을 OS 보안 저장소에 둘 때의 항목 이름(`platform-secrets`의 `TokenVault` account). 지문 고정과 무관하게
+ * `host:port`로만 정해서, 지문을 새로 고정해도 토큰을 다시 입력하지 않는다. `wss`가 아니면 null이다.
+ */
+export function tokenAccountOf(address: string): string | null {
+  const parsed = parseTargetAddress(address);
+  if (!parsed.ok || parsed.target.kind !== "wss") return null;
+  const { host, port } = parsed.target;
+  return `${host.includes(":") ? `[${host}]` : host.toLowerCase()}:${String(port)}`;
 }
 
 // ── 대상 목록 ──────────────────────────────────────────────────────────
@@ -162,6 +225,7 @@ export function targetsStorageOf(value: unknown): readonly TargetEntry[] {
 export type AttachFailureKind =
   | "tunnel"
   | "hostKey"
+  | "fingerprint"
   | "auth"
   | "tokenMissing"
   | "protocol"

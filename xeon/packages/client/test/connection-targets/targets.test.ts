@@ -6,10 +6,14 @@ import {
   type AttachFailureKind,
   filterTargets,
   parseTargetAddress,
+  pinAddress,
+  pinOfAddress,
   removeTarget,
   TARGET_SEARCH_THRESHOLD,
   TARGETS_KEY,
   targetsStorageOf,
+  tokenAccountOf,
+  unpinAddress,
   type TargetEntry,
 } from "../../src/connection-targets/index.ts";
 
@@ -314,5 +318,80 @@ describe("attachErrorKey and attachFixKey", () => {
       "desktop.connection.error.permission.fix",
       "desktop.connection.error.other.fix",
     ]);
+  });
+});
+
+describe("wss targets", () => {
+  const PIN = "0123456789abcdef".repeat(4);
+
+  test("a LAN or external wss address is accepted, with and without a pin", () => {
+    expect(parseTargetAddress("wss://192.168.0.7:8443")).toEqual({
+      ok: true,
+      target: { kind: "wss", host: "192.168.0.7", port: 8443, pin: null },
+    });
+    expect(parseTargetAddress(`wss://box.example.com:8443/pin/${PIN}`)).toEqual({
+      ok: true,
+      target: { kind: "wss", host: "box.example.com", port: 8443, pin: PIN },
+    });
+  });
+
+  test("plaintext non-loopback tcp stays rejected and a bad pin is bad_format", () => {
+    expect(parseTargetAddress("tcp://192.168.0.7:8443")).toEqual({
+      ok: false,
+      reason: "non_loopback",
+    });
+    expect(parseTargetAddress("wss://box.example.com:8443/pin/zz")).toEqual({
+      ok: false,
+      reason: "bad_format",
+    });
+  });
+
+  test("addTarget stores a wss target and targetsStorageOf keeps it", () => {
+    const entry: TargetEntry = { id: "w1", label: "box", address: "wss://box.example.com:8443" };
+    expect(addTarget([], entry)).toEqual({ ok: true, list: [entry] });
+    expect(targetsStorageOf([entry])).toEqual([entry]);
+  });
+
+  test("pinAddress writes the confirmed fingerprint (colons and case allowed) and replaces an old pin", () => {
+    const colon = PIN.toUpperCase().match(/../g)?.join(":") ?? "";
+    expect(pinAddress("wss://box.example.com:8443", colon)).toEqual({
+      ok: true,
+      address: `wss://box.example.com:8443/pin/${PIN}`,
+    });
+    expect(pinAddress(`wss://box.example.com:8443/pin/${"a".repeat(64)}`, PIN)).toEqual({
+      ok: true,
+      address: `wss://box.example.com:8443/pin/${PIN}`,
+    });
+    expect(pinAddress("wss://[fd7a::1]:8443", PIN)).toEqual({
+      ok: true,
+      address: `wss://[fd7a::1]:8443/pin/${PIN}`,
+    });
+    expect(pinAddress("wss://box.example.com:8443", "abcd")).toEqual({
+      ok: false,
+      reason: "bad_fingerprint",
+    });
+    expect(pinAddress("ssh://me@box/run/x.sock", PIN)).toEqual({ ok: false, reason: "not_wss" });
+  });
+
+  test("pinOfAddress and unpinAddress read and drop the pin", () => {
+    expect(pinOfAddress(`wss://box.example.com:8443/pin/${PIN}`)).toBe(PIN);
+    expect(pinOfAddress("wss://box.example.com:8443")).toBeNull();
+    expect(unpinAddress(`wss://box.example.com:8443/pin/${PIN}`)).toBe(
+      "wss://box.example.com:8443",
+    );
+    expect(unpinAddress("unix:/tmp/a.sock")).toBeNull();
+  });
+
+  test("tokenAccountOf is host:port, independent of the pin", () => {
+    expect(tokenAccountOf(`wss://Box.Example.com:8443/pin/${PIN}`)).toBe("box.example.com:8443");
+    expect(tokenAccountOf("wss://box.example.com:8443")).toBe("box.example.com:8443");
+    expect(tokenAccountOf("wss://[fd7a::1]:8443")).toBe("[fd7a::1]:8443");
+    expect(tokenAccountOf("unix:/tmp/a.sock")).toBeNull();
+  });
+
+  test("fingerprint is an attach failure kind with its own message keys", () => {
+    const kind: AttachFailureKind = "fingerprint";
+    expect(attachErrorKey(kind)).toBe("desktop.connection.error.fingerprint");
+    expect(attachFixKey(kind)).toBe("desktop.connection.error.fingerprint.fix");
   });
 });
