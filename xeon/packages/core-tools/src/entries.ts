@@ -33,7 +33,8 @@ import {
 } from "./mcp-input.ts";
 import { deriveRisk } from "./policy/modes.ts";
 import type { LockDecl, RawCall, RawOutcome, RawToolResult, ToolEntry } from "./types.ts";
-import { isJsonValue, messageOf, sha256Hex } from "./util.ts";
+import { sandboxBlockContent, sandboxBlockDetails, sandboxBlocksOf } from "./sandbox-blocks.ts";
+import { isJsonObject, isJsonValue, messageOf, sha256Hex } from "./util.ts";
 
 // 등록(ToolRegistration, ToolResourceDef)을 도구 단위 항목(ToolEntry)으로 바꾼다.
 // 기능 도구의 ToolSpec → 실행 함수는 F.capabilities.spec §4.2 환원 규칙 5단계를 따른다(L1.tools.spec §4.3).
@@ -218,9 +219,17 @@ async function invokeCapability(
   } catch (error) {
     // CapabilityError만 isError 결과로 바꾼다. 그 밖의 예외는 호출자(파이프라인)가 처리한다
     if (!isCapabilityError(error)) throw error;
+    // 샌드박스가 막은 것이 있으면(L1.tools.spec §4.12.3) 글에 이유 줄을 붙이고 details.code를 막은 종류로 바꾼다
+    const text = `[${error.data.code}] ${error.data.message}`;
+    const blocks = sandboxBlocksOf(error.data.detail);
+    const blockDetails = sandboxBlockDetails(blocks);
+    const note = sandboxBlockContent(blocks);
+    if (blockDetails === undefined || note === undefined) {
+      return errorOutcome(text, capabilityErrorDetails(error.data), error.data.code === "aborted");
+    }
     return errorOutcome(
-      `[${error.data.code}] ${error.data.message}`,
-      capabilityErrorDetails(error.data),
+      `${text}\n${note.text}`,
+      { ...capabilityErrorDetails(error.data), ...blockDetails, capabilityCode: error.data.code },
       error.data.code === "aborted",
     );
   }
@@ -236,9 +245,16 @@ async function invokeCapability(
       return internalOutcome(spec, `structuredContent violates the output schema of ${spec.name}`);
     }
   }
+  // 샌드박스가 막은 것이 있으면 결과 글 끝에 이유 줄을 붙이고 details에 code와 대상을 더한다(L1.tools.spec §4.12.3)
+  const blocks = sandboxBlocksOf(rendered.structuredContent);
+  const note = sandboxBlockContent(blocks);
+  const blockDetails = sandboxBlockDetails(blocks);
   const result: RawToolResult = {
-    content: [...rendered.content],
-    details: rendered.details ?? null,
+    content: note === undefined ? [...rendered.content] : [...rendered.content, note],
+    details:
+      blockDetails === undefined
+        ? (rendered.details ?? null)
+        : { ...(isJsonObject(rendered.details) ? rendered.details : {}), ...blockDetails },
     isError: false,
     ...(rendered.structuredContent === undefined
       ? {}
