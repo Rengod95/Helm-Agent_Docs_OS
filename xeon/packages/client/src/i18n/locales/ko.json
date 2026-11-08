@@ -1894,6 +1894,7 @@
   "desktop.item.status.hookBlocked": "막힘",
   "desktop.item.status.hookThrew": "훅 오류",
   "desktop.item.thinking": "생각",
+  "desktop.item.thinkingWait": "생각하는 중…",
   "desktop.item.toolAwaitingApproval": "승인 기다리는 중",
   "desktop.item.toolRunning": "실행 중",
   "desktop.item.toolServer": "서버 {server}",

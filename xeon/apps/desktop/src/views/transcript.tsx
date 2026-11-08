@@ -4,6 +4,7 @@ import { useMemo, type ReactNode } from "react";
 import {
   useCompactionAnchors,
   useOpenThreadId,
+  useOpenThreadRunning,
   useLastUserItemId,
   useStreamingIds,
   useTranscriptItemIds,
@@ -20,6 +21,7 @@ import { turnFailureOf } from "./turn-failure-model.ts";
 import { EmptyThread } from "./empty-thread.tsx";
 import { ResumeBand } from "./resume-band.tsx";
 import { RecordedItem, StreamingRow } from "./item-view.tsx";
+import { ThinkingIndicator } from "./thinking-indicator.tsx";
 import { CompactionDivider } from "./compaction-divider.tsx";
 import { VirtualList } from "./virtual-list.tsx";
 import { transcriptRowsOf, type TranscriptRow } from "./transcript-rows.ts";
@@ -46,6 +48,7 @@ export function Transcript(): ReactNode {
   const threadId = useOpenThreadId();
   const ids = useTranscriptItemIds();
   const live = useStreamingIds();
+  const running = useOpenThreadRunning();
   const commands = useCommands();
   const failure = useTurnFailure(threadId);
   const unsentId = useUnsentUserItemId();
@@ -81,6 +84,18 @@ export function Transcript(): ReactNode {
   // 앞부분 답이 온 뒤 끊긴 응답이면 마지막 답 바로 뒤에 끊김을 표시한다. 자동으로 다시 보내지는 않는다
   const cutNotice =
     failure !== null && turnFailureOf(failure).kind === "interrupted" ? <CutMarker /> : null;
+  // 첫 응답을 기다리는 동안(내 말이 마지막이고 진행 중인 글이 아직 없다) 큰 생각 표시를 보인다
+  const lastId = ids[ids.length - 1];
+  const waiting =
+    running && live.length === 0 && lastId !== undefined && lastId === lastUserId ? (
+      <div
+        role="status"
+        className="mx-auto flex w-full max-w-184 items-center gap-2 px-3 py-2 text-ui text-text-secondary"
+      >
+        <ThinkingIndicator active size={24} />
+        {t("desktop.item.thinkingWait")}
+      </div>
+    ) : null;
   if (rows.length === 0) {
     return (
       <>
@@ -112,6 +127,7 @@ export function Transcript(): ReactNode {
           )
         }
       />
+      {waiting}
       {cutNotice}
       {failureNotice}
       <ResumeBand />

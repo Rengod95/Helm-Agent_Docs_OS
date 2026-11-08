@@ -1,0 +1,45 @@
+/* 생각 표시 움직임(dsI). 바깥 고리부터 안쪽으로 0.2초씩 늦게 밝아지고 한 바퀴는 1.8초다. 인라인 <style>은 Tauri CSP가 막아 이 파일로 두고 styles.css가 가져온다.
+   색은 caustic 토큰이다: 움직일 때 agent graphic, 끝난 생각은 tertiary 글자색(라이트·다크는 토큰이 따라간다). */
+.thinking-indicator {
+  color: var(--cs-color-text-tertiary);
+}
+.thinking-indicator[data-active="true"] {
+  color: var(--cs-color-agent-graphic);
+}
+.thinking-indicator-part {
+  opacity: 0.7;
+}
+.thinking-indicator[data-active="true"] .thinking-indicator-part {
+  opacity: 0.25;
+  animation: thinking-indicator-converge 1.8s ease-in-out infinite;
+}
+.thinking-indicator[data-active="true"] .thinking-indicator-step-1 {
+  animation-delay: 0.2s;
+}
+.thinking-indicator[data-active="true"] .thinking-indicator-step-2 {
+  animation-delay: 0.4s;
+}
+.thinking-indicator[data-active="true"] .thinking-indicator-step-3 {
+  animation-delay: 0.6s;
+}
+@keyframes thinking-indicator-converge {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+  }
+  25% {
+    opacity: 1;
+  }
+}
+/* 움직임을 줄이면 멈춘다. 움직이는 중임은 색(agent graphic)으로 남는다 */
+@media (prefers-reduced-motion: reduce) {
+  .thinking-indicator[data-active="true"] .thinking-indicator-part {
+    animation: none;
+    opacity: 0.85;
+  }
+}
+[data-motion="reduce"] .thinking-indicator[data-active="true"] .thinking-indicator-part {
+  animation: none;
+  opacity: 0.85;
+}
