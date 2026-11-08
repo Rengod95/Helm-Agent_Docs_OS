@@ -302,7 +302,7 @@ function HiddenLine(props: { readonly model: McpRowModel }): ReactNode {
 function McpServerDetails(props: { readonly model: McpRowModel }): ReactNode {
   const { tools, stderr } = props.model;
   return (
-    <div className="grid gap-2 rounded-lg bg-neutral-track px-3 py-2">
+    <div className="grid gap-2 rounded-lg bg-neutral-track p-3">
       {tools.length === 0 ? (
         <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.settings.mcp.tools.empty")}</p>
       ) : (
