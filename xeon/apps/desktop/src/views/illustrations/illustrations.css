@@ -1,0 +1,22 @@
+/* 빈 상태 그림의 느린 빛. Link의 craft-link-light와 같은 모양(점선 한 조각이 선을 따라 흐른다)이고 더 느리다.
+   색은 caustic 토큰만 쓴다. 셸 CSP가 인라인 <style>을 막아 파일로 두고 styles.css가 가져온다. */
+.empty-art-light {
+  fill: none;
+  stroke-linecap: round;
+  stroke-dasharray: 0.06 0.94;
+  opacity: 0.9;
+  animation: empty-art-travel 9s linear infinite;
+}
+@keyframes empty-art-travel {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .empty-art-light {
+    display: none;
+  }
+}
