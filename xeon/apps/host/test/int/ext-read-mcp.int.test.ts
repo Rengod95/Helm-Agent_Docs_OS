@@ -292,6 +292,15 @@ test("mcp.serverAction blockAlways and unblock write the user denied list once a
     threadId: undefined,
   });
 
+  // 이미 푼 서버를 다시 풀어도 쓰지 않는다(같은 행동은 멱등이다)
+  const writesBefore = env.calls.length;
+  const again = await connection.request("mcp.serverAction", {
+    server: "fixture",
+    action: "unblock",
+  });
+  expect(again).toMatchObject({ server: "fixture", alwaysBlocked: false });
+  expect(env.calls).toHaveLength(writesBefore);
+
   // 목록이 비면 설정을 지운다(기본값)
   await connection.request("mcp.serverAction", { server: "remote", action: "unblock" });
   expect(env.calls.at(-1)).toEqual({

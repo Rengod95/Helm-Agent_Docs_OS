@@ -13,6 +13,7 @@ import {
   mcpDefOfView,
   nameOf,
   newFailuresOf,
+  statusChipOf,
   plaintextSecretOf,
   rowModelOf,
   sourceChipOf,
@@ -199,6 +200,11 @@ describe("rowModelOf", () => {
     expect(model.hidden).toEqual({ count: 2, reasons: ["name_conflict"] });
     expect(model.stderr).toEqual(["boot failed"]);
     expect(model.tools.map((tool) => tool.name)).toEqual(["read_file"]);
+  });
+
+  test("the status chip puts the block before the connection state", () => {
+    expect(statusChipOf({ alwaysBlocked: true, state: "failed" })).toEqual("alwaysBlocked");
+    expect(statusChipOf({ alwaysBlocked: false, state: "failed" })).toEqual("failed");
   });
 
   test("the block action is unblock for an always-blocked server and block otherwise", () => {

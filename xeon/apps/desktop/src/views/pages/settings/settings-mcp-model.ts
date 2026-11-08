@@ -141,8 +141,9 @@ export function rowModelOf(row: McpServerRow, locale: string): McpRowModel {
     blocked: row.blockedReason ?? null,
     toolCount: row.toolCount,
     hidden: hiddenLineOf(row.hiddenTools),
+    // 차단한 서버는 시작하지 않으므로 지난 실패 글은 낡은 정보다. 차단 사유를 앞세우고 오류는 보이지 않는다
     error:
-      row.lastError === undefined
+      row.lastError === undefined || row.alwaysBlocked
         ? null
         : {
             message: firstLineOf(row.lastError.message),
@@ -170,6 +171,13 @@ function locationNoteOf(row: McpServerRow): LocationNote {
     default:
       return assertNever(row.origin, "McpServerOrigin");
   }
+}
+
+/** 상태 칩. 사용자가 항상 끄기로 차단한 서버는 연결 상태보다 차단을 앞세운다 */
+export type StatusChip = "alwaysBlocked" | McpServerState;
+
+export function statusChipOf(row: Pick<McpRowModel, "alwaysBlocked" | "state">): StatusChip {
+  return row.alwaysBlocked ? "alwaysBlocked" : row.state;
 }
 
 /** 행의 "항상 끄기"가 보낼 행동. 이미 차단되어 있으면 풀기다 */

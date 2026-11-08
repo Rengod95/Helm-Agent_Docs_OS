@@ -3,7 +3,7 @@ import { activeLocale, t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { McpServerDef } from "@fresnel/contracts/capabilities";
 import type { McpServerAction, McpServerRow } from "@fresnel/contracts/wire";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLinkPhase } from "../../../state/engine/index.ts";
 import { useCommands, type Commands } from "../../commands.ts";
 import {
@@ -54,6 +54,12 @@ type Dialog =
       readonly error: MsgRef | null;
       readonly busy: boolean;
     };
+
+/**
+ * 행동이 끝난 뒤에도 단추를 잠가 두는 시간(밀리초). 같은 단추가 행동 결과로 "항상 끄기"에서 "차단 풀기"로 바뀌므로,
+ * 연속 클릭의 두 번째 눌림이 방금 한 행동을 되돌리지 않게 한다
+ */
+const ACTION_SETTLE_MS = 700;
 
 /** 이 앱 실행에서 이미 알린 시작 실패(서버 id와 오류 시각). 구역을 닫았다 열어도 같은 실패는 다시 알리지 않는다 */
 const ANNOUNCED = new Set<string>();
@@ -136,10 +142,18 @@ export function McpServersPanel(): ReactNode {
     setTick((n) => n + 1);
   };
 
+  // 처리 중인 서버. 상태가 아니라 참조인 이유: 같은 틱의 두 번째 눌림도 막아야 한다
+  const inflight = useRef<Set<string>>(new Set());
+
+  const release = (server: string): void => {
+    inflight.current.delete(server);
+    setBusy((prev) => withMember(prev, server, false));
+  };
+
   const runAction = async (server: string, action: McpServerAction): Promise<void> => {
     const done = await commands.mcp.serverAction(server, action);
-    setBusy((prev) => withMember(prev, server, false));
     if (!done.ok) {
+      release(server);
       setRowErrors((prev) => withRowError(prev, server, commandErrorRefOf(done.error)));
       return;
     }
@@ -148,9 +162,16 @@ export function McpServersPanel(): ReactNode {
         ? { kind: "ready", rows: withRowReplaced(prev.rows, done.value), rev: prev.rev }
         : prev,
     );
+    // 행동은 다른 행의 상태(이름 충돌로 숨은 도구 등)도 바꿀 수 있으니 목록을 다시 읽는다
+    reload();
+    window.setTimeout(() => {
+      release(server);
+    }, ACTION_SETTLE_MS);
   };
 
   const act = (server: string, action: McpServerAction): void => {
+    if (inflight.current.has(server)) return;
+    inflight.current.add(server);
     setBusy((prev) => withMember(prev, server, true));
     setRowErrors((prev) => withRowError(prev, server, null));
     detach(runAction(server, action), rethrow);

@@ -7,6 +7,7 @@ import type {
   HiddenReasonKind,
   LocationNote,
   SourceChip,
+  StatusChip,
 } from "./settings-mcp-model.ts";
 
 // 설정 "MCP 서버" 구역의 문장 고르기. 문장은 메시지 키와 인자로 들고 있다가 그릴 때 `t()`로 만든다.
@@ -26,14 +27,18 @@ const STATE_ID: Readonly<Record<McpServerState, MessageId>> = {
   blocked: "desktop.settings.mcp.state.blocked",
 };
 
-export function stateIdOf(state: McpServerState): MessageId {
-  return STATE_ID[state];
+/** 상태 칩의 글. 항상 끄기로 차단한 서버는 "차단됨"이다 */
+export function chipIdOf(chip: StatusChip): MessageId {
+  return chip === "alwaysBlocked" ? "desktop.settings.mcp.state.alwaysBlocked" : STATE_ID[chip];
+}
+
+/** 상태 칩의 색. 차단됨은 경고다 */
+export function chipToneOf(chip: StatusChip): ReturnType<typeof stateToneOf> {
+  return chip === "alwaysBlocked" ? "warning" : stateToneOf(chip);
 }
 
 /** 상태 칩의 색. 연결됨은 성공, 실패는 위험, 막힘은 경고다 */
-export function stateToneOf(
-  state: McpServerState,
-): "success" | "danger" | "warning" | "info" | "neutral" {
+function stateToneOf(state: McpServerState): "success" | "danger" | "warning" | "info" | "neutral" {
   switch (state) {
     case "connected":
       return "success";
