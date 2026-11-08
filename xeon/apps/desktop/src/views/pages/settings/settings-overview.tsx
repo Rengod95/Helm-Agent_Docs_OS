@@ -18,7 +18,8 @@ import {
   type DiagnosticTone,
 } from "./settings-text.ts";
 
-// 개요 탭(P-09 시안 `overview-tab.tsx`): "설정 파일"(경로는 `settings.readFile`의 `path`), "지금 상태", "화면 진단"(진단 복사) 카드.
+// 개요 탭(P-09 시안 `overview-tab.tsx`): "설정 파일"(경로는 `settings.readFile`의 `path`), "지금 상태", "화면 진단" 카드.
+// "정보와 진단"의 진단 복사·로그 폴더 열기는 구역 전체 동작이라 줄 카드 안이 아니라 구역 머리 오른쪽 끝에 둔다(줄 사이 구분선에 끼지 않는다) [결정: 2026-11-08 사용자, dsB]
 export const ROWS_CLASS =
   "rounded-none [--cs-size-list-term:9rem] [&_[data-slot=list-description-row]]:px-0 @max-[26rem]:[&_[data-slot=list-description-row]]:grid-cols-[minmax(0,1fr)_auto] @max-[26rem]:[&_[data-slot=list-description-term]]:col-span-full";
 
@@ -89,7 +90,51 @@ export function OverviewPanels(props: {
         </SettingSection>
       )}
       {props.trustPanel}
-      <SettingSection title={t("desktop.settings.about.title")}>
+      <SettingSection
+        title={t("desktop.settings.about.title")}
+        end={
+          <div className="flex flex-none items-center gap-2" data-slot="settings-about-actions">
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => {
+                detach(
+                  commands.copyDiagnostics().then((ok) => {
+                    if (ok)
+                      toast({ tone: "success", title: t("desktop.settings.overview.copied") });
+                    return undefined;
+                  }),
+                  rethrow,
+                );
+              }}
+            >
+              {t("desktop.settings.overview.copyDiagnostics")}
+            </Button>
+            {shell === null ? null : (
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={() => {
+                  detach(
+                    shell.invoke("open_log_dir").then(
+                      () => undefined,
+                      () => {
+                        toast({
+                          tone: "danger",
+                          title: t("desktop.settings.about.openLogsFailed"),
+                        });
+                      },
+                    ),
+                    rethrow,
+                  );
+                }}
+              >
+                {t("desktop.settings.about.openLogs")}
+              </Button>
+            )}
+          </div>
+        }
+      >
         <ListDescription
           variant="ghost"
           size="xs"
@@ -104,42 +149,6 @@ export function OverviewPanels(props: {
           </ListDescriptionRow>
         </ListDescription>
         {props.updatePanel}
-        <div className="flex flex-wrap items-center gap-2 pt-2" data-slot="settings-about-actions">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              detach(
-                commands.copyDiagnostics().then((ok) => {
-                  if (ok) toast({ tone: "success", title: t("desktop.settings.overview.copied") });
-                  return undefined;
-                }),
-                rethrow,
-              );
-            }}
-          >
-            {t("desktop.settings.overview.copyDiagnostics")}
-          </Button>
-          {shell === null ? null : (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                detach(
-                  shell.invoke("open_log_dir").then(
-                    () => undefined,
-                    () => {
-                      toast({ tone: "danger", title: t("desktop.settings.about.openLogsFailed") });
-                    },
-                  ),
-                  rethrow,
-                );
-              }}
-            >
-              {t("desktop.settings.about.openLogs")}
-            </Button>
-          )}
-        </div>
       </SettingSection>
       <SettingSection title={t("desktop.settings.overview.state")}>
         <ListDescription
