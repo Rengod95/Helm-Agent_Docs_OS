@@ -127,14 +127,25 @@
     display: flex;
     gap: 14px;
     align-items: center;
-    border-top: 1px solid var(--border);
     background: var(--panel);
-    padding: 4px 12px;
+    padding: 0 12px;
+    min-height: 24px;
     font-size: 12px;
     /* 칸이 겹치거나 잘리지 않게 넘치면 다음 줄로 보낸다. 폭 판정은 창이 아니라 이 줄의 폭이다(앱 확대도 반영) */
     flex-wrap: wrap;
     row-gap: 2px;
     container-type: inline-size;
+  }
+  /* 칸 단추(xs, 24px)가 줄 높이를 정하지 않게 20px로 낮춘다. 상태 표시줄은 위 구분선 없이 면 색만 다르다 */
+  .statusbar [data-slot="button"] {
+    min-height: 0;
+    height: 20px;
+  }
+  /* 화면 머리줄(대화·설정). 무대 오른쪽의 막대 여백(`--shell-rail`)을 음수 마진으로 걷어 머리가 내용 영역 끝까지 가고,
+     같은 폭만큼 안쪽 여백으로 오른쪽 끝 단추가 막대에 가리지 않게 한다. 좌우 여백은 머리 자체가 가진다 */
+  .shell-header {
+    margin-inline-end: calc(var(--shell-rail, 0px) * -1);
+    padding-inline: 12px calc(var(--shell-rail, 0px) + 12px);
   }
   .statusbar .grow {
     flex: 1;

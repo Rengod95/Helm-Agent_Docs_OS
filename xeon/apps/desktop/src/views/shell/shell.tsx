@@ -178,7 +178,8 @@ function ShellFrame(props: ShellProps): ReactNode {
   const onChatScreen = useShell((s) => s.area === "chat" && s.places.chat.screen === "chat");
   const railArea = useShell((s) => s.area);
   const railScreen = useShell((s) => s.places[s.area].screen);
-  // 오른쪽 막대가 있으면 그 폭만큼 무대 오른쪽을 비운다. 막대가 머리줄의 단추를 가리지 않게 한다
+  // 오른쪽 막대가 있으면 그 폭만큼 무대 오른쪽을 비운다. 막대가 머리줄의 단추를 가리지 않게 한다.
+  // 머리줄(`.shell-header`)은 그 여백을 `--shell-rail`로 받아 무대 끝(막대 아래)까지 뻗고 안쪽 여백으로 단추를 피한다
   const hasRail = props.registry.endTabs(railArea, railScreen).length > 0;
   useWindowResize();
   useShellShortcuts(props);
@@ -246,12 +247,12 @@ function ShellFrame(props: ShellProps): ReactNode {
               </IconButton>
             </div>
           )}
-          <div className="relative flex min-h-0 flex-1 p-1.5 pb-0">
+          <div className="relative flex min-h-0 flex-1">
             <main
               id={STAGE_ID}
               tabIndex={-1}
               aria-label={t("desktop.shell.stage.label")}
-              className={`flex min-w-0 flex-1 flex-col outline-none ${hasRail ? "pe-10" : ""}`}
+              className={`flex min-w-0 flex-1 flex-col outline-none ${hasRail ? "pe-10 [--shell-rail:2.5rem]" : ""}`}
             >
               <Stage
                 registry={props.registry}

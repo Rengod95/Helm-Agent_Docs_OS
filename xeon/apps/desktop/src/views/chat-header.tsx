@@ -13,7 +13,7 @@ import { ThreadRowMenu } from "./thread-row-menu.tsx";
 
 // 대화 머리(시안 _chat-rt의 ChatHead): 고른 대화의 제목 한 줄과 ⋯ 메뉴(행 메뉴와 같은 메뉴, 명령과 대화 상자도 같다).
 // 왼쪽 패널이 닫혀 있으면 맨 앞에 "시작 영역 열기" 단추를 둔다. 대화를 고르지 않았고 패널이 열려 있으면 아무것도 그리지 않는다.
-// 머리 폭은 시안대로 가운데 46rem이다.
+// 머리는 대화 열이 아니라 내용 영역 전체 폭이다(`.shell-header`: 오른쪽 막대 밑까지, 좌우 여백은 머리가 가진다). 제목은 왼쪽, 높이 36px.
 
 export function ChatHeader(): ReactNode {
   const id = useSelectedThreadId();
@@ -70,8 +70,8 @@ function HeadRow(props: { readonly title: ReactNode; readonly menu: ReactNode })
   const actions = useShellActions();
   if (startOpen && props.title === null) return null;
   return (
-    <header className="mx-auto grid w-full max-w-184 flex-none grid-cols-[minmax(0,1fr)] px-3">
-      <div className="flex h-10 min-w-0 items-center gap-1">
+    <header className="shell-header grid flex-none grid-cols-[minmax(0,1fr)]">
+      <div className="flex h-9 min-w-0 items-center gap-1">
         {startOpen ? null : (
           <IconButton
             size="sm"
