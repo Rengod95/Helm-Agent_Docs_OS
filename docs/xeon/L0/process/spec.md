@@ -616,7 +616,7 @@ ensureService():
 - [결정: review.m3-design-inputs D-M3-16, M3-REQ-43] Unix 소켓은 파일 권한(소켓 0600, 디렉터리 0700)으로만 막고 토큰을 검사하지 않는다(P-10 닫힘). `listenSocket`은 소켓 파일을 0600으로 만든다. `PeerInfo.requiresToken`은 unix에서 거짓이다.
 - TCP로 열 때만 토큰을 검사한다. `listenSocket({ kind: "tcp" })`는 토큰이 비어 있으면 `token_required`로 열지 않는다. `PeerInfo.requiresToken`이 참인 연결의 `host.hello`는 `auth.token`을 `verifyToken`(상수 시간 비교)으로 검사하고, 없으면 `host.authFailed`(`details.reason: "missing"`), 틀리면 `"invalid"`로 응답한 뒤 연결을 닫는다. hello 전 다른 메서드는 1001로 거부된다. 토큰 회전은 `TokenGate.rotate()`가 새 토큰을 만들고 이전 토큰을 즉시 무효로 한다. 이미 열린 연결은 그대로다.
 - 원격(1차, M3): SSH 터널이나 사설망으로 연결된 클라이언트도 로컬 소켓에 접속하므로 같은 규칙을 쓴다. 터널 끝이 서버 쪽 사용자 권한으로 소켓에 접속하기 때문이다. 토큰 검사는 이 경로의 추가 방어다(미결 P-10).
-- TCP 전송(`fresnel host --service`의 `--listen-tcp <host:port>` 옵션, L4): 위 규칙대로 토큰이 필수다. 루프백 주소(`localhost`, `127.x`, `::1`)가 아니면 토큰이 있어도 `allowNonLoopback`을 명시해야 열린다(`tcp_not_loopback`) [결정: 오케스트레이터 기본값, Codex app-server 선례]. 내장 TLS + WebSocket은 2차다.
+- TCP 전송(`fresnel host --service`의 `--listen-tcp <host:port>` 옵션, L4): 위 규칙대로 토큰이 필수다. 루프백 주소(`localhost`, `127.x`, `::1`)가 아니면 토큰이 있어도 `allowNonLoopback`을 명시해야 열린다(`tcp_not_loopback`) [결정: 오케스트레이터 기본값, Codex app-server 선례]. 내장 TLS + WebSocket은 2차다. [결정: 2026-11-08 원격 방향] 외부 접근은 TLS와 기기 인증을 갖춘 웹 게이트웨이만 연다. 서비스 호스트 자체는 비루프백 리스너를 열지 않는다(`L4.remote.spec` §9). 이 절의 `allowNonLoopback`은 `L4.remote.spec` §9 3번에 따라 대체 예정이다(제거는 사용자 승인 뒤, `L4.remote.plan` W9).
 - 토큰은 32바이트 무작위(`crypto.getRandomValues`, 주입), base64url. 등록 파일 밖으로 쓰지 않고 로그에 남기지 않는다.
 
 #### 4.4.6 기동과 분리, 종료 협조, 소실
@@ -681,7 +681,7 @@ ssh -N -T -o ExitOnForwardFailure=yes -o BatchMode=yes -o ServerAliveInterval=15
 
 **루프백 원칙**
 
-원격 사용을 위해 서비스가 TCP 리스너를 새로 열지 않는다. 호스트는 Unix 소켓과 루프백 TCP만 연다. 원격 클라이언트는 SSH 터널의 끝(서버 쪽 사용자 권한)으로 소켓에 접속하므로 서버 쪽에 비루프백 리스너가 생기지 않는다 [결정: review.decisions-2 U-11, product.scope.spec X5]. 사설망 TCP 연결은 이 절의 터널이 아니며, 허용 여부는 [미결 P-13]이다.
+원격 사용을 위해 서비스가 TCP 리스너를 새로 열지 않는다. 호스트는 Unix 소켓과 루프백 TCP만 연다. 원격 클라이언트는 SSH 터널의 끝(서버 쪽 사용자 권한)으로 소켓에 접속하므로 서버 쪽에 비루프백 리스너가 생기지 않는다 [결정: review.decisions-2 U-11, product.scope.spec X5]. 사설망 TCP 연결은 이 절의 터널이 아니며, 허용 여부는 [해소 P-13: 2026-11-08, 비루프백은 게이트웨이만 열고 서비스 호스트는 열지 않는다. `L4.remote.spec` §9]이다.
 
 **인증**
 
@@ -826,7 +826,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 
 - 자동 재개 키는 이 표에 두지 않는다. `l1.persistence.autoResume`, `l1.persistence.maxResumeAttempts`(`L1.persistence.spec` §6)가 정본이다 [결정: review.decisions-2 S-03].
 - `startupGraceMs`(10000)는 설정으로 열지 않는다 [제안].
-- `l0.process.service.remote`는 원격 서비스 주소다. 빈 값이면 지금처럼 로컬 서비스나 프로세스 안 엔진에 붙는다. 값이 있으면 CLI 대화와 데스크톱 사이드카가 그 주소에 붙는다. 값은 `unix:/절대/경로`, `tcp://host:port`, `ssh://[user@]host[:port]/절대/원격/소켓/경로` 가운데 하나다. 해석은 `@fresnel/client`가 한다. `ssh://` 값은 §4.4.8의 `sshTunnelCommand` 입력이 된다. `tcp://` 값의 토큰은 환경 변수 `FRESNEL_REMOTE_TOKEN`에서만 읽고 설정 파일에는 두지 않는다 [제안]. 비루프백 `tcp://`의 허용 여부는 [미결 P-13]이다.
+- `l0.process.service.remote`는 원격 서비스 주소다. 빈 값이면 지금처럼 로컬 서비스나 프로세스 안 엔진에 붙는다. 값이 있으면 CLI 대화와 데스크톱 사이드카가 그 주소에 붙는다. 값은 `unix:/절대/경로`, `tcp://host:port`, `ssh://[user@]host[:port]/절대/원격/소켓/경로` 가운데 하나다. 해석은 `@fresnel/client`가 한다. `ssh://` 값은 §4.4.8의 `sshTunnelCommand` 입력이 된다. `tcp://` 값의 토큰은 환경 변수 `FRESNEL_REMOTE_TOKEN`에서만 읽고 설정 파일에는 두지 않는다 [제안]. 비루프백 `tcp://`의 허용 여부는 [해소 P-13: 2026-11-08, 비루프백은 게이트웨이만 열고 서비스 호스트는 열지 않는다. `L4.remote.spec` §9]이다.
 
 ## 7. 훅
 
@@ -921,5 +921,5 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 - [미결 P-11] Windows에서 `.cmd` 셔임(`npx.cmd` 등)으로 stdio MCP 서버를 띄우는 방법. 셸 없이 실행할 수 없어 `cross-spawn` 같은 해석이 필요하다. 1차 지원 OS(macOS, Linux, WSL)에는 해당이 없다.
 - [해소 P-15] `McpSpawnSpec.sandbox`는 이 포트가 강제한다(§4.9 2번). 격리가 되면 샌드박스 서비스 `wrapArgv`의 명령줄로 띄우고, 격리를 쓸 수 없으면 `sandbox_unavailable`로 막는다. 격리 없이 띄우는 것은 사용자가 끈 때뿐이고 그때 경고 `mcp.sandbox_not_enforced`를 남긴다. 스트림은 호출자가 `argv`를 파이프로 띄워 연다(`L0.sandbox.spec` §4.9).
 - [해소 P-12, M3-05] 시크릿 env가 있는 MCP stdio 서버의 기동 승인은 정의 해시마다 한 번이다(`L0.secrets.spec` §4.3.1). `L2.mcp`가 승인을 받아 증거를 `McpSpawnSpec.approval`에 싣는다(`L2.mcp.spec` §4.3).
-- [미결 P-13] 사설망 TCP와 비루프백 리스너. `review.m3-design-inputs` D-M3-16 c는 소켓을 사설망에 TCP로 여는 경우에 토큰을 요구하고, 이 문서 §4.4.5는 `allowNonLoopback`으로 그것을 허용한다. 그러나 `product.scope.spec` X5와 `architecture.security.spec` T-10은 M3 원격에서 서비스가 비루프백 리스너를 열지 않는다고 적는다. 이 문서는 X5·T-10을 따라 원격에 TCP 리스너를 새로 열지 않는다. 그래서 `tcp://` 원격 값은 루프백 주소에서만 뜻이 있다. 사설망 주소(Tailscale 등)를 허용할지는 사용자가 정해야 하고, 허용하면 §4.4.5, X5, T-10을 함께 고친다.
+- [해소 P-13: 2026-11-08 `L4.remote.spec` §9] 사설망 TCP와 비루프백 리스너. `review.m3-design-inputs` D-M3-16 c는 소켓을 사설망에 TCP로 여는 경우에 토큰을 요구하고, 이 문서 §4.4.5는 `allowNonLoopback`으로 그것을 허용한다. 그러나 `product.scope.spec` X5와 `architecture.security.spec` T-10은 M3 원격에서 서비스가 비루프백 리스너를 열지 않는다고 적는다. 이 문서는 X5·T-10을 따라 원격에 TCP 리스너를 새로 열지 않는다. 그래서 `tcp://` 원격 값은 루프백 주소에서만 뜻이 있다. 사설망 주소(Tailscale 등)를 허용할지는 사용자가 정해야 하고, 허용하면 §4.4.5, X5, T-10을 함께 고친다.
 - [가정] Bun 1.4.3의 `node:child_process` `detached`·`unref`와 `Bun.listen({ unix })`의 macOS 동작은 실측하지 않았다.

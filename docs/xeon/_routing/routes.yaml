@@ -65,7 +65,7 @@ layout:
       authoring: "xeon/packages/plugin-builder/**"
       # slots는 코드 없음 (템플릿 문서만)
   L4:
-    domains: [cli, desktop, host-service, settings-ui, release, desktop-ux]
+    domains: [cli, desktop, host-service, settings-ui, release, desktop-ux, remote]
     paths:
       cli: "xeon/apps/cli/**"
       desktop: "xeon/apps/desktop/**"
@@ -79,6 +79,8 @@ layout:
       desktop-ux: "xeon/apps/desktop/src/views/**"
       # Electron 셸(L4.desktop.spec §11). 도메인은 desktop이고 binds만 이 경로를 더한다
       desktop-shell: "xeon/apps/desktop-shell/**"
+      # 원격 origin 접근(웹 게이트웨이). 코드는 desktop-shell 패키지의 src/web 아래(트랙 계획은 L4.remote.plan이 정한다)
+      remote: "xeon/apps/desktop-shell/src/web/**"
   plugins:
     - path: "xeon/plugins/provider-anthropic-oauth/**"
       docs: [L1.readme, L1.models.spec, L1.models.plan]
