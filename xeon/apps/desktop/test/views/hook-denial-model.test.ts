@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { JsonObject } from "@fresnel/contracts/conversation";
-import { hookDenialOf } from "../../src/views/hook-denial-model.ts";
+import { hookDenialOf, isUserDenial } from "../../src/views/hook-denial-model.ts";
 
 /** 엔진이 싣는 모양의 기본 details. 시험마다 바뀌는 칸만 덮는다 */
 const details = (fields: JsonObject): JsonObject => ({
@@ -56,5 +56,15 @@ describe("hookDenialOf", () => {
       extension: null,
       reason: "no reads today",
     });
+  });
+});
+
+describe("isUserDenial", () => {
+  test("only details whose code is denied_by_user count, and the old text prefix does not", () => {
+    expect(isUserDenial({ code: "denied_by_user" })).toBe(true);
+    expect(isUserDenial({ code: "denied_by_extension" })).toBe(false);
+    expect(isUserDenial(null)).toBe(false);
+    expect(isUserDenial(undefined)).toBe(false);
+    expect(isUserDenial("[fresnel:denied_by_user] The user denied this tool call.")).toBe(false);
   });
 });

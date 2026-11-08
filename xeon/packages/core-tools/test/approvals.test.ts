@@ -86,9 +86,10 @@ test("a deny response blocks the call with the fixed sentence and the user's fee
     answer: { feedback: "use trash instead" },
   });
   const out = await done;
-  expect(out.blocked).toBe(
-    "[fresnel:denied_by_user] The user denied this tool call. Feedback: use trash instead",
-  );
+  // 모델에 가는 글은 사람이 읽는 이유이고, 코드는 구조 필드(details)에만 있다
+  expect(out.blocked).toBe("사용자가 이 도구 호출을 거부했다. 사용자 의견: use trash instead");
+  expect(out.blocked).not.toContain("denied_by_user");
+  expect(out.outcome.result.details).toEqual({ code: "denied_by_user" });
   expect(probe.calls).toEqual([]);
   // 거부된 호출에는 효과 이벤트가 없다
   expect(kinds(h)).toEqual([

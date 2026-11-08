@@ -302,7 +302,8 @@ export function validateResponse(
 
 const DENIED_EXPIRED =
   "[fresnel:approval_expired] The approval request expired before an answer, so it was denied.";
-const DENIED_BY_USER = "[fresnel:denied_by_user] The user denied this tool call.";
+/** 사용자 거부 사유. 코드(`denied_by_user`)는 글에 넣지 않고 결과의 `details.code`에만 둔다(`denialDetails`). 모델이 코드를 그대로 읊지 않게 한다 */
+const DENIED_BY_USER = "사용자가 이 도구 호출을 거부했다.";
 const DENIED_CANCELLED =
   "[fresnel:approval_cancelled] The approval request was cancelled before an answer.";
 
@@ -317,6 +318,19 @@ export function denialReason(resolution: ApprovalResolution): string {
   }
   const feedback = isJsonObject(resolution.answer) ? resolution.answer["feedback"] : undefined;
   return typeof feedback === "string" && feedback.length > 0
-    ? `${DENIED_BY_USER} Feedback: ${feedback}`
+    ? `${DENIED_BY_USER} 사용자 의견: ${feedback}`
     : DENIED_BY_USER;
+}
+
+/**
+ * 거부 결과의 구조 필드(`details`). 사용자가 직접 거부했을 때만 코드 `denied_by_user`를 싣고, 화면이 이 코드로 "거부함"을 알아본다.
+ * 다른 사유(취소, 만료, 대화형이 아닌 실행)는 글머리의 `[fresnel:<코드>]`가 그대로다
+ */
+export function denialDetails(resolution: ApprovalResolution): JsonObject | null {
+  const other =
+    resolution.resolvedBy === "cancelled" ||
+    resolution.resolvedBy === "superseded" ||
+    resolution.resolvedBy === "expired" ||
+    resolution.resolvedBy === "noninteractive";
+  return other ? null : { code: "denied_by_user" };
 }

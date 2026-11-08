@@ -37,7 +37,7 @@ import { EntrySurface } from "./plugin/plugin-view.tsx";
 import { usePluginUi, usePluginUiState } from "./plugin/plugin-context.tsx";
 import { useGoToThread } from "./thread-link.ts";
 import { useOpenExtensionRecords } from "./extension-records-link.ts";
-import { hookDenialOf, type HookDenialView } from "./hook-denial-model.ts";
+import { hookDenialOf, isUserDenial, type HookDenialView } from "./hook-denial-model.ts";
 import { toolOutputOf } from "./tool-output-model.ts";
 import {
   AGENT_TOOL,
@@ -269,7 +269,6 @@ function CustomBody(props: {
   );
 }
 
-const DENIED_CODE = "fresnel:denied_by_user";
 const CODE_PREFIX = /^\[([^\]]+)\]\s*/;
 
 /** 결과 글머리의 `[코드] ` 꼬리표를 읽는다. 없으면 코드는 null이다 */
@@ -365,7 +364,7 @@ function resultViewOf(item: ItemRecord): ResultView | null {
   const agentAborted =
     item.message.toolName === AGENT_TOOL &&
     agentResultOf(shown.text, item.message.details, true).outcome === "aborted";
-  if (code === DENIED_CODE) {
+  if (isUserDenial(item.message.details)) {
     return {
       status: "failed",
       failedLabel: t("desktop.item.status.denied"),

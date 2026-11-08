@@ -100,7 +100,13 @@ function mcpResultItem(n: number, toolName: string, server: string): ItemRecord 
   return { ...base, message: { ...base.message, details: { server, tool: toolName } } };
 }
 
-function toolResultItem(n: number, toolName: string, text: string, isError: boolean): ItemRecord {
+function toolResultItem(
+  n: number,
+  toolName: string,
+  text: string,
+  isError: boolean,
+  details?: JsonObject,
+): ItemRecord {
   return {
     itemId: itm(n),
     status: isError ? "failed" : "completed",
@@ -112,6 +118,7 @@ function toolResultItem(n: number, toolName: string, text: string, isError: bool
       toolName,
       content: [{ type: "text", text }],
       isError,
+      ...(details === undefined ? {} : { details }),
       timestamp: 0,
     },
   };
@@ -223,12 +230,14 @@ describe("one row per tool call", () => {
     const h = openedHarness();
     ingestRecords(h, [
       callItem(1, 2, "bash"),
-      toolResultItem(2, "bash", "[fresnel:denied_by_user] The user denied this tool call.", true),
+      toolResultItem(2, "bash", "사용자가 이 도구 호출을 거부했다.", true, {
+        code: "denied_by_user",
+      }),
     ]);
     const call = visibleText(render(<RecordedItem id={itm(1)} />, h));
     expect(call).toContain(t("desktop.item.status.denied"));
     expect(call).toContain(t("desktop.item.denied.body"));
-    expect(call).not.toContain("fresnel:denied_by_user");
+    expect(call).not.toContain("denied_by_user");
     expect(call).not.toContain(t("desktop.item.status.failed"));
     expect(render(<RecordedItem id={itm(2)} />, h)).toBe("");
   });
