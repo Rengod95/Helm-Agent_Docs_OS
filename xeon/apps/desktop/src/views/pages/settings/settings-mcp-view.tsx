@@ -183,12 +183,19 @@ function McpServerRowView(props: McpServerRowViewProps): ReactNode {
       </div>
       <BlockedLine model={model} />
       {model.error === null ? null : (
-        <p className="m-0 text-ui-sm break-words text-danger-text">
-          {t("desktop.settings.mcp.lastError", {
-            time: model.error.time,
-            message: model.error.message,
-          })}
-        </p>
+        <div className="flex flex-wrap items-center gap-1">
+          <p className="m-0 text-ui-sm break-words text-danger-text">
+            {t("desktop.settings.mcp.lastError", {
+              time: model.error.time,
+              message: model.error.message,
+            })}
+          </p>
+          {model.error.original === null ? null : (
+            <InfoTip
+              text={t("desktop.settings.mcp.error.original", { text: model.error.original })}
+            />
+          )}
+        </div>
       )}
       <HiddenLine model={model} />
       {props.error === null ? null : (

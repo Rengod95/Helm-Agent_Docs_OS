@@ -2089,6 +2089,7 @@
   "desktop.settings.mcp.remove.keep": "Keep it",
   "desktop.settings.mcp.remove.confirm": "Remove",
   "desktop.settings.mcp.toast.failed": "Server {name} did not start: {reason}",
+  "desktop.settings.mcp.error.original": "Original text from the server: {text}",
   "desktop.settings.mcp.error.unsupported": "This engine does not support the MCP server list",
   "desktop.settings.mcp.error.switching": "The engine is switching, so try again in a moment",
   "desktop.settings.mcp.error.locked": "Another process is writing, so this cannot change",

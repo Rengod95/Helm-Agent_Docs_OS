@@ -635,6 +635,7 @@ sequenceDiagram
 - stdio 서버 프로세스가 죽은 경우도 같은 규칙이다. 재기동은 `fresnel.process`로 한다.
 - 재연결 중 들어온 호출은 §4.5 2번대로 바로 `server_disconnected`다.
 - 오류 문구(fxMC): `failureToError`와 `lastError.message`는 한국어로 서버 id와 이유, 호출 제한 시간이 있으면 시간을 넣는다(예: `서버 qa 호출이 응답하지 않아 15초 뒤 끊었어요 (설정: MCP 호출 제한 시간, l2.mcp.callTimeoutMs)`). 원문은 마스킹 뒤에만 덧붙인다. 코드 문자열(`server_disconnected` 등)은 저장 값이라 그대로다 [결정: 오케스트레이터 기본값, fxMC].
+- 시작 실패 문구(fxMC2): 연결 시도가 실패하면 `lastError.message`의 첫 줄은 `서버 <id>에 연결하지 못했어요: <한국어 원인>`이고, 둘째 줄부터는 서버나 SDK가 준 원문과 stderr 끝 줄(`stderr: …`, 마스킹 뒤)이다. 한국어 원인은 `describeStartFailure`(`src/client/start-failure.ts`)가 고른다: 프로세스가 바로 끝남("서버의 오류 출력 끝 줄을 확인해 주세요"), 명령을 찾지 못함(`ENOENT`), 실행 권한 없음(`EACCES`), 연결 제한 시간 초과(제한 시간과 `l2.mcp.connectTimeoutMs`), 버전 협상 실패(`l2.mcp.versionNegotiation`), 격리 불가, 시크릿 참조 없음, 주소 해석 실패. 모르는 원인은 "원인을 알 수 없어요. 원문을 확인해 주세요"와 원문이다. 화면은 첫 줄을 행과 토스트에 보이고 원문은 정보 아이콘 뒤에 둔다. 서버 id 뒤에는 `에`만 붙인다(받침에 따라 달라지는 조사를 쓰지 않는다) [결정: 오케스트레이터 기본값, fxMC2].
 - 모델용 `mcp_servers`는 상태 사유를 줄에 싣는다. `approval_required`는 "사용자 기동 승인 대기 중이며 승인되면 도구가 다음 단계 경계(§4.9)에 들어온다"고 알려 "MCP 도구 없음"으로 끝내지 않게 한다. 숨은 도구는 이름과 사유를 덧붙인다 [결정: 오케스트레이터 기본값, fxMC].
 - 연결에 성공하면 `lastError`를 지운다. 지난 실패 기록이 연결된 서버에 남아 보이지 않게 하기 위해서다. 저장 상태(`cap_mcp_servers`)의 오류 칸도 같이 비워진다. `blocked` 때의 오류는 그 서버가 다시 시도할 때까지 남는다.
 
@@ -674,7 +675,7 @@ sequenceDiagram
 
 | # | 상황 | 동작 |
 |---|---|---|
-| 1 | stdio 서버가 시작 직후 종료 | `failed` 또는 백오프 재시도(§4.8). stderr 마지막 줄(마스킹 후)을 `lastError.message`에 |
+| 1 | stdio 서버가 시작 직후 종료 | `failed` 또는 백오프 재시도(§4.8). `lastError.message`는 한국어 첫 줄("서버 프로세스가 바로 끝났어요")과 원문, stderr 마지막 줄(마스킹 후)이다 |
 | 2 | 호출 중 서버 크래시 | 진행 중 호출은 `server_disconnected` 오류 결과. 결과 불명이라 자동 재호출하지 않는다 |
 | 3 | 호출 제한 시간 초과 | `timeout`. SDK가 취소 알림을 보낸다 [가정] |
 | 4 | 결과가 `l2.mcp.result.maxBytes` 초과 | 앞부분만 남기고 `truncated` |

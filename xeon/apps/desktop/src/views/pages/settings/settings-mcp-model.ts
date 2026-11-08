@@ -114,7 +114,12 @@ export interface McpRowModel {
   readonly blocked: McpBlockedReason | null;
   readonly toolCount: number;
   readonly hidden: HiddenLine | null;
-  readonly error: { readonly message: string; readonly time: string } | null;
+  /** 마지막 오류. `message`는 한국어 첫 줄이고, `original`은 서버나 SDK가 준 원문(둘째 줄부터)이다. 원문은 정보 아이콘 뒤에 둔다 */
+  readonly error: {
+    readonly message: string;
+    readonly original: string | null;
+    readonly time: string;
+  } | null;
   readonly alwaysBlocked: boolean;
   readonly editable: boolean;
   readonly approvalNote: boolean;
@@ -139,7 +144,11 @@ export function rowModelOf(row: McpServerRow, locale: string): McpRowModel {
     error:
       row.lastError === undefined
         ? null
-        : { message: row.lastError.message, time: timeTextOf(row.lastError.at, locale) },
+        : {
+            message: firstLineOf(row.lastError.message),
+            original: originalOf(row.lastError.message),
+            time: timeTextOf(row.lastError.at, locale),
+          },
     alwaysBlocked: row.alwaysBlocked,
     editable: row.editable,
     approvalNote,
@@ -194,7 +203,7 @@ export function newFailuresOf(
         key,
         server: row.server,
         name: nameOf(row),
-        reason: firstLineOf(row.lastError.message),
+        reason: causeOf(row.server, firstLineOf(row.lastError.message)),
       },
     ];
   });
@@ -203,6 +212,18 @@ export function newFailuresOf(
 /** 오류 글의 첫 줄(여러 줄이면 첫 줄만 알린다) */
 export function firstLineOf(text: string): string {
   return (text.split("\n")[0] ?? "").trim();
+}
+
+/** 오류 글의 둘째 줄부터(서버나 SDK의 원문). 없으면 `null`이다 */
+export function originalOf(text: string): string | null {
+  const rest = text.split("\n").slice(1).join("\n").trim();
+  return rest === "" ? null : rest;
+}
+
+/** 시작 실패 첫 줄에서 앞의 틀("서버 <id>에 연결하지 못했어요: ")을 뺀 원인. 틀이 없으면 첫 줄 그대로다 */
+export function causeOf(server: string, line: string): string {
+  const frame = `서버 ${server}에 연결하지 못했어요: `;
+  return line.startsWith(frame) ? line.slice(frame.length) : line;
 }
 
 function timeTextOf(at: number, locale: string): string {

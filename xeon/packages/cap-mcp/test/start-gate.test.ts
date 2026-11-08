@@ -272,7 +272,8 @@ describe("sandbox_unavailable keeps the server blocked until a new attempt", () 
       blockedReason: "sandbox_unavailable",
       lastError: {
         code: "sandbox_unavailable",
-        message: "the sandbox is unavailable (missing_dependency), so the server was not started",
+        message:
+          "서버 gh에 연결하지 못했어요: 이 기기에서는 서버를 격리할 수 없어서 띄우지 않았어요\nthe sandbox is unavailable (missing_dependency), so the server was not started",
       },
       toolCount: 0,
     });

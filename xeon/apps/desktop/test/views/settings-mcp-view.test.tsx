@@ -171,6 +171,29 @@ describe("McpServersView rows", () => {
     expect(markup).toContain("확장 helm");
   });
 
+  test("the original error text sits behind an info icon and the Korean sentence stays visible", () => {
+    const markup = html({
+      load: {
+        kind: "ready",
+        rev: 0,
+        rows: [
+          rowOf({
+            state: "failed",
+            lastError: {
+              code: "connect_failed",
+              message: "서버 files에 연결하지 못했어요: 원인을 알 수 없어요\nweird original",
+              at: 0,
+            },
+          }),
+        ],
+      },
+    });
+    expect(markup).toContain("서버 files에 연결하지 못했어요: 원인을 알 수 없어요");
+    expect(
+      countOf(markup, t("desktop.settings.mcp.error.original", { text: "weird original" })),
+    ).toBe(1);
+  });
+
   test("a row's last action error shows under it", () => {
     const markup = html({
       load: { kind: "ready", rows: [rowOf({})], rev: 0 },
