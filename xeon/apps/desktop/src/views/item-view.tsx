@@ -38,6 +38,7 @@ import { usePluginUi, usePluginUiState } from "./plugin/plugin-context.tsx";
 import { useGoToThread } from "./thread-link.ts";
 import { useOpenExtensionRecords } from "./extension-records-link.ts";
 import { hookDenialOf, isUserDenial, type HookDenialView } from "./hook-denial-model.ts";
+import { sandboxBlocksOf, type SandboxBlockView } from "./sandbox-block-model.ts";
 import { thinkingModeOf, toolRowModeOf, toolRowOpenOf } from "./item-detail-model.ts";
 import { toolOutputOf } from "./tool-output-model.ts";
 import { useTranscriptDetail } from "./transcript-detail.ts";
@@ -350,6 +351,8 @@ type ResultView = {
   readonly cut?: { readonly shown: number; readonly total: number };
   /** 훅이 막은 거부(`details`의 `denied_by_extension`). 있으면 경고 빛깔이고 알약 글과 본문이 훅 문구다 */
   readonly hook?: HookDenialView;
+  /** 샌드박스가 막은 것(`details`의 `sandbox.*`). 있으면 행 바깥에 이유 줄을 보인다(L1.tools §4.12.3) */
+  readonly blocks?: readonly SandboxBlockView[];
 };
 
 /** MCP 도구 결과의 서버 이름(`details.server`). 문자열이 아니면 없다. 실행 중인 호출은 결과가 없어 이름도 없다 */
@@ -371,6 +374,47 @@ function hookDenialText(hook: HookDenialView): string {
   return hook.extension === null
     ? t("desktop.item.hookDenial.threwNoName")
     : t("desktop.item.hookDenial.threw", { extension: hook.extension });
+}
+
+/** 샌드박스가 막은 것 한 건의 한국어 이유 글. 대상은 엔진이 싣은 값 그대로다 */
+function sandboxBlockText(block: SandboxBlockView): string {
+  switch (block.code) {
+    case "sandbox.network_blocked":
+      return t("desktop.tool.blocked.network", { domain: block.domain });
+    case "sandbox.write_blocked":
+      return t("desktop.tool.blocked.write", { path: block.path });
+    case "sandbox.read_blocked":
+      return t("desktop.tool.blocked.read", { path: block.path });
+    default:
+      return assertNever(block, "SandboxBlockView");
+  }
+}
+
+/** 샌드박스가 막은 것의 이유 줄. 행 바깥에 늘 보여 접힌 행에서도 이유가 드러난다. 다섯 줄을 넘으면 남은 수만 적는다 */
+const SANDBOX_NOTE_LIMIT = 5;
+const SANDBOX_NOTE_CLASS = "m-0 text-ui-xs text-warning-text";
+function SandboxBlockNotes(props: {
+  readonly blocks: readonly SandboxBlockView[] | undefined;
+}): ReactNode {
+  const { blocks } = props;
+  if (blocks === undefined || blocks.length === 0) return null;
+  const shown = blocks.slice(0, SANDBOX_NOTE_LIMIT);
+  const rest = blocks.length - shown.length;
+  return (
+    <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
+      {shown.map((block) => (
+        <li
+          key={`${block.code}:${"domain" in block ? block.domain : block.path}`}
+          className={SANDBOX_NOTE_CLASS}
+        >
+          {sandboxBlockText(block)}
+        </li>
+      ))}
+      {rest > 0 ? (
+        <li className={SANDBOX_NOTE_CLASS}>{t("desktop.tool.blocked.more", { count: rest })}</li>
+      ) : null}
+    </ul>
+  );
 }
 
 /** 실행 중인 동안 1초마다 늘어나는 경과 초. 실행 중이 아니면 0 */
@@ -407,8 +451,14 @@ function resultViewOf(item: ItemRecord): ResultView | null {
   );
   const cut =
     shown.totalLines === null ? {} : { cut: { shown: shown.shownLines, total: shown.totalLines } };
+  const blocks = sandboxBlocksOf(item.message.details);
   if (!item.message.isError && item.status === "completed") {
-    return { status: "done", output: shown.text, ...cut };
+    return {
+      status: "done",
+      output: shown.text,
+      ...cut,
+      ...(blocks.length === 0 ? {} : { blocks }),
+    };
   }
   const { code, body } = splitCode(shown.text);
   // 하위 에이전트를 멈추면 엔진은 오류 결과에 details.status "aborted"를 싣는다. 실패가 아니라 중단이다
@@ -448,6 +498,16 @@ function resultViewOf(item: ItemRecord): ResultView | null {
       failedLabel: t("desktop.item.status.interrupted"),
       output: interruptedBodyOf(body),
       ...cut,
+    };
+  }
+  // 샌드박스가 막은 실행은 알약이 "막힘"이다. 막은 것이 없으면 기존 실패 글을 쓴다
+  if (blocks.length > 0) {
+    return {
+      status: "failed",
+      failedLabel: t("desktop.tool.blocked.status"),
+      output: localizedFailureBody(code, body),
+      ...cut,
+      blocks,
     };
   }
   return { status: "failed", output: localizedFailureBody(code, body), ...cut };
@@ -644,6 +704,7 @@ function CallRow(props: {
         diff={change === null ? undefined : <FileChangeDiff view={change} />}
         {...(server === undefined ? {} : { server })}
       />
+      <SandboxBlockNotes blocks={view.blocks} />
       <SourceChips sources={sources} />
     </>
   );
@@ -657,14 +718,17 @@ function ResultRow(props: { readonly item: ItemRecord }): ReactNode {
   if (toolRowModeOf(transcriptDetail, view.status) === "hidden") return null;
   const server = serverOfResult(props.item);
   return (
-    <ToolRow
-      name={props.item.message.toolName}
-      status={view.status}
-      {...(view.failedLabel === undefined ? {} : { failedLabel: view.failedLabel })}
-      output={view.output}
-      {...(view.hook === undefined ? {} : { hook: view.hook })}
-      {...(server === undefined ? {} : { server })}
-    />
+    <>
+      <ToolRow
+        name={props.item.message.toolName}
+        status={view.status}
+        {...(view.failedLabel === undefined ? {} : { failedLabel: view.failedLabel })}
+        output={view.output}
+        {...(view.hook === undefined ? {} : { hook: view.hook })}
+        {...(server === undefined ? {} : { server })}
+      />
+      <SandboxBlockNotes blocks={view.blocks} />
+    </>
   );
 }
 
