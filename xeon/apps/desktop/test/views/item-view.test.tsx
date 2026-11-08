@@ -230,7 +230,7 @@ describe("one row per tool call", () => {
     const h = openedHarness();
     ingestRecords(h, [
       callItem(1, 2, "bash"),
-      toolResultItem(2, "bash", "사용자가 이 도구 호출을 거부했다.", true, {
+      toolResultItem(2, "bash", "The user denied this tool call.", true, {
         code: "denied_by_user",
       }),
     ]);

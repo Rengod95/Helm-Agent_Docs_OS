@@ -883,7 +883,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 3. 대기: 메모리 대기 목록에 넣고 응답을 기다린다. 대기 중에 도는 프로세스는 없다(architecture.runtime-flow.design §4.5).
 4. 응답: `respond`가 kind별 규칙(§3.6 표)을 검사하고 `approval.resolved`를 커밋한다. 커밋 뒤 대기를 풀고 `thread.prompt.after`를 발화한다. 같은 `approvalId`의 두 번째 응답은 `applied: false`다.
 5. 결과 반영:
-   - tool: allow → 파이프라인 6단계로 간다. deny → `{ block: true, reason }`. 사유 문장은 `"사용자가 이 도구 호출을 거부했다."`에 feedback이 있으면 `" 사용자 의견: <feedback>"`를 붙인다. 모델이 코드를 그대로 읊지 않도록 글에는 코드를 넣지 않고, 결과의 구조 필드 `details: { code: "denied_by_user" }`에만 둔다(화면이 이 필드로 "거부함"을 알아본다). 취소·만료·대화형이 아닌 실행의 거부는 글머리의 `[fresnel:<코드>]`가 그대로다. 사용자 거부의 공통 결과 한 곳(`approvals/protocol.ts`의 `denialReason`·`denialDetails`)에서 만든다 [결정: 오케스트레이터 기본값, fxMC2].
+   - tool: allow → 파이프라인 6단계로 간다. deny → `{ block: true, reason }`. 사유 문장은 같은 파일의 다른 거부 사유처럼 영어 `"The user denied this tool call."`이고 feedback이 있으면 `" Feedback: <feedback>"`를 붙인다(엔진 문자열은 로케일을 따르지 않으므로 영어 CLI 출력에 한국어가 섞이지 않게 한다). 모델이 코드를 그대로 읊지 않도록 글에는 코드를 넣지 않고, 결과의 구조 필드 `details: { code: "denied_by_user" }`에만 둔다(화면이 이 필드로 "거부함"을 알아본다). 취소·만료·대화형이 아닌 실행의 거부는 글머리의 `[fresnel:<코드>]`가 그대로다. 사용자 거부의 공통 결과 한 곳(`approvals/protocol.ts`의 `denialReason`·`denialDetails`)에서 만든다 [결정: 오케스트레이터 기본값, fxMC2].
    - plan: allow이고 `answer.mode`가 있으면 `ToolService.setMode(threadId, mode, "plan_approval")`을 부른다. 계획 도구의 결과 내용은 L2.work.spec이 정한다.
    - question: `QuestionAnswer`를 질문 도구에 돌려준다. 결과 문장은 L2.dialog.spec이 정한다.
 6. 기억 범위:

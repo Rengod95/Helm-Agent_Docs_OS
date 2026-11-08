@@ -205,7 +205,7 @@ test("a denied secret use blocks the call with the fixed sentence and writes no 
     answer: { feedback: "no" },
   });
   const out = await done;
-  expect(out.blocked).toBe("사용자가 이 도구 호출을 거부했다. 사용자 의견: no");
+  expect(out.blocked).toBe("The user denied this tool call. Feedback: no");
   expect(probe.runs).toEqual([]);
   expect(h.session.events.some((event) => event.kind === "effect.intent")).toBe(false);
 });

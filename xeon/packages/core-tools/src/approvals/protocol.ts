@@ -303,7 +303,7 @@ export function validateResponse(
 const DENIED_EXPIRED =
   "[fresnel:approval_expired] The approval request expired before an answer, so it was denied.";
 /** 사용자 거부 사유. 코드(`denied_by_user`)는 글에 넣지 않고 결과의 `details.code`에만 둔다(`denialDetails`). 모델이 코드를 그대로 읊지 않게 한다 */
-const DENIED_BY_USER = "사용자가 이 도구 호출을 거부했다.";
+const DENIED_BY_USER = "The user denied this tool call.";
 const DENIED_CANCELLED =
   "[fresnel:approval_cancelled] The approval request was cancelled before an answer.";
 
@@ -318,7 +318,7 @@ export function denialReason(resolution: ApprovalResolution): string {
   }
   const feedback = isJsonObject(resolution.answer) ? resolution.answer["feedback"] : undefined;
   return typeof feedback === "string" && feedback.length > 0
-    ? `${DENIED_BY_USER} 사용자 의견: ${feedback}`
+    ? `${DENIED_BY_USER} Feedback: ${feedback}`
     : DENIED_BY_USER;
 }
 
