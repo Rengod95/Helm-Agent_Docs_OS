@@ -1,0 +1,31 @@
+/* 글꼴(dsA, 2026-11-08). caustic fonts.css(SUIT)는 그대로 두고 앱 쪽에서 두 가지를 더한다.
+   1) 에이전트 글(voice 역할) 글꼴: Pretendard Variable v1.3.9(SIL OFL 1.1, fonts/pretendard/OFL.txt). 한글·영문·숫자가 한 글꼴이라 섞인 줄이 고르다.
+      [결정: 오케스트레이터 기본값, dsA] 비교한 후보는 현재 값(Newsreader/Noto Serif KR 대체 글꼴), SUIT, IBM Plex Sans KR이다.
+   2) 아이콘과 글자가 같은 줄일 때 한글 글자가 아이콘보다 위로 보이던 어긋남(약 1.5px)의 공용 원인 보정.
+      줄 높이는 첫 번째로 쓸 수 있는 글꼴의 ascent/descent가 정한다. Geist가 번들되지 않고 SUIT는 공백 글리프가 unicode-range 밖이라,
+      실제 줄 기준은 시스템 글꼴(Apple SD Gothic Neo: ascent .90, descent .30)이고 한글 잉크 중심이 줄 중앙보다 약 .065em 위에 놓인다.
+      공백 한 글자(U+0020)만 가진 글꼴 "Fresnel Metrics"를 ui 스택 맨 앞에 두어 줄 기준을 ascent .96·descent .23으로 바꾼다(글리프는 그리지 않는다). */
+@font-face {
+  font-family: "Pretendard Variable";
+  src: url("./fonts/pretendard/PretendardVariable.woff2") format("woff2");
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Fresnel Metrics";
+  src: url("./fonts/pretendard/PretendardVariable.woff2") format("woff2");
+  font-display: swap;
+  unicode-range: U+0020;
+  ascent-override: 96%;
+  descent-override: 23%;
+  line-gap-override: 0%;
+}
+html:root {
+  --cs-font-ui:
+    "Fresnel Metrics", "Geist", "SUIT Variable", "SUIT", "Apple SD Gothic Neo", "Malgun Gothic",
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --cs-font-voice:
+    "Pretendard Variable", "SUIT Variable", "Apple SD Gothic Neo", "Malgun Gothic", ui-sans-serif,
+    system-ui, sans-serif;
+}

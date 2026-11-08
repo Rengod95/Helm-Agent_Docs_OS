@@ -3635,6 +3635,10 @@ DP-11을 caustic 토큰으로 정했습니다(caustic `27fe658`, `bbb094a`, `FOU
 
 - DP-11e 글자 기준(변형 D, 2026-11-02 사용자 선택)은 앱 `src/type-scale.css`가 시안 `_shell/type-variants.css`와 같은 값으로 준다. 제목 2는 16/22 600, 제목 1은 24/32 600, 손으로 쓴 머리 `h1`은 16/22 700(설정 화면 `data-page-title`만 20/28 700), 설명 13/19, 글 색 secondary·tertiary는 라이트 L .46·.54, 다크 .72·.64입니다. 머리 `h1`·`h2`는 `text-*` 크기·굵기 클래스를 붙이지 않고 이 규칙을 받습니다. T-LANG의 radius.css는 가져오지 않습니다(2026-11-02 되돌림).
 
+- DP-11f 글자 간격 한 단계 넓힘 [결정: 2026-11-08 사용자, 값은 오케스트레이터 기본값 dsA]: 앱 `src/type-scale.css`가 모든 `--cs-text-*-tracking`을 caustic 기본값보다 +0.01em 넓게 준다(한 단계 = 0.01em). 한글(`lang|=ko`)과 영문(`html:root` 기본)을 따로 선언하고, 한글이 영문보다 계속 좁다. mono 역할과 `caption`(대문자 자간 0.06em)은 그대로다. 대표 값(한글 / 영문): display −0.015 / −0.025, title-1·2 −0.015 / −0.012·−0.006, title-3·4 −0.01 / 0, body 0 / +0.007, ui·ui-strong·ui-dense 0 / +0.007, ui-sm·footnote·label·hint·micro 0 / +0.01(영문 0에서), voice 0 / +0.007, voice-lg −0.005 / +0.01, voice-xl −0.01 / 0 (단위 em). 이전 한글 값은 한 단계씩 좁았다(예: ui −0.01, display −0.025).
+- DP-11g 에이전트 글 글꼴 [결정: 오케스트레이터 기본값, dsA]: voice 역할(`--cs-font-voice`)은 Pretendard Variable v1.3.9(SIL OFL 1.1, 한글·영문·숫자 포함, 굵기 45–920)이다. `src/fonts.css`가 `src/fonts/pretendard/PretendardVariable.woff2`(2 MB)와 라이선스 `OFL.txt`를 함께 싣고 `font-family`는 `Pretendard Variable`, 대체는 SUIT Variable, 시스템 글꼴 순이다. 이전 값은 Newsreader·Noto Serif KR(번들하지 않아 시스템 명조로 보였다). 비교한 후보는 SUIT(이미 번들, UI와 같은 글꼴이라 에이전트 글이 구별되지 않음), IBM Plex Sans KR(한글이 한 단계 가볍고 영문 자폭이 넓음)이다. 사진은 `_notes/scenarios/dsA/shots/font-*.png`.
+- DP-11h 아이콘과 글자의 세로 가운데: 한글 잉크 중심이 줄 중앙보다 약 0.065em 위여서 같은 줄의 아이콘이 글자보다 1.5px쯤 낮아 보였다. 줄 기준 글꼴(첫 번째로 쓸 수 있는 글꼴)이 시스템 글꼴이라 caustic이 가정한 SUIT 값과 달랐다. `src/fonts.css`의 `Fresnel Metrics`(공백 한 글자만 가진 글꼴, ascent 96%·descent 23%)를 ui 글꼴 스택 맨 앞에 두어 줄 기준을 바로잡는다. 앱 전체 ui 글꼴 줄에 적용되고 글리프 모양은 바뀌지 않는다.
+
 - DP-13a 왼쪽 패널이 닫혔을 때 다시 여는 단추: 대화 화면은 머리줄(`chat-header`)이 갖고, 다른 모든 화면(설정 포함)은 셸이 무대 위에 한 줄(h-9)로 둡니다. 시안은 화면마다 머리줄에 단추를 넣지만 앱 화면 머리가 흩어져 있어 셸 한 곳에 둡니다 [가정]. 오른쪽 떠 있는 막대가 가리지 않도록 머리 줄의 오른쪽 동작은 `pe-10`(시안 `BAR_INSET`)을 둡니다.
 
 ### 13.3 3차 (2026-10-30)
