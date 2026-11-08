@@ -42,7 +42,19 @@ import type { McpService } from "@fresnel/contracts/services";
 import type { RawInputRequired, RawPrompt } from "../adapter.ts";
 import { buildQuestions } from "../elicitation/questions.ts";
 import { roundsExceeded } from "../elicitation/rounds.ts";
-import { failureToError, mcpError } from "../errors.ts";
+import {
+  failureToError,
+  inputRoundsText,
+  mcpError,
+  roundLimitText,
+  serverBlockedText,
+  serverNotConnectedText,
+  serverNotReadyText,
+  serverUnknownText,
+  toolDeniedByModeText,
+  toolHiddenText,
+  toolUnknownText,
+} from "../errors.ts";
 import { byteOrder } from "../order.ts";
 import type { McpFileReader } from "../ports/files.ts";
 import type { McpRulesSink } from "../ports/rules.ts";
@@ -245,11 +257,7 @@ function inputRequiredOutput(
   settings: McpSettings,
 ): McpInputRequired {
   if (roundsExceeded(round + 1, settings.maxInputRounds)) {
-    throw mcpError(
-      method,
-      "input_rounds_exceeded",
-      `the server asked for input more than ${settings.maxInputRounds} times`,
-    );
+    throw mcpError(method, "input_rounds_exceeded", inputRoundsText(settings.maxInputRounds));
   }
   const questions = buildQuestions(server, raw.inputRequests);
   if (!questions.ok) throw mcpError(method, "input_unsupported", questions.error.message);
@@ -264,11 +272,7 @@ function inputRequiredOutput(
 
 function checkRound(method: string, round: number, settings: McpSettings): void {
   if (roundsExceeded(round, settings.maxInputRounds)) {
-    throw mcpError(
-      method,
-      "input_rounds_exceeded",
-      `round ${round} is above the limit ${settings.maxInputRounds}`,
-    );
+    throw mcpError(method, "input_rounds_exceeded", roundLimitText(round, settings.maxInputRounds));
   }
 }
 
@@ -421,20 +425,19 @@ export function createMcp(deps: McpDeps): McpRuntime {
 
   function snapshotOrThrow(method: string, server: string): ServerSnapshot {
     const snapshot = registry.get(server);
-    if (snapshot === undefined)
-      throw mcpError(method, "server_unknown", `unknown MCP server ${server}`);
+    if (snapshot === undefined) throw mcpError(method, "server_unknown", serverUnknownText(server));
     return snapshot;
   }
 
   function connectedOrThrow(method: string, server: string): ServerSnapshot {
     const snapshot = snapshotOrThrow(method, server);
     if (snapshot.state === "blocked") {
-      throw mcpError(method, "server_blocked", `MCP server ${server} is blocked`, {
+      throw mcpError(method, "server_blocked", serverBlockedText(server, snapshot.blockedReason), {
         reason: snapshot.blockedReason ?? "unknown",
       });
     }
     if (snapshot.state !== "connected") {
-      throw mcpError(method, "server_disconnected", `MCP server ${server} is ${snapshot.state}`);
+      throw mcpError(method, "server_disconnected", serverNotReadyText(server, snapshot.state));
     }
     return snapshot;
   }
@@ -449,7 +452,7 @@ export function createMcp(deps: McpDeps): McpRuntime {
     connectedOrThrow(method, server);
     const lease = registry.acquire(server);
     if (lease === undefined) {
-      throw mcpError(method, "server_disconnected", `MCP server ${server} is not connected`);
+      throw mcpError(method, "server_disconnected", serverNotConnectedText(server));
     }
     try {
       return await work(lease);
@@ -482,22 +485,19 @@ export function createMcp(deps: McpDeps): McpRuntime {
     return await withConnection(method, input.server, async (lease) => {
       const snapshot = snapshotOrThrow(method, input.server);
       if (!snapshot.tools.some((tool) => tool.name === input.tool)) {
-        throw mcpError(
-          method,
-          "tool_unknown",
-          `MCP server ${input.server} has no tool ${input.tool}`,
-        );
+        throw mcpError(method, "tool_unknown", toolUnknownText(input.server, input.tool));
       }
       if (!filterTool(lease.definition.def, input.tool).exposed) {
-        throw mcpError(method, "denied", `tool ${input.tool} is hidden by the server definition`);
+        throw mcpError(method, "denied", toolHiddenText(input.server, input.tool));
       }
       // §4.4: 승인 모드 deny는 호출 거부다. 이 직접 경로는 L1.tools 규칙을 거치지 않으므로 여기서 막는다
       if (
         effectiveApprovalMode(lease.definition.def, input.tool, settings.approvalMode) === "deny"
       ) {
-        throw mcpError(method, "denied", `tool ${input.tool} is denied by the approval mode`);
+        throw mcpError(method, "denied", toolDeniedByModeText(input.server, input.tool));
       }
       const timeoutMs = callMsOf(lease.definition, settings);
+      const startedAt = deps.clock.now();
       const result = await lease.connection.callTool(input.tool, input.arguments, {
         signal: env.signal,
         timeoutMs,
@@ -515,6 +515,7 @@ export function createMcp(deps: McpDeps): McpRuntime {
           server: input.server,
           tool: input.tool,
           timeoutMs,
+          elapsedMs: deps.clock.now() - startedAt,
         });
       if (result.value.kind === "input_required") {
         return inputRequiredOutput(method, input.server, round, result.value, settings);

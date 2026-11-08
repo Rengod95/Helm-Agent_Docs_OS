@@ -297,7 +297,12 @@ describe("input_required", () => {
     const failure = await rejection(
       w.runtime.service.client.callTool({ server: "stub", tool: "ask", arguments: {} }),
     );
-    expect(failure).toMatchObject({ data: { code: "input_unsupported" } });
+    expect(failure).toMatchObject({
+      data: {
+        code: "input_unsupported",
+        message: "서버가 지원하지 않는 종류의 입력(sampling/createMessage)을 요청했어요",
+      },
+    });
     await w.runtime.shutdown();
   });
 

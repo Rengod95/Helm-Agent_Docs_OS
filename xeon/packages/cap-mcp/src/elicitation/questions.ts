@@ -44,7 +44,7 @@ function questionOf(
         return err({
           code: "input_unsupported",
           kind: "elicitation_url",
-          message: "url mode needs a url",
+          message: "서버가 주소 입력을 요청하면서 주소를 주지 않았어요",
         });
       }
       return ok({ key, kind: "elicitation_url", server, message, url });
@@ -62,7 +62,7 @@ function questionOf(
   return err({
     code: "input_unsupported",
     kind: method ?? "unknown",
-    message: `the server asked for an input kind that was not declared: ${method ?? "unknown"}`,
+    message: `서버가 지원하지 않는 종류의 입력(${method ?? "알 수 없음"})을 요청했어요`,
   });
 }
 
@@ -78,7 +78,7 @@ export function buildQuestions(
       return err({
         code: "input_unsupported",
         kind: "unknown",
-        message: `input request ${key} is not an object`,
+        message: `서버의 입력 요청 ${key}의 모양이 올바르지 않아요`,
       });
     }
     const question = questionOf(server, key, request);
