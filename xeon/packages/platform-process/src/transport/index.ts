@@ -46,3 +46,10 @@ export {
   type TunnelExit,
   type TunnelSpec,
 } from "./tunnel.ts";
+export {
+  connectWebSocket,
+  probeTlsFingerprint,
+  type TlsProbe,
+  type WsConnectOptions,
+  type WsError,
+} from "./ws.ts";
