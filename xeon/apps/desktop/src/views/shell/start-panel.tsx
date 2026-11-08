@@ -18,6 +18,7 @@ import { Compass, IconEmphasisProvider, PanelLeft, Settings } from "@caustic/rea
 import type { ReactNode } from "react";
 import { ContextPicker, type ContextProfile } from "./context-picker.tsx";
 import { NAV_BY_AREA } from "./nav.ts";
+import { SIDE_ROW } from "../side-row.ts";
 import type { Area } from "../../state/shell/index.ts";
 import type { ScreenDef, ShellRegistry } from "./registry.ts";
 import { useShell, useShellActions } from "../../state/shell/index.ts";
@@ -80,7 +81,7 @@ function NavRow(props: {
           </IconEmphasisProvider>
         )
       }
-      className={props.active ? ACTIVE_LABEL : undefined}
+      className={props.active ? `${SIDE_ROW} ${ACTIVE_LABEL}` : SIDE_ROW}
       count={badge === undefined || badge <= 0 ? undefined : badge}
       onSelect={props.onSelect}
     >
@@ -100,7 +101,13 @@ function PluginUiSection(props: { readonly onOpen: (key: string) => void }): Rea
   const rows = pluginUiRowsOf(usePluginUiState());
   if (rows.length === 0) return null;
   return (
-    <ListNavigation aria-label={t("term.pluginUi")} kind="navigation" size="xs" as="div">
+    <ListNavigation
+      aria-label={t("term.pluginUi")}
+      kind="navigation"
+      size="xs"
+      as="div"
+      className="[&_[data-slot=list-navigation-heading]]:text-ui"
+    >
       <ListNavigationGroup heading={t("term.pluginUi")}>
         {rows.map((row) => {
           const title = extMessageOf(row.entry.messages, activeLocale(), row.entry.title);
@@ -109,7 +116,9 @@ function PluginUiSection(props: { readonly onOpen: (key: string) => void }): Rea
               key={row.key}
               icon={<Compass />}
               className={
-                row.off ? "[&_[data-slot=list-navigation-label]]:text-text-tertiary" : undefined
+                row.off
+                  ? `${SIDE_ROW} [&_[data-slot=list-navigation-label]]:text-text-tertiary`
+                  : SIDE_ROW
               }
               meta={
                 <span className="font-mono text-mono-sm">
@@ -185,7 +194,7 @@ export function StartPanel(props: StartPanelProps): ReactNode {
           <ListNavigationGroup>
             <ListNavigationItem
               icon={props.settingsOpen ? <Settings emphasis="selected" /> : <Settings />}
-              className={props.settingsOpen ? ACTIVE_LABEL : undefined}
+              className={props.settingsOpen ? `${SIDE_ROW} ${ACTIVE_LABEL}` : SIDE_ROW}
               onSelect={props.onOpenSettings}
             >
               {t("desktop.shell.settings")}
