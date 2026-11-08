@@ -96,8 +96,17 @@ export interface SandboxRunReport {
   violations: SandboxViolation[];
   /** 위반 기록이 상한에서 잘렸는가 */
   violationsTruncated: boolean;
+  /** 막은 것의 분류(4.2절 11번). 막은 것이 없을 때는 키를 두지 않는다 */
+  blocks?: SandboxBlock[];
 }
 export const SandboxRunReportSchema: Schema<SandboxRunReport>;
+
+// @fresnel/contracts/capabilities — sandbox-block.ts [제안: 2026-11-08, 4.2절 11번]. services가 다른 F 디렉터리에서 값을 가져오지 못해 타입과 스키마를 여기 둔다
+export type SandboxBlock =
+  | { code: "sandbox.network_blocked"; domain: string }
+  | { code: "sandbox.write_blocked"; path: string }
+  | { code: "sandbox.read_blocked"; path: string };
+export const SandboxBlockSchema: Schema<SandboxBlock>;
 ```
 
 ```ts
@@ -360,6 +369,17 @@ export function selectSandboxProvider(input: {
 8. `shell.exec(argv, { ...options, env: { ...options.env, ...srtEnv } }, context)`. `srtEnv`는 srt가 돌려준 `env`에서 부모 `process.env`와 값이 같은 항목을 뺀 차이다 [가정: 반환 `env`가 전체 env인지 추가분인지 미확인. 전체라면 차이 계산이 필요하고, 차이로 하면 exec의 허용 목록 규칙을 지킨다].
 9. 결과가 나오면(성공, 실패 모두) `getViolationsForCommand(commandId)`로 위반을 모아 `SandboxViolation[]`로 바꾸고(같은 `operation`·`target`은 합쳐 `count`), 최대 50개만 싣는다. 그 뒤 `cleanupAfterCommand()`를 부른다.
 10. 성공 결과에 `sandbox: { sandboxed: true, level: "srt", violations, violationsTruncated }`를 붙인다. 실패(`ExecutionError`)에는 붙이지 않는다.
+11. [제안: 2026-11-08] 같은 위반 기록에서 막은 것의 분류 `blocks`를 정한다. 막은 것이 하나라도 있으면 `sandbox.blocks`에 싣고(없으면 키를 두지 않는다), 같은 분류는 한 번만 싣는다. 상한은 위반과 같은 50개다. 분류는 아래 표를 따른다. 위반 기록 전체에서 만들고, `violations`의 50개 상한과 무관하다.
+
+| 분류 `code` | 위반 기록 조건 | 싣는 것 | 판정 가능 범위 |
+|---|---|---|---|
+| `sandbox.network_blocked` | 프록시 거부 줄 `deny network-outbound <host>:<port> (host is on the deny list)`. 사유가 차단 목록 거부일 때만 | `domain`: 호스트(포트 뺌, IPv6는 대괄호 뺌) | macOS·Linux 모두. 프록시가 기록하므로 로그 스트림 설정과 무관하다 |
+| `sandbox.write_blocked` | Seatbelt `file-write-*` 거부(macOS), seccomp 쓰기 거부 `deny <syscall> <path>`(Linux, 관찰자가 켜졌을 때만) | `path`: 경로 | macOS만 판정한다. Linux는 seccomp 관찰자를 꺼 두어(아래 표) 쓰기 거부가 기록되지 않는다 |
+| `sandbox.read_blocked` | Seatbelt `file-read-data` 거부(macOS). 메타데이터 조회(`file-read-metadata`)는 셸이 흔히 시도하므로 싣지 않는다 | `path`: 경로 | macOS만. Linux 읽기 거부는 기록되지 않는다 |
+
+분류하지 않는 것(위반 `violations`에는 남는다): 해석된 주소가 사설 대역이라 거부한 프록시 줄, 허용 목록 밖 거부, 잘못된 호스트, 직접 소켓의 Seatbelt `network-outbound` 거부(정책이 막은 호스트를 알 수 없다), 이름 없는 줄(`other`). 실패 줄의 `stderr` 글(`Operation not permitted`, `Read-only file system`, `Permission denied`)은 샌드박스 신호가 아니라 보지 않는다. 같은 글이 샌드박스 밖 원인으로도 나온다.
+
+판정 가능 범위 요약: 네트워크 차단 목록 거부는 두 OS에서 판정한다. 쓰기와 읽기 거부는 macOS에서만 판정한다. macOS 로그 스트림은 비동기라 명령이 끝난 바로 뒤 수집에는 그 줄이 빠질 수 있다(`[미결]` 10절 12번).
 
 `cleanup(context)`는 아래 `shell.cleanup`을 부른다. srt `reset()`은 서비스 dispose 때 한 번 부른다.
 
@@ -471,7 +491,7 @@ export function selectSandboxProvider(input: {
 | status | `srt` | `srt`. WSL2는 Linux로 다룬다. WSL1은 `none`(`unsupported_os`) | `none`(`unsupported_os`) → `onUnavailable` 적용 |
 | 알려진 제약 | Apple Events·pty 기본 거부. macOS `sandbox-exec`의 Apple 측 지원 상태 [미확인] | Ubuntu 24.04 이후 `kernel.apparmor_restrict_unprivileged_userns`가 bwrap 사용자 네임스페이스를 막는다(sysctl 또는 AppArmor 프로필 필요). 루트 실행은 `CAP_SETFCAP` 필요. 중첩 사용자 네임스페이스 거부로 Chromium·rootless podman이 샌드박스 안에서 실패. x64·arm64 밖은 seccomp 미번들 | srt-win 설치는 관리자 승인 1회. SMB·WSL 기동·시스템 리졸버 DNS는 차단 밖(srt README:1000-1011) |
 | 경로 문법 | gitignore식 글로브 가능. Fresnel은 리터럴만 넘긴다 | `allowWrite`·`denyWrite`는 리터럴만 | 해당 없음 |
-| 위반 기록 | 로그 스트림(`enableLogMonitor` 참) | 프록시 거부만 기본. seccomp 모니터는 진단용이라 기본 끔 | 해당 없음 |
+| 위반 기록 | 로그 스트림(`enableLogMonitor` 참) | 프록시 거부만 기본. seccomp 모니터는 진단용이라 기본 끔(그래서 Linux 쓰기·읽기 거부는 기록되지 않는다, 4.2절 11번) | 해당 없음 |
 | 근거 | `_research/notes/L0-1.md` §6 | 같음, `_research/packages.md` §4.2 159행·§6 338행 | 같음, `_research/refs/claude-code.md` §3.2 "네이티브 Windows는 미지원, WSL2 사용"(원문 확인 필요 [가정]) |
 
 ### 5.3 Bun과 사이드카
@@ -569,4 +589,5 @@ export function selectSandboxProvider(input: {
 8. [미결] `SettingsTab`의 `"sandbox"` 추가(F 변경).
 9. [미결] 프록시 훅(후속, sentinel 모드). `L0.secrets.spec` §4.3 M2 sentinel 설계는 자식 HTTPS가 `fresnel.sandbox` 프록시를 지나고 허용 호스트로 가는 요청의 헤더에서 sentinel을 값으로 바꾸는 훅을 요구한다. 이 문서는 아직 그 훅을 정하지 않았다. srt `mitmProxy`(외부 Unix 소켓) 연결 안과 `parentProxy` 체이닝 안을 `L0.sandbox.plan` SB-16에서 비교하고 TLS 종단(`L0.secrets.spec` §10 6번)과 함께 정한다.
 10. [미결] `wrapArgv`의 위반 수집. 장수 프로세스는 위반 줄을 언제 모을지 정해야 한다(종료 때 한 번, 주기적으로 등). 1차는 모으지 않고, `SandboxedArgv`에도 위반 필드가 없다(4.9절).
+12. [미결] 위반 수집 시점. macOS 로그 스트림은 비동기라 명령이 끝난 직후 `getViolationsForCommand`를 부르면 마지막 거부 줄이 빠질 수 있다. 막은 것의 분류(4.2절 11번)도 같은 기록에서 만들므로 같은 공백을 가진다. 수집 전에 짧게 기다릴지, 명령 뒤 로그를 따로 확인할지 정해야 한다.
 11. [미결] `cleanupAfterCommand`의 전역 범위. srt 상태는 프로세스 전역이고, 이 함수는 실행 중인 다른 샌드박스가 쓰는 마운트 경로를 지울 수 있다(`_research/notes/L0-1.md` §8). `wrapArgv`의 `cleanup`은 호출 횟수만 한 번으로 막는다. 여러 장수 프로세스의 정리 시점을 어떻게 정할지 정해야 한다(4.9절).
