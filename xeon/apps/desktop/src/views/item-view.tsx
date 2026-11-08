@@ -69,10 +69,10 @@ const TEXT_CLASS = "m-0 whitespace-pre-wrap [overflow-wrap:break-word] [word-bre
 const QUIET_CLASS = "m-0 text-ui-sm text-text-tertiary";
 /** 실패·중단 줄. 행 맨 아래에 한 줄로 둔다 */
 const NOTE_CLASS = "m-0 text-ui-xs text-text-tertiary";
-/** 생각 토글 단추. 도구 머리와 같은 안쪽 여백(px-2.5)으로 시작해 chevron이 도구 줄의 글 열에 선다. 글은 본문 글 크기(13px)다 */
-const THINK_TOGGLE_CLASS = "px-2.5 text-ui";
-/** 생각 본문. 토글의 글 시작(단추 여백 10 + chevron 14 + 간격 4 = 28px)에 맞춰 들여 쓰고, 읽기 좋게 본문 글 크기를 쓴다 */
-const THINK_BODY_CLASS = `${TEXT_CLASS} pl-7 text-ui text-text-secondary`;
+/** 생각 토글 단추. 좌우 여백이 없어 chevron이 행(도구 카드·글)의 왼쪽 끝에 선다(2026-11-08 사용자 결정). 글은 본문 글 크기(13px)다 */
+const THINK_TOGGLE_CLASS = "px-0 text-ui";
+/** 생각 본문. 들여 쓰지 않고 행 폭 전체를 쓴다. 읽기 좋게 본문 글 크기를 쓴다 */
+const THINK_BODY_CLASS = `${TEXT_CLASS} text-ui text-text-secondary`;
 /** 도구 줄 머리의 이름(mono)과 설명(ui)은 같은 18px 글 줄을 이뤄 머리 가운데에 선다 */
 const HEADER_CLASS =
   "[&_[data-slot=tool-call-name]]:leading-[18px] [&_[data-slot=tool-call-detail]]:leading-[18px]";
@@ -770,13 +770,13 @@ function RecordBody(props: { readonly item: ItemRecord; readonly unsent: boolean
   switch (item.kind) {
     case "user": {
       const bubble = bubbleOf(item.message.content);
-      // 말풍선 글은 어시스턴트 글과 같은 크기와 줄 높이(text-voice 16px/25px)다. 글꼴 집안(ui)은 그대로 둔다
+      // 말풍선 글은 어시스턴트 글과 같은 크기와 줄 높이(text-voice-sm 15px/23px, caustic Message size sm 규칙)다. 글꼴 집안(ui)은 그대로 둔다
       return (
         <>
           {bubble.text === "" ? null : (
             <Message
               author="user"
-              className="whitespace-pre-wrap [overflow-wrap:anywhere] text-voice"
+              className="whitespace-pre-wrap [overflow-wrap:anywhere] text-voice-sm"
             >
               {bubble.text}
             </Message>
@@ -796,7 +796,7 @@ function RecordBody(props: { readonly item: ItemRecord; readonly unsent: boolean
               case "text":
                 return (
                   <Fragment key={key}>
-                    <Message>
+                    <Message size="sm">
                       <p className={TEXT_CLASS}>{block.text}</p>
                     </Message>
                     <SourceChips sources={citedLinksOf(block.text, 6)} />
@@ -938,7 +938,7 @@ export const StreamingRow: NamedExoticComponent<{ readonly id: ItemId }> = memo(
     const last = item.parts.length - 1;
     return (
       <article className={ROW_CLASS}>
-        <Message streaming>
+        <Message size="sm" streaming>
           {item.parts.length === 0 ? (
             <p className={TEXT_CLASS}>
               <StreamingText text="" live />
