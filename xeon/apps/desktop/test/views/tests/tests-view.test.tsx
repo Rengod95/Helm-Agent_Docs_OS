@@ -80,7 +80,7 @@ function html(options: ViewOptions = {}): string {
     stale: false,
   };
   const value = read.kind === "ready" ? read.value : [];
-  const rows = testRowsOf(value, ALL_TESTS, null);
+  const rows = testRowsOf(value, ALL_TESTS);
   return renderToString(
     <TestsView
       read={read}
@@ -88,7 +88,6 @@ function html(options: ViewOptions = {}): string {
       selected={options.selected ?? null}
       ui={options.ui ?? UI}
       online={options.online ?? true}
-      scoped={false}
       selectedPaused={options.paused ?? false}
       selectedPhase={options.phase ?? null}
       targetNames={[]}
@@ -145,7 +144,7 @@ describe("테스트 화면 목록 상태", () => {
 
 describe("테스트 화면 상세", () => {
   test("a replay that differs shows the digest verdict, the one-line limit, the cut count and the JSON copy button in dev mode", () => {
-    const row = testRowsOf([record()], ALL_TESTS, null)[0];
+    const row = testRowsOf([record()], ALL_TESTS)[0];
     const markup = html({ selected: row ?? null, ui: { ...UI, devMode: true } });
     expect(markup).toContain("digest 다름");
     expect(markup).toContain("테이프 재생은 응답이 고정되어");
@@ -155,7 +154,7 @@ describe("테스트 화면 상세", () => {
   });
 
   test("outside dev mode a replay detail shows only the read-only verdict and cut count", () => {
-    const row = testRowsOf([record()], ALL_TESTS, null)[0];
+    const row = testRowsOf([record()], ALL_TESTS)[0];
     const markup = html({ selected: row ?? null });
     expect(markup).toContain("digest 다름");
     expect(markup).toContain("41개 중 39개가 같아요");
@@ -177,7 +176,6 @@ describe("테스트 화면 상세", () => {
         }),
       ],
       ALL_TESTS,
-      null,
     )[0];
     const markup = html({ selected: row ?? null, paused: true, phase: "tool" });
     expect(markup).toContain("멈춘 채 있어요");

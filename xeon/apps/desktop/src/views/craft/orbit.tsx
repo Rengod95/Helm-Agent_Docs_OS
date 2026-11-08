@@ -794,7 +794,7 @@ function StateLegend(props: { readonly plugins: readonly CanvasPlugin[] }): Reac
   return (
     <ul
       aria-label={t("desktop.craft.orbit.legend.label")}
-      className="pointer-events-none absolute bottom-3 right-3 z-20 m-0 flex list-none items-center gap-3 p-0 text-ui-xs text-text-secondary"
+      className="pointer-events-none absolute bottom-3 right-14 z-20 m-0 flex list-none items-center gap-3 p-0 text-ui-xs text-text-secondary"
     >
       {items.map((item) => (
         <li key={item.key} className="flex items-center gap-1">

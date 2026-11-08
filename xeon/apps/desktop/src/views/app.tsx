@@ -134,10 +134,6 @@ export function App(props: AppProps): ReactNode {
   }, [setupNeeded, shell]);
   // 놓을 곳이 아닌 데에 놓은 파일로 WebView가 이동하지 않게 한다(`dragDropEnabled: false`의 부작용)
   useEffect(() => installFileDropGuard(window), []);
-  // 대화 영역에서 열린 대화가 바뀌면 작업대 맥락이 (고정이 아니면) 따라간다
-  useEffect(() => {
-    shell.selectChatThread(selected);
-  }, [shell, selected]);
   // 승인 카드의 "검토 열기"는 검토 승인을 UI 스토어에 두고, 무대는 여기서 변경 검토 화면(P-04)으로 옮긴다
   useEffect(() => {
     if (reviewTarget !== null) shell.updatePlace({ screen: "review", scroll: 0 });

@@ -5,12 +5,10 @@ import { layoutOf, panelDefaults, type Layout } from "./layout.ts";
 
 export type Area = "chat" | "workbench";
 
-/** 작업대 맥락 칸 값. `thread`의 `pinned`가 거짓이면 대화 영역에서 대화를 바꿀 때 함께 바뀐다(따라가기) */
+/** 작업대 맥락 칸 값. 크래프트는 전역·프로필 범위만 다루므로 대화 범위는 없다 */
 export type WorkbenchContext =
   | { readonly kind: "all" }
-  | { readonly kind: "thread"; readonly threadId: string; readonly pinned: boolean }
-  | { readonly kind: "profile"; readonly profileId: string }
-  | { readonly kind: "trial"; readonly threadId: string };
+  | { readonly kind: "profile"; readonly profileId: string };
 
 /** 영역이 기억하는 자리: 마지막 화면, 스크롤 위치, 오른쪽 탭 */
 export interface AreaPlace {
@@ -24,8 +22,6 @@ export interface ShellModel {
   readonly area: Area;
   readonly places: Readonly<Record<Area, AreaPlace>>;
   readonly context: WorkbenchContext;
-  /** 대화 영역에서 마지막으로 연 대화. 맥락을 "대화"로 돌리거나 핀을 풀 때 따라갈 곳 */
-  readonly chatThreadId: string | null;
   readonly startOpen: boolean;
   readonly endOpen: boolean;
   readonly paletteOpen: boolean;
@@ -43,7 +39,6 @@ export function initialShell(width: number): ShellModel {
     area: "chat",
     places: DEFAULT_PLACES,
     context: { kind: "all" },
-    chatThreadId: null,
     ...panelDefaults(layout),
     paletteOpen: false,
   };
@@ -76,34 +71,7 @@ export function openEndTab(s: ShellModel, tab: string, area: Area = s.area): She
   return { ...s, places, endOpen: true };
 }
 
-/** 대화 영역에서 대화를 열었다. 따라가는 중인 대화 맥락만 함께 바뀐다(고정이면 그대로) */
-export function selectChatThread(s: ShellModel, threadId: string | null): ShellModel {
-  const context =
-    threadId !== null && s.context.kind === "thread" && !s.context.pinned
-      ? { ...s.context, threadId }
-      : s.context;
-  return { ...s, chatThreadId: threadId, context };
-}
-
-/** "작업대에서 보기": 그 대화로 고정하고 작업대로 간다 */
-export function pinThread(s: ShellModel, threadId: string): ShellModel {
-  return {
-    ...s,
-    area: "workbench",
-    context: { kind: "thread", threadId, pinned: true },
-  };
-}
-
-/** 핀을 푼다. 다시 대화 영역에서 열린 대화를 따라간다. 따라갈 대화가 없으면 고정 때의 대화에 머문다 */
-export function unpinThread(s: ShellModel): ShellModel {
-  if (s.context.kind !== "thread") return s;
-  return {
-    ...s,
-    context: { kind: "thread", threadId: s.chatThreadId ?? s.context.threadId, pinned: false },
-  };
-}
-
-/** 맥락 칸의 묶음을 바꾼다. 대화는 따라가기로, 시험은 지금 열린 대화의 Test run으로 시작한다. 쓸 대화가 없으면 그대로 둔다 */
+/** 맥락 칸의 값을 바꾼다. 프로필은 고를 id가 있어야 하고, 없으면 그대로 둔다 */
 export function setContextKind(
   s: ShellModel,
   kind: WorkbenchContext["kind"],
@@ -114,14 +82,6 @@ export function setContextKind(
       return { ...s, context: { kind: "all" } };
     case "profile":
       return id === undefined ? s : { ...s, context: { kind: "profile", profileId: id } };
-    case "thread": {
-      const threadId = id ?? s.chatThreadId;
-      return threadId === null ? s : { ...s, context: { kind: "thread", threadId, pinned: false } };
-    }
-    case "trial": {
-      const threadId = id ?? s.chatThreadId;
-      return threadId === null ? s : { ...s, context: { kind: "trial", threadId } };
-    }
     default:
       return assertNever(kind, "setContextKind");
   }

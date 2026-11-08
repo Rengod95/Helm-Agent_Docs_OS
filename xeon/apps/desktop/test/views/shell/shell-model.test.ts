@@ -3,12 +3,9 @@ import { layoutOf, panelDefaults } from "../../../src/state/shell/layout.ts";
 import {
   initialShell,
   openEndTab,
-  pinThread,
   resize,
-  selectChatThread,
   setContextKind,
   switchArea,
-  unpinThread,
   updatePlace,
 } from "../../../src/state/shell/model.ts";
 
@@ -67,48 +64,25 @@ describe("area.switch-restores-place", () => {
   });
 });
 
-const withContext = (threadId: string) =>
-  setContextKind(selectChatThread(initialShell(1400), threadId), "thread");
-
-describe("workbench.context-follows-unless-pinned", () => {
-  test("the thread context follows the thread opened in the chat area", () => {
-    let s = withContext("t1");
-    expect(s.context).toEqual({ kind: "thread", threadId: "t1", pinned: false });
-    s = selectChatThread(s, "t2");
-    expect(s.context).toEqual({ kind: "thread", threadId: "t2", pinned: false });
-  });
-
-  test("pinning from 'view in workbench' fixes the context and goes to the workbench", () => {
-    let s = selectChatThread(initialShell(1400), "t1");
-    s = pinThread(s, "t1");
-    expect(s.area).toBe("workbench");
-    s = selectChatThread(s, "t2");
-    expect(s.context).toEqual({ kind: "thread", threadId: "t1", pinned: true });
-    expect(s.chatThreadId).toBe("t2");
-  });
-
-  test("unpinning follows the chat area's thread again", () => {
-    let s = pinThread(selectChatThread(initialShell(1400), "t1"), "t1");
-    s = selectChatThread(s, "t2");
-    s = unpinThread(s);
-    expect(s.context).toEqual({ kind: "thread", threadId: "t2", pinned: false });
-    s = selectChatThread(s, "t3");
-    expect(s.context).toEqual({ kind: "thread", threadId: "t3", pinned: false });
-  });
-
-  test("all, profile and trial contexts never follow", () => {
-    let s = selectChatThread(initialShell(1400), "t1");
-    s = setContextKind(s, "all");
-    expect(selectChatThread(s, "t2").context).toEqual({ kind: "all" });
+describe("workbench.context-values", () => {
+  test("the context is all or one profile: all starts the app, and all clears a profile", () => {
+    let s = initialShell(1400);
+    expect(s.context).toEqual({ kind: "all" });
     s = setContextKind(s, "profile", "p1");
-    expect(selectChatThread(s, "t2").context).toEqual({ kind: "profile", profileId: "p1" });
-    s = setContextKind(s, "trial", "tr9");
-    expect(selectChatThread(s, "t2").context).toEqual({ kind: "trial", threadId: "tr9" });
+    expect(s.context).toEqual({ kind: "profile", profileId: "p1" });
+    s = setContextKind(s, "all");
+    expect(s.context).toEqual({ kind: "all" });
   });
 
-  test("the thread context needs a thread: without one the value stays as it was", () => {
+  test("a profile needs an id: without one the value stays as it was", () => {
     const s = initialShell(1400);
-    expect(setContextKind(s, "thread")).toBe(s);
     expect(setContextKind(s, "profile")).toBe(s);
+  });
+
+  test("the context stays the same when the area changes", () => {
+    let s = setContextKind(initialShell(1400), "profile", "p1");
+    s = switchArea(s, "workbench");
+    s = switchArea(s, "chat");
+    expect(s.context).toEqual({ kind: "profile", profileId: "p1" });
   });
 });

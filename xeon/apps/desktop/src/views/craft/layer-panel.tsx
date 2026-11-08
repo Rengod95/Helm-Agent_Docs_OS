@@ -70,7 +70,7 @@ export function LayerPanel({ layer }: { readonly layer: LayerKey }): ReactNode {
       variant="surface"
       size="sm"
       shadow="4"
-      className="craft-glass animate-enter absolute bottom-14 left-3 right-3 z-20 gap-2"
+      className="craft-glass animate-enter absolute bottom-14 left-3 right-14 z-20 gap-2"
     >
       <header className="flex items-center gap-2">
         <Mark shape={shapeOf(layer)} size={18} />

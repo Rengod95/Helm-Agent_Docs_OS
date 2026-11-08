@@ -52,7 +52,7 @@ export const useThreadIds = (): readonly ThreadId[] =>
   );
 export const useThread = (id: ThreadId): ThreadSummary | undefined =>
   useEngine((s) => sel.selectThread(s, id));
-/** 목록 순서(최근 활동 먼저)의 대화 요약. 셸의 맥락 칸이 쓴다. 엔진 내부 대화는 없다 */
+/** 목록 순서(최근 활동 먼저)의 대화 요약. 엔진 내부 대화는 없다 */
 export const useThreadSummaries = (): readonly ThreadSummary[] =>
   useEngine(
     useShallow((s: EngineMirror) =>

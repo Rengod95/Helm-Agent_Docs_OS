@@ -88,7 +88,7 @@ describe("P-19 테스트 모델", () => {
       lock: "devMode",
     });
     // 목록 읽기는 개발 모드와 상관없이 거르기만 하므로 기록이 있으면 늘 보인다
-    expect(testRowsOf([record()], ALL_TESTS, null)).toHaveLength(1);
+    expect(testRowsOf([record()], ALL_TESTS)).toHaveLength(1);
   });
 
   test("test-run.dev-only-locked: inside dev mode replay is enabled and startable, while benchmark and core diff stay unwired and the abCompare stays isolation-locked", () => {
@@ -111,25 +111,20 @@ describe("P-19 테스트 모델", () => {
     expect(submitPlanOf(draft({ kind: "benchmark" }), true)).toEqual({ kind: "unwired" });
   });
 
-  test("testRowsOf keeps the kind and status filters, the conversation scope, and puts the newest first", () => {
+  test("testRowsOf keeps the kind and status filters and puts the newest first, whatever the conversation", () => {
     const records = [
       record({ testId: "old", startedAt: "2026-11-01T00:00:00.000Z" }),
       record({ testId: "new", startedAt: "2026-11-03T00:00:00.000Z", state: "failed" }),
       record({ testId: "run", kind: "testRun", state: "running", threadId: "thr_9", replay: null }),
     ];
-    expect(testRowsOf(records, ALL_TESTS, null).map((row) => row.testId)).toEqual([
-      "run",
-      "new",
-      "old",
-    ]);
-    expect(
-      testRowsOf(records, { kind: "replay", status: "all" }, null).map((row) => row.testId),
-    ).toEqual(["new", "old"]);
-    expect(
-      testRowsOf(records, { kind: "all", status: "failed" }, null).map((row) => row.testId),
-    ).toEqual(["new"]);
-    expect(testRowsOf(records, ALL_TESTS, "thr_9").map((row) => row.testId)).toEqual(["run"]);
-    expect(testRowsOf([], ALL_TESTS, null)).toEqual([]);
+    expect(testRowsOf(records, ALL_TESTS).map((row) => row.testId)).toEqual(["run", "new", "old"]);
+    expect(testRowsOf(records, { kind: "replay", status: "all" }).map((row) => row.testId)).toEqual(
+      ["new", "old"],
+    );
+    expect(testRowsOf(records, { kind: "all", status: "failed" }).map((row) => row.testId)).toEqual(
+      ["new"],
+    );
+    expect(testRowsOf([], ALL_TESTS)).toEqual([]);
   });
 
   test("replayVerdictOf reads the failure kind first, then digest differs when the cuts do not all match", () => {

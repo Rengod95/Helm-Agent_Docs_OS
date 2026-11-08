@@ -90,7 +90,7 @@ export interface LastResultsVM {
 
 /** 이 그룹(`target`)의 replay 기록만 새것이 위로 고른다. Test run 기록은 이 목록에 들지 않는다 */
 export function lastResultsOf(records: readonly ExtTestRecord[], target: string): LastResultsVM {
-  const all = testRowsOf(records, { kind: "replay", status: "all" }, null)
+  const all = testRowsOf(records, { kind: "replay", status: "all" })
     .filter((row) => row.target === target)
     .map((row): LastResultVM => ({
       testId: row.testId,
