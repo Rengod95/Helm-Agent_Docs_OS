@@ -1893,6 +1893,7 @@
   "desktop.item.status.hookBlocked": "Blocked",
   "desktop.item.status.hookThrew": "Hook error",
   "desktop.item.thinking": "Thinking",
+  "desktop.item.thinkingWait": "Thinking…",
   "desktop.item.toolAwaitingApproval": "Waiting for approval",
   "desktop.item.toolRunning": "Running",
   "desktop.item.toolServer": "Server {server}",
