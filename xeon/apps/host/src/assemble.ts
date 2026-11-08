@@ -168,6 +168,7 @@ import { defaultPluginsDir, hostResourceDir } from "./state-paths.ts";
 import type { AssembleIssue, AssembleOptions, Engine } from "./types.ts";
 import { createExternalHooks, HOOK_DEFS_KEY, stringsOf } from "./assembly/external-hooks.ts";
 import { messageOf, sequentially } from "./util.ts";
+import { ticksInThisProcess } from "./assembly/schedule-ticks.ts";
 
 export type {
   ActivityPort,
@@ -1172,11 +1173,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const context = requirePort(ext, CONTEXT_KEY, "fresnel.context");
     // 예약 서비스(M3b, L4.host-service.spec §4.17). 실행이 쓰는 엔진 포트는 엔진 포트를 만든 뒤에 채운다(아래)
     const scheduleRunner: { ports: ScheduleRunnerPorts | undefined } = { ports: undefined };
-    // 틱을 돌리는 프로세스: 서비스, 그리고 서비스를 쓰지 않는 앱(stdio). 쓰는 쪽은 Scheduler leader 임대로 하나만 돈다(HS-40).
+    // 틱을 돌리는 프로세스: 서비스와 앱(stdio). 설정이 아니라 모드로 정한다(서비스를 띄우지 못해 사이드카가 남아도 예약이 돈다). 쓰는 쪽은 Scheduler leader 임대로 하나만 돈다(HS-40).
     // in-process(CLI)는 명령 하나로 끝나는 일이 많아 틱을 맡지 않는다. 항목은 저장만 하고, 돌아가는 leader가 있어야 실행된다
-    const ticksHere =
-      options.mode === "service" ||
-      (options.mode === "stdio" && settings.value("l0.process.service.enabled") !== true);
+    const ticksHere = ticksInThisProcess(options.mode);
     const scheduleLeases = store.value.service.leases;
     const scheduleRuns = (): boolean => ticksHere || schedulerLeaderIsLive(scheduleLeases, clock);
     const schedule = createHostSchedule({
