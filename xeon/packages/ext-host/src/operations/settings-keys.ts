@@ -190,7 +190,13 @@ export const operationsSettings: SettingGroup<
     default: false,
     runtimeChange: "restart",
     allowedScopes: SAFE_MODE_SCOPES,
-    ui: { tab: "plugins", widget: "toggle", order: 400, label: "Start in safe mode" },
+    ui: {
+      tab: "plugins",
+      widget: "toggle",
+      order: 400,
+      label: "Start in safe mode",
+      help: "When on, the next start loads without user or project extensions and hooks. Use it to recover from a problem.",
+    },
     since: "0.1.0",
   },
   "safeMode.suggestAfter": {

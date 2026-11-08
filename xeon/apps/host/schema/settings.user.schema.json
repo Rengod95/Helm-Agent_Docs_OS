@@ -7874,6 +7874,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
+          "help": "When on, the next start loads without user or project extensions and hooks. Use it to recover from a problem.",
+          "helpKey": "settings.x.operations.safeMode.default.help",
           "label": "Start in safe mode",
           "labelKey": "settings.x.operations.safeMode.default.label",
           "order": 400,

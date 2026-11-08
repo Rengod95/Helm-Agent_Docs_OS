@@ -52,7 +52,7 @@ realTest(
       });
       expect(started).toMatchObject({ status: "done", name: "plan" });
       expect(started.status === "done" ? started.message : "").toContain(
-        "계획 모드를 시작했어요. 이전 승인 모드: 기본 (실행마다 묻기)",
+        "계획 모드를 시작했어요. 이전 승인 모드: 기본(실행마다 묻기)",
       );
 
       const usage = await connection.request("command.run", {

@@ -96,7 +96,7 @@ const group = defineSettings("l1.tools", {
       tab: "permissions",
       widget: "toggle",
       order: 20,
-      label: "Allow bypass mode",
+      label: "Allow-all available",
       help: "Change only in managed settings",
     },
     since: "0.1.0",
