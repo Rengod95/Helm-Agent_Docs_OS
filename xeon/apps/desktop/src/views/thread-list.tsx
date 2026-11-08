@@ -50,13 +50,12 @@ const UNTITLED_LABEL =
 
 /** 긴 제목이 열을 넓히지 않게 목록·그룹·행의 격자 열을 minmax(0,1fr)로 묶는다(말줄임은 caustic 라벨의 truncate가 한다) */
 const LIST_COLUMN =
-  "grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1 [&_ul]:grid-cols-[minmax(0,1fr)] [&_[data-slot=list-navigation-item]]:min-w-0 [&_[data-slot=list-navigation-item]]:grid-cols-[minmax(0,1fr)] [&_[data-slot=list-navigation-heading]]:text-ui-dense [&_[data-slot=list-navigation-heading]]:normal-case";
+  "grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1 [&_ul]:grid-cols-[minmax(0,1fr)] [&_[data-slot=list-navigation-item]]:min-w-0 [&_[data-slot=list-navigation-item]]:grid-cols-[minmax(0,1fr)] [&_[data-slot=list-navigation-heading]]:text-ui-sm [&_[data-slot=list-navigation-status]]:size-icon-sm [&_[data-slot=list-navigation-heading]]:normal-case";
 
 /**
- * 대화 행 높이는 위 탐색 줄(대화·받은 요청·제안·예약, caustic navigation sm = h-menu-item)과 같다. sessions sm 행은 h-control-sm(28px)이라
- * 30px로 맞춘다. 행 뒤 ⋯ 칸(`ROW_MENU`)도 같은 높이를 쓴다 [결정: 2026-11-08 사용자, dsB]
+ * 대화 행 높이는 위 탐색 줄(대화·받은 요청·제안·예약, caustic navigation xs = h-control-sm)과 같다. sessions sm 행도 h-control-sm이지만 글자는 ui-sm으로 낮춘다. 행 뒤 ⋯ 칸(`ROW_MENU`)도 같은 높이를 쓴다 [결정: 2026-11-08 사용자, dsB]
  */
-const ROW_HEIGHT = "h-menu-item!";
+const ROW_HEIGHT = "h-control-sm! text-ui-sm!";
 
 /** 행 오른쪽 짧은 글자. 종류는 `rowBadgeOf`가 정한다(시안: 행 meta는 짧게) */
 function metaOf(
@@ -163,7 +162,7 @@ const ThreadRow = memo(function ThreadRow(props: {
       {/* 행 뒤 높이 0인 칸에 ⋯를 겹친다(caustic 행에 동작 자리가 없다). 보임과 승인 수 비움은 styles.css [data-row-menu] */}
       <li
         data-row-menu=""
-        className="pointer-events-none relative -mt-menu-item flex h-menu-item list-none items-center justify-end pe-1"
+        className="pointer-events-none relative -mt-control-sm flex h-control-sm list-none items-center justify-end pe-1"
       >
         <ThreadRowMenu id={id} title={title} status={props.thread.status} bare />
       </li>
@@ -282,7 +281,7 @@ function OtherFolder(props: {
           />
         </Field>
         {props.recent.length === 0 ? null : (
-          <ListNavigation aria-label={t("desktop.threads.recentLabel")} size="sm" as="div">
+          <ListNavigation aria-label={t("desktop.threads.recentLabel")} size="xs" as="div">
             <ListNavigationGroup heading={t("desktop.threads.recentHeading")}>
               {props.recent.map((recent) => (
                 <ListNavigationItem

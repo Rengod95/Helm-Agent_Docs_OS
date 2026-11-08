@@ -100,7 +100,7 @@ function PluginUiSection(props: { readonly onOpen: (key: string) => void }): Rea
   const rows = pluginUiRowsOf(usePluginUiState());
   if (rows.length === 0) return null;
   return (
-    <ListNavigation aria-label={t("term.pluginUi")} kind="navigation" size="sm" as="div">
+    <ListNavigation aria-label={t("term.pluginUi")} kind="navigation" size="xs" as="div">
       <ListNavigationGroup heading={t("term.pluginUi")}>
         {rows.map((row) => {
           const title = extMessageOf(row.entry.messages, activeLocale(), row.entry.title);
@@ -154,9 +154,9 @@ export function StartPanel(props: StartPanelProps): ReactNode {
       variant={props.floating ? "solid" : "outline"}
       shadow={props.floating ? "3" : "none"}
       // 머리·바닥 밀도는 시안의 size="sm"과 같은 값을 자리 클래스로 준다(SidePanel size 속성은 lint가 쓰지 못하게 막는다)
-      className="[&>[data-slot=side-panel-header]]:min-h-control-lg [&>[data-slot=side-panel-header]]:px-1.5 [&>[data-slot=side-panel-header]]:py-1.5 [&>[data-slot=side-panel-footer]]:px-1.5 [&>[data-slot=side-panel-footer]]:py-2"
+      className="[&>[data-slot=side-panel-header]]:min-h-(--shell-header-h) [&>[data-slot=side-panel-header]]:px-1.5 [&>[data-slot=side-panel-header]]:py-1.5 [&>[data-slot=side-panel-footer]]:px-1.5 [&>[data-slot=side-panel-footer]]:py-2"
       header={
-        <div className="grid min-w-0 gap-1.5 pb-1">
+        <div className="grid min-w-0 gap-1.5">
           {/* 영역 탭 줄 끝에 패널 접기 단추를 둔다(찾기 줄은 없다. 명령 팔레트는 ⌘K) */}
           <div className="flex min-w-0 items-center gap-1">
             <AreaSwitch onSwitch={props.onSwitchArea} />
@@ -178,7 +178,7 @@ export function StartPanel(props: StartPanelProps): ReactNode {
         <ListNavigation
           aria-label={t("desktop.shell.settings")}
           kind="navigation"
-          size="sm"
+          size="xs"
           as="div"
           className="w-full"
         >
@@ -200,7 +200,7 @@ export function StartPanel(props: StartPanelProps): ReactNode {
             area === "chat" ? "desktop.shell.nav.chatGroup" : "desktop.shell.nav.workbenchGroup",
           )}
           kind="navigation"
-          size="sm"
+          size="xs"
         >
           <ListNavigationGroup>
             {items.map((item) => (

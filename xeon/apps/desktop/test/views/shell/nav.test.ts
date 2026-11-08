@@ -13,10 +13,9 @@ describe("nav table", () => {
     ]);
   });
 
-  test("the chat nav lists six items, the plugin pages entry last and on nav.6", () => {
+  test("the chat nav lists five items without the inbox (it lives on the right toolbar), the plugin pages entry last and on nav.6", () => {
     expect(NAV_BY_AREA.chat.map((item) => [item.id, item.label, item.action])).toEqual([
       ["chat", "desktop.shell.nav.chat", "nav.1"],
-      ["inbox", "desktop.shell.nav.inbox", "nav.2"],
       ["proposals", "desktop.shell.nav.proposals", "nav.3"],
       ["schedules", "desktop.shell.nav.schedules", "nav.4"],
       ["connection", "desktop.shell.nav.connection", "nav.5"],

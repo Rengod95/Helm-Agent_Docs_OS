@@ -85,7 +85,7 @@ function InboxTab(): ReactNode {
   return <InboxApprovals />;
 }
 
-/** 받은 요청 화면(시안 p03). 왼쪽 내비의 "받은 요청"이 무대에 연다. 끝 영역 탭과 같은 목록을 그린다 */
+/** 받은 요청 화면(시안 p03). 왼쪽 내비에서 뺐다(진입은 오른쪽 툴바 탭). 화면 등록은 남아 있다. 끝 영역 탭과 같은 목록을 그린다 */
 function InboxScreen(): ReactNode {
   const [filter, setFilter] = useState<InboxFilter>("all");
   const [thread, setThread] = useState<InboxThread>("all");
@@ -100,8 +100,8 @@ function InboxScreen(): ReactNode {
   );
   return (
     <section aria-labelledby="inbox-heading" className="flex min-h-0 flex-1 flex-col">
-      <header className="mx-auto flex min-h-10 w-full max-w-184 flex-none flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1">
-        <h1 id="inbox-heading" className="m-0 me-1 text-text-primary">
+      <header className="shell-header flex flex-none flex-wrap items-center gap-x-2 gap-y-1 py-1">
+        <h1 id="inbox-heading" className="m-0 me-1 font-medium text-text-secondary">
           {t("desktop.shell.nav.inbox")}
         </h1>
         <SegmentedControl

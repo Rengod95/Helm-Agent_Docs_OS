@@ -8,7 +8,6 @@ test("every chat and workbench nav item opens a registered screen with an icon",
   const ids = [...NAV_BY_AREA.chat, ...NAV_BY_AREA.workbench].map((item) => item.id);
   expect(ids).toEqual([
     "chat",
-    "inbox",
     "proposals",
     "schedules",
     "connection",

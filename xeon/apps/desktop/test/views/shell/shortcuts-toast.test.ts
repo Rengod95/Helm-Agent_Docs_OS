@@ -37,6 +37,14 @@ describe("shell shortcut actions", () => {
     expect(s.calls).toEqual([false, false]);
   });
 
+  test("nav.2 opens the inbox end tab, the inbox is no longer a sidebar item", () => {
+    const store = createShellStore(1400);
+    const s = settings();
+    expect(runShellAction("nav.2", store.read.getState(), store.actions, s)).toBe(true);
+    expect(store.read.getState().places.chat.endTab).toBe("inbox");
+    expect(store.read.getState().endOpen).toBe(true);
+  });
+
   test("nav.3 opens the third chat screen in the chat area", () => {
     const store = createShellStore(1400);
     store.actions.switchArea("workbench");
