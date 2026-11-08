@@ -86,14 +86,14 @@
 /* 스피너: 가는 고리 위로 호 하나가 돈다 */
 .call-chip-spinner {
   box-sizing: border-box;
-  border: 1.75px solid var(--cs-color-border-subtle, currentColor);
-  border-top-color: var(--cs-color-agent-graphic, currentColor);
+  border: 1.75px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-top-color: var(--cs-color-agent-text, currentColor);
   border-radius: 9999px;
   animation: call-chip-spin 0.8s linear infinite;
 }
 .call-chip[data-waiting="true"] .call-chip-spinner {
   animation: none;
-  border-top-color: var(--cs-color-border-subtle, currentColor);
+  border-top-color: color-mix(in srgb, currentColor 22%, transparent);
 }
 
 /* 체크: 선이 그려진다 */
