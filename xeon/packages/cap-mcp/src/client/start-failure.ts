@@ -20,33 +20,34 @@ const NEGOTIATION_NOTE = "(설정: MCP 사양 버전 협상, l2.mcp.versionNegot
 const CLOSED = /connection closed|process exited|exited/i;
 const NEGOTIATION = /negotiat/i;
 
-/** 원인의 한국어 문장. 서버 id를 넣지 않는다(틀이 앞에 붙인다) */
+/** 코드만으로 원인이 정해지는 실패의 문장 */
+const FIXED_CAUSES: Readonly<Record<string, string>> = {
+  sandbox_unavailable: "이 기기에서는 서버를 격리할 수 없어서 띄우지 않았어요",
+  secret_missing: "서버가 쓰는 시크릿 참조를 찾지 못했어요. 시크릿을 등록했는지 확인해 주세요",
+  secret_denied: "시크릿을 쓰는 서버의 시작이 허용되지 않았어요",
+  invalid_url: "서버 주소를 해석하지 못했어요. 주소 형식을 확인해 주세요",
+  unsupported: "이 환경에서는 이 종류의 서버를 띄울 수 없어요",
+};
+
+function spawnCauseOf(message: string): string {
+  if (/^ENOENT\b|not found/i.test(message)) {
+    return "명령을 찾지 못했어요. 실행 명령의 이름과 경로를 확인해 주세요";
+  }
+  if (/^EACCES\b|permission denied/i.test(message)) {
+    return "명령을 실행할 권한이 없어요. 실행 파일의 권한을 확인해 주세요";
+  }
+  return "명령을 실행하지 못했어요. 실행 명령과 인자를 확인해 주세요";
+}
+
+/** 원인의 한국어 문장. 서버 id를 넣지 않는다(틀이 앞에 붙인다). 모르면 `null`이다 */
 function causeOf(input: StartFailureInput): string | null {
   const { code, message } = input;
-  switch (code) {
-    case "spawn_failed":
-      if (/^ENOENT\b|not found/i.test(message)) {
-        return "명령을 찾지 못했어요. 실행 명령의 이름과 경로를 확인해 주세요";
-      }
-      if (/^EACCES\b|permission denied/i.test(message)) {
-        return "명령을 실행할 권한이 없어요. 실행 파일의 권한을 확인해 주세요";
-      }
-      return "명령을 실행하지 못했어요. 실행 명령과 인자를 확인해 주세요";
-    case "timeout":
-      return `${input.connectMs / 1000}초 안에 서버가 응답하지 않았어요 ${CONNECT_LIMIT_NOTE}`;
-    case "sandbox_unavailable":
-      return "이 기기에서는 서버를 격리할 수 없어서 띄우지 않았어요";
-    case "secret_missing":
-      return "서버가 쓰는 시크릿 참조를 찾지 못했어요. 시크릿을 등록했는지 확인해 주세요";
-    case "secret_denied":
-      return "시크릿을 쓰는 서버의 시작이 허용되지 않았어요";
-    case "invalid_url":
-      return "서버 주소를 해석하지 못했어요. 주소 형식을 확인해 주세요";
-    case "unsupported":
-      return "이 환경에서는 이 종류의 서버를 띄울 수 없어요";
-    default:
-      break;
+  if (code === "spawn_failed") return spawnCauseOf(message);
+  if (code === "timeout") {
+    return `${input.connectMs / 1000}초 안에 서버가 응답하지 않았어요 ${CONNECT_LIMIT_NOTE}`;
   }
+  const fixed = FIXED_CAUSES[code];
+  if (fixed !== undefined) return fixed;
   if (NEGOTIATION.test(message) && !CLOSED.test(message)) {
     return `서버와 MCP 사양 버전을 맞추지 못했어요 ${NEGOTIATION_NOTE}`;
   }

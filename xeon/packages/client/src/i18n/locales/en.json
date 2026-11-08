@@ -2097,6 +2097,7 @@
   "desktop.settings.mcp.error.locked": "Another process is writing, so this cannot change",
   "desktop.settings.mcp.error.failed": "Could not finish. Try again",
   "desktop.settings.mcp.error.detail": "Could not save: {detail}",
+  "desktop.settings.mcp.error.conflict": "The settings changed somewhere else. Reload and try again",
   "desktop.settings.mcp.error.tableUnreadable": "The settings file could not be read, so nothing was saved",
   "desktop.settings.mcp.error.tableInvalid": "The server table in the settings file is not valid, so nothing was saved. Fix it in the file view",
   "desktop.settings.about.title": "About and diagnostics",

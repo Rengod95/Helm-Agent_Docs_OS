@@ -223,15 +223,18 @@ export function firstLineOf(text: string): string {
 }
 
 /** 오류 글의 둘째 줄부터(서버나 SDK의 원문). 없으면 `null`이다 */
-export function originalOf(text: string): string | null {
+function originalOf(text: string): string | null {
   const rest = text.split("\n").slice(1).join("\n").trim();
   return rest === "" ? null : rest;
 }
 
-/** 시작 실패 첫 줄에서 앞의 틀("서버 <id>에 연결하지 못했어요: ")을 뺀 원인. 틀이 없으면 첫 줄 그대로다 */
-export function causeOf(server: string, line: string): string {
-  const frame = `서버 ${server}에 연결하지 못했어요: `;
-  return line.startsWith(frame) ? line.slice(frame.length) : line;
+/**
+ * 시작 실패 첫 줄에서 앞의 틀(서버 id를 말하는 머리)을 뺀 원인. 첫 `: ` 앞이 서버 id를 담고 있으면 그 뒤가 원인이고,
+ * 아니면 첫 줄 그대로다. 토스트가 서버를 두 번 말하지 않게 한다
+ */
+function causeOf(server: string, line: string): string {
+  const at = line.indexOf(": ");
+  return at > 0 && line.slice(0, at).includes(server) ? line.slice(at + 2) : line;
 }
 
 function timeTextOf(at: number, locale: string): string {
@@ -540,6 +543,19 @@ export function tableWithServer(
   }
   if (!placed && change.def !== null) next.push([change.id, change.def]);
   return Object.fromEntries(next);
+}
+
+/**
+ * 사용자 설정 파일 원문에서 서버 표만 바꾼 원문. 다른 키와 키 순서는 그대로 두고(기존 키에 대입하면 자리가 남고 새 키는 끝에 붙는다),
+ * 끝에 줄바꿈을 한 번 둔다. 원문이 JSON 객체가 아니면 `unreadable`이다. `userTableOf`가 읽은 원문에 쓴다
+ */
+export function fileTextWithTable(text: string, table: UserTable): Result<string, "unreadable"> {
+  const read: Result<unknown, unknown> =
+    text.trim() === "" ? { ok: true, value: {} } : parseJson(text);
+  if (!read.ok || !isRecord(read.value)) return err("unreadable");
+  const next: Record<string, unknown> = { ...read.value };
+  next[MCP_SERVERS_KEY] = table;
+  return ok(`${JSON.stringify(next, null, 2)}\n`);
 }
 
 /** 행들의 id 목록. 폼의 중복 검사가 쓴다 */

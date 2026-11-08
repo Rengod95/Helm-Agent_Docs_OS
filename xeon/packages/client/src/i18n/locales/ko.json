@@ -2097,6 +2097,7 @@
   "desktop.settings.mcp.error.locked": "다른 프로세스가 쓰고 있어 바꿀 수 없어요",
   "desktop.settings.mcp.error.failed": "작업을 끝내지 못했어요. 다시 해 보세요",
   "desktop.settings.mcp.error.detail": "저장하지 못했어요: {detail}",
+  "desktop.settings.mcp.error.conflict": "다른 곳에서 설정이 바뀌었어요. 다시 읽고 시도해 주세요",
   "desktop.settings.mcp.error.tableUnreadable": "설정 파일을 읽지 못해 저장하지 않았어요",
   "desktop.settings.mcp.error.tableInvalid": "설정 파일의 서버 표가 올바르지 않아 저장하지 않았어요. 파일로 보기에서 고쳐 주세요",
   "desktop.settings.about.title": "정보와 진단",

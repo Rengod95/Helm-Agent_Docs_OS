@@ -7,6 +7,7 @@ import {
   defOfDraft,
   draftOfDefinition,
   failureKeyOf,
+  fileTextWithTable,
   firstLineOf,
   hiddenLineOf,
   hiddenReasonKindOf,
@@ -210,6 +211,26 @@ describe("rowModelOf", () => {
   test("the block action is unblock for an always-blocked server and block otherwise", () => {
     expect(blockActionOf({ alwaysBlocked: true })).toEqual("unblock");
     expect(blockActionOf({ alwaysBlocked: false })).toEqual("blockAlways");
+  });
+});
+
+describe("fileTextWithTable", () => {
+  test("replaces only the servers table and keeps the other keys in their order", () => {
+    const text = '{"b":1,"l2.mcp.servers":{"old":{}},"a":2}';
+    const next = fileTextWithTable(text, { fresh: { transport: { type: "stdio", command: "x" } } });
+    const expected = {
+      b: 1,
+      "l2.mcp.servers": { fresh: { transport: { type: "stdio", command: "x" } } },
+      a: 2,
+    };
+    expect(next).toEqual(ok(`${JSON.stringify(expected, null, 2)}\n`));
+  });
+
+  test("an empty file becomes an object with the table, and a file that is not an object is refused", () => {
+    const empty = fileTextWithTable("", { a: {} });
+    expect(empty).toEqual(ok(`${JSON.stringify({ "l2.mcp.servers": { a: {} } }, null, 2)}\n`));
+    expect(fileTextWithTable("[1]", {})).toEqual(err("unreadable"));
+    expect(fileTextWithTable("nope", {})).toEqual(err("unreadable"));
   });
 });
 
