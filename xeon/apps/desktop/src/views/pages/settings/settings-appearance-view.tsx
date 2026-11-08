@@ -10,11 +10,12 @@ import {
   type MotionPref,
 } from "../../appearance-prefs.ts";
 import { useDesktopShell } from "../../desktop-shell-context.ts";
+import { TRANSCRIPT_DETAILS, type TranscriptDetail } from "../../transcript-detail.ts";
 import { SettingSection } from "./settings-section.tsx";
 
-// 설정 "외관" 탭의 접근성 묶음(시안 e01 `Appearance`): 움직임 줄이기와 확대. 값은 로컬 설정에 저장하고 저장되면 바로 화면에 건다
-// (`appearance-prefs.ts`). 설명은 정보 아이콘 뒤에 둔다. 웹에는 셸 문맥이 없어 `AppearancePanel`이 아무것도 그리지 않는다.
-// 고대비(강제 색)는 OS가 켜는 값이라 이 묶음에 없다.
+// 설정 "외관" 탭의 접근성 묶음(시안 e01 `Appearance`): 움직임 줄이기와 확대, 그리고 대화 기록의 생각·도구 표시 정도.
+// 값은 로컬 설정에 저장하고 저장되면 바로 화면에 건다(`appearance-prefs.ts`). 설명은 정보 아이콘 뒤에 둔다.
+// 웹에는 셸 문맥이 없어 `AppearancePanel`이 아무것도 그리지 않는다. 고대비(강제 색)는 OS가 켜는 값이라 이 묶음에 없다.
 
 export function AppearancePanel(): ReactNode {
   const shell = useDesktopShell();
@@ -44,6 +45,9 @@ function AppearancePanelBound(props: { readonly port: AppearancePort }): ReactNo
       prefs={prefs}
       onMotion={(motion) => save({ ...prefs, motion }, () => port.setMotion(motion))}
       onZoom={(zoom) => save({ ...prefs, zoom }, () => port.setZoom(zoom))}
+      onTranscriptDetail={(transcriptDetail) =>
+        save({ ...prefs, transcriptDetail }, () => port.setTranscriptDetail(transcriptDetail))
+      }
     />
   );
 }
@@ -52,6 +56,7 @@ interface AppearancePanelViewProps {
   readonly prefs: AppearancePrefs;
   readonly onMotion: (motion: MotionPref) => void;
   readonly onZoom: (zoom: number) => void;
+  readonly onTranscriptDetail: (detail: TranscriptDetail) => void;
 }
 
 function Row(props: {
@@ -107,6 +112,31 @@ function AppearancePanelView(props: AppearancePanelViewProps): ReactNode {
               {`${step}%`}
             </SelectOption>
           ))}
+        </Select>
+      </Row>
+      <Row
+        label="desktop.settings.appearance.transcriptDetail"
+        info="desktop.settings.appearance.transcriptDetail.info"
+      >
+        <Select
+          size="sm"
+          aria-label={t("desktop.settings.appearance.transcriptDetail")}
+          value={prefs.transcriptDetail}
+          onValueChange={(next) => {
+            const detail = TRANSCRIPT_DETAILS.find((option) => option === next);
+            if (detail !== undefined) props.onTranscriptDetail(detail);
+          }}
+          className="w-56"
+        >
+          <SelectOption value="full">
+            {t("desktop.settings.appearance.transcriptDetail.full")}
+          </SelectOption>
+          <SelectOption value="summary">
+            {t("desktop.settings.appearance.transcriptDetail.summary")}
+          </SelectOption>
+          <SelectOption value="hidden">
+            {t("desktop.settings.appearance.transcriptDetail.hidden")}
+          </SelectOption>
         </Select>
       </Row>
     </SettingSection>
