@@ -466,8 +466,8 @@ export interface WebCommands {
 }
 
 /**
- * "MCP 서버" 구역(W-15). `servers`와 `serverAction`은 wire 값을 그대로 돌려주고 거울에 넣지 않는다. `setUserTable`은 사용자 범위
- * `l2.mcp.servers` 표 전체를 `settings.set` 한 번으로 쓴다(값은 호출자가 읽고 고친 표다). 표가 아니라 서버 하나를 고치는 일은 화면이 맡는다.
+ * "MCP 서버" 구역(W-15). `servers`와 `serverAction`은 wire 값을 그대로 돌려주고 거울에 넣지 않는다.
+ * 서버 정의의 쓰기는 설정 파일 명령(`settings.readFile`·`writeFile { baseSha256 }`)이다. 화면이 읽고 한 서버만 고쳐 쓴다.
  */
 export interface McpCommands {
   servers(): Promise<Result<readonly McpServerRow[], CommandError>>;
@@ -475,7 +475,6 @@ export interface McpCommands {
     server: string,
     action: McpServerAction,
   ): Promise<Result<McpServerRow, CommandError>>;
-  setUserTable(table: Readonly<Record<string, unknown>>): Promise<Result<null, CommandError>>;
 }
 
 /**

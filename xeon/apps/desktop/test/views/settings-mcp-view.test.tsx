@@ -89,8 +89,46 @@ describe("McpServersView rows", () => {
       },
     });
     expect(markup).toContain("차단 풀기");
-    expect(markup).not.toContain("항상 끄기");
+    // 단추 글자만 본다. 사유 글에도 "항상 끄기"가 든다
+    expect(markup).not.toContain(">항상 끄기<");
+    expect(markup).toContain(t("desktop.settings.mcp.state.alwaysBlocked"));
+    expect(markup).toContain(t("desktop.settings.mcp.blocked.always"));
+  });
+
+  test("a failed server that is always blocked shows Blocked instead of the failed chip, and hides the old error", () => {
+    const markup = html({
+      load: {
+        kind: "ready",
+        rows: [
+          rowOf({
+            alwaysBlocked: true,
+            state: "failed",
+            lastError: {
+              code: "connect_failed",
+              message: "서버 files에 연결하지 못했어요: x",
+              at: 0,
+            },
+          }),
+        ],
+        rev: 0,
+      },
+    });
+    expect(markup).toContain("차단됨");
+    expect(markup).not.toContain(t("desktop.settings.mcp.state.failed"));
+    expect(markup).not.toContain("연결하지 못했어요");
+    expect(markup).toContain("차단 풀기");
+  });
+
+  test("a server blocked by policy but not by the user keeps the policy reason and the block button", () => {
+    const markup = html({
+      load: {
+        kind: "ready",
+        rows: [rowOf({ state: "blocked", blockedReason: "denied_by_policy" })],
+        rev: 0,
+      },
+    });
     expect(markup).toContain("차단 목록에 있어요");
+    expect(markup).toContain("항상 끄기");
   });
 
   test("an approval wait shows its reason, and the explanation sits behind the info icon once", () => {
@@ -169,6 +207,29 @@ describe("McpServersView rows", () => {
       },
     });
     expect(markup).toContain("확장 helm");
+  });
+
+  test("the original error text sits behind an info icon and the Korean sentence stays visible", () => {
+    const markup = html({
+      load: {
+        kind: "ready",
+        rev: 0,
+        rows: [
+          rowOf({
+            state: "failed",
+            lastError: {
+              code: "connect_failed",
+              message: "서버 files에 연결하지 못했어요: 원인을 알 수 없어요\nweird original",
+              at: 0,
+            },
+          }),
+        ],
+      },
+    });
+    expect(markup).toContain("서버 files에 연결하지 못했어요: 원인을 알 수 없어요");
+    expect(
+      countOf(markup, t("desktop.settings.mcp.error.original", { text: "weird original" })),
+    ).toBe(1);
   });
 
   test("a row's last action error shows under it", () => {

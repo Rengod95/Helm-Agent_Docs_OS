@@ -96,7 +96,13 @@ describe("reconnect", () => {
     const failure = await rejection(
       world.runtime.service.client.callTool({ server: "stub", tool: "echo", arguments: {} }),
     );
-    expect(failure).toMatchObject({ data: { code: "server_disconnected", retryable: true } });
+    expect(failure).toMatchObject({
+      data: {
+        code: "server_disconnected",
+        retryable: true,
+        message: "서버 stub에 다시 연결하는 중이라 호출할 수 없어요. 잠시 뒤에 다시 시도해 주세요",
+      },
+    });
     const status = await world.runtime.service.client.status({ server: "stub" });
     expect(status.lastError).toMatchObject({
       code: "server_disconnected",

@@ -22,6 +22,7 @@ import { sandboxOf, type McpSettings } from "../settings.ts";
 import type { OpenedTransport, TransportFactory } from "../transport/factory.ts";
 import type { BlockedReason, ServerDefinition } from "../types.ts";
 import { backoffDelayMs } from "./backoff.ts";
+import { describeStartFailure } from "./start-failure.ts";
 
 // 서버별 연결 상태 기계(L2.mcp.plan §2 client/registry.ts, L2.mcp.spec §4.1, §4.8).
 // disabled → connecting → connected ↔ reconnecting → failed, 정책이 막으면 blocked.
@@ -228,8 +229,24 @@ export function createRegistry(deps: RegistryDeps): ServerRegistry {
       .map((line) => deps.masker.mask(line));
   }
 
-  function failAttempt(entry: Entry, code: string, message: string): void {
-    recordError(entry, code, `서버 ${entry.definition.id}에 연결하지 못했어요: ${message}`);
+  /** 시작 실패를 기록한다. 문장은 한국어 원인과 마스킹한 원문이다(`describeStartFailure`) */
+  function failAttempt(
+    entry: Entry,
+    failure: { readonly code: string; readonly message: string },
+    stderrTail: readonly string[],
+    connectMs: number,
+  ): void {
+    recordError(
+      entry,
+      failure.code,
+      describeStartFailure({
+        server: entry.definition.id,
+        code: failure.code,
+        message: deps.masker.mask(failure.message),
+        stderrTail: stderrTail.map((line) => deps.masker.mask(line)),
+        connectMs,
+      }),
+    );
     entry.failures += 1;
     const settings = deps.settings();
     if (entry.failures >= settings.reconnect.maxAttempts) {
@@ -263,13 +280,23 @@ export function createRegistry(deps: RegistryDeps): ServerRegistry {
     if (!opened.ok && opened.error.code === "sandbox_unavailable") {
       // 격리할 수 없는 기기에서는 띄우지 않는다. 재시도 타이머를 쓰지 않는다. 정의가 바뀌거나 사용자가 다시 시작하면 새로 판정한다(샌드박스 설정만 바뀐 경우는 다시 시작하지 않는다, spec §10 15번)
       entry.dynamicBlock = "sandbox_unavailable";
-      recordError(entry, "sandbox_unavailable", opened.error.message);
+      recordError(
+        entry,
+        "sandbox_unavailable",
+        describeStartFailure({
+          server: entry.definition.id,
+          code: "sandbox_unavailable",
+          message: deps.masker.mask(opened.error.message),
+          stderrTail: [],
+          connectMs,
+        }),
+      );
       setState(entry, "blocked");
       deps.onChanged(entry.definition.id);
       return;
     }
     if (!opened.ok) {
-      failAttempt(entry, opened.error.code, opened.error.message);
+      failAttempt(entry, opened.error, [], connectMs);
       return;
     }
     const connected = await connectMcp({
@@ -281,16 +308,9 @@ export function createRegistry(deps: RegistryDeps): ServerRegistry {
       logger: deps.logger,
     });
     if (!connected.ok) {
-      const tail = opened.value.stderrTail().slice(-3).join(" | ");
       if (!stale()) {
         keepStderr(entry, opened.value);
-        failAttempt(
-          entry,
-          connected.error.code,
-          tail.length > 0
-            ? `${connected.error.message} (stderr: ${tail})`
-            : connected.error.message,
-        );
+        failAttempt(entry, connected.error, opened.value.stderrTail().slice(-3), connectMs);
       }
       return;
     }
@@ -316,7 +336,12 @@ export function createRegistry(deps: RegistryDeps): ServerRegistry {
       const failure = !tools.ok ? tools.error : prompts.ok ? undefined : prompts.error;
       await connection.close();
       keepStderr(entry, opened.value);
-      failAttempt(entry, failure?.code ?? "protocol_error", failure?.message ?? "listing failed");
+      failAttempt(
+        entry,
+        { code: failure?.code ?? "protocol_error", message: failure?.message ?? "listing failed" },
+        [],
+        connectMs,
+      );
       return;
     }
     entry.connection = connection;

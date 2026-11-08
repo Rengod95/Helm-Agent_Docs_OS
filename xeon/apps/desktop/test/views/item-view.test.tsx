@@ -100,7 +100,13 @@ function mcpResultItem(n: number, toolName: string, server: string): ItemRecord 
   return { ...base, message: { ...base.message, details: { server, tool: toolName } } };
 }
 
-function toolResultItem(n: number, toolName: string, text: string, isError: boolean): ItemRecord {
+function toolResultItem(
+  n: number,
+  toolName: string,
+  text: string,
+  isError: boolean,
+  details?: JsonObject,
+): ItemRecord {
   return {
     itemId: itm(n),
     status: isError ? "failed" : "completed",
@@ -112,6 +118,7 @@ function toolResultItem(n: number, toolName: string, text: string, isError: bool
       toolName,
       content: [{ type: "text", text }],
       isError,
+      ...(details === undefined ? {} : { details }),
       timestamp: 0,
     },
   };
@@ -223,12 +230,14 @@ describe("one row per tool call", () => {
     const h = openedHarness();
     ingestRecords(h, [
       callItem(1, 2, "bash"),
-      toolResultItem(2, "bash", "[fresnel:denied_by_user] The user denied this tool call.", true),
+      toolResultItem(2, "bash", "사용자가 이 도구 호출을 거부했다.", true, {
+        code: "denied_by_user",
+      }),
     ]);
     const call = visibleText(render(<RecordedItem id={itm(1)} />, h));
     expect(call).toContain(t("desktop.item.status.denied"));
     expect(call).toContain(t("desktop.item.denied.body"));
-    expect(call).not.toContain("fresnel:denied_by_user");
+    expect(call).not.toContain("denied_by_user");
     expect(call).not.toContain(t("desktop.item.status.failed"));
     expect(render(<RecordedItem id={itm(2)} />, h)).toBe("");
   });
@@ -269,6 +278,43 @@ describe("one row per tool call", () => {
     h.store.flush();
     const waiting = visibleText(render(<RecordedItem id={itm(1)} />, h));
     expect(waiting).toContain(t("desktop.item.toolAwaitingApproval"));
+    expect(waiting).not.toContain(t("desktop.item.toolRunning"));
+    const other = visibleText(render(<RecordedItem id={itm(2)} />, h));
+    expect(other).not.toContain(t("desktop.item.toolAwaitingApproval"));
+  });
+
+  test("a call queued behind an earlier call's approval in the same message waits for approval too, and a call in another message does not", () => {
+    const h = openedHarness();
+    h.store.ingest({ type: "engine", state: { kind: "running", source: "sidecar", pid: 1 } });
+    const base = assistantItem(1, "");
+    if (base.kind !== "assistant") throw new Error("assistantItem must build an assistant item");
+    const twoCalls: ItemRecord = {
+      ...base,
+      message: {
+        ...base.message,
+        content: [
+          { type: "toolCall", id: "call-a", name: "echo", arguments: { text: "a" } },
+          { type: "toolCall", id: "call-b", name: "write_note", arguments: { text: "b" } },
+        ],
+        stopReason: "toolUse",
+      },
+    };
+    ingestRecords(h, [twoCalls, callItem(2, 10, "bash")]);
+    h.store.ingest({ type: "threads", threads: [summary(thr(1), { status: "running" })] });
+    const request = approvalRequest(thr(1));
+    h.store.ingest({
+      type: "approvals",
+      approvals: [
+        {
+          approvalId: evt(7),
+          seq: 4,
+          request: { ...request, origin: { ...request.origin, toolCallId: "call-a" } },
+        },
+      ],
+    });
+    h.store.flush();
+    const waiting = visibleText(render(<RecordedItem id={itm(1)} />, h));
+    expect(waiting.split(t("desktop.item.toolAwaitingApproval"))).toHaveLength(3);
     expect(waiting).not.toContain(t("desktop.item.toolRunning"));
     const other = visibleText(render(<RecordedItem id={itm(2)} />, h));
     expect(other).not.toContain(t("desktop.item.toolAwaitingApproval"));

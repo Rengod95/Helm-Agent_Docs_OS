@@ -196,3 +196,62 @@ describe("the thread workspace is the project root", () => {
     await world.runtime.shutdown();
   });
 });
+
+describe("listServers follows the settings without waiting for a step boundary", () => {
+  const TITLED = { ...STDIO, title: "Server B" };
+
+  test("an added, edited and removed server shows in the next list, with its title", async () => {
+    const world = buildWorld({
+      servers: { a: stub, b: stub },
+      user: { servers: { a: STDIO } },
+    });
+    await startWorld(world);
+    const client = world.runtime.service.client;
+
+    world.settings.set([layer("user", { "l2.mcp.servers": { a: STDIO, b: STDIO } })]);
+    const added = await client.listServers({});
+    expect(added.servers.map((server) => server.server)).toEqual(["a", "b"]);
+    await world.runtime.settled();
+
+    world.settings.set([layer("user", { "l2.mcp.servers": { a: STDIO, b: TITLED } })]);
+    const edited = await client.listServers({});
+    expect(edited.servers.find((server) => server.server === "b")?.title).toBe("Server B");
+    await world.runtime.settled();
+
+    world.settings.set([layer("user", { "l2.mcp.servers": { b: TITLED } })]);
+    const removed = await client.listServers({});
+    expect(removed.servers.map((server) => server.server)).toEqual(["b"]);
+    await world.runtime.shutdown();
+  });
+
+  test("an unchanged list does not reconnect anything", async () => {
+    const world = buildWorld({ servers: { a: stub }, user: { servers: { a: STDIO } } });
+    await startWorld(world);
+    await world.runtime.service.client.listServers({});
+    await world.runtime.service.client.listServers({});
+    expect(world.factory.opens).toEqual(["a"]);
+    await world.runtime.shutdown();
+  });
+
+  test("a list read without a thread keeps the servers of the thread that was read last", async () => {
+    let base: ScopeStack = [];
+    const source = {
+      layers: (threadId: string | undefined): ScopeStack =>
+        threadId === "thr-a"
+          ? [...base, layer("project", { "l2.mcp.servers": { alpha: STDIO } })]
+          : base,
+    };
+    const world = buildWorld({
+      servers: { alpha: stub },
+      user: { servers: {} },
+      overrides: { settings: source },
+    });
+    base = world.settings.layers(undefined);
+    await startWorld(world);
+    await world.runtime.reload(world.controller.signal, { threadId: "thr-a" });
+    await world.runtime.settled();
+    const listed = await world.runtime.service.client.listServers({});
+    expect(listed.servers.map((server) => server.server)).toEqual(["alpha"]);
+    await world.runtime.shutdown();
+  });
+});

@@ -324,7 +324,12 @@ describe("server policy", () => {
     const hidden = await rejection(
       world.runtime.service.client.callTool({ server: "stub", tool: "b", arguments: {} }),
     );
-    expect(hidden).toMatchObject({ data: { code: "denied" } });
+    expect(hidden).toMatchObject({
+      data: {
+        code: "denied",
+        message: expect.stringContaining("서버 정의에서 노출하지 않기로 해서 거절했어요"),
+      },
+    });
     const missing = await rejection(
       world.runtime.service.client.callTool({ server: "stub", tool: "zzz", arguments: {} }),
     );

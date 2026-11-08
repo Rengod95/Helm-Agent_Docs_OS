@@ -3,9 +3,9 @@ import { activeLocale, t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { McpServerDef } from "@fresnel/contracts/capabilities";
 import type { McpServerAction, McpServerRow } from "@fresnel/contracts/wire";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLinkPhase } from "../../../state/engine/index.ts";
-import { useCommands, type Commands } from "../../commands.ts";
+import { useCommands } from "../../commands.ts";
 import {
   defOfDraft,
   draftOfDefinition,
@@ -14,27 +14,20 @@ import {
   mcpDefOfView,
   newFailuresOf,
   plaintextSecretOf,
-  tableWithServer,
-  userTableOf,
   withRowReplaced,
   type DraftIssue,
   type McpDraft,
   type McpLoad,
 } from "./settings-mcp-model.ts";
 import { commandErrorRefOf, type MsgRef } from "./settings-mcp-text.ts";
+import { persistServer, type ServerChange } from "./settings-mcp-write.ts";
 import { McpFormDialog, McpRemoveDialog, McpServersView } from "./settings-mcp-view.tsx";
 
 // 설정 "도구와 웹" 탭의 "MCP 서버" 구역(W-15)의 동작. 목록은 `mcp.servers`로 읽고, 행동은 `mcp.serverAction`으로 보낸다.
-// 설정에 둔 서버의 추가·고치기·지우기는 사용자 범위 `l2.mcp.servers` 표 전체를 다시 읽어 그 서버만 바꾸고 `settings.set`으로 쓴다.
+// 설정에 둔 서버의 추가·고치기·지우기는 사용자 설정 파일을 `settings.readFile`로 읽어 `l2.mcp.servers` 표의 그 서버만 바꾸고,
+// 읽은 해시를 `baseSha256`으로 실어 `settings.writeFile`로 쓴다. 읽은 뒤 파일이 바뀌었으면 충돌로 알리고 덮어쓰지 않는다.
 // 서버 변경을 알리는 wire 알림이 없어서, 구역이 열릴 때와 다시 불러오기, 행동과 저장 뒤에만 읽는다.
 // 시작 실패는 서버 id와 오류 시각이 같으면 이 앱 실행 안에서 한 번만 토스트로 알린다.
-
-/** 저장과 지우기가 쓰는 서버 한 칸. `previousId`가 없으면 새 서버다 */
-interface ServerChange {
-  readonly previousId: string | null;
-  readonly id: string;
-  readonly def: McpServerDef | null;
-}
 
 /** 대화 상자 상태. 추가·고치기 폼과 지우기 확인 가운데 하나만 열린다 */
 type Dialog =
@@ -54,6 +47,12 @@ type Dialog =
       readonly error: MsgRef | null;
       readonly busy: boolean;
     };
+
+/**
+ * 행동이 끝난 뒤에도 단추를 잠가 두는 시간(밀리초). 같은 단추가 행동 결과로 "항상 끄기"에서 "차단 풀기"로 바뀌므로,
+ * 연속 클릭의 두 번째 눌림이 방금 한 행동을 되돌리지 않게 한다
+ */
+const ACTION_SETTLE_MS = 700;
 
 /** 이 앱 실행에서 이미 알린 시작 실패(서버 id와 오류 시각). 구역을 닫았다 열어도 같은 실패는 다시 알리지 않는다 */
 const ANNOUNCED = new Set<string>();
@@ -85,20 +84,6 @@ function withRowError(
   if (error === null) delete next[server];
   else next[server] = error;
   return next;
-}
-
-/** 사용자 설정 파일의 서버 표를 읽어 한 서버만 바꾸고 다시 쓴다. 실패하면 글을 돌려주고, 성공하면 `null`이다 */
-async function persistServer(commands: Commands, change: ServerChange): Promise<MsgRef | null> {
-  const read = await commands.settings.readFile({ scope: "user", threadId: null });
-  if (!read.ok) return commandErrorRefOf(read.error);
-  const table = userTableOf(read.value.text);
-  if (!table.ok) {
-    return table.error === "unreadable"
-      ? { id: "desktop.settings.mcp.error.tableUnreadable" }
-      : { id: "desktop.settings.mcp.error.tableInvalid" };
-  }
-  const written = await commands.mcp.setUserTable(tableWithServer(table.value, change));
-  return written.ok ? null : commandErrorRefOf(written.error);
 }
 
 /** "MCP 서버" 구역. 연결이 살아 있을 때 목록을 읽고, 꺼져 있으면 안내만 보인다 */
@@ -136,10 +121,18 @@ export function McpServersPanel(): ReactNode {
     setTick((n) => n + 1);
   };
 
+  // 처리 중인 서버. 상태가 아니라 참조인 이유: 같은 틱의 두 번째 눌림도 막아야 한다
+  const inflight = useRef<Set<string>>(new Set());
+
+  const release = (server: string): void => {
+    inflight.current.delete(server);
+    setBusy((prev) => withMember(prev, server, false));
+  };
+
   const runAction = async (server: string, action: McpServerAction): Promise<void> => {
     const done = await commands.mcp.serverAction(server, action);
-    setBusy((prev) => withMember(prev, server, false));
     if (!done.ok) {
+      release(server);
       setRowErrors((prev) => withRowError(prev, server, commandErrorRefOf(done.error)));
       return;
     }
@@ -148,9 +141,16 @@ export function McpServersPanel(): ReactNode {
         ? { kind: "ready", rows: withRowReplaced(prev.rows, done.value), rev: prev.rev }
         : prev,
     );
+    // 행동은 다른 행의 상태(이름 충돌로 숨은 도구 등)도 바꿀 수 있으니 목록을 다시 읽는다
+    reload();
+    window.setTimeout(() => {
+      release(server);
+    }, ACTION_SETTLE_MS);
   };
 
   const act = (server: string, action: McpServerAction): void => {
+    if (inflight.current.has(server)) return;
+    inflight.current.add(server);
     setBusy((prev) => withMember(prev, server, true));
     setRowErrors((prev) => withRowError(prev, server, null));
     detach(runAction(server, action), rethrow);

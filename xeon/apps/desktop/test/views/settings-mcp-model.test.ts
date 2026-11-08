@@ -7,12 +7,14 @@ import {
   defOfDraft,
   draftOfDefinition,
   failureKeyOf,
+  fileTextWithTable,
   firstLineOf,
   hiddenLineOf,
   hiddenReasonKindOf,
   mcpDefOfView,
   nameOf,
   newFailuresOf,
+  statusChipOf,
   plaintextSecretOf,
   rowModelOf,
   sourceChipOf,
@@ -157,10 +159,30 @@ describe("rowModelOf", () => {
     );
     expect(model.error).toEqual({
       message: "spawn failed",
+      original: null,
       time: new Intl.DateTimeFormat(LOCALE, { dateStyle: "medium", timeStyle: "short" }).format(
         new Date(0),
       ),
     });
+  });
+
+  test("the first line of the last error is the Korean sentence and the lines after it are the original text", () => {
+    const model = rowModelOf(
+      rowOf({
+        state: "failed",
+        lastError: {
+          code: "connect_failed",
+          message:
+            "서버 files에 연결하지 못했어요: 서버 프로세스가 바로 끝났어요. 서버의 오류 출력 끝 줄을 확인해 주세요\nConnection closed\nstderr: fatal: no db",
+          at: 0,
+        },
+      }),
+      LOCALE,
+    );
+    expect(model.error?.message).toEqual(
+      "서버 files에 연결하지 못했어요: 서버 프로세스가 바로 끝났어요. 서버의 오류 출력 끝 줄을 확인해 주세요",
+    );
+    expect(model.error?.original).toEqual("Connection closed\nstderr: fatal: no db");
   });
 
   test("the hidden line and the stderr tail come from the row", () => {
@@ -181,9 +203,34 @@ describe("rowModelOf", () => {
     expect(model.tools.map((tool) => tool.name)).toEqual(["read_file"]);
   });
 
+  test("the status chip puts the block before the connection state", () => {
+    expect(statusChipOf({ alwaysBlocked: true, state: "failed" })).toEqual("alwaysBlocked");
+    expect(statusChipOf({ alwaysBlocked: false, state: "failed" })).toEqual("failed");
+  });
+
   test("the block action is unblock for an always-blocked server and block otherwise", () => {
     expect(blockActionOf({ alwaysBlocked: true })).toEqual("unblock");
     expect(blockActionOf({ alwaysBlocked: false })).toEqual("blockAlways");
+  });
+});
+
+describe("fileTextWithTable", () => {
+  test("replaces only the servers table and keeps the other keys in their order", () => {
+    const text = '{"b":1,"l2.mcp.servers":{"old":{}},"a":2}';
+    const next = fileTextWithTable(text, { fresh: { transport: { type: "stdio", command: "x" } } });
+    const expected = {
+      b: 1,
+      "l2.mcp.servers": { fresh: { transport: { type: "stdio", command: "x" } } },
+      a: 2,
+    };
+    expect(next).toEqual(ok(`${JSON.stringify(expected, null, 2)}\n`));
+  });
+
+  test("an empty file becomes an object with the table, and a file that is not an object is refused", () => {
+    const empty = fileTextWithTable("", { a: {} });
+    expect(empty).toEqual(ok(`${JSON.stringify({ "l2.mcp.servers": { a: {} } }, null, 2)}\n`));
+    expect(fileTextWithTable("[1]", {})).toEqual(err("unreadable"));
+    expect(fileTextWithTable("nope", {})).toEqual(err("unreadable"));
   });
 });
 
@@ -212,6 +259,26 @@ describe("failure notices", () => {
     });
     expect(newFailuresOf([later], new Set([failureKeyOf("files", 5)]))).toEqual([
       { key: failureKeyOf("files", 6), server: "files", name: "Files", reason: "again" },
+    ]);
+  });
+
+  test("the notice reason drops the frame so the toast does not say the server twice", () => {
+    const framed = rowOf({
+      title: "Files",
+      state: "failed",
+      lastError: {
+        code: "spawn_failed",
+        message: "서버 files에 연결하지 못했어요: 명령을 찾지 못했어요\nENOENT",
+        at: 7,
+      },
+    });
+    expect(newFailuresOf([framed], new Set())).toEqual([
+      {
+        key: failureKeyOf("files", 7),
+        server: "files",
+        name: "Files",
+        reason: "명령을 찾지 못했어요",
+      },
     ]);
   });
 

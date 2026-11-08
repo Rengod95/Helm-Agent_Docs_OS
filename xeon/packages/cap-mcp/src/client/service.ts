@@ -42,7 +42,19 @@ import type { McpService } from "@fresnel/contracts/services";
 import type { RawInputRequired, RawPrompt } from "../adapter.ts";
 import { buildQuestions } from "../elicitation/questions.ts";
 import { roundsExceeded } from "../elicitation/rounds.ts";
-import { failureToError, mcpError } from "../errors.ts";
+import {
+  failureToError,
+  inputRoundsText,
+  mcpError,
+  roundLimitText,
+  serverBlockedText,
+  serverNotConnectedText,
+  serverNotReadyText,
+  serverUnknownText,
+  toolDeniedByModeText,
+  toolHiddenText,
+  toolUnknownText,
+} from "../errors.ts";
 import { byteOrder } from "../order.ts";
 import type { McpFileReader } from "../ports/files.ts";
 import type { McpRulesSink } from "../ports/rules.ts";
@@ -245,11 +257,7 @@ function inputRequiredOutput(
   settings: McpSettings,
 ): McpInputRequired {
   if (roundsExceeded(round + 1, settings.maxInputRounds)) {
-    throw mcpError(
-      method,
-      "input_rounds_exceeded",
-      `the server asked for input more than ${settings.maxInputRounds} times`,
-    );
+    throw mcpError(method, "input_rounds_exceeded", inputRoundsText(settings.maxInputRounds));
   }
   const questions = buildQuestions(server, raw.inputRequests);
   if (!questions.ok) throw mcpError(method, "input_unsupported", questions.error.message);
@@ -264,11 +272,7 @@ function inputRequiredOutput(
 
 function checkRound(method: string, round: number, settings: McpSettings): void {
   if (roundsExceeded(round, settings.maxInputRounds)) {
-    throw mcpError(
-      method,
-      "input_rounds_exceeded",
-      `round ${round} is above the limit ${settings.maxInputRounds}`,
-    );
+    throw mcpError(method, "input_rounds_exceeded", roundLimitText(round, settings.maxInputRounds));
   }
 }
 
@@ -291,6 +295,8 @@ export function createMcp(deps: McpDeps): McpRuntime {
   let loadedPrint: string | undefined;
   let boundaryRunning: Promise<unknown> = Promise.resolve();
   let reloading: Promise<unknown> = Promise.resolve();
+  /** 마지막으로 대화를 지정해 정의를 읽은 옵션. 대화 없이 목록을 읽는 쪽(설정 화면)이 같은 대화의 프로젝트 서버를 잃지 않게 한다 */
+  let lastThreadOptions: McpLoadOptions | undefined;
 
   const stateStore: StateStore | undefined =
     deps.store === undefined
@@ -419,20 +425,19 @@ export function createMcp(deps: McpDeps): McpRuntime {
 
   function snapshotOrThrow(method: string, server: string): ServerSnapshot {
     const snapshot = registry.get(server);
-    if (snapshot === undefined)
-      throw mcpError(method, "server_unknown", `unknown MCP server ${server}`);
+    if (snapshot === undefined) throw mcpError(method, "server_unknown", serverUnknownText(server));
     return snapshot;
   }
 
   function connectedOrThrow(method: string, server: string): ServerSnapshot {
     const snapshot = snapshotOrThrow(method, server);
     if (snapshot.state === "blocked") {
-      throw mcpError(method, "server_blocked", `MCP server ${server} is blocked`, {
+      throw mcpError(method, "server_blocked", serverBlockedText(server, snapshot.blockedReason), {
         reason: snapshot.blockedReason ?? "unknown",
       });
     }
     if (snapshot.state !== "connected") {
-      throw mcpError(method, "server_disconnected", `MCP server ${server} is ${snapshot.state}`);
+      throw mcpError(method, "server_disconnected", serverNotReadyText(server, snapshot.state));
     }
     return snapshot;
   }
@@ -447,7 +452,7 @@ export function createMcp(deps: McpDeps): McpRuntime {
     connectedOrThrow(method, server);
     const lease = registry.acquire(server);
     if (lease === undefined) {
-      throw mcpError(method, "server_disconnected", `MCP server ${server} is not connected`);
+      throw mcpError(method, "server_disconnected", serverNotConnectedText(server));
     }
     try {
       return await work(lease);
@@ -480,22 +485,19 @@ export function createMcp(deps: McpDeps): McpRuntime {
     return await withConnection(method, input.server, async (lease) => {
       const snapshot = snapshotOrThrow(method, input.server);
       if (!snapshot.tools.some((tool) => tool.name === input.tool)) {
-        throw mcpError(
-          method,
-          "tool_unknown",
-          `MCP server ${input.server} has no tool ${input.tool}`,
-        );
+        throw mcpError(method, "tool_unknown", toolUnknownText(input.server, input.tool));
       }
       if (!filterTool(lease.definition.def, input.tool).exposed) {
-        throw mcpError(method, "denied", `tool ${input.tool} is hidden by the server definition`);
+        throw mcpError(method, "denied", toolHiddenText(input.server, input.tool));
       }
       // §4.4: 승인 모드 deny는 호출 거부다. 이 직접 경로는 L1.tools 규칙을 거치지 않으므로 여기서 막는다
       if (
         effectiveApprovalMode(lease.definition.def, input.tool, settings.approvalMode) === "deny"
       ) {
-        throw mcpError(method, "denied", `tool ${input.tool} is denied by the approval mode`);
+        throw mcpError(method, "denied", toolDeniedByModeText(input.server, input.tool));
       }
       const timeoutMs = callMsOf(lease.definition, settings);
+      const startedAt = deps.clock.now();
       const result = await lease.connection.callTool(input.tool, input.arguments, {
         signal: env.signal,
         timeoutMs,
@@ -513,6 +515,7 @@ export function createMcp(deps: McpDeps): McpRuntime {
           server: input.server,
           tool: input.tool,
           timeoutMs,
+          elapsedMs: deps.clock.now() - startedAt,
         });
       if (result.value.kind === "input_required") {
         return inputRequiredOutput(method, input.server, round, result.value, settings);
@@ -713,13 +716,16 @@ export function createMcp(deps: McpDeps): McpRuntime {
   // ── 서비스 ───────────────────────────────────────────────────────────────
 
   const client: CapabilityApi<typeof McpClient> = {
-    listServers: () =>
-      settle(() => ({
+    listServers: async (_input, options) => {
+      // 목록은 설정의 지금 정의를 따른다. 다음 단계 경계를 기다리지 않는다(추가·고치기·지우기가 바로 보인다). 지문이 같으면 연결을 건드리지 않는다
+      await refreshDefinitions(options?.signal ?? NEVER_ABORTED);
+      return await settle(() => ({
         servers: registry
           .list()
           .map(statusOf)
           .toSorted((a, b) => byteOrder(a.server, b.server)),
-      })),
+      }));
+    },
     status: ({ server }) => settle(() => statusOf(snapshotOrThrow("status", server))),
     connect: async ({ server }) => {
       snapshotOrThrow("connect", server);
@@ -888,6 +894,7 @@ export function createMcp(deps: McpDeps): McpRuntime {
   ): Promise<boolean> {
     const result = await readDefinitions(signal, options);
     if (options?.threadId !== undefined) {
+      lastThreadOptions = options;
       const gained = startThread === undefined;
       startThread = options.threadId;
       // 승인을 올릴 대화가 처음 생겼다: 대화가 없어 기다리기만 하던 서버가 이제 승인을 요청할 수 있다
@@ -902,6 +909,25 @@ export function createMcp(deps: McpDeps): McpRuntime {
     return true;
   }
 
+  /** 정의 읽기는 한 번에 하나씩만 돈다. 지문 비교와 반영이 겹치지 않아야 한다 */
+  function reloadSerialized(
+    signal: AbortSignal,
+    options: McpLoadOptions | undefined,
+  ): Promise<boolean> {
+    const run = reloading.then(
+      () => reloadNow(signal, options),
+      () => reloadNow(signal, options),
+    );
+    reloading = run;
+    return run;
+  }
+
+  /** 처음 읽기(`load`) 전에는 아무것도 하지 않는다. 읽은 뒤에는 마지막 대화의 정의로 다시 읽는다 */
+  async function refreshDefinitions(signal: AbortSignal): Promise<void> {
+    if (loaded === undefined) return;
+    await reloadSerialized(signal, lastThreadOptions);
+  }
+
   const service: McpService = { client, registerServer };
 
   return {
@@ -913,15 +939,7 @@ export function createMcp(deps: McpDeps): McpRuntime {
       resync();
       return result;
     },
-    reload(signal, options) {
-      // 정의 읽기는 한 번에 하나씩만 돈다. 지문 비교와 반영이 겹치지 않아야 한다
-      const run = reloading.then(
-        () => reloadNow(signal, options),
-        () => reloadNow(signal, options),
-      );
-      reloading = run;
-      return run;
-    },
+    reload: reloadSerialized,
     applyBoundary() {
       // 경계 반영은 한 번에 하나씩만 돈다
       const run = boundaryRunning.then(applyBoundaryNow, applyBoundaryNow);

@@ -25,3 +25,10 @@ export function hookDenialOf(details: JsonValue | undefined): HookDenialView | n
   const reason = details["reason"];
   return typeof reason === "string" ? { outcome: "blocked", extension: name, reason } : null;
 }
+
+const USER_DENIAL_CODE = "denied_by_user";
+
+/** 도구 결과의 details가 사용자 거부인가. 엔진은 사용자가 거부했을 때 `details.code`에 `denied_by_user`를 싣는다(글에는 코드가 없다) */
+export function isUserDenial(details: JsonValue | undefined): boolean {
+  return isObject(details) && details["code"] === USER_DENIAL_CODE;
+}

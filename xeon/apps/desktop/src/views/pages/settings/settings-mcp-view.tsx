@@ -20,6 +20,7 @@ import { SettingSection } from "./settings-section.tsx";
 import {
   blockActionOf,
   rowModelOf,
+  statusChipOf,
   toolHiddenKindOf,
   withPairAdded,
   withPairChanged,
@@ -35,9 +36,9 @@ import {
   draftIssueIdOf,
   hiddenIdOf,
   locationIdOf,
+  chipIdOf,
+  chipToneOf,
   sourceRefOf,
-  stateIdOf,
-  stateToneOf,
   type MsgRef,
 } from "./settings-mcp-text.ts";
 
@@ -163,6 +164,7 @@ function McpServerRowView(props: McpServerRowViewProps): ReactNode {
   const model = rowModelOf(props.row, props.locale);
   const location = locationIdOf(model.locationNote);
   const source = sourceRefOf(model.source);
+  const chip = statusChipOf(model);
   return (
     <div data-slot="mcp-server-row" data-server={model.server} className="grid gap-2 py-3">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -173,8 +175,8 @@ function McpServerRowView(props: McpServerRowViewProps): ReactNode {
         <Badge size="xs" variant="outline">
           {t(source.id, source.args)}
         </Badge>
-        <Chip size="xs" tone={stateToneOf(model.state)} variant="soft">
-          {t(stateIdOf(model.state))}
+        <Chip size="xs" tone={chipToneOf(chip)} variant="soft">
+          {t(chipIdOf(chip))}
         </Chip>
         <span className="text-ui-sm text-text-tertiary">
           {t("desktop.settings.mcp.tools", { count: model.toolCount })}
@@ -183,12 +185,19 @@ function McpServerRowView(props: McpServerRowViewProps): ReactNode {
       </div>
       <BlockedLine model={model} />
       {model.error === null ? null : (
-        <p className="m-0 text-ui-sm break-words text-danger-text">
-          {t("desktop.settings.mcp.lastError", {
-            time: model.error.time,
-            message: model.error.message,
-          })}
-        </p>
+        <div className="flex flex-wrap items-center gap-1">
+          <p className="m-0 text-ui-sm break-words text-danger-text">
+            {t("desktop.settings.mcp.lastError", {
+              time: model.error.time,
+              message: model.error.message,
+            })}
+          </p>
+          {model.error.original === null ? null : (
+            <InfoTip
+              text={t("desktop.settings.mcp.error.original", { text: model.error.original })}
+            />
+          )}
+        </div>
       )}
       <HiddenLine model={model} />
       {props.error === null ? null : (
@@ -257,6 +266,11 @@ function McpServerRowView(props: McpServerRowViewProps): ReactNode {
 /** 막힌 사유 한 줄. 승인 대기는 설명을 정보 아이콘 뒤에 둔다 */
 function BlockedLine(props: { readonly model: McpRowModel }): ReactNode {
   const { model } = props;
+  if (model.alwaysBlocked) {
+    return (
+      <p className="m-0 text-ui-sm text-warning-text">{t("desktop.settings.mcp.blocked.always")}</p>
+    );
+  }
   if (model.blocked === null && model.state !== "blocked") return null;
   const text =
     model.blocked === null

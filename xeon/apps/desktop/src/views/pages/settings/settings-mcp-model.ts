@@ -114,7 +114,12 @@ export interface McpRowModel {
   readonly blocked: McpBlockedReason | null;
   readonly toolCount: number;
   readonly hidden: HiddenLine | null;
-  readonly error: { readonly message: string; readonly time: string } | null;
+  /** 마지막 오류. `message`는 한국어 첫 줄이고, `original`은 서버나 SDK가 준 원문(둘째 줄부터)이다. 원문은 정보 아이콘 뒤에 둔다 */
+  readonly error: {
+    readonly message: string;
+    readonly original: string | null;
+    readonly time: string;
+  } | null;
   readonly alwaysBlocked: boolean;
   readonly editable: boolean;
   readonly approvalNote: boolean;
@@ -136,10 +141,15 @@ export function rowModelOf(row: McpServerRow, locale: string): McpRowModel {
     blocked: row.blockedReason ?? null,
     toolCount: row.toolCount,
     hidden: hiddenLineOf(row.hiddenTools),
+    // 차단한 서버는 시작하지 않으므로 지난 실패 글은 낡은 정보다. 차단 사유를 앞세우고 오류는 보이지 않는다
     error:
-      row.lastError === undefined
+      row.lastError === undefined || row.alwaysBlocked
         ? null
-        : { message: row.lastError.message, time: timeTextOf(row.lastError.at, locale) },
+        : {
+            message: firstLineOf(row.lastError.message),
+            original: originalOf(row.lastError.message),
+            time: timeTextOf(row.lastError.at, locale),
+          },
     alwaysBlocked: row.alwaysBlocked,
     editable: row.editable,
     approvalNote,
@@ -161,6 +171,13 @@ function locationNoteOf(row: McpServerRow): LocationNote {
     default:
       return assertNever(row.origin, "McpServerOrigin");
   }
+}
+
+/** 상태 칩. 사용자가 항상 끄기로 차단한 서버는 연결 상태보다 차단을 앞세운다 */
+export type StatusChip = "alwaysBlocked" | McpServerState;
+
+export function statusChipOf(row: Pick<McpRowModel, "alwaysBlocked" | "state">): StatusChip {
+  return row.alwaysBlocked ? "alwaysBlocked" : row.state;
 }
 
 /** 행의 "항상 끄기"가 보낼 행동. 이미 차단되어 있으면 풀기다 */
@@ -194,7 +211,7 @@ export function newFailuresOf(
         key,
         server: row.server,
         name: nameOf(row),
-        reason: firstLineOf(row.lastError.message),
+        reason: causeOf(row.server, firstLineOf(row.lastError.message)),
       },
     ];
   });
@@ -203,6 +220,21 @@ export function newFailuresOf(
 /** 오류 글의 첫 줄(여러 줄이면 첫 줄만 알린다) */
 export function firstLineOf(text: string): string {
   return (text.split("\n")[0] ?? "").trim();
+}
+
+/** 오류 글의 둘째 줄부터(서버나 SDK의 원문). 없으면 `null`이다 */
+function originalOf(text: string): string | null {
+  const rest = text.split("\n").slice(1).join("\n").trim();
+  return rest === "" ? null : rest;
+}
+
+/**
+ * 시작 실패 첫 줄에서 앞의 틀(서버 id를 말하는 머리)을 뺀 원인. 첫 `: ` 앞이 서버 id를 담고 있으면 그 뒤가 원인이고,
+ * 아니면 첫 줄 그대로다. 토스트가 서버를 두 번 말하지 않게 한다
+ */
+function causeOf(server: string, line: string): string {
+  const at = line.indexOf(": ");
+  return at > 0 && line.slice(0, at).includes(server) ? line.slice(at + 2) : line;
 }
 
 function timeTextOf(at: number, locale: string): string {
@@ -511,6 +543,19 @@ export function tableWithServer(
   }
   if (!placed && change.def !== null) next.push([change.id, change.def]);
   return Object.fromEntries(next);
+}
+
+/**
+ * 사용자 설정 파일 원문에서 서버 표만 바꾼 원문. 다른 키와 키 순서는 그대로 두고(기존 키에 대입하면 자리가 남고 새 키는 끝에 붙는다),
+ * 끝에 줄바꿈을 한 번 둔다. 원문이 JSON 객체가 아니면 `unreadable`이다. `userTableOf`가 읽은 원문에 쓴다
+ */
+export function fileTextWithTable(text: string, table: UserTable): Result<string, "unreadable"> {
+  const read: Result<unknown, unknown> =
+    text.trim() === "" ? { ok: true, value: {} } : parseJson(text);
+  if (!read.ok || !isRecord(read.value)) return err("unreadable");
+  const next: Record<string, unknown> = { ...read.value };
+  next[MCP_SERVERS_KEY] = table;
+  return ok(`${JSON.stringify(next, null, 2)}\n`);
 }
 
 /** 행들의 id 목록. 폼의 중복 검사가 쓴다 */

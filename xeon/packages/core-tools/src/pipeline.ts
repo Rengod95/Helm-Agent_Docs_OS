@@ -47,7 +47,7 @@ import {
   type ToolCallState,
   type ToolRunContext,
 } from "@fresnel/contracts/services";
-import { denialReason } from "./approvals/protocol.ts";
+import { denialDetails, denialReason } from "./approvals/protocol.ts";
 import { unattendedPlan } from "./approvals/unattended.ts";
 import type { ApprovalsInternal } from "./approvals/service.ts";
 import { boundResult, selfBlobRef } from "./bound.ts";
@@ -660,7 +660,7 @@ export function createPipeline(
       // 턴 취소는 대기 중인 요청을 cancelled로 닫는다(L1.tools.spec §4.7 8번)
       await approvals.cancel(resolution.approvalId, "turn aborted");
     }
-    return denied(denialReason(resolution));
+    return denied(denialReason(resolution), false, denialDetails(resolution));
   }
 
   // ── 5c' 시크릿 사용 승인(L1.tools.spec §4.12) ────────────────────────────

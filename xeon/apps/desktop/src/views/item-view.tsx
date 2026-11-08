@@ -37,7 +37,7 @@ import { EntrySurface } from "./plugin/plugin-view.tsx";
 import { usePluginUi, usePluginUiState } from "./plugin/plugin-context.tsx";
 import { useGoToThread } from "./thread-link.ts";
 import { useOpenExtensionRecords } from "./extension-records-link.ts";
-import { hookDenialOf, type HookDenialView } from "./hook-denial-model.ts";
+import { hookDenialOf, isUserDenial, type HookDenialView } from "./hook-denial-model.ts";
 import { toolOutputOf } from "./tool-output-model.ts";
 import {
   AGENT_TOOL,
@@ -269,7 +269,6 @@ function CustomBody(props: {
   );
 }
 
-const DENIED_CODE = "fresnel:denied_by_user";
 const CODE_PREFIX = /^\[([^\]]+)\]\s*/;
 
 /** 결과 글머리의 `[코드] ` 꼬리표를 읽는다. 없으면 코드는 null이다 */
@@ -365,7 +364,7 @@ function resultViewOf(item: ItemRecord): ResultView | null {
   const agentAborted =
     item.message.toolName === AGENT_TOOL &&
     agentResultOf(shown.text, item.message.details, true).outcome === "aborted";
-  if (code === DENIED_CODE) {
+  if (isUserDenial(item.message.details)) {
     return {
       status: "failed",
       failedLabel: t("desktop.item.status.denied"),
@@ -524,6 +523,16 @@ function AgentRow(props: {
   );
 }
 
+/** 같은 메시지에서 `index`번째 블록보다 앞선 도구 호출들의 id */
+function earlierCallIdsOf(
+  content: readonly { readonly type: string; readonly id?: string }[],
+  index: number,
+): readonly string[] {
+  return content
+    .slice(0, index)
+    .flatMap((block) => (block.type === "toolCall" && block.id !== undefined ? [block.id] : []));
+}
+
 /**
  * 호출 하나에 행 하나. 결과가 오면 같은 행이 결과를 따른다. 결과가 없으면 실행 중이거나(대화가 실행 중) 끝내 못 받은 것이다.
  * `edit`·`write`는 상세에 경로를 보이고, 결과가 있을 때 펼친 본문에 파일 변경 그림을 보인다. 그 밖의 도구와 모양이 맞지 않는 인자는 인자 JSON을 보인다.
@@ -532,12 +541,14 @@ function CallRow(props: {
   readonly callId: string;
   readonly name: string;
   readonly args: JsonObject;
+  /** 같은 어시스턴트 메시지에서 이 호출보다 앞선 호출 id들. 앞선 호출이 승인을 기다리면 이 호출도 줄 서 기다린다 */
+  readonly earlierCallIds: readonly string[];
 }): ReactNode {
   const result = useToolResult(props.callId);
   // 엔진이 없으면 열린 대화가 돈다고 거울이 말해도 그 도구는 더 돌지 않는다(실행 중 표시를 하지 않는다)
   const engineGone = engineGoneOf(useEngineState(), useLinkPhase());
   const running = useOpenThreadRunning() && !engineGone;
-  const awaitingApproval = useToolCallAwaitingApproval(props.callId);
+  const awaitingApproval = useToolCallAwaitingApproval(props.callId, props.earlierCallIds);
   if (props.name === AGENT_TOOL) {
     return <AgentRow args={props.args} result={result} running={running} />;
   }
@@ -673,7 +684,13 @@ function RecordBody(props: { readonly item: ItemRecord; readonly unsent: boolean
                 );
               case "toolCall":
                 return (
-                  <CallRow key={key} callId={block.id} name={block.name} args={block.arguments} />
+                  <CallRow
+                    key={key}
+                    callId={block.id}
+                    name={block.name}
+                    args={block.arguments}
+                    earlierCallIds={earlierCallIdsOf(item.message.content, index)}
+                  />
                 );
               default:
                 return assertNever(block, "assistant block");
