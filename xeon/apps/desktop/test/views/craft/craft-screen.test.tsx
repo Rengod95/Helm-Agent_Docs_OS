@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
 import { openDetail, setView } from "@fresnel/client/workbench";
 import { FIXTURE_ORDER, buildFixture, type HookOrderPort } from "@fresnel/client/workbench/canvas";
+import { createShellStore, ShellStoreContext } from "../../../src/state/shell/index.ts";
 import { createWorkbenchStore, type WorkbenchStore } from "../../../src/state/workbench/index.ts";
 import { CraftProvider, type CraftSource } from "../../../src/views/craft/craft-context.tsx";
 import { CraftBody } from "../../../src/views/craft/craft-screen.tsx";
@@ -31,13 +32,16 @@ function fakeSource(): CraftSource {
 
 /** 스토어 시작 상태를 넣고 캔버스 본문을 그린다 */
 function renderBody(store: WorkbenchStore): string {
+  // 도구 막대의 펼치기 단추가 셸 스토어를 읽으므로 셸 provider 안에서 그린다
   return renderWithWindowStub(
-    inStore(
-      <CraftProvider source={fakeSource()}>
-        <CraftBody />
-      </CraftProvider>,
-      store,
-    ),
+    <ShellStoreContext value={createShellStore(1400)}>
+      {inStore(
+        <CraftProvider source={fakeSource()}>
+          <CraftBody />
+        </CraftProvider>,
+        store,
+      )}
+    </ShellStoreContext>,
   );
 }
 

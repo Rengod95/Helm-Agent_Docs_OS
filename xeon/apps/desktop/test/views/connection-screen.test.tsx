@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { TargetEntry } from "@fresnel/client";
 import type { HostClientView } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
+import { createShellStore, ShellStoreContext } from "../../src/state/shell/index.ts";
 import {
   connectionReducer,
   INITIAL_CONNECTION_STATE,
@@ -43,9 +44,12 @@ function stateAfter(...actions: readonly ConnectionAction[]): ConnectionState {
   return actions.reduce(connectionReducer, INITIAL_CONNECTION_STATE);
 }
 
+/** 화면 머리가 셸 스토어(패널 열림 상태)를 읽으므로 셸 맥락 안에서 그린다 */
 function html(state: ConnectionState): string {
   return renderToString(
-    <ConnectionScreenView state={state} engine={null} locale="ko" handlers={handlers} />,
+    <ShellStoreContext value={createShellStore(1400)}>
+      <ConnectionScreenView state={state} engine={null} locale="ko" handlers={handlers} />
+    </ShellStoreContext>,
   );
 }
 

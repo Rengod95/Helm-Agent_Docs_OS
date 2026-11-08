@@ -20,6 +20,7 @@ import {
   Switch,
 } from "@caustic/react";
 import { ChevronLeft } from "@caustic/react/icons";
+import { PanelExpandButton } from "../shell/screen-header.tsx";
 import { attemptAsync, detach, rethrow } from "@fresnel/contracts";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useCraft, type CraftMode } from "./craft-context.tsx";
@@ -169,7 +170,10 @@ export function DetailView(props: DetailViewProps): ReactNode {
         aria-label={t("desktop.craft.detail.missing.title")}
         className="flex h-full min-h-0 flex-col bg-surface-base"
       >
-        <header className="flex h-14 flex-none items-center ps-4 pe-12">{header}</header>
+        <header className="flex min-h-(--shell-header-h) flex-none items-center ps-4 pe-12">
+          <PanelExpandButton />
+          {header}
+        </header>
         <EmptyState
           media={<MissingArt />}
           surface="none"
@@ -205,7 +209,8 @@ export function DetailView(props: DetailViewProps): ReactNode {
       aria-label={t("desktop.craft.detail.label", { title })}
       className="flex h-full min-h-0 flex-col bg-surface-base"
     >
-      <header className="flex min-h-14 flex-none flex-wrap items-center gap-x-4 gap-y-2 border-b border-border-subtle py-2 ps-4 pe-12">
+      <header className="flex min-h-(--shell-header-h) flex-none flex-wrap items-center gap-x-4 gap-y-2 border-b border-border-subtle py-1.5 ps-4 pe-12">
+        <PanelExpandButton />
         {header}
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           {target.k === "group" ? (

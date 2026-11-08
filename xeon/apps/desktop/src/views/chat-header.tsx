@@ -1,14 +1,13 @@
 import { t } from "@fresnel/client/i18n";
-import { IconButton } from "@caustic/react";
-import { PanelLeft } from "@caustic/react/icons";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
 import type { ReactNode } from "react";
 import { useThread } from "../state/engine/index.ts";
-import { useShell, useShellActions } from "../state/shell/index.ts";
+import { useShell } from "../state/shell/index.ts";
 import { useSelectedThreadId } from "../state/ui/index.ts";
 import { useScheduleOrigin } from "./schedule-origin.ts";
 import { scheduleOriginTextOf } from "./schedule-origin-model.ts";
+import { ScreenHeader } from "./shell/screen-header.tsx";
 import { ThreadRowMenu } from "./thread-row-menu.tsx";
 
 // 대화 머리(시안 _chat-rt의 ChatHead): 고른 대화의 제목 한 줄과 ⋯ 메뉴(행 메뉴와 같은 메뉴, 명령과 대화 상자도 같다).
@@ -67,28 +66,11 @@ function ScheduleOriginLine(props: {
 /** 머리 한 줄. title이 null이면 대화가 없는 머리라서, 패널이 열려 있으면 그리지 않는다 */
 function HeadRow(props: { readonly title: ReactNode; readonly menu: ReactNode }): ReactNode {
   const startOpen = useShell((s) => s.startOpen);
-  const actions = useShellActions();
-  if (startOpen && props.title === null) return null;
   return (
-    <header className="shell-header grid flex-none grid-cols-[minmax(0,1fr)] content-center">
-      <div className="flex min-w-0 items-center gap-1">
-        {startOpen ? null : (
-          <IconButton
-            size="sm"
-            variant="ghost"
-            label={t("desktop.shell.start.expand")}
-            aria-expanded={false}
-            className="-ms-1.5"
-            onClick={() => {
-              actions.setStartOpen(true);
-            }}
-          >
-            <PanelLeft />
-          </IconButton>
-        )}
-        <div className="flex min-w-0 flex-1 items-center gap-2.5">{props.title}</div>
-        {props.menu}
-      </div>
-    </header>
+    <ScreenHeader
+      hidden={startOpen && props.title === null}
+      title={props.title}
+      action={props.menu}
+    />
   );
 }

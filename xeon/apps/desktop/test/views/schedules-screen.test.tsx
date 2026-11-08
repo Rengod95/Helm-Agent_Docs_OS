@@ -3,6 +3,7 @@ import { activeLocale, setActiveLocale, type Locale } from "@fresnel/client/i18n
 import type { ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import type { EngineMirror } from "../../src/state/engine/index.ts";
+import { createShellStore, ShellStoreContext } from "../../src/state/shell/index.ts";
 import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
 import { createUiStore } from "../../src/state/ui/index.ts";
 import {
@@ -93,9 +94,12 @@ const ROW: ScheduleListItem = {
   missedRuns: 0,
 };
 
+/** 화면 머리가 셸 스토어(패널 열림 상태)를 읽으므로 셸 맥락 안에서 그린다 */
 function html(state: ScheduleState): string {
   return renderToString(
-    <ScheduleScreenView state={state} locale="ko" openable={() => false} handlers={handlers} />,
+    <ShellStoreContext value={createShellStore(1400)}>
+      <ScheduleScreenView state={state} locale="ko" openable={() => false} handlers={handlers} />
+    </ShellStoreContext>,
   );
 }
 
@@ -117,7 +121,14 @@ function shellHtml(state: ScheduleState, shell: boolean): string {
   return renderToString(
     <ShellRestartContext value={shell}>
       <Providers engine={runningEngine()} ui={ui.read} commands={fakeCommands()}>
-        <ScheduleScreenView state={state} locale="ko" openable={() => false} handlers={handlers} />
+        <ShellStoreContext value={createShellStore(1400)}>
+          <ScheduleScreenView
+            state={state}
+            locale="ko"
+            openable={() => false}
+            handlers={handlers}
+          />
+        </ShellStoreContext>
       </Providers>
     </ShellRestartContext>,
   );

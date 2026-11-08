@@ -10,6 +10,7 @@ import type {
   WebSettingsWire,
 } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
+import { createShellStore, ShellStoreContext } from "../../src/state/shell/index.ts";
 import type { GroupsSnapshot, SearchSnapshot } from "../../src/views/commands.ts";
 import {
   firstRunModelOf,
@@ -117,7 +118,12 @@ function searchOf(rows: readonly WebProviderStatus[]): SearchSnapshot {
 }
 
 function html(props: FirstRunViewProps): string {
-  return renderToString(<FirstRunView {...props} />);
+  // 머리의 펼치기 단추가 셸 저장소를 읽으므로 셸 문맥 안에서 그린다
+  return renderToString(
+    <ShellStoreContext value={createShellStore(1280)}>
+      <FirstRunView {...props} />
+    </ShellStoreContext>,
+  );
 }
 
 function nameOf(text: string): SecretName {

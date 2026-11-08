@@ -17,6 +17,7 @@ import {
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { ExtTimingsResult } from "@fresnel/contracts/extensions";
 import type { ExtGetResult, ExtListEntry } from "@fresnel/contracts/wire";
+import { PanelExpandButton } from "../shell/screen-header.tsx";
 import {
   Alert,
   Button,
@@ -438,6 +439,7 @@ export function ExtDetail(props: {
   return (
     <article className="grid min-h-0 content-start gap-3 p-4">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <PanelExpandButton />
         <Button size="xs" variant="ghost" onClick={props.onBack}>
           {t("desktop.workbench.detail.back")}
         </Button>

@@ -15,6 +15,7 @@ import type { ReplayReport } from "@fresnel/contracts/services";
 import type { ExtTestRecord } from "@fresnel/contracts/wire";
 import { NewTestForm, visibleErrorsOf } from "../../../src/views/tests/new-test-sheet.tsx";
 import { TestsView, type TestsViewHandlers } from "../../../src/views/tests/tests-view.tsx";
+import { createShellStore, ShellStoreContext } from "../../../src/state/shell/index.ts";
 
 // 테스트 화면의 서버 렌더. 상태와 핸들러는 아무것도 하지 않는 것으로 두고 그림의 글만 본다(클릭은 DOM이 없어 시험하지 않는다).
 
@@ -81,18 +82,21 @@ function html(options: ViewOptions = {}): string {
   };
   const value = read.kind === "ready" ? read.value : [];
   const rows = testRowsOf(value, ALL_TESTS);
+  // 머리의 펼치기 단추가 셸 스토어를 읽으므로 셸 provider 안에서 그린다
   return renderToString(
-    <TestsView
-      read={read}
-      rows={rows}
-      selected={options.selected ?? null}
-      ui={options.ui ?? UI}
-      online={options.online ?? true}
-      selectedPaused={options.paused ?? false}
-      selectedPhase={options.phase ?? null}
-      targetNames={[]}
-      handlers={handlers}
-    />,
+    <ShellStoreContext value={createShellStore(1400)}>
+      <TestsView
+        read={read}
+        rows={rows}
+        selected={options.selected ?? null}
+        ui={options.ui ?? UI}
+        online={options.online ?? true}
+        selectedPaused={options.paused ?? false}
+        selectedPhase={options.phase ?? null}
+        targetNames={[]}
+        handlers={handlers}
+      />
+    </ShellStoreContext>,
   );
 }
 

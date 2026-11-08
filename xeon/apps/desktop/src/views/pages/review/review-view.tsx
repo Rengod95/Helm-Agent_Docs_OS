@@ -51,6 +51,7 @@ import {
   type SetDecision,
 } from "../../review-model.ts";
 import { decisionIdOf, methodIdOf, resultIdOf } from "./review-text.ts";
+import { HEADER_CONTROL_SIZE, ScreenHeader } from "../../shell/screen-header.tsx";
 
 // 변경 검토 화면(P-04)의 그림. 상태와 동작은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
 // 무대는 머리 한 줄, 가운데(파일 열 + diff 열, 스크롤은 diff 열 하나), 제출 줄로 나뉜다(mockups/p04-review와 같다).
@@ -177,29 +178,32 @@ export function ReviewView(props: ReviewViewProps): ReactNode {
       className="flex min-h-0 flex-1 flex-col px-1.5 outline-none"
     >
       {/* 머리 한 줄: 받은 요청으로 돌아가기 · 제목 · 라운드 · 원인 대화 */}
-      <header className="flex h-10 flex-none items-center gap-1">
-        <IconButton
-          size="sm"
-          variant="ghost"
-          label={t("desktop.review.back")}
-          onClick={props.onBack}
-        >
-          <ChevronLeft />
-        </IconButton>
-        <div className="flex min-w-0 flex-1 items-baseline gap-2.5">
-          <h1 id={headingId} className="m-0 shrink-0 text-text-primary">
-            {open === null ? t("desktop.review.title") : open.head.title}
-          </h1>
-          {open === null ? null : (
-            <span className="shrink-0 text-ui-sm tabular-nums text-text-secondary">
-              {t("desktop.approvals.review.round", { round: open.head.round })}
-            </span>
-          )}
-          {open === null || open.head.thread === null ? null : (
-            <span className="truncate text-ui-sm text-text-tertiary">{open.head.thread}</span>
-          )}
-        </div>
-      </header>
+      <ScreenHeader
+        title={open === null ? t("desktop.review.title") : open.head.title}
+        titleId={headingId}
+        lead={
+          <IconButton
+            size={HEADER_CONTROL_SIZE}
+            variant="ghost"
+            label={t("desktop.review.back")}
+            onClick={props.onBack}
+          >
+            <ChevronLeft />
+          </IconButton>
+        }
+        meta={
+          open === null ? null : (
+            <>
+              <span className="shrink-0 text-ui-sm tabular-nums text-text-secondary">
+                {t("desktop.approvals.review.round", { round: open.head.round })}
+              </span>
+              {open.head.thread === null ? null : (
+                <span className="truncate text-ui-sm text-text-tertiary">{open.head.thread}</span>
+              )}
+            </>
+          )
+        }
+      />
       {open === null ? (
         props.result === undefined || props.result === null ? (
           <EmptyState

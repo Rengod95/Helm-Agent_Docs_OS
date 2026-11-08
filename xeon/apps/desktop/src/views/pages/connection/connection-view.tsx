@@ -35,6 +35,7 @@ import {
   type DetailHandlers,
 } from "./connection-status.tsx";
 import { addressMessageOf } from "./connection-text.ts";
+import { ScreenHeader } from "../../shell/screen-header.tsx";
 
 // 연결 화면(P-08)의 그림. 상태와 명령은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
 // 왼쪽은 대상 목록(라디오 묶음과 상태 배지), 오른쪽은 붙는 중·실패와 지금 대상이다. 넓은 폭에서는 두 열, 좁으면 한 열이다.
@@ -67,30 +68,30 @@ export function ConnectionScreenView(props: ConnectionScreenViewProps): ReactNod
   const { state, engine, locale, handlers } = props;
   const headingId = useId();
   return (
-    <section
-      aria-labelledby={headingId}
-      className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-3 pb-4"
-    >
-      <header className="flex h-10 flex-none items-center gap-2">
-        <h1 id={headingId} className="m-0 text-text-primary">
-          {t("desktop.connection.title")}
-        </h1>
-      </header>
-      {state.notice === null ? null : (
-        <Alert
-          tone={state.notice.tone === "danger" ? "danger" : "success"}
-          dismissible
-          dismissLabel={t("desktop.connection.dismiss")}
-          onDismiss={handlers.dismissNotice}
-        >
-          {t(state.notice.id)}
-        </Alert>
-      )}
-      <div className="grid gap-8 medium:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
-        <TargetsPanel state={state} handlers={handlers} />
-        <ConnectionDetailPanel state={state} engine={engine} locale={locale} handlers={handlers} />
+    <section aria-labelledby={headingId} className="flex min-h-0 flex-1 flex-col">
+      <ScreenHeader title={t("desktop.connection.title")} titleId={headingId} />
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-3 pb-4">
+        {state.notice === null ? null : (
+          <Alert
+            tone={state.notice.tone === "danger" ? "danger" : "success"}
+            dismissible
+            dismissLabel={t("desktop.connection.dismiss")}
+            onDismiss={handlers.dismissNotice}
+          >
+            {t(state.notice.id)}
+          </Alert>
+        )}
+        <div className="grid gap-8 medium:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+          <TargetsPanel state={state} handlers={handlers} />
+          <ConnectionDetailPanel
+            state={state}
+            engine={engine}
+            locale={locale}
+            handlers={handlers}
+          />
+        </div>
+        <StopDialog state={state} handlers={handlers} />
       </div>
-      <StopDialog state={state} handlers={handlers} />
     </section>
   );
 }

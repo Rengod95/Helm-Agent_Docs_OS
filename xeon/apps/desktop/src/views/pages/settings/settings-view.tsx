@@ -45,6 +45,7 @@ import { PanelBlock } from "../shared/panel-parts.tsx";
 import type { SettingsPathRow } from "./settings-file-paths.ts";
 import { OverviewPanels } from "./settings-overview.tsx";
 import { SettingSection } from "./settings-section.tsx";
+import { HEADER_CONTROL_SIZE, ScreenHeader } from "../../shell/screen-header.tsx";
 
 // 설정 화면(P-09)의 그림. 상태와 명령은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
 // 틀은 P-09 시안(`_settings/frame.tsx`)을 따른다. 왼쪽은 키 찾기와 탭 목록(지금 탭은 올린 흰 칸), 오른쪽은 큰 제목과 머리 아래 선,
@@ -181,7 +182,12 @@ export function SettingsPageView(props: SettingsPageProps): ReactNode {
   // "파일로 보기"는 P-09 시안처럼 머리 끝에 둔다. 찾는 중이나 시크릿 탭에는 없다
   const fileAction =
     query.trim() === "" && tab !== "secrets" ? (
-      <Button variant="ghost" size="xs" disabled={readOnly || fileOpen} onClick={handlers.openFile}>
+      <Button
+        variant="ghost"
+        size={HEADER_CONTROL_SIZE}
+        disabled={readOnly || fileOpen}
+        onClick={handlers.openFile}
+      >
         {t("desktop.settings.file.open.button")}
       </Button>
     ) : null;
@@ -194,18 +200,7 @@ export function SettingsPageView(props: SettingsPageProps): ReactNode {
     >
       {narrow ? null : <TabColumn {...props} />}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="shell-header flex flex-none items-center gap-2">
-          <h1
-            id={headingId}
-            data-page-title=""
-            className="m-0 min-w-0 flex-1 truncate font-medium text-text-secondary"
-          >
-            {titleOf}
-          </h1>
-          {fileAction === null ? null : (
-            <div className="flex flex-none items-center">{fileAction}</div>
-          )}
-        </header>
+        <ScreenHeader title={titleOf} titleId={headingId} pageTitle action={fileAction} />
         {narrow ? <NarrowTabs {...props} /> : null}
         <ScrollArea label={t("desktop.settings.title")} className="min-h-0 flex-1">
           <div className="max-w-[64rem] px-6 py-12">

@@ -25,6 +25,11 @@ import { RemoveDialog } from "./remove-dialog.tsx";
 import { keepsDialogOpen } from "./remove-model.ts";
 import { SelectionPanel } from "./selection-panel.tsx";
 import { useSafeMode } from "../safe-mode-context.ts";
+import {
+  HEADER_CONTROL_SIZE,
+  HEADER_PRIMARY_VARIANT,
+  ScreenHeader,
+} from "../shell/screen-header.tsx";
 
 export function ExtensionsScreen(): ReactNode {
   const controller = useWorkbenchController();
@@ -59,164 +64,168 @@ export function ExtensionsScreen(): ReactNode {
   const noticeTotal = noticeTotalOf(state.entries, state.hookNotices, safe);
   const firstNotice = firstNoticeOf(state.entries);
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-240 flex-1 flex-col gap-3 px-3 pt-6 pb-4">
-      {detailEntry === null && (
-        <header className="flex items-start justify-between gap-2 pe-8">
-          <h1 className="m-0 text-text-primary">{t("desktop.workbench.list.title")}</h1>
+    <div className="flex min-h-0 w-full flex-1 flex-col">
+      {/* 상세가 그려질 때만 머리를 감춘다. 상세의 머리(ext-detail.tsx)가 펼치기 단추를 가진다 */}
+      <ScreenHeader
+        hidden={ready && detailEntry !== null}
+        title={t("desktop.workbench.list.title")}
+        action={
           <Button
-            size="xs"
-            variant="outline"
+            size={HEADER_CONTROL_SIZE}
+            variant={HEADER_PRIMARY_VARIANT}
             onClick={() => {
               setInstalling(true);
             }}
           >
             {t("desktop.install.open")}
           </Button>
-        </header>
-      )}
-      {installing && (
-        <InstallDialog
-          open
-          onClose={() => {
-            setInstalling(false);
-          }}
-          onInstalled={() => {
-            detachVoid(controller.reload());
-            // 설치한 확장의 화면이 재시작 없이 플러그인 화면 탭에 오른다(rtC R-1)
-            detachVoid(pluginUi.runtime.refresh());
-          }}
-        />
-      )}
-      {detailEntry === null && <BindingsPanel />}
-      {detailEntry === null && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <SearchField />
-          <ListFilters />
-        </div>
-      )}
-      <ListStatusBand controller={controller} />
-      {noticeTotal > 0 && (
-        <Alert
-          tone="danger"
-          layout="inline"
-          size="sm"
-          actions={
-            firstNotice === null
-              ? []
-              : [
-                  {
-                    label: t("desktop.workbench.notices.view"),
-                    onClick: () => {
-                      // 자세히 보기가 열려 있으면 목록으로 돌아가 그 확장을 고른다
-                      actions.closeDetail();
-                      if (firstNotice.isGroup) actions.pickGroup(firstNotice.name);
-                      else actions.pickPlugin(firstNotice.name);
-                    },
-                  },
-                ]
-          }
-        >
-          {t("desktop.workbench.notices.count", { count: noticeTotal })}
-        </Alert>
-      )}
-      {ready && detailEntry !== null && (
-        <div className="min-h-0 flex-1 overflow-auto">
-          <ExtDetail
-            key={detailEntry.name}
-            state={state}
-            entry={detailEntry}
-            tab={state.detailTab}
-            onTab={(tab) => {
-              actions.selectDetailTab(tab);
+        }
+      />
+      <div className="mx-auto flex min-h-0 w-full max-w-240 flex-1 flex-col gap-3 px-3 pt-6 pb-4">
+        {installing && (
+          <InstallDialog
+            open
+            onClose={() => {
+              setInstalling(false);
             }}
-            onBack={() => {
-              actions.closeDetail();
-            }}
-            onToggle={(target) => {
-              toggle.request(detailEntry.name, target);
-            }}
-            onKeepOn={() => {
-              detachVoid(controller.reenable(detailEntry.name));
-            }}
-            onKeepOff={() => {
-              detachVoid(controller.keepOff(detailEntry.name));
-            }}
-            onRemove={() => {
-              setRemoving(detailEntry.name);
+            onInstalled={() => {
+              detachVoid(controller.reload());
+              // 설치한 확장의 화면이 재시작 없이 플러그인 화면 탭에 오른다(rtC R-1)
+              detachVoid(pluginUi.runtime.refresh());
             }}
           />
-        </div>
-      )}
-      {ready && detailEntry === null && empty && (
-        <EmptyState
-          media={<PuzzleArt />}
-          size="sm"
-          surface="none"
-          title={t(
-            searching ? "desktop.workbench.empty.search" : "desktop.workbench.empty.heading",
-          )}
-        />
-      )}
-      {ready && detailEntry === null && !empty && (
-        <div className="flex min-h-0 flex-1 gap-4">
-          <div className="min-h-0 min-w-0 flex-1 overflow-auto">
-            <LayerList onToggle={toggle.request} />
+        )}
+        {detailEntry === null && <BindingsPanel />}
+        {detailEntry === null && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <SearchField />
+            <ListFilters />
           </div>
-          {entry !== null && (
-            <SelectionPanel
+        )}
+        <ListStatusBand controller={controller} />
+        {noticeTotal > 0 && (
+          <Alert
+            tone="danger"
+            layout="inline"
+            size="sm"
+            actions={
+              firstNotice === null
+                ? []
+                : [
+                    {
+                      label: t("desktop.workbench.notices.view"),
+                      onClick: () => {
+                        // 자세히 보기가 열려 있으면 목록으로 돌아가 그 확장을 고른다
+                        actions.closeDetail();
+                        if (firstNotice.isGroup) actions.pickGroup(firstNotice.name);
+                        else actions.pickPlugin(firstNotice.name);
+                      },
+                    },
+                  ]
+            }
+          >
+            {t("desktop.workbench.notices.count", { count: noticeTotal })}
+          </Alert>
+        )}
+        {ready && detailEntry !== null && (
+          <div className="min-h-0 flex-1 overflow-auto">
+            <ExtDetail
+              key={detailEntry.name}
               state={state}
-              entry={entry}
+              entry={detailEntry}
+              tab={state.detailTab}
+              onTab={(tab) => {
+                actions.selectDetailTab(tab);
+              }}
+              onBack={() => {
+                actions.closeDetail();
+              }}
               onToggle={(target) => {
-                toggle.request(entry.name, target);
+                toggle.request(detailEntry.name, target);
               }}
-              onDetail={() => {
-                actions.openDetail(entry.name);
-              }}
-              onClear={() => {
-                actions.clearPick();
-              }}
-              onReenable={() => {
-                detachVoid(controller.reenable(entry.name));
+              onKeepOn={() => {
+                detachVoid(controller.reenable(detailEntry.name));
               }}
               onKeepOff={() => {
-                detachVoid(controller.keepOff(entry.name));
+                detachVoid(controller.keepOff(detailEntry.name));
               }}
               onRemove={() => {
-                setRemoving(entry.name);
+                setRemoving(detailEntry.name);
               }}
             />
-          )}
-        </div>
-      )}
-      {toggle.dialog}
-      <RemoveDialog
-        name={removing}
-        busy={removeBusy}
-        dataFailed={removeDataFailed}
-        loadPreview={loadPreview}
-        loadProfiles={loadProfiles}
-        pluginEntries={pluginEntries}
-        onCancel={() => {
-          if (!removeBusy) {
-            setRemoving(null);
+          </div>
+        )}
+        {ready && detailEntry === null && empty && (
+          <EmptyState
+            media={<PuzzleArt />}
+            size="sm"
+            surface="none"
+            title={t(
+              searching ? "desktop.workbench.empty.search" : "desktop.workbench.empty.heading",
+            )}
+          />
+        )}
+        {ready && detailEntry === null && !empty && (
+          <div className="flex min-h-0 flex-1 gap-4">
+            <div className="min-h-0 min-w-0 flex-1 overflow-auto">
+              <LayerList onToggle={toggle.request} />
+            </div>
+            {entry !== null && (
+              <SelectionPanel
+                state={state}
+                entry={entry}
+                onToggle={(target) => {
+                  toggle.request(entry.name, target);
+                }}
+                onDetail={() => {
+                  actions.openDetail(entry.name);
+                }}
+                onClear={() => {
+                  actions.clearPick();
+                }}
+                onReenable={() => {
+                  detachVoid(controller.reenable(entry.name));
+                }}
+                onKeepOff={() => {
+                  detachVoid(controller.keepOff(entry.name));
+                }}
+                onRemove={() => {
+                  setRemoving(entry.name);
+                }}
+              />
+            )}
+          </div>
+        )}
+        {toggle.dialog}
+        <RemoveDialog
+          name={removing}
+          busy={removeBusy}
+          dataFailed={removeDataFailed}
+          loadPreview={loadPreview}
+          loadProfiles={loadProfiles}
+          pluginEntries={pluginEntries}
+          onCancel={() => {
+            if (!removeBusy) {
+              setRemoving(null);
+              setRemoveDataFailed(false);
+            }
+          }}
+          onConfirm={(name, dropData) => {
+            setRemoveBusy(true);
             setRemoveDataFailed(false);
-          }
-        }}
-        onConfirm={(name, dropData) => {
-          setRemoveBusy(true);
-          setRemoveDataFailed(false);
-          detachVoid(
-            controller.remove(name, { dropData }).then((outcome) => {
-              setRemoveBusy(false);
-              // 저장 데이터를 함께 지우다 실패했으면 상자를 열어 두고 다시 시도하게 한다. 이미 없는 이름(3401)과 성공은 토스트로 알리고 닫는다
-              const stay = keepsDialogOpen(outcome, dropData);
-              setRemoveDataFailed(stay);
-              if (!stay) setRemoving(null);
-              return undefined;
-            }),
-          );
-        }}
-      />
+            detachVoid(
+              controller.remove(name, { dropData }).then((outcome) => {
+                setRemoveBusy(false);
+                // 저장 데이터를 함께 지우다 실패했으면 상자를 열어 두고 다시 시도하게 한다. 이미 없는 이름(3401)과 성공은 토스트로 알리고 닫는다
+                const stay = keepsDialogOpen(outcome, dropData);
+                setRemoveDataFailed(stay);
+                if (!stay) setRemoving(null);
+                return undefined;
+              }),
+            );
+          }}
+        />
+      </div>
     </div>
   );
 }

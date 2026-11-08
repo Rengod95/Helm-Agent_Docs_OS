@@ -15,6 +15,7 @@ import {
 } from "@fresnel/client/workbench";
 import { assertNever } from "@fresnel/contracts";
 import type { ExtTestRecord } from "@fresnel/contracts/wire";
+import { PanelExpandButton } from "../shell/screen-header.tsx";
 import {
   Alert,
   Badge,
@@ -86,6 +87,7 @@ export function TestsView(props: TestsViewProps): ReactNode {
     >
       <div className="mx-auto grid w-full max-w-240 gap-5 px-3 pt-4 pb-8">
         <header className="flex h-10 min-w-0 items-center gap-2 pe-8">
+          <PanelExpandButton />
           <h1 id="tests-screen-title" className="m-0 min-w-0 truncate text-text-primary">
             {t("desktop.tests.title")}
           </h1>
