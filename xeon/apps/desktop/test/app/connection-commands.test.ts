@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { TARGETS_KEY, type TargetEntry } from "@fresnel/client";
+import { err, ok } from "@fresnel/contracts";
 import { WIRE_ERRORS, type WireResult } from "@fresnel/contracts/wire";
-import type { DesktopIpc, EngineState, RestartOptions } from "../../src/transport/ipc.ts";
+import type {
+  DesktopIpc,
+  EngineState,
+  RestartOptions,
+  ServiceStatusReply,
+} from "../../src/transport/ipc.ts";
 import { summary, thr } from "../state/helpers.ts";
 import { fakeIpc } from "../transport/fake-ipc.ts";
 import { engineFake, makeApp, makeAppOver, until, type EngineExtra } from "./support.ts";
@@ -255,6 +261,7 @@ describe("host status, service mode and stopping the service", () => {
       ok: true,
       value: {
         host: HOST_STATUS,
+        service: { kind: "stopped", reason: "no registration" },
         serviceEnabled: true,
         restartPending: false,
         remoteAllowRespond: false,
@@ -284,6 +291,7 @@ describe("host status, service mode and stopping the service", () => {
       ok: true,
       value: {
         host: HOST_STATUS,
+        service: { kind: "stopped", reason: "no registration" },
         serviceEnabled: true,
         restartPending: false,
         remoteAllowRespond: null,
@@ -456,6 +464,256 @@ describe("the connected clients list reads host.clients", () => {
     const app = makeAppOver(ipc);
     const listed = await app.commands.connection.clients();
     expect(listed).toEqual({ ok: false, error: { kind: "offline" } });
+    await app.stop();
+  });
+});
+
+/** 엔진 역할은 `engineFake`가 맡고, 서비스 셸 명령만 시험이 정한 답으로 바꾼 앱을 연결될 때까지 기다린다. 쓰기와 셸 호출의 순서는 `log`에 남는다 */
+async function serviceApp(
+  service: Partial<Pick<DesktopIpc, "serviceStatus" | "serviceEnsure" | "serviceStop">> = {},
+  extra: EngineExtra = {},
+  log: string[] = [],
+) {
+  const engine = engineFake([summary(thr(1))], undefined, extra);
+  const base: DesktopIpc = { ...engine.fake.ipc, ...service };
+  const ipc: DesktopIpc = {
+    ...base,
+    write: (epoch, chunk) => {
+      if (new TextDecoder().decode(chunk).includes('"method":"settings.set"')) {
+        log.push("settings.set");
+      }
+      return base.write(epoch, chunk);
+    },
+    serviceEnsure: () => {
+      log.push("serviceEnsure");
+      return base.serviceEnsure();
+    },
+    serviceStop: () => {
+      log.push("serviceStop");
+      return base.serviceStop();
+    },
+    restart: (options) => {
+      log.push("restart");
+      return base.restart(options);
+    },
+  };
+  const app = makeAppOver(ipc);
+  await until(() => app.engine.read.getState().link.phase === "live", "live link");
+  return { app, ...engine, log };
+}
+
+const SERVICE_KEY_NAME = "l0.process.service.enabled";
+const SETTING_ON = { setting: serviceSetting(true) };
+const SETTING_OFF = { setting: serviceSetting(false) };
+
+describe("the local service: enabling and disabling run in one order and report their failures", () => {
+  test("enabling writes the setting, starts the service, then restarts the local engine onto it", async () => {
+    const log: string[] = [];
+    const { app, params, fake } = await serviceApp(
+      {},
+      { results: { "settings.set": SETTING_ON } },
+      log,
+    );
+    expect(await app.commands.connection.setServiceMode(true)).toEqual({ ok: true, value: null });
+    expect(log).toEqual(["settings.set", "serviceEnsure", "restart"]);
+    expect(
+      params.filter((entry) => entry.method === "settings.set").map((entry) => entry.params),
+    ).toEqual([{ key: SERVICE_KEY_NAME, value: true, scope: "user" }]);
+    expect(fake.restarts).toEqual([{ confirmed: true }]);
+    await app.stop();
+  });
+
+  test("an ensure that fails writes the setting back to off and returns the start failure, without a restart", async () => {
+    const log: string[] = [];
+    const { app, params, fake } = await serviceApp(
+      {
+        serviceEnsure: () =>
+          Promise.resolve(
+            err({ kind: "command", command: "service_ensure", code: "start_failed" }),
+          ),
+      },
+      { results: { "settings.set": SETTING_ON } },
+      log,
+    );
+    expect(await app.commands.connection.setServiceMode(true)).toEqual({
+      ok: false,
+      error: { kind: "failed" },
+    });
+    expect(log).toEqual(["settings.set", "serviceEnsure", "settings.set"]);
+    expect(
+      params.filter((entry) => entry.method === "settings.set").map((entry) => entry.params),
+    ).toEqual([
+      { key: SERVICE_KEY_NAME, value: true, scope: "user" },
+      { key: SERVICE_KEY_NAME, value: false, scope: "user" },
+    ]);
+    expect(fake.restarts).toEqual([]);
+    await app.stop();
+  });
+
+  test("disabling stops the service, then restarts the local engine back into the app", async () => {
+    const log: string[] = [];
+    const { app, params, fake } = await serviceApp(
+      {},
+      { results: { "settings.set": SETTING_OFF } },
+      log,
+    );
+    expect(await app.commands.connection.stopLocalService()).toEqual({ ok: true, value: null });
+    expect(log).toEqual(["settings.set", "serviceStop", "restart"]);
+    expect(paramsOf(params, "settings.set")).toEqual({
+      key: SERVICE_KEY_NAME,
+      value: false,
+      scope: "user",
+    });
+    expect(fake.restarts).toEqual([{ confirmed: true }]);
+    await app.stop();
+  });
+
+  test("a stop that fails keeps the setting the user chose, reports it, and does not restart", async () => {
+    const log: string[] = [];
+    const { app, fake } = await serviceApp(
+      {
+        serviceStop: () =>
+          Promise.resolve(
+            err({ kind: "command", command: "service_stop", code: "service_failed" }),
+          ),
+      },
+      { results: { "settings.set": SETTING_OFF } },
+      log,
+    );
+    expect(await app.commands.connection.stopLocalService()).toEqual({
+      ok: false,
+      error: { kind: "failed" },
+    });
+    expect(log).toEqual(["settings.set", "serviceStop"]);
+    expect(fake.restarts).toEqual([]);
+    await app.stop();
+  });
+
+  test("the start and stop commands are the same flow as the setting itself", async () => {
+    const started = await serviceApp({}, { results: { "settings.set": SETTING_ON } });
+    expect(await started.app.commands.connection.startLocalService()).toEqual({
+      ok: true,
+      value: null,
+    });
+    expect(started.fake.serviceCalls).toEqual(["serviceEnsure"]);
+    await started.app.stop();
+  });
+
+  test("with the engine on a remote target only the setting is written, and the local service is left alone", async () => {
+    const log: string[] = [];
+    const { app, fake, params } = await serviceApp(
+      {},
+      { results: { "settings.set": SETTING_ON } },
+      log,
+    );
+    app.ui.actions.setEngineTarget({ kind: "remote", address: SAVED.address, label: SAVED.label });
+    expect(await app.commands.connection.setServiceMode(true)).toEqual({ ok: true, value: null });
+    expect(log).toEqual(["settings.set"]);
+    expect(fake.serviceCalls).toEqual([]);
+    expect(fake.restarts).toEqual([]);
+    expect(paramsOf(params, "settings.set")).toEqual({
+      key: SERVICE_KEY_NAME,
+      value: true,
+      scope: "user",
+    });
+    await app.stop();
+  });
+});
+
+describe("load reads the local service card from the shell", () => {
+  const RUNNING: ServiceStatusReply = {
+    running: true,
+    socket: "/run/fresnel/service.sock",
+    pid: 4321,
+    version: "1.2.3",
+    startedAt: 1_700_000_000_000,
+  };
+
+  test("a running service that this app is attached to shows its pid, version and start time, and no socket", async () => {
+    const { app } = await serviceApp(
+      { serviceStatus: () => Promise.resolve(ok(RUNNING)) },
+      {
+        results: {
+          "host.status": HOST_STATUS,
+          "settings.get": { settings: [serviceSetting(true)] },
+        },
+      },
+    );
+    expect(await app.commands.connection.load()).toEqual({
+      ok: true,
+      value: {
+        host: HOST_STATUS,
+        service: {
+          kind: "running",
+          pid: 4321,
+          version: "1.2.3",
+          startedAt: 1_700_000_000_000,
+          attached: true,
+        },
+        serviceEnabled: true,
+        restartPending: false,
+        remoteAllowRespond: null,
+      },
+    });
+    await app.stop();
+  });
+
+  test("a running service that this app is not attached to says so", async () => {
+    const { app } = await serviceApp(
+      { serviceStatus: () => Promise.resolve(ok(RUNNING)) },
+      {
+        results: {
+          "host.status": { ...HOST_STATUS, mode: "in-process" },
+          "settings.get": { settings: [serviceSetting(false)] },
+        },
+      },
+    );
+    const loaded = await app.commands.connection.load();
+    expect(loaded.ok && loaded.value.service).toEqual({
+      kind: "running",
+      pid: 4321,
+      version: "1.2.3",
+      startedAt: 1_700_000_000_000,
+      attached: false,
+    });
+    await app.stop();
+  });
+
+  test("a status read that fails shows the card as unknown, and the rest of the load still succeeds", async () => {
+    const { app } = await serviceApp(
+      {
+        serviceStatus: () =>
+          Promise.resolve(
+            err({ kind: "command", command: "service_status", code: "storage-failed" }),
+          ),
+      },
+      {
+        results: {
+          "host.status": HOST_STATUS,
+          "settings.get": { settings: [serviceSetting(true)] },
+        },
+      },
+    );
+    const loaded = await app.commands.connection.load();
+    expect(loaded.ok && loaded.value.service).toEqual({ kind: "unknown" });
+    expect(loaded.ok && loaded.value.serviceEnabled).toBe(true);
+    await app.stop();
+  });
+
+  test("a remote target never asks the shell about the local service", async () => {
+    const { app, fake } = await serviceApp(
+      {},
+      {
+        results: {
+          "host.status": HOST_STATUS,
+          "settings.get": { settings: [serviceSetting(true)] },
+        },
+      },
+    );
+    app.ui.actions.setEngineTarget({ kind: "remote", address: SAVED.address, label: SAVED.label });
+    const loaded = await app.commands.connection.load();
+    expect(loaded.ok && loaded.value.service).toEqual({ kind: "unknown" });
+    expect(fake.serviceCalls).toEqual([]);
     await app.stop();
   });
 });

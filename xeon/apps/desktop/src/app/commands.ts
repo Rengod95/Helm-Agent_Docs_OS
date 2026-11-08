@@ -68,7 +68,7 @@ const CREATE_THREAD_TIMEOUT_MS = 30_000;
 
 export type CommandDeps = {
   readonly session: Session;
-  /** 키 등록(`registerSecret`), 엔진 대상 바꾸기(`retarget`), 데이터 복원(`dbRestore`), 저장 공간 명령(백업·사용량·사본 지우기·데이터 폴더 열기)만 쓴다. 나머지 셸 명령은 세션이 맡는다 */
+  /** 키 등록(`registerSecret`), 엔진 대상 바꾸기(`retarget`), 데이터 복원(`dbRestore`), 저장 공간 명령(백업·사용량·사본 지우기·데이터 폴더 열기), 이 기기의 서비스 명령(연결 화면)만 쓴다. 나머지 셸 명령은 세션이 맡는다 */
   readonly ipc: Pick<
     DesktopIpc,
     | "registerSecret"
@@ -78,6 +78,9 @@ export type CommandDeps = {
     | "dbUsage"
     | "dbPreviousRemove"
     | "openDataDir"
+    | "serviceStatus"
+    | "serviceEnsure"
+    | "serviceStop"
   >;
   /** 데스크톱 로컬 설정. 원격 대상 목록을 읽고 쓴다(연결 화면) */
   readonly local: Pick<LocalSettings, "load" | "get" | "set">;
@@ -221,6 +224,17 @@ export function createCommands(deps: CommandDeps): Commands {
         return assertNever(step, "SlashStep");
     }
   };
+
+  // 연결 명령은 예약 명령이 서비스 모드를 켤 때 쓰므로 먼저 만든다
+  const connectionCommands = createConnectionCommands({
+    engineSwitch: deps.engineSwitch,
+    local: deps.local,
+    session,
+    ui,
+    run: withConnection,
+    ipc: deps.ipc,
+    engineTargetKind: () => ui.read.getState().engineTarget.kind,
+  });
 
   return {
     selectThread(threadId) {
@@ -493,15 +507,9 @@ export function createCommands(deps: CommandDeps): Commands {
     ),
     tests: createTestCommands(withConnection, withWriteConnection),
     measure: createMeasureCommands(withConnection),
-    schedule: createScheduleCommands(withConnection),
+    schedule: createScheduleCommands(withConnection, () => connectionCommands.setServiceMode(true)),
     pluginUi: { withConnection, current: () => session.connection() },
-    connection: createConnectionCommands({
-      engineSwitch: deps.engineSwitch,
-      local: deps.local,
-      session,
-      ui,
-      run: withConnection,
-    }),
+    connection: connectionCommands,
     secrets: createSecretCommands({ session, ipc: deps.ipc, clipboard: deps.clipboard }),
     restore: createRestoreCommands({ ipc: deps.ipc, engineSwitch: deps.engineSwitch }),
     storage: createStorageCommands({ ipc: deps.ipc, engineSwitch: deps.engineSwitch }),

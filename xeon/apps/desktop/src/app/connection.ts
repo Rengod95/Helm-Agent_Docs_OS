@@ -1,14 +1,20 @@
 import { targetsStorageOf, type AttachFailureKind, type TargetEntry } from "@fresnel/client";
 import { err, ok, type Result } from "@fresnel/contracts";
-import { WIRE_ERRORS, type HostClientView, type HostConnection } from "@fresnel/contracts/wire";
+import {
+  WIRE_ERRORS,
+  type HostClientView,
+  type HostConnection,
+  type WireResult,
+} from "@fresnel/contracts/wire";
 import { LOCAL, type LocalSettings } from "../settings-store/index.ts";
 import type { UiStore } from "../state/ui/index.ts";
-import type { EngineTarget } from "../transport/ipc.ts";
+import type { DesktopIpc, EngineTarget } from "../transport/ipc.ts";
 import type {
   CommandError,
   ConnectionCommands,
   ConnectionSnapshot,
   ConnectTarget,
+  ServiceCard,
   TargetStoreError,
 } from "../views/commands.ts";
 import type { EngineSwitch } from "./engine-switch.ts";
@@ -44,10 +50,75 @@ export interface ConnectionDeps {
   readonly session: Pick<Session, "reconnect" | "restartEngine">;
   readonly ui: Pick<UiStore, "actions">;
   readonly run: Run;
+  /** 이 기기의 서비스 셸 명령(상태 읽기, 켜기, 끄기) */
+  readonly ipc: Pick<DesktopIpc, "serviceStatus" | "serviceEnsure" | "serviceStop">;
+  /** 엔진이 지금 붙은 대상의 종류(UI 스토어의 `engineTarget`). 이 기기일 때만 서비스 명령을 부른다 */
+  readonly engineTargetKind: () => "local" | "remote";
 }
 
 export function createConnectionCommands(deps: ConnectionDeps): ConnectionCommands {
-  const { engineSwitch, local, session, ui, run } = deps;
+  const { engineSwitch, local, session, ui, run, ipc, engineTargetKind } = deps;
+
+  /** 서비스 모드 설정을 사용자 범위에 쓴다. 적용은 호출하는 쪽이 정한다 */
+  const writeServiceSetting = async (enabled: boolean): Promise<Result<null, CommandError>> => {
+    const written = await run((c) =>
+      c.request("settings.set", { key: SERVICE_ENABLED_KEY, value: enabled, scope: SCOPE }),
+    );
+    return written.ok ? ok(null) : written;
+  };
+
+  /**
+   * 이 기기의 엔진을 다시 띄운다. 살아 있는 엔진도 확인으로 다시 띄운다(`confirmed`). 셸이 거절하면(엔진이 떠 있지 않으면)
+   * 세션이 다시 잇는다. 새 엔진은 바뀐 서비스 설정으로 뜬다.
+   */
+  const restartLocalEngine = async (): Promise<void> => {
+    const restarted = await session.restartEngine({ confirmed: true });
+    if (!restarted) session.reconnect();
+  };
+
+  /** 이 기기 서비스를 켜고 엔진을 그 서비스에 붙인다. 켜지 못하면 설정을 꺼짐으로 되돌린다(화면이 실제 상태를 보이도록) */
+  const enableLocalService = async (): Promise<Result<null, CommandError>> => {
+    const ensured = await ipc.serviceEnsure();
+    if (!ensured.ok) {
+      await writeServiceSetting(false);
+      return err({ kind: "failed" });
+    }
+    await restartLocalEngine();
+    return ok(null);
+  };
+
+  /** 이 기기 서비스를 멈추고 엔진을 앱 안의 사이드카로 다시 띄운다. 멈추지 못하면 설정은 그대로 두고 오류를 준다 */
+  const disableLocalService = async (): Promise<Result<null, CommandError>> => {
+    const stopped = await ipc.serviceStop();
+    if (!stopped.ok) return err({ kind: "failed" });
+    await restartLocalEngine();
+    return ok(null);
+  };
+
+  const setServiceMode = async (enabled: boolean): Promise<Result<null, CommandError>> => {
+    const written = await writeServiceSetting(enabled);
+    if (!written.ok) return written;
+    // 원격 대상은 이 기기의 서비스와 상관없어 설정만 쓴다
+    if (engineTargetKind() === "remote") return ok(null);
+    return enabled ? enableLocalService() : disableLocalService();
+  };
+
+  /** 이 기기의 서비스 카드. 엔진 대상이 원격이면 읽지 않는다. 읽지 못하면 `unknown`이다(소켓 경로는 싣지 않는다) */
+  const serviceCardOf = async (host: WireResult<"host.status">): Promise<ServiceCard> => {
+    if (engineTargetKind() === "remote") return { kind: "unknown" };
+    const status = await ipc.serviceStatus();
+    if (!status.ok) return { kind: "unknown" };
+    const reply = status.value;
+    if (!reply.running) return { kind: "stopped", reason: reply.reason };
+    return {
+      kind: "running",
+      pid: reply.pid,
+      version: reply.version,
+      startedAt: reply.startedAt,
+      attached: host.mode === "service",
+    };
+  };
+
   return {
     async targets(): Promise<Result<readonly TargetEntry[], TargetStoreError>> {
       const loaded = await local.load();
@@ -84,6 +155,7 @@ export function createConnectionCommands(deps: ConnectionDeps): ConnectionComman
     async load(): Promise<Result<ConnectionSnapshot, CommandError>> {
       const host = await run((c) => c.request("host.status", {}));
       if (!host.ok) return host;
+      const service = await serviceCardOf(host.value);
       const settings = await run((c) => c.request("settings.get", { keys: [SERVICE_ENABLED_KEY] }));
       if (!settings.ok) return settings;
       const setting = settings.value.settings.find((item) => item.key === SERVICE_ENABLED_KEY);
@@ -96,6 +168,7 @@ export function createConnectionCommands(deps: ConnectionDeps): ConnectionComman
         if (!unknown) return remote;
         return ok({
           host: host.value,
+          service,
           serviceEnabled: setting?.value === true,
           restartPending,
           remoteAllowRespond: null,
@@ -105,6 +178,7 @@ export function createConnectionCommands(deps: ConnectionDeps): ConnectionComman
       const remoteAllowRespond = typeof allow?.value === "boolean" ? allow.value : null;
       return ok({
         host: host.value,
+        service,
         serviceEnabled: setting?.value === true,
         restartPending,
         remoteAllowRespond,
@@ -115,18 +189,16 @@ export function createConnectionCommands(deps: ConnectionDeps): ConnectionComman
       const listed = await run((c) => c.request("host.clients", {}));
       return listed.ok ? ok(listed.value.clients) : listed;
     },
-    async setServiceMode(enabled: boolean): Promise<Result<null, CommandError>> {
-      const written = await run((c) =>
-        c.request("settings.set", { key: SERVICE_ENABLED_KEY, value: enabled, scope: SCOPE }),
-      );
-      return written.ok ? ok(null) : written;
-    },
+    setServiceMode,
+    startLocalService: () => setServiceMode(true),
+    stopLocalService: () => setServiceMode(false),
     async setRemoteRespond(enabled: boolean): Promise<Result<null, CommandError>> {
       const written = await run((c) =>
         c.request("settings.set", { key: REMOTE_RESPOND_KEY, value: enabled, scope: SCOPE }),
       );
       return written.ok ? ok(null) : written;
     },
+    /** 원격 서비스를 협조 종료한다. 이 기기의 서비스는 `stopLocalService`다 */
     async stopService(): Promise<Result<boolean, CommandError>> {
       const done = await run((c) => c.request("host.shutdown", { reason: "user" }));
       return done.ok ? ok(done.value.accepted) : done;

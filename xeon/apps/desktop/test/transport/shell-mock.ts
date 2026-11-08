@@ -181,6 +181,9 @@ export function shellMockIpc(fake: FakeIpc): {
       return settled(await fake.ipc.dbPreviousRemove(name));
     }
     if (cmd === "open_data_dir") return settled(await fake.ipc.openDataDir());
+    if (cmd === "service_status") return settled(await fake.ipc.serviceStatus());
+    if (cmd === "service_ensure") return settled(await fake.ipc.serviceEnsure());
+    if (cmd === "service_stop") return settled(await fake.ipc.serviceStop());
     if (cmd === "engine_detach") {
       await fake.ipc.detach(Number(field(args, "epoch")));
       return null;

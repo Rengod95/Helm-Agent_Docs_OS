@@ -11,6 +11,9 @@ import type {
   RestartOptions,
   RestoreReport,
   SecretRegisterError,
+  ServiceEnsureReply,
+  ServiceStatusReply,
+  ServiceStopReply,
   StorageUsage,
 } from "../../src/transport/ipc.ts";
 
@@ -43,6 +46,12 @@ export const STORAGE_USAGE: StorageUsage = {
   logs: 12,
   restorePrevious: 1,
   previous: [{ name: "20261104T000000000Z", bytes: 4096 }],
+};
+
+/** 서비스 상태의 기본 답: 실행 중이 아니다. 시험이 `serviceStatusResult`로 바꾼다 */
+const SERVICE_NOT_RUNNING: ServiceStatusReply = {
+  running: false,
+  reason: "no registration",
 };
 
 /** 복원 전 사본을 지운 결과. 기본 `dbPreviousRemove`가 이것을 stdout으로 돌려준다 */
@@ -81,6 +90,8 @@ export type FakeIpc = {
   readonly dbPreviousRemoveCalls: string[];
   /** `openDataDir` 호출 횟수 */
   readonly openDataDirCalls: number;
+  /** 서비스 명령 호출 이름(`serviceStatus`·`serviceEnsure`·`serviceStop`), 호출 순서 */
+  readonly serviceCalls: string[];
   epoch(): number;
 };
 
@@ -103,6 +114,12 @@ export type FakeIpcOptions = {
   readonly dbPreviousRemoveResult?: Result<DbRestoreReply, IpcError>;
   /** `openDataDir`가 돌려줄 결과. 없으면 성공(`null`)이다 */
   readonly openDataDirResult?: Result<null, IpcError>;
+  /** `serviceStatus`가 돌려줄 결과. 없으면 `SERVICE_NOT_RUNNING`이다 */
+  readonly serviceStatusResult?: Result<ServiceStatusReply, IpcError>;
+  /** `serviceEnsure`가 돌려줄 결과. 없으면 소켓과 버전을 가진 성공이다 */
+  readonly serviceEnsureResult?: Result<ServiceEnsureReply, IpcError>;
+  /** `serviceStop`이 돌려줄 결과. 없으면 멈춘 성공이다 */
+  readonly serviceStopResult?: Result<ServiceStopReply, IpcError>;
 };
 
 function ignore(): void {
@@ -123,6 +140,7 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
   const restored: string[] = [];
   const dbExportCalls: string[] = [];
   const dbPreviousRemoveCalls: string[] = [];
+  const serviceCalls: string[] = [];
   let dbUsageCount = 0;
   let openDataDirCount = 0;
   const fake: FakeIpc = {
@@ -207,6 +225,21 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
         openDataDirCount += 1;
         return Promise.resolve(options.openDataDirResult ?? ok(null));
       },
+      serviceStatus() {
+        serviceCalls.push("serviceStatus");
+        return Promise.resolve(options.serviceStatusResult ?? ok(SERVICE_NOT_RUNNING));
+      },
+      serviceEnsure() {
+        serviceCalls.push("serviceEnsure");
+        return Promise.resolve(
+          options.serviceEnsureResult ??
+            ok({ socket: "/run/fresnel/service.sock", version: "1.2.3", action: "spawned" }),
+        );
+      },
+      serviceStop() {
+        serviceCalls.push("serviceStop");
+        return Promise.resolve(options.serviceStopResult ?? ok({ stopped: true }));
+      },
     },
     emitLine: (value) => onBytes(enc.encode(`${JSON.stringify(value)}\n`)),
     emitBytes: (bytes) => onBytes(bytes),
@@ -227,6 +260,7 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
     get openDataDirCalls() {
       return openDataDirCount;
     },
+    serviceCalls,
     epoch: () => epoch,
   };
   return fake;

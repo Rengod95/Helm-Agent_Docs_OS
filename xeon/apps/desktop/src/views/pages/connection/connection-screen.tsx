@@ -17,6 +17,7 @@ import {
   LOCAL_CHOICE,
   newTargetId,
   toConnectTarget,
+  type ServiceAction,
   type TargetChoice,
 } from "./connection-model.ts";
 import { ConnectionScreenView, type ConnectionScreenHandlers } from "./connection-view.tsx";
@@ -173,14 +174,29 @@ export function ConnectionScreen(): ReactNode {
     dispatch({ type: "busy", busy: true });
     const written = await commands.connection.setServiceMode(enabled);
     dispatch({ type: "busy", busy: false });
-    if (!written.ok) {
+    if (written.ok) {
+      dispatch({ type: "serviceModeSet", enabled });
+    } else {
       dispatch({
         type: "notice",
         notice: { tone: "danger", id: "desktop.connection.actionFailed" },
       });
-      return;
     }
-    dispatch({ type: "serviceModeSet", enabled });
+    // 켜거나 끈 뒤 상태 카드와 스위치를 다시 읽는다. 엔진이 다시 뜨는 동안이면 연결이 살아날 때 한 번 더 읽는다
+    await loadStatus();
+  };
+
+  /** 이 기기 서비스 카드의 시작이나 멈추기. 실패는 카드에 한 줄로 남기고, 끝나면 상태를 다시 읽는다 */
+  const runServiceAction = async (action: ServiceAction): Promise<void> => {
+    dispatch({ type: "serviceError", action: null });
+    dispatch({ type: "serviceBusy", action });
+    const done =
+      action === "start"
+        ? await commands.connection.startLocalService()
+        : await commands.connection.stopLocalService();
+    dispatch({ type: "serviceBusy", action: null });
+    dispatch({ type: "serviceError", action: done.ok ? null : action });
+    await loadStatus();
   };
 
   const writeRemoteRespond = async (enabled: boolean): Promise<void> => {
@@ -197,19 +213,26 @@ export function ConnectionScreen(): ReactNode {
     dispatch({ type: "remoteRespondSet", enabled });
   };
 
-  const stopService = async (): Promise<void> => {
+  /** 원격 서비스를 협조 종료한다(`host.shutdown`). 받아들여졌으면 참이다 */
+  const stopRemoteHost = async (): Promise<boolean> => {
+    const done = await commands.connection.stopService();
+    return done.ok && done.value;
+  };
+
+  /** 이 기기의 서비스를 멈춘다. 엔진은 앱 안에서 다시 뜬다 */
+  const stopLocalHost = async (): Promise<boolean> => {
+    const done = await commands.connection.stopLocalService();
+    return done.ok;
+  };
+
+  /** 서비스 멈추기 확인 뒤. 원격 대상이면 `host.shutdown`, 이 기기면 로컬 서비스 멈추기를 부른다 */
+  const stopHost = async (): Promise<void> => {
     dispatch({ type: "stopConfirm", open: false });
     dispatch({ type: "busy", busy: true });
-    const done = await commands.connection.stopService();
+    const stopped =
+      state.engineTarget.kind === "remote" ? await stopRemoteHost() : await stopLocalHost();
     dispatch({ type: "busy", busy: false });
-    if (!done.ok) {
-      dispatch({
-        type: "notice",
-        notice: { tone: "danger", id: "desktop.connection.actionFailed" },
-      });
-      return;
-    }
-    if (!done.value) {
+    if (!stopped) {
       dispatch({
         type: "notice",
         notice: { tone: "danger", id: "desktop.connection.actionFailed" },
@@ -268,6 +291,12 @@ export function ConnectionScreen(): ReactNode {
     setServiceMode: (enabled) => {
       detach(writeServiceMode(enabled), rethrow);
     },
+    startLocalService: () => {
+      detach(runServiceAction("start"), rethrow);
+    },
+    stopLocalService: () => {
+      detach(runServiceAction("stop"), rethrow);
+    },
     setRemoteRespond: (enabled) => {
       detach(writeRemoteRespond(enabled), rethrow);
     },
@@ -275,7 +304,7 @@ export function ConnectionScreen(): ReactNode {
       dispatch({ type: "stopConfirm", open });
     },
     confirmStop: () => {
-      detach(stopService(), rethrow);
+      detach(stopHost(), rethrow);
     },
     openExtensions: () => {
       // LightCraft 엔진(작업대) 화면으로 간다. 영역을 바꾸고 작업대 자리의 화면을 `engine`으로 둔다

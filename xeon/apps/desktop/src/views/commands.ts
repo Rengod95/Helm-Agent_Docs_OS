@@ -187,7 +187,10 @@ interface WorkspaceCommands {
   status(workspace: string): Promise<Result<WorkspaceStatusResult, CommandError>>;
 }
 
-/** `schedule.list` 값 + 서비스 모드 꺼짐 여부와 다시 시작 대기 여부(`settings.get`의 `l0.process.service.enabled`) */
+/**
+ * `schedule.list` 값 + 서비스 모드 꺼짐 여부와 다시 시작 대기 여부. 꺼짐은 설정 값이 아니라 `host.status`의 모드로 본다
+ * (`mode`가 `service`가 아니면 꺼진 것이다). 다시 시작 대기는 `settings.get`의 `l0.process.service.enabled`다.
+ */
 export interface ScheduleSnapshot {
   readonly items: readonly ScheduleListItem[];
   readonly serviceModeOff: boolean;
@@ -214,7 +217,10 @@ export interface ScheduleCommands {
   ): Promise<Result<WireResult<"schedule.update">, CommandError>>;
   /** `schedule.runs`: 한 예약의 실행 기록(최근 것부터) */
   runs(scheduleId: string): Promise<Result<WireResult<"schedule.runs">, CommandError>>;
-  /** 서비스 모드를 켠다(`settings.set`, 사용자 범위). `restartPending`은 엔진을 다시 시작해야 켜지는가다 */
+  /**
+   * 서비스 모드를 켠다. 연결 화면의 켜기와 같은 흐름이다(`connection.setServiceMode(true)`): 설정을 쓰고, 이 기기면 서비스를 켠 뒤
+   * 엔진을 다시 띄운다. 성공하면 적용된 것이라 `restartPending`은 거짓이다.
+   */
   enableService(): Promise<Result<{ readonly restartPending: boolean }, CommandError>>;
 }
 
@@ -334,11 +340,27 @@ export type ConnectTarget =
   | { readonly kind: "remote"; readonly address: string; readonly label: string };
 
 /**
+ * 이 기기의 서비스 상태 카드(`service_status`). 엔진 대상이 이 기기일 때만 읽는다. `unknown`은 대상이 원격이거나 읽지 못한 것이다.
+ * `attached`는 엔진이 지금 서비스에 붙어 있는가(`host.status.mode === "service"`)다. 소켓 경로와 토큰은 싣지 않는다.
+ */
+export type ServiceCard =
+  | { readonly kind: "unknown" }
+  | { readonly kind: "stopped"; readonly reason: string }
+  | {
+      readonly kind: "running";
+      readonly pid: number;
+      readonly version: string;
+      readonly startedAt: number;
+      readonly attached: boolean;
+    };
+
+/**
  * 연결 화면이 읽는 host 상태. `host.status` 결과와 서비스 모드 설정 값이다. `remoteAllowRespond`는 원격 응답 허용 값이고,
- * 엔진이 그 설정을 알리지 않으면(카탈로그에 없으면) `null`이다
+ * 엔진이 그 설정을 알리지 않으면(카탈로그에 없으면) `null`이다. `service`는 이 기기의 서비스 상태 카드다.
  */
 export interface ConnectionSnapshot {
   readonly host: WireResult<"host.status">;
+  readonly service: ServiceCard;
   readonly serviceEnabled: boolean;
   /** 서비스 모드를 켜 두었지만 엔진을 다시 시작해야 켜진다(`settings.get`의 `pendingUntil: "restart"`). 예약 화면과 같은 근거다 */
   readonly restartPending: boolean;
@@ -363,11 +385,18 @@ export interface ConnectionCommands {
   load(): Promise<Result<ConnectionSnapshot, CommandError>>;
   /** `host.clients`(W-12): 열린 연결의 목록. 연결이 없으면 `offline`, 엔진이 이 메서드를 모르면 `unsupported`다 */
   clients(): Promise<Result<readonly HostClientView[], CommandError>>;
-  /** 서비스 모드를 켜거나 끈다(`settings.set`, 사용자 범위). 적용은 엔진 재시작 뒤다 */
+  /**
+   * 서비스 모드를 켜거나 끈다(`settings.set`, 사용자 범위). 엔진 대상이 이 기기면 서비스를 켜거나 끈 뒤 엔진을 다시 띄워 바로 적용한다.
+   * 원격 대상이면 설정만 쓴다. 켜지 못하면 설정을 꺼짐으로 되돌리고 `service` 오류를 준다.
+   */
   setServiceMode(enabled: boolean): Promise<Result<null, CommandError>>;
+  /** 이 기기의 서비스를 켠다(`setServiceMode(true)`와 같다). 카드의 시작 단추가 부른다 */
+  startLocalService(): Promise<Result<null, CommandError>>;
+  /** 이 기기의 서비스를 멈춘다(`setServiceMode(false)`와 같다). 엔진은 앱 안의 사이드카로 다시 뜬다 */
+  stopLocalService(): Promise<Result<null, CommandError>>;
   /** 원격 연결에서 승인 요청에 답하는 것을 허락할지 바꾼다(`settings.set`, 사용자 범위). 바로 적용된다 */
   setRemoteRespond(enabled: boolean): Promise<Result<null, CommandError>>;
-  /** 서비스를 협조 종료한다(`host.shutdown`). 받아들여졌으면 `true`다 */
+  /** 원격 서비스를 협조 종료한다(`host.shutdown`). 받아들여졌으면 `true`다. 이 기기의 서비스는 `stopLocalService`다 */
   stopService(): Promise<Result<boolean, CommandError>>;
 }
 
