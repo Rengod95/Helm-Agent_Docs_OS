@@ -4,6 +4,7 @@
 // 이 대화에서 끄기 스위치(`views/plugin/thread-switches.tsx`)와 이 대화의 프로필(`thread-profile.tsx`)은 대화 영역 "플러그인" 탭에 있다.
 // 값은 `packages/client/src/workbench/inspect.ts`가 만든다.
 // 데이터: `ext.get`, `ext.timings`, `group.list`·`group.driveLock`(대화가 열렸을 때), 엔진 거울의 실패 기록과 장부(`health`).
+import { InspectArt } from "../illustrations/index.tsx";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import {
   failureRowsOf,
@@ -729,6 +730,7 @@ export function InspectTab(): ReactNode {
   if (entry === null) {
     return (
       <EmptyState
+        media={<InspectArt />}
         surface="none"
         size="sm"
         title={t("desktop.inspect.empty.title")}

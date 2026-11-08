@@ -1,3 +1,4 @@
+import { ScheduleArt } from "../../illustrations/index.tsx";
 import { t, type Locale } from "@fresnel/client/i18n";
 import type { ScheduleRow } from "@fresnel/client";
 import {
@@ -11,7 +12,7 @@ import {
   SegmentedControlItem,
   Skeleton,
 } from "@caustic/react";
-import { CalendarClock, TriangleAlert } from "@caustic/react/icons";
+import { TriangleAlert } from "@caustic/react/icons";
 import { useId, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import type { ScheduleDraft } from "./schedule-draft.ts";
 import {
@@ -222,9 +223,9 @@ function ScheduleBody(props: {
     if (state.list.kind !== "ready") return null;
     return (
       <EmptyState
+        media={<ScheduleArt />}
         size="sm"
         surface="none"
-        icon={<CalendarClock />}
         title={t("desktop.schedules.empty")}
         actions={
           <Button size="sm" variant="solid" disabled={!canAct(state)} onClick={handlers.openNew}>

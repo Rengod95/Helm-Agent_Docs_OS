@@ -1,4 +1,5 @@
 // "새 그룹" 화면의 입력 부품(§6.28.1, §6.29): 이름과 놓을 폴더, 시작점 격자와 그 읽기 상태. 명령은 부르지 않고 글과 짜임만 그린다.
+import { FolderArt } from "../illustrations/index.tsx";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import {
   newGroupNameErrorOf,
@@ -189,9 +190,9 @@ export function StartPicker(props: {
           {read.stale ? <p className={MUTED}>{t("desktop.compose.stale")}</p> : null}
           {read.value.length === 0 ? (
             <EmptyState
+              media={<FolderArt />}
               size="sm"
               surface="none"
-              mark={null}
               title={t("desktop.compose.newGroup.start.empty.title")}
               description={t("desktop.compose.newGroup.start.empty.body")}
             />

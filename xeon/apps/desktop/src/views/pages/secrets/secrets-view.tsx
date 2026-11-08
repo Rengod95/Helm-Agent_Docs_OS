@@ -1,3 +1,4 @@
+import { VaultArt } from "../../illustrations/index.tsx";
 import { t, type Locale, type MessageId } from "@fresnel/client/i18n";
 import type { KeyField } from "@fresnel/client/settings";
 import type { SecretName } from "@fresnel/contracts/capabilities";
@@ -179,6 +180,7 @@ export function SecretsScreenView(props: SecretsScreenViewProps): ReactNode {
       {view.loading ? <LoadingRows /> : null}
       {!view.loading && state.rows.length === 0 && state.list.kind === "ready" ? (
         <EmptyState
+          media={<VaultArt />}
           size="sm"
           surface="none"
           title={t("desktop.secrets.empty")}

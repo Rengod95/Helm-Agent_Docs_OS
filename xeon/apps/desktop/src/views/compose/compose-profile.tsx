@@ -1,6 +1,7 @@
 // 구성기의 프로필 보기(§6.28.3). 저장된 프로필을 고르거나 새로 만들고, 확장마다 켜기·끄기·그대로를 정해 저장한다(`profile.put`).
 // 삭제(`profile.delete`)는 확인을 거친다. 미리 보기(`profile.preview`)는 저장된 값으로 계산한 "적용했다면"이다. 적용은 열린 대화에 한다.
 // 저장·삭제·적용은 엔진에 연결되어 있을 때만 켜진다. 프로필은 호스트 설정에 있어 어느 창에서 저장해도 같은 목록이다(U-5).
+import { FolderArt } from "../illustrations/index.tsx";
 import { t } from "@fresnel/client/i18n";
 import {
   choiceOf,
@@ -379,9 +380,9 @@ export function ProfilePanel(props: {
       </div>
       {profiles.length === 0 && draft === null ? (
         <EmptyState
+          media={<FolderArt />}
           size="sm"
           surface="none"
-          mark={null}
           title={t("desktop.compose.profile.empty")}
         />
       ) : null}

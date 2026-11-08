@@ -1,3 +1,4 @@
+import { PlugArt } from "../../illustrations/index.tsx";
 import {
   Alert,
   Badge,
@@ -343,6 +344,7 @@ export function AccountPoolView(props: AccountPoolViewProps): ReactNode {
     <div className="grid">
       {pools.length === 0 ? (
         <EmptyState
+          media={<PlugArt />}
           size="sm"
           surface="none"
           title={t("desktop.providers.pool.empty")}

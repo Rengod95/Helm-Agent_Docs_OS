@@ -1,3 +1,4 @@
+import { PuzzleArt } from "../illustrations/index.tsx";
 import { Button, EmptyState, Skeleton } from "@caustic/react";
 import { t } from "@fresnel/client/i18n";
 import {
@@ -174,6 +175,7 @@ function FramePlaceholder(props: {
   return (
     <div className="grid flex-1 place-items-center px-3 py-6">
       <EmptyState
+        media={<PuzzleArt />}
         size="sm"
         surface="none"
         title={

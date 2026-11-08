@@ -1,3 +1,4 @@
+import { InboxArt } from "../../illustrations/index.tsx";
 import { t } from "@fresnel/client/i18n";
 import type { HunkView } from "@fresnel/contracts/wire";
 import {
@@ -20,7 +21,7 @@ import {
   type TableColumn,
   type TableRow,
 } from "@caustic/react";
-import { ChevronLeft, CircleCheck } from "@caustic/react/icons";
+import { ChevronLeft } from "@caustic/react/icons";
 import { Fragment, useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from "react";
 import type { ApprovalFailure } from "../../../state/ui/index.ts";
 import { APPROVAL_FAILURE_ID, REVIEW_CHANGE_ID } from "../../approval-form.ts";
@@ -367,7 +368,7 @@ function BodyPane(props: { readonly view: ReviewOpenView }): ReactNode {
   if (files.length === 0) {
     return (
       <EmptyState
-        icon={<CircleCheck />}
+        media={<InboxArt />}
         surface="none"
         title={t("desktop.review.empty")}
         actions={
