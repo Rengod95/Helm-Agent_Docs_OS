@@ -1,5 +1,6 @@
 // 확장 목록(`extensions`, P-13): 같은 `ext.list` 데이터의 목록 모양. 층별 묶음, 찾기, 행마다 켜기·끄기(전역). 범위 고르기는 없다.
 // 고른 확장은 옆의 선택 패널이 보이고, "자세히 보기"가 열려 있으면 목록 대신 P-17 상세(버전 탭과 되돌리기 포함)를 그린다.
+import { PuzzleArt } from "../illustrations/index.tsx";
 import { t } from "@fresnel/client/i18n";
 import { layerGroups, selectedEntry } from "@fresnel/client/workbench";
 import { Alert, Button, EmptyState } from "@caustic/react";
@@ -148,6 +149,7 @@ export function ExtensionsScreen(): ReactNode {
       )}
       {ready && detailEntry === null && empty && (
         <EmptyState
+          media={<PuzzleArt />}
           size="sm"
           surface="none"
           title={t(

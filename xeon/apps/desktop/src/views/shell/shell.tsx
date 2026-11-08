@@ -1,5 +1,6 @@
 // S-01 앱 셸. 제목 띠 없음(DP-05). 왼쪽 패널(창 위아래 끝까지) | 가운데 무대(투명) | 오른쪽 떠 있는 막대 + well | 아래 상태 표시줄.
 // 두 영역(대화, 작업대)은 이 셸 하나를 같이 쓰고 왼쪽 패널 내용과 오른쪽 탭만 바뀐다. 화면은 등록부(registry)가 준다.
+import { MissingArt } from "../illustrations/index.tsx";
 import { t } from "@fresnel/client/i18n";
 import { EmptyState, IconButton, Toaster } from "@caustic/react";
 import { PanelLeft } from "@caustic/react/icons";
@@ -106,7 +107,9 @@ function Stage(props: {
   if (props.settingsOpen) return props.settingsScreen;
   const def = props.registry.screen(screen);
   if (def !== undefined) return def.render();
-  return <EmptyState surface="none" title={t("desktop.shell.screen.missing")} />;
+  return (
+    <EmptyState media={<MissingArt />} surface="none" title={t("desktop.shell.screen.missing")} />
+  );
 }
 
 /** 입력창 묶음(`data-toast-avoid`: 카드와 입력창)의 위쪽 끝. 묶음이 없으면(높이 0) null이라 시안 자리다. 크기나 화면이 바뀌면 다시 잰다 */

@@ -1,5 +1,6 @@
 // 흐름 초안의 편집 자리(§6.28.2, S5): 단계 종류 팔레트와 고른 노드의 속성. 선은 포트를 끌지 않고 속성의 "다음 단계"에서 잇고 끊는다.
 // 모든 바꿈은 `FlowDraft`의 순수 함수(`withNode`, `withNodeText`, `withTransition` …)를 거쳐 `onDraft`로 올린다.
+import { InspectArt } from "../illustrations/index.tsx";
 import { t } from "@fresnel/client/i18n";
 import {
   withInitial,
@@ -63,9 +64,9 @@ export function FlowEditor(props: FlowEditorProps): ReactNode {
       />
       {node === undefined ? (
         <EmptyState
+          media={<InspectArt />}
           size="sm"
           surface="none"
-          mark={null}
           title={t("desktop.compose.flow.inspect.empty")}
         />
       ) : (

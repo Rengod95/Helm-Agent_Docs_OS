@@ -1,3 +1,4 @@
+import { ProposalArt } from "../../illustrations/index.tsx";
 import { activeLocale, t } from "@fresnel/client/i18n";
 import type { ProposalAction, ProposalRowVM, ProposalScope } from "@fresnel/client/settings";
 import type { ToggleRequest } from "@fresnel/client/workbench";
@@ -26,7 +27,7 @@ import {
   Skeleton,
   Textarea,
 } from "@caustic/react";
-import { Sparkles, TriangleAlert } from "@caustic/react/icons";
+import { TriangleAlert } from "@caustic/react/icons";
 import { useId, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { InfoTip } from "../../craft/info-tip.tsx";
 import { relativeAgeOf } from "../shared/relative-age.ts";
@@ -203,7 +204,7 @@ export function ProposalsView(props: ProposalsViewProps): ReactNode {
       {emptyList ? (
         <div className="grid min-h-0 flex-1 place-items-center">
           <EmptyState
-            icon={<Sparkles />}
+            media={<ProposalArt />}
             surface="none"
             title={t(
               state.filter.status === "pending" && state.filter.kind === "all"

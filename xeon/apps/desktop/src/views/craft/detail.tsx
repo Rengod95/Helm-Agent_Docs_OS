@@ -1,5 +1,6 @@
 // 플러그인·그룹 자세히 보기. 캔버스 전체를 이 대상 하나로 바꾼다(state.detail이 id다). 가운데는 한 턴의 생명선,
 // 옆은 상태(켜짐 스위치 하나)·구성·설정·버전·코드. 표가 많은 화면이라 배경 셰이더는 없다.
+import { MissingArt } from "../illustrations/index.tsx";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import type { CanvasPlugin, CanvasSnapshot, Origin } from "@fresnel/client/workbench/canvas";
 import { isOn } from "@fresnel/client/workbench/canvas";
@@ -169,7 +170,11 @@ export function DetailView(props: DetailViewProps): ReactNode {
         className="flex h-full min-h-0 flex-col bg-surface-base"
       >
         <header className="flex h-14 flex-none items-center ps-4 pe-12">{header}</header>
-        <EmptyState surface="none" title={t("desktop.craft.detail.missing.title")} />
+        <EmptyState
+          media={<MissingArt />}
+          surface="none"
+          title={t("desktop.craft.detail.missing.title")}
+        />
       </section>
     );
   }

@@ -1,3 +1,4 @@
+import { ThreadsArt } from "./illustrations/index.tsx";
 import { t } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
@@ -409,6 +410,7 @@ export function ThreadList(props: {
       ) : null}
       {status === "ready" && threads.length === 0 ? (
         <EmptyState
+          media={<ThreadsArt />}
           size="sm"
           surface="none"
           title={t("desktop.threads.empty")}

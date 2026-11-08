@@ -1,3 +1,4 @@
+import { InboxArt } from "./illustrations/index.tsx";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { Notice } from "@fresnel/contracts/capabilities";
@@ -481,7 +482,12 @@ function NoticeList(props: {
         </Alert>
       ) : null}
       {feed.load === "ready" && shown.length === 0 ? (
-        <EmptyState size="sm" surface="none" title={t("desktop.notices.empty")} />
+        <EmptyState
+          media={<InboxArt />}
+          size="sm"
+          surface="none"
+          title={t("desktop.notices.empty")}
+        />
       ) : null}
       <ul className="m-0 grid list-none gap-3 p-0">
         {shown.map((entry) => (

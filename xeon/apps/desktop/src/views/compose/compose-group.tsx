@@ -1,6 +1,7 @@
 // 구성기의 그룹 보기와 흐름 보기의 입구(§6.28.1, §6.28.2). 설치 그룹의 매니페스트 `group.composition`을 읽기 전용으로 보인다.
 // 흐름 보기의 캔버스·개요·초안 편집은 `compose-flow.tsx`가 맡는다. 선언이 없으면 "구성 정보 없음" 블록 하나, 단계 선언이 없으면 "단계 선언이 없어요"다. 훅 이름으로 짐작하지 않는다.
 // 검사는 `ext.validateComposition`이고 막힌 곳이 있으면 목록 위에 Alert 하나로 보인다(DP-28).
+import { FolderArt } from "../illustrations/index.tsx";
 import { t } from "@fresnel/client/i18n";
 import {
   blockRowsOf,
@@ -96,9 +97,9 @@ export function ReadGate<T>(props: {
 export function NoComposition(): ReactNode {
   return (
     <EmptyState
+      media={<FolderArt />}
       size="sm"
       surface="none"
-      mark={null}
       title={t("desktop.compose.none.title")}
       description={t("desktop.compose.none.body")}
     />

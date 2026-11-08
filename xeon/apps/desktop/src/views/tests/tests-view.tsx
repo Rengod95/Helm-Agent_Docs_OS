@@ -2,6 +2,7 @@
 // 시안(c01-trials app.tsx): 머리(제목 + 새 시험), "시험 대화" 구역, "재실행 검사 · 성능 측정 · 보호 경로 검사" 구역(개발 모드가 아니면
 // "개발 모드에서만" 잠금 배지). 고른 행의 상세는 그 행이 속한 구역 바로 아래에 펼친다. 좁은 폭(`compact`)은 표 대신 두 줄 목록이다.
 // 목록 상태(읽는 중, 오프라인, 오류, 빈 목록)를 먼저 가리고, 값이 있으면 caustic `Table`로 그린다.
+import { TestsArt } from "../illustrations/index.tsx";
 import { t } from "@fresnel/client/i18n";
 import {
   replayVerdictOf,
@@ -209,6 +210,7 @@ function ListBody(props: TestsViewProps): ReactNode {
           {read.stale ? <p className={MUTED}>{t("desktop.tests.stale")}</p> : null}
           {read.value.length === 0 ? (
             <EmptyState
+              media={<TestsArt />}
               size="sm"
               title={t("desktop.tests.empty")}
               actions={
