@@ -1,5 +1,5 @@
 // 셸 모델 ↔ 로컬 설정(V-14). 영역·영역별 자리·패널 열림만 저장한다. 맥락(`workbench.context`)은 저장하지 않는다:
-// 맥락은 열린 대화를 따라가는 값이라 앱을 다시 켜면 "전체"에서 시작한다.
+// 앱을 다시 켜면 "전체"에서 시작한다.
 import { LOCAL } from "../../settings-store/index.ts";
 import type { LocalSettings } from "../../settings-store/index.ts";
 import type { Area, ShellModel } from "../../state/shell/index.ts";

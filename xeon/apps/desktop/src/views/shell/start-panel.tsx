@@ -41,7 +41,6 @@ export interface StartPanelProps {
   /** 대화 영역 목록 슬롯 */
   readonly threadList: ReactNode;
   readonly profiles: readonly ContextProfile[];
-  readonly onGoToThread: (threadId: string) => void;
 }
 
 function AreaSwitch(props: { readonly onSwitch: (area: Area) => void }): ReactNode {
@@ -201,9 +200,7 @@ export function StartPanel(props: StartPanelProps): ReactNode {
             </IconButton>
           </div>
           <AreaSwitch onSwitch={props.onSwitchArea} />
-          {area === "workbench" ? (
-            <ContextPicker profiles={props.profiles} onGoToThread={props.onGoToThread} />
-          ) : null}
+          {area === "workbench" ? <ContextPicker profiles={props.profiles} /> : null}
         </div>
       }
       footer={

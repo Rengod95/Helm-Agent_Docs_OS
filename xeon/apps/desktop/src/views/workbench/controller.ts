@@ -70,7 +70,7 @@ export function useWorkbenchController(): WorkbenchController {
   // 두 호출이 모두 성공했을 때만 표를 바꾼다. 하나라도 실패하면 이전 표를 그대로 둔다
   const reloadOrders = useCallback(async (): Promise<void> => {
     const [hooks, applied] = await Promise.all([
-      commands.workbench.hooks(scopeArg(scope).listThreadId),
+      commands.workbench.hooks(),
       commands.workbench.orderGet(),
     ]);
     // 훅 질문과 꺼짐은 순서와 따로 읽은 값이라 `hooks.list`만 성공해도 반영한다
@@ -78,7 +78,7 @@ export function useWorkbenchController(): WorkbenchController {
     if (hooks.ok && applied.ok) {
       actions.ordersLoaded(orderTableOf(hooks.value, applied.value.hooks));
     }
-  }, [actions, commands, scope, safe]);
+  }, [actions, commands, safe]);
 
   // 항목마다 따로 읽는다. 실패한 확장은 이전 자세히 값을 그대로 둔다
   const reloadDetails = useCallback(
@@ -98,7 +98,7 @@ export function useWorkbenchController(): WorkbenchController {
 
   const reload = useCallback(async (): Promise<void> => {
     if (actions.snapshot().list !== "ready") actions.listLoading();
-    const listed = await commands.workbench.list(scopeArg(scope).listThreadId);
+    const listed = await commands.workbench.list();
     if (!listed.ok) {
       actions.listFailed();
       return;
@@ -109,7 +109,7 @@ export function useWorkbenchController(): WorkbenchController {
       reloadHealth(),
       reloadOrders(),
     ]);
-  }, [actions, commands, scope, reloadDetails, reloadHealth, reloadOrders]);
+  }, [actions, commands, reloadDetails, reloadHealth, reloadOrders]);
 
   const toggle = useCallback(
     async (name: string, target: boolean): Promise<void> => {

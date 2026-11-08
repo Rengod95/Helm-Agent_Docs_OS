@@ -53,7 +53,7 @@ const running: ExtTestRecord = {
 };
 
 function viewOf(ui: TestsUiState, threadId: string) {
-  const rows = testRowsOf([running], ALL_TESTS, null);
+  const rows = testRowsOf([running], ALL_TESTS);
   const selected = rows[0] ?? null;
   return renderToString(
     <TestsView
@@ -62,7 +62,6 @@ function viewOf(ui: TestsUiState, threadId: string) {
       selected={selected}
       ui={ui}
       online
-      scoped={false}
       selectedPaused={ui.paused[threadId] === true}
       selectedPhase={ui.phase[threadId] ?? null}
       targetNames={[]}

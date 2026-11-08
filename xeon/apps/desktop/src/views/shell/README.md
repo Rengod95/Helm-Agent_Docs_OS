@@ -57,16 +57,12 @@ S-01 앱 셸의 자리(슬롯), 영역 바꾸기, 맥락 모델의 정본 설명
 ```ts
 type WorkbenchContext =
   | { kind: "all" }
-  | { kind: "thread"; threadId: string; pinned: boolean }
-  | { kind: "profile"; profileId: string }
-  | { kind: "trial"; threadId: string };
+  | { kind: "profile"; profileId: string };
 ```
 
 - 작업대 화면 전부가 이 값 하나를 읽습니다(왼쪽 맥락 칸이 바꿈). 화면은 맥락을 자기 상태로 복사하지 않습니다.
-- `thread`이고 `pinned`가 거짓이면 대화 영역에서 대화를 바꿀 때(`selectChatThread`) 함께 바뀝니다. `App`이 `ui.selectedThreadId`를 셸에 넘깁니다(시험 `workbench.context-follows-unless-pinned`).
-- `pinThread(threadId)`: 고정하고 작업대로 감("크래프트에서 보기"). `unpinThread()`: 풀고 다시 따라감. 맥락 칸에서 대화를 직접 고르면 고정됩니다.
-- `all`, `profile`, `trial`은 따라가지 않습니다. 앱을 켜면 `all`에서 시작합니다.
-- 맥락 칸의 프로필 목록은 `Shell`의 `profiles` 속성으로 받습니다(T-BENCH가 채움).
+- 크래프트는 전역·프로필 범위만 다룹니다. 대화 범위(대화·시험 묶음, 핀, 대화 따라가기)는 없습니다. 앱을 켜면 `all`에서 시작합니다.
+- 맥락 칸의 프로필 목록은 `Shell`의 `profiles` 속성으로 받습니다(T-BENCH가 채움). 목록이 비면 칸을 그리지 않습니다(고를 값이 `all` 하나뿐이다).
 
 
 ## 바로 가기 키(V-15)

@@ -59,20 +59,15 @@ function newestFirst(a: TestRowVM, b: TestRowVM): number {
   return b.startedMs - a.startedMs;
 }
 
-/**
- * 목록 행. `threadId`가 주어지면(맥락 칸이 시험 대화이거나 대화) 그 대화의 Test run만 남긴다.
- * replay 기록에는 대화 표지가 없으므로 대화 맥락에서는 보이지 않는다.
- */
+/** 목록 행. 종류와 상태로 거른 뒤 최신이 위로 오게 정렬한다(대화로는 거르지 않는다) */
 export function testRowsOf(
   records: readonly ExtTestRecord[],
   filter: TestFilter,
-  threadId: string | null,
 ): readonly TestRowVM[] {
   return records
     .map(rowOf)
     .filter((row) => filter.kind === "all" || row.kind === filter.kind)
     .filter((row) => filter.status === "all" || row.state === filter.status)
-    .filter((row) => threadId === null || row.threadId === threadId)
     .toSorted(newestFirst);
 }
 

@@ -38,7 +38,7 @@ export interface ShellProps {
   readonly modalOpen?: boolean | undefined;
   /** 셸이 처리하지 않는 동작(`thread.new`, `turn.interrupt` 등) */
   readonly onAction?: ((id: ActionId) => void) | undefined;
-  /** "대화로 가기": 맥락 대화를 대화 영역에서 연다 */
+  /** "대화로 가기"(승인 카드 등 대화 이름 링크): 그 대화를 대화 영역에서 연다 */
   readonly onGoToThread: (threadId: string) => void;
 }
 
@@ -180,6 +180,8 @@ function ShellFrame(props: ShellProps): ReactNode {
   const railScreen = useShell((s) => s.places[s.area].screen);
   // 오른쪽 막대가 있으면 그 폭만큼 무대 오른쪽을 비운다. 막대가 머리줄의 단추를 가리지 않게 한다
   const hasRail = props.registry.endTabs(railArea, railScreen).length > 0;
+  // 크래프트 개요는 캔버스가 무대 가장자리까지 깔린다. 여백과 막대 자리 비우기를 두지 않고, 막대와 겹치는 판은 캔버스가 스스로 비킨다
+  const bleed = railArea === "workbench" && railScreen === "overview" && !props.settingsOpen;
   useWindowResize();
   useShellShortcuts(props);
   const compact = layout === "compact";
@@ -224,7 +226,6 @@ function ShellFrame(props: ShellProps): ReactNode {
               }}
               threadList={props.threadList}
               profiles={props.profiles ?? []}
-              onGoToThread={props.onGoToThread}
             />
           </div>
         )}
@@ -246,12 +247,12 @@ function ShellFrame(props: ShellProps): ReactNode {
               </IconButton>
             </div>
           )}
-          <div className="relative flex min-h-0 flex-1 p-1.5 pb-0">
+          <div className={`relative flex min-h-0 flex-1 ${bleed ? "" : "p-1.5 pb-0"}`}>
             <main
               id={STAGE_ID}
               tabIndex={-1}
               aria-label={t("desktop.shell.stage.label")}
-              className={`flex min-w-0 flex-1 flex-col outline-none ${hasRail ? "pe-10" : ""}`}
+              className={`flex min-w-0 flex-1 flex-col outline-none ${hasRail && !bleed ? "pe-10" : ""}`}
             >
               <Stage
                 registry={props.registry}

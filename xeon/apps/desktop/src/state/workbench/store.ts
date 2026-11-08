@@ -73,7 +73,7 @@ export interface WorkbenchActions {
 }
 
 /**
- * 크래프트 화면이 읽고 쓰는 데이터 범위. 지금은 전역만 있다. 프로젝트·대화 범위는 변형을 더한다(판별 유니온이라
+ * 크래프트 화면이 읽고 쓰는 데이터 범위. 지금은 전역만 있고 대화 범위는 없다. 범위를 더하면 변형을 더한다(판별 유니온이라
  * 이 값을 가르는 `switch`가 모두 컴파일 오류로 알려 준다). 화면에서 고르지 않는다.
  */
 export type CraftScope = { readonly kind: "global" };

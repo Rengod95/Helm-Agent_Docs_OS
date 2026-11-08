@@ -66,8 +66,6 @@ export interface TestsViewProps {
   readonly ui: TestsUiState;
   /** 엔진에 연결되어 있나. 아니면 "새 시험"이 잠긴다 */
   readonly online: boolean;
-  /** 맥락 칸이 시험이나 대화라서 목록을 거른 것인가 */
-  readonly scoped: boolean;
   /** 좁은 폭(720 아래)이면 표 대신 두 줄 목록을 그린다 */
   readonly compact?: boolean;
   readonly selectedPaused: boolean;
@@ -113,7 +111,7 @@ export function TestsView(props: TestsViewProps): ReactNode {
           </Alert>
         )}
         {ready && props.read.value.length > 0 ? (
-          <FilterRow filter={ui.filter} scoped={props.scoped} onChange={handlers.filter} />
+          <FilterRow filter={ui.filter} onChange={handlers.filter} />
         ) : null}
         <ListBody {...props} />
       </div>
@@ -136,7 +134,6 @@ export function TestsView(props: TestsViewProps): ReactNode {
 
 function FilterRow(props: {
   readonly filter: TestFilter;
-  readonly scoped: boolean;
   readonly onChange: (filter: TestFilter) => void;
 }): ReactNode {
   const { filter, onChange } = props;
@@ -174,7 +171,6 @@ function FilterRow(props: {
           ))}
         </Select>
       </Field>
-      {props.scoped ? <InfoTip text={t("desktop.tests.filter.context")} /> : null}
     </div>
   );
 }

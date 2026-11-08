@@ -168,7 +168,7 @@ export function DetailView(props: DetailViewProps): ReactNode {
         aria-label={t("desktop.craft.detail.missing.title")}
         className="flex h-full min-h-0 flex-col bg-surface-base"
       >
-        <header className="flex h-14 flex-none items-center ps-4">{header}</header>
+        <header className="flex h-14 flex-none items-center ps-4 pe-12">{header}</header>
         <EmptyState surface="none" title={t("desktop.craft.detail.missing.title")} />
       </section>
     );
@@ -200,7 +200,7 @@ export function DetailView(props: DetailViewProps): ReactNode {
       aria-label={t("desktop.craft.detail.label", { title })}
       className="flex h-full min-h-0 flex-col bg-surface-base"
     >
-      <header className="flex min-h-14 flex-none flex-wrap items-center gap-x-4 gap-y-2 border-b border-border-subtle py-2 ps-4">
+      <header className="flex min-h-14 flex-none flex-wrap items-center gap-x-4 gap-y-2 border-b border-border-subtle py-2 ps-4 pe-12">
         {header}
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           {target.k === "group" ? (
@@ -250,7 +250,7 @@ export function DetailView(props: DetailViewProps): ReactNode {
           </SegmentedControl>
         )}
       </header>
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_20rem] gap-6 ps-4 pt-4">
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_20rem] gap-6 ps-4 pe-12 pt-4">
         <div className="min-h-0 overflow-y-auto pb-6 pe-1">
           <SectionHeader
             headingLevel={3}

@@ -5,16 +5,13 @@ import {
   dismissFloating,
   initialShell,
   openEndTab,
-  pinThread,
   resize,
-  selectChatThread,
   setContextKind,
   setEndOpen,
   setPaletteOpen,
   setStartOpen,
   switchArea,
   toggleArea,
-  unpinThread,
   updatePlace,
   type Area,
   type AreaPlace,
@@ -30,11 +27,6 @@ export interface ShellActions {
   updatePlace(patch: Partial<AreaPlace>): void;
   /** 오른쪽 탭을 열고 끝 영역을 편다. 영역을 주면 그 영역의 탭으로 기억한다 */
   openEndTab(tab: string, area?: Area): void;
-  /** 대화 영역에서 열린 대화가 바뀌었다(맥락이 따라간다) */
-  selectChatThread(threadId: string | null): void;
-  /** "작업대에서 보기" */
-  pinThread(threadId: string): void;
-  unpinThread(): void;
   setContextKind(kind: WorkbenchContext["kind"], id?: string): void;
   setStartOpen(open: boolean): void;
   setEndOpen(open: boolean): void;
@@ -69,9 +61,6 @@ export function createShellStore(
     toggleArea: () => apply(toggleArea),
     updatePlace: (patch) => apply((s) => updatePlace(s, patch)),
     openEndTab: (tab, area) => apply((s) => openEndTab(s, tab, area)),
-    selectChatThread: (id) => apply((s) => selectChatThread(s, id)),
-    pinThread: (id) => apply((s) => pinThread(s, id)),
-    unpinThread: () => apply(unpinThread),
     setContextKind: (kind, id) => apply((s) => setContextKind(s, kind, id)),
     setStartOpen: (open) => apply((s) => setStartOpen(s, open)),
     setEndOpen: (open) => apply((s) => setEndOpen(s, open)),

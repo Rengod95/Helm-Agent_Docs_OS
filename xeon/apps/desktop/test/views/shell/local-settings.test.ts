@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { LOCAL, createLocalSettings } from "../../../src/settings-store/index.ts";
 import {
   initialShell,
-  selectChatThread,
+  setContextKind,
   switchArea,
   updatePlace,
 } from "../../../src/state/shell/model.ts";
@@ -84,7 +84,7 @@ describe("shell persistence", () => {
     const fake = fakeIpc();
     const s = createLocalSettings(fake.ipc);
     const base = initialShell(1400);
-    const next = selectChatThread(base, "t1");
+    const next = setContextKind(base, "profile", "p1");
     expect(persistShell(base, next, s)).toEqual([]);
   });
 });
