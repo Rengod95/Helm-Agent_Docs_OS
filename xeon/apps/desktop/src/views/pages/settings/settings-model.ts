@@ -390,11 +390,47 @@ export function optionLabelOf(key: SettingKey, option: string | number): string 
   if (key === UI_LOCALE_KEY && isLocale(text)) {
     return createTranslator(text).tKey(`settings.l4.ui.locale.option.${text}`, text);
   }
-  // 확장마다 있는 격리 설정(`ext.<이름>.isolation`)은 선택지 문구를 한 벌로 둔다(rtE R-6c)
-  const base = /^ext\.[^.]+\.isolation$/.test(key)
-    ? "settings.ext.isolation"
-    : `settings.${camel(key)}`;
-  return tKey(`${base}.option.${camel(text)}`, text);
+  return tKey(`${optionBaseOf(key)}.option.${camel(text)}`, text);
+}
+
+/** 선택지 문구 키의 앞부분. 확장마다 있는 격리 설정(`ext.<이름>.isolation`)은 선택지 문구를 한 벌로 둔다(rtE R-6c) */
+function optionBaseOf(key: SettingKey): string {
+  return /^ext\.[^.]+\.isolation$/.test(key) ? "settings.ext.isolation" : `settings.${camel(key)}`;
+}
+
+/**
+ * 선택지 한 줄 설명. 카탈로그에 `settings.<설정 키>.optionHelp.<값>`이 있으면 그 문장이고, 없으면 `null`이다(설명 줄을 긋지 않는다).
+ * `tKey`는 키가 없으면 대체 문구를 돌려주므로 빈 대체 문구로 없음을 가린다
+ */
+export function optionHelpOf(key: SettingKey, option: string | number): string | null {
+  const help = tKey(`${optionBaseOf(key)}.optionHelp.${camel(optionTextOf(option))}`, "");
+  return help === "" ? null : help;
+}
+
+/**
+ * 경고 줄을 보이는 선택지. 모두 허용은 확인 없이 명령과 편집을 바로 실행하므로, 고르면 설명을 경고 줄로도 바닥에 보인다.
+ * 여기 적힌 값만 경고 줄을 얻는다(확인 대화는 없다)
+ */
+const CHOICE_WARNINGS: ReadonlyMap<SettingKey, readonly string[]> = new Map<
+  SettingKey,
+  readonly string[]
+>([["l1.tools.permissionMode", ["bypass"]]]);
+
+/** 지금 고른 값의 경고 줄 글. 경고 선택지가 아니거나 설명이 없으면 `null`이다 */
+export function choiceWarningOf(key: SettingKey, text: string): string | null {
+  if (!(CHOICE_WARNINGS.get(key) ?? []).includes(text)) return null;
+  return optionHelpOf(key, text);
+}
+
+/**
+ * 쓸 수 없고 켜진 스위치의 칸 클래스(잠금이나 읽기 전용). caustic은 쓸 수 없는 스위치를 회색 바닥으로 그려 꺼진 것처럼 읽히므로,
+ * 켜진 색을 그대로 두고 살짝만 흐린다. 꺼진 스위치와 쓸 수 있는 스위치는 caustic 기본 모양을 그대로 쓴다(`undefined`)
+ */
+export const DISABLED_ON_SWITCH_CLASS =
+  "disabled:data-[state=checked]:bg-accent-solid disabled:opacity-75";
+
+export function switchClassOf(checked: boolean, disabled: boolean): string | undefined {
+  return checked && disabled ? DISABLED_ON_SWITCH_CLASS : undefined;
 }
 
 /**

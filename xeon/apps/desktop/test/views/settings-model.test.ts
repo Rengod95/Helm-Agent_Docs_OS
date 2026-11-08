@@ -22,10 +22,14 @@ import {
   launchChoiceOf,
   modelsGroupsOf,
   numberDraftActionOf,
+  choiceWarningOf,
+  DISABLED_ON_SWITCH_CLASS,
   numberValueOf,
+  optionHelpOf,
   optionLabelOf,
   optionOf,
   pageStatusOf,
+  switchClassOf,
   remoteNoticeOf,
   restartCountOf,
   scopeChoiceShown,
@@ -380,6 +384,60 @@ describe("advanced tab groups and option labels", () => {
     } finally {
       setActiveLocale(previous);
     }
+  });
+});
+
+describe("option help, warning and locked switch", () => {
+  const MODE = "l1.tools.permissionMode";
+  const MODES = ["default", "acceptEdits", "plan", "bypass"] as const;
+
+  test("each permission mode has a one-line help in Korean and in English", () => {
+    const previous = activeLocale();
+    try {
+      setActiveLocale("ko");
+      expect(MODES.map((mode) => optionHelpOf(MODE, mode))).toEqual([
+        "도구 실행과 편집을 매번 물어요.",
+        "파일 편집은 묻지 않고, 명령 실행은 물어요.",
+        "읽기만 하고 편집·실행은 막아요. 계획을 승인하면 나와요.",
+        "명령과 편집을 묻지 않고 실행해요. 믿는 폴더에서만 쓰세요.",
+      ]);
+      setActiveLocale("en");
+      expect(optionHelpOf(MODE, "plan")).toBe(
+        "Read only. Edits and commands are blocked. Approving a plan leaves this mode.",
+      );
+    } finally {
+      setActiveLocale(previous);
+    }
+  });
+
+  test("an option with no catalog help has no help line, and the raw value is never shown", () => {
+    expect(optionHelpOf("l9.unknown.key", "raw-value")).toBeNull();
+    expect(optionHelpOf(MODE, "no-such-mode")).toBeNull();
+  });
+
+  test("only the bypass mode gets the warning line, and it is the bypass help text", () => {
+    const previous = activeLocale();
+    try {
+      setActiveLocale("ko");
+      expect(choiceWarningOf(MODE, "bypass")).toBe(
+        "명령과 편집을 묻지 않고 실행해요. 믿는 폴더에서만 쓰세요.",
+      );
+      expect(choiceWarningOf(MODE, "default")).toBeNull();
+      expect(choiceWarningOf(MODE, "plan")).toBeNull();
+      expect(choiceWarningOf("l4.cli.theme", "bypass")).toBeNull();
+    } finally {
+      setActiveLocale(previous);
+    }
+  });
+
+  test("a checked switch that cannot be changed gets the dimmed-on class, the others keep the caustic look", () => {
+    expect(switchClassOf(true, true)).toBe(DISABLED_ON_SWITCH_CLASS);
+    expect(DISABLED_ON_SWITCH_CLASS).toBe(
+      "disabled:data-[state=checked]:bg-accent-solid disabled:opacity-75",
+    );
+    expect(switchClassOf(true, false)).toBeUndefined();
+    expect(switchClassOf(false, true)).toBeUndefined();
+    expect(switchClassOf(false, false)).toBeUndefined();
   });
 });
 

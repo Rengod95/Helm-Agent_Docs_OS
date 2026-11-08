@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { parse } from "../../src/index.ts";
+import { SandboxBlockSchema, type SandboxBlock } from "../../src/capabilities/index.ts";
 import {
   SandboxPolicySchema,
   SandboxRunReportSchema,
+  type SandboxRunReport,
   SandboxStatusSchema,
   SelfTestReportSchema,
   describeSandboxStatus,
@@ -218,6 +220,59 @@ describe("sandbox schemas", () => {
     expect(parse(SandboxRunReportSchema, report).ok).toBe(true);
     expect(parse(SandboxRunReportSchema, { ...report, unsandboxedBy: "escape" }).ok).toBe(true);
     expect(parse(SandboxRunReportSchema, { ...report, level: "vm" }).ok).toBe(false);
+  });
+
+  test("run report carries optional typed blocks", () => {
+    const report: SandboxRunReport = {
+      sandboxed: true,
+      level: "srt",
+      violations: [],
+      violationsTruncated: false,
+    };
+    expect(parse(SandboxRunReportSchema, report)).toEqual({ ok: true, value: report });
+    const blocks: SandboxBlock[] = [
+      { code: "sandbox.network_blocked", domain: "localhost" },
+      { code: "sandbox.read_blocked", path: "/home/u/.npmrc" },
+    ];
+    const withBlocks = { ...report, blocks };
+    expect(parse(SandboxRunReportSchema, withBlocks)).toEqual({ ok: true, value: withBlocks });
+    expect(
+      parse(SandboxRunReportSchema, { ...report, blocks: [{ code: "sandbox.write_blocked" }] }).ok,
+    ).toBe(false);
+  });
+
+  test("the report's block schema and the capability block schema accept the same values", () => {
+    const samples: unknown[] = [
+      { code: "sandbox.network_blocked", domain: "localhost" },
+      { code: "sandbox.write_blocked", path: "/etc/hosts" },
+      { code: "sandbox.read_blocked", path: "/home/u/.npmrc" },
+      { code: "sandbox.network_blocked", path: "/x" },
+      { code: "sandbox.write_blocked", domain: "a.test" },
+      { code: "sandbox.other", path: "/x" },
+      { code: "sandbox.read_blocked", path: "/x", extra: 1 },
+    ];
+    for (const sample of samples) {
+      const base = { sandboxed: true, level: "srt", violations: [], violationsTruncated: false };
+      const viaReport = parse(SandboxRunReportSchema, { ...base, blocks: [sample] }).ok;
+      expect({ sample, ok: viaReport }).toEqual({
+        sample,
+        ok: parse(SandboxBlockSchema, sample).ok,
+      });
+    }
+  });
+
+  test("a block takes exactly one of the three codes with its own field", () => {
+    expect(
+      parse(SandboxBlockSchema, { code: "sandbox.network_blocked", domain: "a.test" }),
+    ).toEqual({ ok: true, value: { code: "sandbox.network_blocked", domain: "a.test" } });
+    expect(parse(SandboxBlockSchema, { code: "sandbox.write_blocked", path: "/x" })).toEqual({
+      ok: true,
+      value: { code: "sandbox.write_blocked", path: "/x" },
+    });
+    expect(parse(SandboxBlockSchema, { code: "sandbox.write_blocked", domain: "a" }).ok).toBe(
+      false,
+    );
+    expect(parse(SandboxBlockSchema, { code: "exit_nonzero", path: "/x" }).ok).toBe(false);
   });
 
   test("self-test report", () => {

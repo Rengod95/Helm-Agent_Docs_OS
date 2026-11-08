@@ -57,9 +57,9 @@ async function reported(work: () => Promise<CommandActionResult>): Promise<Comma
  * 원시 값(`default`)은 화면에 보이지 않는다. 모르는 값은 그대로 둔다
  */
 const MODE_NAMES: Readonly<Record<string, string>> = {
-  default: "기본 (실행마다 묻기)",
+  default: "기본(실행마다 묻기)",
   acceptEdits: "편집 자동 허용",
-  plan: "계획 모드 유지",
+  plan: "계획만",
   bypass: "모두 허용",
 };
 

@@ -282,6 +282,26 @@ describe("wrapShell", () => {
     expect(report?.violations[4]).toEqual({ source: "seatbelt", operation: "other", count: 1 });
   });
 
+  test("a denied domain and a blocked write reach the report as blocks", async () => {
+    const f = await fixture(
+      {
+        violationLines: [
+          "deny network-outbound localhost:8080 (host is on the deny list)",
+          "bash(7) deny(1) file-write-create /etc/hosts",
+          "bash(7) deny(1) file-read-metadata /home/u/.cache",
+        ],
+      },
+      { darwin: true },
+    );
+    const result = await f.service
+      .wrapShell(recordingShell(), policyFor(f))
+      .exec("curl localhost:8080", undefined, NO_CANCEL);
+    expect(result.ok && result.value.sandbox?.blocks).toEqual([
+      { code: "sandbox.network_blocked", domain: "localhost" },
+      { code: "sandbox.write_blocked", path: "/etc/hosts" },
+    ]);
+  });
+
   test("start log and report carry no secret values", async () => {
     const secretValue = "s3cr3t-value-xyz-123";
     const f = await fixture({ violationLines: ["bash(1) deny(1) file-read-data /home/u/.npmrc"] });

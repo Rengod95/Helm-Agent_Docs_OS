@@ -7,6 +7,7 @@ import {
   modeEventConcerns,
   permissionModeOf,
   permissionModeOptionsOf,
+  permissionModeToneOf,
   switchModeOf,
   type PermissionModeOption,
 } from "../../src/views/permission-mode-model.ts";
@@ -29,6 +30,15 @@ describe("permissionModeOf", () => {
     expect(permissionModeOf(null)).toBeNull();
     expect(permissionModeOf(undefined)).toBeNull();
     expect(permissionModeOf(["default"])).toBeNull();
+  });
+});
+
+describe("permissionModeToneOf", () => {
+  test("모두 허용만 위험 색이고 나머지 모드는 보통 색이다", () => {
+    expect(permissionModeToneOf("bypass")).toBe("danger");
+    expect(permissionModeToneOf("default")).toBe("normal");
+    expect(permissionModeToneOf("acceptEdits")).toBe("normal");
+    expect(permissionModeToneOf("plan")).toBe("normal");
   });
 });
 

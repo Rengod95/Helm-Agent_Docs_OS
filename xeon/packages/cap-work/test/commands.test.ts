@@ -80,7 +80,7 @@ describe("work commands", () => {
   test("/plan enters plan mode and /plan exit leaves it after an approval", async () => {
     const { h, registry } = await boot();
     expect((await registry.run("plan", [])).message).toBe(
-      "계획 모드를 시작했어요. 이전 승인 모드: 기본 (실행마다 묻기)",
+      "계획 모드를 시작했어요. 이전 승인 모드: 기본(실행마다 묻기)",
     );
     expect(h.mode.current(h.threadId)).toBe("plan");
     await h.plans.submit({ title: "t", body: "b" }, h.opts("c1"));

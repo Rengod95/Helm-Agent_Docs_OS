@@ -78,6 +78,35 @@ describe("RunOutput unsandboxedBy", () => {
   });
 });
 
+describe("RunOutput sandboxBlocks", () => {
+  const base = {
+    exitCode: 1,
+    output: "curl: (7)\n",
+    truncated: false,
+    durationMs: 4,
+    sandboxed: true,
+  };
+
+  test("is optional and carries the typed blocks", () => {
+    expect(parse(RunOutput, base)).toEqual({ ok: true, value: base });
+    const blocks = [
+      { code: "sandbox.network_blocked", domain: "localhost" },
+      { code: "sandbox.write_blocked", path: "/etc/hosts" },
+    ] as const;
+    const value = { ...base, sandboxBlocks: [...blocks] };
+    expect(parse(RunOutput, value)).toEqual({ ok: true, value });
+  });
+
+  test("rejects a block with an unknown code or the wrong field", () => {
+    const wrongCode = [{ code: "sandbox.other", path: "/x" }];
+    const wrongField = [{ code: "sandbox.network_blocked", path: "/x" }];
+    const extraField = [{ code: "sandbox.write_blocked", path: "/x", extra: 1 }];
+    expect(parse(RunOutput, { ...base, sandboxBlocks: wrongCode }).ok).toBe(false);
+    expect(parse(RunOutput, { ...base, sandboxBlocks: wrongField }).ok).toBe(false);
+    expect(parse(RunOutput, { ...base, sandboxBlocks: extraField }).ok).toBe(false);
+  });
+});
+
 describe("tool adapters", () => {
   const read = WorkspaceFiles.tools[0];
   const ls = WorkspaceFiles.tools[3];

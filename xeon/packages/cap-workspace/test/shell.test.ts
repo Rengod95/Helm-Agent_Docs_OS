@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { WorkspaceShell, type CallOptions } from "@fresnel/contracts/capabilities";
+import {
+  WorkspaceShell,
+  type CallOptions,
+  type SandboxBlock,
+} from "@fresnel/contracts/capabilities";
+import type { SandboxRunReport } from "@fresnel/contracts/services";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { DEFAULT_WORKSPACE_SETTINGS, type WorkspaceSettings } from "../src/settings.ts";
 import { createShellApi } from "../src/shell/run.ts";
@@ -130,6 +135,47 @@ describe("bash", () => {
     const quiet = await silent.shell.run({ command: "true" });
     expect(quiet.sandboxed).toBe(false);
     expect(quiet.unsandboxedBy).toBeUndefined();
+  });
+
+  test("sandbox blocks reach the run output and the nonzero-exit detail", async () => {
+    const passthrough = fakeSandbox();
+    passthrough.wrapShell = (inner) => inner;
+    const blocks: SandboxBlock[] = [
+      { code: "sandbox.network_blocked", domain: "localhost" },
+      { code: "sandbox.write_blocked", path: "/etc/hosts" },
+    ];
+    const report: SandboxRunReport = {
+      sandboxed: true,
+      level: "srt",
+      violations: [],
+      violationsTruncated: false,
+    };
+    const { env, shell } = setup({ sandbox: passthrough });
+    env.reply({
+      chunks: [{ text: "curl: (7) Couldn't connect to server\n" }],
+      exitCode: 7,
+      sandbox: { ...report, blocks: [...blocks] },
+    });
+    const failed = await callTool(WorkspaceShell, shell, "bash", { command: "curl localhost" });
+    expect(failed.isError).toBe(true);
+    expect(failed.details).toMatchObject({
+      code: "exit_nonzero",
+      detail: { exitCode: 7, sandboxBlocks: [...blocks] },
+    });
+    env.reply({
+      chunks: [{ text: "ok\n" }],
+      exitCode: 0,
+      sandbox: { ...report, blocks: [...blocks] },
+    });
+    const ran = await shell.run({ command: "curl localhost; true" });
+    expect(ran.sandboxBlocks).toEqual([...blocks]);
+  });
+
+  test("a run the sandbox reports no blocks for has no sandboxBlocks key", async () => {
+    const { env, shell } = setup();
+    env.reply({ chunks: [{ text: "ok\n" }], exitCode: 0 });
+    const ran = await shell.run({ command: "true" });
+    expect(Object.hasOwn(ran, "sandboxBlocks")).toBe(false);
   });
 
   test("bash timeout keeps output", async () => {

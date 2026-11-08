@@ -276,12 +276,13 @@ export function wrapShellWith(deps: WrapShellDeps, shell: Shell, policy: Sandbox
         deps.logger.warn("sandbox.cleanup_failed", { error: describeFailure(caught) });
       }
     }
-    const { violations, truncated } = toViolations(lines, deps.provider);
+    const { violations, truncated, blocks } = toViolations(lines, deps.provider);
     return withReport(result, {
       sandboxed: true,
       level: "srt",
       violations,
       violationsTruncated: truncated,
+      ...(blocks.length === 0 ? {} : { blocks }),
     });
   };
 

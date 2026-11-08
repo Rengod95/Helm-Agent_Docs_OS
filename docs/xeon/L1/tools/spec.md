@@ -855,7 +855,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 
 ### 4.6 권한 모드와 위험 등급
 
-[제안] 모드는 기본, 자동 편집, 계획, 전체 허용 네 가지다. 계획 v2 구성요소 표기를 따른다(`_research/layer-plan-v2.json` L1-d "권한 모드").
+모드는 네 가지다. 화면(설정 화면, 입력창 칩, 승인 카드)에서 부르는 이름은 `default` 기본(실행마다 묻기), `acceptEdits` 편집 자동 허용, `plan` 계획만, `bypass` 모두 허용이다 [결정: 2026-11-08]. 계획 v2 구성요소 표기를 따른다(`_research/layer-plan-v2.json` L1-d "권한 모드").
 
 | 모드 | read | write | exec | 비고 |
 |---|---|---|---|---|
@@ -994,6 +994,16 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 #### 4.12.2 샌드박스 밖 실행 감사 [결정: M3-33, 오케스트레이터 기본값]
 
 도구 결과의 `structuredContent`가 `sandboxed: false`와 `unsandboxedBy`(`escape`, `run_unsandboxed`, `disabled`)를 싣고 있으면 결과 커밋(`effect.result`)에 감사 이벤트 `tool.sandbox_bypassed`를 함께 쓴다. 페이로드는 `{ toolCallId, toolName, reason, at }`이고 명령과 출력은 싣지 않는다. 소유자는 core-tools다(`L0.sandbox.spec` §4.8). 알 수 없는 이유 값은 기록하지 않는다.
+
+#### 4.12.3 샌드박스가 막은 것의 이유 [제안: 2026-11-08]
+
+도구 결과에 막은 것이 있으면 `sandboxBlocks`(성공 결과의 `structuredContent`, 또는 오류 결과 `details.detail`)를 읽어 결과를 바꾼다. 구현은 core-tools `src/sandbox-blocks.ts`와 `src/entries.ts`다. 막은 것의 분류는 L0.sandbox.spec §4.2 11번이 정하고, 이 절은 그것을 도구 결과로 옮기는 방법만 정한다.
+
+- 모델에 가는 글: 막은 종류마다 영어 한 줄을 덧붙인다. 원래 본문은 그대로 둔다. 성공 결과는 본문 뒤에 줄을 한 조각 더하고, 오류 결과는 `[<코드>] <메시지>` 뒤에 줄을 잇는다. 줄은 `Blocked by network policy: <도메인> is in blockedDomains.`, `Blocked by sandbox: writing outside the workspace or to a protected path is not allowed: <경로>`, `Blocked by sandbox: reading a protected path is not allowed: <경로>`이다. 대상이 여섯 개를 넘으면 다섯 개만 적고 `(and N more)`를 붙인다. 엔진 글은 로케일을 따르지 않는다.
+- 화면용 `details`: `code`는 첫 번째 막은 것의 종류(`sandbox.network_blocked`, `sandbox.write_blocked`, `sandbox.read_blocked`)다. 그 대상을 `domain` 또는 `path`에 싣는다. `blocks`에는 모든 막은 것을 `{ code, domain }` 또는 `{ code, path }`로 싣는다. 성공 결과의 기존 `details`가 객체면 이 칸들을 합친다. 오류 결과는 원래 CapabilityError 코드(예: `exit_nonzero`)를 `capabilityCode`에 두고, `code`는 막은 종류로 바꾼다.
+- 막은 것이 없으면 결과는 바뀌지 않는다. `sandboxBlocks`가 있어도 모양이 맞지 않는 항목은 버린다.
+- 이 절은 표시와 모델 글이다. 감사 이벤트(§4.12.2 `tool.sandbox_bypassed`)를 새로 쓰지 않는다. 막은 것은 실행이 샌드박스 안에서 일어난 결과이기 때문이다.
+- 화면은 `details.code`가 이 세 값이면 결과 행에 한국어 이유를 보인다(L4 desktop 소관).
 
 ### 4.13 내장 도구 같은 이름 대체 [결정: 2026-11-03 사용자]
 

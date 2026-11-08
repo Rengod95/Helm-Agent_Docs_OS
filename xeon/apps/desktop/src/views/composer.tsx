@@ -97,7 +97,11 @@ import {
   type SlashMenuRow,
 } from "./composer-slash.ts";
 import { runThreadCompact } from "./thread-compact.ts";
-import { permissionModeOptionsOf, switchModeOf } from "./permission-mode-model.ts";
+import {
+  permissionModeOptionsOf,
+  permissionModeToneOf,
+  switchModeOf,
+} from "./permission-mode-model.ts";
 import { QueuedInputs } from "./queued-inputs.tsx";
 import { useSetupNeeded } from "./setup-needed.ts";
 
@@ -184,7 +188,11 @@ export function PermissionModeSelect(props: {
         const next = switchModeOf(value);
         if (next !== null && next !== props.mode) props.onChange(next);
       }}
-      className="w-auto text-text-tertiary"
+      className={
+        permissionModeToneOf(props.mode) === "danger"
+          ? "w-auto text-danger-text"
+          : "w-auto text-text-tertiary"
+      }
     >
       {permissionModeOptionsOf(props.mode).map((option) => (
         <SelectOption key={option.mode} value={option.mode} disabled={!option.selectable}>
