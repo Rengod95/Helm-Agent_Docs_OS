@@ -189,12 +189,12 @@ export function SettingsPageView(props: SettingsPageProps): ReactNode {
     <section
       ref={paneRef}
       aria-labelledby={headingId}
-      className="-m-1.5 mb-0 flex min-h-0 min-w-0 flex-1"
+      className="flex min-h-0 min-w-0 flex-1"
       onKeyDown={onKey}
     >
       {narrow ? null : <TabColumn {...props} />}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="flex h-16 flex-none items-center gap-2 border-b border-border-subtle ps-6 pe-11">
+        <header className="shell-header flex h-12 flex-none items-center gap-2 border-b border-border-subtle ps-6">
           <h1
             id={headingId}
             data-page-title=""
@@ -241,7 +241,7 @@ function TabColumn(props: SettingsPageProps): ReactNode {
   const { handlers, tab } = props;
   return (
     <div className="flex min-h-0 w-52 flex-none flex-col border-e border-border-subtle ps-3 pe-2">
-      <div className="flex h-16 flex-none items-center">
+      <div className="flex h-12 flex-none items-center">
         <SearchField {...props} />
       </div>
       <ListNavigation
