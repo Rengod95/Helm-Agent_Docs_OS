@@ -51,6 +51,10 @@ function causeOf(input: StartFailureInput): string | null {
   if (NEGOTIATION.test(message) && !CLOSED.test(message)) {
     return `서버와 MCP 사양 버전을 맞추지 못했어요 ${NEGOTIATION_NOTE}`;
   }
+  // 셸을 거쳐 띄운 명령은 프로세스가 아니라 셸이 끝난다. stderr가 명령이 없다고 말하면 명령을 찾지 못한 것이다
+  if (input.stderrTail.some((line) => /command not found|no such file or directory/i.test(line))) {
+    return spawnCauseOf("not found");
+  }
   if (CLOSED.test(message)) {
     return "서버 프로세스가 바로 끝났어요. 서버의 오류 출력 끝 줄을 확인해 주세요";
   }

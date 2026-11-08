@@ -30,6 +30,18 @@ describe("describeStartFailure", () => {
     );
   });
 
+  test("a shell that reports command not found in stderr is a command that was not found", () => {
+    const text = describeStartFailure({
+      ...base,
+      code: "connect_failed",
+      message: "Connection closed",
+      stderrTail: ["bash: line 1: nope: command not found"],
+    });
+    expect(text.split("\n")[0]).toBe(
+      "서버 bad에 연결하지 못했어요: 명령을 찾지 못했어요. 실행 명령의 이름과 경로를 확인해 주세요",
+    );
+  });
+
   test("a command without permission says so", () => {
     const text = describeStartFailure({ ...base, code: "spawn_failed", message: "EACCES: denied" });
     expect(text.split("\n")[0]).toBe(
