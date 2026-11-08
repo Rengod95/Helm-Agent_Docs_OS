@@ -1,5 +1,5 @@
 import { NOT_STARTED_TEXT, OUTCOME_UNKNOWN_TEXT } from "@fresnel/contracts/records";
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
 import type { ItemRecord, JsonObject } from "@fresnel/contracts/conversation";
 import { parseHTML } from "linkedom";
@@ -12,6 +12,7 @@ import { OpenExtensionRecordsContext } from "../../src/views/extension-records-l
 import { RecordedItem, StreamingRow } from "../../src/views/item-view.tsx";
 import { Providers } from "../../src/views/providers.tsx";
 import { PluginUiProvider } from "../../src/views/plugin/plugin-context.tsx";
+import { setTranscriptDetailValue } from "../../src/views/transcript-detail.ts";
 import { emptyPluginUi } from "./plugin/support.tsx";
 import {
   SUB,
@@ -752,5 +753,45 @@ describe("a hook that stopped a call says which hook and whether it blocked or t
     const plain = openedHarness();
     ingestRecords(plain, [callItem(1, 2, "read"), toolResultItem(2, "read", "boom", true)]);
     expect(render(<RecordedItem id={itm(1)} />, plain)).not.toContain("warning-tint");
+  });
+});
+
+/** 생각 블록만 있는 어시스턴트 item */
+function thinkingItem(n: number, thinking: string): ItemRecord {
+  const base = assistantItem(n, "");
+  if (base.kind !== "assistant") throw new Error("assistantItem must build an assistant item");
+  return { ...base, message: { ...base.message, content: [{ type: "thinking", thinking }] } };
+}
+
+describe("transcript detail setting", () => {
+  afterEach(() => {
+    setTranscriptDetailValue("full");
+  });
+
+  test("full draws the thinking open, and summary folds it to its toggle", () => {
+    const h = openedHarness();
+    ingestRecords(h, [thinkingItem(1, "조용히 따져 본다")]);
+    expect(visibleText(render(<RecordedItem id={itm(1)} />, h))).toContain("조용히 따져 본다");
+
+    setTranscriptDetailValue("summary");
+    const folded = render(<RecordedItem id={itm(1)} />, h);
+    expect(folded).toContain('aria-expanded="false"');
+    expect(visibleText(folded)).not.toContain("조용히 따져 본다");
+    expect(visibleText(folded)).toContain(t("desktop.item.thinking"));
+  });
+
+  test("hidden draws no thinking and no done tool row, but keeps a failed one", () => {
+    const h = openedHarness();
+    ingestRecords(h, [
+      thinkingItem(1, "숨길 생각"),
+      callItem(2, 3, "read"),
+      toolResultItem(3, "read", "file body", false),
+      callItem(4, 5, "bash"),
+      toolResultItem(5, "bash", "exit 1: boom", true),
+    ]);
+    setTranscriptDetailValue("hidden");
+    expect(visibleText(render(<RecordedItem id={itm(1)} />, h))).toBe("");
+    expect(visibleText(render(<RecordedItem id={itm(2)} />, h))).toBe("");
+    expect(visibleText(render(<RecordedItem id={itm(4)} />, h))).toContain("exit 1: boom");
   });
 });

@@ -38,7 +38,9 @@ import { usePluginUi, usePluginUiState } from "./plugin/plugin-context.tsx";
 import { useGoToThread } from "./thread-link.ts";
 import { useOpenExtensionRecords } from "./extension-records-link.ts";
 import { hookDenialOf, isUserDenial, type HookDenialView } from "./hook-denial-model.ts";
+import { thinkingModeOf, toolRowModeOf, toolRowOpenOf } from "./item-detail-model.ts";
 import { toolOutputOf } from "./tool-output-model.ts";
+import { useTranscriptDetail } from "./transcript-detail.ts";
 import {
   AGENT_TOOL,
   WEB_TOOLS,
@@ -57,13 +59,30 @@ import {
 const PREVIEW_CHARS = 400;
 /** 한 행의 읽기 열(시안 READ_WIDTH)과 행 사이 간격(시안 로그의 gap-4). 행 사이 간격은 아래쪽 pb-4가 맡는다 */
 // 한 열 격자는 열 폭을 minmax(0,1fr)로 고정한다. 그렇지 않으면 긴 도구 인자 한 줄이 열을 대화 칸 밖으로 민다
-const ROW_CLASS = "mx-auto grid w-full min-w-0 max-w-184 grid-cols-[minmax(0,1fr)] gap-2 px-3 pb-4";
+// empty:hidden은 표시 정도가 숨긴 줄만 남은 행에서 빈 간격(pb-4)까지 없앤다
+const ROW_CLASS =
+  "mx-auto grid w-full min-w-0 max-w-184 grid-cols-[minmax(0,1fr)] gap-2 px-3 pb-4 empty:hidden";
 /** 글. 줄바꿈을 살리고, 붙은 긴 토큰(파일 이름 등)은 쉴 곳(공백, 하이픈, 점 뒤)에서 먼저 줄을 바꾸며 그래도 넘칠 때만 열 끝에서 꺾는다(글자 사이 강제 분리 대신) */
 const TEXT_CLASS = "m-0 whitespace-pre-wrap [overflow-wrap:break-word] [word-break:normal]";
 /** 보조 글(생각, 확장 종류, 출처). 본문보다 작고 흐리다 */
 const QUIET_CLASS = "m-0 text-ui-sm text-text-tertiary";
 /** 실패·중단 줄. 행 맨 아래에 한 줄로 둔다 */
 const NOTE_CLASS = "m-0 text-ui-xs text-text-tertiary";
+/** 생각 토글 단추. 도구 머리와 같은 안쪽 여백(px-2.5)으로 시작해 chevron이 도구 줄의 글 열에 선다. 글은 본문 글 크기(13px)다 */
+const THINK_TOGGLE_CLASS = "px-2.5 text-ui";
+/** 생각 본문. 토글의 글 시작(단추 여백 10 + chevron 14 + 간격 4 = 28px)에 맞춰 들여 쓰고, 읽기 좋게 본문 글 크기를 쓴다 */
+const THINK_BODY_CLASS = `${TEXT_CLASS} pl-7 text-ui text-text-secondary`;
+/** 도구 줄 머리의 이름(mono)과 설명(ui)은 같은 18px 글 줄을 이뤄 머리 가운데에 선다 */
+const HEADER_CLASS =
+  "[&_[data-slot=tool-call-name]]:leading-[18px] [&_[data-slot=tool-call-detail]]:leading-[18px]";
+/** 상태 알약의 아이콘과 글은 같은 14px 줄을 이뤄 세로 가운데에 선다. 아이콘은 줄어들지 않는다 */
+const PILL_CLASS =
+  "[&_[data-slot=tool-call-status]]:leading-[14px] [&_[data-slot=tool-call-status]_svg]:shrink-0";
+/** 끝난·실행 중 줄의 알약은 카드 바탕 위에 채움을 얹지 않는 빈 칸이다. 글 빛깔은 caustic이 그대로 준다 */
+const PILL_GHOST_CLASS = "[&_[data-slot=tool-call-status]]:bg-transparent";
+/** 실패 알약(실패, 중단됨, 거부함, 훅 막음)은 채움을 가진 칩으로 두고, 좌우 여백을 10px로 넓히며 아이콘과 글 사이를 6px로 둔다 */
+const PILL_FAILED_CLASS =
+  "[&_[data-slot=tool-call-status]]:px-2.5 [&_[data-slot=tool-call-status]]:gap-1.5";
 /** 훅이 막은 행(막힘, 훅 오류)의 경고 빛깔. 테두리와 알약의 실패 빛깔을 경고 토큰으로 바꾼다. 안쪽 선택자가 caustic의 실패 클래스보다 세다 */
 const HOOK_ROW_CLASS =
   "[&[data-status=failed]]:shadow-[inset_0_0_0_1px_var(--cs-color-warning-border)] [&_[data-slot=tool-call-status]]:bg-warning-tint [&_[data-slot=tool-call-status]]:text-warning-text";
@@ -88,14 +107,31 @@ function clip(text: string): string {
   return text.length > PREVIEW_CHARS ? `${text.slice(0, PREVIEW_CHARS)}…` : text;
 }
 
-/** 접는 블록(생각). 시안의 조용한 단추 한 줄이고 펼치면 본문이 아래에 붙는다 */
-function Collapsible(props: { readonly summary: string; readonly children: ReactNode }): ReactNode {
-  const [open, setOpen] = useState(false);
+/**
+ * 접는 블록(생각, 하위 에이전트의 긴 보고). 시안의 조용한 단추 한 줄이고 펼치면 본문이 아래에 붙는다.
+ * `defaultOpen`이 바뀌면(표시 정도 설정) 펼침을 그 값으로 다시 정한다. 그 뒤에는 사용자가 누른 대로 둔다.
+ */
+function Collapsible(props: {
+  readonly summary: string;
+  readonly children: ReactNode;
+  /** 처음 펼쳐 둘지. 기본은 접힘이다 */
+  readonly defaultOpen?: boolean;
+  /** 단추에 더하는 클래스(생각 토글의 여백과 글 크기) */
+  readonly toggleClassName?: string;
+}): ReactNode {
+  const defaultOpen = props.defaultOpen === true;
+  const [open, setOpen] = useState(defaultOpen);
+  const [seenDefault, setSeenDefault] = useState(defaultOpen);
+  if (seenDefault !== defaultOpen) {
+    setSeenDefault(defaultOpen);
+    setOpen(defaultOpen);
+  }
   return (
     <div className="grid justify-items-start gap-1">
       <Button
         size="xs"
         variant="ghost"
+        className={props.toggleClassName ?? ""}
         aria-expanded={open}
         onClick={() => {
           setOpen((v) => !v);
@@ -137,6 +173,11 @@ function HookRecordsLink(props: { readonly hook: HookDenialView }): ReactNode {
   );
 }
 
+/** 없는 것과 빈 글을 뺀 클래스를 한 줄로 잇는다 */
+function classesOf(...parts: readonly (string | undefined)[]): string {
+  return parts.filter((part) => part !== undefined && part !== "").join(" ");
+}
+
 /**
  * 도구 호출·결과 한 줄(시안 p02-opus ToolRow). 이름, 짧은 요약, 상태 알약을 보인다.
  * 결과(output)가 있으면 접는 머리가 되고 기본은 접힘이다. 실패한 결과만 펼쳐 둔다. 결과가 없는 호출은 접을 것이 없다.
@@ -169,14 +210,24 @@ function ToolRow(props: {
   const { output } = props;
   const awaiting = props.awaitingApproval === true && props.status === "running";
   const elapsed = useElapsedSeconds(props.status === "running" && !awaiting);
-  // 실행 중에 그려진 행이 나중에 끝나도 초기 값만 읽으면 접힌 채로 남는다. 상태가 바뀔 때 펼칠지 다시 정한다
-  const wantOpen = props.status === "failed" || props.openWhenDone === true;
+  const transcriptDetail = useTranscriptDetail();
+  const mode = toolRowModeOf(transcriptDetail, props.status);
+  // 실행 중에 그려진 행이 나중에 끝나도 초기 값만 읽으면 접힌 채로 남는다. 상태나 표시 정도가 바뀔 때 펼칠지 다시 정한다
+  const wantOpen = toolRowOpenOf(mode, props.status, props.openWhenDone === true);
   const [open, setOpen] = useState(wantOpen);
   const [seenStatus, setSeenStatus] = useState(props.status);
-  if (seenStatus !== props.status) {
+  const [seenMode, setSeenMode] = useState(mode);
+  if (seenStatus !== props.status || seenMode !== mode) {
     setSeenStatus(props.status);
+    setSeenMode(mode);
     setOpen(wantOpen);
   }
+  const rowClass = classesOf(
+    HEADER_CLASS,
+    PILL_CLASS,
+    props.status === "failed" ? PILL_FAILED_CLASS : PILL_GHOST_CLASS,
+    props.hook === undefined ? undefined : HOOK_ROW_CLASS,
+  );
   return (
     <ToolCall
       name={props.name}
@@ -201,7 +252,7 @@ function ToolRow(props: {
               : t("desktop.item.toolRunning")
       }
       failedLabel={props.failedLabel ?? t("desktop.item.status.failed")}
-      {...(props.hook === undefined ? {} : { className: HOOK_ROW_CLASS })}
+      className={rowClass}
       collapsible={output !== undefined || props.foot !== undefined}
       open={open}
       onOpenChange={setOpen}
@@ -461,6 +512,7 @@ function AgentRow(props: {
   readonly running: boolean;
 }): ReactNode {
   const goTo = useGoToThread();
+  const transcriptDetail = useTranscriptDetail();
   const detail = agentHeadOf(props.args);
   const result = props.result;
   if (result === undefined || result.kind !== "toolResult") {
@@ -482,6 +534,7 @@ function AgentRow(props: {
   }
   const view = resultViewOf(result);
   if (view === null) return null;
+  if (toolRowModeOf(transcriptDetail, view.status) === "hidden") return null;
   const parsed = agentResultOf(view.output, result.message.details, result.message.isError);
   // 중단된 하위 에이전트의 본문은 엔진의 영어 안내 한 줄뿐이라 알약("중단됨")이 대신한다
   const fold = reportFoldOf(parsed.outcome === "aborted" ? "" : parsed.body);
@@ -549,6 +602,7 @@ function CallRow(props: {
   const engineGone = engineGoneOf(useEngineState(), useLinkPhase());
   const running = useOpenThreadRunning() && !engineGone;
   const awaitingApproval = useToolCallAwaitingApproval(props.callId, props.earlierCallIds);
+  const transcriptDetail = useTranscriptDetail();
   if (props.name === AGENT_TOOL) {
     return <AgentRow args={props.args} result={result} running={running} />;
   }
@@ -572,6 +626,8 @@ function CallRow(props: {
       />
     );
   }
+  // 표시 정도가 숨기는 줄은 출처 칩까지 그리지 않는다(실패·실행 중 줄은 숨기지 않는다)
+  if (toolRowModeOf(transcriptDetail, view.status) === "hidden") return null;
   const server = result === undefined ? undefined : serverOfResult(result);
   const sources =
     WEB_TOOLS.includes(props.name) && view.status === "done" ? webSourcesOf(view.output) : [];
@@ -595,8 +651,10 @@ function CallRow(props: {
 
 /** 결과 item 한 줄. 짝이 되는 호출 행이 화면에 있으면 그리지 않는다(그 행이 결과를 보인다) */
 function ResultRow(props: { readonly item: ItemRecord }): ReactNode {
+  const transcriptDetail = useTranscriptDetail();
   const view = resultViewOf(props.item);
   if (view === null || props.item.kind !== "toolResult") return null;
+  if (toolRowModeOf(transcriptDetail, view.status) === "hidden") return null;
   const server = serverOfResult(props.item);
   return (
     <ToolRow
@@ -643,13 +701,19 @@ function UnsentNote(props: { readonly text: string }): ReactNode {
 
 function RecordBody(props: { readonly item: ItemRecord; readonly unsent: boolean }): ReactNode {
   const item = props.item;
+  // 생각 블록이 모두 따르는 표시 정도. 훅은 switch 앞에서 한 번만 부른다(return 앞의 훅 순서를 지킨다)
+  const thinking = thinkingModeOf(useTranscriptDetail());
   switch (item.kind) {
     case "user": {
       const bubble = bubbleOf(item.message.content);
+      // 말풍선 글은 어시스턴트 글과 같은 크기와 줄 높이(text-voice 16px/25px)다. 글꼴 집안(ui)은 그대로 둔다
       return (
         <>
           {bubble.text === "" ? null : (
-            <Message author="user" className="whitespace-pre-wrap [overflow-wrap:anywhere]">
+            <Message
+              author="user"
+              className="whitespace-pre-wrap [overflow-wrap:anywhere] text-voice"
+            >
               {bubble.text}
             </Message>
           )}
@@ -675,11 +739,15 @@ function RecordBody(props: { readonly item: ItemRecord; readonly unsent: boolean
                   </Fragment>
                 );
               case "thinking":
+                if (thinking === "none") return null;
                 return (
-                  <Collapsible key={key} summary={t("desktop.item.thinking")}>
-                    <p className={`${TEXT_CLASS} text-ui-sm text-text-secondary`}>
-                      {block.thinking}
-                    </p>
+                  <Collapsible
+                    key={key}
+                    summary={t("desktop.item.thinking")}
+                    defaultOpen={thinking === "open"}
+                    toggleClassName={THINK_TOGGLE_CLASS}
+                  >
+                    <p className={THINK_BODY_CLASS}>{block.thinking}</p>
                   </Collapsible>
                 );
               case "toolCall":
