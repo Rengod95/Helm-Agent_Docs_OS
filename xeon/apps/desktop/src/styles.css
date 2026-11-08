@@ -103,6 +103,11 @@
     flex: 1;
     overflow-y: auto;
     contain: strict;
+    background: transparent;
+  }
+  /* 가상 목록에서 화면 밖으로 나갔다 다시 마운트된 행은 들어오는 움직임을 되풀이하지 않는다(위로 스크롤할 때 깜박임) */
+  [data-row-key][data-seen] .animate-rise {
+    animation: none !important;
   }
   /* contain: strict가 바깥 그림자를 잘라 내므로 초점 고리는 안쪽에 그린다 */
   .scroller:focus-visible {

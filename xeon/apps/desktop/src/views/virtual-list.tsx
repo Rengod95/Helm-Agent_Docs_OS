@@ -11,6 +11,9 @@ export type VirtualRow = { readonly key: string };
 const ESTIMATED_HEIGHT = 96;
 const OVERSCAN_PX = 600;
 const STICK_THRESHOLD_PX = 48;
+/** 목록 안쪽 위·아래 여백. 맨 위에서 첫 행이 헤더 구분선에, 맨 아래에서 마지막 행이 입력창에 붙지 않게 한다(행 아래의 pb-4는 따로 있다) */
+const PAD_TOP_PX = 16;
+const PAD_BOTTOM_PX = 8;
 
 type Props<R extends VirtualRow> = {
   readonly rows: readonly R[];
@@ -77,6 +80,19 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
   const [heights, setHeights] = useState<ReadonlyMap<string, number>>(() => new Map());
   const measured = useRef<Map<string, number>>(new Map());
   const frame = useRef<number | null>(null);
+  // 가장 최근 그린 배치(관찰자 콜백이 읽는다)와, 화면 위쪽 행의 높이가 바뀐 만큼 스크롤을 옮겨 보이는 내용이 밀리지 않게 하는 보정량
+  const latest = useRef<{
+    keys: readonly string[];
+    offsets: readonly number[];
+    heights: ReadonlyMap<string, number>;
+  }>({
+    keys: [],
+    offsets: [],
+    heights: new Map(),
+  });
+  const pendingShift = useRef(0);
+  // 한 번 화면 밖으로 나갔다 다시 들어오는 행은 들어오는 움직임(animate-rise)을 다시 하지 않는다
+  const seen = useRef<Set<string>>(new Set());
 
   const [observer, setObserver] = useState<ResizeObserver | null>(null);
   useEffect(() => {
@@ -95,6 +111,21 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
         frame.current = null;
         const batch = measured.current;
         measured.current = new Map();
+        // 보이는 영역 위에 통째로 있는 행의 높이가 바뀌면 그만큼 스크롤을 옮긴다. 그렇지 않으면 위로 올릴 때마다 아래 내용이 밀려 튄다.
+        // 바닥에 붙어 있으면 따라가기가 맡으므로 건드리지 않는다
+        const el = scroller.current;
+        if (el !== null && !stuck.current) {
+          const view = latest.current;
+          let shift = 0;
+          for (const [key, height] of batch) {
+            const index = view.keys.indexOf(key);
+            if (index < 0) continue;
+            const old = view.heights.get(key) ?? ESTIMATED_HEIGHT;
+            if (PAD_TOP_PX + (view.offsets[index] ?? 0) + old <= el.scrollTop)
+              shift += height - old;
+          }
+          pendingShift.current += shift;
+        }
         setHeights((prev) => {
           let changed = false;
           const next = new Map(prev);
@@ -120,9 +151,10 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
   const { offsets, total } = layout(keys, heights);
   const heightAt = (index: number): number => heights.get(keys[index] ?? "") ?? ESTIMATED_HEIGHT;
 
-  const first = Math.max(0, firstAtOrAfter(offsets, heightAt, viewport.top - OVERSCAN_PX));
+  const contentTop = viewport.top - PAD_TOP_PX;
+  const first = Math.max(0, firstAtOrAfter(offsets, heightAt, contentTop - OVERSCAN_PX));
   let last = first;
-  while (last < rows.length && (offsets[last] ?? 0) < viewport.top + viewport.height + OVERSCAN_PX)
+  while (last < rows.length && (offsets[last] ?? 0) < contentTop + viewport.height + OVERSCAN_PX)
     last += 1;
 
   // 내용이 늘면 바닥에 붙어 있던 경우에만 따라 내려간다. 사용자가 위로 올렸으면 건드리지 않는다
@@ -133,6 +165,7 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
   const baseline = useRef(0);
   const [unseen, setUnseen] = useState(0);
   useLayoutEffect(() => {
+    latest.current = { keys, offsets, heights };
     const el = scroller.current;
     const head = keys[0];
     const switched = firstKey.current !== undefined && head !== firstKey.current;
@@ -144,6 +177,16 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
     if (el !== null && followTail && stuck.current) el.scrollTop = el.scrollHeight;
     if (stuck.current) baseline.current = keys.filter((key) => !key.startsWith(LIVE_PREFIX)).length;
   });
+  // 위쪽 행의 높이가 바뀐 만큼 스크롤을 옮긴다(관찰자 콜백이 정한 보정량). 높이 상태가 바뀐 렌더 직후, 그리기 전에 한다
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    const shift = pendingShift.current;
+    pendingShift.current = 0;
+    // 잰 높이가 없으면 보정할 것도 없다(heights는 이 효과가 높이 상태 갱신 직후에 도는 기준이다)
+    if (heights.size === 0 || el === null || shift === 0 || stuck.current) return;
+    el.scrollTop += shift;
+    setViewport({ top: el.scrollTop, height: el.clientHeight });
+  }, [heights]);
   // 새 내용이나 스크롤이 있을 때마다 바닥에서 벗어난 채 늘어난 수를 다시 센다
   useLayoutEffect(() => {
     setUnseen(followTail && !stuck.current ? unseenCount(keys, baseline.current) : 0);
@@ -176,17 +219,25 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
         role="region"
         aria-label={props.label}
       >
-        <div style={{ height: total, position: "relative" }}>
+        <div style={{ height: total + PAD_TOP_PX + PAD_BOTTOM_PX, position: "relative" }}>
           {mounted.map((row, i) => (
             <div
               key={row.key}
               data-row-key={row.key}
-              style={{ position: "absolute", top: offsets[first + i] ?? 0, left: 0, right: 0 }}
+              style={{
+                position: "absolute",
+                top: PAD_TOP_PX + (offsets[first + i] ?? 0),
+                left: 0,
+                right: 0,
+              }}
               ref={(el) => {
                 if (el === null) return undefined;
+                // 이미 한 번 마운트됐던 행이면 들어오는 움직임을 끈다(styles.css). 속성은 첫 그림 전에 붙는다
+                if (seen.current.has(row.key)) el.setAttribute("data-seen", "");
                 observer?.observe(el);
                 return () => {
                   observer?.unobserve(el);
+                  seen.current.add(row.key);
                 };
               }}
             >
