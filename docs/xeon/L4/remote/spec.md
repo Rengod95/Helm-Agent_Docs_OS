@@ -20,7 +20,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 - 데스크톱 앱이 서비스 모드와 외부 접근을 켜고 끄는 방식, 앱을 닫아도 origin이 도는 방식(§4).
 - 외부 리스너인 웹 게이트웨이의 주소 체계, 한 연결 안의 두 통로(wire, shell)(§5).
 - 같은 UI 번들을 브라우저에 올릴 때 셸 명령이 바뀌는 방식(§6)과 여러 기기 동시 접속의 상태 동기화(§7).
-- TLS, 기기 페어링과 토큰, 세션, Origin 검사, CSP, 권한 범위(§8).
+- TLS, 기기 페어링과 토큰, 로그인 유지 기간, Origin 검사, CSP, 권한 범위(§8).
 - 비루프백 리스너에 관한 기존 스펙 충돌의 정리(§9).
 
 ### 1.2 다루지 않는 것
@@ -123,18 +123,18 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 - 코드는 `xeon/apps/desktop-shell/src/web/`에 둔다. 같은 패키지에 있으므로 DR-10(앱끼리 import 금지)에 걸리지 않고, `src/main/*`의 셸 모듈(electron을 import하지 않는다)을 그대로 쓴다 [제안, 근거: `apps/desktop-shell/src/main/context.ts`의 계약]. 별도 패키지로 옮기려면 DR-10 예외를 더해야 한다.
 - 빌드 산출물은 Bun 컴파일 바이너리 `fresnel-web`이다. 서비스가 `l4.remote.web.enabled`가 참일 때 자식으로 띄우고 감독한다(죽으면 재시작 상한 안에서 되살린다). 서비스가 내려가면 게이트웨이도 끝난다 [제안].
-- 게이트웨이는 서비스 Unix 소켓에 세션마다 연결을 하나씩 연다(§7). 서비스 쪽에는 새 전송이 필요 없다.
+- 게이트웨이는 서비스 Unix 소켓에 탭마다 연결을 하나씩 연다(§7). 서비스 쪽에는 새 전송이 필요 없다.
 
 ### 5.2 주소 체계
 
 | 경로 | 뜻 | 인증 |
 |---|---|---|
-| `GET /` , `/assets/*` | 데스크톱과 같은 UI 번들(`apps/desktop/dist/ui`)과 웹 셸 shim | 인증 쿠키가 없으면 `/login`으로 보낸다. shim과 정적 자원은 비밀이 없어 인증 없이도 내줄 수 있다 |
+| `GET /` , `/assets/*` | 데스크톱과 같은 UI 번들(`apps/desktop/dist/ui`)과 웹 셸 shim | 인증 쿠키가 없으면 `/login`으로 보낸다. shim과 정적 자원은 시크릿이 없어 인증 없이도 내줄 수 있다 |
 | `GET /login` | 페어링 코드 입력 화면(UI 번들과 별개의 작은 정적 페이지) | 없음 |
 | `POST /pair` | 코드 → 기기 토큰 발급(§8.3) | 코드 |
 | `GET /wire` (WebSocket) | 엔진 wire JSON Lines. 프레임·한도는 stdio 전송과 같다(`maxFrameBytes`) | 기기 토큰(쿠키 또는 `Authorization`) |
 | `GET /shell` (WebSocket) | 셸 명령 요청·응답, 채널 메시지, 이벤트 | 위와 같다 |
-| `GET /view/<능력토큰>/<확장>/<버전>/<경로>` | 플러그인 프레임 파일(§6.3) | 세션에 묶인 능력 토큰 |
+| `GET /view/<권한토큰>/<확장>/<버전>/<경로>` | 플러그인 프레임 파일(§6.3) | 탭 연결에 묶인 권한 토큰 |
 
 - 한 연결에 통로가 둘인 이유: wire는 엔진 프로토콜을 그대로 중계하고(바이트 스트림), shell은 `invoke`와 채널을 나른다. 시제품은 HTTP POST와 SSE로 같은 일을 했지만, 승인 같은 즉시 응답과 흐름 제어를 위해 WebSocket 하나로 합친다. 합치는 방식(한 소켓에 프레임 종류 태그)이 더 단순하면 구현이 그쪽으로 바꿀 수 있다 [제안].
 - UI 번들의 엔진 접속은 지금 `window.fresnelShell`의 `engine_attach`/`engine_write` 채널이다. 웹 셸은 이 명령을 `/wire`에 연결하는 어댑터이므로 UI 코드는 바뀌지 않는다(§6).
@@ -157,23 +157,23 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 | 셸 명령 | 데스크톱 동작 | 웹 대응 | 실행 위치 |
 |---|---|---|---|
-| `engine_attach/write/ack/detach/restart` | 사이드카 stdio 중계 | `/wire`로 서비스 소켓 중계. 세션마다 하나(§7). `engine_restart`는 그 세션의 연결을 다시 연다 | origin |
+| `engine_attach/write/ack/detach/restart` | 사이드카 stdio 중계 | `/wire`로 서비스 소켓 중계. 탭마다 하나(§7). `engine_restart`는 그 탭의 연결을 다시 연다 | origin |
 | `engine_retarget` | 엔진 대상을 바꿈 | 웹에서는 거절한다(대상은 origin 하나). 연결 화면의 "원격 대상 추가"를 숨긴다 | - |
 | `pick_file_read` | OS 파일 선택 후 읽기 | `<input type="file">` 선택 후 바이트를 올린다 | 브라우저 |
 | `save_file` | 저장 위치 대화 상자 | Blob 다운로드(`<a download>`) | 브라우저 |
 | `pick_folder`, `pick_folder_open` | OS 폴더 선택 | "서버 폴더 고르기" 대화 상자: origin의 폴더 트리를 `folder_list`로 보인다. 작업 폴더가 origin에 있기 때문이다 | origin |
-| `folder_list`, `folder_read` | 선택한 폴더 안 읽기 | 그대로. 핸들은 (세션, 화면 scope)별이다 | origin |
+| `folder_list`, `folder_read` | 선택한 폴더 안 읽기 | 그대로. 핸들은 (탭 연결, 화면 scope)별이다 | origin |
 | `open_external` | OS 기본 앱으로 열기 | `window.open(url, "_blank", "noopener,noreferrer")`. 허용 스킴(http, https, mailto)은 그대로 shim도 검사한다 | 브라우저 |
 | `open_data_dir`, `open_log_dir` | 파인더로 열기 | 숨긴다. 대신 경로 문자열과 복사 버튼을 보인다 | - |
 | `notify_permission`, `notify_request_permission`, `notify_os` | OS 알림 | 브라우저 Notification API. 권한 요청은 사용자 제스처 안에서만. 알림 클릭은 탭을 앞으로 가져와 `openThread` 의도를 낸다 | 브라우저 |
-| `shell_take_intents`, `notify_take_target` | 트레이·알림 의도 | 탭 안 의도 큐(셸 의도 큐와 같은 동작, 세션별) | 게이트웨이 |
+| `shell_take_intents`, `notify_take_target` | 트레이·알림 의도 | 탭 안 의도 큐(셸 의도 큐와 같은 동작, 탭별) | 게이트웨이 |
 | `tray_update` | 트레이 메뉴 | 무동작(`ok`). 열린 탭의 제목 접두("(2) Fresnel")로 진행 중 개수를 보인다 [제안] | 브라우저 |
 | `update_status/check/download/install_restart` | 앱 자동 업데이트 | 숨긴다. origin 앱·서비스의 업데이트는 origin 컴퓨터의 데스크톱에서만 한다 | - |
 | `os_reauth` | Touch ID, Mac 암호 | 웹은 쓸 수 없다. 재인증이 필요한 동작(시크릿 값 열람, 서비스 끄기)은 §8.6의 규칙을 따른다 | - |
 | `secret_register` | 사이드카를 한 번 띄워 stdin으로 값 전달 | 허용. 값은 TLS 위의 `/shell` 본문으로만 가고 게이트웨이가 사이드카 stdin으로 넘긴다. 게이트웨이 로그에 값을 쓰지 않는다 | origin |
 | `desktop_settings_read/write` | 이 앱의 `desktop-settings.json` | 기기별 설정(테마, 언어, 닫기 동작 제외)을 origin의 기기 레코드에 둔다 [제안] | origin |
 | `db_export`, `db_usage`, `db_previous_remove`, `db_restore` | 백업·복원 | 백업 내려받기는 Blob 다운로드. 복원과 삭제는 웹에서 숨긴다 [제안]. 파괴적이고 재인증이 필요하다 | origin |
-| `app_roots_set` | 프레임 root 등록 | 세션별로 등록한다 | 게이트웨이 |
+| `app_roots_set` | 프레임 root 등록 | 탭별로 등록한다 | 게이트웨이 |
 | 창·트레이·단일 인스턴스·창 위치 | Electron 전용 | 해당 없음 | - |
 
 - 숨기는 명령은 "기능이 없는 것"이 아니라 웹에서 UI가 다른 방식으로 같은 목적을 이루는 곳이다. UI는 `window.fresnelShell.invoke`의 성공 응답 대신 기능 감지(`shell_capabilities` 명령, 웹과 데스크톱이 다른 값을 돌려준다 [제안])로 버튼을 숨긴다.
@@ -188,15 +188,15 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 브라우저에는 사용자 정의 스킴이 없다. 같은 프레임 파일 규칙(확장 이름과 버전 마디 검사, `app root` 밖 차단, GET·HEAD만, 프레임 CSP)을 HTTPS 경로로 옮긴다 [제안].
 
-- 주소: `https://<origin>/view/<능력토큰>/<확장>/<버전>/<경로>`. 능력 토큰은 세션에 묶인 짧은 수명(1시간, 갱신)의 무작위 값이고, 쿠키 없이 경로로만 인증한다. 프레임의 하위 자원 요청이 쿠키 없이도 되게 하기 위해서다.
+- 주소: `https://<origin>/view/<권한토큰>/<확장>/<버전>/<경로>`. 권한 토큰은 탭 연결에 묶인 짧은 수명(1시간, 갱신)의 무작위 값이고, 쿠키 없이 경로로만 인증한다. 프레임의 하위 자원 요청이 쿠키 없이도 되게 하기 위해서다.
 - 프레임은 `sandbox`(allow-same-origin 없음)로 연다. 불투명한 출처라 앱 문서의 쿠키·storage에 닿지 못한다.
 - 프레임 CSP는 `fresnel-view://<확장>/<버전>/`을 `'self'` 경로 접두(`/view/<토큰>/<확장>/<버전>/`)로 바꾼 같은 글자다. `view-scheme.ts`의 `frameCsp`와 TS `appFrameCsp`가 같은 표에서 나오므로 `{base}` 치환 한 곳만 바뀐다. 시험은 두 글자열이 base 외에는 같음을 비교한다.
 - 앱 본 화면의 `postMessage` 다리는 그대로다. `main.ts`의 발신 검사(최상위 프레임, 우리 출처)는 웹에서 게이트웨이의 Origin 검사(§8.5)와 `/shell`의 쿠키 인증이 대신한다. 프레임에는 `/shell` 통로가 없다.
 
 ## 7. 여러 기기 동시 접속
 
-- 서비스는 이미 여러 연결을 받는다(`host.clients`, 연결 허브). 대화 잠금은 쓰기 소유자 하나이고 다른 연결은 관찰이다(`thread.open` `mode`, `L4.host-service.spec` §4.7). 게이트웨이는 이 규칙을 바꾸지 않고, 세션마다 서비스 연결을 하나씩 연다.
-- 세션 = (기기, 브라우저 탭). 시제품은 모든 탭이 한 엔진 연결과 SSE 스트림을 공유했는데, 이는 세션별 구독과 `thread.open` 기록을 섞는다. 게이트웨이는 탭마다 별도의 셸 레지스트리, 릴레이(`createRelay`), 채널 표를 만든다.
+- 서비스는 이미 여러 연결을 받는다(`host.clients`, 연결 허브). 대화 잠금은 쓰기 소유자 하나이고 다른 연결은 관찰이다(`thread.open` `mode`, `L4.host-service.spec` §4.7). 게이트웨이는 이 규칙을 바꾸지 않고, 탭마다 서비스 연결을 하나씩 연다.
+- 탭 연결 = (기기, 브라우저 탭). 시제품은 모든 탭이 한 엔진 연결과 SSE 스트림을 공유했는데, 이는 탭별 구독과 `thread.open` 기록을 섞는다. 게이트웨이는 탭마다 별도의 셸 레지스트리, 릴레이(`createRelay`), 채널 표를 만든다.
 - 상태 동기화는 서비스의 이벤트 구독과 재전송(`HS-17`, 휘발 스트림 포함)이 이미 하는 일이다. 대화 목록, 새 메시지, 승인 요청, 입력 대기열은 `thread.*` 알림으로 모든 연결에 간다. 승인 응답은 `fresnel.approvals`로 첫 응답이 이기고, 나머지 기기는 승인 해결 알림으로 대기 표시가 사라진다 [가정: 승인 해결 알림이 여러 연결에 가는지는 구현 트랙 W2가 확인하고 없으면 서비스에 더한다].
 - 입력 대기열(실행 중 대화에 보내는 입력): 쓰기 소유자가 아닌 기기는 `delegate`(위임) 모드로 같은 대화에 입력을 보낸다(`HS-21` 흐름). 기기 둘이 동시에 보낸 입력의 순서는 서비스가 정한 도착 순서다.
 - 연결이 끊기면 `$/connectionReset` 규칙으로 재연결한다. 브라우저는 지수 백오프로 `/wire`를 다시 열고 마지막으로 본 시퀀스부터 재구독한다(`resume`).
@@ -223,7 +223,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 3. 성공하면 256비트 무작위 기기 토큰을 만든다. origin에는 SHA-256 해시, 기기 이름, 만든 시각, 마지막 접속 시각과 주소만 저장한다(원문은 저장하지 않는다). 저장 위치는 게이트웨이가 가진 파일 `<origin 상태 폴더>/remote/devices.json`(0600, 임시 파일에 쓰고 rename)이다 [제안]. 서비스 저장소 스키마를 바꾸지 않고 기기 목록·폐기가 서비스 재시작과 무관하게 남는다.
 4. 브라우저에는 쿠키 `__Host-fresnel-device`(HttpOnly, Secure, SameSite=Strict, Path=/)로 준다. 루프백 HTTP는 Secure를 못 쓰므로 `fresnel-device`(HttpOnly, SameSite=Strict)로 낮춘다. 데스크톱 클라이언트는 토큰을 OS 보안 저장소(`platform-secrets`)에 둔다. 토큰은 설정 파일과 인자에 두지 않는다.
 5. 폐기: 데스크톱의 기기 목록(이름, 마지막 접속, 주소)에서 항목별로 폐기하고 "모두 폐기"가 있다. 폐기하면 열려 있는 그 기기의 모든 연결을 즉시 닫는다(`wire` 코드 1004 `auth`).
-6. 세션 만료: 쿠키 세션은 슬라이딩 12시간, 절대 30일이다 [제안]. 만료하면 재페어링 없이 토큰으로 갱신하지 않고 `/login` 화면으로 돌아간다. 데스크톱 클라이언트의 토큰은 절대 만료 없이 폐기 전까지 유효하다 [제안, 근거: SSH 키와 같은 수준].
+6. 로그인 만료: 쿠키 로그인은 슬라이딩 12시간, 절대 30일이다 [제안]. 만료하면 재페어링 없이 토큰으로 갱신하지 않고 `/login` 화면으로 돌아간다. 데스크톱 클라이언트의 토큰은 절대 만료 없이 폐기 전까지 유효하다 [제안, 근거: SSH 키와 같은 수준].
 
 ### 8.4 인증 경계
 
@@ -271,7 +271,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 ## 10. 설정
 
-[제안] 새 이름은 F 설정 정본이 확정하기 전까지 제안이다. 비밀 값은 설정 파일에 두지 않는다.
+[제안] 새 이름은 F 설정 정본이 확정하기 전까지 제안이다. 시크릿 값은 설정 파일에 두지 않는다.
 
 | 키 | 기본 | 뜻 |
 |---|---|---|
@@ -281,7 +281,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 | `l4.remote.web.listenTls` | 없음 | 외부 TLS 리스너 `host:port`. 없으면 외부 리스너를 열지 않는다 |
 | `l4.remote.web.hosts` | `[]` | 허용 `Host` 이름. `listenTls`의 호스트가 자동으로 들어간다 |
 | `l4.remote.web.tlsCert`, `tlsKey` | 없음 | 사용자 인증서와 키 파일 경로. 없으면 자체 서명 |
-| `l4.remote.web.sessionHours` | 12 | 슬라이딩 세션 |
+| `l4.remote.web.sessionHours` | 12 | 슬라이딩 로그인 유지 기간(시간) |
 | `l4.remote.launchAtLogin` | 거짓 | D 방식 등록(§4.2) |
 
 ## 11. 실패와 경계 사례

@@ -34,12 +34,12 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 ### 2.1 W1 인증·TLS 부품
 
-- 순수 함수와 파일 저장: 페어링 코드 발급·검사(10자 base32, 5분, 일회용, 실패 잠금), 기기 토큰 발급과 해시 저장(`devices.json`), 세션 쿠키 발급·검증·만료, Origin·Host 검사, 자체 서명 인증서 생성과 지문 계산(`node:crypto`만, 새 의존 없음).
+- 순수 함수와 파일 저장: 페어링 코드 발급·검사(10자 base32, 5분, 일회용, 실패 잠금), 기기 토큰 발급과 해시 저장(`devices.json`), 로그인 쿠키 발급·검증·만료, Origin·Host 검사, 자체 서명 인증서 생성과 지문 계산(`node:crypto`만, 새 의존 없음).
 - 끝난 상태: `AuthPort`(코드 만들기, 코드 사용, 토큰 검증, 기기 목록, 폐기)가 시험과 함께 있다. 폐기·만료·잠금·Origin 불일치의 값 비교 시험. 토큰 원문이 파일·로그에 없음을 시험.
 
 ### 2.2 W2 게이트웨이 서버와 웹 셸
 
-- `Bun.serve`로 루프백 HTTP와 외부 HTTPS 리스너, `/login`, `/pair`, `/wire`, `/shell`, 정적 UI 서빙. 세션마다 셸 레지스트리와 릴레이를 만든다. `socketLauncher`(서비스 Unix 소켓에 직접 연결, 자식 프로세스 없음)를 `Launcher` 인터페이스 구현으로 더한다. shim은 시제품의 `window.fresnelShell` 흉내를 WebSocket 통로로 옮기고 §6.1의 명령을 가로챈다.
+- `Bun.serve`로 루프백 HTTP와 외부 HTTPS 리스너, `/login`, `/pair`, `/wire`, `/shell`, 정적 UI 서빙. 탭마다 셸 레지스트리와 릴레이를 만든다. `socketLauncher`(서비스 Unix 소켓에 직접 연결, 자식 프로세스 없음)를 `Launcher` 인터페이스 구현으로 더한다. shim은 시제품의 `window.fresnelShell` 흉내를 WebSocket 통로로 옮기고 §6.1의 명령을 가로챈다.
 - 끝난 상태: 루프백에서 인증을 거쳐 같은 UI 번들로 대화 만들기·승인이 된다(서비스 하나와 브라우저 탭 둘 E2E는 W8). 시험: 인증 없이 업그레이드 거절, 탭 간 레지스트리 분리, 명령 허용 목록.
 - 시제품 `~/fresnel-tracks/_notes/tools/webshell/server.ts`는 참고용이고 코드는 가져오지 않는다(개발 도구 가정이 많다).
 
@@ -65,7 +65,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 ### 2.7 W7 플러그인 프레임
 
-- §6.3의 `/view/...` 경로, 능력 토큰, sandbox iframe, CSP 치환. 브라우저에서 Helm 탐구 화면이 데스크톱과 같다.
+- §6.3의 `/view/...` 경로, 권한 토큰, sandbox iframe, CSP 치환. 브라우저에서 Helm 탐구 화면이 데스크톱과 같다.
 - 끝난 상태: 프레임이 쿠키 없이 하위 자원을 받고, 앱 문서 쿠키·storage에 닿지 못함(시험), 경로 규칙은 `fresnel-view://`의 시험 벡터를 재사용한다.
 
 ### 2.8 W8 브라우저 E2E와 속도
