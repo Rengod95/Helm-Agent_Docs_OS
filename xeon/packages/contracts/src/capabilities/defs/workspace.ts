@@ -12,8 +12,10 @@ import {
   type TRecord,
   type TString,
   type TUnion,
+  type TUnsafe,
 } from "typebox";
 import { parseJson } from "../../base/index.ts";
+import { SandboxBlockSchema, type SandboxBlock } from "../sandbox-block.ts";
 import type { CapabilityApi, CapabilityDef } from "../capability.ts";
 import type { MethodDef } from "../method.ts";
 import { defineCapability } from "../capability.ts";
@@ -693,6 +695,7 @@ export const RunOutput: TObject<{
   unsandboxedBy: TOptional<
     TUnion<[TLiteral<"escape">, TLiteral<"run_unsandboxed">, TLiteral<"disabled">]>
   >;
+  sandboxBlocks: TOptional<TArray<TUnsafe<SandboxBlock>>>;
 }> = Type.Object(
   {
     exitCode: Type.Integer(),
@@ -712,6 +715,8 @@ export const RunOutput: TObject<{
         Type.Literal("disabled"),
       ]),
     ),
+    /** 샌드박스가 막은 것(L0.sandbox.spec §4.2 11번). 막은 것이 없으면 키가 없다. 실패한 실행에도 싣는다 */
+    sandboxBlocks: Type.Optional(Type.Array(SandboxBlockSchema, { maxItems: 256 })),
   },
   { additionalProperties: false },
 );
