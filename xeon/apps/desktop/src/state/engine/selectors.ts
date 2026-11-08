@@ -124,10 +124,20 @@ export const selectThreadApprovals = (s: EngineMirror, id: ThreadId): number => 
   }
   return Math.max(listed, s.threads.byId[id]?.pendingApprovals ?? 0);
 };
-/** 이 도구 호출이 승인을 기다리는 중인지(승인 요청의 origin.toolCallId 짝) */
-export const selectToolCallAwaitingApproval = (s: EngineMirror, toolCallId: string): boolean => {
+/**
+ * 이 도구 호출이 승인을 기다리는 중인지. 자기 승인 요청(origin.toolCallId 짝)이 있거나, 같은 어시스턴트 메시지에서 앞선 호출의 승인이
+ * 아직 대기 중이면 참이다. 한 메시지의 호출은 승인 요청을 차례로 올리므로, 앞선 호출이 답을 받기 전에는 이 호출의 요청이 아직 없다
+ * (그 사이 행이 "실행 중"으로 보이지 않게 한다). `earlierCallIds`는 같은 메시지에서 이 호출보다 앞선 호출 id들이다
+ */
+export const selectToolCallAwaitingApproval = (
+  s: EngineMirror,
+  toolCallId: string,
+  earlierCallIds: readonly string[],
+): boolean => {
   for (const approvalId of s.approvals.ids) {
-    if (s.approvals.byId[approvalId]?.request.origin.toolCallId === toolCallId) return true;
+    const origin = s.approvals.byId[approvalId]?.request.origin.toolCallId;
+    if (origin === undefined || origin === null) continue;
+    if (origin === toolCallId || earlierCallIds.includes(origin)) return true;
   }
   return false;
 };

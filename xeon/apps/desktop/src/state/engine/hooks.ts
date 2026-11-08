@@ -105,8 +105,10 @@ export const useUnlistedApprovals = (id: ThreadId): number =>
   useEngine((s) => sel.selectUnlistedApprovals(s, id));
 export const useThreadApprovals = (id: ThreadId): number =>
   useEngine((s) => sel.selectThreadApprovals(s, id));
-export const useToolCallAwaitingApproval = (toolCallId: string): boolean =>
-  useEngine((s) => sel.selectToolCallAwaitingApproval(s, toolCallId));
+export const useToolCallAwaitingApproval = (
+  toolCallId: string,
+  earlierCallIds: readonly string[],
+): boolean => useEngine((s) => sel.selectToolCallAwaitingApproval(s, toolCallId, earlierCallIds));
 export const useOpenThread = (): ThreadSummary | undefined => useEngine(sel.selectOpenThread);
 export const useOpenThreadRunning = (): boolean => useEngine(sel.selectOpenThreadRunning);
 export const useThreadRunning = (id: ThreadId): boolean =>

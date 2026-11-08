@@ -274,6 +274,43 @@ describe("one row per tool call", () => {
     expect(other).not.toContain(t("desktop.item.toolAwaitingApproval"));
   });
 
+  test("a call queued behind an earlier call's approval in the same message waits for approval too, and a call in another message does not", () => {
+    const h = openedHarness();
+    h.store.ingest({ type: "engine", state: { kind: "running", source: "sidecar", pid: 1 } });
+    const base = assistantItem(1, "");
+    if (base.kind !== "assistant") throw new Error("assistantItem must build an assistant item");
+    const twoCalls: ItemRecord = {
+      ...base,
+      message: {
+        ...base.message,
+        content: [
+          { type: "toolCall", id: "call-a", name: "echo", arguments: { text: "a" } },
+          { type: "toolCall", id: "call-b", name: "write_note", arguments: { text: "b" } },
+        ],
+        stopReason: "toolUse",
+      },
+    };
+    ingestRecords(h, [twoCalls, callItem(2, 10, "bash")]);
+    h.store.ingest({ type: "threads", threads: [summary(thr(1), { status: "running" })] });
+    const request = approvalRequest(thr(1));
+    h.store.ingest({
+      type: "approvals",
+      approvals: [
+        {
+          approvalId: evt(7),
+          seq: 4,
+          request: { ...request, origin: { ...request.origin, toolCallId: "call-a" } },
+        },
+      ],
+    });
+    h.store.flush();
+    const waiting = visibleText(render(<RecordedItem id={itm(1)} />, h));
+    expect(waiting.split(t("desktop.item.toolAwaitingApproval"))).toHaveLength(3);
+    expect(waiting).not.toContain(t("desktop.item.toolRunning"));
+    const other = visibleText(render(<RecordedItem id={itm(2)} />, h));
+    expect(other).not.toContain(t("desktop.item.toolAwaitingApproval"));
+  });
+
   test("a call that never got a result in an idle thread is marked interrupted, not done", () => {
     const h = openedHarness();
     ingestRecords(h, [callItem(1, 9, "bash")]);
