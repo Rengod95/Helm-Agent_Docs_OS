@@ -10,6 +10,7 @@
 @import "./views/craft/orbit.css";
 @import "./views/craft/link.css";
 @import "./views/transcript-caret.css";
+@import "./views/call-chip.css";
 @source "./";
 
 /* 옛 변수는 caustic 토큰을 가리킨다. 테마(data-theme)를 따라가고 값을 따로 두지 않는다 */

@@ -1,0 +1,182 @@
+/* 도구 호출 줄의 상태 칩(`call-chip.tsx`). 실행 중: 채움이 칩을 가로로 쓸고 스피너가 돈다. 끝남: 채움이 차올라 연해지고 체크가 그려진다.
+   실패: 빛깔이 바뀌고 위험일 때만 한 번 흔든다. caustic에는 이 keyframes가 없어 여기에 둔다.
+   Tauri CSP가 인라인 <style>을 막아 이 파일로 두고 styles.css가 가져온다. 색은 caustic 토큰만 쓰므로 라이트·다크는 토큰이 따라간다. */
+.call-chip {
+  --call-chip-tint: var(--cs-color-neutral-track);
+  --call-chip-ink: var(--cs-color-text-tertiary);
+  --call-chip-sweep: var(--cs-color-agent-tint);
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.375rem;
+  height: 1.5rem;
+  padding-inline: 0.5rem;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: var(--call-chip-tint);
+  color: var(--call-chip-ink);
+  font-size: var(--cs-text-hint, 0.6875rem);
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    background-color var(--cs-duration-base, 200ms) ease,
+    color var(--cs-duration-base, 200ms) ease;
+}
+.call-chip[data-status="done"] {
+  --call-chip-tint: var(--cs-color-neutral-track);
+  --call-chip-ink: var(--cs-color-success-graphic, var(--cs-color-text-tertiary));
+  padding-inline: 0.375rem;
+  --call-chip-sweep: var(--cs-color-success-tint, var(--cs-color-neutral-track));
+}
+.call-chip[data-status="failed"][data-tone="danger"] {
+  --call-chip-tint: var(--cs-color-danger-tint);
+  --call-chip-ink: var(--cs-color-danger-text);
+  --call-chip-sweep: var(--cs-color-danger-tint);
+  padding-inline: 0.625rem;
+  animation: call-chip-shake 360ms ease-in-out 1;
+}
+.call-chip[data-status="failed"][data-tone="warning"] {
+  --call-chip-tint: var(--cs-color-warning-tint);
+  --call-chip-ink: var(--cs-color-warning-text);
+  --call-chip-sweep: var(--cs-color-warning-tint);
+  padding-inline: 0.625rem;
+}
+.call-chip[data-status="failed"][data-tone="neutral"] {
+  padding-inline: 0.625rem;
+}
+
+/* 채움: 실행 중에는 띠가 왼쪽에서 오른쪽으로 되풀이해 쓸고, 끝나면 칩 전체를 한 번 덮은 뒤 걷힌다 */
+.call-chip-fill {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--call-chip-sweep);
+  transform-origin: left center;
+  opacity: 0;
+}
+.call-chip[data-status="running"] .call-chip-fill {
+  opacity: 1;
+  background: linear-gradient(90deg, transparent, var(--call-chip-sweep) 50%, transparent);
+  animation: call-chip-sweep 1.4s ease-in-out infinite;
+}
+.call-chip[data-status="running"][data-waiting="true"] .call-chip-fill {
+  animation: none;
+  opacity: 0;
+}
+.call-chip[data-status="done"] .call-chip-fill,
+.call-chip[data-status="failed"] .call-chip-fill {
+  animation: call-chip-fill-out 520ms ease-out 1 both;
+}
+
+.call-chip-icon,
+.call-chip-spinner {
+  position: relative;
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+}
+.call-chip-label {
+  position: relative;
+}
+.call-chip-label::after {
+  content: attr(data-text);
+}
+
+/* 스피너: 가는 고리 위로 호 하나가 돈다 */
+.call-chip-spinner {
+  box-sizing: border-box;
+  border: 1.75px solid var(--cs-color-border-subtle, currentColor);
+  border-top-color: var(--cs-color-agent-graphic, currentColor);
+  border-radius: 9999px;
+  animation: call-chip-spin 0.8s linear infinite;
+}
+.call-chip[data-waiting="true"] .call-chip-spinner {
+  animation: none;
+  border-top-color: var(--cs-color-border-subtle, currentColor);
+}
+
+/* 체크: 선이 그려진다 */
+.call-chip-check path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: call-chip-draw 320ms 120ms ease-out 1 both;
+}
+
+@keyframes call-chip-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes call-chip-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes call-chip-fill-out {
+  0% {
+    opacity: 1;
+    transform: scaleX(0);
+  }
+  45% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1);
+  }
+}
+@keyframes call-chip-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes call-chip-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-3px);
+  }
+  40% {
+    transform: translateX(3px);
+  }
+  60% {
+    transform: translateX(-2px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+/* 움직임 줄이기: 전환 없이 끝 모양이 바로 보인다. 쓸리는 띠도 스피너도 멈춘다(앱 설정 data-motion=reduce는 styles.css의 공통 규칙이 같은 효과를 낸다) */
+@media (prefers-reduced-motion: reduce) {
+  .call-chip,
+  .call-chip .call-chip-fill,
+  .call-chip .call-chip-spinner,
+  .call-chip .call-chip-check path {
+    animation: none;
+    transition: none;
+  }
+  .call-chip .call-chip-fill {
+    opacity: 0;
+  }
+}
+[data-motion="reduce"] .call-chip,
+[data-motion="reduce"] .call-chip .call-chip-fill,
+[data-motion="reduce"] .call-chip .call-chip-spinner,
+[data-motion="reduce"] .call-chip .call-chip-check path {
+  animation: none;
+  transition: none;
+}
+[data-motion="reduce"] .call-chip .call-chip-fill {
+  opacity: 0;
+}
