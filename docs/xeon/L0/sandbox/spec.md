@@ -374,12 +374,12 @@ export function selectSandboxProvider(input: {
 | 분류 `code` | 위반 기록 조건 | 싣는 것 | 판정 가능 범위 |
 |---|---|---|---|
 | `sandbox.network_blocked` | 프록시 거부 줄 `deny network-outbound <host>:<port> (host is on the deny list)`. 사유가 차단 목록 거부일 때만 | `domain`: 호스트(포트 뺌, IPv6는 대괄호 뺌) | macOS·Linux 모두. 프록시가 기록하므로 로그 스트림 설정과 무관하다 |
-| `sandbox.write_blocked` | Seatbelt `file-write-*` 거부(macOS), seccomp 쓰기 거부 `deny <syscall> <path>`(Linux, 관찰자가 켜졌을 때만) | `path`: 경로 | macOS만 판정한다. Linux는 seccomp 관찰자를 꺼 두어(아래 표) 쓰기 거부가 기록되지 않는다 |
+| `sandbox.write_blocked` | Seatbelt `file-write-*` 거부(macOS), seccomp 쓰기 거부 `deny <syscall> <path>`(Linux, 관찰자가 켜졌을 때만) | `path`: 경로 | macOS만 판정한다. 명령이 끝난 뒤 모으므로 늦게 도착한 줄은 빠질 수 있다(아래 요약, 10절 12번). Linux는 seccomp 관찰자를 꺼 두어(아래 표) 쓰기 거부가 기록되지 않는다 |
 | `sandbox.read_blocked` | Seatbelt `file-read-data` 거부(macOS). 메타데이터 조회(`file-read-metadata`)는 셸이 흔히 시도하므로 싣지 않는다 | `path`: 경로 | macOS만. Linux 읽기 거부는 기록되지 않는다 |
 
 분류하지 않는 것(위반 `violations`에는 남는다): 해석된 주소가 사설 대역이라 거부한 프록시 줄, 허용 목록 밖 거부, 잘못된 호스트, 직접 소켓의 Seatbelt `network-outbound` 거부(정책이 막은 호스트를 알 수 없다), 이름 없는 줄(`other`). 실패 줄의 `stderr` 글(`Operation not permitted`, `Read-only file system`, `Permission denied`)은 샌드박스 신호가 아니라 보지 않는다. 같은 글이 샌드박스 밖 원인으로도 나온다.
 
-판정 가능 범위 요약: 네트워크 차단 목록 거부는 두 OS에서 판정한다. 쓰기와 읽기 거부는 macOS에서만 판정한다. macOS 로그 스트림은 비동기라 명령이 끝난 바로 뒤 수집에는 그 줄이 빠질 수 있다(`[미결]` 10절 12번).
+판정 가능 범위 요약: 네트워크 차단 목록 거부는 프록시가 응답 전에 기록하므로 두 OS에서 판정한다. 쓰기와 읽기 거부는 macOS 로그 스트림에서 오므로 macOS에서만 판정하고, 그 줄은 명령이 끝난 뒤에 나타날 수 있다. 2026-11-08 맥의 srt 0.0.79 측정에서 쓰기 거부 줄은 명령 종료 뒤 20~110ms에 보인 경우가 대부분이었고, 3초 안에 보이지 않은 경우도 한 번 있었다. 읽기 거부(보호 파일 `.env` 내용 읽기)는 같은 명령 결과에 판정되었다.
 
 `cleanup(context)`는 아래 `shell.cleanup`을 부른다. srt `reset()`은 서비스 dispose 때 한 번 부른다.
 
@@ -589,5 +589,5 @@ export function selectSandboxProvider(input: {
 8. [미결] `SettingsTab`의 `"sandbox"` 추가(F 변경).
 9. [미결] 프록시 훅(후속, sentinel 모드). `L0.secrets.spec` §4.3 M2 sentinel 설계는 자식 HTTPS가 `fresnel.sandbox` 프록시를 지나고 허용 호스트로 가는 요청의 헤더에서 sentinel을 값으로 바꾸는 훅을 요구한다. 이 문서는 아직 그 훅을 정하지 않았다. srt `mitmProxy`(외부 Unix 소켓) 연결 안과 `parentProxy` 체이닝 안을 `L0.sandbox.plan` SB-16에서 비교하고 TLS 종단(`L0.secrets.spec` §10 6번)과 함께 정한다.
 10. [미결] `wrapArgv`의 위반 수집. 장수 프로세스는 위반 줄을 언제 모을지 정해야 한다(종료 때 한 번, 주기적으로 등). 1차는 모으지 않고, `SandboxedArgv`에도 위반 필드가 없다(4.9절).
-12. [미결] 위반 수집 시점. macOS 로그 스트림은 비동기라 명령이 끝난 직후 `getViolationsForCommand`를 부르면 마지막 거부 줄이 빠질 수 있다. 막은 것의 분류(4.2절 11번)도 같은 기록에서 만들므로 같은 공백을 가진다. 수집 전에 짧게 기다릴지, 명령 뒤 로그를 따로 확인할지 정해야 한다.
+12. [미결] 위반 수집 시점. macOS 로그 스트림의 줄은 명령이 끝난 뒤에 도착할 수 있다(위 요약의 측정). 그래서 명령이 끝난 직후 `getViolationsForCommand`로 모으면 쓰기 거부가 빠질 수 있고, 막은 것의 분류(4.2절 11번)도 같은 공백을 가진다. 모든 셸 호출에 대기를 넣으면 지연이 생기므로, 0이 아닌 종료에만 짧게 기다리는 방안과 로그 출력을 줄 단위로 읽는 방안을 비교해 정한다.
 11. [미결] `cleanupAfterCommand`의 전역 범위. srt 상태는 프로세스 전역이고, 이 함수는 실행 중인 다른 샌드박스가 쓰는 마운트 경로를 지울 수 있다(`_research/notes/L0-1.md` §8). `wrapArgv`의 `cleanup`은 호출 횟수만 한 번으로 막는다. 여러 장수 프로세스의 정리 시점을 어떻게 정할지 정해야 한다(4.9절).
