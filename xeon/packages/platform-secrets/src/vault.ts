@@ -1,6 +1,10 @@
 import { err, ok, type Result } from "@fresnel/contracts";
 import type { ProcessRunner, RunOutput } from "./providers/process.ts";
 
+// 데스크톱 셸(Node, Bun 아님)이 `./vault` 진입점만으로 자기 실행기를 타입에 맞춰 만들 수 있게 다시 낸다
+export type { ProcessRunner, RunOutput, RunRequest } from "./providers/process.ts";
+export { nodeProcessRunner } from "./vault-runner.ts";
+
 // L0 원격 장치 토큰 보관소. macOS Keychain(`security`)과 Linux Secret Service(`secret-tool`)에 토큰을 둔다.
 // key/darwin.ts, key/linux.ts와 같은 방식이다. 값은 argv에 싣지 않는다. `security -i`는 명령 줄을,
 // `secret-tool store`는 값 바이트를 stdin으로 받고, stdin 버퍼는 쓴 뒤 0으로 덮는다.

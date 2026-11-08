@@ -16,3 +16,4 @@ export {
   type ConformanceHostHandle,
   type ConformanceHostOptions,
 } from "./conformance-host.ts";
+export { createTestTlsIdentity, type TestTlsIdentity } from "./tls.ts";

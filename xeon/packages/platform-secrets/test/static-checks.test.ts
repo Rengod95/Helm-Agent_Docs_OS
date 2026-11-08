@@ -69,10 +69,11 @@ describe("static checks", () => {
     expect(sops).not.toMatch(/\.use\(/);
     expect(sops).not.toMatch(/\.bytes\b/);
     expect(sops).not.toMatch(/\bvalue\.text\(/);
-    // 프로세스 실행은 sops 호출 한 곳과 사람 실행(secret run) 한 곳
+    // 프로세스 실행은 sops 호출 한 곳, 사람 실행(secret run) 한 곳, 원격 기기 토큰 금고의 Node 실행기(Electron 셸용) 한 곳
     expect(filesMatching(/Bun\.spawn(?:Sync)?\(|child_process/)).toEqual([
       "admin.ts",
       "providers/process.ts",
+      "vault-runner.ts",
     ]);
     // 관리 서비스의 add·set·rotate에는 문자열 값 인자가 없다(값은 SecretValueSource로만 받는다)
     const admin = FILES.find((f) => f.rel === "admin.ts")?.text ?? "";
