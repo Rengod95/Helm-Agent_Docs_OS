@@ -360,7 +360,7 @@ describe("edit and write rows", () => {
       toolResultItem(2, "edit", "Successfully replaced text in src/a.ts.", false),
     ]);
     const html = render(<RecordedItem id={itm(1)} />, h);
-    expect(html).toMatch(/data-slot="tool-call-detail"[^>]*>src\/a\.ts</);
+    expect(html).toMatch(/data-slot="tool-call-detail"[^>]*>(?:<[^>]+>)*src\/a\.ts</);
     expect(html).toContain('aria-expanded="false"');
     expect(html).not.toContain("oldText");
     expect(html).not.toContain("const a = 2;");

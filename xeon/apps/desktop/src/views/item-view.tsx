@@ -38,6 +38,7 @@ import { usePluginUi, usePluginUiState } from "./plugin/plugin-context.tsx";
 import { useGoToThread } from "./thread-link.ts";
 import { useOpenExtensionRecords } from "./extension-records-link.ts";
 import { hookDenialOf, isUserDenial, type HookDenialView } from "./hook-denial-model.ts";
+import { CallChip, type CallChipTone } from "./call-chip.tsx";
 import { sandboxBlocksOf, type SandboxBlockView } from "./sandbox-block-model.ts";
 import { thinkingModeOf, toolRowModeOf, toolRowOpenOf } from "./item-detail-model.ts";
 import { ThinkingIndicator } from "./thinking-indicator.tsx";
@@ -80,11 +81,8 @@ const HEADER_CLASS =
 /** 상태 알약의 아이콘과 글은 같은 14px 줄을 이뤄 세로 가운데에 선다. 아이콘은 줄어들지 않는다 */
 const PILL_CLASS =
   "[&_[data-slot=tool-call-status]]:leading-[14px] [&_[data-slot=tool-call-status]_svg]:shrink-0";
-/** 끝난·실행 중 줄의 알약은 카드 바탕 위에 채움을 얹지 않는 빈 칸이다. 글 빛깔은 caustic이 그대로 준다 */
-const PILL_GHOST_CLASS = "[&_[data-slot=tool-call-status]]:bg-transparent";
-/** 실패 알약(실패, 중단됨, 거부함, 훅 막음)은 채움을 가진 칩으로 두고, 좌우 여백을 10px로 넓히며 아이콘과 글 사이를 6px로 둔다 */
-const PILL_FAILED_CLASS =
-  "[&_[data-slot=tool-call-status]]:px-2.5 [&_[data-slot=tool-call-status]]:gap-1.5";
+/** caustic의 상태 알약은 화면에서 가리고(읽는 사람용 글은 남긴다) 같은 자리에 `CallChip`을 그린다 */
+const PILL_HIDDEN_CLASS = "[&_[data-slot=tool-call-status]]:sr-only";
 /** 훅이 막은 행(막힘, 훅 오류)의 경고 빛깔. 테두리와 알약의 실패 빛깔을 경고 토큰으로 바꾼다. 안쪽 선택자가 caustic의 실패 클래스보다 세다 */
 const HOOK_ROW_CLASS =
   "[&[data-status=failed]]:shadow-[inset_0_0_0_1px_var(--cs-color-warning-border)] [&_[data-slot=tool-call-status]]:bg-warning-tint [&_[data-slot=tool-call-status]]:text-warning-text";
@@ -183,6 +181,16 @@ function classesOf(...parts: readonly (string | undefined)[]): string {
   return parts.filter((part) => part !== undefined && part !== "").join(" ");
 }
 
+/** 실패 칩의 빛깔. 정책이 멈춘 것(거부함, 막힘, 훅 막음)은 경고, 중단됨은 중립, 나머지 실패는 위험이다 */
+function failedToneOf(label: string | undefined, hook: boolean): CallChipTone {
+  if (hook) return "warning";
+  if (label === t("desktop.item.status.interrupted")) return "neutral";
+  if (label === t("desktop.item.status.denied") || label === t("desktop.tool.blocked.status")) {
+    return "warning";
+  }
+  return "danger";
+}
+
 /**
  * 도구 호출·결과 한 줄(시안 p02-opus ToolRow). 이름, 짧은 요약, 상태 알약을 보인다.
  * 결과(output)가 있으면 접는 머리가 되고 기본은 접힘이다. 실패한 결과만 펼쳐 둔다. 결과가 없는 호출은 접을 것이 없다.
@@ -230,33 +238,49 @@ function ToolRow(props: {
   const rowClass = classesOf(
     HEADER_CLASS,
     PILL_CLASS,
-    props.status === "failed" ? PILL_FAILED_CLASS : PILL_GHOST_CLASS,
+    PILL_HIDDEN_CLASS,
     props.hook === undefined ? undefined : HOOK_ROW_CLASS,
   );
+  const activity = awaiting
+    ? t("desktop.item.toolAwaitingApproval")
+    : props.runningLabel !== undefined
+      ? props.runningLabel(elapsed)
+      : elapsed > 0
+        ? t("desktop.item.toolRunningFor", { seconds: elapsed })
+        : t("desktop.item.toolRunning");
+  const failedLabel = props.failedLabel ?? t("desktop.item.status.failed");
+  const detail =
+    props.server === undefined ? (
+      props.detail
+    ) : (
+      <>
+        <Badge size="xs">{t("desktop.item.toolServer", { server: props.server })}</Badge>
+        {props.detail === undefined ? null : ` ${props.detail}`}
+      </>
+    );
   return (
     <ToolCall
       name={props.name}
       detail={
-        props.server === undefined ? (
-          props.detail
-        ) : (
-          <>
-            <Badge size="xs">{t("desktop.item.toolServer", { server: props.server })}</Badge>
-            {props.detail === undefined ? null : ` ${props.detail}`}
-          </>
-        )
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="min-w-0 flex-1 truncate">{detail}</span>
+          <CallChip
+            status={props.status}
+            label={
+              props.status === "running"
+                ? activity
+                : props.status === "failed"
+                  ? failedLabel
+                  : undefined
+            }
+            tone={failedToneOf(props.failedLabel, props.hook !== undefined)}
+            waiting={awaiting}
+          />
+        </span>
       }
       status={props.status}
-      activity={
-        awaiting
-          ? t("desktop.item.toolAwaitingApproval")
-          : props.runningLabel !== undefined
-            ? props.runningLabel(elapsed)
-            : elapsed > 0
-              ? t("desktop.item.toolRunningFor", { seconds: elapsed })
-              : t("desktop.item.toolRunning")
-      }
-      failedLabel={props.failedLabel ?? t("desktop.item.status.failed")}
+      activity={activity}
+      failedLabel={failedLabel}
       className={rowClass}
       collapsible={output !== undefined || props.foot !== undefined}
       open={open}
