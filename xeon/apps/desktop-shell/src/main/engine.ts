@@ -7,6 +7,7 @@ import { desktopSettingsStore } from "./desktop-settings.ts";
 import { appLogOf, type AppLog } from "./lib/applog.ts";
 import { ownField } from "./lib/narrow.ts";
 import { nodeScheduler } from "./lib/scheduler.ts";
+import { remoteTokenSource } from "./engine/remote-token.ts";
 import { pipedLauncher, type Launcher } from "./engine/launcher.ts";
 import { engineConfigFrom, parseTarget, type EngineConfig } from "./engine/policy.ts";
 import {
@@ -206,6 +207,7 @@ export const engineModule: ShellModule = {
         home: os.homedir(),
         log,
         scheduler,
+        remoteToken: remoteTokenSource({ platform: ctx.platform, env: ctx.env }),
       }),
       clock: { now: () => Date.now(), scheduler },
       config: engineConfigFrom(settings.shutdownGraceMs, settings.restartLimit),
