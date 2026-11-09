@@ -23,7 +23,13 @@
         "tsconfig.caustic.json",
         "$TURBO_ROOT$/tsconfig.base.json"
       ],
-      "outputs": ["dist/**"]
+      "outputs": [
+        "dist/.tsbuildinfo",
+        "dist/src/**",
+        "dist/test/**",
+        "dist/scripts/**",
+        "dist/caustic-react/**"
+      ]
     },
     "transit": {
       "dependsOn": ["^transit"],
