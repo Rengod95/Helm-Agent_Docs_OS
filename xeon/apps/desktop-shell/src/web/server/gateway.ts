@@ -46,7 +46,7 @@ const CLOSE_FOR_REASON: Readonly<
 export interface TlsListenerOptions {
   readonly host: string;
   readonly port: number;
-  /** 받을 `Host` 이름(검사 목록). 루프백 이름은 자동으로 받는다 */
+  /** 받을 `Host` 이름(검사 목록). TLS 리스너는 이 목록만 받는다(루프백 이름도 목록에 있어야 한다, spec §8.5) */
   readonly hosts: readonly string[];
   readonly material: TlsMaterial;
 }
