@@ -9,6 +9,7 @@ import { createDialogAreaHandlers } from "./m4/dialog-area.ts";
 import { createExtReadHandlers } from "./m4/ext-read.ts";
 import { createExtUiVersionHandlers } from "./m4/ext-ui-version.ts";
 import { createProfileTestRunHandlers } from "./m4/profile-test-run.ts";
+import { createRemoteHandlers, remotePortOf } from "./remote.ts";
 import { createEventsSubscribeHandler, createEventsUnsubscribeHandler } from "./events.ts";
 import {
   createHostClientsHandler,
@@ -120,6 +121,7 @@ export function createWireHandlers(
     ...createProfileTestRunHandlers(engine.ports.m4.profileTestRun),
     ...createDialogAreaHandlers(engine.ports.m4.dialogArea),
     ...createDevkitHandlers(engine.ports.m4.devkit),
+    ...createRemoteHandlers(remotePortOf(lifecycle?.remote)),
   };
   return table;
 }

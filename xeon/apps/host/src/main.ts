@@ -220,6 +220,7 @@ export async function runHostCommand(
     case "service-start":
     case "service-status":
     case "service-stop":
+    case "service-pair":
     case "service-ensure":
     case "service-launch-mode":
       return runServiceCommand(command, io);

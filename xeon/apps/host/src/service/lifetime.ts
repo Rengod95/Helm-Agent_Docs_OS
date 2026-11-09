@@ -1,5 +1,14 @@
 import type { ScheduleService } from "@fresnel/cap-schedule";
-import { detach, err, ok, type Clock, type Scheduler } from "@fresnel/contracts";
+import {
+  attemptAsync,
+  detach,
+  err,
+  ok,
+  type Clock,
+  type LogFields,
+  type Logger,
+  type Scheduler,
+} from "@fresnel/contracts";
 import { WIRE_PROTOCOL_VERSION } from "@fresnel/contracts/wire";
 import { createOsService, readOsRuntime, type OsServiceHandle } from "@fresnel/platform-os";
 import {
@@ -25,15 +34,22 @@ import {
   type HostExit,
   type RunningHost,
 } from "../host-runtime.ts";
-import type { AssembleOptions } from "../types.ts";
+import type { AssembleOptions, HostLogPort } from "../types.ts";
+import type { RemotePort } from "../handlers/remote.ts";
 import { messageOf } from "../util.ts";
 import { autoResumeThreads } from "./auto-resume.ts";
-import { hostResourceDir } from "../state-paths.ts";
+import { resolveHostStatePaths, hostResourceDir } from "../state-paths.ts";
 import { resolveServicePaths } from "./paths.ts";
+import { gatewayConfigOf, REMOTE_ENABLED_KEY, remoteEnabledOf } from "./gateway-config.ts";
+import {
+  createGatewaySupervisor,
+  type GatewaySupervisor,
+  type GatewaySupervisorDeps,
+} from "./gateway.ts";
 
 // L4.host-service.spec §4.9 서비스 모드, SV-01·SV-02·SV-04·SV-05·SV-07. `fresnel service run`/`fresnel host --service`의 본체.
-// 순서: 소켓 선점(이중 기동 방지) → 엔진 조립(mode "service") → 연결 허브에 리스너 연결 → 등록 파일 기록 → 유휴 감시.
-// 종료 길은 셋이고 모두 같은 절차를 밟는다: 유휴 유예 경과, SIGTERM, wire `host.shutdown`.
+// 순서: 소켓 선점(이중 기동 방지) → 엔진 조립(mode "service") → 원격 포트와 감독자 준비 → 연결 허브에 리스너 연결 → 등록 파일 기록 → 게이트웨이 시작(기다리지 않음) → 유휴 감시.
+// 종료 길은 셋이고 모두 같은 절차를 밟는다: 유휴 유예 경과, SIGTERM, wire `host.shutdown`. 등록 파일과 소켓을 내리기 전에 게이트웨이를 끈다(L4.remote §5.1).
 
 export const SERVICE_STARTUP_GRACE_MS = 10_000;
 /** `l0.process.service.idleGraceMs`의 기본값. 설정을 읽지 못할 때만 쓴다 */
@@ -43,6 +59,11 @@ export interface ServiceOptions {
   readonly assemble?: Omit<AssembleOptions, "mode">;
   /** 서비스 파일 디렉터리. 없으면 L0.os의 `dirs.runtime`. 시험이 임시 디렉터리를 넘긴다 */
   readonly runtimeDir?: string;
+  /**
+   * 원격 접속 게이트웨이 감독자. 없으면 `fresnel-web`을 자식으로 띄우는 실제 감독자다. 시험이 가짜 감독자를 넘긴다.
+   * 감독자는 서비스가 끝날 때 `dispose`로 정리된다
+   */
+  readonly gateway?: GatewaySupervisor;
   /** 기본 SERVICE_STARTUP_GRACE_MS */
   readonly startupGraceMs?: number;
   /** 기본은 설정 `l0.process.service.idleGraceMs`(60000). 시험이 짧은 값을 넘긴다(설정 범위 밖 값 허용) */
@@ -115,11 +136,37 @@ function activationLockOf(os: OsServiceHandle, lockPath: string): ActivationLock
   };
 }
 
+/**
+ * 엔진의 로그 포트를 감독자가 쓰는 Logger로 옮긴다. 포트에는 debug와 warn이 없어 debug는 info로, warn은 info에 level을 더해 보낸다.
+ * 값에는 토큰, 코드, 시크릿을 넣지 않는다(감독자가 그렇게 기록한다).
+ */
+function loggerOf(port: HostLogPort, base: LogFields): Logger {
+  const withBase = (fields: LogFields | undefined): LogFields => ({ ...base, ...fields });
+  return {
+    debug: (event, fields) => {
+      port.info(event, withBase(fields));
+    },
+    info: (event, fields) => {
+      port.info(event, withBase(fields));
+    },
+    warn: (event, fields) => {
+      port.info(event, withBase({ ...fields, level: "warn" }));
+    },
+    error: (event, fields) => {
+      port.error(event, withBase(fields));
+    },
+    child: (fields) => loggerOf(port, withBase(fields)),
+  };
+}
+
 export async function startService(options: ServiceOptions = {}): Promise<ServiceStart> {
   const paths = resolveServicePaths(
     options.runtimeDir === undefined ? {} : { runtimeDir: options.runtimeDir },
   );
   if (!paths.ok) return failed(`service files cannot be placed: ${paths.error.kind}`);
+  // 원격 게이트웨이의 상태 폴더(`<상태 폴더>/remote`). 자리를 못 잡으면 서비스 파일과 같이 시작하지 않는다
+  const state = await resolveHostStatePaths();
+  if (!state.ok) return failed(`service state cannot be placed: ${state.error.kind}`);
   const registrationStore = createRegistrationStore({ path: paths.value.registrationPath });
 
   // 이 서비스 프로세스 자신의 L0.os: 시계·타이머와 파일 잠금. 엔진도 자기 L0.os를 만든다
@@ -151,6 +198,8 @@ export async function startService(options: ServiceOptions = {}): Promise<Servic
 
   // 2. 엔진 조립
   const lifecycleSlot: { idle: IdleMonitor | undefined } = { idle: undefined };
+  // 원격 포트는 엔진을 만든 뒤에 채운다. 처리기는 호출할 때마다 이 칸을 읽는다
+  const remoteSlot: { port: RemotePort | undefined } = { port: undefined };
   const stopRequested = Promise.withResolvers<"stop">();
   let running: RunningHost;
   try {
@@ -161,6 +210,7 @@ export async function startService(options: ServiceOptions = {}): Promise<Servic
           stopRequested.resolve("stop");
         },
         idleShutdownAt: () => lifecycleSlot.idle?.idleShutdownAt ?? null,
+        remote: () => remoteSlot.port,
       },
     );
   } catch (caught) {
@@ -175,6 +225,36 @@ export async function startService(options: ServiceOptions = {}): Promise<Servic
   const log = engine.ports.log;
   const devChecks = options.assemble?.devChecks === true;
   const gate = createTokenGate(options.random ?? randomBytes);
+
+  // 원격 게이트웨이 감독자와 포트. 감독자는 이 시점에 아무것도 띄우지 않는다(시작은 등록 파일을 쓴 뒤다)
+  const gatewayDeps: GatewaySupervisorDeps = {
+    socketPath: unix.path,
+    stateDir: state.value.stateDir,
+    clock: time.clock,
+    scheduler: time.scheduler,
+    log: loggerOf(log, {}),
+  };
+  const supervisor = options.gateway ?? createGatewaySupervisor(gatewayDeps);
+  remoteSlot.port = {
+    status: () => supervisor.status(),
+    setEnabled: async (enabled) => {
+      // 설정 키는 카탈로그에 있고 사용자 범위를 허용하므로 값 검사는 건너뛴다(settings.set과 같은 포트를 쓴다)
+      const written = await engine.ports.settings.write(
+        "user",
+        REMOTE_ENABLED_KEY,
+        enabled,
+        undefined,
+      );
+      if (!written.ok) {
+        log.error("service.remote_setting_failed", { kind: written.error.kind });
+        return err({ kind: "store-failed" });
+      }
+      return ok(enabled ? await supervisor.start(gatewayConfigOf(read)) : await supervisor.stop());
+    },
+    pair: () => supervisor.pair(),
+    devices: () => supervisor.devices(),
+    revoke: (target) => supervisor.revoke(target),
+  };
 
   // 3. 연결 허브에 리스너를 잇는다. 소켓 위 연결은 TCP만 토큰이 필요하다
   const tcpAuth: ServeAuth = { requiresToken: true, verify: (presented) => gate.verify(presented) };
@@ -229,6 +309,13 @@ export async function startService(options: ServiceOptions = {}): Promise<Servic
     return failed(`the registration file cannot be written: ${written.error.kind}`);
   }
 
+  // 게이트웨이: 설정이 켜져 있으면 기다리지 않고 띄운다. 실패는 감독자의 상태(failed)에 남고 여기서는 기록만 한다
+  if (remoteEnabledOf(read)) {
+    detach(supervisor.start(gatewayConfigOf(read)), (caught) => {
+      log.error("service.gateway_start_failed", { message: messageOf(caught) });
+    });
+  }
+
   // 5. 종료 절차. 참여자 등록은 엔진이 끝난 뒤 등록 역순으로 불린다(확장·L0 참여자보다 먼저 turn을 멈춘다)
   const turnStop: { outcome: "clean" | "deadline" } = { outcome: "clean" };
   engine.shutdown.onShutdown("host", async () => {
@@ -241,6 +328,11 @@ export async function startService(options: ServiceOptions = {}): Promise<Servic
   function shutdown(reason: "signal" | "idle" | "stop"): Promise<void> {
     closing.promise ??= (async () => {
       lifecycleSlot.idle?.[Symbol.dispose]();
+      // 게이트웨이를 먼저 내린다. 정리가 실패해도 서비스 종료는 계속한다(기록만 남긴다)
+      const disposed = await attemptAsync(() => supervisor.dispose());
+      if (!disposed.ok) {
+        log.error("service.gateway_dispose_failed", { message: messageOf(disposed.error.cause) });
+      }
       const engineReason = reason === "stop" ? "shutdown_request" : reason;
       await engine.shutdown.request(engineReason);
       // 등록 파일과 소켓을 먼저 내려 새 클라이언트가 죽어 가는 서비스에 붙지 않게 한다
