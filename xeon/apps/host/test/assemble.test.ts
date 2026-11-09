@@ -153,6 +153,12 @@ test("the core groups build one catalog with the keys of every package that decl
     "l3.group-sdk.instrumentation",
     "l3.authoring.devMode",
     "l4.host-service.maxReplayEvents",
+    "l4.remote.web.enabled",
+    "l4.remote.web.listen",
+    "l4.remote.web.listenTls",
+    "l4.remote.web.hosts",
+    "l4.remote.web.tlsCert",
+    "l4.remote.web.tlsKey",
   ]) {
     expect(built.catalog.has(key)).toBe(true);
   }

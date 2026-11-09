@@ -27,6 +27,8 @@ export type HostCommand =
       readonly allowNonLoopback?: boolean;
     }
   | { readonly kind: "service-status"; readonly json: boolean }
+  /** 원격 접속 페어링 코드를 청한다(L4.remote §8.3). `json`이면 `{"code","expiresAt"}` 한 줄을 쓴다 */
+  | { readonly kind: "service-pair"; readonly json: boolean }
   | { readonly kind: "service-stop" }
   | {
       readonly kind: "service-ensure";

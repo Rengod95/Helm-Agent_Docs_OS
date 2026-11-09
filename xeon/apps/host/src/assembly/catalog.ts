@@ -46,7 +46,7 @@ import { SANDBOX_SETTING_DEFS } from "@fresnel/platform-sandbox";
 import { SECRETS_SETTING_DEFS } from "@fresnel/platform-secrets";
 import { STORE_SETTING_DEFS } from "@fresnel/platform-store";
 import { authoringManifest, authoringSettings } from "@fresnel/plugin-builder";
-import { hostSettings } from "../settings.ts";
+import { hostSettings, remoteSettings } from "../settings.ts";
 
 // L4.host-service.spec §4.1 5단계. 모든 패키지의 설정 그룹을 한 카탈로그로 합친다. 이 파일은 assemble.ts의 일부다:
 // 아래 층 패키지를 import하는 조립 루트 코드(DR-14 예외 2).
@@ -169,6 +169,7 @@ export function coreSettingGroups(): readonly CatalogGroupInput[] {
     // 제작 그룹의 설정(개발 모드, 기본 꺼짐). 소유는 plugin-builder다(L3.authoring.spec §6)
     ofGroup("plugin-builder", authoringSettings),
     ofGroup("host", hostSettings),
+    ofGroup("host", remoteSettings),
     ...builtinExtensionKeyGroups(),
   ];
 }

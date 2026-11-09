@@ -132,7 +132,11 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 ### 5.1 프로세스와 위치
 
 - 코드는 `xeon/apps/desktop-shell/src/web/`에 둔다. 같은 패키지에 있으므로 DR-10(앱끼리 import 금지)에 걸리지 않고, `src/main/*`의 셸 모듈(electron을 import하지 않는다)을 그대로 쓴다 [제안, 근거: `apps/desktop-shell/src/main/context.ts`의 계약]. 별도 패키지로 옮기려면 DR-10 예외를 더해야 한다.
-- 빌드 산출물은 Bun 컴파일 바이너리 `fresnel-web`이다. 서비스가 `l4.remote.web.enabled`가 참일 때 자식으로 띄우고 감독한다(죽으면 재시작 상한 안에서 되살린다). 서비스가 내려가면 게이트웨이도 끝난다 [제안].
+- 빌드 산출물은 Bun 컴파일 바이너리 `fresnel-web`이다. 서비스가 `l4.remote.web.enabled`가 참일 때 자식으로 띄우고 감독한다(죽으면 재시작 상한 안에서 되살린다). 서비스가 내려가면 게이트웨이도 끝난다 [결정: 2026-11-09 W3 구현].
+- [확인: 2026-11-09 W3] 감독자는 `apps/host/src/service/gateway.ts`(호스트는 게이트웨이 코드를 import하지 않고 L0 `spawnPiped`로 프로세스만 띄운다)다. 서비스는 시작할 때 `l4.remote.web.enabled`가 참이면 기다리지 않고 게이트웨이를 띄운다(실패해도 서비스는 정상 기동하고 `host.remote.status`가 `failed`와 원인을 보인다). 서비스가 끝나는 세 길(유휴, 신호, `host.shutdown`)은 모두 등록 파일과 소켓을 내리기 전에 게이트웨이를 정리한다: 표준 입력 `stop` → 3초 → SIGTERM → 3초 → SIGKILL.
+- 재시작 정책: 준비된 뒤 자식이 죽으면 60초 안에 3번까지 0.5초, 2초, 5초 뒤 다시 띄운다(그동안 상태 `starting`). 상한을 넘으면 `failed`, 원인 `gateway-down`이다. 준비 전에 종료코드 2로 끝나거나 실행 파일이 없으면 환경 문제이므로 재시작하지 않고 `failed`, 원인 `gateway-environment` 또는 `gateway-binary-missing`이다(`service pair`는 이 원인에서 종료코드 2). 제어 요청(`pair`, `devices`, `revoke`)은 응답에 요청 번호가 없으므로 하나씩 보내고, 5초 안에 답이 없으면 자식을 SIGKILL하고 재시작 정책을 따른다(늦은 답이 다음 요청의 답으로 읽히지 않게).
+- 실행 파일 찾기(순서): 환경 변수 `FRESNEL_WEB_BIN`(절대 경로) → 서비스 바이너리와 같은 폴더의 `fresnel-web` → 개발 트리의 `apps/desktop-shell/src/web/main.ts`(서비스가 `bun`으로 돌 때, `bun run`). `--ui`는 환경 변수 `FRESNEL_WEB_UI`가 있을 때만 넘긴다(없으면 게이트웨이 기본 `apps/desktop/dist/ui`). 자식 환경 변수는 허용 목록(PATH, HOME, LANG, TMPDIR 등)과 `FRESNEL_*`(이름에 TOKEN, SECRET, PASS, KEY, CREDENTIAL이 든 것 제외)뿐이다.
+- [미결: 릴리즈 묶음] 릴리즈 묶음(Electron 앱의 사이드카 폴더와 `fresnel` 바이너리 배포)에는 아직 `fresnel-web`이 없다. `scripts/build-sidecar.ts`에 같은 `bun build --compile --minify --bytecode`로 `apps/desktop-shell/src/web/main.ts`를 `fresnel-web`으로 빌드하는 대상을 더하고, UI 번들(`apps/desktop/dist/ui`)을 같은 폴더의 `ui/`로 넣어 `--ui`를 서비스가 그 옆 경로로 넘기게 해야 한다(W8 또는 별도 트랙). 그때까지 릴리즈 묶음에서는 `FRESNEL_WEB_BIN`으로 지정한 경우에만 게이트웨이가 뜬다.
 - 게이트웨이는 서비스 Unix 소켓에 탭마다 연결을 하나씩 연다(§7). 서비스 쪽에는 새 전송이 필요 없다.
 
 ### 5.2 주소 체계
@@ -311,12 +315,14 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 | `l4.remote.web.sessionHours` | 12 | 슬라이딩 로그인 유지 기간(시간) |
 | `l4.remote.launchAtLogin` | 거짓 | D 방식 등록(§4.2) |
 
+[확인: 2026-11-09 W3] 구현한 키는 `l4.remote.web.enabled`, `listen`, `listenTls`, `hosts`, `tlsCert`, `tlsKey`(모두 managed·user 범위만, 값을 바꾸면 서비스를 다시 띄워야 한다)다. 빈 문자열은 "없음"(`listenTls`, `tlsCert`, `tlsKey`)이다. `sessionHours`와 `launchAtLogin`은 W6 이후다. `listen`의 기본은 이 표의 `127.0.0.1:8480`이고 오케스트레이터 브리프의 `0.0.0.0:7443`은 따르지 않았다(스펙을 따른다: 외부 주소는 `listenTls`가 맡고 루프백 `listen`은 비루프백을 받지 않는다).
+
 ## 11. 실패와 경계 사례
 
 | 상황 | 동작 |
 |---|---|
 | 서비스가 내려가 있다 | 게이트웨이가 시작을 거절한다. 켜는 UI가 "서비스를 먼저 켜요"를 보인다 |
-| 게이트웨이가 죽는다 | 서비스가 재시작 상한 안에서 되살린다. 상한을 넘으면 `remote.gatewayDown` 상태가 연결 화면에 보인다 |
+| 게이트웨이가 죽는다 | 서비스가 재시작 상한 안에서 되살린다. 상한을 넘으면 `remote.gatewayDown` 상태가 연결 화면에 보인다(wire `host.remote.status`의 `state: "failed"`, `error.kind: "gateway-down"`) |
 | 코드 입력 5번 실패 | 코드 폐기, 15분 잠금 |
 | 기기 폐기 | 열린 연결 즉시 닫힘, 쿠키로 재접속하면 `/login` |
 | 인증서 만료 임박(30일) | 연결 화면과 데스크톱 알림에 경고. 자체 서명은 다음 켤 때 갱신 |

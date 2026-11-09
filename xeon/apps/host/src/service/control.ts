@@ -13,7 +13,7 @@ import {
   type Result,
   type Scheduler,
 } from "@fresnel/contracts";
-import type { WireResult } from "@fresnel/contracts/wire";
+import { WireError, type WireResult } from "@fresnel/contracts/wire";
 import { connectServiceTransport, createHostConnection, helloService } from "./connect.ts";
 import { requestServiceShutdown, waitServiceGone } from "./ensure.ts";
 import { resolveServicePaths, type ServicePathError } from "./paths.ts";
@@ -68,13 +68,15 @@ export type ServiceStatusResult =
       readonly running: true;
       readonly registration: ServiceRegistration;
       readonly status: WireResult<"host.status">;
+      /** `host.remote.status`의 답. 서비스가 답하지 못하면(이전 버전 등) null */
+      readonly remote: WireResult<"host.remote.status"> | null;
     };
 
 /** 화면과 `--json`에 내보내는 모양. 등록 파일의 접속 토큰은 뺀다(호스트 접속 권한이라 출력하지 않는다) */
 export function serviceStatusView(result: ServiceStatusResult): unknown {
   if (!result.running) return result;
   const { token: _token, ...registration } = result.registration;
-  return { running: true, registration, status: result.status };
+  return { running: true, registration, status: result.status, remote: result.remote };
 }
 
 export async function serviceStatus(
@@ -110,7 +112,91 @@ export async function serviceStatus(
     ) {
       return ok({ running: false, reason: "unreachable" });
     }
-    return ok({ running: true, registration, status: status.value });
+    // 원격 상태는 서비스 상태 다음에 묻는다. 답이 없으면(이전 버전 서비스) null이다
+    const remote = await attemptAsync(() =>
+      connection.request("host.remote.status", {}, { timeoutMs: 3000 }),
+    );
+    return ok({
+      running: true,
+      registration,
+      status: status.value,
+      remote: remote.ok ? remote.value : null,
+    });
+  } finally {
+    await connection.close();
+  }
+}
+
+/** `service pair`의 결과. `paired`만 코드를 싣는다 */
+export type ServicePairResult =
+  | { readonly kind: "paired"; readonly code: string; readonly expiresAt: number }
+  /** 서비스가 떠 있지 않다(등록이 없거나 접속하지 못한다) */
+  | { readonly kind: "not_running" }
+  /** 게이트웨이를 띄울 수 없는 환경 문제(바이너리 없음, 환경 오류). 사용자 환경을 고쳐야 한다 */
+  | { readonly kind: "environment"; readonly message: string }
+  /** 원격 접속이 꺼져 있다(`remote.off`) */
+  | { readonly kind: "remote_off" }
+  /** 그 밖의 실패. `message`는 사람이 읽는 한 줄이다 */
+  | { readonly kind: "failed"; readonly message: string };
+
+const PAIR_TIMEOUT_MS = 10_000;
+const OLDER_SERVICE_MESSAGE =
+  'the running service does not support remote access; run "fresnel service stop" and start it again';
+
+/** 게이트웨이가 환경 문제로 멈췄는지(`RemoteStatusView.error.kind`). 이 값은 종료코드 2의 근거다 */
+function isEnvironmentKind(kind: string): boolean {
+  return kind === "gateway-binary-missing" || kind === "gateway-environment";
+}
+
+/** `host.remote.pair` 실패를 결과로 옮긴다. `remote.off`는 꺼짐이고, 메서드가 없으면 이전 버전 서비스다 */
+function pairFailureOf(cause: unknown): ServicePairResult {
+  if (cause instanceof WireError) {
+    if (cause.data.kind === "remote.off") return { kind: "remote_off" };
+    if (cause.data.kind === "jsonrpc.methodNotFound") {
+      return { kind: "failed", message: OLDER_SERVICE_MESSAGE };
+    }
+    return { kind: "failed", message: `pairing failed (${cause.data.kind})` };
+  }
+  return { kind: "failed", message: "pairing failed (the service did not answer)" };
+}
+
+/**
+ * 페어링 코드를 청한다(L4.remote §8.3). 먼저 원격 상태를 보고 환경 문제와 시작 중인 상태를 가려낸다.
+ * 꺼져 있으면 서비스가 `remote.off`로 답하고, 그 값을 `remote_off`로 옮긴다. 코드는 결과에만 싣는다(로그에 쓰지 않는다).
+ */
+export async function servicePair(
+  options: ServiceControlOptions = {},
+): Promise<Result<ServicePairResult, ServicePathError>> {
+  const status = await serviceStatus(options);
+  if (!status.ok) return status;
+  if (!status.value.running) return ok({ kind: "not_running" });
+  const { registration, remote } = status.value;
+  if (remote === null) return ok({ kind: "failed", message: OLDER_SERVICE_MESSAGE });
+  if (remote.state === "failed") {
+    const error = remote.error;
+    if (error !== null && isEnvironmentKind(error.kind)) {
+      return ok({ kind: "environment", message: error.message });
+    }
+    const reason = error === null ? "" : ` (${error.kind})`;
+    return ok({
+      kind: "failed",
+      message: `remote access failed${reason}; restart the service to try again`,
+    });
+  }
+  if (remote.state === "starting") {
+    return ok({ kind: "failed", message: "remote access is still starting; try again shortly" });
+  }
+  const transport = await connectServiceTransport({ kind: "unix", path: registration.socket });
+  if (!transport.ok) return ok({ kind: "not_running" });
+  const connection = createHostConnection(transport.value);
+  try {
+    const hello = await helloService(connection, { clientName: "fresnel-pair" });
+    if (!hello.ok) return ok({ kind: "not_running" });
+    const paired = await attemptAsync(() =>
+      connection.request("host.remote.pair", {}, { timeoutMs: PAIR_TIMEOUT_MS }),
+    );
+    if (!paired.ok) return ok(pairFailureOf(paired.error.cause));
+    return ok({ kind: "paired", code: paired.value.code, expiresAt: paired.value.expiresAt });
   } finally {
     await connection.close();
   }

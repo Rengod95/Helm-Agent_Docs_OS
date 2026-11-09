@@ -93,6 +93,7 @@ describe("WIRE_ERRORS", () => {
       "store.readOnly": 5005,
       "store.io": 5006,
       "store.corrupt": 5007,
+      "remote.off": 5008,
     });
   });
 
@@ -257,6 +258,17 @@ describe("WIRE_ERRORS", () => {
     expect(parse(spec.details, { where: "x".repeat(129) }).ok).toBe(false);
     expect(parse(spec.details, { code: "row_invalid" }).ok).toBe(false);
     expect(WIRE_ERRORS["store.io"].code).not.toBe(spec.code);
+  });
+
+  test("remote.off is 5008 in the host range, not retryable, and carries no details", () => {
+    const spec = WIRE_ERRORS["remote.off"];
+    expect({ code: spec.code, kind: spec.kind, retryable: spec.retryable }).toEqual({
+      code: 5008,
+      kind: "remote.off",
+      retryable: false,
+    });
+    expect(spec.details).toBeUndefined();
+    expect(codeRangeOf(spec.code)?.name).toBe("host");
   });
 
   test("thread.closed names the closed thread", () => {

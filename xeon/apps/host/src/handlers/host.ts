@@ -16,6 +16,7 @@ import type { ConnectionHub, ConnectionState } from "../connection-types.ts";
 import { hostBinaryReportOf } from "../binary-report.ts";
 import type { Engine } from "../types.ts";
 import { isNotImplemented } from "./not-implemented.ts";
+import type { RemotePort } from "./remote.ts";
 
 // L4.host-service.spec §3.4 M1 표, HS-01~HS-03. host.hello: 호환 검사, 실험 기능 기록, 연결을 ready로 바꾼다.
 // host.status와 host.shutdown은 아래에 있다.
@@ -25,6 +26,11 @@ export interface HostLifecycle {
   stopRequested(reason: "shutdown_request" | "version_replace"): void;
   /** 유휴 종료 예정 시각(epoch ms). 서비스 모드만 있고 타이머가 없으면 null. host.status.idleShutdownAt의 원천 */
   idleShutdownAt?(): number | null;
+  /**
+   * 원격 접속 포트(`host.remote.*`). 엔진을 만든 뒤에 채워지므로 호출할 때마다 읽는다. 이 함수가 없는 호스트(in-process, stdio)에서는
+   * 원격 메서드가 notImplemented다
+   */
+  remote?: () => RemotePort | undefined;
 }
 
 export interface HostInfo {

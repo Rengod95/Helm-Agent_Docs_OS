@@ -163,7 +163,8 @@ export type WireErrorKind =
   | "store.diskFull"
   | "store.readOnly"
   | "store.io"
-  | "store.corrupt";
+  | "store.corrupt"
+  | "remote.off";
 
 /**
  * M1 오류 목록(F.wire-settings.spec §3.5.2): kind → 정의. 키와 kind가 같고 code와 kind는 1:1이다.
@@ -710,6 +711,8 @@ export const WIRE_ERRORS: {
       { additionalProperties: false },
     ),
   },
+  /** 원격 접속이 꺼져 있어 페어링 등을 받지 않는다(`host.remote.pair` 등). 원격을 켠 뒤 다시 보낸다. [제안] 이름 `remote.off`는 spec의 `remote-off`를 wire 이름 형식에 맞춘 것이다 */
+  "remote.off": { code: 5008, kind: "remote.off", retryable: false },
 };
 
 /** 처리기가 던지는 오류. 디스패처가 JsonRpcError로 바꿔 응답한다(§4.3 6단계) */

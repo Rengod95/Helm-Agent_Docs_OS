@@ -3,12 +3,20 @@ import { assertNever } from "@fresnel/contracts";
 import type { WireResult } from "@fresnel/contracts/wire";
 import type { EnsureOutcome, ServiceRegistration } from "@fresnel/platform-process";
 import type { CommandIo, HostCommand } from "../host-command.ts";
-import { serviceStatus, serviceStatusView, stopHostService } from "./control.ts";
+import {
+  serviceStatus,
+  serviceStatusView,
+  servicePair,
+  stopHostService,
+  type ServiceControlOptions,
+} from "./control.ts";
 import { ensureHostService, type ServiceCommand } from "./ensure.ts";
 import { resolveLaunchMode } from "./launch-mode.ts";
 import { startService } from "./lifetime.ts";
+import { systemTime } from "./time.ts";
 
-// L4.host-service.spec §3.2 표. `fresnel service start|status|stop|ensure|launch-mode|run`의 본체. 종료코드: 0 성공, 1 실패(시작 거부, 서비스 없음 등).
+// L4.host-service.spec §3.2 표. `fresnel service start|status|stop|pair|ensure|launch-mode|run`의 본체.
+// 종료코드: 0 성공, 1 실패(시작 거부, 서비스 없음, 원격 꺼짐 등), 2 환경 문제(게이트웨이 바이너리 없음, 환경 오류: `service pair`만).
 
 type ServiceHostCommand = Extract<
   HostCommand,
@@ -18,10 +26,16 @@ type ServiceHostCommand = Extract<
       | "service-start"
       | "service-status"
       | "service-stop"
+      | "service-pair"
       | "service-ensure"
       | "service-launch-mode";
   }
 >;
+
+const REMOTE_OFF_MESSAGE =
+  'remote access is off; run "fresnel config set l4.remote.web.enabled true --scope user" and restart the service';
+const NOT_RUNNING_MESSAGE =
+  'service is not running; start it with "fresnel service start" and try again';
 
 async function write(stream: WritableStream<Uint8Array>, text: string): Promise<void> {
   const writer = stream.getWriter();
@@ -82,10 +96,28 @@ export function listenTcpNotAppliedNotice(
   return 'the service was already running, so --listen-tcp was not applied; run "fresnel service stop" and start it again to open TCP\n';
 }
 
+/**
+ * 원격 상태의 줄들. 원격이 꺼져 있으면 아무것도 더하지 않는다(꺼진 서비스의 출력은 그대로다).
+ * 켜져 있으면 상태 한 줄, 포트 줄(있을 때), 지문 줄(있을 때)이다. 값에 토큰과 코드는 없다.
+ */
+function remoteLinesOf(remote: WireResult<"host.remote.status"> | null | undefined): string[] {
+  if (remote === null || remote === undefined || !remote.enabled) return [];
+  const ports = [
+    ...(remote.loopbackPort === null ? [] : [`loopback ${String(remote.loopbackPort)}`]),
+    ...(remote.tlsPort === null ? [] : [`tls ${String(remote.tlsPort)}`]),
+  ];
+  return [
+    `remote ${remote.state}${remote.error === null ? "" : ` (${remote.error.kind})`}`,
+    ...(ports.length === 0 ? [] : [`ports ${ports.join(", ")}`]),
+    ...(remote.fingerprint === null ? [] : [`fingerprint ${remote.fingerprint}`]),
+  ];
+}
+
 /** `service status`의 사람용 글(서비스가 떠 있을 때). 접속 토큰은 쓰지 않는다 */
 export function serviceStatusText(
   registration: ServiceRegistration,
   host: WireResult<"host.status">,
+  remote?: WireResult<"host.remote.status"> | null,
 ): string {
   const tcp = tcpAddressOf(registration);
   const idle =
@@ -96,13 +128,25 @@ export function serviceStatusText(
     ...(tcp === undefined ? [] : [`tcp ${tcp}`]),
     `connections ${String(host.connections)}, live turns ${String(host.liveTurns)}`,
     `idle shutdown ${idle}${host.safeMode === true ? ", safe mode" : ""}`,
+    ...remoteLinesOf(remote),
     "",
   ].join("\n");
+}
+
+/**
+ * `service pair`의 사람용 한 줄. 코드 가운데에 하이픈을 넣어 읽기 쉽게 하고(입력은 하이픈을 가리지 않는다), 만료는 지금부터 남은 분이다(올림, 0 이상).
+ * 코드는 이 줄에만 나오고 로그에는 남지 않는다.
+ */
+export function pairTextOf(code: string, expiresAt: number, now: number): string {
+  const grouped = code.length === 10 ? `${code.slice(0, 5)}-${code.slice(5)}` : code;
+  const minutes = Math.max(0, Math.ceil((expiresAt - now) / 60_000));
+  return `pairing code ${grouped} (expires in ${String(minutes)} min)\n`;
 }
 
 export async function runServiceCommand(
   command: ServiceHostCommand,
   io: CommandIo,
+  options: ServiceControlOptions = {},
 ): Promise<0 | 1 | 2 | 70 | 71 | 72 | 73 | 74 | 75 | 76> {
   switch (command.kind) {
     case "service-run": {
@@ -181,7 +225,7 @@ export async function runServiceCommand(
       return 0;
     }
     case "service-status": {
-      const status = await serviceStatus();
+      const status = await serviceStatus(options);
       if (!status.ok) {
         await write(io.stderr, `service files cannot be placed: ${status.error.kind}\n`);
         return 1;
@@ -194,12 +238,46 @@ export async function runServiceCommand(
         await write(io.stdout, `service not running (${status.value.reason})\n`);
         return 1;
       }
-      const { registration, status: host } = status.value;
-      await write(io.stdout, serviceStatusText(registration, host));
+      const { registration, status: host, remote } = status.value;
+      await write(io.stdout, serviceStatusText(registration, host, remote));
       return 0;
     }
+    case "service-pair": {
+      const paired = await servicePair(options);
+      if (!paired.ok) {
+        await write(io.stderr, `service files cannot be placed: ${paired.error.kind}\n`);
+        return 1;
+      }
+      const result = paired.value;
+      switch (result.kind) {
+        case "paired": {
+          if (command.json) {
+            const line = { code: result.code, expiresAt: result.expiresAt };
+            await write(io.stdout, `${JSON.stringify(line)}\n`);
+          } else {
+            const now = (options.time ?? systemTime()).clock.now();
+            await write(io.stdout, pairTextOf(result.code, result.expiresAt, now));
+          }
+          return 0;
+        }
+        case "not_running":
+          await write(io.stderr, `${NOT_RUNNING_MESSAGE}\n`);
+          return 1;
+        case "remote_off":
+          await write(io.stderr, `${REMOTE_OFF_MESSAGE}\n`);
+          return 1;
+        case "environment":
+          await write(io.stderr, `remote access cannot start: ${result.message}\n`);
+          return 2;
+        case "failed":
+          await write(io.stderr, `${result.message}\n`);
+          return 1;
+        default:
+          return assertNever(result, "ServicePairResult");
+      }
+    }
     case "service-stop": {
-      const stopped = await stopHostService();
+      const stopped = await stopHostService(options);
       if (!stopped.ok) {
         await write(io.stderr, `service files cannot be placed: ${stopped.error.kind}\n`);
         return 1;

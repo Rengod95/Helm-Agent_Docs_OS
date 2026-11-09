@@ -300,6 +300,11 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | host | `host.hello` | `{ protocolVersion: SemVer, client: {name, version, kind: "cli"\|"desktop"\|"other"}, experimental?: FeatureName[], auth?: { token: string } }`(`auth`는 M2) | `{ protocolVersion: SemVer, server: {name, version}, storeId: StoreId, transport: TransportKind, features: FeatureInfo[], experimental: FeatureName[] }` | M1 |
 | host | `host.status` | `{ includeBinaries?: boolean }` | `{ mode: "in-process"\|"stdio"\|"service", pid: integer, startedAt: IsoTime, connections: integer, liveTurns: integer, waitingApprovals?: integer(1..), idleShutdownAt: IsoTime \| null, binaries?: HostBinaryReport, safeMode?: boolean, safeModeCause?: "user"\|"startupFailures"\|"flag", startupFailures?: integer, suggestSafeMode?: boolean, settingsProblems?: SettingsFileProblem[], startupNotices?: StartupNotice[] }` | M2 |
 | host | `host.shutdown` | `{ reason: "client_exit"\|"version_replace"\|"user", deadlineMs?: integer }` | `{ accepted: boolean }` | M2 |
+| host | `host.remote.status` | `{}` | `{ enabled: boolean, state: "off"\|"starting"\|"running"\|"failed", loopbackPort: integer\|null, tlsPort: integer\|null, hosts: string[], fingerprint: string\|null(소문자 16진 64자), certSource: "self-signed"\|"user"\|null, pushAvailable: boolean, error: { kind: string, message: string }\|null }` | M4 [제안] |
+| host | `host.remote.setEnabled` | `{ enabled: boolean }` | `host.remote.status`와 같다 | M4 [제안] |
+| host | `host.remote.pair` | `{}` | `{ code: string(10자), expiresAt: integer }` | M4 [제안] |
+| host | `host.remote.devices` | `{}` | `{ devices: { id: string, name: string, kind: "web"\|"desktop", createdAt: integer, lastSeenAt: integer\|null, address: string\|null }[](최대 256) }` | M4 [제안] |
+| host | `host.remote.revoke` | `{ id: string }` 또는 `{ all: true }` | `{ revoked: integer }` | M4 [제안] |
 | host | `host.clients` | `{}` | `{ clients: { connectionId: string, transport: "in-process"\|"stdio"\|"socket", name?: string, version?: string, writeThreads: integer, observedThreads: integer, self: boolean }[] }`. 연결마다 한 행이고 요청한 연결(`self`)이 맨 앞이다(최대 256개). `name`과 `version`은 `host.hello`를 마친 연결만 싣는다. 인증 토큰은 싣지 않는다 | M4 (W-12) |
 | thread | `thread.list` | `{ cursor?: string, limit?: integer(1..200), workspace?: string }` | `{ threads: ThreadSummary[], nextCursor: string \| null }` | M2 |
 | thread | `thread.create` | `{ workspace?: string, title?: string, testRun?: boolean, profileId?: string }`(`testRun`, `profileId`는 M4, W-34) | `{ threadId: ThreadId, position: StreamPosition }` | M1 |
@@ -1029,6 +1034,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 5005 | `store.readOnly` | false | 저장소가 읽기 전용으로 열려 있어 쓸 수 없다 | `reason` |
 | 5006 | `store.io` | false | 저장 매체 입출력 실패. 코드는 OS나 SQLite가 준 값이다. 설정 파일이 JSON 객체가 아니면 `code`가 `settings_file_invalid`이다(§3.3.1) | `code`, `settings_file_invalid`이면 `path`, `line?`, `column?` |
 | 5007 | `store.corrupt` | false | 저장된 행이 스키마와 다르다(손상, 수동 편집). 매체 오류(`store.io`)와 복구 안내가 달라서 나눈다. 복구 길은 `F.records.spec` §3.7 7항이다 | `where` |
+| 5008 | `remote.off` | false | 원격 접속이 꺼져 있어 페어링 등을 받지 않는다(`host.remote.pair` 등). 원격을 켠 뒤 다시 보낸다 [제안] | - |
 
 #### 3.5.3 오류 코드 구간 [제안]
 

@@ -91,6 +91,14 @@ function parseServiceRun(rest: readonly string[]): ParsedArgv {
   };
 }
 
+/** `service pair [--json]`: 인자는 이 둘뿐이다 */
+function parseServicePair(rest: readonly string[]): ParsedArgv {
+  for (const arg of rest) {
+    if (arg !== "--json") return { ok: false, message: `unknown argument: ${arg}` };
+  }
+  return { ok: true, command: { kind: "service-pair", json: rest.includes("--json") } };
+}
+
 export function parseHostArgv(argv: readonly string[]): ParsedArgv {
   const [first, second, ...rest] = argv;
   if (first === "host" && second === "--stdio" && rest.length === 0) {
@@ -105,6 +113,7 @@ export function parseHostArgv(argv: readonly string[]): ParsedArgv {
       return { ok: true, command: { kind: "service-status", json: rest.includes("--json") } };
     }
     if (second === "stop") return { ok: true, command: { kind: "service-stop" } };
+    if (second === "pair") return parseServicePair(rest);
     if (second === "ensure") return { ok: true, command: { kind: "service-ensure" } };
     if (second === "launch-mode") return { ok: true, command: { kind: "service-launch-mode" } };
     return { ok: false, message: `unknown service command: ${second ?? ""}` };

@@ -26,6 +26,7 @@ test("the status JSON view keeps the registration fields except the connection t
       storeId: "store-1",
     },
     status,
+    remote: null,
   };
   const text = JSON.stringify(serviceStatusView(result));
   expect(text).not.toContain(TOKEN);
@@ -41,6 +42,7 @@ test("the status JSON view keeps the registration fields except the connection t
       storeId: "store-1",
     },
     status: { ...status },
+    remote: null,
   });
 });
 

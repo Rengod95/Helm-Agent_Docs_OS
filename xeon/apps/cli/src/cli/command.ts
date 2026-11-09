@@ -211,7 +211,7 @@ export type SecretCommand =
 export interface ServiceCommand {
   readonly kind: "service";
   /** ensure·launch-mode는 --json만, launch-mode·run은 도움말에 숨긴다 */
-  readonly action: "start" | "status" | "stop" | "ensure" | "launch-mode" | "run";
+  readonly action: "start" | "status" | "stop" | "ensure" | "launch-mode" | "run" | "pair";
   readonly output: OutputMode;
   /** `--safe-mode`. start·ensure·run만. 새로 띄우는 서비스가 안전 모드로 시작한다 */
   readonly safeMode: boolean;
@@ -1677,6 +1677,7 @@ const SERVICE_ACTIONS: readonly ServiceCommand["action"][] = [
   "ensure",
   "launch-mode",
   "run",
+  "pair",
 ];
 
 function isLoopbackHost(host: string): boolean {
@@ -1700,7 +1701,7 @@ function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCo
       usage(
         "missingArgument",
         t("cli.usage.subcommandMissing.message", { command: "service" }),
-        t("cli.usage.oneOf.fix", { list: "start, status, stop" }),
+        t("cli.usage.oneOf.fix", { list: "start, status, stop, pair" }),
       ),
     );
   }
@@ -1710,7 +1711,7 @@ function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCo
       usage(
         "unknownCommand",
         t("cli.usage.unknownCommand.message", { command: `service ${actionText}` }),
-        t("cli.usage.oneOf.fix", { list: "start, status, stop" }),
+        t("cli.usage.oneOf.fix", { list: "start, status, stop, pair" }),
       ),
     );
   }

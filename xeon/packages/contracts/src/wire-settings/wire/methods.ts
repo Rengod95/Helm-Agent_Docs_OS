@@ -96,6 +96,16 @@ import {
 } from "./status-notify.ts";
 import { WebProvidersParamsSchema, WebProvidersResultSchema } from "./web-providers.ts";
 import {
+  HostRemoteDevicesResultSchema,
+  HostRemoteEmptyParamsSchema,
+  HostRemotePairResultSchema,
+  HostRemoteRevokeAllParamsSchema,
+  HostRemoteRevokeByIdParamsSchema,
+  HostRemoteRevokeResultSchema,
+  HostRemoteSetEnabledParamsSchema,
+  HostRemoteStatusResultSchema,
+} from "./remote.ts";
+import {
   ScheduleCancelResultSchema,
   ScheduleCreateResultSchema,
   ScheduleFireResultSchema,
@@ -1733,6 +1743,16 @@ const ProposalDecideRequestSchema: TUnion<
   withMeta(ProposalEditParamsSchema),
   withMeta(ProposalRevertParamsSchema),
 ]);
+/** `host.remote.revoke`는 두 모양 각각에 `_meta`를 더한 합집합이다 */
+const HostRemoteRevokeRequestSchema: TUnion<
+  [
+    WithMeta<typeof HostRemoteRevokeByIdParamsSchema>,
+    WithMeta<typeof HostRemoteRevokeAllParamsSchema>,
+  ]
+> = Type.Union([
+  withMeta(HostRemoteRevokeByIdParamsSchema),
+  withMeta(HostRemoteRevokeAllParamsSchema),
+]);
 
 // ── 레지스트리 타입 ──────────────────────────────────────────────────────
 
@@ -1859,6 +1879,26 @@ interface WireSchemas
   "host.shutdown": {
     params: WithMeta<typeof HostShutdownParamsSchema>;
     result: typeof HostShutdownResultSchema;
+  };
+  "host.remote.status": {
+    params: WithMeta<typeof HostRemoteEmptyParamsSchema>;
+    result: typeof HostRemoteStatusResultSchema;
+  };
+  "host.remote.setEnabled": {
+    params: WithMeta<typeof HostRemoteSetEnabledParamsSchema>;
+    result: typeof HostRemoteStatusResultSchema;
+  };
+  "host.remote.pair": {
+    params: WithMeta<typeof HostRemoteEmptyParamsSchema>;
+    result: typeof HostRemotePairResultSchema;
+  };
+  "host.remote.devices": {
+    params: WithMeta<typeof HostRemoteEmptyParamsSchema>;
+    result: typeof HostRemoteDevicesResultSchema;
+  };
+  "host.remote.revoke": {
+    params: typeof HostRemoteRevokeRequestSchema;
+    result: typeof HostRemoteRevokeResultSchema;
   };
   "settings.readFile": {
     params: WithMeta<typeof SettingsReadFileParamsSchema>;
@@ -2080,6 +2120,23 @@ export const WIRE_METHODS: {
   "notify.list": spec(withMeta(NotifyListParamsSchema), NotifyListResultSchema, "M3"),
   "web.providers": spec(withMeta(WebProvidersParamsSchema), WebProvidersResultSchema, "M3"),
   "host.shutdown": spec(withMeta(HostShutdownParamsSchema), HostShutdownResultSchema, "M2"),
+  "host.remote.status": spec(
+    withMeta(HostRemoteEmptyParamsSchema),
+    HostRemoteStatusResultSchema,
+    "M4",
+  ),
+  "host.remote.setEnabled": spec(
+    withMeta(HostRemoteSetEnabledParamsSchema),
+    HostRemoteStatusResultSchema,
+    "M4",
+  ),
+  "host.remote.pair": spec(withMeta(HostRemoteEmptyParamsSchema), HostRemotePairResultSchema, "M4"),
+  "host.remote.devices": spec(
+    withMeta(HostRemoteEmptyParamsSchema),
+    HostRemoteDevicesResultSchema,
+    "M4",
+  ),
+  "host.remote.revoke": spec(HostRemoteRevokeRequestSchema, HostRemoteRevokeResultSchema, "M4"),
   "secret.list": spec(withMeta(SecretListParamsSchema), SecretListResultSchema, "M2"),
   "secret.meta": spec(withMeta(SecretMetaParamsSchema), SecretMetaResultSchema, "M2"),
   "secret.remove": spec(SecretNameRequestSchema, SecretRemoveResultSchema, "M2"),

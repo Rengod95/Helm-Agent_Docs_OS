@@ -7227,6 +7227,138 @@
         }
       }
     },
+    "l4.remote.web.enabled": {
+      "default": false,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L4",
+        "runtimeChange": "restart",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Run the remote web gateway",
+          "labelKey": "settings.l4.remote.web.enabled.label",
+          "order": 300,
+          "tab": "execution",
+          "widget": "toggle"
+        }
+      }
+    },
+    "l4.remote.web.hosts": {
+      "default": [],
+      "items": {
+        "maxLength": 253,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 64,
+      "type": "array",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L4",
+        "runtimeChange": "restart",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Allowed Host names",
+          "labelKey": "settings.l4.remote.web.hosts.label",
+          "order": 330,
+          "tab": "execution",
+          "widget": "list"
+        }
+      }
+    },
+    "l4.remote.web.listen": {
+      "default": "127.0.0.1:8480",
+      "type": "string",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L4",
+        "runtimeChange": "restart",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Loopback web listen address",
+          "labelKey": "settings.l4.remote.web.listen.label",
+          "order": 310,
+          "tab": "execution",
+          "widget": "text"
+        }
+      }
+    },
+    "l4.remote.web.listenTls": {
+      "default": "",
+      "type": "string",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L4",
+        "runtimeChange": "restart",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "External TLS listen address",
+          "labelKey": "settings.l4.remote.web.listenTls.label",
+          "order": 320,
+          "tab": "execution",
+          "widget": "text"
+        }
+      }
+    },
+    "l4.remote.web.tlsCert": {
+      "default": "",
+      "type": "string",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L4",
+        "runtimeChange": "restart",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "TLS certificate file path",
+          "labelKey": "settings.l4.remote.web.tlsCert.label",
+          "order": 340,
+          "tab": "execution",
+          "widget": "text"
+        }
+      }
+    },
+    "l4.remote.web.tlsKey": {
+      "default": "",
+      "type": "string",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L4",
+        "runtimeChange": "restart",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "TLS key file path",
+          "labelKey": "settings.l4.remote.web.tlsKey.label",
+          "order": 350,
+          "tab": "execution",
+          "widget": "text"
+        }
+      }
+    },
     "x.loading-trust.defaultProjectTrust": {
       "default": "ask",
       "enum": [

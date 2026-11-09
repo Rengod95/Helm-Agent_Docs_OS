@@ -49,6 +49,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 ### 2.3 W3 서비스 쪽 연동
 
 - 서비스가 `l4.remote.web.enabled`일 때 게이트웨이를 자식으로 띄우고 감독한다. `fresnel service pair`(코드 출력, `--json`), `service status`에 게이트웨이 상태와 지문을 더한다.
+- [확인: 2026-11-09 W3] 구현됨: 감독자 `apps/host/src/service/gateway.ts`, wire `host.remote.*` 5개, `service pair`, `service status --json`의 `remote`. 임시 홈에서 실제 서비스 시작 → `service pair` → `POST /pair` → `/shell` 업그레이드 → `service stop` 뒤 게이트웨이 프로세스 없음을 확인했다. 릴리즈 묶음의 `fresnel-web`은 아직 없다 [근거: scripts/build-sidecar.ts, `L4.remote.spec` §5.1].
 - 끝난 상태: `fresnel service start`만으로(데스크톱 없이) 게이트웨이가 뜨고 `service pair`의 코드로 브라우저가 붙는다. `service status --json`에 `remote` 필드. 종료코드 규칙(1 오류, 2 환경, 3 사람 확인)을 따른다.
 
 ### 2.4 W4 데스크톱 UI와 셸 명령
