@@ -24,7 +24,7 @@ export type PairingState =
   | { readonly kind: "failed"; readonly error: RemoteError };
 
 /** 진행 중인 쓰기 동작. 같은 동작을 두 번 보내지 않도록 버튼을 잠근다 */
-export type RemoteBusy = "none" | "enabling" | "disabling" | "revoking";
+type RemoteBusy = "none" | "enabling" | "disabling" | "revoking";
 
 /**
  * 마지막 쓰기가 실패했다는 알림의 종류. `enableFailed`는 외부 접속 켜기, `disableFailed`는 끄기,
@@ -33,7 +33,7 @@ export type RemoteBusy = "none" | "enabling" | "disabling" | "revoking";
 export type RemoteNoticeKind = "enableFailed" | "disableFailed" | "serviceFailed" | "revokeFailed";
 
 /** 쓰기 실패 알림 한 건. 다음 쓰기가 시작하면 없어진다 */
-export interface RemoteNotice {
+interface RemoteNotice {
   readonly kind: RemoteNoticeKind;
 }
 

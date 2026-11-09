@@ -16,7 +16,7 @@ const RECENT_MS = 60_000;
 export type ServerMode = "off" | "service" | "service+remote";
 
 /** 마지막 연결 표시 종류. `now`는 방금, `ago`는 그 전, `never`는 한 번도 없음이다 */
-export type LastSeenKind = "never" | "now" | "ago";
+type LastSeenKind = "never" | "now" | "ago";
 
 /** 기기 한 줄. 마지막 연결 표시 종류를 덧붙인다 */
 export interface DeviceRow {

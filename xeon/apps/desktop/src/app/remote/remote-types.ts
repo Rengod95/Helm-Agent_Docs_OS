@@ -12,7 +12,7 @@ export type CertSource = "self-signed" | "user";
 export type DeviceKind = "web" | "desktop";
 
 /** 원격 접속 상태의 오류 한 줄. 엔진이 준 종류와 문장이다 */
-export interface RemoteStatusError {
+interface RemoteStatusError {
   readonly kind: string;
   readonly message: string;
 }

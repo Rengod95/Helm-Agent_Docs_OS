@@ -14,7 +14,7 @@ export const FAKE_PAIRING_TTL_MS: number = 5 * 60_000;
 export const FAKE_FINGERPRINT: string = "ab12".repeat(16);
 
 /** 기록된 호출 한 번 */
-export type RemoteCall =
+type RemoteCall =
   | { readonly method: "status" }
   | { readonly method: "setEnabled"; readonly enabled: boolean }
   | { readonly method: "pair" }
