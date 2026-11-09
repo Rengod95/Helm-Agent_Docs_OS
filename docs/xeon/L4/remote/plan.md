@@ -36,6 +36,9 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 - 순수 함수와 파일 저장: 페어링 코드 발급·검사(10자 base32, 5분, 일회용, 실패 잠금), 기기 토큰 발급과 해시 저장(`devices.json`), 로그인 쿠키 발급·검증·만료, Origin·Host 검사, 자체 서명 인증서 생성과 지문 계산(`node:crypto`만, 새 의존 없음).
 - 끝난 상태: `AuthPort`(코드 만들기, 코드 사용, 토큰 검증, 기기 목록, 폐기)가 시험과 함께 있다. 폐기·만료·잠금·Origin 불일치의 값 비교 시험. 토큰 원문이 파일·로그에 없음을 시험.
+- `AuthPort`(`src/web/auth/auth-port.ts`, 모두 동기, 실패는 `kind`가 있는 `Result`): `createPairingCode()`, `pairingStatus()`, `redeemPairingCode({code, deviceName, kind, address})`, `verifyToken(token, address)`, `listDevices()`, `revokeDevice(id)`, `revokeAllDevices()`, `onRevoked(listener)`. 만드는 함수는 `createAuthPort({dir, clock, logger})`다. 쿠키·`Authorization`에서 토큰 꺼내기(`cookies.ts` `deviceTokenOf`), Host·Origin 검사(`origin.ts` `checkHost`, `checkOrigin`), 보안 헤더(`headers.ts`)는 순수 함수이고 W2가 업그레이드와 `POST /pair`에서 이 순서(Host → Origin → 토큰)로 부른다.
+- 웹 기기 권한 제한은 두지 않는다(`L4.remote.spec` §8.6). 기기 종류(`web`/`desktop`)는 만료 규칙만 가른다.
+- Web Push 부품도 이 트랙이다(`L4.remote.spec` §6.2): VAPID 키 생성·보관과 JWT 서명(`src/web/auth/vapid.ts`), 구독 형식 검증·저장(`src/web/auth/push.ts`). 발송(페이로드 암호화와 HTTP 호출)은 W2·W3이고 서비스 워커는 W2다.
 
 ### 2.2 W2 게이트웨이 서버와 웹 셸
 
