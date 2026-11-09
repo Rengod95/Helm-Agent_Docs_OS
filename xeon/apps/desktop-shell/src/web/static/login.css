@@ -1,0 +1,142 @@
+/* 로그인 화면 스타일. 인라인 스타일을 쓰지 않는다(CSP). 색은 토큰으로 두고 밝은 쪽과 어두운 쪽을 나눈다. */
+:root {
+  --bg: #f5f6f8;
+  --card: #ffffff;
+  --text: #15171c;
+  --muted: #5b616e;
+  --line: #c9ced8;
+  --accent: #2c5fd6;
+  --accent-text: #ffffff;
+  --error: #b42318;
+  --focus: #1d4ed8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101216;
+    --card: #1a1d23;
+    --text: #f1f3f7;
+    --muted: #a3aab7;
+    --line: #3a404b;
+    --accent: #7aa2ff;
+    --accent-text: #0b1220;
+    --error: #ff8a80;
+    --focus: #9dbcff;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #101216;
+  --card: #1a1d23;
+  --text: #f1f3f7;
+  --muted: #a3aab7;
+  --line: #3a404b;
+  --accent: #7aa2ff;
+  --accent-text: #0b1220;
+  --error: #ff8a80;
+  --focus: #9dbcff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: var(--bg);
+  color: var(--text);
+  font:
+    16px/1.5 system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+h1 {
+  margin: 0 0 16px;
+  font-size: 1.5rem;
+  font-weight: 650;
+}
+
+form {
+  display: grid;
+  gap: 8px;
+}
+
+label {
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+input {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+#code {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+input:focus-visible,
+button:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+button {
+  min-height: 44px;
+  margin-top: 12px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.message {
+  margin: 16px 0 0;
+  color: var(--error);
+}
+
+.message[hidden] {
+  display: none;
+}
+
+noscript p {
+  color: var(--error);
+}
