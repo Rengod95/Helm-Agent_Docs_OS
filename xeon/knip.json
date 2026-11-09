@@ -60,6 +60,9 @@
         "src/main.ts",
         "src/preload.ts",
         "src/main/*.ts",
+        "src/web/main.ts",
+        "src/web/shim/shim.ts",
+        "src/web/static/*.ts",
         "scripts/*.ts",
         "test/**/*.test.ts"
       ]

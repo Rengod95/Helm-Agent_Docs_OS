@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Fresnel</title>
+    <link rel="stylesheet" href="/login.css" />
+  </head>
+  <body>
+    <main class="card">
+      <h1 id="title">Fresnel</h1>
+      <form id="pair-form" novalidate>
+        <label id="code-label" for="code"></label>
+        <input
+          id="code"
+          name="code"
+          type="text"
+          autocomplete="off"
+          autocapitalize="characters"
+          autocorrect="off"
+          spellcheck="false"
+          maxlength="64"
+          required
+        />
+        <p id="code-hint" class="hint"></p>
+        <label id="name-label" for="device-name"></label>
+        <input
+          id="device-name"
+          name="deviceName"
+          type="text"
+          autocomplete="off"
+          maxlength="256"
+          required
+        />
+        <button id="submit" type="submit"></button>
+      </form>
+      <p id="message" class="message" role="alert" hidden></p>
+      <noscript><p>JavaScript is required to connect.</p></noscript>
+    </main>
+    <script src="/login.js" defer></script>
+  </body>
+</html>
