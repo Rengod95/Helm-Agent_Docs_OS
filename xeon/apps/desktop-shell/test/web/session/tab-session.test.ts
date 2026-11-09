@@ -200,6 +200,16 @@ describe("two tabs over one service connection each", () => {
     const epochB = epochOf(replyOf(b.tab.frames(), 1));
     expect(typeof epochA === "number" && epochA > 0).toBe(true);
     expect(typeof epochB === "number" && epochB > 0).toBe(true);
+    // 소켓 엔진은 프로세스가 아니다. 화면 스키마(pid는 1 이상 또는 null)를 지키도록 pid는 null이다
+    const attachedState = ownField(ownField(replyOf(a.tab.frames(), 1), "value"), "state");
+    const runningPids = [
+      attachedState,
+      ...a.tab.frames().map((frame) => ownField(frame, "message")),
+    ]
+      .filter((state) => ownField(state, "kind") === "running")
+      .map((state) => ownField(state, "pid"));
+    expect(runningPids.length).toBeGreaterThan(0);
+    expect(runningPids.every((pid) => pid === null)).toBe(true);
 
     // 이진 본문이 서비스까지 바이트 그대로 간다. 줄 끝 0x0a와 UTF-8이 아닌 바이트를 섞는다
     const bodyA = new Uint8Array([...ENCODER.encode("A-write\n"), 0xff, 0x00, 0x80]);

@@ -397,7 +397,8 @@ export class Supervisor {
     const generation = live.generation;
     this.deps.log.line(`engine[${String(generation)}] started pid=${String(child.pid)}`);
     const source = viaService ? "service" : sourceOfTarget(plan.target);
-    this.deps.relay.setState({ kind: "running", source, pid: child.pid });
+    // 프로세스가 아닌 엔진(웹 게이트웨이의 소켓 연결)은 pid 0이다. 화면은 1 이상 또는 null만 받는다
+    this.deps.relay.setState({ kind: "running", source, pid: child.pid > 0 ? child.pid : null });
     if (registered.stale) this.detached(this.stopEngine(live, !remote), "stale engine stop");
 
     const exit = await this.pump(generation, child.events);
