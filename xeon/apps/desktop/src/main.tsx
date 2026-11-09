@@ -9,6 +9,9 @@ import { selectShellBridge } from "./shell/index.ts";
 import { createDesktopIpc } from "./transport/ipc.ts";
 import { Providers } from "./views/providers.tsx";
 import { App } from "./views/app.tsx";
+import { OriginFolderDialogHost } from "./views/origin-folder-dialog.tsx";
+import { createOriginFolderPicker, folderPickWith } from "./views/origin-folder-picker.ts";
+import { readShellCapabilities, type ShellCapabilities } from "./views/shell-capabilities.ts";
 import type { PluginShellPort } from "./plugin-ui/backend.ts";
 import { createPluginUiRuntime } from "./plugin-ui/runtime.ts";
 import { createConfirmQueue } from "./views/plugin/confirm-host.tsx";
@@ -40,7 +43,19 @@ const invoke = (command: string, args?: Readonly<Record<string, unknown>>): Prom
 const osReauth: OsReauthInvoke = (command, args) => invoke(command, args);
 
 // 폴더 선택 창은 모든 OS에서 셸이 띄운다(플러그인 권한은 WebView에 주지 않는다)
-const folderPick: FolderPickInvoke = (command) => invoke(command);
+const originFolderPicker = createOriginFolderPicker((command, args) => invoke(command, args));
+// 기능 감지는 처음 폴더를 고를 때 한 번만 읽는다(데스크톱은 시작 비용이 없다). 웹이면 서버 폴더 고르기 대화 상자를 쓴다
+let capabilities: Promise<ShellCapabilities> | null = null;
+const usesOriginPicker = async (): Promise<boolean> => {
+  capabilities ??= readShellCapabilities((command) => invoke(command));
+  const found = await capabilities;
+  return found.kind === "web" && found.folderPicker === "origin";
+};
+const folderPick: FolderPickInvoke = folderPickWith(
+  (command) => invoke(command),
+  originFolderPicker,
+  usesOriginPicker,
+);
 
 // 저장 창도 셸이 띄운다. 내용을 넘기는 인자는 `save_file`의 `suggestedName`, `content`다
 const fileSave: FileSaveInvoke = (command, args) => invoke(command, args);
@@ -184,6 +199,7 @@ if (container === null) {
                       folderPick={folderPick}
                       fileSave={fileSave}
                     />
+                    <OriginFolderDialogHost picker={originFolderPicker} />
                   </ShellRestartContext>
                 </RevealGateContext>
               </PluginUiProvider>

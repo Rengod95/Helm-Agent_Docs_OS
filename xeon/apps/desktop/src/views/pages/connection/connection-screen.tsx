@@ -20,6 +20,7 @@ import {
   type ServiceAction,
   type TargetChoice,
 } from "./connection-model.ts";
+import { ServerModeSectionContainer } from "./connection-server-container.tsx";
 import { ConnectionScreenView, type ConnectionScreenHandlers } from "./connection-view.tsx";
 
 // 연결 화면(P-08)의 동작. 대상 목록과 상태는 명령(`commands.connection`)으로 부르고, 화면 상태는 `connectionReducer`가 든다.
@@ -319,6 +320,9 @@ export function ConnectionScreen(): ReactNode {
       engine={engine}
       locale={activeLocale()}
       handlers={handlers}
+      serverSection={
+        <ServerModeSectionContainer serviceRunning={state.service.kind === "running"} />
+      }
     />
   );
 }

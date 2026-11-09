@@ -24,6 +24,7 @@ function tabOf(): Tab {
   const socketPath = path.join(tempDir(), "absent.sock");
   const web = createWebContext({
     ...sessionOptions(socketPath, recordedLog()),
+    deviceId: "dev_test",
     send: (frame) => {
       sent.push(frame);
     },

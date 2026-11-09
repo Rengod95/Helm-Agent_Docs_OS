@@ -110,7 +110,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 | 서비스 + 외부 접근 | 서비스에 게이트웨이가 켜져 있다 | 게이트웨이를 띄운다. 페어링과 기기 목록 화면이 열린다 |
 
 - 끔 → 서비스: 사이드카를 정상 종료 순서(`host.shutdown`)로 끝내고 서비스를 띄운 뒤 서비스에 붙는다. 진행 단계(멈춤, 서비스 시작, 동기화)를 연결 화면이 보인다(SC-08의 단계 표시와 같다).
-- 서비스 + 외부 접근을 켤 때 앱은 켜는 사람의 확인을 받는다(대화 상자: 열리는 주소, TLS 지문, "이 컴퓨터의 모든 대화와 도구 실행 권한이 연결된 기기에 열린다"는 문장). OS 재인증(`os_reauth`)을 거친다 [제안].
+- 서비스 + 외부 접근을 켤 때 앱은 켜는 사람의 확인을 받는다(대화 상자: 열리는 주소, TLS 지문, "이 컴퓨터의 모든 대화와 도구 실행 권한이 연결된 기기에 열린다"는 문장). OS 재인증(`os_reauth`)은 거치지 않는다. 확인 대화 상자가 확인 수단이다 [결정: 2026-11-09 W4, 근거: 브리프 "확인 대화 상자 뒤 `host.remote.setEnabled`"]. 화면은 `서버 모드` 구역(연결 화면, `connection-server.tsx`)이고 단계는 서비스 켜기 → 확인 → 외부 접근 켜기이며 취소하면 아무것도 바꾸지 않는다.
 - 끄기는 반대 방향이고, 외부 접근만 끄는 것(게이트웨이 종료, 열린 연결 즉시 끊음)을 서비스를 끄는 것과 따로 둔다.
 
 ### 4.2 앱을 닫아도 origin이 도는 방식 비교
@@ -181,7 +181,9 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 | `engine_retarget` | 엔진 대상을 바꿈 | 웹에서는 거절한다(대상은 origin 하나). 연결 화면의 "원격 대상 추가"를 숨긴다 | - |
 | `pick_file_read` | OS 파일 선택 후 읽기 | `<input type="file">` 선택 후 바이트를 올린다 | 브라우저 |
 | `save_file` | 저장 위치 대화 상자 | Blob 다운로드(`<a download>`) | 브라우저 |
-| `pick_folder`, `pick_folder_open` | OS 폴더 선택 | "서버 폴더 고르기" 대화 상자: origin의 폴더 트리를 `folder_list`로 보인다. 작업 폴더가 origin에 있기 때문이다 | origin |
+| `pick_folder` | OS 폴더 선택 | 웹은 이 명령을 두지 않는다(`unknown-command`). UI가 `shell_capabilities`의 `folderPicker: "origin"`을 보고 "서버 폴더 고르기" 대화 상자를 연다. 대화 상자는 `origin_folder_list`로 origin의 폴더만 한 단계씩 보인다. 작업 폴더가 origin에 있기 때문이다 [결정: 2026-11-09 W4] | origin |
+| `origin_folder_list` | (데스크톱에 없음) | 인자 `{ path? }`(절대 경로, 없으면 origin 사용자의 홈), 답 `{ path, parent, home, entries: [{ name, path }], truncated }`. 폴더만 이름순(점 폴더는 뒤), 2000개 상한. 상대 경로·NUL은 `bad-request`, 없거나 폴더가 아니거나 못 읽으면 `read_failed` | origin |
+| `pick_folder_open` | 플러그인 화면의 폴더 고르기 | 웹에서는 아직 두지 않는다(경로로 핸들을 만드는 명령이 필요하다). W4 범위 밖이다 [미결: 후속] [근거: apps/desktop-shell/src/web/session/commands-table.ts FOLDER_PICKER_GAP] | - |
 | `folder_list`, `folder_read` | 선택한 폴더 안 읽기 | 그대로. 핸들은 (탭 연결, 화면 scope)별이다 | origin |
 | `open_external` | OS 기본 앱으로 열기 | `window.open(url, "_blank", "noopener,noreferrer")`. 허용 스킴(http, https, mailto)은 그대로 shim도 검사한다 | 브라우저 |
 | `open_data_dir`, `open_log_dir` | 파인더로 열기 | 숨긴다. 대신 경로 문자열과 복사 버튼을 보인다 | - |
@@ -191,7 +193,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 | `update_status/check/download/install_restart` | 앱 자동 업데이트 | 숨긴다. origin 앱·서비스의 업데이트는 origin 컴퓨터의 데스크톱에서만 한다 | - |
 | `os_reauth` | Touch ID, Mac 암호 | 웹은 쓸 수 없다. 재인증을 거치던 동작(시크릿 값 열람, 서비스 끄기)은 웹 기기에서도 허용하고 기기 인증이 대신한다(§8.6) | - |
 | `secret_register` | 사이드카를 한 번 띄워 stdin으로 값 전달 | 허용. 값은 TLS 위의 `/shell` 본문으로만 가고 게이트웨이가 사이드카 stdin으로 넘긴다. 게이트웨이 로그에 값을 쓰지 않는다 | origin |
-| `desktop_settings_read/write` | 이 앱의 `desktop-settings.json` | 기기별 설정(테마, 언어, 닫기 동작 제외)을 origin의 기기 레코드에 둔다 [제안] | origin |
+| `desktop_settings_read/write` | 이 앱의 `desktop-settings.json` | 기기별 설정을 origin의 `<상태 폴더>/remote/device-settings/<기기 id>.json`(0600, 폴더 0700)에 둔다. 닫기 동작·종료 대기·재시작 상한은 origin 데스크톱 전용이라 쓰면 `bad-request`, 읽으면 빠진다 [결정: 2026-11-09 W4] | origin |
 | `db_export`, `db_usage`, `db_previous_remove`, `db_restore` | 백업·복원 | 백업 내려받기는 Blob 다운로드. 복원과 삭제도 데스크톱과 똑같이 허용한다(§8.6, [결정: 2026-11-08]). 파괴적이라 앱의 확인 대화 상자는 그대로 거친다 | origin |
 | `app_roots_set` | 프레임 root 등록 | 탭별로 등록한다 | 게이트웨이 |
 | 창·트레이·단일 인스턴스·창 위치 | Electron 전용 | 해당 없음 | - |
@@ -272,7 +274,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 - 인증된 기기는 모든 wire 메서드와 셸 명령을 쓴다. 웹 기기에 데스크톱과 다른 권한 제한을 두지 않는다. 시크릿 값 열람, 백업 복원·삭제, 서비스 종료, 외부 접근 끄기, 페어링 코드 만들기 모두 웹 기기에서 데스크톱과 똑같이 허용한다 [결정: 2026-11-08 사용자 "웹 기기 권한: 전부 데스크톱과 똑같이 허용". 위험한 것은 origin에서만 허용하자는 rmW 제안은 채택하지 않았다].
 - 이 결정의 결과는 위협 모델(§8.1)이 그대로 받는다: 기기 토큰을 가진 쪽은 이 계정으로 도구를 실행할 수 있으므로 방어는 인증(§8.3), TLS(§8.2), 폐기(§8.3 5)에 있다. 기기를 잃어버리면 곧바로 폐기한다. 폐기 화면과 연결 화면이 이 사실을 문장으로 알린다.
-- 웹에서는 OS 재인증(`os_reauth`)을 쓸 수 없으므로 데스크톱이 재인증을 거치는 동작(시크릿 값 열람, 서비스 끄기)도 웹 기기에서는 재인증 단계 없이 기기 인증이 대신한다 [제안: 위 결정에서 이끌어 낸 기본값. W4가 UI 문장과 함께 확정].
+- 웹에서는 OS 재인증(`os_reauth`)을 쓸 수 없으므로 데스크톱이 재인증을 거치는 동작(시크릿 값 열람, 서비스 끄기)도 웹 기기에서는 재인증 단계 없이 기기 인증이 대신한다 [결정: 2026-11-09 W4: 웹 기기에서는 재인증 단계 없이 기기 인증이 대신한다. 연결 화면의 경고 문장은 "연결을 인증받은 기기는 이 컴퓨터의 계정으로 도구를 실행할 수 있어요."와 "기기를 잃어버렸다면 바로 폐기하세요" 계열이고 항상 보인다].
 - 읽기 전용 기기 역할(관찰만)은 서비스에 메서드별 인가가 생긴 뒤의 일이다. 이번 범위에 넣지 않는다 [결정: 2026-11-08 "웹 기기는 전부 똑같이"가 이 역할을 두지 않는다].
 - 승인 UI는 연결된 모든 기기에서 같다. 승인하면 origin에서 도구가 실행되므로 연결 화면과 페어링 화면이 이 사실을 문장으로 알린다.
 

@@ -59,6 +59,8 @@ interface ConnectionDetailProps {
   readonly engine: EngineState | null;
   readonly locale: Locale;
   readonly handlers: DetailHandlers;
+  /** 이 기기 서비스 카드 아래에 붙는 서버 모드 섹션(이 기기 대상일 때만 보인다) */
+  readonly serverSection?: ReactNode;
 }
 
 /** 엔진이 붙은 대상의 이름. 이 기기는 메시지 키이고 원격은 저장된 이름이다 */
@@ -267,7 +269,7 @@ function DetailSkeleton(): ReactNode {
 }
 
 export function ConnectionDetailPanel(props: ConnectionDetailProps): ReactNode {
-  const { state, engine, locale, handlers } = props;
+  const { state, engine, locale, handlers, serverSection } = props;
   const switchId = useId();
   const respondId = useId();
   const snapshot = state.status.kind === "ready" ? state.status.snapshot : null;
@@ -410,6 +412,7 @@ export function ConnectionDetailPanel(props: ConnectionDetailProps): ReactNode {
               <LocalServiceCard state={state} handlers={handlers} />
             </ConnectionSection>
           )}
+          {remote ? null : serverSection}
           <div className="flex flex-wrap items-center gap-1.5">
             {host !== null && host.mode === "service" ? (
               <Button

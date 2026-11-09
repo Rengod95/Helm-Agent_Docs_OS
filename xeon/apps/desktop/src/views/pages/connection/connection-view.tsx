@@ -2,7 +2,6 @@ import type { TargetEntry } from "@fresnel/client";
 import { t, type Locale } from "@fresnel/client/i18n";
 import {
   Alert,
-  Badge,
   Button,
   Dialog,
   DialogAction,
@@ -34,6 +33,7 @@ import {
   ConnectionSection,
   type DetailHandlers,
 } from "./connection-status.tsx";
+import { StatusBadge } from "./connection-badge.tsx";
 import { addressMessageOf } from "./connection-text.ts";
 import { ScreenHeader } from "../../shell/screen-header.tsx";
 
@@ -59,13 +59,15 @@ export interface ConnectionScreenViewProps {
   readonly engine: EngineState | null;
   readonly locale: Locale;
   readonly handlers: ConnectionScreenHandlers;
+  /** 이 기기 서비스 카드 아래의 서버 모드 섹션. 이 기기 대상일 때만 그린다(원격 대상에서는 그리지 않는다) */
+  readonly serverSection?: ReactNode;
 }
 
 const ROWS_CLASS =
   "rounded-none [--cs-size-list-term:8rem] [&_[data-slot=list-description-row]]:px-0";
 
 export function ConnectionScreenView(props: ConnectionScreenViewProps): ReactNode {
-  const { state, engine, locale, handlers } = props;
+  const { state, engine, locale, handlers, serverSection } = props;
   const headingId = useId();
   return (
     <section aria-labelledby={headingId} className="flex min-h-0 flex-1 flex-col">
@@ -88,6 +90,7 @@ export function ConnectionScreenView(props: ConnectionScreenViewProps): ReactNod
             engine={engine}
             locale={locale}
             handlers={handlers}
+            serverSection={serverSection}
           />
         </div>
         <StopDialog state={state} handlers={handlers} />
@@ -109,28 +112,6 @@ function badgeOf(state: ConnectionState, choice: TargetChoice): ReactNode {
     return <StatusBadge tone="neutral">{t("desktop.connection.badge.current")}</StatusBadge>;
   }
   return <StatusBadge tone="success">{t("desktop.connection.badge.connected")}</StatusBadge>;
-}
-
-/** 상태 배지의 색 계열. caustic `Badge`의 `tone`은 쓰지 않고 토큰 클래스와 점으로 입힌다(글자가 뜻을 함께 든다) */
-type StatusTone = "info" | "danger" | "neutral" | "success";
-const BADGE_CLASS: Readonly<Record<StatusTone, { readonly soft: string; readonly dot: string }>> = {
-  info: { soft: "bg-info-soft text-info-text", dot: "bg-info-graphic" },
-  danger: { soft: "bg-danger-soft text-danger-text", dot: "bg-danger-graphic" },
-  neutral: { soft: "bg-neutral-track text-text-secondary", dot: "bg-neutral-graphic" },
-  success: { soft: "bg-success-soft text-success-text", dot: "bg-success-graphic" },
-};
-
-function StatusBadge(props: {
-  readonly tone: StatusTone;
-  readonly children: ReactNode;
-}): ReactNode {
-  const { tone, children } = props;
-  return (
-    <Badge size="xs" className={BADGE_CLASS[tone].soft}>
-      <span aria-hidden className={`size-1.5 rounded-full ${BADGE_CLASS[tone].dot}`} />
-      {children}
-    </Badge>
-  );
 }
 
 function ItemBody(props: {

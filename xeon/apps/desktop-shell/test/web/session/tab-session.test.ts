@@ -124,7 +124,7 @@ describe("allow-list through the wire", () => {
       "open_data_dir",
       "engine_retarget",
       "pick_folder_open",
-      "desktop_settings_read",
+      "pick_folder",
     ];
     names.forEach((name, index) => {
       session.receive(invokeText(index + 1, name, undefined));

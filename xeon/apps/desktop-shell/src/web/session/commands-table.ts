@@ -20,12 +20,12 @@ const BROWSER: Disposition = { kind: "browser" };
 const HIDDEN: Disposition = { kind: "hidden" };
 const WEB_SPECIFIC: Disposition = { kind: "web-specific" };
 
-/** 폴더 선택 대화 상자는 서버의 OS 창이라 브라우저에서 쓸 수 없다. 원격 폴더 고르기 화면과 핸들 명령이 필요하다 */
+/**
+ * 플러그인 화면의 폴더 고르기(`pick_folder_open`)는 웹에서 경로로 핸들을 만드는 명령이 필요하다. W4 범위가 아니다.
+ * 웹 화면의 서버 폴더 고르기는 `origin_folder_list`와 자체 대화 상자가 맡는다.
+ */
 const FOLDER_PICKER_GAP =
-  "웹 '서버 폴더 고르기' 화면과 핸들을 만드는 명령의 모양이 아직 없다(L4.remote.spec §6.1, W4)";
-/** 데스크톱 설정 모듈은 origin 데스크톱의 설정 파일을 읽고 쓴다. 웹 기기별 기록은 아직 없다 */
-const DESKTOP_SETTINGS_GAP =
-  "웹 기기별 설정 기록(origin 기기 레코드, §6.1 [제안])이 아직 없다. 데스크톱 모듈은 origin 데스크톱의 설정 파일을 쓰므로 웹에 등록하지 않는다";
+  "플러그인 화면의 폴더 고르기는 웹에서 경로로 핸들을 만드는 명령이 필요하다. W4 범위가 아니다(L4.remote.spec §6.1)";
 
 /** 명령 이름 → 처리 위치. 표에 없는 이름은 `dispositionOf`가 `undefined`로 답한다 */
 export const COMMAND_TABLE: Readonly<Record<string, Disposition>> = {
@@ -44,11 +44,12 @@ export const COMMAND_TABLE: Readonly<Record<string, Disposition>> = {
   db_previous_remove: ORIGIN,
   open_data_dir: HIDDEN,
 
-  // 폴더 선택과 폴더 안 읽기
-  pick_folder: { kind: "origin", gap: FOLDER_PICKER_GAP },
+  // 폴더 선택과 폴더 안 읽기. 웹의 서버 폴더 고르기는 `origin_folder_list`가 한다(origin-folders.ts)
+  pick_folder: HIDDEN,
   pick_folder_open: { kind: "origin", gap: FOLDER_PICKER_GAP },
   folder_list: ORIGIN,
   folder_read: ORIGIN,
+  origin_folder_list: ORIGIN,
   // 서버의 OS 파일 대화 상자는 웹에서 쓸 수 없다. 첨부 경로 처리는 W4가 정한다(UI의 `pick_file` 호출자가 있다)
   pick_file: HIDDEN,
   pick_file_read: BROWSER,
@@ -71,10 +72,10 @@ export const COMMAND_TABLE: Readonly<Record<string, Disposition>> = {
   update_install_restart: HIDDEN,
   os_reauth: HIDDEN,
 
-  // 키 등록과 설정
+  // 키 등록과 설정. 웹은 기기마다 파일 하나에 쓴다(device-settings.ts). 창 닫기와 엔진 키는 거절한다
   secret_register: ORIGIN,
-  desktop_settings_read: { kind: "origin", gap: DESKTOP_SETTINGS_GAP },
-  desktop_settings_write: { kind: "origin", gap: DESKTOP_SETTINGS_GAP },
+  desktop_settings_read: ORIGIN,
+  desktop_settings_write: ORIGIN,
 
   // 프레임 root 목록(탭별)
   app_roots_set: ORIGIN,

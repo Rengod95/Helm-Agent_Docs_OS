@@ -33,6 +33,8 @@ import { createServiceModule } from "../../main/service-mode.ts";
 import { viewSchemeModule } from "../../main/view-scheme.ts";
 import { CHANNEL_KEY } from "../../shared/channels.ts";
 import { dispositionOf, isServedByGateway } from "./commands-table.ts";
+import { createDeviceSettings } from "./device-settings.ts";
+import { listOriginFolders } from "./origin-folders.ts";
 import type { ServerFrame } from "./protocol.ts";
 import { createSocketLauncher } from "./socket-launcher.ts";
 
@@ -46,6 +48,8 @@ export interface WebContextOptions {
   readonly resources: string;
   /** 사용자 홈 디렉터리(절대 경로) */
   readonly home: string;
+  /** 이 탭의 기기 id(인증 기록의 `dev_…`). 기기별 설정 파일 이름이 된다 */
+  readonly deviceId: string;
   /** 서비스 Unix 소켓의 절대 경로 */
   readonly socketPath: string;
   readonly clock: EngineClock;
@@ -191,6 +195,24 @@ export function createWebContext(options: WebContextOptions): WebContext {
   viewSchemeModule.register(ctx);
   ctx.handle("shell_take_intents", () => intents.take(clock.now()));
   ctx.handle("notify_take_target", () => null);
+
+  // 웹 기기별 설정(기기마다 파일 하나)과 서버 폴더 목록. 데스크톱은 설정 모듈과 폴더 대화 상자를 쓴다(commands-table.ts)
+  const deviceSettings = createDeviceSettings({
+    stateDir: options.stateDir,
+    deviceId: options.deviceId,
+  });
+  serve("desktop_settings_read", () => deviceSettings.read());
+  serve("desktop_settings_write", (_caller, args) => {
+    const key = ownField(args, "key");
+    if (typeof key !== "string") throw new ShellError("bad-request");
+    deviceSettings.write(key, ownField(args, "value"));
+    return null;
+  });
+  serve("origin_folder_list", (_caller, args) => {
+    const listed = listOriginFolders(ownField(args, "path"), { home: options.home });
+    if (!listed.ok) throw new ShellError(listed.error);
+    return listed.value;
+  });
 
   // 기능 감지. 데스크톱은 이 명령을 아직 두지 않는다(§6.1 [제안]). 웹은 이 값으로 버튼을 숨긴다
   serve("shell_capabilities", () => ({ kind: "web" }));
