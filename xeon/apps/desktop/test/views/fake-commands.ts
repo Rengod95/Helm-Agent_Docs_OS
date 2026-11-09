@@ -1,6 +1,7 @@
 import { err, ok } from "@fresnel/contracts";
 import { createSettingsController } from "@fresnel/client/settings";
 import type { Commands } from "../../src/views/commands.ts";
+import { createFakeRemoteAdapter } from "../../src/app/remote/fake-remote-adapter.ts";
 
 /** 화면 시험이 쓰는 명령 대역. 기본은 모두 성공하고 신뢰 메서드는 host에 없는 것(unsupported)처럼 답한다 */
 export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
@@ -166,6 +167,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       withConnection: () => Promise.resolve(err({ kind: "offline" })),
       current: () => null,
     },
+    remote: createFakeRemoteAdapter(),
     connection: {
       targets: () => Promise.resolve(ok([])),
       saveTargets: () => Promise.resolve(ok(null)),

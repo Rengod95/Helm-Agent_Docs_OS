@@ -1,3 +1,4 @@
+import type { RemoteAdapter } from "../app/remote/remote-adapter.ts";
 import type {
   EventId,
   ModelThinkingLevel,
@@ -956,6 +957,8 @@ export interface Commands {
   /** 플러그인 화면 실행 맥락이 쓰는 연결 한 번. 연결이 없으면 `offline`이다 */
   readonly pluginUi: PluginUiCommands;
   readonly connection: ConnectionCommands;
+  /** 원격 접속(서버 모드) 명령. 계약 타입이 들어오기 전까지 `unavailableRemoteAdapter`가 `unsupported`로 답한다 */
+  readonly remote: RemoteAdapter;
   readonly secrets: SecretCommands;
   /** 설정 고급 탭의 데이터 복원(`db_restore`) */
   readonly restore: RestoreCommands;
