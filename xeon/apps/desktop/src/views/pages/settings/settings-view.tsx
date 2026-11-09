@@ -235,7 +235,7 @@ function SearchField(props: SettingsPageProps): ReactNode {
 function TabColumn(props: SettingsPageProps): ReactNode {
   const { handlers, tab } = props;
   return (
-    <div className="flex min-h-0 w-52 flex-none flex-col border-e border-border-subtle ps-3 pe-2">
+    <div className="flex min-h-0 w-52 flex-none flex-col border-e border-border-subtle ps-2 pe-1.5">
       <div className="flex h-12 flex-none items-center">
         <SearchField {...props} />
       </div>
