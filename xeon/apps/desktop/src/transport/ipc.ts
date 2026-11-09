@@ -18,6 +18,7 @@ import {
   type TObject,
   type TOptional,
   type TRecord,
+  type TSchema,
   type TString,
   type TUnion,
   type TUnknown,
@@ -236,6 +237,58 @@ const PreviousRemovedSchema: TObject<{ removed: TString; freedBytes: TInteger }>
 );
 export type PreviousRemoved = Static<typeof PreviousRemovedSchema>;
 
+/**
+ * 서비스 상태(`service_status`). 실행 중이면 등록 정보의 일부(소켓, pid, 버전, 시작 시각)만 싣고, 아니면 이유만 싣는다.
+ * 토큰은 셸 밖으로 나오지 않는다. 모르는 필드는 거절한다.
+ */
+const ServiceStatusSchema: TUnion<
+  [
+    TObject<{ running: TLiteral<false>; reason: TString }>,
+    TObject<{
+      running: TLiteral<true>;
+      socket: TString;
+      pid: TInteger;
+      version: TString;
+      startedAt: TInteger;
+    }>,
+  ]
+> = Type.Union([
+  Type.Object(
+    { running: Type.Literal(false), reason: Type.String({ maxLength: 512 }) },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      running: Type.Literal(true),
+      socket: Type.String({ maxLength: 4096 }),
+      pid: Type.Integer({ minimum: 0 }),
+      version: Type.String({ maxLength: 128 }),
+      startedAt: Type.Integer({ minimum: 0 }),
+    },
+    { additionalProperties: false },
+  ),
+]);
+export type ServiceStatusReply = Static<typeof ServiceStatusSchema>;
+
+/** 서비스 켜기(`service_ensure`)의 답. `action`은 셸이 한 일의 이름이다(띄웠는지 이미 떠 있었는지) */
+const ServiceEnsureSchema: TObject<{ socket: TString; version: TString; action: TString }> =
+  Type.Object(
+    {
+      socket: Type.String({ maxLength: 4096 }),
+      version: Type.String({ maxLength: 128 }),
+      action: Type.String({ maxLength: 64 }),
+    },
+    { additionalProperties: false },
+  );
+export type ServiceEnsureReply = Static<typeof ServiceEnsureSchema>;
+
+/** 서비스 멈추기(`service_stop`)의 답. 멈췄으면 항상 `true`다 */
+const ServiceStopSchema: TObject<{ stopped: TLiteral<true> }> = Type.Object(
+  { stopped: Type.Literal(true) },
+  { additionalProperties: false },
+);
+export type ServiceStopReply = Static<typeof ServiceStopSchema>;
+
 /** 셸 `db_export`의 stdout을 읽는다. 종료 코드 0일 때만 이것으로 읽는다(app/storage.ts) */
 export function parseBackupReport(text: string): Result<BackupReport, JsonParseError | ParseError> {
   const json = parseJson(text);
@@ -353,6 +406,12 @@ export interface DesktopIpc {
   dbPreviousRemove(name: string): Promise<Result<DbRestoreReply, IpcError>>;
   /** 데이터 폴더를 OS 파일 관리자로 연다(`open_data_dir`). 셸이 열지 못하면 `IpcError`다 */
   openDataDir(): Promise<Result<null, IpcError>>;
+  /** 이 기기의 서비스 상태(`service_status`). 실행 중이 아니면 이유를 준다. 셸이 읽지 못하면 `IpcError`다 */
+  serviceStatus(): Promise<Result<ServiceStatusReply, IpcError>>;
+  /** 이 기기의 서비스를 켠다(`service_ensure`). 이미 떠 있으면 그대로 둔다. 셸이 켜지 못하면 `start_failed`다 */
+  serviceEnsure(): Promise<Result<ServiceEnsureReply, IpcError>>;
+  /** 이 기기의 서비스를 멈춘다(`service_stop`). 멈추지 못하면 `service_failed`다 */
+  serviceStop(): Promise<Result<ServiceStopReply, IpcError>>;
   /** 데스크톱 로컬 설정 파일의 내용(V-14). 파일이 없으면 빈 객체 */
   readSettings(): Promise<Result<Readonly<Record<string, unknown>>, IpcError>>;
   /** 로컬 설정 한 키를 쓴다. 모르는 키나 범위 밖 값은 셸이 거부한다 */
@@ -411,6 +470,18 @@ async function dbReplyOf(
   return parsed.ok ? parsed : { ok: false, error: { kind: "invalid", command } };
 }
 
+/** 셸 명령 하나의 답을 스키마로 읽는다. 명령이 거절되면 그 코드를, 모양이 맞지 않으면 `invalid`를 준다 */
+async function replyOf<S extends TSchema>(
+  command: string,
+  schema: S,
+  run: () => Promise<unknown>,
+): Promise<Result<Static<S>, IpcError>> {
+  const raw = await call<unknown>(command, run);
+  if (!raw.ok) return raw;
+  const parsed = parse(schema, raw.value);
+  return parsed.ok ? parsed : { ok: false, error: { kind: "invalid", command } };
+}
+
 /** 셸 다리(Electron)로 DesktopIpc를 만든다 */
 export function createDesktopIpc(bridge: ShellBridge): DesktopIpc {
   return {
@@ -466,6 +537,12 @@ export function createDesktopIpc(bridge: ShellBridge): DesktopIpc {
         ? { ok: true, value: null }
         : { ok: false, error: { kind: "invalid", command: "open_data_dir" } };
     },
+    serviceStatus: () =>
+      replyOf("service_status", ServiceStatusSchema, () => bridge.invoke("service_status")),
+    serviceEnsure: () =>
+      replyOf("service_ensure", ServiceEnsureSchema, () => bridge.invoke("service_ensure")),
+    serviceStop: () =>
+      replyOf("service_stop", ServiceStopSchema, () => bridge.invoke("service_stop")),
     async readSettings() {
       const raw = await call<unknown>("desktop_settings_read", () =>
         bridge.invoke("desktop_settings_read"),

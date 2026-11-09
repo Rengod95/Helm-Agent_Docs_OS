@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { err } from "@fresnel/contracts";
 import type { RunView, ScheduleEntryView, ScheduleListItem } from "@fresnel/contracts/capabilities";
 import type { WireParams, WireResult } from "@fresnel/contracts/wire";
+import type { DesktopIpc } from "../../src/transport/ipc.ts";
 import { checkDraft, draftOfEntry } from "../../src/views/pages/schedules/schedule-draft.ts";
 import { summary, thr } from "../state/helpers.ts";
-import { engineFake, makeApp, until, type EngineExtra } from "./support.ts";
+import { engineFake, makeApp, makeAppOver, until, type EngineExtra } from "./support.ts";
 
 // 예약 명령(`commands.schedule`)을 가짜 엔진 위에서 끝까지 돌린다. 목록은 항목과 서비스 모드 경고로, 기대한 실패는 값으로,
 // 구형 host(메서드 없음)는 `unsupported`로 오는지 본다. 값은 `toEqual`로 비교한다.
@@ -64,14 +66,38 @@ async function liveApp(extra: EngineExtra) {
   return { app, ...engine };
 }
 
+/** 셸의 서비스 켜기만 시험이 정한 답으로 바꾼 앱(연결 화면의 켜기 흐름이 셸을 부른다) */
+async function liveAppWithEnsure(ensure: Pick<DesktopIpc, "serviceEnsure">["serviceEnsure"]) {
+  const engine = engineFake([summary(thr(1))], undefined, {
+    results: { "settings.set": { setting: serviceSetting(true) } },
+  });
+  const app = makeAppOver({ ...engine.fake.ipc, serviceEnsure: ensure });
+  await until(() => app.engine.read.getState().link.phase === "live", "live link");
+  return { app, ...engine };
+}
+
+/** `host.status` 결과. 서비스 꺼짐은 이 모드가 `service`가 아닌 것으로 본다 */
+function hostStatusOf(mode: "service" | "in-process") {
+  return {
+    mode,
+    pid: 4211,
+    startedAt: "2026-11-04T01:00:00.000Z",
+    connections: 0,
+    liveTurns: 0,
+    idleShutdownAt: null,
+    safeMode: false,
+  };
+}
+
 const paramsOf = (params: readonly { method: string; params: unknown }[], method: string) =>
   params.find((entry) => entry.method === method)?.params;
 
 describe("schedule.list maps the list and the service-mode setting", () => {
-  test("items come back as the host sent them, and a service mode that is off is reported", async () => {
+  test("items come back as the host sent them, and a host that is not in service mode is reported as off", async () => {
     const { app } = await liveApp({
       results: {
         "schedule.list": { ok: true, items: [ITEM] },
+        "host.status": hostStatusOf("in-process"),
         "settings.get": { settings: [serviceSetting(false)] },
       },
     });
@@ -83,10 +109,11 @@ describe("schedule.list maps the list and the service-mode setting", () => {
     await app.stop();
   });
 
-  test("a service mode that is on reports no warning", async () => {
+  test("a host attached to the service reports no warning", async () => {
     const { app } = await liveApp({
       results: {
         "schedule.list": { ok: true, items: [] },
+        "host.status": hostStatusOf("service"),
         "settings.get": { settings: [serviceSetting(true)] },
       },
     });
@@ -98,10 +125,24 @@ describe("schedule.list maps the list and the service-mode setting", () => {
     await app.stop();
   });
 
+  test("the warning follows the attached engine, not the setting: a setting that is on while the engine is not attached is off", async () => {
+    const { app } = await liveApp({
+      results: {
+        "schedule.list": { ok: true, items: [] },
+        "host.status": hostStatusOf("in-process"),
+        "settings.get": { settings: [serviceSetting(true)] },
+      },
+    });
+    const listed = await app.commands.schedule.list({});
+    expect(listed.ok && listed.value.serviceModeOff).toBe(true);
+    await app.stop();
+  });
+
   test("a service mode turned on without a restart reports the restart as pending", async () => {
     const { app } = await liveApp({
       results: {
         "schedule.list": { ok: true, items: [] },
+        "host.status": hostStatusOf("service"),
         "settings.get": { settings: [serviceSetting(true, "restart")] },
       },
     });
@@ -110,6 +151,16 @@ describe("schedule.list maps the list and the service-mode setting", () => {
       ok: true,
       value: { items: [], serviceModeOff: false, serviceRestartPending: true },
     });
+    await app.stop();
+  });
+
+  test("a host status that fails fails the list, as a transport error", async () => {
+    const { app } = await liveApp({
+      errors: { "host.status": { code: -32601, kind: "jsonrpc.methodNotFound" } },
+      results: { "schedule.list": { ok: true, items: [] } },
+    });
+    const listed = await app.commands.schedule.list({});
+    expect(listed).toEqual({ ok: false, error: { kind: "unsupported" } });
     await app.stop();
   });
 
@@ -183,26 +234,38 @@ describe("schedule create, cancel, fire and enable return the host's values", ()
     await app.stop();
   });
 
-  test("enableService writes the service key at user scope with the value true", async () => {
-    const { app, params } = await liveApp({
+  test("enableService writes the service key at user scope with the value true, and reports no restart pending", async () => {
+    const { app, params, fake } = await liveApp({
       results: { "settings.set": { setting: serviceSetting(true, "restart") } },
     });
     const enabled = await app.commands.schedule.enableService();
-    expect(enabled).toEqual({ ok: true, value: { restartPending: true } });
+    expect(enabled).toEqual({ ok: true, value: { restartPending: false } });
     expect(paramsOf(params, "settings.set")).toEqual({
       key: "l0.process.service.enabled",
       value: true,
       scope: "user",
     });
+    // 연결 화면의 켜기 흐름과 같아서 이 기기의 서비스를 켜고 엔진을 다시 띄운다
+    expect(fake.serviceCalls).toEqual(["serviceEnsure"]);
+    expect(fake.restarts).toEqual([{ confirmed: true }]);
     await app.stop();
   });
 
-  test("enableService reports no restart needed when the engine already runs with the service on", async () => {
-    const { app } = await liveApp({
-      results: { "settings.set": { setting: serviceSetting(true) } },
+  test("enableService returns the start failure and writes the setting back to off when the service cannot start", async () => {
+    const { app, params, fake } = await liveAppWithEnsure(() =>
+      Promise.resolve(err({ kind: "command", command: "service_ensure", code: "start_failed" })),
+    );
+    expect(await app.commands.schedule.enableService()).toEqual({
+      ok: false,
+      error: { kind: "failed" },
     });
-    const enabled = await app.commands.schedule.enableService();
-    expect(enabled).toEqual({ ok: true, value: { restartPending: false } });
+    expect(
+      params.filter((entry) => entry.method === "settings.set").map((entry) => entry.params),
+    ).toEqual([
+      { key: "l0.process.service.enabled", value: true, scope: "user" },
+      { key: "l0.process.service.enabled", value: false, scope: "user" },
+    ]);
+    expect(fake.restarts).toEqual([]);
     await app.stop();
   });
 

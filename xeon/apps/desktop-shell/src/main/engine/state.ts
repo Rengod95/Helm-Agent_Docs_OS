@@ -2,7 +2,10 @@
 // UI 쪽 `apps/desktop/src/transport/ipc.ts`의 EngineStateSchema와 같아야 한다.
 import { ShellError } from "../commands.ts";
 
-/** 엔진 공급원. `service`는 M3 서비스 모드 자리다(UI 스키마가 받으므로 타입에 둔다) */
+/**
+ * 엔진 공급원. `sidecar`는 이 컴퓨터에서 셸이 띄운 엔진이다. `service`는 백그라운드 서비스에 붙은 엔진이다
+ * (서비스 모드의 로컬 브리지, 또는 로컬 소켓 주소로 붙인 원격 대상). UI 스키마와 같은 값이다.
+ */
 type EngineSource = "sidecar" | "service";
 
 /** 엔진이 끝난 기록. 신호로 끝나면 `code`가 null, Windows에서는 `signal`이 항상 null이다 */

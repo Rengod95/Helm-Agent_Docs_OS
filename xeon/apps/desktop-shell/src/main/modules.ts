@@ -8,6 +8,7 @@ import { inspectModule } from "./inspect.ts";
 import { logFolderShellModule } from "./log-folder-shell.ts";
 import { openExternalModule } from "./open-external.ts";
 import { secretEntryModule } from "./secret-entry.ts";
+import { serviceShellModule } from "./service-mode-shell.ts";
 import { notifyOsShellModule } from "./notify-os-shell.ts";
 import { osReauthShellModule } from "./os-reauth-shell.ts";
 import { shellIntentsModule } from "./shell-intents.ts";
@@ -27,6 +28,7 @@ export const MODULES: readonly ShellModule[] = [
   openExternalModule,
   logFolderShellModule,
   dbToolsShellModule,
+  serviceShellModule,
   dialogsModule,
   secretEntryModule,
   viewSchemeModule,

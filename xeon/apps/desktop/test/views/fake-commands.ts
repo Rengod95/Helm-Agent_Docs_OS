@@ -174,6 +174,8 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       load: () => Promise.resolve(err({ kind: "unsupported" })),
       clients: () => Promise.resolve(err({ kind: "unsupported" })),
       setServiceMode: () => Promise.resolve(err({ kind: "unsupported" })),
+      startLocalService: () => Promise.resolve(err({ kind: "unsupported" })),
+      stopLocalService: () => Promise.resolve(err({ kind: "unsupported" })),
       setRemoteRespond: () => Promise.resolve(err({ kind: "unsupported" })),
       stopService: () => Promise.resolve(err({ kind: "unsupported" })),
     },

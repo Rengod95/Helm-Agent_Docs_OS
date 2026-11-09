@@ -5,6 +5,7 @@ import { summary, thr } from "../state/helpers.ts";
 import { engineFake, until } from "../app/support.ts";
 import { BACKUP_REPORT, PREVIOUS_REMOVED, STORAGE_USAGE, fakeIpc } from "./fake-ipc.ts";
 import { rawShellIpc, shellMockIpc } from "./shell-mock.ts";
+import type { ServiceStatusReply } from "../../src/transport/ipc.ts";
 
 // createDesktopIpc를 Electron 다리 위에서: 명령 이름과 인자 모양, 채널 메시지(바이트와 상태)의 해석, 오류 코드 변환을 본다.
 
@@ -223,6 +224,114 @@ describe("the storage tools over the shell bridge", () => {
     expect(await ipc.dbUsage()).toEqual({
       ok: false,
       error: { kind: "invalid", command: "db_usage" },
+    });
+  });
+});
+
+describe("the service commands over the shell bridge", () => {
+  const SOCKET = "/Users/me/Library/Application Support/fresnel/service.sock";
+
+  test("service_status sends no arguments and passes the running answer through", async () => {
+    const running: ServiceStatusReply = {
+      running: true,
+      socket: SOCKET,
+      pid: 4321,
+      version: "1.2.3",
+      startedAt: 1_700_000_000_000,
+    };
+    const fake = fakeIpc({ serviceStatusResult: ok(running) });
+    const shell = mocked(fake);
+    expect(await shell.ipc.serviceStatus()).toEqual({ ok: true, value: running });
+    expect(shell.calls.map((call) => call.cmd)).toEqual(["service_status"]);
+  });
+
+  test("a not-running answer carries only its reason", async () => {
+    const ipc = rawShellIpc(() => ({ running: false, reason: "no registration" }));
+    expect(await ipc.serviceStatus()).toEqual({
+      ok: true,
+      value: { running: false, reason: "no registration" },
+    });
+  });
+
+  test("a status answer with an extra field or a missing one is an invalid error", async () => {
+    const extra = rawShellIpc(() => ({ running: false, reason: "no registration", token: "x" }));
+    expect(await extra.serviceStatus()).toEqual({
+      ok: false,
+      error: { kind: "invalid", command: "service_status" },
+    });
+    const partial = rawShellIpc(() => ({
+      running: true,
+      socket: SOCKET,
+      pid: 1,
+      version: "1.2.3",
+    }));
+    expect(await partial.serviceStatus()).toEqual({
+      ok: false,
+      error: { kind: "invalid", command: "service_status" },
+    });
+  });
+
+  test("a rejected service_status is a command error with the shell code", async () => {
+    const fake = fakeIpc({
+      serviceStatusResult: err({
+        kind: "command",
+        command: "service_status",
+        code: "storage-failed",
+      }),
+    });
+    const shell = mocked(fake);
+    expect(await shell.ipc.serviceStatus()).toEqual({
+      ok: false,
+      error: { kind: "command", command: "service_status", code: "storage-failed" },
+    });
+  });
+
+  test("service_ensure answers with the socket, version and action, and a rejection keeps its code", async () => {
+    const shell = mocked(fakeIpc());
+    expect(await shell.ipc.serviceEnsure()).toEqual({
+      ok: true,
+      value: { socket: "/run/fresnel/service.sock", version: "1.2.3", action: "spawned" },
+    });
+    expect(shell.calls.map((call) => call.cmd)).toEqual(["service_ensure"]);
+    const failed = mocked(
+      fakeIpc({
+        serviceEnsureResult: err({
+          kind: "command",
+          command: "service_ensure",
+          code: "start_failed",
+        }),
+      }),
+    );
+    expect(await failed.ipc.serviceEnsure()).toEqual({
+      ok: false,
+      error: { kind: "command", command: "service_ensure", code: "start_failed" },
+    });
+  });
+
+  test("service_stop answers stopped true, and a rejection keeps its code", async () => {
+    const shell = mocked(fakeIpc());
+    expect(await shell.ipc.serviceStop()).toEqual({ ok: true, value: { stopped: true } });
+    expect(shell.calls.map((call) => call.cmd)).toEqual(["service_stop"]);
+    const failed = mocked(
+      fakeIpc({
+        serviceStopResult: err({
+          kind: "command",
+          command: "service_stop",
+          code: "service_failed",
+        }),
+      }),
+    );
+    expect(await failed.ipc.serviceStop()).toEqual({
+      ok: false,
+      error: { kind: "command", command: "service_stop", code: "service_failed" },
+    });
+  });
+
+  test("a stop answer that is not stopped true is an invalid error", async () => {
+    const ipc = rawShellIpc(() => ({ stopped: false }));
+    expect(await ipc.serviceStop()).toEqual({
+      ok: false,
+      error: { kind: "invalid", command: "service_stop" },
     });
   });
 });

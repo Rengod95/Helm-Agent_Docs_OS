@@ -243,6 +243,10 @@ describe("connection failure cause and fix lines in the catalog", () => {
       "FRESNEL_REMOTE_TOKEN이 서버의 토큰과 같은지 확인해요.",
     ],
     protocol: ["원격 서비스와 버전이 맞지 않아요.", "두 쪽을 같은 버전으로 맞춰요."],
+    fingerprint: [
+      "서버 지문이 바뀌었어요.",
+      "서버 인증서를 갱신한 적이 없다면 접속하지 마세요. 그렇다면 대상에서 지문 고정을 지우고 새 지문을 확인해요.",
+    ],
     other: ["연결하지 못했어요.", "진단 복사로 로그를 모아 두고 엔진을 다시 시작해 봐요."],
   };
 
@@ -282,6 +286,10 @@ describe("connection failure cause and fix lines in the catalog", () => {
     protocol: [
       "The remote service's version doesn't match.",
       "Use the same version on both sides.",
+    ],
+    fingerprint: [
+      "The server's TLS fingerprint changed.",
+      "If you didn't renew the server certificate, don't connect. Otherwise remove the pin from the target and confirm the new fingerprint.",
     ],
     other: [
       "Couldn't connect.",

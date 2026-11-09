@@ -1,6 +1,7 @@
 import { attachErrorKey, attachFixKey } from "@fresnel/client";
 import { updateLineKey } from "@fresnel/client/settings";
 import { t, type Locale } from "@fresnel/client/i18n";
+import { assertNever } from "@fresnel/contracts";
 import {
   Alert,
   Badge,
@@ -15,10 +16,14 @@ import {
 import { useId, type ReactNode } from "react";
 import type { EngineState } from "../../../state/engine/index.ts";
 import { InfoTip } from "../../craft/info-tip.tsx";
+import type { ServiceCard } from "../../commands.ts";
 import {
   canSetRemoteRespond,
+  canStartService,
+  canStopService,
   stepsOf,
   type ConnectionState,
+  type ServiceAction,
   type TargetChoice,
 } from "./connection-model.ts";
 import { ConnectedClientsRow } from "./connection-clients.tsx";
@@ -34,6 +39,9 @@ interface StatusHandlers {
   readonly copyDiagnostics: () => void;
   readonly backToLocal: () => void;
   readonly setServiceMode: (enabled: boolean) => void;
+  /** 이 기기 서비스 카드의 시작과 멈추기 */
+  readonly startLocalService: () => void;
+  readonly stopLocalService: () => void;
   readonly setRemoteRespond: (enabled: boolean) => void;
   readonly setStopConfirm: (open: boolean) => void;
   readonly openExtensions: () => void;
@@ -94,6 +102,77 @@ const ENGINE_DOT: Readonly<Record<EngineState["kind"], string>> = {
 
 function engineDotOf(engine: EngineState | null): string {
   return engine === null ? "bg-neutral-graphic" : ENGINE_DOT[engine.kind];
+}
+
+/** 이 기기 서비스 카드의 상태 줄. 실행 중이면 버전과 pid, 앱이 붙었는지를 잇는다 */
+function serviceLineOf(card: ServiceCard): string {
+  switch (card.kind) {
+    case "running":
+      return t("desktop.connection.service.card.running", {
+        version: card.version,
+        pid: card.pid,
+        link: t(
+          card.attached
+            ? "desktop.connection.service.card.attached"
+            : "desktop.connection.service.card.detached",
+        ),
+      });
+    case "stopped":
+      return t("desktop.connection.service.card.stopped");
+    case "unknown":
+      return t("desktop.connection.service.card.unknown");
+    default:
+      return assertNever(card, "ServiceCard");
+  }
+}
+
+/** 시작이나 멈추기가 실패했을 때의 한 줄 문장 */
+function serviceErrorTextOf(action: ServiceAction): string {
+  return action === "start"
+    ? t("desktop.connection.service.card.startFailed")
+    : t("desktop.connection.service.card.stopFailed");
+}
+
+/**
+ * 이 기기의 서비스 카드(로컬 대상만). 상태 줄, 시작과 멈추기 단추, 실패 한 줄이다. 시작은 서비스를 켜고 엔진을 거기에 붙이며,
+ * 멈추기는 서비스를 멈추고 엔진을 앱 안에서 다시 띄운다. 두 동작 모두 엔진을 다시 띄우므로 진행 중에는 단추를 잠근다.
+ */
+function LocalServiceCard(props: {
+  readonly state: ConnectionState;
+  readonly handlers: DetailHandlers;
+}): ReactNode {
+  const { state, handlers } = props;
+  return (
+    <div className="grid gap-2.5">
+      <p className="m-0 text-ui-sm text-text-primary">{serviceLineOf(state.service)}</p>
+      {state.serviceError === null ? null : (
+        <Alert tone="danger" size="sm">
+          {serviceErrorTextOf(state.serviceError)}
+        </Alert>
+      )}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Button
+          size="sm"
+          variant="soft"
+          loading={state.serviceBusy === "start"}
+          disabled={!canStartService(state)}
+          onClick={handlers.startLocalService}
+        >
+          {t("desktop.connection.service.card.start")}
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="text-danger-text"
+          loading={state.serviceBusy === "stop"}
+          disabled={!canStopService(state)}
+          onClick={handlers.stopLocalService}
+        >
+          {t("desktop.connection.service.card.stop")}
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function ConnectSteps(props: {
@@ -194,7 +273,8 @@ export function ConnectionDetailPanel(props: ConnectionDetailProps): ReactNode {
   const snapshot = state.status.kind === "ready" ? state.status.snapshot : null;
   const host = snapshot === null ? null : snapshot.host;
   // 설정 쓰기와 서비스 멈추기는 연결이 있고 다른 동작이 가고 있지 않을 때만 한다
-  const acting = snapshot !== null && !state.busy && state.pending === null;
+  const acting =
+    snapshot !== null && !state.busy && state.serviceBusy === null && state.pending === null;
   const idle = state.busy || state.pending !== null;
   const remote = state.engineTarget.kind === "remote";
   const address = state.engineTarget.kind === "remote" ? state.engineTarget.entry.address : null;
@@ -323,6 +403,11 @@ export function ConnectionDetailPanel(props: ConnectionDetailProps): ReactNode {
                   </p>
                 ) : null}
               </div>
+            </ConnectionSection>
+          )}
+          {remote ? null : (
+            <ConnectionSection title={t("desktop.connection.service.card.title")}>
+              <LocalServiceCard state={state} handlers={handlers} />
             </ConnectionSection>
           )}
           <div className="flex flex-wrap items-center gap-1.5">

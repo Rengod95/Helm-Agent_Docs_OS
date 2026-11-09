@@ -287,6 +287,8 @@ export class FakeLauncher implements Launcher {
   readonly engines: FakeEngine[] = [];
   /** 참이면 다음 띄우기부터 바이너리가 없다고 답한다 */
   failLaunch = false;
+  /** 참이면 띄운 엔진이 서비스 브리지다(`viaService`). 서비스에 붙은 로컬 엔진을 재현한다 */
+  viaService = false;
   /** 다음 띄우기가 시작할 때 한 번 실행한다. 띄우는 사이의 대상 바꾸기를 재현한다 */
   beforeLaunch: (() => void) | null = null;
   /** 다음 `runOnce`의 결과. 한 번 쓰고 나면 기본값(종료 코드 0, 빈 출력)으로 돌아간다 */
@@ -323,7 +325,8 @@ export class FakeLauncher implements Launcher {
     this.calls.push(`launch:${String(pid)}`);
     const engine = new FakeEngine(pid, this.behavior, this.calls, this.killed);
     this.engines.push(engine);
-    return Promise.resolve(ok(engine.launched()));
+    const launched = engine.launched();
+    return Promise.resolve(ok(this.viaService ? { ...launched, viaService: true } : launched));
   }
 
   runOnce(args: readonly string[]): Promise<Result<OnceOutput, LaunchFailure>> {

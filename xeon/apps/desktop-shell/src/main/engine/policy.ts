@@ -50,6 +50,14 @@ export function sameTarget(a: EngineTarget, b: EngineTarget): boolean {
 }
 
 /**
+ * 원격 주소가 이 컴퓨터의 로컬 소켓인가(`unix:` 접두 또는 `/`로 시작). 이런 대상은 백그라운드 서비스에 붙은 것으로 본다.
+ * 원격이라도 소켓이면 공급원은 `service`다.
+ */
+export function isLocalSocketAddress(address: string): boolean {
+  return address.startsWith("unix:") || address.startsWith("/");
+}
+
+/**
  * 대상을 검사한다. 원격 주소는 공백을 뺀 값이 비어 있지 않고, UTF-8로 512바이트 이하이며, 공백이나 제어 문자가 없어야 한다.
  * 통과하면 null이다. 주소는 오류 값에도 로그에도 싣지 않는다(E11).
  */

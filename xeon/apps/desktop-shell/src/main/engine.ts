@@ -20,6 +20,7 @@ import {
 import { fail } from "./engine/state.ts";
 import { Supervisor, type ExitAction } from "./engine/supervisor.ts";
 import type { EngineClock } from "./engine/wait.ts";
+import { serviceAwareLauncher } from "./service-mode.ts";
 
 const relays = new WeakMap<ShellContext, Relay>();
 
@@ -199,16 +200,19 @@ export const engineModule: ShellModule = {
     const settings = desktopSettingsStore(ctx).current();
     const scheduler = nodeScheduler();
     registerEngine(ctx, {
-      launcher: pipedLauncher({
-        env: ctx.env,
-        platform: ctx.platform,
-        arch: process.arch,
-        resources: ctx.paths.resources,
-        home: os.homedir(),
+      launcher: serviceAwareLauncher(
+        pipedLauncher({
+          env: ctx.env,
+          platform: ctx.platform,
+          arch: process.arch,
+          resources: ctx.paths.resources,
+          home: os.homedir(),
+          log,
+          scheduler,
+          remoteToken: remoteTokenSource({ platform: ctx.platform, env: ctx.env }),
+        }),
         log,
-        scheduler,
-        remoteToken: remoteTokenSource({ platform: ctx.platform, env: ctx.env }),
-      }),
+      ),
       clock: { now: () => Date.now(), scheduler },
       config: engineConfigFrom(settings.shutdownGraceMs, settings.restartLimit),
       log,
