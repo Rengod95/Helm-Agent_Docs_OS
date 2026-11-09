@@ -36,7 +36,11 @@ function commandNamesIn(dir: string): string[] {
 /** 탭 하나의 컨텍스트. 소켓 경로는 없는 경로라 엔진은 띄워지지 않고 실패 상태에서 기다린다 */
 function webForTest(): WebContext {
   const socketPath = path.join(tempDir(), "absent.sock");
-  return createWebContext({ ...sessionOptions(socketPath, recordedLog()), send: () => undefined });
+  return createWebContext({
+    ...sessionOptions(socketPath, recordedLog()),
+    deviceId: "dev_test",
+    send: () => undefined,
+  });
 }
 
 describe("command table completeness", () => {
@@ -67,15 +71,18 @@ describe("command table completeness", () => {
 
   test("every table entry is a command the desktop or the web session knows", () => {
     const known = new Set(commandNamesIn(SRC_MAIN));
+    // 웹 세션이 직접 답하는 명령은 `src/main`에 없다(web-context.ts의 `serve`)
+    const webOwn = new Set(["shell_capabilities", "origin_folder_list"]);
     const extra = Object.keys(COMMAND_TABLE).filter(
-      (name) => !known.has(name) && name !== "shell_capabilities",
+      (name) => !known.has(name) && !webOwn.has(name),
     );
     expect(extra).toEqual([]);
   });
 });
 
 describe("spec 6.1 rows match the table", () => {
-  // L4.remote.spec §6.1의 "실행 위치" 열을 옮긴 것. `origin`은 게이트웨이에서 답한다(gap이 있어도 명세상 origin이다)
+  // L4.remote.spec §6.1의 "실행 위치" 열을 옮긴 것. `origin`은 게이트웨이에서 답한다(gap이 있어도 명세상 origin이다).
+  // `pick_folder`는 W4에서 웹 숨김으로 바꿨다(명세 행과 다르다). 웹 화면은 `origin_folder_list`로 서버 폴더를 고른다.
   const rows: Readonly<Record<string, "origin" | "browser" | "hidden">> = {
     engine_attach: "origin",
     engine_write: "origin",
@@ -85,7 +92,7 @@ describe("spec 6.1 rows match the table", () => {
     engine_retarget: "hidden",
     pick_file_read: "browser",
     save_file: "browser",
-    pick_folder: "origin",
+    pick_folder: "hidden",
     pick_folder_open: "origin",
     folder_list: "origin",
     folder_read: "origin",
@@ -132,6 +139,8 @@ describe("served set", () => {
           "db_previous_remove",
           "db_restore",
           "db_usage",
+          "desktop_settings_read",
+          "desktop_settings_write",
           "engine_ack",
           "engine_attach",
           "engine_detach",
@@ -140,6 +149,7 @@ describe("served set", () => {
           "folder_list",
           "folder_read",
           "notify_take_target",
+          "origin_folder_list",
           "secret_register",
           "service_ensure",
           "service_status",
@@ -158,8 +168,10 @@ describe("served set", () => {
     expect(notServed).toContain("open_external");
     expect(notServed).toContain("engine_retarget");
     expect(notServed).toContain("pick_folder_open");
-    expect(notServed).toContain("desktop_settings_read");
+    expect(notServed).toContain("pick_folder");
     expect(isServedByGateway("db_restore")).toBe(true);
+    expect(isServedByGateway("desktop_settings_read")).toBe(true);
+    expect(isServedByGateway("origin_folder_list")).toBe(true);
     expect(isServedByGateway("shell_capabilities")).toBe(false);
   });
 
@@ -167,14 +179,7 @@ describe("served set", () => {
     const gaps = Object.entries(COMMAND_TABLE).flatMap(([name, disposition]) =>
       disposition.kind === "origin" && disposition.gap !== undefined ? [name] : [],
     );
-    expect(gaps.toSorted()).toEqual(
-      [
-        "desktop_settings_read",
-        "desktop_settings_write",
-        "pick_folder",
-        "pick_folder_open",
-      ].toSorted(),
-    );
+    expect(gaps.toSorted()).toEqual(["pick_folder_open"]);
     for (const name of gaps) {
       const disposition = dispositionOf(name);
       expect(disposition?.kind === "origin" && (disposition.gap ?? "").length > 0).toBe(true);

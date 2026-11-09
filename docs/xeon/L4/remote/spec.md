@@ -177,7 +177,9 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 | `engine_retarget` | 엔진 대상을 바꿈 | 웹에서는 거절한다(대상은 origin 하나). 연결 화면의 "원격 대상 추가"를 숨긴다 | - |
 | `pick_file_read` | OS 파일 선택 후 읽기 | `<input type="file">` 선택 후 바이트를 올린다 | 브라우저 |
 | `save_file` | 저장 위치 대화 상자 | Blob 다운로드(`<a download>`) | 브라우저 |
-| `pick_folder`, `pick_folder_open` | OS 폴더 선택 | "서버 폴더 고르기" 대화 상자: origin의 폴더 트리를 `folder_list`로 보인다. 작업 폴더가 origin에 있기 때문이다 | origin |
+| `pick_folder` | OS 폴더 선택 | 웹은 이 명령을 두지 않는다(`unknown-command`). UI가 `shell_capabilities`의 `folderPicker: "origin"`을 보고 "서버 폴더 고르기" 대화 상자를 연다. 대화 상자는 `origin_folder_list`로 origin의 폴더만 한 단계씩 보인다. 작업 폴더가 origin에 있기 때문이다 [결정: 2026-11-09 W4] | origin |
+| `origin_folder_list` | (데스크톱에 없음) | 인자 `{ path? }`(절대 경로, 없으면 origin 사용자의 홈), 답 `{ path, parent, home, entries: [{ name, path }], truncated }`. 폴더만 이름순(점 폴더는 뒤), 2000개 상한. 상대 경로·NUL은 `bad-request`, 없거나 폴더가 아니거나 못 읽으면 `read_failed` | origin |
+| `pick_folder_open` | 플러그인 화면의 폴더 고르기 | 웹에서는 아직 두지 않는다(경로로 핸들을 만드는 명령이 필요하다). W4 범위 밖이다 [미결: 후속] | - |
 | `folder_list`, `folder_read` | 선택한 폴더 안 읽기 | 그대로. 핸들은 (탭 연결, 화면 scope)별이다 | origin |
 | `open_external` | OS 기본 앱으로 열기 | `window.open(url, "_blank", "noopener,noreferrer")`. 허용 스킴(http, https, mailto)은 그대로 shim도 검사한다 | 브라우저 |
 | `open_data_dir`, `open_log_dir` | 파인더로 열기 | 숨긴다. 대신 경로 문자열과 복사 버튼을 보인다 | - |
@@ -187,7 +189,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 | `update_status/check/download/install_restart` | 앱 자동 업데이트 | 숨긴다. origin 앱·서비스의 업데이트는 origin 컴퓨터의 데스크톱에서만 한다 | - |
 | `os_reauth` | Touch ID, Mac 암호 | 웹은 쓸 수 없다. 재인증을 거치던 동작(시크릿 값 열람, 서비스 끄기)은 웹 기기에서도 허용하고 기기 인증이 대신한다(§8.6) | - |
 | `secret_register` | 사이드카를 한 번 띄워 stdin으로 값 전달 | 허용. 값은 TLS 위의 `/shell` 본문으로만 가고 게이트웨이가 사이드카 stdin으로 넘긴다. 게이트웨이 로그에 값을 쓰지 않는다 | origin |
-| `desktop_settings_read/write` | 이 앱의 `desktop-settings.json` | 기기별 설정(테마, 언어, 닫기 동작 제외)을 origin의 기기 레코드에 둔다 [제안] | origin |
+| `desktop_settings_read/write` | 이 앱의 `desktop-settings.json` | 기기별 설정을 origin의 `<상태 폴더>/remote/device-settings/<기기 id>.json`(0600, 폴더 0700)에 둔다. 닫기 동작·종료 대기·재시작 상한은 origin 데스크톱 전용이라 쓰면 `bad-request`, 읽으면 빠진다 [결정: 2026-11-09 W4] | origin |
 | `db_export`, `db_usage`, `db_previous_remove`, `db_restore` | 백업·복원 | 백업 내려받기는 Blob 다운로드. 복원과 삭제도 데스크톱과 똑같이 허용한다(§8.6, [결정: 2026-11-08]). 파괴적이라 앱의 확인 대화 상자는 그대로 거친다 | origin |
 | `app_roots_set` | 프레임 root 등록 | 탭별로 등록한다 | 게이트웨이 |
 | 창·트레이·단일 인스턴스·창 위치 | Electron 전용 | 해당 없음 | - |
