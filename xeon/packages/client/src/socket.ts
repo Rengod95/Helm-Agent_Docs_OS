@@ -7,6 +7,7 @@ import {
   type Unsubscribe,
   type CloseInfo,
 } from "@fresnel/contracts/wire";
+import { connectWebSocket, type WsError } from "@fresnel/platform-process";
 import type { ServiceEndpoint } from "./endpoint.ts";
 
 // ADR-0020 §3.3, L4.host-service.spec §3.3.4 `connectServiceTransport`. 서비스 소켓(Unix, 사설망 TCP, SSH 터널로 이은 Unix)에 접속하는
@@ -50,6 +51,12 @@ export type ServiceConnectError =
   | { readonly kind: "refused"; readonly path: string }
   | { readonly kind: "permission"; readonly path: string }
   | { readonly kind: "io"; readonly code: string }
+  /** wss: 서버 인증서를 믿을 근거가 없다(pin이 없고 시스템 저장소도 모른다). 지문은 사용자에게 보여 주는 값이다 */
+  | { readonly kind: "tls_untrusted"; readonly fingerprint: string }
+  /** wss: 고정한 지문과 서버가 내민 인증서가 다르다. 연결하지 않았다 */
+  | { readonly kind: "fingerprint_changed"; readonly expected: string; readonly actual: string }
+  /** wss: TLS는 됐지만 게이트웨이가 업그레이드를 거절했다(기기 토큰 없음·불일치·폐기, Origin, Host) */
+  | { readonly kind: "gateway_rejected" }
   /** ssh 주소인데 터널 포트가 주어지지 않았다 */
   | { readonly kind: "tunnel_unavailable" }
   | { readonly kind: "tunnel_failed"; readonly failure: TunnelFailure };
@@ -164,6 +171,28 @@ function connectNet(
   });
 }
 
+/** wss 접속 오류를 서비스 접속 오류로 바꾼다. 평문 비루프백은 주소 문법이 막으므로 io다 */
+function wsErrorOf(error: WsError, label: string): ServiceConnectError {
+  switch (error.kind) {
+    case "refused":
+      return { kind: "refused", path: label };
+    case "timeout":
+      return { kind: "io", code: "timeout" };
+    case "tls_untrusted":
+      return { kind: "tls_untrusted", fingerprint: error.fingerprint };
+    case "fingerprint_changed":
+      return { kind: "fingerprint_changed", expected: error.expected, actual: error.actual };
+    case "upgrade_rejected":
+      return { kind: "gateway_rejected" };
+    case "plaintext_not_loopback":
+      return { kind: "io", code: error.kind };
+    case "io":
+      return { kind: "io", code: error.code };
+    default:
+      return assertNever(error, "WsError");
+  }
+}
+
 /** `host.hello`에 `auth.token`을 싣는다. 이미 `auth`가 있는 요청은 그대로 둔다 */
 function injectHelloAuth(inner: Transport, token: string): Transport {
   return {
@@ -231,6 +260,19 @@ export async function connectServiceTransport(
       return connected.ok && token !== undefined && token !== ""
         ? ok(injectHelloAuth(connected.value, token))
         : connected;
+    }
+    case "wss": {
+      // 토큰은 업그레이드의 Authorization 헤더로 간다. 서버가 업그레이드에서 인증을 끝내므로 `host.hello`에는 싣지 않는다
+      const connected = await connectWebSocket({
+        host: endpoint.host,
+        port: endpoint.port,
+        ...(endpoint.pin === undefined ? {} : { pin: endpoint.pin }),
+        ...(endpoint.token === undefined || endpoint.token === "" ? {} : { token: endpoint.token }),
+        ...(options.maxFrameBytes === undefined ? {} : { maxFrameBytes: options.maxFrameBytes }),
+      });
+      return connected.ok
+        ? connected
+        : err(wsErrorOf(connected.error, `${endpoint.host}:${String(endpoint.port)}`));
     }
     case "ssh": {
       if (options.tunnel === undefined) return err({ kind: "tunnel_unavailable" });

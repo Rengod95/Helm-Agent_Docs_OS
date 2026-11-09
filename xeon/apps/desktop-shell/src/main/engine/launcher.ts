@@ -104,7 +104,12 @@ export interface PlannedCommand {
 
 /** 엔진을 띄우는 것인지(호스트 인자와 플래그), 한 번 돌리는 것인지(인자 그대로) */
 export type PlanMode =
-  | { readonly kind: "engine"; readonly flags: readonly string[] }
+  | {
+      readonly kind: "engine";
+      readonly flags: readonly string[];
+      /** 원격 대상의 기기 토큰(보안 저장소에서 읽은 값). 있으면 환경 변수로만 넘기고 인자나 로그에 두지 않는다 */
+      readonly token?: string;
+    }
   | { readonly kind: "once"; readonly args: readonly string[] };
 
 export interface PlanInputs extends SidecarInputs {
@@ -125,6 +130,7 @@ export function planCommand(
   const env = engineEnv(inputs.env, inputs.home, inputs.platform);
   // 원격 대상(`--remote <주소>`)만 접속 토큰을 받는다. 로컬 엔진과 한 번 돌리는 명령에는 넘기지 않는다
   if (!(mode.kind === "engine" && mode.flags.includes("--remote"))) delete env[REMOTE_TOKEN_ENV];
+  else if (mode.token !== undefined && mode.token !== "") env[REMOTE_TOKEN_ENV] = mode.token;
   const lookup = resolveSidecar(inputs);
   const override = devOverrideOf(inputs.env);
   if (override !== null && !lookup.bundled) {
@@ -161,6 +167,8 @@ export interface PipedLauncherDeps {
   readonly home: string;
   readonly log: AppLog;
   readonly scheduler: Scheduler;
+  /** 원격(`wss`) 대상의 기기 토큰을 OS 보안 저장소에서 읽는다. 없거나 읽지 못하면 undefined(환경 변수 값이 그대로 간다) */
+  readonly remoteToken?: (address: string) => Promise<string | undefined>;
 }
 
 /** spawnPiped로 엔진을 띄우는 launcher. 같은 자식 프로세스 기동 경로가 `launch`와 `runOnce`에 쓰인다 */
@@ -175,7 +183,15 @@ export function pipedLauncher(deps: PipedLauncherDeps): Launcher {
   };
   return {
     async launch(target, safeMode) {
-      const planned = planCommand(inputs, { kind: "engine", flags: engineFlags(target, safeMode) });
+      const token =
+        target.kind === "remote" && deps.remoteToken !== undefined
+          ? await deps.remoteToken(target.address)
+          : undefined;
+      const planned = planCommand(inputs, {
+        kind: "engine",
+        flags: engineFlags(target, safeMode),
+        ...(token === undefined ? {} : { token }),
+      });
       if (!planned.ok) return err(planned.error);
       const spawned = await spawnPlanned(planned.value, logger, deps.scheduler);
       if (!spawned.ok) return err(spawned.error);

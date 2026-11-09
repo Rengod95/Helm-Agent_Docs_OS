@@ -104,6 +104,27 @@ describe("command plan (engine.rs launch and run_once)", () => {
     expect(plan({ kind: "engine", flags: engineFlags(remoteTarget, "on") })).toBe("tok-123");
   });
 
+  test("a token read from the OS store wins over the inherited one, and only for a remote engine", () => {
+    const base = {
+      PATH: "/usr/bin:/bin",
+      FRESNEL_REMOTE_TOKEN: "inherited-token",
+      FRESNEL_DESKTOP_ENGINE_BIN: OVERRIDE_BIN,
+      FRESNEL_DESKTOP_ENGINE_ARGS: "host --stdio",
+    };
+    const plan = (mode: PlanMode) => {
+      const planned = planCommand(inputs({ env: base }), mode);
+      return planned.ok ? planned.value.env["FRESNEL_REMOTE_TOKEN"] : "plan failed";
+    };
+    const remoteTarget = { kind: "remote", address: "wss://box.example:8443" } as const;
+    const flags = engineFlags(remoteTarget, "on");
+    expect(flags).toEqual(["--remote", "wss://box.example:8443"]);
+    expect(plan({ kind: "engine", flags, token: "stored-token" })).toBe("stored-token");
+    expect(plan({ kind: "engine", flags })).toBe("inherited-token");
+    expect(
+      plan({ kind: "engine", flags: engineFlags({ kind: "local" }, "on"), token: "x" }),
+    ).toBeUndefined();
+  });
+
   test("a once run uses the dev override only through its host --stdio prefix", () => {
     const planned = planCommand(withOverride("--inspect host --stdio"), {
       kind: "once",

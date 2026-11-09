@@ -82,8 +82,18 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 | 웹 브라우저 | `https://host:port` 게이트웨이 | 기기 토큰 쿠키 + TLS | 새로 만든다 |
 | 웹 브라우저(SSH) | `ssh -L 8480:127.0.0.1:8480` 후 `http://localhost:8480` | SSH 키 + 루프백(쿠키 인증은 그대로) | 새로 만든다 |
 
-- 주소 문법에 `wss://host:port[/pin/<sha256>]` 종류(`kind: "wss"`)를 더한다 [제안]. 기존 `tcp://` 종류는 §9에서 정리한다.
+- 주소 문법에 `wss://host:port[/pin/<sha256>]` 종류(`kind: "wss"`)를 더한다 [제안]. 기존 `tcp://` 종류는 §9에서 정리한다. 데스크톱 클라이언트의 동작은 §3.2가 정한다.
 - 다른 컴퓨터 데스크톱이 SSH와 TLS 둘 다 되는 것은 사용자의 환경 차이 때문이다. 둘의 UX는 같다(연결 화면 P-08의 대상 하나).
+
+### 3.2 데스크톱의 TLS 클라이언트 (`wss`)
+
+다른 컴퓨터의 데스크톱이 `wss://host:port[/pin/<sha256>]` 대상에 붙는 방식이다. 연결 화면(P-08)의 대상 입력과 목록은 `ssh://` 대상과 같다. 코드는 `packages/client`의 주소·대상 문법, `packages/platform-process`의 `connectWebSocket`, `packages/platform-secrets`의 `TokenVault`가 나눠 가진다 [제안].
+
+- **주소**: `/pin/<sha256>`은 서버 인증서 DER의 SHA-256(64자리 16진수, 대소문자와 `:` 구분자는 받고 저장은 소문자)이다. 지문 없는 `wss` 대상은 첫 접속 때 지문을 확인받아 고정한다. 평문 비루프백 `tcp://`는 대상 목록이 계속 거절한다(§9). 대상 목록은 LAN과 외부 `wss` 주소를 받는다.
+- **전송**: 게이트웨이 `/wire`에 WebSocket을 열고, 받은 메시지를 바이트 흐름으로 이어 붙여 stdio와 같은 JSON Lines 프레이밍을 쓴다(메시지 경계에 기대지 않는다). 업그레이드 요청에 `Authorization: Bearer <기기 토큰>`과 게이트웨이 자신의 출처와 같은 `Origin`을 싣는다(§8.5가 `Origin` 없는 업그레이드를 거절하기 때문이다). 토큰은 URL, 인자, 로그, 오류 값에 넣지 않는다.
+- **지문 고정(TOFU)**: 고정된 대상은 접속 전에 서버 인증서의 지문을 재어 같을 때만 그 인증서 하나를 유일한 신뢰 앵커로 삼아 연결한다. 재는 때와 여는 때 사이에 인증서가 바뀌면 검증이 막는다. 다르면 연결하지 않고 `fingerprint_changed`(기대 값과 실제 값)를 돌려준다. 고정이 없으면 시스템 신뢰 저장소로 검증하고(사용자 인증서·Tailscale 등), 믿을 수 없으면 `tls_untrusted`와 서버 지문을 돌려주어 화면이 "이 지문이 맞아요?"를 묻고, 사용자가 확인하면 주소에 `/pin/<sha256>`을 붙여 저장한다. 지문이 바뀐 서버는 사용자가 새 지문을 다시 확인하기 전까지 접속하지 않는다.
+- **토큰 보관**: 기기 토큰은 OS 보안 저장소(macOS Keychain, Linux Secret Service)의 항목 `fresnel.remote-device`/`host:port`에 둔다(`TokenVault`). 지문을 새로 고정해도 같은 항목이다. 보안 저장소가 없는 플랫폼은 환경 변수 `FRESNEL_REMOTE_TOKEN`으로 받는다. 설정 파일과 대상 주소에는 두지 않는다. 데스크톱 셸이 토큰을 읽어 사이드카 엔진의 환경 변수로만 넘긴다.
+- **실패 문장**: 엔진이 멈춘 원인(stderr 첫 줄)으로 연결 화면이 고른다. 지문 변경은 "TLS fingerprint changed", 믿을 수 없는 인증서는 "certificate is not trusted yet", 게이트웨이 거절(토큰 없음·불일치·폐기, `Origin`, `Host`)은 "token does not match" 문구를 쓴다. 클라이언트는 업그레이드가 101이 아닐 때 거절 이유를 가르지 못하므로(WebSocket 구현의 한계) 모두 인증 실패 한 종류로 보이고, 해결은 "새 코드로 다시 페어링"이다.
 
 ## 4. 서비스 모드와 외부 접근의 켜고 끔
 
@@ -172,7 +182,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 | `os_reauth` | Touch ID, Mac 암호 | 웹은 쓸 수 없다. 재인증을 거치던 동작(시크릿 값 열람, 서비스 끄기)은 웹 기기에서도 허용하고 기기 인증이 대신한다(§8.6) | - |
 | `secret_register` | 사이드카를 한 번 띄워 stdin으로 값 전달 | 허용. 값은 TLS 위의 `/shell` 본문으로만 가고 게이트웨이가 사이드카 stdin으로 넘긴다. 게이트웨이 로그에 값을 쓰지 않는다 | origin |
 | `desktop_settings_read/write` | 이 앱의 `desktop-settings.json` | 기기별 설정(테마, 언어, 닫기 동작 제외)을 origin의 기기 레코드에 둔다 [제안] | origin |
-| `db_export`, `db_usage`, `db_previous_remove`, `db_restore` | 백업·복원 | 백업 내려받기는 Blob 다운로드. 복원과 삭제도 데스크톱과 똑같이 허용한다(§8.6, [결정: 2026-11-08]) | origin |
+| `db_export`, `db_usage`, `db_previous_remove`, `db_restore` | 백업·복원 | 백업 내려받기는 Blob 다운로드. 복원과 삭제도 데스크톱과 똑같이 허용한다(§8.6, [결정: 2026-11-08]). 파괴적이라 앱의 확인 대화 상자는 그대로 거친다 | origin |
 | `app_roots_set` | 프레임 root 등록 | 탭별로 등록한다 | 게이트웨이 |
 | 창·트레이·단일 인스턴스·창 위치 | Electron 전용 | 해당 없음 | - |
 
@@ -276,7 +286,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 1. **서비스 호스트는 비루프백 리스너를 열지 않는다.** U-11, X5, T-10의 이 문장은 그대로 유효하다. 서비스의 TCP 리스너는 루프백 전용이다(`tcp_not_loopback`은 남는다. SSH 터널의 끝과 시험용).
 2. 외부 접근은 **게이트웨이만** 연다. TLS와 기기 인증이 없으면 열리지 않는다(무인증·평문 비루프백 리스너 금지는 그대로).
-3. `--allow-non-loopback`과 `allowNonLoopback` 옵션, 평문 `tcp://` 비루프백 원격은 사용하지 않는다. 같은 일을 TLS 통로가 한다. 제거는 코드 삭제이므로 사용자 승인 뒤 구현 트랙 W5가 한다 [미결: 사용자 결정] [근거: 질문 5]. 그때까지 옵션은 남고 이 문서가 대체 경로를 가리킨다.
+3. `--allow-non-loopback`과 `allowNonLoopback` 옵션, 평문 `tcp://` 비루프백 원격은 쓰지 않는다(비권장). 같은 일을 TLS 통로가 한다. 대상 목록은 평문 비루프백 `tcp://`를 이미 거절한다(W5). 옵션 제거는 코드 삭제이므로 사용자 승인 뒤 구현 트랙 W9가 한다 [결정: 오케스트레이터 기본값, 사용자 승인 전까지 "비권장"으로 남긴다]. 그때까지 옵션은 남고 이 문서가 대체 경로를 가리킨다.
 4. `tcp://` 주소 종류는 루프백 전용으로 줄이고, 다른 컴퓨터 접속은 `wss://`(게이트웨이)나 `ssh://`로 한다. `L0.process.spec` P-13은 이 결정으로 해소된다.
 5. 기존 문서의 델타는 각 문서의 해당 문장에 이 문서(`L4.remote.spec` §9)를 가리키는 `[결정: 2026-11-08 …]` 표지를 단 것이다. 문서별 델타는 `L4.remote.plan` 트랙 W0이 적용한 범위와 같다.
 
@@ -327,4 +337,4 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 - [결정: 2026-11-08 사용자] 탭이 닫힌 뒤의 푸시 알림(Web Push)을 이번 범위에 넣는다(§6.2).
 - [미결: 사용자 결정] `--allow-non-loopback` 제거(삭제 승인). [근거: 질문 5]
 - [가정] 승인 해결 알림이 모든 연결에 가는지, 루프백 HTTP의 쿠키·보안 컨텍스트 동작, 웹 CSP의 `unsafe-inline` 필요 여부는 구현 트랙에서 실측한다.
-- [제안] 새 이름(`devices.json`, `l4.remote.*`, `shell_capabilities`, `wss` 종류)은 해당 정본 문서가 확정할 때까지 제안이다.
+- [제안] 새 이름(`devices.json`, `l4.remote.*`, `shell_capabilities`, `wss` 종류, `fresnel.remote-device` 항목)은 해당 정본 문서가 확정할 때까지 제안이다.

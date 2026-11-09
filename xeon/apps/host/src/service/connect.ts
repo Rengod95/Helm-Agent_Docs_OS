@@ -95,6 +95,9 @@ export function socketErrorOf(error: ServiceConnectError): SocketError {
       return { kind: "io", code: error.code };
     case "tunnel_unavailable":
     case "tunnel_failed":
+    case "tls_untrusted":
+    case "fingerprint_changed":
+    case "gateway_rejected":
       return { kind: "io", code: error.kind };
     default:
       return assertNever(error, "ServiceConnectError");

@@ -507,6 +507,26 @@ export function serviceConnectErrorOf(error: ServiceConnectError): EngineStartEr
         t("cli.errors.engineStart.service.connect.tunnelFailed.fix"),
       );
     }
+    case "tls_untrusted":
+      return unreachable(
+        t("cli.errors.engineStart.service.connect.tlsUntrusted.message", {
+          fingerprint: error.fingerprint,
+        }),
+        t("cli.errors.engineStart.service.connect.tlsUntrusted.fix"),
+      );
+    case "fingerprint_changed":
+      return unreachable(
+        t("cli.errors.engineStart.service.connect.fingerprintChanged.message", {
+          expected: error.expected,
+          actual: error.actual,
+        }),
+        t("cli.errors.engineStart.service.connect.fingerprintChanged.fix"),
+      );
+    case "gateway_rejected":
+      return unreachable(
+        t("cli.errors.engineStart.service.connect.gatewayRejected.message"),
+        t("cli.errors.engineStart.service.connect.gatewayRejected.fix"),
+      );
     default:
       return assertNever(error, "ServiceConnectError");
   }

@@ -10,6 +10,7 @@
   "include": ["src", "test", "scripts", "package.json"],
   "references": [
     { "path": "../../packages/contracts" },
-    { "path": "../../packages/platform-process" }
+    { "path": "../../packages/platform-process" },
+    { "path": "../../packages/platform-secrets" }
   ]
 }

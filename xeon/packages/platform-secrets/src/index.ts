@@ -59,3 +59,10 @@ export {
 } from "./providers/sops.ts";
 export { type SecretFileLock, type SecretFileLockError } from "./providers/lock.ts";
 export { checkSecretArgument, checkSettingRef } from "./ref.ts";
+export {
+  createTokenVault,
+  VAULT_SERVICE,
+  type TokenVault,
+  type TokenVaultDeps,
+  type VaultError,
+} from "./vault.ts";

@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@fresnel/contracts": "workspace:*",
+    "@fresnel/platform-process": "workspace:*",
     "typebox": "catalog:"
   },
   "devDependencies": {

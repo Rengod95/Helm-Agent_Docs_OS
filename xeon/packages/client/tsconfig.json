@@ -18,6 +18,9 @@
     },
     {
       "path": "../core-models"
+    },
+    {
+      "path": "../platform-process"
     }
   ]
 }

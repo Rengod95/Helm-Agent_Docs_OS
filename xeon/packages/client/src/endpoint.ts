@@ -6,10 +6,20 @@ import { err, ok, type Result } from "@fresnel/contracts";
 //   unix:/abs/path                          로컬 서비스 Unix 소켓(절대 경로만 `/abs/path`로 써도 된다)
 //   tcp://host:port                         사설망 TCP. 토큰이 필요하다(환경 변수 FRESNEL_REMOTE_TOKEN). 호스트는 이름, IPv4, [IPv6]
 //   ssh://[user@]host[:port]/abs/socket     SSH 터널로 원격 서비스 Unix 소켓에 접속
+//   wss://host:port[/pin/<sha256>]          원격 게이트웨이 `/wire`에 TLS WebSocket으로 접속(L4.remote.spec §3.1). 토큰은 환경 변수
+//                                           FRESNEL_REMOTE_TOKEN(기기 토큰). pin은 서버 인증서 SHA-256 지문(64자리 16진수, 소문자로 맞춘다)
 
 export type ServiceEndpoint =
   | { readonly kind: "unix"; readonly path: string }
   | { readonly kind: "tcp"; readonly host: string; readonly port: number; readonly token?: string }
+  | {
+      readonly kind: "wss";
+      readonly host: string;
+      readonly port: number;
+      /** 서버 인증서 지문(소문자 64자리 16진수). 없으면 시스템 신뢰 저장소로 검증한다 */
+      readonly pin?: string;
+      readonly token?: string;
+    }
   | {
       readonly kind: "ssh";
       /** `[user@]host`. 선택지로 읽히지 않는 문자만 쓴다 */
@@ -21,7 +31,7 @@ export type ServiceEndpoint =
 export type EndpointParseError =
   | { readonly kind: "empty" }
   | { readonly kind: "unknown_scheme" }
-  | { readonly kind: "invalid"; readonly part: "host" | "port" | "path" | "target" };
+  | { readonly kind: "invalid"; readonly part: "host" | "port" | "path" | "target" | "pin" };
 
 /** 절대 경로, 공백·`:`·제어 문자 없음. `ssh -L`이 `:`로 필드를 나누므로 Unix 경로에도 같은 제한을 둔다 */
 function isSocketPath(path: string): boolean {
@@ -51,6 +61,22 @@ function parseTcp(rest: string): Result<ServiceEndpoint, EndpointParseError> {
   // net.connect는 괄호 없는 IPv6 주소를 받는다
   const host = hostText.startsWith("[") ? hostText.slice(1, -1) : hostText;
   return ok({ kind: "tcp", host, port });
+}
+
+function parseWss(rest: string): Result<ServiceEndpoint, EndpointParseError> {
+  const slash = rest.indexOf("/");
+  const authority = slash < 0 ? rest : rest.slice(0, slash);
+  const tail = slash < 0 ? "" : rest.slice(slash);
+  const tcp = parseTcp(authority);
+  if (!tcp.ok) return tcp;
+  if (tcp.value.kind !== "tcp") return err({ kind: "invalid", part: "host" });
+  const { host, port } = tcp.value;
+  if (tail === "" || tail === "/") return ok({ kind: "wss", host, port });
+  const match = /^\/pin\/([0-9A-Fa-f]{64})$/.exec(tail);
+  if (match === null)
+    return err({ kind: "invalid", part: tail.startsWith("/pin/") ? "pin" : "path" });
+  const [, pin = ""] = match;
+  return ok({ kind: "wss", host, port, pin: pin.toLowerCase() });
 }
 
 function parseSsh(rest: string): Result<ServiceEndpoint, EndpointParseError> {
@@ -92,6 +118,7 @@ export function parseServiceEndpoint(text: string): Result<ServiceEndpoint, Endp
     return isSocketPath(path) ? ok({ kind: "unix", path }) : err({ kind: "invalid", part: "path" });
   }
   if (trimmed.startsWith("tcp://")) return parseTcp(trimmed.slice("tcp://".length));
+  if (trimmed.startsWith("wss://")) return parseWss(trimmed.slice("wss://".length));
   if (trimmed.startsWith("ssh://")) return parseSsh(trimmed.slice("ssh://".length));
   return err({ kind: "unknown_scheme" });
 }

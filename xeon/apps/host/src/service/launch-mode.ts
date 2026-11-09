@@ -43,7 +43,7 @@ export type RemoteResolution =
       readonly error: EndpointParseError;
     };
 
-/** TCP 접속 토큰을 읽는 환경 변수. 설정 파일이나 argv에는 토큰을 두지 않는다 [결정: 오케스트레이터 기본값] */
+/** tcp·wss 접속 토큰(wss는 기기 토큰)을 읽는 환경 변수. 설정 파일이나 argv에는 토큰을 두지 않는다 [결정: 오케스트레이터 기본값] */
 export const REMOTE_TOKEN_ENV = "FRESNEL_REMOTE_TOKEN";
 
 /**
@@ -63,7 +63,9 @@ export async function resolveRemoteEndpoint(options: {
   if (!parsed.ok) return { kind: "invalid", text, from, error: parsed.error };
   const token = options.env[REMOTE_TOKEN_ENV];
   const endpoint =
-    parsed.value.kind === "tcp" && token !== undefined && token !== ""
+    (parsed.value.kind === "tcp" || parsed.value.kind === "wss") &&
+    token !== undefined &&
+    token !== ""
       ? { ...parsed.value, token }
       : parsed.value;
   return { kind: "remote", endpoint, from };
