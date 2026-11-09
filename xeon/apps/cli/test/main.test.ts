@@ -58,6 +58,7 @@ test("help lists the commands that exist and marks the ones that come later", as
   expect(text).not.toContain("(M2)");
   expect(text).not.toContain("(M3)");
   expect(text).toContain("service start|status|stop|ensure");
+  expect(text).toContain("service pair [--json]");
   expect(text).toContain("--safe-mode");
   expect(text).not.toContain("launch-mode");
   expect(text).not.toContain("host --stdio");
@@ -108,6 +109,23 @@ test("service commands run through runHostCommand and its code is the exit code"
   ]);
   // 엔진을 이 프로세스에서 열지 않는다
   expect(h.methods()).toEqual([]);
+});
+
+test("service pair maps to service-pair and a host code 2 is an environment exit", async () => {
+  const seen: HostCommand[] = [];
+  const h = harness({
+    runHostCommand: (command) => {
+      seen.push(command);
+      return Promise.resolve(command.kind === "service-pair" && command.json ? 2 : 0);
+    },
+  });
+  expect(await h.run(["service", "pair"])).toBe(0);
+  expect(await h.run(["service", "pair", "--json"])).toBe(3);
+  expect(seen).toEqual([
+    { kind: "service-pair", json: false },
+    { kind: "service-pair", json: true },
+  ]);
+  expect(await h.run(["service", "pair", "--safe-mode"])).toBe(2);
 });
 
 test("service flags that do not fit the sub-command are usage errors", async () => {

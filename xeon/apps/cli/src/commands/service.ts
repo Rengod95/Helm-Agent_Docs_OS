@@ -1,10 +1,10 @@
 import { assertNever } from "@fresnel/contracts";
 import type { CommandIo, HostCommand } from "@fresnel/host";
 import type { ServiceCommand } from "../cli/command.ts";
-import { exitCodeOfHost, type ExitCode } from "../exit-codes.ts";
+import { EXIT, exitCodeOfHost, type ExitCode } from "../exit-codes.ts";
 import type { CommandContext } from "./context.ts";
 
-// L4.cli.spec §3.1 service. `fresnel service start|status|stop|ensure`와 숨은 `launch-mode`·`run`. 엔진을 이 프로세스에서 열지 않는다:
+// L4.cli.spec §3.1 service. `fresnel service start|status|stop|ensure|pair`와 숨은 `launch-mode`·`run`. 엔진을 이 프로세스에서 열지 않는다:
 // @fresnel/host의 runHostCommand가 등록 파일과 소켓으로 서비스를 찾고 띄우고 내린다(L4.host-service.spec §3.3.5, §4.9).
 // `run`은 서비스 본체를 전경에서 돌린다. `start`와 `ensure`가 자기 바이너리를 `service run`으로 detached 실행한다(SV-06).
 
@@ -43,6 +43,8 @@ function hostCommandOf(command: ServiceCommand): HostCommand {
       return { kind: "service-stop" };
     case "launch-mode":
       return { kind: "service-launch-mode" };
+    case "pair":
+      return { kind: "service-pair", json: command.output === "json" };
     case "run":
       return {
         kind: "service-run",
@@ -62,5 +64,7 @@ export async function runService(ctx: CommandContext, command: ServiceCommand): 
     stderr: textSink(ctx.io.stderr),
   };
   const code = await ctx.deps.runHostCommand(hostCommandOf(command), io);
+  // `service pair`의 호스트 종료코드 2는 사용법이 아니라 환경 문제(게이트웨이 실행 파일·인증서·포트)다
+  if (command.action === "pair" && code === 2) return EXIT.environment;
   return exitCodeOfHost(code);
 }
