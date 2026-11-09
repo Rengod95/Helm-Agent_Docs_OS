@@ -6,3 +6,10 @@ xeon/packages/core-tools/test/secrets.test.ts:generic-api-key:6
 xeon/packages/platform-secrets/test/redactor.test.ts:generic-api-key:103
 # 오탐: 시험의 requestKey 고정값(비밀 아님)
 6bd3e25d5dd8b42607c67d6dd637bae307e181c1:xeon/packages/ext-host/test/primitives/drive-ask.test.ts:generic-api-key:343
+# 오탐: RFC 6455 §1.3의 공개 예제 nonce(Sec-WebSocket-Key)와 RFC 8291 부록 A의 공개 시험 벡터(비밀 값 아님). W2 게이트웨이·푸시 시험
+xeon/apps/desktop-shell/test/web/server/gateway-tls.test.ts:generic-api-key:63
+xeon/apps/desktop-shell/test/web/server/gateway-ws.test.ts:generic-api-key:398
+xeon/apps/desktop-shell/test/web/server/support.ts:generic-api-key:409
+xeon/apps/desktop-shell/test/web/push/encrypt.test.ts:generic-api-key:14
+xeon/apps/desktop-shell/test/web/push/encrypt.test.ts:generic-api-key:22
+xeon/apps/desktop-shell/test/web/push/encrypt.test.ts:generic-api-key:23
