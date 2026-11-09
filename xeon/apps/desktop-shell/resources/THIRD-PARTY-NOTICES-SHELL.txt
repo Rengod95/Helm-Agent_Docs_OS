@@ -591,11 +591,11 @@ sax 1.6.1
   link: not stated in package.json
 
 ==============================================================================
-License: BSD-3-Clause (11 packages)
+License: BSD-3-Clause (12 packages)
 License text (SPDX): https://spdx.org/licenses/BSD-3-Clause.html
 ==============================================================================
 
-License text 1 of 3 (printed once; 9 packages carry it; copyright lines are listed under each package):
+License text 1 of 4 (printed once; 9 packages carry it; copyright lines are listed under each package):
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -660,7 +660,41 @@ Packages with this text:
   Copyright (c) 2016, Daniel Wirtz  All rights reserved.
   link: https://github.com/protobufjs/protobuf.js
 
-License text 2 of 3 (printed once; 1 package carries it; copyright lines are listed under each package):
+License text 2 of 4 (printed once; 1 package carries it; copyright lines are listed under each package):
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+   * Neither the name of the age project nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+Packages with this text:
+
+age-encryption 0.3.1
+  Copyright 2023 The age Authors
+  link: https://github.com/FiloSottile/typage
+
+License text 3 of 4 (printed once; 1 package carries it; copyright lines are listed under each package):
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 
@@ -678,7 +712,7 @@ buffer-equal-constant-time 1.0.1
   Copyright (c) 2013, GoInstant Inc., a salesforce.com company
   link: https://github.com/goinstant/buffer-equal-constant-time
 
-License text 3 of 3 (printed once; 1 package carries it; copyright lines are listed under each package):
+License text 4 of 4 (printed once; 1 package carries it; copyright lines are listed under each package):
 
 This license applies to all parts of protobuf.js except those files
 either explicitly including or referencing a different license or
@@ -756,11 +790,11 @@ semver 7.7.4
   link: https://github.com/npm/node-semver
 
 ==============================================================================
-License: MIT (49 packages)
+License: MIT (56 packages)
 License text (SPDX): https://spdx.org/licenses/MIT.html
 ==============================================================================
 
-License text 1 of 5 (printed once; 38 packages carry it; copyright lines are listed under each package):
+License text 1 of 5 (printed once; 45 packages carry it; copyright lines are listed under each package):
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
@@ -777,6 +811,35 @@ Packages with this text:
 @babel/runtime 7.29.10
   Copyright (c) 2014-present Sebastian McKenzie and other contributors
   link: https://github.com/babel/babel
+
+@noble/ciphers 2.4.0
+  Copyright (c) 2022 Paul Miller (https://paulmillr.com)
+  Copyright (c) 2016 Thomas Pornin <pornin@bolet.org>
+  link: https://github.com/paulmillr/noble-ciphers
+
+@noble/curves 2.0.1
+  Copyright (c) 2022 Paul Miller (https://paulmillr.com)
+  link: https://github.com/paulmillr/noble-curves
+
+@noble/curves 2.4.0
+  Copyright (c) 2022 Paul Miller (https://paulmillr.com)
+  link: https://github.com/paulmillr/noble-curves
+
+@noble/hashes 2.0.1
+  Copyright (c) 2022 Paul Miller (https://paulmillr.com)
+  link: https://github.com/paulmillr/noble-hashes
+
+@noble/hashes 2.4.0
+  Copyright (c) 2022 Paul Miller (https://paulmillr.com)
+  link: https://github.com/paulmillr/noble-hashes
+
+@noble/post-quantum 0.5.4
+  Copyright (c) 2024 Paul Miller (https://paulmillr.com)
+  link: https://github.com/paulmillr/noble-post-quantum
+
+@scure/base 2.4.0
+  Copyright (c) 2022 Paul Miller (https://paulmillr.com)
+  link: https://github.com/paulmillr/scure-base
 
 @stablelib/base64 1.0.1
   Copyright (C) 2016 Dmitry Chestnykh
