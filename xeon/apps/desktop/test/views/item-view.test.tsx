@@ -742,17 +742,21 @@ describe("a hook that stopped a call says which hook and whether it blocked or t
     expect(text).not.toContain(t("desktop.item.hookDenial.records"));
   });
 
-  test("the hook row is drawn with the warning colours, an ordinary failure is not", () => {
+  test("the hook chip is warning-toned and an ordinary failure chip is danger-toned, neither row has a coloured border", () => {
     const h = openedHarness();
     ingestRecords(h, [
       callItem(1, 2, "read"),
       hookResultItem(2, "[fresnel:denied_by_extension] no reads today", blocked),
     ]);
-    expect(render(<RecordedItem id={itm(1)} />, h)).toContain("bg-warning-tint");
+    const hooked = render(<RecordedItem id={itm(1)} />, h);
+    expect(hooked).toContain('data-slot="call-chip" data-status="failed" data-tone="warning"');
+    expect(hooked).not.toContain("warning-border");
 
     const plain = openedHarness();
     ingestRecords(plain, [callItem(1, 2, "read"), toolResultItem(2, "read", "boom", true)]);
-    expect(render(<RecordedItem id={itm(1)} />, plain)).not.toContain("warning-tint");
+    const failed = render(<RecordedItem id={itm(1)} />, plain);
+    expect(failed).toContain('data-slot="call-chip" data-status="failed" data-tone="danger"');
+    expect(failed).not.toContain("warning");
   });
 });
 

@@ -83,9 +83,15 @@ const PILL_CLASS =
   "[&_[data-slot=tool-call-status]]:leading-[14px] [&_[data-slot=tool-call-status]_svg]:shrink-0";
 /** caustic의 상태 알약은 화면에서 가리고(읽는 사람용 글은 남긴다) 같은 자리에 `CallChip`을 그린다 */
 const PILL_HIDDEN_CLASS = "[&_[data-slot=tool-call-status]]:sr-only";
-/** 훅이 막은 행(막힘, 훅 오류)의 경고 빛깔. 테두리와 알약의 실패 빛깔을 경고 토큰으로 바꾼다. 안쪽 선택자가 caustic의 실패 클래스보다 세다 */
-const HOOK_ROW_CLASS =
-  "[&[data-status=failed]]:shadow-[inset_0_0_0_1px_var(--cs-color-warning-border)] [&_[data-slot=tool-call-status]]:bg-warning-tint [&_[data-slot=tool-call-status]]:text-warning-text";
+/** 실패·거부·막힘 줄도 테두리는 평소(끝남) 줄과 같은 얇은 선이다. 실패는 상태 칩의 빛깔로만 알린다(2026-11-08 사용자 결정). caustic의 실패 테두리(danger)를 덮는다 */
+const FAILED_EDGE_CLASS =
+  "[&[data-status=failed]]:shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]";
+/**
+ * 사용자 말풍선: 채움 없이 얇은 테두리만 두는 outlined 모양(2026-11-08 사용자 결정)이고 안쪽 여백을 줄였다.
+ * 글은 어시스턴트 글과 같은 크기와 줄 높이(text-voice-sm 15px/23px)다. 채움과 테두리는 caustic Message의 기본 클래스를 덮는다.
+ */
+const BUBBLE_CLASS =
+  "whitespace-pre-wrap [overflow-wrap:anywhere] text-voice-sm bg-transparent px-2.5 py-1.5 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]";
 /** 도구 결과 본문 */
 /** 펼친 출력의 높이 상한과 안쪽 스크롤 */
 const OUTPUT_BOX_CLASS = "max-h-80 overflow-auto";
@@ -235,12 +241,7 @@ function ToolRow(props: {
     setSeenMode(mode);
     setOpen(wantOpen);
   }
-  const rowClass = classesOf(
-    HEADER_CLASS,
-    PILL_CLASS,
-    PILL_HIDDEN_CLASS,
-    props.hook === undefined ? undefined : HOOK_ROW_CLASS,
-  );
+  const rowClass = classesOf(HEADER_CLASS, PILL_CLASS, PILL_HIDDEN_CLASS, FAILED_EDGE_CLASS);
   const activity = awaiting
     ? t("desktop.item.toolAwaitingApproval")
     : props.runningLabel !== undefined
@@ -802,10 +803,7 @@ function RecordBody(props: { readonly item: ItemRecord; readonly unsent: boolean
       return (
         <>
           {bubble.text === "" ? null : (
-            <Message
-              author="user"
-              className="whitespace-pre-wrap [overflow-wrap:anywhere] text-voice-sm"
-            >
+            <Message author="user" className={BUBBLE_CLASS}>
               {bubble.text}
             </Message>
           )}
