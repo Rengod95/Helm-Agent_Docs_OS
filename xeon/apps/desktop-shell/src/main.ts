@@ -14,7 +14,7 @@ import {
 } from "electron";
 import { shouldQuitWhenWindowsClosed } from "./main/close-behavior.ts";
 import { createCommandRegistry } from "./main/commands.ts";
-import type { ShellContext } from "./main/context.ts";
+import type { ShellContext, TabSender } from "./main/context.ts";
 import { isTrustedFrame, isUiUrl } from "./main/frame-check.ts";
 import { dataRootsOf } from "./main/lib/data-roots.ts";
 import { shellEnvOf } from "./main/lib/packaged-env.ts";
@@ -125,7 +125,8 @@ function createContext(
     channel(caller, value) {
       const id = readChannelId(value);
       if (id === null) return null;
-      const target: WebContents = caller.sender;
+      const target: WebContents | TabSender = caller.sender;
+      if ("kind" in target) return null;
       return {
         send(message) {
           if (!target.isDestroyed()) target.send(SHELL_CHANNELS.channel, id, message);

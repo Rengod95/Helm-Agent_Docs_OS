@@ -145,6 +145,12 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 | `GET /wire` (WebSocket) | 엔진 wire JSON Lines. 프레임·한도는 stdio 전송과 같다(`maxFrameBytes`) | 기기 토큰(쿠키 또는 `Authorization`) |
 | `GET /shell` (WebSocket) | 셸 명령 요청·응답, 채널 메시지, 이벤트 | 위와 같다 |
 | `GET /view/<권한토큰>/<확장>/<버전>/<경로>` | 플러그인 프레임 파일(§6.3) | 탭 연결에 묶인 권한 토큰 |
+| `GET /shell/shim.js`, `GET /sw.js`, `GET /login.js`, `/login.css` | shim, 서비스 워커(`Service-Worker-Allowed: /`), 로그인 페이지 자원. 소스는 TS이고 시작 때 `Bun.build`로 묶어 메모리에서 내준다(`.js` 파일을 저장소에 두지 않는다) | 없음 |
+| `GET /api/session`, `POST /logout` | 로그인 상태 확인(`{device}` 또는 401), 쿠키 지우기(폐기 아님) | 쿠키 |
+| `GET /push/vapid-key`, `POST /push/subscribe` | VAPID 공개 키 `{publicKey}`, 구독 등록(§6.2) | 쿠키, 구독은 Origin 검사 |
+
+- [확인: 2026-11-09 W2] 브라우저의 엔진 접속은 `/shell`의 `engine_attach/write/ack/detach/restart` 명령이고, 게이트웨이가 탭마다 `Supervisor`와 `Relay`를 만들어 서비스 소켓에 직접 붙는다(`src/web/session/socket-launcher.ts`, 자식 프로세스 없음). 한 소켓에 합치는 방식(§5.2 아래 [제안])을 택한 셈이다. `/wire`는 데스크톱 `wss` 클라이언트(W5)용 바이트 릴레이다: 메시지(텍스트·바이너리)를 서비스 소켓의 JSON Lines 바이트로 그대로 잇고, 메시지 하나는 프레임 하나이며 `maxFrameBytes`를 넘으면 1009로 닫는다. 서비스 Unix 소켓은 평범한 JSON Lines이고 접두나 토큰이 없다(서버는 `host.hello`를 기다린다).
+- [확인: 2026-11-09 W2] 외부 리스너는 `secureOptions`로 TLS 1.0~1.2를 끈다(Bun 1.4.3은 `minVersion: "TLSv1.3"`을 거절한다). 1.2 전용 클라이언트는 `protocol_version` 경고로 거절된다.
 
 - 한 연결에 통로가 둘인 이유: wire는 엔진 프로토콜을 그대로 중계하고(바이트 스트림), shell은 `invoke`와 채널을 나른다. 시제품은 HTTP POST와 SSE로 같은 일을 했지만, 승인 같은 즉시 응답과 흐름 제어를 위해 WebSocket 하나로 합친다. 합치는 방식(한 소켓에 프레임 종류 태그)이 더 단순하면 구현이 그쪽으로 바꿀 수 있다 [제안].
 - UI 번들의 엔진 접속은 지금 `window.fresnelShell`의 `engine_attach`/`engine_write` 채널이다. 웹 셸은 이 명령을 `/wire`에 연결하는 어댑터이므로 UI 코드는 바뀌지 않는다(§6).
@@ -210,7 +216,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 - 서비스는 이미 여러 연결을 받는다(`host.clients`, 연결 허브). 대화 잠금은 쓰기 소유자 하나이고 다른 연결은 관찰이다(`thread.open` `mode`, `L4.host-service.spec` §4.7). 게이트웨이는 이 규칙을 바꾸지 않고, 탭마다 서비스 연결을 하나씩 연다.
 - 탭 연결 = (기기, 브라우저 탭). 시제품은 모든 탭이 한 엔진 연결과 SSE 스트림을 공유했는데, 이는 탭별 구독과 `thread.open` 기록을 섞는다. 게이트웨이는 탭마다 별도의 셸 레지스트리, 릴레이(`createRelay`), 채널 표를 만든다.
-- 상태 동기화는 서비스의 이벤트 구독과 재전송(`HS-17`, 휘발 스트림 포함)이 이미 하는 일이다. 대화 목록, 새 메시지, 승인 요청, 입력 대기열은 `thread.*` 알림으로 모든 연결에 간다. 승인 응답은 `fresnel.approvals`로 첫 응답이 이기고, 나머지 기기는 승인 해결 알림으로 대기 표시가 사라진다 [가정: 승인 해결 알림이 여러 연결에 가는지는 구현 트랙 W2가 확인하고 없으면 서비스에 더한다].
+- 상태 동기화는 서비스의 이벤트 구독과 재전송(`HS-17`, 휘발 스트림 포함)이 이미 하는 일이다. 대화 목록, 새 메시지, 승인 요청, 입력 대기열은 `thread.*` 알림으로 모든 연결에 간다. 승인 응답은 `fresnel.approvals`로 첫 응답이 이기고, 나머지 기기는 승인 해결 알림으로 대기 표시가 사라진다 [확인: 2026-11-09 W2, `apps/host/src/handlers/events.ts`의 `startEventFanout`이 커밋마다 `hub.connections()` 전체의 구독(`conn.subs`)에 `approval.resolved`를 나른다. 관찰 연결은 폴링이 같은 경로로 전한다(HS-16). 그 대화를 구독하지 않은 연결에는 가지 않으므로 UI는 열린 대화마다 구독하고, 목록의 대기 표시는 `ThreadSummary.pendingApprovals`를 다시 읽어 갱신한다. 서비스는 바뀌지 않는다].
 - 입력 대기열(실행 중 대화에 보내는 입력): 쓰기 소유자가 아닌 기기는 `delegate`(위임) 모드로 같은 대화에 입력을 보낸다(`HS-21` 흐름). 기기 둘이 동시에 보낸 입력의 순서는 서비스가 정한 도착 순서다.
 - 연결이 끊기면 `$/connectionReset` 규칙으로 재연결한다. 브라우저는 지수 백오프로 `/wire`를 다시 열고 마지막으로 본 시퀀스부터 재구독한다(`resume`).
 - 한 기기가 쓰기 소유자일 때 다른 기기에서 "이어서 쓰기"를 하면 기존 잠금 충돌 흐름(3002와 `options`)이 그대로 난다.
@@ -241,7 +247,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
    - 틀림, 만료, 이미 씀, 발급된 코드 없음은 한 가지 오류(`invalid_code`)로 합쳐 코드의 존재 여부를 흘리지 않는다. 기기 이름이 틀린 요청(공백뿐, 64글자 초과, 제어 문자)은 코드를 쓰지도 실패로 세지도 않는다.
 3. 성공하면 256비트 무작위 기기 토큰(32바이트의 base64url, 43자)을 만든다. origin에는 SHA-256 해시, 기기 이름, 종류, 만든 시각, 마지막 접속 시각과 주소만 저장한다(원문은 저장하지 않는다). 저장 위치는 게이트웨이가 가진 파일 `<origin 상태 폴더>/remote/devices.json`(0600, 폴더 0700, 임시 파일에 쓰고 rename)이다 [제안]. 서비스 저장소 스키마를 바꾸지 않고 기기 목록·폐기가 서비스 재시작과 무관하게 남는다. 형식은 `{"version": 1, "devices": [{id, name, kind, tokenHash, createdAt, lastSeenAt, lastAddress}]}`이고 `id`는 `dev_` 뒤 16자리 16진이다. 마지막 접속 시각은 1분에 한 번만 파일에 쓴다(주소가 바뀌면 바로 쓴다). 파일이 손상이면 열지 않고 오류로 알린다(조용히 비우면 모든 기기가 풀려 버리므로 사용자가 보게 한다).
 4. 브라우저에는 쿠키 `__Host-fresnel-device`(HttpOnly, Secure, SameSite=Strict, Path=/)로 준다. 루프백 HTTP는 Secure를 못 쓰므로 `fresnel-device`(HttpOnly, SameSite=Strict)로 낮춘다. HTTPS 리스너는 `__Host-` 이름의 쿠키만 받는다(쿠키는 포트와 스킴을 가리지 않아 다른 HTTP 출처가 같은 이름을 심을 수 있다). 같은 이름의 쿠키가 둘이면 거절한다. 데스크톱 클라이언트는 쿠키 대신 `Authorization: Bearer <토큰>`을 쓰고, `Bearer`가 있으면 쿠키는 보지 않는다. 데스크톱 클라이언트는 토큰을 OS 보안 저장소(`platform-secrets`)에 둔다. 토큰은 설정 파일과 인자에 두지 않는다.
-5. 폐기: 데스크톱의 기기 목록(이름, 마지막 접속, 주소)에서 항목별로 폐기하고 "모두 폐기"가 있다. 폐기하면 열려 있는 그 기기의 모든 연결을 즉시 닫는다(`wire` 코드 1004 `auth`). 인증 부품(`AuthPort`)은 폐기가 끝난 뒤 구독자에게 알리고, 게이트웨이가 연결을 닫고 그 기기의 푸시 구독을 지운다(§6.2).
+5. 폐기: 데스크톱의 기기 목록(이름, 마지막 접속, 주소)에서 항목별로 폐기하고 "모두 폐기"가 있다. 폐기하면 열려 있는 그 기기의 모든 연결을 즉시 닫는다(WebSocket 닫기 코드 4401, 이유 `auth`. 1004는 RFC 6455가 예약한 코드라 브라우저와 런타임이 거절할 수 있어 쓰지 않는다) [확인: 2026-11-09 W2, Bun 실측]. 인증 부품(`AuthPort`)은 폐기가 끝난 뒤 구독자에게 알리고, 게이트웨이가 연결을 닫고 그 기기의 푸시 구독을 지운다(§6.2).
 6. 로그인 만료: 웹 기기의 로그인은 슬라이딩 12시간, 절대 30일이다 [제안]. 슬라이딩은 마지막 접속으로부터 12시간이고, 절대 30일은 페어링 시각부터다. 둘 중 이른 쪽에 끝난다. 만료하면 재페어링 없이 토큰으로 갱신하지 않고 `/login` 화면으로 돌아간다. 만료한 웹 기기는 기기 목록에 "만료"로 남다가 다음 페어링 때 지워진다. 데스크톱 클라이언트의 토큰은 절대 만료 없이 폐기 전까지 유효하다 [제안, 근거: SSH 키와 같은 수준].
 7. 구현: `apps/desktop-shell/src/web/auth/`(`pairing.ts`, `devices.ts`, `cookies.ts`, `origin.ts`, `headers.ts`, `auth-port.ts`). 인증 실패, 잠금, 페어링, 폐기는 주입된 로거로 남기고 토큰과 코드 값은 싣지 않는다(§8.4).
 
@@ -269,7 +275,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 ### 8.7 앱 CSP
 
 - 데스크톱(Electron) 문서의 CSP는 지금 그대로다: `default-src 'self'; connect-src 'self'; frame-src fresnel-view:`(`main.ts`).
-- 웹 문서의 CSP: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' wss://<호스트>; frame-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'` [제안]. 인라인 스크립트는 없다(shim은 `/shell/shim.js` 파일이다). `style-src 'unsafe-inline'`이 UI 번들에 필요한지는 시험으로 확인해 가능하면 뺀다 [가정].
+- 웹 문서의 CSP: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' wss://<호스트>; frame-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'` [제안]. 인라인 스크립트는 없다(shim은 `/shell/shim.js` 파일이다). `style-src 'unsafe-inline'`은 UI 번들의 `style` 속성 때문에 필요하다 [확인: 2026-11-09 W2, §13].
 - 프레임 문서 CSP는 §6.3이 정한다.
 - 게이트웨이는 UI 번들 HTML을 고쳐서 shim 스크립트 태그를 넣을 때 `nonce` 없이 `script-src 'self'`로 충족되게 파일 참조로만 넣는다.
 
@@ -336,5 +342,6 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 - [결정: 2026-11-08 사용자] 웹 기기 권한은 데스크톱과 똑같이 전부 허용한다. 읽기 전용 기기 역할은 두지 않는다(§8.6).
 - [결정: 2026-11-08 사용자] 탭이 닫힌 뒤의 푸시 알림(Web Push)을 이번 범위에 넣는다(§6.2).
 - [미결: 사용자 결정] `--allow-non-loopback` 제거(삭제 승인). [근거: 질문 5]
-- [가정] 승인 해결 알림이 모든 연결에 가는지, 루프백 HTTP의 쿠키·보안 컨텍스트 동작, 웹 CSP의 `unsafe-inline` 필요 여부는 구현 트랙에서 실측한다.
+- [확인: 2026-11-09 W2] 승인 해결 알림은 서비스의 이벤트 구독 경로로 그 대화를 구독한 모든 연결에 간다(§7). 웹 CSP의 `style-src 'unsafe-inline'`은 뺄 수 없다: UI 번들이 `style={{…}}` 속성을 80곳, `.style.` 대입을 10곳 쓴다(`apps/desktop/src`). `eval`, `new Function`, 워커는 없어 `script-src 'self'`는 그대로 충족된다(§8.7).
+- [가정] 루프백 HTTP의 쿠키·보안 컨텍스트 동작과 브라우저별 서비스 워커 등록은 브라우저 E2E(W8)가 실측한다.
 - [제안] 새 이름(`devices.json`, `l4.remote.*`, `shell_capabilities`, `wss` 종류, `fresnel.remote-device` 항목)은 해당 정본 문서가 확정할 때까지 제안이다.

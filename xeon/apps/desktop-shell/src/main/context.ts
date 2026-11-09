@@ -7,9 +7,14 @@ import type {
   WebContents,
 } from "electron";
 
-/** 요청을 보낸 renderer. main.ts가 발신 프레임을 검사한 뒤에만 핸들러에 닿는다 */
+/** 웹 게이트웨이의 탭 하나(`src/web/session`). 탭마다 객체가 하나라 핸들 표가 탭별로 갈린다. WebContents가 아니다 */
+export interface TabSender {
+  readonly kind: "web-tab";
+}
+
+/** 요청을 보낸 renderer. main.ts가 발신 프레임을 검사한 뒤에만 핸들러에 닿는다. 웹 게이트웨이에서는 탭이다 */
 export interface IpcCaller {
-  readonly sender: WebContents;
+  readonly sender: WebContents | TabSender;
 }
 
 /** renderer가 args에 실어 보낸 채널. `send`는 그 renderer의 해당 콜백으로 간다 */

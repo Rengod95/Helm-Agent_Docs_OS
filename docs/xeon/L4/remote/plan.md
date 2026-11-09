@@ -83,7 +83,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 ## 3. 위험과 확인할 것
 
-- 승인 해결 알림이 여러 연결에 가는지(W2 첫 일): 없으면 서비스(`apps/host`)에 알림을 더해야 하고, 그 경우 W3 범위에 들어간다.
-- 같은 UI 번들이 `electron` 전제를 숨기고 있는지(`window.fresnelShell` 외의 전역, `fresnel-view:` 하드코딩): W2 시작 때 번들을 훑어 목록을 만든다.
+- [확인: 2026-11-09 W2] 승인 해결 알림은 이미 그 대화를 구독한 모든 연결에 간다(`apps/host/src/handlers/events.ts` `startEventFanout`, 관찰 연결은 폴링). 서비스를 바꿀 일이 없어 W3 범위는 그대로다. 단 W8이 "탭 둘 승인 동기화"를 시험으로 고정한다.
+- [확인: 2026-11-09 W2] UI 번들의 Electron 전제 목록: (1) `window.fresnelShell`이 없으면 `selectShellBridge`가 `none` 다리를 골라 모든 명령이 거절되므로 shim이 UI 모듈보다 먼저 같은 이름을 심는다(해결: W2). (2) `fresnel-view:` 하드코딩: `packages/client/src/views/app/scheme.ts`의 `APP_SCHEME`, `buildAppUrl`, 프레임 CSP(`connect-src ipc: http://ipc.localhost; frame-src fresnel-view:`)와 `frame-host.ts`의 프레임 주소(W7이 `{base}` 치환으로 푼다). (3) UI 자체 CSP: `style` 속성 80곳과 `.style.` 대입 10곳이 있어 웹 CSP에 `style-src 'unsafe-inline'`이 필요하다(`eval`·워커·서비스 워커 등록은 UI에 없다). (4) `navigator.clipboard`는 보안 컨텍스트(HTTPS, localhost)에서만 된다. 그 밖의 전역 의존은 찾지 못했다.
 - Bun의 TLS 서버(`Bun.serve` `tls`)와 WebSocket의 컴파일 바이너리 동작은 실측하지 않았다 [가정]. W1 시작 때 spike로 확인한다.
 - Mac이 켜진 시간이 짧다. launchd와 데스크톱 E2E는 Mac 큐에 넣는다.
