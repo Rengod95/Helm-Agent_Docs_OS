@@ -56,6 +56,17 @@ const DAY_MS = 24 * HOUR_MS;
 /** 쓰는 방식의 순서. 라디오 묶음이 이 순서로 그린다 */
 const MODES: readonly ServerMode[] = ["off", "service", "service+remote"];
 
+/** 지문을 쌍 여덟 개씩 한 줄로 나눈다. 줄을 이으면 원래 문자열이 되도록 끝 줄을 뺀 줄은 콜론으로 끝난다 */
+function fingerprintLines(display: string): readonly string[] {
+  const pairs = display.split(":");
+  const lines: string[] = [];
+  for (let start = 0; start < pairs.length; start += 8) {
+    const line = pairs.slice(start, start + 8).join(":");
+    lines.push(start + 8 < pairs.length ? `${line}:` : line);
+  }
+  return lines;
+}
+
 export interface ServerModeSectionProps {
   readonly state: RemoteScreenState;
   /** 이 기기 서비스가 도는가. 연결 화면의 서비스 카드와 같은 값이다 */
@@ -378,8 +389,12 @@ function StatusRows(props: {
           {fingerprint === null ? (
             <span>{t("desktop.connection.server.notYet")}</span>
           ) : (
-            <span className="flex min-w-0 items-center gap-1.5">
-              <span className="min-w-0 break-all font-mono">{fingerprint}</span>
+            <span className="grid min-w-0 justify-items-start gap-1">
+              <span className="grid font-mono">
+                {fingerprintLines(fingerprint).map((line) => (
+                  <span key={line}>{line}</span>
+                ))}
+              </span>
               <Button
                 size="xs"
                 variant="ghost"
