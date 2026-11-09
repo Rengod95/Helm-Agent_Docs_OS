@@ -16,6 +16,7 @@ import {
   sendTestPrompt,
   startTest,
 } from "../../../src/views/tests/tests-actions.ts";
+import { createShellStore, ShellStoreContext } from "../../../src/state/shell/index.ts";
 import { TestsView, type TestsViewHandlers } from "../../../src/views/tests/tests-view.tsx";
 import { fakeCommands } from "../fake-commands.ts";
 
@@ -56,17 +57,19 @@ function viewOf(ui: TestsUiState, threadId: string) {
   const rows = testRowsOf([running], ALL_TESTS);
   const selected = rows[0] ?? null;
   return renderToString(
-    <TestsView
-      read={{ kind: "ready", value: [running], stale: false }}
-      rows={rows}
-      selected={selected}
-      ui={ui}
-      online
-      selectedPaused={ui.paused[threadId] === true}
-      selectedPhase={ui.phase[threadId] ?? null}
-      targetNames={[]}
-      handlers={handlers}
-    />,
+    <ShellStoreContext value={createShellStore(1400)}>
+      <TestsView
+        read={{ kind: "ready", value: [running], stale: false }}
+        rows={rows}
+        selected={selected}
+        ui={ui}
+        online
+        selectedPaused={ui.paused[threadId] === true}
+        selectedPhase={ui.phase[threadId] ?? null}
+        targetNames={[]}
+        handlers={handlers}
+      />
+    </ShellStoreContext>,
   );
 }
 

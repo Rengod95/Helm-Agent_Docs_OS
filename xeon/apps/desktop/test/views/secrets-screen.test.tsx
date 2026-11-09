@@ -4,6 +4,7 @@ import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabiliti
 import type { SecretAuditEntry, SecretListEntry } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
 import { EngineStoreContext, type EngineMirror } from "../../src/state/engine/index.ts";
+import { createShellStore, ShellStoreContext } from "../../src/state/shell/index.ts";
 import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
 import {
   initialSecretsState,
@@ -82,14 +83,17 @@ function frozenStore(state: EngineMirror): ReadonlyStore<EngineMirror> {
 }
 
 function html(state: SecretsState, shownText: string | null = null): string {
+  // 독립 화면의 머리 펼치기 단추가 셸 스토어를 읽으므로 셸 provider 안에서 그린다
   return renderToString(
-    <SecretsScreenView
-      state={state}
-      shownText={shownText}
-      locale="ko"
-      nowMs={NOW}
-      handlers={handlers}
-    />,
+    <ShellStoreContext value={createShellStore(1400)}>
+      <SecretsScreenView
+        state={state}
+        shownText={shownText}
+        locale="ko"
+        nowMs={NOW}
+        handlers={handlers}
+      />
+    </ShellStoreContext>,
   );
 }
 
@@ -279,13 +283,15 @@ describe("secrets screen server render", () => {
       const mirror = h.store.read.getState();
       const markup = renderToString(
         <EngineStoreContext value={frozenStore(mirror)}>
-          <SecretsScreenView
-            state={state}
-            shownText={null}
-            locale="ko"
-            nowMs={NOW}
-            handlers={handlers}
-          />
+          <ShellStoreContext value={createShellStore(1400)}>
+            <SecretsScreenView
+              state={state}
+              shownText={null}
+              locale="ko"
+              nowMs={NOW}
+              handlers={handlers}
+            />
+          </ShellStoreContext>
         </EngineStoreContext>,
       );
       expect(markup).toContain("캐시 무효화 조사");

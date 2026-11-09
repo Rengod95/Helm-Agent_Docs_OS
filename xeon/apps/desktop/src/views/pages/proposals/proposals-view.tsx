@@ -58,6 +58,11 @@ import {
   statusFilterIdOf,
   unavailableTextIdOf,
 } from "./proposals-text.ts";
+import {
+  HEADER_SELECT_SIZE,
+  HEADER_SEGMENTED_SIZE,
+  ScreenHeader,
+} from "../../shell/screen-header.tsx";
 
 // 제안 화면(P-06)의 그림. 상태와 동작은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
 // 무대는 머리(제목, 상태 칸, 종류·출처 칸), 가운데 두 열(목록 listbox, 상세), 결정 줄로 나뉜다(mockups/p06-proposals와 같다).
@@ -124,59 +129,61 @@ export function ProposalsView(props: ProposalsViewProps): ReactNode {
       className="flex min-h-0 flex-1 flex-col px-1.5 outline-none"
       onKeyDown={handlers.onKey}
     >
-      <header className="flex min-h-10 flex-none flex-wrap items-center gap-x-2 gap-y-1 py-1">
-        <h1 id={headingId} className="m-0 me-1 font-ui text-ui-strong text-text-primary">
-          {t("desktop.proposals.title")}
-        </h1>
-        <SegmentedControl
-          size="xs"
-          aria-label={t("desktop.proposals.filter.status.label")}
-          value={state.filter.status}
-          onValueChange={(value) => {
-            const next = STATUS_ITEMS.find((item) => item === value);
-            if (next !== undefined) handlers.filterChange({ ...state.filter, status: next });
-          }}
-        >
-          {STATUS_ITEMS.map((item) => (
-            <SegmentedControlItem key={item} value={item}>
-              {t(statusFilterIdOf(item))}
-            </SegmentedControlItem>
-          ))}
-        </SegmentedControl>
-        <span aria-hidden className="flex-1" />
-        <Select
-          size="xs"
-          aria-label={t("desktop.proposals.filter.kind.label")}
-          value={state.filter.kind}
-          onValueChange={(value) => {
-            const next = KIND_ITEMS.find((item) => item === value);
-            if (next !== undefined) handlers.filterChange({ ...state.filter, kind: next });
-          }}
-          className="w-32"
-        >
-          {KIND_ITEMS.map((item) => (
-            <SelectOption key={item} value={item}>
-              {t(kindFilterIdOf(item))}
-            </SelectOption>
-          ))}
-        </Select>
-        <Select
-          size="xs"
-          aria-label={t("desktop.proposals.filter.source.label")}
-          value={state.filter.source}
-          onValueChange={(value) => {
-            const next = SOURCE_ITEMS.find((item) => item === value);
-            if (next !== undefined) handlers.filterChange({ ...state.filter, source: next });
-          }}
-          className="w-36"
-        >
-          {SOURCE_ITEMS.map((item) => (
-            <SelectOption key={item} value={item}>
-              {t(sourceFilterIdOf(item))}
-            </SelectOption>
-          ))}
-        </Select>
-      </header>
+      <ScreenHeader
+        title={t("desktop.proposals.title")}
+        titleId={headingId}
+        controls={
+          <>
+            <SegmentedControl
+              size={HEADER_SEGMENTED_SIZE}
+              aria-label={t("desktop.proposals.filter.status.label")}
+              value={state.filter.status}
+              onValueChange={(value) => {
+                const next = STATUS_ITEMS.find((item) => item === value);
+                if (next !== undefined) handlers.filterChange({ ...state.filter, status: next });
+              }}
+            >
+              {STATUS_ITEMS.map((item) => (
+                <SegmentedControlItem key={item} value={item}>
+                  {t(statusFilterIdOf(item))}
+                </SegmentedControlItem>
+              ))}
+            </SegmentedControl>
+            <Select
+              size={HEADER_SELECT_SIZE}
+              aria-label={t("desktop.proposals.filter.kind.label")}
+              value={state.filter.kind}
+              onValueChange={(value) => {
+                const next = KIND_ITEMS.find((item) => item === value);
+                if (next !== undefined) handlers.filterChange({ ...state.filter, kind: next });
+              }}
+              className="w-32"
+            >
+              {KIND_ITEMS.map((item) => (
+                <SelectOption key={item} value={item}>
+                  {t(kindFilterIdOf(item))}
+                </SelectOption>
+              ))}
+            </Select>
+            <Select
+              size={HEADER_SELECT_SIZE}
+              aria-label={t("desktop.proposals.filter.source.label")}
+              value={state.filter.source}
+              onValueChange={(value) => {
+                const next = SOURCE_ITEMS.find((item) => item === value);
+                if (next !== undefined) handlers.filterChange({ ...state.filter, source: next });
+              }}
+              className="w-36"
+            >
+              {SOURCE_ITEMS.map((item) => (
+                <SelectOption key={item} value={item}>
+                  {t(sourceFilterIdOf(item))}
+                </SelectOption>
+              ))}
+            </Select>
+          </>
+        }
+      />
       {state.notice === null ? null : (
         <Alert
           tone={state.notice.tone}

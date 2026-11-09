@@ -14,6 +14,7 @@ import { useState, type ReactNode } from "react";
 import { useLinkPhase } from "../../state/engine/index.ts";
 import { useWorkbench } from "../../state/workbench/index.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
+import { PanelExpandButton } from "../shell/screen-header.tsx";
 import { useWorkbenchController } from "../workbench/controller.ts";
 import { tabLinkOf } from "../workbench/tab-read.ts";
 import { AUTHORING_EXT, builderOf, CodeSource } from "./compose-code.tsx";
@@ -53,10 +54,13 @@ export function ComposeScreen(): ReactNode {
       {/* 시안 WB_WIDTH와 같은 가운데 폭(60rem, 좌우 여백 3). 머리와 본문이 같은 열에 선다 */}
       <div className="mx-auto flex w-full max-w-240 flex-col gap-4 px-3 pt-6 pb-8">
         <div className="flex flex-wrap items-center justify-between gap-3 pe-8">
-          <h1 id="compose-screen-title" className="m-0 flex items-center gap-1 text-text-primary">
-            {t("desktop.compose.title")}
-            <InfoTip text={t("desktop.compose.readonly")} />
-          </h1>
+          <div className="flex min-w-0 items-center gap-1">
+            <PanelExpandButton />
+            <h1 id="compose-screen-title" className="m-0 flex items-center gap-1 text-text-primary">
+              {t("desktop.compose.title")}
+              <InfoTip text={t("desktop.compose.readonly")} />
+            </h1>
+          </div>
           <SegmentedControl
             aria-label={t("desktop.compose.view.label")}
             size="xs"

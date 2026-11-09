@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
 import type { HunkView } from "@fresnel/contracts/wire";
+import type { ReactElement, ReactNode } from "react";
 import { renderToString } from "react-dom/server";
+import { createShellStore, ShellStoreContext } from "../../src/state/shell/index.ts";
 import {
   INITIAL_REVIEW_STATE,
   addReviewComment,
@@ -86,8 +88,13 @@ function view(overrides: Partial<ReviewOpenView>): ReviewOpenView {
   };
 }
 
+/** 머리의 펼치기 단추가 셸 저장소를 읽으므로, 화면은 셸 문맥 안에서 그린다(앱에서도 셸 안에 그린다) */
+function inShell(node: ReactNode): ReactElement {
+  return <ShellStoreContext value={createShellStore(1280)}>{node}</ShellStoreContext>;
+}
+
 function render(open: ReviewOpenView | null): string {
-  return renderToString(<ReviewView onBack={NOOP} open={open} />);
+  return renderToString(inShell(<ReviewView onBack={NOOP} open={open} />));
 }
 
 /** 글이 정확히 `label`인 단추의 여는 태그가 disabled인지. 그런 단추가 없으면 undefined */
@@ -256,7 +263,7 @@ describe("the submit result table, the key hints, and the line comments", () => 
       ],
       { requestId: "rv-01J", when: "followUp", commentIds: [] },
     );
-    const html = renderToString(<ReviewView onBack={NOOP} open={null} result={result} />);
+    const html = renderToString(inShell(<ReviewView onBack={NOOP} open={null} result={result} />));
     expect(html).toContain(t("desktop.review.result.title"));
     expect(html).toContain("src/cache.ts");
     expect(html).toContain("f0h2");
@@ -275,7 +282,7 @@ describe("the submit result table, the key hints, and the line comments", () => 
 
   test("a result with no reverted hunks and no delivery says so, in the table's place and the delivery line's", () => {
     const html = renderToString(
-      <ReviewView onBack={NOOP} open={null} result={reviewResultViewOf(null, null)} />,
+      inShell(<ReviewView onBack={NOOP} open={null} result={reviewResultViewOf(null, null)} />),
     );
     expect(html).toContain(t("desktop.review.result.empty"));
     expect(html).toContain(t("desktop.review.result.delivery.none"));

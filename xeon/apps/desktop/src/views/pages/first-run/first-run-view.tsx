@@ -55,6 +55,11 @@ import {
 import { FirstRunKeyForm } from "./first-run-key.tsx";
 import { SettingsProblemBannerView } from "../../settings-problem-banner.tsx";
 import {
+  HEADER_CONTROL_SIZE,
+  HEADER_PRIMARY_VARIANT,
+  ScreenHeader,
+} from "../../shell/screen-header.tsx";
+import {
   groupNameOf,
   groupWhatOf,
   recommendStateOf,
@@ -181,8 +186,8 @@ export function FirstRunView(props: FirstRunViewProps): ReactNode {
   const startBlocked = startBlockedOf(model);
   const start = (
     <Button
-      size="sm"
-      variant="solid"
+      size={HEADER_CONTROL_SIZE}
+      variant={HEADER_PRIMARY_VARIANT}
       disabled={!ready || props.locked}
       onClick={handlers.startChat}
     >
@@ -195,11 +200,10 @@ export function FirstRunView(props: FirstRunViewProps): ReactNode {
       className="flex min-h-0 flex-1 flex-col"
       onKeyDown={onKeyDown}
     >
-      <header className="mx-auto flex h-10 w-full max-w-184 flex-none items-center gap-1 ps-3 pe-11">
-        <div className="flex min-w-0 flex-1 items-baseline gap-2.5">
-          <h1 id={headingId} className="m-0 truncate text-ui-strong text-text-primary">
-            {t("desktop.firstRun.steps.label")}
-          </h1>
+      <ScreenHeader
+        title={t("desktop.firstRun.steps.label")}
+        titleId={headingId}
+        meta={
           <span
             className="text-ui-sm tabular-nums text-text-tertiary"
             aria-label={t("desktop.firstRun.progress", {
@@ -209,15 +213,17 @@ export function FirstRunView(props: FirstRunViewProps): ReactNode {
           >
             {`${doneCount}/${STEP_ORDER.length}`}
           </span>
-        </div>
-        {ready ? (
-          start
-        ) : (
-          <Tooltip content={t("desktop.firstRun.chat.lockedTip")}>
-            <span className="inline-flex">{start}</span>
-          </Tooltip>
-        )}
-      </header>
+        }
+        action={
+          ready ? (
+            start
+          ) : (
+            <Tooltip content={t("desktop.firstRun.chat.lockedTip")}>
+              <span className="inline-flex">{start}</span>
+            </Tooltip>
+          )
+        }
+      />
       <div className="min-h-0 flex-1 overflow-auto">
         <div className="mx-auto grid w-full max-w-184 gap-2 px-3 pt-1 pb-6">
           {props.settingsProblem === null ? null : (

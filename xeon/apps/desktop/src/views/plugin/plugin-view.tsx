@@ -20,6 +20,11 @@ import { newFrameNonce, type PluginUiRuntime } from "../../plugin-ui/runtime.ts"
 import { ShellStoreContext } from "../../state/shell/index.ts";
 import { useReadyThreadId } from "../../state/engine/index.ts";
 import { useCommands } from "../commands.ts";
+import {
+  HEADER_CONTROL_SIZE,
+  HEADER_PRIMARY_VARIANT,
+  ScreenHeader,
+} from "../shell/screen-header.tsx";
 import { NativeTree } from "./native-tree.tsx";
 import { readTreeOf, treeActionsOf } from "./native-run.ts";
 import { usePluginUi, usePluginUiState } from "./plugin-context.tsx";
@@ -99,48 +104,50 @@ function Header(props: {
   const trust = entry.trust === "managed" ? "user" : entry.trust;
   const reason = entry.app?.reason;
   return (
-    <header className="mx-auto flex w-full max-w-[68rem] min-w-0 items-center gap-2 px-3 pt-3 pb-2">
-      <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <h2 className="m-0 font-ui text-ui-strong text-text-primary">
-          {extMessageOf(entry.messages, activeLocale(), entry.title)}
-        </h2>
-        <span className="min-w-0 text-ui-sm text-text-tertiary">
-          {entry.extension} · v{entry.version}
-        </span>
-        <span className="min-w-0 text-ui-sm text-text-tertiary">
-          {t(`client.view.confirm.trust.${trust}`)}
-        </span>
-        {entry.trust === "project" ? (
-          <Chip size="sm" tone="warning" variant="soft">
-            {t("client.view.confirm.projectBadge")}
-          </Chip>
-        ) : null}
-        {entry.mode === "app" ? (
-          <Tooltip
-            side="bottom"
-            align="start"
-            content={reason === undefined ? "" : stripUnsafeText(reason, false)}
-          >
-            <button
-              type="button"
-              className="inline-flex flex-none rounded-full outline-none focus-visible:focus-ring"
+    <ScreenHeader
+      title={extMessageOf(entry.messages, activeLocale(), entry.title)}
+      meta={
+        <>
+          <span className="min-w-0 truncate text-ui-sm text-text-tertiary">
+            {entry.extension} · v{entry.version}
+          </span>
+          <span className="min-w-0 text-ui-sm text-text-tertiary">
+            {t(`client.view.confirm.trust.${trust}`)}
+          </span>
+          {entry.trust === "project" ? (
+            <Chip size="sm" tone="warning" variant="soft">
+              {t("client.view.confirm.projectBadge")}
+            </Chip>
+          ) : null}
+          {entry.mode === "app" ? (
+            <Tooltip
+              side="bottom"
+              align="start"
+              content={reason === undefined ? "" : stripUnsafeText(reason, false)}
             >
-              <Chip size="sm" tone="neutral" variant="soft" icon={<CodeXml aria-hidden />}>
-                {t("desktop.workbench.uiMode.app")}
-              </Chip>
-            </button>
-          </Tooltip>
-        ) : null}
-      </div>
-      <Button
-        size="xs"
-        variant="outline"
-        iconStart={<MessageSquare aria-hidden />}
-        onClick={props.onBackToChat}
-      >
-        {t("desktop.plugin.header.backToChat")}
-      </Button>
-    </header>
+              <button
+                type="button"
+                className="inline-flex flex-none rounded-full outline-none focus-visible:focus-ring"
+              >
+                <Chip size="sm" tone="neutral" variant="soft" icon={<CodeXml aria-hidden />}>
+                  {t("desktop.workbench.uiMode.app")}
+                </Chip>
+              </button>
+            </Tooltip>
+          ) : null}
+        </>
+      }
+      action={
+        <Button
+          size={HEADER_CONTROL_SIZE}
+          variant={HEADER_PRIMARY_VARIANT}
+          iconStart={<MessageSquare aria-hidden />}
+          onClick={props.onBackToChat}
+        >
+          {t("desktop.plugin.header.backToChat")}
+        </Button>
+      }
+    />
   );
 }
 

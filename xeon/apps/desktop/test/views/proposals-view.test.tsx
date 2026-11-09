@@ -5,6 +5,7 @@ import type { ProposalRow, WireResult } from "@fresnel/contracts/wire";
 import { parse } from "@fresnel/contracts";
 import { ThreadIdSchema } from "@fresnel/contracts/conversation";
 import { renderToString } from "react-dom/server";
+import { createShellStore, ShellStoreContext } from "../../src/state/shell/index.ts";
 import {
   INITIAL_PROPOSALS_STATE,
   proposalsReducer,
@@ -97,15 +98,18 @@ function buttonOf(markup: string, label: string): string {
   return found === null ? "" : found[0];
 }
 
+/** 화면 머리가 셸 스토어(패널 열림 상태)를 읽으므로 셸 맥락 안에서 그린다 */
 function html(state: ProposalsState, over: Partial<ProposalsViewProps> = {}): string {
   return renderToString(
-    <ProposalsView
-      state={state}
-      live={true}
-      openable={() => false}
-      handlers={HANDLERS}
-      {...over}
-    />,
+    <ShellStoreContext value={createShellStore(1400)}>
+      <ProposalsView
+        state={state}
+        live={true}
+        openable={() => false}
+        handlers={HANDLERS}
+        {...over}
+      />
+    </ShellStoreContext>,
   );
 }
 

@@ -80,7 +80,7 @@ export function ThreadRowMenu(props: {
         trigger={
           <IconButton
             ref={triggerRef}
-            size={props.bare === true ? "xs" : "sm"}
+            size={props.bare === true ? "xs" : "md"}
             variant="ghost"
             label={t("desktop.threads.menu.label", { title: props.title })}
             className={

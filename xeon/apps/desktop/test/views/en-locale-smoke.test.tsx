@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { activeLocale, setActiveLocale, type Locale } from "@fresnel/client/i18n";
 import { renderToString } from "react-dom/server";
+import { createShellStore, ShellStoreContext } from "../../src/state/shell/index.ts";
 import {
   connectionReducer,
   INITIAL_CONNECTION_STATE,
@@ -46,7 +47,9 @@ function connectionHtml(locale: Locale): string {
     added: null,
   });
   return renderToString(
-    <ConnectionScreenView state={loaded} engine={null} locale={locale} handlers={handlers} />,
+    <ShellStoreContext value={createShellStore(1400)}>
+      <ConnectionScreenView state={loaded} engine={null} locale={locale} handlers={handlers} />
+    </ShellStoreContext>,
   );
 }
 
@@ -109,7 +112,9 @@ describe("desktop render with ui.locale=en", () => {
       },
     );
     const markup = renderToString(
-      <ConnectionScreenView state={withClients} engine={null} locale="en" handlers={handlers} />,
+      <ShellStoreContext value={createShellStore(1400)}>
+        <ConnectionScreenView state={withClients} engine={null} locale="en" handlers={handlers} />
+      </ShellStoreContext>,
     );
     expect(markup).toContain("Connected clients");
     expect(markup).toContain("This app, Service connection");

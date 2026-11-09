@@ -27,6 +27,12 @@ import { ScheduleSheet } from "./schedule-sheet.tsx";
 import { ScheduleTable, type RowHandlers } from "./schedule-table.tsx";
 import { FILTER_ID } from "./schedule-text.ts";
 import { RestartNowButton } from "../../restart-confirm-dialog.tsx";
+import {
+  HEADER_CONTROL_SIZE,
+  HEADER_PRIMARY_VARIANT,
+  HEADER_SEGMENTED_SIZE,
+  ScreenHeader,
+} from "../../shell/screen-header.tsx";
 
 // 예약 화면의 그림. 상태와 명령은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
 // 바로 가기 키의 뜻은 `keyIntentOf`가, 실제 동작은 `schedules-screen.tsx`의 `SchedulesScreen`이 맡는다.
@@ -71,30 +77,35 @@ export function ScheduleScreenView(props: ScheduleScreenViewProps): ReactNode {
       className="flex min-h-0 flex-1 flex-col"
       onKeyDown={handlers.onKey}
     >
-      <header className="flex h-10 flex-none items-center gap-2 px-3">
-        <h1
-          id={headingId}
-          className="m-0 flex min-w-0 flex-1 items-baseline gap-2 text-ui-strong text-text-primary"
-        >
-          {t("desktop.schedules.title")}
-        </h1>
-        <SegmentedControl
-          size="xs"
-          aria-label={t("desktop.schedules.filter.label")}
-          value={state.filter}
-          disabled={!acting}
-          onValueChange={(value) => {
-            const filter = filterOf(value);
-            if (filter !== null) handlers.filter(filter);
-          }}
-        >
-          <SegmentedControlItem value="enabled">{t(FILTER_ID.enabled)}</SegmentedControlItem>
-          <SegmentedControlItem value="all">{t(FILTER_ID.all)}</SegmentedControlItem>
-        </SegmentedControl>
-        <Button size="sm" variant="solid" disabled={!acting} onClick={handlers.openNew}>
-          {t("desktop.schedules.new")}
-        </Button>
-      </header>
+      <ScreenHeader
+        title={t("desktop.schedules.title")}
+        titleId={headingId}
+        controls={
+          <SegmentedControl
+            size={HEADER_SEGMENTED_SIZE}
+            aria-label={t("desktop.schedules.filter.label")}
+            value={state.filter}
+            disabled={!acting}
+            onValueChange={(value) => {
+              const filter = filterOf(value);
+              if (filter !== null) handlers.filter(filter);
+            }}
+          >
+            <SegmentedControlItem value="enabled">{t(FILTER_ID.enabled)}</SegmentedControlItem>
+            <SegmentedControlItem value="all">{t(FILTER_ID.all)}</SegmentedControlItem>
+          </SegmentedControl>
+        }
+        action={
+          <Button
+            size={HEADER_CONTROL_SIZE}
+            variant={HEADER_PRIMARY_VARIANT}
+            disabled={!acting}
+            onClick={handlers.openNew}
+          >
+            {t("desktop.schedules.new")}
+          </Button>
+        }
+      />
       <div className="min-h-0 flex-1 overflow-auto px-3 pb-3">
         <div className="grid gap-2">
           {state.serviceModeOff ? (

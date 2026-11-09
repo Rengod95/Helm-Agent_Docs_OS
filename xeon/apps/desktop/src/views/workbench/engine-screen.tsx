@@ -18,6 +18,11 @@ import { useEngineState, useLinkBanner } from "../../state/engine/index.ts";
 import { useCommands } from "../commands.ts";
 import { useSafeMode } from "../safe-mode-context.ts";
 import { useUpdate } from "../update-context.ts";
+import {
+  HEADER_CONTROL_SIZE,
+  HEADER_PRIMARY_VARIANT,
+  ScreenHeader,
+} from "../shell/screen-header.tsx";
 
 const LIST = "rounded-none [&_[data-slot=list-description-row]]:px-0 [--cs-size-list-term:7rem]";
 const TABLE =
@@ -101,111 +106,115 @@ export function EngineScreen(): ReactNode {
     load();
   }, [load]);
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-240 flex-1 flex-col px-3 pt-6 pb-4">
-      <header className="flex h-10 flex-none items-center gap-1 pe-8">
-        <h1 className="m-0 min-w-0 flex-1 truncate text-text-primary">
-          {t("desktop.workbench.engine.title")}
-        </h1>
-        <Button
-          size="sm"
-
-          variant="ghost"
-          iconStart={<RotateCcw />}
-          loading={tools.phase === "loading"}
-          onClick={recheck}
-        >
-          {t("desktop.workbench.engine.recheck")}
-        </Button>
-        <Button
-          size="sm"
-
-          variant="ghost"
-          onClick={() => {
-            commands.reconnect();
-          }}
-        >
-          {t("desktop.workbench.engine.reconnect")}
-        </Button>
-        <Button
-          size="sm"
-
-          variant="ghost"
-          onClick={() => {
-            detach(commands.restartEngine(), rethrow);
-          }}
-        >
-          {t("desktop.workbench.engine.restart")}
-        </Button>
-        <Button
-          size="sm"
-
-          variant="outline"
-          onClick={() => {
-            detach(
-              commands.copyDiagnostics().then((ok) => {
-                if (ok) toast({ tone: "success", title: t("desktop.workbench.engine.copied") });
-                return undefined;
-              }),
-              rethrow,
-            );
-          }}
-        >
-          {t("desktop.workbench.engine.copy")}
-        </Button>
-      </header>
-      <div className="grid min-h-0 flex-1 content-start gap-6 overflow-auto pt-1 pb-8">
-        <Section title={t("desktop.workbench.engine.versions")}>
-          <ListDescription
-            variant="ghost"
-            size="xs"
-            aria-label={t("desktop.workbench.engine.versions")}
-            className={LIST}
+    <div className="flex min-h-0 w-full flex-1 flex-col">
+      <ScreenHeader
+        title={t("desktop.workbench.engine.title")}
+        controls={
+          <>
+            <Button
+              size={HEADER_CONTROL_SIZE}
+              variant="ghost"
+              iconStart={<RotateCcw />}
+              loading={tools.phase === "loading"}
+              onClick={recheck}
+            >
+              {t("desktop.workbench.engine.recheck")}
+            </Button>
+            <Button
+              size={HEADER_CONTROL_SIZE}
+              variant="ghost"
+              onClick={() => {
+                commands.reconnect();
+              }}
+            >
+              {t("desktop.workbench.engine.reconnect")}
+            </Button>
+            <Button
+              size={HEADER_CONTROL_SIZE}
+              variant="ghost"
+              onClick={() => {
+                detach(commands.restartEngine(), rethrow);
+              }}
+            >
+              {t("desktop.workbench.engine.restart")}
+            </Button>
+          </>
+        }
+        action={
+          <Button
+            size={HEADER_CONTROL_SIZE}
+            variant={HEADER_PRIMARY_VARIANT}
+            onClick={() => {
+              detach(
+                commands.copyDiagnostics().then((ok) => {
+                  if (ok) toast({ tone: "success", title: t("desktop.workbench.engine.copied") });
+                  return undefined;
+                }),
+                rethrow,
+              );
+            }}
           >
-            {appVersion === null ? null : (
-              <ListDescriptionRow term={t("desktop.workbench.engine.app")}>
-                <span className="font-mono text-mono-sm">{appVersion}</span>
-              </ListDescriptionRow>
-            )}
-            <ListDescriptionRow term={t("desktop.workbench.engine.phase")}>
-              <span className="font-mono text-mono-sm">{link.phase}</span>
-              {link.attempt > 0 && (
-                <span className="text-text-tertiary">
-                  {" · "}
-                  {t("desktop.workbench.engine.attempt", { attempt: link.attempt })}
-                </span>
+            {t("desktop.workbench.engine.copy")}
+          </Button>
+        }
+      />
+      <div className="mx-auto flex min-h-0 w-full max-w-240 flex-1 flex-col px-3 pt-6 pb-4">
+        <div className="grid min-h-0 flex-1 content-start gap-6 overflow-auto pt-1 pb-8">
+          <Section title={t("desktop.workbench.engine.versions")}>
+            <ListDescription
+              variant="ghost"
+              size="xs"
+              aria-label={t("desktop.workbench.engine.versions")}
+              className={LIST}
+            >
+              {appVersion === null ? null : (
+                <ListDescriptionRow term={t("desktop.workbench.engine.app")}>
+                  <span className="font-mono text-mono-sm">{appVersion}</span>
+                </ListDescriptionRow>
               )}
-            </ListDescriptionRow>
-            <ListDescriptionRow term={t("desktop.workbench.engine.state")}>
-              <span className="font-mono text-mono-sm">{engine === null ? "-" : engine.kind}</span>
-            </ListDescriptionRow>
-            {safeMode === null ? null : (
-              <ListDescriptionRow term={t("desktop.settings.overview.safeMode")}>
-                <span className={safeMode.active ? "text-warning-text" : "text-text-secondary"}>
-                  {t(
-                    safeMode.active
-                      ? "desktop.settings.overview.on"
-                      : "desktop.settings.overview.off",
-                  )}
+              <ListDescriptionRow term={t("desktop.workbench.engine.phase")}>
+                <span className="font-mono text-mono-sm">{link.phase}</span>
+                {link.attempt > 0 && (
+                  <span className="text-text-tertiary">
+                    {" · "}
+                    {t("desktop.workbench.engine.attempt", { attempt: link.attempt })}
+                  </span>
+                )}
+              </ListDescriptionRow>
+              <ListDescriptionRow term={t("desktop.workbench.engine.state")}>
+                <span className="font-mono text-mono-sm">
+                  {engine === null ? "-" : engine.kind}
                 </span>
               </ListDescriptionRow>
+              {safeMode === null ? null : (
+                <ListDescriptionRow term={t("desktop.settings.overview.safeMode")}>
+                  <span className={safeMode.active ? "text-warning-text" : "text-text-secondary"}>
+                    {t(
+                      safeMode.active
+                        ? "desktop.settings.overview.on"
+                        : "desktop.settings.overview.off",
+                    )}
+                  </span>
+                </ListDescriptionRow>
+              )}
+            </ListDescription>
+          </Section>
+          <Section title={t("desktop.workbench.engine.tools")}>
+            {tools.phase === "loading" ? (
+              <div className="grid gap-2.5 py-1">
+                {[60, 77, 94, 71, 88].map((width) => (
+                  <Skeleton key={width} height={12} width={`${width}%`} />
+                ))}
+              </div>
+            ) : tools.view === null ? (
+              <p className="m-0 text-ui-sm text-text-tertiary">
+                {t("desktop.workbench.engine.toolsUnknown")}
+              </p>
+            ) : (
+              <ToolsTable view={tools.view} />
             )}
-          </ListDescription>
-        </Section>
-        <Section title={t("desktop.workbench.engine.tools")}>
-          {tools.phase === "loading" ? (
-            <div className="grid gap-2.5 py-1">
-              {[60, 77, 94, 71, 88].map((width) => (
-                <Skeleton key={width} height={12} width={`${width}%`} />
-              ))}
-            </div>
-          ) : tools.view === null ? (
-            <p className="m-0 text-ui-sm text-text-tertiary">
-              {t("desktop.workbench.engine.toolsUnknown")}
-            </p>
-          ) : (
-            <ToolsTable view={tools.view} />
-          )}
-        </Section>
+          </Section>
+        </div>
       </div>
     </div>
   );

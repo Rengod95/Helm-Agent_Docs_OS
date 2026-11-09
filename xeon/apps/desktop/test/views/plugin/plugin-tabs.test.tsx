@@ -3,6 +3,7 @@ import { ok } from "@fresnel/contracts";
 import type { ExtUiEntry, HostConnection } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
 import { createPluginUiRuntime } from "../../../src/plugin-ui/runtime.ts";
+import { createShellStore, ShellStoreContext } from "../../../src/state/shell/index.ts";
 import { createUiStore } from "../../../src/state/ui/store.ts";
 import { createConfirmQueue } from "../../../src/views/plugin/confirm-host.tsx";
 import { PluginUiProvider } from "../../../src/views/plugin/plugin-context.tsx";
@@ -31,11 +32,13 @@ async function render(entries: readonly ExtUiEntry[], tab: "helm" | "pages"): Pr
   const harness = openedHarness();
   return renderToString(
     <Providers engine={harness.store.read} ui={createUiStore().read} commands={fakeCommands()}>
-      <PluginUiProvider
-        value={{ runtime, confirm: createConfirmQueue(), openExternal: () => Promise.resolve() }}
-      >
-        {tab === "helm" ? <HelmPanelTab /> : <PluginPagesTab />}
-      </PluginUiProvider>
+      <ShellStoreContext value={createShellStore(1280)}>
+        <PluginUiProvider
+          value={{ runtime, confirm: createConfirmQueue(), openExternal: () => Promise.resolve() }}
+        >
+          {tab === "helm" ? <HelmPanelTab /> : <PluginPagesTab />}
+        </PluginUiProvider>
+      </ShellStoreContext>
     </Providers>,
   );
 }

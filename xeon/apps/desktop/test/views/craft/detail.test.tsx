@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
 import { buildFixture, FIXTURE_ORDER, type CanvasPlugin } from "@fresnel/client/workbench/canvas";
 import { renderToString } from "react-dom/server";
+import { createShellStore, ShellStoreContext } from "../../../src/state/shell/index.ts";
 import {
   CraftProvider,
   type CraftRunEntry,
@@ -49,21 +50,24 @@ function fakeSource(recentRuns: CraftSource["recentRuns"]): CraftSource {
 /** 실제 loadRuns로 읽은 결과를 그린다(효과는 서버 렌더에서 돌지 않으므로 읽기 결과를 직접 넣는다) */
 function render(target: DetailTarget | null, runs: RunsView, mode: "example" | "recent"): string {
   const members = target === null ? [] : membersOfTarget(target);
+  // 머리의 펼치기 단추가 셸 스토어를 읽으므로 셸 provider 안에서 그린다
   return renderToString(
-    <DetailView
-      snapshot={snapshot}
-      target={target}
-      columns={columnsFor(members, snapshot, FIXTURE_ORDER)}
-      back="orbit"
-      mode={mode}
-      runs={runs}
-      pending={false}
-      switchFailed={false}
-      onBack={() => undefined}
-      onMode={() => undefined}
-      onScope={() => undefined}
-      onSwitch={() => undefined}
-    />,
+    <ShellStoreContext value={createShellStore(1400)}>
+      <DetailView
+        snapshot={snapshot}
+        target={target}
+        columns={columnsFor(members, snapshot, FIXTURE_ORDER)}
+        back="orbit"
+        mode={mode}
+        runs={runs}
+        pending={false}
+        switchFailed={false}
+        onBack={() => undefined}
+        onMode={() => undefined}
+        onScope={() => undefined}
+        onSwitch={() => undefined}
+      />
+    </ShellStoreContext>,
   );
 }
 

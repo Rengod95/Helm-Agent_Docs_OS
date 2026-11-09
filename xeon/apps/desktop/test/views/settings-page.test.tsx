@@ -11,6 +11,7 @@ import { toSettingDefWire } from "@fresnel/contracts/settings";
 import { harness, thr } from "../state/helpers.ts";
 import { renderToString } from "react-dom/server";
 import { createUiStore } from "../../src/state/ui/index.ts";
+import { createShellStore, ShellStoreContext } from "../../src/state/shell/index.ts";
 import { Providers } from "../../src/views/providers.tsx";
 import { HostNoticesContext } from "../../src/views/host-notices-context.ts";
 import { fakeCommands } from "./fake-commands.ts";
@@ -116,7 +117,9 @@ function html(props: SettingsPageProps): string {
   };
   return renderToString(
     <Providers engine={engine} ui={createUiStore().read} commands={fakeCommands()}>
-      <SettingsPageView {...props} />
+      <ShellStoreContext value={createShellStore(1280)}>
+        <SettingsPageView {...props} />
+      </ShellStoreContext>
     </Providers>,
   );
 }
@@ -1007,9 +1010,11 @@ describe("overview tab problem banner", () => {
     };
     return renderToString(
       <Providers engine={engine} ui={createUiStore().read} commands={fakeCommands()}>
-        <HostNoticesContext value={{ settingsProblems: [PROBLEM], startupNotices: [] }}>
-          <SettingsPageView {...props} />
-        </HostNoticesContext>
+        <ShellStoreContext value={createShellStore(1280)}>
+          <HostNoticesContext value={{ settingsProblems: [PROBLEM], startupNotices: [] }}>
+            <SettingsPageView {...props} />
+          </HostNoticesContext>
+        </ShellStoreContext>
       </Providers>,
     );
   }

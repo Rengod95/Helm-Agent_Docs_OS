@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
+import type { ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { EngineStoreContext } from "../../../src/state/engine/index.ts";
 import {
@@ -10,6 +11,7 @@ import {
   type ShellModel,
 } from "../../../src/state/shell/index.ts";
 import { createShellRegistry } from "../../../src/views/shell/registry.ts";
+import { PanelExpandButton } from "../../../src/views/shell/screen-header.tsx";
 import { Shell } from "../../../src/views/shell/shell.tsx";
 import { harness } from "../../state/helpers.ts";
 
@@ -18,6 +20,7 @@ const noop = (): void => {};
 function render(
   width: number,
   start: (model: ShellModel) => ShellModel = (model) => model,
+  chat: ReactNode = <p>채팅 화면 내용</p>,
 ): string {
   const store = createShellStore(width, start);
   const registry = createShellRegistry();
@@ -25,7 +28,7 @@ function render(
     id: "chat",
     area: "chat",
     label: "desktop.shell.nav.chat",
-    render: () => <p>채팅 화면 내용</p>,
+    render: () => chat,
   });
   registry.registerEndTab({
     id: "inbox",
@@ -91,12 +94,13 @@ describe("Shell slots", () => {
     expect(out).toContain("채팅 화면 내용");
   });
 
-  test("a closed start panel gets an open button on every screen except chat, which has its own in the head", () => {
+  test("the shell draws no start-panel open button itself; a screen puts PanelExpandButton in its head", () => {
     const label = `aria-label="${t("desktop.shell.start.expand")}"`;
-    expect(render(600, (model) => updatePlace(model, { screen: "proposals" }))).toContain(label);
-    expect(render(600)).not.toContain(label);
-    expect(render(1400, (model) => updatePlace(model, { screen: "proposals" }))).not.toContain(
+    expect(render(600, (model) => updatePlace(model, { screen: "proposals" }))).not.toContain(
       label,
     );
+    expect(render(600)).not.toContain(label);
+    expect(render(600, undefined, <PanelExpandButton />)).toContain(label);
+    expect(render(1400, undefined, <PanelExpandButton />)).not.toContain(label);
   });
 });

@@ -43,6 +43,7 @@ import {
   type ScreenDef,
   type ShellRegistry,
 } from "./shell/registry.ts";
+import { HEADER_SELECT_SIZE, HEADER_SEGMENTED_SIZE, ScreenHeader } from "./shell/screen-header.tsx";
 import { createWorkbenchStore } from "../state/workbench/index.ts";
 import {
   inspectEndTab,
@@ -100,62 +101,66 @@ function InboxScreen(): ReactNode {
   );
   return (
     <section aria-labelledby="inbox-heading" className="flex min-h-0 flex-1 flex-col">
-      <header className="shell-header flex flex-none flex-wrap items-center gap-x-2 gap-y-1 py-1">
-        <h1 id="inbox-heading" className="m-0 me-1 font-medium text-text-secondary">
-          {t("desktop.shell.nav.inbox")}
-        </h1>
-        <SegmentedControl
-          aria-label={t("desktop.inbox.filter.label")}
-          size="xs"
-          value={filter}
-          onValueChange={(v) => {
-            setFilter(v === "approvals" || v === "notices" ? v : "all");
-          }}
-        >
-          <SegmentedControlItem value="all">{t("desktop.inbox.filter.all")}</SegmentedControlItem>
-          <SegmentedControlItem value="approvals">
-            {t("desktop.inbox.filter.approvals")}
-          </SegmentedControlItem>
-          <SegmentedControlItem value="notices">
-            {t("desktop.inbox.filter.notices")}
-          </SegmentedControlItem>
-        </SegmentedControl>
-        <span aria-hidden className="flex-1" />
-        <Select
-          size="xs"
-          aria-label={t("desktop.inbox.thread.label")}
-          value={threadValue}
-          onValueChange={(value) => {
-            if (value === "all") {
-              setThread("all");
-              return;
-            }
-            const next = threads.find((choice) => choice.id === value);
-            if (next !== undefined) setThread(next.id);
-          }}
-          className="w-36"
-        >
-          <SelectOption value="all">{t("desktop.inbox.thread.all")}</SelectOption>
-          {threads.map((choice) => (
-            <SelectOption key={choice.id} value={choice.id}>
-              {choice.title ?? t("desktop.approvals.card.thread.untitled")}
-            </SelectOption>
-          ))}
-        </Select>
-        <Select
-          size="xs"
-          aria-label={t("desktop.inbox.sort.label")}
-          value={sort}
-          onValueChange={(value) => {
-            const next = INBOX_SORTS.find((item) => item === value);
-            if (next !== undefined) setSort(next);
-          }}
-          className="w-32"
-        >
-          <SelectOption value="oldest">{t("desktop.inbox.sort.oldest")}</SelectOption>
-          <SelectOption value="newest">{t("desktop.inbox.sort.newest")}</SelectOption>
-        </Select>
-      </header>
+      <ScreenHeader
+        title={t("desktop.shell.nav.inbox")}
+        titleId="inbox-heading"
+        controls={
+          <>
+            <SegmentedControl
+              aria-label={t("desktop.inbox.filter.label")}
+              size={HEADER_SEGMENTED_SIZE}
+              value={filter}
+              onValueChange={(v) => {
+                setFilter(v === "approvals" || v === "notices" ? v : "all");
+              }}
+            >
+              <SegmentedControlItem value="all">
+                {t("desktop.inbox.filter.all")}
+              </SegmentedControlItem>
+              <SegmentedControlItem value="approvals">
+                {t("desktop.inbox.filter.approvals")}
+              </SegmentedControlItem>
+              <SegmentedControlItem value="notices">
+                {t("desktop.inbox.filter.notices")}
+              </SegmentedControlItem>
+            </SegmentedControl>
+            <Select
+              size={HEADER_SELECT_SIZE}
+              aria-label={t("desktop.inbox.thread.label")}
+              value={threadValue}
+              onValueChange={(value) => {
+                if (value === "all") {
+                  setThread("all");
+                  return;
+                }
+                const next = threads.find((choice) => choice.id === value);
+                if (next !== undefined) setThread(next.id);
+              }}
+              className="w-36"
+            >
+              <SelectOption value="all">{t("desktop.inbox.thread.all")}</SelectOption>
+              {threads.map((choice) => (
+                <SelectOption key={choice.id} value={choice.id}>
+                  {choice.title ?? t("desktop.approvals.card.thread.untitled")}
+                </SelectOption>
+              ))}
+            </Select>
+            <Select
+              size={HEADER_SELECT_SIZE}
+              aria-label={t("desktop.inbox.sort.label")}
+              value={sort}
+              onValueChange={(value) => {
+                const next = INBOX_SORTS.find((item) => item === value);
+                if (next !== undefined) setSort(next);
+              }}
+              className="w-32"
+            >
+              <SelectOption value="oldest">{t("desktop.inbox.sort.oldest")}</SelectOption>
+              <SelectOption value="newest">{t("desktop.inbox.sort.newest")}</SelectOption>
+            </Select>
+          </>
+        }
+      />
       <ScrollArea label={t("desktop.shell.nav.inbox")} className="min-h-0 flex-1">
         <div className="mx-auto w-full max-w-184 px-3 pb-4 pt-1">
           <InboxApprovals show={filter} thread={threadValue} sort={sort} feed={feed} />

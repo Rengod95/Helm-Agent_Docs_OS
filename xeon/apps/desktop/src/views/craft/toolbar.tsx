@@ -25,6 +25,7 @@ import {
   type KindFilter,
 } from "@fresnel/client/workbench/canvas";
 import type { ReactNode } from "react";
+import { PanelExpandButton } from "../shell/screen-header.tsx";
 import { type CraftMode, useCraft } from "./craft-context.tsx";
 import { useSwitch } from "./use-switch.ts";
 
@@ -194,6 +195,7 @@ export function CraftToolbar(): ReactNode {
         size="md"
         className="craft-glass pointer-events-auto min-w-0"
       >
+        <PanelExpandButton />
         <SegmentedControl
           size="sm"
           radius="lg"

@@ -15,6 +15,7 @@ import {
 } from "@caustic/react";
 import { useId, useRef, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { InfoTip } from "../../craft/info-tip.tsx";
+import { PanelExpandButton } from "../../shell/screen-header.tsx";
 import type { MetaDraft } from "./secret-draft.ts";
 import { EntryDialog, MetaDialog, RemoveDialog } from "./secret-dialogs.tsx";
 import { SecretDetail, type SecretDetailHandlers } from "./secret-detail.tsx";
@@ -121,6 +122,8 @@ export function SecretsScreenView(props: SecretsScreenViewProps): ReactNode {
         className={`flex flex-wrap items-center gap-3 ${props.embedded === true ? "justify-end" : "justify-between"}`}
       >
         <div className="flex min-w-0 items-center gap-1">
+          {/* 독립 화면의 머리 줄에만 펼치기 단추를 둔다. 설정에 넣은 자리(embedded)에는 두지 않는다 */}
+          {props.embedded === true ? null : <PanelExpandButton />}
           <h1
             id={headingId}
             className={`m-0 text-text-primary ${props.embedded === true ? "sr-only" : ""}`}
