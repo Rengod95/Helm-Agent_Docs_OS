@@ -28,7 +28,8 @@ import {
 // 취소는 `onCancel`이다. 오류는 `checkHostForm`이 준 칸별 목록을 그 칸 아래에 보인다.
 
 /** 칸 아래 오류와 힌트는 13px로 올린다(caustic 기본은 11.5px) */
-const FIELD_TEXT = "[&_[data-slot=field-error]]:text-ui [&_[data-slot=field-hint]]:text-ui";
+const FIELD_TEXT =
+  "[&_[data-slot=field-error]]:text-ui [&_[data-slot=field-hint]]:text-ui [&_[data-slot=field-optional-mark]]:text-ui [&_[data-slot=field-required-mark]]:text-ui";
 
 const KIND_LABEL: Readonly<Record<HostKind, MessageId>> = {
   ssh: "desktop.connection.host.kind.ssh",

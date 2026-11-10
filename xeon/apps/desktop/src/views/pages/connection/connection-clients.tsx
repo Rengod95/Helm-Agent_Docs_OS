@@ -34,7 +34,7 @@ export function ConnectedClientsRow(props: ConnectedClientsRowProps): ReactNode 
       {state.kind === "failed" ? (
         <span role="alert" className="inline-flex flex-wrap items-center gap-2 text-danger-text">
           {t("desktop.connection.clients.loadFailed")}
-          <Button size="xs" variant="outline" onClick={onRetry}>
+          <Button size="xs" variant="outline" className="text-ui" onClick={onRetry}>
             {t("desktop.connection.retry")}
           </Button>
         </span>

@@ -20,16 +20,21 @@ import {
 
 const NOOP = (): void => {};
 const handlers: ConnectionScreenHandlers = {
-  select: NOOP,
   query: NOOP,
   connect: NOOP,
   retry: NOOP,
   backToLocal: NOOP,
-  remove: NOOP,
   openForm: NOOP,
   closeForm: NOOP,
-  formField: NOOP,
+  formChange: NOOP,
   submitForm: NOOP,
+  removeAsk: NOOP,
+  removeCancel: NOOP,
+  removeConfirm: NOOP,
+  renameOpen: NOOP,
+  renameField: NOOP,
+  renameSubmit: NOOP,
+  renameCancel: NOOP,
   dismissNotice: NOOP,
   confirmStop: NOOP,
   restart: NOOP,
@@ -70,7 +75,7 @@ describe("connection screen server render", () => {
       type: "targetsChanged",
       items: [{ id: "b1", label: "build-box", address: "ssh://me@build/run/fresnel.sock" }],
       notice: null,
-      added: null,
+      added: false,
     });
     const markup = html(loaded);
     expect(markup).toContain(
@@ -85,20 +90,20 @@ describe("connection screen server render", () => {
       type: "targetsChanged",
       items: [],
       notice: null,
-      added: null,
+      added: false,
     });
     const markup = html(loaded);
-    expect(markup).toContain("원격 대상이 없어요");
-    expect(markup).toContain("원격 대상 추가");
+    expect(markup).toContain("추가한 원격 호스트가 없어요.");
+    expect(markup).toContain("호스트 추가");
     expect(markup).toContain("이 컴퓨터(앱 안)");
     expect(markup).not.toContain('type="search"');
-    expect(markup).not.toContain("대상을 읽고 있어요");
+    expect(markup).not.toContain("호스트를 읽고 있어요.");
   });
 
   test("a list that is still loading says so and does not claim the list is empty", () => {
     const markup = html(INITIAL_CONNECTION_STATE);
-    expect(markup).toContain("대상을 읽고 있어요");
-    expect(markup).not.toContain("원격 대상이 없어요");
+    expect(markup).toContain("호스트를 읽고 있어요.");
+    expect(markup).not.toContain("추가한 원격 호스트가 없어요.");
   });
 
   test("past the threshold the list shows the search box", () => {
@@ -106,23 +111,23 @@ describe("connection screen server render", () => {
       type: "targetsChanged",
       items: targets(21),
       notice: null,
-      added: null,
+      added: false,
     });
     expect(html(long)).toContain('type="search"');
     const short = stateAfter({
       type: "targetsChanged",
       items: targets(20),
       notice: null,
-      added: null,
+      added: false,
     });
     expect(html(short)).not.toContain('type="search"');
   });
 
   test("a non-loopback address in the add form shows the SSH tunnel or private network guidance", () => {
     const refused = stateAfter(
-      { type: "targetsChanged", items: [], notice: null, added: null },
+      { type: "targetsChanged", items: [], notice: null, added: false },
       { type: "formOpened" },
-      { type: "formFailed", errors: { label: false, address: "non_loopback" } },
+      { type: "formFailed", errors: [{ field: "target", reason: "non_loopback" }] },
     );
     expect(html(refused)).toContain("SSH 터널이나 사설망을 써요");
   });
@@ -239,7 +244,7 @@ describe("the connected clients row in the status list", () => {
     const markup = html(stateAfter(STATUS, { type: "clientsFailed", reason: "failed" }));
     expect(markup).toContain("클라이언트 목록을 읽지 못했어요");
     expect(markup).toContain("다시 시도");
-    expect(markup).toContain("지금 대상");
+    expect(markup).toContain("이 컴퓨터(앱 안)");
     expect(markup).toContain("상태");
     expect(markup).not.toContain(">없어요<");
   });
@@ -265,7 +270,7 @@ describe("the connected clients row in the status list", () => {
   test("a remote target that is offline names the service, not an engine to restart", () => {
     const markup = html(
       stateAfter(
-        { type: "targetsChanged", items: targets(1), notice: null, added: null },
+        { type: "targetsChanged", items: targets(1), notice: null, added: false },
         {
           type: "engineTargetSeen",
           target: { kind: "remote", address: "unix:/run/box0.sock", label: "box-0" },
@@ -296,8 +301,7 @@ describe("the connection failure banner shows the cause line and the fix line", 
   /** 원격 대상으로 붙다가 엔진이 `detail`을 남기고 멈춘 상태 */
   function failedWith(detail: string): ConnectionState {
     return stateAfter(
-      { type: "targetsChanged", items: [ENTRY], notice: null, added: null },
-      { type: "select", choice: { kind: "remote", entry: ENTRY } },
+      { type: "targetsChanged", items: [ENTRY], notice: null, added: false },
       {
         type: "connectStarted",
         target: { kind: "remote", entry: ENTRY },
@@ -332,6 +336,35 @@ describe("the connection failure banner shows the cause line and the fix line", 
     expect(markup).toContain("이 대상은 토큰이 필요해요.");
     expect(markup).toContain("앱을 FRESNEL_REMOTE_TOKEN 환경 변수와 함께 열어요.");
     expect(markup).not.toContain('type="password"');
+  });
+});
+
+describe("the host section's notice", () => {
+  test("a failed save shows its danger notice at the top of the host section, as a dismissible outline alert", () => {
+    const markup = html(
+      stateAfter(
+        { type: "targetsChanged", items: [], notice: null, added: false },
+        { type: "notice", notice: { tone: "danger", id: "desktop.connection.targets.saveFailed" } },
+      ),
+    );
+    const at = markup.indexOf("목록을 저장하지 못했어요. 다시 해 봐요.");
+    expect(at).toBeGreaterThan(markup.indexOf("호스트 추가"));
+    expect(at).toBeLessThan(markup.indexOf("이 컴퓨터(앱 안)"));
+    expect(markup).toContain('data-slot="alert" data-tone="danger" data-variant="outline"');
+    expect(markup).toContain("닫기");
+  });
+
+  test("a saved add shows its success notice in the same place, as a success alert", () => {
+    const markup = html(
+      stateAfter({
+        type: "targetsChanged",
+        items: targets(1),
+        notice: { tone: "success", id: "desktop.connection.targets.added" },
+        added: true,
+      }),
+    );
+    expect(markup).toContain("호스트를 더했어요.");
+    expect(markup).toContain('data-slot="alert" data-tone="success" data-variant="outline"');
   });
 });
 
@@ -425,7 +458,7 @@ describe("the local service card in the status column", () => {
   test("a remote target shows no local card", () => {
     const markup = html(
       stateAfter(
-        { type: "targetsChanged", items: targets(1), notice: null, added: null },
+        { type: "targetsChanged", items: targets(1), notice: null, added: false },
         {
           type: "engineTargetSeen",
           target: { kind: "remote", address: "unix:/run/box0.sock", label: "box-0" },

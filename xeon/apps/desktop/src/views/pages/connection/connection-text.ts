@@ -1,3 +1,4 @@
+import { parseTargetAddress, type TargetAddress } from "@fresnel/client";
 import type { Locale, MessageId } from "@fresnel/client/i18n";
 import type { EngineState } from "../../../state/engine/index.ts";
 import type { AddressReason, StepId } from "./connection-model.ts";
@@ -17,6 +18,19 @@ const ADDRESS_ID: Readonly<Record<AddressReason, MessageId>> = {
 /** 주소 칸의 거절 사유 문장 */
 export function addressMessageOf(reason: AddressReason): MessageId {
   return ADDRESS_ID[reason];
+}
+
+const KIND_BADGE_ID: Readonly<Record<TargetAddress["kind"], MessageId>> = {
+  ssh: "desktop.connection.host.badge.ssh",
+  wss: "desktop.connection.host.badge.web",
+  unix: "desktop.connection.host.badge.unix",
+  tcp: "desktop.connection.host.badge.tcp",
+};
+
+/** 저장된 주소의 종류 배지 글. 저장할 때 맞은 주소만 들어오므로 풀리지 않으면 배지를 달지 않는다(null) */
+export function hostBadgeOf(address: string): MessageId | null {
+  const parsed = parseTargetAddress(address);
+  return parsed.ok ? KIND_BADGE_ID[parsed.target.kind] : null;
 }
 
 const ENGINE_ID: Readonly<Record<EngineState["kind"], MessageId>> = {
@@ -54,9 +68,15 @@ export function stepMessageOf(step: StepId): MessageId {
   return STEP_ID[step];
 }
 
-/** 시각을 지역 시각의 짧은 문장으로 쓴다. 엔진이 준 값은 ISO 문자열이다 */
+/**
+ * 시각을 지역 시각의 "월 일 시:분" 문장으로 쓴다(ko "11월 10일 오후 6:39"). 엔진이 준 값은 ISO 문자열이다.
+ * 해는 뺀다. 요약 줄의 "언제부터"를 짧게 보이려는 것이다.
+ */
 export function timeTextOf(iso: string, locale: Locale): string {
-  return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(
-    new Date(iso),
-  );
+  return new Intl.DateTimeFormat(locale, {
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(iso));
 }

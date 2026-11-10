@@ -1,336 +1,92 @@
 import type { TargetEntry } from "@fresnel/client";
 import { t, type Locale } from "@fresnel/client/i18n";
+import { updateLineKey } from "@fresnel/client/settings";
 import {
-  Alert,
   Button,
   Dialog,
   DialogAction,
   DialogClose,
-  Field,
-  Input,
   ListDescription,
   ListDescriptionRow,
-  RadioGroup,
-  RadioGroupItem,
-  Skeleton,
 } from "@caustic/react";
 import { useId, type ReactNode } from "react";
 import type { EngineState } from "../../../state/engine/index.ts";
-import { InfoTip } from "../../craft/info-tip.tsx";
+import type { ConnectionState, TargetChoice } from "./connection-model.ts";
 import {
-  canConnect,
-  LOCAL_CHOICE,
-  sameChoice,
-  searchShown,
-  valueOfChoice,
-  visibleTargets,
-  type ConnectionState,
-  type FormState,
-  type TargetChoice,
-} from "./connection-model.ts";
-import {
-  ConnectionDetailPanel,
   ConnectionSection,
+  LocalServiceCard,
+  ServiceModeRows,
   type DetailHandlers,
 } from "./connection-status.tsx";
-import { StatusBadge } from "./connection-badge.tsx";
-import { addressMessageOf } from "./connection-text.ts";
+import { HostSection } from "./connection-host-section.tsx";
+import type { HostFormValue } from "./host-address.ts";
 import { ScreenHeader } from "../../shell/screen-header.tsx";
 
 // 연결 화면(P-08)의 그림. 상태와 명령은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
-// 왼쪽은 대상 목록(라디오 묶음과 상태 배지), 오른쪽은 붙는 중·실패와 지금 대상이다. 넓은 폭에서는 두 열, 좁으면 한 열이다.
+// 한 열이고 내용은 720px 폭에 가운데 맞춘다. 맨 위는 "호스트" 섹션, 그 아래는 서비스 스위치 묶음, 이 기기 서비스 카드,
+// 서버 모드 섹션(`serverSection`)이 같은 순서로 이어진다. 섹션 사이는 `gap-10`이다.
 
 /** 화면 동작. 속성 형태로 둬서 시험이 빈 함수를 넣을 수 있다 */
 export interface ConnectionScreenHandlers extends DetailHandlers {
-  readonly select: (value: string) => void;
+  /** 그 행의 호스트로 연결한다(셸에 대상 바꾸기) */
+  readonly connect: (choice: TargetChoice) => void;
   readonly query: (text: string) => void;
-  readonly connect: () => void;
-  readonly remove: (id: string) => void;
   readonly openForm: () => void;
   readonly closeForm: () => void;
-  readonly formField: (field: "label" | "address", value: string) => void;
+  readonly formChange: (value: HostFormValue) => void;
   readonly submitForm: () => void;
+  readonly removeAsk: (entry: TargetEntry) => void;
+  readonly removeCancel: () => void;
+  readonly removeConfirm: () => void;
+  readonly renameOpen: (entry: TargetEntry) => void;
+  readonly renameField: (label: string) => void;
+  readonly renameSubmit: () => void;
+  readonly renameCancel: () => void;
   readonly dismissNotice: () => void;
   readonly confirmStop: () => void;
 }
+
+const ROWS_CLASS =
+  "rounded-none [--cs-size-list-term:8rem] [&_[data-slot=list-description-row]]:px-0";
 
 export interface ConnectionScreenViewProps {
   readonly state: ConnectionState;
   readonly engine: EngineState | null;
   readonly locale: Locale;
   readonly handlers: ConnectionScreenHandlers;
-  /** 이 기기 서비스 카드 아래의 서버 모드 섹션. 이 기기 대상일 때만 그린다(원격 대상에서는 그리지 않는다) */
+  /** 서버 모드 섹션. 이 기기 대상일 때만 그린다(원격 대상에서는 그리지 않는다). 상태를 읽는 동안에도 그리지 않는다 */
   readonly serverSection?: ReactNode;
 }
-
-const ROWS_CLASS =
-  "rounded-none [--cs-size-list-term:8rem] [&_[data-slot=list-description-row]]:px-0";
 
 export function ConnectionScreenView(props: ConnectionScreenViewProps): ReactNode {
   const { state, engine, locale, handlers, serverSection } = props;
   const headingId = useId();
+  // 이 기기의 서비스 쪽 덩어리(스위치, 서비스 카드, 서버 모드)는 이 기기 대상이고 상태를 읽은 뒤에만 보인다
+  const serviceShown = state.engineTarget.kind === "local" && state.status.kind !== "loading";
   return (
     <section aria-labelledby={headingId} className="flex min-h-0 flex-1 flex-col">
       <ScreenHeader title={t("desktop.connection.title")} titleId={headingId} />
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-3 pb-4">
-        {state.notice === null ? null : (
-          <Alert
-            tone={state.notice.tone === "danger" ? "danger" : "success"}
-            dismissible
-            dismissLabel={t("desktop.connection.dismiss")}
-            onDismiss={handlers.dismissNotice}
-          >
-            {t(state.notice.id)}
-          </Alert>
-        )}
-        <div className="grid gap-8 medium:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
-          <TargetsPanel state={state} handlers={handlers} />
-          <ConnectionDetailPanel
-            state={state}
-            engine={engine}
-            locale={locale}
-            handlers={handlers}
-            serverSection={serverSection}
-          />
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
+        <div className="mx-auto grid w-full max-w-180 gap-10">
+          <HostSection state={state} engine={engine} locale={locale} handlers={handlers} />
+          {serviceShown ? (
+            <ConnectionSection title={t("desktop.connection.service.heading")}>
+              <ServiceModeRows state={state} handlers={handlers} />
+            </ConnectionSection>
+          ) : null}
+          {serviceShown ? (
+            <ConnectionSection title={t("desktop.connection.service.card.title")}>
+              <LocalServiceCard state={state} handlers={handlers} />
+            </ConnectionSection>
+          ) : null}
+          {serviceShown ? serverSection : null}
+          <p className="m-0 text-ui text-text-tertiary">
+            {t(updateLineKey({ state: "unchecked" }))}
+          </p>
         </div>
-        <StopDialog state={state} handlers={handlers} />
       </div>
+      <StopDialog state={state} handlers={handlers} />
     </section>
-  );
-}
-
-/** 대상 줄 끝의 상태 배지. 붙는 중과 실패가 지금 대상보다 앞선다. 연결됐을 때만 "연결됨"이다 */
-function badgeOf(state: ConnectionState, choice: TargetChoice): ReactNode {
-  if (state.pending !== null && sameChoice(state.pending.target, choice)) {
-    return <StatusBadge tone="info">{t("desktop.connection.badge.attaching")}</StatusBadge>;
-  }
-  if (state.failure !== null && sameChoice(state.failure.target, choice)) {
-    return <StatusBadge tone="danger">{t("desktop.connection.badge.failed")}</StatusBadge>;
-  }
-  if (!sameChoice(state.engineTarget, choice)) return null;
-  if (state.pending !== null || state.failure !== null || state.status.kind !== "ready") {
-    return <StatusBadge tone="neutral">{t("desktop.connection.badge.current")}</StatusBadge>;
-  }
-  return <StatusBadge tone="success">{t("desktop.connection.badge.connected")}</StatusBadge>;
-}
-
-function ItemBody(props: {
-  readonly label: string;
-  readonly badge: ReactNode;
-  /** 이름 아래 한 줄. 원격 대상은 주소를 보인다 */
-  readonly sub?: ReactNode;
-}): ReactNode {
-  return (
-    <span className="grid min-w-0 flex-1 gap-0.5 py-1">
-      <span className="flex min-w-0 items-center gap-2">
-        <span className="truncate text-ui-sm font-medium text-text-primary">{props.label}</span>
-        <span className="flex-1" />
-        {props.badge}
-      </span>
-      {props.sub}
-    </span>
-  );
-}
-
-function TargetsPanel(props: {
-  readonly state: ConnectionState;
-  readonly handlers: ConnectionScreenHandlers;
-}): ReactNode {
-  const { state, handlers } = props;
-  const items = visibleTargets(state);
-  const idle = state.busy || state.pending !== null;
-  const differs = !sameChoice(state.selected, state.engineTarget);
-  return (
-    <ConnectionSection
-      title={t("desktop.connection.targets.heading")}
-      end={
-        <Button
-          size="xs"
-
-          variant="ghost"
-          disabled={idle || state.form !== null}
-          onClick={handlers.openForm}
-        >
-          {t("desktop.connection.targets.add")}
-        </Button>
-      }
-    >
-      {searchShown(state.items) ? (
-        <Input
-          type="search"
-          size="sm"
-          aria-label={t("desktop.connection.targets.search")}
-          placeholder={t("desktop.connection.targets.search")}
-          value={state.query}
-          onValueChange={handlers.query}
-        />
-      ) : null}
-      {state.list.kind === "loading" ? (
-        <div role="status" className="grid content-start gap-3">
-          <span className="sr-only">{t("desktop.connection.targets.loading")}</span>
-          {Array.from({ length: 4 }, (_, i) => (
-            <Skeleton key={i} width={`${60 + ((i * 11) % 30)}%`} height={14} />
-          ))}
-        </div>
-      ) : null}
-      {state.list.kind === "failed" ? (
-        <Alert tone="danger" size="sm">
-          {t("desktop.connection.targets.loadFailed")}
-        </Alert>
-      ) : null}
-      {state.list.kind === "ready" && state.items.length === 0 ? (
-        <p className="m-0 text-ui-sm font-normal text-text-tertiary">
-          {t("desktop.connection.targets.empty")}
-        </p>
-      ) : null}
-      <RadioGroup
-        aria-label={t("desktop.connection.targets.heading")}
-        size="sm"
-        value={valueOfChoice(state.selected)}
-        onValueChange={handlers.select}
-        disabled={state.pending !== null}
-        className="gap-0.5"
-      >
-        <RadioGroupItem value={valueOfChoice(LOCAL_CHOICE)} className="mt-1 self-start">
-          <ItemBody
-            label={t("desktop.connection.targets.local")}
-            badge={badgeOf(state, LOCAL_CHOICE)}
-          />
-        </RadioGroupItem>
-        {items.map((entry) => (
-          <TargetRow
-            key={entry.id}
-            entry={entry}
-            badge={badgeOf(state, { kind: "remote", entry })}
-            disabled={idle}
-            onRemove={() => {
-              handlers.remove(entry.id);
-            }}
-          />
-        ))}
-      </RadioGroup>
-      {state.items.length > 0 && items.length === 0 ? (
-        <p className="m-0 text-ui-sm font-normal text-text-tertiary">
-          {t("desktop.connection.targets.noMatch")}
-        </p>
-      ) : null}
-      {state.form === null ? null : (
-        <TargetForm form={state.form} busy={state.busy} handlers={handlers} />
-      )}
-      {state.form === null && differs ? (
-        <div className="flex justify-end pt-1">
-          <Button
-            size="sm"
-
-            variant="solid"
-            disabled={!canConnect(state)}
-            loading={state.pending !== null}
-            onClick={handlers.connect}
-          >
-            {t("desktop.connection.targets.connect")}
-          </Button>
-        </div>
-      ) : null}
-    </ConnectionSection>
-  );
-}
-
-function TargetRow(props: {
-  readonly entry: TargetEntry;
-  readonly badge: ReactNode;
-  readonly disabled: boolean;
-  readonly onRemove: () => void;
-}): ReactNode {
-  const { entry, badge, disabled, onRemove } = props;
-  return (
-    <div className="flex items-start justify-between gap-2">
-      <div className="min-w-0 flex-1">
-        <RadioGroupItem
-          value={valueOfChoice({ kind: "remote", entry })}
-          className="mt-1 self-start"
-        >
-          <ItemBody
-            label={entry.label}
-            badge={badge}
-            sub={
-              <span
-                className="min-w-0 truncate font-mono text-ui-sm font-normal text-text-tertiary"
-                title={entry.address}
-              >
-                {entry.address}
-              </span>
-            }
-          />
-        </RadioGroupItem>
-      </div>
-      <Button variant="ghost" size="xs" disabled={disabled} onClick={onRemove}>
-        {t("desktop.connection.targets.remove")}
-      </Button>
-    </div>
-  );
-}
-
-function TargetForm(props: {
-  readonly form: FormState;
-  readonly busy: boolean;
-  readonly handlers: ConnectionScreenHandlers;
-}): ReactNode {
-  const { form, busy, handlers } = props;
-  const formId = useId();
-  const labelError = form.errors.label ? t("desktop.connection.form.labelEmpty") : undefined;
-  const addressError =
-    form.errors.address === null ? undefined : t(addressMessageOf(form.errors.address));
-  return (
-    <form
-      id={formId}
-      noValidate
-      className="grid gap-2.5 pt-2"
-      onSubmit={(event) => {
-        event.preventDefault();
-        handlers.submitForm();
-      }}
-    >
-      <Field label={t("desktop.connection.form.label")} error={labelError} size="sm">
-        <Input
-          size="sm"
-          value={form.label}
-          invalid={form.errors.label}
-          onValueChange={(value) => {
-            handlers.formField("label", value);
-          }}
-        />
-      </Field>
-      <Field label={t("desktop.connection.form.address")} error={addressError} size="sm">
-        <span className="flex min-w-0 items-center gap-1.5">
-          <span className="min-w-0 flex-1">
-            <Input
-              size="sm"
-              className="font-mono"
-              value={form.address}
-              invalid={form.errors.address !== null}
-              onValueChange={(value) => {
-                handlers.formField("address", value);
-              }}
-            />
-          </span>
-          <InfoTip text={t("desktop.connection.form.addressHint")} />
-        </span>
-      </Field>
-      <div className="flex justify-end gap-1.5">
-        <Button
-          size="sm"
-
-          variant="ghost"
-          disabled={busy}
-          onClick={handlers.closeForm}
-        >
-          {t("desktop.connection.form.discard")}
-        </Button>
-        <Button type="submit" form={formId} size="sm" variant="solid" loading={busy}>
-          {t("desktop.connection.form.save")}
-        </Button>
-      </div>
-    </form>
   );
 }
 
@@ -366,7 +122,7 @@ function StopDialog(props: {
         </>
       }
     >
-      <ListDescription variant="ghost" size="xs" className={ROWS_CLASS}>
+      <ListDescription variant="ghost" size="sm" className={ROWS_CLASS}>
         <ListDescriptionRow term={t("desktop.connection.status.liveTurns")}>
           {liveTurns}
         </ListDescriptionRow>
