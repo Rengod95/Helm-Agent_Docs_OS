@@ -43,17 +43,14 @@ function parseConfigSchema(rest: readonly string[]): ParsedArgv {
   };
 }
 
-/** `service run`와 `host --service`의 인자: `--safe-mode`, `--listen-tcp <host:port>`, `--allow-non-loopback` */
+/** `service run`와 `host --service`의 인자: `--safe-mode`, `--listen-tcp <host:port>` */
 function parseServiceRun(rest: readonly string[]): ParsedArgv {
   let safeMode = false;
   let tcp: { readonly host: string; readonly port: number } | undefined;
-  let allowNonLoopback = false;
   for (let index = 0; index < rest.length; index += 1) {
     const arg = rest[index];
     if (arg === "--safe-mode") {
       safeMode = true;
-    } else if (arg === "--allow-non-loopback") {
-      allowNonLoopback = true;
     } else if (arg === "--listen-tcp") {
       const value = rest[index + 1];
       index += 1;
@@ -73,11 +70,11 @@ function parseServiceRun(rest: readonly string[]): ParsedArgv {
       return { ok: false, message: `unknown argument: ${arg ?? ""}` };
     }
   }
-  // 루프백이 아닌 주소는 명시 허용 없이는 거부한다 [결정: 오케스트레이터 기본값]
-  if (tcp !== undefined && !allowNonLoopback && !isLoopbackHost(tcp.host)) {
+  // 루프백이 아닌 주소는 열지 않는다. 다른 컴퓨터는 웹 게이트웨이(wss://)나 ssh://로 붙는다 [결정: 2026-11-10 사용자 승인, L4.remote.spec §9 W9]
+  if (tcp !== undefined && !isLoopbackHost(tcp.host)) {
     return {
       ok: false,
-      message: `tcp_not_loopback: ${tcp.host} is not a loopback address; add --allow-non-loopback to open it`,
+      message: `tcp_not_loopback: ${tcp.host} is not a loopback address; reach other computers through the web gateway (wss://) or ssh://`,
     };
   }
   return {
@@ -86,7 +83,6 @@ function parseServiceRun(rest: readonly string[]): ParsedArgv {
       kind: "service-run",
       safeMode,
       ...(tcp === undefined ? {} : { tcp }),
-      ...(allowNonLoopback ? { allowNonLoopback: true } : {}),
     },
   };
 }

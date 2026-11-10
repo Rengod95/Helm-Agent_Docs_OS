@@ -70,12 +70,11 @@ export interface ServiceOptions {
   readonly idleGraceMs?: number;
   /**
    * TCP로도 연다(원격 사용, M3-REQ-43). 등록 파일의 토큰이 필요하고 `host.hello`의 `auth.token`으로 검사한다.
-   * 루프백이 아닌 주소는 `allowNonLoopback`을 명시해야 열린다(`tcp_not_loopback`). 기본은 열지 않는다
+   * 루프백이 아닌 주소는 열지 않는다(`tcp_not_loopback`). 다른 컴퓨터는 웹 게이트웨이(wss://)나 ssh://로 붙는다. 기본은 열지 않는다
    */
   readonly tcp?: {
     readonly host: string;
     readonly port: number;
-    readonly allowNonLoopback?: boolean;
   };
   /** 유휴 타이머의 시계. 없으면 L0.os의 시계. 시험이 수동 시계를 넘긴다 */
   readonly time?: { readonly clock: Clock; readonly scheduler: Scheduler };
@@ -275,7 +274,6 @@ export async function startService(options: ServiceOptions = {}): Promise<Servic
       host: options.tcp.host,
       port: options.tcp.port,
       token: gate.current(),
-      ...(options.tcp.allowNonLoopback === true ? { allowNonLoopback: true } : {}),
     });
     if (!listened.ok) {
       await closeHost(running);

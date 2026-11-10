@@ -297,13 +297,13 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 | 위치 | 내용 |
 |---|---|
 | `L2.schedule.spec` §원격(`loopback`이 아닌 리스너는 1차에 열지 않는다, U-11), `L4.host-service.spec` §4.11·HS-87, `L0.process.spec` §4.4 루프백 원칙, `architecture.security.spec` T-10, `product.scope.spec` X5 | 서비스는 비루프백 리스너를 만들지 않는다. TLS+토큰 WebSocket은 2차 |
-| `L4.host-service.spec` SV-05, `L0.process.spec` §4.4.5, `L4.cli.spec`, 코드 `--allow-non-loopback`(`socket.ts` `allowNonLoopback`, `tcp_not_loopback`) | 토큰이 있으면 `--allow-non-loopback`으로 비루프백 TCP를 연다. TLS 없음 |
+| `L4.host-service.spec` SV-05, `L0.process.spec` §4.4.5, `L4.cli.spec`, 코드 `--allow-non-loopback`(`socket.ts` `allowNonLoopback`, `tcp_not_loopback`) | [해소: 2026-11-10 W9] 옵션을 코드에서 지웠다. 비루프백 TCP는 토큰이 있어도 `tcp_not_loopback`으로 거절한다(정리 1번). |
 
 정리 [결정: 2026-11-08 사용자가 TLS 외부 접근을 요구해 U-11의 "2차"를 앞당긴다. 방식은 제안]:
 
 1. **서비스 호스트는 비루프백 리스너를 열지 않는다.** U-11, X5, T-10의 이 문장은 그대로 유효하다. 서비스의 TCP 리스너는 루프백 전용이다(`tcp_not_loopback`은 남는다. SSH 터널의 끝과 시험용).
 2. 외부 접근은 **게이트웨이만** 연다. TLS와 기기 인증이 없으면 열리지 않는다(무인증·평문 비루프백 리스너 금지는 그대로).
-3. `--allow-non-loopback`과 `allowNonLoopback` 옵션, 평문 `tcp://` 비루프백 원격은 쓰지 않는다(비권장). 같은 일을 TLS 통로가 한다. 대상 목록은 평문 비루프백 `tcp://`를 이미 거절한다(W5). 옵션 제거는 코드 삭제이므로 사용자 승인 뒤 구현 트랙 W9가 한다 [결정: 오케스트레이터 기본값, 사용자 승인 전까지 "비권장"으로 남긴다]. 그때까지 옵션은 남고 이 문서가 대체 경로를 가리킨다.
+3. `--allow-non-loopback`과 `allowNonLoopback` 옵션, 평문 `tcp://` 비루프백 원격은 쓰지 않는다(비권장). 같은 일을 TLS 통로가 한다. 대상 목록은 평문 비루프백 `tcp://`를 이미 거절한다(W5). [확인: 2026-11-10 W9] 사용자 승인 뒤 옵션을 코드에서 지웠다. 이 문서가 가리키는 대체 경로는 게이트웨이(`wss://`)와 `ssh://`다.
 4. `tcp://` 주소 종류는 루프백 전용으로 줄이고, 다른 컴퓨터 접속은 `wss://`(게이트웨이)나 `ssh://`로 한다. `L0.process.spec` P-13은 이 결정으로 해소된다.
 5. 기존 문서의 델타는 각 문서의 해당 문장에 이 문서(`L4.remote.spec` §9)를 가리키는 `[결정: 2026-11-08 …]` 표지를 단 것이다. 문서별 델타는 `L4.remote.plan` 트랙 W0이 적용한 범위와 같다.
 
@@ -375,7 +375,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 - [결정: 2026-11-08 사용자] 앱을 닫아도 서비스는 계속 돈다(B). 로그인 자동 시작(D)은 사용자가 켜는 스위치다(§4.2).
 - [결정: 2026-11-08 사용자] 웹 기기 권한은 데스크톱과 똑같이 전부 허용한다. 읽기 전용 기기 역할은 두지 않는다(§8.6).
 - [결정: 2026-11-08 사용자] 탭이 닫힌 뒤의 푸시 알림(Web Push)을 이번 범위에 넣는다(§6.2).
-- [미결: 사용자 결정] `--allow-non-loopback` 제거(삭제 승인). [근거: 질문 5]
+- [해결: 2026-11-10 사용자 삭제 승인, W9] `--allow-non-loopback` 제거를 코드에서 마쳤다. [근거: 질문 5]
 - [확인: 2026-11-09 W2] 승인 해결 알림은 서비스의 이벤트 구독 경로로 그 대화를 구독한 모든 연결에 간다(§7). 웹 CSP의 `style-src 'unsafe-inline'`은 뺄 수 없다: UI 번들이 `style={{…}}` 속성을 80곳, `.style.` 대입을 10곳 쓴다(`apps/desktop/src`). `eval`, `new Function`, 워커는 없어 `script-src 'self'`는 그대로 충족된다(§8.7).
 - [확인: 2026-11-10 W8] 루프백 HTTP(`http://127.0.0.1:<port>`)에서 헤드리스 Chrome 157(macOS arm64)이 쿠키를 받아 로그인하고 UI, `/wire`·`/shell` 연결, 플러그인 프레임이 동작한다. [가정] 브라우저별 서비스 워커 등록, Safari·Firefox, TLS(자체 서명)를 브라우저가 열었을 때의 동작은 아직 실측하지 않았다(헤드리스 Chrome 접속에는 인증서 예외 옵션이 필요하고 `Bun.WebView`에 없다).
 - [제안] 새 이름(`devices.json`, `l4.remote.*`, `shell_capabilities`, `wss` 종류, `fresnel.remote-device` 항목)은 해당 정본 문서가 확정할 때까지 제안이다.

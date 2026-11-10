@@ -167,7 +167,7 @@ Commands
                             (needs l4.remote.web.enabled; the code expires in 5 minutes). status --json has a remote field
   service install [--yes]   Start the service at login. It writes a launch file in your home folder, so it asks first (--yes skips the question)
   service uninstall         Stop starting the service at login and remove its launch file
-  service start|status|stop|ensure [--json] [--safe-mode] [--listen-tcp <host>:<port> [--allow-non-loopback]]
+  service start|status|stop|ensure [--json] [--safe-mode] [--listen-tcp <host>:<port>]
                             Shared service mode. start and ensure start the service, or attach to it if it is running.
                             status and stop check it and stop it. Safe mode and TCP apply only when a new service starts
                             Schedules run while the app or the service is running. See fresnel help schedule

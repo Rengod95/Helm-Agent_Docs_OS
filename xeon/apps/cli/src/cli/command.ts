@@ -226,8 +226,6 @@ export interface ServiceCommand {
   readonly safeMode: boolean;
   /** `--listen-tcp <host>:<port>`. start·run만. 서비스가 TCP로도 연다(토큰은 등록 파일에 있다) */
   readonly listenTcp: { readonly host: string; readonly port: number } | null;
-  /** `--allow-non-loopback`. 루프백이 아닌 `--listen-tcp` 주소를 허용한다 */
-  readonly allowNonLoopback: boolean;
   /** `--yes`. install만. 없으면 터미널에서 `[y/N]`으로 묻고, 터미널이 아니면 종료 코드 2로 끝난다(L4.cli.spec §3.6) */
   readonly yes: boolean;
 }
@@ -1732,7 +1730,6 @@ function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCo
     "--json": { value: "none" },
     "--safe-mode": { value: "none" },
     "--listen-tcp": { value: "required" },
-    "--allow-non-loopback": { value: "none" },
     "--yes": { value: "none" },
   });
   if (!scanned.ok) return scanned;
@@ -1787,7 +1784,7 @@ function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCo
         ),
       );
     }
-    if (!has(flags, "--allow-non-loopback") && !isLoopbackHost(parsed.host)) {
+    if (!isLoopbackHost(parsed.host)) {
       return err(
         usage(
           "unexpectedArgument",
@@ -1798,23 +1795,12 @@ function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCo
     }
     listenTcp = parsed;
   }
-  const allowNonLoopback = has(flags, "--allow-non-loopback");
-  if (allowNonLoopback && listenTcp === null) {
-    return err(
-      usage(
-        "unexpectedArgument",
-        t("cli.usage.service.allowNonLoopback.message"),
-        t("cli.usage.service.allowNonLoopback.fix"),
-      ),
-    );
-  }
   return ok({
     kind: "service",
     action,
     output: outputOf(flags),
     safeMode,
     listenTcp,
-    allowNonLoopback,
     yes: has(flags, "--yes"),
   });
 }

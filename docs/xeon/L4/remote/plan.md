@@ -84,6 +84,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 - `--allow-non-loopback`, `allowNonLoopback`, 평문 비루프백 TCP 경로를 제거한다. 코드 삭제이므로 사용자가 승인한 뒤에만 한다.
 - 끝난 상태: 옵션이 사라지고 사용 문자열과 시험이 `wss`·`ssh` 경로를 가리킨다.
+- [확인: 2026-11-10 W9 구현] 옵션과 `allowNonLoopback`을 코드에서 지웠다. 비루프백 TCP는 `tcp_not_loopback`으로 거절한다. 시험: `service-socket.int.test.ts`, `service-control.test.ts`, `main.test.ts`, `usage-locale.test.ts`.
 
 ## 3. 위험과 확인할 것
 

@@ -273,14 +273,13 @@ fresnel service stop               # 협조 종료를 먼저 요청하고, 기�
 
 ```
 fresnel service start --listen-tcp <호스트>:<포트>
-fresnel service start --listen-tcp <비루프백 호스트>:<포트> --allow-non-loopback
 ```
 
 - `--listen-tcp`는 `start`와 `run`에서만 받습니다. `ensure`, `status`, `stop`에 쓰면 사용법 오류(2)입니다.
-- 루프백이 아닌 호스트는 `--allow-non-loopback`을 함께 써야 합니다. 없으면 사용법 오류(2)입니다. 루프백 주소는 `127.0.0.1`과 `::1`입니다.
-- `--allow-non-loopback`을 `--listen-tcp` 없이 쓰면 사용법 오류(2)입니다.
+- 루프백이 아닌 호스트는 열 수 없습니다. 사용법 오류(2)입니다. 루프백 주소는 `127.0.0.1`과 `::1`입니다.
+- `--allow-non-loopback` 옵션은 없습니다. 쓰면 사용법 오류(2)입니다.
 - TCP 리스너는 서비스를 새로 띄울 때만 적용됩니다. 이미 떠 있는 서비스의 모드는 바뀌지 않습니다.
-- 비루프백 리스너는 기본으로 만들지 않습니다(`L4.host-service.spec` SV-05, HS-87). 다른 기기에서는 SSH 터널이나 사설망으로 붙는 것을 전제로 합니다.
+- 비루프백 리스너는 만들지 않습니다(`L4.host-service.spec` SV-05, HS-87). 다른 컴퓨터에서 붙을 때는 웹 게이트웨이(`wss://`, TLS와 기기 인증)나 `ssh://`를 씁니다.
 
 토큰:
 
