@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 import { chipPreviewOf, failureText, formatBytes, type AttachChip } from "./attachment-model.ts";
 
 // 입력 위의 첨부 칩 줄(U-03). 올리는 중은 칩 안의 Progress, 실패는 danger Alert와 "다시 시도"·"빼기"다.
+// 칩 테두리는 보낸 메시지의 첨부 칩과 같은 옅은 선(border-subtle)이다(message-attachments.tsx).
+const CHIP_EDGE_CLASS = "shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]";
 
 /** 이미지는 작은 썸네일, 그 밖은 클립 아이콘 */
 function ChipIcon(props: { readonly chip: AttachChip }): ReactNode {
@@ -65,6 +67,7 @@ export function AttachmentRow(props: {
               size="md"
               variant="outline"
               radius="md"
+              className={CHIP_EDGE_CLASS}
               icon={<ChipIcon chip={chip} />}
               removeLabel={t("desktop.composer.attach.remove")}
               onRemove={() => {
