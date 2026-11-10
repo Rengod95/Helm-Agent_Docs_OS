@@ -68,6 +68,8 @@ export {
 } from "./policy.ts";
 export {
   appBase,
+  DESKTOP_FRAME_ROOT,
+  webFrameRoot,
   appFrameCsp,
   APP_SCHEME,
   HOST_DOCUMENT_CSP,

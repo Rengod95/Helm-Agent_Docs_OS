@@ -11,6 +11,29 @@ const NONCE_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
 export const APP_SCHEME = "fresnel-view" as const;
 
 /**
+ * 프레임 주소 접두의 뿌리(`{base}`의 앞부분). 이 한 곳만 데스크톱과 웹이 다르다(L4.remote.spec §6.3).
+ * 데스크톱은 `fresnel-view://`, 웹은 `<출처>/view/<권한토큰>/`이다. 확장과 버전 마디는 둘 다 뒤에 같은 모양으로 붙는다.
+ */
+export const DESKTOP_FRAME_ROOT: string = `${APP_SCHEME}://`;
+
+const WEB_FRAME_ROOT = /^https?:\/\/[^\s;,\x27/?#@\\]+\/view\/[A-Za-z0-9_-]{43}\/$/;
+const WEB_VIEW_PATH = /^\/view\/[A-Za-z0-9_-]{43}\/$/;
+
+function validRoot(root: string): boolean {
+  return root === DESKTOP_FRAME_ROOT || WEB_FRAME_ROOT.test(root);
+}
+
+/**
+ * 웹의 프레임 뿌리. `origin`은 앱 문서의 출처(`https://host:port`), `viewPath`는 게이트웨이가 준 `/view/<권한토큰>/`이다.
+ * 모양이 맞지 않으면 undefined다
+ */
+export function webFrameRoot(origin: string, viewPath: string): string | undefined {
+  if (!WEB_VIEW_PATH.test(viewPath)) return undefined;
+  const root = `${origin}${viewPath}`;
+  return WEB_FRAME_ROOT.test(root) ? root : undefined;
+}
+
+/**
  * 프레임 문서에 붙이는 CSP(§3.6.3). 네트워크, 다른 프레임, eval, 폼 전송, base 바꾸기를 막는다.
  * self 소스 대신 이 확장 버전의 주소 접두(`base`, 예 `fresnel-view://helm/1.0.0/`)를 쓴다. sandbox 프레임은 origin이 불투명하고,
  * WebKit은 그 문서에서 self 소스를 같은 출처로 풀지 않아 프레임 자기 스크립트가 막힌다(시험 frame-isolation.e2e로 확인).
@@ -35,9 +58,15 @@ export function appFrameCsp(base: string): string | undefined {
 }
 
 /** 한 확장 버전의 주소 접두. 끝에 `/`가 있다. 마디가 규칙에 맞지 않으면 undefined다 */
-export function appBase(extension: string, version: string): string | undefined {
-  if (!NAME_SEGMENT.test(extension) || !VERSION_SEGMENT.test(version)) return undefined;
-  return `${APP_SCHEME}://${extension}/${version}/`;
+export function appBase(
+  extension: string,
+  version: string,
+  root: string = DESKTOP_FRAME_ROOT,
+): string | undefined {
+  if (!NAME_SEGMENT.test(extension) || !VERSION_SEGMENT.test(version) || !validRoot(root)) {
+    return undefined;
+  }
+  return `${root}${extension}/${version}/`;
 }
 
 /** 앱 문서 CSP(§3.6.3). 기존 default-src self와 connect-src ipc 두 줄에 frame-src만 더한다 */
@@ -50,14 +79,17 @@ export type AppUrlParts = {
   readonly path: string;
 };
 
-/** 프레임 주소 `fresnel-view://<확장이름>/<버전>/<경로>[#n=<nonce>]`. 마디가 규칙에 맞지 않으면 undefined다 */
+/** 프레임 주소 `<뿌리><확장이름>/<버전>/<경로>[#n=<nonce>]`(데스크톱의 뿌리는 `fresnel-view://`). 마디가 규칙에 맞지 않으면 undefined다 */
 export function buildAppUrl(
   extension: string,
   version: string,
   path: string,
   nonce?: string,
+  root: string = DESKTOP_FRAME_ROOT,
 ): string | undefined {
-  if (!NAME_SEGMENT.test(extension) || !VERSION_SEGMENT.test(version)) return undefined;
+  if (!NAME_SEGMENT.test(extension) || !VERSION_SEGMENT.test(version) || !validRoot(root)) {
+    return undefined;
+  }
   const segments = path.split("/");
   if (segments.some((segment) => segment === "" || segment === "." || segment === ".."))
     return undefined;
@@ -65,7 +97,7 @@ export function buildAppUrl(
   // nonce는 조각이라 요청에 실리지 않는다(스킴 처리기는 보지 못한다). 프레임 스크립트만 `location.hash`로 읽는다
   if (nonce !== undefined && !NONCE_PATTERN.test(nonce)) return undefined;
   const fragment = nonce === undefined ? "" : `#n=${nonce}`;
-  return `${APP_SCHEME}://${extension}/${version}/${segments.map(encodeURIComponent).join("/")}${fragment}`;
+  return `${root}${extension}/${version}/${segments.map(encodeURIComponent).join("/")}${fragment}`;
 }
 
 /** 요청 주소를 푼다. 스킴, 호스트(확장 이름), 버전, 나머지 경로(퍼센트 인코딩 그대로)로 나눈다. 모양이 틀리면 undefined다 */
