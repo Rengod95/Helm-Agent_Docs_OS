@@ -12,6 +12,7 @@ import {
   Type,
   type Static,
   type TArray,
+  type TBoolean,
   type TInteger,
   type TLiteral,
   type TNull,
@@ -238,23 +239,54 @@ const PreviousRemovedSchema: TObject<{ removed: TString; freedBytes: TInteger }>
 export type PreviousRemoved = Static<typeof PreviousRemovedSchema>;
 
 /**
+ * 로그인 자동 시작 상태(`service_status`의 `autostart`). 등록 파일의 경로는 싣지 않는다. `linger`는 Linux에서만 알고, 모르면 `null`이다.
+ * 모르는 필드는 거절한다.
+ */
+const ServiceAutostartSchema: TObject<{
+  supported: TBoolean;
+  registered: TBoolean;
+  active: TBoolean;
+  linger: TUnion<[TBoolean, TNull]>;
+  platform: TString;
+}> = Type.Object(
+  {
+    supported: Type.Boolean(),
+    registered: Type.Boolean(),
+    active: Type.Boolean(),
+    linger: Type.Union([Type.Boolean(), Type.Null()]),
+    platform: Type.String({ maxLength: 64 }),
+  },
+  { additionalProperties: false },
+);
+export type ServiceAutostart = Static<typeof ServiceAutostartSchema>;
+
+/**
  * 서비스 상태(`service_status`). 실행 중이면 등록 정보의 일부(소켓, pid, 버전, 시작 시각)만 싣고, 아니면 이유만 싣는다.
- * 토큰은 셸 밖으로 나오지 않는다. 모르는 필드는 거절한다.
+ * 두 경우 모두 자동 시작 상태(`autostart`)를 싣는다. 토큰은 셸 밖으로 나오지 않는다. 모르는 필드는 거절한다.
  */
 const ServiceStatusSchema: TUnion<
   [
-    TObject<{ running: TLiteral<false>; reason: TString }>,
+    TObject<{
+      running: TLiteral<false>;
+      reason: TString;
+      autostart: typeof ServiceAutostartSchema;
+    }>,
     TObject<{
       running: TLiteral<true>;
       socket: TString;
       pid: TInteger;
       version: TString;
       startedAt: TInteger;
+      autostart: typeof ServiceAutostartSchema;
     }>,
   ]
 > = Type.Union([
   Type.Object(
-    { running: Type.Literal(false), reason: Type.String({ maxLength: 512 }) },
+    {
+      running: Type.Literal(false),
+      reason: Type.String({ maxLength: 512 }),
+      autostart: ServiceAutostartSchema,
+    },
     { additionalProperties: false },
   ),
   Type.Object(
@@ -264,6 +296,7 @@ const ServiceStatusSchema: TUnion<
       pid: Type.Integer({ minimum: 0 }),
       version: Type.String({ maxLength: 128 }),
       startedAt: Type.Integer({ minimum: 0 }),
+      autostart: ServiceAutostartSchema,
     },
     { additionalProperties: false },
   ),
@@ -288,6 +321,14 @@ const ServiceStopSchema: TObject<{ stopped: TLiteral<true> }> = Type.Object(
   { additionalProperties: false },
 );
 export type ServiceStopReply = Static<typeof ServiceStopSchema>;
+
+/** 로그인 자동 시작 켜기·끄기(`service_autostart_set`)의 답. `lingerAdvice`는 Linux에서 linger 안내가 나왔다는 뜻이다 */
+const ServiceAutostartSetSchema: TObject<{ enabled: TBoolean; lingerAdvice: TBoolean }> =
+  Type.Object(
+    { enabled: Type.Boolean(), lingerAdvice: Type.Boolean() },
+    { additionalProperties: false },
+  );
+export type ServiceAutostartSetReply = Static<typeof ServiceAutostartSetSchema>;
 
 /** 셸 `db_export`의 stdout을 읽는다. 종료 코드 0일 때만 이것으로 읽는다(app/storage.ts) */
 export function parseBackupReport(text: string): Result<BackupReport, JsonParseError | ParseError> {
@@ -412,6 +453,11 @@ export interface DesktopIpc {
   serviceEnsure(): Promise<Result<ServiceEnsureReply, IpcError>>;
   /** 이 기기의 서비스를 멈춘다(`service_stop`). 멈추지 못하면 `service_failed`다 */
   serviceStop(): Promise<Result<ServiceStopReply, IpcError>>;
+  /**
+   * 로그인 자동 시작을 켜거나 끈다(`service_autostart_set`). 켜기는 설치 파일을 쓰고, 끄기는 지운다. 동의는 호출하는 화면이 받는다.
+   * 실패는 `autostart_failed`다. 인자가 boolean이 아니면 셸이 `bad-request`로 거절한다.
+   */
+  serviceAutostartSet(enabled: boolean): Promise<Result<ServiceAutostartSetReply, IpcError>>;
   /** 데스크톱 로컬 설정 파일의 내용(V-14). 파일이 없으면 빈 객체 */
   readSettings(): Promise<Result<Readonly<Record<string, unknown>>, IpcError>>;
   /** 로컬 설정 한 키를 쓴다. 모르는 키나 범위 밖 값은 셸이 거부한다 */
@@ -543,6 +589,10 @@ export function createDesktopIpc(bridge: ShellBridge): DesktopIpc {
       replyOf("service_ensure", ServiceEnsureSchema, () => bridge.invoke("service_ensure")),
     serviceStop: () =>
       replyOf("service_stop", ServiceStopSchema, () => bridge.invoke("service_stop")),
+    serviceAutostartSet: (enabled) =>
+      replyOf("service_autostart_set", ServiceAutostartSetSchema, () =>
+        bridge.invoke("service_autostart_set", { enabled }),
+      ),
     async readSettings() {
       const raw = await call<unknown>("desktop_settings_read", () =>
         bridge.invoke("desktop_settings_read"),

@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { createApp } from "../../src/app/bootstrap.ts";
-import { err, ok } from "@fresnel/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import { summary, thr } from "../state/helpers.ts";
 import { engineFake, until } from "../app/support.ts";
 import { BACKUP_REPORT, PREVIOUS_REMOVED, STORAGE_USAGE, fakeIpc } from "./fake-ipc.ts";
 import { rawShellIpc, shellMockIpc } from "./shell-mock.ts";
-import type { ServiceStatusReply } from "../../src/transport/ipc.ts";
+import type { IpcError, ServiceAutostart, ServiceStatusReply } from "../../src/transport/ipc.ts";
 
 // createDesktopIpc를 Electron 다리 위에서: 명령 이름과 인자 모양, 채널 메시지(바이트와 상태)의 해석, 오류 코드 변환을 본다.
 
@@ -228,16 +228,40 @@ describe("the storage tools over the shell bridge", () => {
   });
 });
 
+/** 자동 시작 객체의 한 칸을 바꾼 `service_status` 답(등록 안 됨). 자동 시작 객체 모양을 시험할 때 쓴다 */
+function notRunningWith(patch: Record<string, unknown>): unknown {
+  return {
+    running: false,
+    reason: "no registration",
+    autostart: {
+      supported: true,
+      registered: true,
+      active: true,
+      linger: false,
+      platform: "linux",
+      ...patch,
+    },
+  };
+}
+
 describe("the service commands over the shell bridge", () => {
   const SOCKET = "/Users/me/Library/Application Support/fresnel/service.sock";
+  const AUTOSTART: ServiceAutostart = {
+    supported: true,
+    registered: true,
+    active: true,
+    linger: false,
+    platform: "linux",
+  };
 
-  test("service_status sends no arguments and passes the running answer through", async () => {
+  test("service_status sends no arguments and passes the running answer through, autostart included", async () => {
     const running: ServiceStatusReply = {
       running: true,
       socket: SOCKET,
       pid: 4321,
       version: "1.2.3",
       startedAt: 1_700_000_000_000,
+      autostart: AUTOSTART,
     };
     const fake = fakeIpc({ serviceStatusResult: ok(running) });
     const shell = mocked(fake);
@@ -245,16 +269,29 @@ describe("the service commands over the shell bridge", () => {
     expect(shell.calls.map((call) => call.cmd)).toEqual(["service_status"]);
   });
 
-  test("a not-running answer carries only its reason", async () => {
-    const ipc = rawShellIpc(() => ({ running: false, reason: "no registration" }));
+  test("a not-running answer carries its reason and the autostart state", async () => {
+    const ipc = rawShellIpc(() => ({
+      running: false,
+      reason: "no registration",
+      autostart: { ...AUTOSTART, registered: false, active: false, linger: null },
+    }));
     expect(await ipc.serviceStatus()).toEqual({
       ok: true,
-      value: { running: false, reason: "no registration" },
+      value: {
+        running: false,
+        reason: "no registration",
+        autostart: { ...AUTOSTART, registered: false, active: false, linger: null },
+      },
     });
   });
 
-  test("a status answer with an extra field or a missing one is an invalid error", async () => {
-    const extra = rawShellIpc(() => ({ running: false, reason: "no registration", token: "x" }));
+  test("a status answer with an extra field, a missing one, or no autostart is an invalid error", async () => {
+    const extra = rawShellIpc(() => ({
+      running: false,
+      reason: "no registration",
+      autostart: AUTOSTART,
+      token: "x",
+    }));
     expect(await extra.serviceStatus()).toEqual({
       ok: false,
       error: { kind: "invalid", command: "service_status" },
@@ -264,11 +301,42 @@ describe("the service commands over the shell bridge", () => {
       socket: SOCKET,
       pid: 1,
       version: "1.2.3",
+      startedAt: 1,
     }));
     expect(await partial.serviceStatus()).toEqual({
       ok: false,
       error: { kind: "invalid", command: "service_status" },
     });
+    const noAutostart = rawShellIpc(() => ({ running: false, reason: "no registration" }));
+    expect(await noAutostart.serviceStatus()).toEqual({
+      ok: false,
+      error: { kind: "invalid", command: "service_status" },
+    });
+  });
+
+  test("the autostart object is closed and typed in both arms", async () => {
+    const invalid: Result<ServiceStatusReply, IpcError> = {
+      ok: false,
+      error: { kind: "invalid", command: "service_status" },
+    };
+    expect(
+      await rawShellIpc(() => notRunningWith({ path: "/Users/me/x.plist" })).serviceStatus(),
+    ).toEqual(invalid);
+    expect(await rawShellIpc(() => notRunningWith({ linger: "yes" })).serviceStatus()).toEqual(
+      invalid,
+    );
+    expect(
+      await rawShellIpc(() => notRunningWith({ supported: undefined })).serviceStatus(),
+    ).toEqual(invalid);
+    const runningWithout = rawShellIpc(() => ({
+      running: true,
+      socket: SOCKET,
+      pid: 1,
+      version: "1.2.3",
+      startedAt: 1,
+      autostart: { ...AUTOSTART, platform: 3 },
+    }));
+    expect(await runningWithout.serviceStatus()).toEqual(invalid);
   });
 
   test("a rejected service_status is a command error with the shell code", async () => {
@@ -332,6 +400,58 @@ describe("the service commands over the shell bridge", () => {
     expect(await ipc.serviceStop()).toEqual({
       ok: false,
       error: { kind: "invalid", command: "service_stop" },
+    });
+  });
+
+  test("service_autostart_set sends { enabled } and answers with the linger advice", async () => {
+    const shell = mocked(fakeIpc());
+    expect(await shell.ipc.serviceAutostartSet(true)).toEqual({
+      ok: true,
+      value: { enabled: true, lingerAdvice: false },
+    });
+    expect(await shell.ipc.serviceAutostartSet(false)).toEqual({
+      ok: true,
+      value: { enabled: false, lingerAdvice: false },
+    });
+    expect(shell.calls).toEqual([
+      { cmd: "service_autostart_set", args: { enabled: true } },
+      { cmd: "service_autostart_set", args: { enabled: false } },
+    ]);
+    const linger = mocked(
+      fakeIpc({ serviceAutostartSetResult: ok({ enabled: true, lingerAdvice: true }) }),
+    );
+    expect(await linger.ipc.serviceAutostartSet(true)).toEqual({
+      ok: true,
+      value: { enabled: true, lingerAdvice: true },
+    });
+  });
+
+  test("a rejected service_autostart_set keeps the shell code", async () => {
+    const failed = mocked(
+      fakeIpc({
+        serviceAutostartSetResult: err({
+          kind: "command",
+          command: "service_autostart_set",
+          code: "autostart_failed",
+        }),
+      }),
+    );
+    expect(await failed.ipc.serviceAutostartSet(true)).toEqual({
+      ok: false,
+      error: { kind: "command", command: "service_autostart_set", code: "autostart_failed" },
+    });
+  });
+
+  test("a set answer without lingerAdvice, or with an extra field, is an invalid error", async () => {
+    const missing = rawShellIpc(() => ({ enabled: true }));
+    expect(await missing.serviceAutostartSet(true)).toEqual({
+      ok: false,
+      error: { kind: "invalid", command: "service_autostart_set" },
+    });
+    const extra = rawShellIpc(() => ({ enabled: true, lingerAdvice: false, path: "/x" }));
+    expect(await extra.serviceAutostartSet(true)).toEqual({
+      ok: false,
+      error: { kind: "invalid", command: "service_autostart_set" },
     });
   });
 });

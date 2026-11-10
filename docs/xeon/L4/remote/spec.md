@@ -120,9 +120,11 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 | A. 앱 소유 자식 프로세스 | 같이 끝남 | 끝남 | 끝남 | 불가 | 가장 단순. 외부 접근에는 부적합 |
 | B. 앱이 띄운 detached 서비스 | 계속 | 계속(맥) | 끝남 | 불가 | 있는 코드(`ensure`, SV-06) |
 | C. 앱 로그인 항목(숨김 + 트레이) | 트레이로 계속 | 끝남 | 로그인 때 다시 | 불가 | Electron `setLoginItemSettings`. 앱 전체가 상주 |
-| D. launchd 사용자 에이전트·systemd 사용자 유닛 | 계속 | 계속 | 로그인 때 자동 | 가능(linger) | `fresnel service install`(ADR-0006 2차). 새로 만든다 |
+| D. launchd 사용자 에이전트·systemd 사용자 유닛 | 계속 | 계속 | 로그인 때 자동 | 가능(linger) | `fresnel service install`·`uninstall`(ADR-0006 2차). CLI와 셸 명령 `service_autostart_set`은 구현됨(`--yes`로 동의). 연결 화면 서버 모드 구역의 "로그인할 때 자동으로 켜기" 스위치가 이 방식을 켜고 끈다 [확인: 2026-11-10 rmW6] |
 
 [결정: 2026-11-08 사용자 "앱을 닫아도 서비스는 계속 돈다. 로그인 자동 시작은 사용자가 켜는 스위치"] 기본은 B이고, "로그인할 때 자동으로 켜기" 스위치가 D를 등록한다. C는 쓰지 않는다. 이유: C는 상주하는 대상이 서비스가 아니라 UI를 가진 앱이라 메모리와 갱신(앱 업데이트 중 origin이 내려감)이 묶이고, D가 같은 목적을 더 작은 프로세스로 이룬다. D 등록은 명시 동의 뒤에만 한다(ADR-0006 §3.4의 `fresnel service install`을 데스크톱 스위치가 같은 코드로 부른다).
+
+[확인: 2026-11-10 rmW6] 방식 D의 호스트 층과 CLI는 구현했다(`service install|uninstall`, `service status --json`의 `autostart`, 시험 `apps/host/test/service-autostart.test.ts`와 `apps/cli/test/service-autostart.test.ts`). CLI의 `service install`은 `--yes`가 있거나 터미널에서 y로 답했을 때만 등록한다. 터미널이 아니고 `--yes`가 없으면 종료 2로 끝낸다(`L4.cli.spec` §3.6, `db previous-rm`과 같은 확인). 데스크톱 셸에는 `service_autostart_set`(`{enabled}`, 켜기는 `service install --yes`, 끄기는 `service uninstall`, 답 `{enabled, lingerAdvice}`)과 `service_status`의 `autostart` 값을 더했다(`apps/desktop-shell/src/main/service-mode.ts`, 시험 `apps/desktop-shell/test/service-mode.test.ts`). 데스크톱 화면의 스위치도 만들었다(`apps/desktop`의 `connection-server.tsx`, 시험은 가짜 셸로 돈다). 연결 화면 서버 모드 구역의 "로그인할 때 자동으로 켜기" 스위치는 `service_status`의 `autostart.registered`를 보이고, 켜기는 확인 대화 상자가 확인된 뒤에만 `service_autostart_set { enabled: true }`를 보낸다. 끄기는 확인 없이 `{ enabled: false }`를 보낸다. 실제 launchd·systemd 등록과 해제는 맥과 리눅스 기기에서 따로 확인한다 [미결: 기기 확인] [근거: apps/desktop/test/views/connection-server.test.tsx]. 이 절의 스위치 문장은 구현됨으로 표시하고, 위 표의 D 행과 맞춘다.
 
 - B에서 앱이 끝나도 서비스는 남는다. 앱 종료 때 "서비스는 계속 실행돼요. 끄려면 설정 > 연결에서 끄세요" 한 줄을 한 번 보인다 [제안]. 서비스를 끄지 않고 앱만 닫는 것이 서버 모드의 정상 사용이기 때문이다.
 - 서비스 업데이트: 앱이 새 버전으로 바뀌면 `host.status`의 버전 불일치를 감지해 재시작을 묻는다(실행 중인 대화가 있으면 연결 화면의 안전한 종료 흐름 O-06을 쓴다).
@@ -323,6 +325,8 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 [확인: 2026-11-09 W3] 구현한 키는 `l4.remote.web.enabled`, `listen`, `listenTls`, `hosts`, `tlsCert`, `tlsKey`(모두 managed·user 범위만, 값을 바꾸면 서비스를 다시 띄워야 한다)다. 빈 문자열은 "없음"(`listenTls`, `tlsCert`, `tlsKey`)이다. `sessionHours`와 `launchAtLogin`은 W6 이후다. `listen`의 기본은 이 표의 `127.0.0.1:8480`이고 오케스트레이터 브리프의 `0.0.0.0:7443`은 따르지 않았다(스펙을 따른다: 외부 주소는 `listenTls`가 맡고 루프백 `listen`은 비루프백을 받지 않는다).
 
 [확인: 2026-11-10 rmWi] 데스크톱 "서비스 + 외부 접근"은 `host.remote.setEnabled(true)`만 보낸다. `listenTls`가 비어 있으면 TLS 리스너는 열리지 않고(`tlsPort`와 `fingerprint`가 `null`) 연결 화면에는 루프백 주소만 보인다. 실제 흐름(임시 홈, `listenTls=127.0.0.1:18443`, `listen=127.0.0.1:18480`을 CLI `config set`으로 먼저 설정하고 서비스를 다시 띄움)에서 켜기, 지문, 코드 발급, 코드 로그인, 기기 목록, 폐기, 탭 끊김이 모두 됐다. [확인: 2026-11-10 rmX1] 위 [미결]은 닫혔다: `listenTls`의 설정 기본값을 `0.0.0.0:8443`으로 두어, 설정이 없어도 "서비스 + 외부 접근"(`host.remote.setEnabled(true)`)이 TLS 리스너를 연다(사용자 승인, 오케스트레이터 권고 "기본 포트로 채운다"). 포트는 설정 `l4.remote.web.listenTls`(예: `0.0.0.0:9443`)로 바꾸고 서비스를 다시 띄운다. 게이트웨이는 모든 주소로 열 때 `--hosts`가 있어야 뜨므로(`main/args.ts`), 서비스가 `hosts`가 비었을 때 이 컴퓨터의 이름으로 채워 넘긴다(`apps/host/src/service/gateway-config.ts`의 `localHostNames`; 사용자가 `hosts`를 적으면 그 값만 쓴다). 실제 임시 홈 실행에서 설정 없이 `l4.remote.web.enabled`만 켠 서비스가 `tlsPort` 8443과 지문을 냈다. 빈 문자열로 두면 루프백만 연다. 포트가 이미 쓰이면 게이트웨이가 종료코드 2로 끝나고 상태의 `error.message`에 "the tls port is already in use by another program (EADDRINUSE); change l4.remote.web.listenTls to a free port"가 나온다. [근거: `apps/host/src/settings.ts`, `apps/desktop-shell/src/web/main/errors.ts`]
+
+[확인: 2026-11-10 rmW6] `l4.remote.launchAtLogin` 키는 이 층에서 더하지 않는다. 로그인 자동 시작의 상태는 설정이 아니라 등록 파일에서 읽는다(macOS `~/Library/LaunchAgents/com.fresnel.service.plist`, Linux `~/.config/systemd/user/fresnel.service`, `service status --json`의 `autostart`). 그래서 이 행은 키로 구현되지 않았다. 스위치는 키 대신 등록 파일 상태를 읽고 바꾸며, 연결 화면 서버 모드 구역에 있다(§4.2).
 
 ## 11. 실패와 경계 사례
 

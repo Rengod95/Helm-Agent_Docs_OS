@@ -102,7 +102,9 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `fresnel schedule list [--all] [--json]` | 예약 목록. 기본은 켜진 항목이고 `--all`은 끈 항목까지 본다. 한 항목이 한 줄이고 `--json`은 항목 배열이다(§4.14) | `schedule.list { enabled? }` | M3(구현됨, M3b B1-SCH2) |
 | `fresnel schedule cancel <id>` | 예약을 끈다. 이미 꺼진 항목은 그대로 둔다 | `schedule.cancel { scheduleId }` | M3(구현됨, M3b B1-SCH2) |
 | `fresnel schedule run <id>` | 원격 트리거 예약을 지금 한 번 실행한다. 원격이 아니거나 꺼진 예약은 거부된다(§4.14) | `schedule.fire { scheduleId }` | M3(구현됨, M3b B1-SCH2) |
-| `fresnel service start\|status\|stop [--json] [--safe-mode] [--listen-tcp <호스트>:<포트>]` | 서비스 기동(이미 떠 있으면 붙는다), 상태, 종료. 도움말의 서비스 줄은 "예약은 앱이나 서비스가 떠 있는 동안 실행된다"를 덧붙여 보인다(`fresnel --help`). `install`/`uninstall`은 2차. `--safe-mode`와 `--listen-tcp`는 서비스를 새로 띄울 때만 적용된다(이미 떠 있는 서비스의 모드는 바뀌지 않는다). `--listen-tcp`는 TCP로도 열고 접속에는 등록 파일의 토큰이 필요하다. 루프백이 아닌 주소는 `--allow-non-loopback`을 함께 써야 하고 없으면 사용법 오류(2)다 | 없음. `runHostCommand({ kind: "service-start" \| "service-status" \| "service-stop" })`(§3.3). status는 그 안에서 `host.status`를 부른다. 종료코드: start 0·실패 1, status 떠 있음 0·없음 1, stop 0·실패 1 | M3(구현됨, M3b B1-SVC) |
+| `fresnel service start\|status\|stop [--json] [--safe-mode] [--listen-tcp <호스트>:<포트>]` | 서비스 기동(이미 떠 있으면 붙는다), 상태, 종료. 도움말의 서비스 줄은 "예약은 앱이나 서비스가 떠 있는 동안 실행된다"를 덧붙여 보인다(`fresnel --help`). `install`/`uninstall`은 아래 행이다. 상태의 사람용 출력에는 `autostart on` 또는 `autostart off` 한 줄(Linux에서 linger가 꺼져 있으면 `(linger off)`)이 더해지고, `--json`에는 `autostart` 필드가 더해진다 [확인: 2026-11-10 rmW6]. `--safe-mode`와 `--listen-tcp`는 서비스를 새로 띄울 때만 적용된다(이미 떠 있는 서비스의 모드는 바뀌지 않는다). `--listen-tcp`는 TCP로도 열고 접속에는 등록 파일의 토큰이 필요하다. 루프백이 아닌 주소는 `--allow-non-loopback`을 함께 써야 하고 없으면 사용법 오류(2)다 | 없음. `runHostCommand({ kind: "service-start" \| "service-status" \| "service-stop" })`(§3.3). status는 그 안에서 `host.status`를 부른다. 종료코드: start 0·실패 1, status 떠 있음 0·없음 1, stop 0·실패 1 | M3(구현됨, M3b B1-SVC) |
+| `fresnel service install [--yes] [--json]` | 로그인할 때 서비스가 켜지도록 등록한다. macOS는 launchd 사용자 에이전트, Linux는 systemd 사용자 유닛을 홈 폴더 아래에 쓰고 불러온다. 사용자 홈에 파일을 쓰므로 `db previous-rm`과 같은 확인을 받는다. `--yes`가 있으면 묻지 않고 등록한다. 없으면 터미널에서 `[y/N]`으로 묻고, y가 아니면 아무것도 쓰지 않는다. 터미널이 아니면 `--yes` 없이는 호스트를 부르지 않고 stderr에 안내를 쓴 뒤 종료 코드 2로 끝난다(§3.6). 등록할 때 호스트의 한 줄을 stdout에 그대로 쓴다. `--json`은 성공했을 때 `{"ok":true,"action":"install"}` 한 줄만 쓴다. 실패하면 JSON 없이 stderr만 쓴다. `--yes`는 install에만 받는다 [확인: 2026-11-10 rmW6] | 없음. `runHostCommand({ kind: "service-install" })`. 종료코드: 성공 0, 확인 거절 1, 터미널 아님·`--yes` 없음 사용법 오류 2, launchctl·systemctl 없음·실패와 입출력 실패 3 [결정: 2026-11-10 rmW6] | 2차(구현됨) [확인: 2026-11-10 rmW6] |
+| `fresnel service uninstall [--json]` | 로그인 자동 시작을 해제하고 등록 파일을 지운다. 등록이 없었으면 "autostart not registered"를 쓰고 0이다. 확인을 묻지 않는다. 지우는 것은 이 명령이 만든 등록 파일뿐이라 사용자 데이터가 아니고, 데스크톱 스위치도 `--yes` 없이 부른다. 그래서 `--yes`를 받지 않는다(`--yes`는 사용법 오류, 2) [결정: 2026-11-10 rmW6, 현행 유지]. `--json`은 `{"ok":true,"action":"uninstall"}` 한 줄이다 [확인: 2026-11-10 rmW6] | 없음. `runHostCommand({ kind: "service-uninstall" })`. 종료코드: 해제 또는 등록 없음 0, launchctl·systemctl 없음·실패와 입출력 실패 3 [결정: 2026-11-10 rmW6] | 2차(구현됨) [확인: 2026-11-10 rmW6] |
 | `fresnel service pair [--json]` | 떠 있는 서비스에 `host.remote.pair`를 보내 웹 게이트웨이의 일회용 페어링 코드(5분, `ABCDE-12345` 꼴)를 stdout에 한 줄로 쓴다. `--json`은 `{"code","expiresAt"}`(하이픈 없는 10자). 코드는 stdout에만 나오고 로그에 남지 않는다 | 서비스, 설정 `l4.remote.web.enabled` | M4 |
 | `fresnel service ensure --json` | `ensure`만 하고 소켓 경로를 JSON 한 줄로 쓴다. 데스크톱 셸이 쓴다(`L4.host-service.spec` HS-38) | 없음. `runHostCommand({ kind: "service-ensure" })`. `--safe-mode`는 새로 띄울 때만 적용된다 | M3(구현됨) |
 | `fresnel service launch-mode --json` | 서비스 사용 설정을 엔진 없이 읽어 JSON 한 줄로 쓴다. 데스크톱 셸이 쓴다(`L4.desktop.spec` §4.2). 도움말에 보이지 않는다 | 없음. `runHostCommand({ kind: "service-launch-mode" })` | M3 |
@@ -125,7 +127,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 - [결정] 서비스 모드는 1차이고 OS 서비스 등록은 2차다(adr.0006 §1). [제안] CLI의 `service` 명령은 M3에 둔다. M1·M2는 in-process와 stdio로 충분하고, 서비스 본체는 `L4.host-service.plan`의 일정을 따른다.
 - [제안] M1 host 처리기는 `host.hello`, `thread.create`, `turn.start`, `events.subscribe`, `settings.get` 다섯이다(`F.wire-settings.spec` §3.3.1의 [제안]. M1 범위는 `_research/foundation-plan.md` §5 P4). 그래서 M1의 `config`는 `get`과 로컬 명령 `schema`만 있고, `sessions ls`는 `thread.list`가 생기는 M2다.
 - M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `fresnel host --stdio` 서브커맨드는 M2다. 데스크톱의 M1 적합성 테스트는 개발 진입을 쓴다(`L4.desktop.plan` D1).
-- `service`, `host --stdio`, `config schema`는 엔진 연결 없이 `runHostCommand`를 부르고 그 반환값을 종료 코드로 쓴다(§3.6). `db export`도 엔진 연결 없이 끝난다(§4.13).
+- `service`, `host --stdio`, `config schema`는 엔진 연결 없이 `runHostCommand`를 부르고 그 반환값을 종료 코드로 쓴다(§3.6). 예외는 `service pair`의 2와 `service install`·`service uninstall`의 1이며, 둘 다 환경 문제 3이다. `db export`도 엔진 연결 없이 끝난다(§4.13).
 - `secret run -- <cmd>`(`_research/secrets.md` §6.6 마지막 행)는 이 문서에 두지 않는다 [미결 §10 3번].
 
 공통 플래그:
@@ -212,11 +214,12 @@ export type ScheduleCommand =
 
 export type ServiceCommand = {
   readonly kind: "service";
-  readonly action: "start" | "status" | "stop" | "ensure" | "launch-mode" | "run";   // launch-mode·run은 도움말에 숨김
+  readonly action: "start" | "status" | "stop" | "ensure" | "launch-mode" | "run" | "pair" | "install" | "uninstall";   // launch-mode·run은 도움말에 숨김
   readonly output: OutputMode;
   readonly safeMode: boolean;                                                       // --safe-mode. start·ensure·run만
   readonly listenTcp: { readonly host: string; readonly port: number } | null;      // --listen-tcp. start·run만
   readonly allowNonLoopback: boolean;                                               // --allow-non-loopback. --listen-tcp와 함께만
+  readonly yes: boolean;                                                            // --yes. install만. 없으면 터미널에서 묻고, 터미널이 아니면 종료 2(§3.6)
 };
 /** `db export <폴더>`. destDir은 작업 폴더 기준 상대 경로일 수 있다. 엔진을 띄우지 않는다(§4.13) */
 export type DbCommand = { readonly kind: "db.export"; readonly destDir: string; readonly output: OutputMode };
@@ -270,7 +273,7 @@ export declare function parseArgv(
 |---|---|---|
 | `chat`, `sessions`, `config get/set/reset/list`, `secret` | `connectEngine`(아래)이 원격 주소(`resolveRemoteEndpoint`, HS-87)를 먼저 보고, 있으면 `attachToService({ kind: "endpoint" })`. 없으면 `resolveLaunchMode` → `"service"`면 `attachToService({ kind: "local" })`(이 기기의 서비스를 띄우고 붙는다), `"in-process"`면 `startInProcessHost` + `createHostConnection(host.client)` | H2(`assemble`), H3(`createHostConnection`), H4(처리기), H10(`ensureService`, `connectServiceTransport`), H20(`resolveLaunchMode`), B2-RMT(`attachToService`, `resolveRemoteEndpoint`) |
 | `host --stdio` | `runHostCommand({ kind: "host-stdio" }, io)`. `l4.cli.*` 설정 그룹을 함께 넘길 때는 같은 일을 하는 `startStdioHost({ readable, writable, assemble: { settingGroups } })`를 부른다 | H5 |
-| `service start/status/stop/ensure/launch-mode/run` | `runHostCommand({ kind: "service-start" \| "service-status" \| "service-stop" \| "service-ensure" \| "service-launch-mode" \| "service-run" }, io)` | H10, H11, H20 |
+| `service start/status/stop/ensure/launch-mode/run/install/uninstall` | `runHostCommand({ kind: "service-start" \| "service-status" \| "service-stop" \| "service-ensure" \| "service-launch-mode" \| "service-run" \| "service-install" \| "service-uninstall" }, io)`. install은 `--yes`가 있거나 터미널에서 y로 답했을 때만 부른다 [확인: 2026-11-10 rmW6] | H10, H11, H20 |
 | `config schema` | `runHostCommand({ kind: "config-schema", scope, out, coreOnly }, io)` | H8 |
 
 ```ts
@@ -459,9 +462,9 @@ export const EXIT: {
 | 코드 | 뜻 | 예 |
 |---|---|---|
 | 0 | 정상 | turn이 `completed`로 끝났다. 명령이 성공했다 |
-| 1 | 일반 오류 | turn이 `failed`, wire 오류(`internal`, `settings.invalidValue` 등), 없는 대화, `EngineStartError`의 `catalogConflict`·`missingService`(설치본·확장 결함이라 환경을 고쳐도 풀리지 않는다), `runHostCommand`의 1, `schedule`의 기대한 실패(없는 예약, 원격 아님, 꺼진 예약, 간격 미달, 상한, 지난 시각), `db previous-rm`의 확인에서 `y`가 아닌 답 |
-| 2 | 사용법 오류 | 모르는 플래그, 인자 누락, argv에 시크릿 값, `--json`을 대화형에 씀, `--remote` 주소 문법 오류(`EngineStartError`의 `invalidRemote`), `schedule`의 사용법 오류(트리거 없음이나 둘 이상, 값 형식, 예약 id 형식), `db export`의 폴더 인자 누락, `db export`의 대상 폴더가 비어 있음(`dest_not_empty`), `db export`를 `--yes` 없이 터미널이 아닌 곳에서 실행함(§4.13), `db restore`의 폴더 인자 누락과 백업 폴더가 아님(`backup_not_found`), `db previous-rm`의 사본 이름 형식과 사본 없음, 터미널이 아닌데 `--yes`가 없음 |
-| 3 | 환경 문제 | `EngineStartError`의 나머지 kind(FTS5 없음, sops 없음, 데이터 디렉터리 권한, 저장소 열기 실패, 서비스 도달 불가, 계약 버전 불일치), 서비스 본체(`service`, `config schema`가 부르는 `runHostCommand`)가 저장소를 열지 못한 종료(코드 70~72), `db export`의 저장소·디스크 오류(`foreign_database`, `not_a_database`, `io`, `busy`, `disk_full`), `db restore`의 사본 검증 실패·더 새 버전 사본·엔진 실행 중·저장소·디스크 오류와 데이터 디렉터리 위치를 정하지 못함. `schedule`의 `store_failed`(예약 상태 파일), `db usage`와 `db previous-rm`의 입출력 오류 |
+| 1 | 일반 오류 | turn이 `failed`, wire 오류(`internal`, `settings.invalidValue` 등), 없는 대화, `EngineStartError`의 `catalogConflict`·`missingService`(설치본·확장 결함이라 환경을 고쳐도 풀리지 않는다), `runHostCommand`의 1, `schedule`의 기대한 실패(없는 예약, 원격 아님, 꺼진 예약, 간격 미달, 상한, 지난 시각), `db previous-rm`과 `service install`의 확인에서 `y`가 아닌 답 |
+| 2 | 사용법 오류 | 모르는 플래그, 인자 누락, argv에 시크릿 값, `--json`을 대화형에 씀, `--remote` 주소 문법 오류(`EngineStartError`의 `invalidRemote`), `schedule`의 사용법 오류(트리거 없음이나 둘 이상, 값 형식, 예약 id 형식), `db export`의 폴더 인자 누락, `db export`의 대상 폴더가 비어 있음(`dest_not_empty`), `db export`를 `--yes` 없이 터미널이 아닌 곳에서 실행함(§4.13), `db restore`의 폴더 인자 누락과 백업 폴더가 아님(`backup_not_found`), `db previous-rm`의 사본 이름 형식과 사본 없음, 터미널이 아닌데 `--yes`가 없음(`db previous-rm`, `service install`) |
+| 3 | 환경 문제 | `EngineStartError`의 나머지 kind(FTS5 없음, sops 없음, 데이터 디렉터리 권한, 저장소 열기 실패, 서비스 도달 불가, 계약 버전 불일치), 서비스 본체(`service`, `config schema`가 부르는 `runHostCommand`)가 저장소를 열지 못한 종료(코드 70~72), `db export`의 저장소·디스크 오류(`foreign_database`, `not_a_database`, `io`, `busy`, `disk_full`), `db restore`의 사본 검증 실패·더 새 버전 사본·엔진 실행 중·저장소·디스크 오류와 데이터 디렉터리 위치를 정하지 못함. `schedule`의 `store_failed`(예약 상태 파일), `db usage`와 `db previous-rm`의 입출력 오류. `service install`과 `service uninstall`의 등록·해제 실패(launchctl·systemctl 없음 또는 실패, 입출력, 지원하지 않는 플랫폼) |
 | 4 | 대화 잠금 실패 후 사용자 거부 | `thread.locked`에서 관찰·분기·위임을 고르지 않았다. M1은 프롬프트 없이 바로 4다 |
 | 129 | SIGHUP | 터미널이 닫혔다(pi print 모드와 같은 값, `~/projects/_ref/pi-src/packages/coding-agent/src/modes/print-mode.ts:60`) |
 | 130 | 중단 | Ctrl+C(SIGINT)로 끝냈다. print 모드 turn이 `interrupted`로 끝났다 |

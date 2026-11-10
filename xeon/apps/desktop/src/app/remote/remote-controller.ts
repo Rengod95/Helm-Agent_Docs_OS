@@ -26,7 +26,10 @@ const UNREADABLE: RemoteError = { kind: "failed", message: null };
  */
 export interface RemoteControllerDeps<TimerHandle> {
   readonly adapter: RemoteAdapter;
-  readonly connection: Pick<ConnectionCommands, "startLocalService" | "stopLocalService">;
+  readonly connection: Pick<
+    ConnectionCommands,
+    "startLocalService" | "stopLocalService" | "serviceAutostart" | "setServiceAutostart"
+  >;
   /** 현재 시각(epoch 밀리초). 페어링 코드의 만료를 이것으로 본다 */
   readonly now: () => number;
   /** `ms` 뒤에 `fn`을 부르도록 건다. 돌려준 핸들은 `clearTimer`에 넘긴다 */
@@ -60,6 +63,17 @@ export interface RemoteController {
   issuePairing(): Promise<void>;
   /** 기기 하나(`{ id }`)나 전부(`{ all: true }`)를 해제하고 기기 목록을 다시 읽는다 */
   revoke(target: RevokeTarget): Promise<void>;
+  /**
+   * 로그인 자동 시작 스위치를 누른다. 켜기는 확인 대화 상자만 연다(아무것도 보내지 않는다). 끄기는 바로 보낸다.
+   * 지원하지 않는 기기거나 상태를 못 읽었으면 아무 일도 없다.
+   */
+  requestAutostart(enabled: boolean): Promise<void>;
+  /** 확인 대화 상자에서 확인: 로그인 자동 시작을 켜고(`setServiceAutostart(true)`) 상태를 다시 읽는다 */
+  confirmAutostart(): Promise<void>;
+  /** 확인 대화 상자를 닫는다. 어떤 호출도 하지 않는다 */
+  cancelAutostartConfirm(): void;
+  /** 로그인 자동 시작 상태를 다시 읽는다 */
+  reloadAutostart(): Promise<void>;
   /** 상태를 다시 읽는다 */
   reloadStatus(): Promise<void>;
   /** 기기 목록을 다시 읽는다 */
@@ -78,6 +92,7 @@ export function createRemoteController<TimerHandle>(
   // 읽기 순번. 같은 읽기를 새로 부르거나 쓰기가 끝나면 올라가고, 올라가기 전에 나간 읽기의 응답은 버린다
   let statusSeq = 0;
   let devicesSeq = 0;
+  let autostartSeq = 0;
   /** 마지막으로 읽은 상태가 `running`이었는가. 아니었다가 바뀔 때만 기기 목록을 다시 읽는다 */
   let wasRunning = false;
   let statusTimer: TimerHandle | null = null;
@@ -174,6 +189,55 @@ export function createRemoteController<TimerHandle>(
     });
   }
 
+  /** 로그인 자동 시작 상태를 읽는다. 늦게 온 옛 응답은 버린다. 못 읽으면 화면이 다시 읽기를 보인다 */
+  async function reloadAutostart(): Promise<void> {
+    autostartSeq += 1;
+    const seq = autostartSeq;
+    const reply = await connection.serviceAutostart();
+    if (seq !== autostartSeq) return;
+    if (reply.ok) {
+      dispatch({ type: "autostartLoaded", autostart: reply.value });
+    } else {
+      dispatch({ type: "autostartFailed" });
+    }
+  }
+
+  /** 기다리지 않고 자동 시작 상태를 읽는다. 거부가 나면 못 읽은 것으로 남긴다 */
+  function detachAutostartRead(): void {
+    detach(reloadAutostart(), () => {
+      dispatch({ type: "autostartFailed" });
+    });
+  }
+
+  /** 자동 시작 스위치를 쓸 수 있는가. 상태를 읽었고 이 기기가 지원할 때만 된다 */
+  function autostartWritable(): boolean {
+    const autostart = current.autostart;
+    return autostart.kind === "ready" && autostart.value.supported;
+  }
+
+  /**
+   * 로그인 자동 시작을 켜거나 끈다. 시작하면 지난 알림과 linger 안내를 없앤다. 성공하면 linger 안내가 있을 때 한 번 보이고 상태를 다시 읽는다.
+   * 실패하면 알림만 남기고 스위치는 옛 값에 둔다(상태를 다시 읽지 않는다).
+   */
+  async function writeAutostart(enabled: boolean): Promise<void> {
+    writing = true;
+    try {
+      clearNotice();
+      dispatch({ type: "autostartLingerSet", shown: false });
+      dispatch({ type: "busySet", busy: "autostart" });
+      const reply = await connection.setServiceAutostart(enabled);
+      dispatch({ type: "busySet", busy: "none" });
+      if (!reply.ok) {
+        dispatch({ type: "noticeSet", kind: "autostartFailed", code: reply.error.code });
+        return;
+      }
+      if (reply.value.lingerAdvice) dispatch({ type: "autostartLingerSet", shown: true });
+      await reloadAutostart();
+    } finally {
+      writing = false;
+    }
+  }
+
   /** 기기 목록 주기 읽기. 한 번 울리면 다음 주기를 먼저 건다 */
   function armDevicesPoll(): void {
     clearDevicesTimer();
@@ -241,6 +305,7 @@ export function createRemoteController<TimerHandle>(
       dispatch({ type: "loadStarted" });
       detachStatusRead();
       detachDevicesRead();
+      detachAutostartRead();
       armDevicesPoll();
     },
 
@@ -249,6 +314,7 @@ export function createRemoteController<TimerHandle>(
       wasRunning = false;
       statusSeq += 1;
       devicesSeq += 1;
+      autostartSeq += 1;
       clearStatusTimer();
       clearDevicesTimer();
     },
@@ -334,6 +400,26 @@ export function createRemoteController<TimerHandle>(
       }
     },
 
+    async requestAutostart(enabled) {
+      if (writing || !autostartWritable()) return;
+      if (enabled) {
+        dispatch({ type: "autostartConfirmOpened" });
+        return;
+      }
+      await writeAutostart(false);
+    },
+
+    async confirmAutostart() {
+      if (writing || !current.autostartConfirmOpen || !autostartWritable()) return;
+      dispatch({ type: "autostartConfirmClosed" });
+      await writeAutostart(true);
+    },
+
+    cancelAutostartConfirm() {
+      if (current.autostartConfirmOpen) dispatch({ type: "autostartConfirmClosed" });
+    },
+
+    reloadAutostart,
     reloadStatus,
     reloadDevices,
   };

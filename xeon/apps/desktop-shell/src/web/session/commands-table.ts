@@ -82,10 +82,11 @@ export const COMMAND_TABLE: Readonly<Record<string, Disposition>> = {
   // 웹의 프레임 주소 접두(권한 토큰). 데스크톱은 `fresnel-view://`라 이 명령이 없다(spec §6.3)
   view_root: WEB_SPECIFIC,
 
-  // 서비스 상태, 켜기, 끄기(§8.6의 "서비스 끄기"는 웹 기기에서도 허용한다)
+  // 서비스 상태, 켜기, 끄기, 로그인 자동 시작 켜기·끄기(§8.6의 "서비스 끄기"는 웹 기기에서도 허용한다. 자동 시작도 데스크톱과 같다)
   service_status: ORIGIN,
   service_ensure: ORIGIN,
   service_stop: ORIGIN,
+  service_autostart_set: ORIGIN,
 
   // 기능 감지. 웹과 데스크톱이 다른 값을 돌려준다(§6.1 [제안])
   shell_capabilities: WEB_SPECIFIC,

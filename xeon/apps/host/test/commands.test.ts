@@ -6,8 +6,13 @@ import type { ServiceRegistration } from "@fresnel/platform-process";
 import { parseHostArgv } from "../src/argv.ts";
 import { buildEngineCatalog } from "../src/assembly/catalog.ts";
 import { runHostCommand, type CommandIo } from "../src/main.ts";
-import { listenTcpNotAppliedNotice, serviceStatusText } from "../src/service/commands.ts";
+import {
+  listenTcpNotAppliedNotice,
+  runServiceCommand,
+  serviceStatusText,
+} from "../src/service/commands.ts";
 import { renderSettingsSchema } from "../src/settings.ts";
+import { fakeAutostart } from "./fixtures/autostart-fake.ts";
 import { useEngineHome } from "./fixtures/engine-home.ts";
 import { writeUserSettings } from "./fixtures/user-settings.ts";
 
@@ -96,8 +101,28 @@ test("service status and stop with no service running: status exits 1 with a val
   const home = useEngineHome();
   try {
     const status = captureIo();
-    expect(await runHostCommand({ kind: "service-status", json: true }, status.io)).toBe(1);
-    expect(JSON.parse(status.stdout())).toEqual({ running: false, reason: "no_registration" });
+    // 자동 시작 상태는 가짜 기기로 읽는다(실제 홈과 launchctl을 건드리지 않는다). 올라가 있지 않은 기기다
+    const autostart = fakeAutostart({
+      platform: "darwin",
+      reply: () => ({ exitCode: 113, stdout: "" }),
+    });
+    expect(
+      await runServiceCommand({ kind: "service-status", json: true }, status.io, {
+        autostart: autostart.deps,
+      }),
+    ).toBe(1);
+    expect(JSON.parse(status.stdout())).toEqual({
+      running: false,
+      reason: "no_registration",
+      autostart: {
+        platform: "darwin",
+        supported: true,
+        registered: false,
+        active: false,
+        path: "/Users/tester/Library/LaunchAgents/com.fresnel.service.plist",
+        linger: null,
+      },
+    });
     const stop = captureIo();
     expect(await runHostCommand({ kind: "service-stop" }, stop.io)).toBe(0);
     expect(stop.stdout()).toBe("service not running\n");

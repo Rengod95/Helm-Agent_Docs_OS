@@ -18,12 +18,17 @@ import { connectServiceTransport, createHostConnection, helloService } from "./c
 import { requestServiceShutdown, waitServiceGone } from "./ensure.ts";
 import { resolveServicePaths, type ServicePathError } from "./paths.ts";
 import { systemTime } from "./time.ts";
+import type { AutostartDeps, AutostartStatus } from "./autostart.ts";
 
 // L4.host-service.spec §3.2 `fresnel service status`·`stop`, SV-07. 엔진을 열지 않고 등록 파일과 소켓으로 서비스를 조회하고 내린다.
 
 export interface ServiceControlOptions {
   readonly runtimeDir?: string;
   readonly time?: { readonly clock: Clock; readonly scheduler: Scheduler };
+  /**
+   * 로그인 자동 시작(`service install|uninstall`, `status`의 `autostart`)이 쓰는 기기 접근. 기본은 실제 기기(launchd, systemd)다. 시험은 가짜를 넣는다
+   */
+  readonly autostart?: AutostartDeps;
   /**
    * pid의 프로세스 시작 시각 지문(L0.os `processStartFingerprint`). 없거나 모르면 null이다. 기본은 L0.os 구현.
    * 등록 파일의 `startedAt`과 같을 때만 그 pid를 같은 서비스로 본다(pid 재사용 방지)
@@ -72,11 +77,23 @@ export type ServiceStatusResult =
       readonly remote: WireResult<"host.remote.status"> | null;
     };
 
-/** 화면과 `--json`에 내보내는 모양. 등록 파일의 접속 토큰은 뺀다(호스트 접속 권한이라 출력하지 않는다) */
-export function serviceStatusView(result: ServiceStatusResult): unknown {
-  if (!result.running) return result;
+/**
+ * 화면과 `--json`에 내보내는 모양. 등록 파일의 접속 토큰은 뺀다(호스트 접속 권한이라 출력하지 않는다).
+ * `autostart`는 서비스가 떠 있는지와 상관없이 더한다(등록 파일과 OS 등록 상태다)
+ */
+export function serviceStatusView(
+  result: ServiceStatusResult,
+  autostart: AutostartStatus,
+): unknown {
+  if (!result.running) return { ...result, autostart };
   const { token: _token, ...registration } = result.registration;
-  return { running: true, registration, status: result.status, remote: result.remote };
+  return {
+    running: true,
+    registration,
+    status: result.status,
+    remote: result.remote,
+    autostart,
+  };
 }
 
 export async function serviceStatus(

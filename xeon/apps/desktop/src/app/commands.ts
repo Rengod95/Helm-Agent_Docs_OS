@@ -82,6 +82,7 @@ export type CommandDeps = {
     | "serviceStatus"
     | "serviceEnsure"
     | "serviceStop"
+    | "serviceAutostartSet"
   >;
   /** 데스크톱 로컬 설정. 원격 대상 목록을 읽고 쓴다(연결 화면) */
   readonly local: Pick<LocalSettings, "load" | "get" | "set">;

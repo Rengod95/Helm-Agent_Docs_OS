@@ -10,6 +10,7 @@ import {
 } from "../../src/app/remote/fake-remote-adapter.ts";
 import type { RemoteActions } from "../../src/app/remote/use-remote-controller.ts";
 import type { RemoteDevice, RemoteError, RemoteStatus } from "../../src/app/remote/remote-types.ts";
+import type { ServiceAutostart } from "../../src/transport/ipc.ts";
 import {
   ServerModeSection,
   type ServerModeSectionProps,
@@ -106,6 +107,21 @@ function recorder(): { readonly actions: RemoteActions; readonly calls: Call[] }
       calls.push({ name: "reloadDevices", args: [] });
       return Promise.resolve();
     },
+    requestAutostart: (enabled) => {
+      calls.push({ name: "requestAutostart", args: [enabled] });
+      return Promise.resolve();
+    },
+    confirmAutostart: () => {
+      calls.push({ name: "confirmAutostart", args: [] });
+      return Promise.resolve();
+    },
+    cancelAutostartConfirm: () => {
+      calls.push({ name: "cancelAutostartConfirm", args: [] });
+    },
+    reloadAutostart: () => {
+      calls.push({ name: "reloadAutostart", args: [] });
+      return Promise.resolve();
+    },
   };
   return { actions, calls };
 }
@@ -162,6 +178,15 @@ const TABLET: RemoteDevice = {
   address: "10.0.0.5",
 };
 
+/** 지원하고 등록된 로그인 자동 시작 상태. 시험 기본값은 이것이다 */
+const AUTOSTART_ON: ServiceAutostart = {
+  supported: true,
+  registered: true,
+  active: true,
+  linger: null,
+  platform: "darwin",
+};
+
 const READY: RemoteScreenState = {
   status: { kind: "ready", value: RUNNING },
   devices: { kind: "ready", value: [] },
@@ -169,6 +194,9 @@ const READY: RemoteScreenState = {
   confirmOpen: false,
   busy: "none",
   notice: null,
+  autostart: { kind: "ready", value: AUTOSTART_ON },
+  autostartConfirmOpen: false,
+  autostartLinger: false,
 };
 
 function stateWith(patch: Partial<RemoteScreenState>): RemoteScreenState {
@@ -563,10 +591,10 @@ describe("ServerModeSection confirm and dialogs", () => {
 describe("ServerModeSection notices and writes", () => {
   test("each notice kind shows its own sentence", async () => {
     const cases: ReadonlyArray<readonly [RemoteScreenState["notice"], string]> = [
-      [{ kind: "enableFailed" }, "외부 접근을 켜지 못했어요. 다시 해 봐요."],
-      [{ kind: "disableFailed" }, "외부 접근을 끄지 못했어요. 다시 해 봐요."],
-      [{ kind: "serviceFailed" }, "서비스를 켜거나 끄지 못했어요. 다시 해 봐요."],
-      [{ kind: "revokeFailed" }, "기기를 폐기하지 못했어요. 다시 해 봐요."],
+      [{ kind: "enableFailed", code: null }, "외부 접근을 켜지 못했어요. 다시 해 봐요."],
+      [{ kind: "disableFailed", code: null }, "외부 접근을 끄지 못했어요. 다시 해 봐요."],
+      [{ kind: "serviceFailed", code: null }, "서비스를 켜거나 끄지 못했어요. 다시 해 봐요."],
+      [{ kind: "revokeFailed", code: null }, "기기를 폐기하지 못했어요. 다시 해 봐요."],
     ];
     // 한 번에 하나씩 올린다. 겹친 `act`는 React의 act 범위를 어긋나게 해 뒤의 시험을 망친다
     await cases.reduce<Promise<void>>(async (previous, [notice, sentence]) => {
@@ -599,5 +627,128 @@ describe("ServerModeSection notices and writes", () => {
     const view = await mount({ copy: copied.copy });
     await press(buttonNamed(view.container, "복사"));
     expect(copied.texts).toEqual(["https://192.168.0.10:47443"]);
+  });
+});
+
+const AUTOSTART_LABEL = "로그인할 때 자동으로 켜기";
+
+/** 로그인 자동 시작 스위치(글이 같은 `aria-label`). 없으면 시험이 실패하도록 던진다 */
+function autostartSwitchOf(container: Element): Element {
+  const found = container.querySelector(`[role="switch"][aria-label="${AUTOSTART_LABEL}"]`);
+  if (found === null) throw new Error("no autostart switch");
+  return found;
+}
+
+describe("ServerModeSection login autostart switch", () => {
+  test("the switch is checked when the service is registered to start at login, and it is named", async () => {
+    const on = await mount({ state: READY });
+    expect(autostartSwitchOf(on.container).getAttribute("aria-checked")).toBe("true");
+    const off = await mount({
+      state: stateWith({
+        autostart: { kind: "ready", value: { ...AUTOSTART_ON, registered: false, active: false } },
+      }),
+    });
+    expect(autostartSwitchOf(off.container).getAttribute("aria-checked")).toBe("false");
+    expect(textOf(off.container)).toContain(AUTOSTART_LABEL);
+  });
+
+  test("on an unsupported platform the switch is disabled and the reason shows", async () => {
+    const view = await mount({
+      state: stateWith({
+        autostart: {
+          kind: "ready",
+          value: { ...AUTOSTART_ON, supported: false, registered: false, platform: "win32" },
+        },
+      }),
+    });
+    expect(autostartSwitchOf(view.container).hasAttribute("disabled")).toBe(true);
+    expect(textOf(view.container)).toContain("이 플랫폼에서는 자동 시작을 지원하지 않아요.");
+  });
+
+  test("turning it on only asks the controller, which opens the confirm; the confirm button and cancel each call once", async () => {
+    const rec = recorder();
+    const off = await mount({
+      state: stateWith({
+        autostart: { kind: "ready", value: { ...AUTOSTART_ON, registered: false } },
+      }),
+      actions: rec.actions,
+    });
+    await press(autostartSwitchOf(off.container));
+    expect(rec.calls).toEqual([{ name: "requestAutostart", args: [true] }]);
+
+    const rec2 = recorder();
+    const open = await mount({
+      state: stateWith({
+        autostart: { kind: "ready", value: { ...AUTOSTART_ON, registered: false } },
+        autostartConfirmOpen: true,
+      }),
+      actions: rec2.actions,
+    });
+    const text = dialogTextOf(open.container);
+    expect(text).toContain("로그인할 때 자동으로 켜기 확인");
+    expect(text).toContain("~/Library/LaunchAgents");
+    expect(text).toContain("~/.config/systemd/user");
+    expect(text).toContain("흔적도 남기지 않아요");
+    await press(buttonNamed(open.container, "켜기"));
+    expect(rec2.calls).toEqual([{ name: "confirmAutostart", args: [] }]);
+    await press(buttonNamed(open.container, "취소"));
+    expect(rec2.calls.slice(1)).toEqual([{ name: "cancelAutostartConfirm", args: [] }]);
+  });
+
+  test("turning it off calls requestAutostart(false) and opens no confirm", async () => {
+    const rec = recorder();
+    const view = await mount({ state: READY, actions: rec.actions });
+    await press(autostartSwitchOf(view.container));
+    expect(rec.calls).toEqual([{ name: "requestAutostart", args: [false] }]);
+    expect(view.container.querySelector('[role="alertdialog"], [role="dialog"]')).toBeNull();
+  });
+
+  test("while a write runs the switch is disabled", async () => {
+    const view = await mount({ state: stateWith({ busy: "autostart" }) });
+    expect(autostartSwitchOf(view.container).hasAttribute("disabled")).toBe(true);
+  });
+
+  test("a failed write shows one danger line with only the closed code", async () => {
+    const view = await mount({
+      state: stateWith({
+        notice: { kind: "autostartFailed", code: "autostart_failed" },
+      }),
+    });
+    expect(textOf(view.container)).toContain(
+      "로그인할 때 자동으로 켜기를 바꾸지 못했어요(autostart_failed). 다시 해 봐요.",
+    );
+  });
+
+  test("the linger hint shows the command as code once, when the flag is set", async () => {
+    const view = await mount({
+      state: stateWith({
+        autostart: { kind: "ready", value: { ...AUTOSTART_ON, linger: false } },
+        autostartLinger: true,
+      }),
+    });
+    expect(textOf(view.container)).toContain("Linux에서 로그아웃한 뒤에도");
+    const code = view.container.querySelector("code");
+    expect(code?.textContent).toBe("loginctl enable-linger");
+    const plain = await mount({ state: READY });
+    expect(plain.container.querySelector("code")).toBeNull();
+  });
+
+  test("a failed read shows the line, and its retry calls reloadAutostart", async () => {
+    const rec = recorder();
+    const view = await mount({
+      state: stateWith({ autostart: { kind: "failed", error: { kind: "failed", message: null } } }),
+      actions: rec.actions,
+    });
+    expect(view.container.querySelector('[role="switch"]')).toBeNull();
+    expect(textOf(view.container)).toContain("로그인할 때 자동으로 켜기 상태를 읽지 못했어요.");
+    await press(buttonNamed(view.container, "다시 시도"));
+    expect(rec.calls).toEqual([{ name: "reloadAutostart", args: [] }]);
+  });
+
+  test("while the status is still loading there is no switch yet", async () => {
+    const view = await mount({
+      state: stateWith({ autostart: { kind: "loading" } }),
+    });
+    expect(view.container.querySelector('[role="switch"]')).toBeNull();
   });
 });

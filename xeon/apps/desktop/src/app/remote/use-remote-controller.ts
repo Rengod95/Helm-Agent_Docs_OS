@@ -17,6 +17,10 @@ export interface RemoteActions {
   retryEnable(): Promise<void>;
   issuePairing(): Promise<void>;
   revoke(target: RevokeTarget): Promise<void>;
+  requestAutostart(enabled: boolean): Promise<void>;
+  confirmAutostart(): Promise<void>;
+  cancelAutostartConfirm(): void;
+  reloadAutostart(): Promise<void>;
   reloadStatus(): Promise<void>;
   reloadDevices(): Promise<void>;
 }
@@ -27,10 +31,10 @@ export interface RemoteScreen {
   readonly actions: RemoteActions;
 }
 
-/** 훅이 받는 서비스 명령(띄우기와 멈추기) */
+/** 훅이 받는 서비스 명령(띄우기와 멈추기, 로그인 자동 시작 읽기와 쓰기) */
 export type RemoteServiceCommands = Pick<
   ConnectionCommands,
-  "startLocalService" | "stopLocalService"
+  "startLocalService" | "stopLocalService" | "serviceAutostart" | "setServiceAutostart"
 >;
 
 /** 원격 접속 화면의 상태와 동작을 훅으로 준다. 마운트하면 상태를 읽기 시작하고, 떠나면 타이머를 모두 푼다 */
@@ -78,6 +82,12 @@ function actionsOf(controller: RemoteController): RemoteActions {
     retryEnable: () => controller.retryEnable(),
     issuePairing: () => controller.issuePairing(),
     revoke: (target) => controller.revoke(target),
+    requestAutostart: (enabled) => controller.requestAutostart(enabled),
+    confirmAutostart: () => controller.confirmAutostart(),
+    cancelAutostartConfirm: () => {
+      controller.cancelAutostartConfirm();
+    },
+    reloadAutostart: () => controller.reloadAutostart(),
     reloadStatus: () => controller.reloadStatus(),
     reloadDevices: () => controller.reloadDevices(),
   };

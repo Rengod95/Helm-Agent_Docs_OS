@@ -6,6 +6,7 @@ import type {
   DesktopIpc,
   EngineState,
   RestartOptions,
+  ServiceAutostart,
   ServiceStatusReply,
 } from "../../src/transport/ipc.ts";
 import { summary, thr } from "../state/helpers.ts";
@@ -470,7 +471,9 @@ describe("the connected clients list reads host.clients", () => {
 
 /** 엔진 역할은 `engineFake`가 맡고, 서비스 셸 명령만 시험이 정한 답으로 바꾼 앱을 연결될 때까지 기다린다. 쓰기와 셸 호출의 순서는 `log`에 남는다 */
 async function serviceApp(
-  service: Partial<Pick<DesktopIpc, "serviceStatus" | "serviceEnsure" | "serviceStop">> = {},
+  service: Partial<
+    Pick<DesktopIpc, "serviceStatus" | "serviceEnsure" | "serviceStop" | "serviceAutostartSet">
+  > = {},
   extra: EngineExtra = {},
   log: string[] = [],
 ) {
@@ -491,6 +494,10 @@ async function serviceApp(
     serviceStop: () => {
       log.push("serviceStop");
       return base.serviceStop();
+    },
+    serviceAutostartSet: (enabled) => {
+      log.push(`serviceAutostartSet ${enabled}`);
+      return base.serviceAutostartSet(enabled);
     },
     restart: (options) => {
       log.push("restart");
@@ -620,6 +627,15 @@ describe("the local service: enabling and disabling run in one order and report 
   });
 });
 
+/** 지원하고 등록은 안 된 로그인 자동 시작 상태 */
+const AUTOSTART_OFF: ServiceAutostart = {
+  supported: true,
+  registered: false,
+  active: false,
+  linger: null,
+  platform: "darwin",
+};
+
 describe("load reads the local service card from the shell", () => {
   const RUNNING: ServiceStatusReply = {
     running: true,
@@ -627,6 +643,7 @@ describe("load reads the local service card from the shell", () => {
     pid: 4321,
     version: "1.2.3",
     startedAt: 1_700_000_000_000,
+    autostart: AUTOSTART_OFF,
   };
 
   test("a running service that this app is attached to shows its pid, version and start time, and no socket", async () => {
@@ -715,5 +732,93 @@ describe("load reads the local service card from the shell", () => {
     expect(loaded.ok && loaded.value.service).toEqual({ kind: "unknown" });
     expect(fake.serviceCalls).toEqual([]);
     await app.stop();
+  });
+});
+
+describe("the login autostart commands", () => {
+  const REGISTERED: ServiceAutostart = {
+    supported: true,
+    registered: true,
+    active: true,
+    linger: false,
+    platform: "linux",
+  };
+
+  test("serviceAutostart reads the autostart object of service_status, running or not", async () => {
+    const { app } = await serviceApp({
+      serviceStatus: () =>
+        Promise.resolve(ok({ running: false, reason: "no registration", autostart: REGISTERED })),
+    });
+    expect(await app.commands.connection.serviceAutostart()).toEqual({
+      ok: true,
+      value: REGISTERED,
+    });
+    await app.stop();
+  });
+
+  test("a failed status read is the closed unknown code, and never a path", async () => {
+    const { app } = await serviceApp({
+      serviceStatus: () =>
+        Promise.resolve(
+          err({ kind: "command", command: "service_status", code: "storage-failed" }),
+        ),
+    });
+    expect(await app.commands.connection.serviceAutostart()).toEqual({
+      ok: false,
+      error: { code: "unknown" },
+    });
+    await app.stop();
+  });
+
+  test("setServiceAutostart calls the shell with the flag, and passes the linger advice through", async () => {
+    const log: string[] = [];
+    const { app, fake } = await serviceApp({}, {}, log);
+    expect(await app.commands.connection.setServiceAutostart(true)).toEqual({
+      ok: true,
+      value: { lingerAdvice: false },
+    });
+    expect(await app.commands.connection.setServiceAutostart(false)).toEqual({
+      ok: true,
+      value: { lingerAdvice: false },
+    });
+    expect(log).toEqual(["serviceAutostartSet true", "serviceAutostartSet false"]);
+    expect(fake.autostartSets).toEqual([true, false]);
+    await app.stop();
+  });
+
+  test("a rejected set keeps the autostart code, and any other code is unknown", async () => {
+    const failed = await serviceApp({
+      serviceAutostartSet: () =>
+        Promise.resolve(
+          err({ kind: "command", command: "service_autostart_set", code: "autostart_failed" }),
+        ),
+    });
+    expect(await failed.app.commands.connection.setServiceAutostart(true)).toEqual({
+      ok: false,
+      error: { code: "autostart_failed" },
+    });
+    await failed.app.stop();
+
+    const other = await serviceApp({
+      serviceAutostartSet: () =>
+        Promise.resolve(
+          err({ kind: "command", command: "service_autostart_set", code: "something-else" }),
+        ),
+    });
+    expect(await other.app.commands.connection.setServiceAutostart(true)).toEqual({
+      ok: false,
+      error: { code: "unknown" },
+    });
+    await other.app.stop();
+
+    const invalid = await serviceApp({
+      serviceAutostartSet: () =>
+        Promise.resolve(err({ kind: "invalid", command: "service_autostart_set" })),
+    });
+    expect(await invalid.app.commands.connection.setServiceAutostart(false)).toEqual({
+      ok: false,
+      error: { code: "unknown" },
+    });
+    await invalid.app.stop();
   });
 });

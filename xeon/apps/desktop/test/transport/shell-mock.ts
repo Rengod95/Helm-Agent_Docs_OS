@@ -184,6 +184,12 @@ export function shellMockIpc(fake: FakeIpc): {
     if (cmd === "service_status") return settled(await fake.ipc.serviceStatus());
     if (cmd === "service_ensure") return settled(await fake.ipc.serviceEnsure());
     if (cmd === "service_stop") return settled(await fake.ipc.serviceStop());
+    if (cmd === "service_autostart_set") {
+      // 셸은 boolean이 아닌 인자를 `bad-request`로 거절한다
+      const enabled = field(args, "enabled");
+      if (typeof enabled !== "boolean") return rejectWith("bad-request");
+      return settled(await fake.ipc.serviceAutostartSet(enabled));
+    }
     if (cmd === "engine_detach") {
       await fake.ipc.detach(Number(field(args, "epoch")));
       return null;

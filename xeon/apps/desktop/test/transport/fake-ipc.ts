@@ -11,6 +11,8 @@ import type {
   RestartOptions,
   RestoreReport,
   SecretRegisterError,
+  ServiceAutostart,
+  ServiceAutostartSetReply,
   ServiceEnsureReply,
   ServiceStatusReply,
   ServiceStopReply,
@@ -49,9 +51,19 @@ export const STORAGE_USAGE: StorageUsage = {
 };
 
 /** 서비스 상태의 기본 답: 실행 중이 아니다. 시험이 `serviceStatusResult`로 바꾼다 */
+/** 이 기기의 로그인 자동 시작 기본값: 지원하고, 등록은 안 되어 있다 */
+const AUTOSTART_OFF: ServiceAutostart = {
+  supported: true,
+  registered: false,
+  active: false,
+  linger: null,
+  platform: "darwin",
+};
+
 const SERVICE_NOT_RUNNING: ServiceStatusReply = {
   running: false,
   reason: "no registration",
+  autostart: AUTOSTART_OFF,
 };
 
 /** 복원 전 사본을 지운 결과. 기본 `dbPreviousRemove`가 이것을 stdout으로 돌려준다 */
@@ -90,8 +102,10 @@ export type FakeIpc = {
   readonly dbPreviousRemoveCalls: string[];
   /** `openDataDir` 호출 횟수 */
   readonly openDataDirCalls: number;
-  /** 서비스 명령 호출 이름(`serviceStatus`·`serviceEnsure`·`serviceStop`), 호출 순서 */
+  /** 서비스 명령 호출 이름(`serviceStatus`·`serviceEnsure`·`serviceStop`·`serviceAutostartSet`), 호출 순서 */
   readonly serviceCalls: string[];
+  /** `serviceAutostartSet` 호출에 넘어온 값(`enabled`), 호출 순서 */
+  readonly autostartSets: boolean[];
   epoch(): number;
 };
 
@@ -120,6 +134,8 @@ export type FakeIpcOptions = {
   readonly serviceEnsureResult?: Result<ServiceEnsureReply, IpcError>;
   /** `serviceStop`이 돌려줄 결과. 없으면 멈춘 성공이다 */
   readonly serviceStopResult?: Result<ServiceStopReply, IpcError>;
+  /** `serviceAutostartSet`이 돌려줄 결과. 없으면 `enabled`를 되돌리고 linger 안내가 없는 성공이다 */
+  readonly serviceAutostartSetResult?: Result<ServiceAutostartSetReply, IpcError>;
 };
 
 function ignore(): void {
@@ -141,6 +157,7 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
   const dbExportCalls: string[] = [];
   const dbPreviousRemoveCalls: string[] = [];
   const serviceCalls: string[] = [];
+  const autostartSets: boolean[] = [];
   let dbUsageCount = 0;
   let openDataDirCount = 0;
   const fake: FakeIpc = {
@@ -240,6 +257,13 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
         serviceCalls.push("serviceStop");
         return Promise.resolve(options.serviceStopResult ?? ok({ stopped: true }));
       },
+      serviceAutostartSet(enabled) {
+        serviceCalls.push("serviceAutostartSet");
+        autostartSets.push(enabled);
+        return Promise.resolve(
+          options.serviceAutostartSetResult ?? ok({ enabled, lingerAdvice: false }),
+        );
+      },
     },
     emitLine: (value) => onBytes(enc.encode(`${JSON.stringify(value)}\n`)),
     emitBytes: (bytes) => onBytes(bytes),
@@ -261,6 +285,7 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
       return openDataDirCount;
     },
     serviceCalls,
+    autostartSets,
     epoch: () => epoch,
   };
   return fake;

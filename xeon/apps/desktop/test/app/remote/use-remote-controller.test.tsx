@@ -16,6 +16,7 @@ import {
   type RemoteServiceCommands,
 } from "../../../src/app/remote/use-remote-controller.ts";
 import type { RemoteAdapter, RemoteDevice } from "../../../src/app/remote/remote-types.ts";
+import type { ServiceAutostart } from "../../../src/transport/ipc.ts";
 
 // 원격 접속 훅을 얇은 구성 요소에 올려 시험한다. 연결 화면 시험과 같이 linkedom DOM을 전역에 올리고 끝나면 되돌린다.
 // 훅의 실제 타이머는 쓰지 않는다. 시험은 읽기 응답이 돌아올 만큼만 기다리고, 마운트는 끝날 때 반드시 푼다.
@@ -76,9 +77,20 @@ const DESKTOP_DEVICE: RemoteDevice = {
   address: null,
 };
 
+/** 지원하고 등록은 안 된 로그인 자동 시작 상태 */
+const AUTOSTART_OFF: ServiceAutostart = {
+  supported: true,
+  registered: false,
+  active: false,
+  linger: null,
+  platform: "darwin",
+};
+
 const SERVICE: RemoteServiceCommands = {
   startLocalService: () => Promise.resolve(ok(null)),
   stopLocalService: () => Promise.resolve(ok(null)),
+  serviceAutostart: () => Promise.resolve(ok(AUTOSTART_OFF)),
+  setServiceAutostart: () => Promise.resolve(ok({ lingerAdvice: false })),
 };
 
 /** 훅을 쓰는 가장 얇은 구성 요소. 마지막으로 그린 결과를 `seen`에 남긴다 */
