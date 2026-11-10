@@ -1,6 +1,11 @@
 import { err, ok } from "@fresnel/contracts";
-import type { RemoteAdapter } from "./remote-adapter.ts";
-import type { RemoteDevice, RemoteError, RemoteStatus, RevokeTarget } from "./remote-types.ts";
+import type {
+  RemoteAdapter,
+  RemoteDevice,
+  RemoteError,
+  RemoteStatus,
+  RevokeTarget,
+} from "./remote-types.ts";
 
 // 시험용 원격 접속 어댑터. 상태와 기기 목록은 메모리에 두고, 호출은 받은 순서대로 `calls`에 쌓는다. 시각과 페어링 코드는 주입한다.
 // 시작은 두 단계다. `setEnabled(true)`는 `starting`으로 두고, `advance()`가 `running`으로 넘기면서 포트와 주소를 채운다.

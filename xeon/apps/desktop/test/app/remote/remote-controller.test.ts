@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
-import type { RemoteAdapter } from "../../../src/app/remote/remote-adapter.ts";
 import {
   createRemoteController,
   type RemoteController,
@@ -15,7 +14,11 @@ import {
   type FakeRemoteOptions,
 } from "../../../src/app/remote/fake-remote-adapter.ts";
 import type { CommandError } from "../../../src/views/commands.ts";
-import type { RemoteDevice, RemoteStatus } from "../../../src/app/remote/remote-types.ts";
+import type {
+  RemoteAdapter,
+  RemoteDevice,
+  RemoteStatus,
+} from "../../../src/app/remote/remote-types.ts";
 
 const RUNNING: RemoteStatus = {
   enabled: true,

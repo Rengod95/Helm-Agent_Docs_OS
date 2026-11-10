@@ -2,10 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { err, ok, type Result } from "@fresnel/contracts";
 import {
   createRemoteAdapter,
-  type RemoteAdapter,
   type RemoteRequester,
 } from "../../../src/app/remote/remote-adapter.ts";
-import type { RemoteDevice, RemoteStatus } from "../../../src/app/remote/remote-types.ts";
+import type {
+  RemoteAdapter,
+  RemoteDevice,
+  RemoteStatus,
+} from "../../../src/app/remote/remote-types.ts";
 import type { CommandError } from "../../../src/views/commands.ts";
 
 // 원격 접속 어댑터를 가짜 요청 자리 위에서 돌린다. 요청 자리는 정해 둔 답 하나를 주고, 보낸 메서드와 인자를 쌓는다.

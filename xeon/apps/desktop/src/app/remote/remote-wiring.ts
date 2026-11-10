@@ -1,7 +1,8 @@
 import type { Result } from "@fresnel/contracts";
 import type { HostConnection } from "@fresnel/contracts/wire";
 import type { CommandError } from "../../views/commands.ts";
-import { createRemoteAdapter, type RemoteAdapter, type RemoteRequester } from "./remote-adapter.ts";
+import { createRemoteAdapter, type RemoteRequester } from "./remote-adapter.ts";
+import type { RemoteAdapter } from "./remote-types.ts";
 
 // 원격 접속 어댑터를 실제 연결(`HostConnection`)에 잇는다. 메서드 이름과 인자는 계약의 닫힌 표가 검사하므로 `as`가 없다.
 // 오류는 `withConnection`이 `errorOf`로 바꾼다(`remote.off` 5008은 `rejected.issue: "remote-off"`, -32601은 `unsupported`).

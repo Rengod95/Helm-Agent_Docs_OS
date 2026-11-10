@@ -225,3 +225,12 @@ export function parseRevoked(reply: unknown): Result<RevokeResult, RemoteError> 
   if (!isCount(revoked)) return err(BAD_REPLY);
   return ok({ revoked });
 }
+
+/** 원격 접속 화면이 기대하는 동작. 화면은 이 인터페이스에만 기댄다. 실제 구현과 시험용 가짜가 둘 다 이것을 만족한다 */
+export interface RemoteAdapter {
+  status(): Promise<Result<RemoteStatus, RemoteError>>;
+  setEnabled(enabled: boolean): Promise<Result<RemoteStatus, RemoteError>>;
+  pair(): Promise<Result<PairingCode, RemoteError>>;
+  devices(): Promise<Result<readonly RemoteDevice[], RemoteError>>;
+  revoke(target: RevokeTarget): Promise<Result<RevokeResult, RemoteError>>;
+}

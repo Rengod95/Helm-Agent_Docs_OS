@@ -3,7 +3,6 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { parseHTML } from "linkedom";
 import { ok } from "@fresnel/contracts";
-import type { RemoteAdapter } from "../../../src/app/remote/remote-adapter.ts";
 import {
   createFakeRemoteAdapter,
   FAKE_NOW,
@@ -16,7 +15,7 @@ import {
   type RemoteScreen,
   type RemoteServiceCommands,
 } from "../../../src/app/remote/use-remote-controller.ts";
-import type { RemoteDevice } from "../../../src/app/remote/remote-types.ts";
+import type { RemoteAdapter, RemoteDevice } from "../../../src/app/remote/remote-types.ts";
 
 // 원격 접속 훅을 얇은 구성 요소에 올려 시험한다. 연결 화면 시험과 같이 linkedom DOM을 전역에 올리고 끝나면 되돌린다.
 // 훅의 실제 타이머는 쓰지 않는다. 시험은 읽기 응답이 돌아올 만큼만 기다리고, 마운트는 끝날 때 반드시 푼다.

@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useReducer } from "react";
 import type { ConnectionCommands } from "../../views/commands.ts";
-import type { RemoteAdapter } from "./remote-adapter.ts";
 import { createRemoteController, type RemoteController } from "./remote-controller.ts";
 import type { ServerMode } from "./remote-model.ts";
 import type { RemoteScreenState } from "./remote-state.ts";
-import type { RevokeTarget } from "./remote-types.ts";
+import type { RemoteAdapter, RevokeTarget } from "./remote-types.ts";
 
 // 원격 접속 화면의 React 훅. 컨트롤러를 한 번 만들고, 화면이 마운트되면 `start`, 떠나면 `stop`을 부른다.
 // 상태가 바뀌면 컨트롤러의 `onChange`가 다시 그리기를 부르고, 그릴 때 `state()`를 새로 읽는다.

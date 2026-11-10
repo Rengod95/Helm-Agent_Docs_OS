@@ -1,4 +1,4 @@
-import type { RemoteAdapter } from "../app/remote/remote-adapter.ts";
+import type { RemoteAdapter } from "../app/remote/remote-types.ts";
 import type {
   EventId,
   ModelThinkingLevel,

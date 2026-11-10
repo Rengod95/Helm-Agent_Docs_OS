@@ -1,6 +1,5 @@
 import { detach, type Result } from "@fresnel/contracts";
 import type { ConnectionCommands } from "../../views/commands.ts";
-import type { RemoteAdapter } from "./remote-adapter.ts";
 import { isPairingExpired, type ServerMode } from "./remote-model.ts";
 import {
   INITIAL_REMOTE_STATE,
@@ -8,7 +7,7 @@ import {
   type RemoteAction,
   type RemoteScreenState,
 } from "./remote-state.ts";
-import type { RemoteError, RemoteStatus, RevokeTarget } from "./remote-types.ts";
+import type { RemoteAdapter, RemoteError, RemoteStatus, RevokeTarget } from "./remote-types.ts";
 
 // 원격 접속 화면의 컨트롤러(React 없음). 어댑터와 서비스 명령을 부르고, 결과를 `remote-state.ts`의 `reduce`로 화면 상태에 옮긴다.
 // 시계와 타이머는 밖에서 받는다. 읽기마다 순번을 달아, 새 읽기나 쓰기 뒤에 늦게 온 옛 응답은 버린다.

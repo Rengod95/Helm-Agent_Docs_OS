@@ -6,11 +6,8 @@ import {
   parsePairing,
   parseRevoked,
   parseStatus,
-  type PairingCode,
-  type RemoteDevice,
   type RemoteError,
-  type RemoteStatus,
-  type RevokeResult,
+  type RemoteAdapter,
   type RevokeTarget,
 } from "./remote-types.ts";
 
@@ -34,15 +31,6 @@ export interface RemoteRequester {
     method: M,
     params: WireParams<M>,
   ): Promise<Result<unknown, CommandError>>;
-}
-
-/** 원격 접속 화면이 기대하는 동작. 화면은 이 인터페이스에만 기댄다. 실제 구현과 시험용 가짜가 둘 다 이것을 만족한다 */
-export interface RemoteAdapter {
-  status(): Promise<Result<RemoteStatus, RemoteError>>;
-  setEnabled(enabled: boolean): Promise<Result<RemoteStatus, RemoteError>>;
-  pair(): Promise<Result<PairingCode, RemoteError>>;
-  devices(): Promise<Result<readonly RemoteDevice[], RemoteError>>;
-  revoke(target: RevokeTarget): Promise<Result<RevokeResult, RemoteError>>;
 }
 
 /** 꺼짐을 알리는 `rejected.issue` 값. wire 오류 `remote.off`(5008)를 `errorOf`(`app/command-error.ts`)가 이 글자로 싣는다 */
