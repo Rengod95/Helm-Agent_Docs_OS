@@ -4,7 +4,15 @@
 // electron-updater용 Resources/app-update.yml은 build/update-feed.json이나 env FRESNEL_UPDATE_REPO가 있을 때만 넣는다(값은 사용자 몫).
 // env: FRESNEL_RELEASE_VERSION (앱 버전, 기본은 package.json), FRESNEL_APP_OUT (출력 폴더, 기본 dist-app)
 // 도구 선택: packager는 설정 없이 .app만 만들고 서명·공증·업데이트는 따로 붙일 수 있어 electron-builder보다 얇다.
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import { packager } from "@electron/packager";
 import {
@@ -27,6 +35,7 @@ const BUNDLE_ID = "dev.fresnel.desktop";
 const requiredInputs = [
   path.join(desktop, "dist", "ui", "index.html"),
   path.join(desktop, "dist", "sidecar", "fresnel-aarch64-apple-darwin"),
+  path.join(desktop, "dist", "sidecar", "fresnel-web-aarch64-apple-darwin"),
   path.join(shell, "dist", "bundle", "main.mjs"),
   path.join(shell, "node_modules", "electron", "dist", "LICENSE"),
   path.join(shell, "dist", "engine-notices.txt"),
@@ -40,7 +49,7 @@ for (const file of requiredInputs) {
       ? "; the Electron binary was not unpacked (bun install skipped its postinstall): cd apps/desktop-shell/node_modules/electron && node install.js"
       : "";
     process.stderr.write(
-      `package: missing ${file} (just desktop-build-electron builds the inputs; or just desktop-ui, just desktop-sidecar host)${electronHint}\n`,
+      `package: missing ${file} (just desktop-build-electron builds the inputs; or just desktop-ui, just desktop-sidecar host, just desktop-sidecar host --gateway)${electronHint}\n`,
     );
     process.exit(2);
   }
@@ -92,9 +101,17 @@ if (!existsSync(feedSource) && generated !== null) {
 const appUpdateYml = existsSync(feed) ? appUpdateYmlText(readFileSync(feed, "utf8")) : null;
 const appUpdateYmlFile = path.join(stage, "app-update.yml");
 if (appUpdateYml !== null) writeFileSync(appUpdateYmlFile, appUpdateYml);
+// 웹 게이트웨이: 서비스(호스트)가 자기 바이너리 옆의 `fresnel-web`과 `ui/`를 찾는다(apps/host gateway-command.ts). 파일 이름에서 triple을 뺀다
+const gatewayStaged = path.join(stage, "fresnel-web");
+copyFileSync(
+  path.join(desktop, "dist", "sidecar", "fresnel-web-aarch64-apple-darwin"),
+  gatewayStaged,
+);
+chmodSync(gatewayStaged, 0o755);
 const extraResource = [
   path.join(desktop, "dist", "ui"),
   path.join(desktop, "dist", "sidecar", "fresnel-aarch64-apple-darwin"),
+  gatewayStaged,
   // 트레이 아이콘(tray-shell.ts가 Resources/assets/tray.png를 읽는다)
   path.join(shell, "assets"),
   licenses,

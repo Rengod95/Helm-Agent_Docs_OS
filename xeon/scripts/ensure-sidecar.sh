@@ -38,6 +38,7 @@ version_mismatch() {
   local file reported
   for file in "$dir"/fresnel-*; do
     [[ -x "$file" ]] || continue
+    [[ "$file" == */fresnel-web-* ]] && continue # the web gateway is not the engine and has no version command
     reported="$("$file" version --json 2>/dev/null | sed -n 's/.*"cli":"\([^"]*\)".*/\1/p' || true)"
     [[ -n "$reported" && "$reported" != "0.0.0" ]] && return 0
   done

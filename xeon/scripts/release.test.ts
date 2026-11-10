@@ -12,6 +12,7 @@ import {
   devSidecarDir,
   releaseSidecarDir,
   sidecarCommand,
+  uiBundleDir,
   sumsBody,
   type ReleaseError,
 } from "./release.ts";
@@ -355,6 +356,8 @@ test("parseSums reads `<sha256>  <path>` lines and rejects a malformed line, a `
 test("requiredPaths asks for the lock and the bundled binaries only on macOS", () => {
   const common = [
     "fresnel",
+    "fresnel-web",
+    "ui/index.html",
     "group-sdk/templates/index.json",
     "default-plugins/helm/.fresnel-plugin/plugin.json",
     "THIRD-PARTY-NOTICES.txt",
@@ -368,7 +371,11 @@ test("requiredPaths asks for the lock and the bundled binaries only on macOS", (
     "binaries/rg",
   ]);
   expect(requiredPaths(LINUX)).toEqual(common);
-  expect(requiredPaths("x86_64-pc-windows-msvc")).toEqual(["fresnel.exe", ...common.slice(1)]);
+  expect(requiredPaths("x86_64-pc-windows-msvc")).toEqual([
+    "fresnel.exe",
+    "fresnel-web.exe",
+    ...common.slice(2),
+  ]);
 });
 
 test("the release archive's notices are the JS and Bun ones", () => {
@@ -409,6 +416,20 @@ test("sidecarCommand hands the release version to build-sidecar, so the binary c
     "--out-dir",
     "/o/.sidecar-build",
   ]);
+});
+
+test("the gateway build command adds --gateway after the triple and keeps the version and out-dir", () => {
+  expect(sidecarCommand(LINUX, "1.2.3", "/o/.sidecar-build", true)).toEqual([
+    process.execPath,
+    join("scripts", "build-sidecar.ts"),
+    LINUX,
+    "--gateway",
+    "--version",
+    "1.2.3",
+    "--out-dir",
+    "/o/.sidecar-build",
+  ]);
+  expect(uiBundleDir("/x")).toBe(join("/x", "apps", "desktop", "dist", "ui"));
 });
 
 test("a release build writes its sidecar under the output directory, never the development sidecar path", () => {

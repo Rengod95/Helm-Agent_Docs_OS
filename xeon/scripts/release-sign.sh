@@ -54,11 +54,12 @@ security set-key-partition-list -S apple-tool:,apple: -s -k "$kc_pass" "$keychai
 security list-keychains -d user -s "$keychain" login.keychain-db
 
 # the bundled helpers first, then the main binary, all with the hardened runtime and a secure timestamp
-for file in "$stage"/binaries/* "$stage"/fresnel; do
+for file in "$stage"/binaries/* "$stage"/fresnel "$stage"/fresnel-web; do
   [[ -f "$file" ]] || continue
   codesign --force --options runtime --timestamp --keychain "$keychain" --sign "$APPLE_SIGNING_IDENTITY" "$file"
 done
 codesign --verify --strict "$stage/fresnel"
+codesign --verify --strict "$stage/fresnel-web"
 
 # notarization takes a zip; a bare binary cannot be stapled, Gatekeeper checks the ticket online
 zip_path="$work/notarize.zip"
