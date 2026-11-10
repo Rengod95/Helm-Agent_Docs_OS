@@ -76,6 +76,9 @@ export type RemoteSettingInputs = {
 /** 루프백 HTTP 리스너의 기본 주소. 기본값은 이 상수 한 곳에만 둔다(BP-06) */
 const DEFAULT_REMOTE_LISTEN = "127.0.0.1:8480";
 
+/** 외부 TLS 리스너의 기본 주소. 비어 있지 않게 두어 "서비스 + 외부 접근"만 켜도 외부 주소가 열린다. 빈 문자열로 바꾸면 루프백만 연다 */
+const DEFAULT_REMOTE_LISTEN_TLS = "0.0.0.0:8443";
+
 /**
  * 프로젝트·로컬 범위를 허용하지 않는다: 저장소를 받는 것만으로 외부 접근이 열리면 안 되기 때문이다.
  */
@@ -112,7 +115,7 @@ export const remoteSettings: SettingGroup<"l4.remote", RemoteSettingInputs> = de
     },
     "web.listenTls": {
       type: Type.String(),
-      default: "",
+      default: DEFAULT_REMOTE_LISTEN_TLS,
       runtimeChange: "restart",
       allowedScopes: ["managed", "user"],
       ui: {

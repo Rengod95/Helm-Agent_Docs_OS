@@ -84,7 +84,13 @@ describe("gateway supervisor and the service", () => {
       try {
         // 기다리지 않고 띄운다. 시작이 불린 것은 서비스가 답하기 전이다
         expect(gateway.starts).toEqual([
-          { listen: "127.0.0.1:8480", listenTls: null, hosts: [], tlsCert: null, tlsKey: null },
+          {
+            listen: "127.0.0.1:8480",
+            listenTls: "0.0.0.0:8443",
+            hosts: [],
+            tlsCert: null,
+            tlsKey: null,
+          },
         ]);
         const client = await connectedClient({ kind: "unix", path: handle.registration.socket });
         try {

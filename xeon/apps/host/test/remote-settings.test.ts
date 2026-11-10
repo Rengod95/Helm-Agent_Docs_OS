@@ -5,7 +5,7 @@ import { buildEngineCatalog } from "../src/assembly/catalog.ts";
 const REMOTE_WEB_DEFAULTS = [
   { key: "l4.remote.web.enabled", default: false },
   { key: "l4.remote.web.listen", default: "127.0.0.1:8480" },
-  { key: "l4.remote.web.listenTls", default: "" },
+  { key: "l4.remote.web.listenTls", default: "0.0.0.0:8443" },
   { key: "l4.remote.web.hosts", default: [] },
   { key: "l4.remote.web.tlsCert", default: "" },
   { key: "l4.remote.web.tlsKey", default: "" },

@@ -311,7 +311,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 | `l0.process.service.enabled` | 거짓 | 있음. 서비스 모드 |
 | `l4.remote.web.enabled` | 거짓 | 게이트웨이를 띄운다 |
 | `l4.remote.web.listen` | `127.0.0.1:8480` | 루프백 리스너 |
-| `l4.remote.web.listenTls` | 없음 | 외부 TLS 리스너 `host:port`. 없으면 외부 리스너를 열지 않는다 |
+| `l4.remote.web.listenTls` | `0.0.0.0:8443` | 외부 TLS 리스너 `host:port`. 비어 있는 값(빈 문자열)으로 바꾸면 외부 리스너를 열지 않는다. 포트는 이 키로 바꾼다 |
 | `l4.remote.web.hosts` | `[]` | 허용 `Host` 이름. `listenTls`의 호스트가 자동으로 들어간다 |
 | `l4.remote.web.tlsCert`, `tlsKey` | 없음 | 사용자 인증서와 키 파일 경로. 없으면 자체 서명 |
 | `l4.remote.web.sessionHours` | 12 | 슬라이딩 로그인 유지 기간(시간) |
@@ -319,7 +319,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 [확인: 2026-11-09 W3] 구현한 키는 `l4.remote.web.enabled`, `listen`, `listenTls`, `hosts`, `tlsCert`, `tlsKey`(모두 managed·user 범위만, 값을 바꾸면 서비스를 다시 띄워야 한다)다. 빈 문자열은 "없음"(`listenTls`, `tlsCert`, `tlsKey`)이다. `sessionHours`와 `launchAtLogin`은 W6 이후다. `listen`의 기본은 이 표의 `127.0.0.1:8480`이고 오케스트레이터 브리프의 `0.0.0.0:7443`은 따르지 않았다(스펙을 따른다: 외부 주소는 `listenTls`가 맡고 루프백 `listen`은 비루프백을 받지 않는다).
 
-[확인: 2026-11-10 rmWi] 데스크톱 "서비스 + 외부 접근"은 `host.remote.setEnabled(true)`만 보낸다. `listenTls`가 비어 있으면 TLS 리스너는 열리지 않고(`tlsPort`와 `fingerprint`가 `null`) 연결 화면에는 루프백 주소만 보인다. 실제 흐름(임시 홈, `listenTls=127.0.0.1:18443`, `listen=127.0.0.1:18480`을 CLI `config set`으로 먼저 설정하고 서비스를 다시 띄움)에서 켜기, 지문, 코드 발급, 코드 로그인, 기기 목록, 폐기, 탭 끊김이 모두 됐다. [미결: 사용자 결정] 데스크톱이 `listenTls`를 직접 정하게 할지(제안: 비어 있으면 확인 대화 상자에서 포트를 묻고 설정을 쓴 뒤 서비스를 다시 띄운다). [근거: 2026-11-10 rmWi 실행 확인, `apps/host/src/service/gateway.ts`의 `listenTls` 처리]
+[확인: 2026-11-10 rmWi] 데스크톱 "서비스 + 외부 접근"은 `host.remote.setEnabled(true)`만 보낸다. `listenTls`가 비어 있으면 TLS 리스너는 열리지 않고(`tlsPort`와 `fingerprint`가 `null`) 연결 화면에는 루프백 주소만 보인다. 실제 흐름(임시 홈, `listenTls=127.0.0.1:18443`, `listen=127.0.0.1:18480`을 CLI `config set`으로 먼저 설정하고 서비스를 다시 띄움)에서 켜기, 지문, 코드 발급, 코드 로그인, 기기 목록, 폐기, 탭 끊김이 모두 됐다. [확인: 2026-11-10 rmX1] 위 [미결]은 닫혔다: `listenTls`의 설정 기본값을 `0.0.0.0:8443`으로 두어, 설정이 없어도 "서비스 + 외부 접근"(`host.remote.setEnabled(true)`)이 TLS 리스너를 연다(사용자 승인, 오케스트레이터 권고 "기본 포트로 채운다"). 포트는 설정 `l4.remote.web.listenTls`(예: `0.0.0.0:9443`)로 바꾸고 서비스를 다시 띄운다. 빈 문자열로 두면 루프백만 연다. 포트가 이미 쓰이면 게이트웨이가 종료코드 2로 끝나고 상태의 `error.message`에 "the tls port is already in use by another program (EADDRINUSE); change l4.remote.web.listenTls to a free port"가 나온다. [근거: `apps/host/src/settings.ts`, `apps/desktop-shell/src/web/main/errors.ts`]
 
 ## 11. 실패와 경계 사례
 
