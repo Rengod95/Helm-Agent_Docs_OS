@@ -3,6 +3,7 @@
 // before what calls a real model.
 //   benchmark [--runs <n>]                 cold start of `fresnel version` (bun entry) and of the compiled sidecar, if built
 //   benchmark --first-token [--yes]        also time to the first stream.chunk of one real `fresnel chat -p` turn
+//   benchmark --web                        also the web bundle start and wire round trip (apps/desktop/test/web-e2e/web.benchmark.ts, needs apps/desktop/dist/ui and headless Chrome)
 //   benchmark --server                     also the server benches (benchmark-server.ts: index, lease, dispatch, store); judge them with benchmark-gate.ts
 // --first-token calls the configured model provider (cost, key). Without --yes it prints what it would do and exits 3
 // (decision D-e: one run before M2 closes, confirmed each time).
@@ -144,6 +145,7 @@ if (import.meta.main) {
       "first-token": { type: "boolean", default: false },
       yes: { type: "boolean", default: false },
       server: { type: "boolean", default: false },
+      web: { type: "boolean", default: false },
     },
   });
   const planned = planBench({
@@ -207,6 +209,18 @@ if (import.meta.main) {
       },
     );
     if ((await server.exited) !== 0) process.exit(2);
+  }
+
+  if (values.web) {
+    // L4.remote.plan §2.8: 웹 번들 시작 시간과 wire 왕복 지연(헤드리스 Chrome이 필요하다. 없으면 종료코드 2)
+    const web = Bun.spawn(
+      [
+        process.execPath,
+        join(fresnelRoot, "apps", "desktop", "test", "web-e2e", "web.benchmark.ts"),
+      ],
+      { cwd: fresnelRoot, stdout: "inherit", stderr: "inherit" },
+    );
+    if ((await web.exited) !== 0) process.exit(2);
   }
 
   if (plan.firstToken === "off") {
