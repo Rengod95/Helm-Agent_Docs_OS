@@ -16,6 +16,7 @@ S-01 앱 셸의 자리(슬롯), 영역 바꾸기, 맥락 모델의 정본 설명
 | `views/shell/shortcuts.ts` | 키 → 동작 처리. 셸이 맡는 동작은 여기서 끝나고 나머지는 `onAction`으로 감 |
 | `views/shell/nav.ts` | 왼쪽 내비 항목 표(대화 여섯, 작업대 여섯) |
 | `views/shell/persist.ts` | 영역과 자리를 로컬 설정에 저장·복원 |
+| `views/shell/document-scroll-guard.ts` | 문서(뷰포트) 스크롤 안전망. 스크롤이 생기면 0으로 되돌린다(`styles.css` base 층과 짝) |
 | `views/shell/toaster-slot.ts` | 토스트 자리 계산 |
 | `views/shell/shell.tsx`, `start-panel.tsx`, `end-panel.tsx`, `context-picker.tsx` | 화면 부품 |
 | `settings-store/local.ts` | 로컬 설정 저장소 |

@@ -1,6 +1,15 @@
 import { Button } from "@caustic/react";
 import { t } from "@fresnel/client/i18n";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type WheelEvent as ReactWheelEvent,
+} from "react";
+import { nextStuck } from "./virtual-list-stick.ts";
 
 // 가상 스크롤(L4.desktop.spec 4.10 수단 3). 화면에 보이는 행과 앞뒤 여유분만 DOM에 둔다.
 // 행 높이는 고정하지 않는다(V7): 마운트된 행을 ResizeObserver로 재고, 재지 않은 행은 추정값을 쓴다.
@@ -75,6 +84,10 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
   const { rows, renderRow, followTail } = props;
   const scroller = useRef<HTMLDivElement | null>(null);
   const stuck = useRef(true);
+  // 직전에 잰 스크롤 위치와 내용 높이. 사용자가 움직인 것인지 nextStuck이 이것과 비교해 본다.
+  // 프로그램이 위치를 옮긴 뒤에는 옮긴 자리로 갱신해, 그 스크롤 이벤트를 사용자의 움직임으로 잘못 보지 않게 한다
+  const lastTop = useRef<number | null>(null);
+  const lastScrollHeight = useRef<number | null>(null);
   const [viewport, setViewport] = useState({ top: 0, height: 0 });
   // 잰 높이. 렌더가 읽으므로 상태다. 관찰자 콜백은 모아 두었다가 프레임마다 한 번 반영한다
   const [heights, setHeights] = useState<ReadonlyMap<string, number>>(() => new Map());
@@ -174,7 +187,11 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
     const own = props.ownTailKey ?? null;
     if (!switched && own !== null && own !== ownKey.current) stuck.current = true;
     ownKey.current = own;
-    if (el !== null && followTail && stuck.current) el.scrollTop = el.scrollHeight;
+    if (el !== null && followTail && stuck.current) {
+      el.scrollTop = el.scrollHeight;
+      lastTop.current = el.scrollTop;
+      lastScrollHeight.current = el.scrollHeight;
+    }
     if (stuck.current) baseline.current = keys.filter((key) => !key.startsWith(LIVE_PREFIX)).length;
   });
   // 위쪽 행의 높이가 바뀐 만큼 스크롤을 옮긴다(관찰자 콜백이 정한 보정량). 높이 상태가 바뀐 렌더 직후, 그리기 전에 한다
@@ -185,6 +202,8 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
     // 잰 높이가 없으면 보정할 것도 없다(heights는 이 효과가 높이 상태 갱신 직후에 도는 기준이다)
     if (heights.size === 0 || el === null || shift === 0 || stuck.current) return;
     el.scrollTop += shift;
+    lastTop.current = el.scrollTop;
+    lastScrollHeight.current = el.scrollHeight;
     setViewport({ top: el.scrollTop, height: el.clientHeight });
   }, [heights]);
   // 새 내용이나 스크롤이 있을 때마다 바닥에서 벗어난 채 늘어난 수를 다시 센다
@@ -195,9 +214,25 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
   const onScroll = (): void => {
     const el = scroller.current;
     if (el === null) return;
-    stuck.current = el.scrollHeight - el.scrollTop - el.clientHeight < STICK_THRESHOLD_PX;
+    stuck.current = nextStuck({
+      prevStuck: stuck.current,
+      prevTop: lastTop.current,
+      prevScrollHeight: lastScrollHeight.current,
+      top: el.scrollTop,
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+      threshold: STICK_THRESHOLD_PX,
+    });
+    lastTop.current = el.scrollTop;
+    lastScrollHeight.current = el.scrollHeight;
     setUnseen(followTail && !stuck.current ? unseenCount(keys, baseline.current) : 0);
     setViewport({ top: el.scrollTop, height: el.clientHeight });
+  };
+
+  // 휠을 위로 굴리면 스크롤 이벤트보다 먼저 바닥에서 벗어난 것으로 본다. 바닥 근처에서 조금만 올려도 다시 내려가 튀지 않게 한다
+  const onWheel = (event: ReactWheelEvent<HTMLDivElement>): void => {
+    const el = scroller.current;
+    if (el !== null && event.deltaY < 0 && el.scrollTop > 0) stuck.current = false;
   };
 
   // 첫 렌더에서 뷰포트 높이를 읽는다
@@ -215,6 +250,7 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
         className="scroller"
         ref={scroller}
         onScroll={onScroll}
+        onWheel={onWheel}
         tabIndex={0}
         role="region"
         aria-label={props.label}
@@ -265,6 +301,8 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
                 const el = scroller.current;
                 if (el === null) return;
                 el.scrollTop = el.scrollHeight;
+                lastTop.current = el.scrollTop;
+                lastScrollHeight.current = el.scrollHeight;
                 stuck.current = true;
                 baseline.current = keys.filter((key) => !key.startsWith(LIVE_PREFIX)).length;
                 setViewport({ top: el.scrollTop, height: el.clientHeight });

@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 import type { BubbleAttachment } from "./attachment-bubble-model.ts";
 
 // 보낸 메시지 말풍선 아래의 첨부 표시(W2). 파일은 칩, 이미지는 썸네일이다. 썸네일로 그릴 바이트가 없으면(호스트 자리표시자) 이미지 이름 칩이다.
+// 칩 테두리는 말풍선과 같은 옅은 선(border-subtle)이다. caustic outline 칩의 기본 테두리(neutral-border)를 cn이 덮는다.
+const CHIP_EDGE_CLASS = "shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]";
 
 /** 같은 이름이 여러 번 나오면 몇 번째인지를 덧붙여 키를 만든다 */
 function keyed(
@@ -41,6 +43,7 @@ export function MessageAttachments(props: {
               size="md"
               variant="outline"
               radius="md"
+              className={CHIP_EDGE_CLASS}
               icon={<Paperclip aria-hidden />}
               title={
                 attachment.kind === "file" ? (attachment.detail ?? attachment.name) : undefined

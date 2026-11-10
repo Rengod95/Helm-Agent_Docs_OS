@@ -36,6 +36,16 @@
   #root {
     height: 100%;
   }
+  /* 문서는 스크롤하지 않는다. 스크롤은 안쪽 영역(목록, 설정, 대화)만 맡는다. overflow는 코드의 프로그램 스크롤(scrollIntoView, 초점)까지
+     막지 못하므로 body는 clip으로 막고, 그래도 움직인 문서 스크롤은 views/shell/document-scroll-guard.ts가 0으로 되돌린다 */
+  html {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  body {
+    overflow: clip;
+    overscroll-behavior: none;
+  }
   button:not([data-slot]) {
     font: inherit;
     color: inherit;

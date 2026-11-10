@@ -21,6 +21,7 @@ import { createDesktopRegistry } from "./views/desktop-registry.tsx";
 import { createShellStore, ShellStoreContext } from "./state/shell/index.ts";
 import { selectThread } from "./state/engine/index.ts";
 import { persistShell, restoreShell } from "./views/shell/persist.ts";
+import { installDocumentScrollGuard } from "./views/shell/document-scroll-guard.ts";
 import { DesktopShellContext, type DesktopShell } from "./views/desktop-shell-context.ts";
 import { createOsNotifier, NOTIFY_FAILED_EVENT, type OsNotifyInvoke } from "./views/os-notify.ts";
 import { appearancePortOf, appearancePrefsOf, applyAppearance } from "./views/appearance-prefs.ts";
@@ -81,6 +82,9 @@ const subscribeNotifyFailure = (onFailed: () => void): (() => void) => {
     );
   };
 };
+
+// 문서 스크롤 안전망(styles.css가 문서를 막고, 움직인 문서 스크롤은 이 가드가 되돌린다). 창이 닫힐 때까지 둔다
+installDocumentScrollGuard(document, window);
 
 // WebView 진입점. 스토어와 연결은 createApp이 만들고 여기서는 화면에 붙이기만 한다.
 const container = document.getElementById("root");
