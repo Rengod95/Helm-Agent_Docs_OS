@@ -185,7 +185,7 @@ export declare const createStdioTransport: StdioTransportFactory;
 /** 서버 쪽 리스너 옵션. unix는 토큰을 요구하지 않고 소켓 파일을 0600으로 만든다. tcp는 token이 비면 열지 않는다(`token_required`) */
 export type SocketListenOptions =
   | { readonly kind: "unix"; readonly path: string; readonly maxFrameBytes?: number }
-  | { readonly kind: "tcp"; readonly host: string; readonly port: number; readonly token: string; readonly allowNonLoopback?: boolean; readonly maxFrameBytes?: number };
+  | { readonly kind: "tcp"; readonly host: string; readonly port: number; readonly token: string; readonly maxFrameBytes?: number };
 export type SocketConnectOptions =
   | { readonly kind: "unix"; readonly path: string; readonly maxFrameBytes?: number }
   | { readonly kind: "tcp"; readonly host: string; readonly port: number; readonly maxFrameBytes?: number };
@@ -210,7 +210,7 @@ export type SocketError =
   | { readonly kind: "path_too_long"; readonly path: string; readonly limit: number }   // limit = UNIX_SOCKET_PATH_LIMIT(103)
   | { readonly kind: "permission"; readonly path: string }
   | { readonly kind: "token_required" }
-  | { readonly kind: "tcp_not_loopback"; readonly host: string }   // 루프백이 아닌데 allowNonLoopback이 없다
+  | { readonly kind: "tcp_not_loopback"; readonly host: string }   // 루프백이 아니다. 비루프백 리스너를 열지 않는다 [결정: 2026-11-10 사용자 승인, L4.remote.spec §9 W9]
   | { readonly kind: "io"; readonly code: string };
 export declare function listenSocket(options: SocketListenOptions): Promise<Result<SocketListener, SocketError>>;
 ```
@@ -616,7 +616,7 @@ ensureService():
 - [결정: review.m3-design-inputs D-M3-16, M3-REQ-43] Unix 소켓은 파일 권한(소켓 0600, 디렉터리 0700)으로만 막고 토큰을 검사하지 않는다(P-10 닫힘). `listenSocket`은 소켓 파일을 0600으로 만든다. `PeerInfo.requiresToken`은 unix에서 거짓이다.
 - TCP로 열 때만 토큰을 검사한다. `listenSocket({ kind: "tcp" })`는 토큰이 비어 있으면 `token_required`로 열지 않는다. `PeerInfo.requiresToken`이 참인 연결의 `host.hello`는 `auth.token`을 `verifyToken`(상수 시간 비교)으로 검사하고, 없으면 `host.authFailed`(`details.reason: "missing"`), 틀리면 `"invalid"`로 응답한 뒤 연결을 닫는다. hello 전 다른 메서드는 1001로 거부된다. 토큰 회전은 `TokenGate.rotate()`가 새 토큰을 만들고 이전 토큰을 즉시 무효로 한다. 이미 열린 연결은 그대로다.
 - 원격(1차, M3): SSH 터널이나 사설망으로 연결된 클라이언트도 로컬 소켓에 접속하므로 같은 규칙을 쓴다. 터널 끝이 서버 쪽 사용자 권한으로 소켓에 접속하기 때문이다. 토큰 검사는 이 경로의 추가 방어다(미결 P-10).
-- TCP 전송(`fresnel host --service`의 `--listen-tcp <host:port>` 옵션, L4): 위 규칙대로 토큰이 필수다. 루프백 주소(`localhost`, `127.x`, `::1`)가 아니면 토큰이 있어도 `allowNonLoopback`을 명시해야 열린다(`tcp_not_loopback`) [결정: 오케스트레이터 기본값, Codex app-server 선례]. 내장 TLS + WebSocket은 2차다. [결정: 2026-11-08 원격 방향] 외부 접근은 TLS와 기기 인증을 갖춘 웹 게이트웨이만 연다. 서비스 호스트 자체는 비루프백 리스너를 열지 않는다(`L4.remote.spec` §9). 이 절의 `allowNonLoopback`은 `L4.remote.spec` §9 3번에 따라 대체 예정이다(제거는 사용자 승인 뒤, `L4.remote.plan` W9).
+- TCP 전송(`fresnel host --service`의 `--listen-tcp <host:port>` 옵션, L4): 위 규칙대로 토큰이 필수다. 루프백 주소(`localhost`, `127.x`, `::1`)가 아니면 토큰이 있어도 열지 않는다(`tcp_not_loopback`, 옵션 없음) [결정: 오케스트레이터 기본값, Codex app-server 선례]. 내장 TLS + WebSocket은 2차다. [결정: 2026-11-08 원격 방향] 외부 접근은 TLS와 기기 인증을 갖춘 웹 게이트웨이만 연다. 서비스 호스트 자체는 비루프백 리스너를 열지 않는다(`L4.remote.spec` §9). [결정: 2026-11-10 사용자 승인, L4.remote.spec §9 W9] 이 절의 `allowNonLoopback` 옵션은 코드에서 지웠다(`L4.remote.plan` W9). 비루프백 TCP는 항상 `tcp_not_loopback`으로 거절한다.
 - 토큰은 32바이트 무작위(`crypto.getRandomValues`, 주입), base64url. 등록 파일 밖으로 쓰지 않고 로그에 남기지 않는다.
 
 #### 4.4.6 기동과 분리, 종료 협조, 소실

@@ -6,7 +6,7 @@ import { createStdioTransportWith, type Transport } from "@fresnel/contracts/wir
 // L0.process.spec §3.2 transport/socket.ts, §4.1 socket, §4.4.5. 소켓 위의 JSON Lines 전송. 프레임과 한도 검사는 stdio 전송과 같은 구현이다.
 // - unix: 소켓 파일을 0600으로 만든다. 디렉터리 0700과 소유자 검사는 L0.os가 정한 runtimeDir이 맡는다. 토큰을 요구하지 않는다.
 // - tcp: 토큰이 필요한 전송이다. 토큰 없이는 열지 않는다(`token_required`). 토큰 검사는 `host.hello`의 `auth.token`에서 위층이 한다
-//   (PeerInfo.requiresToken이 참인 연결만). 비루프백 주소는 `allowNonLoopback`을 명시할 때만 열 수 있다(`tcp_not_loopback`).
+//   (PeerInfo.requiresToken이 참인 연결만). 비루프백 주소는 열지 않는다(`tcp_not_loopback`). 다른 컴퓨터는 웹 게이트웨이(wss://)나 ssh://로 붙는다.
 
 export type SocketError =
   | { readonly kind: "address_in_use"; readonly path: string }
@@ -15,7 +15,7 @@ export type SocketError =
   | { readonly kind: "path_too_long"; readonly path: string; readonly limit: number }
   | { readonly kind: "permission"; readonly path: string }
   | { readonly kind: "token_required" }
-  /** tcp 주소가 루프백이 아닌데 `allowNonLoopback`이 없다 */
+  /** tcp 주소가 루프백이 아니다. 비루프백 리스너는 없다 */
   | { readonly kind: "tcp_not_loopback"; readonly host: string }
   | { readonly kind: "io"; readonly code: string };
 
@@ -28,8 +28,6 @@ export type SocketListenOptions =
       readonly port: number;
       /** 비어 있으면 열지 않는다 */
       readonly token: string;
-      /** 루프백이 아닌 주소를 열려면 참이어야 한다 [결정: 오케스트레이터 기본값] */
-      readonly allowNonLoopback?: boolean;
       readonly maxFrameBytes?: number;
     };
 
@@ -191,11 +189,7 @@ export async function listenSocket(
   logger?: Logger,
 ): Promise<Result<SocketListener, SocketError>> {
   if (options.kind === "tcp" && options.token.length === 0) return err({ kind: "token_required" });
-  if (
-    options.kind === "tcp" &&
-    options.allowNonLoopback !== true &&
-    !isLoopbackHost(options.host)
-  ) {
+  if (options.kind === "tcp" && !isLoopbackHost(options.host)) {
     return err({ kind: "tcp_not_loopback", host: options.host });
   }
   if (options.kind === "unix" && Buffer.byteLength(options.path) > UNIX_SOCKET_PATH_LIMIT) {

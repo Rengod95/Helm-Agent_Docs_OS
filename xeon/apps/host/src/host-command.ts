@@ -10,10 +10,8 @@ export type HostCommand =
   | {
       readonly kind: "service-run";
       readonly safeMode: boolean;
-      /** `host:port`로도 연다. 토큰은 등록 파일에 있다 */
+      /** `host:port`로도 연다. 토큰은 등록 파일에 있다. 루프백이 아닌 주소는 거부한다(`tcp_not_loopback`) */
       readonly tcp?: { readonly host: string; readonly port: number };
-      /** 루프백이 아닌 tcp 주소를 허용한다. 기본은 거부(`tcp_not_loopback`) */
-      readonly allowNonLoopback?: boolean;
     }
   /**
    * `ensure`를 하고 결과를 사람이 읽는 한 줄로 쓴다. `start`는 서비스를 띄우는 명령(없으면 이 실행 파일이 자기 자신을 `service run`으로 띄운다).
@@ -24,7 +22,6 @@ export type HostCommand =
       readonly start?: ServiceCommand;
       readonly safeMode?: boolean;
       readonly tcp?: { readonly host: string; readonly port: number };
-      readonly allowNonLoopback?: boolean;
     }
   | { readonly kind: "service-status"; readonly json: boolean }
   /** 원격 접속 페어링 코드를 청한다(L4.remote §8.3). `json`이면 `{"code","expiresAt"}` 한 줄을 쓴다 */

@@ -523,7 +523,7 @@ export declare function startStdioHost(options: StdioHostOptions): Promise<HostE
 
 export type HostCommand =
   | { readonly kind: "host-stdio" }
-  | { readonly kind: "service-run"; readonly safeMode: boolean; readonly tcp?: { readonly host: string; readonly port: number } }   // `fresnel service run`, `fresnel host --service [--safe-mode] [--listen-tcp <host>:<port> [--allow-non-loopback]]`
+  | { readonly kind: "service-run"; readonly safeMode: boolean; readonly tcp?: { readonly host: string; readonly port: number } }   // `fresnel service run`, `fresnel host --service [--safe-mode] [--listen-tcp <host>:<port>]`
   | { readonly kind: "service-start"; readonly start?: ServiceCommand; readonly safeMode?: boolean; readonly tcp?: { readonly host: string; readonly port: number } }   // safeMode·tcp는 새로 띄울 때 `service run`의 인자가 된다
   | { readonly kind: "service-status"; readonly json: boolean }
   | { readonly kind: "service-stop" }
@@ -549,7 +549,7 @@ export interface ServiceOptions {
   readonly runtimeDir?: string;                  // 서비스 파일 디렉터리. 없으면 L0.os의 dirs.runtime
   readonly startupGraceMs?: number;              // 기본 SERVICE_STARTUP_GRACE_MS
   readonly idleGraceMs?: number;                 // 기본 설정 l0.process.service.idleGraceMs(60000)
-  readonly tcp?: { readonly host: string; readonly port: number; readonly allowNonLoopback?: boolean };   // TCP로도 연다. 토큰 필수, 루프백이 아니면 allowNonLoopback 필수(`tcp_not_loopback`, SV-05)
+  readonly tcp?: { readonly host: string; readonly port: number };   // TCP로도 연다. 토큰 필수, 루프백이 아니면 열지 않는다(`tcp_not_loopback`, SV-05) [결정: 2026-11-10 사용자 승인, L4.remote.spec §9 W9]
   readonly time?: { readonly clock: Clock; readonly scheduler: Scheduler };   // 유휴 타이머용. 시험이 수동 시간을 넘긴다
   readonly handleSignals?: boolean;              // SIGTERM·SIGINT 처리. 기본 true
   readonly random?: (bytes: number) => Uint8Array;   // 토큰용
@@ -1008,7 +1008,7 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
   - 로컬은 Unix 소켓과 파일 권한으로 인증한다. 소켓은 권한 0700 디렉터리 안에 두고 소켓 파일 자체도 0600으로 만든다. 같은 사용자만 접속할 수 있다.
   - 시작할 때 소켓 디렉터리의 소유자가 현재 사용자가 아니거나 그룹·기타 권한이 열려 있으면 시작을 거부한다(종료코드 1). 권한을 대신 좁히지 않는다. 다른 사용자가 만든 디렉터리를 쓰지 않기 위해서다 [제안].
   - 등록 파일의 `token`은 TCP·WebSocket 전송용이다. Unix 소켓 접속에는 요구하지 않는다. 토큰을 `host.hello`에 실을지는 F wire §10 미결 4에 맞춘다(§10 미결 10). F가 정하기 전에는 토큰 필드를 계약에 더하지 않는다.
-  - TCP 리스너는 루프백 주소만 기본으로 연다. 비루프백은 `--allow-non-loopback`(`ServiceOptions.tcp.allowNonLoopback`)을 명시할 때만 열리고 아니면 `tcp_not_loopback`으로 시작을 거부한다 [결정: 오케스트레이터 기본값]. [결정: 2026-11-08 원격 방향] 이 옵션은 `L4.remote.spec` §9 3번에 따라 대체 예정이다. 외부 접근은 게이트웨이(TLS + 기기 토큰)가 하고 서비스의 TCP는 루프백 전용이 된다(제거는 사용자 승인 뒤, `L4.remote.plan` W9). 원격 전송이 생기면 토큰 없는 기동을 금지하고 인증을 `host.hello` 전에 끝낸다(ADR-0006 §3.2).
+  - TCP 리스너는 루프백 주소만 연다. 비루프백 주소는 옵션 없이 항상 `tcp_not_loopback`으로 시작을 거부한다 [결정: 2026-11-10 사용자 승인, L4.remote.spec §9 W9]. 옛 옵션 `--allow-non-loopback`과 `ServiceOptions.tcp.allowNonLoopback`은 코드에서 지웠다(`L4.remote.plan` W9). 외부 접근은 게이트웨이(TLS + 기기 토큰)나 `ssh://`가 하고 서비스의 TCP는 루프백 전용이다. 원격 전송이 생기면 토큰 없는 기동을 금지하고 인증을 `host.hello` 전에 끝낸다(ADR-0006 §3.2).
 - SV-06 부모-자식 수명 [결정: ADR-0006 §3.7 6번]
   - 자식 엔진(stdio)은 stdin EOF 프로세스 락으로 정리한다(HS-32).
   - 서비스는 L0.process의 detached spawn으로 띄운다. 요구 동작: 새 "세션"(setsid), stdin·stdout·stderr를 부모와 공유하지 않음(로그는 L0.os 로그 파일), 부모 이벤트 루프에서 `unref`. 부모(`ensure`를 부른 CLI)가 끝나도 서비스는 남는다(pi `PX/process.ts:40-70`).

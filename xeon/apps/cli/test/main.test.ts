@@ -86,9 +86,6 @@ test("service commands run through runHostCommand and its code is the exit code"
   expect(await h.run(["service", "start", "--safe-mode", "--listen-tcp", "127.0.0.1:7777"])).toBe(
     0,
   );
-  expect(
-    await h.run(["service", "run", "--listen-tcp", "0.0.0.0:7777", "--allow-non-loopback"]),
-  ).toBe(0);
   expect(await h.run(["service", "status", "--json"])).toBe(1);
   expect(await h.run(["service", "stop"])).toBe(0);
   expect(await h.run(["service", "ensure", "--safe-mode"])).toBe(0);
@@ -96,12 +93,6 @@ test("service commands run through runHostCommand and its code is the exit code"
   expect(seen).toEqual([
     { kind: "service-start" },
     { kind: "service-start", safeMode: true, tcp: { host: "127.0.0.1", port: 7777 } },
-    {
-      kind: "service-run",
-      safeMode: false,
-      tcp: { host: "0.0.0.0", port: 7777 },
-      allowNonLoopback: true,
-    },
     { kind: "service-status", json: true },
     { kind: "service-stop" },
     { kind: "service-ensure", safeMode: true },
@@ -137,6 +128,8 @@ test("service flags that do not fit the sub-command are usage errors", async () 
     ["service", "start", "--listen-tcp", "x:70000"],
     ["service", "start", "--listen-tcp", "0.0.0.0:7777"],
     ["service", "start", "--allow-non-loopback"],
+    ["service", "run", "--listen-tcp", "0.0.0.0:7777"],
+    ["service", "run", "--listen-tcp", "0.0.0.0:7777", "--allow-non-loopback"],
     ["service"],
     ["service", "bogus"],
   ];

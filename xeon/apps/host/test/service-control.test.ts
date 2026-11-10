@@ -90,21 +90,19 @@ describe("stopHostService identity", () => {
 });
 
 describe("--listen-tcp loopback rule", () => {
-  test("0.0.0.0 is refused without --allow-non-loopback and accepted with it", () => {
+  test("0.0.0.0 is always refused, and the removed --allow-non-loopback is an unknown argument", () => {
     const refused = parseHostArgv(["service", "run", "--listen-tcp", "0.0.0.0:7777"]);
     expect(refused.ok).toBe(false);
     if (!refused.ok) expect(refused.message).toContain("tcp_not_loopback");
-    expect(
-      parseHostArgv(["service", "run", "--listen-tcp", "0.0.0.0:7777", "--allow-non-loopback"]),
-    ).toEqual({
-      ok: true,
-      command: {
-        kind: "service-run",
-        safeMode: false,
-        tcp: { host: "0.0.0.0", port: 7777 },
-        allowNonLoopback: true,
-      },
-    });
+    const removed = parseHostArgv([
+      "service",
+      "run",
+      "--listen-tcp",
+      "0.0.0.0:7777",
+      "--allow-non-loopback",
+    ]);
+    expect(removed.ok).toBe(false);
+    if (!removed.ok) expect(removed.message).toContain("unknown argument: --allow-non-loopback");
   });
 
   test("127.0.0.1, ::1 and localhost are accepted", () => {
