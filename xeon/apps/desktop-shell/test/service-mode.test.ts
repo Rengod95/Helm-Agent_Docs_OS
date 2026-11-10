@@ -217,7 +217,7 @@ function commandRig(replies: Readonly<Record<string, OnceReply>> = {}) {
 }
 
 describe("service_status", () => {
-  test("a running service answers with the registration's socket, pid, version and start time only", async () => {
+  test("a running service answers with the registration's socket, pid, version, start time and autostart state, never the token or the file path", async () => {
     const running = JSON.stringify({
       running: true,
       registration: {
@@ -228,6 +228,14 @@ describe("service_status", () => {
         token: "SECRET",
       },
       status: { engines: 1, token: "SECRET" },
+      autostart: {
+        platform: "darwin",
+        supported: true,
+        registered: true,
+        active: true,
+        path: "/Users/u/Library/LaunchAgents/com.fresnel.service.plist",
+        linger: null,
+      },
     });
     const r = commandRig({ "service status --json": out(0, running) });
     const reply = await r.fake.call("service_status");
@@ -239,19 +247,102 @@ describe("service_status", () => {
         pid: 4321,
         version: "1.2.3",
         startedAt: 1_700_000_000_000,
+        autostart: {
+          supported: true,
+          registered: true,
+          active: true,
+          linger: null,
+          platform: "darwin",
+        },
       },
     });
     expect(JSON.stringify(reply)).not.toContain("SECRET");
+    expect(JSON.stringify(reply)).not.toContain("LaunchAgents");
     expect(r.runs).toEqual([["service", "status", "--json"]]);
   });
 
-  test("exit 1 with running false is a normal not-running answer", async () => {
+  test("exit 1 with running false is a normal not-running answer, and a status without autostart is an older host", async () => {
     const r = commandRig({
       "service status --json": out(1, '{"running":false,"reason":"no registration"}'),
     });
     expect(await r.fake.call("service_status")).toEqual({
       ok: true,
-      value: { running: false, reason: "no registration" },
+      value: {
+        running: false,
+        reason: "no registration",
+        autostart: {
+          supported: false,
+          registered: false,
+          active: false,
+          linger: null,
+          platform: "unknown",
+        },
+      },
+    });
+  });
+
+  test("autostart off on linux with linger off comes through in a not-running answer", async () => {
+    const status = JSON.stringify({
+      running: false,
+      reason: "no registration",
+      autostart: {
+        platform: "linux",
+        supported: true,
+        registered: false,
+        active: false,
+        path: null,
+        linger: false,
+      },
+    });
+    const r = commandRig({ "service status --json": out(1, status) });
+    expect(await r.fake.call("service_status")).toEqual({
+      ok: true,
+      value: {
+        running: false,
+        reason: "no registration",
+        autostart: {
+          supported: true,
+          registered: false,
+          active: false,
+          linger: false,
+          platform: "linux",
+        },
+      },
+    });
+  });
+
+  test("a malformed autostart object is storage-failed, in a running and a not-running answer", async () => {
+    const malformed: readonly unknown[] = [
+      "on",
+      null,
+      { platform: "darwin", supported: "yes", registered: true, active: true, linger: null },
+      { platform: "linux", supported: true, registered: true, active: true, linger: "no" },
+      { platform: "darwin", supported: true, registered: true, active: true },
+    ];
+    const notRunning = await Promise.all(
+      malformed.map((autostart) =>
+        commandRig({
+          "service status --json": out(
+            1,
+            JSON.stringify({ running: false, reason: "x", autostart }),
+          ),
+        }).fake.call("service_status"),
+      ),
+    );
+    expect(notRunning).toEqual(malformed.map(() => ({ ok: false, error: "storage-failed" })));
+    const running = commandRig({
+      "service status --json": out(
+        0,
+        JSON.stringify({
+          running: true,
+          registration: { socket: SOCKET, pid: 1, startedAt: 2, version: "1" },
+          autostart: null,
+        }),
+      ),
+    });
+    expect(await running.fake.call("service_status")).toEqual({
+      ok: false,
+      error: "storage-failed",
     });
   });
 
@@ -297,5 +388,81 @@ describe("service_ensure and service_stop", () => {
     expect(stopped.runs).toEqual([["service", "stop"]]);
     const failed = commandRig({ "service stop": out(1, "") });
     expect(await failed.fake.call("service_stop")).toEqual({ ok: false, error: "service_failed" });
+  });
+});
+
+describe("service_autostart_set", () => {
+  test("enabled runs install --yes and answers lingerAdvice false when the host printed none, without the file path", async () => {
+    const r = commandRig({
+      "service install --yes": out(
+        0,
+        "autostart installed (/Users/u/Library/LaunchAgents/com.fresnel.service.plist)\n",
+      ),
+    });
+    const reply = await r.fake.call("service_autostart_set", { enabled: true });
+    expect(reply).toEqual({ ok: true, value: { enabled: true, lingerAdvice: false } });
+    expect(JSON.stringify(reply)).not.toContain("LaunchAgents");
+    expect(r.runs).toEqual([["service", "install", "--yes"]]);
+  });
+
+  test("enabled on linux with linger off answers lingerAdvice true from the host's stderr", async () => {
+    const r = commandRig({
+      "service install --yes": out(
+        0,
+        "autostart installed (/home/u/.config/systemd/user/fresnel.service)\n",
+        'run "loginctl enable-linger" to keep the service after logout\n',
+      ),
+    });
+    expect(await r.fake.call("service_autostart_set", { enabled: true })).toEqual({
+      ok: true,
+      value: { enabled: true, lingerAdvice: true },
+    });
+  });
+
+  test("disabled runs uninstall and answers lingerAdvice false", async () => {
+    const r = commandRig({ "service uninstall": out(0, "autostart removed\n") });
+    expect(await r.fake.call("service_autostart_set", { enabled: false })).toEqual({
+      ok: true,
+      value: { enabled: false, lingerAdvice: false },
+    });
+    expect(r.runs).toEqual([["service", "uninstall"]]);
+  });
+
+  test("a non-zero exit in either direction is autostart_failed", async () => {
+    const on = commandRig({
+      "service install --yes": out(1, "", "autostart could not be installed (write_failed)\n"),
+    });
+    expect(await on.fake.call("service_autostart_set", { enabled: true })).toEqual({
+      ok: false,
+      error: "autostart_failed",
+    });
+    const off = commandRig({
+      "service uninstall": out(1, "", "autostart could not be removed (remove_failed)\n"),
+    });
+    expect(await off.fake.call("service_autostart_set", { enabled: false })).toEqual({
+      ok: false,
+      error: "autostart_failed",
+    });
+  });
+
+  test("a command that cannot run is autostart_failed", async () => {
+    const r = commandRig({ "service install --yes": err({ message: "spawn failed" }) });
+    expect(await r.fake.call("service_autostart_set", { enabled: true })).toEqual({
+      ok: false,
+      error: "autostart_failed",
+    });
+  });
+
+  test("an argument that is not a boolean is bad-request and runs nothing", async () => {
+    const r = commandRig();
+    expect(await r.fake.call("service_autostart_set", { enabled: "yes" })).toEqual({
+      ok: false,
+      error: "bad-request",
+    });
+    expect(await r.fake.call("service_autostart_set")).toEqual({
+      ok: false,
+      error: "bad-request",
+    });
+    expect(r.runs).toEqual([]);
   });
 });

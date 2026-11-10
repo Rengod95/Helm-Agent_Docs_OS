@@ -151,6 +151,7 @@ describe("served set", () => {
           "notify_take_target",
           "origin_folder_list",
           "secret_register",
+          "service_autostart_set",
           "service_ensure",
           "service_status",
           "service_stop",

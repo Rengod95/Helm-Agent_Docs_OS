@@ -80,10 +80,11 @@ export const COMMAND_TABLE: Readonly<Record<string, Disposition>> = {
   // 프레임 root 목록(탭별)
   app_roots_set: ORIGIN,
 
-  // 서비스 상태, 켜기, 끄기(§8.6의 "서비스 끄기"는 웹 기기에서도 허용한다)
+  // 서비스 상태, 켜기, 끄기, 로그인 자동 시작 켜기·끄기(§8.6의 "서비스 끄기"는 웹 기기에서도 허용한다. 자동 시작도 데스크톱과 같다)
   service_status: ORIGIN,
   service_ensure: ORIGIN,
   service_stop: ORIGIN,
+  service_autostart_set: ORIGIN,
 
   // 기능 감지. 웹과 데스크톱이 다른 값을 돌려준다(§6.1 [제안])
   shell_capabilities: WEB_SPECIFIC,

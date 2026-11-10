@@ -1,5 +1,5 @@
 // 서비스 모드. 이 컴퓨터의 로컬 대상을 띄울 때 백그라운드 서비스가 켜져 있으면 그 소켓에 브리지로 붙고,
-// 아니면 이 컴퓨터의 사이드카 엔진을 띄운다. 서비스 명령 세 개(상태, 켜기, 끄기)를 셸 명령으로 노출한다.
+// 아니면 이 컴퓨터의 사이드카 엔진을 띄운다. 서비스 명령 세 개(상태, 켜기, 끄기)와 로그인 자동 시작 켜기·끄기를 셸 명령으로 노출한다.
 // electron을 쓰지 않는다. 운영 연결은 `service-mode-shell.ts`가 하고, 시험은 가짜 launcher로 이 파일을 돌린다.
 import path from "node:path";
 import { ok, parseJson } from "@fresnel/contracts";
@@ -108,15 +108,59 @@ export function serviceAwareLauncher(inner: Launcher, log: AppLog): Launcher {
   };
 }
 
-/** 서비스 상태 답. 실행 중이면 등록 정보의 일부만 싣고, 아니면 이유만 싣는다. 토큰은 어느 쪽에도 없다 */
+/** 로그인 자동 시작 상태. `service status --json`의 `autostart`를 옮긴 값이다. 등록 파일의 경로는 싣지 않는다 */
+export interface ServiceAutostart {
+  readonly supported: boolean;
+  readonly registered: boolean;
+  readonly active: boolean;
+  /** Linux만 본다. 확인하지 못했거나 macOS면 null이다 */
+  readonly linger: boolean | null;
+  readonly platform: string;
+}
+
+/** `autostart`가 없는 `service status --json`(이전 버전 호스트)을 읽은 값. 지원하지 않는 것으로 본다 */
+const NO_AUTOSTART: ServiceAutostart = {
+  supported: false,
+  registered: false,
+  active: false,
+  linger: null,
+  platform: "unknown",
+};
+
+/**
+ * `service status --json`의 `autostart`를 읽는다. 키가 없으면 이전 버전 호스트이므로 `NO_AUTOSTART`다.
+ * 키는 있는데 모양이 틀리면 읽을 수 없는 답이다(`storage-failed`).
+ */
+function autostartOf(parsed: unknown): ServiceAutostart {
+  const field = ownField(parsed, "autostart");
+  if (field === undefined) return NO_AUTOSTART;
+  const platform = ownField(field, "platform");
+  const supported = ownField(field, "supported");
+  const registered = ownField(field, "registered");
+  const active = ownField(field, "active");
+  const linger = ownField(field, "linger");
+  if (
+    typeof platform !== "string" ||
+    typeof supported !== "boolean" ||
+    typeof registered !== "boolean" ||
+    typeof active !== "boolean" ||
+    !(typeof linger === "boolean" || linger === null)
+  ) {
+    fail("storage-failed");
+  }
+  return { supported, registered, active, linger, platform };
+}
+
+/** 서비스 상태 답. 실행 중이면 등록 정보의 일부만 싣고, 아니면 이유만 싣는다. 두 경우 모두 자동 시작 상태를 싣는다. 토큰은 어느 쪽에도 없다 */
 export type ServiceStatusReply =
-  | { readonly running: false; readonly reason: string }
+  | { readonly running: false; readonly reason: string; readonly autostart: ServiceAutostart }
   | {
       readonly running: true;
       readonly socket: string;
       readonly pid: number;
       readonly version: string;
       readonly startedAt: number;
+      readonly autostart: ServiceAutostart;
     };
 
 /** `service status --json`을 읽는다. 실행 중(종료 0)과 실행 아님(종료 1)만 정상이고, 나머지는 읽을 수 없는 답이다 */
@@ -124,6 +168,7 @@ function statusReplyOf(output: OnceOutput): ServiceStatusReply {
   const parsed = parseJson(output.stdout);
   if (!parsed.ok) fail("storage-failed");
   const running = ownField(parsed.value, "running");
+  const autostart = autostartOf(parsed.value);
   if (output.exitCode === 0 && running === true) {
     const registration = ownField(parsed.value, "registration");
     const socket = ownField(registration, "socket");
@@ -138,13 +183,21 @@ function statusReplyOf(output: OnceOutput): ServiceStatusReply {
     ) {
       fail("storage-failed");
     }
-    return { running: true, socket, pid, version, startedAt };
+    return { running: true, socket, pid, version, startedAt, autostart };
   }
   const reason = ownField(parsed.value, "reason");
   if (output.exitCode === 1 && running === false && typeof reason === "string") {
-    return { running: false, reason };
+    return { running: false, reason, autostart };
   }
   return fail("storage-failed");
+}
+
+/** 호스트가 Linux에서 linger가 꺼져 있다고 낸 안내 줄의 글. 호스트의 `LINGER_ADVICE`와 같은 줄에 든다 */
+const LINGER_MARK = "loginctl enable-linger";
+
+/** 설치 한 번의 출력에 linger 안내가 있는가. 안내는 stderr로 나오지만 stdout도 함께 본다 */
+function lingerAdviceOf(output: OnceOutput): boolean {
+  return output.stdout.includes(LINGER_MARK) || output.stderr.includes(LINGER_MARK);
 }
 
 /** 한 번 돌리고 끝나기를 기다린다. 돌리지 못하면 `onFailure`로 거절한다 */
@@ -187,6 +240,19 @@ export function createServiceModule(deps: ServiceModuleDeps): ShellModule {
         const output = await runOnce(launcher, ["service", "stop"], "service_failed");
         if (output.exitCode !== 0) throw new ShellError("service_failed");
         return { stopped: true };
+      });
+
+      // 켜기는 `install --yes`, 끄기는 `uninstall`이다. 동의는 호출하는 화면이 받는다(확인 대화 상자). 이 명령은 그 동의를 받았다고 가정한다
+      ctx.handle("service_autostart_set", async (_caller, args) => {
+        const enabled = ownField(args, "enabled");
+        if (typeof enabled !== "boolean") fail("bad-request");
+        const output = await runOnce(
+          launcher,
+          enabled ? ["service", "install", "--yes"] : ["service", "uninstall"],
+          "autostart_failed",
+        );
+        if (output.exitCode !== 0) throw new ShellError("autostart_failed");
+        return { enabled, lingerAdvice: enabled && lingerAdviceOf(output) };
       });
     },
   };
