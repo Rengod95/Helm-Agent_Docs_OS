@@ -50,6 +50,8 @@ binds: [xeon/scripts/release*, xeon/scripts/release-bundle.json, .github/workflo
 ```
 fresnel-<버전>-<triple>/
 ├── fresnel                          컴파일된 엔진 (Windows는 fresnel.exe)
+├── fresnel-web                      웹 게이트웨이 (Windows는 fresnel-web.exe). 서비스가 `fresnel` 옆에서 찾는다 (`L4.remote.spec` §5.1)
+├── ui/                           게이트웨이가 내는 화면 번들 (`apps/desktop/dist/ui`)
 ├── group-sdk/templates/          `fresnel group new`의 템플릿과 index.json
 ├── default-plugins/
 │   └── helm/                     .fresnel-plugin/plugin.json과 엔트리 번들
