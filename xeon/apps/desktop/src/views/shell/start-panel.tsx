@@ -168,6 +168,16 @@ export function StartPanel(props: StartPanelProps): ReactNode {
         <div className="grid min-w-0 gap-1.5">
           {/* 영역 탭 줄 끝에 패널 접기 단추를 둔다(찾기 줄은 없다. 명령 팔레트는 ⌘K) */}
           <div className="flex min-w-0 items-center gap-1">
+            {/* 브랜드 로고: 경로 고해상도 렌더를 줄인 것(public/brand/logo). 이름은 옆 탭이 말하므로 장식이다 */}
+            <img
+              src="./brand/logo/fresnel-logo-20@2x.png"
+              srcSet="./brand/logo/fresnel-logo-20@2x.png 2x, ./brand/logo/fresnel-logo-20@3x.png 3x"
+              width={20}
+              height={20}
+              alt=""
+              draggable={false}
+              className="ms-1 me-0.5 size-5 shrink-0 select-none"
+            />
             <AreaSwitch onSwitch={props.onSwitchArea} />
             <IconButton
               size="sm"

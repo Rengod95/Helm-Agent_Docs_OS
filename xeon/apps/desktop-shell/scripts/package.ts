@@ -133,6 +133,8 @@ const paths = await packager({
   asar: true,
   appBundleId: BUNDLE_ID,
   appCategoryType: "public.app-category.developer-tools",
+  // 앱 아이콘(Dock, Finder, ⌘Tab). 경로 고해상도 렌더를 크기별로 줄인 것이다(docs/xeon/engineering/brand/guide.md)
+  icon: path.join(shell, "build", "icon.icns"),
   ...(version === "" ? {} : { appVersion: version, buildVersion: version }),
   ignore: [
     /^\/(src|test|scripts|build|resources|assets|dist-app|node_modules|tsconfig\.json|bun\.lock|\.gitignore)(\/|$)/,
