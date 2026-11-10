@@ -14,6 +14,9 @@ import type { CommandError } from "../views/commands.ts";
 /** 시간 안에 응답이 없을 때 `rejected.issue`에 남기는 값. 화면이 "엔진이 답하지 않았다"를 가른다(`views/workspace-model.ts`가 같은 글자를 읽는다) */
 const TIMEOUT_ISSUE = "timeout";
 const METHOD_NOT_FOUND = WIRE_ERRORS["jsonrpc.methodNotFound"].code;
+const REMOTE_OFF_CODE = WIRE_ERRORS["remote.off"].code;
+/** 원격 접속이 꺼져 있다는 `rejected.issue` 값. 원격 어댑터(`app/remote/remote-adapter.ts`)가 같은 글자를 읽는다 */
+const REMOTE_OFF_ISSUE = "remote-off";
 const LOCKED_CODE = WIRE_ERRORS["thread.locked"].code;
 const INVALID_VALUE_CODE = WIRE_ERRORS["settings.invalidValue"].code;
 /** 제작 wire(`ext.*`)가 입력 문제를 알리는 `<DevkitError 종류>: ` 머리(`ext.versions`의 `history_unavailable`·`unknown_extension`: 번들·프로젝트·기본 내장 확장은 설치 기록이 없다). 다른 메서드의 입력 거절 문장은 건드리지 않는다 */
@@ -66,6 +69,8 @@ export function errorOf(cause: unknown): CommandError {
     return { kind: "rejected", code: null, issue: TIMEOUT_ISSUE };
   if (!(cause instanceof WireError)) return { kind: "failed" };
   if (cause.code === METHOD_NOT_FOUND) return { kind: "unsupported" };
+  if (cause.code === REMOTE_OFF_CODE)
+    return { kind: "rejected", code: cause.code, issue: REMOTE_OFF_ISSUE };
   if (cause.code === LOCKED_CODE) {
     // details는 프로세스 밖의 값이다(TY-10). 모양이 맞지 않으면 대안 없이 잠김만 알린다
     const details = parse(LockedDetailsSchema, cause.data.details);

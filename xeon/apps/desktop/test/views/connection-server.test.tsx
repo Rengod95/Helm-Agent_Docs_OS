@@ -294,7 +294,9 @@ describe("ServerModeSection modes", () => {
     expect(text).toContain("http://127.0.0.1:47100");
     expect(text).toContain(FINGERPRINT_TEXT);
     expect(text).toContain("자체 서명");
-    expect(text).toContain("사용 가능");
+    // 자체 서명 주소에서는 서비스가 푸시를 보낼 수 있어도 화면은 "꺼져 있어요"로 보인다(브라우저가 구독을 허용하지 않는다)
+    expect(text).toContain("이 주소에서는 꺼져 있어요.");
+    expect(text).not.toContain("사용 가능");
     // 기기는 최근 연결 순이다: Pixel(방금), Studio(3분 전), Tablet(접속한 적 없음)
     expect(text).toContain("Pixel");
     expect(text).toContain("웹 브라우저 · 방금");
@@ -368,7 +370,7 @@ describe("ServerModeSection states", () => {
 
   test("status failed with the unsupported shape: a calm neutral line and retry calls reloadStatus", async () => {
     const rec = recorder();
-    const unsupported: RemoteError = { kind: "failed", message: null };
+    const unsupported: RemoteError = { kind: "unsupported" };
     const view = await mount({
       state: stateWith({ status: { kind: "failed", error: unsupported } }),
       actions: rec.actions,

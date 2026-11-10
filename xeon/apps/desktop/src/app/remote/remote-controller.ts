@@ -79,6 +79,8 @@ export function createRemoteController<TimerHandle>(
   // 읽기 순번. 같은 읽기를 새로 부르거나 쓰기가 끝나면 올라가고, 올라가기 전에 나간 읽기의 응답은 버린다
   let statusSeq = 0;
   let devicesSeq = 0;
+  /** 마지막으로 읽은 상태가 `running`이었는가. 아니었다가 바뀔 때만 기기 목록을 다시 읽는다 */
+  let wasRunning = false;
   let statusTimer: TimerHandle | null = null;
   let devicesTimer: TimerHandle | null = null;
 
@@ -106,13 +108,19 @@ export function createRemoteController<TimerHandle>(
     }
   }
 
-  /** 상태 응답을 화면 상태로 옮기고, 띄우는 중이면 다음 확인을 건다 */
+  /**
+   * 상태 응답을 화면 상태로 옮기고, 띄우는 중이면 다음 확인을 건다. 외부 접속이 꺼진 동안 읽은 기기 목록은 `remote-off`로 실패했으므로
+   * 실행 중으로 바뀌는 순간 목록을 바로 다시 읽는다(15초 주기를 기다리지 않는다).
+   */
   function statusReplied(reply: Result<RemoteStatus, RemoteError>): void {
     if (reply.ok) {
       dispatch({ type: "statusLoaded", status: reply.value });
     } else {
       dispatch({ type: "statusFailed", error: reply.error });
     }
+    const running = reply.ok && reply.value.state === "running";
+    if (running && !wasRunning && started) detachDevicesRead();
+    wasRunning = running;
     syncStatusPoll();
   }
 
@@ -239,6 +247,7 @@ export function createRemoteController<TimerHandle>(
 
     stop() {
       started = false;
+      wasRunning = false;
       statusSeq += 1;
       devicesSeq += 1;
       clearStatusTimer();

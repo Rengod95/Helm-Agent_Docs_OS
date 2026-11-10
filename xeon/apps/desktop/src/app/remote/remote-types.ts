@@ -60,11 +60,13 @@ export interface RevokeResult {
 }
 
 /**
- * 원격 명령의 오류. `remote-off`는 원격 접속이 꺼져 있다는 뜻이다. `bad-reply`는 응답 모양이 틀렸다는 뜻이다.
+ * 원격 명령의 오류. `remote-off`는 원격 접속이 꺼져 있다는 뜻이다. `unsupported`는 엔진이 `host.remote.*`를 모른다(-32601, 옛 서비스)는 뜻이고
+ * 엔진 오프라인·시간 초과와 따로 알린다. `bad-reply`는 응답 모양이 틀렸다는 뜻이다.
  * `failed`는 그 밖의 실패이고, 엔진이 준 문장이 있으면 `message`에 남긴다.
  */
 export type RemoteError =
   | { readonly kind: "remote-off" }
+  | { readonly kind: "unsupported" }
   | { readonly kind: "bad-reply" }
   | { readonly kind: "failed"; readonly message: string | null };
 

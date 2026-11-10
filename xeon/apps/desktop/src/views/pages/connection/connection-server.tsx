@@ -17,8 +17,10 @@ import {
   deviceRowOf,
   fingerprintDisplay,
   isPairingExpired,
+  pairingCodeDisplay,
   pairingRemainingLabel,
   pairingRemainingMs,
+  pushShownAvailable,
   serverModeOf,
   sortDevices,
   type DeviceRow,
@@ -251,12 +253,9 @@ function noticeTextOf(kind: RemoteNoticeKind): string {
   }
 }
 
-/**
- * 엔진이 외부 접근을 모른다는 뜻인가. 계약 전 어댑터는 엔진의 "지원 안 함"을 메시지 없는 `failed`로 옮긴다(`remote-adapter.ts`의
- * `remoteErrorOf`). 그래서 이 모양을 지원 안 함으로 본다. `RemoteError`에 종류가 생기면 이 함수만 바꾼다.
- */
+/** 엔진이 외부 접근을 모른다는 뜻인가. 옛 서비스는 `host.remote.*`가 없어 `unsupported`로 온다(엔진 오프라인·시간 초과와 다르다) */
 function isUnsupported(error: RemoteError): boolean {
-  return error.kind === "failed" && error.message === null;
+  return error.kind === "unsupported";
 }
 
 function StatusBlock(props: {
@@ -411,7 +410,7 @@ function StatusRows(props: {
           {certSourceTextOf(status.certSource)}
         </ListDescriptionRow>
         <ListDescriptionRow term={t("desktop.connection.server.row.push")}>
-          {status.pushAvailable ? (
+          {pushShownAvailable(status) ? (
             t("desktop.connection.server.push.available")
           ) : (
             <span className="inline-flex items-center gap-1.5">
@@ -579,7 +578,7 @@ function IssuedCode(props: {
         <span
           className={`font-mono text-title-2 ${expired ? "text-text-tertiary" : "text-text-primary"}`}
         >
-          {code.code}
+          {pairingCodeDisplay(code.code)}
         </span>
         {expired ? (
           <span className="text-ui-sm text-text-tertiary">

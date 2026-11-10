@@ -55,7 +55,8 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 ### 2.4 W4 데스크톱 UI와 셸 명령
 
 - 연결 화면(P-08)에 "서버 모드"(끔/서비스/서비스 + 외부 접근) 스위치와 확인 대화 상자, 페어링 코드 표시, 기기 목록·폐기, 지문 표시. `server-mode.ts`가 서비스 켜기·끄기, 사이드카에서 서비스로의 전환(§4.1) 명령을 등록한다. 기능 감지(`shell_capabilities`)와 "서버 폴더 고르기" 대화 상자도 여기서 UI를 만든다.
-- 끝난 상태: 데스크톱만으로 서비스 켬 → 외부 접근 켬 → 코드 발급 → 브라우저 접속 → 기기 폐기가 된다(CLI 안 씀). 화면 상태(빈, 읽는 중, 오류)와 문장(한국어·영어 카탈로그, `just terms check`).
+- 끝난 상태: 데스크톱만으로 서비스 켬 → 외부 접근 켬 → 코드 발급 → 브라우저 접속 → 기기 폐기가 된다(CLI 안 씀).
+- [확인: 2026-11-10 rmWi] 연결 화면의 어댑터는 실제 `HostConnection` 요청에 이어졌다(`app/remote/remote-wiring.ts`). wire `remote.off`(5008)는 `errorOf`가 `rejected.issue: "remote-off"`로 싣고 어댑터가 `remote-off`로 읽는다. -32601은 `RemoteError`의 `unsupported`로 따로 알린다(엔진 오프라인·시간 초과는 `failed`). 임시 홈에서 웹 미리보기(`_notes/tools/webshell`에 서비스 모듈을 더한 것)와 headless Chrome으로 서비스 켜기, 외부 접근 켜기(확인 대화 상자), 코드 발급, 게이트웨이 루프백 주소의 코드 로그인, 기기 목록, 폐기, 그 탭의 `/login` 복귀를 확인했다(사진 `_notes/design/rmWi-shots/`). 단 `listenTls`는 CLI로 미리 정했다(spec §10). 화면 상태(빈, 읽는 중, 오류)와 문장(한국어·영어 카탈로그, `just terms check`).
 
 ### 2.5 W5 데스크톱의 TLS 클라이언트
 
