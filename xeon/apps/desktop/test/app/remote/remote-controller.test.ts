@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { err, ok } from "@fresnel/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import {
   createRemoteController,
   type RemoteController,
@@ -13,12 +13,13 @@ import {
   type FakeRemoteAdapter,
   type FakeRemoteOptions,
 } from "../../../src/app/remote/fake-remote-adapter.ts";
-import type { CommandError } from "../../../src/views/commands.ts";
+import type { AutostartError, CommandError } from "../../../src/views/commands.ts";
 import type {
   RemoteAdapter,
   RemoteDevice,
   RemoteStatus,
 } from "../../../src/app/remote/remote-types.ts";
+import type { ServiceAutostart } from "../../../src/transport/ipc.ts";
 
 const RUNNING: RemoteStatus = {
   enabled: true,
@@ -51,6 +52,15 @@ const DESKTOP_DEVICE: RemoteDevice = {
 };
 
 const FAILED: CommandError = { kind: "failed" };
+
+/** 지원하고 등록은 안 된 로그인 자동 시작 상태(처음 상태의 기본값) */
+const AUTOSTART_OFF: ServiceAutostart = {
+  supported: true,
+  registered: false,
+  active: false,
+  linger: null,
+  platform: "darwin",
+};
 
 // ── 시험 도구 ─────────────────────────────────────────────────────────────
 
@@ -158,6 +168,16 @@ interface HarnessOptions {
   readonly failStart?: boolean;
   /** 서비스 멈추기가 실패하게 한다 */
   readonly failStop?: boolean;
+  /** 로그인 자동 시작의 처음 상태. 없으면 `AUTOSTART_OFF`다 */
+  readonly autostart?: ServiceAutostart;
+  /** 자동 시작 상태 읽기가 실패하게 한다 */
+  readonly failAutostartRead?: boolean;
+  /** 자동 시작 켜기·끄기가 이 닫힌 코드로 실패하게 한다 */
+  readonly failAutostart?: AutostartError["code"];
+  /** 자동 시작을 켜면 Linux linger 안내가 나온다 */
+  readonly lingerAdvice?: boolean;
+  /** 자동 시작 켜기·끄기 응답을 붙잡는다 */
+  readonly holdAutostart?: boolean;
 }
 
 interface Harness {
@@ -174,6 +194,12 @@ interface Harness {
   readonly changes: () => number;
   /** 시험 시계를 `ms`만큼 옮긴다 */
   readonly moveClock: (ms: number) => void;
+  /** 로그인 자동 시작 켜기·끄기가 받은 값, 호출 순서(실패한 것도 든다) */
+  readonly autostartSets: boolean[];
+  /** 로그인 자동 시작 상태를 읽은 횟수 */
+  readonly autostartReads: () => number;
+  /** 자동 시작 켜기·끄기 응답을 붙잡는 자리 */
+  readonly autostartHold: Hold;
 }
 
 function harnessOf(options: HarnessOptions = {}): Harness {
@@ -184,6 +210,10 @@ function harnessOf(options: HarnessOptions = {}): Harness {
   const timers = manualTimers();
   const statusHold = holdOf();
   const enableHold = holdOf();
+  const autostartHold = holdOf();
+  const autostartSets: boolean[] = [];
+  let autostartReads = 0;
+  let autostartNow: ServiceAutostart = options.autostart ?? AUTOSTART_OFF;
   const fake = createFakeRemoteAdapter({ now: () => clock, ...options.fake });
 
   const adapter: RemoteAdapter = {
@@ -212,6 +242,22 @@ function harnessOf(options: HarnessOptions = {}): Harness {
       connection.push("stopLocalService");
       return Promise.resolve(options.failStop === true ? err(FAILED) : ok(null));
     },
+    serviceAutostart: (): Promise<Result<ServiceAutostart, AutostartError>> => {
+      autostartReads += 1;
+      if (options.failAutostartRead === true) return Promise.resolve(err({ code: "unknown" }));
+      return Promise.resolve(ok(autostartNow));
+    },
+    setServiceAutostart: (enabled: boolean) => {
+      autostartSets.push(enabled);
+      const reply: Result<{ readonly lingerAdvice: boolean }, AutostartError> =
+        options.failAutostart === undefined
+          ? ok({ lingerAdvice: enabled && options.lingerAdvice === true })
+          : err({ code: options.failAutostart });
+      if (reply.ok) autostartNow = { ...autostartNow, registered: enabled, active: enabled };
+      return options.holdAutostart === true
+        ? autostartHold.hold(Promise.resolve(reply))
+        : Promise.resolve(reply);
+    },
   };
 
   const controller = createRemoteController<number>({
@@ -237,6 +283,9 @@ function harnessOf(options: HarnessOptions = {}): Harness {
     moveClock: (ms) => {
       clock += ms;
     },
+    autostartSets,
+    autostartReads: () => autostartReads,
+    autostartHold,
   };
 }
 
@@ -303,7 +352,7 @@ describe("원격 접속 컨트롤러: 서버 모드 고르기", () => {
     await h.controller.selectMode("off", true);
     expect(h.order).toEqual(["setEnabled false", "stopLocalService"]);
     expect(h.connection).toEqual(["stopLocalService"]);
-    expect(h.controller.state().notice).toEqual({ kind: "disableFailed" });
+    expect(h.controller.state().notice).toEqual({ kind: "disableFailed", code: null });
     expect(h.controller.state().status).toEqual({
       kind: "failed",
       error: { kind: "failed", message: "끌 수 없음" },
@@ -651,7 +700,7 @@ describe("원격 접속 컨트롤러: 끄기 규칙과 알림", () => {
     const first = h.controller.confirmRemote();
     h.enableHold.release(0);
     await first;
-    expect(h.controller.state().notice).toEqual({ kind: "enableFailed" });
+    expect(h.controller.state().notice).toEqual({ kind: "enableFailed", code: null });
 
     const retry = h.controller.retryEnable();
     expect(h.controller.state().notice).toBeNull();
@@ -667,7 +716,7 @@ describe("원격 접속 컨트롤러: 끄기 규칙과 알림", () => {
     await settle();
     await h.controller.selectMode("service", false);
     expect(h.connection).toEqual(["startLocalService"]);
-    expect(h.controller.state().notice).toEqual({ kind: "serviceFailed" });
+    expect(h.controller.state().notice).toEqual({ kind: "serviceFailed", code: null });
   });
 
   test("서비스 멈추기가 실패하면 알림은 서비스 실패다", async () => {
@@ -676,7 +725,7 @@ describe("원격 접속 컨트롤러: 끄기 규칙과 알림", () => {
     await settle();
     await h.controller.selectMode("off", true);
     expect(h.connection).toEqual(["stopLocalService"]);
-    expect(h.controller.state().notice).toEqual({ kind: "serviceFailed" });
+    expect(h.controller.state().notice).toEqual({ kind: "serviceFailed", code: null });
   });
 
   test("해제가 실패하면 알림은 해제 실패이고 목록은 그대로다. 다음 해제가 시작하면 알림이 없어진다", async () => {
@@ -685,7 +734,7 @@ describe("원격 접속 컨트롤러: 끄기 규칙과 알림", () => {
     await settle();
     h.fake.failNext({ kind: "failed", message: "해제 불가" });
     await h.controller.revoke({ id: "dev-a" });
-    expect(h.controller.state().notice).toEqual({ kind: "revokeFailed" });
+    expect(h.controller.state().notice).toEqual({ kind: "revokeFailed", code: null });
     expect(h.controller.state().devices).toEqual({ kind: "ready", value: [WEB_DEVICE] });
 
     await h.controller.revoke({ id: "dev-a" });
@@ -714,5 +763,152 @@ describe("원격 접속 컨트롤러: 늦은 응답", () => {
     await settle();
     expect(h.controller.state().status).toEqual({ kind: "ready", value: RUNNING });
     expect(h.statusHold.held()).toBe(0);
+  });
+});
+
+// ── 로그인 자동 시작 스위치 ───────────────────────────────────────────────
+
+describe("원격 접속 컨트롤러: 로그인 자동 시작 스위치", () => {
+  const AUTOSTART_ON: ServiceAutostart = { ...AUTOSTART_OFF, registered: true, active: true };
+
+  test("처음 읽기에서 자동 시작 상태를 읽어 ready로 둔다", async () => {
+    const h = harnessOf({ autostart: AUTOSTART_ON });
+    h.controller.start();
+    await settle();
+    expect(h.controller.state().autostart).toEqual({ kind: "ready", value: AUTOSTART_ON });
+    expect(h.autostartSets).toEqual([]);
+  });
+
+  test("켜기는 확인 대화 상자만 열고, 확인하기 전에는 셸을 부르지 않는다", async () => {
+    const h = harnessOf();
+    h.controller.start();
+    await settle();
+    await h.controller.requestAutostart(true);
+    expect(h.controller.state().autostartConfirmOpen).toBe(true);
+    expect(h.autostartSets).toEqual([]);
+    expect(h.connection).toEqual([]);
+  });
+
+  test("확인하면 setServiceAutostart(true)를 정확히 한 번 부르고 상태를 다시 읽는다", async () => {
+    const h = harnessOf();
+    h.controller.start();
+    await settle();
+    const readsBefore = h.autostartReads();
+    await h.controller.requestAutostart(true);
+    await h.controller.confirmAutostart();
+    expect(h.autostartSets).toEqual([true]);
+    expect(h.autostartReads()).toBe(readsBefore + 1);
+    expect(h.controller.state().autostart).toEqual({ kind: "ready", value: AUTOSTART_ON });
+    expect(h.controller.state().autostartConfirmOpen).toBe(false);
+    expect(h.controller.state().busy).toBe("none");
+  });
+
+  test("확인 대화 상자에서 취소하면 아무것도 보내지 않고, 취소 뒤의 확인도 아무 일을 하지 않는다", async () => {
+    const h = harnessOf();
+    h.controller.start();
+    await settle();
+    await h.controller.requestAutostart(true);
+    h.controller.cancelAutostartConfirm();
+    expect(h.controller.state().autostartConfirmOpen).toBe(false);
+    await h.controller.confirmAutostart();
+    expect(h.autostartSets).toEqual([]);
+    expect(h.controller.state().autostart).toEqual({ kind: "ready", value: AUTOSTART_OFF });
+  });
+
+  test("끄기는 확인 없이 setServiceAutostart(false)를 바로 보내고 상태를 다시 읽는다", async () => {
+    const h = harnessOf({ autostart: AUTOSTART_ON });
+    h.controller.start();
+    await settle();
+    await h.controller.requestAutostart(false);
+    expect(h.controller.state().autostartConfirmOpen).toBe(false);
+    expect(h.autostartSets).toEqual([false]);
+    expect(h.controller.state().autostart).toEqual({ kind: "ready", value: AUTOSTART_OFF });
+  });
+
+  test("켜기가 실패하면 닫힌 코드의 알림을 남기고 스위치는 옛 값에 둔다(상태를 다시 읽지 않는다)", async () => {
+    const h = harnessOf({ failAutostart: "autostart_failed" });
+    h.controller.start();
+    await settle();
+    const readsBefore = h.autostartReads();
+    await h.controller.requestAutostart(true);
+    await h.controller.confirmAutostart();
+    expect(h.autostartSets).toEqual([true]);
+    expect(h.controller.state().notice).toEqual({
+      kind: "autostartFailed",
+      code: "autostart_failed",
+    });
+    expect(h.controller.state().autostart).toEqual({ kind: "ready", value: AUTOSTART_OFF });
+    expect(h.autostartReads()).toBe(readsBefore);
+    expect(h.controller.state().busy).toBe("none");
+  });
+
+  test("끄기가 실패해도 알림은 같은 닫힌 코드만 싣고 스위치는 켜진 값에 남는다", async () => {
+    const h = harnessOf({ autostart: AUTOSTART_ON, failAutostart: "bad-request" });
+    h.controller.start();
+    await settle();
+    await h.controller.requestAutostart(false);
+    expect(h.controller.state().notice).toEqual({ kind: "autostartFailed", code: "bad-request" });
+    expect(h.controller.state().autostart).toEqual({ kind: "ready", value: AUTOSTART_ON });
+  });
+
+  test("지원하지 않는 기기에서는 켜기도 끄기도 아무 일도 하지 않는다", async () => {
+    const h = harnessOf({ autostart: { ...AUTOSTART_OFF, supported: false, platform: "win32" } });
+    h.controller.start();
+    await settle();
+    await h.controller.requestAutostart(true);
+    await h.controller.requestAutostart(false);
+    expect(h.controller.state().autostartConfirmOpen).toBe(false);
+    expect(h.autostartSets).toEqual([]);
+  });
+
+  test("상태를 못 읽으면 자동 시작 상태는 failed이고 켜기도 아무 일도 하지 않는다", async () => {
+    const h = harnessOf({ failAutostartRead: true });
+    h.controller.start();
+    await settle();
+    expect(h.controller.state().autostart).toEqual({
+      kind: "failed",
+      error: { kind: "failed", message: null },
+    });
+    await h.controller.requestAutostart(true);
+    expect(h.controller.state().autostartConfirmOpen).toBe(false);
+    expect(h.autostartSets).toEqual([]);
+  });
+
+  test("Linux linger 안내는 켠 뒤 한 번 켜지고, 다음 자동 시작 쓰기가 시작하면 꺼진다", async () => {
+    const h = harnessOf({ lingerAdvice: true });
+    h.controller.start();
+    await settle();
+    await h.controller.requestAutostart(true);
+    await h.controller.confirmAutostart();
+    expect(h.controller.state().autostartLinger).toBe(true);
+    await h.controller.reloadAutostart();
+    expect(h.controller.state().autostartLinger).toBe(true);
+    await h.controller.requestAutostart(false);
+    expect(h.controller.state().autostartLinger).toBe(false);
+  });
+
+  test("linger 안내가 없는 답이면 켠 뒤에도 안내를 보이지 않는다", async () => {
+    const h = harnessOf({ lingerAdvice: false });
+    h.controller.start();
+    await settle();
+    await h.controller.requestAutostart(true);
+    await h.controller.confirmAutostart();
+    expect(h.controller.state().autostartLinger).toBe(false);
+  });
+
+  test("쓰는 동안은 스위치가 busy이고, 그 사이의 다른 쓰기는 받지 않는다", async () => {
+    const h = harnessOf({ autostart: AUTOSTART_ON, holdAutostart: true });
+    h.controller.start();
+    await settle();
+    const off = h.controller.requestAutostart(false);
+    expect(h.controller.state().busy).toBe("autostart");
+    await h.controller.requestAutostart(true);
+    expect(h.controller.state().autostartConfirmOpen).toBe(false);
+    expect(h.autostartSets).toEqual([false]);
+    h.autostartHold.release(0);
+    await off;
+    await settle();
+    expect(h.controller.state().busy).toBe("none");
+    expect(h.controller.state().autostart).toEqual({ kind: "ready", value: AUTOSTART_OFF });
   });
 });

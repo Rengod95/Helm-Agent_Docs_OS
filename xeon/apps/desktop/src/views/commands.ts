@@ -99,6 +99,7 @@ import type {
   PreviousRemoved,
   RestartOptions,
   RestoreReport,
+  ServiceAutostart,
   StorageUsage,
 } from "../transport/ipc.ts";
 import type { PaletteUses } from "./palette/palette-model.ts";
@@ -372,6 +373,14 @@ export interface ConnectionSnapshot {
 export type TargetStoreError = { readonly kind: "storage" };
 
 /**
+ * 로그인 자동 시작을 읽거나 바꾸지 못했다. `code`는 셸이 준 닫힌 오류 코드다(`autostart_failed`, `bad-request`). 그 밖의 실패와
+ * 모양이 틀린 답은 `unknown`이다. 등록 파일의 경로와 토큰은 어디에도 싣지 않는다.
+ */
+export interface AutostartError {
+  readonly code: "autostart_failed" | "bad-request" | "unknown";
+}
+
+/**
  * 연결 화면(P-08). 대상 목록은 로컬 설정 파일에서 읽고 쓴다(거울에 넣지 않는다). `retarget`은 셸 명령이고 진행은 엔진 상태와
  * 연결 상태가 알린다. 실패는 연결 실패 종류로 바꿔 돌려준다. 토큰은 이 명령들을 지나지 않는다(환경 변수로만 받는다).
  */
@@ -395,6 +404,15 @@ export interface ConnectionCommands {
   startLocalService(): Promise<Result<null, CommandError>>;
   /** 이 기기의 서비스를 멈춘다(`setServiceMode(false)`와 같다). 엔진은 앱 안의 사이드카로 다시 뜬다 */
   stopLocalService(): Promise<Result<null, CommandError>>;
+  /** 이 기기의 로그인 자동 시작 상태(`service_status`의 `autostart`). 서비스가 떠 있지 않아도 읽는다 */
+  serviceAutostart(): Promise<Result<ServiceAutostart, AutostartError>>;
+  /**
+   * 로그인 자동 시작을 켜거나 끈다(`service_autostart_set`). 켜기 동의는 호출하는 화면이 받는다. 답의 `lingerAdvice`는
+   * Linux에서 서비스를 로그아웃 뒤에도 두려면 `loginctl enable-linger`가 필요하다는 뜻이다.
+   */
+  setServiceAutostart(
+    enabled: boolean,
+  ): Promise<Result<{ readonly lingerAdvice: boolean }, AutostartError>>;
   /** 원격 연결에서 승인 요청에 답하는 것을 허락할지 바꾼다(`settings.set`, 사용자 범위). 바로 적용된다 */
   setRemoteRespond(enabled: boolean): Promise<Result<null, CommandError>>;
   /** 원격 서비스를 협조 종료한다(`host.shutdown`). 받아들여졌으면 `true`다. 이 기기의 서비스는 `stopLocalService`다 */

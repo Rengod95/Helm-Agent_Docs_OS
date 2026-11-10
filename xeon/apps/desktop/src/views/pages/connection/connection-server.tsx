@@ -9,6 +9,7 @@ import {
   RadioGroup,
   RadioGroupItem,
   Skeleton,
+  Switch,
 } from "@caustic/react";
 import { useState, type ReactNode } from "react";
 import type { RemoteActions } from "../../../app/remote/use-remote-controller.ts";
@@ -29,7 +30,7 @@ import {
 import type {
   Loadable,
   PairingState,
-  RemoteNoticeKind,
+  RemoteNotice,
   RemoteScreenState,
 } from "../../../app/remote/remote-state.ts";
 import type {
@@ -41,11 +42,13 @@ import type {
   RemoteStatus,
   RevokeTarget,
 } from "../../../app/remote/remote-types.ts";
+import type { ServiceAutostart } from "../../../transport/ipc.ts";
 import { InfoTip } from "../../craft/info-tip.tsx";
 import { StatusBadge, type StatusTone } from "./connection-badge.tsx";
 
 // 서버 모드 섹션(P-08)의 그림. 상태와 동작은 `RemoteScreenState`와 `RemoteActions`로 받고, 시계와 클립보드도 props로 받는다.
-// 위에서부터 쓰는 방식(끄기·서비스·외부 접근), 상태 줄, 쓰기 실패 알림, 외부 접근 켜기 확인, 페어링 코드, 연결된 기기 순이다.
+// 위에서부터 쓰는 방식(끄기·서비스·외부 접근), 로그인할 때 자동으로 켜기 스위치, 상태 줄, 쓰기 실패 알림, 외부 접근 켜기 확인,
+// 로그인 자동 시작 켜기 확인, 페어링 코드, 연결된 기기 순이다.
 // 경고는 늘 보이는 글이고, 설명은 정보 아이콘 뒤에 둔다. 기기 해제 확인만 이 파일이 지금 고른 기기를 지역 상태로 든다.
 
 const ROWS_CLASS =
@@ -101,10 +104,16 @@ export function ServerModeSection(props: ServerModeSectionProps): ReactNode {
         serviceRunning={serviceRunning}
         actions={actions}
       />
+      <AutostartRow
+        autostart={state.autostart}
+        linger={state.autostartLinger}
+        busy={busy}
+        actions={actions}
+      />
       <StatusBlock status={state.status} busy={busy} actions={actions} copy={copy} />
       {state.notice === null ? null : (
         <Alert tone="danger" size="sm">
-          {noticeTextOf(state.notice.kind)}
+          {noticeTextOf(state.notice)}
         </Alert>
       )}
       <EnableDialog
@@ -114,6 +123,7 @@ export function ServerModeSection(props: ServerModeSectionProps): ReactNode {
         inline={inline}
         actions={actions}
       />
+      <AutostartDialog open={state.autostartConfirmOpen} inline={inline} actions={actions} />
       {running ? (
         <PairingBlock
           pairing={state.pairing}
@@ -193,6 +203,139 @@ function ModeChoice(props: {
   );
 }
 
+// ── 로그인 자동 시작 ─────────────────────────────────────────────────────
+
+/**
+ * 로그인할 때 자동으로 켜기 스위치. 상태를 못 읽으면 다시 읽기 알림을, 읽는 중이면 자리 표시를 보인다.
+ * 이 기기가 지원하지 않으면 스위치를 잠그고 그 글을 보인다. Linux linger 안내는 켠 뒤 한 번 보인다.
+ */
+function AutostartRow(props: {
+  readonly autostart: Loadable<ServiceAutostart>;
+  readonly linger: boolean;
+  readonly busy: boolean;
+  readonly actions: RemoteActions;
+}): ReactNode {
+  const { autostart, linger, busy, actions } = props;
+  switch (autostart.kind) {
+    case "loading":
+      return <Skeleton width="50%" height={14} />;
+    case "failed":
+      return (
+        <Alert
+          tone="danger"
+          size="sm"
+          action={
+            <Button
+              size="xs"
+              variant="outline"
+              disabled={busy}
+              onClick={() => {
+                run(actions.reloadAutostart());
+              }}
+            >
+              {t("desktop.connection.retry")}
+            </Button>
+          }
+        >
+          {t("desktop.connection.server.autostart.loadFailed")}
+        </Alert>
+      );
+    case "ready":
+      return (
+        <AutostartSwitch value={autostart.value} linger={linger} busy={busy} actions={actions} />
+      );
+    default:
+      return assertNever(autostart, "Loadable");
+  }
+}
+
+function AutostartSwitch(props: {
+  readonly value: ServiceAutostart;
+  readonly linger: boolean;
+  readonly busy: boolean;
+  readonly actions: RemoteActions;
+}): ReactNode {
+  const { value, linger, busy, actions } = props;
+  const label = t("desktop.connection.server.autostart.label");
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex items-center gap-1.5">
+          <span className="text-ui-sm font-medium text-text-primary">{label}</span>
+          <InfoTip text={t("desktop.connection.server.autostart.hint")} />
+        </span>
+        <Switch
+          size="sm"
+          aria-label={label}
+          checked={value.registered}
+          disabled={busy || !value.supported}
+          onCheckedChange={(next) => {
+            run(actions.requestAutostart(next));
+          }}
+        />
+      </div>
+      {value.supported ? null : (
+        <span className="text-ui-sm text-text-tertiary">
+          {t("desktop.connection.server.autostart.unsupported")}
+        </span>
+      )}
+      {linger ? (
+        <div className="grid gap-1 text-ui-sm text-text-secondary">
+          <span>{t("desktop.connection.server.autostart.linger")}</span>
+          <code className="font-mono text-text-primary">loginctl enable-linger</code>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** 로그인 자동 시작 켜기 확인. 파일을 어디에 쓰는지와 끄면 지운다는 것을 글로 보인다. 확인을 누르면 동작이 돈다 */
+function AutostartDialog(props: {
+  readonly open: boolean;
+  readonly inline: boolean;
+  readonly actions: RemoteActions;
+}): ReactNode {
+  const { open, inline, actions } = props;
+  return (
+    <Dialog
+      kind="alert"
+      size="sm"
+      inline={inline}
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) actions.cancelAutostartConfirm();
+      }}
+      title={t("desktop.connection.server.autostart.confirm.title")}
+      footer={
+        <>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              actions.cancelAutostartConfirm();
+            }}
+          >
+            {t("desktop.connection.server.cancel")}
+          </Button>
+          <Button
+            variant="solid"
+            size="sm"
+            onClick={() => {
+              run(actions.confirmAutostart());
+            }}
+          >
+            {t("desktop.connection.server.autostart.confirm.enable")}
+          </Button>
+        </>
+      }
+    >
+      <p className="m-0 text-ui-sm text-text-secondary">
+        {t("desktop.connection.server.autostart.confirm.body")}
+      </p>
+    </Dialog>
+  );
+}
+
 // ── 상태 ──────────────────────────────────────────────────────────────────
 
 function stateLabelOf(state: RemoteState): string {
@@ -238,8 +381,8 @@ function certSourceTextOf(source: CertSource | null): string {
   }
 }
 
-function noticeTextOf(kind: RemoteNoticeKind): string {
-  switch (kind) {
+function noticeTextOf(notice: RemoteNotice): string {
+  switch (notice.kind) {
     case "enableFailed":
       return t("desktop.connection.server.notice.enableFailed");
     case "disableFailed":
@@ -248,8 +391,13 @@ function noticeTextOf(kind: RemoteNoticeKind): string {
       return t("desktop.connection.server.notice.serviceFailed");
     case "revokeFailed":
       return t("desktop.connection.server.notice.revokeFailed");
+    case "autostartFailed":
+      // 글에는 셸이 준 닫힌 오류 코드만 든다(경로와 토큰은 없다)
+      return t("desktop.connection.server.notice.autostartFailed", {
+        code: notice.code ?? "unknown",
+      });
     default:
-      return assertNever(kind, "RemoteNoticeKind");
+      return assertNever(notice.kind, "RemoteNoticeKind");
   }
 }
 

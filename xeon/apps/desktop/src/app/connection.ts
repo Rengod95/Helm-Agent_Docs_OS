@@ -8,8 +8,9 @@ import {
 } from "@fresnel/contracts/wire";
 import { LOCAL, type LocalSettings } from "../settings-store/index.ts";
 import type { UiStore } from "../state/ui/index.ts";
-import type { DesktopIpc, EngineTarget } from "../transport/ipc.ts";
+import type { DesktopIpc, EngineTarget, IpcError } from "../transport/ipc.ts";
 import type {
+  AutostartError,
   CommandError,
   ConnectionCommands,
   ConnectionSnapshot,
@@ -50,10 +51,22 @@ export interface ConnectionDeps {
   readonly session: Pick<Session, "reconnect" | "restartEngine">;
   readonly ui: Pick<UiStore, "actions">;
   readonly run: Run;
-  /** 이 기기의 서비스 셸 명령(상태 읽기, 켜기, 끄기) */
-  readonly ipc: Pick<DesktopIpc, "serviceStatus" | "serviceEnsure" | "serviceStop">;
+  /** 이 기기의 서비스 셸 명령(상태 읽기, 켜기, 끄기, 로그인 자동 시작 켜기·끄기) */
+  readonly ipc: Pick<
+    DesktopIpc,
+    "serviceStatus" | "serviceEnsure" | "serviceStop" | "serviceAutostartSet"
+  >;
   /** 엔진이 지금 붙은 대상의 종류(UI 스토어의 `engineTarget`). 이 기기일 때만 서비스 명령을 부른다 */
   readonly engineTargetKind: () => "local" | "remote";
+}
+
+/** 셸 오류를 화면이 아는 닫힌 코드로 줄인다. 셸이 준 코드 가운데 두 개만 살리고 나머지는 `unknown`이다(경로나 토큰을 싣지 않는다) */
+function autostartErrorOf(error: IpcError): AutostartError {
+  if (error.kind !== "command") return { code: "unknown" };
+  if (error.code === "autostart_failed" || error.code === "bad-request") {
+    return { code: error.code };
+  }
+  return { code: "unknown" };
 }
 
 export function createConnectionCommands(deps: ConnectionDeps): ConnectionCommands {
@@ -192,6 +205,16 @@ export function createConnectionCommands(deps: ConnectionDeps): ConnectionComman
     setServiceMode,
     startLocalService: () => setServiceMode(true),
     stopLocalService: () => setServiceMode(false),
+    async serviceAutostart() {
+      const status = await ipc.serviceStatus();
+      return status.ok ? ok(status.value.autostart) : err(autostartErrorOf(status.error));
+    },
+    async setServiceAutostart(enabled) {
+      const set = await ipc.serviceAutostartSet(enabled);
+      return set.ok
+        ? ok({ lingerAdvice: set.value.lingerAdvice })
+        : err(autostartErrorOf(set.error));
+    },
     async setRemoteRespond(enabled: boolean): Promise<Result<null, CommandError>> {
       const written = await run((c) =>
         c.request("settings.set", { key: REMOTE_RESPOND_KEY, value: enabled, scope: SCOPE }),

@@ -10,8 +10,17 @@ import type {
   RemoteError,
   RemoteStatus,
 } from "../../../src/app/remote/remote-types.ts";
+import type { ServiceAutostart } from "../../../src/transport/ipc.ts";
 
 // 원격 접속 화면의 상태 전이. 각 동작이 해당 칸만 바꾸는지 본다. 값은 `toEqual`로 비교한다.
+
+const AUTOSTART: ServiceAutostart = {
+  supported: true,
+  registered: true,
+  active: true,
+  linger: null,
+  platform: "darwin",
+};
 
 const DEVICE_A: RemoteDevice = {
   id: "d1",
@@ -33,7 +42,7 @@ const STATUS: RemoteStatus = { ...FAKE_OFF_STATUS, enabled: true, state: "starti
 const FAILED: RemoteError = { kind: "failed", message: "포트 사용 중" };
 
 describe("remote screen state", () => {
-  test("it starts with both reads loading, no pairing, no dialog, nothing busy", () => {
+  test("it starts with the reads loading, no pairing, no dialog, nothing busy, autostart unread", () => {
     expect(INITIAL_REMOTE_STATE).toEqual({
       status: { kind: "loading" },
       devices: { kind: "loading" },
@@ -41,14 +50,17 @@ describe("remote screen state", () => {
       confirmOpen: false,
       busy: "none",
       notice: null,
+      autostart: { kind: "loading" },
+      autostartConfirmOpen: false,
+      autostartLinger: false,
     });
   });
 
   test("noticeSet keeps one notice and noticeCleared removes it", () => {
     const set = reduce(INITIAL_REMOTE_STATE, { type: "noticeSet", kind: "enableFailed" });
-    expect(set.notice).toEqual({ kind: "enableFailed" });
+    expect(set.notice).toEqual({ kind: "enableFailed", code: null });
     const replaced = reduce(set, { type: "noticeSet", kind: "serviceFailed" });
-    expect(replaced.notice).toEqual({ kind: "serviceFailed" });
+    expect(replaced.notice).toEqual({ kind: "serviceFailed", code: null });
     expect(reduce(replaced, { type: "noticeCleared" }).notice).toBeNull();
   });
 
@@ -136,5 +148,40 @@ describe("remote screen state", () => {
     });
     reduce(before, { type: "deviceRemoved", target: { id: "d1" } });
     expect(before.devices).toEqual({ kind: "ready", value: [DEVICE_A] });
+  });
+
+  test("autostart: a read sets the value, a failed read is failed, and a new load starts it over", () => {
+    const loaded = reduce(INITIAL_REMOTE_STATE, { type: "autostartLoaded", autostart: AUTOSTART });
+    expect(loaded.autostart).toEqual({ kind: "ready", value: AUTOSTART });
+    expect(reduce(loaded, { type: "autostartFailed" }).autostart).toEqual({
+      kind: "failed",
+      error: { kind: "failed", message: null },
+    });
+    expect(reduce(loaded, { type: "loadStarted" }).autostart).toEqual({ kind: "loading" });
+  });
+
+  test("autostart: the confirm dialog opens and closes, and only that flag moves", () => {
+    const open = reduce(INITIAL_REMOTE_STATE, { type: "autostartConfirmOpened" });
+    expect(open.autostartConfirmOpen).toBe(true);
+    expect(open.busy).toBe("none");
+    expect(reduce(open, { type: "autostartConfirmClosed" }).autostartConfirmOpen).toBe(false);
+  });
+
+  test("autostart: a failure notice keeps the closed code, and an ordinary notice has none", () => {
+    const failed = reduce(INITIAL_REMOTE_STATE, {
+      type: "noticeSet",
+      kind: "autostartFailed",
+      code: "autostart_failed",
+    });
+    expect(failed.notice).toEqual({ kind: "autostartFailed", code: "autostart_failed" });
+    expect(
+      reduce(INITIAL_REMOTE_STATE, { type: "noticeSet", kind: "enableFailed" }).notice,
+    ).toEqual({ kind: "enableFailed", code: null });
+  });
+
+  test("autostart: the linger hint is a flag that the next write turns off", () => {
+    const shown = reduce(INITIAL_REMOTE_STATE, { type: "autostartLingerSet", shown: true });
+    expect(shown.autostartLinger).toBe(true);
+    expect(reduce(shown, { type: "autostartLingerSet", shown: false }).autostartLinger).toBe(false);
   });
 });
