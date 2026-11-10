@@ -79,6 +79,8 @@ export const COMMAND_TABLE: Readonly<Record<string, Disposition>> = {
 
   // 프레임 root 목록(탭별)
   app_roots_set: ORIGIN,
+  // 웹의 프레임 주소 접두(권한 토큰). 데스크톱은 `fresnel-view://`라 이 명령이 없다(spec §6.3)
+  view_root: WEB_SPECIFIC,
 
   // 서비스 상태, 켜기, 끄기(§8.6의 "서비스 끄기"는 웹 기기에서도 허용한다)
   service_status: ORIGIN,

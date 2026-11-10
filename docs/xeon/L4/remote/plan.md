@@ -72,6 +72,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 - §6.3의 `/view/...` 경로, 권한 토큰, sandbox iframe, CSP 치환. 브라우저에서 Helm 탐구 화면이 데스크톱과 같다.
 - 끝난 상태: 프레임이 쿠키 없이 하위 자원을 받고, 앱 문서 쿠키·storage에 닿지 못함(시험), 경로 규칙은 `fresnel-view://`의 시험 벡터를 재사용한다.
+- [확인: 2026-11-10 rmW7] 구현됨: 게이트웨이 `src/web/view/{tokens,route}.ts`와 `view_root` 명령(탭 연결마다 등록), `view-scheme.ts`의 `respondWithBase`·`registerAppRootsCommand`, 클라이언트 `scheme.ts`의 뿌리 인자와 `apps/desktop/src/plugin-ui/frame-root.ts`. 결정은 `L4.remote.spec` §6.3. 실제 브라우저 확인은 아래 §2.7 기록.
 
 ### 2.8 W8 브라우저 E2E와 속도
 

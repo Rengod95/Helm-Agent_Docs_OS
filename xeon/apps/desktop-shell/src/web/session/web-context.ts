@@ -30,13 +30,15 @@ import {
   registerSecretEntry,
 } from "../../main/secret-entry.ts";
 import { createServiceModule } from "../../main/service-mode.ts";
-import { viewSchemeModule } from "../../main/view-scheme.ts";
+import { createAppRoots, registerAppRootsCommand } from "../../main/view-scheme.ts";
 import { CHANNEL_KEY } from "../../shared/channels.ts";
 import { dispositionOf, isServedByGateway } from "./commands-table.ts";
 import { createDeviceSettings } from "./device-settings.ts";
 import { listOriginFolders } from "./origin-folders.ts";
 import type { ServerFrame } from "./protocol.ts";
 import { createSocketLauncher } from "./socket-launcher.ts";
+import { VIEW_PREFIX } from "../view/route.ts";
+import type { ViewTokens } from "../view/tokens.ts";
 
 export interface WebContextOptions {
   readonly env: NodeJS.ProcessEnv;
@@ -50,6 +52,10 @@ export interface WebContextOptions {
   readonly home: string;
   /** 이 탭의 기기 id(인증 기록의 `dev_…`). 기기별 설정 파일 이름이 된다 */
   readonly deviceId: string;
+  /** 이 탭의 식별자(탭 연결마다 다르다). 프레임 권한 토큰이 이 값에 묶인다 */
+  readonly tabId: string;
+  /** 프레임 권한 토큰 발급처. 게이트웨이의 `/view/…` 라우트와 같은 개체다 */
+  readonly views: ViewTokens;
   /** 서비스 Unix 소켓의 절대 경로 */
   readonly socketPath: string;
   readonly clock: EngineClock;
@@ -192,7 +198,12 @@ export function createWebContext(options: WebContextOptions): WebContext {
     now: () => new Date(clock.now()),
   }).register(ctx);
   createServiceModule({ launcherOf: () => launcher }).register(ctx);
-  viewSchemeModule.register(ctx);
+  // 프레임 root 목록은 탭마다 따로다. 웹에는 스킴이 없어 `view_root`가 주는 권한 토큰이 이 목록을 가리킨다(spec §6.3)
+  const appRoots = createAppRoots();
+  registerAppRootsCommand(ctx, appRoots);
+  ctx.onQuit(() => {
+    options.views.revokeTab(options.tabId);
+  });
   ctx.handle("shell_take_intents", () => intents.take(clock.now()));
   ctx.handle("notify_take_target", () => null);
 
@@ -212,6 +223,12 @@ export function createWebContext(options: WebContextOptions): WebContext {
     const listed = listOriginFolders(ownField(args, "path"), { home: options.home });
     if (!listed.ok) throw new ShellError(listed.error);
     return listed.value;
+  });
+
+  // 프레임 주소 접두. 호출마다 새 토큰이다(수명 1시간). 앱 본 화면이 프레임을 그릴 때 부른다
+  serve("view_root", () => {
+    const issued = options.views.issue(options.tabId, appRoots);
+    return { path: `${VIEW_PREFIX}${issued.token}/`, expiresAt: issued.expiresAt };
   });
 
   // 기능 감지. 데스크톱은 이 명령을 아직 두지 않는다(§6.1 [제안]). 웹은 이 값으로 버튼을 숨긴다

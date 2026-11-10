@@ -8,6 +8,7 @@ import type { TabSessionInput } from "../../../src/web/session/ports.ts";
 import { tempDir } from "../support/fixtures.ts";
 import type { EngineConfig } from "../../../src/main/engine/policy.ts";
 import { nodeScheduler } from "../../../src/main/lib/scheduler.ts";
+import { createViewTokens } from "../../../src/web/view/tokens.ts";
 import type { TabSessionOptions } from "../../../src/web/session/tab-session.ts";
 
 export const ENCODER: TextEncoder = new TextEncoder();
@@ -209,5 +210,6 @@ export function sessionOptions(
     clock: { now: () => Date.now(), scheduler: nodeScheduler() },
     config,
     log,
+    views: createViewTokens({ clock: { now: () => Date.now() } }),
   };
 }

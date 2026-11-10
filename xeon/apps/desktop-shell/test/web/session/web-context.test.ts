@@ -25,6 +25,7 @@ function tabOf(): Tab {
   const web = createWebContext({
     ...sessionOptions(socketPath, recordedLog()),
     deviceId: "dev_test",
+    tabId: "tab_test",
     send: (frame) => {
       sent.push(frame);
     },

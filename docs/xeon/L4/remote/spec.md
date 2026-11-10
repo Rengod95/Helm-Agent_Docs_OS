@@ -213,9 +213,12 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 브라우저에는 사용자 정의 스킴이 없다. 같은 프레임 파일 규칙(확장 이름과 버전 마디 검사, `app root` 밖 차단, GET·HEAD만, 프레임 CSP)을 HTTPS 경로로 옮긴다 [제안].
 
-- 주소: `https://<origin>/view/<권한토큰>/<확장>/<버전>/<경로>`. 권한 토큰은 탭 연결에 묶인 짧은 수명(1시간, 갱신)의 무작위 값이고, 쿠키 없이 경로로만 인증한다. 프레임의 하위 자원 요청이 쿠키 없이도 되게 하기 위해서다.
+- 주소: `https://<origin>/view/<권한토큰>/<확장>/<버전>/<경로>`(루프백 HTTP 리스너에서는 `http://`). 권한 토큰은 탭 연결에 묶인 짧은 수명(1시간)의 무작위 값(32바이트, base64url 43자)이고, 쿠키 없이 경로로만 인증한다. 프레임의 하위 자원 요청이 쿠키 없이도 되게 하기 위해서다. 토큰 원문은 저장하지 않고 SHA-256만 메모리 표의 키로 둔다.
+- 토큰의 수명: 앱 본 화면이 프레임을 열 때마다 셸 명령 `view_root`로 새 토큰을 받는다(답 `{path: "/view/<토큰>/", expiresAt}`). 토큰은 쓸 때마다 만료가 지금부터 1시간으로 밀리고(갱신), 발급 12시간을 넘기지 못한다. 그 뒤 프레임을 다시 그리면(화면을 다시 열기, "다시 켜기") 새 토큰이다. 탭이 닫히면 그 탭의 토큰이 모두 사라지고, 탭당 16개를 넘으면 오래된 것부터 지운다. 토큰은 그 탭의 `app_roots_set` 목록 하나를 가리키므로 다른 탭의 root는 보이지 않는다.
+- 라우트(`apps/desktop-shell/src/web/view/route.ts`): `GET`·`HEAD`만 받고(그 밖은 405), 질의 문자열이 있거나 주소 모양이 틀리면 400, 토큰이 없거나 모르거나 만료됐으면 401이다. 그 뒤의 규칙(확장 이름과 버전 마디 검사, 퍼센트 디코딩 한 번, `app root` 밖 차단과 심볼릭 링크 검사, 허용 확장자, 16 MiB, 거절 상태 코드 400·403·404·413)은 `fresnel-view://`와 같은 `view-scheme.ts`의 `resolve`·`respondWithBase`를 그대로 쓴다. 주소를 `fresnel-view://<확장>/<버전>/<경로>`로 바꿔 같은 함수에 넣으므로 시험 벡터도 같다. `Origin` 검사(§8.5)는 이 경로의 `GET`·`HEAD`에서 하지 않는다: sandbox 프레임의 모듈 스크립트가 `Origin: null`을 싣고, 읽기뿐이며 경로의 토큰이 인증이기 때문이다. 응답은 `Cross-Origin-Resource-Policy: cross-origin`으로 내보낸다(기본의 `same-origin`이면 불투명 출처의 프레임이 하위 자원을 받지 못한다). 응답에는 쿠키가 없다 [근거: `apps/desktop-shell/test/web/view/route.test.ts`].
 - 프레임은 `sandbox`(allow-same-origin 없음)로 연다. 불투명한 출처라 앱 문서의 쿠키·storage에 닿지 못한다.
-- 프레임 CSP는 `fresnel-view://<확장>/<버전>/`을 `'self'` 경로 접두(`/view/<토큰>/<확장>/<버전>/`)로 바꾼 같은 글자다. `view-scheme.ts`의 `frameCsp`와 TS `appFrameCsp`가 같은 표에서 나오므로 `{base}` 치환 한 곳만 바뀐다. 시험은 두 글자열이 base 외에는 같음을 비교한다.
+- 프레임 CSP는 `fresnel-view://<확장>/<버전>/`을 `<출처>/view/<토큰>/<확장>/<버전>/`(절대 주소 접두)로 바꾼 같은 글자다. 경로 접두 대신 절대 주소를 쓰는 것은 `'self'`가 불투명 출처 문서에서 엔진마다 다르게 풀리기 때문이다(`appFrameCsp` 주석). `view-scheme.ts`의 `frameCsp`와 TS `appFrameCsp`가 같은 표에서 나오므로 `{base}` 치환 한 곳만 바뀐다. 클라이언트에서는 `buildAppUrl`·`appBase`의 뿌리(`DESKTOP_FRAME_ROOT` = `fresnel-view://`, 웹은 `webFrameRoot(origin, path)`)가 그 한 곳이다. 시험은 두 글자열이 base 외에는 같음을 비교한다(`scheme-web.test.ts`, `view/route.test.ts`).
+- 웹 문서는 `http:`·`https:`로 열린 앱 문서로 판별하고(`isWebDocument`), 이때는 Windows 브라우저도 프레임을 켠다(데스크톱의 Windows 제외는 전용 스킴 주소 때문이다).
 - 앱 본 화면의 `postMessage` 다리는 그대로다. `main.ts`의 발신 검사(최상위 프레임, 우리 출처)는 웹에서 게이트웨이의 Origin 검사(§8.5)와 `/shell`의 쿠키 인증이 대신한다. 프레임에는 `/shell` 통로가 없다.
 
 ## 7. 여러 기기 동시 접속

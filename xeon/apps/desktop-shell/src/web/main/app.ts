@@ -15,6 +15,7 @@ import { createPushService } from "../push/service.ts";
 import { createGateway, type GatewayInfo, type TlsListenerOptions } from "../server/gateway.ts";
 import { connectServiceSocket } from "../server/service-connection.ts";
 import { createTabSessionFactory } from "../session/tab-session.ts";
+import { createViewTokens } from "../view/tokens.ts";
 import { buildShimSource } from "../shim/build.ts";
 import { buildServiceWorkerSource } from "../static/sw-build.ts";
 import { prepareTls } from "../tls/store.ts";
@@ -92,7 +93,9 @@ export async function createWebApp(config: WebAppConfig): Promise<Result<WebApp,
       logger.info("web.tab", { message });
     },
   };
+  const views = createViewTokens({ clock });
   const sessions = createTabSessionFactory({
+    views,
     env: config.env,
     platform: config.platform,
     arch: config.arch,
@@ -116,6 +119,7 @@ export async function createWebApp(config: WebAppConfig): Promise<Result<WebApp,
     connectService: connectServiceSocket,
     loopback: { port: options.loopbackPort },
     tls: tls.value,
+    views,
     clock,
     logger,
   });
