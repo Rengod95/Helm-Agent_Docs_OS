@@ -30,14 +30,15 @@ import { parseArgs, USAGE_TEXT } from "./main/args.ts";
 import { controlHandler, type ControlEvent, type ControlReply } from "./main/control.ts";
 import { describeError } from "./main/errors.ts";
 import { createStderrLogger } from "./main/log.ts";
+import { resourcesDirOf } from "./main/resources.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** 빌드된 UI 번들 폴더(데스크톱 화면과 같다). `--ui`로 바꾼다 */
 const DEFAULT_UI_DIR = path.resolve(HERE, "../../../desktop/dist/ui");
 /** 로그인 화면 파일 폴더 */
 const STATIC_DIR = path.resolve(HERE, "static");
-/** 사이드카 찾기의 기준 폴더(데스크톱 셸 패키지 폴더) */
-const RESOURCES_DIR = path.resolve(HERE, "../..");
+/** 사이드카 찾기의 기준 폴더(개발 트리는 데스크톱 셸 패키지 폴더, 빌드된 게이트웨이는 실행 파일 옆). `resourcesDirOf`가 고른다 */
+const RESOURCES_DIR = resourcesDirOf(HERE, process.execPath);
 
 interface ReadyEvent {
   readonly event: "ready";

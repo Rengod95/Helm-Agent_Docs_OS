@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { attemptAsync, parseJson } from "@fresnel/contracts";
@@ -8,7 +8,6 @@ import { attemptAsync, parseJson } from "@fresnel/contracts";
 
 const XEON = resolve(import.meta.dir, "../../../..");
 const SERVICE_SCRIPT = join(XEON, "scripts/web-e2e/service.ts");
-const CLI_MAIN = join(XEON, "apps/cli/src/main.ts");
 const GATEWAY_MAIN = join(XEON, "apps/desktop-shell/src/web/main.ts");
 export const UI_DIR: string = join(XEON, "apps/desktop/dist/ui");
 const TIMEOUT_MS = 60_000;
@@ -142,32 +141,6 @@ export async function startStack(): Promise<Stack> {
       "l0.sandbox.enabled": false,
     }),
   );
-  // 웹 연결에서는 키를 입력할 수 없고(`이 연결에서는 키를 입력할 수 없어요`) 서비스 연결은 CLI의 키 값을 받지 않으므로, 서비스를 띄우기 전에
-  // 더미 값을 임시 홈에 CLI로 등록한다. 테이프 provider는 내장 목록에 없어 연결 정책이 자동으로 붙지 않으므로 메타 파일에 그 호출 하나만 허용한다
-  // (모드 runtime-http, 목적 model.provider:tape, 호스트 127.0.0.1:9. HS-45가 연결로 붙이는 정책과 같은 값)
-  const added = Bun.spawnSync(["bun", CLI_MAIN, "secret", "add", "tape-api-key"], {
-    cwd: XEON,
-    env: { ...process.env, FRESNEL_HOME: home },
-    stdin: new TextEncoder().encode("not-a-real-key"),
-    stdout: "ignore",
-    stderr: "pipe",
-  });
-  if (added.exitCode !== 0) {
-    rmSync(base, { recursive: true, force: true });
-    throw new Error(`secret add failed: ${added.stderr.toString().slice(0, 300)}`);
-  }
-  const metaPath = join(home, "config", "secrets", "meta", "tape-api-key.yaml");
-  const meta = readFileSync(metaPath, "utf8");
-  const granted = meta
-    .replace("  modes: []", "  modes: [runtime-http]")
-    .replace("  tools: []", "  tools: [model.provider:tape]")
-    .replace("  hosts: []", "  hosts: [127.0.0.1:9]")
-    .replace("approval: per-session", "approval: none");
-  if (granted === meta) {
-    rmSync(base, { recursive: true, force: true });
-    throw new Error("the secret meta file has an unexpected shape");
-  }
-  writeFileSync(metaPath, granted);
 
   const children: Bun.Subprocess[] = [];
   const gateways: Gateway[] = [];
@@ -227,7 +200,8 @@ export async function startStack(): Promise<Stack> {
         UI_DIR,
       ],
       {
-        env: { ...process.env, HOME: join(base, "user-home") },
+        // 게이트웨이의 시크릿 등록(사이드카)은 이 임시 홈에 쓴다. 실제 홈으로 새지 않게 FRESNEL_HOME을 서비스와 같이 준다
+        env: { ...process.env, HOME: join(base, "user-home"), FRESNEL_HOME: home },
         stdin: "pipe",
         stdout: "pipe",
         stderr: process.env["FRESNEL_WEB_E2E_VERBOSE"] === "1" ? "inherit" : "ignore",
