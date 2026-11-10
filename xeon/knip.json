@@ -4,7 +4,7 @@
   "ignore": ["external/**", "examples/**"],
   "workspaces": {
     ".": {
-      "entry": ["scripts/*.ts"],
+      "entry": ["scripts/*.ts", "scripts/web-e2e/*.ts"],
       "ignoreDependencies": ["@swc/core", "tailwindcss"]
     },
     "packages/*": {
@@ -50,6 +50,7 @@
       "entry": [
         "test/**/*.test.{ts,tsx}",
         "test/**/*.benchmark.ts",
+        "test/web-e2e/*.e2e.ts",
         "mockups/*/main.tsx",
         "src/styles.css"
       ],
