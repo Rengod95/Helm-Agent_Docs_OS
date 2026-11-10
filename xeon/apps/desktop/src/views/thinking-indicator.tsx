@@ -24,7 +24,7 @@ function dashOf(segments: number): string {
 }
 
 export function ThinkingIndicator(props: {
-  /** 한 변(px). 생각 줄 아이콘 자리는 16, 첫 응답 대기는 더 크게 */
+  /** 한 변(px). 기본은 16, 첫 응답 대기는 24 */
   readonly size?: number;
   /** 움직이는지. 끝난 생각은 false(정지 모양) */
   readonly active: boolean;

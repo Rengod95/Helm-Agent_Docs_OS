@@ -41,7 +41,6 @@ import { hookDenialOf, isUserDenial, type HookDenialView } from "./hook-denial-m
 import { CallChip, type CallChipTone } from "./call-chip.tsx";
 import { sandboxBlocksOf, type SandboxBlockView } from "./sandbox-block-model.ts";
 import { thinkingModeOf, toolRowModeOf, toolRowOpenOf } from "./item-detail-model.ts";
-import { ThinkingIndicator } from "./thinking-indicator.tsx";
 import { toolOutputOf } from "./tool-output-model.ts";
 import { useTranscriptDetail } from "./transcript-detail.ts";
 import {
@@ -124,8 +123,6 @@ function Collapsible(props: {
   readonly defaultOpen?: boolean;
   /** 단추에 더하는 클래스(생각 토글의 여백과 글 크기) */
   readonly toggleClassName?: string;
-  /** 글 앞 아이콘 자리(생각 표시) */
-  readonly icon?: ReactNode;
 }): ReactNode {
   const defaultOpen = props.defaultOpen === true;
   const [open, setOpen] = useState(defaultOpen);
@@ -153,7 +150,6 @@ function Collapsible(props: {
               : "transition-transform duration-quick"
           }
         />
-        {props.icon}
         {props.summary}
       </Button>
       {open ? props.children : null}
@@ -836,7 +832,6 @@ function RecordBody(props: { readonly item: ItemRecord; readonly unsent: boolean
                     summary={t("desktop.item.thinking")}
                     defaultOpen={thinking === "open"}
                     toggleClassName={THINK_TOGGLE_CLASS}
-                    icon={<ThinkingIndicator active={false} />}
                   >
                     <p className={THINK_BODY_CLASS}>{block.thinking}</p>
                   </Collapsible>
@@ -973,12 +968,6 @@ export const StreamingRow: NamedExoticComponent<{ readonly id: ItemId }> = memo(
           ) : (
             item.parts.map((part, i) => (
               <p key={part.partId} className={TEXT_CLASS}>
-                {part.kind === "thinking" ? (
-                  <ThinkingIndicator
-                    active={!part.done}
-                    className="mr-1.5 inline-block align-[-3px]"
-                  />
-                ) : null}
                 <StreamingPartText
                   id={props.id}
                   index={part.contentIndex}
