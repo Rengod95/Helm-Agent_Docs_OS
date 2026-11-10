@@ -21,6 +21,14 @@ describe("errorOf", () => {
     });
   });
 
+  test("remote.off (5008) is a rejection the remote adapter reads as remote-off", () => {
+    expect(errorOf(wireError("remote.off"))).toEqual({
+      kind: "rejected",
+      code: 5008,
+      issue: "remote-off",
+    });
+  });
+
   test("thread.locked keeps the owner and only the options this screen can draw", () => {
     const locked = wireError("thread.locked", {
       details: { ownerKind: "cli", options: ["observe", "fork", "delegate"] },

@@ -4,8 +4,10 @@ import {
   deviceRowOf,
   fingerprintDisplay,
   isPairingExpired,
+  pairingCodeDisplay,
   pairingRemainingLabel,
   pairingRemainingMs,
+  pushShownAvailable,
   serverModeOf,
   sortDevices,
   type ServerMode,
@@ -176,5 +178,28 @@ describe("sortDevices", () => {
     const input = [deviceOf("a", NOW, null), deviceOf("b", NOW, NOW)];
     sortDevices(input);
     expect(input.map((device) => device.id)).toEqual(["a", "b"]);
+  });
+});
+
+describe("push availability and pairing code display", () => {
+  const RUNNING: RemoteStatus = {
+    ...OFF,
+    enabled: true,
+    state: "running",
+    certSource: "self-signed",
+    pushAvailable: true,
+  };
+
+  test("push is shown available only when the service can send and the certificate is not self-signed", () => {
+    expect(pushShownAvailable(RUNNING)).toBe(false);
+    expect(pushShownAvailable({ ...RUNNING, certSource: "user" })).toBe(true);
+    expect(pushShownAvailable({ ...RUNNING, certSource: "user", pushAvailable: false })).toBe(
+      false,
+    );
+  });
+
+  test("a ten-character code is shown as two groups of five, other lengths stay as they are", () => {
+    expect(pairingCodeDisplay("7QX9M2KD4T")).toBe("7QX9M-2KD4T");
+    expect(pairingCodeDisplay("481920")).toBe("481920");
   });
 });

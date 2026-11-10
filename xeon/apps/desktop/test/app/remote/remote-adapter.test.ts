@@ -122,12 +122,18 @@ describe("remote adapter: errors", () => {
     );
   });
 
-  test("a rejection with only a code, or an unsupported host, is a failure without a message", async () => {
+  test("a rejection with only a code is a failure without a message", async () => {
     const coded = adapterReplying(err({ kind: "rejected", code: 3002 }));
     expect(await coded.adapter.pair()).toEqual(err({ kind: "failed", message: null }));
+  });
 
+  test("an old service without host.remote.* is unsupported, apart from offline and timeout", async () => {
     const old = adapterReplying(err({ kind: "unsupported" }));
-    expect(await old.adapter.status()).toEqual(err({ kind: "failed", message: null }));
+    expect(await old.adapter.status()).toEqual(err({ kind: "unsupported" }));
+    const offline = adapterReplying(err({ kind: "offline" }));
+    expect(await offline.adapter.status()).toEqual(err({ kind: "failed", message: null }));
+    const slow = adapterReplying(err({ kind: "rejected", code: null, issue: "timeout" }));
+    expect(await slow.adapter.status()).toEqual(err({ kind: "failed", message: "timeout" }));
   });
 
   test("a reply whose shape is wrong for the method is bad-reply, not a crash", async () => {

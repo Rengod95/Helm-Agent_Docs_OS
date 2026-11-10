@@ -41,7 +41,7 @@ import { THINKING_LEVEL_KEY, thinkingChangeConcerns } from "../views/thinking-le
 import { approvalFailureOf } from "./approval-outcome.ts";
 import { errorOf } from "./command-error.ts";
 import { createConnectionCommands } from "./connection.ts";
-import { unavailableRemoteAdapter } from "./remote/remote-wiring.ts";
+import { remoteAdapterOf } from "./remote/remote-wiring.ts";
 import { createScheduleCommands } from "./schedule.ts";
 import { createRestoreCommands } from "./restore.ts";
 import { createSecretCommands } from "./secrets.ts";
@@ -511,7 +511,7 @@ export function createCommands(deps: CommandDeps): Commands {
     schedule: createScheduleCommands(withConnection, () => connectionCommands.setServiceMode(true)),
     pluginUi: { withConnection, current: () => session.connection() },
     connection: connectionCommands,
-    remote: unavailableRemoteAdapter(),
+    remote: remoteAdapterOf(withConnection),
     secrets: createSecretCommands({ session, ipc: deps.ipc, clipboard: deps.clipboard }),
     restore: createRestoreCommands({ ipc: deps.ipc, engineSwitch: deps.engineSwitch }),
     storage: createStorageCommands({ ipc: deps.ipc, engineSwitch: deps.engineSwitch }),

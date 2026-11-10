@@ -12,6 +12,19 @@ import {
 /** 방금 연결한 것으로 치는 범위(밀리초) */
 const RECENT_MS = 60_000;
 
+/**
+ * 웹 푸시를 쓸 수 있다고 보이는가. 계약의 `pushAvailable`은 서비스 쪽 발송 준비(실행 중)이다. 브라우저는 신뢰되지 않는 자체 서명 출처에서
+ * 푸시 구독을 허용하지 않으므로(스펙 §6.2, §11) 자체 서명이면 화면은 "쓸 수 없음"으로 보인다.
+ */
+export function pushShownAvailable(status: RemoteStatus): boolean {
+  return status.pushAvailable && status.certSource !== "self-signed";
+}
+
+/** 페어링 코드(계약은 하이픈 없는 10자)를 읽기 쉽게 다섯 글자씩 하이픈으로 나눈다. 10자가 아니면 그대로 둔다 */
+export function pairingCodeDisplay(code: string): string {
+  return code.length === 10 ? `${code.slice(0, 5)}-${code.slice(5)}` : code;
+}
+
 /** 서버 모드. `service`는 이 기기 서비스만 돈다. `service+remote`는 원격 접속까지 켜져 있다 */
 export type ServerMode = "off" | "service" | "service+remote";
 

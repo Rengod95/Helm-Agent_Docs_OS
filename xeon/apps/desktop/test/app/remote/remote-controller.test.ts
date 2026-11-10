@@ -475,6 +475,25 @@ describe("원격 접속 컨트롤러: 주기 읽기", () => {
     expect(h.timers.pending()).toBe(1);
   });
 
+  test("외부 접속이 실행 중으로 바뀌는 순간 기기 목록을 바로 다시 읽는다(주기를 기다리지 않는다)", async () => {
+    const h = harnessOf();
+    h.controller.start();
+    await settle();
+    await h.controller.selectMode("service+remote", true);
+    await h.controller.confirmRemote();
+    const devicesReads = () => h.fake.calls.filter((call) => call.method === "devices").length;
+    expect(devicesReads()).toBe(1);
+
+    h.fake.advance();
+    await tick(h, 3000);
+    expect(h.controller.state().status).toEqual({ kind: "ready", value: RUNNING });
+    expect(devicesReads()).toBe(2);
+
+    // 이미 실행 중이면 상태를 다시 읽어도 목록을 더 읽지 않는다
+    await h.controller.reloadStatus();
+    expect(devicesReads()).toBe(2);
+  });
+
   test("시작한 뒤에는 기기 목록을 15000ms마다 다시 읽는다", async () => {
     const h = harnessOf();
     h.controller.start();

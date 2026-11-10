@@ -1,20 +1,24 @@
-import { err } from "@fresnel/contracts";
+import type { Result } from "@fresnel/contracts";
+import type { HostConnection } from "@fresnel/contracts/wire";
 import type { CommandError } from "../../views/commands.ts";
 import { createRemoteAdapter, type RemoteAdapter, type RemoteRequester } from "./remote-adapter.ts";
 
-// ──────────────────────────────────────────────────────────────────────────────
-// 계약 타입(host.remote.*)이 contracts에 들어오면 오케스트레이터가 이 파일만 typed 요청으로 바꾼다. 그 전에는 이 어댑터가 항상 지원 안 함으로 답한다
-// ──────────────────────────────────────────────────────────────────────────────
+// 원격 접속 어댑터를 실제 연결(`HostConnection`)에 잇는다. 메서드 이름과 인자는 계약의 닫힌 표가 검사하므로 `as`가 없다.
+// 오류는 `withConnection`이 `errorOf`로 바꾼다(`remote.off` 5008은 `rejected.issue: "remote-off"`, -32601은 `unsupported`).
 
-/** 엔진이 모르는 메서드(-32601)와 같은 오류. 아직 연결되지 않은 원격 명령은 모두 이것으로 끝난다 */
-const UNSUPPORTED: CommandError = { kind: "unsupported" };
+/** 연결을 빌려 쓰는 함수. `app/commands.ts`의 `withConnection`이 이 모양이다 */
+export type WithConnection = <T>(
+  run: (connection: HostConnection) => Promise<T>,
+) => Promise<Result<T, CommandError>>;
 
-/** 연결되지 않은 요청자. 어떤 `host.remote.*` 요청이든 `unsupported`로 답한다 */
-const unavailableRequester: RemoteRequester = {
-  request: () => Promise.resolve(err(UNSUPPORTED)),
-};
+/** 실제 연결로 `host.remote.*`를 보내는 요청자 */
+function createRemoteRequester(withConnection: WithConnection): RemoteRequester {
+  return {
+    request: (method, params) => withConnection((connection) => connection.request(method, params)),
+  };
+}
 
-/** 원격 접속 어댑터의 자리. 계약 병합 전까지 모든 호출이 `unsupported`로 끝난다 */
-export function unavailableRemoteAdapter(): RemoteAdapter {
-  return createRemoteAdapter(unavailableRequester);
+/** 원격 접속 어댑터. 연결이 없으면 `failed`, 엔진이 옛 버전이면 `unsupported`로 끝난다 */
+export function remoteAdapterOf(withConnection: WithConnection): RemoteAdapter {
+  return createRemoteAdapter(createRemoteRequester(withConnection));
 }

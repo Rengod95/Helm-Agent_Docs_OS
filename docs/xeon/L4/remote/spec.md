@@ -204,7 +204,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 ### 6.2 알림
 
 - 탭이 열려 있는 동안은 Notification API를 쓴다.
-- 탭이 닫힌 뒤의 푸시(Web Push)를 이번 범위에 넣는다 [결정: 2026-11-08 사용자]. 서비스 워커와 외부 푸시 서비스(FCM, Mozilla autopush, Apple)를 거치므로 브라우저가 신뢰하는 HTTPS 출처가 필요하다. 신뢰되지 않는 자체 서명 인증서에서는 브라우저가 서비스 워커 등록을 거절하므로 푸시는 사용자 인증서 경로(§8.2)를 쓰는 출처나 `localhost`에서만 켜진다 [가정: 실측 필요, 브라우저별 차이는 W2가 확인]. 푸시가 안 되는 출처에서는 탭이 열려 있는 동안의 Notification API와 탭 제목 접두만 쓴다(§11).
+- 탭이 닫힌 뒤의 푸시(Web Push)를 이번 범위에 넣는다 [결정: 2026-11-08 사용자]. 서비스 워커와 외부 푸시 서비스(FCM, Mozilla autopush, Apple)를 거치므로 브라우저가 신뢰하는 HTTPS 출처가 필요하다. 신뢰되지 않는 자체 서명 인증서에서는 브라우저가 서비스 워커 등록을 거절하므로 푸시는 사용자 인증서 경로(§8.2)를 쓰는 출처나 `localhost`에서만 켜진다 [가정: 실측 필요, 브라우저별 차이는 W2가 확인]. 푸시가 안 되는 출처에서는 탭이 열려 있는 동안의 Notification API와 탭 제목 접두만 쓴다(§11). [확인: 2026-11-10 rmWi] wire `host.remote.status`의 `pushAvailable`은 서비스 쪽 발송 준비(게이트웨이가 실행 중)일 뿐 브라우저 신뢰를 말하지 않는다. 연결 화면은 `certSource`가 `self-signed`이면 `pushAvailable`이 참이어도 "이 주소에서는 꺼져 있어요"로 보인다(`pushShownAvailable`).
 - VAPID 키(RFC 8292): origin이 ECDSA P-256 키 한 쌍을 처음 필요할 때 만들어 `<origin 상태 폴더>/remote/vapid.json`(0600)에 둔다. 형식은 `{"version": 1, "publicKey": <비압축 점 65바이트의 base64url>, "privateKey": <스칼라 base64url>, "createdAt": <ms>}`이다. 공개 키는 브라우저 `applicationServerKey`이고 개인 키는 JWT(ES256, `aud`는 푸시 서비스 주소의 출처, 만료는 24시간 이하)를 서명하는 데만 쓴다. 파일이 손상이거나 키 쌍이 어긋나면 새로 만들지 않고 오류로 알린다(새 키는 기존 구독을 모두 무효로 만든다). 키 교체 기능은 두지 않는다.
 - 구독 저장: 브라우저가 `PushSubscription.toJSON()`을 보내면 검증해 기기에 묶어 `<origin 상태 폴더>/remote/push-subscriptions.json`(0600)에 둔다. 형식은 `{"version": 1, "subscriptions": [{endpoint, p256dh, auth, deviceId, createdAt}]}`이다. 검증: endpoint는 2048자 이하의 `https` 주소이고 계정 정보가 없어야 하며 IP 주소, `localhost`, `.local`, `.internal`, 점 없는 이름은 받지 않는다(게이트웨이가 나중에 부르는 주소라 내부 망으로 가는 요청을 막는다). `p256dh`는 비압축 점 65바이트, `auth`는 16바이트의 base64url이다. 같은 endpoint는 하나만 두고 마지막에 구독한 기기의 것이 된다. 기기마다 10개까지이고 넘으면 오래된 것부터 지운다. 기기를 폐기하면 그 기기의 구독도 지운다(§8.3 5). 푸시 서비스가 410을 돌려준 구독은 게이트웨이가 endpoint로 지운다.
 - 발송(페이로드 암호화 `aes128gcm`, HTTP 호출, 재시도)과 서비스 워커는 W2·W3이다. 푸시 페이로드는 제목과 대화 식별자 정도로 줄이고 본문 전체와 시크릿 값을 싣지 않는다 [제안].
@@ -246,7 +246,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 ### 8.3 기기 페어링과 토큰
 
-1. origin 사용자가 데스크톱(설정 > 연결 > 이 컴퓨터에 접속 허용)이나 `fresnel service pair`로 페어링 코드를 만든다. 코드는 10자(Crockford base32, 약 50비트), 5분 유효, 한 번 쓰면 폐기, 동시에 하나만 유효하다. 새 코드를 만들면 쓰지 않은 이전 코드는 그 순간 폐기된다. 입력은 대소문자와 공백·하이픈을 가리지 않고 헷갈리는 글자(I, L → 1, O → 0)를 Crockford 규칙으로 바꿔 받는다.
+1. origin 사용자가 데스크톱(설정 > 연결 > 이 컴퓨터에 접속 허용)이나 `fresnel service pair`로 페어링 코드를 만든다. 코드는 10자(Crockford base32, 약 50비트), 5분 유효, 한 번 쓰면 폐기, 동시에 하나만 유효하다. 새 코드를 만들면 쓰지 않은 이전 코드는 그 순간 폐기된다. 입력은 대소문자와 공백·하이픈을 가리지 않고 헷갈리는 글자(I, L → 1, O → 0)를 Crockford 규칙으로 바꿔 받는다. [확인: 2026-11-10 rmWi] wire `host.remote.pair`의 `code`는 하이픈 없는 10자다(계약 `minLength` = `maxLength` = 10). 연결 화면은 읽기 쉽게 다섯 글자씩 하이픈으로 나눠 보이고, 복사는 하이픈 없는 값이다.
 2. 새 기기가 `/login`에서 코드와 기기 이름을 `POST /pair`로 보낸다. 기기 종류(`web` 또는 `desktop`)도 함께 보낸다. 실패 5번이면 코드를 폐기하고 15분 잠근다. 세는 방식은 위 문장을 글자대로 옮긴 것이다 [결정: 구현 W1].
    - 주소별 5번이면 그 주소를 15분 잠그고, 전체(모든 주소 합) 5번이면 모두를 15분 잠근다. 어느 쪽이든 그 순간 유효한 코드를 폐기한다. 잠금 중에는 맞는 코드도 `locked`로 거절한다.
    - 센 값은 잠금 시간(15분)이 지나면 잊고, 성공하면 지운다. 상태는 메모리에만 있다(게이트웨이를 다시 띄우면 코드도 잠금도 사라진다).
@@ -318,6 +318,8 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 | `l4.remote.launchAtLogin` | 거짓 | D 방식 등록(§4.2) |
 
 [확인: 2026-11-09 W3] 구현한 키는 `l4.remote.web.enabled`, `listen`, `listenTls`, `hosts`, `tlsCert`, `tlsKey`(모두 managed·user 범위만, 값을 바꾸면 서비스를 다시 띄워야 한다)다. 빈 문자열은 "없음"(`listenTls`, `tlsCert`, `tlsKey`)이다. `sessionHours`와 `launchAtLogin`은 W6 이후다. `listen`의 기본은 이 표의 `127.0.0.1:8480`이고 오케스트레이터 브리프의 `0.0.0.0:7443`은 따르지 않았다(스펙을 따른다: 외부 주소는 `listenTls`가 맡고 루프백 `listen`은 비루프백을 받지 않는다).
+
+[확인: 2026-11-10 rmWi] 데스크톱 "서비스 + 외부 접근"은 `host.remote.setEnabled(true)`만 보낸다. `listenTls`가 비어 있으면 TLS 리스너는 열리지 않고(`tlsPort`와 `fingerprint`가 `null`) 연결 화면에는 루프백 주소만 보인다. 실제 흐름(임시 홈, `listenTls=127.0.0.1:18443`, `listen=127.0.0.1:18480`을 CLI `config set`으로 먼저 설정하고 서비스를 다시 띄움)에서 켜기, 지문, 코드 발급, 코드 로그인, 기기 목록, 폐기, 탭 끊김이 모두 됐다. [미결: 사용자 결정] 데스크톱이 `listenTls`를 직접 정하게 할지(제안: 비어 있으면 확인 대화 상자에서 포트를 묻고 설정을 쓴 뒤 서비스를 다시 띄운다). [근거: 2026-11-10 rmWi 실행 확인, `apps/host/src/service/gateway.ts`의 `listenTls` 처리]
 
 ## 11. 실패와 경계 사례
 
