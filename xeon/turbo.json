@@ -25,6 +25,10 @@
       ],
       "outputs": [
         "dist/.tsbuildinfo",
+        "dist/*.d.ts",
+        "dist/*.d.ts.map",
+        "dist/*.js",
+        "dist/*.js.map",
         "dist/src/**",
         "dist/test/**",
         "dist/scripts/**",
