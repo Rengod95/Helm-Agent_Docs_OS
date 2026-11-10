@@ -207,6 +207,7 @@ desktop-benchmark *flags:
 [group('local')]
 web-e2e *flags:
     [ -f apps/desktop/dist/ui/index.html ] || {  echo "화면 번들이 없다: just desktop-ui" >&2; exit 2; }
+    ls apps/desktop/dist/sidecar/fresnel-* >/dev/null 2>&1 || { echo "사이드카가 없다: just desktop-sidecar host (웹 키 입력은 사이드카로 한다)" >&2; exit 2; }
     if [ "{{flags}}" = "--bench" ]; then bash ../scripts/guard.sh run -- {{bun}} apps/desktop/test/web-e2e/web.benchmark.ts; else bash ../scripts/guard.sh run -- {{bun}} test ./apps/desktop/test/web-e2e/web.e2e.ts {{flags}}; fi
 
 # 서버 측정 결과의 예산 판정: 예산이 사용자 결정 대기면 통과, 넘으면 실패, --strict면 대기도 실패 (scripts/benchmark-gate.ts)

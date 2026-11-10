@@ -23,6 +23,20 @@ const THREAD_ROW = `[...document.querySelectorAll('button[data-slot="list-naviga
 const UNREACHABLE = "서버에 닿지 않아요";
 const REPLY = "tape-reply: hello from the fake model";
 const FINAL = "tape-final: the command finished";
+/** 테이프 키의 더미 값. 웹 첫 실행 화면으로 넣고, 사이드카가 임시 홈에 쓴다(실제 키가 아니다) */
+const TAPE_KEY_DUMMY = "not-a-real-key";
+
+/**
+ * 첫 실행 화면에서 테이프 키를 넣고 제공자에 잇는다. 제공자 칸의 기본값은 anthropic이라 먼저 tape로 바꾼다.
+ * 사이드카가 임시 홈에 시크릿을 쓰고, 저장이 되면 화면이 "제공자에 연결했어요."를 보인다
+ */
+async function enterTapeKey(tab: Tab): Promise<void> {
+  await tab.fill("제공자", "tape");
+  await tab.clickText("키 등록");
+  await tab.fill("키 값", TAPE_KEY_DUMMY);
+  await tab.clickText("저장");
+  await tab.waitForText("제공자에 연결했어요.");
+}
 
 /** 값이 객체면 그 항목 표, 아니면 빈 표 */
 function mapOf(value: unknown): ReadonlyMap<string, unknown> {
@@ -87,6 +101,10 @@ describe("browser E2E", () => {
     const session = await tabA.eval(`fetch('/api/session').then((r) => r.status)`);
     expect(session).toBe("200");
     expect(await gateway.deviceIds()).toHaveLength(2);
+    // 키는 웹의 첫 실행 화면에서 넣는다(데스크톱과 같은 사이드카 길). 메타 파일이 생긴 뒤 테이프 호출 허용을 더하고, 두 탭을 다시 읽는다
+    await enterTapeKey(tabA);
+    await tabA.reload();
+    await tabB.reload();
   });
 
   test("criterion 3 and 4: a conversation made in tab A shows up in tab B", async () => {
