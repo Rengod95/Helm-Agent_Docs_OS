@@ -4,6 +4,11 @@
   "entry": "../cli/src/main.ts",
   "workers": ["../../packages/cap-web/src/fetch/convert-worker.ts"],
   "maxSizeMiB": 500,
+  "gateway": {
+    "name": "fresnel-web",
+    "entry": "../desktop-shell/src/web/main.ts",
+    "maxSizeMiB": 150
+  },
   "targets": {
     "aarch64-apple-darwin": "bun-darwin-arm64",
     "x86_64-apple-darwin": "bun-darwin-x64",

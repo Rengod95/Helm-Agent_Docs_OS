@@ -53,6 +53,8 @@ export function parseSums(
 export function requiredPaths(triple: string): readonly string[] {
   const common = [
     triple.includes("-windows-") ? "fresnel.exe" : "fresnel",
+    triple.includes("-windows-") ? "fresnel-web.exe" : "fresnel-web",
+    "ui/index.html",
     "group-sdk/templates/index.json",
     "default-plugins/helm/.fresnel-plugin/plugin.json",
     "THIRD-PARTY-NOTICES.txt",

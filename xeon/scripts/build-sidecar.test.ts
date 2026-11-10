@@ -421,3 +421,55 @@ test("the shipped sidecar.json lists the web convert worker and the file exists"
   const worker = join(import.meta.dir, "..", "apps", "desktop", config.value.workers?.[0] ?? "");
   expect(existsSync(worker)).toBe(true);
 });
+
+test("the shipped sidecar.json names the web gateway build and its entry exists", () => {
+  const parsed = parseSidecarConfig(realConfigText());
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok) return;
+  expect(parsed.value.gateway?.name).toBe("fresnel-web");
+  const entry = parsed.value.gateway?.entry ?? "";
+  expect(existsSync(join(import.meta.dir, "..", "apps", "desktop", entry))).toBe(true);
+});
+
+test("a gateway build compiles the gateway entry as fresnel-web-<triple> under the gateway size cap and without workers", async () => {
+  const config = JSON.stringify({
+    ...CONFIG,
+    gateway: { name: "fresnel-web", entry: "../desktop-shell/src/web/main.ts", maxSizeMiB: 150 },
+  });
+  const { io, calls } = fakeIo({ config, size: 75 * MIB });
+  const result = await buildSidecar(
+    { desktopDir: DESKTOP, triple: "aarch64-apple-darwin", bytecode: true, gateway: true },
+    io,
+  );
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.value.outFile).toBe(`${DESKTOP}/dist/sidecar/fresnel-web-aarch64-apple-darwin`);
+  expect(result.value.maxBytes).toBe(150 * MIB);
+  expect(calls.args[0]).toEqual([
+    "build",
+    "--compile",
+    "--minify",
+    "--bytecode",
+    "--target=bun-darwin-arm64",
+    "/work/apps/desktop-shell/src/web/main.ts",
+    "--outfile",
+    `${DESKTOP}/dist/sidecar/fresnel-web-aarch64-apple-darwin`,
+  ]);
+  const over = await buildSidecar(
+    { desktopDir: DESKTOP, triple: "aarch64-apple-darwin", bytecode: true, gateway: true },
+    fakeIo({ config, size: 150 * MIB + 1 }).io,
+  );
+  expect(over.ok).toBe(false);
+});
+
+test("a gateway build without a gateway section is a config error and runs nothing", async () => {
+  const { io, calls } = fakeIo({ config: CONFIG_TEXT, size: MIB });
+  const result = await buildSidecar(
+    { desktopDir: DESKTOP, triple: "aarch64-apple-darwin", bytecode: true, gateway: true },
+    io,
+  );
+  expect(result.ok).toBe(false);
+  if (result.ok) return;
+  expect(result.error.kind).toBe("config.invalid");
+  expect(calls.args).toEqual([]);
+});

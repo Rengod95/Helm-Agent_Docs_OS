@@ -3,6 +3,8 @@
 // to it, then packs one archive per target:
 //   fresnel-<version>-<triple>/
 //     fresnel                         the compiled binary (the resource directory is its parent, hostResourceDir())
+//     fresnel-web, ui/                the web gateway program and the UI bundle (apps/desktop/dist/ui) it serves; the service
+//                                     looks for both next to `fresnel` (apps/host gateway-command.ts)
 //     group-sdk/templates/         group templates for `fresnel group new` (locateGroupTemplates)
 //     default-plugins/<name>/      default plugin bundles (installDefaultPlugins)
 //     binaries/<name> + binaries.lock.json   bundled external binaries (macOS only, L0.os.spec 3.6)
@@ -271,16 +273,27 @@ export interface ReleaseRequest {
 }
 
 /** The build-sidecar command of one release: the release version is injected into the binary (L4.release.spec 8.1). */
-export function sidecarCommand(triple: string, version: string, outDir: string): string[] {
+export function sidecarCommand(
+  triple: string,
+  version: string,
+  outDir: string,
+  gateway: boolean = false,
+): string[] {
   return [
     process.execPath,
     join("scripts", "build-sidecar.ts"),
     triple,
+    ...(gateway ? ["--gateway"] : []),
     "--version",
     version,
     "--out-dir",
     outDir,
   ];
+}
+
+/** The UI bundle `bun run --cwd apps/desktop build:ui` writes; the archive ships it next to the gateway. */
+export function uiBundleDir(fresnelRoot: string): string {
+  return join(fresnelRoot, "apps", "desktop", "dist", "ui");
 }
 
 /** Where a release build puts its own sidecar: next to the archive, never the development sidecar path. */
@@ -319,6 +332,26 @@ export async function buildRelease(request: ReleaseRequest): Promise<Result<stri
   }
   const sidecar = join(sidecarDir, outputFileName("fresnel", triple));
   if (!existsSync(sidecar)) return fail({ kind: "input.missing", path: sidecar });
+  if (request.build) {
+    const gatewayBuilt = await run(
+      "build-sidecar --gateway",
+      sidecarCommand(triple, version, sidecarDir, true),
+      fresnelRoot,
+    );
+    if (!gatewayBuilt.ok) return gatewayBuilt;
+    const uiBuilt = await run(
+      "build-ui",
+      [process.execPath, "run", "--cwd", join("apps", "desktop"), "build:ui"],
+      fresnelRoot,
+    );
+    if (!uiBuilt.ok) return uiBuilt;
+  }
+  const gateway = join(sidecarDir, outputFileName("fresnel-web", triple));
+  if (!existsSync(gateway)) return fail({ kind: "input.missing", path: gateway });
+  const ui = uiBundleDir(fresnelRoot);
+  if (!existsSync(join(ui, "index.html"))) {
+    return fail({ kind: "input.missing", path: join(ui, "index.html") });
+  }
 
   const stage = join(request.outDir, `fresnel-${version}-${triple}`);
   rmSync(stage, { recursive: true, force: true });
@@ -326,6 +359,10 @@ export async function buildRelease(request: ReleaseRequest): Promise<Result<stri
   const binaryName = triple.includes("-windows-") ? "fresnel.exe" : "fresnel";
   copyFileSync(sidecar, join(stage, binaryName));
   chmodSync(join(stage, binaryName), 0o755);
+  const gatewayName = triple.includes("-windows-") ? "fresnel-web.exe" : "fresnel-web";
+  copyFileSync(gateway, join(stage, gatewayName));
+  chmodSync(join(stage, gatewayName), 0o755);
+  copyTree(ui, join(stage, "ui"));
 
   const templates = join(fresnelRoot, config.value.templates);
   if (!existsSync(join(templates, "index.json")))

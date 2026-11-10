@@ -8,6 +8,8 @@ const GATEWAY_BIN_ENV: string = "FRESNEL_WEB_BIN";
 const GATEWAY_UI_ENV: string = "FRESNEL_WEB_UI";
 
 const GATEWAY_NAME = "fresnel-web";
+/** 릴리즈 묶음에서 호스트 바이너리 옆에 두는 UI 번들 폴더 이름 */
+const BUNDLED_UI_DIR = "ui";
 /** 서비스 소스 폴더(`apps/host/src/service`)에서 본 개발 트리의 게이트웨이 진입점 */
 const DEV_MAIN_RELATIVE = "../../../desktop-shell/src/web/main.ts";
 const BUN_RUNTIME = /^bun(?:\.exe)?$/iu;
@@ -76,10 +78,19 @@ export function resolveGatewayCommand(
   );
 }
 
-/** `FRESNEL_WEB_UI`가 있으면 `--ui`로 넘기는 인자. 없으면 빈 목록 */
-export function uiArgsOf(env: GatewayEnv): string[] {
+/**
+ * 게이트웨이에 넘기는 `--ui` 인자. (1) `FRESNEL_WEB_UI`가 있으면 그 폴더, (2) 호스트 바이너리 옆 `ui/index.html`이 있으면 그 `ui/`(릴리즈 묶음),
+ * 둘 다 없으면 빈 목록이다(게이트웨이 기본값 `apps/desktop/dist/ui`는 개발 트리에서만 맞다).
+ */
+export function uiArgsOf(
+  env: GatewayEnv,
+  execPath: string,
+  exists: (file: string) => boolean,
+): string[] {
   const ui = env[GATEWAY_UI_ENV];
-  return ui === undefined || ui === "" ? [] : ["--ui", ui];
+  if (ui !== undefined && ui !== "") return ["--ui", ui];
+  const bundled = path.join(path.dirname(execPath), BUNDLED_UI_DIR);
+  return exists(path.join(bundled, "index.html")) ? ["--ui", bundled] : [];
 }
 
 /** 게이트웨이 자식의 환경: 허용 목록 이름과 `HOME`, 그리고 비밀이 아닌 `FRESNEL_*`만 옮긴다 */

@@ -74,13 +74,21 @@ function tlsMessage(error: TlsError): Described {
   }
 }
 
+function listenFailedText(listener: string, code: string): string {
+  const key = listener === "tls" ? "l4.remote.web.listenTls" : "l4.remote.web.listen";
+  if (code === "EADDRINUSE") {
+    return `the ${listener} port is already in use by another program (EADDRINUSE); change ${key} to a free port`;
+  }
+  if (code === "EACCES") {
+    return `no permission to listen on the ${listener} address (EACCES); change ${key} to a port above 1024`;
+  }
+  return `cannot listen on the ${listener} address (${code}); check ${key}`;
+}
+
 function gatewayMessage(error: GatewayError): Described {
   switch (error.kind) {
     case "listen_failed":
-      return {
-        exitCode: 2,
-        message: `cannot listen on the ${error.listener} address (${error.code})`,
-      };
+      return { exitCode: 2, message: listenFailedText(error.listener, error.code) };
     case "source_unavailable":
       return { exitCode: 1, message: `the ${error.source} source could not be built` };
     case "already_started":

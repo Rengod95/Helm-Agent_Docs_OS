@@ -108,7 +108,7 @@ export function bunGatewayLauncher(options: BunGatewayLauncherOptions): GatewayL
     const spawned = await spawn(
       {
         command: file,
-        args: [...head, ...spec.args, ...uiArgsOf(options.env)],
+        args: [...head, ...spec.args, ...uiArgsOf(options.env, options.execPath, options.exists)],
         cwd: options.home,
         env: childEnvOf(options.env, options.home),
         label: "fresnel-web",

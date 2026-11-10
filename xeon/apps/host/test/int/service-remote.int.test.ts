@@ -16,6 +16,7 @@ import {
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { connectedClient, manualTime, scratchRuntimeDir } from "../fixtures/service-harness.ts";
 import { writeUserSettings } from "../fixtures/user-settings.ts";
+import { localHostNames } from "../../src/service/gateway-config.ts";
 
 // 서비스의 원격 접속 연결(L4.remote §5.1, §8.3, §10): 설정이 켜져 있으면 시작 때 감독자를 띄우고, `host.remote.*`에 답하고,
 // 끌 때 감독자를 세우고, 종료할 때 감독자를 정리한다. 실제 엔진과 Unix 소켓, 가짜 감독자(자식 프로세스 없음), 임시 홈.
@@ -84,7 +85,13 @@ describe("gateway supervisor and the service", () => {
       try {
         // 기다리지 않고 띄운다. 시작이 불린 것은 서비스가 답하기 전이다
         expect(gateway.starts).toEqual([
-          { listen: "127.0.0.1:8480", listenTls: null, hosts: [], tlsCert: null, tlsKey: null },
+          {
+            listen: "127.0.0.1:8480",
+            listenTls: "0.0.0.0:8443",
+            hosts: localHostNames(),
+            tlsCert: null,
+            tlsKey: null,
+          },
         ]);
         const client = await connectedClient({ kind: "unix", path: handle.registration.socket });
         try {

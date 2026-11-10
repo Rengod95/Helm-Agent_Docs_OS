@@ -88,10 +88,18 @@ describe("resolveGatewayCommand", () => {
 });
 
 describe("gateway child arguments and environment", () => {
-  test("the UI folder is passed only when FRESNEL_WEB_UI is set", () => {
-    expect(uiArgsOf({ FRESNEL_WEB_UI: "/opt/web/ui" })).toEqual(["--ui", "/opt/web/ui"]);
-    expect(uiArgsOf({})).toEqual([]);
-    expect(uiArgsOf({ FRESNEL_WEB_UI: "" })).toEqual([]);
+  test("the UI folder comes from FRESNEL_WEB_UI, else from ui/ next to the host binary, else nothing", () => {
+    const none = only();
+    expect(uiArgsOf({ FRESNEL_WEB_UI: "/opt/web/ui" }, "/app/fresnel", none)).toEqual([
+      "--ui",
+      "/opt/web/ui",
+    ]);
+    expect(uiArgsOf({}, "/app/fresnel", none)).toEqual([]);
+    expect(uiArgsOf({ FRESNEL_WEB_UI: "" }, "/app/fresnel", none)).toEqual([]);
+    expect(uiArgsOf({}, "/app/fresnel", only("/app/ui/index.html"))).toEqual(["--ui", "/app/ui"]);
+    expect(
+      uiArgsOf({ FRESNEL_WEB_UI: "/opt/web/ui" }, "/app/fresnel", only("/app/ui/index.html")),
+    ).toEqual(["--ui", "/opt/web/ui"]);
   });
 
   test("the child environment keeps only the allow-listed names, HOME, and non-secret FRESNEL values", () => {

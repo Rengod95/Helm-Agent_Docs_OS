@@ -6,6 +6,7 @@
 // `--out-dir` writes the binary there instead of dist/sidecar. Release builds use it so a release version never lands on the
 // development sidecar (the e2e tests and ensure-sidecar reuse that one and expect "0.0.0").
 // `--version` defines the string constant FRESNEL_BUILD_VERSION (bun build --define); CLI_VERSION and ENGINE_VERSION read it.
+//   build-sidecar <triple|host> --gateway   builds the web gateway program (`fresnel-web`, the `gateway` section of sidecar.json) the same way
 //   build-sidecar --list
 // Decision (user, 2026-10-24): start-up and response speed come before binary size. The size cap only catches
 // regressions (500 MiB per triple), it is not a size target.
@@ -31,12 +32,29 @@ const SidecarConfigSchema = Type.Object(
     /** Extra compile entries: files a Worker loads at run time (relative to apps/desktop). A compiled binary only carries them when listed. */
     workers: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),
     maxSizeMiB: Type.Integer({ minimum: 1 }),
+    /** The web gateway program (`fresnel-web`) the service starts for external access. Built with `--gateway`, from the same targets. */
+    gateway: Type.Optional(
+      Type.Object(
+        {
+          name: Type.String({ pattern: "^[a-z][a-z0-9-]*$" }),
+          entry: Type.String({ minLength: 1 }),
+          maxSizeMiB: Type.Integer({ minimum: 1 }),
+        },
+        { additionalProperties: false },
+      ),
+    ),
     targets: Type.Record(Type.String({ minLength: 1 }), Type.String({ pattern: "^bun-" }), {
       minProperties: 1,
     }),
   },
   { additionalProperties: false },
 );
+export interface GatewayBuildConfig {
+  readonly name: string;
+  readonly entry: string;
+  readonly maxSizeMiB: number;
+}
+
 /** The shape of apps/desktop/sidecar.json. */
 export interface SidecarConfig {
   readonly name: string;
@@ -46,6 +64,8 @@ export interface SidecarConfig {
   /** Worker files, relative to apps/desktop; compiled in as extra entries. */
   readonly workers?: readonly string[] | undefined;
   readonly maxSizeMiB: number;
+  /** The web gateway build (`build-sidecar --gateway`); `entry` is relative to apps/desktop. */
+  readonly gateway?: GatewayBuildConfig | undefined;
   /** Rust target triple -> bun compile target. */
   readonly targets: Readonly<Record<string, string>>;
 }
@@ -220,6 +240,8 @@ export interface BuildRequest {
   readonly version?: string | undefined;
   /** Where the binary goes. Default: apps/desktop/dist/sidecar (the development sidecar). */
   readonly outDir?: string | undefined;
+  /** Build the web gateway (`gateway` in sidecar.json) instead of the engine. */
+  readonly gateway?: boolean | undefined;
 }
 
 /** Compiles the sidecar for one triple and checks the size cap. Nothing is thrown for expected failures. */
@@ -236,15 +258,33 @@ export async function buildSidecar(
   if (!config.ok) return config;
   const target = resolveTarget(config.value, request.triple);
   if (!target.ok) return target;
+  const gateway = config.value.gateway;
+  if (request.gateway === true && gateway === undefined) {
+    return fail({ kind: "config.invalid", message: `${configPath} has no "gateway" section` });
+  }
+  const unit =
+    request.gateway === true && gateway !== undefined
+      ? {
+          name: gateway.name,
+          entry: gateway.entry,
+          workers: undefined,
+          maxSizeMiB: gateway.maxSizeMiB,
+        }
+      : {
+          name: config.value.name,
+          entry: config.value.entry,
+          workers: config.value.workers,
+          maxSizeMiB: config.value.maxSizeMiB,
+        };
 
   const outFile = join(
     request.outDir ?? join(request.desktopDir, "dist", "sidecar"),
-    outputFileName(config.value.name, target.value.triple),
+    outputFileName(unit.name, target.value.triple),
   );
   io.ensureDir(dirname(outFile));
   const args = compileArgs({
-    entry: resolve(request.desktopDir, config.value.entry),
-    workers: config.value.workers,
+    entry: resolve(request.desktopDir, unit.entry),
+    workers: unit.workers,
     outFile,
     bunTarget: target.value.bunTarget,
     bytecode: request.bytecode,
@@ -262,7 +302,7 @@ export async function buildSidecar(
   }
   const bytes = io.fileSize(outFile);
   if (bytes === undefined) return fail({ kind: "output.missing", path: outFile });
-  const maxBytes = config.value.maxSizeMiB * MIB;
+  const maxBytes = unit.maxSizeMiB * MIB;
   const size = checkSize(outFile, bytes, maxBytes);
   if (!size.ok) return size;
   return succeed({
@@ -357,6 +397,7 @@ if (import.meta.main) {
       "no-bytecode": { type: "boolean", default: false },
       version: { type: "string" },
       "out-dir": { type: "string" },
+      gateway: { type: "boolean", default: false },
       list: { type: "boolean", default: false },
     },
   });
@@ -382,7 +423,7 @@ if (import.meta.main) {
   const requested = positionals[0];
   if (requested === undefined || positionals.length > 1) {
     process.stderr.write(
-      "usage: build-sidecar <triple|host> [--no-bytecode] [--version x.y.z] [--out-dir dir] | --list\n",
+      "usage: build-sidecar <triple|host> [--gateway] [--no-bytecode] [--version x.y.z] [--out-dir dir] | --list\n",
     );
     process.exit(1);
   }
@@ -407,6 +448,7 @@ if (import.meta.main) {
       bytecode,
       version: values.version,
       outDir: values["out-dir"] === undefined ? undefined : resolve(values["out-dir"]),
+      gateway: values.gateway,
     },
     io,
   );

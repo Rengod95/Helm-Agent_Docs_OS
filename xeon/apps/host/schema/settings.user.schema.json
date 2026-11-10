@@ -7297,7 +7297,7 @@
       }
     },
     "l4.remote.web.listenTls": {
-      "default": "",
+      "default": "0.0.0.0:8443",
       "type": "string",
       "x-fresnel": {
         "allowedScopes": [

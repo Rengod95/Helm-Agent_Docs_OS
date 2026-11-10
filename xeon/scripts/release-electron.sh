@@ -32,6 +32,8 @@ step "UI bundle"
 $bun run --cwd apps/desktop build:ui
 step "engine sidecar"
 $bun scripts/build-sidecar.ts host
+step "web gateway (fresnel-web)"
+$bun scripts/build-sidecar.ts host --gateway
 step "shell bundle and Fresnel.app"
 FRESNEL_RELEASE_VERSION="$version" just desktop-build-electron
 step "sign"
