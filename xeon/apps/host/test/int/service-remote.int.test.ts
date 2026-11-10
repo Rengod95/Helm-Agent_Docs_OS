@@ -5,6 +5,7 @@ import { WireError } from "@fresnel/contracts/wire";
 import { runServiceCommand, pairTextOf } from "../../src/service/commands.ts";
 import type { CommandIo } from "../../src/host-command.ts";
 import { startService, type ServiceHandle, type ServiceOptions } from "../../src/index.ts";
+import { fakeAutostart } from "../fixtures/autostart-fake.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import {
   fakeGateway,
@@ -214,19 +215,27 @@ describe("service remote commands over the registration file", () => {
           expiresAt: FAKE_PAIR_EXPIRES_AT,
         });
 
+        // 자동 시작 상태는 가짜 기기로 읽는다(실제 홈과 launchctl을 건드리지 않는다)
+        const autostart = fakeAutostart({
+          platform: "darwin",
+          reply: () => ({ exitCode: 113, stdout: "" }),
+        }).deps;
         const status = captureIo();
         expect(
           await runServiceCommand({ kind: "service-status", json: false }, status.io, {
             runtimeDir: runtime.dir,
+            autostart,
           }),
         ).toBe(0);
         expect(status.stdout()).toContain("remote running\n");
         expect(status.stdout()).toContain("ports loopback 8480\n");
+        expect(status.stdout()).toContain("autostart off\n");
 
         const statusJson = captureIo();
         expect(
           await runServiceCommand({ kind: "service-status", json: true }, statusJson.io, {
             runtimeDir: runtime.dir,
+            autostart,
           }),
         ).toBe(0);
         expect(JSON.parse(statusJson.stdout())).toMatchObject({

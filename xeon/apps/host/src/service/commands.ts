@@ -11,12 +11,20 @@ import {
   type ServiceControlOptions,
 } from "./control.ts";
 import { ensureHostService, type ServiceCommand } from "./ensure.ts";
+import {
+  autostartStatus,
+  installAutostart,
+  systemAutostartDeps,
+  uninstallAutostart,
+  type AutostartDeps,
+  type AutostartStatus,
+} from "./autostart.ts";
 import { resolveLaunchMode } from "./launch-mode.ts";
 import { startService } from "./lifetime.ts";
 import { systemTime } from "./time.ts";
 
-// L4.host-service.spec §3.2 표. `fresnel service start|status|stop|pair|ensure|launch-mode|run`의 본체.
-// 종료코드: 0 성공, 1 실패(시작 거부, 서비스 없음, 원격 꺼짐 등), 2 환경 문제(게이트웨이 바이너리 없음, 환경 오류: `service pair`만).
+// L4.host-service.spec §3.2 표. `fresnel service start|status|stop|pair|ensure|launch-mode|install|uninstall|run`의 본체.
+// 종료코드: 0 성공, 1 실패(시작 거부, 서비스 없음, 원격 꺼짐, 자동 시작 등록 실패 등), 2 환경 문제(게이트웨이 바이너리 없음, 환경 오류: `service pair`만).
 
 type ServiceHostCommand = Extract<
   HostCommand,
@@ -28,7 +36,9 @@ type ServiceHostCommand = Extract<
       | "service-stop"
       | "service-pair"
       | "service-ensure"
-      | "service-launch-mode";
+      | "service-launch-mode"
+      | "service-install"
+      | "service-uninstall";
   }
 >;
 
@@ -36,6 +46,20 @@ const REMOTE_OFF_MESSAGE =
   'remote access is off; run "fresnel config set l4.remote.web.enabled true --scope user" and restart the service';
 const NOT_RUNNING_MESSAGE =
   'service is not running; start it with "fresnel service start" and try again';
+const UNSUPPORTED_AUTOSTART_MESSAGE =
+  "login autostart is supported on macOS (launchd) and Linux (systemd) only";
+const LINGER_ADVICE = 'run "loginctl enable-linger" to keep the service after logout';
+
+/** 자동 시작 상태의 사람용 한 줄(줄바꿈 없음). Linux에서 linger가 꺼져 있으면 그 사실을 덧붙인다 */
+export function autostartLineOf(status: AutostartStatus): string {
+  const linger = status.platform === "linux" && status.linger === false ? " (linger off)" : "";
+  return `autostart ${status.active ? "on" : "off"}${linger}`;
+}
+
+/** 자동 시작 명령이 쓸 기기 접근. 시험은 `options.autostart`로 가짜를 넣는다 */
+function autostartDepsOf(options: ServiceControlOptions): AutostartDeps {
+  return options.autostart ?? systemAutostartDeps(defaultServiceCommand());
+}
 
 async function write(stream: WritableStream<Uint8Array>, text: string): Promise<void> {
   const writer = stream.getWriter();
@@ -113,11 +137,14 @@ function remoteLinesOf(remote: WireResult<"host.remote.status"> | null | undefin
   ];
 }
 
-/** `service status`의 사람용 글(서비스가 떠 있을 때). 접속 토큰은 쓰지 않는다 */
+/**
+ * `service status`의 사람용 글(서비스가 떠 있을 때). 접속 토큰은 쓰지 않는다. `autostart`를 주면 idle 줄 뒤에 자동 시작 줄을 더한다
+ */
 export function serviceStatusText(
   registration: ServiceRegistration,
   host: WireResult<"host.status">,
   remote?: WireResult<"host.remote.status"> | null,
+  autostart?: AutostartStatus,
 ): string {
   const tcp = tcpAddressOf(registration);
   const idle =
@@ -128,9 +155,50 @@ export function serviceStatusText(
     ...(tcp === undefined ? [] : [`tcp ${tcp}`]),
     `connections ${String(host.connections)}, live turns ${String(host.liveTurns)}`,
     `idle shutdown ${idle}${host.safeMode === true ? ", safe mode" : ""}`,
+    ...(autostart === undefined ? [] : [autostartLineOf(autostart)]),
     ...remoteLinesOf(remote),
     "",
   ].join("\n");
+}
+
+/** `service install`. 등록하면 경로를 stdout에, linger 안내를 stderr에 쓴다(안내는 결과가 아니다) */
+async function runInstall(io: CommandIo, options: ServiceControlOptions): Promise<0 | 1> {
+  const result = await installAutostart(autostartDepsOf(options));
+  switch (result.kind) {
+    case "installed":
+      await write(io.stdout, `autostart installed (${result.path})\n`);
+      if (result.lingerAdvice === true) await write(io.stderr, `${LINGER_ADVICE}\n`);
+      return 0;
+    case "unsupported_platform":
+      await write(io.stderr, `${UNSUPPORTED_AUTOSTART_MESSAGE}\n`);
+      return 1;
+    case "failed":
+      await write(io.stderr, `autostart could not be installed (${result.reason})\n`);
+      return 1;
+    default:
+      return assertNever(result, "AutostartInstallResult");
+  }
+}
+
+/** `service uninstall`. 등록이 없었어도 0이다 */
+async function runUninstall(io: CommandIo, options: ServiceControlOptions): Promise<0 | 1> {
+  const result = await uninstallAutostart(autostartDepsOf(options));
+  switch (result.kind) {
+    case "removed":
+      await write(io.stdout, "autostart removed\n");
+      return 0;
+    case "not_registered":
+      await write(io.stdout, "autostart not registered\n");
+      return 0;
+    case "unsupported_platform":
+      await write(io.stderr, `${UNSUPPORTED_AUTOSTART_MESSAGE}\n`);
+      return 1;
+    case "failed":
+      await write(io.stderr, `autostart could not be removed (${result.reason})\n`);
+      return 1;
+    default:
+      return assertNever(result, "AutostartUninstallResult");
+  }
 }
 
 /**
@@ -230,16 +298,20 @@ export async function runServiceCommand(
         await write(io.stderr, `service files cannot be placed: ${status.error.kind}\n`);
         return 1;
       }
+      const autostart = await autostartStatus(autostartDepsOf(options));
       if (command.json) {
-        await write(io.stdout, `${JSON.stringify(serviceStatusView(status.value))}\n`);
+        await write(io.stdout, `${JSON.stringify(serviceStatusView(status.value, autostart))}\n`);
         return status.value.running ? 0 : 1;
       }
       if (!status.value.running) {
-        await write(io.stdout, `service not running (${status.value.reason})\n`);
+        await write(
+          io.stdout,
+          `service not running (${status.value.reason})\n${autostartLineOf(autostart)}\n`,
+        );
         return 1;
       }
       const { registration, status: host, remote } = status.value;
-      await write(io.stdout, serviceStatusText(registration, host, remote));
+      await write(io.stdout, serviceStatusText(registration, host, remote, autostart));
       return 0;
     }
     case "service-pair": {
@@ -297,6 +369,10 @@ export async function runServiceCommand(
       await write(io.stdout, `${JSON.stringify({ mode: await resolveLaunchMode() })}\n`);
       return 0;
     }
+    case "service-install":
+      return runInstall(io, options);
+    case "service-uninstall":
+      return runUninstall(io, options);
     default:
       return assertNever(command, "ServiceHostCommand");
   }

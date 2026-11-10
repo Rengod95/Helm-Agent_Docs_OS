@@ -112,11 +112,16 @@ CLI는 엔진을 in-process로 쓴다(ADR-0006 §3.3). 그래서 CLI 프로세�
 | `fresnel service ensure --json` | `ensure`만 하고 소켓 경로를 JSON 한 줄로 출력한다. 데스크톱 셸이 쓴다(HS-38) | `runHostCommand({ kind: "service-ensure" })` | M3 |
 | `fresnel service launch-mode --json` | 엔진 없이 `l0.process.service.enabled`를 읽어 `{ "mode": "in-process" \| "service" }` 한 줄을 쓰고 종료코드 0으로 끝난다. 데스크톱 셸이 사이드카와 서비스 중 어느 쪽으로 갈지 정할 때 쓴다(HS-38, `L4.desktop.spec` §4.2). 사용자 문서에는 싣지 않는다 | `runHostCommand({ kind: "service-launch-mode" })` → `resolveLaunchMode` | M3 |
 | `fresnel service run` | 서비스 본체를 전경에서 실행한다. `service start`와 `ensure`가 이 인자로 자기 바이너리를 detached 실행한다. 사용자 문서에는 싣지 않는다 | `runHostCommand({ kind: "service-run" })` → `startService` | M3 |
+| `fresnel service install` / `uninstall` | 로그인 자동 시작을 등록하거나 해제한다(사용자 영역의 launchd 사용자 에이전트 또는 systemd 사용자 유닛). 설정 키 없이 등록 파일로 상태를 본다(아래 문단) | `runHostCommand({ kind: "service-install" \| "service-uninstall" })` → `installAutostart`, `uninstallAutostart` | W6 |
 | `fresnel config schema --scope <scope>` | 설정 파일 JSON Schema 출력(§6.2) | `runHostCommand({ kind: "config-schema" })` | M1 |
 
 명령줄 파싱과 도움말은 `L4.cli.spec`(§3.1, §3.2)이 정한다. 이 문서는 서브커맨드 이름과 호출 API만 정한다.
 
 M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `fresnel host --stdio` 서브커맨드는 M2다.
+
+[확인: 2026-11-10 rmW6] 로그인 자동 시작 `service install|uninstall`은 `apps/host/src/service/autostart.ts`에 있다. 사용자 영역만 쓴다. macOS는 `~/Library/LaunchAgents/com.fresnel.service.plist`(`RunAtLoad`, `ProcessType` Background)를 쓰고 `launchctl bootout`을 무시한 뒤 `launchctl bootstrap gui/<uid>`로 올린다. Linux는 `~/.config/systemd/user/fresnel.service`를 쓰고 `systemctl --user daemon-reload`와 `enable`을 한다. 다른 플랫폼은 `unsupported_platform`이다. 올리지 못하면 등록 파일을 지워 흔적을 남기지 않는다. 동의는 호출하는 쪽(CLI의 확인, 데스크톱의 확인 대화 상자)이 받고, 호스트 명령은 동의가 있었다고 본다. `uninstall`은 등록이 없어도 종료코드 0이다. Linux에서 linger가 꺼져 있으면 `install`이 `lingerAdvice`를 내고 CLI가 `loginctl enable-linger`로 하라고 안내한다. 호스트 명령은 `loginctl enable-linger`를 스스로 실행하지 않는다. 자동 시작 상태는 설정 키가 아니라 등록 파일과 OS 등록에서 읽는다(아래 `status`).
+
+[확인: 2026-11-10 rmW6] `service status --json` 출력에 `autostart` 객체가 더해진다(서비스가 떠 있지 않아도 있다). 키는 `platform`, `supported`, `registered`(등록 파일이 있다), `active`(macOS는 `launchctl print`가 성공함, Linux는 `systemctl --user is-enabled`가 `enabled`임), `path`, `linger`다. `linger`는 Linux에서만 보고, `loginctl show-user`의 `Linger=yes`면 true, `Linger=no`면 false, 확인하지 못하면 null이다. macOS는 null이다. 사람용 출력에는 `autostart on|off` 한 줄을 더한다. 서비스가 떠 있으면 idle 줄 다음이고, 떠 있지 않으면 `service not running` 줄 다음이다. Linux에서 linger가 꺼졌으면 ` (linger off)`를 붙인다. 접속 토큰은 여기에도 나오지 않는다.
 
 두 안의 비교:
 

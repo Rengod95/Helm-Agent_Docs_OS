@@ -99,6 +99,13 @@ function parseServicePair(rest: readonly string[]): ParsedArgv {
   return { ok: true, command: { kind: "service-pair", json: rest.includes("--json") } };
 }
 
+/** `service install`, `service uninstall`: 인자를 받지 않는다 */
+function parseNoArguments(rest: readonly string[], command: HostCommand): ParsedArgv {
+  const [extra] = rest;
+  if (extra !== undefined) return { ok: false, message: `unknown argument: ${extra}` };
+  return { ok: true, command };
+}
+
 export function parseHostArgv(argv: readonly string[]): ParsedArgv {
   const [first, second, ...rest] = argv;
   if (first === "host" && second === "--stdio" && rest.length === 0) {
@@ -116,6 +123,8 @@ export function parseHostArgv(argv: readonly string[]): ParsedArgv {
     if (second === "pair") return parseServicePair(rest);
     if (second === "ensure") return { ok: true, command: { kind: "service-ensure" } };
     if (second === "launch-mode") return { ok: true, command: { kind: "service-launch-mode" } };
+    if (second === "install") return parseNoArguments(rest, { kind: "service-install" });
+    if (second === "uninstall") return parseNoArguments(rest, { kind: "service-uninstall" });
     return { ok: false, message: `unknown service command: ${second ?? ""}` };
   }
   return {

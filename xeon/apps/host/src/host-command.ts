@@ -36,6 +36,10 @@ export type HostCommand =
       readonly safeMode?: boolean;
     }
   | { readonly kind: "service-launch-mode" }
+  /** 로그인 자동 시작을 등록한다(macOS launchd 사용자 에이전트, Linux systemd 사용자 유닛). 동의는 호출하는 쪽(CLI 확인, 데스크톱 확인 대화 상자)이 받았다고 본다 */
+  | { readonly kind: "service-install" }
+  /** 로그인 자동 시작을 해제하고 등록 파일을 지운다 */
+  | { readonly kind: "service-uninstall" }
   | {
       readonly kind: "config-schema";
       readonly scope: SettingsFileScope;

@@ -223,6 +223,8 @@ export async function runHostCommand(
     case "service-pair":
     case "service-ensure":
     case "service-launch-mode":
+    case "service-install":
+    case "service-uninstall":
       return runServiceCommand(command, io);
     default:
       return assertNever(command, "HostCommand");

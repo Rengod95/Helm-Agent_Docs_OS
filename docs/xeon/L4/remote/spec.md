@@ -124,6 +124,8 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 [결정: 2026-11-08 사용자 "앱을 닫아도 서비스는 계속 돈다. 로그인 자동 시작은 사용자가 켜는 스위치"] 기본은 B이고, "로그인할 때 자동으로 켜기" 스위치가 D를 등록한다. C는 쓰지 않는다. 이유: C는 상주하는 대상이 서비스가 아니라 UI를 가진 앱이라 메모리와 갱신(앱 업데이트 중 origin이 내려감)이 묶이고, D가 같은 목적을 더 작은 프로세스로 이룬다. D 등록은 명시 동의 뒤에만 한다(ADR-0006 §3.4의 `fresnel service install`을 데스크톱 스위치가 같은 코드로 부른다).
 
+[확인: 2026-11-10 rmW6] 방식 D의 호스트 층은 구현했다(`service install|uninstall`, `service status --json`의 `autostart`, 시험 `apps/host/test/service-autostart.test.ts`). 사용자가 쓰는 길은 아직 열려 있지 않다. CLI(`apps/cli`의 `hostCommandOf`)가 `service install|uninstall`을 호스트 명령으로 넘기지 않고, 데스크톱의 "로그인할 때 자동으로 켜기" 스위치는 아직 만들지 않았다. 그래서 위 표의 D 행과 이 절의 스위치 문장은 구현됨으로 표시하지 않는다.
+
 - B에서 앱이 끝나도 서비스는 남는다. 앱 종료 때 "서비스는 계속 실행돼요. 끄려면 설정 > 연결에서 끄세요" 한 줄을 한 번 보인다 [제안]. 서비스를 끄지 않고 앱만 닫는 것이 서버 모드의 정상 사용이기 때문이다.
 - 서비스 업데이트: 앱이 새 버전으로 바뀌면 `host.status`의 버전 불일치를 감지해 재시작을 묻는다(실행 중인 대화가 있으면 연결 화면의 안전한 종료 흐름 O-06을 쓴다).
 
@@ -320,6 +322,8 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 [확인: 2026-11-09 W3] 구현한 키는 `l4.remote.web.enabled`, `listen`, `listenTls`, `hosts`, `tlsCert`, `tlsKey`(모두 managed·user 범위만, 값을 바꾸면 서비스를 다시 띄워야 한다)다. 빈 문자열은 "없음"(`listenTls`, `tlsCert`, `tlsKey`)이다. `sessionHours`와 `launchAtLogin`은 W6 이후다. `listen`의 기본은 이 표의 `127.0.0.1:8480`이고 오케스트레이터 브리프의 `0.0.0.0:7443`은 따르지 않았다(스펙을 따른다: 외부 주소는 `listenTls`가 맡고 루프백 `listen`은 비루프백을 받지 않는다).
 
 [확인: 2026-11-10 rmWi] 데스크톱 "서비스 + 외부 접근"은 `host.remote.setEnabled(true)`만 보낸다. `listenTls`가 비어 있으면 TLS 리스너는 열리지 않고(`tlsPort`와 `fingerprint`가 `null`) 연결 화면에는 루프백 주소만 보인다. 실제 흐름(임시 홈, `listenTls=127.0.0.1:18443`, `listen=127.0.0.1:18480`을 CLI `config set`으로 먼저 설정하고 서비스를 다시 띄움)에서 켜기, 지문, 코드 발급, 코드 로그인, 기기 목록, 폐기, 탭 끊김이 모두 됐다. [미결: 사용자 결정] 데스크톱이 `listenTls`를 직접 정하게 할지(제안: 비어 있으면 확인 대화 상자에서 포트를 묻고 설정을 쓴 뒤 서비스를 다시 띄운다). [근거: 2026-11-10 rmWi 실행 확인, `apps/host/src/service/gateway.ts`의 `listenTls` 처리]
+
+[확인: 2026-11-10 rmW6] `l4.remote.launchAtLogin` 키는 이 층에서 더하지 않는다. 로그인 자동 시작의 상태는 설정이 아니라 등록 파일에서 읽는다(macOS `~/Library/LaunchAgents/com.fresnel.service.plist`, Linux `~/.config/systemd/user/fresnel.service`, `service status --json`의 `autostart`). 그래서 이 행은 아직 구현되지 않았다.
 
 ## 11. 실패와 경계 사례
 
