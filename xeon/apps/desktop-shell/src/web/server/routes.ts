@@ -32,6 +32,8 @@ import { parsePairRequest } from "./pair.ts";
 import type { PushService } from "./ports.ts";
 import { locateFile, pathSegments } from "./static.ts";
 import type { SocketData } from "./link.ts";
+import { respondView, VIEW_PREFIX } from "../view/route.ts";
+import type { ViewTokens } from "../view/tokens.ts";
 
 export interface ListenerConfig {
   readonly kind: "loopback" | "tls";
@@ -50,6 +52,8 @@ export interface RouteDeps {
   readonly loginBody: string;
   /** 시작 때 한 번 받은 서비스 워커 스크립트(`/sw.js`). 파일을 직접 읽지 않는다 */
   readonly serviceWorkerBody: string;
+  /** 플러그인 프레임의 권한 토큰(`/view/<토큰>/…`) */
+  readonly views: ViewTokens;
   readonly clock: Clock;
   readonly logger: Logger;
 }
@@ -103,8 +107,11 @@ export function handleRequest(
   }
   const upgrade = req.headers.get("upgrade")?.toLowerCase() === "websocket";
   const stateChanging = (req.method !== "GET" && req.method !== "HEAD") || upgrade;
+  // 프레임은 sandbox라 출처가 불투명하다. 모듈 스크립트와 글꼴 요청이 `Origin: null`을 싣는다.
+  // `/view/`의 GET과 HEAD는 읽기뿐이고 경로의 권한 토큰으로 인증하므로 Origin 검사를 하지 않는다(spec §6.3)
+  const frameRead = !stateChanging && new URL(req.url).pathname.startsWith(VIEW_PREFIX);
   const origin = checkOrigin({
-    origin: req.headers.get("origin"),
+    origin: frameRead ? null : req.headers.get("origin"),
     host: hostHeader ?? "",
     scheme: tls ? "https" : "http",
     stateChanging,
@@ -132,8 +139,16 @@ function route(
       return jsonResponse(tls, 426, { error: "upgrade_required" }, { upgrade: "websocket" });
     return upgradeSocket(ctx, pathname === "/wire" ? "wire" : "shell");
   }
-  // TODO(W7): `/view/<권한토큰>/<확장>/<버전>/<경로>` 플러그인 프레임(spec §6.3). 프레임 라우트가 생기기 전까지 404다.
-  if (pathname.startsWith("/view/")) return notFound(tls);
+  if (pathname.startsWith(VIEW_PREFIX)) {
+    const url = new URL(req.url);
+    return respondView(ctx.deps.views, {
+      method: req.method,
+      pathname,
+      search: url.search,
+      tls,
+      host: ctx.host,
+    });
+  }
   if (POST_PATHS.has(pathname)) {
     if (req.method !== "POST") return methodNotAllowed(tls, ["POST"]);
     return postRoute(ctx, pathname);

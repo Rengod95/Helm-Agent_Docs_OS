@@ -21,6 +21,7 @@ import {
 } from "./link.ts";
 import { openShellLink, type ShellDeps } from "./shell-link.ts";
 import type { PushService, ServiceConnection, ShimSource } from "./ports.ts";
+import type { ViewTokens } from "../view/tokens.ts";
 import { handleRequest, type ListenerConfig, type RouteDeps } from "./routes.ts";
 import { openWireLink, type WireDeps } from "./wire-link.ts";
 import { buildLoginSource } from "./login-bundle.ts";
@@ -71,6 +72,8 @@ export interface GatewayOptions {
   readonly loopback: { readonly port: number } | null;
   /** 외부 HTTPS 리스너. `null`이면 열지 않는다 */
   readonly tls: TlsListenerOptions | null;
+  /** 플러그인 프레임의 권한 토큰. 탭 세션(`createTabSessionFactory`)과 같은 개체를 넘긴다 */
+  readonly views: ViewTokens;
   readonly clock: Clock;
   readonly logger: Logger;
 }
@@ -245,6 +248,7 @@ export function createGateway(options: GatewayOptions): Gateway {
       shimBody: shim.value,
       loginBody: login.value,
       serviceWorkerBody: serviceWorker.value,
+      views: options.views,
       clock: options.clock,
       logger: options.logger,
     };

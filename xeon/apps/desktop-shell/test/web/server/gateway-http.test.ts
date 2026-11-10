@@ -583,7 +583,6 @@ describe("routing and static files", () => {
       "/assets/app.js%00",
       "/assets/",
       "/%E0%A4%A",
-      "/view/abc/ext/1/index.html",
       "/nope",
     ];
     const results = await Promise.all(
@@ -598,19 +597,6 @@ describe("routing and static files", () => {
       expect(res.body).not.toContain("outside the ui");
       expect(res.body).not.toContain("TOKEN=");
     }
-  });
-
-  test("a /view path is 404 for every method (W7 adds the frame route)", async () => {
-    const h = await harness();
-    const get = await rawHttp({ port: portOf(h), path: "/view/tok/ext/1/a.js" });
-    expect(get.status).toBe(404);
-    const post = await rawHttp({
-      port: portOf(h),
-      method: "POST",
-      path: "/view/tok/ext/1/a.js",
-      headers: { origin: h.origin },
-    });
-    expect(post.status).toBe(404);
   });
 
   test("unsupported methods are 405 with an Allow header", async () => {

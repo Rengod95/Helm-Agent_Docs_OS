@@ -13,7 +13,7 @@ import {
 import { createWebContext, type WebContextOptions } from "./web-context.ts";
 
 /** 탭 세션을 만드는 값. `send`와 `deviceId`는 세션이 채운다 */
-export type TabSessionOptions = Omit<WebContextOptions, "send" | "deviceId">;
+export type TabSessionOptions = Omit<WebContextOptions, "send" | "deviceId" | "tabId">;
 
 type InvokeFrame = Extract<ClientFrame, { readonly t: "invoke" }>;
 
@@ -33,7 +33,12 @@ function openTab(options: TabSessionOptions, input: TabSessionInput): TabSession
   const send = (frame: ServerFrame): void => {
     if (!state.closed) input.send(encodeFrame(frame));
   };
-  const web = createWebContext({ ...options, send, deviceId: input.deviceId });
+  const web = createWebContext({
+    ...options,
+    send,
+    deviceId: input.deviceId,
+    tabId: crypto.randomUUID(),
+  });
   log.line(`web session opened device=${input.deviceId}`);
 
   /** 세션을 끝낸다. 여러 번 불러도 정리는 한 번만 돈다 */

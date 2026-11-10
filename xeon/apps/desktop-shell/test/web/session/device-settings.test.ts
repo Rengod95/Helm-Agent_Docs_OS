@@ -21,6 +21,7 @@ function deviceTab(stateDir: string, deviceId: string): WebContext {
     ...sessionOptions(path.join(tempDir(), "absent.sock"), recordedLog()),
     stateDir,
     deviceId,
+    tabId: "tab_test",
     send: () => undefined,
   });
   tabs.push(tab);

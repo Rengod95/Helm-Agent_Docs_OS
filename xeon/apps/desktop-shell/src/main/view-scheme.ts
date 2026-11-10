@@ -19,7 +19,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { assertNever, attempt, attemptAsync, err, ok, type Result } from "@fresnel/contracts";
 import { ShellError } from "./commands.ts";
-import type { ShellModule } from "./context.ts";
+import type { ShellContext, ShellModule } from "./context.ts";
 
 export const SCHEME = "fresnel-view";
 /** 파일 하나의 크기 상한. 넘으면 413이다 */
@@ -435,13 +435,31 @@ export function withoutFragment(url: string): string {
 }
 
 export async function respond(roots: AppRoots, method: string, uri: string): Promise<Response> {
+  return respondWithBase(roots, method, uri, (parsed) => desktopBase(parsed));
+}
+
+/** 데스크톱의 프레임 주소 접두 `fresnel-view://<확장>/<버전>/` */
+export function desktopBase(parsed: FrameUri): string {
+  return `${SCHEME}://${parsed.extension}/${parsed.version}/`;
+}
+
+/**
+ * `respond`와 같은 규칙으로 답하되 CSP와 헤더에 들어가는 주소 접두를 `baseOf`가 정한다.
+ * 웹 게이트웨이(`/view/<권한토큰>/…`)가 같은 규칙과 시험 벡터를 쓰려고 `{base}` 치환 한 곳만 바꾼다(L4.remote.spec §6.3).
+ * `uri`는 언제나 `fresnel-view://<확장>/<버전>/<경로>` 모양이다(경로 규칙이 이 모양에 정의돼 있다)
+ */
+export async function respondWithBase(
+  roots: AppRoots,
+  method: string,
+  uri: string,
+  baseOf: (parsed: FrameUri) => string,
+): Promise<Response> {
   if (method !== "GET" && method !== "HEAD") return failure("method_not_allowed");
   const found = await resolve(roots, uri, method === "GET");
   if (!found.ok) return failure(found.error.kind);
   const parsed = parseUri(uri);
   if (parsed === undefined) return failure("bad_request");
-  const base = `${SCHEME}://${parsed.extension}/${parsed.version}/`;
-  const headers = frameHeaders(found.value.contentType, base);
+  const headers = frameHeaders(found.value.contentType, baseOf(parsed));
   return new Response(method === "HEAD" ? null : found.value.body, { status: 200, headers });
 }
 
@@ -503,6 +521,18 @@ export function parseAppRootEntries(
   return ok(inputs);
 }
 
+/** `app_roots_set` 명령을 `roots`에 이어 등록한다. 웹 탭이 자기 목록을 쥐고 같은 명령을 쓰려고 나눠 두었다 */
+export function registerAppRootsCommand(ctx: ShellContext, roots: AppRoots): void {
+  // 메인 UI만 부른다. 프레임은 IPC에 닿지 않는다(main.ts와 frame-check.ts). 목록은 이 명령으로만 바뀐다
+  ctx.handle("app_roots_set", (_caller, args) => {
+    const parsed = parseAppRootEntries(args);
+    if (!parsed.ok) throw new ShellError(parsed.error.kind);
+    const result = roots.replace(parsed.value, homedir());
+    if (!result.ok) throw new ShellError(result.error.kind);
+    return result.value;
+  });
+}
+
 export const viewSchemeModule: ShellModule = {
   name: "view-scheme",
   // 권한은 필요한 만큼만 준다(스킴 등록은 app.ready 전이라 main.ts가 한 번에 등록한다). 아래 이유는 추정이라 Electron 실기로 확인할 것이다.
@@ -519,14 +549,7 @@ export const viewSchemeModule: ShellModule = {
   ],
   register(ctx) {
     const roots = createAppRoots();
-    // 메인 UI만 부른다. 프레임은 IPC에 닿지 않는다(main.ts와 frame-check.ts). 목록은 이 명령으로만 바뀐다
-    ctx.handle("app_roots_set", (_caller, args) => {
-      const parsed = parseAppRootEntries(args);
-      if (!parsed.ok) throw new ShellError(parsed.error.kind);
-      const result = roots.replace(parsed.value, homedir());
-      if (!result.ok) throw new ShellError(result.error.kind);
-      return result.value;
-    });
+    registerAppRootsCommand(ctx, roots);
     // 프레임 주소의 `#n=<nonce>` 조각은 요청 대상이 아니다. Electron은 request.url에 조각을 남기므로 떼고 넘긴다
     ctx.handleScheme(SCHEME, (request) =>
       respond(roots, request.method, withoutFragment(request.url)),

@@ -1,9 +1,10 @@
 import { t, activeLocale } from "@fresnel/client/i18n";
-import { detach, rethrow } from "@fresnel/contracts";
+import { detach, rethrow, type Result } from "@fresnel/contracts";
 import type { ExtUiEntry, HostConnection } from "@fresnel/contracts/wire";
 import { extMessageOf, resolveTree, type ResolvedTree } from "@fresnel/client/views/native";
 import {
   buildAppUrl,
+  DESKTOP_FRAME_ROOT,
   collectThemeTokens,
   createActionRunner,
   stripUnsafeText,
@@ -354,6 +355,40 @@ function useSession(
   return session;
 }
 
+/** 프레임 주소 뿌리의 상태. 받는 중, 받음(`root`), 받지 못함(`root` 없음) */
+type FrameRootState =
+  | { readonly kind: "pending" }
+  | { readonly kind: "ready"; readonly root: string }
+  | { readonly kind: "blocked" };
+
+/**
+ * 프레임 주소 뿌리. 받는 함수가 없으면(데스크톱) 바로 `fresnel-view://`다. 웹은 마운트마다 새 권한 토큰을 받는다.
+ * 같은 화면이 떠 있는 동안 뿌리는 바뀌지 않아 프레임이 다시 붙지 않는다
+ */
+function useFrameRoot(
+  frameRoot: (() => Promise<Result<string, unknown>>) | undefined,
+): FrameRootState {
+  const [state, setState] = useState<FrameRootState>(
+    frameRoot === undefined ? { kind: "ready", root: DESKTOP_FRAME_ROOT } : { kind: "pending" },
+  );
+  useEffect(() => {
+    if (frameRoot === undefined) return undefined;
+    let live = true;
+    detach(
+      frameRoot().then((resolved) => {
+        if (live)
+          setState(resolved.ok ? { kind: "ready", root: resolved.value } : { kind: "blocked" });
+        return undefined;
+      }),
+      rethrow,
+    );
+    return () => {
+      live = false;
+    };
+  }, [frameRoot]);
+  return state;
+}
+
 function FrameBody(props: {
   readonly entry: ExtUiEntry;
   readonly loaded: Loaded;
@@ -371,10 +406,12 @@ function FrameBody(props: {
     plugin.shell,
   );
   const app = entry.app;
+  const root = useFrameRoot(plugin.frameRoot);
+  if (root.kind === "pending") return <Note text={t("desktop.plugin.frame.loading")} />;
   const url =
-    app === undefined
+    app === undefined || root.kind === "blocked"
       ? undefined
-      : buildAppUrl(entry.extension, entry.version, app.entry, session.nonce);
+      : buildAppUrl(entry.extension, entry.version, app.entry, session.nonce, root.root);
   if (app === undefined || url === undefined) {
     return <Note text={t("desktop.plugin.state.frameBlocked")} />;
   }

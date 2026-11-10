@@ -1,5 +1,6 @@
 // 게이트웨이 시험의 공용 대역: 임시 UI·정적 폴더, 실제 Unix 소켓의 가짜 서비스, 기록하는 세션 공장과 푸시,
 // 게이트웨이 조립, 그리고 HTTP·HTTPS·WebSocket 호출. 시험 본문은 이 파일의 함수를 거쳐 게이트웨이에 닿는다.
+import { createViewTokens, type ViewTokens } from "../../../src/web/view/tokens.ts";
 import { createHash } from "node:crypto";
 import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { request as httpRequest, type IncomingHttpHeaders } from "node:http";
@@ -7,7 +8,7 @@ import { request as httpsRequest } from "node:https";
 import { createServer as createNetServer, type Server as NetServer, type Socket } from "node:net";
 import path from "node:path";
 import { TLSSocket, connect as tlsConnect } from "node:tls";
-import { err, ok, type Clock, type Result } from "@fresnel/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import { createAuthPort, type AuthPort } from "../../../src/web/auth/auth-port.ts";
 import type { DeviceInfo } from "../../../src/web/auth/devices.ts";
 import {
@@ -26,7 +27,13 @@ import type {
   TabSessionInput,
 } from "../../../src/web/session/ports.ts";
 import { prepareTls, type TlsMaterial } from "../../../src/web/tls/store.ts";
-import { cleanupTempDirs, manualClock, sequenceBytes, tempDir } from "../support/fixtures.ts";
+import {
+  cleanupTempDirs,
+  manualClock,
+  type ManualClock,
+  sequenceBytes,
+  tempDir,
+} from "../support/fixtures.ts";
 import { recordingLogger, type RecordingLogger } from "../support/logger.ts";
 
 export { cleanupTempDirs };
@@ -208,7 +215,9 @@ export interface Harness {
   readonly push: FakePush;
   readonly service: FakeService;
   readonly logger: RecordingLogger;
-  readonly clock: Clock;
+  readonly clock: ManualClock;
+  /** 플러그인 프레임 권한 토큰(게이트웨이와 같은 개체) */
+  readonly views: ViewTokens;
   readonly uiDir: string;
   readonly staticDir: string;
   readonly loopbackPort: number | null;
@@ -266,6 +275,7 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
   const loginSource =
     options.loginSource ??
     (options.realLogin === true ? buildLoginSource : () => Promise.resolve(ok(LOGIN_TEXT)));
+  const views = createViewTokens({ clock });
   const gateway = createGateway({
     auth,
     sessions: sessions.factory,
@@ -279,6 +289,7 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
     connectService: connectServiceSocket,
     loopback: options.loopback === false ? null : { port: 0 },
     tls: tlsListener,
+    views,
     clock,
     logger,
   });
@@ -297,6 +308,7 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
     service,
     logger,
     clock,
+    views,
     uiDir,
     staticDir,
     loopbackPort,

@@ -13,6 +13,7 @@ import { OriginFolderDialogHost } from "./views/origin-folder-dialog.tsx";
 import { createOriginFolderPicker, folderPickWith } from "./views/origin-folder-picker.ts";
 import { readShellCapabilities, type ShellCapabilities } from "./views/shell-capabilities.ts";
 import type { PluginShellPort } from "./plugin-ui/backend.ts";
+import { isWebDocument, resolveWebFrameRoot } from "./plugin-ui/frame-root.ts";
 import { createPluginUiRuntime } from "./plugin-ui/runtime.ts";
 import { createConfirmQueue } from "./views/plugin/confirm-host.tsx";
 import { PluginUiProvider } from "./views/plugin/plugin-context.tsx";
@@ -150,7 +151,9 @@ if (container === null) {
     appearance: appearancePortOf(localSettings, document.documentElement),
   };
   // 플러그인 화면 실행 맥락. Windows는 전용 스킴 주소가 달라 프레임 모드를 켜지 않는다(ADR-0021 §3.6.2)
-  const framesSupported = !navigator.platform.startsWith("Win");
+  // 웹 브라우저는 https 주소(`/view/<토큰>/`)로 열어 스킴 제약이 없으므로 Windows 브라우저도 켠다(L4.remote.spec §6.3)
+  const webDocument = isWebDocument(window.location);
+  const framesSupported = webDocument || !navigator.platform.startsWith("Win");
   const pluginUi = {
     runtime: createPluginUiRuntime({
       withConnection: (run) => app.commands.pluginUi.withConnection(run),
@@ -158,6 +161,10 @@ if (container === null) {
       framesSupported,
     }),
     confirm: createConfirmQueue(),
+    // 웹이면 프레임을 열 때마다 게이트웨이에서 권한 토큰 경로를 받는다. 데스크톱은 `fresnel-view://`를 그대로 쓴다
+    frameRoot: webDocument
+      ? () => resolveWebFrameRoot((command) => invoke(command), window.location.origin)
+      : undefined,
     logger: app.log.logger,
     openExternal: async (href: string) => {
       await invoke("open_external", { href });

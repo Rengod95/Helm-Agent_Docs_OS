@@ -158,6 +158,7 @@ describe("origin folder listing", () => {
       ...sessionOptions(path.join(tempDir(), "absent.sock"), recordedLog()),
       home,
       deviceId: "dev_test",
+      tabId: "tab_test",
       send: () => undefined,
     });
     try {

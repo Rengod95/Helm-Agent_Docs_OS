@@ -39,6 +39,7 @@ function webForTest(): WebContext {
   return createWebContext({
     ...sessionOptions(socketPath, recordedLog()),
     deviceId: "dev_test",
+    tabId: "tab_test",
     send: () => undefined,
   });
 }
@@ -72,7 +73,7 @@ describe("command table completeness", () => {
   test("every table entry is a command the desktop or the web session knows", () => {
     const known = new Set(commandNamesIn(SRC_MAIN));
     // 웹 세션이 직접 답하는 명령은 `src/main`에 없다(web-context.ts의 `serve`)
-    const webOwn = new Set(["shell_capabilities", "origin_folder_list"]);
+    const webOwn = new Set(["shell_capabilities", "origin_folder_list", "view_root"]);
     const extra = Object.keys(COMMAND_TABLE).filter(
       (name) => !known.has(name) && !webOwn.has(name),
     );
@@ -156,6 +157,7 @@ describe("served set", () => {
           "service_stop",
           "shell_capabilities",
           "shell_take_intents",
+          "view_root",
         ].toSorted(),
       );
     } finally {
