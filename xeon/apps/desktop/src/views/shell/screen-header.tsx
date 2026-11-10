@@ -57,12 +57,17 @@ export interface ScreenHeaderProps {
   readonly action?: ReactNode;
   /** true면 머리를 그리지 않는다(패널이 열린 빈 대화 머리처럼) */
   readonly hidden?: boolean;
+  /** true면 바로 뒤 내용에 공용 위 간격을 주지 않는다. 안쪽 위 여백을 이미 가진 대화 기록(머리에 붙어야 하는 스크롤 영역)용 */
+  readonly flush?: boolean;
 }
 
 export function ScreenHeader(props: ScreenHeaderProps): ReactNode {
   if (props.hidden === true) return null;
   return (
-    <header className="shell-header flex flex-none items-center gap-2">
+    <header
+      className="shell-header flex flex-none items-center gap-2"
+      data-flush={props.flush === true ? "" : undefined}
+    >
       <PanelExpandButton />
       {props.lead}
       <div className="flex min-w-0 flex-1 items-center gap-2.5">

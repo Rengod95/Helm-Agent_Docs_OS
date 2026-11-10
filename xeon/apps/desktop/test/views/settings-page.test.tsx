@@ -817,7 +817,7 @@ describe("overview tab sections", () => {
       }),
     );
     // 알림 칸이 없으면 첫 카드가 내용 칸의 첫 자식이다(`first:pt-0`이 걸린다)
-    expect(plain).toMatch(/py-12"><section/);
+    expect(plain).toMatch(/pb-12"><section/);
     const offline = html(
       propsOf({
         view,
@@ -827,7 +827,7 @@ describe("overview tab sections", () => {
       }),
     );
     expect(offline).toContain(t("desktop.settings.offline"));
-    expect(offline).not.toMatch(/py-12"><section/);
+    expect(offline).not.toMatch(/pb-12"><section/);
   });
 
   test("every section title renders at the mockup's 16px title-2 ink (its unlayered h2 rule beats text-ui-sm)", () => {

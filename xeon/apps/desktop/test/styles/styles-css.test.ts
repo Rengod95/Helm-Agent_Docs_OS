@@ -130,3 +130,16 @@ test("popover wrappers cancel the app zoom for every zoom step and the select li
     expect(STYLES).toContain(`var(--radix-select-trigger-width, 0px) / ${scale}`);
   }
 });
+
+test("a screen header's gap is one shared value, and only a header marked data-flush opts out", () => {
+  // 머리 바로 뒤 형제가 받는 위 간격. 대화 머리(data-flush)는 대화 기록의 안쪽 여백을 쓰므로 간격을 받지 않는다
+  const rules = blocksOf(STYLES)
+    .filter((block) => block.prelude === "@layer components")
+    .flatMap((block) => blocksOf(block.body));
+  const token = rules.find(
+    (rule) => rule.prelude === ":root" && rule.body.includes("--shell-header-gap"),
+  );
+  expect(token?.body).toContain("--shell-header-gap: 24px;");
+  const gap = rules.find((rule) => rule.prelude === ".shell-header:not([data-flush]) + *");
+  expect(gap?.body).toContain("margin-block-start: var(--shell-header-gap);");
+});

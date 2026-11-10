@@ -158,7 +158,7 @@ export function EngineScreen(): ReactNode {
           </Button>
         }
       />
-      <div className="mx-auto flex min-h-0 w-full max-w-240 flex-1 flex-col px-3 pt-6 pb-4">
+      <div className="mx-auto flex min-h-0 w-full max-w-240 flex-1 flex-col px-3 pb-4">
         <div className="grid min-h-0 flex-1 content-start gap-6 overflow-auto pt-1 pb-8">
           <Section title={t("desktop.workbench.engine.versions")}>
             <ListDescription
