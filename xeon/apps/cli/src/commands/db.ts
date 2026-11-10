@@ -5,7 +5,7 @@ import { t } from "@fresnel/client/i18n";
 import type { DbCommand } from "../cli/command.ts";
 import { failureOfExport, failureOfRestore, type Failure } from "../errors.ts";
 import { EXIT, type ExitCode } from "../exit-codes.ts";
-import { printFailure, type CommandContext } from "./context.ts";
+import { confirmed, printFailure, type CommandContext } from "./context.ts";
 import {
   codeOf,
   collectUsage,
@@ -22,13 +22,6 @@ import {
 
 /** 누락 블롭 경고를 목록으로 보이는 최대 줄 수. 넘으면 나머지는 개수 한 줄로 센다 */
 const MISSING_LIST_CAP = 10;
-
-/** 확인 질문. 답이 y 또는 yes일 때만 참이다(sessions rm과 같다) */
-async function confirmed(ctx: CommandContext, question: string): Promise<boolean> {
-  const answer = await ctx.io.readLine(`${question} [y/N] `, new AbortController().signal);
-  const text = answer?.trim().toLowerCase() ?? "";
-  return text === "y" || text === "yes";
-}
 
 /** 데이터 디렉터리 위치를 정하지 못했을 때의 실패. 문장은 쓸 때 현재 로케일로 만든다 */
 function dataDirFailure(): Failure {

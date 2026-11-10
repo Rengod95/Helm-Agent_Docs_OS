@@ -25,6 +25,16 @@ export async function printFailure(
   await io.stderr(renderFailure(failure));
 }
 
+/**
+ * 터미널의 `[y/N]` 확인. 답이 y 또는 yes일 때만 참이다(sessions rm과 같다). 부르는 쪽이 터미널인지 먼저 본다.
+ * `db export`, `db previous-rm`, `service install`이 같이 쓴다(L4.cli.spec §3.6, §4.13).
+ */
+export async function confirmed(ctx: CommandContext, question: string): Promise<boolean> {
+  const answer = await ctx.io.readLine(`${question} [y/N] `, new AbortController().signal);
+  const text = answer?.trim().toLowerCase() ?? "";
+  return text === "y" || text === "yes";
+}
+
 /** 엔진을 시작할 때 명령줄이 더하는 옵션 */
 export interface EngineStartFlags {
   /** `--safe-mode`(chat) */

@@ -228,7 +228,7 @@ export interface ServiceCommand {
   readonly listenTcp: { readonly host: string; readonly port: number } | null;
   /** `--allow-non-loopback`. 루프백이 아닌 `--listen-tcp` 주소를 허용한다 */
   readonly allowNonLoopback: boolean;
-  /** `--yes`. install만. 없으면 로그인 자동 시작을 등록하지 않고 종료 코드 3으로 끝난다(동의는 사용자가 준다) */
+  /** `--yes`. install만. 없으면 터미널에서 `[y/N]`으로 묻고, 터미널이 아니면 종료 코드 2로 끝난다(L4.cli.spec §3.6) */
   readonly yes: boolean;
 }
 /** @fresnel/host의 HostCommand(runHostCommand 입력)와 다른 타입이다. 이름을 나눠 둔다. */
