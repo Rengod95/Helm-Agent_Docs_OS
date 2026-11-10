@@ -3,6 +3,7 @@ import { parse } from "@fresnel/contracts";
 import { SecretNameSchema } from "@fresnel/contracts/capabilities";
 import { t } from "@fresnel/client/i18n";
 import { submitKey, type KeyField, type KeyOutcome } from "@fresnel/client/settings";
+import { readShellCapabilities } from "../../src/views/shell-capabilities.ts";
 import { rejectLikeShell, shellMockIpc } from "../transport/shell-mock.ts";
 import { engineFake, makeAppOver, until } from "./support.ts";
 
@@ -168,4 +169,24 @@ describe("shell errors on the page side", () => {
       await app.stop();
     });
   }
+});
+
+describe("registering a model key on a web shell", () => {
+  test("a web shell that reports the web capability and accepts the value answers registered, never terminal", async () => {
+    const { app, shell } = await liveApp();
+    // 웹 셸의 기능 감지 답(`shell_capabilities`)은 웹 모양이고, 사이드카가 값을 받으면 `secret_register`는 null로 끝난다
+    const webShape = { kind: "web", folderPicker: "origin", fileDownload: true, push: false };
+    const capabilities = await readShellCapabilities(async (command) => {
+      if (command !== "shell_capabilities") throw new Error(`unexpected ${command}`);
+      return webShape;
+    });
+    expect(capabilities).toEqual({ kind: "web", folderPicker: "origin", push: false });
+    shell.overrideReply((command) => (command === "secret_register" ? null : webShape));
+    const input = inputOf(`${FAKE}\n`);
+    expect(await submitKey(app.commands.setup, name, "add", input.field)).toEqual({
+      kind: "registered",
+    });
+    expect(input.shown()).toBe("");
+    await app.stop();
+  });
 });
