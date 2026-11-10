@@ -210,8 +210,17 @@ export type SecretCommand =
 
 export interface ServiceCommand {
   readonly kind: "service";
-  /** ensure·launch-mode는 --json만, launch-mode·run은 도움말에 숨긴다 */
-  readonly action: "start" | "status" | "stop" | "ensure" | "launch-mode" | "run" | "pair";
+  /** ensure·launch-mode는 --json만, launch-mode·run은 도움말에 숨긴다. install·uninstall은 로그인 자동 시작을 등록·해제한다 */
+  readonly action:
+    | "start"
+    | "status"
+    | "stop"
+    | "ensure"
+    | "launch-mode"
+    | "run"
+    | "pair"
+    | "install"
+    | "uninstall";
   readonly output: OutputMode;
   /** `--safe-mode`. start·ensure·run만. 새로 띄우는 서비스가 안전 모드로 시작한다 */
   readonly safeMode: boolean;
@@ -219,6 +228,8 @@ export interface ServiceCommand {
   readonly listenTcp: { readonly host: string; readonly port: number } | null;
   /** `--allow-non-loopback`. 루프백이 아닌 `--listen-tcp` 주소를 허용한다 */
   readonly allowNonLoopback: boolean;
+  /** `--yes`. install만. 없으면 로그인 자동 시작을 등록하지 않고 종료 코드 3으로 끝난다(동의는 사용자가 준다) */
+  readonly yes: boolean;
 }
 /** @fresnel/host의 HostCommand(runHostCommand 입력)와 다른 타입이다. 이름을 나눠 둔다. */
 interface CliHostCommand {
@@ -1678,6 +1689,8 @@ const SERVICE_ACTIONS: readonly ServiceCommand["action"][] = [
   "launch-mode",
   "run",
   "pair",
+  "install",
+  "uninstall",
 ];
 
 function isLoopbackHost(host: string): boolean {
@@ -1701,7 +1714,7 @@ function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCo
       usage(
         "missingArgument",
         t("cli.usage.subcommandMissing.message", { command: "service" }),
-        t("cli.usage.oneOf.fix", { list: "start, status, stop, pair" }),
+        t("cli.usage.oneOf.fix", { list: "start, status, stop, pair, install, uninstall" }),
       ),
     );
   }
@@ -1711,7 +1724,7 @@ function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCo
       usage(
         "unknownCommand",
         t("cli.usage.unknownCommand.message", { command: `service ${actionText}` }),
-        t("cli.usage.oneOf.fix", { list: "start, status, stop, pair" }),
+        t("cli.usage.oneOf.fix", { list: "start, status, stop, pair, install, uninstall" }),
       ),
     );
   }
@@ -1720,6 +1733,7 @@ function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCo
     "--safe-mode": { value: "none" },
     "--listen-tcp": { value: "required" },
     "--allow-non-loopback": { value: "none" },
+    "--yes": { value: "none" },
   });
   if (!scanned.ok) return scanned;
   if (scanned.value.positionals.length > 0) {
@@ -1739,6 +1753,15 @@ function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCo
         "unexpectedArgument",
         t("cli.usage.service.safeMode.message", { action }),
         t("cli.usage.service.safeMode.fix"),
+      ),
+    );
+  }
+  if (has(flags, "--yes") && action !== "install") {
+    return err(
+      usage(
+        "unexpectedArgument",
+        t("cli.usage.service.yes.message", { action }),
+        t("cli.usage.service.yes.fix"),
       ),
     );
   }
@@ -1792,6 +1815,7 @@ function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCo
     safeMode,
     listenTcp,
     allowNonLoopback,
+    yes: has(flags, "--yes"),
   });
 }
 

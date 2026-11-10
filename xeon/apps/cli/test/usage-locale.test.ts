@@ -165,6 +165,8 @@ Commands
   schedule run <id>         Run a remote schedule once, now
   service pair [--json]     Print a one-time pairing code so a browser can connect to the web gateway
                             (needs l4.remote.web.enabled; the code expires in 5 minutes). status --json has a remote field
+  service install [--yes]   Start the service at login. Needs --yes, since it writes a launch file in your home folder
+  service uninstall         Stop starting the service at login and remove its launch file
   service start|status|stop|ensure [--json] [--safe-mode] [--listen-tcp <host>:<port> [--allow-non-loopback]]
                             Shared service mode. start and ensure start the service, or attach to it if it is running.
                             status and stop check it and stop it. Safe mode and TCP apply only when a new service starts

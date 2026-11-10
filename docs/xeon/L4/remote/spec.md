@@ -120,11 +120,11 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 | A. 앱 소유 자식 프로세스 | 같이 끝남 | 끝남 | 끝남 | 불가 | 가장 단순. 외부 접근에는 부적합 |
 | B. 앱이 띄운 detached 서비스 | 계속 | 계속(맥) | 끝남 | 불가 | 있는 코드(`ensure`, SV-06) |
 | C. 앱 로그인 항목(숨김 + 트레이) | 트레이로 계속 | 끝남 | 로그인 때 다시 | 불가 | Electron `setLoginItemSettings`. 앱 전체가 상주 |
-| D. launchd 사용자 에이전트·systemd 사용자 유닛 | 계속 | 계속 | 로그인 때 자동 | 가능(linger) | `fresnel service install`(ADR-0006 2차). 새로 만든다 |
+| D. launchd 사용자 에이전트·systemd 사용자 유닛 | 계속 | 계속 | 로그인 때 자동 | 가능(linger) | `fresnel service install`·`uninstall`(ADR-0006 2차). CLI는 구현됨(`--yes`로 동의). 데스크톱 스위치는 아직 만들지 않았다 [확인: 2026-11-10 rmW6] |
 
 [결정: 2026-11-08 사용자 "앱을 닫아도 서비스는 계속 돈다. 로그인 자동 시작은 사용자가 켜는 스위치"] 기본은 B이고, "로그인할 때 자동으로 켜기" 스위치가 D를 등록한다. C는 쓰지 않는다. 이유: C는 상주하는 대상이 서비스가 아니라 UI를 가진 앱이라 메모리와 갱신(앱 업데이트 중 origin이 내려감)이 묶이고, D가 같은 목적을 더 작은 프로세스로 이룬다. D 등록은 명시 동의 뒤에만 한다(ADR-0006 §3.4의 `fresnel service install`을 데스크톱 스위치가 같은 코드로 부른다).
 
-[확인: 2026-11-10 rmW6] 방식 D의 호스트 층은 구현했다(`service install|uninstall`, `service status --json`의 `autostart`, 시험 `apps/host/test/service-autostart.test.ts`). 사용자가 쓰는 길은 아직 열려 있지 않다. CLI(`apps/cli`의 `hostCommandOf`)가 `service install|uninstall`을 호스트 명령으로 넘기지 않고, 데스크톱의 "로그인할 때 자동으로 켜기" 스위치는 아직 만들지 않았다. 그래서 위 표의 D 행과 이 절의 스위치 문장은 구현됨으로 표시하지 않는다.
+[확인: 2026-11-10 rmW6] 방식 D의 호스트 층과 CLI는 구현했다(`service install|uninstall`, `service status --json`의 `autostart`, 시험 `apps/host/test/service-autostart.test.ts`와 `apps/cli/test/service-autostart.test.ts`). CLI는 `--yes` 없이 받은 `service install`을 등록하지 않고 종료 3으로 끝낸다(`L4.cli.spec` §3.1). 데스크톱의 "로그인할 때 자동으로 켜기" 스위치는 아직 만들지 않았다. 그래서 데스크톱에서 이 방식을 켜는 길은 아직 열려 있지 않고, 위 표의 D 행은 CLI까지만 구현됨으로 적었다. 이 절의 스위치 문장은 구현됨으로 표시하지 않는다.
 
 - B에서 앱이 끝나도 서비스는 남는다. 앱 종료 때 "서비스는 계속 실행돼요. 끄려면 설정 > 연결에서 끄세요" 한 줄을 한 번 보인다 [제안]. 서비스를 끄지 않고 앱만 닫는 것이 서버 모드의 정상 사용이기 때문이다.
 - 서비스 업데이트: 앱이 새 버전으로 바뀌면 `host.status`의 버전 불일치를 감지해 재시작을 묻는다(실행 중인 대화가 있으면 연결 화면의 안전한 종료 흐름 O-06을 쓴다).
