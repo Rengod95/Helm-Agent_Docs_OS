@@ -352,6 +352,23 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 6. 데스크톱 앱에서 서비스 모드와 외부 접근을 켜고 끌 수 있고, CLI `service start|stop|status`와 같은 결과가 같은 상태 표시로 보인다.
 7. 웹 기기와 데스크톱 기기의 권한이 같다: 어느 wire 메서드나 셸 명령도 기기 종류로 거절하지 않는다(§8.6).
 
+[확인: 2026-11-10 W8] 브라우저 E2E는 `just web-e2e`(`xeon/apps/desktop/test/web-e2e/web.e2e.ts`)다. 실제 서비스(임시 `FRESNEL_HOME`, 모델만 테이프 제공자), 루프백 HTTP와 TLS 리스너를 둔 게이트웨이, 헤드리스 Chrome 탭 둘(`Bun.WebView`, Chrome 백엔드)로 돌고 `just verify` 밖이다(화면 번들 `just desktop-ui`가 먼저 필요하다). 시험 이름과 기준의 연결:
+
+| 기준 | 시험 이름(`web.e2e.ts`) | 보는 것 |
+|---|---|---|
+| 3 | `criterion 3: pairing, login, and the same UI bundle loads` | 페어링 코드로 로그인하고 UI가 뜬다. 게이트웨이가 낸 `index.html`(shim 태그 하나만 더함)과 `assets/*`가 디스크의 번들과 바이트 수까지 같다. `/api/session` 200 |
+| 3, 4 | `criterion 3 and 4: a conversation made in tab A shows up in tab B` | 탭 A에서 서버 폴더를 골라 대화를 만들면 탭 B의 대화 목록에 생긴다 |
+| 4 | `criterion 4: a message sent in tab A and the model reply show in tab B` | 탭 A의 입력과 테이프 모델 답이 탭 B가 연 대화 본문에 보인다 |
+| 4 | `criterion 4: an approval asked in tab A is answered in tab B and clears in tab A` | 탭 A의 bash 승인 요청이 탭 B에도 뜨고, 탭 B에서 허용하면 탭 A의 대기 표시가 사라지고 turn이 끝난다 |
+| 5 | `criterion 5: revoking a device closes its tab and sends it back to the login page` | 기기를 폐기하면 그 쿠키로 다시 들어갈 때 `/login`이고 `/api/session`이 401이다 |
+| §5.3 | `§5.3: the TLS listener serves the login page …` | TLS 리스너가 자체 서명 인증서로 `/login`을 내고 지문이 64자 16진이다(Node `fetch`, 브라우저는 아님) |
+| §6.3 | `§6.3: the viewdemo plugin frame opens in the browser` | `examples/viewdemo`의 프레임이 `/view/<권한토큰>/viewdemo/1.0.0/`로 열리고(`sandbox="allow-scripts"`) 준비 신호 악수가 끝나며 쿠키 없이 파일이 200이다 |
+| §11 | `§11: after the gateway restarts, both tabs reconnect without a reload` | 게이트웨이를 내리면 두 탭이 "서버에 닿지 않아요"를 보이고, 같은 포트로 다시 띄우면 새로고침 없이 붙어 새 대화가 다른 탭에 나타난다 |
+
+기준 1, 2(TLS 없는 외부 리스너, 쿠키·Origin·Host 거절), 5의 코드 한 번 사용·만료, 7은 단위·통합 시험이 맡는다(`pairing.test.ts`, `auth-port.test.ts`, `http-guards.test.ts` 등). 기준 3의 "예약, 설정 화면"과 입력 중 승인 외의 화면은 이 E2E가 직접 누르지 않는다. 기준 6(데스크톱 앱의 켜고 끔)은 데스크톱 쪽 시험이다. 측정값은 성능 지침(`eng.performance.guide`)의 기준선 표에 있다(`just web-e2e --bench`, `just benchmark --web`).
+
+[확인: 2026-11-10 W8] 실측으로 드러난 간격: 웹 연결의 첫 실행 안내는 키 값을 받지 않는다(`이 연결에서는 키를 입력할 수 없어요`, 셸 시크릿 입력 창이 데스크톱에만 있다). §8.6의 "웹 기기는 데스크톱과 똑같이 허용"과 어긋나는 간격이고 이 트랙에서 고치지 않았다 [미결: 사용자 결정, 웹 기기의 키 입력 경로] [근거: 2026-11-10 W8 실측, `xeon/apps/desktop/test/web-e2e/stack.ts`]. E2E는 키를 CLI로 임시 홈에 미리 등록해 둔다.
+
 ## 13. 미결 사항
 
 - [결정: 2026-11-08 사용자] 자체 서명 인증서 + 지문 고정이 기본이고 사용자 인증서 경로는 옵션이다(§8.2).
@@ -360,5 +377,5 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 - [결정: 2026-11-08 사용자] 탭이 닫힌 뒤의 푸시 알림(Web Push)을 이번 범위에 넣는다(§6.2).
 - [미결: 사용자 결정] `--allow-non-loopback` 제거(삭제 승인). [근거: 질문 5]
 - [확인: 2026-11-09 W2] 승인 해결 알림은 서비스의 이벤트 구독 경로로 그 대화를 구독한 모든 연결에 간다(§7). 웹 CSP의 `style-src 'unsafe-inline'`은 뺄 수 없다: UI 번들이 `style={{…}}` 속성을 80곳, `.style.` 대입을 10곳 쓴다(`apps/desktop/src`). `eval`, `new Function`, 워커는 없어 `script-src 'self'`는 그대로 충족된다(§8.7).
-- [가정] 루프백 HTTP의 쿠키·보안 컨텍스트 동작과 브라우저별 서비스 워커 등록은 브라우저 E2E(W8)가 실측한다.
+- [확인: 2026-11-10 W8] 루프백 HTTP(`http://127.0.0.1:<port>`)에서 헤드리스 Chrome 157(macOS arm64)이 쿠키를 받아 로그인하고 UI, `/wire`·`/shell` 연결, 플러그인 프레임이 동작한다. [가정] 브라우저별 서비스 워커 등록, Safari·Firefox, TLS(자체 서명)를 브라우저가 열었을 때의 동작은 아직 실측하지 않았다(헤드리스 Chrome 접속에는 인증서 예외 옵션이 필요하고 `Bun.WebView`에 없다).
 - [제안] 새 이름(`devices.json`, `l4.remote.*`, `shell_capabilities`, `wss` 종류, `fresnel.remote-device` 항목)은 해당 정본 문서가 확정할 때까지 제안이다.

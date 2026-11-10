@@ -206,6 +206,11 @@ benchmark *flags:
 desktop-benchmark *flags:
     cd xeon && just desktop-benchmark {{flags}}
 
+# 원격 웹 브라우저 E2E(스펙 §12): 서비스+게이트웨이+헤드리스 Chrome 탭 둘. 화면 번들 필요(just desktop-ui), 없으면 종료코드 2. 오래 걸려 just verify 밖. --bench는 번들 시작 시간과 wire 왕복 지연 측정 (xeon/apps/desktop/test/web-e2e/)
+[group('local')]
+web-e2e *flags:
+    cd xeon && just web-e2e {{flags}}
+
 # 서버 측정 결과의 예산 판정(예산이 사용자 결정 대기면 통과, 넘으면 실패, --strict면 대기도 실패) (xeon/scripts/benchmark-gate.ts)
 [group('local')]
 benchmark-gate *flags:

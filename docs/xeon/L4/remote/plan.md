@@ -78,6 +78,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 - 헤드리스 브라우저 E2E(탭 둘 동기화, 재연결, 폐기). 번들 시작 시간과 wire 지연 측정을 속도 기준선(`just benchmark`)에 더한다.
 - 끝난 상태: 스펙 §12의 수용 기준 1~6이 시험 이름과 연결된다.
+- [확인: 2026-11-10 W8 구현] `just web-e2e`(시험 8개, `apps/desktop/test/web-e2e/`)와 `just web-e2e --bench`, `just benchmark --web`. 기준과 시험 이름의 연결은 스펙 §12 표, 측정값은 `eng.performance.guide` §2.2. 브라우저 도구는 저장소에 이미 있는 `Bun.WebView`(Chrome 백엔드)라 새 의존이 없다.
 
 ### 2.9 W9 옛 옵션 제거
 

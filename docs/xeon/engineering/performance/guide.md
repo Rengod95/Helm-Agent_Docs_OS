@@ -82,6 +82,18 @@ binds: []
 - 트레이스 수 값(8, 20, 200)은 사용자 결정(B18)이라 바꾸지 않았습니다.
 - 실행: `just desktop-benchmark all`(앱을 먼저 빌드). 값만 다시 재려면 `size`, `frame`, `trace`, `startup --runs <n>`. `startup`은 macOS GUI 환경(로그인한 화면)이 필요하고 없으면 종료코드 2입니다.
 
+## 2.3 원격 웹 측정표 (L4.remote W8)
+
+`just benchmark --web`(또는 `just web-e2e --bench`, `xeon/apps/desktop/test/web-e2e/web.benchmark.ts`)가 쟀습니다. 실제 모델 호출은 없습니다(테이프). 실제 서비스(임시 홈), 루프백 HTTP 게이트웨이, 헤드리스 Chrome 157(`Bun.WebView`)을 같은 컴퓨터에 띄운 값이라 네트워크 지연은 들어 있지 않습니다. 기기: macOS 26.5(arm64), Bun 1.4.3, 2026-11-10, 다른 에이전트가 함께 돌던 기기입니다. 예산은 정하지 않았습니다(기록만).
+
+| 지표 | 뜻 | 값 |
+|---|---|---|
+| `web_login_first_screen` | 페어링 코드 제출부터 UI 첫 화면(사이드바 "새 대화"와 연결됨 표시)까지 | 5회 최소 251.8 / 중앙값 274.7 / p90 331.2 ms |
+| `web_reload_first_screen` | 로그인된 탭을 다시 열어 UI 첫 화면까지(번들 시작 시간, 쿠키 있음) | 5회 최소 164.8 / 중앙값 202.8 / p90 217.8 ms |
+| `web_wire_roundtrip` | 탭 안 `/wire` WebSocket으로 `thread.list`(빈 목록)를 보내 답을 받기까지, 워밍업 20회 뒤 180회 | 중앙값 0.3 / p90 0.4 / 최대 1.1 ms |
+
+- 못 잰 부분: 원격 네트워크(TLS, 실제 지연), 큰 대화 목록, 데스크톱 `first_screen_ms`와 같은 조건의 비교(데스크톱 값은 Electron 창 시작부터라 시작점이 다릅니다), Safari·Firefox.
+
 ## 3. 규칙
 
 ### PF-01 측정은 레시피로 한다
