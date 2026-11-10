@@ -24,6 +24,7 @@ describe("sidecar candidates", () => {
     expect(SIDECAR_NAME).toBe("fresnel");
     expect(sidecarCandidates({ platform: "darwin", arch: "arm64", resources: RESOURCES })).toEqual({
       bundled: `${RESOURCES}/fresnel-aarch64-apple-darwin`,
+      release: `${RESOURCES}/fresnel`,
       dev: `${DEV_DIR}/fresnel-aarch64-apple-darwin`,
     });
   });
@@ -44,6 +45,7 @@ describe("sidecar candidates", () => {
   test("Windows adds .exe", () => {
     expect(sidecarCandidates({ platform: "win32", arch: "x64", resources: RESOURCES })).toEqual({
       bundled: `${RESOURCES}/fresnel-x86_64-pc-windows-msvc.exe`,
+      release: `${RESOURCES}/fresnel.exe`,
       dev: `${DEV_DIR}/fresnel-x86_64-pc-windows-msvc.exe`,
     });
   });
@@ -82,6 +84,18 @@ describe("sidecar lookup", () => {
         exists: only(dev),
       }),
     ).toEqual({ bundled: false, file: dev });
+  });
+
+  test("a server release archive keeps the sidecar as plain fresnel beside fresnel-web", () => {
+    const release = `${RESOURCES}/fresnel`;
+    expect(
+      resolveSidecar({
+        platform: "darwin",
+        arch: "arm64",
+        resources: RESOURCES,
+        exists: only(release, dev),
+      }),
+    ).toEqual({ bundled: true, file: release });
   });
 
   test("no file means no sidecar", () => {

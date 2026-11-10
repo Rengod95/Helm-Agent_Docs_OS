@@ -29,6 +29,8 @@ export interface SidecarInputs {
 export interface SidecarCandidates {
   /** 패키지 앱: `<resources>/fresnel-<삼중항>` */
   readonly bundled: string;
+  /** 서버 릴리스 묶음(scripts/release.ts): `<resources>/fresnel`. 사용자가 CLI로 부르는 이름이라 삼중항이 없다 */
+  readonly release: string;
   /** 개발: `<resources>/../desktop/dist/sidecar/fresnel-<삼중항>` */
   readonly dev: string;
 }
@@ -39,9 +41,11 @@ export function sidecarCandidates(
 ): SidecarCandidates | null {
   const triple = TRIPLES.get(`${input.platform}-${input.arch}`);
   if (triple === undefined) return null;
-  const file = `${SIDECAR_NAME}-${triple}${input.platform === "win32" ? ".exe" : ""}`;
+  const ext = input.platform === "win32" ? ".exe" : "";
+  const file = `${SIDECAR_NAME}-${triple}${ext}`;
   return {
     bundled: path.join(input.resources, file),
+    release: path.join(input.resources, `${SIDECAR_NAME}${ext}`),
     dev: path.join(input.resources, "..", "desktop", "dist", "sidecar", file),
   };
 }
@@ -54,7 +58,7 @@ export interface SidecarResolution {
 }
 
 /**
- * 실행할 사이드카를 고른다. 패키지 앱의 Resources를 먼저 보고, 없으면 개발 폴더를 본다.
+ * 실행할 사이드카를 고른다. 패키지 앱의 Resources, 서버 릴리스 묶음의 `fresnel`, 개발 폴더 순서로 본다.
  * 엔진 supervisor와 키 등록이 같은 함수를 쓴다.
  */
 export function resolveSidecar(inputs: SidecarInputs): SidecarResolution {
@@ -62,6 +66,7 @@ export function resolveSidecar(inputs: SidecarInputs): SidecarResolution {
   if (candidates === null) return { bundled: false, file: null };
   const exists = inputs.exists ?? existsSync;
   if (exists(candidates.bundled)) return { bundled: true, file: candidates.bundled };
+  if (exists(candidates.release)) return { bundled: true, file: candidates.release };
   if (exists(candidates.dev)) return { bundled: false, file: candidates.dev };
   return { bundled: false, file: null };
 }
