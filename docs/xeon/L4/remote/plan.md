@@ -72,7 +72,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 - §6.3의 `/view/...` 경로, 권한 토큰, sandbox iframe, CSP 치환. 브라우저에서 Helm 탐구 화면이 데스크톱과 같다.
 - 끝난 상태: 프레임이 쿠키 없이 하위 자원을 받고, 앱 문서 쿠키·storage에 닿지 못함(시험), 경로 규칙은 `fresnel-view://`의 시험 벡터를 재사용한다.
-- [확인: 2026-11-10 rmW7] 구현됨: 게이트웨이 `src/web/view/{tokens,route}.ts`와 `view_root` 명령(탭 연결마다 등록), `view-scheme.ts`의 `respondWithBase`·`registerAppRootsCommand`, 클라이언트 `scheme.ts`의 뿌리 인자와 `apps/desktop/src/plugin-ui/frame-root.ts`. 결정은 `L4.remote.spec` §6.3. 실제 브라우저 확인은 아래 §2.7 기록.
+- [확인: 2026-11-10 rmW7] 구현됨: 게이트웨이 `src/web/view/{tokens,route}.ts`와 `view_root` 명령(탭 연결마다 등록), `view-scheme.ts`의 `respondWithBase`·`registerAppRootsCommand`, 클라이언트 `scheme.ts`의 뿌리 인자와 `apps/desktop/src/plugin-ui/frame-root.ts`. 결정은 `L4.remote.spec` §6.3. 임시 홈(`/private/tmp/rmW7-home`)에서 사이드카 서비스와 게이트웨이(`src/web/main.ts`, 루프백)를 띄우고 headless Chrome으로 `/pair` 로그인 뒤 `examples/viewdemo`의 "Frame demo"(app 화면)를 열었다. 프레임이 `/view/<토큰>/viewdemo/1.0.0/index.html`·`app.js`를 200으로 받고 다리의 ping이 오가며, 프레임 안에서 `document.cookie`·`localStorage`는 `SecurityError`, `self.origin`은 `null`이다(사진 `_notes/design/rmW7-shots/`). Helm 탐구 화면은 이 작업 트리 밖 사본에만 있어 쓰지 않았고, Electron 화면과 나란히 비교하지는 못했다(맥 GUI 없는 실행).
 
 ### 2.8 W8 브라우저 E2E와 속도
 
