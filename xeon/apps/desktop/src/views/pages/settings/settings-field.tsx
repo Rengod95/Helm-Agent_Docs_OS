@@ -55,6 +55,7 @@ import {
   parseQuantity,
   quantityStepOf,
   quantitySummaryOf,
+  quantitySummaryShownOf,
   type DurationWords,
 } from "./settings-quantity-model.ts";
 import { TONE_CLASS } from "./settings-text.ts";
@@ -466,13 +467,16 @@ function NumberControl(props: {
   const quantity = numberStyleOf(widget) === "quantity";
   const locale = activeLocale();
   const shown = field.dirty ? draftValue : numberValueOf(field.value);
-  const summary =
+  const unitTag = { id: widget.unitId, label: widget.unit };
+  const summaryText =
     quantity && errorText === null && shown !== null
-      ? quantitySummaryOf(
-          shown,
-          { id: widget.unitId, label: widget.unit },
-          { locale, words: durationWordsOf() },
-        )
+      ? quantitySummaryOf(shown, unitTag, { locale, words: durationWordsOf() })
+      : null;
+  const summary =
+    summaryText !== null &&
+    shown !== null &&
+    quantitySummaryShownOf(shown, summaryText, unitTag, locale)
+      ? summaryText
       : null;
   const parseText = (text: string): number | null =>
     parseQuantity(text, widget.unitId, widget.integer);

@@ -7,6 +7,7 @@ import {
   presetsOf,
   quantityStepOf,
   quantitySummaryOf,
+  quantitySummaryShownOf,
   unitKindOf,
   type DurationWords,
   type SummaryEnv,
@@ -178,5 +179,18 @@ describe("presetsOf", () => {
   test("an integer field floors the halves", () => {
     expect(presetsOf({ min: null, max: null, integer: true }, 5)).toEqual([2, 5, 10]);
     expect(presetsOf({ min: null, max: null, integer: false }, 5)).toEqual([2.5, 5, 10]);
+  });
+});
+
+describe("quantitySummaryShownOf", () => {
+  const tokens = { id: "tokens", label: "tokens" };
+  test("hides the line for zero and for a line that repeats the number", () => {
+    expect(quantitySummaryShownOf(0, "0 ms", { id: "days", label: "days" }, "en")).toBe(false);
+    expect(quantitySummaryShownOf(300, "300", { id: "items", label: null }, "en")).toBe(false);
+    expect(quantitySummaryShownOf(300, "300 tokens", tokens, "en")).toBe(false);
+  });
+  test("shows the line when it says something new", () => {
+    expect(quantitySummaryShownOf(200000, "200K tokens", tokens, "en")).toBe(true);
+    expect(quantitySummaryShownOf(3600, "1 hr", { id: "s", label: "s" }, "en")).toBe(true);
   });
 });

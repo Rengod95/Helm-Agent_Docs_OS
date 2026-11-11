@@ -219,6 +219,21 @@ export function quantitySummaryOf(value: number, unit: UnitTag, env: SummaryEnv)
   return withLabel(fractionText(value, 6, env.locale));
 }
 
+/**
+ * 환산 한 줄을 보일 가치가 있는가. 0은 "끔"이나 "무제한" 뜻일 때가 많아 환산이 오해를 부르고,
+ * 칸에 적힌 숫자와 같은 글("300")은 군더더기다. 단위 라벨만 붙은 같은 글("300 일")도 뺀다.
+ */
+export function quantitySummaryShownOf(
+  value: number,
+  summary: string,
+  unit: UnitTag,
+  locale: string,
+): boolean {
+  if (value === 0) return false;
+  const plain = formatQuantity(value, locale);
+  return summary !== plain && summary !== (unit.label === null ? plain : `${plain} ${unit.label}`);
+}
+
 // ── 화살표 키와 프리셋 ─────────────────────────────────────────────────────
 
 /** 화살표 키 한 칸. 값 자릿수 한 단계 아래를 쓴다(200,000이면 10,000). 값이 없거나 0이면 1이다 */
