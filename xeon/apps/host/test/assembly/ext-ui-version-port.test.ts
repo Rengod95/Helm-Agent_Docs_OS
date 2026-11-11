@@ -705,6 +705,44 @@ describe("ext-ui-version port: ui list", () => {
     ]);
   });
 
+  test("carries the declared icon of an entry and has no icon key when none is declared", () => {
+    const rig = rigOf({
+      infos: [loaded("helm", "active", "user", "0.2.0")],
+      scopes: [scope("helm/main", "helm", "enabled")],
+      entries: [
+        { ...entryOfUi("helm", "tab", "ok", [], "Tab", "page"), icon: "Compass" },
+        entryOfUi("helm", "panel", "ok", [], "Helm"),
+      ],
+    });
+    const items = rig.port.uiList({}).items;
+    expect(items).toEqual([
+      {
+        extension: "helm",
+        id: "panel",
+        placement: "panel",
+        mode: "native",
+        title: "Helm",
+        state: "ok",
+        version: "0.2.0",
+        trust: "user",
+        issues: [],
+      },
+      {
+        extension: "helm",
+        id: "tab",
+        placement: "page",
+        mode: "native",
+        title: "Tab",
+        icon: "Compass",
+        state: "ok",
+        version: "0.2.0",
+        trust: "user",
+        issues: [],
+      },
+    ]);
+    expect(items.map((item) => "icon" in item)).toEqual([false, true]);
+  });
+
   test("maps the loader's entries to wire items: sorted, disabled by loader state or by registration, issues as diagnostics", async () => {
     const rig = rigOf({
       infos: [

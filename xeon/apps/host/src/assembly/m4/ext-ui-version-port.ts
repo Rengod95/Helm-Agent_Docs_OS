@@ -375,6 +375,7 @@ function entryOf(report: UiEntryReport, off: boolean): ExtUiEntry {
     placement: report.placement,
     mode: report.mode,
     title: report.title.slice(0, TITLE_LIMIT),
+    ...(report.icon === undefined ? {} : { icon: report.icon }),
     state: off ? "disabled" : report.state,
     version: report.version,
     trust: report.trust,
