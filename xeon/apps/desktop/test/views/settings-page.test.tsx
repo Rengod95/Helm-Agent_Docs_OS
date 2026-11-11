@@ -309,7 +309,9 @@ describe("permission mode field", () => {
     for (const mode of MODES) {
       expect(out).toContain(t(`settings.l1.tools.permissionMode.optionHelp.${mode}`));
     }
-    const warning = out.match(/data-slot="settings-choice-warning"[^>]*>.*?<span>([^<]*)<\/span>/);
+    const warning = out.match(
+      /data-slot="settings-choice-warning"[^>]*>.*?<span class="min-w-0">([^<]*)<\/span>/,
+    );
     expect(warning?.[1]).toBe(t("settings.l1.tools.permissionMode.optionHelp.bypass"));
   });
 

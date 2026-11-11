@@ -141,6 +141,7 @@ function SshRows({ fields, onFields, errorOf, busy }: RowsProps<SshFields>): Rea
             className={FIELD_TEXT}
           >
             <Input
+              size="sm"
               className="font-mono"
               value={fields.user}
               placeholder={t("desktop.connection.host.placeholder.user")}
@@ -159,6 +160,7 @@ function SshRows({ fields, onFields, errorOf, busy }: RowsProps<SshFields>): Rea
             className={FIELD_TEXT}
           >
             <Input
+              size="sm"
               className="font-mono"
               value={fields.host}
               autoComplete="off"
@@ -177,6 +179,7 @@ function SshRows({ fields, onFields, errorOf, busy }: RowsProps<SshFields>): Rea
             className={FIELD_TEXT}
           >
             <Input
+              size="sm"
               className="font-mono"
               value={fields.port}
               placeholder="22"
@@ -198,6 +201,7 @@ function SshRows({ fields, onFields, errorOf, busy }: RowsProps<SshFields>): Rea
       >
         <WithInfo text={t("desktop.connection.host.info.socket")}>
           <Input
+            size="sm"
             className="font-mono"
             value={fields.socket}
             autoComplete="off"
@@ -224,6 +228,7 @@ function WssRows({ fields, onFields, errorOf, busy }: RowsProps<WssFields>): Rea
       >
         <WithInfo text={t("desktop.connection.host.info.web")}>
           <Input
+            size="sm"
             className="font-mono"
             value={fields.address}
             placeholder="example.com:8443"
@@ -245,6 +250,7 @@ function WssRows({ fields, onFields, errorOf, busy }: RowsProps<WssFields>): Rea
       >
         <WithInfo text={t("desktop.connection.host.info.pin")}>
           <Input
+            size="sm"
             className="font-mono"
             value={fields.pin}
             autoComplete="off"
@@ -271,6 +277,7 @@ function UnixRows({ fields, onFields, errorOf, busy }: RowsProps<UnixFields>): R
       >
         <WithInfo text={t("desktop.connection.host.info.socket")}>
           <Input
+            size="sm"
             className="font-mono"
             value={fields.path}
             autoComplete="off"
@@ -297,6 +304,7 @@ function TcpRows({ fields, onFields, errorOf, busy }: RowsProps<TcpFields>): Rea
       >
         <WithInfo text={t("desktop.connection.host.info.tcp")}>
           <Input
+            size="sm"
             className="font-mono"
             value={fields.port}
             inputMode="numeric"
@@ -399,6 +407,7 @@ export function HostAddressField(props: HostAddressFieldProps): ReactNode {
       >
         <WithInfo text={t("desktop.connection.host.paste.info")}>
           <Input
+            size="sm"
             className="font-mono"
             value={pasteText}
             placeholder={t("desktop.connection.host.paste.placeholder")}
@@ -425,7 +434,7 @@ export function HostAddressField(props: HostAddressFieldProps): ReactNode {
           {t("desktop.connection.host.kind.label")}
         </span>
         <SegmentedControl
-          size="lg"
+          size="sm"
           className="flex w-full"
           aria-label={t("desktop.connection.host.kind.label")}
           value={fields.kind}
@@ -453,6 +462,7 @@ export function HostAddressField(props: HostAddressFieldProps): ReactNode {
         className={FIELD_TEXT}
       >
         <Input
+          size="sm"
           value={value.label}
           placeholder={suggestLabel(fields.kind, fields)}
           autoComplete="off"

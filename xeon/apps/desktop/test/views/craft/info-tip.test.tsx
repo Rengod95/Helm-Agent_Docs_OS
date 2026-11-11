@@ -34,10 +34,13 @@ describe("InfoTip: 정보 아이콘 하나와 숨은 설명", () => {
     const classes = classesOf(buttonTagOf(html));
     expect(classes).toContain("p-0");
     expect(classes).toContain("text-text-tertiary");
-    expect(classes).toContain("rounded-sm");
+    expect(classes).toContain("rounded-xs");
     expect(classes).toContain("focus-visible:focus-ring");
+    // 상자 크기는 아이콘 크기(14px)이고, 누르는 영역만 보이지 않는 ::after로 사방 5px 넓힌다(DP-78)
+    expect(classes).toContain("size-icon-sm");
+    expect(classes).toContain("after:-inset-1.25");
     const icon = /<svg\b[^>]*>/.exec(html)?.[0] ?? "";
-    expect(classesOf(icon)).toContain("size-3.5");
+    expect(classesOf(icon)).toContain("size-icon-sm");
   });
 
   test("the icon describes itself with the text it was given (the hidden explanation)", () => {

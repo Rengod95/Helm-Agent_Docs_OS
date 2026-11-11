@@ -2,7 +2,6 @@ import { Select, SelectOption, toast } from "@caustic/react";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import { useState, type ReactNode } from "react";
-import { InfoTip } from "../../craft/info-tip.tsx";
 import {
   THEME_PREFS,
   ZOOM_STEPS,
@@ -13,7 +12,7 @@ import {
 } from "../../appearance-prefs.ts";
 import { useDesktopShell } from "../../desktop-shell-context.ts";
 import { TRANSCRIPT_DETAILS, type TranscriptDetail } from "../../transcript-detail.ts";
-import { SettingSection } from "./settings-section.tsx";
+import { FIELD_WIDTH, FORM_CONTROL_SIZE, SettingRow, SettingSection } from "./settings-section.tsx";
 
 // 설정 "일반" 구역의 "화면" 묶음(시안 e01 `Appearance`): 테마, 화면 크기, 움직임 줄이기, 대화 기록의 생각·도구 표시 정도.
 // 테마는 cyZ에서 더했다(L4.settings-ui §4.1.1 [결정: 2026-11-11 사용자]). 행 모양은 설정 항목 행(`FieldRow` 한 줄 행)과 같다.
@@ -70,19 +69,19 @@ const THEME_LABEL: Readonly<Record<ThemePref, MessageId>> = {
   dark: "desktop.settings.appearance.theme.dark",
 };
 
+/** 화면 구역의 한 줄: 공용 설정 줄(SettingRow) 그대로다 */
 function Row(props: {
   readonly label: MessageId;
   readonly info: MessageId;
   readonly children: ReactNode;
 }): ReactNode {
   return (
-    <div data-slot="settings-field" className="flex min-h-8 items-center gap-6 py-3">
-      <span className="flex min-w-0 flex-1 items-center gap-1.5 text-ui font-medium text-text-primary">
-        {t(props.label)}
-        <InfoTip text={t(props.info)} />
-      </span>
-      {props.children}
-    </div>
+    <SettingRow
+      slot="settings-field"
+      label={t(props.label)}
+      info={t(props.info)}
+      control={props.children}
+    />
   );
 }
 
@@ -92,14 +91,14 @@ function AppearancePanelView(props: AppearancePanelViewProps): ReactNode {
     <SettingSection title={t("desktop.settings.part.display")}>
       <Row label="desktop.settings.appearance.theme" info="desktop.settings.appearance.theme.info">
         <Select
-          size="sm"
+          size={FORM_CONTROL_SIZE}
           aria-label={t("desktop.settings.appearance.theme")}
           value={prefs.theme}
           onValueChange={(next) => {
             const theme = THEME_PREFS.find((option) => option === next);
             if (theme !== undefined) props.onTheme(theme);
           }}
-          className="w-56"
+          className={FIELD_WIDTH.medium}
         >
           {THEME_PREFS.map((theme) => (
             <SelectOption key={theme} value={theme}>
@@ -113,11 +112,11 @@ function AppearancePanelView(props: AppearancePanelViewProps): ReactNode {
         info="desktop.settings.appearance.motion.info"
       >
         <Select
-          size="sm"
+          size={FORM_CONTROL_SIZE}
           aria-label={t("desktop.settings.appearance.motion")}
           value={prefs.motion}
           onValueChange={(next) => props.onMotion(next === "reduce" ? "reduce" : "system")}
-          className="w-56"
+          className={FIELD_WIDTH.medium}
         >
           <SelectOption value="system">
             {t("desktop.settings.appearance.motion.system")}
@@ -127,14 +126,14 @@ function AppearancePanelView(props: AppearancePanelViewProps): ReactNode {
       </Row>
       <Row label="desktop.settings.appearance.zoom" info="desktop.settings.appearance.zoom.info">
         <Select
-          size="sm"
+          size={FORM_CONTROL_SIZE}
           aria-label={t("desktop.settings.appearance.zoom")}
           value={String(prefs.zoom)}
           onValueChange={(next) => {
             const zoom = ZOOM_STEPS.find((step) => String(step) === next);
             if (zoom !== undefined) props.onZoom(zoom);
           }}
-          className="w-56"
+          className={FIELD_WIDTH.medium}
         >
           {ZOOM_STEPS.map((step) => (
             <SelectOption key={step} value={String(step)}>
@@ -148,14 +147,14 @@ function AppearancePanelView(props: AppearancePanelViewProps): ReactNode {
         info="desktop.settings.appearance.transcriptDetail.info"
       >
         <Select
-          size="sm"
+          size={FORM_CONTROL_SIZE}
           aria-label={t("desktop.settings.appearance.transcriptDetail")}
           value={prefs.transcriptDetail}
           onValueChange={(next) => {
             const detail = TRANSCRIPT_DETAILS.find((option) => option === next);
             if (detail !== undefined) props.onTranscriptDetail(detail);
           }}
-          className="w-56"
+          className={FIELD_WIDTH.medium}
         >
           <SelectOption value="full">
             {t("desktop.settings.appearance.transcriptDetail.full")}

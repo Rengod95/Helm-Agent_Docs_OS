@@ -2390,6 +2390,7 @@
   "desktop.settings.field.save": "Save",
   "desktop.settings.field.saved": "Saved",
   "desktop.settings.field.saving": "Saving…",
+  "desktop.settings.field.restartNote": "Applies after a restart.",
   "desktop.settings.file.close.button": "Close",
   "desktop.settings.file.conflict": "It changed somewhere else",
   "desktop.settings.file.conflict.body": "Reloading shows the current file and drops your edits",

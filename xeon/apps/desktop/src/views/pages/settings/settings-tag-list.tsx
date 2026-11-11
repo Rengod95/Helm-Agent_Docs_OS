@@ -3,6 +3,7 @@ import { LocalizedTagInput } from "../../localized-tag-input.tsx";
 import type { ReactNode } from "react";
 import type { SettingKey } from "@fresnel/contracts/settings";
 import { optionLabelOf, optionOf, optionTextOf } from "./settings-model.ts";
+import { FIELD_WIDTH, FORM_CONTROL_SIZE } from "./settings-section.tsx";
 
 // 목록 칸. 열거형 원소(`options`가 있는 목록)는 TagInput이 값 글자를 그대로 보여 주므로(표시 라벨 prop이 없다) 선택지마다 토글 칩 하나를
 // 그린다. 칩 글은 `optionLabelOf`(`settings.<키>.option.<값>` 카탈로그)이고 켠 순서가 값의 순서다. 자유 입력 목록은 TagInput 그대로다.
@@ -21,7 +22,8 @@ export function SettingTagList(props: {
     return (
       <LocalizedTagInput
         aria-label={props.label}
-        containerClassName="max-w-[28rem]"
+        size={FORM_CONTROL_SIZE}
+        containerClassName={FIELD_WIDTH.full}
         value={[...value]}
         disabled={props.disabled}
         invalid={props.invalid}

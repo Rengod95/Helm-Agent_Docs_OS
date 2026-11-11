@@ -129,6 +129,7 @@ export function SettingsFileEditorView(props: SettingsFileEditorProps): ReactNod
               <p className="text-ui text-text-secondary">{t("desktop.settings.file.missing")}</p>
             )}
             <Textarea
+              size="sm"
               aria-label={t("desktop.settings.file.text.label")}
               rows={16}
               value={state.draft}

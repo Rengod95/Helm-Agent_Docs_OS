@@ -2,7 +2,7 @@ import { Alert, Button, Dialog, DialogAction, DialogClose, Skeleton } from "@cau
 import { t, type MessageId } from "@fresnel/client/i18n";
 import type { ReactNode } from "react";
 import { formatBytes } from "../../attachment-model.ts";
-import { InfoTip } from "./settings-field.tsx";
+import { FORM_CONTROL_SIZE, SettingRow } from "./settings-section.tsx";
 import {
   previousLabelOf,
   storageRowsOf,
@@ -56,115 +56,121 @@ export function StorageView(props: StorageViewProps): ReactNode {
       ? load.usage.previous.find((copy) => copy.name === removing)
       : undefined;
   return (
-    <div className="grid gap-2 py-3" data-slot="settings-storage">
-      <div className="flex min-h-6 items-center gap-2">
-        <span className="text-ui font-medium text-text-primary">
-          {t("desktop.settings.storage.title")}
-        </span>
-        <InfoTip label={t("desktop.settings.storage.title")} lines={INFO_IDS.map((id) => t(id))} />
-        <span className="flex-1" />
+    <SettingRow
+      slot="settings-storage"
+      layout="stacked"
+      label={t("desktop.settings.storage.title")}
+      info={INFO_IDS.map((id) => t(id))}
+      infoLabel={t("desktop.settings.field.help.label", {
+        label: t("desktop.settings.storage.title"),
+      })}
+      lead={
         <Button
           variant="outline"
-          size="xs"
+          size={FORM_CONTROL_SIZE}
           disabled={load.kind === "loading" || load.kind === "remote" || busy}
           onClick={handlers.refresh}
         >
           {t("desktop.settings.storage.refresh")}
         </Button>
-      </div>
-      {load.kind === "remote" ? (
-        <p className="text-ui text-text-secondary">{t("desktop.settings.storage.remote")}</p>
-      ) : null}
-      {load.kind === "loading" ? (
-        <div className="flex flex-col gap-1">
-          <p role="status" className="text-ui text-text-secondary">
-            {t("desktop.settings.storage.loading")}
-          </p>
-          <Skeleton height={8} />
-        </div>
-      ) : null}
-      {load.kind === "failed" ? (
-        <Alert tone="danger">
-          <span className="block">{load.failure.message}</span>
-          {load.failure.fix === null ? null : <span className="block">{load.failure.fix}</span>}
-        </Alert>
-      ) : null}
-      {load.kind === "ready" ? (
-        <>
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="flex-none text-ui text-text-secondary">
-              {t("desktop.settings.storage.folder.label")}
-            </span>
-            <span
-              className="min-w-0 flex-1 truncate font-mono text-mono-sm text-text-tertiary"
-              title={load.usage.dataDir}
-            >
-              {load.usage.dataDir}
-            </span>
-            <Button variant="outline" size="xs" onClick={handlers.openDataDir}>
-              {t("desktop.settings.storage.folder.open")}
-            </Button>
-          </div>
-          <ul className="grid gap-2">
-            {storageRowsOf(load.usage).map((row) => (
-              <li key={row.key} className="grid gap-1">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-ui text-text-secondary">{t(ROW_ID[row.key])}</span>
-                  <span className="text-ui text-text-primary">{formatBytes(row.bytes)}</span>
-                </div>
-                {row.key === "restorePrevious" ? (
-                  <PreviousList
-                    copies={load.usage.previous}
-                    locale={locale}
-                    busy={busy}
-                    onAsk={handlers.ask}
-                  />
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
-      {state.removeFailure === null ? null : (
-        <Alert tone="danger">
-          <span className="block">{state.removeFailure.message}</span>
-          {state.removeFailure.fix === null ? null : (
-            <span className="block">{state.removeFailure.fix}</span>
+      }
+      control={
+        <div className="grid gap-2">
+          {load.kind === "remote" ? (
+            <p className="text-ui text-text-secondary">{t("desktop.settings.storage.remote")}</p>
+          ) : null}
+          {load.kind === "loading" ? (
+            <div className="flex flex-col gap-1">
+              <p role="status" className="text-ui text-text-secondary">
+                {t("desktop.settings.storage.loading")}
+              </p>
+              <Skeleton height={8} />
+            </div>
+          ) : null}
+          {load.kind === "failed" ? (
+            <Alert tone="danger" variant="outline">
+              <span className="block">{load.failure.message}</span>
+              {load.failure.fix === null ? null : <span className="block">{load.failure.fix}</span>}
+            </Alert>
+          ) : null}
+          {load.kind === "ready" ? (
+            <>
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="flex-none text-ui text-text-secondary">
+                  {t("desktop.settings.storage.folder.label")}
+                </span>
+                <span
+                  className="min-w-0 flex-1 truncate font-mono text-mono-sm text-text-tertiary"
+                  title={load.usage.dataDir}
+                >
+                  {load.usage.dataDir}
+                </span>
+                <Button variant="outline" size={FORM_CONTROL_SIZE} onClick={handlers.openDataDir}>
+                  {t("desktop.settings.storage.folder.open")}
+                </Button>
+              </div>
+              <ul className="grid gap-2">
+                {storageRowsOf(load.usage).map((row) => (
+                  <li key={row.key} className="grid gap-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-ui text-text-secondary">{t(ROW_ID[row.key])}</span>
+                      <span className="text-ui text-text-primary">{formatBytes(row.bytes)}</span>
+                    </div>
+                    {row.key === "restorePrevious" ? (
+                      <PreviousList
+                        copies={load.usage.previous}
+                        locale={locale}
+                        busy={busy}
+                        onAsk={handlers.ask}
+                      />
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+          {state.removeFailure === null ? null : (
+            <Alert tone="danger" variant="outline">
+              <span className="block">{state.removeFailure.message}</span>
+              {state.removeFailure.fix === null ? null : (
+                <span className="block">{state.removeFailure.fix}</span>
+              )}
+            </Alert>
           )}
-        </Alert>
-      )}
-      <Dialog
-        kind="alert"
-        tone="danger"
-        open={removing !== null}
-        onOpenChange={(open) => {
-          if (!open) handlers.cancel();
-        }}
-        onKeyDown={(event) => {
-          // Esc는 이 대화 상자를 닫는 데만 쓴다. 설정 화면의 Esc(초안 버리기)까지 올라가지 않게 여기서 막는다
-          if (event.key === "Escape") event.stopPropagation();
-        }}
-        title={t("desktop.settings.storage.previous.confirm.title")}
-        description={
-          <PreviousConfirmText
-            name={removing ?? ""}
-            size={target === undefined ? null : formatBytes(target.bytes)}
+          <Dialog
+            kind="alert"
+            tone="danger"
+            open={removing !== null}
+            onOpenChange={(open) => {
+              if (!open) handlers.cancel();
+            }}
+            onKeyDown={(event) => {
+              // Esc는 이 대화 상자를 닫는 데만 쓴다. 설정 화면의 Esc(초안 버리기)까지 올라가지 않게 여기서 막는다
+              if (event.key === "Escape") event.stopPropagation();
+            }}
+            title={t("desktop.settings.storage.previous.confirm.title")}
+            description={
+              <PreviousConfirmText
+                name={removing ?? ""}
+                size={target === undefined ? null : formatBytes(target.bytes)}
+              />
+            }
+            footer={
+              <>
+                <DialogClose asChild>
+                  <Button variant="outline" size="sm" autoFocus>
+                    {t("desktop.settings.cancel.button")}
+                  </Button>
+                </DialogClose>
+                <DialogAction onClick={handlers.confirm}>
+                  {t("desktop.settings.storage.previous.confirm.action")}
+                </DialogAction>
+              </>
+            }
           />
-        }
-        footer={
-          <>
-            <DialogClose asChild>
-              <Button variant="outline" size="sm" autoFocus>
-                {t("desktop.settings.cancel.button")}
-              </Button>
-            </DialogClose>
-            <DialogAction onClick={handlers.confirm}>
-              {t("desktop.settings.storage.previous.confirm.action")}
-            </DialogAction>
-          </>
-        }
-      />
-    </div>
+        </div>
+      }
+    />
   );
 }
 
@@ -215,7 +221,7 @@ function PreviousList(props: {
               <span className="text-ui text-text-secondary">{formatBytes(copy.bytes)}</span>
               <Button
                 variant="outline"
-                size="xs"
+                size={FORM_CONTROL_SIZE}
                 disabled={busy}
                 aria-label={t("desktop.settings.storage.previous.remove.aria", { time: label })}
                 onClick={() => {

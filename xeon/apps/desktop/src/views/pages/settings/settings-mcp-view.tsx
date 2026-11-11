@@ -69,12 +69,12 @@ export function McpServersView(props: McpServersViewProps): ReactNode {
     <SettingSection
       title={t("desktop.settings.mcp.title")}
       end={
-        <div className="flex items-center gap-1">
-          <Button size="xs" variant="ghost" disabled={props.offline} onClick={props.onReload}>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="ghost" disabled={props.offline} onClick={props.onReload}>
             {t("desktop.settings.mcp.reload")}
           </Button>
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             disabled={props.offline || props.load.kind !== "ready"}
             onClick={props.onAdd}
@@ -94,7 +94,7 @@ function McpServersBody(props: McpServersViewProps): ReactNode {
   if (load.kind === "loading") {
     if (props.offline)
       return (
-        <Alert tone="info" size="sm">
+        <Alert tone="info" variant="outline" emphasis="lead" size="sm">
           {t("desktop.settings.offline")}
         </Alert>
       );
@@ -201,7 +201,7 @@ function McpServerRowView(props: McpServerRowViewProps): ReactNode {
       )}
       <HiddenLine model={model} />
       {props.error === null ? null : (
-        <Alert tone="danger" size="sm">
+        <Alert tone="danger" variant="outline" emphasis="lead" size="sm">
           {t(props.error.id, props.error.args)}
         </Alert>
       )}
@@ -417,6 +417,7 @@ export function McpFormBody(props: McpFormBodyProps): ReactNode {
       </div>
       <FieldLabel label={t("desktop.settings.mcp.form.id")}>
         <Input
+          size="sm"
           aria-label={t("desktop.settings.mcp.form.id")}
           value={draft.id}
           spellCheck={false}
@@ -427,6 +428,7 @@ export function McpFormBody(props: McpFormBodyProps): ReactNode {
       </FieldLabel>
       <FieldLabel label={t("desktop.settings.mcp.form.title")}>
         <Input
+          size="sm"
           aria-label={t("desktop.settings.mcp.form.title")}
           value={draft.title}
           onValueChange={(next) => {
@@ -436,6 +438,7 @@ export function McpFormBody(props: McpFormBodyProps): ReactNode {
       </FieldLabel>
       <FieldLabel label={t("desktop.settings.mcp.form.transport")}>
         <Select
+          size="sm"
           aria-label={t("desktop.settings.mcp.form.transport")}
           value={draft.transport}
           onValueChange={(next) => {
@@ -455,6 +458,7 @@ export function McpFormBody(props: McpFormBodyProps): ReactNode {
         <>
           <FieldLabel label={t("desktop.settings.mcp.form.command")}>
             <Input
+              size="sm"
               aria-label={t("desktop.settings.mcp.form.command")}
               value={draft.command}
               spellCheck={false}
@@ -465,6 +469,7 @@ export function McpFormBody(props: McpFormBodyProps): ReactNode {
           </FieldLabel>
           <FieldLabel label={t("desktop.settings.mcp.form.args")}>
             <Textarea
+              size="sm"
               aria-label={t("desktop.settings.mcp.form.args")}
               rows={3}
               value={draft.args}
@@ -488,6 +493,7 @@ export function McpFormBody(props: McpFormBodyProps): ReactNode {
         <>
           <FieldLabel label={t("desktop.settings.mcp.form.url")}>
             <Input
+              size="sm"
               aria-label={t("desktop.settings.mcp.form.url")}
               value={draft.url}
               spellCheck={false}
@@ -508,17 +514,17 @@ export function McpFormBody(props: McpFormBodyProps): ReactNode {
         </>
       )}
       {props.plaintextSecret ? (
-        <Alert tone="warning" variant="ghost" size="sm">
+        <Alert tone="warning" variant="ghost" emphasis="lead" size="sm">
           {t("desktop.settings.mcp.form.secretWarning")}
         </Alert>
       ) : null}
       {props.issue === null ? null : (
-        <Alert tone="warning" variant="ghost" size="sm">
+        <Alert tone="warning" variant="ghost" emphasis="lead" size="sm">
           {t(draftIssueIdOf(props.issue))}
         </Alert>
       )}
       {props.error === null ? null : (
-        <Alert tone="danger" size="sm">
+        <Alert tone="danger" variant="outline" emphasis="lead" size="sm">
           {t(props.error.id, props.error.args)}
         </Alert>
       )}
@@ -549,6 +555,7 @@ function PairsEditor(props: {
       {props.rows.map((row) => (
         <div key={row.uid} className="flex flex-wrap items-center gap-2">
           <Input
+            size="sm"
             aria-label={props.nameLabel}
             placeholder={props.nameLabel}
             value={row.name}
@@ -559,6 +566,7 @@ function PairsEditor(props: {
             }}
           />
           <Input
+            size="sm"
             aria-label={props.valueLabel}
             placeholder={props.valueLabel}
             value={row.value}
@@ -629,7 +637,7 @@ export function McpRemoveDialog(props: {
       }
     >
       {props.error === null ? null : (
-        <Alert tone="danger" size="sm">
+        <Alert tone="danger" variant="outline" emphasis="lead" size="sm">
           {t(props.error.id, props.error.args)}
         </Alert>
       )}

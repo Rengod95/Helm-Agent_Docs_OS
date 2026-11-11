@@ -3,11 +3,8 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-  Alert,
-  Badge,
   Button,
   Field,
-  FormLayoutFooter,
   IconButton,
   Input,
   NumberField,
@@ -19,9 +16,9 @@ import {
   Switch,
   Tooltip,
 } from "@caustic/react";
-import { Check, CircleHelp, Lock, RotateCcw, TriangleAlert } from "@caustic/react/icons";
+import { Check, Lock, RotateCcw } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
-import type { FieldVM, RuntimeBadge, WidgetVM } from "@fresnel/client/settings";
+import type { FieldVM, WidgetVM } from "@fresnel/client/settings";
 import { assertNever } from "@fresnel/contracts";
 import { useId, useRef, useState, type ReactNode } from "react";
 import {
@@ -50,8 +47,8 @@ import {
 import { QuantityControl } from "./settings-quantity-field.tsx";
 import { numberControlOf, rangeTextOf } from "./settings-quantity.ts";
 import { isCommitEnter } from "../../ime-enter.ts";
-import { TONE_CLASS } from "./settings-text.ts";
 import { SettingTagList } from "./settings-tag-list.tsx";
+import { FIELD_WIDTH, FORM_CONTROL_SIZE, RowNote, SettingRow } from "./settings-section.tsx";
 
 // 설정 항목 한 줄(P-09, L4.settings-ui §4.2 [결정: 2026-11-11 사용자]). 모든 쓰기는 사용자(전역) 범위다. 범위 고르기,
 // "이번 대화에만 적용", 범위 값 지우기는 없다.
@@ -100,82 +97,32 @@ function choiceTextOf(value: unknown): string {
 export function SavedMark(): ReactNode {
   return (
     <span role="status" className="inline-flex items-center gap-1 text-ui text-success-text">
-      <Check aria-hidden className="size-icon-sm" />
+      <Check aria-hidden className="size-icon-xs" />
       {t("desktop.settings.field.saved")}
     </span>
   );
 }
 
-/** 적용 시점 자리. "즉시"와 "다음 턴"은 적지 않고(설명 말풍선에 둔다), 재시작만 warning 배지다 */
-function ApplyMark(props: { readonly runtime: RuntimeBadge }): ReactNode {
-  const { change, text } = props.runtime;
-  switch (change) {
-    case "live":
-    case "nextTurn":
-      return null;
-    case "restart":
-      return (
-        <Badge size="sm" className={TONE_CLASS.warning}>
-          {text}
-        </Badge>
-      );
-    default:
-      return assertNever(change, "RuntimeChange");
-  }
-}
-
 /**
- * 설명 줄 모음. 설명, 적용 시점, 엔진 연결 안내, 파일 안내는 정보 아이콘 뒤에 둔다.
- * 경고와 오류, 잠금 문장과 덮어쓰는 층 경고는 그대로 보인다.
+ * 정보 아이콘 뒤 설명 줄. 설명, 다음 턴 적용, 대기 문장, 엔진 연결 안내, 파일 안내, 재시작이 필요한 항목이면 그 사실 한 문장을 둔다.
+ * 재시작 필요는 줄마다 배지로 보이지 않는다(DP-79). 바뀐 값이 재시작을 기다리면 설정 화면 아래 띠 하나가 알린다.
+ * 경고와 오류, 잠금 문장과 덮어쓰는 층 경고는 줄 아래에 그대로 보인다.
  */
-function explanationOf(field: FieldVM, control: FieldControl): readonly string[] {
+export function explanationOf(field: FieldVM, control: FieldControl): readonly string[] {
   const lines = [
     field.help,
     field.runtime.change === "nextTurn" ? field.runtime.text : null,
     field.runtime.pendingText,
     field.offlineNote,
     control === "summary" ? t("desktop.settings.field.fileHint") : null,
+    field.runtime.change === "restart" && field.runtime.pending !== "restart"
+      ? t("desktop.settings.field.restartNote")
+      : null,
   ];
   return lines.filter((line): line is string => line !== null && line !== "");
 }
 
-/**
- * 정보 아이콘 하나. 설명 줄은 마우스 올림과 초점에서 말풍선으로 뜬다. 화면 낭독기에는 같은 글이 설명(sr-only)으로 간다.
- */
-export function InfoTip(props: {
-  readonly label: string;
-  readonly lines: readonly string[];
-}): ReactNode {
-  const id = useId();
-  return (
-    <>
-      <Tooltip
-        side="top"
-        content={
-          <span className="grid max-w-72 gap-1 whitespace-normal">
-            {props.lines.map((line) => (
-              <span key={line}>{line}</span>
-            ))}
-          </span>
-        }
-      >
-        <IconButton
-          size="xs"
-          variant="ghost"
-          label={t("desktop.settings.field.help.label", { label: props.label })}
-          aria-describedby={id}
-        >
-          <CircleHelp />
-        </IconButton>
-      </Tooltip>
-      <span id={id} className="sr-only">
-        {props.lines.join(" ")}
-      </span>
-    </>
-  );
-}
-
-/** 상태 자리: 저장됨, 저장 중, 재시작 필요 가운데 하나 */
+/** 상태 자리: 저장됨, 저장 중 가운데 하나. 재시작 필요는 여기 두지 않는다(DP-79) */
 function StatusMark(props: { readonly field: FieldVM; readonly saved: boolean }): ReactNode {
   if (props.saved) return <SavedMark />;
   if (props.field.saving) {
@@ -185,7 +132,7 @@ function StatusMark(props: { readonly field: FieldVM; readonly saved: boolean })
       </span>
     );
   }
-  return <ApplyMark runtime={props.field.runtime} />;
+  return null;
 }
 
 export function FieldRow(props: FieldRowProps): ReactNode {
@@ -200,53 +147,8 @@ export function FieldRow(props: FieldRowProps): ReactNode {
   const override = overrideNoticeOf(field);
   // 되돌리기는 사용자 값이 있고 쓸 수 있을 때만, 행에 마우스를 올리거나 행 안에 초점이 있을 때 보인다
   const resettable = editable && field.scope.scope === "user" && !field.dirty;
-  const controlNode = (
-    <FieldControlView
-      field={field}
-      control={control}
-      disabled={disabled}
-      errorText={errorText}
-      editors={editors}
-      editable={editable}
-      handlers={handlers}
-    />
-  );
-  return (
-    <div
-      data-slot="settings-field"
-      data-key={field.key}
-      data-layout={layout}
-      role="group"
-      aria-labelledby={titleId}
-      aria-disabled={field.lock === null ? undefined : true}
-      aria-describedby={field.lock === null ? undefined : lockId}
-      className="group/field grid gap-2 py-3"
-    >
-      <div className="flex min-h-8 min-w-0 items-center gap-6">
-        <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <span id={titleId} className="min-w-0 text-ui font-medium text-text-primary">
-              {field.label}
-            </span>
-            {explain.length === 0 ? null : <InfoTip label={field.label} lines={explain} />}
-            <StatusMark field={field} saved={saved} />
-          </div>
-          {showKey ? (
-            <span className="min-w-0 truncate font-mono text-mono-sm text-text-tertiary">
-              {field.key}
-            </span>
-          ) : null}
-        </div>
-        {layout === "inline" ? (
-          <div className="flex flex-none items-center gap-2">
-            {resettable ? <ResetButton field={field} handlers={handlers} /> : null}
-            {controlNode}
-          </div>
-        ) : resettable ? (
-          <ResetButton field={field} handlers={handlers} />
-        ) : null}
-      </div>
-      {layout === "stacked" ? controlNode : null}
+  const notes = (
+    <>
       {layout === "inline" && errorText !== null ? (
         <p role="alert" className="m-0 text-ui text-danger-text">
           {errorText}
@@ -259,63 +161,51 @@ export function FieldRow(props: FieldRowProps): ReactNode {
         </p>
       )}
       {override === null ? null : (
-        <p
-          data-slot="settings-override"
-          className="m-0 flex min-w-0 items-start gap-1.5 text-ui text-warning-text"
-        >
-          <TriangleAlert aria-hidden className="mt-0.5 size-icon-xs flex-none" />
-          <span className="min-w-0">
-            {override.text}
-            {override.path === null ? null : (
-              <span className="ms-1.5 font-mono text-mono-sm break-all text-text-tertiary">
-                {override.path}
-              </span>
-            )}
-          </span>
-        </p>
+        <RowNote slot="settings-override">
+          {override.text}
+          {override.path === null ? null : (
+            <span className="ms-1.5 font-mono text-mono-sm break-all text-text-tertiary">
+              {override.path}
+            </span>
+          )}
+        </RowNote>
       )}
       {remoteNoticeOf(field) ? (
-        <div className="grid gap-1.5" data-slot="settings-remote-changed">
-          <Alert tone="warning" variant="ghost" size="sm">
-            {t("desktop.settings.conflict.label")}: {t("desktop.settings.field.remoteChanged")}
-          </Alert>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={() => {
-                handlers.discard(field.key);
-              }}
-            >
-              {t("desktop.settings.conflict.useNew")}
-            </Button>
-            <Button
-              size="xs"
-              variant="ghost"
-              onClick={() => {
-                handlers.keepDraft(field.key);
-              }}
-            >
-              {t("desktop.settings.conflict.keepMine")}
-            </Button>
-          </div>
-        </div>
+        <RowNote
+          slot="settings-remote-changed"
+          actions={
+            <>
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={() => {
+                  handlers.discard(field.key);
+                }}
+              >
+                {t("desktop.settings.conflict.useNew")}
+              </Button>
+              <Button
+                size="xs"
+                variant="ghost"
+                onClick={() => {
+                  handlers.keepDraft(field.key);
+                }}
+              >
+                {t("desktop.settings.conflict.keepMine")}
+              </Button>
+            </>
+          }
+        >
+          {t("desktop.settings.conflict.label")}: {t("desktop.settings.field.remoteChanged")}
+        </RowNote>
       ) : null}
-      {field.deprecated === null ? null : (
-        <Alert tone="warning" variant="ghost" size="sm">
-          {deprecatedTextOf(field)}
-        </Alert>
-      )}
-      {field.problem === null ? null : (
-        <Alert tone="warning" variant="ghost" size="sm">
-          {t("desktop.settings.field.problem")}
-        </Alert>
-      )}
+      {field.deprecated === null ? null : <RowNote>{deprecatedTextOf(field)}</RowNote>}
+      {field.problem === null ? null : <RowNote>{t("desktop.settings.field.problem")}</RowNote>}
       {editable && field.dirty && hasFooter(field) ? (
-        <FormLayoutFooter>
+        <div className="flex justify-end gap-2 pt-1" data-slot="settings-field-footer">
           <Button
             variant="outline"
-            size="sm"
+            size={FORM_CONTROL_SIZE}
             onClick={() => {
               handlers.discard(field.key);
             }}
@@ -323,7 +213,7 @@ export function FieldRow(props: FieldRowProps): ReactNode {
             {t("desktop.settings.field.discard")}
           </Button>
           <Button
-            size="sm"
+            size={FORM_CONTROL_SIZE}
             disabled={field.saving || field.issues.length > 0}
             onClick={() => {
               handlers.commit(field.key);
@@ -331,9 +221,42 @@ export function FieldRow(props: FieldRowProps): ReactNode {
           >
             {t("desktop.settings.field.save")}
           </Button>
-        </FormLayoutFooter>
+        </div>
       ) : null}
-    </div>
+    </>
+  );
+  return (
+    <SettingRow
+      slot="settings-field"
+      dataKey={field.key}
+      layout={layout}
+      group
+      labelId={titleId}
+      label={field.label}
+      info={explain.length === 0 ? undefined : explain}
+      infoLabel={t("desktop.settings.field.help.label", { label: field.label })}
+      badges={<StatusMark field={field} saved={saved} />}
+      description={
+        showKey ? (
+          <span className="block min-w-0 truncate font-mono text-mono-sm">{field.key}</span>
+        ) : undefined
+      }
+      disabled={field.lock !== null}
+      describedBy={field.lock === null ? undefined : lockId}
+      lead={resettable ? <ResetButton field={field} handlers={handlers} /> : undefined}
+      control={
+        <FieldControlView
+          field={field}
+          control={control}
+          disabled={disabled}
+          errorText={errorText}
+          editors={editors}
+          editable={editable}
+          handlers={handlers}
+        />
+      }
+      notes={notes}
+    />
   );
 }
 
@@ -346,7 +269,7 @@ function ResetButton(props: {
   return (
     <Tooltip side="top" content={label}>
       <IconButton
-        size="xs"
+        size={FORM_CONTROL_SIZE}
         variant="ghost"
         label={label}
         data-slot="settings-reset"
@@ -376,7 +299,7 @@ function FieldControlView(props: {
     case "switch":
       return (
         <Switch
-          size="sm"
+          size={FORM_CONTROL_SIZE}
           aria-label={field.label}
           checked={field.value === true}
           disabled={disabled}
@@ -409,9 +332,9 @@ function FieldControlView(props: {
     case "text":
       return (
         <Input
-          size="sm"
+          size={FORM_CONTROL_SIZE}
           aria-label={field.label}
-          containerClassName="w-64"
+          containerClassName={FIELD_WIDTH.medium}
           value={textValueOf(field.value)}
           disabled={disabled}
           invalid={errorText !== null}
@@ -506,8 +429,7 @@ function StepperControl(props: {
     <span className="grid justify-items-end gap-1">
       <NumberField
         appearance="stepper"
-        size="sm"
-        containerClassName="w-32"
+        size={FORM_CONTROL_SIZE}
         aria-label={field.label}
         commitMode="release"
         value={numberValueOf(field.value)}
@@ -587,12 +509,12 @@ function ChoiceField(props: {
   if (!described) {
     return (
       <Select
-        size="sm"
+        size={FORM_CONTROL_SIZE}
         aria-label={field.label}
         value={text}
         disabled={disabled}
         invalid={errorText !== null}
-        className="w-56"
+        className={FIELD_WIDTH.medium}
         onValueChange={choose}
       >
         {options.map((option) => (
@@ -625,14 +547,9 @@ function ChoiceField(props: {
         ))}
       </RadioGroup>
       {warning === null ? null : (
-        <p
-          role="note"
-          data-slot="settings-choice-warning"
-          className="m-0 flex min-w-0 items-start gap-1.5 text-ui text-danger-text"
-        >
-          <TriangleAlert aria-hidden className="mt-0.5 size-icon-xs flex-none" />
-          <span>{warning}</span>
-        </p>
+        <RowNote tone="danger" slot="settings-choice-warning">
+          {warning}
+        </RowNote>
       )}
     </Field>
   );

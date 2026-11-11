@@ -28,7 +28,6 @@ import {
 } from "../../../state/ui/index.ts";
 import { useCommands, type SettingsFileTarget, type SettingsFileWrite } from "../../commands.ts";
 import { PROVIDER_EDITORS, RotationPanel } from "../providers/providers-screen.tsx";
-import { PanelBlock } from "../shared/panel-parts.tsx";
 import { ConnectionScreen } from "../connection/connection-screen.tsx";
 import { SecretsPanel } from "../secrets/secrets-screen.tsx";
 import type { FolderPickInvoke } from "../../folder-pick.ts";
@@ -448,9 +447,9 @@ export function SettingsPage(props: {
     notify: notifyPanel,
     rotation:
       view === null ? null : (
-        <PanelBlock>
+        <SettingSection continues label={t("desktop.providers.rotation.title")}>
           <RotationPanel view={view} live={live} handlers={fields} />
-        </PanelBlock>
+        </SettingSection>
       ),
     secrets: (
       <SecretsPanel

@@ -1,13 +1,12 @@
-import { Alert, Switch, toast } from "@caustic/react";
+import { Switch, toast } from "@caustic/react";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import { useState, useSyncExternalStore, type ReactNode } from "react";
-import { InfoTip } from "../../craft/info-tip.tsx";
 import { useDesktopShell } from "../../desktop-shell-context.ts";
 import type { NotifyStatus, NotifyStatusStore } from "../../os-notify.ts";
 import { permissionViewOf, type NotifyCategory, type NotifyPrefs } from "../../os-notify-model.ts";
 import type { NotifyPrefsPort } from "../../os-notify-prefs.ts";
-import { SettingSection } from "./settings-section.tsx";
+import { FORM_CONTROL_SIZE, RowNote, SettingRow, SettingSection } from "./settings-section.tsx";
 
 // 설정 "실행과 서비스" 탭 맨 위의 OS 알림 묶음(B-10, d02 `NotifySettings`). 종류마다 켜고 끄는 스위치 셋이고,
 // 설명은 정보 아이콘 뒤에 둔다. 마지막 전달이 실패했거나 권한이 막혔으면 경고 한 줄을 위에 보인다.
@@ -78,27 +77,28 @@ export function NotifyPanelView(props: NotifyPanelViewProps): ReactNode {
     <div data-slot="settings-notify" data-notify-state={view.kind}>
       <SettingSection title={t("desktop.notifySettings.label")}>
         {view.kind === "denied" || view.kind === "failed" ? (
-          <Alert tone="warning" size="sm">
-            {t(view.text)}
-          </Alert>
+          <div>
+            <RowNote>{t(view.text)}</RowNote>
+          </div>
         ) : null}
         {ROWS.map((row) => (
-          <div key={row.category} className="flex items-center justify-between gap-3 py-3">
-            <span className="flex items-center gap-2 text-body text-text-primary">
-              {t(row.label)}
-              <InfoTip text={t(row.info)} />
-            </span>
-            <Switch
-              size="sm"
-              aria-label={t(row.label)}
-              checked={prefs[row.category]}
-              onCheckedChange={(on) => {
-                onChange(row.category, on);
-              }}
-            />
-          </div>
+          <SettingRow
+            key={row.category}
+            label={t(row.label)}
+            info={t(row.info)}
+            control={
+              <Switch
+                size={FORM_CONTROL_SIZE}
+                aria-label={t(row.label)}
+                checked={prefs[row.category]}
+                onCheckedChange={(on) => {
+                  onChange(row.category, on);
+                }}
+              />
+            }
+          />
         ))}
-        <div className="grid gap-1 pt-3">
+        <div className="grid gap-1">
           {view.kind === "prompt" || view.kind === "unknown" ? (
             <p className="text-ui text-text-tertiary">{t(view.text)}</p>
           ) : null}

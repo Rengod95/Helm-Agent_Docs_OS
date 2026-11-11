@@ -2390,6 +2390,7 @@
   "desktop.settings.field.save": "저장",
   "desktop.settings.field.saved": "저장됨",
   "desktop.settings.field.saving": "저장하는 중이에요…",
+  "desktop.settings.field.restartNote": "다시 시작해야 적용돼요.",
   "desktop.settings.file.close.button": "닫기",
   "desktop.settings.file.conflict": "다른 곳에서 바뀌었어요",
   "desktop.settings.file.conflict.body": "다시 읽으면 지금 파일 내용으로 바뀌고 고친 내용은 사라져요",
