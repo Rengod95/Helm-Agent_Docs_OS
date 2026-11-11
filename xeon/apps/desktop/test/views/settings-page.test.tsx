@@ -43,7 +43,6 @@ const handlers: SettingsPageHandlers = {
     commit: NOOP,
     discard: NOOP,
     keepDraft: NOOP,
-    selectScope: NOOP,
     reset: NOOP,
   },
   promptSave: NOOP,
@@ -87,7 +86,6 @@ function propsOf(over: Partial<SettingsPageProps> = {}): SettingsPageProps {
     query: "",
     narrow: false,
     readOnly: false,
-    hasThread: false,
     saved: new Set(),
     restartError: null,
     prompt: null,
@@ -593,30 +591,26 @@ describe("widget controls", () => {
   ];
   const DEFS = [TOGGLE, EFFORT, ALLOW, BUDGETS, MODEL, OLD];
 
-  test("each widget kind renders its control, with the scope, shadow, deprecation and launch parts", () => {
+  test("each widget kind renders its control, with the item count and the deprecation parts", () => {
     const view = viewOf(DEFS, SETTINGS_ALL, thr(1));
-    const out = html(propsOf({ view, tab: "models", hasThread: true }));
+    const out = html(propsOf({ view, tab: "models" }));
     expect(out).toContain('role="switch"');
     expect(out).toContain('role="radio"');
     expect(out).toContain('aria-orientation="horizontal"');
     expect(out).not.toContain('aria-orientation="vertical"');
-    expect(out).toContain(t("client.settings.scope.user"));
-    expect(out).toContain(t("desktop.settings.shadowed.title", { count: 1 }));
     expect(out).toContain(t("desktop.settings.field.itemCount", { count: 1 }));
     expect(out).toContain(t("desktop.settings.field.deprecated", { since: "0.9.0" }));
     expect(out).toContain(t("desktop.settings.field.deprecatedReplaced", { label: "기본 모델" }));
-    expect(out).toContain(t("desktop.settings.field.launchOnly"));
-    expect(out).toContain(t("desktop.settings.field.scope.label"));
   });
 
   test("a dirty list field shows the save and discard footer and a changed-elsewhere notice", () => {
     const base = stateOf(DEFS, SETTINGS_ALL, thr(1));
     const edited = reduceSettings(base, { type: "draftEdited", key: ALLOW.key, raw: ["a", "b"] });
-    const out = html(propsOf({ view: settingsViewOf(edited), tab: "models", hasThread: true }));
+    const out = html(propsOf({ view: settingsViewOf(edited), tab: "models" }));
     expect(out).toContain(t("desktop.settings.field.save"));
     expect(out).toContain(t("desktop.settings.field.discard"));
     const moved = reduceSettings(edited, { type: "invalidated", keys: [ALLOW.key] });
-    const noticed = html(propsOf({ view: settingsViewOf(moved), tab: "models", hasThread: true }));
+    const noticed = html(propsOf({ view: settingsViewOf(moved), tab: "models" }));
     expect(noticed).toContain(t("desktop.settings.field.remoteChanged"));
     expect(noticed).toContain(t("desktop.settings.conflict.label"));
     expect(noticed).toContain(t("desktop.settings.conflict.useNew"));
@@ -894,9 +888,10 @@ describe("화면 진단 card tones", () => {
   });
 });
 
-// user=2, project=4, local=6: 유효 값은 local이고 화면의 범위 선택은 local을 가리킨다. 가려진 값은 접힘 안에 한 줄로 보인다.
-describe("shadowed winner in the page", () => {
-  test("the scope choice names the winning local scope and the hidden values sit behind the disclosure", () => {
+// user=2, project=4, local=6: 유효 값은 local이다. 쓰기는 사용자 범위로 가고, 이기는 local 값은 항목 아래 경고 줄로
+// 그 파일 경로와 함께 보인다. 범위 고르기 칸과 가려진 값 접힘은 없다.
+describe("override note in the page", () => {
+  test("a winning local value shows the warning under the row with its file, and no scope choice", () => {
     const KEY = "ext.helm.maxLenses";
     const LENSES = defOf(
       KEY,
@@ -906,33 +901,24 @@ describe("shadowed winner in the page", () => {
       {},
       { order: 1, label: "렌즈" },
     );
+    const LOCAL_PATH = "/work/.fresnel/settings.local.json";
     const winner = settingOf(KEY, 6, {
-      source: { scope: "local", path: "/work/.fresnel/settings.local.json" },
+      source: { scope: "local", path: LOCAL_PATH },
       shadowed: [
         { scope: "project", path: "/work/.fresnel/settings.json" },
         { scope: "user", path: "/home/user/.fresnel/settings.json" },
       ],
     });
-    let state = stateOf([LENSES], [winner], thr(1));
-    state = reduceSettings(state, {
-      type: "scopeFileRead",
-      scope: "project",
-      values: new Map([[KEY, 4]]),
-    });
-    state = reduceSettings(state, {
-      type: "scopeFileRead",
-      scope: "user",
-      values: new Map([[KEY, 2]]),
-    });
-    const view = settingsViewOf(state);
+    const view = viewOf([LENSES], [winner], thr(1));
     const field = fieldIn(view, KEY);
-    expect(field?.selectedScope).toBe("local");
+    expect(field?.scope.scope).toBe("local");
     expect(field?.writableScopes).toEqual(["user", "project", "local", "launch"]);
-    const out = html(propsOf({ view, tab: "plugins", hasThread: true }));
-    expect(out).toContain(t("desktop.settings.field.scope.label"));
-    expect(out).toContain(t("desktop.settings.shadowed.title", { count: 2 }));
+    const out = html(propsOf({ view, tab: "plugins" }));
     expect(out).toContain(
-      t("desktop.settings.field.scope.sr", { scope: t("client.settings.scope.local") }),
+      t("desktop.settings.field.overriddenPath", {
+        scope: t("client.settings.scope.local"),
+        path: LOCAL_PATH,
+      }),
     );
   });
 });

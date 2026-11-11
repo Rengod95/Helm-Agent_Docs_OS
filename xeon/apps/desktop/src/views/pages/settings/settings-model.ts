@@ -1,14 +1,6 @@
-import type {
-  BadgeScope,
-  FieldVM,
-  SettingsView,
-  ShadowedVM,
-  TabVM,
-  WidgetVM,
-  WritableScope,
-} from "@fresnel/client/settings";
+import type { FieldVM, SettingsView, TabVM, WidgetVM } from "@fresnel/client/settings";
 import { scopeText } from "@fresnel/client/settings";
-import { createTranslator, isLocale, t, tKey, UI_LOCALE_KEY } from "@fresnel/client/i18n";
+import { createTranslator, isLocale, tKey, UI_LOCALE_KEY } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { SettingEditor, SettingKey, SettingsTab } from "@fresnel/contracts/settings";
 import { MCP_SERVERS_KEY } from "./settings-mcp-model.ts";
@@ -189,43 +181,40 @@ export function remoteNoticeOf(field: FieldVM): boolean {
 }
 
 /**
- * 배지 범위를 쓸 수 있는 범위로 좁힌다. 기본값과 `managed`는 쓸 수 없으니 `null`이다.
- * 되돌리기 버튼이 이 값으로 범위를 정한다.
+ * 쓰기 범위. 설정은 모두 사용자(전역) 범위에 쓴다. 사용자 범위를 쓸 수 없는 항목(잠겼거나 사용자 범위가 없으면)은 `null`이고,
+ * 그때는 컨트롤러가 정한 범위를 그대로 쓴다. 화면은 저장하기 전에 이 값으로 범위를 고른다.
  */
-export function writableOf(scope: BadgeScope): WritableScope | null {
+export function writeScopeOf(field: FieldVM): "user" | null {
+  return field.writableScopes.includes("user") ? "user" : null;
+}
+
+/**
+ * 되돌리기 단추를 보이는가. 값이 사용자 범위에 있을 때만 보인다. 다른 층이 이기면 사용자 값을 지워도 화면 값이 그대로라 숨긴다.
+ */
+export function resetShownOf(field: FieldVM): boolean {
+  return field.canReset && field.scope.scope === "user";
+}
+
+/**
+ * 다른 층이 사용자 값을 덮을 때의 경고. 승자 범위가 프로젝트, 로컬, 이번 실행, 관리 정책이면 그 범위 이름과 파일 경로를 준다.
+ * 기본값이나 사용자 범위가 이기면 경고가 없어 `null`이다. 경고는 항목 아래에 보이고 도움말 뒤로 숨기지 않는다.
+ */
+export function overrideWarningOf(
+  field: FieldVM,
+): { readonly scopeName: string; readonly path: string | null } | null {
+  const scope = field.scope.scope;
   switch (scope) {
-    case "user":
     case "project":
     case "local":
     case "launch":
-      return scope;
     case "managed":
+      return { scopeName: scopeText(scope), path: field.filePath };
+    case "user":
     case "default":
       return null;
     default:
       return assertNever(scope, "BadgeScope");
   }
-}
-
-/** 대화 범위 체크를 껐을 때 돌아갈 범위. 대화 범위가 아닌 첫 후보다 */
-export function fallbackScopeOf(field: FieldVM): WritableScope | null {
-  return field.writableScopes.find((scope) => scope !== "launch") ?? null;
-}
-
-/** "이번 대화에만 적용" 체크를 보이는가와 켜졌는가. 열린 대화가 있고 대화 범위를 쓸 수 있을 때만 보인다 */
-export function launchChoiceOf(
-  field: FieldVM,
-  hasThread: boolean,
-): { readonly shown: boolean; readonly checked: boolean } {
-  return {
-    shown: hasThread && field.writableScopes.includes("launch"),
-    checked: field.selectedScope === "launch",
-  };
-}
-
-/** 쓸 범위가 둘 이상이면 범위를 고르는 선택 상자를 보인다 */
-export function scopeChoiceShown(field: FieldVM): boolean {
-  return field.writableScopes.length > 1;
 }
 
 // ── 입력 칸 ────────────────────────────────────────────────────────────────
@@ -478,52 +467,6 @@ export function valueSummaryOf(value: unknown): ValueSummary {
     return { kind: "text", text: String(value) };
   }
   return { kind: "text", text: JSON.stringify(value) };
-}
-
-// ── 가려진 값 ──────────────────────────────────────────────────────────────
-
-/** 값 하나의 화면 글. 표와 객체는 원소 수로, 빈 값은 빈 값 글로 보인다(항목 요약과 같은 규칙) */
-function valueTextOf(value: unknown): string {
-  const summary = valueSummaryOf(value);
-  switch (summary.kind) {
-    case "empty":
-      return t("desktop.settings.field.emptyValue");
-    case "count":
-      return t("desktop.settings.field.itemCount", { count: summary.count });
-    case "text":
-      return summary.text;
-    default:
-      return assertNever(summary, "ValueSummary");
-  }
-}
-
-/** 가려진 범위 하나의 글. 시크릿은 값 대신 "값 가려짐"이고, 파일에서 못 읽은 범위는 그 사실만 보인다 */
-function shadowedItemOf(item: ShadowedVM): string {
-  const scope = scopeText(item.scope);
-  switch (item.value.kind) {
-    case "value":
-      return t("desktop.settings.shadowed.item", {
-        scope,
-        value: valueTextOf(item.value.value),
-      });
-    case "secret":
-      return t("desktop.settings.shadowed.item", {
-        scope,
-        value: t("desktop.secrets.value.hidden"),
-      });
-    case "unknown":
-      return t("desktop.settings.shadowed.unknown", { scope });
-    default:
-      return assertNever(item.value, "ShadowedValueVM");
-  }
-}
-
-/**
- * 가려진 범위의 요약 한 줄(§4.3.4 [결정: 오케스트레이터 기본값, fxPT]). 강한 범위부터 약한 범위 순으로 `프로젝트 4 · 사용자 2`처럼 잇는다.
- * 가려진 범위가 없으면 빈 글이다. 값은 접힘 영역 안에만 보인다.
- */
-export function shadowedSummaryOf(field: FieldVM): string {
-  return field.shadowed.map(shadowedItemOf).join(t("desktop.settings.shadowed.separator"));
 }
 
 // ── 바로 가기 키 ───────────────────────────────────────────────────────────

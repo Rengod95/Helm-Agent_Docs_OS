@@ -85,7 +85,6 @@ export interface SettingsPageProps {
   readonly query: string;
   readonly narrow: boolean;
   readonly readOnly: boolean;
-  readonly hasThread: boolean;
   readonly saved: ReadonlySet<SettingKey>;
   readonly restartError: string | null;
   /** 탭을 옮기려는데 저장하지 않은 초안이 있을 때. `count`는 초안 개수다 */
@@ -391,7 +390,7 @@ function titledCardsOf(tab: SettingsTab, fields: readonly FieldVM[]): readonly T
 
 /** 찾기 결과나 고른 탭의 항목. 시크릿 탭은 시크릿 화면이 자리를 차지한다 */
 function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }): ReactNode {
-  const { view, query, tab, hasThread, readOnly, saved, handlers } = props;
+  const { view, query, tab, readOnly, saved, handlers } = props;
   const rowHandlers = handlers.fields;
   // 설정 키는 찾기 결과에서만 라벨 옆에 보인다(시안 `_settings/row.tsx` showKey)
   const rowOf = (field: FieldVM, showKey: boolean): ReactNode => (
@@ -399,7 +398,6 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
       key={field.key}
       field={field}
       editable={field.editable && (!readOnly || field.origin === "desktop")}
-      hasThread={hasThread}
       saved={saved.has(field.key)}
       editors={props.editors}
       handlers={rowHandlers}

@@ -7,19 +7,16 @@ import {
   type FieldVM,
   type SettingsView,
 } from "@fresnel/client/settings";
-import type { SettingScope } from "@fresnel/contracts/settings";
-import { thr } from "../state/helpers.ts";
+import type { EffectiveSetting, SettingDefWire } from "@fresnel/contracts/settings";
 import {
   advancedGroupsOf,
   allFieldsOf,
   budgetsGroupsOf,
   columnLabelOf,
   dirtyKeysOf,
-  fallbackScopeOf,
   fieldControlOf,
   fieldMatches,
   hasFooter,
-  launchChoiceOf,
   modelsGroupsOf,
   numberDraftActionOf,
   choiceWarningOf,
@@ -28,21 +25,21 @@ import {
   optionHelpOf,
   optionLabelOf,
   optionOf,
+  overrideWarningOf,
   pageStatusOf,
+  resetShownOf,
   switchClassOf,
   remoteNoticeOf,
   restartCountOf,
-  scopeChoiceShown,
   settingsKeyOf,
   searchGroupsOf,
   selectControlOf,
-  shadowedSummaryOf,
   tabStep,
   tabSwitchOf,
   tagsOf,
   textValueOf,
   valueSummaryOf,
-  writableOf,
+  writeScopeOf,
 } from "../../src/views/pages/settings/settings-model.ts";
 import { defOf, fieldIn, settingOf, stateOf, viewOf } from "./settings-fixtures.ts";
 
@@ -222,38 +219,85 @@ describe("field controls", () => {
   });
 });
 
-describe("scope choices", () => {
-  test("a shadowed or managed scope is never a write target", () => {
-    expect(writableOf("user")).toBe("user");
-    expect(writableOf("launch")).toBe("launch");
-    expect(writableOf("managed")).toBeNull();
-    expect(writableOf("default")).toBeNull();
+// 설정은 사용자(전역) 범위에 쓴다. 다른 층이 사용자 값을 덮으면 항목 아래 경고가 그 층 이름과 파일 경로를 준다.
+describe("write scope and override warning", () => {
+  const PROJECT_PATH = "/work/.fresnel/settings.json";
+  const LOCAL_PATH = "/work/.fresnel/settings.local.json";
+  const MANAGED_PATH = "/etc/fresnel/managed.json";
+
+  /** 정의 하나와 유효 값 하나(없으면 값 없음)로 만든 항목. 항목이 없으면 시험이 실패한다 */
+  function fieldWith(setting: EffectiveSetting | null, def: SettingDefWire = MODEL): FieldVM {
+    const field = fieldIn(viewOf([def], setting === null ? [] : [setting]), def.key);
+    if (field === undefined) throw new Error("field must exist");
+    return field;
+  }
+
+  const PROJECT_WINS = settingOf(MODEL.key, "a/b", {
+    source: { scope: "project", path: PROJECT_PATH },
   });
 
-  test("the this-conversation check shows only with an open conversation and a launch scope", () => {
-    const closed = fieldIn(viewOf([MODEL], [settingOf(MODEL.key, "a/b")], null), MODEL.key);
-    const open = fieldIn(viewOf([MODEL], [settingOf(MODEL.key, "a/b")], thr(1)), MODEL.key);
-    if (closed === undefined || open === undefined) throw new Error("field must exist");
-    expect(launchChoiceOf(closed, false)).toEqual({ shown: false, checked: false });
-    expect(launchChoiceOf(open, true)).toEqual({ shown: true, checked: false });
-    expect(fallbackScopeOf(open)).toBe("user");
-    expect(scopeChoiceShown(open)).toBe(true);
+  test("a write goes to the user scope while the user scope is writable, whichever layer wins", () => {
+    expect(writeScopeOf(fieldWith(settingOf(MODEL.key, "a/b")))).toBe("user");
+    expect(writeScopeOf(fieldWith(PROJECT_WINS))).toBe("user");
+    expect(writeScopeOf(fieldWith(null))).toBe("user");
   });
 
-  test("a single writable scope needs no scope choice", () => {
-    const only = defOf(
-      "l1.models.only",
+  test("a locked field or one without the user scope has no user write scope", () => {
+    const locked = settingOf(MODEL.key, "a/b", {
+      locked: true,
+      lockReason: "managed_file",
+      source: { scope: "managed", path: MANAGED_PATH },
+    });
+    expect(writeScopeOf(fieldWith(locked))).toBeNull();
+    const projectOnly = defOf(
+      "l1.models.projectOnly",
       "models",
       "text",
       { type: "string" },
-      {
-        allowedScopes: ["user"],
-      },
+      { allowedScopes: ["project"] },
     );
-    const view = viewOf([only], [settingOf(only.key, "a")]);
-    const field = fieldIn(view, only.key);
-    if (field === undefined) throw new Error("field must exist");
-    expect(scopeChoiceShown(field)).toBe(false);
+    expect(writeScopeOf(fieldWith(settingOf(projectOnly.key, "a"), projectOnly))).toBeNull();
+  });
+
+  test("the reset button shows only for a value the user scope holds", () => {
+    expect(resetShownOf(fieldWith(settingOf(MODEL.key, "a/b")))).toBe(true);
+    expect(resetShownOf(fieldWith(PROJECT_WINS))).toBe(false);
+    expect(resetShownOf(fieldWith(null))).toBe(false);
+  });
+
+  test("an override warning names the winning layer and its file, and a user or default value has none", () => {
+    expect(overrideWarningOf(fieldWith(null))).toBeNull();
+    expect(overrideWarningOf(fieldWith(settingOf(MODEL.key, "a/b")))).toBeNull();
+    expect(overrideWarningOf(fieldWith(PROJECT_WINS))).toEqual({
+      scopeName: "프로젝트",
+      path: PROJECT_PATH,
+    });
+    const local = settingOf(MODEL.key, "a/b", { source: { scope: "local", path: LOCAL_PATH } });
+    expect(overrideWarningOf(fieldWith(local))).toEqual({ scopeName: "로컬", path: LOCAL_PATH });
+    const launch = settingOf(MODEL.key, "a/b", { source: { scope: "launch" } });
+    expect(overrideWarningOf(fieldWith(launch))).toEqual({ scopeName: "이번 실행", path: null });
+    const managed = settingOf(MODEL.key, "a/b", {
+      locked: true,
+      lockReason: "managed_file",
+      source: { scope: "managed", path: MANAGED_PATH },
+    });
+    expect(overrideWarningOf(fieldWith(managed))).toEqual({
+      scopeName: "관리",
+      path: MANAGED_PATH,
+    });
+  });
+
+  test("an English session names the overriding layer in English", () => {
+    const previous = activeLocale();
+    setActiveLocale("en");
+    try {
+      expect(overrideWarningOf(fieldWith(PROJECT_WINS))).toEqual({
+        scopeName: "Project",
+        path: PROJECT_PATH,
+      });
+    } finally {
+      setActiveLocale(previous);
+    }
   });
 });
 
@@ -562,92 +606,5 @@ describe("numberDraftActionOf", () => {
   test("a clean report after the value callback or without a draft does nothing", () => {
     expect(numberDraftActionOf(cleared, { ...idle, committing: true })).toBeNull();
     expect(numberDraftActionOf(cleared, { ...idle, fieldDirty: false })).toBeNull();
-  });
-});
-
-// 가려진 값 요약(§4.3.4 개정). user=2, project=4, local=6이면 유효 값은 local이고 요약은 강한 범위 순 `프로젝트 4 · 사용자 2`다.
-describe("shadowed summary", () => {
-  const KEY = "ext.helm.maxLenses";
-  const LENSES = defOf(
-    KEY,
-    "plugins",
-    "number",
-    { type: "integer" },
-    {},
-    { order: 1, label: "렌즈" },
-  );
-  const winner = settingOf(KEY, 6, {
-    source: { scope: "local", path: "/work/.fresnel/settings.local.json" },
-    shadowed: [
-      { scope: "project", path: "/work/.fresnel/settings.json" },
-      { scope: "user", path: "/home/user/.fresnel/settings.json" },
-    ],
-  });
-
-  /** 범위 파일을 읽은 뒤의 화면 항목. 읽은 값은 `scopeFileRead`로 넣는다 */
-  function fieldWithFiles(files: ReadonlyArray<readonly [SettingScope, unknown]>): FieldVM {
-    let state = stateOf([LENSES], [winner], thr(1));
-    for (const [scope, value] of files) {
-      state = reduceSettings(state, {
-        type: "scopeFileRead",
-        scope,
-        values: new Map([[KEY, value]]),
-      });
-    }
-    const field = fieldIn(settingsViewOf(state), KEY);
-    if (field === undefined) throw new Error("field must exist");
-    return field;
-  }
-
-  test("the hidden values read as project then user, with the winning local scope not listed", () => {
-    const field = fieldWithFiles([
-      ["project", 4],
-      ["user", 2],
-    ]);
-    expect(field.scope.scope).toBe("local");
-    expect(field.selectedScope).toBe("local");
-    expect(shadowedSummaryOf(field)).toBe("프로젝트 4 · 사용자 2");
-  });
-
-  test("a secret value is masked, a value that could not be read says so, and no value shows the scope only", () => {
-    const TOKEN = "ext.helm.apiToken";
-    const token = defOf(TOKEN, "plugins", "secret", { type: "string" }, { secret: true });
-    const tokenWinner = settingOf(TOKEN, "secret://helm-token", {
-      source: { scope: "local", path: "/work/.fresnel/settings.local.json" },
-      shadowed: [{ scope: "project", path: "/work/.fresnel/settings.json" }],
-    });
-    let state = stateOf([token], [tokenWinner], thr(1));
-    state = reduceSettings(state, {
-      type: "scopeFileRead",
-      scope: "project",
-      values: new Map([[TOKEN, "secret://old-token"]]),
-    });
-    const secretField = fieldIn(settingsViewOf(state), TOKEN);
-    if (secretField === undefined) throw new Error("field must exist");
-    expect(shadowedSummaryOf(secretField)).toBe("프로젝트 값 가려짐");
-    expect(shadowedSummaryOf(fieldWithFiles([]))).toBe(
-      "프로젝트 값을 읽지 못했어요 · 사용자 값을 읽지 못했어요",
-    );
-  });
-
-  test("a field with no hidden scope has an empty summary", () => {
-    const alone = settingOf(KEY, 3, { source: { scope: "user" } });
-    const field = fieldIn(viewOf([LENSES], [alone]), KEY);
-    if (field === undefined) throw new Error("field must exist");
-    expect(shadowedSummaryOf(field)).toBe("");
-  });
-
-  test("an English session names the scopes in English", () => {
-    const previous = activeLocale();
-    setActiveLocale("en");
-    try {
-      const field = fieldWithFiles([
-        ["project", 4],
-        ["user", 2],
-      ]);
-      expect(shadowedSummaryOf(field)).toBe("Project 4 · User 2");
-    } finally {
-      setActiveLocale(previous);
-    }
   });
 });

@@ -1,36 +1,24 @@
-import {
-  Alert,
-  Button,
-  SegmentedControl,
-  SegmentedControlItem,
-  Skeleton,
-  Textarea,
-} from "@caustic/react";
+import { Alert, Button, Skeleton, Textarea } from "@caustic/react";
 import { t } from "@fresnel/client/i18n";
-import { scopeText } from "@fresnel/client/settings";
 import type { KeyboardEvent, ReactNode } from "react";
 import {
   fileCloseableOf,
-  fileDirtyOf,
   fileDiscardableOf,
   fileEditableOf,
   fileErrorTextOf,
   fileSaveableOf,
-  fileScopesOf,
   type FileEditorState,
-  type FileScope,
 } from "./settings-file-model.ts";
 import { SavedMark } from "./settings-field.tsx";
 import { settingsKeyOf } from "./settings-model.ts";
 import { SettingSection } from "./settings-section.tsx";
 
 // 설정 파일 편집기(P-09 "파일로 보기")의 그림. 상태와 명령은 없고 `state`와 `handlers`만 받는다(서버 렌더 시험이 직접 그린다).
-// 구역 하나(제목 "설정 파일", 머리 끝은 닫기)이고, 안은 범위 고르기와 경로, 원문 글 칸, 되돌리기와 저장이다(P-09 `file-tab.tsx`).
-// 원문은 caustic `Textarea`로 편집한다(코드 편집기는 없다, L4.desktop-ux §6.13 caustic [gap:C-06]).
+// 구역 하나(제목 "설정 파일", 머리 끝은 닫기)이고, 안은 사용자 설정 파일의 경로, 원문 글 칸, 되돌리기와 저장이다(P-09 `file-tab.tsx`).
+// 범위는 사용자 하나라 고르기는 없다. 원문은 caustic `Textarea`로 편집한다(코드 편집기는 없다, L4.desktop-ux §6.13 caustic [gap:C-06]).
 // ⌘S는 저장, Esc는 되돌리기다. 편집기 안에서 누른 바로 가기는 화면 바깥(설정 항목의 저장과 되돌리기)으로 넘기지 않는다.
 
 export interface SettingsFileHandlers {
-  readonly scope: (scope: FileScope) => void;
   readonly edit: (text: string) => void;
   readonly save: () => void;
   readonly discard: () => void;
@@ -43,18 +31,14 @@ export interface SettingsFileEditorProps {
   readonly state: FileEditorState;
   /** 연결이 살아 있는가. 없으면 읽은 원문만 보이고 편집과 저장이 잠긴다 */
   readonly live: boolean;
-  /** 열린 대화가 있는가. 없으면 범위는 사용자 하나다 */
-  readonly hasThread: boolean;
   readonly handlers: SettingsFileHandlers;
 }
 
 export function SettingsFileEditorView(props: SettingsFileEditorProps): ReactNode {
-  const { state, live, hasThread, handlers } = props;
+  const { state, live, handlers } = props;
   if (state.phase === "closed") return null;
-  const dirty = fileDirtyOf(state);
   const editable = fileEditableOf(state, live);
   const showsText = state.phase === "ready" || state.phase === "conflict";
-  const scopes = fileScopesOf(hasThread);
   const onKey = (event: KeyboardEvent<HTMLDivElement>): void => {
     const intent = settingsKeyOf({
       key: event.key,
@@ -92,29 +76,11 @@ export function SettingsFileEditorView(props: SettingsFileEditorProps): ReactNod
         className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 py-3"
         onKeyDown={onKey}
       >
-        <div className="flex flex-wrap items-center gap-2">
-          <SegmentedControl
-            size="xs"
-            aria-label={t("desktop.settings.field.scope.label")}
-            value={state.scope}
-            disabled={!live || dirty || state.saving || state.phase === "loading"}
-            onValueChange={(next) => {
-              const scope = scopes.find((candidate) => candidate === next);
-              if (scope !== undefined) handlers.scope(scope);
-            }}
-          >
-            {scopes.map((scope) => (
-              <SegmentedControlItem key={scope} value={scope}>
-                {scopeText(scope)}
-              </SegmentedControlItem>
-            ))}
-          </SegmentedControl>
-          {state.doc === null || state.doc.path === null ? null : (
-            <span className="min-w-0 truncate font-mono text-mono-sm text-text-tertiary">
-              {state.doc.path}
-            </span>
-          )}
-        </div>
+        {state.doc === null || state.doc.path === null ? null : (
+          <p className="m-0 min-w-0 truncate font-mono text-mono-sm text-text-tertiary">
+            {state.doc.path}
+          </p>
+        )}
         {live ? null : <Alert tone="info">{t("desktop.settings.offline")}</Alert>}
         {state.phase === "loading" ? (
           <div className="flex flex-col gap-2">

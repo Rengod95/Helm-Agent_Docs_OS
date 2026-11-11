@@ -3,7 +3,6 @@ import {
   settingsViewOf,
   type SettingsController,
   type SettingsState,
-  type WritableScope,
 } from "@fresnel/client/settings";
 import { t } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
@@ -40,18 +39,18 @@ import { ToolsWebPanel, useToolsWebState } from "../tools-web/tools-web-screen.t
 import { McpServersPanel } from "./settings-mcp-screen.tsx";
 import {
   fileClosesOnTabMoveOf,
-  fileDirtyOf,
   fileEditableOf,
   fileEditorReducer,
   fileSaveableOf,
   initialFileEditor,
-  type FileScope,
 } from "./settings-file-model.ts";
 import {
+  allFieldsOf,
   dirtyKeysOf,
   pageStatusOf,
   SAVED_MARK_MS,
   tabSwitchOf,
+  writeScopeOf,
   type SettingsKeyIntent,
 } from "./settings-model.ts";
 import type { DedicatedEditors, FieldHandlers } from "./settings-field.tsx";
@@ -67,6 +66,7 @@ import { TrustedFoldersPanel } from "./settings-trust-view.tsx";
 
 // 설정 화면(P-09)의 동작. 컨트롤러(`commands.settings.open()`)는 연결마다 하나씩 만든다. 읽기와 알림 구독은 효과가 하고,
 // 상태는 `useSyncExternalStore`로 받는다. 탭 옮기기의 초안 묻기, 저장됨 표시 2초, ⌘S와 Esc, 열린 대화가 바뀔 때의 다시 읽기가 여기 있다.
+// 설정은 모두 사용자(전역) 범위에 쓴다. 범위를 고르는 칸은 없고, 저장은 `saveKey`가 사용자 범위를 먼저 골라 보낸다.
 // 그림은 `settings-view.tsx`가 그린다. 시크릿 탭은 P-10 시크릿 화면(`SecretsPanel`)을 그대로 넣는다.
 // 계정과 제공자, 예산과 한도의 전용 편집기(P-11)와 도구와 웹 패널(P-12)은 `editors`와 `toolsPanel`로 넣는다.
 // 값 입력과 열람은 이 화면이 받지 않는다. 시크릿 값은 `SecretsPanel`의 입력 창이 받는다.
@@ -85,6 +85,9 @@ interface Binding {
 
 /** 이 화면의 전용 편집기 전부. 계정과 제공자(P-11)와 설정 전용 편집기(P-09 §6.13)를 합친다 */
 const EDITORS: DedicatedEditors = { ...PROVIDER_EDITORS, ...SETTINGS_EDITORS };
+
+/** 설정 파일 편집기가 읽고 쓰는 파일. 편집기는 사용자 설정 파일 하나만 연다(대화는 사용자 파일에 쓰이지 않는다) */
+const USER_FILE: SettingsFileTarget = { scope: "user", threadId: null };
 
 function withKey(set: ReadonlySet<SettingKey>, key: SettingKey): ReadonlySet<SettingKey> {
   return new Set([...set, key]);
@@ -196,9 +199,23 @@ export function SettingsPage(props: {
     savedTimers.current.set(key, handle);
   };
 
+  /**
+   * 쓰기 범위를 사용자(전역)로 고른다. 사용자 범위를 쓸 수 없는 항목은 컨트롤러가 정한 범위를 그대로 쓴다.
+   * 저장하는 길(칸을 떠남, 바꿈, 내 값 유지, ⌘S, 탭 옮기기의 저장)은 모두 여기를 지나 `saveKey`로 간다.
+   */
+  const selectUserScope = (key: SettingKey): void => {
+    if (controller === null) return;
+    const field = allFieldsOf(settingsViewOf(controller.getState())).find(
+      (candidate) => candidate.key === key,
+    );
+    const scope = field === undefined ? null : writeScopeOf(field);
+    if (scope !== null) controller.selectScope(key, scope);
+  };
+
   /** 초안이 있는 키 하나를 저장한다. 저장이 끝나 초안과 오류가 없으면 "저장됨"을 보인다 */
   const saveKey = async (key: SettingKey): Promise<void> => {
     if (controller === null || !controller.getState().drafts.has(key)) return;
+    selectUserScope(key);
     await controller.commit(key);
     const after = controller.getState();
     if (!after.drafts.has(key) && !after.errors.has(key)) markSaved(key);
@@ -291,11 +308,8 @@ export function SettingsPage(props: {
     discard: (key) => {
       controller?.discard(key);
     },
-    selectScope: (key: SettingKey, scope: WritableScope) => {
-      controller?.selectScope(key, scope);
-    },
-    reset: (key, scope) => {
-      if (controller !== null) detach(controller.reset(key, scope), rethrow);
+    reset: (key) => {
+      if (controller !== null) detach(controller.reset(key, "user"), rethrow);
     },
   };
 
@@ -330,28 +344,23 @@ export function SettingsPage(props: {
     }
   };
 
-  /** 읽기를 새 번호로 시작한다. 범위를 바꾸거나 다시 읽을 때도 이것을 쓴다 */
-  const startFile = (scope: FileScope, thread: ThreadId | null): void => {
+  /** 사용자 설정 파일 읽기를 새 번호로 시작한다. 처음 열 때와 다시 읽을 때 쓴다 */
+  const startFile = (): void => {
     fileSeq.current += 1;
     const seq = fileSeq.current;
-    dispatchFile({ type: "started", seq, scope, threadId: thread });
-    detach(readFileText(seq, { scope, threadId: thread }), rethrow);
+    dispatchFile({ type: "started", seq });
+    detach(readFileText(seq, USER_FILE), rethrow);
   };
 
   const openFile = (): void => {
     if (!live || file.phase !== "closed") return;
-    startFile("user", threadId);
+    startFile();
   };
 
-  const selectFileScope = (scope: FileScope): void => {
-    if (fileDirtyOf(file) || file.saving || file.phase === "loading") return;
-    startFile(scope, threadId);
-  };
-
-  // 다시 읽기는 편집기가 처음 연 대화로 읽는다. 충돌이나 읽기 실패 뒤에는 초안이 파일 내용으로 바뀐다
+  // 다시 읽기는 사용자 설정 파일을 다시 읽는다. 충돌이나 읽기 실패 뒤에는 초안이 파일 내용으로 바뀐다
   const rereadFile = (): void => {
     if (!live || file.saving) return;
-    startFile(file.scope, file.threadId);
+    startFile();
   };
 
   const saveFile = (): void => {
@@ -361,8 +370,7 @@ export function SettingsPage(props: {
     dispatchFile({ type: "saveStarted", seq });
     detach(
       writeFileText(seq, {
-        scope: file.scope,
-        threadId: file.threadId,
+        ...USER_FILE,
         text: file.draft,
         baseSha256: file.doc.sha256,
       }),
@@ -376,7 +384,6 @@ export function SettingsPage(props: {
   };
 
   const fileHandlers: SettingsFileHandlers = {
-    scope: selectFileScope,
     edit: editFile,
     save: saveFile,
     discard: () => {
@@ -389,12 +396,7 @@ export function SettingsPage(props: {
   };
   const fileEditor =
     file.phase === "closed" ? null : (
-      <SettingsFileEditorView
-        state={file}
-        live={live}
-        hasThread={threadId !== null}
-        handlers={fileHandlers}
-      />
+      <SettingsFileEditorView state={file} live={live} handlers={fileHandlers} />
     );
 
   const keyIntent = (intent: SettingsKeyIntent): void => {
@@ -445,7 +447,6 @@ export function SettingsPage(props: {
       query={query}
       narrow={narrow}
       readOnly={!live}
-      hasThread={threadId !== null}
       saved={saved}
       restartError={state.restartError?.message ?? null}
       prompt={pending === null ? null : { to: pending.to, count: pending.keys.length }}
