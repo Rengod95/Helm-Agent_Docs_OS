@@ -249,6 +249,7 @@ function BuiltinGroup(props: {
     <section aria-labelledby={id} className="grid gap-3">
       <button
         type="button"
+        data-slot="builtin-toggle"
         aria-expanded={open}
         onClick={() => {
           setOpen(!open);
@@ -527,7 +528,7 @@ function DetailHead(props: { readonly detail: AddonDetail; readonly ops: DetailO
           ) : null}
         </p>
       </div>
-      <div className="flex flex-none items-center gap-2 pt-1">
+      <div className="flex min-h-7 flex-none items-center gap-2 pt-1">
         {ops.toggle === undefined ? null : (
           <span className="me-2 inline-flex items-center gap-2">
             <label htmlFor={switchId} className="text-ui text-text-secondary">

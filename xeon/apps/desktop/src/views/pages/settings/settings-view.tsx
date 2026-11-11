@@ -415,6 +415,7 @@ function FoldedPart(props: {
     <section data-slot="setting-section" aria-labelledby={id} className="pt-10 first:pt-0">
       <button
         type="button"
+        data-slot="folded-part-toggle"
         aria-expanded={open}
         onClick={() => {
           setOpen(!open);

@@ -144,17 +144,20 @@ export function PluginConfigForm(props: {
     },
   };
   return (
-    <SettingSection title={t("desktop.addons.section.settings")} label={props.title}>
-      {fields.map((field) => (
-        <FieldRow
-          key={field.key}
-          field={field}
-          editable={field.editable && live}
-          saved={saved.has(field.key)}
-          editors={EDITORS}
-          handlers={handlers}
-        />
-      ))}
-    </SettingSection>
+    // 상세 본문 열의 구역 간격(gap-8)을 따르도록 감싸 설정 카드의 위 여백(첫 구역이 아닐 때 40)을 없앤다
+    <div>
+      <SettingSection title={t("desktop.addons.section.settings")} label={props.title}>
+        {fields.map((field) => (
+          <FieldRow
+            key={field.key}
+            field={field}
+            editable={field.editable && live}
+            saved={saved.has(field.key)}
+            editors={EDITORS}
+            handlers={handlers}
+          />
+        ))}
+      </SettingSection>
+    </div>
   );
 }
