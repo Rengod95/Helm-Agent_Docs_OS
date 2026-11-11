@@ -344,3 +344,78 @@
     letter-spacing: var(--text-ui--letter-spacing);
   }
 }
+
+/* DP-66 [결정: 2026-11-11 사용자] 실행 방식 선택 카드(RadioCardGroup, caustic ChoiceGroup 카드)를 차분하게 덮는다.
+   caustic은 카드를 누를 수 있는 대상(lift: 위로 4px 이동, hover 그림자)으로 그리고, 고른 카드를 잉크 반전(selected 유틸리티)으로
+   칠한다. 앱에서는 이동과 그림자를 없애고, 고른 카드는 옅은 배경(neutral-track) + 1px 강한 테두리로만 표시한다. 반전이 바꾼
+   변수는 inherit로 부모 값으로 되돌린다. caustic은 고치지 않는다. 같은 utilities 층에서 이기도록 속성 선택자를 두 번 쓴다(DP-15a) */
+@layer utilities {
+  [data-slot][data-slot="choice-group-item"][data-kind="choice"]:hover {
+    translate: none;
+  }
+  [data-slot][data-slot="choice-group-item"][data-kind="choice"][data-state="unchecked"]:not(
+      :disabled
+    ):not(:focus-visible) {
+    box-shadow: 0 0 0 1px var(--cs-color-border-default);
+  }
+  [data-slot][data-slot="choice-group-item"][data-kind="choice"][data-state="unchecked"]:not(
+      :disabled
+    ):hover {
+    background-color: var(--color-neutral-hover);
+  }
+  [data-slot][data-slot="choice-group-item"][data-kind="choice"][data-state="checked"]:not(
+      :disabled
+    ) {
+    --cs-focus-offset: inherit;
+    --cs-color-text-primary: inherit;
+    --color-text-primary: inherit;
+    --cs-color-text-secondary: inherit;
+    --color-text-secondary: inherit;
+    --cs-color-text-tertiary: inherit;
+    --color-text-tertiary: inherit;
+    --color-accent-text: inherit;
+    --color-accent-solid: inherit;
+    --color-accent-on: inherit;
+    --color-border-control: inherit;
+    --color-surface-base: inherit;
+    --cs-color-neutral-hover: inherit;
+    --color-neutral-hover: inherit;
+    --cs-color-fill-hover: inherit;
+    --color-fill-hover: inherit;
+    --cs-color-neutral-pressed: inherit;
+    --color-neutral-pressed: inherit;
+    --cs-color-fill-pressed: inherit;
+    --color-fill-pressed: inherit;
+    --cs-color-neutral-selected: inherit;
+    --color-neutral-selected: inherit;
+    --cs-color-fill-selected: inherit;
+    --color-fill-selected: inherit;
+    --cs-color-neutral-selected-hover: inherit;
+    --color-neutral-selected-hover: inherit;
+    --cs-color-neutral-track: inherit;
+    --color-neutral-track: inherit;
+    --cs-color-neutral-well: inherit;
+    --color-neutral-well: inherit;
+    --cs-color-bg-inset: inherit;
+    --color-bg-inset: inherit;
+    color: inherit;
+    background-color: var(--color-neutral-track);
+  }
+  [data-slot][data-slot="choice-group-item"][data-kind="choice"][data-state="checked"]:not(
+      :disabled
+    ):hover {
+    background-color: var(--color-neutral-selected);
+    box-shadow: 0 0 0 1px var(--cs-color-border-strong);
+  }
+  [data-slot][data-slot="choice-group-item"][data-kind="choice"][data-state="checked"]:not(
+      :disabled
+    ):not(:focus-visible):not(:hover) {
+    box-shadow: 0 0 0 1px var(--cs-color-border-strong);
+  }
+  [data-slot][data-slot="choice-group-item"][data-kind="choice"][data-state="checked"]:not(
+      :disabled
+    )
+    [data-slot][data-slot="choice-group-indicator"] {
+    color: var(--color-accent-on);
+  }
+}
