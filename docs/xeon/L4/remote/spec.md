@@ -290,6 +290,17 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 - 프레임 문서 CSP는 §6.3이 정한다.
 - 게이트웨이는 UI 번들 HTML을 고쳐서 shim 스크립트 태그를 넣을 때 `nonce` 없이 `script-src 'self'`로 충족되게 파일 참조로만 넣는다.
 
+### 8.8 연결 링크, 설치형 웹 앱, Tailscale, 사전 점검 [결정: 2026-11-11 사용자]
+
+1. 연결 링크: 페어링 코드를 만들 때 주소와 코드가 함께 든 URL `https://<호스트>[:포트]/login#code=<코드>`를 함께 준다(`pairLinkOf`, `apps/desktop-shell/src/web/static/pair-link.ts`). QR은 이 URL 문자열을 그리면 된다(화면이 그린다. 이 저장소에는 QR 그리기 구현이 없고 새 의존성도 더하지 않았다 [미결: QR 그리기 방식]).
+   - 코드는 **URL 조각(#)**에 싣는다. 조각은 서버로 가지 않고 `Referer`로 새지 않는다(`Referrer-Policy: no-referrer`도 있다). 위험은 남는다: 주소창, 브라우저 기록, 링크를 메신저로 보낸 기록, 화면 공유에 코드가 보인다. 그래서 로그인 화면은 조각을 읽자마자 `history.replaceState`로 지우고 코드 칸을 채워 바로 연결한다.
+   - 한 번 쓰면 무효, 5분 만료, 동시에 하나, 틀림 5회 잠금(§8.3)은 그대로다. 링크는 코드와 같은 비밀로 다루고 만료 전에 한 번만 쓴다.
+2. 설치형 웹 앱(PWA): `site.webmanifest`는 `start_url: "/"`, `scope: "/"`, `display: "standalone"`, `theme_color`·`background_color: "#101216"`을 가진다. 로그인 페이지와 앱 페이지(`index.html`)가 모두 이 매니페스트와 `theme-color`를 가리킨다. iOS 홈 화면에 추가한 앱이 푸시를 받으려면 서비스 워커와 푸시가 **신뢰되는 HTTPS**(브라우저가 인증서 경고 없이 연 출처)에서 열려야 한다. 자체 서명 인증서에서는 되지 않는다. 사용자 인증서나 `tailscale serve`(아래)가 그 조건을 채운다.
+3. Tailscale(`apps/host/src/service/tailscale.ts`): `tailscale status --json`으로 설치·로그인 여부, MagicDNS 이름, IP를 읽는다(`detectTailscale`). 실행 파일이 없으면 `not_installed`다(macOS는 앱 번들의 CLI도 찾는다). MagicDNS 이름과 Tailscale IP는 게이트웨이의 허용 호스트에 **자동으로 더한다**(`l4.remote.web.hosts`에 적은 값에 더해진다). 서비스는 시작 직후와 30초마다 네트워크 지문과 Tailscale 상태를 다시 읽고, 허용 호스트가 달라졌고 게이트웨이가 떠 있으면 **서비스 재시작 없이 게이트웨이만** 다시 띄운다.
+   - `tailscale serve`: 사용자가 확인한 뒤 앱이 대신 `tailscale serve --bg --https=443 http://127.0.0.1:<루프백 포트>`를 실행한다(`enableTailscaleServe`), 끄기(`disableTailscaleServe`, 다른 대상을 내보내는 설정은 건드리지 않는다), 상태(`tailscaleServeStatus`)가 있다. tailnet에서 HTTPS가 꺼져 있으면 `https_not_enabled`와 `login.tailscale.com` 동의 링크(`consentUrl`)를 돌려주고, 화면이 그 링크를 사용자에게 보여 준다.
+   - 시험은 실제 tailnet을 쓰지 않고 `run`을 가짜로 바꿔 끼운다.
+4. 사전 점검(`apps/host/src/service/preflight.ts`, `runPreflight`): 항목 일곱 개를 정해진 순서로 돌려준다. 항목마다 `id`, `status`(`pass`, `fail`, `skip`), 원인 코드(`cause`), 고치는 법 코드(`fix`), 앱이 대신 고칠 수 있는 동작 이름(`autoFix`), 부가 값(`detail`)이다. 문장이 아니라 코드이고 화면과 CLI가 번역한다. 항목: `service_running`, `gateway_running`, `listen_port`(충돌하면 점유 프로세스 pid·이름, `lsof`), `allowed_hosts`, `certificate`(자체 서명·사용자·tailscale 신뢰, 만료까지 남은 일수), `autostart`(없음·옛 등록), `reachable_addresses`(루프백, 같은 네트워크 IP, `.local`, Tailscale IP, Tailscale MagicDNS 이름. 주소마다 허용 호스트에 들어 있는지). 앞 단계가 실패하면 뒤 항목은 `skip`(`depends_on_failed`)이다. `ready`는 `fail`이 없을 때다.
+
 ## 9. 비루프백 리스너 정책과 기존 스펙 충돌의 정리
 
 충돌: 아래가 서로 맞지 않았다.
