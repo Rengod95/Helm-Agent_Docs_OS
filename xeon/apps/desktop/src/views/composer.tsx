@@ -157,10 +157,11 @@ function thinkingErrorText(error: CommandError): string {
 /**
  * 입력창 아래 줄 틀. caustic 꼬리 줄의 보내기 칸은 줄어들지 못해(min-width auto) 900폭·150%에서 모델 칩이 보내기 단추를 창 밖으로 민다.
  * 보내기 칸이 줄어들게 하고(모델 칩의 글이 먼저 잘린다) 왼쪽 단추 칸(`+`, 모드)은 줄어들지 않게 한다.
- * 높이는 예전의 2/3(약 57px)다: 글 줄 위아래 4px(textarea `py-1`), 꼬리 줄은 위 2px·아래 4px에 24px 단추(xs)로 이룬다
+ * 기본 높이는 69px다(DP-67): 글 줄은 위 10px·아래 0에 19px 줄(textarea `pt-2.5 pb-0`), 꼬리 줄은 위 0·아래 4px에 36px 고르기 단추로 이룬다.
+ * 눈에 보이는 위 여백(글자 위)은 약 13px, 아래(단추 글자 아래)는 약 16px이고, 단추 hover 면은 입력창 아래 끝에서 4px 떨어진다
  */
 export const COMPOSER_FOOTER_CLASS =
-  "[&_[data-slot=textarea-footer]]:gap-2 [&_[data-slot=textarea-footer]]:pt-0.5 [&_[data-slot=textarea-footer]]:pb-1 [&_[data-slot=textarea-actions]]:shrink-0 [&_[data-slot=textarea-submit]]:min-w-0";
+  "[&_[data-slot=textarea-footer]]:gap-2 [&_[data-slot=textarea-footer]]:pt-0 [&_[data-slot=textarea-footer]]:pb-1 [&_[data-slot=textarea-actions]]:shrink-0 [&_[data-slot=textarea-submit]]:min-w-0";
 
 /** 승인 모드 칩의 글. 모르는 모드는 원시값이다(approval-card/bodies.tsx의 `modeLabelOf`와 같은 규칙) */
 function permissionModeLabelOf(mode: PermissionMode): string {
@@ -168,8 +169,13 @@ function permissionModeLabelOf(mode: PermissionMode): string {
   return id === null ? mode : t(id);
 }
 
-/** 입력창 아래 select 트리거는 ghost다: 배경과 테두리 없이 hover에서만 neutral.hover(2026-11-08). caustic Select의 variant는 목록에만 걸려 앱 클래스로 건다. 높이 24px은 꼬리 줄 단추(xs)와 맞춘다 */
-const GHOST_TRIGGER_CLASS = "h-6 w-auto bg-transparent shadow-none hover:bg-neutral-hover";
+/**
+ * 입력창 아래 select 트리거는 ghost다: 배경과 테두리 없이 hover에서만 neutral.hover(2026-11-08, caustic이 hover에 거는 안쪽 테두리도 끈다). caustic Select의 variant는 목록에만 걸려 앱 클래스로 건다.
+ * 오른쪽 chevron(`picker-trigger-indicator`)은 그리지 않고, 안쪽 여백은 좌우 10px을 기준으로 위아래도 10px이다(글 줄 16px, 높이 36px, DP-67).
+ * 열리는 동작과 접근성 이름은 caustic Select 그대로다
+ */
+const GHOST_TRIGGER_CLASS =
+  "h-auto w-auto p-2.5 leading-4 bg-transparent shadow-none hover:bg-neutral-hover hover:shadow-none [&_[data-slot=picker-trigger-indicator]]:hidden [&_[data-slot=picker-trigger-value]]:leading-4";
 
 /**
  * 대화별 승인 모드 칩(입력창 모델 칸 왼쪽). 값은 이 대화의 `l1.tools.permissionMode`(대화 범위)다.
@@ -902,7 +908,7 @@ function ComposerFor(props: {
         tone={dragging ? "accent" : "neutral"}
         rows={1}
         // 한 줄로 시작해 글이 늘면 max-h까지 자란다(field-sizing). 비우면 한 줄로 돌아간다
-        className="max-h-48 min-h-0 resize-none py-1 [field-sizing:content]"
+        className="max-h-48 min-h-0 resize-none pt-2.5 pb-0 [field-sizing:content]"
         containerClassName={`composer-box rounded-[calc(var(--radius-2xl)+4px)] ${COMPOSER_FOOTER_CLASS}`}
         value={draft}
         // 안내 글(placeholder)은 없다. 입력을 막은 때만 그 이유를 보인다
