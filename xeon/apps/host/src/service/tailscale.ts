@@ -96,12 +96,14 @@ function firstLineOf(ran: TailscaleRunResult): string {
     .split("\n")
     .map((text) => text.trim())
     .find((text) => text !== "");
-  return line ?? `종료 코드 ${ran.exitCode}`;
+  return line ?? `exit code ${ran.exitCode}`;
 }
+
+const TRAILING_PUNCTUATION = /[.,;:)\u0027\u0022]+$/u;
 
 function consentUrlOf(output: string): string | null {
   const match = CONSENT_LINK.exec(output);
-  return match === null ? null : match[0].replace(/[.,;:)'"]+$/u, "");
+  return match === null ? null : match[0].replace(TRAILING_PUNCTUATION, "");
 }
 
 function unreadable(detail: string): TailscaleState {
@@ -110,7 +112,7 @@ function unreadable(detail: string): TailscaleState {
 
 function readyOf(root: JsonObject): TailscaleState {
   const self = root["Self"];
-  if (!isObject(self)) return unreadable("Running인데 Self가 없다");
+  if (!isObject(self)) return unreadable("Self is missing while Running");
   const tailnet = root["CurrentTailnet"];
   const certs = root["CertDomains"];
   return {
@@ -126,15 +128,15 @@ function stateOf(ran: TailscaleRunResult): TailscaleState {
   if (ran.exitCode === NOT_FOUND) return { kind: "not_installed" };
   const text = ran.stdout.trim();
   if (text === "") {
-    return ran.exitCode === 0 ? unreadable("status 출력이 비었다") : { kind: "not_running" };
+    return ran.exitCode === 0 ? unreadable("status output is empty") : { kind: "not_running" };
   }
   const root = objectOf(text);
-  if (root === null) return unreadable("status 출력이 JSON 객체가 아니다");
+  if (root === null) return unreadable("status output is not a JSON object");
   const backend = textOf(root["BackendState"]);
   if (backend === "Stopped" || backend === "NoState") return { kind: "not_running" };
   if (backend === "NeedsLogin") return { kind: "needs_login", authUrl: textOf(root["AuthURL"]) };
   if (backend === "Running") return readyOf(root);
-  return unreadable(`BackendState를 알 수 없다: ${backend ?? "없음"}`);
+  return unreadable(`unknown BackendState: ${backend ?? "none"}`);
 }
 
 /** PATH의 `tailscale`을 먼저 부르고, 찾지 못하면(darwin) 앱 번들의 CLI를 부른다. 둘 다 없으면 종료 코드 127이다 */
@@ -172,7 +174,7 @@ interface ServeTarget {
 }
 
 function describeTarget(target: ServeTarget): string {
-  return `${target.hostPort}${target.path} → ${target.proxy ?? "프록시 아님"}`;
+  return `${target.hostPort}${target.path} → ${target.proxy ?? "not a proxy"}`;
 }
 
 /** `serve status --json` 객체를 이 포트의 상태로 옮긴다. 모양이 다르면 null이다 */
@@ -197,7 +199,7 @@ function serveStatusOf(root: JsonObject, port: number): ServeStatus | null {
   if (mine !== undefined) return { kind: "on", url: urlOf(mine.hostPort), target: ours };
   const tcpPorts = Object.keys(tcpValue);
   if (tcpPorts.length > 0)
-    return { kind: "other", detail: `TCP 전달이 있다: ${tcpPorts.join(", ")}` };
+    return { kind: "other", detail: `TCP forwards exist: ${tcpPorts.join(", ")}` };
   return { kind: "off" };
 }
 
@@ -264,8 +266,8 @@ export async function tailscaleServeStatus(
     return { kind: "unavailable", reason: failure.kind, detail: firstLineOf(ran) };
   }
   const root = objectOf(ran.stdout.trim());
-  if (root === null) return unavailableFailed("serve status 출력이 JSON 객체가 아니다");
-  return serveStatusOf(root, port) ?? unavailableFailed("serve status 모양이 다르다");
+  if (root === null) return unavailableFailed("serve status output is not a JSON object");
+  return serveStatusOf(root, port) ?? unavailableFailed("serve status has an unexpected shape");
 }
 
 /**
@@ -288,9 +290,9 @@ export async function enableTailscaleServe(
     case "on":
       return ok({ url: status.url });
     case "off":
-      return err({ kind: "failed", detail: "serve 설정이 적용되지 않았다" });
+      return err({ kind: "failed", detail: "the serve setting was not applied" });
     case "other":
-      return err({ kind: "failed", detail: `다른 대상을 내보내는 중이다: ${status.detail}` });
+      return err({ kind: "failed", detail: `another target is being served: ${status.detail}` });
     case "unavailable":
       return err(failureOfReason(status.reason, status.detail));
     default:
@@ -311,7 +313,7 @@ export async function disableTailscaleServe(
   if (before.kind === "other") {
     return err({
       kind: "failed",
-      detail: `다른 대상을 내보내는 중이라 끄지 않았다: ${before.detail}`,
+      detail: `not turned off because another target is being served: ${before.detail}`,
     });
   }
   if (before.kind === "unavailable") return err(failureOfReason(before.reason, before.detail));

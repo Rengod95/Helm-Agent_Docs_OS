@@ -179,13 +179,13 @@ test("a stopped backend, and a daemon that is off (nonzero exit with empty outpu
 test("output that is not a JSON object, or is empty on a zero exit, is unreadable", async () => {
   expect(
     await detectTailscale(fakeTailscale({ "tailscale status --json": { stdout: "{" } })),
-  ).toEqual({ kind: "unreadable", detail: "status 출력이 JSON 객체가 아니다" });
+  ).toEqual({ kind: "unreadable", detail: "status output is not a JSON object" });
   expect(
     await detectTailscale(fakeTailscale({ "tailscale status --json": { stdout: "[1,2]" } })),
-  ).toEqual({ kind: "unreadable", detail: "status 출력이 JSON 객체가 아니다" });
+  ).toEqual({ kind: "unreadable", detail: "status output is not a JSON object" });
   expect(await detectTailscale(fakeTailscale({ "tailscale status --json": {} }))).toEqual({
     kind: "unreadable",
-    detail: "status 출력이 비었다",
+    detail: "status output is empty",
   });
 });
 
@@ -310,7 +310,7 @@ test("disable refuses to turn off another target's serve config and runs nothing
     error: {
       kind: "failed",
       detail:
-        "다른 대상을 내보내는 중이라 끄지 않았다: my-mac.tail1234.ts.net:443/ → http://127.0.0.1:9000",
+        "not turned off because another target is being served: my-mac.tail1234.ts.net:443/ → http://127.0.0.1:9000",
     },
   });
   expect(fake.calls).toHaveLength(1);
