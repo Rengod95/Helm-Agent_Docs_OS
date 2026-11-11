@@ -49,7 +49,7 @@ export function ConnectionScreenView(props: ConnectionScreenViewProps): ReactNod
     >
       {embedded ? null : <ScreenHeader title={t("desktop.connection.title")} titleId={headingId} />}
       <div className={embedded ? undefined : "min-h-0 flex-1 overflow-y-auto px-3 pb-4"}>
-        <div className="mx-auto grid w-full max-w-180 gap-10">
+        <div className={embedded ? "grid w-full gap-10" : "mx-auto grid w-full max-w-180 gap-10"}>
           <HostSection state={state} engine={engine} locale={locale} handlers={handlers} />
           {serviceShown ? serviceSections : null}
           {serviceShown ? (

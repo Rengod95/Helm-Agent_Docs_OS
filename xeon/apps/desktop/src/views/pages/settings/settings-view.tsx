@@ -249,7 +249,7 @@ export function SettingsPageView(props: SettingsPageProps): ReactNode {
         <ScreenHeader title={titleOf} titleId={headingId} pageTitle action={fileAction} />
         {narrow ? <NarrowTabs {...props} sections={sections} /> : null}
         <ScrollArea label={t("desktop.settings.title")} className="min-h-0 flex-1">
-          <div className="max-w-[64rem] px-6 pb-12">
+          <div className="max-w-[64rem] ps-6 pe-[calc(var(--shell-rail,0px)+1.5rem)] pb-12">
             <Body {...props} />
           </div>
         </ScrollArea>
