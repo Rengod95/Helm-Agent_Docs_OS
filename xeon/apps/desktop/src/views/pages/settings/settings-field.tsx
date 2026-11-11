@@ -123,7 +123,7 @@ function choiceTextOf(value: unknown): string {
 /** "저장됨". 저장한 뒤 2초 동안 적용 시점 자리에 보인다(P-09 `SavedMark`) */
 export function SavedMark(): ReactNode {
   return (
-    <span role="status" className="inline-flex items-center gap-1 text-ui-sm text-success-text">
+    <span role="status" className="inline-flex items-center gap-1 text-ui text-success-text">
       <Check aria-hidden className="size-icon-sm" />
       {t("desktop.settings.field.saved")}
     </span>
@@ -137,7 +137,7 @@ function ApplyMark(props: { readonly runtime: RuntimeBadge }): ReactNode {
     case "live":
       return null;
     case "nextTurn":
-      return <span className="text-ui-sm text-text-tertiary">{text}</span>;
+      return <span className="text-ui text-text-tertiary">{text}</span>;
     case "restart":
       return (
         <Badge size="sm" className={TONE_CLASS.warning}>
@@ -152,7 +152,7 @@ function ApplyMark(props: { readonly runtime: RuntimeBadge }): ReactNode {
 /** 저장 중 자리. 저장하는 동안 적용 시점 자리에 짧은 글을 보인다(표시 줄은 칸 옆이 아니라 머리에 둔다) */
 function SavingMark(): ReactNode {
   return (
-    <span role="status" className="text-ui-sm text-text-tertiary">
+    <span role="status" className="text-ui text-text-tertiary">
       {t("desktop.settings.field.saving")}
     </span>
   );
@@ -332,10 +332,7 @@ export function FieldRow(props: FieldRowProps): ReactNode {
       ) : null}
       {control === "summary" ? <ReadonlyValue field={field} /> : null}
       {field.lock === null ? null : (
-        <p
-          id={lockId}
-          className="m-0 flex min-w-0 items-center gap-1.5 text-ui-sm text-text-tertiary"
-        >
+        <p id={lockId} className="m-0 flex min-w-0 items-center gap-1.5 text-ui text-text-tertiary">
           <Lock aria-hidden className="size-icon-xs flex-none" />
           <span>{field.lock.text}</span>
         </p>
@@ -498,7 +495,7 @@ function NumberControl(props: {
           }}
         />
         {widget.unit === null ? null : (
-          <span className="text-ui-sm text-text-tertiary">{widget.unit}</span>
+          <span className="text-ui text-text-tertiary">{widget.unit}</span>
         )}
       </span>
     </Field>
@@ -567,7 +564,7 @@ function ChoiceField(props: {
         <p
           role="note"
           data-slot="settings-choice-warning"
-          className="m-0 flex min-w-0 items-start gap-1.5 text-ui-sm text-danger-text"
+          className="m-0 flex min-w-0 items-start gap-1.5 text-ui text-danger-text"
         >
           <TriangleAlert aria-hidden className="mt-0.5 size-icon-xs flex-none" />
           <span>{warning}</span>
@@ -587,7 +584,7 @@ function renderEditor(
   const kind = dedicatedEditorOf(field);
   const Editor = kind === null ? undefined : editors[kind];
   if (Editor === undefined) {
-    return <p className="text-ui-sm text-text-secondary">{summaryTextOf(field)}</p>;
+    return <p className="text-ui text-text-secondary">{summaryTextOf(field)}</p>;
   }
   return <Editor field={field} editable={editable} handlers={handlers} />;
 }
@@ -596,14 +593,14 @@ function renderEditor(
 function ReadonlyValue(props: { readonly field: FieldVM }): ReactNode {
   const { field } = props;
   if (!foldableOf(field.value)) {
-    return <p className="text-ui-sm text-text-secondary">{summaryTextOf(field)}</p>;
+    return <p className="text-ui text-text-secondary">{summaryTextOf(field)}</p>;
   }
   return (
     <Accordion variant="ghost">
       <AccordionItem value="json">
         <AccordionTrigger>{t("desktop.settings.field.json.title")}</AccordionTrigger>
         <AccordionContent>
-          <pre className="text-ui-sm break-all whitespace-pre-wrap text-text-secondary">
+          <pre className="text-ui break-all whitespace-pre-wrap text-text-secondary">
             {JSON.stringify(field.value, null, 2)}
           </pre>
         </AccordionContent>
@@ -647,7 +644,7 @@ function ShadowedNote(props: { readonly field: FieldVM }): ReactNode {
           {t("desktop.settings.shadowed.title", { count: props.field.shadowed.length })}
         </AccordionTrigger>
         <AccordionContent>
-          <p className="text-ui-sm text-text-secondary">{shadowedSummaryOf(props.field)}</p>
+          <p className="text-ui text-text-secondary">{shadowedSummaryOf(props.field)}</p>
         </AccordionContent>
       </AccordionItem>
     </Accordion>
@@ -713,7 +710,7 @@ function LaunchChoice(props: {
           if (field.dirty) handlers.commit(field.key);
         }}
       />
-      <span id={labelId} className="text-ui-sm text-text-secondary">
+      <span id={labelId} className="text-ui text-text-secondary">
         {t("desktop.settings.field.launchOnly")}
       </span>
     </div>

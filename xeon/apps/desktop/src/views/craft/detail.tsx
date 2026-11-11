@@ -46,7 +46,7 @@ type DetailMode = "example" | "recent";
 /** 최근 실행 칸의 상태. loading은 아직 읽는 중이다(읽기 결과가 없다) */
 export type RunsView = RunsLoad | { readonly k: "loading" };
 
-const LABEL = "text-footnote text-text-tertiary";
+const LABEL = "text-ui text-text-tertiary";
 
 const BACK_LABEL: Record<CraftMode, MessageId> = {
   orbit: "desktop.craft.detail.back.orbit",
@@ -375,7 +375,7 @@ function Section({
 }): ReactNode {
   return (
     <Card variant="soft" radius="lg">
-      <h3 className="m-0 text-footnote text-text-tertiary">{title}</h3>
+      <h3 className="m-0 text-ui text-text-tertiary">{title}</h3>
       {children}
     </Card>
   );

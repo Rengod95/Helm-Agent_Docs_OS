@@ -26,7 +26,7 @@ export type ProfileLoad =
   | { readonly kind: "error" }
   | { readonly kind: "ready"; readonly value: readonly Profile[] };
 
-const MUTED = "m-0 text-ui-sm text-text-tertiary";
+const MUTED = "m-0 text-ui text-text-tertiary";
 
 function Section(props: { readonly title: string; readonly children: ReactNode }): ReactNode {
   return (

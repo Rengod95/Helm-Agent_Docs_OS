@@ -301,7 +301,7 @@ function FallbackVersions(props: {
           </ListDescriptionRow>
         )}
       </ListDescription>
-      <p className="m-0 inline-flex items-center gap-1.5 text-ui-sm text-text-secondary">
+      <p className="m-0 inline-flex items-center gap-1.5 text-ui text-text-secondary">
         <History aria-hidden emphasis="muted" className="size-icon-sm" />
         {t("desktop.workbench.versions.noHistory")}
       </p>
@@ -312,7 +312,7 @@ function FallbackVersions(props: {
           </Button>
         </div>
       ) : (
-        <p className="m-0 text-ui-xs text-text-tertiary">
+        <p className="m-0 text-ui text-text-tertiary">
           {props.bundled !== null
             ? t("desktop.workbench.versions.bundledNoRollback")
             : t("desktop.workbench.versions.userNoRollback")}

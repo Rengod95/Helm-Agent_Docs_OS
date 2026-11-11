@@ -330,3 +330,17 @@
     box-shadow: var(--cs-focus-field) !important;
   }
 }
+
+/* DP-65 [결정: 2026-11-11 사용자] caustic 부품이 스스로 작게 그리는 설명 글(라디오 항목 설명 11.5px, 작은 Field의 도움말·오류 11px,
+   선택 카드 설명)도 본문 기준 13px로 맞춘다. caustic은 고치지 않는다. 부품의 글자 크기 유틸리티(.text-hint 등)를 이기도록
+   utilities 층에 두고 속성 선택자를 두 번 써서 특이도를 한 단계 높인다(DP-15a: 무층 규칙은 쓰지 않는다) */
+@layer utilities {
+  [data-slot][data-slot="radio-group-description"],
+  [data-slot][data-slot="field-hint"],
+  [data-slot][data-slot="field-error"],
+  [data-slot][data-slot="choice-group-description"] {
+    font-size: var(--text-ui);
+    line-height: var(--text-ui--line-height);
+    letter-spacing: var(--text-ui--letter-spacing);
+  }
+}

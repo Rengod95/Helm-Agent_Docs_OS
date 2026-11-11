@@ -493,7 +493,7 @@ describe("schedule run history body", () => {
     );
     expect(out.split(">놓친 실행</span>").length - 1).toBe(1);
     expect(out).toContain(
-      '<span class="text-ui-sm text-text-secondary">앱이 꺼진 동안 놓친 실행이에요. 따라잡지 않고 건너뛰었어요.</span>',
+      '<span class="text-ui text-text-secondary">앱이 꺼진 동안 놓친 실행이에요. 따라잡지 않고 건너뛰었어요.</span>',
     );
     expect(out).not.toContain("따라잡아 한 번 실행했어요.");
   });
@@ -516,7 +516,7 @@ describe("schedule run history body", () => {
     });
     expect(out.split(">놓친 실행</span>").length - 1).toBe(1);
     expect(out).toContain(
-      '<span class="text-ui-sm text-text-secondary">앱이 꺼진 동안 밀린 시각을 따라잡아 한 번 실행했어요.</span>',
+      '<span class="text-ui text-text-secondary">앱이 꺼진 동안 밀린 시각을 따라잡아 한 번 실행했어요.</span>',
     );
     expect(out).not.toContain("앱이 꺼진 동안 놓친 실행이에요");
     expect(out).not.toContain("text-danger-text");
@@ -540,10 +540,10 @@ describe("schedule run history body", () => {
     });
     expect(out.split(">놓친 실행</span>").length - 1).toBe(1);
     expect(out).toContain(
-      '<span class="text-ui-sm text-text-secondary">앱이 꺼진 동안 밀린 시각을 따라잡아 한 번 실행했어요.</span>',
+      '<span class="text-ui text-text-secondary">앱이 꺼진 동안 밀린 시각을 따라잡아 한 번 실행했어요.</span>',
     );
     expect(out).toContain(
-      '<span class="text-ui-sm text-danger-text">실행 중에 오류가 났어요. 대화에서 자세한 내용을 확인해 주세요.</span>',
+      '<span class="text-ui text-danger-text">실행 중에 오류가 났어요. 대화에서 자세한 내용을 확인해 주세요.</span>',
     );
   });
 

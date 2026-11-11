@@ -73,9 +73,7 @@ export function InboxApprovals(props: {
             </h2>
           ) : null}
           {ids.length === 0 ? (
-            <div className="text-ui-sm text-text-tertiary">
-              {t("desktop.approvals.inbox.empty")}
-            </div>
+            <div className="text-ui text-text-tertiary">{t("desktop.approvals.inbox.empty")}</div>
           ) : (
             <ApprovalCardList ids={ids} label={t("desktop.approvals.queue.label")} />
           )}

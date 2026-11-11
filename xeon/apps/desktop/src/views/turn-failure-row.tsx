@@ -56,7 +56,7 @@ function Detail(props: { readonly text: string }): ReactNode {
 export function CutMarker(): ReactNode {
   return (
     <div className="mx-auto w-full min-w-0 max-w-184 px-3">
-      <p data-cut-marker className="m-0 text-ui-sm text-text-tertiary">
+      <p data-cut-marker className="m-0 text-ui text-text-tertiary">
         {t("desktop.turnFailure.cutMarker")}
       </p>
     </div>

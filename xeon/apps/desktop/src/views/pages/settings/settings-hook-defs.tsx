@@ -180,13 +180,13 @@ export function HookDefsEditor(props: DedicatedEditorProps): ReactNode {
     <div className="flex flex-col gap-3">
       {warning}
       {rows.length === 0 ? (
-        <p className="text-ui-sm text-text-tertiary">{t("desktop.settings.hookDefs.empty")}</p>
+        <p className="text-ui text-text-tertiary">{t("desktop.settings.hookDefs.empty")}</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {rows.map((row, index) => (
             <li key={row.id} data-slot="hook-row" className="flex flex-wrap items-center gap-2">
               <span className="text-ui-strong">{row.id}</span>
-              <span className="text-ui-sm text-text-secondary">{row.point}</span>
+              <span className="text-ui text-text-secondary">{row.point}</span>
               <code className="text-mono-sm text-text-tertiary">{commandLineOf(row.command)}</code>
               <Button
                 size="xs"

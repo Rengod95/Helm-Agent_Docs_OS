@@ -73,11 +73,11 @@ export function StorageView(props: StorageViewProps): ReactNode {
         </Button>
       </div>
       {load.kind === "remote" ? (
-        <p className="text-ui-sm text-text-secondary">{t("desktop.settings.storage.remote")}</p>
+        <p className="text-ui text-text-secondary">{t("desktop.settings.storage.remote")}</p>
       ) : null}
       {load.kind === "loading" ? (
         <div className="flex flex-col gap-1">
-          <p role="status" className="text-ui-sm text-text-secondary">
+          <p role="status" className="text-ui text-text-secondary">
             {t("desktop.settings.storage.loading")}
           </p>
           <Skeleton height={8} />
@@ -92,7 +92,7 @@ export function StorageView(props: StorageViewProps): ReactNode {
       {load.kind === "ready" ? (
         <>
           <div className="flex min-w-0 items-center gap-2">
-            <span className="flex-none text-ui-sm text-text-secondary">
+            <span className="flex-none text-ui text-text-secondary">
               {t("desktop.settings.storage.folder.label")}
             </span>
             <span
@@ -109,8 +109,8 @@ export function StorageView(props: StorageViewProps): ReactNode {
             {storageRowsOf(load.usage).map((row) => (
               <li key={row.key} className="grid gap-1">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-ui-sm text-text-secondary">{t(ROW_ID[row.key])}</span>
-                  <span className="text-ui-sm text-text-primary">{formatBytes(row.bytes)}</span>
+                  <span className="text-ui text-text-secondary">{t(ROW_ID[row.key])}</span>
+                  <span className="text-ui text-text-primary">{formatBytes(row.bytes)}</span>
                 </div>
                 {row.key === "restorePrevious" ? (
                   <PreviousList
@@ -201,9 +201,7 @@ function PreviousList(props: {
   const { copies, locale, busy, onAsk } = props;
   if (copies.length === 0) {
     return (
-      <p className="text-ui-sm text-text-tertiary">
-        {t("desktop.settings.storage.previous.empty")}
-      </p>
+      <p className="text-ui text-text-tertiary">{t("desktop.settings.storage.previous.empty")}</p>
     );
   }
   return (
@@ -212,9 +210,9 @@ function PreviousList(props: {
         const label = previousLabelOf(copy.name, locale);
         return (
           <li key={copy.name} className="flex items-center justify-between gap-3">
-            <span className="min-w-0 truncate text-ui-sm text-text-secondary">{label}</span>
+            <span className="min-w-0 truncate text-ui text-text-secondary">{label}</span>
             <div className="flex flex-none items-center gap-3">
-              <span className="text-ui-sm text-text-secondary">{formatBytes(copy.bytes)}</span>
+              <span className="text-ui text-text-secondary">{formatBytes(copy.bytes)}</span>
               <Button
                 variant="outline"
                 size="xs"

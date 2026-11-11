@@ -16,7 +16,7 @@ export function SectionTitle(props: {
   return (
     <div className="flex min-h-6 flex-wrap items-center justify-between gap-2">
       <div className="flex min-w-0 items-center gap-1">
-        <Heading className="m-0 min-w-0 text-ui-sm font-semibold text-text-primary">
+        <Heading className="m-0 min-w-0 text-ui font-semibold text-text-primary">
           {props.title}
         </Heading>
         {props.info !== undefined && <InfoTip text={props.info} />}

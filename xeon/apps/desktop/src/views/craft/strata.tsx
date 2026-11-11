@@ -293,7 +293,7 @@ export function Strata(): ReactNode {
           {failure !== null && (
             <div
               role="alert"
-              className="mx-2 mb-2 flex items-center justify-between gap-3 rounded-xl border border-danger-border bg-danger-soft px-3 py-2 text-ui-sm text-danger-text"
+              className="mx-2 mb-2 flex items-center justify-between gap-3 rounded-xl border border-danger-border bg-danger-soft px-3 py-2 text-ui text-danger-text"
             >
               <span>{t(failure)}</span>
               <Button size="xs" variant="ghost" onClick={() => setFailure(null)}>
@@ -302,7 +302,7 @@ export function Strata(): ReactNode {
             </div>
           )}
           {applies !== null && (
-            <p role="status" className="mx-2 mb-2 text-footnote text-text-secondary">
+            <p role="status" className="mx-2 mb-2 text-ui text-text-secondary">
               {t("desktop.craft.strata.appliesAt")}
             </p>
           )}
@@ -323,7 +323,7 @@ export function Strata(): ReactNode {
               </div>
             ))}
             <details className="mt-3 px-2 py-2">
-              <summary className="ms-9 cursor-pointer text-ui-sm text-text-secondary">
+              <summary className="ms-9 cursor-pointer text-ui text-text-secondary">
                 {t("desktop.craft.strata.others", { count: OTHER_HOOKS.length })}
               </summary>
               <div className="mt-2">
@@ -355,7 +355,7 @@ function PhaseLabel({ label }: { readonly label: string }): ReactNode {
   return (
     <div className="grid grid-cols-[24px_minmax(0,1fr)] gap-x-3 px-2 pb-0.5 pt-3">
       <span aria-hidden />
-      <span className="text-footnote font-medium text-text-tertiary">{label}</span>
+      <span className="text-ui font-medium text-text-tertiary">{label}</span>
     </div>
   );
 }
@@ -379,7 +379,7 @@ function Node({ core }: { readonly core: boolean }): ReactNode {
 /** 항목 사이의 작은 화살표: 불리는 순서를 가리킨다 */
 function Next(): ReactNode {
   return (
-    <span aria-hidden className="flex-none select-none text-footnote text-text-tertiary opacity-60">
+    <span aria-hidden className="flex-none select-none text-ui text-text-tertiary opacity-60">
       ›
     </span>
   );
@@ -389,7 +389,7 @@ function Next(): ReactNode {
 function FoldTag({ fold }: { readonly fold: Fold }): ReactNode {
   return (
     <span className="inline-flex items-center gap-1">
-      <span className="cursor-default text-footnote text-text-tertiary underline decoration-dotted decoration-border-strong underline-offset-4">
+      <span className="cursor-default text-ui text-text-tertiary underline decoration-dotted decoration-border-strong underline-offset-4">
         {t(FOLD_LABEL[fold])}
       </span>
       <InfoTip text={t(FOLD_TIP[fold])} />
@@ -485,7 +485,7 @@ function RowWarningLine({ line }: { readonly line: RowWarning }): ReactNode {
   return (
     <span
       role="status"
-      className="inline-flex min-w-0 items-center gap-1.5 text-ui-xs text-warning-text"
+      className="inline-flex min-w-0 items-center gap-1.5 text-ui text-warning-text"
     >
       <TriangleAlert aria-hidden className="size-3.5 flex-none" />
       {rowWarningText(line)}
@@ -643,7 +643,7 @@ function Pill({
         {p.name}
       </button>
       {health !== undefined && (
-        <span className="flex-none whitespace-nowrap text-footnote text-danger-text">
+        <span className="flex-none whitespace-nowrap text-ui text-danger-text">
           {health.autoOff === true
             ? t("desktop.craft.strata.status.autoOff")
             : t("desktop.craft.strata.status.fail", { count: health.fails })}
@@ -667,7 +667,7 @@ function CompactChip({ hook, ctx }: { readonly hook: string; readonly ctx: Strat
       type="button"
       aria-pressed={picked}
       onClick={() => ctx.select({ k: "builtin", slot: `hook:${hook}` })}
-      className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border px-3 text-ui-sm outline-none focus-visible:shadow-focus ${picked ? "border-text-primary bg-text-primary text-surface-base" : "border-border-default bg-neutral-soft text-text-secondary"}`}
+      className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border px-3 text-ui outline-none focus-visible:shadow-focus ${picked ? "border-text-primary bg-text-primary text-surface-base" : "border-border-default bg-neutral-soft text-text-secondary"}`}
     >
       {t("desktop.craft.strata.core.compact.builtin")}
     </button>
@@ -690,7 +690,7 @@ function CoreRow({ step }: { readonly step: CoreDef }): ReactNode {
         <span className="truncate font-mono text-mono-sm text-text-tertiary">{step.id}</span>
       </div>
       <div className="flex min-h-8 items-center gap-1">
-        <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border-default bg-neutral-soft px-3 text-ui-sm text-text-secondary">
+        <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border-default bg-neutral-soft px-3 text-ui text-text-secondary">
           {step.locked && <Lock aria-hidden className="size-3" />}
           {t("desktop.craft.strata.core.builtin")}
         </span>

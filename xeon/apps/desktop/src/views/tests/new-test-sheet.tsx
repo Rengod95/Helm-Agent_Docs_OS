@@ -41,7 +41,7 @@ export function visibleErrorsOf<E extends { readonly field: NewTestField }>(
   return submitted ? errors : errors.filter((error) => touched.includes(error.field));
 }
 
-const MUTED = "m-0 text-ui-sm text-text-tertiary";
+const MUTED = "m-0 text-ui text-text-tertiary";
 
 export interface NewTestHandlers {
   readonly change: (draft: NewTestDraft) => void;

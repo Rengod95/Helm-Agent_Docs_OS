@@ -44,7 +44,7 @@ function RunLine(props: {
   const reason = run.error === null ? null : runReasonTextOf(run.error);
   return (
     <li className="grid gap-1 py-1.5">
-      <span className="flex flex-wrap items-center gap-2 text-ui-sm">
+      <span className="flex flex-wrap items-center gap-2 text-ui">
         <span className={STATUS_TEXT_TONE[status.tone]}>
           {t(status.label.id, status.label.args)}
         </span>
@@ -68,15 +68,11 @@ function RunLine(props: {
         )}
       </span>
       {caughtUp ? (
-        <span className="text-ui-sm text-text-secondary">
-          {t("desktop.schedules.runs.caughtUp")}
-        </span>
+        <span className="text-ui text-text-secondary">{t("desktop.schedules.runs.caughtUp")}</span>
       ) : null}
       {reason === null ? null : (
         <span
-          className={
-            skippedMissed ? "text-ui-sm text-text-secondary" : "text-ui-sm text-danger-text"
-          }
+          className={skippedMissed ? "text-ui text-text-secondary" : "text-ui text-danger-text"}
         >
           {t(reason.id, reason.args)}
         </span>

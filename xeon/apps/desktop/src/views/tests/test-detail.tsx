@@ -25,7 +25,7 @@ import {
   VERDICT_TEXT,
 } from "./tests-text.ts";
 
-const MUTED = "m-0 text-ui-sm text-text-tertiary";
+const MUTED = "m-0 text-ui text-text-tertiary";
 /** 시안의 목록 줄: 상자 없이, 용어 열만 좁게 */
 const LD = "rounded-none [--cs-size-list-term:7.5rem] [&_[data-slot=list-description-row]]:px-0";
 
@@ -146,7 +146,7 @@ export function ReplayResult(props: {
   const tone: TagTone =
     verdict.kind === "same" ? "success" : verdict.kind === "digest-differs" ? "warning" : "danger";
   return (
-    <div className="grid gap-3 text-ui-sm">
+    <div className="grid gap-3 text-ui">
       {limitInfo ? null : <p className={MUTED}>{t("desktop.tests.detail.limit")}</p>}
       <div className="flex flex-wrap items-center gap-2">
         <Tag tone={tone}>{t(VERDICT_TEXT[verdict.kind])}</Tag>
@@ -162,7 +162,7 @@ export function ReplayResult(props: {
           : t("desktop.tests.detail.firstDiff", { seq: report.firstDiff })}
       </p>
       <section aria-label={t("desktop.tests.detail.effects")} className="grid gap-1">
-        <h3 className="m-0 text-ui-sm text-text-secondary">{t("desktop.tests.detail.effects")}</h3>
+        <h3 className="m-0 text-ui text-text-secondary">{t("desktop.tests.detail.effects")}</h3>
         <ListDescription
           variant="ghost"
           size="xs"
@@ -207,7 +207,7 @@ function Band(props: {
       <span className="min-w-0 flex-1 text-ui-dense text-text-primary">
         {props.text}
         {props.meta === undefined ? null : (
-          <span className="ms-2 text-ui-xs text-text-tertiary">{props.meta}</span>
+          <span className="ms-2 text-ui text-text-tertiary">{props.meta}</span>
         )}
       </span>
       {props.children === undefined ? null : (

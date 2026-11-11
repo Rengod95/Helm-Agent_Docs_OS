@@ -253,7 +253,7 @@ function HooksSection(props: {
           <li key={`${row.registrationId}:${row.hook}`} className="grid gap-1 text-ui-dense">
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
               <span className="text-text-primary">{row.hook}</span>
-              {fold !== null && <span className="text-ui-xs text-text-secondary">{fold}</span>}
+              {fold !== null && <span className="text-ui text-text-secondary">{fold}</span>}
               <span className="ms-auto tabular-nums text-text-secondary">
                 {t("desktop.inspect.hook.budget", { ms: row.budgetMs })}
               </span>
@@ -272,14 +272,14 @@ function HooksSection(props: {
                   <span className="text-ui-xs tabular-nums text-text-tertiary">{`${ratio}%`}</span>
                 </>
               ) : (
-                <span className="text-ui-xs text-text-tertiary">
+                <span className="text-ui text-text-tertiary">
                   {t("desktop.inspect.hook.noMeasure")}
                 </span>
               )}
               {traceOff && <InfoTip text={t("desktop.inspect.hook.traceOff")} />}
             </div>
             {(row.p95Ms !== null || row.failures !== null) && (
-              <div className="flex flex-wrap items-baseline gap-x-3 text-ui-xs">
+              <div className="flex flex-wrap items-baseline gap-x-3 text-ui">
                 {row.p95Ms !== null && (
                   <span className="tabular-nums text-text-primary">
                     {t("desktop.inspect.hook.p95", { ms: row.p95Ms })}
@@ -364,12 +364,12 @@ function DriveSection(props: {
         <p className="m-0 flex flex-wrap items-baseline gap-2 text-ui-dense">
           <span className="text-text-primary">{t(RoleText[role.role])}</span>
           {role.waits !== null && role.waitLimit !== null && (
-            <span className="text-ui-xs text-text-tertiary">
+            <span className="text-ui text-text-tertiary">
               {t("desktop.inspect.drive.waits", { waits: role.waits, waitLimit: role.waitLimit })}
             </span>
           )}
         </p>
-        <div className="grid grid-cols-[3rem_minmax(0,1fr)_5.5rem] items-center gap-x-2 gap-y-1.5 text-ui-xs">
+        <div className="grid grid-cols-[3rem_minmax(0,1fr)_5.5rem] items-center gap-x-2 gap-y-1.5 text-ui">
           <Gauge
             label={t("desktop.inspect.drive.turns")}
             used={view.used.turns}
@@ -420,7 +420,7 @@ function FeatureRow(props: {
               </span>
             )}
             {!item.satisfied && (
-              <span className="text-ui-xs text-text-tertiary">
+              <span className="text-ui text-text-tertiary">
                 {t("desktop.inspect.features.unmet")}
               </span>
             )}
@@ -500,7 +500,7 @@ function SettingLine(props: { readonly row: InspectSettingVM }): ReactNode {
       <p className="m-0 text-ui-dense text-text-primary">
         {row.value ?? t("desktop.inspect.settings.hidden")}
       </p>
-      <p className="m-0 text-ui-sm text-text-tertiary">
+      <p className="m-0 text-ui text-text-tertiary">
         {row.winningScope === null
           ? t("desktop.inspect.settings.default")
           : t("desktop.inspect.settings.from", {
@@ -571,12 +571,12 @@ function FailuresSection(props: {
               </span>
             )}
             {h.autoDisabled && (
-              <span className="text-ui-xs text-text-secondary">
+              <span className="text-ui text-text-secondary">
                 {t("desktop.inspect.failures.autoOff")}
               </span>
             )}
             {h.lastFailureAt !== null && (
-              <span className="truncate text-ui-xs text-text-tertiary">
+              <span className="truncate text-ui text-text-tertiary">
                 {t("desktop.inspect.failures.last", {
                   at: h.lastFailureAt,
                   error: h.lastError ?? "",
@@ -599,7 +599,7 @@ function FailuresSection(props: {
                 {t("desktop.inspect.failures.streak", { count: row.consecutive })}
               </span>
             </span>
-            <span className="truncate text-ui-xs text-text-secondary">{row.message}</span>
+            <span className="truncate text-ui text-text-secondary">{row.message}</span>
           </span>
         </li>
       ))}
@@ -663,7 +663,7 @@ export function InspectBody(props: {
             <span className="truncate font-mono text-mono-sm text-text-tertiary">{row.name}</span>
           )}
         </span>
-        <p className="m-0 flex flex-wrap items-baseline gap-x-2 text-ui-sm text-text-tertiary">
+        <p className="m-0 flex flex-wrap items-baseline gap-x-2 text-ui text-text-tertiary">
           <span className="font-mono text-mono-sm">{row.layer}</span>
           <span>{`${kindText(row.kind)} · ${row.grade} · ${row.version}`}</span>
         </p>

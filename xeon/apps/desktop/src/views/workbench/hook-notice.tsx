@@ -55,7 +55,7 @@ function HookNoticeView(props: {
   const error =
     failed === null ? null : (
       <div className="flex flex-wrap items-center gap-2">
-        <p role="alert" className="m-0 text-ui-xs text-text-secondary">
+        <p role="alert" className="m-0 text-ui text-text-secondary">
           {t("desktop.workbench.hookOff.failed")}
         </p>
         <Button
@@ -75,7 +75,7 @@ function HookNoticeView(props: {
   if (next.asking && !asking) return null;
   if (next.answer === "kept-on") {
     return (
-      <p role="status" className="m-0 text-ui-xs text-text-secondary">
+      <p role="status" className="m-0 text-ui text-text-secondary">
         {t("desktop.workbench.hookOff.answer.on")}{" "}
         <InfoTip text={t("desktop.workbench.hookOff.info")} />
       </p>
@@ -84,7 +84,7 @@ function HookNoticeView(props: {
   if (next.answer === "kept-off") {
     return (
       <div className="grid justify-items-start gap-2">
-        <p role="status" className="m-0 text-ui-xs text-text-secondary">
+        <p role="status" className="m-0 text-ui text-text-secondary">
           {t("desktop.workbench.hookOff.answer.off")}
         </p>
         <Button
@@ -102,7 +102,7 @@ function HookNoticeView(props: {
   if (next.answer === "elsewhere") {
     return (
       <div className="grid justify-items-start gap-2">
-        <p role="status" className="m-0 text-ui-xs text-text-secondary">
+        <p role="status" className="m-0 text-ui text-text-secondary">
           {t("desktop.workbench.hookOff.answer.elsewhere")}
         </p>
         {next.off && (
@@ -184,7 +184,7 @@ function HookNoticeView(props: {
               // 시각은 기록에 있을 때만 앞에 둔다(없거나 날짜로 읽히지 않으면 글만 남는다)
               const time = failureClockOf(f.at);
               return (
-                <li key={`${f.afterSeq}:${f.point}`} className="text-ui-xs text-text-secondary">
+                <li key={`${f.afterSeq}:${f.point}`} className="text-ui text-text-secondary">
                   {time !== null && (
                     <>
                       <span className="font-mono">{time}</span> ·{" "}

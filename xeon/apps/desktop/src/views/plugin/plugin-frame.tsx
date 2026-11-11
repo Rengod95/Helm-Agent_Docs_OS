@@ -202,7 +202,7 @@ function FramePlaceholder(props: {
 function FrameLoading(props: { readonly line: string }): ReactNode {
   return (
     <div aria-busy="true" className="absolute inset-0 grid content-start gap-4 bg-surface-base p-4">
-      <p role="status" className="m-0 text-ui-xs text-text-tertiary">
+      <p role="status" className="m-0 text-ui text-text-tertiary">
         {props.line}
       </p>
       <div className="grid grid-cols-3 gap-4">

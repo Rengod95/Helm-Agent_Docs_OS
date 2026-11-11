@@ -216,7 +216,7 @@ function SourceFrame(props: { readonly children: ReactNode }): ReactNode {
     <div
       role="group"
       aria-label={t("desktop.notices.source")}
-      className="flex min-w-0 items-center gap-1.5 border-t border-border-subtle pt-1.5 text-ui-sm"
+      className="flex min-w-0 items-center gap-1.5 border-t border-border-subtle pt-1.5 text-ui"
     >
       <MessageSquare aria-hidden className="size-icon-sm shrink-0 text-text-tertiary" />
       {props.children}

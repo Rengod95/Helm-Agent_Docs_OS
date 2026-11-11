@@ -57,7 +57,7 @@ function ScheduleOriginLine(props: {
   const origin = useScheduleOrigin(props.scheduleId, props.threadId, props.status);
   const text = scheduleOriginTextOf(origin.title, origin.ordinal);
   return (
-    <span title={text} className="min-w-0 truncate text-ui-sm text-text-tertiary">
+    <span title={text} className="min-w-0 truncate text-ui text-text-tertiary">
       {text}
     </span>
   );

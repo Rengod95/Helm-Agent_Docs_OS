@@ -77,12 +77,12 @@ export function RestoreView(props: RestoreViewProps): ReactNode {
         )}
       </div>
       {block === "relative" ? (
-        <p className="text-ui-sm text-text-secondary">
+        <p className="text-ui text-text-secondary">
           {t("desktop.settings.restore.blocked.relative")}
         </p>
       ) : null}
       {props.pickError === null || props.pickError === undefined ? null : (
-        <p role="alert" className="text-ui-sm text-text-secondary">
+        <p role="alert" className="text-ui text-text-secondary">
           {props.pickError}
         </p>
       )}
@@ -97,14 +97,14 @@ export function RestoreView(props: RestoreViewProps): ReactNode {
           {t("desktop.settings.restore.button")}
         </Button>
         {block === "remote" ? (
-          <p className="text-ui-sm text-text-secondary">
+          <p className="text-ui text-text-secondary">
             {t("desktop.settings.restore.blocked.remote")}
           </p>
         ) : null}
       </div>
       {running ? (
         <div className="flex flex-col gap-1">
-          <p role="status" className="text-ui-sm text-text-secondary">
+          <p role="status" className="text-ui text-text-secondary">
             {t("desktop.settings.restore.running")}
           </p>
           <Skeleton height={8} />

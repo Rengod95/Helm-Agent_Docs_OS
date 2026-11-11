@@ -62,7 +62,7 @@ function ApplyMark(props: { readonly change: RuntimeChange }): ReactNode {
     case "live":
       return null;
     case "nextTurn":
-      return <span className="text-ui-sm text-text-tertiary">{t(RUNTIME_TEXT.nextTurn)}</span>;
+      return <span className="text-ui text-text-tertiary">{t(RUNTIME_TEXT.nextTurn)}</span>;
     case "restart":
       return (
         <Badge size="sm" className={TONE_CLASS.warning}>
@@ -95,7 +95,7 @@ function ShadowedList(props: {
         type="button"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className="inline-flex w-fit items-center gap-1 rounded-sm text-ui-sm text-text-tertiary outline-none hover:text-text-primary focus-visible:focus-ring"
+        className="inline-flex w-fit items-center gap-1 rounded-sm text-ui text-text-tertiary outline-none hover:text-text-primary focus-visible:focus-ring"
       >
         <ChevronRight
           aria-hidden
@@ -106,7 +106,7 @@ function ShadowedList(props: {
       {open && (
         <div className="grid gap-1 ps-4">
           {props.rows.map((row) => (
-            <div key={row.scope} className="flex min-w-0 items-center gap-2 text-ui-sm">
+            <div key={row.scope} className="flex min-w-0 items-center gap-2 text-ui">
               <span className="w-14 flex-none text-text-tertiary">{scopeText(row.scope)}</span>
               {row.path !== undefined && (
                 <span className="min-w-0 truncate font-mono text-mono-sm text-text-primary">
@@ -156,7 +156,7 @@ function SettingLineRow(props: { readonly line: SettingLine }): ReactNode {
         {valueText(line.value)}
       </p>
       <div className="grid gap-1">
-        <p className="m-0 flex min-w-0 items-baseline gap-2 text-ui-sm text-text-tertiary">
+        <p className="m-0 flex min-w-0 items-baseline gap-2 text-ui text-text-tertiary">
           <span className="flex-none">{t("desktop.workbench.detail.settings.source")}</span>
           <span className="flex-none text-text-secondary">
             {t("desktop.workbench.detail.settings.wins", { scope: scopeText(line.scope) })}
@@ -209,7 +209,7 @@ function SettingsSlot(props: {
 }): ReactNode {
   return (
     <section aria-label={props.entry.title} className="grid gap-1 pt-3">
-      <div className="flex min-w-0 items-baseline gap-2 text-ui-xs text-text-tertiary">
+      <div className="flex min-w-0 items-baseline gap-2 text-ui text-text-tertiary">
         <span>{t("desktop.workbench.detail.settings.slot")}</span>
         <span>{`· ${t("desktop.workbench.detail.settings.readOnly")}`}</span>
       </div>

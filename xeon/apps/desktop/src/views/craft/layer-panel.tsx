@@ -232,7 +232,7 @@ function FlowCard({
         </span>
       </div>
       {p.role !== undefined && (
-        <div className="truncate ps-7 text-footnote text-text-tertiary">{p.role}</div>
+        <div className="truncate ps-7 text-ui text-text-tertiary">{p.role}</div>
       )}
       <button
         type="button"

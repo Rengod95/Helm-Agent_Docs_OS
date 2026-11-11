@@ -34,7 +34,7 @@ import {
 } from "../tests/tests-text.ts";
 import { useTabRead } from "../workbench/tab-read.ts";
 
-const MUTED = "m-0 text-ui-sm text-text-tertiary";
+const MUTED = "m-0 text-ui text-text-tertiary";
 const DEV_MODE_READ_KEY = "compose-trial-devmode";
 const RESULTS_READ_KEY = "compose-trial-results";
 
@@ -369,7 +369,7 @@ export function ReplayBar(props: { readonly replay: ReplayController }): ReactNo
         <InfoTip text={t("desktop.compose.trial.replay.info")} />
       </div>
       {running ? (
-        <div className="flex items-center gap-2 text-ui-sm text-text-secondary">
+        <div className="flex items-center gap-2 text-ui text-text-secondary">
           <Progress
             indeterminate
             size="sm"

@@ -66,7 +66,7 @@ export function UnreadableNote(props: { readonly message: string }): ReactNode {
 function ErrorNote(props: { readonly message: string | null }): ReactNode {
   if (props.message === null) return null;
   return (
-    <p role="alert" className="m-0 text-ui-sm text-danger-text">
+    <p role="alert" className="m-0 text-ui text-danger-text">
       {props.message}
     </p>
   );
@@ -75,7 +75,7 @@ function ErrorNote(props: { readonly message: string | null }): ReactNode {
 /** 잠긴 이유의 한 줄(목업 LockNote): 자물쇠 아이콘과 글 하나 */
 function LockLine(props: { readonly text: string }): ReactNode {
   return (
-    <p className="m-0 flex min-w-0 items-center gap-1.5 text-ui-sm text-text-tertiary">
+    <p className="m-0 flex min-w-0 items-center gap-1.5 text-ui text-text-tertiary">
       <Lock aria-hidden className="size-icon-xs flex-none" />
       <span>{props.text}</span>
     </p>
@@ -210,7 +210,7 @@ function UsageRow(props: { readonly gauge: UsageGauge }): ReactNode {
       )}
       <span className="flex flex-none items-center gap-2 tabular-nums">
         <span className="font-mono text-mono text-text-primary">{value}</span>
-        <span className="text-ui-sm text-text-tertiary">{limitText}</span>
+        <span className="text-ui text-text-tertiary">{limitText}</span>
         {resetText === null ? null : <InfoTip text={resetText} />}
       </span>
     </div>
@@ -257,7 +257,7 @@ export function RotationRowView(props: RotationRowViewProps): ReactNode {
         }}
       />
       {state === "on" ? (
-        <p className="m-0 flex items-center gap-2 text-ui-sm text-text-tertiary">
+        <p className="m-0 flex items-center gap-2 text-ui text-text-tertiary">
           <Badge size="sm" className={TONE_CLASS.warning} icon={<TriangleAlert />}>
             {t("desktop.providers.rotation.acknowledged")}
           </Badge>
@@ -270,7 +270,7 @@ export function RotationRowView(props: RotationRowViewProps): ReactNode {
       ) : null}
       {props.lockedText === null ? null : <LockLine text={props.lockedText} />}
       {props.error === null ? null : (
-        <p role="alert" className="m-0 text-ui-sm text-danger-text">
+        <p role="alert" className="m-0 text-ui text-danger-text">
           {props.error}
         </p>
       )}
@@ -408,7 +408,7 @@ function PoolGroup(props: AccountPoolViewProps & { readonly pool: ProviderPool }
       />
       {fold.hidden === 0 ? null : (
         <div className="flex items-center gap-2">
-          <span className="text-ui-sm text-text-tertiary">
+          <span className="text-ui text-text-tertiary">
             {t("desktop.providers.pool.hidden", { count: fold.hidden })}
           </span>
           <Button
@@ -437,7 +437,7 @@ function AccountCells(props: {
   const { entry, editable } = props;
   return (
     <span className="flex items-center gap-2">
-      <span className="text-ui-sm text-text-tertiary">{t("desktop.providers.field.priority")}</span>
+      <span className="text-ui text-text-tertiary">{t("desktop.providers.field.priority")}</span>
       <NumberField
         size="xs"
         containerClassName="w-24"
@@ -452,9 +452,7 @@ function AccountCells(props: {
           props.onPriority(entry, next);
         }}
       />
-      <span className="text-ui-sm text-text-tertiary">
-        {t("desktop.providers.field.reservePct")}
-      </span>
+      <span className="text-ui text-text-tertiary">{t("desktop.providers.field.reservePct")}</span>
       <NumberField
         size="xs"
         unit="%"
@@ -598,7 +596,7 @@ export function RateLimitView(props: RateLimitViewProps): ReactNode {
           aria-label={t("desktop.providers.rate.table")}
           className="grid overflow-x-auto"
         >
-          <div role="row" className="flex items-center gap-2 pb-1 text-ui-sm text-text-tertiary">
+          <div role="row" className="flex items-center gap-2 pb-1 text-ui text-text-tertiary">
             <span role="columnheader" className="w-28 flex-none">
               {t("desktop.providers.field.provider")}
             </span>
@@ -720,7 +718,7 @@ function RoleRow(props: {
   const { role, editable } = props;
   return (
     <label className="flex flex-wrap items-center gap-2">
-      <span className="w-28 text-ui-sm text-text-secondary">{t(roleIdOf(role))}</span>
+      <span className="w-28 text-ui text-text-secondary">{t(roleIdOf(role))}</span>
       <Input
         size="sm"
         aria-label={t(roleIdOf(role))}
@@ -779,7 +777,7 @@ export function ChainMapView(props: ChainMapViewProps): ReactNode {
       ) : null}
       {ROLE_IDS.map((role) => (
         <div key={role} className="flex flex-wrap items-start gap-2">
-          <span className="w-28 pt-2 text-ui-sm text-text-secondary">{t(roleIdOf(role))}</span>
+          <span className="w-28 pt-2 text-ui text-text-secondary">{t(roleIdOf(role))}</span>
           <LocalizedTagInput
             aria-label={t(roleIdOf(role))}
             value={[...(chains[role] ?? [])]}

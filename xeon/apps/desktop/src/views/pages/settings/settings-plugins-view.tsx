@@ -27,7 +27,7 @@ type Load =
   | { readonly kind: "error" }
   | { readonly kind: "ready"; readonly rev: number; readonly entries: readonly ExtListEntry[] };
 
-const MUTED = "text-ui-sm text-text-tertiary";
+const MUTED = "text-ui text-text-tertiary";
 
 /** 학습 그룹의 확장 이름(`group-learning` 매니페스트의 `name`) */
 const LEARNING_GROUP = "learning";

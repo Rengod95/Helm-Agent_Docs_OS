@@ -285,7 +285,7 @@ export function AutoOffNotice(props: {
   if (next !== memo) setMemo(next);
   if (next.answer === "kept-on") {
     return (
-      <p role="status" className="m-0 text-ui-xs text-text-secondary">
+      <p role="status" className="m-0 text-ui text-text-secondary">
         {t("desktop.workbench.keepOff.answer.on")}
       </p>
     );
@@ -293,7 +293,7 @@ export function AutoOffNotice(props: {
   if (next.answer === "kept-off") {
     return (
       <div className="grid justify-items-start gap-2">
-        <p role="status" className="m-0 text-ui-xs text-text-secondary">
+        <p role="status" className="m-0 text-ui text-text-secondary">
           {t("desktop.workbench.keepOff.answer.off")}
         </p>
         <Button size="xs" variant="outline" onClick={props.onKeepOn}>

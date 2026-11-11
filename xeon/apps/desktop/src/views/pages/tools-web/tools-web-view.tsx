@@ -113,7 +113,7 @@ function RowEnd(props: { readonly row: WebToolRow }): ReactNode {
   const { row } = props;
   const state = providerStateOf(row);
   return (
-    <span className="flex items-center gap-3 text-ui-sm">
+    <span className="flex items-center gap-3 text-ui">
       {row.noticePending ? (
         <Badge size="sm" className={TONE_CLASS.info}>
           {t("desktop.tools.notice.pending")}
@@ -180,7 +180,7 @@ function SearchSection(props: {
         />
       )}
       {props.saveError === null ? null : (
-        <p role="alert" className="m-0 text-ui-sm text-danger-text">
+        <p role="alert" className="m-0 text-ui text-danger-text">
           {props.saveError}
         </p>
       )}
@@ -225,7 +225,7 @@ const RECOMMEND_TEXT_CLASS: Readonly<Record<WebRecommendation["state"], string>>
 function RecommendEnd(props: { readonly item: WebRecommendation }): ReactNode {
   const { item } = props;
   return (
-    <span className="flex items-center gap-3 text-ui-sm">
+    <span className="flex items-center gap-3 text-ui">
       {item.state === "ready" ? null : (
         <span className={RECOMMEND_TEXT_CLASS[item.state]}>
           {t(recommendationStateIdOf(item.state))}

@@ -37,7 +37,7 @@ export function TrustedFoldersView(props: { readonly state: TrustedFoldersState 
       {state.kind === "failed" ? (
         <Alert tone="danger">{t("desktop.settings.trust.loadFailed")}</Alert>
       ) : state.entries.length === 0 ? (
-        <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.settings.trust.empty")}</p>
+        <p className="m-0 text-ui text-text-tertiary">{t("desktop.settings.trust.empty")}</p>
       ) : (
         <ListDescription
           variant="ghost"

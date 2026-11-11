@@ -35,7 +35,7 @@ import { InfoTip } from "../craft/info-tip.tsx";
 import { IssueList } from "./compose-check.tsx";
 import { NODE_TEXT } from "./compose-text.ts";
 
-const MUTED = "m-0 text-ui-sm text-text-tertiary";
+const MUTED = "m-0 text-ui text-text-tertiary";
 /** 팔레트와 속성의 구역 제목(시안 PageSection group 제목과 같은 글 역할) */
 const HEAD = "m-0 text-title-3 text-text-primary";
 
@@ -156,11 +156,9 @@ function Inspector(props: {
     <div className="grid content-start gap-3">
       <div className="flex min-w-0 flex-wrap items-baseline gap-2.5">
         <h3 className={HEAD}>{node.title ?? node.id}</h3>
-        <span className="text-ui-sm text-text-tertiary">{t(NODE_TEXT[node.kind])}</span>
+        <span className="text-ui text-text-tertiary">{t(NODE_TEXT[node.kind])}</span>
         {props.initial ? (
-          <span className="text-footnote text-text-tertiary">
-            {t("desktop.compose.flow.initial")}
-          </span>
+          <span className="text-ui text-text-tertiary">{t("desktop.compose.flow.initial")}</span>
         ) : null}
       </div>
       <IssueList issues={props.issues} />
@@ -253,7 +251,7 @@ function Inspector(props: {
             {outgoing.map((edge) => (
               <li
                 key={`${edge.to}:${edge.event ?? ""}`}
-                className="flex items-center justify-between gap-2 text-ui-sm text-text-secondary"
+                className="flex items-center justify-between gap-2 text-ui text-text-secondary"
               >
                 <span>
                   {t("desktop.compose.flow.to", { to: titleOf(edge.to) })}

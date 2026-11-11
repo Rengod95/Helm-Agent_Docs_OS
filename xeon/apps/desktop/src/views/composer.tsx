@@ -342,7 +342,7 @@ export function RetryStatus(props: {
   }, [clock]);
   const line = retryLineOf(props.retry, now);
   return (
-    <p data-composer-retry className="m-0 px-1 text-ui-sm text-text-secondary">
+    <p data-composer-retry className="m-0 px-1 text-ui text-text-secondary">
       {line.soon
         ? t("desktop.composer.retryingSoon", { attempt: line.attempt, max: line.max })
         : t("desktop.composer.retrying", {
@@ -375,7 +375,7 @@ export function SlashRow(props: {
       id={`composer-slash-${row.name}`}
       role="option"
       aria-selected={props.selected}
-      className="flex cursor-default items-baseline gap-2 rounded-xl px-2.5 py-1.5 text-ui-sm text-text-secondary aria-selected:bg-neutral-hover aria-selected:text-text-primary"
+      className="flex cursor-default items-baseline gap-2 rounded-xl px-2.5 py-1.5 text-ui text-text-secondary aria-selected:bg-neutral-hover aria-selected:text-text-primary"
       onMouseDown={(event) => {
         event.preventDefault();
         props.onFill();
@@ -787,7 +787,7 @@ function ComposerFor(props: {
         onRetry={retry}
       />
       {dragging || (dropRefused && attachBlocked !== null) ? (
-        <p role="status" className="m-0 text-center text-ui-sm text-text-secondary">
+        <p role="status" className="m-0 text-center text-ui text-text-secondary">
           {attachBlocked === null
             ? t("desktop.composer.attach.dropHint")
             : running
@@ -796,12 +796,12 @@ function ComposerFor(props: {
         </p>
       ) : null}
       {attachNote === null ? null : (
-        <p role="alert" className="m-0 px-1 text-ui-sm text-danger-text">
+        <p role="alert" className="m-0 px-1 text-ui text-danger-text">
           {attachNote}
         </p>
       )}
       {error === null ? null : (
-        <p role="alert" className="m-0 px-1 text-ui-sm text-danger-text">
+        <p role="alert" className="m-0 px-1 text-ui text-danger-text">
           {error}
         </p>
       )}
@@ -818,11 +818,7 @@ function ComposerFor(props: {
         }}
       />
       {secretWarning === null ? null : (
-        <p
-          role="note"
-          data-composer-secret-warning
-          className="m-0 px-1 text-ui-sm text-warning-text"
-        >
+        <p role="note" data-composer-secret-warning className="m-0 px-1 text-ui text-warning-text">
           {secretWarning}
         </p>
       )}
@@ -840,7 +836,7 @@ function ComposerFor(props: {
                 <li
                   role="presentation"
                   data-composer-slash-group="skill"
-                  className="px-2.5 pt-1.5 text-ui-sm text-text-tertiary"
+                  className="px-2.5 pt-1.5 text-ui text-text-tertiary"
                 >
                   {t("desktop.composer.slash.skills.group")}
                 </li>
@@ -862,7 +858,7 @@ function ComposerFor(props: {
               key={issue}
               role="presentation"
               data-composer-slash-issue
-              className="px-2.5 py-1 text-ui-sm text-warning-text"
+              className="px-2.5 py-1 text-ui text-warning-text"
             >
               {issue}
             </li>
@@ -873,7 +869,7 @@ function ComposerFor(props: {
         <p
           role="status"
           data-composer-slash-unknown
-          className="m-0 flex flex-wrap items-center gap-2 px-1 text-ui-sm text-warning-text"
+          className="m-0 flex flex-wrap items-center gap-2 px-1 text-ui text-warning-text"
         >
           <span>
             {t("desktop.composer.slash.unknown")} · /{unknownName}

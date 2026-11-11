@@ -349,12 +349,12 @@ function PendingCard(props: {
             />
           ))}
           {busy ? (
-            <span className="text-ui-sm text-text-secondary">
+            <span className="text-ui text-text-secondary">
               {t("desktop.approvals.sendingStatus")}
             </span>
           ) : null}
           {sendState === undefined || sendState === "sending" ? null : (
-            <span className="text-ui-sm text-danger-text" role="alert" data-failure={sendState}>
+            <span className="text-ui text-danger-text" role="alert" data-failure={sendState}>
               {t(APPROVAL_FAILURE_ID[sendState])}
               {detail === undefined ? null : ` (${detail})`}
             </span>

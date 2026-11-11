@@ -65,7 +65,7 @@ export function UpdateLineView(props: UpdateLineViewProps): ReactNode {
         : null;
   const line = updateLineOf(state);
   const status = (
-    <span role="status" className="text-ui-sm text-text-secondary">
+    <span role="status" className="text-ui text-text-secondary">
       {t(line.text, line.args)}
     </span>
   );

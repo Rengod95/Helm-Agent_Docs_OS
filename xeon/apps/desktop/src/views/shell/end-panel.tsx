@@ -115,7 +115,7 @@ export function EndPanel(props: { readonly registry: ShellRegistry }): ReactNode
           style={{ width: wellWidthOf(current) }}
         >
           <div className="flex h-8 flex-none items-center gap-1.5 ps-2.5 pe-0.5">
-            <h2 className="m-0 min-w-0 flex-1 truncate text-ui-sm font-semibold text-text-primary">
+            <h2 className="m-0 min-w-0 flex-1 truncate text-ui font-semibold text-text-primary">
               {label}
             </h2>
             <IconButton

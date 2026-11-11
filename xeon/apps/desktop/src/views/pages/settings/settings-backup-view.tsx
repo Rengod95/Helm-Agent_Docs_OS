@@ -76,7 +76,7 @@ export function BackupView(props: BackupViewProps): ReactNode {
         )}
       </div>
       {props.pickError === null || props.pickError === undefined ? null : (
-        <p role="alert" className="text-ui-sm text-text-secondary">
+        <p role="alert" className="text-ui text-text-secondary">
           {props.pickError}
         </p>
       )}
@@ -85,12 +85,12 @@ export function BackupView(props: BackupViewProps): ReactNode {
           {t("desktop.settings.backup.button")}
         </Button>
         {block === null || block === "running" ? null : (
-          <p className="text-ui-sm text-text-secondary">{t(BLOCK_ID[block])}</p>
+          <p className="text-ui text-text-secondary">{t(BLOCK_ID[block])}</p>
         )}
       </div>
       {running ? (
         <div className="flex flex-col gap-1">
-          <p role="status" className="text-ui-sm text-text-secondary">
+          <p role="status" className="text-ui text-text-secondary">
             {t("desktop.settings.backup.running")}
           </p>
           <Skeleton height={8} />

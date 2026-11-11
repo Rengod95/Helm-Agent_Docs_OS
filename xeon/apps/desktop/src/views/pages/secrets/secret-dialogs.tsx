@@ -399,21 +399,21 @@ function RemoveStatus(props: {
     case "idle":
     case "loading":
       return (
-        <p role="status" className="m-0 text-ui-sm text-text-tertiary">
+        <p role="status" className="m-0 text-ui text-text-tertiary">
           {t("desktop.secrets.delete.checking")}
         </p>
       );
     case "failed": {
       const failure = commandErrorText(refs.error);
       return (
-        <p role="alert" className="m-0 text-ui-sm text-danger-text">
+        <p role="alert" className="m-0 text-ui text-danger-text">
           {t(failure.id, failure.args)}
         </p>
       );
     }
     case "ready":
       return inUse ? (
-        <p role="alert" className="m-0 text-ui-sm text-danger-text">
+        <p role="alert" className="m-0 text-ui text-danger-text">
           {t("desktop.secrets.delete.inUse")}
         </p>
       ) : null;

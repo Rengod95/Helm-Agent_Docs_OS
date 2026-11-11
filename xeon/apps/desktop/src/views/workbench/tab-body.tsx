@@ -7,7 +7,7 @@ import { Alert, Skeleton } from "@caustic/react";
 import type { ReactNode } from "react";
 
 /** 보조 글(빈 문장, 상태 한 줄)의 자리 */
-export const MUTED = "m-0 text-ui-sm text-text-tertiary";
+export const MUTED = "m-0 text-ui text-text-tertiary";
 
 /**
  * 탭 안 표: 선 없는 ghost 표(wb-opus `PLAIN_TABLE`과 같은 덮개). Table에 선 없는 변형이 없어 className으로 덮는다.

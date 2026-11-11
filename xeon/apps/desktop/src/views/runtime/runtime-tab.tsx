@@ -109,7 +109,7 @@ export function linkOf(phase: ReturnType<typeof useLinkPhase>): LinkState {
 function Section(props: { readonly title: string; readonly children: ReactNode }): ReactNode {
   return (
     <section aria-label={props.title} className="grid content-start gap-2">
-      <h3 className="m-0 text-ui-sm font-semibold text-text-primary">{props.title}</h3>
+      <h3 className="m-0 text-ui font-semibold text-text-primary">{props.title}</h3>
       {props.children}
     </section>
   );
@@ -118,7 +118,7 @@ function Section(props: { readonly title: string; readonly children: ReactNode }
 function Member(props: { readonly member: DriveMemberVM }): ReactNode {
   const { member } = props;
   return (
-    <li className="flex flex-wrap items-center gap-2 text-ui-sm">
+    <li className="flex flex-wrap items-center gap-2 text-ui">
       <span className="text-text-primary">{member.displayName}</span>
       <span className="font-mono text-text-tertiary">{member.id}</span>
       {member.waits !== null && member.waitLimit !== null && (
@@ -157,7 +157,7 @@ function DriveSection(props: { readonly view: RuntimeDriveView }): ReactNode {
   return (
     <div className="grid gap-2">
       {!view.holderAgrees && <Alert tone="warning">{t("desktop.runtime.lock.mismatch")}</Alert>}
-      <p className="m-0 flex flex-wrap items-center gap-2 text-ui-sm">
+      <p className="m-0 flex flex-wrap items-center gap-2 text-ui">
         <span className="text-text-tertiary">{t("desktop.runtime.lock.holder")}</span>
         {view.holder === null ? (
           <span className="text-text-tertiary">{t("desktop.runtime.lock.holder.none")}</span>
@@ -171,18 +171,18 @@ function DriveSection(props: { readonly view: RuntimeDriveView }): ReactNode {
           {t("desktop.runtime.lock.epoch", { epoch: view.leaseEpoch })}
         </span>
       </p>
-      <p className="m-0 text-ui-sm text-text-tertiary">{usage}</p>
-      <p className="m-0 text-ui-sm text-text-tertiary">
+      <p className="m-0 text-ui text-text-tertiary">{usage}</p>
+      <p className="m-0 text-ui text-text-tertiary">
         {view.activeDriver === null
           ? t("desktop.runtime.lock.activeDriver.auto")
           : t("desktop.runtime.lock.activeDriver", { name: view.activeDriver })}
       </p>
       <div className="grid gap-1">
-        <h4 className="m-0 text-ui-sm font-medium text-text-secondary">
+        <h4 className="m-0 text-ui font-medium text-text-secondary">
           {t("desktop.runtime.queue.title")}
         </h4>
         {view.queue.length === 0 ? (
-          <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.runtime.queue.empty")}</p>
+          <p className="m-0 text-ui text-text-tertiary">{t("desktop.runtime.queue.empty")}</p>
         ) : (
           <ul className="m-0 grid list-none gap-1 p-0">
             {view.queue.map((member) => (
@@ -192,11 +192,11 @@ function DriveSection(props: { readonly view: RuntimeDriveView }): ReactNode {
         )}
       </div>
       <div className="grid gap-1">
-        <h4 className="m-0 text-ui-sm font-medium text-text-secondary">
+        <h4 className="m-0 text-ui font-medium text-text-secondary">
           {t("desktop.runtime.rejected.title")}
         </h4>
         {view.rejected.length === 0 ? (
-          <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.runtime.rejected.empty")}</p>
+          <p className="m-0 text-ui text-text-tertiary">{t("desktop.runtime.rejected.empty")}</p>
         ) : (
           <ul className="m-0 grid list-none gap-1 p-0">
             {view.rejected.map((member) => (
@@ -207,7 +207,7 @@ function DriveSection(props: { readonly view: RuntimeDriveView }): ReactNode {
       </div>
       {view.errored.length > 0 && (
         <div className="grid gap-1">
-          <h4 className="m-0 text-ui-sm font-medium text-text-secondary">
+          <h4 className="m-0 text-ui font-medium text-text-secondary">
             {t("desktop.runtime.errored.title")}
           </h4>
           <ul className="m-0 grid list-none gap-1 p-0">
@@ -218,7 +218,7 @@ function DriveSection(props: { readonly view: RuntimeDriveView }): ReactNode {
         </div>
       )}
       {view.lastRejected !== null && (
-        <p className="m-0 text-ui-sm text-text-tertiary">
+        <p className="m-0 text-ui text-text-tertiary">
           {t("desktop.runtime.lock.lastRejected", {
             group: view.lastRejected.groupId,
             reason: view.lastRejected.reason,
@@ -292,7 +292,7 @@ function transitionTextOf(change: TransitionChange): MessageId {
 function TransitionRow(props: { readonly row: TransitionRowVM }): ReactNode {
   const { row } = props;
   return (
-    <li className="flex flex-wrap items-center gap-2 text-ui-sm">
+    <li className="flex flex-wrap items-center gap-2 text-ui">
       <span className="font-mono text-text-tertiary">{row.time}</span>{" "}
       {row.turn !== null && (
         <>
@@ -310,7 +310,7 @@ function TransitionRow(props: { readonly row: TransitionRowVM }): ReactNode {
 function ExtRow(props: { readonly row: RuntimeExtRowVM }): ReactNode {
   const { row } = props;
   return (
-    <li className="grid gap-1 rounded-md px-2 py-1.5 text-ui-sm">
+    <li className="grid gap-1 rounded-md px-2 py-1.5 text-ui">
       <div className="flex flex-wrap items-center gap-2">
         <span className="min-w-0 truncate text-text-primary">
           {row.displayName !== null && <span>{row.displayName} </span>}
@@ -349,15 +349,11 @@ export function RuntimeBody(props: {
   const noThread = props.threadId === null;
   const transitionsBody = (): ReactNode => {
     if (noThread)
-      return (
-        <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.runtime.empty.thread")}</p>
-      );
+      return <p className="m-0 text-ui text-text-tertiary">{t("desktop.runtime.empty.thread")}</p>;
     const rows = transitionRowsOf(props.transitions);
     if (rows.length === 0)
       return (
-        <p className="m-0 text-ui-sm text-text-tertiary">
-          {t("desktop.runtime.transitions.empty")}
-        </p>
+        <p className="m-0 text-ui text-text-tertiary">{t("desktop.runtime.transitions.empty")}</p>
       );
     return (
       <ul className="m-0 grid list-none gap-1 p-0">
@@ -369,11 +365,9 @@ export function RuntimeBody(props: {
   };
   const driveBody = (): ReactNode => {
     if (noThread)
-      return (
-        <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.runtime.empty.thread")}</p>
-      );
+      return <p className="m-0 text-ui text-text-tertiary">{t("desktop.runtime.empty.thread")}</p>;
     if (link === "offline")
-      return <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.runtime.offline")}</p>;
+      return <p className="m-0 text-ui text-text-tertiary">{t("desktop.runtime.offline")}</p>;
     if (link === "pending" || data.drive.kind === "loading") return <Skeleton height={48} />;
     if (data.drive.kind === "error")
       return <Alert tone="danger">{t("desktop.runtime.lock.failed")}</Alert>;
@@ -383,14 +377,14 @@ export function RuntimeBody(props: {
   const extsBody = (): ReactNode => {
     if (noThread) return null;
     if (link === "offline")
-      return <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.runtime.offline")}</p>;
+      return <p className="m-0 text-ui text-text-tertiary">{t("desktop.runtime.offline")}</p>;
     if (link === "pending" || data.entries.kind === "loading") return <Skeleton height={48} />;
     if (data.entries.kind === "error")
       return <Alert tone="danger">{t("desktop.runtime.exts.failed")}</Alert>;
     const groups = data.drive.kind === "ready" ? data.drive.value.groups : [];
     const rows = runtimeRowsOf(data.entries.value, groups);
     if (rows.length === 0)
-      return <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.runtime.exts.empty")}</p>;
+      return <p className="m-0 text-ui text-text-tertiary">{t("desktop.runtime.exts.empty")}</p>;
     return (
       <ul className="m-0 grid list-none gap-0.5 p-0">
         {rows.map((row) => (
@@ -408,7 +402,7 @@ export function RuntimeBody(props: {
       <Section title={t("desktop.runtime.section.transitions")}>{transitionsBody()}</Section>
       <Section title={t("desktop.runtime.section.failures")}>
         {groups.length === 0 ? (
-          <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.runtime.failures.empty")}</p>
+          <p className="m-0 text-ui text-text-tertiary">{t("desktop.runtime.failures.empty")}</p>
         ) : (
           groups.map((group) => (
             <div key={group.owner} className="grid gap-1">

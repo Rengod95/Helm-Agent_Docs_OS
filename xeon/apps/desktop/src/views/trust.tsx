@@ -59,7 +59,7 @@ function TrustCardFor(props: { readonly threadId: ThreadId }): ReactNode {
   if ("failed" in loaded) {
     return (
       <section aria-label={t("desktop.trust.card.title")}>
-        <div className="text-ui-sm text-danger-text" role="alert">
+        <div className="text-ui text-danger-text" role="alert">
           {t("desktop.trust.card.loadFailed")}
         </div>
       </section>
@@ -114,7 +114,7 @@ export function TrustCardBody(props: {
         {card.details === null ? null : <TrustDetailRows details={card.details} />}
         {card.resources.length === 0 ? null : (
           <div className="grid gap-1">
-            <div className="text-ui-sm text-text-secondary">
+            <div className="text-ui text-text-secondary">
               {t("desktop.trust.card.resources.label")}
             </div>
             <ul className="m-0 list-disc pl-5">
@@ -126,15 +126,15 @@ export function TrustCardBody(props: {
             </ul>
           </div>
         )}
-        <div className="text-ui-sm text-text-secondary">{t("desktop.trust.card.warning")}</div>
+        <div className="text-ui text-text-secondary">{t("desktop.trust.card.warning")}</div>
         <div className="mt-1.5 flex flex-wrap items-center justify-end gap-1.5">
           {sending === "sending" ? (
-            <span className="text-ui-sm text-text-secondary">
+            <span className="text-ui text-text-secondary">
               {t("desktop.trust.card.sendingStatus")}
             </span>
           ) : null}
           {sending === "failed" ? (
-            <span className="text-ui-sm text-danger-text" role="alert">
+            <span className="text-ui text-danger-text" role="alert">
               {t("desktop.trust.card.sendFailed")}
             </span>
           ) : null}
@@ -191,7 +191,7 @@ function TrustDetailRows(props: { readonly details: TrustCardDetails }): ReactNo
         .filter((group) => group.items.length > 0)
         .map((group) => (
           <div key={group.label} className="grid gap-1">
-            <div className="text-ui-sm text-text-secondary">{t(group.label)}</div>
+            <div className="text-ui text-text-secondary">{t(group.label)}</div>
             <ul className="m-0 list-disc pl-5">
               {keyedLines(group.items).map((line) => (
                 <li key={line.key}>
@@ -202,7 +202,7 @@ function TrustDetailRows(props: { readonly details: TrustCardDetails }): ReactNo
           </div>
         ))}
       {props.details.truncated === true ? (
-        <div className="text-ui-sm text-text-secondary">
+        <div className="text-ui text-text-secondary">
           {t("desktop.trust.card.details.truncated")}
         </div>
       ) : null}

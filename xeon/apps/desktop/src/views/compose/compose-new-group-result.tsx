@@ -62,7 +62,7 @@ export function CheckNotice(props: { readonly check: DirCheck }): ReactNode {
           {check.issues.map((issue) => (
             <li
               key={`${issue.code}:${issue.path}:${issueTextOf(issue)}`}
-              className={`text-footnote ${issueToneOf(issue.severity)}`}
+              className={`text-ui ${issueToneOf(issue.severity)}`}
             >
               <span className="font-mono">{issue.code}</span> {issueTextOf(issue)}
             </li>
@@ -95,7 +95,7 @@ function PackNote(props: { readonly pack: PackRead }): ReactNode {
       );
     case "done":
       return (
-        <dl className="m-0 grid gap-2 text-ui-sm">
+        <dl className="m-0 grid gap-2 text-ui">
           <div className="grid gap-0.5">
             <dt className="text-text-tertiary">{t("desktop.compose.newGroup.pack.path")}</dt>
             <dd className={MONO}>{pack.result.path}</dd>

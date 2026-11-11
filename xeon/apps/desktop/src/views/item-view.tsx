@@ -67,9 +67,9 @@ const ROW_CLASS =
 /** 글. 줄바꿈을 살리고, 붙은 긴 토큰(파일 이름 등)은 쉴 곳(공백, 하이픈, 점 뒤)에서 먼저 줄을 바꾸며 그래도 넘칠 때만 열 끝에서 꺾는다(글자 사이 강제 분리 대신) */
 const TEXT_CLASS = "m-0 whitespace-pre-wrap [overflow-wrap:break-word] [word-break:normal]";
 /** 보조 글(생각, 확장 종류, 출처). 본문보다 작고 흐리다 */
-const QUIET_CLASS = "m-0 text-ui-sm text-text-tertiary";
+const QUIET_CLASS = "m-0 text-ui text-text-tertiary";
 /** 실패·중단 줄. 행 맨 아래에 한 줄로 둔다 */
-const NOTE_CLASS = "m-0 text-ui-xs text-text-tertiary";
+const NOTE_CLASS = "m-0 text-ui text-text-tertiary";
 /** 생각 토글 단추. 좌우 여백이 없어 chevron이 행(도구 카드·글)의 왼쪽 끝에 선다(2026-11-08 사용자 결정). 글은 본문 글 크기(13px)다 */
 const THINK_TOGGLE_CLASS = "px-0 text-ui";
 /** 생각 본문. 들여 쓰지 않고 행 폭 전체를 쓴다. 읽기 좋게 본문 글 크기를 쓴다 */
@@ -417,7 +417,7 @@ function sandboxBlockText(block: SandboxBlockView): string {
 
 /** 샌드박스가 막은 것의 이유 줄. 행 바깥에 늘 보여 접힌 행에서도 이유가 드러난다. 다섯 줄을 넘으면 남은 수만 적는다 */
 const SANDBOX_NOTE_LIMIT = 5;
-const SANDBOX_NOTE_CLASS = "m-0 text-ui-xs text-warning-text";
+const SANDBOX_NOTE_CLASS = "m-0 text-ui text-warning-text";
 function SandboxBlockNotes(props: {
   readonly blocks: readonly SandboxBlockView[] | undefined;
 }): ReactNode {

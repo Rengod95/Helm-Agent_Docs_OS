@@ -81,7 +81,7 @@ export function CodeBlocks(props: { readonly composition: CompositionDecl }): Re
               {codeLineOf(row)}
             </code>
             {row.title === row.id ? null : (
-              <span className="font-ui text-footnote text-text-tertiary">{row.title}</span>
+              <span className="font-ui text-ui text-text-tertiary">{row.title}</span>
             )}
           </div>
         </li>

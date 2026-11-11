@@ -429,7 +429,7 @@ function MissedRunsLine(props: { readonly count: number; readonly dim: string })
  */
 function WatchOutsideLine(props: { readonly paths: readonly string[] }): ReactNode {
   return (
-    <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 text-ui-xs text-warning-text">
+    <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 text-ui text-warning-text">
       <TriangleAlert aria-hidden className="size-3.5 flex-none" />
       <span>{t("desktop.schedules.watchOutside")}</span>
       <HelpPopover label={t("desktop.schedules.watchOutside.help.label")}>

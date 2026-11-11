@@ -44,7 +44,7 @@ import {
   timeTextOf,
 } from "./tests-text.ts";
 
-const MUTED = "m-0 text-ui-sm text-text-tertiary";
+const MUTED = "m-0 text-ui text-text-tertiary";
 const KIND_FILTERS: readonly TestKindFilter[] = ["all", "replay", "testRun"];
 const STATUS_FILTERS: readonly TestStatusFilter[] = ["all", "running", "passed", "failed"];
 
@@ -418,7 +418,7 @@ function RunList(props: {
                     {timeTextOf(row.startedMs)}
                   </span>
                 </span>
-                <span className="flex min-w-0 items-center gap-2 text-ui-xs text-text-tertiary">
+                <span className="flex min-w-0 items-center gap-2 text-ui text-text-tertiary">
                   <TestStatus row={row} />
                 </span>
               </span>
