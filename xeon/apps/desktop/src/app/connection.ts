@@ -182,7 +182,6 @@ export function createConnectionCommands(deps: ConnectionDeps): ConnectionComman
         return ok({
           host: host.value,
           service,
-          serviceEnabled: setting?.value === true,
           restartPending,
           remoteAllowRespond: null,
         });
@@ -192,7 +191,6 @@ export function createConnectionCommands(deps: ConnectionDeps): ConnectionComman
       return ok({
         host: host.value,
         service,
-        serviceEnabled: setting?.value === true,
         restartPending,
         remoteAllowRespond,
       });

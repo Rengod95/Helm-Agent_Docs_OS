@@ -92,6 +92,7 @@ function modeLabel(m: CraftMode): string {
 function ContribFilter(): ReactNode {
   const { source, state, dispatch } = useCraft();
   const pool = source.snapshot.plugins.filter((p) => matchesKind(p, state.kind));
+  // 도구 막대가 캔버스 맨 위에 떠 있어서 거르기 팝오버는 아래로 연다
   return (
     <Popover
       size="sm"

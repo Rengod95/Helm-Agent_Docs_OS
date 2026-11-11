@@ -59,6 +59,7 @@ export function ExtensionsScreen(): ReactNode {
   // 자세히 보기가 열렸을 때만 그 확장이 상세가 된다. 선택 패널은 고른 확장을 본다
   const entry = selectedEntry(state);
   const detailEntry = state.detail === null ? null : entry;
+  const headerHidden = ready && detailEntry !== null;
   // 목록 위 경고 줄: 알림이 있는 확장과 훅 알림. 안전 모드면 훅은 세지 않는다
   const safe = useSafeMode()?.active === true;
   const noticeTotal = noticeTotalOf(state.entries, state.hookNotices, safe);
@@ -67,7 +68,7 @@ export function ExtensionsScreen(): ReactNode {
     <div className="flex min-h-0 w-full flex-1 flex-col">
       {/* 상세가 그려질 때만 머리를 감춘다. 상세의 머리(ext-detail.tsx)가 펼치기 단추를 가진다 */}
       <ScreenHeader
-        hidden={ready && detailEntry !== null}
+        hidden={headerHidden}
         title={t("desktop.workbench.list.title")}
         action={
           <Button
@@ -81,7 +82,10 @@ export function ExtensionsScreen(): ReactNode {
           </Button>
         }
       />
-      <div className="mx-auto flex min-h-0 w-full max-w-240 flex-1 flex-col gap-3 px-3 pt-6 pb-4">
+      {/* 머리가 가려진 상세에서는 위 간격을 이 칸이 맡고, 머리가 보이면 공용 간격이 준다 */}
+      <div
+        className={`mx-auto flex min-h-0 w-full max-w-240 flex-1 flex-col gap-3 px-3 pb-4${headerHidden ? " pt-6" : ""}`}
+      >
         {installing && (
           <InstallDialog
             open

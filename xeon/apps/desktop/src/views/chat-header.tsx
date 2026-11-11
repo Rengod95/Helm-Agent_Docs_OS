@@ -67,8 +67,10 @@ function ScheduleOriginLine(props: {
 function HeadRow(props: { readonly title: ReactNode; readonly menu: ReactNode }): ReactNode {
   const startOpen = useShell((s) => s.startOpen);
   return (
+    // 대화 기록 스크롤 영역(VirtualList)이 안쪽 위 여백을 이미 가져서 머리에 공용 간격을 더하지 않는다
     <ScreenHeader
       hidden={startOpen && props.title === null}
+      flush
       title={props.title}
       action={props.menu}
     />

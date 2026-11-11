@@ -164,6 +164,8 @@
   /* 머리줄 높이 하나: 사이드 패널 머리(영역 탭 줄 control-md + 위아래 6px + 아래 선 1px)와 화면 머리줄이 같은 값을 읽는다 */
   :root {
     --shell-header-h: calc(var(--spacing-control-md) + 13px);
+    /* 화면 머리와 바로 뒤 내용 사이 최소 간격. 바깥 여백이라 스크롤 영역에서도 스크롤되어 사라지지 않는다 */
+    --shell-header-gap: 24px;
   }
   .shell-header {
     margin-inline-end: calc(var(--shell-rail, 0px) * -1);
@@ -172,6 +174,10 @@
     box-sizing: border-box;
     min-height: var(--shell-header-h);
     border-bottom: 1px solid var(--color-border-subtle);
+  }
+  /* 머리 바로 뒤 형제만 공용 간격을 받는다. `data-flush` 머리(대화)는 뺀다 */
+  .shell-header:not([data-flush]) + * {
+    margin-block-start: var(--shell-header-gap);
   }
   .statusbar .grow {
     flex: 1;

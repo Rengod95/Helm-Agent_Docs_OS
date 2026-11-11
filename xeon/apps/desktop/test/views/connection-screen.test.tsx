@@ -3,7 +3,7 @@ import type { TargetEntry } from "@fresnel/client";
 import type { HostClientView } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
 import { createShellStore, ShellStoreContext } from "../../src/state/shell/index.ts";
-import type { ServiceCard } from "../../src/views/commands.ts";
+import type { EngineState } from "../../src/state/engine/index.ts";
 import {
   connectionReducer,
   INITIAL_CONNECTION_STATE,
@@ -20,23 +20,26 @@ import {
 
 const NOOP = (): void => {};
 const handlers: ConnectionScreenHandlers = {
-  select: NOOP,
   query: NOOP,
   connect: NOOP,
   retry: NOOP,
   backToLocal: NOOP,
-  remove: NOOP,
   openForm: NOOP,
   closeForm: NOOP,
-  formField: NOOP,
+  formChange: NOOP,
   submitForm: NOOP,
+  removeAsk: NOOP,
+  removeCancel: NOOP,
+  removeConfirm: NOOP,
+  renameOpen: NOOP,
+  renameField: NOOP,
+  renameSubmit: NOOP,
+  renameCancel: NOOP,
   dismissNotice: NOOP,
   confirmStop: NOOP,
   restart: NOOP,
   copyDiagnostics: NOOP,
-  setServiceMode: NOOP,
-  startLocalService: NOOP,
-  stopLocalService: NOOP,
+  refresh: NOOP,
   setRemoteRespond: NOOP,
   setStopConfirm: NOOP,
   openExtensions: NOOP,
@@ -48,12 +51,22 @@ function stateAfter(...actions: readonly ConnectionAction[]): ConnectionState {
 }
 
 /** 화면 머리가 셸 스토어(패널 열림 상태)를 읽으므로 셸 맥락 안에서 그린다 */
-function html(state: ConnectionState): string {
+function html(state: ConnectionState, engine: EngineState | null = null): string {
   return renderToString(
     <ShellStoreContext value={createShellStore(1400)}>
-      <ConnectionScreenView state={state} engine={null} locale="ko" handlers={handlers} />
+      <ConnectionScreenView state={state} engine={engine} locale="ko" handlers={handlers} />
     </ShellStoreContext>,
   );
+}
+
+/**
+ * 서버 렌더 글에서 글이 정확히 `label`인 단추들의 속성 글을 모은다. 단추 안의 태그(아이콘, 스피너)는 글에서 뺀다.
+ * 속성 글로 `disabled=""`(잠김)와 `aria-busy`(진행)를 본다
+ */
+function buttonTagsNamed(markup: string, label: string): string[] {
+  return Array.from(markup.matchAll(/<button\b([^>]*)>(.*?)<\/button>/gs))
+    .filter((match) => match[2]?.replace(/<[^>]*>/g, "") === label)
+    .map((match) => match[1] ?? "");
 }
 
 function targets(count: number): TargetEntry[] {
@@ -70,7 +83,7 @@ describe("connection screen server render", () => {
       type: "targetsChanged",
       items: [{ id: "b1", label: "build-box", address: "ssh://me@build/run/fresnel.sock" }],
       notice: null,
-      added: null,
+      added: false,
     });
     const markup = html(loaded);
     expect(markup).toContain(
@@ -85,20 +98,20 @@ describe("connection screen server render", () => {
       type: "targetsChanged",
       items: [],
       notice: null,
-      added: null,
+      added: false,
     });
     const markup = html(loaded);
-    expect(markup).toContain("원격 대상이 없어요");
-    expect(markup).toContain("원격 대상 추가");
+    expect(markup).toContain("추가한 원격 호스트가 없어요.");
+    expect(markup).toContain("호스트 추가");
     expect(markup).toContain("이 컴퓨터(앱 안)");
     expect(markup).not.toContain('type="search"');
-    expect(markup).not.toContain("대상을 읽고 있어요");
+    expect(markup).not.toContain("호스트를 읽고 있어요.");
   });
 
   test("a list that is still loading says so and does not claim the list is empty", () => {
     const markup = html(INITIAL_CONNECTION_STATE);
-    expect(markup).toContain("대상을 읽고 있어요");
-    expect(markup).not.toContain("원격 대상이 없어요");
+    expect(markup).toContain("호스트를 읽고 있어요.");
+    expect(markup).not.toContain("추가한 원격 호스트가 없어요.");
   });
 
   test("past the threshold the list shows the search box", () => {
@@ -106,63 +119,25 @@ describe("connection screen server render", () => {
       type: "targetsChanged",
       items: targets(21),
       notice: null,
-      added: null,
+      added: false,
     });
     expect(html(long)).toContain('type="search"');
     const short = stateAfter({
       type: "targetsChanged",
       items: targets(20),
       notice: null,
-      added: null,
+      added: false,
     });
     expect(html(short)).not.toContain('type="search"');
   });
 
   test("a non-loopback address in the add form shows the SSH tunnel or private network guidance", () => {
     const refused = stateAfter(
-      { type: "targetsChanged", items: [], notice: null, added: null },
+      { type: "targetsChanged", items: [], notice: null, added: false },
       { type: "formOpened" },
-      { type: "formFailed", errors: { label: false, address: "non_loopback" } },
+      { type: "formFailed", errors: [{ field: "target", reason: "non_loopback" }] },
     );
     expect(html(refused)).toContain("SSH 터널이나 사설망을 써요");
-  });
-
-  test("the remote answer row says what it does, and an engine that does not report the setting says it cannot be changed", () => {
-    const host = {
-      mode: "service" as const,
-      pid: 4211,
-      startedAt: "2026-11-04T01:00:00.000Z",
-      connections: 2,
-      liveTurns: 1,
-      idleShutdownAt: null,
-    };
-    const allowed = stateAfter({
-      type: "statusLoaded",
-      snapshot: {
-        host,
-        service: { kind: "unknown" },
-        serviceEnabled: true,
-        restartPending: false,
-        remoteAllowRespond: true,
-      },
-    });
-    const allowedMarkup = html(allowed);
-    expect(allowedMarkup).toContain("원격 응답 허용");
-    expect(allowedMarkup).toContain("꺼져 있으면 원격 연결에서는 승인 요청에 답할 수 없어요.");
-    expect(allowedMarkup).not.toContain("아직 알리지 않아서");
-    const unknown = stateAfter({
-      type: "statusLoaded",
-      snapshot: {
-        host,
-        service: { kind: "unknown" },
-        serviceEnabled: true,
-        restartPending: false,
-        remoteAllowRespond: null,
-      },
-    });
-    expect(html(unknown)).toContain(
-      "은 이 엔진이 아직 알리지 않아서 바꿀 수 없어요. 위 서비스 모드 스위치와는 따로예요.",
-    );
   });
 });
 
@@ -179,7 +154,6 @@ describe("the connected clients row in the status list", () => {
         idleShutdownAt: null,
       },
       service: { kind: "unknown" },
-      serviceEnabled: true,
       restartPending: false,
       remoteAllowRespond: true,
     },
@@ -239,7 +213,7 @@ describe("the connected clients row in the status list", () => {
     const markup = html(stateAfter(STATUS, { type: "clientsFailed", reason: "failed" }));
     expect(markup).toContain("클라이언트 목록을 읽지 못했어요");
     expect(markup).toContain("다시 시도");
-    expect(markup).toContain("지금 대상");
+    expect(markup).toContain("이 컴퓨터(앱 안)");
     expect(markup).toContain("상태");
     expect(markup).not.toContain(">없어요<");
   });
@@ -265,7 +239,7 @@ describe("the connected clients row in the status list", () => {
   test("a remote target that is offline names the service, not an engine to restart", () => {
     const markup = html(
       stateAfter(
-        { type: "targetsChanged", items: targets(1), notice: null, added: null },
+        { type: "targetsChanged", items: targets(1), notice: null, added: false },
         {
           type: "engineTargetSeen",
           target: { kind: "remote", address: "unix:/run/box0.sock", label: "box-0" },
@@ -296,8 +270,7 @@ describe("the connection failure banner shows the cause line and the fix line", 
   /** 원격 대상으로 붙다가 엔진이 `detail`을 남기고 멈춘 상태 */
   function failedWith(detail: string): ConnectionState {
     return stateAfter(
-      { type: "targetsChanged", items: [ENTRY], notice: null, added: null },
-      { type: "select", choice: { kind: "remote", entry: ENTRY } },
+      { type: "targetsChanged", items: [ENTRY], notice: null, added: false },
       {
         type: "connectStarted",
         target: { kind: "remote", entry: ENTRY },
@@ -329,120 +302,125 @@ describe("the connection failure banner shows the cause line and the fix line", 
 
   test("a target that needs a token says so and names the environment variable, with no token field", () => {
     const markup = html(failedWith("The remote access token is missing"));
-    expect(markup).toContain("이 대상은 토큰이 필요해요.");
+    expect(markup).toContain("이 호스트는 토큰이 필요해요.");
     expect(markup).toContain("앱을 FRESNEL_REMOTE_TOKEN 환경 변수와 함께 열어요.");
     expect(markup).not.toContain('type="password"');
   });
 });
 
-/** 라벨을 가진 단추의 여는 태그. 그런 단추가 없으면 빈 문자열이다 */
-function buttonTagOf(markup: string, label: string): string {
-  const at = markup.indexOf(`>${label}</button>`);
-  if (at < 0) return "";
-  const open = markup.lastIndexOf("<button", at);
-  return markup.slice(open, markup.indexOf(">", open) + 1);
-}
+describe("the host section's notice", () => {
+  test("a failed save shows its danger notice at the top of the host section, as a dismissible outline alert", () => {
+    const markup = html(
+      stateAfter(
+        { type: "targetsChanged", items: [], notice: null, added: false },
+        { type: "notice", notice: { tone: "danger", id: "desktop.connection.targets.saveFailed" } },
+      ),
+    );
+    const at = markup.indexOf("목록을 저장하지 못했어요. 다시 해 봐요.");
+    expect(at).toBeGreaterThan(markup.indexOf("호스트 추가"));
+    expect(at).toBeLessThan(markup.indexOf("이 컴퓨터(앱 안)"));
+    expect(markup).toContain('data-slot="alert" data-tone="danger" data-variant="outline"');
+    expect(markup).toContain("닫기");
+  });
 
-/** 여는 태그에 `disabled` 속성이 있는가. 클래스의 `disabled:` 변형은 세지 않는다 */
-function disabledOf(tag: string): boolean {
-  return tag.includes(' disabled=""');
-}
+  test("a saved add shows its success notice in the same place, as a success alert", () => {
+    const markup = html(
+      stateAfter({
+        type: "targetsChanged",
+        items: targets(1),
+        notice: { tone: "success", id: "desktop.connection.targets.added" },
+        added: true,
+      }),
+    );
+    expect(markup).toContain("호스트를 더했어요.");
+    expect(markup).toContain('data-slot="alert" data-tone="success" data-variant="outline"');
+  });
+});
 
-describe("the local service card in the status column", () => {
-  const HOST = {
-    mode: "service" as const,
-    pid: 4211,
-    startedAt: "2026-11-04T01:00:00.000Z",
-    connections: 0,
-    liveTurns: 0,
-    idleShutdownAt: null,
-  };
-  const RUNNING: ServiceCard = {
-    kind: "running",
-    pid: 4321,
-    version: "1.2.3",
-    startedAt: 1_700_000_000_000,
-    attached: true,
-  };
-  const OFF: ServiceCard = { kind: "stopped", reason: "no registration" };
-
-  /** 이 기기 대상의 상태를 읽은 뒤 화면. 카드 값과 더할 동작만 다르다 */
-  function withCard(
-    service: ServiceCard,
-    extra: readonly ConnectionAction[] = [],
-  ): ConnectionState {
-    return stateAfter(
-      {
-        type: "statusLoaded",
-        snapshot: {
-          host: HOST,
-          service,
-          serviceEnabled: true,
-          restartPending: false,
-          remoteAllowRespond: true,
-        },
+/** 상태를 읽은 뒤 값. 호스트 모드를 정한다(서비스 또는 앱 안) */
+function statusOf(mode: "service" | "in-process"): ConnectionAction {
+  return {
+    type: "statusLoaded",
+    snapshot: {
+      host: {
+        mode,
+        pid: 4211,
+        startedAt: "2026-11-04T01:00:00.000Z",
+        connections: 0,
+        liveTurns: 0,
+        idleShutdownAt: null,
       },
-      ...extra,
+      service: { kind: "unknown" },
+      restartPending: false,
+      remoteAllowRespond: true,
+    },
+  };
+}
+
+describe("the host card and the diagnostics section split the actions by target", () => {
+  const REMOTE: TargetEntry = {
+    id: "b1",
+    label: "build-box",
+    address: "ssh://me@build/run/fresnel.sock",
+  };
+
+  /** 원격 대상에 붙어 상태를 읽은 뒤 */
+  function onRemote(mode: "service" | "in-process"): ConnectionState {
+    return stateAfter(
+      { type: "targetsChanged", items: [REMOTE], notice: null, added: false },
+      {
+        type: "engineTargetSeen",
+        target: { kind: "remote", address: REMOTE.address, label: REMOTE.label },
+      },
+      statusOf(mode),
     );
   }
 
-  test("a running service shows its version, pid and that the app is attached", () => {
-    expect(html(withCard(RUNNING))).toContain("실행 중 · v1.2.3 · pid 4321 · 앱이 붙어 있음");
-    expect(html(withCard({ ...RUNNING, attached: false }))).toContain(
-      "실행 중 · v1.2.3 · pid 4321 · 앱이 붙어 있지 않음",
-    );
+  const RESTARTING: EngineState = {
+    kind: "restarting",
+    attempt: 1,
+    retryAt: "2026-11-04T01:00:05.000Z",
+    lastExit: { code: 1, signal: null, at: "2026-11-04T01:00:00.000Z", detail: null },
+  };
+
+  // 이 시험은 화면 그림만 보므로 실행 방식 섹션(서비스 멈추기)은 그려지지 않는다. 이 기기의 카드는 그 동작을 그리지 않는다.
+  test("on this computer the card draws no stop, restart or copy button, and the diagnostics section draws restart and copy once", () => {
+    const markup = html(stateAfter(statusOf("service")));
+    expect(buttonTagsNamed(markup, "서비스 멈추기")).toHaveLength(0);
+    expect(buttonTagsNamed(markup, "엔진 다시 시작")).toHaveLength(1);
+    expect(buttonTagsNamed(markup, "진단 복사")).toHaveLength(1);
+    expect(markup).toContain(">진단</h2>");
   });
 
-  test("a stopped service says it is off, and a card that could not be read says so", () => {
-    expect(html(withCard(OFF))).toContain("꺼져 있음");
-    expect(html(withCard({ kind: "unknown" }))).toContain("상태를 읽을 수 없음");
+  test("a busy screen locks the diagnostics restart button", () => {
+    const markup = html(stateAfter(statusOf("service"), { type: "busy", busy: true }));
+    const restart = buttonTagsNamed(markup, "엔진 다시 시작");
+    expect(restart).toHaveLength(1);
+    expect(restart[0]).toContain(' disabled=""');
   });
 
-  test("start is locked while the service runs, and stop is locked while it is off", () => {
-    const running = html(withCard(RUNNING));
-    expect(disabledOf(buttonTagOf(running, "시작"))).toBe(true);
-    expect(disabledOf(buttonTagOf(running, "멈추기"))).toBe(false);
-    const off = html(withCard(OFF));
-    expect(disabledOf(buttonTagOf(off, "시작"))).toBe(false);
-    expect(disabledOf(buttonTagOf(off, "멈추기"))).toBe(true);
+  test("a restarting engine shows its progress on the diagnostics restart button", () => {
+    const markup = html(stateAfter(statusOf("service")), RESTARTING);
+    const restart = buttonTagsNamed(markup, "엔진 다시 시작");
+    expect(restart).toHaveLength(1);
+    expect(restart[0]).toContain('aria-busy="true"');
   });
 
-  test("a failed start or stop shows its line on the card", () => {
-    expect(html(withCard(OFF, [{ type: "serviceError", action: "start" }]))).toContain(
-      "서비스를 켜지 못했어요. 설정은 다시 꺼짐으로 돌렸어요.",
-    );
-    expect(html(withCard(RUNNING, [{ type: "serviceError", action: "stop" }]))).toContain(
-      "서비스를 멈추지 못했어요. 다시 해 봐요.",
-    );
+  test("a remote host keeps its stop, back-to-local, copy and restart on the card, and has no diagnostics section", () => {
+    const markup = html(onRemote("service"));
+    const stop = buttonTagsNamed(markup, "서비스 멈추기");
+    expect(stop).toHaveLength(1);
+    expect(stop[0]).not.toContain(' disabled=""');
+    expect(buttonTagsNamed(markup, "이 컴퓨터로 돌아가기")).toHaveLength(1);
+    expect(buttonTagsNamed(markup, "진단 복사")).toHaveLength(1);
+    expect(buttonTagsNamed(markup, "엔진 다시 시작")).toHaveLength(1);
+    expect(markup).not.toContain(">진단</h2>");
   });
 
-  test("while a card action runs its button is locked and the other one too", () => {
-    const starting = html(withCard(OFF, [{ type: "serviceBusy", action: "start" }]));
-    expect(disabledOf(buttonTagOf(starting, "시작"))).toBe(true);
-    expect(disabledOf(buttonTagOf(starting, "멈추기"))).toBe(true);
-  });
-
-  test("a remote target shows no local card", () => {
-    const markup = html(
-      stateAfter(
-        { type: "targetsChanged", items: targets(1), notice: null, added: null },
-        {
-          type: "engineTargetSeen",
-          target: { kind: "remote", address: "unix:/run/box0.sock", label: "box-0" },
-        },
-        {
-          type: "statusLoaded",
-          snapshot: {
-            host: HOST,
-            service: RUNNING,
-            serviceEnabled: true,
-            restartPending: false,
-            remoteAllowRespond: true,
-          },
-        },
-      ),
-    );
-    expect(markup).not.toContain("로컬 서비스");
-    expect(markup).not.toContain("실행 중 · v1.2.3");
+  test("a remote host that runs in the app has no stop button but keeps restart and copy", () => {
+    const markup = html(onRemote("in-process"));
+    expect(buttonTagsNamed(markup, "서비스 멈추기")).toHaveLength(0);
+    expect(buttonTagsNamed(markup, "엔진 다시 시작")).toHaveLength(1);
+    expect(buttonTagsNamed(markup, "진단 복사")).toHaveLength(1);
   });
 });

@@ -16,21 +16,18 @@ import {
   attachFailureOfExit,
   canConnect,
   canSetRemoteRespond,
-  canStartService,
   canStopService,
-  checkForm,
-  choiceOfValue,
   clientRowOf,
   clientsReasonOf,
   clientsShown,
   connectionReducer,
+  EMPTY_HOST_FORM,
   INITIAL_CONNECTION_STATE,
   LOCAL_CHOICE,
-  NO_FORM_ERRORS,
+  renamedList,
   sameChoice,
   searchShown,
   stepsOf,
-  valueOfChoice,
   visibleTargets,
   type ConnectionAction,
   type ConnectionState,
@@ -40,6 +37,10 @@ import {
   addressMessageOf,
   transportMessageOf,
 } from "../../src/views/pages/connection/connection-text.ts";
+import {
+  checkHostForm,
+  type HostFormValue,
+} from "../../src/views/pages/connection/host-address.ts";
 
 // 연결 화면(P-08)의 상태 기계. 대상 고르기, 추가 칸 검사, 진행 단계, 실패 종류, 셸 거절 되돌리기를 값으로 비교한다.
 
@@ -60,7 +61,7 @@ function withItems(items: readonly TargetEntry[]): ConnectionState {
     type: "targetsChanged",
     items,
     notice: null,
-    added: null,
+    added: false,
   });
 }
 
@@ -88,23 +89,13 @@ function started(
   return { type: "connectStarted", target, observed: { engine, link, connectError: null } };
 }
 
-describe("target choice values", () => {
-  test("the local target is the local value and a saved target is its id", () => {
-    expect(valueOfChoice(LOCAL_CHOICE)).toBe("local");
-    expect(valueOfChoice(REMOTE_BUILD)).toBe("remote:a");
-  });
-
-  test("a radio value maps back to the saved target, and an unknown one maps to nothing", () => {
-    expect(choiceOfValue([BUILD], "local")).toEqual(LOCAL_CHOICE);
-    expect(choiceOfValue([BUILD], "remote:a")).toEqual(REMOTE_BUILD);
-    expect(choiceOfValue([BUILD], "remote:zz")).toBeNull();
-  });
-
-  test("the same target is the same choice by id, whatever its label", () => {
+describe("host identity", () => {
+  test("the same host is the same choice by id, whatever its label, and this computer is only itself", () => {
     expect(
       sameChoice(REMOTE_BUILD, { kind: "remote", entry: { ...BUILD, label: "renamed" } }),
     ).toBe(true);
     expect(sameChoice(REMOTE_BUILD, LOCAL_CHOICE)).toBe(false);
+    expect(sameChoice(LOCAL_CHOICE, { kind: "local" })).toBe(true);
   });
 });
 
@@ -132,62 +123,37 @@ describe("the search box appears only past the threshold", () => {
   });
 });
 
-describe("address and label check for the add form", () => {
-  test("a non-loopback TCP address is refused with the non-loopback reason and no entry is made", () => {
-    const checked = checkForm([], { label: "mini", address: "tcp://192.168.0.5:7421" }, "n1");
-    expect(checked).toEqual({ ok: false, errors: { label: false, address: "non_loopback" } });
-  });
-
-  test("an empty label and an empty address are both reported together", () => {
-    const checked = checkForm([], { label: "  ", address: "" }, "n1");
-    expect(checked).toEqual({ ok: false, errors: { label: true, address: "empty" } });
-  });
-
-  test("a duplicate address is refused as duplicate", () => {
-    const checked = checkForm([BUILD], { label: "again", address: BUILD.address }, "n2");
-    expect(checked).toEqual({ ok: false, errors: { label: false, address: "duplicate" } });
-  });
-
-  test("a valid entry is added with the trimmed label and the id it was given", () => {
-    const checked = checkForm(
-      [BUILD],
-      { label: "  mac-mini  ", address: "unix:/run/user/501/fresnel.sock" },
-      "n3",
-    );
-    expect(checked).toEqual({
-      ok: true,
-      list: [BUILD, { id: "n3", label: "mac-mini", address: "unix:/run/user/501/fresnel.sock" }],
-      entry: { id: "n3", label: "mac-mini", address: "unix:/run/user/501/fresnel.sock" },
-    });
-  });
-
+describe("the address reason sentences", () => {
   test("the non-loopback reason shows the SSH tunnel or private network guidance", () => {
     const ko = catalogOf("ko");
     expect(ko[addressMessageOf("non_loopback")]).toContain("SSH 터널이나 사설망을 써요");
   });
+
+  test("the duplicate reason names the host that is already there", () => {
+    const ko = catalogOf("ko");
+    expect(ko[addressMessageOf("duplicate")]).toBe("이미 있는 호스트예요.");
+  });
 });
 
-describe("connect button", () => {
-  test("it is off while the selected target is the one the engine already points at", () => {
+describe("connect button on each host row", () => {
+  test("a row's connect is off for the host the engine already points at, and on for another host", () => {
     const state = withItems([BUILD]);
-    expect(canConnect(state)).toBe(false);
-    expect(canConnect({ ...state, selected: REMOTE_BUILD })).toBe(true);
+    expect(canConnect(state, LOCAL_CHOICE)).toBe(false);
+    expect(canConnect(state, REMOTE_BUILD)).toBe(true);
   });
 
-  test("it is off while a connect is pending or a write is busy", () => {
-    const selected = { ...withItems([BUILD]), selected: REMOTE_BUILD };
-    expect(canConnect(run(selected, started(REMOTE_BUILD)))).toBe(false);
-    expect(canConnect({ ...selected, busy: true })).toBe(false);
+  test("every row's connect is off while a connect is pending or a write is busy", () => {
+    const pending = run(withItems([BUILD]), started(REMOTE_BUILD));
+    expect(canConnect(pending, LOCAL_CHOICE)).toBe(false);
+    expect(canConnect(pending, REMOTE_BUILD)).toBe(false);
+    const busy = { ...withItems([BUILD]), busy: true };
+    expect(canConnect(busy, REMOTE_BUILD)).toBe(false);
   });
 });
 
 describe("connect progress follows the engine state", () => {
   test("starting a connect records the target and what the engine pointed at before", () => {
-    const state = run(
-      withItems([BUILD]),
-      { type: "select", choice: REMOTE_BUILD },
-      started(REMOTE_BUILD),
-    );
+    const state = run(withItems([BUILD]), started(REMOTE_BUILD));
     expect(state.pending).toEqual({
       target: REMOTE_BUILD,
       prior: LOCAL_CHOICE,
@@ -476,41 +442,52 @@ describe("the exit detail names the failure cause", () => {
 });
 
 describe("the list, selection and status follow their actions", () => {
-  test("removing the selected remote target selects this computer again", () => {
-    const selected = run(withItems([BUILD, MINI]), { type: "select", choice: REMOTE_BUILD });
-    const after = connectionReducer(selected, {
+  test("saving a list that no longer has the engine's host keeps the engine on that host", () => {
+    const seen = run(withItems([BUILD, MINI]), {
+      type: "engineTargetSeen",
+      target: { kind: "remote", address: BUILD.address, label: "build-box" },
+    });
+    const after = connectionReducer(seen, {
       type: "targetsChanged",
       items: [MINI],
       notice: null,
-      added: null,
+      added: false,
     });
-    expect(after.selected).toEqual(LOCAL_CHOICE);
+    expect(after.engineTarget).toEqual(REMOTE_BUILD);
     expect(after.items).toEqual([MINI]);
   });
 
-  test("adding a target closes the form, selects the new target and clears the query", () => {
+  test("adding a host closes the form, clears the query and leaves the engine target alone", () => {
     const opened = run(withItems([BUILD]), { type: "formOpened" }, { type: "query", text: "x" });
     const added = connectionReducer(opened, {
       type: "targetsChanged",
       items: [BUILD, MINI],
       notice: { tone: "success", id: "desktop.connection.targets.added" },
-      added: MINI,
+      added: true,
     });
     expect(added.form).toBeNull();
     expect(added.query).toBe("");
-    expect(added.selected).toEqual({ kind: "remote", entry: MINI });
+    expect(added.items).toEqual([BUILD, MINI]);
+    expect(added.engineTarget).toEqual(LOCAL_CHOICE);
     expect(added.notice).toEqual({ tone: "success", id: "desktop.connection.targets.added" });
   });
 
-  test("editing a form field clears its errors", () => {
+  test("the add form opens empty on the SSH kind", () => {
+    const opened = run(withItems([]), { type: "formOpened" });
+    expect(opened.form).toEqual({ value: EMPTY_HOST_FORM, errors: [] });
+    expect(opened.form?.value.fields.kind).toBe("ssh");
+  });
+
+  test("changing the form clears its errors and keeps the value that was typed", () => {
     const failed = run(
       withItems([]),
       { type: "formOpened" },
-      { type: "formFailed", errors: { label: true, address: "empty" } },
+      { type: "formFailed", errors: [{ field: "host", reason: "empty" }] },
     );
-    expect(failed.form?.errors).toEqual({ label: true, address: "empty" });
-    const typed = connectionReducer(failed, { type: "formField", field: "label", value: "mac" });
-    expect(typed.form).toEqual({ label: "mac", address: "", errors: NO_FORM_ERRORS });
+    expect(failed.form?.errors).toEqual([{ field: "host", reason: "empty" }]);
+    const typed: HostFormValue = { label: "mac", fields: { kind: "tcp", port: "7421" } };
+    const changed = connectionReducer(failed, { type: "formChange", value: typed });
+    expect(changed.form).toEqual({ value: typed, errors: [] });
   });
 
   test("a service mode left pending a restart by the schedule screen shows the restart badge on load", () => {
@@ -526,7 +503,6 @@ describe("the list, selection and status follow their actions", () => {
           idleShutdownAt: null,
         },
         service: { kind: "unknown" },
-        serviceEnabled: true,
         restartPending: true,
         remoteAllowRespond: null,
       },
@@ -534,7 +510,7 @@ describe("the list, selection and status follow their actions", () => {
     expect(loaded.restartNeeded).toBe(true);
   });
 
-  test("a service mode change applies at once, so the change itself needs no restart", () => {
+  test("the restart flag comes from the shell's reading, so a change that already restarted the engine reads as no restart", () => {
     const loaded = connectionReducer(withItems([]), {
       type: "statusLoaded",
       snapshot: {
@@ -547,16 +523,11 @@ describe("the list, selection and status follow their actions", () => {
           idleShutdownAt: null,
         },
         service: { kind: "unknown" },
-        serviceEnabled: false,
         restartPending: false,
         remoteAllowRespond: true,
       },
     });
-    expect(loaded.serviceEnabled).toBe(false);
     expect(loaded.restartNeeded).toBe(false);
-    const changed = connectionReducer(loaded, { type: "serviceModeSet", enabled: true });
-    expect(changed.serviceEnabled).toBe(true);
-    expect(changed.restartNeeded).toBe(false);
   });
 
   test("the update line with no data source is the unchecked line", () => {
@@ -579,12 +550,75 @@ function statusWith(remoteAllowRespond: boolean | null): ConnectionState {
         idleShutdownAt: null,
       },
       service: { kind: "unknown" },
-      serviceEnabled: true,
       restartPending: false,
       remoteAllowRespond,
     },
   });
 }
+
+describe("the add card saves the composed address", () => {
+  test("a valid ssh form is saved as the address its fields compose, named by its host when the name is left empty", () => {
+    const value: HostFormValue = {
+      label: "",
+      fields: { kind: "ssh", user: "me", host: "build", port: "", socket: "/run/fresnel.sock" },
+    };
+    expect(checkHostForm(value, [], "t1")).toEqual({
+      ok: true,
+      entry: { id: "t1", label: "build", address: "ssh://me@build/run/fresnel.sock" },
+      list: [{ id: "t1", label: "build", address: "ssh://me@build/run/fresnel.sock" }],
+    });
+  });
+});
+
+describe("renaming and removing a host", () => {
+  const MINI_RENAMED: TargetEntry = { id: "b", label: "office", address: MINI.address };
+
+  test("renaming opens on the host's current name, and typing changes only the dialog's name", () => {
+    const opened = run(withItems([BUILD, MINI]), { type: "renameOpened", entry: MINI });
+    expect(opened.rename).toEqual({ entry: MINI, label: "mac-mini", error: null });
+    const typed = connectionReducer(opened, { type: "renameField", label: "office" });
+    expect(typed.rename).toEqual({ entry: MINI, label: "office", error: null });
+  });
+
+  test("the saved list renames only the chosen host and keeps the others as they were", () => {
+    expect(renamedList([BUILD, MINI], "b", "office")).toEqual([BUILD, MINI_RENAMED]);
+    expect(renamedList([BUILD, MINI], "zz", "office")).toEqual([BUILD, MINI]);
+  });
+
+  test("an empty name or a failed save is an error on the dialog, and typing again clears it", () => {
+    const opened = run(withItems([BUILD, MINI]), { type: "renameOpened", entry: MINI });
+    const empty = connectionReducer(opened, { type: "renameFailed", reason: "empty" });
+    expect(empty.rename?.error).toBe("empty");
+    expect(connectionReducer(empty, { type: "renameField", label: "x" }).rename?.error).toBeNull();
+    const failed = connectionReducer(opened, { type: "renameFailed", reason: "failed" });
+    expect(failed.rename).toEqual({ entry: MINI, label: "mac-mini", error: "failed" });
+  });
+
+  test("a saved list closes an open rename and a removal confirmation, and shows its notice", () => {
+    const open = run(
+      withItems([BUILD, MINI]),
+      { type: "renameOpened", entry: MINI },
+      { type: "removeAsked", entry: BUILD },
+    );
+    const saved = connectionReducer(open, {
+      type: "targetsChanged",
+      items: [BUILD, MINI_RENAMED],
+      notice: { tone: "success", id: "desktop.connection.targets.renamed" },
+      added: false,
+    });
+    expect(saved.rename).toBeNull();
+    expect(saved.removing).toBeNull();
+    expect(saved.items).toEqual([BUILD, MINI_RENAMED]);
+    expect(saved.notice).toEqual({ tone: "success", id: "desktop.connection.targets.renamed" });
+  });
+
+  test("asking to remove holds that host until the confirmation is answered, and cancelling leaves the list alone", () => {
+    const asked = run(withItems([BUILD, MINI]), { type: "removeAsked", entry: MINI });
+    expect(asked.removing).toEqual(MINI);
+    expect(asked.items).toEqual([BUILD, MINI]);
+    expect(connectionReducer(asked, { type: "removeAsked", entry: null }).removing).toBeNull();
+  });
+});
 
 describe("the remote answer setting", () => {
   test("the loaded value is kept, and a change shows at once with no restart needed", () => {
@@ -711,39 +745,37 @@ describe("the connected clients list", () => {
 describe("the screen opens on the engine's current target", () => {
   const OTHER: TargetEntry = { id: "c", label: "old-box", address: "tcp://10.0.0.9:7421" };
 
-  test("a remote target the engine is on is selected, and the connect button stays off", () => {
+  test("a remote target the engine is on is its current host, and its row's connect stays off", () => {
     const state = run(
       INITIAL_CONNECTION_STATE,
-      { type: "targetsChanged", items: [BUILD, MINI], notice: null, added: null },
+      { type: "targetsChanged", items: [BUILD, MINI], notice: null, added: false },
       {
         type: "engineTargetSeen",
         target: { kind: "remote", address: BUILD.address, label: "build-box" },
       },
     );
-    expect(state.selected).toEqual(REMOTE_BUILD);
     expect(state.engineTarget).toEqual(REMOTE_BUILD);
-    expect(canConnect(state)).toBe(false);
+    expect(canConnect(state, REMOTE_BUILD)).toBe(false);
+    expect(canConnect(state, { kind: "remote", entry: MINI })).toBe(true);
   });
 
   test("a remote target that is no longer in the list falls back to this computer", () => {
     const state = run(
       INITIAL_CONNECTION_STATE,
-      { type: "targetsChanged", items: [BUILD], notice: null, added: null },
+      { type: "targetsChanged", items: [BUILD], notice: null, added: false },
       { type: "engineTargetSeen", target: { kind: "remote", address: OTHER.address, label: "x" } },
     );
-    expect(state.selected).toEqual(LOCAL_CHOICE);
     expect(state.engineTarget).toEqual(LOCAL_CHOICE);
   });
 
-  test("this computer as the engine's target keeps the local choice", () => {
+  test("this computer as the engine's target keeps the local choice, and its row's connect is off", () => {
     const state = run(
       INITIAL_CONNECTION_STATE,
-      { type: "targetsChanged", items: [BUILD], notice: null, added: null },
+      { type: "targetsChanged", items: [BUILD], notice: null, added: false },
       { type: "engineTargetSeen", target: { kind: "local" } },
     );
-    expect(state.selected).toEqual(LOCAL_CHOICE);
     expect(state.engineTarget).toEqual(LOCAL_CHOICE);
-    expect(canConnect(state)).toBe(false);
+    expect(canConnect(state, LOCAL_CHOICE)).toBe(false);
   });
 
   test("a seen target does not move a connection that is already in progress", () => {
@@ -757,8 +789,8 @@ describe("the screen opens on the engine's current target", () => {
   });
 });
 
-/** 상태를 읽은 뒤의 화면 상태. 이 기기의 서비스 카드를 정한다. 서비스 모드는 켜져 있고 원격 응답은 허용이다 */
-function statusWithService(service: ServiceCard, pending = false): ConnectionState {
+/** 상태를 읽은 뒤의 화면 상태. 이 기기의 서비스 카드를 정한다. 다시 시작 대기는 없고 원격 응답은 허용이다 */
+function statusWithService(service: ServiceCard): ConnectionState {
   return run(withItems([]), {
     type: "statusLoaded",
     snapshot: {
@@ -771,8 +803,7 @@ function statusWithService(service: ServiceCard, pending = false): ConnectionSta
         idleShutdownAt: null,
       },
       service,
-      serviceEnabled: true,
-      restartPending: pending,
+      restartPending: false,
       remoteAllowRespond: true,
     },
   });
@@ -787,7 +818,7 @@ const RUNNING_CARD: ServiceCard = {
 };
 const STOPPED_CARD: ServiceCard = { kind: "stopped", reason: "no registration" };
 
-describe("the local service card follows the shell and its own actions", () => {
+describe("the local service card follows the shell and the stop rule", () => {
   test("a loaded status carries the card as the shell reported it", () => {
     expect(statusWithService(RUNNING_CARD).service).toEqual(RUNNING_CARD);
     expect(statusWithService(STOPPED_CARD).service).toEqual(STOPPED_CARD);
@@ -795,8 +826,6 @@ describe("the local service card follows the shell and its own actions", () => {
 
   test("before the status is read the card is unknown", () => {
     expect(INITIAL_CONNECTION_STATE.service).toEqual({ kind: "unknown" });
-    expect(INITIAL_CONNECTION_STATE.serviceBusy).toBeNull();
-    expect(INITIAL_CONNECTION_STATE.serviceError).toBeNull();
   });
 
   test("a status that fails to load turns a running card into unknown instead of keeping it", () => {
@@ -808,58 +837,16 @@ describe("the local service card follows the shell and its own actions", () => {
     expect(offline.status).toEqual({ kind: "offline" });
   });
 
-  test("start is for a service that is not running, and stop is for one that is", () => {
-    expect(canStartService(statusWithService(STOPPED_CARD))).toBe(true);
-    expect(canStopService(statusWithService(STOPPED_CARD))).toBe(false);
-    expect(canStartService(statusWithService(RUNNING_CARD))).toBe(false);
+  test("stop is for a service that is running, and never for one that is off or unread", () => {
     expect(canStopService(statusWithService(RUNNING_CARD))).toBe(true);
+    expect(canStopService(statusWithService(STOPPED_CARD))).toBe(false);
+    expect(canStopService(statusWithService({ kind: "unknown" }))).toBe(false);
   });
 
-  test("a card that could not be read lets start through and keeps stop locked", () => {
-    const unknown = statusWithService({ kind: "unknown" });
-    expect(canStartService(unknown)).toBe(true);
-    expect(canStopService(unknown)).toBe(false);
-  });
-
-  test("neither button works before the status is read, while a card action is going, while busy, or while connecting", () => {
-    const stopped = statusWithService(STOPPED_CARD);
-    expect(canStartService(INITIAL_CONNECTION_STATE)).toBe(false);
+  test("stop is locked before the status is read, while busy, and while connecting", () => {
+    const running = statusWithService(RUNNING_CARD);
     expect(canStopService(INITIAL_CONNECTION_STATE)).toBe(false);
-    const acting = run(stopped, { type: "serviceBusy", action: "start" });
-    expect(canStartService(acting)).toBe(false);
-    expect(
-      canStopService(run(statusWithService(RUNNING_CARD), { type: "serviceBusy", action: "stop" })),
-    ).toBe(false);
-    expect(canStartService({ ...stopped, busy: true })).toBe(false);
-    const connecting = run(stopped, started(LOCAL_CHOICE, RUNNING, "offline"));
-    expect(canStartService(connecting)).toBe(false);
-    expect(
-      canStopService(
-        run(statusWithService(RUNNING_CARD), started(LOCAL_CHOICE, RUNNING, "offline")),
-      ),
-    ).toBe(false);
-  });
-
-  test("a card action marks itself busy until it ends, and a failure stays on the card until the next try", () => {
-    const busy = run(statusWithService(STOPPED_CARD), { type: "serviceBusy", action: "start" });
-    expect(busy.serviceBusy).toBe("start");
-    const failed = run(
-      busy,
-      { type: "serviceBusy", action: null },
-      { type: "serviceError", action: "start" },
-    );
-    expect(failed.serviceBusy).toBeNull();
-    expect(failed.serviceError).toBe("start");
-    const retried = run(failed, { type: "serviceError", action: null });
-    expect(retried.serviceError).toBeNull();
-  });
-
-  test("a service mode change applies at once: it clears a waiting restart and the card stays as the shell last said", () => {
-    const waiting = statusWithService(STOPPED_CARD, true);
-    expect(waiting.restartNeeded).toBe(true);
-    const changed = connectionReducer(waiting, { type: "serviceModeSet", enabled: true });
-    expect(changed.serviceEnabled).toBe(true);
-    expect(changed.restartNeeded).toBe(false);
-    expect(changed.service).toEqual(STOPPED_CARD);
+    expect(canStopService({ ...running, busy: true })).toBe(false);
+    expect(canStopService(run(running, started(LOCAL_CHOICE, RUNNING, "offline")))).toBe(false);
   });
 });

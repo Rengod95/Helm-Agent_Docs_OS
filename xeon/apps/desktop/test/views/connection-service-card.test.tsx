@@ -5,15 +5,17 @@ import { parseHTML } from "linkedom";
 import { err, ok, type Result } from "@fresnel/contracts";
 import { createShellStore, ShellStoreContext } from "../../src/state/shell/index.ts";
 import { createUiStore } from "../../src/state/ui/index.ts";
+import { createFakeRemoteAdapter, FAKE_NOW } from "../../src/app/remote/fake-remote-adapter.ts";
+import type { RemoteStatus } from "../../src/app/remote/remote-types.ts";
 import type { CommandError, ConnectionSnapshot, ServiceCard } from "../../src/views/commands.ts";
 import { ConnectionScreen } from "../../src/views/pages/connection/connection-screen.tsx";
 import { Providers } from "../../src/views/providers.tsx";
 import { openedHarness } from "../state/helpers.ts";
 import { fakeCommands } from "./fake-commands.ts";
 
-// 연결 화면의 이 기기 서비스 카드를 DOM에서 누른다. 시작은 `startLocalService`, 멈추기는 `stopLocalService`를 부르고,
-// 실패하면 카드에 한 줄이 남는다. 원격 대상의 `host.shutdown`과 같은 자리에 있는 확인 대화 상자는 따로 본다.
-// 이 시험이 쓰는 전역 설정은 approval-gone-card.test.tsx와 같다(linkedom DOM을 전역에 올리고 끝나면 되돌린다).
+// 연결 화면을 통째로 올려 실행 방식 카드를 DOM에서 누른다. 백그라운드 카드는 `startLocalService`를 부르고(컨트롤러의 `selectMode`),
+// 실패하면 실행 방식 줄에 실패 문장과 다시 시도가 남는다. 다른 기기 접속 섹션은 외부 접근이 켜졌을 때만 보인다.
+// 이 시험이 쓰는 전역 설정은 connection-server.test.tsx와 같다(linkedom DOM을 전역에 올리고 끝나면 되돌린다).
 
 const GLOBAL_KEYS = [
   "window",
@@ -72,23 +74,51 @@ const RUNNING: ServiceCard = {
 };
 const OFF: ServiceCard = { kind: "stopped", reason: "no registration" };
 
-/** 연결 화면을 올린다. 상태 읽기는 `snapshot`을 돌려주고, 시작과 멈추기는 `answer`가 정한 결과를 돌려준다. 부른 명령은 `calls`에 남는다 */
-async function mountCard(service: ServiceCard, answer: Result<null, CommandError> = ok(null)) {
+/** 원격 접속이 켜진 상태. 다른 기기 접속 섹션과 페어링 단추가 이것으로 보인다 */
+const REMOTE_ON: RemoteStatus = {
+  enabled: true,
+  state: "running",
+  loopbackPort: 47100,
+  tlsPort: 47443,
+  hosts: ["192.168.0.10"],
+  fingerprint: "ab12".repeat(16),
+  certSource: "self-signed",
+  pushAvailable: true,
+  error: null,
+};
+
+/**
+ * 연결 화면을 올린다. 상태 읽기는 `service`를 돌려주고, 시작과 멈추기는 `answer`가 정한 결과를 돌려준다.
+ * 부른 명령은 `calls`에 남는다. `remote`가 주는 외부 접근 상태가 실행 방식의 셋째 카드를 정한다.
+ */
+async function mountScreen(
+  service: ServiceCard,
+  options: { readonly answer?: Result<null, CommandError>; readonly remote?: RemoteStatus } = {},
+) {
+  const answer = options.answer ?? ok(null);
   const calls: string[] = [];
   const base = fakeCommands();
+  // 엔진이 서비스에 붙었는지는 호스트 모드가 알린다. 서비스가 떠 있을 때만 서비스에 붙는다
   const snapshot: ConnectionSnapshot = {
-    host: HOST,
+    host: { ...HOST, mode: service.kind === "running" ? "service" : "in-process" },
     service,
-    serviceEnabled: true,
     restartPending: false,
     remoteAllowRespond: true,
   };
   const commands = fakeCommands({
+    remote: createFakeRemoteAdapter({
+      now: () => FAKE_NOW,
+      ...(options.remote === undefined ? {} : { status: options.remote }),
+    }),
     connection: {
       ...base.connection,
       targets: () => Promise.resolve(ok([])),
       load: () => Promise.resolve(ok(snapshot)),
       clients: () => Promise.resolve(err({ kind: "unsupported" })),
+      serviceAutostart: () =>
+        Promise.resolve(
+          ok({ supported: true, registered: true, active: true, linger: null, platform: "darwin" }),
+        ),
       startLocalService: () => {
         calls.push("start");
         return Promise.resolve(answer);
@@ -114,10 +144,9 @@ async function mountCard(service: ServiceCard, answer: Result<null, CommandError
     );
   });
   await settle();
-  const press = async (label: string): Promise<void> => {
-    const button = buttonNamed(container, label);
+  const press = async (element: Element): Promise<void> => {
     await act(async () => {
-      button?.dispatchEvent(new window.Event("click", { bubbles: true }));
+      element.dispatchEvent(new window.Event("click", { bubbles: true }));
     });
     await settle();
   };
@@ -137,37 +166,74 @@ async function settle(): Promise<void> {
   });
 }
 
-/** 글이 정확히 `label`인 단추. 카드의 시작과 멈추기 단추를 찾는다 */
+/** 글이 정확히 `label`인 단추. 실행 방식 줄과 진단의 단추를 찾는다 */
 function buttonNamed(container: HTMLElement, label: string): HTMLButtonElement | undefined {
   return Array.from(container.querySelectorAll("button")).find(
     (button) => button.textContent === label,
   );
 }
 
-describe("the local service card buttons in the DOM", () => {
-  test("start calls startLocalService once, and the stopped service's stop button is locked", async () => {
-    const card = await mountCard(OFF);
-    expect(buttonNamed(card.container, "멈추기")?.disabled).toBe(true);
-    await card.press("시작");
-    expect(card.calls).toEqual(["start"]);
-    await card.cleanup();
+/** 실행 방식 카드 하나. 제목 글로 찾는다(카드의 제목은 `b` 요소다) */
+function cardTitled(container: HTMLElement, title: string): HTMLElement | undefined {
+  const titleNode = Array.from(container.querySelectorAll('[data-slot="choice-group-title"]')).find(
+    (node) => node.textContent === title,
+  );
+  return titleNode?.closest('[role="radio"]') ?? undefined;
+}
+
+describe("the run mode cards start and fail the local service", () => {
+  test("choosing the background card while the service is off starts it once", async () => {
+    const screen = await mountScreen(OFF);
+    const background = cardTitled(screen.container, "백그라운드");
+    if (background === undefined) throw new Error("no background card");
+    await screen.press(background);
+    expect(screen.calls).toEqual(["start"]);
+    await screen.cleanup();
   });
 
-  test("stop calls stopLocalService once, and the running service's start button is locked", async () => {
-    const card = await mountCard(RUNNING);
-    expect(buttonNamed(card.container, "시작")?.disabled).toBe(true);
-    await card.press("멈추기");
-    expect(card.calls).toEqual(["stop"]);
-    await card.cleanup();
-  });
-
-  test("a start that fails leaves its line on the card and calls nothing else", async () => {
-    const card = await mountCard(OFF, err({ kind: "failed" }));
-    await card.press("시작");
-    expect(card.calls).toEqual(["start"]);
-    expect(card.container.textContent).toContain(
+  test("a start that fails says so, and the retry starts it again with the same card", async () => {
+    const screen = await mountScreen(OFF, { answer: err({ kind: "failed" }) });
+    const background = cardTitled(screen.container, "백그라운드");
+    if (background === undefined) throw new Error("no background card");
+    await screen.press(background);
+    expect(screen.calls).toEqual(["start"]);
+    expect(screen.container.textContent).toContain(
       "서비스를 켜지 못했어요. 설정은 다시 꺼짐으로 돌렸어요.",
     );
-    await card.cleanup();
+    const retry = buttonNamed(screen.container, "다시 시도");
+    if (retry === undefined) throw new Error("no retry button");
+    await screen.press(retry);
+    expect(screen.calls).toEqual(["start", "start"]);
+    await screen.cleanup();
+  });
+
+  test("the stop button and the service line show only for a background mode, and stop is open while the service runs", async () => {
+    const running = await mountScreen(RUNNING);
+    expect(buttonNamed(running.container, "서비스 멈추기")?.disabled).toBe(false);
+    expect(running.container.textContent).toContain("실행 중 · v1.2.3 · pid 4321 · 앱이 붙어 있음");
+    await running.cleanup();
+    const off = await mountScreen(OFF);
+    expect(buttonNamed(off.container, "서비스 멈추기")).toBeUndefined();
+    // 앱 안에서일 때는 서비스 상태 줄을 보이지 않는다
+    expect(off.container.textContent).not.toContain("꺼짐 · no registration");
+    await off.cleanup();
+  });
+});
+
+describe("the other device access section shows only while external access is on", () => {
+  test("with external access off the pairing button is not drawn", async () => {
+    const screen = await mountScreen(RUNNING);
+    expect(buttonNamed(screen.container, "기기 연결하기")).toBeUndefined();
+    const service = cardTitled(screen.container, "백그라운드");
+    expect(service?.getAttribute("aria-checked")).toBe("true");
+    await screen.cleanup();
+  });
+
+  test("with external access on the third card is the checked one and the pairing button shows", async () => {
+    const screen = await mountScreen(RUNNING, { remote: REMOTE_ON });
+    const remote = cardTitled(screen.container, "백그라운드 + 다른 기기");
+    expect(remote?.getAttribute("aria-checked")).toBe("true");
+    expect(buttonNamed(screen.container, "기기 연결하기")).toBeDefined();
+    await screen.cleanup();
   });
 });

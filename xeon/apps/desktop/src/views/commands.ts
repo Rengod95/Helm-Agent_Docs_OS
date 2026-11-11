@@ -357,13 +357,12 @@ export type ServiceCard =
     };
 
 /**
- * 연결 화면이 읽는 host 상태. `host.status` 결과와 서비스 모드 설정 값이다. `remoteAllowRespond`는 원격 응답 허용 값이고,
- * 엔진이 그 설정을 알리지 않으면(카탈로그에 없으면) `null`이다. `service`는 이 기기의 서비스 상태 카드다.
+ * 연결 화면이 읽는 host 상태. `host.status` 결과와 다시 시작 대기 값이다. `remoteAllowRespond`는 원격 응답 허용 값이고,
+ * 엔진이 그 설정을 알리지 않으면(카탈로그에 없으면) `null`이다. `service`는 이 기기의 서비스 상태다.
  */
 export interface ConnectionSnapshot {
   readonly host: WireResult<"host.status">;
   readonly service: ServiceCard;
-  readonly serviceEnabled: boolean;
   /** 서비스 모드를 켜 두었지만 엔진을 다시 시작해야 켜진다(`settings.get`의 `pendingUntil: "restart"`). 예약 화면과 같은 근거다 */
   readonly restartPending: boolean;
   readonly remoteAllowRespond: boolean | null;

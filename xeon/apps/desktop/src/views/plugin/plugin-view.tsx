@@ -120,6 +120,7 @@ function Header(props: {
               {t("client.view.confirm.projectBadge")}
             </Chip>
           ) : null}
+          {/* 화면 맨 위 머리 안의 표지라 툴팁은 아래로 연다 */}
           {entry.mode === "app" ? (
             <Tooltip
               side="bottom"

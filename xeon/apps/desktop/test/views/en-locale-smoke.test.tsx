@@ -18,23 +18,26 @@ import { setupRequiredText } from "../../src/views/setup-needed.ts";
 const HANGUL = /[ㄱ-ㆎ가-힣]/;
 const NOOP = (): void => {};
 const handlers: ConnectionScreenHandlers = {
-  select: NOOP,
   query: NOOP,
   connect: NOOP,
   retry: NOOP,
   backToLocal: NOOP,
-  remove: NOOP,
   openForm: NOOP,
   closeForm: NOOP,
-  formField: NOOP,
+  formChange: NOOP,
   submitForm: NOOP,
+  removeAsk: NOOP,
+  removeCancel: NOOP,
+  removeConfirm: NOOP,
+  renameOpen: NOOP,
+  renameField: NOOP,
+  renameSubmit: NOOP,
+  renameCancel: NOOP,
   dismissNotice: NOOP,
   confirmStop: NOOP,
   restart: NOOP,
   copyDiagnostics: NOOP,
-  setServiceMode: NOOP,
-  startLocalService: NOOP,
-  stopLocalService: NOOP,
+  refresh: NOOP,
   setRemoteRespond: NOOP,
   setStopConfirm: NOOP,
   openExtensions: NOOP,
@@ -46,7 +49,7 @@ function connectionHtml(locale: Locale): string {
     type: "targetsChanged",
     items: [],
     notice: null,
-    added: null,
+    added: false,
   });
   return renderToString(
     <ShellStoreContext value={createShellStore(1400)}>
@@ -68,8 +71,8 @@ describe("desktop render with ui.locale=en", () => {
   test("the connection screen renders English sentences and no Hangul", () => {
     const markup = connectionHtml("en");
     expect(markup).toContain("This computer (in app)");
-    expect(markup).toContain("Add remote target");
-    expect(markup).toContain("No remote targets.");
+    expect(markup).toContain("Add host");
+    expect(markup).toContain("No remote hosts added yet.");
     expect(markup).not.toMatch(HANGUL);
   });
 
@@ -93,7 +96,6 @@ describe("desktop render with ui.locale=en", () => {
             startedAt: 1_700_000_000_000,
             attached: true,
           },
-          serviceEnabled: true,
           restartPending: false,
           remoteAllowRespond: true,
         },
@@ -134,7 +136,7 @@ describe("desktop render with ui.locale=en", () => {
     setActiveLocale("ko");
     const markup = connectionHtml("ko");
     expect(markup).toContain("이 컴퓨터(앱 안)");
-    expect(markup).toContain("원격 대상이 없어요");
+    expect(markup).toContain("추가한 원격 호스트가 없어요.");
   });
 
   test("a .ts-built sentence follows the locale too", () => {

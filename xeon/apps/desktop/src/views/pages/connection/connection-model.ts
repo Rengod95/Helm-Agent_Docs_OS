@@ -1,5 +1,4 @@
 import {
-  addTarget,
   filterTargets,
   TARGET_SEARCH_THRESHOLD,
   type AttachFailureKind,
@@ -17,12 +16,13 @@ import type {
   ConnectTarget,
   ServiceCard,
 } from "../../commands.ts";
+import { blankFieldsOf, type HostFieldError, type HostFormValue } from "./host-address.ts";
 
 // 연결 화면(P-08)의 상태 기계. 순수 함수만 둔다: 명령을 부르는 일은 화면이 맡고, 결과와 엔진·연결 관찰을 이 모델의 동작으로 옮긴다.
-// 대상 목록은 로컬 설정이 주는 값이고 거울에 넣지 않는다. 진행은 엔진 상태 전이와 연결 상태로 본다(셸 명령은 값만 준다).
-// 토큰은 이 모델에 들어오지 않는다(환경 변수로만 받는다).
+// 호스트 목록은 로컬 설정이 주는 값이고 거울에 넣지 않는다. 진행은 엔진 상태 전이와 연결 상태로 본다(셸 명령은 값만 준다).
+// 목록의 "연결" 단추는 그 행의 대상을 바로 넘긴다(고르기 상태가 없다). 토큰은 이 모델에 들어오지 않는다(환경 변수로만 받는다).
 
-/** 고른 대상. 저장된 원격 대상은 항목 그대로 든다(목록이 바뀌어도 현재 대상의 이름이 남는다) */
+/** 대상. 저장된 원격 호스트는 항목 그대로 든다(목록이 바뀌어도 현재 대상의 이름이 남는다) */
 export type TargetChoice =
   | { readonly kind: "local" }
   | { readonly kind: "remote"; readonly entry: TargetEntry };
@@ -78,25 +78,16 @@ export type ClientsState =
   | { readonly kind: "failed" };
 
 /**
- * 이 기기 서비스 카드의 단추가 눌릴 수 있는 바탕: 상태를 읽었고(연결이 있고), 다른 설정 쓰기나 서비스 동작이나 연결 진행이 없을 때다.
+ * "서비스 멈추기" 단추를 누를 수 있는가: 상태를 읽었고(연결이 있고), 다른 쓰기나 연결 진행이 없고, 이 기기 서비스가 떠 있을 때다.
+ * 멈추기는 확인 대화 상자를 거친 뒤에 보낸다.
  */
-function serviceIdle(state: ConnectionState): boolean {
+export function canStopService(state: ConnectionState): boolean {
   return (
     state.status.kind === "ready" &&
     !state.busy &&
-    state.serviceBusy === null &&
-    state.pending === null
+    state.pending === null &&
+    state.service.kind === "running"
   );
-}
-
-/** 시작 단추를 누를 수 있는가: 바탕이 되고 서비스가 실행 중이 아니다(상태를 읽지 못했으면 누를 수 있다) */
-export function canStartService(state: ConnectionState): boolean {
-  return serviceIdle(state) && state.service.kind !== "running";
-}
-
-/** 멈추기 단추를 누를 수 있는가: 바탕이 되고 서비스가 실행 중이다 */
-export function canStopService(state: ConnectionState): boolean {
-  return serviceIdle(state) && state.service.kind === "running";
 }
 
 /**
@@ -112,54 +103,51 @@ export function canSetRemoteRespond(state: ConnectionState): boolean {
   );
 }
 
-/** 추가 칸의 문장 검사 결과. 이름은 비었는가, 주소는 어떤 사유로 거절됐는가 */
-export interface FormErrors {
-  readonly label: boolean;
-  readonly address: AddressReason | null;
-}
-
-/** 주소 거절 사유. 형식 검사의 사유와 같은 목록 중복 한 가지다 */
+/** 주소 거절 사유 문장의 종류. 형식 검사의 사유와 같은 목록 중복 한 가지다(칸 밖의 주소 오류와 붙여넣기 오류에 쓴다) */
 export type AddressReason = TargetAddressReason | "duplicate";
 
-export interface FormState {
-  readonly label: string;
-  readonly address: string;
-  readonly errors: FormErrors;
+/** 추가 칸의 상태. 값은 `HostFormValue`이고, 오류는 `checkHostForm`이 준 칸별 목록이다 */
+interface FormState {
+  readonly value: HostFormValue;
+  readonly errors: readonly HostFieldError[];
 }
 
-export const NO_FORM_ERRORS: FormErrors = { label: false, address: null };
+/** 추가 칸을 연 때의 빈 값. 연결 방식은 SSH로 시작한다 */
+export const EMPTY_HOST_FORM: HostFormValue = { label: "", fields: blankFieldsOf("ssh") };
+
+/**
+ * 이름 바꾸기 대화 상자. `error`는 이름이 비었거나(`empty`) 목록 저장이 실패했다(`failed`)는 뜻이다.
+ * 이름을 고치면 오류를 지운다.
+ */
+export interface RenameState {
+  readonly entry: TargetEntry;
+  readonly label: string;
+  readonly error: "empty" | "failed" | null;
+}
 
 interface Notice {
   readonly tone: "danger" | "success";
   readonly id: MessageId;
 }
 
-/** 이 기기 서비스 카드의 동작. 시작이나 멈추기 가운데 하나다 */
-export type ServiceAction = "start" | "stop";
-
 export interface ConnectionState {
   readonly list: ListState;
   readonly items: readonly TargetEntry[];
-  /** 라디오에서 고른 대상. 연결 버튼이 이리로 간다 */
-  readonly selected: TargetChoice;
   /** 엔진이 가리키는 대상(마지막으로 요청한 대상). 같은 대상을 다시 요청하면 셸은 아무 일도 하지 않으므로 연결을 막는다 */
   readonly engineTarget: TargetChoice;
   readonly query: string;
   readonly form: FormState | null;
+  /** 삭제 확인 대화 상자가 떠 있을 때 그 호스트. 없으면 `null`이다 */
+  readonly removing: TargetEntry | null;
+  readonly rename: RenameState | null;
   readonly pending: PendingConnect | null;
   readonly failure: ConnectFailure | null;
   readonly status: StatusState;
   /** 연결된 클라이언트 목록. 상태 카드와 따로 읽는다(목록 실패가 카드를 막지 않는다) */
   readonly clients: ClientsState;
-  /** 이 기기의 서비스 상태 카드. 읽기 전이거나 읽지 못했으면 `unknown`이다 */
+  /** 이 기기의 서비스 상태. 읽기 전이거나 읽지 못했으면 `unknown`이다. 실행 방식 줄과 서비스 멈추기가 쓴다 */
   readonly service: ServiceCard;
-  /** 카드의 시작이나 멈추기가 가고 있는 동안 그 동작이다 */
-  readonly serviceBusy: ServiceAction | null;
-  /** 카드의 마지막 시작이나 멈추기가 실패했으면 그 동작이다. 성공하거나 다시 누르면 지운다 */
-  readonly serviceError: ServiceAction | null;
-  /** 서비스 모드 설정 값. 읽기 전에는 null */
-  readonly serviceEnabled: boolean | null;
-  /** 설정이 다시 시작을 기다린다(예약 화면이 켠 값이 엔진에 아직 들어가지 않았다). 이 기기의 켜기·끄기는 바로 적용되므로 참이 되지 않는다 */
+  /** 설정이 다시 시작을 기다린다(예약 화면이 켠 값이 엔진에 아직 들어가지 않았다). 이 기기의 실행 방식 고르기는 바로 적용되므로 참이 되지 않는다 */
   readonly restartNeeded: boolean;
   /** 원격 응답 허용 값. 읽기 전이거나 엔진이 이 설정을 알리지 않으면 null이다(이때 줄은 잠긴다) */
   readonly remoteAllowRespond: boolean | null;
@@ -173,18 +161,16 @@ export interface ConnectionState {
 export const INITIAL_CONNECTION_STATE: ConnectionState = {
   list: { kind: "loading" },
   items: [],
-  selected: LOCAL_CHOICE,
   engineTarget: LOCAL_CHOICE,
   query: "",
   form: null,
+  removing: null,
+  rename: null,
   pending: null,
   failure: null,
   status: { kind: "loading" },
   clients: { kind: "loading" },
   service: { kind: "unknown" },
-  serviceBusy: null,
-  serviceError: null,
-  serviceEnabled: null,
   restartNeeded: false,
   remoteAllowRespond: null,
   stopConfirm: false,
@@ -202,20 +188,26 @@ interface EngineObservation {
 
 export type ConnectionAction =
   | {
+      /** 목록이 바뀌었다(읽기, 저장). `added`는 추가 칸을 닫고 검색을 비울 때 참이다. 저장이 끝나면 열린 대화 상자도 닫는다 */
       readonly type: "targetsChanged";
       readonly items: readonly TargetEntry[];
       readonly notice: Notice | null;
-      readonly added: TargetEntry | null;
+      readonly added: boolean;
     }
   | { readonly type: "targetsFailed" }
-  | { readonly type: "select"; readonly choice: TargetChoice }
-  /** 화면을 열 때 엔진이 붙은 대상으로 고른 칸과 엔진 칸을 맞춘다. 목록을 읽은 뒤에 보낸다 */
+  /** 화면을 열 때 엔진이 붙은 대상을 엔진 칸으로 맞춘다. 목록을 읽은 뒤에 보낸다 */
   | { readonly type: "engineTargetSeen"; readonly target: EngineTargetView }
   | { readonly type: "query"; readonly text: string }
   | { readonly type: "formOpened" }
-  | { readonly type: "formField"; readonly field: "label" | "address"; readonly value: string }
-  | { readonly type: "formFailed"; readonly errors: FormErrors }
+  | { readonly type: "formChange"; readonly value: HostFormValue }
+  | { readonly type: "formFailed"; readonly errors: readonly HostFieldError[] }
   | { readonly type: "formClosed" }
+  /** 삭제 확인을 연다(`entry`)거나 닫는다(`null`) */
+  | { readonly type: "removeAsked"; readonly entry: TargetEntry | null }
+  | { readonly type: "renameOpened"; readonly entry: TargetEntry }
+  | { readonly type: "renameField"; readonly label: string }
+  | { readonly type: "renameFailed"; readonly reason: "empty" | "failed" }
+  | { readonly type: "renameClosed" }
   | { readonly type: "busy"; readonly busy: boolean }
   | { readonly type: "statusLoading" }
   | { readonly type: "statusLoaded"; readonly snapshot: ConnectionSnapshot }
@@ -230,46 +222,42 @@ export type ConnectionAction =
     }
   | { readonly type: "connectRejected"; readonly kind: AttachFailureKind }
   | { readonly type: "engineSeen"; readonly observed: EngineObservation }
-  | { readonly type: "serviceModeSet"; readonly enabled: boolean }
-  | { readonly type: "serviceBusy"; readonly action: ServiceAction | null }
-  | { readonly type: "serviceError"; readonly action: ServiceAction | null }
   | { readonly type: "remoteRespondSet"; readonly enabled: boolean }
   | { readonly type: "stopConfirm"; readonly open: boolean }
   | { readonly type: "notice"; readonly notice: Notice | null };
 
-// ── 대상 고르기 ──────────────────────────────────────────────────────────
-
-/** 라디오 값. 이 기기는 `local`, 저장된 원격 대상은 `remote:<id>`다 */
-export function valueOfChoice(choice: TargetChoice): string {
-  return choice.kind === "local" ? "local" : `remote:${choice.entry.id}`;
-}
-
-/** 라디오 값을 대상으로 되돌린다. 목록에 없는 원격 값이면 null이다 */
-export function choiceOfValue(items: readonly TargetEntry[], value: string): TargetChoice | null {
-  if (value === "local") return LOCAL_CHOICE;
-  const id = value.startsWith("remote:") ? value.slice("remote:".length) : null;
-  const entry = items.find((item) => item.id === id);
-  return entry === undefined ? null : { kind: "remote", entry };
-}
+// ── 호스트 목록 ──────────────────────────────────────────────────────────
 
 export function sameChoice(a: TargetChoice, b: TargetChoice): boolean {
   if (a.kind === "local" || b.kind === "local") return a.kind === b.kind;
   return a.entry.id === b.entry.id;
 }
 
-/** 검색 입력은 대상이 기준을 넘을 때만 보인다. 기준 이하면 검색어와 무관하게 전부 보인다 */
+/** 검색 입력은 호스트가 기준을 넘을 때만 보인다. 기준 이하면 검색어와 무관하게 전부 보인다 */
 export function searchShown(items: readonly TargetEntry[]): boolean {
   return items.length > TARGET_SEARCH_THRESHOLD;
 }
 
-/** 화면에 보이는 대상 줄. 검색 입력이 있을 때만 검색어로 거른다 */
+/** 화면에 보이는 호스트 줄. 검색 입력이 있을 때만 검색어로 거른다 */
 export function visibleTargets(state: ConnectionState): readonly TargetEntry[] {
   return searchShown(state.items) ? filterTargets(state.items, state.query) : state.items;
 }
 
-/** 연결 버튼을 누를 수 있는가: 진행 중이 아니고, 고른 대상이 엔진이 가리키는 대상과 다르다 */
-export function canConnect(state: ConnectionState): boolean {
-  return state.pending === null && !state.busy && !sameChoice(state.selected, state.engineTarget);
+/**
+ * 그 행의 "연결" 단추를 누를 수 있는가: 진행 중이 아니고, 그 대상이 엔진이 가리키는 대상과 다르다.
+ * 진행 중에는 모든 행이 잠긴다.
+ */
+export function canConnect(state: ConnectionState, choice: TargetChoice): boolean {
+  return state.pending === null && !state.busy && !sameChoice(choice, state.engineTarget);
+}
+
+/** 이름을 바꾼 목록. 같은 id의 항목만 이름이 바뀌고 나머지는 그대로다. 없는 id면 목록이 그대로다 */
+export function renamedList(
+  items: readonly TargetEntry[],
+  id: string,
+  label: string,
+): readonly TargetEntry[] {
+  return items.map((item) => (item.id === id ? { ...item, label } : item));
 }
 
 /** 셸 명령 인자로 바꾼다. 원격은 주소와 이름을 싣는다(토큰은 환경 변수로만 간다). 이름은 셸에 가지 않고 상태 표시줄이 쓴다 */
@@ -295,32 +283,6 @@ function choiceOfEngineTarget(
 /** 저장할 때 쓰는 대상 id. 밀리초 시각으로 만들고, 같은 id는 `addTarget`이 거부한다 */
 export function newTargetId(nowMs: number): string {
   return `t${nowMs.toString(36)}`;
-}
-
-// ── 추가 칸 검사 ────────────────────────────────────────────────────────
-
-export type FormCheck =
-  | { readonly ok: true; readonly list: readonly TargetEntry[]; readonly entry: TargetEntry }
-  | { readonly ok: false; readonly errors: FormErrors };
-
-/** 추가 칸을 검사한다. 이름이 비었거나 주소가 거절되면 두 칸의 사유를 함께 돌려준다 */
-export function checkForm(
-  items: readonly TargetEntry[],
-  form: Pick<FormState, "label" | "address">,
-  id: string,
-): FormCheck {
-  const label = form.label.trim();
-  const entry: TargetEntry = { id, label, address: form.address };
-  const added = addTarget(items, entry);
-  const labelOk = label !== "";
-  if (labelOk && added.ok) {
-    const saved = added.list.find((item) => item.id === id);
-    if (saved !== undefined) return { ok: true, list: added.list, entry: saved };
-  }
-  return {
-    ok: false,
-    errors: { label: !labelOk, address: added.ok ? null : added.reason },
-  };
 }
 
 // ── 연결 실패 종류 ──────────────────────────────────────────────────────
@@ -526,54 +488,55 @@ function observe(state: ConnectionState, observed: EngineObservation): Connectio
   }
 }
 
-/** 고른 대상이 목록에서 사라졌으면 이 기기로 되돌린다 */
-function keepSelection(selected: TargetChoice, items: readonly TargetEntry[]): TargetChoice {
-  if (selected.kind === "local") return selected;
-  return items.some((item) => item.id === selected.entry.id) ? selected : LOCAL_CHOICE;
-}
-
 export function connectionReducer(
   state: ConnectionState,
   action: ConnectionAction,
 ): ConnectionState {
   switch (action.type) {
-    case "targetsChanged": {
-      const selected = keepSelection(state.selected, action.items);
-      const form = action.added === null ? state.form : null;
+    case "targetsChanged":
+      // 목록이 바뀌면 열린 이름 바꾸기와 삭제 확인은 닫는다. 추가가 끝났을 때만 추가 칸을 닫고 검색을 비운다
       return {
         ...state,
         list: { kind: "ready" },
         items: action.items,
-        selected: action.added === null ? selected : { kind: "remote", entry: action.added },
-        form,
-        query: action.added === null ? state.query : "",
+        form: action.added ? null : state.form,
+        query: action.added ? "" : state.query,
+        removing: null,
+        rename: null,
         notice: action.notice,
       };
-    }
     case "targetsFailed":
       return { ...state, list: { kind: "failed" } };
-    case "select":
-      return { ...state, selected: action.choice };
     case "engineTargetSeen": {
-      // 진행 중이면 고른 대상과 엔진 대상을 건드리지 않는다. 화면을 열 때 한 번만 부른다
+      // 진행 중이면 엔진 대상을 건드리지 않는다. 화면을 열 때 한 번만 부른다
       if (state.pending !== null) return state;
-      const choice = choiceOfEngineTarget(state.items, action.target);
-      return { ...state, selected: choice, engineTarget: choice };
+      return { ...state, engineTarget: choiceOfEngineTarget(state.items, action.target) };
     }
     case "query":
       return { ...state, query: action.text };
     case "formOpened":
-      return { ...state, form: { label: "", address: "", errors: NO_FORM_ERRORS } };
-    case "formField": {
+      return { ...state, form: { value: EMPTY_HOST_FORM, errors: [] } };
+    case "formChange":
+      // 칸을 고치면 그 전의 오류는 지운다
       if (state.form === null) return state;
-      const form = { ...state.form, [action.field]: action.value, errors: NO_FORM_ERRORS };
-      return { ...state, form };
-    }
+      return { ...state, form: { value: action.value, errors: [] } };
     case "formFailed":
       if (state.form === null) return state;
       return { ...state, form: { ...state.form, errors: action.errors } };
     case "formClosed":
       return { ...state, form: null };
+    case "removeAsked":
+      return { ...state, removing: action.entry };
+    case "renameOpened":
+      return { ...state, rename: { entry: action.entry, label: action.entry.label, error: null } };
+    case "renameField":
+      if (state.rename === null) return state;
+      return { ...state, rename: { ...state.rename, label: action.label, error: null } };
+    case "renameFailed":
+      if (state.rename === null) return state;
+      return { ...state, rename: { ...state.rename, error: action.reason } };
+    case "renameClosed":
+      return { ...state, rename: null };
     case "busy":
       return { ...state, busy: action.busy };
     case "statusLoading":
@@ -583,7 +546,6 @@ export function connectionReducer(
         ...state,
         status: { kind: "ready", snapshot: action.snapshot },
         service: action.snapshot.service,
-        serviceEnabled: action.snapshot.serviceEnabled,
         restartNeeded: action.snapshot.restartPending,
         remoteAllowRespond: action.snapshot.remoteAllowRespond,
       };
@@ -630,13 +592,6 @@ export function connectionReducer(
     }
     case "engineSeen":
       return observe(state, action.observed);
-    case "serviceModeSet":
-      // 이 기기의 켜기·끄기는 엔진을 다시 띄워 바로 적용되므로 다시 시작 대기가 없다
-      return { ...state, serviceEnabled: action.enabled, restartNeeded: false };
-    case "serviceBusy":
-      return { ...state, serviceBusy: action.action };
-    case "serviceError":
-      return { ...state, serviceError: action.action };
     case "remoteRespondSet":
       // 원격 응답 허용은 엔진을 다시 띄우지 않아도 바로 적용된다(L2.schedule §6: live)
       return { ...state, remoteAllowRespond: action.enabled };

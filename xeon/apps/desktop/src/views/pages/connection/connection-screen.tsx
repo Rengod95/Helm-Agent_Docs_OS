@@ -9,21 +9,20 @@ import { useConnectError, useEngineTarget } from "../../../state/ui/index.ts";
 import { useCommands } from "../../commands.ts";
 import {
   canConnect,
-  checkForm,
-  choiceOfValue,
   clientsReasonOf,
   connectionReducer,
   INITIAL_CONNECTION_STATE,
   LOCAL_CHOICE,
   newTargetId,
+  renamedList,
   toConnectTarget,
-  type ServiceAction,
   type TargetChoice,
 } from "./connection-model.ts";
-import { ServerModeSectionContainer } from "./connection-server-container.tsx";
+import { checkHostForm } from "./host-address.ts";
+import { ServiceSectionsContainer } from "./connection-server-container.tsx";
 import { ConnectionScreenView, type ConnectionScreenHandlers } from "./connection-view.tsx";
 
-// 연결 화면(P-08)의 동작. 대상 목록과 상태는 명령(`commands.connection`)으로 부르고, 화면 상태는 `connectionReducer`가 든다.
+// 연결 화면(P-08)의 동작. 호스트 목록과 상태는 명령(`commands.connection`)으로 부르고, 화면 상태는 `connectionReducer`가 든다.
 // 엔진과 연결의 변화는 값이 바뀔 때마다 `engineSeen`으로 넘겨 진행 단계를 맞춘다. 그림은 `connection-view.tsx`가 그린다.
 
 export function ConnectionScreen(): ReactNode {
@@ -34,7 +33,7 @@ export function ConnectionScreen(): ReactNode {
   const engineTarget = useEngineTarget();
   const shell = useShellActions();
   const [state, dispatch] = useReducer(connectionReducer, INITIAL_CONNECTION_STATE);
-  // 화면을 열 때 엔진이 붙은 대상을 잡아 둔다. 목록을 읽은 뒤 이 대상으로 고른 칸과 엔진 칸을 맞춘다(떠났다 돌아와도 같은 대상을 고른다)
+  // 화면을 열 때 엔진이 붙은 대상을 잡아 둔다. 목록을 읽은 뒤 이 대상을 엔진 칸으로 맞춘다(떠났다 돌아와도 같은 대상을 본다)
   const [openedTarget] = useState(() => engineTarget);
   // 늦게 온 상태 읽기가 새 읽기를 덮지 않도록 읽기마다 번호를 매긴다
   const latest = useRef(0);
@@ -46,7 +45,7 @@ export function ConnectionScreen(): ReactNode {
       dispatch({ type: "targetsFailed" });
       return;
     }
-    dispatch({ type: "targetsChanged", items: loaded.value, notice: null, added: null });
+    dispatch({ type: "targetsChanged", items: loaded.value, notice: null, added: false });
     dispatch({ type: "engineTargetSeen", target: openedTarget });
   }, [commands, openedTarget]);
 
@@ -104,11 +103,12 @@ export function ConnectionScreen(): ReactNode {
     dispatch({ type: "engineSeen", observed: { engine, link, connectError } });
   }, [engine, link, connectError]);
 
+  /** 호스트 목록을 저장한다. 성공하면 목록을 바꾸고 `true`를, 실패하면 저장 실패 알림을 두고 `false`를 돌려준다 */
   const saveTargets = async (
     list: readonly TargetEntry[],
     notice: MessageId | null,
-    added: TargetEntry | null,
-  ): Promise<void> => {
+    added: boolean,
+  ): Promise<boolean> => {
     dispatch({ type: "busy", busy: true });
     const saved = await commands.connection.saveTargets(list);
     dispatch({ type: "busy", busy: false });
@@ -117,7 +117,7 @@ export function ConnectionScreen(): ReactNode {
         type: "notice",
         notice: { tone: "danger", id: "desktop.connection.targets.saveFailed" },
       });
-      return;
+      return false;
     }
     dispatch({
       type: "targetsChanged",
@@ -125,6 +125,7 @@ export function ConnectionScreen(): ReactNode {
       notice: notice === null ? null : { tone: "success", id: notice },
       added,
     });
+    return true;
   };
 
   /** 셸에 대상 바꾸기를 보낸다. 거절되면 이전 대상으로 되돌린다(모델이 한다). 진행은 관찰이 알린다 */
@@ -133,7 +134,9 @@ export function ConnectionScreen(): ReactNode {
     if (!done.ok) dispatch({ type: "connectRejected", kind: done.error });
   };
 
+  /** 그 행의 호스트로 연결을 시작한다. 진행 중이거나 지금 호스트면 아무 일도 없다 */
   const connect = (choice: TargetChoice): void => {
+    if (!canConnect(state, choice)) return;
     dispatch({ type: "connectStarted", target: choice, observed: { engine, link, connectError } });
     detach(requestRetarget(choice), rethrow);
   };
@@ -153,51 +156,44 @@ export function ConnectionScreen(): ReactNode {
     );
   };
 
+  /** 추가 칸을 저장한다. 칸이 틀리면 칸별 오류를 보이고, 이름이 비었으면 주소의 제안 이름을 쓴다(`checkHostForm`) */
   const submitForm = (): void => {
     const form = state.form;
     if (form === null || state.busy) return;
-    const checked = checkForm(state.items, form, newTargetId(Date.now()));
+    const checked = checkHostForm(form.value, state.items, newTargetId(Date.now()));
     if (!checked.ok) {
       dispatch({ type: "formFailed", errors: checked.errors });
       return;
     }
-    detach(saveTargets(checked.list, "desktop.connection.targets.added", checked.entry), rethrow);
+    detach(saveTargets(checked.list, "desktop.connection.targets.added", true), rethrow);
   };
 
-  const remove = (id: string): void => {
-    detach(
-      saveTargets(removeTarget(state.items, id), "desktop.connection.targets.removed", null),
-      rethrow,
-    );
-  };
-
-  const writeServiceMode = async (enabled: boolean): Promise<void> => {
-    dispatch({ type: "busy", busy: true });
-    const written = await commands.connection.setServiceMode(enabled);
-    dispatch({ type: "busy", busy: false });
-    if (written.ok) {
-      dispatch({ type: "serviceModeSet", enabled });
-    } else {
-      dispatch({
-        type: "notice",
-        notice: { tone: "danger", id: "desktop.connection.actionFailed" },
-      });
+  /** 이름 바꾸기를 저장한다. 이름이 비면 칸에 오류를 두고, 저장이 실패하면 칸 아래에 오류를 둔다 */
+  const submitRename = async (): Promise<void> => {
+    const rename = state.rename;
+    if (rename === null || state.busy) return;
+    const label = rename.label.trim();
+    if (label === "") {
+      dispatch({ type: "renameFailed", reason: "empty" });
+      return;
     }
-    // 켜거나 끈 뒤 상태 카드와 스위치를 다시 읽는다. 엔진이 다시 뜨는 동안이면 연결이 살아날 때 한 번 더 읽는다
-    await loadStatus();
+    const saved = await saveTargets(
+      renamedList(state.items, rename.entry.id, label),
+      "desktop.connection.targets.renamed",
+      false,
+    );
+    if (!saved) dispatch({ type: "renameFailed", reason: "failed" });
   };
 
-  /** 이 기기 서비스 카드의 시작이나 멈추기. 실패는 카드에 한 줄로 남기고, 끝나면 상태를 다시 읽는다 */
-  const runServiceAction = async (action: ServiceAction): Promise<void> => {
-    dispatch({ type: "serviceError", action: null });
-    dispatch({ type: "serviceBusy", action });
-    const done =
-      action === "start"
-        ? await commands.connection.startLocalService()
-        : await commands.connection.stopLocalService();
-    dispatch({ type: "serviceBusy", action: null });
-    dispatch({ type: "serviceError", action: done.ok ? null : action });
-    await loadStatus();
+  const confirmRemove = async (): Promise<void> => {
+    const entry = state.removing;
+    if (entry === null || state.busy) return;
+    dispatch({ type: "removeAsked", entry: null });
+    await saveTargets(
+      removeTarget(state.items, entry.id),
+      "desktop.connection.targets.removed",
+      false,
+    );
   };
 
   const writeRemoteRespond = async (enabled: boolean): Promise<void> => {
@@ -245,31 +241,45 @@ export function ConnectionScreen(): ReactNode {
   };
 
   const handlers: ConnectionScreenHandlers = {
-    select: (value) => {
-      const choice = choiceOfValue(state.items, value);
-      if (choice !== null) dispatch({ type: "select", choice });
-    },
     query: (text) => {
       dispatch({ type: "query", text });
     },
-    connect: () => {
-      if (canConnect(state)) connect(state.selected);
-    },
+    connect,
     retry,
     backToLocal: () => {
       connect(LOCAL_CHOICE);
     },
-    remove,
     openForm: () => {
       dispatch({ type: "formOpened" });
     },
     closeForm: () => {
       dispatch({ type: "formClosed" });
     },
-    formField: (field, value) => {
-      dispatch({ type: "formField", field, value });
+    formChange: (value) => {
+      dispatch({ type: "formChange", value });
     },
     submitForm,
+    removeAsk: (entry) => {
+      dispatch({ type: "removeAsked", entry });
+    },
+    removeCancel: () => {
+      dispatch({ type: "removeAsked", entry: null });
+    },
+    removeConfirm: () => {
+      detach(confirmRemove(), rethrow);
+    },
+    renameOpen: (entry) => {
+      dispatch({ type: "renameOpened", entry });
+    },
+    renameField: (label) => {
+      dispatch({ type: "renameField", label });
+    },
+    renameSubmit: () => {
+      detach(submitRename(), rethrow);
+    },
+    renameCancel: () => {
+      dispatch({ type: "renameClosed" });
+    },
     dismissNotice: () => {
       dispatch({ type: "notice", notice: null });
     },
@@ -289,14 +299,8 @@ export function ConnectionScreen(): ReactNode {
     retryClients: () => {
       detach(loadClients(), rethrow);
     },
-    setServiceMode: (enabled) => {
-      detach(writeServiceMode(enabled), rethrow);
-    },
-    startLocalService: () => {
-      detach(runServiceAction("start"), rethrow);
-    },
-    stopLocalService: () => {
-      detach(runServiceAction("stop"), rethrow);
+    refresh: () => {
+      detach(loadStatus(), rethrow);
     },
     setRemoteRespond: (enabled) => {
       detach(writeRemoteRespond(enabled), rethrow);
@@ -320,9 +324,7 @@ export function ConnectionScreen(): ReactNode {
       engine={engine}
       locale={activeLocale()}
       handlers={handlers}
-      serverSection={
-        <ServerModeSectionContainer serviceRunning={state.service.kind === "running"} />
-      }
+      serviceSections={<ServiceSectionsContainer state={state} handlers={handlers} />}
     />
   );
 }

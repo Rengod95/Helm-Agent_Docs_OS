@@ -226,7 +226,6 @@ function ReplayButton(props: { readonly replay: ReplayController }): ReactNode {
     <>
       <Tooltip
         content={<span className="block max-w-64 whitespace-normal">{reason}</span>}
-        side="bottom"
         open={tip}
         onOpenChange={setTip}
       >
