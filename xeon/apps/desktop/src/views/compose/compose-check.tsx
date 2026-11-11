@@ -50,7 +50,7 @@ export function IssueList(props: { readonly issues: readonly WireManifestIssue[]
       {props.issues.map((issue) => (
         <li
           key={`${issue.code}:${issue.path}:${issueTextOf(issue)}`}
-          className={`text-footnote ${issueToneOf(issue.severity)}`}
+          className={`text-ui ${issueToneOf(issue.severity)}`}
         >
           <span className="font-mono">{issue.code}</span> {issueTextOf(issue)}
         </li>

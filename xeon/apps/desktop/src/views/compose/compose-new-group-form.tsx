@@ -15,7 +15,7 @@ import { Alert, Button, EmptyState, Field, Input, Skeleton } from "@caustic/reac
 import type { ReactNode } from "react";
 import { kindTitleOf } from "./compose-wire-text.ts";
 
-export const MUTED = "m-0 text-ui-sm text-text-tertiary";
+export const MUTED = "m-0 text-ui text-text-tertiary";
 export const MONO = "m-0 break-all font-mono text-mono-sm text-text-secondary";
 
 function statusTextOf(status: StartPoint["status"]): MessageId | null {
@@ -99,7 +99,7 @@ function cellSurfaceOf(on: boolean, selectable: boolean): string {
 
 function StatusNote(props: { readonly status: StartPoint["status"] }): ReactNode {
   const id = statusTextOf(props.status);
-  return id === null ? null : <span className="text-footnote text-text-tertiary">{t(id)}</span>;
+  return id === null ? null : <span className="text-ui text-text-tertiary">{t(id)}</span>;
 }
 
 /** 시작점 격자 한 장. 고를 수 없는 종류는 aria-disabled이고 누를 수 없으며 Tab 순서에서도 뺀다 */

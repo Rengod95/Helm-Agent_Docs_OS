@@ -121,7 +121,7 @@ export function ComposeScreen(): ReactNode {
             {view === "profile" ? (
               <ProfilePanel link={link} entries={entries} />
             ) : group === null ? (
-              <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.compose.noGroups")}</p>
+              <p className="m-0 text-ui text-text-tertiary">{t("desktop.compose.noGroups")}</p>
             ) : view === "code" ? (
               <CodeSource
                 key={group.name}

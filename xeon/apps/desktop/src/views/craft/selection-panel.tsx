@@ -118,9 +118,7 @@ function SwitchRow(props: SwitchRowProps): ReactNode {
           onCheckedChange={props.onChange}
         />
       </div>
-      {props.partial !== "" && (
-        <span className="text-footnote text-text-tertiary">{props.partial}</span>
-      )}
+      {props.partial !== "" && <span className="text-ui text-text-tertiary">{props.partial}</span>}
     </div>
   );
 }
@@ -277,7 +275,7 @@ function PluginBody({ plugin }: { readonly plugin: CanvasPlugin }): ReactNode {
       )}
       {owner?.config !== undefined && (
         <div className="flex items-center gap-2">
-          <span className="text-footnote text-text-tertiary">
+          <span className="text-ui text-text-tertiary">
             {t("desktop.craft.orbit.panel.config")}
           </span>
           <Badge size="xs" mono>

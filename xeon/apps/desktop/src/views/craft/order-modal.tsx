@@ -69,7 +69,7 @@ function WarningBody({ warning }: { readonly warning: OrderWarning }): ReactNode
       )}
       {warning.skipped.length > 0 && (
         <section className="grid gap-2">
-          <h3 className="m-0 text-footnote text-text-tertiary">
+          <h3 className="m-0 text-ui text-text-tertiary">
             {t("desktop.craft.strata.modal.skipped")}
           </h3>
           <ul className="m-0 grid list-none gap-2 p-0">
@@ -82,7 +82,7 @@ function WarningBody({ warning }: { readonly warning: OrderWarning }): ReactNode
                   })}
                 </span>
                 {s.by.length > 0 && (
-                  <span className="text-footnote text-text-tertiary">
+                  <span className="text-ui text-text-tertiary">
                     {t("desktop.craft.strata.modal.skippedBy", { by: s.by.join(" · ") })}
                   </span>
                 )}
@@ -113,7 +113,7 @@ function NameList(props: {
 }): ReactNode {
   return (
     <section className="grid gap-1.5">
-      <h3 className="m-0 text-footnote text-text-tertiary">{props.heading}</h3>
+      <h3 className="m-0 text-ui text-text-tertiary">{props.heading}</h3>
       <p className="m-0 text-body text-text-primary">{props.names.join(" · ")}</p>
     </section>
   );

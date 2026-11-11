@@ -127,7 +127,7 @@ function BlockNode(props: {
         <p
           key={`${issue.code}:${issue.path}`}
           role="alert"
-          className={`m-0 text-footnote ${issue.severity === "error" ? "text-danger-text" : "text-warning-text"}`}
+          className={`m-0 text-ui ${issue.severity === "error" ? "text-danger-text" : "text-warning-text"}`}
         >
           <span className="font-mono">{issue.code}</span> {issueTextOf(issue)}
         </p>

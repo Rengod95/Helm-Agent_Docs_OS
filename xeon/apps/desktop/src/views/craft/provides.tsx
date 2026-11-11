@@ -6,7 +6,7 @@ import { Badge } from "@caustic/react";
 import type { ReactNode } from "react";
 import { hookLabelOf } from "./detail-flow.tsx";
 
-const LABEL = "text-footnote text-text-tertiary";
+const LABEL = "text-ui text-text-tertiary";
 
 /** 구성 요소의 종류 순서(시안 PIECE_ORDER) */
 const PIECE_KINDS: readonly PieceKind[] = ["skill", "command", "tool", "mcp", "agent", "view"];

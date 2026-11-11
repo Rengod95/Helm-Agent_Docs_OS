@@ -46,7 +46,7 @@ import { useWorkbenchController } from "../workbench/controller.ts";
 import { CHOICE_TEXT, PROBLEM_TEXT, profileErrorText } from "./compose-text.ts";
 import type { MessageId, MessageArgs } from "@fresnel/client/i18n";
 
-const MUTED = "m-0 text-ui-sm text-text-tertiary";
+const MUTED = "m-0 text-ui text-text-tertiary";
 const CHOICES: readonly ProfileChoice[] = ["on", "off", "keep"];
 const NEW_PROFILE = "\u0000new";
 
@@ -75,7 +75,7 @@ export function ChoiceRow(props: {
     <li className="flex flex-wrap items-center justify-between gap-2 py-2.5">
       <span className="min-w-0 truncate text-body text-text-primary">{entry.displayName}</span>
       {props.locked ? (
-        <span className="flex items-center gap-1 text-footnote text-text-tertiary">
+        <span className="flex items-center gap-1 text-ui text-text-tertiary">
           {t("desktop.compose.profile.locked")}
           <InfoTip text={t("desktop.compose.profile.locked.info")} />
         </span>
@@ -408,7 +408,7 @@ export function ProfilePanel(props: {
             </Field>
           </div>
           {problem === null || (draft.id === "" && draft.title === "") ? null : (
-            <p role="alert" className="m-0 text-ui-sm text-text-secondary">
+            <p role="alert" className="m-0 text-ui text-text-secondary">
               {t(PROBLEM_TEXT[problem])}
             </p>
           )}

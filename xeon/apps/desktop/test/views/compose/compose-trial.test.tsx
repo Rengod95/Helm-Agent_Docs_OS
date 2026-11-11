@@ -441,7 +441,7 @@ describe("다시 돌려 검사", () => {
     expect(html).toContain("첫 차이 seq 212");
     expect(buttonNamed(html, "JSON 복사")).toBeDefined();
     // 한계 한 줄은 줄로 보이지 않고 설명 아이콘 뒤(숨은 글)에 있다
-    expect(html).not.toContain('<p class="m-0 text-ui-sm text-text-tertiary">테이프 재생은');
+    expect(html).not.toContain('<p class="m-0 text-ui text-text-tertiary">테이프 재생은');
     expect(html).toContain("테이프 재생은 응답이 고정되어");
   });
 

@@ -23,7 +23,7 @@ import {
   type Verb,
 } from "./turn-flow.ts";
 
-const LABEL = "text-footnote text-text-tertiary";
+const LABEL = "text-ui text-text-tertiary";
 
 const PHASE_LABEL: Record<Phase, MessageId> = {
   start: "desktop.craft.detail.phase.start",
@@ -494,7 +494,7 @@ export function Lifeline({ columns, grouped, nameOf, marks }: LifelineProps): Re
       </div>
       {PHASES.map((phase) => (
         <div key={phase}>
-          <div className="ps-[3.4rem] flex items-center gap-3 pb-0.5 pt-3 text-footnote text-text-tertiary">
+          <div className="ps-[3.4rem] flex items-center gap-3 pb-0.5 pt-3 text-ui text-text-tertiary">
             {t(PHASE_LABEL[phase])}
             <span aria-hidden className="h-px flex-1 bg-border-subtle" />
           </div>
@@ -512,7 +512,7 @@ export function Lifeline({ columns, grouped, nameOf, marks }: LifelineProps): Re
       ))}
       {off.length > 0 && (
         <div>
-          <div className="ps-[3.4rem] flex items-center gap-3 pb-0.5 pt-3 text-footnote text-text-tertiary">
+          <div className="ps-[3.4rem] flex items-center gap-3 pb-0.5 pt-3 text-ui text-text-tertiary">
             {t("desktop.craft.detail.flow.offTurn")}
             <span aria-hidden className="h-px flex-1 bg-border-subtle" />
           </div>

@@ -23,7 +23,7 @@ import { noticeTextOf, testFailureOf } from "../tests/tests-text.ts";
 import { useTabRead } from "../workbench/tab-read.ts";
 import { ReplayBar, type ReplayController } from "./compose-trial-replay.tsx";
 
-const MUTED = "m-0 text-ui-sm text-text-tertiary";
+const MUTED = "m-0 text-ui text-text-tertiary";
 /** 프로필 고르기의 "없음" 값. Radix Select는 빈 문자열 값을 받지 않아 따로 둔다 */
 const NO_PROFILE = "\u0000none";
 const PROFILE_LIST_KEY = "compose-trial-profiles";
@@ -228,7 +228,7 @@ const LOCK_TEXT: Readonly<Record<LockKind, MessageId>> = {
 function LockLine(props: { readonly phase: TestRunPhaseResult }): ReactNode {
   const bar = lockBarOf(props.phase);
   return (
-    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-ui-sm">
+    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-ui">
       <span className="text-text-tertiary">{t("desktop.compose.trial.lock.label")}</span>
       <span className="font-mono text-text-primary">{bar.holder ?? "—"}</span>
       <span className={bar.kind === "none" ? "text-text-tertiary" : "text-text-secondary"}>
@@ -255,7 +255,7 @@ function GuardChip(props: { readonly phase: TestRunPhaseResult }): ReactNode {
       return null;
     case "off":
       return (
-        <span className="inline-flex items-center gap-1 text-footnote text-text-tertiary">
+        <span className="inline-flex items-center gap-1 text-ui text-text-tertiary">
           {t("desktop.compose.trial.guard.off")}
           <InfoTip text={t("desktop.compose.trial.guard.off.info")} />
         </span>
@@ -307,7 +307,7 @@ function RunRow(props: { readonly trial: TrialController; readonly run: TrialRun
   const ready = run.phase.kind === "ready" ? run.phase.result : null;
   return (
     <section aria-label={t("desktop.compose.trial.run.label")} className="grid gap-3">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-ui-sm">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-ui">
         <span className="flex items-baseline gap-1.5">
           <span className="text-text-tertiary">{t("desktop.compose.trial.run.thread")}</span>
           <span className="font-mono text-text-primary" title={run.threadId}>

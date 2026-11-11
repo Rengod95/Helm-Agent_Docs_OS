@@ -23,7 +23,7 @@ import { CheckBanner, type CheckRead } from "./compose-check.tsx";
 import { FlowWorkspace } from "./compose-flow.tsx";
 import { GroupCanvas } from "./compose-group-canvas.tsx";
 
-const MUTED = "m-0 text-ui-sm text-text-tertiary";
+const MUTED = "m-0 text-ui text-text-tertiary";
 
 function useCheck(composition: CompositionDecl | null, link: TabLink): CheckRead {
   const commands = useCommands();

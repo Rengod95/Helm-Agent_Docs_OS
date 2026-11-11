@@ -36,7 +36,7 @@ import { useReplayTrial } from "./compose-trial-replay.tsx";
 import { TrialBar, trialPhaseOf, useTrialRun } from "./compose-trial.tsx";
 import { isCompactWidth, useContainerWidth } from "./compose-width.ts";
 
-const MUTED = "m-0 text-ui-sm text-text-tertiary";
+const MUTED = "m-0 text-ui text-text-tertiary";
 /** 흐름 노드의 겉모양(시안 blockClass와 같은 값): 간격, 안쪽 여백, 제목 글자 역할 */
 const NODE_CLASS = "gap-1.5 px-3 py-2.5 [&_[data-slot=node-graph-node-title]]:text-title-3";
 
@@ -85,7 +85,7 @@ export function FlowWorkspace(props: FlowWorkspaceProps): ReactNode {
       {/* 흐름 설명은 정보 아이콘 뒤에 둔다(DP-58). 초안이면 머리에 "초안"이라고 흐리게 적는다 */}
       <div className="flex flex-wrap items-center gap-2">
         {draft === null ? null : (
-          <span className="text-ui-sm text-text-tertiary">
+          <span className="text-ui text-text-tertiary">
             {t("desktop.compose.flow.draft.badge")}
           </span>
         )}
@@ -152,7 +152,7 @@ export function FlowWorkspace(props: FlowWorkspaceProps): ReactNode {
 function ReadOnlyLine(props: { readonly onStart: () => void }): ReactNode {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-      <p className="m-0 flex items-center gap-1 text-ui-sm text-text-secondary">
+      <p className="m-0 flex items-center gap-1 text-ui text-text-secondary">
         {t("desktop.compose.flow.readOnly")}
         <InfoTip text={t("desktop.compose.flow.readOnly.info")} />
       </p>
@@ -263,20 +263,16 @@ function FlowNode(props: {
       <NodeGraphPort portId={`${node.id}:in`} side="top" state="connected" />
       <div className="grid gap-1">
         {props.initial ? (
-          <span className="text-footnote text-text-tertiary">
-            {t("desktop.compose.flow.initial")}
-          </span>
+          <span className="text-ui text-text-tertiary">{t("desktop.compose.flow.initial")}</span>
         ) : null}
         {node.kind === "human" && node.askTitle !== undefined ? (
-          <span className="text-footnote text-text-secondary">{node.askTitle}</span>
+          <span className="text-ui text-text-secondary">{node.askTitle}</span>
         ) : null}
         {invalid ? (
-          <span className="text-footnote text-danger-text">
-            {t("desktop.compose.flow.node.invalid")}
-          </span>
+          <span className="text-ui text-danger-text">{t("desktop.compose.flow.node.invalid")}</span>
         ) : null}
         {warned ? (
-          <span className="text-footnote text-warning-text">
+          <span className="text-ui text-warning-text">
             {t("desktop.compose.flow.node.warning")}
           </span>
         ) : null}

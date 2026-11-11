@@ -344,7 +344,7 @@ export function LinkView(): ReactNode {
   const { source, state } = useCraft();
   const focus = focusOf(state.sel, source.snapshot);
   if (focus === undefined) {
-    return <p className="m-0 p-6 text-ui-sm text-text-tertiary">{t("desktop.craft.link.empty")}</p>;
+    return <p className="m-0 p-6 text-ui text-text-tertiary">{t("desktop.craft.link.empty")}</p>;
   }
   return <LinkCanvas key={focus.id} focus={focus} />;
 }
@@ -691,7 +691,7 @@ function FocusCard({ p }: { readonly p: CanvasPlugin }): ReactNode {
         <div className="grid min-w-0 gap-0.5">
           <span className="truncate text-title-4 text-text-primary">{p.name}</span>
           {p.role !== undefined && (
-            <span className="truncate text-footnote text-text-tertiary">{p.role}</span>
+            <span className="truncate text-ui text-text-tertiary">{p.role}</span>
           )}
         </div>
       </div>
@@ -709,7 +709,7 @@ function FocusCard({ p }: { readonly p: CanvasPlugin }): ReactNode {
       <div className="grid gap-2.5 border-t border-border-subtle pt-3">
         {meters.map((r) => (
           <div key={r.label} className="grid gap-1">
-            <div className="flex items-baseline justify-between gap-2 text-footnote">
+            <div className="flex items-baseline justify-between gap-2 text-ui">
               <span className="text-text-tertiary">{r.label}</span>
               <span className="font-mono text-mono-sm text-text-primary">{r.text}</span>
             </div>
@@ -879,7 +879,7 @@ function FloatCard({ rel }: { readonly rel: Relation }): ReactNode {
           return (
             <div key={f.labelKey} className="grid gap-1">
               <div className="flex items-baseline justify-between gap-3">
-                <span className="text-footnote text-text-tertiary">{label}</span>
+                <span className="text-ui text-text-tertiary">{label}</span>
                 <span className="grid min-w-0 justify-items-end">
                   <span
                     className={`max-w-[10rem] truncate text-ui-sm text-text-primary ${f.mono ? "font-mono text-mono-sm" : ""}`}
