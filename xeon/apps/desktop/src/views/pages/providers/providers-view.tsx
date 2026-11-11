@@ -366,7 +366,7 @@ export function AccountPoolView(props: AccountPoolViewProps): ReactNode {
           actions={
             formShown ? undefined : (
               <Button
-                size="xs"
+                size={FORM_CONTROL_SIZE}
                 variant="outline"
                 disabled={!editable}
                 onClick={() => {
