@@ -687,6 +687,19 @@ ssh -N -T -o ExitOnForwardFailure=yes -o BatchMode=yes -o ServerAliveInterval=15
 
 터널 끝이 서버 쪽 사용자 권한으로 소켓에 접속하므로 소켓 파일 0600과 디렉터리 0700 규칙이 그대로 적용된다(§4.4.5). 토큰 검사는 이 경로의 추가 방어이고 [미결 P-10]에 남는다.
 
+#### 4.4.9 원격 연결 사전 점검과 연결 코드 받기
+
+[결정: 2026-11-11 사용자] 다른 컴퓨터에 붙는 입력은 `user@host[:port]`(또는 ssh config 이름) 하나로 줄이고 나머지는 클라이언트가 알아서 한다. 이 절은 그 L0 부분이다(`transport/ssh-config.ts`, `transport/ssh-preflight.ts`, `transport/pair.ts`). 화면 흐름과 셸 명령은 `L4.remote.spec` §3.3이 정한다. 사람이 읽는 문장은 L0가 만들지 않는다. 단계, 원인 코드, 값만 내고 문장은 상위 층이 코드로 고른다.
+
+- **ssh config 읽기** (`readSshConfig`, `parseSshConfig`): `~/.ssh/config`와 `Include`(상대 경로는 `~/.ssh` 기준, `~` 확장, `*`·`?` 글롭, 깊이 5, 순환 무시)를 읽어 `Host` 항목을 `{name, hostName, user, port, proxyJump}`로 돌려준다. 이름에 `*`, `?`, `!`가 든 항목과 `Match` 블록은 뺀다. 같은 키는 첫 값을 쓴다(ssh와 같다). 파일이 없으면 `missing`, 읽지 못하면 `unreadable`이고 목록은 빈다. `Host *`의 기본값은 항목에 합치지 않는다.
+- **사전 점검** (`runSshPreflight`): `resolve`(`ssh -G`), `connect`(`ssh … true`), `install`(`fresnel version --json`), `service`(`fresnel service status --json`, 안 돌면 `service ensure --json`), `socket`(상태의 소켓 경로) 순서로 돌리고 단계마다 `{step, status, code, durationMs, actions, detail?, fix?}` 이벤트를 낸다. 모든 ssh 호출은 `BatchMode=yes`, `StrictHostKeyChecking=yes`, `NumberOfPasswordPrompts=0`, `ConnectTimeout=8`이고 원격 명령은 고정 문자열이다. 사용자 입력은 `--` 뒤의 대상 하나와 `-p` 정수로만 들어간다. 터널과 `host.hello` 왕복은 이 모듈 밖(셸)이 한다.
+  - 새 호스트 키(`host_key_new`)는 `ssh-keyscan`과 `ssh-keygen -lf`로 지문과 키 종류를 읽어 `action`으로 멈춘다. 사용자가 확인한 지문(`trustHostKey`)이 입력에 있으면 키를 다시 읽어 같은 줄 하나만 `known_hosts`(파일 0600, 폴더 0700)에 덧붙이고 다시 시도한다. 지문이 다르면 `host_key_mismatch_scan`이다. 키가 바뀐 경우(`host_key_changed`)는 새 지문과 `replaceChangedHostKey`가 있을 때만 `ssh-keygen -R`로 옛 줄을 지우고 더한다. ProxyJump 대상은 `host_key_proxy`(터미널에서 한 번 직접 접속)다. ssh 설정이 다른 `UserKnownHostsFile`을 가리키면 신뢰한 뒤에도 `host_key_unresolved`가 난다 [제안: 앱은 `UserKnownHostsFile`을 넘기지 않는다].
+  - 비밀번호만 받는 호스트(`auth_password_only`)는 앱이 비밀번호를 받지 않고 `ssh-copy-id [-p N] <대상>` 한 줄을 `fix.commands`로 준다.
+  - 계약 버전은 `major.minor.patch` 정수로 비교한다. 다르면 `version_mismatch`와 낮은 쪽(`lower`), `upgrade_local` 또는 `upgrade_remote`다. CLI 버전만 다르면 통과하고 `cliDiffers`를 싣는다.
+  - [미결] [근거: `xeon/scripts/release.ts`가 데스크톱 압축 파일만 만들고 CLI 단독 배포 경로가 `L4.release.spec`에 없음, 2026-11-12 확인] 원격 `fresnel`이 없을 때(`not_installed`) 설치 한 줄 명령은 돌려주지 않는다(`fix.commands`는 비고 `installPath: null`). 확정된 CLI 배포 경로가 코드와 `L4.release.spec`에 없다. 비대화형 ssh의 PATH 안내(`path_noninteractive`)만 준다.
+  - 원인 코드: `ok`, `invalid_target`, `invalid_port`, `ssh_missing`, `timeout`, `dns`, `refused`, `no_route`, `auth_denied`, `auth_password_only`, `host_key_new`, `host_key_changed`, `host_key_proxy`, `host_key_scan_failed`, `host_key_mismatch_scan`, `host_key_unresolved`, `known_hosts_write_failed`, `known_hosts_remove_failed`, `not_installed`, `version_unreadable`, `version_mismatch`, `service_status_unreadable`, `service_start_failed`, `socket_unreadable`, `unknown`. 통과하면 `ssh://[user@]host[:port]/<절대 소켓 경로>`를 돌려준다.
+- **연결 코드 받기** (`pairWithGateway`): 서버 인증서 지문을 재어 고정한 지문(pin)과 같을 때만, 그 인증서 하나를 유일한 신뢰 앵커로 `POST /pair`(`kind: "desktop"`, 연결 코드, 기기 이름, `Origin`은 게이트웨이 출처)를 보내 기기 토큰을 받는다. 호스트 이름은 비교하지 않는다(지문이 신원이다). 오류는 `fingerprint_changed`, `invalid_code`, `locked`(`retryAfterSeconds`), `invalid_device_name`, `rejected`, `bad_response`, `refused`, `timeout`, `io`와 입력 검사 오류다. 토큰은 오류 값과 로그에 넣지 않는다.
+
 ### 4.5 잠금 실패 동작 정책
 
 - 대화 소유 판정은 OS 잠금(생존 판정) + `sys_leases.epoch` 펜싱이다(`L0.store.spec` §4.7.1과 같은 문장) [결정: review.decisions-2 U-09]. ADR-0004 §3.4와 ADR-0006은 이에 맞게 개정한다.
@@ -905,6 +918,9 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 22. `SocketTunnel.close()`는 프로세스를 SIGTERM으로 끝내고(`exited`의 신호가 `SIGTERM`), 로컬 소켓 파일을 지운다. 두 번 불러도 된다(`tunnel.int.test.ts`).
 23. `sshTunnelCommand`는 §4.4.8의 argv를 값으로 돌려준다. 대상이 `-`로 시작하거나 공백을 담으면, 원격 경로가 상대 경로이거나 `:`를 담으면, 로컬 경로가 공백을 담으면, 포트가 범위 밖이면 각각 `Result` 오류로 거부한다(`tunnel.int.test.ts`).
 24. `McpProcessPort.spawn`의 샌드박스 요청(`mcp-spawn-sandbox.test.ts`, 대역 `support/sandbox-fake.ts`): 격리 불가(`missing_dependency`)는 `sandbox_unavailable`이고 띄우지 않으며 시크릿 lease를 열지 않고 경고 `mcp.sandbox_unavailable`을 남긴다. 서비스나 임시 디렉터리가 없으면 `service_missing`이다. 돌려받은 명령줄이 실제로 돌고 그 env가 정의 env를 이기며, 정책 쓰기 루트에 작업 디렉터리와 임시 디렉터리가 들어가고, cleanup이 종료·기동 실패·시크릿 실패에서 한 번씩 불린다. `failed`는 `sandbox_failed`, `aborted`는 `aborted`다. 격리 없는 기동은 사용자가 끈 때뿐이고 `mcp.sandbox_not_enforced`를 남긴다(`mcp-spawn.int.test.ts`).
+25. `parseSshConfig`와 `readSshConfig`는 와일드카드 항목과 `Match`를 빼고, `Include`(글롭, `~`, 깊이, 순환)를 따르며, 파일이 없거나 못 읽으면 빈 목록과 사유를 준다(`ssh-config.test.ts`).
+26. `runSshPreflight`는 가짜 `ssh`, `ssh-keyscan`, `ssh-keygen` 실행 파일로 단계별 성공과 실패를 값으로 비교한다: 새 호스트 키의 지문과 신뢰 뒤 `known_hosts` 내용, 지문 불일치, 키 바뀜(`-R` 인자), 비밀번호만, 공개 키 거절, DNS·거절·시한, ssh 없음, ProxyJump, 설치 없음, 계약 버전 불일치 양쪽, 서비스 띄우기와 실패, 소켓 없음, 잘못된 대상이 ssh를 부르지 않는 것(`ssh-preflight.test.ts`).
+27. `pairWithGateway`는 로컬 TLS 서버에서 요청(method, path, `Origin`, 본문)과 받은 토큰을 값으로 비교하고, 지문 불일치는 서버에 요청을 보내지 않으며, 거절·잠금·잘못된 본문·연결 거부·시한을 오류 값으로 돌려준다(`pair.test.ts`).
 
 ## 10. 미결 사항
 
