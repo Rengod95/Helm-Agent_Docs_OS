@@ -3,7 +3,6 @@ import type { TargetEntry } from "@fresnel/client";
 import type { HostClientView } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
 import { createShellStore, ShellStoreContext } from "../../src/state/shell/index.ts";
-import type { ServiceCard } from "../../src/views/commands.ts";
 import {
   connectionReducer,
   INITIAL_CONNECTION_STATE,
@@ -39,9 +38,7 @@ const handlers: ConnectionScreenHandlers = {
   confirmStop: NOOP,
   restart: NOOP,
   copyDiagnostics: NOOP,
-  setServiceMode: NOOP,
-  startLocalService: NOOP,
-  stopLocalService: NOOP,
+  refresh: NOOP,
   setRemoteRespond: NOOP,
   setStopConfirm: NOOP,
   openExtensions: NOOP,
@@ -131,44 +128,6 @@ describe("connection screen server render", () => {
     );
     expect(html(refused)).toContain("SSH 터널이나 사설망을 써요");
   });
-
-  test("the remote answer row says what it does, and an engine that does not report the setting says it cannot be changed", () => {
-    const host = {
-      mode: "service" as const,
-      pid: 4211,
-      startedAt: "2026-11-04T01:00:00.000Z",
-      connections: 2,
-      liveTurns: 1,
-      idleShutdownAt: null,
-    };
-    const allowed = stateAfter({
-      type: "statusLoaded",
-      snapshot: {
-        host,
-        service: { kind: "unknown" },
-        serviceEnabled: true,
-        restartPending: false,
-        remoteAllowRespond: true,
-      },
-    });
-    const allowedMarkup = html(allowed);
-    expect(allowedMarkup).toContain("원격 응답 허용");
-    expect(allowedMarkup).toContain("꺼져 있으면 원격 연결에서는 승인 요청에 답할 수 없어요.");
-    expect(allowedMarkup).not.toContain("아직 알리지 않아서");
-    const unknown = stateAfter({
-      type: "statusLoaded",
-      snapshot: {
-        host,
-        service: { kind: "unknown" },
-        serviceEnabled: true,
-        restartPending: false,
-        remoteAllowRespond: null,
-      },
-    });
-    expect(html(unknown)).toContain(
-      "은 이 엔진이 아직 알리지 않아서 바꿀 수 없어요. 위 서비스 모드 스위치와는 따로예요.",
-    );
-  });
 });
 
 describe("the connected clients row in the status list", () => {
@@ -184,7 +143,6 @@ describe("the connected clients row in the status list", () => {
         idleShutdownAt: null,
       },
       service: { kind: "unknown" },
-      serviceEnabled: true,
       restartPending: false,
       remoteAllowRespond: true,
     },
@@ -365,117 +323,5 @@ describe("the host section's notice", () => {
     );
     expect(markup).toContain("호스트를 더했어요.");
     expect(markup).toContain('data-slot="alert" data-tone="success" data-variant="outline"');
-  });
-});
-
-/** 라벨을 가진 단추의 여는 태그. 그런 단추가 없으면 빈 문자열이다 */
-function buttonTagOf(markup: string, label: string): string {
-  const at = markup.indexOf(`>${label}</button>`);
-  if (at < 0) return "";
-  const open = markup.lastIndexOf("<button", at);
-  return markup.slice(open, markup.indexOf(">", open) + 1);
-}
-
-/** 여는 태그에 `disabled` 속성이 있는가. 클래스의 `disabled:` 변형은 세지 않는다 */
-function disabledOf(tag: string): boolean {
-  return tag.includes(' disabled=""');
-}
-
-describe("the local service card in the status column", () => {
-  const HOST = {
-    mode: "service" as const,
-    pid: 4211,
-    startedAt: "2026-11-04T01:00:00.000Z",
-    connections: 0,
-    liveTurns: 0,
-    idleShutdownAt: null,
-  };
-  const RUNNING: ServiceCard = {
-    kind: "running",
-    pid: 4321,
-    version: "1.2.3",
-    startedAt: 1_700_000_000_000,
-    attached: true,
-  };
-  const OFF: ServiceCard = { kind: "stopped", reason: "no registration" };
-
-  /** 이 기기 대상의 상태를 읽은 뒤 화면. 카드 값과 더할 동작만 다르다 */
-  function withCard(
-    service: ServiceCard,
-    extra: readonly ConnectionAction[] = [],
-  ): ConnectionState {
-    return stateAfter(
-      {
-        type: "statusLoaded",
-        snapshot: {
-          host: HOST,
-          service,
-          serviceEnabled: true,
-          restartPending: false,
-          remoteAllowRespond: true,
-        },
-      },
-      ...extra,
-    );
-  }
-
-  test("a running service shows its version, pid and that the app is attached", () => {
-    expect(html(withCard(RUNNING))).toContain("실행 중 · v1.2.3 · pid 4321 · 앱이 붙어 있음");
-    expect(html(withCard({ ...RUNNING, attached: false }))).toContain(
-      "실행 중 · v1.2.3 · pid 4321 · 앱이 붙어 있지 않음",
-    );
-  });
-
-  test("a stopped service says it is off, and a card that could not be read says so", () => {
-    expect(html(withCard(OFF))).toContain("꺼져 있음");
-    expect(html(withCard({ kind: "unknown" }))).toContain("상태를 읽을 수 없음");
-  });
-
-  test("start is locked while the service runs, and stop is locked while it is off", () => {
-    const running = html(withCard(RUNNING));
-    expect(disabledOf(buttonTagOf(running, "시작"))).toBe(true);
-    expect(disabledOf(buttonTagOf(running, "멈추기"))).toBe(false);
-    const off = html(withCard(OFF));
-    expect(disabledOf(buttonTagOf(off, "시작"))).toBe(false);
-    expect(disabledOf(buttonTagOf(off, "멈추기"))).toBe(true);
-  });
-
-  test("a failed start or stop shows its line on the card", () => {
-    expect(html(withCard(OFF, [{ type: "serviceError", action: "start" }]))).toContain(
-      "서비스를 켜지 못했어요. 설정은 다시 꺼짐으로 돌렸어요.",
-    );
-    expect(html(withCard(RUNNING, [{ type: "serviceError", action: "stop" }]))).toContain(
-      "서비스를 멈추지 못했어요. 다시 해 봐요.",
-    );
-  });
-
-  test("while a card action runs its button is locked and the other one too", () => {
-    const starting = html(withCard(OFF, [{ type: "serviceBusy", action: "start" }]));
-    expect(disabledOf(buttonTagOf(starting, "시작"))).toBe(true);
-    expect(disabledOf(buttonTagOf(starting, "멈추기"))).toBe(true);
-  });
-
-  test("a remote target shows no local card", () => {
-    const markup = html(
-      stateAfter(
-        { type: "targetsChanged", items: targets(1), notice: null, added: false },
-        {
-          type: "engineTargetSeen",
-          target: { kind: "remote", address: "unix:/run/box0.sock", label: "box-0" },
-        },
-        {
-          type: "statusLoaded",
-          snapshot: {
-            host: HOST,
-            service: RUNNING,
-            serviceEnabled: true,
-            restartPending: false,
-            remoteAllowRespond: true,
-          },
-        },
-      ),
-    );
-    expect(markup).not.toContain("로컬 서비스");
-    expect(markup).not.toContain("실행 중 · v1.2.3");
   });
 });

@@ -16,7 +16,6 @@ import {
   attachFailureOfExit,
   canConnect,
   canSetRemoteRespond,
-  canStartService,
   canStopService,
   clientRowOf,
   clientsReasonOf,
@@ -504,7 +503,6 @@ describe("the list, selection and status follow their actions", () => {
           idleShutdownAt: null,
         },
         service: { kind: "unknown" },
-        serviceEnabled: true,
         restartPending: true,
         remoteAllowRespond: null,
       },
@@ -512,7 +510,7 @@ describe("the list, selection and status follow their actions", () => {
     expect(loaded.restartNeeded).toBe(true);
   });
 
-  test("a service mode change applies at once, so the change itself needs no restart", () => {
+  test("the restart flag comes from the shell's reading, so a change that already restarted the engine reads as no restart", () => {
     const loaded = connectionReducer(withItems([]), {
       type: "statusLoaded",
       snapshot: {
@@ -525,16 +523,11 @@ describe("the list, selection and status follow their actions", () => {
           idleShutdownAt: null,
         },
         service: { kind: "unknown" },
-        serviceEnabled: false,
         restartPending: false,
         remoteAllowRespond: true,
       },
     });
-    expect(loaded.serviceEnabled).toBe(false);
     expect(loaded.restartNeeded).toBe(false);
-    const changed = connectionReducer(loaded, { type: "serviceModeSet", enabled: true });
-    expect(changed.serviceEnabled).toBe(true);
-    expect(changed.restartNeeded).toBe(false);
   });
 
   test("the update line with no data source is the unchecked line", () => {
@@ -557,7 +550,6 @@ function statusWith(remoteAllowRespond: boolean | null): ConnectionState {
         idleShutdownAt: null,
       },
       service: { kind: "unknown" },
-      serviceEnabled: true,
       restartPending: false,
       remoteAllowRespond,
     },
@@ -797,8 +789,8 @@ describe("the screen opens on the engine's current target", () => {
   });
 });
 
-/** 상태를 읽은 뒤의 화면 상태. 이 기기의 서비스 카드를 정한다. 서비스 모드는 켜져 있고 원격 응답은 허용이다 */
-function statusWithService(service: ServiceCard, pending = false): ConnectionState {
+/** 상태를 읽은 뒤의 화면 상태. 이 기기의 서비스 카드를 정한다. 다시 시작 대기는 없고 원격 응답은 허용이다 */
+function statusWithService(service: ServiceCard): ConnectionState {
   return run(withItems([]), {
     type: "statusLoaded",
     snapshot: {
@@ -811,8 +803,7 @@ function statusWithService(service: ServiceCard, pending = false): ConnectionSta
         idleShutdownAt: null,
       },
       service,
-      serviceEnabled: true,
-      restartPending: pending,
+      restartPending: false,
       remoteAllowRespond: true,
     },
   });
@@ -827,7 +818,7 @@ const RUNNING_CARD: ServiceCard = {
 };
 const STOPPED_CARD: ServiceCard = { kind: "stopped", reason: "no registration" };
 
-describe("the local service card follows the shell and its own actions", () => {
+describe("the local service card follows the shell and the stop rule", () => {
   test("a loaded status carries the card as the shell reported it", () => {
     expect(statusWithService(RUNNING_CARD).service).toEqual(RUNNING_CARD);
     expect(statusWithService(STOPPED_CARD).service).toEqual(STOPPED_CARD);
@@ -835,8 +826,6 @@ describe("the local service card follows the shell and its own actions", () => {
 
   test("before the status is read the card is unknown", () => {
     expect(INITIAL_CONNECTION_STATE.service).toEqual({ kind: "unknown" });
-    expect(INITIAL_CONNECTION_STATE.serviceBusy).toBeNull();
-    expect(INITIAL_CONNECTION_STATE.serviceError).toBeNull();
   });
 
   test("a status that fails to load turns a running card into unknown instead of keeping it", () => {
@@ -848,58 +837,16 @@ describe("the local service card follows the shell and its own actions", () => {
     expect(offline.status).toEqual({ kind: "offline" });
   });
 
-  test("start is for a service that is not running, and stop is for one that is", () => {
-    expect(canStartService(statusWithService(STOPPED_CARD))).toBe(true);
-    expect(canStopService(statusWithService(STOPPED_CARD))).toBe(false);
-    expect(canStartService(statusWithService(RUNNING_CARD))).toBe(false);
+  test("stop is for a service that is running, and never for one that is off or unread", () => {
     expect(canStopService(statusWithService(RUNNING_CARD))).toBe(true);
+    expect(canStopService(statusWithService(STOPPED_CARD))).toBe(false);
+    expect(canStopService(statusWithService({ kind: "unknown" }))).toBe(false);
   });
 
-  test("a card that could not be read lets start through and keeps stop locked", () => {
-    const unknown = statusWithService({ kind: "unknown" });
-    expect(canStartService(unknown)).toBe(true);
-    expect(canStopService(unknown)).toBe(false);
-  });
-
-  test("neither button works before the status is read, while a card action is going, while busy, or while connecting", () => {
-    const stopped = statusWithService(STOPPED_CARD);
-    expect(canStartService(INITIAL_CONNECTION_STATE)).toBe(false);
+  test("stop is locked before the status is read, while busy, and while connecting", () => {
+    const running = statusWithService(RUNNING_CARD);
     expect(canStopService(INITIAL_CONNECTION_STATE)).toBe(false);
-    const acting = run(stopped, { type: "serviceBusy", action: "start" });
-    expect(canStartService(acting)).toBe(false);
-    expect(
-      canStopService(run(statusWithService(RUNNING_CARD), { type: "serviceBusy", action: "stop" })),
-    ).toBe(false);
-    expect(canStartService({ ...stopped, busy: true })).toBe(false);
-    const connecting = run(stopped, started(LOCAL_CHOICE, RUNNING, "offline"));
-    expect(canStartService(connecting)).toBe(false);
-    expect(
-      canStopService(
-        run(statusWithService(RUNNING_CARD), started(LOCAL_CHOICE, RUNNING, "offline")),
-      ),
-    ).toBe(false);
-  });
-
-  test("a card action marks itself busy until it ends, and a failure stays on the card until the next try", () => {
-    const busy = run(statusWithService(STOPPED_CARD), { type: "serviceBusy", action: "start" });
-    expect(busy.serviceBusy).toBe("start");
-    const failed = run(
-      busy,
-      { type: "serviceBusy", action: null },
-      { type: "serviceError", action: "start" },
-    );
-    expect(failed.serviceBusy).toBeNull();
-    expect(failed.serviceError).toBe("start");
-    const retried = run(failed, { type: "serviceError", action: null });
-    expect(retried.serviceError).toBeNull();
-  });
-
-  test("a service mode change applies at once: it clears a waiting restart and the card stays as the shell last said", () => {
-    const waiting = statusWithService(STOPPED_CARD, true);
-    expect(waiting.restartNeeded).toBe(true);
-    const changed = connectionReducer(waiting, { type: "serviceModeSet", enabled: true });
-    expect(changed.serviceEnabled).toBe(true);
-    expect(changed.restartNeeded).toBe(false);
-    expect(changed.service).toEqual(STOPPED_CARD);
+    expect(canStopService({ ...running, busy: true })).toBe(false);
+    expect(canStopService(run(running, started(LOCAL_CHOICE, RUNNING, "offline")))).toBe(false);
   });
 });

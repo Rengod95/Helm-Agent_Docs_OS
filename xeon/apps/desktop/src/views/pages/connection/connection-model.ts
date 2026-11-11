@@ -78,25 +78,16 @@ export type ClientsState =
   | { readonly kind: "failed" };
 
 /**
- * 이 기기 서비스 카드의 단추가 눌릴 수 있는 바탕: 상태를 읽었고(연결이 있고), 다른 설정 쓰기나 서비스 동작이나 연결 진행이 없을 때다.
+ * "서비스 멈추기" 단추를 누를 수 있는가: 상태를 읽었고(연결이 있고), 다른 쓰기나 연결 진행이 없고, 이 기기 서비스가 떠 있을 때다.
+ * 멈추기는 확인 대화 상자를 거친 뒤에 보낸다.
  */
-function serviceIdle(state: ConnectionState): boolean {
+export function canStopService(state: ConnectionState): boolean {
   return (
     state.status.kind === "ready" &&
     !state.busy &&
-    state.serviceBusy === null &&
-    state.pending === null
+    state.pending === null &&
+    state.service.kind === "running"
   );
-}
-
-/** 시작 단추를 누를 수 있는가: 바탕이 되고 서비스가 실행 중이 아니다(상태를 읽지 못했으면 누를 수 있다) */
-export function canStartService(state: ConnectionState): boolean {
-  return serviceIdle(state) && state.service.kind !== "running";
-}
-
-/** 멈추기 단추를 누를 수 있는가: 바탕이 되고 서비스가 실행 중이다 */
-export function canStopService(state: ConnectionState): boolean {
-  return serviceIdle(state) && state.service.kind === "running";
 }
 
 /**
@@ -139,9 +130,6 @@ interface Notice {
   readonly id: MessageId;
 }
 
-/** 이 기기 서비스 카드의 동작. 시작이나 멈추기 가운데 하나다 */
-export type ServiceAction = "start" | "stop";
-
 export interface ConnectionState {
   readonly list: ListState;
   readonly items: readonly TargetEntry[];
@@ -157,15 +145,9 @@ export interface ConnectionState {
   readonly status: StatusState;
   /** 연결된 클라이언트 목록. 상태 카드와 따로 읽는다(목록 실패가 카드를 막지 않는다) */
   readonly clients: ClientsState;
-  /** 이 기기의 서비스 상태 카드. 읽기 전이거나 읽지 못했으면 `unknown`이다 */
+  /** 이 기기의 서비스 상태. 읽기 전이거나 읽지 못했으면 `unknown`이다. 실행 방식 줄과 서비스 멈추기가 쓴다 */
   readonly service: ServiceCard;
-  /** 카드의 시작이나 멈추기가 가고 있는 동안 그 동작이다 */
-  readonly serviceBusy: ServiceAction | null;
-  /** 카드의 마지막 시작이나 멈추기가 실패했으면 그 동작이다. 성공하거나 다시 누르면 지운다 */
-  readonly serviceError: ServiceAction | null;
-  /** 서비스 모드 설정 값. 읽기 전에는 null */
-  readonly serviceEnabled: boolean | null;
-  /** 설정이 다시 시작을 기다린다(예약 화면이 켠 값이 엔진에 아직 들어가지 않았다). 이 기기의 켜기·끄기는 바로 적용되므로 참이 되지 않는다 */
+  /** 설정이 다시 시작을 기다린다(예약 화면이 켠 값이 엔진에 아직 들어가지 않았다). 이 기기의 실행 방식 고르기는 바로 적용되므로 참이 되지 않는다 */
   readonly restartNeeded: boolean;
   /** 원격 응답 허용 값. 읽기 전이거나 엔진이 이 설정을 알리지 않으면 null이다(이때 줄은 잠긴다) */
   readonly remoteAllowRespond: boolean | null;
@@ -189,9 +171,6 @@ export const INITIAL_CONNECTION_STATE: ConnectionState = {
   status: { kind: "loading" },
   clients: { kind: "loading" },
   service: { kind: "unknown" },
-  serviceBusy: null,
-  serviceError: null,
-  serviceEnabled: null,
   restartNeeded: false,
   remoteAllowRespond: null,
   stopConfirm: false,
@@ -243,9 +222,6 @@ export type ConnectionAction =
     }
   | { readonly type: "connectRejected"; readonly kind: AttachFailureKind }
   | { readonly type: "engineSeen"; readonly observed: EngineObservation }
-  | { readonly type: "serviceModeSet"; readonly enabled: boolean }
-  | { readonly type: "serviceBusy"; readonly action: ServiceAction | null }
-  | { readonly type: "serviceError"; readonly action: ServiceAction | null }
   | { readonly type: "remoteRespondSet"; readonly enabled: boolean }
   | { readonly type: "stopConfirm"; readonly open: boolean }
   | { readonly type: "notice"; readonly notice: Notice | null };
@@ -570,7 +546,6 @@ export function connectionReducer(
         ...state,
         status: { kind: "ready", snapshot: action.snapshot },
         service: action.snapshot.service,
-        serviceEnabled: action.snapshot.serviceEnabled,
         restartNeeded: action.snapshot.restartPending,
         remoteAllowRespond: action.snapshot.remoteAllowRespond,
       };
@@ -617,13 +592,6 @@ export function connectionReducer(
     }
     case "engineSeen":
       return observe(state, action.observed);
-    case "serviceModeSet":
-      // 이 기기의 켜기·끄기는 엔진을 다시 띄워 바로 적용되므로 다시 시작 대기가 없다
-      return { ...state, serviceEnabled: action.enabled, restartNeeded: false };
-    case "serviceBusy":
-      return { ...state, serviceBusy: action.action };
-    case "serviceError":
-      return { ...state, serviceError: action.action };
     case "remoteRespondSet":
       // 원격 응답 허용은 엔진을 다시 띄우지 않아도 바로 적용된다(L2.schedule §6: live)
       return { ...state, remoteAllowRespond: action.enabled };

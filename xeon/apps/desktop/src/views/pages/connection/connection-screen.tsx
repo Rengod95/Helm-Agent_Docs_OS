@@ -16,11 +16,10 @@ import {
   newTargetId,
   renamedList,
   toConnectTarget,
-  type ServiceAction,
   type TargetChoice,
 } from "./connection-model.ts";
 import { checkHostForm } from "./host-address.ts";
-import { ServerModeSectionContainer } from "./connection-server-container.tsx";
+import { ServiceSectionsContainer } from "./connection-server-container.tsx";
 import { ConnectionScreenView, type ConnectionScreenHandlers } from "./connection-view.tsx";
 
 // 연결 화면(P-08)의 동작. 호스트 목록과 상태는 명령(`commands.connection`)으로 부르고, 화면 상태는 `connectionReducer`가 든다.
@@ -197,35 +196,6 @@ export function ConnectionScreen(): ReactNode {
     );
   };
 
-  const writeServiceMode = async (enabled: boolean): Promise<void> => {
-    dispatch({ type: "busy", busy: true });
-    const written = await commands.connection.setServiceMode(enabled);
-    dispatch({ type: "busy", busy: false });
-    if (written.ok) {
-      dispatch({ type: "serviceModeSet", enabled });
-    } else {
-      dispatch({
-        type: "notice",
-        notice: { tone: "danger", id: "desktop.connection.actionFailed" },
-      });
-    }
-    // 켜거나 끈 뒤 상태 카드와 스위치를 다시 읽는다. 엔진이 다시 뜨는 동안이면 연결이 살아날 때 한 번 더 읽는다
-    await loadStatus();
-  };
-
-  /** 이 기기 서비스 카드의 시작이나 멈추기. 실패는 카드에 한 줄로 남기고, 끝나면 상태를 다시 읽는다 */
-  const runServiceAction = async (action: ServiceAction): Promise<void> => {
-    dispatch({ type: "serviceError", action: null });
-    dispatch({ type: "serviceBusy", action });
-    const done =
-      action === "start"
-        ? await commands.connection.startLocalService()
-        : await commands.connection.stopLocalService();
-    dispatch({ type: "serviceBusy", action: null });
-    dispatch({ type: "serviceError", action: done.ok ? null : action });
-    await loadStatus();
-  };
-
   const writeRemoteRespond = async (enabled: boolean): Promise<void> => {
     dispatch({ type: "busy", busy: true });
     const written = await commands.connection.setRemoteRespond(enabled);
@@ -329,14 +299,8 @@ export function ConnectionScreen(): ReactNode {
     retryClients: () => {
       detach(loadClients(), rethrow);
     },
-    setServiceMode: (enabled) => {
-      detach(writeServiceMode(enabled), rethrow);
-    },
-    startLocalService: () => {
-      detach(runServiceAction("start"), rethrow);
-    },
-    stopLocalService: () => {
-      detach(runServiceAction("stop"), rethrow);
+    refresh: () => {
+      detach(loadStatus(), rethrow);
     },
     setRemoteRespond: (enabled) => {
       detach(writeRemoteRespond(enabled), rethrow);
@@ -360,9 +324,7 @@ export function ConnectionScreen(): ReactNode {
       engine={engine}
       locale={activeLocale()}
       handlers={handlers}
-      serverSection={
-        <ServerModeSectionContainer serviceRunning={state.service.kind === "running"} />
-      }
+      serviceSections={<ServiceSectionsContainer state={state} handlers={handlers} />}
     />
   );
 }

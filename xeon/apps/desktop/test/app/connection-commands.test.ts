@@ -263,7 +263,6 @@ describe("host status, service mode and stopping the service", () => {
       value: {
         host: HOST_STATUS,
         service: { kind: "stopped", reason: "no registration" },
-        serviceEnabled: true,
         restartPending: false,
         remoteAllowRespond: false,
       },
@@ -293,7 +292,6 @@ describe("host status, service mode and stopping the service", () => {
       value: {
         host: HOST_STATUS,
         service: { kind: "stopped", reason: "no registration" },
-        serviceEnabled: true,
         restartPending: false,
         remoteAllowRespond: null,
       },
@@ -667,7 +665,6 @@ describe("load reads the local service card from the shell", () => {
           startedAt: 1_700_000_000_000,
           attached: true,
         },
-        serviceEnabled: true,
         restartPending: false,
         remoteAllowRespond: null,
       },
@@ -713,7 +710,7 @@ describe("load reads the local service card from the shell", () => {
     );
     const loaded = await app.commands.connection.load();
     expect(loaded.ok && loaded.value.service).toEqual({ kind: "unknown" });
-    expect(loaded.ok && loaded.value.serviceEnabled).toBe(true);
+    expect(loaded.ok && loaded.value.restartPending).toBe(false);
     await app.stop();
   });
 

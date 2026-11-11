@@ -1,6 +1,7 @@
 import { parseTargetAddress, type TargetAddress } from "@fresnel/client";
 import type { Locale, MessageId } from "@fresnel/client/i18n";
 import type { EngineState } from "../../../state/engine/index.ts";
+import type { ServerMode } from "../../../app/remote/remote-model.ts";
 import type { AddressReason, StepId } from "./connection-model.ts";
 import type { HostClientView } from "@fresnel/contracts/wire";
 
@@ -56,6 +57,16 @@ const TRANSPORT_ID: Readonly<Record<HostClientView["transport"], MessageId>> = {
 /** 연결 전송 종류의 이름. 클라이언트가 이름을 안 밝혔을 때 쓴다 */
 export function transportMessageOf(transport: HostClientView["transport"]): MessageId {
   return TRANSPORT_ID[transport];
+}
+
+/**
+ * 실행 방식을 바꾸다 서비스가 실패했을 때의 문장. 앱 안에서로 바꾸다 실패했으면 멈추기 실패이고, 그 밖은 켜기 실패다.
+ * 켜지 못했으면 설정은 꺼짐으로 되돌아가 있다(명령이 한다).
+ */
+export function serviceFailureIdOf(mode: ServerMode): MessageId {
+  return mode === "off"
+    ? "desktop.connection.service.card.stopFailed"
+    : "desktop.connection.service.card.startFailed";
 }
 
 const STEP_ID: Readonly<Record<StepId, MessageId>> = {

@@ -99,7 +99,6 @@ const SNAPSHOT: ConnectionSnapshot = {
     safeMode: false,
   },
   service: { kind: "unknown" },
-  serviceEnabled: false,
   restartPending: false,
   remoteAllowRespond: null,
 };

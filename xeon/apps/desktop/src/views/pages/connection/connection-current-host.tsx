@@ -205,8 +205,7 @@ export function CurrentHostCard(props: {
   const remote = choice.kind === "remote";
   const idle = state.busy || state.pending !== null;
   // 서비스 멈추기는 연결이 있고 다른 동작이 가고 있지 않을 때만 한다
-  const acting =
-    snapshot !== null && !state.busy && state.serviceBusy === null && state.pending === null;
+  const acting = snapshot !== null && !state.busy && state.pending === null;
   const restarting = engine?.kind === "restarting";
 
   return (

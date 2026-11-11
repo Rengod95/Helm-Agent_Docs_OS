@@ -12,19 +12,14 @@ import {
 import { useId, type ReactNode } from "react";
 import type { EngineState } from "../../../state/engine/index.ts";
 import type { ConnectionState, TargetChoice } from "./connection-model.ts";
-import {
-  ConnectionSection,
-  LocalServiceCard,
-  ServiceModeRows,
-  type DetailHandlers,
-} from "./connection-status.tsx";
+import type { DetailHandlers } from "./connection-status.tsx";
 import { HostSection } from "./connection-host-section.tsx";
 import type { HostFormValue } from "./host-address.ts";
 import { ScreenHeader } from "../../shell/screen-header.tsx";
 
 // 연결 화면(P-08)의 그림. 상태와 명령은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
-// 한 열이고 내용은 720px 폭에 가운데 맞춘다. 맨 위는 "호스트" 섹션, 그 아래는 서비스 스위치 묶음, 이 기기 서비스 카드,
-// 서버 모드 섹션(`serverSection`)이 같은 순서로 이어진다. 섹션 사이는 `gap-10`이다.
+// 한 열이고 내용은 720px 폭에 가운데 맞춘다. 맨 위는 "호스트" 섹션이고, 이 기기에 연결했을 때만 그 아래에 "실행 방식"과
+// "다른 기기 접속"(`serviceSections`, 외부 접근이 켜졌을 때 두 번째가 보인다)이 이어지고, 맨 아래에 "진단"이 온다. 섹션 사이는 `gap-10`이다.
 
 /** 화면 동작. 속성 형태로 둬서 시험이 빈 함수를 넣을 수 있다 */
 export interface ConnectionScreenHandlers extends DetailHandlers {
@@ -44,6 +39,8 @@ export interface ConnectionScreenHandlers extends DetailHandlers {
   readonly renameCancel: () => void;
   readonly dismissNotice: () => void;
   readonly confirmStop: () => void;
+  /** 화면 상태(엔진이 붙은 서비스 상태와 설정)를 다시 읽는다. 실행 방식을 고른 뒤에 부른다 */
+  readonly refresh: () => void;
 }
 
 const ROWS_CLASS =
@@ -54,14 +51,14 @@ export interface ConnectionScreenViewProps {
   readonly engine: EngineState | null;
   readonly locale: Locale;
   readonly handlers: ConnectionScreenHandlers;
-  /** 서버 모드 섹션. 이 기기 대상일 때만 그린다(원격 대상에서는 그리지 않는다). 상태를 읽는 동안에도 그리지 않는다 */
-  readonly serverSection?: ReactNode;
+  /** "실행 방식"과 "다른 기기 접속" 섹션. 이 기기 대상일 때만 그린다(원격 대상에서는 그리지 않는다). 상태를 읽는 동안에도 그리지 않는다 */
+  readonly serviceSections?: ReactNode;
 }
 
 export function ConnectionScreenView(props: ConnectionScreenViewProps): ReactNode {
-  const { state, engine, locale, handlers, serverSection } = props;
+  const { state, engine, locale, handlers, serviceSections } = props;
   const headingId = useId();
-  // 이 기기의 서비스 쪽 덩어리(스위치, 서비스 카드, 서버 모드)는 이 기기 대상이고 상태를 읽은 뒤에만 보인다
+  // 이 기기의 서비스 쪽 덩어리(실행 방식, 다른 기기 접속, 진단)는 이 기기 대상이고 상태를 읽은 뒤에만 보인다
   const serviceShown = state.engineTarget.kind === "local" && state.status.kind !== "loading";
   return (
     <section aria-labelledby={headingId} className="flex min-h-0 flex-1 flex-col">
@@ -69,23 +66,41 @@ export function ConnectionScreenView(props: ConnectionScreenViewProps): ReactNod
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
         <div className="mx-auto grid w-full max-w-180 gap-10">
           <HostSection state={state} engine={engine} locale={locale} handlers={handlers} />
+          {serviceShown ? serviceSections : null}
           {serviceShown ? (
-            <ConnectionSection title={t("desktop.connection.service.heading")}>
-              <ServiceModeRows state={state} handlers={handlers} />
-            </ConnectionSection>
-          ) : null}
-          {serviceShown ? (
-            <ConnectionSection title={t("desktop.connection.service.card.title")}>
-              <LocalServiceCard state={state} handlers={handlers} />
-            </ConnectionSection>
-          ) : null}
-          {serviceShown ? serverSection : null}
-          <p className="m-0 text-ui text-text-tertiary">
-            {t(updateLineKey({ state: "unchecked" }))}
-          </p>
+            <DiagnosticsSection handlers={handlers} />
+          ) : (
+            <p className="m-0 text-ui text-text-tertiary">
+              {t(updateLineKey({ state: "unchecked" }))}
+            </p>
+          )}
         </div>
       </div>
       <StopDialog state={state} handlers={handlers} />
+    </section>
+  );
+}
+
+/** 진단: 엔진 다시 시작과 진단 복사, 그 아래 업데이트 상태 한 줄. 맨 아래에 작게 둔다 */
+function DiagnosticsSection(props: {
+  readonly handlers: Pick<ConnectionScreenHandlers, "restart" | "copyDiagnostics">;
+}): ReactNode {
+  const { handlers } = props;
+  const headingId = useId();
+  return (
+    <section aria-labelledby={headingId} className="grid content-start gap-2">
+      <h3 id={headingId} className="m-0 text-ui font-medium text-text-primary">
+        {t("desktop.connection.diagnostics.heading")}
+      </h3>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" variant="ghost" onClick={handlers.restart}>
+          {t("desktop.connection.status.restart")}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={handlers.copyDiagnostics}>
+          {t("desktop.connection.status.copyDiagnostics")}
+        </Button>
+      </div>
+      <p className="m-0 text-ui text-text-tertiary">{t(updateLineKey({ state: "unchecked" }))}</p>
     </section>
   );
 }
