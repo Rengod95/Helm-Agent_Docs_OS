@@ -127,21 +127,6 @@ export function ProposalArt(): ReactNode {
   );
 }
 
-/** 비밀 없음: 금고 윤곽과 잠금 둘레의 물결 */
-export function VaultArt(): ReactNode {
-  return (
-    <Art>
-      <path
-        d="M30 44 C30 36 36 30 44 30 H116 C124 30 130 36 130 44 V104 C130 112 124 118 116 118 H44 C36 118 30 112 30 104 Z"
-        opacity={SOFT}
-      />
-      <path d="M46 118 V130 M114 118 V130" />
-      <Strands d="M52 74 C62 54 72 96 82 76 S100 56 110 70" />
-      <Dot x={110} y={70} />
-    </Art>
-  );
-}
-
 /** 시험 없음: 플라스크 윤곽과 액체의 물결 */
 export function TestsArt(): ReactNode {
   return (
@@ -213,21 +198,6 @@ export function MissingArt(): ReactNode {
       />
       <Strands d="M66 72 C66 56 94 56 94 72 C94 84 80 84 80 96" n={2} gap={3} />
       <Dot x={80} y={108} />
-    </Art>
-  );
-}
-
-/** 공급자 풀이 비어 있음: 플러그와 이어지지 못한 선 */
-export function PlugArt(): ReactNode {
-  return (
-    <Art>
-      <path
-        d="M52 64 H108 C112 64 114 66 114 70 V90 C114 98 108 104 100 104 H60 C52 104 46 98 46 90 V70 C46 66 48 64 52 64 Z"
-        opacity={SOFT}
-      />
-      <path d="M64 64 V40 M96 64 V40" />
-      <Strands d="M80 104 C80 124 62 120 56 128 S36 138 26 132" n={2} gap={4} />
-      <Dot x={26} y={132} />
     </Art>
   );
 }

@@ -49,9 +49,13 @@ const handlers: SettingsPageHandlers = {
   openFile: NOOP,
 };
 
+/**
+ * 일반 항목 줄로 그리는 글 칸. 모델과 계정 구역은 전용 패널만 그리므로(DP-83·84) 권한 구역의 글 항목을 빌려 쓴다.
+ * 이름과 도움말은 시험용이다
+ */
 const MODEL = defOf(
-  "l1.models.default",
-  "models",
+  "l1.tools.unattended.approval",
+  "permissions",
   "text",
   { type: "string" },
   {},
@@ -81,7 +85,7 @@ function propsOf(over: Partial<SettingsPageProps> = {}): SettingsPageProps {
     status: "ready",
     loadError: "",
     view: null,
-    section: "models",
+    section: "permissions",
     query: "",
     narrow: false,
     readOnly: false,
@@ -357,8 +361,8 @@ describe("search", () => {
   test("a search lists the matching fields under their section, and no match says so", () => {
     const view = viewOf([MODEL, STEPS, TIMEOUT], SETTINGS);
     const found = html(propsOf({ view, query: "기본 모델" }));
-    expect(found).toContain(t("desktop.settings.section.models"));
-    expect(found).toContain('data-key="l1.models.default"');
+    expect(found).toContain(t("desktop.settings.section.permissions"));
+    expect(found).toContain('data-key="l1.tools.unattended.approval"');
     expect(found).not.toContain('data-key="l1.tools.unattended.timeoutSeconds"');
     expect(html(propsOf({ view, query: "없는말" }))).toContain(
       t("desktop.settings.search.noMatch"),

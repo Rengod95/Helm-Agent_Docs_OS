@@ -27,9 +27,10 @@ import {
   type SettingsJump,
 } from "../../../state/ui/index.ts";
 import { useCommands, type SettingsFileTarget, type SettingsFileWrite } from "../../commands.ts";
-import { PROVIDER_EDITORS, RotationPanel } from "../providers/providers-screen.tsx";
+import { AccountsPanel, ModelPolicyPanel, ProvidersPanel } from "../providers/providers-screen.tsx";
 import { ConnectionScreen } from "../connection/connection-screen.tsx";
 import { SecretsPanel } from "../secrets/secrets-screen.tsx";
+import { SecretsAdvancedPanel } from "../secrets/secrets-advanced.tsx";
 import type { FolderPickInvoke } from "../../folder-pick.ts";
 import { useSettingsFilePaths } from "./settings-file-paths.ts";
 import { BackupPanel } from "./settings-backup-screen.tsx";
@@ -89,8 +90,8 @@ interface Binding {
   readonly controller: SettingsController | null;
 }
 
-/** 이 화면의 전용 편집기 전부. 계정과 제공자(P-11)와 설정 전용 편집기(P-09 §6.13)를 합친다 */
-const EDITORS: DedicatedEditors = { ...PROVIDER_EDITORS, ...SETTINGS_EDITORS };
+/** 이 화면의 전용 편집기 전부(P-09 §6.13). 모델과 계정 구역은 전용 패널이 그린다(DP-83) */
+const EDITORS: DedicatedEditors = SETTINGS_EDITORS;
 
 function withKey(set: ReadonlySet<SettingKey>, key: SettingKey): ReadonlySet<SettingKey> {
   return new Set([...set, key]);
@@ -445,11 +446,19 @@ export function SettingsPage(props: {
     appearance: appearancePanel,
     about: <AboutPanel updatePanel={<UpdatePanel />} />,
     notify: notifyPanel,
-    rotation:
+    providers: view === null ? null : <ProvidersPanel view={view} live={live} handlers={fields} />,
+    accounts: view === null ? null : <AccountsPanel view={view} live={live} handlers={fields} />,
+    modelPolicy:
+      view === null ? null : <ModelPolicyPanel view={view} live={live} handlers={fields} />,
+    secretsAdvanced:
       view === null ? null : (
-        <SettingSection continues label={t("desktop.providers.rotation.title")}>
-          <RotationPanel view={view} live={live} handlers={fields} />
-        </SettingSection>
+        <SecretsAdvancedPanel
+          view={view}
+          live={live}
+          saved={saved}
+          editors={EDITORS}
+          handlers={fields}
+        />
       ),
     secrets: (
       <SecretsPanel

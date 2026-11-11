@@ -1,10 +1,11 @@
-import type { Locale, MessageArgs, MessageId } from "@fresnel/client/i18n";
+import { t, type Locale, type MessageArgs, type MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { SecretApproval } from "@fresnel/contracts/capabilities";
 import type { SecretAuditEntry, SecretListEntry } from "@fresnel/contracts/wire";
 import type { RevealFailure } from "@fresnel/client/settings";
 import type { SecretCommandError } from "../../commands.ts";
 import type { MetaProblem } from "./secret-draft.ts";
+import { providerNameOf } from "../shared/provider-names.ts";
 
 // 시크릿 화면의 문장 조립. 값은 메시지 키와 인자로 바꾸고, 문장은 화면이 `t()`로 만든다.
 // 시크릿 값과 값의 일부는 이 파일의 어느 함수에도 들어오지 않는다(입력은 목록, 오류, 상태 종류뿐이다).
@@ -156,4 +157,32 @@ const AUDIT_REASON_ID: Readonly<Record<NonNullable<SecretAuditEntry["reason"]>, 
 /** 거절 사유 문장 키 */
 export function auditReasonIdOf(reason: NonNullable<SecretAuditEntry["reason"]>): MessageId {
   return AUDIT_REASON_ID[reason];
+}
+
+/** 모델 제공자 사용 목적 접두(`model.provider:<id>`, HS-45) */
+const PROVIDER_PURPOSE = "model.provider:";
+
+/**
+ * "쓰는 곳" 한 줄. 사용 정책의 도구에서 읽는다: 모델 제공자 연결은 "Anthropic 제공자", 그 밖의 도구는 이름 그대로, 명령(env)은 첫 명령.
+ * 여럿이면 첫 것과 "외 N". 아무 데도 허용하지 않았으면 null
+ */
+export function usedByOf(entry: SecretListEntry): string | null {
+  const use = entry.meta?.use;
+  if (use === undefined) return null;
+  const places = [
+    ...use.tools.map((tool) =>
+      tool.startsWith(PROVIDER_PURPOSE)
+        ? t("desktop.secrets.usedBy.provider", {
+            name: providerNameOf(tool.slice(PROVIDER_PURPOSE.length)),
+          })
+        : tool,
+    ),
+    ...(use.commands ?? []),
+    ...(use.origins ?? []),
+  ];
+  const first = places[0];
+  if (first === undefined) return null;
+  return places.length === 1
+    ? first
+    : t("desktop.secrets.usedBy.more", { first, count: places.length - 1 });
 }

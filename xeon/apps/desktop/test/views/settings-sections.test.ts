@@ -33,10 +33,17 @@ describe("section table", () => {
 
   test("no key is listed twice", () => {
     const keys = SECTION_ORDER.flatMap((id) =>
-      SETTINGS_SECTIONS[id].parts.flatMap((part) => (part.kind === "fields" ? part.keys : [])),
+      SETTINGS_SECTIONS[id].parts.flatMap((part) => part.keys),
     );
     expect(new Set(keys).size).toBe(keys.length);
     expect(SECTION_OF_KEY.size).toBe(keys.length);
+  });
+
+  test("keys drawn by a panel still belong to their section for search and jumps", () => {
+    expect(SECTION_OF_KEY.get("l1.models.providers")).toBe("models");
+    expect(SECTION_OF_KEY.get("l1.models.default")).toBe("models");
+    expect(SECTION_OF_KEY.get("l0.secrets.lease.ttlSeconds")).toBe("secrets");
+    expect(SECTION_OF_KEY.has("l0.secrets.sops.binary")).toBe(false);
   });
 
   test("budget, continuation and service keys are not on the screen", () => {

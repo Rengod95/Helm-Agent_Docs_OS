@@ -6,17 +6,9 @@ import type {
   SecretTestResult,
 } from "@fresnel/contracts/wire";
 import { assertNever } from "@fresnel/contracts";
-import {
-  Badge,
-  Button,
-  ListDescription,
-  ListDescriptionRow,
-  Menu,
-  MenuItem,
-  MenuSeparator,
-  Progress,
-} from "@caustic/react";
-import { CircleCheck, Ellipsis } from "@caustic/react/icons";
+import { Badge, Button, ListDescription, ListDescriptionRow, Progress } from "@caustic/react";
+import { FORM_CONTROL_SIZE } from "../settings/settings-section.tsx";
+import { CheckInline, type CheckStep } from "../shared/check-steps.tsx";
 import { useId, useState, type ReactNode, type RefObject } from "react";
 import type { DetailState, Load } from "./secret-model.ts";
 import { UsageLog } from "./secret-audit.tsx";
@@ -25,11 +17,12 @@ import {
   approvalIdOf,
   commandErrorText,
   revealFailureText,
+  usedByOf,
   type MessageRef,
 } from "./secret-text.ts";
 
-// 고른 시크릿의 상세(P-10). 이름 줄의 동작, 메타 목록, 값 칸, 시험 한 줄, 사용 기록을 그린다(mockup `detail.tsx`).
-// 참조는 "참조 보기" 메뉴 뒤에 접혀 있다. 값 칸은 `reveal`과 `shownText`로만 그린다:
+// 고른 시크릿의 상세(P-10, DP-85 [결정: 2026-11-11 사용자]). 오른쪽 시트 안에 값, 시험(점검 줄 한 단계), 정보, 참조, 최근 사용 다섯 줄, 지우기를 둔다.
+// 참조는 "참조 보기" 단추 뒤에 접혀 있다. 값 칸은 `reveal`과 `shownText`로만 그린다:
 // `shownText`는 값이 보일 때 화면이 만든 글자이고, 상태나 뷰 모델에 들어가지 않는다.
 
 /** 상세의 동작. 화면 조정자가 채운다 */
@@ -55,116 +48,173 @@ export interface SecretDetailProps {
   readonly locale: Locale;
   readonly sectionRef: RefObject<HTMLElement | null>;
   readonly handlers: SecretDetailHandlers;
+  /** 전체 사용 기록을 연다 */
+  readonly onShowAllUsage: () => void;
 }
 
 const NONE = (): string => t("desktop.secrets.none");
 
+/** 상세 시트에 보이는 사용 기록 줄 수(DP-85) */
+const RECENT_USAGE = 5;
+
 const ROWS_CLASS =
   "rounded-none [--cs-size-list-term:7rem] [&_[data-slot=list-description-row]]:px-0";
 
+/** 상세 구역 머리: 13/600 secondary 제목과 오른쪽 끝 동작 하나 */
+function DetailHead(props: { readonly title: string; readonly end?: ReactNode }): ReactNode {
+  return (
+    <div className="flex min-h-7 items-center gap-2">
+      <h3 className="m-0 min-w-0 flex-1 text-ui font-semibold text-text-secondary">
+        {props.title}
+      </h3>
+      {props.end}
+    </div>
+  );
+}
+
+/** 시험 결과를 점검 줄 한 단계로 */
+function secretTestStepOf(test: Load<SecretTestResult>): CheckStep | null {
+  const label = t("desktop.secrets.test.label");
+  switch (test.kind) {
+    case "idle":
+      return null;
+    case "loading":
+      return { id: "test", label, state: "running", detail: t("desktop.secrets.test.running") };
+    case "failed": {
+      const text = commandErrorText(test.error);
+      return { id: "test", label, state: "failed", detail: t(text.id, text.args) };
+    }
+    case "ready":
+      return test.value.decryptable
+        ? {
+            id: "test",
+            label,
+            state: "passed",
+            detail:
+              test.value.length === null
+                ? t("desktop.secrets.test.decryptable")
+                : t("desktop.secrets.test.decryptableBytes", { length: test.value.length }),
+          }
+        : {
+            id: "test",
+            label,
+            state: "failed",
+            detail: t("desktop.secrets.test.notDecryptable"),
+            fix: t("desktop.secrets.test.fix"),
+          };
+    default:
+      return assertNever(test, "Load");
+  }
+}
+
+/**
+ * 상세 시트의 본문. 값 → 시험 → 정보 → 참조 → 최근 사용 → 지우기 차례로, 구역 사이 24px, 구역 안 8px.
+ * 값 바꾸기·시험·정보 고치기·지우기는 각 구역의 정해진 자리에 하나씩 있다.
+ */
 export function SecretDetail(props: SecretDetailProps): ReactNode {
   const { entry, detail, acting, locale, nowMs, handlers, sectionRef } = props;
   const headingId = useId();
   // 참조는 기본으로 접혀 있다. 고른 시크릿이 바뀌면 화면이 이 상세를 새로 그린다(key)
   const [refsOpen, setRefsOpen] = useState(false);
   const hosts = entry.meta?.use.hosts ?? [];
+  const usedBy = usedByOf(entry);
   const approval = entry.meta === undefined ? NONE() : t(approvalIdOf(entry.meta.approval));
   return (
     <section
       aria-labelledby={headingId}
       ref={sectionRef}
       tabIndex={-1}
-      className="grid min-w-0 gap-1 outline-none"
+      data-slot="secret-detail"
+      className="grid min-w-0 gap-6 outline-none"
     >
-      <div className="flex min-h-8 items-center gap-2">
-        <h2
-          id={headingId}
-          className="m-0 min-w-0 flex-1 truncate font-mono text-mono text-text-primary"
+      <h2 id={headingId} className="sr-only">
+        {entry.name}
+      </h2>
+      <div className="grid gap-2">
+        <DetailHead title={t("desktop.secrets.value")} />
+        <ValueCell {...props} />
+      </div>
+      <div className="grid gap-2">
+        <DetailHead title={t("desktop.secrets.test.label")} />
+        <CheckInline
+          result={secretTestStepOf(detail.test)}
+          onRun={handlers.test}
+          disabled={!acting}
+        />
+      </div>
+      <div className="grid gap-1">
+        <DetailHead
+          title={t("desktop.secrets.detail.info")}
+          end={
+            <Button
+              size={FORM_CONTROL_SIZE}
+              variant="ghost"
+              disabled={!acting || entry.meta === undefined}
+              onClick={handlers.editMeta}
+            >
+              {t("desktop.secrets.meta.button")}
+            </Button>
+          }
+        />
+        <ListDescription
+          variant="ghost"
+          size="sm"
+          aria-label={t("desktop.secrets.detail.label")}
+          className={ROWS_CLASS}
         >
-          {entry.name}
-        </h2>
-        <div className="flex flex-none items-center gap-0.5">
-          <Button
-            size="xs"
-
-            variant="ghost"
-            disabled={!acting}
-            onClick={handlers.changeValue}
-          >
-            {t("desktop.secrets.changeValue")}
-          </Button>
-          <Button
-            size="xs"
-
-            variant="ghost"
-            disabled={!acting || entry.meta === undefined}
-            onClick={handlers.editMeta}
-          >
-            {t("desktop.secrets.meta.button")}
-          </Button>
-          <Button
-            size="xs"
-
-            variant="ghost"
-            disabled={!acting}
-            onClick={handlers.test}
-          >
-            {t("desktop.secrets.test.button")}
-          </Button>
-          <Menu
-            align="end"
-            aria-label={t("desktop.secrets.detail.menu", { name: entry.name })}
-            trigger={
-              <Button
-                size="xs"
-
-                variant="ghost"
-                disabled={!acting}
-                aria-label={t("desktop.secrets.detail.more", { name: entry.name })}
-              >
-                <Ellipsis />
-              </Button>
-            }
-          >
-            <MenuItem
-              onSelect={() => {
+          <ListDescriptionRow term={t("desktop.secrets.detail.description")}>
+            {entry.meta?.desc ?? NONE()}
+          </ListDescriptionRow>
+          <ListDescriptionRow term={t("desktop.secrets.columns.usedBy")}>
+            {usedBy ?? NONE()}
+          </ListDescriptionRow>
+          <ListDescriptionRow term={t("desktop.secrets.columns.hosts")} mono>
+            {hosts.length === 0 ? NONE() : hosts.join(", ")}
+          </ListDescriptionRow>
+          <ListDescriptionRow term={t("desktop.secrets.meta.approval")}>
+            {approval}
+          </ListDescriptionRow>
+          <ListDescriptionRow term={t("desktop.secrets.columns.expiry")}>
+            <ExpiryText entry={entry} />
+          </ListDescriptionRow>
+        </ListDescription>
+        {refsOpen ? (
+          <RefsLine refs={detail.refs} />
+        ) : (
+          <div>
+            <Button
+              size={FORM_CONTROL_SIZE}
+              variant="ghost"
+              className="-ms-2"
+              onClick={() => {
                 setRefsOpen(true);
               }}
             >
               {t("desktop.secrets.refs.show")}
-            </MenuItem>
-            <MenuSeparator />
-            <MenuItem tone="danger" onSelect={handlers.askRemove}>
-              {t("desktop.secrets.delete.button")}
-            </MenuItem>
-          </Menu>
-        </div>
+            </Button>
+          </div>
+        )}
       </div>
-      <ListDescription
-        variant="ghost"
-        size="xs"
-        aria-label={t("desktop.secrets.detail.label")}
-        className={ROWS_CLASS}
-      >
-        <ListDescriptionRow term={t("desktop.secrets.value")}>
-          <ValueCell {...props} />
-        </ListDescriptionRow>
-        <ListDescriptionRow term={t("desktop.secrets.detail.description")}>
-          {entry.meta?.desc ?? NONE()}
-        </ListDescriptionRow>
-        <ListDescriptionRow term={t("desktop.secrets.columns.hosts")} mono>
-          {hosts.length === 0 ? NONE() : hosts.join(", ")}
-        </ListDescriptionRow>
-        <ListDescriptionRow term={t("desktop.secrets.meta.approval")}>
-          {approval}
-        </ListDescriptionRow>
-        <ListDescriptionRow term={t("desktop.secrets.columns.expiry")}>
-          <ExpiryText entry={entry} />
-        </ListDescriptionRow>
-      </ListDescription>
-      {refsOpen ? <RefsLine refs={detail.refs} /> : null}
-      <UsageLog audit={detail.audit} nowMs={nowMs} locale={locale} />
-      <TestLine test={detail.test} />
+      <div className="grid gap-1">
+        <DetailHead title={t("desktop.secrets.audit.recent")} />
+        <UsageLog
+          audit={detail.audit}
+          nowMs={nowMs}
+          locale={locale}
+          limit={RECENT_USAGE}
+          onShowAll={props.onShowAllUsage}
+        />
+      </div>
+      <div className="grid justify-items-start gap-2 border-t border-border-subtle pt-4">
+        <Button
+          size={FORM_CONTROL_SIZE}
+          variant="outline"
+          disabled={!acting}
+          onClick={handlers.askRemove}
+        >
+          {t("desktop.secrets.delete.button")}
+        </Button>
+      </div>
     </section>
   );
 }
@@ -204,7 +254,7 @@ function ValueCell(props: SecretDetailProps): ReactNode {
     return (
       <span className="flex flex-wrap items-center gap-2">
         <span>{t("desktop.secrets.reveal.hostShown")}</span>
-        <Button size="xs" variant="ghost" onClick={handlers.hide}>
+        <Button size={FORM_CONTROL_SIZE} variant="ghost" onClick={handlers.hide}>
           {t("desktop.secrets.reveal.hideNow")}
         </Button>
       </span>
@@ -217,10 +267,10 @@ function ValueCell(props: SecretDetailProps): ReactNode {
       <span className="grid min-w-0 gap-1.5 py-1">
         <span className="break-all font-mono text-mono text-text-primary">{shownText ?? ""}</span>
         <span className="flex flex-wrap items-center gap-1">
-          <Button size="xs" variant="outline" onClick={handlers.copy}>
+          <Button size={FORM_CONTROL_SIZE} variant="outline" onClick={handlers.copy}>
             {t("desktop.secrets.reveal.copy")}
           </Button>
-          <Button size="xs" variant="ghost" onClick={handlers.hide}>
+          <Button size={FORM_CONTROL_SIZE} variant="ghost" onClick={handlers.hide}>
             {t("desktop.secrets.reveal.hideNow")}
           </Button>
           <span className="ms-2 flex items-center gap-2">
@@ -241,18 +291,28 @@ function ValueCell(props: SecretDetailProps): ReactNode {
 
   return (
     <span className="flex flex-wrap items-center gap-2">
-      <span aria-hidden="true" className="font-mono text-mono tracking-[0.1em] text-text-tertiary">
+      <span
+        aria-hidden="true"
+        className="me-1 font-mono text-mono tracking-[0.1em] text-text-tertiary"
+      >
         ••••••••••••
       </span>
       <span className="sr-only">{t("desktop.secrets.value.hidden")}</span>
       <Button
-        size="xs"
-
+        size={FORM_CONTROL_SIZE}
         variant="outline"
         disabled={!canReveal}
         onClick={handlers.reveal}
       >
         {t("desktop.secrets.reveal.button")}
+      </Button>
+      <Button
+        size={FORM_CONTROL_SIZE}
+        variant="outline"
+        disabled={!acting}
+        onClick={handlers.changeValue}
+      >
+        {t("desktop.secrets.changeValue")}
       </Button>
       {own?.status === "failed" ? (
         <span role="alert" className="text-ui text-danger-text">
@@ -311,44 +371,5 @@ function RefsLine(props: { readonly refs: Load<SecretReferencesResult> }): React
       );
     default:
       return assertNever(refs, "Load");
-  }
-}
-
-/** 시험 결과는 한 줄이다: 풀 수 있었는지만 보인다. 길이와 해시 앞부분은 보이지 않는다 */
-function TestLine(props: { readonly test: Load<SecretTestResult> }): ReactNode {
-  const { test } = props;
-  switch (test.kind) {
-    case "idle":
-      return null;
-    case "loading":
-      return (
-        <p role="status" className="m-0 text-ui text-text-tertiary">
-          {t("desktop.secrets.test.running")}
-        </p>
-      );
-    case "failed":
-      return (
-        <p role="alert" className="m-0 text-ui text-danger-text">
-          <MessageText text={commandErrorText(test.error)} />
-        </p>
-      );
-    case "ready": {
-      const decryptable = test.value.decryptable;
-      return (
-        <p role="status" className="m-0 flex items-center gap-1.5 pt-1 text-ui text-text-secondary">
-          {decryptable ? (
-            <CircleCheck aria-hidden className="size-icon-sm text-success-text" />
-          ) : null}
-          {t("desktop.secrets.test.label")}:{" "}
-          {t(
-            decryptable
-              ? "desktop.secrets.test.decryptable"
-              : "desktop.secrets.test.notDecryptable",
-          )}
-        </p>
-      );
-    }
-    default:
-      return assertNever(test, "Load");
   }
 }
