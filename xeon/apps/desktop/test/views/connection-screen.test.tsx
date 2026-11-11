@@ -3,6 +3,7 @@ import type { TargetEntry } from "@fresnel/client";
 import type { HostClientView } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
 import { createShellStore, ShellStoreContext } from "../../src/state/shell/index.ts";
+import type { EngineState } from "../../src/state/engine/index.ts";
 import {
   connectionReducer,
   INITIAL_CONNECTION_STATE,
@@ -50,12 +51,22 @@ function stateAfter(...actions: readonly ConnectionAction[]): ConnectionState {
 }
 
 /** 화면 머리가 셸 스토어(패널 열림 상태)를 읽으므로 셸 맥락 안에서 그린다 */
-function html(state: ConnectionState): string {
+function html(state: ConnectionState, engine: EngineState | null = null): string {
   return renderToString(
     <ShellStoreContext value={createShellStore(1400)}>
-      <ConnectionScreenView state={state} engine={null} locale="ko" handlers={handlers} />
+      <ConnectionScreenView state={state} engine={engine} locale="ko" handlers={handlers} />
     </ShellStoreContext>,
   );
+}
+
+/**
+ * 서버 렌더 글에서 글이 정확히 `label`인 단추들의 속성 글을 모은다. 단추 안의 태그(아이콘, 스피너)는 글에서 뺀다.
+ * 속성 글로 `disabled=""`(잠김)와 `aria-busy`(진행)를 본다
+ */
+function buttonTagsNamed(markup: string, label: string): string[] {
+  return Array.from(markup.matchAll(/<button\b([^>]*)>(.*?)<\/button>/gs))
+    .filter((match) => match[2]?.replace(/<[^>]*>/g, "") === label)
+    .map((match) => match[1] ?? "");
 }
 
 function targets(count: number): TargetEntry[] {
@@ -323,5 +334,93 @@ describe("the host section's notice", () => {
     );
     expect(markup).toContain("호스트를 더했어요.");
     expect(markup).toContain('data-slot="alert" data-tone="success" data-variant="outline"');
+  });
+});
+
+/** 상태를 읽은 뒤 값. 호스트 모드를 정한다(서비스 또는 앱 안) */
+function statusOf(mode: "service" | "in-process"): ConnectionAction {
+  return {
+    type: "statusLoaded",
+    snapshot: {
+      host: {
+        mode,
+        pid: 4211,
+        startedAt: "2026-11-04T01:00:00.000Z",
+        connections: 0,
+        liveTurns: 0,
+        idleShutdownAt: null,
+      },
+      service: { kind: "unknown" },
+      restartPending: false,
+      remoteAllowRespond: true,
+    },
+  };
+}
+
+describe("the host card and the diagnostics section split the actions by target", () => {
+  const REMOTE: TargetEntry = {
+    id: "b1",
+    label: "build-box",
+    address: "ssh://me@build/run/fresnel.sock",
+  };
+
+  /** 원격 대상에 붙어 상태를 읽은 뒤 */
+  function onRemote(mode: "service" | "in-process"): ConnectionState {
+    return stateAfter(
+      { type: "targetsChanged", items: [REMOTE], notice: null, added: false },
+      {
+        type: "engineTargetSeen",
+        target: { kind: "remote", address: REMOTE.address, label: REMOTE.label },
+      },
+      statusOf(mode),
+    );
+  }
+
+  const RESTARTING: EngineState = {
+    kind: "restarting",
+    attempt: 1,
+    retryAt: "2026-11-04T01:00:05.000Z",
+    lastExit: { code: 1, signal: null, at: "2026-11-04T01:00:00.000Z", detail: null },
+  };
+
+  // 이 시험은 화면 그림만 보므로 실행 방식 섹션(서비스 멈추기)은 그려지지 않는다. 이 기기의 카드는 그 동작을 그리지 않는다.
+  test("on this computer the card draws no stop, restart or copy button, and the diagnostics section draws restart and copy once", () => {
+    const markup = html(stateAfter(statusOf("service")));
+    expect(buttonTagsNamed(markup, "서비스 멈추기")).toHaveLength(0);
+    expect(buttonTagsNamed(markup, "엔진 다시 시작")).toHaveLength(1);
+    expect(buttonTagsNamed(markup, "진단 복사")).toHaveLength(1);
+    expect(markup).toContain(">진단</h3>");
+  });
+
+  test("a busy screen locks the diagnostics restart button", () => {
+    const markup = html(stateAfter(statusOf("service"), { type: "busy", busy: true }));
+    const restart = buttonTagsNamed(markup, "엔진 다시 시작");
+    expect(restart).toHaveLength(1);
+    expect(restart[0]).toContain(' disabled=""');
+  });
+
+  test("a restarting engine shows its progress on the diagnostics restart button", () => {
+    const markup = html(stateAfter(statusOf("service")), RESTARTING);
+    const restart = buttonTagsNamed(markup, "엔진 다시 시작");
+    expect(restart).toHaveLength(1);
+    expect(restart[0]).toContain('aria-busy="true"');
+  });
+
+  test("a remote host keeps its stop, back-to-local, copy and restart on the card, and has no diagnostics section", () => {
+    const markup = html(onRemote("service"));
+    const stop = buttonTagsNamed(markup, "서비스 멈추기");
+    expect(stop).toHaveLength(1);
+    expect(stop[0]).not.toContain(' disabled=""');
+    expect(buttonTagsNamed(markup, "이 컴퓨터로 돌아가기")).toHaveLength(1);
+    expect(buttonTagsNamed(markup, "진단 복사")).toHaveLength(1);
+    expect(buttonTagsNamed(markup, "엔진 다시 시작")).toHaveLength(1);
+    expect(markup).not.toContain(">진단</h3>");
+  });
+
+  test("a remote host that runs in the app has no stop button but keeps restart and copy", () => {
+    const markup = html(onRemote("in-process"));
+    expect(buttonTagsNamed(markup, "서비스 멈추기")).toHaveLength(0);
+    expect(buttonTagsNamed(markup, "엔진 다시 시작")).toHaveLength(1);
+    expect(buttonTagsNamed(markup, "진단 복사")).toHaveLength(1);
   });
 });

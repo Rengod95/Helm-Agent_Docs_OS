@@ -25,7 +25,7 @@ import {
 import { engineMessageOf, stepMessageOf, timeTextOf } from "./connection-text.ts";
 
 // 호스트 섹션 맨 위의 "현재 호스트" 카드. 이름과 상태 배지, 한 줄 요약, 연결 단계와 실패(Alert), 상태 줄(엔진 상태와 클라이언트),
-// 그리고 지금 호스트의 동작 줄이다. 카드 아래 확장 상태 링크는 `CurrentHostCard`가 함께 그린다.
+// 그리고 원격 호스트일 때만 동작 줄이다(이 기기의 동작은 실행 방식과 진단 섹션이 맡는다). 카드 아래 확장 상태 링크는 `CurrentHostCard`가 함께 그린다.
 // 연결 단계와 실패는 카드 안의 Alert이고, 다시 시도 같은 동작은 Alert의 `actions`로 준다.
 
 /** 호스트 상태 배지의 종류. 글은 메시지 키다 */
@@ -187,7 +187,8 @@ function DetailSkeleton(): ReactNode {
 }
 
 /**
- * 지금 호스트 카드. 이름, 상태 배지, 요약 한 줄을 맨 위에 두고, 연결 단계·실패·안내를 Alert로 잇고, 상태 줄과 동작 줄로 끝낸다.
+ * 지금 호스트 카드. 이름, 상태 배지, 요약 한 줄을 맨 위에 두고, 연결 단계·실패·안내를 Alert로 잇고, 상태 줄로 끝낸다.
+ * 원격 호스트면 상태 줄 아래에 동작 줄(서비스 멈추기, 이 컴퓨터로 돌아가기, 진단 복사, 엔진 다시 시작)을 잇는다.
  * 카드 아래에 확장 상태 링크를 둔다.
  */
 export function CurrentHostCard(props: {
@@ -276,39 +277,40 @@ export function CurrentHostCard(props: {
               </ListDescriptionRow>
               <ConnectedClientsRow state={state.clients} onRetry={handlers.retryClients} />
             </ListDescription>
-            <div className="flex flex-wrap items-center gap-2">
-              {host !== null && host.mode === "service" ? (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="text-danger-text"
-                  disabled={!acting}
-                  onClick={() => {
-                    handlers.setStopConfirm(true);
-                  }}
-                >
-                  {t("desktop.connection.status.stopService")}
-                </Button>
-              ) : null}
-              {remote ? (
+            {/* 이 기기의 동작(서비스 멈추기, 엔진 다시 시작, 진단 복사)은 실행 방식과 진단 섹션이 그린다. 원격 대상에서는 그 섹션이 없어 여기 둔다 */}
+            {remote ? (
+              <div className="flex flex-wrap items-center gap-2">
+                {host !== null && host.mode === "service" ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-danger-text"
+                    disabled={!acting}
+                    onClick={() => {
+                      handlers.setStopConfirm(true);
+                    }}
+                  >
+                    {t("desktop.connection.status.stopService")}
+                  </Button>
+                ) : null}
                 <Button size="sm" variant="ghost" disabled={idle} onClick={handlers.backToLocal}>
                   {t("desktop.connection.backToLocal")}
                 </Button>
-              ) : null}
-              <span className="flex-1" />
-              <Button size="sm" variant="ghost" onClick={handlers.copyDiagnostics}>
-                {t("desktop.connection.status.copyDiagnostics")}
-              </Button>
-              <Button
-                size="sm"
-                variant="soft"
-                loading={restarting}
-                disabled={state.busy}
-                onClick={handlers.restart}
-              >
-                {t("desktop.connection.status.restart")}
-              </Button>
-            </div>
+                <span className="flex-1" />
+                <Button size="sm" variant="ghost" onClick={handlers.copyDiagnostics}>
+                  {t("desktop.connection.status.copyDiagnostics")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="soft"
+                  loading={restarting}
+                  disabled={state.busy}
+                  onClick={handlers.restart}
+                >
+                  {t("desktop.connection.status.restart")}
+                </Button>
+              </div>
+            ) : null}
           </>
         )}
       </Card>

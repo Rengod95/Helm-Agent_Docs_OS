@@ -68,7 +68,11 @@ export function ConnectionScreenView(props: ConnectionScreenViewProps): ReactNod
           <HostSection state={state} engine={engine} locale={locale} handlers={handlers} />
           {serviceShown ? serviceSections : null}
           {serviceShown ? (
-            <DiagnosticsSection handlers={handlers} />
+            <DiagnosticsSection
+              handlers={handlers}
+              busy={state.busy}
+              restarting={engine?.kind === "restarting"}
+            />
           ) : (
             <p className="m-0 text-ui text-text-tertiary">
               {t(updateLineKey({ state: "unchecked" }))}
@@ -81,11 +85,16 @@ export function ConnectionScreenView(props: ConnectionScreenViewProps): ReactNod
   );
 }
 
-/** 진단: 엔진 다시 시작과 진단 복사, 그 아래 업데이트 상태 한 줄. 맨 아래에 작게 둔다 */
+/**
+ * 진단: 엔진 다시 시작과 진단 복사, 그 아래 업데이트 상태 한 줄. 맨 아래에 작게 둔다. 엔진 다시 시작은 쓰기가 가는 동안 잠그고,
+ * 다시 뜨는 동안 단추에 진행을 보인다.
+ */
 function DiagnosticsSection(props: {
   readonly handlers: Pick<ConnectionScreenHandlers, "restart" | "copyDiagnostics">;
+  readonly busy: boolean;
+  readonly restarting: boolean;
 }): ReactNode {
-  const { handlers } = props;
+  const { handlers, busy, restarting } = props;
   const headingId = useId();
   return (
     <section aria-labelledby={headingId} className="grid content-start gap-2">
@@ -93,7 +102,13 @@ function DiagnosticsSection(props: {
         {t("desktop.connection.diagnostics.heading")}
       </h3>
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="ghost" onClick={handlers.restart}>
+        <Button
+          size="sm"
+          variant="ghost"
+          loading={restarting}
+          disabled={busy}
+          onClick={handlers.restart}
+        >
           {t("desktop.connection.status.restart")}
         </Button>
         <Button size="sm" variant="ghost" onClick={handlers.copyDiagnostics}>
