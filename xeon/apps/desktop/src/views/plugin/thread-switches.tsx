@@ -344,3 +344,65 @@ export function ThreadSwitches(props: { readonly heading?: boolean }): ReactNode
     />
   );
 }
+
+/** 플러그인 하나의 "이 대화에서 쓰기" 스위치 그림(추가 기능 상세가 한 줄로 그린다) */
+export type ThreadSwitchOne =
+  /** 대화가 없거나 연결이 없거나 읽는 중·실패, 또는 면제 tier라 스위치를 보이지 않는다. `note`는 아래 줄 글 */
+  | { readonly kind: "none"; readonly note: MessageId | undefined }
+  | {
+      readonly kind: "switch";
+      readonly on: boolean;
+      readonly disabled: boolean;
+      /** 잠긴 이유나 적용 대기. 없으면 undefined */
+      readonly note: MessageId | undefined;
+      readonly toggle: (target: boolean) => void;
+    };
+
+/**
+ * 열린 대화에서 확장 `name` 하나의 스위치. `ThreadSwitches`와 같은 읽기(`ext.list`)와 쓰기(`writeThreadSwitch`)를 쓴다.
+ * 행으로 그릴 것이 없으면 `none`과 그 이유다
+ */
+export function useThreadSwitchOf(name: string): ThreadSwitchOne {
+  const commands = useCommands();
+  const threadId = useOpenThreadId();
+  const link = linkOf(useLinkPhase());
+  const { list, reload } = useThreadList(threadId, link === "live");
+  const [showing, setShowing] = useState<Showing>({});
+  if (threadId === null) return { kind: "none", note: "desktop.addons.thread.noThread" };
+  if (link === "offline") return { kind: "none", note: "desktop.runtime.offline" };
+  if (list.kind === "error") return { kind: "none", note: "desktop.plugin.thread.loadFailed" };
+  if (list.kind !== "ready") return { kind: "none", note: undefined };
+  const entry = list.entries.find((item) => item.name === name);
+  if (entry === undefined) return { kind: "none", note: undefined };
+  const view = threadSwitchOf(entry, true);
+  if (view.kind === "hidden") return { kind: "none", note: undefined };
+  const writing = showing[name];
+  const pendingTarget = threadPendingOf(entry);
+  const busy = writing !== undefined || pendingTarget !== null;
+  const note: MessageId | undefined =
+    view.kind === "locked"
+      ? LOCK_TEXT[view.lock]
+      : pendingTarget !== null && writing === undefined
+        ? "desktop.plugin.thread.appliesAt"
+        : undefined;
+  return {
+    kind: "switch",
+    on: writing ?? pendingTarget ?? view.on,
+    disabled: view.kind === "locked" || busy,
+    note,
+    toggle: (target) => {
+      const port: ThreadSwitchPort = {
+        commands: commands.workbench,
+        reload,
+        showing: (key, next) => {
+          setShowing((current) => withShowing(current, key, next));
+        },
+        notify: (options) => {
+          if (options.tone === "danger") showFailureToast(options);
+          else toast(options);
+        },
+      };
+      detachVoid(writeThreadSwitch(port, threadId, entry, target));
+    },
+  };
+}

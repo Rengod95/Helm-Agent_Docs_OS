@@ -435,6 +435,21 @@
     "sources": ["adr.0022", "adr.0021"],
     "status": "proposed"
   },
+  "addOns": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Add-on",
+      "en": "Add-on"
+    },
+    "ui": {
+      "ko": "추가 기능",
+      "en": "Add-ons"
+    },
+    "surfaces": ["chat"],
+    "ids": ["addons", "plugins"],
+    "sources": ["adr.0021"],
+    "status": "proposed"
+  },
   "pluginBuilder": {
     "kind": "concept",
     "doc": {

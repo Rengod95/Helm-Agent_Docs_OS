@@ -42,6 +42,7 @@ import { useCommands } from "../commands.ts";
 import { useHandlerFailures, useLinkPhase, useOpenThreadId } from "../../state/engine/index.ts";
 import { useShellActions, type ShellActions } from "../../state/shell/index.ts";
 import { usePluginUiState } from "../plugin/plugin-context.tsx";
+import { requestAddon } from "../plugin/plugin-pick.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
 import { AutoOffNotice } from "./craft-parts.tsx";
 import { kindText, lockText, stateText, stateTone } from "./ext-row.tsx";
@@ -357,31 +358,30 @@ export function FailureRecords(props: {
   );
 }
 
-/** 플러그인 화면으로 간다: 대화 영역의 `plugins` 화면(내비 항목 하나). 영역과 그 자리를 셸 행동으로 바꾼다 */
-export function openPluginScreens(shell: ShellActions): void {
+/**
+ * 추가 기능 화면의 그 플러그인 상세로 간다: 대화 영역의 `plugins` 화면(내비 항목 하나). 상세를 먼저 요청하고 영역과 그 자리를 셸 행동으로 바꾼다
+ */
+export function openPluginScreens(shell: ShellActions, name: string): void {
+  requestAddon(name);
   shell.switchArea("chat");
   shell.updatePlace({ screen: "plugins", scroll: 0 });
 }
 
 /**
- * "플러그인 화면 열기" 단추. 이 확장이 플러그인 화면 항목(`page`, 또는 Helm이 아닌 확장의 `panel`)을 가졌을 때만 그린다.
- * 기준은 `PluginPagesTab`이 그리는 항목과 같다(Helm 확장의 `panel`은 Helm 탭이 그린다)
+ * "추가 기능에서 보기" 단추. 이 확장이 앱에 더한 것(`ext.ui.list` 항목, 자리 무관)이 있을 때만 그린다.
+ * 추가 기능 목록에 드는 기준(`addonRowsOf`)과 같다
  */
 function PluginScreensLink(props: { readonly name: string }): ReactNode {
   const plugin = usePluginUiState();
   const shell = useShellActions();
-  const ownsPage = plugin.groups.page.some(({ entry }) => entry.extension === props.name);
-  const ownsPanel =
-    props.name !== "helm" &&
-    plugin.groups.panel.some(({ entry }) => entry.extension === props.name);
-  if (!ownsPage && !ownsPanel) return null;
+  if (!plugin.entries.some((entry) => entry.extension === props.name)) return null;
   return (
     <div className="flex">
       <Button
         size="xs"
         variant="ghost"
         onClick={() => {
-          openPluginScreens(shell);
+          openPluginScreens(shell, props.name);
         }}
       >
         {t("desktop.workbench.detail.openPluginScreens")}
