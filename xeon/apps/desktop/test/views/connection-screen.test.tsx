@@ -103,7 +103,7 @@ describe("connection screen server render", () => {
     const markup = html(loaded);
     expect(markup).toContain("추가한 원격 호스트가 없어요.");
     expect(markup).toContain("호스트 추가");
-    expect(markup).toContain("이 컴퓨터(앱 안)");
+    expect(markup).toContain("이 컴퓨터");
     expect(markup).not.toContain('type="search"');
     expect(markup).not.toContain("호스트를 읽고 있어요.");
   });
@@ -213,7 +213,7 @@ describe("the connected clients row in the status list", () => {
     const markup = html(stateAfter(STATUS, { type: "clientsFailed", reason: "failed" }));
     expect(markup).toContain("클라이언트 목록을 읽지 못했어요");
     expect(markup).toContain("다시 시도");
-    expect(markup).toContain("이 컴퓨터(앱 안)");
+    expect(markup).toContain("이 컴퓨터");
     expect(markup).toContain("상태");
     expect(markup).not.toContain(">없어요<");
   });
@@ -318,7 +318,7 @@ describe("the host section's notice", () => {
     );
     const at = markup.indexOf("목록을 저장하지 못했어요. 다시 해 봐요.");
     expect(at).toBeGreaterThan(markup.indexOf("호스트 추가"));
-    expect(at).toBeLessThan(markup.indexOf("이 컴퓨터(앱 안)"));
+    expect(at).toBeLessThan(markup.indexOf("이 컴퓨터"));
     expect(markup).toContain('data-slot="alert" data-tone="danger" data-variant="outline"');
     expect(markup).toContain("닫기");
   });

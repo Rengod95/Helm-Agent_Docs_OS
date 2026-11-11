@@ -70,7 +70,7 @@ describe("desktop render with ui.locale=en", () => {
 
   test("the connection screen renders English sentences and no Hangul", () => {
     const markup = connectionHtml("en");
-    expect(markup).toContain("This computer (in app)");
+    expect(markup).toContain("This computer");
     expect(markup).toContain("Add host");
     expect(markup).toContain("No remote hosts added yet.");
     expect(markup).not.toMatch(HANGUL);
@@ -135,7 +135,7 @@ describe("desktop render with ui.locale=en", () => {
   test("the same screen renders Korean when the locale is ko", () => {
     setActiveLocale("ko");
     const markup = connectionHtml("ko");
-    expect(markup).toContain("이 컴퓨터(앱 안)");
+    expect(markup).toContain("이 컴퓨터");
     expect(markup).toContain("추가한 원격 호스트가 없어요.");
   });
 

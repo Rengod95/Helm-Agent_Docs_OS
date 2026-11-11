@@ -223,7 +223,7 @@ describe("the host rows connect and lock", () => {
   test("the host the engine is on is the card, not a list row; the other hosts keep their connect buttons", async () => {
     const screen = await mountScreen();
     // 이 컴퓨터는 위 카드의 제목으로만 보이고 목록 행으로는 다시 나오지 않는다
-    expect(screen.container.textContent).toContain("이 컴퓨터(앱 안)");
+    expect(screen.container.textContent).toContain("이 컴퓨터");
     expect(screen.container.textContent).not.toContain("연결됨");
     expect(connectButtons(screen.container).map((button) => button.disabled)).toEqual([
       false,
@@ -251,13 +251,13 @@ describe("the host rows show their kind and address", () => {
     );
     expect(labels).toContain("build-box 더보기");
     expect(labels).toContain("mac-mini 더보기");
-    expect(labels).not.toContain("이 컴퓨터(앱 안) 더보기");
+    expect(labels).not.toContain("이 컴퓨터 더보기");
     await screen.cleanup();
   });
 
   test("the current host card is titled with this computer's name", async () => {
     const screen = await mountScreen();
-    expect(screen.container.querySelector("h3")?.textContent).toBe("이 컴퓨터(앱 안)");
+    expect(screen.container.querySelector("h3")?.textContent).toBe("이 컴퓨터");
     await screen.cleanup();
   });
 });

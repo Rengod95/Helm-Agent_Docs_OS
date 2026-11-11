@@ -1355,7 +1355,7 @@
   "desktop.connection.stopped": "서비스를 멈췄어요.",
   "desktop.connection.connected": "연결했어요.",
   "desktop.connection.targets.heading": "호스트",
-  "desktop.connection.targets.local": "이 컴퓨터(앱 안)",
+  "desktop.connection.targets.local": "이 컴퓨터",
   "desktop.connection.targets.add": "호스트 추가",
   "desktop.connection.targets.empty": "추가한 원격 호스트가 없어요.",
   "desktop.connection.targets.connect": "연결",

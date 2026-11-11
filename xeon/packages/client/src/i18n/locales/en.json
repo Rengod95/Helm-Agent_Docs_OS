@@ -1355,7 +1355,7 @@
   "desktop.connection.stopped": "Service stopped.",
   "desktop.connection.connected": "Connected.",
   "desktop.connection.targets.heading": "Hosts",
-  "desktop.connection.targets.local": "This computer (in app)",
+  "desktop.connection.targets.local": "This computer",
   "desktop.connection.targets.add": "Add host",
   "desktop.connection.targets.empty": "No remote hosts added yet.",
   "desktop.connection.targets.connect": "Connect",
