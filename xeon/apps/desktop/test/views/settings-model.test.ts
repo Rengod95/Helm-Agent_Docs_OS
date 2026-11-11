@@ -1,14 +1,26 @@
 import { describe, expect, test } from "bun:test";
-import { activeLocale, setActiveLocale, t } from "@fresnel/client/i18n";
-import { reduceSettings, settingsViewOf, type FieldVM } from "@fresnel/client/settings";
-import type { EffectiveSetting, SettingDefWire } from "@fresnel/contracts/settings";
+import { activeLocale, setActiveLocale } from "@fresnel/client/i18n";
 import {
+  reduceSettings,
+  TAB_ORDER,
+  settingsViewOf,
+  type FieldVM,
+  type SettingsView,
+} from "@fresnel/client/settings";
+import type { SettingScope } from "@fresnel/contracts/settings";
+import { thr } from "../state/helpers.ts";
+import {
+  advancedGroupsOf,
   allFieldsOf,
+  budgetsGroupsOf,
   columnLabelOf,
   dirtyKeysOf,
+  fallbackScopeOf,
   fieldControlOf,
   fieldMatches,
   hasFooter,
+  launchChoiceOf,
+  modelsGroupsOf,
   numberDraftActionOf,
   choiceWarningOf,
   DISABLED_ON_SWITCH_CLASS,
@@ -16,24 +28,23 @@ import {
   optionHelpOf,
   optionLabelOf,
   optionOf,
-  overrideWarningOf,
   pageStatusOf,
-  resetShownOf,
   switchClassOf,
   remoteNoticeOf,
   restartCountOf,
+  scopeChoiceShown,
   settingsKeyOf,
   searchGroupsOf,
   selectControlOf,
+  shadowedSummaryOf,
   tabStep,
   tabSwitchOf,
   tagsOf,
   textValueOf,
   valueSummaryOf,
-  writeScopeOf,
+  writableOf,
 } from "../../src/views/pages/settings/settings-model.ts";
 import { defOf, fieldIn, settingOf, stateOf, viewOf } from "./settings-fixtures.ts";
-import { SECTION_ORDER } from "../../src/views/pages/settings/settings-sections.ts";
 
 // 설정 화면(P-09)의 순수 모델 시험. 값은 `toEqual`·`toBe`로 정확히 비교한다.
 
@@ -53,14 +64,6 @@ const STEPS = defOf(
   { range: { min: 1, max: 20 } },
   { order: 2, label: "단계 상한" },
 );
-const RESUME = defOf(
-  "l1.persistence.autoResume",
-  "sessions",
-  "toggle",
-  { type: "boolean" },
-  {},
-  { order: 1, label: "자동 이어가기" },
-);
 const THEME_OPTIONS = ["light", "dark"];
 const THEME = defOf(
   "l4.cli.theme",
@@ -71,37 +74,37 @@ const THEME = defOf(
   { order: 0, label: "테마" },
 );
 
-describe("section order", () => {
-  test("moving down or up wraps around the eleven shown sections", () => {
-    expect(SECTION_ORDER.length).toBe(11);
-    expect(tabStep("overview", SECTION_ORDER, 1)).toBe("providers");
-    expect(tabStep("advanced", SECTION_ORDER, 1)).toBe("overview");
-    expect(tabStep("overview", SECTION_ORDER, -1)).toBe("advanced");
-    expect(tabStep("providers", SECTION_ORDER, -1)).toBe("overview");
+describe("tab order", () => {
+  test("moving down or up wraps around the thirteen tabs", () => {
+    expect(TAB_ORDER.length).toBe(13);
+    expect(tabStep("overview", TAB_ORDER, 1)).toBe("models");
+    expect(tabStep("advanced", TAB_ORDER, 1)).toBe("overview");
+    expect(tabStep("overview", TAB_ORDER, -1)).toBe("advanced");
+    expect(tabStep("models", TAB_ORDER, -1)).toBe("overview");
   });
 
-  test("a section that is not in the order stays where it is", () => {
-    expect(tabStep("providers", ["overview"], 1)).toBe("providers");
+  test("a tab that is not in the order stays where it is", () => {
+    expect(tabStep("models", ["overview"], 1)).toBe("models");
   });
 
-  test("choosing the current section stays, a clean form moves, a dirty form asks first", () => {
-    expect(tabSwitchOf({ current: "providers", to: "providers", dirtyKeys: ["a"] })).toEqual({
+  test("choosing the current tab stays, a clean form moves, a dirty form asks first", () => {
+    expect(tabSwitchOf({ current: "models", to: "models", dirtyKeys: ["a"] })).toEqual({
       kind: "stay",
     });
-    expect(tabSwitchOf({ current: "providers", to: "connection", dirtyKeys: [] })).toEqual({
+    expect(tabSwitchOf({ current: "models", to: "budgets", dirtyKeys: [] })).toEqual({
       kind: "move",
-      to: "connection",
+      to: "budgets",
     });
     expect(
-      tabSwitchOf({ current: "providers", to: "connection", dirtyKeys: ["l1.models.default"] }),
-    ).toEqual({ kind: "ask", to: "connection", keys: ["l1.models.default"] });
+      tabSwitchOf({ current: "models", to: "budgets", dirtyKeys: ["l1.models.default"] }),
+    ).toEqual({ kind: "ask", to: "budgets", keys: ["l1.models.default"] });
   });
 });
 
 describe("key search", () => {
   const view = viewOf(
-    [MODEL, RESUME, STEPS, THEME],
-    [settingOf(MODEL.key, "a/b"), settingOf(RESUME.key, true), settingOf(STEPS.key, 3)],
+    [MODEL, STEPS, THEME],
+    [settingOf(MODEL.key, "a/b"), settingOf(STEPS.key, 3)],
   );
   const field = fieldIn(view, MODEL.key);
 
@@ -118,30 +121,19 @@ describe("key search", () => {
     expect(fieldMatches(field, "   ")).toBe(true);
   });
 
-  test("results are grouped by section in section order and empty sections are left out", () => {
-    const groups = searchGroupsOf(view, "이어가기");
-    expect(groups.map((group) => group.section)).toEqual(["sessions"]);
-    expect(groups[0]?.label).toBe(t("desktop.settings.section.sessions"));
-    expect(groups[0]?.fields.map((item) => item.key)).toEqual(["l1.persistence.autoResume"]);
-    expect(searchGroupsOf(view, "없는말")).toEqual([]);
+  test("results are grouped by tab in tab order and empty tabs are left out", () => {
+    const groups = searchGroupsOf(view.tabs, "단계");
+    expect(groups.map((group) => group.tab)).toEqual(["budgets"]);
+    expect(groups[0]?.fields.map((item) => item.key)).toEqual(["l1.loop.maxSteps"]);
+    expect(searchGroupsOf(view.tabs, "없는말")).toEqual([]);
   });
 
-  test("a key outside the allow list is not found, even by its own label", () => {
-    expect(searchGroupsOf(view, "단계")).toEqual([]);
-    expect(searchGroupsOf(view, "maxSteps")).toEqual([]);
-  });
-
-  test("an empty query lists the fields of every section that has one, in section order", () => {
-    const groups = searchGroupsOf(view, "");
-    expect(groups.map((group) => group.section)).toEqual(["providers", "sessions"]);
-    expect(groups.map((group) => group.fields.map((item) => item.key))).toEqual([
-      ["l1.models.default"],
-      ["l1.persistence.autoResume"],
-    ]);
+  test("an empty query lists the fields of every tab that has one", () => {
+    const groups = searchGroupsOf(view.tabs, "");
+    expect(groups.map((group) => group.tab)).toEqual(["models", "budgets", "appearance"]);
     expect(allFieldsOf(view).map((item) => item.key)).toEqual([
       "l1.models.default",
       "l1.loop.maxSteps",
-      "l1.persistence.autoResume",
       "l4.cli.theme",
     ]);
   });
@@ -230,85 +222,38 @@ describe("field controls", () => {
   });
 });
 
-// 설정은 사용자(전역) 범위에 쓴다. 다른 층이 사용자 값을 덮으면 항목 아래 경고가 그 층 이름과 파일 경로를 준다.
-describe("write scope and override warning", () => {
-  const PROJECT_PATH = "/work/.fresnel/settings.json";
-  const LOCAL_PATH = "/work/.fresnel/settings.local.json";
-  const MANAGED_PATH = "/etc/fresnel/managed.json";
-
-  /** 정의 하나와 유효 값 하나(없으면 값 없음)로 만든 항목. 항목이 없으면 시험이 실패한다 */
-  function fieldWith(setting: EffectiveSetting | null, def: SettingDefWire = MODEL): FieldVM {
-    const field = fieldIn(viewOf([def], setting === null ? [] : [setting]), def.key);
-    if (field === undefined) throw new Error("field must exist");
-    return field;
-  }
-
-  const PROJECT_WINS = settingOf(MODEL.key, "a/b", {
-    source: { scope: "project", path: PROJECT_PATH },
+describe("scope choices", () => {
+  test("a shadowed or managed scope is never a write target", () => {
+    expect(writableOf("user")).toBe("user");
+    expect(writableOf("launch")).toBe("launch");
+    expect(writableOf("managed")).toBeNull();
+    expect(writableOf("default")).toBeNull();
   });
 
-  test("a write goes to the user scope while the user scope is writable, whichever layer wins", () => {
-    expect(writeScopeOf(fieldWith(settingOf(MODEL.key, "a/b")))).toBe("user");
-    expect(writeScopeOf(fieldWith(PROJECT_WINS))).toBe("user");
-    expect(writeScopeOf(fieldWith(null))).toBe("user");
+  test("the this-conversation check shows only with an open conversation and a launch scope", () => {
+    const closed = fieldIn(viewOf([MODEL], [settingOf(MODEL.key, "a/b")], null), MODEL.key);
+    const open = fieldIn(viewOf([MODEL], [settingOf(MODEL.key, "a/b")], thr(1)), MODEL.key);
+    if (closed === undefined || open === undefined) throw new Error("field must exist");
+    expect(launchChoiceOf(closed, false)).toEqual({ shown: false, checked: false });
+    expect(launchChoiceOf(open, true)).toEqual({ shown: true, checked: false });
+    expect(fallbackScopeOf(open)).toBe("user");
+    expect(scopeChoiceShown(open)).toBe(true);
   });
 
-  test("a locked field or one without the user scope has no user write scope", () => {
-    const locked = settingOf(MODEL.key, "a/b", {
-      locked: true,
-      lockReason: "managed_file",
-      source: { scope: "managed", path: MANAGED_PATH },
-    });
-    expect(writeScopeOf(fieldWith(locked))).toBeNull();
-    const projectOnly = defOf(
-      "l1.models.projectOnly",
+  test("a single writable scope needs no scope choice", () => {
+    const only = defOf(
+      "l1.models.only",
       "models",
       "text",
       { type: "string" },
-      { allowedScopes: ["project"] },
+      {
+        allowedScopes: ["user"],
+      },
     );
-    expect(writeScopeOf(fieldWith(settingOf(projectOnly.key, "a"), projectOnly))).toBeNull();
-  });
-
-  test("the reset button shows only for a value the user scope holds", () => {
-    expect(resetShownOf(fieldWith(settingOf(MODEL.key, "a/b")))).toBe(true);
-    expect(resetShownOf(fieldWith(PROJECT_WINS))).toBe(false);
-    expect(resetShownOf(fieldWith(null))).toBe(false);
-  });
-
-  test("an override warning names the winning layer and its file, and a user or default value has none", () => {
-    expect(overrideWarningOf(fieldWith(null))).toBeNull();
-    expect(overrideWarningOf(fieldWith(settingOf(MODEL.key, "a/b")))).toBeNull();
-    expect(overrideWarningOf(fieldWith(PROJECT_WINS))).toEqual({
-      scopeName: "프로젝트",
-      path: PROJECT_PATH,
-    });
-    const local = settingOf(MODEL.key, "a/b", { source: { scope: "local", path: LOCAL_PATH } });
-    expect(overrideWarningOf(fieldWith(local))).toEqual({ scopeName: "로컬", path: LOCAL_PATH });
-    const launch = settingOf(MODEL.key, "a/b", { source: { scope: "launch" } });
-    expect(overrideWarningOf(fieldWith(launch))).toEqual({ scopeName: "이번 실행", path: null });
-    const managed = settingOf(MODEL.key, "a/b", {
-      locked: true,
-      lockReason: "managed_file",
-      source: { scope: "managed", path: MANAGED_PATH },
-    });
-    expect(overrideWarningOf(fieldWith(managed))).toEqual({
-      scopeName: "관리",
-      path: MANAGED_PATH,
-    });
-  });
-
-  test("an English session names the overriding layer in English", () => {
-    const previous = activeLocale();
-    setActiveLocale("en");
-    try {
-      expect(overrideWarningOf(fieldWith(PROJECT_WINS))).toEqual({
-        scopeName: "Project",
-        path: PROJECT_PATH,
-      });
-    } finally {
-      setActiveLocale(previous);
-    }
+    const view = viewOf([only], [settingOf(only.key, "a")]);
+    const field = fieldIn(view, only.key);
+    if (field === undefined) throw new Error("field must exist");
+    expect(scopeChoiceShown(field)).toBe(false);
   });
 });
 
@@ -383,7 +328,33 @@ describe("keyboard shortcuts", () => {
   });
 });
 
-describe("option labels", () => {
+describe("advanced tab groups and option labels", () => {
+  test("operator keys are split from the general ones and keep their order", () => {
+    const keys = [
+      "l1.models.retry",
+      "l0.store.heartbeatMs",
+      "l1.models.cacheRetention",
+      "l0.os.telemetry.endpoint",
+    ];
+    const defs = keys.map((key, order) =>
+      defOf(key, "advanced", "number", { type: "integer" }, {}, { order, label: key }),
+    );
+    const view = viewOf(
+      defs,
+      keys.map((key) => settingOf(key, 1)),
+    );
+    const fields = keys.flatMap((key) => fieldIn(view, key) ?? []);
+    const groups = advancedGroupsOf(fields);
+    expect(groups.general.map((field) => field.key)).toEqual([
+      "l1.models.retry",
+      "l1.models.cacheRetention",
+    ]);
+    expect(groups.operator.map((field) => field.key)).toEqual([
+      "l0.store.heartbeatMs",
+      "l0.os.telemetry.endpoint",
+    ]);
+  });
+
   test("an option label comes from the catalog and falls back to the raw value", () => {
     expect(optionLabelOf("l0.sandbox.onUnavailable", "run_unsandboxed")).toBe("격리 없이 실행");
     expect(optionLabelOf("l0.secrets.ageKey.source", "auto-file")).toBe("자동(파일 우선)");
@@ -470,6 +441,96 @@ describe("option help, warning and locked switch", () => {
   });
 });
 
+/** 키 목록의 항목을 입력 순서대로 모은다. 없는 키는 빠진다 */
+function fieldsInOrder(view: SettingsView, keys: readonly string[]): FieldVM[] {
+  return keys.flatMap((key) => fieldIn(view, key) ?? []);
+}
+
+describe("models and budgets card groups", () => {
+  test("the models tab splits basic and routing keys out and keeps the rest in input order", () => {
+    const keys = [
+      "l1.models.routing.judge",
+      "l1.models.allowedModels",
+      "l1.models.default",
+      "l1.agents.maxDepth",
+      "l1.models.groupRouting",
+      "l1.models.thinkingLevel",
+      "l1.models.routing.review",
+      "l1.agents.judge.maxRuns",
+      "l1.models.thinkingBudgets",
+    ];
+    const defs = keys.map((key, order) =>
+      defOf(key, "models", "text", { type: "string" }, {}, { order, label: key }),
+    );
+    const view = viewOf(
+      defs,
+      keys.map((key) => settingOf(key, "x")),
+    );
+    const groups = modelsGroupsOf(fieldsInOrder(view, keys));
+    expect(groups.basic.map((field) => field.key)).toEqual([
+      "l1.models.default",
+      "l1.models.thinkingLevel",
+      "l1.agents.judge.maxRuns",
+    ]);
+    expect(groups.routing.map((field) => field.key)).toEqual([
+      "l1.models.routing.judge",
+      "l1.models.groupRouting",
+      "l1.models.routing.review",
+    ]);
+    expect(groups.rest.map((field) => field.key)).toEqual([
+      "l1.models.allowedModels",
+      "l1.agents.maxDepth",
+      "l1.models.thinkingBudgets",
+    ]);
+  });
+
+  test("a models tab with only basic keys leaves routing and the rest empty", () => {
+    const keys = ["l1.models.default"];
+    const defs = keys.map((key, order) =>
+      defOf(key, "models", "text", { type: "string" }, {}, { order, label: key }),
+    );
+    const view = viewOf(
+      defs,
+      keys.map((key) => settingOf(key, "sonnet")),
+    );
+    const groups = modelsGroupsOf(fieldsInOrder(view, keys));
+    expect(groups.basic.map((field) => field.key)).toEqual(["l1.models.default"]);
+    expect(groups.routing).toEqual([]);
+    expect(groups.rest).toEqual([]);
+  });
+
+  test("the budgets tab puts the rate limit apart and every other key, unknown ones included, in the budget group", () => {
+    const keys = ["l1.loop.maxSteps", "l1.models.rateLimit", "l9.not.registered"];
+    const defs = keys.map((key, order) =>
+      defOf(key, "budgets", "number", { type: "integer" }, {}, { order, label: key }),
+    );
+    const view = viewOf(
+      defs,
+      keys.map((key) => settingOf(key, 3)),
+    );
+    const groups = budgetsGroupsOf(fieldsInOrder(view, keys));
+    expect(groups.budget.map((field) => field.key)).toEqual([
+      "l1.loop.maxSteps",
+      "l9.not.registered",
+    ]);
+    expect(groups.rateLimit.map((field) => field.key)).toEqual(["l1.models.rateLimit"]);
+  });
+
+  test("a budgets tab without a rate limit key leaves the rate limit group empty", () => {
+    const keys = ["l1.loop.maxSteps"];
+    const defs = keys.map((key, order) =>
+      defOf(key, "budgets", "number", { type: "integer" }, {}, { order, label: key }),
+    );
+    const view = viewOf(
+      defs,
+      keys.map((key) => settingOf(key, 3)),
+    );
+    const groups = budgetsGroupsOf(fieldsInOrder(view, keys));
+    expect(groups.budget.map((field) => field.key)).toEqual(["l1.loop.maxSteps"]);
+    expect(groups.rateLimit).toEqual([]);
+  });
+});
+
 describe("columnLabelOf", () => {
   test("a table column shows its catalog sentence, and an unknown column shows its name", () => {
     expect(columnLabelOf("l1.models.retry", "maxRetries")).toBe("최대 재시도 횟수");
@@ -501,5 +562,92 @@ describe("numberDraftActionOf", () => {
   test("a clean report after the value callback or without a draft does nothing", () => {
     expect(numberDraftActionOf(cleared, { ...idle, committing: true })).toBeNull();
     expect(numberDraftActionOf(cleared, { ...idle, fieldDirty: false })).toBeNull();
+  });
+});
+
+// 가려진 값 요약(§4.3.4 개정). user=2, project=4, local=6이면 유효 값은 local이고 요약은 강한 범위 순 `프로젝트 4 · 사용자 2`다.
+describe("shadowed summary", () => {
+  const KEY = "ext.helm.maxLenses";
+  const LENSES = defOf(
+    KEY,
+    "plugins",
+    "number",
+    { type: "integer" },
+    {},
+    { order: 1, label: "렌즈" },
+  );
+  const winner = settingOf(KEY, 6, {
+    source: { scope: "local", path: "/work/.fresnel/settings.local.json" },
+    shadowed: [
+      { scope: "project", path: "/work/.fresnel/settings.json" },
+      { scope: "user", path: "/home/user/.fresnel/settings.json" },
+    ],
+  });
+
+  /** 범위 파일을 읽은 뒤의 화면 항목. 읽은 값은 `scopeFileRead`로 넣는다 */
+  function fieldWithFiles(files: ReadonlyArray<readonly [SettingScope, unknown]>): FieldVM {
+    let state = stateOf([LENSES], [winner], thr(1));
+    for (const [scope, value] of files) {
+      state = reduceSettings(state, {
+        type: "scopeFileRead",
+        scope,
+        values: new Map([[KEY, value]]),
+      });
+    }
+    const field = fieldIn(settingsViewOf(state), KEY);
+    if (field === undefined) throw new Error("field must exist");
+    return field;
+  }
+
+  test("the hidden values read as project then user, with the winning local scope not listed", () => {
+    const field = fieldWithFiles([
+      ["project", 4],
+      ["user", 2],
+    ]);
+    expect(field.scope.scope).toBe("local");
+    expect(field.selectedScope).toBe("local");
+    expect(shadowedSummaryOf(field)).toBe("프로젝트 4 · 사용자 2");
+  });
+
+  test("a secret value is masked, a value that could not be read says so, and no value shows the scope only", () => {
+    const TOKEN = "ext.helm.apiToken";
+    const token = defOf(TOKEN, "plugins", "secret", { type: "string" }, { secret: true });
+    const tokenWinner = settingOf(TOKEN, "secret://helm-token", {
+      source: { scope: "local", path: "/work/.fresnel/settings.local.json" },
+      shadowed: [{ scope: "project", path: "/work/.fresnel/settings.json" }],
+    });
+    let state = stateOf([token], [tokenWinner], thr(1));
+    state = reduceSettings(state, {
+      type: "scopeFileRead",
+      scope: "project",
+      values: new Map([[TOKEN, "secret://old-token"]]),
+    });
+    const secretField = fieldIn(settingsViewOf(state), TOKEN);
+    if (secretField === undefined) throw new Error("field must exist");
+    expect(shadowedSummaryOf(secretField)).toBe("프로젝트 값 가려짐");
+    expect(shadowedSummaryOf(fieldWithFiles([]))).toBe(
+      "프로젝트 값을 읽지 못했어요 · 사용자 값을 읽지 못했어요",
+    );
+  });
+
+  test("a field with no hidden scope has an empty summary", () => {
+    const alone = settingOf(KEY, 3, { source: { scope: "user" } });
+    const field = fieldIn(viewOf([LENSES], [alone]), KEY);
+    if (field === undefined) throw new Error("field must exist");
+    expect(shadowedSummaryOf(field)).toBe("");
+  });
+
+  test("an English session names the scopes in English", () => {
+    const previous = activeLocale();
+    setActiveLocale("en");
+    try {
+      const field = fieldWithFiles([
+        ["project", 4],
+        ["user", 2],
+      ]);
+      expect(shadowedSummaryOf(field)).toBe("Project 4 · User 2");
+    } finally {
+      setActiveLocale(previous);
+    }
   });
 });

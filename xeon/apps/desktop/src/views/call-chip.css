@@ -1,4 +1,4 @@
-/* 도구 호출 줄의 상태 칩(`call-chip.tsx`). 실행 중: 채움이 칩을 가로로 쓸고 스피너가 돈다. 끝남: 테두리 없이 기본 체크 아이콘만 둔다.
+/* 도구 호출 줄의 상태 칩(`call-chip.tsx`). 실행 중: 채움이 칩을 가로로 쓸고 스피너가 돈다. 끝남: 채움이 차올라 연해지고 체크가 그려진다.
    실패: 빛깔이 바뀌고 위험일 때만 한 번 흔든다. caustic에는 이 keyframes가 없어 여기에 둔다.
    Tauri CSP가 인라인 <style>을 막아 이 파일로 두고 styles.css가 가져온다. 색은 caustic 토큰만 쓰므로 라이트·다크는 토큰이 따라간다. */
 .call-chip {
@@ -27,13 +27,10 @@
     border-color var(--cs-duration-base, 200ms) ease,
     color var(--cs-duration-base, 200ms) ease;
 }
-/* 끝남(DP-67): 알약 테두리·채움·그려지는 전환 없이 기본 체크 아이콘만 그린다 */
 .call-chip[data-status="done"] {
   --call-chip-ink: var(--cs-color-success-graphic, var(--cs-color-text-tertiary));
-  height: auto;
-  padding-inline: 0;
-  overflow: visible;
-  border-color: transparent;
+  --call-chip-edge: color-mix(in srgb, var(--call-chip-ink) 40%, transparent);
+  --call-chip-sweep: var(--cs-color-success-tint, var(--cs-color-neutral-track));
 }
 .call-chip[data-status="failed"][data-tone="danger"] {
   --call-chip-ink: var(--cs-color-danger-text);
@@ -65,6 +62,7 @@
   animation: none;
   opacity: 0;
 }
+.call-chip[data-status="done"] .call-chip-fill,
 .call-chip[data-status="failed"] .call-chip-fill {
   animation: call-chip-fill-out 520ms ease-out 1 both;
 }
@@ -96,6 +94,13 @@
   border-top-color: color-mix(in srgb, currentColor 22%, transparent);
 }
 
+/* 체크: 선이 그려진다 */
+.call-chip-check path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: call-chip-draw 320ms 120ms ease-out 1 both;
+}
+
 @keyframes call-chip-sweep {
   from {
     transform: translateX(-100%);
@@ -123,6 +128,14 @@
     transform: scaleX(1);
   }
 }
+@keyframes call-chip-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
 @keyframes call-chip-shake {
   0%,
   100% {
@@ -146,7 +159,8 @@
 @media (prefers-reduced-motion: reduce) {
   .call-chip,
   .call-chip .call-chip-fill,
-  .call-chip .call-chip-spinner {
+  .call-chip .call-chip-spinner,
+  .call-chip .call-chip-check path {
     animation: none;
     transition: none;
   }
@@ -156,7 +170,8 @@
 }
 [data-motion="reduce"] .call-chip,
 [data-motion="reduce"] .call-chip .call-chip-fill,
-[data-motion="reduce"] .call-chip .call-chip-spinner {
+[data-motion="reduce"] .call-chip .call-chip-spinner,
+[data-motion="reduce"] .call-chip .call-chip-check path {
   animation: none;
   transition: none;
 }

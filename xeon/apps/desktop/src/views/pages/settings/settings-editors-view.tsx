@@ -24,7 +24,6 @@ import { isCommitEnter } from "../../ime-enter.ts";
 import { effectIdOf } from "./settings-editors-text.ts";
 import type { SandboxListKind } from "./settings-sandbox-model.ts";
 import { secretChoicesOf } from "./settings-secret-model.ts";
-import { numberAppearanceOf } from "./settings-quantity-model.ts";
 import { keyedRowsOf, type Row } from "./settings-table-model.ts";
 
 // 설정 전용 편집기의 그림(P-09 §6.13). 상태는 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
@@ -209,7 +208,7 @@ function RuleRowView(props: {
           ))}
         </Select>
         <NumberField
-          appearance={numberAppearanceOf({ min: 0, max: 999, integer: true })}
+          appearance="stepper"
           commitMode="release"
           aria-label={t("desktop.settings.rules.column.priority")}
           value={rule.priority ?? PRIORITY_DEFAULT}
@@ -338,11 +337,7 @@ function CellControl(props: {
     case "integer":
       return (
         <NumberField
-          appearance={numberAppearanceOf({
-            min: null,
-            max: null,
-            integer: column.kind === "integer",
-          })}
+          appearance="stepper"
           commitMode="release"
           aria-label={label}
           value={numberValueOf(value)}

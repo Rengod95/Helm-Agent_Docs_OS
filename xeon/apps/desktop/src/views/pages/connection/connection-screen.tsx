@@ -25,10 +25,7 @@ import { ConnectionScreenView, type ConnectionScreenHandlers } from "./connectio
 // 연결 화면(P-08)의 동작. 호스트 목록과 상태는 명령(`commands.connection`)으로 부르고, 화면 상태는 `connectionReducer`가 든다.
 // 엔진과 연결의 변화는 값이 바뀔 때마다 `engineSeen`으로 넘겨 진행 단계를 맞춘다. 그림은 `connection-view.tsx`가 그린다.
 
-export function ConnectionScreen(props: {
-  /** 설정 화면의 "연결과 서비스" 구역으로 실을 때 참이다. 제목 머리를 그리지 않는다 */
-  readonly embedded?: boolean | undefined;
-}): ReactNode {
+export function ConnectionScreen(): ReactNode {
   const commands = useCommands();
   const engine = useEngineState();
   const link = useLinkPhase();
@@ -315,8 +312,7 @@ export function ConnectionScreen(props: {
       detach(stopHost(), rethrow);
     },
     openExtensions: () => {
-      // LightCraft 엔진(작업대) 화면으로 간다. 설정 화면 안에서 열렸을 수 있으니 먼저 설정을 닫고, 영역을 바꾸고 작업대 자리의 화면을 `engine`으로 둔다
-      commands.showScreen("chat");
+      // LightCraft 엔진(작업대) 화면으로 간다. 영역을 바꾸고 작업대 자리의 화면을 `engine`으로 둔다
       shell.switchArea("workbench");
       shell.updatePlace({ screen: "engine", scroll: 0 });
     },
@@ -328,7 +324,6 @@ export function ConnectionScreen(props: {
       engine={engine}
       locale={activeLocale()}
       handlers={handlers}
-      embedded={props.embedded}
       serviceSections={<ServiceSectionsContainer state={state} handlers={handlers} />}
     />
   );

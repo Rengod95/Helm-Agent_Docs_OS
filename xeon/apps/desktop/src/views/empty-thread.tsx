@@ -1,39 +1,41 @@
-import type { ThreadId } from "@fresnel/contracts/conversation";
-import { useState, type ReactNode } from "react";
-import { useOpenThread } from "../state/engine/index.ts";
-import { NewThreadArt } from "./illustrations/index.tsx";
-import { NewThreadWhere } from "./new-thread-where.tsx";
+import { EmptyState, Suggestions, SuggestionsItem } from "@caustic/react";
+import { t, type MessageId } from "@fresnel/client/i18n";
+import type { ReactNode } from "react";
+import { useCommands } from "./commands.ts";
 
-// 빈 새 대화 화면(DP-70). 선 그림 하나가 있고, 작업 폴더가 없으면 그 아래에 "어디서 작업할까요" 고르기가 온다.
-// 폴더가 이미 정해진 대화는 그림만 둔다(폴더·연결은 입력창 위 맥락 줄이 말한다, DP-71).
+// 빈 대화 안내(시안 `p02-opus/stage.tsx` EmptyThread). 제안 칩은 입력창에 글을 채우기만 하고 보내지 않는다(`requestComposer`: 입력 중인 글이 있으면 채우지 않고 초점만 준다)
+
+/** 제안 칩 글. 시안 문구 그대로다 */
+export const EMPTY_THREAD_SUGGESTIONS: readonly MessageId[] = [
+  "desktop.emptyThread.suggest.structure",
+  "desktop.emptyThread.suggest.failingTests",
+  "desktop.emptyThread.suggest.recentChanges",
+];
 
 export function EmptyThread(): ReactNode {
-  const thread = useOpenThread();
-  if (thread === undefined) return <EmptyArt picker={false} threadId={null} />;
-  return <EmptyArt picker={thread.workspace === null} threadId={thread.threadId} />;
-}
-
-/** `threadId`가 바뀌면 "폴더 없이 시작"으로 접은 상태를 새로 시작한다 */
-function EmptyArt(props: {
-  readonly picker: boolean;
-  readonly threadId: ThreadId | null;
-}): ReactNode {
-  return <EmptyBody key={props.threadId ?? "none"} picker={props.picker} />;
-}
-
-function EmptyBody(props: { readonly picker: boolean }): ReactNode {
-  const [skipped, setSkipped] = useState(false);
-  const showPicker = props.picker && !skipped;
+  const commands = useCommands();
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-8 overflow-auto px-3 py-6 text-text-tertiary">
-      <NewThreadArt />
-      {showPicker ? (
-        <NewThreadWhere
-          onNoFolder={() => {
-            setSkipped(true);
-          }}
+    <div className="flex min-h-0 flex-1 flex-col justify-end overflow-auto">
+      <div className="mx-auto grid w-full max-w-184 gap-4 px-3 pb-3">
+        <EmptyState
+          variant="agent"
+          surface="none"
+          size="sm"
+          title={t("desktop.emptyThread.prompt")}
         />
-      ) : null}
+        <Suggestions aria-label={t("desktop.emptyThread.suggest.label")} variant="outline">
+          {EMPTY_THREAD_SUGGESTIONS.map((id) => (
+            <SuggestionsItem
+              key={id}
+              onClick={() => {
+                commands.requestComposer(t(id));
+              }}
+            >
+              {t(id)}
+            </SuggestionsItem>
+          ))}
+        </Suggestions>
+      </div>
     </div>
   );
 }

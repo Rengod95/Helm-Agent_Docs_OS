@@ -1,13 +1,16 @@
 import { t } from "@fresnel/client/i18n";
 import { assertNever, jsonErrorPosition } from "@fresnel/contracts";
-import type { SettingsReadFileResult } from "@fresnel/contracts/wire";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { SettingsReadFileResult, SettingsWritableFileScope } from "@fresnel/contracts/wire";
 import type { CommandError } from "../../commands.ts";
 import { errorText } from "../../settings.tsx";
 
-// 설정 파일 편집기(P-09 "파일로 보기")의 순수 모델. 사용자 설정 파일 하나의 읽은 원문, 고치는 초안, 저장, 충돌, 다시 읽기의 전이를 값으로 만든다.
-// 범위는 사용자 하나다(프로젝트 파일은 편집기에서 열지 않는다). 호스트를 부르지 않고 DOM도 보지 않는다.
-// 명령은 `settings-screen.tsx`가 부르고, 응답은 번호(`seq`)가 맞을 때만 반영한다.
+// 설정 파일 편집기(P-09 "파일로 보기")의 순수 모델. 읽은 원문, 고치는 초안, 저장, 충돌, 다시 읽기의 전이를 값으로 만든다.
+// 호스트를 부르지 않고 DOM도 보지 않는다. 명령은 `settings-screen.tsx`가 부르고, 응답은 번호(`seq`)가 맞을 때만 반영한다.
 // 저장 기준은 마지막으로 읽거나 쓴 원문(`doc.text`)이고, `doc.sha256`이 `writeFile`의 `baseSha256`이다.
+
+/** 편집기가 고르는 범위. `managed`는 읽기 전용이라 빠진다 */
+export type FileScope = SettingsWritableFileScope;
 
 /** 파일 한 번 읽은 내용(`settings.readFile`의 결과 가운데 편집에 쓰는 것) */
 export type FileDoc = Pick<
@@ -29,6 +32,9 @@ export interface FileEditorState {
   readonly phase: FileEditorPhase;
   /** 마지막으로 시작한 읽기나 쓰기의 번호. 번호가 다른 늦은 응답은 버린다 */
   readonly seq: number;
+  readonly scope: FileScope;
+  /** `project`와 `local`이 작업 폴더를 정할 때 쓰는 대화. 읽기와 쓰기에 같은 값을 보낸다 */
+  readonly threadId: ThreadId | null;
   /** 마지막으로 읽었거나 쓴 원문. 저장 기준이다 */
   readonly doc: FileDoc | null;
   /** 지금 고치는 원문 */
@@ -43,6 +49,8 @@ export interface FileEditorState {
 export const initialFileEditor: FileEditorState = {
   phase: "closed",
   seq: 0,
+  scope: "user",
+  threadId: null,
   doc: null,
   draft: "",
   saving: false,
@@ -51,7 +59,12 @@ export const initialFileEditor: FileEditorState = {
 };
 
 export type FileEditorAction =
-  | { readonly type: "started"; readonly seq: number }
+  | {
+      readonly type: "started";
+      readonly seq: number;
+      readonly scope: FileScope;
+      readonly threadId: ThreadId | null;
+    }
   | { readonly type: "closed" }
   | { readonly type: "loaded"; readonly seq: number; readonly doc: FileDoc }
   | { readonly type: "loadFailed"; readonly seq: number; readonly error: CommandError }
@@ -127,15 +140,26 @@ export function fileCloseableOf(state: FileEditorState): boolean {
   return !state.saving && !fileDirtyOf(state);
 }
 
+/** 범위 고르기의 항목. 대화가 열려 있을 때만 `project`와 `local`이 있다(작업 폴더가 정해져야 한다) */
+export function fileScopesOf(hasThread: boolean): readonly FileScope[] {
+  return hasThread ? ["user", "project", "local"] : ["user"];
+}
+
 export function fileEditorReducer(
   state: FileEditorState,
   action: FileEditorAction,
 ): FileEditorState {
   switch (action.type) {
     case "started":
-      // 저장 중에는 다시 읽지 않는다. 초안을 거르는 일은 화면이 막는다
+      // 저장 중에는 범위를 바꾸거나 다시 읽지 않는다. 초안을 거르는 일은 화면이 막는다
       if (state.saving) return state;
-      return { ...initialFileEditor, phase: "loading", seq: action.seq };
+      return {
+        ...initialFileEditor,
+        phase: "loading",
+        seq: action.seq,
+        scope: action.scope,
+        threadId: action.threadId,
+      };
     case "closed":
       // 초안이 남았거나 저장 중이면 닫지 않는다. 번호는 그대로 둬서 닫기 전에 보낸 응답이 맞지 않게 한다
       if (state.saving || fileDirtyOf(state)) return state;

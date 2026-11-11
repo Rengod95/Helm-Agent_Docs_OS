@@ -207,7 +207,6 @@ function widgetFor(widget: SettingWidget, def: SettingDefWire): WidgetVM | null 
         max: def.range?.max ?? null,
         integer: primitive === "integer",
         unit: unitOf(def.ui),
-        unitId: def.ui?.unit ?? null,
       };
     }
     case "text":

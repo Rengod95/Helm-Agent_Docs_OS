@@ -24,7 +24,6 @@ import type { AccountEntry, RateLimitEntry, RotationState } from "@fresnel/clien
 import type { UsageGauge, UsageUnit } from "@fresnel/contracts/wire";
 import { useState, type ReactNode } from "react";
 import { isCommitEnter } from "../../ime-enter.ts";
-import { numberAppearanceOf } from "../settings/settings-quantity-model.ts";
 import { TONE_CLASS } from "../settings/settings-text.ts";
 import { InfoTip, PanelBlock } from "../shared/panel-parts.tsx";
 import { OrderedList, type OrderedItem } from "../shared/ordered-list.tsx";
@@ -536,7 +535,7 @@ function AccountAddForm(props: {
       />
       <NumberField
         size="sm"
-        appearance={numberAppearanceOf({ min: 0, max: 1000, integer: true })}
+        appearance="stepper"
         containerClassName="w-36"
         commitMode="release"
         aria-label={t("desktop.providers.field.priority")}
@@ -551,7 +550,7 @@ function AccountAddForm(props: {
       />
       <NumberField
         size="sm"
-        appearance={numberAppearanceOf({ min: 0, max: 100, integer: true })}
+        appearance="stepper"
         containerClassName="w-36"
         commitMode="release"
         aria-label={t("desktop.providers.field.reservePct")}

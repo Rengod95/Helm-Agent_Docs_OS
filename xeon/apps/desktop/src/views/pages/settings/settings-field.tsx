@@ -6,6 +6,7 @@ import {
   Alert,
   Badge,
   Button,
+  Checkbox,
   Field,
   FormLayoutFooter,
   IconButton,
@@ -20,52 +21,51 @@ import {
   Tooltip,
 } from "@caustic/react";
 import { Check, CircleHelp, Lock, TriangleAlert } from "@caustic/react/icons";
-import { activeLocale, t } from "@fresnel/client/i18n";
-import type { FieldVM, RuntimeBadge, WidgetVM } from "@fresnel/client/settings";
+import { t } from "@fresnel/client/i18n";
+import {
+  scopeText,
+  type FieldVM,
+  type RuntimeBadge,
+  type WidgetVM,
+  type WritableScope,
+} from "@fresnel/client/settings";
 import { assertNever } from "@fresnel/contracts";
 import type { SettingKey } from "@fresnel/contracts/settings";
 import { useId, useRef, useState, type ReactNode } from "react";
 import {
   dedicatedEditorOf,
+  fallbackScopeOf,
   choiceWarningOf,
   fieldControlOf,
   foldableOf,
   hasFooter,
   optionHelpOf,
-  overrideWarningOf,
-  resetShownOf,
   type DedicatedEditorKind,
   type FieldControl,
+  launchChoiceOf,
   numberDraftActionOf,
   numberValueOf,
   optionOf,
   optionLabelOf,
   optionTextOf,
   remoteNoticeOf,
+  scopeChoiceShown,
   selectControlOf,
+  shadowedSummaryOf,
   switchClassOf,
   tagsOf,
   textValueOf,
   valueSummaryOf,
+  writableOf,
 } from "./settings-model.ts";
 import { isCommitEnter } from "../../ime-enter.ts";
-import {
-  formatQuantity,
-  numberStyleOf,
-  parseQuantity,
-  quantityStepOf,
-  quantitySummaryOf,
-  quantitySummaryShownOf,
-  type DurationWords,
-} from "./settings-quantity-model.ts";
 import { TONE_CLASS } from "./settings-text.ts";
 import { SettingTagList } from "./settings-tag-list.tsx";
 
 // 설정 항목 한 줄(P-09)의 그림. 줄은 제목 하나와 컨트롤 하나로 이루어진다(P-09 `_settings/row.tsx`, c04).
 //   머리: 제목(라벨) · 정보 아이콘(설명은 아이콘 뒤 말풍선과 화면 낭독기 설명) ………… 저장됨 또는 저장 중 또는 적용 시점
-//         적용 시점은 "즉시"를 적지 않고, 다음 턴은 연한 글, 재시작 필요만 warning 배지다. 범위 고르기는 없다(쓰기는 사용자 범위다).
+//         적용 시점은 "즉시"를 적지 않고, 다음 턴은 연한 글, 재시작 필요만 warning 배지다. 범위는 화면 낭독기 문장에만 남긴다.
 //   다음 줄: 컨트롤(자기 폭). 오류와 경고는 컨트롤 아래에 보인다. 잠금 문장은 그 아래에 보인다.
-//         다른 층이 사용자 값을 덮으면 잠금 문장 아래에 그 경고 줄을 보인다(`OverrideNote`).
 // 위젯 종류마다 caustic 부품 하나를 고른다(L4.settings-ui §4.2.1). 표(table), 시크릿(secret)은 전용 편집기(`editors`)로 그린다.
 // 읽기 전용(readonly)은 객체와 배열을 접힌 JSON으로 보인다. 검색 순서는 도구와 웹 패널이 맡는다(`panelOwnedOf`).
 // 상태와 명령은 없고 `handlers`만 받는다.
@@ -80,8 +80,9 @@ export interface FieldHandlers {
   readonly discard: (key: SettingKey) => void;
   /** 다른 곳에서 바뀐 값을 두고 내 초안을 유지한다("내 값 유지") */
   readonly keepDraft: (key: SettingKey) => void;
-  /** 사용자 범위의 값을 지운다 */
-  readonly reset: (key: SettingKey) => void;
+  readonly selectScope: (key: SettingKey, scope: WritableScope) => void;
+  /** 범위 값을 지운다 */
+  readonly reset: (key: SettingKey, scope: WritableScope) => void;
 }
 
 /** 전용 편집기 하나가 받는 값. 초안은 `handlers.edit`로, 저장과 되돌리기는 항목 아래 줄로 바뀐다 */
@@ -100,6 +101,7 @@ export interface FieldRowProps {
   readonly field: FieldVM;
   /** 읽기 전용(오프라인)이 아니고 항목이 쓸 수 있을 때 참 */
   readonly editable: boolean;
+  readonly hasThread: boolean;
   /** "저장됨" 표시가 아직 보이는가 */
   readonly saved: boolean;
   readonly editors: DedicatedEditors;
@@ -206,12 +208,13 @@ export function InfoTip(props: {
 }
 
 export function FieldRow(props: FieldRowProps): ReactNode {
-  const { field, editable, saved, editors, handlers, showKey = false } = props;
+  const { field, editable, hasThread, saved, editors, handlers, showKey = false } = props;
   const titleId = useId();
   const lockId = useId();
   const disabled = !editable;
   const errorText = errorTextOf(field);
   const control = fieldControlOf(field);
+  const writable = writableOf(field.scope.scope);
   const explain = explanationOf(field, control);
   return (
     <div
@@ -227,6 +230,9 @@ export function FieldRow(props: FieldRowProps): ReactNode {
         <div className="flex min-w-0 flex-[1_1_12rem] items-center gap-2">
           <span id={titleId} className="shrink-0 text-ui font-medium text-text-primary">
             {field.label}
+            <span className="sr-only">
+              {`, ${t("desktop.settings.field.scope.sr", { scope: field.scope.text })}`}
+            </span>
           </span>
           {explain.length === 0 ? null : <InfoTip label={field.label} lines={explain} />}
           {showKey ? (
@@ -236,6 +242,9 @@ export function FieldRow(props: FieldRowProps): ReactNode {
           ) : null}
         </div>
         <div className="flex flex-none items-center gap-2">
+          {editable && scopeChoiceShown(field) ? (
+            <ScopeChoice field={field} handlers={handlers} />
+          ) : null}
           {saved ? (
             <SavedMark />
           ) : field.saving ? (
@@ -328,7 +337,6 @@ export function FieldRow(props: FieldRowProps): ReactNode {
           <span>{field.lock.text}</span>
         </p>
       )}
-      <OverrideNote field={field} />
       {remoteNoticeOf(field) ? (
         <div className="grid gap-1.5" data-slot="settings-remote-changed">
           <Alert tone="warning" variant="ghost" size="sm">
@@ -366,6 +374,8 @@ export function FieldRow(props: FieldRowProps): ReactNode {
           {t("desktop.settings.field.problem")}
         </Alert>
       )}
+      {field.shadowed.length === 0 ? null : <ShadowedNote field={field} />}
+      <LaunchChoice field={field} hasThread={hasThread} disabled={disabled} handlers={handlers} />
       {editable && field.dirty && hasFooter(field) ? (
         <FormLayoutFooter>
           <Button
@@ -388,13 +398,13 @@ export function FieldRow(props: FieldRowProps): ReactNode {
           </Button>
         </FormLayoutFooter>
       ) : null}
-      {editable && resetShownOf(field) ? (
+      {field.canReset && writable !== null && editable ? (
         <div>
           <Button
             variant="outline"
             size="xs"
             onClick={() => {
-              handlers.reset(field.key);
+              handlers.reset(field.key, writable);
             }}
           >
             {t("desktop.settings.field.reset")}
@@ -433,22 +443,6 @@ function numberDraftTextOf(
  * 숫자 칸. 칸은 `release` 방식이라 범위 밖 글은 값으로 올라오지 않고 칸 안에 초안으로 남는다.
  * 그 초안의 사유는 `onDraftChange`로만 알 수 있어 여기서 받아 칸 아래 오류 문장으로 보인다.
  */
-/** 단위 있는 글 칸의 요약에 쓰는 기간 낱말 */
-function durationWordsOf(): DurationWords {
-  return {
-    seconds: (n) => t("desktop.settings.number.duration.seconds", { n }),
-    minutes: (n) => t("desktop.settings.number.duration.minutes", { n }),
-    hours: (n) => t("desktop.settings.number.duration.hours", { n }),
-    days: (n) => t("desktop.settings.number.duration.days", { n }),
-  };
-}
-
-/**
- * 숫자 칸. 칸은 `release` 방식이라 범위 밖 글은 값으로 올라오지 않고 칸 안에 초안으로 남는다.
- * 그 초안의 사유는 `onDraftChange`로만 알 수 있어 여기서 받아 칸 아래 오류 문장으로 보인다.
- * `numberStyleOf`가 "stepper"로 고른 작은 정수 칸만 ±가 있다. 나머지("quantity")는 ±가 없는 글 칸이다.
- * 글 칸은 단위 꼬리표를 칸 안에 두고, 요약 한 줄을 칸 아래에 보인다. 칸을 떠나면 천 단위 구분으로 정돈된다.
- */
 function NumberControl(props: {
   readonly field: FieldVM;
   readonly widget: Extract<WidgetVM, { readonly kind: "number" }>;
@@ -458,89 +452,52 @@ function NumberControl(props: {
 }): ReactNode {
   const { field, widget, disabled, handlers } = props;
   const [draftError, setDraftError] = useState<NumberFieldDraft["error"]>(null);
-  // 요약은 칸이 읽은 초안 값을 따른다. 초안이 없을 때는 저장된 값이다
-  const [draftValue, setDraftValue] = useState<number | null>(null);
   // 저장으로 칸이 비는 알림과 Esc로 되돌리는 알림을 가른다
   const committing = useRef(false);
   const escaped = useRef(false);
   const errorText = props.errorText ?? numberDraftTextOf(draftError, widget);
-  const quantity = numberStyleOf(widget) === "quantity";
-  const locale = activeLocale();
-  const shown = field.dirty ? draftValue : numberValueOf(field.value);
-  const unitTag = { id: widget.unitId, label: widget.unit };
-  const summaryText =
-    quantity && errorText === null && shown !== null
-      ? quantitySummaryOf(shown, unitTag, { locale, words: durationWordsOf() })
-      : null;
-  const summary =
-    summaryText !== null &&
-    shown !== null &&
-    quantitySummaryShownOf(shown, summaryText, unitTag, locale)
-      ? summaryText
-      : null;
-  const parseText = (text: string): number | null =>
-    parseQuantity(text, widget.unitId, widget.integer);
-  const formatText = (value: number): string => formatQuantity(value, locale);
-  const input = (
-    <NumberField
-      appearance={quantity ? "scrub" : "stepper"}
-      size={quantity ? "lg" : "sm"}
-      variant="outline"
-      containerClassName={quantity ? "w-44" : "w-36"}
-      placeholder={quantity ? t("desktop.settings.number.placeholder") : undefined}
-      aria-label={field.label}
-      commitMode="release"
-      value={numberValueOf(field.value)}
-      min={widget.min ?? undefined}
-      max={widget.max ?? undefined}
-      step={quantity ? quantityStepOf(shown) : widget.integer ? 1 : undefined}
-      unit={quantity && widget.unit !== null ? widget.unit : undefined}
-      parse={quantity ? parseText : undefined}
-      formatValue={quantity ? formatText : undefined}
-      disabled={disabled}
-      invalid={errorText !== null}
-      onDraftChange={(draft) => {
-        setDraftError(draft.error);
-        setDraftValue(draft.error === null ? draft.value : null);
-        // 칸 안에서 치는 글은 저장 전까지 칸이 쥔다. 컨트롤러에도 초안으로 알려야 그 사이 다른 곳이 바꾼 값을 "다른 곳에서 바뀜"으로 알아챈다(scA-4-2)
-        const action = numberDraftActionOf(draft, {
-          fieldDirty: field.dirty,
-          committing: committing.current,
-          escaped: escaped.current,
-        });
-        if (action?.kind === "edit") handlers.edit(field.key, action.value);
-        else if (action?.kind === "discard") handlers.discard(field.key);
-        else if (action?.kind === "commit") handlers.commit(field.key);
-        committing.current = false;
-        escaped.current = false;
-      }}
-      onKeyDown={(event) => {
-        escaped.current = event.key === "Escape";
-      }}
-      onValueChange={(next) => {
-        setDraftError(null);
-        committing.current = true;
-        handlers.change(field.key, next);
-      }}
-    />
-  );
   return (
     <Field disabled={disabled} error={errorText}>
-      {quantity ? (
-        <span className="grid min-w-0 justify-items-start gap-1">
-          {input}
-          {summary === null ? null : (
-            <span className="text-ui text-text-tertiary tabular-nums">{summary}</span>
-          )}
-        </span>
-      ) : (
-        <span className="flex items-center gap-2">
-          {input}
-          {widget.unit === null ? null : (
-            <span className="text-ui text-text-tertiary">{widget.unit}</span>
-          )}
-        </span>
-      )}
+      <span className="flex items-center gap-2">
+        <NumberField
+          appearance="stepper"
+          size="sm"
+          containerClassName="w-36"
+          aria-label={field.label}
+          commitMode="release"
+          value={numberValueOf(field.value)}
+          min={widget.min ?? undefined}
+          max={widget.max ?? undefined}
+          step={widget.integer ? 1 : undefined}
+          disabled={disabled}
+          invalid={errorText !== null}
+          onDraftChange={(draft) => {
+            setDraftError(draft.error);
+            // 칸 안에서 치는 글은 저장 전까지 칸이 쥔다. 컨트롤러에도 초안으로 알려야 그 사이 다른 곳이 바꾼 값을 "다른 곳에서 바뀜"으로 알아챈다(scA-4-2)
+            const action = numberDraftActionOf(draft, {
+              fieldDirty: field.dirty,
+              committing: committing.current,
+              escaped: escaped.current,
+            });
+            if (action?.kind === "edit") handlers.edit(field.key, action.value);
+            else if (action?.kind === "discard") handlers.discard(field.key);
+            else if (action?.kind === "commit") handlers.commit(field.key);
+            committing.current = false;
+            escaped.current = false;
+          }}
+          onKeyDown={(event) => {
+            escaped.current = event.key === "Escape";
+          }}
+          onValueChange={(next) => {
+            setDraftError(null);
+            committing.current = true;
+            handlers.change(field.key, next);
+          }}
+        />
+        {widget.unit === null ? null : (
+          <span className="text-ui text-text-tertiary">{widget.unit}</span>
+        )}
+      </span>
     </Field>
   );
 }
@@ -676,22 +633,86 @@ function deprecatedTextOf(field: FieldVM): string {
 }
 
 /**
- * 다른 층이 사용자 값을 덮을 때의 경고 줄. 항목 아래에 늘 보이고 도움말 아이콘 뒤로 숨기지 않는다(`overrideWarningOf`).
- * 경로가 있으면 파일 경로를 붙인다.
+ * 다른 범위에 같은 키 값이 있어 가려져 있을 때의 접힌 안내. 펼치면 가려진 범위의 값을 강한 범위 순으로 한 줄에 보인다
+ * (설명이라 접힘 안에 둔다. 항목의 저장 범위 선택은 이 값과 같은 범위다).
  */
-function OverrideNote(props: { readonly field: FieldVM }): ReactNode {
-  const warning = overrideWarningOf(props.field);
-  if (warning === null) return null;
-  const text =
-    warning.path === null
-      ? t("desktop.settings.field.overridden", { scope: warning.scopeName })
-      : t("desktop.settings.field.overriddenPath", {
-          scope: warning.scopeName,
-          path: warning.path,
-        });
+function ShadowedNote(props: { readonly field: FieldVM }): ReactNode {
   return (
-    <Alert tone="warning" variant="ghost" size="sm">
-      {text}
-    </Alert>
+    <Accordion variant="ghost">
+      <AccordionItem value="shadowed">
+        <AccordionTrigger>
+          {t("desktop.settings.shadowed.title", { count: props.field.shadowed.length })}
+        </AccordionTrigger>
+        <AccordionContent>
+          <p className="text-ui text-text-secondary">{shadowedSummaryOf(props.field)}</p>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+  );
+}
+
+/**
+ * 쓸 범위 고르기. 범위가 둘 이상일 때만 보인다. 글은 없고 선택 상자의 이름만 "저장할 범위"다
+ * (보이는 것은 지금 범위 글 하나다. 다른 범위 고르기는 편집 동작이라 빼지 않는다).
+ */
+function ScopeChoice(props: {
+  readonly field: FieldVM;
+  readonly handlers: FieldHandlers;
+}): ReactNode {
+  const { field, handlers } = props;
+  return (
+    <Select
+      aria-label={t("desktop.settings.field.scope.label")}
+      size="xs"
+      variant="ghost"
+      className="w-auto"
+      value={field.selectedScope ?? ""}
+      onValueChange={(next) => {
+        const scope = field.writableScopes.find((candidate) => candidate === next);
+        if (scope === undefined) return;
+        handlers.selectScope(field.key, scope);
+        if (field.dirty) handlers.commit(field.key);
+      }}
+    >
+      {field.writableScopes.map((scope) => (
+        <SelectOption key={scope} value={scope}>
+          {scopeText(scope)}
+        </SelectOption>
+      ))}
+    </Select>
+  );
+}
+
+/** "이번 대화에만 적용". 열린 대화가 있고 대화 범위를 쓸 수 있을 때만 보인다 */
+function LaunchChoice(props: {
+  readonly field: FieldVM;
+  readonly hasThread: boolean;
+  readonly disabled: boolean;
+  readonly handlers: FieldHandlers;
+}): ReactNode {
+  const labelId = useId();
+  const { field, hasThread, disabled, handlers } = props;
+  const choice = launchChoiceOf(field, hasThread);
+  if (!choice.shown) return null;
+  return (
+    <div className="flex items-center gap-2">
+      <Checkbox
+        aria-labelledby={labelId}
+        checked={choice.checked}
+        disabled={disabled}
+        onCheckedChange={(next) => {
+          if (next === true) {
+            handlers.selectScope(field.key, "launch");
+          } else {
+            const fallback = fallbackScopeOf(field);
+            if (fallback !== null) handlers.selectScope(field.key, fallback);
+          }
+          if (field.dirty) handlers.commit(field.key);
+        }}
+      />
+      <span id={labelId} className="text-ui text-text-secondary">
+        {t("desktop.settings.field.launchOnly")}
+      </span>
+    </div>
   );
 }

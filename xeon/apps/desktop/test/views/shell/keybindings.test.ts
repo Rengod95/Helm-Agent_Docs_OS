@@ -35,9 +35,8 @@ describe("keybindings.default-map-covers-actions", () => {
       "panel.inbox",
     );
     expect(actionFor(DEFAULT_KEYMAP, ev({ key: "3", metaKey: true }), true)).toBe("nav.3");
-    // 연결과 대화 내비가 빠지며 번호는 셋으로 줄었다. 옛 ⌘4~⌘6은 어느 동작도 아니다
-    expect(actionFor(DEFAULT_KEYMAP, ev({ key: "6", metaKey: true }), true)).toBeNull();
-    expect(actionFor(DEFAULT_KEYMAP, ev({ key: "6", ctrlKey: true }), false)).toBeNull();
+    expect(actionFor(DEFAULT_KEYMAP, ev({ key: "6", metaKey: true }), true)).toBe("nav.6");
+    expect(actionFor(DEFAULT_KEYMAP, ev({ key: "6", ctrlKey: true }), false)).toBe("nav.6");
   });
 
   test("alt chords match the physical key, whatever character alt produces", () => {

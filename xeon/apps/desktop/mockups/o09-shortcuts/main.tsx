@@ -37,7 +37,7 @@ const GROUPS: { title: string; items: Binding[] }[] = [
   {
     title: "이동",
     items: [
-      { label: "제안 · 예약 · 플러그인 화면", keys: "Mod 1–3", id: "nav.1–3" },
+      { label: "대화 · 받은 요청 · 제안 · 예약 · 연결", keys: "Mod 1–5", id: "nav.1–5" },
       { label: "다음 대화", keys: "Alt Mod ↓", id: "thread.next" },
       { label: "이전 대화", keys: "Alt Mod ↑", id: "thread.prev" },
     ],

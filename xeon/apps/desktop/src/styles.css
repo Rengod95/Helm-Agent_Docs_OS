@@ -159,8 +159,8 @@
     min-height: 0;
     height: 20px;
   }
-  /* 화면 머리줄(대화·설정). 무대는 오른쪽 끝까지 차고 막대는 그 위에 떠 있다. 머리는 막대 폭(`--shell-rail`)만큼 안쪽 여백을 더해
-     오른쪽 끝 단추가 막대에 가리지 않게 한다. 좌우 여백은 머리 자체가 가진다 */
+  /* 화면 머리줄(대화·설정). 무대 오른쪽의 막대 여백(`--shell-rail`)을 음수 마진으로 걷어 머리가 내용 영역 끝까지 가고,
+     같은 폭만큼 안쪽 여백으로 오른쪽 끝 단추가 막대에 가리지 않게 한다. 좌우 여백은 머리 자체가 가진다 */
   /* 머리줄 높이 하나: 사이드 패널 머리(영역 탭 줄 control-md + 위아래 6px + 아래 선 1px)와 화면 머리줄이 같은 값을 읽는다 */
   :root {
     --shell-header-h: calc(var(--spacing-control-md) + 13px);
@@ -168,6 +168,7 @@
     --shell-header-gap: 24px;
   }
   .shell-header {
+    margin-inline-end: calc(var(--shell-rail, 0px) * -1);
     padding-inline: 12px calc(var(--shell-rail, 0px) + 12px);
     /* 높이는 사이드 패널 머리와 같은 `--shell-header-h`, 아래에 border-subtle 구분선(border-box라 선이 높이에 든다) */
     box-sizing: border-box;
@@ -341,80 +342,5 @@
     font-size: var(--text-ui);
     line-height: var(--text-ui--line-height);
     letter-spacing: var(--text-ui--letter-spacing);
-  }
-}
-
-/* DP-66 [결정: 2026-11-11 사용자] 실행 방식 선택 카드(RadioCardGroup, caustic ChoiceGroup 카드)를 차분하게 덮는다.
-   caustic은 카드를 누를 수 있는 대상(lift: 위로 4px 이동, hover 그림자)으로 그리고, 고른 카드를 잉크 반전(selected 유틸리티)으로
-   칠한다. 앱에서는 이동과 그림자를 없애고, 고른 카드는 옅은 배경(neutral-track) + 1px 강한 테두리로만 표시한다. 반전이 바꾼
-   변수는 inherit로 부모 값으로 되돌린다. caustic은 고치지 않는다. 같은 utilities 층에서 이기도록 속성 선택자를 두 번 쓴다(DP-15a) */
-@layer utilities {
-  [data-slot][data-slot="choice-group-item"][data-kind="choice"]:hover {
-    translate: none;
-  }
-  [data-slot][data-slot="choice-group-item"][data-kind="choice"][data-state="unchecked"]:not(
-      :disabled
-    ):not(:focus-visible) {
-    box-shadow: 0 0 0 1px var(--cs-color-border-default);
-  }
-  [data-slot][data-slot="choice-group-item"][data-kind="choice"][data-state="unchecked"]:not(
-      :disabled
-    ):hover {
-    background-color: var(--color-neutral-hover);
-  }
-  [data-slot][data-slot="choice-group-item"][data-kind="choice"][data-state="checked"]:not(
-      :disabled
-    ) {
-    --cs-focus-offset: inherit;
-    --cs-color-text-primary: inherit;
-    --color-text-primary: inherit;
-    --cs-color-text-secondary: inherit;
-    --color-text-secondary: inherit;
-    --cs-color-text-tertiary: inherit;
-    --color-text-tertiary: inherit;
-    --color-accent-text: inherit;
-    --color-accent-solid: inherit;
-    --color-accent-on: inherit;
-    --color-border-control: inherit;
-    --color-surface-base: inherit;
-    --cs-color-neutral-hover: inherit;
-    --color-neutral-hover: inherit;
-    --cs-color-fill-hover: inherit;
-    --color-fill-hover: inherit;
-    --cs-color-neutral-pressed: inherit;
-    --color-neutral-pressed: inherit;
-    --cs-color-fill-pressed: inherit;
-    --color-fill-pressed: inherit;
-    --cs-color-neutral-selected: inherit;
-    --color-neutral-selected: inherit;
-    --cs-color-fill-selected: inherit;
-    --color-fill-selected: inherit;
-    --cs-color-neutral-selected-hover: inherit;
-    --color-neutral-selected-hover: inherit;
-    --cs-color-neutral-track: inherit;
-    --color-neutral-track: inherit;
-    --cs-color-neutral-well: inherit;
-    --color-neutral-well: inherit;
-    --cs-color-bg-inset: inherit;
-    --color-bg-inset: inherit;
-    color: inherit;
-    background-color: var(--color-neutral-track);
-  }
-  [data-slot][data-slot="choice-group-item"][data-kind="choice"][data-state="checked"]:not(
-      :disabled
-    ):hover {
-    background-color: var(--color-neutral-selected);
-    box-shadow: 0 0 0 1px var(--cs-color-border-strong);
-  }
-  [data-slot][data-slot="choice-group-item"][data-kind="choice"][data-state="checked"]:not(
-      :disabled
-    ):not(:focus-visible):not(:hover) {
-    box-shadow: 0 0 0 1px var(--cs-color-border-strong);
-  }
-  [data-slot][data-slot="choice-group-item"][data-kind="choice"][data-state="checked"]:not(
-      :disabled
-    )
-    [data-slot][data-slot="choice-group-indicator"] {
-    color: var(--color-accent-on);
   }
 }

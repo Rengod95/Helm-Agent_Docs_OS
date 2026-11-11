@@ -48,14 +48,14 @@ describe("palette values", () => {
   });
 
   test("a setting value reads back as its tab and key; an empty key means the tab alone", () => {
-    expect(decodeValue(settingValue("providers", "l1.models.accounts"))).toEqual({
+    expect(decodeValue(settingValue("models", "l1.models.accounts"))).toEqual({
       kind: "setting",
-      tab: "providers",
+      tab: "models",
       key: "l1.models.accounts",
     });
-    expect(decodeValue(settingValue("connection", null))).toEqual({
+    expect(decodeValue(settingValue("sandbox", null))).toEqual({
       kind: "setting",
-      tab: "connection",
+      tab: "sandbox",
       key: null,
     });
   });
@@ -259,8 +259,10 @@ describe("plugin command values and rows", () => {
 describe("palette screen navigation", () => {
   test("the current area's nav screens come first, then the other area's", () => {
     expect(screenTargetsOf("chat").map((t) => screenValue(t.area, t.screen))).toEqual([
+      "screen:chat:chat",
       "screen:chat:proposals",
       "screen:chat:schedules",
+      "screen:chat:connection",
       "screen:chat:plugins",
       "screen:workbench:overview",
       "screen:workbench:extensions",
@@ -276,25 +278,27 @@ describe("palette screen navigation", () => {
       "metrics",
       "compose",
       "engine",
+      "chat",
       "proposals",
       "schedules",
+      "connection",
       "plugins",
     ]);
   });
 
-  test("the plugin pages row is the chat area's third screen and carries the nav.3 shortcut", () => {
+  test("the plugin pages row is the chat area's sixth screen and carries the nav.6 shortcut", () => {
     expect(screenTargetsOf("chat").find((t) => t.screen === "plugins")).toEqual({
       area: "chat",
       screen: "plugins",
       label: "desktop.shell.nav.plugins",
       areaLabel: "desktop.shell.area.chat",
-      action: "nav.3",
+      action: "nav.6",
     });
   });
 
   test("a screen row carries the nav label keys and the shortcut of its nav item when it has one", () => {
     const proposals = screenTargetsOf("chat").find((t) => t.screen === "proposals");
-    expect(proposals?.action).toBe("nav.1");
+    expect(proposals?.action).toBe("nav.3");
     // 받은 요청은 사이드바 탐색에 없다. 화면은 남아 있고 바로 가기 없이 팔레트로만 열린다
     expect(screenTargetsOf("chat").find((t) => t.screen === "inbox")?.action).toBeUndefined();
     expect(screenTargetsOf("chat").find((t) => t.screen === "overview")?.action).toBeUndefined();

@@ -32,24 +32,18 @@ export interface ConnectionScreenViewProps {
   readonly handlers: ConnectionScreenHandlers;
   /** "실행 방식"과 "다른 기기 접속" 섹션. 이 기기 대상일 때만 그린다(원격 대상에서는 그리지 않는다). 상태를 읽는 동안에도 그리지 않는다 */
   readonly serviceSections?: ReactNode;
-  /** 설정 화면의 구역으로 실을 때 참이다. 제목 머리를 그리지 않고, 안쪽 스크롤과 여백을 두지 않는다(설정 본문이 스크롤한다) */
-  readonly embedded?: boolean | undefined;
 }
 
 export function ConnectionScreenView(props: ConnectionScreenViewProps): ReactNode {
   const { state, engine, locale, handlers, serviceSections } = props;
-  const embedded = props.embedded === true;
   const headingId = useId();
   // 이 기기의 서비스 쪽 덩어리(실행 방식, 다른 기기 접속, 진단)는 이 기기 대상이고 상태를 읽은 뒤에만 보인다
   const serviceShown = state.engineTarget.kind === "local" && state.status.kind !== "loading";
   return (
-    <section
-      aria-labelledby={embedded ? undefined : headingId}
-      className="flex min-h-0 flex-1 flex-col"
-    >
-      {embedded ? null : <ScreenHeader title={t("desktop.connection.title")} titleId={headingId} />}
-      <div className={embedded ? undefined : "min-h-0 flex-1 overflow-y-auto px-3 pb-4"}>
-        <div className={embedded ? "grid w-full gap-10" : "mx-auto grid w-full max-w-180 gap-10"}>
+    <section aria-labelledby={headingId} className="flex min-h-0 flex-1 flex-col">
+      <ScreenHeader title={t("desktop.connection.title")} titleId={headingId} />
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
+        <div className="mx-auto grid w-full max-w-180 gap-10">
           <HostSection state={state} engine={engine} locale={locale} handlers={handlers} />
           {serviceShown ? serviceSections : null}
           {serviceShown ? (
