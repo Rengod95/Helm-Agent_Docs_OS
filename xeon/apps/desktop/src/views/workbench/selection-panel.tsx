@@ -49,12 +49,12 @@ export function SelectionPanel(props: {
       <div className="flex items-center gap-3">
         <ExtSwitch row={row} onToggle={props.onToggle} />
         {row.pendingTarget !== null && (
-          <span className="text-ui-sm text-text-tertiary">
+          <span className="text-ui text-text-tertiary">
             {t("desktop.workbench.toggle.pending")}
           </span>
         )}
       </div>
-      {row.lock !== null && <p className="text-ui-sm text-text-tertiary">{lockText(row.lock)}</p>}
+      {row.lock !== null && <p className="text-ui text-text-tertiary">{lockText(row.lock)}</p>}
       {/* 크래프트 선택 패널(`craft/selection-panel.tsx`)과 같은 부품이다: 질문, 자동 꺼짐 줄, 답한 뒤의 결과 줄. 확장이 바뀌면 기억을 새로 한다 */}
       <AutoOffNotice
         key={entry.name}
@@ -62,7 +62,7 @@ export function SelectionPanel(props: {
         onKeepOn={props.onReenable}
         onKeepOff={props.onKeepOff}
       />
-      <p className="text-ui-sm text-text-secondary">
+      <p className="text-ui text-text-secondary">
         {t("desktop.workbench.selection.hooks", { count: row.hookCount })}
       </p>
       <Button size="sm" onClick={props.onDetail}>

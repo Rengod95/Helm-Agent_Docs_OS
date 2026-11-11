@@ -56,7 +56,7 @@ const FAILED_FINDINGS: FindingsLoad = { kind: "error" };
 /** 안내 한 줄(시안의 intro와 빈 자리 글). 글 역할은 본문 보조다 */
 const MUTED = "m-0 text-ui-dense text-text-secondary";
 /** 행 아래 캡션 한 줄. 시안의 행 캡션 역할이다 */
-const CAPTION = "m-0 text-ui-xs text-text-tertiary";
+const CAPTION = "m-0 text-ui text-text-tertiary";
 
 type PluginUi = Commands["pluginUi"];
 

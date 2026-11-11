@@ -221,7 +221,7 @@ function Ready(props: {
 }): ReactNode {
   const { view } = props;
   return (
-    <div className="grid gap-5 text-ui-sm">
+    <div className="grid gap-5 text-ui">
       <section aria-label={t("desktop.measure.perf.changes")} className={SECTION}>
         <SectionTitle title={t("desktop.measure.perf.changes")} />
         {view.changes.length === 0 ? (

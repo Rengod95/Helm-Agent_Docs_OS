@@ -38,7 +38,7 @@ const IDLE: { readonly kind: "idle" } = { kind: "idle" };
 /** 안내 한 줄(시안의 intro와 빈 자리 글). 글 역할은 본문 보조다 */
 const MUTED = "m-0 text-ui-dense text-text-secondary";
 /** 행 아래 캡션 한 줄(잠긴 이유, 적용 대기). 시안의 행 캡션 역할이다 */
-const CAPTION = "m-0 text-ui-xs text-text-tertiary";
+const CAPTION = "m-0 text-ui text-text-tertiary";
 
 /** 스위치가 잠긴 이유의 한 줄 글. 전역에서 꺼진 것은 크래프트에서 켜라고 가리킨다 */
 const LOCK_TEXT: Readonly<Record<ThreadLock, MessageId>> = {

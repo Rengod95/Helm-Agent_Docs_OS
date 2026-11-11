@@ -104,7 +104,7 @@ export function BindingsPanel(): ReactNode {
         </Button>
       </div>
       {open && rows.length === 0 && (
-        <p className="text-ui-sm text-text-tertiary">{t("desktop.workbench.bindings.empty")}</p>
+        <p className="text-ui text-text-tertiary">{t("desktop.workbench.bindings.empty")}</p>
       )}
       {open && rows.length > 0 && (
         <Table

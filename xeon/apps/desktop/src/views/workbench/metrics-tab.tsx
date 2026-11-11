@@ -50,7 +50,7 @@ function GroupMetricsBody(props: { readonly metrics: GroupMetricsVM | null }): R
   const { metrics } = props;
   if (metrics === null) return <p className={MUTED}>{t("desktop.workbench.metrics.off")}</p>;
   return (
-    <div className="grid gap-3 text-ui-sm">
+    <div className="grid gap-3 text-ui">
       <section aria-label={t("desktop.workbench.metrics.tokens")} className="grid gap-2">
         <SectionTitle level={3} title={t("desktop.workbench.metrics.tokens")} />
         <div className="grid grid-cols-2 gap-x-6 gap-y-3 compact:grid-cols-4">
@@ -99,7 +99,7 @@ function OwnerBurdenBody(props: { readonly burden: OwnerBurden }): ReactNode {
     );
   }
   return (
-    <div className="grid gap-3 text-ui-sm">
+    <div className="grid gap-3 text-ui">
       {/* 어느 Turn을 읽었는지와 성능 측정 화면과의 관계는 정보 아이콘 뒤에 둔다(DP-58) */}
       <p className="m-0 flex items-center gap-1 text-text-primary">
         {t("desktop.workbench.metrics.plugin.range", { turns: burden.turns })}

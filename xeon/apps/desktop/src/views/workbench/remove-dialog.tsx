@@ -238,7 +238,7 @@ export function RemoveDialogBody(props: {
           <div className="flex items-center justify-between gap-2">
             <p
               role={preview.kind === "loading" ? "status" : undefined}
-              className="m-0 text-ui-sm text-text-tertiary"
+              className="m-0 text-ui text-text-tertiary"
             >
               {t(note)}
             </p>
@@ -292,7 +292,7 @@ function StorageTables(props: {
       <p className="m-0 text-ui-sm tabular-nums text-text-tertiary">
         {t("desktop.workbench.remove.storage.total", { count: totalRowsOf(props.tables) })}
       </p>
-      <label className="inline-flex cursor-pointer items-center gap-2 text-ui-sm text-text-primary">
+      <label className="inline-flex cursor-pointer items-center gap-2 text-ui text-text-primary">
         <Checkbox
           size="sm"
           checked={props.checked}

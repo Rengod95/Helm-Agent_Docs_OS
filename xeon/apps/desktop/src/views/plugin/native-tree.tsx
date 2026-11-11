@@ -117,7 +117,7 @@ const ALIGN_CLASS: Readonly<Record<(typeof ALIGNS)[number], string>> = {
 };
 /** 글 크기 enum은 시안의 글 역할(text-<role>)에 맞춘다. 기본 글은 본문 보조 역할(text-ui-dense)이다 */
 const TEXT_SIZE: Readonly<Record<WidgetSize, string>> = {
-  sm: "text-ui-xs",
+  sm: "text-ui",
   md: "text-ui-dense",
   lg: "text-ui-strong",
 };

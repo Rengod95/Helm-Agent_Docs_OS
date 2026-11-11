@@ -109,10 +109,10 @@ function Header(props: {
       title={extMessageOf(entry.messages, activeLocale(), entry.title)}
       meta={
         <>
-          <span className="min-w-0 truncate text-ui-sm text-text-tertiary">
+          <span className="min-w-0 truncate text-ui text-text-tertiary">
             {entry.extension} · v{entry.version}
           </span>
-          <span className="min-w-0 text-ui-sm text-text-tertiary">
+          <span className="min-w-0 text-ui text-text-tertiary">
             {t(`client.view.confirm.trust.${trust}`)}
           </span>
           {entry.trust === "project" ? (

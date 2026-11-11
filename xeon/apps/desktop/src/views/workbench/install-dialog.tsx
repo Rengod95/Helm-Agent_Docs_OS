@@ -322,11 +322,9 @@ export function InstallDialog(props: {
                 </Button>
               )}
             </div>
-            <span className="text-ui-xs text-text-tertiary">
-              {t("desktop.install.source.hint")}
-            </span>
+            <span className="text-ui text-text-tertiary">{t("desktop.install.source.hint")}</span>
             {pickError === null ? null : (
-              <p role="alert" className="m-0 text-ui-xs text-text-secondary">
+              <p role="alert" className="m-0 text-ui text-text-secondary">
                 {pickError}
               </p>
             )}
@@ -334,11 +332,11 @@ export function InstallDialog(props: {
         )}
         {(flow.step === "confirm" || flow.step === "installing") && (
           <>
-            <span className="truncate text-ui-xs text-text-tertiary">
+            <span className="truncate text-ui text-text-tertiary">
               {t("desktop.install.confirm.source", { source: flow.preview.source })}
             </span>
             {flow.preview.installedVersion !== null && (
-              <span className="text-ui-xs text-text-tertiary">
+              <span className="text-ui text-text-tertiary">
                 {t("desktop.install.confirm.replaces", { version: flow.preview.installedVersion })}
               </span>
             )}
@@ -389,7 +387,7 @@ export function InstallDialog(props: {
                 {t("desktop.install.parts.screens", { count: flow.preview.screens.length })}
               </span>
               {flow.preview.screens.map((screen) => (
-                <span key={screen.id} className="text-ui-xs text-text-tertiary">
+                <span key={screen.id} className="text-ui text-text-tertiary">
                   {t(
                     screen.mode === "app"
                       ? "desktop.install.parts.screen.app"
@@ -411,7 +409,7 @@ export function InstallDialog(props: {
           <Alert tone="danger">{t("desktop.install.fail.reload")}</Alert>
         )}
         {flow.step === "installing" && (
-          <span className="text-ui-xs text-text-secondary">{t("desktop.install.installing")}</span>
+          <span className="text-ui text-text-secondary">{t("desktop.install.installing")}</span>
         )}
         {failure !== null && (
           <Alert tone="danger">
@@ -455,7 +453,7 @@ export function InstallReasonList(props: {
         return (
           <li key={installReasonKeyOf(reason)}>
             {t(REASON_TEXT[reason.key])}
-            {place === null ? null : <span className="block text-ui-xs">{place}</span>}
+            {place === null ? null : <span className="block text-ui">{place}</span>}
           </li>
         );
       })}
@@ -504,7 +502,7 @@ export function InstallHookList(props: { readonly hooks: readonly InstallHook[] 
           className={
             hook.blocksTools
               ? "text-ui-dense font-medium text-text-primary"
-              : "text-ui-xs text-text-tertiary"
+              : "text-ui text-text-tertiary"
           }
         >
           {t("desktop.install.hook.line", {

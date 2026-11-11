@@ -56,7 +56,7 @@ function PluginRows(props: {
   if (props.plugins.length === 0)
     return <p className={MUTED}>{t("desktop.measure.turn.pluginsNone")}</p>;
   return (
-    <ul className="m-0 grid list-none gap-1 p-0 text-ui-sm">
+    <ul className="m-0 grid list-none gap-1 p-0 text-ui">
       {props.plugins.slice(0, TURN_LIST_CAP).map((share) => {
         const active = props.focus === share.owner;
         return (
@@ -96,7 +96,7 @@ function PhaseRows(props: { readonly phases: readonly PhaseVM[] }): ReactNode {
     return <p className={MUTED}>{t("desktop.measure.turn.phasesNone")}</p>;
   const longest = Math.max(1, ...props.phases.map((phase) => phase.ms));
   return (
-    <ol className="m-0 grid list-none gap-1 p-0 text-ui-sm">
+    <ol className="m-0 grid list-none gap-1 p-0 text-ui">
       {props.phases.slice(0, TURN_LIST_CAP).map((phase) => (
         <li key={`${phase.kind}:${phase.atMs}`} className="grid gap-0.5">
           <div className="flex flex-wrap items-center gap-2">
@@ -136,7 +136,7 @@ function HookRows(props: {
     return <p className={MUTED}>{t("desktop.measure.turn.hooksNone")}</p>;
   const longest = Math.max(1, ...props.hooks.map((hook) => hook.ms));
   return (
-    <ol className="m-0 grid list-none gap-1 p-0 text-ui-sm">
+    <ol className="m-0 grid list-none gap-1 p-0 text-ui">
       {props.hooks.slice(0, TURN_LIST_CAP).map((hook) => {
         const dim = props.focus !== null && props.focus !== hook.registrationId;
         return (
@@ -179,7 +179,7 @@ function Bar(props: { readonly bar: CompositionBarVM; readonly focus: string | n
     bar.segments.reduce((total, segment) => total + segment.tokens, 0),
   );
   return (
-    <li className="grid gap-0.5 text-ui-sm">
+    <li className="grid gap-0.5 text-ui">
       <div className="flex items-center gap-2">
         <span className="text-text-tertiary">
           {t("desktop.measure.turn.stepOf", { step: bar.step })}
@@ -224,7 +224,7 @@ function ReadyView(props: { readonly view: TurnViewVM }): ReactNode {
   const { view } = props;
   const [focus, setFocus] = useState<string | null>(null);
   return (
-    <div className="grid gap-4 text-ui-sm">
+    <div className="grid gap-4 text-ui">
       {view.summary !== null && (
         <p className="m-0 flex flex-wrap gap-x-4 text-text-primary">
           <span>

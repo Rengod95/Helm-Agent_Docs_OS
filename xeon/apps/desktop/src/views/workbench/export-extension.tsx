@@ -95,7 +95,7 @@ export function ExportExtension(props: { readonly entry: ExtListEntry }): ReactN
       >
         <div className="grid gap-2">
           {phase.kind === "working" && (
-            <span className="text-ui-xs text-text-secondary">
+            <span className="text-ui text-text-secondary">
               {t("desktop.workbench.export.working")}
             </span>
           )}

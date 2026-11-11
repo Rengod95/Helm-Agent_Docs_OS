@@ -35,7 +35,7 @@ type Tools =
 function Section(props: { readonly title: string; readonly children: ReactNode }): ReactNode {
   return (
     <section aria-label={props.title} className="grid gap-1.5">
-      <h2 className="m-0 min-h-6 text-ui-sm font-semibold text-text-primary">{props.title}</h2>
+      <h2 className="m-0 min-h-6 text-ui font-semibold text-text-primary">{props.title}</h2>
       {props.children}
     </section>
   );
@@ -207,7 +207,7 @@ export function EngineScreen(): ReactNode {
                 ))}
               </div>
             ) : tools.view === null ? (
-              <p className="m-0 text-ui-sm text-text-tertiary">
+              <p className="m-0 text-ui text-text-tertiary">
                 {t("desktop.workbench.engine.toolsUnknown")}
               </p>
             ) : (
