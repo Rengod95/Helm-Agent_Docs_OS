@@ -8,6 +8,7 @@ import {
   type LogFields,
   type Logger,
   type Scheduler,
+  type TimerHandle,
 } from "@fresnel/contracts";
 import { WIRE_PROTOCOL_VERSION } from "@fresnel/contracts/wire";
 import { createOsService, readOsRuntime, type OsServiceHandle } from "@fresnel/platform-os";
@@ -40,11 +41,22 @@ import { messageOf } from "../util.ts";
 import { autoResumeThreads } from "./auto-resume.ts";
 import { resolveHostStatePaths, hostResourceDir } from "../state-paths.ts";
 import { resolveServicePaths } from "./paths.ts";
-import { gatewayConfigOf, REMOTE_ENABLED_KEY, remoteEnabledOf } from "./gateway-config.ts";
+import {
+  gatewayConfigOf,
+  localHostNames,
+  REMOTE_ENABLED_KEY,
+  remoteEnabledOf,
+} from "./gateway-config.ts";
+import {
+  createTailscaleHostNames,
+  systemTailscaleDeps,
+  type TailscaleHostNames,
+} from "./tailscale.ts";
 import {
   createGatewaySupervisor,
   type GatewaySupervisor,
   type GatewaySupervisorDeps,
+  type RemoteStatusView,
 } from "./gateway.ts";
 
 // L4.host-service.spec §4.9 서비스 모드, SV-01·SV-02·SV-04·SV-05·SV-07. `fresnel service run`/`fresnel host --service`의 본체.
@@ -54,6 +66,10 @@ import {
 export const SERVICE_STARTUP_GRACE_MS = 10_000;
 /** `l0.process.service.idleGraceMs`의 기본값(0 = 꺼지지 않음). 설정을 읽지 못할 때만 쓴다 */
 const DEFAULT_IDLE_GRACE_MS = 0;
+/** Tailscale 이름·네트워크 변화를 다시 확인하는 간격 */
+const TAILSCALE_REFRESH_MS = 30_000;
+/** 시작 직후 첫 Tailscale 읽기까지의 간격 */
+const TAILSCALE_FIRST_READ_MS = 1000;
 
 export interface ServiceOptions {
   readonly assemble?: Omit<AssembleOptions, "mode">;
@@ -64,6 +80,8 @@ export interface ServiceOptions {
    * 감독자는 서비스가 끝날 때 `dispose`로 정리된다
    */
   readonly gateway?: GatewaySupervisor;
+  /** Tailscale MagicDNS 이름과 IP를 허용 호스트에 더하는 원천. 없으면 이 컴퓨터의 `tailscale`을 읽는다. 시험이 가짜를 넘긴다 */
+  readonly tailscaleHosts?: TailscaleHostNames;
   /** 기본 SERVICE_STARTUP_GRACE_MS */
   readonly startupGraceMs?: number;
   /** 기본은 설정 `l0.process.service.idleGraceMs`(0 = 꺼지지 않음). 시험이 짧은 값을 넘긴다(설정 범위 밖 값 허용) */
@@ -234,6 +252,18 @@ export async function startService(options: ServiceOptions = {}): Promise<Servic
     log: loggerOf(log, {}),
   };
   const supervisor = options.gateway ?? createGatewaySupervisor(gatewayDeps);
+  // 허용 호스트에 Tailscale 이름을 자동으로 더한다. 네트워크가 바뀌면 재시작 없이 다시 계산해 게이트웨이만 다시 띄운다 [결정: 2026-11-11 사용자]
+  const tailscaleHosts =
+    options.tailscaleHosts ?? createTailscaleHostNames(systemTailscaleDeps(), TAILSCALE_REFRESH_MS);
+  const gatewayConfigNow = (): ReturnType<typeof gatewayConfigOf> =>
+    gatewayConfigOf(read, localHostNames, () => tailscaleHosts.current());
+  const startGateway = async (refresh: boolean): Promise<RemoteStatusView> => {
+    if (refresh) await tailscaleHosts.refresh();
+    const config = gatewayConfigNow();
+    gatewayHosts.last = config.hosts.join(",");
+    return supervisor.start(config);
+  };
+  const gatewayHosts: { last: string } = { last: "" };
   remoteSlot.port = {
     status: () => supervisor.status(),
     setEnabled: async (enabled) => {
@@ -248,7 +278,7 @@ export async function startService(options: ServiceOptions = {}): Promise<Servic
         log.error("service.remote_setting_failed", { kind: written.error.kind });
         return err({ kind: "store-failed" });
       }
-      return ok(enabled ? await supervisor.start(gatewayConfigOf(read)) : await supervisor.stop());
+      return ok(enabled ? await startGateway(true) : await supervisor.stop());
     },
     pair: () => supervisor.pair(),
     devices: () => supervisor.devices(),
@@ -309,10 +339,38 @@ export async function startService(options: ServiceOptions = {}): Promise<Servic
 
   // 게이트웨이: 설정이 켜져 있으면 기다리지 않고 띄운다. 실패는 감독자의 상태(failed)에 남고 여기서는 기록만 한다
   if (remoteEnabledOf(read)) {
-    detach(supervisor.start(gatewayConfigOf(read)), (caught) => {
+    // 시작은 기다리지 않고 지금 아는 이름으로 띄운다. Tailscale 이름은 아래 감시가 곧 읽어 달라졌으면 게이트웨이를 다시 띄운다
+    detach(startGateway(false), (caught) => {
       log.error("service.gateway_start_failed", { message: messageOf(caught) });
     });
   }
+
+  // 네트워크가 바뀌었거나 Tailscale 이름이 달라졌으면 허용 호스트를 다시 계산한다. 게이트웨이가 떠 있고 목록이 달라졌을 때만 게이트웨이를 다시 띄운다
+  const watch: { timer: TimerHandle | undefined; stopped: boolean } = {
+    timer: undefined,
+    stopped: false,
+  };
+  const watchStopped = (): boolean => watch.stopped;
+  const watchHosts = (delayMs: number): void => {
+    watch.timer = time.scheduler.setTimeout(() => {
+      detach(
+        (async () => {
+          if (watchStopped()) return;
+          await tailscaleHosts.refresh();
+          const changed = gatewayConfigNow().hosts.join(",") !== gatewayHosts.last;
+          if (changed && !watchStopped() && supervisor.status().state === "running") {
+            await supervisor.stop();
+            if (!watchStopped() && remoteEnabledOf(read)) await startGateway(false);
+          }
+        })(),
+        (caught) => {
+          log.error("service.gateway_hosts_refresh_failed", { message: messageOf(caught) });
+        },
+      );
+      if (!watchStopped()) watchHosts(TAILSCALE_REFRESH_MS);
+    }, delayMs);
+  };
+  watchHosts(TAILSCALE_FIRST_READ_MS);
 
   // 5. 종료 절차. 참여자 등록은 엔진이 끝난 뒤 등록 역순으로 불린다(확장·L0 참여자보다 먼저 turn을 멈춘다)
   const turnStop: { outcome: "clean" | "deadline" } = { outcome: "clean" };
@@ -326,6 +384,8 @@ export async function startService(options: ServiceOptions = {}): Promise<Servic
   function shutdown(reason: "signal" | "idle" | "stop"): Promise<void> {
     closing.promise ??= (async () => {
       lifecycleSlot.idle?.[Symbol.dispose]();
+      watch.stopped = true;
+      if (watch.timer !== undefined) time.scheduler.clearTimeout(watch.timer);
       // 게이트웨이를 먼저 내린다. 정리가 실패해도 서비스 종료는 계속한다(기록만 남긴다)
       const disposed = await attemptAsync(() => supervisor.dispose());
       if (!disposed.ok) {
