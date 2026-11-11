@@ -60,7 +60,7 @@ describe("Shell slots", () => {
   test("the chat area draws the registered screen, the six chat nav items and the slots", () => {
     const out = render(1400);
     expect(out).toContain("채팅 화면 내용");
-    for (const label of ["대화", "받은 요청", "제안", "예약", "연결", "플러그인 화면"]) {
+    for (const label of ["대화", "받은 요청", "제안", "예약", "연결", "추가 기능"]) {
       expect(out).toContain(label);
     }
     expect(out).not.toContain("개요");
@@ -84,7 +84,7 @@ describe("Shell slots", () => {
     for (const label of ["개요", "확장", "테스트", "성능 측정", "구성", "엔진"]) {
       expect(out).toContain(label);
     }
-    expect(out).not.toContain("플러그인 화면");
+    expect(out).not.toContain("추가 기능");
     expect(out).not.toContain("대화 목록 슬롯");
   });
 

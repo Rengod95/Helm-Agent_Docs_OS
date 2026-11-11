@@ -42,6 +42,7 @@ import { useCommands } from "../commands.ts";
 import { useHandlerFailures, useLinkPhase, useOpenThreadId } from "../../state/engine/index.ts";
 import { useShellActions, type ShellActions } from "../../state/shell/index.ts";
 import { usePluginUiState } from "../plugin/plugin-context.tsx";
+import { requestAddon } from "../plugin/plugin-pick.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
 import { AutoOffNotice } from "./craft-parts.tsx";
 import { kindText, lockText, stateText, stateTone } from "./ext-row.tsx";
@@ -358,7 +359,8 @@ export function FailureRecords(props: {
 }
 
 /** 플러그인 화면으로 간다: 대화 영역의 `plugins` 화면(내비 항목 하나). 영역과 그 자리를 셸 행동으로 바꾼다 */
-export function openPluginScreens(shell: ShellActions): void {
+export function openPluginScreens(shell: ShellActions, extension?: string): void {
+  if (extension !== undefined) requestAddon(extension);
   shell.switchArea("chat");
   shell.updatePlace({ screen: "plugins", scroll: 0 });
 }
@@ -381,7 +383,7 @@ function PluginScreensLink(props: { readonly name: string }): ReactNode {
         size="xs"
         variant="ghost"
         onClick={() => {
-          openPluginScreens(shell);
+          openPluginScreens(shell, props.name);
         }}
       >
         {t("desktop.workbench.detail.openPluginScreens")}

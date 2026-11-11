@@ -382,8 +382,8 @@
       "en": "Plugin UI"
     },
     "ui": {
-      "ko": "플러그인 UI",
-      "en": "Plugin UI"
+      "ko": "추가 기능",
+      "en": "Add-ons"
     },
     "surfaces": ["settings", "workbench"],
     "ids": ["views", "ui", "ViewContribution", "UiContribution"],

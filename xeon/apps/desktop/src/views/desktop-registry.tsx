@@ -45,7 +45,11 @@ import {
   type ShellRegistry,
 } from "./shell/registry.ts";
 import { HEADER_SELECT_SIZE, HEADER_SEGMENTED_SIZE, ScreenHeader } from "./shell/screen-header.tsx";
-import { createWorkbenchStore } from "../state/workbench/index.ts";
+import {
+  createWorkbenchStore,
+  WorkbenchStoreContext,
+  type WorkbenchStore,
+} from "../state/workbench/index.ts";
 import {
   inspectEndTab,
   pluginPagesEndTab,
@@ -53,7 +57,8 @@ import {
   runtimeEndTab,
 } from "./workbench/index.tsx";
 import { ChatWithRecords } from "./workbench/records-jump.tsx";
-import { HelmPanelTab, PluginPagesTab } from "./plugin/plugin-tabs.tsx";
+import { AddonsScreen } from "./plugin/addons-screen.tsx";
+import { HelmPanelTab } from "./plugin/plugin-tabs.tsx";
 import { useApprovalCount, useOpenThread, useThreadIds } from "../state/engine/index.ts";
 import { useState, type ReactNode } from "react";
 
@@ -218,14 +223,21 @@ const CONNECTION_SCREEN: ScreenDef = {
   render: () => <ConnectionScreen />,
 };
 
-// 플러그인 화면(내비 항목 하나)은 대화 영역에 산다. 확장 상세의 "플러그인 화면 열기"도 여기로 간다(ext-detail.tsx)
-const PLUGINS_SCREEN: ScreenDef = {
-  id: "plugins",
-  area: "chat",
-  label: "desktop.shell.nav.plugins",
-  icon: <WandSparkles />,
-  render: () => <PluginPagesTab />,
-};
+// "추가 기능"(내비 항목 하나, id `plugins`)은 대화 영역에 산다. 확장 상세의 "추가 기능 보기"도 여기로 간다(ext-detail.tsx).
+// 크래프트로 가는 단추가 워크벤치 스토어를 쓰므로 스토어 문맥으로 감싼다
+function pluginsScreen(workbench: WorkbenchStore): ScreenDef {
+  return {
+    id: "plugins",
+    area: "chat",
+    label: "desktop.shell.nav.plugins",
+    icon: <WandSparkles />,
+    render: () => (
+      <WorkbenchStoreContext value={workbench}>
+        <AddonsScreen />
+      </WorkbenchStoreContext>
+    ),
+  };
+}
 
 // 시크릿 화면은 내비 항목이 없다(`nav.ts`에 없음). 설정 화면이 `SecretsPanel`을 넣어 연다.
 const SECRETS_SCREEN: ScreenDef = {
@@ -294,7 +306,7 @@ export function createDesktopRegistry(): ShellRegistry {
   registry.registerScreen(SCHEDULES_SCREEN);
   registry.registerScreen(PROPOSALS_SCREEN);
   registry.registerScreen(CONNECTION_SCREEN);
-  registry.registerScreen(PLUGINS_SCREEN);
+  registry.registerScreen(pluginsScreen(workbench));
   registry.registerScreen(SECRETS_SCREEN);
   registry.registerScreen(FIRST_RUN_SCREEN);
   registry.registerScreen(REVIEW_SCREEN);
