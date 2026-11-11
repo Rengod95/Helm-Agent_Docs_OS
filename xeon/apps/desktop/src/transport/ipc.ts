@@ -264,12 +264,20 @@ export type ServiceAutostart = Static<typeof ServiceAutostartSchema>;
  * 서비스 상태(`service_status`). 실행 중이면 등록 정보의 일부(소켓, pid, 버전, 시작 시각)만 싣고, 아니면 이유만 싣는다.
  * 두 경우 모두 자동 시작 상태(`autostart`)를 싣는다. 토큰은 셸 밖으로 나오지 않는다. 모르는 필드는 거절한다.
  */
+/** 서비스를 쓰려다 앱 안 엔진으로 돌아간 마지막 사유. `code`는 셸의 `ServiceStartFailureCode`(저장 문자열)이고 화면이 번역 문구로 바꾼다 */
+const ServiceStartFailureSchema: TObject<{ code: TString; detail: TString }> = Type.Object(
+  { code: Type.String({ maxLength: 64 }), detail: Type.String({ maxLength: 512 }) },
+  { additionalProperties: false },
+);
+export type ServiceStartFailure = Static<typeof ServiceStartFailureSchema>;
+
 const ServiceStatusSchema: TUnion<
   [
     TObject<{
       running: TLiteral<false>;
       reason: TString;
       autostart: typeof ServiceAutostartSchema;
+      startFailure: TOptional<typeof ServiceStartFailureSchema>;
     }>,
     TObject<{
       running: TLiteral<true>;
@@ -278,6 +286,7 @@ const ServiceStatusSchema: TUnion<
       version: TString;
       startedAt: TInteger;
       autostart: typeof ServiceAutostartSchema;
+      startFailure: TOptional<typeof ServiceStartFailureSchema>;
     }>,
   ]
 > = Type.Union([
@@ -286,6 +295,7 @@ const ServiceStatusSchema: TUnion<
       running: Type.Literal(false),
       reason: Type.String({ maxLength: 512 }),
       autostart: ServiceAutostartSchema,
+      startFailure: Type.Optional(ServiceStartFailureSchema),
     },
     { additionalProperties: false },
   ),
@@ -297,6 +307,7 @@ const ServiceStatusSchema: TUnion<
       version: Type.String({ maxLength: 128 }),
       startedAt: Type.Integer({ minimum: 0 }),
       autostart: ServiceAutostartSchema,
+      startFailure: Type.Optional(ServiceStartFailureSchema),
     },
     { additionalProperties: false },
   ),

@@ -347,14 +347,25 @@ export type ConnectTarget =
  */
 export type ServiceCard =
   | { readonly kind: "unknown" }
-  | { readonly kind: "stopped"; readonly reason: string }
+  | {
+      readonly kind: "stopped";
+      readonly reason: string;
+      readonly startFailure?: ServiceFailureCard;
+    }
   | {
       readonly kind: "running";
       readonly pid: number;
       readonly version: string;
       readonly startedAt: number;
       readonly attached: boolean;
+      readonly startFailure?: ServiceFailureCard;
     };
+
+/** 서비스를 쓰려다 앱 안 엔진으로 돌아간 마지막 사유. `code`로 번역 문구를 고른다 */
+export interface ServiceFailureCard {
+  readonly code: string;
+  readonly detail: string;
+}
 
 /**
  * 연결 화면이 읽는 host 상태. `host.status` 결과와 다시 시작 대기 값이다. `remoteAllowRespond`는 원격 응답 허용 값이고,

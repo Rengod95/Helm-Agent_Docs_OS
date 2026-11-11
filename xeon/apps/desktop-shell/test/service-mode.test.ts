@@ -4,7 +4,11 @@ import { err, ok, type Result } from "@fresnel/contracts";
 import type { LaunchFailure, Launched, Launcher, OnceOutput } from "../src/main/engine/launcher.ts";
 import type { SafeMode } from "../src/main/engine/policy.ts";
 import type { EngineTarget } from "../src/main/engine/state.ts";
-import { createServiceModule, serviceAwareLauncher } from "../src/main/service-mode.ts";
+import {
+  createServiceModule,
+  createStartFailureSlot,
+  serviceAwareLauncher,
+} from "../src/main/service-mode.ts";
 import { recordingLog, sourceOf } from "./engine/support.ts";
 import { fakeCtx } from "./support/fake-ctx.ts";
 
@@ -141,7 +145,21 @@ describe("serviceAwareLauncher", () => {
     );
     expect(inner.launches).toEqual([{ target: LOCAL, safeMode: "default" }]);
     expect(launched.viaService).toBeUndefined();
-    expect(log.lines).toEqual(["service-mode: ensure failed exit=1, using the in-process engine"]);
+    expect(log.lines).toEqual([
+      "service-mode: ensure_failed (exit 1), using the in-process engine",
+    ]);
+  });
+
+  test("a failed start is recorded in the slot with a code and cause, and a later success clears it", async () => {
+    const slot = createStartFailureSlot();
+    const failing = innerOf({
+      replies: { [LAUNCH_MODE]: SERVICE_MODE, [ENSURE]: out(1, "", "boom") },
+    });
+    await serviceAwareLauncher(failing.launcher, recordingLog(), slot).launch(LOCAL, "default");
+    expect(slot.get()).toEqual({ code: "ensure_failed", detail: "exit 1" });
+    const working = innerOf({ replies: { [LAUNCH_MODE]: SERVICE_MODE, [ENSURE]: ENSURE_OK } });
+    await serviceAwareLauncher(working.launcher, recordingLog(), slot).launch(LOCAL, "default");
+    expect(slot.get()).toBeNull();
   });
 
   test("launch-mode output that is not JSON falls back without ensure", async () => {
@@ -154,7 +172,7 @@ describe("serviceAwareLauncher", () => {
     expect(inner.launches).toEqual([{ target: LOCAL, safeMode: "default" }]);
     expect(launched.viaService).toBeUndefined();
     expect(log.lines).toEqual([
-      "service-mode: launch-mode output is not readable, using the in-process engine",
+      "service-mode: launch_mode_unreadable (unreadable output), using the in-process engine",
     ]);
   });
 
@@ -172,7 +190,7 @@ describe("serviceAwareLauncher", () => {
     await serviceAwareLauncher(inner.launcher, log).launch(LOCAL, "default");
     expect(inner.launches).toEqual([{ target: LOCAL, safeMode: "default" }]);
     expect(log.lines).toEqual([
-      "service-mode: ensure output is not usable, using the in-process engine",
+      "service-mode: ensure_unusable (unusable output), using the in-process engine",
     ]);
   });
 
@@ -191,7 +209,7 @@ describe("serviceAwareLauncher", () => {
     ]);
     expect(launched.viaService).toBeUndefined();
     expect(log.lines).toEqual([
-      "service-mode: bridge launch failed (spawn failed: ENOENT), using the in-process engine",
+      "service-mode: bridge_failed (spawn failed: ENOENT), using the in-process engine",
     ]);
     expect(log.lines.join("\n")).not.toContain(SOCKET);
   });
@@ -209,14 +227,53 @@ describe("serviceAwareLauncher", () => {
 });
 
 /** 서비스 명령 모듈을 가짜 ctx에 등록하고, 부른 `runOnce` 인자를 함께 돌려준다 */
-function commandRig(replies: Readonly<Record<string, OnceReply>> = {}) {
+function commandRig(
+  replies: Readonly<Record<string, OnceReply>> = {},
+  failure?: { readonly code: "ensure_failed"; readonly detail: string },
+) {
   const inner = innerOf({ replies });
   const fake = fakeCtx();
-  createServiceModule({ launcherOf: () => inner.launcher }).register(fake.ctx);
+  const failures = createStartFailureSlot();
+  failures.set(failure ?? null);
+  createServiceModule({ launcherOf: () => inner.launcher, failures }).register(fake.ctx);
   return { fake, runs: inner.runs };
 }
 
 describe("service_status", () => {
+  test("a recorded start failure is added to the status reply as startFailure", async () => {
+    const stopped = JSON.stringify({
+      running: false,
+      reason: "no_registration",
+      autostart: {
+        platform: "darwin",
+        supported: true,
+        registered: false,
+        active: false,
+        linger: null,
+      },
+    });
+    const r = commandRig(
+      { "service status --json": out(1, stopped) },
+      { code: "ensure_failed", detail: "exit 1" },
+    );
+    const reply = await r.fake.call("service_status");
+    expect(reply).toEqual({
+      ok: true,
+      value: {
+        running: false,
+        reason: "no_registration",
+        autostart: {
+          supported: true,
+          registered: false,
+          active: false,
+          linger: null,
+          platform: "darwin",
+        },
+        startFailure: { code: "ensure_failed", detail: "exit 1" },
+      },
+    });
+  });
+
   test("a running service answers with the registration's socket, pid, version, start time and autostart state, never the token or the file path", async () => {
     const running = JSON.stringify({
       running: true,

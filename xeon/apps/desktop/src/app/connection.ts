@@ -122,13 +122,15 @@ export function createConnectionCommands(deps: ConnectionDeps): ConnectionComman
     const status = await ipc.serviceStatus();
     if (!status.ok) return { kind: "unknown" };
     const reply = status.value;
-    if (!reply.running) return { kind: "stopped", reason: reply.reason };
+    const failure = reply.startFailure === undefined ? {} : { startFailure: reply.startFailure };
+    if (!reply.running) return { kind: "stopped", reason: reply.reason, ...failure };
     return {
       kind: "running",
       pid: reply.pid,
       version: reply.version,
       startedAt: reply.startedAt,
       attached: host.mode === "service",
+      ...failure,
     };
   };
 
