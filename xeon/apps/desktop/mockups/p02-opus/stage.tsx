@@ -10,8 +10,6 @@ import {
   MenuSeparator,
   Message,
   ScrollArea,
-  Suggestions,
-  SuggestionsItem,
   Thinking,
 } from "@caustic/react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
@@ -177,24 +175,9 @@ function Transcript() {
   );
 }
 
+// 새 대화 빈 화면은 앱이 정본이다(DP-70, `src/views/empty-thread.tsx`): 제안 칩과 "무엇부터 할까요?"는 없앴다(2026-11-11 사용자)
 function EmptyThread() {
-  const m = useMock();
-  return (
-    <div className="flex min-h-0 flex-1 flex-col justify-end overflow-auto">
-      <div className={`${READ_WIDTH} grid gap-4 pb-3`}>
-        <EmptyState variant="agent" surface="none" size="sm" title="무엇부터 할까요?" />
-        <Suggestions aria-label="추천 시작 문장" variant="outline">
-          <SuggestionsItem onClick={() => m.send("이 저장소 구조 설명")}>
-            이 저장소 구조 설명
-          </SuggestionsItem>
-          <SuggestionsItem onClick={() => m.send("실패하는 테스트 찾기")}>
-            실패하는 테스트 찾기
-          </SuggestionsItem>
-          <SuggestionsItem onClick={() => m.send("최근 변경 요약")}>최근 변경 요약</SuggestionsItem>
-        </Suggestions>
-      </div>
-    </div>
-  );
+  return <div className="flex min-h-0 flex-1 flex-col overflow-auto" />;
 }
 
 function ComposerArea() {

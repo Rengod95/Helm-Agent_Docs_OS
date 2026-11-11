@@ -35,7 +35,7 @@ import { ReviewScreen } from "./pages/review/review-screen.tsx";
 import { WorkScreen } from "./pages/work/work-screen.tsx";
 import { SecretsPanel } from "./pages/secrets/secrets-screen.tsx";
 import { TrustCard } from "./trust.tsx";
-import { WorkFolderBand } from "./work-folder-band.tsx";
+import { ThreadContextBar } from "./thread-context-bar.tsx";
 import { Transcript } from "./transcript.tsx";
 import {
   createShellRegistry,
@@ -71,10 +71,11 @@ function ChatScreen(): ReactNode {
       {/* 토스트는 이 묶음(카드와 입력창) 위에 선다. 묶음의 위쪽 끝을 알려 입력창 모델 고르기 단추를 가리지 않게 한다(shell.tsx useToastBottom) */}
       <div data-toast-avoid className="flex flex-none flex-col">
         <div className="mx-auto grid min-h-0 w-full max-w-184 flex-none">
-          <WorkFolderBand />
           <TrustCard />
           <ApprovalQueue />
           <SafeModeCard />
+          {/* 대화 맥락 줄(DP-71)은 입력창 바로 위에 붙는다. 폴더가 없어졌다는 경고도 이 줄의 폴더 칸이 보인다 */}
+          <ThreadContextBar />
         </div>
         {spawned ? <SpawnedNotice /> : <Composer />}
       </div>
