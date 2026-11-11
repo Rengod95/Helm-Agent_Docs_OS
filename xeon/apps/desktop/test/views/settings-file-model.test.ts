@@ -7,16 +7,14 @@ import {
   fileEditableOf,
   fileEditorReducer,
   fileSaveableOf,
-  fileScopesOf,
   initialFileEditor,
   type FileDoc,
   type FileEditorAction,
   type FileEditorState,
 } from "../../src/views/pages/settings/settings-file-model.ts";
-import { thr } from "../state/helpers.ts";
 
 // 설정 파일 편집기의 순수 전이 시험. 응답은 번호가 맞을 때만 들어가고, 충돌과 저장 실패는 초안을 남기고,
-// 오프라인은 편집과 저장을 잠근다. 값은 `toBe`·`toEqual`로 정확히 비교한다.
+// 오프라인은 편집과 저장을 잠근다. 편집기는 사용자 설정 파일 하나를 연다. 값은 `toBe`·`toEqual`로 정확히 비교한다.
 
 const SHA = "ab".repeat(32);
 const NEXT = "cd".repeat(32);
@@ -29,26 +27,16 @@ function run(...actions: readonly FileEditorAction[]): FileEditorState {
   return actions.reduce(fileEditorReducer, initialFileEditor);
 }
 
-/** 읽기를 끝낸 편집기. 번호 1, 사용자 범위 */
+/** 읽기를 끝낸 편집기. 번호 1 */
 function ready(): FileEditorState {
-  return run(
-    { type: "started", seq: 1, scope: "user", threadId: null },
-    { type: "loaded", seq: 1, doc: DOC },
-  );
+  return run({ type: "started", seq: 1 }, { type: "loaded", seq: 1, doc: DOC });
 }
 
 describe("opening and reading", () => {
-  test("opening starts a read with the scope, the conversation and a new number", () => {
-    const state = fileEditorReducer(initialFileEditor, {
-      type: "started",
-      seq: 1,
-      scope: "project",
-      threadId: thr(1),
-    });
+  test("opening starts a read with a new number and an empty draft", () => {
+    const state = fileEditorReducer(initialFileEditor, { type: "started", seq: 1 });
     expect(state.phase).toBe("loading");
     expect(state.seq).toBe(1);
-    expect(state.scope).toBe("project");
-    expect(state.threadId).toBe(thr(1));
     expect(state.doc).toBeNull();
     expect(state.draft).toBe("");
   });
@@ -62,14 +50,14 @@ describe("opening and reading", () => {
   });
 
   test("a read answer with another number is ignored", () => {
-    const loading = run({ type: "started", seq: 2, scope: "user", threadId: null });
+    const loading = run({ type: "started", seq: 2 });
     const late = fileEditorReducer(loading, { type: "loaded", seq: 1, doc: DOC });
     expect(late).toBe(loading);
   });
 
   test("a failed read keeps the reason and shows the retry phase", () => {
     const state = run(
-      { type: "started", seq: 1, scope: "user", threadId: null },
+      { type: "started", seq: 1 },
       {
         type: "loadFailed",
         seq: 1,
@@ -82,10 +70,7 @@ describe("opening and reading", () => {
 
   test("a missing file starts empty and is saved with no base hash", () => {
     const missing: FileDoc = { path: PATH, exists: false, readOnly: false, text: "", sha256: null };
-    const state = run(
-      { type: "started", seq: 1, scope: "user", threadId: null },
-      { type: "loaded", seq: 1, doc: missing },
-    );
+    const state = run({ type: "started", seq: 1 }, { type: "loaded", seq: 1, doc: missing });
     expect(state.draft).toBe("");
     expect(state.doc?.sha256).toBeNull();
     const edited = fileEditorReducer(state, { type: "edited", text: "{}\n" });
@@ -94,10 +79,7 @@ describe("opening and reading", () => {
 
   test("a read-only file cannot be edited or saved", () => {
     const locked: FileDoc = { ...DOC, readOnly: true };
-    const state = run(
-      { type: "started", seq: 1, scope: "user", threadId: null },
-      { type: "loaded", seq: 1, doc: locked },
-    );
+    const state = run({ type: "started", seq: 1 }, { type: "loaded", seq: 1, doc: locked });
     expect(fileEditableOf(state, true)).toBe(false);
     const typed = fileEditorReducer(state, { type: "edited", text: "{}" });
     expect(typed.draft).toBe(TEXT);
@@ -146,11 +128,6 @@ describe("editing, discarding and closing", () => {
     expect(fileDiscardableOf(edited)).toBe(true);
     expect(edited.draft).toBe("{}\n");
   });
-
-  test("the scope choice has only the user scope without a conversation", () => {
-    expect(fileScopesOf(false)).toEqual(["user"]);
-    expect(fileScopesOf(true)).toEqual(["user", "project", "local"]);
-  });
 });
 
 describe("saving", () => {
@@ -192,12 +169,7 @@ describe("saving", () => {
     const edited = fileEditorReducer(ready(), { type: "edited", text: "{}\n" });
     const sending = fileEditorReducer(edited, { type: "saveStarted", seq: 2 });
     const conflicted = fileEditorReducer(sending, { type: "saveConflicted", seq: 2 });
-    const reading = fileEditorReducer(conflicted, {
-      type: "started",
-      seq: 3,
-      scope: "user",
-      threadId: null,
-    });
+    const reading = fileEditorReducer(conflicted, { type: "started", seq: 3 });
     expect(reading.phase).toBe("loading");
     const now: FileDoc = { ...DOC, text: '{ "other": true }\n', sha256: NEXT };
     const reloaded = fileEditorReducer(reading, { type: "loaded", seq: 3, doc: now });
@@ -238,9 +210,7 @@ describe("saving", () => {
       fileEditorReducer(ready(), { type: "edited", text: "{}\n" }),
       { type: "saveStarted", seq: 2 },
     );
-    expect(
-      fileEditorReducer(sending, { type: "started", seq: 3, scope: "user", threadId: null }),
-    ).toBe(sending);
+    expect(fileEditorReducer(sending, { type: "started", seq: 3 })).toBe(sending);
     expect(fileEditorReducer(sending, { type: "edited", text: "x" })).toBe(sending);
     expect(fileEditorReducer(sending, { type: "closed" })).toBe(sending);
   });

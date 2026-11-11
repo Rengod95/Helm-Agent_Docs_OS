@@ -27,6 +27,7 @@ import {
   type SheetField,
 } from "./schedule-draft.ts";
 import type { SheetState } from "./schedule-model.ts";
+import { numberAppearanceOf } from "../settings/settings-quantity-model.ts";
 import { triggerKindId, TRIGGER_KINDS, type MessageRef } from "./schedule-text.ts";
 
 // 새 예약 시트(O-08). 입력은 `ScheduleDraft`로 올리고 검사와 저장은 화면이 한다. 작업 폴더는 경로 글자 칸이다
@@ -358,7 +359,7 @@ function TriggerInputs(props: {
             >
               <NumberField
                 size="sm"
-                appearance="stepper"
+                appearance={numberAppearanceOf({ min: 1, max: null, integer: true })}
                 aria-label={t("desktop.schedules.form.maxIterations")}
                 min={1}
                 value={numberOf(draft.maxIterations)}

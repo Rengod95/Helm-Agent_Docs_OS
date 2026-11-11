@@ -19,7 +19,6 @@ import {
 
 const NOOP = (): void => {};
 const handlers: SettingsFileHandlers = {
-  scope: NOOP,
   edit: NOOP,
   save: NOOP,
   discard: NOOP,
@@ -40,7 +39,7 @@ function stateOf(over: Partial<FileEditorState>): FileEditorState {
 }
 
 function propsOf(over: Partial<SettingsFileEditorProps> = {}): SettingsFileEditorProps {
-  return { state: stateOf({}), live: true, hasThread: false, handlers, ...over };
+  return { state: stateOf({}), live: true, handlers, ...over };
 }
 
 function html(props: SettingsFileEditorProps): string {
@@ -51,14 +50,6 @@ function html(props: SettingsFileEditorProps): string {
 function buttonHtml(out: string, label: string): string {
   const buttons = out.match(/<button[\s\S]*?<\/button>/g) ?? [];
   return buttons.find((button) => button.includes(`>${label}<`)) ?? "";
-}
-
-/** `aria-label`을 가진 선택 상자의 단추 태그 한 개. 옵션은 포털이라 서버 렌더에 없다 */
-function triggerOf(out: string, label: string): string {
-  const at = out.indexOf(`aria-label="${label}"`);
-  if (at === -1) return "";
-  const start = out.lastIndexOf("<button", at);
-  return out.slice(start, out.indexOf(">", at) + 1);
 }
 
 describe("file editor states", () => {
@@ -108,7 +99,7 @@ describe("file editor states", () => {
     expect(out).toContain("haiku");
   });
 
-  test("offline locks the text area, saving and the scope choice and keeps the last text", () => {
+  test("offline locks the text area and saving and keeps the last text", () => {
     const out = html(propsOf({ live: false, state: stateOf({ draft: '{"model": "haiku"}\n' }) }));
     expect(out).toContain(t("desktop.settings.offline"));
     expect(out).toContain("haiku");
@@ -157,15 +148,5 @@ describe("file editor states", () => {
   test("the saved mark shows after a save", () => {
     const out = html(propsOf({ state: stateOf({ saved: true }) }));
     expect(out).toContain(t("desktop.settings.field.saved"));
-  });
-});
-
-describe("scope choice", () => {
-  test("the scope choice is locked offline and while a draft is unsaved, and open otherwise", () => {
-    const label = t("desktop.settings.field.scope.label");
-    expect(triggerOf(html(propsOf({ live: false })), label)).toContain('disabled=""');
-    const dirty = propsOf({ state: stateOf({ draft: '{"model": "haiku"}\n' }) });
-    expect(triggerOf(html(dirty), label)).toContain('disabled=""');
-    expect(triggerOf(html(propsOf()), label)).not.toContain('disabled=""');
   });
 });

@@ -1,19 +1,19 @@
-import type {
-  BadgeScope,
-  FieldVM,
-  SettingsView,
-  ShadowedVM,
-  TabVM,
-  WidgetVM,
-  WritableScope,
-} from "@fresnel/client/settings";
+import type { FieldVM, SettingsView, TabVM, WidgetVM } from "@fresnel/client/settings";
 import { scopeText } from "@fresnel/client/settings";
-import { createTranslator, isLocale, t, tKey, UI_LOCALE_KEY } from "@fresnel/client/i18n";
+import { createTranslator, isLocale, tKey, UI_LOCALE_KEY } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
-import type { SettingEditor, SettingKey, SettingsTab } from "@fresnel/contracts/settings";
+import type { SettingEditor, SettingKey } from "@fresnel/contracts/settings";
 import { MCP_SERVERS_KEY } from "./settings-mcp-model.ts";
+import {
+  fieldsOfSection,
+  isExtEnabledKey,
+  sectionLabelOf,
+  SECTION_ORDER,
+  type SettingsSection,
+  type ShownSettingsSection,
+} from "./settings-sections.ts";
 
-// 설정 화면(P-09)의 순수 모델. 탭 고르기, 키 찾기, 탭 옮길 때 초안 묻기, 입력 칸 고르기, 화면 상태를 값으로 만든다.
+// 설정 화면(P-09)의 순수 모델. 구역 고르기, 키 찾기, 구역 옮길 때 초안 묻기, 입력 칸 고르기, 화면 상태를 값으로 만든다.
 // 입력은 `SettingsView`(client)와 화면 상태뿐이다. 호스트를 부르지 않고 DOM도 보지 않는다.
 
 /** 옵션이 이 개수 이하이면 라디오 묶음, 넘으면 선택 상자다(L4.settings-ui §4.2.1) */
@@ -22,118 +22,35 @@ const RADIO_MAX_OPTIONS = 8;
 /** "저장됨" 표시가 보이는 시간(ms). L4.desktop-ux §6.13 */
 export const SAVED_MARK_MS = 2000;
 
-// ── 탭 ─────────────────────────────────────────────────────────────────────
+// ── 구역 ───────────────────────────────────────────────────────────────────
 
-/** 탭 목록의 ↑↓. 끝에서 한 바퀴 돈다. 모르는 탭이면 현재 탭을 돌려준다 */
+/** 구역 목록의 ↑↓. 끝에서 한 바퀴 돈다. 목록에 없는 구역이면 현재 구역을 돌려준다 */
 export function tabStep(
-  current: SettingsTab,
-  order: readonly SettingsTab[],
+  current: SettingsSection,
+  order: readonly SettingsSection[],
   delta: 1 | -1,
-): SettingsTab {
+): SettingsSection {
   const index = order.indexOf(current);
   if (index === -1 || order.length === 0) return current;
   const next = (index + delta + order.length) % order.length;
   return order[next] ?? current;
 }
 
-/** 탭 전환 결정. `ask`이면 저장하지 않은 초안을 먼저 묻는다 */
+/** 구역 전환 결정. `ask`이면 저장하지 않은 초안을 먼저 묻는다 */
 export type TabSwitch =
   | { readonly kind: "stay" }
-  | { readonly kind: "move"; readonly to: SettingsTab }
-  | { readonly kind: "ask"; readonly to: SettingsTab; readonly keys: readonly SettingKey[] };
+  | { readonly kind: "move"; readonly to: SettingsSection }
+  | { readonly kind: "ask"; readonly to: SettingsSection; readonly keys: readonly SettingKey[] };
 
-/** 같은 탭이면 머문다. 초안이 없으면 바로 옮긴다. 초안이 있으면 그 키들과 함께 묻는다 */
+/** 같은 구역이면 머문다. 초안이 없으면 바로 옮긴다. 초안이 있으면 그 키들과 함께 묻는다 */
 export function tabSwitchOf(input: {
-  readonly current: SettingsTab;
-  readonly to: SettingsTab;
+  readonly current: SettingsSection;
+  readonly to: SettingsSection;
   readonly dirtyKeys: readonly SettingKey[];
 }): TabSwitch {
   if (input.to === input.current) return { kind: "stay" };
   if (input.dirtyKeys.length === 0) return { kind: "move", to: input.to };
   return { kind: "ask", to: input.to, keys: input.dirtyKeys };
-}
-
-// ── 고급 탭 구역 ──────────────────────────────────────────────────────────
-
-/** 고급 탭에서 운영자가 만지는 항목. 하트비트, 임대, fsync, FTS5, 수집기, 외부 실행 파일 같은 것이다 */
-const OPERATOR_KEYS: ReadonlySet<string> = new Set([
-  "l0.store.heartbeatMs",
-  "l0.store.leaseTtlMs",
-  "l0.store.macFullFsync",
-  "l0.store.requireFts5",
-  "l0.os.telemetry.enabled",
-  "l0.os.telemetry.exporter",
-  "l0.os.telemetry.endpoint",
-  "l0.secrets.sops.binary",
-  "l2.knowledge.search.likeScanLimit",
-  "l2.knowledge.write.trustedEvidenceSources",
-  "l2.work.goal.delegatedTimeoutSec",
-  "l4.desktop.engine.shutdownGraceMs",
-]);
-
-export interface AdvancedGroups {
-  readonly general: readonly FieldVM[];
-  readonly operator: readonly FieldVM[];
-}
-
-/** 고급 탭의 항목을 일반 항목과 운영자용 항목으로 가른다. 순서는 그대로다 */
-export function advancedGroupsOf(fields: readonly FieldVM[]): AdvancedGroups {
-  return {
-    general: fields.filter((field) => !OPERATOR_KEYS.has(field.key)),
-    operator: fields.filter((field) => OPERATOR_KEYS.has(field.key)),
-  };
-}
-
-// ── 모델과 예산 탭 구역 ───────────────────────────────────────────────────
-
-/** 모델 탭의 `기본` 카드 키. 기본 모델, 추론 레벨, 판정 실행 상한이다(시안 p09 `models-tab`) */
-const MODELS_BASIC_KEYS: ReadonlySet<string> = new Set([
-  "l1.models.default",
-  "l1.models.thinkingLevel",
-  "l1.agents.judge.maxRuns",
-]);
-
-/** 모델 탭의 `라우팅` 카드 키. 용도별 모델과 그룹 라우팅이다 */
-const MODELS_ROUTING_KEYS: ReadonlySet<string> = new Set([
-  "l1.models.routing.review",
-  "l1.models.routing.summary",
-  "l1.models.routing.subagent",
-  "l1.models.routing.judge",
-  "l1.models.routing.search",
-  "l1.models.groupRouting",
-]);
-
-/** 예산과 한도 탭의 `레이트 리밋` 카드 키. 나머지 예산 항목은 `예산` 카드다(시안 p11 `BudgetsTab`) */
-const BUDGETS_RATE_LIMIT_KEYS: ReadonlySet<string> = new Set(["l1.models.rateLimit"]);
-
-export interface ModelsGroups {
-  readonly basic: readonly FieldVM[];
-  readonly routing: readonly FieldVM[];
-  readonly rest: readonly FieldVM[];
-}
-
-/** 모델 탭의 항목을 `기본`, `라우팅`, 그 밖으로 가른다. 순서는 그대로다. 두 목록에 없는 키는 그 밖이다 */
-export function modelsGroupsOf(fields: readonly FieldVM[]): ModelsGroups {
-  return {
-    basic: fields.filter((field) => MODELS_BASIC_KEYS.has(field.key)),
-    routing: fields.filter((field) => MODELS_ROUTING_KEYS.has(field.key)),
-    rest: fields.filter(
-      (field) => !MODELS_BASIC_KEYS.has(field.key) && !MODELS_ROUTING_KEYS.has(field.key),
-    ),
-  };
-}
-
-export interface BudgetsGroups {
-  readonly budget: readonly FieldVM[];
-  readonly rateLimit: readonly FieldVM[];
-}
-
-/** 예산과 한도 탭의 항목을 `예산`과 `레이트 리밋`으로 가른다. 순서는 그대로다. 레이트 리밋 키가 아니면 예산이다 */
-export function budgetsGroupsOf(fields: readonly FieldVM[]): BudgetsGroups {
-  return {
-    budget: fields.filter((field) => !BUDGETS_RATE_LIMIT_KEYS.has(field.key)),
-    rateLimit: fields.filter((field) => BUDGETS_RATE_LIMIT_KEYS.has(field.key)),
-  };
 }
 
 // ── 키 찾기 ────────────────────────────────────────────────────────────────
@@ -152,27 +69,28 @@ export function fieldMatches(field: FieldVM, query: string): boolean {
 }
 
 export interface SearchGroup {
-  readonly tab: SettingsTab;
+  readonly section: ShownSettingsSection;
   readonly label: string;
   readonly fields: readonly FieldVM[];
 }
 
-/** 찾기 결과를 탭별로 묶는다. 맞는 항목이 없는 탭은 뺀다. 탭 순서와 항목 순서는 그대로다 */
-export function searchGroupsOf(tabs: readonly TabVM[], query: string): readonly SearchGroup[] {
-  return tabs
-    .map((tab) => ({
-      tab: tab.id,
-      label: tab.label,
-      fields: tab.fields.filter(
-        (field) => field.key !== MCP_SERVERS_KEY && fieldMatches(field, query),
-      ),
-    }))
-    .filter((group) => group.fields.length > 0);
+/**
+ * 찾기 결과를 구역별로 묶는다. 구역에 드는 항목만 찾는다(허용 목록 밖의 키는 찾기에도 안 나온다). 맞는 항목이 없는 구역은 뺀다.
+ * 구역 순서와 항목 순서는 그대로다
+ */
+export function searchGroupsOf(view: SettingsView, query: string): readonly SearchGroup[] {
+  return SECTION_ORDER.map((section) => ({
+    section,
+    label: sectionLabelOf(section),
+    fields: fieldsOfSection(view, section).filter(
+      (field) => field.key !== MCP_SERVERS_KEY && fieldMatches(field, query),
+    ),
+  })).filter((group) => group.fields.length > 0);
 }
 
 // ── 초안과 저장 ────────────────────────────────────────────────────────────
 
-/** 저장하지 않은 초안의 키. 화면 순서(탭 순서, 항목 순서)를 따른다 */
+/** 저장하지 않은 초안의 키. 화면 순서(구역 순서가 아니라 탭 순서, 항목 순서)를 따른다 */
 export function dirtyKeysOf(tabs: readonly TabVM[]): readonly SettingKey[] {
   return tabs.flatMap((tab) => tab.fields.filter((field) => field.dirty).map((field) => field.key));
 }
@@ -189,43 +107,40 @@ export function remoteNoticeOf(field: FieldVM): boolean {
 }
 
 /**
- * 배지 범위를 쓸 수 있는 범위로 좁힌다. 기본값과 `managed`는 쓸 수 없으니 `null`이다.
- * 되돌리기 버튼이 이 값으로 범위를 정한다.
+ * 쓰기 범위. 설정은 모두 사용자(전역) 범위에 쓴다. 사용자 범위를 쓸 수 없는 항목(잠겼거나 사용자 범위가 없으면)은 `null`이고,
+ * 그때는 컨트롤러가 정한 범위를 그대로 쓴다. 화면은 저장하기 전에 이 값으로 범위를 고른다.
  */
-export function writableOf(scope: BadgeScope): WritableScope | null {
+export function writeScopeOf(field: FieldVM): "user" | null {
+  return field.writableScopes.includes("user") ? "user" : null;
+}
+
+/**
+ * 되돌리기 단추를 보이는가. 값이 사용자 범위에 있을 때만 보인다. 다른 층이 이기면 사용자 값을 지워도 화면 값이 그대로라 숨긴다.
+ */
+export function resetShownOf(field: FieldVM): boolean {
+  return field.canReset && field.scope.scope === "user";
+}
+
+/**
+ * 다른 층이 사용자 값을 덮을 때의 경고. 승자 범위가 프로젝트, 로컬, 이번 실행, 관리 정책이면 그 범위 이름과 파일 경로를 준다.
+ * 기본값이나 사용자 범위가 이기면 경고가 없어 `null`이다. 경고는 항목 아래에 보이고 도움말 뒤로 숨기지 않는다.
+ */
+export function overrideWarningOf(
+  field: FieldVM,
+): { readonly scopeName: string; readonly path: string | null } | null {
+  const scope = field.scope.scope;
   switch (scope) {
-    case "user":
     case "project":
     case "local":
     case "launch":
-      return scope;
     case "managed":
+      return { scopeName: scopeText(scope), path: field.filePath };
+    case "user":
     case "default":
       return null;
     default:
       return assertNever(scope, "BadgeScope");
   }
-}
-
-/** 대화 범위 체크를 껐을 때 돌아갈 범위. 대화 범위가 아닌 첫 후보다 */
-export function fallbackScopeOf(field: FieldVM): WritableScope | null {
-  return field.writableScopes.find((scope) => scope !== "launch") ?? null;
-}
-
-/** "이번 대화에만 적용" 체크를 보이는가와 켜졌는가. 열린 대화가 있고 대화 범위를 쓸 수 있을 때만 보인다 */
-export function launchChoiceOf(
-  field: FieldVM,
-  hasThread: boolean,
-): { readonly shown: boolean; readonly checked: boolean } {
-  return {
-    shown: hasThread && field.writableScopes.includes("launch"),
-    checked: field.selectedScope === "launch",
-  };
-}
-
-/** 쓸 범위가 둘 이상이면 범위를 고르는 선택 상자를 보인다 */
-export function scopeChoiceShown(field: FieldVM): boolean {
-  return field.writableScopes.length > 1;
 }
 
 // ── 입력 칸 ────────────────────────────────────────────────────────────────
@@ -318,16 +233,13 @@ export function foldableOf(value: unknown): boolean {
   return typeof value === "object" && value !== null;
 }
 
-/** 확장 켜짐 키. "플러그인과 그룹" 탭의 실행 화면(`PluginsPanel`)이 스위치로 그리므로 항목 목록에서는 뺀다 */
-const EXT_ENABLED_KEY = /^ext\.[^.]+\.enabled$/;
-
-/** 도구와 웹 패널이 맡는 항목인가(검색 순서, MCP 서버 표)과 확장 켜짐 스위치. 패널이나 구역이 그리므로 탭의 항목 목록에서는 뺀다 */
+/** 도구와 웹 패널이 맡는 항목인가(검색 순서, MCP 서버 표)과 확장 켜짐 스위치. 패널이 그리므로 구역의 항목 목록에서는 뺀다 */
 export function panelOwnedOf(field: FieldVM): boolean {
   return (
     field.editor === "searchOrder" ||
     field.key === SEARCH_ORDER_KEY ||
     field.key === MCP_SERVERS_KEY ||
-    EXT_ENABLED_KEY.test(field.key)
+    isExtEnabledKey(field.key)
   );
 }
 
@@ -478,52 +390,6 @@ export function valueSummaryOf(value: unknown): ValueSummary {
     return { kind: "text", text: String(value) };
   }
   return { kind: "text", text: JSON.stringify(value) };
-}
-
-// ── 가려진 값 ──────────────────────────────────────────────────────────────
-
-/** 값 하나의 화면 글. 표와 객체는 원소 수로, 빈 값은 빈 값 글로 보인다(항목 요약과 같은 규칙) */
-function valueTextOf(value: unknown): string {
-  const summary = valueSummaryOf(value);
-  switch (summary.kind) {
-    case "empty":
-      return t("desktop.settings.field.emptyValue");
-    case "count":
-      return t("desktop.settings.field.itemCount", { count: summary.count });
-    case "text":
-      return summary.text;
-    default:
-      return assertNever(summary, "ValueSummary");
-  }
-}
-
-/** 가려진 범위 하나의 글. 시크릿은 값 대신 "값 가려짐"이고, 파일에서 못 읽은 범위는 그 사실만 보인다 */
-function shadowedItemOf(item: ShadowedVM): string {
-  const scope = scopeText(item.scope);
-  switch (item.value.kind) {
-    case "value":
-      return t("desktop.settings.shadowed.item", {
-        scope,
-        value: valueTextOf(item.value.value),
-      });
-    case "secret":
-      return t("desktop.settings.shadowed.item", {
-        scope,
-        value: t("desktop.secrets.value.hidden"),
-      });
-    case "unknown":
-      return t("desktop.settings.shadowed.unknown", { scope });
-    default:
-      return assertNever(item.value, "ShadowedValueVM");
-  }
-}
-
-/**
- * 가려진 범위의 요약 한 줄(§4.3.4 [결정: 오케스트레이터 기본값, fxPT]). 강한 범위부터 약한 범위 순으로 `프로젝트 4 · 사용자 2`처럼 잇는다.
- * 가려진 범위가 없으면 빈 글이다. 값은 접힘 영역 안에만 보인다.
- */
-export function shadowedSummaryOf(field: FieldVM): string {
-  return field.shadowed.map(shadowedItemOf).join(t("desktop.settings.shadowed.separator"));
 }
 
 // ── 바로 가기 키 ───────────────────────────────────────────────────────────

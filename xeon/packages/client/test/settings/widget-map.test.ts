@@ -69,13 +69,14 @@ describe("widget map: toggle, select, number", () => {
     expect(
       resolveWidget(typed(Type.Integer(), "number", { range: { min: 0, max: 10 }, unit: "토큰" }))
         .widget,
-    ).toEqual({ kind: "number", min: 0, max: 10, integer: true, unit: "토큰" });
+    ).toEqual({ kind: "number", min: 0, max: 10, integer: true, unit: "토큰", unitId: "토큰" });
     expect(resolveWidget(typed(Type.Number(), "number")).widget).toEqual({
       kind: "number",
       min: null,
       max: null,
       integer: false,
       unit: null,
+      unitId: null,
     });
     expect(resolveWidget(typed(Type.String(), "number")).diagnostic?.code).toBe("widgetMismatch");
   });

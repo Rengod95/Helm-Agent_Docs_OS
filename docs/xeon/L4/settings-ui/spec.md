@@ -557,6 +557,15 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 5. 폐기된 정의(`deprecated` 있음)는 `settings.list({includeDeprecated: true})`로 받는다. 유효 값 출처가 `default`이면 화면에 보이지 않고, 사용자가 값을 둔 경우에만 항목과 폐기 배지를 보인다 [제안].
 6. 각 정의가 어느 탭에 들어갈지는 정의의 `ui.tab`이 정한다. 아래 표의 "들어오는 층·키 네임스페이스"는 키 소유 층이 탭을 고를 때 쓰는 기본 배치 안내다 [제안]. 설정 화면은 네임스페이스로 탭을 바꾸지 않는다.
 
+#### 4.1.0 화면의 구역과 항목 선별
+
+[결정: 2026-11-11 사용자] 설정 화면은 이 앱만 줄 수 있는 설정만 둔다. 모델 제공자나 플러그인이 정할 손잡이(턴당 최대 단계, 이어가기, 추론·예산 매개변수, 도구별 한도와 시간 제한)는 화면에서 뺀다. 엔진 키, 설정 파일 값, "파일로 보기" 편집기는 그대로라 플러그인과 파일로는 계속 쓸 수 있다. 판단표는 `_notes/design/cxZ-audit.md`다.
+
+- 화면 구역(`SECTION_ORDER`, `settings-sections.ts`)은 개요, 모델과 계정, 시크릿, 권한과 샌드박스, 도구와 MCP, 플러그인, 연결과 서비스, 실행, 대화와 기억, 화면과 알림, 백업과 고급 열한 개다. 엔진 탭 `models`, `budgets`, `sandbox`는 구역으로 보이지 않고, 그 항목은 허용 목록(`sectionOfField`)이 정한 구역으로 가거나 빠진다. 목록에 없는 키는 기본이 숨김이다.
+- "연결과 서비스" 구역은 연결 화면(P-08) 본문(호스트, 실행 방식, 진단)과 서비스 항목(`l0.process.service.*`, `l4.remote.web.*`)을 싣는다. 연결 화면은 왼쪽 내비에 없다. 설정을 구역으로 여는 의도는 `requestSettingsJump({ tab: "connection", key: null })`(`openSettingsSection("connection")`)다.
+- 구역 라벨은 §4.1.1 표의 탭 라벨 대신 `desktop.settings.section.*`를 쓴다. §4.1.1 표는 엔진 쪽 `ui.tab` 배치 안내로만 남는다.
+- 명령 팔레트의 설정 항목도 같은 허용 목록을 따른다.
+
 #### 4.1.1 탭 표
 
 | 탭 id | 한국어 라벨 [제안] | 들어오는 층·키 네임스페이스 (기본 배치 안내) | 편집 방식 | 상태 게이지 |
@@ -634,7 +643,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 |---|---|---|---|
 | `toggle` | 스위치 | `type.type === "boolean"` | D8 |
 | `select` | 단일 선택 목록. 선택지 8개 이하면 라디오 묶음, 넘으면 드롭다운 | `range.enum`(표시 순서 그대로) | D8. `range.enum`이 없으면 불일치. 선택지는 원시 값이 아니라 카탈로그 `settings.<설정 키>.option.<값>`(값의 `-`·`_`는 camelCase)의 라벨로 보이고, 없으면 값 그대로 보인다 |
-| `number` | 숫자 입력 + 단위 꼬리표 | `range.min`, `range.max`, `type.type === "integer"`이면 정수 단계, `ui.unit` | D8. 칸이 받지 못하는 글(범위 밖, 숫자 아님, 빈 칸)은 칸 안에 초안으로 남고 칸 아래에 이유 문장을 보인다(범위는 `range`에서 만든다) |
+| `number` | 숫자 입력 + 단위 꼬리표. 정수이고 `max - min <= 20`이면 ± 단추(stepper), 그 밖은 ± 없는 단위 입력(`numberStyleOf`, `settings-quantity-model.ts`) [결정: 2026-11-11 사용자] | `range.min`, `range.max`, `type.type === "integer"`이면 정수 단계, `ui.unit` | D8. 단위 입력은 천 단위 구분과 `200K`·`256KB`·`30s` 같은 접미사 입력을 받고 칸 아래에 "200K 토큰" 같은 환산 한 줄을 보인다. 값이 0이거나 환산이 칸의 숫자와 같으면 줄을 보이지 않는다(`parseQuantity`, `quantitySummaryOf`, `quantitySummaryShownOf`). 칸이 받지 못하는 글(범위 밖, 숫자 아님, 빈 칸)은 칸 안에 초안으로 남고 칸 아래에 이유 문장을 보인다(범위는 `range`에서 만든다) |
 | `text` | 한 줄 입력 | `type.minLength`, `type.maxLength`, `type.pattern` | `type.type === "string"` |
 | `list` | 원소 추가·삭제·순서 변경 목록 | `type.items.type`(string, number, integer, boolean), `type.maxItems` | `type.type === "array"`이고 `items`가 원시 타입. 원소가 열거형(`options` 있음)이면 선택지마다 토글 칩 하나이고 칩 글은 `select`와 같은 `settings.<설정 키>.option.<값>` 라벨이며 켠 순서가 값의 순서다(`TagInput`은 표시 라벨 prop이 없어 앱이 감싼다: `apps/desktop/src/views/pages/settings/settings-tag-list.tsx`). 자유 입력 목록은 `TagInput` 그대로다 |
 | `table` | 행 추가·삭제 표. `rows` 모양은 열이 `items.properties` 순서, `record` 모양은 "이름"·"값" 두 열 | `rows`: `type.items.properties`, `type.items.required`, 열의 `enum`. `record`: `type.additionalProperties`의 원시 타입 | `rows`: `type.type === "array"`이고 `items.type === "object"`. `record`: `type.type === "object"`이고 `additionalProperties`가 원시 타입 스키마(예: `l4.desktop.appearance.keybindings`, `L4.desktop.spec` §6) |
@@ -736,31 +745,31 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 - `locked: true`이면 편집 부품을 끄고(`editable: false`), 범위 선택과 기본값 복귀 버튼을 숨긴다. 자물쇠와 잠금 문구(§4.8.3)를 보인다.
 - 잠금 판정은 화면 표시용이다. 최종 판정은 서버 `settings.locked`(3104)다.
 
-#### 4.3.4 가려진 값
+#### 4.3.4 덮어쓰는 값 경고
 
-- `shadowed`가 비어 있지 않으면 "가려진 범위 N개"를 접힘 영역 머리로 보인다(`F.wire-settings.spec` §4.7 규칙 5). 펼치면 가려진 범위의 값을 강한 범위 순으로 한 줄에 보인다. 예: `프로젝트 4 · 사용자 2`. 프로젝트와 로컬은 따로 적는다 [결정: 오케스트레이터 기본값, fxPT].
-- wire의 `shadowed`에는 값이 없다(범위와 경로만, `F.wire-settings.spec` §4.7) [근거: packages/contracts/src/wire-settings/settings/effective.ts `SettingSourceSchema`]. 값은 화면이 `settings.readFile`로 그 범위 파일을 읽어 채운다. 파일에 없거나 정의 검사에 못 미치면 "프로젝트 값을 읽지 못했어요"로 보인다. `launch` 범위는 파일이 없어 값을 모른다. [결정: 오케스트레이터 기본값, fxPT]
-- 시크릿 항목의 가려진 값은 값 대신 "값 가려짐"이다. 참조 문자열도 싣지 않는다 [결정: 오케스트레이터 기본값, fxPT].
-- 접힘 영역은 설명이므로 정보 아이콘과 같이 한 번의 펼침 뒤에 둔다. 저장 범위 칸의 값은 이 값과 같은 범위다(§4.3.6) [결정: 오케스트레이터 기본값, fxPT].
+[결정: 2026-11-11 사용자] 설정 화면의 값은 모두 전역(사용자) 값이다. 항목마다 범위를 고르는 칸, "이번 대화에만 적용", 접힌 "가려진 범위" 영역은 없다. 엔진의 설정 층(파일 층, 프로젝트 파일 읽기)은 그대로 두고 화면에서만 드러내지 않는다.
+
+- 유효 값을 정한 범위(`source.scope`)가 `project`, `local`, `launch`, `managed` 가운데 하나이면 사용자 값을 저장해도 그 값이 이긴다. 그때 항목 아래에 경고 한 줄을 늘 보인다. 예: `프로젝트 값이 이 값을 덮어요 · <파일 경로>`. 경로는 `source.path`가 있을 때만 붙는다(순수 함수 `overrideWarningOf`, `apps/desktop/src/views/pages/settings/settings-model.ts`). 도움말 아이콘 뒤에 숨기지 않는다.
+- `user`나 `default`가 이기면 경고가 없다.
+- 시크릿 항목은 값을 싣지 않는다. 경고는 범위 이름과 경로만 쓴다.
 
 #### 4.3.5 저장 파일 경로
 
 - `source.path`가 있으면 항목 아래에 경로를 보인다. `default`와 `launch`은 경로가 없다. 경로 문자열은 그대로 보이고 홈 디렉터리만 `~`로 줄인다 [제안].
 - "파일 열기" 동작은 desktop 셸이 제공할 때만 보인다(§10 미결 6).
 
-#### 4.3.6 쓰기 범위 선택
+#### 4.3.6 쓰기 범위
 
-1. 후보는 `allowedScopes`에서 `managed`를 뺀 값이다. 화면은 managed에 쓰지 않는다.
-2. 잠겼으면 후보가 없다.
-3. `currentThreadId()`가 null이면 `launch`를 뺀다. `settings.set`의 launch 쓰기에는 `threadId`가 필요하기 때문이다.
-4. 기본 선택은 유효 값을 정한 범위다(`source.scope`). 그 범위가 후보에 없거나 값이 기본값이면 `user`이고, user가 후보에 없으면 project, local, launch 순으로 첫 값이다 [결정: 오케스트레이터 기본값, fxPT]. 범위 선택 칸은 이 값을 보이고, 저장은 칸이 보이는 범위에 쓴다(`settings.set`의 `scope`와 `threadId`). 사용자가 칸을 바꾸면 그 범위가 쓰기 범위다.
-5. `launch`은 범위 선택 목록에 넣지 않고 "이번 대화에만 적용" 확인란으로 보인다. 켜면 쓰기 범위가 launch가 되고 `threadId`를 함께 보낸다.
-6. 후보가 하나도 없으면 항목은 읽기 전용이고 "이 화면에서는 바꿀 수 없어요"를 보인다.
-7. 범위 밖 범위는 선택지에 나타나지 않는다. 서버가 `settings.scopeNotAllowed`를 돌려주면 §4.4.4대로 처리한다.
+[결정: 2026-11-11 사용자] 저장은 언제나 `user` 범위에 쓴다. 범위 선택 칸과 "이번 대화에만 적용" 확인란은 없다. [근거: 2026-11-11 사용자 요청]
+
+1. 항목의 쓰기 후보에 `user`가 있으면 저장 직전에 `controller.selectScope(key, "user")`로 정한다(`writeScopeOf`). ⌘S, 칸을 떠남, 탭 옮기기의 저장이 모두 같은 길을 지난다.
+2. `user`가 후보에 없는 항목(잠금, 관리 범위 전용)은 읽기 전용이고 "이 화면에서는 바꿀 수 없어요"를 보인다.
+3. 서버가 `settings.scopeNotAllowed`를 돌려주면 §4.4.4대로 처리한다.
+4. 설정 파일 편집기("파일로 보기")는 사용자 설정 파일만 연다. 프로젝트와 로컬 파일은 §4.3.4 경고로만 나타난다.
 
 #### 4.3.7 기본값 복귀
 
-- `source.scope`가 쓰기 범위 후보에 있으면 "이 범위 값 지우기" 버튼을 보인다. 누르면 `settings.reset({key, scope: source.scope, threadId?})`를 보낸다. 결과 `EffectiveSetting`으로 항목을 바꾼다. 다음 순위 값이 있으면 그 값이 유효 값이 된다.
+- 값이 사용자 범위에 있을 때(`source.scope === "user"`) "사용자 값 지우기" 버튼을 보인다. 누르면 `settings.reset({key, scope: "user"})`를 보낸다. 다른 층이 이기면 지워도 화면 값이 그대로라 버튼을 보이지 않는다. 결과 `EffectiveSetting`으로 항목을 바꾼다. 다음 순위 값이 있으면 그 값이 유효 값이 된다.
 - `default`, `managed` 출처에서는 버튼이 없다.
 
 #### 4.3.8 폐기 배지
@@ -1049,7 +1058,6 @@ sequenceDiagram
 | 잠긴 키 편집 시도 | 부품이 꺼져 있다. 서버가 `settings.locked`를 돌려주면 값을 다시 읽는다 |
 | secret 위젯에 참조 아닌 문자열 입력 | 초안에 남기지 않고 버린다. 전송하지 않는다 |
 | 서버가 `settings.secretValue`를 돌려줌 | 초안을 버리고 §4.4.4 문구. 오류 객체에 값 없음 |
-| thread가 없는데 launch 쓰기 | 선택지에 launch가 없다(§4.3.6 3번) |
 | project·local 범위인데 열린 작업 폴더가 없다 | 호스트가 3103 `settings.scopeNotAllowed`에 `details.reason: "workspaceRequired"`를 돌려준다(`L4.host-service.spec` §3.4 `settings.set` 행 [제안]). 화면은 §4.4.4 표의 workspaceRequired 행 문구를 보이고 초안을 지킨다 |
 | 연결이 끊긴 상태에서 저장 | `transient` 문구, 초안 유지. 재연결 뒤 desktop이 `load()`를 다시 부른다 |
 | 구독이 `replay.outOfRange` | `from: "head"`로 다시 구독하고 전체를 다시 읽는다(§4.5.1 6번) |

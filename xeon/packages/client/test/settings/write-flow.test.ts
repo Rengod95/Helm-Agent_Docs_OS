@@ -48,7 +48,14 @@ afterEach(() => {
 });
 
 describe("coerceInput", () => {
-  const number: WidgetVM = { kind: "number", min: null, max: null, integer: true, unit: null };
+  const number: WidgetVM = {
+    kind: "number",
+    min: null,
+    max: null,
+    integer: true,
+    unit: null,
+    unitId: null,
+  };
 
   test("a numeric string becomes a number, and a non-numeric one is an issue", () => {
     expect(coerceInput(number, "12")).toEqual({ ok: true, value: 12 });
