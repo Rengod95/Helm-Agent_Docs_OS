@@ -169,6 +169,16 @@ if (container === null) {
     notifier,
     prefs: notifyPrefsPortOf(localSettings),
     appearance: appearancePortOf(localSettings, document.documentElement, onThemeSaved),
+    keybindings: {
+      get: () => localSettings.get(LOCAL.keybindings),
+      set: async (next) => {
+        const saved = await localSettings.set(LOCAL.keybindings, { ...next });
+        // 앱의 키 맵은 `keyOverrides`로 들어간다. 저장했으면 다시 그려 새 키를 건다
+        if (saved.ok) rerender.current?.(activeLocale());
+        return saved.ok;
+      },
+      mac,
+    },
   };
   // 플러그인 화면 실행 맥락. Windows는 전용 스킴 주소가 달라 프레임 모드를 켜지 않는다(ADR-0021 §3.6.2)
   // 웹 브라우저는 https 주소(`/view/<토큰>/`)로 열어 스킴 제약이 없으므로 Windows 브라우저도 켠다(L4.remote.spec §6.3)

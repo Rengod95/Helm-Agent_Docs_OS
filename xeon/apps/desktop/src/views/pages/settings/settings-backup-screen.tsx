@@ -6,6 +6,7 @@ import { pickWorkspaceFolder, type FolderPickInvoke } from "../../folder-pick.ts
 import { useCommands } from "../../commands.ts";
 import { sharedBackupController, type BackupPhase } from "./settings-backup-model.ts";
 import { BackupView, type BackupHandlers } from "./settings-backup-view.tsx";
+import { documentsDirOf, sharedStorageController } from "./settings-storage-model.ts";
 
 // 백업 만들기 구역(P-09 고급 탭)의 동작. 명령(`commands.storage`)을 컨트롤러에 잇고, 만들었을 때만 토스트를 띄운다.
 // 거절은 구역 안의 경고가 보이므로 토스트를 겹치지 않는다. 그림은 `settings-backup-view.tsx`가 그린다.
@@ -23,6 +24,11 @@ export function BackupPanel(props: {
   const [pickError, setPickError] = useState<string | null>(null);
   const controller = sharedBackupController(commands.storage, { settled: announce });
   const state = useSyncExternalStore(controller.subscribe, controller.getState);
+  // 추천 폴더: 저장 공간이 읽은 데이터 폴더에서 홈을 알면 그 아래 "문서" 폴더
+  const storage = sharedStorageController(commands.storage);
+  const storageState = useSyncExternalStore(storage.subscribe, storage.getState);
+  const documents =
+    storageState.load.kind === "ready" ? documentsDirOf(storageState.load.usage.dataDir) : null;
   const handlers: BackupHandlers = {
     edit: controller.edit,
     ask: controller.ask,
@@ -49,6 +55,11 @@ export function BackupPanel(props: {
       handlers={handlers}
       onPick={folderPick === undefined ? undefined : () => detach(pick(folderPick), rethrow)}
       pickError={pickError}
+      suggestions={
+        documents === null
+          ? undefined
+          : [{ label: t("desktop.settings.backup.suggest.documents"), path: documents }]
+      }
     />
   );
 }

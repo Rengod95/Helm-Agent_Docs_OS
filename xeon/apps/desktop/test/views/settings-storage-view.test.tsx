@@ -106,10 +106,10 @@ describe("storage section states", () => {
 });
 
 describe("the pre-restore copy list", () => {
-  test("an empty list shows the muted empty line and no delete button", () => {
+  test("an empty list shows the legend row at 0 B and no delete button", () => {
     const usage: StorageUsage = { ...STORAGE_USAGE, restorePrevious: 0, previous: [] };
     const out = html(stateOf({ load: { kind: "ready", usage } }));
-    expect(out).toContain(t("desktop.settings.storage.previous.empty"));
+    expect(out).toContain('data-legend="restorePrevious"');
     expect(out).not.toContain(t("desktop.settings.storage.previous.remove"));
   });
 

@@ -22,6 +22,7 @@ export type SettingsGroupId = "app" | "agent" | "engine";
 export type SettingsPanelId =
   | "appearance"
   | "about"
+  | "shortcuts"
   | "notify"
   | "rotation"
   | "secrets"
@@ -79,6 +80,12 @@ export const SETTINGS_SECTIONS: Readonly<Record<SettingsSectionId, SectionSpec>>
       panel("appearance"),
       panel("about"),
     ],
+  },
+  shortcuts: {
+    id: "shortcuts",
+    group: "app",
+    label: "desktop.settings.section.shortcuts",
+    parts: [panel("shortcuts")],
   },
   notifications: {
     id: "notifications",
@@ -214,13 +221,13 @@ export const SETTINGS_SECTIONS: Readonly<Record<SettingsSectionId, SectionSpec>>
         "l1.persistence.retention.maxCount",
         "l1.persistence.autoResume",
       ]),
-      panel("memory"),
       fields("desktop.settings.part.knowledge", [
         "l2.knowledge.memory.enabled",
         "l2.knowledge.search.enabled",
         "l2.knowledge.search.includeHiddenDefault",
         "l2.knowledge.write.approval",
       ]),
+      panel("memory"),
     ],
   },
   connection: {
@@ -234,9 +241,8 @@ export const SETTINGS_SECTIONS: Readonly<Record<SettingsSectionId, SectionSpec>>
     group: "engine",
     label: "desktop.settings.section.execution",
     parts: [
-      fields(null, [
-        "l0.exec.shell",
-        "l0.exec.envAllowlist.extra",
+      fields("desktop.settings.part.shell", ["l0.exec.shell", "l0.exec.envAllowlist.extra"]),
+      fields("desktop.settings.part.concurrency", [
         "l0.process.lockFallback.default",
         "l2.schedule.entries.directCreate",
       ]),
@@ -354,5 +360,24 @@ export function searchSectionsOf(
       part.kind === "fields" ? partFieldsOf(part, shown).filter((f) => matches(f, needle)) : [],
     );
     return found.length === 0 ? [] : [{ section: id, fields: found }];
+  });
+}
+
+/**
+ * 찾는 글이 구역 이름이나 그 구역 카드 머리에 든 구역(DP-86 [결정: 2026-11-11 사용자]). 항목 찾기는 스키마 항목만 보므로
+ * 패널만 있는 구역(알림, 단축키)은 이름으로만 찾힌다. 결과 맨 위 "구역" 묶음이 이 목록이다. `text`는 문구 id를 화면 글로 바꾼다.
+ */
+export function sectionHitsOf(
+  query: string,
+  text: (id: MessageId) => string,
+): readonly SettingsSectionId[] {
+  const needle = query.trim().toLowerCase();
+  if (needle === "") return [];
+  return SECTION_ORDER.filter((id) => {
+    const spec = SETTINGS_SECTIONS[id];
+    const titles = spec.parts.flatMap((part) =>
+      part.kind === "fields" && part.title !== null ? [text(part.title)] : [],
+    );
+    return [text(spec.label), ...titles].some((hay) => hay.toLowerCase().includes(needle));
   });
 }

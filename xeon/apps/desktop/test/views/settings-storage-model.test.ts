@@ -4,6 +4,7 @@ import type { EngineTarget, PreviousRemoved, StorageUsage } from "../../src/tran
 import type { StorageCommands, StorageFailure } from "../../src/views/commands.ts";
 import {
   createStorageController,
+  documentsDirOf,
   previousLabelOf,
   previousTimeOf,
   sharedStorageController,
@@ -197,5 +198,20 @@ describe("the shared controller survives a remount", () => {
     expect(second).toBe(first);
     expect(second.getState().load).toEqual({ kind: "ready", usage: STORAGE_USAGE });
     expect(sharedStorageController(fakeStorage().port)).not.toBe(first);
+  });
+});
+
+describe("the suggested backup folder (DP-88)", () => {
+  test("the Documents folder of the home that holds the data folder", () => {
+    expect(documentsDirOf("/Users/me/Library/Application Support/fresnel")).toBe(
+      "/Users/me/Documents",
+    );
+    expect(documentsDirOf("/home/me/.local/share/fresnel")).toBe("/home/me/Documents");
+    expect(documentsDirOf("/Users/me")).toBe("/Users/me/Documents");
+  });
+
+  test("a data folder outside a home has no suggestion", () => {
+    expect(documentsDirOf("/var/lib/fresnel")).toBeNull();
+    expect(documentsDirOf("")).toBeNull();
   });
 });

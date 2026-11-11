@@ -45,6 +45,12 @@ export function storageRowsOf(usage: StorageUsage): readonly StorageRow[] {
   ];
 }
 
+/** 데이터 폴더 경로에서 홈의 "Documents" 폴더를 짐작한다(macOS `/Users/<이름>`, Linux `/home/<이름>`). 모르면 null이다 */
+export function documentsDirOf(dataDir: string): string | null {
+  const home = /^\/(?:Users|home)\/[^/]+(?=\/|$)/.exec(dataDir);
+  return home === null ? null : `${home[0]}/Documents`;
+}
+
 /** `db restore`가 만든 복원 전 사본 폴더 이름: UTC 시각 `YYYYMMDDTHHMMSSmmmZ` */
 const PREVIOUS_NAME = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(\d{3})Z$/;
 

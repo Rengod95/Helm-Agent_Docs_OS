@@ -657,6 +657,8 @@ export interface StorageFailure {
     | "declined"
     /** 셸이 명령을 거절했다 */
     | "shell"
+    /** 이 접속의 셸에는 그 명령이 없다(웹 미리보기 등). 이 자리에서는 쓸 수 없다 */
+    | "unavailable"
     /** 셸이 알 수 없는 모양을 돌려줬다 */
     | "bad_reply";
   readonly message: string;

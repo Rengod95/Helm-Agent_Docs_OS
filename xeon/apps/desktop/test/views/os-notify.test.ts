@@ -363,3 +363,53 @@ describe("listening", () => {
     expect(h.unsubscribed()).toBe(1);
   });
 });
+
+describe("reading the permission before any delivery (DP-87)", () => {
+  test("probe reads notify_permission once and publishes the answer, so the band is not 'unknown'", async () => {
+    const h = harnessOf({ reply: permissionReply("granted") });
+    expect(h.notifier.status.get().permission).toBe("unknown");
+    await h.notifier.probe();
+    expect(h.calls.map((call) => call.command)).toEqual(["notify_permission"]);
+    expect(h.notifier.status.get().permission).toBe("granted");
+  });
+
+  test("probe that sees 'prompt' publishes prompt and does not ask the OS", async () => {
+    const h = harnessOf({ reply: permissionReply("prompt") });
+    await h.notifier.probe();
+    expect(h.calls.map((call) => call.command)).toEqual(["notify_permission"]);
+    expect(h.notifier.status.get().permission).toBe("prompt");
+  });
+
+  test("request asks the OS and publishes its answer", async () => {
+    const h = harnessOf({ reply: permissionReply("prompt", "denied") });
+    await h.notifier.request();
+    expect(h.calls.map((call) => call.command)).toEqual(["notify_request_permission"]);
+    expect(h.notifier.status.get().permission).toBe("denied");
+  });
+
+  test("a shell that rejects the read publishes unknown", async () => {
+    const h = harnessOf({ reply: () => Promise.reject(new Error("no shell")) });
+    await h.notifier.probe();
+    expect(h.notifier.status.get().permission).toBe("unknown");
+  });
+});
+
+describe("the test notification", () => {
+  test("sends the given title and body with no thread and returns the outcome", async () => {
+    const h = harnessOf({ reply: permissionReply("granted") });
+    expect(await h.notifier.sendTest("시험", "본문")).toBe("shown");
+    expect(h.notifier.status.get().lastDeliveryFailed).toBe(false);
+  });
+
+  test("a shell that answers denied comes back as denied and marks the last delivery", async () => {
+    const h = harnessOf({
+      reply: (command) =>
+        command === "notify_permission"
+          ? Promise.resolve("denied")
+          : Promise.resolve({ kind: "denied" }),
+    });
+    expect(await h.notifier.sendTest("시험", "본문")).toBe("denied");
+    expect(h.notifier.status.get()).toEqual({ permission: "denied", lastDeliveryFailed: true });
+    expect(h.results).toEqual(["denied"]);
+  });
+});

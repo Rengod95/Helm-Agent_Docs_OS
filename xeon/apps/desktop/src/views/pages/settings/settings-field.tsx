@@ -12,6 +12,8 @@ import {
   RadioGroup,
   RadioGroupItem,
   Select,
+  SegmentedControl,
+  SegmentedControlItem,
   SelectOption,
   Switch,
   Tooltip,
@@ -20,6 +22,14 @@ import { Check, Lock, RotateCcw } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import type { FieldVM, WidgetVM } from "@fresnel/client/settings";
 import { assertNever } from "@fresnel/contracts";
+import type { SettingKey } from "@fresnel/contracts/settings";
+import {
+  PLACEHOLDER_OF_KEY,
+  PRESET_OF_KEY,
+  PresetQuantity,
+  SEGMENTED_KEYS,
+  SEGMENTED_MAX,
+} from "./settings-field-shapes.tsx";
 import { useId, useRef, useState, type ReactNode } from "react";
 import {
   choiceWarningOf,
@@ -34,6 +44,7 @@ import {
   optionOf,
   optionTextOf,
   overrideNoticeOf,
+  PATH_TEXT_KEYS,
   remoteNoticeOf,
   rowLayoutOf,
   switchClassOf,
@@ -284,6 +295,12 @@ function ResetButton(props: {
   );
 }
 
+/** 빈 글 칸의 자리표시. 표에 없는 키는 없다 */
+function placeholderOf(key: SettingKey): string | undefined {
+  const id = PLACEHOLDER_OF_KEY.get(key);
+  return id === undefined ? undefined : t(id);
+}
+
 /** 컨트롤 하나. 종류마다 caustic 부품 하나를 고른다(L4.settings-ui §4.2.1) */
 function FieldControlView(props: {
   readonly field: FieldVM;
@@ -334,7 +351,8 @@ function FieldControlView(props: {
         <Input
           size={FORM_CONTROL_SIZE}
           aria-label={field.label}
-          containerClassName={FIELD_WIDTH.medium}
+          containerClassName={PATH_TEXT_KEYS.has(field.key) ? FIELD_WIDTH.full : FIELD_WIDTH.medium}
+          placeholder={placeholderOf(field.key)}
           value={textValueOf(field.value)}
           disabled={disabled}
           invalid={errorText !== null}
@@ -363,6 +381,7 @@ function FieldControlView(props: {
             options={field.widget.kind === "list" ? field.widget.options : null}
             disabled={disabled}
             invalid={errorText !== null}
+            placeholder={placeholderOf(field.key)}
             onChange={(next) => {
               handlers.edit(field.key, [...next]);
             }}
@@ -394,6 +413,20 @@ function NumberControl(props: {
   readonly handlers: FieldHandlers;
 }): ReactNode {
   const shape = numberControlOf(props.field.key, props.widget);
+  const presets = PRESET_OF_KEY.get(props.field.key);
+  if (shape.kind === "quantity" && presets !== undefined) {
+    return (
+      <PresetQuantity
+        field={props.field}
+        widget={props.widget}
+        presets={presets}
+        unit={shape.unit}
+        disabled={props.disabled}
+        invalid={props.errorText !== null}
+        handlers={props.handlers}
+      />
+    );
+  }
   if (shape.kind === "quantity") {
     return (
       <QuantityControl
@@ -506,6 +539,23 @@ function ChoiceField(props: {
     if (option !== null) handlers.change(field.key, option);
   };
   const described = options.some((option) => optionHelpOf(field.key, option) !== null);
+  if (!described && SEGMENTED_KEYS.has(field.key) && options.length <= SEGMENTED_MAX) {
+    return (
+      <SegmentedControl
+        size={FORM_CONTROL_SIZE}
+        aria-label={field.label}
+        value={text}
+        disabled={disabled}
+        onValueChange={choose}
+      >
+        {options.map((option) => (
+          <SegmentedControlItem key={optionTextOf(option)} value={optionTextOf(option)}>
+            {optionLabelOf(field.key, option)}
+          </SegmentedControlItem>
+        ))}
+      </SegmentedControl>
+    );
+  }
   if (!described) {
     return (
       <Select
