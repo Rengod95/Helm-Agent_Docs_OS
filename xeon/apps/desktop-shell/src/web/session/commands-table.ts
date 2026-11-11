@@ -90,6 +90,10 @@ export const COMMAND_TABLE: Readonly<Record<string, Disposition>> = {
 
   // 기능 감지. 웹과 데스크톱이 다른 값을 돌려준다(§6.1 [제안])
   shell_capabilities: WEB_SPECIFIC,
+
+  // 창 틀(신호등·창 단추 자리, 창 배경색). 브라우저 탭에는 OS 창이 없다(L4.desktop-ux DP-80)
+  window_chrome_state: HIDDEN,
+  window_theme_set: HIDDEN,
 };
 
 /** 명령의 처리 위치. 표에 없으면 `undefined`다 */

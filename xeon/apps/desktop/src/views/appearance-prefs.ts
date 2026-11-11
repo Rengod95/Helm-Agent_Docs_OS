@@ -83,12 +83,23 @@ export function applyAppearance(root: AppearanceRoot, prefs: AppearancePrefs): v
   setTranscriptDetailValue(prefs.transcriptDetail);
 }
 
-export function appearancePortOf(local: LocalSettings, root: AppearanceRoot): AppearancePort {
+/**
+ * `onThemeSaved`: 테마를 저장한 뒤 부른다. 데스크톱 셸은 여기서 창 틀 색(OS 테마, 창 배경, 창 단추)을 맞춘다(DP-81).
+ * 저장 성공 여부만 돌려주는 면이라 알림 실패는 테마 저장 결과를 바꾸지 않는다
+ */
+export function appearancePortOf(
+  local: LocalSettings,
+  root: AppearanceRoot,
+  onThemeSaved?: (theme: ThemePref) => void,
+): AppearancePort {
   return {
     get: () => appearancePrefsOf(local),
     setTheme: async (theme) => {
       const saved = await local.set(LOCAL.theme, theme);
-      if (saved.ok) applyAppearance(root, appearancePrefsOf(local));
+      if (saved.ok) {
+        applyAppearance(root, appearancePrefsOf(local));
+        onThemeSaved?.(appearancePrefsOf(local).theme);
+      }
       return saved.ok;
     },
     setMotion: async (motion) => {

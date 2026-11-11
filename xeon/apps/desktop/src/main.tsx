@@ -22,6 +22,7 @@ import { createShellStore, ShellStoreContext } from "./state/shell/index.ts";
 import { selectThread } from "./state/engine/index.ts";
 import { persistShell, restoreShell } from "./views/shell/persist.ts";
 import { installDocumentScrollGuard } from "./views/shell/document-scroll-guard.ts";
+import { installWindowChrome } from "./views/shell/window-chrome.ts";
 import { DesktopShellContext, type DesktopShell } from "./views/desktop-shell-context.ts";
 import { createOsNotifier, NOTIFY_FAILED_EVENT, type OsNotifyInvoke } from "./views/os-notify.ts";
 import { appearancePortOf, appearancePrefsOf, applyAppearance } from "./views/appearance-prefs.ts";
@@ -85,6 +86,21 @@ const subscribeNotifyFailure = (onFailed: () => void): (() => void) => {
 
 // 문서 스크롤 안전망(styles.css가 문서를 막고, 움직인 문서 스크롤은 이 가드가 되돌린다). 창이 닫힐 때까지 둔다
 installDocumentScrollGuard(document, window);
+
+// 창 틀(DP-80·81): Electron 창에서만 머리 줄이 창 틀이 되고, 테마를 바꾸면 창 색도 맞춘다. 웹 문서(브라우저 원격)는 건드리지 않는다
+const desktopWindow = shellBridge.kind === "electron" && !isWebDocument(window.location);
+if (desktopWindow) {
+  installWindowChrome({
+    invoke: (command) => invoke(command),
+    listen: (event, onEvent) => shellBridge.listen(event, onEvent),
+    root: document.documentElement,
+  });
+}
+const onThemeSaved = desktopWindow
+  ? (theme: string): void => {
+      detach(invoke("window_theme_set", { theme }), rethrow);
+    }
+  : undefined;
 
 // WebView 진입점. 스토어와 연결은 createApp이 만들고 여기서는 화면에 붙이기만 한다.
 const container = document.getElementById("root");
@@ -152,7 +168,7 @@ if (container === null) {
     subscribeIntent: subscribeShellIntent,
     notifier,
     prefs: notifyPrefsPortOf(localSettings),
-    appearance: appearancePortOf(localSettings, document.documentElement),
+    appearance: appearancePortOf(localSettings, document.documentElement, onThemeSaved),
   };
   // 플러그인 화면 실행 맥락. Windows는 전용 스킴 주소가 달라 프레임 모드를 켜지 않는다(ADR-0021 §3.6.2)
   // 웹 브라우저는 https 주소(`/view/<토큰>/`)로 열어 스킴 제약이 없으므로 Windows 브라우저도 켠다(L4.remote.spec §6.3)
