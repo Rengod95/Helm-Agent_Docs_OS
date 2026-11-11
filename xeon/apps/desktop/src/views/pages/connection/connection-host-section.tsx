@@ -33,7 +33,7 @@ import {
   type TargetChoice,
 } from "./connection-model.ts";
 import { hostBadgeOf } from "./connection-text.ts";
-import type { ConnectionScreenHandlers } from "./connection-view.tsx";
+import type { ConnectionScreenHandlers } from "./connection-handlers.ts";
 
 // "호스트" 섹션. 맨 위는 현재 호스트 카드, 그 아래는 호스트 목록(이 컴퓨터와 원격 호스트 행), 목록 아래에 추가 카드가 펼쳐진다.
 // 섹션 머리 오른쪽에 호스트 추가 단추가 있고, 섹션 맨 위에는 저장 결과 알림이 온다. 행의 "연결"은 그 행의 호스트로 바꾼다.

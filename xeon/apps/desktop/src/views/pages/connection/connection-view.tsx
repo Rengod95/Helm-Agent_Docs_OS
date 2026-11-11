@@ -1,4 +1,3 @@
-import type { TargetEntry } from "@fresnel/client";
 import { t, type Locale } from "@fresnel/client/i18n";
 import { updateLineKey } from "@fresnel/client/settings";
 import {
@@ -11,37 +10,17 @@ import {
 } from "@caustic/react";
 import { useId, type ReactNode } from "react";
 import type { EngineState } from "../../../state/engine/index.ts";
-import type { ConnectionState, TargetChoice } from "./connection-model.ts";
-import { ConnectionSection, type DetailHandlers } from "./connection-status.tsx";
+import type { ConnectionState } from "./connection-model.ts";
+import { ConnectionSection } from "./connection-status.tsx";
+import type { ConnectionScreenHandlers } from "./connection-handlers.ts";
+
 import { HostSection } from "./connection-host-section.tsx";
-import type { HostFormValue } from "./host-address.ts";
 import { ScreenHeader } from "../../shell/screen-header.tsx";
+export type { ConnectionScreenHandlers } from "./connection-handlers.ts";
 
 // 연결 화면(P-08)의 그림. 상태와 명령은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
 // 한 열이고 내용은 720px 폭에 가운데 맞춘다. 맨 위는 "호스트" 섹션이고, 이 기기에 연결했을 때만 그 아래에 "실행 방식"과
 // "다른 기기 접속"(`serviceSections`, 외부 접근이 켜졌을 때 두 번째가 보인다)이 이어지고, 맨 아래에 "진단"이 온다. 섹션 사이는 `gap-10`이다.
-
-/** 화면 동작. 속성 형태로 둬서 시험이 빈 함수를 넣을 수 있다 */
-export interface ConnectionScreenHandlers extends DetailHandlers {
-  /** 그 행의 호스트로 연결한다(셸에 대상 바꾸기) */
-  readonly connect: (choice: TargetChoice) => void;
-  readonly query: (text: string) => void;
-  readonly openForm: () => void;
-  readonly closeForm: () => void;
-  readonly formChange: (value: HostFormValue) => void;
-  readonly submitForm: () => void;
-  readonly removeAsk: (entry: TargetEntry) => void;
-  readonly removeCancel: () => void;
-  readonly removeConfirm: () => void;
-  readonly renameOpen: (entry: TargetEntry) => void;
-  readonly renameField: (label: string) => void;
-  readonly renameSubmit: () => void;
-  readonly renameCancel: () => void;
-  readonly dismissNotice: () => void;
-  readonly confirmStop: () => void;
-  /** 화면 상태(엔진이 붙은 서비스 상태와 설정)를 다시 읽는다. 실행 방식을 고른 뒤에 부른다 */
-  readonly refresh: () => void;
-}
 
 const ROWS_CLASS =
   "rounded-none [--cs-size-list-term:8rem] [&_[data-slot=list-description-row]]:px-0";
