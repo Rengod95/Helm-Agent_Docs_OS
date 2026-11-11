@@ -82,6 +82,30 @@ describe("appearance prefs", () => {
     expect(root.style.zoom).toBe("");
   });
 
+  test("saving a theme tells the window chrome, a failed save does not", async () => {
+    const ok = storeOf({});
+    await ok.local.load();
+    const told: string[] = [];
+    const root = rootOf();
+    const port = appearancePortOf(ok.local, root, (theme) => {
+      told.push(theme);
+    });
+    expect(await port.setTheme("dark")).toBe(true);
+    expect(await port.setTheme("system")).toBe(true);
+    expect(await port.setMotion("reduce")).toBe(true);
+    expect(told).toEqual(["dark", "system"]);
+    expect(root.dataset).toEqual({ motion: "reduce" });
+
+    const bad = storeOf({}, true);
+    await bad.local.load();
+    const badTold: string[] = [];
+    const badPort = appearancePortOf(bad.local, rootOf(), (theme) => {
+      badTold.push(theme);
+    });
+    expect(await badPort.setTheme("light")).toBe(false);
+    expect(badTold).toEqual([]);
+  });
+
   test("the port saves then applies, and a failed save leaves the screen alone", async () => {
     const ok = storeOf({});
     await ok.local.load();

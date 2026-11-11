@@ -1,5 +1,6 @@
 // Electron 메인 프로세스. 창, 스킴, ctx를 만들고 modules 목록의 모듈을 엮을 뿐이다. 기능은 src/main/<기능>.ts에 있다.
 import { existsSync, readFileSync } from "node:fs";
+import { release } from "node:os";
 import path from "node:path";
 import { detach, rethrow } from "@fresnel/contracts";
 import {
@@ -7,6 +8,7 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  nativeTheme,
   protocol,
   shell,
   type BrowserWindowConstructorOptions,
@@ -19,6 +21,7 @@ import { isTrustedFrame, isUiUrl } from "./main/frame-check.ts";
 import { dataRootsOf } from "./main/lib/data-roots.ts";
 import { shellEnvOf } from "./main/lib/packaged-env.ts";
 import { MODULES } from "./main/modules.ts";
+import { createWindowChromeModule, type NativeThemePort } from "./main/window-chrome.ts";
 import { CHANNEL_KEY, SHELL_CHANNELS } from "./shared/channels.ts";
 
 const SCHEME = "app";
@@ -229,7 +232,18 @@ async function main(): Promise<void> {
     existing.focus();
   };
   const ctx = createContext(registry, windows, quit, hooks, showMainWindow);
-  for (const module of MODULES) module.register(ctx);
+  // 창 틀 모듈은 Electron `nativeTheme`을 받아야 해서 목록(modules.ts) 밖에서 만든다. 창 옵션이라 창을 만들기 전에 등록된다
+  const theme: NativeThemePort = {
+    setSource: (source) => {
+      nativeTheme.themeSource = source;
+    },
+    prefersDark: () => nativeTheme.shouldUseDarkColors,
+    onUpdated: (listener) => {
+      nativeTheme.on("updated", listener);
+    },
+  };
+  for (const module of [...MODULES, createWindowChromeModule({ theme, osRelease: release() })])
+    module.register(ctx);
   ipcMain.handle(SHELL_CHANNELS.invoke, (event, command: unknown, args: unknown) => {
     const frame = event.senderFrame;
     const trusted = isTrustedFrame(

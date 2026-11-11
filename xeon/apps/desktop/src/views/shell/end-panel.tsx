@@ -96,6 +96,7 @@ export function EndPanel(props: { readonly registry: ShellRegistry }): ReactNode
     <aside
       ref={asideRef}
       aria-label={t("desktop.shell.end.label")}
+      data-end-rail=""
       className="pointer-events-none absolute end-3 top-1.5 bottom-0 z-20 flex items-start gap-1.5"
     >
       {tabs.map((tab) =>

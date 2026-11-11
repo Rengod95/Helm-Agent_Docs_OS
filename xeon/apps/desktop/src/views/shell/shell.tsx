@@ -195,7 +195,11 @@ function ShellFrame(props: ShellProps): ReactNode {
     if (compact) actions.setStartOpen(false);
   };
   return (
-    <div className="flex h-full min-h-0 flex-col bg-bg-app">
+    <div
+      className="flex h-full min-h-0 flex-col bg-bg-app"
+      // 창 틀(DP-80): 창 왼쪽 끝에 무엇이 붙어 있는지. 신호등 자리를 머리 줄 중 누가 비울지 styles.css가 이 값으로 정한다
+      data-start-edge={compact ? "none" : startOpen ? "panel" : "rail"}
+    >
       <a
         href={`#${STAGE_ID}`}
         onClick={(e) => {
