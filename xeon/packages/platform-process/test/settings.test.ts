@@ -42,7 +42,7 @@ describe("l0.process settings", () => {
     expect(defaults).toEqual({
       "l0.process.service.enabled": false,
       "l0.process.service.remote": "",
-      "l0.process.service.idleGraceMs": 60_000,
+      "l0.process.service.idleGraceMs": 0,
       "l0.process.service.startTimeoutMs": 10_000,
       "l0.process.shutdown.timeoutMs": 3000,
       "l0.process.lockFallback.default": "ask",

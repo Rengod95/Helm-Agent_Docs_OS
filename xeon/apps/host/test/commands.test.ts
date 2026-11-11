@@ -120,6 +120,7 @@ test("service status and stop with no service running: status exits 1 with a val
         registered: false,
         active: false,
         path: "/Users/tester/Library/LaunchAgents/com.fresnel.service.plist",
+        upToDate: false,
         linger: null,
       },
     });

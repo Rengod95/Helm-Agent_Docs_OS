@@ -14,6 +14,7 @@ import { ensureHostService, type ServiceCommand } from "./ensure.ts";
 import {
   autostartStatus,
   installAutostart,
+  refreshAutostart,
   systemAutostartDeps,
   uninstallAutostart,
   type AutostartDeps,
@@ -248,6 +249,8 @@ export async function runServiceCommand(
         else await write(io.stderr, `the service is not available: ${reason}\n`);
         return 1;
       }
+      // 이미 등록된 옛 자동 시작 파일(되살리기 없음)을 지금 내용으로 고친다. 등록이 없으면 아무것도 하지 않는다 [결정: 2026-11-11 사용자]
+      await refreshAutostart(autostartDepsOf(options));
       const { outcome } = ensured.value;
       const registration = outcome.registration;
       const action =

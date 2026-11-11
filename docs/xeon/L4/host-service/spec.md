@@ -119,7 +119,7 @@ CLI는 엔진을 in-process로 쓴다(ADR-0006 §3.3). 그래서 CLI 프로세�
 
 M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `fresnel host --stdio` 서브커맨드는 M2다.
 
-[확인: 2026-11-10 rmW6] 로그인 자동 시작 `service install|uninstall`은 `apps/host/src/service/autostart.ts`에 있다. 사용자 영역만 쓴다. macOS는 `~/Library/LaunchAgents/com.fresnel.service.plist`(`RunAtLoad`, `ProcessType` Background)를 쓰고 `launchctl bootout`을 무시한 뒤 `launchctl bootstrap gui/<uid>`로 올린다. Linux는 `~/.config/systemd/user/fresnel.service`를 쓰고 `systemctl --user daemon-reload`와 `enable`을 한다. 다른 플랫폼은 `unsupported_platform`이다. 올리지 못하면 등록 파일을 지워 흔적을 남기지 않는다. 동의는 호출하는 쪽(CLI의 확인, 데스크톱의 확인 대화 상자)이 받고, 호스트 명령은 동의가 있었다고 본다. `uninstall`은 등록이 없어도 종료코드 0이다. Linux에서 linger가 꺼져 있으면 `install`이 `lingerAdvice`를 내고 CLI가 `loginctl enable-linger`로 하라고 안내한다. 호스트 명령은 `loginctl enable-linger`를 스스로 실행하지 않는다. 자동 시작 상태는 설정 키가 아니라 등록 파일과 OS 등록에서 읽는다(아래 `status`).
+[확인: 2026-11-10 rmW6] 로그인 자동 시작 `service install|uninstall`은 `apps/host/src/service/autostart.ts`에 있다. 사용자 영역만 쓴다. macOS는 `~/Library/LaunchAgents/com.fresnel.service.plist`(`RunAtLoad`, `KeepAlive`의 `SuccessfulExit=false`(비정상 종료 때만 되살림, `service stop`은 되살리지 않음), `ProcessType` Background)를 쓰고[결정: 2026-11-11 사용자] `launchctl bootout`을 무시한 뒤 `launchctl bootstrap gui/<uid>`로 올린다. Linux는 `~/.config/systemd/user/fresnel.service`(`Restart=on-failure`)를 쓰고 `systemctl --user daemon-reload`와 `enable`을 한다. 다른 플랫폼은 `unsupported_platform`이다. 올리지 못하면 등록 파일을 지워 흔적을 남기지 않는다. 동의는 호출하는 쪽(CLI의 확인, 데스크톱의 확인 대화 상자)이 받고, 호스트 명령은 동의가 있었다고 본다. `uninstall`은 등록이 없어도 종료코드 0이다. Linux에서 linger가 꺼져 있으면 `install`이 `lingerAdvice`를 내고 CLI가 `loginctl enable-linger`로 하라고 안내한다. 호스트 명령은 `loginctl enable-linger`를 스스로 실행하지 않는다. `service ensure`는 이미 등록된 옛 파일이 지금 내용과 다르면 다시 써서 고친다(`refreshAutostart`, 등록이 없으면 새로 등록하지 않는다). 상태의 `upToDate`가 그 비교 결과다. 자동 시작 상태는 설정 키가 아니라 등록 파일과 OS 등록에서 읽는다(아래 `status`).
 
 [확인: 2026-11-10 rmW6] `service status --json` 출력에 `autostart` 객체가 더해진다(서비스가 떠 있지 않아도 있다). 키는 `platform`, `supported`, `registered`(등록 파일이 있다), `active`(macOS는 `launchctl print`가 성공함, Linux는 `systemctl --user is-enabled`가 `enabled`임), `path`, `linger`다. `linger`는 Linux에서만 보고, `loginctl show-user`의 `Linger=yes`면 true, `Linger=no`면 false, 확인하지 못하면 null이다. macOS는 null이다. 사람용 출력에는 `autostart on|off` 한 줄을 더한다. 서비스가 떠 있으면 idle 줄 다음이고, 떠 있지 않으면 `service not running` 줄 다음이다. Linux에서 linger가 꺼졌으면 ` (linger off)`를 붙인다. 접속 토큰은 여기에도 나오지 않는다.
 
@@ -548,7 +548,7 @@ export interface ServiceOptions {
   readonly assemble?: Omit<AssembleOptions, "mode">;   // safeMode, pendingSchedules 등
   readonly runtimeDir?: string;                  // 서비스 파일 디렉터리. 없으면 L0.os의 dirs.runtime
   readonly startupGraceMs?: number;              // 기본 SERVICE_STARTUP_GRACE_MS
-  readonly idleGraceMs?: number;                 // 기본 설정 l0.process.service.idleGraceMs(60000)
+  readonly idleGraceMs?: number;                 // 기본 설정 l0.process.service.idleGraceMs(0 = 꺼지지 않음)
   readonly tcp?: { readonly host: string; readonly port: number };   // TCP로도 연다. 토큰 필수, 루프백이 아니면 열지 않는다(`tcp_not_loopback`, SV-05) [결정: 2026-11-10 사용자 승인, L4.remote.spec §9 W9]
   readonly time?: { readonly clock: Clock; readonly scheduler: Scheduler };   // 유휴 타이머용. 시험이 수동 시간을 넘긴다
   readonly handleSignals?: boolean;              // SIGTERM·SIGINT 처리. 기본 true
@@ -1001,7 +1001,7 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 - SV-04 유휴 종료 [결정: ADR-0006 §3.7 4번]
   - 판정은 L0.process의 `createIdleMonitor`가 한다(`L0.process.spec` §3.2, §4.4.4). 서비스는 `IdleInputs { connections, liveTasks, pendingSchedules }`를 입력이 바뀔 때마다 넘긴다. `liveTasks`는 `ActivitySnapshot.liveTasks + waitingApprovals`다(승인 대기 대화 포함). `pendingSchedules`는 `ActivitySnapshot.pendingSchedules`이고 값의 출처는 예약 서비스의 대기 수다(HS-84). `AssembleOptions.pendingSchedules`(`PendingSchedulesPort { count, onChange }`)를 넣으면 그 값이 이긴다(시험 주입) [결정: 오케스트레이터 기본값, M3b B1-SVC, B1-SCH].
   - 유휴는 다섯 조건이 모두 성립할 때다: 연결 0, `liveTasks` 0, (`countApprovalAsLive`이면) `waitingApprovals` 0, `pendingSchedules` 0, 시작 뒤 `SERVICE_STARTUP_GRACE_MS`(10초) 경과.
-  - 유휴가 되면 `l0.process.service.idleGraceMs` 타이머를 건다. 타이머가 끝나기 전에 조건이 하나라도 깨지면 타이머를 지운다. 끝나면 HS-31 절차를 `reason: "idle"`로 실행한다. 판정은 `ConnectionHub.onSizeChange`와 `ActivityPort.onChange`가 올 때마다 다시 한다. 시계는 엔진 `Clock`과 L0.os 타이머를 쓴다(테스트 주입).
+  - `l0.process.service.idleGraceMs`가 0(기본)이면 타이머를 걸지 않고 서비스는 `service stop`·SIGTERM으로만 끝난다 [결정: 2026-11-11 사용자]. 양수면 유휴가 되었을 때 그 타이머를 건다. 타이머가 끝나기 전에 조건이 하나라도 깨지면 타이머를 지운다. 끝나면 HS-31 절차를 `reason: "idle"`로 실행한다. 판정은 `ConnectionHub.onSizeChange`와 `ActivityPort.onChange`가 올 때마다 다시 한다. 시계는 엔진 `Clock`과 L0.os 타이머를 쓴다(테스트 주입).
   - `host.status.idleShutdownAt`은 타이머가 걸려 있으면 그 시각, 아니면 `null`이다.
   - 승인 대기 대화 [제안]: live로 센다(`countApprovalAsLive: true`). 승인 대기는 사용자의 답을 기다리는 진행 중 작업이고, 서비스가 내려가면 응답 경로(서비스 접속)가 사라진다. Claude Code도 권한 프롬프트에서 멈춘 대화를 실행 중으로 본다(`CC/agent-view.md:819`). 확정은 ADR-0006 §6 [미결]이다(§10 미결 6).
 - SV-05 인증 [결정: ADR-0006 §3.7 5번]
@@ -1306,7 +1306,7 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
   - SV-01: 등록 파일 권한이 0600이고, 모르는 필드가 다시 쓴 뒤에도 남는다.
   - SV-02: 두 `service run`을 동시에 띄우면 하나만 소켓을 쥐고 다른 하나는 종료코드 0으로 끝나며, `ensure`는 남은 서비스에 접속한다.
   - SV-03: 버전이 다른 한가한 서비스는 재기동되고 작업 중인 서비스는 경고 뒤 접속된다.
-  - SV-04: 연결·live task·대기 예약 중 하나라도 있으면 종료하지 않고, 모두 0이면 시작 유예와 `l0.process.service.idleGraceMs` 뒤 종료한다. 승인 대기만 있으면 종료하지 않는다.
+  - SV-04: 연결·live task·대기 예약 중 하나라도 있으면 종료하지 않고, `idleGraceMs`가 양수일 때 모두 0이면 시작 유예와 `l0.process.service.idleGraceMs` 뒤 종료하고, 0(기본)이면 종료하지 않는다. 승인 대기만 있으면 종료하지 않는다.
   - SV-05: 소켓 파일과 디렉터리 권한이 소유자 전용이다.
   - SV-06: `ensure`를 부른 부모가 끝나도 서비스가 남는다. stdio 자식은 stdin EOF로 끝난다.
   - SV-07: SIGTERM을 받은 서비스는 체크포인트 뒤 종료하고, 시한을 넘긴 서비스는 `service stop`이 SIGKILL한다.

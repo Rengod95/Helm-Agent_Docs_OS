@@ -10,6 +10,7 @@ const AUTOSTART: AutostartStatus = {
   registered: true,
   active: true,
   path: "/Users/tester/Library/LaunchAgents/com.fresnel.service.plist",
+  upToDate: true,
   linger: null,
 };
 

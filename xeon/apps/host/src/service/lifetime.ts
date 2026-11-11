@@ -52,8 +52,8 @@ import {
 // 종료 길은 셋이고 모두 같은 절차를 밟는다: 유휴 유예 경과, SIGTERM, wire `host.shutdown`. 등록 파일과 소켓을 내리기 전에 게이트웨이를 끈다(L4.remote §5.1).
 
 export const SERVICE_STARTUP_GRACE_MS = 10_000;
-/** `l0.process.service.idleGraceMs`의 기본값. 설정을 읽지 못할 때만 쓴다 */
-const DEFAULT_IDLE_GRACE_MS = 60_000;
+/** `l0.process.service.idleGraceMs`의 기본값(0 = 꺼지지 않음). 설정을 읽지 못할 때만 쓴다 */
+const DEFAULT_IDLE_GRACE_MS = 0;
 
 export interface ServiceOptions {
   readonly assemble?: Omit<AssembleOptions, "mode">;
@@ -66,7 +66,7 @@ export interface ServiceOptions {
   readonly gateway?: GatewaySupervisor;
   /** 기본 SERVICE_STARTUP_GRACE_MS */
   readonly startupGraceMs?: number;
-  /** 기본은 설정 `l0.process.service.idleGraceMs`(60000). 시험이 짧은 값을 넘긴다(설정 범위 밖 값 허용) */
+  /** 기본은 설정 `l0.process.service.idleGraceMs`(0 = 꺼지지 않음). 시험이 짧은 값을 넘긴다(설정 범위 밖 값 허용) */
   readonly idleGraceMs?: number;
   /**
    * TCP로도 연다(원격 사용, M3-REQ-43). 등록 파일의 토큰이 필요하고 `host.hello`의 `auth.token`으로 검사한다.

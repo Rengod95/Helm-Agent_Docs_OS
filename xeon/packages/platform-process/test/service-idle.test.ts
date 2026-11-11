@@ -155,3 +155,23 @@ describe("service token", () => {
     expect(gate.verify(second)).toBe(true);
   });
 });
+
+describe("idleGraceMs 0 means never shut down for idleness [결정: 2026-11-11 사용자]", () => {
+  test("an all-idle service never fires and never schedules a shutdown", async () => {
+    const clock = manualClock();
+    const monitor = createIdleMonitor({
+      clock,
+      scheduler: clock,
+      startupGraceMs: STARTUP,
+      idleGraceMs: 0,
+    });
+    const fired: number[] = [];
+    monitor.onIdle(() => {
+      fired.push(clock.now());
+    });
+    monitor.update({ connections: 0, liveTasks: 0, pendingSchedules: 0 });
+    expect(monitor.idleShutdownAt).toBeNull();
+    await clock.advance(24 * 60 * 60 * 1000);
+    expect(fired).toEqual([]);
+  });
+});

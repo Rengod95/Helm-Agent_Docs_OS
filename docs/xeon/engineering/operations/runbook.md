@@ -255,7 +255,7 @@ fresnel service stop               # 협조 종료를 먼저 요청하고, 기�
 
 - 서비스 명령은 종료 코드 0, 1, 2만 냅니다(`apps/cli/src/commands/service.ts`).
 - 이미 떠 있는 다른 버전의 서비스가 일하는 중이면 `the running service is version <V> and is busy; run "fresnel service stop" to replace it`를 stderr에 씁니다. 종료 코드는 0입니다.
-- 유휴 종료: 연결이 없고, 실행 중인 작업과 대기 예약이 없으며, 기동 뒤 10초가 지나면 `l0.process.service.idleGraceMs`(기본 60000 ms) 뒤에 스스로 내려갑니다(SV-04). 승인 대기 대화는 실행 중으로 셉니다 [제안].
+- 유휴 종료: 연결이 없고, 실행 중인 작업과 대기 예약이 없으며, 기동 뒤 10초가 지나면 `l0.process.service.idleGraceMs`가 양수일 때 그 시간 뒤에 스스로 내려갑니다(SV-04). 기본 0은 유휴 종료를 하지 않습니다 [결정: 2026-11-11 사용자]. 승인 대기 대화는 실행 중으로 셉니다 [제안].
 - 시작 실패: stderr에 `the service is not available: <사유>`를 쓰고 종료 코드 1로 끝납니다(`apps/host/src/service/commands.ts`). 사유는 다음과 같습니다.
 
 | 사유 | 뜻 | 조치 |
