@@ -7,6 +7,7 @@ import { createEngineStore, type ApplyNote, type EngineStore } from "../state/en
 import { createUiStore, type UiStore } from "../state/ui/index.ts";
 import type { DesktopIpc } from "../transport/ipc.ts";
 import { createCommands } from "./commands.ts";
+import type { MessageCommands } from "./message-commands.ts";
 import { createEngineSwitch } from "./engine-switch.ts";
 import { watchEngineReturn } from "./restart-needed.ts";
 import { BUILD_CHECKS } from "./build.ts";
@@ -48,7 +49,7 @@ export type AppEnv = {
 export type App = {
   readonly engine: EngineStore;
   readonly ui: UiStore;
-  readonly commands: Commands;
+  readonly commands: Commands & { readonly message: MessageCommands };
   readonly session: Session;
   readonly log: LogRing;
   stop(): Promise<void>;
