@@ -140,13 +140,7 @@ export function SecretsScreenView(props: SecretsScreenViewProps): ReactNode {
           />
         </div>
         {state.rows.length === 0 ? null : (
-          <Button
-            size="xs"
-
-            variant="outline"
-            disabled={!view.acting}
-            onClick={handlers.add}
-          >
+          <Button size="sm" variant="outline" disabled={!view.acting} onClick={handlers.add}>
             {t("desktop.secrets.add")}
           </Button>
         )}

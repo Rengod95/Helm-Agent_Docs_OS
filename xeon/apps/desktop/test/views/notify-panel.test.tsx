@@ -112,7 +112,8 @@ describe("notification card", () => {
   test("the switches sit in one setting card under the section title", () => {
     const html = viewOf(PREFS, HEALTHY);
     expect(html).toContain('data-slot="settings-notify"');
-    expect(html).toContain("rounded-2xl");
+    expect(html).toContain('data-slot="setting-card"');
+    expect(html).toContain("rounded-xl");
     expect(html).toContain(`>${t("desktop.notifySettings.label")}<`);
   });
 });

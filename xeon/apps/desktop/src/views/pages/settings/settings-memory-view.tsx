@@ -15,7 +15,7 @@ import { detach, rethrow } from "@fresnel/contracts";
 import type { MemoryEntry, MemoryStore, MemoryStoreView } from "@fresnel/contracts/capabilities";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { InfoTip } from "../../craft/info-tip.tsx";
-import { SettingSection } from "./settings-section.tsx";
+import { FIELD_WIDTH, SettingSection } from "./settings-section.tsx";
 import { useCommands } from "../../commands.ts";
 import type { CommandError } from "../../commands.ts";
 import {
@@ -173,7 +173,7 @@ function MemoryCard(args: {
           </div>
         ) : null}
         {notice === null || dialogOpen ? null : (
-          <Alert tone="warning" size="sm">
+          <Alert tone="warning" variant="outline" emphasis="lead" size="sm">
             {t(notice)}
           </Alert>
         )}
@@ -181,7 +181,7 @@ function MemoryCard(args: {
           <p className="text-ui text-text-tertiary">{t("desktop.memory.loading")}</p>
         ) : null}
         {load.kind === "failed" ? (
-          <Alert tone="danger" size="sm">
+          <Alert tone="danger" variant="outline" emphasis="lead" size="sm">
             {t(load.unsupported ? "desktop.memory.unsupported" : "desktop.memory.loadFailed")}
           </Alert>
         ) : null}
@@ -250,7 +250,7 @@ function FindRow(args: {
           const next = MEMORY_SORTS.find((item) => item === value);
           if (next !== undefined) props.onSort(next);
         }}
-        className="w-28"
+        className={FIELD_WIDTH.short}
       >
         <SelectOption value="recent">{t("desktop.memory.sort.recent")}</SelectOption>
         <SelectOption value="name">{t("desktop.memory.sort.name")}</SelectOption>
@@ -302,7 +302,7 @@ function StoreGroup(args: {
         </Button>
       </div>
       {view.writeBlocked ? (
-        <Alert tone="warning" size="sm">
+        <Alert tone="warning" variant="outline" emphasis="lead" size="sm">
           {t("desktop.memory.blocked")}
         </Alert>
       ) : null}
@@ -355,7 +355,12 @@ function StoreGroup(args: {
 /** 대화 상자 안의 오류 줄. 다시 읽은 것은 주의(warning), 저장이 실패한 것은 위험(danger)이다 */
 export function DialogNotice(args: { readonly notice: MessageId }): ReactNode {
   return (
-    <Alert tone={args.notice === "desktop.memory.stale" ? "warning" : "danger"} size="sm">
+    <Alert
+      tone={args.notice === "desktop.memory.stale" ? "warning" : "danger"}
+      variant="outline"
+      emphasis="lead"
+      size="sm"
+    >
       {t(args.notice)}
     </Alert>
   );
@@ -385,7 +390,7 @@ function RemainingLine(args: {
   return (
     <div className="grid gap-1">
       {over ? (
-        <Alert tone="warning" size="sm">
+        <Alert tone="warning" variant="outline" emphasis="lead" size="sm">
           {t("desktop.memory.overLimit", {
             over: String(-remaining),
             tab: t("client.settings.tabs.sessions"),
@@ -419,6 +424,7 @@ export function MemoryEditorBody(props: {
     <div className="grid gap-2">
       {notice === null ? null : <DialogNotice notice={notice} />}
       <Textarea
+        size="sm"
         aria-label={t("desktop.memory.text.label")}
         rows={4}
         value={text}

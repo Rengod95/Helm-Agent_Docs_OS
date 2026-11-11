@@ -12,10 +12,9 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useLinkPhase } from "../../../state/engine/index.ts";
 import { useCommands } from "../../commands.ts";
 import { detachVoid } from "../../workbench/controller.ts";
-import { InfoTip } from "../../craft/info-tip.tsx";
 import { ExtName, stateText } from "../../workbench/ext-row.tsx";
 import { originText } from "../../workbench/trust-dialog.tsx";
-import { SettingSection } from "./settings-section.tsx";
+import { FORM_CONTROL_SIZE, SettingRow, SettingSection } from "./settings-section.tsx";
 
 // 설정 "플러그인과 그룹" 탭 맨 위의 실행 화면(시안 p13-plugins): 플러그인 그룹과 플러그인 목록을 이름·출처·상태·스위치 한 줄씩 보인다.
 // 값은 `workbench.list`(확장 목록 알림마다 다시 읽는다)이고, 스위치는 크래프트와 같은 `workbench.toggle`로 쓴다.
@@ -50,27 +49,29 @@ function Row(props: {
   const { entry, row } = props;
   const info = groupInfoIdOf(entry);
   return (
-    <div className="flex min-h-8 min-w-0 items-center gap-2.5 py-2">
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="text-ui font-medium text-text-primary">
-          <ExtName row={row} />
-        </span>
-        <span className={MUTED}>{originText(entry.origin)}</span>
-        {row.state === "on" || row.state === "off" ? null : (
-          <span className={MUTED}>{stateText(row.state)}</span>
-        )}
-        {info === null ? null : <InfoTip text={t(info)} />}
-      </div>
-      <Switch
-        size="sm"
-        checked={row.on}
-        disabled={row.lock !== null || props.busy}
-        aria-label={t("desktop.settings.plugins.switch", { name: extNameOf(entry) })}
-        onCheckedChange={(target) => {
-          props.onToggle(entry.name, target);
-        }}
-      />
-    </div>
+    <SettingRow
+      label={<ExtName row={row} />}
+      {...(info === null ? {} : { info: t(info) })}
+      badges={
+        <>
+          <span className={MUTED}>{originText(entry.origin)}</span>
+          {row.state === "on" || row.state === "off" ? null : (
+            <span className={MUTED}>{stateText(row.state)}</span>
+          )}
+        </>
+      }
+      control={
+        <Switch
+          size={FORM_CONTROL_SIZE}
+          checked={row.on}
+          disabled={row.lock !== null || props.busy}
+          aria-label={t("desktop.settings.plugins.switch", { name: extNameOf(entry) })}
+          onCheckedChange={(target) => {
+            props.onToggle(entry.name, target);
+          }}
+        />
+      }
+    />
   );
 }
 
@@ -82,7 +83,7 @@ export function PluginsPanelView(props: {
   readonly onReload: () => void;
 }): ReactNode {
   const reload = (
-    <Button size="xs" variant="ghost" onClick={props.onReload}>
+    <Button size={FORM_CONTROL_SIZE} variant="ghost" onClick={props.onReload}>
       {t("desktop.settings.plugins.reload")}
     </Button>
   );

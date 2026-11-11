@@ -11,6 +11,7 @@ import {
   type QuantityUnit,
 } from "./settings-quantity.ts";
 import { isCommitEnter } from "../../ime-enter.ts";
+import { FIELD_WIDTH, FORM_CONTROL_SIZE } from "./settings-section.tsx";
 
 // 단위가 붙은 숫자 칸(L4.settings-ui §4.2.1 숫자 [결정: 2026-11-11 사용자]). ± 단추가 없다. 칸 안 글은 값의 크기에 맞는 단위로
 // 줄여 보이고(200K, 25, 1) 오른쪽 접미사가 단위다(토큰, MB, 분). "1.5M", "512KB", "90s", "10분"처럼 단위를 붙여 칠 수 있다.
@@ -84,10 +85,10 @@ export function QuantityControl(props: {
   return (
     <span className="grid justify-items-end gap-1">
       <Input
-        size="sm"
+        size={FORM_CONTROL_SIZE}
         inputMode="decimal"
         aria-label={field.label}
-        containerClassName="w-40"
+        containerClassName={FIELD_WIDTH.short}
         className="text-end tabular-nums"
         value={text}
         placeholder={zeroIsNone ? t("desktop.settings.field.quantity.none") : undefined}

@@ -84,7 +84,7 @@ export function AboutPanel(props: {
       end={
         <div className="flex flex-none items-center gap-2" data-slot="settings-about-actions">
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             onClick={() => {
               detach(
@@ -100,7 +100,7 @@ export function AboutPanel(props: {
           </Button>
           {shell === null ? null : (
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               onClick={() => {
                 detach(

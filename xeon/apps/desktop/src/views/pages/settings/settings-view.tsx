@@ -13,7 +13,7 @@ import {
   SelectOption,
   Skeleton,
 } from "@caustic/react";
-import { Search } from "@caustic/react/icons";
+import { Search, TriangleAlert } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import type { FieldVM, SettingsView } from "@fresnel/client/settings";
 import type { SettingKey } from "@fresnel/contracts/settings";
@@ -46,7 +46,12 @@ import {
 } from "./settings-sections.ts";
 import { FieldRow, type DedicatedEditors, type FieldHandlers } from "./settings-field.tsx";
 import { RestartButtons, type RestartChoice } from "../../restart-confirm-dialog.tsx";
-import { SettingSection } from "./settings-section.tsx";
+import {
+  FIELD_WIDTH,
+  FORM_CONTROL_SIZE,
+  SettingSection,
+  formColumnOf,
+} from "./settings-section.tsx";
 import { HEADER_CONTROL_SIZE, ScreenHeader } from "../../shell/screen-header.tsx";
 
 // 설정 화면(P-09, L4.settings-ui §4.1 [결정: 2026-11-11 사용자])의 그림. 상태와 명령은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
@@ -179,11 +184,15 @@ export function SettingsPageView(props: SettingsPageProps): ReactNode {
         {narrow ? <NarrowNav {...props} /> : null}
         <ScrollArea label={t("desktop.settings.title")} className="min-h-0 flex-1">
           <div className="px-8 pt-2 pb-16">
-            <div data-slot="settings-column" className="mx-auto w-full max-w-180">
+            <div
+              data-slot="settings-column"
+              className={`mx-auto w-full ${formColumnOf(searching ? null : section)}`}
+            >
               <Body {...props} />
             </div>
           </div>
         </ScrollArea>
+        <RestartBar {...props} />
       </div>
       <PromptDialog prompt={props.prompt} handlers={handlers} />
     </section>
@@ -195,7 +204,7 @@ function SearchField(props: SettingsPageProps): ReactNode {
   return (
     <Input
       type="search"
-      size="xs"
+      size="sm"
       variant="soft"
       prefix={<Search />}
       aria-label={t("desktop.settings.search.label")}
@@ -256,10 +265,10 @@ function NarrowNav(props: SettingsPageProps): ReactNode {
     <div className="grid gap-2 border-b border-border-subtle px-8 py-3">
       <SearchField {...props} />
       <Select
-        size="xs"
+        size="sm"
         aria-label={t("desktop.settings.tabs.select")}
         value={section}
-        className="w-[min(20rem,100%)]"
+        className={FIELD_WIDTH.medium}
         onValueChange={(next) => {
           const found = SECTION_ORDER.find((candidate) => candidate === next);
           if (found !== undefined) handlers.select(found);
@@ -315,25 +324,14 @@ function Body(props: SettingsPageProps): ReactNode {
       </div>
     );
   }
-  const restart = restartCountOf(view);
-  // 알림 띠는 알림이 있을 때만 그린다(빈 띠 칸이 첫 구역 위에 남지 않게)
-  const notices = props.readOnly || restart !== 0 || props.restartError !== null;
+  // 알림 띠는 알림이 있을 때만 그린다(빈 띠 칸이 첫 구역 위에 남지 않게). 재시작 대기는 화면 아래 띠(`RestartBar`)가 알린다
+  const notices = props.readOnly || props.restartError !== null;
   return (
     <>
       {props.banners}
       {notices ? (
         <div className="grid gap-2 pb-6">
           {props.readOnly ? <Alert tone="info">{t("desktop.settings.offline")}</Alert> : null}
-          {restart === 0 ? null : (
-            <Alert
-              tone="warning"
-              action={
-                <RestartButtons choices={[RESTART_CHOICE]} size="xs" allowed={!props.readOnly} />
-              }
-            >
-              {view.restartBanner?.text ?? ""}
-            </Alert>
-          )}
           {props.restartError === null ? null : <Alert tone="danger">{props.restartError}</Alert>}
         </div>
       ) : null}
@@ -344,6 +342,37 @@ function Body(props: SettingsPageProps): ReactNode {
         <SearchResults {...props} view={view} />
       )}
     </>
+  );
+}
+
+/**
+ * 재시작 띠(DP-79): 재시작해야 적용되는 값이 실제로 바뀌어 기다릴 때만, 설정 본문 아래(스크롤 밖)에 한 줄로 둔다.
+ * 왼쪽은 경고 아이콘과 "재시작해야 적용되는 변경이 N개 있어요", 오른쪽은 엔진 재시작 단추(멈출 턴이 있으면 확인 창).
+ * 줄마다 붙던 "재시작 필요" 배지는 없다. 재시작이 필요한 항목이라는 사실은 그 항목의 정보 아이콘 글 끝에 있다.
+ */
+function RestartBar(props: SettingsPageProps): ReactNode {
+  const { view } = props;
+  if (props.status !== "ready" || view === null || restartCountOf(view) === 0) return null;
+  return (
+    <div
+      data-slot="settings-restart-bar"
+      role="status"
+      className="flex-none border-t border-border-subtle bg-surface-base px-8"
+    >
+      <div
+        className={`mx-auto flex min-h-11 w-full items-center gap-3 py-2 ${formColumnOf(props.query.trim() === "" ? props.section : null)}`}
+      >
+        <TriangleAlert aria-hidden className="size-icon-sm flex-none text-warning-text" />
+        <span className="min-w-0 flex-1 text-ui text-text-primary">
+          {view.restartBanner?.text ?? ""}
+        </span>
+        <RestartButtons
+          choices={[RESTART_CHOICE]}
+          size={FORM_CONTROL_SIZE}
+          allowed={!props.readOnly}
+        />
+      </div>
+    </div>
   );
 }
 

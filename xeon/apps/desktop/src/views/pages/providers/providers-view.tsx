@@ -25,7 +25,13 @@ import type { UsageGauge, UsageUnit } from "@fresnel/contracts/wire";
 import { useState, type ReactNode } from "react";
 import { isCommitEnter } from "../../ime-enter.ts";
 import { TONE_CLASS } from "../settings/settings-text.ts";
-import { InfoTip, PanelBlock } from "../shared/panel-parts.tsx";
+import { InfoTip } from "../../craft/info-tip.tsx";
+import {
+  FORM_CONTROL_SIZE,
+  RowNote,
+  SettingRow,
+  SettingSection,
+} from "../settings/settings-section.tsx";
 import { OrderedList, type OrderedItem } from "../shared/ordered-list.tsx";
 import {
   ON_LIMIT_ACTIONS,
@@ -56,7 +62,7 @@ import {
 /** 읽을 수 없는 값의 안내. 그 항목은 고칠 수 없고 파일로 본다 */
 export function UnreadableNote(props: { readonly message: string }): ReactNode {
   return (
-    <Alert tone="warning" variant="ghost" size="sm">
+    <Alert tone="warning" variant="ghost" emphasis="lead" size="sm">
       {props.message}
     </Alert>
   );
@@ -106,9 +112,9 @@ export interface UsagePanelViewProps {
 /** 사용량 패널(P-11 맨 위 블록, 목업 UsageSection). 게이지마다 막대와 글을 한 줄에 그린다 */
 export function UsagePanelView(props: UsagePanelViewProps): ReactNode {
   return (
-    <PanelBlock title={t("desktop.providers.usage.title")}>
+    <SettingSection body="plain" title={t("desktop.providers.usage.title")}>
       <UsageBody {...props} />
-    </PanelBlock>
+    </SettingSection>
   );
 }
 
@@ -244,38 +250,45 @@ export function RotationRowView(props: RotationRowViewProps): ReactNode {
   const { state, editable } = props;
   const title = t("desktop.providers.rotation.title");
   return (
-    <div data-slot="rotation-row" className="grid gap-1.5">
-      {/* 이름이 왼쪽, 스위치가 오른쪽인 설정 한 줄과 같은 모양이다(L4.settings-ui §4.2 [결정: 2026-11-11 사용자]) */}
-      <div className="flex min-h-8 items-center gap-6">
-        <span className="min-w-0 flex-1 text-ui text-text-primary">{title}</span>
-        <Switch
-          size="sm"
-          aria-label={title}
-          checked={state === "on"}
-          disabled={!editable}
-          onCheckedChange={(next) => {
-            props.onToggle(next);
-          }}
-        />
-      </div>
-      {state === "on" ? (
-        <p className="m-0 flex items-center gap-2 text-ui text-text-tertiary">
-          <Badge size="sm" className={TONE_CLASS.warning} icon={<TriangleAlert />}>
-            {t("desktop.providers.rotation.acknowledged")}
-          </Badge>
-        </p>
-      ) : null}
-      {state === "needsNotice" ? (
-        <Alert tone="warning" variant="ghost" size="sm">
-          {t("desktop.providers.rotation.warning")}
-        </Alert>
-      ) : null}
-      {props.lockedText === null ? null : <LockLine text={props.lockedText} />}
-      {props.error === null ? null : (
-        <p role="alert" className="m-0 text-ui text-danger-text">
-          {props.error}
-        </p>
-      )}
+    <>
+      {/* 설정 한 줄(SettingRow): 이름표·배지는 왼쪽, 스위치는 같은 줄 오른쪽. 경고·잠금·오류는 줄 아래(DP-76) */}
+      <SettingRow
+        slot="rotation-row"
+        label={title}
+        badges={
+          state === "on" ? (
+            <Badge size="sm" className={TONE_CLASS.warning} icon={<TriangleAlert />}>
+              {t("desktop.providers.rotation.acknowledged")}
+            </Badge>
+          ) : undefined
+        }
+        control={
+          <Switch
+            size={FORM_CONTROL_SIZE}
+            aria-label={title}
+            checked={state === "on"}
+            disabled={!editable}
+            onCheckedChange={(next) => {
+              props.onToggle(next);
+            }}
+          />
+        }
+        notes={
+          state === "needsNotice" || props.lockedText !== null || props.error !== null ? (
+            <>
+              {state === "needsNotice" ? (
+                <RowNote>{t("desktop.providers.rotation.warning")}</RowNote>
+              ) : null}
+              {props.lockedText === null ? null : <LockLine text={props.lockedText} />}
+              {props.error === null ? null : (
+                <p role="alert" className="m-0 text-ui text-danger-text">
+                  {props.error}
+                </p>
+              )}
+            </>
+          ) : undefined
+        }
+      />
       <Dialog
         kind="alert"
         size="sm"
@@ -299,7 +312,7 @@ export function RotationRowView(props: RotationRowViewProps): ReactNode {
           </>
         }
       />
-    </div>
+    </>
   );
 }
 
@@ -353,7 +366,7 @@ export function AccountPoolView(props: AccountPoolViewProps): ReactNode {
           actions={
             formShown ? undefined : (
               <Button
-                size="xs"
+                size={FORM_CONTROL_SIZE}
                 variant="outline"
                 disabled={!editable}
                 onClick={() => {
@@ -399,7 +412,7 @@ function PoolGroup(props: AccountPoolViewProps & { readonly pool: ProviderPool }
     ),
   }));
   return (
-    <PanelBlock title={pool.provider}>
+    <SettingSection body="plain" title={pool.provider}>
       <OrderedList
         label={t("desktop.providers.pool.listLabel", { provider: pool.provider })}
         items={items}
@@ -424,7 +437,7 @@ function PoolGroup(props: AccountPoolViewProps & { readonly pool: ProviderPool }
           </Button>
         </div>
       )}
-    </PanelBlock>
+    </SettingSection>
   );
 }
 
@@ -538,7 +551,6 @@ function AccountAddForm(props: {
       <NumberField
         size="sm"
         appearance="stepper"
-        containerClassName="w-36"
         commitMode="release"
         aria-label={t("desktop.providers.field.priority")}
         value={draft.priority}
@@ -553,7 +565,6 @@ function AccountAddForm(props: {
       <NumberField
         size="sm"
         appearance="stepper"
-        containerClassName="w-36"
         commitMode="release"
         aria-label={t("desktop.providers.field.reservePct")}
         value={draft.reservePct}
@@ -565,7 +576,7 @@ function AccountAddForm(props: {
           onDraft({ ...draft, reservePct: next });
         }}
       />
-      <Button size="xs" variant="ghost" disabled={!editable} onClick={props.onAdd}>
+      <Button size={FORM_CONTROL_SIZE} variant="ghost" disabled={!editable} onClick={props.onAdd}>
         {t("desktop.providers.pool.add")}
       </Button>
     </div>
@@ -781,6 +792,7 @@ export function ChainMapView(props: ChainMapViewProps): ReactNode {
         <div key={role} className="flex flex-wrap items-start gap-2">
           <span className="w-28 pt-2 text-ui text-text-secondary">{t(roleIdOf(role))}</span>
           <LocalizedTagInput
+            size="sm"
             aria-label={t(roleIdOf(role))}
             value={[...(chains[role] ?? [])]}
             disabled={!editable}

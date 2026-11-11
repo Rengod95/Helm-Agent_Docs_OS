@@ -63,6 +63,7 @@ function HookForm(props: {
     <div className="flex flex-col gap-3">
       <Field label={t("desktop.settings.hookDefs.field.id")}>
         <Input
+          size="sm"
           value={draft.id}
           spellCheck={false}
           onChange={(event) => {
@@ -72,6 +73,7 @@ function HookForm(props: {
       </Field>
       <Field label={t("desktop.settings.hookDefs.field.point")}>
         <Select
+          size="sm"
           value={draft.point}
           onValueChange={(next) => {
             onChange({ ...draft, point: next });
@@ -86,6 +88,7 @@ function HookForm(props: {
       </Field>
       <Field label={t("desktop.settings.hookDefs.field.command")}>
         <Textarea
+          size="sm"
           rows={4}
           value={draft.command}
           spellCheck={false}
@@ -97,6 +100,7 @@ function HookForm(props: {
       </Field>
       <Field label={t("desktop.settings.hookDefs.field.tools")}>
         <Input
+          size="sm"
           value={draft.tools}
           spellCheck={false}
           onChange={(event) => {
@@ -106,6 +110,7 @@ function HookForm(props: {
       </Field>
       <Field label={t("desktop.settings.hookDefs.field.cwd")}>
         <Select
+          size="sm"
           value={draft.cwd}
           onValueChange={(next) => {
             onChange({ ...draft, cwd: next === "home" ? "home" : "project" });
@@ -117,6 +122,7 @@ function HookForm(props: {
       </Field>
       <Field label={t("desktop.settings.hookDefs.field.timeout")}>
         <Input
+          size="sm"
           value={draft.timeoutMs}
           inputMode="numeric"
           onChange={(event) => {
@@ -126,6 +132,7 @@ function HookForm(props: {
       </Field>
       <Field label={t("desktop.settings.hookDefs.field.env")}>
         <Input
+          size="sm"
           value={draft.env}
           spellCheck={false}
           onChange={(event) => {
@@ -144,7 +151,7 @@ export function HookDefsEditor(props: DedicatedEditorProps): ReactNode {
   const rows = hooksOf(field.value);
   const points = pointsOf(props);
   const warning = (
-    <Alert tone="warning" size="sm">
+    <Alert tone="warning" variant="outline" emphasis="lead" size="sm">
       {t("desktop.settings.hookDefs.warning")}
     </Alert>
   );
@@ -152,7 +159,7 @@ export function HookDefsEditor(props: DedicatedEditorProps): ReactNode {
     return (
       <div className="flex flex-col gap-3">
         {warning}
-        <Alert tone="warning" variant="ghost" size="sm">
+        <Alert tone="warning" variant="ghost" emphasis="lead" size="sm">
           {t("desktop.settings.table.unreadable")}
         </Alert>
       </div>
@@ -286,7 +293,7 @@ export function HookDefsEditor(props: DedicatedEditorProps): ReactNode {
                 }}
               />
               {editing.issue !== null && (
-                <Alert tone="warning" variant="ghost" size="sm">
+                <Alert tone="warning" variant="ghost" emphasis="lead" size="sm">
                   {t(ISSUE_TEXT[editing.issue])}
                 </Alert>
               )}

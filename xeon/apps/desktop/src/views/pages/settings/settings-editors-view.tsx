@@ -4,7 +4,7 @@ import type { TableColumn } from "@fresnel/client/settings";
 import { assertNever } from "@fresnel/contracts";
 import type { SettingKey } from "@fresnel/contracts/settings";
 import type { PolicyEffect, PolicyRule } from "@fresnel/contracts/services";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import {
   columnLabelOf,
   numberValueOf,
@@ -25,6 +25,7 @@ import { effectIdOf } from "./settings-editors-text.ts";
 import type { SandboxListKind } from "./settings-sandbox-model.ts";
 import { secretChoicesOf } from "./settings-secret-model.ts";
 import { keyedRowsOf, type Row } from "./settings-table-model.ts";
+import { FIELD_WIDTH } from "./settings-section.tsx";
 
 // 설정 전용 편집기의 그림(P-09 §6.13). 상태는 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
 // 값은 `settings-editors-screen.tsx`가 검사해서 넘기고, 이 그림은 보여 주고 콜백을 부를 뿐이다.
@@ -33,7 +34,7 @@ import { keyedRowsOf, type Row } from "./settings-table-model.ts";
 function ErrorNote(props: { readonly message: string | null }): ReactNode {
   if (props.message === null) return null;
   return (
-    <Alert tone="warning" variant="ghost" size="sm">
+    <Alert tone="warning" variant="ghost" emphasis="lead" size="sm">
       {props.message}
     </Alert>
   );
@@ -42,7 +43,7 @@ function ErrorNote(props: { readonly message: string | null }): ReactNode {
 /** 읽을 수 없는 값의 안내. 그 항목은 고칠 수 없고 파일로 본다 */
 export function UnreadableEditorNote(props: { readonly message: string }): ReactNode {
   return (
-    <Alert tone="warning" variant="ghost" size="sm">
+    <Alert tone="warning" variant="ghost" emphasis="lead" size="sm">
       {props.message}
     </Alert>
   );
@@ -58,6 +59,8 @@ function CommitInput(props: {
 }): ReactNode {
   return (
     <Input
+      size="sm"
+      containerClassName={FIELD_WIDTH.full}
       aria-label={props.label}
       placeholder={props.placeholder}
       defaultValue={props.value}
@@ -116,6 +119,7 @@ export function RulesView(props: RulesViewProps): ReactNode {
       )}
       <div className="flex flex-wrap items-center gap-2">
         <Input
+          size="sm"
           aria-label={t("desktop.settings.rules.column.id")}
           placeholder={t("desktop.settings.rules.column.id")}
           value={props.draft.id}
@@ -125,6 +129,7 @@ export function RulesView(props: RulesViewProps): ReactNode {
           }}
         />
         <Input
+          size="sm"
           aria-label={t("desktop.settings.rules.column.tool")}
           placeholder={t("desktop.settings.rules.tool.all")}
           value={props.draft.tool}
@@ -134,6 +139,7 @@ export function RulesView(props: RulesViewProps): ReactNode {
           }}
         />
         <Select
+          size="sm"
           aria-label={t("desktop.settings.rules.column.effect")}
           value={props.draft.effect}
           disabled={!editable}
@@ -193,6 +199,7 @@ function RuleRowView(props: {
           }}
         />
         <Select
+          size="sm"
           aria-label={t("desktop.settings.rules.column.effect")}
           value={rule.effect}
           disabled={!editable}
@@ -208,6 +215,7 @@ function RuleRowView(props: {
           ))}
         </Select>
         <NumberField
+          size="sm"
           appearance="stepper"
           commitMode="release"
           aria-label={t("desktop.settings.rules.column.priority")}
@@ -232,7 +240,7 @@ function RuleRowView(props: {
         </Button>
       </div>
       {partners.length === 0 ? null : (
-        <Alert tone="warning" variant="ghost" size="sm">
+        <Alert tone="warning" variant="ghost" emphasis="lead" size="sm">
           {t("desktop.settings.rules.conflict", { rules: partners.join(", ") })}
         </Alert>
       )}
@@ -288,8 +296,10 @@ export function SandboxListView(props: SandboxListViewProps): ReactNode {
           ))}
         </ul>
       )}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-2">
         <Input
+          size="sm"
+          containerClassName={FIELD_WIDTH.full}
           aria-label={addLabel}
           placeholder={addLabel}
           value={props.draft}
@@ -337,6 +347,7 @@ function CellControl(props: {
     case "integer":
       return (
         <NumberField
+          size="sm"
           appearance="stepper"
           commitMode="release"
           aria-label={label}
@@ -351,6 +362,7 @@ function CellControl(props: {
     case "boolean":
       return (
         <Switch
+          size="sm"
           aria-label={label}
           checked={value === true}
           disabled={disabled}
@@ -363,6 +375,7 @@ function CellControl(props: {
       const options = column.options ?? [];
       return (
         <Select
+          size="sm"
           aria-label={label}
           value={choiceTextOf(value)}
           disabled={disabled}
@@ -409,33 +422,46 @@ export function RowsTableView(props: RowsTableViewProps): ReactNode {
       {rows.length === 0 ? (
         <p className="text-ui text-text-tertiary">{t("desktop.settings.table.empty")}</p>
       ) : (
-        <ul className="flex max-w-full flex-col gap-2 overflow-x-auto">
+        <ul className="m-0 grid list-none gap-2 p-0">
+          {/* 행 하나는 옅은 묶음 하나다: 왼쪽 열 이름(13, secondary, 128px) | 오른쪽 칸. 지우기는 묶음 오른쪽 아래 */}
           {keyedRowsOf(rows).map((item) => (
-            <li key={item.key} data-slot="table-row" className="flex flex-wrap items-center gap-2">
-              {columns.map((column) => (
-                <label key={column.name} className="flex items-center gap-1">
-                  <span className="text-ui text-text-secondary">{labelOf(column.name)}</span>
-                  <CellControl
-                    column={column}
-                    value={item.row[column.name]}
-                    label={labelOf(column.name)}
-                    disabled={!editable || column.kind === "json"}
-                    onChange={(value) => {
-                      props.onCell(item.index, column.name, value);
-                    }}
-                  />
-                </label>
-              ))}
-              <Button
-                size="xs"
-                variant="outline"
-                disabled={!editable}
-                onClick={() => {
-                  props.onRemove(item.index);
-                }}
-              >
-                {t("desktop.settings.table.remove.button")}
-              </Button>
+            <li
+              key={item.key}
+              data-slot="table-row"
+              className="grid gap-2 rounded-lg p-3 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]"
+            >
+              <div className="grid grid-cols-[8rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
+                {columns.map((column) => (
+                  <Fragment key={column.name}>
+                    <span className="min-w-0 text-ui text-text-secondary">
+                      {labelOf(column.name)}
+                    </span>
+                    <div className="flex min-w-0 items-center">
+                      <CellControl
+                        column={column}
+                        value={item.row[column.name]}
+                        label={labelOf(column.name)}
+                        disabled={!editable || column.kind === "json"}
+                        onChange={(value) => {
+                          props.onCell(item.index, column.name, value);
+                        }}
+                      />
+                    </div>
+                  </Fragment>
+                ))}
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={!editable}
+                  onClick={() => {
+                    props.onRemove(item.index);
+                  }}
+                >
+                  {t("desktop.settings.table.remove.button")}
+                </Button>
+              </div>
             </li>
           ))}
         </ul>
@@ -497,8 +523,10 @@ export function RecordTableView(props: RecordTableViewProps): ReactNode {
           ))}
         </ul>
       )}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-2">
         <Input
+          size="sm"
+          containerClassName={FIELD_WIDTH.medium}
           aria-label={t("desktop.settings.table.name.placeholder")}
           placeholder={t("desktop.settings.table.name.placeholder")}
           value={props.draftName}
@@ -572,7 +600,7 @@ export function SecretRefView(props: SecretRefViewProps): ReactNode {
         </p>
       ) : null}
       {props.status === "failed" ? (
-        <Alert tone="warning" variant="ghost" size="sm">
+        <Alert tone="warning" variant="ghost" emphasis="lead" size="sm">
           {t("desktop.settings.secretRef.failed")}
         </Alert>
       ) : null}
@@ -580,6 +608,7 @@ export function SecretRefView(props: SecretRefViewProps): ReactNode {
         <p className="text-ui text-text-tertiary">{t("desktop.settings.secretRef.empty")}</p>
       ) : (
         <Select
+          size="sm"
           aria-label={t("desktop.settings.secretRef.label")}
           value={props.current ?? ""}
           disabled={!props.editable}

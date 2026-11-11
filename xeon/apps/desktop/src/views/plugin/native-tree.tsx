@@ -957,7 +957,7 @@ function SwitchNode({ node }: NodeProps): ReactNode {
   );
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <Switch aria-label={label} checked={checked} onCheckedChange={setChecked} />
+      <Switch size="sm" aria-label={label} checked={checked} onCheckedChange={setChecked} />
       {label === undefined ? null : <span className="text-ui text-text-primary">{label}</span>}
     </div>
   );
@@ -971,7 +971,7 @@ function SelectNode({ node }: NodeProps): ReactNode {
   );
   return (
     <Field label={label}>
-      <Select aria-label={label} value={value} onValueChange={setValue}>
+      <Select size="sm" aria-label={label} value={value} onValueChange={setValue}>
         {optionValues(node, value).map((option) => (
           <SelectOption key={option} value={option}>
             {option}
@@ -996,6 +996,7 @@ function TextFieldNode({ node }: NodeProps): ReactNode {
       {...(max === undefined ? {} : { count: `${String(value.length)}/${String(max)}` })}
     >
       <Input
+        size="sm"
         value={value}
         placeholder={textProp(node, "placeholder")}
         {...(max === undefined ? {} : { maxLength: max })}
@@ -1015,6 +1016,7 @@ function NumberFieldNode({ node }: NodeProps): ReactNode {
   return (
     <Field label={nonEmpty(textProp(node, "label"))}>
       <NumberField
+        size="sm"
         appearance="stepper"
         value={value}
         onValueChange={setValue}

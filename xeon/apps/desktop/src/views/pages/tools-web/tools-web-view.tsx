@@ -4,7 +4,9 @@ import type { ToolsWebView, WebRecommendation, WebSection, WebToolRow } from "@f
 import type { ReactNode } from "react";
 import { TONE_CLASS } from "../settings/settings-text.ts";
 import { OrderedList, type OrderedItem } from "../shared/ordered-list.tsx";
-import { InfoTip, ListSkeleton, PanelBlock } from "../shared/panel-parts.tsx";
+import { InfoTip } from "../../craft/info-tip.tsx";
+import { SettingSection } from "../settings/settings-section.tsx";
+import { ListSkeleton } from "../shared/panel-parts.tsx";
 import {
   displayOrderOf,
   pinnedOf,
@@ -40,15 +42,15 @@ export function ToolsWebPanelView(props: ToolsWebViewProps): ReactNode {
     if (offline) return <EmptyState size="sm" surface="none" title={t("desktop.tools.offline")} />;
     return (
       <div className="grid">
-        <PanelBlock title={t("desktop.tools.search.title")}>
+        <SettingSection body="plain" title={t("desktop.tools.search.title")}>
           <ListSkeleton label={t("desktop.tools.loading")} />
-        </PanelBlock>
-        <PanelBlock title={t("desktop.tools.browse.title")}>
+        </SettingSection>
+        <SettingSection body="plain" title={t("desktop.tools.browse.title")}>
           <ListSkeleton label={t("desktop.tools.loading")} />
-        </PanelBlock>
-        <PanelBlock title={t("desktop.tools.fetch.title")}>
+        </SettingSection>
+        <SettingSection body="plain" title={t("desktop.tools.fetch.title")}>
           <ListSkeleton label={t("desktop.tools.loading")} />
-        </PanelBlock>
+        </SettingSection>
       </div>
     );
   }
@@ -167,7 +169,11 @@ function SearchSection(props: {
       ? t("desktop.tools.search.auto")
       : t("desktop.tools.search.pinned", { id: pinned });
   return (
-    <PanelBlock title={t("desktop.tools.search.title")} end={<InfoTip text={explanation} />}>
+    <SettingSection
+      body="plain"
+      title={t("desktop.tools.search.title")}
+      end={<InfoTip text={explanation} />}
+    >
       {items.length === 0 ? (
         <p className="m-0 py-0.5 text-ui text-text-secondary">{t("desktop.tools.search.empty")}</p>
       ) : (
@@ -184,7 +190,7 @@ function SearchSection(props: {
           {props.saveError}
         </p>
       )}
-    </PanelBlock>
+    </SettingSection>
   );
 }
 
@@ -195,7 +201,7 @@ function ReadOnlySection(props: {
   readonly rows: readonly WebToolRow[];
 }): ReactNode {
   return (
-    <PanelBlock title={props.title}>
+    <SettingSection body="plain" title={props.title}>
       {props.rows.length === 0 ? (
         <p className="m-0 py-0.5 text-ui text-text-secondary">{props.emptyText}</p>
       ) : (
@@ -210,7 +216,7 @@ function ReadOnlySection(props: {
           ))}
         </List>
       )}
-    </PanelBlock>
+    </SettingSection>
   );
 }
 
@@ -238,12 +244,12 @@ function RecommendEnd(props: { readonly item: WebRecommendation }): ReactNode {
 
 function RecommendationSection(props: { readonly items: readonly WebRecommendation[] }): ReactNode {
   return (
-    <PanelBlock title={t("desktop.tools.recommend.title")}>
+    <SettingSection body="plain" title={t("desktop.tools.recommend.title")}>
       <List aria-label={t("desktop.tools.recommend.title")} size="xs" variant="ghost">
         {props.items.map((item) => (
           <ListRow key={item.providerId} title={item.label} end={<RecommendEnd item={item} />} />
         ))}
       </List>
-    </PanelBlock>
+    </SettingSection>
   );
 }

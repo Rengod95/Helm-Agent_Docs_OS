@@ -3,7 +3,7 @@ import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { ReactNode } from "react";
 import type { BackupReport } from "../../../transport/ipc.ts";
-import { InfoTip } from "./settings-field.tsx";
+import { FORM_CONTROL_SIZE, RowNote, SettingRow } from "./settings-section.tsx";
 import {
   BACKUP_NOTE_IDS,
   backupBlockOf,
@@ -44,86 +44,96 @@ export function BackupView(props: BackupViewProps): ReactNode {
   const block = backupBlockOf(state);
   const running = state.phase.kind === "running";
   return (
-    <div className="grid gap-2 py-3" data-slot="settings-backup">
-      <div className="flex min-h-6 items-center gap-2">
-        <span className="text-ui font-medium text-text-primary">
-          {t("desktop.settings.backup.title")}
-        </span>
-        <InfoTip
-          label={t("desktop.settings.backup.title")}
-          lines={BACKUP_NOTE_IDS.map((id) => t(id))}
-        />
-      </div>
-      <Alert tone="warning" size="sm">
-        <span className="block">{t("desktop.settings.backup.warn.secrets")}</span>
-      </Alert>
-      <div className="flex items-center gap-2">
-        <Input
-          type="text"
-          size="sm"
-          aria-label={t("desktop.settings.backup.path.label")}
-          placeholder={t("desktop.settings.backup.path.placeholder")}
-          value={state.parent}
-          disabled={running}
-          spellCheck={false}
-          containerClassName="min-w-0 flex-1"
-          onValueChange={handlers.edit}
-        />
-        {onPick === undefined ? null : (
-          <Button variant="outline" size="xs" disabled={running} onClick={onPick}>
-            {t("desktop.workspace.pickFolderButton")}
-          </Button>
-        )}
-      </div>
-      {props.pickError === null || props.pickError === undefined ? null : (
-        <p role="alert" className="text-ui text-text-secondary">
-          {props.pickError}
-        </p>
-      )}
-      <div className="flex flex-wrap items-center gap-3">
-        <Button variant="outline" size="xs" disabled={block !== null} onClick={handlers.ask}>
-          {t("desktop.settings.backup.button")}
-        </Button>
-        {block === null || block === "running" ? null : (
-          <p className="text-ui text-text-secondary">{t(BLOCK_ID[block])}</p>
-        )}
-      </div>
-      {running ? (
-        <div className="flex flex-col gap-1">
-          <p role="status" className="text-ui text-text-secondary">
-            {t("desktop.settings.backup.running")}
-          </p>
-          <Skeleton height={8} />
-        </div>
-      ) : null}
-      <PhaseView phase={state.phase} />
-      <Dialog
-        kind="alert"
-        open={state.asking}
-        onOpenChange={(open) => {
-          if (!open) handlers.cancel();
-        }}
-        onKeyDown={(event) => {
-          // Esc는 이 대화 상자를 닫는 데만 쓴다. 설정 화면의 Esc(초안 버리기)까지 올라가지 않게 여기서 막는다
-          if (event.key === "Escape") event.stopPropagation();
-        }}
-        title={t("desktop.settings.backup.confirm.title")}
-        description={<BackupConfirmText path={state.parent.trim()} />}
-        footer={
-          <>
-            <DialogClose asChild>
-              <Button variant="outline" size="sm" autoFocus>
-                {t("desktop.settings.cancel.button")}
+    <SettingRow
+      slot="settings-backup"
+      layout="stacked"
+      label={t("desktop.settings.backup.title")}
+      info={BACKUP_NOTE_IDS.map((id) => t(id))}
+      infoLabel={t("desktop.settings.field.help.label", {
+        label: t("desktop.settings.backup.title"),
+      })}
+      control={
+        <div className="grid gap-2">
+          <RowNote>{t("desktop.settings.backup.warn.secrets")}</RowNote>
+          <div className="flex items-center gap-2">
+            <Input
+              type="text"
+              size="sm"
+              aria-label={t("desktop.settings.backup.path.label")}
+              placeholder={t("desktop.settings.backup.path.placeholder")}
+              value={state.parent}
+              disabled={running}
+              spellCheck={false}
+              containerClassName="min-w-0 flex-1"
+              onValueChange={handlers.edit}
+            />
+            {onPick === undefined ? null : (
+              <Button
+                variant="outline"
+                size={FORM_CONTROL_SIZE}
+                disabled={running}
+                onClick={onPick}
+              >
+                {t("desktop.workspace.pickFolderButton")}
               </Button>
-            </DialogClose>
-            {/* 확인은 컨트롤러가 대화 상자를 닫는다(asking을 내린다). 파괴적이지 않아 기본 톤이다 */}
-            <Button size="sm" onClick={handlers.confirm}>
-              {t("desktop.settings.backup.confirm.action")}
+            )}
+          </div>
+          {props.pickError === null || props.pickError === undefined ? null : (
+            <p role="alert" className="text-ui text-text-secondary">
+              {props.pickError}
+            </p>
+          )}
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              variant="outline"
+              size={FORM_CONTROL_SIZE}
+              disabled={block !== null}
+              onClick={handlers.ask}
+            >
+              {t("desktop.settings.backup.button")}
             </Button>
-          </>
-        }
-      />
-    </div>
+            {block === null || block === "running" ? null : (
+              <p className="text-ui text-text-secondary">{t(BLOCK_ID[block])}</p>
+            )}
+          </div>
+          {running ? (
+            <div className="flex flex-col gap-1">
+              <p role="status" className="text-ui text-text-secondary">
+                {t("desktop.settings.backup.running")}
+              </p>
+              <Skeleton height={8} />
+            </div>
+          ) : null}
+          <PhaseView phase={state.phase} />
+          <Dialog
+            kind="alert"
+            open={state.asking}
+            onOpenChange={(open) => {
+              if (!open) handlers.cancel();
+            }}
+            onKeyDown={(event) => {
+              // Esc는 이 대화 상자를 닫는 데만 쓴다. 설정 화면의 Esc(초안 버리기)까지 올라가지 않게 여기서 막는다
+              if (event.key === "Escape") event.stopPropagation();
+            }}
+            title={t("desktop.settings.backup.confirm.title")}
+            description={<BackupConfirmText path={state.parent.trim()} />}
+            footer={
+              <>
+                <DialogClose asChild>
+                  <Button variant="outline" size="sm" autoFocus>
+                    {t("desktop.settings.cancel.button")}
+                  </Button>
+                </DialogClose>
+                {/* 확인은 컨트롤러가 대화 상자를 닫는다(asking을 내린다). 파괴적이지 않아 기본 톤이다 */}
+                <Button size="sm" onClick={handlers.confirm}>
+                  {t("desktop.settings.backup.confirm.action")}
+                </Button>
+              </>
+            }
+          />
+        </div>
+      }
+    />
   );
 }
 
@@ -155,7 +165,7 @@ function PhaseView(props: { readonly phase: BackupPhase }): ReactNode {
       return <DoneView report={phase.report} />;
     case "refused":
       return (
-        <Alert tone="danger">
+        <Alert tone="danger" variant="outline">
           <span className="block">{phase.failure.message}</span>
           {phase.failure.fix === null ? null : <span className="block">{phase.failure.fix}</span>}
         </Alert>
@@ -168,7 +178,7 @@ function PhaseView(props: { readonly phase: BackupPhase }): ReactNode {
 function DoneView(props: { readonly report: BackupReport }): ReactNode {
   const { report } = props;
   return (
-    <Alert tone="success">
+    <Alert tone="success" variant="outline">
       <ul className="flex flex-col gap-1">
         <li>{t("desktop.settings.backup.done.blobs", { count: report.blobCount })}</li>
         <li>{t("desktop.settings.backup.done.folder", { path: report.destDir })}</li>

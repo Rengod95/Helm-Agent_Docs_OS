@@ -310,7 +310,8 @@ describe("memory card", () => {
   test("the section is one setting card with a title, like the other sections", () => {
     const html = htmlOf({});
     expect(html).toContain('data-slot="settings-memory"');
-    expect(html).toContain("rounded-2xl");
+    expect(html).toContain('data-slot="setting-card"');
+    expect(html).toContain("rounded-xl");
     expect(html).toContain(`>${t("desktop.memory.label")}<`);
   });
 });
