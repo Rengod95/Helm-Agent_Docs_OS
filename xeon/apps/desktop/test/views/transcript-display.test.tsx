@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ItemRecord } from "@fresnel/contracts/conversation";
 import { renderToString } from "react-dom/server";
 import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
+import { createShellStore, ShellStoreContext } from "../../src/state/shell/index.ts";
 import { createUiStore } from "../../src/state/ui/store.ts";
 import { PluginUiProvider } from "../../src/views/plugin/plugin-context.tsx";
 import { Providers } from "../../src/views/providers.tsx";
@@ -34,10 +35,13 @@ function frozen<T>(state: T): ReadonlyStore<T> {
 
 function render(node: React.ReactNode, h: ReturnType<typeof openedHarness>): string {
   const ui = createUiStore();
+  // 빈 대화의 폴더 고르기(DP-70)가 새 대화 흐름을 쓰므로 셸 스토어도 준다
   return renderToString(
-    <Providers engine={frozen(h.store.read.getState())} ui={ui.read} commands={fakeCommands()}>
-      <PluginUiProvider value={emptyPluginUi()}>{node}</PluginUiProvider>
-    </Providers>,
+    <ShellStoreContext value={createShellStore(1280)}>
+      <Providers engine={frozen(h.store.read.getState())} ui={ui.read} commands={fakeCommands()}>
+        <PluginUiProvider value={emptyPluginUi()}>{node}</PluginUiProvider>
+      </Providers>
+    </ShellStoreContext>,
   );
 }
 

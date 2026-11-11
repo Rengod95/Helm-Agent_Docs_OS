@@ -6,7 +6,6 @@ import {
   Button,
   Composer,
   Dialog,
-  EmptyState,
   IconButton,
   ListDescription,
   ListDescriptionRow,
@@ -160,7 +159,6 @@ export function OverlayPage({ state }: { state: OverlayState }) {
         {trust ? (
           <div className="flex min-h-0 flex-1 flex-col justify-end overflow-auto">
             <div className={`${READ_WIDTH} grid gap-4 pb-3`}>
-              <EmptyState variant="agent" surface="none" size="sm" title="무엇부터 할까요?" />
               <TrustCard />
             </div>
           </div>
