@@ -25,13 +25,15 @@ export function RadioCardGroup(props: RadioCardGroupProps): ReactNode {
       <ChoiceGroup
         appearance="card"
         columns="3"
+        // 카드 안쪽 여백은 sm(10px)로 줄이고, 제목과 설명 사이는 8px로 넓힌다(사용자 2026-11-11)
+        size="sm"
         aria-label={label}
         value={value}
         disabled={disabled}
         onValueChange={(next) => {
           if (typeof next === "string") onValueChange(next);
         }}
-        className="grid-cols-1 @[32rem]:grid-cols-3 [&_[data-slot=choice-group-title]]:text-ui [&_[data-slot=choice-group-description]]:text-ui"
+        className="grid-cols-1 @[32rem]:grid-cols-3 [&_[data-slot=choice-group-item]]:gap-y-2 [&_[data-slot=choice-group-title]]:text-ui [&_[data-slot=choice-group-description]]:text-ui"
       >
         {children}
       </ChoiceGroup>
