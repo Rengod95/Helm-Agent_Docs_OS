@@ -164,7 +164,7 @@ describe("palette plugin group (server render)", () => {
 
   test("without an open thread the plugin group is left out", async () => {
     const html = await render({ live: true, titles: [], selected: false, plugins: [START] });
-    // 그룹 제목만 본다("플러그인 화면" 화면 줄은 탐색 항목이라 늘 보인다)
+    // 그룹 제목만 본다("추가 기능" 화면 줄은 탐색 항목이라 늘 보인다)
     expect(html).not.toContain(">플러그인<");
     expect(html).not.toContain("탐구 시작…");
   });
@@ -177,7 +177,7 @@ describe("palette plugin group (server render)", () => {
       plugins: [START],
       extensions: [extListEntryOf("helm", { status: "disabled" })],
     });
-    // 그룹 제목만 본다("플러그인 화면" 화면 줄은 탐색 항목이라 늘 보인다)
+    // 그룹 제목만 본다("추가 기능" 화면 줄은 탐색 항목이라 늘 보인다)
     expect(html).not.toContain(">플러그인<");
     expect(html).not.toContain("탐구 시작…");
   });
@@ -209,7 +209,7 @@ describe("palette plugin group (server render)", () => {
         uiEntryOf({ id: "off", placement: "command", title: "끈 명령", state: "disabled" }),
       ],
     });
-    // 그룹 제목만 본다("플러그인 화면" 화면 줄은 탐색 항목이라 늘 보인다)
+    // 그룹 제목만 본다("추가 기능" 화면 줄은 탐색 항목이라 늘 보인다)
     expect(html).not.toContain(">플러그인<");
     expect(html).not.toContain("끈 명령");
   });

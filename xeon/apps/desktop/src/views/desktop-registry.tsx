@@ -44,7 +44,7 @@ import {
   type ShellRegistry,
 } from "./shell/registry.ts";
 import { HEADER_SELECT_SIZE, HEADER_SEGMENTED_SIZE, ScreenHeader } from "./shell/screen-header.tsx";
-import { createWorkbenchStore } from "../state/workbench/index.ts";
+import { createWorkbenchStore, WorkbenchStoreContext } from "../state/workbench/index.ts";
 import {
   inspectEndTab,
   pluginPagesEndTab,
@@ -52,7 +52,8 @@ import {
   runtimeEndTab,
 } from "./workbench/index.tsx";
 import { ChatWithRecords } from "./workbench/records-jump.tsx";
-import { HelmPanelTab, PluginPagesTab } from "./plugin/plugin-tabs.tsx";
+import { HelmPanelTab } from "./plugin/plugin-tabs.tsx";
+import { AddonsScreen } from "./plugin/addons-screen.tsx";
 import { useApprovalCount, useOpenThread, useThreadIds } from "../state/engine/index.ts";
 import { useState, type ReactNode } from "react";
 
@@ -216,13 +217,14 @@ const CONNECTION_SCREEN: ScreenDef = {
   render: () => <ConnectionScreen />,
 };
 
-// 플러그인 화면(내비 항목 하나)은 대화 영역에 산다. 확장 상세의 "플러그인 화면 열기"도 여기로 간다(ext-detail.tsx)
+// 추가 기능(내비 항목 하나, 화면 id `plugins`)은 대화 영역에 산다. 확장 상세의 "추가 기능에서 보기"도 여기로 간다(ext-detail.tsx).
+// "관리"·"플러그인 만들기"가 크래프트 스토어를 쓰므로 등록할 때 워크벤치 스토어로 감싼다
 const PLUGINS_SCREEN: ScreenDef = {
   id: "plugins",
   area: "chat",
   label: "desktop.shell.nav.plugins",
   icon: <WandSparkles />,
-  render: () => <PluginPagesTab />,
+  render: () => <AddonsScreen />,
 };
 
 // 시크릿 화면은 내비 항목이 없다(`nav.ts`에 없음). 설정 화면이 `SecretsPanel`을 넣어 연다.
@@ -292,7 +294,14 @@ export function createDesktopRegistry(): ShellRegistry {
   registry.registerScreen(SCHEDULES_SCREEN);
   registry.registerScreen(PROPOSALS_SCREEN);
   registry.registerScreen(CONNECTION_SCREEN);
-  registry.registerScreen(PLUGINS_SCREEN);
+  registry.registerScreen({
+    ...PLUGINS_SCREEN,
+    render: () => (
+      <WorkbenchStoreContext value={workbench}>
+        <AddonsScreen />
+      </WorkbenchStoreContext>
+    ),
+  });
   registry.registerScreen(SECRETS_SCREEN);
   registry.registerScreen(FIRST_RUN_SCREEN);
   registry.registerScreen(REVIEW_SCREEN);

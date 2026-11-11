@@ -13,8 +13,8 @@ import {
   type BridgePolicyContext,
   type ThemePush,
 } from "@fresnel/client/views/app";
-import { Button, Chip, Tooltip } from "@caustic/react";
-import { CodeXml, MessageSquare } from "@caustic/react/icons";
+import { Alert, Button, Chip, IconButton, Tooltip } from "@caustic/react";
+import { ChevronLeft, CodeXml, MessageSquare } from "@caustic/react/icons";
 import { useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createBridgeBackend, type PluginShellPort } from "../../plugin-ui/backend.ts";
 import { newFrameNonce, type PluginUiRuntime } from "../../plugin-ui/runtime.ts";
@@ -93,51 +93,108 @@ function Note(props: { readonly text: string; readonly dense?: boolean }): React
   );
 }
 
+/** 실행 화면의 뒤로 가기: 추가 기능 화면이 연 화면이면 머리에 플러그인 이름과 그 상세로 가는 단추를 둔다 */
+export interface PluginViewBack {
+  /** 플러그인 표시 이름 */
+  readonly plugin: string;
+  readonly onBack: () => void;
+}
+
+/** 플러그인 앱 표지. 툴팁은 앱 선언의 이유다. 화면 맨 위 머리 안의 표지라 툴팁은 아래로 연다(DP-60) */
+function AppMarker(props: { readonly reason: string | undefined }): ReactNode {
+  return (
+    <Tooltip
+      side="bottom"
+      align="start"
+      content={props.reason === undefined ? "" : stripUnsafeText(props.reason, false)}
+    >
+      <button
+        type="button"
+        className="inline-flex flex-none rounded-full outline-none focus-visible:focus-ring"
+      >
+        <Chip size="sm" tone="neutral" variant="soft" icon={<CodeXml aria-hidden />}>
+          {t("desktop.workbench.uiMode.app")}
+        </Chip>
+      </button>
+    </Tooltip>
+  );
+}
+
+/**
+ * 화면을 열 수 없는 상태 글. 추가 기능 화면의 실행 자리(`page`)에서는 본문 열 위의 경고(Alert outline, DP-59)로,
+ * 옆 탭에서는 한 줄 글로 그린다(DP-58: 행동을 막는 글은 보이게)
+ */
+function StateNote(props: {
+  readonly text: string;
+  readonly tone: "warning" | "danger";
+  readonly page: boolean;
+}): ReactNode {
+  if (!props.page) return <Note text={props.text} />;
+  return (
+    <div className="mx-auto w-full max-w-200">
+      <Alert variant="outline" tone={props.tone}>
+        {props.text}
+      </Alert>
+    </div>
+  );
+}
+
 /**
  * 머리: 제목(strong) 옆에 연한 메타 한 줄, 앱 화면이면 "플러그인 앱" 표지(툴팁은 앱 선언의 이유), 끝에 "대화로".
+ * 추가 기능 화면에서 열었으면(`back`) 앞에 뒤로 가기, 메타는 플러그인 이름 하나다(버전·등급은 상세에 있다).
  * 선 없이 간격으로만 나눈다(DP-03). 폭은 시안 b01 `FRAME_WIDTH`(가운데 68rem, 좌우 여백 한 번)다
  */
 function Header(props: {
   readonly entry: ExtUiEntry;
   readonly onBackToChat: () => void;
+  readonly back?: PluginViewBack | undefined;
 }): ReactNode {
-  const { entry } = props;
+  const { entry, back } = props;
   const trust = entry.trust === "managed" ? "user" : entry.trust;
-  const reason = entry.app?.reason;
+  const marker = entry.mode === "app" ? <AppMarker reason={entry.app?.reason} /> : null;
   return (
     <ScreenHeader
       title={extMessageOf(entry.messages, activeLocale(), entry.title)}
+      lead={
+        back === undefined ? undefined : (
+          <IconButton
+            size={HEADER_CONTROL_SIZE}
+            variant="ghost"
+            label={t("desktop.addons.run.back", { name: back.plugin })}
+            className="-ms-1.5 flex-none"
+            onClick={back.onBack}
+          >
+            <ChevronLeft />
+          </IconButton>
+        )
+      }
       meta={
-        <>
-          <span className="min-w-0 truncate text-ui text-text-tertiary">
-            {entry.extension} · v{entry.version}
-          </span>
-          <span className="min-w-0 text-ui text-text-tertiary">
-            {t(`client.view.confirm.trust.${trust}`)}
-          </span>
-          {entry.trust === "project" ? (
-            <Chip size="sm" tone="warning" variant="soft">
-              {t("client.view.confirm.projectBadge")}
-            </Chip>
-          ) : null}
-          {/* 화면 맨 위 머리 안의 표지라 툴팁은 아래로 연다 */}
-          {entry.mode === "app" ? (
-            <Tooltip
-              side="bottom"
-              align="start"
-              content={reason === undefined ? "" : stripUnsafeText(reason, false)}
-            >
-              <button
-                type="button"
-                className="inline-flex flex-none rounded-full outline-none focus-visible:focus-ring"
-              >
-                <Chip size="sm" tone="neutral" variant="soft" icon={<CodeXml aria-hidden />}>
-                  {t("desktop.workbench.uiMode.app")}
-                </Chip>
-              </button>
-            </Tooltip>
-          ) : null}
-        </>
+        back === undefined ? (
+          <>
+            <span className="min-w-0 truncate text-ui text-text-tertiary">
+              {entry.extension} · v{entry.version}
+            </span>
+            <span className="min-w-0 text-ui text-text-tertiary">
+              {t(`client.view.confirm.trust.${trust}`)}
+            </span>
+            {entry.trust === "project" ? (
+              <Chip size="sm" tone="warning" variant="soft">
+                {t("client.view.confirm.projectBadge")}
+              </Chip>
+            ) : null}
+            {marker}
+          </>
+        ) : (
+          <>
+            <span className="min-w-0 truncate text-ui text-text-tertiary">{back.plugin}</span>
+            {entry.trust === "project" ? (
+              <Chip size="sm" tone="warning" variant="soft">
+                {t("client.view.confirm.projectBadge")}
+              </Chip>
+            ) : null}
+            {marker}
+          </>
+        )
       }
       action={
         <Button
@@ -394,6 +451,7 @@ function FrameBody(props: {
   readonly entry: ExtUiEntry;
   readonly loaded: Loaded;
   readonly runtime: PluginUiRuntime;
+  readonly page: boolean;
 }): ReactNode {
   const { entry, loaded, runtime } = props;
   const plugin = usePluginUi();
@@ -414,7 +472,9 @@ function FrameBody(props: {
       ? undefined
       : buildAppUrl(entry.extension, entry.version, app.entry, session.nonce, root.root);
   if (app === undefined || url === undefined) {
-    return <Note text={t("desktop.plugin.state.frameBlocked")} />;
+    return (
+      <StateNote text={t("desktop.plugin.state.frameBlocked")} tone="warning" page={props.page} />
+    );
   }
   return (
     <PluginFrame
@@ -582,8 +642,19 @@ export function EntrySurface(props: {
   );
 }
 
-export function PluginView(props: { readonly entry: ExtUiEntry }): ReactNode {
-  const { entry } = props;
+/**
+ * 페이지·패널 화면 하나. `back`이 있으면 추가 기능 화면의 실행 자리다: 머리에 뒤로 가기와 플러그인 이름을 두고,
+ * 열 수 없는 상태 글은 본문 열 위의 경고(Alert)로 보인다(DP-58: 행동을 막는 글은 보이게)
+ */
+export function PluginView(props: {
+  readonly entry: ExtUiEntry;
+  readonly back?: PluginViewBack | undefined;
+}): ReactNode {
+  const { entry, back } = props;
+  const page = back !== undefined;
+  const stop = (text: string, tone: "warning" | "danger"): ReactNode => (
+    <StateNote text={text} tone={tone} page={page} />
+  );
   const { runtime } = usePluginUi();
   const threadId = useReadyThreadId();
   const loaded = useLoaded(runtime, entry, threadId);
@@ -596,35 +667,44 @@ export function PluginView(props: { readonly entry: ExtUiEntry }): ReactNode {
     (skipped) => skipped.extension === entry.extension && skipped.version === entry.version,
   );
   let body: ReactNode;
-  if (entry.state === "disabled") body = <Note text={t("desktop.plugin.state.disabled")} />;
+  if (entry.state === "disabled") body = stop(t("desktop.plugin.state.disabled"), "warning");
   else if (entry.state === "invalid") {
     const reason = stripUnsafeText(entry.issues[0]?.message ?? "", false);
-    body = <Note text={t("desktop.plugin.state.invalid", { reason })} />;
+    body = stop(t("desktop.plugin.state.invalid", { reason }), "danger");
   } else if (loaded === undefined) body = <Note text={t("desktop.plugin.state.loading")} />;
   else if (loaded === "offline") body = <Note text={t("desktop.plugin.state.offline")} />;
   // 꺼졌거나 안전 모드가 된 확장은 열린 프레임과 폴링을 거두고 알림만 보인다(본문을 그리지 않으면 거둬진다)
   else if (inactive || !loaded.context.enabled || loaded.context.safeMode) {
-    body = <Note text={t("desktop.plugin.state.disabled")} />;
+    body = stop(t("desktop.plugin.state.disabled"), "warning");
   } else if (entry.mode === "app" && rootSkipped !== undefined && runtime.framesAllowed(entry)) {
     // 셸이 이 앱의 root를 받지 않았다. 그리면 프레임 주소가 404이므로 이유만 보인다
-    body = <Note text={t("desktop.plugin.state.invalid", { reason: rootSkipped.kind })} />;
+    body = stop(t("desktop.plugin.state.invalid", { reason: rootSkipped.kind }), "danger");
   } else if (entry.mode === "app" && runtime.framesAllowed(entry)) {
     body = frameDisabled ? (
       <DisabledNote runtime={runtime} keyName={key} />
     ) : (
-      <FrameBody entry={entry} loaded={loaded} runtime={runtime} />
+      <FrameBody entry={entry} loaded={loaded} runtime={runtime} page={page} />
     );
   } else if (entry.tree !== undefined) body = <NativeSurface entry={entry} loaded={loaded} />;
-  else body = <Note text={t("desktop.plugin.state.frameBlocked")} />;
+  else body = stop(t("desktop.plugin.state.frameBlocked"), "warning");
   return (
     <section className="flex min-h-0 flex-1 flex-col">
       <Header
         entry={entry}
+        back={back}
         onBackToChat={() => {
           showChat();
         }}
       />
-      <div className="min-h-0 flex-1 overflow-auto px-3 pb-3">{body}</div>
+      <div
+        className={
+          page
+            ? "min-h-0 flex-1 overflow-auto ps-6 pe-[calc(var(--shell-rail,0px)+1.5rem)] pb-6"
+            : "min-h-0 flex-1 overflow-auto px-3 pb-3"
+        }
+      >
+        {body}
+      </div>
     </section>
   );
 }
