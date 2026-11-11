@@ -70,6 +70,8 @@ export interface UiItemReport {
   /** 실제로 그릴 모드. 앱이 금지되어 `fallback`을 쓰면 `native`다 */
   readonly mode: UiMode;
   readonly title: string;
+  /** 기여 선언의 아이콘 이름(caustic 아이콘 어댑터 이름, DP-17). 선언에 있을 때만 있다 */
+  readonly icon?: string;
   readonly state: UiItemState;
   /** 화면 트리. native 파일이나 fallback 파일이 트리 검사를 통과했을 때만 있다 */
   readonly tree?: UiNode;
@@ -134,6 +136,7 @@ interface Head {
   readonly id: string;
   readonly placement: Placement;
   readonly title: string;
+  readonly icon?: string;
   readonly forKind?: string;
 }
 
@@ -368,6 +371,7 @@ function checkItem(ctx: Ctx, item: UiContribution, index: number): Promise<UiIte
     id: item.id,
     placement: item.placement,
     title: item.title,
+    ...(item.icon === undefined ? {} : { icon: item.icon }),
     ...(forKind === undefined ? {} : { forKind }),
   };
   if (foreign) {
