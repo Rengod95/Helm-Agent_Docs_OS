@@ -417,3 +417,25 @@ describe("offline with desktop settings (L4.settings-ui §4.1.3)", () => {
     expect(rowOf(models, MODEL.key)).toContain(t("client.settings.origin.engineOffline"));
   });
 });
+
+describe("plugins section folded groups (DP-93)", () => {
+  const TRACE = defOf(
+    "x.operations.trace.enabled",
+    "plugins",
+    "toggle",
+    { type: "boolean" },
+    {},
+    { order: 1, label: "실행 기록" },
+  );
+  const view = viewOf([TRACE], [settingOf(TRACE.key, false)]);
+
+  test("the developer group starts as a closed header with its count, and a jump to its key opens it", () => {
+    const closed = html(propsOf({ view, section: "plugins" }));
+    expect(closed).toContain(t("desktop.settings.part.developer"));
+    expect(closed).toContain('aria-expanded="false"');
+    expect(closed).not.toContain(`data-key="${TRACE.key}"`);
+    const revealed = html(propsOf({ view, section: "plugins", revealKey: TRACE.key }));
+    expect(revealed).toContain('aria-expanded="true"');
+    expect(revealed).toContain(`data-key="${TRACE.key}"`);
+  });
+});

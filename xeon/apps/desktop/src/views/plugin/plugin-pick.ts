@@ -1,10 +1,8 @@
 import { useSyncExternalStore } from "react";
-import type { ExtUiEntry } from "@fresnel/contracts/wire";
 import type { PlacedEntry } from "../../plugin-ui/placements.ts";
-import { appsAllowed } from "../../plugin-ui/policy-context.ts";
 import type { PluginUiState } from "../../plugin-ui/runtime.ts";
 
-// 플러그인 화면 목록(옆 "플러그인" 탭과 사이드바 "플러그인 UI" 구역이 같이 쓴다)과, 사이드바·크래프트에서 고른 화면이나 플러그인을
+// 플러그인 화면 목록(옆 "플러그인" 탭이 쓴다)과, 크래프트·머리 줄 탭 메뉴에서 고른 화면이나 플러그인을
 // 플레이그라운드 화면(대화 영역 `plugins`)과 옆 탭에 알리는 작은 저장소.
 
 /** Helm 옆 패널의 확장 이름. 이 확장의 `panel` 항목은 Helm 탭이 그린다 */
@@ -16,27 +14,6 @@ export function pluginScreenItemsOf(state: PluginUiState): readonly PlacedEntry[
     ...state.groups.page,
     ...state.groups.panel.filter(({ entry }) => entry.extension !== HELM_EXTENSION),
   ];
-}
-
-export interface PluginUiRow {
-  /** `<확장>/<화면 id>` */
-  readonly key: string;
-  readonly entry: ExtUiEntry;
-  /** 확장이 꺼졌거나 안전 모드이거나 화면이 꺼진 항목. 연하게 그리고 누르면 꺼짐 안내를 본다 */
-  readonly off: boolean;
-}
-
-/**
- * 사이드바 "플러그인 UI" 구역의 행. 앱 정책 `x.ui.apps`가 꺼져 있으면 구역 자체를 숨긴다(빈 목록).
- * 앱이 아닌 선언형 항목은 정책과 무관하게 그리지만 구역은 앱 정책을 따른다(시안: 구역은 설치된 플러그인 앱의 입구)
- */
-export function pluginUiRowsOf(state: PluginUiState): readonly PluginUiRow[] {
-  if (!appsAllowed("user", state.settings)) return [];
-  return pluginScreenItemsOf(state).map(({ entry }) => ({
-    key: `${entry.extension}/${entry.id}`,
-    entry,
-    off: entry.state === "disabled" || state.inactive.has(entry.extension),
-  }));
 }
 
 export interface PluginPickRequest {
@@ -70,9 +47,11 @@ function publish(target: AddonRequestTarget): void {
   for (const listener of listeners) listener();
 }
 
-/** 사이드바에서 화면 하나를 골랐다고 알린다. 플레이그라운드 화면은 그 화면을 열고, 옆 탭은 그 화면을 고른다 */
-export function requestPluginScreen(key: string): void {
-  publish({ kind: "screen", key });
+/** 머리 줄 탭에서 화면 하나를 골랐다고 알린다. 대화 옆 탭의 화면 고르기가 따른다(플레이그라운드 화면 자리는 바꾸지 않는다) */
+export function notePluginScreen(key: string): void {
+  seq += 1;
+  lastScreen = { key, seq };
+  for (const listener of listeners) listener();
 }
 
 /** 플러그인 하나의 상세를 열라고 알린다(크래프트 확장 상세의 "플레이그라운드에서 보기") */

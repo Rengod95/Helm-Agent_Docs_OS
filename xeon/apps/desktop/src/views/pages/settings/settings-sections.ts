@@ -40,6 +40,8 @@ export type SectionPart =
       /** 카드 머리. null이면 구역 이름을 낭독기 이름으로만 쓴다 */
       readonly title: MessageId | null;
       readonly keys: readonly SettingKey[];
+      /** 참이면 머리 한 줄로 접혀 시작한다(DP-93: 외부 훅, 개발과 계측). 찾기 결과에서는 접지 않는다 */
+      readonly collapsed?: boolean;
     }
   | { readonly kind: "panel"; readonly panel: SettingsPanelId };
 
@@ -54,6 +56,13 @@ const fields = (title: MessageId | null, keys: readonly SettingKey[]): SectionPa
   kind: "fields",
   title,
   keys,
+});
+/** 접혀 시작하는 항목 카드 */
+const folded = (title: MessageId, keys: readonly SettingKey[]): SectionPart => ({
+  kind: "fields",
+  title,
+  keys,
+  collapsed: true,
 });
 const panel = (id: SettingsPanelId): SectionPart => ({ kind: "panel", panel: id });
 
@@ -191,13 +200,13 @@ export const SETTINGS_SECTIONS: Readonly<Record<SettingsSectionId, SectionSpec>>
         "x.operations.autoDisable.enabled",
         "x.loading-trust.paths",
       ]),
-      fields("desktop.settings.part.hooks", [
+      folded("desktop.settings.part.hooks", [
         "x.operations.hookDefs",
         "x.operations.hookOrder",
         "x.operations.hookDisabled",
         "x.operations.hookEnvAllow",
       ]),
-      fields("desktop.settings.part.developer", [
+      folded("desktop.settings.part.developer", [
         "x.operations.trace.enabled",
         "x.operations.trace.storeRequestBody",
         "l3.authoring.devMode",

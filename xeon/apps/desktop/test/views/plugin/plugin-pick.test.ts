@@ -1,8 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { groupPlacements } from "../../../src/plugin-ui/placements.ts";
-import { UI_APPS_KEY } from "../../../src/plugin-ui/policy-context.ts";
 import type { PluginUiState } from "../../../src/plugin-ui/runtime.ts";
-import { pluginUiRowsOf } from "../../../src/views/plugin/plugin-pick.ts";
+import { pluginScreenItemsOf } from "../../../src/views/plugin/plugin-pick.ts";
 import { uiEntryOf } from "../../plugin-ui/support.ts";
 
 function stateOf(
@@ -26,19 +25,11 @@ function stateOf(
   };
 }
 
-describe("pluginUiRowsOf", () => {
-  test("lists page entries and non-Helm panels, marks off ones, hides Helm's panel", () => {
-    const rows = pluginUiRowsOf(stateOf({}, ["review"]));
-    expect(rows.map((row) => [row.key, row.off])).toEqual([
-      ["gone/off", true],
-      ["helm/inquiry", false],
-      ["review/queue", true],
-      ["viewdemo/demo", false],
-    ]);
-  });
-
-  test("the section is empty when plugin apps are turned off", () => {
-    expect(pluginUiRowsOf(stateOf({ [UI_APPS_KEY]: false }))).toEqual([]);
-    expect(pluginUiRowsOf(stateOf({ [UI_APPS_KEY]: true })).length).toBe(4);
+describe("pluginScreenItemsOf", () => {
+  test("lists page entries and non-Helm panels and leaves Helm's panel to the Helm tab", () => {
+    const keys = pluginScreenItemsOf(stateOf({}, ["review"])).map(
+      ({ entry }) => `${entry.extension}/${entry.id}`,
+    );
+    expect(keys.toSorted()).toEqual(["gone/off", "helm/inquiry", "review/queue", "viewdemo/demo"]);
   });
 });

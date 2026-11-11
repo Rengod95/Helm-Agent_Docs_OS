@@ -13,7 +13,7 @@ import {
   SelectOption,
   Skeleton,
 } from "@caustic/react";
-import { Search, TriangleAlert } from "@caustic/react/icons";
+import { ChevronRight, Search, TriangleAlert } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import type { FieldVM, SettingsView } from "@fresnel/client/settings";
 import type { SettingKey } from "@fresnel/contracts/settings";
@@ -109,6 +109,8 @@ export interface SettingsPageProps {
   readonly memoryMatches?: ((query: string) => boolean) | undefined;
   /** 설정 찾기 결과의 기억 묶음(찾는 글이 든 글만). `memoryMatches`가 맞을 때만 보인다 */
   readonly memoryFindPanel?: ReactNode | undefined;
+  /** 설정 점프가 가리킨 항목. 접힌 묶음(DP-93)에 있으면 그 묶음을 펼친다 */
+  readonly revealKey?: SettingKey | null | undefined;
   readonly handlers: SettingsPageHandlers;
 }
 
@@ -391,6 +393,54 @@ function rowOf(props: SettingsPageProps, field: FieldVM, showKey: boolean): Reac
   );
 }
 
+/**
+ * 접혀 시작하는 항목 카드(DP-93): 머리 한 줄(펼침 꺾쇠 14 · 제목 13/500 · 항목 수)을 누르면 카드가 열린다.
+ * 자주 바꾸지 않는 고급 묶음(외부 훅, 개발과 계측)이 구역의 주된 정책을 밀어내지 않게 한다
+ */
+function FoldedPart(props: {
+  readonly title: string;
+  readonly count: number;
+  /** 설정 점프가 이 묶음의 항목을 가리킨다. 바뀔 때 참이면 펼친다 */
+  readonly revealed: boolean;
+  readonly children: ReactNode;
+}): ReactNode {
+  const [open, setOpen] = useState(props.revealed);
+  const [revealed, setRevealed] = useState(props.revealed);
+  if (props.revealed !== revealed) {
+    setRevealed(props.revealed);
+    if (props.revealed) setOpen(true);
+  }
+  const id = useId();
+  return (
+    <section data-slot="setting-section" aria-labelledby={id} className="pt-10 first:pt-0">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => {
+          setOpen(!open);
+        }}
+        className="-mx-2 flex min-h-9 w-[calc(100%+1rem)] items-center gap-2 rounded-lg px-2 text-start outline-none hover:bg-neutral-hover focus-visible:focus-ring"
+      >
+        <ChevronRight
+          aria-hidden
+          className={`size-3.5 flex-none text-text-tertiary transition-transform duration-quick ${open ? "rotate-90" : ""}`}
+        />
+        <span id={id} className="text-ui font-medium text-text-primary">
+          {props.title}
+        </span>
+        <span className="text-ui text-text-tertiary tabular-nums">{props.count}</span>
+      </button>
+      {open ? (
+        <div className="pt-2">
+          <SettingSection label={props.title} continues>
+            {props.children}
+          </SettingSection>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 /** 고른 구역의 부분을 차례로 그린다. 항목이 하나도 없는 카드는 그리지 않는다 */
 function SectionParts(props: SettingsPageProps & { readonly view: SettingsView }): ReactNode {
   const spec = SETTINGS_SECTIONS[props.section];
@@ -403,6 +453,18 @@ function SectionParts(props: SettingsPageProps & { readonly view: SettingsView }
         }
         const fields = partFieldsOf(part, shown);
         if (fields.length === 0) return null;
+        if (part.collapsed === true && part.title !== null) {
+          return (
+            <FoldedPart
+              key={part.title}
+              title={t(part.title)}
+              count={fields.length}
+              revealed={fields.some((field) => field.key === props.revealKey)}
+            >
+              {fields.map((field) => rowOf(props, field, false))}
+            </FoldedPart>
+          );
+        }
         return (
           <SettingSection
             key={part.title ?? `fields-${String(index)}`}

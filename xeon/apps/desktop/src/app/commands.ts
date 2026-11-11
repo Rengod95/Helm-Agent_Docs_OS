@@ -432,6 +432,14 @@ export function createCommands(deps: CommandDeps): Commands {
       const written = await deps.local.set(LOCAL.paletteUses, uses);
       return written.ok;
     },
+    playgroundTabs: () => deps.local.get(LOCAL.playgroundTabs) ?? null,
+    async savePlaygroundTabs(prefs) {
+      const written = await deps.local.set(LOCAL.playgroundTabs, {
+        pinned: [...prefs.pinned],
+        seen: [...prefs.seen],
+      });
+      return written.ok;
+    },
     lastThreadId() {
       const id = deps.local.get(LOCAL.lastThread);
       return id === undefined || id === "" ? null : id;

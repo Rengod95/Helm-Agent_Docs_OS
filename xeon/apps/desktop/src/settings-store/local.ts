@@ -38,6 +38,13 @@ const KeybindingsSchema: TRecord<string, TString> = Type.Record(
   Type.String({ maxLength: 64 }),
 );
 
+const PluginNames: TArray<TString> = Type.Array(Type.String({ minLength: 1, maxLength: 64 }), {
+  maxItems: 256,
+});
+const PlaygroundTabsShape: TObject<{ pinned: TArray<TString>; seen: TArray<TString> }> =
+  Type.Object({ pinned: PluginNames, seen: PluginNames }, { additionalProperties: false });
+type PlaygroundTabsSchema = typeof PlaygroundTabsShape;
+
 /** 로컬 설정 키 하나: 이름과 값 스키마. 값의 타입은 스키마에서 나온다 */
 export interface LocalKey<S extends TSchema> {
   readonly key: string;
@@ -88,6 +95,11 @@ export const LOCAL: {
   >;
   /** 마지막에 보던 대화 id. 앱을 다시 켜면 이 대화를 연다(없어졌으면 빈 무대). 빈 글은 보던 대화가 없다는 뜻이다 */
   readonly lastThread: LocalKey<TString>;
+  /**
+   * 머리 줄 플레이그라운드 탭(DP-90). `pinned`는 고정된 플러그인 이름의 순서, `seen`은 자동 고정을 한 번 거친 이름이다.
+   * 뗀 플러그인은 `seen`에 남아 다시 자동 고정하지 않는다(`views/plugin/playground-tabs.ts`)
+   */
+  readonly playgroundTabs: LocalKey<PlaygroundTabsSchema>;
 } = {
   sidebarOpen: localKey("l4.desktop.window.sidebarOpen", Type.Boolean()),
   sidebarWidth: localKey(
@@ -132,6 +144,7 @@ export const LOCAL: {
     Type.Union([Type.Literal("full"), Type.Literal("summary"), Type.Literal("hidden")]),
   ),
   lastThread: localKey("l4.desktop.window.lastThread", Type.String({ maxLength: 128 })),
+  playgroundTabs: localKey("l4.desktop.window.playgroundTabs", PlaygroundTabsShape),
 };
 
 type LocalSettingsError =

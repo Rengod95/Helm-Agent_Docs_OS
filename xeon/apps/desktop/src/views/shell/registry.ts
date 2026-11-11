@@ -21,6 +21,10 @@ export interface ScreenDef {
   readonly render: () => ReactNode;
   /** 화면을 열 때 오른쪽 탭 기본값. 영역이 기억한 탭이 있으면 그것이 우선이다 */
   readonly defaultEndTab?: string;
+  /**
+   * 참이면 한 번 연 뒤 다른 화면으로 가도 내리지 않고 숨긴다(상태 유지, DP-90 플레이그라운드 탭). 설정 화면이 열려도 숨긴 채 남는다
+   */
+  readonly keepAlive?: boolean;
 }
 
 /**

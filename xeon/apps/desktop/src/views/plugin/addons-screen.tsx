@@ -1,74 +1,123 @@
-import { activeLocale, t, type MessageId } from "@fresnel/client/i18n";
+import { t, type MessageId } from "@fresnel/client/i18n";
+import { rowOf as workbenchRowOf } from "@fresnel/client/workbench";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { BridgeCapability } from "@fresnel/contracts/extensions";
-import type { ExtListEntry, ExtTrust } from "@fresnel/contracts/wire";
-import { Alert, Badge, Button, Chip, IconButton, Skeleton, Switch, Tooltip } from "@caustic/react";
+import type { ExtDiagnostic, ExtTrust } from "@fresnel/contracts/wire";
+import {
+  Alert,
+  Badge,
+  Button,
+  Chip,
+  IconButton,
+  Menu,
+  MenuItem,
+  MenuSeparator,
+  Skeleton,
+  Switch,
+  toast,
+} from "@caustic/react";
 import {
   Bell,
   ChevronLeft,
   ChevronRight,
+  CircleX,
   CodeXml,
   Command,
+  Copy,
+  Ellipsis,
   FolderOpen,
+  History,
   KeyRound,
-  Monitor,
   MessageSquare,
+  Monitor,
   PanelBottom,
   PanelRight,
+  RotateCw,
   ShieldCheck,
   SlidersHorizontal,
+  Terminal,
+  PenTool,
+  Trash2,
+  TriangleAlert,
 } from "@caustic/react/icons";
-import { useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { ShellStoreContext, type ShellActions } from "../../state/shell/index.ts";
-import { useLinkPhase } from "../../state/engine/index.ts";
-import { WorkbenchStoreContext, type WorkbenchActions } from "../../state/workbench/index.ts";
+import {
+  useWorkbench,
+  WorkbenchStoreContext,
+  type WorkbenchActions,
+} from "../../state/workbench/index.ts";
 import { useCommands } from "../commands.ts";
+import { InfoTip } from "../craft/info-tip.tsx";
 import {
   HEADER_CONTROL_SIZE,
   HEADER_PRIMARY_VARIANT,
   ScreenHeader,
 } from "../shell/screen-header.tsx";
+import { useToggleRequest } from "../workbench/craft-parts.tsx";
+import { detachVoid, useWorkbenchController } from "../workbench/controller.ts";
+import { ExportExtension } from "../workbench/export-extension.tsx";
+import { RemoveDialog } from "../workbench/remove-dialog.tsx";
+import { keepsDialogOpen, removableOf } from "../workbench/remove-model.ts";
+import { forgetManifest, useAddonData } from "./addon-data.ts";
 import {
   ADDON_LIST,
   addonDetailOf,
-  addonMetaOf,
   addonRouteOf,
   addonRowsOf,
+  splitBuiltin,
   type AddonDetail,
   type AddonFeature,
   type AddonFeatureKind,
-  type AddonMetaMap,
   type AddonProblem,
+  type AddonRisk,
   type AddonRoute,
   type AddonRow,
   type AddonScreen,
 } from "./addon-model.ts";
+import { usePluginCommandRunner } from "./command-run.ts";
+import { reloadExtListing } from "./ext-listing.ts";
+import { ORIGIN_TEXT, PluginCard } from "./plugin-card.tsx";
+import { PluginConfigForm } from "./plugin-config-form.tsx";
 import { usePluginUiState } from "./plugin-context.tsx";
+import { PinIcon, PluginGlyph } from "./plugin-glyph.tsx";
 import {
   markAddonRequest,
   pendingAddonRequest,
   useAddonRequest,
   type AddonRequestTarget,
 } from "./plugin-pick.ts";
+import { usePlaygroundTabs } from "./playground-tab-strip.tsx";
+import { isPinned } from "./playground-tabs.ts";
 import { PluginView } from "./plugin-view.tsx";
 import { useThreadSwitchOf } from "./thread-switches.tsx";
 
-// 대화 영역 "플레이그라운드" 화면(화면 id `plugins`, ADR-0021 §3.11, desktop-ux DP-72~74).
-// 세 자리: 목록(플러그인마다 한 행) → 상세(그 플러그인이 더한 화면, 대화에 더한 것, 권한, 정보) → 실행(화면 하나, `PluginView`).
-// 모델은 `addon-model.ts`(순수), 치수 근거는 노트 `design/cyY-design.md`다.
+// 대화 영역 "플레이그라운드" 화면(화면 id `plugins`, ADR-0021 §3.11, desktop-ux DP-91·92 [결정: 2026-11-11 사용자]).
+// 세 자리: 목록(카드 격자, 내장은 접힌 묶음) → 상세(머리 블록과 전역 스위치, 두 열: 화면·대화에서·설정·권한과 위험·진단 / 정보 열)
+// → 실행(화면 하나, `PluginView`). 플레이그라운드는 쓰는 곳이다: 만들고 고치는 일(설치 검토, 훅 순서, 버전, 측정)은 크래프트로 보낸다.
+// 모델은 `addon-model.ts`(순수), 치수 근거는 노트 `design/dz/dzP-design.md`다.
 
-/** 가운데 열: 800px, 오른쪽 막대만큼 비켜 둔다(설정 화면과 같은 식) */
+/** 가운데 열: 960px, 오른쪽 막대만큼 비켜 둔다(설정 화면과 같은 식) */
 const SCROLL = "min-h-0 flex-1 overflow-y-auto ps-6 pe-[calc(var(--shell-rail,0px)+1.5rem)] pb-12";
-const COLUMN = "mx-auto grid w-full max-w-200 content-start";
-/** 행 공통: 행 사이 선 하나, hover는 바탕만 바꾼다(떠오름·그림자 없음) */
-const ROW_LINE = "border-b border-border-subtle last:border-b-0";
-const ROW_BUTTON =
-  "-mx-2 flex w-[calc(100%+1rem)] items-center gap-3 rounded-lg px-2 text-start outline-none hover:bg-neutral-hover focus-visible:focus-ring disabled:cursor-default disabled:hover:bg-transparent";
+const COLUMN = "mx-auto grid w-full max-w-240 content-start";
 const ICON = "size-4 flex-none text-text-tertiary";
+/** 줄 목록 카드(설정 카드와 같은 면·선·반경) */
+const CARD =
+  "m-0 grid list-none overflow-hidden rounded-xl bg-surface-base p-0 py-1 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] [&>*+*]:border-t [&>*+*]:border-border-subtle";
+/** 카드 안 줄: 좌우 16, 최소 48 */
+const ROW = "flex min-h-12 min-w-0 items-center gap-3 px-4 py-2";
 
 // ---- 이동 ----
 
-interface AddonMoves {
+export interface AddonMoves {
   /** 크래프트 > 확장 목록 */
   readonly findPlugins: () => void;
   /** 크래프트 > 확장 > 그 확장 상세 */
@@ -108,199 +157,118 @@ function useAddonMoves(): AddonMoves {
   return useMemo(() => addonMovesOf(shell, workbench), [shell, workbench]);
 }
 
-// ---- 데이터 ----
-
-/**
- * 목록과 상세에 쓸 `ext.list` 행과 `ext.get` 매니페스트. 연결이 살아 있으면 목록을 읽고 확장 목록 알림마다 다시 읽는다.
- * 매니페스트는 이름마다 한 번 읽는다(설명·만든 이는 판이 바뀔 때만 바뀌고, 판이 바뀌면 화면 항목이 다시 오며 이름은 같다)
- */
-function useAddonMeta(names: readonly string[]): AddonMetaMap {
-  const commands = useCommands();
-  const live = useLinkPhase() === "live";
-  const [listed, setListed] = useState<readonly ExtListEntry[]>([]);
-  const [manifests, setManifests] = useState<
-    ReadonlyMap<string, Readonly<Record<string, unknown>>>
-  >(new Map());
-  const asked = useRef(new Set<string>());
-  useEffect(() => {
-    if (!live) return undefined;
-    let alive = true;
-    const load = (): void => {
-      detach(
-        commands.workbench.list().then((result) => {
-          if (alive && result.ok) setListed(result.value);
-          return undefined;
-        }),
-        rethrow,
-      );
-    };
-    load();
-    const stop = commands.workbench.onChanged(load);
-    return () => {
-      alive = false;
-      stop();
-    };
-  }, [commands, live]);
-  const key = names.join("\n");
-  useEffect(() => {
-    if (!live) return;
-    for (const name of key.split("\n")) {
-      if (name === "" || asked.current.has(name)) continue;
-      asked.current.add(name);
-      detach(
-        commands.workbench.get(name).then((result) => {
-          if (result.ok) {
-            setManifests((current) => new Map([...current, [name, result.value.manifest]]));
-          }
-          return undefined;
-        }),
-        rethrow,
-      );
-    }
-  }, [commands, live, key]);
-  return useMemo(
-    () =>
-      new Map(
-        key
-          .split("\n")
-          .filter((name) => name !== "")
-          .map((name) => [
-            name,
-            addonMetaOf(
-              listed.find((entry) => entry.name === name),
-              manifests.get(name),
-            ),
-          ]),
-      ),
-    [key, listed, manifests],
-  );
-}
-
 // ---- 공용 부품 ----
 
-/** 아이콘 대신 이름 첫 글자 표지. 색을 이름마다 바꾸지 않는다 */
-function Monogram(props: { readonly text: string; readonly large?: boolean }): ReactNode {
-  return (
-    <span
-      aria-hidden
-      className={
-        props.large === true
-          ? "flex size-14 flex-none items-center justify-center rounded-xl border border-border-subtle bg-bg-inset text-title-1 font-medium text-text-secondary"
-          : "flex size-10 flex-none items-center justify-center rounded-lg border border-border-subtle bg-bg-inset text-title-3 font-medium text-text-secondary"
-      }
-    >
-      {props.text}
-    </span>
-  );
-}
-
-/** 구역 머리: 16/22 600 제목과 연한 개수(DP-62). 선이나 상자는 없다 */
-function SectionTitle(props: {
-  readonly id: string;
-  readonly title: string;
-  readonly count?: number;
-}): ReactNode {
-  return (
-    <h2 id={props.id} className="m-0 flex items-baseline gap-2 text-title-2 text-text-primary">
-      {props.title}
-      {props.count === undefined ? null : (
-        <span className="text-ui font-normal text-text-tertiary tabular-nums">{props.count}</span>
-      )}
-    </h2>
-  );
-}
-
+/** 구역: 16/22 600 제목(+ 연한 개수), 제목과 내용 8 */
 function Section(props: {
   readonly title: string;
-  readonly count?: number;
+  readonly count?: number | undefined;
+  readonly end?: ReactNode;
   readonly children: ReactNode;
 }): ReactNode {
   const id = useId();
   return (
-    <section aria-labelledby={id} className="grid gap-3">
-      <SectionTitle
-        id={id}
-        title={props.title}
-        {...(props.count === undefined ? {} : { count: props.count })}
-      />
+    <section aria-labelledby={id} className="grid gap-2">
+      <div className="flex min-h-7 items-center gap-2">
+        <h2 id={id} className="m-0 flex flex-1 items-baseline gap-2 text-title-2 text-text-primary">
+          {props.title}
+          {props.count === undefined ? null : (
+            <span className="text-ui font-normal text-text-tertiary tabular-nums">
+              {props.count}
+            </span>
+          )}
+        </h2>
+        {props.end}
+      </div>
       {props.children}
     </section>
   );
 }
 
-/** 아이콘·이름·한 줄 설명·오른쪽 끝으로 된 48px 행(누르지 않는 행) */
-function InfoRow(props: {
-  readonly icon: ReactNode;
-  readonly title: string;
-  readonly body?: string | undefined;
-  readonly end?: ReactNode;
-}): ReactNode {
-  return (
-    <li className={`${ROW_LINE} flex min-h-12 items-center gap-3 py-2`}>
-      {props.icon}
-      <span className="grid min-w-0 flex-1">
-        <span className="truncate text-ui-md text-text-primary">{props.title}</span>
-        {props.body === undefined ? null : (
-          <span className="text-ui text-text-tertiary">{props.body}</span>
-        )}
-      </span>
-      {props.end}
-    </li>
-  );
+// ---- 목록 ----
+
+/** 켜짐 스위치 값: 워크벤치 목록의 행(요청 중이면 목표 값). 잠긴 확장(안전 모드, 면제 등급, 관리)은 바꿀 수 없다 */
+interface ToggleInfo {
+  readonly on: boolean;
+  readonly locked: boolean;
+  readonly busy: boolean;
 }
 
-function RowList(props: { readonly label: string; readonly children: ReactNode }): ReactNode {
+type ToggleOf = (name: string) => ToggleInfo | undefined;
+
+function CardGrid(props: {
+  readonly rows: readonly AddonRow[];
+  readonly label: string;
+  readonly pinned: (name: string) => boolean;
+  readonly toggleOf: ToggleOf;
+  readonly onToggle: (name: string, target: boolean) => void;
+  readonly onOpen: (name: string) => void;
+}): ReactNode {
   return (
-    <ul aria-label={props.label} className="m-0 grid list-none p-0">
-      {props.children}
+    <ul
+      aria-label={props.label}
+      className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(17.5rem,1fr))] gap-3 p-0"
+    >
+      {props.rows.map((row) => {
+        const toggle = props.toggleOf(row.name);
+        return (
+          <PluginCard
+            key={row.name}
+            row={row}
+            pinned={props.pinned(row.name)}
+            toggle={
+              toggle === undefined || toggle.locked
+                ? undefined
+                : {
+                    on: toggle.on,
+                    busy: toggle.busy,
+                    onChange: (target) => {
+                      props.onToggle(row.name, target);
+                    },
+                  }
+            }
+            onOpen={() => {
+              props.onOpen(row.name);
+            }}
+          />
+        );
+      })}
     </ul>
   );
 }
 
-// ---- 목록 ----
-
-function countsOf(row: AddonRow): string {
-  const parts: string[] = [];
-  if (row.screens > 0) parts.push(t("desktop.addons.count.screens", { count: row.screens }));
-  if (row.features > 0) parts.push(t("desktop.addons.count.features", { count: row.features }));
-  return parts.join(" · ");
-}
-
-function AddonListRow(props: { readonly row: AddonRow; readonly onOpen: () => void }): ReactNode {
-  const { row } = props;
+/** 내장 묶음: 접힌 머리 한 줄(누르면 펼침). 엔진 핵심 기능이라 기본으로 접는다 */
+function BuiltinGroup(props: {
+  readonly rows: readonly AddonRow[];
+  readonly children: ReactNode;
+}): ReactNode {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  if (props.rows.length === 0) return null;
   return (
-    <li className={ROW_LINE}>
+    <section aria-labelledby={id} className="grid gap-3">
       <button
         type="button"
-        data-slot="addon-row"
-        className={`${ROW_BUTTON} h-16`}
-        onClick={props.onOpen}
+        aria-expanded={open}
+        onClick={() => {
+          setOpen(!open);
+        }}
+        className="-mx-2 flex min-h-9 items-center gap-2 rounded-lg px-2 text-start outline-none hover:bg-neutral-hover focus-visible:focus-ring"
       >
-        <Monogram text={row.monogram} />
-        <span className="grid min-w-0 flex-1 gap-0.5">
-          <span className="flex min-w-0 items-center gap-2">
-            <span
-              className={`truncate text-ui-md ${row.off ? "text-text-secondary" : "text-text-primary"}`}
-            >
-              {row.title}
-            </span>
-            {row.off ? <Badge size="sm">{t("desktop.addons.badge.off")}</Badge> : null}
-            {row.attention && !row.off ? (
-              <Badge size="sm" className="bg-danger-soft text-danger-text">
-                {t("desktop.addons.badge.attention")}
-              </Badge>
-            ) : null}
-          </span>
-          {row.summary === undefined ? null : (
-            <span className="truncate text-ui text-text-tertiary">{row.summary}</span>
-          )}
+        <ChevronRight
+          aria-hidden
+          className={`size-3.5 flex-none text-text-tertiary transition-transform duration-quick ${open ? "rotate-90" : ""}`}
+        />
+        <span id={id} className="text-ui font-medium text-text-primary">
+          {t("desktop.addons.builtin.title")}
         </span>
-        <span className="flex-none text-ui-sm font-normal text-text-tertiary tabular-nums">
-          {countsOf(row)}
+        <span className="text-ui text-text-tertiary tabular-nums">{props.rows.length}</span>
+        <span className="min-w-0 truncate text-ui text-text-tertiary">
+          {t("desktop.addons.builtin.body")}
         </span>
-        <ChevronRight aria-hidden className={ICON} />
       </button>
-    </li>
+      {open ? props.children : null}
+    </section>
   );
 }
 
@@ -330,25 +298,29 @@ const EMPTY_KINDS: readonly {
 function AddonEmpty(props: { readonly moves: AddonMoves }): ReactNode {
   const id = useId();
   return (
-    <section aria-labelledby={id} className="grid gap-6">
+    <section aria-labelledby={id} className="grid max-w-150 gap-6">
       <div className="grid gap-1">
         <h2 id={id} className="m-0 text-title-2 text-text-primary">
           {t("desktop.addons.empty.title")}
         </h2>
-        <p className="m-0 max-w-140 text-ui text-text-secondary">
-          {t("desktop.addons.empty.body")}
-        </p>
+        <p className="m-0 text-ui text-text-secondary">{t("desktop.addons.empty.body")}</p>
       </div>
-      <RowList label={t("desktop.addons.empty.kinds")}>
+      <ul aria-label={t("desktop.addons.empty.kinds")} className={CARD}>
         {EMPTY_KINDS.map((kind) => (
-          <InfoRow key={kind.title} icon={kind.icon} title={t(kind.title)} body={t(kind.body)} />
+          <li key={kind.title} className={ROW}>
+            {kind.icon}
+            <span className="grid min-w-0 flex-1">
+              <span className="text-ui font-medium text-text-primary">{t(kind.title)}</span>
+              <span className="text-ui text-text-tertiary">{t(kind.body)}</span>
+            </span>
+          </li>
         ))}
-      </RowList>
+      </ul>
       <div className="flex flex-wrap gap-2">
-        <Button size="md" variant="outline" onClick={props.moves.findPlugins}>
+        <Button size="sm" variant="outline" onClick={props.moves.findPlugins}>
           {t("desktop.addons.find")}
         </Button>
-        <Button size="md" variant="ghost" onClick={props.moves.buildPlugin}>
+        <Button size="sm" variant="ghost" onClick={props.moves.buildPlugin}>
           {t("desktop.addons.build")}
         </Button>
       </div>
@@ -358,14 +330,20 @@ function AddonEmpty(props: { readonly moves: AddonMoves }): ReactNode {
 
 function ListSkeleton(): ReactNode {
   return (
-    <div aria-hidden className="grid">
+    <div aria-hidden className="grid grid-cols-[repeat(auto-fill,minmax(17.5rem,1fr))] gap-3">
       {[0, 1, 2].map((index) => (
-        <div key={index} className={`${ROW_LINE} flex h-16 items-center gap-3`}>
-          <Skeleton width={40} height={40} />
-          <div className="grid flex-1 gap-1.5">
-            <Skeleton width="30%" height={12} />
-            <Skeleton width="55%" height={12} />
+        <div
+          key={index}
+          className="grid min-h-33 content-start gap-3 rounded-xl p-4 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]"
+        >
+          <div className="flex items-center gap-3">
+            <Skeleton width={36} height={36} />
+            <div className="grid flex-1 gap-1.5">
+              <Skeleton width="50%" height={12} />
+              <Skeleton width="30%" height={10} />
+            </div>
           </div>
+          <Skeleton width="85%" height={12} />
         </div>
       ))}
     </div>
@@ -376,39 +354,44 @@ function AddonList(props: {
   readonly rows: readonly AddonRow[];
   readonly phase: "loading" | "ready" | "offline";
   readonly moves: AddonMoves;
+  readonly pinned: (name: string) => boolean;
+  readonly toggleOf: ToggleOf;
+  readonly onToggle: (name: string, target: boolean) => void;
   readonly onOpen: (name: string) => void;
 }): ReactNode {
   if (props.phase === "offline") {
     return <p className="m-0 text-ui text-text-tertiary">{t("desktop.plugin.state.offline")}</p>;
   }
   if (props.phase === "loading") return <ListSkeleton />;
-  if (props.rows.length === 0) return <AddonEmpty moves={props.moves} />;
+  const { added, builtin } = splitBuiltin(props.rows);
+  if (added.length === 0 && builtin.length === 0) return <AddonEmpty moves={props.moves} />;
+  const grid = (rows: readonly AddonRow[], label: string): ReactNode => (
+    <CardGrid
+      rows={rows}
+      label={label}
+      pinned={props.pinned}
+      toggleOf={props.toggleOf}
+      onToggle={props.onToggle}
+      onOpen={props.onOpen}
+    />
+  );
   return (
-    <div className="grid gap-4">
-      <p className="m-0 text-ui text-text-tertiary">{t("desktop.addons.intro")}</p>
-      <RowList label={t("desktop.shell.nav.plugins")}>
-        {props.rows.map((row) => (
-          <AddonListRow
-            key={row.name}
-            row={row}
-            onOpen={() => {
-              props.onOpen(row.name);
-            }}
-          />
-        ))}
-      </RowList>
+    <div className="grid gap-8">
+      <div className="grid gap-4">
+        <p className="m-0 text-ui text-text-tertiary">{t("desktop.addons.intro")}</p>
+        {added.length === 0 ? (
+          <AddonEmpty moves={props.moves} />
+        ) : (
+          grid(added, t("desktop.shell.nav.plugins"))
+        )}
+      </div>
+      <BuiltinGroup rows={builtin}>{grid(builtin, t("desktop.addons.builtin.title"))}</BuiltinGroup>
     </div>
   );
 }
 
 // ---- 상세 ----
 
-const TRUST_TITLE: Readonly<Record<ExtTrust, MessageId>> = {
-  builtin: "desktop.addons.trust.builtin.title",
-  managed: "desktop.addons.trust.managed.title",
-  user: "desktop.addons.trust.user.title",
-  project: "desktop.addons.trust.project.title",
-};
 const TRUST_BODY: Readonly<Record<ExtTrust, MessageId>> = {
   builtin: "desktop.addons.trust.builtin.body",
   managed: "desktop.addons.trust.managed.body",
@@ -445,27 +428,35 @@ const CAPABILITY: Readonly<
 };
 
 const FEATURE: Readonly<
-  Record<AddonFeatureKind, { readonly icon: ReactNode; readonly label: MessageId }>
+  Record<
+    AddonFeatureKind,
+    { readonly icon: ReactNode; readonly label: MessageId; readonly where: MessageId }
+  >
 > = {
   panel: {
     icon: <PanelRight aria-hidden className={ICON} />,
     label: "desktop.addons.feature.panel",
+    where: "desktop.addons.where.panelFeature",
   },
   card: {
     icon: <MessageSquare aria-hidden className={ICON} />,
     label: "desktop.addons.feature.card",
+    where: "desktop.addons.where.card",
   },
   command: {
     icon: <Command aria-hidden className={ICON} />,
     label: "desktop.addons.feature.command",
+    where: "desktop.addons.where.command",
   },
   status: {
     icon: <PanelBottom aria-hidden className={ICON} />,
     label: "desktop.addons.feature.status",
+    where: "desktop.addons.where.status",
   },
   settings: {
     icon: <SlidersHorizontal aria-hidden className={ICON} />,
     label: "desktop.addons.feature.settings",
+    where: "desktop.addons.where.settings",
   },
 };
 
@@ -479,23 +470,38 @@ function problemText(problem: AddonProblem): string {
       return t("desktop.addons.problem.invalid", { count: problem.count });
     case "blocked":
       return t("desktop.addons.problem.blocked", { count: problem.count });
-    case "errors":
-      return t("desktop.addons.problem.errors", { count: problem.count });
     default:
       return assertNever(problem, "problemText");
   }
 }
 
-function DetailHead(props: {
-  readonly detail: AddonDetail;
-  readonly onManage: () => void;
-  readonly onOpen: (screen: AddonScreen) => void;
-}): ReactNode {
-  const { detail } = props;
+/** 상세의 동작. 화면(`AddonsScreen`)이 컨트롤러와 셸로 채운다. 시험은 빈 함수로 채운다 */
+export interface DetailOps {
+  /** 전역 켜기·끄기. 잠겼거나 목록을 아직 못 읽었으면 undefined(스위치를 그리지 않는다) */
+  readonly toggle: (ToggleInfo & { readonly onChange: (target: boolean) => void }) | undefined;
+  /** 머리 줄 탭 고정. 화면이 없으면 undefined */
+  readonly pin:
+    | { readonly pinned: boolean; readonly onChange: (pinned: boolean) => void }
+    | undefined;
+  /** 끌까요 질문 답 */
+  readonly onKeepOff: () => void;
+  readonly onKeepOn: () => void;
+  readonly onOpenScreen: (screen: AddonScreen) => void;
+  /** 명령 기능 실행 */
+  readonly onRunCommand: (feature: AddonFeature) => void;
+  /** 막힌 플러그인 앱 화면: 설정 > 플러그인 > 앱 화면 허용으로 */
+  readonly onAllowApps: () => void;
+  readonly onCopy: (text: string) => void;
+}
+
+function DetailHead(props: { readonly detail: AddonDetail; readonly ops: DetailOps }): ReactNode {
+  const { detail, ops } = props;
   const { row, primary } = detail;
+  const { pin } = ops;
+  const switchId = useId();
   return (
     <div className="flex items-start gap-4">
-      <Monogram text={row.monogram} large />
+      <PluginGlyph icon={row.icon} monogram={row.monogram} size="head" off={row.off} />
       <div className="grid min-w-0 flex-1 gap-1">
         <h2 className="m-0 truncate text-[20px]/7 font-semibold text-text-primary">{row.title}</h2>
         {detail.description === undefined ? null : (
@@ -505,22 +511,57 @@ function DetailHead(props: {
         )}
         <p className="m-0 flex min-w-0 flex-wrap items-center gap-x-1.5 text-ui-sm font-normal text-text-tertiary">
           <span className="font-mono">{row.name}</span>
+          {row.version === "" ? null : (
+            <>
+              <span aria-hidden>·</span>
+              <span>v{row.version}</span>
+            </>
+          )}
           <span aria-hidden>·</span>
-          <span>v{row.version}</span>
-          <span aria-hidden>·</span>
-          <span>{t(TRUST_TITLE[row.trust])}</span>
+          <span>{t(ORIGIN_TEXT[row.trust])}</span>
+          {detail.isGroup ? (
+            <>
+              <span aria-hidden>·</span>
+              <span>{t("desktop.addons.detail.group")}</span>
+            </>
+          ) : null}
         </p>
       </div>
-      <div className="flex flex-none items-center gap-2">
-        <Button size="md" variant="outline" onClick={props.onManage}>
-          {t("desktop.addons.detail.manage")}
-        </Button>
+      <div className="flex flex-none items-center gap-2 pt-1">
+        {ops.toggle === undefined ? null : (
+          <span className="me-2 inline-flex items-center gap-2">
+            <label htmlFor={switchId} className="text-ui text-text-secondary">
+              {t(ops.toggle.on ? "desktop.addons.detail.on" : "desktop.addons.detail.off")}
+            </label>
+            <Switch
+              id={switchId}
+              size="sm"
+              checked={ops.toggle.on}
+              disabled={ops.toggle.busy}
+              aria-label={t("desktop.addons.toggle", { name: row.title })}
+              onCheckedChange={ops.toggle.onChange}
+            />
+          </span>
+        )}
+        {pin === undefined ? null : (
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-pressed={pin.pinned}
+            iconStart={<PinIcon aria-hidden />}
+            onClick={() => {
+              pin.onChange(!pin.pinned);
+            }}
+          >
+            {t(pin.pinned ? "desktop.addons.detail.pinned" : "desktop.addons.detail.pin")}
+          </Button>
+        )}
         {primary === undefined ? null : (
           <Button
-            size="md"
+            size="sm"
             variant="solid"
             onClick={() => {
-              props.onOpen(primary);
+              ops.onOpenScreen(primary);
             }}
           >
             {t("desktop.addons.detail.open")}
@@ -531,7 +572,46 @@ function DetailHead(props: {
   );
 }
 
-/** 화면 행 끝의 상태. 플러그인 전체가 꺼졌으면 머리 경고가 이미 말하므로 행마다 "꺼짐"을 되풀이하지 않는다 */
+/** 머리 블록 아래의 띠: 끌까요 질문(답 단추), 꺼짐·안전 모드·열 수 없는 화면 */
+function DetailNotices(props: {
+  readonly detail: AddonDetail;
+  readonly ops: DetailOps;
+}): ReactNode {
+  const { detail, ops } = props;
+  const keepOff = detail.keepOff;
+  const problems = detail.problems;
+  return (
+    <>
+      {keepOff === undefined ? null : (
+        <Alert
+          variant="outline"
+          tone="warning"
+          actions={[
+            { label: t("desktop.addons.keepOff.off"), onClick: ops.onKeepOff },
+            { label: t("desktop.addons.keepOff.on"), onClick: ops.onKeepOn },
+          ]}
+        >
+          {keepOff.rule === "consecutive"
+            ? t("desktop.addons.keepOff.consecutive", { count: keepOff.consecutive })
+            : t("desktop.addons.keepOff.rate", { count: keepOff.windowFailures })}
+        </Alert>
+      )}
+      {problems.length === 0 ? null : (
+        <Alert
+          variant="outline"
+          tone={problems.some((problem) => problem.kind === "invalid") ? "danger" : "neutral"}
+          {...(problems.some((problem) => problem.kind === "blocked")
+            ? { actions: [{ label: t("desktop.addons.allowApps"), onClick: ops.onAllowApps }] }
+            : {})}
+        >
+          {problems.map(problemText).join(" ")}
+        </Alert>
+      )}
+    </>
+  );
+}
+
+/** 화면 줄 끝의 상태. 플러그인 전체가 꺼졌으면 머리 띠가 이미 말하므로 줄마다 "꺼짐"을 되풀이하지 않는다 */
 function screenStateText(screen: AddonScreen, pluginOff: boolean): ReactNode {
   switch (screen.state) {
     case "ready":
@@ -555,65 +635,50 @@ function screenStateText(screen: AddonScreen, pluginOff: boolean): ReactNode {
   }
 }
 
-/** 플러그인 앱 표지. 툴팁(위로 연다, DP-60)은 앱이 기본 UI로 그릴 수 없다고 선언한 이유다 */
-function AppChip(props: { readonly reason: string | undefined }): ReactNode {
-  const chip = (
-    <Chip size="sm" tone="neutral" variant="soft" icon={<CodeXml aria-hidden />}>
-      {t("desktop.workbench.uiMode.app")}
-    </Chip>
-  );
-  if (props.reason === undefined || props.reason === "") return chip;
-  return (
-    <Tooltip side="top" content={props.reason}>
-      <span className="inline-flex flex-none">{chip}</span>
-    </Tooltip>
-  );
-}
-
 function ScreenRow(props: {
   readonly screen: AddonScreen;
   readonly pluginOff: boolean;
-  readonly onOpen: () => void;
+  readonly ops: DetailOps;
 }): ReactNode {
-  const { screen } = props;
-  const ready = screen.state === "ready";
+  const { screen, ops } = props;
   return (
-    <li className={ROW_LINE}>
-      <button
-        type="button"
-        data-slot="addon-row"
-        className={`${ROW_BUTTON} min-h-14 py-2`}
-        disabled={!ready}
-        onClick={props.onOpen}
-      >
-        {screen.where === "panel" ? (
-          <PanelRight aria-hidden className={ICON} />
-        ) : (
-          <Monitor aria-hidden className={ICON} />
-        )}
-        <span className="grid min-w-0 flex-1">
-          <span
-            className={`truncate text-ui-md ${ready ? "text-text-primary" : "text-text-secondary"}`}
-          >
-            {screen.title}
-          </span>
-          <span className="truncate text-ui text-text-tertiary">
-            {screen.issue ??
-              t(
-                screen.where === "panel"
-                  ? "desktop.addons.where.panel"
-                  : "desktop.addons.where.page",
-              )}
-          </span>
+    <li className={ROW}>
+      {screen.where === "panel" ? (
+        <PanelRight aria-hidden className={ICON} />
+      ) : (
+        <Monitor aria-hidden className={ICON} />
+      )}
+      <span className="grid min-w-0 flex-1">
+        <span className="truncate text-ui font-medium text-text-primary">{screen.title}</span>
+        <span className="truncate text-ui text-text-tertiary">
+          {screen.issue ??
+            t(
+              screen.where === "panel" ? "desktop.addons.where.panel" : "desktop.addons.where.page",
+            )}
         </span>
-        {screen.app ? <AppChip reason={screen.reason} /> : null}
-        {screenStateText(screen, props.pluginOff)}
-        {ready ? (
-          <ChevronRight aria-hidden className={ICON} />
-        ) : (
-          <span className="size-4 flex-none" />
-        )}
-      </button>
+      </span>
+      {screen.app ? (
+        <Chip size="sm" tone="neutral" variant="soft" icon={<CodeXml aria-hidden />}>
+          {t("desktop.workbench.uiMode.app")}
+        </Chip>
+      ) : null}
+      {screenStateText(screen, props.pluginOff)}
+      {screen.state === "blocked" ? (
+        <Button size="sm" variant="ghost" onClick={ops.onAllowApps}>
+          {t("desktop.addons.allowApps")}
+        </Button>
+      ) : (
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={screen.state !== "ready"}
+          onClick={() => {
+            ops.onOpenScreen(screen);
+          }}
+        >
+          {t("desktop.addons.detail.open")}
+        </Button>
+      )}
     </li>
   );
 }
@@ -623,144 +688,393 @@ function ThreadRow(props: { readonly name: string }): ReactNode {
   const label = t("desktop.addons.thread.title");
   const note = one.note === undefined ? undefined : t(one.note);
   return (
-    <InfoRow
-      icon={<MessageSquare aria-hidden className={ICON} />}
-      title={label}
-      body={note ?? t("desktop.addons.thread.body")}
-      end={
-        <Switch
-          size="sm"
-          aria-label={label}
-          checked={one.kind === "switch" ? one.on : true}
-          disabled={one.kind !== "switch" || one.disabled}
-          onCheckedChange={(target) => {
-            if (one.kind === "switch") one.toggle(target);
-          }}
-        />
-      }
-    />
+    <li className={ROW}>
+      <MessageSquare aria-hidden className={ICON} />
+      <span className="grid min-w-0 flex-1">
+        <span className="text-ui font-medium text-text-primary">{label}</span>
+        <span className="text-ui text-text-tertiary">
+          {note ?? t("desktop.addons.thread.body")}
+        </span>
+      </span>
+      <Switch
+        size="sm"
+        aria-label={label}
+        checked={one.kind === "switch" ? one.on : true}
+        disabled={one.kind !== "switch" || one.disabled}
+        onCheckedChange={(target) => {
+          if (one.kind === "switch") one.toggle(target);
+        }}
+      />
+    </li>
   );
 }
 
 function FeatureRow(props: {
   readonly feature: AddonFeature;
   readonly pluginOff: boolean;
+  readonly ops: DetailOps;
 }): ReactNode {
-  const { feature } = props;
+  const { feature, ops } = props;
   const look = FEATURE[feature.kind];
   return (
-    <InfoRow
-      icon={look.icon}
-      title={feature.title}
-      body={t(look.label)}
-      end={
-        feature.off && !props.pluginOff ? (
-          <Badge size="sm">{t("desktop.addons.badge.off")}</Badge>
-        ) : undefined
-      }
-    />
+    <li className={ROW}>
+      {look.icon}
+      <span className="grid min-w-0 flex-1">
+        <span className="flex min-w-0 items-center gap-1">
+          <span className="truncate text-ui font-medium text-text-primary">{feature.title}</span>
+          <InfoTip text={t(look.where)} />
+        </span>
+        <span className="text-ui text-text-tertiary">{t(look.label)}</span>
+      </span>
+      {feature.off && !props.pluginOff ? (
+        <Badge size="sm">{t("desktop.addons.badge.off")}</Badge>
+      ) : null}
+      {feature.kind === "command" ? (
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={feature.off}
+          iconStart={<Terminal aria-hidden />}
+          onClick={() => {
+            ops.onRunCommand(feature);
+          }}
+        >
+          {t("desktop.addons.feature.run")}
+        </Button>
+      ) : null}
+    </li>
   );
 }
 
-function AboutRows(props: { readonly detail: AddonDetail }): ReactNode {
+function riskLine(risk: AddonRisk): {
+  readonly icon: ReactNode;
+  readonly title: string;
+  readonly body: string;
+  readonly danger: boolean;
+} {
+  switch (risk.kind) {
+    case "toolHooks":
+      return {
+        icon: <TriangleAlert aria-hidden className="size-4 flex-none text-warning-text" />,
+        title: t("desktop.addons.risk.toolHooks.title"),
+        body: t("desktop.addons.risk.toolHooks.body", { hooks: risk.hooks.join(", ") }),
+        danger: true,
+      };
+    case "requestHooks":
+      return {
+        icon: <TriangleAlert aria-hidden className="size-4 flex-none text-warning-text" />,
+        title: t("desktop.addons.risk.requestHooks.title"),
+        body: t("desktop.addons.risk.requestHooks.body", { hooks: risk.hooks.join(", ") }),
+        danger: true,
+      };
+    case "otherHooks":
+      return {
+        icon: <History aria-hidden className={ICON} />,
+        title: t("desktop.addons.risk.otherHooks.title", { count: risk.count }),
+        body: t("desktop.addons.risk.otherHooks.body"),
+        danger: false,
+      };
+    case "methods":
+      return {
+        icon: <Command aria-hidden className={ICON} />,
+        title:
+          risk.writes > 0
+            ? t("desktop.addons.risk.methods.write", { count: risk.writes })
+            : t("desktop.addons.risk.methods.read", { count: risk.methods.length }),
+        body: risk.methods
+          .map((method) =>
+            method.approval
+              ? t("desktop.addons.risk.methods.approval", { verb: method.verb })
+              : method.verb,
+          )
+          .join(", "),
+        danger: false,
+      };
+    case "capability":
+      return {
+        icon: CAPABILITY[risk.capability].icon,
+        title: t(CAPABILITY[risk.capability].title),
+        body: t(CAPABILITY[risk.capability].body),
+        danger: false,
+      };
+    default:
+      return assertNever(risk, "riskLine");
+  }
+}
+
+function RiskSection(props: { readonly detail: AddonDetail }): ReactNode {
   const { detail } = props;
-  const rows: readonly (readonly [MessageId, string | undefined, boolean])[] = [
-    ["desktop.addons.about.name", detail.row.name, true],
-    ["desktop.addons.about.version", detail.row.version, false],
-    ["desktop.addons.about.author", detail.author, false],
-    ["desktop.addons.about.license", detail.license, false],
+  const { row } = detail;
+  const grade =
+    detail.requestedGrade !== undefined &&
+    detail.effectiveGrade !== undefined &&
+    detail.requestedGrade !== ""
+      ? detail.requestedGrade === detail.effectiveGrade
+        ? t("desktop.addons.grade.same", { grade: detail.effectiveGrade })
+        : t("desktop.addons.grade.changed", {
+            requested: detail.requestedGrade,
+            effective: detail.effectiveGrade,
+          })
+      : undefined;
+  const none = detail.risksKnown && detail.risks.length === 0;
+  return (
+    <Section title={t("desktop.addons.section.access")}>
+      <ul aria-label={t("desktop.addons.section.access")} className={CARD}>
+        {detail.risks.map((risk, index) => {
+          const line = riskLine(risk);
+          return (
+            <li key={`${risk.kind}-${String(index)}`} className={ROW}>
+              {line.icon}
+              <span className="grid min-w-0 flex-1">
+                <span className="text-ui font-medium text-text-primary">{line.title}</span>
+                <span className="text-ui text-text-tertiary">{line.body}</span>
+              </span>
+            </li>
+          );
+        })}
+        <li className={ROW}>
+          <ShieldCheck aria-hidden className={ICON} />
+          <span className="grid min-w-0 flex-1">
+            <span className="text-ui font-medium text-text-primary">
+              {t(ORIGIN_TEXT[row.trust])}
+            </span>
+            <span className="text-ui text-text-tertiary">
+              {t(TRUST_BODY[row.trust])}
+              {grade === undefined ? null : ` ${grade}`}
+            </span>
+          </span>
+        </li>
+      </ul>
+      <p className="m-0 text-ui text-text-tertiary">
+        {none
+          ? t("desktop.addons.access.none")
+          : detail.hasApp
+            ? t("desktop.addons.access.confirm")
+            : detail.risksKnown
+              ? null
+              : t("desktop.addons.access.unknown")}
+      </p>
+    </Section>
+  );
+}
+
+function DiagnosticRow(props: { readonly item: ExtDiagnostic }): ReactNode {
+  const { item } = props;
+  const where =
+    item.file === undefined
+      ? undefined
+      : item.line === undefined
+        ? item.file
+        : `${item.file}:${String(item.line)}`;
+  return (
+    <li className="flex min-w-0 items-start gap-3 px-4 py-3">
+      {item.severity === "error" ? (
+        <CircleX aria-hidden className="mt-0.5 size-4 flex-none text-danger-text" />
+      ) : (
+        <TriangleAlert aria-hidden className="mt-0.5 size-4 flex-none text-warning-text" />
+      )}
+      <span className="grid min-w-0 flex-1 gap-0.5">
+        <span className="text-ui text-text-primary">
+          <span className="sr-only">
+            {t(
+              item.severity === "error"
+                ? "desktop.addons.diag.error"
+                : "desktop.addons.diag.warning",
+            )}
+            {": "}
+          </span>
+          {item.message}
+        </span>
+        <span className="min-w-0 truncate font-mono text-mono-sm text-text-tertiary">
+          {where === undefined ? item.code : `${where} · ${item.code}`}
+        </span>
+      </span>
+    </li>
+  );
+}
+
+function AboutColumn(props: { readonly detail: AddonDetail; readonly ops: DetailOps }): ReactNode {
+  const { detail, ops } = props;
+  const rows: readonly (readonly [MessageId, ReactNode])[] = [
+    [
+      "desktop.addons.about.name",
+      <span key="name" className="font-mono">
+        {detail.row.name}
+      </span>,
+    ],
+    ["desktop.addons.about.version", detail.row.version === "" ? undefined : detail.row.version],
+    ["desktop.addons.about.author", detail.author],
+    ["desktop.addons.about.license", detail.license],
+    ["desktop.addons.about.origin", t(ORIGIN_TEXT[detail.row.trust])],
+    [
+      "desktop.addons.about.location",
+      detail.location === undefined ? undefined : (
+        <span key="location" className="flex min-w-0 items-start gap-1">
+          <span className="min-w-0 font-mono text-mono-sm break-all">{detail.location}</span>
+          <IconButton
+            size="xs"
+            variant="ghost"
+            label={t("desktop.addons.about.copyLocation")}
+            className="-mt-0.5 flex-none"
+            onClick={() => {
+              if (detail.location !== undefined) ops.onCopy(detail.location);
+            }}
+          >
+            <Copy />
+          </IconButton>
+        </span>
+      ),
+    ],
+    [
+      "desktop.addons.about.links",
+      detail.homepage === undefined && detail.repository === undefined ? undefined : (
+        <span key="links" className="grid gap-1">
+          {detail.homepage === undefined ? null : (
+            <a
+              href={detail.homepage}
+              target="_blank"
+              rel="noreferrer"
+              className="w-fit text-accent-text underline-offset-2 hover:underline"
+            >
+              {t("desktop.addons.about.homepage")}
+            </a>
+          )}
+          {detail.repository === undefined ? null : (
+            <a
+              href={detail.repository}
+              target="_blank"
+              rel="noreferrer"
+              className="w-fit text-accent-text underline-offset-2 hover:underline"
+            >
+              {t("desktop.addons.about.repository")}
+            </a>
+          )}
+        </span>
+      ),
+    ],
   ];
   return (
-    <dl className="m-0 grid grid-cols-[8rem_minmax(0,1fr)] gap-x-4 gap-y-2">
-      {rows.map(([label, value, mono]) =>
-        value === undefined || value === "" ? null : (
-          <div key={label} className="contents">
-            <dt className="text-ui text-text-tertiary">{t(label)}</dt>
-            <dd className={`m-0 truncate text-ui text-text-primary ${mono ? "font-mono" : ""}`}>
-              {value}
-            </dd>
-          </div>
-        ),
-      )}
-    </dl>
+    <aside aria-label={t("desktop.addons.section.about")} className="grid content-start gap-3">
+      <h2 className="m-0 text-ui font-medium text-text-primary">
+        {t("desktop.addons.section.about")}
+      </h2>
+      <dl className="m-0 grid gap-3">
+        {rows.map(([label, value]) =>
+          value === undefined || value === null || value === "" ? null : (
+            <div key={label} className="grid gap-0.5">
+              <dt className="text-ui-sm font-normal text-text-tertiary">{t(label)}</dt>
+              <dd className="m-0 min-w-0 text-ui text-text-primary">{value}</dd>
+            </div>
+          ),
+        )}
+      </dl>
+    </aside>
   );
 }
 
 export function AddonDetailView(props: {
   readonly detail: AddonDetail;
-  readonly moves: AddonMoves;
-  readonly onOpen: (screen: AddonScreen) => void;
+  readonly ops: DetailOps;
+  /** 플러그인 자체 설정 폼. 시험은 비운다 */
+  readonly config?: ReactNode;
+  /** 정보 열 아래 붙는 것(내보내기) */
+  readonly aboutEnd?: ReactNode;
 }): ReactNode {
-  const { detail, moves } = props;
+  const { detail, ops } = props;
   const { row } = detail;
-  const manage = (): void => {
-    moves.manage(row.name);
-  };
-  const warn = detail.problems.some(
-    (problem) => problem.kind !== "errors" && problem.kind !== "blocked",
-  );
+  const commands = detail.features.filter((feature) => feature.kind === "command");
+  const others = detail.features.filter((feature) => feature.kind !== "command");
   return (
-    <div className="grid gap-10">
+    <div className="grid gap-8">
       <div className="grid gap-4">
-        <DetailHead detail={detail} onManage={manage} onOpen={props.onOpen} />
-        {detail.problems.length === 0 ? null : (
-          <Alert
-            variant="outline"
-            tone={warn ? "warning" : "danger"}
-            actions={[{ label: t("desktop.addons.detail.manage"), onClick: manage }]}
-          >
-            {detail.problems.map(problemText).join(" ")}
-          </Alert>
-        )}
+        <DetailHead detail={detail} ops={ops} />
+        <DetailNotices detail={detail} ops={ops} />
       </div>
-      {detail.screens.length === 0 ? null : (
-        <Section title={t("desktop.addons.section.screens")} count={detail.screens.length}>
-          <RowList label={t("desktop.addons.section.screens")}>
-            {detail.screens.map((screen) => (
-              <ScreenRow
-                key={screen.key}
-                screen={screen}
-                pluginOff={row.off}
-                onOpen={() => {
-                  props.onOpen(screen);
-                }}
-              />
-            ))}
-          </RowList>
-        </Section>
-      )}
-      <Section title={t("desktop.addons.section.conversation")}>
-        <RowList label={t("desktop.addons.section.conversation")}>
-          <ThreadRow name={row.name} />
-          {detail.features.map((feature) => (
-            <FeatureRow key={feature.key} feature={feature} pluginOff={row.off} />
-          ))}
-        </RowList>
-      </Section>
-      <Section title={t("desktop.addons.section.access")}>
-        <RowList label={t("desktop.addons.section.access")}>
-          <InfoRow
-            icon={<ShieldCheck aria-hidden className={ICON} />}
-            title={t(TRUST_TITLE[row.trust])}
-            body={t(TRUST_BODY[row.trust])}
-          />
-          {detail.capabilities.map((name) => (
-            <InfoRow
-              key={name}
-              icon={CAPABILITY[name].icon}
-              title={t(CAPABILITY[name].title)}
-              body={t(CAPABILITY[name].body)}
-            />
-          ))}
-        </RowList>
-        <p className="m-0 text-ui text-text-tertiary">
-          {t(detail.hasApp ? "desktop.addons.access.confirm" : "desktop.addons.access.none")}
-        </p>
-      </Section>
-      <Section title={t("desktop.addons.section.about")}>
-        <AboutRows detail={detail} />
-      </Section>
+      <div className="grid gap-10 @[52rem]/addon:grid-cols-[minmax(0,1fr)_15rem]">
+        <div className="grid min-w-0 content-start gap-8">
+          {detail.screens.length === 0 ? null : (
+            <Section title={t("desktop.addons.section.screens")} count={detail.screens.length}>
+              <ul aria-label={t("desktop.addons.section.screens")} className={CARD}>
+                {detail.screens.map((screen) => (
+                  <ScreenRow key={screen.key} screen={screen} pluginOff={row.off} ops={ops} />
+                ))}
+              </ul>
+            </Section>
+          )}
+          <Section title={t("desktop.addons.section.conversation")}>
+            <ul aria-label={t("desktop.addons.section.conversation")} className={CARD}>
+              <ThreadRow name={row.name} />
+              {[...commands, ...others].map((feature) => (
+                <FeatureRow key={feature.key} feature={feature} pluginOff={row.off} ops={ops} />
+              ))}
+            </ul>
+          </Section>
+          {props.config}
+          <RiskSection detail={detail} />
+          {detail.diagnostics.length === 0 ? null : (
+            <Section
+              title={t("desktop.addons.section.diagnostics")}
+              count={detail.diagnostics.length}
+            >
+              <ul aria-label={t("desktop.addons.section.diagnostics")} className={CARD}>
+                {detail.diagnostics.map((item, index) => (
+                  <DiagnosticRow key={`${item.code}-${String(index)}`} item={item} />
+                ))}
+              </ul>
+            </Section>
+          )}
+        </div>
+        <div className="grid content-start gap-4">
+          <AboutColumn detail={detail} ops={ops} />
+          {props.aboutEnd}
+        </div>
+      </div>
     </div>
+  );
+}
+
+/** 상세 머리의 "⋯" 메뉴: 다시 읽기, 버전 되돌리기(크래프트), 크래프트에서 열기, 제거 */
+function DetailMenu(props: {
+  readonly title: string;
+  readonly removable: boolean;
+  readonly onReload: () => void;
+  readonly onVersions: () => void;
+  readonly onCraft: () => void;
+  readonly onRemove: () => void;
+}): ReactNode {
+  return (
+    <Menu
+      size="sm"
+      align="end"
+      aria-label={t("desktop.addons.menu.label", { name: props.title })}
+      trigger={
+        <IconButton
+          size={HEADER_CONTROL_SIZE}
+          variant="ghost"
+          label={t("desktop.addons.menu.label", { name: props.title })}
+        >
+          <Ellipsis />
+        </IconButton>
+      }
+    >
+      <MenuItem icon={<RotateCw />} onSelect={props.onReload}>
+        {t("desktop.addons.menu.reload")}
+      </MenuItem>
+      <MenuItem icon={<History />} onSelect={props.onVersions}>
+        {t("desktop.addons.menu.versions")}
+      </MenuItem>
+      <MenuItem icon={<PenTool />} onSelect={props.onCraft}>
+        {t("desktop.addons.menu.craft")}
+      </MenuItem>
+      {props.removable ? (
+        <>
+          <MenuSeparator />
+          <MenuItem icon={<Trash2 />} tone="danger" onSelect={props.onRemove}>
+            {t("desktop.addons.menu.remove")}
+          </MenuItem>
+        </>
+      ) : null}
+    </Menu>
   );
 }
 
@@ -773,8 +1087,8 @@ function routeOfTarget(target: AddonRequestTarget): AddonRoute {
 }
 
 /**
- * 지금 자리. 화면이 새로 열리면 목록부터 보이고, 아직 따르지 않은 요청(사이드바 화면, 크래프트의 "플레이그라운드에서 보기")이 있으면 그 자리다.
- * 열려 있는 동안 새 요청이 오면 그 자리로 간다
+ * 지금 자리. 화면이 새로 열리면 목록부터 보이고, 아직 따르지 않은 요청(탭 메뉴의 "플러그인 정보", 크래프트의 "플레이그라운드에서 보기")이
+ * 있으면 그 자리다. 열려 있는 동안 새 요청이 오면 그 자리로 간다
  */
 function useAddonRoute(): readonly [AddonRoute, (route: AddonRoute) => void] {
   const request = useAddonRequest();
@@ -795,32 +1109,57 @@ function useAddonRoute(): readonly [AddonRoute, (route: AddonRoute) => void] {
 
 /** 대화 영역 "플레이그라운드" 화면 */
 export function AddonsScreen(): ReactNode {
-  const state = usePluginUiState();
+  const commands = useCommands();
+  const plugin = usePluginUiState();
   const moves = useAddonMoves();
-  const locale = activeLocale();
+  const data = useAddonData(true);
   const [asked, setRoute] = useAddonRoute();
-  const names = useMemo(
-    () => [...new Set(state.entries.map((entry) => entry.extension))].toSorted(),
-    [state.entries],
-  );
-  const meta = useAddonMeta(names);
-  const source = useMemo(
-    () => ({ entries: state.entries, inactive: state.inactive, settings: state.settings }),
-    [state.entries, state.inactive, state.settings],
-  );
-  const route = state.phase === "ready" ? addonRouteOf(asked, state.entries) : ADDON_LIST;
+  const controller = useWorkbenchController();
+  const toggleRequest = useToggleRequest(controller);
+  const workbench = useWorkbench((s) => s);
+  const tabs = usePlaygroundTabs();
+  const runCommand = usePluginCommandRunner();
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
+  const [removeDataFailed, setRemoveDataFailed] = useState(false);
   const headingId = useId();
+  const loadPreview = useCallback(
+    (name: string) => commands.workbench.removePreview(name),
+    [commands],
+  );
+  const loadProfiles = useCallback(() => commands.workbench.profiles(), [commands]);
+  // 켜기·끄기 확인은 워크벤치 목록을 읽어야 한다. 아직 안 읽었으면 한 번 읽는다
+  const listState = workbench.list;
+  useEffect(() => {
+    if (listState === "idle") detachVoid(controller.reload());
+  }, [listState, controller]);
+  const route =
+    data.phase === "ready" ? addonRouteOf(asked, data.source.entries, data.listed) : ADDON_LIST;
+
+  const toggleOf = useCallback(
+    (name: string): ToggleInfo | undefined => {
+      const entry = workbench.entries.find((item) => item.name === name);
+      if (entry === undefined) return undefined;
+      const row = workbenchRowOf(entry, workbench.pending);
+      return { on: row.on, locked: row.lock !== null, busy: workbench.pending[name] !== undefined };
+    },
+    [workbench.entries, workbench.pending],
+  );
+  const onToggle = (name: string, target: boolean): void => {
+    toggleRequest.request(name, target);
+  };
+  const pinned = (name: string): boolean => tabs.prefs !== undefined && isPinned(tabs.prefs, name);
 
   if (route.kind === "screen") {
-    const entry = state.entries.find((item) => `${item.extension}/${item.id}` === route.key);
+    const entry = data.source.entries.find((item) => `${item.extension}/${item.id}` === route.key);
     if (entry !== undefined) {
-      const plugin = meta.get(entry.extension)?.displayName ?? entry.extension;
+      const name = data.meta.get(entry.extension)?.displayName ?? entry.extension;
       return (
         <PluginView
           key={`${route.key}@${entry.version}`}
           entry={entry}
           back={{
-            plugin,
+            plugin: name,
             onBack: () => {
               setRoute({ kind: "plugin", name: entry.extension });
             },
@@ -830,12 +1169,66 @@ export function AddonsScreen(): ReactNode {
     }
   }
 
-  const openScreen = (screen: AddonScreen): void => {
-    setRoute({ kind: "screen", key: screen.key });
-  };
   const detail =
-    route.kind === "plugin" ? addonDetailOf(route.name, source, meta, locale) : undefined;
+    route.kind === "plugin"
+      ? addonDetailOf(route.name, data.source, data.meta, data.locale)
+      : undefined;
   const title = detail === undefined ? t("desktop.shell.nav.plugins") : detail.row.title;
+  const listEntry =
+    detail === undefined
+      ? undefined
+      : workbench.entries.find((item) => item.name === detail.row.name);
+  const ops: DetailOps | undefined =
+    detail === undefined
+      ? undefined
+      : {
+          toggle: (() => {
+            const info = toggleOf(detail.row.name);
+            return info === undefined || info.locked
+              ? undefined
+              : {
+                  ...info,
+                  onChange: (target: boolean) => {
+                    onToggle(detail.row.name, target);
+                  },
+                };
+          })(),
+          pin:
+            detail.screens.length === 0
+              ? undefined
+              : {
+                  pinned: pinned(detail.row.name),
+                  onChange: (next) => {
+                    tabs.actions.pin(detail.row.name, next);
+                  },
+                },
+          onKeepOff: () => {
+            detachVoid(controller.keepOff(detail.row.name));
+          },
+          onKeepOn: () => {
+            detachVoid(controller.reenable(detail.row.name));
+          },
+          onOpenScreen: (screen) => {
+            // 화면은 머리 줄 탭 화면에서 연다(상태가 남는다). 고정하지 않은 플러그인도 탭 화면에서 연다
+            tabs.actions.open(detail.row.name, screen.key);
+          },
+          onRunCommand: (feature) => {
+            runCommand(detail.row.name, feature.id);
+          },
+          onAllowApps: () => {
+            commands.requestSettingsJump({ tab: "plugins", key: "x.ui.apps" });
+            commands.showScreen("settings");
+          },
+          onCopy: (text) => {
+            detach(
+              commands.copyText(text).then((done) => {
+                if (done) toast({ tone: "success", title: t("desktop.addons.about.copied") });
+                return undefined;
+              }),
+              rethrow,
+            );
+          },
+        };
   return (
     <section aria-labelledby={headingId} className="flex min-h-0 flex-1 flex-col">
       <ScreenHeader
@@ -863,27 +1256,98 @@ export function AddonsScreen(): ReactNode {
               variant={HEADER_PRIMARY_VARIANT}
               onClick={moves.findPlugins}
             >
-              {t("desktop.addons.manage")}
+              {t("desktop.addons.find")}
             </Button>
-          ) : undefined
+          ) : (
+            <DetailMenu
+              title={detail.row.title}
+              removable={listEntry !== undefined && removableOf(listEntry)}
+              onReload={() => {
+                detach(
+                  commands.workbench.reload(detail.row.name).then((done) => {
+                    toast(
+                      done.ok
+                        ? { tone: "success", title: t("desktop.addons.menu.reloaded") }
+                        : { tone: "danger", title: t("desktop.addons.menu.reloadFailed") },
+                    );
+                    forgetManifest(commands, detail.row.name);
+                    reloadExtListing(commands);
+                    return undefined;
+                  }),
+                  rethrow,
+                );
+              }}
+              onVersions={() => {
+                moves.manage(detail.row.name);
+              }}
+              onCraft={() => {
+                moves.manage(detail.row.name);
+              }}
+              onRemove={() => {
+                setRemoving(detail.row.name);
+              }}
+            />
+          )
         }
       />
-      <div key={detail === undefined ? "list" : `plugin:${detail.row.name}`} className={SCROLL}>
+      <div
+        key={detail === undefined ? "list" : `plugin:${detail.row.name}`}
+        className={`${SCROLL} @container/addon`}
+      >
         <div className={COLUMN}>
-          {detail === undefined ? (
+          {detail === undefined || ops === undefined ? (
             <AddonList
-              rows={addonRowsOf(source, meta, locale)}
-              phase={state.phase}
+              rows={addonRowsOf(data.source, data.meta, data.locale)}
+              phase={data.phase}
               moves={moves}
+              pinned={pinned}
+              toggleOf={toggleOf}
+              onToggle={onToggle}
               onOpen={(name) => {
                 setRoute({ kind: "plugin", name });
               }}
             />
           ) : (
-            <AddonDetailView detail={detail} moves={moves} onOpen={openScreen} />
+            <AddonDetailView
+              detail={detail}
+              ops={ops}
+              config={<PluginConfigForm name={detail.row.name} title={detail.row.title} />}
+              aboutEnd={listEntry === undefined ? undefined : <ExportExtension entry={listEntry} />}
+            />
           )}
         </div>
       </div>
+      {toggleRequest.dialog}
+      <RemoveDialog
+        name={removing}
+        busy={removeBusy}
+        dataFailed={removeDataFailed}
+        loadPreview={loadPreview}
+        loadProfiles={loadProfiles}
+        pluginEntries={plugin.phase === "ready" ? plugin.entries : null}
+        onCancel={() => {
+          if (!removeBusy) {
+            setRemoving(null);
+            setRemoveDataFailed(false);
+          }
+        }}
+        onConfirm={(name, dropData) => {
+          setRemoveBusy(true);
+          setRemoveDataFailed(false);
+          detachVoid(
+            controller.remove(name, { dropData }).then((outcome) => {
+              setRemoveBusy(false);
+              const stay = keepsDialogOpen(outcome, dropData);
+              setRemoveDataFailed(stay);
+              if (!stay) {
+                setRemoving(null);
+                setRoute(ADDON_LIST);
+              }
+              return undefined;
+            }),
+          );
+        }}
+      />
     </section>
   );
 }

@@ -8,6 +8,10 @@ import {
   addonRouteOf,
   addonRowsOf,
   monogramOf,
+  risksOf,
+  splitBuiltin,
+  tabbableRowsOf,
+  type AddonAttention,
   type AddonMetaMap,
   type AddonSource,
 } from "../../../src/views/plugin/addon-model.ts";
@@ -67,7 +71,7 @@ function offOf(meta: AddonMetaMap, inactive: readonly string[] = []): boolean | 
 function attentionOf(
   entries: readonly ExtUiEntry[],
   settings: Record<string, unknown> = {},
-): boolean | undefined {
+): AddonAttention | undefined {
   return addonRowsOf(sourceOf(entries, { settings }), NO_META, "ko")[0]?.attention;
 }
 
@@ -124,10 +128,22 @@ describe("addonRowsOf", () => {
     ).toBe(true);
   });
 
-  test("asks for attention for an invalid entry, a blocked app screen, or an error diagnostic", () => {
-    expect(attentionOf(VIEWDEMO)).toBe(false);
-    expect(attentionOf([uiEntryOf({ extension: "x", state: "invalid" })])).toBe(true);
-    expect(attentionOf(VIEWDEMO, { [UI_APPS_KEY]: false })).toBe(true);
+  test("danger for an invalid entry or an error diagnostic, warning for a blocked app screen or a keep-off question", () => {
+    expect(attentionOf(VIEWDEMO)).toBeUndefined();
+    expect(attentionOf([uiEntryOf({ extension: "x", state: "invalid" })])).toBe("danger");
+    expect(attentionOf(VIEWDEMO, { [UI_APPS_KEY]: false })).toBe("warning");
+    const asking: AddonMetaMap = new Map([
+      [
+        "viewdemo",
+        addonMetaOf(
+          entry("viewdemo", {
+            keepOffQuestion: { rule: "consecutive", consecutive: 5, windowFailures: 5 },
+          }),
+          undefined,
+        ),
+      ],
+    ]);
+    expect(addonRowsOf(sourceOf(VIEWDEMO), asking, "ko")[0]?.attention).toBe("warning");
     const meta: AddonMetaMap = new Map([
       [
         "viewdemo",
@@ -137,7 +153,53 @@ describe("addonRowsOf", () => {
         ),
       ],
     ]);
-    expect(addonRowsOf(sourceOf(VIEWDEMO), meta, "ko")[0]?.attention).toBe(true);
+    const [row] = addonRowsOf(sourceOf(VIEWDEMO), meta, "ko");
+    expect([row?.attention, row?.errorCount]).toEqual(["danger", 1]);
+  });
+
+  test("lists an ext.list-only plugin as a row with no screens, and builtins apart", () => {
+    const meta: AddonMetaMap = new Map([
+      ["quiet", addonMetaOf(entry("quiet", { origin: "builtin" }), undefined)],
+      ["viewdemo", addonMetaOf(entry("viewdemo"), undefined)],
+    ]);
+    const rows = addonRowsOf(sourceOf(VIEWDEMO), meta, "ko");
+    expect(rows.map((row) => [row.name, row.screens, row.features, row.builtin])).toEqual([
+      ["quiet", 0, 0, true],
+      ["viewdemo", 2, 0, false],
+    ]);
+    const split = splitBuiltin(rows);
+    expect([split.added.map((row) => row.name), split.builtin.map((row) => row.name)]).toEqual([
+      ["viewdemo"],
+      ["quiet"],
+    ]);
+    expect(tabbableRowsOf(sourceOf(VIEWDEMO), meta, "ko").map((row) => row.name)).toEqual([
+      "viewdemo",
+    ]);
+  });
+});
+
+describe("risksOf", () => {
+  test("names tool and request hooks, write methods and capabilities first, then other hooks and read-only methods", () => {
+    const write = { verb: "save", readOnly: false, approval: true };
+    const read = { verb: "list", readOnly: true, approval: false };
+    expect(
+      risksOf(
+        ["tool.call.before", "request.system.before", "turn.end", "guard.output.before"],
+        [write, read],
+        ["files"],
+      ),
+    ).toEqual([
+      { kind: "toolHooks", hooks: ["tool.call.before"] },
+      { kind: "requestHooks", hooks: ["request.system.before", "guard.output.before"] },
+      { kind: "methods", methods: [write, read], writes: 1 },
+      { kind: "capability", capability: "files" },
+      { kind: "otherHooks", count: 1 },
+    ]);
+    expect(risksOf(["turn.end"], [read], [])).toEqual([
+      { kind: "otherHooks", count: 1 },
+      { kind: "methods", methods: [read], writes: 0 },
+    ]);
+    expect(risksOf(undefined, undefined, [])).toEqual([]);
   });
 });
 
@@ -163,12 +225,12 @@ describe("addonDetailOf", () => {
     expect(detail?.problems).toEqual([]);
   });
 
-  test("puts conversation features in a fixed kind order: side panel, card, command, status", () => {
+  test("puts conversation features in a fixed kind order: command (runnable) first, then side panel, card, status", () => {
     const detail = addonDetailOf("helm", sourceOf(HELM), NO_META, "ko");
     expect(detail?.features.map((feature) => [feature.kind, feature.title])).toEqual([
+      ["command", "탐구 시작"],
       ["panel", "Helm 패널"],
       ["card", "발견"],
-      ["command", "탐구 시작"],
       ["status", "Helm 상태"],
     ]);
     expect(detail?.screens.map((screen) => screen.key)).toEqual(["helm/inquiry"]);
@@ -233,22 +295,50 @@ describe("addonMetaOf", () => {
         license: "MIT",
       }),
     ).toEqual({
+      listed: true,
       displayName: "A",
       description: "설명",
       author: "만든 사람",
       license: "MIT",
+      homepage: undefined,
+      repository: undefined,
+      version: "1.0.0",
+      origin: "user",
+      location: "/x",
+      requestedGrade: "user",
+      effectiveGrade: "user",
+      isGroup: false,
       enabled: true,
       safeMode: false,
       errors: 0,
+      diagnostics: [],
+      keepOff: undefined,
+      hooks: undefined,
+      hookCount: 2,
+      methods: undefined,
     });
     expect(addonMetaOf(undefined, { description: 3, author: "  ", license: null })).toEqual({
+      listed: false,
       displayName: undefined,
       description: undefined,
       author: undefined,
       license: undefined,
+      homepage: undefined,
+      repository: undefined,
+      version: undefined,
+      origin: undefined,
+      location: undefined,
+      requestedGrade: undefined,
+      effectiveGrade: undefined,
+      isGroup: undefined,
       enabled: undefined,
       safeMode: undefined,
       errors: undefined,
+      diagnostics: undefined,
+      keepOff: undefined,
+      hooks: undefined,
+      hookCount: undefined,
+      methods: undefined,
     });
   });
 });
