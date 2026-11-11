@@ -318,7 +318,7 @@ function Body(props: SettingsPageProps): ReactNode {
   if (view === null) {
     return (
       <div className="flex flex-col gap-2">
-        <p role="status" className="text-ui-sm text-text-tertiary">
+        <p role="status" className="text-ui text-text-tertiary">
           {t("desktop.settings.loading.status")}
         </p>
         <Skeleton height={40} />
@@ -413,9 +413,7 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
     // "MCP 서버" 구역은 찾는 글이 그 표의 글에 맞을 때 "도구와 웹" 자리에 든다(표 항목은 찾기 묶음에 넣지 않는다)
     const mcpFound = mcpSectionMatchesOf(view.tabs, query);
     if (groups.length === 0 && !memoryFound && !mcpFound) {
-      return (
-        <p className="text-ui-sm text-text-tertiary">{t("desktop.settings.search.noMatch")}</p>
-      );
+      return <p className="text-ui text-text-tertiary">{t("desktop.settings.search.noMatch")}</p>;
     }
     return (
       <>
@@ -481,7 +479,7 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
           title={tab === "plugins" ? t("desktop.settings.plugins.settings") : undefined}
         >
           {tab === "advanced" ? props.restorePanel : null}
-          {emptyText === null ? null : <p className="text-ui-sm text-text-tertiary">{emptyText}</p>}
+          {emptyText === null ? null : <p className="text-ui text-text-tertiary">{emptyText}</p>}
           {groups.general.map((field) => rowOf(field, false))}
         </SettingSection>
       ) : null}

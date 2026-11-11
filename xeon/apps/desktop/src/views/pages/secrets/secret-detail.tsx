@@ -255,12 +255,12 @@ function ValueCell(props: SecretDetailProps): ReactNode {
         {t("desktop.secrets.reveal.button")}
       </Button>
       {own?.status === "failed" ? (
-        <span role="alert" className="text-ui-sm text-danger-text">
+        <span role="alert" className="text-ui text-danger-text">
           <MessageText text={revealFailureText(own.failure)} />
         </span>
       ) : null}
       {revealAvailable ? null : (
-        <span className="text-ui-sm text-text-tertiary">
+        <span className="text-ui text-text-tertiary">
           {t("desktop.secrets.reveal.unavailable")}
         </span>
       )}
@@ -280,13 +280,13 @@ function RefsLine(props: { readonly refs: Load<SecretReferencesResult> }): React
       return null;
     case "loading":
       return (
-        <p role="status" className="m-0 text-ui-sm text-text-tertiary">
+        <p role="status" className="m-0 text-ui text-text-tertiary">
           {t("desktop.secrets.refs.loading")}
         </p>
       );
     case "failed":
       return (
-        <p role="alert" className="m-0 text-ui-sm text-danger-text">
+        <p role="alert" className="m-0 text-ui text-danger-text">
           <MessageText text={commandErrorText(refs.error)} />
         </p>
       );
@@ -322,23 +322,20 @@ function TestLine(props: { readonly test: Load<SecretTestResult> }): ReactNode {
       return null;
     case "loading":
       return (
-        <p role="status" className="m-0 text-ui-sm text-text-tertiary">
+        <p role="status" className="m-0 text-ui text-text-tertiary">
           {t("desktop.secrets.test.running")}
         </p>
       );
     case "failed":
       return (
-        <p role="alert" className="m-0 text-ui-sm text-danger-text">
+        <p role="alert" className="m-0 text-ui text-danger-text">
           <MessageText text={commandErrorText(test.error)} />
         </p>
       );
     case "ready": {
       const decryptable = test.value.decryptable;
       return (
-        <p
-          role="status"
-          className="m-0 flex items-center gap-1.5 pt-1 text-ui-sm text-text-secondary"
-        >
+        <p role="status" className="m-0 flex items-center gap-1.5 pt-1 text-ui text-text-secondary">
           {decryptable ? (
             <CircleCheck aria-hidden className="size-icon-sm text-success-text" />
           ) : null}

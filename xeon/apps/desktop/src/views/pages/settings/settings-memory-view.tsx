@@ -164,7 +164,7 @@ function MemoryCard(args: {
             <ContextLine tokens={tokensOf(load.stores)} />
             {total > 5 ? <FindRow props={props} shown={shownTotal} total={total} /> : null}
             {total > 0 && shownTotal === 0 ? (
-              <p className="text-ui-sm text-text-tertiary">{t("desktop.memory.search.noMatch")}</p>
+              <p className="text-ui text-text-tertiary">{t("desktop.memory.search.noMatch")}</p>
             ) : null}
           </div>
         ) : null}
@@ -174,7 +174,7 @@ function MemoryCard(args: {
           </Alert>
         )}
         {load.kind === "loading" ? (
-          <p className="text-ui-sm text-text-tertiary">{t("desktop.memory.loading")}</p>
+          <p className="text-ui text-text-tertiary">{t("desktop.memory.loading")}</p>
         ) : null}
         {load.kind === "failed" ? (
           <Alert tone="danger" size="sm">
@@ -207,7 +207,7 @@ function MemoryCard(args: {
 /** 구역 머리 아래의 문맥 토큰 줄. 설명은 정보 아이콘 뒤에 둔다 */
 function ContextLine(args: { readonly tokens: number }): ReactNode {
   return (
-    <div data-memory-context className="flex items-center gap-1 text-ui-sm text-text-tertiary">
+    <div data-memory-context className="flex items-center gap-1 text-ui text-text-tertiary">
       {t("desktop.memory.context", { tokens: String(args.tokens) })}
       <InfoTip text={t("desktop.memory.context.info")} />
     </div>
@@ -278,7 +278,7 @@ function StoreGroup(args: {
           <InfoTip text={t(spec.info)} />
           <span
             data-memory-used
-            className={over ? "text-ui-sm text-warning-text" : "text-ui-sm text-text-tertiary"}
+            className={over ? "text-ui text-warning-text" : "text-ui text-text-tertiary"}
           >
             {t("desktop.memory.used", {
               used: String(view.usedChars),
@@ -305,7 +305,7 @@ function StoreGroup(args: {
       {view.entries.length === 0 ? (
         <div className="grid gap-1 py-2">
           <span className="text-body text-text-secondary">{t("desktop.memory.empty")}</span>
-          <span className="text-ui-sm text-text-tertiary">{t("desktop.memory.empty.hint")}</span>
+          <span className="text-ui text-text-tertiary">{t("desktop.memory.empty.hint")}</span>
         </div>
       ) : rows.length === 0 ? null : (
         <ul className="grid min-w-0">
@@ -389,7 +389,7 @@ function RemainingLine(args: {
           })}
         </Alert>
       ) : null}
-      <div className="flex items-center gap-1 text-ui-sm">
+      <div className="flex items-center gap-1 text-ui">
         {over ? null : (
           <span data-memory-remaining className={low ? "text-warning-text" : "text-text-tertiary"}>
             {t("desktop.memory.remaining", { n: String(remaining) })}

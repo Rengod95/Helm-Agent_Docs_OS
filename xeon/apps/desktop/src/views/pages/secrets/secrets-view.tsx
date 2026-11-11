@@ -233,7 +233,7 @@ export function SecretsScreenView(props: SecretsScreenViewProps): ReactNode {
             </div>
           ) : null}
           {view.rows.length === 0 ? (
-            <p role="status" className="m-0 text-ui-sm text-text-tertiary">
+            <p role="status" className="m-0 text-ui text-text-tertiary">
               {t("desktop.secrets.noMatch")}
             </p>
           ) : (
@@ -357,7 +357,7 @@ function SecretList(props: {
               {row.meta?.desc ?? ""}
             </span>
             {status === null ? null : (
-              <span className={`truncate text-ui-sm ${status.cls}`}>{status.text}</span>
+              <span className={`truncate text-ui ${status.cls}`}>{status.text}</span>
             )}
           </div>
         );

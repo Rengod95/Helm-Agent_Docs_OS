@@ -204,7 +204,7 @@ function SheetForm(props: {
               }}
             />
           </Field>
-          <label className="flex items-center gap-2.5 text-ui-sm text-text-primary">
+          <label className="flex items-center gap-2.5 text-ui text-text-primary">
             <span className="flex-1">{t("desktop.schedules.form.enabled")}</span>
             <Switch
               size="sm"
@@ -323,7 +323,7 @@ function TriggerInputs(props: {
       );
     case "remote":
       return (
-        <p className="m-0 text-ui-sm font-normal text-text-secondary">
+        <p className="m-0 text-ui font-normal text-text-secondary">
           {t("desktop.schedules.form.remoteHint")}
         </p>
       );

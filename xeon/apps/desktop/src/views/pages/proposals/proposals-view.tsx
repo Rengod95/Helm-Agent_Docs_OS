@@ -393,7 +393,7 @@ function Row(props: {
         <span className="grid min-w-0 flex-1 gap-0.5">
           <span className="min-w-0 truncate text-ui text-text-primary">{rowTitleOf(row)}</span>
           <span
-            className={`min-w-0 truncate text-ui-xs ${pending && conflicted ? "text-warning-text" : "text-text-tertiary"}`}
+            className={`min-w-0 truncate text-ui ${pending && conflicted ? "text-warning-text" : "text-text-tertiary"}`}
           >
             {line}
           </span>
@@ -521,7 +521,7 @@ function DetailPane(props: {
             )}
           </ListDescription>
           {selected.expiresAt === null ? null : (
-            <div className="flex items-center gap-1 text-ui-xs text-text-tertiary">
+            <div className="flex items-center gap-1 text-ui text-text-tertiary">
               <span>
                 {t("desktop.proposals.detail.expires", {
                   date: expiryDateTextOf(selected.expiresAt, activeLocale()),
@@ -792,14 +792,14 @@ export function SkillCompare(props: {
   return (
     <div className="grid gap-3 compact:grid-cols-2">
       <section className="flex min-w-0 flex-col gap-2">
-        <h3 className="text-ui-sm font-semibold text-text-primary">
+        <h3 className="text-ui font-semibold text-text-primary">
           {t("desktop.proposals.skill.proposed")}
         </h3>
         <ProposedText proposed={proposed} />
       </section>
       <section className="flex min-w-0 flex-col gap-2">
         <div className="flex items-center gap-1">
-          <h3 className="text-ui-sm font-semibold text-text-primary">
+          <h3 className="text-ui font-semibold text-text-primary">
             {t("desktop.proposals.skill.current")}
           </h3>
           <InfoTip text={t("desktop.proposals.skill.info")} />

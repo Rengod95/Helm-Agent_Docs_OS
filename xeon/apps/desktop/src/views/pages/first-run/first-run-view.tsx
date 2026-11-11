@@ -258,17 +258,17 @@ export function FirstRunView(props: FirstRunViewProps): ReactNode {
             </Alert>
           ) : null}
           {startBlocked === null ? null : (
-            <p role="status" className="m-0 text-ui-sm text-text-secondary">
+            <p role="status" className="m-0 text-ui text-text-secondary">
               {t(startBlocked)}
             </p>
           )}
           <StepList {...props} keyFormRef={keyFormRef} />
           {props.notice === null ? null : (
-            <p role="status" className="m-0 text-ui-sm text-text-secondary">
+            <p role="status" className="m-0 text-ui text-text-secondary">
               {props.notice}
             </p>
           )}
-          <footer className="text-ui-xs text-text-tertiary">{props.engineState}</footer>
+          <footer className="text-ui text-text-tertiary">{props.engineState}</footer>
         </div>
       </div>
     </section>
@@ -314,7 +314,7 @@ function Indicator(props: { readonly n: number; readonly status: StepIndicator }
 function Summary(props: { readonly danger?: boolean; readonly children: ReactNode }): ReactNode {
   return (
     <span
-      className={`text-ui-sm font-normal ${props.danger === true ? "text-danger-text" : "text-text-tertiary"}`}
+      className={`text-ui font-normal ${props.danger === true ? "text-danger-text" : "text-text-tertiary"}`}
     >
       {props.children}
     </span>
@@ -425,7 +425,7 @@ function ToolsBody(props: StepBodyProps): ReactNode {
       ) : null}
       {props.status === "ready" || offline ? (
         binaries === null ? (
-          <p className="m-0 text-ui-sm text-text-tertiary">
+          <p className="m-0 text-ui text-text-tertiary">
             {offline
               ? t("desktop.firstRun.tools.offline")
               : t("desktop.settings.tools.unavailable")}
@@ -577,7 +577,7 @@ function KeyBody(props: StepBodyProps & { readonly setup: SetupSnapshot }): Reac
                   : t("desktop.settings.secret.notRegistered")}
               </Badge>
               {view.linked ? (
-                <span className="text-ui-xs text-text-tertiary">
+                <span className="text-ui text-text-tertiary">
                   {t("desktop.firstRun.key.linked")}
                 </span>
               ) : null}
@@ -628,7 +628,7 @@ function KeyBody(props: StepBodyProps & { readonly setup: SetupSnapshot }): Reac
           <option key={id} value={id} />
         ))}
       </datalist>
-      <p className="m-0 text-ui-xs text-text-tertiary">{t("desktop.firstRun.key.valueNote")}</p>
+      <p className="m-0 text-ui text-text-tertiary">{t("desktop.firstRun.key.valueNote")}</p>
     </div>
   );
 }
@@ -686,7 +686,7 @@ function KeyFailure(props: {
         </span>
       )}
       {helpOpen ? (
-        <p className="m-0 text-ui-xs text-text-tertiary">{t("desktop.firstRun.key.helpBody")}</p>
+        <p className="m-0 text-ui text-text-tertiary">{t("desktop.firstRun.key.helpBody")}</p>
       ) : null}
     </div>
   );
@@ -701,7 +701,7 @@ function KeyEntryView(props: StepBodyProps): ReactNode {
   return (
     <div className="grid gap-2">
       {keyEntry.providerId === null ? (
-        <p className="m-0 text-ui-sm text-text-secondary">
+        <p className="m-0 text-ui text-text-secondary">
           {t("desktop.settings.secretName.label")} <code>{keyEntry.name}</code>
         </p>
       ) : null}
@@ -711,7 +711,7 @@ function KeyEntryView(props: StepBodyProps): ReactNode {
         onSubmit={handlers.submitKey}
         onCancel={handlers.cancelKey}
       />
-      <p className="m-0 text-ui-xs text-text-tertiary">{t("desktop.firstRun.key.valueNote")}</p>
+      <p className="m-0 text-ui text-text-tertiary">{t("desktop.firstRun.key.valueNote")}</p>
     </div>
   );
 }
@@ -746,7 +746,7 @@ function ModelBody(props: StepBodyProps & { readonly model: FirstRunModel }): Re
   return (
     <div className="grid gap-2">
       {stepLocked ? (
-        <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.firstRun.model.locked")}</p>
+        <p className="m-0 text-ui text-text-tertiary">{t("desktop.firstRun.model.locked")}</p>
       ) : null}
       <ListDescription
         variant="ghost"
@@ -790,10 +790,10 @@ function ModelBody(props: StepBodyProps & { readonly model: FirstRunModel }): Re
         </ListDescriptionRow>
       </ListDescription>
       {noList && !stepLocked ? (
-        <p className="m-0 text-ui-xs text-text-tertiary">{t("desktop.firstRun.model.empty")}</p>
+        <p className="m-0 text-ui text-text-tertiary">{t("desktop.firstRun.model.empty")}</p>
       ) : null}
       {missing ? (
-        <p className="m-0 text-ui-xs text-danger-text">{t("desktop.firstRun.model.missing")}</p>
+        <p className="m-0 text-ui text-danger-text">{t("desktop.firstRun.model.missing")}</p>
       ) : null}
     </div>
   );
@@ -807,9 +807,7 @@ function SearchBody(props: StepBodyProps & { readonly model: FirstRunModel }): R
   const [installHelp, setInstallHelp] = useState(false);
   const search = model.search;
   if (search === null) {
-    return (
-      <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.firstRun.search.unknown")}</p>
-    );
+    return <p className="m-0 text-ui text-text-tertiary">{t("desktop.firstRun.search.unknown")}</p>;
   }
   const current =
     search.provider === "auto" ? t("desktop.firstRun.search.builtin") : search.provider;
@@ -830,7 +828,7 @@ function SearchBody(props: StepBodyProps & { readonly model: FirstRunModel }): R
           return (
             <ListDescriptionRow key={entry.providerId} term={entry.label}>
               <span className="flex min-w-0 flex-wrap items-center gap-2">
-                <span className="text-ui-xs text-text-tertiary">
+                <span className="text-ui text-text-tertiary">
                   {t(
                     recommendStateOf(entry.state),
                     entry.state === "unavailable" ? { reason: entry.hint } : {},
@@ -867,11 +865,9 @@ function SearchBody(props: StepBodyProps & { readonly model: FirstRunModel }): R
           );
         })}
       </ListDescription>
-      <p className="m-0 text-ui-xs text-text-tertiary">{t("desktop.firstRun.search.cost")}</p>
+      <p className="m-0 text-ui text-text-tertiary">{t("desktop.firstRun.search.cost")}</p>
       {installHelp && anyInstallHelp ? (
-        <p className="m-0 text-ui-xs text-text-tertiary">
-          {t("desktop.firstRun.search.installNote")}
-        </p>
+        <p className="m-0 text-ui text-text-tertiary">{t("desktop.firstRun.search.installNote")}</p>
       ) : null}
       <KeyEntryView {...props} />
       {model.searchState === "pending" ? (
@@ -891,9 +887,7 @@ function GroupsBody(props: StepBodyProps & { readonly model: FirstRunModel }): R
   const { model, handlers, locked } = props;
   const groups = model.groups;
   if (groups === null) {
-    return (
-      <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.firstRun.groups.unknown")}</p>
-    );
+    return <p className="m-0 text-ui text-text-tertiary">{t("desktop.firstRun.groups.unknown")}</p>;
   }
   return (
     <div className="grid gap-2">
@@ -946,10 +940,10 @@ function GroupRowView(props: {
         <Switch size="sm" aria-labelledby={nameId} checked={row.on} disabled className="mt-0.5" />
       )}
       <div className="grid min-w-0 gap-0.5">
-        <span id={nameId} className="text-ui-sm font-medium text-text-primary">
+        <span id={nameId} className="text-ui font-medium text-text-primary">
           {t(groupNameOf(row.id))}
         </span>
-        <span className="text-ui-sm text-text-secondary">{t(groupWhatOf(row.id))}</span>
+        <span className="text-ui text-text-secondary">{t(groupWhatOf(row.id))}</span>
       </div>
     </li>
   );

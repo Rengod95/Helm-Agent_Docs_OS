@@ -107,7 +107,7 @@ function SectionHead(props: {
     <div className="flex min-h-6 items-center gap-1.5">
       <h2
         id={props.id}
-        className="m-0 flex flex-1 items-baseline gap-1.5 text-ui-sm font-semibold text-text-primary"
+        className="m-0 flex flex-1 items-baseline gap-1.5 text-ui font-semibold text-text-primary"
       >
         {props.title}
       </h2>
@@ -166,9 +166,9 @@ function PlanPanel(props: {
           {versionsDialog}
         </>
       ) : (
-        <div className="-mx-1.5 flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-1 text-ui-sm hover:bg-fill-hover">
+        <div className="-mx-1.5 flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-1 text-ui hover:bg-fill-hover">
           <span className="min-w-0 flex-1 truncate text-text-primary">{card.title}</span>
-          <span className="flex-none text-ui-xs text-text-tertiary">
+          <span className="flex-none text-ui text-text-tertiary">
             {t("desktop.work.plan.version", { version: card.version })}
           </span>
           <Badge size="xs">{t(card.statusRef.id)}</Badge>
@@ -263,10 +263,10 @@ function PlanVersionItem(props: { readonly row: PlanVersionRow }): ReactNode {
       </div>
       <p className="min-w-0 whitespace-pre-wrap text-body text-text-primary">{row.title}</p>
       {body === "" ? null : (
-        <p className="min-w-0 whitespace-pre-wrap text-caption text-text-secondary">{body}</p>
+        <p className="min-w-0 whitespace-pre-wrap text-ui text-text-secondary">{body}</p>
       )}
       {expanded && row.feedback !== null ? (
-        <p className="min-w-0 whitespace-pre-wrap text-caption text-text-secondary">
+        <p className="min-w-0 whitespace-pre-wrap text-ui text-text-secondary">
           {t("desktop.work.plan.versions.feedback")}: {row.feedback}
         </p>
       ) : null}
@@ -388,7 +388,7 @@ function GoalSummary(props: { readonly goal: GoalVM }): ReactNode {
   return (
     <div className="grid gap-1.5">
       <p className="m-0 text-ui-strong text-text-primary">{goal.condition}</p>
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui-xs text-text-tertiary">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui text-text-tertiary">
         <Badge size="xs" className={BADGE_TONE_CLASS[goalToneOf(goal)]}>
           {t(goal.statusRef.id, goal.statusRef.args)}
         </Badge>
@@ -410,7 +410,7 @@ function GoalSummary(props: { readonly goal: GoalVM }): ReactNode {
         </Timeline>
       )}
       {goal.endRef === null ? null : (
-        <p className="m-0 text-ui-sm font-normal text-text-secondary">
+        <p className="m-0 text-ui font-normal text-text-secondary">
           {t(goal.endRef.id, goal.endRef.args)}
         </p>
       )}
@@ -489,7 +489,7 @@ function TasksPanel(props: {
     return (
       <section aria-labelledby={headingId} className="grid gap-1.5">
         <SectionHead id={headingId} title={t("desktop.work.tasks.heading")} />
-        <p className="m-0 text-ui-sm font-normal text-text-tertiary">
+        <p className="m-0 text-ui font-normal text-text-tertiary">
           {t("desktop.work.tasks.empty")}
         </p>
       </section>

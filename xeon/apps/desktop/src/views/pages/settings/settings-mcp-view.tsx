@@ -116,7 +116,7 @@ function McpServersBody(props: McpServersViewProps): ReactNode {
     );
   }
   if (load.rows.length === 0) {
-    return <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.settings.mcp.empty")}</p>;
+    return <p className="m-0 text-ui text-text-tertiary">{t("desktop.settings.mcp.empty")}</p>;
   }
   return (
     <>
@@ -178,7 +178,7 @@ function McpServerRowView(props: McpServerRowViewProps): ReactNode {
         <Chip size="xs" tone={chipToneOf(chip)} variant="soft">
           {t(chipIdOf(chip))}
         </Chip>
-        <span className="text-ui-sm text-text-tertiary">
+        <span className="text-ui text-text-tertiary">
           {t("desktop.settings.mcp.tools", { count: model.toolCount })}
         </span>
         {location === null ? null : <InfoTip text={t(location)} />}
@@ -186,7 +186,7 @@ function McpServerRowView(props: McpServerRowViewProps): ReactNode {
       <BlockedLine model={model} />
       {model.error === null ? null : (
         <div className="flex flex-wrap items-center gap-1">
-          <p className="m-0 text-ui-sm break-words text-danger-text">
+          <p className="m-0 text-ui break-words text-danger-text">
             {t("desktop.settings.mcp.lastError", {
               time: model.error.time,
               message: model.error.message,
@@ -268,7 +268,7 @@ function BlockedLine(props: { readonly model: McpRowModel }): ReactNode {
   const { model } = props;
   if (model.alwaysBlocked) {
     return (
-      <p className="m-0 text-ui-sm text-warning-text">{t("desktop.settings.mcp.blocked.always")}</p>
+      <p className="m-0 text-ui text-warning-text">{t("desktop.settings.mcp.blocked.always")}</p>
     );
   }
   if (model.blocked === null && model.state !== "blocked") return null;
@@ -277,7 +277,7 @@ function BlockedLine(props: { readonly model: McpRowModel }): ReactNode {
       ? t("desktop.settings.mcp.blocked.unknown")
       : t(blockedIdOf(model.blocked));
   return (
-    <div className="flex flex-wrap items-center gap-1 text-ui-sm text-text-secondary">
+    <div className="flex flex-wrap items-center gap-1 text-ui text-text-secondary">
       <span>{text}</span>
       {model.approvalNote ? (
         <InfoTip text={t("desktop.settings.mcp.blocked.approval.info")} />
@@ -292,7 +292,7 @@ function HiddenLine(props: { readonly model: McpRowModel }): ReactNode {
   if (hidden === null) return null;
   const reasons = hidden.reasons.map((kind) => t(hiddenIdOf(kind))).join(" · ");
   return (
-    <p className="m-0 text-ui-sm break-words text-warning-text">
+    <p className="m-0 text-ui break-words text-warning-text">
       {t("desktop.settings.mcp.hidden", { count: hidden.count, reasons })}
     </p>
   );
@@ -304,7 +304,7 @@ function McpServerDetails(props: { readonly model: McpRowModel }): ReactNode {
   return (
     <div className="grid gap-2 rounded-lg bg-neutral-track p-3">
       {tools.length === 0 ? (
-        <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.settings.mcp.tools.empty")}</p>
+        <p className="m-0 text-ui text-text-tertiary">{t("desktop.settings.mcp.tools.empty")}</p>
       ) : (
         <ul aria-label={t("desktop.settings.mcp.tools.title")} className="m-0 grid gap-1 p-0">
           {tools.map((tool) => (
@@ -331,10 +331,10 @@ function ToolLine(props: { readonly tool: McpToolRow }): ReactNode {
     <li className="flex flex-wrap items-baseline gap-2">
       <span className="font-mono text-mono-sm text-text-primary">{tool.name}</span>
       {tool.title === undefined || tool.title === "" ? null : (
-        <span className="text-ui-sm text-text-tertiary">{tool.title}</span>
+        <span className="text-ui text-text-tertiary">{tool.title}</span>
       )}
       {hidden === null ? null : (
-        <span className="text-ui-sm text-warning-text">{t(hiddenIdOf(hidden))}</span>
+        <span className="text-ui text-warning-text">{t(hiddenIdOf(hidden))}</span>
       )}
     </li>
   );
@@ -529,7 +529,7 @@ export function McpFormBody(props: McpFormBodyProps): ReactNode {
 function FieldLabel(props: { readonly label: string; readonly children: ReactNode }): ReactNode {
   return (
     <div className="grid gap-1">
-      <span className="text-ui-sm text-text-secondary">{props.label}</span>
+      <span className="text-ui text-text-secondary">{props.label}</span>
       {props.children}
     </div>
   );
@@ -545,7 +545,7 @@ function PairsEditor(props: {
 }): ReactNode {
   return (
     <div className="grid gap-2">
-      <span className="text-ui-sm text-text-secondary">{props.label}</span>
+      <span className="text-ui text-text-secondary">{props.label}</span>
       {props.rows.map((row) => (
         <div key={row.uid} className="flex flex-wrap items-center gap-2">
           <Input

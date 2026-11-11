@@ -76,16 +76,14 @@ function AuditRow(props: {
       {denied ? (
         <span className="flex items-baseline gap-2">
           {entry.reason === null ? null : (
-            <span className="text-ui-xs text-text-tertiary">
-              {t(auditReasonIdOf(entry.reason))}
-            </span>
+            <span className="text-ui text-text-tertiary">{t(auditReasonIdOf(entry.reason))}</span>
           )}
           <Badge size="xs" className="bg-danger-soft text-danger-text">
             {t("desktop.secrets.audit.denied")}
           </Badge>
         </span>
       ) : (
-        <span className="text-ui-xs text-text-tertiary">{t("desktop.secrets.audit.used")}</span>
+        <span className="text-ui text-text-tertiary">{t("desktop.secrets.audit.used")}</span>
       )}
     </li>
   );
@@ -99,7 +97,7 @@ function AuditRows(props: {
   const { result, nowMs, locale } = props;
   const [shown, setShown] = useState(AUDIT_PAGE_SIZE);
   if (result.entries.length === 0) {
-    return <p className="text-ui-sm text-text-tertiary">{t("desktop.secrets.audit.empty")}</p>;
+    return <p className="text-ui text-text-tertiary">{t("desktop.secrets.audit.empty")}</p>;
   }
   const rest = result.entries.length - shown;
   const keys = keysOf(result.entries);
@@ -107,7 +105,7 @@ function AuditRows(props: {
     <>
       <ul
         aria-label={t("desktop.secrets.audit.label")}
-        className="m-0 grid list-none gap-0.5 p-0 text-ui-sm"
+        className="m-0 grid list-none gap-0.5 p-0 text-ui"
       >
         {result.entries.slice(0, shown).map((entry, index) => (
           <AuditRow key={keys[index] ?? entry.at} entry={entry} nowMs={nowMs} locale={locale} />
@@ -139,7 +137,7 @@ export function UsageLog(props: {
   if (audit.kind === "idle") return null;
   return (
     <section aria-label={t("desktop.secrets.audit.label")} className="grid gap-1">
-      <h3 className="m-0 flex h-7 items-center gap-2 text-ui-sm font-semibold text-text-secondary">
+      <h3 className="m-0 flex h-7 items-center gap-2 text-ui font-semibold text-text-secondary">
         {t("desktop.secrets.audit.label")}
         <InfoTip text={t("desktop.secrets.audit.info")} />
       </h3>
@@ -157,14 +155,14 @@ function AuditBody(props: {
   switch (audit.kind) {
     case "loading":
       return (
-        <p role="status" className="text-ui-sm text-text-tertiary">
+        <p role="status" className="text-ui text-text-tertiary">
           {t("desktop.secrets.audit.loading")}
         </p>
       );
     case "failed": {
       const text = commandErrorText(audit.error);
       return (
-        <p role="alert" className="text-ui-sm text-danger-text">
+        <p role="alert" className="text-ui text-danger-text">
           {t(text.id, text.args)}
         </p>
       );

@@ -198,7 +198,7 @@ export function ReviewView(props: ReviewViewProps): ReactNode {
                 {t("desktop.approvals.review.round", { round: open.head.round })}
               </span>
               {open.head.thread === null ? null : (
-                <span className="truncate text-ui-sm text-text-tertiary">{open.head.thread}</span>
+                <span className="truncate text-ui text-text-tertiary">{open.head.thread}</span>
               )}
             </>
           )
@@ -279,11 +279,11 @@ function ResultBox(props: {
         </Button>
       </header>
       {rows.length === 0 ? (
-        <span className="text-caption text-text-secondary">{t("desktop.review.result.empty")}</span>
+        <span className="text-ui text-text-secondary">{t("desktop.review.result.empty")}</span>
       ) : (
         <Table columns={columns} rows={rows} dividers={false} />
       )}
-      <span className="text-caption text-text-secondary">
+      <span className="text-ui text-text-secondary">
         {result.delivery === null
           ? t("desktop.review.result.delivery.none")
           : t("desktop.review.result.delivery", {
@@ -550,7 +550,7 @@ function FilePane(props: { readonly file: ReviewFile; readonly view: ReviewOpenV
       </div>
       {file.binary ? (
         <div className="flex items-center gap-2.5 rounded-xl px-3 py-3 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]">
-          <span className="flex-1 text-ui-sm text-text-secondary">
+          <span className="flex-1 text-ui text-text-secondary">
             {t("desktop.review.file.binary")}
           </span>
         </div>
@@ -816,7 +816,7 @@ function CommentBox(props: {
   return (
     <div className="ms-12.5 me-3 my-1.5 grid gap-1.5 font-ui">
       <div className="flex min-w-0 items-start gap-2 rounded-lg bg-neutral-track px-2.5 py-1.5">
-        <p className="m-0 min-w-0 flex-1 whitespace-pre-wrap text-ui-sm text-text-primary">
+        <p className="m-0 min-w-0 flex-1 whitespace-pre-wrap text-ui text-text-primary">
           {comment.body}
         </p>
         <Button
@@ -912,7 +912,7 @@ function Footer(props: {
   return (
     <footer className="flex min-h-11 flex-none flex-wrap items-center gap-x-3 gap-y-1 py-1">
       {ready ? (
-        <span className="text-ui-sm tabular-nums text-text-primary">
+        <span className="text-ui tabular-nums text-text-primary">
           {t("desktop.review.summary", {
             approved: tally.approved,
             rejected: tally.rejected,
@@ -921,13 +921,13 @@ function Footer(props: {
         </span>
       ) : null}
       {block === "pending" ? (
-        <span className="text-ui-sm text-text-tertiary">
+        <span className="text-ui text-text-tertiary">
           {t("desktop.review.submit.pending", { count: tally.pending })}
         </span>
       ) : null}
       <InfoTip text={t("desktop.review.keys")} />
       <span aria-hidden className="flex-1" />
-      <label className="flex items-center gap-2 text-ui-sm text-text-primary">
+      <label className="flex items-center gap-2 text-ui text-text-primary">
         <Checkbox
           size="sm"
           checked={view.state.draft.approveRemaining}

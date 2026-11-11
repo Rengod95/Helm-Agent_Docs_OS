@@ -118,7 +118,7 @@ export function SettingsFileEditorView(props: SettingsFileEditorProps): ReactNod
         {live ? null : <Alert tone="info">{t("desktop.settings.offline")}</Alert>}
         {state.phase === "loading" ? (
           <div className="flex flex-col gap-2">
-            <p role="status" className="text-ui-sm text-text-tertiary">
+            <p role="status" className="text-ui text-text-tertiary">
               {t("desktop.settings.loading.status")}
             </p>
             <Skeleton height={160} />
@@ -154,12 +154,10 @@ export function SettingsFileEditorView(props: SettingsFileEditorProps): ReactNod
         {showsText && state.doc !== null ? (
           <>
             {state.doc.readOnly ? (
-              <p className="text-ui-sm text-text-secondary">
-                {t("desktop.settings.file.readOnly")}
-              </p>
+              <p className="text-ui text-text-secondary">{t("desktop.settings.file.readOnly")}</p>
             ) : null}
             {state.doc.exists ? null : (
-              <p className="text-ui-sm text-text-secondary">{t("desktop.settings.file.missing")}</p>
+              <p className="text-ui text-text-secondary">{t("desktop.settings.file.missing")}</p>
             )}
             <Textarea
               aria-label={t("desktop.settings.file.text.label")}
@@ -173,7 +171,7 @@ export function SettingsFileEditorView(props: SettingsFileEditorProps): ReactNod
             />
             <div className="flex flex-wrap items-center justify-end gap-1">
               {state.saving ? (
-                <span role="status" className="text-ui-sm text-text-tertiary">
+                <span role="status" className="text-ui text-text-tertiary">
                   {t("desktop.settings.field.saving")}
                 </span>
               ) : null}

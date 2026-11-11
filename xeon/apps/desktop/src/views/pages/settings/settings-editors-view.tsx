@@ -95,7 +95,7 @@ export function RulesView(props: RulesViewProps): ReactNode {
   return (
     <div className="flex flex-col gap-3">
       {rules.length === 0 ? (
-        <p className="text-ui-sm text-text-tertiary">{t("desktop.settings.rules.empty")}</p>
+        <p className="text-ui text-text-tertiary">{t("desktop.settings.rules.empty")}</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {rules.map((rule, index) => (
@@ -266,14 +266,14 @@ export function SandboxListView(props: SandboxListViewProps): ReactNode {
       : t("desktop.settings.sandbox.domains.add.label");
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-ui-sm text-text-secondary">{note}</p>
+      <p className="text-ui text-text-secondary">{note}</p>
       {items.length === 0 ? (
-        <p className="text-ui-sm text-text-tertiary">{t("desktop.settings.sandbox.empty")}</p>
+        <p className="text-ui text-text-tertiary">{t("desktop.settings.sandbox.empty")}</p>
       ) : (
         <ul className="flex flex-col gap-1">
           {items.map((item, index) => (
             <li key={item} className="flex items-center gap-2">
-              <span className="text-ui-sm break-all text-text-primary">{item}</span>
+              <span className="text-ui break-all text-text-primary">{item}</span>
               <Button
                 size="xs"
                 variant="outline"
@@ -380,9 +380,7 @@ function CellControl(props: {
       );
     }
     case "json":
-      return (
-        <span className="text-ui-sm break-all text-text-secondary">{JSON.stringify(value)}</span>
-      );
+      return <span className="text-ui break-all text-text-secondary">{JSON.stringify(value)}</span>;
     default:
       return assertNever(column.kind, "TableColumn");
   }
@@ -409,14 +407,14 @@ export function RowsTableView(props: RowsTableViewProps): ReactNode {
   return (
     <div className="flex flex-col gap-3">
       {rows.length === 0 ? (
-        <p className="text-ui-sm text-text-tertiary">{t("desktop.settings.table.empty")}</p>
+        <p className="text-ui text-text-tertiary">{t("desktop.settings.table.empty")}</p>
       ) : (
         <ul className="flex max-w-full flex-col gap-2 overflow-x-auto">
           {keyedRowsOf(rows).map((item) => (
             <li key={item.key} data-slot="table-row" className="flex flex-wrap items-center gap-2">
               {columns.map((column) => (
                 <label key={column.name} className="flex items-center gap-1">
-                  <span className="text-ui-sm text-text-secondary">{labelOf(column.name)}</span>
+                  <span className="text-ui text-text-secondary">{labelOf(column.name)}</span>
                   <CellControl
                     column={column}
                     value={item.row[column.name]}
@@ -470,7 +468,7 @@ export function RecordTableView(props: RecordTableViewProps): ReactNode {
   return (
     <div className="flex flex-col gap-3">
       {entries.length === 0 ? (
-        <p className="text-ui-sm text-text-tertiary">{t("desktop.settings.table.empty")}</p>
+        <p className="text-ui text-text-tertiary">{t("desktop.settings.table.empty")}</p>
       ) : (
         <ul className="flex max-w-full flex-col gap-2 overflow-x-auto">
           {entries.map(([name, value]) => (
@@ -533,7 +531,7 @@ export function FixedTableView(props: FixedTableViewProps): ReactNode {
     <div className="flex flex-col gap-2">
       {props.columns.map((column) => (
         <label key={column.name} className="flex flex-wrap items-center gap-2">
-          <span className="w-40 text-ui-sm text-text-secondary">{labelOf(column.name)}</span>
+          <span className="w-40 text-ui text-text-secondary">{labelOf(column.name)}</span>
           <CellControl
             column={column}
             value={props.values[column.name]}
@@ -569,7 +567,7 @@ export function SecretRefView(props: SecretRefViewProps): ReactNode {
   return (
     <div className="flex flex-col gap-2">
       {props.status === "loading" ? (
-        <p role="status" className="text-ui-sm text-text-tertiary">
+        <p role="status" className="text-ui text-text-tertiary">
           {t("desktop.settings.secretRef.loading")}
         </p>
       ) : null}
@@ -579,7 +577,7 @@ export function SecretRefView(props: SecretRefViewProps): ReactNode {
         </Alert>
       ) : null}
       {props.status === "ready" && choices.length === 0 ? (
-        <p className="text-ui-sm text-text-tertiary">{t("desktop.settings.secretRef.empty")}</p>
+        <p className="text-ui text-text-tertiary">{t("desktop.settings.secretRef.empty")}</p>
       ) : (
         <Select
           aria-label={t("desktop.settings.secretRef.label")}

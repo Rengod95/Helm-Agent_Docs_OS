@@ -830,7 +830,7 @@ describe("overview tab sections", () => {
     expect(offline).not.toMatch(/pb-12"><section/);
   });
 
-  test("every section title renders at the mockup's 16px title-2 ink (its unlayered h2 rule beats text-ui-sm)", () => {
+  test("every section title renders at the mockup's 16px title-2 ink (its unlayered h2 rule beats text-ui)", () => {
     const out = html(propsOf({ view, tab: "overview" }));
     const headingClasses = [...out.matchAll(/<h2 id="[^"]*" class="([^"]*)"/g)].map(
       (match) => match[1] ?? "",
