@@ -15,7 +15,7 @@ import { detach, rethrow } from "@fresnel/contracts";
 import type { MemoryEntry, MemoryStore, MemoryStoreView } from "@fresnel/contracts/capabilities";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { InfoTip } from "../../craft/info-tip.tsx";
-import { SettingSection } from "./settings-section.tsx";
+import { FIELD_WIDTH, SettingSection } from "./settings-section.tsx";
 import { useCommands } from "../../commands.ts";
 import type { CommandError } from "../../commands.ts";
 import {
@@ -250,7 +250,7 @@ function FindRow(args: {
           const next = MEMORY_SORTS.find((item) => item === value);
           if (next !== undefined) props.onSort(next);
         }}
-        className="w-28"
+        className={FIELD_WIDTH.short}
       >
         <SelectOption value="recent">{t("desktop.memory.sort.recent")}</SelectOption>
         <SelectOption value="name">{t("desktop.memory.sort.name")}</SelectOption>

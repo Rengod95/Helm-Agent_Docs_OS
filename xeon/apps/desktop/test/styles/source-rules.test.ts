@@ -20,3 +20,54 @@ test("no inline <style> element in a view", () => {
     .map(relative);
   expect(found).toEqual([]);
 });
+
+/** 폼 조작부 caustic 부품 이름 */
+const FORM_CONTROLS =
+  /<(Button|IconButton|Input|Select|NumberField|TagInput|LocalizedTagInput|SegmentedControl|Switch|Textarea|PickerTrigger)\b/g;
+
+/** 여는 태그 끝(중괄호 밖의 첫 `>`)까지의 글. 속성 안의 JSX(`suffix={<span …>}`)는 건너뛴다 */
+function openTagFrom(source: string, start: number): string {
+  let depth = 0;
+  for (let index = start + 1; index < source.length; index += 1) {
+    const char = source.charAt(index);
+    if (char === "{") depth += 1;
+    else if (char === "}") depth -= 1;
+    else if (char === ">" && depth === 0) return source.slice(start, index + 1);
+  }
+  return source.slice(start);
+}
+
+/** 여는 태그의 className·containerClassName 글. 속성 안 JSX(`suffix={<span className=…>}`)의 것은 빼고 본다 */
+function classAttrsOf(tag: string): string[] {
+  const top = tag.replace(/=\{\s*<[\s\S]*?>\s*\}/g, "={}");
+  return [
+    ...top.matchAll(
+      /\b(?:className|containerClassName)=(?:"([^"]*)"|\{`([^`]*)`\}|\{"([^"]*)"\})/g,
+    ),
+  ].map((match) => match[1] ?? match[2] ?? match[3] ?? "");
+}
+
+/** 조작부 높이·패딩·글자 크기를 덮는 클래스와 세 단계 밖의 고정 폭(DP-76, DP-77) */
+const SIZE_OVERRIDE =
+  /^!?(h|min-h|max-h|p|px|py|pl|pr|ps|pe|pt|pb|size|leading)-|^!?text-(ui|footnote|caption|body|title)|^!?w-(?!24$|56$|full$)/;
+
+test("settings and connection form controls take size and FIELD_WIDTH, not className overrides", () => {
+  // 설정·연결 화면의 조작부 높이는 size prop(FORM_CONTROL_SIZE), 폭은 FIELD_WIDTH 세 단계다(DP-76, DP-77).
+  // 코드 글꼴(`text-mono-*`), `min-w-0`, `max-w-full`, 글 정렬은 허용한다.
+  const found: string[] = [];
+  for (const file of sourceFiles([".tsx"])) {
+    const name = relative(file);
+    if (!name.startsWith("views/pages/settings/") && !name.startsWith("views/pages/connection/")) {
+      continue;
+    }
+    const source = read(file);
+    for (const match of source.matchAll(FORM_CONTROLS)) {
+      const tag = openTagFrom(source, match.index);
+      const bad = classAttrsOf(tag)
+        .flatMap((value) => value.split(/\s+/))
+        .filter((token) => SIZE_OVERRIDE.test(token));
+      if (bad.length > 0) found.push(`${name} <${match[1] ?? ""}> ${bad.join(" ")}`);
+    }
+  }
+  expect(found).toEqual([]);
+});

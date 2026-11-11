@@ -576,7 +576,7 @@ function AccountAddForm(props: {
           onDraft({ ...draft, reservePct: next });
         }}
       />
-      <Button size="xs" variant="ghost" disabled={!editable} onClick={props.onAdd}>
+      <Button size={FORM_CONTROL_SIZE} variant="ghost" disabled={!editable} onClick={props.onAdd}>
         {t("desktop.providers.pool.add")}
       </Button>
     </div>

@@ -2,6 +2,7 @@ import { t } from "@fresnel/client/i18n";
 import { Button, ListDescriptionRow, Skeleton } from "@caustic/react";
 import type { ReactNode } from "react";
 import { InfoTip } from "../../craft/info-tip.tsx";
+import { FORM_CONTROL_SIZE } from "../settings/settings-section.tsx";
 import { clientRowOf, clientsShown, type ClientsState } from "./connection-model.ts";
 import { transportMessageOf } from "./connection-text.ts";
 
@@ -34,7 +35,7 @@ export function ConnectedClientsRow(props: ConnectedClientsRowProps): ReactNode 
       {state.kind === "failed" ? (
         <span role="alert" className="inline-flex flex-wrap items-center gap-2 text-danger-text">
           {t("desktop.connection.clients.loadFailed")}
-          <Button size="xs" variant="outline" className="text-ui" onClick={onRetry}>
+          <Button size={FORM_CONTROL_SIZE} variant="outline" onClick={onRetry}>
             {t("desktop.connection.retry")}
           </Button>
         </span>

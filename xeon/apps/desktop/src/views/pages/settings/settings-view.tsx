@@ -46,7 +46,12 @@ import {
 } from "./settings-sections.ts";
 import { FieldRow, type DedicatedEditors, type FieldHandlers } from "./settings-field.tsx";
 import { RestartButtons, type RestartChoice } from "../../restart-confirm-dialog.tsx";
-import { FORM_CONTROL_SIZE, SettingSection, formColumnOf } from "./settings-section.tsx";
+import {
+  FIELD_WIDTH,
+  FORM_CONTROL_SIZE,
+  SettingSection,
+  formColumnOf,
+} from "./settings-section.tsx";
 import { HEADER_CONTROL_SIZE, ScreenHeader } from "../../shell/screen-header.tsx";
 
 // 설정 화면(P-09, L4.settings-ui §4.1 [결정: 2026-11-11 사용자])의 그림. 상태와 명령은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
@@ -263,7 +268,7 @@ function NarrowNav(props: SettingsPageProps): ReactNode {
         size="sm"
         aria-label={t("desktop.settings.tabs.select")}
         value={section}
-        className="w-[min(20rem,100%)]"
+        className={FIELD_WIDTH.medium}
         onValueChange={(next) => {
           const found = SECTION_ORDER.find((candidate) => candidate === next);
           if (found !== undefined) handlers.select(found);
