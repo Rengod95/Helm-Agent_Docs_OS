@@ -25,7 +25,10 @@ import { ConnectionScreenView, type ConnectionScreenHandlers } from "./connectio
 // 연결 화면(P-08)의 동작. 호스트 목록과 상태는 명령(`commands.connection`)으로 부르고, 화면 상태는 `connectionReducer`가 든다.
 // 엔진과 연결의 변화는 값이 바뀔 때마다 `engineSeen`으로 넘겨 진행 단계를 맞춘다. 그림은 `connection-view.tsx`가 그린다.
 
-export function ConnectionScreen(): ReactNode {
+export function ConnectionScreen(props: {
+  /** 설정의 "연결과 서비스" 구역 안에 실을 때 참이다. 머리와 자기 스크롤 없이 본문만 그린다 */
+  readonly embedded?: boolean | undefined;
+}): ReactNode {
   const commands = useCommands();
   const engine = useEngineState();
   const link = useLinkPhase();
@@ -325,6 +328,7 @@ export function ConnectionScreen(): ReactNode {
       locale={activeLocale()}
       handlers={handlers}
       serviceSections={<ServiceSectionsContainer state={state} handlers={handlers} />}
+      embedded={props.embedded ?? false}
     />
   );
 }

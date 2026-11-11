@@ -2,7 +2,7 @@ import { useId, type ReactNode } from "react";
 
 // 설정 구역 하나(P-09 `_settings/row.tsx`의 SettingSection). 머리는 표면 없는 작은 글(제목과 끝 동작)이고, 그 아래 줄 전부를
 // 표면 카드 하나에 담는다(bg-surface-base + border-subtle 헤어라인, 줄 사이는 border-subtle 구분선). 카드 안에 카드를 두지 않는다.
-// 카드 여백은 사방 14px(px-3.5 py-3.5)이다. 이전 좌우 16·위아래 12는 입력칸·선택칸 같은 테두리 있는 줄에서 좌우가 위아래보다 커 보였다(실측: 칸 위 12·오른쪽 16, 글 위 13~20·왼쪽 15~16).
+// 카드 여백은 사방 16px(px-4 py-4), 구역 사이 32px, 머리–카드 8px이다 [결정: 2026-11-11 사용자, cyZ 시안 §3].
 // 카드 첫 줄 위와 끝 줄 아래 여백은 카드가 한 번만 준다(py-3.5). 목록(ListDescription, ul)은 행마다 자기 위아래 여백을 그려
 // 카드 여백과 겹치므로 카드 첫·끝 자식일 때만 음수 마진으로 걷는다. 시안 `_settings/row.tsx`의 OWN_PAD와 같다.
 const OWN_PAD =
@@ -21,7 +21,7 @@ export function SettingSection(props: SettingSectionProps): ReactNode {
     <section
       aria-labelledby={props.title === undefined ? undefined : id}
       aria-label={props.title === undefined ? props.label : undefined}
-      className="pt-6 first:pt-0"
+      className="pt-8 first:pt-0"
     >
       {props.title === undefined ? null : (
         <div className="sticky top-0 z-[5] flex h-8 items-center gap-2 bg-bg-app">
@@ -32,7 +32,7 @@ export function SettingSection(props: SettingSectionProps): ReactNode {
         </div>
       )}
       <div
-        className={`@container mt-1 grid divide-y divide-border-subtle rounded-2xl bg-surface-base px-3.5 py-3.5 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] [&>:first-child]:pt-0 [&>:last-child]:pb-0 ${OWN_PAD}`}
+        className={`@container mt-2 grid divide-y divide-border-subtle rounded-2xl bg-surface-base px-4 py-4 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] [&>:first-child]:pt-0 [&>:last-child]:pb-0 ${OWN_PAD}`}
       >
         {props.children}
       </div>

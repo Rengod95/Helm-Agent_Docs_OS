@@ -1,60 +1,30 @@
-import { Badge, Button, ListDescription, ListDescriptionRow, toast } from "@caustic/react";
-import { CircleAlert, Info, TriangleAlert } from "@caustic/react/icons";
+import { Button, ListDescription, ListDescriptionRow, toast } from "@caustic/react";
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
-import type { SettingsView } from "@fresnel/client/settings";
 import type { ReactNode } from "react";
 import { useCommands } from "../../commands.ts";
 import { useDesktopShell } from "../../desktop-shell-context.ts";
-import { useSafeMode } from "../../safe-mode-context.ts";
 import { SettingsProblemBanner } from "../../settings-problem-banner.tsx";
 import { StoreReplacedBanner } from "../../store-replaced-banner.tsx";
 import { pathTermOf, shortenHome, type SettingsPathRow } from "./settings-file-paths.ts";
 import { SettingSection } from "./settings-section.tsx";
-import {
-  diagnosticIdOf,
-  diagnosticToneOf,
-  TONE_CLASS,
-  type DiagnosticTone,
-} from "./settings-text.ts";
 
-// 개요 탭(P-09 시안 `overview-tab.tsx`): "설정 파일"(경로는 `settings.readFile`의 `path`), "지금 상태", "화면 진단" 카드.
-// "정보와 진단"의 진단 복사·로그 폴더 열기는 구역 전체 동작이라 줄 카드 안이 아니라 구역 머리 오른쪽 끝에 둔다(줄 사이 구분선에 끼지 않는다) [결정: 2026-11-08 사용자, dsB]
+// 옛 개요 탭에서 옮겨 온 부분들(L4.settings-ui §4.1.1 [결정: 2026-11-11 사용자]). 개요 구역은 없다.
+//   - `SettingsBanners`: 설정 파일 문제 띠와 저장소 교체 띠. 모든 구역 맨 위에 보인다.
+//   - `AboutPanel`: 일반 구역의 "업데이트와 정보"(버전, 업데이트, 진단 복사, 로그 폴더).
+//   - `SettingsFilesPanel`: 데이터 구역의 "설정 파일"(경로 줄). 화면에서 뺀 키는 이 파일로 바꾼다.
+// "지금 상태"(범위별 개수)와 화면 진단 카드는 범위 중심 요약이라 뺐다.
+// "정보와 진단"의 진단 복사·로그 폴더 열기는 구역 공통 동작이라 머리 오른쪽 끝에 둔다 [결정: 2026-11-08 사용자, dsB]
 export const ROWS_CLASS =
   "rounded-none [--cs-size-list-term:9rem] [&_[data-slot=list-description-row]]:px-0 @max-[26rem]:[&_[data-slot=list-description-row]]:grid-cols-[minmax(0,1fr)_auto] @max-[26rem]:[&_[data-slot=list-description-term]]:col-span-full";
 
-const count = (n: number): string => t("desktop.settings.overview.count", { count: n });
-
-/** 진단 줄의 아이콘과 아이콘 색(목업 `overview-tab.tsx`의 DIAG 줄과 같다). 색은 글자와 함께 쓴다 */
-const DIAGNOSTIC_ICON = { danger: CircleAlert, warning: TriangleAlert, info: Info };
-const DIAGNOSTIC_ICON_CLASS: Readonly<Record<DiagnosticTone, string>> = {
-  danger: "text-danger-text",
-  warning: "text-warning-text",
-  info: "text-text-tertiary",
-};
-
-export function OverviewPanels(props: {
-  readonly view: SettingsView;
-  /** 앱 업데이트 줄(웹에서는 아무것도 그리지 않는다) */
-  readonly updatePanel: ReactNode;
-  /** 사용자·프로젝트·관리 정책 설정 파일 경로 줄. 연결이 없으면 빈 목록이다. 경로를 모르면 줄은 `없음`으로 보인다 */
-  readonly filePaths: readonly SettingsPathRow[];
-  /** "신뢰한 폴더" 구역(설정 파일 아래). 없으면 아무것도 그리지 않는다 */
-  readonly trustPanel?: ReactNode | undefined;
-  /** 맨 위 경고 띠의 "파일로 보기"가 여는 동작(범위는 사용자). 없으면 띠에 단추가 없다 */
+/** 모든 구역 맨 위의 알림 띠. 띠가 없으면 아무것도 그리지 않는다 */
+export function SettingsBanners(props: {
+  /** 띠의 "파일로 보기"가 여는 동작(사용자 파일) */
   readonly onOpenFile?: (() => void) | undefined;
   /** "파일로 보기"를 잠글지(읽기 전용 연결이거나 편집기가 열려 있을 때) */
   readonly openFileDisabled?: boolean | undefined;
 }): ReactNode {
-  const commands = useCommands();
-  const shell = useDesktopShell();
-  const versions = commands.versions();
-  const { overview, diagnostics } = props.view;
-  const safeMode = useSafeMode();
-  const changed = Object.entries(overview.countsByScope).reduce(
-    (sum, [scope, n]) => (scope === "default" ? sum : sum + n),
-    0,
-  );
   return (
     <>
       <SettingsProblemBanner
@@ -62,160 +32,111 @@ export function OverviewPanels(props: {
         openFileDisabled={props.openFileDisabled}
       />
       <StoreReplacedBanner />
-      {props.filePaths.length === 0 ? null : (
-        <SettingSection title={t("desktop.settings.overview.files.title")}>
-          <ListDescription
-            variant="ghost"
+    </>
+  );
+}
+
+/** 설정 파일 경로 줄(사용자·프로젝트·관리 정책). 줄이 없으면(연결 전) 그리지 않는다 */
+export function SettingsFilesPanel(props: {
+  readonly filePaths: readonly SettingsPathRow[];
+}): ReactNode {
+  if (props.filePaths.length === 0) return null;
+  return (
+    <SettingSection title={t("desktop.settings.overview.files.title")}>
+      <ListDescription
+        variant="ghost"
+        size="xs"
+        aria-label={t("desktop.settings.overview.files.title")}
+        className={ROWS_CLASS}
+      >
+        {props.filePaths.map((row) =>
+          row.path === null ? (
+            <ListDescriptionRow key={row.scope} term={pathTermOf(row.scope)}>
+              {t("desktop.settings.overview.files.none")}
+            </ListDescriptionRow>
+          ) : (
+            <ListDescriptionRow
+              key={row.scope}
+              term={pathTermOf(row.scope)}
+              mono
+              copyValue={row.path}
+            >
+              {shortenHome(row.path)}
+            </ListDescriptionRow>
+          ),
+        )}
+      </ListDescription>
+    </SettingSection>
+  );
+}
+
+/** 업데이트와 정보: 버전 두 줄과 업데이트 줄. 머리 끝에 진단 복사와 로그 폴더 열기(웹에는 로그 폴더가 없다) */
+export function AboutPanel(props: {
+  /** 앱 업데이트 줄(웹에서는 아무것도 그리지 않는다) */
+  readonly updatePanel: ReactNode;
+}): ReactNode {
+  const commands = useCommands();
+  const shell = useDesktopShell();
+  const versions = commands.versions();
+  return (
+    <SettingSection
+      title={t("desktop.settings.about.title")}
+      end={
+        <div className="flex flex-none items-center gap-2" data-slot="settings-about-actions">
+          <Button
             size="xs"
-            aria-label={t("desktop.settings.overview.files.title")}
-            className={ROWS_CLASS}
+            variant="outline"
+            onClick={() => {
+              detach(
+                commands.copyDiagnostics().then((ok) => {
+                  if (ok) toast({ tone: "success", title: t("desktop.settings.overview.copied") });
+                  return undefined;
+                }),
+                rethrow,
+              );
+            }}
           >
-            {props.filePaths.map((row) =>
-              row.path === null ? (
-                <ListDescriptionRow key={row.scope} term={pathTermOf(row.scope)}>
-                  {t("desktop.settings.overview.files.none")}
-                </ListDescriptionRow>
-              ) : (
-                <ListDescriptionRow
-                  key={row.scope}
-                  term={pathTermOf(row.scope)}
-                  mono
-                  copyValue={row.path}
-                >
-                  {shortenHome(row.path)}
-                </ListDescriptionRow>
-              ),
-            )}
-          </ListDescription>
-        </SettingSection>
-      )}
-      {props.trustPanel}
-      <SettingSection
-        title={t("desktop.settings.about.title")}
-        end={
-          <div className="flex flex-none items-center gap-2" data-slot="settings-about-actions">
+            {t("desktop.settings.overview.copyDiagnostics")}
+          </Button>
+          {shell === null ? null : (
             <Button
               size="xs"
               variant="outline"
               onClick={() => {
                 detach(
-                  commands.copyDiagnostics().then((ok) => {
-                    if (ok)
-                      toast({ tone: "success", title: t("desktop.settings.overview.copied") });
-                    return undefined;
-                  }),
+                  shell.invoke("open_log_dir").then(
+                    () => undefined,
+                    () => {
+                      toast({
+                        tone: "danger",
+                        title: t("desktop.settings.about.openLogsFailed"),
+                      });
+                    },
+                  ),
                   rethrow,
                 );
               }}
             >
-              {t("desktop.settings.overview.copyDiagnostics")}
+              {t("desktop.settings.about.openLogs")}
             </Button>
-            {shell === null ? null : (
-              <Button
-                size="xs"
-                variant="outline"
-                onClick={() => {
-                  detach(
-                    shell.invoke("open_log_dir").then(
-                      () => undefined,
-                      () => {
-                        toast({
-                          tone: "danger",
-                          title: t("desktop.settings.about.openLogsFailed"),
-                        });
-                      },
-                    ),
-                    rethrow,
-                  );
-                }}
-              >
-                {t("desktop.settings.about.openLogs")}
-              </Button>
-            )}
-          </div>
-        }
-      >
-        <ListDescription
-          variant="ghost"
-          size="xs"
-          aria-label={t("desktop.settings.about.title")}
-          className={ROWS_CLASS}
-        >
-          <ListDescriptionRow term={t("desktop.settings.about.appVersion")} mono>
-            {versions.app}
-          </ListDescriptionRow>
-          <ListDescriptionRow term={t("desktop.settings.about.engineVersion")} mono>
-            {versions.engine ?? t("desktop.settings.about.engineUnknown")}
-          </ListDescriptionRow>
-        </ListDescription>
-        {props.updatePanel}
-      </SettingSection>
-      <SettingSection title={t("desktop.settings.overview.state")}>
-        <ListDescription
-          variant="ghost"
-          size="xs"
-          aria-label={t("desktop.settings.overview.state")}
-          className={ROWS_CLASS}
-        >
-          <ListDescriptionRow term={t("desktop.settings.overview.changed")}>
-            {count(changed)}
-          </ListDescriptionRow>
-          <ListDescriptionRow term={t("desktop.settings.overview.locked")}>
-            {count(overview.locked.length)}
-          </ListDescriptionRow>
-          <ListDescriptionRow term={t("desktop.settings.overview.pendingRestart")}>
-            {overview.pendingRestart.length === 0 ? (
-              count(0)
-            ) : (
-              <Badge size="sm" className={TONE_CLASS.warning}>
-                {count(overview.pendingRestart.length)}
-              </Badge>
-            )}
-          </ListDescriptionRow>
-          <ListDescriptionRow term={t("desktop.settings.overview.pendingNextTurn")}>
-            {count(overview.pendingNextTurn.length)}
-          </ListDescriptionRow>
-          <ListDescriptionRow term={t("desktop.settings.overview.deprecated")}>
-            {count(overview.deprecatedInUse.length)}
-          </ListDescriptionRow>
-          {safeMode === null ? null : (
-            <ListDescriptionRow term={t("desktop.settings.overview.safeMode")}>
-              {t(
-                safeMode.active ? "desktop.settings.overview.on" : "desktop.settings.overview.off",
-              )}
-            </ListDescriptionRow>
           )}
-        </ListDescription>
-      </SettingSection>
-      {diagnostics.length === 0 ? null : (
-        <SettingSection title={t("desktop.settings.diagnostics.title")}>
-          <ul className="m-0 grid list-none gap-1 p-0">
-            {diagnostics.map((diagnostic) => {
-              const tone = diagnosticToneOf(diagnostic.code);
-              const Icon = DIAGNOSTIC_ICON[tone];
-              return (
-                <li
-                  key={`${diagnostic.code}:${diagnostic.key}`}
-                  className="flex min-w-0 gap-2 py-1.5"
-                >
-                  <Icon
-                    aria-hidden
-                    className={`mt-0.5 size-icon-sm flex-none ${DIAGNOSTIC_ICON_CLASS[tone]}`}
-                  />
-                  <div className="grid min-w-0 gap-0.5">
-                    <span className="text-ui text-text-primary">
-                      {t(diagnosticIdOf(diagnostic.code))}
-                    </span>
-                    <span className="truncate font-mono text-mono-sm text-text-tertiary">
-                      {diagnostic.key}
-                    </span>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </SettingSection>
-      )}
-    </>
+        </div>
+      }
+    >
+      <ListDescription
+        variant="ghost"
+        size="xs"
+        aria-label={t("desktop.settings.about.title")}
+        className={ROWS_CLASS}
+      >
+        <ListDescriptionRow term={t("desktop.settings.about.appVersion")} mono>
+          {versions.app}
+        </ListDescriptionRow>
+        <ListDescriptionRow term={t("desktop.settings.about.engineVersion")} mono>
+          {versions.engine ?? t("desktop.settings.about.engineUnknown")}
+        </ListDescriptionRow>
+      </ListDescription>
+      {props.updatePanel}
+    </SettingSection>
   );
 }

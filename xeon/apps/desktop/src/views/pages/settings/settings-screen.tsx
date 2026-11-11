@@ -3,13 +3,12 @@ import {
   settingsViewOf,
   type SettingsController,
   type SettingsState,
-  type WritableScope,
 } from "@fresnel/client/settings";
 import { t } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { SecretName } from "@fresnel/contracts/capabilities";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { SettingKey, SettingsTab } from "@fresnel/contracts/settings";
+import type { SettingKey } from "@fresnel/contracts/settings";
 import {
   useCallback,
   useEffect,
@@ -28,8 +27,9 @@ import {
   type SettingsJump,
 } from "../../../state/ui/index.ts";
 import { useCommands, type SettingsFileTarget, type SettingsFileWrite } from "../../commands.ts";
-import { PROVIDER_EDITORS, RotationPanel, useUsageState } from "../providers/providers-screen.tsx";
-import { UsagePanelView } from "../providers/providers-view.tsx";
+import { PROVIDER_EDITORS, RotationPanel } from "../providers/providers-screen.tsx";
+import { PanelBlock } from "../shared/panel-parts.tsx";
+import { ConnectionScreen } from "../connection/connection-screen.tsx";
 import { SecretsPanel } from "../secrets/secrets-screen.tsx";
 import type { FolderPickInvoke } from "../../folder-pick.ts";
 import { useSettingsFilePaths } from "./settings-file-paths.ts";
@@ -40,20 +40,23 @@ import { ToolsWebPanel, useToolsWebState } from "../tools-web/tools-web-screen.t
 import { McpServersPanel } from "./settings-mcp-screen.tsx";
 import {
   fileClosesOnTabMoveOf,
-  fileDirtyOf,
   fileEditableOf,
   fileEditorReducer,
   fileSaveableOf,
   initialFileEditor,
-  type FileScope,
 } from "./settings-file-model.ts";
 import {
   dirtyKeysOf,
   pageStatusOf,
   SAVED_MARK_MS,
-  tabSwitchOf,
+  sectionSwitchOf,
   type SettingsKeyIntent,
 } from "./settings-model.ts";
+import {
+  sectionOfJump,
+  type SettingsPanelId,
+  type SettingsSectionId,
+} from "./settings-sections.ts";
 import type { DedicatedEditors, FieldHandlers } from "./settings-field.tsx";
 import { SettingsFileEditorView, type SettingsFileHandlers } from "./settings-file-view.tsx";
 import { SETTINGS_EDITORS } from "./settings-editors-screen.tsx";
@@ -64,16 +67,20 @@ import { MemoryFindView, MemoryPanelView, useMemoryPanel } from "./settings-memo
 import { PluginsPanel } from "./settings-plugins-view.tsx";
 import { AppearancePanel } from "./settings-appearance-view.tsx";
 import { TrustedFoldersPanel } from "./settings-trust-view.tsx";
+import { AboutPanel, SettingsBanners, SettingsFilesPanel } from "./settings-overview.tsx";
+import { SettingSection } from "./settings-section.tsx";
 
 // 설정 화면(P-09)의 동작. 컨트롤러(`commands.settings.open()`)는 연결마다 하나씩 만든다. 읽기와 알림 구독은 효과가 하고,
-// 상태는 `useSyncExternalStore`로 받는다. 탭 옮기기의 초안 묻기, 저장됨 표시 2초, ⌘S와 Esc, 열린 대화가 바뀔 때의 다시 읽기가 여기 있다.
+// 상태는 `useSyncExternalStore`로 받는다. 구역 옮기기의 초안 묻기, 저장됨 표시 2초, ⌘S와 Esc, 열린 대화가 바뀔 때의 다시 읽기가 여기 있다.
+// 모든 쓰기는 사용자(전역) 범위다(L4.settings-ui §4.3 [결정: 2026-11-11 사용자]): 편집할 때마다 쓸 범위를 사용자로 정한다.
+// 읽기는 열린 대화를 함께 보낸다. 그 대화의 작업 폴더 파일이 사용자 값을 덮으면 행 아래 경고가 그것을 알린다.
 // 그림은 `settings-view.tsx`가 그린다. 시크릿 탭은 P-10 시크릿 화면(`SecretsPanel`)을 그대로 넣는다.
 // 계정과 제공자, 예산과 한도의 전용 편집기(P-11)와 도구와 웹 패널(P-12)은 `editors`와 `toolsPanel`로 넣는다.
 // 값 입력과 열람은 이 화면이 받지 않는다. 시크릿 값은 `SecretsPanel`의 입력 창이 받는다.
 
-/** 탭을 옮기려다 멈춘 자리. 저장하거나 버리면 `to`로 간다 */
+/** 구역을 옮기려다 멈춘 자리. 저장하거나 버리면 `to`로 간다 */
 interface PendingMove {
-  readonly to: SettingsTab;
+  readonly to: SettingsSectionId;
   readonly keys: readonly SettingKey[];
 }
 
@@ -104,7 +111,7 @@ export function SettingsPage(props: {
   const live = useLinkPhase() === "live";
   const threadId = useSelectedThreadId();
   const narrow = useShell((s) => s.layout) === "compact";
-  const [tab, setTab] = useState<SettingsTab>("overview");
+  const [section, setSection] = useState<SettingsSectionId>("general");
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState<PendingMove | null>(null);
   const [saved, setSaved] = useState<ReadonlySet<SettingKey>>(() => new Set());
@@ -178,10 +185,9 @@ export function SettingsPage(props: {
   });
   const view = useMemo(() => (status === "ready" ? settingsViewOf(state) : null), [status, state]);
   const toolsWeb = useToolsWebState(live);
-  const usage = useUsageState(live, threadId);
   const filePaths = useSettingsFilePaths(live, threadId);
-  // 기억 구역은 설정 찾기가 값을 동기로 물어야 해서 이 화면이 읽는다. 대화와 컨텍스트 탭을 고를 때 다시 읽는다
-  const memory = useMemoryPanel(tab === "sessions");
+  // 기억 구역은 설정 찾기가 값을 동기로 물어야 해서 이 화면이 읽는다. 대화와 기억 구역을 고를 때 다시 읽는다
+  const memory = useMemoryPanel(section === "sessions");
   const jump = useSettingsJump();
   const dirtyKeys = view === null ? [] : dirtyKeysOf(view.tabs);
 
@@ -204,8 +210,8 @@ export function SettingsPage(props: {
     if (!after.drafts.has(key) && !after.errors.has(key)) markSaved(key);
   };
 
-  const moveTo = (to: SettingsTab): void => {
-    setTab(to);
+  const moveTo = (to: SettingsSectionId): void => {
+    setSection(to);
     setQuery("");
     // 열린 설정 파일 칸은 탭을 옮기면 닫는다. 고친 초안이 있거나 저장 중이면 잃지 않게 그대로 둔다
     if (fileClosesOnTabMoveOf(file)) {
@@ -213,8 +219,8 @@ export function SettingsPage(props: {
     }
   };
 
-  const requestTab = (to: SettingsTab): void => {
-    const decision = tabSwitchOf({ current: tab, to, dirtyKeys });
+  const requestSection = (to: SettingsSectionId): void => {
+    const decision = sectionSwitchOf({ current: section, to, dirtyKeys });
     switch (decision.kind) {
       case "stay":
         return;
@@ -225,7 +231,7 @@ export function SettingsPage(props: {
         setPending({ to: decision.to, keys: decision.keys });
         return;
       default:
-        return assertNever(decision, "TabSwitch");
+        return assertNever(decision, "SectionSwitch");
     }
   };
 
@@ -238,13 +244,14 @@ export function SettingsPage(props: {
     if (!stuck) moveTo(move.to);
   };
 
-  // 명령 팔레트가 준 탭과 항목으로 옮긴다. 이전 요청과 다른 요청이면 그릴 때 맞춘다(찾기 글을 비우고 탭을 연다.
+  // 명령 팔레트나 다른 화면이 준 구역과 항목으로 옮긴다. 옛 탭 id는 그 탭이 옮겨 간 구역으로, 화면에 있는 키는 그 키의 구역으로 간다.
+  // 이전 요청과 다른 요청이면 그릴 때 맞춘다(찾기 글을 비우고 구역을 연다.
   // 초안이 있으면 묻는 대화 상자가 먼저 뜬다). 요청은 맞춘 뒤 스토어에서 지운다
   if (jump !== null && jump !== taken) {
     setTaken(jump);
     setFocusSecret(jump.secretName ?? null);
     setQuery("");
-    requestTab(jump.tab);
+    requestSection(sectionOfJump(jump.tab, jump.key));
   }
   useEffect(() => {
     if (jump !== null) commands.settleSettingsJump();
@@ -271,12 +278,15 @@ export function SettingsPage(props: {
     rows.find((row) => row.dataset.key === key)?.scrollIntoView({ block: "center" });
   }, [taken, view]);
 
+  // 쓸 범위는 늘 사용자다. 편집을 받을 때마다 정해 둔다(유효 값이 다른 층에서 왔어도 그 층에 쓰지 않는다)
   const fields: FieldHandlers = {
     edit: (key, raw) => {
+      controller?.selectScope(key, "user");
       controller?.edit(key, raw);
     },
     change: (key, raw) => {
       if (controller === null) return;
+      controller.selectScope(key, "user");
       controller.edit(key, raw);
       detach(saveKey(key), rethrow);
     },
@@ -291,11 +301,8 @@ export function SettingsPage(props: {
     discard: (key) => {
       controller?.discard(key);
     },
-    selectScope: (key: SettingKey, scope: WritableScope) => {
-      controller?.selectScope(key, scope);
-    },
-    reset: (key, scope) => {
-      if (controller !== null) detach(controller.reset(key, scope), rethrow);
+    reset: (key) => {
+      if (controller !== null) detach(controller.reset(key, "user"), rethrow);
     },
   };
 
@@ -330,28 +337,23 @@ export function SettingsPage(props: {
     }
   };
 
-  /** 읽기를 새 번호로 시작한다. 범위를 바꾸거나 다시 읽을 때도 이것을 쓴다 */
-  const startFile = (scope: FileScope, thread: ThreadId | null): void => {
+  /** 사용자 설정 파일 읽기를 새 번호로 시작한다. 다시 읽을 때도 이것을 쓴다(파일은 늘 사용자 파일이다) */
+  const startFile = (): void => {
     fileSeq.current += 1;
     const seq = fileSeq.current;
-    dispatchFile({ type: "started", seq, scope, threadId: thread });
-    detach(readFileText(seq, { scope, threadId: thread }), rethrow);
+    dispatchFile({ type: "started", seq, scope: "user", threadId: null });
+    detach(readFileText(seq, { scope: "user", threadId: null }), rethrow);
   };
 
   const openFile = (): void => {
     if (!live || file.phase !== "closed") return;
-    startFile("user", threadId);
+    startFile();
   };
 
-  const selectFileScope = (scope: FileScope): void => {
-    if (fileDirtyOf(file) || file.saving || file.phase === "loading") return;
-    startFile(scope, threadId);
-  };
-
-  // 다시 읽기는 편집기가 처음 연 대화로 읽는다. 충돌이나 읽기 실패 뒤에는 초안이 파일 내용으로 바뀐다
+  // 충돌이나 읽기 실패 뒤에는 초안이 파일 내용으로 바뀐다
   const rereadFile = (): void => {
     if (!live || file.saving) return;
-    startFile(file.scope, file.threadId);
+    startFile();
   };
 
   const saveFile = (): void => {
@@ -376,7 +378,6 @@ export function SettingsPage(props: {
   };
 
   const fileHandlers: SettingsFileHandlers = {
-    scope: selectFileScope,
     edit: editFile,
     save: saveFile,
     discard: () => {
@@ -389,12 +390,7 @@ export function SettingsPage(props: {
   };
   const fileEditor =
     file.phase === "closed" ? null : (
-      <SettingsFileEditorView
-        state={file}
-        live={live}
-        hasThread={threadId !== null}
-        handlers={fileHandlers}
-      />
+      <SettingsFileEditorView state={file} live={live} handlers={fileHandlers} />
     );
 
   const keyIntent = (intent: SettingsKeyIntent): void => {
@@ -409,7 +405,7 @@ export function SettingsPage(props: {
   };
 
   const handlers: SettingsPageHandlers = {
-    select: requestTab,
+    select: requestSection,
     query: (text) => {
       setQuery(text);
     },
@@ -436,60 +432,69 @@ export function SettingsPage(props: {
     openFile,
   };
 
+  const openFileDisabled = !live || file.phase !== "closed";
+  const appearancePanel = <AppearancePanel />;
+  const notifyPanel = <NotifyPanel />;
+  const trustPanel = <TrustedFoldersPanel />;
+  const mcpPanel = <McpServersPanel />;
+  const toolsWebPanel = <ToolsWebPanel state={toolsWeb} live={live} />;
+  const pluginsPanel = <PluginsPanel />;
+  const memoryPanel = <MemoryPanelView {...memory.props} />;
+  const connectionPanel = <ConnectionScreen embedded />;
+  // 구역 표의 패널 자리마다 그릴 것(settings-sections.ts `SettingsPanelId`)
+  const panels: Partial<Record<SettingsPanelId, ReactNode>> = {
+    appearance: appearancePanel,
+    about: <AboutPanel updatePanel={<UpdatePanel />} />,
+    notify: notifyPanel,
+    rotation:
+      view === null ? null : (
+        <PanelBlock>
+          <RotationPanel view={view} live={live} handlers={fields} />
+        </PanelBlock>
+      ),
+    secrets: (
+      <SecretsPanel
+        embedded
+        focusName={focusSecret}
+        onFocused={() => {
+          setFocusSecret(null);
+        }}
+      />
+    ),
+    trust: trustPanel,
+    mcp: mcpPanel,
+    toolsWeb: toolsWebPanel,
+    plugins: pluginsPanel,
+    memory: memoryPanel,
+    connection: connectionPanel,
+    backup: (
+      <SettingSection title={t("desktop.settings.part.backup")}>
+        <BackupPanel folderPick={props.folderPick} />
+        <RestorePanel folderPick={props.folderPick} />
+        <StoragePanel />
+      </SettingSection>
+    ),
+    files: <SettingsFilesPanel filePaths={filePaths} />,
+  };
   return (
     <SettingsPageView
       status={status}
       loadError={state.loadError?.message ?? t("desktop.settings.loadFailed.unknown")}
       view={view}
-      tab={tab}
+      section={section}
       query={query}
       narrow={narrow}
       readOnly={!live}
-      hasThread={threadId !== null}
       saved={saved}
       restartError={state.restartError?.message ?? null}
       prompt={pending === null ? null : { to: pending.to, count: pending.keys.length }}
-      secretsPanel={
-        <SecretsPanel
-          embedded
-          focusName={focusSecret}
-          onFocused={() => {
-            setFocusSecret(null);
-          }}
-        />
-      }
       fileEditor={fileEditor}
       fileOpen={file.phase !== "closed"}
       editors={EDITORS}
-      toolsPanel={<ToolsWebPanel state={toolsWeb} live={live} />}
-      mcpPanel={<McpServersPanel />}
-      restorePanel={
-        <>
-          <BackupPanel folderPick={props.folderPick} />
-          <RestorePanel folderPick={props.folderPick} />
-          <StoragePanel />
-        </>
-      }
-      updatePanel={<UpdatePanel />}
-      filePaths={filePaths}
-      trustPanel={<TrustedFoldersPanel />}
-      notifyPanel={<NotifyPanel />}
-      appearancePanel={<AppearancePanel />}
-      pluginsPanel={<PluginsPanel />}
-      memoryPanel={<MemoryPanelView {...memory.props} />}
+      banners={<SettingsBanners onOpenFile={openFile} openFileDisabled={openFileDisabled} />}
+      panels={panels}
       memoryMatches={memory.matches}
       memoryFindPanel={<MemoryFindView props={memory.props} query={query} />}
-      rotationPanel={
-        view === null ? null : <RotationPanel view={view} live={live} handlers={fields} />
-      }
-      usagePanel={
-        <UsagePanelView
-          load={usage.load}
-          offline={!live}
-          hasThread={threadId !== null}
-          onRetry={usage.reload}
-        />
-      }
       handlers={handlers}
     />
   );

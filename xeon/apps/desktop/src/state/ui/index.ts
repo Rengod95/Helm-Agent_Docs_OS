@@ -14,3 +14,9 @@ export {
   type UiState,
   type UiStore,
 } from "./store.ts";
+export {
+  SETTINGS_SECTION_IDS,
+  isSettingsSectionId,
+  type SettingsJumpTarget,
+  type SettingsSectionId,
+} from "./settings-section-id.ts";

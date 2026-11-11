@@ -245,17 +245,19 @@ export function RotationRowView(props: RotationRowViewProps): ReactNode {
   const title = t("desktop.providers.rotation.title");
   return (
     <div data-slot="rotation-row" className="grid gap-1.5">
-      {/* 섹션 제목(설정의 패널 머리)이 이미 같은 글이라 눈에는 한 번만 보이고, 읽기 도구에는 이름으로 남는다(rtE R-6b) */}
-      <span className="sr-only">{title}</span>
-      <Switch
-        size="sm"
-        aria-label={title}
-        checked={state === "on"}
-        disabled={!editable}
-        onCheckedChange={(next) => {
-          props.onToggle(next);
-        }}
-      />
+      {/* 이름이 왼쪽, 스위치가 오른쪽인 설정 한 줄과 같은 모양이다(L4.settings-ui §4.2 [결정: 2026-11-11 사용자]) */}
+      <div className="flex min-h-8 items-center gap-6">
+        <span className="min-w-0 flex-1 text-ui text-text-primary">{title}</span>
+        <Switch
+          size="sm"
+          aria-label={title}
+          checked={state === "on"}
+          disabled={!editable}
+          onCheckedChange={(next) => {
+            props.onToggle(next);
+          }}
+        />
+      </div>
       {state === "on" ? (
         <p className="m-0 flex items-center gap-2 text-ui text-text-tertiary">
           <Badge size="sm" className={TONE_CLASS.warning} icon={<TriangleAlert />}>

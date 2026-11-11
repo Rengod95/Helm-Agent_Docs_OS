@@ -7,7 +7,6 @@ import {
   fileEditableOf,
   fileEditorReducer,
   fileSaveableOf,
-  fileScopesOf,
   initialFileEditor,
   type FileDoc,
   type FileEditorAction,
@@ -145,11 +144,6 @@ describe("editing, discarding and closing", () => {
     expect(fileSaveableOf(edited, false)).toBe(false);
     expect(fileDiscardableOf(edited)).toBe(true);
     expect(edited.draft).toBe("{}\n");
-  });
-
-  test("the scope choice has only the user scope without a conversation", () => {
-    expect(fileScopesOf(false)).toEqual(["user"]);
-    expect(fileScopesOf(true)).toEqual(["user", "project", "local"]);
   });
 });
 

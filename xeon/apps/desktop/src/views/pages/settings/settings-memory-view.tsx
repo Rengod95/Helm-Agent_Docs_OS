@@ -150,7 +150,11 @@ function MemoryCard(args: {
     return sortEntries(picked, props.sort, locale);
   };
   return (
-    <div data-slot="settings-memory" data-memory-state={load.kind} className="min-w-0">
+    <div
+      data-slot="settings-memory"
+      data-memory-state={load.kind}
+      className="min-w-0 pt-8 first:pt-0"
+    >
       <SettingSection
         title={
           <span className="flex items-center gap-2">

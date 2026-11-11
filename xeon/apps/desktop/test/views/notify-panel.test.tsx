@@ -90,10 +90,11 @@ describe("NotifyPanel context", () => {
       },
       prefs: { get: () => PREFS, set: () => Promise.resolve(true) },
       appearance: {
-        get: () => ({ motion: "system", zoom: 100, transcriptDetail: "full" }),
+        get: () => ({ theme: "system", motion: "system", zoom: 100, transcriptDetail: "full" }),
         setMotion: () => Promise.resolve(true),
         setZoom: () => Promise.resolve(true),
         setTranscriptDetail: () => Promise.resolve(true),
+        setTheme: () => Promise.resolve(true),
       },
     };
     const html = renderToString(
