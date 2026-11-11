@@ -48,14 +48,14 @@ describe("palette values", () => {
   });
 
   test("a setting value reads back as its tab and key; an empty key means the tab alone", () => {
-    expect(decodeValue(settingValue("models", "l1.models.accounts"))).toEqual({
+    expect(decodeValue(settingValue("providers", "l1.models.accounts"))).toEqual({
       kind: "setting",
-      tab: "models",
+      tab: "providers",
       key: "l1.models.accounts",
     });
-    expect(decodeValue(settingValue("sandbox", null))).toEqual({
+    expect(decodeValue(settingValue("connection", null))).toEqual({
       kind: "setting",
-      tab: "sandbox",
+      tab: "connection",
       key: null,
     });
   });

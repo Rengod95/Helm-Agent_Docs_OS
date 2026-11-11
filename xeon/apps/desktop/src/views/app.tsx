@@ -251,7 +251,8 @@ export function App(props: AppProps): ReactNode {
           );
         return;
       case "connection.open":
-        showPlace("chat", "connection");
+        // 연결 화면은 설정 화면의 "연결과 서비스" 구역이다
+        commands.requestSettingsJump({ tab: "connection", key: null });
         return;
       default:
         return assertNever(id, "PaletteCommandId");

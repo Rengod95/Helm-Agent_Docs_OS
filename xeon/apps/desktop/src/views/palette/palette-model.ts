@@ -1,6 +1,5 @@
 import type { MessageId } from "@fresnel/client/i18n";
-import { TAB_ORDER } from "@fresnel/client/settings";
-import type { SettingsTab } from "@fresnel/contracts/settings";
+import { SECTION_ORDER, type SettingsSection } from "../pages/settings/settings-sections.ts";
 import type { ExtUiEntry } from "@fresnel/contracts/wire";
 import { originTitleOf } from "../../plugin-ui/placements.ts";
 import type { Area } from "../../state/shell/index.ts";
@@ -156,7 +155,7 @@ export type PaletteRun =
   | { readonly kind: "plugin"; readonly extension: string; readonly id: string }
   | { readonly kind: "slash"; readonly name: string }
   /** `key`가 null이면 탭만 연다 */
-  | { readonly kind: "setting"; readonly tab: SettingsTab; readonly key: string | null }
+  | { readonly kind: "setting"; readonly tab: SettingsSection; readonly key: string | null }
   /** 영역과 화면 id(내비 표의 id). 화면 자리는 App이 옮긴다 */
   | { readonly kind: "screen"; readonly area: Area; readonly screen: string };
 
@@ -167,7 +166,7 @@ export const commandValue = (id: PaletteCommandId): string => `command:${id}`;
 /** 확장 명령 값. 확장 이름에는 `/`가 없으므로 첫 `/`에서 나눈다 */
 export const pluginValue = (extension: string, id: string): string => `plugin:${extension}/${id}`;
 export const slashValue = (name: string): string => `slash:${name}`;
-export const settingValue = (tab: SettingsTab, key: string | null): string =>
+export const settingValue = (tab: SettingsSection, key: string | null): string =>
   `setting:${tab}:${key ?? ""}`;
 export const screenValue = (area: Area, screen: string): string => `screen:${area}:${screen}`;
 export const moreValue = (group: PaletteGroupId): string => `more:${group}`;
@@ -205,7 +204,7 @@ function decodePlugin(rest: string): PaletteRun | null {
 function decodeSetting(rest: string): PaletteRun | null {
   const cut = rest.indexOf(":");
   if (cut < 0) return null;
-  const tab = TAB_ORDER.find((candidate) => candidate === rest.slice(0, cut));
+  const tab = SECTION_ORDER.find((candidate) => candidate === rest.slice(0, cut));
   if (tab === undefined) return null;
   const key = rest.slice(cut + 1);
   return { kind: "setting", tab, key: key === "" ? null : key };

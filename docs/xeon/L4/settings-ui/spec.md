@@ -557,6 +557,15 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 5. 폐기된 정의(`deprecated` 있음)는 `settings.list({includeDeprecated: true})`로 받는다. 유효 값 출처가 `default`이면 화면에 보이지 않고, 사용자가 값을 둔 경우에만 항목과 폐기 배지를 보인다 [제안].
 6. 각 정의가 어느 탭에 들어갈지는 정의의 `ui.tab`이 정한다. 아래 표의 "들어오는 층·키 네임스페이스"는 키 소유 층이 탭을 고를 때 쓰는 기본 배치 안내다 [제안]. 설정 화면은 네임스페이스로 탭을 바꾸지 않는다.
 
+#### 4.1.0 화면의 구역과 항목 선별
+
+[결정: 2026-11-11 사용자] 설정 화면은 이 앱만 줄 수 있는 설정만 둔다. 모델 제공자나 플러그인이 정할 손잡이(턴당 최대 단계, 이어가기, 추론·예산 매개변수, 도구별 한도와 시간 제한)는 화면에서 뺀다. 엔진 키, 설정 파일 값, "파일로 보기" 편집기는 그대로라 플러그인과 파일로는 계속 쓸 수 있다. 판단표는 `_notes/design/cxZ-audit.md`다.
+
+- 화면 구역(`SECTION_ORDER`, `settings-sections.ts`)은 개요, 모델과 계정, 시크릿, 권한과 샌드박스, 도구와 MCP, 플러그인, 연결과 서비스, 실행, 대화와 기억, 화면과 알림, 백업과 고급 열한 개다. 엔진 탭 `models`, `budgets`, `sandbox`는 구역으로 보이지 않고, 그 항목은 허용 목록(`sectionOfField`)이 정한 구역으로 가거나 빠진다. 목록에 없는 키는 기본이 숨김이다.
+- "연결과 서비스" 구역은 연결 화면(P-08) 본문(호스트, 실행 방식, 진단)과 서비스 항목(`l0.process.service.*`, `l4.remote.web.*`)을 싣는다. 연결 화면은 왼쪽 내비에 없다. 설정을 구역으로 여는 의도는 `requestSettingsJump({ tab: "connection", key: null })`(`openSettingsSection("connection")`)다.
+- 구역 라벨은 §4.1.1 표의 탭 라벨 대신 `desktop.settings.section.*`를 쓴다. §4.1.1 표는 엔진 쪽 `ui.tab` 배치 안내로만 남는다.
+- 명령 팔레트의 설정 항목도 같은 허용 목록을 따른다.
+
 #### 4.1.1 탭 표
 
 | 탭 id | 한국어 라벨 [제안] | 들어오는 층·키 네임스페이스 (기본 배치 안내) | 편집 방식 | 상태 게이지 |

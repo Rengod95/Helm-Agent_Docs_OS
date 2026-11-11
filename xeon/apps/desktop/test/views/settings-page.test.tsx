@@ -59,17 +59,17 @@ const MODEL = defOf(
   {},
   { order: 1, label: "기본 모델", help: "요청에 쓸 기본 모델" },
 );
-const STEPS = defOf(
-  "l1.loop.maxSteps",
-  "budgets",
+const KEEP = defOf(
+  "l1.persistence.retention.maxCount",
+  "sessions",
   "number",
   { type: "integer" },
   { range: { min: 1, max: 20 } },
-  { order: 2, label: "단계 상한" },
+  { order: 2, label: "보관 개수" },
 );
 const LOCKED = defOf(
-  "l1.models.provider",
-  "models",
+  "l1.models.providers",
+  "providers",
   "text",
   { type: "string" },
   {},
@@ -147,7 +147,7 @@ interface FileRowView {
 
 const SETTINGS = [
   settingOf(MODEL.key, "sonnet"),
-  settingOf(STEPS.key, 3),
+  settingOf(KEEP.key, 3),
   settingOf(LOCKED.key, "openai", {
     locked: true,
     lockReason: "managed_file",
@@ -160,7 +160,7 @@ const SETTINGS = [
  * 맞으면 찾는 글이 든 글만 그린다
  */
 function memorySearchOf(query: string, read: readonly MemoryStoreView[] | null): string {
-  const view = viewOf([MODEL, STEPS], SETTINGS);
+  const view = viewOf([MODEL, KEEP], SETTINGS);
   return html(
     propsOf({
       view,
@@ -183,7 +183,7 @@ describe("settings page states", () => {
   test("while the values are read the tab list shows at once and the form shows a loading line", () => {
     const out = html(propsOf({ status: "loading", view: null }));
     expect(out).toContain(t("desktop.settings.loading.status"));
-    for (const label of ["개요", "모델", "예산과 한도", "시크릿", "고급"]) {
+    for (const label of ["개요", "모델과 계정", "시크릿", "백업과 고급"]) {
       expect(out).toContain(label);
     }
   });
@@ -204,7 +204,7 @@ describe("settings page states", () => {
 
   test("offline with the last values keeps them visible and turns every input off", () => {
     const view: SettingsView = viewOf([MODEL], [settingOf(MODEL.key, "sonnet")]);
-    const out = html(propsOf({ view, tab: "models", readOnly: true }));
+    const out = html(propsOf({ view, tab: "providers", readOnly: true }));
     expect(out).toContain(t("desktop.settings.offline"));
     expect(out).toContain("sonnet");
     expect(out).toContain('disabled=""');
@@ -214,35 +214,35 @@ describe("settings page states", () => {
 describe("field rows", () => {
   test("a locked field shows the policy sentence with the policy file path", () => {
     const view = viewOf([MODEL, LOCKED], SETTINGS);
-    const out = html(propsOf({ view, tab: "models" }));
+    const out = html(propsOf({ view, tab: "providers" }));
     expect(out).toContain(t("client.settings.lock.managedFilePath", { path: LOCK_PATH }));
     expect(out).toContain('aria-disabled="true"');
   });
 
   test("a field error sits under its field with the message of its kind", () => {
-    const view = viewOf([STEPS], SETTINGS);
-    const state = reduceSettings(stateOf([STEPS], SETTINGS), {
+    const view = viewOf([KEEP], SETTINGS);
+    const state = reduceSettings(stateOf([KEEP], SETTINGS), {
       type: "writeBlocked",
-      key: STEPS.key,
+      key: KEEP.key,
       error: {
         kind: "invalidValue",
         message: t("client.settings.field.invalidRange", { min: 1, max: 20 }),
         issues: [],
       },
     });
-    expect(fieldIn(view, STEPS.key)?.error).toBeNull();
+    expect(fieldIn(view, KEEP.key)?.error).toBeNull();
     const failed = settingsViewOf(state);
-    const out = html(propsOf({ view: failed, tab: "budgets" }));
+    const out = html(propsOf({ view: failed, tab: "sessions" }));
     expect(out).toContain(t("client.settings.field.invalidRange", { min: 1, max: 20 }));
   });
 
   test("an out-of-range draft shows the range sentence under the number field", () => {
-    const state = reduceSettings(stateOf([STEPS], SETTINGS), {
+    const state = reduceSettings(stateOf([KEEP], SETTINGS), {
       type: "draftEdited",
-      key: STEPS.key,
+      key: KEEP.key,
       raw: 99,
     });
-    const out = html(propsOf({ view: settingsViewOf(state), tab: "budgets" }));
+    const out = html(propsOf({ view: settingsViewOf(state), tab: "sessions" }));
     expect(out).toContain(t("client.settings.field.invalidRange", { min: 1, max: 20 }));
   });
 
@@ -263,21 +263,13 @@ describe("field rows", () => {
   });
 
   test("a clean state has no error line for its field", () => {
-    const out = html(propsOf({ view: viewOf([STEPS], SETTINGS), tab: "budgets" }));
+    const out = html(propsOf({ view: viewOf([KEEP], SETTINGS), tab: "sessions" }));
     expect(out).not.toContain(t("client.settings.field.invalidRange", { min: 1, max: 20 }));
-    expect(out).toContain("단계 상한");
+    expect(out).toContain("보관 개수");
   });
 });
 
-describe("models and budgets cards", () => {
-  const ROUTE = defOf(
-    "l1.models.routing.review",
-    "models",
-    "text",
-    { type: "string" },
-    {},
-    { order: 2, label: "검토 모델" },
-  );
+describe("section placement", () => {
   const REST = defOf(
     "l1.models.allowedModels",
     "models",
@@ -286,42 +278,59 @@ describe("models and budgets cards", () => {
     {},
     { order: 3, label: "허용 모델" },
   );
-  const RATE = defOf(
-    "l1.models.rateLimit",
+  const LOOP = defOf(
+    "l1.loop.maxSteps",
     "budgets",
-    "text",
-    { type: "string" },
-    {},
-    { order: 2, label: "레이트 리밋 정책" },
+    "number",
+    { type: "integer" },
+    { range: { min: 1, max: 20 } },
+    { order: 1, label: "턴당 최대 단계" },
   );
 
-  test("the models tab draws the basic and routing cards with their titles, in that order", () => {
-    const view = viewOf(
-      [MODEL, ROUTE, REST],
-      [settingOf(MODEL.key, "sonnet"), settingOf(ROUTE.key, "haiku"), settingOf(REST.key, "x")],
+  test("the providers section draws the usage panel above its fields, and the tools section does not", () => {
+    const view = viewOf([MODEL, REST], [settingOf(MODEL.key, "sonnet"), settingOf(REST.key, "x")]);
+    const usage = <p>USAGE PANEL</p>;
+    const out = html(propsOf({ view, tab: "providers", usagePanel: usage }));
+    expect(out).toContain("USAGE PANEL");
+    expect(out.indexOf("USAGE PANEL")).toBeLessThan(out.indexOf(`data-key="${MODEL.key}"`));
+    expect(html(propsOf({ view, tab: "tools", usagePanel: usage }))).not.toContain("USAGE PANEL");
+  });
+
+  test("a key outside the list is drawn in no section and no search finds it", () => {
+    const view = viewOf([MODEL, LOOP], [settingOf(MODEL.key, "sonnet"), settingOf(LOOP.key, 3)]);
+    for (const section of ["overview", "providers", "sessions", "execution", "advanced"] as const) {
+      expect(html(propsOf({ view, tab: section }))).not.toContain(LOOP.key);
+    }
+    expect(html(propsOf({ view, query: "턴당" }))).toContain(t("desktop.settings.search.noMatch"));
+  });
+
+  test("the connection section draws its panel even offline, and other sections show the offline line", () => {
+    const connection = <p>CONNECTION PANEL</p>;
+    const out = html(
+      propsOf({
+        status: "offline",
+        readOnly: true,
+        tab: "connection",
+        connectionPanel: connection,
+      }),
     );
-    const out = html(propsOf({ view, tab: "models" }));
-    const basic = out.indexOf(`>${t("desktop.settings.models.basic")}</h2>`);
-    const routing = out.indexOf(`>${t("desktop.settings.models.routing")}</h2>`);
-    expect(basic).toBeGreaterThan(-1);
-    expect(routing).toBeGreaterThan(basic);
+    expect(out).toContain("CONNECTION PANEL");
+    expect(out).not.toContain(t("desktop.settings.offline"));
+    expect(html(propsOf({ status: "offline", readOnly: true, tab: "execution" }))).toContain(
+      t("desktop.settings.offline"),
+    );
   });
 
-  test("a models card with no fields is not drawn", () => {
+  test("the navigation lists the shown sections in order and leaves out an empty one", () => {
     const view = viewOf([MODEL], [settingOf(MODEL.key, "sonnet")]);
-    const out = html(propsOf({ view, tab: "models" }));
-    expect(out).toContain(`>${t("desktop.settings.models.basic")}</h2>`);
-    expect(out).not.toContain(`>${t("desktop.settings.models.routing")}</h2>`);
-  });
-
-  test("the budgets tab draws the budget card and the rate limit card with their titles", () => {
-    const view = viewOf([STEPS, RATE], [settingOf(STEPS.key, 3), settingOf(RATE.key, "x")]);
-    const out = html(propsOf({ view, tab: "budgets" }));
-    const budget = out.indexOf(`>${t("desktop.settings.budgets.budget")}</h2>`);
-    const rateLimit = out.indexOf(`>${t("desktop.settings.budgets.rateLimit")}</h2>`);
-    expect(budget).toBeGreaterThan(-1);
-    expect(rateLimit).toBeGreaterThan(budget);
-    expect(out).toContain("레이트 리밋 정책");
+    const out = html(propsOf({ view, narrow: false }));
+    const providers = out.indexOf(`>${t("desktop.settings.section.providers")}<`);
+    const advanced = out.indexOf(`>${t("desktop.settings.section.advanced")}<`);
+    expect(providers).toBeGreaterThan(-1);
+    expect(advanced).toBeGreaterThan(providers);
+    expect(out).toContain(`>${t("desktop.settings.section.connection")}<`);
+    expect(out).not.toContain(`>${t("desktop.settings.section.sessions")}<`);
+    expect(out).not.toContain(`>${t("desktop.settings.section.execution")}<`);
   });
 });
 
@@ -349,9 +358,9 @@ describe("page layout", () => {
   });
 
   test("a search lists the matching fields under their tab, and no match says so", () => {
-    const view = viewOf([MODEL, STEPS], SETTINGS);
-    const found = html(propsOf({ view, query: "단계" }));
-    expect(found).toContain("단계 상한");
+    const view = viewOf([MODEL, KEEP], SETTINGS);
+    const found = html(propsOf({ view, query: "보관" }));
+    expect(found).toContain("보관 개수");
     expect(found).not.toContain("기본 모델");
     const none = html(propsOf({ view, query: "없는말" }));
     expect(none).toContain(t("desktop.settings.search.noMatch"));
@@ -387,17 +396,17 @@ describe("page layout", () => {
 
   test("a restart count shows its banner with the restart button", () => {
     const restart = defOf(
-      "l0.process.port",
+      "l0.exec.shell",
       "execution",
-      "number",
-      { type: "integer" },
+      "text",
+      { type: "string" },
       {
         runtimeChange: "restart",
       },
     );
     const view = viewOf(
       [restart],
-      [settingOf(restart.key, 7000, { runtimeChange: "restart", pendingUntil: "restart" })],
+      [settingOf(restart.key, "/bin/sh", { runtimeChange: "restart", pendingUntil: "restart" })],
     );
     const out = html(propsOf({ view, tab: "execution" }));
     expect(out).toContain(t("client.settings.view.restartBanner", { count: 1 }));
@@ -411,33 +420,33 @@ describe("page layout", () => {
 
 describe("search results", () => {
   const RESTART = defOf(
-    "l0.process.port",
+    "l0.exec.shell",
     "execution",
-    "number",
-    { type: "integer" },
+    "text",
+    { type: "string" },
     { runtimeChange: "restart" },
-    { order: 1, label: "프로세스 포트" },
+    { order: 1, label: "셸 경로" },
   );
 
   test("while searching the header reads the trimmed query in quotes and 찾은 항목, and a plain page shows no such header", () => {
-    const view = viewOf([MODEL, STEPS], SETTINGS);
-    const found = html(propsOf({ view, query: " 단계 " }));
-    expect(found).toContain(">‘단계’ 찾은 항목</h1>");
+    const view = viewOf([MODEL, KEEP], SETTINGS);
+    const found = html(propsOf({ view, query: " 보관 " }));
+    expect(found).toContain(">‘보관’ 찾은 항목</h1>");
     expect(found).not.toContain(`>${t("desktop.settings.title")}</h1>`);
-    expect(html(propsOf({ view, tab: "models" }))).not.toContain("찾은 항목");
+    expect(html(propsOf({ view, tab: "providers" }))).not.toContain("찾은 항목");
   });
 
   test("each search result shows its setting key beside its label", () => {
-    const view = viewOf([MODEL, STEPS, LOCKED], SETTINGS);
+    const view = viewOf([MODEL, KEEP, LOCKED], SETTINGS);
     const out = html(propsOf({ view, query: "l1." }));
-    for (const key of [MODEL.key, STEPS.key, LOCKED.key]) {
+    for (const key of [MODEL.key, KEEP.key, LOCKED.key]) {
       expect(rowOf(out, key)).toContain(`>${key}</span>`);
     }
   });
 
   test("without a search the rows show no setting key", () => {
-    const view = viewOf([MODEL, STEPS], SETTINGS);
-    const out = html(propsOf({ view, tab: "models" }));
+    const view = viewOf([MODEL, KEEP], SETTINGS);
+    const out = html(propsOf({ view, tab: "providers" }));
     expect(rowOf(out, MODEL.key)).toContain("기본 모델");
     expect(rowOf(out, MODEL.key)).not.toContain(`>${MODEL.key}</span>`);
   });
@@ -445,9 +454,12 @@ describe("search results", () => {
   test("a search result whose setting needs a restart shows the 재시작 필요 chip, and a live one does not", () => {
     const view = viewOf(
       [RESTART, MODEL],
-      [settingOf(RESTART.key, 7000, { runtimeChange: "restart" }), settingOf(MODEL.key, "sonnet")],
+      [
+        settingOf(RESTART.key, "/bin/sh", { runtimeChange: "restart" }),
+        settingOf(MODEL.key, "sonnet"),
+      ],
     );
-    const restart = html(propsOf({ view, query: "포트" }));
+    const restart = html(propsOf({ view, query: "셸" }));
     expect(rowOf(restart, RESTART.key)).toContain(t("client.settings.runtime.restart"));
     const live = html(propsOf({ view, query: "기본" }));
     expect(rowOf(live, MODEL.key)).not.toContain(t("client.settings.runtime.restart"));
@@ -455,22 +467,23 @@ describe("search results", () => {
 });
 
 describe("notify section", () => {
-  // OS 알림 묶음(B-10)은 "실행과 서비스" 탭 맨 위에 보이고, 다른 탭에는 보이지 않는다
-  const RESTART_LIMIT = defOf(
-    "l0.process.port",
-    "execution",
-    "number",
-    { type: "integer" },
-    { runtimeChange: "restart" },
+  // OS 알림 묶음(B-10)은 "화면과 알림" 구역 맨 위에 보이고, 다른 구역에는 보이지 않는다
+  const CLOSE = defOf(
+    "l4.desktop.window.closeBehavior",
+    "appearance",
+    "select",
+    { type: "string", enum: ["quit", "tray"] },
+    { range: { enum: ["quit", "tray"] } },
+    { order: 1, label: "창 닫기 동작" },
   );
 
-  test("the execution tab shows the notify panel above its fields, and other tabs do not", () => {
-    const view = viewOf([RESTART_LIMIT], [settingOf(RESTART_LIMIT.key, 7000)]);
+  test("the appearance section shows the notify panel above its fields, and other sections do not", () => {
+    const view = viewOf([CLOSE], [settingOf(CLOSE.key, "tray")]);
     const panel = <p>NOTIFY PANEL</p>;
-    const out = html(propsOf({ view, tab: "execution", notifyPanel: panel }));
+    const out = html(propsOf({ view, tab: "appearance", notifyPanel: panel }));
     expect(out.indexOf("NOTIFY PANEL")).toBeGreaterThan(-1);
     expect(out.indexOf("NOTIFY PANEL")).toBeLessThan(out.indexOf('data-slot="settings-field"'));
-    expect(html(propsOf({ view, tab: "models", notifyPanel: panel }))).not.toContain(
+    expect(html(propsOf({ view, tab: "execution", notifyPanel: panel }))).not.toContain(
       "NOTIFY PANEL",
     );
   });
@@ -532,85 +545,90 @@ describe("permission mode field", () => {
 });
 
 describe("widget controls", () => {
+  // 구역 하나(도구와 MCP)에 든 위젯으로 그린다. 모델과 계정 구역에는 스위치와 선택 칸이 없다
   const TOGGLE = defOf(
-    "l4.cli.on",
-    "models",
+    "l2.mcp.managedOnly",
+    "tools",
     "toggle",
     { type: "boolean" },
     {},
     {
       order: 0,
-      label: "켜기",
+      label: "관리 설정만",
     },
   );
   const EFFORT_OPTIONS = ["low", "high"];
   const EFFORT = defOf(
-    "l1.models.effort",
-    "models",
+    "l2.mcp.approvalMode",
+    "tools",
     "select",
     { type: "string", enum: EFFORT_OPTIONS },
     { range: { enum: EFFORT_OPTIONS } },
-    { order: 2, label: "추론 레벨" },
+    { order: 2, label: "승인 모드" },
   );
   const ALLOW = defOf(
-    "l1.models.allow",
-    "models",
+    "l2.mcp.allowedServers",
+    "tools",
     "list",
     { type: "array", items: { type: "string" } },
     {},
-    { order: 3, label: "허용 모델" },
-  );
-  const BUDGETS = defOf(
-    "l1.models.budgets",
-    "models",
-    "table",
-    {
-      type: "object",
-      properties: { low: { type: "integer" } },
-      required: ["low"],
-      additionalProperties: false,
-    },
-    {},
-    { order: 4, label: "레벨별 예산" },
+    { order: 3, label: "허용 서버" },
   );
   const OLD = defOf(
-    "l1.models.old",
-    "models",
+    "l2.web.policy.unseenUrl",
+    "tools",
     "text",
     { type: "string" },
     { deprecated: { since: "0.9.0", replacedBy: MODEL.key } },
-    { order: 5, label: "옛 모델" },
+    { order: 5, label: "옛 정책" },
   );
   const SETTINGS_ALL = [
     settingOf(TOGGLE.key, true, { shadowed: [{ scope: "project", path: "/p/settings.json" }] }),
     settingOf(EFFORT.key, "low"),
     settingOf(ALLOW.key, ["a"]),
-    settingOf(BUDGETS.key, { low: 1 }),
     settingOf(MODEL.key, "sonnet"),
     settingOf(OLD.key, "x"),
   ];
-  const DEFS = [TOGGLE, EFFORT, ALLOW, BUDGETS, MODEL, OLD];
+  const DEFS = [TOGGLE, EFFORT, ALLOW, MODEL, OLD];
 
   test("each widget kind renders its control, with the item count and the deprecation parts", () => {
     const view = viewOf(DEFS, SETTINGS_ALL, thr(1));
-    const out = html(propsOf({ view, tab: "models" }));
+    const out = html(propsOf({ view, tab: "tools" }));
     expect(out).toContain('role="switch"');
     expect(out).toContain('role="radio"');
     expect(out).toContain('aria-orientation="horizontal"');
     expect(out).not.toContain('aria-orientation="vertical"');
-    expect(out).toContain(t("desktop.settings.field.itemCount", { count: 1 }));
     expect(out).toContain(t("desktop.settings.field.deprecated", { since: "0.9.0" }));
     expect(out).toContain(t("desktop.settings.field.deprecatedReplaced", { label: "기본 모델" }));
+  });
+
+  test("a table field shows its item count in the providers section", () => {
+    const TABLE = defOf(
+      "l1.models.providers",
+      "providers",
+      "table",
+      {
+        type: "object",
+        properties: { low: { type: "integer" } },
+        required: ["low"],
+        additionalProperties: false,
+      },
+      {},
+      { order: 4, label: "제공자 표" },
+    );
+    const view = viewOf([TABLE], [settingOf(TABLE.key, { low: 1 })]);
+    const out = html(propsOf({ view, tab: "providers" }));
+    expect(out).toContain(t("desktop.settings.field.itemCount", { count: 1 }));
   });
 
   test("a dirty list field shows the save and discard footer and a changed-elsewhere notice", () => {
     const base = stateOf(DEFS, SETTINGS_ALL, thr(1));
     const edited = reduceSettings(base, { type: "draftEdited", key: ALLOW.key, raw: ["a", "b"] });
-    const out = html(propsOf({ view: settingsViewOf(edited), tab: "models" }));
+    const out = html(propsOf({ view: settingsViewOf(edited), tab: "tools" }));
     expect(out).toContain(t("desktop.settings.field.save"));
     expect(out).toContain(t("desktop.settings.field.discard"));
     const moved = reduceSettings(edited, { type: "invalidated", keys: [ALLOW.key] });
-    const noticed = html(propsOf({ view: settingsViewOf(moved), tab: "models" }));
+    const noticed = html(propsOf({ view: settingsViewOf(moved), tab: "tools" }));
     expect(noticed).toContain(t("desktop.settings.field.remoteChanged"));
     expect(noticed).toContain(t("desktop.settings.conflict.label"));
     expect(noticed).toContain(t("desktop.settings.conflict.useNew"));
@@ -629,16 +647,16 @@ describe("file editor entry", () => {
 
   test("a field tab offers the view-as-file button in its header", () => {
     const view = viewOf([MODEL], SETTINGS);
-    expect(buttonOf(html(propsOf({ view, tab: "models" })), label)).not.toBe("");
+    expect(buttonOf(html(propsOf({ view, tab: "providers" })), label)).not.toBe("");
   });
 
   test("the button is locked offline and while the editor is already open", () => {
     const view = viewOf([MODEL], SETTINGS);
-    expect(buttonOf(html(propsOf({ view, tab: "models" })), label)).not.toContain('disabled=""');
-    expect(buttonOf(html(propsOf({ view, tab: "models", readOnly: true })), label)).toContain(
+    expect(buttonOf(html(propsOf({ view, tab: "providers" })), label)).not.toContain('disabled=""');
+    expect(buttonOf(html(propsOf({ view, tab: "providers", readOnly: true })), label)).toContain(
       'disabled=""',
     );
-    expect(buttonOf(html(propsOf({ view, tab: "models", fileOpen: true })), label)).toContain(
+    expect(buttonOf(html(propsOf({ view, tab: "providers", fileOpen: true })), label)).toContain(
       'disabled=""',
     );
   });
@@ -651,7 +669,7 @@ describe("file editor entry", () => {
 
   test("an open editor is drawn above the field list", () => {
     const view = viewOf([MODEL], SETTINGS);
-    const out = html(propsOf({ view, tab: "models", fileEditor: <p>FILE EDITOR</p> }));
+    const out = html(propsOf({ view, tab: "providers", fileEditor: <p>FILE EDITOR</p> }));
     expect(out.indexOf("FILE EDITOR")).toBeGreaterThan(-1);
     expect(out.indexOf("FILE EDITOR")).toBeLessThan(out.indexOf('data-slot="settings-field"'));
   });
@@ -698,7 +716,7 @@ describe("offline with desktop settings (L4.settings-ui §4.1.3)", () => {
     expect(rowOf(appearance, CLOSE_KEY)).not.toContain('disabled=""');
     expect(rowOf(appearance, CLOSE_KEY)).not.toContain(t("client.settings.origin.engineOffline"));
 
-    const models = html(propsOf({ view, tab: "models", readOnly: true }));
+    const models = html(propsOf({ view, tab: "providers", readOnly: true }));
     expect(rowOf(models, MODEL.key)).toContain(MODEL.ui?.label ?? "");
     expect(rowOf(models, MODEL.key)).toContain('disabled=""');
     expect(rowOf(models, MODEL.key)).toContain(t("client.settings.origin.engineOffline"));
@@ -709,7 +727,7 @@ describe("restore section", () => {
   test("the advanced tab shows the restore panel, and the other tabs do not", () => {
     const view = viewOf([MODEL], SETTINGS);
     expect(html(propsOf({ view, tab: "advanced" }))).toContain("RESTORE PANEL");
-    expect(html(propsOf({ view, tab: "models" }))).not.toContain("RESTORE PANEL");
+    expect(html(propsOf({ view, tab: "providers" }))).not.toContain("RESTORE PANEL");
   });
 
   test("a search lists fields instead, so the panel hides", () => {
@@ -723,7 +741,9 @@ describe("update line section", () => {
     const view = viewOf([MODEL], SETTINGS);
     const line = <p>UPDATE LINE</p>;
     expect(html(propsOf({ view, tab: "overview", updatePanel: line }))).toContain("UPDATE LINE");
-    expect(html(propsOf({ view, tab: "models", updatePanel: line }))).not.toContain("UPDATE LINE");
+    expect(html(propsOf({ view, tab: "providers", updatePanel: line }))).not.toContain(
+      "UPDATE LINE",
+    );
     expect(
       html(propsOf({ view, tab: "overview", query: "기본", updatePanel: line })),
     ).not.toContain("UPDATE LINE");
@@ -731,7 +751,7 @@ describe("update line section", () => {
 });
 
 describe("overview tab sections", () => {
-  const view = viewOf([MODEL, STEPS, LOCKED], SETTINGS);
+  const view = viewOf([MODEL, KEEP, LOCKED], SETTINGS);
 
   test("shows one 지금 상태 card of term rows with counts and no old summary sentences", () => {
     const out = html(propsOf({ view, tab: "overview" }));
@@ -892,17 +912,17 @@ describe("화면 진단 card tones", () => {
 // 그 파일 경로와 함께 보인다. 범위 고르기 칸과 가려진 값 접힘은 없다.
 describe("override note in the page", () => {
   test("a winning local value shows the warning under the row with its file, and no scope choice", () => {
-    const KEY = "ext.helm.maxLenses";
+    const KEY = "x.ui.allowProjectApps";
     const LENSES = defOf(
       KEY,
       "plugins",
-      "number",
-      { type: "integer" },
+      "toggle",
+      { type: "boolean" },
       {},
-      { order: 1, label: "렌즈" },
+      { order: 1, label: "프로젝트 앱 허용" },
     );
     const LOCAL_PATH = "/work/.fresnel/settings.local.json";
-    const winner = settingOf(KEY, 6, {
+    const winner = settingOf(KEY, true, {
       source: { scope: "local", path: LOCAL_PATH },
       shadowed: [
         { scope: "project", path: "/work/.fresnel/settings.json" },
@@ -974,7 +994,7 @@ describe("MCP servers section", () => {
 });
 
 describe("overview tab problem banner", () => {
-  const view = viewOf([MODEL, STEPS, LOCKED], SETTINGS);
+  const view = viewOf([MODEL, KEEP, LOCKED], SETTINGS);
   const PROBLEM = {
     scope: "user" as const,
     path: "/home/me/.fresnel/settings.json",

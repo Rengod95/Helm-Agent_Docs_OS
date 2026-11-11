@@ -16,13 +16,7 @@ import {
   Settings,
 } from "@caustic/react/icons";
 import { t, type MessageId } from "@fresnel/client/i18n";
-import {
-  settingsViewOf,
-  TAB_ORDER,
-  TAB_SPECS,
-  type CommandRowVM,
-  type FieldVM,
-} from "@fresnel/client/settings";
+import { settingsViewOf, type CommandRowVM, type FieldVM } from "@fresnel/client/settings";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import {
   useEffect,
@@ -38,6 +32,11 @@ import { useShell, useShellActions } from "../../state/shell/index.ts";
 import { useSelectedThreadId } from "../../state/ui/index.ts";
 import { useCommands } from "../commands.ts";
 import { formatKey, resolveKeymap } from "../shell/keybindings.ts";
+import {
+  SECTION_ORDER,
+  sectionLabelOf,
+  sectionOfField,
+} from "../pages/settings/settings-sections.ts";
 import { usePaletteCommandEntries } from "../plugin/command-run.ts";
 import {
   availableCommands,
@@ -260,19 +259,26 @@ export function PaletteBody(props: PaletteProps): ReactNode {
       : [];
   // 탭 이름은 읽지 않아도 된다(표가 정해져 있다). 항목은 읽은 뒤에만 더한다
   const settingItems: PaletteItem[] = [
-    ...TAB_ORDER.map((tab) => ({
-      value: settingValue(tab, null),
-      label: TAB_SPECS[tab].label,
+    ...SECTION_ORDER.map((section) => ({
+      value: settingValue(section, null),
+      label: sectionLabelOf(section),
       description: t("desktop.palette.settingsTab"),
       meta: null,
     })),
     ...(fields.status === "ready"
-      ? fields.value.map((field) => ({
-          value: settingValue(field.tab, field.key),
-          label: field.label,
-          description: TAB_SPECS[field.tab].label,
-          meta: null,
-        }))
+      ? fields.value.flatMap((field) => {
+          const section = sectionOfField(field);
+          return section === null
+            ? []
+            : [
+                {
+                  value: settingValue(section, field.key),
+                  label: field.label,
+                  description: sectionLabelOf(section),
+                  meta: null,
+                },
+              ];
+        })
       : []),
   ];
 

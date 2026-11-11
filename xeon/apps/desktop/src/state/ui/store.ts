@@ -69,11 +69,17 @@ export type ComposerRequest = { readonly insert: string | null };
 export type ReviewTarget = { readonly approvalId: EventId; readonly reviewId: string };
 
 /**
- * 설정 화면이 열며 옮길 탭과 항목. `key`가 null이면 탭만 연다. `secretName`이 있으면 시크릿 탭에서 그 시크릿을 고른다.
- * 화면이 받으면 `settleSettingsJump`로 지운다
+ * 설정 화면의 구역 id. 설정 화면 모델(`views/pages/settings/settings-sections.ts`의 `SettingsSection`)과 같은 값이다.
+ * 상태 층은 화면 층을 가져오지 않으므로 여기에 같은 뜻으로 적는다
+ */
+type SettingsJumpTab = SettingsTab | "connection";
+
+/**
+ * 설정 화면이 열며 옮길 구역과 항목. `key`가 null이면 구역만 연다. `secretName`이 있으면 시크릿 구역에서 그 시크릿을 고른다.
+ * 화면이 받으면 `settleSettingsJump`로 지운다. 연결과 서비스는 `{ tab: "connection", key: null }`이다
  */
 export type SettingsJump = {
-  readonly tab: SettingsTab;
+  readonly tab: SettingsJumpTab;
   readonly key: SettingKey | null;
   readonly secretName?: SecretName;
 };
@@ -154,6 +160,8 @@ interface UiActions {
   settleComposerRequest(): void;
   /** 설정 화면을 열고 그 탭과 항목으로 옮길 요청을 남긴다 */
   requestSettingsJump(jump: SettingsJump): void;
+  /** 설정 화면을 열고 그 구역을 보인다(항목 없이). `requestSettingsJump({ tab: section, key: null })`와 같다 */
+  openSettingsSection(section: SettingsJumpTab): void;
   settleSettingsJump(): void;
   /** 변경 검토 화면을 이 승인으로 연다. 화면 자리는 App이 옮긴다 */
   openReview(target: ReviewTarget): void;
@@ -234,6 +242,9 @@ export function createUiStore(): UiStore {
     requestComposer: (insert) => api.setState({ composerRequest: { insert } }),
     settleComposerRequest: () => api.setState({ composerRequest: null }),
     requestSettingsJump: (settingsJump) => api.setState({ screen: "settings", settingsJump }),
+    openSettingsSection: (section) => {
+      actions.requestSettingsJump({ tab: section, key: null });
+    },
     settleSettingsJump: () => api.setState({ settingsJump: null }),
     openReview: (reviewTarget) => api.setState({ reviewTarget }),
     noteRestartNeeded: (reason) =>
