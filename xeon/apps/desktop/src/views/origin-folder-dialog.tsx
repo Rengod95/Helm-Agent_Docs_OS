@@ -43,7 +43,7 @@ function Body(props: {
   const path = listing.path;
   return (
     <div className="grid gap-3">
-      <p className="m-0 flex items-center gap-1 text-ui-sm text-text-secondary">
+      <p className="m-0 flex items-center gap-1 text-ui text-text-secondary">
         {t("desktop.originFolder.subtitle")}
         <InfoTip text={t("desktop.originFolder.info")} />
       </p>
@@ -96,7 +96,7 @@ function Body(props: {
         </Alert>
       ) : null}
       {listing.kind === "ready" && listing.entries.length === 0 ? (
-        <p className="m-0 text-ui-sm text-text-secondary">{t("desktop.originFolder.empty")}</p>
+        <p className="m-0 text-ui text-text-secondary">{t("desktop.originFolder.empty")}</p>
       ) : null}
       {listing.kind === "ready" && listing.entries.length > 0 ? (
         <ul

@@ -363,9 +363,7 @@ export function PaletteBody(props: PaletteProps): ReactNode {
         resultsLabel={(n) => t("desktop.palette.resultsCount", { count: n })}
         onValueChange={onValue}
       />
-      {live ? null : (
-        <p className="text-ui-sm text-text-tertiary">{t("desktop.palette.offline")}</p>
-      )}
+      {live ? null : <p className="text-ui text-text-tertiary">{t("desktop.palette.offline")}</p>}
     </div>
   );
 }

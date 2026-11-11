@@ -68,7 +68,7 @@ export function ShortcutHelpDialog(props: ShortcutHelpDialogProps): ReactNode {
           onValueChange={setQuery}
         />
         {rows.length === 0 ? (
-          <p className="m-0 py-6 text-center text-ui-sm text-text-tertiary">
+          <p className="m-0 py-6 text-center text-ui text-text-tertiary">
             {t("desktop.shortcuts.empty")}
           </p>
         ) : (
@@ -81,14 +81,12 @@ export function ShortcutHelpDialog(props: ShortcutHelpDialogProps): ReactNode {
                   const title = t(SHORTCUT_GROUP_LABEL_IDS[group]);
                   return (
                     <section key={group} aria-label={title}>
-                      <h3 className="m-0 mb-0.5 text-ui-xs font-medium text-text-tertiary">
-                        {title}
-                      </h3>
+                      <h3 className="m-0 mb-0.5 text-ui font-medium text-text-tertiary">{title}</h3>
                       <ul className="m-0 list-none p-0">
                         {items.map((row) => (
                           <li
                             key={row.id}
-                            className="flex h-7 items-center gap-3 text-ui-sm text-text-primary"
+                            className="flex h-7 items-center gap-3 text-ui text-text-primary"
                           >
                             <span className="min-w-0 flex-1 truncate">{t(row.label)}</span>
                             <KeyChips row={row} />

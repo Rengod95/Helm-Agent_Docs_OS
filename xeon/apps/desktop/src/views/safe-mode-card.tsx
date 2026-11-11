@@ -44,7 +44,7 @@ export function SafeModeCard(): ReactNode {
           {t("desktop.safe.suggest.title", { count: snapshot.startupFailures })}
         </h2>
         <div className="flex min-w-0 items-start gap-1">
-          <p className="m-0 text-ui-sm text-text-secondary">
+          <p className="m-0 text-ui text-text-secondary">
             {t(startOffered ? "desktop.safe.suggest.body" : "desktop.safe.suggest.remote")}
           </p>
           {startOffered ? <InfoTip text={t("desktop.safe.suggest.info")} /> : null}

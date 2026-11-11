@@ -115,7 +115,7 @@ function ReplaceDetails(props: { readonly view: ToolReplaceView }): ReactNode {
       <Alert tone="warning" layout="inline">
         {t("desktop.approvals.replace.pathProtection")}
       </Alert>
-      <div className="text-ui-sm text-text-secondary">{t("desktop.approvals.replace.effect")}</div>
+      <div className="text-ui text-text-secondary">{t("desktop.approvals.replace.effect")}</div>
     </div>
   );
 }
@@ -165,12 +165,12 @@ function McpChangedBlock(props: {
           {t("desktop.approvals.mcpStart.changed.badge")}
         </Badge>
         {changed.fields.length === 0 ? null : (
-          <span className="text-ui-sm text-text-secondary">
+          <span className="text-ui text-text-secondary">
             {t("desktop.approvals.mcpStart.changed.fields", { fields })}
           </span>
         )}
       </div>
-      <div className="text-ui-sm text-text-secondary break-all">
+      <div className="text-ui text-text-secondary break-all">
         {t("desktop.approvals.mcpStart.changed.line", {
           before: changed.beforeCommandLine,
           after: props.commandLine,
@@ -184,7 +184,7 @@ function ArgsFold(props: { readonly view: ToolApprovalView }): ReactNode {
   const { view } = props;
   if (view.argsStored)
     return (
-      <div className="text-ui-sm text-text-secondary">
+      <div className="text-ui text-text-secondary">
         {t("desktop.approvals.args.storedElsewhere")}
       </div>
     );
@@ -205,7 +205,7 @@ function FileChangeBlock(props: { readonly view: FileChangeView }): ReactNode {
   return (
     <div className="grid gap-1.5">
       <div className="flex min-w-0 flex-wrap items-baseline gap-2">
-        <span className="text-ui-sm text-text-secondary">
+        <span className="text-ui text-text-secondary">
           {view.kind === "edit"
             ? t("desktop.approvals.diff.editLabel")
             : t("desktop.approvals.diff.writeLabel")}
@@ -237,7 +237,7 @@ function McpToolBlock(props: { readonly view: McpToolView }): ReactNode {
       <div className="flex min-w-0 flex-wrap items-baseline gap-2">
         <Badge size="xs">{t("desktop.approvals.mcpTool.server", { server: view.server })}</Badge>
         {hasDeclared ? (
-          <span className="text-ui-sm text-text-secondary">
+          <span className="text-ui text-text-secondary">
             {t("desktop.approvals.mcpTool.declared", { hints })}
           </span>
         ) : null}
@@ -319,7 +319,7 @@ export function ToolBody(props: { readonly body: ToolApprovalBody }): ReactNode 
       </ListDescription>
       {/* 기동 승인은 규칙 id 대신 묻는 까닭을 사람 말로 보인다 */}
       {mcp === null ? null : (
-        <div className="text-ui-sm text-text-secondary">{t(MCP_REASON_TEXT[mcp.reason])}</div>
+        <div className="text-ui text-text-secondary">{t(MCP_REASON_TEXT[mcp.reason])}</div>
       )}
       {change === null ? null : <FileChangeBlock view={change} />}
       <ArgsFold view={view} />
@@ -365,7 +365,7 @@ function QuestionField(props: {
                 <>
                   {option.label}
                   {option.recommended === true ? (
-                    <span className="text-ui-sm text-text-secondary">
+                    <span className="text-ui text-text-secondary">
                       {" "}
                       {t("desktop.approvals.option.recommended")}
                     </span>
@@ -436,9 +436,7 @@ export function PlanBody(props: {
   return (
     <>
       {fold === null ? (
-        <div className="text-ui-sm text-text-secondary">
-          {t("desktop.approvals.plan.storageNote")}
-        </div>
+        <div className="text-ui text-text-secondary">{t("desktop.approvals.plan.storageNote")}</div>
       ) : (
         <>
           <MessageCode className={BLOCK_CODE}>{fold.head}</MessageCode>
@@ -483,7 +481,7 @@ export function ReviewBody(props: { readonly review: ReviewView }): ReactNode {
   const totals = reviewTotalsOf(review.files);
   return (
     <>
-      <div className="text-ui-sm text-text-secondary">
+      <div className="text-ui text-text-secondary">
         {t("desktop.approvals.review.totals", { files: totals.files, hunks: totals.hunks })}
       </div>
       <div
@@ -493,11 +491,9 @@ export function ReviewBody(props: { readonly review: ReviewView }): ReactNode {
       >
         {review.files.map((file) => (
           <div key={file.path} role="listitem" className="flex flex-wrap items-baseline gap-2">
-            <span className="text-ui-sm text-text-secondary">
-              {t(REVIEW_CHANGE_ID[file.change])}
-            </span>
+            <span className="text-ui text-text-secondary">{t(REVIEW_CHANGE_ID[file.change])}</span>
             <MessageCode>{file.path}</MessageCode>
-            <span className="text-ui-sm text-text-secondary">
+            <span className="text-ui text-text-secondary">
               {file.binary
                 ? t("desktop.approvals.review.binary")
                 : t("desktop.approvals.review.hunks", { count: file.hunks })}

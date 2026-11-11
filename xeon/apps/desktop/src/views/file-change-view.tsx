@@ -34,7 +34,7 @@ function EditDiff(props: {
     <div className={codeDiffVariants({ variant: "outline", size: "md", className: "rounded-xl" })}>
       <DiffRows rows={props.head} first={0} />
       {props.rest.length === 0 ? null : (
-        <details className="font-ui text-ui-sm text-text-secondary">
+        <details className="font-ui text-ui text-text-secondary">
           <summary className="px-3 py-1">
             {t("desktop.approvals.diff.moreRows", { count: props.rest.length })}
           </summary>
@@ -61,7 +61,7 @@ function WritePreview(props: {
         />
       </div>
       {props.hiddenLines === 0 ? null : (
-        <div className="text-ui-sm text-text-secondary">
+        <div className="text-ui text-text-secondary">
           {t("desktop.approvals.diff.moreLines", { count: props.hiddenLines })}
         </div>
       )}

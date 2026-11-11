@@ -20,9 +20,9 @@ export function CompactionDividerView(props: {
     <div data-compaction-divider className="mx-auto w-full min-w-0 max-w-184 px-3 py-2">
       <div className="flex min-w-0 items-center gap-3">
         <span aria-hidden className="h-px min-w-6 flex-1 bg-border-subtle" />
-        <p className="m-0 flex min-w-0 flex-wrap items-baseline justify-center gap-x-2 text-center text-ui-sm text-text-tertiary">
+        <p className="m-0 flex min-w-0 flex-wrap items-baseline justify-center gap-x-2 text-center text-ui text-text-tertiary">
           <span>{t("desktop.compaction.divider")}</span>
-          {view.reason === null ? null : <span className="text-ui-xs">{t(view.reason)}</span>}
+          {view.reason === null ? null : <span className="text-ui">{t(view.reason)}</span>}
         </p>
         <span aria-hidden className="h-px min-w-6 flex-1 bg-border-subtle" />
         <Button size="xs" variant="ghost" aria-expanded={open} onClick={onToggle}>
@@ -38,7 +38,7 @@ export function CompactionDividerView(props: {
         </Button>
       </div>
       {view.tokensAfter === null ? null : (
-        <p className="m-0 mt-0.5 text-center text-ui-xs text-text-tertiary">
+        <p className="m-0 mt-0.5 text-center text-ui text-text-tertiary">
           {t("desktop.compaction.tokensAfter", { tokens: view.tokensAfter })}
         </p>
       )}
@@ -47,7 +47,7 @@ export function CompactionDividerView(props: {
           role="region"
           tabIndex={0}
           aria-label={t("desktop.compaction.summaryLabel")}
-          className="mt-2 max-h-80 overflow-y-auto rounded-2xl bg-neutral-well px-4 py-3 whitespace-pre-wrap [overflow-wrap:anywhere] text-ui-sm text-text-secondary"
+          className="mt-2 max-h-80 overflow-y-auto rounded-2xl bg-neutral-well px-4 py-3 whitespace-pre-wrap [overflow-wrap:anywhere] text-ui text-text-secondary"
         >
           {record.summary}
         </div>

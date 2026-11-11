@@ -16,7 +16,7 @@ export function SpawnedNotice(): ReactNode {
   return (
     <div
       role="note"
-      className="mx-auto flex w-full max-w-184 flex-none items-center gap-2 px-3 py-3 text-ui-sm text-text-secondary"
+      className="mx-auto flex w-full max-w-184 flex-none items-center gap-2 px-3 py-3 text-ui text-text-secondary"
     >
       <span className="min-w-0 flex-1">{t("desktop.chat.spawned.notice")}</span>
       <Button

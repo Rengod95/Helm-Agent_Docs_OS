@@ -113,7 +113,7 @@ export function UsageBreakdownBody(props: { readonly threadId: ThreadId }): Reac
   if (breakdown === null) return null;
   const { totals, turn } = breakdown;
   return (
-    <div className="mt-2 grid gap-2 text-ui-sm text-text-secondary" data-usage-breakdown>
+    <div className="mt-2 grid gap-2 text-ui text-text-secondary" data-usage-breakdown>
       <div className="grid gap-0.5">
         <p className="m-0 text-text-primary">{t("desktop.usage.breakdown.total")}</p>
         <p className="m-0 tabular-nums">

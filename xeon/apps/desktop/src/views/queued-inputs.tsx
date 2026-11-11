@@ -135,7 +135,7 @@ export function QueuedInputs(props: {
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-1">
-        <span className="text-ui-sm text-text-secondary">{t("term.inputQueue")}</span>
+        <span className="text-ui text-text-secondary">{t("term.inputQueue")}</span>
         <InfoTip text={t("desktop.composer.queue.info")} />
       </div>
       <ul aria-label={t("term.inputQueue")} className="flex flex-wrap gap-1.5">

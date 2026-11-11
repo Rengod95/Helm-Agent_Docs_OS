@@ -152,7 +152,7 @@ describe("TrustCardBody", () => {
     expect(out).toContain("<code>docs: npx -y docs-server</code>");
     expect(out).toContain("<code>local: ./bin/local</code>");
     // 묶음 제목은 경고 문장과 겹치므로 제목 칸 전체로 본다
-    expect(out).toContain('<div class="text-ui-sm text-text-secondary">MCP 서버</div>');
+    expect(out).toContain('<div class="text-ui text-text-secondary">MCP 서버</div>');
     expect(out).toContain("<code>pre.sh</code>");
     expect(out).toContain("<code>review</code>");
     expect(out).toContain("<code>ship</code>");
@@ -178,7 +178,7 @@ describe("TrustCardBody", () => {
   test("without details the card lists the file paths only", () => {
     const out = renderToString(<TrustCardBody card={card} sending="idle" onDecide={() => {}} />);
     expect(out).toContain("<code>.mcp.json</code>");
-    expect(out).not.toContain('<div class="text-ui-sm text-text-secondary">MCP 서버</div>');
+    expect(out).not.toContain('<div class="text-ui text-text-secondary">MCP 서버</div>');
     expect(out).not.toContain("<code>docs");
   });
 

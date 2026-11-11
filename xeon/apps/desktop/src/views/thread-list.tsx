@@ -440,7 +440,7 @@ export function ThreadList(props: {
         />
       </div>
       {error === null ? null : (
-        <div role="alert" className="px-2 text-ui-sm text-danger-text">
+        <div role="alert" className="px-2 text-ui text-danger-text">
           {error}
         </div>
       )}

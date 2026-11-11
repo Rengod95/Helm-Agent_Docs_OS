@@ -144,7 +144,7 @@ export function ExportDialogBody(props: {
         <RadioGroupItem value="markdown">
           <span className="grid">
             <span>{t("desktop.threads.export.markdown")}</span>
-            <span className="text-ui-xs text-text-tertiary">
+            <span className="text-ui text-text-tertiary">
               {t("desktop.threads.export.markdown.hint")}
             </span>
           </span>
@@ -152,15 +152,15 @@ export function ExportDialogBody(props: {
         <RadioGroupItem value="json">
           <span className="grid">
             <span>{t("desktop.threads.export.json")}</span>
-            <span className="text-ui-xs text-text-tertiary">
+            <span className="text-ui text-text-tertiary">
               {t("desktop.threads.export.json.hint")}
             </span>
           </span>
         </RadioGroupItem>
       </RadioGroup>
-      <p className="text-ui-sm text-text-tertiary">{t("desktop.threads.export.secrets")}</p>
+      <p className="text-ui text-text-tertiary">{t("desktop.threads.export.secrets")}</p>
       {running ? (
-        <p className="text-ui-sm text-text-secondary" role="status">
+        <p className="text-ui text-text-secondary" role="status">
           {t("desktop.threads.export.running")}
         </p>
       ) : null}

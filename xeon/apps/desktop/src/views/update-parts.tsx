@@ -59,8 +59,8 @@ export function UpdateBody(props: {
       </ListDescription>
       {lines.length === 0 ? null : (
         <div className="grid gap-1">
-          <span className="text-ui-xs text-text-tertiary">{t("desktop.update.popover.notes")}</span>
-          <ul className="m-0 grid gap-0.5 ps-4 text-ui-sm text-text-secondary">
+          <span className="text-ui text-text-tertiary">{t("desktop.update.popover.notes")}</span>
+          <ul className="m-0 grid gap-0.5 ps-4 text-ui text-text-secondary">
             {lines.map((line) => (
               <li key={line}>{line}</li>
             ))}

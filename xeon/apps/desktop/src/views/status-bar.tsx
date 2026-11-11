@@ -456,7 +456,7 @@ export function LiveList(props: {
         if (items.length === 0) return null;
         return (
           <section key={kind} aria-label={t(LIVE_HEAD[kind])} className="grid gap-0.5">
-            <h3 className="m-0 text-ui-xs font-normal text-text-tertiary">{t(LIVE_HEAD[kind])}</h3>
+            <h3 className="m-0 text-ui font-normal text-text-tertiary">{t(LIVE_HEAD[kind])}</h3>
             {items.map((row, index) => (
               // 대화 없는 실패 행은 대화 id가 없어 순서 번호로 연다(같은 묶음에 여럿이 올 수 있다)
               <LiveRowLine
@@ -499,7 +499,7 @@ function LiveRowLine(props: {
       <span className="grid min-w-0 flex-1 gap-0.5">
         <span className="truncate">{name}</span>
         {failure === null ? null : (
-          <span className="truncate text-ui-xs text-danger-text" title={failure}>
+          <span className="truncate text-ui text-danger-text" title={failure}>
             {failure}
           </span>
         )}
@@ -508,7 +508,7 @@ function LiveRowLine(props: {
   );
   if (goTo === null)
     return (
-      <div className="flex min-w-0 items-center gap-2 text-ui-sm text-text-primary">{content}</div>
+      <div className="flex min-w-0 items-center gap-2 text-ui text-text-primary">{content}</div>
     );
   return (
     <Button
@@ -534,14 +534,14 @@ function ScheduleFailureLine(props: { readonly reason: string | null }): ReactNo
     reason: props.reason ?? t("desktop.schedules.runs.reason.none"),
   });
   return (
-    <div className="flex min-w-0 items-center gap-2 text-ui-sm text-text-primary">
+    <div className="flex min-w-0 items-center gap-2 text-ui text-text-primary">
       <span
         aria-hidden
         className="inline-grid size-5 flex-none place-items-center rounded-md bg-danger-soft text-danger-text"
       >
         <TriangleAlert className="size-3.5" />
       </span>
-      <span className="min-w-0 text-ui-xs text-danger-text [overflow-wrap:anywhere]">{text}</span>
+      <span className="min-w-0 text-ui text-danger-text [overflow-wrap:anywhere]">{text}</span>
     </div>
   );
 }
@@ -564,7 +564,7 @@ function LiveCell(): ReactNode {
       onOpenChange={setOpen}
       body={
         rows.length === 0 ? (
-          <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.status.cell.live.empty")}</p>
+          <p className="m-0 text-ui text-text-tertiary">{t("desktop.status.cell.live.empty")}</p>
         ) : (
           <LiveList
             rows={rows}
