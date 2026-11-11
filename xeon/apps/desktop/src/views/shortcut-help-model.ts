@@ -4,16 +4,16 @@ import { ACTION_IDS, formatKey, type ActionId, type Keymap } from "./shell/keybi
 // 바로 가기 키 도움말(O-09)의 표 모델. 행은 `ACTION_IDS` 순서이고 키는 화면 표기(`formatKey`)다.
 // 사용자가 바꾼 키(`resolveKeymap`의 결과)를 그대로 쓴다.
 
-/** 동작마다 표에 보일 이름. 빠진 동작이 있으면 타입 검사가 실패한다 */
+/** 동작마다 표에 보일 이름. 빠진 동작이 있으면 타입 검사가 실패한다. `nav.N`은 가는 곳의 이름(내비 이름)을 쓴다(DP-69) */
 export const ACTION_LABEL_IDS: Readonly<Record<ActionId, MessageId>> = {
   "palette.open": "desktop.shortcuts.action.paletteOpen",
   "thread.new": "desktop.shortcuts.action.threadNew",
-  "nav.1": "desktop.shortcuts.action.nav1",
-  "nav.2": "desktop.shortcuts.action.nav2",
-  "nav.3": "desktop.shortcuts.action.nav3",
-  "nav.4": "desktop.shortcuts.action.nav4",
-  "nav.5": "desktop.shortcuts.action.nav5",
-  "nav.6": "desktop.shortcuts.action.nav6",
+  "nav.1": "desktop.shell.nav.chat",
+  "nav.2": "desktop.shell.nav.inbox",
+  "nav.3": "desktop.shell.nav.proposals",
+  "nav.4": "desktop.shell.nav.schedules",
+  "nav.5": "desktop.shell.nav.connection",
+  "nav.6": "desktop.shell.nav.plugins",
   "settings.open": "desktop.shortcuts.action.settingsOpen",
   "sidebar.toggle": "desktop.shortcuts.action.sidebarToggle",
   "panel.toggle": "desktop.shortcuts.action.panelToggle",

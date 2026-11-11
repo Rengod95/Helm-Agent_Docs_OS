@@ -113,13 +113,11 @@ export const threads: Thread[] = [
   { id: "t7", folder: "~/notes", title: "", status: "resumable", approvals: 0 },
 ];
 export const nav: NavEntry[] = [
-  { id: "chat", label: T.thread, badge: 2 },
-  { id: "inbox", label: T.inbox, badge: 5 },
   { id: "proposals", label: T.proposals, badge: 3 },
   { id: "schedules", label: T.schedules, badge: 1, tone: "danger" },
-  { id: "connection", label: T.connection },
 ];
-// 대화 영역 주 내비는 다섯이다: "연결"(P-08)은 대화 영역에 남는다(§4.2, §4.9.3, 결정 U-3). 연결 실패 때만 경고 점.
+// 대화 영역 주 내비(DP-69, 2026-11-11): "대화" 줄은 맨 위 "새 대화" 줄과 대화 목록이, "받은 요청"은 오른쪽 막대가 맡고,
+// "연결"은 설정으로 갔다. 앱의 셋째 줄 "플러그인 화면"은 이 시안의 크래프트 쪽 묶음이 그린다.
 
 /** 크래프트 내비 여섯(§4.9.3, 결정 C-6: "만들기"는 "구성"에 합쳐 "새 그룹" 동작이 됨). badge는 글자 그대로: 확장 "!1"(자동 꺼짐·실패 확장 수), 테스트 실행 "1*"(실행 중 수). */
 export interface WorkbenchNavEntry {

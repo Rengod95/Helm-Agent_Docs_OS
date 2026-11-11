@@ -1,4 +1,4 @@
-// S-01 앱 셸. 제목 띠 없음(DP-05). 왼쪽 패널(창 위아래 끝까지) | 가운데 무대(투명) | 오른쪽 떠 있는 막대 + well | 아래 상태 표시줄.
+// S-01 앱 셸. 제목 띠 없음(DP-05). 왼쪽 패널(창 위아래 끝까지, 접으면 48px 아이콘 막대) | 가운데 무대(투명, 오른쪽 끝까지) | 오른쪽 떠 있는 막대 + well | 아래 상태 표시줄.
 // 두 영역(대화, 작업대)은 이 셸 하나를 같이 쓰고 왼쪽 패널 내용과 오른쪽 탭만 바뀐다. 화면은 등록부(registry)가 준다.
 import { MissingArt } from "../illustrations/index.tsx";
 import { t } from "@fresnel/client/i18n";
@@ -6,7 +6,7 @@ import { EmptyState, Toaster } from "@caustic/react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { EndPanel, wellWidthOf } from "./end-panel.tsx";
 import type { ContextProfile } from "./context-picker.tsx";
-import { resolveKeymap, type ActionId } from "./keybindings.ts";
+import { formatKey, resolveKeymap, type ActionId } from "./keybindings.ts";
 import { runShellAction, resolveShortcut } from "./shortcuts.ts";
 import type { ShellRegistry } from "./registry.ts";
 import { StartPanel } from "./start-panel.tsx";
@@ -179,13 +179,15 @@ function ShellFrame(props: ShellProps): ReactNode {
   const startOpen = useShell((s) => s.startOpen);
   const railArea = useShell((s) => s.area);
   const railScreen = useShell((s) => s.places[s.area].screen);
-  // 오른쪽 막대가 있으면 그 폭만큼 무대 오른쪽을 비운다. 막대가 머리줄의 단추를 가리지 않게 한다.
-  // 머리줄(`.shell-header`)은 그 여백을 `--shell-rail`로 받아 무대 끝(막대 아래)까지 뻗고 안쪽 여백으로 단추를 피한다
+  // 무대는 오른쪽 끝까지 찬다(DP-68). 오른쪽 막대는 그 위에 떠 있고, 겹치는 곳만 피한다:
+  // 머리줄(`.shell-header`)은 `--shell-rail`만큼 안쪽 여백을 둬 끝 단추가 막대 밑에 들지 않고, 막대는 창 끝에서 12px 떨어져 스크롤 막대를 덮지 않는다(end-panel.tsx)
   const hasRail = props.registry.endTabs(railArea, railScreen).length > 0;
   // 크래프트 개요는 캔버스가 무대 가장자리까지 깔린다. 여백과 막대 자리 비우기를 두지 않고, 막대와 겹치는 판은 캔버스가 스스로 비킨다
   const bleed = railArea === "workbench" && railScreen === "overview" && !props.settingsOpen;
   useWindowResize();
   useShellShortcuts(props);
+  const keymap = useMemo(() => resolveKeymap(props.keyOverrides), [props.keyOverrides]);
+  const keyLabel = (id: ActionId): string => formatKey(keymap[id], props.mac);
   const compact = layout === "compact";
   const navigate = (screen: string): void => {
     props.onSettingsOpenChange(false);
@@ -228,6 +230,11 @@ function ShellFrame(props: ShellProps): ReactNode {
               }}
               threadList={props.threadList}
               profiles={props.profiles ?? []}
+              onNewThread={() => {
+                if (compact) actions.setStartOpen(false);
+                props.onAction?.("thread.new");
+              }}
+              keyLabel={keyLabel}
             />
           </div>
         )}
@@ -237,7 +244,9 @@ function ShellFrame(props: ShellProps): ReactNode {
               id={STAGE_ID}
               tabIndex={-1}
               aria-label={t("desktop.shell.stage.label")}
-              className={`flex min-w-0 flex-1 flex-col outline-none ${hasRail && !bleed ? "pe-10 [--shell-rail:2.5rem]" : ""}`}
+              data-rail={hasRail && !bleed ? "" : undefined}
+              // `--shell-rail`: 머리 오른쪽 안쪽 여백(막대 34 + 창 끝 12 → 48). `--stage-rail`: 머리 뒤 본문의 같은 여백(styles.css DP-68)
+              className={`flex min-w-0 flex-1 flex-col outline-none ${hasRail && !bleed ? "[--shell-rail:3rem] [--stage-rail:3rem]" : ""}`}
             >
               <Stage
                 registry={props.registry}

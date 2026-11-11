@@ -53,6 +53,7 @@ import {
   PanelLeft,
   Search,
   Settings,
+  SquarePen,
   SquareStack,
   Target,
   WandSparkles,
@@ -567,6 +568,16 @@ export function StartPanel({
             </IconButton>
           </div>
           <AreaSwitch />
+          {/* 대화 영역 머리 둘째 줄: 고정 "새 대화" 줄(DP-69). 단축키는 곁 정보 크기 */}
+          {!wb && (
+            <ListNavigation aria-label={L("새 대화")} kind="navigation" size="sm" as="div">
+              <ListNavigationGroup>
+                <ListNavigationItem icon={<SquarePen />} meta="⌘N" onSelect={list.onNew}>
+                  {L("새 대화")}
+                </ListNavigationItem>
+              </ListNavigationGroup>
+            </ListNavigation>
+          )}
           {wb &&
             (workbench?.contextField ?? <ContextPicker onGoToThread={workbench?.onGoToThread} />)}
         </div>

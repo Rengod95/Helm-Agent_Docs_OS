@@ -264,6 +264,8 @@ export function App(props: AppProps): ReactNode {
   const onAction = (id: ActionId): void => {
     if (id === "thread.new") runCommand("thread.new");
     else if (id === "turn.interrupt") runCommand("turn.interrupt");
+    // ⌘5: 내비 줄은 없어졌고(DP-69) 연결로 가는 길은 `connection.open` 하나다
+    else if (id === "nav.5") runCommand("connection.open");
     else if (id === "help.shortcuts") setHelpOpen(true);
     else if (id === "composer.focus") {
       if (selected === null) return;

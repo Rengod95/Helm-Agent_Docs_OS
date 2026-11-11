@@ -259,10 +259,8 @@ describe("plugin command values and rows", () => {
 describe("palette screen navigation", () => {
   test("the current area's nav screens come first, then the other area's", () => {
     expect(screenTargetsOf("chat").map((t) => screenValue(t.area, t.screen))).toEqual([
-      "screen:chat:chat",
       "screen:chat:proposals",
       "screen:chat:schedules",
-      "screen:chat:connection",
       "screen:chat:plugins",
       "screen:workbench:overview",
       "screen:workbench:extensions",
@@ -278,15 +276,13 @@ describe("palette screen navigation", () => {
       "metrics",
       "compose",
       "engine",
-      "chat",
       "proposals",
       "schedules",
-      "connection",
       "plugins",
     ]);
   });
 
-  test("the plugin pages row is the chat area's sixth screen and carries the nav.6 shortcut", () => {
+  test("the plugin pages row is the chat area's last screen and keeps the nav.6 shortcut", () => {
     expect(screenTargetsOf("chat").find((t) => t.screen === "plugins")).toEqual({
       area: "chat",
       screen: "plugins",
@@ -302,6 +298,9 @@ describe("palette screen navigation", () => {
     // 받은 요청은 사이드바 탐색에 없다. 화면은 남아 있고 바로 가기 없이 팔레트로만 열린다
     expect(screenTargetsOf("chat").find((t) => t.screen === "inbox")?.action).toBeUndefined();
     expect(screenTargetsOf("chat").find((t) => t.screen === "overview")?.action).toBeUndefined();
+    // 대화와 연결은 내비 줄이 없어 화면 이동 행도 없다(DP-69). 연결은 명령 `connection.open`으로 연다
+    expect(screenTargetsOf("chat").find((t) => t.screen === "chat")).toBeUndefined();
+    expect(screenTargetsOf("chat").find((t) => t.screen === "connection")).toBeUndefined();
   });
 
   test("a screen value reads back as its area and screen, and an unknown area or a screen of the other area is not a value", () => {

@@ -56,6 +56,26 @@ describe("shell shortcut actions", () => {
     expect(s.calls).toEqual([false]);
   });
 
+  test("nav.1 opens the chat screen in the chat area though the sidebar has no chat row", () => {
+    const store = createShellStore(1400);
+    store.actions.switchArea("workbench");
+    const s = settings();
+    expect(runShellAction("nav.1", store.read.getState(), store.actions, s)).toBe(true);
+    const state = store.read.getState();
+    expect(state.area).toBe("chat");
+    expect(state.places.chat.screen).toBe("chat");
+    expect(s.calls).toEqual([false]);
+  });
+
+  test("nav.5 is left to the app (connection.open) and the shell does not move", () => {
+    const store = createShellStore(1400);
+    const s = settings();
+    const before = store.read.getState();
+    expect(runShellAction("nav.5", before, store.actions, s)).toBe(false);
+    expect(store.read.getState().places.chat.screen).toBe(before.places.chat.screen);
+    expect(s.calls).toEqual([]);
+  });
+
   test("nav.6 opens the plugin pages screen in the chat area", () => {
     const store = createShellStore(1400);
     store.actions.switchArea("workbench");

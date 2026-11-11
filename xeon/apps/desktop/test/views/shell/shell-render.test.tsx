@@ -57,20 +57,46 @@ function render(
 }
 
 describe("Shell slots", () => {
-  test("the chat area draws the registered screen, the six chat nav items and the slots", () => {
+  test("the chat area draws the registered screen, the new-chat row, the three chat nav items and the slots", () => {
     const out = render(1400);
     expect(out).toContain("채팅 화면 내용");
-    for (const label of ["대화", "받은 요청", "제안", "예약", "연결", "플러그인 화면"]) {
+    for (const label of [
+      t("desktop.shell.start.newThread"),
+      "⌘N",
+      "제안",
+      "예약",
+      "플러그인 화면",
+    ]) {
       expect(out).toContain(label);
     }
+    expect(out).not.toContain(">연결<");
     expect(out).not.toContain("개요");
     expect(out).toContain("대화 목록 슬롯");
     expect(out).toContain("상태 표시줄 슬롯");
   });
 
-  test("the stage reserves the end rail width so the rail cannot cover head buttons", () => {
+  test("the stage fills to the right edge; only the head and the body after it keep the rail inset", () => {
     const out = render(1400);
-    expect(out).toMatch(/<main[^>]*class="[^"]*\bpe-10\b/);
+    const main = /<main[^>]*>/.exec(out)?.[0] ?? "";
+    expect(main).not.toMatch(/\bpe-10\b/);
+    expect(main).toContain("data-rail");
+    expect(main).toContain("[--shell-rail:3rem]");
+  });
+
+  test("a closed start panel stays as a 48px icon rail: new chat, nav icons and settings, no thread list", () => {
+    const out = render(1400, (model) => ({ ...model, startOpen: false }));
+    const items = [...out.matchAll(/<button[^>]*data-rail-item[^>]*aria-label="([^"]*)"/g)].map(
+      (m) => m[1],
+    );
+    expect(items).toEqual([
+      t("desktop.shell.start.newThread"),
+      "제안",
+      "예약",
+      "플러그인 화면",
+      t("desktop.shell.settings"),
+    ]);
+    expect(out).toContain("w-[calc(3rem+1px)]");
+    expect(out).not.toContain("대화 목록 슬롯");
   });
 
   test("a screen id nobody registered shows the not-yet empty state", () => {

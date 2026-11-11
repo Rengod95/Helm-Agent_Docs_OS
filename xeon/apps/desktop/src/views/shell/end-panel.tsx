@@ -92,10 +92,11 @@ export function EndPanel(props: { readonly registry: ShellRegistry }): ReactNode
   if (current === undefined) return null;
   const label = tabTitleOf(t(current.label), currentBadge);
   return (
+    // 막대는 창 오른쪽 끝에서 12px(end-3): 무대가 끝까지 차므로(DP-68) 그 끝의 스크롤 막대(≤ 11px)와 겹치지 않는다. 위는 6px로 첫 칸이 머리 가운데에 온다
     <aside
       ref={asideRef}
       aria-label={t("desktop.shell.end.label")}
-      className="pointer-events-none absolute end-1.5 top-1.5 bottom-0 z-20 flex items-start gap-1.5"
+      className="pointer-events-none absolute end-3 top-1.5 bottom-0 z-20 flex items-start gap-1.5"
     >
       {tabs.map((tab) =>
         tab.alwaysMounted === undefined ? null : (
