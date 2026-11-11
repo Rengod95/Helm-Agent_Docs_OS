@@ -23,7 +23,8 @@ function packagedResources(): string {
   const gatewayFile = path.join(folder, "fresnel-web");
   writeFileSync(gatewayFile, "");
   const sidecar = path.join(folder, SIDECAR_NAME);
-  writeFileSync(sidecar, "#!/bin/sh\ncat > /dev/null\nexit 0\n");
+  // 셸 내장 명령만 쓴다. 자식 환경의 PATH가 비어도(CI 리눅스) 돌아야 한다
+  writeFileSync(sidecar, "#!/bin/sh\nwhile IFS= read -r _line; do :; done\nexit 0\n");
   chmodSync(sidecar, 0o755);
   return resourcesDirOf(COMPILED_HERE, gatewayFile);
 }
