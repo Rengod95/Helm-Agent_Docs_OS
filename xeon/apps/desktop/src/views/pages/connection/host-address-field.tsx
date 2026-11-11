@@ -129,60 +129,66 @@ function WithInfo(props: { readonly text: string; readonly children: ReactNode }
 function SshRows({ fields, onFields, errorOf, busy }: RowsProps<SshFields>): ReactNode {
   return (
     <div className="grid gap-4">
-      <Field
-        label={t("desktop.connection.host.field.user")}
-        optional
-        optionalLabel={t("desktop.connection.host.optional")}
-        error={errorOf("user")}
-        disabled={busy}
-        className={FIELD_TEXT}
-      >
-        <Input
-          className="font-mono"
-          value={fields.user}
-          autoComplete="off"
-          spellCheck={false}
-          onValueChange={(user) => {
-            onFields({ ...fields, user });
-          }}
-        />
-      </Field>
-      <Field
-        label={t("desktop.connection.host.field.host")}
-        required
-        error={errorOf("host")}
-        disabled={busy}
-        className={FIELD_TEXT}
-      >
-        <Input
-          className="font-mono"
-          value={fields.host}
-          autoComplete="off"
-          spellCheck={false}
-          onValueChange={(host) => {
-            onFields({ ...fields, host });
-          }}
-        />
-      </Field>
-      <Field
-        label={t("desktop.connection.host.field.port")}
-        optional
-        optionalLabel={t("desktop.connection.host.optional")}
-        error={errorOf("port")}
-        disabled={busy}
-        className={FIELD_TEXT}
-      >
-        <Input
-          className="font-mono"
-          value={fields.port}
-          placeholder="22"
-          inputMode="numeric"
-          autoComplete="off"
-          onValueChange={(port) => {
-            onFields({ ...fields, port });
-          }}
-        />
-      </Field>
+      {/* 사용자 · 호스트 · 포트를 주소 모양 그대로 한 줄에 둔다(좁으면 세 줄) */}
+      <div className="@container">
+        <div className="grid gap-4 @[30rem]:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_6rem]">
+          <Field
+            label={t("desktop.connection.host.field.user")}
+            optional
+            optionalLabel={t("desktop.connection.host.optional")}
+            error={errorOf("user")}
+            disabled={busy}
+            className={FIELD_TEXT}
+          >
+            <Input
+              className="font-mono"
+              value={fields.user}
+              placeholder={t("desktop.connection.host.placeholder.user")}
+              autoComplete="off"
+              spellCheck={false}
+              onValueChange={(user) => {
+                onFields({ ...fields, user });
+              }}
+            />
+          </Field>
+          <Field
+            label={t("desktop.connection.host.field.host")}
+            required
+            error={errorOf("host")}
+            disabled={busy}
+            className={FIELD_TEXT}
+          >
+            <Input
+              className="font-mono"
+              value={fields.host}
+              autoComplete="off"
+              spellCheck={false}
+              onValueChange={(host) => {
+                onFields({ ...fields, host });
+              }}
+            />
+          </Field>
+          <Field
+            label={t("desktop.connection.host.field.port")}
+            optional
+            optionalLabel={t("desktop.connection.host.optional")}
+            error={errorOf("port")}
+            disabled={busy}
+            className={FIELD_TEXT}
+          >
+            <Input
+              className="font-mono"
+              value={fields.port}
+              placeholder="22"
+              inputMode="numeric"
+              autoComplete="off"
+              onValueChange={(port) => {
+                onFields({ ...fields, port });
+              }}
+            />
+          </Field>
+        </div>
+      </div>
       <Field
         label={t("desktop.connection.host.field.socket")}
         required

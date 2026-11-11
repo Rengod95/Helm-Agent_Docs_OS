@@ -220,10 +220,11 @@ describe("the host rows connect and lock", () => {
     await screen.cleanup();
   });
 
-  test("the host the engine is on says connected and has no connect button; the others keep theirs", async () => {
+  test("the host the engine is on is the card, not a list row; the other hosts keep their connect buttons", async () => {
     const screen = await mountScreen();
+    // 이 컴퓨터는 위 카드의 제목으로만 보이고 목록 행으로는 다시 나오지 않는다
     expect(screen.container.textContent).toContain("이 컴퓨터(앱 안)");
-    expect(screen.container.textContent).toContain("연결됨");
+    expect(screen.container.textContent).not.toContain("연결됨");
     expect(connectButtons(screen.container).map((button) => button.disabled)).toEqual([
       false,
       false,

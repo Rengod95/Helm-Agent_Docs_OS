@@ -328,24 +328,28 @@ export function HostSection(props: {
               {t("desktop.connection.targets.empty")}
             </p>
           ) : null}
+          {/* 지금 연결된 호스트는 위 카드가 보이므로 목록에서 뺀다. 목록은 "옮겨 갈 수 있는 다른 호스트"다 */}
           <div className="grid gap-1">
-            <HostRow
-              label={t("desktop.connection.targets.local")}
-              address={null}
-              kindBadge={null}
-              status={localStatus}
-              connect={
-                <ConnectSlot
-                  state={state}
-                  choice={LOCAL_CHOICE}
-                  status={localStatus}
-                  handlers={handlers}
-                />
-              }
-              menu={null}
-            />
+            {sameChoice(state.engineTarget, LOCAL_CHOICE) ? null : (
+              <HostRow
+                label={t("desktop.connection.targets.local")}
+                address={null}
+                kindBadge={null}
+                status={localStatus}
+                connect={
+                  <ConnectSlot
+                    state={state}
+                    choice={LOCAL_CHOICE}
+                    status={localStatus}
+                    handlers={handlers}
+                  />
+                }
+                menu={null}
+              />
+            )}
             {rows.map((entry) => {
               const choice: TargetChoice = { kind: "remote", entry };
+              if (sameChoice(state.engineTarget, choice)) return null;
               const status = hostStatusOf(state, engine, choice);
               return (
                 <HostRow

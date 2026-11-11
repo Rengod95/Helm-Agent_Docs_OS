@@ -269,12 +269,15 @@ export function CurrentHostCard(props: {
               aria-label={t("desktop.connection.status.heading")}
               className={ROWS_CLASS}
             >
-              <ListDescriptionRow term={t("desktop.connection.status.state")}>
-                <span className="inline-flex items-center gap-2">
-                  <span aria-hidden className={`size-1.5 rounded-full ${engineDotOf(engine)}`} />
-                  {t(engineMessageOf(engine))}
-                </span>
-              </ListDescriptionRow>
+              {/* 엔진 상태가 머리 배지와 같은 말이면 줄을 두지 않는다(같은 정보를 두 번 보이지 않는다) */}
+              {status !== null && t(status.label) === t(engineMessageOf(engine)) ? null : (
+                <ListDescriptionRow term={t("desktop.connection.status.state")}>
+                  <span className="inline-flex items-center gap-2">
+                    <span aria-hidden className={`size-1.5 rounded-full ${engineDotOf(engine)}`} />
+                    {t(engineMessageOf(engine))}
+                  </span>
+                </ListDescriptionRow>
+              )}
               <ConnectedClientsRow state={state.clients} onRetry={handlers.retryClients} />
             </ListDescription>
             {/* 이 기기의 동작(서비스 멈추기, 엔진 다시 시작, 진단 복사)은 실행 방식과 진단 섹션이 그린다. 원격 대상에서는 그 섹션이 없어 여기 둔다 */}
