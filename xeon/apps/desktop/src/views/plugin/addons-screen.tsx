@@ -53,7 +53,7 @@ import {
 import { PluginView } from "./plugin-view.tsx";
 import { useThreadSwitchOf } from "./thread-switches.tsx";
 
-// 대화 영역 "추가 기능" 화면(화면 id `plugins`, ADR-0021 §3.11, desktop-ux DP-72~74).
+// 대화 영역 "플레이그라운드" 화면(화면 id `plugins`, ADR-0021 §3.11, desktop-ux DP-72~74).
 // 세 자리: 목록(플러그인마다 한 행) → 상세(그 플러그인이 더한 화면, 대화에 더한 것, 권한, 정보) → 실행(화면 하나, `PluginView`).
 // 모델은 `addon-model.ts`(순수), 치수 근거는 노트 `design/cyY-design.md`다.
 
@@ -773,7 +773,7 @@ function routeOfTarget(target: AddonRequestTarget): AddonRoute {
 }
 
 /**
- * 지금 자리. 화면이 새로 열리면 목록부터 보이고, 아직 따르지 않은 요청(사이드바 화면, 크래프트의 "추가 기능에서 보기")이 있으면 그 자리다.
+ * 지금 자리. 화면이 새로 열리면 목록부터 보이고, 아직 따르지 않은 요청(사이드바 화면, 크래프트의 "플레이그라운드에서 보기")이 있으면 그 자리다.
  * 열려 있는 동안 새 요청이 오면 그 자리로 간다
  */
 function useAddonRoute(): readonly [AddonRoute, (route: AddonRoute) => void] {
@@ -793,7 +793,7 @@ function useAddonRoute(): readonly [AddonRoute, (route: AddonRoute) => void] {
   return [route, setRoute];
 }
 
-/** 대화 영역 "추가 기능" 화면 */
+/** 대화 영역 "플레이그라운드" 화면 */
 export function AddonsScreen(): ReactNode {
   const state = usePluginUiState();
   const moves = useAddonMoves();

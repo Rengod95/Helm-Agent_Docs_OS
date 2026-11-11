@@ -14,7 +14,7 @@ import {
 import { APP_DECL, uiEntryOf } from "../../plugin-ui/support.ts";
 import { entry } from "../workbench/support.tsx";
 
-// 추가 기능 목록·상세 모델(addon-model.ts). 값을 그대로 비교한다.
+// 플레이그라운드 목록·상세 모델(addon-model.ts). 값을 그대로 비교한다.
 
 const NO_META: AddonMetaMap = new Map();
 

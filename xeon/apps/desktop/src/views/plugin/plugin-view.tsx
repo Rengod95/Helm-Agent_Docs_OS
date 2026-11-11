@@ -93,7 +93,7 @@ function Note(props: { readonly text: string; readonly dense?: boolean }): React
   );
 }
 
-/** 실행 화면의 뒤로 가기: 추가 기능 화면이 연 화면이면 머리에 플러그인 이름과 그 상세로 가는 단추를 둔다 */
+/** 실행 화면의 뒤로 가기: 플레이그라운드 화면이 연 화면이면 머리에 플러그인 이름과 그 상세로 가는 단추를 둔다 */
 export interface PluginViewBack {
   /** 플러그인 표시 이름 */
   readonly plugin: string;
@@ -121,7 +121,7 @@ function AppMarker(props: { readonly reason: string | undefined }): ReactNode {
 }
 
 /**
- * 화면을 열 수 없는 상태 글. 추가 기능 화면의 실행 자리(`page`)에서는 본문 열 위의 경고(Alert outline, DP-59)로,
+ * 화면을 열 수 없는 상태 글. 플레이그라운드 화면의 실행 자리(`page`)에서는 본문 열 위의 경고(Alert outline, DP-59)로,
  * 옆 탭에서는 한 줄 글로 그린다(DP-58: 행동을 막는 글은 보이게)
  */
 function StateNote(props: {
@@ -141,7 +141,7 @@ function StateNote(props: {
 
 /**
  * 머리: 제목(strong) 옆에 연한 메타 한 줄, 앱 화면이면 "플러그인 앱" 표지(툴팁은 앱 선언의 이유), 끝에 "대화로".
- * 추가 기능 화면에서 열었으면(`back`) 앞에 뒤로 가기, 메타는 플러그인 이름 하나다(버전·등급은 상세에 있다).
+ * 플레이그라운드 화면에서 열었으면(`back`) 앞에 뒤로 가기, 메타는 플러그인 이름 하나다(버전·등급은 상세에 있다).
  * 선 없이 간격으로만 나눈다(DP-03). 폭은 시안 b01 `FRAME_WIDTH`(가운데 68rem, 좌우 여백 한 번)다
  */
 function Header(props: {
@@ -643,7 +643,7 @@ export function EntrySurface(props: {
 }
 
 /**
- * 페이지·패널 화면 하나. `back`이 있으면 추가 기능 화면의 실행 자리다: 머리에 뒤로 가기와 플러그인 이름을 두고,
+ * 페이지·패널 화면 하나. `back`이 있으면 플레이그라운드 화면의 실행 자리다: 머리에 뒤로 가기와 플러그인 이름을 두고,
  * 열 수 없는 상태 글은 본문 열 위의 경고(Alert)로 보인다(DP-58: 행동을 막는 글은 보이게)
  */
 export function PluginView(props: {

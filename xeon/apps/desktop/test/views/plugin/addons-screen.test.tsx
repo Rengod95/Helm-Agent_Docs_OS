@@ -20,7 +20,7 @@ import { APP_DECL, uiEntryOf } from "../../plugin-ui/support.ts";
 import { inContexts } from "../workbench/support.tsx";
 import { loadedPluginUi } from "./support.tsx";
 
-// 추가 기능 화면(addons-screen.tsx)의 첫 장면(서버 렌더)과 크래프트로 가는 동작.
+// 플레이그라운드 화면(addons-screen.tsx)의 첫 장면(서버 렌더)과 크래프트로 가는 동작.
 
 const VIEWDEMO: readonly ExtUiEntry[] = [
   uiEntryOf({ extension: "viewdemo", id: "notes", title: "Native demo", version: "1.0.0" }),
@@ -56,11 +56,11 @@ beforeEach(() => {
   if (pending !== undefined) markAddonRequest(pending);
 });
 
-describe("추가 기능 목록", () => {
-  test("the header says Add-ons with a manage button, and each plugin is one row with its screen count", async () => {
+describe("플레이그라운드 목록", () => {
+  test("the header says Playground with a manage button, and each plugin is one row with its screen count", async () => {
     const html = await screenHtml(VIEWDEMO);
     expect(html).toContain(`>${t("desktop.shell.nav.plugins")}</h1>`);
-    expect(t("desktop.shell.nav.plugins")).toBe("추가 기능");
+    expect(t("desktop.shell.nav.plugins")).toBe("플레이그라운드");
     expect(html).toContain(t("desktop.addons.manage"));
     expect(html).toContain(t("desktop.addons.intro"));
     expect(html).toContain(">viewdemo<");
@@ -104,7 +104,7 @@ function detailHtml(entries: readonly ExtUiEntry[], name: string, meta: AddonMet
     ),
   );
 }
-describe("추가 기능 상세", () => {
+describe("플레이그라운드 상세", () => {
   test("orders the page: head with manage and open, screens, conversation, access, about", () => {
     const html = detailHtml(
       VIEWDEMO,

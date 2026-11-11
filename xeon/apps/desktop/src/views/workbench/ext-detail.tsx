@@ -359,7 +359,7 @@ export function FailureRecords(props: {
 }
 
 /**
- * 추가 기능 화면의 그 플러그인 상세로 간다: 대화 영역의 `plugins` 화면(내비 항목 하나). 상세를 먼저 요청하고 영역과 그 자리를 셸 행동으로 바꾼다
+ * 플레이그라운드 화면의 그 플러그인 상세로 간다: 대화 영역의 `plugins` 화면(내비 항목 하나). 상세를 먼저 요청하고 영역과 그 자리를 셸 행동으로 바꾼다
  */
 export function openPluginScreens(shell: ShellActions, name: string): void {
   requestAddon(name);
@@ -368,8 +368,8 @@ export function openPluginScreens(shell: ShellActions, name: string): void {
 }
 
 /**
- * "추가 기능에서 보기" 단추. 이 확장이 앱에 더한 것(`ext.ui.list` 항목, 자리 무관)이 있을 때만 그린다.
- * 추가 기능 목록에 드는 기준(`addonRowsOf`)과 같다
+ * "플레이그라운드에서 보기" 단추. 이 확장이 앱에 더한 것(`ext.ui.list` 항목, 자리 무관)이 있을 때만 그린다.
+ * 플레이그라운드 목록에 드는 기준(`addonRowsOf`)과 같다
  */
 function PluginScreensLink(props: { readonly name: string }): ReactNode {
   const plugin = usePluginUiState();

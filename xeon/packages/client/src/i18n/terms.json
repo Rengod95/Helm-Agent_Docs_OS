@@ -442,8 +442,8 @@
       "en": "Add-on"
     },
     "ui": {
-      "ko": "추가 기능",
-      "en": "Add-ons"
+      "ko": "플레이그라운드",
+      "en": "Playground"
     },
     "surfaces": ["chat"],
     "ids": ["addons", "plugins"],

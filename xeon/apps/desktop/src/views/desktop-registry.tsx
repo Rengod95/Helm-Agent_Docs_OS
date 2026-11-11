@@ -218,7 +218,7 @@ const CONNECTION_SCREEN: ScreenDef = {
   render: () => <ConnectionScreen />,
 };
 
-// 추가 기능(내비 항목 하나, 화면 id `plugins`)은 대화 영역에 산다. 확장 상세의 "추가 기능에서 보기"도 여기로 간다(ext-detail.tsx).
+// 플레이그라운드(내비 항목 하나, 화면 id `plugins`)은 대화 영역에 산다. 확장 상세의 "플레이그라운드에서 보기"도 여기로 간다(ext-detail.tsx).
 // "관리"·"플러그인 만들기"가 크래프트 스토어를 쓰므로 등록할 때 워크벤치 스토어로 감싼다
 const PLUGINS_SCREEN: ScreenDef = {
   id: "plugins",

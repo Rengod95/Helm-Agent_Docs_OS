@@ -5,11 +5,11 @@ import type { ExtListEntry, ExtTrust, ExtUiEntry } from "@fresnel/contracts/wire
 import { appsAllowed } from "../../plugin-ui/policy-context.ts";
 import { HELM_EXTENSION } from "./plugin-pick.ts";
 
-// "추가 기능"(플러그인이 앱에 더한 화면과 기능, ADR-0021 §3.11) 목록과 상세의 모델. 순수 함수이고 그리지 않는다.
+// "플레이그라운드"(플러그인이 앱에 더한 화면과 기능, ADR-0021 §3.11) 목록과 상세의 모델. 순수 함수이고 그리지 않는다.
 // 입력은 `ext.ui.list` 항목(화면 런타임 상태), `ext.list` 행(표시 이름, 켜짐), `ext.get` 매니페스트(설명, 만든 이)다.
 // 셋 중 뒤의 둘은 늦게 오거나 없을 수 있어 없으면 항목만으로 그린다.
 
-/** 추가 기능 화면 안의 자리. 목록, 플러그인 하나의 상세, 화면 하나의 실행 */
+/** 플레이그라운드 화면 안의 자리. 목록, 플러그인 하나의 상세, 화면 하나의 실행 */
 export type AddonRoute =
   | { readonly kind: "list" }
   | { readonly kind: "plugin"; readonly name: string }

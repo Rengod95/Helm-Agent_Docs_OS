@@ -16,7 +16,7 @@ Fresnel 로고는 두 조각으로 갈라진 유리 결정이다(6차 확정, 20
 
 | 쓰임 | 파일 | 크기 |
 |---|---|---|
-| macOS 앱 아이콘(Dock, Finder, ⌘Tab) | `xeon/apps/desktop-shell/build/icon.icns` | 16~1024 (10장) |
+| macOS 앱 아이콘(Dock, Finder, ⌘Tab). 기본은 다크 버전 [결정: 2026-11-11 사용자] | `xeon/apps/desktop-shell/build/icon.icns` | 16~1024 (10장) |
 | 브라우저 탭 아이콘 | `xeon/apps/desktop/public/favicon.ico`, `public/brand/favicon-{16,32,48}.png` | 16, 32, 48 |
 | iOS 홈 화면 | `public/brand/apple-touch-icon.png` | 180 (모서리는 iOS가 깎는다) |
 | 웹 앱 설치(PWA) | `public/brand/site.webmanifest`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png` | 192, 512 |

@@ -345,7 +345,7 @@ export function ThreadSwitches(props: { readonly heading?: boolean }): ReactNode
   );
 }
 
-/** 플러그인 하나의 "이 대화에서 쓰기" 스위치 그림(추가 기능 상세가 한 줄로 그린다) */
+/** 플러그인 하나의 "이 대화에서 쓰기" 스위치 그림(플레이그라운드 상세가 한 줄로 그린다) */
 export type ThreadSwitchOne =
   /** 대화가 없거나 연결이 없거나 읽는 중·실패, 또는 면제 tier라 스위치를 보이지 않는다. `note`는 아래 줄 글 */
   | { readonly kind: "none"; readonly note: MessageId | undefined }

@@ -60,7 +60,13 @@ describe("Shell slots", () => {
   test("the chat area draws the registered screen, the new-chat row, the three chat nav items and the slots", () => {
     const out = render(1400);
     expect(out).toContain("채팅 화면 내용");
-    for (const label of [t("desktop.shell.start.newThread"), "⌘N", "제안", "예약", "추가 기능"]) {
+    for (const label of [
+      t("desktop.shell.start.newThread"),
+      "⌘N",
+      "제안",
+      "예약",
+      "플레이그라운드",
+    ]) {
       expect(out).toContain(label);
     }
     expect(out).not.toContain(">연결<");
@@ -86,7 +92,7 @@ describe("Shell slots", () => {
       t("desktop.shell.start.newThread"),
       "제안",
       "예약",
-      "추가 기능",
+      "플레이그라운드",
       t("desktop.shell.settings"),
     ]);
     expect(out).toContain("w-[calc(3rem+1px)]");
@@ -104,7 +110,7 @@ describe("Shell slots", () => {
     for (const label of ["개요", "확장", "테스트", "성능 측정", "구성", "엔진"]) {
       expect(out).toContain(label);
     }
-    expect(out).not.toContain("추가 기능");
+    expect(out).not.toContain("플레이그라운드");
     expect(out).not.toContain("대화 목록 슬롯");
   });
 

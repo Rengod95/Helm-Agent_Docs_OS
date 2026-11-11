@@ -107,7 +107,7 @@ binds: []
 <!-- terms:begin -->
 | 문서 용어 | 화면 라벨 ko | 화면 라벨 en | 기계 id | 상태 |
 |---|---|---|---|---|
-| Add-on | 추가 기능 | Add-ons | `addons`, `plugins` | proposed |
+| Add-on | 플레이그라운드 | Playground | `addons`, `plugins` | proposed |
 | Background service | 이 컴퓨터(백그라운드) | This computer (background) | — | proposed |
 | Benchmark | 성능 측정 | Benchmark | `benchmark` | proposed |
 | Capability | 기능 | Capability | `CapabilityId` | proposed |

@@ -146,8 +146,8 @@ describe("browser E2E", () => {
   });
 
   test("§6.3: the viewdemo plugin frame opens in the browser", async () => {
-    // 추가 기능 목록 → viewdemo 상세 → 그 화면 행
-    await tabA.clickText("추가 기능");
+    // 플레이그라운드 목록 → viewdemo 상세 → 그 화면 행
+    await tabA.clickText("플레이그라운드");
     await tabA.waitForText("viewdemo", 60_000);
     await tabA.clickText("viewdemo");
     await tabA.waitForText("Frame demo", 60_000);
