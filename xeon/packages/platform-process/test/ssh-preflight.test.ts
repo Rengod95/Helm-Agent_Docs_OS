@@ -502,6 +502,40 @@ describe("runSshPreflight: remote steps", () => {
   });
 });
 
+describe("runSshPreflight: observeOnly", () => {
+  test("a service that is not running stops at service with service_not_running and never calls ensure", async () => {
+    const fake = fixture();
+    fake.reply("status", { out: '{"running":false,"reason":"no_registration"}\n' });
+    const { result, events } = await preflight(fake, {
+      target: "me@box.example",
+      local: LOCAL,
+      observeOnly: true,
+    });
+    expect(result).toEqual({
+      ok: false,
+      step: "service",
+      status: "fail",
+      code: "service_not_running",
+      actions: [],
+    });
+    expect(summary(events).at(-1)).toBe("service:fail:service_not_running");
+    expect(fake.calls()).toContain(`ssh ${OPTS} -- me@box.example fresnel service status --json`);
+    expect(fake.calls().some((line) => line.includes("service ensure"))).toBe(false);
+  });
+
+  test("a running service passes the service step without ensure, and the address is still built", async () => {
+    const fake = fixture();
+    const { result, events } = await preflight(fake, {
+      target: "me@box.example",
+      local: LOCAL,
+      observeOnly: true,
+    });
+    expect(result).toMatchObject({ ok: true, socket: SOCKET, serviceVersion: "0.4.0" });
+    expect(summary(events)).toContain("service:pass:ok");
+    expect(fake.calls().some((line) => line.includes("service ensure"))).toBe(false);
+  });
+});
+
 describe("runSshPreflight: target validation", () => {
   test("bad targets fail at resolve before any ssh call; the code says which kind of bad", async () => {
     const cases: [string, PreflightCode][] = [

@@ -41,6 +41,7 @@ export const PREFLIGHT_CODES = [
   "version_unreadable",
   "version_mismatch",
   "service_status_unreadable",
+  "service_not_running",
   "service_start_failed",
   "socket_unreadable",
 ] as const;
@@ -172,6 +173,8 @@ export interface SshPreflightInput {
   readonly trustHostKey?: { readonly fingerprint: string };
   /** 키가 바뀐 것을 사용자가 확인하고, 옛 줄을 지우고 새 줄을 더하는 허락. `trustHostKey`와 함께 있어야 한다 */
   readonly replaceChangedHostKey?: boolean;
+  /** 참이면 service 단계가 `service status --json`만 읽는다. 돌고 있지 않아도 `ensure`를 부르지 않고 `service_not_running`으로 끝낸다 */
+  readonly observeOnly?: boolean;
 }
 
 export interface SshTarget {
@@ -378,6 +381,7 @@ const ACTIONS: Readonly<Record<PreflightCode, readonly PreflightAction[]>> = {
   version_unreadable: ["retry"],
   version_mismatch: ["upgrade_remote"],
   service_status_unreadable: ["retry"],
+  service_not_running: [],
   service_start_failed: ["retry"],
   socket_unreadable: ["retry"],
 };
@@ -979,6 +983,9 @@ async function stepService(
     }
     passed(ctx, "service", started);
     return ok({ serviceVersion: version, socketCandidate: read.value.registration?.socket });
+  }
+  if (ctx.input.observeOnly === true) {
+    return err(failed(ctx, "service", started, "fail", simple("service_not_running")));
   }
   const ensure = await sshCall(
     ctx,
