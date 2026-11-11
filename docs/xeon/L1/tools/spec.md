@@ -1025,6 +1025,8 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 1. 모델이 광고하지 않은 도구를 부름(전역 deny로 뺀 도구 포함): `prepare` 2단계는 광고 목록을 다시 보지 않고 등록 표에서 이름을 찾는다. 등록되지 않은 이름이면 `[fresnel:tool_unavailable]` 오류 결과(`settled`)다. 등록된 도구면 5a·5b를 지나므로 전역 deny 규칙이 그 호출을 거부한다.
 2. 인자 검증 실패: 예외를 던지지 않고 `isError: true` 도구 결과로 모델에 돌아간다. 효과 이벤트는 없다. 루프는 계속된다(§4.2 4단계, core-tools `validate.ts`).
 3. `tool.call.before` 핸들러 예외 또는 결정 스키마 위반: `FIRST_DENY.tool_call`(`{ block: true, reason: "extension handler failed" }`)로 거부한다(F.extensions.spec §3.5, §5 사례 2). ext-host 디스패치 호출 자체가 실패해도 같은 거부로 본다(fail-closed). 이 거부의 도구 결과 `details`는 UI·로그용으로 `{ code: "denied_by_extension", hook: "tool.call.before", extension, outcome, reason }`를 싣는다. `outcome`은 핸들러 결정이면 `blocked`(`reason`은 그 사유), 예외·시간 초과·스키마 위반·중단으로 대체됐거나 디스패처가 실패했으면 `threw`(`reason`은 null)이고, 디스패처 실패만 `extension`이 null이다. 모델에 가는 본문(`content`)은 바뀌지 않는다 [결정: 오케스트레이터 기본값, scI].
+
+   `guard.tool.before`가 막은 호출의 결과 `details`도 같은 방식으로 싣는다. 모양은 `{ code: "denied_by_guard", hook: "guard.tool.before", extension, outcome, reason }`이고, `outcome`·`extension`·`reason`의 뜻과 대체·디스패처 실패의 처리는 위 `tool.call.before`와 같다. 모델에 가는 본문(`[fresnel:denied_by_guard] <사유>`)은 바뀌지 않는다 [결정: 2026-11-11 사용자].
 4. 정책 규칙의 정규식이 잘못됨: 적재 때 그 규칙만 빼고 진단을 남긴다. 평가는 나머지 규칙으로 한다. managed 규칙이 빠지면 설정 화면에 오류 배지를 보인다(L4.settings-ui.spec).
 5. 승인 대기 중 턴 취소: §4.7 8번. 승인 대기 중 프로세스 강제 종료: §4.7 재개.
 6. 승인 대기 중 클라이언트 재접속: 클라이언트는 `events.subscribe`로 미해결 `approval.requested`를 다시 받는다. 호스트는 `ApprovalService.pending`으로 현재 목록을 줄 수도 있다.
@@ -1034,6 +1036,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 10. blob 쓰기 실패: 경계화 미리보기만 모델에 보내고 `blobRef: null`, `details.truncation.blobError`를 남긴다. 원문은 잃는다. 이 경우를 경고 이벤트로 남길지는 L0.store.spec의 blob 실패 정책을 따른다.
 11. `bypass` 모드인데 managed가 금지함: `setMode`는 `tools.mode_forbidden`을 돌려준다. 이미 `launch` 값이 `bypass`인 채 managed 금지가 생기면 평가기가 `default`로 본다(§4.5 4단계).
 12. 같은 이름의 도구를 두 출처가 등록함: `register`가 `err({ kind: "name_conflict", toolName })`을 돌려주고 도구 표는 바뀌지 않는다. 확장 조합이 낼 수 있는 정상 운영 중의 실패라 던지지 않는다(eng.typescript.guide TY-24). 해소 규칙은 F.capabilities.spec §10 [결정: 2026-11-03 사용자](내장 도구 같은 이름 대체)를 따른다. 확장이 매니페스트 `replaces`로 선언한 내장 도구 이름만 대체할 수 있고, 선언 없는 겹침은 이 오류다. 대체는 §4.13이 정한다.
+13. `tool.result` 훅이 결과를 고침: 체인의 `applied`에 든 확장이 있고 최종 값이 훅 호출 전과 다르면 결과 `details`에 `resultPatchedBy: [<확장 이름>…]`를 더한다. 이름은 등록 순서이고 같은 확장은 한 번만 적는다. 기존 `details`가 객체면 키를 더해 합치고, `null`이거나 없으면 `{ resultPatchedBy }`로 둔다. 객체가 아닌 값은 건드리지 않는다. 패치가 적용됐어도 최종 값이 그대로면, 또는 `applied`가 비었으면 아무것도 더하지 않는다. 화면은 이 키로 훅 개입을 일반 실패와 구분한다 [결정: 2026-11-11 사용자].
 
 ## 6. 설정 노출
 

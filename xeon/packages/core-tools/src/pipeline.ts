@@ -2,6 +2,7 @@ import { Bug, canonicalJson, ok, parse, type Result } from "@fresnel/contracts";
 import {
   FIRST_DENY,
   type CapabilityRef,
+  type ExtensionName,
   type ToolCallPayload,
   type ToolResultValue,
 } from "@fresnel/contracts/extensions";
@@ -171,6 +172,21 @@ function hookDenialDetails(
   };
 }
 
+/** `guard.tool.before`가 막은 호출의 UI용 details. `hookDenialDetails`와 같은 모양이고 code와 hook만 다르다 */
+function guardDenialDetails(
+  outcome: "blocked" | "threw",
+  extension: string | null,
+  reason: string | null,
+): JsonObject {
+  return {
+    code: "denied_by_guard",
+    hook: "guard.tool.before",
+    extension,
+    outcome,
+    reason,
+  };
+}
+
 function userShellFailure(text: string, code: string): ToolResultRecord {
   return toToolResultRecord({
     content: [{ type: "text", text }],
@@ -236,6 +252,23 @@ function fromValue(value: ToolResultValue, terminate: boolean | undefined): RawT
     ...(value.usage === undefined ? {} : { usage: value.usage }),
     ...(terminate === undefined ? {} : { terminate }),
   };
+}
+
+/**
+ * `tool.result` 체인이 결과를 실제로 고쳤으면 details에 `resultPatchedBy`(고친 확장 이름, 등록 순서, 중복 없음)를 더한다.
+ * 패치가 적용됐어도 최종 값이 그대로면 아무것도 더하지 않는다. details가 객체가 아니면(배열·문자열 등) 건드리지 않는다
+ */
+function withResultPatchedBy(
+  before: ToolResultValue,
+  after: ToolResultValue,
+  applied: readonly { readonly extension: ExtensionName }[],
+): ToolResultValue {
+  if (applied.length === 0 || canonicalJson(before) === canonicalJson(after)) return after;
+  const resultPatchedBy = [...new Set(applied.map((ref) => ref.extension))];
+  const details = after.details;
+  if (details === undefined || details === null) return { ...after, details: { resultPatchedBy } };
+  if (isJsonObject(details)) return { ...after, details: { ...details, resultPatchedBy } };
+  return after;
 }
 
 /** 부분 결과를 AgentToolResult로 옮긴다. details가 JSON이 아니면 null이다 */
@@ -519,10 +552,27 @@ export function createPipeline(
       });
       const decision = outcome.decision;
       if (decision === undefined) return undefined;
-      return denied(`[fresnel:denied_by_guard] ${decision.reason}`);
+      // 대체된 결정(핸들러 실패·시간 초과·스키마 위반)은 `tool.call.before`와 같이 `threw`로 적는다. 모델 본문은 두 경우 모두 그대로다
+      const extension = outcome.decidedBy?.extension ?? null;
+      if (outcome.substituted) {
+        return denied(
+          `[fresnel:denied_by_guard] ${decision.reason}`,
+          false,
+          guardDenialDetails("threw", extension, null),
+        );
+      }
+      return denied(
+        `[fresnel:denied_by_guard] ${decision.reason}`,
+        false,
+        guardDenialDetails("blocked", extension, decision.reason),
+      );
     } catch (error) {
       warn("tools.guard_dispatch_failed", { toolCallId, message: messageOf(error) });
-      return denied(`[fresnel:denied_by_guard] ${FIRST_DENY["guard.tool.before"].reason}`);
+      return denied(
+        `[fresnel:denied_by_guard] ${FIRST_DENY["guard.tool.before"].reason}`,
+        false,
+        guardDenialDetails("threw", null, null),
+      );
     }
   }
 
@@ -1094,7 +1144,7 @@ export function createPipeline(
         initial: value,
         ...(signal === undefined ? {} : { signal }),
       });
-      return outcome.value;
+      return withResultPatchedBy(value, outcome.value, outcome.applied);
     } catch (error) {
       // 핸들러 하나의 실패는 그 패치만 버린다. 디스패처 자체의 실패도 결과를 바꾸지 않는다
       warn("tools.tool_result_dispatch_failed", { toolCallId, message: messageOf(error) });

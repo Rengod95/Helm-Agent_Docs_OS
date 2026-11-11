@@ -378,6 +378,75 @@ test("a dispatcher failure is details threw with no extension name", async () =>
   });
 });
 
+test("a guard.tool.before block names its extension in details and keeps the model text", async () => {
+  const h = await createHarness();
+  const probe = registerWorkspace(h);
+  await installHandlers(h, "guard", ["guard.tool.before"], (g) => {
+    g.on("guard.tool.before", () => ({ block: true, reason: "no reads today" }));
+  });
+  const out = await callTool(h.runtime.tools, h.run(), {
+    id: "call_20",
+    name: "read",
+    args: { path: "a" },
+  });
+  expect(out.blocked).toBe("[fresnel:denied_by_guard] no reads today");
+  expect(probe.calls).toEqual([]);
+  expect(out.outcome.message.details).toEqual({
+    code: "denied_by_guard",
+    hook: "guard.tool.before",
+    extension: "guard",
+    outcome: "blocked",
+    reason: "no reads today",
+  });
+});
+
+test("a guard.tool.before handler that throws is details threw with its extension, the model text unchanged", async () => {
+  const h = await createHarness();
+  registerWorkspace(h);
+  await installHandlers(h, "bad-guard", ["guard.tool.before"], (g) => {
+    g.on("guard.tool.before", () => {
+      throw new Error("boom");
+    });
+  });
+  const out = await callTool(h.runtime.tools, h.run(), {
+    id: "call_21",
+    name: "read",
+    args: { path: "a" },
+  });
+  expect(out.blocked).toBe("[fresnel:denied_by_guard] extension handler failed");
+  expect(out.outcome.message.details).toEqual({
+    code: "denied_by_guard",
+    hook: "guard.tool.before",
+    extension: "bad-guard",
+    outcome: "threw",
+    reason: null,
+  });
+});
+
+test("a guard dispatcher failure is details threw with no extension name", async () => {
+  const h = await createHarness();
+  registerWorkspace(h);
+  const failing = createToolRuntimeWith(h, {
+    dispatch: (hook, payload, options) =>
+      hook === "guard.tool.before"
+        ? Promise.reject(new Error("dispatcher down"))
+        : h.deps.ext.dispatch(hook, payload, options),
+  });
+  const out = await callTool(failing.tools, h.run(), {
+    id: "call_22",
+    name: "read",
+    args: { path: "a" },
+  });
+  expect(out.blocked).toBe("[fresnel:denied_by_guard] extension handler failed");
+  expect(out.outcome.message.details).toEqual({
+    code: "denied_by_guard",
+    hook: "guard.tool.before",
+    extension: null,
+    outcome: "threw",
+    reason: null,
+  });
+});
+
 test("a denial that is not from a hook carries no hook details", async () => {
   const h = await createHarness();
   registerWorkspace(h);
@@ -407,6 +476,81 @@ test("tool_result_handler_throw_skipped: one failing handler does not turn the r
   expect(out.isError).toBe(false);
   expect(textOf(out.result)).toContain("appended by handler");
   expect(textOf(out.result)).toContain("a.txt");
+});
+
+test("a tool.result patch that changes the result names the patching extension in details", async () => {
+  const h = await createHarness();
+  registerWorkspace(h);
+  await installHandlers(h, "patcher", ["tool.result"], (g) => {
+    g.on("tool.result", (_payload, current) => ({
+      content: [...current.content, { type: "text", text: "patched" }],
+    }));
+  });
+  const out = await callTool(h.runtime.tools, h.run(), { id: "call_23", name: "ls", args: {} });
+  expect(out.isError).toBe(false);
+  expect(textOf(out.result)).toContain("patched");
+  expect(out.outcome.message.details).toEqual({ resultPatchedBy: ["patcher"] });
+});
+
+test("a tool.result patch that leaves the result as it was adds no resultPatchedBy key", async () => {
+  const h = await createHarness();
+  registerWorkspace(h);
+  await installHandlers(h, "noop", ["tool.result"], (g) => {
+    g.on("tool.result", (_payload, current) => ({ isError: current.isError }));
+  });
+  const out = await callTool(h.runtime.tools, h.run(), { id: "call_24", name: "ls", args: {} });
+  expect(out.isError).toBe(false);
+  expect(out.outcome.message.details).toBeUndefined();
+});
+
+test("resultPatchedBy names each patching extension once, in chain order", async () => {
+  const h = await createHarness();
+  registerWorkspace(h);
+  await installHandlers(h, "alpha", ["tool.result"], (g) => {
+    g.on("tool.result", (_payload, current) => ({
+      content: [...current.content, { type: "text", text: "one" }],
+    }));
+    g.on("tool.result", (_payload, current) => ({
+      content: [...current.content, { type: "text", text: "two" }],
+    }));
+  });
+  await installHandlers(h, "beta", ["tool.result"], (g) => {
+    g.on("tool.result", (_payload, current) => ({
+      content: [...current.content, { type: "text", text: "three" }],
+    }));
+  });
+  const out = await callTool(h.runtime.tools, h.run(), { id: "call_25", name: "ls", args: {} });
+  expect(textOf(out.result)).toContain("three");
+  expect(out.outcome.message.details).toEqual({ resultPatchedBy: ["alpha", "beta"] });
+});
+
+test("a tool.result patch with object details keeps them and adds resultPatchedBy", async () => {
+  const h = await createHarness();
+  registerWorkspace(h);
+  await installHandlers(h, "detailer", ["tool.result"], (g) => {
+    g.on("tool.result", (_payload, current) => ({
+      content: [...current.content, { type: "text", text: "x" }],
+      details: { source: "patch" },
+    }));
+  });
+  const out = await callTool(h.runtime.tools, h.run(), { id: "call_26", name: "ls", args: {} });
+  expect(out.outcome.message.details).toEqual({
+    source: "patch",
+    resultPatchedBy: ["detailer"],
+  });
+});
+
+test("a tool.result patch with non-object details leaves those details alone", async () => {
+  const h = await createHarness();
+  registerWorkspace(h);
+  await installHandlers(h, "lister", ["tool.result"], (g) => {
+    g.on("tool.result", (_payload, current) => ({
+      content: [...current.content, { type: "text", text: "x" }],
+      details: ["listed"],
+    }));
+  });
+  const out = await callTool(h.runtime.tools, h.run(), { id: "call_27", name: "ls", args: {} });
+  expect(out.outcome.message.details).toEqual(["listed"]);
 });
 
 test("custom direct tools run through the same pipeline and ToolsPort registration works", async () => {
