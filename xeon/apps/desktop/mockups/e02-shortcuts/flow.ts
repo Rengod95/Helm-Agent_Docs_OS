@@ -39,10 +39,10 @@ export const GROUPS: Group[] = [
     title: L2("이동", "Go to"),
     items: [
       {
-        id: "nav.1–5",
-        label: `${T.thread} · ${T.inbox} · ${T.proposals} · ${T.schedules} · ${T.connection}`,
-        keys: "Mod 1–5",
-        web: "Alt Shift 1–5",
+        id: "nav.1–2",
+        label: `${T.proposals} · ${T.schedules}`,
+        keys: "Mod 1–2",
+        web: "Alt Shift 1–2",
       },
       { id: "thread.next", label: L2("다음 대화", "Next conversation"), keys: "Alt Mod ↓" },
       { id: "thread.prev", label: L2("이전 대화", "Previous conversation"), keys: "Alt Mod ↑" },

@@ -105,7 +105,9 @@ describe("palette body (server render)", () => {
   test("the current area's screens show first and the other area's sit behind the more row", async () => {
     const chat = await render({ live: false, titles: [], selected: false });
     expect(chat).toContain("예약");
-    expect(chat).not.toContain("개요");
+    // 대화 영역 화면이 셋뿐이라 첫 다섯 칸에 크래프트의 앞 둘이 이어지고, 나머지는 더 보기 뒤에 있다
+    expect(chat).toContain("개요");
+    expect(chat).not.toContain("성능 측정");
     const workbench = await render({ live: false, titles: [], selected: false, area: "workbench" });
     expect(workbench).toContain("개요");
     expect(workbench).toContain("측정");

@@ -6,7 +6,7 @@ import { EmptyState, Toaster } from "@caustic/react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { EndPanel, wellWidthOf } from "./end-panel.tsx";
 import type { ContextProfile } from "./context-picker.tsx";
-import { resolveKeymap, type ActionId } from "./keybindings.ts";
+import { formatKey, resolveKeymap, type ActionId } from "./keybindings.ts";
 import { runShellAction, resolveShortcut } from "./shortcuts.ts";
 import type { ShellRegistry } from "./registry.ts";
 import { StartPanel } from "./start-panel.tsx";
@@ -179,13 +179,15 @@ function ShellFrame(props: ShellProps): ReactNode {
   const startOpen = useShell((s) => s.startOpen);
   const railArea = useShell((s) => s.area);
   const railScreen = useShell((s) => s.places[s.area].screen);
-  // 오른쪽 막대가 있으면 그 폭만큼 무대 오른쪽을 비운다. 막대가 머리줄의 단추를 가리지 않게 한다.
-  // 머리줄(`.shell-header`)은 그 여백을 `--shell-rail`로 받아 무대 끝(막대 아래)까지 뻗고 안쪽 여백으로 단추를 피한다
+  // 본문(머리줄·스크롤 영역)은 무대 오른쪽 끝까지 찬다. 오른쪽 막대는 그 위에 떠 있고, 겹치는 곳만 피한다:
+  // 머리줄(`.shell-header`)은 `--shell-rail`만큼 안쪽 여백을 두어 오른쪽 끝 단추를 막대 밑에서 비키고, 막대는 스크롤 막대 자리(끝 12px)를 비워 둔다(`end-panel.tsx`)
   const hasRail = props.registry.endTabs(railArea, railScreen).length > 0;
   // 크래프트 개요는 캔버스가 무대 가장자리까지 깔린다. 여백과 막대 자리 비우기를 두지 않고, 막대와 겹치는 판은 캔버스가 스스로 비킨다
   const bleed = railArea === "workbench" && railScreen === "overview" && !props.settingsOpen;
   useWindowResize();
   useShellShortcuts(props);
+  // "새 대화" 행은 ⌘N과 같은 길(`onAction("thread.new")`)을 부르고, 곁에 그 키를 보인다
+  const newThreadKey = formatKey(resolveKeymap(props.keyOverrides)["thread.new"], props.mac);
   const compact = layout === "compact";
   const navigate = (screen: string): void => {
     props.onSettingsOpenChange(false);
@@ -222,6 +224,11 @@ function ShellFrame(props: ShellProps): ReactNode {
                 if (compact) actions.setStartOpen(false);
               }}
               onNavigate={navigate}
+              onNewThread={() => {
+                if (compact) actions.setStartOpen(false);
+                props.onAction?.("thread.new");
+              }}
+              newThreadKey={newThreadKey}
               onSwitchArea={(area) => {
                 props.onSettingsOpenChange(false);
                 actions.switchArea(area);
@@ -237,7 +244,7 @@ function ShellFrame(props: ShellProps): ReactNode {
               id={STAGE_ID}
               tabIndex={-1}
               aria-label={t("desktop.shell.stage.label")}
-              className={`flex min-w-0 flex-1 flex-col outline-none ${hasRail && !bleed ? "pe-10 [--shell-rail:2.5rem]" : ""}`}
+              className={`flex min-w-0 flex-1 flex-col outline-none ${hasRail && !bleed ? "[--shell-rail:2.5rem]" : ""}`}
             >
               <Stage
                 registry={props.registry}
