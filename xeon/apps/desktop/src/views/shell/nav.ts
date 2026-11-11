@@ -1,4 +1,6 @@
-// 왼쪽 패널 내비 표(§4.9.3). 항목 id는 화면 id(`AreaPlace.screen`)와 같다. 대화 영역은 다섯(플러그인 화면 포함, 받은 요청은 오른쪽 툴바), 작업대 영역은 여섯이고 연결은 대화 쪽이다.
+// 왼쪽 패널 내비 표(§4.9.3). 항목 id는 화면 id(`AreaPlace.screen`)와 같다.
+// 대화 영역은 셋(제안, 예약, 플러그인 화면)이다. "대화"는 맨 위 고정 "새 대화" 줄과 대화 목록이 맡고, "연결"은 설정으로 갔다(DP-69).
+// 작업대 영역은 여섯이다.
 import type { MessageId } from "@fresnel/client/i18n";
 import type { ActionId } from "./keybindings.ts";
 import type { Area } from "../../state/shell/index.ts";
@@ -11,10 +13,8 @@ export interface NavItem {
 }
 
 const CHAT_NAV: readonly NavItem[] = [
-  { id: "chat", label: "desktop.shell.nav.chat", action: "nav.1" },
   { id: "proposals", label: "desktop.shell.nav.proposals", action: "nav.3" },
   { id: "schedules", label: "desktop.shell.nav.schedules", action: "nav.4" },
-  { id: "connection", label: "desktop.shell.nav.connection", action: "nav.5" },
   { id: "plugins", label: "desktop.shell.nav.plugins", action: "nav.6" },
 ];
 
@@ -30,4 +30,24 @@ const WORKBENCH_NAV: readonly NavItem[] = [
 export const NAV_BY_AREA: Readonly<Record<Area, readonly NavItem[]>> = {
   chat: CHAT_NAV,
   workbench: WORKBENCH_NAV,
+};
+
+/**
+ * `nav.N` 바로 가기가 하는 일(§4.2). 내비 줄이 없는 번호도 키는 남는다(DP-69):
+ * ⌘1은 대화 화면, ⌘2는 받은 요청 탭, ⌘5는 연결 열기(`connection.open`, 셸 밖 App이 처리), 나머지는 내비 줄의 화면이다.
+ */
+export type NavShortcut =
+  | { readonly kind: "screen"; readonly screen: string }
+  | { readonly kind: "inbox" }
+  | { readonly kind: "connection" };
+
+export type NavActionId = "nav.1" | "nav.2" | "nav.3" | "nav.4" | "nav.5" | "nav.6";
+
+export const NAV_SHORTCUTS: Readonly<Record<NavActionId, NavShortcut>> = {
+  "nav.1": { kind: "screen", screen: "chat" },
+  "nav.2": { kind: "inbox" },
+  "nav.3": { kind: "screen", screen: "proposals" },
+  "nav.4": { kind: "screen", screen: "schedules" },
+  "nav.5": { kind: "connection" },
+  "nav.6": { kind: "screen", screen: "plugins" },
 };

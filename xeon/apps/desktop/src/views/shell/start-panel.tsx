@@ -1,8 +1,10 @@
 // 왼쪽 패널(S-01 시작 영역). 시안(_shell/start-panel.tsx)과 같은 틀이다.
-//   머리: 영역 바꾸기(대화/크래프트) 줄 + 그 끝의 시작 영역 닫기 단추. 찾기 줄은 없다(명령 팔레트는 ⌘K). 작업대 영역은 머리에 맥락 칸을 더한다.
-//   몸: 영역별 내비 + 대화 목록 슬롯. 스크롤은 몸 하나만 한다.
-//   바닥: 설정. 두 영역 공통이고 늘 같은 자리(hairline 위)에 고정된다.
-// 닫힘(startOpen이 거짓)은 SidePanel의 collapsed로 그린다. compact에서는 셸이 패널을 떠 있는 시트로 올리고, 닫으면 그리지 않는다.
+//   머리(고정): 영역 바꾸기(대화/크래프트) 줄 + 그 끝의 접기 단추. 그 아래 대화 영역은 "새 대화" 줄, 작업대 영역은 맥락 칸(DP-69).
+//   몸(스크롤): 영역별 내비 + 대화 목록 슬롯. 스크롤은 몸 하나만 한다.
+//   바닥: 설정. 두 영역 공통이고 늘 같은 자리(hairline 위)에 고정된다. 줄은 위 줄과 같은 32px, 위아래 4px.
+// 접힘(startOpen이 거짓)은 48px 아이콘 막대다(DP-68): 새 대화, 내비 아이콘, 설정만 남고 대화 목록은 숨는다.
+// 아이콘은 펼친 줄의 아이콘과 같은 자리(x 16..32)라 폭이 줄어드는 동안 제자리에 있다. 이름은 오른쪽 툴팁.
+// compact에서는 셸이 패널을 떠 있는 시트로 올리고, 닫으면 그리지 않는다(막대 없음).
 import { activeLocale, t } from "@fresnel/client/i18n";
 import { extMessageOf } from "@fresnel/client/views/native";
 import {
@@ -13,11 +15,19 @@ import {
   SegmentedControl,
   SegmentedControlItem,
   SidePanel,
+  Tooltip,
 } from "@caustic/react";
-import { Compass, IconEmphasisProvider, PanelLeft, Settings } from "@caustic/react/icons";
+import {
+  Compass,
+  IconEmphasisProvider,
+  PanelLeft,
+  Settings,
+  SquarePen,
+} from "@caustic/react/icons";
 import type { ReactNode } from "react";
 import { ContextPicker, type ContextProfile } from "./context-picker.tsx";
-import { NAV_BY_AREA } from "./nav.ts";
+import type { ActionId } from "./keybindings.ts";
+import { NAV_BY_AREA, type NavItem } from "./nav.ts";
 import { SIDE_ROW } from "../side-row.ts";
 import type { Area } from "../../state/shell/index.ts";
 import type { ScreenDef, ShellRegistry } from "./registry.ts";
@@ -41,7 +51,103 @@ export interface StartPanelProps {
   /** 대화 영역 목록 슬롯 */
   readonly threadList: ReactNode;
   readonly profiles: readonly ContextProfile[];
+  /** "새 대화" 줄을 눌렀다. 셸 밖의 새 대화 흐름(`views/new-thread-flow.ts`)을 부른다 */
+  readonly onNewThread: () => void;
+  /** 동작의 바로 가기 키 글자(사용자가 바꾼 키 반영). 새 대화 줄 끝과 막대 툴팁에 쓴다 */
+  readonly keyLabel: (id: ActionId) => string;
 }
+
+/**
+ * 접힌 막대의 단추 하나(DP-68). 36×32에 16px 아이콘이 가운데라, 바깥 여백 6px과 더해 아이콘이 펼친 줄의 아이콘(6 + 10)과 같은 x다.
+ * hover는 면 색만 바꾼다(떠오름·확대 없음). 지금 화면은 caustic 내비의 `aria-current` 면 하나로 보인다
+ */
+const RAIL_BUTTON =
+  "grid h-control-md w-9 place-items-center rounded-lg text-text-secondary outline-none transition-control hover:bg-neutral-hover hover:text-text-primary focus-visible:shadow-focus aria-[current=page]:bg-control-raised aria-[current=page]:text-text-primary aria-[current=page]:shadow-[inset_0_0_0_1px_var(--cs-color-control-edge)] aria-[current=page]:hover:bg-control-raised-hover";
+
+function RailButton(props: {
+  readonly label: string;
+  readonly shortcut: string | undefined;
+  readonly icon: ReactNode;
+  readonly current: boolean;
+  readonly onClick: () => void;
+}): ReactNode {
+  const button = (
+    <button
+      type="button"
+      data-rail-item=""
+      aria-label={props.label}
+      aria-current={props.current ? "page" : undefined}
+      className={RAIL_BUTTON}
+      onClick={props.onClick}
+    >
+      <span aria-hidden className="inline-grid size-icon-md place-items-center [&_svg]:size-full">
+        <IconEmphasisProvider value={props.current ? "selected" : undefined}>
+          {props.icon}
+        </IconEmphasisProvider>
+      </span>
+    </button>
+  );
+  return props.shortcut === undefined ? (
+    <Tooltip content={props.label} side="right">
+      {button}
+    </Tooltip>
+  ) : (
+    <Tooltip content={props.label} side="right" shortcut={props.shortcut}>
+      {button}
+    </Tooltip>
+  );
+}
+
+/** 막대의 내비 단추. 배지 수는 막대에 그리지 않고 이름에 붙인다("제안 3") */
+function RailNavButton(props: {
+  readonly def: ScreenDef | undefined;
+  readonly label: string;
+  readonly shortcut: string | undefined;
+  readonly active: boolean;
+  readonly onSelect: () => void;
+}): ReactNode {
+  const button = (badge: number | undefined): ReactNode => (
+    <RailButton
+      label={badge === undefined || badge <= 0 ? props.label : `${props.label} ${String(badge)}`}
+      shortcut={props.shortcut}
+      icon={props.def?.icon}
+      current={props.active}
+      onClick={props.onSelect}
+    />
+  );
+  const Badge = props.def?.Badge;
+  return Badge === undefined ? button(undefined) : <Badge render={button} />;
+}
+
+/** 대화 영역 머리 둘째 줄의 "새 대화"(DP-69). 내비 줄과 같은 크기이고, 끝의 단축키는 곁 정보 크기(11px tertiary)다 */
+function NewThreadRow(props: {
+  readonly shortcut: string;
+  readonly onSelect: () => void;
+}): ReactNode {
+  return (
+    <ListNavigation
+      aria-label={t("desktop.shell.start.newThread")}
+      kind="navigation"
+      size="xs"
+      as="div"
+      className="w-full"
+    >
+      <ListNavigationGroup>
+        <ListNavigationItem
+          icon={<SquarePen />}
+          className={SIDE_ROW}
+          meta={<kbd className="font-ui">{props.shortcut}</kbd>}
+          onSelect={props.onSelect}
+        >
+          {t("desktop.shell.start.newThread")}
+        </ListNavigationItem>
+      </ListNavigationGroup>
+    </ListNavigation>
+  );
+}
+
+const shortcutOf = (item: NavItem, keyLabel: (id: ActionId) => string): string | undefined =>
+  item.action === undefined ? undefined : keyLabel(item.action);
 
 function AreaSwitch(props: { readonly onSwitch: (area: Area) => void }): ReactNode {
   const area = useShell((s) => s.area);
@@ -143,110 +249,173 @@ function PluginUiSlot(props: { readonly onOpen: (key: string) => void }): ReactN
   return useOptionalPluginUi() === null ? null : <PluginUiSection onOpen={props.onOpen} />;
 }
 
+/** 브랜드 로고: 경로 고해상도 렌더를 줄인 것(public/brand/logo). 이름은 옆 탭이 말하므로 장식이다 */
+function BrandMark(props: { readonly className?: string }): ReactNode {
+  return (
+    <img
+      src="./brand/logo/fresnel-logo-20@2x.png"
+      srcSet="./brand/logo/fresnel-logo-20@2x.png 2x, ./brand/logo/fresnel-logo-20@3x.png 3x"
+      width={20}
+      height={20}
+      alt=""
+      draggable={false}
+      className={`size-5 shrink-0 select-none ${props.className ?? ""}`}
+    />
+  );
+}
+
+// 머리·바닥 밀도는 시안의 size="sm"과 같은 값을 자리 클래스로 준다(SidePanel size 속성은 lint가 쓰지 못하게 막는다).
+// 바닥은 위아래 4px: 설정 줄(32)이 위 줄들과 같은 높이로 보인다(DP-68, 전에는 8px로 49px)
+const PANEL_SLOTS =
+  "[&>[data-slot=side-panel-header]]:min-h-(--shell-header-h) [&>[data-slot=side-panel-header]]:px-1.5 [&>[data-slot=side-panel-header]]:py-1.5 [&>[data-slot=side-panel-footer]]:px-1.5 [&>[data-slot=side-panel-footer]]:py-1";
+
 export function StartPanel(props: StartPanelProps): ReactNode {
   const area = useShell((s) => s.area);
   const startOpen = useShell((s) => s.startOpen);
   const screen = useShell((s) => s.places[s.area].screen);
   const actions = useShellActions();
   const items = NAV_BY_AREA[area];
+  // 떠 있는 시트(compact)는 접히면 셸이 그리지 않으므로 막대가 되지 않는다
+  const rail = !startOpen && !props.floating;
+  const navLabel = t(
+    area === "chat" ? "desktop.shell.nav.chatGroup" : "desktop.shell.nav.workbenchGroup",
+  );
   return (
     <SidePanel
       side="start"
       preset="inspector"
       label={t("desktop.shell.start.label")}
       scrollLabel={t("desktop.shell.start.label")}
-      collapsed={!startOpen}
-      onCollapsedChange={(collapsed) => {
-        actions.setStartOpen(!collapsed);
-      }}
+      data-rail={rail ? "" : undefined}
       // 붙박이: 창 왼쪽 끝에서 위아래 끝까지 닿는 평평한 면(outline, 가장자리 헤어라인 하나). 좁은 폭에서 뜰 때만 solid와 그림자 하나.
       variant={props.floating ? "solid" : "outline"}
       shadow={props.floating ? "3" : "none"}
-      // 머리·바닥 밀도는 시안의 size="sm"과 같은 값을 자리 클래스로 준다(SidePanel size 속성은 lint가 쓰지 못하게 막는다)
-      className="[&>[data-slot=side-panel-header]]:min-h-(--shell-header-h) [&>[data-slot=side-panel-header]]:px-1.5 [&>[data-slot=side-panel-header]]:py-1.5 [&>[data-slot=side-panel-footer]]:px-1.5 [&>[data-slot=side-panel-footer]]:py-2"
+      // 막대 안쪽은 48px(바깥 6 + 단추 36 + 6)이고 오른쪽 hairline 1px이 더해진다. 폭 전환은 SidePanel의 width 전환(duration-base, ease-standard) 하나다.
+      // 막대에서는 바닥 위 선을 지운다: 48px 폭의 짧은 선은 상태 표시줄 띠와 어긋난 자국으로만 보인다
+      className={
+        rail
+          ? `${PANEL_SLOTS} w-[calc(3rem+1px)] [&>[data-slot=side-panel-footer]]:border-transparent`
+          : PANEL_SLOTS
+      }
       header={
-        <div className="grid min-w-0 gap-1.5">
-          {/* 영역 탭 줄 끝에 패널 접기 단추를 둔다(찾기 줄은 없다. 명령 팔레트는 ⌘K) */}
-          <div className="flex min-w-0 items-center gap-1">
-            {/* 브랜드 로고: 경로 고해상도 렌더를 줄인 것(public/brand/logo). 이름은 옆 탭이 말하므로 장식이다 */}
-            <img
-              src="./brand/logo/fresnel-logo-20@2x.png"
-              srcSet="./brand/logo/fresnel-logo-20@2x.png 2x, ./brand/logo/fresnel-logo-20@3x.png 3x"
-              width={20}
-              height={20}
-              alt=""
-              draggable={false}
-              className="ms-1 me-0.5 size-5 shrink-0 select-none"
-            />
-            <AreaSwitch onSwitch={props.onSwitchArea} />
-            <IconButton
-              size="sm"
-              variant="ghost"
-              label={t("desktop.shell.start.collapse")}
-              onClick={() => {
-                actions.setStartOpen(false);
-              }}
-            >
-              <PanelLeft />
-            </IconButton>
+        rail ? (
+          <div className="grid justify-items-start gap-1.5">
+            <span className="grid h-control-md w-9 place-items-center">
+              <BrandMark />
+            </span>
+            {area === "chat" ? (
+              <RailButton
+                label={t("desktop.shell.start.newThread")}
+                shortcut={props.keyLabel("thread.new")}
+                icon={<SquarePen />}
+                current={false}
+                onClick={props.onNewThread}
+              />
+            ) : null}
           </div>
-          {area === "workbench" ? <ContextPicker profiles={props.profiles} /> : null}
-        </div>
+        ) : (
+          <div className="grid min-w-0 gap-1.5">
+            {/* 영역 탭 줄 끝에 패널 접기 단추를 둔다(찾기 줄은 없다. 명령 팔레트는 ⌘K) */}
+            <div className="flex min-w-0 items-center gap-1">
+              <BrandMark className="ms-1 me-0.5" />
+              <AreaSwitch onSwitch={props.onSwitchArea} />
+              <IconButton
+                size="sm"
+                variant="ghost"
+                label={t("desktop.shell.start.collapse")}
+                onClick={() => {
+                  actions.setStartOpen(false);
+                }}
+              >
+                <PanelLeft />
+              </IconButton>
+            </div>
+            {area === "chat" ? (
+              <NewThreadRow shortcut={props.keyLabel("thread.new")} onSelect={props.onNewThread} />
+            ) : (
+              <ContextPicker profiles={props.profiles} />
+            )}
+          </div>
+        )
       }
       footer={
-        <ListNavigation
-          aria-label={t("desktop.shell.settings")}
-          kind="navigation"
-          size="xs"
-          as="div"
-          className="w-full"
-        >
-          <ListNavigationGroup>
-            <ListNavigationItem
-              icon={props.settingsOpen ? <Settings emphasis="selected" /> : <Settings />}
-              className={props.settingsOpen ? `${SIDE_ROW} ${ACTIVE_LABEL}` : SIDE_ROW}
-              onSelect={props.onOpenSettings}
-            >
-              {t("desktop.shell.settings")}
-            </ListNavigationItem>
-          </ListNavigationGroup>
-        </ListNavigation>
+        rail ? (
+          <RailButton
+            label={t("desktop.shell.settings")}
+            shortcut={props.keyLabel("settings.open")}
+            icon={<Settings />}
+            current={props.settingsOpen}
+            onClick={props.onOpenSettings}
+          />
+        ) : (
+          <ListNavigation
+            aria-label={t("desktop.shell.settings")}
+            kind="navigation"
+            size="xs"
+            as="div"
+            className="w-full"
+          >
+            <ListNavigationGroup>
+              <ListNavigationItem
+                icon={props.settingsOpen ? <Settings emphasis="selected" /> : <Settings />}
+                className={props.settingsOpen ? `${SIDE_ROW} ${ACTIVE_LABEL}` : SIDE_ROW}
+                onSelect={props.onOpenSettings}
+              >
+                {t("desktop.shell.settings")}
+              </ListNavigationItem>
+            </ListNavigationGroup>
+          </ListNavigation>
+        )
       }
     >
-      <div className="grid gap-2 px-1.5 pb-2">
-        <ListNavigation
-          aria-label={t(
-            area === "chat" ? "desktop.shell.nav.chatGroup" : "desktop.shell.nav.workbenchGroup",
-          )}
-          kind="navigation"
-          size="xs"
-        >
-          <ListNavigationGroup>
+      {rail ? (
+        <nav aria-label={navLabel} className="px-1.5 pb-2">
+          <ul className="m-0 grid list-none gap-0.5 p-0">
             {items.map((item) => (
-              <NavRow
-                key={item.id}
-                def={props.registry.screen(item.id)}
-                label={t(item.label)}
-                active={!props.settingsOpen && item.id === screen}
-                onSelect={() => {
-                  props.onNavigate(item.id);
-                }}
-              />
+              <li key={item.id}>
+                <RailNavButton
+                  def={props.registry.screen(item.id)}
+                  label={t(item.label)}
+                  shortcut={shortcutOf(item, props.keyLabel)}
+                  active={!props.settingsOpen && item.id === screen}
+                  onSelect={() => {
+                    props.onNavigate(item.id);
+                  }}
+                />
+              </li>
             ))}
-          </ListNavigationGroup>
-        </ListNavigation>
-        {area === "workbench" ? (
-          <PluginUiSlot
-            onOpen={(key) => {
-              requestPluginScreen(key);
-              props.onSwitchArea("chat");
-              actions.updatePlace({ screen: "plugins", scroll: 0 });
-              if (props.floating) actions.setStartOpen(false);
-            }}
-          />
-        ) : null}
-        {area === "chat" ? props.threadList : null}
-      </div>
+          </ul>
+        </nav>
+      ) : (
+        <div className="grid gap-2 px-1.5 pb-2">
+          <ListNavigation aria-label={navLabel} kind="navigation" size="xs">
+            <ListNavigationGroup>
+              {items.map((item) => (
+                <NavRow
+                  key={item.id}
+                  def={props.registry.screen(item.id)}
+                  label={t(item.label)}
+                  active={!props.settingsOpen && item.id === screen}
+                  onSelect={() => {
+                    props.onNavigate(item.id);
+                  }}
+                />
+              ))}
+            </ListNavigationGroup>
+          </ListNavigation>
+          {area === "workbench" ? (
+            <PluginUiSlot
+              onOpen={(key) => {
+                requestPluginScreen(key);
+                props.onSwitchArea("chat");
+                actions.updatePlace({ screen: "plugins", scroll: 0 });
+                if (props.floating) actions.setStartOpen(false);
+              }}
+            />
+          ) : null}
+          {area === "chat" ? props.threadList : null}
+        </div>
+      )}
     </SidePanel>
   );
 }

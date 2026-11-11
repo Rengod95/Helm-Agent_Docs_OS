@@ -102,10 +102,12 @@ describe("palette body (server render)", () => {
     expect(screens).toBeGreaterThan(settings);
   });
 
-  test("the current area's screens show first and the other area's sit behind the more row", async () => {
+  test("the current area's screens show first and the other area's follow (behind the more row once the five rows are full)", async () => {
+    // 대화 영역 화면은 셋(DP-69)이라 다섯 줄 안에 크래프트 화면 앞 둘이 이어서 보인다
     const chat = await render({ live: false, titles: [], selected: false });
     expect(chat).toContain("예약");
-    expect(chat).not.toContain("개요");
+    expect(chat.indexOf("예약")).toBeLessThan(chat.indexOf("개요"));
+    expect(chat).not.toContain("측정");
     const workbench = await render({ live: false, titles: [], selected: false, area: "workbench" });
     expect(workbench).toContain("개요");
     expect(workbench).toContain("측정");

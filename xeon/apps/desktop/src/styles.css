@@ -159,8 +159,8 @@
     min-height: 0;
     height: 20px;
   }
-  /* 화면 머리줄(대화·설정). 무대 오른쪽의 막대 여백(`--shell-rail`)을 음수 마진으로 걷어 머리가 내용 영역 끝까지 가고,
-     같은 폭만큼 안쪽 여백으로 오른쪽 끝 단추가 막대에 가리지 않게 한다. 좌우 여백은 머리 자체가 가진다 */
+  /* 화면 머리줄(대화·설정). 무대가 오른쪽 끝까지 차고(DP-68) 머리도 끝까지 간다. 오른쪽 떠 있는 막대 자리(`--shell-rail`, 막대가 있는 화면만)만큼
+     안쪽 여백을 더해 오른쪽 끝 단추가 막대에 가리지 않게 한다. 좌우 여백은 머리 자체가 가진다 */
   /* 머리줄 높이 하나: 사이드 패널 머리(영역 탭 줄 control-md + 위아래 6px + 아래 선 1px)와 화면 머리줄이 같은 값을 읽는다 */
   :root {
     --shell-header-h: calc(var(--spacing-control-md) + 13px);
@@ -168,7 +168,6 @@
     --shell-header-gap: 24px;
   }
   .shell-header {
-    margin-inline-end: calc(var(--shell-rail, 0px) * -1);
     padding-inline: 12px calc(var(--shell-rail, 0px) + 12px);
     /* 높이는 사이드 패널 머리와 같은 `--shell-header-h`, 아래에 border-subtle 구분선(border-box라 선이 높이에 든다) */
     box-sizing: border-box;
@@ -413,5 +412,17 @@
   }
   .radio-cards [data-slot="choice-group-item"][data-slot][data-slot]:not(:disabled):focus-visible {
     box-shadow: var(--cs-focus);
+  }
+}
+
+/* DP-68 [결정: 2026-11-11 사용자] 무대는 오른쪽 끝까지 차고(스크롤 막대도 창 끝), 오른쪽 떠 있는 막대는 그 위에 뜬다.
+   막대가 있는 화면(`#stage[data-rail]`)에서 머리 바로 뒤 본문은 안쪽 오른쪽 여백을 막대 자리 + 12px로 둬, 내용의 오른쪽 끝이
+   머리 단추의 오른쪽 끝(`.shell-header`의 `--shell-rail` + 12px)과 같은 줄에 선다. 본문 상자와 스크롤 막대는 끝까지 간다.
+   본문 안은 막대 자리를 이미 비켰으므로 `--shell-rail`을 0으로 돌린다(안쪽에서 그 값을 다시 더하지 않게).
+   대화 머리(`data-flush`)는 뺀다: 대화 열은 가운데 정렬이라 막대에 닿지 않는다. 화면 본문의 px 유틸리티를 이기도록 utilities 층에 둔다 */
+@layer utilities {
+  #stage[data-rail] .shell-header:not([data-flush]) + * {
+    padding-inline-end: calc(var(--stage-rail, 0px) + 12px);
+    --shell-rail: 0px;
   }
 }

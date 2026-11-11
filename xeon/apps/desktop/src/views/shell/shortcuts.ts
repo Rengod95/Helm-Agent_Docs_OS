@@ -1,8 +1,8 @@
 // 셸이 맡는 바로 가기 동작 처리. 키 이벤트를 동작 id로 풀어(`keybindings.ts`) 셸 상태를 바꾼다.
-// 셸이 모르는 동작(`turn.interrupt`, `composer.focus`, `approval.next`, `thread.new` 등)은 `onAction`으로 넘긴다.
+// 셸이 모르는 동작(`turn.interrupt`, `composer.focus`, `approval.next`, `thread.new`, 연결을 여는 `nav.5` 등)은 `onAction`으로 넘긴다.
 import { assertNever } from "@fresnel/contracts";
 import { actionFor, type ActionId, type KeyEventLike, type Keymap } from "./keybindings.ts";
-import { NAV_BY_AREA } from "./nav.ts";
+import { NAV_SHORTCUTS } from "./nav.ts";
 import type { ShellActions, ShellModel } from "../../state/shell/index.ts";
 
 /** 셸이 직접 처리하면 true. 처리하지 않은 동작은 호출자가 이어서 다룬다 */
@@ -23,7 +23,6 @@ export function runShellAction(
       actions.setEndOpen(!model.endOpen);
       return true;
     case "panel.inbox":
-    case "nav.2":
       actions.openEndTab("inbox");
       return true;
     case "panel.helm":
@@ -48,15 +47,21 @@ export function runShellAction(
       settingsOpen.set(true);
       return true;
     case "nav.1":
+    case "nav.2":
     case "nav.3":
     case "nav.4":
     case "nav.5":
     case "nav.6": {
-      const item = NAV_BY_AREA.chat.find((n) => n.action === id);
-      if (item === undefined) return false;
+      const target = NAV_SHORTCUTS[id];
+      // 연결은 App의 `connection.open`이 연다(설정의 연결 구역, cyZ). 셸은 넘긴다
+      if (target.kind === "connection") return false;
+      if (target.kind === "inbox") {
+        actions.openEndTab("inbox");
+        return true;
+      }
       settingsOpen.set(false);
       actions.switchArea("chat");
-      actions.updatePlace({ screen: item.id, scroll: 0 });
+      actions.updatePlace({ screen: target.screen, scroll: 0 });
       return true;
     }
     case "thread.new":

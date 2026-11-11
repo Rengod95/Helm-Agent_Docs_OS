@@ -32,7 +32,7 @@ describe("shortcutRowsOf", () => {
       },
       {
         id: "nav.1",
-        label: "desktop.shortcuts.action.nav1",
+        label: "desktop.shell.nav.chat",
         group: "navigate",
         keys: "⌘1",
         parts: ["⌘", "1"],
@@ -41,9 +41,10 @@ describe("shortcutRowsOf", () => {
     expect(rows.find((row) => row.id === "panel.inbox")?.keys).toBe("⇧⌘I");
     expect(rows.find((row) => row.id === "thread.next")?.keys).toBe("⌥⌘↓");
     expect(rows.find((row) => row.id === "area.chat")?.keys).toBe("⌥⌘1");
+    expect(rows.find((row) => row.id === "nav.5")?.label).toBe("desktop.shell.nav.connection");
     expect(rows.find((row) => row.id === "nav.6")).toEqual({
       id: "nav.6",
-      label: "desktop.shortcuts.action.nav6",
+      label: "desktop.shell.nav.plugins",
       group: "navigate",
       keys: "⌘6",
       parts: ["⌘", "6"],
