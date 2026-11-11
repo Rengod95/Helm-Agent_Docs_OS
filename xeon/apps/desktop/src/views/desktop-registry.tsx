@@ -35,6 +35,7 @@ import { ReviewScreen } from "./pages/review/review-screen.tsx";
 import { WorkScreen } from "./pages/work/work-screen.tsx";
 import { SecretsPanel } from "./pages/secrets/secrets-screen.tsx";
 import { TrustCard } from "./trust.tsx";
+import { ThreadContextBar } from "./thread-context-bar.tsx";
 import { WorkFolderBand } from "./work-folder-band.tsx";
 import { Transcript } from "./transcript.tsx";
 import {
@@ -76,6 +77,7 @@ function ChatScreen(): ReactNode {
           <ApprovalQueue />
           <SafeModeCard />
         </div>
+        <ThreadContextBar />
         {spawned ? <SpawnedNotice /> : <Composer />}
       </div>
     </div>
