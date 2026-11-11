@@ -114,7 +114,7 @@ describe("decode boundary", () => {
 
   test("a kind outside the table is other (position only)", () => {
     expect(
-      decodeDurable({ ...base, kind: "settings.changed", durable: true, seq: 9, payload: {} }),
+      decodeDurable({ ...base, kind: "post.accepted", durable: true, seq: 9, payload: {} }),
     ).toMatchObject({ type: "other", seq: 9 });
     expect(
       decodeVolatile({

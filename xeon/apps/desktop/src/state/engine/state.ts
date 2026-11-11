@@ -18,6 +18,7 @@ import type {
   ReviewSubmittedPayload,
   StatusItemRecord,
 } from "@fresnel/contracts/records";
+import type { Convo } from "./convo.ts";
 import type { StoreId, SubId, ThreadSummary } from "@fresnel/contracts/wire";
 import type { EngineState } from "../../transport/ipc.ts";
 
@@ -246,6 +247,11 @@ export type EngineMirror = {
    * 연결이 끊겨 거울을 head부터 다시 맞추면 비운다(휘발 알림은 저장되지 않는다)
    */
   readonly retrying: Readonly<Record<string, ProviderRetry>>;
+  /**
+   * thread별 대화 상태(`convo.ts`): 도구 진행 출력, 단계·턴 기록, 승인 기록, 개입, 주도 임대, 하위 에이전트, 목표와 할 일, 변화 표지.
+   * 내구 사건은 보조 재생(`backfill`)으로 연결 전 것까지 채우고, 휘발 알림과 진행 출력은 받은 것만 둔다. 거울을 head부터 다시 맞추면 비운다
+   */
+  readonly convo: Convo;
 };
 
 export const EMPTY_STREAMING: Streaming = {
@@ -276,4 +282,5 @@ export const INITIAL_MIRROR: EngineMirror = {
   settledInputs: [],
   reviewResults: [],
   retrying: {},
+  convo: {},
 };

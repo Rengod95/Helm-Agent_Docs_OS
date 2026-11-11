@@ -14,6 +14,8 @@ import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import type { ReadonlyStore } from "../shared/readonly-store.ts";
 import * as sel from "./selectors.ts";
+import * as csel from "./convo-select.ts";
+import type { ApprovalTrail, ConvoMarker, Intervention, ToolProgress } from "./convo.ts";
 import type { AnchoredCompaction } from "./compaction-anchor.ts";
 import type { EngineState } from "../../transport/ipc.ts";
 import type {
@@ -154,3 +156,41 @@ export const useReviewResults = (): EngineMirror["reviewResults"] =>
 /** 이 대화의 상태줄 칸(B-09). 열 때 `status.list`로 채우고 `dialog.status`가 바꾼다 */
 export const useStatusItems = (threadId: ThreadId | null): readonly StatusItemRecord[] =>
   useEngine(useShallow((s: EngineMirror) => sel.selectStatusItems(s, threadId)));
+
+// ── 대화 상태(`convo.ts`, `convo-select.ts`) ──────────────────────────
+/** 도구 호출의 진행 출력(마지막 줄들과 받은 총량). 호출 id가 아직 없으면 item id로 찾는다 */
+export const useToolProgress = (threadId: ThreadId, toolKey: string): ToolProgress | null =>
+  useEngine((s) => csel.selectToolProgress(s, threadId, toolKey));
+/** 도구 호출의 개입 목록(훅·가드 차단, 결과 고침, 샌드박스 우회, 시크릿 사용 등) */
+export const useToolInterventions = (
+  threadId: ThreadId,
+  toolCallId: string,
+): readonly Intervention[] =>
+  useEngine((s) => csel.selectToolInterventions(s, threadId, toolCallId));
+/** 도구 호출에 붙은 승인 기록 */
+export const useToolApprovals = (
+  threadId: ThreadId,
+  toolCallId: string,
+): readonly ApprovalTrail[] => useEngine((s) => csel.selectToolApprovals(s, threadId, toolCallId));
+export const useTurnSummaries = (threadId: ThreadId): readonly csel.TurnSummary[] =>
+  useEngine((s) => csel.selectTurnSummaries(s, threadId));
+export const useTurnSummary = (threadId: ThreadId, turnId: TurnId): csel.TurnSummary | undefined =>
+  useEngine((s) => csel.selectTurnSummary(s, threadId, turnId));
+/** 멈추는 중인 턴이 있다 */
+export const useAborting = (threadId: ThreadId): boolean =>
+  useEngine((s) => csel.selectAborting(s, threadId));
+export const useLeadSegments = (threadId: ThreadId): readonly csel.LeadSegment[] =>
+  useEngine((s) => csel.selectLeadSegments(s, threadId));
+export const useAgentRows = (threadId: ThreadId): readonly csel.AgentRow[] =>
+  useEngine((s) => csel.selectAgentRows(s, threadId));
+/** 입력창 위 "지금 띠": 목표, 판정, 할 일, 도는 하위 에이전트 수, 기다리는 승인 수 */
+export const useNow = (threadId: ThreadId): csel.NowState =>
+  useEngine((s) => csel.selectNow(s, threadId));
+export const useConvoMarkers = (threadId: ThreadId): readonly ConvoMarker[] =>
+  useEngine((s) => csel.selectMarkers(s, threadId));
+/** 도구 호출에 묶이지 않은 개입(시크릿 가림, 시크릿 승인) */
+export const useLooseInterventions = (threadId: ThreadId): readonly Intervention[] =>
+  useEngine((s) => csel.selectLooseInterventions(s, threadId));
+/** 도구 호출 id 없는 승인(계획·질문·검토)의 기록 */
+export const useLooseApprovals = (threadId: ThreadId): readonly ApprovalTrail[] =>
+  useEngine((s) => csel.selectLooseApprovals(s, threadId));

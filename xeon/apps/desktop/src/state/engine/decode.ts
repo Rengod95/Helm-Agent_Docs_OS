@@ -6,7 +6,9 @@ import {
   ProviderRetryDetailSchema,
   ThreadStartedPayloadSchema,
   ThreadUpdatedPayloadSchema,
+  StepCompletedPayloadSchema,
   TurnCompletedPayloadSchema,
+  TurnStartedPayloadSchema,
   TurnUpdatedPayloadSchema,
   maskItemRecord,
   type ApprovalMaskEntry,
@@ -28,6 +30,26 @@ import {
   InputPlacedPayloadSchema,
   InputQueuedPayloadSchema,
   InputWithdrawnPayloadSchema,
+  AgentJudgedPayloadSchema,
+  AgentSettledEventPayloadSchema,
+  AgentSpawnedPayloadSchema,
+  BranchSummarizedPayloadSchema,
+  LeafMovedPayloadSchema,
+  SecretApprovedPayloadSchema,
+  SecretDeniedPayloadSchema,
+  SecretMaskedPayloadSchema,
+  SecretUsedPayloadSchema,
+  SettingsChangedPayloadSchema,
+  ThreadResumedPayloadSchema,
+  ToolSandboxBypassedPayloadSchema,
+  ToolUntrustedReadPayloadSchema,
+  TurnAbortRequestedPayloadSchema,
+  WorkGoalJudgedSchema,
+  WorkGoalSetSchema,
+  WorkGoalSettledSchema,
+  WorkTaskChangedSchema,
+  WorkTaskCreatedSchema,
+  WorkTaskLinkSchema,
   WorkPlanSubmittedSchema,
   WorkPlanWithdrawnSchema,
   maskApprovalRequest,
@@ -41,6 +63,8 @@ import type {
   VolatileEventWire,
 } from "@fresnel/contracts/wire";
 import type { DurableFact, QueuedPreview, VolatileFact } from "./input.ts";
+import { progressTextOf, turnNoticeOf, type ConvoEvent } from "./convo.ts";
+import type { Static, TSchema } from "typebox";
 
 type DurableBase = Omit<Extract<DurableFact, { type: "other" }>, "type">;
 type VolatileBase = Omit<Extract<VolatileFact, { type: "other" }>, "type">;
@@ -83,6 +107,19 @@ function queuedPreviewOf(item: InputQueuedPayload["item"]): QueuedPreview {
   return { kind: "label", labelKey: hasImage ? "image" : "empty" };
 }
 
+/** 대화 화면이 읽는 내구 kind 하나의 디코더. 검증을 통과하면 `convo` 사실이고, 아니면 읽을 수 없는 사실이다 */
+function convoEntry<S extends TSchema>(
+  schema: S,
+  make: (payload: Static<S>) => ConvoEvent | null,
+): (base: DurableBase, payload: unknown) => DurableFact {
+  return (base, payload) => {
+    const p = parse(schema, payload);
+    if (!p.ok) return { ...base, type: "unreadable" };
+    const event = make(p.value);
+    return event === null ? { ...base, type: "other" } : { ...base, type: "convo", event };
+  };
+}
+
 /**
  * 거울이 읽는 내구 kind와 payload 검증. 표에 없는 kind는 other로 위치만 넘긴다.
  * `mask`는 호스트가 준 화면 가림 표식이다(item.recorded, approval.requested, input.queued에 있다). 확정 item과 대기 입력은 표식을 적용한 복사본으로 거울에 들어간다.
@@ -102,7 +139,105 @@ const DURABLE: Readonly<
       ? { ...base, type: "unreadable" }
       : { ...base, type: "item.recorded", item };
   },
-  "turn.started": (base) => ({ ...base, type: "turn.started" }),
+  "turn.started": (base, payload) => {
+    const p = parse(TurnStartedPayloadSchema, payload);
+    return p.ok
+      ? {
+          ...base,
+          type: "turn.started",
+          start: {
+            origin: p.value.origin ?? "user",
+            scopeId: p.value.scopeId,
+            requestId: p.value.requestId,
+          },
+        }
+      : { ...base, type: "turn.started" };
+  },
+  "step.completed": convoEntry(StepCompletedPayloadSchema, (payload) => ({
+    kind: "step.completed",
+    payload,
+  })),
+  "turn.abort_requested": convoEntry(TurnAbortRequestedPayloadSchema, (payload) => ({
+    kind: "turn.abort_requested",
+    payload,
+  })),
+  "agent.spawned": convoEntry(AgentSpawnedPayloadSchema, (payload) => ({
+    kind: "agent.spawned",
+    payload,
+  })),
+  "agent.judged": convoEntry(AgentJudgedPayloadSchema, (payload) => ({
+    kind: "agent.judged",
+    payload,
+  })),
+  "agent.settled": convoEntry(AgentSettledEventPayloadSchema, (payload) => ({
+    kind: "agent.settled",
+    payload,
+  })),
+  "work.goal_set": convoEntry(WorkGoalSetSchema, (payload) => ({ kind: "work.goal_set", payload })),
+  "work.goal_judged": convoEntry(WorkGoalJudgedSchema, (payload) => ({
+    kind: "work.goal_judged",
+    payload,
+  })),
+  "work.goal_settled": convoEntry(WorkGoalSettledSchema, (payload) => ({
+    kind: "work.goal_settled",
+    payload,
+  })),
+  "work.task_created": convoEntry(WorkTaskCreatedSchema, (payload) => ({
+    kind: "work.task_created",
+    payload,
+  })),
+  "work.task_changed": convoEntry(WorkTaskChangedSchema, (payload) => ({
+    kind: "work.task_changed",
+    payload,
+  })),
+  "work.task_linked": convoEntry(WorkTaskLinkSchema, (payload) => ({
+    kind: "work.task_linked",
+    payload,
+  })),
+  "work.task_unlinked": convoEntry(WorkTaskLinkSchema, (payload) => ({
+    kind: "work.task_unlinked",
+    payload,
+  })),
+  "thread.leaf_moved": convoEntry(LeafMovedPayloadSchema, (payload) => ({
+    kind: "thread.leaf_moved",
+    payload,
+  })),
+  "thread.branch_summarized": convoEntry(BranchSummarizedPayloadSchema, (payload) => ({
+    kind: "thread.branch_summarized",
+    payload,
+  })),
+  "thread.resumed": convoEntry(ThreadResumedPayloadSchema, (payload) => ({
+    kind: "thread.resumed",
+    payload,
+  })),
+  "settings.changed": convoEntry(SettingsChangedPayloadSchema, (payload) => ({
+    kind: "settings.changed",
+    payload,
+  })),
+  "tool.sandbox_bypassed": convoEntry(ToolSandboxBypassedPayloadSchema, (payload) => ({
+    kind: "tool.sandbox_bypassed",
+    payload,
+  })),
+  "tool.untrusted_read": convoEntry(ToolUntrustedReadPayloadSchema, (payload) => ({
+    kind: "tool.untrusted_read",
+    payload,
+  })),
+  "secret.used": convoEntry(SecretUsedPayloadSchema, (payload) => ({
+    kind: "secret.used",
+    payload,
+  })),
+  "secret.denied": convoEntry(SecretDeniedPayloadSchema, (payload) => ({
+    kind: "secret.denied",
+    payload,
+  })),
+  "secret.approved": convoEntry(SecretApprovedPayloadSchema, (payload) => ({
+    kind: "secret.approved",
+    payload,
+  })),
+  "secret.masked": convoEntry(SecretMaskedPayloadSchema, (payload) => ({
+    kind: "secret.masked",
+    payload,
+  })),
   "step.started": (base) => ({ ...base, type: "step.started" }),
   "thread.started": (base, payload) => {
     const p = parse(ThreadStartedPayloadSchema, payload);
@@ -135,7 +270,12 @@ const DURABLE: Readonly<
   "approval.resolved": (base, payload) => {
     const p = parse(ApprovalResolvedPayloadSchema, payload);
     return p.ok
-      ? { ...base, type: "approval.resolved", approvalId: p.value.approvalId }
+      ? {
+          ...base,
+          type: "approval.resolved",
+          approvalId: p.value.approvalId,
+          resolved: p.value,
+        }
       : { ...base, type: "unreadable" };
   },
   // 전환 기록(§4.9.8): 단계 경계의 drive 락 교대와 켜기·끄기 적용
@@ -261,7 +401,17 @@ const DURABLE: Readonly<
 const VOLATILE: Readonly<Record<string, (base: VolatileBase, payload: unknown) => VolatileFact>> = {
   "item.updated": (base, payload) => {
     const p = parse(ItemUpdatedPayloadSchema, payload);
-    return p.ok ? { ...base, type: "item.updated", payload: p.value } : { ...base, type: "other" };
+    if (!p.ok) return { ...base, type: "other" };
+    const update = p.value.update;
+    // 도구 진행 출력은 본문의 글만 남긴다(이미지 조각과 details는 화면이 쓰지 않는다)
+    return update.kind === "tool_progress"
+      ? {
+          ...base,
+          type: "tool.progress",
+          itemId: p.value.itemId,
+          text: progressTextOf(update.partialResult),
+        }
+      : { ...base, type: "item.updated", payload: p.value };
   },
   "dialog.status": (base, payload) => {
     const p = parse(DialogStatusDataSchema, payload);
@@ -320,12 +470,16 @@ function decodeHandlerFailed(base: VolatileBase, event: VolatileEventWire): Vola
 }
 
 /**
- * 휘발 `turn.updated`: 제공자 재시도 알림(`provider_retry`)만 `provider.retry` 사실이 된다. 나머지 알림과 모양이 틀린 것은 other다.
+ * 휘발 `turn.updated`: 제공자 재시도 알림(`provider_retry`)은 `provider.retry`, `gate_limit`·`repeat_detected`는 `turn.notice` 사실이 된다. 알림 없는 갱신과 모양이 틀린 것은 other다.
  * `receivedAt`은 이 기기가 받은 시각(ms)이다. 남은 대기 초는 이 시각에서 센다(발신 쪽 시계와 다를 수 있다).
  */
 function decodeTurnUpdated(base: VolatileBase, payload: unknown, receivedAt: number): VolatileFact {
   const p = parse(TurnUpdatedPayloadSchema, payload);
-  if (!p.ok || p.value.notice?.code !== "provider_retry") return { ...base, type: "other" };
+  if (!p.ok || p.value.notice === undefined) return { ...base, type: "other" };
+  if (p.value.notice.code !== "provider_retry") {
+    const notice = turnNoticeOf(p.value.notice.code, p.value.notice.detail);
+    return notice === null ? { ...base, type: "other" } : { ...base, type: "turn.notice", notice };
+  }
   const detail = parse(ProviderRetryDetailSchema, p.value.notice.detail);
   return detail.ok
     ? { ...base, type: "provider.retry", retry: detail.value, receivedAt }

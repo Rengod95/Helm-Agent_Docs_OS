@@ -49,9 +49,29 @@ export type LinkDeps = {
 
 /**
  * 연결 전 사건을 채우는 보조 구독이 거르는 종류: 계획(`work.plan_submitted`·`work.plan_withdrawn`), 대기 입력(`input.queued`·`placed`·`withdrawn`),
- * 대화 요약(`thread.compacted`, 구분선이 연결 전 요약을 다시 보이게 한다)
+ * 대화 요약(`thread.compacted`, 구분선이 연결 전 요약을 다시 보이게 한다), 대화 상태에 쓰는 종류(아래 목록)
  */
-const BACKFILL_PREFIXES: string[] = ["work.plan_", "input.", "thread.compacted"];
+const BACKFILL_PREFIXES: string[] = [
+  "work.plan_",
+  "input.",
+  "thread.compacted",
+  // 대화 상태(`convo.ts`): 턴·단계 기록, 승인 기록, 주도 임대, 하위 에이전트, 목표와 할 일, 변화 표지, 개입.
+  // `item.recorded`는 읽지 않는다(저장소 전체의 item을 다시 읽는 비용이 크다). 도구 결과의 개입은 대화를 열 때 받는 스냅숏에서 읽는다
+  "turn.",
+  "step.completed",
+  "approval.",
+  "lease.",
+  "agent.",
+  "work.goal_",
+  "work.task_",
+  "thread.updated",
+  "thread.leaf_moved",
+  "thread.branch_summarized",
+  "thread.resumed",
+  "settings.changed",
+  "tool.",
+  "secret.",
+];
 
 /** thread.list 페이지 상한(200개씩). 넘으면 앞쪽 페이지만 보인다 */
 const MAX_LIST_PAGES = 10;
