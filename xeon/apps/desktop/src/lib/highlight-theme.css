@@ -1,0 +1,18 @@
+/* highlight.ts가 내는 shiki CSS 변수(접두 --cs-syntax-)를 caustic 구문 변수에 잇는다.
+   caustic의 구문 토큰은 네 개(keyword, string, property, comment)뿐이라, 나머지 종류는 가까운 caustic 색을 쓴다.
+   이 파일은 styles.css에 import되지 않는다. 메인이 import를 정한다. */
+:root {
+  --cs-syntax-foreground: var(--cs-color-text-primary);
+  --cs-syntax-token-keyword: var(--cs-color-syntax-keyword);
+  --cs-syntax-token-string: var(--cs-color-syntax-string);
+  --cs-syntax-token-string-expression: var(--cs-color-syntax-string);
+  --cs-syntax-token-comment: var(--cs-color-syntax-comment);
+  --cs-syntax-token-constant: var(--cs-color-syntax-property);
+  --cs-syntax-token-function: var(--cs-color-syntax-property);
+  --cs-syntax-token-parameter: var(--cs-color-text-primary);
+  --cs-syntax-token-punctuation: var(--cs-color-text-primary);
+  --cs-syntax-token-link: var(--cs-color-text-link);
+  --cs-syntax-token-inserted: var(--cs-color-diff-add-text);
+  --cs-syntax-token-deleted: var(--cs-color-diff-remove-text);
+  --cs-syntax-token-changed: var(--cs-color-info-text);
+}
