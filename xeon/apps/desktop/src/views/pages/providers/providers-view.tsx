@@ -22,7 +22,7 @@ import { assertNever } from "@fresnel/contracts";
 import type { AccountEntry, RotationState } from "@fresnel/client";
 import type { KeyField } from "@fresnel/client/settings";
 import type { ModelEntry } from "@fresnel/contracts/wire";
-import { useRef, type ReactNode, type RefObject } from "react";
+import { useId, useRef, type ReactNode, type RefObject } from "react";
 import { modelOptionsOf, tokenCountText } from "../../model-usage.ts";
 import {
   FIELD_WIDTH,
@@ -419,57 +419,63 @@ export interface ProvidersViewProps {
 export function ProvidersView(props: ProvidersViewProps): ReactNode {
   const { cards, editable, handlers } = props;
   const empty = cards !== null && cards.length === 0;
+  const headingId = useId();
+  // 카드 격자는 카드 안 카드가 되지 않게 바깥 카드 없이 둔다. 머리는 SettingSection과 같은 모양이다(DP-79, DP-83)
+  const end =
+    empty || props.unreadable !== null ? undefined : (
+      <Button
+        size={FORM_CONTROL_SIZE}
+        variant="ghost"
+        disabled={!editable}
+        onClick={handlers.onAdd}
+      >
+        <Plus aria-hidden />
+        {t("desktop.providers.add")}
+      </Button>
+    );
   return (
-    <SettingSection
-      body="plain"
-      title={t("desktop.providers.title")}
-      end={
-        empty || props.unreadable !== null ? undefined : (
-          <Button
-            size={FORM_CONTROL_SIZE}
-            variant="ghost"
-            disabled={!editable}
-            onClick={handlers.onAdd}
-          >
-            <Plus aria-hidden />
-            {t("desktop.providers.add")}
-          </Button>
-        )
-      }
-    >
-      {props.unreadable !== null ? <UnreadableNote message={props.unreadable} /> : null}
-      {props.unreadable === null && empty ? (
-        <div data-slot="providers-empty" className="grid gap-3">
-          <p className="m-0 text-ui text-text-secondary">{t("desktop.providers.empty.lead")}</p>
-          <PickGrid
-            addable={props.addable}
-            disabled={!editable}
-            onPick={handlers.onPick}
-            onCustom={handlers.onCustom}
-          />
-        </div>
-      ) : null}
-      {props.unreadable === null && cards !== null && cards.length > 0 ? (
-        <div className="@container">
-          <div
-            data-slot="provider-grid"
-            className="grid grid-cols-1 items-start gap-2 @[32rem]:grid-cols-2"
-          >
-            {cards.map((card) => (
-              <ProviderCardView
-                key={card.id}
-                card={card}
-                editable={editable}
-                steps={props.steps[card.id] ?? null}
-                handlers={handlers}
-              />
-            ))}
+    <section data-slot="setting-section" aria-labelledby={headingId} className="pt-10 first:pt-0">
+      <div className="mb-2 flex min-h-7 items-center gap-2">
+        <h2 id={headingId} className="m-0 min-w-0 flex-1 text-title-2 text-text-primary">
+          {t("desktop.providers.title")}
+        </h2>
+        {end}
+      </div>
+      <div data-slot="providers-body" className="grid gap-2">
+        {props.unreadable !== null ? <UnreadableNote message={props.unreadable} /> : null}
+        {props.unreadable === null && empty ? (
+          <div data-slot="providers-empty" className="grid gap-3">
+            <p className="m-0 text-ui text-text-secondary">{t("desktop.providers.empty.lead")}</p>
+            <PickGrid
+              addable={props.addable}
+              disabled={!editable}
+              onPick={handlers.onPick}
+              onCustom={handlers.onCustom}
+            />
           </div>
-        </div>
-      ) : null}
-      {props.lockedText === null ? null : <LockLine text={props.lockedText} />}
-      <ErrorLine text={props.error} />
-    </SettingSection>
+        ) : null}
+        {props.unreadable === null && cards !== null && cards.length > 0 ? (
+          <div className="@container">
+            <div
+              data-slot="provider-grid"
+              className="grid grid-cols-1 items-start gap-2 @[32rem]:grid-cols-2"
+            >
+              {cards.map((card) => (
+                <ProviderCardView
+                  key={card.id}
+                  card={card}
+                  editable={editable}
+                  steps={props.steps[card.id] ?? null}
+                  handlers={handlers}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {props.lockedText === null ? null : <LockLine text={props.lockedText} />}
+        <ErrorLine text={props.error} />
+      </div>
+    </section>
   );
 }
 
@@ -620,7 +626,6 @@ function KeyInput(props: {
             size={FORM_CONTROL_SIZE}
             type="password"
             containerClassName={FIELD_WIDTH.full}
-            className="font-mono"
             placeholder={t("desktop.providers.key.placeholder")}
             autoComplete="off"
             autoCorrect="off"

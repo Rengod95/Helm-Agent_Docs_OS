@@ -15,7 +15,7 @@ import {
 import { FoldedFields } from "../shared/folded-fields.tsx";
 
 // 시크릿 구역의 "고급"(DP-85 [결정: 2026-11-11 사용자]). 시크릿 저장소(백엔드)·age 키 위치·임대·감사 보관 키를 접어 둔다.
-// 줄은 설정 화면의 일반 항목 줄(FieldRow)이다. 사용자가 값을 바꿔 두었거나 초안이 있으면 펼친 채 시작한다.
+// 줄은 설정 화면의 일반 항목 줄(FieldRow)이다. 고치는 중인 초안이 있으면 펼친 채 시작한다(저장된 값만으로는 펼치지 않는다).
 
 export function SecretsAdvancedPanel(props: {
   readonly view: SettingsView;
@@ -29,7 +29,7 @@ export function SecretsAdvancedPanel(props: {
     shownFieldsOf(props.view.tabs),
   );
   if (fields.length === 0) return null;
-  const changed = fields.some((field) => field.dirty || field.scope.scope === "user");
+  const changed = fields.some((field) => field.dirty);
   return (
     <FoldedFields
       title={t("desktop.secrets.advanced.title")}

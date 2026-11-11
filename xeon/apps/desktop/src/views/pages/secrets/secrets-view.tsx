@@ -243,6 +243,7 @@ export function SecretsScreenView(props: SecretsScreenViewProps): ReactNode {
           <SecretTable
             rows={view.rows}
             selectedName={selected?.name ?? null}
+            open={sheetOpen}
             nowMs={nowMs}
             locale={locale}
             onSelect={(name) => {
@@ -359,11 +360,13 @@ const WIDE_ONLY = "@max-[34rem]:hidden";
 
 /**
  * 시크릿 표(DP-85): 이름 · 쓰는 곳 · 허용 호스트 · 마지막 사용 · 상태. 값 열은 없다. 줄 40px, 머리 32px(12/500 tertiary).
- * 고른 줄은 옅은 면(`neutral.selected`)이고, 누르거나 Enter를 누르면 오른쪽 시트에 상세가 열린다.
+ * 시트가 열린 동안 그 줄은 옅은 면(`neutral.selected`)이다. 누르거나 Enter를 누르면 오른쪽 시트에 상세가 열린다.
  */
 function SecretTable(props: {
   readonly rows: readonly SecretListEntry[];
   readonly selectedName: SecretName | null;
+  /** 상세 시트가 열려 있다. 닫혀 있으면 고른 줄은 초점 고리로만 보인다 */
+  readonly open: boolean;
   readonly nowMs: number;
   readonly locale: Locale;
   readonly onSelect: (name: SecretName) => void;
@@ -412,7 +415,7 @@ function SecretTable(props: {
               onSelect(row.name);
             }}
             className={`grid h-10 ${COLS} cursor-default items-center gap-3 border-t border-border-subtle px-4 text-ui outline-none focus-visible:focus-ring ${
-              current ? "bg-neutral-selected" : "hover:bg-neutral-hover"
+              current && props.open ? "bg-neutral-selected" : "hover:bg-neutral-hover"
             }`}
           >
             <span role="gridcell" className="truncate font-mono text-mono text-text-primary">
