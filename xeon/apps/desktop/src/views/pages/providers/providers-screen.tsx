@@ -18,10 +18,7 @@ import {
 } from "@fresnel/client";
 import { t } from "@fresnel/client/i18n";
 import { checkModelRef, type SettingsView } from "@fresnel/client/settings";
-import { detach, rethrow } from "@fresnel/contracts";
-import type { ThreadId } from "@fresnel/contracts/conversation";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { useCommands } from "../../commands.ts";
+import { useState, type ReactNode } from "react";
 import type {
   DedicatedEditorProps,
   DedicatedEditors,
@@ -55,7 +52,6 @@ import {
   UnreadableNote,
   invalidTextOf,
   type AccountDraft,
-  type UsageLoad,
 } from "./providers-view.tsx";
 
 // 계정과 제공자, 예산과 한도 화면(P-11)의 편집기. 설정 항목 한 줄이 전용 편집기로 그리는 자리에 들어간다(`settings-field.tsx`).
@@ -316,56 +312,4 @@ export function RotationPanel(props: {
       }}
     />
   );
-}
-
-/** 사용량 패널의 읽기 상태. `reload`는 "다시 읽기" 단추가 부른다 */
-export interface UsageState {
-  readonly load: UsageLoad;
-  readonly reload: () => void;
-}
-
-/** 읽은 결과와 그 결과의 대화. 대화가 바뀌면 옛 결과는 쓰지 않는다 */
-interface UsageSlot {
-  readonly thread: ThreadId;
-  readonly load: UsageLoad;
-}
-
-const LOADING: UsageLoad = { status: "loading" };
-
-/**
- * `usage.get { threadId }`를 읽는다. 연결이 살아 있고 대화가 있을 때 읽고, 대화가 바뀌면 다시 읽는다. 옛 응답은 버린다.
- * 대화가 없으면 읽지 않는다(패널이 안내만 보인다).
- */
-export function useUsageState(live: boolean, threadId: ThreadId | null): UsageState {
-  const commands = useCommands();
-  const [slot, setSlot] = useState<UsageSlot | null>(null);
-  const latest = useRef(0);
-  const read = useCallback(
-    async (thread: ThreadId): Promise<void> => {
-      latest.current += 1;
-      const seq = latest.current;
-      const result = await commands.usage.get({ threadId: thread });
-      if (seq !== latest.current) return;
-      setSlot({
-        thread,
-        load: result.ok
-          ? { status: "ready", gauges: result.value.gauges }
-          : { status: "failed", message: t("desktop.providers.usage.failed") },
-      });
-    },
-    [commands],
-  );
-  useEffect(() => {
-    if (live && threadId !== null) detach(read(threadId), rethrow);
-  }, [live, read, threadId]);
-  // 대화가 바뀌었거나 아직 읽지 않았으면 읽는 중이다. 옛 대화의 값은 보이지 않는다
-  const load = slot !== null && threadId !== null && slot.thread === threadId ? slot.load : LOADING;
-  return {
-    load,
-    reload: () => {
-      if (threadId === null) return;
-      setSlot(null);
-      detach(read(threadId), rethrow);
-    },
-  };
 }

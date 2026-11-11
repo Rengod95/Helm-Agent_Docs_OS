@@ -6,7 +6,6 @@ import {
   Alert,
   Badge,
   Button,
-  Checkbox,
   Field,
   FormLayoutFooter,
   IconButton,
@@ -20,70 +19,48 @@ import {
   Switch,
   Tooltip,
 } from "@caustic/react";
-import { Check, CircleHelp, Lock, TriangleAlert } from "@caustic/react/icons";
+import { Check, CircleHelp, Lock, RotateCcw, TriangleAlert } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
-import {
-  scopeText,
-  type FieldVM,
-  type RuntimeBadge,
-  type WidgetVM,
-  type WritableScope,
-} from "@fresnel/client/settings";
+import type { FieldVM, RuntimeBadge, WidgetVM } from "@fresnel/client/settings";
 import { assertNever } from "@fresnel/contracts";
-import type { SettingKey } from "@fresnel/contracts/settings";
 import { useId, useRef, useState, type ReactNode } from "react";
 import {
-  dedicatedEditorOf,
-  fallbackScopeOf,
   choiceWarningOf,
+  dedicatedEditorOf,
   fieldControlOf,
   foldableOf,
   hasFooter,
-  optionHelpOf,
-  type DedicatedEditorKind,
-  type FieldControl,
-  launchChoiceOf,
   numberDraftActionOf,
   numberValueOf,
-  optionOf,
+  optionHelpOf,
   optionLabelOf,
+  optionOf,
   optionTextOf,
+  overrideNoticeOf,
   remoteNoticeOf,
-  scopeChoiceShown,
-  selectControlOf,
-  shadowedSummaryOf,
+  rowLayoutOf,
   switchClassOf,
   tagsOf,
   textValueOf,
   valueSummaryOf,
-  writableOf,
+  type DedicatedEditorKind,
+  type FieldControl,
+  type FieldHandlers,
 } from "./settings-model.ts";
+import { QuantityControl } from "./settings-quantity-field.tsx";
+import { numberControlOf, rangeTextOf } from "./settings-quantity.ts";
 import { isCommitEnter } from "../../ime-enter.ts";
 import { TONE_CLASS } from "./settings-text.ts";
 import { SettingTagList } from "./settings-tag-list.tsx";
 
-// 설정 항목 한 줄(P-09)의 그림. 줄은 제목 하나와 컨트롤 하나로 이루어진다(P-09 `_settings/row.tsx`, c04).
-//   머리: 제목(라벨) · 정보 아이콘(설명은 아이콘 뒤 말풍선과 화면 낭독기 설명) ………… 저장됨 또는 저장 중 또는 적용 시점
-//         적용 시점은 "즉시"를 적지 않고, 다음 턴은 연한 글, 재시작 필요만 warning 배지다. 범위는 화면 낭독기 문장에만 남긴다.
-//   다음 줄: 컨트롤(자기 폭). 오류와 경고는 컨트롤 아래에 보인다. 잠금 문장은 그 아래에 보인다.
-// 위젯 종류마다 caustic 부품 하나를 고른다(L4.settings-ui §4.2.1). 표(table), 시크릿(secret)은 전용 편집기(`editors`)로 그린다.
-// 읽기 전용(readonly)은 객체와 배열을 접힌 JSON으로 보인다. 검색 순서는 도구와 웹 패널이 맡는다(`panelOwnedOf`).
-// 상태와 명령은 없고 `handlers`만 받는다.
+// 설정 항목 한 줄(P-09, L4.settings-ui §4.2 [결정: 2026-11-11 사용자]). 모든 쓰기는 사용자(전역) 범위다. 범위 고르기,
+// "이번 대화에만 적용", 범위 값 지우기는 없다.
+//   한 줄 행(스위치, 고르기, 숫자, 짧은 글): 왼쪽 제목 · 정보 아이콘 · 상태 ……… 되돌리기 · 컨트롤
+//   두 줄 행(목록, 표, 설명 붙은 선택지, 전용 편집기): 제목 줄 아래에 컨트롤이 열 폭으로 놓인다.
+// 그 아래에 차례로: 오류, 잠금, 덮어쓰는 층 경고(다른 층 값이 이길 때), 다른 곳에서 바뀜, 폐기, 저장 줄.
+// 설명은 정보 아이콘 뒤 말풍선이다(DP 규칙). 경고는 보이게 둔다. 상태와 명령은 없고 `handlers`만 받는다.
 
-export interface FieldHandlers {
-  /** 초안만 바꾼다(글 칸과 목록 칸은 저장 버튼이나 떠날 때 저장한다) */
-  readonly edit: (key: SettingKey, raw: unknown) => void;
-  /** 바꾸고 바로 저장한다(켜기, 고르기, 숫자 칸) */
-  readonly change: (key: SettingKey, raw: unknown) => void;
-  /** 초안을 저장한다 */
-  readonly commit: (key: SettingKey) => void;
-  readonly discard: (key: SettingKey) => void;
-  /** 다른 곳에서 바뀐 값을 두고 내 초안을 유지한다("내 값 유지") */
-  readonly keepDraft: (key: SettingKey) => void;
-  readonly selectScope: (key: SettingKey, scope: WritableScope) => void;
-  /** 범위 값을 지운다 */
-  readonly reset: (key: SettingKey, scope: WritableScope) => void;
-}
+export type { FieldHandlers } from "./settings-model.ts";
 
 /** 전용 편집기 하나가 받는 값. 초안은 `handlers.edit`로, 저장과 되돌리기는 항목 아래 줄로 바뀐다 */
 export interface DedicatedEditorProps {
@@ -101,12 +78,11 @@ export interface FieldRowProps {
   readonly field: FieldVM;
   /** 읽기 전용(오프라인)이 아니고 항목이 쓸 수 있을 때 참 */
   readonly editable: boolean;
-  readonly hasThread: boolean;
   /** "저장됨" 표시가 아직 보이는가 */
   readonly saved: boolean;
   readonly editors: DedicatedEditors;
   readonly handlers: FieldHandlers;
-  /** 찾기 결과에서만 참이다. 라벨 옆에 설정 키를 보인다(시안 `_settings/row.tsx` showKey) */
+  /** 찾기 결과에서만 참이다. 제목 아래에 설정 키를 보인다 */
   readonly showKey?: boolean | undefined;
 }
 
@@ -120,7 +96,7 @@ function choiceTextOf(value: unknown): string {
   return typeof value === "string" || typeof value === "number" ? String(value) : "";
 }
 
-/** "저장됨". 저장한 뒤 2초 동안 적용 시점 자리에 보인다(P-09 `SavedMark`) */
+/** "저장됨". 저장한 뒤 2초 동안 제목 옆에 보인다(P-09 `SavedMark`) */
 export function SavedMark(): ReactNode {
   return (
     <span role="status" className="inline-flex items-center gap-1 text-ui text-success-text">
@@ -130,14 +106,13 @@ export function SavedMark(): ReactNode {
   );
 }
 
-/** 적용 시점 자리. "즉시"는 적지 않고, 다음 턴은 연한 글, 재시작은 warning 배지다(c04 DP-36) */
+/** 적용 시점 자리. "즉시"와 "다음 턴"은 적지 않고(설명 말풍선에 둔다), 재시작만 warning 배지다 */
 function ApplyMark(props: { readonly runtime: RuntimeBadge }): ReactNode {
   const { change, text } = props.runtime;
   switch (change) {
     case "live":
-      return null;
     case "nextTurn":
-      return <span className="text-ui text-text-tertiary">{text}</span>;
+      return null;
     case "restart":
       return (
         <Badge size="sm" className={TONE_CLASS.warning}>
@@ -149,22 +124,14 @@ function ApplyMark(props: { readonly runtime: RuntimeBadge }): ReactNode {
   }
 }
 
-/** 저장 중 자리. 저장하는 동안 적용 시점 자리에 짧은 글을 보인다(표시 줄은 칸 옆이 아니라 머리에 둔다) */
-function SavingMark(): ReactNode {
-  return (
-    <span role="status" className="text-ui text-text-tertiary">
-      {t("desktop.settings.field.saving")}
-    </span>
-  );
-}
-
 /**
- * 설명 줄 모음. 설명, 재시작 대기 문장, 엔진 연결 안내, 파일 안내는 정보 아이콘 뒤에 둔다.
- * 경고와 오류, 잠금 문장과 바깥 변경 알림은 그대로 보인다.
+ * 설명 줄 모음. 설명, 적용 시점, 엔진 연결 안내, 파일 안내는 정보 아이콘 뒤에 둔다.
+ * 경고와 오류, 잠금 문장과 덮어쓰는 층 경고는 그대로 보인다.
  */
 function explanationOf(field: FieldVM, control: FieldControl): readonly string[] {
   const lines = [
     field.help,
+    field.runtime.change === "nextTurn" ? field.runtime.text : null,
     field.runtime.pendingText,
     field.offlineNote,
     control === "summary" ? t("desktop.settings.field.fileHint") : null,
@@ -183,6 +150,7 @@ export function InfoTip(props: {
   return (
     <>
       <Tooltip
+        side="top"
         content={
           <span className="grid max-w-72 gap-1 whitespace-normal">
             {props.lines.map((line) => (
@@ -207,134 +175,103 @@ export function InfoTip(props: {
   );
 }
 
+/** 상태 자리: 저장됨, 저장 중, 재시작 필요 가운데 하나 */
+function StatusMark(props: { readonly field: FieldVM; readonly saved: boolean }): ReactNode {
+  if (props.saved) return <SavedMark />;
+  if (props.field.saving) {
+    return (
+      <span role="status" className="text-ui text-text-tertiary">
+        {t("desktop.settings.field.saving")}
+      </span>
+    );
+  }
+  return <ApplyMark runtime={props.field.runtime} />;
+}
+
 export function FieldRow(props: FieldRowProps): ReactNode {
-  const { field, editable, hasThread, saved, editors, handlers, showKey = false } = props;
+  const { field, editable, saved, editors, handlers, showKey = false } = props;
   const titleId = useId();
   const lockId = useId();
   const disabled = !editable;
   const errorText = errorTextOf(field);
   const control = fieldControlOf(field);
-  const writable = writableOf(field.scope.scope);
+  const layout = rowLayoutOf(field, control);
   const explain = explanationOf(field, control);
+  const override = overrideNoticeOf(field);
+  // 되돌리기는 사용자 값이 있고 쓸 수 있을 때만, 행에 마우스를 올리거나 행 안에 초점이 있을 때 보인다
+  const resettable = editable && field.scope.scope === "user" && !field.dirty;
+  const controlNode = (
+    <FieldControlView
+      field={field}
+      control={control}
+      disabled={disabled}
+      errorText={errorText}
+      editors={editors}
+      editable={editable}
+      handlers={handlers}
+    />
+  );
   return (
     <div
       data-slot="settings-field"
       data-key={field.key}
+      data-layout={layout}
       role="group"
       aria-labelledby={titleId}
       aria-disabled={field.lock === null ? undefined : true}
       aria-describedby={field.lock === null ? undefined : lockId}
-      className="grid gap-1.5 py-3"
+      className="group/field grid gap-2 py-3"
     >
-      <div className="flex min-h-6 min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-        <div className="flex min-w-0 flex-[1_1_12rem] items-center gap-2">
-          <span id={titleId} className="shrink-0 text-ui font-medium text-text-primary">
-            {field.label}
-            <span className="sr-only">
-              {`, ${t("desktop.settings.field.scope.sr", { scope: field.scope.text })}`}
+      <div className="flex min-h-8 min-w-0 items-center gap-6">
+        <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span id={titleId} className="min-w-0 text-ui font-medium text-text-primary">
+              {field.label}
             </span>
-          </span>
-          {explain.length === 0 ? null : <InfoTip label={field.label} lines={explain} />}
+            {explain.length === 0 ? null : <InfoTip label={field.label} lines={explain} />}
+            <StatusMark field={field} saved={saved} />
+          </div>
           {showKey ? (
             <span className="min-w-0 truncate font-mono text-mono-sm text-text-tertiary">
               {field.key}
             </span>
           ) : null}
         </div>
-        <div className="flex flex-none items-center gap-2">
-          {editable && scopeChoiceShown(field) ? (
-            <ScopeChoice field={field} handlers={handlers} />
-          ) : null}
-          {saved ? (
-            <SavedMark />
-          ) : field.saving ? (
-            <SavingMark />
-          ) : (
-            <ApplyMark runtime={field.runtime} />
-          )}
-        </div>
+        {layout === "inline" ? (
+          <div className="flex flex-none items-center gap-2">
+            {resettable ? <ResetButton field={field} handlers={handlers} /> : null}
+            {controlNode}
+          </div>
+        ) : resettable ? (
+          <ResetButton field={field} handlers={handlers} />
+        ) : null}
       </div>
-      {control === "switch" ? (
-        <Field disabled={disabled} error={errorText}>
-          <Switch
-            size="sm"
-            aria-label={field.label}
-            checked={field.value === true}
-            disabled={disabled}
-            className={switchClassOf(field.value === true, disabled)}
-            onCheckedChange={(next) => {
-              handlers.change(field.key, next);
-            }}
-          />
-        </Field>
+      {layout === "stacked" ? controlNode : null}
+      {layout === "inline" && errorText !== null ? (
+        <p role="alert" className="m-0 text-ui text-danger-text">
+          {errorText}
+        </p>
       ) : null}
-      {control === "select" && field.widget.kind === "select" ? (
-        <ChoiceField
-          field={field}
-          options={field.widget.options}
-          disabled={disabled}
-          errorText={errorText}
-          handlers={handlers}
-        />
-      ) : null}
-      {control === "number" && field.widget.kind === "number" ? (
-        <NumberControl
-          field={field}
-          widget={field.widget}
-          disabled={disabled}
-          errorText={errorText}
-          handlers={handlers}
-        />
-      ) : null}
-      {control === "text" ? (
-        <Field disabled={disabled} error={errorText}>
-          <Input
-            size="sm"
-            aria-label={field.label}
-            containerClassName="w-[min(20rem,100%)]"
-            value={textValueOf(field.value)}
-            disabled={disabled}
-            invalid={errorText !== null}
-            onValueChange={(next) => {
-              handlers.edit(field.key, next);
-            }}
-            onBlur={() => {
-              if (field.dirty) handlers.commit(field.key);
-            }}
-            onKeyDown={(event) => {
-              if (isCommitEnter(event) && field.dirty) {
-                event.preventDefault();
-                handlers.commit(field.key);
-              }
-            }}
-          />
-        </Field>
-      ) : null}
-      {control === "tags" ? (
-        <Field disabled={disabled} error={errorText}>
-          <SettingTagList
-            settingKey={field.key}
-            label={field.label}
-            value={tagsOf(field.value)}
-            options={field.widget.kind === "list" ? field.widget.options : null}
-            disabled={disabled}
-            invalid={errorText !== null}
-            onChange={(next) => {
-              handlers.edit(field.key, [...next]);
-            }}
-          />
-        </Field>
-      ) : null}
-      {control === "editor" ? (
-        <Field disabled={disabled} error={errorText}>
-          {renderEditor(field, editable, editors, handlers)}
-        </Field>
-      ) : null}
-      {control === "summary" ? <ReadonlyValue field={field} /> : null}
       {field.lock === null ? null : (
         <p id={lockId} className="m-0 flex min-w-0 items-center gap-1.5 text-ui text-text-tertiary">
           <Lock aria-hidden className="size-icon-xs flex-none" />
           <span>{field.lock.text}</span>
+        </p>
+      )}
+      {override === null ? null : (
+        <p
+          data-slot="settings-override"
+          className="m-0 flex min-w-0 items-start gap-1.5 text-ui text-warning-text"
+        >
+          <TriangleAlert aria-hidden className="mt-0.5 size-icon-xs flex-none" />
+          <span className="min-w-0">
+            {override.text}
+            {override.path === null ? null : (
+              <span className="ms-1.5 font-mono text-mono-sm break-all text-text-tertiary">
+                {override.path}
+              </span>
+            )}
+          </span>
         </p>
       )}
       {remoteNoticeOf(field) ? (
@@ -374,8 +311,6 @@ export function FieldRow(props: FieldRowProps): ReactNode {
           {t("desktop.settings.field.problem")}
         </Alert>
       )}
-      {field.shadowed.length === 0 ? null : <ShadowedNote field={field} />}
-      <LaunchChoice field={field} hasThread={hasThread} disabled={disabled} handlers={handlers} />
       {editable && field.dirty && hasFooter(field) ? (
         <FormLayoutFooter>
           <Button
@@ -398,24 +333,221 @@ export function FieldRow(props: FieldRowProps): ReactNode {
           </Button>
         </FormLayoutFooter>
       ) : null}
-      {field.canReset && writable !== null && editable ? (
-        <div>
-          <Button
-            variant="outline"
-            size="xs"
-            onClick={() => {
-              handlers.reset(field.key, writable);
-            }}
-          >
-            {t("desktop.settings.field.reset")}
-          </Button>
-        </div>
-      ) : null}
     </div>
   );
 }
 
-/** 숫자 칸 입력이 값으로 받아지지 않을 때 칸 아래에 보일 이유. 범위는 스키마의 min/max에서 만든다 */
+/** 기본값으로 되돌리기. 행에 마우스를 올리거나 초점이 행 안에 있을 때만 보인다(자리는 늘 차지하지 않는다) */
+function ResetButton(props: {
+  readonly field: FieldVM;
+  readonly handlers: FieldHandlers;
+}): ReactNode {
+  const label = t("desktop.settings.field.reset");
+  return (
+    <Tooltip side="top" content={label}>
+      <IconButton
+        size="xs"
+        variant="ghost"
+        label={label}
+        data-slot="settings-reset"
+        className="opacity-0 group-focus-within/field:opacity-100 group-hover/field:opacity-100 focus-visible:opacity-100"
+        onClick={() => {
+          props.handlers.reset(props.field.key);
+        }}
+      >
+        <RotateCcw />
+      </IconButton>
+    </Tooltip>
+  );
+}
+
+/** 컨트롤 하나. 종류마다 caustic 부품 하나를 고른다(L4.settings-ui §4.2.1) */
+function FieldControlView(props: {
+  readonly field: FieldVM;
+  readonly control: FieldControl;
+  readonly disabled: boolean;
+  readonly editable: boolean;
+  readonly errorText: string | null;
+  readonly editors: DedicatedEditors;
+  readonly handlers: FieldHandlers;
+}): ReactNode {
+  const { field, control, disabled, errorText, handlers } = props;
+  switch (control) {
+    case "switch":
+      return (
+        <Switch
+          size="sm"
+          aria-label={field.label}
+          checked={field.value === true}
+          disabled={disabled}
+          className={switchClassOf(field.value === true, disabled)}
+          onCheckedChange={(next) => {
+            handlers.change(field.key, next);
+          }}
+        />
+      );
+    case "select":
+      return field.widget.kind === "select" ? (
+        <ChoiceField
+          field={field}
+          options={field.widget.options}
+          disabled={disabled}
+          errorText={errorText}
+          handlers={handlers}
+        />
+      ) : null;
+    case "number":
+      return field.widget.kind === "number" ? (
+        <NumberControl
+          field={field}
+          widget={field.widget}
+          disabled={disabled}
+          errorText={errorText}
+          handlers={handlers}
+        />
+      ) : null;
+    case "text":
+      return (
+        <Input
+          size="sm"
+          aria-label={field.label}
+          containerClassName="w-64"
+          value={textValueOf(field.value)}
+          disabled={disabled}
+          invalid={errorText !== null}
+          spellCheck={false}
+          onValueChange={(next) => {
+            handlers.edit(field.key, next);
+          }}
+          onBlur={() => {
+            if (field.dirty) handlers.commit(field.key);
+          }}
+          onKeyDown={(event) => {
+            if (isCommitEnter(event) && field.dirty) {
+              event.preventDefault();
+              handlers.commit(field.key);
+            }
+          }}
+        />
+      );
+    case "tags":
+      return (
+        <Field disabled={disabled} error={errorText}>
+          <SettingTagList
+            settingKey={field.key}
+            label={field.label}
+            value={tagsOf(field.value)}
+            options={field.widget.kind === "list" ? field.widget.options : null}
+            disabled={disabled}
+            invalid={errorText !== null}
+            onChange={(next) => {
+              handlers.edit(field.key, [...next]);
+            }}
+          />
+        </Field>
+      );
+    case "editor":
+      return (
+        <Field disabled={disabled} error={errorText}>
+          {renderEditor(field, props.editable, props.editors, handlers)}
+        </Field>
+      );
+    case "summary":
+      return <ReadonlyValue field={field} />;
+    default:
+      return assertNever(control, "FieldControl");
+  }
+}
+
+/**
+ * 숫자 칸. 모양은 `numberControlOf` 하나가 정한다: 작은 정수는 ± 스테퍼, 그 밖은 단위가 붙은 글 칸(`QuantityControl`).
+ * 스테퍼는 `release` 방식이라 범위 밖 글은 값으로 올라오지 않고 칸 안에 초안으로 남는다. 그 사유는 칸 아래에 보인다.
+ */
+function NumberControl(props: {
+  readonly field: FieldVM;
+  readonly widget: Extract<WidgetVM, { readonly kind: "number" }>;
+  readonly disabled: boolean;
+  readonly errorText: string | null;
+  readonly handlers: FieldHandlers;
+}): ReactNode {
+  const shape = numberControlOf(props.field.key, props.widget);
+  if (shape.kind === "quantity") {
+    return (
+      <QuantityControl
+        field={props.field}
+        widget={props.widget}
+        unit={shape.unit}
+        zeroIsNone={shape.zeroIsNone}
+        disabled={props.disabled}
+        invalid={props.errorText !== null}
+        handlers={props.handlers}
+      />
+    );
+  }
+  return <StepperControl {...props} />;
+}
+
+/** ± 스테퍼(작은 정수). 칸 안에서 치는 글은 저장 전까지 칸이 쥐고 컨트롤러에도 초안으로 알린다 */
+function StepperControl(props: {
+  readonly field: FieldVM;
+  readonly widget: Extract<WidgetVM, { readonly kind: "number" }>;
+  readonly disabled: boolean;
+  readonly errorText: string | null;
+  readonly handlers: FieldHandlers;
+}): ReactNode {
+  const { field, widget, disabled, handlers } = props;
+  const [draftError, setDraftError] = useState<NumberFieldDraft["error"]>(null);
+  // 저장으로 칸이 비는 알림과 Esc로 되돌리는 알림을 가른다
+  const committing = useRef(false);
+  const escaped = useRef(false);
+  const draftText = numberDraftTextOf(draftError, widget);
+  const invalid = props.errorText !== null || draftText !== null;
+  return (
+    <span className="grid justify-items-end gap-1">
+      <NumberField
+        appearance="stepper"
+        size="sm"
+        containerClassName="w-32"
+        aria-label={field.label}
+        commitMode="release"
+        value={numberValueOf(field.value)}
+        min={widget.min ?? undefined}
+        max={widget.max ?? undefined}
+        step={1}
+        disabled={disabled}
+        invalid={invalid}
+        onDraftChange={(draft) => {
+          setDraftError(draft.error);
+          const action = numberDraftActionOf(draft, {
+            fieldDirty: field.dirty,
+            committing: committing.current,
+            escaped: escaped.current,
+          });
+          if (action?.kind === "edit") handlers.edit(field.key, action.value);
+          else if (action?.kind === "discard") handlers.discard(field.key);
+          else if (action?.kind === "commit") handlers.commit(field.key);
+          committing.current = false;
+          escaped.current = false;
+        }}
+        onKeyDown={(event) => {
+          escaped.current = event.key === "Escape";
+        }}
+        onValueChange={(next) => {
+          setDraftError(null);
+          committing.current = true;
+          handlers.change(field.key, next);
+        }}
+      />
+      {draftText === null ? null : (
+        <span role="alert" className="text-ui text-danger-text">
+          {draftText}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** 스테퍼 칸 입력이 값으로 받아지지 않을 때 칸 아래에 보일 이유. 범위는 스키마의 min/max에서 만든다 */
 function numberDraftTextOf(
   error: NumberFieldDraft["error"],
   widget: Extract<WidgetVM, { readonly kind: "number" }>,
@@ -428,83 +560,14 @@ function numberDraftTextOf(
     case "syntax":
       return t("desktop.settings.field.number.syntax");
     case "range":
-      if (widget.min !== null && widget.max !== null) {
-        return t("client.settings.field.invalidRange", { min: widget.min, max: widget.max });
-      }
-      if (widget.min !== null) return t("client.settings.field.invalidMin", { min: widget.min });
-      if (widget.max !== null) return t("client.settings.field.invalidMax", { max: widget.max });
-      return t("client.settings.field.invalidValue");
+      return rangeTextOf(widget);
     default:
       return assertNever(error, "CommittedValueError");
   }
 }
 
 /**
- * 숫자 칸. 칸은 `release` 방식이라 범위 밖 글은 값으로 올라오지 않고 칸 안에 초안으로 남는다.
- * 그 초안의 사유는 `onDraftChange`로만 알 수 있어 여기서 받아 칸 아래 오류 문장으로 보인다.
- */
-function NumberControl(props: {
-  readonly field: FieldVM;
-  readonly widget: Extract<WidgetVM, { readonly kind: "number" }>;
-  readonly disabled: boolean;
-  readonly errorText: string | null;
-  readonly handlers: FieldHandlers;
-}): ReactNode {
-  const { field, widget, disabled, handlers } = props;
-  const [draftError, setDraftError] = useState<NumberFieldDraft["error"]>(null);
-  // 저장으로 칸이 비는 알림과 Esc로 되돌리는 알림을 가른다
-  const committing = useRef(false);
-  const escaped = useRef(false);
-  const errorText = props.errorText ?? numberDraftTextOf(draftError, widget);
-  return (
-    <Field disabled={disabled} error={errorText}>
-      <span className="flex items-center gap-2">
-        <NumberField
-          appearance="stepper"
-          size="sm"
-          containerClassName="w-36"
-          aria-label={field.label}
-          commitMode="release"
-          value={numberValueOf(field.value)}
-          min={widget.min ?? undefined}
-          max={widget.max ?? undefined}
-          step={widget.integer ? 1 : undefined}
-          disabled={disabled}
-          invalid={errorText !== null}
-          onDraftChange={(draft) => {
-            setDraftError(draft.error);
-            // 칸 안에서 치는 글은 저장 전까지 칸이 쥔다. 컨트롤러에도 초안으로 알려야 그 사이 다른 곳이 바꾼 값을 "다른 곳에서 바뀜"으로 알아챈다(scA-4-2)
-            const action = numberDraftActionOf(draft, {
-              fieldDirty: field.dirty,
-              committing: committing.current,
-              escaped: escaped.current,
-            });
-            if (action?.kind === "edit") handlers.edit(field.key, action.value);
-            else if (action?.kind === "discard") handlers.discard(field.key);
-            else if (action?.kind === "commit") handlers.commit(field.key);
-            committing.current = false;
-            escaped.current = false;
-          }}
-          onKeyDown={(event) => {
-            escaped.current = event.key === "Escape";
-          }}
-          onValueChange={(next) => {
-            setDraftError(null);
-            committing.current = true;
-            handlers.change(field.key, next);
-          }}
-        />
-        {widget.unit === null ? null : (
-          <span className="text-ui text-text-tertiary">{widget.unit}</span>
-        )}
-      </span>
-    </Field>
-  );
-}
-
-/**
- * 고르기 칸. 선택지가 여덟 이하면 라디오 묶음, 넘으면 선택 상자다. 네 개 이하는 한 줄로 늘어놓는다(c04, P-09).
- * 선택지에 설명(`optionHelpOf`)이 하나라도 있으면 라디오 묶음을 세로로 놓고 설명을 라벨 아래 한 줄로 보인다.
+ * 고르기. 선택지에 설명(`optionHelpOf`)이 있으면 두 줄 행의 세로 라디오 묶음이고(설명이 라벨 아래 한 줄), 아니면 오른쪽 선택 상자다.
  * 경고 선택지를 고르면 묶음 아래에 같은 설명을 경고 줄로 보인다(`choiceWarningOf`). 확인 대화는 없다.
  */
 function ChoiceField(props: {
@@ -521,45 +584,46 @@ function ChoiceField(props: {
     if (option !== null) handlers.change(field.key, option);
   };
   const described = options.some((option) => optionHelpOf(field.key, option) !== null);
+  if (!described) {
+    return (
+      <Select
+        size="sm"
+        aria-label={field.label}
+        value={text}
+        disabled={disabled}
+        invalid={errorText !== null}
+        className="w-56"
+        onValueChange={choose}
+      >
+        {options.map((option) => (
+          <SelectOption key={optionTextOf(option)} value={optionTextOf(option)}>
+            {optionLabelOf(field.key, option)}
+          </SelectOption>
+        ))}
+      </Select>
+    );
+  }
   const warning = choiceWarningOf(field.key, text);
   return (
     <Field disabled={disabled} error={errorText}>
-      {selectControlOf(options.length) === "radio" ? (
-        <RadioGroup
-          aria-label={field.label}
-          orientation={described ? "vertical" : "horizontal"}
-          value={text}
-          disabled={disabled}
-          onValueChange={choose}
-          className={described ? "gap-y-2" : "min-h-7 gap-x-5 gap-y-1"}
-        >
-          {options.map((option) => (
-            <RadioGroupItem
-              key={optionTextOf(option)}
-              value={optionTextOf(option)}
-              description={optionHelpOf(field.key, option) ?? undefined}
-            >
-              {optionLabelOf(field.key, option)}
-            </RadioGroupItem>
-          ))}
-        </RadioGroup>
-      ) : (
-        <Select
-          size="sm"
-          aria-label={field.label}
-          value={text}
-          disabled={disabled}
-          invalid={errorText !== null}
-          className="w-[min(20rem,100%)]"
-          onValueChange={choose}
-        >
-          {options.map((option) => (
-            <SelectOption key={optionTextOf(option)} value={optionTextOf(option)}>
-              {optionLabelOf(field.key, option)}
-            </SelectOption>
-          ))}
-        </Select>
-      )}
+      <RadioGroup
+        aria-label={field.label}
+        orientation="vertical"
+        value={text}
+        disabled={disabled}
+        onValueChange={choose}
+        className="gap-y-2"
+      >
+        {options.map((option) => (
+          <RadioGroupItem
+            key={optionTextOf(option)}
+            value={optionTextOf(option)}
+            description={optionHelpOf(field.key, option) ?? undefined}
+          >
+            {optionLabelOf(field.key, option)}
+          </RadioGroupItem>
+        ))}
+      </RadioGroup>
       {warning === null ? null : (
         <p
           role="note"
@@ -584,7 +648,7 @@ function renderEditor(
   const kind = dedicatedEditorOf(field);
   const Editor = kind === null ? undefined : editors[kind];
   if (Editor === undefined) {
-    return <p className="text-ui text-text-secondary">{summaryTextOf(field)}</p>;
+    return <p className="m-0 text-ui text-text-secondary">{summaryTextOf(field)}</p>;
   }
   return <Editor field={field} editable={editable} handlers={handlers} />;
 }
@@ -593,7 +657,7 @@ function renderEditor(
 function ReadonlyValue(props: { readonly field: FieldVM }): ReactNode {
   const { field } = props;
   if (!foldableOf(field.value)) {
-    return <p className="text-ui text-text-secondary">{summaryTextOf(field)}</p>;
+    return <p className="m-0 text-ui text-text-secondary">{summaryTextOf(field)}</p>;
   }
   return (
     <Accordion variant="ghost">
@@ -630,89 +694,4 @@ function deprecatedTextOf(field: FieldVM): string {
   const head = t("desktop.settings.field.deprecated", { since: deprecated.since });
   if (deprecated.replacedByLabel === null) return head;
   return `${head} ${t("desktop.settings.field.deprecatedReplaced", { label: deprecated.replacedByLabel })}`;
-}
-
-/**
- * 다른 범위에 같은 키 값이 있어 가려져 있을 때의 접힌 안내. 펼치면 가려진 범위의 값을 강한 범위 순으로 한 줄에 보인다
- * (설명이라 접힘 안에 둔다. 항목의 저장 범위 선택은 이 값과 같은 범위다).
- */
-function ShadowedNote(props: { readonly field: FieldVM }): ReactNode {
-  return (
-    <Accordion variant="ghost">
-      <AccordionItem value="shadowed">
-        <AccordionTrigger>
-          {t("desktop.settings.shadowed.title", { count: props.field.shadowed.length })}
-        </AccordionTrigger>
-        <AccordionContent>
-          <p className="text-ui text-text-secondary">{shadowedSummaryOf(props.field)}</p>
-        </AccordionContent>
-      </AccordionItem>
-    </Accordion>
-  );
-}
-
-/**
- * 쓸 범위 고르기. 범위가 둘 이상일 때만 보인다. 글은 없고 선택 상자의 이름만 "저장할 범위"다
- * (보이는 것은 지금 범위 글 하나다. 다른 범위 고르기는 편집 동작이라 빼지 않는다).
- */
-function ScopeChoice(props: {
-  readonly field: FieldVM;
-  readonly handlers: FieldHandlers;
-}): ReactNode {
-  const { field, handlers } = props;
-  return (
-    <Select
-      aria-label={t("desktop.settings.field.scope.label")}
-      size="xs"
-      variant="ghost"
-      className="w-auto"
-      value={field.selectedScope ?? ""}
-      onValueChange={(next) => {
-        const scope = field.writableScopes.find((candidate) => candidate === next);
-        if (scope === undefined) return;
-        handlers.selectScope(field.key, scope);
-        if (field.dirty) handlers.commit(field.key);
-      }}
-    >
-      {field.writableScopes.map((scope) => (
-        <SelectOption key={scope} value={scope}>
-          {scopeText(scope)}
-        </SelectOption>
-      ))}
-    </Select>
-  );
-}
-
-/** "이번 대화에만 적용". 열린 대화가 있고 대화 범위를 쓸 수 있을 때만 보인다 */
-function LaunchChoice(props: {
-  readonly field: FieldVM;
-  readonly hasThread: boolean;
-  readonly disabled: boolean;
-  readonly handlers: FieldHandlers;
-}): ReactNode {
-  const labelId = useId();
-  const { field, hasThread, disabled, handlers } = props;
-  const choice = launchChoiceOf(field, hasThread);
-  if (!choice.shown) return null;
-  return (
-    <div className="flex items-center gap-2">
-      <Checkbox
-        aria-labelledby={labelId}
-        checked={choice.checked}
-        disabled={disabled}
-        onCheckedChange={(next) => {
-          if (next === true) {
-            handlers.selectScope(field.key, "launch");
-          } else {
-            const fallback = fallbackScopeOf(field);
-            if (fallback !== null) handlers.selectScope(field.key, fallback);
-          }
-          if (field.dirty) handlers.commit(field.key);
-        }}
-      />
-      <span id={labelId} className="text-ui text-text-secondary">
-        {t("desktop.settings.field.launchOnly")}
-      </span>
-    </div>
-  );
 }

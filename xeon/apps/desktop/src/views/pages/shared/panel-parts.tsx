@@ -7,17 +7,21 @@ import type { ReactNode } from "react";
 
 /** 묶음: 머리(글 제목과 끝 동작)와 카드 하나. 목업 SettingSection의 머리 줄과 같다 */
 export function PanelBlock(props: {
-  readonly title: ReactNode;
+  /** 묶음 제목. 없으면 카드만 보인다(바로 앞 묶음에 이어지는 카드) */
+  readonly title?: ReactNode;
   readonly end?: ReactNode;
   readonly children: ReactNode;
 }): ReactNode {
+  const head = props.title !== undefined || props.end !== undefined;
   return (
-    <section className="pt-6 first:pt-0">
-      <div className="flex h-8 items-center gap-2">
-        <h2 className="m-0 flex-1 text-title-2 text-text-primary">{props.title}</h2>
-        {props.end}
-      </div>
-      <div className="mt-1 grid gap-2 rounded-2xl bg-surface-base px-3.5 py-3.5 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]">
+    <section className={head ? "pt-8 first:pt-0" : "pt-2 first:pt-0"}>
+      {head ? (
+        <div className="mb-2 flex h-8 items-center gap-2">
+          <h2 className="m-0 flex-1 text-title-2 text-text-primary">{props.title}</h2>
+          {props.end}
+        </div>
+      ) : null}
+      <div className="grid gap-2 rounded-2xl bg-surface-base px-4 py-4 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]">
         {props.children}
       </div>
     </section>

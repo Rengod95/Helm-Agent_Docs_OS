@@ -14,6 +14,7 @@ binds: [xeon/packages/client/src/settings/**]
 
 - [결정] 모든 설정은 F5 설정 스키마 하나에서 L4 화면, 설정 파일, 명령을 함께 만든다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 6, `F.wire-settings.spec` §4.9).
 - [결정] 추론 예산, 라우팅, 레이트 리밋, 계정 회전은 L4 클라이언트 설정 화면에서 조작할 수 있어야 한다(`_research/decisions-log.md` 2026-10-21 결정(2차)). 마일스톤은 M3다(`product.scope.spec` I14). 레이트 리밋·계정 회전 설정을 2차로 미루지 않고 M3 화면에 넣는다 [결정: review.decisions-2 U-21].
+- [결정: 2026-11-11 사용자] 데스크톱 설정 화면은 전역 설정만 다룬다. 범위 고르기와 "이번 대화에만 적용"을 없애고 쓰기는 늘 사용자 범위다. 탭 13개 대신 묶음 셋, 구역 열둘로 보이고 화면에 둘 키를 구역 표가 정한다. 연결은 설정의 한 구역이다. 자세한 규칙은 §4.12다. 아래 §4.1의 탭 배치, §4.3.1·§4.3.4·§4.3.6·§4.3.7의 범위 UI, §4.2.1 `number`의 부품은 데스크톱 화면에서 §4.12가 대신한다. view-model(`@fresnel/client/settings`)의 탭과 범위 계산은 그대로다.
 - [결정] 데스크톱 셸은 Electron이고(2026-11-06, `L4.desktop.spec` §11. 옛 Tauri 구현(커밋 424f338a)은 Tauri 2였다, adr.0008) UI와 엔진은 stdio JSON-RPC로 연결한다.
 
 ## 1. 목적과 범위
@@ -543,6 +544,8 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 
 ### 4.1 탭 생성 규칙
 
+> [결정: 2026-11-11 사용자] 데스크톱 화면에서는 §4.12가 이 절을 대신한다. 이 절은 view-model 계산과 다른 클라이언트의 기준으로 남는다.
+
 1. 탭은 `SettingsTab` 13값 전부를 `TAB_SPECS.position` 순서로 항상 만든다. 정의가 없는 탭도 숨기지 않고 `emptyText`를 보인다.
 2. 정의 하나는 정확히 한 곳에 놓인다.
    - `ui`가 있으면 `ui.tab` 탭의 항목이 된다.
@@ -630,6 +633,8 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 
 #### 4.2.1 위젯 대응
 
+> [결정: 2026-11-11 사용자] `number`의 데스크톱 부품은 §4.12.4가 정한다. ± 단추는 작은 정수에만 쓴다.
+
 | `SettingWidget` | 화면 부품 [제안] | `SettingDefWire`에서 읽는 것 | 조건(맞지 않으면 `widgetMismatch`) |
 |---|---|---|---|
 | `toggle` | 스위치 | `type.type === "boolean"` | D8 |
@@ -707,6 +712,8 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 
 #### 4.3.1 범위 배지
 
+> [결정: 2026-11-11 사용자] 데스크톱 화면에서는 §4.12가 이 절을 대신한다. 이 절은 view-model 계산과 다른 클라이언트의 기준으로 남는다.
+
 [제안] 배지는 색과 글자를 함께 쓴다. 색만으로 구분하지 않는다(§4.8.1).
 
 | `source.scope` | 글자 | 색 토큰 | 기호 |
@@ -738,6 +745,8 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 
 #### 4.3.4 가려진 값
 
+> [결정: 2026-11-11 사용자] 데스크톱 화면에서는 §4.12가 이 절을 대신한다. 이 절은 view-model 계산과 다른 클라이언트의 기준으로 남는다.
+
 - `shadowed`가 비어 있지 않으면 "가려진 범위 N개"를 접힘 영역 머리로 보인다(`F.wire-settings.spec` §4.7 규칙 5). 펼치면 가려진 범위의 값을 강한 범위 순으로 한 줄에 보인다. 예: `프로젝트 4 · 사용자 2`. 프로젝트와 로컬은 따로 적는다 [결정: 오케스트레이터 기본값, fxPT].
 - wire의 `shadowed`에는 값이 없다(범위와 경로만, `F.wire-settings.spec` §4.7) [근거: packages/contracts/src/wire-settings/settings/effective.ts `SettingSourceSchema`]. 값은 화면이 `settings.readFile`로 그 범위 파일을 읽어 채운다. 파일에 없거나 정의 검사에 못 미치면 "프로젝트 값을 읽지 못했어요"로 보인다. `launch` 범위는 파일이 없어 값을 모른다. [결정: 오케스트레이터 기본값, fxPT]
 - 시크릿 항목의 가려진 값은 값 대신 "값 가려짐"이다. 참조 문자열도 싣지 않는다 [결정: 오케스트레이터 기본값, fxPT].
@@ -750,6 +759,8 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 
 #### 4.3.6 쓰기 범위 선택
 
+> [결정: 2026-11-11 사용자] 데스크톱 화면에서는 §4.12가 이 절을 대신한다. 이 절은 view-model 계산과 다른 클라이언트의 기준으로 남는다.
+
 1. 후보는 `allowedScopes`에서 `managed`를 뺀 값이다. 화면은 managed에 쓰지 않는다.
 2. 잠겼으면 후보가 없다.
 3. `currentThreadId()`가 null이면 `launch`를 뺀다. `settings.set`의 launch 쓰기에는 `threadId`가 필요하기 때문이다.
@@ -759,6 +770,8 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 7. 범위 밖 범위는 선택지에 나타나지 않는다. 서버가 `settings.scopeNotAllowed`를 돌려주면 §4.4.4대로 처리한다.
 
 #### 4.3.7 기본값 복귀
+
+> [결정: 2026-11-11 사용자] 데스크톱 화면에서는 §4.12가 이 절을 대신한다. 이 절은 view-model 계산과 다른 클라이언트의 기준으로 남는다.
 
 - `source.scope`가 쓰기 범위 후보에 있으면 "이 범위 값 지우기" 버튼을 보인다. 누르면 `settings.reset({key, scope: source.scope, threadId?})`를 보낸다. 결과 `EffectiveSetting`으로 항목을 바꾼다. 다음 순위 값이 있으면 그 값이 유효 값이 된다.
 - `default`, `managed` 출처에서는 버튼이 없다.
@@ -1034,6 +1047,59 @@ sequenceDiagram
 - `moveInOrder(ids, from, to)`는 `from` 자리 항목을 빼고 `to`가 가리키는 자리에 넣는다. `to`는 옮긴 뒤 그 항목이 갖는 자리다. 범위 밖이거나 정수가 아닌 입력이면 바꾸지 않은 복사본을 돌려준다.
 - 로봇(`robots`): `value`를 그대로 보인다. `follows`는 `value`가 `never`가 아닐 때 참이다. 기본값 `never`는 robots.txt를 따르지 않는다(D-M3-23 행 4, `L2.web.spec` §4.7).
 - 병렬 질의 수(`parallel`)는 `settings.searchParallel`이다. 기본값은 1이다(`L2.web.spec` §4.8.2).
+
+### 4.12 데스크톱 설정 구역 [결정: 2026-11-11 사용자]
+
+사용자 요청(2026-11-11): 설정 화면의 모든 항목에 사용자·로컬·프로젝트·이번 대화 범위가 붙은 것은 틀렸고 동작하지도 않는다. 설정은 전역이다. 예산 항목(턴당 최대 단계, 이어가기)은 플러그인이나 LLM 제공자의 몫이다. 실행과 서비스는 연결과 합친다. 큰 숫자를 ±로 고치게 하지 않는다. 키별 판정과 이유는 트랙 노트 `_notes/design/cyZ-audit.md`에 있다.
+
+#### 4.12.1 구역 표
+
+1. 왼쪽 열은 묶음 셋과 구역 열둘이다. 순서는 표 순서이고 ↑↓는 끝에서 멈춘다.
+
+   | 묶음 | 구역 | 담는 것 |
+   |---|---|---|
+   | 앱 | 일반 | 언어와 창(`l4.ui.locale`, `l4.desktop.window.closeBehavior`), 화면(테마, 움직임, 확대, 기록 자세히), 정보(버전, 업데이트) |
+   | 앱 | 알림 | OS 알림(데스크톱 로컬 키) |
+   | 에이전트 | 모델과 계정 | 계정과 제공자, 계정 회전, 쓸 모델(기본·허용·차단) |
+   | 에이전트 | 시크릿 | 시크릿 관리 패널, 시크릿 사용 승인 |
+   | 에이전트 | 권한 | 승인 방식, 신뢰 폴더, 웹 접근 정책 |
+   | 에이전트 | 샌드박스 | `l0.sandbox.*` 중 사용자가 정할 것 |
+   | 에이전트 | 도구와 MCP | MCP 서버, MCP 정책, 검색, 스킬과 명령 |
+   | 에이전트 | 플러그인 | 플러그인 목록, 플러그인 안전, 훅, 개발자 |
+   | 에이전트 | 대화와 기억 | 보관, 기억, 기억과 검색 |
+   | 엔진 | 연결과 서비스 | 연결 화면 본문(호스트, 실행 방식, 진단) |
+   | 엔진 | 실행 | 셸 경로, 자식 환경 변수, 대화 잠금 실패 동작, 확장의 예약 만들기 |
+   | 엔진 | 데이터 | 백업과 복원, 저장 공간, 설정 파일 경로, 로그와 텔레메트리 |
+
+2. 구역에 둘 키는 앱의 구역 표(`apps/desktop/src/views/pages/settings/settings-sections.ts` `SETTINGS_SECTIONS`)가 정한다. 정의의 `ui.tab`은 화면 배치에 쓰지 않는다. 같은 키는 두 구역에 들지 않는다(`settings-sections.test.ts`).
+3. 표에 없는 키는 화면에 그리지 않고 찾기에도 나오지 않는다. 엔진 정의, 기본값, 설정 파일 값은 그대로이고 "파일로 보기"로 고칠 수 있다. 화면에서 뺀 묶음: 예산과 한도(`l1.loop.*`, 이어가기, 추론 예산, 라우팅, 레이트 리밋), 엔진의 OS 알림(`l2.dialog.notify.*`, 알림 구역과 겹침), 서비스와 원격 웹(`l0.process.service.*`, `l4.remote.web.*`, 연결 구역의 실행 방식과 겹침), 운영자 키(저장소 주기, 진단 주소 등).
+4. 설정 점프(`requestSettingsJump`)는 구역 id나 옛 탭 값을 받는다. 키가 표에 있으면 그 키의 구역을 열고, 아니면 받은 구역(옛 탭이면 옮겨 간 구역)을 연다. 연결 열기(`connection.open`)는 `{ tab: "connection" }` 점프다.
+
+#### 4.12.2 범위 없는 항목 줄
+
+1. 항목 줄에는 범위 고르기, 범위 배지, "이번 대화에만 적용", 가려진 값 펼침을 두지 않는다 [근거: apps/desktop/src/views/pages/settings/settings-field.tsx `FieldRow`].
+2. 쓰기는 늘 사용자 범위다. 저장 전에 컨트롤러의 쓰기 범위를 `user`로 고른다. 기본값 복귀는 `settings.reset({ key, scope: "user" })`이고, 유효 값이 사용자 범위에서 올 때만 보인다.
+3. 설정 파일 편집기("파일로 보기")도 사용자 파일만 읽고 쓴다.
+4. 엔진의 범위 층은 그대로다. 유효 값이 다른 층에서 오면 줄 아래에 경고 한 줄을 보인다: 프로젝트·로컬이면 "열린 작업 폴더의 설정 파일이 이 값을 덮고 있어요"와 그 파일 경로(홈은 `~`), launch면 "열린 대화에만 다른 값이 쓰이고 있어요". 경고를 위해 읽기는 열린 대화를 함께 보낸다. 관리 정책 잠금은 §4.3.3대로다.
+5. 줄 모양: 스위치, 숫자, 짧은 글, 설명 없는 고르기는 한 줄(이름 왼쪽, 컨트롤 오른쪽, 사이 24px)이다. 목록, 표, 전용 편집기, 선택지마다 설명이 붙는 고르기는 컨트롤이 이름 아래로 내려간다. 설명은 이름 옆 정보 아이콘 뒤에 둔다.
+
+#### 4.12.3 연결 구역
+
+- "연결과 서비스" 구역은 연결 화면(P-08)의 본문을 머리 없이 싣는다(`ConnectionScreen embedded`). 구역 위에는 설정 문제 띠를 둔다. 엔진 값이 없어도(오프라인) 그린다.
+- 연결 화면 파일(`views/pages/connection/**`)은 옮기지 않는다.
+
+#### 4.12.4 숫자 칸
+
+1. 정수이고 최댓값이 20 이하이며 최솟값이 0 이상인 값만 ± 단추가 있는 칸이다.
+2. 나머지는 단위 칸이다. ± 단추가 없고, 칸 안 글은 값의 크기에 맞게 줄이며(200K, 1.5M, 512 KB, 10분), 접미사가 단위다.
+3. 단위를 붙여 칠 수 있다: k·m(천·백만), b·kb·mb·gb, s·m·h와 현재 언어의 초·분·시간, d와 일. 쉼표와 공백은 무시한다. 단위가 없으면 칸에 보이던 단위로 읽는다.
+4. 0이 "제한 없음"인 키(대화 보관 기간과 최대 개수)는 0일 때 칸을 비우고 "제한 없음"을 자리 글로 보인다. 칸을 비우면 0이다.
+5. 친 글이 읽히고 범위 안이면 초안이고, 칸을 떠나거나 Enter를 누르면 저장한다. Esc는 되돌린다. 읽히지 않거나 범위 밖이면 칸 아래에 이유를 보인다.
+6. 규칙은 앱의 한 곳(`settings-quantity.ts`, `settings-quantity-field.tsx`)에 둔다.
+
+#### 4.12.5 테마
+
+- 일반 구역의 화면 묶음 첫 줄은 테마(시스템, 밝게, 어둡게)다. 데스크톱 로컬 키 `l4.desktop.appearance.theme`에 두고 `<html data-theme>`로 적용한다. 시스템이면 속성을 지운다.
 
 ## 5. 실패와 경계 사례
 

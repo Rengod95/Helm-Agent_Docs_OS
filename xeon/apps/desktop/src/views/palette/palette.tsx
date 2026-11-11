@@ -16,13 +16,7 @@ import {
   Settings,
 } from "@caustic/react/icons";
 import { t, type MessageId } from "@fresnel/client/i18n";
-import {
-  settingsViewOf,
-  TAB_ORDER,
-  TAB_SPECS,
-  type CommandRowVM,
-  type FieldVM,
-} from "@fresnel/client/settings";
+import { settingsViewOf, type CommandRowVM, type FieldVM } from "@fresnel/client/settings";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import {
   useEffect,
@@ -37,6 +31,11 @@ import { useLinkPhase, useThreadSummaries } from "../../state/engine/index.ts";
 import { useShell, useShellActions } from "../../state/shell/index.ts";
 import { useSelectedThreadId } from "../../state/ui/index.ts";
 import { useCommands } from "../commands.ts";
+import {
+  SECTION_OF_KEY,
+  SECTION_ORDER,
+  SETTINGS_SECTIONS,
+} from "../pages/settings/settings-sections.ts";
 import { formatKey, resolveKeymap } from "../shell/keybindings.ts";
 import { usePaletteCommandEntries } from "../plugin/command-run.ts";
 import {
@@ -258,21 +257,28 @@ export function PaletteBody(props: PaletteProps): ReactNode {
           meta: null,
         }))
       : [];
-  // 탭 이름은 읽지 않아도 된다(표가 정해져 있다). 항목은 읽은 뒤에만 더한다
+  // 구역 이름은 읽지 않아도 된다(표가 정해져 있다). 항목은 읽은 뒤에만 더하고, 설정 화면에 보이는 키만 든다(`settings-sections.ts`)
   const settingItems: PaletteItem[] = [
-    ...TAB_ORDER.map((tab) => ({
-      value: settingValue(tab, null),
-      label: TAB_SPECS[tab].label,
+    ...SECTION_ORDER.map((section) => ({
+      value: settingValue(section, null),
+      label: t(SETTINGS_SECTIONS[section].label),
       description: t("desktop.palette.settingsTab"),
       meta: null,
     })),
     ...(fields.status === "ready"
-      ? fields.value.map((field) => ({
-          value: settingValue(field.tab, field.key),
-          label: field.label,
-          description: TAB_SPECS[field.tab].label,
-          meta: null,
-        }))
+      ? fields.value.flatMap((field) => {
+          const section = SECTION_OF_KEY.get(field.key);
+          return section === undefined
+            ? []
+            : [
+                {
+                  value: settingValue(section, field.key),
+                  label: field.label,
+                  description: t(SETTINGS_SECTIONS[section].label),
+                  meta: null,
+                },
+              ];
+        })
       : []),
   ];
 

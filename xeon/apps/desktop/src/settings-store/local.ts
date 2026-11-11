@@ -78,6 +78,8 @@ export const LOCAL: {
   readonly notifyScheduleFailed: LocalKey<TBoolean>;
   /** 움직임 줄이기를 앱에서 켠다. 없으면 운영체제 설정을 따른다(`appearance-prefs.ts`) */
   readonly motionReduce: LocalKey<TBoolean>;
+  /** 화면 테마. 없거나 "system"이면 운영체제 설정을 따른다(`appearance-prefs.ts`가 `<html data-theme>`로 건다) */
+  readonly theme: LocalKey<TUnion<[TLiteral<"system">, TLiteral<"light">, TLiteral<"dark">]>>;
   /** 화면 확대 비율(%). 허용 값은 `ZOOM_STEPS`다 */
   readonly zoomPercent: LocalKey<TInteger>;
   /** 대화 기록의 생각·도구 표시 정도. 허용 값은 `TRANSCRIPT_DETAILS`다(`views/transcript-detail.ts`). 없으면 "full"이다 */
@@ -120,6 +122,10 @@ export const LOCAL: {
   notifyApproval: localKey("l4.desktop.window.notify.approval", Type.Boolean()),
   notifyScheduleFailed: localKey("l4.desktop.window.notify.scheduleFailed", Type.Boolean()),
   motionReduce: localKey("l4.desktop.appearance.motion", Type.Boolean()),
+  theme: localKey(
+    "l4.desktop.appearance.theme",
+    Type.Union([Type.Literal("system"), Type.Literal("light"), Type.Literal("dark")]),
+  ),
   zoomPercent: localKey("l4.desktop.appearance.zoom", Type.Integer({ minimum: 90, maximum: 200 })),
   transcriptDetail: localKey(
     "l4.desktop.appearance.transcriptDetail",

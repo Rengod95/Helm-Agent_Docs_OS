@@ -10,7 +10,7 @@ import { errorText } from "../../settings.tsx";
 // 저장 기준은 마지막으로 읽거나 쓴 원문(`doc.text`)이고, `doc.sha256`이 `writeFile`의 `baseSha256`이다.
 
 /** 편집기가 고르는 범위. `managed`는 읽기 전용이라 빠진다 */
-export type FileScope = SettingsWritableFileScope;
+type FileScope = SettingsWritableFileScope;
 
 /** 파일 한 번 읽은 내용(`settings.readFile`의 결과 가운데 편집에 쓰는 것) */
 export type FileDoc = Pick<
@@ -138,11 +138,6 @@ export function fileDiscardableOf(state: FileEditorState): boolean {
 /** "닫기"를 누를 수 있는가. 저장하지 않은 초안이 있거나 저장 중이면 닫지 않는다 */
 export function fileCloseableOf(state: FileEditorState): boolean {
   return !state.saving && !fileDirtyOf(state);
-}
-
-/** 범위 고르기의 항목. 대화가 열려 있을 때만 `project`와 `local`이 있다(작업 폴더가 정해져야 한다) */
-export function fileScopesOf(hasThread: boolean): readonly FileScope[] {
-  return hasThread ? ["user", "project", "local"] : ["user"];
 }
 
 export function fileEditorReducer(

@@ -1,7 +1,8 @@
 // src/state/ui/store.ts
 import type { EventId, JsonValue, ThreadId } from "@fresnel/contracts/conversation";
 import type { SecretName } from "@fresnel/contracts/capabilities";
-import type { SettingKey, SettingsTab } from "@fresnel/contracts/settings";
+import type { SettingKey } from "@fresnel/contracts/settings";
+import type { SettingsJumpTarget } from "./settings-section-id.ts";
 import { createStore } from "zustand/vanilla";
 import { readonlyView, type ReadonlyStore } from "../shared/readonly-store.ts";
 
@@ -69,11 +70,12 @@ export type ComposerRequest = { readonly insert: string | null };
 export type ReviewTarget = { readonly approvalId: EventId; readonly reviewId: string };
 
 /**
- * 설정 화면이 열며 옮길 탭과 항목. `key`가 null이면 탭만 연다. `secretName`이 있으면 시크릿 탭에서 그 시크릿을 고른다.
+ * 설정 화면이 열며 옮길 구역과 항목. `key`가 null이면 구역만 연다. `secretName`이 있으면 시크릿 탭에서 그 시크릿을 고른다.
  * 화면이 받으면 `settleSettingsJump`로 지운다
  */
 export type SettingsJump = {
-  readonly tab: SettingsTab;
+  /** 설정 구역 id 또는 옛 탭 id. 화면이 구역으로 바꾼다(`sectionOfJump`). `connection`은 연결과 서비스 구역이다 */
+  readonly tab: SettingsJumpTarget;
   readonly key: SettingKey | null;
   readonly secretName?: SecretName;
 };

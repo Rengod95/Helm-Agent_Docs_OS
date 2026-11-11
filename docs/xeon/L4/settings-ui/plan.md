@@ -46,6 +46,15 @@ binds: [xeon/packages/client/src/settings/**]
 - 사용량 wire가 생기면 게이지 채우기(spec §4.7, §10 미결 5).
 - i18n(spec §10 미결 9), 확장 맞춤 패널(spec §10 미결 13), CLI와 view-model 공유(spec §10 미결 12).
 
+### 1.6 M4: 전역 설정 화면 [결정: 2026-11-11 사용자]
+
+- 범위 UI를 없애고 쓰기를 사용자 범위로 고정한다. 다른 층이 값을 덮으면 경고 한 줄을 보인다(spec §4.12.2).
+- 탭 13개를 묶음 셋, 구역 열둘로 바꾼다. 구역 표는 `apps/desktop/src/views/pages/settings/settings-sections.ts`다(spec §4.12.1). 예산과 한도, 엔진 알림, 서비스·원격 웹, 운영자 키는 화면에서 뺀다.
+- 연결 화면을 "연결과 서비스" 구역에 싣는다(spec §4.12.3).
+- 숫자 칸을 단위 칸과 ± 칸으로 나눈다(spec §4.12.4, `settings-quantity.ts`).
+- 테마 줄을 더한다(spec §4.12.5).
+- 시험: `test/views/settings-sections.test.ts`(키 중복 없음, 점프, 찾기), `settings-quantity.test.ts`(읽기·쓰기 값 비교), `settings-page.test.tsx`(범위 UI 없음, 덮인 값 경고, 뺀 키, 연결 구역), `appearance-prefs.test.ts`(테마).
+
 ## 2. 패키지와 파일 배치
 
 ```

@@ -32,6 +32,8 @@ export interface ConnectionScreenViewProps {
   readonly handlers: ConnectionScreenHandlers;
   /** "실행 방식"과 "다른 기기 접속" 섹션. 이 기기 대상일 때만 그린다(원격 대상에서는 그리지 않는다). 상태를 읽는 동안에도 그리지 않는다 */
   readonly serviceSections?: ReactNode;
+  /** 설정 구역 안에 실을 때 참이다. 머리와 자기 스크롤 칸 없이 본문 열만 그린다(설정 열이 폭과 스크롤을 맡는다) */
+  readonly embedded?: boolean;
 }
 
 export function ConnectionScreenView(props: ConnectionScreenViewProps): ReactNode {
@@ -39,26 +41,33 @@ export function ConnectionScreenView(props: ConnectionScreenViewProps): ReactNod
   const headingId = useId();
   // 이 기기의 서비스 쪽 덩어리(실행 방식, 다른 기기 접속, 진단)는 이 기기 대상이고 상태를 읽은 뒤에만 보인다
   const serviceShown = state.engineTarget.kind === "local" && state.status.kind !== "loading";
+  const body = (
+    <div className="mx-auto grid w-full max-w-180 gap-10">
+      <HostSection state={state} engine={engine} locale={locale} handlers={handlers} />
+      {serviceShown ? serviceSections : null}
+      {serviceShown ? (
+        <DiagnosticsSection
+          handlers={handlers}
+          busy={state.busy}
+          restarting={engine?.kind === "restarting"}
+        />
+      ) : (
+        <p className="m-0 text-ui text-text-tertiary">{t(updateLineKey({ state: "unchecked" }))}</p>
+      )}
+    </div>
+  );
+  if (props.embedded === true) {
+    return (
+      <div data-slot="connection-embedded">
+        {body}
+        <StopDialog state={state} handlers={handlers} />
+      </div>
+    );
+  }
   return (
     <section aria-labelledby={headingId} className="flex min-h-0 flex-1 flex-col">
       <ScreenHeader title={t("desktop.connection.title")} titleId={headingId} />
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
-        <div className="mx-auto grid w-full max-w-180 gap-10">
-          <HostSection state={state} engine={engine} locale={locale} handlers={handlers} />
-          {serviceShown ? serviceSections : null}
-          {serviceShown ? (
-            <DiagnosticsSection
-              handlers={handlers}
-              busy={state.busy}
-              restarting={engine?.kind === "restarting"}
-            />
-          ) : (
-            <p className="m-0 text-ui text-text-tertiary">
-              {t(updateLineKey({ state: "unchecked" }))}
-            </p>
-          )}
-        </div>
-      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">{body}</div>
       <StopDialog state={state} handlers={handlers} />
     </section>
   );

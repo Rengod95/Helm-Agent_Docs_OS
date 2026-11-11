@@ -42,6 +42,7 @@ describe("appearance prefs", () => {
     const { local } = storeOf({});
     await local.load();
     expect(appearancePrefsOf(local)).toEqual({
+      theme: "system",
       motion: "system",
       zoom: 100,
       transcriptDetail: "full",
@@ -52,6 +53,7 @@ describe("appearance prefs", () => {
     const a = storeOf({ [LOCAL.motionReduce.key]: true, [LOCAL.zoomPercent.key]: 150 });
     await a.local.load();
     expect(appearancePrefsOf(a.local)).toEqual({
+      theme: "system",
       motion: "reduce",
       zoom: 150,
       transcriptDetail: "full",
@@ -62,10 +64,20 @@ describe("appearance prefs", () => {
 
   test("applying sets the attribute and zoom, and 100% clears them", () => {
     const root = rootOf();
-    applyAppearance(root, { motion: "reduce", zoom: 125, transcriptDetail: "full" });
+    applyAppearance(root, {
+      theme: "system",
+      motion: "reduce",
+      zoom: 125,
+      transcriptDetail: "full",
+    });
     expect(root.dataset).toEqual({ motion: "reduce", zoom: "125" });
     expect(root.style.zoom).toBe("1.25");
-    applyAppearance(root, { motion: "system", zoom: 100, transcriptDetail: "full" });
+    applyAppearance(root, {
+      theme: "system",
+      motion: "system",
+      zoom: 100,
+      transcriptDetail: "full",
+    });
     expect(root.dataset).toEqual({});
     expect(root.style.zoom).toBe("");
   });
@@ -83,13 +95,37 @@ describe("appearance prefs", () => {
     });
     expect(root.dataset).toEqual({ motion: "reduce", zoom: "200" });
     expect(root.style.zoom).toBe("2");
-    expect(port.get()).toEqual({ motion: "reduce", zoom: 200, transcriptDetail: "full" });
+    expect(port.get()).toEqual({
+      theme: "system",
+      motion: "reduce",
+      zoom: 200,
+      transcriptDetail: "full",
+    });
 
     const bad = storeOf({}, true);
     await bad.local.load();
     const badRoot = rootOf();
     expect(await appearancePortOf(bad.local, badRoot).setZoom(150)).toBe(false);
     expect(badRoot.style.zoom).toBe("");
+  });
+
+  test("the theme is saved, set on the root, and system clears it", async () => {
+    const { local, file } = storeOf({});
+    await local.load();
+    const root = rootOf();
+    const port = appearancePortOf(local, root);
+    expect(await port.setTheme("light")).toBe(true);
+    expect(file).toEqual({ [LOCAL.theme.key]: "light" });
+    expect(root.dataset).toEqual({ theme: "light" });
+    expect(port.get().theme).toBe("light");
+    expect(await port.setTheme("system")).toBe(true);
+    expect(root.dataset).toEqual({});
+  });
+
+  test("a stored theme outside the three falls back to system", async () => {
+    const { local } = storeOf({ [LOCAL.theme.key]: "sepia" });
+    await local.load();
+    expect(appearancePrefsOf(local).theme).toBe("system");
   });
 
   test("the transcript detail defaults to full, and a stored value outside the three falls back to full", async () => {
@@ -137,7 +173,12 @@ describe("appearance prefs", () => {
   });
 
   test("applying pushes the transcript detail to the store at startup and after a save", () => {
-    applyAppearance(rootOf(), { motion: "system", zoom: 100, transcriptDetail: "hidden" });
+    applyAppearance(rootOf(), {
+      theme: "system",
+      motion: "system",
+      zoom: 100,
+      transcriptDetail: "hidden",
+    });
     expect(getTranscriptDetail()).toBe("hidden");
   });
 });
