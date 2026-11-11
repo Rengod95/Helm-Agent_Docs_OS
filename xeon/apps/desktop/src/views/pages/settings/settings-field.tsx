@@ -20,7 +20,7 @@ import {
   Tooltip,
 } from "@caustic/react";
 import { Check, CircleHelp, Lock, TriangleAlert } from "@caustic/react/icons";
-import { t } from "@fresnel/client/i18n";
+import { activeLocale, t } from "@fresnel/client/i18n";
 import type { FieldVM, RuntimeBadge, WidgetVM } from "@fresnel/client/settings";
 import { assertNever } from "@fresnel/contracts";
 import type { SettingKey } from "@fresnel/contracts/settings";
@@ -49,6 +49,14 @@ import {
   valueSummaryOf,
 } from "./settings-model.ts";
 import { isCommitEnter } from "../../ime-enter.ts";
+import {
+  formatQuantity,
+  numberStyleOf,
+  parseQuantity,
+  quantityStepOf,
+  quantitySummaryOf,
+  type DurationWords,
+} from "./settings-quantity-model.ts";
 import { TONE_CLASS } from "./settings-text.ts";
 import { SettingTagList } from "./settings-tag-list.tsx";
 
@@ -424,6 +432,22 @@ function numberDraftTextOf(
  * 숫자 칸. 칸은 `release` 방식이라 범위 밖 글은 값으로 올라오지 않고 칸 안에 초안으로 남는다.
  * 그 초안의 사유는 `onDraftChange`로만 알 수 있어 여기서 받아 칸 아래 오류 문장으로 보인다.
  */
+/** 단위 있는 글 칸의 요약에 쓰는 기간 낱말 */
+function durationWordsOf(): DurationWords {
+  return {
+    seconds: (n) => t("desktop.settings.number.duration.seconds", { n }),
+    minutes: (n) => t("desktop.settings.number.duration.minutes", { n }),
+    hours: (n) => t("desktop.settings.number.duration.hours", { n }),
+    days: (n) => t("desktop.settings.number.duration.days", { n }),
+  };
+}
+
+/**
+ * 숫자 칸. 칸은 `release` 방식이라 범위 밖 글은 값으로 올라오지 않고 칸 안에 초안으로 남는다.
+ * 그 초안의 사유는 `onDraftChange`로만 알 수 있어 여기서 받아 칸 아래 오류 문장으로 보인다.
+ * `numberStyleOf`가 "stepper"로 고른 작은 정수 칸만 ±가 있다. 나머지("quantity")는 ±가 없는 글 칸이다.
+ * 글 칸은 단위 꼬리표를 칸 안에 두고, 요약 한 줄을 칸 아래에 보인다. 칸을 떠나면 천 단위 구분으로 정돈된다.
+ */
 function NumberControl(props: {
   readonly field: FieldVM;
   readonly widget: Extract<WidgetVM, { readonly kind: "number" }>;
@@ -433,52 +457,86 @@ function NumberControl(props: {
 }): ReactNode {
   const { field, widget, disabled, handlers } = props;
   const [draftError, setDraftError] = useState<NumberFieldDraft["error"]>(null);
+  // 요약은 칸이 읽은 초안 값을 따른다. 초안이 없을 때는 저장된 값이다
+  const [draftValue, setDraftValue] = useState<number | null>(null);
   // 저장으로 칸이 비는 알림과 Esc로 되돌리는 알림을 가른다
   const committing = useRef(false);
   const escaped = useRef(false);
   const errorText = props.errorText ?? numberDraftTextOf(draftError, widget);
+  const quantity = numberStyleOf(widget) === "quantity";
+  const locale = activeLocale();
+  const shown = field.dirty ? draftValue : numberValueOf(field.value);
+  const summary =
+    quantity && errorText === null && shown !== null
+      ? quantitySummaryOf(
+          shown,
+          { id: widget.unitId, label: widget.unit },
+          { locale, words: durationWordsOf() },
+        )
+      : null;
+  const parseText = (text: string): number | null =>
+    parseQuantity(text, widget.unitId, widget.integer);
+  const formatText = (value: number): string => formatQuantity(value, locale);
+  const input = (
+    <NumberField
+      appearance={quantity ? "scrub" : "stepper"}
+      size={quantity ? "lg" : "sm"}
+      variant="outline"
+      containerClassName={quantity ? "w-44" : "w-36"}
+      placeholder={quantity ? t("desktop.settings.number.placeholder") : undefined}
+      aria-label={field.label}
+      commitMode="release"
+      value={numberValueOf(field.value)}
+      min={widget.min ?? undefined}
+      max={widget.max ?? undefined}
+      step={quantity ? quantityStepOf(shown) : widget.integer ? 1 : undefined}
+      unit={quantity && widget.unit !== null ? widget.unit : undefined}
+      parse={quantity ? parseText : undefined}
+      formatValue={quantity ? formatText : undefined}
+      disabled={disabled}
+      invalid={errorText !== null}
+      onDraftChange={(draft) => {
+        setDraftError(draft.error);
+        setDraftValue(draft.error === null ? draft.value : null);
+        // 칸 안에서 치는 글은 저장 전까지 칸이 쥔다. 컨트롤러에도 초안으로 알려야 그 사이 다른 곳이 바꾼 값을 "다른 곳에서 바뀜"으로 알아챈다(scA-4-2)
+        const action = numberDraftActionOf(draft, {
+          fieldDirty: field.dirty,
+          committing: committing.current,
+          escaped: escaped.current,
+        });
+        if (action?.kind === "edit") handlers.edit(field.key, action.value);
+        else if (action?.kind === "discard") handlers.discard(field.key);
+        else if (action?.kind === "commit") handlers.commit(field.key);
+        committing.current = false;
+        escaped.current = false;
+      }}
+      onKeyDown={(event) => {
+        escaped.current = event.key === "Escape";
+      }}
+      onValueChange={(next) => {
+        setDraftError(null);
+        committing.current = true;
+        handlers.change(field.key, next);
+      }}
+    />
+  );
   return (
     <Field disabled={disabled} error={errorText}>
-      <span className="flex items-center gap-2">
-        <NumberField
-          appearance="stepper"
-          size="sm"
-          containerClassName="w-36"
-          aria-label={field.label}
-          commitMode="release"
-          value={numberValueOf(field.value)}
-          min={widget.min ?? undefined}
-          max={widget.max ?? undefined}
-          step={widget.integer ? 1 : undefined}
-          disabled={disabled}
-          invalid={errorText !== null}
-          onDraftChange={(draft) => {
-            setDraftError(draft.error);
-            // 칸 안에서 치는 글은 저장 전까지 칸이 쥔다. 컨트롤러에도 초안으로 알려야 그 사이 다른 곳이 바꾼 값을 "다른 곳에서 바뀜"으로 알아챈다(scA-4-2)
-            const action = numberDraftActionOf(draft, {
-              fieldDirty: field.dirty,
-              committing: committing.current,
-              escaped: escaped.current,
-            });
-            if (action?.kind === "edit") handlers.edit(field.key, action.value);
-            else if (action?.kind === "discard") handlers.discard(field.key);
-            else if (action?.kind === "commit") handlers.commit(field.key);
-            committing.current = false;
-            escaped.current = false;
-          }}
-          onKeyDown={(event) => {
-            escaped.current = event.key === "Escape";
-          }}
-          onValueChange={(next) => {
-            setDraftError(null);
-            committing.current = true;
-            handlers.change(field.key, next);
-          }}
-        />
-        {widget.unit === null ? null : (
-          <span className="text-ui text-text-tertiary">{widget.unit}</span>
-        )}
-      </span>
+      {quantity ? (
+        <span className="grid min-w-0 justify-items-start gap-1">
+          {input}
+          {summary === null ? null : (
+            <span className="text-ui text-text-tertiary tabular-nums">{summary}</span>
+          )}
+        </span>
+      ) : (
+        <span className="flex items-center gap-2">
+          {input}
+          {widget.unit === null ? null : (
+            <span className="text-ui text-text-tertiary">{widget.unit}</span>
+          )}
+        </span>
+      )}
     </Field>
   );
 }

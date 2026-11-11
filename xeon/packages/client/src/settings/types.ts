@@ -125,7 +125,10 @@ export type WidgetVM =
       readonly min: number | null;
       readonly max: number | null;
       readonly integer: boolean;
+      /** 화면에 보이는 단위 글(번역을 거친다) */
       readonly unit: string | null;
+      /** 정의의 `ui.unit` 원문(예: "tokens", "B", "ms"). 단위 종류를 가릴 때 쓴다 */
+      readonly unitId: string | null;
     }
   | {
       readonly kind: "text";
