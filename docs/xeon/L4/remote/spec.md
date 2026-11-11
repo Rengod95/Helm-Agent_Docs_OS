@@ -95,6 +95,25 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 - **토큰 보관**: 기기 토큰은 OS 보안 저장소(macOS Keychain, Linux Secret Service)의 항목 `fresnel.remote-device`/`host:port`에 둔다(`TokenVault`). 지문을 새로 고정해도 같은 항목이다. 보안 저장소가 없는 플랫폼은 환경 변수 `FRESNEL_REMOTE_TOKEN`으로 받는다. 설정 파일과 대상 주소에는 두지 않는다. 데스크톱 셸이 토큰을 읽어 사이드카 엔진의 환경 변수로만 넘긴다.
 - **실패 문장**: 엔진이 멈춘 원인(stderr 첫 줄)으로 연결 화면이 고른다. 지문 변경은 "TLS fingerprint changed", 믿을 수 없는 인증서는 "certificate is not trusted yet", 게이트웨이 거절(토큰 없음·불일치·폐기, `Origin`, `Host`)은 "token does not match" 문구를 쓴다. 클라이언트는 업그레이드가 101이 아닐 때 거절 이유를 가르지 못하므로(WebSocket 구현의 한계) 모두 인증 실패 한 종류로 보이고, 해결은 "새 코드로 다시 페어링"이다.
 
+### 3.3 붙는 쪽의 사전 점검과 대상 기억
+
+[결정: 2026-11-11 사용자] 다른 컴퓨터에 붙는 입력은 최소로 하고 나머지는 클라이언트가 알아서 한다. 연결 화면(P-08)의 호스트 추가는 `user@host[:port]`(또는 ssh config의 이름) 하나와 "연결 시험"을 부른다. 화면 배치는 디자인 트랙이 다시 짠다. 이 절은 화면이 부르는 기능과 명령만 정한다.
+
+- **ssh config 읽기**: 셸 명령 `ssh_hosts`가 `~/.ssh/config`(`Include` 포함)의 `Host` 항목을 `{name, hostName, user, port, proxyJump}`로 돌려준다. 이름에 `*`, `?`, `!`가 든 항목은 뺀다. 파일이 없거나 읽지 못하면 빈 목록과 사유(`missing`, `unreadable`)다(`platform-process`의 `readSshConfig`).
+- **사전 점검**: 셸 명령 `ssh_preflight`가 단계를 차례로 돌리고 단계마다 진행 이벤트를 채널로 흘린다. 이벤트는 `{step, status, code, durationMs, detail?, fix?, actions}`이고 `status`는 `running`, `pass`, `fail`, `action`이다. 사람이 읽는 원인과 고치는 법은 `code`로 번역 키를 골라 화면이 만든다(`desktop.connection.preflight.*`).
+  1. `resolve`: `ssh -G`로 실제 호스트, 포트, 사용자, ProxyJump를 읽는다.
+  2. `connect`: `ssh … true`를 `BatchMode=yes`, `StrictHostKeyChecking=yes`로 돌려 원인을 가른다. 새 호스트 키(`host_key_new`)면 `ssh-keyscan`과 `ssh-keygen -lf`로 지문(`SHA256:…`)과 키 종류를 읽어 `action`(`trust_host_key`)으로 멈춘다. 사용자가 확인하면 같은 지문을 다시 읽어 일치할 때만 `known_hosts`에 더하고 다시 시도한다. 키가 바뀐 경우(`host_key_changed`)는 따로 경고하고, 사용자가 확인한 새 지문이 있을 때만 옛 줄을 지우고 더한다(`replace_host_key`). 비밀번호만 받는 호스트(`auth_password_only`)는 앱이 비밀번호를 받지 않고 "키나 ssh-agent가 필요해요"와 공개 키를 복사하는 한 줄(`ssh-copy-id`)을 준다. 그 밖의 원인: `auth_denied`, `dns`, `refused`, `timeout`, `no_route`, `ssh_missing`, `host_key_proxy`(ProxyJump 대상은 앱이 호스트 키를 더하지 않는다), `unknown`.
+  3. `install`: 원격에서 `fresnel version --json`을 읽어 계약 버전을 비교한다. 없으면 `not_installed`, 계약 버전이 다르면 `version_mismatch`(양쪽 버전과 낮은 쪽, 맞추는 동작 `upgrade_remote` 또는 `upgrade_local`)다. CLI 버전만 다르면 통과하고 `cliDiffers`를 싣는다. [미결] [근거: `xeon/scripts/release.ts`가 데스크톱 압축 파일만 만들고 CLI 단독 배포 경로가 `L4.release.spec`에 없음, 2026-11-12 확인] 설치용 한 줄 명령은 돌려주지 않는다. 확정된 CLI 배포 경로(내려받기 주소나 패키지 관리자)가 코드와 `L4.release.spec`에 없다. 배포 경로가 정해지면 `fix.commands`에 채운다. 비대화형 ssh의 PATH에 `fresnel`이 없을 수 있어 그 안내(`path_noninteractive`)를 함께 준다.
+  4. `service`: `fresnel service status --json`으로 서비스가 도는지 읽고, 안 돌면 `fresnel service ensure --json`으로 띄운다(`started_service`).
+  5. `socket`: 서비스 상태의 소켓 절대 경로를 읽어 채운다. 사용자는 경로를 치지 않는다.
+  6. `tunnel`: 터널을 열고 `host.hello`까지 왕복한다. 걸린 시간(ms)을 준다. 이 단계는 셸이 한다(엔진 자식과 같은 길로 연결해 실제 연결과 같은 결과를 본다).
+  통과하면 저장할 주소(`ssh://[user@]host[:port]/<소켓>`)를 돌려준다. 점검은 붙지 않는다(엔진 대상을 바꾸지 않는다). 저장된 호스트 줄의 "연결 시험"은 그 주소로 같은 단계를 돌린다.
+- **`wss` 연결 코드 받기와 지문 확인**: 셸 명령 `remote_fingerprint`가 서버 인증서 지문을 읽어 돌려주고(검증 없이 재기만 한다), 사용자가 확인하면 주소에 `/pin/<sha256>`을 붙여 저장한다. 셸 명령 `remote_pair`가 고정한 인증서를 유일한 신뢰 앵커로 `POST /pair`(`kind: "desktop"`, 연결 코드, 기기 이름)를 보내 기기 토큰을 받고 OS 보안 저장소에 둔다(§8.3). 토큰은 화면, 로그, 오류에 나오지 않는다. 환경 변수 `FRESNEL_REMOTE_TOKEN`은 보안 저장소가 없는 플랫폼의 대안으로만 남는다.
+- **연결 실패 종류**: 엔진 stderr의 "TLS fingerprint changed"는 `fingerprint`(경고, 새 지문 확인), "certificate is not trusted yet"은 `certUntrusted`(처음 확인)다. 모든 종류에 원인과 고치는 법 문장이 있고, 자동으로 할 수 있는 조치(`confirm_fingerprint`, `repair`, `preflight`, `retry`)는 `attachFixActionOf`가 정한다.
+- **마지막 대상 기억**: 마지막으로 붙은 대상의 주소를 로컬 설정 `l4.desktop.window.lastTarget`에 둔다(빈 값이 이 컴퓨터). 앱을 켜면 그 대상으로 다시 붙고, 붙지 못하면(엔진이 `failed`) 이 컴퓨터로 돌아가며 그 사실을 알린다.
+- **대상 전환 확인**: 대상을 바꾸면 도는 엔진이 내려간다. 화면이 확인을 받을 수 있도록 `switchImpact`가 도는 턴 수(`host.status`의 `liveTurns`)와 승인 대기 수를 돌려준다.
+- **끊겼을 때의 상태**: 재접속 시도(몇 번째, 다음 시도 시각)는 엔진 상태(`restarting`의 `attempt`, `retryAt`)에서 오고, 연결된 동안 본 원격 상태(시각, 버전, 도는 턴 수)를 UI 상태 `lastRemoteSeen`에 둔다. SSH 대상은 `ssh_service_alive`로 원격 서비스가 살아 있는지(다시 붙으면 이어지는지) 읽는다.
+
 ## 4. 서비스 모드와 외부 접근의 켜고 끔
 
 [제안] 데스크톱 앱이 아래를 직접 한다. CLI 전용 동작을 두지 않는다(`fresnel service start|stop|status`, `--listen-tcp`에 대응하는 데스크톱 경로가 모두 있어야 한다).
