@@ -12,7 +12,7 @@ import {
 import { useId, type ReactNode } from "react";
 import type { EngineState } from "../../../state/engine/index.ts";
 import type { ConnectionState, TargetChoice } from "./connection-model.ts";
-import type { DetailHandlers } from "./connection-status.tsx";
+import { ConnectionSection, type DetailHandlers } from "./connection-status.tsx";
 import { HostSection } from "./connection-host-section.tsx";
 import type { HostFormValue } from "./host-address.ts";
 import { ScreenHeader } from "../../shell/screen-header.tsx";
@@ -95,28 +95,26 @@ function DiagnosticsSection(props: {
   readonly restarting: boolean;
 }): ReactNode {
   const { handlers, busy, restarting } = props;
-  const headingId = useId();
   return (
-    <section aria-labelledby={headingId} className="grid content-start gap-2">
-      <h3 id={headingId} className="m-0 text-ui font-medium text-text-primary">
-        {t("desktop.connection.diagnostics.heading")}
-      </h3>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          size="sm"
-          variant="ghost"
-          loading={restarting}
-          disabled={busy}
-          onClick={handlers.restart}
-        >
-          {t("desktop.connection.status.restart")}
-        </Button>
-        <Button size="sm" variant="ghost" onClick={handlers.copyDiagnostics}>
-          {t("desktop.connection.status.copyDiagnostics")}
-        </Button>
+    <ConnectionSection title={t("desktop.connection.diagnostics.heading")}>
+      <div className="grid content-start gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            loading={restarting}
+            disabled={busy}
+            onClick={handlers.restart}
+          >
+            {t("desktop.connection.status.restart")}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={handlers.copyDiagnostics}>
+            {t("desktop.connection.status.copyDiagnostics")}
+          </Button>
+        </div>
+        <p className="m-0 text-ui text-text-tertiary">{t(updateLineKey({ state: "unchecked" }))}</p>
       </div>
-      <p className="m-0 text-ui text-text-tertiary">{t(updateLineKey({ state: "unchecked" }))}</p>
-    </section>
+    </ConnectionSection>
   );
 }
 

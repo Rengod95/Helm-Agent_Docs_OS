@@ -302,7 +302,7 @@ describe("the connection failure banner shows the cause line and the fix line", 
 
   test("a target that needs a token says so and names the environment variable, with no token field", () => {
     const markup = html(failedWith("The remote access token is missing"));
-    expect(markup).toContain("이 대상은 토큰이 필요해요.");
+    expect(markup).toContain("이 호스트는 토큰이 필요해요.");
     expect(markup).toContain("앱을 FRESNEL_REMOTE_TOKEN 환경 변수와 함께 열어요.");
     expect(markup).not.toContain('type="password"');
   });
@@ -389,7 +389,7 @@ describe("the host card and the diagnostics section split the actions by target"
     expect(buttonTagsNamed(markup, "서비스 멈추기")).toHaveLength(0);
     expect(buttonTagsNamed(markup, "엔진 다시 시작")).toHaveLength(1);
     expect(buttonTagsNamed(markup, "진단 복사")).toHaveLength(1);
-    expect(markup).toContain(">진단</h3>");
+    expect(markup).toContain(">진단</h2>");
   });
 
   test("a busy screen locks the diagnostics restart button", () => {
@@ -414,7 +414,7 @@ describe("the host card and the diagnostics section split the actions by target"
     expect(buttonTagsNamed(markup, "이 컴퓨터로 돌아가기")).toHaveLength(1);
     expect(buttonTagsNamed(markup, "진단 복사")).toHaveLength(1);
     expect(buttonTagsNamed(markup, "엔진 다시 시작")).toHaveLength(1);
-    expect(markup).not.toContain(">진단</h3>");
+    expect(markup).not.toContain(">진단</h2>");
   });
 
   test("a remote host that runs in the app has no stop button but keeps restart and copy", () => {
