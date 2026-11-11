@@ -35,6 +35,16 @@ describe("model select", () => {
     expect(tag).not.toMatch(/ disabled=""/);
   });
 
+  test("the trigger hides its chevron and pads 10px on every side (DP-67)", () => {
+    const markup = renderToString(<ModelSelect {...props} disabled={false} />);
+    const tag = markup.match(/<button[^>]*>/)?.[0] ?? "";
+    const classes = (tag.match(/class="([^"]*)"/)?.[1] ?? "").split(" ");
+    expect(classes).toContain("[&amp;_[data-slot=picker-trigger-indicator]]:hidden");
+    expect(classes).toContain("p-2.5");
+    expect(classes).toContain("leading-4");
+    expect(classes.filter((name) => /^(px|py|h)-/.test(name))).toEqual(["h-auto"]);
+  });
+
   test("a disabled composer disables the select", () => {
     const markup = renderToString(<ModelSelect {...props} disabled />);
     const tag = markup.match(/<button[^>]*>/)?.[0] ?? "";

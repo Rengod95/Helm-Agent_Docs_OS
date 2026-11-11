@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 // 3열 선택 카드 그룹. caustic ChoiceGroup(카드 모양)을 얇게 감싼다: 키보드(화살표로 옮기고 고르기)와 radiogroup 의미는
 // ChoiceGroup이 준다. 열 수는 그룹을 감싼 컨테이너 폭으로 정한다. 폭이 32rem 미만이면 한 열이다. 글자는 설명과 제목 모두
 // 13px로 맞춘다(caustic 기본 카드 글자는 12px 이하라서 쓰지 않는다).
+// 카드는 hover에 떠오르지 않고, 고른 카드는 옅은 바탕과 한 단계 진한 1px 테두리다(DP-66). caustic 카드의 이동·그림자·잉크 반전은
+// `src/styles.css`의 `.radio-cards` 규칙이 덮는다.
 
 export interface RadioCardGroupProps {
   /** 고른 카드의 값. 아무것도 고르지 않았으면 빈 문자열이다 */
@@ -21,7 +23,7 @@ export interface RadioCardGroupProps {
 export function RadioCardGroup(props: RadioCardGroupProps): ReactNode {
   const { value, onValueChange, disabled = false, label, children } = props;
   return (
-    <div className="@container">
+    <div className="radio-cards @container">
       <ChoiceGroup
         appearance="card"
         columns="3"

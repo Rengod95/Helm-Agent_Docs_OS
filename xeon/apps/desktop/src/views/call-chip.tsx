@@ -1,7 +1,8 @@
+import { Check } from "@caustic/react/icons";
 import type { ReactNode } from "react";
 
 /**
- * 도구 호출 줄의 상태 칩. 실행 중에는 채움이 가로로 쓸리는 칩과 스피너, 끝나면 채움이 차오른 뒤 체크가 그려지고,
+ * 도구 호출 줄의 상태 칩. 실행 중에는 채움이 가로로 쓸리는 칩과 스피너, 끝나면 칩 틀 없이 caustic 기본 체크 아이콘 하나만 두고(DP-67),
  * 실패 종류(실패·중단됨은 위험, 거부함·막힘·훅 막음은 경고)는 빛깔과 아이콘이 갈린다. 움직임은 `call-chip.css`가 맡고
  * 움직임 줄이기(OS 설정, 앱 설정 `data-motion="reduce"`)에서는 전환 없이 끝 모양이 바로 보인다.
  * 아이디어는 React Bits의 Call Chip(실행 중 채움이 쓸리고 초록으로 끝나거나 빨강으로 흔들림)에서 얻었고 코드는 옮기지 않고 직접 썼다.
@@ -31,14 +32,6 @@ const ICON_PROPS = {
   "aria-hidden": true,
 } as const;
 
-function CheckIcon(): ReactNode {
-  return (
-    <svg {...ICON_PROPS} className="call-chip-icon call-chip-check">
-      <path d="M3.5 8.5 6.75 11.5 12.5 4.75" pathLength={1} />
-    </svg>
-  );
-}
-
 function AlertIcon(): ReactNode {
   return (
     <svg {...ICON_PROPS} className="call-chip-icon">
@@ -60,11 +53,24 @@ function BanIcon(): ReactNode {
 
 function iconOf(props: CallChipProps): ReactNode {
   if (props.status === "running") return <span className="call-chip-spinner" />;
-  if (props.status === "done") return <CheckIcon />;
   return props.tone === "warning" ? <BanIcon /> : <AlertIcon />;
 }
 
 export function CallChip(props: CallChipProps): ReactNode {
+  // 끝남: 테두리·채움·여백·그려지는 전환이 없는 맨 체크 14px(2026-11-11 사용자 "단순 체크 아이콘만")
+  if (props.status === "done") {
+    return (
+      <span
+        data-slot="call-chip"
+        data-status="done"
+        data-tone="neutral"
+        aria-hidden
+        className="call-chip-done"
+      >
+        <Check aria-hidden className="call-chip-check" />
+      </span>
+    );
+  }
   const tone = props.status === "failed" ? (props.tone ?? "danger") : "neutral";
   return (
     <span

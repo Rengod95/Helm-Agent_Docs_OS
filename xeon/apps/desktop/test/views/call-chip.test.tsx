@@ -14,11 +14,15 @@ describe("CallChip", () => {
     );
   });
 
-  test("done draws the check and has no label", () => {
+  test("done draws only the plain check: no chip frame, fill, label or drawn path", () => {
     const html = renderToStaticMarkup(<CallChip status="done" />);
     expect(html).toContain('data-status="done"');
+    expect(html).toContain('class="call-chip-done"');
     expect(html).toContain("call-chip-check");
+    expect(html).not.toContain('class="call-chip"');
+    expect(html).not.toContain("call-chip-fill");
     expect(html).not.toContain("call-chip-label");
+    expect(html).not.toContain("pathLength");
   });
 
   test("failed defaults to the danger tone and keeps a given tone; other states ignore the tone", () => {
