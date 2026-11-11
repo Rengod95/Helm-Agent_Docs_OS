@@ -136,7 +136,7 @@ binds: []
 | Plugin App | 플러그인 앱 | Plugin app | `frame`, `app`, `FrameDecl`, `AppDecl` | proposed |
 | Plugin Builder | 플러그인 빌더 | Plugin Builder | `plugin-builder` | proposed |
 | Plugin Group | 플러그인 그룹 | Plugin group | — | proposed |
-| Plugin UI | 플러그인 UI | Plugin UI | `views`, `ui`, `ViewContribution`, `UiContribution` | proposed |
+| Plugin UI | 추가 기능 | Add-ons | `views`, `ui`, `ViewContribution`, `UiContribution` | proposed |
 | post | 입력 넣기: 바로·끝난 뒤·다음 요청에 | Post: Now·After·Next request | `steer`, `followUp`, `next` | proposed |
 | Process lock | — | — | `sys_leases` | proposed |
 | Fresnel | 프레넬 | Fresnel | — | proposed |

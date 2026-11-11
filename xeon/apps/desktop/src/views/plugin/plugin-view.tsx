@@ -13,8 +13,8 @@ import {
   type BridgePolicyContext,
   type ThemePush,
 } from "@fresnel/client/views/app";
-import { Button, Chip, Tooltip } from "@caustic/react";
-import { CodeXml, MessageSquare } from "@caustic/react/icons";
+import { Button, Chip, IconButton, Tooltip } from "@caustic/react";
+import { ChevronLeft, CodeXml, MessageSquare } from "@caustic/react/icons";
 import { useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createBridgeBackend, type PluginShellPort } from "../../plugin-ui/backend.ts";
 import { newFrameNonce, type PluginUiRuntime } from "../../plugin-ui/runtime.ts";
@@ -49,6 +49,12 @@ const THEME_TOKEN_NAMES: readonly string[] = [
   "--live",
   "--code-bg",
 ];
+
+/** 실행 머리의 뒤로 가기(추가 기능 화면이 상세로 돌아가는 단추). 오른쪽 패널처럼 돌아갈 곳이 없으면 주지 않는다 */
+export interface PluginViewBack {
+  readonly label: string;
+  readonly onClick: () => void;
+}
 
 export const screenKeyOf = (entry: ExtUiEntry): string => `${entry.extension}/${entry.id}`;
 
@@ -100,12 +106,25 @@ function Note(props: { readonly text: string; readonly dense?: boolean }): React
 function Header(props: {
   readonly entry: ExtUiEntry;
   readonly onBackToChat: () => void;
+  readonly back?: PluginViewBack | undefined;
 }): ReactNode {
   const { entry } = props;
   const trust = entry.trust === "managed" ? "user" : entry.trust;
   const reason = entry.app?.reason;
   return (
     <ScreenHeader
+      lead={
+        props.back === undefined ? undefined : (
+          <IconButton
+            size={HEADER_CONTROL_SIZE}
+            variant="ghost"
+            label={props.back.label}
+            onClick={props.back.onClick}
+          >
+            <ChevronLeft />
+          </IconButton>
+        )
+      }
       title={extMessageOf(entry.messages, activeLocale(), entry.title)}
       meta={
         <>
@@ -582,7 +601,10 @@ export function EntrySurface(props: {
   );
 }
 
-export function PluginView(props: { readonly entry: ExtUiEntry }): ReactNode {
+export function PluginView(props: {
+  readonly entry: ExtUiEntry;
+  readonly back?: PluginViewBack | undefined;
+}): ReactNode {
   const { entry } = props;
   const { runtime } = usePluginUi();
   const threadId = useReadyThreadId();
@@ -620,6 +642,7 @@ export function PluginView(props: { readonly entry: ExtUiEntry }): ReactNode {
     <section className="flex min-h-0 flex-1 flex-col">
       <Header
         entry={entry}
+        back={props.back}
         onBackToChat={() => {
           showChat();
         }}

@@ -67,3 +67,31 @@ export function usePluginPickRequest(): PluginPickRequest | undefined {
     () => current,
   );
 }
+
+/** 크래프트 확장 상세나 다른 곳에서 "추가 기능" 화면의 플러그인 하나를 바로 열라는 요청 */
+export interface AddonOpenRequest {
+  readonly extension: string;
+  readonly seq: number;
+}
+
+let addon: AddonOpenRequest | undefined;
+const addonListeners = new Set<() => void>();
+
+export function requestAddon(extension: string): void {
+  seq += 1;
+  addon = { extension, seq };
+  for (const listener of addonListeners) listener();
+}
+
+export function useAddonOpenRequest(): AddonOpenRequest | undefined {
+  return useSyncExternalStore(
+    (listener) => {
+      addonListeners.add(listener);
+      return () => {
+        addonListeners.delete(listener);
+      };
+    },
+    () => addon,
+    () => addon,
+  );
+}
