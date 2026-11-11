@@ -92,6 +92,7 @@ import type {
   ReviewTarget,
   Screen,
   SettingsJump,
+  SettingsSection,
 } from "../state/ui/index.ts";
 import type {
   BackupReport,
@@ -1011,6 +1012,9 @@ export interface Commands {
   /** 설정 화면을 열고 그 탭과 항목으로 옮긴다(명령 팔레트). 화면이 받으면 `settleSettingsJump`를 부른다 */
   requestSettingsJump(jump: SettingsJump): void;
   settleSettingsJump(): void;
+  /** 설정 화면을 열고 그 구역으로 옮긴다("연결" 진입). 구역을 그리는 화면이 받으면 `settleSettingsSection`을 부른다 */
+  requestSettingsSection(section: SettingsSection): void;
+  settleSettingsSection(): void;
   /** 변경 검토 화면(P-04)을 이 승인으로 연다. 화면 자리는 App이 옮긴다 */
   openReview(target: ReviewTarget): void;
   reloadThreads(): void;

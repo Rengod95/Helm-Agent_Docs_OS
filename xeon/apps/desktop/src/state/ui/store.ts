@@ -69,6 +69,11 @@ export type ComposerRequest = { readonly insert: string | null };
 export type ReviewTarget = { readonly approvalId: EventId; readonly reviewId: string };
 
 /**
+ * 설정 화면이 열며 펼칠 구역. 지금은 "connection"(연결: 이 컴퓨터·원격 호스트·실행 방식)뿐이다. 구역을 싣는 쪽(설정 화면)이 받으면 `settleSettingsSection`으로 지운다
+ */
+export type SettingsSection = "connection";
+
+/**
  * 설정 화면이 열며 옮길 탭과 항목. `key`가 null이면 탭만 연다. `secretName`이 있으면 시크릿 탭에서 그 시크릿을 고른다.
  * 화면이 받으면 `settleSettingsJump`로 지운다
  */
@@ -118,6 +123,8 @@ export type UiState = {
   readonly composerRequest: ComposerRequest | null;
   /** 설정 화면에 줄 탭과 항목. 화면이 받기 전까지 있다 */
   readonly settingsJump: SettingsJump | null;
+  /** 설정 화면에 줄 구역. 화면이 받기 전까지 있다 */
+  readonly settingsSection: SettingsSection | null;
   /** 변경 검토 화면이 여는 검토 승인. 승인 카드의 "검토 열기"가 정한다 */
   readonly reviewTarget: ReviewTarget | null;
   /** 다시 시작해야 적용되는 일. 엔진이 다시 running으로 돌아오면 비운다(app/restart-needed.ts) */
@@ -155,6 +162,9 @@ interface UiActions {
   /** 설정 화면을 열고 그 탭과 항목으로 옮길 요청을 남긴다 */
   requestSettingsJump(jump: SettingsJump): void;
   settleSettingsJump(): void;
+  /** 설정 화면을 열고 그 구역으로 옮길 요청을 남긴다 */
+  requestSettingsSection(section: SettingsSection): void;
+  settleSettingsSection(): void;
   /** 변경 검토 화면을 이 승인으로 연다. 화면 자리는 App이 옮긴다 */
   openReview(target: ReviewTarget): void;
   /** 다시 시작이 필요한 일을 더한다. 같은 종류와 이름이 있으면 상태를 바꾸지 않는다 */
@@ -184,6 +194,7 @@ const INITIAL_UI: UiState = {
   engineSwitching: false,
   composerRequest: null,
   settingsJump: null,
+  settingsSection: null,
   reviewTarget: null,
   restartNeeded: [],
   engineTarget: { kind: "local" },
@@ -235,6 +246,9 @@ export function createUiStore(): UiStore {
     settleComposerRequest: () => api.setState({ composerRequest: null }),
     requestSettingsJump: (settingsJump) => api.setState({ screen: "settings", settingsJump }),
     settleSettingsJump: () => api.setState({ settingsJump: null }),
+    requestSettingsSection: (settingsSection) =>
+      api.setState({ screen: "settings", settingsSection }),
+    settleSettingsSection: () => api.setState({ settingsSection: null }),
     openReview: (reviewTarget) => api.setState({ reviewTarget }),
     noteRestartNeeded: (reason) =>
       api.setState((s) =>

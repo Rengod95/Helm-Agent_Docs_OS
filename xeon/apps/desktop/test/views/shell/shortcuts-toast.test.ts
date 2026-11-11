@@ -37,30 +37,30 @@ describe("shell shortcut actions", () => {
     expect(s.calls).toEqual([false, false]);
   });
 
-  test("nav.2 opens the inbox end tab, the inbox is no longer a sidebar item", () => {
+  test("panel.inbox opens the inbox end tab, the inbox is no longer a sidebar item", () => {
     const store = createShellStore(1400);
     const s = settings();
-    expect(runShellAction("nav.2", store.read.getState(), store.actions, s)).toBe(true);
+    expect(runShellAction("panel.inbox", store.read.getState(), store.actions, s)).toBe(true);
     expect(store.read.getState().places.chat.endTab).toBe("inbox");
     expect(store.read.getState().endOpen).toBe(true);
   });
 
-  test("nav.3 opens the third chat screen in the chat area", () => {
+  test("nav.1 opens the first chat screen (proposals) in the chat area", () => {
     const store = createShellStore(1400);
     store.actions.switchArea("workbench");
     const s = settings();
-    expect(runShellAction("nav.3", store.read.getState(), store.actions, s)).toBe(true);
+    expect(runShellAction("nav.1", store.read.getState(), store.actions, s)).toBe(true);
     const state = store.read.getState();
     expect(state.area).toBe("chat");
     expect(state.places.chat.screen).toBe("proposals");
     expect(s.calls).toEqual([false]);
   });
 
-  test("nav.6 opens the plugin pages screen in the chat area", () => {
+  test("nav.3 opens the plugin pages screen in the chat area", () => {
     const store = createShellStore(1400);
     store.actions.switchArea("workbench");
     const s = settings();
-    expect(runShellAction("nav.6", store.read.getState(), store.actions, s)).toBe(true);
+    expect(runShellAction("nav.3", store.read.getState(), store.actions, s)).toBe(true);
     const state = store.read.getState();
     expect(state.area).toBe("chat");
     expect(state.places.chat.screen).toBe("plugins");

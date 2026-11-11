@@ -41,13 +41,18 @@ describe("shortcutRowsOf", () => {
     expect(rows.find((row) => row.id === "panel.inbox")?.keys).toBe("⇧⌘I");
     expect(rows.find((row) => row.id === "thread.next")?.keys).toBe("⌥⌘↓");
     expect(rows.find((row) => row.id === "area.chat")?.keys).toBe("⌥⌘1");
-    expect(rows.find((row) => row.id === "nav.6")).toEqual({
-      id: "nav.6",
-      label: "desktop.shortcuts.action.nav6",
+    expect(rows.find((row) => row.id === "nav.3")).toEqual({
+      id: "nav.3",
+      label: "desktop.shortcuts.action.nav3",
       group: "navigate",
-      keys: "⌘6",
-      parts: ["⌘", "6"],
+      keys: "⌘3",
+      parts: ["⌘", "3"],
     });
+    expect(rows.filter((row) => row.id.startsWith("nav.")).map((row) => row.id)).toEqual([
+      "nav.1",
+      "nav.2",
+      "nav.3",
+    ]);
   });
 
   test("off macOS the same keys read with Ctrl and Shift", () => {

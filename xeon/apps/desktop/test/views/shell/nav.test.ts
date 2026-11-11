@@ -13,13 +13,11 @@ describe("nav table", () => {
     ]);
   });
 
-  test("the chat nav lists five items without the inbox (it lives on the right toolbar), the plugin pages entry last and on nav.6", () => {
+  test("the chat nav lists three items: no chat row (the pinned new-thread row replaces it), no connection (it moved into settings), the plugin pages entry last on nav.3", () => {
     expect(NAV_BY_AREA.chat.map((item) => [item.id, item.label, item.action])).toEqual([
-      ["chat", "desktop.shell.nav.chat", "nav.1"],
-      ["proposals", "desktop.shell.nav.proposals", "nav.3"],
-      ["schedules", "desktop.shell.nav.schedules", "nav.4"],
-      ["connection", "desktop.shell.nav.connection", "nav.5"],
-      ["plugins", "desktop.shell.nav.plugins", "nav.6"],
+      ["proposals", "desktop.shell.nav.proposals", "nav.1"],
+      ["schedules", "desktop.shell.nav.schedules", "nav.2"],
+      ["plugins", "desktop.shell.nav.plugins", "nav.3"],
     ]);
   });
 });

@@ -251,7 +251,7 @@ export function App(props: AppProps): ReactNode {
           );
         return;
       case "connection.open":
-        showPlace("chat", "connection");
+        commands.requestSettingsSection("connection");
         return;
       default:
         return assertNever(id, "PaletteCommandId");

@@ -567,6 +567,8 @@ export function createCommands(deps: CommandDeps): Commands {
     settleComposerRequest: () => ui.actions.settleComposerRequest(),
     requestSettingsJump: (jump) => ui.actions.requestSettingsJump(jump),
     settleSettingsJump: () => ui.actions.settleSettingsJump(),
+    requestSettingsSection: (section) => ui.actions.requestSettingsSection(section),
+    settleSettingsSection: () => ui.actions.settleSettingsSection(),
     openReview: (target) => ui.actions.openReview(target),
     reloadThreads: () => session.link()?.reloadThreads(),
     retryTranscript() {

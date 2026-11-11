@@ -60,17 +60,20 @@ describe("Shell slots", () => {
   test("the chat area draws the registered screen, the six chat nav items and the slots", () => {
     const out = render(1400);
     expect(out).toContain("채팅 화면 내용");
-    for (const label of ["대화", "받은 요청", "제안", "예약", "연결", "플러그인 화면"]) {
+    for (const label of ["새 대화", "받은 요청", "제안", "예약", "플러그인 화면"]) {
       expect(out).toContain(label);
     }
+    // 연결은 설정으로 옮겼고, 내비의 "대화" 항목은 고정 "새 대화" 행이 대신한다
+    expect(out).not.toContain("연결");
     expect(out).not.toContain("개요");
     expect(out).toContain("대화 목록 슬롯");
     expect(out).toContain("상태 표시줄 슬롯");
   });
 
-  test("the stage reserves the end rail width so the rail cannot cover head buttons", () => {
+  test("the stage fills the full width and only hands the header the rail width", () => {
     const out = render(1400);
-    expect(out).toMatch(/<main[^>]*class="[^"]*\bpe-10\b/);
+    expect(out).toMatch(/<main[^>]*class="[^"]*\[--shell-rail:2\.5rem\]/);
+    expect(out).not.toMatch(/<main[^>]*class="[^"]*\bpe-10\b/);
   });
 
   test("a screen id nobody registered shows the not-yet empty state", () => {

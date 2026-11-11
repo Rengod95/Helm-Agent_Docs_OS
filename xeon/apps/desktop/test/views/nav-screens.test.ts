@@ -7,10 +7,8 @@ test("every chat and workbench nav item opens a registered screen with an icon",
   const registry = createDesktopRegistry();
   const ids = [...NAV_BY_AREA.chat, ...NAV_BY_AREA.workbench].map((item) => item.id);
   expect(ids).toEqual([
-    "chat",
     "proposals",
     "schedules",
-    "connection",
     "plugins",
     "overview",
     "extensions",

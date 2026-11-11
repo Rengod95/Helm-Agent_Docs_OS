@@ -11,6 +11,7 @@ export {
   type ReviewTarget,
   type Screen,
   type SettingsJump,
+  type SettingsSection,
   type UiState,
   type UiStore,
 } from "./store.ts";
