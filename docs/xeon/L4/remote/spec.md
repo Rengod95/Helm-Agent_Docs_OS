@@ -301,6 +301,9 @@ binds: [xeon/apps/desktop-shell/src/web/**]
    - 시험은 실제 tailnet을 쓰지 않고 `run`을 가짜로 바꿔 끼운다.
 4. 사전 점검(`apps/host/src/service/preflight.ts`, `runPreflight`): 항목 일곱 개를 정해진 순서로 돌려준다. 항목마다 `id`, `status`(`pass`, `fail`, `skip`), 원인 코드(`cause`), 고치는 법 코드(`fix`), 앱이 대신 고칠 수 있는 동작 이름(`autoFix`), 부가 값(`detail`)이다. 문장이 아니라 코드이고 화면과 CLI가 번역한다. 항목: `service_running`, `gateway_running`, `listen_port`(충돌하면 점유 프로세스 pid·이름, `lsof`), `allowed_hosts`, `certificate`(자체 서명·사용자·tailscale 신뢰, 만료까지 남은 일수), `autostart`(없음·옛 등록), `reachable_addresses`(루프백, 같은 네트워크 IP, `.local`, Tailscale IP, Tailscale MagicDNS 이름. 주소마다 허용 호스트에 들어 있는지). 앞 단계가 실패하면 뒤 항목은 `skip`(`depends_on_failed`)이다. `ready`는 `fail`이 없을 때다.
 
+5. 게이트웨이 설정 호출(`apps/host/src/service/gateway-settings.ts`): `l4.remote.web.listen`, `listenTls`, `hosts`, `tlsCert`, `tlsKey`를 읽고(`readGatewaySettings`), 검증하고(`validateGatewaySettings`, 이슈는 `field`와 코드), 쓴다(`writeGatewaySettings`: 병합한 값이 하나라도 틀리면 아무것도 쓰지 않는다). 검증은 게이트웨이 시작 때의 판단과 같다: `listen`은 루프백만, 포트 1~65535, 호스트 이름 모양, 인증서와 키는 짝으로 절대 경로, 읽을 수 있음, 파싱, 만료, 키와 인증서의 짝 일치. 인증서·키는 `listenTls`가 있을 때만 본다.
+6. 공개 서버(VPS) 구성: 게이트웨이를 루프백에만 열고(`loopbackOnlyPlan`: `listen = 127.0.0.1:<포트>`, `listenTls = 127.0.0.1:<TLS 포트>`, `hosts = [<도메인>]`) 앞에 리버스 프록시(Caddy, nginx)를 둔다. `proxyExampleOf`가 실제 도메인과 포트로 채운 설정 본문을 돌려준다. 프록시는 **게이트웨이의 TLS 리스너**(`https://127.0.0.1:<TLS 포트>`, 자체 서명 인증서라 이 구간의 검증은 끈다)로 보낸다: 루프백 평문 리스너는 `Host`가 `localhost`·`127.0.0.1`·`[::1]`일 때만 받고 `Origin`도 그 출처와 같아야 하므로(§8.5) 공개 도메인을 `Host`로 넘기는 프록시는 TLS 리스너의 허용 호스트(`hosts`)를 통해야 한다. `Upgrade`·`Connection` 헤더(WebSocket)와 `Host`를 그대로 넘기고 읽기 시한을 길게 둔다. [근거: `apps/desktop-shell/src/web/auth/origin.ts` `checkHost`·`checkOrigin`]
+
 ## 9. 비루프백 리스너 정책과 기존 스펙 충돌의 정리
 
 충돌: 아래가 서로 맞지 않았다.
