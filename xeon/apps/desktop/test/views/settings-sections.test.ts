@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { t, type MessageId } from "@fresnel/client/i18n";
 import {
   SECTION_OF_KEY,
   SECTION_ORDER,
   SETTINGS_SECTIONS,
   searchSectionsOf,
+  sectionHitsOf,
   sectionOfJump,
   sectionStep,
   shownFieldsOf,
@@ -14,9 +16,10 @@ import { defOf, settingOf, viewOf } from "./settings-fixtures.ts";
 // 구역을 먼저 본다. 값은 `toEqual`·`toBe`로 비교한다.
 
 describe("section table", () => {
-  test("twelve sections in nav order, with the app, agent and engine groups", () => {
+  test("thirteen sections in nav order, with the app, agent and engine groups (shortcuts in app, DP-89)", () => {
     expect(SECTION_ORDER).toEqual([
       "general",
+      "shortcuts",
       "notifications",
       "models",
       "secrets",
@@ -59,7 +62,7 @@ describe("section table", () => {
 
   test("moving in the nav stops at both ends", () => {
     expect(sectionStep("general", -1)).toBe("general");
-    expect(sectionStep("general", 1)).toBe("notifications");
+    expect(sectionStep("general", 1)).toBe("shortcuts");
     expect(sectionStep("data", 1)).toBe("data");
     expect(sectionStep("sessions", 1)).toBe("connection");
   });
@@ -113,5 +116,26 @@ describe("search", () => {
       })),
     ).toEqual([{ section: "models", keys: ["l1.models.default"] }]);
     expect(searchSectionsOf(shown, "  ")).toEqual([]);
+  });
+});
+
+/** 문구 id를 화면 글로(구역 이름 찾기에 넘긴다) */
+function text(id: MessageId): string {
+  return t(id);
+}
+
+describe("finding a section by its name (DP-86)", () => {
+  test("a panel-only section is found by its label", () => {
+    expect(sectionHitsOf("알림", text)).toEqual(["notifications"]);
+    expect(sectionHitsOf("단축", text)).toEqual(["shortcuts"]);
+  });
+
+  test("a card title inside a section finds that section", () => {
+    expect(sectionHitsOf(t("desktop.settings.part.shell"), text)).toEqual(["execution"]);
+  });
+
+  test("an empty or unmatched query finds no section", () => {
+    expect(sectionHitsOf("  ", text)).toEqual([]);
+    expect(sectionHitsOf("zzqx", text)).toEqual([]);
   });
 });

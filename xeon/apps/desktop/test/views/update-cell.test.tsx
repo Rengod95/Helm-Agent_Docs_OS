@@ -8,10 +8,7 @@ import { UpdateContext } from "../../src/views/update-context.ts";
 import type { UpdateController } from "../../src/views/update-controller.ts";
 import type { UpdateState } from "../../src/views/update-model.ts";
 import { UpdateBody } from "../../src/views/update-parts.tsx";
-import {
-  UpdatePanel,
-  UpdateLineView,
-} from "../../src/views/pages/settings/settings-update-view.tsx";
+import { AboutCardView } from "../../src/views/pages/settings/settings-overview.tsx";
 import { PluginUiProvider } from "../../src/views/plugin/plugin-context.tsx";
 import { Providers } from "../../src/views/providers.tsx";
 import { StatusBar } from "../../src/views/status-bar.tsx";
@@ -219,94 +216,89 @@ describe("update popover body", () => {
 
 const noop = (): void => {};
 
-/** 설정 줄을 그린다. 명령은 아무 일도 하지 않는다 */
+/** 설정 "정보와 진단" 카드를 그린다(DP-86). 명령은 아무 일도 하지 않는다 */
 function lineOf(state: UpdateState, currentVersion: string | null = VERSION): string {
   return renderToString(
-    <UpdateLineView
-      state={state}
-      currentVersion={currentVersion}
-      onCheck={noop}
-      onDownload={noop}
+    <AboutCardView
+      appVersion={VERSION}
+      engineVersion="0.4.1"
+      update={{ state, currentVersion, onCheck: noop, onDownload: noop }}
+      onCopy={noop}
+      onOpenLogs={null}
     />,
   );
 }
 
-describe("settings update line", () => {
-  test("the line names the current version and the check button", () => {
+describe("settings about card: update", () => {
+  test("the summary shows the short state and the check button sits in the action row", () => {
     const html = lineOf({ kind: "current" });
-    expect(html).toContain(t("desktop.update.line.version", { version: VERSION }));
-    expect(html).toContain(t("desktop.update.line.current"));
+    expect(html).toContain(t("desktop.update.cell.current"));
     expect(html).toContain(t("desktop.update.check.button"));
+    expect(html).toContain(t("desktop.settings.overview.copyDiagnostics"));
   });
 
-  test("the title is the term of a list row like the other overview rows (rtE R-6a)", () => {
-    const html = lineOf({ kind: "current" });
-    const term = html.match(/data-slot="list-description-term"[^>]*>([^<]*)</);
-    expect(term?.[1]).toBe(t("desktop.update.line.title"));
-  });
-
-  test("the status sentence follows each state", () => {
-    expect(lineOf({ kind: "checking" })).toContain(t("desktop.update.line.checking"));
-    expect(lineOf(AVAILABLE)).toContain(t("desktop.update.line.available", { version: "0.4.2" }));
-    expect(lineOf(DOWNLOADING)).toContain(t("desktop.update.line.downloading", { percent: 21 }));
-    expect(lineOf({ ...DOWNLOADING, total: null })).toContain(
-      t("desktop.update.line.downloadingUnknown"),
-    );
-    expect(lineOf(READY)).toContain(t("desktop.update.line.ready"));
-    expect(lineOf({ kind: "installing", version: "0.4.2", notes: null })).toContain(
-      t("desktop.update.line.installing"),
-    );
-    expect(lineOf({ kind: "offline", stage: "check", version: null, notes: null })).toContain(
-      t("desktop.update.offline"),
-    );
-    expect(
-      lineOf({ kind: "failed", stage: "check", reason: "no_release", version: null, notes: null }),
-    ).toContain(t("desktop.update.reason.noRelease"));
-  });
-
-  test("the download button shows only when an update was found or a download failed", () => {
-    const download = t("desktop.update.download.button");
-    const retry = t("desktop.update.retry.button");
-    const failedDownload: UpdateState = {
-      kind: "failed",
-      stage: "download",
-      reason: "signature",
-      version: "0.4.2",
-      notes: null,
-    };
+  test("the status follows each state", () => {
+    expect(lineOf({ kind: "checking" })).toContain(t("desktop.update.cell.checking"));
     const found = lineOf(AVAILABLE);
-    expect(found).toContain(`>${download}<`);
-    expect(found).not.toContain(`>${retry}<`);
-    const failed = lineOf(failedDownload);
-    expect(failed).toContain(`>${retry}<`);
-    expect(failed).not.toContain(`>${download}<`);
+    expect(found).toContain(t("desktop.update.cell.available"));
+    expect(found).toContain(t("desktop.update.line.available", { version: "0.4.2" }));
+    expect(lineOf(DOWNLOADING)).toContain(t("desktop.update.cell.downloading", { percent: 21 }));
+    expect(lineOf(READY)).toContain(t("desktop.update.cell.ready"));
+    expect(lineOf({ kind: "installing", version: "0.4.2", notes: null })).toContain(
+      t("desktop.update.cell.installing"),
+    );
+  });
+
+  test("a failure names the stage and the reason, with a retry button (status bar failure reads here)", () => {
+    const html = lineOf({
+      kind: "failed",
+      stage: "check",
+      reason: "no_release",
+      version: null,
+      notes: null,
+    });
+    expect(html).toContain(t("desktop.update.cell.failed"));
+    expect(html).toContain(t("desktop.settings.about.update.stage.check"));
+    expect(html).toContain(t("desktop.update.reason.noRelease"));
+    expect(html).toContain(`>${t("desktop.update.retry.button")}<`);
+    // 다시 시도가 업데이트 확인 자리를 대신한다(같은 줄에 단추 하나)
+    expect(html).not.toContain(`>${t("desktop.update.check.button")}<`);
+    const offline = lineOf({ kind: "offline", stage: "check", version: null, notes: null });
+    expect(offline).toContain(t("desktop.update.offline"));
+  });
+
+  test("the download button shows only when an update was found", () => {
+    const download = t("desktop.update.download.button");
+    expect(lineOf(AVAILABLE)).toContain(`>${download}<`);
     for (const state of [{ kind: "current" } as const, DOWNLOADING, READY]) {
-      const html = lineOf(state);
-      expect(html).not.toContain(`>${download}<`);
-      expect(html).not.toContain(`>${retry}<`);
+      expect(lineOf(state)).not.toContain(`>${download}<`);
     }
   });
 
-  test("an unconfigured app shows one sentence and no button", () => {
+  test("an unconfigured app shows that updates are not available and no check button", () => {
     const html = lineOf({ kind: "unconfigured" });
-    expect(html).toContain(t("desktop.update.line.unconfigured"));
+    expect(html).toContain(t("desktop.settings.about.update.off"));
     expect(html).not.toContain(t("desktop.update.check.button"));
-    expect(html).not.toContain(t("desktop.update.line.version", { version: VERSION }));
   });
 
-  test("the button is off while a download or an install runs", () => {
+  test("the check button is off while a download or an install runs", () => {
     expect(lineOf(DOWNLOADING)).toContain('disabled=""');
     expect(lineOf({ kind: "installing", version: "0.4.2", notes: null })).toContain('disabled=""');
     expect(lineOf({ kind: "current" })).not.toContain('disabled=""');
   });
 
-  test("the version line is left out until the version is known", () => {
-    expect(lineOf({ kind: "current" }, null)).not.toContain(
-      t("desktop.update.line.version", { version: VERSION }),
+  test("without an update context (web) the card has no update cell", () => {
+    const html = renderToString(
+      <AboutCardView
+        appVersion={VERSION}
+        engineVersion={null}
+        update={null}
+        onCopy={noop}
+        onOpenLogs={null}
+      />,
     );
-  });
-
-  test("without an update context (web) the panel draws nothing", () => {
-    expect(renderToString(<UpdatePanel />)).toBe("");
+    expect(html).not.toContain(t("desktop.update.line.title"));
+    expect(html).not.toContain(t("desktop.update.check.button"));
+    expect(html).toContain(t("desktop.settings.about.engineUnknown"));
   });
 });

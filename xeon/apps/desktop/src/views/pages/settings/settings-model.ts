@@ -202,6 +202,9 @@ export function fieldControlOf(field: FieldVM): FieldControl {
   }
 }
 
+/** 경로·명령을 받는 글 항목. 줄 전체 폭 칸을 쓰는 두 줄 행이다(폼 표준 2절 "경로·주소·명령") */
+export const PATH_TEXT_KEYS: ReadonlySet<SettingKey> = new Set<SettingKey>(["l0.exec.shell"]);
+
 /** 행 모양. 한 줄 행은 컨트롤이 제목 오른쪽에, 두 줄 행은 제목 아래 열 폭으로 놓인다 */
 export type RowLayout = "inline" | "stacked";
 
@@ -211,9 +214,10 @@ export type RowLayout = "inline" | "stacked";
  */
 export function rowLayoutOf(field: FieldVM, control: FieldControl): RowLayout {
   switch (control) {
+    case "text":
+      return PATH_TEXT_KEYS.has(field.key) ? "stacked" : "inline";
     case "switch":
     case "number":
-    case "text":
       return "inline";
     case "select":
       return field.widget.kind === "select" &&

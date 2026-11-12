@@ -37,7 +37,7 @@ export interface NotifyStatus {
 }
 
 /** 설정 화면이 구독해 보는 작은 저장소 */
-export interface NotifyStatusStore {
+interface NotifyStatusStore {
   readonly get: () => NotifyStatus;
   readonly subscribe: (listener: () => void) => () => void;
 }
@@ -64,6 +64,15 @@ export interface OsNotifyPort {
 
 export interface OsNotifier {
   readonly status: NotifyStatusStore;
+  /**
+   * 권한을 지금 읽는다(요청은 하지 않는다). 설정 알림 구역이 열릴 때 부른다. 읽기 전까지 상태는 `unknown`이다(DP-87).
+   * 읽은 값은 다음 보내기의 권한 확인에도 쓰인다
+   */
+  readonly probe: () => Promise<void>;
+  /** 권한을 요청한다(사용자 제스처 안에서 부른다). 답을 상태에 싣는다 */
+  readonly request: () => Promise<void>;
+  /** 시험 알림 하나를 보낸다. 창이 앞에 있어도 보낸다. 결과는 상태(마지막 전달 실패)에도 싣는다 */
+  readonly sendTest: (title: string, body: string) => Promise<NotifyOutcome>;
   /** `notify.delivered`를 듣기 시작한다. 반환값으로 듣기를 멈춘다 */
   readonly listen: () => () => void;
 }
@@ -124,7 +133,9 @@ export function createOsNotifier(port: OsNotifyPort): OsNotifier {
     port.onResult?.(outcome);
   };
 
-  const deliver = async (plan: OsNoticePlan): Promise<NotifyOutcome> => {
+  const deliver = async (
+    plan: Pick<OsNoticePlan, "title" | "body" | "threadId">,
+  ): Promise<NotifyOutcome> => {
     const state = await ensurePermission();
     publish({ permission: state, lastDeliveryFailed: status.lastDeliveryFailed });
     const reply = await attemptAsync(() =>
@@ -151,7 +162,23 @@ export function createOsNotifier(port: OsNotifyPort): OsNotifier {
     detach(deliver(plan).then(record), rethrow);
   };
 
+  const readNow = async (
+    command: "notify_permission" | "notify_request_permission",
+  ): Promise<void> => {
+    const state = permissionWordOf(await attemptAsync(() => port.invoke(command)));
+    // 읽은 값은 보내기 전 권한 확인을 대신한다. 다시 묻지 않도록 같은 값의 약속으로 둔다
+    if (state !== "prompt") permission = Promise.resolve(state);
+    publish({ permission: state, lastDeliveryFailed: status.lastDeliveryFailed });
+  };
+
   return {
+    probe: () => readNow("notify_permission"),
+    request: () => readNow("notify_request_permission"),
+    sendTest: async (title, body) => {
+      const outcome = await deliver({ title, body, threadId: null });
+      record(outcome);
+      return outcome;
+    },
     status: {
       get: () => status,
       subscribe: (listener) => {

@@ -101,17 +101,26 @@ describe("memory entries", () => {
     expect(html.match(/data-memory-entry=/g)).toHaveLength(2);
     expect(html).toContain(
       t("desktop.memory.used", {
-        used: String("답은 짧게커밋은 사람이 확인한 뒤에".length),
-        limit: "1375",
+        used: "답은 짧게커밋은 사람이 확인한 뒤에".length.toLocaleString(),
+        limit: (1375).toLocaleString(),
       }),
     );
   });
 
-  test("an empty store says nothing is remembered yet and what gets remembered", () => {
+  test("when both stores are empty the empty state is said once, by the hint line", () => {
     const html = htmlOf({});
-    expect(html).toContain(t("desktop.memory.empty"));
-    expect(html).toContain(t("desktop.memory.empty.hint"));
+    expect(countOf(html, `>${t("desktop.memory.empty")}<`)).toEqual(0);
+    expect(countOf(html, t("desktop.memory.empty.hint"))).toEqual(1);
     expect(html.match(/data-memory-entry=/g)).toBeNull();
+  });
+
+  test("when only one store is empty that column says so, and the hint is gone", () => {
+    const html = htmlOf({
+      load: { kind: "ready", stores: [store("user", ["답은 짧게"]), store("env", [])] },
+    });
+    const env = html.slice(html.indexOf('data-memory-store="env"'));
+    expect(countOf(env, `>${t("desktop.memory.empty")}<`)).toEqual(1);
+    expect(html).not.toContain(t("desktop.memory.empty.hint"));
   });
 
   test("a damaged store shows the warning and disables its buttons", () => {
@@ -151,7 +160,7 @@ describe("states", () => {
   test("a notice with no dialog open shows once above the list", () => {
     const html = htmlOf({ notice: "desktop.memory.stale" });
     expect(countOf(html, t("desktop.memory.stale"))).toEqual(1);
-    expect(html).toContain('data-tone="warning"');
+    expect(html).toContain('data-slot="setting-row-note"');
   });
 });
 
@@ -293,26 +302,39 @@ describe("remaining characters", () => {
     expect(html).toContain(t("settings.l2.knowledge.memory.envLimitChars.label"));
   });
 
-  test("a store over its limit shows the used figure in warning colour", () => {
+  test("a store over its limit shows the usage meter at the danger level and the figure in danger colour", () => {
     const over = htmlOf({
       load: {
         kind: "ready",
         stores: [{ ...store("user", ["x".repeat(30)]), limitChars: 20 }, store("env", [])],
       },
     });
-    expect(classTokensOf(over, "data-memory-used")).toContain("text-warning-text");
+    const user = over.slice(
+      over.indexOf('data-memory-store="user"'),
+      over.indexOf('data-memory-store="env"'),
+    );
+    expect(user).toContain('data-level="danger"');
+    expect(user).toContain("text-danger-text");
     const under = htmlOf({});
-    expect(classTokensOf(under, "data-memory-used")).not.toContain("text-warning-text");
+    expect(under).not.toContain('data-level="danger"');
+    expect(under).not.toContain("text-danger-text");
   });
 });
 
 describe("memory card", () => {
-  test("the section is one setting card with a title, like the other sections", () => {
+  test("the panel is one setting card that continues the memory switches, with two store columns (DP-88)", () => {
     const html = htmlOf({});
     expect(html).toContain('data-slot="settings-memory"');
     expect(html).toContain('data-slot="setting-card"');
     expect(html).toContain("rounded-xl");
-    expect(html).toContain(`>${t("desktop.memory.label")}<`);
+    expect(html).toContain(`aria-label="${t("desktop.memory.label")}"`);
+    expect(html).toContain('data-memory-store="user"');
+    expect(html).toContain('data-memory-store="env"');
+    expect(html).toContain('data-slot="usage-meter"');
+  });
+
+  test("when both stores are empty the empty hint shows once", () => {
+    expect(countOf(htmlOf({}), t("desktop.memory.empty.hint"))).toEqual(1);
   });
 });
 
@@ -346,6 +368,8 @@ describe("find, sort, and the context line", () => {
     });
     expect(html).toContain('type="search"');
     expect(html).toContain(`placeholder="${t("desktop.memory.search.placeholder")}"`);
+    // 찾는 말이 없으면 거른 수("6/6개")를 그리지 않는다
+    expect(html).not.toContain("data-memory-count");
   });
 
   test("a find over 55 entries shows only the deploy row and the count 1/55개", () => {
@@ -396,11 +420,17 @@ describe("find, sort, and the context line", () => {
     expect(t("desktop.memory.context", { tokens: "10" })).toEqual("문맥에 약 10토큰");
     expect(html).toContain(t("desktop.memory.context", { tokens: "10" }));
     expect(html).toContain(t("desktop.memory.context.info"));
+    // 바꾼 기억이 언제 반영되는지도 같은 정보 아이콘이 말한다
+    expect(html).toContain(t("desktop.memory.info"));
   });
 
-  test("the context line is not drawn while the memory is still loading", () => {
+  test("the context line is drawn only when something is remembered (not while loading, not at 0)", () => {
     expect(htmlOf({ load: { kind: "loading" } })).not.toContain("data-memory-context");
-    expect(htmlOf({})).toContain("data-memory-context");
+    expect(htmlOf({})).not.toContain("data-memory-context");
+    const filled = htmlOf({
+      load: { kind: "ready", stores: [store("user", ["x"]), store("env", [])] },
+    });
+    expect(filled).toContain("data-memory-context");
   });
 });
 

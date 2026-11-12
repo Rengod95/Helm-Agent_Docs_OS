@@ -146,7 +146,7 @@ export function coalesceStep(
 export type PermissionState = "granted" | "denied" | "prompt" | "unknown";
 
 /** 설정 화면이 보이는 권한 상태 종류. `failed`는 허용이어도 마지막 전달이 실패했다는 뜻이다 */
-type PermissionKind = "ok" | "denied" | "failed" | "prompt" | "unknown";
+export type PermissionKind = "ok" | "denied" | "failed" | "prompt" | "unknown";
 
 export interface PermissionView {
   readonly kind: PermissionKind;

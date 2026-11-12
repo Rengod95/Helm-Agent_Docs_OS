@@ -57,7 +57,7 @@ export const SHORTCUT_GROUP_LABEL_IDS: Readonly<Record<ShortcutGroupId, MessageI
 };
 
 /** 동작마다 속한 묶음. 빠진 동작이 있으면 타입 검사가 실패한다 */
-const ACTION_GROUP: Readonly<Record<ActionId, ShortcutGroupId>> = {
+export const ACTION_GROUP: Readonly<Record<ActionId, ShortcutGroupId>> = {
   "palette.open": "anywhere",
   "thread.new": "anywhere",
   "settings.open": "anywhere",

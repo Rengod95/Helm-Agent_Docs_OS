@@ -116,9 +116,8 @@ describe("a made backup shows its result block", () => {
   test("the blob count, the made folder, and the age key notice show", () => {
     const out = html(stateOf({ phase: doneOf(BACKUP_REPORT) }));
     expect(out).toContain(t("desktop.settings.backup.done.blobs", { count: 3 }));
-    expect(out).toContain(
-      t("desktop.settings.backup.done.folder", { path: BACKUP_REPORT.destDir }),
-    );
+    expect(out).toContain('data-slot="data-done"');
+    expect(out).toContain(`>${BACKUP_REPORT.destDir}<`);
     expect(out).toContain(t("desktop.settings.backup.note.ageKey"));
     expect(out).not.toContain(t("desktop.settings.backup.done.missing", { count: 0 }));
   });

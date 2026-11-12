@@ -38,6 +38,8 @@ export const FORM_CONTROL_SIZE = "sm";
 
 export interface SettingSectionProps {
   readonly title?: ReactNode | undefined;
+  /** 제목 아래 한 줄 설명(13, tertiary). 늘 보여야 하는 한 문장만. 긴 도움말은 정보 아이콘으로 */
+  readonly description?: ReactNode | undefined;
   /** 제목이 없을 때 구역의 이름(aria-label) */
   readonly label?: string | undefined;
   /** 머리 오른쪽 끝 동작(ghost sm 단추나 링크) */
@@ -73,6 +75,9 @@ export function SettingSection(props: SettingSectionProps): ReactNode {
           {props.end}
         </div>
       ) : null}
+      {props.description === undefined ? null : (
+        <p className="m-0 -mt-1.5 mb-2 text-ui text-text-tertiary">{props.description}</p>
+      )}
       <div
         data-slot="setting-card"
         data-body={rows ? "rows" : "plain"}

@@ -369,6 +369,16 @@ describe("search", () => {
     );
   });
 
+  test("a section name finds that section in the sections group, without a 0-field count line (DP-86)", () => {
+    const view = viewOf([MODEL, STEPS, TIMEOUT], SETTINGS);
+    const out = html(propsOf({ view, query: "알림" }));
+    expect(out).not.toContain(t("desktop.settings.search.noMatch"));
+    expect(out).toContain(`>${t("desktop.settings.search.sections")}<`);
+    expect(out).toContain(`>${t("desktop.settings.section.notifications")}<`);
+    expect(out).toContain(`>${t("desktop.settings.search.openSection")}<`);
+    expect(out).not.toContain('data-slot="settings-search-count"');
+  });
+
   const READ = [storeOf("user", ENTRY_TEXTS), storeOf("env", [])];
 
   test("a search for a word in a memory entry shows the memory group with that entry", () => {

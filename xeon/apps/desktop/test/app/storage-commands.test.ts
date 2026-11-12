@@ -81,9 +81,18 @@ describe("usage", () => {
     expect(await commands.usage()).toEqual(
       err({
         kind: "shell",
-        message: t("desktop.settings.restore.refused.reject", { code: "busy" }),
+        message: t("desktop.settings.storage.refused", { code: "busy" }),
         fix: null,
       }),
+    );
+  });
+
+  test("a shell without db_usage is the unavailable kind with its own sentence", async () => {
+    const { commands } = commandsWith({
+      dbUsageResult: err({ kind: "command", command: "db_usage", code: "unknown-command" }),
+    });
+    expect(await commands.usage()).toEqual(
+      err({ kind: "unavailable", message: t("desktop.settings.storage.unavailable"), fix: null }),
     );
   });
 });
@@ -206,7 +215,7 @@ describe("backup", () => {
     expect(await commands.backup("/Users/me/Desktop")).toEqual(
       err({
         kind: "shell",
-        message: t("desktop.settings.restore.refused.reject", { code: "remote-target" }),
+        message: t("desktop.settings.storage.refused", { code: "remote-target" }),
         fix: null,
       }),
     );

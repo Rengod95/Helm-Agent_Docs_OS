@@ -36,6 +36,7 @@ import {
 import {
   partFieldsOf,
   searchSectionsOf,
+  sectionHitsOf,
   sectionStep,
   shownFieldsOf,
   SECTION_ORDER,
@@ -49,6 +50,7 @@ import { RestartButtons, type RestartChoice } from "../../restart-confirm-dialog
 import {
   FIELD_WIDTH,
   FORM_CONTROL_SIZE,
+  SettingRow,
   SettingSection,
   formColumnOf,
 } from "./settings-section.tsx";
@@ -217,6 +219,17 @@ function SearchField(props: SettingsPageProps): ReactNode {
   );
 }
 
+/**
+ * 내비 모양(DP-86): 묶음 사이 16, 묶음 이름과 첫 항목 4. 항목은 30px, 13px secondary. 고른 항목은 옅은 채움(`neutral.selected`)과
+ * primary 500 글자다. caustic `pages`의 떠오른 면(raised + edge)은 설정 내비에서 무거워 덮는다(테두리·그림자 없음).
+ */
+const NAV_CLASS = [
+  "[&>[data-slot=list-navigation-heading]:not(:first-child)]:mt-4 [&>[data-slot=list-navigation-group]]:mt-1",
+  "[&_a]:h-7.5 [&_button]:h-7.5 [&_a]:text-ui [&_button]:text-ui [&_a]:text-text-secondary [&_button]:text-text-secondary",
+  "[&_[aria-current=page]]:bg-neutral-selected [&_[aria-current=page]]:shadow-none [&_[aria-current=page]]:text-text-primary [&_[aria-current=page]]:font-medium",
+  "[&_[aria-current=page]:hover]:bg-neutral-selected",
+].join(" ");
+
 /** 왼쪽 구역 내비. 찾기 칸은 머리 높이에 맞추고, 묶음 이름 아래에 구역이 놓인다 */
 function SectionNav(props: SettingsPageProps): ReactNode {
   const { handlers, section, query } = props;
@@ -230,7 +243,7 @@ function SectionNav(props: SettingsPageProps): ReactNode {
         kind="pages"
         size="sm"
         aria-label={t("desktop.settings.tabs.label")}
-        className="min-h-0 flex-1 content-start overflow-y-auto pb-2 [&>[data-slot=list-navigation-heading]:not(:first-child)]:mt-4"
+        className={`min-h-0 flex-1 content-start overflow-y-auto pb-2 ${NAV_CLASS}`}
         onKeyDown={(event) => {
           // ↑↓은 내비에서 옆 구역으로 옮긴다(§6.13). 끝에서 멈춘다
           if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
@@ -284,14 +297,33 @@ function NarrowNav(props: SettingsPageProps): ReactNode {
   );
 }
 
+/** 엔진 설정을 읽지 않아도 그리는 구역(패널만 있는 구역: 연결은 자기 상태를, 단축키는 기기 설정을 읽는다) */
+const LOCAL_SECTIONS: ReadonlySet<SettingsSectionId> = new Set<SettingsSectionId>([
+  "connection",
+  "shortcuts",
+]);
+
+/** 패널만 있는 구역의 패널들 */
+function SectionPanels(props: SettingsPageProps): ReactNode {
+  return (
+    <>
+      {SETTINGS_SECTIONS[props.section].parts.map((part) =>
+        part.kind === "panel" ? (
+          <Fragment key={part.panel}>{props.panels[part.panel]}</Fragment>
+        ) : null,
+      )}
+    </>
+  );
+}
+
 /** 본문. 연결 구역은 엔진 설정을 읽지 않아도 그린다. 그 밖은 오프라인, 실패, 읽는 중, 값 가운데 하나다 */
 function Body(props: SettingsPageProps): ReactNode {
   const { status, view, handlers, section, query } = props;
-  if (section === "connection" && query.trim() === "") {
+  if (LOCAL_SECTIONS.has(section) && query.trim() === "") {
     return (
       <>
         {props.banners}
-        {props.panels.connection}
+        <SectionPanels {...props} />
       </>
     );
   }
@@ -423,11 +455,58 @@ function SearchResults(props: SettingsPageProps & { readonly view: SettingsView 
   const matches = searchSectionsOf(shownFieldsOf(view.tabs), query);
   const memoryFound = props.memoryMatches?.(query) ?? false;
   const mcpFound = mcpSectionMatchesOf(view.tabs, query);
-  if (matches.length === 0 && !memoryFound && !mcpFound) {
-    return <p className="m-0 text-ui text-text-tertiary">{t("desktop.settings.search.noMatch")}</p>;
+  const hits = sectionHitsOf(query, (id) => t(id));
+  if (matches.length === 0 && !memoryFound && !mcpFound && hits.length === 0) {
+    return (
+      <div
+        data-slot="settings-search-empty"
+        className="grid justify-items-center gap-1 pt-16 text-center"
+      >
+        <p className="m-0 text-ui font-medium text-text-primary">
+          {t("desktop.settings.search.noMatch")}
+        </p>
+        <p className="m-0 text-ui text-text-tertiary">{t("desktop.settings.search.noMatchHint")}</p>
+      </div>
+    );
   }
+  const fieldCount = matches.reduce((sum, match) => sum + match.fields.length, 0);
+  const sectionCount = new Set([
+    ...matches.map((match) => match.section),
+    ...(memoryFound ? ["sessions"] : []),
+    ...(mcpFound ? ["tools"] : []),
+  ]).size;
   return (
     <>
+      {/* 수는 맞은 항목의 수다. 구역 이름만 맞았으면(알림, 단축키) "0개"라고 하지 않고 줄을 뺀다 */}
+      {fieldCount === 0 ? null : (
+        <p data-slot="settings-search-count" className="m-0 pb-4 text-ui text-text-tertiary">
+          {t("desktop.settings.search.count", {
+            sections: String(sectionCount),
+            count: String(fieldCount),
+          })}
+        </p>
+      )}
+      {hits.length === 0 ? null : (
+        <SettingSection title={t("desktop.settings.search.sections")}>
+          {hits.map((id) => (
+            <SettingRow
+              key={id}
+              label={t(SETTINGS_SECTIONS[id].label)}
+              control={
+                <Button
+                  variant="ghost"
+                  size={FORM_CONTROL_SIZE}
+                  onClick={() => {
+                    props.handlers.select(id);
+                  }}
+                >
+                  {t("desktop.settings.search.openSection")}
+                </Button>
+              }
+            />
+          ))}
+        </SettingSection>
+      )}
       {SECTION_ORDER.map((id) => {
         const match = matches.find((candidate) => candidate.section === id);
         return (
@@ -435,7 +514,20 @@ function SearchResults(props: SettingsPageProps & { readonly view: SettingsView 
             {id === "sessions" && memoryFound ? props.memoryFindPanel : null}
             {id === "tools" && mcpFound ? props.panels.mcp : null}
             {match === undefined ? null : (
-              <SettingSection title={t(SETTINGS_SECTIONS[id].label)}>
+              <SettingSection
+                title={t(SETTINGS_SECTIONS[id].label)}
+                end={
+                  <Button
+                    variant="ghost"
+                    size={FORM_CONTROL_SIZE}
+                    onClick={() => {
+                      props.handlers.select(id);
+                    }}
+                  >
+                    {t("desktop.settings.search.openSection")}
+                  </Button>
+                }
+              >
                 {match.fields.map((field) => rowOf(props, field, true))}
               </SettingSection>
             )}

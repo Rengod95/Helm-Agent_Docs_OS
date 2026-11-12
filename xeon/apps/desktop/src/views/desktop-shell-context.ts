@@ -20,6 +20,17 @@ export interface DesktopShell {
   readonly prefs: NotifyPrefsPort;
   /** 움직임 줄이기와 확대(설정 "외관"의 접근성 묶음) */
   readonly appearance: AppearancePort;
+  /** 단축키 바꾸기(설정 "단축키" 구역, DP-89). 없으면 구역은 읽기만 한다 */
+  readonly keybindings?: KeybindingsPort | undefined;
+}
+
+/** 사용자가 바꾼 단축키(`l4.desktop.appearance.keybindings`, 동작 id → 키 표기)를 읽고 쓴다. 쓰면 앱 키 맵에 바로 걸린다 */
+export interface KeybindingsPort {
+  readonly get: () => Readonly<Record<string, string>> | undefined;
+  /** 저장하고 앱에 건다. 저장하지 못하면 false다 */
+  readonly set: (next: Readonly<Record<string, string>>) => Promise<boolean>;
+  /** macOS인가(⌘ 표기와 Mod 키) */
+  readonly mac: boolean;
 }
 
 export const DesktopShellContext: Context<DesktopShell | null> = createContext<DesktopShell | null>(

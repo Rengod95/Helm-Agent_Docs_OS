@@ -61,14 +61,15 @@ import type { DedicatedEditors, FieldHandlers } from "./settings-field.tsx";
 import { SettingsFileEditorView, type SettingsFileHandlers } from "./settings-file-view.tsx";
 import { SETTINGS_EDITORS } from "./settings-editors-screen.tsx";
 import { SettingsPageView, type SettingsPageHandlers } from "./settings-view.tsx";
-import { UpdatePanel } from "./settings-update-view.tsx";
 import { NotifyPanel } from "./settings-notify-view.tsx";
 import { MemoryFindView, MemoryPanelView, useMemoryPanel } from "./settings-memory-view.tsx";
 import { PluginsPanel } from "./settings-plugins-view.tsx";
+import { ShortcutsPanel } from "./settings-shortcuts-view.tsx";
 import { AppearancePanel } from "./settings-appearance-view.tsx";
 import { TrustedFoldersPanel } from "./settings-trust-view.tsx";
 import { AboutPanel, SettingsBanners, SettingsFilesPanel } from "./settings-overview.tsx";
 import { SettingSection } from "./settings-section.tsx";
+import { DataColumns } from "./settings-data-card.tsx";
 
 // 설정 화면(P-09)의 동작. 컨트롤러(`commands.settings.open()`)는 연결마다 하나씩 만든다. 읽기와 알림 구독은 효과가 하고,
 // 상태는 `useSyncExternalStore`로 받는다. 구역 옮기기의 초안 묻기, 저장됨 표시 2초, ⌘S와 Esc, 열린 대화가 바뀔 때의 다시 읽기가 여기 있다.
@@ -405,7 +406,14 @@ export function SettingsPage(props: {
   };
 
   const handlers: SettingsPageHandlers = {
-    select: requestSection,
+    // 찾는 중에 지금 구역을 다시 고르면(찾기 결과의 "구역 열기") 찾기만 걷는다
+    select: (to) => {
+      if (query.trim() !== "" && to === section) {
+        setQuery("");
+        return;
+      }
+      requestSection(to);
+    },
     query: (text) => {
       setQuery(text);
     },
@@ -441,10 +449,13 @@ export function SettingsPage(props: {
   const pluginsPanel = <PluginsPanel />;
   const memoryPanel = <MemoryPanelView {...memory.props} />;
   const connectionPanel = <ConnectionScreen embedded />;
+  const aboutPanel = <AboutPanel />;
+  const shortcutsPanel = <ShortcutsPanel />;
   // 구역 표의 패널 자리마다 그릴 것(settings-sections.ts `SettingsPanelId`)
   const panels: Partial<Record<SettingsPanelId, ReactNode>> = {
     appearance: appearancePanel,
-    about: <AboutPanel updatePanel={<UpdatePanel />} />,
+    about: aboutPanel,
+    shortcuts: shortcutsPanel,
     notify: notifyPanel,
     providers: view === null ? null : <ProvidersPanel view={view} live={live} handlers={fields} />,
     accounts: view === null ? null : <AccountsPanel view={view} live={live} handlers={fields} />,
@@ -476,11 +487,15 @@ export function SettingsPage(props: {
     memory: memoryPanel,
     connection: connectionPanel,
     backup: (
-      <SettingSection title={t("desktop.settings.part.backup")}>
-        <BackupPanel folderPick={props.folderPick} />
-        <RestorePanel folderPick={props.folderPick} />
+      <>
+        <SettingSection title={t("desktop.settings.part.backup")} body="plain">
+          <DataColumns>
+            <BackupPanel folderPick={props.folderPick} />
+            <RestorePanel folderPick={props.folderPick} />
+          </DataColumns>
+        </SettingSection>
         <StoragePanel />
-      </SettingSection>
+      </>
     ),
     files: <SettingsFilesPanel filePaths={filePaths} />,
   };

@@ -96,17 +96,24 @@ function outcomeOf<T>(reply: DbRestoreReply, read: ReportParser<T>): Result<T, S
 }
 
 /**
- * 셸이 명령을 거절했을 때(`IpcError`). 응답 모양이 맞지 않으면 `bad_reply`이고, 거절한 코드는 `shell`이다.
+ * 셸이 명령을 거절했을 때(`IpcError`). 응답 모양이 맞지 않으면 `bad_reply`, 셸이 모르는 명령이면 `unavailable`, 그 밖의 거절은 `shell`이다.
  * 셸의 오류 코드는 kebab-case 문자열이다.
  */
 function failureOfIpcError(error: IpcError): StorageFailure {
   if (error.kind === "invalid") return badReplyFailure();
+  // 이 접속의 셸이 명령을 모른다(웹 미리보기처럼 셸 명령표에 없는 접속). 고장이 아니라 쓸 수 없는 자리다
+  if (error.code === UNKNOWN_COMMAND) {
+    return { kind: "unavailable", message: t("desktop.settings.storage.unavailable"), fix: null };
+  }
   return {
     kind: "shell",
-    message: t("desktop.settings.restore.refused.reject", { code: error.code }),
+    message: t("desktop.settings.storage.refused", { code: error.code }),
     fix: null,
   };
 }
+
+/** 셸이 등록되지 않은 명령에 주는 오류 코드(셸 `commands.ts`) */
+const UNKNOWN_COMMAND = "unknown-command";
 
 export interface StorageDeps {
   readonly ipc: Pick<DesktopIpc, "dbExport" | "dbUsage" | "dbPreviousRemove" | "openDataDir">;

@@ -87,6 +87,9 @@ describe("NotifyPanel context", () => {
           subscribe: () => () => {},
         },
         listen: () => () => {},
+        probe: () => Promise.resolve(),
+        request: () => Promise.resolve(),
+        sendTest: () => Promise.resolve("shown"),
       },
       prefs: { get: () => PREFS, set: () => Promise.resolve(true) },
       appearance: {
@@ -115,5 +118,49 @@ describe("notification card", () => {
     expect(html).toContain('data-slot="setting-card"');
     expect(html).toContain("rounded-xl");
     expect(html).toContain(`>${t("desktop.notifySettings.label")}<`);
+  });
+});
+
+describe("the permission band (DP-87)", () => {
+  const ACTION = {
+    test: t("desktop.notifySettings.test.button"),
+    request: t("desktop.notifySettings.request.button"),
+    recheck: t("desktop.notifySettings.recheck.button"),
+  };
+
+  test.each([
+    ["granted", false, "ok", "desktop.notifySettings.band.ok", ACTION.test],
+    ["denied", false, "denied", "desktop.notifySettings.band.denied", ACTION.test],
+    ["granted", true, "failed", "desktop.notifySettings.band.failed", ACTION.test],
+    ["prompt", false, "prompt", "desktop.notifySettings.band.prompt", ACTION.request],
+    ["unknown", false, "unknown", "desktop.notifySettings.band.unknown", ACTION.recheck],
+  ] as const)(
+    "permission %s (last failed %s) shows the %s band with its title and one action",
+    (permission, lastDeliveryFailed, kind, title, action) => {
+      const html = viewOf(PREFS, { permission, lastDeliveryFailed });
+      expect(html).toContain(`data-slot="settings-notify-band" data-state="${kind}"`);
+      expect(html).toContain(t(title));
+      const actions = Object.values(ACTION).filter((label) => html.includes(`>${label}<`));
+      expect(actions).toEqual([action]);
+    },
+  );
+
+  test("a sent test shows its result as one line under the band", () => {
+    const html = renderToString(
+      <NotifyPanelView
+        prefs={PREFS}
+        status={HEALTHY}
+        onChange={() => {}}
+        test={{ kind: "sent", outcome: "denied" }}
+        onTest={() => {}}
+      />,
+    );
+    expect(html).toContain('data-notify-test="denied"');
+    expect(html).toContain(t("desktop.notifySettings.test.denied"));
+    expect(html).not.toContain(t("desktop.notifySettings.test.shown"));
+  });
+
+  test("before any test no result line shows", () => {
+    expect(viewOf(PREFS, HEALTHY)).not.toContain("data-notify-test");
   });
 });

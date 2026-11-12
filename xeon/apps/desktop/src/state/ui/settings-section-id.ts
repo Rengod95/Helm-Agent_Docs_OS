@@ -6,6 +6,7 @@ import type { SettingsTab } from "@fresnel/contracts/settings";
 
 export const SETTINGS_SECTION_IDS = [
   "general",
+  "shortcuts",
   "notifications",
   "models",
   "secrets",

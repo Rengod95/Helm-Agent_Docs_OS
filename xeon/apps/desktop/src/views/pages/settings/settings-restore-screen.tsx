@@ -5,6 +5,7 @@ import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { pickWorkspaceFolder, type FolderPickInvoke } from "../../folder-pick.ts";
 import { useCommands } from "../../commands.ts";
 import { sharedRestoreController, type RestorePhase } from "./settings-restore-model.ts";
+import { sharedBackupController } from "./settings-backup-model.ts";
 import { RestoreView, type RestoreHandlers } from "./settings-restore-view.tsx";
 
 // 데이터 복원 구역(P-09 고급 탭)의 동작. 명령(`commands.restore`)을 컨트롤러에 잇고, 되돌렸을 때만 토스트를 띄운다.
@@ -23,6 +24,10 @@ export function RestorePanel(props: {
   const [pickError, setPickError] = useState<string | null>(null);
   const controller = sharedRestoreController(commands.restore, { settled: announce });
   const state = useSyncExternalStore(controller.subscribe, controller.getState);
+  // 이번 실행에서 만든 백업. 복원 칸을 한 번에 채우는 칩이 된다(백업 목록을 읽는 명령은 없다)
+  const backup = sharedBackupController(commands.storage);
+  const backupState = useSyncExternalStore(backup.subscribe, backup.getState);
+  const recent = backupState.phase.kind === "done" ? backupState.phase.report.destDir : null;
   const handlers: RestoreHandlers = {
     edit: controller.edit,
     ask: controller.ask,
@@ -49,6 +54,7 @@ export function RestorePanel(props: {
       handlers={handlers}
       onPick={folderPick === undefined ? undefined : () => detach(pick(folderPick), rethrow)}
       pickError={pickError}
+      recent={recent}
     />
   );
 }

@@ -1,9 +1,8 @@
-import { Select, SelectOption, toast } from "@caustic/react";
+import { SegmentedControl, SegmentedControlItem, toast } from "@caustic/react";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import {
-  THEME_PREFS,
   ZOOM_STEPS,
   type AppearancePort,
   type AppearancePrefs,
@@ -12,10 +11,11 @@ import {
 } from "../../appearance-prefs.ts";
 import { useDesktopShell } from "../../desktop-shell-context.ts";
 import { TRANSCRIPT_DETAILS, type TranscriptDetail } from "../../transcript-detail.ts";
-import { FIELD_WIDTH, FORM_CONTROL_SIZE, SettingRow, SettingSection } from "./settings-section.tsx";
+import { FORM_CONTROL_SIZE, SettingRow, SettingSection } from "./settings-section.tsx";
+import { ThemePicker } from "./settings-theme-picker.tsx";
 
-// 설정 "일반" 구역의 "화면" 묶음(시안 e01 `Appearance`): 테마, 화면 크기, 움직임 줄이기, 대화 기록의 생각·도구 표시 정도.
-// 테마는 cyZ에서 더했다(L4.settings-ui §4.1.1 [결정: 2026-11-11 사용자]). 행 모양은 설정 항목 행(`FieldRow` 한 줄 행)과 같다.
+// 설정 "일반" 구역의 "화면" 묶음: 테마, 움직임 줄이기, 확대, 대화 기록의 생각·도구 표시 정도(L4.settings-ui DP-86 [결정: 2026-11-11 사용자]).
+// 테마는 미리보기 타일(`settings-theme-picker.tsx`), 나머지는 segmented 한 줄이다(선택지가 짧고 2~5개라 드롭다운으로 숨기지 않는다).
 // 값은 로컬 설정에 저장하고 저장되면 바로 화면에 건다(`appearance-prefs.ts`). 설명은 정보 아이콘 뒤에 둔다.
 // 웹에는 셸 문맥이 없어 `AppearancePanel`이 아무것도 그리지 않는다. 고대비(강제 색)는 OS가 켜는 값이라 이 묶음에 없다.
 
@@ -63,110 +63,95 @@ interface AppearancePanelViewProps {
   readonly onTranscriptDetail: (detail: TranscriptDetail) => void;
 }
 
-const THEME_LABEL: Readonly<Record<ThemePref, MessageId>> = {
-  system: "desktop.settings.appearance.theme.system",
-  light: "desktop.settings.appearance.theme.light",
-  dark: "desktop.settings.appearance.theme.dark",
+const DETAIL_LABEL: Readonly<Record<TranscriptDetail, MessageId>> = {
+  full: "desktop.settings.appearance.transcriptDetail.full",
+  summary: "desktop.settings.appearance.transcriptDetail.summary",
+  hidden: "desktop.settings.appearance.transcriptDetail.hidden",
 };
 
-/** 화면 구역의 한 줄: 공용 설정 줄(SettingRow) 그대로다 */
-function Row(props: {
+/** 짧은 선택지 2~5개를 고르는 줄(DP-86): 이름표 왼쪽, segmented sm 오른쪽 */
+function SegmentRow<T extends string>(props: {
   readonly label: MessageId;
   readonly info: MessageId;
-  readonly children: ReactNode;
+  readonly value: T;
+  readonly options: readonly { readonly value: T; readonly label: string }[];
+  readonly onChange: (next: T) => void;
 }): ReactNode {
   return (
     <SettingRow
       slot="settings-field"
       label={t(props.label)}
       info={t(props.info)}
-      control={props.children}
+      control={
+        <SegmentedControl
+          size={FORM_CONTROL_SIZE}
+          aria-label={t(props.label)}
+          value={props.value}
+          onValueChange={(next) => {
+            const found = props.options.find((option) => option.value === next);
+            if (found !== undefined) props.onChange(found.value);
+          }}
+        >
+          {props.options.map((option) => (
+            <SegmentedControlItem key={option.value} value={option.value}>
+              {option.label}
+            </SegmentedControlItem>
+          ))}
+        </SegmentedControl>
+      }
     />
   );
 }
 
+/**
+ * 화면 묶음(DP-86): 테마는 미리보기 타일 셋(쌓는 줄), 움직임 줄이기·확대·생각과 도구 표시는 segmented 한 줄씩이다.
+ * 선택지가 2~5개이고 이름이 짧아 드롭다운으로 숨기지 않는다.
+ */
 function AppearancePanelView(props: AppearancePanelViewProps): ReactNode {
   const { prefs } = props;
+  const themeLabelId = useId();
   return (
     <SettingSection title={t("desktop.settings.part.display")}>
-      <Row label="desktop.settings.appearance.theme" info="desktop.settings.appearance.theme.info">
-        <Select
-          size={FORM_CONTROL_SIZE}
-          aria-label={t("desktop.settings.appearance.theme")}
-          value={prefs.theme}
-          onValueChange={(next) => {
-            const theme = THEME_PREFS.find((option) => option === next);
-            if (theme !== undefined) props.onTheme(theme);
-          }}
-          className={FIELD_WIDTH.medium}
-        >
-          {THEME_PREFS.map((theme) => (
-            <SelectOption key={theme} value={theme}>
-              {t(THEME_LABEL[theme])}
-            </SelectOption>
-          ))}
-        </Select>
-      </Row>
-      <Row
+      <SettingRow
+        slot="settings-field"
+        layout="stacked"
+        label={t("desktop.settings.appearance.theme")}
+        labelId={themeLabelId}
+        info={t("desktop.settings.appearance.theme.info")}
+        control={
+          <ThemePicker value={prefs.theme} onChange={props.onTheme} labelId={themeLabelId} />
+        }
+      />
+      <SegmentRow<MotionPref>
         label="desktop.settings.appearance.motion"
         info="desktop.settings.appearance.motion.info"
-      >
-        <Select
-          size={FORM_CONTROL_SIZE}
-          aria-label={t("desktop.settings.appearance.motion")}
-          value={prefs.motion}
-          onValueChange={(next) => props.onMotion(next === "reduce" ? "reduce" : "system")}
-          className={FIELD_WIDTH.medium}
-        >
-          <SelectOption value="system">
-            {t("desktop.settings.appearance.motion.system")}
-          </SelectOption>
-          <SelectOption value="reduce">{t("desktop.settings.appearance.motion.on")}</SelectOption>
-        </Select>
-      </Row>
-      <Row label="desktop.settings.appearance.zoom" info="desktop.settings.appearance.zoom.info">
-        <Select
-          size={FORM_CONTROL_SIZE}
-          aria-label={t("desktop.settings.appearance.zoom")}
-          value={String(prefs.zoom)}
-          onValueChange={(next) => {
-            const zoom = ZOOM_STEPS.find((step) => String(step) === next);
-            if (zoom !== undefined) props.onZoom(zoom);
-          }}
-          className={FIELD_WIDTH.medium}
-        >
-          {ZOOM_STEPS.map((step) => (
-            <SelectOption key={step} value={String(step)}>
-              {`${step}%`}
-            </SelectOption>
-          ))}
-        </Select>
-      </Row>
-      <Row
+        value={prefs.motion}
+        options={[
+          { value: "system", label: t("desktop.settings.appearance.motion.system") },
+          { value: "reduce", label: t("desktop.settings.appearance.motion.on") },
+        ]}
+        onChange={props.onMotion}
+      />
+      <SegmentRow<string>
+        label="desktop.settings.appearance.zoom"
+        info="desktop.settings.appearance.zoom.info"
+        value={String(prefs.zoom)}
+        options={ZOOM_STEPS.map((step) => ({ value: String(step), label: `${String(step)}%` }))}
+        onChange={(next) => {
+          const zoom = ZOOM_STEPS.find((step) => String(step) === next);
+          if (zoom !== undefined) props.onZoom(zoom);
+        }}
+      />
+      <SegmentRow<TranscriptDetail>
         label="desktop.settings.appearance.transcriptDetail"
         info="desktop.settings.appearance.transcriptDetail.info"
-      >
-        <Select
-          size={FORM_CONTROL_SIZE}
-          aria-label={t("desktop.settings.appearance.transcriptDetail")}
-          value={prefs.transcriptDetail}
-          onValueChange={(next) => {
-            const detail = TRANSCRIPT_DETAILS.find((option) => option === next);
-            if (detail !== undefined) props.onTranscriptDetail(detail);
-          }}
-          className={FIELD_WIDTH.medium}
-        >
-          <SelectOption value="full">
-            {t("desktop.settings.appearance.transcriptDetail.full")}
-          </SelectOption>
-          <SelectOption value="summary">
-            {t("desktop.settings.appearance.transcriptDetail.summary")}
-          </SelectOption>
-          <SelectOption value="hidden">
-            {t("desktop.settings.appearance.transcriptDetail.hidden")}
-          </SelectOption>
-        </Select>
-      </Row>
+        value={prefs.transcriptDetail}
+        options={TRANSCRIPT_DETAILS.map((detail) => ({
+          value: detail,
+          label: t(DETAIL_LABEL[detail]),
+        }))}
+        onChange={props.onTranscriptDetail}
+      />
     </SettingSection>
   );
 }

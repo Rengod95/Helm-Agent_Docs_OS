@@ -15,6 +15,8 @@ export function SettingTagList(props: {
   readonly options: readonly (string | number)[] | null;
   readonly disabled: boolean;
   readonly invalid: boolean;
+  /** 자유 입력 칸이 비었을 때의 자리표시 */
+  readonly placeholder?: string | undefined;
   readonly onChange: (next: readonly string[]) => void;
 }): ReactNode {
   const { settingKey, options, value, onChange } = props;
@@ -27,6 +29,7 @@ export function SettingTagList(props: {
         value={[...value]}
         disabled={props.disabled}
         invalid={props.invalid}
+        placeholder={props.placeholder}
         onValueChange={(next) => {
           onChange(next);
         }}
