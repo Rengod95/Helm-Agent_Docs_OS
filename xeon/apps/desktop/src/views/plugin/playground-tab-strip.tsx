@@ -1,15 +1,7 @@
 import { t } from "@fresnel/client/i18n";
 import { IconButton, Menu, MenuItem, MenuSeparator, Tooltip } from "@caustic/react";
 import { ChevronDown, ChevronLeft, ChevronRight, Info, LayoutGrid } from "@caustic/react/icons";
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type DragEvent,
-  type ReactNode,
-  type RefObject,
-} from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { useShell, useShellActions } from "../../state/shell/index.ts";
 import { useScreen } from "../../state/ui/index.ts";
 import { useCommands } from "../commands.ts";
@@ -27,8 +19,12 @@ import {
   useTabRunState,
 } from "./playground-tab-store.ts";
 import {
+  dragEdgeOf,
   pinnedTabsOf,
-  tabStripLayoutOf,
+  STRIP_SHARE,
+  stripFadeOf,
+  tabModeOf,
+  wheelShiftOf,
   withAutoPinned,
   withDropped,
   withMoved,
@@ -37,12 +33,12 @@ import {
 } from "./playground-tabs.ts";
 
 // 머리 줄 플레이그라운드 탭(L4.desktop-ux DP-90 [결정: 2026-11-11 사용자], 시안 `_notes/design/dz/dzP-design.md` 1절).
-// 모든 화면 머리(`ScreenHeader`)의 맨 앞에 선다. 탭은 28px, 이름 탭은 최대 160px, 넘치면 아이콘 탭, 그래도 넘치면 "더 보기".
+// 모든 화면 머리(`ScreenHeader`)의 맨 앞에 선다. 탭은 28px, 이름 탭은 최대 160px(좁은 창은 아이콘 탭).
+// 탭 줄은 머리 폭의 절반까지 쓰고, 넘치면 가로로 스크롤한다(DP-124): 스크롤 막대는 숨기고 가려진 쪽 끝을 흐리게 하며,
+// 세로 휠도 가로로 옮긴다. 지금 탭과 키보드 초점이 간 탭은 늘 보이게 스크롤한다. 넘칠 때만 끝에 "모든 탭" 메뉴가 선다.
 // 누르면 그 플러그인 화면을 본문에 연다(크래프트에서는 대화 영역으로, 설정이 열려 있으면 닫는다). 오른쪽 클릭은 탭 메뉴, 끌면 순서가 바뀐다.
-// 탭은 `button`이라 창 틀 끌기에서 빠진다(styles.css DP-80). 탭 줄의 빈 곳은 끌기 영역이다.
+// 탭 줄 전체(스크롤 영역 포함)는 창 틀 끌기에서 빠진다(styles.css DP-80·124).
 
-/** 머리 폭 가운데 탭 줄이 쓸 수 있는 몫 */
-const STRIP_SHARE = 0.4;
 const DRAG_TYPE = "application/x-fresnel-playground-tab";
 
 /** 탭 하나의 겉모습. 지금 탭은 왼쪽 내비 막대의 지금 표시와 같은 면(raised + 안쪽 선)이다 */
@@ -216,24 +212,72 @@ function Tab(props: {
   );
 }
 
-/** 탭 줄이 들어갈 머리 폭을 잰다(머리 크기가 바뀔 때마다) */
-function useHeaderWidth(): readonly [RefObject<HTMLDivElement | null>, number] {
+/**
+ * 탭 줄의 가로 스크롤(DP-124). 양 끝 흐림과 넘침 여부를 재고, 세로 휠을 가로로 옮기며, 고른 탭이 바뀌면 그 탭을 보이게 한다.
+ * 휠은 기본 동작을 막아야 해서(passive: false) React 이벤트가 아니라 직접 단다
+ */
+function useStripScroll(
+  enabled: boolean,
+  currentName: string | undefined,
+): {
+  readonly ref: { current: HTMLDivElement | null };
+  readonly fade: { readonly start: boolean; readonly end: boolean };
+  readonly overflow: boolean;
+} {
   const ref = useRef<HTMLDivElement | null>(null);
-  const [width, setWidth] = useState(0);
+  const [fade, setFade] = useState({ start: false, end: false });
+  const [overflow, setOverflow] = useState(false);
   useEffect(() => {
-    const header = ref.current?.closest(".shell-header");
-    if (header === null || header === undefined) return undefined;
+    const el = ref.current;
+    if (!enabled || el === null) return undefined;
     const measure = (): void => {
-      setWidth(header.getBoundingClientRect().width);
+      const next = stripFadeOf(el.scrollLeft, el.scrollWidth, el.clientWidth);
+      setFade((current) =>
+        current.start === next.start && current.end === next.end ? current : next,
+      );
+      setOverflow(el.scrollWidth > el.clientWidth + 1);
+    };
+    const wheel = (event: WheelEvent): void => {
+      const shift = wheelShiftOf(
+        event.deltaX,
+        event.deltaY,
+        el.scrollLeft,
+        el.scrollWidth,
+        el.clientWidth,
+      );
+      if (shift === 0) return;
+      event.preventDefault();
+      el.scrollLeft += shift;
     };
     measure();
+    // 줄 자체의 폭(머리 크기)과 안의 탭 줄 폭(탭 수·이름) 둘 다 바뀔 수 있다
     const observer = new ResizeObserver(measure);
-    observer.observe(header);
+    observer.observe(el);
+    for (const child of el.children) observer.observe(child);
+    const mutations = new MutationObserver(() => {
+      for (const child of el.children) observer.observe(child);
+      measure();
+    });
+    mutations.observe(el, { childList: true });
+    el.addEventListener("scroll", measure, { passive: true });
+    el.addEventListener("wheel", wheel, { passive: false });
     return () => {
       observer.disconnect();
+      mutations.disconnect();
+      el.removeEventListener("scroll", measure);
+      el.removeEventListener("wheel", wheel);
     };
-  }, []);
-  return [ref, width];
+  }, [enabled]);
+  // 고른 탭은 늘 보이게(다른 화면에서 탭을 바꿨거나 메뉴로 골랐을 때)
+  useEffect(() => {
+    const el = ref.current;
+    if (el === null || currentName === undefined) return;
+    const tab = [...el.querySelectorAll<HTMLElement>("[data-slot=playground-tab]")].find(
+      (node) => node.dataset["tab"] === currentName,
+    );
+    tab?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [currentName]);
+  return { ref, fade, overflow };
 }
 
 /** 고정 탭 정보와 동작. 탭 줄과 탭 화면이 같이 쓴다 */
@@ -310,16 +354,14 @@ function TabStrip(): ReactNode {
   );
   const settingsOpen = useScreen() === "settings";
   const active = useTabRunState().active;
-  const [ref, width] = useHeaderWidth();
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropAt, setDropAt] = useState<string | null>(null);
   const commands = useCommands();
   const names = rows.map((row) => row.name);
-  const layout = tabStripLayoutOf(tabs.length, width * STRIP_SHARE, compact);
-  const visible = tabs.slice(0, layout.visible);
-  const hidden = tabs.slice(layout.visible);
+  const mode = tabModeOf(compact);
   const currentName = onTabScreen && !settingsOpen ? active : undefined;
-  if (tabs.length === 0) return <div ref={ref} className="hidden" />;
+  const { ref: stripRef, fade, overflow } = useStripScroll(tabs.length > 0, currentName);
+  if (tabs.length === 0) return null;
   const drop = (before: string | null): void => {
     if (dragging !== null && prefs !== undefined) {
       saveTabPrefs(commands, withDropped(prefs, names, dragging, before));
@@ -327,72 +369,84 @@ function TabStrip(): ReactNode {
     setDragging(null);
     setDropAt(null);
   };
+  const allLabel = t("desktop.playgroundTabs.all", { count: tabs.length });
   return (
     <div
-      ref={ref}
       role="toolbar"
       aria-label={t("desktop.playgroundTabs.label")}
       data-slot="playground-tabs"
-      className="flex min-w-0 flex-none items-center gap-0.5"
-      onDragOver={(event) => {
-        if (dragging !== null) event.preventDefault();
-      }}
-      onDrop={(event) => {
-        event.preventDefault();
-        drop(dropAt);
-      }}
+      className="flex min-w-0 flex-none items-center"
+      // 머리 폭의 절반까지(DP-124). 넘치면 안쪽 줄이 줄어들며 스크롤된다
+      style={{ maxWidth: `${String(STRIP_SHARE * 100)}%` }}
     >
-      {visible.map((row, index) => (
-        <Tab
-          key={row.name}
-          row={row}
-          mode={layout.mode}
-          current={row.name === currentName}
-          index={index}
-          count={tabs.length}
-          dropBefore={dragging !== null && dropAt === row.name && dragging !== row.name}
-          actions={actions}
-          onDragStart={() => {
-            setDragging(row.name);
-          }}
-          onDragOver={(event) => {
-            if (dragging === null) return;
-            event.preventDefault();
-            const box = event.currentTarget.getBoundingClientRect();
-            const after = event.clientX > box.left + box.width / 2;
-            setDropAt(after ? (visible[index + 1]?.name ?? null) : row.name);
-          }}
-          onDrop={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            drop(dropAt);
-          }}
-          onDragEnd={() => {
-            setDragging(null);
-            setDropAt(null);
-          }}
-        />
-      ))}
-      {hidden.length === 0 ? null : (
+      <div
+        ref={stripRef}
+        data-slot="playground-tabs-scroll"
+        data-fade-start={fade.start ? "" : undefined}
+        data-fade-end={fade.end ? "" : undefined}
+        // 위아래 4px은 초점 고리가 스크롤 상자에 잘리지 않을 자리다. 초점이 간 탭은 흐린 끝 밖으로 나오게 스크롤한다
+        className="flex min-w-0 items-center gap-0.5 overflow-x-auto overscroll-x-contain px-0.5 py-1 [scroll-padding-inline:24px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        onFocus={(event) => {
+          if (event.target instanceof HTMLElement) {
+            event.target.scrollIntoView({ block: "nearest", inline: "nearest" });
+          }
+        }}
+        onDragOver={(event) => {
+          if (dragging === null) return;
+          event.preventDefault();
+          const box = event.currentTarget.getBoundingClientRect();
+          event.currentTarget.scrollLeft += dragEdgeOf(event.clientX, box.left, box.right) * 8;
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          drop(dropAt);
+        }}
+      >
+        {tabs.map((row, index) => (
+          <Tab
+            key={row.name}
+            row={row}
+            mode={mode}
+            current={row.name === currentName}
+            index={index}
+            count={tabs.length}
+            dropBefore={dragging !== null && dropAt === row.name && dragging !== row.name}
+            actions={actions}
+            onDragStart={() => {
+              setDragging(row.name);
+            }}
+            onDragOver={(event) => {
+              if (dragging === null) return;
+              event.preventDefault();
+              const box = event.currentTarget.getBoundingClientRect();
+              const after = event.clientX > box.left + box.width / 2;
+              setDropAt(after ? (tabs[index + 1]?.name ?? null) : row.name);
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              drop(dropAt);
+            }}
+            onDragEnd={() => {
+              setDragging(null);
+              setDropAt(null);
+            }}
+          />
+        ))}
+      </div>
+      {/* 넘칠 때만: 모든 탭을 이름으로 훑어 고르는 메뉴(스크롤로 찾기보다 빠르다) */}
+      {overflow ? (
         <Menu
           size="sm"
-          align="start"
-          aria-label={t("desktop.playgroundTabs.more", { count: hidden.length })}
+          align="end"
+          aria-label={allLabel}
           trigger={
-            <IconButton
-              size="sm"
-              variant="ghost"
-              label={t("desktop.playgroundTabs.more", { count: hidden.length })}
-              className="w-auto gap-0.5 px-1.5"
-            >
+            <IconButton size="sm" variant="ghost" label={allLabel} className="ms-0.5 flex-none">
               <ChevronDown />
-              <span className="text-ui-sm font-medium text-text-tertiary tabular-nums">
-                {`+${String(hidden.length)}`}
-              </span>
             </IconButton>
           }
         >
-          {hidden.map((row) => (
+          {tabs.map((row) => (
             <MenuItem
               key={row.name}
               icon={<PluginGlyph icon={row.icon} monogram={row.monogram} size="tab" />}
@@ -409,8 +463,13 @@ function TabStrip(): ReactNode {
             {t("desktop.playgroundTabs.openPlayground")}
           </MenuItem>
         </Menu>
-      )}
-      <span aria-hidden className="mx-2 h-4 w-px flex-none bg-border-subtle" />
+      ) : null}
+      {/* 탭 묶음과 화면 제목을 가르는 선(DP-124): 머리 높이의 44%(20px), 주변 hairline보다 한 단계 진한 border.default */}
+      <span
+        aria-hidden
+        data-slot="playground-tabs-divider"
+        className="mx-2 h-5 w-px flex-none bg-border-default"
+      />
     </div>
   );
 }

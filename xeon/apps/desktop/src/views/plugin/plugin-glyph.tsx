@@ -121,7 +121,7 @@ export function PluginGlyph(props: {
     return Glyph === undefined ? (
       <span
         aria-hidden
-        className={`grid size-4 flex-none place-items-center rounded-[4px] bg-neutral-hover text-[10px]/none font-semibold ${tone}`}
+        className={`grid size-4 flex-none place-items-center rounded-[4px] bg-neutral-hover text-[11px]/none font-semibold ${tone}`}
       >
         {props.monogram}
       </span>

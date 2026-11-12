@@ -1,12 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import {
+  dragEdgeOf,
   EMPTY_TAB_PREFS,
-  ICON_TAB,
   KEPT_TABS_MAX,
-  LABEL_TAB_MAX,
   pinnedTabsOf,
-  tabStripLayoutOf,
+  stripFadeOf,
+  tabModeOf,
   touchedOf,
+  wheelShiftOf,
   withAutoPinned,
   withDropped,
   withMoved,
@@ -75,14 +76,29 @@ describe("withDropped", () => {
   });
 });
 
-describe("tabStripLayoutOf", () => {
-  test("labels when every label tab fits, icons when only icons fit, then folds the rest into more", () => {
-    expect(tabStripLayoutOf(3, 3 * LABEL_TAB_MAX, false)).toEqual({ mode: "label", visible: 3 });
-    expect(tabStripLayoutOf(3, 3 * LABEL_TAB_MAX, true)).toEqual({ mode: "icon", visible: 3 });
-    expect(tabStripLayoutOf(3, 3 * LABEL_TAB_MAX - 1, false)).toEqual({ mode: "icon", visible: 3 });
-    expect(tabStripLayoutOf(10, 48 + 4 * ICON_TAB, false)).toEqual({ mode: "icon", visible: 4 });
-    expect(tabStripLayoutOf(3, 10, false)).toEqual({ mode: "icon", visible: 0 });
-    expect(tabStripLayoutOf(0, 1000, false)).toEqual({ mode: "icon", visible: 0 });
+describe("tab strip scrolling (DP-124)", () => {
+  test("name tabs on a wide window, icon tabs on a compact one", () => {
+    expect([tabModeOf(false), tabModeOf(true)]).toEqual(["label", "icon"]);
+  });
+  test("each end fades only while tabs hide past it", () => {
+    expect(stripFadeOf(0, 500, 500)).toEqual({ start: false, end: false });
+    expect(stripFadeOf(0, 900, 500)).toEqual({ start: false, end: true });
+    expect(stripFadeOf(200, 900, 500)).toEqual({ start: true, end: true });
+    expect(stripFadeOf(399.5, 900, 500)).toEqual({ start: true, end: false });
+  });
+  test("a vertical wheel scrolls sideways, a sideways swipe stays, and the ends stop it", () => {
+    expect(wheelShiftOf(0, 40, 100, 900, 500)).toBe(40);
+    expect(wheelShiftOf(-30, 5, 100, 900, 500)).toBe(-30);
+    expect(wheelShiftOf(0, 120, 350, 900, 500)).toBe(50);
+    expect(wheelShiftOf(0, -40, 0, 900, 500)).toBe(0);
+    expect(wheelShiftOf(0, 40, 0, 500, 500)).toBe(0);
+  });
+  test("dragging near an end scrolls toward it", () => {
+    expect([
+      dragEdgeOf(105, 100, 600),
+      dragEdgeOf(350, 100, 600),
+      dragEdgeOf(590, 100, 600),
+    ]).toEqual([-1, 0, 1]);
   });
 });
 

@@ -201,6 +201,22 @@
   [data-header-band][data-chrome-brand] {
     justify-content: center;
   }
+  /* DP-124 플레이그라운드 탭 줄의 넘침: 가려진 탭이 있는 쪽 끝 24px(탭 줄 scroll-padding과 같은 폭)을 투명으로 흐린다 */
+  [data-slot="playground-tabs-scroll"][data-fade-start] {
+    mask-image: linear-gradient(to right, transparent, #000 24px);
+  }
+  [data-slot="playground-tabs-scroll"][data-fade-end] {
+    mask-image: linear-gradient(to left, transparent, #000 24px);
+  }
+  [data-slot="playground-tabs-scroll"][data-fade-start][data-fade-end] {
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 24px,
+      #000 calc(100% - 24px),
+      transparent
+    );
+  }
   /* 머리 바로 뒤 형제만 공용 간격을 받는다. `data-flush` 머리(대화)는 뺀다 */
   .shell-header:not([data-flush]) + * {
     margin-block-start: var(--shell-header-gap);
@@ -506,7 +522,8 @@
       [role="alertdialog"],
       [role="tooltip"],
       [contenteditable="true"],
-      [data-radix-popper-content-wrapper]
+      [data-radix-popper-content-wrapper],
+      [data-slot="playground-tabs"]
     ) {
     -webkit-app-region: no-drag;
   }

@@ -2555,7 +2555,7 @@
   "desktop.playgroundTabs.menu.left": "왼쪽으로 옮기기",
   "desktop.playgroundTabs.menu.right": "오른쪽으로 옮기기",
   "desktop.playgroundTabs.menu.unpin": "고정 해제",
-  "desktop.playgroundTabs.more": "탭 {count}개 더 보기",
+  "desktop.playgroundTabs.all": "고정한 탭 {count}개 모두 보기",
   "desktop.playgroundTabs.openPlayground": "플레이그라운드 열기",
   "desktop.playgroundTabs.screens": "화면 고르기",
   "desktop.playgroundTabs.empty.title": "열린 탭 없음",
