@@ -9,7 +9,7 @@ import {
   type Logger,
   type Result,
 } from "@fresnel/contracts";
-import type { ThreadId } from "@fresnel/contracts/conversation";
+import { userWrittenText, type ThreadId } from "@fresnel/contracts/conversation";
 import { ItemRecordedPayloadSchema } from "@fresnel/contracts/records";
 import { formatModelRef, type ModelRole, type ModelService } from "@fresnel/contracts/services";
 import {
@@ -50,18 +50,6 @@ export interface AutoTitleHostDeps {
 export interface AutoTitle {
   /** 커밋 구독을 거둔다. 진행 중인 제목 작업은 `signal`로 멈춘다 */
   close(): void;
-}
-
-/** 사용자 메시지 내용에서 텍스트 블록만 이어 붙인다. 턴 입력을 `titleFromInput`에 넘길 때와 같은 방식이다 */
-function userTextOf(
-  content: string | readonly { readonly type: string; readonly text?: string }[],
-): string {
-  if (typeof content === "string") return content;
-  return content
-    .flatMap((block) =>
-      block.type === "text" && typeof block.text === "string" ? [block.text] : [],
-    )
-    .join(" ");
 }
 
 /** 제목 모델 포트. 같은 thread에 대해 해석한 모델로 완성 호출을 한다. 입력 정리와 제목 정리는 `autoTitleThread`가 한다 */
@@ -151,7 +139,7 @@ export function startAutoTitle(deps: AutoTitleHostDeps): AutoTitle {
       const parsed = parse(ItemRecordedPayloadSchema, event.payload);
       if (!parsed.ok || parsed.value.item.kind !== "user") continue;
       checkedFirstInput.add(event.threadId);
-      const title = titleFromInput(userTextOf(parsed.value.item.message.content));
+      const title = titleFromInput(userWrittenText(parsed.value.item.message.content));
       if (title !== undefined) firstInputTitle.set(event.threadId, title);
     }
   }
