@@ -1,3 +1,4 @@
+import { isIP } from "node:net";
 import { hostname, networkInterfaces } from "node:os";
 import type { SettingReader } from "../assembly/settings-sources.ts";
 import type { GatewayConfig } from "./gateway.ts";
@@ -66,9 +67,28 @@ export function gatewayConfigOf(
   };
 }
 
-/** 앞 목록을 먼저 두고 뒤 목록을 더한다. 같은 이름은 한 번만 남기고, 상한 `HOSTS_MAX`를 넘기지 않는다 */
+/**
+ * 허용 호스트 한 항목을 게이트웨이가 받는 모양으로 바꾼다. IPv6 주소는 대괄호로 싼다(`fd7a:115c:a1e0::1` → `[fd7a:115c:a1e0::1]`).
+ * `main/args.ts`의 `--hosts` 검사와 `gateway-settings.ts`의 `hosts` 검사가 이 모양만 받는다(대괄호 없는 IPv6는 "bad name"이다).
+ * 영역 식별자(`%en0`)가 붙은 주소는 브라우저가 `Host`로 보내지 않으므로 뺀다(null). IPv4와 이름은 그대로 둔다.
+ */
+export function hostNameOf(address: string): string | null {
+  const bare = address.startsWith("[") && address.endsWith("]") ? address.slice(1, -1) : address;
+  const zone = bare.indexOf("%");
+  if (zone >= 0) return isIP(bare.slice(0, zone)) === 6 ? null : address;
+  return isIP(bare) === 6 ? `[${bare}]` : address;
+}
+
+/**
+ * 앞 목록을 먼저 두고 뒤 목록을 더한다. 각 이름은 `hostNameOf`로 바꾸고(영역 식별자가 붙은 것은 뺀다),
+ * 같은 이름은 한 번만 남기고, 상한 `HOSTS_MAX`를 넘기지 않는다
+ */
 function mergeHosts(base: readonly string[], extra: readonly string[]): readonly string[] {
-  return [...new Set([...base, ...extra])].slice(0, HOSTS_MAX);
+  const names = [...base, ...extra].flatMap((name) => {
+    const host = hostNameOf(name);
+    return host === null ? [] : [host];
+  });
+  return [...new Set(names)].slice(0, HOSTS_MAX);
 }
 
 function textOf(value: unknown): string {

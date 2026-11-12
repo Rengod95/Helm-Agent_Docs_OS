@@ -200,6 +200,9 @@ test("validation: host names must be host names and at most 64 are kept", () => 
   expect(hostIssuesOf(["bad name", "a/b", "fresnel.example.com:443", ""])).toEqual([
     { field: "hosts", code: "host_bad_name" },
   ]);
+  expect(hostIssuesOf(["[fd7a:115c:a1e0::1]"])).toEqual([]);
+  expect(hostIssuesOf(["fd7a:115c:a1e0::1"])).toEqual([{ field: "hosts", code: "host_bad_name" }]);
+  expect(hostIssuesOf(["fe80::1%en0"])).toEqual([{ field: "hosts", code: "host_bad_name" }]);
   const sixtyFour = Array.from({ length: 64 }, (_, index) => `h${index}.example.com`);
   expect(hostIssuesOf(sixtyFour)).toEqual([]);
   expect(hostIssuesOf([...sixtyFour, "extra.example.com"])).toEqual([

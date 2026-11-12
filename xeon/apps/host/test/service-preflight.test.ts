@@ -463,6 +463,46 @@ test("IPv6 주소는 url에서 대괄호로 감싼다", () => {
   ]);
 });
 
+test("허용 호스트의 IPv6 이름은 대괄호 모양으로 비교하고 빠진 목록에도 그 모양으로 낸다", () => {
+  const V6 = "fd7a:115c:a1e0::1";
+  const withV6 = { ...readyFacts().gateway, hosts: ALL_HOSTS };
+  const names = { ...NAMES, tailscaleIps: [TS_IP, V6] };
+  const missing = runPreflight({ ...readyFacts(), names, gateway: withV6 });
+  expect(itemOf(missing, "allowed_hosts")).toEqual({
+    id: "allowed_hosts",
+    status: "fail",
+    cause: "host_missing",
+    fix: "set_allowed_hosts",
+    autoFix: "add_allowed_hosts",
+    detail: { missing: [`[${V6}]`] },
+  });
+  const allowed = runPreflight({
+    ...readyFacts(),
+    names,
+    gateway: { ...withV6, hosts: [...ALL_HOSTS, `[${V6}]`] },
+  });
+  expect(itemOf(allowed, "allowed_hosts")).toEqual({
+    id: "allowed_hosts",
+    status: "pass",
+    cause: null,
+    fix: null,
+    autoFix: null,
+    detail: { missing: [] },
+  });
+  const addresses = reachableAddressesOf({
+    gateway: { ...withV6, hosts: [...ALL_HOSTS, `[${V6}]`] },
+    names,
+  });
+  expect(addresses.filter((address) => address.host === V6)).toEqual([
+    {
+      kind: "tailscale_ip",
+      host: V6,
+      url: `https://[${V6}]:8443`,
+      allowed: true,
+    },
+  ]);
+});
+
 test("TLS 포트가 없으면 비루프백 주소가 없어 no_reachable_address로 실패한다", () => {
   const result = runPreflight({
     ...readyFacts(),
