@@ -265,11 +265,24 @@ describe("summarizeToolArgs: 도구별 입력 → 요약", () => {
   });
 
   test("표에 없는 도구는 generic이고 인자 JSON을 그대로 준다", () => {
-    expect(summarizeToolArgs("skill_view", { name: "pdf" })).toEqual({
+    expect(summarizeToolArgs("render_chart", { name: "pdf" })).toEqual({
       kind: "generic",
       text: '{"name":"pdf"}',
     });
     expect(summarizeToolArgs("ask_user", {})).toEqual({ kind: "generic", text: "{}" });
+  });
+
+  test("skill_view는 스킬 이름(지원 파일이면 이름/파일)을 읽는 경로다", () => {
+    expect(summarizeToolArgs("skill_view", { name: "pdf" })).toEqual({
+      kind: "read",
+      path: "pdf",
+      range: null,
+    });
+    expect(summarizeToolArgs("skill_view", { name: "pdf", file: "ref/forms.md" })).toEqual({
+      kind: "read",
+      path: "pdf/ref/forms.md",
+      range: null,
+    });
   });
 
   test("generic 글은 400글자 이내로 줄이고 끝에 …을 붙인다", () => {

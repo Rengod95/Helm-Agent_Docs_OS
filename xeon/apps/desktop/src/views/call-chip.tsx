@@ -10,7 +10,7 @@ import type { ReactNode } from "react";
  * 칩 글은 DOM 글이 아니라 `data-text`를 CSS가 그린다(읽는 글이 둘로 겹치지 않게).
  * 칩은 눈으로 보는 겉모양일 뿐이다. 같은 글은 caustic ToolCall의 상태 알약이 읽는 사람용으로 그대로 들고 있다(화면에서만 가린다).
  */
-export type CallChipTone = "danger" | "warning" | "neutral";
+type CallChipTone = "danger" | "warning" | "neutral";
 
 export type CallChipProps = {
   readonly status: "running" | "done" | "failed";

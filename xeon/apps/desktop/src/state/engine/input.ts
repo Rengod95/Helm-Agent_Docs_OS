@@ -141,6 +141,8 @@ type TurnStartInfo = {
   readonly origin: NonNullable<TurnStartedPayload["origin"]>;
   readonly scopeId: string | null;
   readonly requestId: string | null;
+  /** 이 턴을 시작한 입력 item(사용자 말, 주도 입력). 줄 모델이 턴의 첫 줄을 고른다 */
+  readonly inputItemIds: readonly ItemId[];
 };
 
 type VolatileBase = {

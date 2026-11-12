@@ -1,14 +1,19 @@
 import { Button } from "@caustic/react";
 import { t, type MessageId } from "@fresnel/client/i18n";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { useMemo, type ReactNode } from "react";
 import {
   useCompactionAnchors,
   useAwaitingFirstResponse,
+  useConvoMarkers,
+  useLeadSegments,
   useOpenThreadId,
+  useOpenThreadRunning,
   useLastUserItemId,
   useStreamingIds,
-  useTranscriptItemIds,
+  useTranscriptShapes,
   useTranscriptFailure,
+  useTurnSummaries,
   useTranscriptStatus,
   useTranscriptTruncated,
   useTurnFailure,
@@ -20,11 +25,10 @@ import { CutMarker, TurnFailureRow } from "./turn-failure-row.tsx";
 import { turnFailureOf } from "./turn-failure-model.ts";
 import { EmptyThread } from "./empty-thread.tsx";
 import { ResumeBand } from "./resume-band.tsx";
-import { RecordedItem, StreamingRow } from "./item-view.tsx";
 import { ThinkingIndicator } from "./thinking-indicator.tsx";
-import { CompactionDivider } from "./compaction-divider.tsx";
 import { VirtualList } from "./virtual-list.tsx";
 import { transcriptRowsOf, type TranscriptRow } from "./transcript-rows.ts";
+import { TranscriptRowView } from "./item-view.tsx";
 
 // 목록 부품은 id 배열만 구독한다(FS-19). 델타는 id 배열 참조를 바꾸지 않으므로 이 부품은 다시 그려지지 않는다.
 
@@ -42,43 +46,36 @@ const TRANSCRIPT_FAILURE_ID: Readonly<
   stale: "desktop.transcript.loadFailed.stale",
 };
 
-export function Transcript(): ReactNode {
+/** 열린 대화의 줄 목록. 줄 모델(`transcript-rows.ts`)이 턴·묶음·표지·주도 구간을 엮는다 */
+function ThreadRows(props: { readonly threadId: ThreadId }): ReactNode {
+  const { threadId } = props;
   const status = useTranscriptStatus();
-  const failureReason = useTranscriptFailure();
-  const threadId = useOpenThreadId();
-  const ids = useTranscriptItemIds();
+  const shapes = useTranscriptShapes();
   const live = useStreamingIds();
+  const anchors = useCompactionAnchors(threadId);
+  const turns = useTurnSummaries(threadId);
+  const markers = useConvoMarkers(threadId);
+  const leads = useLeadSegments(threadId);
+  const running = useOpenThreadRunning();
   const awaiting = useAwaitingFirstResponse();
-  const commands = useCommands();
   const failure = useTurnFailure(threadId);
   const unsentId = useUnsentUserItemId();
   const lastUserId = useLastUserItemId();
   const truncated = useTranscriptTruncated();
-  const anchors = useCompactionAnchors(threadId);
-  // 진행 중 item은 열린 thread의 것만 보인다. 요약 구분선은 자리 item 뒤에 선다(transcript-rows.ts)
   const rows = useMemo<readonly TranscriptRow[]>(
-    () => transcriptRowsOf({ ids, live, showLive: status === "ready", anchors }),
-    [anchors, ids, live, status],
+    () =>
+      transcriptRowsOf({
+        shapes,
+        live,
+        showLive: status === "ready",
+        anchors,
+        turns,
+        markers,
+        leads,
+        running,
+      }),
+    [anchors, leads, live, markers, running, shapes, status, turns],
   );
-  if (threadId === null) return <Notice>{t("desktop.transcript.pickThread")}</Notice>;
-  if (status === "loading") return <Notice>{t("desktop.transcript.loading")}</Notice>;
-  if (status === "error") {
-    return (
-      <Notice>
-        {t("desktop.transcript.loadFailed")}{" "}
-        {failureReason === null ? null : `${t(TRANSCRIPT_FAILURE_ID[failureReason])} `}
-        <Button
-          size="xs"
-          variant="outline"
-          onClick={() => {
-            commands.retryTranscript();
-          }}
-        >
-          {t("desktop.transcript.reloadButton")}
-        </Button>
-      </Notice>
-    );
-  }
   const failureNotice =
     failure === null ? null : <TurnFailureRow threadId={threadId} error={failure} />;
   // 앞부분 답이 온 뒤 끊긴 응답이면 마지막 답 바로 뒤에 끊김을 표시한다. 자동으로 다시 보내지는 않는다
@@ -116,15 +113,7 @@ export function Transcript(): ReactNode {
         followTail
         ownTailKey={lastUserId}
         label={t("desktop.transcript.label")}
-        renderRow={(row) =>
-          row.kind === "compaction" ? (
-            <CompactionDivider record={row.record} />
-          ) : row.live ? (
-            <StreamingRow id={row.id} />
-          ) : (
-            <RecordedItem id={row.id} unsent={row.id === unsentId} />
-          )
-        }
+        renderRow={(row) => <TranscriptRowView threadId={threadId} row={row} unsentId={unsentId} />}
       />
       {waiting}
       {cutNotice}
@@ -132,4 +121,31 @@ export function Transcript(): ReactNode {
       <ResumeBand />
     </>
   );
+}
+
+export function Transcript(): ReactNode {
+  const status = useTranscriptStatus();
+  const failureReason = useTranscriptFailure();
+  const threadId = useOpenThreadId();
+  const commands = useCommands();
+  if (threadId === null) return <Notice>{t("desktop.transcript.pickThread")}</Notice>;
+  if (status === "loading") return <Notice>{t("desktop.transcript.loading")}</Notice>;
+  if (status === "error") {
+    return (
+      <Notice>
+        {t("desktop.transcript.loadFailed")}{" "}
+        {failureReason === null ? null : `${t(TRANSCRIPT_FAILURE_ID[failureReason])} `}
+        <Button
+          size="xs"
+          variant="outline"
+          onClick={() => {
+            commands.retryTranscript();
+          }}
+        >
+          {t("desktop.transcript.reloadButton")}
+        </Button>
+      </Notice>
+    );
+  }
+  return <ThreadRows threadId={threadId} />;
 }

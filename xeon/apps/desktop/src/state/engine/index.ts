@@ -11,4 +11,5 @@ export { createThreadReaderPort } from "./thread-reader.ts";
 export { selectThread } from "./selectors.ts";
 export { messageCopyText } from "./message-text.ts";
 export * from "./convo-select.ts";
+export type { ItemShape, ShapeBlock } from "./transcript-shape.ts";
 export type * from "./convo.ts";

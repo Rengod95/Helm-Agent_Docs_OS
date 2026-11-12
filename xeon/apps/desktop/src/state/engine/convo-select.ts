@@ -77,6 +77,10 @@ type TurnUsageSummary = {
 export type TurnSummary = {
   readonly turnId: TurnId;
   readonly origin: TurnRecord["origin"];
+  /** 시작 사건 seq(못 봤으면 null). 표지 자리를 고를 때 쓴다 */
+  readonly startedSeq: number | null;
+  /** 이 턴을 시작한 입력 item. 줄 모델이 턴 경계를 고른다 */
+  readonly inputItemIds: TurnRecord["inputItemIds"];
   /** 주도 턴이면 임대한 scope id(그 확장이 주도한 턴) */
   readonly leadScopeId: string | null;
   readonly model: string | null;
@@ -117,6 +121,8 @@ function summarizeTurn(turn: TurnRecord): TurnSummary {
   return {
     turnId: turn.turnId,
     origin: turn.origin,
+    startedSeq: turn.startedSeq,
+    inputItemIds: turn.inputItemIds,
     leadScopeId: turn.scopeId,
     model: turn.model,
     startedAt: turn.startedAt,

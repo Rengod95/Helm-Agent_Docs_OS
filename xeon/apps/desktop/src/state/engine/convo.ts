@@ -217,6 +217,8 @@ export type TurnRecord = {
   /** 주도 턴이면 임대한 scope id */
   readonly scopeId: string | null;
   readonly requestId: string | null;
+  /** 이 턴을 시작한 입력 item id(`turn.started`의 `inputItemIds`). 시작을 못 봤으면 빈 목록 */
+  readonly inputItemIds: readonly ItemId[];
   /** 턴이 시작할 때 이 거울이 알던 대화의 모델. 모르면 null */
   readonly model: string | null;
   /** 끝난 단계 수(가장 큰 단계 번호 + 1) */
@@ -398,6 +400,7 @@ function newTurn(turnId: TurnId): TurnRecord {
     origin: "user",
     scopeId: null,
     requestId: null,
+    inputItemIds: [],
     model: null,
     steps: 0,
     lastStepIndex: -1,
@@ -452,6 +455,7 @@ export type TurnStartFact = ConvoAt & {
   readonly origin: NonNullable<TurnStartedPayload["origin"]>;
   readonly scopeId: string | null;
   readonly requestId: string | null;
+  readonly inputItemIds: readonly ItemId[];
   readonly model: string | null;
 };
 
@@ -469,6 +473,7 @@ export function convoTurnStarted(convo: Convo, fact: TurnStartFact): Convo {
             origin: fact.origin,
             scopeId: fact.scopeId,
             requestId: fact.requestId,
+            inputItemIds: fact.inputItemIds,
             model: fact.model,
             // 끝 사건이 먼저 온 턴(보조 재생 순서)은 시작을 보고 나서 시간을 채운다
             completion:

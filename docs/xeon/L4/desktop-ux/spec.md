@@ -3891,6 +3891,12 @@ DP-11을 caustic 토큰으로 정했습니다(caustic `27fe658`, `bbb094a`, `FOU
 - DP-109 [결정: 2026-11-11 사용자] 설정의 "권한" 구역은 다섯 패널입니다(가운데 열 720, 표가 있어서). (1) 실행 방식: `l1.tools.permissionMode` 넷을 2×2 라디오 카드(공용 `shared/radio-card.tsx`, `columns=2`, 아이콘 16 + 이름 + 한 줄 설명)로 둡니다. `l1.tools.bypassAllowed`가 꺼져 있으면 "모두 허용" 카드는 고를 수 없고 설명이 "관리 설정에서 막혀 있어요"로 바뀝니다. 이 키는 관리 범위에서만 바뀌므로 카드 아래 한 줄(잠금 아이콘 + 상태 글, 고칠 수 있으면 스위치)로 보입니다. (2) 권한 규칙: `l1.tools.rules`를 판정 표(공용 `shared/verdict-table.tsx`)로 그립니다. 열은 도구·패턴(mono 13) · 판정(허용/물어보기/막기 `SegmentedControl` sm) · 메모(ghost 입력, `description`) · 지우기(줄 hover·초점에서만)이고 머리 32, 줄 44입니다. 대상은 `read`, `mcp__github__*`, `bash(git status)`, `*`로 적고, `bash(접두)`는 명령 인자 조건 `{pointer: "/command", pattern: "^<접두>( |$)"}` 하나로 저장합니다. 이 모양으로 읽을 수 없는 규칙(서버·종류·위험·모드 조건)은 요약 글과 "조건 더 있음" 배지로 보이고 판정·메모·지우기만 됩니다. 규칙 이름은 화면에 없고 새 규칙은 `<판정>-<도구>`(겹치면 `-2`부터)입니다. 우선순위는 화면에서 고치지 않고 저장된 값은 그대로 둡니다. 겹치는 허용·막기 줄은 줄 아래에 상대 대상과 "막기 > 물어보기 > 허용" 한 줄을 붙입니다. 추가 줄은 표 맨 아래 같은 열(대상 · 판정 · 메모 · "추가")이고, 빈 표에는 예시 칩(`read` 허용, `bash(git status)` 허용, `bash(rm -rf)` 막기, `web_fetch` 물어보기)이 추가 줄을 채웁니다. 판정·메모·추가·지우기는 바로 저장합니다. (3) 승인 기다림: 작은 카드 둘(무인 실행: 응답이 없을 때, 기다릴 시간은 "시간이 지나면" 값일 때만 / 계획: 실행 전 승인, 승인하면 계획 모드 나가기). (4) 작업 폴더 신뢰: 기본값 줄(`x.loading-trust.defaultProjectTrust`) 아래 저장된 결정(`trust.list`)을 판정 표(폴더 · 허용/막기 · 저장한 때)로 보이고, 판정을 바꾸면 `trust.decide {kind: "folder"}`로 다시 저장합니다. 결정을 지우는 wire 메서드가 없어 지우기 칸은 없습니다. (5) 웹 접근: `l2.web.policy.allow`·`ask`·`deny` 세 목록을 "도메인 하나 = 판정 하나" 판정 표 한 벌로 보이고(같은 도메인이 여럿에 있으면 센 판정 하나), 그 아래 사설망 허용과 처음 보는 주소 줄을 둡니다. 구현: `views/pages/settings/settings-rules-panel.tsx`, `settings-rules-model.ts`, `settings-rules-web.ts`, `settings-trust-view.tsx`, `views/pages/shared/verdict-table.tsx`.
 - DP-110 [결정: 2026-11-11 사용자] 설정의 "샌드박스" 구역은 네 카드입니다(가운데 열 600). 맨 위 "상태" 카드는 상태 띠(켜짐 성공·꺼짐 중립 + 한 문장, 오른쪽 끝 켜기 스위치) 아래 "이 컴퓨터에서 점검"(`CheckSteps`: 운영체제 지원, 그 운영체제가 쓰는 외부 도구 macOS `rg`, Linux `rg`·`bwrap`·`socat`)과 쓸 수 없을 때·밖에서 다시 시도 두 줄입니다. 점검은 `setup.load({binaries: true})`의 외부 도구 점검이고 구역을 열 때 한 번, "다시 시험"으로 다시 합니다. 엔진의 자가 시험 결과는 wire에 없어 보이지 않습니다. 그 아래 "쓰기와 보호"(쓰기 폴더, 보호 경로), "네트워크"(막을 도메인), "그 밖"(자격 증명 파일, 중첩 네임스페이스) 카드이고, 샌드박스가 꺼져 있으면 세 카드는 고칠 수 없고 "샌드박스를 켜면 적용돼요" 한 줄이 붙습니다. 경로·도메인 목록은 공용 목록 편집기(`shared/list-editor.tsx`: 1px 테두리 상자, 값 줄 36 mono 12, hover에서만 보이는 지우기, 상자 아래 입력 28 · 폴더 고르기(경로일 때) · 추가)이고 바로 저장합니다. 스킬 경로(`l2.knowledge.skills.paths`)도 같은 편집기입니다. 구현: `views/pages/settings/settings-sandbox-panel.tsx`, `settings-editors-screen.tsx`(`SandboxListEditor`, `FolderPickContext`).
 - DP-111 [결정: 2026-11-11 사용자] 설정의 "도구와 MCP" 구역은 MCP 서버 카드, MCP 정책(접힘), 웹 도구 표, 스킬과 명령 순입니다. MCP 서버 줄은 상태 점(연결·도구 ≥1 성공, 도구 0개·막힘 경고, 실패 위험, 그 밖 중립) · 이름과 id · 전송 배지 · 출처 배지 · 둘째 줄 상태 글(연결됨 · 도구 N개, 막힌 까닭, 마지막 오류) · 다시 시작(IconButton) · "⋯" 메뉴(자세히, 고치기, 지우기) · 켜기 스위치(끄면 `blockAlways`, 켜면 `unblock`)입니다. 줄을 펼치면 도구 칩(읽기만·바꾸거나 지울 수 있음 표시)과 stderr 끝 줄이 보입니다. 서버 더하기 창 맨 위는 붙여 넣기 칸입니다: npx·uvx 명령줄(앞의 `KEY=값`은 환경 변수), `claude mcp add …`, URL, `.mcp.json`이나 Claude 설정의 JSON(`mcpServers`, `servers`, `mcp.servers`, 정의 하나, `"이름": {…}` 조각)을 읽어 칸을 채우고, 서버가 여럿이면 고르기가 나옵니다. 환경 변수와 헤더 줄은 이름에 KEY·TOKEN·SECRET·PASSWORD가 들면 시크릿 고르기(`secret://이름`)를 둡니다. 저장 단추는 "저장하고 연결 시험"이고 저장 뒤 창이 연결 시험(`CheckSteps`: 저장 → 실행과 초기화 → 도구 목록)으로 바뀝니다. 시험은 `mcp.servers`를 1초마다 다시 읽어 15초 안에 연결·실패가 정해지지 않으면 시간 초과로 실패하고, 실패마다 고치는 법(stdio는 stderr 마지막 줄) 한 줄을 둡니다. MCP 정책 일곱 키는 접힌 머리(`shared/folded-fields.tsx`, 바뀐 값이 있으면 펼침)입니다. 웹 도구는 표 하나(종류 · 제공자 이름과 출처 · 상태 점과 글, 지금 쓰는 것은 "현재" 배지 · 순서)이고 종류 글은 묶음 첫 줄에만 둡니다. 검색만 위·아래 단추로 순서를 바꿉니다(브라우저·가져오기는 순서 설정이 wire에 없음). 쓸 수 없는 줄은 바로 아래 까닭과 고치는 법(13 tertiary)을 둡니다. 권장 키 플러그인(Exa, Brave)은 표 아래 한 줄입니다. 구현: `views/pages/settings/settings-mcp-view.tsx`, `settings-mcp-screen.tsx`, `settings-mcp-paste.ts`, `settings-mcp-test.ts`, `settings-mcp-policy.tsx`, `views/pages/tools-web/tools-web-view.tsx`.
+- DP-94 [결정: 2026-11-11 사용자] 대화 줄은 736px 읽기 열(좌우 12px) 하나에 놓입니다. 답 본문은 15/23 마크다운(제목 18·16·15, 목록, 표, 인용, 링크, 인라인 코드, 언어 표지·복사·구문 강조가 있는 코드 블록)이고 스트리밍 중에도 깨지지 않습니다. 생각은 13/20 흐린 글과 2px 레일로 한 단계 물러나 있고, 접힌 머리(첫 줄 미리보기)라 답을 밀어내지 않습니다. 같은 턴 안 블록 사이 8, 턴 발 줄 뒤 24입니다. 구현: `views/convo/markdown-body.tsx`, `thinking-block.tsx`, `message-rows.tsx`, §16.
+- DP-95 [결정: 2026-11-11 사용자] 도구 호출은 도구별 28px 한 줄입니다(아이콘 14, 동사 13/500, 경로·패턴 칩 20px, 오른쪽 메타와 상태). bash는 명령, 실행 중 출력 끝 5줄, 종료 코드와 걸린 시간을, edit·write는 diff를, 웹은 출처 칩을, MCP는 처음부터 서버 배지를 보입니다. 기억·스킬·지식은 조용한 한 줄, `task_write`는 바뀐 항목을 짚은 체크리스트, `submit_plan`은 계획 카드(제목, 판, 상태, 작업 탭 링크), `agent`는 하위 에이전트 카드(진행, 보고 요약, 자식 열기)입니다. 그 밖의 도구는 이름 mono + 요약이고 펼치면 인자와 결과입니다. 구현: `views/convo/tool-line.tsx`, `tool-call-row.tsx`, `tool-view-model.ts`, `cards.tsx`.
+- DP-96 [결정: 2026-11-11 사용자] 이어지는 도구 호출은 활동 묶음 한 줄("파일 6개 읽음 · 명령 2개 실행", 메타 "8단계 · 34초")입니다. 도는 동안은 지금 도구를 머리에 보이고, 끝나면 접힙니다("모두 보기" 설정에서도 접힘). 실패·거절·개입이 있는 호출은 접혀도 보입니다. 결과물 도구(agent, task_write, submit_plan)는 묶지 않고 카드로, edit·write는 혼자 한 줄입니다. "숨기기" 설정은 성공한 호출을 그리지 않습니다. 구현: `views/convo/activity-group.tsx`, `activity-model.ts`, `views/transcript-rows.ts`.
+- DP-97 [결정: 2026-11-11 사용자] 도구 줄의 끝 상태는 빛깔·문구·아이콘이 서로 다릅니다: 실패는 위험색, 거절과 중단은 중립, 훅 차단·보호 규칙·샌드박스 차단은 경고색이고 엔진의 영어 글은 카탈로그 문장으로 바꿉니다. 개입(훅이 바꿈, 보호, 샌드박스 밖, 출처 불명, 시크릿 사용, 승인 기록 "허용함 · 이번만")은 줄 오른쪽 20px 꼬리표이고 셋을 넘으면 "+N"입니다. 꼬리표를 누르면 사유와 "기록 보기"가 든 팝오버가 열립니다. 구현: `views/convo/intervention-model.ts`, `intervention-tags.tsx`.
+- DP-98 [결정: 2026-11-11 사용자] 주도 구간은 왼쪽 2px `agent` 레일로 이어지고, 첫 턴 앞 머리 줄("helm 주도 중 · 3/8턴 · 토큰 …", 90%를 넘은 칸은 경고색)과 마지막 턴 뒤 반납 사유 줄을 둡니다. 끝난 턴 뒤에는 턴 발 줄(왼쪽 답 동작, 오른쪽 "단계 · 시간 · 토큰 · 모델", 올리면 입력·출력·캐시·비용)이 서고, 한도·되풀이·검사 한도로 멈췄으면 그 위에 사유와 "계속하기"를 둡니다. 변화 표지(모델, 권한 모드, 이어감, 예약 실행, 갈래 이동, 갈래 요약)는 요약 구분선과 같은 모양의 얇은 구분 줄입니다. 구현: `views/convo/turn-rows.tsx`, `turn-model.ts`, `compaction-divider.tsx`.
+- DP-99 [결정: 2026-11-11 사용자] 메시지 동작 줄은 그 메시지에 올리거나 초점이 들어오면 보입니다(터치 기기는 늘 보임). 답: 복사, 다시 만들기, 여기서 갈라내기, 여기로 되감기. 사용자 말: 복사, 고쳐서 다시 보내기(그 자리에서 고치고 앞 item으로 되감은 뒤 보냄), 갈라내기, 되감기. 되감기는 "파일 변경은 되돌리지 않아요"를 적은 확인 팝오버를 거칩니다. 턴이 도는 동안은 다시 만들기·되감기·고쳐 보내기가 꺼집니다. 확장 카드는 320px을 넘으면 접고 "더 보기"를 두며 출처를 아래 한 줄로 보입니다. 구현: `views/convo/message-actions.tsx`, `message-rows.tsx`(`CustomRow`), §15.5.
 
 ## 14. LightCraft 시안 브리프
 
@@ -4084,7 +4090,7 @@ export const templates = [
 | 항목 | 출처 | 기록 |
 |---|---|---|
 | 도구 진행 출력 | 휘발 `item.updated`의 `tool_progress` | 도구 호출별 마지막 20줄(줄당 400자), 받은 총량, 갱신 수. 호출 id를 모르면 item id에 붙입니다 |
-| 단계와 턴 | `turn.started`(origin, scopeId, requestId), `step.completed`(stopReason, contextWarnings, composition 합), `turn.completed`(usage, stepCount, error) | 턴별 단계 수, 모델(시작 때 거울이 안 모델), 시간(시작과 끝 사건의 기록 시각 차, `durationMs`는 계약에 없습니다), 사용량, 끝난 이유(`TurnEnd`: 완료, 한도(`step_limit`·`child_limit`), 중단 코드, 실패) |
+| 단계와 턴 | `turn.started`(origin, scopeId, requestId, inputItemIds), `step.completed`(stopReason, contextWarnings, composition 합), `turn.completed`(usage, stepCount, error) | 턴별 시작 seq, 입력 item(`inputItemIds`, 줄 모델이 턴 경계로 씁니다), 단계 수, 모델(시작 때 거울이 안 모델), 시간(시작과 끝 사건의 기록 시각 차, `durationMs`는 계약에 없습니다), 사용량, 끝난 이유(`TurnEnd`: 완료, 한도(`step_limit`·`child_limit`), 중단 코드, 실패) |
 | 휘발 알림 | `turn.updated`의 `gate_limit`, `repeat_detected`, 내구 `turn.abort_requested` | 턴에 붙은 알림과 중단 요청(멈추는 중). `provider_retry`는 기존 `retrying`입니다 |
 | 승인 기록 | `approval.requested` + `approval.resolved` | 해결 뒤에도 도구 호출에 결정, 기억 범위, 해결한 쪽, 요청한 쪽(`caller`)을 붙입니다. 도구 호출 id 없는 승인은 `looseApprovals`입니다 |
 | 개입 | 도구 결과 `details`(`code: "denied_by_extension"`, `"denied_by_guard"`, `resultPatchedBy`), `tool.sandbox_bypassed`, `tool.untrusted_read`, `secret.*` | 도구 호출별 개입 목록(종류, 확장 이름, 사유, 보조 값). 호출에 묶이지 않는 시크릿 가림과 승인은 `looseInterventions`입니다 |
@@ -4099,7 +4105,7 @@ export const templates = [
 
 ### 15.3 선택자 [결정: 2026-11-11 사용자]
 
-`convo-select.ts`의 선택자와 `hooks.ts`의 훅(`useToolProgress`, `useToolInterventions`, `useToolApprovals`, `useTurnSummaries`, `useTurnSummary`, `useAborting`, `useLeadSegments`, `useAgentRows`, `useNow`, `useConvoMarkers`)입니다. 같은 입력 참조에는 같은 결과 참조를 돌려줍니다.
+`convo-select.ts`의 선택자와 `hooks.ts`의 훅(`useToolProgress`, `useToolInterventions`, `useToolApprovals`, `useTurnSummaries`, `useTurnSummary`, `useAborting`, `useLeadSegments`, `useAgentRows`, `useNow`, `useConvoMarkers`, 대화 줄용 `useTranscriptShapes`·`useToolResults`)입니다. 같은 입력 참조에는 같은 결과 참조를 돌려줍니다.
 
 - `selectTurnSummary(s, threadId, turnId)`: 단계 수, 시간, 토큰(입력·출력·캐시·합), 비용 합과 원본 사용량(비용 표 계산용), 모델, 끝난 이유(`TurnEnd`), 마지막 단계의 멈춘 사유(`stopReason`), 경고, 알림, 멈추는 중 여부, 주도 scope. `step_limit`·`child_limit`는 `end.kind === "limit"`로 구분됩니다.
 - `selectLeadSegments`: 주도 구간별 보유 scope, 한도(`maxTurns`, `maxSpawns`, `maxTokens`), 사용량(턴 수, 토큰, 위임 수), 구간 안에서 시작한 주도 턴, 반납 사유. `selectLeadOfTurn`은 한 턴이 어느 구간에 속하는지 줍니다.
@@ -4110,7 +4116,7 @@ export const templates = [
 
 ### 15.4 도구 인자 요약과 묶음 [결정: 2026-11-11 사용자]
 
-도구 호출 인자는 화면에 JSON 그대로 보이지 않고 요약으로 보입니다. `state/engine/tool-summary.ts`의 `summarizeToolArgs(toolName, args, mcpServer?)`가 도구 이름 표로 요약을 만들고, 필수 필드가 없거나 타입이 틀린 인자는 인자 JSON을 400글자 이내로 줄인 `generic` 요약으로 떨어집니다(던지지 않습니다). 실제 인자 모양은 `packages/contracts/src/capabilities/defs/`가 정본입니다: `bash`는 명령과 시간 제한(초, `cwd`는 모델 인자에 없습니다), `read`는 경로와 줄 범위, `grep`·`find`·`ls`·`knowledge_search`는 검색, `task_write`는 `ops`(create·update·link·unlink), `memory_manage`는 저장소·동작·항목, `agent`는 에이전트 이름과 과제(`task`)입니다. MCP 도구는 서버를 이름으로 알 수 없으므로 결과 `details.server`를 호출자가 `mcpServer`로 넘깁니다. 연속된 도구 호출은 `groupToolCalls`가 범주별로 세고(읽기, 검색, 명령, 편집, 쓰기, 웹, 에이전트, 할 일, 메모리, MCP, 기타) 읽기·편집·쓰기는 고유 경로 수를 함께 줍니다. 문장은 화면이 i18n으로 만듭니다.
+도구 호출 인자는 화면에 JSON 그대로 보이지 않고 요약으로 보입니다. `state/engine/tool-summary.ts`의 `summarizeToolArgs(toolName, args, mcpServer?)`가 도구 이름 표로 요약을 만들고, 필수 필드가 없거나 타입이 틀린 인자는 인자 JSON을 400글자 이내로 줄인 `generic` 요약으로 떨어집니다(던지지 않습니다). 실제 인자 모양은 `packages/contracts/src/capabilities/defs/`가 정본입니다: `bash`는 명령과 시간 제한(초, `cwd`는 모델 인자에 없습니다), `read`는 경로와 줄 범위, `skill_view`는 스킬 이름(지원 파일이면 `이름/파일`)을 읽는 경로, `grep`·`find`·`ls`·`knowledge_search`는 검색, `task_write`는 `ops`(create·update·link·unlink), `memory_manage`는 저장소·동작·항목, `agent`는 에이전트 이름과 과제(`task`)입니다. MCP 도구는 서버를 이름으로 알 수 없으므로 결과 `details.server`를 호출자가 `mcpServer`로 넘깁니다. 연속된 도구 호출은 `groupToolCalls`가 범주별로 세고(읽기, 검색, 명령, 편집, 쓰기, 웹, 에이전트, 할 일, 메모리, MCP, 기타) 읽기·편집·쓰기는 고유 경로 수를 함께 줍니다. 문장은 화면이 i18n으로 만듭니다.
 
 ### 15.5 메시지 단위 동작 [결정: 2026-11-11 사용자]
 
@@ -4120,4 +4126,23 @@ export const templates = [
 - 되감기(`rewindTo`): `thread.revert {threadId, to}`. 대화의 leaf를 그 메시지로 옮기고(그 메시지는 남습니다) 뒤는 떠난 가지로 남습니다. **대화 기록만 옮기며 파일 변경은 되돌리지 않습니다.** 도는 턴이 있으면 거절합니다(`turn.busy`).
 - 다시 만들기(`regenerate`): 답에 대해 그 앞의 사용자 메시지까지 되감은 뒤 그 글로 `turn.start`를 다시 보냅니다. 도는 턴이 있거나 글이 없으면 되감기 전에 거절합니다. 글만 다시 보내므로 이미지 파트는 빠지고, 거울의 글은 화면 가림 표식이 적용된 복사본입니다.
 - 메시지 복사(`messageCopyText`): 사용자·어시스턴트 메시지의 글 파트를 줄바꿈으로 이어 붙인 원문입니다(생각, 도구 호출, 이미지는 넣지 않습니다).
+
+## 16. 대화 줄 (2026-11-11 dz 2차, 트랙 dzT2a)
+
+대화 목록의 줄 모델과 줄 부품의 정본입니다. 시각 결정은 §13의 DP-94~99, 상태와 선택자는 §15입니다.
+
+### 16.1 부품 [결정: 2026-11-11 사용자]
+
+`views/item-view.tsx`의 `TranscriptRowView`가 줄 하나의 틀(읽기 열, 줄 종류별 아래 여백, 주도 레일 `data-lead`)과 본문을 그립니다. 본문 부품은 `views/convo/`에 있습니다: 사용자 말·답·확장 카드(`message-rows.tsx`), 활동 묶음(`activity-group.tsx`), 도구 줄(`tool-call-row.tsx`, `tool-line.tsx`), 카드(`cards.tsx`), 턴 발 줄·표지·주도 머리와 끝(`turn-rows.tsx`), 동작 줄(`message-actions.tsx`). 펼친 본문은 모두 `Reveal` 경계 안에 있어 움직임 트랙이 나중에 펼침을 움직일 수 있습니다. 스타일은 `views/convo/convo.css` 한 파일이고 caustic 토큰만 씁니다. 메시지 명령(§15.5)은 `MessageActionsContext`로 들어오고 `main.tsx`가 `app.commands.message`를 넣습니다. 문맥이 없으면(시험, 미리보기) 명령 단추를 그리지 않습니다.
+
+### 16.2 줄 모델 [결정: 2026-11-11 사용자]
+
+`views/transcript-rows.ts`의 `transcriptRowsOf`가 확정 item의 모양(`state/engine/transcript-shape.ts`의 `selectTranscriptShapes`: 종류, 블록 순서, 도구 호출 id·이름·인자)과 진행 중 item, 요약 자리, 턴, 표지, 주도 구간으로 줄을 만듭니다.
+
+- 줄 종류: `user`, `reply`(글·생각), `activity`(묶음), `card`(결과물 도구), `result`(짝 없는 도구 결과), `custom`, `live`(진행 중), `compaction`, `marker`, `leadHead`, `leadEnd`, `turnFoot`.
+- 턴 경계는 `turn.started`의 `inputItemIds`이고, 턴을 모르는 기록은 사용자 말이 경계입니다. 끝난 턴 뒤(도는 턴은 빼고)에 턴 발 줄을 둡니다. 답 글도 턴도 없는 교환에는 두지 않습니다.
+- 호출 사이 생각은 묶음에, 글 앞 생각은 같은 item의 답 줄 머리에 들어갑니다.
+- 키: 사용자 말과 item의 첫 글 줄은 item id, 같은 item의 다음 글 줄은 `<item id>:<블록 자리>`, 묶음은 `act:<첫 호출 id>`, 카드는 `card:<호출 id>`, 표지 `mark:<seq>`, 주도 `lead:`·`lead-end:<lease id>`, 턴 발 `foot:<턴 id>`, 요약 `compact:<사건 id>`입니다. 진행 중 줄도 item id라 확정될 때 다시 마운트되지 않습니다(같은 `ReplyRow` 부품). 확정 기록에 이미 있는 진행 item은 빼냅니다.
+- 표지는 seq가 턴 시작 seq보다 앞인 첫 턴 앞에, 예약 실행 표지는 그 턴 앞에 섭니다. 요약 구분선은 자리 item 뒤(묶음 안 item이면 묶음 뒤, 그리지 않는 item이면 그 앞의 보이는 item 뒤)입니다.
+- 내용 없이 실패한 답은 그리지 않고, 내용이 있는 실패·중단 답은 마지막 글 줄 아래에 "실패"·"중단됨"을 한 번 답니다.
 
