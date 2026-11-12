@@ -71,3 +71,49 @@ test("settings and connection form controls take size and FIELD_WIDTH, not class
   }
   expect(found).toEqual([]);
 });
+
+/** `<Alert`의 범위: 스스로 닫히면 여는 태그(동작 prop 포함)까지, 아니면 짝인 `</Alert>`까지 */
+function alertSpansOf(source: string): string[] {
+  const spans: string[] = [];
+  for (const match of source.matchAll(/<Alert\b/g)) {
+    const open = openTagFrom(source, match.index);
+    if (open.endsWith("/>")) {
+      spans.push(open);
+      continue;
+    }
+    const close = source.indexOf("</Alert>", match.index);
+    spans.push(close < 0 ? open : source.slice(match.index, close));
+  }
+  return spans;
+}
+
+test("buttons inside an Alert take the alert tone, not their own", () => {
+  // DP-121: 띠(Alert) 안의 Button·IconButton은 tone을 주지 않는다. caustic Alert이 tone scope로 띠의 톤을 물려준다
+  // (danger 띠의 동작은 danger 단추). 색을 className으로 덮는 것도 막는다. variant(solid·soft·outline·ghost)는 고를 수 있다.
+  const found: string[] = [];
+  for (const file of sourceFiles([".tsx"])) {
+    const source = read(file);
+    for (const span of alertSpansOf(source)) {
+      for (const button of span.matchAll(/<(Button|IconButton)\b/g)) {
+        const tag = openTagFrom(span, button.index);
+        const colored = classAttrsOf(tag).some((value) =>
+          /(^|\s)!?(bg|text|border)-(neutral|accent|info|success|warning|danger|agent)-/.test(
+            value,
+          ),
+        );
+        if (/\btone=/.test(tag) || colored) {
+          found.push(`${relative(file)}: ${tag.replace(/\s+/g, " ").slice(0, 90)}`);
+        }
+      }
+    }
+  }
+  expect(found).toEqual([]);
+});
+
+test("alertSpansOf covers the action prop and the children", () => {
+  const sample = `<Alert tone="danger" action={<Button tone="neutral">a</Button>}>x <Button>b</Button></Alert><Button tone="danger">c</Button><Alert action={<IconButton label="i" />} />`;
+  const spans = alertSpansOf(sample);
+  expect(
+    spans.map((span) => [...span.matchAll(/<(Button|IconButton)\b[^>]*/g)].map((m) => m[0])),
+  ).toEqual([['<Button tone="neutral"', "<Button"], ['<IconButton label="i" /']]);
+});

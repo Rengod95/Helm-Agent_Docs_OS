@@ -185,7 +185,7 @@ export function SettingsPageView(props: SettingsPageProps): ReactNode {
     >
       {narrow ? null : <SectionNav {...props} />}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <ScreenHeader title={titleOf} titleId={headingId} pageTitle action={fileAction} />
+        <ScreenHeader title={titleOf} titleId={headingId} action={fileAction} />
         {narrow ? <NarrowNav {...props} /> : null}
         <ScrollArea label={t("desktop.settings.title")} className="min-h-0 flex-1">
           <div className="px-8 pt-2 pb-16">
@@ -241,8 +241,9 @@ function SectionNav(props: SettingsPageProps): ReactNode {
   const { handlers, section, query } = props;
   const searching = query.trim() !== "";
   return (
-    <div className="flex min-h-0 w-52 flex-none flex-col border-e border-border-subtle ps-2 pe-1.5">
-      <div className="flex h-12 flex-none items-center">
+    <div className="flex min-h-0 w-52 flex-none flex-col border-e border-border-subtle ps-2 pe-1.5 [--band-bleed-end:6px] [--band-bleed-start:8px]">
+      {/* 머리 띠(DP-122): 찾기 칸 줄은 화면 머리와 같은 높이와 아래 선을 가져 머리 선이 창 끝까지 한 줄로 이어진다 */}
+      <div data-header-band="" className="flex flex-none items-center">
         <SearchField {...props} />
       </div>
       <ListNavigation

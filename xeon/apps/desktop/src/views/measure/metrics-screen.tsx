@@ -3,7 +3,7 @@ import { t } from "@fresnel/client/i18n";
 import { Select, SelectOption } from "@caustic/react";
 import { useState, type ReactNode } from "react";
 import { useLinkPhase, useOpenThreadId, useRecentTurnIds } from "../../state/engine/index.ts";
-import { PanelExpandButton } from "../shell/screen-header.tsx";
+import { ScreenHeader } from "../shell/screen-header.tsx";
 import { tabLinkOf } from "../workbench/tab-read.ts";
 import { loadPerf } from "./perf-read.ts";
 import { PerfView } from "./perf-view.tsx";
@@ -27,12 +27,10 @@ export function MetricsScreen(): ReactNode {
     commands.measure.promotion(threadId),
   );
   return (
-    // 머리(제목)는 붙박이고 내용만 한 스크롤 컨테이너에서 흐른다. 내용은 시안 WB_WIDTH와 같은 가운데 폭(60rem, 좌우 여백 3)이다
+    // 머리(제목)는 공용 머리로 붙박이고 내용만 한 스크롤 컨테이너에서 흐른다. 내용은 시안 WB_WIDTH와 같은 가운데 폭(60rem, 좌우 여백 3)이다
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mx-auto flex w-full max-w-240 items-center gap-1 px-3 pt-6 pb-4">
-        <PanelExpandButton />
-        <h1 className="m-0 text-text-primary">{t("desktop.measure.title")}</h1>
-      </div>
+      {/* 공용 머리(DP-122): 다른 화면과 같은 머리 띠·제목 글자 */}
+      <ScreenHeader title={t("desktop.measure.title")} />
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto grid w-full max-w-240 gap-5 px-3 pb-6">
           <PerfView read={perf} onOpenTurn={setPicked} />

@@ -42,19 +42,20 @@
 .convo-prose h6 {
   margin: 20px 0 6px;
   font-weight: 600;
+  letter-spacing: var(--md-heading--letter-spacing);
   color: var(--cs-color-text-primary);
 }
 .convo-prose h1 {
-  font-size: 18px;
-  line-height: 26px;
+  font-size: var(--md-h1);
+  line-height: var(--md-h1--line-height);
 }
 .convo-prose h2 {
-  font-size: 16px;
-  line-height: 24px;
+  font-size: var(--md-h2);
+  line-height: var(--md-h2--line-height);
 }
 .convo-prose :is(h3, h4, h5, h6) {
-  font-size: 15px;
-  line-height: 23px;
+  font-size: var(--md-h3);
+  line-height: var(--md-h3--line-height);
 }
 .convo-prose[data-size="compact"] :is(h1, h2, h3, h4, h5, h6) {
   margin: 12px 0 4px;

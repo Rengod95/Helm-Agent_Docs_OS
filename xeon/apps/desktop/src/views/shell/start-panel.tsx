@@ -242,7 +242,7 @@ export function StartPanel(props: StartPanelProps): ReactNode {
         rail ? (
           <div className="grid justify-items-start gap-1.5">
             {/* 창 틀(DP-80): macOS 신호등이 이 칸 자리에 온다. styles.css가 그때 로고를 감춘다(칸은 남아 아래 단추가 움직이지 않는다) */}
-            <span data-chrome-brand="" className="grid h-control-md w-9 place-items-center">
+            <span data-chrome-brand="" data-header-band="" className="grid place-items-center">
               <BrandMark />
             </span>
             {area === "chat" ? (
@@ -259,7 +259,8 @@ export function StartPanel(props: StartPanelProps): ReactNode {
           <div className="grid min-w-0 gap-1.5">
             {/* 영역 탭 줄 끝에 패널 접기 단추를 둔다(찾기 줄은 없다. 명령 팔레트는 ⌘K) */}
             {/* 창 틀(DP-80): macOS 신호등 자리만큼 styles.css가 이 줄 앞을 비운다 */}
-            <div data-chrome-row="" className="flex min-w-0 items-center gap-1">
+            {/* 머리 띠(DP-122): 화면 머리와 같은 `--shell-header-h` 높이와 아래 선. 가운데 줄이 신호등·화면 제목과 같은 y 22에 선다 */}
+            <div data-chrome-row="" data-header-band="" className="flex min-w-0 items-center gap-1">
               <BrandMark className="ms-1 me-0.5" />
               <AreaSwitch onSwitch={props.onSwitchArea} />
               <IconButton

@@ -2661,7 +2661,7 @@
   "desktop.playgroundTabs.menu.left": "Move left",
   "desktop.playgroundTabs.menu.right": "Move right",
   "desktop.playgroundTabs.menu.unpin": "Unpin",
-  "desktop.playgroundTabs.more": "{count} more tabs",
+  "desktop.playgroundTabs.all": "All {count} pinned tabs",
   "desktop.playgroundTabs.openPlayground": "Open Playground",
   "desktop.playgroundTabs.screens": "Choose screen",
   "desktop.playgroundTabs.empty.title": "No open tab",

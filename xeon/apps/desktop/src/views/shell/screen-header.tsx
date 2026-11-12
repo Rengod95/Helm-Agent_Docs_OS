@@ -43,12 +43,10 @@ export function PanelExpandButton(): ReactNode {
 }
 
 export interface ScreenHeaderProps {
-  /** 제목. 문자열이면 h1(500 secondary)로 그린다 */
+  /** 제목. 문자열이면 h1로 그린다. 글자 단계는 모든 화면이 하나(type-scale.css `--header-title` 15/20 500, DP-123) */
   readonly title: ReactNode;
   /** 제목 h1의 id(섹션 aria-labelledby용) */
   readonly titleId?: string;
-  /** 설정 화면 제목: 문자열 h1에 `data-page-title`을 단다(type-scale.css가 20/28로 키운다) */
-  readonly pageTitle?: boolean;
   /** 제목 앞 단추(뒤로 가기 등) */
   readonly lead?: ReactNode;
   /** 참이면 제목 h1을 낭독기에만 둔다(플레이그라운드 탭 화면: 지금 탭이 곧 제목이다) */
@@ -79,7 +77,6 @@ export function ScreenHeader(props: ScreenHeaderProps): ReactNode {
         {typeof props.title === "string" ? (
           <h1
             id={props.titleId}
-            data-page-title={props.pageTitle === true ? "" : undefined}
             title={props.title}
             className={
               props.titleHidden === true

@@ -14,7 +14,6 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
 import { useState, type ReactNode } from "react";
 import { useThread, useTurnSummaries } from "../state/engine/index.ts";
-import { useShell } from "../state/shell/index.ts";
 import { useSelectedThreadId } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
 import { useDesktopShell } from "./desktop-shell-context.ts";
@@ -32,7 +31,8 @@ import {
 
 // 대화 머리(시안 _chat-rt의 ChatHead): 고른 대화의 제목 한 줄과 오른쪽 도구(L4.desktop-ux DP-103 [결정: 2026-11-11 사용자]).
 // 제목 뒤: 예약이 시작한 대화의 예약 줄, 갈라낸 대화의 "원본" 링크. 오른쪽: 생각·도구 표시 수준 메뉴, 턴별 사용량, ⋯ 메뉴(행 메뉴와 같다).
-// 왼쪽 패널이 닫혀 있으면 맨 앞에 "시작 영역 열기" 단추를 둔다. 대화를 고르지 않았고 패널이 열려 있으면 아무것도 그리지 않는다.
+// 왼쪽 패널이 닫혀 있으면 맨 앞에 "시작 영역 열기" 단추를 둔다. 대화를 고르지 않았어도 머리 띠는 그린다(DP-122): 제목은 비고
+// 플레이그라운드 탭과 아래 선이 남아 왼쪽 패널 머리의 선과 한 줄로 이어진다.
 // 머리는 대화 열이 아니라 내용 영역 전체 폭이다(`.shell-header`). 높이는 `--shell-header-h`, 아래에 border-subtle 선.
 
 export function ChatHeader(): ReactNode {
@@ -306,14 +306,8 @@ function UsageButton(props: { readonly threadId: ThreadId }): ReactNode {
 
 /** 머리 한 줄. title이 null이면 대화가 없는 머리라서, 패널이 열려 있으면 그리지 않는다 */
 function HeadRow(props: { readonly title: ReactNode; readonly action: ReactNode }): ReactNode {
-  const startOpen = useShell((s) => s.startOpen);
   return (
     // 대화 기록 스크롤 영역(VirtualList)이 안쪽 위 여백을 이미 가져서 머리에 공용 간격을 더하지 않는다
-    <ScreenHeader
-      hidden={startOpen && props.title === null}
-      flush
-      title={props.title}
-      action={props.action}
-    />
+    <ScreenHeader flush title={props.title} action={props.action} />
   );
 }

@@ -102,29 +102,52 @@ export function withDropped(
   return { pinned: [...order, ...hidden], seen: prefs.seen };
 }
 
-/** 탭 줄 배치. `label`은 아이콘과 이름, `icon`은 아이콘만. `visible`개 뒤는 "더 보기" 메뉴로 접는다 */
-export interface TabStripLayout {
-  readonly mode: "label" | "icon";
-  readonly visible: number;
+/** 탭 모양. `label`은 아이콘과 이름, `icon`은 아이콘만(좁은 창). 넘치면 줄이 가로로 스크롤된다(DP-124) */
+export type TabMode = "label" | "icon";
+
+/** 탭 모양: 좁은 창(compact)은 아이콘 탭, 그 밖은 이름 탭. 넘침은 모양을 바꾸지 않고 스크롤로 푼다 */
+export function tabModeOf(compact: boolean): TabMode {
+  return compact ? "icon" : "label";
 }
 
-/** 이름 탭 하나의 최대 폭(px, 이름 128 + 아이콘·여백) */
-export const LABEL_TAB_MAX = 160;
-/** 아이콘 탭 하나의 폭(28 + 사이 2, px) */
-export const ICON_TAB = 30;
-/** "더 보기" 단추 자리(px) */
-const MORE_BUTTON = 48;
+/** 탭 줄이 머리 폭에서 쓸 수 있는 몫(DP-124: 절반을 넘지 않는다) */
+export const STRIP_SHARE = 0.5;
+
+/** 스크롤 위치로 양 끝의 흐림을 정한다(흐림 폭 24px은 styles.css DP-124와 탭 줄의 scroll-padding). 1px 안의 차이는 끝에 닿은 것으로 본다(소수 배율 반올림) */
+export function stripFadeOf(
+  scrollLeft: number,
+  scrollWidth: number,
+  clientWidth: number,
+): { readonly start: boolean; readonly end: boolean } {
+  const max = Math.max(0, scrollWidth - clientWidth);
+  return { start: scrollLeft > 1, end: scrollLeft < max - 1 };
+}
 
 /**
- * 쓸 수 있는 폭(`avail`, px)에 탭 `count`개를 놓는 방법. 이름 탭이 다 들어가면 이름, 아니면 아이콘, 그래도 넘치면 들어가는 만큼과
- * "더 보기"다. `compact`(좁은 창)는 늘 아이콘이다. 폭이 하나도 안 되면 0개와 "더 보기"다
+ * 휠 한 번이 탭 줄을 얼마나 옮길지(px). 가로 성분이 크면(트랙패드 가로 밀기) 그대로, 세로 휠이면 세로 값을 가로로 바꾼다.
+ * 더 갈 곳이 없으면 0이라 그 휠은 화면에 넘긴다(가로 스크롤이 끝에 닿은 채 페이지 스크롤을 막지 않는다)
  */
-export function tabStripLayoutOf(count: number, avail: number, compact: boolean): TabStripLayout {
-  if (count <= 0) return { mode: "icon", visible: 0 };
-  if (!compact && count * LABEL_TAB_MAX <= avail) return { mode: "label", visible: count };
-  if (count * ICON_TAB <= avail) return { mode: "icon", visible: count };
-  const fit = Math.floor(Math.max(0, avail - MORE_BUTTON) / ICON_TAB);
-  return { mode: "icon", visible: Math.min(count, fit) };
+export function wheelShiftOf(
+  deltaX: number,
+  deltaY: number,
+  scrollLeft: number,
+  scrollWidth: number,
+  clientWidth: number,
+): number {
+  const delta = Math.abs(deltaX) >= Math.abs(deltaY) ? deltaX : deltaY;
+  const max = Math.max(0, scrollWidth - clientWidth);
+  const next = Math.min(max, Math.max(0, scrollLeft + delta));
+  return next - scrollLeft;
+}
+
+/** 끌어 놓는 동안 줄 끝 가까이(이 폭, px) 오면 그 쪽으로 저절로 스크롤한다 */
+const DRAG_EDGE = 32;
+
+/** 끄는 손이 줄의 어느 끝 가까이 있는지: -1 왼쪽, 1 오른쪽, 0 가운데 */
+export function dragEdgeOf(clientX: number, left: number, right: number): -1 | 0 | 1 {
+  if (clientX < left + DRAG_EDGE) return -1;
+  if (clientX > right - DRAG_EDGE) return 1;
+  return 0;
 }
 
 /** 열어 둔(상태를 지키는) 탭 수의 상한. 넘으면 가장 오래 안 본 것부터 내린다 */
