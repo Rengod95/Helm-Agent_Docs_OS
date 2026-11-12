@@ -1070,10 +1070,10 @@ sequenceDiagram
    | 에이전트 | 대화와 기억 | 보관, 기억, 기억과 검색 |
    | 엔진 | 연결과 서비스 | 연결 화면 본문(호스트, 실행 방식, 진단) |
    | 엔진 | 실행 | 셸(셸 경로, 자식 환경 변수 이름), 동시 실행과 예약(대화 잠금 실패 동작, 확장의 예약 만들기) (DP-88) |
-   | 엔진 | 데이터 | 백업과 복원, 저장 공간, 설정 파일 경로, 로그와 텔레메트리 |
+   | 엔진 | 데이터 | 백업과 복원, 저장 공간, 설정 파일 경로, 로그 [결정: 2026-11-12 dzX, 텔레메트리 줄을 뺌] |
 
 2. 구역에 둘 키는 앱의 구역 표(`apps/desktop/src/views/pages/settings/settings-sections.ts` `SETTINGS_SECTIONS`)가 정한다. 정의의 `ui.tab`은 화면 배치에 쓰지 않는다. 같은 키는 두 구역에 들지 않는다(`settings-sections.test.ts`).
-3. 표에 없는 키는 화면에 그리지 않고 찾기에도 나오지 않는다. 엔진 정의, 기본값, 설정 파일 값은 그대로이고 "파일로 보기"로 고칠 수 있다. 화면에서 뺀 묶음: 예산과 한도(`l1.loop.*`, 이어가기, 추론 예산, 라우팅, 레이트 리밋), 엔진의 OS 알림(`l2.dialog.notify.*`, 알림 구역과 겹침), 서비스와 원격 웹(`l0.process.service.*`, `l4.remote.web.*`, 연결 구역의 실행 방식과 겹침), 운영자 키(저장소 주기, 진단 주소 등).
+3. 표에 없는 키는 화면에 그리지 않고 찾기에도 나오지 않는다. 엔진 정의, 기본값, 설정 파일 값은 그대로이고 "파일로 보기"로 고칠 수 있다. 화면에서 뺀 묶음: 예산과 한도(`l1.loop.*`, 이어가기, 추론 예산, 라우팅, 레이트 리밋), 엔진의 OS 알림(`l2.dialog.notify.*`, 알림 구역과 겹침), 서비스와 원격 웹(`l0.process.service.*`, `l4.remote.web.*`, 연결 구역의 실행 방식과 겹침), 운영자 키(저장소 주기, 진단 주소 등). [결정: 2026-11-12 dzX] 읽는 곳이 없는 키도 뺀다: `l0.secrets.approval.writeHosts`(L0.secrets.spec §6.1), `l0.os.telemetry.enabled`(L0.os.spec §6).
 4. 설정 점프(`requestSettingsJump`)는 구역 id나 옛 탭 값을 받는다. 키가 표에 있으면 그 키의 구역을 열고, 아니면 받은 구역(옛 탭이면 옮겨 간 구역)을 연다. 연결 열기(`connection.open`)는 `{ tab: "connection" }` 점프다.
 5. [결정: 2026-11-11 사용자] 전용 패널도 자기가 그리는 키를 구역 표에 적는다(`panel(id, keys)`). 그래서 패널이 그리는 키도 한 구역에만 들고, 점프는 그 구역을 열며, 찾기는 맞은 키를 일반 항목 줄로 보인다. 모델과 계정, 권한, 샌드박스 구역에는 일반 항목 줄이 없다. 시크릿 고급에 넣는 키는 `l0.secrets.providers`, `defaultProvider`, `ageKey.source`, `ageKey.filePath`, `lease.ttlSeconds`, `lease.maxUses`, `audit.retentionDays`다. `sops.binary`, `sops.files`, `redaction.enabled`는 화면에서 뺀다(파일로 보기로 고친다). 옛 "계정 회전" 패널 id(`rotation`)는 계정 패널(`accounts`)에 들어갔다 [근거: apps/desktop/src/views/pages/settings/settings-sections.ts `SETTINGS_SECTIONS`, `SECRET_ADVANCED_KEYS`].
 

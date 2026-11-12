@@ -115,6 +115,8 @@ export interface TableColumn {
   readonly kind: ListItemKind | "enum" | "json";
   readonly options: readonly (string | number)[] | null;
   readonly required: boolean;
+  /** 스키마가 `null`을 받는 열(`Nullable`). 글 열의 빈 칸은 `""`가 아니라 `null`로 저장한다. 아니면 생략한다 */
+  readonly nullable?: boolean;
 }
 
 export type WidgetVM =

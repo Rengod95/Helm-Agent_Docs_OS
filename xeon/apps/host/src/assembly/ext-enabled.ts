@@ -38,6 +38,8 @@ export interface ExtEnabledFollowDeps {
     "disabled" | "questions" | "reenable"
   >;
   readonly logger: Logger;
+  /** 적용이 끝났음을 알린다. 설정 변경 목록을 비운 알림(`settings.invalidated`)으로 보내 클라이언트가 목록을 다시 읽게 한다 */
+  readonly settled: () => void;
   /** 엔진 수명 신호 */
   readonly signal: AbortSignal;
 }
@@ -54,8 +56,21 @@ export function followExtEnabled(deps: ExtEnabledFollowDeps): () => void {
       enabled &&
       (deps.autoDisabler.disabled().includes(key) ||
         deps.autoDisabler.questions().some((question) => question.key === key));
-    await deps.loader()?.settingChanged(name, deps.signal);
-    if (pending) deps.autoDisabler.reenable(key);
+    // 실패해도(던짐 포함) 목록을 다시 읽게 `settled`는 finally에서 부른다. 안 그러면 화면이 대기 표시에 머문다
+    try {
+      const info = await deps.loader()?.settingChanged(name, deps.signal);
+      // 켜기가 실리지 않았으면(찾지 못함, 시작 조건 불충족, 적재 실패) 결과를 버리지 않고 남긴다. 화면은 `settled` 뒤 목록의 진단으로 보여 준다
+      if (enabled && (info === undefined || info.state !== "active")) {
+        deps.logger.warn("ext.enable_not_active", {
+          extension: name,
+          state: info?.state ?? "unknown",
+          code: info?.diagnostics.at(-1)?.code ?? null,
+        });
+      }
+      if (pending) deps.autoDisabler.reenable(key);
+    } finally {
+      deps.settled();
+    }
   };
   return deps.onChange((change) => {
     // 대화에서만 바꾼 값(`launch`)은 그 대화의 등록 요청이다(`followThreadEnabled`)

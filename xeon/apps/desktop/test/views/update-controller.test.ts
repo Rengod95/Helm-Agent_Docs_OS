@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   createUpdateController,
+  updaterReachable,
   type UpdateController,
 } from "../../src/views/update-controller.ts";
 import type { UpdateInvoke } from "../../src/views/update-invoke.ts";
@@ -400,5 +401,18 @@ describe("a shell that never answers", () => {
     await controller.retry();
     expect(calls).toEqual(["update_status", "update_check", "update_check"]);
     expect(controller.getState().kind).toBe("failed");
+  });
+});
+
+describe("where an update controller exists", () => {
+  test("only the desktop shell's own window reaches the update commands", () => {
+    expect(updaterReachable("electron", { protocol: "fresnel-view:" })).toBe(true);
+  });
+
+  test("a web document or a build without a shell has no update controller", () => {
+    expect(updaterReachable("electron", { protocol: "https:" })).toBe(false);
+    expect(updaterReachable("electron", { protocol: "http:" })).toBe(false);
+    expect(updaterReachable("none", { protocol: "fresnel-view:" })).toBe(false);
+    expect(updaterReachable("none", { protocol: "https:" })).toBe(false);
   });
 });

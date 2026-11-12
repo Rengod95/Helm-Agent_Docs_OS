@@ -36,19 +36,22 @@ export function asksDisable(params: Pick<StreamChunkParams, "event">): boolean {
   return payload.ok && payload.value.asksDisable === true;
 }
 
-/** 목록을 다시 읽을 알림마다 `listener`를 부른다. 반환값은 구독 해제 */
+/**
+ * 목록을 다시 읽을 알림마다 `listener`를 부른다. 인자 `settled`는 적용이 끝났다는 신호다: 키 목록이 빈 `settings.invalidated`를
+ * 호스트가 확장 설정 적용 뒤에 보낸다(`ext-enabled.ts`). 그때는 대기 중인 켜기·끄기의 결과를 판정한다. 반환값은 구독 해제
+ */
 export function subscribeExtChanges(
   connection: Pick<HostConnection, "onNotification">,
-  listener: () => void,
+  listener: (settled: boolean) => void,
 ): () => void {
   const offSettings = connection.onNotification("settings.invalidated", (params) => {
-    if (isExtSettingsChange(params)) listener();
+    if (isExtSettingsChange(params)) listener(params.keys.length === 0);
   });
   const offEvents = connection.onNotification("events.batch", (params) => {
-    if (hasScopeChange(params)) listener();
+    if (hasScopeChange(params)) listener(false);
   });
   const offChunks = connection.onNotification("stream.chunk", (params) => {
-    if (asksDisable(params)) listener();
+    if (asksDisable(params)) listener(false);
   });
   return () => {
     offSettings();
@@ -59,7 +62,7 @@ export function subscribeExtChanges(
 
 export function createWorkbenchCommands(
   withConnection: WithConnection,
-  subscribeChanges: (listener: () => void) => () => void,
+  subscribeChanges: (listener: (settled: boolean) => void) => () => void,
 ): WorkbenchCommands {
   return {
     async list(threadId) {

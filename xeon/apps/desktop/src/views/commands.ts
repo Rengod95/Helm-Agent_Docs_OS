@@ -783,9 +783,9 @@ export interface WorkbenchCommands {
   list(threadId?: ThreadId): Promise<Result<readonly ExtListEntry[], CommandError>>;
   /**
    * 확장 목록이 바뀌었을 수 있으면 부른다: 확장 설정 키(`ext.`)가 바뀐 `settings.invalidated`, 자동 끄기 기록(내구 `scope.changed`).
-   * 알림의 값은 싣지 않는다(다시 읽는 신호일 뿐). 반환값은 구독 해제
+   * 알림의 값은 싣지 않는다(다시 읽는 신호일 뿐). `settled`는 확장 설정 적용이 끝났다는 뜻이다(키 목록이 빈 알림). 반환값은 구독 해제
    */
-  onChanged(listener: () => void): () => void;
+  onChanged(listener: (settled: boolean) => void): () => void;
   /** `ext.installPreview`: 폴더의 이름, 버전, 요청 권한을 디스크에 쓰지 않고 읽는다(Q9) */
   installPreview(source: string): Promise<Result<InstallPreview, CommandError>>;
   /** `ext.install`: 미리 보기에서 본 해시(`sha256`)와 같은 내용일 때만 설치한다 */

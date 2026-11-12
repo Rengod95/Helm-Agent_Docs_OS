@@ -1,4 +1,5 @@
-import type { MessageId } from "@fresnel/client/i18n";
+import { catalogOf, type MessageId } from "@fresnel/client/i18n";
+import { updateLineKey, type UpdateCheckLine } from "@fresnel/client/settings";
 import { describe, expect, test } from "bun:test";
 import {
   canCheck,
@@ -10,6 +11,7 @@ import {
   notesLinesOf,
   primaryActionOf,
   progressPercentOf,
+  updateCheckLineOf,
   reasonTextOf,
   reduceUpdate,
   retryStepOf,
@@ -601,5 +603,101 @@ describe("the popover text", () => {
         notes: null,
       }),
     ).toBeNull();
+  });
+});
+
+describe("the connection update line", () => {
+  const CURRENT = "0.4.1";
+  const FOUND: UpdateCheckLine = { state: "available", version: "0.4.2", current: CURRENT };
+  const INSTALLING: UpdateState = { kind: "installing", version: "0.4.2", notes: null };
+  const FAILED_CHECK: UpdateState = {
+    kind: "failed",
+    stage: "check",
+    reason: "network",
+    version: null,
+    notes: null,
+  };
+  const OFFLINE_CHECK: UpdateState = {
+    kind: "offline",
+    stage: "check",
+    version: null,
+    notes: null,
+  };
+  const FAILED_DOWNLOAD: UpdateState = {
+    kind: "failed",
+    stage: "download",
+    reason: "signature",
+    version: "0.4.2",
+    notes: null,
+  };
+  const OFFLINE_INSTALL: UpdateState = {
+    kind: "offline",
+    stage: "install",
+    version: "0.4.2",
+    notes: null,
+  };
+
+  test("each update state reads as its own line, and only a failed check reads as failed", () => {
+    const states: readonly UpdateState[] = [
+      { kind: "unconfigured" },
+      { kind: "checking" },
+      { kind: "current" },
+      AVAILABLE,
+      DOWNLOADING,
+      READY,
+      INSTALLING,
+      FAILED_CHECK,
+      OFFLINE_CHECK,
+      FAILED_DOWNLOAD,
+      OFFLINE_INSTALL,
+    ];
+    expect(states.map((state) => updateCheckLineOf(state, CURRENT)?.state ?? null)).toEqual([
+      "notConfigured",
+      "checking",
+      "latest",
+      "available",
+      "available",
+      "available",
+      "available",
+      "failed",
+      "failed",
+      "available",
+      "available",
+    ]);
+  });
+
+  test("an app without an update setup asks for no version and reads as not checking", () => {
+    expect(updateCheckLineOf({ kind: "unconfigured" }, null)).toEqual({ state: "notConfigured" });
+  });
+
+  test("the latest line carries the current version and needs it", () => {
+    expect(updateCheckLineOf({ kind: "current" }, CURRENT)).toEqual({
+      state: "latest",
+      version: CURRENT,
+    });
+    expect(updateCheckLineOf({ kind: "current" }, null)).toBeNull();
+  });
+
+  test("a found update carries the new and the current version, and needs both", () => {
+    expect(updateCheckLineOf(AVAILABLE, CURRENT)).toEqual(FOUND);
+    expect(updateCheckLineOf(AVAILABLE, null)).toBeNull();
+    expect(updateCheckLineOf(FAILED_DOWNLOAD, null)).toBeNull();
+  });
+
+  test("a failed download or install still shows the found update, not a failed check", () => {
+    expect(updateCheckLineOf(FAILED_DOWNLOAD, CURRENT)).toEqual(FOUND);
+    expect(updateCheckLineOf(OFFLINE_INSTALL, CURRENT)).toEqual(FOUND);
+  });
+
+  test("the line keys are the words the screen shows", () => {
+    const ko = catalogOf("ko");
+    expect(ko[updateLineKey({ state: "checking" })]).toBe("업데이트를 확인하고 있어요.");
+    expect(ko[updateLineKey({ state: "failed" })]).toBe("업데이트를 확인하지 못했어요.");
+    expect(ko[updateLineKey({ state: "notConfigured" })]).toBe(
+      "이 실행에서는 앱 업데이트를 확인하지 않아요.",
+    );
+    expect(catalogOf("en")["desktop.update.notConfigured"]).toBe(
+      "This run doesn't check for app updates.",
+    );
   });
 });

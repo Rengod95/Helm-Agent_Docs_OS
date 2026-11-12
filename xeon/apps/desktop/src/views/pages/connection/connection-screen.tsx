@@ -12,6 +12,7 @@ import {
   useTargetNotice,
 } from "../../../state/ui/index.ts";
 import { useCommands } from "../../commands.ts";
+import { PaletteRestartDialog } from "../../restart-confirm-dialog.tsx";
 import {
   canConnect,
   clientsReasonOf,
@@ -50,6 +51,8 @@ export function ConnectionScreen(props: {
   const rowProbes = useRowProbe();
   // 화면을 열 때 엔진이 붙은 대상을 잡아 둔다. 목록을 읽은 뒤 이 대상을 엔진 칸으로 맞춘다(떠났다 돌아와도 같은 대상을 본다)
   const [openedTarget] = useState(() => engineTarget);
+  // 살아 있는 엔진의 재시작은 셸이 확인(`confirmed`)을 요구한다. 설정 띠와 같은 확인 대화 상자를 거친다
+  const [restartAsking, setRestartAsking] = useState(false);
   // 늦게 온 상태 읽기가 새 읽기를 덮지 않도록 읽기마다 번호를 매긴다
   const latest = useRef(0);
   const live = link === "live";
@@ -395,8 +398,9 @@ export function ConnectionScreen(props: {
       dispatch({ type: "notice", notice: null });
     },
     restart: () => {
-      // 엔진 다시 시작은 진행 단계를 따로 잡지 않는다. 멈춘 엔진이 아니면 셸이 거절하고 세션이 다시 잇는다
-      detach(commands.restartEngine(), rethrow);
+      // 멈춘 엔진(failed)은 확인 없이 다시 띄운다. 살아 있는 엔진은 확인 대화 상자를 거쳐 `confirmed`로 보낸다(F1)
+      if (engine?.kind === "failed") detach(commands.restartEngine(), rethrow);
+      else setRestartAsking(true);
     },
     copyDiagnostics: () => {
       detach(
@@ -430,23 +434,31 @@ export function ConnectionScreen(props: {
   };
 
   return (
-    <ConnectionScreenView
-      state={state}
-      engine={engine}
-      locale={activeLocale()}
-      handlers={handlers}
-      serviceSections={<ServiceSectionsContainer state={state} handlers={handlers} />}
-      embedded={props.embedded ?? false}
-      targetNotice={targetNotice}
-      reconnect={reconnectLinesOf({
-        engine,
-        nowMs,
-        remote: state.engineTarget.kind === "remote",
-        live,
-        lastSeen: lastRemoteSeen,
-        alive,
-      })}
-      rowProbe={rowProbes.row}
-    />
+    <>
+      <ConnectionScreenView
+        state={state}
+        engine={engine}
+        locale={activeLocale()}
+        handlers={handlers}
+        serviceSections={<ServiceSectionsContainer state={state} handlers={handlers} />}
+        embedded={props.embedded ?? false}
+        targetNotice={targetNotice}
+        reconnect={reconnectLinesOf({
+          engine,
+          nowMs,
+          remote: state.engineTarget.kind === "remote",
+          live,
+          lastSeen: lastRemoteSeen,
+          alive,
+        })}
+        rowProbe={rowProbes.row}
+      />
+      <PaletteRestartDialog
+        open={restartAsking}
+        onClose={() => {
+          setRestartAsking(false);
+        }}
+      />
+    </>
   );
 }

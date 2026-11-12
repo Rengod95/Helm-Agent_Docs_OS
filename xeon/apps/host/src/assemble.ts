@@ -152,6 +152,7 @@ import { createSettingsEngine, type SettingsEngine } from "./assembly/settings-e
 import { resolveSetting, type SettingCatalog } from "@fresnel/contracts/settings";
 import {
   execOptionsOf,
+  extensionSearchPathsOf,
   layersSource,
   logLevelOf,
   operationsSource,
@@ -160,6 +161,7 @@ import {
   secretsSource,
   shutdownTimeoutMs,
   spillRetentionDaysOf,
+  uiPolicyOf,
   storeSettingsOf,
 } from "./assembly/settings-sources.ts";
 import { ownerKindOf } from "./handlers/owner.ts";
@@ -1112,9 +1114,20 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
 
     // 3b. 기본 플러그인으로 올린 외부 확장 적재(L4.host-service §4.1, X.loading-trust §4.4.7). 안전 모드는 외부 확장을 싣지 않는다
     if (defaultsEnabled) {
+      // x.loading-trust.paths는 재시작할 때 읽는다. 상대 경로는 작업 폴더에 기대므로 싣지 않고 경고로 남긴다(X.loading-trust.spec §4.2.1)
+      const extraPaths = extensionSearchPathsOf(
+        settings.value("x.loading-trust.paths"),
+        os.dirs.home,
+      );
+      for (const path of extraPaths.ignored) {
+        os.logger("ext-loader").warn("ext.extra_path_ignored", { path });
+      }
+      // 화면 앱 정책도 재시작할 때 읽는다. 바뀐 값은 다음 시작에 적용한다(X.loading-trust.spec §4.3.4)
       const loaded = await loadExternalExtensions({
         ext,
         operations,
+        extraPaths: extraPaths.paths,
+        uiPolicy: uiPolicyOf(settings.value("x.ui.apps"), settings.value("x.ui.allowProjectApps")),
         fs: createLoaderFs(),
         userDir: os.dirs.config,
         homeDir: os.dirs.home,
@@ -1144,6 +1157,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         loader: () => external.loader,
         autoDisabler: operations.autoDisabler,
         logger: os.logger("ext-enabled"),
+        // 빈 변경 목록은 "전부 다시 읽으라"는 알림이다(설정 저장소의 전체 갱신과 같다). 확장 키 목록을 비워 이 알림이 다시 적용을 부르지 않게 한다
+        settled: () => {
+          settings.notifyChanged({ keys: [], scopes: ["user"], threadId: null });
+        },
         signal: lifetime.signal,
       });
       externalGroups.push(...loaded.manifests);

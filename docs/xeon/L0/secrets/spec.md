@@ -727,7 +727,7 @@ M2 설계(후속 구현):
 | `l0.secrets.ageKey.source` | `"auto" \| "auto-file" \| "keychain" \| "file"`(`auto-file`은 원격 호스트, §4.7 8번) | `"auto"` | managed, user | restart | secrets 탭 select |
 | `l0.secrets.ageKey.filePath` | `string \| null` | `null`(기본 경로 `<OsDirs.config>/secrets/age/keys.txt`) | managed, user | restart | secrets 탭 text |
 | `l0.secrets.approval.default` | `"none" \| "per-session" \| "per-use"` | `"per-session"` | managed, user | nextTurn | permissions 탭 |
-| `l0.secrets.approval.writeHosts` | `"per-session" \| "per-use"` | `"per-use"` [제안] | managed, user | nextTurn | permissions 탭 |
+| `l0.secrets.approval.writeHosts` | `"per-session" \| "per-use"` | `"per-use"` [제안] | managed, user | nextTurn | 화면에서 뺌 [결정: 2026-11-12 dzX] |
 | `l0.secrets.lease.ttlSeconds` | integer, 1~86400 | `900` | managed, user | live | secrets 탭 number |
 | `l0.secrets.lease.maxUses` | integer, 1~100000 | `200` | managed, user | live | secrets 탭 number |
 | `l0.secrets.redaction.enabled` | boolean | `true` | managed | restart | readonly 표시만 [제안: 끌 수 없음] |
@@ -737,6 +737,7 @@ M2 설계(후속 구현):
 - `project`, `local`, `launch` 범위는 받지 않는다. 저장소 안 파일이 시크릿 정책을 넓히지 못하게 한다(§3.2 범위 규칙).
 - `l0.secrets.redaction.enabled`는 끄는 값을 거부한다. [제안] 키를 두는 이유는 화면이 "마스킹 켜짐(보조 수단)"을 보이게 하기 위해서다.
 - 읽기·쓰기 호스트 구분: 메타에 `approval`이 비어 있을 때 `use.hosts`가 쓰기 호스트로 분류되면 `writeHosts`, 아니면 `default`를 쓴다. 분류는 메타를 만들 때 사람이 체크한다 [제안]. 자동 분류(HTTP 메서드 기반)는 하지 않는다.
+- [결정: 2026-11-12 dzX] `l0.secrets.approval.writeHosts`는 화면에서 뺀다. 키 정의와 `SecretsConfig.approval.writeHosts` 파싱은 남긴다. 위 규칙이 전제하는 분류 자리가 코드에 없기 때문이다. `SecretMetaSchema`의 `approval`은 필수 값이라 '비어 있음' 상태가 없고, `SecretUsePolicy`에는 쓰기 호스트 표시가 없다 [근거: `packages/contracts/src/capabilities/secrets.ts` `SecretMetaSchema`, `SecretUsePolicy`]. 메타 편집 화면도 승인을 늘 고른 값으로 보낸다. 그래서 읽히는 것은 `newMeta`의 `l0.secrets.approval.default`뿐이다. 분류 필드와 입력 자리를 더하면 이 키를 화면에 다시 올리고 `newMeta`에서 읽는다.
 
 ### 6.2 화면과 파일
 

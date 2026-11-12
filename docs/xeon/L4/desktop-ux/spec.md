@@ -1710,10 +1710,12 @@ compact 폭(720 이하)과 사이드바 시트:
 
 ④ 진단
   [엔진 다시 시작] [진단 복사]
-  업데이트를 아직 확인하지 않았어요.
+  업데이트 확인 한 줄(상태에 따라 다름)
 ```
 
 그림은 배치와 순서입니다. 글은 `packages/client/src/i18n/locales/ko.json`의 `desktop.connection.*` 문장이고, 이름과 주소는 보기 값입니다. 화면은 한 열이고 최대 폭 720px로 가운데에 맞춥니다. 섹션 사이는 `gap-10`, 섹션 안 묶음 사이는 `gap-4`입니다(DP-62). 원격 호스트에 붙어 있거나 상태를 읽는 중이면 ②·③·④는 그리지 않고, 맨 아래에 업데이트 줄 하나만 둡니다.
+
+"엔진 다시 시작"은 살아 있는 엔진이면 팔레트·상태 표시줄과 같은 확인 대화 상자를 거쳐 `confirmed`로 셸에 보냅니다(셸은 확인 없는 요청을 거절합니다). 실패한 엔진(`failed`)만 확인 없이 다시 띄웁니다. [결정: 2026-11-12 dzX, F1] [근거: `apps/desktop/src/views/pages/connection/connection-screen.tsx`, `apps/desktop-shell/src/main/engine/supervisor.ts` `restartManually`]
 
 - 목적: 앱이 붙을 호스트(엔진이 도는 곳)를 고르고, 이 컴퓨터의 실행 방식과 다른 기기 접속을 맞추고, 진단 동작을 둡니다(SC-08, SC-07).
 - 구조: 섹션은 위에서 아래로 넷입니다. ① 호스트, ② 실행 방식, ③ 다른 기기 접속, ④ 진단입니다. 섹션 머리는 caustic `SectionHeader`(제목 2, 16/22 600)이고, 선이나 상자를 더하지 않습니다(DP-62, DP-03).
@@ -1785,7 +1787,7 @@ compact 폭(720 이하)과 사이드바 시트:
 
 - 머리: "진단" 제목(13px 500)입니다. `SectionHeader`가 아닙니다(아래 구현 노트). [미결] [근거: `connection-view.tsx`]
 - 단추 두 개(ghost): "엔진 다시 시작"(셸 `engine_restart`)과 "진단 복사"(클립보드에 쓰고 "복사했어요" 토스트)입니다.
-- 업데이트 줄(본문, tertiary): "업데이트를 아직 확인하지 않았어요."입니다. 지금은 업데이트 상태를 잇지 않고 이 문장만 고정으로 보입니다. [미결] [근거: `connection-view.tsx`]
+- 업데이트 줄(본문, tertiary): 상태 칸과 같은 업데이트 정본(`UpdateContext`의 컨트롤러)을 읽어 한 줄을 고릅니다. 업데이트 설정이 없는 실행은 "이 실행에서는 앱 업데이트를 확인하지 않아요.", 확인 중은 "업데이트를 확인하고 있어요.", 최신은 "최신 버전을 쓰고 있어요.", 새 버전이 있으면 "새 버전이 있어요."입니다. "업데이트를 확인하지 못했어요."는 확인이 실패했을 때만 보입니다. 웹 문서와 셸 없는 빌드는 컨트롤러를 만들지 않아 줄을 그리지 않습니다. [결정: 2026-11-12 dzX, F11] [근거: `apps/desktop/src/views/update-model.ts` `updateCheckLineOf`, `apps/desktop/src/views/update-controller.ts` `updaterReachable`, `apps/desktop/src/views/update-parts.tsx` `UpdateCheckNote`, `apps/desktop/src/main.tsx`]
 
 #### 상태
 
@@ -1814,7 +1816,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 자동 시작 | 연결 명령 `serviceAutostart`와 `setServiceAutostart`(등록 파일은 셸이 씁니다). 상태를 읽으면 `supported`와 `registered`를 봅니다 |
 | 엔진 다시 시작 | 셸 IPC `engine_restart`를 확인 없이 부릅니다. 멈춘 엔진을 다시 띄우는 용도이고, 살아 있는 엔진이면 셸이 거절하고 연결이 다시 이어집니다. 서비스 켜기와 끄기 뒤의 재시작은 `confirmed: true`로 부릅니다 |
 | 진단 복사 | 설정 개요와 상태 막대와 같은 `copyDiagnostics` |
-| 업데이트 줄 | 고정 문장(`updateLineKey({ state: "unchecked" })`) [미결] [근거: `connection-view.tsx`] |
+| 업데이트 줄 | 업데이트 정본 상태를 `updateCheckLineOf`로 옮긴 한 줄. 웹과 셸 없는 빌드는 줄 없음 [결정: 2026-11-12 dzX, F11] [근거: `apps/desktop/src/views/update-parts.tsx` `UpdateCheckNote`] |
 
 - 대화 상자: 호스트 이름 바꾸기, 호스트 지우기 확인, 서비스 멈추기 확인, 다른 기기 접속 켜기 확인, 자동 시작 켜기 확인, 기기 끊기 확인(한 기기, 모두)입니다. 모두 확인과 취소 두 단추를 둡니다. 위험한 확인은 위험 글자 tone입니다.
 

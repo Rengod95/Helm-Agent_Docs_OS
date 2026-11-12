@@ -1,4 +1,6 @@
 import { assertNever } from "@fresnel/contracts";
+import { isWebDocument } from "../plugin-ui/frame-root.ts";
+import type { ShellBridge } from "../shell/bridge.ts";
 import {
   canCheck,
   canDownload,
@@ -157,4 +159,15 @@ export function createUpdateController(port: UpdatePort): UpdateController {
     installAndRestart,
     retry,
   };
+}
+
+/**
+ * 업데이트 명령에 셸이 답하는가. Electron 셸이 붙은 자기 문서만 답한다. 웹 문서와 셸 없는 빌드는 업데이트 명령이 없어서
+ * 확인이 늘 거부로 끝나고 "업데이트 실패"로 보인다. 그런 곳에는 컨트롤러를 만들지 않는다.
+ */
+export function updaterReachable(
+  shellKind: ShellBridge["kind"],
+  location: { readonly protocol: string },
+): boolean {
+  return shellKind === "electron" && !isWebDocument(location);
 }

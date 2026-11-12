@@ -7,7 +7,7 @@ import { createUiStore } from "../../src/state/ui/store.ts";
 import { UpdateContext } from "../../src/views/update-context.ts";
 import type { UpdateController } from "../../src/views/update-controller.ts";
 import type { UpdateState } from "../../src/views/update-model.ts";
-import { UpdateBody } from "../../src/views/update-parts.tsx";
+import { UpdateBody, UpdateCheckNote } from "../../src/views/update-parts.tsx";
 import { AboutCardView } from "../../src/views/pages/settings/settings-overview.tsx";
 import { PluginUiProvider } from "../../src/views/plugin/plugin-context.tsx";
 import { Providers } from "../../src/views/providers.tsx";
@@ -300,5 +300,39 @@ describe("settings about card: update", () => {
     expect(html).not.toContain(t("desktop.update.line.title"));
     expect(html).not.toContain(t("desktop.update.check.button"));
     expect(html).toContain(t("desktop.settings.about.engineUnknown"));
+  });
+});
+
+/** 연결 화면 진단 구역의 업데이트 한 줄을 주어진 문맥으로 그린다. 문맥이 null이면 웹과 같다 */
+function noteHtml(controller: UpdateController | null): string {
+  return renderToString(
+    <UpdateContext value={controller}>
+      <UpdateCheckNote />
+    </UpdateContext>,
+  );
+}
+
+describe("connection update line", () => {
+  test("without an update context (web) the line draws nothing", () => {
+    expect(noteHtml(null)).toBe("");
+  });
+
+  test("a failed check says it could not check, and it is not the old fixed sentence", () => {
+    const failed = noteHtml(
+      stubOf({ kind: "failed", stage: "check", reason: "network", version: null, notes: null }),
+    );
+    expect(failed).toContain(t("desktop.update.failed"));
+    expect(failed).not.toContain(t("desktop.update.unchecked"));
+  });
+
+  test("an app without an update setup says it does not check, and a checking app says so", () => {
+    expect(noteHtml(stubOf({ kind: "unconfigured" }))).toContain(t("desktop.update.notConfigured"));
+    expect(noteHtml(stubOf({ kind: "checking" }))).toContain(t("desktop.update.checking"));
+    expect(noteHtml(stubOf({ kind: "checking" }))).not.toContain(t("desktop.update.failed"));
+  });
+
+  test("a latest app and a found update each show their own line", () => {
+    expect(noteHtml(stubOf({ kind: "current" }))).toContain(t("desktop.update.latest"));
+    expect(noteHtml(stubOf(AVAILABLE))).toContain(t("desktop.update.available"));
   });
 });
