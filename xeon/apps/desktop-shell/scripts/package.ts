@@ -9,6 +9,7 @@ import {
   copyFileSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -40,6 +41,9 @@ const requiredInputs = [
   path.join(shell, "node_modules", "electron", "dist", "LICENSE"),
   path.join(shell, "dist", "engine-notices.txt"),
   path.join(shell, "dist", "default-plugins"),
+  path.join(shell, "dist", "bundled-binaries", "binaries.lock.json"),
+  path.join(shell, "dist", "bundled-binaries", "binaries", "sops"),
+  path.join(shell, "dist", "bundled-binaries", "binaries", "age"),
   path.join(shell, "node_modules", "mac-security", "index.js"),
   path.join(shell, "node_modules", "mac-security", "build", "Release", "mac_security.node"),
 ];
@@ -49,7 +53,7 @@ for (const file of requiredInputs) {
       ? "; the Electron binary was not unpacked (bun install skipped its postinstall): cd apps/desktop-shell/node_modules/electron && node install.js"
       : "";
     process.stderr.write(
-      `package: missing ${file} (just desktop-build-electron builds the inputs; or just desktop-ui, just desktop-sidecar host, just desktop-sidecar host --gateway)${electronHint}\n`,
+      `package: missing ${file} (just desktop-build-electron builds the inputs, sops and age included; or just desktop-ui, just desktop-sidecar host, just desktop-sidecar host --gateway)${electronHint}\n`,
     );
     process.exit(2);
   }
@@ -74,6 +78,16 @@ copyFileSync(
   path.join(shell, "dist", "engine-notices.txt"),
   path.join(licenses, "THIRD-PARTY-NOTICES.txt"),
 );
+
+// 외부 바이너리(sops, age): `just desktop-build-electron`이 scripts/bundled-binaries.ts로 먼저 dist/bundled-binaries/에 만든다
+// (binaries/, binaries.lock.json, licenses/). 여기서는 Resources로 옮기기만 한다(프로세스 실행은 L0 소유라 셸 소스가 아니라 그 스크립트가 한다).
+// 엔진은 사이드카 옆 Resources의 lock을 읽어 번들을 시스템보다 먼저 쓴다(OS-11).
+const bundledBinaries = path.join(shell, "dist", "bundled-binaries");
+const binariesStage = path.join(bundledBinaries, "binaries");
+const binariesLockFile = path.join(bundledBinaries, "binaries.lock.json");
+for (const file of readdirSync(path.join(bundledBinaries, "licenses"))) {
+  copyFileSync(path.join(bundledBinaries, "licenses", file), path.join(licenses, file));
+}
 
 // mac-security(재인증): bun이 `.node`를 번들에 묶지 못한다. 애드온 폴더(index.js, package.json, 라이선스, `.node`)를
 // Resources/mac-security로 둔다(lib/mac-security.ts가 createRequire로 거기서 불러온다). Mach-O라 electron-sign.sh가 서명한다.
@@ -115,6 +129,8 @@ const extraResource = [
   // 트레이 아이콘(tray-shell.ts가 Resources/assets/tray.png를 읽는다)
   path.join(shell, "assets"),
   licenses,
+  binariesStage,
+  binariesLockFile,
   addonStage,
   // 기본 플러그인(Helm 등): `just desktop-build-electron`이 scripts/default-plugins.ts로 먼저 만든다. 엔진 사이드카가 Resources/default-plugins/를 설치 원본으로 읽는다
   path.join(shell, "dist", "default-plugins"),

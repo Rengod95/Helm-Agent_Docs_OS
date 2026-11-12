@@ -107,6 +107,10 @@ while IFS= read -r unit; do
   codesign --force --options runtime "$timestamp" "${keychain_args[@]}" --entitlements "$entitlements" --sign "$identity" "$unit"
   count=$((count + 1))
 done <"$list"
+# the bundled sops and age were just re-signed, so their bytes changed: rewrite the lock hashes the engine checks before running them
+if [[ -f "$app/Contents/Resources/binaries.lock.json" ]]; then
+  bun "$(dirname "$0")/bundled-binaries.ts" --relock "$app/Contents/Resources"
+fi
 codesign --force --options runtime "$timestamp" "${keychain_args[@]}" --entitlements "$entitlements" --sign "$identity" "$app"
 codesign --verify --deep --strict "$app"
 echo "electron-sign: signed $((count + 1)) code units (hardened runtime)"
