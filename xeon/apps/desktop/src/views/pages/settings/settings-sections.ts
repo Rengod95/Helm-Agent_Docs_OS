@@ -96,12 +96,12 @@ export const SETTINGS_GROUPS: readonly {
 
 /**
  * 시크릿 구역 "고급"에 접어 두는 키(DP-85). 운영자 값(`sops.binary`, `sops.files`)과 관리 범위만 쓰는 읽기 전용 값(`redaction.enabled`)은
- * 넣지 않는다(파일로 보기)
+ * 넣지 않는다(파일로 보기). 열쇠 보관 방식(`l0.secrets.ageKey.source`)은 시크릿 구역의 "열쇠 보관" 줄이 맡는다(옮기기까지 한다).
+ * 같은 설정의 컨트롤이 둘이면 어긋나므로 여기에 두지 않는다
  */
 export const SECRET_ADVANCED_KEYS: readonly SettingKey[] = [
   "l0.secrets.providers",
   "l0.secrets.defaultProvider",
-  "l0.secrets.ageKey.source",
   "l0.secrets.ageKey.filePath",
   "l0.secrets.lease.ttlSeconds",
   "l0.secrets.lease.maxUses",

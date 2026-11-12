@@ -72,6 +72,8 @@ export function createSecretCommands(deps: SecretDeps): SecretCommands {
       const begun = await run((c) => c.request("secret.beginReveal", { name }));
       return begun.ok ? ok(begun.value.started) : begun;
     },
+    keyStatus: () => run((c) => c.request("secret.keyStatus", {})),
+    keyMove: (to) => run((c) => c.request("secret.keyMove", { to })),
     writeClipboard: (text) => deps.clipboard.writeText(text),
   };
 }

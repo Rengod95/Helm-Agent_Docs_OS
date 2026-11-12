@@ -55,6 +55,9 @@ import type {
   ExtValidateResult,
   SecretListEntry,
   SecretAuditResult,
+  SecretKeyMoveResult,
+  SecretKeyStatusResult,
+  SecretKeyWhere,
   SecretReferencesResult,
   SecretTestResult,
   ExtTestListResult,
@@ -700,6 +703,10 @@ export interface SecretCommands {
   ): Promise<Result<null, KeyRegisterError>>;
   /** `secret.beginReveal`. 호스트가 자기 창에 값을 보였으면 `true`다. 값은 이 경로로 오지 않는다 */
   beginReveal(name: SecretName): Promise<Result<boolean, SecretCommandError>>;
+  /** `secret.keyStatus`. 열쇠 보관 방식과 열쇠가 어느 쪽에 있는지 읽는다. 식별자는 읽지 않는다 */
+  keyStatus(): Promise<Result<SecretKeyStatusResult, SecretCommandError>>;
+  /** `secret.keyMove`. 열쇠를 `to` 쪽으로 옮기고 설정을 바꾼다. 같은 컴퓨터의 연결만 된다(원격이면 `localOnly`) */
+  keyMove(to: SecretKeyWhere): Promise<Result<SecretKeyMoveResult, SecretCommandError>>;
   /** 클립보드에 글을 쓴다. 빈 글은 비우기다 */
   writeClipboard(text: string): Promise<void>;
 }

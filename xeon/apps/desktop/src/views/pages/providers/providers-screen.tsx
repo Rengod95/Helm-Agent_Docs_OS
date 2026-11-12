@@ -34,6 +34,7 @@ import type { FieldHandlers } from "../settings/settings-field.tsx";
 import { allFieldsOf } from "../settings/settings-model.ts";
 import type { CheckStep } from "../shared/check-steps.tsx";
 import { providerNameOf } from "../shared/provider-names.ts";
+import { useFallbackConfirm } from "../secrets/key-store-confirm.tsx";
 import { commandErrorText } from "../secrets/secret-text.ts";
 import {
   ROTATION_ENABLED_KEY,
@@ -270,6 +271,8 @@ export function ProvidersPanel(props: ModelsPanelProps): ReactNode {
   const models = useModelChoices();
   const data = useProviderData();
   const runTest = useProviderTest();
+  // 키를 넣기 전 열쇠 보관 확인(앱 파일 승인). 대화 상자는 이 화면의 그림 끝에 둔다
+  const confirm = useFallbackConfirm(commands.secrets);
   const field = fieldOfKey(allFieldsOf(view), PROVIDERS_KEY);
   const edit = editState(field, live);
   const read = readProviders(field?.value ?? []);
@@ -388,10 +391,19 @@ export function ProvidersPanel(props: ModelsPanelProps): ReactNode {
     detach(
       (async () => {
         // `submitKey`는 첫 `await` 전에 입력란을 읽고 비운다. 이 함수는 제출 이벤트 안에서 바로 불린다
-        const outcome = await submitKey(commands.setup, target.name, target.action, keyField);
+        const outcome = await submitKey(
+          commands.setup,
+          target.name,
+          target.action,
+          keyField,
+          confirm.preflight,
+        );
         switch (outcome.kind) {
           case "registered":
             await connectAndTest(target, target.name);
+            break;
+          case "cancelled":
+            // 열쇠 보관 확인에서 취소했다. 입력란과 키 창은 그대로 둔다
             break;
           case "empty":
             setKey({
@@ -600,6 +612,7 @@ export function ProvidersPanel(props: ModelsPanelProps): ReactNode {
           setRemoving(null);
         }}
       />
+      {confirm.dialog}
     </>
   );
 }
@@ -632,6 +645,8 @@ export function AccountsPanel(props: ModelsPanelProps): ReactNode {
   const { view, live, handlers } = props;
   const commands = useCommands();
   const data = useProviderData();
+  // 계정 풀의 키 등록도 등록 전 열쇠 보관 확인을 거친다(같은 키 저장소 규칙)
+  const confirm = useFallbackConfirm(commands.secrets);
   const fields = allFieldsOf(view);
   const field = fieldOfKey(fields, ACCOUNTS_KEY);
   const edit = editState(field, live);
@@ -707,10 +722,14 @@ export function AccountsPanel(props: ModelsPanelProps): ReactNode {
     detach(
       (async () => {
         const action = stored.includes(name) ? "set" : "add";
-        const outcome = await submitKey(commands.setup, name, action, keyField);
+        const outcome = await submitKey(commands.setup, name, action, keyField, confirm.preflight);
         if (outcome.kind === "registered") {
           if (put(entryOf(name), fail)) setDraft(null);
           await data.reload();
+        } else if (outcome.kind === "cancelled") {
+          // 열쇠 보관 확인에서 취소했다. 초안은 그대로 둔다
+          setBusy(false);
+          return;
         } else if (outcome.kind === "empty") {
           fail(t("desktop.settings.keyValue.empty"));
           return;
@@ -840,6 +859,7 @@ export function AccountsPanel(props: ModelsPanelProps): ReactNode {
           setBusy(false);
         }}
       />
+      {confirm.dialog}
     </>
   );
 }

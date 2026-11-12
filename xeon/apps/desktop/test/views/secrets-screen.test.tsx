@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { t } from "@fresnel/client/i18n";
 import { err, parse } from "@fresnel/contracts";
 import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabilities";
 import {
@@ -7,13 +8,22 @@ import {
   type KeyRegisterError,
   type KeyRegistrar,
 } from "@fresnel/client/settings";
-import type { SecretAuditEntry, SecretListEntry } from "@fresnel/contracts/wire";
+import type {
+  SecretAuditEntry,
+  SecretKeyStatusResult,
+  SecretListEntry,
+} from "@fresnel/contracts/wire";
 import type { ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { EngineStoreContext, type EngineMirror } from "../../src/state/engine/index.ts";
 import { createShellStore, ShellStoreContext } from "../../src/state/shell/index.ts";
 import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
 import { UsageLog } from "../../src/views/pages/secrets/secret-audit.tsx";
+import {
+  keyStoreViewOf,
+  type KeyStoreRead,
+  type KeyStoreView,
+} from "../../src/views/pages/secrets/key-store-model.ts";
 import { ValueStep } from "../../src/views/pages/secrets/secret-dialogs.tsx";
 import { SecretDetail } from "../../src/views/pages/secrets/secret-detail.tsx";
 import {
@@ -59,7 +69,26 @@ const handlers: SecretsScreenHandlers = {
   metaClose: NOOP,
   removeConfirm: NOOP,
   removeClose: NOOP,
+  keyStore: NOOP,
 };
+
+/** 열쇠 보관 위치의 가짜 값. 실제 경로가 아니다 */
+const KEY_STATUS: SecretKeyStatusResult = {
+  source: "auto",
+  in: "keychain",
+  filePath: "/fake/fresnel/secrets/age/keys.txt",
+  keychainUsable: true,
+  fallbackUnconfirmed: false,
+  fileMissing: false,
+};
+
+/** 열쇠 보관 줄의 기본 그림. 위치를 읽고 옮기기는 하지 않은 상태다 */
+const keyStore: KeyStoreView = keyStoreViewOf({
+  read: { kind: "ready", status: KEY_STATUS },
+  move: { kind: "idle" },
+  remote: false,
+  live: true,
+});
 
 const NOW = 1_800_000_000_000;
 const SECRET_TEXT = "fake-secret-value-for-tests-0001";
@@ -93,7 +122,11 @@ function frozenStore(state: EngineMirror): ReadonlyStore<EngineMirror> {
   return { getState: () => state, getInitialState: () => state, subscribe: () => () => {} };
 }
 
-function html(state: SecretsState, shownText: string | null = null): string {
+function html(
+  state: SecretsState,
+  shownText: string | null = null,
+  keyView: KeyStoreView = keyStore,
+): string {
   // 독립 화면의 머리 펼치기 단추가 셸 스토어를 읽으므로 셸 provider 안에서 그린다
   return renderToString(
     <ShellStoreContext value={createShellStore(1400)}>
@@ -103,6 +136,7 @@ function html(state: SecretsState, shownText: string | null = null): string {
         locale="ko"
         nowMs={NOW}
         handlers={handlers}
+        keyStore={keyView}
       />
     </ShellStoreContext>,
   );
@@ -363,6 +397,67 @@ function typedField(initial: string): { readonly field: KeyField; readonly shown
     shown: () => value,
   };
 }
+
+/** 열쇠 보관 줄을 바꾼 그림. 목록은 빈 상태로 둔다 */
+const SHOWN = (state: SecretsState, view: KeyStoreView): string => html(state, null, view);
+/** 위치를 읽은 상태 */
+const readOf = (status: SecretKeyStatusResult): KeyStoreRead => ({ kind: "ready", status });
+
+describe("the key store line above the table", () => {
+  test("shows the line with its two choices and the meaning of each, even with no secret yet", () => {
+    const out = html(initialSecretsState(false));
+    expect(out).toContain(t("desktop.secrets.keyStore.title"));
+    expect(out).toContain(t("desktop.secrets.keyStore.keychain"));
+    expect(out).toContain(t("desktop.secrets.keyStore.file"));
+    expect(out).toContain(t("desktop.secrets.keyStore.info.keychain"));
+    expect(out).toContain(t("desktop.secrets.keyStore.info.file"));
+  });
+
+  test("says where the key is, with the app file's path", () => {
+    const view = keyStoreViewOf({
+      read: readOf({ ...KEY_STATUS, in: "file" }),
+      move: { kind: "idle" },
+      remote: false,
+      live: true,
+    });
+    const out = SHOWN(initialSecretsState(false), view);
+    expect(out).toContain(t("desktop.secrets.keyStore.inFile", { path: KEY_STATUS.filePath }));
+  });
+
+  test("says there is no key yet when none is stored", () => {
+    const view = keyStoreViewOf({
+      read: readOf({ ...KEY_STATUS, in: "none" }),
+      move: { kind: "idle" },
+      remote: false,
+      live: true,
+    });
+    expect(SHOWN(initialSecretsState(false), view)).toContain(t("desktop.secrets.keyStore.none"));
+  });
+
+  test("a setting that points at a missing key file warns in danger with the path", () => {
+    const view = keyStoreViewOf({
+      read: readOf({ ...KEY_STATUS, in: "none", fileMissing: true }),
+      move: { kind: "idle" },
+      remote: false,
+      live: true,
+    });
+    expect(SHOWN(initialSecretsState(false), view)).toContain(
+      t("desktop.secrets.keyStore.fileMissing", { path: KEY_STATUS.filePath }),
+    );
+  });
+
+  test("a remote screen reads the line only and says it can change only on this computer", () => {
+    const view = keyStoreViewOf({
+      read: readOf(KEY_STATUS),
+      move: { kind: "idle" },
+      remote: true,
+      live: true,
+    });
+    const out = SHOWN(initialSecretsState(false), view);
+    expect(out).toContain(t("desktop.secrets.keyStore.readOnly"));
+    expect(out).toContain('aria-disabled="true"');
+  });
+});
 
 describe("entry failure sentences on the value step", () => {
   const FAKE_KEY = "fake-key-for-tests-0002";

@@ -75,6 +75,49 @@ describe("submitKey", () => {
     expect(JSON.stringify(outcome)).not.toContain(FAKE);
   });
 
+  test("with a preflight, the field is read only after the answer; a cancel sends nothing and keeps the field", async () => {
+    const input = field(FAKE);
+    let registrations = 0;
+    const registrar: KeyRegistrar = {
+      registerKey: () => {
+        registrations += 1;
+        return Promise.resolve(ok(null));
+      },
+    };
+    const answer = Promise.withResolvers<"proceed" | "cancel">();
+    let asked = false;
+    const pending = submitKey(registrar, NAME, "add", input.field, () => {
+      asked = true;
+      return answer.promise;
+    });
+    // 확인을 기다리는 동안 값은 입력란에 그대로 있고, 아무것도 읽히지 않았다
+    expect(asked).toBe(true);
+    expect(input.takes()).toBe(0);
+    expect(input.shown()).toBe(FAKE);
+    answer.resolve("cancel");
+    expect(await pending).toEqual({ kind: "cancelled" });
+    expect(registrations).toBe(0);
+    expect(input.shown()).toBe(FAKE);
+  });
+
+  test("with a preflight that proceeds, the field is read once and registered as usual", async () => {
+    const input = field(`  ${FAKE}\n`);
+    const sent: string[] = [];
+    const registrar: KeyRegistrar = {
+      registerKey: (_name, _action, value) => {
+        sent.push(new TextDecoder().decode(value));
+        return Promise.resolve(ok(null));
+      },
+    };
+    const outcome = await submitKey(registrar, NAME, "add", input.field, () =>
+      Promise.resolve<"proceed" | "cancel">("proceed"),
+    );
+    expect(outcome).toEqual({ kind: "registered" });
+    expect(input.takes()).toBe(1);
+    expect(sent).toEqual([FAKE]);
+    expect(input.shown()).toBe("");
+  });
+
   test("an empty or blank field sends nothing", async () => {
     let calls = 0;
     const registrar: KeyRegistrar = {

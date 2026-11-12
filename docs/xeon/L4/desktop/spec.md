@@ -626,6 +626,8 @@ M2 첫 실행에서 깨끗한 Mac에는 `fresnel` 명령이 설치되어 있지 
 | `service_unreachable` | 엔진 서비스에 연결하지 못했어요 | 잠시 뒤 다시 등록해요 |
 | `unknown` | 키를 저장하지 못했어요(일반 문장) | 없음. "자세히"에 사이드카 출력의 첫 줄과 종료 코드 |
 
+- [결정: 2026-11-12 사용자] 등록 전 열쇠 보관 확인: 시크릿 구역의 값 입력, 제공자 "키 넣기", 계정 풀, 첫 실행 키 입력은 `submitKey`의 `preflight`로 `secret.keyStatus`를 먼저 읽는다. `fallbackUnconfirmed`이면 "앱 파일에 보관할까요?"를 묻고, 승인하면 `secret.keyMove { to: "file" }` 뒤에 등록을 잇는다(값을 다시 칠 필요가 없다 [근거: apps/desktop/src/views/pages/secrets/key-store-confirm.tsx `confirmFallbackOf`]). 취소면 등록하지 않고 입력란은 그대로 둔다(`KeyOutcome` `cancelled`). 자세히는 `L4.settings-ui.spec` §4.6.5다.
+
 약점(받아들인 것):
 
 - 값이 WebView 안에 있다. password 입력란은 화면에 보이지 않을 뿐 DOM 노드의 `value`이고, 읽는 순간 JS 문자열이 하나 생긴다. 문자열은 지울 수 없어 가비지 수집 전까지 WebView 힙에 남는다. 바이트 배열과 입력란만 덮는다.

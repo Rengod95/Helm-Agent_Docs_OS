@@ -42,10 +42,18 @@ export interface KeyField {
   take(): string;
 }
 
+/**
+ * 등록 전에 한 번 묻는 자리(열쇠 보관 확인). `proceed`면 입력란을 읽어 등록하고, `cancel`이면 아무것도 보내지 않고 입력란을 그대로 둔다.
+ * 화면의 대화 상자가 답을 준다. 이 함수는 답을 기다리는 동안 입력란 값을 읽지 않는다
+ */
+export type KeyPreflight = () => Promise<"proceed" | "cancel">;
+
 export type KeyOutcome =
   | { readonly kind: "registered" }
   /** 입력란이 비어 있었다. 아무것도 보내지 않았다 */
   | { readonly kind: "empty" }
+  /** 등록 전 확인에서 사용자가 취소했다. 입력란은 그대로 있고 아무것도 보내지 않았다 */
+  | { readonly kind: "cancelled" }
   /** 이 연결에서는 화면이 값을 받을 수 없다. 터미널 명령을 안내한다 */
   | { readonly kind: "terminal" }
   /** 키체인 실패(`keystore`)나 시간 초과(`timeout`, 키체인 창이 응답을 기다리는 경우)라서 화면이 "다시 시도"와 "도움말 열기"를 함께 보인다 */
@@ -221,7 +229,8 @@ export function keyErrorDetail(error: KeyRegisterError): string | null {
 }
 
 /**
- * 입력란에서 값을 꺼내 등록한다. `take()`는 첫 `await` 전에 호출되므로 입력란은 이 함수가 돌아오기 전에 이미 비어 있다.
+ * 입력란에서 값을 꺼내 등록한다. `preflight`가 없으면 `take()`는 첫 `await` 전에 호출되므로 입력란은 이 함수가 돌아오기 전에
+ * 이미 비어 있다. `preflight`가 있으면 그 답을 기다린 뒤에 `take()`한다(확인 대화 상자가 떠 있는 동안 값은 입력란 DOM에만 있다).
  * 앞뒤 공백과 줄바꿈은 지운다(붙여넣기에 따라온다).
  */
 export async function submitKey(
@@ -229,7 +238,9 @@ export async function submitKey(
   secretName: SecretName,
   action: "add" | "set",
   field: KeyField,
+  preflight?: KeyPreflight,
 ): Promise<KeyOutcome> {
+  if (preflight !== undefined && (await preflight()) === "cancel") return { kind: "cancelled" };
   const typed = field.take().trim();
   if (typed === "") return { kind: "empty" };
   const bytes = ENCODER.encode(typed);

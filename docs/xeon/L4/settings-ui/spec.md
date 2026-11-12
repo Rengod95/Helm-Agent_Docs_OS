@@ -951,6 +951,20 @@ sequenceDiagram
 - C안이 OS에서 불가능한 경우의 대체로 A안을 쓸지는 [미결]이다(§10 미결 2). A안을 쓰면 값이 wire를 지나므로 `L4.readme` §4 시크릿 행, `L4.desktop.spec` E11, `L0.secrets.spec` §8.3 R4의 전제를 함께 고쳐야 한다. 그때도 입력란은 한 번 쓰고 비우는 별도 창에 두고, view-model 상태에는 넣지 않는다.
 - 어느 안이든 F 메서드 추가가 필요하므로 F 변경 요청 여부를 §10 미결 2, 3에 둔다.
 
+#### 4.6.5 열쇠 보관 줄 [결정: 2026-11-12 사용자]
+
+시크릿 구역의 표 위에 줄 하나를 둔다. 열쇠가 OS 키 저장소와 앱 파일 가운데 어디에 있고 어디에 만들지를 정한다. 설정 `l0.secrets.ageKey.source`를 고르는 일을 맡으며, 고르면 열쇠를 옮긴다(`L0.secrets.spec` §4.7 (b)·(c)). 쓰는 wire는 `secret.keyStatus`(읽기)와 `secret.keyMove { to }`(옮기기)다(`F.wire-settings.spec` §3.3.1).
+
+1. 이름표는 "열쇠 보관"이다. 정보 아이콘 하나에 두 방식의 뜻을 줄마다 적는다: OS 키 저장소는 "서버나 원격 환경에서는 못 쓸 수 있어요", 앱 파일은 "같은 사용자 권한의 프로그램이 읽을 수 있어요"(`L0.secrets.spec` §4.7 5번의 고지).
+2. 조작부는 세그먼트 두 개 "OS 키 저장소(키체인)"와 "앱 파일"이다(sm). 선택은 `source`가 `keychain`·`file`이면 그 값이고, `auto`·`auto-file`이면 `in`이다. 열쇠가 없으면(`in: none`) `keychainUsable`이면 키 저장소, 아니면 앱 파일을 고른 것으로 보인다.
+3. 이름표 아래 상태 글: `in: none`은 "아직 열쇠가 없어요. 첫 키를 등록할 때 고른 방식으로 만들어요", `keychain`은 "OS 키 저장소에 있어요", `file`은 "앱 파일에 있어요: <경로>"다. `fileMissing`이면 줄 아래 danger 한 줄 "설정이 가리키는 열쇠 파일이 없어요: <경로>"다.
+4. 선택을 바꾸면 `secret.keyMove { to }`를 부른다. 옮기는 동안 줄을 끄고 "옮기는 중이에요"를 보인다. 성공하면 위치를 다시 읽고, 옮긴 것이면 "열쇠를 옮겼어요", 옮길 열쇠가 없어 설정만 바뀌었으면 "이제 이 방식으로 만들어요"를 알림으로 보인다. `oldRemoved: false`면 줄 아래 경고 한 줄 "옛 위치에 열쇠가 남았어요"다. 실패하면 줄 아래에 오류 문장과 해결 한 줄을 보이고, 위치를 다시 읽어 제자리로 돌아간 상태를 보인다.
+5. 설정 `l0.secrets.ageKey.source`는 이 줄만 고친다. 고급 접힘(§4.12.1)의 일반 항목 줄에는 두지 않는다(같은 설정의 컨트롤이 둘이면 어긋난다). `ageKey.filePath`는 고급에 그대로 둔다.
+6. 원격 읽기 전용: 연결 대상이 원격이거나 옮기기가 `secret.localOnly`(3213)로 거절되면 줄 전체를 읽기 전용으로 하고 "이 컴퓨터에서만 바꿀 수 있어요"를 보인다. 위치 읽기는 원격에서도 한다(`secret.keyStatus`는 식별자를 읽지 않는다).
+7. 한 번 묻는 확인(등록 전): 값을 등록하기 전(시크릿 구역의 값 입력, 제공자 "키 넣기", 계정 풀의 키, 첫 실행의 키 입력)에 `secret.keyStatus`를 먼저 부른다. `fallbackUnconfirmed`이면 "앱 파일에 보관할까요?"를 묻는다. 본문은 "이 컴퓨터에서는 키 저장소를 쓸 수 없어요. 앱 파일에 보관할까요?", 뜻 한 줄은 "앱 파일은 같은 사용자 권한의 프로그램이 읽을 수 있어요", 단추는 "앱 파일에 보관"과 "취소"다. 승인하면 `secret.keyMove { to: "file" }`을 부르고 **이어서 등록이 끝난다**(입력한 값을 다시 칠 필요가 없다 [근거: apps/desktop/src/views/pages/secrets/key-store-confirm.tsx `confirmFallbackOf`]). 취소면 등록하지 않고 입력란의 값은 그대로 둔다. `keyStatus`가 실패하면(원격, 옛 호스트) 묻지 않고 등록한다. 그때 거절되면 등록의 실패 문장이 원인을 말한다.
+8. 확인 중에도 값은 wire와 상태에 들어가지 않는다. `submitKey`의 `preflight`가 끝난 뒤에 입력란을 읽는다(`@fresnel/client/settings` `key-entry.ts`). 취소는 `KeyOutcome` `cancelled`로 돌아간다.
+9. [임시] 이 줄은 시크릿 구역의 기존 줄 모양(`SettingRow`)을 그대로 쓴다. 방식마다 정보 아이콘을 따로 두지 않고 한 아이콘에 두 줄로 둔다. 확인 대화 상자는 시크릿 구역의 기존 확인 대화 상자 모양을 쓴다. 새 배치는 만들지 않는다.
+
 ### 4.7 상태 게이지
 
 - budgets 탭과 providers 탭에 게이지 자리를 둔다. 사용량과 한도 데이터 원천은 L1.models의 사용량 투영이다(`_research/settings.md` §2.5 "레이트 리밋과 사용량 한도 대응" 행).
@@ -1062,7 +1076,7 @@ sequenceDiagram
    | 앱 | 단축키 | 앱 단축키 표와 바꾸기(데스크톱 로컬 키 `l4.desktop.appearance.keybindings`, DP-89) |
    | 앱 | 알림 | OS 알림 권한 띠와 종류별 스위치(데스크톱 로컬 키, DP-87) |
    | 에이전트 | 모델과 계정 | 제공자 카드(`l1.models.providers`), 계정 풀과 회전(`l1.models.accounts`, 회전 플러그인 키), 쓸 모델(`l1.models.default`·`allowedModels`·`deniedModels`). 셋 다 전용 패널이다(L4.desktop-ux DP-83, DP-84) |
-   | 에이전트 | 시크릿 | 시크릿 표와 상세 시트, 시크릿 사용 승인, 고급(접힘: 저장소·lease·감사 보관 키 7개)(DP-85) |
+   | 에이전트 | 시크릿 | 열쇠 보관 줄(§4.6.5, 표 위), 시크릿 표와 상세 시트, 시크릿 사용 승인, 고급(접힘: 저장소·lease·감사 보관 키 6개)(DP-85) |
    | 에이전트 | 권한 | 실행 방식 카드, 권한 규칙 판정 표, 승인 기다림(무인 실행·계획), 작업 폴더 신뢰, 웹 접근. 모두 전용 패널이다(L4.desktop-ux DP-109) |
    | 에이전트 | 샌드박스 | 상태와 점검, 쓰기와 보호, 네트워크, 그 밖(`l0.sandbox.*` 중 사용자가 정할 것). 전용 패널이다(DP-110) |
    | 에이전트 | 도구와 MCP | MCP 서버 카드, MCP 정책(접힘), 웹 도구 표, 스킬과 명령(DP-111) |
@@ -1075,7 +1089,7 @@ sequenceDiagram
 2. 구역에 둘 키는 앱의 구역 표(`apps/desktop/src/views/pages/settings/settings-sections.ts` `SETTINGS_SECTIONS`)가 정한다. 정의의 `ui.tab`은 화면 배치에 쓰지 않는다. 같은 키는 두 구역에 들지 않는다(`settings-sections.test.ts`).
 3. 표에 없는 키는 화면에 그리지 않고 찾기에도 나오지 않는다. 엔진 정의, 기본값, 설정 파일 값은 그대로이고 "파일로 보기"로 고칠 수 있다. 화면에서 뺀 묶음: 예산과 한도(`l1.loop.*`, 이어가기, 추론 예산, 라우팅, 레이트 리밋), 엔진의 OS 알림(`l2.dialog.notify.*`, 알림 구역과 겹침), 서비스와 원격 웹(`l0.process.service.*`, `l4.remote.web.*`, 연결 구역의 실행 방식과 겹침), 운영자 키(저장소 주기, 진단 주소 등). [결정: 2026-11-12 dzX] 읽는 곳이 없는 키도 뺀다: `l0.secrets.approval.writeHosts`(L0.secrets.spec §6.1), `l0.os.telemetry.enabled`(L0.os.spec §6).
 4. 설정 점프(`requestSettingsJump`)는 구역 id나 옛 탭 값을 받는다. 키가 표에 있으면 그 키의 구역을 열고, 아니면 받은 구역(옛 탭이면 옮겨 간 구역)을 연다. 연결 열기(`connection.open`)는 `{ tab: "connection" }` 점프다.
-5. [결정: 2026-11-11 사용자] 전용 패널도 자기가 그리는 키를 구역 표에 적는다(`panel(id, keys)`). 그래서 패널이 그리는 키도 한 구역에만 들고, 점프는 그 구역을 열며, 찾기는 맞은 키를 일반 항목 줄로 보인다. 모델과 계정, 권한, 샌드박스 구역에는 일반 항목 줄이 없다. 시크릿 고급에 넣는 키는 `l0.secrets.providers`, `defaultProvider`, `ageKey.source`, `ageKey.filePath`, `lease.ttlSeconds`, `lease.maxUses`, `audit.retentionDays`다. `sops.binary`, `sops.files`, `redaction.enabled`는 화면에서 뺀다(파일로 보기로 고친다). 옛 "계정 회전" 패널 id(`rotation`)는 계정 패널(`accounts`)에 들어갔다 [근거: apps/desktop/src/views/pages/settings/settings-sections.ts `SETTINGS_SECTIONS`, `SECRET_ADVANCED_KEYS`].
+5. [결정: 2026-11-11 사용자] 전용 패널도 자기가 그리는 키를 구역 표에 적는다(`panel(id, keys)`). 그래서 패널이 그리는 키도 한 구역에만 들고, 점프는 그 구역을 열며, 찾기는 맞은 키를 일반 항목 줄로 보인다. 모델과 계정, 권한, 샌드박스 구역에는 일반 항목 줄이 없다. 시크릿 고급에 넣는 키는 `l0.secrets.providers`, `defaultProvider`, `ageKey.filePath`, `lease.ttlSeconds`, `lease.maxUses`, `audit.retentionDays`다. `ageKey.source`는 시크릿 구역의 열쇠 보관 줄(§4.6.5)이 맡는다 [결정: 2026-11-12 사용자]. `sops.binary`, `sops.files`, `redaction.enabled`는 화면에서 뺀다(파일로 보기로 고친다). 옛 "계정 회전" 패널 id(`rotation`)는 계정 패널(`accounts`)에 들어갔다 [근거: apps/desktop/src/views/pages/settings/settings-sections.ts `SETTINGS_SECTIONS`, `SECRET_ADVANCED_KEYS`].
 
 #### 4.12.2 범위 없는 항목 줄
 
