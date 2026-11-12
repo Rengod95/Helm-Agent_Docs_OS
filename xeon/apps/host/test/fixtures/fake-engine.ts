@@ -128,6 +128,7 @@ export interface FakeEngineOptions {
     readonly startupNotices?: Partial<StartupNoticePort>;
     readonly approvals?: Partial<ApprovalPort>;
     readonly trust?: Partial<TrustPort>;
+    readonly models?: Partial<Engine["ports"]["models"]>;
     readonly commands?: Partial<CommandPort>;
     readonly web?: Partial<WebPort>;
     readonly dialog?: Partial<DialogWirePort>;
@@ -518,6 +519,9 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     models: {
       modelIds: (provider) => (provider === "tape" ? ["tape-1"] : []),
       available: () => [TAPE_MODEL],
+      // 인증 확인은 기본으로 확인 경로가 없는 provider로 답한다. 시험은 `overrides.models`로 바꾼다
+      checkAuth: () => Promise.resolve({ kind: "unsupported" }),
+      ...options.overrides?.models,
     },
     ids,
     clock: { now: () => RECORDED_AT },

@@ -269,6 +269,28 @@ export interface ProviderTarget {
   readonly port: number | null;
 }
 
+/**
+ * provider 인증 확인의 결과 종류(`provider.checkAuth`, `L1.models.spec` §3.13). 값은 어디에도 싣지 않는다.
+ * `oauthTokenNotApiKey`는 구독 OAuth 토큰 접두(`sk-ant-oat`)라 네트워크를 쓰지 않고 거절한 것이다. `noKey`는 키 참조가 없거나 풀 수 없는 것이다.
+ */
+export type ProviderAuthKind =
+  | "ok"
+  | "rejected"
+  | "badAddress"
+  | "quotaOrBilling"
+  | "upstream"
+  | "timeout"
+  | "unsupported"
+  | "oauthTokenNotApiKey"
+  | "noKey";
+
+/** provider 인증 확인 결과. `status`는 응답이 왔을 때만, `reason`은 제공자가 준 사유 글(200자 이내, 키 값은 `••••`)일 때만 있다 */
+export interface ProviderAuthCheck {
+  readonly kind: ProviderAuthKind;
+  readonly status?: number;
+  readonly reason?: string;
+}
+
 export interface ModelInfo {
   /** "provider/modelId" */
   readonly ref: ModelRefString;
@@ -601,6 +623,11 @@ export interface ModelService extends ModelsPort {
    * 모델 호출의 시크릿 lease가 쓰는 목적지와 같은 값이라 사람이 provider에 키를 연결할 때 이 호스트만 허용하는 데 쓴다(`L1.models.spec` §3.9)
    */
   providerTarget(providerId: string): ProviderTarget | null;
+  /**
+   * 저장된 키로 provider 인증을 확인한다(`provider.checkAuth`, `L1.models.spec` §3.13). 제공자의 값 없는 GET 하나만 보내고 생성 호출은 하지 않는다.
+   * 주소는 `providerTarget`과 같은 설정 주소뿐이다. 오류는 throw하지 않고 `kind`로 낸다. 호출자가 `signal`을 끊으면 거절(throw)한다.
+   */
+  checkProviderAuth(providerId: string, signal: AbortSignal): Promise<ProviderAuthCheck>;
   /** provider 등록. 플러그인은 F provider 인터페이스(ProviderDef)로 이 메서드를 부른다 */
   addProvider(
     owner: RegistrationId,

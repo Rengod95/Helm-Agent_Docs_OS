@@ -50,6 +50,7 @@ import {
 import { createTrustHandlers } from "./trust.ts";
 import { createWorkspaceHandlers } from "./workspace.ts";
 import { createScheduleHandlers } from "./schedule.ts";
+import { createProviderHandlers } from "./provider.ts";
 import { createWebHandlers } from "./web.ts";
 import {
   createTurnInterruptHandler,
@@ -114,6 +115,7 @@ export function createWireHandlers(
     ...createWorkspaceHandlers(),
     ...createCommandHandlers(engine, hub),
     ...createWebHandlers(engine),
+    ...createProviderHandlers(engine),
     ...createScheduleHandlers(engine),
     ...createDialogHandlers(engine),
     ...createExtReadHandlers(engine.ports.m4.extRead),

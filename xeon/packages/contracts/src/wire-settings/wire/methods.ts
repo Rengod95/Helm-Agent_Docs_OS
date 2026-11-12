@@ -95,6 +95,7 @@ import {
   StatusListResultSchema,
 } from "./status-notify.ts";
 import { WebProvidersParamsSchema, WebProvidersResultSchema } from "./web-providers.ts";
+import { ProviderCheckAuthParamsSchema, ProviderCheckAuthResultSchema } from "./provider-auth.ts";
 import {
   HostRemoteConfigParamsSchema,
   HostRemoteConfigResultSchema,
@@ -2058,6 +2059,10 @@ interface WireSchemas
     params: WithMeta<typeof WebProvidersParamsSchema>;
     result: typeof WebProvidersResultSchema;
   };
+  "provider.checkAuth": {
+    params: WithMeta<typeof ProviderCheckAuthParamsSchema>;
+    result: typeof ProviderCheckAuthResultSchema;
+  };
   "secret.list": {
     params: WithMeta<typeof SecretListParamsSchema>;
     result: typeof SecretListResultSchema;
@@ -2257,6 +2262,11 @@ export const WIRE_METHODS: {
   "attachments.add": spec(withMeta(AttachmentsAddParamsSchema), AttachmentsAddResultSchema, "M3"),
   "notify.list": spec(withMeta(NotifyListParamsSchema), NotifyListResultSchema, "M3"),
   "web.providers": spec(withMeta(WebProvidersParamsSchema), WebProvidersResultSchema, "M3"),
+  "provider.checkAuth": spec(
+    withMeta(ProviderCheckAuthParamsSchema),
+    ProviderCheckAuthResultSchema,
+    "M4",
+  ),
   "host.shutdown": spec(withMeta(HostShutdownParamsSchema), HostShutdownResultSchema, "M2"),
   "host.remote.status": spec(
     withMeta(HostRemoteEmptyParamsSchema),

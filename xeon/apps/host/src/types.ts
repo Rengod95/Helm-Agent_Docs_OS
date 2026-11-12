@@ -24,6 +24,7 @@ import type {
   InputQueueError,
   LoopError,
   ModelInfo,
+  ProviderAuthCheck,
   ResumeResult,
   Redactor,
   SecretAdminService,
@@ -759,6 +760,8 @@ interface ModelCatalogPort {
   modelIds(provider: string): readonly string[];
   /** 자격 증명이 있는 provider의 모델(`models.list`) */
   available(): readonly ModelInfo[];
+  /** 저장된 키로 provider 인증을 확인한다(`provider.checkAuth`). 생성 호출은 하지 않는다 */
+  checkAuth(provider: string, signal: AbortSignal): Promise<ProviderAuthCheck>;
 }
 
 /** 신뢰 질의·결정이 실패한 이유. 처리기가 와이어 오류로 옮긴다(F wire §3.3.1 trust.*) */

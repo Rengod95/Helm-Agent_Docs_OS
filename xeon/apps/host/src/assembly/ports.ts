@@ -117,7 +117,7 @@ export interface PortsDeps {
   /** 수동 컴팩션(`thread.compact`)이 부른다 */
   readonly context: Pick<ContextService, "compact">;
   /** 수동 컴팩션이 현재 모델(역할 `main`)의 바인딩과 창 크기를 정할 때 쓴다. `usage`는 사용량 원천(`usage.get`)이 구독한다 */
-  readonly models: Pick<ModelService, "resolve" | "list" | "usage">;
+  readonly models: Pick<ModelService, "resolve" | "list" | "usage" | "checkProviderAuth">;
   readonly tasks: TaskService;
   readonly approvals: ApprovalService;
   /** 열 때 복구가 도구의 현재 재실행 정책을 본다(ToolService.meta) */
@@ -837,6 +837,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     models: {
       modelIds: (provider) => modelIdsOf(deps.models, provider),
       available: () => deps.models.list({ available: true }),
+      checkAuth: (provider, signal) => deps.models.checkProviderAuth(provider, signal),
     },
     commands: createCommandPort({ holder: deps.commands, ids: deps.ids }),
     web: createWebPort({ holder: deps.web, settings: deps.settings }),

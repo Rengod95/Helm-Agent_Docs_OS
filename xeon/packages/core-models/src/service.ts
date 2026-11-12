@@ -27,6 +27,7 @@ import {
   type ModelListFilter,
   type ModelRole,
   type ModelService,
+  type ProviderAuthCheck,
   type ResolvedModel,
   type RoleOverrides,
   type SecretService,
@@ -38,6 +39,7 @@ import { classifyMessage } from "./classify.ts";
 import { createHostedSearch } from "./hosted-search.ts";
 import { createFailureLog } from "./failure-log.ts";
 import { createPipeline, type CallSpec, type RequestBodyOffer } from "./pipeline.ts";
+import { probeProviderAuth } from "./provider-auth.ts";
 import type { ProviderDispatcher } from "./request-points.ts";
 import {
   createProviderRegistry,
@@ -169,14 +171,20 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
     },
   };
 
-  // 요청 목적지(호스트 일치 정책용). baseUrl 설정 덮어쓰기 → 등록부 덮어쓰기 → provider → 첫 모델 순으로 찾는다
-  function targetOf(providerId: string): SecretTarget | null {
-    const override = providerSetting(providerId)?.baseUrl ?? registry.overlay(providerId)?.baseUrl;
-    const baseUrl =
-      override ??
+  // 요청 주소(provider 요청의 기본 주소). baseUrl 설정 덮어쓰기 → 등록부 덮어쓰기 → provider → 첫 모델 순으로 찾는다
+  function baseUrlOf(providerId: string): string | null {
+    return (
+      providerSetting(providerId)?.baseUrl ??
+      registry.overlay(providerId)?.baseUrl ??
       models.getProvider(providerId)?.baseUrl ??
       models.getModels(providerId)[0]?.baseUrl ??
-      null;
+      null
+    );
+  }
+
+  // 요청 목적지(호스트 일치 정책용). 주소의 호스트와 포트다
+  function targetOf(providerId: string): SecretTarget | null {
+    const baseUrl = baseUrlOf(providerId);
     return baseUrl === null ? null : targetOfUrl(baseUrl);
   }
 
@@ -188,6 +196,8 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
   };
   const credentials = secretBackedCredentialStore(refs, deps.secrets, bridgeOptions);
   const models = deps.buildModels(credentials);
+  // 시크릿 참조를 풀어 값을 얻는 자리. 요청 직전 호출과 provider 인증 확인(`checkProviderAuth`)이 같이 쓴다
+  const resolver = createSecretResolver(deps.secrets, { targetOf });
 
   const pipeline = createPipeline({
     models,
@@ -199,7 +209,7 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
     dispatcher: deps.dispatcher ?? null,
     failures,
     overlay: (providerId) => registry.overlay(providerId),
-    resolver: createSecretResolver(deps.secrets, { targetOf }),
+    resolver,
     rotation: {
       pool,
       scheduler: deps.scheduler ?? null,
@@ -349,9 +359,35 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
     ...(deps.logger === undefined ? {} : { logger: deps.logger }),
   });
 
+  // provider 인증 확인(L1.models.spec §3.13). 키는 요청 직전과 같은 lease로 읽고, 주소는 설정 주소뿐이다.
+  // 키를 못 풀면 `noKey`다(사유는 시크릿 이름과 오류 종류만). 로그에는 provider id와 결과 종류만 남긴다
+  async function checkProviderAuth(
+    providerId: string,
+    signal: AbortSignal,
+  ): Promise<ProviderAuthCheck> {
+    const ref = credentialRefOf(providerId);
+    if (ref === null) return { kind: "noKey", reason: "provider has no enabled key reference" };
+    const resolved = await resolver.resolve(ref, providerId, `model.provider:${providerId}`);
+    if (!resolved.ok) return { kind: "noKey", reason: resolved.error.reason };
+    const checked = await probeProviderAuth({
+      providerId,
+      key: resolved.value,
+      baseUrl: baseUrlOf(providerId),
+      fetch: deps.fetch ?? globalThis.fetch,
+      signal,
+    });
+    deps.logger?.info("provider.auth_checked", {
+      provider: providerId,
+      kind: checked.kind,
+      ...(checked.status === undefined ? {} : { status: checked.status }),
+    });
+    return checked;
+  }
+
   return {
     resolve: (role, overrides = {}) => resolveWith(role, overrides),
     providerTarget: targetOf,
+    checkProviderAuth,
     rebind(binding: ModelBinding): Result<ResolvedModel, ModelError> {
       const settings = deps.settings();
       const ref = formatModelRef({

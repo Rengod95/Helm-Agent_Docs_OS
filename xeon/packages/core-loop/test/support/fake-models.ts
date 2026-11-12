@@ -231,6 +231,7 @@ export function createFakeModels(options: {
       return ok(resolved());
     },
     providerTarget: () => null,
+    checkProviderAuth: () => notImplemented("checkProviderAuth"),
     stream: () => notImplemented("stream"),
     complete: () => notImplemented("complete"),
     streamFn: (ctx) => (_model, transcript, streamOptions) => {
