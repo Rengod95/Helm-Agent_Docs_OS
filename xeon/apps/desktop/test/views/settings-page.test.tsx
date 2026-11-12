@@ -50,12 +50,12 @@ const handlers: SettingsPageHandlers = {
 };
 
 /**
- * 일반 항목 줄로 그리는 글 칸. 모델과 계정 구역은 전용 패널만 그리므로(DP-83·84) 권한 구역의 글 항목을 빌려 쓴다.
+ * 일반 항목 줄로 그리는 글 칸. 모델·계정·권한 구역은 전용 패널만 그리므로(DP-83·84·109) 세션 구역의 항목을 빌려 쓴다.
  * 이름과 도움말은 시험용이다
  */
 const MODEL = defOf(
-  "l1.tools.unattended.approval",
-  "permissions",
+  "l2.knowledge.write.approval",
+  "sessions",
   "text",
   { type: "string" },
   {},
@@ -70,7 +70,7 @@ const STEPS = defOf(
   { range: { min: 1, max: 20 } },
   { order: 2, label: "단계 상한" },
 );
-/** 권한 구역의 초 단위 숫자. 단위 칸으로 그린다 */
+/** 권한 구역의 초 단위 숫자. 구역에서는 패널이 그리므로 찾기 결과의 항목 줄로 본다. 단위 칸으로 그린다 */
 const TIMEOUT = defOf(
   "l1.tools.unattended.timeoutSeconds",
   "permissions",
@@ -85,7 +85,7 @@ function propsOf(over: Partial<SettingsPageProps> = {}): SettingsPageProps {
     status: "ready",
     loadError: "",
     view: null,
-    section: "permissions",
+    section: "sessions",
     query: "",
     narrow: false,
     readOnly: false,
@@ -289,7 +289,7 @@ describe("removed keys and unit numbers", () => {
 
   test("a seconds value shows in the largest whole unit with its suffix and no plus or minus buttons", () => {
     const view = viewOf([TIMEOUT], SETTINGS);
-    const row = rowOf(html(propsOf({ view, section: "permissions" })), TIMEOUT.key);
+    const row = rowOf(html(propsOf({ view, query: "무인 승인 대기" })), TIMEOUT.key);
     expect(row).toContain('value="10"');
     expect(row).toContain(`>${t("desktop.settings.unit.minutes")}<`);
     expect(row).not.toContain('data-slot="number-field-increment"');
@@ -308,8 +308,9 @@ describe("permission mode field", () => {
   );
 
   test("every mode shows its one-line description, and the bypass mode also shows the warning line", () => {
+    // 권한 구역은 실행 방식 카드 패널이 그린다. 찾기 결과에서는 항목 줄로 그린다
     const view = viewOf([PERMISSION_MODE], [settingOf(PERMISSION_MODE.key, "bypass")]);
-    const out = html(propsOf({ view, section: "permissions" }));
+    const out = html(propsOf({ view, query: "권한 모드" }));
     for (const mode of MODES) {
       expect(out).toContain(t(`settings.l1.tools.permissionMode.optionHelp.${mode}`));
     }
@@ -321,7 +322,7 @@ describe("permission mode field", () => {
 
   test("a mode that is not bypass shows no warning line", () => {
     const view = viewOf([PERMISSION_MODE], [settingOf(PERMISSION_MODE.key, "default")]);
-    const out = html(propsOf({ view, section: "permissions" }));
+    const out = html(propsOf({ view, query: "권한 모드" }));
     expect(out).not.toContain('data-slot="settings-choice-warning"');
   });
 });
@@ -361,8 +362,8 @@ describe("search", () => {
   test("a search lists the matching fields under their section, and no match says so", () => {
     const view = viewOf([MODEL, STEPS, TIMEOUT], SETTINGS);
     const found = html(propsOf({ view, query: "기본 모델" }));
-    expect(found).toContain(t("desktop.settings.section.permissions"));
-    expect(found).toContain('data-key="l1.tools.unattended.approval"');
+    expect(found).toContain(t("desktop.settings.section.sessions"));
+    expect(found).toContain('data-key="l2.knowledge.write.approval"');
     expect(found).not.toContain('data-key="l1.tools.unattended.timeoutSeconds"');
     expect(html(propsOf({ view, query: "없는말" }))).toContain(
       t("desktop.settings.search.noMatch"),

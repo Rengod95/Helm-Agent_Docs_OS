@@ -6,19 +6,13 @@ import {
   type PolicyRule,
 } from "@fresnel/contracts/services";
 
-// 권한 규칙 편집기(L4.desktop-ux §6.13)의 순수 모델. 값은 `l1.tools.rules`이고 원소는 계약의 `PolicyRuleSchema`로 읽는다.
+// 권한 규칙 판정 표(L4.desktop-ux §6.13, DP-109)의 순수 모델. 값은 `l1.tools.rules`이고 원소는 계약의 `PolicyRuleSchema`로 읽는다.
 // 결과 우선은 deny > ask > allow다(L1.tools 정책 평가). 그래서 허용과 거부가 겹치면 거부가 이긴다는 것을 행에 표시한다.
 // 겹침은 도구, 기능, MCP 서버 글롭과 종류·위험·모드 목록으로 본다. 인자 조건과 깊이는 따지지 않으니 겹친다고 넓게 본다.
 
 /** 규칙 이름과 도구 이름의 글자 수 한도(계약 `PolicyRuleSchema`와 같다) */
 const ID_MAX = 128;
 const TOOL_MAX = 128;
-
-/** 우선순위를 적지 않은 규칙은 이 값으로 본다(L1.tools §2, 기본 500) */
-export const PRIORITY_DEFAULT = 500;
-
-/** 동작 열의 순서. 허용, 질문, 거부 */
-export const RULE_EFFECTS: readonly PolicyEffect[] = ["allow", "ask", "deny"];
 
 function isList(value: unknown): value is readonly unknown[] {
   return Array.isArray(value);
@@ -34,16 +28,6 @@ export function ruleListOf(value: unknown): readonly PolicyRule[] | null {
     rules.push(parsed.value);
   }
   return rules;
-}
-
-/** 도구 칸의 글. 도구 글롭이 없으면(모든 도구) 빈 글이다 */
-export function toolTextOf(rule: PolicyRule): string {
-  return rule.resource.tool ?? "";
-}
-
-/** 우선순위 칸의 값. 적지 않았으면 기본값이다 */
-export function priorityOf(rule: PolicyRule): number {
-  return rule.priority ?? PRIORITY_DEFAULT;
 }
 
 // ── 고치기(모두 새 목록을 돌려준다) ───────────────────────────────────────
@@ -64,93 +48,8 @@ export function withEffect(
   return replaceAt(rules, index, (rule) => ({ ...rule, effect }));
 }
 
-export function withPriority(
-  rules: readonly PolicyRule[],
-  index: number,
-  priority: number,
-): readonly PolicyRule[] {
-  return replaceAt(rules, index, (rule) => ({ ...rule, priority }));
-}
-
-export function withId(
-  rules: readonly PolicyRule[],
-  index: number,
-  id: string,
-): readonly PolicyRule[] {
-  return replaceAt(rules, index, (rule) => ({ ...rule, id }));
-}
-
-/** 도구 글롭을 바꾼다(앞뒤 공백은 뺀다). 빈 글이면 도구 칸을 지워 모든 도구가 되게 한다 */
-export function withTool(
-  rules: readonly PolicyRule[],
-  index: number,
-  tool: string,
-): readonly PolicyRule[] {
-  const trimmed = tool.trim();
-  return replaceAt(rules, index, (rule) => ({
-    ...rule,
-    resource: resourceWithTool(rule.resource, trimmed),
-  }));
-}
-
-function resourceWithTool(resource: PolicyResource, tool: string): PolicyResource {
-  const { tool: _previous, ...rest } = resource;
-  return tool === "" ? rest : { ...rest, tool };
-}
-
 export function withoutRule(rules: readonly PolicyRule[], index: number): readonly PolicyRule[] {
   return rules.toSpliced(index, 1);
-}
-
-// ── 검사와 새 규칙 ───────────────────────────────────────────────────────
-
-export type IdIssue = "empty" | "long" | "duplicate";
-
-/** 규칙 이름 검사. `skip`은 고치는 행의 번호다(자기 이름과는 겹쳐도 된다). 새 규칙이면 `null`이다 */
-export function checkId(
-  text: string,
-  rules: readonly PolicyRule[],
-  skip: number | null,
-): Result<string, IdIssue> {
-  const id = text.trim();
-  if (id === "") return err("empty");
-  if (id.length > ID_MAX) return err("long");
-  if (rules.some((rule, at) => at !== skip && rule.id === id)) return err("duplicate");
-  return ok(id);
-}
-
-export type ToolIssue = "toolLong";
-
-export function checkTool(text: string): Result<string, ToolIssue> {
-  const tool = text.trim();
-  return tool.length > TOOL_MAX ? err("toolLong") : ok(tool);
-}
-
-export interface RuleDraft {
-  readonly id: string;
-  readonly tool: string;
-  readonly effect: PolicyEffect;
-}
-
-/** 새 규칙 칸의 시작값. 동작은 질문이다(가장 안전한 쪽) */
-export const EMPTY_RULE_DRAFT: RuleDraft = { id: "", tool: "", effect: "ask" };
-
-/** 새 규칙을 만든다. 이름이 비었거나 겹치거나 길면, 도구가 길면 실패 값을 돌려준다 */
-export function ruleOfDraft(
-  draft: RuleDraft,
-  rules: readonly PolicyRule[],
-): Result<PolicyRule, IdIssue | ToolIssue> {
-  const id = checkId(draft.id, rules, null);
-  if (!id.ok) return err(id.error);
-  const tool = checkTool(draft.tool);
-  if (!tool.ok) return err(tool.error);
-  const rule: PolicyRule = {
-    id: id.value,
-    action: "tool.call",
-    resource: tool.value === "" ? {} : { tool: tool.value },
-    effect: draft.effect,
-  };
-  return ok(rule);
 }
 
 // ── 겹침과 충돌 ──────────────────────────────────────────────────────────
@@ -216,8 +115,26 @@ export function rulesOverlap(left: PolicyRule, right: PolicyRule): boolean {
     optionalListsOverlap(a.classes, b.classes) &&
     optionalListsOverlap(a.risk, b.risk) &&
     optionalListsOverlap(a.mode, b.mode) &&
-    callersOverlap(a.caller, b.caller)
+    callersOverlap(a.caller, b.caller) &&
+    commandPrefixesOverlap(left, right)
   );
+}
+
+/**
+ * 두 규칙의 명령 접두(`bash(git status)`, `bash(rm -rf)`)가 같은 명령을 맞출 수 있는가. 한쪽 접두가 다른 쪽으로 시작하지 않으면
+ * 맞출 명령이 없다. 판정 표 모양이 아닌 인자 조건은 따지지 않는다(겹친다고 본다)
+ */
+function commandPrefixesOverlap(left: PolicyRule, right: PolicyRule): boolean {
+  const a = commandPrefixOf(left);
+  const b = commandPrefixOf(right);
+  if (a === null || b === null) return true;
+  return a.startsWith(b) || b.startsWith(a);
+}
+
+function commandPrefixOf(rule: PolicyRule): string | null {
+  const text = patternTextOf(rule);
+  const match = text === null ? null : /^bash\((.*)\)$/.exec(text);
+  return match === null ? null : (match[1] ?? null);
 }
 
 /** 허용 규칙(`allow`) 하나와 거부 규칙(`deny`) 하나가 겹치는 쌍. 번호는 목록의 행 번호다 */
@@ -244,4 +161,131 @@ export function partnersOf(conflicts: readonly RuleConflict[], index: number): r
     if (conflict.deny === index) return [conflict.allow];
     return [];
   });
+}
+
+// ── 도구·패턴 한 줄(판정 표, DP-109) ──────────────────────────────────────
+//
+// 판정 표의 대상 칸은 Claude Code처럼 `read`, `mcp__github__*`, `bash(git status)`로 쓴다. `이름(접두)`는 bash만 받고
+// 명령 인자 조건 `{ pointer: "/command", pattern: "^<접두>( |$)" }` 하나로 저장한다(L1.tools 규칙 예시와 같은 모양).
+// `*`는 모든 도구(도구 글롭 없음)다. 이 모양으로 읽을 수 없는 규칙(서버·종류·위험·모드 조건, 인자 여러 개)은 `null`이고
+// 화면은 대상을 고치지 못하게 요약만 보인다. 규칙 이름(`id`)은 화면에 없다: 새 규칙은 `<판정>-<도구>`로 만들고 겹치면 `-2`부터 붙인다.
+
+/** 명령 접두를 받는 도구 */
+const COMMAND_TOOL = "bash";
+const COMMAND_POINTER = "/command";
+/** 메모(`description`) 글자 수 한도(계약과 같다) */
+const MEMO_MAX = 500;
+
+const REGEX_SPECIAL = /[.*+?^${}()|[\]\\]/g;
+
+function escapeRegex(text: string): string {
+  return text.replace(REGEX_SPECIAL, "\\$&");
+}
+
+/** `^<접두>( |$)`에서 접두를 되찾는다. 이스케이프된 글자 말고 정규식 문법이 섞였으면 `null` */
+function prefixOfPattern(pattern: string): string | null {
+  const match = /^\^((?:\\.|[^\\.*+?^${}()|[\]])*)\( \|\$\)$/.exec(pattern);
+  if (match === null) return null;
+  return (match[1] ?? "").replace(/\\(.)/g, "$1");
+}
+
+/** 규칙 한 줄의 도구·패턴 글. 판정 표가 다룰 수 없는 규칙이면 `null` */
+export function patternTextOf(rule: PolicyRule): string | null {
+  const { tool, args, ...rest } = rule.resource;
+  if (Object.keys(rest).length > 0) return null;
+  if (args === undefined || args.length === 0) return tool ?? "*";
+  const only = args[0];
+  if (args.length !== 1 || only === undefined || tool !== COMMAND_TOOL) return null;
+  if (only.pointer !== COMMAND_POINTER) return null;
+  const prefix = prefixOfPattern(only.pattern);
+  return prefix === null ? null : `${COMMAND_TOOL}(${prefix})`;
+}
+
+/** 다룰 수 없는 규칙의 요약 글: 도구 글롭(없으면 `*`) */
+export function ruleSummaryOf(rule: PolicyRule): string {
+  return rule.resource.tool ?? rule.resource.mcpServer ?? rule.resource.capability ?? "*";
+}
+
+export type PatternIssue = "patternEmpty" | "patternLong" | "patternCommandOnly" | "patternForm";
+
+/** 대상 칸 글을 규칙의 resource로 바꾼다 */
+export function resourceOfPattern(text: string): Result<PolicyResource, PatternIssue> {
+  const trimmed = text.trim();
+  if (trimmed === "") return err("patternEmpty");
+  if (trimmed === "*") return ok({});
+  const call = /^([^()\s]+)\((.*)\)$/.exec(trimmed);
+  if (call === null) {
+    if (/[()\s]/.test(trimmed)) return err("patternForm");
+    return trimmed.length > TOOL_MAX ? err("patternLong") : ok({ tool: trimmed });
+  }
+  const tool = call[1] ?? "";
+  const prefix = (call[2] ?? "").trim();
+  if (tool !== COMMAND_TOOL) return err("patternCommandOnly");
+  if (prefix === "") return ok({ tool });
+  if (prefix.length > 512) return err("patternLong");
+  return ok({
+    tool,
+    args: [{ pointer: COMMAND_POINTER, pattern: `^${escapeRegex(prefix)}( |$)` }],
+  });
+}
+
+/** 새 규칙 이름: `<판정>-<도구 글자만>`, 이미 있으면 `-2`, `-3`… */
+export function ruleIdFor(
+  effect: PolicyEffect,
+  resource: PolicyResource,
+  rules: readonly PolicyRule[],
+): string {
+  const tool = (resource.tool ?? "all").replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+  const base = `${effect}-${tool === "" ? "tool" : tool}`.slice(0, ID_MAX - 4);
+  const taken = new Set(rules.map((rule) => rule.id));
+  if (!taken.has(base)) return base;
+  for (let n = 2; ; n += 1) {
+    const id = `${base}-${String(n)}`;
+    if (!taken.has(id)) return id;
+  }
+}
+
+export type AddIssue = PatternIssue | "patternDuplicate" | "memoLong";
+
+/** 판정 표의 추가 줄로 새 규칙을 만든다. 같은 대상·같은 판정 규칙이 있으면 실패다 */
+export function ruleOfPattern(
+  input: { readonly pattern: string; readonly effect: PolicyEffect; readonly memo: string },
+  rules: readonly PolicyRule[],
+): Result<PolicyRule, AddIssue> {
+  const resource = resourceOfPattern(input.pattern);
+  if (!resource.ok) return err(resource.error);
+  const memo = input.memo.trim();
+  if (memo.length > MEMO_MAX) return err("memoLong");
+  const probe: PolicyRule = {
+    id: "",
+    action: "tool.call",
+    resource: resource.value,
+    effect: input.effect,
+  };
+  const text = patternTextOf(probe);
+  if (rules.some((rule) => rule.effect === input.effect && patternTextOf(rule) === text)) {
+    return err("patternDuplicate");
+  }
+  return ok({
+    ...probe,
+    id: ruleIdFor(input.effect, resource.value, rules),
+    ...(memo === "" ? {} : { description: memo }),
+  });
+}
+
+/** 메모를 바꾼다. 빈 글이면 메모를 지운다 */
+export function withMemo(
+  rules: readonly PolicyRule[],
+  index: number,
+  memo: string,
+): readonly PolicyRule[] {
+  const text = memo.trim().slice(0, MEMO_MAX);
+  return replaceAt(rules, index, (rule) => ({
+    id: rule.id,
+    action: rule.action,
+    resource: rule.resource,
+    effect: rule.effect,
+    ...(rule.priority === undefined ? {} : { priority: rule.priority }),
+    ...(text === "" ? {} : { description: text }),
+  }));
 }

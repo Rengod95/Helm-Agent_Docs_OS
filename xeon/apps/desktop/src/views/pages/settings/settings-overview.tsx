@@ -21,7 +21,7 @@ import {
 //   - `AboutPanel`: 일반 구역의 "정보와 진단"(요약 세 칸, 업데이트 실패 원인, 업데이트 확인·진단 복사·로그 폴더 단추 한 줄. DP-86).
 //   - `SettingsFilesPanel`: 데이터 구역의 "설정 파일"(경로 줄). 화면에서 뺀 키는 이 파일로 바꾼다.
 // "지금 상태"(범위별 개수)와 화면 진단 카드는 범위 중심 요약이라 뺐다.
-export const ROWS_CLASS =
+const ROWS_CLASS =
   "rounded-none [--cs-size-list-term:9rem] [&_[data-slot=list-description-row]]:px-0 @max-[26rem]:[&_[data-slot=list-description-row]]:grid-cols-[minmax(0,1fr)_auto] @max-[26rem]:[&_[data-slot=list-description-term]]:col-span-full";
 
 /** 모든 구역 맨 위의 알림 띠. 띠가 없으면 아무것도 그리지 않는다 */

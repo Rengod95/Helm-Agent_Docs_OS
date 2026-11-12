@@ -1,27 +1,18 @@
 import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
 import type { TableColumn } from "@fresnel/client/settings";
-import type { PolicyRule } from "@fresnel/contracts/services";
 import { renderToString } from "react-dom/server";
 import {
   FixedTableView,
   RecordTableView,
   RowsTableView,
-  RulesView,
-  SandboxListView,
   SecretRefView,
   UnreadableEditorNote,
   type FixedTableViewProps,
   type RecordTableViewProps,
   type RowsTableViewProps,
-  type RulesViewProps,
-  type SandboxListViewProps,
   type SecretRefViewProps,
 } from "../../src/views/pages/settings/settings-editors-view.tsx";
-import {
-  EMPTY_RULE_DRAFT,
-  conflictsOf,
-} from "../../src/views/pages/settings/settings-rules-model.ts";
 
 // 설정 전용 편집기의 서버 렌더. 빈 상태, 채워진 상태, 오류 문장, 잠긴(오프라인) 상태를 그린다.
 // 문장은 `t()`로 비교하고, 값 글자는 그대로 비교한다. 잠긴 상태는 입력 칸에 `disabled`가 붙는다.
@@ -34,130 +25,6 @@ const SELECT_TRIGGER = 'data-slot="select-trigger"';
 function countOf(html: string, needle: string): number {
   return html.split(needle).length - 1;
 }
-
-function rule(id: string, effect: PolicyRule["effect"], tool?: string): PolicyRule {
-  return { id, action: "tool.call", resource: tool === undefined ? {} : { tool }, effect };
-}
-
-function rulesProps(
-  rules: readonly PolicyRule[],
-  over: Partial<RulesViewProps> = {},
-): RulesViewProps {
-  return {
-    rules,
-    conflicts: conflictsOf(rules),
-    editable: true,
-    draft: EMPTY_RULE_DRAFT,
-    error: null,
-    onDraft: NOOP,
-    onAdd: NOOP,
-    onId: NOOP,
-    onTool: NOOP,
-    onEffect: NOOP,
-    onPriority: NOOP,
-    onRemove: NOOP,
-    ...over,
-  };
-}
-
-describe("RulesView", () => {
-  test("no rule says the default policy applies", () => {
-    const html = renderToString(<RulesView {...rulesProps([])} />);
-    expect(html).toContain(t("desktop.settings.rules.empty"));
-  });
-
-  test("rules show their name, tool and action, and a deny on another tool shows no conflict", () => {
-    const html = renderToString(
-      <RulesView
-        {...rulesProps([rule("read-docs", "allow", "read"), rule("no-shell", "deny", "bash")])}
-      />,
-    );
-    expect(html).toContain('value="read-docs"');
-    expect(html).toContain('value="read"');
-    // 동작 칸은 고르기 칸이다. 두 규칙 행과 추가 칸, 셋이다(고른 글은 마운트 뒤에 그려져 서버 렌더에는 없다)
-    expect(countOf(html, SELECT_TRIGGER)).toBe(3);
-    expect(html).not.toContain(t("desktop.settings.rules.conflict", { rules: "no-shell" }));
-    expect(html).not.toContain(t("desktop.settings.rules.conflict", { rules: "read-docs" }));
-  });
-
-  test("an allow and a deny that overlap show the conflict on both rows", () => {
-    const html = renderToString(
-      <RulesView
-        {...rulesProps([rule("allow-bash", "allow", "bash"), rule("deny-all", "deny")])}
-      />,
-    );
-    expect(html).toContain(t("desktop.settings.rules.conflict", { rules: "deny-all" }));
-    expect(html).toContain(t("desktop.settings.rules.conflict", { rules: "allow-bash" }));
-  });
-
-  test("a refused edit shows its sentence", () => {
-    const html = renderToString(
-      <RulesView
-        {...rulesProps([rule("a", "ask")], { error: t("desktop.settings.rules.issue.empty") })}
-      />,
-    );
-    expect(html).toContain(t("desktop.settings.rules.issue.empty"));
-  });
-
-  test("a locked (offline) view disables its inputs", () => {
-    const html = renderToString(
-      <RulesView {...rulesProps([rule("a", "ask")], { editable: false })} />,
-    );
-    expect(html).toContain("disabled");
-  });
-});
-
-function sandboxProps(
-  kind: SandboxListViewProps["kind"],
-  items: readonly string[],
-  over: Partial<SandboxListViewProps> = {},
-): SandboxListViewProps {
-  return {
-    kind,
-    items,
-    editable: true,
-    draft: "",
-    error: null,
-    onDraft: NOOP,
-    onAdd: NOOP,
-    onRemove: NOOP,
-    ...over,
-  };
-}
-
-describe("SandboxListView", () => {
-  test("an empty path list says so and shows the block-first note", () => {
-    const html = renderToString(<SandboxListView {...sandboxProps("paths", [])} />);
-    expect(html).toContain(t("desktop.settings.sandbox.paths.note"));
-    expect(html).toContain(t("desktop.settings.sandbox.empty"));
-  });
-
-  test("a domain list shows its entries under the domain note", () => {
-    const html = renderToString(
-      <SandboxListView {...sandboxProps("domains", ["example.com", "*.bad.net"])} />,
-    );
-    expect(html).toContain(t("desktop.settings.sandbox.domains.note"));
-    expect(html).toContain("example.com");
-    expect(html).toContain("*.bad.net");
-  });
-
-  test("a refused entry shows its sentence", () => {
-    const html = renderToString(
-      <SandboxListView
-        {...sandboxProps("domains", [], { error: t("desktop.settings.sandbox.issue.domain") })}
-      />,
-    );
-    expect(html).toContain(t("desktop.settings.sandbox.issue.domain"));
-  });
-
-  test("a locked view disables the add form and the removal buttons", () => {
-    const html = renderToString(
-      <SandboxListView {...sandboxProps("paths", ["/srv"], { editable: false })} />,
-    );
-    expect(html).toContain("disabled");
-    expect(html).toContain("/srv");
-  });
-});
 
 const COLUMNS: readonly TableColumn[] = [
   { name: "name", kind: "string", options: null, required: true },

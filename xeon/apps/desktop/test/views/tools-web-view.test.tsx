@@ -9,8 +9,8 @@ import {
 } from "../../src/views/pages/tools-web/tools-web-view.tsx";
 import { visibleWebViewOf } from "../../src/views/pages/tools-web/tools-web-model.ts";
 
-// 도구와 웹 패널(P-12)의 서버 렌더. 읽는 중, 읽지 못함, 오프라인, 빈 목록, 긴 목록, 준비된 값을 그린다.
-// 클릭과 키 입력은 DOM이 없어 시험하지 못한다(뜻은 order-keys와 tools-web-model 시험이 본다). 문장은 `t()`로 비교한다.
+// 도구와 MCP의 웹 도구 표(P-12, DP-111)의 서버 렌더. 읽는 중, 읽지 못함, 오프라인, 빈 목록, 긴 목록, 준비된 값을 그린다.
+// 클릭과 키 입력은 DOM이 없어 시험하지 못한다(뜻은 tools-web-model 시험이 본다). 문장은 `t()`로 비교한다.
 
 const NOOP = (): void => {};
 
@@ -32,6 +32,11 @@ function row(id: string, fields: Partial<WebToolRow> = {}): WebToolRow {
     price: null,
     ...fields,
   };
+}
+
+/** 잠긴 단추 수 */
+function disabledOf(html: string): number {
+  return html.split(' disabled=""').length - 1;
 }
 
 function emptySection(capability: WebSection["capability"]): WebSection {
@@ -130,25 +135,36 @@ describe("ToolsWebPanelView states", () => {
 });
 
 describe("ToolsWebPanelView ready values", () => {
-  test("a ready provider shows no state text, a provider with a problem shows its state, and its note sits behind the info icon", () => {
+  test("every provider shows its state, a provider with a problem shows its note under the row", () => {
     const html = renderToString(
       <ToolsWebPanelView {...propsOf({ status: "ready", view: READY })} />,
     );
-    expect(html).not.toContain(t("desktop.tools.state.ready"));
+    expect(html).toContain(t("desktop.tools.state.ready"));
     expect(html).toContain(t("desktop.tools.state.needsKey"));
     expect(html).toContain(t("desktop.tools.state.unavailable"));
     expect(html).toContain(t("desktop.tools.current"));
     expect(html).toContain(t("desktop.tools.notice.pending"));
-    expect(html).toContain(t("desktop.tools.price.stale"));
-    // 설명은 정보 아이콘의 이름으로만 남는다(툴팁은 열 때만 그린다)
-    expect(html).toContain("fresnel secret add exa-api-key");
+    expect(html).toContain(t("desktop.tools.price.staleLine", { date: "2026-08-01" }));
+    expect(html).toContain("키가 없어요 — 해결: fresnel secret add exa-api-key");
+    expect(html).toContain("응답이 없어요");
+    // 쓸 수 있는 줄의 안내는 줄 아래에 붙지 않는다
+    expect(html).not.toContain("사용할 수 있어요<");
   });
 
-  test("the recommendations show Exa and Brave with their own states", () => {
+  test("the three kinds are one table, and the kind label sits on the first row only", () => {
     const html = renderToString(
       <ToolsWebPanelView {...propsOf({ status: "ready", view: READY })} />,
     );
-    expect(html).toContain(t("desktop.tools.recommend.title"));
+    expect(html.split('data-slot="web-tools-table"').length - 1).toBe(1);
+    expect(html.split('data-slot="web-tool-row"').length - 1).toBe(3);
+    expect(html.split(`>${t("desktop.tools.search.title")}<`).length - 1).toBe(1);
+  });
+
+  test("the recommendations line shows Exa and Brave with their own states", () => {
+    const html = renderToString(
+      <ToolsWebPanelView {...propsOf({ status: "ready", view: READY })} />,
+    );
+    expect(html).toContain(t("desktop.tools.recommend.line"));
     expect(html).toContain(t("desktop.tools.state.notInstalled"));
     expect(html).toContain("플러그인을 설치해 주세요");
   });
@@ -210,20 +226,19 @@ describe("ToolsWebPanelView ready values", () => {
 });
 
 describe("ToolsWebPanelView editing lock", () => {
-  test("the search rows are focusable only while the order can be changed", () => {
-    // 가격 오래됨 글도 툴팁 대상이라 초점을 받는다. 순서 잠금만 보려고 가격 줄을 뺀 값으로 본다
-    const noPrice: ToolsWebView = {
-      ...READY,
-      search: { ...READY.search, rows: READY.search.rows.map((r) => ({ ...r, price: null })) },
-    };
+  test("only search rows have order buttons, and they lock while offline", () => {
     const live = renderToString(
-      <ToolsWebPanelView {...propsOf({ status: "ready", view: noPrice })} />,
+      <ToolsWebPanelView {...propsOf({ status: "ready", view: READY })} />,
     );
     const offline = renderToString(
-      <ToolsWebPanelView {...propsOf({ status: "ready", view: noPrice }, { offline: true })} />,
+      <ToolsWebPanelView {...propsOf({ status: "ready", view: READY }, { offline: true })} />,
     );
-    expect(live).toContain('tabindex="0"');
-    expect(offline).not.toContain('tabindex="0"');
+    const up = t("desktop.tools.order.up", { name: "Exa" });
+    expect(live).toContain(up);
+    expect(live).toContain(t("desktop.tools.order.down", { name: "Brave" }));
+    // 살아 있으면 첫 줄 위로, 끝 줄 아래로만 잠긴다. 끊기면 여섯 단추가 모두 잠긴다
+    expect(disabledOf(live)).toBe(2);
+    expect(disabledOf(offline)).toBe(6);
   });
 
   test("an empty search list says no search tools", () => {

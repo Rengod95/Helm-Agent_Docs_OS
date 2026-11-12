@@ -44,8 +44,8 @@ export interface SettingSectionProps {
   readonly label?: string | undefined;
   /** 머리 오른쪽 끝 동작(ghost sm 단추나 링크) */
   readonly end?: ReactNode | undefined;
-  /** `rows`: 줄 목록(기본). `plain`: 줄이 아닌 자유 배치 */
-  readonly body?: "rows" | "plain" | undefined;
+  /** `rows`: 줄 목록(기본). `plain`: 줄이 아닌 자유 배치. `bare`: 카드 없이 자식이 자기 면을 그린다(판정 표, 두 열 카드, DP-109) */
+  readonly body?: "rows" | "plain" | "bare" | undefined;
   /** 제목 없이 앞 카드에 이어지는 카드. 위 간격이 8px이다 */
   readonly continues?: boolean | undefined;
   readonly children: ReactNode;
@@ -59,7 +59,8 @@ const OTHER_CHILD = "[&>:not([data-layout])]:px-4 [&>:not([data-layout])]:py-3";
 export function SettingSection(props: SettingSectionProps): ReactNode {
   const id = useId();
   const head = props.title !== undefined || props.end !== undefined;
-  const rows = (props.body ?? "rows") === "rows";
+  const body = props.body ?? "rows";
+  const rows = body === "rows";
   return (
     <section
       data-slot="setting-section"
@@ -78,17 +79,23 @@ export function SettingSection(props: SettingSectionProps): ReactNode {
       {props.description === undefined ? null : (
         <p className="m-0 -mt-1.5 mb-2 text-ui text-text-tertiary">{props.description}</p>
       )}
-      <div
-        data-slot="setting-card"
-        data-body={rows ? "rows" : "plain"}
-        className={
-          rows
-            ? `@container grid overflow-hidden py-1 ${CARD} [&>*+*]:border-t [&>*+*]:border-border-subtle ${OTHER_CHILD}`
-            : `@container grid gap-2 px-4 py-4 ${CARD}`
-        }
-      >
-        {props.children}
-      </div>
+      {body === "bare" ? (
+        <div data-slot="setting-bare" className="grid min-w-0">
+          {props.children}
+        </div>
+      ) : (
+        <div
+          data-slot="setting-card"
+          data-body={rows ? "rows" : "plain"}
+          className={
+            rows
+              ? `@container grid overflow-hidden py-1 ${CARD} [&>*+*]:border-t [&>*+*]:border-border-subtle ${OTHER_CHILD}`
+              : `@container grid gap-2 px-4 py-4 ${CARD}`
+          }
+        >
+          {props.children}
+        </div>
+      )}
     </section>
   );
 }

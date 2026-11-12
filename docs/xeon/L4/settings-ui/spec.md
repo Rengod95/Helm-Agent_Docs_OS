@@ -685,7 +685,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | 계정 풀 | providers | 계정 목록, 우선순위, 예약 %(`L1.models.spec`). API 키 계정과 구독 계정 모두. 회전은 기본 꺼짐이고 켤 때 첫 사용 고지(약관 위험)를 보인다 [결정: review.m3-design-inputs D-M3-22] | 순위 끌어 옮기기, 키 참조는 `secret` 위젯 |
 | 외부 훅 표 | plugins | 외부 훅 정의 `x.operations.hookDefs`(`X.operations.spec` §4.7) [제안: 2026-11-04 hookrun] | 명령 실행 경고를 늘 보임(DP-58), 훅 한 줄마다 아이디·훅·명령 요약, 명령은 한 줄에 인자 하나, 새 훅과 고친 훅은 명령을 보여 주는 확인을 거쳐야 초안에 들어감(지우기는 확인 없음) |
 
-- 구현 상태(P-09): 권한 규칙(`l1.tools.rules`), 샌드박스 목록 두 개(`l0.sandbox.writeRoots.extra`, `l0.sandbox.network.blockedDomains`), 외부 훅 표(`x.operations.hookDefs`, `pages/settings/settings-hook-defs.tsx`), 시크릿 참조는 `pages/settings/settings-editors-screen.tsx`의 전용 편집기로 그린다. 표(`table`의 세 모양)는 같은 파일의 표 편집기로 그린다(§4.2.1). 모델 역할, 대체 사슬, 계정 풀, 레이트 리밋은 P-11(`pages/providers`)이, 검색 순서는 P-12 패널이 맡는다. 위의 세 키는 키 이름 목록에 더했다. 값은 모두 `settings.set` 한 번으로 키 하나를 통째로 쓴다. 상세는 L4.desktop-ux §6.13.
+- 구현 상태(P-09): 권한 규칙(`l1.tools.rules`, 판정 표 DP-109), 경로·도메인 목록 넷(`l0.sandbox.writeRoots.extra`, `l0.sandbox.protectedPaths.extra`, `l0.sandbox.network.blockedDomains`, `l2.knowledge.skills.paths`, 공용 목록 편집기 DP-110), 외부 훅 표(`x.operations.hookDefs`, `pages/settings/settings-hook-defs.tsx`), 시크릿 참조는 `pages/settings/settings-editors-screen.tsx`의 전용 편집기로 그린다. 표(`table`의 세 모양)는 같은 파일의 표 편집기로 그린다(§4.2.1). 모델 역할, 대체 사슬, 계정 풀, 레이트 리밋은 P-11(`pages/providers`)이, 검색 순서는 P-12 패널이 맡는다. 위의 세 키는 키 이름 목록에 더했다. 값은 모두 `settings.set` 한 번으로 키 하나를 통째로 쓴다. 상세는 L4.desktop-ux §6.13.
 - 전용 편집기를 고르는 기준은 키 이름이다(예: 정의 키가 정해진 목록에 있음). [미결] 키 이름에 묶는 대신 F `SettingUi`에 편집기 힌트 필드를 더할지(§10 미결 8).
 
 - `select`의 선택지 설명 [결정: 2026-11-08]: 선택지마다 카탈로그 `settings.<설정 키>.optionHelp.<값>`(값의 `-`·`_`는 camelCase)이 있으면 설명 한 줄을 라벨 아래에 바로 보인다(정보 아이콘 뒤에 두지 않는다). 설명이 하나라도 있으면 라디오 묶음은 세로로 놓고, 없으면 가로 한 줄이다. 키가 없는 선택지는 설명 줄을 긋지 않는다(키 이름을 보이지 않는다). 구현: `apps/desktop/src/views/pages/settings/settings-model.ts`의 `optionHelpOf`.
@@ -1063,9 +1063,9 @@ sequenceDiagram
    | 앱 | 알림 | OS 알림 권한 띠와 종류별 스위치(데스크톱 로컬 키, DP-87) |
    | 에이전트 | 모델과 계정 | 제공자 카드(`l1.models.providers`), 계정 풀과 회전(`l1.models.accounts`, 회전 플러그인 키), 쓸 모델(`l1.models.default`·`allowedModels`·`deniedModels`). 셋 다 전용 패널이다(L4.desktop-ux DP-83, DP-84) |
    | 에이전트 | 시크릿 | 시크릿 표와 상세 시트, 시크릿 사용 승인, 고급(접힘: 저장소·lease·감사 보관 키 7개)(DP-85) |
-   | 에이전트 | 권한 | 승인 방식, 신뢰 폴더, 웹 접근 정책 |
-   | 에이전트 | 샌드박스 | `l0.sandbox.*` 중 사용자가 정할 것 |
-   | 에이전트 | 도구와 MCP | MCP 서버, MCP 정책, 검색, 스킬과 명령 |
+   | 에이전트 | 권한 | 실행 방식 카드, 권한 규칙 판정 표, 승인 기다림(무인 실행·계획), 작업 폴더 신뢰, 웹 접근. 모두 전용 패널이다(L4.desktop-ux DP-109) |
+   | 에이전트 | 샌드박스 | 상태와 점검, 쓰기와 보호, 네트워크, 그 밖(`l0.sandbox.*` 중 사용자가 정할 것). 전용 패널이다(DP-110) |
+   | 에이전트 | 도구와 MCP | MCP 서버 카드, MCP 정책(접힘), 웹 도구 표, 스킬과 명령(DP-111) |
    | 에이전트 | 플러그인 | 플레이그라운드 안내, 플러그인 안전, 훅(접힘), 개발자(접힘) |
    | 에이전트 | 대화와 기억 | 보관, 기억, 기억과 검색 |
    | 엔진 | 연결과 서비스 | 연결 화면 본문(호스트, 실행 방식, 진단) |
@@ -1075,7 +1075,7 @@ sequenceDiagram
 2. 구역에 둘 키는 앱의 구역 표(`apps/desktop/src/views/pages/settings/settings-sections.ts` `SETTINGS_SECTIONS`)가 정한다. 정의의 `ui.tab`은 화면 배치에 쓰지 않는다. 같은 키는 두 구역에 들지 않는다(`settings-sections.test.ts`).
 3. 표에 없는 키는 화면에 그리지 않고 찾기에도 나오지 않는다. 엔진 정의, 기본값, 설정 파일 값은 그대로이고 "파일로 보기"로 고칠 수 있다. 화면에서 뺀 묶음: 예산과 한도(`l1.loop.*`, 이어가기, 추론 예산, 라우팅, 레이트 리밋), 엔진의 OS 알림(`l2.dialog.notify.*`, 알림 구역과 겹침), 서비스와 원격 웹(`l0.process.service.*`, `l4.remote.web.*`, 연결 구역의 실행 방식과 겹침), 운영자 키(저장소 주기, 진단 주소 등).
 4. 설정 점프(`requestSettingsJump`)는 구역 id나 옛 탭 값을 받는다. 키가 표에 있으면 그 키의 구역을 열고, 아니면 받은 구역(옛 탭이면 옮겨 간 구역)을 연다. 연결 열기(`connection.open`)는 `{ tab: "connection" }` 점프다.
-5. [결정: 2026-11-11 사용자] 전용 패널도 자기가 그리는 키를 구역 표에 적는다(`panel(id, keys)`). 그래서 패널이 그리는 키도 한 구역에만 들고, 점프는 그 구역을 열며, 찾기는 맞은 키를 일반 항목 줄로 보인다. 모델과 계정 구역에는 일반 항목 줄이 없다. 시크릿 고급에 넣는 키는 `l0.secrets.providers`, `defaultProvider`, `ageKey.source`, `ageKey.filePath`, `lease.ttlSeconds`, `lease.maxUses`, `audit.retentionDays`다. `sops.binary`, `sops.files`, `redaction.enabled`는 화면에서 뺀다(파일로 보기로 고친다). 옛 "계정 회전" 패널 id(`rotation`)는 계정 패널(`accounts`)에 들어갔다 [근거: apps/desktop/src/views/pages/settings/settings-sections.ts `SETTINGS_SECTIONS`, `SECRET_ADVANCED_KEYS`].
+5. [결정: 2026-11-11 사용자] 전용 패널도 자기가 그리는 키를 구역 표에 적는다(`panel(id, keys)`). 그래서 패널이 그리는 키도 한 구역에만 들고, 점프는 그 구역을 열며, 찾기는 맞은 키를 일반 항목 줄로 보인다. 모델과 계정, 권한, 샌드박스 구역에는 일반 항목 줄이 없다. 시크릿 고급에 넣는 키는 `l0.secrets.providers`, `defaultProvider`, `ageKey.source`, `ageKey.filePath`, `lease.ttlSeconds`, `lease.maxUses`, `audit.retentionDays`다. `sops.binary`, `sops.files`, `redaction.enabled`는 화면에서 뺀다(파일로 보기로 고친다). 옛 "계정 회전" 패널 id(`rotation`)는 계정 패널(`accounts`)에 들어갔다 [근거: apps/desktop/src/views/pages/settings/settings-sections.ts `SETTINGS_SECTIONS`, `SECRET_ADVANCED_KEYS`].
 
 #### 4.12.2 범위 없는 항목 줄
 
