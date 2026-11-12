@@ -118,6 +118,33 @@ describe("threadSummaryOf", () => {
     expect(Object.hasOwn(withoutTurn.value, "lastTurnId")).toBe(false);
   });
 
+  test("the preview is carried through the wire schema and omitted when the row has none", () => {
+    const withPreview = threadSummaryOf(row({ title: null, preview: "첫 입력의 앞부분…" }));
+    expect(withPreview.ok).toBe(true);
+    if (!withPreview.ok) return;
+    expect(withPreview.value.preview).toBe("첫 입력의 앞부분…");
+    expect(parse(ThreadSummarySchema, withPreview.value).ok).toBe(true);
+    expect(
+      parse(WIRE_METHODS["thread.list"].result, { threads: [withPreview.value], nextCursor: null })
+        .ok,
+    ).toBe(true);
+
+    const withoutPreview = threadSummaryOf(row({ title: null }));
+    expect(withoutPreview.ok).toBe(true);
+    if (!withoutPreview.ok) return;
+    expect(Object.hasOwn(withoutPreview.value, "preview")).toBe(false);
+    expect(parse(ThreadSummarySchema, withoutPreview.value).ok).toBe(true);
+  });
+
+  test("the wire schema refuses an empty or over-long preview", () => {
+    const base = threadSummaryOf(row({ title: null }));
+    expect(base.ok).toBe(true);
+    if (!base.ok) return;
+    expect(parse(ThreadSummarySchema, { ...base.value, preview: "" }).ok).toBe(false);
+    expect(parse(ThreadSummarySchema, { ...base.value, preview: "가".repeat(161) }).ok).toBe(false);
+    expect(parse(ThreadSummarySchema, { ...base.value, preview: "가".repeat(160) }).ok).toBe(true);
+  });
+
   test("a time outside the Date range is an error value naming the field", () => {
     expect(threadSummaryOf(row({ createdAt: 9e15 }))).toEqual({
       ok: false,

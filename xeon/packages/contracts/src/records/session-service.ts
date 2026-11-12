@@ -96,6 +96,11 @@ export interface ThreadSummaryRow {
   readonly pendingApprovals: number;
   /** 이 대화에서 가장 나중 seq의 turn id(events.turn_id). turn이 없으면 null */
   readonly lastTurnId: TurnId | null;
+  /**
+   * 첫 사용자 입력의 글 앞부분(공백 정리, 80 코드 포인트, 잘리면 "…"). 목록 읽기(`threads.list`)만 채우고, 글이 없으면 없다.
+   * 이미지와 그 밖의 첨부 내용은 넣지 않는다(L1.persistence.spec §4.10.7). 저장 행을 바꾸지 않는 읽기 값이다
+   */
+  readonly preview?: string;
 }
 
 export interface ItemRow {

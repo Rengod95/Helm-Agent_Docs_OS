@@ -22,7 +22,7 @@ import { PERSISTENCE_PRODUCER, type ProducerRegistry } from "./producers.ts";
 import { REPLAY_FLOOR_CONSUMER } from "./replay-floor.ts";
 import { columns, readResult, rowInvalid, type RowFault } from "./rows.ts";
 import { writeResult } from "./tx-result.ts";
-import { readThread, readThreadSummary } from "./views.ts";
+import { readFirstUserPreview, readThread, readThreadSummary } from "./views.ts";
 import type { SessionWriter } from "./writer.ts";
 
 export interface AdminDeps {
@@ -154,7 +154,14 @@ export function createAdminOps(
         if (thread.value === undefined) return err(rowInvalid("p_threads.thread_id"));
         const summary = readThreadSummary(tx, thread.value);
         if (!summary.ok) return summary;
-        threads.push(summary.value);
+        // 미리보기는 목록(thread.list)에서만 붙인다. query.thread 호출자는 쓰지 않으므로 턴 실행 경로가 기록을 매번 읽지 않는다
+        const preview = readFirstUserPreview(tx, thread.value.threadId);
+        if (!preview.ok) return preview;
+        threads.push(
+          preview.value === undefined
+            ? summary.value
+            : { ...summary.value, preview: preview.value },
+        );
       }
       const page = threads.slice(0, limit);
       const last = page[page.length - 1];

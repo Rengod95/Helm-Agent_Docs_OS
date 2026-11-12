@@ -543,8 +543,10 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
     testRun: Type.Optional(TestRunMarkerSchema), // M4, W-34. { profileId, target, paused }. Test run이 아니면 생략
     spawnedBy: Type.Optional(ThreadSpawnedBySchema), // M4, rtE R-3. { threadId(부모), kind: "subagent"\|"internal" }. 위임으로 만든 자식이 아니면 생략 [결정: 오케스트레이터 기본값, rtE R-3]
     model: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })), // M4, T-MODEL. 대화가 다음 turn부터 쓰도록 정한 `provider/id`. 정하지 않았으면 생략(기본 모델)
+    preview: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })), // 첫 사용자 입력의 글 앞부분, 80 코드 포인트(잘리면 "…" 포함). 글이 없으면 생략. 목록 읽기만 싣는다
   }, { additionalProperties: false });
   ```
+- [결정: 2026-11-11 사용자] `ThreadSummary.preview`(선택)는 제목이 없는 대화를 목록에서 흐리게 보이는 글이다. 값은 `L1.persistence.spec` §4.10.7이 정한다: 텍스트 블록만 잇고 공백을 한 칸으로 줄이고 앞뒤를 자른 뒤 80 코드 포인트로 자른다(잘리면 79 코드 포인트와 "…"). 이미지와 그 밖의 첨부 내용은 넣지 않는다. 글이 없으면 생략한다(`""`로 싣지 않는다). 상한 160은 UTF-16 길이 상한이다. 이 필드가 없는 옛 호스트의 응답은 클라이언트가 그대로 "제목 없음"을 쓴다.
 
 - [결정: m2-plan F.6] `thread.list`의 `workspace` 필터는 `thread.started.workspace`(`F.conversation.spec` §3.5.3)에 저장한 값과 정확히 같은 문자열을 찾는다. 호스트가 `thread.create`의 `workspace`를 정규 절대 경로로 바꿔 저장하는 규칙은 `L4.host-service.spec`이 정한다.
 - `TurnStartInput` [제안]: pi `UserMessage["content"]`와 같은 모양이다. 스키마는 `F.conversation.spec`의 콘텐츠 스키마로 만든다. `F.extensions.spec`의 `TurnInput`(drive 함수의 `loop.turn()` 입력, `{ input: PostItem, requestId? }`)과 모양이 달라서 이름을 나눈다.

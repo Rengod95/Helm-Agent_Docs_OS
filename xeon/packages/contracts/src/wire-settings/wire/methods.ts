@@ -515,6 +515,7 @@ export const ThreadSummarySchema: TObject<{
   testRun: TOptional<typeof TestRunMarkerSchema>;
   spawnedBy: TOptional<typeof ThreadSpawnedBySchema>;
   model: TOptional<TString>;
+  preview: TOptional<TString>;
 }> = Type.Object(
   {
     threadId: ThreadIdSchema,
@@ -547,6 +548,11 @@ export const ThreadSummarySchema: TObject<{
     spawnedBy: Type.Optional(ThreadSpawnedBySchema),
     /** 이 대화가 다음 turn부터 쓰도록 정한 모델 참조(`provider/id`). 정하지 않았으면 생략한다(기본 모델 `l1.models.default`) */
     model: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+    /**
+     * 첫 사용자 입력의 글 앞부분(80 코드 포인트, 잘리면 "…" 포함, L1.persistence.spec §4.10.7). 제목이 없는 대화를 목록에서 흐리게
+     * 보이는 자리다. 글이 없으면 생략한다. 상한 160은 80 코드 포인트가 UTF-16 최대 2단위씩인 경우다
+     */
+    preview: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
   },
   { additionalProperties: false },
 );

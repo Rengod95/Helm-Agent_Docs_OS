@@ -3,6 +3,7 @@ import type { ThreadOrigin } from "@fresnel/contracts/wire";
 import {
   relativeTimeOf,
   rowBadgeOf,
+  rowLabelOf,
   rowOpensChat,
   threadMatches,
 } from "../../src/views/thread-nav-model.ts";
@@ -112,5 +113,22 @@ describe("relativeTimeOf", () => {
     const old = relativeTimeOf("2026-10-01T12:00:00.000Z", now);
     expect(old.unit).toBe("date");
     expect(relativeTimeOf("nope", now)).toEqual({ unit: "now" });
+  });
+});
+
+describe("rowLabelOf", () => {
+  test("a titled thread shows its title, not dimmed, even when it also has a preview", () => {
+    const thread = summary(thr(1), { title: "정한 제목", preview: "첫 입력" });
+    expect(rowLabelOf(thread)).toEqual({ text: "정한 제목", dim: false });
+  });
+  test("an untitled thread with a preview shows the preview dimmed in the title's place", () => {
+    const thread = summary(thr(2), { preview: "처음 보낸 말을 여기서 봐요" });
+    expect(rowLabelOf(thread)).toEqual({ text: "처음 보낸 말을 여기서 봐요", dim: true });
+  });
+  test("an untitled thread without a preview has no text, so the caller shows the untitled label", () => {
+    expect(rowLabelOf(summary(thr(3)))).toEqual({ text: null, dim: true });
+  });
+  test("a preview is never used as the title for filtering", () => {
+    expect(threadMatches(summary(thr(4), { preview: "찾는 말" }), "찾는 말")).toBe(false);
   });
 });
