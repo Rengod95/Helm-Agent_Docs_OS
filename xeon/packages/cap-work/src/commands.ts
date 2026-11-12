@@ -35,7 +35,7 @@ function optionsOf(ctx: CommandActionContext) {
 /** 사용자가 직접 할 수 있는 거부는 한국어 해요체 한 줄로 말한다(영어 사유와 원시 코드를 보이지 않는다). 설정 이름은 설정 화면의 글과 같다 */
 const USER_FACING_REFUSALS: Readonly<Record<string, string>> = {
   plan_not_approved:
-    "계획을 승인해야 계획 모드를 나갈 수 있어요. 계획을 승인하거나, 설정의 '계획 승인 필수'를 꺼 주세요.",
+    "승인을 기다리는 계획이 있어요. 계획 카드에서 승인하거나 거절하면 나갈 수 있어요.",
   plan_mode_inactive: "지금은 계획 모드가 아니에요.",
 };
 

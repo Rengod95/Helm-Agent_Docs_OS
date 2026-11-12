@@ -205,7 +205,7 @@ describe("MCP start approval card", () => {
 });
 
 describe("file change approval card", () => {
-  test("an edit shows the path, the changed lines, and the raw args behind 자세히", () => {
+  test("an edit shows the path and the changed lines; the raw args stay folded behind 인자 보기", () => {
     const out = html(
       fileRequest("edit", {
         path: "src/a.ts",
@@ -216,7 +216,8 @@ describe("file change approval card", () => {
     expect(out).toContain(">src/a.ts</code>");
     expect(out).toContain("const a = 1;");
     expect(out).toContain("const a = 2;");
-    expect(out).toContain("자세히");
+    expect(out).toContain("인자 보기");
+    expect(out).toContain('data-action="args" aria-expanded="false"');
     expect(out).not.toContain("더 보기");
   });
 
@@ -234,7 +235,7 @@ describe("file change approval card", () => {
     const out = html(fileRequest("write", { path: "notes.md", content }));
     expect(out).toContain("파일 쓰기");
     expect(out).toContain(">notes.md</code>");
-    // diff 칸의 줄 번호(data-line)는 앞 40줄까지만 있다. 뒤 줄은 "자세히" 안의 인자 JSON에만 남는다
+    // diff 칸의 줄 번호(data-line)는 앞 40줄까지만 있다. 뒤 줄은 "인자 보기" 안의 인자 JSON에만 남는다
     expect(out).toContain('data-line="40"');
     expect(out).not.toContain('data-line="41"');
     expect(out).toContain("5줄 더 있어요");
@@ -374,9 +375,10 @@ describe("tool replacement approval card", () => {
     expect(out).toContain("신뢰하지 않음");
     expect(out).toContain("쓰기 → 실행");
     expect(out).toContain("파일 경로 보호는 대체 도구에 적용되지 않아요");
-    // 같은 카드의 허용·거부 단추와 일반 도구 요약도 그대로 있다
-    expect(out).toContain("허용");
-    expect(out).toContain("도구 tool_replace");
+    // 같은 카드의 허용·거부 단추와 머리의 위험도 배지도 그대로 있다
+    expect(out).toContain('data-action="primary">허용');
+    expect(out).toContain('data-action="deny">거부');
+    expect(out).toContain('data-slot="approval-risk"');
   });
 
   test("a trust the card does not know shows no trust line, and the notice is shown even without notice args", () => {

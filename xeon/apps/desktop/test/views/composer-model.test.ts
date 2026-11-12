@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
 import type { EngineState, QueuedInput } from "../../src/state/engine/index.ts";
 import {
+  COMPOSITION_ARM_MS,
   COMPOSITION_END_GRACE_MS,
   busyModeOfEnter,
   steerableQueuedMode,
@@ -28,45 +29,63 @@ const enter = (over: Partial<EnterKeyInput> = {}): EnterKeyInput => ({
 });
 
 describe("createEnterGuard", () => {
-  test("plain Enter sends", () => {
-    expect(createEnterGuard().isSendEnter(enter(), 1000)).toBe(true);
-  });
-
-  test("Shift+Enter and other keys never send", () => {
+  test("plain Enter sends; Shift+Enter and other keys go to the browser (line break, typing)", () => {
     const guard = createEnterGuard();
-    expect(guard.isSendEnter(enter({ shiftKey: true }), 1000)).toBe(false);
-    expect(guard.isSendEnter(enter({ key: "a", keyCode: 65 }), 1000)).toBe(false);
+    expect(guard.keyDown(enter(), 1000)).toBe("send");
+    expect(guard.keyDown(enter({ shiftKey: true }), 1000)).toBe("pass");
+    expect(guard.keyDown(enter({ key: "a", keyCode: 65 }), 1000)).toBe("pass");
   });
 
-  test("Enter while composing (Chrome order: isComposing true) does not send", () => {
+  test("Chromium order: one Enter while composing commits the syllable and sends once, the trailing Enter is swallowed", () => {
     const guard = createEnterGuard();
     guard.compositionStart();
-    expect(guard.isSendEnter(enter({ isComposing: true, keyCode: 229 }), 1000)).toBe(false);
+    // keydown(229, isComposing) → IME에 맡긴다
+    expect(guard.keyDown(enter({ isComposing: true, keyCode: 229 }), 1000)).toBe("pass");
+    // compositionend → 확정된 글을 보낸다
+    expect(guard.compositionEnd(1002)).toBe(true);
+    // 같은 키의 두 번째 keydown(13) → 줄바꿈도 두 번째 전송도 없다
+    expect(guard.keyDown(enter(), 1003)).toBe("swallow");
   });
 
-  test("WebKit order: compositionend, then Enter keydown with keyCode 229 and isComposing false", () => {
+  test("WebKit order: compositionend first, then the Enter keydown with keyCode 229 sends", () => {
     const guard = createEnterGuard();
     guard.compositionStart();
-    guard.compositionEnd(1000);
-    expect(guard.isSendEnter(enter({ keyCode: 229 }), 1001)).toBe(false);
+    expect(guard.compositionEnd(1000)).toBe(false);
+    expect(guard.keyDown(enter({ keyCode: 229 }), 1001)).toBe("send");
   });
 
-  test("WebKit order even if the keyCode is reported as 13: the same tick after compositionend is ignored", () => {
+  test("a composition that ends without Enter (space, click away) does not send", () => {
     const guard = createEnterGuard();
     guard.compositionStart();
-    guard.compositionEnd(1000);
-    expect(guard.isSendEnter(enter(), 1000 + COMPOSITION_END_GRACE_MS)).toBe(false);
+    expect(guard.keyDown(enter({ key: " ", keyCode: 229, isComposing: true }), 1000)).toBe("pass");
+    expect(guard.compositionEnd(1001)).toBe(false);
+  });
+
+  test("Shift+Enter while composing commits and breaks the line, never sends", () => {
+    const guard = createEnterGuard();
+    guard.compositionStart();
+    expect(guard.keyDown(enter({ shiftKey: true, isComposing: true, keyCode: 229 }), 1000)).toBe(
+      "pass",
+    );
+    expect(guard.compositionEnd(1001)).toBe(false);
+    expect(guard.keyDown(enter({ shiftKey: true }), 1002)).toBe("pass");
   });
 
   test("a deliberate Enter after the grace window sends again", () => {
     const guard = createEnterGuard();
     guard.compositionStart();
-    guard.compositionEnd(1000);
-    expect(guard.isSendEnter(enter(), 1000 + COMPOSITION_END_GRACE_MS + 1)).toBe(true);
+    guard.keyDown(enter({ isComposing: true, keyCode: 229 }), 1000);
+    guard.compositionEnd(1001);
+    expect(guard.keyDown(enter(), 1001 + COMPOSITION_END_GRACE_MS + 1)).toBe("send");
   });
 
-  test("keyCode 229 alone (no composition events seen) does not send", () => {
-    expect(createEnterGuard().isSendEnter(enter({ keyCode: 229 }), 1000)).toBe(false);
+  test("keyCode 229 alone arms a send for the composition end; an old arm is dropped", () => {
+    const guard = createEnterGuard();
+    expect(guard.keyDown(enter({ keyCode: 229 }), 1000)).toBe("pass");
+    expect(guard.compositionEnd(1010)).toBe(true);
+    const late = createEnterGuard();
+    late.keyDown(enter({ keyCode: 229 }), 1000);
+    expect(late.compositionEnd(1000 + COMPOSITION_ARM_MS + 1)).toBe(false);
   });
 });
 

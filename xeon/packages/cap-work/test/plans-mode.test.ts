@@ -32,6 +32,11 @@ function statuses(h: Harness): string[] {
   return read.value.map((p) => `${p.planId}:${p.status}`);
 }
 
+/** 사람이 낸 호출(`/plan exit`, 입력창의 모드 칩): 호출자가 호스트다 */
+function hostOpts(h: Harness, requestId: string) {
+  return { requestId, context: { threadId: h.threadId, caller: { kind: "host" as const } } };
+}
+
 describe("entering plan mode", () => {
   test("enterMode switches to plan and reports the previous mode, also on a retry", async () => {
     const h = await harness();
@@ -89,6 +94,30 @@ describe("leaving plan mode", () => {
     expect(pending.data.code).toBe("plan_not_approved");
     expect(h.mode.calls.filter((call) => call.startsWith("restore"))).toEqual([]);
     expect(h.mode.current(h.threadId)).toBe("plan");
+  });
+
+  test("a person leaving plan mode with no plan submitted goes back to the previous mode", async () => {
+    const h = await harness();
+    await h.mode.set(h.threadId, "acceptEdits");
+    await h.plans.enterMode({}, h.opts("e1"));
+    const out = await h.plans.exitMode({}, hostOpts(h, "x1"));
+    expect(out).toEqual({ mode: "acceptEdits", previousMode: "plan" });
+    expect(h.mode.current(h.threadId)).toBe("acceptEdits");
+  });
+
+  test("a person is refused only while a plan waits for its approval, and may leave after a rejection", async () => {
+    const h = await harness();
+    await h.plans.enterMode({}, h.opts("e1"));
+    await h.plans.submit({ title: "t", body: "b" }, h.opts("c1"));
+    const pending = await rejection(h.plans.exitMode({}, hostOpts(h, "x1")));
+    expect(pending.data.code).toBe("plan_not_approved");
+    await h.plans.reject({ planId: PlanId("p1") }, h.opts("r1"));
+    // 모델은 반려 뒤에도 승인된 계획 없이 나가지 못한다
+    const model = await rejection(h.plans.exitMode({}, h.opts("x2")));
+    expect(model.data.code).toBe("plan_not_approved");
+    const out = await h.plans.exitMode({}, hostOpts(h, "x3"));
+    expect(out).toEqual({ mode: "default", previousMode: "plan" });
+    expect(h.mode.current(h.threadId)).toBe("default");
   });
 
   test("an approval leaves plan mode once when exitOnApprove is on", async () => {

@@ -146,7 +146,7 @@ xeon/packages/cap-work/
 | `test/plans-versions.int.test.ts` | 계획 버전 보관 | v1 수정 요청(피드백을 넣은 반려) 뒤 v2 제출 시 v1은 `rejected`로 남고 `versions`가 두 행을 돌려준다. 승인 대기 중 v2 제출은 `plan_pending` |
 | `test/plans-decision.int.test.ts` | 승인·반려·수정 분기 | 가짜 승인의 `allow`, `deny`, `answer(revise)` 각각에서 투영 상태와 `submit` 재호출 출력이 대응표(§4.2.3)와 같다 |
 | `test/plans-decision.int.test.ts` | 같은 레코드 형식 | `submit`이 만든 승인 요청이 kind `plan`이고 대상이 `PlanApprovalSubjectSchema`를 통과한다(`L2.dialog.plan`의 질문 테스트와 같은 payload 스키마 검사) |
-| `test/plans-mode.test.ts` | 승인 전 실행 단계 진입 금지 | `requireApproval = true`에서 승인 전 `exitMode`는 `plan_not_approved`이고 `restore` 호출이 없다. 승인 뒤 `exitOnApprove`면 `restore` 한 번 |
+| `test/plans-mode.test.ts` | 승인 전 실행 단계 진입 금지 | `requireApproval = true`에서 모델의 승인 전 `exitMode`는 `plan_not_approved`이고 `restore` 호출이 없다. 사람(host)은 승인 대기 계획이 있을 때만 거절되고, 낸 계획이 없거나 반려 뒤면 나간다. 승인 뒤 `exitOnApprove`면 `restore` 한 번 |
 | `test/plans-resume.fault.test.ts` | 승인 대기 중 재시작 복원 | `work.plan_submitted` 커밋 직후 강제 종료(고장 주입) → 재개 시 같은 키로 승인 요청이 한 번만 있다. 대기 중 재시작 뒤 응답하면 `submit` 재호출이 `decided`를 한 번 낸다 |
 | `test/plans-artifact.test.ts` | 산출물 선택 의존 | 기능이 없으면 `artifact: null`, 등록 실패여도 제출은 성공. 등록 requestId가 `plan:<planId>:<planVersion>`이고, 등록 뒤 커밋 전 종료 후 재시도해도 등록 호출의 결과가 같다(가짜 registry의 멱등) |
 | `test/goals-service.int.test.ts` | `set`·`status`·`clear`·`judge`, 보고 | 실제 SQLite와 대화 위에서 목표 기본값과 판정 상한 값, `goal_active`와 `replace`(종결 보고가 같은 커밋), `clear`의 보고와 `goal_closed`, 같은 `requestId`는 처음 결과와 같은 거부를 되풀이하고 이벤트를 쓰지 않음, 위임 판정(`goal_not_delegated`, 소유자만, `goal_turn_stale`, 같은 턴은 첫 판정, `met`·`limit_reached` 종결과 보고), `reports.build`(턴 사용량 합계, 남은 작업, 알 수 없는 대상) |

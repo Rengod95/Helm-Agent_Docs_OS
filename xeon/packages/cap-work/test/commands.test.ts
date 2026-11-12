@@ -125,13 +125,23 @@ describe("work commands", () => {
     expect(result.message).toBe("지금은 계획 모드가 아니에요.");
   });
 
-  test("leaving plan mode before the plan is approved says what to do, in Korean", async () => {
-    const { registry } = await boot();
+  test("/plan exit with no plan submitted leaves plan mode", async () => {
+    const { h, registry } = await boot();
     await registry.run("plan", []);
     const result = await registry.run("plan", ["exit"]);
+    expect(result.message).toBe("계획 모드를 끝냈어요. 지금 승인 모드: 기본(실행마다 묻기)");
+    expect(h.mode.current(h.threadId)).toBe("default");
+  });
+
+  test("leaving plan mode while a plan waits for approval says what to do, in Korean", async () => {
+    const { h, registry } = await boot();
+    await registry.run("plan", []);
+    await h.plans.submit({ title: "t", body: "b" }, h.opts("c1"));
+    const result = await registry.run("plan", ["exit"]);
     expect(result.message).toBe(
-      "계획을 승인해야 계획 모드를 나갈 수 있어요. 계획을 승인하거나, 설정의 '계획 승인 필수'를 꺼 주세요.",
+      "승인을 기다리는 계획이 있어요. 계획 카드에서 승인하거나 거절하면 나갈 수 있어요.",
     );
+    expect(h.mode.current(h.threadId)).toBe("plan");
   });
 
   test("/tasks prints the checklist", async () => {

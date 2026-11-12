@@ -372,9 +372,12 @@ export function useThreadPermissionMode(threadId: ThreadId): {
   };
   const choose = async (next: PermissionMode): Promise<Result<null, ModeChangeError>> => {
     if (mode === null) return ok(null);
-    const step = modeStepOf(mode, next);
+    // 칩이 보이는 값은 늦을 수 있다(계획 승인, 입력창의 `/plan`, 다른 창). 걸음은 엔진의 지금 값으로 정한다
+    const step = modeStepOf((await readNow()) ?? mode, next);
     switch (step.kind) {
       case "none":
+        // 엔진이 이미 그 모드면 칩만 늦은 것이다. 다시 읽어 맞춘다
+        if (next !== mode) setReads((count) => count + 1);
         return ok(null);
       case "set": {
         const set = await commands.setThreadMode(threadId, step.mode);

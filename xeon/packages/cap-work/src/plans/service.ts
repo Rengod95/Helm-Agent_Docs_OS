@@ -53,7 +53,13 @@ import {
 import { createThreadQueue } from "../tasks/queue.ts";
 import { outcomeOf } from "./decision.ts";
 import { decodePlanFailure, encodePlanFailure } from "./failure.ts";
-import { permissionModeOf, plansSinceEntry, submitTarget, type SubmitTarget } from "./model.ts";
+import {
+  exitBlockedFor,
+  permissionModeOf,
+  plansSinceEntry,
+  submitTarget,
+  type SubmitTarget,
+} from "./model.ts";
 import { planRefOf } from "./refs.ts";
 
 // L2.work.spec §3.3, §4.2. work.plans 서비스. 계획 객체와 버전은 work.plan_* 이벤트가 정본이고, 결정(승인·반려·수정 요청)은
@@ -528,7 +534,8 @@ export function createPlans(deps: WorkPlansDeps): PlansRuntime {
         const meta = orThrow("exitMode", readModeMeta(deps.reader, scope.threadId));
         const since = plansSinceEntry(plans, meta.planEnteredSeq);
         if (deps.settings(scope.threadId).plans.requireApproval) {
-          if (since[since.length - 1]?.status !== "approved") {
+          const caller = (scope.context?.caller ?? HOST_CALLER).kind === "host" ? "host" : "agent";
+          if (exitBlockedFor(caller, since)) {
             throw planRejection(CAPABILITY, "exitMode", { kind: "plan_not_approved" });
           }
         } else {

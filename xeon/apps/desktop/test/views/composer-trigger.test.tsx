@@ -5,6 +5,7 @@ import type { ModelEntry } from "@fresnel/contracts/wire";
 import {
   SlashRow,
   StopButton,
+  composerBlankHit,
   modeErrorText,
   ownsComposerRequest,
   secretWarningOf,
@@ -12,6 +13,7 @@ import {
 import {
   ModelChip,
   PermissionModeChip,
+  ThinkingChip,
   modelChipText,
   permissionModeChipText,
 } from "../../src/views/composer-chips.tsx";
@@ -57,11 +59,12 @@ describe("model chip", () => {
     expect(text).toBe("Claude Haiku 5.5");
   });
 
-  test("the chip keeps the DP-67 ghost size: 10px on every side and a 16px line", () => {
+  test("the chip is the form-standard sm control (28px, DP-132), with no height override", () => {
     const { classes } = firstButton(renderToString(<ModelChip {...props} disabled={false} />));
-    expect(classes).toContain("p-2.5");
-    expect(classes).toContain("leading-4");
-    expect(classes).toContain("h-auto");
+    expect(classes).toContain("h-control-sm");
+    expect(classes).not.toContain("h-auto");
+    expect(classes).toContain("px-2");
+    expect(classes).toContain("gap-1");
   });
 
   test("a disabled composer disables the chip", () => {
@@ -124,6 +127,15 @@ describe("permission mode chip", () => {
   });
 });
 
+describe("thinking chip", () => {
+  test("shows the level name only, without a leading icon (DP-132), at the sm height", () => {
+    const markup = renderToString(<ThinkingChip level="medium" disabled={false} onChange={noop} />);
+    expect(visibleText(markup)).toBe("보통");
+    expect(markup).not.toContain("<svg");
+    expect(firstButton(markup).classes).toContain("h-control-sm");
+  });
+});
+
 describe("stop button", () => {
   test("a running turn shows the stop glyph and can be pressed", () => {
     const { tag } = firstButton(
@@ -177,6 +189,25 @@ describe("secret warning line", () => {
 
   test("nothing is shown for plain text without attachments", () => {
     expect(secretWarningOf("hello", false)).toBeNull();
+  });
+});
+
+/** closest()만 흉내 낸 요소: 조상 가운데 고른 선택자에 맞는 것이 있으면 그것을 돌려준다 */
+function at(control: boolean): { closest(selector: string): unknown } {
+  return { closest: () => (control ? {} : null) };
+}
+
+describe("composer blank-area focus", () => {
+  test("a press on the footer gap inside the box focuses the input", () => {
+    expect(composerBlankHit(at(false), true)).toBe(true);
+  });
+
+  test("buttons, chips, attachments and the text box itself keep their own behaviour", () => {
+    expect(composerBlankHit(at(true), true)).toBe(false);
+  });
+
+  test("a press outside the box is not the composer's", () => {
+    expect(composerBlankHit(at(false), false)).toBe(false);
   });
 });
 

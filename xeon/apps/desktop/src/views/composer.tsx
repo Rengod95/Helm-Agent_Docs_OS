@@ -146,12 +146,24 @@ function thinkingErrorText(error: CommandError): string {
 
 /**
  * 입력창 아래 줄 틀. caustic 꼬리 줄의 보내기 칸은 줄어들지 못해(min-width auto) 900폭·150%에서 모델 칩이 보내기 단추를 창 밖으로 민다.
- * 보내기 칸이 줄어들게 하고(모델 칩의 글이 먼저 잘린다) 왼쪽 단추 칸(`+`, 모드)은 줄어들지 않게 한다.
- * 기본 높이는 69px다(DP-67): 글 줄은 위 10px·아래 0에 19px 줄(textarea `pt-2.5 pb-0`), 꼬리 줄은 위 0·아래 4px에 36px 고르기 단추로 이룬다.
- * 눈에 보이는 위 여백(글자 위)은 약 13px, 아래(단추 글자 아래)는 약 16px이고, 단추 hover 면은 입력창 아래 끝에서 4px 떨어진다
+ * 보내기 칸이 줄어들게 하고(모델 칩의 글이 먼저 잘린다) 왼쪽 단추 칸(`+`)은 줄어들지 않게 한다.
+ * 기본 높이는 84px다(DP-130, DP-67을 대체): 글 칸 48(위 12 + 글 줄 20 + 빈 16) + 꼬리 줄 36(28 단추 + 아래 8).
+ * 꼬리 줄 왼쪽 6은 `+` 아이콘(28 칸 안 16)의 왼쪽 끝을 글의 왼쪽 끝(12)에 맞추고, 오른쪽 8은 보내기 단추를 아래 끝과 같은 8에 둔다
  */
 export const COMPOSER_FOOTER_CLASS =
-  "[&_[data-slot=textarea-footer]]:gap-2 [&_[data-slot=textarea-footer]]:pt-0 [&_[data-slot=textarea-footer]]:pb-1 [&_[data-slot=textarea-actions]]:shrink-0 [&_[data-slot=textarea-submit]]:min-w-0";
+  "[&_[data-slot=textarea-footer]]:gap-2 [&_[data-slot=textarea-footer]]:pt-0 [&_[data-slot=textarea-footer]]:pb-2 [&_[data-slot=textarea-footer]]:pl-1.5 [&_[data-slot=textarea-footer]]:pr-2 [&_[data-slot=textarea-actions]]:shrink-0 [&_[data-slot=textarea-submit]]:min-w-0";
+
+/** 입력창 안에서 제 동작이 있는 것. 이것 밖의 빈 곳(꼬리 줄의 틈, 칩 사이)을 누르면 글 칸에 초점이 간다(DP-131) */
+const COMPOSER_CONTROL_SELECTOR =
+  "button, a, input, textarea, select, label, [role=button], [role=menuitem], [role=menuitemradio], [role=option], [contenteditable=true]";
+
+/** 누른 곳이 입력창 상자 안의 빈 곳인가. 제 동작이 있는 것(단추, 칩, 첨부, 글 칸 자체)은 아니다 */
+export function composerBlankHit(
+  target: { closest(selector: string): unknown },
+  inBox: boolean,
+): boolean {
+  return inBox && target.closest(COMPOSER_CONTROL_SELECTOR) === null;
+}
 
 /**
  * 제공자 재시도를 기다리는 동안의 상태 줄. 남은 초는 1초마다 다시 센다. `clock`은 시험이 고정한다.
@@ -418,6 +430,8 @@ function ComposerFor(props: {
   // 최신 입력. 한글 조합이 끝난 직후의 keydown은 React 상태가 아직 갱신되기 전일 수 있다
   const draftRef = useRef("");
   const guard = useRef(createEnterGuard());
+  // 조합 중 눌린 Enter의 자리(⌘Enter면 바로 반영). compositionend에서 보낼 때 쓴다
+  const enterMode = useRef<BusyInputMode>("followUp");
   // sending 상태는 비동기라 연속 Enter를 못 막는다. 동기 잠금으로 막는다
   const latch = useRef(createSendLatch());
 
@@ -560,27 +574,30 @@ function ComposerFor(props: {
         return;
       }
     }
-    // 한글 조합 중의 Enter는 글자 확정이다. 보내지 않는다(WebKit은 keyCode 229, compositionend가 먼저)
-    if (
-      !guard.current.isSendEnter(
-        {
-          key: event.key,
-          shiftKey: event.shiftKey,
-          isComposing: event.nativeEvent.isComposing,
-          // oxlint-disable-next-line typescript/no-deprecated -- keyCode는 폐기 표시지만 WebKit이 IME 처리 중 Enter keydown에 실어 보내는 값(229)이라 읽는다 (review.macos-checklist M-11)
-          keyCode: event.nativeEvent.keyCode,
-        },
-        event.timeStamp,
-      )
-    )
-      return;
+    // Enter는 보내기, Shift+Enter는 줄바꿈이다. 한글 조합 중 Enter 한 번은 글자 확정 + 보내기다(compositionend에서 보낸다, composer-model.ts)
+    if (event.key === "Enter" && !event.shiftKey) enterMode.current = busyModeOfEnter(event);
+    const action = guard.current.keyDown(
+      {
+        key: event.key,
+        shiftKey: event.shiftKey,
+        isComposing: event.nativeEvent.isComposing,
+        // oxlint-disable-next-line typescript/no-deprecated -- keyCode는 폐기 표시지만 WebKit이 IME 처리 중 Enter keydown에 실어 보내는 값(229)이라 읽는다 (review.macos-checklist M-11)
+        keyCode: event.nativeEvent.keyCode,
+      },
+      event.timeStamp,
+    );
+    if (action === "pass") return;
     event.preventDefault();
-    // 목록에서 고른 행이 입력과 다르면 Enter는 보내지 않고 그 행으로 채운다. 이미 같으면 보낸다
+    if (action === "send") commitEnter(busyModeOfEnter(event));
+  };
+
+  /** 보내기 Enter. 슬래시 목록에서 고른 행이 입력과 다르면 보내지 않고 그 행으로 채운다. 이미 같으면 보낸다 */
+  const commitEnter = (whenBusy: BusyInputMode): void => {
     if (menuActive && activeRow !== undefined && activeRow.label !== draftRef.current.trim()) {
       fillSlash(Math.min(menuIndex, menuRows.length - 1));
       return;
     }
-    detach(send(false, busyModeOfEnter(event)), rethrow);
+    detach(send(false, whenBusy), rethrow);
   };
 
   // 입력창 부품은 caustic Textarea다. 글과 Enter 처리는 이 파일이 맡고, 단추 줄(첨부·승인 모드·모델·추론 레벨·중단·보내기)은 Textarea의 아래 칸에 둔다.
@@ -725,140 +742,169 @@ function ComposerFor(props: {
       <Presence show={retrying !== null} variant="band" initial={false}>
         {retrying === null ? null : <RetryStatus key={retrying.at} retry={retrying} />}
       </Presence>
-      <Textarea
-        ref={textarea}
-        aria-label={t("desktop.composer.input.label")}
-        aria-autocomplete={menuActive ? "list" : undefined}
-        aria-controls={menuActive ? "composer-slash-list" : undefined}
-        aria-activedescendant={
-          menuActive && activeRow !== undefined ? `composer-slash-${activeRow.name}` : undefined
-        }
-        variant="solid"
-        size="md"
-        radius="2xl"
-        shadow="3"
-        tone={dragging ? "accent" : "neutral"}
-        rows={1}
-        // 한 줄로 시작해 글이 늘면 max-h까지 자란다(field-sizing). 비우면 한 줄로 돌아간다
-        className="max-h-48 min-h-0 resize-none pt-2.5 pb-0 [field-sizing:content]"
-        containerClassName={`composer-box rounded-[calc(var(--radius-2xl)+4px)] ${COMPOSER_FOOTER_CLASS}`}
-        value={draft}
-        // 안내 글(placeholder)은 없다. 입력을 막은 때만 그 이유를 보인다
-        placeholder={props.disabledReason ?? undefined}
-        disabled={props.disabledReason !== null}
-        onChange={(event) => {
-          draftRef.current = event.currentTarget.value;
-          setDraft(event.currentTarget.value);
-          setMenuIndex(0);
-          setMenuDismissed(false);
-          setUnknownName(null);
+      {/* 상자 안의 빈 곳(꼬리 줄의 틈, 칩 사이)을 눌러도 글 칸에 초점이 가고 커서는 글 끝이다(DP-131). 단추·칩·첨부는 제 동작을 하고,
+          글 칸 안(안쪽 여백 포함)은 브라우저가 그대로 맡아 눌러 끌면 글이 골라진다 */}
+      <div
+        className="contents"
+        onMouseDown={(event) => {
+          const box = textarea.current?.closest("[data-slot=textarea]");
+          const target = event.target;
+          if (event.button !== 0 || props.disabledReason !== null) return;
+          if (box === null || box === undefined || !(target instanceof Element)) return;
+          if (!composerBlankHit(target, box.contains(target))) return;
+          event.preventDefault();
+          focusAtEnd(textarea.current);
         }}
-        onKeyDown={onKeyDown}
-        onPaste={onPaste}
-        onCompositionStart={() => {
-          guard.current.compositionStart();
-        }}
-        onCompositionEnd={(event) => {
-          guard.current.compositionEnd(event.timeStamp);
-        }}
-        actions={
-          <>
-            <IconButton
-              label={attachBlocked ?? t("desktop.composer.attach.button")}
-              size="xs"
-              aria-description={t("desktop.composer.attach.info")}
-              disabled={attachBlocked !== null}
-              onClick={() => {
-                detach(pickFile(), rethrow);
-              }}
-            >
-              <Plus aria-hidden />
-            </IconButton>
-          </>
-        }
-        submit={
-          <span className="flex min-w-0 items-center gap-1">
-            {permission.mode === null ? null : (
-              <PermissionModeChip
-                mode={permission.mode}
-                bypassAllowed={permission.bypassAllowed}
-                disabled={props.disabledReason !== null}
-                onChange={(next) => {
-                  detach(
-                    permission.choose(next).then((result) => {
-                      if (!result.ok) setError(modeErrorText(result.error));
-                      return undefined;
-                    }),
-                    rethrow,
-                  );
+      >
+        <Textarea
+          ref={textarea}
+          aria-label={t("desktop.composer.input.label")}
+          aria-autocomplete={menuActive ? "list" : undefined}
+          aria-controls={menuActive ? "composer-slash-list" : undefined}
+          aria-activedescendant={
+            menuActive && activeRow !== undefined ? `composer-slash-${activeRow.name}` : undefined
+          }
+          variant="solid"
+          size="md"
+          radius="2xl"
+          shadow="3"
+          tone={dragging ? "accent" : "neutral"}
+          rows={1}
+          // 48에서 시작해 글이 늘면 max-h(240, 약 11줄)까지 자라고 넘으면 안에서 스크롤한다(field-sizing). 비우면 48로 돌아간다
+          className="max-h-60 min-h-12 resize-none pt-3 pb-0 [field-sizing:content]"
+          containerClassName={`composer-box rounded-[calc(var(--radius-2xl)+4px)] ${COMPOSER_FOOTER_CLASS}`}
+          value={draft}
+          // 안내 글(placeholder)은 없다. 입력을 막은 때만 그 이유를 보인다
+          placeholder={props.disabledReason ?? undefined}
+          disabled={props.disabledReason !== null}
+          onChange={(event) => {
+            draftRef.current = event.currentTarget.value;
+            setDraft(event.currentTarget.value);
+            setMenuIndex(0);
+            setMenuDismissed(false);
+            setUnknownName(null);
+          }}
+          onKeyDown={onKeyDown}
+          onPaste={onPaste}
+          onCompositionStart={() => {
+            guard.current.compositionStart();
+          }}
+          onCompositionEnd={(event) => {
+            if (!guard.current.compositionEnd(event.timeStamp)) return;
+            // 조합 중 Enter: 확정된 글(DOM 값)을 다음 틱에 보낸다. 같은 틱에는 브라우저가 조합 정리를 아직 하는 중이다
+            const box = event.currentTarget;
+            const whenBusy = enterMode.current;
+            setTimeout(() => {
+              draftRef.current = box.value;
+              commitEnter(whenBusy);
+            }, 0);
+          }}
+          actions={
+            <>
+              <IconButton
+                label={attachBlocked ?? t("desktop.composer.attach.button")}
+                size="sm"
+                aria-description={t("desktop.composer.attach.info")}
+                disabled={attachBlocked !== null}
+                onClick={() => {
+                  detach(pickFile(), rethrow);
                 }}
-              />
-            )}
-            {threadModel.ref === null ? null : (
-              <ModelChip
-                current={threadModel.ref}
-                chosen={threadModel.chosen}
-                fallback={defaultModel}
-                choices={modelChoices}
-                disabled={props.disabledReason !== null}
-                denied={deniedModels}
-                onChange={(model) => {
-                  detach(
-                    commands.setThreadModel(props.threadId, model).then((result) => {
-                      if (!result.ok) setError(modelErrorText(result.error));
-                      return undefined;
-                    }),
-                    rethrow,
-                  );
-                }}
-              />
-            )}
-            {thinking.level === null ||
-            threadModel.ref === null ||
-            !thinkingSelectableOf(modelChoices, threadModel.ref) ? null : (
-              <ThinkingChip
-                level={thinking.level}
-                disabled={props.disabledReason !== null}
-                onChange={(next) => {
-                  detach(
-                    thinking.choose(next).then((result) => {
-                      if (!result.ok) setError(thinkingErrorText(result.error));
-                      return undefined;
-                    }),
-                    rethrow,
-                  );
-                }}
-              />
-            )}
-            {threadRunning ? (
-              <StopButton
-                aborting={aborting}
-                blockedReason={stopBlocked}
-                onStop={() => {
-                  detach(commands.interrupt(props.threadId), rethrow);
-                }}
-              />
-            ) : null}
-            <IconButton
-              type="submit"
-              variant="solid"
-              radius="full"
-              size="xs"
-              label={t("desktop.composer.send.button")}
-              disabled={
-                props.disabledReason !== null ||
-                sending ||
-                !chipsReady(chips) ||
-                (draft.trim() === "" && chips.length === 0)
-              }
-            >
-              <ArrowUp aria-hidden />
-            </IconButton>
-          </span>
-        }
-      />
+              >
+                <Plus aria-hidden />
+              </IconButton>
+            </>
+          }
+          submit={
+            <span className="flex min-w-0 items-center gap-1">
+              {permission.mode === null ? null : (
+                <PermissionModeChip
+                  mode={permission.mode}
+                  bypassAllowed={permission.bypassAllowed}
+                  disabled={props.disabledReason !== null}
+                  onChange={(next) => {
+                    detach(
+                      permission.choose(next).then((result) => {
+                        if (!result.ok) setError(modeErrorText(result.error));
+                        return undefined;
+                      }),
+                      rethrow,
+                    );
+                  }}
+                />
+              )}
+              {threadModel.ref === null ? null : (
+                <ModelChip
+                  current={threadModel.ref}
+                  chosen={threadModel.chosen}
+                  fallback={defaultModel}
+                  choices={modelChoices}
+                  disabled={props.disabledReason !== null}
+                  denied={deniedModels}
+                  onChange={(model) => {
+                    detach(
+                      commands.setThreadModel(props.threadId, model).then((result) => {
+                        if (!result.ok) setError(modelErrorText(result.error));
+                        return undefined;
+                      }),
+                      rethrow,
+                    );
+                  }}
+                />
+              )}
+              {thinking.level === null ||
+              threadModel.ref === null ||
+              !thinkingSelectableOf(modelChoices, threadModel.ref) ? null : (
+                <ThinkingChip
+                  level={thinking.level}
+                  disabled={props.disabledReason !== null}
+                  onChange={(next) => {
+                    detach(
+                      thinking.choose(next).then((result) => {
+                        if (!result.ok) setError(thinkingErrorText(result.error));
+                        return undefined;
+                      }),
+                      rethrow,
+                    );
+                  }}
+                />
+              )}
+              {threadRunning ? (
+                <StopButton
+                  aborting={aborting}
+                  blockedReason={stopBlocked}
+                  onStop={() => {
+                    detach(commands.interrupt(props.threadId), rethrow);
+                  }}
+                />
+              ) : null}
+              <IconButton
+                type="submit"
+                variant="solid"
+                radius="full"
+                size="sm"
+                label={t("desktop.composer.send.button")}
+                disabled={
+                  props.disabledReason !== null ||
+                  sending ||
+                  !chipsReady(chips) ||
+                  (draft.trim() === "" && chips.length === 0)
+                }
+              >
+                <ArrowUp aria-hidden />
+              </IconButton>
+            </span>
+          }
+        />
+      </div>
     </form>
   );
+}
+
+/** 글 칸에 초점을 주고 커서를 글 끝에 둔다 */
+function focusAtEnd(box: HTMLTextAreaElement | null): void {
+  if (box === null) return;
+  box.focus();
+  box.setSelectionRange(box.value.length, box.value.length);
 }
 
 /**
@@ -876,7 +922,7 @@ export function StopButton(props: {
       type="button"
       variant="solid"
       radius="full"
-      size="xs"
+      size="sm"
       data-composer-stop={props.aborting ? "stopping" : "idle"}
       label={
         props.blockedReason ??

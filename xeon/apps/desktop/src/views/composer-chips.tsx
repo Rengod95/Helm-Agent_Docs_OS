@@ -1,13 +1,5 @@
 import { Button, ComboboxRow, Menu, MenuItem } from "@caustic/react";
-import {
-  Check,
-  ListChecks,
-  LockOpen,
-  Pencil,
-  RotateCcw,
-  Shield,
-  Sparkles,
-} from "@caustic/react/icons";
+import { Check, ListChecks, LockOpen, Pencil, RotateCcw, Shield } from "@caustic/react/icons";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { ModelThinkingLevel } from "@fresnel/contracts/conversation";
@@ -20,13 +12,15 @@ import { ModelPicker } from "./pages/shared/model-picker.tsx";
 import { permissionModeOptionsOf, permissionModeToneOf } from "./permission-mode-model.ts";
 import { THINKING_LEVEL_LABEL_IDS, thinkingLevelOf } from "./thinking-level-model.ts";
 
-// 입력창 아래 칩 셋(L4.desktop-ux DP-101 [결정: 2026-11-11 사용자]): 권한 모드, 모델, 생각 수준.
-// 칩은 DP-67의 ghost 고르기 단추 치수(높이 36 = 위아래 10 + 글 줄 16, 좌우 10, chevron 없음, 배경·테두리 없이 hover만 `neutral.hover`)에
-// 앞 아이콘 14와 글(13px) 사이 4px를 더한 것이다. 칩 글은 이름만 짧게 둔다(모델 가격·문맥 창, 모드 설명은 열리는 목록 안).
+// 입력창 아래 칩 셋(L4.desktop-ux DP-101 [결정: 2026-11-11 사용자]): 권한 모드, 모델, 추론 수준.
+// 칩은 폼 표준의 sm 단추(높이 28, DP-132 [결정: 2026-11-12 사용자] "한 스케일 낮게")를 ghost로 쓰고, 글은 13 보통 굵기 tertiary,
+// 좌우 8, 앞 아이콘 14와 글 사이 4다. chevron·배경·테두리 없이 hover만 `neutral.hover`. 칩 글은 이름만 짧게 둔다(모델 가격·문맥 창, 모드 설명은 열리는 목록 안).
+// 아이콘: 권한 모드만 둔다. 모드는 도구가 묻지 않고 실행되는지를 정하는 상태라 글만으로는 한눈에 구분되지 않고(특히 모두 허용의 위험 색과 함께),
+// 모델·추론 수준은 이름 자체가 값이라 아이콘이 정보를 더하지 않는다(사용자: 추론 수준 아이콘 제거).
 
-/** DP-67 치수의 ghost 칩. 세 칩이 같은 클래스를 쓴다 */
+/** 세 칩이 같은 클래스를 쓴다. 높이는 `size="sm"`(28)이 정한다 */
 const COMPOSER_CHIP_CLASS =
-  "h-auto min-w-0 gap-1 p-2.5 text-ui leading-4 font-normal text-text-tertiary hover:bg-neutral-hover hover:text-text-secondary [&_svg]:size-3.5 [&_svg]:shrink-0";
+  "min-w-0 gap-1 px-2 font-normal text-text-tertiary hover:bg-neutral-hover hover:text-text-secondary [&_svg]:size-3.5 [&_svg]:shrink-0";
 
 /** 모드마다 앞 아이콘 14 */
 function modeIcon(mode: PermissionMode): ReactNode {
@@ -64,7 +58,7 @@ export function permissionModeChipText(mode: PermissionMode): string {
   return t(MODE_CHIP_ID[mode]);
 }
 
-/** 메뉴 줄 안: 이름(13) 아래 설명(12 tertiary) */
+/** 메뉴 줄 안: 이름(13) 아래 설명(12 tertiary). 설명은 자르지 않고 줄을 바꾼다 */
 function MenuText(props: { readonly title: string; readonly hint: string }): ReactNode {
   return (
     <span className="grid min-w-0 gap-0.5 py-0.5 text-start">
@@ -91,11 +85,11 @@ export function PermissionModeChip(props: {
       side="top"
       align="end"
       aria-label={t("desktop.composer.approvalMode.label")}
-      className="w-72"
+      className="w-80"
       trigger={
         <Button
           type="button"
-          size="xs"
+          size="sm"
           variant="ghost"
           disabled={props.disabled}
           data-composer-chip="mode"
@@ -113,7 +107,7 @@ export function PermissionModeChip(props: {
           role="menuitemradio"
           selected={option.selected}
           tone={option.mode === "bypass" ? "danger" : "neutral"}
-          className="h-auto min-h-control-md items-start py-1.5 [&>[data-slot=menu-icon]]:pt-0.5"
+          className="h-auto min-h-control-md items-start py-1.5 [&>[data-slot=menu-icon]]:pt-0.5 [&>[data-slot=menu-label]]:whitespace-normal"
           icon={modeIcon(option.mode)}
           end={option.selected ? <Check aria-hidden className="size-3.5" /> : undefined}
           onSelect={() => {
@@ -172,7 +166,7 @@ export function ModelChip(props: {
       trigger={
         <Button
           type="button"
-          size="xs"
+          size="sm"
           variant="ghost"
           disabled={props.disabled}
           data-composer-chip="model"
@@ -218,14 +212,13 @@ export function ThinkingChip(props: {
       trigger={
         <Button
           type="button"
-          size="xs"
+          size="sm"
           variant="ghost"
           disabled={props.disabled}
           data-composer-chip="thinking"
           aria-label={`${t("desktop.composer.thinking.label")}: ${text}`}
           className={COMPOSER_CHIP_CLASS}
         >
-          <Sparkles aria-hidden />
           <span className="truncate">{text}</span>
         </Button>
       }

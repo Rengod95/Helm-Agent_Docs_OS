@@ -4,6 +4,7 @@ import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
 import {
   Alert,
   Badge,
+  Button,
   ChoiceGroup,
   ChoiceGroupItem,
   Input,
@@ -12,7 +13,7 @@ import {
   MessageCode,
   Textarea,
 } from "@caustic/react";
-import type { ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import {
   QUESTION_TEXT_MAX,
   REVIEW_CHANGE_ID,
@@ -45,6 +46,8 @@ import {
   ruleTextIdOf,
 } from "./card-model.ts";
 import { FileChangeDiff } from "../file-change-view.tsx";
+import { Collapse } from "../../lib/motion-presets.tsx";
+import { ChevronRight } from "@caustic/react/icons";
 import { InfoTip } from "../craft/info-tip.tsx";
 
 /** 승인 뒤 모드의 화면 글. 모르는 모드는 원시값이다 */
@@ -180,7 +183,12 @@ function McpChangedBlock(props: {
   );
 }
 
-function ArgsFold(props: { readonly view: ToolApprovalView }): ReactNode {
+/** 도구 인자(원시 JSON). 카드 단추 줄의 "인자 보기"가 연다(DP-134). 인자가 별도 저장소에 있으면 그 안내 한 줄이 늘 보인다 */
+function ArgsFold(props: {
+  readonly view: ToolApprovalView;
+  readonly open: boolean;
+  readonly id: string;
+}): ReactNode {
   const { view } = props;
   if (view.argsStored)
     return (
@@ -189,14 +197,44 @@ function ArgsFold(props: { readonly view: ToolApprovalView }): ReactNode {
       </div>
     );
   return (
-    <details className="mt-1.5">
-      <summary>{t("desktop.approvals.args.label")}</summary>
-      <MessageCode className={BLOCK_CODE}>
-        {view.argsText}
-        {view.argsTruncated ? `\n${t("desktop.approvals.args.truncationNotice")}` : ""}
-      </MessageCode>
-    </details>
+    <div id={props.id} data-slot="approval-args">
+      <Collapse open={props.open}>
+        <MessageCode className={BLOCK_CODE}>
+          {view.argsText}
+          {view.argsTruncated ? `\n${t("desktop.approvals.args.truncationNotice")}` : ""}
+        </MessageCode>
+      </Collapse>
+    </div>
   );
+}
+
+/** 카드에 "인자 보기" 펼침 단추를 둘 것인가: 인자가 카드에 실려 있을 때다 */
+export function toolHasArgs(body: ToolApprovalBody): boolean {
+  return !toolApprovalView(body).argsStored;
+}
+
+/** 위험도 배지(카드 머리 오른쪽 끝): 읽기는 회색, 쓰기는 경고, 실행은 위험 색. 규칙 이름은 바로 뒤 정보 아이콘(4px) 안에 있다 */
+export function RiskBadge(props: { readonly body: ToolApprovalBody }): ReactNode {
+  const view = toolApprovalView(props.body);
+  const { ruleId } = props.body;
+  const mcp = mcpStartViewOf(props.body);
+  return (
+    <span data-slot="approval-risk" className="inline-flex items-center gap-1">
+      <Badge size="sm" className={riskToneOf(view.risk)}>
+        {riskLabelOf(view.risk)}
+      </Badge>
+      {mcp !== null || ruleId === null ? null : (
+        <InfoTip text={t(ruleTextIdOf(ruleId), { id: ruleId })} />
+      )}
+    </span>
+  );
+}
+
+/** 위험도 배지의 색(Badge의 tone prop은 폐기 표시라 같은 면 색을 클래스로 준다. McpChangedBlock의 바뀜 배지와 같다) */
+function riskToneOf(risk: string): string {
+  if (risk === "write") return "bg-warning-tint text-warning-text";
+  if (risk === "exec" || risk === "execute") return "bg-danger-tint text-danger-text";
+  return "";
 }
 
 /** 파일 변경 승인의 머리(수정 또는 파일 쓰기 글과 경로)와 그림 */
@@ -251,20 +289,20 @@ function McpToolBlock(props: { readonly view: McpToolView }): ReactNode {
   );
 }
 
-export function ToolBody(props: { readonly body: ToolApprovalBody }): ReactNode {
+export function ToolBody(props: {
+  readonly body: ToolApprovalBody;
+  readonly argsOpen: boolean;
+  readonly argsId: string;
+}): ReactNode {
   const view = toolApprovalView(props.body);
   const replace = toolReplaceView(props.body);
   const mcp = mcpStartViewOf(props.body);
   const mcpTool = mcpToolViewOf(props.body);
   const change = fileChangeViewOf(props.body);
-  const { ruleId } = props.body;
   // 기동 승인은 명령에 인자를 붙인 한 줄을 보인다. `command`만으로는 실행될 것이 다 보이지 않는다
   const command = mcp === null ? view.command : mcp.commandLine;
-  // 규칙 이름은 정보 아이콘 뒤에 둔다. 기동 승인은 규칙 대신 묻는 까닭을 사람 말로 보인다(아래)
-  const ruleTip =
-    mcp !== null || ruleId === null ? null : (
-      <InfoTip text={t(ruleTextIdOf(ruleId), { id: ruleId })} />
-    );
+  // 위험도와 규칙은 카드 머리의 배지(RiskBadge)다. 목록은 실행될 것(명령, 출처, 폴더, 환경 이름, 시크릿)만 담고, 없으면 그리지 않는다
+  const listed = command !== null || mcp !== null || view.secrets.length > 0;
   return (
     <>
       {replace === null ? null : <ReplaceDetails view={replace} />}
@@ -272,57 +310,54 @@ export function ToolBody(props: { readonly body: ToolApprovalBody }): ReactNode 
       {mcp === null || mcp.changed === null ? null : (
         <McpChangedBlock changed={mcp.changed} commandLine={mcp.commandLine} />
       )}
-      {/* 시안 tool-approval: 명령, 위험도, 시크릿 참조를 한 목록(ListDescription)으로 보인다 */}
-      <ListDescription
-        variant="ghost"
-        size="xs"
-        aria-label={t("desktop.approvals.tool.summary", {
-          toolName: view.toolName,
-          risk: riskLabelOf(view.risk),
-        })}
-        className="rounded-none [--cs-size-list-term:7rem] [&_[data-slot=list-description-row]]:px-0"
-      >
-        {command === null ? null : (
-          <ListDescriptionRow term={t("desktop.approvals.command.label")} mono>
-            <span className="whitespace-pre-wrap break-all">{command}</span>
-          </ListDescriptionRow>
-        )}
-        {mcp === null ? null : (
-          <ListDescriptionRow term={t("desktop.approvals.mcpStart.field.source")}>
-            {mcpSourceTextOf(mcp.source)}
-          </ListDescriptionRow>
-        )}
-        {mcp === null || mcp.cwd === null ? null : (
-          <ListDescriptionRow term={t("desktop.approvals.mcpStart.field.cwd")} mono>
-            <span className="break-all">{mcp.cwd}</span>
-          </ListDescriptionRow>
-        )}
-        {mcp === null || mcp.envNames.length === 0 ? null : (
-          <ListDescriptionRow term={t("desktop.approvals.mcpStart.field.env")} mono>
-            <span className="break-all">{mcp.envNames.join(", ")}</span>
-          </ListDescriptionRow>
-        )}
-        <ListDescriptionRow term={t("desktop.approvals.replace.risk")}>
-          <Badge size="xs">{riskLabelOf(view.risk)}</Badge>
-          {ruleTip}
-        </ListDescriptionRow>
-        {view.secrets.map((secret) => (
-          <ListDescriptionRow key={secret.name} term={t("desktop.approvals.secret.term")} mono>
-            <span className="break-all">
-              {secret.name}
-              {secret.handle === null
-                ? ` ${t("desktop.approvals.secret.invalidHandle")}`
-                : ` ← ${secret.handle}`}
-            </span>
-          </ListDescriptionRow>
-        ))}
-      </ListDescription>
+      {listed ? (
+        <ListDescription
+          variant="ghost"
+          size="xs"
+          aria-label={t("desktop.approvals.tool.summary", {
+            toolName: view.toolName,
+            risk: riskLabelOf(view.risk),
+          })}
+          className="rounded-none [--cs-size-list-term:6rem] [&_[data-slot=list-description-row]]:px-0"
+        >
+          {command === null ? null : (
+            <ListDescriptionRow term={t("desktop.approvals.command.label")} mono>
+              <span className="whitespace-pre-wrap break-all">{command}</span>
+            </ListDescriptionRow>
+          )}
+          {mcp === null ? null : (
+            <ListDescriptionRow term={t("desktop.approvals.mcpStart.field.source")}>
+              {mcpSourceTextOf(mcp.source)}
+            </ListDescriptionRow>
+          )}
+          {mcp === null || mcp.cwd === null ? null : (
+            <ListDescriptionRow term={t("desktop.approvals.mcpStart.field.cwd")} mono>
+              <span className="break-all">{mcp.cwd}</span>
+            </ListDescriptionRow>
+          )}
+          {mcp === null || mcp.envNames.length === 0 ? null : (
+            <ListDescriptionRow term={t("desktop.approvals.mcpStart.field.env")} mono>
+              <span className="break-all">{mcp.envNames.join(", ")}</span>
+            </ListDescriptionRow>
+          )}
+          {view.secrets.map((secret) => (
+            <ListDescriptionRow key={secret.name} term={t("desktop.approvals.secret.term")} mono>
+              <span className="break-all">
+                {secret.name}
+                {secret.handle === null
+                  ? ` ${t("desktop.approvals.secret.invalidHandle")}`
+                  : ` ← ${secret.handle}`}
+              </span>
+            </ListDescriptionRow>
+          ))}
+        </ListDescription>
+      ) : null}
       {/* 기동 승인은 규칙 id 대신 묻는 까닭을 사람 말로 보인다 */}
       {mcp === null ? null : (
         <div className="text-ui text-text-secondary">{t(MCP_REASON_TEXT[mcp.reason])}</div>
       )}
       {change === null ? null : <FileChangeBlock view={change} />}
-      <ArgsFold view={view} />
+      <ArgsFold view={view} open={props.argsOpen} id={props.argsId} />
     </>
   );
 }
@@ -440,12 +475,7 @@ export function PlanBody(props: {
       ) : (
         <>
           <MessageCode className={BLOCK_CODE}>{fold.head}</MessageCode>
-          {fold.rest === null ? null : (
-            <details>
-              <summary>{t("desktop.approvals.plan.more")}</summary>
-              <MessageCode className={BLOCK_CODE}>{fold.rest}</MessageCode>
-            </details>
-          )}
+          {fold.rest === null ? null : <PlanRest rest={fold.rest} />}
         </>
       )}
       {plan.nextModes.length === 0 ? null : (
@@ -501,6 +531,35 @@ export function ReviewBody(props: { readonly review: ReviewView }): ReactNode {
           </div>
         ))}
       </div>
+    </>
+  );
+}
+
+/** 계획의 나머지 줄. 앞 줄 아래 "전체 보기" 펼침 단추(ghost sm, 화살표가 90° 돈다)로 연다 */
+function PlanRest(props: { readonly rest: string }): ReactNode {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  return (
+    <>
+      <Collapse open={open}>
+        <div id={id}>
+          <MessageCode className={BLOCK_CODE}>{props.rest}</MessageCode>
+        </div>
+      </Collapse>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        aria-expanded={open}
+        aria-controls={id}
+        className="-ml-2.5 self-start justify-self-start gap-1 text-text-secondary [&_svg]:size-3.5 [&_svg]:transition-transform aria-expanded:[&_svg]:rotate-90"
+        onClick={() => {
+          setOpen((value) => !value);
+        }}
+      >
+        <ChevronRight aria-hidden />
+        {t(open ? "desktop.approvals.plan.less" : "desktop.approvals.plan.more")}
+      </Button>
     </>
   );
 }
