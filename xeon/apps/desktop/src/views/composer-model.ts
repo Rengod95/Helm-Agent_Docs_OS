@@ -5,8 +5,11 @@ import type { BusyInputMode, CommandError } from "./commands.ts";
 import { setupRequiredText } from "./setup-needed.ts";
 
 // 입력창의 Enter 판정과 중복 전송 방지. 화면 부품에서 떼어 순수하게 시험한다.
-// WebKit(Safari, WKWebView)은 한글 조합 중 Enter에서 compositionend를 keydown보다 먼저 내고,
-// 그 keydown은 isComposing이 거짓이지만 keyCode가 229다. 그래서 세 단서를 모두 본다.
+// 기본은 Enter 보내기, Shift+Enter 줄바꿈이다(L4.desktop-ux DP-133 [결정: 2026-11-12 사용자]).
+// 한글 조합 중 Enter 한 번은 "글자 확정 + 보내기"다. 브라우저마다 이 한 번이 여러 이벤트로 온다:
+// - Chromium(Electron): keydown(isComposing 참, keyCode 229) → compositionend → 같은 키의 keydown(Enter, 13)이 한 번 더 온다.
+// - WebKit: compositionend → keydown(isComposing 거짓, keyCode 229).
+// 그래서 조합 중 Enter는 무장(arm)만 하고 compositionend에서 보낸다. 확정 직후 뒤따라오는 Enter는 삼킨다(줄바꿈도 두 번째 전송도 없게).
 
 export type EnterKeyInput = {
   readonly key: string;
@@ -15,21 +18,28 @@ export type EnterKeyInput = {
   readonly keyCode: number;
 };
 
+/** keydown 하나에 대한 처리. send = 막고 보낸다, swallow = 막기만 한다, pass = 브라우저(IME, 줄바꿈)에 맡긴다 */
+type EnterAction = "send" | "swallow" | "pass";
+
 export type EnterGuard = {
   compositionStart(): void;
-  /** nowMs는 이벤트 시각(event.timeStamp)이다 */
-  compositionEnd(nowMs: number): void;
-  /** 이 keydown이 "보내기" Enter인가 */
-  isSendEnter(event: EnterKeyInput, nowMs: number): boolean;
+  /** nowMs는 이벤트 시각(event.timeStamp)이다. 참이면 조합 중 Enter가 눌렸으니 확정된 글을 지금 보낸다 */
+  compositionEnd(nowMs: number): boolean;
+  keyDown(event: EnterKeyInput, nowMs: number): EnterAction;
 };
 
-/** compositionend 직후 이 시간 안의 Enter는 조합을 확정한 키다 */
-export const COMPOSITION_END_GRACE_MS = 50;
+/** compositionend 직후 이 시간 안에 오는 Enter는 확정에 딸린 키다 */
+export const COMPOSITION_END_GRACE_MS = 100;
+/** 조합 중 Enter를 누른 뒤 이 시간 안에 조합이 끝나면 보낸다. 끝이 오지 않은 무장은 버린다 */
+export const COMPOSITION_ARM_MS = 1000;
 const IME_PROCESS_KEY_CODE = 229;
 
 export function createEnterGuard(): EnterGuard {
   let composing = false;
   let endedAt = Number.NEGATIVE_INFINITY;
+  let armedAt = Number.NEGATIVE_INFINITY;
+  // 마지막 compositionend가 보냈는가(그러면 뒤따르는 Enter는 삼킨다)
+  let sentAtEnd = false;
   return {
     compositionStart() {
       composing = true;
@@ -37,11 +47,28 @@ export function createEnterGuard(): EnterGuard {
     compositionEnd(nowMs) {
       composing = false;
       endedAt = nowMs;
+      sentAtEnd = nowMs - armedAt <= COMPOSITION_ARM_MS;
+      armedAt = Number.NEGATIVE_INFINITY;
+      return sentAtEnd;
     },
-    isSendEnter(event, nowMs) {
-      if (event.key !== "Enter" || event.shiftKey) return false;
-      if (composing || event.isComposing || event.keyCode === IME_PROCESS_KEY_CODE) return false;
-      return nowMs - endedAt > COMPOSITION_END_GRACE_MS;
+    keyDown(event, nowMs) {
+      if (event.key !== "Enter" || event.shiftKey) {
+        armedAt = Number.NEGATIVE_INFINITY;
+        return "pass";
+      }
+      // 조합 중: IME가 글자를 확정하게 두고 compositionend에서 보낸다
+      if (composing || event.isComposing) {
+        armedAt = nowMs;
+        return "pass";
+      }
+      const afterEnd = nowMs - endedAt <= COMPOSITION_END_GRACE_MS;
+      if (afterEnd) return sentAtEnd ? "swallow" : "send";
+      // 조합 이벤트 없이 229만 온 키: IME가 처리 중이다. 끝나면 보낸다
+      if (event.keyCode === IME_PROCESS_KEY_CODE) {
+        armedAt = nowMs;
+        return "pass";
+      }
+      return "send";
     },
   };
 }

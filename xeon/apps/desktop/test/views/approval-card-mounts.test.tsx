@@ -129,11 +129,11 @@ function cardsOf(html: string): string[] {
 }
 
 /** 머리 부제를 뺀다(대화 이름 링크가 들어가는 자리). 부제는 글과 단추만 있어 첫 `</div>`가 끝이다 */
-const SUBTITLE = /<div data-slot="agent-request-subtitle"[\s\S]*?<\/div>/;
+const SUBTITLE = /<p data-slot="approval-subtitle"[\s\S]*?<\/p>/;
 
 /** useId 값만 지운다(트리 위치가 달라도 같은 카드인지 본다). 부제는 위치마다 달라 비교에서 뺀다 */
 function sameCardShape(card: string): string {
-  return card.replace(SUBTITLE, "").replace(/\s(?:id|aria-labelledby)="[^"]*"/g, "");
+  return card.replace(SUBTITLE, "").replace(/\s(?:id|aria-labelledby|aria-controls)="[^"]*"/g, "");
 }
 
 function kindOf(card: string): string | undefined {

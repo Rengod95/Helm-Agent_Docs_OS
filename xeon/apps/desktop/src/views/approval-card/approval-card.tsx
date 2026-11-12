@@ -2,8 +2,15 @@ import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
 import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
-import { AgentRequest, Button } from "@caustic/react";
-import { memo, useState, type KeyboardEvent, type ReactNode } from "react";
+import { Badge, Button } from "@caustic/react";
+import {
+  ChevronRight,
+  FileText,
+  ListChecks,
+  MessageCircleQuestion,
+  ShieldCheck,
+} from "@caustic/react/icons";
+import { memo, useId, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useApproval, useThread } from "../../state/engine/index.ts";
 import { useApprovalDetail, useApprovalSend } from "../../state/ui/index.ts";
 import {
@@ -15,7 +22,7 @@ import {
 } from "../approval-form.ts";
 import { useCommands, type ApprovalDecision } from "../commands.ts";
 import { APPROVE_ALL_ANSWER } from "../review-model.ts";
-import { PlanBody, QuestionBody, ReviewBody, ToolBody } from "./bodies.tsx";
+import { PlanBody, QuestionBody, ReviewBody, RiskBadge, ToolBody, toolHasArgs } from "./bodies.tsx";
 import { useClockNow } from "./clock.ts";
 import {
   approvalAgeOf,
@@ -32,7 +39,9 @@ import { useGoToThread } from "../thread-link.ts";
 // 승인 카드. 트랜스크립트 끝, 끝 영역 받은 요청(InboxApprovals), P-03 목록이 같은 카드를 쓴다(FS-02).
 // 카드는 거울의 approvals를 읽고 응답 직후 표시는 UI 스토어가 가진다. 대기열에서 빠지는 일은 approval.resolved가 한다.
 // 머리의 대화 이름은 트랜스크립트 밖에서만 누를 수 있다(threadLinkVisibleOf).
-// 부품: caustic AgentRequest(머리, 종류별 아이콘), 본문 ChoiceGroup·Input·Textarea·MessageCode·Alert, 단추 Button.
+// 카드 틀은 네 종류가 같다(L4.desktop-ux DP-134 [결정: 2026-11-12 사용자]): 안쪽 16, 머리(아이콘 칸 28 + 사이 12 + 제목·곁 줄),
+// 본문과 단추 줄은 제목 열(왼쪽 40)에 맞추고 사이 12. 단추 줄은 오른쪽 아래에 [거부] [주 동작](sm 28, 사이 8), 왼쪽은 펼침 단추나 보조 동작.
+// caustic AgentRequest는 종류마다 틀(구슬·유리 판·띠)과 단추 배치가 달라 쓰지 않는다. 본문은 ChoiceGroup·Input·Textarea·MessageCode·Alert.
 
 type ApprovalBodyKind = ApprovalRequestedPayload["body"]["kind"];
 
@@ -43,13 +52,15 @@ const KIND_LEAD: Readonly<Record<ApprovalBodyKind, MessageId>> = {
   review: "desktop.approvals.kind.review",
 };
 
-/** AgentRequest의 종류. 도구는 방패 아이콘, 질문은 말풍선, 계획은 orb, 검토는 검토 패널이다 */
-const AGENT_KIND = {
-  tool: "permission",
-  question: "question",
-  plan: "proposal",
-  review: "review",
-} as const;
+/** 종류마다 머리 아이콘 칸의 그림과 색. 도구는 경고(실행 권한), 질문은 정보, 계획·검토는 에이전트 색이다 */
+const KIND_TILE: Readonly<
+  Record<ApprovalBodyKind, { readonly icon: ReactNode; readonly tone: string }>
+> = {
+  tool: { icon: <ShieldCheck aria-hidden />, tone: "bg-warning-tint text-warning-text" },
+  question: { icon: <MessageCircleQuestion aria-hidden />, tone: "bg-info-tint text-info-text" },
+  plan: { icon: <ListChecks aria-hidden />, tone: "bg-agent-tint text-agent-text" },
+  review: { icon: <FileText aria-hidden />, tone: "bg-agent-tint text-agent-text" },
+};
 
 /** 입력 중인 칸에서 누른 글자는 바로 가기가 아니다 */
 function isTypingTarget(target: EventTarget): boolean {
@@ -108,12 +119,11 @@ type Action = {
   readonly look: "solid" | "soft" | "ghost";
 };
 
-/** 단추 크기: 도구·질문 카드는 xs, 계획·검토 카드는 sm (caustic AgentRequest의 단추 크기와 같다) */
-type ActionSize = "xs" | "sm";
+/** 단추 크기: 네 종류 모두 폼 표준 sm(28)이다 */
+const ACTION_SIZE = "sm";
 
 function ActionButton(props: {
   readonly action: Action;
-  readonly size: ActionSize;
   readonly disabled: boolean;
   readonly onRespond: (decision: ApprovalDecision) => void;
 }): ReactNode {
@@ -123,7 +133,7 @@ function ActionButton(props: {
     <Button
       type="button"
       data-action={action.id}
-      size={props.size}
+      size={ACTION_SIZE}
       variant={action.look}
       disabled={props.disabled || decision === null}
       onClick={() => {
@@ -152,6 +162,10 @@ function PendingCard(props: {
   const [draft, setDraft] = useState<QuestionDraft>({});
   const [mode, setMode] = useState("");
   const [feedback, setFeedback] = useState("");
+  // 도구 인자(원시 JSON)는 접어 두고 단추 줄 왼쪽의 펼침 단추로 연다
+  const [argsOpen, setArgsOpen] = useState(false);
+  const argsId = useId();
+  const titleId = useId();
   const { body } = request;
   const busy = sendState === "sending";
 
@@ -169,9 +183,9 @@ function PendingCard(props: {
       commands.openReview({ approvalId: id, reviewId: body.review.reviewId });
   };
 
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+  const onKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
     if (busy || isTypingTarget(event.target)) return;
-    const action = approvalKeyOf(event);
+    const action = approvalKeyOf(event, event.target === event.currentTarget);
     if (action === null) return;
     const decision = action === "primary" ? decisions.primary : decisions.deny;
     if (decision === null) return;
@@ -194,7 +208,6 @@ function PendingCard(props: {
               : t(titleView.id, { name: titleView.params.name, op: t(titleView.params.opId) });
   const origin = approvalOriginView(request.origin.caller, request.origin.source);
   const expiry = approvalExpiryOf(request);
-  const actionSize: ActionSize = body.kind === "plan" || body.kind === "review" ? "sm" : "xs";
   const review = body.kind === "review" ? body.review : null;
   const threadName = thread?.title ?? t("desktop.approvals.card.thread.untitled");
   // 대화 이름이 링크인 것은 트랜스크립트 밖의 카드이고, 열 수 있는 대화(거울에 있음, 이동 문맥이 있음)일 때다
@@ -220,49 +233,52 @@ function PendingCard(props: {
         ),
   ].filter((part): part is string => part !== null);
   const threadLabel = t("desktop.approvals.card.threadLabel");
+  const lead = t(KIND_LEAD[body.kind]);
   const subtitle: ReactNode =
     linkTo === null ? (
-      [`${threadLabel}: ${threadName}`, ...meta].join(" · ")
+      [lead, `${threadLabel}: ${threadName}`, ...meta].join(" · ")
     ) : (
       <>
-        {`${threadLabel}: `}
-        <Button
+        {`${lead} · ${threadLabel}: `}
+        {/* 대화 이름 링크는 글 줄 안의 링크다(단추 상자 없이 밑줄 hover). 누르는 영역은 줄 높이 */}
+        <button
           type="button"
           data-action="thread"
-          variant="ghost"
-          size="xs"
+          className="cursor-pointer rounded-xs text-text-secondary underline-offset-2 hover:text-text-primary hover:underline focus-visible:shadow-focus"
           onClick={() => {
             linkTo(props.threadId);
           }}
         >
           {threadName}
-        </Button>
+        </button>
         {meta.map((part) => ` · ${part}`)}
       </>
     );
 
-  const leading: Action[] = [
+  // 오른쪽 아래 단추 묶음, 읽는 순서대로: [거부] [(계획) 수정 요청] [주 동작]. 주 동작만 채움이다
+  const answers: Action[] = [
     { id: "deny", label: denyLabelOf(body.kind), decision: decisions.deny, look: "ghost" },
   ];
   if (body.kind === "plan") {
-    leading.push({
+    answers.push({
       id: "edit",
       label: "desktop.approvals.plan.edit.button",
       decision: decisions.edit,
       look: "soft",
     });
   }
-  const trailing: Action[] = [];
-  trailing.push({
+  answers.push({
     id: "primary",
     label: primaryLabelOf(body.kind),
     decision: decisions.primary,
     look: "solid",
   });
+  const tool = body.kind === "tool" ? body.tool : null;
+  const hasArgs = tool !== null && toolHasArgs(tool);
 
   const bodyNode =
     body.kind === "tool" ? (
-      <ToolBody body={body.tool} />
+      <ToolBody body={body.tool} argsOpen={argsOpen} argsId={argsId} />
     ) : body.kind === "question" ? (
       <QuestionBody
         questions={body.question.questions}
@@ -283,54 +299,100 @@ function PendingCard(props: {
       <ReviewBody review={body.review} />
     );
 
+  const tile = KIND_TILE[body.kind];
   return (
     <li data-slot="approval-card-item" data-approval-id={id} className="list-none">
-      <AgentRequest
+      <article
+        data-slot="approval-card"
         data-approval-kind={body.kind}
-        kind={AGENT_KIND[body.kind]}
-        lead={t(KIND_LEAD[body.kind])}
-        title={cardTitle}
-        subtitle={subtitle}
-        badge={origin === null ? undefined : originTextOf(origin)}
-        actions={[]}
+        aria-labelledby={titleId}
         tabIndex={-1}
         onKeyDown={onKeyDown}
+        className="grid gap-3 rounded-xl bg-surface-base p-4 text-ui text-text-primary shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle),var(--cs-focus)]"
       >
-        {body.kind === "plan" ? (
-          // 긴 계획은 본문만 최대 높이 안에서 스크롤하고 단추 줄은 아래에 늘 보인다. 초점 순서는 본문 → 단추
-          <div
-            data-slot="approval-plan-scroll"
-            role="region"
-            aria-label={t("desktop.approvals.plan.scrollLabel")}
-            // 키보드로 방향키 스크롤을 하려면 스크롤 영역이 초점을 받아야 한다
-            tabIndex={0}
-            // 자식(코드 블록의 overflow-auto)이 flex 축소로 min-height 0까지 눌리지 않게 shrink-0이다. 최대 높이는 대기열 띠(40dvh)에서 카드 머리·단추 줄·띠 머리를 뺀 몫이라 단추 줄이 띠 밖으로 밀리지 않는다(rtE R-1)
-            className="flex max-h-[clamp(6rem,calc(40dvh-10rem),20rem)] flex-col gap-2 overflow-y-auto [&>*]:shrink-0"
+        {/* 머리: 아이콘 칸 28, 제목 13/600, 곁 줄 12 tertiary(종류 · 대화 · 시각). 위험도·출처는 오른쪽 끝 */}
+        <header data-slot="approval-head" className="flex min-w-0 items-start gap-3">
+          <span
+            aria-hidden
+            className={`grid size-7 shrink-0 place-items-center rounded-lg [&_svg]:size-4 ${tile.tone}`}
           >
-            {bodyNode}
+            {tile.icon}
+          </span>
+          <div className="grid min-w-0 flex-1 gap-0.5 pt-px">
+            <h3 id={titleId} data-slot="approval-title" className="m-0 text-ui-strong break-words">
+              {cardTitle}
+            </h3>
+            <p data-slot="approval-subtitle" className="m-0 text-ui-sm text-text-tertiary">
+              {subtitle}
+            </p>
           </div>
-        ) : (
-          bodyNode
-        )}
-        {/* 대기열 띠 안에서 카드 본문이 스크롤될 때 응답 단추 줄이 바닥에 붙어 늘 닿는다(sticky, 배경은 카드 면과 같다) */}
+          {tool === null && origin === null ? null : (
+            <span className="flex shrink-0 items-center gap-1.5 pt-px">
+              {origin === null ? null : (
+                <Badge size="sm" className="bg-info-tint text-info-text">
+                  {originTextOf(origin)}
+                </Badge>
+              )}
+              {tool === null ? null : <RiskBadge body={tool} />}
+            </span>
+          )}
+        </header>
+        {/* 본문이 비면(웹 승인처럼 접힌 인자뿐이면) 칸째 숨겨 머리와 단추 줄 사이가 12 하나로 남는다 */}
+        <div
+          data-slot="approval-body"
+          className="grid min-w-0 gap-2 pl-10 [&:not(:has(>:not(:empty)))]:hidden"
+        >
+          {body.kind === "plan" ? (
+            // 긴 계획은 본문만 최대 높이 안에서 스크롤하고 단추 줄은 아래에 늘 보인다. 초점 순서는 본문 → 단추
+            <div
+              data-slot="approval-plan-scroll"
+              role="region"
+              aria-label={t("desktop.approvals.plan.scrollLabel")}
+              // 키보드로 방향키 스크롤을 하려면 스크롤 영역이 초점을 받아야 한다
+              tabIndex={0}
+              // 자식(코드 블록의 overflow-auto)이 flex 축소로 min-height 0까지 눌리지 않게 shrink-0이다. 최대 높이는 대기열 띠(40dvh)에서 카드 머리·단추 줄·띠 머리를 뺀 몫이라 단추 줄이 띠 밖으로 밀리지 않는다(rtE R-1)
+              className="flex max-h-[clamp(6rem,calc(40dvh-10rem),20rem)] flex-col gap-2 overflow-y-auto [&>*]:shrink-0"
+            >
+              {bodyNode}
+            </div>
+          ) : (
+            bodyNode
+          )}
+          {sendState === undefined || sendState === "sending" ? null : (
+            <p className="m-0 text-ui text-danger-text" role="alert" data-failure={sendState}>
+              {t(APPROVAL_FAILURE_ID[sendState])}
+              {detail === undefined ? null : ` (${detail})`}
+            </p>
+          )}
+        </div>
+        {/* 단추 줄: 대기열 띠 안에서 본문이 스크롤될 때도 바닥에 붙어 늘 닿는다(sticky, 배경은 카드 면) */}
         <div
           data-slot="approval-actions"
-          className="sticky bottom-0 flex flex-wrap items-center gap-1.5 bg-surface-base pt-1.5"
+          className="sticky bottom-0 flex min-w-0 flex-wrap items-center gap-2 bg-surface-base pl-10"
         >
-          {leading.map((action) => (
-            <ActionButton
-              key={action.id}
-              action={action}
-              size={actionSize}
-              disabled={busy}
-              onRespond={respond}
-            />
-          ))}
+          {hasArgs ? (
+            <Button
+              type="button"
+              data-action="args"
+              size={ACTION_SIZE}
+              variant="ghost"
+              aria-expanded={argsOpen}
+              aria-controls={argsId}
+              // 펼침 단추의 글이 제목 열에 맞도록 단추 안쪽 여백만큼 당긴다
+              className="-ml-2.5 gap-1 text-text-secondary [&_svg]:size-3.5 [&_svg]:transition-transform aria-expanded:[&_svg]:rotate-90"
+              onClick={() => {
+                setArgsOpen((open) => !open);
+              }}
+            >
+              <ChevronRight aria-hidden />
+              {t(argsOpen ? "desktop.approvals.args.hide" : "desktop.approvals.args.show")}
+            </Button>
+          ) : null}
           {body.kind === "review" ? (
             <Button
               type="button"
               data-action="open"
-              size={actionSize}
+              size={ACTION_SIZE}
               variant="outline"
               disabled={busy}
               onClick={openReview}
@@ -339,39 +401,28 @@ function PendingCard(props: {
             </Button>
           ) : null}
           <span aria-hidden className="flex-1" />
-          {trailing.map((action) => (
-            <ActionButton
-              key={action.id}
-              action={action}
-              size={actionSize}
-              disabled={busy}
-              onRespond={respond}
-            />
-          ))}
           {busy ? (
-            <span className="text-ui text-text-secondary">
+            <span role="status" className="text-ui-sm text-text-tertiary">
               {t("desktop.approvals.sendingStatus")}
             </span>
           ) : null}
-          {sendState === undefined || sendState === "sending" ? null : (
-            <span className="text-ui text-danger-text" role="alert" data-failure={sendState}>
-              {t(APPROVAL_FAILURE_ID[sendState])}
-              {detail === undefined ? null : ` (${detail})`}
-            </span>
-          )}
           {sendState === "gone" ? (
             <Button
               type="button"
               data-action="dismiss"
-              size={actionSize}
+              size={ACTION_SIZE}
               variant="ghost"
               onClick={dismiss}
             >
               {t("desktop.approvals.failure.gone.dismiss")}
             </Button>
-          ) : null}
+          ) : (
+            answers.map((action) => (
+              <ActionButton key={action.id} action={action} disabled={busy} onRespond={respond} />
+            ))
+          )}
         </div>
-      </AgentRequest>
+      </article>
     </li>
   );
 }
