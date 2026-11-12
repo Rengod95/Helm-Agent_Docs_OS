@@ -291,3 +291,56 @@ test("list reads the saved decisions, leaves session decisions out, and reports 
   });
   expect(readFileSync(trustFile, "utf8")).toBe("{ not json");
 });
+
+// 지우기: 이 폴더의 저장 결정과 이번 실행의 기억을 지우고, 다른 폴더의 결정은 남긴다. 지운 뒤에는 다시 묻는다(미결정)
+test("remove drops this folder's stored decision and session memory, keeps the other folders, and answers undecided", async () => {
+  const { trust, workspace, root, trustFile } = await rig();
+  const sibling = join(root, "projects", "other");
+  mkdirSync(sibling, { recursive: true });
+  writeFileSync(join(sibling, ".mcp.json"), "{}");
+  await trust.decide(sibling, { kind: "folder", verdict: "allow" }, SIGNAL);
+  await trust.decide(workspace, { kind: "folder", verdict: "allow" }, SIGNAL);
+  // 이번 실행의 기억(거부)은 저장된 허용보다 먼저 보인다
+  await trust.decide(workspace, { kind: "session", verdict: "deny" }, SIGNAL);
+  expect((await trust.inspect(workspace, SIGNAL)).result).toMatchObject({
+    verdict: "deny",
+    via: "sessionMemory",
+  });
+
+  const removed = await trust.remove(workspace, SIGNAL);
+  if (!removed.ok) throw new Error("expected the removal to be applied");
+  expect(removed.value.result).toMatchObject({
+    trusted: false,
+    verdict: "undecided",
+    via: "headless",
+  });
+  expect(removed.value.options.map((option) => option.label)).toEqual([
+    "trust-folder",
+    "trust-parent",
+    "trust-session",
+    "deny-folder",
+    "deny-session",
+  ]);
+  expect(await trust.list()).toEqual({
+    ok: true,
+    value: [{ path: sibling, verdict: "allow", savedAt: "1970-01-01T00:00:01.000Z" }],
+  });
+  expect(readFileSync(trustFile, "utf8")).not.toContain(`"${workspace}"`);
+  expect(await trust.isTrusted(workspace, SIGNAL)).toBe(false);
+
+  // 저장된 결정이 없는 폴더를 지우면 판정만 돌려주고 파일 항목은 그대로다
+  const again = await trust.remove(workspace, SIGNAL);
+  expect(again.ok && again.value.result.verdict).toBe("undecided");
+  expect(await trust.list()).toEqual({
+    ok: true,
+    value: [{ path: sibling, verdict: "allow", savedAt: "1970-01-01T00:00:01.000Z" }],
+  });
+
+  // 손상된 파일은 지우지 않고 거부한다. 파일 바이트는 그대로다
+  writeFileSync(trustFile, "{ not json");
+  expect(await trust.remove(sibling, SIGNAL)).toEqual({
+    ok: false,
+    error: { kind: "store_failed", reason: "corrupt" },
+  });
+  expect(readFileSync(trustFile, "utf8")).toBe("{ not json");
+});

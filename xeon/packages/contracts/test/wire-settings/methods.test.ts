@@ -639,6 +639,34 @@ describe("M2 method schemas are written out", () => {
     expect(parse(result, { ...status, extra: true }).ok).toBe(false);
   });
 
+  test("trust.remove takes a workspace and returns the status after the removal", () => {
+    const remove = WIRE_METHODS["trust.remove"];
+    expect(remove.stage).toBe("M4");
+    expect(parse(remove.params, { workspace: "/work/app" }).ok).toBe(true);
+    expect(parse(remove.params, {}).ok).toBe(false);
+    expect(parse(remove.params, { workspace: "" }).ok).toBe(false);
+    expect(parse(remove.params, { workspace: "/work/app", path: "/work/app" }).ok).toBe(false);
+    // 지운 뒤에는 결정이 없어 미결정이고, 상위 폴더 결정이 있으면 그 판정이다
+    const after = {
+      projectRoot: "/work/app",
+      required: true,
+      verdict: "undecided",
+      via: "headless",
+      resources: [".mcp.json"],
+      options: [
+        {
+          choice: { kind: "folder", verdict: "allow" },
+          label: "trust-folder",
+          savedPath: "/work/app",
+        },
+      ],
+    };
+    expect(parse(remove.result, after).ok).toBe(true);
+    expect(parse(remove.result, { ...after, verdict: "allow", via: "store" }).ok).toBe(true);
+    expect(parse(remove.result, { ...after, verdict: "maybe" }).ok).toBe(false);
+    expect(WIRE_METHODS["trust.remove"].result).toBe(WIRE_METHODS["trust.decide"].result);
+  });
+
   test("trust status details are optional names and commands, never env values", () => {
     const { result } = WIRE_METHODS["trust.get"];
     const status = {

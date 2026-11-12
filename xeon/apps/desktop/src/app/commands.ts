@@ -525,6 +525,7 @@ export function createCommands(
       status: (workspace) => withConnection((c) => c.request("trust.get", { workspace })),
       decide: (workspace, choice) =>
         withWriteConnection((c) => c.request("trust.decide", { workspace, choice })),
+      remove: (workspace) => withWriteConnection((c) => c.request("trust.remove", { workspace })),
       list: () => withConnection((c) => c.request("trust.list", {})),
     },
     workspace: {

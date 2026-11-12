@@ -5965,6 +5965,8 @@
   "desktop.settings.trust.column.folder": "Folder",
   "desktop.settings.trust.column.saved": "Saved",
   "desktop.settings.trust.decideFailed": "Couldn't save the verdict. Try again",
+  "desktop.settings.trust.remove": "Remove {folder}",
+  "desktop.settings.trust.removeFailed": "Couldn't remove it. Try again",
   "desktop.settings.trust.section": "Workspace trust",
   "desktop.settings.verdict.add": "Add",
   "desktop.settings.verdict.allow": "Allow",

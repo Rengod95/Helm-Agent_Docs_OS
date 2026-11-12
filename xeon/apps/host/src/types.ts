@@ -796,6 +796,14 @@ export interface TrustPort {
     choice: WireParams<"trust.decide">["choice"],
     signal: AbortSignal,
   ): Promise<Result<WireResult<"trust.decide">, TrustPortFailure>>;
+  /**
+   * 이 폴더 자신의 저장된 결정과 이 프로세스의 세션 기억을 지우고 지운 뒤의 판정을 돌려준다. 설정 층 다시 읽기와 알림은 `decide`와 같다.
+   * 상위 폴더의 결정은 건드리지 않는다
+   */
+  remove(
+    workspace: string,
+    signal: AbortSignal,
+  ): Promise<Result<WireResult<"trust.remove">, TrustPortFailure>>;
 }
 
 export interface HostLogPort {

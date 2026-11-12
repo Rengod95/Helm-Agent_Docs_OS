@@ -56,6 +56,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       status: () => Promise.resolve(err({ kind: "unsupported" })),
       decide: () => Promise.resolve(err({ kind: "unsupported" })),
       list: () => Promise.resolve(err({ kind: "unsupported" })),
+      remove: () => Promise.resolve(err({ kind: "unsupported" })),
     },
     workspace: {
       status: () => Promise.resolve(err({ kind: "unsupported" })),

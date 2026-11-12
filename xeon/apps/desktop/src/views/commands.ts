@@ -192,6 +192,8 @@ interface TrustCommands {
   decide(workspace: string, choice: TrustChoice): Promise<Result<TrustStatus, CommandError>>;
   /** `trust.list`: 저장된 결정 목록(읽기 전용). 설정 화면의 "신뢰한 폴더" 구역이 읽는다 */
   list(): Promise<Result<TrustListResult, CommandError>>;
+  /** `trust.remove`: 이 폴더의 저장된 결정을 지운다. 지운 뒤의 판정을 돌려준다. 설정 화면의 "신뢰한 폴더" 줄이 부른다 */
+  remove(workspace: string): Promise<Result<TrustStatus, CommandError>>;
 }
 
 /**
@@ -1076,7 +1078,7 @@ export interface Commands {
   dismissApproval(approvalId: EventId): void;
   /**
    * 엔진 대상을 바꾼다(W-08, `engine_retarget`). 바꾸는 동안 쓰기 명령(`sendTurn`, `interrupt`, `withdrawInput`, `respondApproval`, `createThread`,
-   * `forkThread`, `trust.decide`)은 `switching`으로 거절한다. 옛 엔진이 `shutdownGraceMs`까지 쓰기를 받을 수 있어서다.
+   * `forkThread`, `trust.decide`, `trust.remove`)은 `switching`으로 거절한다. 옛 엔진이 `shutdownGraceMs`까지 쓰기를 받을 수 있어서다.
    * `graceMs`는 `l4.desktop.engine.shutdownGraceMs`.
    */
   retargetEngine(target: EngineTarget, graceMs: number): Promise<Result<null, CommandError>>;

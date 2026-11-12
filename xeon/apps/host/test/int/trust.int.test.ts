@@ -113,6 +113,15 @@ realTest(
     });
     expect(session).toMatchObject({ verdict: "allow", via: "sessionMemory" });
     expect(readFileSync(trustFile, "utf8")).toContain('"deny"');
+
+    // 지우기: 저장한 거부와 이번 실행의 기억을 함께 지우면 폴더는 다시 미결정이다
+    const cleared = await reopened.request("trust.remove", { workspace });
+    expect(cleared).toMatchObject({ verdict: "undecided", via: "headless" });
+    expect(readFileSync(trustFile, "utf8")).not.toContain(workspace);
+    expect(await reopened.request("trust.get", { workspace })).toMatchObject({
+      verdict: "undecided",
+      via: "headless",
+    });
     await reopened.close();
     await second.close();
     expect(existsSync(trustFile)).toBe(true);

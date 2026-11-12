@@ -336,6 +336,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | trust | `trust.get` | `{ workspace: string }` | `TrustStatus` | M2 |
 | trust | `trust.decide` | `{ workspace: string, choice: { kind: "folder"\|"parent"\|"session", verdict: "allow"\|"deny" } }` | `TrustStatus` | M2 |
 | trust | `trust.list` | `{}` | `{ entries: { path: string, verdict: "allow"\|"deny", savedAt?: string }[] }`. 저장 파일(`trust.json`)의 결정을 읽는다. 읽기 전용이고 이번 실행에서 정한 결정은 싣지 않는다. 파일이 손상되었거나 읽지 못하면 `store.io`(`details.code: "trust_store_read"`)다. | M4 |
+| trust | `trust.remove` | `{ workspace: string }` | `TrustStatus`. 이 폴더 자신의 저장된 결정(`trust.json` 항목)과 이 호스트 프로세스의 기억(`session` 결정)을 지운다. 상위 폴더의 결정은 건드리지 않는다. 지운 뒤의 판정을 돌려주므로 결정이 없으면 `undecided`다. 없는 결정을 지워도 아무것도 바꾸지 않는다. 저장 파일이 손상되었거나 쓰지 못하면 `store.io`(`details.code: "trust_store"`)다. 설정 층 다시 읽기와 `settings.invalidated`는 `trust.decide`와 같다 [결정: 2026-11-11 사용자] | M4 |
 | workspace | `workspace.status` | `{ workspace: string }` | `{ exists: boolean, path: string }`. 작업 폴더가 지금 있는 폴더인지 본다. 없거나 파일이면 `exists`가 거짓이다. `path`는 있으면 정규 경로, 없으면 `.`·`..`만 정리한 절대 경로다. 상대 경로면 `jsonrpc.invalidParams`(`path: "workspace"`). 아무것도 바꾸지 않는다. | M4 |
 | settings | `settings.get` | `{ keys?: SettingKey[], threadId?: ThreadId }` | `{ settings: EffectiveSetting[] }` | M1 |
 | settings | `settings.set` | `{ key: SettingKey, value: unknown, scope: SettingScope, threadId?: ThreadId }` | `{ setting: EffectiveSetting }` | M2 |
@@ -466,7 +467,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   - `trust.decide`의 `choice`가 그 폴더의 `options`에 없으면 `jsonrpc.invalidParams`(`path: "choice"`)다. `session`은 저장하지 않고 그 호스트 프로세스 동안만 유지한다. `workspace`가 절대 경로가 아니면 `jsonrpc.invalidParams`(`path: "workspace"`)이고, 결정을 저장하지 못하면(손상된 저장 파일, 쓰기 실패) `store.io`(`details.code: "trust_store"`)다. `trust.get`은 아무것도 바꾸지 않는다. 신뢰 필요 자원이 없는 폴더도 `trust.decide`로 미리 정할 수 있다.
   - 결정 뒤 호스트는 그 폴더의 project·local 설정 파일 층을 다시 읽고 `settings.invalidated`(§3.3.2)를 보낸다. 작업 폴더 스킬은 다음 thread를 열 때, MCP 서버 정의는 다음 서버 로드 때 반영된다. 이미 열린 thread가 새 결정을 모두 받게 하려면 결정을 thread 열기 전에 한다.
   - 저장 파일 `trust.json`은 두 클라이언트(CLI의 `fresnel trust`, 데스크톱 카드)가 같은 호스트를 거쳐 쓴다. 프로세스 사이 쓰기 충돌은 L0.os의 `fileLock`이 막는다(`review.m2-plan` G1-10). wire는 이 잠금을 드러내지 않는다.
-  - [결정: 오케스트레이터 기본값, fxPT] `trust.list`(신뢰 목록 항목)는 저장 파일의 항목을 파일 순서(경로 사전순)로 싣는다. 항목은 `{ path, verdict, savedAt? }`이고 `savedAt`은 저장 시각(ISO 8601, UTC)이다. 버전 없는 옛 형식의 항목은 저장 시각이 없어 `savedAt`을 싣지 않는다. 이번 실행에서 정한 결정은 저장하지 않으므로 목록에 없다. 이 메서드는 읽기 전용이다. 결정을 지우거나 바꾸는 메서드는 아직 없다(사용자 결정 대기) [근거: `xeon/packages/contracts/src/wire-settings/wire/methods.ts`].
+  - [결정: 오케스트레이터 기본값, fxPT] `trust.list`(신뢰 목록 항목)는 저장 파일의 항목을 파일 순서(경로 사전순)로 싣는다. 항목은 `{ path, verdict, savedAt? }`이고 `savedAt`은 저장 시각(ISO 8601, UTC)이다. 버전 없는 옛 형식의 항목은 저장 시각이 없어 `savedAt`을 싣지 않는다. 이번 실행에서 정한 결정은 저장하지 않으므로 목록에 없다. 이 메서드는 읽기 전용이다. 지우기는 `trust.remove`다(위 표의 행, [결정: 2026-11-11 사용자]). [근거: `xeon/packages/contracts/src/wire-settings/wire/methods.ts`]
   - [결정: 오케스트레이터 기본값, fxPT] `workspace.status`는 대화의 작업 폴더가 지금 있는지 클라이언트가 묻는 메서드다. 데스크톱은 대화를 열 때와 연결이 살아날 때 부르고, 없으면 입력창 위 대화 맥락 줄의 폴더 칸에 경고를 보인다(입력은 막지 않는다). 존재 판정은 `thread.create`가 쓰는 작업 폴더 규칙(`canonicalWorkspace`)과 같다. 호스트가 옛 버전이면 `host.hello`의 `features`에 없어 클라이언트는 경고하지 않는다.
   - `thread.trust.before` 훅은 이 메서드와 별개다. 확장이 결정을 내는 길이고 thread 없이 호스트 수준에서 발화한다(`F.extensions.spec` §7). M2에는 그 훅에 핸들러를 거는 확장이 없어 호스트는 발화하지 않고 저장소 판정만 쓴다.
 - [결정: m2c G1-02] `turn.resume`은 프로세스 종료로 끊긴 turn을 이어 실행하는 메서드다(`L1.loop.spec` §4.6 `LoopService.resume`, `L4.host-service.spec` §10 21번). `thread.list`가 `ThreadSummary.resumable`로 후보를 알리고(§3.3.1 아래 코드), 클라이언트가 사용자 확인 뒤 이 메서드를 부른다. 호스트는 자동 재개를 하지 않는다. 한 thread에 열린 turn은 하나라서 `turnId`를 받지 않는다.
@@ -647,6 +648,7 @@ export interface WireMethodMap {
   "trust.get":         { params: TrustGetParams;         result: TrustStatus };
   "trust.decide":      { params: TrustDecideParams;      result: TrustStatus };
   "trust.list":        { params: TrustListParams;        result: TrustListResult };
+  "trust.remove":      { params: TrustRemoveParams;      result: TrustStatus };
   "workspace.status":  { params: WorkspaceStatusParams;  result: WorkspaceStatusResult };
   "secret.beginEntry": { params: SecretBeginEntryParams; result: SecretBeginEntryResult };
 }

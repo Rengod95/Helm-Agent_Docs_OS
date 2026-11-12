@@ -152,3 +152,38 @@ test("trust.list returns the stored decisions as the port listed them, and an un
   expect(failure.message).toContain("trust: the stored decisions could not be read (corrupt)");
   await brokenConnection.close();
 });
+
+test("trust.remove passes the workspace on and returns the status after the removal; a refused removal is store.io", async () => {
+  const removed: string[] = [];
+  const after: WireResult<"trust.remove"> = { ...STATUS, verdict: "undecided", via: "headless" };
+  const host = createFakeHost({
+    overrides: {
+      trust: {
+        remove: (workspace) => {
+          removed.push(workspace);
+          return Promise.resolve(ok(after));
+        },
+      },
+    },
+  });
+  const connection = await open(host);
+  expect(await connection.request("trust.remove", { workspace: "/work/app" })).toEqual(after);
+  expect(removed).toEqual(["/work/app"]);
+  await connection.close();
+
+  const refusing = createFakeHost({
+    overrides: {
+      trust: {
+        remove: () => Promise.resolve(err({ kind: "store_failed", reason: "corrupt" as const })),
+      },
+    },
+  });
+  const refusingConnection = await open(refusing);
+  const broken = await wireErrorOf(
+    refusingConnection.request("trust.remove", { workspace: "/work/app" }),
+  );
+  expect(broken.data.kind).toBe("store.io");
+  expect(broken.data.details).toEqual({ code: "trust_store" });
+  expect(broken.message).toContain("trust: the decision could not be stored (corrupt)");
+  await refusingConnection.close();
+});

@@ -50,12 +50,13 @@ function viewProps(
     disabled: false,
     nowMs: NOW,
     onDecide: () => undefined,
+    onRemove: () => undefined,
     ...over,
   };
 }
 
 describe("TrustedFoldersView", () => {
-  test("each folder is a verdict row with allow and deny, and no remove button", () => {
+  test("each folder is a verdict row with allow and deny, and a remove button named for it", () => {
     const out = renderToString(
       <TrustedFoldersView
         {...viewProps({
@@ -75,6 +76,14 @@ describe("TrustedFoldersView", () => {
     expect(out).not.toContain(t("desktop.settings.verdict.ask"));
     expect(out).toContain(savedAgeTextOf("2026-11-11T00:00:00.000Z", NOW));
     expect(out).not.toContain(t("desktop.settings.trust.empty"));
+    // 줄마다 지우기 칸이 있고, 이름은 폴더 전체 경로를 쓴다
+    expect(out.split('data-slot="verdict-remove"')).toHaveLength(3);
+    expect(out).toContain(
+      `aria-label="${t("desktop.settings.trust.remove", { folder: "/work/app" })}"`,
+    );
+    expect(out).toContain(
+      `aria-label="${t("desktop.settings.trust.remove", { folder: "/work/old" })}"`,
+    );
   });
 
   test("an empty list shows the empty text, and a failed decision shows its sentence", () => {
@@ -84,12 +93,31 @@ describe("TrustedFoldersView", () => {
     expect(out).toContain(t("desktop.settings.trust.empty"));
     expect(out).toContain("저장 실패");
     expect(out).not.toContain("/work/");
+    // 빈 목록에는 지우기 칸도 없다
+    expect(out).not.toContain('data-slot="verdict-remove"');
   });
 
   test("a failed read shows the failure, not the empty state", () => {
     const out = renderToString(<TrustedFoldersView {...viewProps({ kind: "failed" })} />);
     expect(out).toContain(t("desktop.settings.trust.loadFailed"));
     expect(out).not.toContain(t("desktop.settings.trust.empty"));
+  });
+});
+
+describe("TrustedFoldersView removal", () => {
+  test("a failed removal shows its sentence and keeps the folder row", () => {
+    const out = renderToString(
+      <TrustedFoldersView
+        {...viewProps(
+          { kind: "ready", entries: [{ path: "/work/app", verdict: "allow" }] },
+          { error: t("desktop.settings.trust.removeFailed") },
+        )}
+      />,
+    );
+    expect(out).toContain(t("desktop.settings.trust.removeFailed"));
+    expect(out).toContain("/work/app");
+    expect(out).toContain('data-slot="verdict-remove"');
+    expect(out).not.toContain(t("desktop.settings.trust.decideFailed"));
   });
 });
 

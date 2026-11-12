@@ -5965,6 +5965,8 @@
   "desktop.settings.trust.column.folder": "폴더",
   "desktop.settings.trust.column.saved": "저장한 때",
   "desktop.settings.trust.decideFailed": "판정을 저장하지 못했어요. 다시 시도해 주세요",
+  "desktop.settings.trust.remove": "{folder} 지우기",
+  "desktop.settings.trust.removeFailed": "지우지 못했어요. 다시 시도해 주세요",
   "desktop.settings.trust.section": "작업 폴더 신뢰",
   "desktop.settings.verdict.add": "추가",
   "desktop.settings.verdict.allow": "허용",

@@ -69,6 +69,9 @@ type TrustDecideFailure =
   /** 저장 파일이 손상되었거나 쓰지 못했다. 기존 결정은 그대로다 */
   | { readonly kind: "store_failed"; readonly reason: "corrupt" | "io" };
 
+/** 지우기가 실패하는 이유. 지우기에는 선택지가 없어 저장 실패만 남는다 */
+type TrustStoreFailure = Extract<TrustDecideFailure, { readonly kind: "store_failed" }>;
+
 export interface ProjectTrust {
   /** 판정과 선택지. 아무것도 바꾸지 않는다 */
   inspect(projectRoot: string, signal: AbortSignal): Promise<TrustInspection>;
@@ -83,6 +86,14 @@ export interface ProjectTrust {
   ): Promise<Result<TrustInspection, TrustDecideFailure>>;
   /** 판정 전체 결과. 설정 쓰기가 "명시한 결정인가"(`via`)를 본다 */
   resolve(projectRoot: string, signal: AbortSignal): Promise<ProjectTrustResult>;
+  /**
+   * 이 폴더 자신의 저장된 결정을 지우고(상위 폴더 결정은 그대로다) 이 프로세스의 세션 기억도 지운다. 지운 뒤의 판정을 돌려준다.
+   * 저장된 결정이 없었으면 파일을 바꾸지 않고 판정만 돌려준다
+   */
+  remove(
+    projectRoot: string,
+    signal: AbortSignal,
+  ): Promise<Result<TrustInspection, TrustStoreFailure>>;
   /** 신뢰되었는가. 결정이 없으면(undecided) 거짓이다 */
   isTrusted(projectRoot: string, signal: AbortSignal): Promise<boolean>;
   /**
@@ -307,6 +318,21 @@ export function createProjectTrust(deps: ProjectTrustDeps): ProjectTrust {
         // 세션 기억이 저장한 결정보다 먼저 보이므로(X.loading-trust.spec §4.7.3 3번) 앞선 기억은 지운다
         sessionMemory.delete(root);
       }
+      return ok(await inspect(root, signal));
+    },
+    async remove(projectRoot, signal) {
+      const root = await store.canonical(projectRoot);
+      // 값 없는 갱신은 항목을 지운다(`verdict: null`). 없는 항목이면 파일 내용은 그대로다
+      const saved = await store.setMany([{ path: root, verdict: null, via: "prompt" }]);
+      if (!saved.ok) {
+        deps.logger.warn("trust.store_error", { kind: saved.error.kind, root });
+        return err({
+          kind: "store_failed",
+          reason: saved.error.kind === "corrupt" ? "corrupt" : "io",
+        });
+      }
+      // 세션 기억도 지운다. 남기면 지운 폴더가 이번 실행 동안 신뢰된 채로 남고, 판정이 `undecided`라는 응답과 어긋난다
+      sessionMemory.delete(root);
       return ok(await inspect(root, signal));
     },
     resolve: resolveTrust,

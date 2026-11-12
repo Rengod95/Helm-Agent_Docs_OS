@@ -1774,6 +1774,16 @@ export const TrustDecideParamsSchema: TObject<{
 );
 export type TrustDecideParams = Static<typeof TrustDecideParamsSchema>;
 
+/**
+ * trust.remove. 저장 파일에서 이 폴더 자신의 결정을 지우고, 이 호스트 프로세스의 세션 기억도 지운다. 상위 폴더의 결정은 건드리지 않는다.
+ * 결과는 지운 뒤의 판정이다: 상위 폴더 결정이 없으면 `undecided`라 다음에 열 때 다시 묻는다. 없는 결정을 지우면 아무것도 바꾸지 않는다 [결정: 2026-11-11 사용자]
+ */
+export const TrustRemoveParamsSchema: TObject<{ workspace: TString }> = Type.Object(
+  { workspace: Type.String({ minLength: 1, maxLength: 4096 }) },
+  { additionalProperties: false },
+);
+export type TrustRemoveParams = Static<typeof TrustRemoveParamsSchema>;
+
 /** trust.list 항목 하나. 저장 파일의 결정이다. 세션 결정은 저장하지 않으므로 없다. `savedAt`은 버전 없는 옛 파일이면 없다 [결정: 오케스트레이터 기본값, fxPT] */
 export const TrustListEntrySchema: TObject<{
   path: TString;
@@ -1791,7 +1801,7 @@ export const TrustListEntrySchema: TObject<{
 );
 export type TrustListEntry = Static<typeof TrustListEntrySchema>;
 
-/** trust.list. 읽기 전용이고 인자가 없다. 제거와 바꾸기는 아직 없다(F wire §3.3.1) [결정: 오케스트레이터 기본값, fxPT] */
+/** trust.list. 읽기 전용이고 인자가 없다. 지우기는 `trust.remove`다(F wire §3.3.1) [결정: 오케스트레이터 기본값, fxPT] */
 export const TrustListParamsSchema: TObject<{}> = Type.Object({}, { additionalProperties: false });
 export type TrustListParams = Static<typeof TrustListParamsSchema>;
 
@@ -2121,6 +2131,10 @@ interface WireSchemas
     params: WithMeta<typeof TrustListParamsSchema>;
     result: typeof TrustListResultSchema;
   };
+  "trust.remove": {
+    params: WithMeta<typeof TrustRemoveParamsSchema>;
+    result: typeof TrustStatusSchema;
+  };
   "workspace.status": {
     params: WithMeta<typeof WorkspaceStatusParamsSchema>;
     result: typeof WorkspaceStatusResultSchema;
@@ -2336,6 +2350,7 @@ export const WIRE_METHODS: {
   "trust.get": spec(withMeta(TrustGetParamsSchema), TrustStatusSchema, "M2"),
   "trust.decide": spec(withMeta(TrustDecideParamsSchema), TrustStatusSchema, "M2"),
   "trust.list": spec(withMeta(TrustListParamsSchema), TrustListResultSchema, "M4"),
+  "trust.remove": spec(withMeta(TrustRemoveParamsSchema), TrustStatusSchema, "M4"),
   "workspace.status": spec(
     withMeta(WorkspaceStatusParamsSchema),
     WorkspaceStatusResultSchema,
