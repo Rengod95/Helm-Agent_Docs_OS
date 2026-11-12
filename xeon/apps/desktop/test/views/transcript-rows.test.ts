@@ -245,4 +245,12 @@ describe("transcriptRowsOf: 턴과 표지", () => {
   test("빈 대화는 줄이 없다", () => {
     expect(rowsOf({})).toEqual([]);
   });
+
+  test("그리지 않는 item에 붙은 요약은 그 앞의 보이는 item 뒤에 선다", () => {
+    const rows = rowsOf({
+      shapes: [user(1), assistant(2, call(0, "c1", "read")), hidden(3), assistant(4, text(0))],
+      anchors: [anchor(1, itm(3))],
+    });
+    expect(keys(rows)).toEqual([itm(1), "act:c1", `compact:${evt(1)}`, itm(4), `foot:${itm(1)}`]);
+  });
 });

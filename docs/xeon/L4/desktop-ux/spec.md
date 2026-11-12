@@ -4093,7 +4093,7 @@ export const templates = [
 
 ### 15.4 도구 인자 요약과 묶음 [결정: 2026-11-11 사용자]
 
-도구 호출 인자는 화면에 JSON 그대로 보이지 않고 요약으로 보입니다. `state/engine/tool-summary.ts`의 `summarizeToolArgs(toolName, args, mcpServer?)`가 도구 이름 표로 요약을 만들고, 필수 필드가 없거나 타입이 틀린 인자는 인자 JSON을 400글자 이내로 줄인 `generic` 요약으로 떨어집니다(던지지 않습니다). 실제 인자 모양은 `packages/contracts/src/capabilities/defs/`가 정본입니다: `bash`는 명령과 시간 제한(초, `cwd`는 모델 인자에 없습니다), `read`는 경로와 줄 범위, `grep`·`find`·`ls`·`knowledge_search`는 검색, `task_write`는 `ops`(create·update·link·unlink), `memory_manage`는 저장소·동작·항목, `agent`는 에이전트 이름과 과제(`task`)입니다. MCP 도구는 서버를 이름으로 알 수 없으므로 결과 `details.server`를 호출자가 `mcpServer`로 넘깁니다. 연속된 도구 호출은 `groupToolCalls`가 범주별로 세고(읽기, 검색, 명령, 편집, 쓰기, 웹, 에이전트, 할 일, 메모리, MCP, 기타) 읽기·편집·쓰기는 고유 경로 수를 함께 줍니다. 문장은 화면이 i18n으로 만듭니다.
+도구 호출 인자는 화면에 JSON 그대로 보이지 않고 요약으로 보입니다. `state/engine/tool-summary.ts`의 `summarizeToolArgs(toolName, args, mcpServer?)`가 도구 이름 표로 요약을 만들고, 필수 필드가 없거나 타입이 틀린 인자는 인자 JSON을 400글자 이내로 줄인 `generic` 요약으로 떨어집니다(던지지 않습니다). 실제 인자 모양은 `packages/contracts/src/capabilities/defs/`가 정본입니다: `bash`는 명령과 시간 제한(초, `cwd`는 모델 인자에 없습니다), `read`는 경로와 줄 범위, `skill_view`는 스킬 이름(지원 파일이면 `이름/파일`)을 읽는 경로, `grep`·`find`·`ls`·`knowledge_search`는 검색, `task_write`는 `ops`(create·update·link·unlink), `memory_manage`는 저장소·동작·항목, `agent`는 에이전트 이름과 과제(`task`)입니다. MCP 도구는 서버를 이름으로 알 수 없으므로 결과 `details.server`를 호출자가 `mcpServer`로 넘깁니다. 연속된 도구 호출은 `groupToolCalls`가 범주별로 세고(읽기, 검색, 명령, 편집, 쓰기, 웹, 에이전트, 할 일, 메모리, MCP, 기타) 읽기·편집·쓰기는 고유 경로 수를 함께 줍니다. 문장은 화면이 i18n으로 만듭니다.
 
 ### 15.5 메시지 단위 동작 [결정: 2026-11-11 사용자]
 
@@ -4120,6 +4120,6 @@ export const templates = [
 - 턴 경계는 `turn.started`의 `inputItemIds`이고, 턴을 모르는 기록은 사용자 말이 경계입니다. 끝난 턴 뒤(도는 턴은 빼고)에 턴 발 줄을 둡니다. 답 글도 턴도 없는 교환에는 두지 않습니다.
 - 호출 사이 생각은 묶음에, 글 앞 생각은 같은 item의 답 줄 머리에 들어갑니다.
 - 키: 사용자 말과 item의 첫 글 줄은 item id, 같은 item의 다음 글 줄은 `<item id>:<블록 자리>`, 묶음은 `act:<첫 호출 id>`, 카드는 `card:<호출 id>`, 표지 `mark:<seq>`, 주도 `lead:`·`lead-end:<lease id>`, 턴 발 `foot:<턴 id>`, 요약 `compact:<사건 id>`입니다. 진행 중 줄도 item id라 확정될 때 다시 마운트되지 않습니다(같은 `ReplyRow` 부품). 확정 기록에 이미 있는 진행 item은 빼냅니다.
-- 표지는 seq가 턴 시작 seq보다 앞인 첫 턴 앞에, 예약 실행 표지는 그 턴 앞에 섭니다. 요약 구분선은 자리 item 뒤(묶음 안 item이면 묶음 뒤)입니다.
+- 표지는 seq가 턴 시작 seq보다 앞인 첫 턴 앞에, 예약 실행 표지는 그 턴 앞에 섭니다. 요약 구분선은 자리 item 뒤(묶음 안 item이면 묶음 뒤, 그리지 않는 item이면 그 앞의 보이는 item 뒤)입니다.
 - 내용 없이 실패한 답은 그리지 않고, 내용이 있는 실패·중단 답은 마지막 글 줄 아래에 "실패"·"중단됨"을 한 번 답니다.
 

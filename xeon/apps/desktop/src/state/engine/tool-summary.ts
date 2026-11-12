@@ -268,6 +268,7 @@ type Summarizer = (args: Record<string, unknown>) => ToolArgsSummary | null;
 const SUMMARIZERS: Readonly<Record<string, Summarizer>> = {
   bash: commandOf,
   read: readOf,
+  skill_view: skillViewOf,
   write: writeOf,
   edit: editOf,
   ls: listOf,
@@ -291,6 +292,18 @@ function commandOf(args: Record<string, unknown>): ToolArgsSummary | null {
   const timeout = optionalOf(args["timeout"], isFiniteNumber);
   if (!isString(command) || !timeout.ok) return null;
   return { kind: "command", command, timeoutSec: timeout.value };
+}
+
+/** skill_view: 스킬 이름(지원 파일이면 `이름/파일`)을 읽는 경로로 본다 */
+function skillViewOf(args: Record<string, unknown>): ToolArgsSummary | null {
+  const name = args["name"];
+  const file = optionalOf(args["file"], isString);
+  if (!isString(name) || !file.ok) return null;
+  return {
+    kind: "read",
+    path: file.value === null ? name : `${name}/${file.value}`,
+    range: null,
+  };
 }
 
 function readOf(args: Record<string, unknown>): ToolArgsSummary | null {

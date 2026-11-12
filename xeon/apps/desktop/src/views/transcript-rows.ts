@@ -270,15 +270,26 @@ export function transcriptRowsOf(input: {
 
   const head: TranscriptRow[] = [];
   const after = new Map<ItemId, TranscriptRow[]>();
+  // 그리지 않는 item(짝 있는 도구 결과, 시스템 item)에 붙은 요약은 그 앞의 보이는 item 뒤로 옮긴다
+  const visibleBefore = new Map<ItemId, ItemId | null>();
+  let lastVisible: ItemId | null = null;
+  for (const shape of input.shapes) {
+    if (shape.kind === "hidden") visibleBefore.set(shape.id, lastVisible);
+    else lastVisible = shape.id;
+  }
   for (const anchor of input.anchors) {
+    const at =
+      anchor.after !== null && visibleBefore.has(anchor.after)
+        ? (visibleBefore.get(anchor.after) ?? null)
+        : anchor.after;
     const row: TranscriptRow = {
       kind: "compaction",
       key: `compact:${anchor.record.eventId}`,
       lead: null,
       record: anchor.record,
     };
-    if (anchor.after === null) head.push(row);
-    else after.set(anchor.after, [...(after.get(anchor.after) ?? []), row]);
+    if (at === null) head.push(row);
+    else after.set(at, [...(after.get(at) ?? []), row]);
   }
 
   const rows: TranscriptRow[] = [...head];

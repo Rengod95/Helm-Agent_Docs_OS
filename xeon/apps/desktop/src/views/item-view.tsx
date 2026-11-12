@@ -14,10 +14,10 @@ import { transcriptRowsOf, type TranscriptRow } from "./transcript-rows.ts";
 // 틀(`RowFrame`)이 읽기 열(736px, 좌우 12px)과 줄 종류별 아래 여백을 정하고, 주도 구간 줄에는 왼쪽 레일(`data-lead`)을 단다.
 // 행 부품은 자기 id만 구독한다(FS-19). 목록 부품은 줄 배열만 바뀔 때 다시 그린다.
 
-/** 줄 종류별 아래 여백(시안 1절): 같은 턴 안 블록 사이 8, 사용자 말 뒤 12, 턴 발 줄 뒤 24 */
+/** 줄 종류별 아래 여백(시안 1절): 같은 턴 안 블록 사이 8, 사용자 말 뒤 4(동작 줄 24가 그 위에 있다), 턴 발 줄 뒤 24 */
 const ROW_PAD: Readonly<Record<TranscriptRow["kind"], string>> = {
-  user: "pb-3",
-  reply: "pb-2",
+  user: "pb-1",
+  reply: "gap-2 pb-2",
   activity: "pb-1",
   card: "pb-3",
   result: "pb-1",

@@ -94,6 +94,12 @@ function hostOf(url: string): string {
 
 const SKILL_TOOLS: ReadonlySet<string> = new Set(["skill_view", "skill_manage"]);
 
+/** MCP 도구 이름에서 `mcp__<서버>__` 접두를 뗀다(서버는 배지가 따로 보인다) */
+function mcpToolName(summary: { readonly server: string; readonly tool: string }): string {
+  const prefix = `mcp__${summary.server}__`;
+  return summary.tool.startsWith(prefix) ? summary.tool.slice(prefix.length) : summary.tool;
+}
+
 /** 인자 요약을 줄 머리로 바꾼다 */
 export function toolHeadOf(name: string, args: JsonObject, server: string | null): ToolHead {
   const summary: ToolArgsSummary = summarizeToolArgs(name, args, server);
@@ -181,7 +187,10 @@ export function toolHeadOf(name: string, args: JsonObject, server: string | null
         "desktop.convo.tool.mcp.running",
         {
           kind: "text",
-          text: summary.args === "{}" ? summary.tool : `${summary.tool} ${summary.args}`,
+          text:
+            summary.args === "{}"
+              ? mcpToolName(summary)
+              : `${mcpToolName(summary)} ${summary.args}`,
           mono: true,
         },
         { server: summary.server },
