@@ -2,6 +2,7 @@ import { Alert, Button } from "@caustic/react";
 import { t } from "@fresnel/client/i18n";
 import { useState, type ReactNode } from "react";
 import { useHostNotices } from "./host-notices-context.ts";
+import { PAGE_BAND_SLOT } from "./setup-banner.tsx";
 import { movedStoreFileOf, storeReplacedTextOf } from "./store-replaced-model.ts";
 
 // 시작 때 저장소가 빈 DB 파일을 옮기고 새로 만든 일을 알리는 띠(`host.status.startupNotices`). 대화 화면 맨 위와 설정 개요에 둔다.
@@ -12,17 +13,19 @@ export function StoreReplacedBannerView(props: {
   readonly onDismiss: () => void;
 }): ReactNode {
   return (
-    <Alert
-      tone="warning"
-      size="sm"
-      action={
-        <Button size="sm" variant="outline" onClick={props.onDismiss}>
-          {t("desktop.status.storeReplaced.dismiss")}
-        </Button>
-      }
-    >
-      {storeReplacedTextOf(props.movedTo)}
-    </Alert>
+    <div className={PAGE_BAND_SLOT}>
+      <Alert
+        tone="warning"
+        size="sm"
+        action={
+          <Button size="sm" variant="outline" onClick={props.onDismiss}>
+            {t("desktop.status.storeReplaced.dismiss")}
+          </Button>
+        }
+      >
+        {storeReplacedTextOf(props.movedTo)}
+      </Alert>
+    </div>
   );
 }
 

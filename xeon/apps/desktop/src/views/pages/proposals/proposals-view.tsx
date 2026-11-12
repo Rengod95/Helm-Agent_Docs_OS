@@ -126,7 +126,8 @@ export function ProposalsView(props: ProposalsViewProps): ReactNode {
   return (
     <section
       aria-labelledby={headingId}
-      className="flex min-h-0 flex-1 flex-col px-1.5 outline-none"
+      // 머리는 무대 끝에서 끝까지(DP-122): 안쪽 여백을 섹션에 두면 머리 선이 좌우 6px 끊긴다
+      className="flex min-h-0 flex-1 flex-col outline-none"
       onKeyDown={handlers.onKey}
     >
       <ScreenHeader

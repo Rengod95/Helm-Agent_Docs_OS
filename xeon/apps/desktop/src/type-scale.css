@@ -3,19 +3,19 @@
    (data-slot이 있는 caustic 부품 제목은 뺀다). */
 /* ── 영문 글자 간격: caustic 기본값에서 한 단계(+0.01em) 넓힘. mono·caption(대문자 자간)은 그대로 ── */
 html:root {
-  --cs-text-display-tracking: -0.025em;
+  --cs-text-display-tracking: -0.028em;
   --text-display--letter-spacing: var(--cs-text-display-tracking);
-  --cs-text-title-1-tracking: -0.012em;
+  --cs-text-title-1-tracking: -0.016em;
   --text-title-1--letter-spacing: var(--cs-text-title-1-tracking);
-  --cs-text-title-2-tracking: -0.006em;
+  --cs-text-title-2-tracking: -0.01em;
   --text-title-2--letter-spacing: var(--cs-text-title-2-tracking);
-  --cs-text-title-3-tracking: 0em;
+  --cs-text-title-3-tracking: -0.006em;
   --text-title-3--letter-spacing: var(--cs-text-title-3-tracking);
   --cs-text-title-4-tracking: 0em;
   --text-title-4--letter-spacing: var(--cs-text-title-4-tracking);
-  --cs-text-title-feature-tracking: -0.01em;
+  --cs-text-title-feature-tracking: -0.014em;
   --text-title-feature--letter-spacing: var(--cs-text-title-feature-tracking);
-  --cs-text-title-overlay-tracking: -0.005em;
+  --cs-text-title-overlay-tracking: -0.01em;
   --text-title-overlay--letter-spacing: var(--cs-text-title-overlay-tracking);
   --cs-text-stat-tracking: -0.025em;
   --text-stat--letter-spacing: var(--cs-text-stat-tracking);
@@ -70,19 +70,19 @@ html:root {
 /* ── 한글 글자 간격(영문 기본값보다 좁게, 한 단계 넓힌 값) ──────────────────────────────────────────────────────── */
 html:root[lang|="ko"],
 html:root [lang|="ko"] {
-  --cs-text-display-tracking: -0.015em;
+  --cs-text-display-tracking: -0.02em;
   --text-display--letter-spacing: var(--cs-text-display-tracking);
-  --cs-text-title-1-tracking: -0.015em;
+  --cs-text-title-1-tracking: -0.02em;
   --text-title-1--letter-spacing: var(--cs-text-title-1-tracking);
-  --cs-text-title-2-tracking: -0.015em;
+  --cs-text-title-2-tracking: -0.02em;
   --text-title-2--letter-spacing: var(--cs-text-title-2-tracking);
-  --cs-text-title-3-tracking: -0.01em;
+  --cs-text-title-3-tracking: -0.015em;
   --text-title-3--letter-spacing: var(--cs-text-title-3-tracking);
   --cs-text-title-4-tracking: -0.01em;
   --text-title-4--letter-spacing: var(--cs-text-title-4-tracking);
-  --cs-text-title-feature-tracking: -0.01em;
+  --cs-text-title-feature-tracking: -0.015em;
   --text-title-feature--letter-spacing: var(--cs-text-title-feature-tracking);
-  --cs-text-title-overlay-tracking: -0.01em;
+  --cs-text-title-overlay-tracking: -0.015em;
   --text-title-overlay--letter-spacing: var(--cs-text-title-overlay-tracking);
   --cs-text-stat-tracking: -0.015em;
   --text-stat--letter-spacing: var(--cs-text-stat-tracking);
@@ -165,12 +165,35 @@ html:root[data-theme="dark"] {
   }
 }
 
-/* ── 크기 위계. 제목 2 16/600, 제목 1 24/600(손으로 쓴 머리 h1은 16/700, 설정 제목은 20/700), 설명(작은 밀도 단계) 13, 본문 14/1.6 */
+/* ── 크기 위계(DP-123 [결정: 2026-11-12 사용자] 제목 계열을 한 단계씩 조금 줄임, 본문은 그대로).
+   표시 36/40, 제목 1 22/30, 특집 18/24, 겹침 17/22, 제목 2 15/21, 제목 3 14/20, 제목 4 13.5/20(그대로), 화면 머리 제목 15/20 500,
+   대화 마크다운 h1 17/25 · h2 16/24 · h3 15/23(본문 15와 같고 굵기로 구분). 설명(작은 밀도 단계) 13, 본문 14/1.6.
+   자간은 위 블록: 한글 제목 -0.015 ~ -0.02em, 영문 -0.006 ~ -0.016em. 화면마다 className으로 덮지 않고 이 값만 고친다 */
 html:root {
-  --text-title-1: 24px;
-  --text-title-1--line-height: 32px;
-  --text-title-2: 16px;
-  --text-title-2--line-height: 22px;
+  --text-display: 36px;
+  --text-display--line-height: 40px;
+  --text-title-1: 22px;
+  --text-title-1--line-height: 30px;
+  --text-title-feature: 18px;
+  --text-title-feature--line-height: 24px;
+  --text-title-overlay: 17px;
+  --text-title-overlay--line-height: 22px;
+  --text-title-2: 15px;
+  --text-title-2--line-height: 21px;
+  --text-title-3: 14px;
+  --text-title-3--line-height: 20px;
+  /* 화면 머리 제목 한 단계(대화·설정·플레이그라운드·크래프트 모두 같은 값) */
+  --header-title: 15px;
+  --header-title--line-height: 20px;
+  --header-title--letter-spacing: var(--cs-text-title-3-tracking);
+  /* 대화 답의 마크다운 제목(views/convo/convo.css가 읽는다) */
+  --md-h1: 17px;
+  --md-h1--line-height: 25px;
+  --md-h2: 16px;
+  --md-h2--line-height: 24px;
+  --md-h3: 15px;
+  --md-h3--line-height: 23px;
+  --md-heading--letter-spacing: var(--cs-text-title-3-tracking);
   --text-ui-dense-relaxed: 13px;
   --text-ui-dense-relaxed--line-height: 19px;
   --text-body--line-height: 22.4px;
@@ -181,20 +204,24 @@ html:root {
   html:root :is(h1, h2, h3, h4, h5, h6):not([data-slot]) {
     color: var(--cs-color-text-primary);
   }
-  /* caustic 부품이 아닌 머리 제목 h1(대화 머리·페이지 머리)은 16/22 700. 제목 2(16/600)보다 굵기로 한 단계 위다.
-   설정 화면 제목(data-page-title, 시안은 data-title="page")만 한 단계 큰 20/28 700. 글자 크기·굵기만. */
+  /* caustic 부품이 아닌 h1·h2는 제목 2 크기(15/21). h1은 굵기 700으로 h2(600)보다 한 단계 위다. */
   html:root h1:not([data-slot]) {
-    font-size: 16px;
-    line-height: 22px;
+    font-size: var(--text-title-2);
+    line-height: var(--text-title-2--line-height);
+    letter-spacing: var(--text-title-2--letter-spacing);
     font-weight: 700;
   }
-  html:root h1[data-page-title]:not([data-slot]) {
-    font-size: 20px;
-    line-height: 28px;
-  }
   html:root h2:not([data-slot]) {
-    font-size: 16px;
-    line-height: 22px;
+    font-size: var(--text-title-2);
+    line-height: var(--text-title-2--line-height);
+    letter-spacing: var(--text-title-2--letter-spacing);
     font-weight: 600;
+  }
+  /* 화면 머리 제목(DP-123): 모든 화면이 한 단계(15/20 500 secondary). 설정만 크던 20px 단계는 없앴다 */
+  html:root .shell-header h1:not([data-slot]) {
+    font-size: var(--header-title);
+    line-height: var(--header-title--line-height);
+    letter-spacing: var(--header-title--letter-spacing);
+    font-weight: 500;
   }
 }

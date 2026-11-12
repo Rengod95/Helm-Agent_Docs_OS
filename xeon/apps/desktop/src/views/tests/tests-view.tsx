@@ -15,7 +15,11 @@ import {
 } from "@fresnel/client/workbench";
 import { assertNever } from "@fresnel/contracts";
 import type { ExtTestRecord } from "@fresnel/contracts/wire";
-import { PanelExpandButton } from "../shell/screen-header.tsx";
+import {
+  HEADER_CONTROL_SIZE,
+  HEADER_PRIMARY_VARIANT,
+  ScreenHeader,
+} from "../shell/screen-header.tsx";
 import {
   Alert,
   Badge,
@@ -81,42 +85,43 @@ export function TestsView(props: TestsViewProps): ReactNode {
   const { ui, handlers } = props;
   const ready = props.read.kind === "ready";
   return (
-    <section
-      aria-labelledby="tests-screen-title"
-      className="flex min-h-0 flex-1 flex-col overflow-y-auto"
-    >
-      <div className="mx-auto grid w-full max-w-240 gap-5 px-3 pt-4 pb-8">
-        <header className="flex h-10 min-w-0 items-center gap-2 pe-8">
-          <PanelExpandButton />
-          <h1 id="tests-screen-title" className="m-0 min-w-0 truncate text-text-primary">
-            {t("desktop.tests.title")}
-          </h1>
+    <section aria-labelledby="tests-screen-title" className="flex min-h-0 flex-1 flex-col">
+      {/* 머리는 다른 화면과 같은 공용 머리(DP-122): 머리 띠 높이·아래 선·제목 글자가 같다 */}
+      <ScreenHeader
+        title={t("desktop.tests.title")}
+        titleId="tests-screen-title"
+        action={
           <Button
-            className="ms-auto"
-            size="xs"
-            variant="outline"
+            size={HEADER_CONTROL_SIZE}
+            variant={HEADER_PRIMARY_VARIANT}
             disabled={!props.online || ui.sending}
             onClick={handlers.openSheet}
           >
             {t("desktop.tests.newTest")}
           </Button>
-        </header>
-        {ui.notice === null ? null : (
-          <Alert
-            tone={
-              ui.notice.kind === "failed" || ui.notice.kind === "copyFailed" ? "danger" : "success"
-            }
-            dismissible
-            dismissLabel={t("desktop.tests.sheet.close")}
-            onDismiss={handlers.dismissNotice}
-          >
-            {t(noticeTextOf(ui.notice), noticeArgsOf(ui.notice))}
-          </Alert>
-        )}
-        {ready && props.read.value.length > 0 ? (
-          <FilterRow filter={ui.filter} onChange={handlers.filter} />
-        ) : null}
-        <ListBody {...props} />
+        }
+      />
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto grid w-full max-w-240 gap-5 px-3 pb-8">
+          {ui.notice === null ? null : (
+            <Alert
+              tone={
+                ui.notice.kind === "failed" || ui.notice.kind === "copyFailed"
+                  ? "danger"
+                  : "success"
+              }
+              dismissible
+              dismissLabel={t("desktop.tests.sheet.close")}
+              onDismiss={handlers.dismissNotice}
+            >
+              {t(noticeTextOf(ui.notice), noticeArgsOf(ui.notice))}
+            </Alert>
+          )}
+          {ready && props.read.value.length > 0 ? (
+            <FilterRow filter={ui.filter} onChange={handlers.filter} />
+          ) : null}
+          <ListBody {...props} />
+        </div>
       </div>
       <NewTestSheet
         draft={ui.sheet}

@@ -179,6 +179,28 @@
     min-height: var(--shell-header-h);
     border-bottom: 1px solid var(--color-border-subtle);
   }
+  /* DP-122 머리 띠. 화면 머리 왼쪽에 서는 머리 줄(왼쪽 패널 첫 줄, 막대 로고 칸, 설정 찾기 줄)은 화면 머리와 같은 높이·아래 선을 가져
+     머리 선이 창 왼쪽 끝부터 오른쪽 끝까지 한 줄(y 44)로 이어지고, 가운데 줄이 신호등·화면 제목과 같은 y 22에 선다.
+     띠는 담는 상자의 안쪽 여백(`--band-bleed-*`)만큼 바깥으로 넓혀 상자 끝까지 선을 긋고, 같은 값을 안쪽 여백으로 되돌린다 */
+  [data-header-band] {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-self: stretch;
+    height: var(--shell-header-h);
+    margin-block-start: calc(-1 * var(--band-bleed-top, 0px));
+    margin-inline: calc(-1 * var(--band-bleed-start, 0px)) calc(-1 * var(--band-bleed-end, 0px));
+    padding-inline: var(--band-bleed-start, 0px) var(--band-bleed-end, 0px);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+  [data-slot="side-panel-header"] {
+    --band-bleed-top: 6px;
+    --band-bleed-start: 6px;
+    --band-bleed-end: 6px;
+  }
+  [data-header-band][data-chrome-brand] {
+    justify-content: center;
+  }
   /* 머리 바로 뒤 형제만 공용 간격을 받는다. `data-flush` 머리(대화)는 뺀다 */
   .shell-header:not([data-flush]) + * {
     margin-block-start: var(--shell-header-gap);
@@ -489,9 +511,9 @@
     -webkit-app-region: no-drag;
   }
 
-  /* 펼친 패널: 첫 줄(로고·영역 탭·접기) 앞을 신호등 자리만큼 비운다. 패널 머리 안쪽 여백 6px과 로고 앞 여백 4px을 빼 로고가 신호등 끝 + 16px에 선다 */
+  /* 펼친 패널: 첫 줄(로고·영역 탭·접기) 앞을 신호등 자리만큼 비운다. 띠는 패널 끝(x 0)에서 시작하므로 로고 앞 여백 4px만 빼 로고가 신호등 끝 + 16px에 선다(DP-122) */
   :root[data-window-chrome="mac"]:not([data-fullscreen]) [data-chrome-row] {
-    padding-inline-start: calc(var(--chrome-start) - 10px);
+    padding-inline-start: calc(var(--chrome-start) - 4px);
   }
   /* 막대(49px): 신호등(76px까지)이 막대 밖 화면 머리까지 걸친다. 막대 위 머리 높이만큼을 화면 머리와 같은 면(앱 바탕)과 아래 선으로 덮어
      신호등 뒤가 한 띠로 읽히게 한다(막대 오른쪽 선이 신호등 사이를 지나가지 않는다). 로고 칸은 감추고 그 띠 아래 6px에서 막대 단추가 시작한다 */
@@ -510,7 +532,6 @@
   }
   :root[data-window-chrome="mac"]:not([data-fullscreen]) [data-chrome-brand] {
     visibility: hidden;
-    height: calc(var(--shell-header-h) - 6px);
   }
   /* 화면 머리: 창 왼쪽 끝에 패널이 없으면 신호등 자리를, 막대(49px)면 막대 밖으로 넘친 만큼을 비운다 */
   :root[data-window-chrome="mac"] [data-start-edge="none"] .shell-header {

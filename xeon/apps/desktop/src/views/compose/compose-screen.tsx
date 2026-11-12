@@ -14,7 +14,7 @@ import { useState, type ReactNode } from "react";
 import { useLinkPhase } from "../../state/engine/index.ts";
 import { useWorkbench } from "../../state/workbench/index.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
-import { PanelExpandButton } from "../shell/screen-header.tsx";
+import { HEADER_SEGMENTED_SIZE, ScreenHeader } from "../shell/screen-header.tsx";
 import { useWorkbenchController } from "../workbench/controller.ts";
 import { tabLinkOf } from "../workbench/tab-read.ts";
 import { AUTHORING_EXT, builderOf, CodeSource } from "./compose-code.tsx";
@@ -47,23 +47,16 @@ export function ComposeScreen(): ReactNode {
   };
 
   return (
-    <section
-      aria-labelledby="compose-screen-title"
-      className="flex min-h-0 flex-1 flex-col overflow-y-auto"
-    >
-      {/* 시안 WB_WIDTH와 같은 가운데 폭(60rem, 좌우 여백 3). 머리와 본문이 같은 열에 선다 */}
-      <div className="mx-auto flex w-full max-w-240 flex-col gap-4 px-3 pt-6 pb-8">
-        <div className="flex flex-wrap items-center justify-between gap-3 pe-8">
-          <div className="flex min-w-0 items-center gap-1">
-            <PanelExpandButton />
-            <h1 id="compose-screen-title" className="m-0 flex items-center gap-1 text-text-primary">
-              {t("desktop.compose.title")}
-              <InfoTip text={t("desktop.compose.readonly")} />
-            </h1>
-          </div>
+    <section aria-labelledby="compose-screen-title" className="flex min-h-0 flex-1 flex-col">
+      {/* 공용 머리(DP-122): 제목·읽기 전용 안내(정보 아이콘)·보기 고르기 */}
+      <ScreenHeader
+        title={t("desktop.compose.title")}
+        titleId="compose-screen-title"
+        meta={<InfoTip text={t("desktop.compose.readonly")} />}
+        controls={
           <SegmentedControl
             aria-label={t("desktop.compose.view.label")}
-            size="xs"
+            size={HEADER_SEGMENTED_SIZE}
             // 새 그룹을 여는 동안에는 보기 하나도 고른 것으로 보이지 않는다
             value={creating ? "" : view}
             onValueChange={(value) => {
@@ -80,77 +73,82 @@ export function ComposeScreen(): ReactNode {
               </SegmentedControlItem>
             ))}
           </SegmentedControl>
-        </div>
-        {creating ? (
-          <NewGroupScreen
-            link={link}
-            prefill={prefill}
-            onBack={() => {
-              setCreating(false);
-            }}
-          />
-        ) : (
-          <>
-            <div className="flex flex-wrap items-center gap-2">
-              {view === "profile" || group === null ? null : (
-                // 시안처럼 고르기 칸에 보이는 이름은 두지 않는다. 이름은 aria-label로만 붙는다
-                <Select
+        }
+      />
+      {/* 시안 WB_WIDTH와 같은 가운데 폭(60rem, 좌우 여백 3). 스크롤은 머리 아래 본문만 */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto flex w-full max-w-240 flex-col gap-4 px-3 pb-8">
+          {creating ? (
+            <NewGroupScreen
+              link={link}
+              prefill={prefill}
+              onBack={() => {
+                setCreating(false);
+              }}
+            />
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                {view === "profile" || group === null ? null : (
+                  // 시안처럼 고르기 칸에 보이는 이름은 두지 않는다. 이름은 aria-label로만 붙는다
+                  <Select
+                    size="xs"
+                    aria-label={t("desktop.compose.pickGroup")}
+                    className="w-36"
+                    value={group.name}
+                    onValueChange={setPicked}
+                  >
+                    {groups.map((entry) => (
+                      <SelectOption key={entry.name} value={entry.name}>
+                        {entry.displayName}
+                      </SelectOption>
+                    ))}
+                  </Select>
+                )}
+                <Button
                   size="xs"
-                  aria-label={t("desktop.compose.pickGroup")}
-                  className="w-36"
-                  value={group.name}
-                  onValueChange={setPicked}
+                  variant="outline"
+                  onClick={() => {
+                    openNew(null);
+                  }}
                 >
-                  {groups.map((entry) => (
-                    <SelectOption key={entry.name} value={entry.name}>
-                      {entry.displayName}
-                    </SelectOption>
-                  ))}
-                </Select>
+                  {t("desktop.compose.newGroup.button")}
+                </Button>
+              </div>
+              {view === "profile" ? (
+                <ProfilePanel link={link} entries={entries} />
+              ) : group === null ? (
+                <p className="m-0 text-ui text-text-tertiary">{t("desktop.compose.noGroups")}</p>
+              ) : view === "code" ? (
+                <CodeSource
+                  key={group.name}
+                  name={group.name}
+                  link={link}
+                  builder={builder}
+                  onMake={(name) => {
+                    openNew({ name, kind: "plugin-group" });
+                  }}
+                  onEnable={enableBuilder}
+                />
+              ) : (
+                <GroupSource
+                  key={group.name}
+                  name={group.name}
+                  link={link}
+                  installed={groups.some((entry) => entry.name === group.name)}
+                  mode={view}
+                  flowDraft={flowDrafts[group.name] ?? null}
+                  onFlowDraft={(draft) => {
+                    setFlowDrafts((current) => ({ ...current, [group.name]: draft }));
+                  }}
+                  onMake={(composition) => {
+                    openNew({ name: "", kind: "plugin-group", composition });
+                  }}
+                />
               )}
-              <Button
-                size="xs"
-                variant="outline"
-                onClick={() => {
-                  openNew(null);
-                }}
-              >
-                {t("desktop.compose.newGroup.button")}
-              </Button>
-            </div>
-            {view === "profile" ? (
-              <ProfilePanel link={link} entries={entries} />
-            ) : group === null ? (
-              <p className="m-0 text-ui text-text-tertiary">{t("desktop.compose.noGroups")}</p>
-            ) : view === "code" ? (
-              <CodeSource
-                key={group.name}
-                name={group.name}
-                link={link}
-                builder={builder}
-                onMake={(name) => {
-                  openNew({ name, kind: "plugin-group" });
-                }}
-                onEnable={enableBuilder}
-              />
-            ) : (
-              <GroupSource
-                key={group.name}
-                name={group.name}
-                link={link}
-                installed={groups.some((entry) => entry.name === group.name)}
-                mode={view}
-                flowDraft={flowDrafts[group.name] ?? null}
-                onFlowDraft={(draft) => {
-                  setFlowDrafts((current) => ({ ...current, [group.name]: draft }));
-                }}
-                onMake={(composition) => {
-                  openNew({ name: "", kind: "plugin-group", composition });
-                }}
-              />
-            )}
-          </>
-        )}
+            </>
+          )}
+        </div>
       </div>
     </section>
   );
