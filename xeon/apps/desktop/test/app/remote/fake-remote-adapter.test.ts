@@ -81,14 +81,24 @@ describe("fake remote adapter: pairing", () => {
       pairingCode: () => "481920",
     });
     expect(await fake.pair()).toEqual(
-      ok({ code: "481920", expiresAt: 5_000 + FAKE_PAIRING_TTL_MS }),
+      ok({
+        code: "481920",
+        expiresAt: 5_000 + FAKE_PAIRING_TTL_MS,
+        links: [{ kind: "lan_ip", url: "https://192.168.0.10:47443/login#code=481920" }],
+      }),
     );
   });
 
   test("without an injected clock the expiry is FAKE_NOW plus the TTL", async () => {
     const fake = createFakeRemoteAdapter({ status: RUNNING });
     const issued = await fake.pair();
-    expect(issued).toEqual(ok({ code: "100001", expiresAt: FAKE_NOW + FAKE_PAIRING_TTL_MS }));
+    expect(issued).toEqual(
+      ok({
+        code: "100001",
+        expiresAt: FAKE_NOW + FAKE_PAIRING_TTL_MS,
+        links: [{ kind: "lan_ip", url: "https://192.168.0.10:47443/login#code=100001" }],
+      }),
+    );
   });
 });
 

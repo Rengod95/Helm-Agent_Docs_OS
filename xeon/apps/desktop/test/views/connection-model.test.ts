@@ -17,11 +17,8 @@ import {
   canConnect,
   canSetRemoteRespond,
   canStopService,
-  clientRowOf,
   clientsReasonOf,
-  clientsShown,
   connectionReducer,
-  EMPTY_HOST_FORM,
   INITIAL_CONNECTION_STATE,
   LOCAL_CHOICE,
   reconnectStatusOf,
@@ -34,16 +31,9 @@ import {
   type ConnectionState,
   type TargetChoice,
 } from "../../src/views/pages/connection/connection-model.ts";
-import {
-  addressMessageOf,
-  transportMessageOf,
-} from "../../src/views/pages/connection/connection-text.ts";
-import {
-  checkHostForm,
-  type HostFormValue,
-} from "../../src/views/pages/connection/host-address.ts";
+import { transportMessageOf } from "../../src/views/pages/connection/connection-text.ts";
 
-// 연결 화면(P-08)의 상태 기계. 대상 고르기, 추가 칸 검사, 진행 단계, 실패 종류, 셸 거절 되돌리기를 값으로 비교한다.
+// 연결 화면(P-08)의 상태 기계. 대상 고르기, 진행 단계, 실패 종류, 셸 거절 되돌리기를 값으로 비교한다.
 
 const BUILD: TargetEntry = {
   id: "a",
@@ -121,18 +111,6 @@ describe("the search box appears only past the threshold", () => {
     expect(visibleTargets(long).map((item) => item.id)).toEqual(["n3"]);
     const short = { ...withItems(many(20)), query: "needle" };
     expect(visibleTargets(short)).toHaveLength(20);
-  });
-});
-
-describe("the address reason sentences", () => {
-  test("the non-loopback reason shows the SSH tunnel or private network guidance", () => {
-    const ko = catalogOf("ko");
-    expect(ko[addressMessageOf("non_loopback")]).toContain("SSH 터널이나 사설망을 써요");
-  });
-
-  test("the duplicate reason names the host that is already there", () => {
-    const ko = catalogOf("ko");
-    expect(ko[addressMessageOf("duplicate")]).toBe("이미 있는 호스트예요.");
   });
 });
 
@@ -460,37 +438,18 @@ describe("the list, selection and status follow their actions", () => {
     expect(after.items).toEqual([MINI]);
   });
 
-  test("adding a host closes the form, clears the query and leaves the engine target alone", () => {
-    const opened = run(withItems([BUILD]), { type: "formOpened" }, { type: "query", text: "x" });
+  test("adding a host clears the query and leaves the engine target alone", () => {
+    const opened = run(withItems([BUILD]), { type: "query", text: "x" });
     const added = connectionReducer(opened, {
       type: "targetsChanged",
       items: [BUILD, MINI],
       notice: { tone: "success", id: "desktop.connection.targets.added" },
       added: true,
     });
-    expect(added.form).toBeNull();
     expect(added.query).toBe("");
     expect(added.items).toEqual([BUILD, MINI]);
     expect(added.engineTarget).toEqual(LOCAL_CHOICE);
     expect(added.notice).toEqual({ tone: "success", id: "desktop.connection.targets.added" });
-  });
-
-  test("the add form opens empty on the SSH kind", () => {
-    const opened = run(withItems([]), { type: "formOpened" });
-    expect(opened.form).toEqual({ value: EMPTY_HOST_FORM, errors: [] });
-    expect(opened.form?.value.fields.kind).toBe("ssh");
-  });
-
-  test("changing the form clears its errors and keeps the value that was typed", () => {
-    const failed = run(
-      withItems([]),
-      { type: "formOpened" },
-      { type: "formFailed", errors: [{ field: "host", reason: "empty" }] },
-    );
-    expect(failed.form?.errors).toEqual([{ field: "host", reason: "empty" }]);
-    const typed: HostFormValue = { label: "mac", fields: { kind: "tcp", port: "7421" } };
-    const changed = connectionReducer(failed, { type: "formChange", value: typed });
-    expect(changed.form).toEqual({ value: typed, errors: [] });
   });
 
   test("a service mode left pending a restart by the schedule screen shows the restart badge on load", () => {
@@ -558,20 +517,6 @@ function statusWith(remoteAllowRespond: boolean | null): ConnectionState {
     },
   });
 }
-
-describe("the add card saves the composed address", () => {
-  test("a valid ssh form is saved as the address its fields compose, named by its host when the name is left empty", () => {
-    const value: HostFormValue = {
-      label: "",
-      fields: { kind: "ssh", user: "me", host: "build", port: "", socket: "/run/fresnel.sock" },
-    };
-    expect(checkHostForm(value, [], "t1")).toEqual({
-      ok: true,
-      entry: { id: "t1", label: "build", address: "ssh://me@build/run/fresnel.sock" },
-      list: [{ id: "t1", label: "build", address: "ssh://me@build/run/fresnel.sock" }],
-    });
-  });
-});
 
 describe("renaming and removing a host", () => {
   const MINI_RENAMED: TargetEntry = { id: "b", label: "office", address: MINI.address };
@@ -671,27 +616,6 @@ describe("the connected clients list", () => {
     self: true,
   };
 
-  test("a named client keeps its name and version, and a client that has not said hello has neither", () => {
-    expect(clientRowOf(NAMED)).toEqual({
-      id: "c-1",
-      name: "fresnel-cli",
-      transport: "stdio",
-      version: "1.2.0",
-      self: false,
-      writeThreads: 2,
-      observedThreads: 1,
-    });
-    expect(clientRowOf(BARE)).toEqual({
-      id: "c-2",
-      name: null,
-      transport: "socket",
-      version: null,
-      self: true,
-      writeThreads: 0,
-      observedThreads: 3,
-    });
-  });
-
   test("the transport label that stands in for a missing name is the Korean catalog's", () => {
     const ko = catalogOf("ko");
     expect(ko[transportMessageOf("in-process")]).toBe("같은 프로세스");
@@ -734,14 +658,6 @@ describe("the connected clients list", () => {
     expect(clientsReasonOf({ kind: "failed" })).toBe("failed");
     expect(clientsReasonOf({ kind: "rejected", code: 3102 })).toBe("failed");
     expect(clientsReasonOf({ kind: "locked", ownerKind: "unknown", options: [] })).toBe("failed");
-  });
-
-  test("the section is drawn while loading, ready or failed, and hidden for offline and unsupported", () => {
-    expect(clientsShown({ kind: "loading" })).toBe(true);
-    expect(clientsShown({ kind: "ready", clients: [] })).toBe(true);
-    expect(clientsShown({ kind: "failed" })).toBe(true);
-    expect(clientsShown({ kind: "offline" })).toBe(false);
-    expect(clientsShown({ kind: "unsupported" })).toBe(false);
   });
 });
 
@@ -938,7 +854,7 @@ describe("the reconnect status follows the engine state", () => {
   });
 });
 
-describe("the switch confirm and the form fill in the screen state", () => {
+describe("the switch confirm in the screen state", () => {
   test("a switch that needs a confirm waits in the state until it is confirmed or dropped", () => {
     const impact = { liveTurns: 1, waitingApprovals: 0, keepsRunning: true };
     const asked = connectionReducer(INITIAL_CONNECTION_STATE, {
@@ -947,35 +863,5 @@ describe("the switch confirm and the form fill in the screen state", () => {
     });
     expect(asked.switchAsk).toEqual({ choice: LOCAL_CHOICE, impact });
     expect(connectionReducer(asked, { type: "switchClosed" }).switchAsk).toBeNull();
-  });
-
-  test("filling the form replaces its fields, keeps the name, and clears the errors", () => {
-    const opened = connectionReducer(INITIAL_CONNECTION_STATE, { type: "formOpened" });
-    const named = connectionReducer(opened, {
-      type: "formChange",
-      value: { label: "my box", fields: { kind: "ssh", user: "", host: "", port: "", socket: "" } },
-    });
-    const failed = connectionReducer(named, {
-      type: "formFailed",
-      errors: [{ field: "host", reason: "empty" }],
-    });
-    const filled = connectionReducer(failed, {
-      type: "formFields",
-      fields: { kind: "ssh", user: "me", host: "build", port: "", socket: "/run/fresnel.sock" },
-    });
-    expect(filled.form).toEqual({
-      value: {
-        label: "my box",
-        fields: { kind: "ssh", user: "me", host: "build", port: "", socket: "/run/fresnel.sock" },
-      },
-      errors: [],
-    });
-    // 추가 칸이 닫혀 있으면 채울 곳이 없다
-    expect(
-      connectionReducer(INITIAL_CONNECTION_STATE, {
-        type: "formFields",
-        fields: { kind: "tcp", port: "7000" },
-      }).form,
-    ).toBeNull();
   });
 });

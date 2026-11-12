@@ -1,5 +1,5 @@
 import { Button } from "@caustic/react";
-import { Check, Circle, LoaderCircle, Minus, X } from "@caustic/react/icons";
+import { Check, Circle, CircleAlert, LoaderCircle, Minus, X } from "@caustic/react/icons";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { ReactNode } from "react";
@@ -12,8 +12,8 @@ import { FORM_CONTROL_SIZE } from "../settings/settings-section.tsx";
 //   CheckInline 한 단계. [시험] 단추 옆에 결과 한 줄, 실패면 아래에 고치는 법과 동작 단추.
 // 바탕·테두리·그림자가 없다. 넣는 카드의 면을 쓴다. 상태 색은 아이콘에만 주고 글은 secondary다(색만으로 뜻을 주지 않고 낭독기 글이 따로 있다).
 
-/** 단계 하나의 상태. 기다림 → 도는 중 → 통과·실패·건너뜀 */
-export type CheckState = "waiting" | "running" | "passed" | "failed" | "skipped";
+/** 단계 하나의 상태. 기다림 → 도는 중 → 통과·실패·건너뜀. `attention`은 실패가 아니라 사용자 확인을 기다리는 멈춤이다(새 호스트 키) */
+export type CheckState = "waiting" | "running" | "passed" | "failed" | "attention" | "skipped";
 
 export interface CheckStep {
   /** 단계 이름의 안정된 키 */
@@ -36,6 +36,7 @@ const STATE_LABEL: Readonly<Record<CheckState, MessageId>> = {
   running: "desktop.check.state.running",
   passed: "desktop.check.state.passed",
   failed: "desktop.check.state.failed",
+  attention: "desktop.check.state.attention",
   skipped: "desktop.check.state.skipped",
 };
 
@@ -49,6 +50,7 @@ export function elapsedText(ms: number): string {
 export function overallOf(steps: readonly CheckStep[]): CheckState {
   if (steps.some((step) => step.state === "running")) return "running";
   if (steps.some((step) => step.state === "failed")) return "failed";
+  if (steps.some((step) => step.state === "attention")) return "attention";
   if (steps.length > 0 && steps.every((s) => s.state === "passed" || s.state === "skipped")) {
     return "passed";
   }
@@ -63,6 +65,8 @@ function CheckIcon(props: { readonly state: CheckState }): ReactNode {
       return <Check aria-hidden className={`${cls} text-success-text`} />;
     case "failed":
       return <X aria-hidden className={`${cls} text-danger-text`} />;
+    case "attention":
+      return <CircleAlert aria-hidden className={`${cls} text-warning-text`} />;
     case "running":
       return <LoaderCircle aria-hidden className={`${cls} text-text-tertiary animate-spinner`} />;
     case "skipped":
@@ -76,8 +80,8 @@ function CheckIcon(props: { readonly state: CheckState }): ReactNode {
 
 function StepRow(props: { readonly step: CheckStep; readonly disabled: boolean }): ReactNode {
   const { step } = props;
-  const failed = step.state === "failed";
-  const done = step.state === "passed" || step.state === "failed";
+  const failed = step.state === "failed" || step.state === "attention";
+  const done = step.state === "passed" || failed;
   return (
     <li data-slot="check-step" data-state={step.state} className="grid min-w-0 gap-1">
       <div className="flex min-h-5 min-w-0 items-start gap-2">
@@ -221,7 +225,7 @@ export function CheckInline(props: CheckInlineProps): ReactNode {
           </span>
         )}
       </div>
-      {result?.state === "failed" &&
+      {(result?.state === "failed" || result?.state === "attention") &&
       ((result.fix ?? null) !== null || (result.action ?? null) !== null) ? (
         <div className="grid justify-items-start gap-2">
           {result.fix === undefined || result.fix === null ? null : (

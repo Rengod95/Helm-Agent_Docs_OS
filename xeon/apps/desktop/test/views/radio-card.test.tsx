@@ -6,7 +6,7 @@ import { RadioCardGroup, RadioCardItem } from "../../src/views/pages/connection/
 
 // 3열 선택 카드 그룹을 linkedom DOM에 올린다. 값은 DOM 속성과 `onValueChange` 기록으로 비교한다.
 // linkedom은 포커스를 추적하지 않아서, 화살표 키 시험은 `document.activeElement`를 직접 정해 준다(눌린 카드가 포커스라고 본다).
-// 이 시험이 쓰는 전역 설정은 connection-server.test.tsx와 같다(끝나면 되돌린다).
+// linkedom 창과 문서를 전역에 올리고, 끝나면 원래 값으로 되돌린다.
 
 const GLOBAL_KEYS = [
   "window",

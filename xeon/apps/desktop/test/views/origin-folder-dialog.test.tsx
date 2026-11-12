@@ -11,7 +11,7 @@ import type {
   OriginFolderState,
 } from "../../src/views/origin-folder-picker.ts";
 
-// 서버 폴더 고르기 대화 상자의 그림. 설정은 connection-server.test.tsx와 같다(inline으로 제자리에 그린다).
+// 서버 폴더 고르기 대화 상자의 그림. linkedom 창과 문서를 전역에 올리고(끝나면 되돌린다), 대화 상자는 inline으로 제자리에 그린다.
 
 const GLOBAL_KEYS = [
   "window",

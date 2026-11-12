@@ -261,7 +261,7 @@ export function App(props: AppProps): ReactNode {
           );
         return;
       case "connection.open":
-        // 연결은 설정의 "연결과 서비스" 구역이다(L4.settings-ui §4.1.1 [결정: 2026-11-11 사용자]). 들어가는 길은 이것 하나다
+        // 연결은 설정의 "원격" 구역이다(L4.settings-ui §4.1.1 [결정: 2026-11-11 사용자]). 들어가는 길은 이것 하나다
         commands.requestSettingsJump({ tab: "connection", key: null });
         return;
       default:

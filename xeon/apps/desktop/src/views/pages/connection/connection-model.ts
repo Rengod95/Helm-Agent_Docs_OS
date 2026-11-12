@@ -2,7 +2,6 @@ import {
   filterTargets,
   TARGET_SEARCH_THRESHOLD,
   type AttachFailureKind,
-  type TargetAddressReason,
   type TargetEntry,
 } from "@fresnel/client";
 import type { MessageId } from "@fresnel/client/i18n";
@@ -17,12 +16,6 @@ import type {
   ServiceCard,
   SwitchImpact,
 } from "../../commands.ts";
-import {
-  blankFieldsOf,
-  type HostFields,
-  type HostFieldError,
-  type HostFormValue,
-} from "./host-address.ts";
 import type { AliveReading } from "./connection-probe-model.ts";
 
 // 연결 화면(P-08)의 상태 기계. 순수 함수만 둔다: 명령을 부르는 일은 화면이 맡고, 결과와 엔진·연결 관찰을 이 모델의 동작으로 옮긴다.
@@ -77,7 +70,7 @@ type StatusState =
  * 연결된 클라이언트 목록(`host.clients`)의 읽기 상태. 상태 카드와 따로 읽어서 목록이 실패해도 카드는 그대로 둔다.
  * `offline`(연결이 없다)과 `unsupported`(엔진이 이 메서드를 모른다)는 목록 자리를 숨긴다. 뒤쪽은 연결 수 줄만 남는다.
  */
-export type ClientsState =
+type ClientsState =
   | { readonly kind: "loading" }
   | { readonly kind: "ready"; readonly clients: readonly HostClientView[] }
   | { readonly kind: "offline" }
@@ -110,18 +103,6 @@ export function canSetRemoteRespond(state: ConnectionState): boolean {
   );
 }
 
-/** 주소 거절 사유 문장의 종류. 형식 검사의 사유와 같은 목록 중복 한 가지다(칸 밖의 주소 오류와 붙여넣기 오류에 쓴다) */
-export type AddressReason = TargetAddressReason | "duplicate";
-
-/** 추가 칸의 상태. 값은 `HostFormValue`이고, 오류는 `checkHostForm`이 준 칸별 목록이다 */
-interface FormState {
-  readonly value: HostFormValue;
-  readonly errors: readonly HostFieldError[];
-}
-
-/** 추가 칸을 연 때의 빈 값. 연결 방식은 SSH로 시작한다 */
-export const EMPTY_HOST_FORM: HostFormValue = { label: "", fields: blankFieldsOf("ssh") };
-
 /**
  * 이름 바꾸기 대화 상자. `error`는 이름이 비었거나(`empty`) 목록 저장이 실패했다(`failed`)는 뜻이다.
  * 이름을 고치면 오류를 지운다.
@@ -143,7 +124,6 @@ export interface ConnectionState {
   /** 엔진이 가리키는 대상(마지막으로 요청한 대상). 같은 대상을 다시 요청하면 셸은 아무 일도 하지 않으므로 연결을 막는다 */
   readonly engineTarget: TargetChoice;
   readonly query: string;
-  readonly form: FormState | null;
   /** 삭제 확인 대화 상자가 떠 있을 때 그 호스트. 없으면 `null`이다 */
   readonly removing: TargetEntry | null;
   readonly rename: RenameState | null;
@@ -172,7 +152,6 @@ export const INITIAL_CONNECTION_STATE: ConnectionState = {
   items: [],
   engineTarget: LOCAL_CHOICE,
   query: "",
-  form: null,
   removing: null,
   rename: null,
   pending: null,
@@ -204,7 +183,7 @@ interface EngineObservation {
 
 export type ConnectionAction =
   | {
-      /** 목록이 바뀌었다(읽기, 저장). `added`는 추가 칸을 닫고 검색을 비울 때 참이다. 저장이 끝나면 열린 대화 상자도 닫는다 */
+      /** 목록이 바뀌었다(읽기, 저장). `added`는 새 컴퓨터를 넣어 검색을 비울 때 참이다. 저장이 끝나면 열린 대화 상자도 닫는다 */
       readonly type: "targetsChanged";
       readonly items: readonly TargetEntry[];
       readonly notice: Notice | null;
@@ -214,12 +193,6 @@ export type ConnectionAction =
   /** 화면을 열 때 엔진이 붙은 대상을 엔진 칸으로 맞춘다. 목록을 읽은 뒤에 보낸다 */
   | { readonly type: "engineTargetSeen"; readonly target: EngineTargetView }
   | { readonly type: "query"; readonly text: string }
-  | { readonly type: "formOpened" }
-  | { readonly type: "formChange"; readonly value: HostFormValue }
-  | { readonly type: "formFailed"; readonly errors: readonly HostFieldError[] }
-  | { readonly type: "formClosed" }
-  /** 사전 점검이나 연결 시험이 고른 주소를 칸에 채운다. 이름과 오류는 그대로 두고 칸만 바꾼다 */
-  | { readonly type: "formFields"; readonly fields: HostFields }
   /** 삭제 확인을 연다(`entry`)거나 닫는다(`null`) */
   | { readonly type: "removeAsked"; readonly entry: TargetEntry | null }
   | { readonly type: "renameOpened"; readonly entry: TargetEntry }
@@ -436,39 +409,11 @@ export function reconnectLinesOf(input: {
 
 // ── 연결된 클라이언트 ──────────────────────────────────────────────────
 
-/** 목록 한 줄. 이름은 `hello`를 마친 연결만 있다(없으면 `null`이고 화면이 전송 종류로 부른다) */
-export interface ClientRow {
-  readonly id: string;
-  readonly name: string | null;
-  readonly transport: HostClientView["transport"];
-  readonly version: string | null;
-  readonly self: boolean;
-  readonly writeThreads: number;
-  readonly observedThreads: number;
-}
-
-export function clientRowOf(client: HostClientView): ClientRow {
-  return {
-    id: client.connectionId,
-    name: client.name ?? null,
-    transport: client.transport,
-    version: client.version ?? null,
-    self: client.self,
-    writeThreads: client.writeThreads,
-    observedThreads: client.observedThreads,
-  };
-}
-
 /** 목록 읽기 실패를 화면 상태로 바꾼다. 연결이 없음과 오래된 엔진은 목록을 숨기고, 그 밖은 실패로 보여 다시 시도를 준다 */
 export function clientsReasonOf(error: CommandError): "offline" | "unsupported" | "failed" {
   if (error.kind === "offline") return "offline";
   if (error.kind === "unsupported") return "unsupported";
   return "failed";
-}
-
-/** 목록 자리를 그리는가. 연결이 없거나 오래된 엔진이면 숨긴다 */
-export function clientsShown(clients: ClientsState): boolean {
-  return clients.kind !== "offline" && clients.kind !== "unsupported";
 }
 
 // ── 진행 단계 ──────────────────────────────────────────────────────────
@@ -589,12 +534,11 @@ export function connectionReducer(
 ): ConnectionState {
   switch (action.type) {
     case "targetsChanged":
-      // 목록이 바뀌면 열린 이름 바꾸기와 삭제 확인은 닫는다. 추가가 끝났을 때만 추가 칸을 닫고 검색을 비운다
+      // 목록이 바뀌면 열린 이름 바꾸기와 삭제 확인은 닫는다. 추가가 끝났을 때만 검색을 비운다
       return {
         ...state,
         list: { kind: "ready" },
         items: action.items,
-        form: action.added ? null : state.form,
         query: action.added ? "" : state.query,
         removing: null,
         rename: null,
@@ -609,23 +553,6 @@ export function connectionReducer(
     }
     case "query":
       return { ...state, query: action.text };
-    case "formOpened":
-      return { ...state, form: { value: EMPTY_HOST_FORM, errors: [] } };
-    case "formChange":
-      // 칸을 고치면 그 전의 오류는 지운다
-      if (state.form === null) return state;
-      return { ...state, form: { value: action.value, errors: [] } };
-    case "formFailed":
-      if (state.form === null) return state;
-      return { ...state, form: { ...state.form, errors: action.errors } };
-    case "formClosed":
-      return { ...state, form: null };
-    case "formFields":
-      if (state.form === null) return state;
-      return {
-        ...state,
-        form: { value: { ...state.form.value, fields: action.fields }, errors: [] },
-      };
     case "removeAsked":
       return { ...state, removing: action.entry };
     case "renameOpened":

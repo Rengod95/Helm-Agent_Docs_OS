@@ -34,7 +34,16 @@ const STATUS: WireResult<"host.remote.status"> = {
   pushAvailable: true,
   error: { kind: "gateway-down", message: "restart limit" },
 };
-const PAIR: WireResult<"host.remote.pair"> = { code: "7QX9M2KD4T", expiresAt: 1_800_000_300_000 };
+const PAIR: WireResult<"host.remote.pair"> = {
+  code: "7QX9M2KD4T",
+  expiresAt: 1_800_000_300_000,
+  links: [{ kind: "lan_ip", url: "https://192.168.0.10:8443/login#code=7QX9M2KD4T" }],
+};
+/** 옛 서비스의 답: `links`가 없다(계약에서 선택 필드다) */
+const PAIR_NO_LINKS: WireResult<"host.remote.pair"> = {
+  code: "7QX9M2KD4T",
+  expiresAt: 1_800_000_300_000,
+};
 const DEVICES: WireResult<"host.remote.devices"> = {
   devices: [
     {
@@ -67,6 +76,13 @@ describe("remote types match the host.remote.* contract", () => {
     expect(parseDevices(DEVICES)).toEqual(ok(DEVICES.devices));
     expect(parseRevoked(REVOKED)).toEqual(ok(localRevoked));
     expect(localDevice?.id).toBe("dev_0123456789abcdef");
+  });
+
+  test("a pairing reply without links passes the contract and is read with an empty link list", () => {
+    expect(parse(HostRemotePairResultSchema, PAIR_NO_LINKS).ok).toBe(true);
+    expect(parsePairing(PAIR_NO_LINKS)).toEqual(
+      ok({ code: "7QX9M2KD4T", expiresAt: 1_800_000_300_000, links: [] }),
+    );
   });
 
   test("the pairing code is ten characters with no hyphen", () => {

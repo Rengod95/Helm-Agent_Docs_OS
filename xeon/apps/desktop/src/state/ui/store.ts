@@ -74,7 +74,7 @@ export type ReviewTarget = { readonly approvalId: EventId; readonly reviewId: st
  * 화면이 받으면 `settleSettingsJump`로 지운다
  */
 export type SettingsJump = {
-  /** 설정 구역 id 또는 옛 탭 id. 화면이 구역으로 바꾼다(`sectionOfJump`). `connection`은 연결과 서비스 구역이다 */
+  /** 설정 구역 id 또는 옛 탭 id. 화면이 구역으로 바꾼다(`sectionOfJump`). `connection`은 "원격" 구역이다 */
   readonly tab: SettingsJumpTarget;
   readonly key: SettingKey | null;
   readonly secretName?: SecretName;

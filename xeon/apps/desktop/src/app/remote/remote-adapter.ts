@@ -1,5 +1,12 @@
-import { err, type Result } from "@fresnel/contracts";
-import type { WireParams } from "@fresnel/contracts/wire";
+import { err, ok, parse, type Result } from "@fresnel/contracts";
+import {
+  HostRemoteConfigResultSchema,
+  HostRemotePreflightResultSchema,
+  HostRemoteProxyExampleResultSchema,
+  HostRemoteTailscaleResultSchema,
+  type WireParams,
+} from "@fresnel/contracts/wire";
+import type { TSchema, Static } from "typebox";
 import type { CommandError } from "../../views/commands.ts";
 import {
   parseDevices,
@@ -20,7 +27,11 @@ type RemoteMethod =
   | "host.remote.setEnabled"
   | "host.remote.pair"
   | "host.remote.devices"
-  | "host.remote.revoke";
+  | "host.remote.revoke"
+  | "host.remote.preflight"
+  | "host.remote.tailscale"
+  | "host.remote.config"
+  | "host.remote.proxyExample";
 
 /**
  * 원격 명령을 보내는 자리. 인자는 계약 타입(`WireParams`)이고 값은 `unknown`으로 받아 어댑터가 다시 검사한다.
@@ -49,16 +60,26 @@ function remoteErrorOf(error: CommandError): RemoteError {
 /** 응답을 기다려 읽는다. 요청이 실패하면 그 오류를 옮기고, 응답 모양이 틀리면 `bad-reply`다 */
 async function replyOf<T>(
   request: Promise<Result<unknown, CommandError>>,
-  parse: (reply: unknown) => Result<T, RemoteError>,
+  read: (reply: unknown) => Result<T, RemoteError>,
 ): Promise<Result<T, RemoteError>> {
   const reply = await request;
   if (!reply.ok) return err(remoteErrorOf(reply.error));
-  return parse(reply.value);
+  return read(reply.value);
 }
 
 /** 해제 인자. 기기 하나는 `{ id }`, 전부는 `{ all: true }`로 보낸다 */
 function revokeParamsOf(target: RevokeTarget): { readonly all: true } | { readonly id: string } {
   return "all" in target ? { all: true } : { id: target.id };
+}
+
+/** 계약 스키마로 응답을 읽는 함수. 모양이 틀리면 `bad-reply`다 */
+function schemaParser<S extends TSchema>(
+  schema: S,
+): (reply: unknown) => Result<Static<S>, RemoteError> {
+  return (reply) => {
+    const parsed = parse(schema, reply);
+    return parsed.ok ? ok(parsed.value) : err({ kind: "bad-reply" });
+  };
 }
 
 export function createRemoteAdapter(requester: RemoteRequester): RemoteAdapter {
@@ -70,5 +91,25 @@ export function createRemoteAdapter(requester: RemoteRequester): RemoteAdapter {
     devices: () => replyOf(requester.request("host.remote.devices", {}), parseDevices),
     revoke: (target) =>
       replyOf(requester.request("host.remote.revoke", revokeParamsOf(target)), parseRevoked),
+    preflight: () =>
+      replyOf(
+        requester.request("host.remote.preflight", {}),
+        schemaParser(HostRemotePreflightResultSchema),
+      ),
+    tailscale: (action) =>
+      replyOf(
+        requester.request("host.remote.tailscale", { action }),
+        schemaParser(HostRemoteTailscaleResultSchema),
+      ),
+    config: (params) =>
+      replyOf(
+        requester.request("host.remote.config", params),
+        schemaParser(HostRemoteConfigResultSchema),
+      ),
+    proxyExample: (params) =>
+      replyOf(
+        requester.request("host.remote.proxyExample", params),
+        schemaParser(HostRemoteProxyExampleResultSchema),
+      ),
   };
 }

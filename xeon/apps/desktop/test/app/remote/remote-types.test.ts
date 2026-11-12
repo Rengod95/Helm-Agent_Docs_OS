@@ -121,7 +121,7 @@ describe("parseStatus", () => {
 describe("parsePairing", () => {
   test("a code with its expiry is accepted as given", () => {
     expect(parsePairing({ code: "123456", expiresAt: 1_800_000_300_000 })).toEqual(
-      ok({ code: "123456", expiresAt: 1_800_000_300_000 }),
+      ok({ code: "123456", expiresAt: 1_800_000_300_000, links: [] }),
     );
   });
 

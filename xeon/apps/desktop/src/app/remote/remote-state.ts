@@ -13,7 +13,7 @@ import type {
 // 목록과 상태는 읽기 전에 `loading`이고, 읽기가 끝나면 `ready`나 `failed`가 된다. 기기 목록이 비었으면 `ready`에 `[]`다.
 
 /** 읽기 한 칸. 읽는 중, 값이 있음, 읽기 실패 가운데 하나다 */
-export type Loadable<T> =
+type Loadable<T> =
   | { readonly kind: "loading" }
   | { readonly kind: "ready"; readonly value: T }
   | { readonly kind: "failed"; readonly error: RemoteError };
@@ -41,7 +41,7 @@ type RemoteNoticeKind =
   | "autostartFailed";
 
 /** 쓰기 실패 알림 한 건. 다음 쓰기가 시작하면 없어진다. `code`는 자동 시작 실패일 때만 있고 나머지는 `null`이다 */
-export interface RemoteNotice {
+interface RemoteNotice {
   readonly kind: RemoteNoticeKind;
   readonly code: AutostartError["code"] | null;
 }
