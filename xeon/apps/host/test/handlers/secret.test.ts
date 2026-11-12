@@ -4,6 +4,7 @@ import { SecretNameSchema, secretRef, type SecretName } from "@fresnel/contracts
 import { WireError } from "@fresnel/contracts/wire";
 import { createSecretsPort } from "../../src/assembly/secrets.ts";
 import { createFakeHost } from "../fixtures/fake-host.ts";
+import { createFakeKeys } from "../fixtures/fake-keys.ts";
 import {
   createFakeSecrets,
   NO_DISPLAY,
@@ -390,6 +391,7 @@ test("secret.beginEntry add needs a SOPS file in the settings to place the value
     () => ({ ...DEFAULT_SECRETS_CONFIG }),
     NO_PROVIDER_LINKS,
     NO_DISPLAY,
+    createFakeKeys(),
   );
   expect(noFile.newMeta(EXA)).toBeUndefined();
   offers.offerEntry({ name: EXA, action: "add", source: sourceOf(VALUE).source });

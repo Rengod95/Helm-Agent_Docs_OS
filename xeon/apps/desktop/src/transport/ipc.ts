@@ -8,6 +8,7 @@ import {
   type Result,
 } from "@fresnel/contracts";
 import type { SecretName } from "@fresnel/contracts/capabilities";
+import { FailureKindSchema, type FailureKind } from "@fresnel/contracts/services";
 import {
   Type,
   type Static,
@@ -661,7 +662,13 @@ export type SecretRegisterError =
   | { readonly kind: "timeout" }
   | { readonly kind: "keystore" }
   | { readonly kind: "unavailable"; readonly detail: string }
-  | { readonly kind: "rejected"; readonly exitCode: number | null; readonly detail: string }
+  | {
+      readonly kind: "rejected";
+      readonly exitCode: number | null;
+      readonly detail: string;
+      /** 엔진의 종류 코드(`fresnel-code` 줄). 모르면 `unknown`이다 */
+      readonly code: FailureKind;
+    }
   | { readonly kind: "unknown" };
 
 const SecretRegisterErrorSchema = Type.Union([
@@ -687,6 +694,7 @@ const SecretRegisterErrorSchema = Type.Union([
       kind: Type.Literal("rejected"),
       exitCode: Type.Union([Type.Integer(), Type.Null()]),
       detail: Type.String({ maxLength: 4096 }),
+      code: FailureKindSchema,
     },
     { additionalProperties: false },
   ),

@@ -21,6 +21,7 @@ import { memorySecrets, type MemorySecrets } from "@fresnel/platform-secrets/tes
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
 import { callingModels } from "./call-tape.ts";
+import { createFakeKeys } from "./fake-keys.ts";
 import { useEngineHome } from "./engine-home.ts";
 import { toolResultTexts } from "./tool-results.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "./user-settings.ts";
@@ -183,7 +184,7 @@ export async function startSecretEnvScenario(
         secrets: [{ meta: metaOf(), value: SECRET_VALUE }],
       });
       holder.secrets = secrets;
-      return { service: secrets, admin: secrets.admin };
+      return { service: secrets, admin: secrets.admin, keys: createFakeKeys() };
     },
   });
   const connection = createHostConnection(host.client);

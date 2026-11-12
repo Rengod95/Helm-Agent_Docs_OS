@@ -95,6 +95,8 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `fresnel secret rm <name> [--yes]` | 삭제. 참조하는 정책과 참조(설정 키, 활성 lease, 최근 사용한 대화)를 보인 뒤 확인한다. 활성 lease가 있으면 묻지 않고 거부한다 | `secret.references`, `secret.list { meta: true }`, `secret.remove` | M2 |
 | `fresnel secret test <name>` | 존재와 복호화 가능 여부. 길이와 해시 앞 8자만 출력한다. 복호화할 수 없거나 없으면 1이다 | `secret.test` | M2 |
 | `fresnel secret reveal <name>` | 값 열람. 사람 전용이고 TTY에서만 동작한다. OS 인증 재확인이 가능한 플랫폼에서는 재확인한다(§4.7) [결정: review.decisions-2 U-20] | `secret.beginReveal { name }`. 값 필드 없음. F 메서드 추가는 M2 계획에서 정한다(review.decisions-2 U-04) | M2 |
+| `fresnel secret key status` | 열쇠가 어디에 있는지(OS 키 저장소, 앱 파일, 아직 없음)와 설정 `l0.secrets.ageKey.source`를 사람 문장으로 보인다. 값과 identity는 없다(§4.7) [결정: 2026-11-12 사용자] | `secret.keyStatus`. 값 필드 없음 | M4 |
+| `fresnel secret key use <keychain\|file>` | 열쇠를 고른 보관 방식으로 옮기고 설정을 바꾼다. 옮길 열쇠가 없으면 설정만 바꿔 다음 등록이 그 방식으로 만든다(§4.7) [결정: 2026-11-12 사용자] | `secret.keyMove { to }`(옮기기 전에 `secret.keyStatus`로 위치를 본다) | M4 |
 | `fresnel trust [status] [--json]` | 이 작업 폴더의 신뢰 상태(폴더, 불러오려는 자원, 판정과 출처, 선택지)를 보인다. 신뢰할 자원이 없으면 stderr에 한 줄이다 | `trust.get { workspace }` | M2 |
 | `fresnel trust allow\|deny [--scope folder\|parent\|session]` | 선택지 하나를 host에 보낸다. 범위 기본값은 `folder`. host가 낸 선택지에 없는 조합이면 2다 | `trust.get`, `trust.decide { workspace, choice }` | M2 |
 | `fresnel trust list [--json]` | 저장된 신뢰 결정을 읽기만 한다. 한 줄에 폴더 하나이고 `허용 <폴더>` 또는 `거부 <폴더>`다. 목록이 비면 stdout은 비고 stderr에 한 줄이다. `--json`은 `trust.list`의 결과를 그대로 쓴다. 제거와 바꾸기는 아직 없다 [근거: `xeon/packages/contracts/src/wire-settings/wire/methods.ts`] [결정: 오케스트레이터 기본값, fxPT] | `trust.list` | M4 |
@@ -110,7 +112,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `fresnel service launch-mode --json` | 서비스 사용 설정을 엔진 없이 읽어 JSON 한 줄로 쓴다. 데스크톱 셸이 쓴다(`L4.desktop.spec` §4.2). 도움말에 보이지 않는다 | 없음. `runHostCommand({ kind: "service-launch-mode" })` | M3 |
 | `fresnel service run` | 서비스 본체를 전경에서 실행한다. `service start`와 `ensure`가 자기 바이너리를 detached로 띄울 때 붙이는 인자다(`L4.host-service.spec` §3.2, SV-06). 도움말에 보이지 않는다 | 없음. `runHostCommand({ kind: "service-run", safeMode, tcp? })`. `--safe-mode`·`--listen-tcp`를 받는다 | M3(구현됨) |
 | `fresnel host --stdio [--safe-mode\|--no-safe-mode]` | 내부 진입. stdin/stdout JSON Lines로 엔진 서버를 연다. `--safe-mode`는 `assemble.safeMode`로 넘겨 이번 시작에 외부 확장과 L3 내장 그룹을 싣지 않는다(데스크톱 셸의 "안전 모드로 시작"이 쓴다, `L4.desktop.spec` §10.1 W-35). `--no-safe-mode`는 `assemble.safeMode: false`로 넘겨 설정 `x.operations.safeMode.default`가 켜져 있어도 이번 시작은 안전 모드로 열지 않는다("안전 모드 끄고 다시 시작"이 쓴다). 둘을 함께 주면 `conflictingFlags`다. 원격 중계일 때는 둘 다 효력이 없다. 원격 주소(`--remote` 또는 설정)가 있으면 엔진을 열지 않고 `bridgeStdioToService`로 원격 서비스에 중계한다(HS-89). 시작 실패의 분류 코드(저장소 70~72, 사용자가 고칠 수 있는 시작 실패 73~76: 데이터 폴더 권한 73, DB를 다른 프로그램이 씀 74, 데이터 폴더나 DB 파일에 쓸 수 없음 75, 그 밖의 저장소 열기 실패 76)는 앱 셸이 읽으므로 1로 합치지 않고 그대로 돌려준다 [근거: rtE R-9] [결정: 오케스트레이터 기본값, fxSF]. 데스크톱 사이드카가 쓴다. 도움말에 보이지 않는다 | 서버 쪽 전체. `startStdioHost({ readable, writable, assemble: { settingGroups } })`(`l4.cli.*` 그룹을 카탈로그에 넣으려고 `runHostCommand`를 거치지 않는다, §3.3 표). 원격이면 `resolveRemoteEndpoint`, `bridgeStdioToService` | M2(컴파일 바이너리 서브커맨드, 구현됨) |
-| `fresnel doctor` | FTS5, sops·age, 데이터 디렉터리 권한, 외부 바이너리 점검, 서비스 도달, 터미널 기능, 검색 provider 상태(§4.7.1) 진단 [제안] | `connectEngine` 결과와 wire 조회(`secret.list`, `host.status { includeBinaries: true }`, `settings.get`, `web.providers`)로 판정한다(§4.7.1, §10 5번 임시 결정). 서비스에 붙었으면 `host.remote.preflight`(L4.remote.spec §8.8)의 항목 일곱 개를 줄마다 내고 원인과 고치는 법을 번역해 보인다. 통과는 `[ok]`, 실패는 `[실패]`, 건너뜀은 `[참고]`다 [결정: 2026-11-11 사용자] | M2 |
+| `fresnel doctor` | FTS5, sops·age, 데이터 디렉터리 권한, 외부 바이너리 점검, 서비스 도달, 터미널 기능, 검색 provider 상태(§4.7.1) 진단 [제안] | `connectEngine` 결과와 wire 조회(`secret.list`, `secret.keyStatus`, `host.status { includeBinaries: true }`, `settings.get`, `web.providers`)로 판정한다(§4.7.1, §10 5번 임시 결정). 서비스에 붙었으면 `host.remote.preflight`(L4.remote.spec §8.8)의 항목 일곱 개를 줄마다 내고 원인과 고치는 법을 번역해 보인다. 통과는 `[ok]`, 실패는 `[실패]`, 건너뜀은 `[참고]`다 [결정: 2026-11-11 사용자] | M2 |
 | `fresnel db export <폴더> [--json] [--yes]` | 저장소 파일(데이터 디렉터리의 `fresnel.db`)을 엔진을 띄우지 않고 읽기 전용으로 `<폴더>`에 내보낸다. 엔진이 떠 있어도 된다. 사본에는 시크릿 값이 그대로 있을 수 있어 확인을 받는다(§4.13, [결정: 2026-11-03 사용자]). 상대 경로는 작업 폴더(`-C`) 기준이다(§4.13). 종료코드: 성공 0, 폴더 인자 누락과 비어 있지 않은 대상, `--yes` 없이 터미널이 아닌 실행 2, 확인에서 y가 아닌 답 1, 저장소·디스크 오류와 데이터 디렉터리 위치 실패 3(§4.10) | 없음. `deps.exportDatabase`(`L0.store.spec` §4.10)와 `deps.resolveDataDir`(`resolveOsDirs`)를 부른다 | M3(구현됨, M3b B3-DATA) |
 | `fresnel db restore <폴더> [--json] [--check]` | `db export`가 만든 폴더를 데이터 디렉터리의 `fresnel.db`로 되돌린다. 엔진을 띄우지 않고, 엔진이 떠 있으면 거절한다(§4.13.1). 종료코드: 성공 0, 폴더 인자 누락과 백업 폴더가 아님 2, 사본 검증 실패·더 새 버전의 사본·엔진 실행 중·저장소·디스크 오류와 데이터 디렉터리 위치 실패 3 | 없음. `deps.restoreDatabase`(`L0.store.spec` §4.10.1)와 `deps.resolveDataDir`를 부른다 | M4 [결정: 2026-11-04 사용자] |
 | `fresnel db usage [--json]` | 데이터 디렉터리와 상태 디렉터리가 쓰는 저장 공간을 엔진을 띄우지 않고 센다. 아무것도 쓰지 않는다(§4.13.2). 종료코드: 성공 0, 데이터 디렉터리 위치 실패와 입출력 오류 3 | 없음. `deps.resolveDataDir`와 `deps.resolveStateDir`(`resolveOsDirs`)를 부른다 | 구현됨(§4.13.2) |
@@ -196,7 +198,9 @@ export type SecretCommand =
   | { readonly kind: "secret.rotate"; readonly name: SecretName }
   | { readonly kind: "secret.rm"; readonly name: SecretName; readonly yes: boolean }
   | { readonly kind: "secret.test"; readonly name: SecretName }
-  | { readonly kind: "secret.reveal"; readonly name: SecretName };
+  | { readonly kind: "secret.reveal"; readonly name: SecretName }
+  | { readonly kind: "secret.key.status" }
+  | { readonly kind: "secret.key.use"; readonly to: "keychain" | "file" };
 
 /** `schedule add`의 트리거. 파서는 시계를 읽지 않으므로 만료는 초로 받는다(runner가 `expiresAtMs`로 바꾼다) */
 export type ScheduleTriggerArg =
@@ -683,13 +687,44 @@ export interface GroupTemplatesPort {
     - 활성 lease가 하나라도 있으면 묻지 않고 "사용 중인 시크릿이라 지울 수 없다 (활성 lease <n>개)"로 1로 끝낸다. `secret.remove`는 보내지 않는다.
     - `--yes`는 묻지 않고 지우되, 참조가 하나라도 있으면 같은 한 줄을 stderr에 남긴다. 활성 lease는 호스트가 거부하고(`secret.inUse`) CLI는 활성 lease 수를 보인다.
     - `host.hello`의 `features`에 `secret.references`가 없는 호스트에서는 사용 정책만 보인다.
-  - 시크릿 오류는 F 오류 표의 전용 kind(`secret.notFound`~`secret.writeFailed`, 3201~3212)로 온다. 전용 kind가 생기기 전의 호스트는 `internal`의 `details.secret.kind`에 실었으므로 CLI는 두 길을 같은 문구 표로 모은다. 문구와 종료 코드는 제공자·키 문제가 3, 나머지가 1이다. [결정: m2r sec] 같은 kind라도 원인별로 해결 줄을 나눈다: `provider_unavailable`은 `binary_missing`이면 "sops와 age를 설치", `version_too_old`면 버전을 올리라고, `not_registered`면 `l0.secrets.defaultProvider`와 `l0.secrets.sops.files`를 보라고 한다(SOPS 파일이 없는 것은 원인이 아니다: 기본 파일은 첫 `secret add`가 만든다, `L0.secrets.spec` §4.8). `key_unavailable`(`file`, `access_denied`)는 `l0.secrets.ageKey.source`를 `file`로 저장하라고 한다. `write_failed`는 `target`(`sops_file`, `key_store`, `key_file`)과 `code`를 문구에 싣고 `code`별로 고칠 곳을 말한다.
+  - 시크릿 오류는 F 오류 표의 전용 kind(`secret.notFound`~`secret.writeFailed`, 3201~3213)로 온다. 전용 kind가 생기기 전의 호스트는 `internal`의 `details.secret.kind`에 실었으므로 CLI는 두 길을 같은 문구 표로 모은다. 문구와 종료 코드는 제공자·키 문제가 3, 나머지가 1이다. [결정: m2r sec] 같은 kind라도 원인별로 해결 줄을 나눈다: `provider_unavailable`은 `binary_missing`이면 "sops와 age를 설치", `version_too_old`면 버전을 올리라고, `not_registered`면 `l0.secrets.defaultProvider`와 `l0.secrets.sops.files`를 보라고 한다(SOPS 파일이 없는 것은 원인이 아니다: 기본 파일은 첫 `secret add`가 만든다, `L0.secrets.spec` §4.8). `key_unavailable`(`reason` `fallback_unconfirmed`)는 `fresnel secret key use file`로 앱 파일 보관을 정하라고 한다(종류 `key_fallback_unconfirmed`). `write_failed`는 `target`(`sops_file`, `key_store`, `key_file`, `settings`)과 `code`를 문구에 싣고 `code`별로 고칠 곳을 말한다.
 - `reveal` (구현): 확인 문구로 이름을 다시 입력받고(`tty-confirm`, `verifiedAt`은 엔진 시계) 열람 수단을 맡긴 뒤 `secret.beginReveal`을 보낸다. 값은 `show` 콜백에서 바이트 그대로 `stdoutStream`에 한 번 쓰고, 문자열로 바꾸지 않는다. `os-auth`는 L0.os가 제공하기 전까지 쓰지 않는다. 호스트가 `started: false`를 돌려주면(재확인 만료·취소) 값을 보이지 않고 1이다.
 - 값 열람 [결정: review.decisions-2 U-20]: 열람 경로는 M2 CLI `fresnel secret reveal <name>`과 M3 데스크톱 화면(`L4.settings-ui.spec`) 둘이다. 에이전트 경로(모델 도구, 확장 API)에는 열람이 없다.
   - [제안] `reveal`은 stdin과 stdout이 모두 TTY일 때만 동작한다. 아니면 `revealRequiresTty` 사용법 오류(2)다. `--json`을 받지 않는다.
   - [제안] 시작은 값 필드가 없는 `secret.beginReveal { name }`이다. 값 표시는 호스트 쪽 L0.secrets가 맡는다. in-process면 같은 프로세스가 TTY에 직접 쓰고, 서비스 접속이면 서비스 쪽 L0.secrets가 OS 창으로 보인다(`L4.settings-ui.spec` §4.6.4 C안과 같은 경로). 값은 wire 프레임, 로그, 이벤트에 없다.
+  - [결정: 2026-11-12] 같은 컴퓨터의 서비스 접속(라우트 `local`)은 값을 로컬 일회용 채널로 주고받는다. CLI가 `mkdtemp`로 0700 폴더를 만들고 그 안에 유닉스 소켓을 열어 경로를 `secret.beginEntry`·`secret.beginReveal`의 `channel`로 보낸다. `add`·`set`·`rotate`는 호스트가 연결해 EOF까지 읽을 때 CLI가 값을 쓰고, 취소나 빈 값이면 아무것도 쓰지 않고 닫는다. `reveal`은 CLI가 터미널에서 이름을 다시 입력받은 뒤(`reauth: "tty-confirm"`) 호스트가 쓴 값을 읽어 TTY에 쓴다. 폴더와 소켓은 성공, 실패, 취소 모두 지운다. 원격 서비스 접속은 채널을 열지 않고 `이 컴퓨터에서만 값을 넣을 수 있어요`(볼 때는 `볼 수 있어요`)로 거절한다. 호스트의 거절은 `secret.localOnly`(3213)다. 서비스 쪽 OS 입력 창은 이 결정으로 대신한다. F wire §3.3.1 2026-11-12 결정이 정본이다.
   - [제안] OS 인증 재확인(macOS Touch ID·암호, Windows Hello 등)이 가능한 플랫폼에서는 표시 전에 재확인한다. 수단은 `L0.secrets.spec`·`L0.os.spec`이 정한다. 재확인을 못 하는 플랫폼에서는 TTY 확인 문구(이름을 다시 입력)만 받는다.
   - 열람은 감사 기록(`L0.secrets.spec`)에 남긴다. 기록에는 값이 없다.
+  - [결정: 2026-11-12 사용자] `secret key status`는 `secret.keyStatus`를 불러 열쇠 위치를 사람 문장으로 보인다. 위치는 `OS 키 저장소`(`in` `keychain`), `앱 파일 <경로>`(`in` `file`), `아직 없다`(`in` `none`)다. 설정 `l0.secrets.ageKey.source`의 값, 이 컴퓨터에서 OS 키 저장소를 쓸 수 있는지, `auto`가 사람 확인 없이 앱 파일로 떨어졌는지(`fallbackUnconfirmed`), 설정이 가리키는 열쇠 파일이 없는지(`fileMissing`)를 함께 보인다. 값과 identity는 없다. 인자를 받지 않고, 있으면 사용법 오류(2)다.
+  - [결정: 2026-11-12 사용자] `secret key use <keychain|file>`은 옮기기 전에 `secret.keyStatus`로 위치를 보고 `secret.keyMove { to }`를 보낸다. 결과에 따라 `열쇠를 <쪽>로 옮겼다`(`moved`), `이미 <쪽>에 보관한다`(옮기지 않았고 열쇠가 이미 그 쪽에 있다), `옮길 열쇠가 없어 설정만 바꿨다. 다음 키 등록 때 <쪽>에 만든다`(열쇠가 없다)를 쓴다. `oldRemoved`가 거짓이면 열쇠가 두 곳에 남았다는 경고를 stderr에 쓰고 0으로 끝난다. 원격 접속은 `secret.localOnly`(3213)다. 대상이 없거나 `keychain`·`file`이 아니면 사용법 오류(2)다.
+  - [결정: 2026-11-12 사용자] `add`·`set`·`rotate`가 `secret.keyUnavailable`(`reason` `fallback_unconfirmed`)을 받으면 `auto`가 OS 키 저장소를 쓸 수 없어 앱 파일로 떨어졌고 사람이 확인하지 않은 것이다(`L0.secrets.spec` §4.7 (c)). 호스트는 값을 먼저 읽고 이 오류를 내므로 저장된 것은 없다. 터미널(TTY)이면 `이 컴퓨터에서는 OS 키 저장소를 쓸 수 없어요. 앱 파일에 보관할까요? (앱 파일은 같은 사용자 권한의 프로그램이 읽을 수 있어요) [y/N]`을 묻는다. `y`면 `secret.keyMove { to: "file" }`을 보낸 뒤 같은 명령을 다시 시도한다. 다시 시도할 때 값은 이미 읽은 것을 그대로 쓰고 사람에게 다시 묻지 않는다(값을 아직 읽지 않았으면 그때 처음 읽는다). 명령이 끝나면 보관한 바이트를 0으로 덮는다. `n`이면 아무것도 저장하지 않고 1로 끝난다. 터미널이 아니면 묻지 않고 환경 문제(3)로 끝난다: `이 컴퓨터에서는 OS 키 저장소를 쓸 수 없어요` / `해결: \`fresnel secret key use file\`로 앱 파일 보관을 직접 정해요`. 종류 코드는 `key_fallback_unconfirmed`다.
+  - [결정: 2026-11-12 사용자] `fresnel doctor`의 시크릿 줄은 `secret.keyStatus`로 열쇠 위치를 본다. 열쇠도 시크릿도 없으면 `열쇠가 아직 없어요, 첫 키 등록 때 만들어요`(정상)다. 설정이 가리키는 열쇠 파일이 없으면 `설정이 가리키는 열쇠 파일이 없어요: <경로>`를 경고로 내고 해결 줄(`fresnel secret key use file`로 새로 정하거나 열쇠 파일을 되돌려 놓아요)을 붙인다. 등록된 시크릿은 있는데 열쇠가 없어도 경고다. 두 경고는 환경 문제라 종료 코드가 3이다. 호스트가 `secret.keyStatus`를 모르면(이전 버전) 등록 수만 본다.
+- [결정: 2026-11-12 사용자] 엔진 실패는 `fresnel-code` 줄의 종류 코드로 분류하며 문장 일치를 쓰지 않는다. 시크릿 명령(`add`, `set`, `rotate`, `rm`, `test`, `reveal`, `ls`)의 실패는 문장 뒤에 `fresnel-code: <코드>` 줄을 한 줄 더한다. 이 줄은 출력의 마지막 줄이고, 값과 경로와 외부 도구의 출력은 싣지 않는다. 어휘는 `@fresnel/contracts/services`의 `FAILURE_KINDS`가 정본이고 철자는 고정이다. 셸(`apps/desktop-shell`)과 화면(`packages/client`)은 이 줄로 원인을 나눈다(L4.desktop.spec §4.14.1).
+  - 종류가 없는 실패에는 줄을 더하지 않는다: 사용법 오류, 터미널이 아닐 때의 거절, 두 번 입력한 값 불일치, 64 KiB를 넘는 입력, 확인 문구 불일치, `rm`의 "지우지 않았다". 다른 명령의 출력은 바뀌지 않는다(시크릿 범위가 아니면 종류를 싣지 않는다).
+  - 시크릿 범위의 엔진 실패(wire 오류, 엔진 시작 오류)는 어휘에 없는 원인이면 `unknown`이다. 아래 표가 출처다.
+
+| 코드 | 나는 곳 |
+|---|---|
+| `key_store` | `secret.keyUnavailable`(`reason` `locked`·`access_denied`·`no_secret_service`), `secret.writeFailed`(`target` `key_store`) |
+| `key_missing` | `secret.keyUnavailable`(`reason` `item_missing`) |
+| `key_file` | `secret.keyUnavailable`(`reason` `file_mode`), `secret.writeFailed`(`target` `key_file`) |
+| `key_fallback_unconfirmed` | `secret.keyUnavailable`(`key` `file`, `reason` `fallback_unconfirmed`). 터미널에서는 묻고, 아니면 이 문구로 끝난다(§4.7) |
+| `service_local_only` | `secret.localOnly`(호스트가 채널을 거절함), 원격 서비스에서 값을 넣거나 볼 때 |
+| `already_exists` | `secret.alreadyExists` |
+| `not_found` | `secret.notFound`, `rm`의 없는 이름 |
+| `value_too_short` | `jsonrpc.invalidParams`의 `value` 자리(-32602, 호스트가 8바이트 미만을 거절함) |
+| `value_empty` | 입력이 비어 있다(stdin이나 프롬프트) |
+| `cancelled` | `secret.cancelled`, 입력 프롬프트를 취소함 |
+| `sops_missing` | `secret.providerUnavailable`(`reason` `binary_missing`), 엔진 시작 `sopsMissing` |
+| `sops_version` | `secret.providerUnavailable`(`reason` `version_too_old`) |
+| `age_missing` | 대응하는 출처가 아직 없다. age 도구를 점검하는 경로가 코드에 없다 [미결] [근거: apps/cli/src/errors.ts의 kindOfStart와 secretFailureOf에 age 출처가 없다] |
+| `provider_unavailable` | `secret.providerUnavailable`(그 밖의 `reason`, `not_registered` 포함), `secret.writeFailed`(`target` `sops_file`이고 `code`가 `lock_timeout`이 아닌 것) |
+| `decrypt_failed` | `secret.decryptFailed` |
+| `read_only_provider` | `secret.readOnlyProvider` |
+| `write_failed` | `secret.writeFailed`(그 밖의 `target`), `secret.auditUnwritable`, `store.diskFull`, `store.readOnly` |
+| `store_busy` | `store.busy`, `secret.writeFailed`(`target` `sops_file`, `code` `lock_timeout`), 엔진 시작 `storeBusy` |
+| `service_unreachable` | 엔진 시작 `serviceUnreachable`, 엔진 연결이 끊기거나 요청하지 못함 |
+| `unknown` | 위에 없는 엔진 실패(`secret.inUse`, `secret.denied`, `secret.reauthRequired`, 그 밖의 wire 오류와 시작 오류) |
 
 #### 4.7.1 검색 provider 상태 출력
 
@@ -1187,7 +1222,7 @@ $ fresnel db previous-rm 20261106T010203004Z --yes --json
 19. [제안] `host --stdio`의 원격 중계(HS-89)는 M3b B2-RMT에 넣었다. 접속 실패의 종료 코드는 §4.10의 연결 오류 코드(3)를 따르고, HS-89의 1은 원격이 끊기거나 중계가 실패한 경우에만 쓴다. HS-89 문장과 맞는지 host-service 문서에서 확인한다.
 20. [미결] 주소 문구에서 `@`가 든 값을 가리는 규칙(자격 증명 방어)은 HS-87에 없다. 이 문서의 구현이 먼저 두었다. host-service 문서로 옮길지 정한다.
 21. [미결] 서비스 접속의 `clock`과 `newRequestId`를 CLI의 운영 값으로 낸다([제안]). `L4.host-service.spec` §3.3.5의 `EngineHandle` 정의와 맞출지 확인한다.
-22. [미결] 서비스 쪽 값 입력 창(§4.7, `L4.settings-ui.spec` §4.6.4 C안)은 아직 없다. `secret.ts`의 두 줄 오류 문구는 "서비스 모드는 M3에서 제공한다"라고 쓰는데, M3b에서도 그 창이 없으면 이 문구가 틀린다. 창을 만드는 단위와 문구를 정한다.
+22. [해소] 서비스 쪽 값 입력 창은 만들지 않는다. 같은 컴퓨터의 서비스 접속은 값을 로컬 일회용 채널로 주고받아 이 창을 대신한다(§4.7, 2026-11-12 결정 참조). 예전 오류 문구 "서비스 모드는 M3에서 제공한다"는 코드에 없다 [결정: 2026-11-12 사용자].
 23. [닫음 결정: 2026-11-04 사용자, 결정 목록 R1] CLI 화면은 설계하지 않는다(m4-decisions 2026-11-01, "No CLI surface"). 규칙은 §4.5.1 그대로다. 옛 항목: 대화형 완료 알림의 노이즈. §4.5.1 규칙대로면 turn이 끝날 때마다 `[완료] 작업이 끝났어요`가 한 줄 붙는다. 같은 thread의 답은 화면에 이미 보이므로 이 줄은 잉여다. 같은 thread의 `completed`를 접을지, 다른 thread의 알림에만 쓸지 사용자가 정한다. 그 전까지 규칙은 §4.5.1 그대로다.
 24. [미결] 알림 도착과 대화 종료의 경합. 시험(`slash-commands-host.int.test.ts`, `/compact`)에서 turn 세 개 가운데 한 건의 완료 알림만 대화 종료 전에 도착했다. 종료 직전에 알림 대기열을 짧게 비우는 방법(시간 상한 포함)을 정한다.
 25. [미결] `db export`의 저장소 파일 이름(`fresnel.db`)과 데이터 디렉터리 위치. 이름은 `apps/host/src/assemble.ts`의 `DB_FILE_NAME`과 같고 호스트가 내보내지 않아 `apps/cli/src/commands/db.ts`에 한 번 더 있다. 위치는 `runtime.ts`가 `@fresnel/platform-os`의 `resolveOsDirs`로 정한다. 호스트가 데이터 디렉터리를 공개 API로 내보내면 두 곳을 그 값으로 바꾼다(§4.13).

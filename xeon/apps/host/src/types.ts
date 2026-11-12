@@ -65,7 +65,7 @@ import type {
   SchedulePolicy,
 } from "@fresnel/cap-schedule";
 import type { ModelsExtensionOptions } from "@fresnel/core-models";
-import type { SecretsRuntime, SecretsRuntimeDeps } from "@fresnel/platform-secrets";
+import type { SecretKeys, SecretsRuntime, SecretsRuntimeDeps } from "@fresnel/platform-secrets";
 import type { BuiltinExtensionModule } from "@fresnel/ext-host";
 import type { BinaryCheckReport, NotifierProvider } from "@fresnel/platform-os";
 import type { SecretOfferStore } from "./secrets/offers.ts";
@@ -732,6 +732,8 @@ export interface UserNotifyPort {
  */
 export interface SecretsPort {
   readonly admin: SecretAdminService;
+  /** 열쇠 보관 상태와 보관 위치 옮기기(`secret.keyStatus`, `secret.keyMove`). 사람 전용이고 같은 컴퓨터의 연결만 옮긴다 */
+  readonly keys: SecretKeys;
   /**
    * 화면 가림 표식을 만드는 redactor 면(L0.secrets.spec §3.5.1 [결정: 2026-11-03 사용자]). 이벤트 송신이 쓴다.
    * 값은 이 면이 돌려주지 않는다. 구간만 wire에 싣는다.

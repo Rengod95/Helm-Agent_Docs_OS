@@ -212,6 +212,8 @@ export interface SecretDiagnostics {
       | "item_missing"
       | "not_implemented"
       | "file_mode";
+    /** 설정이 키 파일 경로를 가리키는데 그 파일이 없다. 기본 경로에 아직 키가 없는 새 설치는 false다 */
+    readonly fileMissing: boolean;
   };
   /** 파일 폴백을 쓰고 있어 고지가 필요한가 */
   readonly fileFallbackNotice: boolean;
@@ -254,7 +256,9 @@ export type SecretError =
         | "item_missing"
         | "no_secret_service"
         | "access_denied"
-        | "file_mode";
+        | "file_mode"
+        /** OS 키 저장소를 쓸 수 없어 `auto`가 파일 폴백으로 떨어졌는데 사람이 아직 확인하지 않았다(L0.secrets.spec §4.7 5번) */
+        | "fallback_unconfirmed";
     }
   | {
       readonly kind: "decrypt_failed";
@@ -277,12 +281,13 @@ export type SecretError =
   /** 감사 파일을 쓸 수 없다. 기록 없이는 진행하면 안 되는 동작(값 열람 등)이 이 오류로 멈춘다. code는 OS 오류 코드나 이름만 싣는다 */
   | { readonly kind: "audit_unwritable"; readonly path: string; readonly code: string }
   /**
-   * 쓰기가 실패했다. target은 쓰던 대상(키 파일, OS 키 저장소, SOPS 시크릿 파일), code는 OS 오류 코드나 이름이며 값은 싣지 않는다.
-   * 이미 있는 키 파일을 덮어쓰지 않을 때는 EEXIST다. `sops_file`의 code는 OS 오류 코드 또는 `sops_encrypt_failed`, `recipient_unknown`, `unsupported_format`, `lock_timeout`이다
+   * 쓰기가 실패했다. target은 쓰던 대상(키 파일, OS 키 저장소, SOPS 시크릿 파일, 열쇠 보관 설정), code는 OS 오류 코드나 이름이며 값은 싣지 않는다.
+   * 이미 있는 키 파일을 덮어쓰지 않을 때는 EEXIST다. `sops_file`의 code는 OS 오류 코드 또는 `sops_encrypt_failed`, `recipient_unknown`, `unsupported_format`, `lock_timeout`이다.
+   * `settings`는 `keys.move`의 설정 전환(`commit`)이나 설정 쓰기가 실패한 것이고, path에는 설정 키 이름을 싣는다
    */
   | {
       readonly kind: "write_failed";
-      readonly target: "key_file" | "key_store" | "sops_file";
+      readonly target: "key_file" | "key_store" | "sops_file" | "settings";
       readonly path: string;
       readonly code: string;
     }

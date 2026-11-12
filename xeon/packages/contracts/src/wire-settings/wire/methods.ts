@@ -1360,7 +1360,7 @@ export const SecretMetaResultSchema: TObject<{ secret: typeof SecretListEntrySch
   Type.Object({ secret: SecretListEntrySchema }, { additionalProperties: false });
 export type SecretMetaResult = Static<typeof SecretMetaResultSchema>;
 
-/** secret.remove, secret.test, secret.references, secret.beginReveal */
+/** secret.remove, secret.test, secret.references */
 export const SecretNameParamsSchema: TObject<{ name: typeof SecretNameSchema }> = Type.Object(
   { name: SecretNameSchema },
   { additionalProperties: false },
@@ -1484,12 +1484,18 @@ export const SecretBeginEntryParamsSchema: TObject<{
   name: typeof SecretNameSchema;
   action: TUnion<[TLiteral<"add">, TLiteral<"set">, TLiteral<"rotate">]>;
   meta: TOptional<typeof SecretEntryMetaSchema>;
+  channel: TOptional<TString>;
 }> = Type.Object(
   {
     name: SecretNameSchema,
     action: Type.Union([Type.Literal("add"), Type.Literal("set"), Type.Literal("rotate")]),
     /** `add`가 함께 보내는 값 없는 메타(M3-REQ-17). 생략하면 호스트의 기본 메타다 */
     meta: Type.Optional(SecretEntryMetaSchema),
+    /**
+     * 같은 컴퓨터의 CLI가 연 로컬 일회용 소켓의 절대 경로다. 값이 아니다. 호스트는 이 소켓에서 EOF까지 읽는다.
+     * 원격 연결이 보내거나 경로가 이 사용자의 것이 아니면 `secret.localOnly`다 [결정: 2026-11-12]
+     */
+    channel: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
   },
   { additionalProperties: false },
 );
@@ -1501,12 +1507,96 @@ export const SecretBeginEntryResultSchema: TObject<{ started: TBoolean }> = Type
 );
 export type SecretBeginEntryResult = Static<typeof SecretBeginEntryResultSchema>;
 
-/** secret.beginReveal. 값 필드가 없다. 표시는 호스트 쪽 L0.secrets가 TTY나 OS 창에 한다(L4.cli.spec §4.7) */
+/**
+ * secret.beginReveal params. 값 필드가 없다. 표시는 호스트 쪽 L0.secrets가 TTY나 OS 창에 한다(L4.cli.spec §4.7).
+ * 같은 컴퓨터의 CLI는 `channel`(로컬 일회용 소켓 경로, 값이 아니다)과 `reauth: "tty-confirm"`(CLI가 터미널에서 이름을 다시 받아 사람을 확인했다)을 보낸다.
+ */
+export const SecretBeginRevealParamsSchema: TObject<{
+  name: typeof SecretNameSchema;
+  channel: TOptional<TString>;
+  reauth: TOptional<TLiteral<"tty-confirm">>;
+}> = Type.Object(
+  {
+    name: SecretNameSchema,
+    channel: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
+    reauth: Type.Optional(Type.Literal("tty-confirm")),
+  },
+  { additionalProperties: false },
+);
+export type SecretBeginRevealParams = Static<typeof SecretBeginRevealParamsSchema>;
+
+/** secret.beginReveal result. 값 필드가 없다 */
 export const SecretBeginRevealResultSchema: TObject<{ started: TBoolean }> = Type.Object(
   { started: Type.Boolean() },
   { additionalProperties: false },
 );
 export type SecretBeginRevealResult = Static<typeof SecretBeginRevealResultSchema>;
+
+// ── secret.keyStatus·secret.keyMove: 열쇠 보관 방식(L0.secrets.spec §4.7 (b)·(e), [결정: 2026-11-12 사용자]). 값과 identity가 없다 ──
+
+/** 열쇠 보관 방식. `auto`·`auto-file`은 설정 `l0.secrets.ageKey.source`의 값이고, `keychain`·`file`은 옮기기의 목표다 */
+export const SecretKeyWhereSchema: TUnion<[TLiteral<"keychain">, TLiteral<"file">]> = Type.Union([
+  Type.Literal("keychain"),
+  Type.Literal("file"),
+]);
+export type SecretKeyWhere = Static<typeof SecretKeyWhereSchema>;
+
+export const SecretKeyStatusParamsSchema: TObject<{}> = Type.Object(
+  {},
+  { additionalProperties: false },
+);
+export type SecretKeyStatusParams = Static<typeof SecretKeyStatusParamsSchema>;
+
+/** secret.keyStatus result(`L0.secrets.spec`의 `KeyStatus`). `in`은 열쇠가 있는 쪽이고 identity를 읽지 않고 정한다 */
+export const SecretKeyStatusResultSchema: TObject<{
+  source: TUnion<[TLiteral<"auto">, TLiteral<"auto-file">, TLiteral<"keychain">, TLiteral<"file">]>;
+  in: TUnion<[TLiteral<"none">, TLiteral<"keychain">, TLiteral<"file">]>;
+  filePath: TString;
+  keychainUsable: TBoolean;
+  fallbackUnconfirmed: TBoolean;
+  fileMissing: TBoolean;
+}> = Type.Object(
+  {
+    source: Type.Union([
+      Type.Literal("auto"),
+      Type.Literal("auto-file"),
+      Type.Literal("keychain"),
+      Type.Literal("file"),
+    ]),
+    in: Type.Union([Type.Literal("none"), Type.Literal("keychain"), Type.Literal("file")]),
+    filePath: Type.String({ minLength: 1, maxLength: 4096 }),
+    keychainUsable: Type.Boolean(),
+    fallbackUnconfirmed: Type.Boolean(),
+    fileMissing: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
+export type SecretKeyStatusResult = Static<typeof SecretKeyStatusResultSchema>;
+
+/**
+ * secret.keyMove params. 열쇠를 `to` 쪽으로 옮기고 설정 `l0.secrets.ageKey.source`를 `to`로 바꾼다. 같은 컴퓨터의 연결만 한다(3213).
+ * 옮길 열쇠가 없거나 이미 그 쪽에 있으면 옮기지 않고 설정만 바꾼다(`moved: false`)
+ */
+export const SecretKeyMoveParamsSchema: TObject<{
+  to: TUnion<[TLiteral<"keychain">, TLiteral<"file">]>;
+}> = Type.Object({ to: SecretKeyWhereSchema }, { additionalProperties: false });
+export type SecretKeyMoveParams = Static<typeof SecretKeyMoveParamsSchema>;
+
+export const SecretKeyMoveResultSchema: TObject<{
+  moved: TBoolean;
+  created: TBoolean;
+  oldRemoved: TBoolean;
+  source: TUnion<[TLiteral<"keychain">, TLiteral<"file">]>;
+}> = Type.Object(
+  {
+    moved: Type.Boolean(),
+    created: Type.Boolean(),
+    oldRemoved: Type.Boolean(),
+    source: SecretKeyWhereSchema,
+  },
+  { additionalProperties: false },
+);
+export type SecretKeyMoveResult = Static<typeof SecretKeyMoveResultSchema>;
 
 // ── trust.* (프로젝트 신뢰. 판정과 결정을 클라이언트가 부른다, X.loading-trust.spec §4.7) ──
 
@@ -1997,8 +2087,16 @@ interface WireSchemas
     result: typeof SecretBeginEntryResultSchema;
   };
   "secret.beginReveal": {
-    params: typeof SecretNameRequestSchema;
+    params: WithMeta<typeof SecretBeginRevealParamsSchema>;
     result: typeof SecretBeginRevealResultSchema;
+  };
+  "secret.keyStatus": {
+    params: WithMeta<typeof SecretKeyStatusParamsSchema>;
+    result: typeof SecretKeyStatusResultSchema;
+  };
+  "secret.keyMove": {
+    params: WithMeta<typeof SecretKeyMoveParamsSchema>;
+    result: typeof SecretKeyMoveResultSchema;
   };
   "trust.get": {
     params: WithMeta<typeof TrustGetParamsSchema>;
@@ -2208,7 +2306,17 @@ export const WIRE_METHODS: {
     SecretBeginEntryResultSchema,
     "M2",
   ),
-  "secret.beginReveal": spec(SecretNameRequestSchema, SecretBeginRevealResultSchema, "M2"),
+  "secret.beginReveal": spec(
+    withMeta(SecretBeginRevealParamsSchema),
+    SecretBeginRevealResultSchema,
+    "M2",
+  ),
+  "secret.keyStatus": spec(
+    withMeta(SecretKeyStatusParamsSchema),
+    SecretKeyStatusResultSchema,
+    "M4",
+  ),
+  "secret.keyMove": spec(withMeta(SecretKeyMoveParamsSchema), SecretKeyMoveResultSchema, "M4"),
   "trust.get": spec(withMeta(TrustGetParamsSchema), TrustStatusSchema, "M2"),
   "trust.decide": spec(withMeta(TrustDecideParamsSchema), TrustStatusSchema, "M2"),
   "trust.list": spec(withMeta(TrustListParamsSchema), TrustListResultSchema, "M4"),

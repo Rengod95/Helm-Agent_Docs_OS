@@ -389,6 +389,14 @@ export interface KeyProvider {
   sopsKeyEnv(): Result<Readonly<Record<"SOPS_AGE_KEY_CMD" | "SOPS_AGE_KEY_FILE", string>>, SecretError>;
   /** 첫 쓰기 설정: identity를 만들어 저장하고 수신자(공개키)만 돌려준다. 이미 있는 키는 덮어쓰지 않는다(`write_failed`, code `EEXIST`) */
   provision?(): Promise<Result<{ readonly recipient: string }, SecretError>>;
+  /** OS 저장소에 age 키 항목이 있는가. 조회가 실패하면 null. identity는 읽지 않는다 */
+  holdsKey?(): Promise<boolean | null>;
+  /** [결정: 2026-11-12 사용자] 옮기기 전용(§4.7 1번). 저장된 identity를 읽는다. 돌려준 버퍼는 호출자가 쓴 뒤 0으로 덮는다 */
+  readIdentity?(): Promise<Result<Uint8Array, SecretError>>;
+  /** [결정: 2026-11-12 사용자] 없을 때만 쓴다. 이미 있으면 `write_failed`(code `EEXIST`). 넘긴 버퍼는 호출자 것이다 */
+  storeIdentity?(identity: Uint8Array): Promise<Result<void, SecretError>>;
+  /** [결정: 2026-11-12 사용자] 항목이나 키 파일을 지운다. 이미 없으면 성공이다 */
+  removeKey?(): Promise<Result<void, SecretError>>;
 }
 ```
 
@@ -488,7 +496,7 @@ export type SecretError =
   | { readonly kind: "secret_missing"; readonly handle: SecretHandle; readonly where: "meta" | "provider" }
   | { readonly kind: "denied"; readonly handle: SecretHandle; readonly reason: SecretDenyReason }
   | { readonly kind: "provider_unavailable"; readonly provider: SecretProviderId; readonly reason: "binary_missing" | "version_too_old" | "not_registered" }
-  | { readonly kind: "key_unavailable"; readonly key: KeyProviderIdPublic; readonly reason: "locked" | "item_missing" | "no_secret_service" | "access_denied" | "file_mode" }
+  | { readonly kind: "key_unavailable"; readonly key: KeyProviderIdPublic; readonly reason: "locked" | "item_missing" | "no_secret_service" | "access_denied" | "file_mode" | "fallback_unconfirmed" }
   | { readonly kind: "decrypt_failed"; readonly provider: SecretProviderId; readonly exitCode: number | null; readonly stderrMasked: string }
   | { readonly kind: "meta_invalid"; readonly name: string; readonly path: string; readonly errors: readonly string[] }
   | { readonly kind: "value_too_short"; readonly minBytes: 8 }
@@ -619,7 +627,7 @@ M2 설계(후속 구현):
 
 ### 4.7 age 키 획득과 파일 폴백
 
-1. age 개인 키는 부모 프로세스만 다룬다. 이 패키지의 코드는 identity를 읽지 않는다. 키 명령을 sops에 넘길 뿐이다. 예외는 첫 실행의 `provision`이며, 생성한 identity는 저장 직후 버퍼를 0으로 덮는다.
+1. age 개인 키는 부모 프로세스만 다룬다. 이 패키지의 코드는 identity를 읽지 않는다. 키 명령을 sops에 넘길 뿐이다. 예외는 첫 실행의 `provision`이며, 생성한 identity는 저장 직후 버퍼를 0으로 덮는다. [결정: 2026-11-12 사용자] 두 번째 예외는 열쇠 보관 방식을 옮기는 `keys.move` 안의 `readIdentity`다. 옛 쪽의 identity를 한 번 읽어 새 쪽에 쓰고 수신자를 확인한 뒤, 읽은 버퍼를 쓴 직후 0으로 덮는다. `readIdentity`는 `keys.move` 밖에서 부르지 않는다. `keys.status`는 identity를 읽지 않고 `probe`, `holdsKey`, 파일 존재(모양만, stat)로 위치를 정한다.
 2. macOS: Keychain 항목 `fresnel.age`/`default`. 첫 조회 때 접근 승인 대화상자가 뜰 수 있고, 키 명령이 복호화마다 실행되므로 대화상자가 반복될 수 있다 [가정, `_research/notes/L0-3.md` §2.2]. 대응은 §5와 plan 위험 표다.
 3. Linux: Secret Service가 있으면 `secret-tool`. `probe()`는 D-Bus 이름 `org.freedesktop.secrets` 유무로 판정한다 [제안]. WSL과 헤드리스는 대부분 없다고 보고 파일 폴백으로 간다 [가정].
 4. 파일 폴백: identity 파일을 0600으로 두고 `SOPS_AGE_KEY_FILE`로 넘긴다. 생성은 `age-encryption` 0.3.1로 한다. 매번 시작할 때 소유자와 권한(0600, 소유 uid 일치)을 검사하고 틀리면 `key_unavailable`(`file_mode`)이다.
@@ -633,6 +641,12 @@ M2 설계(후속 구현):
 8. [결정: 2026-10-28 사용자] 키체인이 없는 원격 서버(D-M3-17 형태 1)는 파일 폴백(4번, 0600)을 쓴다. Secret Service가 있으면 3번에 따라 먼저 시도한다. 파일 폴백을 처음 쓸 때 키 파일 위치와 위험(5번의 고지 문장)을 알린다. 구현: 설정 `l0.secrets.ageKey.source = "auto-file"`(§6.1)이 `auto`와 같은 순서(Secret Service 먼저)로 고르되 파일 폴백을 사람 확인 없이 쓰고 `fileFallbackNotice`는 그대로 낸다. 키 파일 권한은 정확히 0600이고 소유 uid가 같아야 하며 아니면 `key_unavailable`(`file_mode`)이다. 0400처럼 더 좁은 값도 거부한다 [결정: 오케스트레이터 기본값, 요구 문구가 "0600이 아니면 거부"다]. 서비스 모드 호스트가 이 값을 `serve` 설정에 넣는 일은 B1-SVC가 한다. [제안] 5번의 확인 절차는 바꾸지 않는다. 두 항목은 함께 적용된다. 5번은 로컬 `auto`가 파일 폴백에 갔을 때, 8번은 키체인이 없는 원격 호스트에서 적용한다.
 
 9. [결정: 2026-11-07 사용자] 처음 설치의 첫 age 키는 키체인이 아니라 앱 데이터 아래 0600 파일(기본 경로 `<OsDirs.config>/secrets/age/keys.txt`, 4번)에 둔다. `l0.secrets.ageKey.source`가 `auto`이고 OS 저장소가 키 항목이 없다고 확실히 알려 주면(macOS: `security find-generic-password`가 항목 없음, `KeyProvider.holdsKey()`가 false) 선택은 파일로 가고, 파일도 없으면 첫 `add`가 7번대로 파일 키를 만든다. 만든 직후 조립 루트가 사용자 범위 설정 `l0.secrets.ageKey.source = "file"`을 저장한다(5번의 사람 확인에 해당한다). 5번의 고지(`diagnose()`의 `fileFallbackNotice`)는 그대로 낸다. 이미 키체인 항목이 있는 사용자(`holdsKey()`가 true)와 항목 조회가 실패해 모르는 경우(null)는 OS 제공자를 그대로 쓰고, 사용자가 `keychain`이나 `file`을 적었으면 그 값을 따른다. 설정 쓰기는 platform-secrets가 아니라 호스트 조립 루트가 한다(`onFileKeyCreated`, 설정 저장소는 이 층 밖). 설정 쓰기가 실패해도 선택이 파일·키 존재 사실로 정해지므로 다음 호출은 같은 키를 쓴다. 명시적 `auto`와 설정 없음은 구분하지 않는다 [결정: 오케스트레이터 기본값, fxKS]. 이 앱의 sops 바이너리는 번들되어 있지 않아 사용자가 설치해야 한다(PATH 보강 E7의 Homebrew 등).
+
+10. [결정: 2026-11-12 사용자] 열쇠 보관 방식의 전환과 확인 흐름. 아래 (b)~(e)다.
+    - (b) 옮기기. 설정 `l0.secrets.ageKey.source`에서 "OS 키 저장소"(`keychain`)와 "앱 파일"(`file`) 중 하나를 고르고 바꾸면 열쇠를 옮긴다. 순서는 ① 옛 쪽 읽기, ② 새 쪽 쓰기(같은 키가 이미 있으면 그대로 쓰고, 다르면 덮어쓰지 않아 `write_failed`·`EEXIST`), ③ 새 쪽을 다시 읽어 만든 수신자가 기록된 수신자(없으면 옛 키의 수신자)와 같은지 확인, ④ 수신자 기록을 `recipient.<새 id>.txt`로 복사, ⑤ 설정 전환(호출자 콜백 `commit`), ⑥ 옛 쪽 삭제다. ②~⑤ 중 실패하면 이 호출이 새 쪽에 쓴 항목과 수신자 복사만 지우고 옛 쪽은 그대로 둔다. ⑥만 실패하면 `oldRemoved: false`로 알리고, 키가 두 곳에 남는다는 사실을 호출자가 보인다. 옮기는 동안 열쇠는 두 곳에 있고 ⑤ 전까지 옛 쪽이 남아 있어 어느 쪽을 읽어도 풀린다. 한 번에 하나만 돌도록 `keys.move.lock` 파일 잠금을 쥔다. 이 잠금은 이 패키지의 호출만 막는다. 같은 시각에 이 패키지 밖의 프로세스가 sops를 부르는 것은 막지 못하므로 순서(새 쪽 기록, 확인, 설정 전환, 옛 쪽 삭제)를 호출자가 지킨다. 옮길 열쇠가 없으면(`in: none`) 옮기지 않고 `moved: false`를 돌려주며, 설정은 호출자가 바꾼다. 다음 첫 `add`가 새 방식으로 만든다. 키 저장소 조회가 실패해 위치를 모르면 옮기지 않고 `key_unavailable`(`locked` 또는 `no_secret_service`)을 돌려준다.
+    - (c) 확인 없는 폴백. `auto`가 OS 키 저장소를 쓸 수 없어 파일 폴백으로 떨어졌고 사람이 확인하지 않았으면 오류는 `key_unavailable`(`key: file`, `reason: fallback_unconfirmed`)이다. 예전의 `access_denied`를 더는 쓰지 않는다. 화면은 이 오류를 받으면 한 번 묻고, 승인하면 설정을 `file`로 저장한다. CLI는 TTY이면 같은 질문을 하고, 비대화면이면 묻지 않고 `l0.secrets.ageKey.source`를 명시해야 한다고 알리고 실패한다. 진단 안내문은 "이 컴퓨터에서는 OS 키 저장소를 쓸 수 없어요. 앱 파일에 보관하려면 `fresnel secret key use file`을 실행해요(설정의 시크릿 > 열쇠 보관에서도 바꿀 수 있어요)"다. `auto-file`은 확인 없이 파일 폴백을 쓰므로 이 오류가 나지 않는다.
+    - (d) 원격·서비스 전용 설치(`fresnel service install`)의 기본값은 `auto-file`이다(8번). [미결] [근거: apps/host/src/service/**와 apps/cli/src/commands/service.ts에 ageKey 쓰기 없음] 현재 코드는 설치 때 이 값을 쓰지 않는다. `apps/host/src/service/**`와 `apps/cli/src/commands/service.ts`에 `l0.secrets.ageKey.source` 쓰기가 없고, `auto-file`은 설정 읽기(`apps/host/src/assembly/settings-sources.ts`)에만 있다. 설치 경로에서 기본값을 실제로 적는 일은 B1-SVC의 몫이다.
+    - (e) doctor. `SecretDiagnostics.key`에 `fileMissing`을 더한다. 설정이 열쇠 파일 경로를 가리키는데 그 파일이 없으면 참이다. 기본 경로에 아직 열쇠가 없는 새 설치는 오류가 아니다. doctor 줄은 두 경우를 가른다. 열쇠도 없고 SOPS 파일도 없으면 "열쇠가 없어요(첫 키 등록 때 만들어요)"다. 설정이 가리키는 열쇠 파일이 없는데 SOPS 파일이 이미 있으면(풀 수 없는 상태) "설정이 가리키는 열쇠 파일이 없어요: <경로>"다. [해소: §10 13번] 예전에는 `fresnel doctor`가 `secret.list`의 성공만 보아 열쇠가 없어도 "사용할 수 있다"로 나왔다. 지금은 `secret.keyStatus`를 함께 읽어 열쇠 위치를 보인다 [결정: 2026-11-12 사용자].
 
 ### 4.8 사용자 등록 경로
 
@@ -842,3 +856,6 @@ L0 패키지끼리 import하지 않으므로 다른 L0 기능은 서비스로 �
 10. [미결] 플러그인 제공자(`op`, `bws`)의 바이너리 호출 소유 규칙(DR-07 행 추가).
 11. [결정: M3-m2c-04 (b)] Linux Secret Service의 `provision`은 `secret-tool lookup`의 stdout을 버리고 종료 코드만 봐서 identity를 읽지 않고 존재를 확인한 뒤 `secret-tool store`로 만든다(§3.7). WSL·헤드리스는 `auto`면 사람이 `source`를 `file`로 확인한 뒤(§4.7 5번), 원격 호스트는 `auto-file`로 파일 폴백이 키를 만든다. 실제 Secret Service에서의 확인은 Linux 데스크톱 실기다.
 12. [미결] macOS `provision`의 `security -i` 경로와 `-T`(신뢰 앱) 없이 만든 항목의 복호화 때 접근 승인 대화상자. macOS 실기(M2 체크리스트 M-12 재실행)에서 확인한다.
+13. [해소] 열쇠 상태는 `secret.keyStatus`(wire, 읽기 전용, identity 없음)로 읽는다. `fresnel doctor`의 시크릿 줄은 이 값으로 열쇠 위치와 설정이 가리키는 열쇠 파일의 없음을 함께 낸다(§4.7 10번 (e)) [결정: 2026-11-12 사용자].
+14. [해소] `fresnel secret key use <keychain|file>`(§4.7 10번 (c))과 `fresnel secret key status`가 CLI 명령이다. `use`는 `secret.keyMove`로 열쇠를 옮기고 설정 `l0.secrets.ageKey.source`를 바꾼다. 옮길 열쇠가 없으면 설정만 바꾼다 [결정: 2026-11-12 사용자].
+15. [미결] [근거: packages/platform-secrets/src/select.ts의 darwin 가드] §4.7 9번의 "항목이 없으면 파일"은 macOS(`holdsKey`)에만 적용한다. Linux의 `holdsKey`는 옮기기와 상태 조회에만 쓰고 선택에는 쓰지 않아 Secret Service가 있으면 항목이 없어도 그쪽을 쓴다. Linux에도 같은 규칙을 적용할지 정해야 한다.

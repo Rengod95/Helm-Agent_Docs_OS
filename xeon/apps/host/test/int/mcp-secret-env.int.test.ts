@@ -9,6 +9,7 @@ import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/cor
 import { memorySecrets } from "@fresnel/platform-secrets/testing";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
+import { createFakeKeys } from "../fixtures/fake-keys.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { realTapeClock } from "../fixtures/tape-host.ts";
@@ -126,7 +127,7 @@ realTest(
           secrets: [{ meta: metaOf(), value: SECRET_VALUE }],
         });
         holder.secrets = secrets;
-        return { service: secrets, admin: secrets.admin };
+        return { service: secrets, admin: secrets.admin, keys: createFakeKeys() };
       },
     });
     const connection = createHostConnection(host.client);

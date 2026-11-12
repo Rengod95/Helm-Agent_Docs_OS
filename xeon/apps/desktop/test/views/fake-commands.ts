@@ -206,6 +206,8 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       beginEntry: () => Promise.resolve(err({ kind: "unsupported" })),
       registerKey: () => Promise.resolve(ok(null)),
       beginReveal: () => Promise.resolve(err({ kind: "unsupported" })),
+      keyStatus: () => Promise.resolve(err({ kind: "unsupported" })),
+      keyMove: () => Promise.resolve(err({ kind: "unsupported" })),
       writeClipboard: () => Promise.resolve(),
     },
     settings: {

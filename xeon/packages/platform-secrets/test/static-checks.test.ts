@@ -61,7 +61,14 @@ describe("static checks", () => {
     expect(darwin).toContain(
       'argv: [securityPath, "find-generic-password", "-s", KEY_SERVICE, "-a", KEY_ACCOUNT]',
     );
-    expect(darwin.match(/argv:/g)).toHaveLength(2);
+    // 옮기기의 읽기(-w)와 옛 쪽 삭제도 항목 이름만 싣는다. identity는 argv에 없다
+    expect(darwin).toContain(
+      'argv: [securityPath, "find-generic-password", "-s", KEY_SERVICE, "-a", KEY_ACCOUNT, "-w"]',
+    );
+    expect(darwin).toContain(
+      'argv: [securityPath, "delete-generic-password", "-s", KEY_SERVICE, "-a", KEY_ACCOUNT]',
+    );
+    expect(darwin.match(/argv:/g)).toHaveLength(4);
     // put의 값은 stdin 바이트로만 간다
     expect(sops).toContain("const stdin = jsonStringBytes(value);");
     expect(sops).toContain("signal: deps.signal, stdin, });");

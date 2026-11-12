@@ -566,7 +566,7 @@ WebView 엔진 차이로 생기는 웹 API 제약 [제안. 각 항목은 M2 첫 
 
 - 쓰기 범위는 `user`다. `l1.models.providers`는 목록 전체가 한 키이므로(병합 단위는 키 하나) 현재 값을 읽어 해당 provider 원소만 바꾼 목록을 보낸다. baseUrl은 그대로 둔다.
 - 키 값은 wire와 로그 어디에도 없다. 호스트가 값을 받을 수 있는 연결에서는 값 없는 `secret.beginEntry { name, action }`이 시작하고 값은 호스트가 wire 밖에서 받는다(`L4.settings-ui.spec` §4.6.4 C안).
-- 사이드카(stdio) 호스트에는 값을 받을 수단이 없어 `secret.beginEntry`가 `started: false`를 돌려준다(`L4.host-service.spec` HS-44, 서비스 쪽 OS 입력 창은 M3). 이 연결에서는 셸이 값을 받는다(§4.14.1).
+- 사이드카 연결(stdio와 서비스 접속)에는 맡긴 수단이 없어 `secret.beginEntry`는 요청의 `channel`로 값을 받는다(`L4.host-service.spec` HS-44). 셸이 번들된 `fresnel secret add|set`을 실행하면 CLI가 값을 같은 컴퓨터의 로컬 일회용 채널로 넘기므로, 데스크톱 키 등록은 서비스 모드에서도 된다(§4.14.1). 서비스 쪽 OS 입력 창은 아직 만들지 않았다 [결정: 2026-11-12 사용자].
 - 외부 도구 점검 결과는 `host.status { includeBinaries: true }`의 `binaries`(`HostBinaryReport`)로 받는다(`F.wire-settings.spec` §3.3.1, `L4.host-service.spec` HS-69) [결정: M2 마감 G2-07]. 연결이 결과를 스키마로 검증해 건네므로 화면은 다시 parse하지 않고 `@fresnel/client/settings`의 `diagnostics.ts`가 행으로 바꾼다. 실행 파일 경로는 wire에 없다. 점검은 바이너리마다 자식 프로세스를 띄우므로 설정 화면이 열릴 때와 "다시 확인"에서만 요청한다(`SetupCommands.load({ binaries: true })`). 시작 안내 띠의 읽기(`binaries: false`)와 `settings.invalidated` 뒤 다시 읽기는 점검하지 않고, 화면은 앞서 읽은 점검 결과를 이어 붙인다(`src/app/setup.ts` `keepTools`). `binaries`가 없는 응답(점검을 청하지 않음, 구형 host의 `-32601`), 취소(`request.cancelled`), 읽기 실패는 모두 "받을 수 없음"과 `fresnel doctor` 안내를 보이고, 이 단계는 "확인할 수 없음"으로 표시하되 대화 시작을 막지 않는다. 앱이 보고서를 주입하던 `createApp({ binaryReport })`는 없앴다.
 - `settings.invalidated`를 받으면(`keys`에 `l1.models.`로 시작하는 키가 있거나 `keys`가 빈 알림) 설정 화면과 안내 띠가 `settings.get`으로 다시 읽는다. 구독은 연결이 `live`가 될 때마다 새로 건다. 같은 연결의 `settings.set` 호출자도 알림을 받으므로 저장 직후 화면은 한 번 더 읽는다.
 - 저장이 거절되면(`settings.set`의 3102) 화면은 host가 준 첫 문제의 문장을 그대로 보인다: `저장하지 못했습니다: 알 수 없는 모델 anthropic/claude-sonnet-5.5 (anthropic의 모델: claude-sonnet-5-5, …)`. 기본 모델은 저장하기 전에 host가 카탈로그에서 검사한다(`L4.host-service.spec` HS-78). "provider에 연결"은 그 키의 모델 provider 사용을 허용하는 행위이기도 하다(`L4.host-service.spec` HS-45): 같은 연결을 다시 저장하면 이전 빌드가 빈 정책으로 만든 키의 허용이 다시 맞춰진다 [결정: M2 Mac 실기]. 연결 뒤에는 `secret.meta` 없이 모델 호출이 된다.
@@ -579,7 +579,7 @@ M2 첫 실행에서 깨끗한 Mac에는 `fresnel` 명령이 설치되어 있지 
 
 | 경로 | 값이 지나는 곳 | 약점 |
 |---|---|---|
-| 서비스 쪽 OS 입력 창(M3) | OS 입력 창과 L0.secrets | 서비스 모드가 있어야 한다. M2에는 없다 |
+| 서비스 쪽 OS 입력 창(미결) | OS 입력 창과 L0.secrets | 아직 만들지 않았다. 서비스 연결의 키 등록은 아래 채널 경로로 된다(2026-11-12 결정) |
 | 셸이 번들된 `fresnel secret`을 실행하고 stdin에 한 번 쓴다(채택. 옛 Tauri 구현(커밋 424f338a)에서는 Rust 셸이 실행했고, Electron 셸은 `secret-entry.ts`가 한다) | WebView 입력란, IPC 본문, 셸의 요청 버퍼, 자식 stdin 파이프 | 값이 DOM과 IPC를 지난다(`L4.settings-ui.spec` §4.6.4 B안과 같은 약점). 아래 약점 항목 |
 
 채택한 경로는 시크릿 저장 로직을 셸(Rust 또는 Electron 메인 프로세스)에 두지 않는다. 저장은 ADR-0014대로 사이드카 바이너리가 곧 `fresnel` CLI라는 점을 쓴다. 셸은 CLI와 같은 `secret add|set`을 한 번 실행할 뿐이어서 메타, 감사, SOPS 쓰기 규칙이 엔진 한 곳에 남는다.
@@ -591,7 +591,7 @@ M2 첫 실행에서 깨끗한 Mac에는 `fresnel` 명령이 설치되어 있지 
 3. WebView가 `secret_register`를 원시 바이트 본문 `<동작> <이름>\n<값>`으로 부른다(JSON 문자열에 싣지 않는다). 호출이 끝나면 그 바이트 배열을 0으로 덮는다.
 4. 셸은 본문을 검사한다(동작은 `add`·`set`, 이름은 `^[a-z][a-z0-9-]{1,63}$`라서 `-`로 시작하는 옵션이 될 수 없다, 값은 1바이트 이상 8 KiB 이하). 번들된 사이드카를 인자 `secret <동작> <이름>`으로 실행한다. 작업 폴더와 환경은 엔진과 같다(홈, `BUN_OPTIONS` 제거, PATH 보강은 E7). 그러므로 CLI와 사이드카가 같은 OS 디렉터리를 보고 같은 시크릿 저장소(설정 폴더의 시크릿 메타 `<config>/secrets/meta`, SOPS 파일, age 키)를 쓴다. 상태 폴더의 `cli/state.json`은 CLI의 자체 상태 파일이고 시크릿 저장소가 아니다.
 5. 셸은 요청 본문의 값 조각을 복사하지 않고 자식 stdin에 한 번 쓰고 닫는다(EOF). CLI는 stdin이 TTY가 아니면 EOF까지 읽고 끝의 줄바꿈 하나를 지운다(`L4.cli.spec` §4.7, 상한 64 KiB). 셸 쪽 값 상한 8 KiB는 파이프 버퍼보다 작게 두어 자식이 읽지 않고 끝나도 쓰기가 막히지 않게 한다.
-6. 셸은 자식이 끝나기를 30초까지 기다린다. 넘으면 프로세스 그룹째 끝낸다(자식이 부른 sops와 age 포함). 종료 코드 0이면 성공이다. 아니면 `rejected`이고 `detail`에 자식 stderr의 앞부분(600자)을 싣는다. CLI의 오류 문구는 값을 담지 않는다. 그래도 자식 출력에 값이 그대로 들어 있으면 `detail`을 비운다.
+6. 셸은 자식이 끝나기를 30초까지 기다린다. 넘으면 프로세스 그룹째 끝낸다(자식이 부른 sops와 age 포함). 종료 코드 0이면 성공이다. 아니면 `rejected`이고 `detail`에 자식 stderr의 앞부분(600자)을 싣는다. 자식 stderr의 마지막 줄이 `fresnel-code: <코드>`면 그 코드를 `code`로 싣고 그 줄은 `detail`에서 뺀다(아래 규칙). CLI의 오류 문구는 값을 담지 않는다. 그래도 자식 출력에 값이 그대로 들어 있으면 `detail`을 비운다.
 7. 성공하면 화면은 provider를 연결하고 `secret.list`를 다시 읽어 "등록됨"을 보인다.
 
 규칙:
@@ -601,12 +601,38 @@ M2 첫 실행에서 깨끗한 Mac에는 `fresnel` 명령이 설치되어 있지 
 - `secret rotate`는 CLI가 비TTY를 거부하므로(`L4.cli.spec` §4.7) 이 경로는 `add`와 `set`만 쓴다.
 - 개발 빌드에서 `FRESNEL_DESKTOP_ENGINE_BIN`과 `FRESNEL_DESKTOP_ENGINE_ARGS`가 `... host --stdio`로 끝나면 그 앞부분에 `secret <동작> <이름>`을 이어 쓴다. 그 모양이 아니면 번들 사이드카를 쓴다. 덮어쓴 엔진에도 안전 모드 플래그와 대상 인자가 `host --stdio` 뒤에 같은 규칙으로 붙는다(옛 Tauri 구현(커밋 424f338a)의 `engine.rs` `dev_override_argv`, 단위 시험이 있었다. Electron 셸은 `engine/launcher.ts`와 `secret-entry.ts`의 `devOverrideOf`가 맡는다).
 - 사이드카를 띄우지 못하면(`unavailable`) 화면은 기존 터미널 명령 안내로 돌아간다.
+- [결정: 2026-11-12 사용자] 엔진 실패는 `fresnel-code` 줄의 종류 코드로 분류하며 문장 일치를 쓰지 않는다. 앞에서 쓰던 문장 맞춰 보기(셸의 정규식, 화면의 `rejectionOf`)는 이 결정으로 없앤다. 셸은 자식 stderr의 마지막 줄 `fresnel-code: <코드>`를 읽어 `rejected.code`로 싣고, 줄이 없거나 어휘에 없는 코드면 `unknown`이다. `key_store`는 키체인 종류(`keystore`)로 간다. 어휘는 `@fresnel/contracts/services`의 `FAILURE_KINDS`가 정본이고 CLI(`apps/cli/src/errors.ts`), 셸(`secret-entry.ts`), IPC(`SecretRegisterErrorSchema`), 화면(`settings/key-entry.ts`)이 같은 상수를 쓴다. 로그 줄은 `rejected (exit 1, key_store)`처럼 코드를 함께 쓴다. 값은 어디에도 들어가지 않는다.
+- 화면은 코드마다 원인 문장과 해결 문장을 카탈로그 `client.settings.key.reason.<이름>.text|fix`에서 고른다. `<이름>`은 코드를 camelCase로 바꾼 것이다(카탈로그 id는 밑줄을 쓰지 않는다, `MESSAGE_KEY_PATTERN`). `unknown`은 일반 문장(`client.settings.key.rejected`)이고 "자세히"에 사이드카 출력의 첫 줄을 보인다. 코드별 문장은 아래 표다(ko 요지, 해결은 해요체로 같은 뜻).
+
+| 코드 | 원인 문장(ko 요지) | 해결 한 줄(ko 요지) |
+|---|---|---|
+| `key_store` | OS 키 저장소를 쓸 수 없어요 | 키 저장소 잠금을 풀거나 설정의 시크릿에서 열쇠 보관을 '앱 파일'로 바꿔요 |
+| `key_missing` | 복호화 키를 찾을 수 없어요 | 이미 쓰는 시크릿 파일이 있으면 그 키 위치를 확인하고, 처음이면 다시 등록해요 |
+| `key_file` | 열쇠 파일을 쓸 수 없거나 권한이 맞지 않아요 | 설정 폴더의 secrets/age 폴더 권한을 확인해요. 있는 키 파일은 덮어쓰지 않아요 |
+| `service_local_only` | 이 컴퓨터에서만 값을 넣을 수 있어요 | 값을 넣을 컴퓨터의 앱에서 등록하거나 그 컴퓨터에서 `fresnel secret add <이름>`을 실행해요 |
+| `already_exists` | 이미 있는 이름이에요 | 값만 바꾸려면 '값 바꾸기'를 써요 |
+| `not_found` | 그 이름의 키가 없어요 | 이름을 확인하거나 새 키로 등록해요 |
+| `value_too_short` | 값이 너무 짧아요(8자 이상) | 키 전체를 붙여 넣었는지 확인해요 |
+| `value_empty` | 키가 비어 있어요 | 키를 붙여 넣고 다시 등록해요 |
+| `cancelled` | 입력을 취소했어요 | 다시 등록해요 |
+| `sops_missing` | sops가 없어요 | sops 3.10 이상을 설치해요 |
+| `sops_version` | sops 버전이 너무 낮아요 | sops를 3.10 이상(권장 3.12 이상)으로 올려요 |
+| `age_missing` | age가 없어요 | age를 설치해요 |
+| `provider_unavailable` | 시크릿 제공자를 쓸 수 없어요 | sops와 age를 설치하고 설정을 확인해요 |
+| `decrypt_failed` | 시크릿을 복호화하지 못했어요 | age 키가 이 파일의 수신자인지 확인해요 |
+| `read_only_provider` | 읽기 전용 제공자라 쓸 수 없어요 | sops 제공자를 써요 |
+| `write_failed` | 시크릿 저장소에 쓰지 못했어요 | 데이터 폴더 권한과 디스크 상태를 확인해요 |
+| `store_busy` | 저장소가 다른 쓰기로 바빠요 | 잠시 뒤 다시 등록해요 |
+| `service_unreachable` | 엔진 서비스에 연결하지 못했어요 | 잠시 뒤 다시 등록해요 |
+| `unknown` | 키를 저장하지 못했어요(일반 문장) | 없음. "자세히"에 사이드카 출력의 첫 줄과 종료 코드 |
+
+- [결정: 2026-11-12 사용자] 등록 전 열쇠 보관 확인: 시크릿 구역의 값 입력, 제공자 "키 넣기", 계정 풀, 첫 실행 키 입력은 `submitKey`의 `preflight`로 `secret.keyStatus`를 먼저 읽는다. `fallbackUnconfirmed`이면 "앱 파일에 보관할까요?"를 묻고, 승인하면 `secret.keyMove { to: "file" }` 뒤에 등록을 잇는다(값을 다시 칠 필요가 없다 [근거: apps/desktop/src/views/pages/secrets/key-store-confirm.tsx `confirmFallbackOf`]). 취소면 등록하지 않고 입력란은 그대로 둔다(`KeyOutcome` `cancelled`). 자세히는 `L4.settings-ui.spec` §4.6.5다.
 
 약점(받아들인 것):
 
 - 값이 WebView 안에 있다. password 입력란은 화면에 보이지 않을 뿐 DOM 노드의 `value`이고, 읽는 순간 JS 문자열이 하나 생긴다. 문자열은 지울 수 없어 가비지 수집 전까지 WebView 힙에 남는다. 바이트 배열과 입력란만 덮는다.
 - IPC 본문의 전송 사본은 셸이 덮지 못한다 [가정]. 옛 Tauri 구현(커밋 424f338a)에서는 Tauri IPC 본문과 셸의 요청 버퍼를 Tauri가 쥐고 있었다.
-- 같은 사용자의 다른 프로세스가 `ps`로 자식의 인자를 보는 길에는 값이 없지만, 실행 중인 WebView 프로세스 메모리를 읽는 공격자에게는 열려 있다. 값 없는 경로(C안)가 가능한 서비스 쪽 OS 입력 창(M3)이 생기면 그쪽을 먼저 쓴다.
+- 같은 사용자의 다른 프로세스가 `ps`로 자식의 인자를 보는 길에는 값이 없지만, 실행 중인 WebView 프로세스 메모리를 읽는 공격자에게는 열려 있다. 값 없는 경로(C안)가 가능한 서비스 쪽 OS 입력 창이 생기면 그쪽을 먼저 쓴다. 그때까지 서비스 접속의 키 등록은 CLI가 연 로컬 일회용 채널로 되며, 값은 그 채널로만 지난다(2026-11-12 결정).
 - 디버그 빌드의 점검 소켓 `viewport.snapshot`은 보이는 영역을 이미지로 저장한다. password 입력란은 점으로 그려지므로 값이 이미지에 남지 않는다(§4.15) [가정: 실측 전. 옛 Tauri 구현(커밋 424f338a)은 WKWebView, Electron 셸은 `webContents.capturePage`].
 
 ### 4.15 원격 점검 Phase 1 [제안: M2 마감 T7]

@@ -1,13 +1,30 @@
 import { describe, expect, test } from "bun:test";
-import { parse } from "@fresnel/contracts";
+import { t } from "@fresnel/client/i18n";
+import { err, parse } from "@fresnel/contracts";
 import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabilities";
-import type { SecretAuditEntry, SecretListEntry } from "@fresnel/contracts/wire";
+import {
+  submitKey,
+  type KeyField,
+  type KeyRegisterError,
+  type KeyRegistrar,
+} from "@fresnel/client/settings";
+import type {
+  SecretAuditEntry,
+  SecretKeyStatusResult,
+  SecretListEntry,
+} from "@fresnel/contracts/wire";
 import type { ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { EngineStoreContext, type EngineMirror } from "../../src/state/engine/index.ts";
 import { createShellStore, ShellStoreContext } from "../../src/state/shell/index.ts";
 import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
 import { UsageLog } from "../../src/views/pages/secrets/secret-audit.tsx";
+import {
+  keyStoreViewOf,
+  type KeyStoreRead,
+  type KeyStoreView,
+} from "../../src/views/pages/secrets/key-store-model.ts";
+import { ValueStep } from "../../src/views/pages/secrets/secret-dialogs.tsx";
 import { SecretDetail } from "../../src/views/pages/secrets/secret-detail.tsx";
 import {
   initialSecretsState,
@@ -52,7 +69,26 @@ const handlers: SecretsScreenHandlers = {
   metaClose: NOOP,
   removeConfirm: NOOP,
   removeClose: NOOP,
+  keyStore: NOOP,
 };
+
+/** 열쇠 보관 위치의 가짜 값. 실제 경로가 아니다 */
+const KEY_STATUS: SecretKeyStatusResult = {
+  source: "auto",
+  in: "keychain",
+  filePath: "/fake/fresnel/secrets/age/keys.txt",
+  keychainUsable: true,
+  fallbackUnconfirmed: false,
+  fileMissing: false,
+};
+
+/** 열쇠 보관 줄의 기본 그림. 위치를 읽고 옮기기는 하지 않은 상태다 */
+const keyStore: KeyStoreView = keyStoreViewOf({
+  read: { kind: "ready", status: KEY_STATUS },
+  move: { kind: "idle" },
+  remote: false,
+  live: true,
+});
 
 const NOW = 1_800_000_000_000;
 const SECRET_TEXT = "fake-secret-value-for-tests-0001";
@@ -86,7 +122,11 @@ function frozenStore(state: EngineMirror): ReadonlyStore<EngineMirror> {
   return { getState: () => state, getInitialState: () => state, subscribe: () => () => {} };
 }
 
-function html(state: SecretsState, shownText: string | null = null): string {
+function html(
+  state: SecretsState,
+  shownText: string | null = null,
+  keyView: KeyStoreView = keyStore,
+): string {
   // 독립 화면의 머리 펼치기 단추가 셸 스토어를 읽으므로 셸 provider 안에서 그린다
   return renderToString(
     <ShellStoreContext value={createShellStore(1400)}>
@@ -96,6 +136,7 @@ function html(state: SecretsState, shownText: string | null = null): string {
         locale="ko"
         nowMs={NOW}
         handlers={handlers}
+        keyStore={keyView}
       />
     </ShellStoreContext>,
   );
@@ -340,4 +381,163 @@ describe("secrets screen server render", () => {
       expect(detailHtml(state)).not.toContain("허용하지 않은 호스트");
     });
   });
+});
+
+/** 입력 칸 하나. `take()`가 읽는 즉시 비운다(화면의 규칙과 같다) */
+function typedField(initial: string): { readonly field: KeyField; readonly shown: () => string } {
+  let value = initial;
+  return {
+    field: {
+      take: () => {
+        const typed = value;
+        value = "";
+        return typed;
+      },
+    },
+    shown: () => value,
+  };
+}
+
+/** 열쇠 보관 줄을 바꾼 그림. 목록은 빈 상태로 둔다 */
+const SHOWN = (state: SecretsState, view: KeyStoreView): string => html(state, null, view);
+/** 위치를 읽은 상태 */
+const readOf = (status: SecretKeyStatusResult): KeyStoreRead => ({ kind: "ready", status });
+
+describe("the key store line above the table", () => {
+  test("shows the line with its two choices and the meaning of each, even with no secret yet", () => {
+    const out = html(initialSecretsState(false));
+    expect(out).toContain(t("desktop.secrets.keyStore.title"));
+    expect(out).toContain(t("desktop.secrets.keyStore.keychain"));
+    expect(out).toContain(t("desktop.secrets.keyStore.file"));
+    expect(out).toContain(t("desktop.secrets.keyStore.info.keychain"));
+    expect(out).toContain(t("desktop.secrets.keyStore.info.file"));
+  });
+
+  test("says where the key is, with the app file's path", () => {
+    const view = keyStoreViewOf({
+      read: readOf({ ...KEY_STATUS, in: "file" }),
+      move: { kind: "idle" },
+      remote: false,
+      live: true,
+    });
+    const out = SHOWN(initialSecretsState(false), view);
+    expect(out).toContain(t("desktop.secrets.keyStore.inFile", { path: KEY_STATUS.filePath }));
+  });
+
+  test("says there is no key yet when none is stored", () => {
+    const view = keyStoreViewOf({
+      read: readOf({ ...KEY_STATUS, in: "none" }),
+      move: { kind: "idle" },
+      remote: false,
+      live: true,
+    });
+    expect(SHOWN(initialSecretsState(false), view)).toContain(t("desktop.secrets.keyStore.none"));
+  });
+
+  test("a setting that points at a missing key file warns in danger with the path", () => {
+    const view = keyStoreViewOf({
+      read: readOf({ ...KEY_STATUS, in: "none", fileMissing: true }),
+      move: { kind: "idle" },
+      remote: false,
+      live: true,
+    });
+    expect(SHOWN(initialSecretsState(false), view)).toContain(
+      t("desktop.secrets.keyStore.fileMissing", { path: KEY_STATUS.filePath }),
+    );
+  });
+
+  test("a remote screen reads the line only and says it can change only on this computer", () => {
+    const view = keyStoreViewOf({
+      read: readOf(KEY_STATUS),
+      move: { kind: "idle" },
+      remote: true,
+      live: true,
+    });
+    const out = SHOWN(initialSecretsState(false), view);
+    expect(out).toContain(t("desktop.secrets.keyStore.readOnly"));
+    expect(out).toContain('aria-disabled="true"');
+  });
+});
+
+describe("entry failure sentences on the value step", () => {
+  const FAKE_KEY = "fake-key-for-tests-0002";
+  const ESCAPES: Readonly<Record<string, string>> = {
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#x27;",
+  };
+  /** 그려진 HTML에서 글이 어떤 모양인지. React가 글을 이렇게 바꿔 쓴다 */
+  const escaped = (text: string): string => text.replace(/[&<>"']/g, (ch) => ESCAPES[ch] ?? ch);
+
+  const CASES: readonly {
+    readonly label: string;
+    readonly error: KeyRegisterError;
+    readonly cause: string;
+    /** 고치는 법 한 줄. 시간 초과는 원인 문장 안에 고치는 법이 들어 있어 따로 없다 */
+    readonly fix: string | null;
+  }[] = [
+    {
+      label: "service_local_only",
+      error: { kind: "rejected", exitCode: 1, code: "service_local_only", detail: "" },
+      cause: "이 컴퓨터에서만 값을 넣을 수 있어요",
+      fix: "값을 넣을 컴퓨터의 앱에서 등록하거나 그 컴퓨터에서 `fresnel secret add <이름>`을 실행해요",
+    },
+    {
+      label: "key_store",
+      error: { kind: "rejected", exitCode: 1, code: "key_store", detail: "" },
+      cause: "OS 키 저장소를 쓸 수 없어요",
+      fix: "키 저장소 잠금을 풀거나 설정의 시크릿에서 열쇠 보관을 '앱 파일'로 바꿔요",
+    },
+    {
+      label: "already_exists",
+      error: { kind: "rejected", exitCode: 1, code: "already_exists", detail: "" },
+      cause: "이미 있는 이름이에요",
+      fix: "값만 바꾸려면 '값 바꾸기'를 써요",
+    },
+    {
+      label: "value_too_short",
+      error: { kind: "rejected", exitCode: 1, code: "value_too_short", detail: "" },
+      cause: "값이 너무 짧아요(8자 이상)",
+      fix: "키 전체를 붙여 넣었는지 확인해요",
+    },
+    {
+      label: "sops_missing",
+      error: { kind: "rejected", exitCode: 1, code: "sops_missing", detail: "" },
+      cause: "sops가 없어요",
+      fix: "sops 3.10 이상을 설치해요",
+    },
+    {
+      label: "timeout",
+      error: { kind: "timeout" },
+      cause: "키 등록이 시간 안에 끝나지 않았어요. 다시 시도해 주세요.",
+      fix: null,
+    },
+  ];
+
+  for (const row of CASES) {
+    test(`${row.label}: the cause and its fix are on the step, the field is empty, and the value is not drawn`, async () => {
+      const typed = typedField(FAKE_KEY);
+      const registrar: KeyRegistrar = {
+        registerKey: () => Promise.resolve(err(row.error)),
+      };
+      const outcome = await submitKey(registrar, nameOf("exa-api-key"), "add", typed.field);
+      if (outcome.kind !== "failed") throw new Error("a rejected registration is a failure");
+      expect(outcome.text).toBe(row.cause);
+      expect(outcome.fix ?? null).toBe(row.fix);
+      expect(typed.shown()).toBe("");
+      const markup = renderToString(
+        <ValueStep
+          busy={false}
+          error={{ text: outcome.text, ...(outcome.fix === undefined ? {} : { fix: outcome.fix }) }}
+          onSubmit={NOOP}
+          onCancel={NOOP}
+        />,
+      );
+      expect(markup).toContain(escaped(row.cause));
+      if (row.fix !== null) expect(markup).toContain(escaped(row.fix));
+      expect(markup).not.toContain(FAKE_KEY);
+    });
+  }
 });

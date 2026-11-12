@@ -1,19 +1,25 @@
-import { assertNever, type Result } from "@fresnel/contracts";
+import { assertNever, err, ok, type Result } from "@fresnel/contracts";
 import type { SecretEntryMeta, SecretMeta } from "@fresnel/contracts/capabilities";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
-import type { SecretError, SecretMetaPatch } from "@fresnel/contracts/services";
+import type { SecretError, SecretMetaPatch, SecretValueSource } from "@fresnel/contracts/services";
 import {
   wireError,
+  type SecretKeyWhere,
   type SecretListEntry,
+  type WireError,
   type WireHandler,
   type WireHandlers,
+  type WireRequestContext,
 } from "@fresnel/contracts/wire";
+import type { ConnectionHub } from "../connection-types.ts";
+import { checkChannel, revealChannel, sourceOfChannel } from "../secrets/channel.ts";
 import { auditEntriesOf, handleOf, listEntryOf, wireErrorOfSecret } from "../secrets/wire.ts";
-import type { Engine } from "../types.ts";
+import type { Engine, SettingsWriteFailure } from "../types.ts";
 
 // F.wire-settings.spec §3.3.1 secret.*, L4.host-service.spec §3.4 M2 표. 요청·응답·이벤트·오류 어디에도 값이 없다.
-// 값 입력과 열람은 CLI가 wire 밖으로 맡긴 수단(SecretOutOfBandPort)을 꺼내 SecretAdminService에 넘긴다.
-// 맡긴 수단이 없으면(서비스 접속, 또는 CLI가 맡기지 않음) started: false다.
+// 값 입력과 열람은 두 길 중 하나로 한다. (1) in-process: CLI가 wire 밖으로 맡긴 수단(SecretOutOfBandPort)을 꺼내 쓴다.
+// (2) 같은 컴퓨터의 서비스 접속: 요청이 든 `channel`(CLI가 연 로컬 일회용 소켓, secrets/channel.ts)에서 읽거나 쓴다.
+// 맡긴 수단도 채널도 없으면 started: false다.
 
 type SecretMethod =
   | "secret.list"
@@ -23,7 +29,9 @@ type SecretMethod =
   | "secret.references"
   | "secret.audit"
   | "secret.beginEntry"
-  | "secret.beginReveal";
+  | "secret.beginReveal"
+  | "secret.keyStatus"
+  | "secret.keyMove";
 
 function orThrow<T>(result: Result<T, SecretError>, where: string): T {
   if (!result.ok) throw wireErrorOfSecret(result.error, where);
@@ -153,12 +161,154 @@ function withEntryMeta(defaults: SecretMeta, supplied: SecretEntryMeta | undefin
   };
 }
 
-function createBeginEntryHandler(engine: Engine): WireHandler<"secret.beginEntry"> {
+/** 같은 컴퓨터·같은 사용자의 연결이 아니면 거절한다. 원격 표시(`origin: "remote"`)나 연결 상태를 찾지 못한 경우가 여기 든다 */
+function localOnly(where: string): WireError {
+  return wireError("secret.localOnly", {
+    message: `${where}: only a connection on this computer can carry the value`,
+  });
+}
+
+/** 같은 컴퓨터·같은 사용자의 연결인가. 원격 표시이거나 연결 상태를 찾지 못하면 `secret.localOnly`를 던진다 */
+function requireLocal(
+  engine: Engine,
+  hub: ConnectionHub,
+  context: WireRequestContext,
+  where: string,
+): void {
+  const client = hub.state(context.connectionId)?.client;
+  if (client === undefined || client.origin !== "local") {
+    engine.ports.log.info("secret.local_refused", { where, reason: "not_local" });
+    throw localOnly(where);
+  }
+}
+
+/**
+ * 요청이 보낸 `channel`을 확인한다. 원격이거나 채널이 이 사용자 것이 아니면 `secret.localOnly`를 던진다. 통과하면 경로다
+ * (L4.cli.spec §4.7). 경로 자체는 값이 아니므로 로그에 남긴다
+ */
+async function localChannelOf(
+  engine: Engine,
+  hub: ConnectionHub,
+  context: WireRequestContext,
+  channel: string,
+  where: string,
+): Promise<string> {
+  requireLocal(engine, hub, context, where);
+  const checked = await checkChannel(channel);
+  if (!checked.ok) {
+    engine.ports.log.info("secret.channel_refused", { where, reason: checked.error });
+    throw localOnly(where);
+  }
+  return checked.value;
+}
+
+/** 설정 키 `l0.secrets.ageKey.source`. 열쇠 보관 방식을 정한다(L0.secrets.spec §4.7 (e)) */
+const KEY_SOURCE_SETTING = "l0.secrets.ageKey.source";
+
+/** 설정 쓰기 실패의 원인 글. 입출력 실패는 OS 코드를, 나머지는 종류 이름을 싣는다. 값과 경로는 싣지 않는다 */
+function settingsCodeOf(failure: SettingsWriteFailure): string {
+  return "code" in failure ? failure.code : failure.kind;
+}
+
+/**
+ * 설정 `l0.secrets.ageKey.source`를 `to`로 쓴다(사용자 범위). 실패는 `SecretError`로 돌려줘 `keys.move`가 새 쪽을 되돌리게 한다
+ * (`onFileKeyCreated`가 파일 키 설정을 쓰는 방식과 같다, apps/host/src/assemble.ts)
+ */
+async function writeKeySource(
+  engine: Engine,
+  to: SecretKeyWhere,
+): Promise<Result<void, SecretError>> {
+  const written = await engine.ports.settings.write("user", KEY_SOURCE_SETTING, to, undefined);
+  if (written.ok) return ok(undefined);
+  return err({
+    kind: "write_failed",
+    target: "settings",
+    path: KEY_SOURCE_SETTING,
+    code: settingsCodeOf(written.error),
+  });
+}
+
+/** 열쇠 보관 상태(`secret.keyStatus`). 읽기 전용이고 identity를 읽지 않는다 */
+function createKeyStatusHandler(engine: Engine): WireHandler<"secret.keyStatus"> {
+  const { keys } = engine.ports.secrets;
+  return async () => {
+    const status = await keys.status();
+    return {
+      source: status.source,
+      in: status.in,
+      filePath: status.filePath,
+      keychainUsable: status.keychainUsable,
+      fallbackUnconfirmed: status.fallbackUnconfirmed,
+      fileMissing: status.fileMissing,
+    };
+  };
+}
+
+/**
+ * 열쇠를 `to` 쪽으로 옮기고 설정을 `to`로 바꾼다(`secret.keyMove`, `L0.secrets.spec` §4.7 (b)). 같은 컴퓨터의 연결만 한다.
+ * 옮길 열쇠가 없거나 이미 `to`에 있으면 `keys.move`는 commit을 부르지 않으므로 이 처리기가 설정을 직접 쓴다
+ */
+function createKeyMoveHandler(
+  engine: Engine,
+  hub: () => ConnectionHub,
+): WireHandler<"secret.keyMove"> {
+  const { keys } = engine.ports.secrets;
+  return async (params, context) => {
+    requireLocal(engine, hub(), context, "secret.keyMove");
+    const { to } = params;
+    const moved = orThrow(await keys.move(to, () => writeKeySource(engine, to)), "secret.keyMove");
+    if (!moved.moved) orThrow(await writeKeySource(engine, to), "secret.keyMove");
+    return {
+      moved: moved.moved,
+      created: moved.created,
+      oldRemoved: moved.oldRemoved,
+      source: to,
+    };
+  };
+}
+
+/** 입력이 없었음(취소나 빈 값)을 기억하는 감싸기. 그때 실패는 값 검사가 아니라 사람이 넣지 않은 것이다 */
+function withholdTracked(source: SecretValueSource): {
+  readonly source: SecretValueSource;
+  readonly withheld: () => boolean;
+} {
+  const state = { withheld: false };
+  return {
+    source: {
+      async read() {
+        const read = await source.read();
+        if (!read.ok) state.withheld = true;
+        return read;
+      },
+    },
+    withheld: () => state.withheld,
+  };
+}
+
+function createBeginEntryHandler(
+  engine: Engine,
+  hub: () => ConnectionHub,
+): WireHandler<"secret.beginEntry"> {
   const { secrets, log } = engine.ports;
   const { admin, offers } = secrets;
-  return async (params) => {
+  return async (params, context) => {
     const offer = offers.takeEntry(params.name, params.action);
-    if (offer === undefined) return { started: false };
+    let input: SecretValueSource;
+    if (offer !== undefined) {
+      input = offer.source;
+    } else if (params.channel !== undefined) {
+      const path = await localChannelOf(
+        engine,
+        hub(),
+        context,
+        params.channel,
+        "secret.beginEntry",
+      );
+      input = sourceOfChannel(path, context.signal);
+    } else {
+      return { started: false };
+    }
+    const tracked = withholdTracked(input);
     const handle = handleOf(params.name);
     log.info("secret.entry", { name: params.name, action: params.action });
     let outcome: Result<unknown, SecretError>;
@@ -174,41 +324,66 @@ function createBeginEntryHandler(engine: Engine): WireHandler<"secret.beginEntry
           );
         }
         // set·rotate는 메타를 새로 만들지 않으므로 보낸 메타를 쓰지 않는다
-        outcome = await admin.add(withEntryMeta(defaults, params.meta), offer.source);
+        outcome = await admin.add(withEntryMeta(defaults, params.meta), tracked.source);
         break;
       }
       case "set":
-        outcome = await admin.set(handle, offer.source);
+        outcome = await admin.set(handle, tracked.source);
         break;
       case "rotate":
-        outcome = await admin.rotate(handle, offer.source);
+        outcome = await admin.rotate(handle, tracked.source);
         break;
       default:
         return assertNever(params.action, "SecretEntryAction");
     }
     if (outcome.ok) return { started: true };
-    // 사람이 입력을 취소했다. 아무것도 저장되지 않았다
-    if (outcome.error.kind === "cancelled") return { started: false };
+    // 사람이 입력을 취소했거나 빈 값으로 닫았다. 아무것도 저장되지 않았다
+    if (outcome.error.kind === "cancelled" || tracked.withheld()) return { started: false };
     throw wireErrorOfSecret(outcome.error, "secret.beginEntry");
   };
 }
 
-function createBeginRevealHandler(engine: Engine): WireHandler<"secret.beginReveal"> {
+function createBeginRevealHandler(
+  engine: Engine,
+  hub: () => ConnectionHub,
+): WireHandler<"secret.beginReveal"> {
   const { admin, offers } = engine.ports.secrets;
-  const { log } = engine.ports;
-  return async (params) => {
+  const { log, clock } = engine.ports;
+  return async (params, context) => {
     const offer = offers.takeReveal(params.name);
-    if (offer === undefined) return { started: false };
+    if (offer !== undefined) {
+      log.info("secret.reveal", { name: params.name });
+      const shown = await admin.reveal(handleOf(params.name), offer.reauth, offer.show);
+      return revealOutcome(shown);
+    }
+    if (params.channel === undefined) return { started: false };
+    const path = await localChannelOf(engine, hub(), context, params.channel, "secret.beginReveal");
+    // CLI가 터미널에서 이름을 다시 입력받아 사람을 확인했다는 표시가 없으면 열람하지 않는다
+    if (params.reauth !== "tty-confirm") return { started: false };
+    const delivery = revealChannel(path);
     log.info("secret.reveal", { name: params.name });
-    const shown = await admin.reveal(handleOf(params.name), offer.reauth, offer.show);
-    if (shown.ok) return { started: true };
-    // 사람 확인이 끝나지 않았거나 만료됐다
-    if (shown.error.kind === "reauth_required") return { started: false };
-    throw wireErrorOfSecret(shown.error, "secret.beginReveal");
+    const shown = await admin.reveal(
+      handleOf(params.name),
+      { method: "tty-confirm", verifiedAt: clock.now() },
+      delivery.show,
+    );
+    if (!shown.ok) return revealOutcome(shown);
+    // 기록은 보이기 전에 남는다. 채널에 쓰지 못했으면 값이 보이지 않았다
+    return { started: delivery.delivered() };
   };
 }
 
-export function createSecretHandlers(engine: Engine): Pick<WireHandlers, SecretMethod> {
+function revealOutcome(shown: Result<void, SecretError>): { started: boolean } {
+  if (shown.ok) return { started: true };
+  // 사람 확인이 끝나지 않았거나 만료됐다
+  if (shown.error.kind === "reauth_required") return { started: false };
+  throw wireErrorOfSecret(shown.error, "secret.beginReveal");
+}
+
+export function createSecretHandlers(
+  engine: Engine,
+  hub: () => ConnectionHub,
+): Pick<WireHandlers, SecretMethod> {
   return {
     "secret.list": createListHandler(engine),
     "secret.meta": createMetaHandler(engine),
@@ -216,7 +391,9 @@ export function createSecretHandlers(engine: Engine): Pick<WireHandlers, SecretM
     "secret.test": createTestHandler(engine),
     "secret.references": createReferencesHandler(engine),
     "secret.audit": createAuditHandler(engine),
-    "secret.beginEntry": createBeginEntryHandler(engine),
-    "secret.beginReveal": createBeginRevealHandler(engine),
+    "secret.beginEntry": createBeginEntryHandler(engine, hub),
+    "secret.beginReveal": createBeginRevealHandler(engine, hub),
+    "secret.keyStatus": createKeyStatusHandler(engine),
+    "secret.keyMove": createKeyMoveHandler(engine, hub),
   };
 }

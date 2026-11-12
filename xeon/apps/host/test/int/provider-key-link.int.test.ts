@@ -17,6 +17,7 @@ import { memorySecrets, type MemorySecrets } from "@fresnel/platform-secrets/tes
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost, type InProcessHost } from "../../src/main.ts";
 import { startFakeAnthropic, type FakeAnthropic } from "../fixtures/fake-anthropic.ts";
+import { createFakeKeys } from "../fixtures/fake-keys.ts";
 import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { writeUserSettings } from "../fixtures/user-settings.ts";
@@ -106,7 +107,7 @@ async function start(options: StartOptions = {}): Promise<Scenario> {
           options.existing === undefined ? [] : [{ meta: options.existing, value: KEY_VALUE }],
       });
       holder.secrets = secrets;
-      return { service: secrets, admin: secrets.admin };
+      return { service: secrets, admin: secrets.admin, keys: createFakeKeys() };
     },
   });
   const connection = createHostConnection(host.client);

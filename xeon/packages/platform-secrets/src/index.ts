@@ -4,6 +4,12 @@
 export {
   createSecretService,
   createSecretsRuntime,
+  type KeyCommit,
+  type KeyLocation,
+  type KeyMoveOutcome,
+  type KeyMoveTarget,
+  type KeyStatus,
+  type SecretKeys,
   type SecretsOs,
   type SecretsRuntime,
   type SecretsRuntimeDeps,

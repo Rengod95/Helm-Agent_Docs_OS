@@ -73,13 +73,29 @@ function LockLine(props: { readonly text: string }): ReactNode {
   );
 }
 
-/** 오류 한 줄(13 danger) */
-function ErrorLine(props: { readonly text: string | null }): ReactNode {
+/** 키 등록 실패의 문장 한 쌍. `text`는 원인, `fix`는 고치는 법 한 문장이다(알려진 원인만). 값은 없다 */
+export interface KeyErrorText {
+  readonly text: string;
+  readonly fix?: string | undefined;
+}
+
+/** 오류 한 줄(13 danger). 고치는 법이 있으면 그 밑에 한 줄(13 tertiary)을 둔다 */
+export function ErrorLine(props: {
+  readonly text: string | null;
+  readonly fix?: string | undefined;
+}): ReactNode {
   if (props.text === null) return null;
-  return (
+  const alert = (
     <p role="alert" className="m-0 text-ui text-danger-text">
       {props.text}
     </p>
+  );
+  if (props.fix === undefined) return alert;
+  return (
+    <div className="grid gap-1">
+      {alert}
+      <p className="m-0 text-ui text-text-tertiary">{props.fix}</p>
+    </div>
   );
 }
 
@@ -152,7 +168,12 @@ export function providerStepsOf(
     if (result.state !== "passed" && result.state !== "failed") {
       return { id: result.id, label, state: result.state };
     }
-    const base = { id: result.id, label, state: result.state, elapsedMs: result.elapsedMs };
+    const base = {
+      id: result.id,
+      label,
+      state: result.state,
+      ...(result.elapsedMs === undefined ? {} : { elapsedMs: result.elapsedMs }),
+    };
     const reason = result.reason;
     switch (reason.kind) {
       case "stored":
@@ -206,7 +227,11 @@ export function providerStepsOf(
           fix: t("desktop.providers.check.fix.noModels"),
         };
       case "error":
-        return { ...base, detail: reason.text };
+        return {
+          ...base,
+          detail: reason.text,
+          ...(reason.fix === undefined ? {} : { fix: reason.fix }),
+        };
       default:
         return assertNever(reason, "ProviderCheckReason");
     }
@@ -232,6 +257,8 @@ function ProviderCardView(props: {
 }): ReactNode {
   const { card, editable, handlers } = props;
   const hasKey = card.secretName !== null;
+  // 마지막 점검이 떨어졌으면 그 사유를 상태 줄에 보인다(아래 점검 줄과 같은 문장). 점검을 다시 통과하면 상태로 돌아간다
+  const failure = props.steps?.find((step) => step.state === "failed")?.detail ?? null;
   return (
     <article
       data-slot="provider-card"
@@ -266,7 +293,7 @@ function ProviderCardView(props: {
             aria-hidden
             className={`size-1.5 flex-none rounded-full ${STATUS_DOT[card.status]}`}
           />
-          <span className="min-w-0 truncate">{providerStatusText(card)}</span>
+          <span className="min-w-0 truncate">{failure ?? providerStatusText(card)}</span>
         </span>
         {card.usage === null ? null : (
           <span className="truncate ps-3 text-ui-sm text-text-tertiary tabular-nums">
@@ -659,7 +686,7 @@ function KeyInput(props: {
 
 /** 키 연결 대화 상자의 단계 */
 export type KeyDialogPhase =
-  | { readonly kind: "entry"; readonly error: string | null }
+  | { readonly kind: "entry"; readonly error: KeyErrorText | null }
   /** 호스트가 자기 창에서 값을 받는다. 다 넣으면 시험한다 */
   | { readonly kind: "hostWindow" }
   | { readonly kind: "checking"; readonly steps: readonly CheckStep[] };
@@ -732,7 +759,7 @@ export function KeyDialog(props: KeyDialogProps): ReactNode {
             onSource={props.onSource}
             onPicked={props.onPicked}
           />
-          <ErrorLine text={phase.error} />
+          <ErrorLine text={phase.error?.text ?? null} fix={phase.error?.fix} />
           <div className="flex justify-end gap-2 pt-1">
             <Button
               type="button"
@@ -1115,7 +1142,7 @@ export interface AddAccountDialogProps {
   readonly secrets: readonly string[];
   readonly picked: string | null;
   readonly busy: boolean;
-  readonly error: string | null;
+  readonly error: KeyErrorText | null;
   readonly onProvider: (id: string) => void;
   readonly onAccountId: (text: string) => void;
   readonly onSource: (source: KeySource) => void;
@@ -1197,7 +1224,7 @@ export function AddAccountDialog(props: AddAccountDialogProps): ReactNode {
           onSource={props.onSource}
           onPicked={props.onPicked}
         />
-        <ErrorLine text={props.error} />
+        <ErrorLine text={props.error?.text ?? null} fix={props.error?.fix} />
         <div className="flex justify-end gap-2 pt-1">
           <Button
             type="button"

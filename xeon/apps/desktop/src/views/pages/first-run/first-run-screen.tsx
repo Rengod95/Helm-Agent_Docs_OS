@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { keepTools } from "../../../app/setup.ts";
 import { useEngineState, useLinkPhase } from "../../../state/engine/index.ts";
 import { useShellActions } from "../../../state/shell/index.ts";
+import { useFallbackConfirm } from "../secrets/key-store-confirm.tsx";
 import {
   useCommands,
   type CommandError,
@@ -60,6 +61,8 @@ export function FirstRunScreen(): ReactNode {
   const shell = useShellActions();
   const phase = useLinkPhase();
   const live = phase === "live";
+  // 첫 키를 넣기 전 열쇠 보관 확인(앱 파일 승인). 대화 상자는 이 화면의 그림 끝에 둔다
+  const confirm = useFallbackConfirm(commands.secrets);
   const engine = useEngineState();
   const notices = useHostNotices();
   const [setup, setSetup] = useState<Loaded<SetupSnapshot>>({ kind: "loading" });
@@ -204,7 +207,7 @@ export function FirstRunScreen(): ReactNode {
     const { name, action, providerId } = keyEntry;
     work(async () => {
       // `submitKey`는 첫 `await` 전에 입력란을 읽고 비운다. 이 함수는 이벤트 안에서 바로 불린다
-      const outcome = await submitKey(commands.setup, name, action, field);
+      const outcome = await submitKey(commands.setup, name, action, field, confirm.preflight);
       switch (outcome.kind) {
         case "registered":
           setKeyEntry({ state: "idle" });
@@ -212,6 +215,10 @@ export function FirstRunScreen(): ReactNode {
           // 제공자 키는 이어서 제공자에 잇고, 검색 플러그인 키는 저장만 하고 권장 상태를 다시 읽는다
           if (providerId === null) await reloadAll(false);
           else await connectNow(providerId, name);
+          return;
+        case "cancelled":
+          // 열쇠 보관 확인에서 취소했다. 입력 폼으로 돌아가고 입력란은 그대로 둔다
+          setKeyEntry({ state: "form", name, action, providerId });
           return;
         case "terminal":
           setKeyEntry({ state: "failed", text: t("desktop.firstRun.key.unavailable") });
@@ -339,21 +346,24 @@ export function FirstRunScreen(): ReactNode {
   };
 
   return (
-    <FirstRunView
-      status={status}
-      reason={setup.kind === "failed" ? errorText(setup.error) : null}
-      locked={!live || busy}
-      setup={setupValue}
-      model={model}
-      open={openStep}
-      providerInput={providerInput}
-      modelInput={modelInput}
-      modelChoices={modelChoices}
-      keyEntry={keyEntry}
-      notice={notice}
-      engineState={`${engineLineOf(shownEngineOf(engine, phase === "live"))} · ${t(linkTextOf(phase))}`}
-      settingsProblem={firstSettingsProblemOf(notices?.settingsProblems ?? [])}
-      handlers={handlers}
-    />
+    <>
+      <FirstRunView
+        status={status}
+        reason={setup.kind === "failed" ? errorText(setup.error) : null}
+        locked={!live || busy}
+        setup={setupValue}
+        model={model}
+        open={openStep}
+        providerInput={providerInput}
+        modelInput={modelInput}
+        modelChoices={modelChoices}
+        keyEntry={keyEntry}
+        notice={notice}
+        engineState={`${engineLineOf(shownEngineOf(engine, phase === "live"))} · ${t(linkTextOf(phase))}`}
+        settingsProblem={firstSettingsProblemOf(notices?.settingsProblems ?? [])}
+        handlers={handlers}
+      />
+      {confirm.dialog}
+    </>
   );
 }

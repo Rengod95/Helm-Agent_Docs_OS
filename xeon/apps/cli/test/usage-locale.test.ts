@@ -147,8 +147,8 @@ Commands
   config reset <key> [--scope user|project|local]
   config list [--prefix <p>] [--deprecated] [--json]
                             Set, clear, and list settings
-  secret ls|add|set|meta|rotate|rm|test|reveal
-                            Manage secrets. Values are read only from a prompt or stdin. Use reveal only in a terminal
+  secret ls|add|set|meta|rotate|rm|test|reveal|key
+                            Manage secrets. Values are read only from a prompt or stdin. Use reveal only in a terminal. key status|use shows where the key is and moves it
   trust [status] [--json]   Show the work folder trust state for this working folder, and the choices
   trust list [--json]       List the folders that were trusted or denied (read only)
   trust allow|deny [--scope folder|parent|session]

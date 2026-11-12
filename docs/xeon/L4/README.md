@@ -168,7 +168,7 @@ L4가 정하지 않는 것:
 | 4 | TUI 선택(pi-tui 채택, 스택 표에 행 없음) | `L4.cli.spec` §10-6 | 사용자 확인 |
 | 5 | 닫음: 데스크톱 프런트엔드는 React 19 + Zustand 5(adr.0010, 2026-10-24). 상태 모델은 `L4.desktop.design`, 규칙은 `eng.frontend-state.guide`. `L4.settings-ui.spec` §10-16의 부품 형식과 `ui`·`visual` 시험 도입은 남는다 | `L4.desktop.spec` §10-11, `L4.settings-ui.spec` §10-16 | - |
 | 6 | Linux/WSL 데스크톱 지원 수준, 최소 macOS·WebKitGTK 버전 | `L4.desktop.spec` §10-9·10 | 사용자 확인 |
-| 7 | 시크릿 입력·관리 wire 경로. 값 없는 `secret.*` 일곱(`list`, `meta`, `remove`, `test`, `references`, `beginEntry`, `beginReveal`)이 F에 M2로 있고 호스트가 처리한다(`L4.host-service.spec` §4.12, 오류는 `secret.*` 전용 kind 3201~3212). 열람은 M2 CLI `secret reveal`과 M3 화면(review.decisions-2 U-20). 남은 것: C안 불가 OS의 대체, `SecretEntryOffer`의 `add`용 메타 일부 필드(M3) | `L4.cli.spec` §10-3, `L4.settings-ui.spec` §10-2, `L0.secrets.spec` §8.3 R4 | M3 |
+| 7 | 시크릿 입력·관리 wire 경로. 값 없는 `secret.*` 일곱(`list`, `meta`, `remove`, `test`, `references`, `beginEntry`, `beginReveal`)이 F에 M2로 있고 호스트가 처리한다(`L4.host-service.spec` §4.12, 오류는 `secret.*` 전용 kind 3201~3213). 열람은 M2 CLI `secret reveal`과 M3 화면(review.decisions-2 U-20). 남은 것: C안 불가 OS의 대체, `SecretEntryOffer`의 `add`용 메타 일부 필드(M3) | `L4.cli.spec` §10-3, `L4.settings-ui.spec` §10-2, `L0.secrets.spec` §8.3 R4 | M3 |
 | 8 | 닫음: 원격은 M3에 로컬 소켓 터널로, 내장 TLS + 토큰 WebSocket은 2차(review.decisions-2 U-11) | `L4.host-service.spec` §4.11, §10-4 | - |
 | 9 | 서비스 인증: Unix 소켓 + 파일 권한으로 충분한지, 토큰을 `host.hello`에 실을지 | `L4.host-service.spec` §10-10, `F.wire-settings.spec` §10-4 | 사용자 확인 |
 | 10 | 닫음: `host.shutdown`은 F 메서드 표에 M2로 있다. M2 전까지 stdin 닫기로 대신 | `L4.host-service.spec` §10-9, `L4.desktop.spec` §10-2 | - |
@@ -221,7 +221,7 @@ L4가 정하지 않는 것:
 
 ### 8.1 시크릿 메서드 이름표
 
-[제안] CLI와 설정 화면은 아래 단수 `secret.*` 메서드를 같은 이름으로 쓴다. 모두 값 필드가 없다. 값 입력과 열람은 호스트 쪽 L0.secrets가 OS 입력 창(서비스 접속) 또는 wire 밖 전달(in-process CLI)로 받는다(`L4.settings-ui.spec` §4.6.4 C안, `L4.cli.spec` §4.7). 일곱 메서드 모두 F 메서드 표에 M2로 있고(`F.wire-settings.spec` §3.3.1) 호스트가 처리한다(`L4.host-service.spec` §4.12). 오류는 `secret.*` 전용 kind 3201~3212다(HS-47).
+[제안] CLI와 설정 화면은 아래 단수 `secret.*` 메서드를 같은 이름으로 쓴다. 모두 값 필드가 없다. 값 입력과 열람은 호스트 쪽 L0.secrets가 OS 입력 창(서비스 접속) 또는 wire 밖 전달(in-process CLI)로 받는다(`L4.settings-ui.spec` §4.6.4 C안, `L4.cli.spec` §4.7). 일곱 메서드 모두 F 메서드 표에 M2로 있고(`F.wire-settings.spec` §3.3.1) 호스트가 처리한다(`L4.host-service.spec` §4.12). 오류는 `secret.*` 전용 kind 3201~3213다(HS-47).
 
 | 메서드 | 주요 params | CLI 명령(`L4.cli.spec` §3.1) | 설정 화면(`L4.settings-ui.spec` §4.6.3) | L0.secrets 서비스 메서드(`L0.secrets.spec` §6.3) |
 |---|---|---|---|---|

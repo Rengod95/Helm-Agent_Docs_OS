@@ -527,6 +527,52 @@ describe("M2 method schemas are written out", () => {
     expect(parse(WIRE_METHODS["secret.list"].params, { meta: true, usage: false }).ok).toBe(true);
   });
 
+  test("secret.beginEntry and secret.beginReveal take a socket path and the tty-confirm mark, never a value", () => {
+    const entry = WIRE_METHODS["secret.beginEntry"].params;
+    expect(parse(entry, { name: "github-token", action: "add", channel: "/tmp/x/c.sock" }).ok).toBe(
+      true,
+    );
+    expect(parse(entry, { name: "github-token", action: "add", channel: "" }).ok).toBe(false);
+    const reveal = WIRE_METHODS["secret.beginReveal"].params;
+    expect(
+      parse(reveal, { name: "github-token", channel: "/tmp/x/c.sock", reauth: "tty-confirm" }).ok,
+    ).toBe(true);
+    expect(parse(reveal, { name: "github-token", reauth: "os-auth" }).ok).toBe(false);
+    expect(parse(reveal, { name: "github-token", value: "plain" }).ok).toBe(false);
+  });
+
+  test("secret.keyStatus and secret.keyMove carry no value, and the target is keychain or file", () => {
+    const status = WIRE_METHODS["secret.keyStatus"];
+    expect(status.stage).toBe("M4");
+    expect(parse(status.params, {}).ok).toBe(true);
+    expect(parse(status.params, { value: "plain" }).ok).toBe(false);
+    const where = {
+      source: "auto",
+      in: "none",
+      filePath: "/cfg/secrets/age/keys.txt",
+      keychainUsable: false,
+      fallbackUnconfirmed: true,
+      fileMissing: false,
+    };
+    expect(parse(status.result, where).ok).toBe(true);
+    expect(parse(status.result, { ...where, source: "op" }).ok).toBe(false);
+    expect(parse(status.result, { ...where, in: "auto" }).ok).toBe(false);
+    expect(parse(status.result, { ...where, value: "plain" }).ok).toBe(false);
+
+    const move = WIRE_METHODS["secret.keyMove"];
+    expect(move.stage).toBe("M4");
+    expect(parse(move.params, { to: "file" }).ok).toBe(true);
+    expect(parse(move.params, { to: "keychain" }).ok).toBe(true);
+    expect(parse(move.params, { to: "op" }).ok).toBe(false);
+    expect(parse(move.params, { to: "file", value: "plain" }).ok).toBe(false);
+    expect(
+      parse(move.result, { moved: true, created: true, oldRemoved: true, source: "file" }).ok,
+    ).toBe(true);
+    expect(
+      parse(move.result, { moved: false, created: false, oldRemoved: false, source: "auto" }).ok,
+    ).toBe(false);
+  });
+
   test("trust.list and workspace.status take the spec's params and return the spec's shapes", () => {
     const list = WIRE_METHODS["trust.list"];
     expect(list.stage).toBe("M4");

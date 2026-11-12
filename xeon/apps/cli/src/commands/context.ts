@@ -2,7 +2,13 @@ import { err, ok, type Result } from "@fresnel/contracts";
 import type { JsonRpcMessage } from "@fresnel/contracts/wire";
 import type { GlobalOptions } from "../cli/command.ts";
 import type { EngineHandle } from "../engine.ts";
-import { failureOfCaught, failureOfStart, renderFailure, type Failure } from "../errors.ts";
+import {
+  failureOfCaught,
+  failureOfStart,
+  renderFailure,
+  type Failure,
+  type FailureScope,
+} from "../errors.ts";
 import type { ExitCode } from "../exit-codes.ts";
 import type { CliDeps, CliIo } from "../io.ts";
 import { cliSettingGroups } from "../settings.ts";
@@ -16,11 +22,13 @@ export interface CommandContext {
   readonly global: GlobalOptions;
   /** 작업 폴더 절대 경로 */
   readonly workspace: string;
+  /** 실패에 종류 코드를 싣는 범위. 시크릿 명령만 `secret`이고 기본은 `plain`이다(L4.cli.spec §4.7) */
+  readonly failureScope?: FailureScope;
 }
 
 export async function printFailure(
   io: CliIo,
-  failure: Pick<Failure, "message" | "fix">,
+  failure: Pick<Failure, "message" | "fix" | "kind">,
 ): Promise<void> {
   await io.stderr(renderFailure(failure));
 }
@@ -76,14 +84,19 @@ export async function connectOrReportQuiet(
     ...(ctx.deps.stateFile === undefined ? {} : { stateFile: ctx.deps.stateFile }),
   });
   if (connected.ok) return ok(connected.value);
-  return err(failureOfStart(connected.error));
+  return err(failureOfStart(connected.error, ctx.failureScope ?? "plain"));
 }
 
 /**
  * 명령 실행 중 잡은 값을 두 줄 오류로 알리고 종료 코드를 돌려준다. wire 오류와 연결 끊김이 아닌 값(버그)은 그대로 다시 던진다.
+ * `scope`가 `secret`이면 종류 코드 줄도 쓴다.
  */
-export async function reportCaught(io: CliIo, caught: unknown): Promise<ExitCode> {
-  const failure = failureOfCaught(caught);
+export async function reportCaught(
+  io: CliIo,
+  caught: unknown,
+  scope: FailureScope = "plain",
+): Promise<ExitCode> {
+  const failure = failureOfCaught(caught, scope);
   if (failure === undefined) throw caught;
   await printFailure(io, failure);
   return failure.code;
@@ -111,6 +124,6 @@ export async function withEngine(
     return await closeEngine(handle, code);
   } catch (caught) {
     await handle.shutdown("user");
-    return reportCaught(ctx.io, caught);
+    return reportCaught(ctx.io, caught, ctx.failureScope ?? "plain");
   }
 }

@@ -143,6 +143,10 @@ describe("withMeta and the registry", () => {
 
   test("methods sharing a params shape share the extended schema object", () => {
     expect(WIRE_METHODS["thread.close"].params).toBe(WIRE_METHODS["thread.delete"].params);
-    expect(WIRE_METHODS["secret.remove"].params).toBe(WIRE_METHODS["secret.beginReveal"].params);
+    // beginReveal은 channel과 reauth를 더 받아 자기 params를 쓴다
+    expect(WIRE_METHODS["secret.remove"].params).not.toBe(
+      WIRE_METHODS["secret.beginReveal"].params,
+    );
+    expect(WIRE_METHODS["secret.beginReveal"].params.properties).toHaveProperty("_meta");
   });
 });

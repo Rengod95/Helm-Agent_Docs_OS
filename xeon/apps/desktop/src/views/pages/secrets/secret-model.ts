@@ -42,20 +42,26 @@ export interface DetailState {
   readonly test: Load<SecretTestResult>;
 }
 
+/** 등록 창의 오류 한 건. `text`는 원인 한 문장이고, `fix`는 고치는 법 한 문장이다(알려진 원인만 있다). 값은 없다 */
+export interface EntryError {
+  readonly text: string;
+  readonly fix?: string;
+}
+
 /** 등록 창. 추가는 이름 칸 다음에 값 칸이고, 값 바꾸기는 값 칸만 있다. 값 칸은 화면에 DOM으로만 있다 */
 export type EntryState =
   | { readonly kind: "closed" }
   | {
       readonly kind: "name";
       readonly name: string;
-      readonly error: string | null;
+      readonly error: EntryError | null;
       readonly busy: boolean;
     }
   | {
       readonly kind: "value";
       readonly name: SecretName;
       readonly action: "add" | "set";
-      readonly error: string | null;
+      readonly error: EntryError | null;
       readonly busy: boolean;
     };
 
@@ -140,7 +146,7 @@ export type SecretsAction =
       readonly action: "add" | "set";
       readonly started: boolean;
     }
-  | { readonly type: "entryFailed"; readonly error: string }
+  | { readonly type: "entryFailed"; readonly error: EntryError }
   | { readonly type: "entryClosed" }
   | { readonly type: "metaOpen"; readonly name: SecretName; readonly draft: MetaDraft }
   | { readonly type: "metaDraft"; readonly draft: MetaDraft }

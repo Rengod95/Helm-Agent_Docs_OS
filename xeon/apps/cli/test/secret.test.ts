@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
+import { dirname } from "node:path";
 import { afterEach, expect, test } from "bun:test";
 import {
   wireError,
@@ -470,4 +472,100 @@ test("a reveal the host declines (not started) says so and prints no value", asy
   expect(await s.h.run(["secret", "reveal", "api-key"])).toBe(EXIT.error);
   expect(s.h.stderrText()).toContain("값을 보이지 않았다");
   expect(s.h.stdoutBytes).toEqual([]);
+});
+
+// ── 같은 컴퓨터의 서비스 접속: 로컬 일회용 채널(L4.cli.spec §4.7). 가짜 호스트가 채널에 실제 소켓으로 연결한다 ──
+
+test("on this computer's service, add takes the value through a local channel: the request carries only the path", async () => {
+  const s = setup({ service: "local", stdin: `${VALUE}\n` });
+  expect(await s.h.run(["secret", "add", "github-token"])).toBe(EXIT.ok);
+  expect(new TextDecoder().decode(s.secrets.stored.get("github-token"))).toBe(VALUE);
+  expect(s.h.stdoutText()).toBe("github-token: 등록했다\n");
+  const [call] = s.secrets.beginEntryCalls;
+  const channel = call?.["channel"];
+  expect(typeof channel).toBe("string");
+  expect(String(channel).startsWith("/")).toBe(true);
+  expect(JSON.stringify(s.secrets.beginEntryCalls)).not.toContain(VALUE);
+  expectNoValue(s);
+  // 폴더와 소켓은 끝나면 지운다
+  expect(existsSync(dirname(String(channel)))).toBe(false);
+});
+
+test("a terminal over the local channel asks twice without echo and stores the matching value", async () => {
+  const s = setup({ service: "local", terminal: TTY, secretInputs: [VALUE, VALUE] });
+  expect(await s.h.run(["secret", "add", "github-token"])).toBe(EXIT.ok);
+  expect(new TextDecoder().decode(s.secrets.stored.get("github-token"))).toBe(VALUE);
+  expectNoValue(s);
+});
+
+test("cancelling the prompt over the local channel stores nothing and says so", async () => {
+  const s = setup({ service: "local", terminal: TTY, secretInputs: [null] });
+  expect(await s.h.run(["secret", "add", "github-token"])).toBe(EXIT.error);
+  expect(s.h.stderrText()).toContain("입력을 취소했다");
+  expect(s.secrets.stored.size).toBe(0);
+});
+
+test("an empty value over the local channel is the empty-value usage error and stores nothing", async () => {
+  const s = setup({ service: "local", stdin: "\n" });
+  expect(await s.h.run(["secret", "add", "github-token"])).toBe(EXIT.usage);
+  expect(s.h.stderrText()).toContain("값이 비어 있다");
+  expect(s.secrets.stored.size).toBe(0);
+});
+
+test("from a remote service no value is taken: the local-only message says where to enter it", async () => {
+  const s = setup({ service: "remote", stdin: VALUE });
+  expect(await s.h.run(["secret", "add", "github-token"])).toBe(EXIT.error);
+  expect(s.h.stderrText()).toContain("이 컴퓨터에서만 값을 넣을 수 있어요");
+  expect(s.h.stderrText()).toContain("`fresnel secret add <이름>`을 실행해요");
+  // 채널 경로도 맡긴 수단도 없다
+  expect(s.secrets.beginEntryCalls).toEqual([{ name: "github-token", action: "add" }]);
+  expect(s.secrets.stored.size).toBe(0);
+  expectNoValue(s);
+});
+
+test("when the host refuses the local channel as secret.localOnly, the CLI shows the same local-only message", async () => {
+  const s = setup({ service: "local", stdin: VALUE }, [], { refuseChannel: true });
+  expect(await s.h.run(["secret", "add", "github-token"])).toBe(EXIT.error);
+  expect(s.h.stderrText()).toContain("이 컴퓨터에서만 값을 넣을 수 있어요");
+  expect(s.secrets.stored.size).toBe(0);
+  expectNoValue(s);
+});
+
+test("secret reveal on this computer's service writes the value to the terminal through the local channel", async () => {
+  const s = setup({
+    service: "local",
+    terminal: TTY,
+    readLine: () => Promise.resolve("api-key"),
+  });
+  s.secrets.stored.set("api-key", new TextEncoder().encode(VALUE));
+  expect(await s.h.run(["secret", "reveal", "api-key"])).toBe(EXIT.ok);
+  expect(new TextDecoder().decode(Buffer.concat(s.h.stdoutBytes))).toBe(`${VALUE}\n`);
+  expect(s.h.stdoutText()).not.toContain(VALUE);
+  expect(JSON.stringify(s.h.server().requests)).not.toContain(VALUE);
+});
+
+test("secret reveal from a remote service shows nothing and says the value can only be shown here", async () => {
+  const s = setup({
+    service: "remote",
+    terminal: TTY,
+    readLine: () => Promise.resolve("api-key"),
+  });
+  s.secrets.stored.set("api-key", new TextEncoder().encode(VALUE));
+  expect(await s.h.run(["secret", "reveal", "api-key"])).toBe(EXIT.error);
+  expect(s.h.stderrText()).toContain("이 컴퓨터에서만 값을 볼 수 있어요");
+  expect(Buffer.concat(s.h.stdoutBytes).length).toBe(0);
+  expectNoValue(s);
+});
+
+test("a reveal the host refuses as local-only says so and shows nothing", async () => {
+  const s = setup(
+    { service: "local", terminal: TTY, readLine: () => Promise.resolve("api-key") },
+    [],
+    { refuseChannel: true },
+  );
+  s.secrets.stored.set("api-key", new TextEncoder().encode(VALUE));
+  expect(await s.h.run(["secret", "reveal", "api-key"])).toBe(EXIT.error);
+  expect(s.h.stderrText()).toContain("이 컴퓨터에서만 값을 볼 수 있어요");
+  expect(Buffer.concat(s.h.stdoutBytes).length).toBe(0);
+  expectNoValue(s);
 });

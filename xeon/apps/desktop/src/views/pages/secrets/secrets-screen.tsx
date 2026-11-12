@@ -12,7 +12,16 @@ import {
   type ReactNode,
 } from "react";
 import { useLinkPhase } from "../../../state/engine/index.ts";
+import { useEngineTarget } from "../../../state/ui/index.ts";
 import { useCommands } from "../../commands.ts";
+import { useFallbackConfirm } from "./key-store-confirm.tsx";
+import {
+  INITIAL_KEY_STORE,
+  keyStoreDoneOf,
+  keyStoreReducer,
+  keyStoreViewOf,
+  type KeyWhere,
+} from "./key-store-model.ts";
 import { RevealGateContext } from "./reveal-gate-context.ts";
 import { draftOf, entryNameOf, metaParamsOf, type MetaDraft } from "./secret-draft.ts";
 import {
@@ -64,6 +73,11 @@ export function SecretsPanel(props: {
   const latest = useRef(0);
   const focusName = props.focusName ?? null;
   const onFocused = props.onFocused;
+  // "열쇠 보관" 줄의 위치와 옮기기 상태. 값과 식별자는 없다(위치와 방식만)
+  const target = useEngineTarget();
+  const [keyState, dispatchKey] = useReducer(keyStoreReducer, INITIAL_KEY_STORE);
+  // 값을 등록하기 전 열쇠 보관 확인(앱 파일 승인). 대화 상자는 화면 그림 끝에 둔다
+  const confirm = useFallbackConfirm(commands.secrets);
 
   // 값 보기 세션은 화면 하나에 하나다. 재인증 관문은 앱 진입점이 넣는다(macOS는 `os_reauth`, 그 밖은 잠김)
   const [session] = useState<RevealSession>(() =>
@@ -134,6 +148,17 @@ export function SecretsPanel(props: {
     [commands],
   );
 
+  /** 열쇠 보관 위치를 다시 읽는다. 옮긴 뒤와 등록 뒤에도 부른다(열쇠가 생기면 줄의 글이 바뀐다) */
+  const loadKeyStatus = useCallback(async (): Promise<void> => {
+    const status = await commands.secrets.keyStatus();
+    dispatchKey({
+      type: "read",
+      read: status.ok
+        ? { kind: "ready", status: status.value }
+        : { kind: "failed", error: status.error },
+    });
+  }, [commands]);
+
   // 지금 시각은 효과에서만 읽는다. 처음에 한 번, 그 뒤로는 간격마다 다시 읽는다(마지막 사용 문장의 "2분 전")
   useEffect(() => {
     dispatch({ type: "now", nowMs: Date.now() });
@@ -159,6 +184,11 @@ export function SecretsPanel(props: {
     if (live) detach(load(), rethrow);
     else dispatch({ type: "listFailed", error: { kind: "offline" } });
   }, [load, live]);
+
+  // 열쇠 보관 위치도 연결이 살아날 때마다 읽는다(오프라인이면 마지막 값을 두고 줄을 끈다)
+  useEffect(() => {
+    if (live) detach(loadKeyStatus(), rethrow);
+  }, [live, loadKeyStatus]);
 
   // 고른 시크릿의 참조는 고를 때마다 한 번 읽는다(이미 읽었거나 읽는 중이면 다시 부르지 않는다)
   const detailName = state.detail?.name ?? null;
@@ -244,7 +274,7 @@ export function SecretsPanel(props: {
   const beginEntry = async (name: SecretName, action: "add" | "set"): Promise<void> => {
     const begun = await commands.secrets.beginEntry(name, action);
     if (!begun.ok) {
-      dispatch({ type: "entryFailed", error: messageOf(commandErrorText(begun.error)) });
+      dispatch({ type: "entryFailed", error: { text: messageOf(commandErrorText(begun.error)) } });
       return;
     }
     if (begun.value) {
@@ -259,7 +289,7 @@ export function SecretsPanel(props: {
     if (state.entry.kind !== "name") return;
     const checked = entryNameOf(state.entry.name);
     if (!checked.ok) {
-      dispatch({ type: "entryFailed", error: t("desktop.secrets.entry.nameInvalid") });
+      dispatch({ type: "entryFailed", error: { text: t("desktop.secrets.entry.nameInvalid") } });
       return;
     }
     dispatch({ type: "entryPending", busy: true });
@@ -282,26 +312,39 @@ export function SecretsPanel(props: {
     action: "add" | "set",
     field: KeyField,
   ): Promise<void> => {
-    const outcome = await submitKey(commands.secrets, name, action, field);
+    const outcome = await submitKey(commands.secrets, name, action, field, confirm.preflight);
     switch (outcome.kind) {
       case "registered":
         dispatch({ type: "entryClosed" });
         notify("success", t("desktop.secrets.entry.saved"));
         await reloadAndSelect(name);
+        await loadKeyStatus();
+        return;
+      case "cancelled":
+        // 열쇠 보관 확인에서 취소했다. 등록 창은 그대로 두고 입력란의 값도 그대로 둔다
+        dispatch({ type: "entryPending", busy: false });
         return;
       case "terminal":
         dispatch({
           type: "entryFailed",
-          error: t("desktop.secrets.entry.terminal", {
-            command: `fresnel secret ${action} ${name}`,
-          }),
+          error: {
+            text: t("desktop.secrets.entry.terminal", {
+              command: `fresnel secret ${action} ${name}`,
+            }),
+          },
         });
         return;
       case "empty":
-        dispatch({ type: "entryFailed", error: t("desktop.secrets.entry.empty") });
+        dispatch({ type: "entryFailed", error: { text: t("desktop.secrets.entry.empty") } });
         return;
       case "failed":
-        dispatch({ type: "entryFailed", error: outcome.text });
+        dispatch({
+          type: "entryFailed",
+          error: {
+            text: outcome.text,
+            ...(outcome.fix === undefined ? {} : { fix: outcome.fix }),
+          },
+        });
         return;
       default:
         return assertNever(outcome, "KeyOutcome");
@@ -313,6 +356,29 @@ export function SecretsPanel(props: {
     const { name, action } = state.entry;
     dispatch({ type: "entryPending", busy: true });
     detach(submitValue(name, action, field), rethrow);
+  };
+
+  // ── 열쇠 보관 옮기기 ─────────────────────────────────────────────────
+
+  /**
+   * 옮기기 한 번. 성공이면 옮긴 문장을 알리고, 실패면 줄에 원인을 둔다. 어느 쪽이든 위치를 다시 읽어 지금 자리를 보인다
+   * (실패하면 제자리로 돌아간 상태가 보인다).
+   */
+  const moveKeyStore = async (to: KeyWhere): Promise<void> => {
+    const moved = await commands.secrets.keyMove(to);
+    if (moved.ok) {
+      dispatchKey({ type: "move", move: { kind: "done", result: moved.value } });
+      notify("success", messageOf(keyStoreDoneOf(moved.value)));
+    } else {
+      dispatchKey({ type: "move", move: { kind: "failed", error: moved.error } });
+    }
+    await loadKeyStatus();
+  };
+
+  const chooseKeyStore = (to: KeyWhere): void => {
+    if (keyState.move.kind === "moving") return;
+    dispatchKey({ type: "move", move: { kind: "moving", to } });
+    detach(moveKeyStore(to), rethrow);
   };
 
   // ── 메타 고치기 ───────────────────────────────────────────────────────
@@ -469,16 +535,26 @@ export function SecretsPanel(props: {
     removeClose: () => {
       dispatch({ type: "confirmRemove", open: false });
     },
+    keyStore: chooseKeyStore,
   };
 
   return (
-    <SecretsScreenView
-      state={state}
-      shownText={session.shownText()}
-      locale={activeLocale()}
-      nowMs={state.nowMs}
-      handlers={handlers}
-      embedded={props.embedded === true}
-    />
+    <>
+      <SecretsScreenView
+        state={state}
+        shownText={session.shownText()}
+        locale={activeLocale()}
+        nowMs={state.nowMs}
+        handlers={handlers}
+        embedded={props.embedded === true}
+        keyStore={keyStoreViewOf({
+          read: keyState.read,
+          move: keyState.move,
+          remote: target.kind === "remote",
+          live,
+        })}
+      />
+      {confirm.dialog}
+    </>
   );
 }

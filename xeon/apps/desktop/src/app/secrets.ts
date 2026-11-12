@@ -15,6 +15,13 @@ function secretErrorOf(cause: unknown): SecretCommandError {
     if (cause.data.kind === "secret.reauthRequired") return { kind: "reauthRequired" };
     if (cause.data.kind === "secret.notFound") return { kind: "notFound" };
     if (cause.data.kind === "secret.inUse") return { kind: "inUse" };
+    if (cause.data.kind === "secret.localOnly") return { kind: "localOnly" };
+    if (cause.data.kind === "secret.keyUnavailable") return { kind: "keyUnavailable" };
+    if (cause.data.kind === "secret.alreadyExists") return { kind: "alreadyExists" };
+    if (cause.data.kind === "secret.decryptFailed") return { kind: "decryptFailed" };
+    if (cause.data.kind === "secret.providerUnavailable") return { kind: "providerUnavailable" };
+    if (cause.data.kind === "secret.writeFailed") return { kind: "writeFailed" };
+    if (cause.data.kind === "secret.readOnlyProvider") return { kind: "readOnlyProvider" };
   }
   const generic = errorOf(cause);
   return generic.kind === "unsupported" ? { kind: "unsupported" } : { kind: "failed" };
@@ -65,6 +72,8 @@ export function createSecretCommands(deps: SecretDeps): SecretCommands {
       const begun = await run((c) => c.request("secret.beginReveal", { name }));
       return begun.ok ? ok(begun.value.started) : begun;
     },
+    keyStatus: () => run((c) => c.request("secret.keyStatus", {})),
+    keyMove: (to) => run((c) => c.request("secret.keyMove", { to })),
     writeClipboard: (text) => deps.clipboard.writeText(text),
   };
 }

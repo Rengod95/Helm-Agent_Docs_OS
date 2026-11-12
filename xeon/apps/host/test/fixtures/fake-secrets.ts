@@ -18,6 +18,7 @@ import { DEFAULT_SECRETS_CONFIG, type SecretsConfig } from "@fresnel/platform-se
 import { createSecretsPort } from "../../src/assembly/secrets.ts";
 import type { ProviderLinker } from "../../src/secrets/provider-link.ts";
 import type { SecretsPort } from "../../src/types.ts";
+import { createFakeKeys, type FakeKeys } from "./fake-keys.ts";
 
 /** 어떤 provider에도 연결되지 않은 상태의 연결기(기본 메타가 빈 정책이다) */
 export const NO_PROVIDER_LINKS: ProviderLinker = {
@@ -57,6 +58,8 @@ interface FakeSecretRecord {
 
 export interface FakeSecrets {
   readonly port: SecretsPort;
+  /** 열쇠 보관 가짜. `port.keys`와 같은 객체다 */
+  readonly keys: FakeKeys;
   readonly records: Map<SecretName, FakeSecretRecord>;
   /** 관리 서비스 호출 기록: "<메서드> <이름>" */
   readonly calls: string[];
@@ -282,8 +285,10 @@ export function createFakeSecrets(config: SecretsConfig = FAKE_SECRETS_CONFIG): 
       return Promise.resolve();
     },
   };
+  const keys = createFakeKeys();
   return {
-    port: createSecretsPort(admin, () => config, linker, NO_DISPLAY),
+    port: createSecretsPort(admin, () => config, linker, NO_DISPLAY, keys),
+    keys,
     records,
     calls,
     received,

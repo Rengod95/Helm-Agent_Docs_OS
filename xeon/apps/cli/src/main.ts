@@ -77,7 +77,9 @@ export async function runCli(argv: readonly string[], io: CliIo, deps: CliDeps):
     case "secret.rotate":
     case "secret.rm":
     case "secret.test":
-    case "secret.reveal": {
+    case "secret.reveal":
+    case "secret.key.status":
+    case "secret.key.use": {
       const { runSecret } = await import("./commands/secret.ts");
       return runSecret(ctx, command);
     }

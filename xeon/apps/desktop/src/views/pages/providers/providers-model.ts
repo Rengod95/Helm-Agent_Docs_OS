@@ -177,7 +177,8 @@ export type ProviderCheckResult =
       readonly state: "passed" | "failed";
       /** 실패 까닭이나 통과 값 */
       readonly reason: ProviderCheckReason;
-      readonly elapsedMs: number;
+      /** 걸린 시간(ms). 시험을 돌리지 않은 결과(키 등록 실패의 저장 단계)는 시간이 없다 */
+      readonly elapsedMs?: number;
     };
 
 export type ProviderCheckReason =
@@ -190,10 +191,26 @@ export type ProviderCheckReason =
   | { readonly kind: "notLinked" }
   | { readonly kind: "models"; readonly count: number }
   | { readonly kind: "noModels" }
-  | { readonly kind: "error"; readonly text: string };
+  /** 시험이나 등록이 실패한 사유 한 문장. `fix`가 있으면 그 밑에 고치는 법 한 줄이 온다 */
+  | { readonly kind: "error"; readonly text: string; readonly fix?: string };
 
 export function initialChecks(): readonly ProviderCheckResult[] {
   return PROVIDER_CHECK_IDS.map((id) => ({ id, state: "waiting" }));
+}
+
+/**
+ * 키 등록이 실패한 사유를 저장 단계에 둔다. 시험을 돌리지 않았으므로 뒤 단계는 건너뜀이다.
+ * `text`와 `fix`는 키 등록 결과의 문장이다(값은 없다). 카드를 다시 열어도 사유가 남는다.
+ */
+export function storeFailedChecks(
+  text: string,
+  fix: string | undefined,
+): readonly ProviderCheckResult[] {
+  return withCheck(initialChecks(), {
+    id: "stored",
+    state: "failed",
+    reason: { kind: "error", text, ...(fix === undefined ? {} : { fix }) },
+  });
 }
 
 /** 단계 하나를 바꾸고, 실패면 뒤 단계를 건너뜀으로 둔다 */

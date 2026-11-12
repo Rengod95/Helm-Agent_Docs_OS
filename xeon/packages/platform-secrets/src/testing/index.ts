@@ -308,7 +308,7 @@ export function memorySecrets(options: MemorySecretsOptions): MemorySecrets {
     diagnoseParts: () =>
       Promise.resolve({
         sops: { available: true, version: "3.13.3", reason: "ok" },
-        key: { source: "file", available: true, reason: "ok" },
+        key: { source: "file", available: true, reason: "ok", fileMissing: false },
         fileFallbackNotice: false,
         unconfirmedFallback: false,
       }),

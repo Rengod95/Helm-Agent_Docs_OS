@@ -12,7 +12,7 @@ const REGISTER_HINTS: readonly string[] = [
 const FILE_FALLBACK_NOTICE =
   "키가 디스크 파일에 있다. 같은 사용자 권한의 프로그램은 읽을 수 있다. 마스킹은 보조 수단이다.";
 const CONFIRM_FALLBACK_HINT =
-  "OS 키 저장소를 쓸 수 없어 파일 폴백이 필요하다. 확인했으면 l0.secrets.ageKey.source를 file로 저장한다.";
+  "이 컴퓨터에서는 OS 키 저장소를 쓸 수 없어요. 앱 파일에 보관하려면 `fresnel secret key use file`을 실행해요(설정의 시크릿 > 열쇠 보관에서도 바꿀 수 있어요)";
 const SOPS_INSTALL_HINT = "sops 3.10.0 이상(권장 3.12.0 이상)을 설치한다.";
 
 export interface DiagnoseInput {

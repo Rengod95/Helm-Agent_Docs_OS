@@ -128,6 +128,11 @@ export interface EngineHandle {
    * 서비스 쪽 L0.secrets가 OS 입력 창으로 받는다(L4.cli.spec §4.7) [spec에 더한 필드]
    */
   readonly secretOutOfBand: SecretOutOfBandPort | null;
+  /**
+   * 이 기기의 서비스에 붙었는가(라우트가 `{ kind: "service", target: { kind: "local" } }`). 값은 로컬 일회용 채널로 주고받는다
+   * (`secretOutOfBand`가 null일 때만 쓴다, L4.cli.spec §4.7). 원격 주소면 false다 [spec에 더한 필드]
+   */
+  readonly localService: boolean;
   /** host.hello가 알린 active·experimental 기능 이름(메서드 이름 포함). 호스트가 아직 구현하지 않은 메서드를 가려낸다 [spec에 더한 필드] */
   supports(feature: string): boolean;
   /** 엔진의 시계(서비스 접속은 CLI의 운영 시계). CLI는 전역 시각을 읽지 않는다(TY-21) [spec에 더한 필드] */
@@ -648,6 +653,7 @@ async function attachService(
     storeId: hello.storeId,
     paths: { cliStateFile },
     secretOutOfBand: null,
+    localService: target.kind === "local",
     supports: (feature) => features.has(feature),
     clock,
     newRequestId: () => ids.next("evt"),
@@ -690,6 +696,7 @@ async function startInProcess(
       storeId: hello.storeId,
       paths: { cliStateFile },
       secretOutOfBand: host.secretOutOfBand,
+      localService: false,
       supports: (feature) => features.has(feature),
       clock,
       newRequestId: () => ids.next("evt"),

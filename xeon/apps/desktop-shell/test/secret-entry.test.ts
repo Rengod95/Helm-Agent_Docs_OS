@@ -19,7 +19,6 @@ import {
   planEntryCommand,
   registerSecretEntry,
   secretEntryModule,
-  isKeyStoreFailure,
 } from "../src/main/secret-entry.ts";
 import { fakeCtx, type FakeCtx } from "./support/fake-ctx.ts";
 
@@ -249,13 +248,17 @@ describe("registration (secret_entry.rs SecretEntry::register)", () => {
     expect(recorded.writes).toEqual([ENCODER.encode("line-one\nline-two")]);
   });
 
-  test("a failing child is rejected with its exit code and stderr detail", async () => {
+  test("a failing child is rejected with its exit code, its stderr detail and the code from its last line", async () => {
     const fake = fakeCtx();
     const { launcher } = fakeLauncher([
       {
         kind: "exit",
         code: 1,
-        stderr: ["시크릿 제공자(sops)를 쓸 수 없다 ", "(not_registered)\n"],
+        stderr: [
+          "시크릿 제공자(sops)를 쓸 수 없다 ",
+          "(not_registered)\n",
+          "fresnel-code: provider_unavailable\n",
+        ],
       },
     ]);
     const reply = await commandOf(
@@ -268,20 +271,24 @@ describe("registration (secret_entry.rs SecretEntry::register)", () => {
         kind: "rejected",
         exitCode: 1,
         detail: "시크릿 제공자(sops)를 쓸 수 없다 (not_registered)",
+        code: "provider_unavailable",
       },
     });
-    expect(logText(fake)).toMatch(/ secret entry add anthropic-api-key: rejected \(exit 1\)\n$/u);
+    expect(logText(fake)).toMatch(
+      / secret entry add anthropic-api-key: rejected \(exit 1, provider_unavailable\)\n$/u,
+    );
   });
 
-  test("a key store failure from the sidecar becomes the keystore kind without its English text", async () => {
+  test("a key store code from the sidecar becomes the keystore kind, and the code line is not shown", async () => {
     const fake = fakeCtx();
     const { launcher } = fakeLauncher([
       {
         kind: "exit",
         code: 1,
         stderr: [
-          "fresnel: Could not create the age key in the OS key store (add_failed)\n",
-          "Fix: Allow keychain access and run again. fresnel config set l0.secrets.ageKey.source file\n",
+          "fresnel: Could not create the age key in the OS key store\n",
+          "  Fix: Allow keychain access and run again\n",
+          "fresnel-code: key_store\n",
         ],
       },
     ]);
@@ -290,33 +297,102 @@ describe("registration (secret_entry.rs SecretEntry::register)", () => {
       entryWith(fake, launcher),
     )(makeBody("add anthropic-api-key", FAKE_VALUE));
     expect(reply).toEqual({ ok: false, error: { kind: "keystore" } });
-    expect(
-      isKeyStoreFailure("복호화 키를 아직 쓸 수 없다 (OS 키 저장소가 없어 파일 키가 필요하다)"),
-    ).toBe(true);
-    expect(isKeyStoreFailure("시크릿 제공자(sops)를 쓸 수 없다 (not_registered)")).toBe(false);
+    expect(logText(fake)).toMatch(/ secret entry add anthropic-api-key: keystore\n$/u);
   });
 
-  test("child output that contains the value is dropped entirely", async () => {
+  test("the code comes only from the last line: key store words without a code line are unknown, not keystore", async () => {
     const fake = fakeCtx();
     const { launcher } = fakeLauncher([
-      { kind: "exit", code: 1, stderr: [`값 ${FAKE_VALUE} 을 저장하지 못했다\n`] },
+      {
+        kind: "exit",
+        code: 1,
+        stderr: ["fresnel: Could not create the age key in the OS key store (add_failed)\n"],
+      },
+      {
+        kind: "exit",
+        code: 1,
+        stderr: [
+          "fresnel: 복호화 키를 아직 쓸 수 없다 (OS 키 저장소가 없어 파일 키가 필요하다)\n",
+          "fresnel-code: key_store\n",
+          "  Fix: 다시 실행한다\n",
+        ],
+      },
+    ]);
+    const call = commandOf(fake, entryWith(fake, launcher));
+    const english = await call(makeBody("add anthropic-api-key", FAKE_VALUE));
+    expect(english).toEqual({
+      ok: false,
+      error: {
+        kind: "rejected",
+        exitCode: 1,
+        detail: "fresnel: Could not create the age key in the OS key store (add_failed)",
+        code: "unknown",
+      },
+    });
+    // 코드 줄이 마지막 줄이 아니면 코드가 아니다: 문장이 아니라 줄 위치로 본다
+    const notLast = await call(makeBody("add anthropic-api-key", FAKE_VALUE));
+    expect(notLast).toEqual({
+      ok: false,
+      error: {
+        kind: "rejected",
+        exitCode: 1,
+        detail:
+          "fresnel: 복호화 키를 아직 쓸 수 없다 (OS 키 저장소가 없어 파일 키가 필요하다)\nfresnel-code: key_store\n  Fix: 다시 실행한다",
+        code: "unknown",
+      },
+    });
+  });
+
+  test("a code word the shell does not know is unknown and its line is still taken out of the detail", async () => {
+    const fake = fakeCtx();
+    const { launcher } = fakeLauncher([
+      {
+        kind: "exit",
+        code: 1,
+        stderr: ["시크릿을 쓰지 못했다\n", "fresnel-code: some_future_code\n"],
+      },
     ]);
     const reply = await commandOf(
       fake,
       entryWith(fake, launcher),
     )(makeBody("add anthropic-api-key", FAKE_VALUE));
-    expect(reply).toEqual({ ok: false, error: { kind: "rejected", exitCode: 1, detail: "" } });
+    expect(reply).toEqual({
+      ok: false,
+      error: { kind: "rejected", exitCode: 1, detail: "시크릿을 쓰지 못했다", code: "unknown" },
+    });
+  });
+
+  test("child output that contains the value is dropped entirely, and the code is still taken from its line", async () => {
+    const fake = fakeCtx();
+    const { launcher } = fakeLauncher([
+      {
+        kind: "exit",
+        code: 1,
+        stderr: [`값 ${FAKE_VALUE} 을 저장하지 못했다\n`, "fresnel-code: write_failed\n"],
+      },
+    ]);
+    const reply = await commandOf(
+      fake,
+      entryWith(fake, launcher),
+    )(makeBody("add anthropic-api-key", FAKE_VALUE));
+    expect(reply).toEqual({
+      ok: false,
+      error: { kind: "rejected", exitCode: 1, detail: "", code: "write_failed" },
+    });
     expect(JSON.stringify(reply)).not.toContain(FAKE_VALUE);
   });
 
-  test("a child that exits 0 but did not take the value is still rejected", async () => {
+  test("a child that exits 0 but did not take the value is still rejected, with no code", async () => {
     const fake = fakeCtx();
     const { launcher } = fakeLauncher([{ kind: "exit", code: 0, writeFails: true }]);
     const reply = await commandOf(
       fake,
       entryWith(fake, launcher),
     )(makeBody("add anthropic-api-key", FAKE_VALUE));
-    expect(reply).toEqual({ ok: false, error: { kind: "rejected", exitCode: 0, detail: "" } });
+    expect(reply).toEqual({
+      ok: false,
+      error: { kind: "rejected", exitCode: 0, detail: "", code: "unknown" },
+    });
   });
 
   test("a signal end (no exit code) is rejected with exitCode null", async () => {
@@ -328,7 +404,7 @@ describe("registration (secret_entry.rs SecretEntry::register)", () => {
     )(makeBody("add anthropic-api-key", FAKE_VALUE));
     expect(reply).toEqual({
       ok: false,
-      error: { kind: "rejected", exitCode: null, detail: "killed" },
+      error: { kind: "rejected", exitCode: null, detail: "killed", code: "unknown" },
     });
   });
 
@@ -456,7 +532,7 @@ describe("registration (secret_entry.rs SecretEntry::register)", () => {
     const unavailable = await call(makeBody("add anthropic-api-key", FAKE_VALUE));
     const tooLarge = await call(makeBody("add anthropic-api-key", "x".repeat(MAX_VALUE_BYTES + 1)));
     expect(JSON.stringify(rejected)).toBe(
-      '{"ok":false,"error":{"kind":"rejected","exitCode":1,"detail":"x"}}',
+      '{"ok":false,"error":{"kind":"rejected","exitCode":1,"detail":"x","code":"unknown"}}',
     );
     expect(JSON.stringify(unavailable)).toBe(
       '{"ok":false,"error":{"kind":"unavailable","detail":"d"}}',
@@ -572,7 +648,7 @@ const PROBE_SOURCE = [
   "const stdin = await Bun.stdin.text();",
   "writeFileSync(outFile, JSON.stringify({ argv, env: process.env, stdin }));",
   "const code = Number(exitText);",
-  'if (code !== 0) process.stderr.write("probe: rejected by the test\\n");',
+  'if (code !== 0) process.stderr.write("probe: rejected by the test\\nfresnel-code: write_failed\\n");',
   "process.exitCode = code;",
   "",
 ].join("\n");
@@ -645,9 +721,16 @@ describe("real child process (spawnPiped)", () => {
     );
     expect(result).toEqual(
       expect.objectContaining({
-        payload: { kind: "rejected", exitCode: 3, detail: "probe: rejected by the test" },
+        payload: {
+          kind: "rejected",
+          exitCode: 3,
+          detail: "probe: rejected by the test",
+          code: "write_failed",
+        },
       }),
     );
-    expect(logText(fake)).toMatch(/ secret entry add anthropic-api-key: rejected \(exit 3\)\n$/u);
+    expect(logText(fake)).toMatch(
+      / secret entry add anthropic-api-key: rejected \(exit 3, write_failed\)\n$/u,
+    );
   });
 });

@@ -9,9 +9,8 @@ import { createWin32KeyProvider } from "./key/win32.ts";
 // L0.secrets.spec §3.7 마지막 단락. 키 획득 방식 선택은 이 파일 한 곳에만 둔다(DR-13, spec §9 12번).
 // 플랫폼과 WSL 판정은 fresnel.os의 OsInfo가 정하고, 이 파일만 그 값으로 분기한다.
 
-export interface KeySelectInput {
-  /** auto-file: auto와 같지만 OS 키 저장소가 없을 때 사람 확인 없이 파일 폴백을 쓴다(원격 호스트, spec §4.7 8번) */
-  readonly source: "auto" | "auto-file" | "keychain" | "file";
+/** 두 쪽(OS 저장소, 파일)의 제공자를 만드는 입력. 선택 방식과 무관하다(`keys.status`와 `keys.move`가 두 쪽을 본다) */
+export interface KeyProviderInput {
   /** 파일 폴백의 키 파일 경로(설정값 또는 기본 경로) */
   readonly filePath: string;
   readonly info: Pick<OsInfo, "platform" | "isWsl">;
@@ -25,6 +24,11 @@ export interface KeySelectInput {
   readonly exec?: DarwinKeyExec;
 }
 
+export interface KeySelectInput extends KeyProviderInput {
+  /** auto-file: auto와 같지만 OS 키 저장소가 없을 때 사람 확인 없이 파일 폴백을 쓴다(원격 호스트, spec §4.7 8번) */
+  readonly source: "auto" | "auto-file" | "keychain" | "file";
+}
+
 export interface KeySelection {
   readonly provider: KeyProvider;
   /** 파일 폴백을 쓰고 있어 "키가 디스크 파일에 있다" 고지가 필요한가 */
@@ -35,7 +39,8 @@ export interface KeySelection {
   readonly newFileKey: boolean;
 }
 
-async function osProvider(input: KeySelectInput): Promise<KeyProvider> {
+/** OS 키 저장소의 제공자(플랫폼별). 쓸 수 없으면 probe가 available false다 */
+export async function osKeyProvider(input: KeyProviderInput): Promise<KeyProvider> {
   const platform = input.info.platform;
   switch (platform) {
     case "darwin":
@@ -58,7 +63,8 @@ async function osProvider(input: KeySelectInput): Promise<KeyProvider> {
   }
 }
 
-function fileProvider(input: KeySelectInput): KeyProvider {
+/** 파일 폴백의 제공자(키 파일 경로와 소유자 검사) */
+export function fileKeyProvider(input: KeyProviderInput): KeyProvider {
   return createFileKeyProvider({
     path: input.filePath,
     uid: input.userId,
@@ -69,28 +75,33 @@ function fileProvider(input: KeySelectInput): KeyProvider {
 /**
  * source가 file이면 파일, keychain이면 OS provider(쓸 수 없으면 sopsKeyEnv가 오류를 낸다),
  * auto·auto-file이면 OS provider의 probe()가 available일 때 그것(Secret Service 먼저), 아니면 파일 폴백이다.
- * auto에서 OS 키 항목이 없다고 확실히 알면(holdsKey가 false, macOS) 파일로 간다. 키 파일이 있으면 그것을 쓰고,
+ * auto에서 OS 키 항목이 없다고 확실히 알면(macOS: holdsKey가 false) 파일로 간다. 키 파일이 있으면 그것을 쓰고,
  * 없으면 첫 키를 파일에 만들도록 newFileKey를 켠다(spec §4.7 9번). 항목을 읽지 못해 모르면 OS provider를 그대로 쓴다.
+ * Linux는 Secret Service를 먼저 쓰고 항목 유무로 파일을 고르지 않는다(§4.7 9번의 Linux 적용은 [미결]이다).
  * auto에서 파일 폴백으로 떨어지면 사람이 한 번 확인할 때까지 쓰지 않는다. auto-file은 확인 없이 파일 폴백을 쓰되
  * 키 파일의 권한(0600)과 소유자를 검사한다(file-fallback.ts).
  */
 export async function selectKeyProvider(input: KeySelectInput): Promise<KeySelection> {
   if (input.source === "file") {
     return {
-      provider: fileProvider(input),
+      provider: fileKeyProvider(input),
       fileNotice: true,
       unconfirmedFallback: false,
       newFileKey: false,
     };
   }
-  const os = await osProvider(input);
+  const os = await osKeyProvider(input);
   if (input.source === "keychain") {
     return { provider: os, fileNotice: false, unconfirmedFallback: false, newFileKey: false };
   }
   if ((await os.probe()).available) {
-    // OS 저장소에 키 항목이 없다고 확실히 알 때만 파일로 간다. 이미 있는 사용자의 키 항목은 건드리지 않는다
-    if (input.source === "auto" && (await os.holdsKey?.()) === false) {
-      const file = fileProvider(input);
+    // macOS에서 OS 저장소에 키 항목이 없다고 확실히 알 때만 파일로 간다. 이미 있는 사용자의 키 항목은 건드리지 않는다
+    if (
+      input.source === "auto" &&
+      os.id === "darwin-keychain" &&
+      (await os.holdsKey?.()) === false
+    ) {
+      const file = fileKeyProvider(input);
       const state = await file.probe();
       return {
         provider: file,
@@ -103,7 +114,7 @@ export async function selectKeyProvider(input: KeySelectInput): Promise<KeySelec
   }
   // auto-file(원격 호스트)은 파일 폴백을 설정이 이미 정한 것으로 본다. 고지(fileNotice)는 그대로 낸다
   return {
-    provider: fileProvider(input),
+    provider: fileKeyProvider(input),
     fileNotice: true,
     unconfirmedFallback: input.source !== "auto-file",
     newFileKey: false,

@@ -18,6 +18,8 @@ import { PanelExpandButton } from "../../shell/screen-header.tsx";
 import type { MetaDraft } from "./secret-draft.ts";
 import { EntryDialog, MetaDialog, RemoveDialog } from "./secret-dialogs.tsx";
 import { SecretDetail, type SecretDetailHandlers } from "./secret-detail.tsx";
+import type { KeyStoreView, KeyWhere } from "./key-store-model.ts";
+import { KeyStoreRow } from "./key-store-row.tsx";
 import {
   keyIntentOf,
   secretsViewOf,
@@ -60,6 +62,8 @@ export interface SecretsScreenHandlers {
   readonly metaClose: () => void;
   readonly removeConfirm: () => void;
   readonly removeClose: () => void;
+  /** "열쇠 보관" 줄에서 방식을 고른 것(옮기기) */
+  readonly keyStore: (to: KeyWhere) => void;
 }
 
 export interface SecretsScreenViewProps {
@@ -69,6 +73,8 @@ export interface SecretsScreenViewProps {
   readonly locale: Locale;
   readonly nowMs: number;
   readonly handlers: SecretsScreenHandlers;
+  /** "열쇠 보관" 줄의 그림 상태(`keyStoreViewOf`) */
+  readonly keyStore: KeyStoreView;
   /** 설정 화면 안: 바깥 스크롤과 머리 제목을 쓴다 */
   readonly embedded?: boolean;
 }
@@ -184,10 +190,9 @@ export function SecretsScreenView(props: SecretsScreenViewProps): ReactNode {
           {state.notice.text}
         </Alert>
       )}
-      <SettingSection
-        label={t("desktop.secrets.title")}
-        body={state.rows.length === 0 ? "plain" : "rows"}
-      >
+      <SettingSection label={t("desktop.secrets.title")} body="rows">
+        {/* 열쇠 보관 줄은 목록이 비어 있어도 있어야 한다: 첫 키를 만들 방식을 여기서 고른다 */}
+        <KeyStoreRow view={props.keyStore} onChoose={handlers.keyStore} />
         {view.loading ? <LoadingRows /> : null}
         {!view.loading && state.rows.length === 0 && state.list.kind === "ready" ? (
           <div data-slot="secrets-empty" className="flex flex-wrap items-center gap-3">

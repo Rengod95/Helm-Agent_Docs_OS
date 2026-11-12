@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
 import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabilities";
-import type { SecretAuditEntry, SecretListEntry } from "@fresnel/contracts/wire";
+import type {
+  SecretAuditEntry,
+  SecretKeyMoveResult,
+  SecretKeyStatusResult,
+  SecretListEntry,
+} from "@fresnel/contracts/wire";
 import { summary, thr } from "../state/helpers.ts";
 import { engineFake, makeApp, until, type EngineExtra } from "./support.ts";
 
@@ -67,7 +72,7 @@ describe("secret wire errors keep the kinds the screen tells apart", () => {
         "secret.references": { code: 3201, kind: "secret.notFound" },
         "secret.remove": { code: 3206, kind: "secret.inUse" },
         "secret.beginReveal": { code: 3209, kind: "secret.reauthRequired" },
-        "secret.test": { code: 3203, kind: "secret.providerUnavailable" },
+        "secret.test": { code: 3202, kind: "secret.denied" },
       },
     });
     expect(await app.commands.secrets.references(NAME)).toEqual({
@@ -83,6 +88,49 @@ describe("secret wire errors keep the kinds the screen tells apart", () => {
       error: { kind: "reauthRequired" },
     });
     expect(await app.commands.secrets.test(NAME)).toEqual({ ok: false, error: { kind: "failed" } });
+    await app.stop();
+  });
+
+  test("the 3200-series causes the screen names keep their own kinds, not failed", async () => {
+    const { app } = await liveApp({
+      errors: {
+        "secret.beginEntry": { code: 3207, kind: "secret.alreadyExists" },
+        "secret.beginReveal": { code: 3213, kind: "secret.localOnly" },
+        "secret.test": { code: 3204, kind: "secret.keyUnavailable" },
+        "secret.audit": { code: 3205, kind: "secret.decryptFailed" },
+        "secret.references": { code: 3203, kind: "secret.providerUnavailable" },
+        "secret.remove": { code: 3212, kind: "secret.writeFailed" },
+        "secret.meta": { code: 3208, kind: "secret.readOnlyProvider" },
+      },
+    });
+    expect(await app.commands.secrets.beginEntry(NAME, "add")).toEqual({
+      ok: false,
+      error: { kind: "alreadyExists" },
+    });
+    expect(await app.commands.secrets.beginReveal(NAME)).toEqual({
+      ok: false,
+      error: { kind: "localOnly" },
+    });
+    expect(await app.commands.secrets.test(NAME)).toEqual({
+      ok: false,
+      error: { kind: "keyUnavailable" },
+    });
+    expect(await app.commands.secrets.audit(NAME)).toEqual({
+      ok: false,
+      error: { kind: "decryptFailed" },
+    });
+    expect(await app.commands.secrets.references(NAME)).toEqual({
+      ok: false,
+      error: { kind: "providerUnavailable" },
+    });
+    expect(await app.commands.secrets.remove(NAME)).toEqual({
+      ok: false,
+      error: { kind: "writeFailed" },
+    });
+    expect(await app.commands.secrets.editMeta({ name: NAME, desc: "search key" })).toEqual({
+      ok: false,
+      error: { kind: "readOnlyProvider" },
+    });
     await app.stop();
   });
 });
@@ -165,6 +213,55 @@ describe("the other secret methods return the host's values", () => {
     expect(await app.commands.secrets.beginReveal(NAME)).toEqual({ ok: true, value: true });
     expect(paramsOf(params, "secret.beginReveal")).toEqual({ name: NAME });
     await app.stop();
+  });
+
+  test("keyStatus reads the key location with no params and returns the host's answer as it came", async () => {
+    const status: SecretKeyStatusResult = {
+      source: "auto",
+      in: "file",
+      filePath: "/fake/fresnel/secrets/age/keys.txt",
+      keychainUsable: false,
+      fallbackUnconfirmed: true,
+      fileMissing: false,
+    };
+    const { app, params } = await liveApp({ results: { "secret.keyStatus": status } });
+    expect(await app.commands.secrets.keyStatus()).toEqual({ ok: true, value: status });
+    expect(paramsOf(params, "secret.keyStatus")).toEqual({});
+    await app.stop();
+  });
+
+  test("keyMove sends the target only and returns what moved", async () => {
+    const moved: SecretKeyMoveResult = {
+      moved: true,
+      created: true,
+      oldRemoved: false,
+      source: "file",
+    };
+    const { app, params } = await liveApp({ results: { "secret.keyMove": moved } });
+    expect(await app.commands.secrets.keyMove("file")).toEqual({ ok: true, value: moved });
+    expect(paramsOf(params, "secret.keyMove")).toEqual({ to: "file" });
+    await app.stop();
+  });
+
+  test("keyMove from a remote connection is local-only, and a key the store cannot open is key-unavailable", async () => {
+    const { app } = await liveApp({
+      errors: {
+        "secret.keyMove": { code: 3213, kind: "secret.localOnly" },
+      },
+    });
+    expect(await app.commands.secrets.keyMove("keychain")).toEqual({
+      ok: false,
+      error: { kind: "localOnly" },
+    });
+    await app.stop();
+    const again = await liveApp({
+      errors: { "secret.keyMove": { code: 3204, kind: "secret.keyUnavailable" } },
+    });
+    expect(await again.app.commands.secrets.keyMove("keychain")).toEqual({
+      ok: false,
+      error: { kind: "keyUnavailable" },
+    });
+    await again.app.stop();
   });
 });
 
