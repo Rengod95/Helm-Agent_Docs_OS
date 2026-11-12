@@ -1842,7 +1842,7 @@
   "desktop.convo.group.read": "Read {count, plural, one{# file} other{# files}}",
   "desktop.convo.group.readNames": "Read {names}",
   "desktop.convo.group.search": "{count, plural, one{# search} other{# searches}}",
-  "desktop.convo.group.tasks": "Updated tasks {count, plural, one{once} other{# times}}",
+  "desktop.convo.group.tasks": "Updated tasks {count, plural, one{# time} other{# times}}",
   "desktop.convo.group.web": "{count, plural, one{# web lookup} other{# web lookups}}",
   "desktop.convo.group.write": "Wrote {count, plural, one{# file} other{# files}}",
   "desktop.convo.guard.body": "A guard rule stopped this call before it ran.",
