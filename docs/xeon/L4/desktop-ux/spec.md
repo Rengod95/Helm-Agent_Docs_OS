@@ -4030,3 +4030,60 @@ export const templates = [
 - 개요의 "앱 업데이트" 줄은 다른 개요 행처럼 라벨(term)이 왼쪽 열이고 상태 문구와 버전이 오른쪽 열이며, "업데이트 확인" 단추 줄은 목록 아래에 다른 단추 줄과 같은 간격으로 둔다(`settings-update-view.tsx`). 새 버전을 찾았거나 내려받기 단계에서 멈췄을 때는 같은 단추 줄에 "내려받기"(멈췄으면 "다시 시도") 단추와 정보 아이콘이 먼저 놓인다. 내려받기 실패 뒤의 "다시 시도"(설정 줄과 상태 칸 팝오버 모두)는 먼저 다시 확인하고 새 버전이 보이면 내려받는다(캐시된 확인 결과로 같은 실패를 되풀이하지 않는다. `update-controller.ts`의 `retry`) [결정: 오케스트레이터 기본값, fxIU].
 - 확장 설정의 라벨은 확장 이름을 카탈로그 `ext.name.<camelCase 이름>`으로 바꿔 보인다("Account rotation 격리" 대신 "계정 회전 격리"). 확장마다 있는 격리 설정의 값 `none`·`process`는 "격리 안 함"·"별도 프로세스"로 보인다(`settings.ext.isolation.option.*`).
 - 연결 화면의 "확장 상태 보기" 문구는 탭 이름과 같은 "크래프트"를 쓴다.
+
+## 15. 대화 상태와 의존성 (2026-11-11 dz 2차, 트랙 dzT1)
+
+대화 화면이 런타임 고유 개념(도구 진행, 단계와 턴, 개입, 주도, 하위 에이전트, 목표와 할 일, 변화 표지)을 그릴 때 읽는 상태와 선택자, 그리고 승인된 의존성의 정본입니다. 코드는 `xeon/apps/desktop/src/state/engine/convo.ts`(상태와 순수 리듀서), `convo-select.ts`(선택자), `decode.ts`(디코더), `src/lib/`(래퍼)입니다. 화면(`views/**`)은 이 절의 선택자만 읽고 거울을 직접 읽지 않습니다.
+
+### 15.1 의존성 [결정: 2026-11-11 사용자]
+
+- 승인된 라이브러리: `motion`(애니메이션), `react-markdown` + `remark-gfm`(마크다운), `shiki`(구문 강조). 모두 MIT입니다. 버전은 워크스페이스 카탈로그(`xeon/package.json`)가 고정하고 `apps/desktop/package.json`은 `catalog:`로 씁니다.
+- 앱 CSP는 `default-src 'self'`(Electron 셸)와 `script-src 'self'; style-src 'self' 'unsafe-inline'`(웹 게이트웨이)입니다. WebAssembly 컴파일(`wasm-unsafe-eval`)은 허용되지 않으므로 shiki는 oniguruma WASM 엔진을 쓰지 않고 JavaScript 정규식 엔진(`createJavaScriptRegexEngine`)을 씁니다. 색은 CSS 변수 테마로 내므로 HTML 문자열이 아니라 토큰 줄을 React 요소로 그립니다(인라인 `style` 속성 문자열을 만들지 않습니다).
+- 마크다운은 원시 HTML을 렌더하지 않습니다(`rehype-raw`를 쓰지 않고, 링크는 위험 스킴을 막는 기본 변환을 유지합니다).
+- 화면이 쓰는 입구는 `src/lib/`의 얇은 래퍼 하나씩입니다(`motion.ts`, `markdown.tsx`, `markdown-stream.ts`, `highlight.ts`). 스트리밍 중 미완성 마크다운(닫히지 않은 코드 울타리, 반쯤 온 표, 열린 강조)은 `closeStreamingMarkdown`이 보정합니다.
+- 번들 크기와 라이선스 고지 확인 결과는 트랙 보고에 적습니다. `scripts/notices.ts`는 `apps/host`, `apps/cli`의 프로덕션 의존만 훑으므로 데스크톱 UI 번들 전용 의존은 싣지 않습니다.
+
+### 15.2 상태 [결정: 2026-11-11 사용자]
+
+거울(`EngineMirror.convo`)은 thread id별 `ThreadConvo`를 둡니다. 내구 사건은 `decode.ts`가 검증해 `type: "convo"` 사실(`ConvoEvent`)로 넘기고, `reduce.ts`의 `applyConvoFact`가 반영합니다. 모든 기록은 사건 seq나 id로 거르므로 보조 재생(`backfill`)과 구독이 같은 사건을 겹쳐 줘도 결과가 같고, 오래된 사건이 더 새 상태를 되돌리지 못합니다. 개수 상한은 `convo.ts`의 `CONVO_*` 상수입니다. 거울을 head부터 다시 맞추면 비웁니다.
+
+| 항목 | 출처 | 기록 |
+|---|---|---|
+| 도구 진행 출력 | 휘발 `item.updated`의 `tool_progress` | 도구 호출별 마지막 20줄(줄당 400자), 받은 총량, 갱신 수. 호출 id를 모르면 item id에 붙입니다 |
+| 단계와 턴 | `turn.started`(origin, scopeId, requestId), `step.completed`(stopReason, contextWarnings, composition 합), `turn.completed`(usage, stepCount, error) | 턴별 단계 수, 모델(시작 때 거울이 안 모델), 시간(시작과 끝 사건의 기록 시각 차, `durationMs`는 계약에 없습니다), 사용량, 끝난 이유(`TurnEnd`: 완료, 한도(`step_limit`·`child_limit`), 중단 코드, 실패) |
+| 휘발 알림 | `turn.updated`의 `gate_limit`, `repeat_detected`, 내구 `turn.abort_requested` | 턴에 붙은 알림과 중단 요청(멈추는 중). `provider_retry`는 기존 `retrying`입니다 |
+| 승인 기록 | `approval.requested` + `approval.resolved` | 해결 뒤에도 도구 호출에 결정, 기억 범위, 해결한 쪽, 요청한 쪽(`caller`)을 붙입니다. 도구 호출 id 없는 승인은 `looseApprovals`입니다 |
+| 개입 | 도구 결과 `details`(`code: "denied_by_extension"`, `"denied_by_guard"`, `resultPatchedBy`), `tool.sandbox_bypassed`, `tool.untrusted_read`, `secret.*` | 도구 호출별 개입 목록(종류, 확장 이름, 사유, 보조 값). 호출에 묶이지 않는 시크릿 가림과 승인은 `looseInterventions`입니다 |
+| 주도 | `lease.acquired/released`, 주도 턴의 `scopeId` | 주도 락별 보유자(scope), 한도, 차수, 반납 사유. 사용량은 선택자가 턴 기록에서 셉니다 |
+| 하위 에이전트 | `agent.spawned/settled/judged` | 에이전트별 상태, 보고, 사용량, 한도 종료 |
+| 목표와 할 일 | `work.goal_*`, `work.task_*` | 현재 목표와 판정, 할 일 목록 |
+| 변화 표지 | `thread.updated.model`, `settings.changed`(권한 모드 키), `thread.resumed`, 예약 출처의 `turn.started`, `thread.leaf_moved`, `thread.branch_summarized` | `ConvoMarker`(seq, 시각, 변화 종류) |
+
+- 개입을 도구 결과에서 읽는 근거: 엔진이 `denied_by_guard`와 `resultPatchedBy`를 details에 싣습니다(L1.tools.spec §5). 개입은 대화를 열 때 받는 스냅숏과 구독의 `item.recorded`에서 읽고, 보조 재생은 `item.recorded`를 읽지 않습니다(저장소 전체 item 재생 비용 때문입니다).
+- 보조 재생(`link.ts`의 `BACKFILL_PREFIXES`)은 위 kind를 연결 전 사건까지 처음부터 다시 읽습니다. `turn.*`, `step.completed`, `approval.*`, `lease.*`, `agent.*`, `work.goal_*`, `work.task_*`, `thread.updated`, `thread.leaf_moved`, `thread.branch_summarized`, `thread.resumed`, `settings.changed`, `tool.*`, `secret.*`가 들어 있습니다. 재생은 거울의 다른 칸(thread 상태, 대기 승인)을 바꾸지 않고 `convo`만 채웁니다.
+- 하위 에이전트의 자식 대화 진행: 이벤트 구독은 저장소 전체라 자식 대화의 사건과 진행 item이 이미 같은 거울로 들어옵니다. 그래서 따로 구독하지 않고 부모의 에이전트 줄이 자식의 `convo`와 `streaming`을 읽습니다(추가 비용 없음). 자식 사건을 거울이 아직 못 봤으면 진행은 null입니다.
+
+### 15.3 선택자 [결정: 2026-11-11 사용자]
+
+`convo-select.ts`의 선택자와 `hooks.ts`의 훅(`useToolProgress`, `useToolInterventions`, `useToolApprovals`, `useTurnSummaries`, `useTurnSummary`, `useAborting`, `useLeadSegments`, `useAgentRows`, `useNow`, `useConvoMarkers`)입니다. 같은 입력 참조에는 같은 결과 참조를 돌려줍니다.
+
+- `selectTurnSummary(s, threadId, turnId)`: 단계 수, 시간, 토큰(입력·출력·캐시·합), 비용 합과 원본 사용량(비용 표 계산용), 모델, 끝난 이유(`TurnEnd`), 마지막 단계의 멈춘 사유(`stopReason`), 경고, 알림, 멈추는 중 여부, 주도 scope. `step_limit`·`child_limit`는 `end.kind === "limit"`로 구분됩니다.
+- `selectLeadSegments`: 주도 구간별 보유 scope, 한도(`maxTurns`, `maxSpawns`, `maxTokens`), 사용량(턴 수, 토큰, 위임 수), 구간 안에서 시작한 주도 턴, 반납 사유. `selectLeadOfTurn`은 한 턴이 어느 구간에 속하는지 줍니다.
+- `selectAgentRows`: 에이전트 기록과 자식 진행(단계 수, 지금 하는 도구, 도는 중).
+- `selectNow`: 목표 한 줄, 판정 n/max, 할 일(할 일 `todo` · 지금 `now` · 끝 `done`, 실패와 취소는 끝으로 셉니다), 진행 수(취소 제외), 도는 하위 에이전트 수, 기다리는 승인 수. 턴이 도는 중에도 사건마다 갱신됩니다.
+- `selectMarkers`: 대화 줄 사이에 놓을 표지 목록(`seq` 순). 줄 모델(`views/transcript-rows.ts`)이 `at`·`seq`로 자리를 고릅니다.
+- 도구별: `selectToolProgress`, `selectToolInterventions`, `selectToolApprovals`.
+
+### 15.4 도구 인자 요약과 묶음 [결정: 2026-11-11 사용자]
+
+도구 호출 인자는 화면에 JSON 그대로 보이지 않고 요약으로 보입니다. `state/engine/tool-summary.ts`의 `summarizeToolArgs(toolName, args, mcpServer?)`가 도구 이름 표로 요약을 만들고, 필수 필드가 없거나 타입이 틀린 인자는 인자 JSON을 400글자 이내로 줄인 `generic` 요약으로 떨어집니다(던지지 않습니다). 실제 인자 모양은 `packages/contracts/src/capabilities/defs/`가 정본입니다: `bash`는 명령과 시간 제한(초, `cwd`는 모델 인자에 없습니다), `read`는 경로와 줄 범위, `grep`·`find`·`ls`·`knowledge_search`는 검색, `task_write`는 `ops`(create·update·link·unlink), `memory_manage`는 저장소·동작·항목, `agent`는 에이전트 이름과 과제(`task`)입니다. MCP 도구는 서버를 이름으로 알 수 없으므로 결과 `details.server`를 호출자가 `mcpServer`로 넘깁니다. 연속된 도구 호출은 `groupToolCalls`가 범주별로 세고(읽기, 검색, 명령, 편집, 쓰기, 웹, 에이전트, 할 일, 메모리, MCP, 기타) 읽기·편집·쓰기는 고유 경로 수를 함께 줍니다. 문장은 화면이 i18n으로 만듭니다.
+
+### 15.5 메시지 단위 동작 [결정: 2026-11-11 사용자]
+
+대화 메시지마다 세 동작을 둡니다. 코드는 `app/message-commands.ts`(`createCommands`가 `message` 묶음으로 함께 돌려줍니다)와 `state/engine/message-text.ts`입니다.
+
+- 갈라내기(`forkAt`): `thread.fork {threadId, at}`. 그 메시지까지의 기록을 담은 새 대화를 만들고 엽니다.
+- 되감기(`rewindTo`): `thread.revert {threadId, to}`. 대화의 leaf를 그 메시지로 옮기고(그 메시지는 남습니다) 뒤는 떠난 가지로 남습니다. **대화 기록만 옮기며 파일 변경은 되돌리지 않습니다.** 도는 턴이 있으면 거절합니다(`turn.busy`).
+- 다시 만들기(`regenerate`): 답에 대해 그 앞의 사용자 메시지까지 되감은 뒤 그 글로 `turn.start`를 다시 보냅니다. 도는 턴이 있거나 글이 없으면 되감기 전에 거절합니다. 글만 다시 보내므로 이미지 파트는 빠지고, 거울의 글은 화면 가림 표식이 적용된 복사본입니다.
+- 메시지 복사(`messageCopyText`): 사용자·어시스턴트 메시지의 글 파트를 줄바꿈으로 이어 붙인 원문입니다(생각, 도구 호출, 이미지는 넣지 않습니다).
+

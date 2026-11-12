@@ -14,6 +14,21 @@ import type { Reduced as SharedReduced } from "../shared/pipeline.ts";
 import type { DurableFact, MirrorInput, VolatileFact } from "./input.ts";
 import { unknownFailureText } from "./failure-text.ts";
 import {
+  convoApply,
+  convoApprovalRequested,
+  convoApprovalResolved,
+  convoItemRecorded,
+  convoLeaseAcquired,
+  convoLeaseReleased,
+  convoModelChanged,
+  convoToolProgress,
+  convoTurnCompleted,
+  convoTurnNotice,
+  convoTurnStarted,
+  type Convo,
+  type ConvoAt,
+} from "./convo.ts";
+import {
   EMPTY_STREAMING,
   HANDLER_FAILURE_CAP,
   INITIAL_MIRROR,
@@ -158,6 +173,9 @@ export function reduceMirror(state: EngineMirror, input: MirrorInput): Reduced<E
           fact.type === "input.withdrawn"
         ) {
           next = applyFact(next, fact);
+        } else {
+          // 대화 상태는 사건 seq로 거르므로 구독이 이미 준 사건과 겹쳐도 같다. 거울의 다른 칸(상태, 대기 승인)은 건드리지 않는다
+          next = applyConvoFact(next, fact);
         }
       }
       return keep(next, "applied");
@@ -252,7 +270,12 @@ export function reduceMirror(state: EngineMirror, input: MirrorInput): Reduced<E
         };
       }
       const ids = [...state.approvals.ids, ...fresh.map((a) => a.approvalId)];
-      return keep({ ...state, approvals: { ...state.approvals, ids, byId } }, "applied");
+      // 복원한 승인도 해결 때 도구 호출에 기록을 붙일 수 있게 요청 요약을 둔다
+      const convo = fresh.reduce(
+        (acc, a) => convoApprovalRequested(acc, a.request.surfaceThreadId, a.approvalId, a.request),
+        state.convo,
+      );
+      return keep({ ...state, approvals: { ...state.approvals, ids, byId }, convo }, "applied");
     }
     case "approval_dismissed": {
       // 거울에 없는 승인은 건드리지 않는다(뺀 기록도 남기지 않는다)
@@ -356,7 +379,7 @@ function applyChunk(state: EngineMirror, fact: VolatileFact): Reduced<EngineMirr
           );
         }
         case "part_completed":
-        case "tool_progress":
+        case "tool_progress": // 디코더가 `tool.progress` 사실로 바꾸므로 여기 오지 않는다
           return keep(withoutRetrying({ ...state, streaming: counted }, fact.threadId), "applied");
         default:
           return assertNever(update, "applyChunk.update");
@@ -401,6 +424,31 @@ function applyChunk(state: EngineMirror, fact: VolatileFact): Reduced<EngineMirr
             ...state.retrying,
             [fact.threadId]: { ...fact.retry, at: fact.receivedAt },
           },
+        },
+        "applied",
+      );
+    case "tool.progress": {
+      // 진행 출력은 도구 호출 id에 붙인다. 도구 호출 id를 아직 모르면(진행 행이 확정 전) item id에 붙인다
+      const streaming = counted.items[fact.itemId];
+      const toolKey = streaming?.toolCallId ?? fact.itemId;
+      return keep(
+        withoutRetrying(
+          {
+            ...state,
+            streaming: counted,
+            convo: convoToolProgress(state.convo, fact.threadId, toolKey, fact.itemId, fact.text),
+          },
+          fact.threadId,
+        ),
+        "applied",
+      );
+    }
+    case "turn.notice":
+      return keep(
+        {
+          ...state,
+          streaming: counted,
+          convo: convoTurnNotice(state.convo, fact.threadId, fact.turnId, fact.notice),
         },
         "applied",
       );
@@ -582,7 +630,79 @@ function recordItems(t: Transcript, entries: readonly Recorded[]): Transcript {
   return { ...t, itemIds: added.length === 0 ? t.itemIds : [...t.itemIds, ...added], items };
 }
 
+/** 내구 사실 하나를 거울에 넣는다: 거울의 본 칸과 대화 상태(`convo`) */
 function applyFact(state: EngineMirror, fact: DurableFact): EngineMirror {
+  return applyConvoFact(applyFactCore(state, fact), fact, state);
+}
+
+/** 대화 상태에 필요한 사실만 읽는다. `before`는 이 사실을 적용하기 전의 거울이고(대화의 모델을 읽는다), 없으면 `state` 그대로다 */
+function applyConvoFact(
+  state: EngineMirror,
+  fact: DurableFact,
+  before: EngineMirror = state,
+): EngineMirror {
+  const at = { seq: fact.seq, eventId: fact.eventId, turnId: fact.turnId, at: fact.at };
+  const convo = convoOf(state.convo, fact, at, before);
+  return convo === state.convo ? state : { ...state, convo };
+}
+
+function convoOf(convo: Convo, fact: DurableFact, at: ConvoAt, before: EngineMirror): Convo {
+  switch (fact.type) {
+    case "turn.started":
+      return convoTurnStarted(convo, {
+        ...at,
+        threadId: fact.threadId,
+        origin: fact.start?.origin ?? "user",
+        scopeId: fact.start?.scopeId ?? null,
+        requestId: fact.start?.requestId ?? null,
+        model: before.threads.byId[fact.threadId]?.model ?? null,
+      });
+    case "turn.completed":
+      return convoTurnCompleted(convo, {
+        ...at,
+        threadId: fact.threadId,
+        status: fact.payload.status,
+        stepCount: fact.payload.stepCount,
+        usage: fact.payload.usage,
+        error: fact.payload.error,
+      });
+    case "item.recorded":
+      return convoItemRecorded(convo, fact.threadId, at, fact.item);
+    case "approval.requested":
+      return convoApprovalRequested(convo, fact.threadId, fact.eventId, fact.request);
+    case "approval.resolved":
+      return fact.resolved === undefined
+        ? convo
+        : convoApprovalResolved(convo, fact.threadId, at, fact.resolved);
+    case "lease.acquired":
+      return convoLeaseAcquired(convo, fact.threadId, at, fact.payload);
+    case "lease.released":
+      return convoLeaseReleased(convo, fact.threadId, at, fact.payload);
+    case "thread.updated":
+      return convoModelChanged(convo, fact.threadId, at, fact.payload.model);
+    case "convo":
+      return convoApply(convo, fact.threadId, at, fact.event);
+    case "thread.started":
+    case "thread.closed":
+    case "step.started":
+    case "lease.rejected":
+    case "scope.changed":
+    case "review.applied":
+    case "review.submitted":
+    case "plan.event":
+    case "thread.compacted":
+    case "input.queued":
+    case "input.placed":
+    case "input.withdrawn":
+    case "other":
+    case "unreadable":
+      return convo;
+    default:
+      return assertNever(fact, "convoOf");
+  }
+}
+
+function applyFactCore(state: EngineMirror, fact: DurableFact): EngineMirror {
   switch (fact.type) {
     case "thread.started": {
       if (state.threads.byId[fact.threadId] !== undefined) return state;
@@ -737,6 +857,7 @@ function applyFact(state: EngineMirror, fact: DurableFact): EngineMirror {
     case "input.placed":
     case "input.withdrawn":
       return dropQueued(state, fact.inputId);
+    case "convo": // 대화 상태(`convo`)만 바꾸는 사실이다. `applyConvoFact`가 읽는다
     case "other":
     case "unreadable":
       return state;
@@ -965,5 +1086,15 @@ function applySnapshot(
   ready = recordItems(ready, t.held);
   let streaming = state.streaming;
   for (const id of itemIds) streaming = settleItem(streaming, id);
-  return keep({ ...state, transcript: ready, streaming }, "applied");
+  // 스냅숏의 도구 결과에서 개입(훅·가드 차단, 결과 고침)을 읽는다. 사건 위치를 몰라 seq 0이다(같은 개입은 내용으로 거른다)
+  let convo = state.convo;
+  for (const item of input.items) {
+    convo = convoItemRecorded(
+      convo,
+      t.threadId,
+      { seq: 0, eventId: item.itemId, turnId: null, at: "" },
+      item,
+    );
+  }
+  return keep({ ...state, transcript: ready, streaming, convo }, "applied");
 }

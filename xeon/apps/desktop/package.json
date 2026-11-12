@@ -26,8 +26,12 @@
     "@caustic/tokens": "workspace:*",
     "@fresnel/client": "workspace:*",
     "@fresnel/contracts": "workspace:*",
+    "motion": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "react-markdown": "catalog:",
+    "remark-gfm": "catalog:",
+    "shiki": "catalog:",
     "typebox": "catalog:",
     "zustand": "catalog:"
   },

@@ -52,7 +52,8 @@
         "test/**/*.benchmark.ts",
         "test/web-e2e/*.e2e.ts",
         "mockups/*/main.tsx",
-        "src/styles.css"
+        "src/styles.css",
+        "src/lib/highlight-theme.css"
       ],
       "ignore": ["mockups/**"]
     },

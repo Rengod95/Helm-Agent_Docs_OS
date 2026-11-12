@@ -9,3 +9,6 @@ export type { EngineMirror, Link, ProviderRetry, QueuedInput } from "./state.ts"
 export type { ReadonlyStore } from "../shared/readonly-store.ts";
 export { createThreadReaderPort } from "./thread-reader.ts";
 export { selectThread } from "./selectors.ts";
+export { messageCopyText } from "./message-text.ts";
+export * from "./convo-select.ts";
+export type * from "./convo.ts";

@@ -319,7 +319,27 @@ describe("link: resync with a gap", () => {
       { from: "head" },
       {
         from: { storeId: STORE, seq: 0 },
-        filter: { kindPrefixes: ["work.plan_", "input.", "thread.compacted"] },
+        filter: {
+          kindPrefixes: [
+            "work.plan_",
+            "input.",
+            "thread.compacted",
+            "turn.",
+            "step.completed",
+            "approval.",
+            "lease.",
+            "agent.",
+            "work.goal_",
+            "work.task_",
+            "thread.updated",
+            "thread.leaf_moved",
+            "thread.branch_summarized",
+            "thread.resumed",
+            "settings.changed",
+            "tool.",
+            "secret.",
+          ],
+        },
       },
     ]);
     // 두 대기 입력 중 하나는 이미 배치됐다. 계획 하나는 연결 전에 제출됐다

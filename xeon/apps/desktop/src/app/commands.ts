@@ -59,6 +59,7 @@ import { createMeasureCommands } from "./measure-commands.ts";
 import { createUsageCommands } from "./usage.ts";
 import { createTestCommands } from "./tests-commands.ts";
 import { createWorkbenchCommands, subscribeExtChanges } from "./workbench-commands.ts";
+import { createMessageCommands, type MessageCommands } from "./message-commands.ts";
 import type { Session } from "./session.ts";
 import type { DesktopIpc } from "../transport/ipc.ts";
 import { LOCAL, type LocalSettings } from "../settings-store/index.ts";
@@ -109,7 +110,9 @@ const COMPACT_KEEP_KEY = "l1.context.keepRecentTokens";
  */
 const CLOSED_APPROVAL_LINGER_MS = 2_500;
 
-export function createCommands(deps: CommandDeps): Commands {
+export function createCommands(
+  deps: CommandDeps,
+): Commands & { readonly message: MessageCommands } {
   const { session, engine, ui } = deps;
 
   /** 승인 하나를 대기열에서 뺀다. 거울에서 지우고(해결된 것으로 기억한다) 카드의 응답 표시도 지운다 */
@@ -151,6 +154,15 @@ export function createCommands(deps: CommandDeps): Commands {
       withConnection((c) => c.request("thread.close", { threadId: previous })),
       () => {},
     );
+  };
+
+  /** 갈라낸 새 대화를 연다. 목록에는 thread.started 이벤트가 들어온다. 선택은 화면 상태라 바로 한다 */
+  const openForked = (threadId: ThreadId): void => {
+    ui.actions.dismissLocked();
+    leaveSelected(threadId);
+    engine.flush();
+    ui.actions.selectThread(threadId);
+    session.link()?.openThread(threadId);
   };
 
   const startTurn = async (
@@ -552,14 +564,17 @@ export function createCommands(deps: CommandDeps): Commands {
     async forkThread(threadId) {
       const forked = await withWriteConnection((c) => c.request("thread.fork", { threadId }));
       if (!forked.ok) return forked;
-      ui.actions.dismissLocked();
-      // 목록에는 thread.started 이벤트가 들어온다. 선택은 화면 상태라 바로 한다
-      leaveSelected(forked.value.threadId);
-      engine.flush();
-      ui.actions.selectThread(forked.value.threadId);
-      session.link()?.openThread(forked.value.threadId);
+      openForked(forked.value.threadId);
       return ok(null);
     },
+    message: createMessageCommands({
+      write: withWriteConnection,
+      engine,
+      ui,
+      openForked,
+      showLocked: showLockedIfLocked,
+      newRequestId: () => crypto.randomUUID(),
+    }),
     dismissLocked: () => ui.actions.dismissLocked(),
     retryWrite: (threadId) => ui.actions.setObserving(threadId, false),
     showScreen: (screen) => ui.actions.showScreen(screen),

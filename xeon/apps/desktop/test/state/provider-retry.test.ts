@@ -102,12 +102,16 @@ describe("provider_retry 디코드", () => {
     });
   });
 
-  test("다른 알림과 모양이 틀린 detail은 other다", () => {
+  test("gate_limit은 turn.notice이고 모양이 틀린 provider_retry detail은 other다", () => {
     const gate: VolatileEventWire = {
       ...retryEvent(1, DETAIL),
       payload: { status: "running", notice: { code: "gate_limit", detail: { limit: 8 } } },
     };
-    expect(decodeVolatile(gate, RECEIVED).type).toBe("other");
+    // gate_limit은 턴 알림(`turn.notice`)이다
+    expect(decodeVolatile(gate, RECEIVED)).toMatchObject({
+      type: "turn.notice",
+      notice: { code: "gate_limit", limit: 8 },
+    });
     expect(
       decodeVolatile(retryEvent(2, { attempt: 2, maxRetries: 3, waitMs: 1.5 }), RECEIVED).type,
     ).toBe("other");

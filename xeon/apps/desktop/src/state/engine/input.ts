@@ -1,6 +1,7 @@
 // src/state/engine/input.ts
 import type {
   EventId,
+  ItemId,
   ItemRecord,
   ItemStartedPayload,
   ItemUpdatedPayload,
@@ -10,10 +11,12 @@ import type {
   ThreadUpdatedPayload,
   TurnCompletedPayload,
   TurnId,
+  TurnStartedPayload,
 } from "@fresnel/contracts/conversation";
 import type { PlanId } from "@fresnel/contracts/capabilities";
 import type {
   ApprovalRequestedPayload,
+  ApprovalResolvedPayload,
   InputQueuedPayload,
   LeaseAcquiredPayload,
   LeaseRejectedPayload,
@@ -32,6 +35,7 @@ import type {
   ThreadSummary,
 } from "@fresnel/contracts/wire";
 import type { EngineState } from "../../transport/ipc.ts";
+import type { ConvoEvent, TurnNoticeRecord } from "./convo.ts";
 
 type DurableBase = {
   readonly seq: number;
@@ -96,7 +100,8 @@ export type DurableFact =
   | (DurableBase & { readonly type: "thread.started"; readonly payload: ThreadStartedPayload })
   | (DurableBase & { readonly type: "thread.updated"; readonly payload: ThreadUpdatedPayload })
   | (DurableBase & { readonly type: "thread.closed" })
-  | (DurableBase & { readonly type: "turn.started" })
+  /** 턴이 시작했다. `start`는 입력 출처와 주도 scope다(옛 기록에는 출처가 없어 user로 읽는다) */
+  | (DurableBase & { readonly type: "turn.started"; readonly start?: TurnStartInfo })
   /** 단계가 시작했다. 제공자 재시도 대기가 끝나 다음 응답을 기다리는 중임을 뜻한다(재시도 대기를 지운다) */
   | (DurableBase & { readonly type: "step.started" })
   | (DurableBase & { readonly type: "turn.completed"; readonly payload: TurnCompletedPayload })
@@ -105,7 +110,14 @@ export type DurableFact =
       readonly type: "approval.requested";
       readonly request: ApprovalRequestedPayload;
     })
-  | (DurableBase & { readonly type: "approval.resolved"; readonly approvalId: EventId })
+  | (DurableBase & {
+      readonly type: "approval.resolved";
+      readonly approvalId: EventId;
+      /** 해결의 내용(결정, 기억 범위, 해결한 쪽). 승인 기록을 도구 호출에 붙이는 데 쓴다 */
+      readonly resolved?: ApprovalResolvedPayload;
+    })
+  /** 대화 화면이 읽는 새 내구 kind(단계·중단·하위 에이전트·목표·할 일·표지·개입). `convo.ts`가 반영한다 */
+  | (DurableBase & { readonly type: "convo"; readonly event: ConvoEvent })
   | (DurableBase & { readonly type: "lease.acquired"; readonly payload: LeaseAcquiredPayload })
   | (DurableBase & { readonly type: "lease.released"; readonly payload: LeaseReleasedPayload })
   | (DurableBase & { readonly type: "lease.rejected"; readonly payload: LeaseRejectedPayload })
@@ -123,6 +135,13 @@ export type DurableFact =
   | (DurableBase & { readonly type: "input.withdrawn"; readonly inputId: EventId })
   | (DurableBase & { readonly type: "other" })
   | (DurableBase & { readonly type: "unreadable" });
+
+/** `turn.started`의 입력 출처와 주도 scope */
+type TurnStartInfo = {
+  readonly origin: NonNullable<TurnStartedPayload["origin"]>;
+  readonly scopeId: string | null;
+  readonly requestId: string | null;
+};
 
 type VolatileBase = {
   readonly n: number;
@@ -148,6 +167,14 @@ export type VolatileFact =
       readonly retry: ProviderRetryDetail;
       readonly receivedAt: number;
     })
+  /** 도구 진행 출력(휘발 `item.updated`의 `tool_progress`). `text`는 받은 본문의 글을 이어 붙인 것이다 */
+  | (VolatileBase & {
+      readonly type: "tool.progress";
+      readonly itemId: ItemId;
+      readonly text: string;
+    })
+  /** 턴 알림(휘발 `turn.updated`의 `gate_limit`, `repeat_detected`) */
+  | (VolatileBase & { readonly type: "turn.notice"; readonly notice: TurnNoticeRecord })
   | (VolatileBase & { readonly type: "other" });
 
 /** 엔진 거울의 유일한 입력. 엔진 사실(알림, 요청 결과, 셸 상태)과 컨트롤러의 요청 표시만 담는다 */
