@@ -1525,6 +1525,72 @@ export const SecretBeginRevealResultSchema: TObject<{ started: TBoolean }> = Typ
 );
 export type SecretBeginRevealResult = Static<typeof SecretBeginRevealResultSchema>;
 
+// ── secret.keyStatus·secret.keyMove: 열쇠 보관 방식(L0.secrets.spec §4.7 (b)·(e), [결정: 2026-11-12 사용자]). 값과 identity가 없다 ──
+
+/** 열쇠 보관 방식. `auto`·`auto-file`은 설정 `l0.secrets.ageKey.source`의 값이고, `keychain`·`file`은 옮기기의 목표다 */
+export const SecretKeyWhereSchema: TUnion<[TLiteral<"keychain">, TLiteral<"file">]> = Type.Union([
+  Type.Literal("keychain"),
+  Type.Literal("file"),
+]);
+export type SecretKeyWhere = Static<typeof SecretKeyWhereSchema>;
+
+export const SecretKeyStatusParamsSchema: TObject<{}> = Type.Object(
+  {},
+  { additionalProperties: false },
+);
+export type SecretKeyStatusParams = Static<typeof SecretKeyStatusParamsSchema>;
+
+/** secret.keyStatus result(`L0.secrets.spec`의 `KeyStatus`). `in`은 열쇠가 있는 쪽이고 identity를 읽지 않고 정한다 */
+export const SecretKeyStatusResultSchema: TObject<{
+  source: TUnion<[TLiteral<"auto">, TLiteral<"auto-file">, TLiteral<"keychain">, TLiteral<"file">]>;
+  in: TUnion<[TLiteral<"none">, TLiteral<"keychain">, TLiteral<"file">]>;
+  filePath: TString;
+  keychainUsable: TBoolean;
+  fallbackUnconfirmed: TBoolean;
+  fileMissing: TBoolean;
+}> = Type.Object(
+  {
+    source: Type.Union([
+      Type.Literal("auto"),
+      Type.Literal("auto-file"),
+      Type.Literal("keychain"),
+      Type.Literal("file"),
+    ]),
+    in: Type.Union([Type.Literal("none"), Type.Literal("keychain"), Type.Literal("file")]),
+    filePath: Type.String({ minLength: 1, maxLength: 4096 }),
+    keychainUsable: Type.Boolean(),
+    fallbackUnconfirmed: Type.Boolean(),
+    fileMissing: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
+export type SecretKeyStatusResult = Static<typeof SecretKeyStatusResultSchema>;
+
+/**
+ * secret.keyMove params. 열쇠를 `to` 쪽으로 옮기고 설정 `l0.secrets.ageKey.source`를 `to`로 바꾼다. 같은 컴퓨터의 연결만 한다(3213).
+ * 옮길 열쇠가 없거나 이미 그 쪽에 있으면 옮기지 않고 설정만 바꾼다(`moved: false`)
+ */
+export const SecretKeyMoveParamsSchema: TObject<{
+  to: TUnion<[TLiteral<"keychain">, TLiteral<"file">]>;
+}> = Type.Object({ to: SecretKeyWhereSchema }, { additionalProperties: false });
+export type SecretKeyMoveParams = Static<typeof SecretKeyMoveParamsSchema>;
+
+export const SecretKeyMoveResultSchema: TObject<{
+  moved: TBoolean;
+  created: TBoolean;
+  oldRemoved: TBoolean;
+  source: TUnion<[TLiteral<"keychain">, TLiteral<"file">]>;
+}> = Type.Object(
+  {
+    moved: Type.Boolean(),
+    created: Type.Boolean(),
+    oldRemoved: Type.Boolean(),
+    source: SecretKeyWhereSchema,
+  },
+  { additionalProperties: false },
+);
+export type SecretKeyMoveResult = Static<typeof SecretKeyMoveResultSchema>;
+
 // ── trust.* (프로젝트 신뢰. 판정과 결정을 클라이언트가 부른다, X.loading-trust.spec §4.7) ──
 
 /** 결정 범위: 이 폴더, 상위 폴더, 이 호스트 프로세스 동안만(`session`은 저장하지 않는다) */
@@ -2017,6 +2083,14 @@ interface WireSchemas
     params: WithMeta<typeof SecretBeginRevealParamsSchema>;
     result: typeof SecretBeginRevealResultSchema;
   };
+  "secret.keyStatus": {
+    params: WithMeta<typeof SecretKeyStatusParamsSchema>;
+    result: typeof SecretKeyStatusResultSchema;
+  };
+  "secret.keyMove": {
+    params: WithMeta<typeof SecretKeyMoveParamsSchema>;
+    result: typeof SecretKeyMoveResultSchema;
+  };
   "trust.get": {
     params: WithMeta<typeof TrustGetParamsSchema>;
     result: typeof TrustStatusSchema;
@@ -2230,6 +2304,12 @@ export const WIRE_METHODS: {
     SecretBeginRevealResultSchema,
     "M2",
   ),
+  "secret.keyStatus": spec(
+    withMeta(SecretKeyStatusParamsSchema),
+    SecretKeyStatusResultSchema,
+    "M4",
+  ),
+  "secret.keyMove": spec(withMeta(SecretKeyMoveParamsSchema), SecretKeyMoveResultSchema, "M4"),
   "trust.get": spec(withMeta(TrustGetParamsSchema), TrustStatusSchema, "M2"),
   "trust.decide": spec(withMeta(TrustDecideParamsSchema), TrustStatusSchema, "M2"),
   "trust.list": spec(withMeta(TrustListParamsSchema), TrustListResultSchema, "M4"),

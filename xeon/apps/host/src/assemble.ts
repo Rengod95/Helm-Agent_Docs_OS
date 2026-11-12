@@ -1320,6 +1320,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           logger: os.logger("secret-link"),
         }),
         secrets.service.redactor,
+        secrets.keys,
       ),
       commands,
       dialogArea,

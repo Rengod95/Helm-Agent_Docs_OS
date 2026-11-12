@@ -476,3 +476,62 @@ test("doctor prints one line per remote-access preflight item with the translate
     "원격 접속 준비 · 로그인 자동 시작: 이 운영체제는 자동 시작을 지원하지 않아요",
   );
 });
+
+// 시크릿 줄은 열쇠 위치(`secret.keyStatus`)를 본다(L0.secrets.spec §4.7 (e)). 열쇠가 없어도 "사용할 수 있다"로 나오지 않는다
+
+function keyStatusOf(overrides: Record<string, unknown>): () => Record<string, unknown> {
+  return () => ({
+    source: "auto",
+    in: "none",
+    filePath: "/cfg/secrets/age/keys.txt",
+    keychainUsable: true,
+    fallbackUnconfirmed: false,
+    fileMissing: false,
+    ...overrides,
+  });
+}
+
+test("the secret line says no key is needed yet when there is no key and no secret", async () => {
+  const h = harness({}, {}, { "secret.keyStatus": keyStatusOf({}) });
+  expect(await h.run(["doctor"])).toBe(EXIT.ok);
+  expect(h.stdoutText()).toContain(
+    "[ok]   시크릿 저장소: 열쇠가 아직 없어요, 첫 키 등록 때 만들어요",
+  );
+});
+
+test("a key file the setting points to that is missing is a problem with the fix, and an environment exit", async () => {
+  const h = harness(
+    {},
+    {},
+    {
+      "secret.keyStatus": keyStatusOf({
+        fileMissing: true,
+        source: "file",
+        filePath: "/cfg/keys.txt",
+      }),
+    },
+  );
+  expect(await h.run(["doctor"])).toBe(EXIT.environment);
+  expect(h.stdoutText()).toContain(
+    "[경고] 시크릿 저장소: 설정이 가리키는 열쇠 파일이 없어요: /cfg/keys.txt",
+  );
+  expect(h.stdoutText()).toContain(
+    "해결: `fresnel secret key use file`로 새로 정하거나 열쇠 파일을 되돌려 놓아요",
+  );
+});
+
+test("registered secrets without any key is a problem with the fix, and an environment exit", async () => {
+  const h = harness(
+    {},
+    {},
+    {
+      "secret.list": () => ({ secrets: [{ name: "exa-key", status: "valid" }] }),
+      "secret.keyStatus": keyStatusOf({}),
+    },
+  );
+  expect(await h.run(["doctor"])).toBe(EXIT.environment);
+  expect(h.stdoutText()).toContain("[경고] 시크릿 저장소: 등록된 시크릿은 있는데 열쇠가 없어요");
+  expect(h.stdoutText()).toContain(
+    "해결: 열쇠 파일을 되돌려 놓거나 `fresnel secret key status`로 위치를 확인해요",
+  );
+});

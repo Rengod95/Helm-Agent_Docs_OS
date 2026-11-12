@@ -1,7 +1,11 @@
 import type { SecretHandle, SecretMeta, SecretName } from "@fresnel/contracts/capabilities";
 import { resolveSetting } from "@fresnel/contracts/settings";
 import type { SecretAdminService } from "@fresnel/contracts/services";
-import { withDefaultSopsFile, type SecretsConfig } from "@fresnel/platform-secrets";
+import {
+  withDefaultSopsFile,
+  type SecretKeys,
+  type SecretsConfig,
+} from "@fresnel/platform-secrets";
 import { createSecretOfferStore } from "../secrets/offers.ts";
 import type { ProviderLinker } from "../secrets/provider-link.ts";
 import type { SecretsPort } from "../types.ts";
@@ -30,9 +34,11 @@ export function createSecretsPort(
   config: () => SecretsConfig,
   linker: ProviderLinker,
   display: SecretsPort["display"],
+  keys: SecretKeys,
 ): SecretsPort {
   return {
     admin,
+    keys,
     display,
     offers: createSecretOfferStore(),
     linkModelProviders: () => linker.link(),

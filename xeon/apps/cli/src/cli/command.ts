@@ -206,7 +206,11 @@ export type SecretCommand =
   | { readonly kind: "secret.rotate"; readonly name: SecretName }
   | { readonly kind: "secret.rm"; readonly name: SecretName; readonly yes: boolean }
   | { readonly kind: "secret.test"; readonly name: SecretName; readonly output: OutputMode }
-  | { readonly kind: "secret.reveal"; readonly name: SecretName };
+  | { readonly kind: "secret.reveal"; readonly name: SecretName }
+  /** `secret key status`: 열쇠가 어디에 있는지와 설정(L4.cli.spec §4.7) */
+  | { readonly kind: "secret.key.status" }
+  /** `secret key use <keychain|file>`: 열쇠 보관 방식을 옮긴다 */
+  | { readonly kind: "secret.key.use"; readonly to: "keychain" | "file" };
 
 export interface ServiceCommand {
   readonly kind: "service";
@@ -1659,12 +1663,14 @@ function parseSecret(
           return assertNever(action, "secret rm|test|reveal");
       }
     }
+    case "key":
+      return parseSecretKey(acc, tail);
     case undefined:
       return err(
         usage(
           "missingArgument",
           t("cli.usage.subcommandMissing.message", { command: "secret" }),
-          t("cli.usage.oneOf.fix", { list: "ls, add, set, meta, rotate, rm, test, reveal" }),
+          t("cli.usage.oneOf.fix", { list: SECRET_SUBCOMMANDS }),
         ),
       );
     // fresnel-disable-next-line fresnel/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
@@ -1673,7 +1679,74 @@ function parseSecret(
         usage(
           "unknownCommand",
           t("cli.usage.unknownCommand.message", { command: `secret ${action}` }),
-          t("cli.usage.oneOf.fix", { list: "ls, add, set, meta, rotate, rm, test, reveal" }),
+          t("cli.usage.oneOf.fix", { list: SECRET_SUBCOMMANDS }),
+        ),
+      );
+  }
+}
+
+/** `secret` 하위 명령의 목록(사용법 오류 문구). `key`는 `secret key status|use`다 */
+const SECRET_SUBCOMMANDS = "ls, add, set, meta, rotate, rm, test, reveal, key";
+
+/** `secret key status|use <keychain|file>`. 열쇠 보관 방식을 보고 옮긴다(L0.secrets.spec §4.7, L4.cli.spec §4.7) */
+function parseSecretKey(
+  acc: GlobalAcc,
+  tail: readonly string[],
+): Result<SecretCommand, UsageError> {
+  const [sub, ...rest] = tail;
+  if (sub === undefined) {
+    return err(
+      usage(
+        "missingArgument",
+        t("cli.usage.subcommandMissing.message", { command: "secret key" }),
+        t("cli.usage.oneOf.fix", { list: "status, use" }),
+      ),
+    );
+  }
+  const scanned = scanArgs(acc, rest, {});
+  if (!scanned.ok) return scanned;
+  const positionals = scanned.value.positionals;
+  switch (sub) {
+    case "status":
+      if (positionals.length > 0) {
+        return err(
+          usage(
+            "unexpectedArgument",
+            t("cli.usage.noPositional.message", { command: "secret key status" }),
+            t("cli.usage.secret.key.status.fix"),
+          ),
+        );
+      }
+      return ok({ kind: "secret.key.status" });
+    case "use": {
+      const [to, ...extra] = positionals;
+      if (to === undefined) {
+        return err(
+          usage(
+            "missingArgument",
+            t("cli.usage.secret.key.use.missing.message"),
+            t("cli.usage.secret.key.use.fix"),
+          ),
+        );
+      }
+      if (extra.length > 0 || (to !== "keychain" && to !== "file")) {
+        return err(
+          usage(
+            "unexpectedArgument",
+            t("cli.usage.secret.key.use.invalid.message"),
+            t("cli.usage.secret.key.use.fix"),
+          ),
+        );
+      }
+      return ok({ kind: "secret.key.use", to });
+    }
+    // fresnel-disable-next-line fresnel/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
+    default:
+      return err(
+        usage(
+          "unknownCommand",
+          t("cli.usage.unknownCommand.message", { command: `secret key ${sub}` }),
+          t("cli.usage.oneOf.fix", { list: "status, use" }),
         ),
       );
   }

@@ -11,6 +11,7 @@ export const FAILURE_KINDS = [
   "key_store",
   "key_missing",
   "key_file",
+  "key_fallback_unconfirmed",
   "service_local_only",
   "already_exists",
   "not_found",

@@ -259,17 +259,38 @@ function providerKindOf(reason: string | undefined): FailureKind {
 }
 
 /**
- * 키 문제의 원인별 종류. OS 키 저장소를 쓸 수 없어 파일 키가 아직 확인되지 않은 것(`file`, `access_denied`)과
- * 잠금·접근 거부·Secret Service 없음은 키 저장소 문제다. 항목이나 파일이 없으면 `key_missing`, 파일 권한이면 `key_file`이다
+ * 키 문제의 원인별 종류. 잠금·접근 거부·Secret Service 없음은 키 저장소 문제다. 항목이나 파일이 없으면 `key_missing`,
+ * 파일 권한이면 `key_file`이다. 앱 파일 폴백의 사람 확인 없음(`fallback_unconfirmed`)은 호출하는 쪽이 따로 본다
  */
-function keyKindOf(key: string | undefined, reason: string | undefined): FailureKind {
-  if (key === "file" && reason === "access_denied") return "key_store";
+function keyKindOf(reason: string | undefined): FailureKind {
   if (reason === "item_missing") return "key_missing";
   if (reason === "file_mode") return "key_file";
   if (reason === "locked" || reason === "no_secret_service" || reason === "access_denied") {
     return "key_store";
   }
   return "unknown";
+}
+
+/**
+ * OS 키 저장소를 쓸 수 없어 앱 파일로 떨어졌고 사람이 아직 확인하지 않았다. 아무것도 저장되지 않았다(L0.secrets.spec §4.7 (c)).
+ * 시크릿 추가·설정·회전이 쓴다. 비대화 실행이나 확인을 거절한 경우 같은 문구다
+ */
+export function fallbackUnconfirmedFailure(code: ExitCode): Failure {
+  return {
+    message: t("cli.errors.secret.keyUnavailable.fallbackUnconfirmed.message"),
+    fix: t("cli.errors.secret.keyUnavailable.fallbackUnconfirmed.fix"),
+    code,
+    kind: "key_fallback_unconfirmed",
+  };
+}
+
+/** 쓰기 명령의 오류가 앱 파일 폴백의 사람 확인 없음인가(`secret.keyUnavailable`, `details.reason` `fallback_unconfirmed`) */
+export function isFallbackUnconfirmed(caught: unknown): boolean {
+  return (
+    caught instanceof WireError &&
+    caught.data.kind === "secret.keyUnavailable" &&
+    detailText(caught, "reason") === "fallback_unconfirmed"
+  );
 }
 
 function secretFailureOf(
@@ -330,28 +351,23 @@ function secretFailureOf(
       };
     }
     case "key_unavailable": {
-      if (field("key") === "file" && field("reason") === "access_denied") {
-        // 자동 선택이 파일 키로 떨어졌고 사람이 아직 확인하지 않았다(L0.secrets.spec §4.7 5번)
-        return {
-          message: t("cli.errors.secret.keyUnavailable.fileAccessDenied.message"),
-          fix: t("cli.errors.secret.keyUnavailable.fileAccessDenied.fix"),
-          code: EXIT.environment,
-          kind: keyKindOf(field("key"), field("reason")),
-        };
+      if (field("reason") === "fallback_unconfirmed") {
+        // `auto`가 OS 키 저장소를 쓸 수 없어 앱 파일로 떨어졌고 사람이 아직 확인하지 않았다(L0.secrets.spec §4.7 (c))
+        return fallbackUnconfirmedFailure(EXIT.environment);
       }
       if (field("reason") === "item_missing") {
         return {
           message: t("cli.errors.secret.keyUnavailable.itemMissing.message"),
           fix: t("cli.errors.secret.keyUnavailable.itemMissing.fix"),
           code: EXIT.environment,
-          kind: keyKindOf(field("key"), field("reason")),
+          kind: keyKindOf(field("reason")),
         };
       }
       return {
         message: t("cli.errors.secret.keyUnavailable.message"),
         fix: t("cli.errors.secret.keyUnavailable.fix"),
         code: EXIT.environment,
-        kind: keyKindOf(field("key"), field("reason")),
+        kind: keyKindOf(field("reason")),
       };
     }
     case "decrypt_failed":

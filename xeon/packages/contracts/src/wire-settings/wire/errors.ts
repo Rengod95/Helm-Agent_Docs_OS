@@ -552,6 +552,7 @@ export const WIRE_ERRORS: {
           Type.Literal("key_file"),
           Type.Literal("key_store"),
           Type.Literal("sops_file"),
+          Type.Literal("settings"),
         ]),
         code: Type.String({ maxLength: 64 }),
       },

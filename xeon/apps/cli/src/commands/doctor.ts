@@ -393,9 +393,77 @@ async function remoteChecks(connection: HostConnection): Promise<readonly Doctor
   return checks;
 }
 
+/** 시크릿 줄의 판정. `environment`는 열쇠가 없어 환경을 고쳐야 한다는 뜻이다(종료 코드 2) */
+interface SecretKeyCheck {
+  readonly check: DoctorCheck;
+  readonly environment: boolean;
+}
+
+/**
+ * 시크릿 줄. 등록 수만 보면 열쇠가 없어도 "사용할 수 있다"가 나온다(L0.secrets.spec §4.7 (e)). 열쇠 위치(`secret.keyStatus`)를 함께 본다.
+ * 설정이 가리키는 열쇠 파일이 없거나, 등록된 시크릿이 있는데 열쇠가 없으면 문제다. 열쇠도 시크릿도 없으면 첫 등록 때 만든다
+ */
+async function secretKeyCheck(handle: EngineHandle, count: number): Promise<SecretKeyCheck> {
+  const usable: DoctorCheck = {
+    id: "secrets",
+    status: "ok",
+    message: t("cli.doctor.secrets.ok", { count: String(count) }),
+  };
+  if (!handle.supports("secret.keyStatus")) return { check: usable, environment: false };
+  const keyStatus = await attemptAsync(() => handle.connection.request("secret.keyStatus", {}));
+  if (!keyStatus.ok) {
+    const failure = failureOfCaught(keyStatus.error.cause);
+    if (failure === undefined) throw keyStatus.error.cause;
+    return {
+      check: {
+        id: "secrets",
+        status: "warn",
+        message: t("cli.doctor.secrets.failed", { reason: failure.message }),
+        fix: failure.fix,
+      },
+      environment: false,
+    };
+  }
+  const status = keyStatus.value;
+  if (status.fileMissing) {
+    return {
+      check: {
+        id: "secrets",
+        status: "warn",
+        message: t("cli.doctor.secrets.keyFileMissing", { path: status.filePath }),
+        fix: t("cli.doctor.secrets.keyFileMissing.fix"),
+      },
+      environment: true,
+    };
+  }
+  if (status.in === "none") {
+    if (count === 0) {
+      return {
+        check: {
+          id: "secrets",
+          status: "ok",
+          message: t("cli.doctor.secrets.keyNotYet"),
+        },
+        environment: false,
+      };
+    }
+    return {
+      check: {
+        id: "secrets",
+        status: "warn",
+        message: t("cli.doctor.secrets.keyLost"),
+        fix: t("cli.doctor.secrets.keyLost.fix"),
+      },
+      environment: true,
+    };
+  }
+  return { check: usable, environment: false };
+}
+
 async function engineChecks(handle: EngineHandle): Promise<{
   readonly checks: readonly DoctorCheck[];
   readonly binaries: HostBinaryReport | null;
+  readonly keyEnvironment: boolean;
 }> {
   const checks: DoctorCheck[] = [
     {
@@ -410,12 +478,11 @@ async function engineChecks(handle: EngineHandle): Promise<{
     },
   ];
   const secrets = await attemptAsync(() => handle.connection.request("secret.list", {}));
+  let keyEnvironment = false;
   if (secrets.ok) {
-    checks.push({
-      id: "secrets",
-      status: "ok",
-      message: t("cli.doctor.secrets.ok", { count: String(secrets.value.secrets.length) }),
-    });
+    const key = await secretKeyCheck(handle, secrets.value.secrets.length);
+    checks.push(key.check);
+    keyEnvironment = key.environment;
   } else {
     const failure = failureOfCaught(secrets.error.cause);
     if (failure === undefined) throw secrets.error.cause;
@@ -435,7 +502,7 @@ async function engineChecks(handle: EngineHandle): Promise<{
     message: service === true ? t("cli.doctor.service.enabled") : t("cli.doctor.service.disabled"),
   });
   checks.push(...(await remoteChecks(handle.connection)));
-  return { checks, binaries: binaries.report };
+  return { checks, binaries: binaries.report, keyEnvironment };
 }
 
 function failureChecks(failure: Failure): readonly DoctorCheck[] {
@@ -554,8 +621,8 @@ export async function runDoctor(ctx: CommandContext, command: DoctorCommand): Pr
       const engine = await engineChecks(handle);
       checks = [...engine.checks];
       binaries = engine.binaries;
-      // 필수 바이너리를 쓸 수 없으면 환경 문제로 끝낸다(HS-69). 선택 바이너리만 빠진 것은 경고다
-      if (binaries?.ready === false) code = EXIT.environment;
+      // 필수 바이너리를 쓸 수 없으면 환경 문제로 끝낸다(HS-69). 선택 바이너리만 빠진 것은 경고다. 열쇠가 없는 것도 환경 문제다
+      if (binaries?.ready === false || engine.keyEnvironment) code = EXIT.environment;
       web = await webProvidersOf(handle);
     } finally {
       await handle.shutdown("user");

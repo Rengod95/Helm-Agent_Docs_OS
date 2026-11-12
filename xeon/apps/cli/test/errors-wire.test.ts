@@ -174,13 +174,15 @@ test("a too old sops asks for an upgrade; a missing one still asks for an instal
   expect(old.fix).toBe("sops를 3.10.0 이상(권장 3.12.0 이상)으로 올리고 fresnel doctor로 확인한다");
 });
 
-test("a file key that is not confirmed yet tells the user which setting to save", () => {
+test("a file key that is not confirmed yet tells the user to choose the app file", () => {
   const failure = failureOfWire(
-    wireError("secret.keyUnavailable", { details: { key: "file", reason: "access_denied" } }),
+    wireError("secret.keyUnavailable", {
+      details: { key: "file", reason: "fallback_unconfirmed" },
+    }),
   );
   expect(failure).toEqual({
-    message: "복호화 키를 아직 쓸 수 없다 (OS 키 저장소가 없어 파일 키가 필요하다)",
-    fix: "키를 디스크 파일에 두는 것을 확인했다면 fresnel config set l0.secrets.ageKey.source file로 저장하고 다시 실행한다",
+    message: "이 컴퓨터에서는 OS 키 저장소를 쓸 수 없어요",
+    fix: "`fresnel secret key use file`로 앱 파일 보관을 직접 정해요",
     code: EXIT.environment,
   });
   // 키 항목이 없는 경우

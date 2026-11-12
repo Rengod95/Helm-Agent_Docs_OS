@@ -7,6 +7,7 @@ import { parse } from "@fresnel/contracts";
 import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabilities";
 import { memorySecrets } from "@fresnel/platform-secrets/testing";
 import { startService, type ServiceHandle } from "../../src/index.ts";
+import { createFakeKeys } from "../fixtures/fake-keys.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { connectedClient, manualTime, scratchRuntimeDir } from "../fixtures/service-harness.ts";
@@ -86,7 +87,7 @@ realTest(
             ids: deps.ids,
             secrets: [],
           });
-          return { service: secrets, admin: secrets.admin };
+          return { service: secrets, admin: secrets.admin, keys: createFakeKeys() };
         },
       },
       time: manualTime(),

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { memorySecrets } from "@fresnel/platform-secrets/testing";
 import { startInProcessHost } from "../../src/main.ts";
+import { createFakeKeys } from "../fixtures/fake-keys.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 
 // 첫 키를 파일로 만든 직후 조립 루트가 사용자 범위 설정 `l0.secrets.ageKey.source`를 file로 저장한다(L0.secrets.spec §4.7 9번).
@@ -24,7 +25,7 @@ test("the callback that follows a first file key saves the age key source as fil
         ids: deps.ids,
         secrets: [],
       });
-      return { service: secrets, admin: secrets.admin };
+      return { service: secrets, admin: secrets.admin, keys: createFakeKeys() };
     },
   });
   try {

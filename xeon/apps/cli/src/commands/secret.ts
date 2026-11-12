@@ -8,6 +8,8 @@ import {
 import type { SecretEntryAction, SecretValueSource } from "@fresnel/contracts/services";
 import {
   WireError,
+  type SecretKeyMoveResult,
+  type SecretKeyStatusResult,
   type SecretListEntry,
   type SecretReferencesResult,
   type SecretTestResult,
@@ -15,7 +17,12 @@ import {
 import type { CliIo } from "../io.ts";
 import type { SecretCommand, SecretMetaFlags } from "../cli/command.ts";
 import type { EngineHandle } from "../engine.ts";
-import { renderFailure, type Failure } from "../errors.ts";
+import {
+  fallbackUnconfirmedFailure,
+  isFallbackUnconfirmed,
+  renderFailure,
+  type Failure,
+} from "../errors.ts";
 import { EXIT, type ExitCode } from "../exit-codes.ts";
 import { openOneShotChannel, readUntilEnd, sendAndWipe } from "../secret-channel.ts";
 import { withEngine, type CommandContext } from "./context.ts";
@@ -143,11 +150,19 @@ async function readValue(
   return ok(first);
 }
 
+/** 한 번의 입력 시도 사이에 남는 값. 호스트가 값을 한 번 읽었으면 같은 값을 다시 쓰고 사람에게 다시 묻지 않는다 */
+interface HeldValue {
+  value: Uint8Array | undefined;
+  failure: InputFailure | null;
+}
+
 interface EntryOutcome {
   readonly started: boolean;
   readonly inputFailure: InputFailure | null;
   /** 호스트가 로컬 채널을 거절했다(`secret.localOnly`) */
   readonly refused: boolean;
+  /** OS 키 저장소를 쓸 수 없어 앱 파일로 떨어졌고 사람이 아직 확인하지 않았다(`fallback_unconfirmed`). 아무것도 저장되지 않았다 */
+  readonly fallback: boolean;
 }
 
 /** 같은 컴퓨터의 서비스 접속인가. 맡길 수단이 없고 라우트가 이 기기의 서비스일 때만 로컬 채널을 쓴다 */
@@ -159,12 +174,16 @@ function isLocalOnly(caught: unknown): boolean {
   return caught instanceof WireError && caught.data.kind === "secret.localOnly";
 }
 
-/** 값을 한 번 받는다. 받은 값과 실패 종류를 `held`에 남긴다. 호출한 쪽이 값을 넘기거나 덮는다 */
+/**
+ * 값을 한 번 받는다. 이미 읽은 값이 있으면 그것을 돌려주고 다시 묻지 않는다. 새로 받은 값과 실패 종류는 `held`에 남긴다.
+ * 돌려주는 바이트는 `held`가 쥐고 있으므로 호출한 쪽은 복사해서 넘기고 원본은 두 번 덮지 않는다
+ */
 async function takeValue(
   ctx: CommandContext,
-  held: { value: Uint8Array | undefined; failure: InputFailure | null },
+  held: HeldValue,
   signal: AbortSignal,
 ): Promise<Result<Uint8Array, InputFailure>> {
+  if (held.value !== undefined) return ok(held.value);
   const value = await readValue(ctx, signal);
   if (value.ok) {
     held.value = value.value;
@@ -176,23 +195,22 @@ async function takeValue(
 
 /**
  * add·set·rotate의 값 입력과 secret.beginEntry. 값을 읽는 때는 호스트가 값을 청하는 순간이다: 맡긴 수단은 source.read()로,
- * 로컬 채널은 호스트가 연결하는 순간이다. 채널은 요청 동안만 열려 있고 끝나면(성공, 실패, 취소) 지운다
+ * 로컬 채널은 호스트가 연결하는 순간이다. 채널은 요청 동안만 열려 있고 끝나면(성공, 실패, 취소) 지운다.
+ * 값은 `held`가 쥐고 있고 호출한 쪽(`runEntry`)이 끝날 때 덮는다. 같은 값으로 다시 시도할 수 있다
  */
 async function enterValue(
   ctx: CommandContext,
   handle: EngineHandle,
   name: SecretName,
   action: SecretEntryAction,
+  held: HeldValue,
 ): Promise<EntryOutcome> {
-  const held: { value: Uint8Array | undefined; failure: InputFailure | null } = {
-    value: undefined,
-    failure: null,
-  };
   const abort = new AbortController();
   const source: SecretValueSource = {
     async read() {
       const value = await takeValue(ctx, held, abort.signal);
-      if (value.ok) return ok(value.value);
+      // 호스트는 받은 바이트를 쓴 뒤 덮는다. 보관한 원본이 남도록 복사해서 준다
+      if (value.ok) return ok(value.value.slice());
       return err({ kind: value.error === "empty" ? "input_empty" : "input_cancelled" });
     },
   };
@@ -201,13 +219,14 @@ async function enterValue(
     ? await openOneShotChannel(async (socket, signal) => {
         const value = await takeValue(ctx, held, signal);
         // 취소나 빈 값은 아무것도 쓰지 않고 닫는다. 호스트는 빈 입력으로 받는다
-        if (value.ok) await sendAndWipe(socket, value.value);
+        if (value.ok) await sendAndWipe(socket, value.value.slice());
         else socket.end();
       })
     : undefined;
   try {
     let started = false;
     let refused = false;
+    let fallback = false;
     try {
       const result = await handle.connection.request("secret.beginEntry", {
         name,
@@ -216,17 +235,16 @@ async function enterValue(
       });
       started = result.started;
     } catch (caught) {
-      if (!isLocalOnly(caught)) throw caught;
-      refused = true;
+      if (isLocalOnly(caught)) refused = true;
+      else if (isFallbackUnconfirmed(caught)) fallback = true;
+      else throw caught;
     }
-    return { started, inputFailure: held.failure, refused };
+    return { started, inputFailure: held.failure, refused, fallback };
   } finally {
     retract?.();
     abort.abort();
     // 연결이 들어와 처리 중이면 그것이 끝난 뒤 지운다
     await channel?.close();
-    // 호스트가 넘긴 뒤에도 CLI 쪽 사본을 덮는다(§4.7)
-    held.value?.fill(0);
   }
 }
 
@@ -256,6 +274,7 @@ function startFailure(
   action: SecretEntryAction,
 ): Failure {
   if (outcome.inputFailure !== null) return inputMessage(outcome.inputFailure);
+  if (outcome.fallback) return fallbackUnconfirmedFailure(EXIT.environment);
   if (outcome.refused || (handle.secretOutOfBand === null && !handle.localService)) {
     return enterLocalOnly(action);
   }
@@ -395,31 +414,136 @@ async function runEntry(
     return EXIT.usage;
   }
   return withEngine(ctx, async (handle) => {
-    const outcome = await enterValue(ctx, handle, name, action);
-    if (!outcome.started) {
-      const failure = startFailure(handle, outcome, action);
-      await ctx.io.stderr(renderFailure(failure));
-      return failure.code;
-    }
-    if (action === "add" && hasMetaFlags(flags)) {
-      const applied = await applyMeta(handle, name, flags);
-      if (!applied.ok) {
-        await ctx.io.stderr(
-          renderFailure({
-            ...applied.error,
-            message: t("cli.secret.metaNotApplied.message", { reason: applied.error.message }),
-          }),
-        );
-        return applied.error.code;
+    const held: HeldValue = { value: undefined, failure: null };
+    try {
+      let outcome = await enterValue(ctx, handle, name, action, held);
+      if (outcome.fallback && ctx.io.terminal.stdinIsTty) {
+        // 이 컴퓨터에서 OS 키 저장소를 쓸 수 없다. 사람이 앱 파일 보관을 정하면 열쇠를 옮기고 같은 값으로 한 번 더 한다
+        // (L0.secrets.spec §4.7 (c)). 답이 아니오면 아무것도 저장하지 않는다
+        const keep = await confirmedByUser(ctx, t("cli.secret.key.fallback.question"));
+        if (!keep) {
+          await ctx.io.stderr(renderFailure(fallbackUnconfirmedFailure(EXIT.error)));
+          return EXIT.error;
+        }
+        await handle.connection.request("secret.keyMove", { to: "file" });
+        outcome = await enterValue(ctx, handle, name, action, held);
       }
+      if (!outcome.started) {
+        const failure = startFailure(handle, outcome, action);
+        await ctx.io.stderr(renderFailure(failure));
+        return failure.code;
+      }
+      if (action === "add" && hasMetaFlags(flags)) {
+        const applied = await applyMeta(handle, name, flags);
+        if (!applied.ok) {
+          await ctx.io.stderr(
+            renderFailure({
+              ...applied.error,
+              message: t("cli.secret.metaNotApplied.message", { reason: applied.error.message }),
+            }),
+          );
+          return applied.error.code;
+        }
+      }
+      const done =
+        action === "add"
+          ? t("cli.secret.done.added", { name })
+          : action === "set"
+            ? t("cli.secret.done.set", { name })
+            : t("cli.secret.done.rotated", { name });
+      await ctx.io.stdout(done);
+      return EXIT.ok;
+    } finally {
+      // 보관한 값은 명령이 끝나면 덮는다(§4.7)
+      held.value?.fill(0);
     }
-    const done =
-      action === "add"
-        ? t("cli.secret.done.added", { name })
-        : action === "set"
-          ? t("cli.secret.done.set", { name })
-          : t("cli.secret.done.rotated", { name });
-    await ctx.io.stdout(done);
+  });
+}
+
+/** 열쇠 보관 방식의 사람 이름 */
+function whereName(to: "keychain" | "file"): string {
+  return to === "keychain" ? t("cli.secret.key.where.keychain") : t("cli.secret.key.where.file");
+}
+
+/** 열쇠가 어디에 있는지와 설정을 사람 문장 여러 줄로(`secret key status`, L4.cli.spec §4.7) */
+function keyStatusText(status: SecretKeyStatusResult): string {
+  const lines: string[] = [];
+  switch (status.in) {
+    case "keychain":
+      lines.push(t("cli.secret.key.status.inKeychain"));
+      break;
+    case "file":
+      lines.push(t("cli.secret.key.status.inFile", { path: status.filePath }));
+      break;
+    case "none":
+      lines.push(t("cli.secret.key.status.none"));
+      break;
+    default:
+      return assertNever(status.in, "KeyLocation");
+  }
+  lines.push(t("cli.secret.key.status.setting", { source: status.source }));
+  lines.push(
+    status.keychainUsable
+      ? t("cli.secret.key.status.keychainUsable")
+      : t("cli.secret.key.status.keychainUnusable"),
+  );
+  if (status.fallbackUnconfirmed) lines.push(t("cli.secret.key.status.fallbackUnconfirmed"));
+  if (status.fileMissing) {
+    lines.push(t("cli.secret.key.status.fileMissing", { path: status.filePath }));
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+async function runKeyStatus(ctx: CommandContext): Promise<ExitCode> {
+  return withEngine(ctx, async (handle) => {
+    const status = await handle.connection.request("secret.keyStatus", {});
+    await ctx.io.stdout(keyStatusText(status));
+    return EXIT.ok;
+  });
+}
+
+/** `secret.keyMove`를 부른다. 원격 접속이라 호스트가 `secret.localOnly`로 거절하면 `undefined`다. 그 밖의 오류는 그대로 던진다 */
+async function keyMoveOf(
+  handle: EngineHandle,
+  to: "keychain" | "file",
+): Promise<SecretKeyMoveResult | undefined> {
+  try {
+    return await handle.connection.request("secret.keyMove", { to });
+  } catch (caught) {
+    if (isLocalOnly(caught)) return undefined;
+    throw caught;
+  }
+}
+
+/**
+ * `secret key use <keychain|file>`: 열쇠를 옮기고 설정을 바꾼다(`secret.keyMove`). 옮길 열쇠가 없으면 설정만 바꿔 다음 등록이
+ * 그 방식으로 만든다. 옛 쪽을 못 지웠으면 두 곳에 남았다고 경고한다
+ */
+async function runKeyUse(ctx: CommandContext, to: "keychain" | "file"): Promise<ExitCode> {
+  return withEngine(ctx, async (handle) => {
+    // 옮기기 전에 어디에 있었는지 본다. 옮기지 않은 결과는 이미 그 쪽에 있었는지, 열쇠가 없는지로 나뉜다
+    const before = await handle.connection.request("secret.keyStatus", {});
+    const moved = await keyMoveOf(handle, to);
+    if (moved === undefined) {
+      // 열쇠를 옮기는 일은 열쇠가 있는 컴퓨터에서만 한다(원격 접속이면 호스트가 거절한다)
+      await ctx.io.stderr(
+        renderFailure({
+          message: t("cli.secret.key.use.localOnly.message"),
+          fix: t("cli.secret.key.use.localOnly.fix"),
+          kind: "service_local_only",
+        }),
+      );
+      return EXIT.error;
+    }
+    const where = whereName(to);
+    if (moved.moved) {
+      await ctx.io.stdout(`${t("cli.secret.key.use.moved", { where })}\n`);
+      if (!moved.oldRemoved) await ctx.io.stderr(`${t("cli.secret.key.use.oldKept")}\n`);
+    } else if (before.in === to) {
+      await ctx.io.stdout(`${t("cli.secret.key.use.already", { where })}\n`);
+    } else {
+      await ctx.io.stdout(`${t("cli.secret.key.use.setOnly", { where })}\n`);
+    }
     return EXIT.ok;
   });
 }
@@ -691,6 +815,10 @@ export async function runSecret(ctx: CommandContext, command: SecretCommand): Pr
       return runTest(secret, command);
     case "secret.reveal":
       return runReveal(secret, command);
+    case "secret.key.status":
+      return runKeyStatus(secret);
+    case "secret.key.use":
+      return runKeyUse(secret, command.to);
     default:
       return assertNever(command, "SecretCommand");
   }

@@ -13,6 +13,7 @@ import {
   settingKeysReferencing,
 } from "../../src/assembly/secrets.ts";
 import { createSettingsEngine } from "../../src/assembly/settings-engine.ts";
+import { createFakeKeys } from "../fixtures/fake-keys.ts";
 import {
   createFakeSecrets,
   FAKE_SECRETS_CONFIG,
@@ -41,6 +42,7 @@ test("the default metadata of a new secret follows the first SOPS file and the s
     }),
     NO_PROVIDER_LINKS,
     NO_DISPLAY,
+    createFakeKeys(),
   );
   expect(port.newMeta(nameOf("exa-key"))).toEqual({
     name: nameOf("exa-key"),
@@ -59,9 +61,13 @@ test("the default metadata of a new secret follows the first SOPS file and the s
 test("a new secret has nowhere to go without a SOPS file, or with a default provider whose ref rule is unknown", () => {
   const admin = createFakeSecrets().port.admin;
   expect(
-    createSecretsPort(admin, () => DEFAULT_SECRETS_CONFIG, NO_PROVIDER_LINKS, NO_DISPLAY).newMeta(
-      nameOf("exa-key"),
-    ),
+    createSecretsPort(
+      admin,
+      () => DEFAULT_SECRETS_CONFIG,
+      NO_PROVIDER_LINKS,
+      NO_DISPLAY,
+      createFakeKeys(),
+    ).newMeta(nameOf("exa-key")),
   ).toBe(undefined);
   expect(
     createSecretsPort(
@@ -69,6 +75,7 @@ test("a new secret has nowhere to go without a SOPS file, or with a default prov
       () => ({ ...FAKE_SECRETS_CONFIG, defaultProvider: "op" }),
       NO_PROVIDER_LINKS,
       NO_DISPLAY,
+      createFakeKeys(),
     ).newMeta(nameOf("exa-key")),
   ).toBe(undefined);
 });
@@ -85,6 +92,7 @@ test("a clean machine with no SOPS file configured still has a place for a new s
     config,
     NO_PROVIDER_LINKS,
     NO_DISPLAY,
+    createFakeKeys(),
   );
   // 값은 SOPS 제공자가 찾는 파일과 같은 `user/<KEY>`에 놓인다
   expect(port.newMeta(nameOf("anthropic-api-key"))?.ref).toBe("user/ANTHROPIC_API_KEY");
@@ -102,6 +110,7 @@ test("a configured SOPS file list is left alone and the default file is not mixe
     config,
     NO_PROVIDER_LINKS,
     NO_DISPLAY,
+    createFakeKeys(),
   );
   expect(port.newMeta(nameOf("exa-key"))?.ref).toBe("dev/EXA_KEY");
 });
@@ -115,6 +124,7 @@ test("another default provider still has no place: the setting, not a missing fi
     ),
     NO_PROVIDER_LINKS,
     NO_DISPLAY,
+    createFakeKeys(),
   );
   expect(port.newMeta(nameOf("exa-key"))).toBe(undefined);
 });

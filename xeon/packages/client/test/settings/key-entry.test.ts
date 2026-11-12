@@ -336,6 +336,17 @@ describe("reason sentences follow the code (L4.desktop.spec §4.14.1)", () => {
         ],
       },
       {
+        code: "key_fallback_unconfirmed",
+        ko: [
+          "이 컴퓨터에서는 키 저장소를 쓸 수 없어요",
+          "설정의 시크릿에서 열쇠 보관을 '앱 파일'로 바꿔요",
+        ],
+        en: [
+          "This computer cannot use the key store",
+          "In Settings > Secrets, change key storage to 'app file'",
+        ],
+      },
+      {
         code: "service_local_only",
         ko: [
           "이 컴퓨터에서만 값을 넣을 수 있어요",

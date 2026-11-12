@@ -90,6 +90,10 @@ const REASON_IDS: Readonly<Record<Exclude<FailureKind, "unknown">, ReasonIds>> =
     text: "client.settings.key.reason.keyFile.text",
     fix: "client.settings.key.reason.keyFile.fix",
   },
+  key_fallback_unconfirmed: {
+    text: "client.settings.key.reason.keyFallbackUnconfirmed.text",
+    fix: "client.settings.key.reason.keyFallbackUnconfirmed.fix",
+  },
   service_local_only: {
     text: "client.settings.key.reason.serviceLocalOnly.text",
     fix: "client.settings.key.reason.serviceLocalOnly.fix",

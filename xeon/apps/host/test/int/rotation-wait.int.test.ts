@@ -6,6 +6,7 @@ import { accountRotationGroup } from "@fresnel/group-account-rotation";
 import { memorySecrets } from "@fresnel/platform-secrets/testing";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
+import { createFakeKeys } from "../fixtures/fake-keys.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { realTapeClock } from "../fixtures/tape-host.ts";
@@ -106,7 +107,7 @@ realTest(
           ids: deps.ids,
           secrets: [{ meta: metaOf(), value: KEY }],
         });
-        return { service: secrets, admin: secrets.admin };
+        return { service: secrets, admin: secrets.admin, keys: createFakeKeys() };
       },
     });
     const connection = createHostConnection(host.client);

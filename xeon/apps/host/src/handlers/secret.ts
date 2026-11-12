@@ -1,9 +1,10 @@
-import { assertNever, type Result } from "@fresnel/contracts";
+import { assertNever, err, ok, type Result } from "@fresnel/contracts";
 import type { SecretEntryMeta, SecretMeta } from "@fresnel/contracts/capabilities";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
 import type { SecretError, SecretMetaPatch, SecretValueSource } from "@fresnel/contracts/services";
 import {
   wireError,
+  type SecretKeyWhere,
   type SecretListEntry,
   type WireError,
   type WireHandler,
@@ -13,7 +14,7 @@ import {
 import type { ConnectionHub } from "../connection-types.ts";
 import { checkChannel, revealChannel, sourceOfChannel } from "../secrets/channel.ts";
 import { auditEntriesOf, handleOf, listEntryOf, wireErrorOfSecret } from "../secrets/wire.ts";
-import type { Engine } from "../types.ts";
+import type { Engine, SettingsWriteFailure } from "../types.ts";
 
 // F.wire-settings.spec §3.3.1 secret.*, L4.host-service.spec §3.4 M2 표. 요청·응답·이벤트·오류 어디에도 값이 없다.
 // 값 입력과 열람은 두 길 중 하나로 한다. (1) in-process: CLI가 wire 밖으로 맡긴 수단(SecretOutOfBandPort)을 꺼내 쓴다.
@@ -28,7 +29,9 @@ type SecretMethod =
   | "secret.references"
   | "secret.audit"
   | "secret.beginEntry"
-  | "secret.beginReveal";
+  | "secret.beginReveal"
+  | "secret.keyStatus"
+  | "secret.keyMove";
 
 function orThrow<T>(result: Result<T, SecretError>, where: string): T {
   if (!result.ok) throw wireErrorOfSecret(result.error, where);
@@ -165,6 +168,20 @@ function localOnly(where: string): WireError {
   });
 }
 
+/** 같은 컴퓨터·같은 사용자의 연결인가. 원격 표시이거나 연결 상태를 찾지 못하면 `secret.localOnly`를 던진다 */
+function requireLocal(
+  engine: Engine,
+  hub: ConnectionHub,
+  context: WireRequestContext,
+  where: string,
+): void {
+  const client = hub.state(context.connectionId)?.client;
+  if (client === undefined || client.origin !== "local") {
+    engine.ports.log.info("secret.local_refused", { where, reason: "not_local" });
+    throw localOnly(where);
+  }
+}
+
 /**
  * 요청이 보낸 `channel`을 확인한다. 원격이거나 채널이 이 사용자 것이 아니면 `secret.localOnly`를 던진다. 통과하면 경로다
  * (L4.cli.spec §4.7). 경로 자체는 값이 아니므로 로그에 남긴다
@@ -176,17 +193,78 @@ async function localChannelOf(
   channel: string,
   where: string,
 ): Promise<string> {
-  const client = hub.state(context.connectionId)?.client;
-  if (client === undefined || client.origin !== "local") {
-    engine.ports.log.info("secret.channel_refused", { where, reason: "not_local" });
-    throw localOnly(where);
-  }
+  requireLocal(engine, hub, context, where);
   const checked = await checkChannel(channel);
   if (!checked.ok) {
     engine.ports.log.info("secret.channel_refused", { where, reason: checked.error });
     throw localOnly(where);
   }
   return checked.value;
+}
+
+/** 설정 키 `l0.secrets.ageKey.source`. 열쇠 보관 방식을 정한다(L0.secrets.spec §4.7 (e)) */
+const KEY_SOURCE_SETTING = "l0.secrets.ageKey.source";
+
+/** 설정 쓰기 실패의 원인 글. 입출력 실패는 OS 코드를, 나머지는 종류 이름을 싣는다. 값과 경로는 싣지 않는다 */
+function settingsCodeOf(failure: SettingsWriteFailure): string {
+  return "code" in failure ? failure.code : failure.kind;
+}
+
+/**
+ * 설정 `l0.secrets.ageKey.source`를 `to`로 쓴다(사용자 범위). 실패는 `SecretError`로 돌려줘 `keys.move`가 새 쪽을 되돌리게 한다
+ * (`onFileKeyCreated`가 파일 키 설정을 쓰는 방식과 같다, apps/host/src/assemble.ts)
+ */
+async function writeKeySource(
+  engine: Engine,
+  to: SecretKeyWhere,
+): Promise<Result<void, SecretError>> {
+  const written = await engine.ports.settings.write("user", KEY_SOURCE_SETTING, to, undefined);
+  if (written.ok) return ok(undefined);
+  return err({
+    kind: "write_failed",
+    target: "settings",
+    path: KEY_SOURCE_SETTING,
+    code: settingsCodeOf(written.error),
+  });
+}
+
+/** 열쇠 보관 상태(`secret.keyStatus`). 읽기 전용이고 identity를 읽지 않는다 */
+function createKeyStatusHandler(engine: Engine): WireHandler<"secret.keyStatus"> {
+  const { keys } = engine.ports.secrets;
+  return async () => {
+    const status = await keys.status();
+    return {
+      source: status.source,
+      in: status.in,
+      filePath: status.filePath,
+      keychainUsable: status.keychainUsable,
+      fallbackUnconfirmed: status.fallbackUnconfirmed,
+      fileMissing: status.fileMissing,
+    };
+  };
+}
+
+/**
+ * 열쇠를 `to` 쪽으로 옮기고 설정을 `to`로 바꾼다(`secret.keyMove`, `L0.secrets.spec` §4.7 (b)). 같은 컴퓨터의 연결만 한다.
+ * 옮길 열쇠가 없거나 이미 `to`에 있으면 `keys.move`는 commit을 부르지 않으므로 이 처리기가 설정을 직접 쓴다
+ */
+function createKeyMoveHandler(
+  engine: Engine,
+  hub: () => ConnectionHub,
+): WireHandler<"secret.keyMove"> {
+  const { keys } = engine.ports.secrets;
+  return async (params, context) => {
+    requireLocal(engine, hub(), context, "secret.keyMove");
+    const { to } = params;
+    const moved = orThrow(await keys.move(to, () => writeKeySource(engine, to)), "secret.keyMove");
+    if (!moved.moved) orThrow(await writeKeySource(engine, to), "secret.keyMove");
+    return {
+      moved: moved.moved,
+      created: moved.created,
+      oldRemoved: moved.oldRemoved,
+      source: to,
+    };
+  };
 }
 
 /** 입력이 없었음(취소나 빈 값)을 기억하는 감싸기. 그때 실패는 값 검사가 아니라 사람이 넣지 않은 것이다 */
@@ -315,5 +393,7 @@ export function createSecretHandlers(
     "secret.audit": createAuditHandler(engine),
     "secret.beginEntry": createBeginEntryHandler(engine, hub),
     "secret.beginReveal": createBeginRevealHandler(engine, hub),
+    "secret.keyStatus": createKeyStatusHandler(engine),
+    "secret.keyMove": createKeyMoveHandler(engine, hub),
   };
 }
