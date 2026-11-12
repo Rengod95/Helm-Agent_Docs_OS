@@ -1,8 +1,7 @@
 // 캔버스 그리기의 rAF 틱과 이벤트 연결. 언제 그릴지는 frame-policy의 shouldRender가 정하고, 여기는 틱과 리스너만 맡는다.
 import { shouldRender, type ActivityMode, type FrameInput } from "@fresnel/client/workbench/canvas";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
-
-const REDUCE_QUERY = "(prefers-reduced-motion: reduce)";
+import { isMotionReduced, subscribeMotionReduced } from "../../lib/motion-presets.tsx";
 
 /** 한 장 그리기. still이면 움직임 줄이기 상태라 시간을 멈춘 한 장이다. */
 export type FrameDraw = (now: number, still: boolean) => void;
@@ -38,8 +37,9 @@ interface LoopState {
   watched: string | undefined;
 }
 
+/** 앱 설정과 OS 설정을 함께 본다(DP-108) */
 function readReducedMotion(): boolean {
-  return window.matchMedia(REDUCE_QUERY).matches;
+  return isMotionReduced();
 }
 
 export function useFrameLoop(draw: FrameDraw, opts: FrameLoopOptions): FrameLoop {
@@ -109,13 +109,12 @@ export function useFrameLoop(draw: FrameDraw, opts: FrameLoopOptions): FrameLoop
 
   // 마운트 한 번: 움직임 줄이기, 탭 가림, 문맥 상실·되살림 리스너를 건다
   useEffect(() => {
-    const mq = window.matchMedia(REDUCE_QUERY);
     const canvas = latest.current.opts.canvas.current;
-    st.reduced = mq.matches;
-    setReducedMotion(mq.matches);
+    st.reduced = readReducedMotion();
+    setReducedMotion(st.reduced);
     const onMotion = (): void => {
-      st.reduced = mq.matches;
-      setReducedMotion(mq.matches);
+      st.reduced = readReducedMotion();
+      setReducedMotion(st.reduced);
       st.drawnOnce = false;
       kick();
     };
@@ -137,14 +136,14 @@ export function useFrameLoop(draw: FrameDraw, opts: FrameLoopOptions): FrameLoop
       setContextLost(false);
       kick();
     };
-    mq.addEventListener("change", onMotion);
+    const stopMotion = subscribeMotionReduced(onMotion);
     document.addEventListener("visibilitychange", onVisibility);
     canvas?.addEventListener("webglcontextlost", onLost);
     canvas?.addEventListener("webglcontextrestored", onRestored);
     kick();
     return () => {
       cancel();
-      mq.removeEventListener("change", onMotion);
+      stopMotion();
       document.removeEventListener("visibilitychange", onVisibility);
       canvas?.removeEventListener("webglcontextlost", onLost);
       canvas?.removeEventListener("webglcontextrestored", onRestored);

@@ -13,6 +13,7 @@
 @import "./views/transcript-caret.css";
 @import "./views/thinking-indicator.css";
 @import "./views/call-chip.css";
+@import "./views/effects/beam.css";
 @source "./";
 
 /* 옛 변수는 caustic 토큰을 가리킨다. 테마(data-theme)를 따라가고 값을 따로 두지 않는다 */
@@ -230,17 +231,9 @@
   }
 }
 
-/* 설정 "외관"의 움직임 줄이기 켬(`views/appearance-prefs.ts`가 `<html data-motion="reduce">`를 건다).
-   caustic은 `prefers-reduced-motion` 미디어 쿼리만 있어 앱 설정으로 켤 고리가 없어, 같은 규칙을 속성으로도 건다(시안 e01 mockup.css). */
-@layer components {
-  [data-motion="reduce"] *,
-  [data-motion="reduce"] *::before,
-  [data-motion="reduce"] *::after {
-    animation-duration: 0s !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0s !important;
-  }
-}
+/* 설정 "외관"의 움직임 줄이기 켬(`views/appearance-prefs.ts`가 `<html data-motion="reduce">`를 건다, DP-108).
+   전역 규칙(애니메이션·전환·지연 0)과 누름 축소 끄기는 caustic base.css·press가 `:root[data-motion="reduce"]`로 건다. 앱에 따로 두지 않는다.
+   JS로 움직이는 곳은 `lib/motion-presets.tsx`의 `isMotionReduced`·`useMotionReduced` 하나를 본다. */
 
 /* 강제 색(`forced-colors: active`, Windows 고대비): 브라우저가 배경·그림자·분할선 색을 지워 입력창 경계와 선택 표시가 사라진다.
    시스템 색(Canvas, CanvasText, Highlight, HighlightText)으로 경계와 선택을 다시 그린다. caustic 부품이 배경색·그림자로만 선택과 경계를 그리는 것이

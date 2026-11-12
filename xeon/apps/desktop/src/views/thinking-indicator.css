@@ -1,4 +1,4 @@
-/* 생각 표시 움직임(dsI). 바깥 고리부터 안쪽으로 0.2초씩 늦게 밝아지고 한 바퀴는 1.8초다. 인라인 <style>은 Tauri CSP가 막아 이 파일로 두고 styles.css가 가져온다.
+/* 생각 표시 움직임(dsI, DP-106). 바깥 고리부터 안쪽으로 0.24초씩 늦게 밝아지고 한 바퀴는 2.4초다. 인라인 <style>은 Tauri CSP가 막아 이 파일로 두고 styles.css가 가져온다.
    색은 caustic 토큰이다: 움직일 때 agent graphic, 끝난 생각은 tertiary 글자색(라이트·다크는 토큰이 따라간다). */
 .thinking-indicator {
   color: var(--cs-color-text-tertiary);
@@ -9,27 +9,30 @@
 .thinking-indicator-part {
   opacity: 0.7;
 }
+/* 크리스탈 숨(DP-106): 고리가 바깥에서 안으로 0.24초씩 늦게 부드럽게 밝아졌다 가라앉는다. 한 바퀴 2.4초, 사인 곡선이라 끝이 튀지 않는다 */
 .thinking-indicator[data-active="true"] .thinking-indicator-part {
-  opacity: 0.25;
-  animation: thinking-indicator-converge 1.8s ease-in-out infinite;
+  opacity: 0.3;
+  animation: thinking-indicator-converge 2.4s cubic-bezier(0.37, 0, 0.63, 1) infinite;
 }
 .thinking-indicator[data-active="true"] .thinking-indicator-step-1 {
-  animation-delay: 0.2s;
+  animation-delay: 0.24s;
 }
 .thinking-indicator[data-active="true"] .thinking-indicator-step-2 {
-  animation-delay: 0.4s;
+  animation-delay: 0.48s;
 }
 .thinking-indicator[data-active="true"] .thinking-indicator-step-3 {
-  animation-delay: 0.6s;
+  animation-delay: 0.72s;
 }
 @keyframes thinking-indicator-converge {
   0%,
-  60%,
   100% {
-    opacity: 0.25;
+    opacity: 0.3;
   }
-  25% {
+  35% {
     opacity: 1;
+  }
+  70% {
+    opacity: 0.3;
   }
 }
 /* 움직임을 줄이면 멈춘다. 움직이는 중임은 색(agent graphic)으로 남는다 */

@@ -21,6 +21,7 @@ import { newFrameNonce, type PluginUiRuntime } from "../../plugin-ui/runtime.ts"
 import { ShellStoreContext } from "../../state/shell/index.ts";
 import { useReadyThreadId } from "../../state/engine/index.ts";
 import { useCommands } from "../commands.ts";
+import { isMotionReduced, useMotionReduced } from "../../lib/motion-presets.tsx";
 import {
   HEADER_CONTROL_SIZE,
   HEADER_PRIMARY_VARIANT,
@@ -69,10 +70,14 @@ function themeNow(): ThemePush {
     ),
     density: "comfortable",
     locale,
-    reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    // 앱 설정과 OS 설정을 함께 본다(DP-108)
+    reducedMotion: isMotionReduced(),
     hangulWordBreak: locale.startsWith("ko") ? "keep-all" : "normal",
   };
 }
+
+/** `themeNow`와 같은 값이다. 움직임 줄이기가 바뀌면 이 함수로 바꿔 넘겨 프레임이 테마를 다시 받게 한다(plugin-frame.tsx는 `theme`이 바뀔 때 민다) */
+const themeAfterMotionChange = (): ThemePush => themeNow();
 
 const randomFill = (bytes: Uint8Array): void => {
   crypto.getRandomValues(bytes);
@@ -483,6 +488,7 @@ function FrameBody(props: {
   const { entry, loaded, runtime } = props;
   const plugin = usePluginUi();
   const threadId = useReadyThreadId();
+  const reducedMotion = useMotionReduced();
   const session = useSession(
     entry,
     loaded.context,
@@ -514,7 +520,7 @@ function FrameBody(props: {
       makeBackend={session.makeBackend}
       confirm={plugin.confirm.request}
       cancelConfirm={plugin.confirm.cancel}
-      theme={themeNow}
+      theme={reducedMotion ? themeAfterMotionChange : themeNow}
       title={extMessageOf(entry.messages, activeLocale(), entry.title)}
       onClosed={() => {}}
     />

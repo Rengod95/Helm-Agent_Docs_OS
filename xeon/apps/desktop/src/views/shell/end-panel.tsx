@@ -1,6 +1,7 @@
 // 오른쪽 떠 있는 막대 + 펼친 well(S-01 끝 영역, DP-10). 탭 내용은 `registry.endTabs(area)`가 준다.
 // 영역마다 마지막 탭을 기억한다(`AreaPlace.endTab`). 막대 칸은 6개까지 보이고 나머지는 "더 보기" 메뉴다.
 // 칸의 숫자(`badge`)는 값이 바뀌면 칸이 다시 그리고, 펼친 well 머리와 칸의 이름표에는 같은 글("플러그인 2")이 든다.
+import { Presence } from "../../lib/motion-presets.tsx";
 import { t } from "@fresnel/client/i18n";
 import {
   Card,
@@ -104,7 +105,13 @@ export function EndPanel(props: { readonly registry: ShellRegistry }): ReactNode
           <Fragment key={tab.id}>{tab.alwaysMounted}</Fragment>
         ),
       )}
-      {open ? (
+      {/* 아이콘 쪽(위 오른쪽)에서 펼쳐지는 느낌: 그 모서리를 원점으로 0.98에서 나타나고, 닫을 때도 같은 모서리로 짧게 사라진다(DP-106) */}
+      <Presence
+        show={open}
+        variant="pop"
+        initial={false}
+        className="pointer-events-auto absolute inset-y-0 end-[calc(100%+0.375rem)] z-30 flex origin-top-right"
+      >
         <Card
           variant="well"
           size="sm"
@@ -112,8 +119,7 @@ export function EndPanel(props: { readonly registry: ShellRegistry }): ReactNode
           role="region"
           tabIndex={-1}
           aria-label={label}
-          // 아이콘 쪽(위 오른쪽)에서 펼쳐지는 느낌: 그 모서리를 원점으로 커지며 나타난다(시안 right-panel)
-          className="pointer-events-auto absolute inset-y-0 end-[calc(100%+0.375rem)] z-30 flex max-w-[calc(100vw-4.5rem)] origin-top-right animate-enter flex-col shadow-3 outline-none enter-scale"
+          className="flex max-w-[calc(100vw-4.5rem)] flex-col shadow-3 outline-none"
           style={{ width: wellWidthOf(current) }}
         >
           <div className="flex h-8 flex-none items-center gap-1.5 ps-2.5 pe-0.5">
@@ -137,7 +143,7 @@ export function EndPanel(props: { readonly registry: ShellRegistry }): ReactNode
             </ScrollArea>
           </CardPanel>
         </Card>
-      ) : null}
+      </Presence>
       <FloatingBar
         label={t("desktop.shell.end.label")}
         orientation="vertical"

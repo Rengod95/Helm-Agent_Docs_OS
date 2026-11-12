@@ -10,6 +10,8 @@ import {
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import { nextStuck } from "./virtual-list-stick.ts";
+import { glideStep, shouldGlide } from "./virtual-list-glide.ts";
+import { isMotionReduced } from "../lib/motion-presets.tsx";
 
 // 가상 스크롤(L4.desktop.spec 4.10 수단 3). 화면에 보이는 행과 앞뒤 여유분만 DOM에 둔다.
 // 행 높이는 고정하지 않는다(V7): 마운트된 행을 ResizeObserver로 재고, 재지 않은 행은 추정값을 쓴다.
@@ -104,6 +106,9 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
     heights: new Map(),
   });
   const pendingShift = useRef(0);
+  // 따라 내려가기 보간(DP-106). 도는 동안의 프레임 번호와 직전 시각. 사용자가 위로 움직이면(바닥에서 벗어나면) 다음 프레임에서 멈춘다
+  const glide = useRef<number | null>(null);
+  const glideAt = useRef(0);
   // 한 번 화면 밖으로 나갔다 다시 들어오는 행은 들어오는 움직임(animate-rise)을 다시 하지 않는다
   const seen = useRef<Set<string>>(new Set());
 
@@ -160,6 +165,27 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
     };
   }, []);
 
+  const stopGlide = (): void => {
+    if (glide.current !== null) cancelAnimationFrame(glide.current);
+    glide.current = null;
+  };
+  // 한 프레임: 지금의 바닥(내용이 계속 늘면 목표도 따라 늘어난다)으로 남은 거리의 일부만큼 간다. 옮긴 자리를 lastTop에 적어
+  // 이 스크롤 이벤트를 사용자의 움직임으로 보지 않게 한다. 바닥에서 벗어났으면(위로 굴림) 그 자리에서 놓는다
+  function glideFrame(now: number): void {
+    const el = scroller.current;
+    glide.current = null;
+    if (el === null || !stuck.current) return;
+    const target = el.scrollHeight - el.clientHeight;
+    const next = glideStep(el.scrollTop, target, now - glideAt.current);
+    glideAt.current = now;
+    el.scrollTop = next;
+    lastTop.current = el.scrollTop;
+    lastScrollHeight.current = el.scrollHeight;
+    if (el.scrollHeight - el.clientHeight - el.scrollTop >= 1)
+      glide.current = requestAnimationFrame(glideFrame);
+  }
+  useEffect(() => stopGlide, []);
+
   const keys = useMemo(() => rows.map((r) => r.key), [rows]);
   const { offsets, total } = layout(keys, heights);
   const heightAt = (index: number): number => heights.get(keys[index] ?? "") ?? ESTIMATED_HEIGHT;
@@ -185,12 +211,25 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
     if (switched) stuck.current = true;
     firstKey.current = head;
     const own = props.ownTailKey ?? null;
+    const ownBefore = ownKey.current;
     if (!switched && own !== null && own !== ownKey.current) stuck.current = true;
     ownKey.current = own;
     if (el !== null && followTail && stuck.current) {
-      el.scrollTop = el.scrollHeight;
-      lastTop.current = el.scrollTop;
-      lastScrollHeight.current = el.scrollHeight;
+      const distance = el.scrollHeight - el.clientHeight - el.scrollTop;
+      // 대화를 바꿨거나 내가 보냈거나 한 화면 넘게 늘었으면 바로 바닥으로 간다. 그 밖의 늘어남은 감쇠 보간으로 따라간다
+      const jump =
+        switched ||
+        (own !== null && own !== ownBefore) ||
+        !shouldGlide({ distance, viewportHeight: el.clientHeight, reduced: isMotionReduced() });
+      if (jump) {
+        stopGlide();
+        el.scrollTop = el.scrollHeight;
+        lastTop.current = el.scrollTop;
+        lastScrollHeight.current = el.scrollHeight;
+      } else if (glide.current === null) {
+        glideAt.current = performance.now();
+        glide.current = requestAnimationFrame(glideFrame);
+      }
     }
     if (stuck.current) baseline.current = keys.filter((key) => !key.startsWith(LIVE_PREFIX)).length;
   });
@@ -232,7 +271,10 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
   // 휠을 위로 굴리면 스크롤 이벤트보다 먼저 바닥에서 벗어난 것으로 본다. 바닥 근처에서 조금만 올려도 다시 내려가 튀지 않게 한다
   const onWheel = (event: ReactWheelEvent<HTMLDivElement>): void => {
     const el = scroller.current;
-    if (el !== null && event.deltaY < 0 && el.scrollTop > 0) stuck.current = false;
+    if (el !== null && event.deltaY < 0 && el.scrollTop > 0) {
+      stuck.current = false;
+      stopGlide();
+    }
   };
 
   // 첫 렌더에서 뷰포트 높이를 읽는다
@@ -300,6 +342,7 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
               onClick={() => {
                 const el = scroller.current;
                 if (el === null) return;
+                stopGlide();
                 el.scrollTop = el.scrollHeight;
                 lastTop.current = el.scrollTop;
                 lastScrollHeight.current = el.scrollHeight;

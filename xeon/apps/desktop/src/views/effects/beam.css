@@ -1,0 +1,229 @@
+/* beam(DP-107 [결정: 2026-11-11 사용자]). border-beam(MIT)의 원리를 우리 값으로 직접 쓴 것이다: 고리는 마스크(content-box exclude)로
+   테두리만 남기고, 그 안의 빛 덩어리가 offset-path rect()를 따라 같은 속도로 돈다(conic-gradient는 긴 직사각형에서 속도가 고르지 않다).
+   색은 로고의 크리스탈(보라 h288 → 파랑 h262 → 청록 h210). 색 트랙(dzC) 값이 병합되면 이 변수만 바꾼다.
+   켤 때 280ms(들어옴 곡선), 끌 때 180ms(나감 곡선). 움직임을 줄이면 정지한 은은한 고리와 선이다. styles.css가 가져온다(Tauri·Electron CSP가 인라인 <style>을 막는다). */
+
+:root {
+  --fx-crystal-a: light-dark(oklch(0.56 0.2 288), oklch(0.72 0.17 288));
+  --fx-crystal-b: light-dark(oklch(0.55 0.19 262), oklch(0.7 0.16 262));
+  --fx-crystal-c: light-dark(oklch(0.62 0.13 210), oklch(0.8 0.12 210));
+  /* 승인 대기 고리. 라이트의 warning.graphic(L 0.91)은 흰 바탕에서 안 보여 라이트는 warning.text(L 0.52)를 쓴다 */
+  --fx-beam-wait: light-dark(var(--cs-color-warning-text), var(--cs-color-warning-graphic));
+  --fx-beam-strength: 0.9;
+  --fx-beam-period: 3.6s;
+  --fx-beam-size: 160px;
+  --fx-line-period: 1.4s;
+}
+:root[data-theme="light"] {
+  --fx-beam-strength: 0.8;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --fx-beam-strength: 0.8;
+  }
+}
+
+/* 고리: 대상(입력창 상자) 위에 겹친 판. 위치·크기·반경은 BeamScope가 잰 값이다 */
+.fx-beam {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: var(--fx-beam-radius, 16px);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 180ms cubic-bezier(0.4, 0, 1, 1),
+    visibility 0s linear 180ms;
+}
+.fx-beam:is([data-state="run"], [data-state="wait"]) {
+  opacity: var(--fx-beam-strength);
+  visibility: visible;
+  transition:
+    opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s;
+}
+.fx-beam-ring {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  padding: 1px;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  background-color: transparent;
+  transition: background-color 280ms cubic-bezier(0.2, 0, 0, 1);
+}
+/* 바깥쪽 번짐: 4px 고리를 흐려 테두리 밖으로 빛이 스민다. 흐림은 마스크 뒤에 걸리도록 감싼 판에 둔다. 안쪽 글 영역(여백 12px)에는 닿지 않는다 */
+.fx-beam-glow {
+  position: absolute;
+  inset: -3px;
+  border-radius: calc(var(--fx-beam-radius, 16px) + 3px);
+  filter: blur(4px);
+  opacity: 0.55;
+}
+.fx-beam-glow > .fx-beam-ring {
+  padding: 4px;
+}
+/* 빛 덩어리는 진행 방향으로 긴 띠다(offset-rotate auto로 경로를 따라 돈다). 높이를 낮게 두어 낮은 입력창(약 70px)에서
+   위아래 변이 한꺼번에 밝아지지 않는다. 머리(진행 쪽)가 청록, 꼬리가 보라에서 투명으로 사라진다 */
+.fx-beam-spark {
+  position: absolute;
+  width: var(--fx-beam-size);
+  height: 20px;
+  offset-path: rect(0 auto auto 0 round var(--fx-beam-radius, 16px));
+  offset-anchor: 90% 50%;
+  background: linear-gradient(
+    to left,
+    var(--fx-crystal-c),
+    var(--fx-crystal-b) 28%,
+    var(--fx-crystal-a) 58%,
+    transparent
+  );
+  animation: fx-beam-orbit var(--fx-beam-period) linear infinite;
+  transition: opacity 180ms cubic-bezier(0.4, 0, 1, 1);
+}
+.fx-beam-glow .fx-beam-spark {
+  offset-path: rect(0 auto auto 0 round calc(var(--fx-beam-radius, 16px) + 3px));
+}
+@keyframes fx-beam-orbit {
+  from {
+    offset-distance: 0%;
+  }
+  to {
+    offset-distance: 100%;
+  }
+}
+/* 꺼진 뒤에는 돌지 않는다 */
+.fx-beam[data-state="off"] .fx-beam-spark {
+  animation-play-state: paused;
+}
+
+/* 승인 대기: 빛이 멈추고 고리 전체가 경고 색으로 고정된다 */
+.fx-beam[data-state="wait"] .fx-beam-spark {
+  opacity: 0;
+  animation-play-state: paused;
+}
+.fx-beam[data-state="wait"] .fx-beam-ring {
+  background-color: var(--fx-beam-wait);
+}
+.fx-beam[data-state="wait"] {
+  opacity: calc(var(--fx-beam-strength) * 0.75);
+}
+.fx-beam[data-state="wait"] .fx-beam-glow {
+  opacity: 0.35;
+}
+
+/* 제자리 맥동(예비 변형): 고리 전체가 크리스탈 색으로 천천히 숨 쉰다 */
+.fx-beam[data-mode="pulse"] .fx-beam-spark {
+  display: none;
+}
+.fx-beam[data-mode="pulse"][data-state="run"] .fx-beam-ring {
+  background-image: linear-gradient(
+    120deg,
+    var(--fx-crystal-a),
+    var(--fx-crystal-b) 50%,
+    var(--fx-crystal-c)
+  );
+  animation: fx-beam-pulse 2.4s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+}
+@keyframes fx-beam-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* 아래 변을 흐르는 선: 대화를 불러오는 동안 머리 줄 아래 */
+.fx-line {
+  position: absolute;
+  inset-inline: 0;
+  bottom: -1px;
+  z-index: 2;
+  height: 1px;
+  /* 옆으로만 자르고 위아래는 열어 둔다: 빛 줄기의 번짐(그림자)이 1px 선 밖으로 보인다 */
+  overflow-x: clip;
+  overflow-y: visible;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 180ms cubic-bezier(0.4, 0, 1, 1),
+    visibility 0s linear 180ms;
+}
+.fx-line[data-state="run"] {
+  opacity: var(--fx-beam-strength);
+  visibility: visible;
+  transition:
+    opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s;
+}
+.fx-line-streak {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 40%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--fx-crystal-a) 30%,
+    var(--fx-crystal-b) 55%,
+    var(--fx-crystal-c) 80%,
+    transparent
+  );
+  box-shadow: 0 0 6px 0.5px color-mix(in oklch, var(--fx-crystal-b) 55%, transparent);
+  transform: translateX(-100%);
+  animation: fx-line-flow var(--fx-line-period) cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+.fx-line[data-state="off"] .fx-line-streak {
+  animation-play-state: paused;
+}
+@keyframes fx-line-flow {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+/* 움직임 줄이기: 돌거나 흐르지 않고 정지한 은은한 빛만 남는다 */
+@media (prefers-reduced-motion: reduce) {
+  .fx-beam-spark,
+  .fx-line-streak {
+    display: none;
+  }
+  .fx-beam[data-state="run"] .fx-beam-ring,
+  .fx-line[data-state="run"] {
+    background-image: linear-gradient(
+      90deg,
+      var(--fx-crystal-a),
+      var(--fx-crystal-b) 50%,
+      var(--fx-crystal-c)
+    );
+    animation: none;
+  }
+  .fx-beam[data-state="run"],
+  .fx-line[data-state="run"] {
+    opacity: 0.45;
+  }
+}
+:root[data-motion="reduce"] :is(.fx-beam-spark, .fx-line-streak) {
+  display: none;
+}
+:root[data-motion="reduce"]
+  :is(.fx-beam[data-state="run"] .fx-beam-ring, .fx-line[data-state="run"]) {
+  background-image: linear-gradient(
+    90deg,
+    var(--fx-crystal-a),
+    var(--fx-crystal-b) 50%,
+    var(--fx-crystal-c)
+  );
+  animation: none;
+}
+:root[data-motion="reduce"] :is(.fx-beam[data-state="run"], .fx-line[data-state="run"]) {
+  opacity: 0.45;
+}

@@ -1,26 +1,45 @@
-/* 작성 중 커서(시안 p02-opus StreamingText). 글 끝에 깜빡이는 막대 하나이고 움직임을 줄이면 멈춘다.
-   caustic에는 깜빡임 keyframes가 없어서 여기에 둔다. Tauri CSP가 인라인 <style>을 막아 JSX가 아니라 이 파일로 두고 styles.css가 가져온다. */
+/* 작성 중 커서(시안 p02-opus StreamingText, DP-106). 글 끝의 가는 막대 하나가 깜빡이지 않고 1.2초에 부드럽게 숨 쉬고,
+   그 앞에 짧은 빛 번짐(크리스탈 파랑, 1.25em)이 붙어 글이 "맺히는" 끝을 보인다. 글자 단위 애니메이션은 하지 않는다.
+   움직임을 줄이면 숨을 멈추고 막대와 번짐이 정지해 남는다. Tauri·Electron CSP가 인라인 <style>을 막아 이 파일로 두고 styles.css가 가져온다. */
 .transcript-caret {
+  position: relative;
   display: inline-block;
   width: 0.125rem;
   height: 1.1em;
   margin-inline-start: 0.125rem;
   border-radius: 9999px;
-  background: var(--cs-color-text-secondary);
+  background: var(--fx-crystal-b, var(--cs-color-text-secondary));
   transform: translateY(0.2em);
-  animation: transcript-caret-blink 1.06s steps(1, end) infinite;
+  animation: transcript-caret-breathe 1.2s cubic-bezier(0.37, 0, 0.63, 1) infinite;
 }
-@keyframes transcript-caret-blink {
+.transcript-caret::before {
+  content: "";
+  position: absolute;
+  inset-block: 0.1em;
+  inset-inline-end: 100%;
+  width: 1.25em;
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklch, var(--fx-crystal-b, var(--cs-color-text-secondary)) 18%, transparent)
+  );
+  pointer-events: none;
+}
+@keyframes transcript-caret-breathe {
   0%,
   100% {
     opacity: 1;
   }
   50% {
-    opacity: 0;
+    opacity: 0.35;
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .transcript-caret {
     animation: none;
   }
+}
+:root[data-motion="reduce"] .transcript-caret {
+  animation: none;
 }

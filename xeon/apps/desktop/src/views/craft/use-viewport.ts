@@ -16,6 +16,7 @@ import {
   type View,
 } from "@fresnel/client/workbench/canvas";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { isMotionReduced } from "../../lib/motion-presets.tsx";
 
 /** 이름표가 옆으로 나오는 폭(화면 px). 맞춤 계산이 이 폭을 뺀다 */
 const LABEL_PAD = 150;
@@ -35,10 +36,9 @@ export interface ViewportApi {
   readonly fit: () => void;
 }
 
+/** 앱 설정과 OS 설정을 함께 본다(DP-108) */
 function reducedMotion(): boolean {
-  return (
-    typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
+  return isMotionReduced();
 }
 
 function sameView(a: View, b: View): boolean {

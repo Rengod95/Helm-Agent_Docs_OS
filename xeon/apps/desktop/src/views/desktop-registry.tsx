@@ -22,6 +22,7 @@ import { useNoticeFeed } from "./notices.tsx";
 import { useProposalPending } from "./proposal-pending-context.tsx";
 import { ChatHeader } from "./chat-header.tsx";
 import { Composer } from "./composer.tsx";
+import { ComposerBeam, ThreadLoadBeam } from "./effects/convo-beam.tsx";
 import { SafeModeCard } from "./safe-mode-card.tsx";
 import { SetupBanner } from "./setup-banner.tsx";
 import { SpawnedNotice } from "./spawned-notice.tsx";
@@ -66,7 +67,10 @@ function ChatScreen(): ReactNode {
   const spawned = useOpenThread()?.spawnedBy !== undefined;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <ChatHeader />
+      {/* 대화를 불러오는 동안 머리 줄 아래를 빛이 흐르고, 턴이 도는 동안 입력창 테두리를 빛이 돈다(DP-107) */}
+      <ThreadLoadBeam>
+        <ChatHeader />
+      </ThreadLoadBeam>
       <SetupBanner />
       <StoreReplacedBanner />
       <Transcript />
@@ -80,7 +84,7 @@ function ChatScreen(): ReactNode {
           {/* 대화 맥락 줄(DP-71)은 입력창 바로 위에 붙는다. 폴더가 없어졌다는 경고도 이 줄의 폴더 칸이 보인다 */}
           <ThreadContextBar />
         </div>
-        {spawned ? <SpawnedNotice /> : <Composer />}
+        <ComposerBeam>{spawned ? <SpawnedNotice /> : <Composer />}</ComposerBeam>
       </div>
     </div>
   );

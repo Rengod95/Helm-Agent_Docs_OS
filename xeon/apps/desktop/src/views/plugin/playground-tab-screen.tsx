@@ -23,6 +23,7 @@ import { addonDetailOf, type AddonDetail, type AddonScreen } from "./addon-model
 import { usePlaygroundTabs } from "./playground-tab-strip.tsx";
 import { openTab, useTabRunState } from "./playground-tab-store.ts";
 import { PluginView } from "./plugin-view.tsx";
+import { useScreenEnter } from "../../lib/motion-presets.tsx";
 
 // 머리 줄 탭 화면(셸 화면 `playground-tab`, keepAlive, DP-90). 한 번 연 탭마다 그 플러그인의 화면을 하나씩 두고 지금 탭만 보인다.
 // 그래서 대화·설정·크래프트를 다녀오거나 다른 탭을 봐도 프레임과 화면 트리의 상태가 그대로다(열어 둔 탭 상한 8, 오래 안 본 것부터 내린다).
@@ -119,8 +120,14 @@ function TabPane(props: {
   const pick = (key: string): void => {
     openTab(name, key);
   };
+  // 탭을 바꾸거나 화면을 고르면 새 화면이 8px 오르며 들어온다(fade-through, DP-106). 숨은 탭은 세지 않는다
+  const box = useScreenEnter<HTMLDivElement>(props.shown ? (current ?? "") : null);
   return (
-    <div className={props.shown ? "flex min-h-0 flex-1 flex-col" : "hidden"} hidden={!props.shown}>
+    <div
+      ref={box}
+      className={props.shown ? "flex min-h-0 flex-1 flex-col" : "hidden"}
+      hidden={!props.shown}
+    >
       {seen.flatMap((key) => {
         const screen = detail.screens.find((item) => item.key === key);
         if (screen === undefined) return [];

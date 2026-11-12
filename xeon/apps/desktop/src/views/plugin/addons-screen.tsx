@@ -99,6 +99,7 @@ import { usePlaygroundTabs } from "./playground-tab-strip.tsx";
 import { isPinned } from "./playground-tabs.ts";
 import { PluginView } from "./plugin-view.tsx";
 import { useThreadSwitchOf } from "./thread-switches.tsx";
+import { ScreenSwap } from "../../lib/motion-presets.tsx";
 
 // 대화 영역 "플레이그라운드" 화면(화면 id `plugins`, ADR-0021 §3.11, desktop-ux DP-91·92 [결정: 2026-11-11 사용자]).
 // 세 자리: 목록(카드 격자, 내장은 접힌 묶음) → 상세(머리 블록과 전역 스위치, 두 열: 화면·대화에서·설정·권한과 위험·진단 / 정보 열)
@@ -1291,33 +1292,41 @@ export function AddonsScreen(): ReactNode {
           )
         }
       />
-      <div
-        key={detail === undefined ? "list" : `plugin:${detail.row.name}`}
-        className={`${SCROLL} @container/addon`}
+      {/* 목록 ↔ 상세는 fade-through로 바뀐다(DP-106). 안쪽 열은 key로 새로 그려 스크롤이 처음으로 돌아간다 */}
+      <ScreenSwap
+        swapKey={detail === undefined ? "list" : `plugin:${detail.row.name}`}
+        className="flex min-h-0 flex-1 flex-col"
       >
-        <div className={COLUMN}>
-          {detail === undefined || ops === undefined ? (
-            <AddonList
-              rows={addonRowsOf(data.source, data.meta, data.locale)}
-              phase={data.phase}
-              moves={moves}
-              pinned={pinned}
-              toggleOf={toggleOf}
-              onToggle={onToggle}
-              onOpen={(name) => {
-                setRoute({ kind: "plugin", name });
-              }}
-            />
-          ) : (
-            <AddonDetailView
-              detail={detail}
-              ops={ops}
-              config={<PluginConfigForm name={detail.row.name} title={detail.row.title} />}
-              aboutEnd={listEntry === undefined ? undefined : <ExportExtension entry={listEntry} />}
-            />
-          )}
+        <div
+          key={detail === undefined ? "list" : `plugin:${detail.row.name}`}
+          className={`${SCROLL} @container/addon`}
+        >
+          <div className={COLUMN}>
+            {detail === undefined || ops === undefined ? (
+              <AddonList
+                rows={addonRowsOf(data.source, data.meta, data.locale)}
+                phase={data.phase}
+                moves={moves}
+                pinned={pinned}
+                toggleOf={toggleOf}
+                onToggle={onToggle}
+                onOpen={(name) => {
+                  setRoute({ kind: "plugin", name });
+                }}
+              />
+            ) : (
+              <AddonDetailView
+                detail={detail}
+                ops={ops}
+                config={<PluginConfigForm name={detail.row.name} title={detail.row.title} />}
+                aboutEnd={
+                  listEntry === undefined ? undefined : <ExportExtension entry={listEntry} />
+                }
+              />
+            )}
+          </div>
         </div>
-      </div>
+      </ScreenSwap>
       {toggleRequest.dialog}
       <RemoveDialog
         name={removing}

@@ -43,7 +43,7 @@
   --call-chip-ink: var(--cs-color-danger-text);
   --call-chip-edge: var(--cs-color-danger-border);
   --call-chip-sweep: var(--cs-color-danger-tint);
-  animation: call-chip-shake 360ms ease-in-out 1;
+  /* 흔들지 않는다(DP-105): 실패는 색과 아이콘으로 알린다 */
 }
 .call-chip[data-status="failed"][data-tone="warning"] {
   --call-chip-ink: var(--cs-color-warning-text);
@@ -127,25 +127,6 @@
     transform: scaleX(1);
   }
 }
-@keyframes call-chip-shake {
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-  20% {
-    transform: translateX(-3px);
-  }
-  40% {
-    transform: translateX(3px);
-  }
-  60% {
-    transform: translateX(-2px);
-  }
-  80% {
-    transform: translateX(2px);
-  }
-}
-
 /* 움직임 줄이기: 전환 없이 끝 모양이 바로 보인다. 쓸리는 띠도 스피너도 멈춘다(앱 설정 data-motion=reduce는 styles.css의 공통 규칙이 같은 효과를 낸다) */
 @media (prefers-reduced-motion: reduce) {
   .call-chip,
