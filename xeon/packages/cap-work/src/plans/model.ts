@@ -57,6 +57,17 @@ export function plansSinceEntry(plans: readonly PlanRow[], enteredSeq: number | 
   return plans.filter((plan) => plan.submittedSeq > since);
 }
 
+/**
+ * 승인 필수 설정에서 계획 모드를 나가지 못하게 막는가(§4.2.5). 모델(에이전트)은 들어온 뒤 낸 마지막 계획이 승인돼야 나간다.
+ * 사람(호스트 호출: `/plan exit`, 입력창의 모드 칩)은 승인을 기다리는 계획이 있을 때만 막는다. 낸 계획이 없거나 반려·철회됐으면
+ * 건너뛸 승인이 없으므로 나간다 [결정: 2026-11-12 사용자, dzI 모드 전환 점검]
+ */
+export function exitBlockedFor(caller: "host" | "agent", since: readonly PlanRow[]): boolean {
+  const last = since[since.length - 1];
+  if (caller === "agent") return last?.status !== "approved";
+  return last?.status === "submitted";
+}
+
 const MODES: readonly PermissionMode[] = ["default", "acceptEdits", "plan", "bypass"];
 
 /** 저장된 문자열을 권한 모드로 읽는다. 모르는 값이면 undefined */

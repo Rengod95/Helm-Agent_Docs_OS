@@ -1092,6 +1092,7 @@ sequenceDiagram
 - `exitMode`:
   - 현재 모드가 `plan`이 아니면 `plan_mode_inactive`.
   - `l2.work.plans.requireApproval`이 참이면, 이 스레드에서 계획 모드에 들어온 뒤 제출된 계획 중 최신 버전이 `approved`여야 한다. 아니면 `plan_not_approved`다. 그래서 승인 전에는 실행 단계(쓰기 가능한 모드)로 넘어가지 않는다.
+  - 위 검사는 모델(에이전트) 호출의 것이다. 사람의 호출(호출자가 `host`: `/plan exit`, 데스크톱 입력창의 모드 칩)은 들어온 뒤 제출된 최신 버전이 승인을 기다릴 때(`submitted`)만 `plan_not_approved`다. 낸 계획이 없거나 최신 버전이 반려·철회됐으면 건너뛸 승인이 없으므로 나간다. 계획 모드에 잘못 들어간 사람이 계획을 받기 전에는 나올 길이 없던 문제를 고친다(`exitBlockedFor`, `src/plans/model.ts`) [결정: 2026-11-12 사용자, dzI 모드 전환 점검].
   - 거짓이면 대기 중인 버전의 승인 요청을 `ApprovalsPort.cancel`로 먼저 닫고, 이어서 `work.plan_withdrawn`(`reason: "exit_mode"`)을 한 커밋에 기록한 뒤 모드를 돌린다. 취소를 먼저 하면 그 사이에 프로세스가 끝나도 L1의 `approval.resolved`(cancelled)가 계획을 `withdrawn`으로 만든다.
   - [결정: WK.2] 모드를 돌리는 목표는 `restore(threadId, target, source)`의 `target`이다. cap-work가 `target`(직전 모드, 없으면 default)을 정해 넘긴다. 사용자 요청의 `source`는 `user`, 승인 뒤 자동 종료는 `plan_approval`이다. 모드 전환 자체는 이벤트로 남기지 않으므로 같은 `requestId` 재호출은 이미 계획 모드가 아니라 `plan_mode_inactive`다(알려진 한계. 도구 결과가 기록된 호출은 다시 실행되지 않는다).
 - 승인 뒤 자동 종료: `l2.work.plans.exitOnApprove`가 참이면, 계획 모드 중에 제출된 버전이 `approved`가 될 때 cap-work가 `PermissionModePort.restore`를 부른다. 실행 위치는 승인 해결을 받는 피드 구독자다(§4.5). `restore`는 모드가 `plan`일 때만 바꾸므로 키 없이 멱등이다. 승인할 때 사용자가 고른 모드(`answer.mode`)를 L1.tools가 이미 적용했으면 모드가 `plan`이 아니라서 아무것도 하지 않는다.
@@ -1290,7 +1291,7 @@ export interface JudgePort {
 | `/tasks` | 없음 | `tasks.list({})` 결과 표시 |
 
 - [결정: WK.3] 구현은 `/plan`, `/plan exit`, `/plan approve|reject|revise`, `/tasks`, `/goal <조건>`, `/goal status`, `/goal clear`다(`src/commands.ts`). `/goal`은 `replace` 없이 `goals.set`을 부르므로 활성 목표가 있으면 "먼저 /goal clear로 해제하세요"를 답한다 [결정: 오케스트레이터 기본값, scH]. `/plan`의 결과 문구는 해요체 한 줄이고 모드는 원시 값이 아니라 입력창 승인 모드 칩과 같은 이름으로 쓴다("계획 모드를 시작했어요. 이전 승인 모드: 기본(실행마다 묻기)"). `/goal clear`는 활성 목표가 없으면 "해제할 활성 목표가 없습니다."를 답한다. `approve`·`reject`·`revise`에 계획 ID를 받지 않는다: 승인 대기 중인 가장 최근 판에 적용한다. 서비스 거부(`CapabilityError`)는 예외 대신 `[<코드>] <메시지>` 한 줄 응답으로 바꾼다. 등록부(`CommandActionRegistry`)는 조립 루트가 `WorkPluginOptions.commands`로 넘길 때만 쓴다. 기능 선택 의존(W-10)이 확정되면 매니페스트 `optional`로 받는다.
-- `/plan exit`가 `plan_not_approved`(승인 필수 설정에서 승인 전 나가기)나 `plan_mode_inactive`로 거절되면 원시 코드와 영어 사유 대신 한국어 해요체 한 줄을 돌려준다: "계획을 승인해야 계획 모드를 나갈 수 있어요. 계획을 승인하거나, 설정의 '계획 승인 필수'를 꺼 주세요.", "지금은 계획 모드가 아니에요." 한 줄 결과라 데스크톱은 토스트로 보인다. 거절 자체는 §4.2.5 그대로다 [결정: 오케스트레이터 기본값, rtG].
+- `/plan exit`가 `plan_not_approved`(승인 필수 설정에서 승인 전 나가기)나 `plan_mode_inactive`로 거절되면 원시 코드와 영어 사유 대신 한국어 해요체 한 줄을 돌려준다: "승인을 기다리는 계획이 있어요. 계획 카드에서 승인하거나 거절하면 나갈 수 있어요."(사람은 승인 대기 중일 때만 이 거절을 받는다, §4.2.5), "지금은 계획 모드가 아니에요." 한 줄 결과라 데스크톱은 토스트로 보인다. 거절 자체는 §4.2.5 그대로다 [결정: 오케스트레이터 기본값, rtG].
 - 명령 실행의 `requestId`는 클라이언트 입력 키(`in:<clientUlid>`)에서 파생한다(eng.transactions.design §4.8 사용자 입력 행).
 - 이 등록은 work → `dialog.commands` 선택 의존을 만든다. `L2.readme` §6 표에 [미결] 간선으로 올라 있다(§10 W-10, `L2.readme` §10 미결 16).
 
