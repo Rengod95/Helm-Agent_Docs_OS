@@ -1,7 +1,9 @@
 import { ROTATION_ACK_KEY, type AccountEntry } from "@fresnel/client";
 import type { FieldVM, ProviderEntry, SecretRow } from "@fresnel/client/settings";
+import { assertNever } from "@fresnel/contracts";
 import { parseSecretRef, type SecretName } from "@fresnel/contracts/capabilities";
-import type { ModelEntry, UsageGauge } from "@fresnel/contracts/wire";
+import { normalizePastedKey } from "@fresnel/contracts/services";
+import type { ModelEntry, ProviderCheckAuthResult, UsageGauge } from "@fresnel/contracts/wire";
 import {
   KNOWN_PROVIDER_IDS,
   isKnownProvider,
@@ -18,9 +20,19 @@ import {
 
 /**
  * 카드의 상태. 꺼짐 → 키 없음(참조가 없다) → 키를 찾을 수 없음(참조한 시크릿이 저장소에 없다) → 모델 없음(엔진이 이 제공자의 모델을 내지 않는다)
- * → 연결됨 차례로 판정한다. 시크릿 목록을 읽지 못했으면 저장소 판정을 건너뛴다(지어내지 않는다).
+ * 차례로 정하고, 그 밖은 이 화면의 마지막 연결 시험 넷째 단계(`provider.checkAuth`) 결과로 정한다.
+ * 받음 → 연결됨, 거절 → 거절됨, 확인할 방법이 없음(unsupported) → 확인됨, 시험을 안 했거나 결과가 분명하지 않음 → 확인 안 됨.
+ * "연결됨"은 제공자가 키를 받았을 때만이다. 시크릿 목록을 읽지 못했으면 저장소 판정을 건너뛴다(지어내지 않는다).
  */
-export type ProviderStatus = "off" | "noKey" | "missingKey" | "noModels" | "connected";
+export type ProviderStatus =
+  | "off"
+  | "noKey"
+  | "missingKey"
+  | "noModels"
+  | "unchecked"
+  | "rejected"
+  | "confirmed"
+  | "connected";
 
 /** `usage.get`의 누적 합계(이 엔진이 기록한 모든 대화). 한도와 창은 엔진이 주지 않는다 */
 export interface UsageTotals {
@@ -68,28 +80,62 @@ export function usageTotalsOf(
   return { tokens: sum("tokens"), usd: sum("usd"), requests: sum("requests") };
 }
 
+/** 마지막 연결 시험의 넷째 단계가 무엇을 말했는가. 시험을 안 했거나 판정이 분명하지 않으면 `undecided` */
+type AuthVerdict = "passed" | "neutral" | "rejected" | "undecided";
+
+function authVerdictOf(checks: readonly ProviderCheckResult[] | undefined): AuthVerdict {
+  const auth = checks?.find((check) => check.id === "auth");
+  if (auth === undefined) return "undecided";
+  if (auth.state === "passed") return "passed";
+  if (auth.state === "neutral") return "neutral";
+  if (
+    auth.state === "failed" &&
+    auth.reason.kind === "authFailed" &&
+    (auth.reason.cause === "rejected" || auth.reason.cause === "oauthTokenNotApiKey")
+  ) {
+    return "rejected";
+  }
+  return "undecided";
+}
+
 function providerStatusOf(input: {
   readonly entry: ProviderEntry;
   /** 시크릿 목록. 읽지 못했으면 null */
   readonly secrets: readonly SecretRow[] | null;
   readonly modelCount: number;
+  /** 이 제공자의 마지막 연결 시험 결과. 이 화면에서 한 번도 안 돌렸으면 undefined */
+  readonly checks: readonly ProviderCheckResult[] | undefined;
 }): ProviderStatus {
-  const { entry } = input;
+  const { entry, modelCount } = input;
   if (!entry.enabled) return "off";
   const name = secretNameOfRef(entry.apiKeyRef);
   if (name === null) return "noKey";
   if (input.secrets !== null && !input.secrets.some((s) => s.name === name && s.registered)) {
     return "missingKey";
   }
-  return input.modelCount === 0 ? "noModels" : "connected";
+  if (modelCount === 0) return "noModels";
+  const verdict = authVerdictOf(input.checks);
+  switch (verdict) {
+    case "passed":
+      return "connected";
+    case "rejected":
+      return "rejected";
+    case "neutral":
+      return "confirmed";
+    case "undecided":
+      return "unchecked";
+    default:
+      return assertNever(verdict, "AuthVerdict");
+  }
 }
 
-/** 설정 순서 그대로의 카드 목록 */
+/** 설정 순서 그대로의 카드 목록. `checks`는 제공자 id별 마지막 연결 시험 결과다 */
 export function providerCardsOf(input: {
   readonly providers: readonly ProviderEntry[];
   readonly secrets: readonly SecretRow[] | null;
   readonly models: readonly ModelEntry[];
   readonly gauges: readonly UsageGauge[];
+  readonly checks: Readonly<Record<string, readonly ProviderCheckResult[]>>;
 }): readonly ProviderCard[] {
   return input.providers.map((entry) => {
     const modelCount = modelCountOf(input.models, entry.id);
@@ -101,7 +147,12 @@ export function providerCardsOf(input: {
       enabled: entry.enabled,
       secretName: secretNameOfRef(entry.apiKeyRef),
       baseUrl: entry.baseUrl,
-      status: providerStatusOf({ entry, secrets: input.secrets, modelCount }),
+      status: providerStatusOf({
+        entry,
+        secrets: input.secrets,
+        modelCount,
+        checks: input.checks[entry.id],
+      }),
       modelCount,
       usage: usageTotalsOf(input.gauges, entry.id),
     };
@@ -165,21 +216,33 @@ export function isBaseUrl(text: string): boolean {
 
 // ── 연결 시험 ───────────────────────────────────────────────────────────
 
-/** 제공자 연결 시험의 세 단계. 키 저장 → 제공자 연결 → 모델 목록 */
-const PROVIDER_CHECK_IDS = ["stored", "linked", "models"] as const;
+/** 제공자 연결 시험의 네 단계. 키 저장 → 제공자 연결 → 모델 목록 → 제공자가 키를 받는지(`provider.checkAuth`) */
+const PROVIDER_CHECK_IDS = ["stored", "linked", "models", "auth"] as const;
 export type ProviderCheckId = (typeof PROVIDER_CHECK_IDS)[number];
 
-/** 단계 하나의 결과. 문장은 화면이 키로 만든다 */
+/**
+ * 단계 하나의 결과. 문장은 화면이 키로 만든다. `neutral`은 실패가 아닌 건너뜀이다(확인할 방법이 없는 제공자의 넷째 단계).
+ * 앞 단계가 떨어져 건너뛴 것은 `skipped`(사유 없음)다.
+ */
 export type ProviderCheckResult =
   | { readonly id: ProviderCheckId; readonly state: "waiting" | "running" | "skipped" }
   | {
       readonly id: ProviderCheckId;
-      readonly state: "passed" | "failed";
-      /** 실패 까닭이나 통과 값 */
+      readonly state: "passed" | "failed" | "neutral";
+      /** 실패 까닭이나 통과 값, 건너뜀의 사유 */
       readonly reason: ProviderCheckReason;
       /** 걸린 시간(ms). 시험을 돌리지 않은 결과(키 등록 실패의 저장 단계)는 시간이 없다 */
       readonly elapsedMs?: number;
     };
+
+/** `provider.checkAuth`가 실패로 본 원인 종류(`noKey`는 따로 둔다) */
+type AuthFailureCause =
+  | "rejected"
+  | "oauthTokenNotApiKey"
+  | "badAddress"
+  | "quotaOrBilling"
+  | "upstream"
+  | "timeout";
 
 export type ProviderCheckReason =
   | { readonly kind: "stored"; readonly length: number | null }
@@ -191,6 +254,17 @@ export type ProviderCheckReason =
   | { readonly kind: "notLinked" }
   | { readonly kind: "models"; readonly count: number }
   | { readonly kind: "noModels" }
+  /** 제공자가 키를 받았다 */
+  | { readonly kind: "authOk" }
+  /** 제공자 확인 방법이 없다(목록에 없는 provider). 실패가 아니다 */
+  | { readonly kind: "authUnsupported" }
+  /** 제공자 확인이 실패했다. `status`와 `reason`(키 값은 가려진 글)은 응답이 있을 때만 */
+  | {
+      readonly kind: "authFailed";
+      readonly cause: AuthFailureCause;
+      readonly status?: number;
+      readonly reason?: string;
+    }
   /** 시험이나 등록이 실패한 사유 한 문장. `fix`가 있으면 그 밑에 고치는 법 한 줄이 온다 */
   | { readonly kind: "error"; readonly text: string; readonly fix?: string };
 
@@ -255,9 +329,56 @@ export function modelsCheckOf(models: readonly ModelEntry[], id: string): Provid
   return count === 0 ? { kind: "noModels" } : { kind: "models", count };
 }
 
+/** 제공자 확인 응답(`provider.checkAuth`)의 판정. 키 값은 응답에 없고 사유는 이미 가려져 있다 */
+export function authCheckOf(result: ProviderCheckAuthResult): ProviderCheckReason {
+  switch (result.kind) {
+    case "ok":
+      return { kind: "authOk" };
+    case "unsupported":
+      return { kind: "authUnsupported" };
+    case "noKey":
+      return { kind: "noKey" };
+    case "rejected":
+    case "oauthTokenNotApiKey":
+    case "badAddress":
+    case "quotaOrBilling":
+    case "upstream":
+    case "timeout":
+      return {
+        kind: "authFailed",
+        cause: result.kind,
+        ...(result.status === undefined ? {} : { status: result.status }),
+        ...(result.reason === undefined ? {} : { reason: result.reason }),
+      };
+    default:
+      return assertNever(result.kind, "ProviderAuthKind");
+  }
+}
+
 /** 판정이 통과인가 */
 export function isPassing(reason: ProviderCheckReason): boolean {
-  return reason.kind === "stored" || reason.kind === "linked" || reason.kind === "models";
+  return (
+    reason.kind === "stored" ||
+    reason.kind === "linked" ||
+    reason.kind === "models" ||
+    reason.kind === "authOk"
+  );
+}
+
+/** 판정이 실패가 아닌 건너뜀인가(확인할 방법이 없는 제공자). 화면은 실패 색을 쓰지 않는다 */
+export function isNeutral(reason: ProviderCheckReason): boolean {
+  return reason.kind === "authUnsupported";
+}
+
+/** 구독 로그인 토큰(`sk-ant-oat`로 시작)의 접두. 기본 anthropic 제공자는 이 토큰을 받지 않는다(L1.models.spec §3.9) */
+const SUBSCRIPTION_TOKEN_PREFIX = "sk-ant-oat";
+
+/**
+ * 입력 중인 키 글이 구독 로그인 토큰 접두로 시작하는가. 앞뒤 공백과 따옴표를 지운 뒤 접두만 본다.
+ * 값은 돌려주지 않고 어디에도 남기지 않는다(판정 결과인 참·거짓만 쓴다).
+ */
+export function isSubscriptionTokenText(text: string): boolean {
+  return normalizePastedKey(text).value.startsWith(SUBSCRIPTION_TOKEN_PREFIX);
 }
 
 // ── 계정 풀 ─────────────────────────────────────────────────────────────

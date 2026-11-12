@@ -1013,6 +1013,13 @@ export interface Commands {
   onThreadThinkingChanged(threadId: ThreadId, listener: () => void): () => void;
   /** `models.list`: 대화가 고를 수 있는 모델(문맥 창 포함). 요청 결과라 거울에 넣지 않는다(FS-03) */
   listModels(): Promise<Result<WireResult<"models.list">, CommandError>>;
+  /**
+   * `provider.checkAuth { provider }`: 저장된 키로 제공자가 받는지 한 번 본다(제공자의 값 없는 GET 하나). 결과 종류와 가린 사유만 온다.
+   * 연결 시험의 넷째 단계다. 생성 호출은 하지 않는다
+   */
+  checkProviderAuth(
+    provider: string,
+  ): Promise<Result<WireResult<"provider.checkAuth">, CommandError>>;
   /** `thread.close`: 대화를 닫는다(열린 turn이 있으면 host가 `turn_running`으로 거절한다). 닫힘 표시는 `thread.closed` 이벤트가 한다 */
   closeThread(threadId: ThreadId): Promise<Result<null, CommandError>>;
   /** `thread.delete`: 대화를 지운다. 성공하면 목록을 다시 읽고, 열려 있던 대화였다면 선택을 푼다 */

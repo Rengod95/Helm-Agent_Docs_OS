@@ -29,6 +29,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     readThreadThinking: () => Promise.resolve(ok(undefined)),
     onThreadThinkingChanged: () => () => {},
     listModels: () => Promise.resolve(ok({ models: [] })),
+    checkProviderAuth: () => Promise.resolve(ok({ kind: "ok" })),
     closeThread: () => Promise.resolve(ok(null)),
     deleteThread: () => Promise.resolve(ok(null)),
     exportThread: () => Promise.resolve(err({ kind: "unsupported" })),

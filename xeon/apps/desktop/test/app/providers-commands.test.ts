@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { AccountEntry, RateLimitEntry } from "@fresnel/client";
+import type { ProviderCheckAuthResult } from "@fresnel/contracts/wire";
 import { reprioritizedOf } from "../../src/views/pages/providers/providers-model.ts";
 import { summary, thr } from "../state/helpers.ts";
 import { engineFake, makeApp, until, type EngineExtra } from "./support.ts";
@@ -159,6 +160,27 @@ describe("providers page writes", () => {
       },
     ]);
     await controller.dispose();
+    await app.stop();
+  });
+});
+
+describe("provider.checkAuth from the connection test", () => {
+  test("only the provider id goes out, and the kind and the masked reason come back", async () => {
+    const reply: ProviderCheckAuthResult = {
+      kind: "rejected",
+      status: 401,
+      reason: "invalid key ••••",
+    };
+    const engine = engineFake([summary(thr(1))], undefined, {
+      results: { "provider.checkAuth": reply },
+    });
+    const app = makeApp(engine.fake);
+    await until(() => app.engine.read.getState().link.phase === "live", "live link");
+    const got = await app.commands.checkProviderAuth("anthropic");
+    expect(engine.params.filter((entry) => entry.method === "provider.checkAuth")).toEqual([
+      { method: "provider.checkAuth", params: { provider: "anthropic" } },
+    ]);
+    expect(got).toEqual({ ok: true, value: reply });
     await app.stop();
   });
 });

@@ -4,8 +4,12 @@ import type { ProviderEntry } from "@fresnel/client/settings";
 import type { ModelEntry, UsageGauge } from "@fresnel/contracts/wire";
 import {
   ACCOUNT_FOLD_MAX,
+  authCheckOf,
   fieldOfKey,
   foldOf,
+  isNeutral,
+  isPassing,
+  isSubscriptionTokenText,
   poolsOf,
   reprioritizedOf,
   rotationConfirmOf,
@@ -31,6 +35,7 @@ import {
   withProviderBaseUrl,
   withProviderEnabled,
   withoutProvider,
+  type ProviderCheckResult,
 } from "../../src/views/pages/providers/providers-model.ts";
 
 // 모델과 계정 구역(P-11, DP-83·DP-84)의 순수 모델. 값은 `toEqual`로 비교한다.
@@ -196,6 +201,17 @@ function gauge(providerId: string, unit: UsageGauge["unit"], used: number): Usag
   };
 }
 
+/** 제공자 하나의 카드 상태. 시험 결과만 바꿔 본다 */
+function statusOfChecks(checks: readonly ProviderCheckResult[]): string | undefined {
+  return providerCardsOf({
+    providers: [provider("anthropic")],
+    secrets: null,
+    models: [model("anthropic/a")],
+    gauges: [],
+    checks: { anthropic: checks },
+  })[0]?.status;
+}
+
 describe("providerCardsOf", () => {
   test("each provider gets a status from switch, key reference, stored secret and catalog", () => {
     const cards = providerCardsOf({
@@ -216,6 +232,7 @@ describe("providerCardsOf", () => {
         gauge("anthropic", "usd", 0.5),
         gauge("anthropic", "requests", 3),
       ],
+      checks: {},
     });
     expect(
       cards.map((card) => [
@@ -227,7 +244,7 @@ describe("providerCardsOf", () => {
         card.modelCount,
       ]),
     ).toEqual([
-      ["anthropic", "Anthropic", "A", false, "connected", 2],
+      ["anthropic", "Anthropic", "A", false, "unchecked", 2],
       ["openai", "OpenAI", "O", false, "off", 0],
       ["google", "Google", "G", false, "noKey", 0],
       ["openrouter", "OpenRouter", "O", false, "missingKey", 0],
@@ -238,14 +255,108 @@ describe("providerCardsOf", () => {
     expect(cards[4]?.baseUrl).toBe("https://llm.example");
   });
 
+  test("connected only after the provider accepted the key; the other verdicts keep their own words", () => {
+    const reached = [
+      { id: "stored", state: "passed", reason: { kind: "stored", length: 41 } },
+      { id: "linked", state: "passed", reason: { kind: "linked" } },
+      { id: "models", state: "passed", reason: { kind: "models", count: 1 } },
+    ] satisfies ProviderCheckResult[];
+    expect([
+      statusOfChecks([...reached, { id: "auth", state: "passed", reason: { kind: "authOk" } }]),
+      statusOfChecks([
+        ...reached,
+        {
+          id: "auth",
+          state: "failed",
+          reason: { kind: "authFailed", cause: "rejected", status: 401 },
+        },
+      ]),
+      statusOfChecks([
+        ...reached,
+        {
+          id: "auth",
+          state: "failed",
+          reason: { kind: "authFailed", cause: "oauthTokenNotApiKey" },
+        },
+      ]),
+      statusOfChecks([
+        ...reached,
+        { id: "auth", state: "neutral", reason: { kind: "authUnsupported" } },
+      ]),
+      statusOfChecks([
+        ...reached,
+        { id: "auth", state: "failed", reason: { kind: "authFailed", cause: "timeout" } },
+      ]),
+      statusOfChecks([
+        { id: "stored", state: "passed", reason: { kind: "stored", length: 41 } },
+        { id: "linked", state: "passed", reason: { kind: "linked" } },
+        { id: "models", state: "failed", reason: { kind: "noModels" } },
+        { id: "auth", state: "skipped" },
+      ]),
+      statusOfChecks([]),
+    ]).toEqual([
+      "connected",
+      "rejected",
+      "rejected",
+      "confirmed",
+      "unchecked",
+      "unchecked",
+      "unchecked",
+    ]);
+  });
+
   test("an unread secret list skips the store check instead of claiming the key is missing", () => {
     const cards = providerCardsOf({
       providers: [provider("openrouter")],
       secrets: null,
       models: [model("openrouter/x")],
       gauges: [],
+      checks: { openrouter: [{ id: "auth", state: "passed", reason: { kind: "authOk" } }] },
     });
     expect(cards[0]?.status).toBe("connected");
+  });
+});
+
+describe("provider check of the key (provider.checkAuth)", () => {
+  test("each wire kind becomes one reason: ok passes, unsupported is neutral, the rest fail with their cause", () => {
+    expect(authCheckOf({ kind: "ok", status: 200 })).toEqual({ kind: "authOk" });
+    expect(authCheckOf({ kind: "unsupported" })).toEqual({ kind: "authUnsupported" });
+    expect(authCheckOf({ kind: "noKey" })).toEqual({ kind: "noKey" });
+    expect(authCheckOf({ kind: "rejected", status: 401, reason: "invalid key ••••" })).toEqual({
+      kind: "authFailed",
+      cause: "rejected",
+      status: 401,
+      reason: "invalid key ••••",
+    });
+    expect(authCheckOf({ kind: "timeout" })).toEqual({ kind: "authFailed", cause: "timeout" });
+    expect(authCheckOf({ kind: "oauthTokenNotApiKey" })).toEqual({
+      kind: "authFailed",
+      cause: "oauthTokenNotApiKey",
+    });
+  });
+
+  test("only ok passes, and unsupported is a skip, not a failure", () => {
+    expect([
+      isPassing({ kind: "authOk" }),
+      isPassing({ kind: "authUnsupported" }),
+      isPassing({ kind: "authFailed", cause: "upstream" }),
+      isNeutral({ kind: "authUnsupported" }),
+      isNeutral({ kind: "authFailed", cause: "badAddress" }),
+    ]).toEqual([true, false, false, true, false]);
+  });
+});
+
+describe("subscription token prefix", () => {
+  test("a text that starts with the subscription token prefix is detected, ignoring spaces and quotes", () => {
+    expect([
+      isSubscriptionTokenText("sk-ant-oat-TEST"),
+      isSubscriptionTokenText("  sk-ant-oat-TEST\n"),
+      isSubscriptionTokenText("'sk-ant-oat-TEST'"),
+      isSubscriptionTokenText("sk-ant-api03-TEST"),
+      isSubscriptionTokenText("sk-ant-oa"),
+      isSubscriptionTokenText("xsk-ant-oat-TEST"),
+      isSubscriptionTokenText(""),
+    ]).toEqual([true, true, true, false, false, false, false]);
   });
 });
 
@@ -309,6 +420,7 @@ describe("connection checks", () => {
       ["stored", "failed"],
       ["linked", "skipped"],
       ["models", "skipped"],
+      ["auth", "skipped"],
     ]);
     expect(checks[0]).toEqual({
       id: "stored",
@@ -339,6 +451,7 @@ describe("connection checks", () => {
       ["stored", "passed"],
       ["linked", "failed"],
       ["models", "skipped"],
+      ["auth", "skipped"],
     ]);
   });
 

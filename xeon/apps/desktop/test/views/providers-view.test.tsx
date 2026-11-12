@@ -3,6 +3,7 @@ import { t } from "@fresnel/client/i18n";
 import type { AccountEntry } from "@fresnel/client";
 import type { ModelEntry } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
+import type { CheckStep } from "../../src/views/pages/shared/check-steps.tsx";
 import {
   initialChecks,
   poolsOf,
@@ -27,6 +28,21 @@ import {
 // 계정 목록, 모델 목록 스위치, 허용 규칙을 그린다. 문장은 `t()`로 비교한다. 시험 로케일은 ko다.
 
 const NOOP = (): void => {};
+
+/** 넷째 단계가 이 원인으로 떨어진 점검 줄의 마지막 단계 */
+function authStepOf(
+  cause: "oauthTokenNotApiKey" | "badAddress" | "timeout",
+): CheckStep | undefined {
+  const steps = providerStepsOf(
+    withCheck(initialChecks(), {
+      id: "auth",
+      state: "failed",
+      reason: { kind: "authFailed", cause },
+    }),
+    { onKey: NOOP, onEnable: NOOP },
+  );
+  return steps[steps.length - 1];
+}
 
 function card(over: Partial<ProviderCard> = {}): ProviderCard {
   return {
@@ -141,6 +157,36 @@ describe("ProvidersView", () => {
   });
 });
 
+describe("card status words", () => {
+  test("an unchecked card says not checked, and a failed check shows its word and cause", () => {
+    const failed = providerStepsOf(
+      withCheck(initialChecks(), {
+        id: "auth",
+        state: "failed",
+        reason: { kind: "authFailed", cause: "timeout" },
+      }),
+      { onKey: NOOP, onEnable: NOOP },
+    );
+    const html = renderToString(
+      <ProvidersView
+        {...viewProps({
+          cards: [
+            card({ status: "unchecked" }),
+            card({ id: "openai", name: "OpenAI", mark: "O", status: "rejected" }),
+          ],
+          steps: { anthropic: failed },
+        })}
+      />,
+    );
+    expect(html).toContain(t("desktop.providers.status.unchecked"));
+    expect(html).toContain(
+      `${t("desktop.providers.status.unchecked")} · ${t("desktop.providers.check.detail.timeout")}`,
+    );
+    expect(html).toContain(t("desktop.providers.status.rejected"));
+    expect(html).not.toContain(t("desktop.providers.status.connected", { count: 12 }));
+  });
+});
+
 describe("key registration failure on the card", () => {
   test("the store step keeps the cause and its fix, and the card status line says the same cause", () => {
     const checks = storeFailedChecks(
@@ -214,7 +260,45 @@ describe("providerStepsOf", () => {
       ],
       ["linked", "skipped", null, null],
       ["models", "skipped", null, null],
+      ["auth", "skipped", null, null],
     ]);
+  });
+
+  test("a rejected key says so with the status and the server reason, and offers to change the key", () => {
+    const checks = withCheck(initialChecks(), {
+      id: "auth",
+      state: "failed",
+      reason: { kind: "authFailed", cause: "rejected", status: 401, reason: "invalid key ••••" },
+      elapsedMs: 80,
+    });
+    const [auth] = providerStepsOf(checks, { onKey: NOOP, onEnable: NOOP }).slice(-1);
+    expect(auth?.detail).toBe(t("desktop.providers.check.detail.rejectedStatus", { status: 401 }));
+    expect(auth?.fix).toBe(
+      `${t("desktop.providers.check.fix.reason", { reason: "invalid key ••••" })} ${t("desktop.providers.check.fix.rejected")}`,
+    );
+    expect(auth?.action?.label).toBe(t("desktop.providers.key.change"));
+  });
+
+  test("an unsupported provider is a skipped step with its reason and no fix, not a failure", () => {
+    const checks = withCheck(initialChecks(), {
+      id: "auth",
+      state: "neutral",
+      reason: { kind: "authUnsupported" },
+    });
+    const [auth] = providerStepsOf(checks, { onKey: NOOP, onEnable: NOOP }).slice(-1);
+    expect([auth?.state, auth?.detail, auth?.fix ?? null]).toEqual([
+      "skipped",
+      t("desktop.providers.check.detail.unsupported"),
+      null,
+    ]);
+  });
+
+  test("a subscription token gets the same sentence, and the other causes say what to check", () => {
+    expect(authStepOf("oauthTokenNotApiKey")?.detail).toBe(
+      t("desktop.providers.subscriptionToken.text"),
+    );
+    expect(authStepOf("badAddress")?.fix).toBe(t("desktop.providers.check.fix.badAddress"));
+    expect(authStepOf("timeout")?.detail).toBe(t("desktop.providers.check.detail.timeout"));
   });
 });
 

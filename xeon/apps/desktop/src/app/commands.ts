@@ -440,6 +440,8 @@ export function createCommands(
       });
     },
     listModels: () => withConnection((c) => c.request("models.list", {})),
+    checkProviderAuth: (provider) =>
+      withConnection((c) => c.request("provider.checkAuth", { provider })),
     async closeThread(threadId) {
       const done = await withWriteConnection((c) => c.request("thread.close", { threadId }));
       return done.ok ? ok(null) : done;
