@@ -659,6 +659,8 @@ export interface ExtUiEntry {
   readonly placement: Placement;
   readonly mode: UiMode;
   readonly title: string;
+  /** 기여 선언의 아이콘 이름(caustic 아이콘 어댑터 이름, DP-17). 선언이 없으면 없다. 화면이 모르는 이름이면 머리글자로 그린다 */
+  readonly icon?: string;
   readonly state: "ok" | "invalid" | "disabled";
   /** 확장 버전(SemVer, 매니페스트 값). builtin도 채운다 */
   readonly version: string;
@@ -694,6 +696,7 @@ const UiEntryShape = closed({
   ]),
   mode: Type.Union([Type.Literal("native"), Type.Literal("app")]),
   title: Type.String({ maxLength: 256 }),
+  icon: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
   state: Type.Union([Type.Literal("ok"), Type.Literal("invalid"), Type.Literal("disabled")]),
   version: SemVerSchema,
   trust: ExtTrustShape,

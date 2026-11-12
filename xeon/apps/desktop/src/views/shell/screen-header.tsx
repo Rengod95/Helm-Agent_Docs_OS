@@ -3,10 +3,12 @@ import { IconButton } from "@caustic/react";
 import { PanelLeft } from "@caustic/react/icons";
 import type { ReactNode } from "react";
 import { useShell, useShellActions } from "../../state/shell/index.ts";
+import { PlaygroundTabStrip } from "../plugin/playground-tab-strip.tsx";
 
 // 화면 머리 공용 부품. 대화 영역의 모든 화면(대화·제안·예약·연결·플러그인·받은 요청·시작 화면·설정)과
 // 크래프트 목록 화면이 이 하나로 머리를 그린다.
-// 자리: [펼치기(패널이 닫혔을 때만)] [앞 단추] 제목 [보조 줄] ··· [컨트롤] [주 동작]
+// 자리: [펼치기(패널이 닫혔을 때만)] [플레이그라운드 탭 │] [앞 단추] 제목 [보조 줄] ··· [컨트롤] [주 동작]
+// 플레이그라운드 탭(DP-90)은 모든 머리의 같은 자리에 선다. 고정 탭이 없으면 자리도 구분선도 없다.
 // 높이는 `--shell-header-h`, 좌우 여백과 아래 구분선은 `.shell-header`가 가진다(오른쪽 막대 밑까지 뻗는다).
 // 컨트롤 크기 단계는 하나다: Button md(32) · SegmentedControl sm(32) · Select md · IconButton md.
 // 주 동작 단추는 solid가 아니라 `HEADER_PRIMARY_VARIANT`(outline)다 — segmented와 같은 톤.
@@ -49,6 +51,8 @@ export interface ScreenHeaderProps {
   readonly pageTitle?: boolean;
   /** 제목 앞 단추(뒤로 가기 등) */
   readonly lead?: ReactNode;
+  /** 참이면 제목 h1을 낭독기에만 둔다(플레이그라운드 탭 화면: 지금 탭이 곧 제목이다) */
+  readonly titleHidden?: boolean;
   /** 제목 바로 뒤의 흐린 보조 글(순번·대화 이름 등) */
   readonly meta?: ReactNode;
   /** 가운데~오른쪽 보조 컨트롤(segmented·select 등) */
@@ -69,6 +73,7 @@ export function ScreenHeader(props: ScreenHeaderProps): ReactNode {
       data-flush={props.flush === true ? "" : undefined}
     >
       <PanelExpandButton />
+      <PlaygroundTabStrip />
       {props.lead}
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
         {typeof props.title === "string" ? (
@@ -76,7 +81,11 @@ export function ScreenHeader(props: ScreenHeaderProps): ReactNode {
             id={props.titleId}
             data-page-title={props.pageTitle === true ? "" : undefined}
             title={props.title}
-            className="m-0 min-w-0 truncate font-medium text-text-secondary"
+            className={
+              props.titleHidden === true
+                ? "sr-only"
+                : "m-0 min-w-0 truncate font-medium text-text-secondary"
+            }
           >
             {props.title}
           </h1>

@@ -275,6 +275,48 @@ test("ui: a card item carries its forKind into the report, and a page item has n
   ]);
 });
 
+test("ui: an item carries its declared icon into the report, and an item without one has no icon key", async () => {
+  const page: UiContribution = { ...PAGE, id: "tab", title: "Tab", icon: "Compass" };
+  const command: UiContribution = {
+    id: "go",
+    placement: "command",
+    title: "Go",
+    icon: "Play",
+  };
+  const { reports } = await checkWith(uiOf([page, command, PAGE]), nativeTree(TEXT_TREE));
+  expect(reports).toEqual([
+    {
+      id: "tab",
+      placement: "page",
+      mode: "native",
+      title: "Tab",
+      icon: "Compass",
+      state: "ok",
+      tree: { type: "Text", props: { text: "hi" } },
+      issues: [],
+    },
+    {
+      id: "go",
+      placement: "command",
+      mode: "native",
+      title: "Go",
+      icon: "Play",
+      state: "ok",
+      issues: [],
+    },
+    {
+      id: "page",
+      placement: "page",
+      mode: "native",
+      title: "Page",
+      state: "ok",
+      tree: { type: "Text", props: { text: "hi" } },
+      issues: [],
+    },
+  ]);
+  expect(reports.map((report) => "icon" in report)).toEqual([true, true, false]);
+});
+
 /** 카드 항목 하나. 화면 파일은 공용 트리다 */
 function cardOf(id: string, forKind: string): UiContribution {
   return { id, placement: "card", title: id, file: "ui/page.json", forKind };

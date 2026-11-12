@@ -518,6 +518,7 @@ export function SettingsPage(props: {
       panels={panels}
       memoryMatches={memory.matches}
       memoryFindPanel={<MemoryFindView props={memory.props} query={query} />}
+      revealKey={taken?.key ?? null}
       handlers={handlers}
     />
   );

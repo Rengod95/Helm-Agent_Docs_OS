@@ -103,6 +103,7 @@ import type {
   StorageUsage,
 } from "../transport/ipc.ts";
 import type { PaletteUses } from "./palette/palette-model.ts";
+import type { PlaygroundTabsPrefs } from "./plugin/playground-tabs.ts";
 
 // 화면이 부르는 명령. 구현은 src/app/commands.ts다. 명령은 거울을 바꾸지 않는다(FS-02):
 // 보낸 직후의 표시(보내는 중, 실패)는 UI 스토어가, 결과는 엔진 이벤트가 거울에 넣는다.
@@ -933,6 +934,10 @@ export interface Commands {
   paletteUses(): PaletteUses;
   /** 명령 팔레트의 실행 횟수를 저장한다. 저장하지 못하면 `false`다 */
   savePaletteUses(uses: PaletteUses): Promise<boolean>;
+  /** 머리 줄 플레이그라운드 탭의 고정 순서와 본 이름(로컬 설정, DP-90). 저장한 적이 없으면 null */
+  playgroundTabs(): PlaygroundTabsPrefs | null;
+  /** 플레이그라운드 탭 고정을 저장한다. 저장하지 못하면 `false`다 */
+  savePlaygroundTabs(prefs: PlaygroundTabsPrefs): Promise<boolean>;
   /** 마지막에 보던 대화 id(로컬 설정). 없으면 null */
   lastThreadId(): string | null;
   /** 보던 대화를 저장한다. 보던 대화가 없으면 null. 저장하지 못하면 `false`다 */

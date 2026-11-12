@@ -100,6 +100,12 @@ export interface PluginViewBack {
   readonly onBack: () => void;
 }
 
+/** 머리 줄 탭 화면(DP-90)의 머리: 지금 탭이 곧 제목이라 제목은 낭독기에만, 컨트롤 자리에 화면 고르기, 끝에 탭 메뉴 */
+export interface PluginViewTab {
+  readonly controls?: ReactNode;
+  readonly action: ReactNode;
+}
+
 /** 플러그인 앱 표지. 툴팁은 앱 선언의 이유다. 화면 맨 위 머리 안의 표지라 툴팁은 아래로 연다(DP-60) */
 function AppMarker(props: { readonly reason: string | undefined }): ReactNode {
   return (
@@ -148,10 +154,31 @@ function Header(props: {
   readonly entry: ExtUiEntry;
   readonly onBackToChat: () => void;
   readonly back?: PluginViewBack | undefined;
+  readonly tab?: PluginViewTab | undefined;
 }): ReactNode {
-  const { entry, back } = props;
+  const { entry, back, tab } = props;
   const trust = entry.trust === "managed" ? "user" : entry.trust;
   const marker = entry.mode === "app" ? <AppMarker reason={entry.app?.reason} /> : null;
+  if (tab !== undefined) {
+    return (
+      <ScreenHeader
+        title={extMessageOf(entry.messages, activeLocale(), entry.title)}
+        titleHidden
+        meta={
+          <>
+            {entry.trust === "project" ? (
+              <Chip size="sm" tone="warning" variant="soft">
+                {t("client.view.confirm.projectBadge")}
+              </Chip>
+            ) : null}
+            {marker}
+          </>
+        }
+        controls={tab.controls}
+        action={tab.action}
+      />
+    );
+  }
   return (
     <ScreenHeader
       title={extMessageOf(entry.messages, activeLocale(), entry.title)}
@@ -649,9 +676,11 @@ export function EntrySurface(props: {
 export function PluginView(props: {
   readonly entry: ExtUiEntry;
   readonly back?: PluginViewBack | undefined;
+  /** 머리 줄 탭 화면에서 열었다(DP-90). 본문은 `back`과 같은 페이지 배치다 */
+  readonly tab?: PluginViewTab | undefined;
 }): ReactNode {
-  const { entry, back } = props;
-  const page = back !== undefined;
+  const { entry, back, tab } = props;
+  const page = back !== undefined || tab !== undefined;
   const stop = (text: string, tone: "warning" | "danger"): ReactNode => (
     <StateNote text={text} tone={tone} page={page} />
   );
@@ -692,6 +721,7 @@ export function PluginView(props: {
       <Header
         entry={entry}
         back={back}
+        tab={tab}
         onBackToChat={() => {
           showChat();
         }}

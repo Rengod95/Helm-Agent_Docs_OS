@@ -5,8 +5,7 @@
 // 접힘(startOpen이 거짓)은 48px 아이콘 막대다(DP-68): 새 대화, 내비 아이콘, 설정만 남고 대화 목록은 숨는다.
 // 아이콘은 펼친 줄의 아이콘과 같은 자리(x 16..32)라 폭이 줄어드는 동안 제자리에 있다. 이름은 오른쪽 툴팁.
 // compact에서는 셸이 패널을 떠 있는 시트로 올리고, 닫으면 그리지 않는다(막대 없음).
-import { activeLocale, t } from "@fresnel/client/i18n";
-import { extMessageOf } from "@fresnel/client/views/native";
+import { t } from "@fresnel/client/i18n";
 import {
   IconButton,
   ListNavigation,
@@ -17,13 +16,7 @@ import {
   SidePanel,
   Tooltip,
 } from "@caustic/react";
-import {
-  Compass,
-  IconEmphasisProvider,
-  PanelLeft,
-  Settings,
-  SquarePen,
-} from "@caustic/react/icons";
+import { IconEmphasisProvider, PanelLeft, Settings, SquarePen } from "@caustic/react/icons";
 import type { ReactNode } from "react";
 import { ContextPicker, type ContextProfile } from "./context-picker.tsx";
 import type { ActionId } from "./keybindings.ts";
@@ -32,8 +25,6 @@ import { SIDE_ROW } from "../side-row.ts";
 import type { Area } from "../../state/shell/index.ts";
 import type { ScreenDef, ShellRegistry } from "./registry.ts";
 import { useShell, useShellActions } from "../../state/shell/index.ts";
-import { useOptionalPluginUi, usePluginUiState } from "../plugin/plugin-context.tsx";
-import { pluginUiRowsOf, requestPluginScreen } from "../plugin/plugin-pick.ts";
 
 // 지금 화면 표시는 굵기 하나로 한다(라벨을 굵게, 아이콘은 selected로)
 const ACTIVE_LABEL =
@@ -198,57 +189,6 @@ function NavRow(props: {
   return Badge === undefined ? row(undefined) : <Badge render={row} />;
 }
 
-/**
- * "플러그인 UI" 구역(시안 `_shell/start-panel.tsx`의 작업대 목록 아래 묶음). 설치된 플러그인 화면을 행마다 바로 연다.
- * 행의 글은 화면 제목, meta는 확장 이름(mono)이고 꺼진 확장은 연하게 "꺼짐"을 보인다. `x.ui.apps`가 꺼져 있거나 화면이 없으면 그리지 않는다.
- * 화면은 대화 영역의 "플러그인 화면"(`plugins`)이 그리므로 그 화면으로 가면서 고른 화면을 알린다
- */
-function PluginUiSection(props: { readonly onOpen: (key: string) => void }): ReactNode {
-  const rows = pluginUiRowsOf(usePluginUiState());
-  if (rows.length === 0) return null;
-  return (
-    <ListNavigation
-      aria-label={t("term.pluginUi")}
-      kind="navigation"
-      size="xs"
-      as="div"
-      className="[&_[data-slot=list-navigation-heading]]:text-ui"
-    >
-      <ListNavigationGroup heading={t("term.pluginUi")}>
-        {rows.map((row) => {
-          const title = extMessageOf(row.entry.messages, activeLocale(), row.entry.title);
-          return (
-            <ListNavigationItem
-              key={row.key}
-              icon={<Compass />}
-              className={
-                row.off
-                  ? `${SIDE_ROW} [&_[data-slot=list-navigation-label]]:text-text-tertiary`
-                  : SIDE_ROW
-              }
-              meta={
-                <span className="font-mono text-mono-sm">
-                  {row.off ? t("desktop.workbench.state.off") : row.entry.extension}
-                </span>
-              }
-              onSelect={() => {
-                props.onOpen(row.key);
-              }}
-            >
-              {title}
-            </ListNavigationItem>
-          );
-        })}
-      </ListNavigationGroup>
-    </ListNavigation>
-  );
-}
-
-function PluginUiSlot(props: { readonly onOpen: (key: string) => void }): ReactNode {
-  // 셸만 따로 그린 곳에는 플러그인 맥락이 없다
-  return useOptionalPluginUi() === null ? null : <PluginUiSection onOpen={props.onOpen} />;
-}
-
 /** 브랜드 로고: 경로 고해상도 렌더를 줄인 것(public/brand/logo). 이름은 옆 탭이 말하므로 장식이다 */
 function BrandMark(props: { readonly className?: string }): ReactNode {
   return (
@@ -405,16 +345,6 @@ export function StartPanel(props: StartPanelProps): ReactNode {
               ))}
             </ListNavigationGroup>
           </ListNavigation>
-          {area === "workbench" ? (
-            <PluginUiSlot
-              onOpen={(key) => {
-                requestPluginScreen(key);
-                props.onSwitchArea("chat");
-                actions.updatePlace({ screen: "plugins", scroll: 0 });
-                if (props.floating) actions.setStartOpen(false);
-              }}
-            />
-          ) : null}
           {area === "chat" ? props.threadList : null}
         </div>
       )}

@@ -97,17 +97,44 @@ function useShellShortcuts(props: ShellProps): void {
   }, [actions, keymap, mac, settingsOpen, onSettingsOpenChange, onAction, modalOpen]);
 }
 
+/**
+ * 무대: 지금 화면 하나. `keepAlive` 화면(DP-90)은 한 번 열면 내리지 않고, 지금 화면이 아닐 때 `hidden`으로 숨긴다
+ * (플러그인 프레임과 화면 트리의 상태가 대화·설정·크래프트를 다녀와도 남는다)
+ */
 function Stage(props: {
   readonly registry: ShellRegistry;
   readonly settingsOpen: boolean;
   readonly settingsScreen: ReactNode;
 }): ReactNode {
   const screen = useShell((s) => s.places[s.area].screen);
-  if (props.settingsOpen) return props.settingsScreen;
   const def = props.registry.screen(screen);
-  if (def !== undefined) return def.render();
+  const keptNow = !props.settingsOpen && def?.keepAlive === true;
+  const [kept, setKept] = useState<readonly string[]>([]);
+  if (keptNow && !kept.includes(screen)) setKept([...kept, screen]);
+  let current: ReactNode = null;
+  if (props.settingsOpen) current = props.settingsScreen;
+  else if (def === undefined) {
+    current = (
+      <EmptyState media={<MissingArt />} surface="none" title={t("desktop.shell.screen.missing")} />
+    );
+  } else if (def.keepAlive !== true) current = def.render();
   return (
-    <EmptyState media={<MissingArt />} surface="none" title={t("desktop.shell.screen.missing")} />
+    <>
+      {current}
+      {kept.map((id) => {
+        const shown = keptNow && id === screen;
+        return (
+          <div
+            key={id}
+            data-kept-screen={id}
+            hidden={!shown}
+            className={shown ? "flex min-h-0 min-w-0 flex-1 flex-col" : "hidden"}
+          >
+            {props.registry.screen(id)?.render()}
+          </div>
+        );
+      })}
+    </>
   );
 }
 

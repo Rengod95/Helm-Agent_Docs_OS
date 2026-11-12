@@ -1,82 +1,25 @@
 import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
-import type { ExtListEntry } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
-import {
-  groupInfoIdOf,
-  PluginsPanelView,
-} from "../../src/views/pages/settings/settings-plugins-view.tsx";
+import { PluginsPanelView } from "../../src/views/pages/settings/settings-plugins-view.tsx";
 
-// 설정 "플러그인과 그룹" 탭의 그림. 학습 그룹 행에만 설명 정보 아이콘이 붙는다(확장 목록에는 설명 칸이 없어 그룹 이름으로 고른다).
+// 설정 "플러그인" 구역 맨 위 카드(DP-93). 목록과 스위치는 없고, 플레이그라운드로 보내는 한 줄만 있다.
 
-const NOOP = (): void => {};
+const plain = (html: string): string => html.replaceAll("<!-- -->", "");
 
-/** 확장 목록의 한 항목. 내장 그룹으로 둔다 */
-function extEntry(overrides: Partial<ExtListEntry>): ExtListEntry {
-  return {
-    name: "learning",
-    displayName: "학습",
-    layer: "L3",
-    isGroup: true,
-    version: "0.1.0",
-    location: "builtin",
-    origin: "builtin",
-    requestedGrade: "builtin",
-    effectiveGrade: "builtin",
-    tier: null,
-    status: "enabled",
-    plugins: [],
-    diagnostics: [],
-    autoDisabled: false,
-    safeModeExcluded: null,
-    hookCount: 0,
-    ...overrides,
-  };
-}
-
-describe("groupInfoIdOf", () => {
-  test("only the learning group has an explanation; other groups and plugins have none", () => {
-    expect(groupInfoIdOf(extEntry({ name: "learning" }))).toEqual(
-      "desktop.settings.plugins.learning.info",
-    );
-    expect(groupInfoIdOf(extEntry({ name: "helm", displayName: "Helm" }))).toEqual(null);
-    expect(groupInfoIdOf(extEntry({ name: "learning", isGroup: false }))).toEqual(null);
-  });
-});
-
-describe("PluginsPanelView learning explanation", () => {
-  const info = t("desktop.settings.plugins.learning.info");
-
-  test("the learning row carries its explanation behind the info icon, and no other row does", () => {
-    const markup = renderToString(
-      <PluginsPanelView
-        load={{
-          kind: "ready",
-          rev: 0,
-          entries: [
-            extEntry({ name: "learning", displayName: "학습" }),
-            extEntry({ name: "helm", displayName: "Helm" }),
-          ],
-        }}
-        busy={new Set()}
-        onToggle={NOOP}
-        onReload={NOOP}
-      />,
-    );
-    expect(markup.split(info).length - 1).toEqual(1);
-    expect(markup).toContain("학습");
-    expect(markup).toContain("Helm");
+describe("PluginsPanelView", () => {
+  test("says plugins are managed in the playground and offers to open it", () => {
+    const markup = plain(renderToString(<PluginsPanelView onOpen={() => undefined} />));
+    expect(markup).toContain(t("desktop.settings.plugins.moved.title"));
+    expect(markup).toContain(t("desktop.settings.plugins.moved.body"));
+    expect(markup).toContain(`>${t("desktop.settings.plugins.moved.open")}<`);
+    expect(t("desktop.settings.plugins.moved.body")).toContain("플레이그라운드");
   });
 
-  test("a group list without the learning group shows no explanation sentence", () => {
-    const markup = renderToString(
-      <PluginsPanelView
-        load={{ kind: "ready", rev: 0, entries: [extEntry({ name: "helm", displayName: "Helm" })] }}
-        busy={new Set()}
-        onToggle={NOOP}
-        onReload={NOOP}
-      />,
-    );
-    expect(markup.split(info).length - 1).toEqual(0);
+  test("outside the shell there is no open button, and never a plugin switch", () => {
+    const markup = plain(renderToString(<PluginsPanelView />));
+    expect(markup).toContain(t("desktop.settings.plugins.moved.body"));
+    expect(markup).not.toContain(`>${t("desktop.settings.plugins.moved.open")}<`);
+    expect(markup).not.toContain('role="switch"');
   });
 });

@@ -54,6 +54,8 @@ import {
 import { ChatWithRecords } from "./workbench/records-jump.tsx";
 import { HelmPanelTab } from "./plugin/plugin-tabs.tsx";
 import { AddonsScreen } from "./plugin/addons-screen.tsx";
+import { PLAYGROUND_TAB_SCREEN } from "./plugin/playground-tab-store.ts";
+import { PlaygroundTabScreen } from "./plugin/playground-tab-screen.tsx";
 import { useApprovalCount, useOpenThread, useThreadIds } from "../state/engine/index.ts";
 import { useState, type ReactNode } from "react";
 
@@ -300,6 +302,18 @@ export function createDesktopRegistry(): ShellRegistry {
     render: () => (
       <WorkbenchStoreContext value={workbench}>
         <AddonsScreen />
+      </WorkbenchStoreContext>
+    ),
+  });
+  // 머리 줄 플레이그라운드 탭의 화면(DP-90). 내비 항목이 없고, 한 번 열면 내리지 않는다(상태 유지)
+  registry.registerScreen({
+    id: PLAYGROUND_TAB_SCREEN,
+    area: "chat",
+    label: "desktop.shell.nav.plugins",
+    keepAlive: true,
+    render: () => (
+      <WorkbenchStoreContext value={workbench}>
+        <PlaygroundTabScreen />
       </WorkbenchStoreContext>
     ),
   });

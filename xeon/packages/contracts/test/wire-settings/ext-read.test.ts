@@ -369,6 +369,29 @@ describe("M4 ext read methods", () => {
     expect(parse(schema, { items: [{ ...card, forKind: 1 }] }).ok).toBe(false);
   });
 
+  test("ext.ui.list entries carry an icon name by value, and reject an empty or over-long one", () => {
+    const schema = WIRE_METHODS["ext.ui.list"].result;
+    const page = {
+      extension: "playground",
+      id: "main",
+      placement: "page",
+      mode: "native",
+      title: "Playground",
+      icon: "Compass",
+      state: "ok",
+      version: "1.0.0",
+      trust: "user",
+      issues: [],
+    };
+    roundTrip(schema, { items: [page] });
+    roundTrip(schema, { items: [{ ...page, icon: "i".repeat(64) }] });
+    const { icon: _icon, ...withoutIcon } = page;
+    roundTrip(schema, { items: [withoutIcon] });
+    expect(parse(schema, { items: [{ ...page, icon: "" }] }).ok).toBe(false);
+    expect(parse(schema, { items: [{ ...page, icon: "i".repeat(65) }] }).ok).toBe(false);
+    expect(parse(schema, { items: [{ ...page, icon: 1 }] }).ok).toBe(false);
+  });
+
   test("ext.validateComposition takes a composition and returns issues", () => {
     expect(parse(WIRE_METHODS["ext.validateComposition"].params, { composition: 1 }).ok).toBe(
       false,
