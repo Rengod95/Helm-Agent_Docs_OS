@@ -5,6 +5,7 @@ import {
   type CommandActionContext,
   type CommandActionRegistry,
   type CommandActionResult,
+  type GoalStatus,
   type WorkGoals,
   type WorkPlans,
   type WorkTasks,
@@ -120,13 +121,22 @@ async function tasksCommand(
 
 const GOAL_USAGE = "사용법: /goal <조건> | /goal status | /goal clear";
 
+/** 목표 상태의 화면 낱말. 엔진 코드(`active` 등)를 그대로 보이지 않는다(DP-144) */
+const GOAL_STATUS_TEXT: Readonly<Record<GoalStatus, string>> = {
+  active: "진행 중",
+  met: "충족",
+  limit_reached: "판정 한도 도달",
+  cleared: "해제됨",
+  judge_failed: "판정 실패",
+};
+
 function goalLine(goal: {
   readonly condition: string;
-  readonly status: string;
+  readonly status: GoalStatus;
   readonly judgments: number;
   readonly maxRuns: number;
 }): string {
-  return `목표: ${goal.condition} (${goal.status}, 판정 ${String(goal.judgments)}/${String(goal.maxRuns)})`;
+  return `목표: ${goal.condition} (${GOAL_STATUS_TEXT[goal.status]} · 판정 ${String(goal.judgments)}/${String(goal.maxRuns)})`;
 }
 
 async function goalCommand(

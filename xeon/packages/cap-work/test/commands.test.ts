@@ -161,11 +161,11 @@ describe("work commands", () => {
     expect((await registry.run("goal", ["status"])).message).toBe("걸린 목표가 없습니다.");
     expect((await registry.run("goal", ["clear"])).message).toBe("해제할 활성 목표가 없습니다.");
     const set = await registry.run("goal", ["all", "tests", "pass"]);
-    expect(set.message).toBe("목표를 걸었습니다. 목표: all tests pass (active, 판정 0/3)");
+    expect(set.message).toBe("목표를 걸었습니다. 목표: all tests pass (진행 중 · 판정 0/3)");
     const status = await h.goals.status({}, h.opts());
     expect(status.goal).toMatchObject({ condition: "all tests pass", status: "active" });
     expect((await registry.run("goal", ["status"])).message).toBe(
-      "목표: all tests pass (active, 판정 0/3)",
+      "목표: all tests pass (진행 중 · 판정 0/3)",
     );
     expect((await registry.run("goal", ["another"])).message).toBe(
       "활성 목표가 이미 있습니다. 먼저 /goal clear로 해제하세요.",
