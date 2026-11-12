@@ -1,4 +1,4 @@
-/* 도구 호출 줄의 상태 칩(`call-chip.tsx`, dzM2 시안 §3). 실행 중: 테두리 칩 + 스피너. 끝남: 칩 틀 없이 체크 하나(.call-chip-done, DP-67),
+/* 도구 호출 줄의 상태 칩(`call-chip.tsx`, dzM2 시안 §3, dzE 시안 §3). 실행 중: 테두리 칩 + 경과 초, 테두리 위를 beam(.fx-beam-edge)이 돈다. 끝남: 칩 틀 없이 체크 하나(.call-chip-done, DP-67),
    바뀐 순간에만 선이 그려진다(drawn-check.css). 실패: 빛깔이 바뀌고 바뀐 순간에만 바탕이 한 번 번진다. caustic에는 이 keyframes가 없어 여기에 둔다.
    Tauri CSP가 인라인 <style>을 막아 이 파일로 두고 styles.css가 가져온다. 색은 caustic 토큰만 쓰므로 라이트·다크는 토큰이 따라간다. */
 .call-chip {
@@ -11,10 +11,9 @@
   align-items: center;
   gap: 0.375rem;
   height: 1.5rem;
-  /* 좌우 여백은 상하 기준으로 맞춘다: 높이 24px에 글 12px·아이콘 12px이면 위아래 6px, 좌우도 6px이다(테두리 1px 안쪽) */
+  /* 좌우 여백: 아이콘이 있으면(실패) 높이 24px에 아이콘 12px이라 위아래 6px과 같은 6px, 글만 있으면(실행 중) 글자 옆 빈칸이 커 보이지 않게 8px */
   --call-chip-pad: 0.375rem;
   padding-inline: var(--call-chip-pad);
-  overflow: hidden;
   box-sizing: border-box;
   border: 1px solid var(--call-chip-edge);
   border-radius: 9999px;
@@ -29,6 +28,13 @@
 }
 /* 끝남: 칩 틀(테두리·채움·여백) 없이 caustic 기본 체크 14px만 둔다. 빛깔은 success.text다: 틀 없는 맨 글리프라
    success.graphic(라이트 L 0.83)은 흰 카드 위에서 너무 흐리다 */
+.call-chip[data-status="running"] {
+  --call-chip-pad: 0.5rem;
+}
+/* 승인 대기 칩: 글도 경고 쪽으로 기운다(고리는 beam.css의 wait 색) */
+.call-chip[data-waiting="true"] {
+  --call-chip-ink: var(--cs-color-text-secondary);
+}
 .call-chip-done {
   display: inline-flex;
   flex-shrink: 0;
@@ -52,10 +58,11 @@
 }
 
 /* 채움: 실패로 바뀐 순간에만(`data-changed`) 칩 바탕이 tint로 번졌다가 투명으로 가라앉는다(흔들기 없음, DP-105).
-   마운트할 때 이미 실패인 칩(기록을 다시 그림)은 돌지 않는다. 실행 중 쓸림은 없다: 줄 아래 변의 굴절광(convo.css .convo-line-beam)이 맡는다 */
+   마운트할 때 이미 실패인 칩(기록을 다시 그림)은 돌지 않는다. 실행 중 움직임은 칩 테두리의 beam 하나다(줄 아래 빛 줄기는 없앴다, DP-127) */
 .call-chip-fill {
   position: absolute;
   inset: 0;
+  border-radius: inherit;
   pointer-events: none;
   background: var(--call-chip-sweep);
   opacity: 0;
@@ -64,8 +71,7 @@
   animation: call-chip-bloom 520ms cubic-bezier(0.2, 0, 0, 1) 1 both;
 }
 
-.call-chip-icon,
-.call-chip-spinner {
+.call-chip-icon {
   position: relative;
   width: 0.75rem;
   height: 0.75rem;
@@ -78,24 +84,6 @@
   content: attr(data-text);
 }
 
-/* 스피너: 가는 고리 위로 호 하나가 돈다 */
-.call-chip-spinner {
-  box-sizing: border-box;
-  border: 1.75px solid color-mix(in srgb, currentColor 22%, transparent);
-  border-top-color: var(--cs-color-agent-text, currentColor);
-  border-radius: 9999px;
-  animation: call-chip-spin 0.8s linear infinite;
-}
-.call-chip[data-waiting="true"] .call-chip-spinner {
-  animation: none;
-  border-top-color: color-mix(in srgb, currentColor 22%, transparent);
-}
-
-@keyframes call-chip-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
 @keyframes call-chip-bloom {
   0% {
     opacity: 1;
@@ -104,11 +92,10 @@
     opacity: 0;
   }
 }
-/* 움직임 줄이기: 전환 없이 끝 모양이 바로 보인다. 쓸리는 띠도 스피너도 멈춘다(앱 설정 data-motion=reduce는 styles.css의 공통 규칙이 같은 효과를 낸다) */
+/* 움직임 줄이기: 전환 없이 끝 모양이 바로 보인다. beam은 beam.css가 정지한 고리로 바꾼다(앱 설정 data-motion=reduce는 styles.css의 공통 규칙이 같은 효과를 낸다) */
 @media (prefers-reduced-motion: reduce) {
   .call-chip,
-  .call-chip .call-chip-fill,
-  .call-chip .call-chip-spinner {
+  .call-chip .call-chip-fill {
     animation: none;
     transition: none;
   }
@@ -117,8 +104,7 @@
   }
 }
 [data-motion="reduce"] .call-chip,
-[data-motion="reduce"] .call-chip .call-chip-fill,
-[data-motion="reduce"] .call-chip .call-chip-spinner {
+[data-motion="reduce"] .call-chip .call-chip-fill {
   animation: none;
   transition: none;
 }

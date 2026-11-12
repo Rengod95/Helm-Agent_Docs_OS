@@ -4,6 +4,7 @@ import { detach, rethrow } from "@fresnel/contracts";
 import type { ItemId, JsonObject, JsonValue, ThreadId } from "@fresnel/contracts/conversation";
 import { memo, useContext, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { HeightGlide, useHeightRatchet } from "../../lib/motion-presets.tsx";
+import { useSmoothText } from "../../lib/smooth-text.ts";
 import { cardOf, provenanceOf } from "../../plugin-ui/placements.ts";
 import {
   useHasToolCall,
@@ -239,15 +240,19 @@ const ReplyPart = memo(function ReplyPart(props: {
 }): ReactNode {
   const streamed = usePartText(props.id, props.index);
   const text = props.recorded ?? streamed;
-  // 흐르는 동안 높이가 잠깐 줄어드는 프레임을 막는다. 확정되면 풀린다
-  const box = useHeightRatchet<HTMLDivElement>(props.recorded === null);
+  // 받은 글을 일정한 박자로 드러낸다(DP-129). 기록을 다시 그린 조각은 그대로, 흐르다 확정된 조각은 남은 글을 마저 흘린다
+  const flowing = props.kind === "text" ? text : "";
+  const paced = useSmoothText(flowing, props.recorded === null);
+  const catching = paced.length < flowing.length;
+  // 흐르는 동안 높이가 잠깐 줄어드는 프레임을 막는다. 확정되고 다 흘린 뒤 풀린다
+  const box = useHeightRatchet<HTMLDivElement>(props.recorded === null || catching);
   if (props.kind === "thinking") return <ThinkingBlock text={text} live={props.live} />;
   if (props.kind === "toolCall") return <PreparingCall name="" args={text} />;
   return (
     <>
-      <Message ref={box} size="sm" streaming={props.live} className="animate-none">
-        <MarkdownBody text={text} streaming={props.recorded === null} />
-        {props.live ? <span aria-hidden className="transcript-caret" /> : null}
+      <Message ref={box} size="sm" streaming={props.live || catching} className="animate-none">
+        <MarkdownBody text={paced} streaming={props.recorded === null || catching} />
+        {props.live || catching ? <span aria-hidden className="transcript-caret" /> : null}
       </Message>
       {props.recorded === null ? null : (
         <SourceChips sources={citedLinksOf(props.recorded, 6)} indent={false} />

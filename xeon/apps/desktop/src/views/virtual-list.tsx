@@ -11,6 +11,7 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { nextStuck } from "./virtual-list-stick.ts";
+import { useEdgeFade } from "./virtual-list-edge.ts";
 import { glideStep, shouldGlide } from "./virtual-list-glide.ts";
 import { anchorShiftOf, releasesOnExpand, unseenOf } from "./virtual-list-anchor.ts";
 import { isMotionReduced } from "../lib/motion-presets.tsx";
@@ -83,6 +84,7 @@ function firstAtOrAfter(
 export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
   const { rows, renderRow, followTail } = props;
   const scroller = useRef<HTMLDivElement | null>(null);
+  useEdgeFade(scroller);
   const stuck = useRef(true);
   // 직전에 잰 스크롤 위치와 내용 높이. 사용자가 움직인 것인지 nextStuck이 이것과 비교해 본다.
   // 프로그램이 위치를 옮긴 뒤에는 옮긴 자리로 갱신해, 그 스크롤 이벤트를 사용자의 움직임으로 잘못 보지 않게 한다

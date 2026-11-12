@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { NowState } from "../../src/state/engine/index.ts";
 import { nowViewOf } from "../../src/views/now/now-model.ts";
-import { NowStripView } from "../../src/views/now/now-strip.tsx";
+import { NowStripView, stripAuroraOf } from "../../src/views/now/now-strip.tsx";
 
 // 지금 띠(DP-100)의 서버 렌더: 접힌 줄의 본문과 곁 정보, 좁은 띠에서 숨는 곁 정보, 펼친 몸에서 목표를 되풀이하지 않음.
 
@@ -64,5 +64,25 @@ describe("NowStripView", () => {
     expect(
       textOf(renderToStaticMarkup(<NowStripView view={view} open={false} onOpenChange={noop} />)),
     ).toContain("멈추는 중…");
+  });
+});
+
+describe("stripAuroraOf (dzE 시안 §2.4)", () => {
+  test("승인 대기가 먼저, 그다음 도는 중·멈추는 중, 그 밖은 꺼짐", () => {
+    expect(
+      [
+        { pulse: "running", pendingApprovals: 1 },
+        { pulse: "idle", pendingApprovals: 2 },
+        { pulse: "running", pendingApprovals: 0 },
+        { pulse: "stopping", pendingApprovals: 0 },
+        { pulse: "idle", pendingApprovals: 0 },
+      ].map((view) =>
+        stripAuroraOf({
+          pulse:
+            view.pulse === "running" ? "running" : view.pulse === "stopping" ? "stopping" : "idle",
+          pendingApprovals: view.pendingApprovals,
+        }),
+      ),
+    ).toEqual(["wait", "wait", "run", "stop", "off"]);
   });
 });

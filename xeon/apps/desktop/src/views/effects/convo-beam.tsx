@@ -1,5 +1,5 @@
 // 대화 화면의 beam 두 곳(DP-107 [결정: 2026-11-11 사용자]). 엔진 상태를 읽어 beam.tsx의 부품에 넘긴다.
-// 입력창: 턴이 도는 동안 테두리를 빛이 돌고, 그 대화에 승인을 기다리는 요청이 있으면 멈춰 경고 색으로 고정된다.
+// 입력창: 턴이 도는 동안 테두리를 빛이 돌고 바깥에 오로라 띠가 흐르며(DP-126), 그 대화에 승인을 기다리는 요청이 있으면 멈춰 경고 색으로 고정된다.
 // 머리 줄: 대화를 불러오는 동안 아래 변을 빛 줄기가 흐른다.
 
 import type { ThreadId } from "@fresnel/contracts/conversation";
@@ -25,6 +25,7 @@ function ComposerBeamFor(props: {
     <BeamScope
       target={COMPOSER_BOX}
       state={beamStateOf({ running, awaitingApproval: approvals > 0 })}
+      aurora
       className="flex flex-none flex-col"
     >
       {props.children}

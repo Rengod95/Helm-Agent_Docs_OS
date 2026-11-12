@@ -22,6 +22,7 @@ import {
   useCallRunning,
   useElapsedSeconds,
 } from "./tool-call-row.tsx";
+import { CallChip } from "../call-chip.tsx";
 import { ToolLine, useDisclosure, type LineStatus } from "./tool-line.tsx";
 import { failureLabelOf, planArgsOf, planResultOf, type PlanState } from "./tool-view-model.ts";
 import type { CallBlock } from "../transcript-rows.ts";
@@ -32,7 +33,8 @@ function StatusText(props: { readonly status: LineStatus }): ReactNode {
   const { status } = props;
   switch (status.kind) {
     case "running":
-      return <span className="convo-line-meta">{status.label}</span>;
+      // 도는 중은 도구 줄과 같은 칩(테두리 beam, DP-127)
+      return <CallChip status="running" label={status.label} waiting={status.awaiting} />;
     case "failed":
       return (
         <span

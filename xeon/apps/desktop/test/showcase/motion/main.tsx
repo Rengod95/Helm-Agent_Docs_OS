@@ -45,6 +45,9 @@ setActiveLocale("ko");
 const params = new URLSearchParams(window.location.search);
 document.documentElement.dataset["theme"] = params.get("theme") === "light" ? "light" : "dark";
 if (params.get("motion") === "reduce") document.documentElement.dataset["motion"] = "reduce";
+// 오로라 자리 견주기(dzE 시안 §2.5): ?aurora=strip|both|off
+const auroraParam = params.get("aurora");
+if (auroraParam !== null) document.documentElement.dataset["fxAurora"] = auroraParam;
 
 const T: ThreadId = thr(1);
 const h = openedHarness(5, T);
@@ -313,17 +316,21 @@ type Scene = {
   now: NowView | null;
   nowOpen: boolean;
   beam: BeamState;
+  /** 입력창 높이(px). 자라는 입력창에서 beam이 다시 재는지 본다(dzE) */
+  composerH: number;
   list: readonly string[];
 };
 
 const scene: { set: ((next: Partial<Scene>) => void) | null } = { set: null };
 
-function Composerish(props: { readonly beam: BeamState }): ReactNode {
+function Composerish(props: { readonly beam: BeamState; readonly height: number }): ReactNode {
   return (
-    <BeamScope target=".composer-box" state={props.beam} className="flex flex-none flex-col">
+    <BeamScope target=".composer-box" state={props.beam} aurora className="flex flex-none flex-col">
       <div className="mx-auto w-full max-w-184 px-3 pb-3">
+        {/* 실제 입력창(composer.tsx)과 같은 반경 클래스: Chromium에서 caustic이 squircle을 준다 */}
         <div
-          className="composer-box grid h-[69px] rounded-2xl border border-border-default bg-surface-raised px-3 pt-2.5 text-ui text-text-tertiary"
+          className="composer-box grid rounded-[calc(var(--radius-2xl)+4px)] border border-border-default bg-surface-raised px-3 pt-2.5 text-ui text-text-tertiary"
+          style={{ height: props.height }}
           data-tape-composer=""
         >
           메시지를 입력하세요
@@ -352,7 +359,13 @@ function FlipDemo(props: { readonly list: readonly string[] }): ReactNode {
 }
 
 function Stage(): ReactNode {
-  const [state, setState] = useState<Scene>({ now: null, nowOpen: false, beam: "off", list: [] });
+  const [state, setState] = useState<Scene>({
+    now: null,
+    nowOpen: false,
+    beam: "off",
+    composerH: 69,
+    list: [],
+  });
   scene.set = (next) => {
     setState((prev) => ({ ...prev, ...next }));
   };
@@ -381,7 +394,7 @@ function Stage(): ReactNode {
             />
           </div>
         </div>
-        <Composerish beam={state.beam} />
+        <Composerish beam={state.beam} height={state.composerH} />
       </div>
       {state.list.length === 0 ? null : (
         <aside className="w-56 flex-none border-l border-border-subtle">

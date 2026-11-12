@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
+import { BeamEdge } from "./effects/beam.tsx";
 import { DrawnCheck } from "./effects/drawn-check.tsx";
 
 /**
- * 도구 호출 줄의 상태 칩(dzM2 시안 §3, DP-118). 실행 중에는 테두리 칩 + 스피너 + 경과 초(줄 아래 변의 굴절광은 ToolLine), 끝나면 칩 틀 없이
+ * 도구 호출 줄의 상태 칩(dzM2 시안 §3, DP-118·127). 실행 중에는 테두리 칩 + 경과 초이고 칩 테두리를 beam 작은 변형이 돈다(스피너 없음,
+ * 승인 대기면 빛이 멈추고 고리가 경고 색으로 고정). 끝나면 칩 틀 없이
  * 체크 하나(DP-67), 실패 종류(실패·중단됨은 위험, 거부함·막힘·훅 막음은 경고)는 빛깔과 아이콘이 갈린다.
  * 움직임은 상태가 바뀐 순간에만 돈다(`changed`): 끝남은 체크 선이 그려지고, 실패는 칩 바탕이 한 번 번진다. 이미 끝난 줄을 다시 그리면 끝 모양 그대로다.
  * 움직임 줄이기(OS 설정, 앱 설정 `data-motion="reduce"`)에서는 전환 없이 끝 모양이 바로 보인다.
@@ -18,7 +20,7 @@ export type CallChipProps = {
   readonly label?: string | undefined;
   /** 실패일 때 빛깔. 기본은 위험이다 */
   readonly tone?: CallChipTone;
-  /** 승인을 기다리는 중. 스피너가 멈춘 고리다 */
+  /** 승인을 기다리는 중. beam이 멈추고 경고 색 고리다 */
   readonly waiting?: boolean;
   /** 이 칩이 화면에 있는 동안 상태가 바뀌었다. 끝 모양으로 가는 움직임을 이때만 돌린다 */
   readonly changed?: boolean;
@@ -54,7 +56,8 @@ function BanIcon(): ReactNode {
 }
 
 function iconOf(props: CallChipProps): ReactNode {
-  if (props.status === "running") return <span className="call-chip-spinner" />;
+  if (props.status === "running")
+    return <BeamEdge state={props.waiting === true ? "wait" : "run"} />;
   return props.tone === "warning" ? <BanIcon /> : <AlertIcon />;
 }
 

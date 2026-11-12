@@ -3,10 +3,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { CallChip } from "../../src/views/call-chip.tsx";
 
 describe("CallChip", () => {
-  test("running carries the spinner, the label and the waiting flag", () => {
+  test("running carries the border beam (no spinner), the label and the waiting flag", () => {
     const html = renderToStaticMarkup(<CallChip status="running" label="Running · 3s" />);
     expect(html).toContain('data-status="running"');
-    expect(html).toContain("call-chip-spinner");
+    expect(html).toContain('class="fx-beam-edge"');
+    expect(html).not.toContain("spinner");
     expect(html).toContain('data-text="Running · 3s"');
     expect(html).not.toContain("data-waiting");
     expect(renderToStaticMarkup(<CallChip status="running" waiting />)).toContain(

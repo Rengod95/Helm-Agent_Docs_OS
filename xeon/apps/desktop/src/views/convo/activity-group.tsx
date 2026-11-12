@@ -8,7 +8,6 @@ import { useTranscriptDetail } from "../transcript-detail.ts";
 import type { ActivityEntry } from "../transcript-rows.ts";
 import { activitySummaryOf, type ActivityCall } from "./activity-model.ts";
 import { ThinkingBlock } from "./thinking-block.tsx";
-import { CallChip } from "../call-chip.tsx";
 import { CallRow, resultViewOf, useCallRunning, useElapsedSeconds } from "./tool-call-row.tsx";
 import { Reveal, useDisclosure } from "./tool-line.tsx";
 import { toolHeadOf } from "./tool-view-model.ts";
@@ -140,7 +139,8 @@ export function ActivityGroup(props: {
               ? t("desktop.convo.group.metaFailed", { count: calls.length, failed })
               : t("desktop.convo.group.meta", { count: calls.length })}
         </span>
-        <span className="convo-line-status">{live ? <CallChip status="running" /> : null}</span>
+        {/* 도는 중 빛은 머리 아래 늘 보이는 도는 줄의 칩이 맡는다. 머리는 동사와 경과 초로 말한다(한 묶음에 움직이는 빛이 겹치지 않게, DP-127) */}
+        <span className="convo-line-status" />
       </div>
       <HeightGlide>
         {open ? null : <div className="convo-group-body empty:hidden">{body(true)}</div>}
