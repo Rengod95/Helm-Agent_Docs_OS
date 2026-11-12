@@ -1,48 +1,71 @@
-/* 생각 표시 움직임(dsI, DP-106). 바깥 고리부터 안쪽으로 0.24초씩 늦게 밝아지고 한 바퀴는 2.4초다. 인라인 <style>은 Tauri CSP가 막아 이 파일로 두고 styles.css가 가져온다.
-   색은 caustic 토큰이다: 움직일 때 agent graphic, 끝난 생각은 tertiary 글자색(라이트·다크는 토큰이 따라간다). */
+/* 생각 표시(DP-162). orb 자체는 thinking-orbs가 canvas에 그린다. 여기는 자리, 대기 알약, 반짝이는 글이다.
+   알약과 반짝임은 libraries.dev/orbs 미리보기 칸(.ex-pill, .t-shimmer)의 짜임을 대화 줄 크기로 옮긴 것이다:
+   원본 74px 알약·orb 56·글 18px → 우리 44px 알약·orb 36·글 13px(본문 글 단계). 띠 폭 400%, 2초 linear는 원본 그대로. */
+
 .thinking-indicator {
-  color: var(--cs-color-text-tertiary);
+  display: block;
+  flex: none;
 }
-.thinking-indicator[data-active="true"] {
-  color: var(--cs-color-agent-graphic);
+
+/* 글줄 안 orb(생각 블록 머리): 20 프리셋을 아이콘 칸(14px)에 겹쳐 둔다. 바깥 여백 -3px로 줄 높이와 글 시작점이 흔들리지 않는다 */
+.thinking-indicator-inline {
+  margin: -3px;
 }
-.thinking-indicator-part {
-  opacity: 0.7;
+
+/* 대기 알약: 높이 44, 왼쪽 4(orb 둘레가 알약 둥근 끝과 같은 거리), 오른쪽 16, 사이 8 */
+.thinking-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 16px 0 4px;
+  border-radius: 9999px;
+  background: color-mix(in oklch, var(--cs-color-surface-raised) 60%, transparent);
+  box-shadow: inset 0 0 0 1px var(--cs-color-border-subtle);
 }
-/* 크리스탈 숨(DP-106): 고리가 바깥에서 안으로 0.24초씩 늦게 부드럽게 밝아졌다 가라앉는다. 한 바퀴 2.4초, 사인 곡선이라 끝이 튀지 않는다 */
-.thinking-indicator[data-active="true"] .thinking-indicator-part {
-  opacity: 0.3;
-  animation: thinking-indicator-converge 2.4s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+
+.thinking-shimmer {
+  --thinking-shimmer-base: var(--cs-color-text-tertiary);
+  --thinking-shimmer-high: var(--cs-color-text-primary);
+  position: relative;
+  display: inline-block;
+  color: var(--thinking-shimmer-base);
 }
-.thinking-indicator[data-active="true"] .thinking-indicator-step-1 {
-  animation-delay: 0.24s;
+.thinking-shimmer::before {
+  content: attr(data-text) / "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 40%,
+    var(--thinking-shimmer-high) 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  background-size: 400% 100%;
+  background-repeat: no-repeat;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: thinking-shimmer 2s linear infinite;
 }
-.thinking-indicator[data-active="true"] .thinking-indicator-step-2 {
-  animation-delay: 0.48s;
-}
-.thinking-indicator[data-active="true"] .thinking-indicator-step-3 {
-  animation-delay: 0.72s;
-}
-@keyframes thinking-indicator-converge {
-  0%,
+@keyframes thinking-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
   100% {
-    opacity: 0.3;
-  }
-  35% {
-    opacity: 1;
-  }
-  70% {
-    opacity: 0.3;
+    background-position: 0% 0;
   }
 }
-/* 움직임을 줄이면 멈춘다. 움직이는 중임은 색(agent graphic)으로 남는다 */
 @media (prefers-reduced-motion: reduce) {
-  .thinking-indicator[data-active="true"] .thinking-indicator-part {
+  .thinking-shimmer::before {
     animation: none;
-    opacity: 0.85;
+    background-image: none;
   }
 }
-[data-motion="reduce"] .thinking-indicator[data-active="true"] .thinking-indicator-part {
+:root[data-motion="reduce"] .thinking-shimmer::before {
   animation: none;
-  opacity: 0.85;
+  background-image: none;
 }

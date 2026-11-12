@@ -12,8 +12,6 @@
   /* 굴절 하이라이트(끝남의 한 번 쓸림, 지금 띠 위 가장자리) */
   --fx-aurora-glint: light-dark(oklch(0.82 0.09 215), oklch(0.93 0.06 220));
   --fx-aurora-strength: 0.42;
-  /* 입력창 바깥으로 스미는 거리 */
-  --fx-aurora-out: 12px;
 }
 :root[data-theme="light"] {
   --fx-aurora-strength: 0.36;
@@ -56,35 +54,6 @@
   transition:
     opacity 520ms cubic-bezier(0.4, 0, 1, 1) 320ms,
     visibility 0s linear 840ms;
-}
-
-/* (가) 입력창 바깥 띠: 입력창 상자 뒤(BeamScope가 isolate)에 상자보다 --fx-aurora-out만큼 큰 판을 두고 바깥쪽으로 옅어지게 한다.
-   상자 채움이 안쪽을 가리므로 빛은 테두리 바로 바깥에만 보인다. 위쪽(맥락 줄 글이 있는 쪽)은 반만 스민다 */
-.fx-aurora[data-site="composer"] {
-  z-index: -1;
-  box-sizing: content-box;
-  padding: var(--fx-aurora-out);
-  margin: calc(var(--fx-aurora-out) * -1);
-  border-radius: calc(var(--fx-beam-radius, 16px) + var(--fx-aurora-out));
-  mask-image:
-    linear-gradient(
-      to right,
-      transparent,
-      rgb(0 0 0 / 0.45) calc(var(--fx-aurora-out) * 0.5),
-      #000 var(--fx-aurora-out),
-      #000 calc(100% - var(--fx-aurora-out)),
-      rgb(0 0 0 / 0.45) calc(100% - var(--fx-aurora-out) * 0.5),
-      transparent
-    ),
-    linear-gradient(
-      to bottom,
-      transparent calc(var(--fx-aurora-out) * 0.5),
-      #000 var(--fx-aurora-out),
-      #000 calc(100% - var(--fx-aurora-out)),
-      rgb(0 0 0 / 0.45) calc(100% - var(--fx-aurora-out) * 0.5),
-      transparent
-    );
-  mask-composite: intersect;
 }
 
 /* (나) 지금 띠 바탕: 띠 안 아래쪽에서 흐르고 위로 옅어진다(글 대비를 지키려고 위 절반은 거의 비운다) */

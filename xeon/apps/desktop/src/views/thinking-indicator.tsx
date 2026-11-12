@@ -1,69 +1,62 @@
+import { ThinkingOrb } from "thinking-orbs";
 import type { ReactNode } from "react";
+import { useMotionReduced } from "../lib/motion-presets.tsx";
+import { ORB_STATE } from "./effects/fx-config.ts";
 
-// 생각 표시(dsI). 프레넬 렌즈의 동심 고리를 바깥에서 안으로 위상차를 두고 밝혀 빛이 모이는 모양이다.
-// React Bits "Lattice Loader"의 "격자 점이 파동처럼 밝아진다"는 발상만 따왔고 코드는 옮기지 않았다(직접 쓴 SVG + CSS).
-// 움직임은 thinking-indicator.css가 맡는다. 움직임을 줄이면 정지 모양이다.
-
-/** 한 고리. 반지름과 호 개수(둘레를 `segments`개 호로 끊는다)와 시작 각도 */
-type Ring = { readonly r: number; readonly segments: number; readonly angle: number };
-
-const CENTER = 12;
-/** 둘레를 60으로 맞춰(pathLength) 호와 틈의 길이를 고리마다 같은 비율로 준다 */
-const PATH_LENGTH = 60;
-/** 바깥 → 안. 렌즈의 계단처럼 안쪽일수록 호가 적고 길다 */
-const RINGS: readonly Ring[] = [
-  { r: 10, segments: 6, angle: -90 },
-  { r: 6.5, segments: 4, angle: -45 },
-  { r: 3.2, segments: 2, angle: 0 },
-];
-
-function dashOf(segments: number): string {
-  const period = PATH_LENGTH / segments;
-  const gap = Math.max(2, period * 0.2);
-  return `${period - gap} ${gap}`;
-}
+// 생각 표시(DP-162 [결정: 2026-11-12 사용자]). thinking-orbs(MIT, libraries.dev)의 점 orb다. 상태는 사용자가 짚은 미리보기 칸의 것(fx-config ORB_STATE).
+// 크기는 라이브러리가 따로 다듬은 두 프리셋(20: 글줄 안, 64: 대기 알약)만 쓰고, 보이는 크기(`display`)는 자리에 맞춘다.
+// 테마는 라이브러리가 `<html data-theme>`(없으면 운영체제 설정)를 따라 고른다. 움직임을 줄이면(앱 설정 포함) 멈춘 한 장면이다.
+// 창이 숨거나 화면 밖이면 라이브러리가 그리기를 멈춘다. 그려진 동안만 있다(생각이 끝나면 부르는 쪽이 지운다).
 
 export function ThinkingIndicator(props: {
-  /** 한 변(px). 기본은 16, 첫 응답 대기는 24 */
-  readonly size?: number;
-  /** 움직이는지. 끝난 생각은 false(정지 모양) */
+  /** 라이브러리 프리셋. 20은 글줄 안, 64는 대기 알약 */
+  readonly size: 20 | 64;
+  /** 보이는 한 변(px). 없으면 프리셋 크기 */
+  readonly display?: number;
+  /** 움직이는지. 끝난 생각은 false(멈춘 한 장면) */
   readonly active: boolean;
   readonly className?: string;
 }): ReactNode {
-  const size = props.size ?? 16;
+  const reduced = useMotionReduced();
+  const side = props.display ?? props.size;
   return (
-    <svg
+    <ThinkingOrb
+      state={ORB_STATE}
+      size={props.size}
+      theme="auto"
+      paused={!props.active || reduced}
       aria-hidden
-      focusable="false"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
       data-active={props.active ? "true" : "false"}
-      className={`thinking-indicator shrink-0${props.className === undefined ? "" : ` ${props.className}`}`}
+      className={`thinking-indicator${props.className === undefined ? "" : ` ${props.className}`}`}
+      style={{ width: side, height: side }}
+    />
+  );
+}
+
+/**
+ * orb와 반짝이는 글의 알약(libraries.dev/orbs 미리보기 4번째 칸). 첫 응답을 기다리는 줄에 쓴다.
+ * 글 위로 밝은 띠가 2초에 한 번 왼쪽으로 지나간다(같은 글을 겹쳐 그린 뒤 background-clip: text). 움직임을 줄이면 띠가 없다
+ */
+export function ThinkingPill(props: { readonly label: string }): ReactNode {
+  return (
+    <span className="thinking-pill">
+      <ThinkingIndicator size={64} display={36} active />
+      <ShimmerText text={props.label} />
+    </span>
+  );
+}
+
+/** 반짝이는 글. 화면 낭독은 글 하나만 읽는다(겹친 띠는 ::before의 content이고 대체 글을 비워 읽지 않는다) */
+export function ShimmerText(props: {
+  readonly text: string;
+  readonly className?: string;
+}): ReactNode {
+  return (
+    <span
+      className={`thinking-shimmer${props.className === undefined ? "" : ` ${props.className}`}`}
+      data-text={props.text}
     >
-      {RINGS.map((ring, i) => (
-        <circle
-          key={ring.r}
-          className={`thinking-indicator-part thinking-indicator-step-${i}`}
-          cx={CENTER}
-          cy={CENTER}
-          r={ring.r}
-          pathLength={PATH_LENGTH}
-          strokeDasharray={dashOf(ring.segments)}
-          strokeLinecap="round"
-          strokeWidth={1.6}
-          stroke="currentColor"
-          transform={`rotate(${ring.angle} ${CENTER} ${CENTER})`}
-        />
-      ))}
-      <circle
-        className="thinking-indicator-part thinking-indicator-step-3"
-        cx={CENTER}
-        cy={CENTER}
-        r={1.3}
-        fill="currentColor"
-      />
-    </svg>
+      {props.text}
+    </span>
   );
 }

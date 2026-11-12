@@ -6,8 +6,8 @@ import type { CSSProperties, ReactNode } from "react";
 
 export type AuroraState = "off" | "run" | "wait" | "stop" | "done";
 
-/** 입력창 바깥 띠(composer) 또는 지금 띠 바탕(strip) */
-export type AuroraPlace = "composer" | "strip";
+/** 지금 띠 바탕(strip). 입력창 바깥 띠는 border-beam 테두리 빛으로 바뀌었다(DP-160) */
+export type AuroraPlace = "strip";
 
 export function Aurora(props: {
   readonly state: AuroraState;

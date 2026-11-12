@@ -18,6 +18,7 @@ const UTILITY_ROOT = new RegExp(
 // 의도한 비-Tailwind 이름. 이유를 적는다.
 const NOT_TAILWIND: ReadonlyMap<string, string> = new Map<string, string>([
   ["self-signed", "원격 접근 인증서 출처를 뜻하는 계약 값이다. CSS 클래스가 아니다"],
+  ["border-beam", "입력창 테두리 빛 패키지 이름(import 경로)이다. CSS 클래스가 아니다(DP-160)"],
 ]);
 
 // 아직 고치지 않은 누락. 파일 주인이 고치면 항목을 지운다(항목이 남아 있는데 누락이 없으면 시험이 실패한다).
