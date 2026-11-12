@@ -3,35 +3,29 @@ import type { ThreadSummary } from "@fresnel/contracts/wire";
 
 // 트랜스크립트 끝의 "이어서 실행" 띠가 무엇을 보일지 정한다(SC-12, P-02). 화면 없이 시험한다.
 // - crashed: 앱·엔진이 비정상 종료돼 열린 turn의 복구 표식이 남았다. "이어서 실행"과 "그대로 두기"
-// - held: 중단 뒤 큐에 남은 입력이 있다. 자동으로 시작하지 않으므로 "보내기"로 시작한다 [기본값]
-export type ResumeBandView =
-  | { readonly kind: "crashed"; readonly runningSince: string; readonly turnId: string }
-  | { readonly kind: "held"; readonly queued: number };
+// 중단 뒤 큐에 남은 입력의 "보내기"는 띠가 아니라 입력창 위 대기 목록 머리가 맡는다(DP-156, `heldCountOf`).
+// 같은 수를 두 곳에서 말하지 않고, 대화 열 밖으로 퍼지는 띠를 두지 않는다
+export type ResumeBandView = {
+  readonly kind: "crashed";
+  readonly runningSince: string;
+  readonly turnId: string;
+};
 
 /**
- * `queued`는 거울의 대기 입력 수다. 요약의 `queuedInputs`는 목록을 읽을 때만 채워지므로 쓰지 않는다.
  * `approvals`는 그 대화에서 답을 기다리는 승인 수다(거울 목록과 요약 수 중 큰 쪽). 승인을 기다리는 턴은 열린 채 살아 있다:
  * 엔진이 다시 열릴 때 recover가 죽은 턴의 대기 승인을 정리하므로, 승인이 남아 있으면 앱이 멈춘 턴이 아니다.
  * 이때 복구 표식은 남지만 "중단된 턴" 띠는 내지 않는다
  */
 export function resumeBandOf(
   thread: ThreadSummary | undefined,
-  queued: number,
   approvals: number,
 ): ResumeBandView | null {
-  if (thread === undefined) return null;
-  if (thread.resumable !== null) {
-    if (approvals > 0) return null;
-    return {
-      kind: "crashed",
-      runningSince: thread.resumable.runningSince,
-      turnId: thread.resumable.turnId,
-    };
-  }
-  if (thread.status === "idle" && queued > 0) {
-    return { kind: "held", queued };
-  }
-  return null;
+  if (thread === undefined || thread.resumable === null || approvals > 0) return null;
+  return {
+    kind: "crashed",
+    runningSince: thread.resumable.runningSince,
+    turnId: thread.resumable.turnId,
+  };
 }
 
 /**
@@ -39,7 +33,7 @@ export function resumeBandOf(
  * 상태만으로는 이어 실행 중인지 앱이 멈춘 채인지 가를 수 없다. 이어서 실행이 시작됐다고 답받은 turn id를 기억해 비교한다
  */
 export function resumeBandClosed(view: ResumeBandView | null, resumedTurn: string | null): boolean {
-  return view !== null && view.kind === "crashed" && resumedTurn === view.turnId;
+  return view !== null && resumedTurn === view.turnId;
 }
 
 /**

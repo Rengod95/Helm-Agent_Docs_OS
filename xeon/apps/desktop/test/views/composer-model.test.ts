@@ -219,10 +219,19 @@ describe("queued input chips", () => {
     expect(queuedPreviewText({ kind: "label", labelKey: "helm" })).toBe("Helm 안내");
   });
 
-  test("the mode is said in the chip's short words: steer after the next tool round, followUp and next when the turn ends", () => {
+  test("the mode is said in the chip's short words: steer after the next tool round, followUp when the turn ends, next with the next message, held when stopped", () => {
     expect(queuedModeText("steer")).toBe("다음 도구 라운드 뒤 들어가요");
     expect(queuedModeText("followUp")).toBe("이번 턴이 끝나면 들어가요");
-    expect(queuedModeText("next")).toBe("이번 턴이 끝나면 들어가요");
+    expect(queuedModeText("next")).toBe("다음에 보내는 메시지와 함께 들어가요");
+    // 멈춘 뒤 보내기를 기다리는 시작 가능 입력은 더는 "끝나면"이 아니다(DP-156). 시작하지 않는 next·aside는 그대로다
+    expect(queuedModeText("followUp", true)).toBe(
+      "멈춘 뒤라 시작하지 않았어요. 보내기를 누르면 시작해요",
+    );
+    expect(queuedModeText("steer", true)).toBe(
+      "멈춘 뒤라 시작하지 않았어요. 보내기를 누르면 시작해요",
+    );
+    expect(queuedModeText("next", true)).toBe("다음에 보내는 메시지와 함께 들어가요");
+    expect(queuedModeText("aside", true)).toBe("다음 모델 요청과 함께 들어가요");
     expect(queuedModeText("aside")).toBe("다음 모델 요청과 함께 들어가요");
   });
 

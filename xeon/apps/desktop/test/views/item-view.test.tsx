@@ -340,10 +340,9 @@ describe("one row per tool call", () => {
     });
     h.store.flush();
     const waiting = render(<RecordedItem id={itm(1)} />, h);
-    expect(chipLabels(waiting)).toEqual([
-      t("desktop.item.toolAwaitingApproval"),
-      t("desktop.item.toolAwaitingApproval"),
-    ]);
+    // 한 메시지의 호출 둘은 묶음이라 줄마다 알약 대신 작은 표시다(DP-154): 둘 다 승인 대기 고리다
+    expect([...waiting.matchAll(/data-slot="call-mark"[^>]*data-waiting="true"/g)]).toHaveLength(2);
+    expect(chipLabels(waiting)).toEqual([]);
     const other = render(<RecordedItem id={itm(2)} />, h);
     expect(chipLabels(other)).toEqual([t("desktop.item.toolRunning")]);
   });

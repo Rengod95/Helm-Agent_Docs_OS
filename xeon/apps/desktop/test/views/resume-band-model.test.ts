@@ -7,7 +7,7 @@ import {
   resumeBandOf,
   rowResumable,
 } from "../../src/views/resume-band-model.ts";
-import { chipInputs } from "../../src/views/composer-model.ts";
+import { chipInputs, heldCountOf } from "../../src/views/composer-model.ts";
 import type { QueuedInput } from "../../src/state/engine/index.ts";
 import { evt, thr, trn } from "../state/helpers.ts";
 
@@ -39,7 +39,6 @@ test("a leftover recovery marker shows the crashed band even while the status sa
       },
     }),
     0,
-    0,
   );
   expect(view).toEqual({
     kind: "crashed",
@@ -48,14 +47,10 @@ test("a leftover recovery marker shows the crashed band even while the status sa
   });
 });
 
-test("queued input left in an idle thread shows the held band with its count", () => {
-  expect(resumeBandOf(summary({}), 2, 0)).toEqual({ kind: "held", queued: 2 });
-});
-
-test("no band for a quiet thread, a running thread with a queue, or no thread", () => {
-  expect(resumeBandOf(summary({}), 0, 0)).toBeNull();
-  expect(resumeBandOf(summary({ status: "running" }), 3, 0)).toBeNull();
-  expect(resumeBandOf(undefined, 1, 0)).toBeNull();
+test("no band without a recovery marker: held input is the queue head's job, not a band (DP-156)", () => {
+  expect(resumeBandOf(summary({}), 0)).toBeNull();
+  expect(resumeBandOf(summary({ status: "running" }), 0)).toBeNull();
+  expect(resumeBandOf(undefined, 0)).toBeNull();
 });
 
 test("the crashed band closes once that turn's resume has started and not before", () => {
@@ -65,12 +60,11 @@ test("the crashed band closes once that turn's resume has started and not before
       resumable: { turnId: trn(1), runningSince: "2026-11-07T00:00:00.000Z", resumeAttempts: 0 },
     }),
     0,
-    0,
   );
   expect(resumeBandClosed(view, null)).toBe(false);
   expect(resumeBandClosed(view, trn(2))).toBe(false);
   expect(resumeBandClosed(view, trn(1))).toBe(true);
-  expect(resumeBandClosed({ kind: "held", queued: 1 }, trn(1))).toBe(false);
+  expect(resumeBandClosed(null, trn(1))).toBe(false);
 });
 
 test("a turn waiting on an approval keeps its marker but shows no crashed band", () => {
@@ -79,8 +73,8 @@ test("a turn waiting on an approval keeps its marker but shows no crashed band",
     pendingApprovals: 1,
     resumable: { turnId: trn(1), runningSince: "2026-11-07T00:00:00.000Z", resumeAttempts: 0 },
   });
-  expect(resumeBandOf(marked, 0, 1)).toBeNull();
-  expect(resumeBandOf(marked, 0, 0)?.kind).toBe("crashed");
+  expect(resumeBandOf(marked, 1)).toBeNull();
+  expect(resumeBandOf(marked, 0)?.kind).toBe("crashed");
 });
 
 test("the sidebar row offers resume only for a marked thread that waits for no approval", () => {
@@ -120,9 +114,34 @@ test("the crashed band's sentence names the service for a remote target and the 
   );
 });
 
-test("the held band counts only what the user can see: hidden internal input alone shows no band", () => {
+test("held counts only visible input that can start a turn on its own (DP-156)", () => {
   const idle = summary({});
-  expect(resumeBandOf(idle, chipInputs([hidden(1), hidden(2)]).length, 0)).toBeNull();
-  const mixed = [hidden(1), input({ inputId: evt(2) }), hidden(3)];
-  expect(resumeBandOf(idle, chipInputs(mixed).length, 0)).toEqual({ kind: "held", queued: 1 });
+  expect(heldCountOf(idle, chipInputs([hidden(1), hidden(2)]))).toBe(0);
+  const mixed = [hidden(1), input({ inputId: evt(2), mode: "followUp" }), hidden(3)];
+  expect(heldCountOf(idle, chipInputs(mixed))).toBe(1);
+  // Helm 안내처럼 확장이 next로 넣은 입력은 turn.resume이 시작하지 않는다: 보내기를 내면 눌러도 아무 일이 없다
+  const helm = input({
+    inputId: evt(4),
+    mode: "next",
+    sourceType: "extension",
+    preview: { kind: "label", labelKey: "helm" },
+  });
+  expect(chipInputs([helm]).length).toBe(1);
+  expect(heldCountOf(idle, chipInputs([helm]))).toBe(0);
+  expect(heldCountOf(idle, [input({ mode: "aside" })])).toBe(0);
+  expect(heldCountOf(idle, [input({ mode: "steer" }), input({ mode: "followUp" })])).toBe(2);
+});
+
+test("held is zero while the thread runs, carries a recovery marker, or is gone", () => {
+  const queue = [input({ mode: "followUp" })];
+  expect(heldCountOf(summary({ status: "running" }), queue)).toBe(0);
+  expect(
+    heldCountOf(
+      summary({
+        resumable: { turnId: trn(1), runningSince: "2026-11-07T00:00:00.000Z", resumeAttempts: 0 },
+      }),
+      queue,
+    ),
+  ).toBe(0);
+  expect(heldCountOf(undefined, queue)).toBe(0);
 });

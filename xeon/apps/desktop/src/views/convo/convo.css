@@ -495,6 +495,27 @@
 }
 
 /* ── 묶음 ──────────────────────────────────────────────────────── */
+/* 묶음 머리 곁 정보(DP-154): "4개 실행 중 · 2개 실패 · 7초". 실패 조각만 위험 글자색이다 */
+[data-slot="convo-group-meta"] [data-tone="danger"] {
+  color: var(--cs-color-danger-text);
+}
+/* 묶음 안 실패 줄의 한 줄 요약(DP-154): 오류 상자를 접은 채 동사 시작(왼쪽 20)에 맞춰 12px 한 줄, 넘치면 말줄임. 누르면 줄이 펼쳐 상자를 보인다.
+   빨강은 줄 끝 표시 하나가 맡고 요약은 tertiary다(실패가 여럿일 때 빨간 줄이 쌓이지 않게) */
+.convo-fail-line {
+  min-width: 0;
+  margin: -4px 0 4px 20px;
+  overflow: hidden;
+  color: var(--cs-color-text-tertiary);
+  font-family: var(--font-mono, var(--cs-font-mono));
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* 묶음 안 줄의 상태 칸: 표시와 꺾쇠 사이 4 */
+.convo-line-status[data-compact="true"] {
+  gap: 4px;
+}
 .convo-group-body {
   display: grid;
   min-width: 0;

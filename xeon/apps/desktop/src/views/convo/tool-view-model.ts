@@ -52,7 +52,96 @@ export type ToolHead = {
   readonly quiet: boolean;
   /** 동사 대신 도구 이름 mono를 쓰는 줄(표에 없는 도구, 확장 도구) */
   readonly rawName: boolean;
+  /** 펼친 상세에 호출 인자(JSON)를 보인다: 줄에 인자를 싣지 않는 도구(이름만 한국어로 바꾼 내장 도구, MCP 도구, 표에 없는 도구) */
+  readonly argsDetail: boolean;
 };
+
+/**
+ * 인자 요약기가 없는 내장 도구의 한국어 동사(DP-144, DP-155). 엔진 도구 id(`mcp_servers` 등)를 줄에 그대로 내지 않는다.
+ * 확장이 더한 도구처럼 여기에도 없는 이름만 원문 mono로 남는다
+ */
+const BUILTIN_VERBS: Readonly<
+  Record<string, { readonly icon: ToolIcon; readonly done: MessageId; readonly running: MessageId }>
+> = {
+  mcp_servers: {
+    icon: "mcp",
+    done: "desktop.convo.tool.mcpServers",
+    running: "desktop.convo.tool.mcpServers.running",
+  },
+  mcp_list_resources: {
+    icon: "mcp",
+    done: "desktop.convo.tool.mcpResources",
+    running: "desktop.convo.tool.mcpResources.running",
+  },
+  mcp_read_resource: {
+    icon: "mcp",
+    done: "desktop.convo.tool.mcpReadResource",
+    running: "desktop.convo.tool.mcpReadResource.running",
+  },
+  ask_user: {
+    icon: "other",
+    done: "desktop.convo.tool.askUser",
+    running: "desktop.convo.tool.askUser.running",
+  },
+  artifact_create: {
+    icon: "write",
+    done: "desktop.convo.tool.artifactCreate",
+    running: "desktop.convo.tool.artifactCreate.running",
+  },
+  artifact_update: {
+    icon: "edit",
+    done: "desktop.convo.tool.artifactUpdate",
+    running: "desktop.convo.tool.artifactUpdate.running",
+  },
+  enter_plan_mode: {
+    icon: "plan",
+    done: "desktop.convo.tool.planEnter",
+    running: "desktop.convo.tool.planEnter.running",
+  },
+  exit_plan_mode: {
+    icon: "plan",
+    done: "desktop.convo.tool.planExit",
+    running: "desktop.convo.tool.planExit.running",
+  },
+  review_request: {
+    icon: "other",
+    done: "desktop.convo.tool.reviewRequest",
+    running: "desktop.convo.tool.reviewRequest.running",
+  },
+  schedule_create: {
+    icon: "other",
+    done: "desktop.convo.tool.scheduleCreate",
+    running: "desktop.convo.tool.scheduleCreate.running",
+  },
+  session_read: {
+    icon: "read",
+    done: "desktop.convo.tool.threadRead",
+    running: "desktop.convo.tool.threadRead.running",
+  },
+  session_scroll: {
+    icon: "read",
+    done: "desktop.convo.tool.threadScroll",
+    running: "desktop.convo.tool.threadScroll.running",
+  },
+  session_rename: {
+    icon: "edit",
+    done: "desktop.convo.tool.threadRename",
+    running: "desktop.convo.tool.threadRename.running",
+  },
+};
+
+/**
+ * MCP 도구 이름을 사람이 읽을 모양으로(DP-155): `mcp__<서버>__` 접두를 떼고 `_`·`-`와 낙타 표기 경계를 띄어 쓴다.
+ * `list_issues` → "list issues", `getFileContents` → "get file contents"
+ */
+export function readableToolName(name: string): string {
+  const spaced = name
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_\-\s]+/g, " ")
+    .trim()
+    .toLowerCase();
+  return spaced === "" ? name : spaced;
+}
 
 const MEMORY_VERB: Readonly<Record<"add" | "replace" | "remove" | "batch", MessageId>> = {
   add: "desktop.convo.tool.memory.add",
@@ -66,7 +155,7 @@ function head(
   done: MessageId,
   running: MessageId,
   target: ToolTarget,
-  extra?: Partial<Pick<ToolHead, "server" | "quiet" | "rawName">>,
+  extra?: Partial<Pick<ToolHead, "server" | "quiet" | "rawName" | "argsDetail">>,
 ): ToolHead {
   return {
     icon,
@@ -76,6 +165,7 @@ function head(
     server: extra?.server ?? null,
     quiet: extra?.quiet ?? false,
     rawName: extra?.rawName ?? false,
+    argsDetail: extra?.argsDetail ?? false,
   };
 }
 
@@ -100,9 +190,19 @@ function mcpToolName(summary: { readonly server: string; readonly tool: string }
   return summary.tool.startsWith(prefix) ? summary.tool.slice(prefix.length) : summary.tool;
 }
 
+/**
+ * 이 줄의 MCP 서버. 결과의 서버 이름이 있으면 그것을, 없으면(결과 전, 도는 중) `mcp__<서버>__<도구>` 이름에서 읽는다.
+ * 결과가 오기 전에도 엔진 이름(`mcp__github__list_issues`)을 그대로 내지 않는다(DP-155)
+ */
+function mcpServerOf(name: string, server: string | null): string | null {
+  if (server !== null) return server;
+  const match = /^mcp__(.+?)__(.+)$/.exec(name);
+  return match?.[1] ?? null;
+}
+
 /** 인자 요약을 줄 머리로 바꾼다 */
 export function toolHeadOf(name: string, args: JsonObject, server: string | null): ToolHead {
-  const summary: ToolArgsSummary = summarizeToolArgs(name, args, server);
+  const summary: ToolArgsSummary = summarizeToolArgs(name, args, mcpServerOf(name, server));
   switch (summary.kind) {
     case "read":
       if (SKILL_TOOLS.has(name)) {
@@ -185,15 +285,8 @@ export function toolHeadOf(name: string, args: JsonObject, server: string | null
         "mcp",
         "desktop.convo.tool.mcp",
         "desktop.convo.tool.mcp.running",
-        {
-          kind: "text",
-          text:
-            summary.args === "{}"
-              ? mcpToolName(summary)
-              : `${mcpToolName(summary)} ${summary.args}`,
-          mono: true,
-        },
-        { server: summary.server },
+        { kind: "text", text: readableToolName(mcpToolName(summary)), mono: false },
+        { server: summary.server, argsDetail: summary.args !== "{}" },
       );
     case "memory": {
       if (name === "skill_manage") {
@@ -235,11 +328,21 @@ export function toolHeadOf(name: string, args: JsonObject, server: string | null
         text: previewOf((summary.task.split("\n")[0] ?? "").trim(), 120),
         mono: false,
       });
-    case "generic":
+    case "generic": {
       if (name === "submit_plan") {
         return head("plan", "desktop.convo.tool.plan", "desktop.convo.tool.plan.running", {
           kind: "none",
         });
+      }
+      const builtin = Object.hasOwn(BUILTIN_VERBS, name) ? BUILTIN_VERBS[name] : undefined;
+      if (builtin !== undefined) {
+        return head(
+          builtin.icon,
+          builtin.done,
+          builtin.running,
+          { kind: "none" },
+          { argsDetail: summary.text !== "{}" },
+        );
       }
       return {
         icon: "other",
@@ -252,7 +355,9 @@ export function toolHeadOf(name: string, args: JsonObject, server: string | null
         server: null,
         quiet: false,
         rawName: true,
+        argsDetail: true,
       };
+    }
     default:
       return assertNever(summary, "ToolArgsSummary");
   }

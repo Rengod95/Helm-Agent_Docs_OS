@@ -89,8 +89,9 @@ describe("approval keys", () => {
     expect(approvalKeyOf(key("N"))).toBe("deny");
   });
 
-  test("Esc refuses; Enter answers only when the card itself has focus, not from a button inside it", () => {
-    expect(approvalKeyOf(key("Escape"))).toBe("deny");
+  test("Esc is no card key (DP-158); Enter answers only when the card itself has focus, not from a button inside it", () => {
+    expect(approvalKeyOf(key("Escape"))).toBeNull();
+    expect(approvalKeyOf(key("Escape"), true)).toBeNull();
     expect(approvalKeyOf(key("Enter"), true)).toBe("primary");
     expect(approvalKeyOf(key("Enter"), false)).toBeNull();
     expect(approvalKeyOf(key("Enter", { shiftKey: true }), true)).toBeNull();

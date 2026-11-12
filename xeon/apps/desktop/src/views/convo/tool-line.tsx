@@ -20,7 +20,7 @@ import { assertNever } from "@fresnel/contracts";
 import { t } from "@fresnel/client/i18n";
 import { useState, type ReactNode } from "react";
 import { Collapse, useChangedSinceMount } from "../../lib/motion-presets.tsx";
-import { CallChip } from "../call-chip.tsx";
+import { CallChip, CallMark } from "../call-chip.tsx";
 import { InterventionTags } from "./intervention-tags.tsx";
 import type { InterventionTag } from "./intervention-model.ts";
 import {
@@ -115,8 +115,32 @@ function LineTarget(props: { readonly target: ToolTarget }): ReactNode {
   }
 }
 
-function StatusCell(props: { readonly status: LineStatus; readonly changed: boolean }): ReactNode {
+function StatusCell(props: {
+  readonly status: LineStatus;
+  readonly changed: boolean;
+  readonly compact: boolean;
+}): ReactNode {
   const { status, changed } = props;
+  if (props.compact) {
+    switch (status.kind) {
+      case "running":
+        return <CallMark status="running" waiting={status.awaiting} />;
+      case "done":
+        return <CallMark status="done" changed={changed} />;
+      case "failed":
+        return (
+          <CallMark
+            status="failed"
+            label={failureLabelOf(status.failure)}
+            tone={failureToneOf(status.failure)}
+          />
+        );
+      case "none":
+        return null;
+      default:
+        return assertNever(status, "LineStatus");
+    }
+  }
   switch (status.kind) {
     case "running":
       return <CallChip status="running" label={status.label} waiting={status.awaiting} />;
@@ -210,7 +234,12 @@ export function ToolLine(props: {
   readonly onToggle?: () => void;
   /** 줄 아래 늘 보이는 것(실행 중 출력 꼬리, 막힘 이유, 출처 칩) */
   readonly below?: ReactNode;
+  /**
+   * 묶음 안 줄(DP-154): 상태는 작은 표시(`CallMark`)이고, 펼침 꺾쇠 칸(14)은 상세가 없어도 늘 비워 둬 모든 줄의 오른쪽 끝이 같다
+   */
+  readonly compact?: boolean;
 }): ReactNode {
+  const compact = props.compact === true;
   const toggle =
     props.detail !== undefined && props.detail !== null && props.onToggle !== undefined;
   const open = toggle && props.open === true;
@@ -260,9 +289,13 @@ export function ToolLine(props: {
           )}
           <InterventionTags tags={props.tags ?? []} />
         </span>
-        <span className="convo-line-status">
-          <StatusCell status={props.status} changed={changed} />
-          {toggle ? <ChevronRight aria-hidden className="convo-line-chevron" /> : null}
+        <span className="convo-line-status" data-compact={compact ? "true" : undefined}>
+          <StatusCell status={props.status} changed={changed} compact={compact} />
+          {toggle ? (
+            <ChevronRight aria-hidden className="convo-line-chevron" />
+          ) : compact ? (
+            <span aria-hidden className="convo-line-chevron" />
+          ) : null}
         </span>
       </div>
       {props.below}
