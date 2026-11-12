@@ -395,6 +395,8 @@ function RestartBar(props: SettingsPageProps): ReactNode {
   return (
     <div
       data-slot="settings-restart-bar"
+      // 토스트가 재시작 단추와 겹치면 이 막대 위로 올라간다(DP-152)
+      data-toast-avoid=""
       role="status"
       className="flex-none border-t border-border-subtle bg-surface-base px-8"
     >

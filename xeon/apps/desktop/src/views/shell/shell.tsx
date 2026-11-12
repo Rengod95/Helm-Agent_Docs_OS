@@ -12,7 +12,14 @@ import { runShellAction, resolveShortcut } from "./shortcuts.ts";
 import type { ShellRegistry } from "./registry.ts";
 import { StartPanel } from "./start-panel.tsx";
 import { useShell, useShellActions } from "../../state/shell/index.ts";
-import { toastBottomPx, toastPlace } from "./toaster-slot.ts";
+import {
+  TOAST_BOTTOM_DEFAULT_PX,
+  defaultToastBox,
+  toastBottomPx,
+  toastPlace,
+  type Box,
+  type ToastAvoid,
+} from "./toaster-slot.ts";
 import { GoToThreadContext } from "../thread-link.ts";
 
 const STAGE_ID = "stage";
@@ -139,31 +146,67 @@ function Stage(props: {
   );
 }
 
-/** 입력창 묶음(`data-toast-avoid`: 카드와 입력창)의 위쪽 끝. 묶음이 없으면(높이 0) null이라 시안 자리다. 크기나 화면이 바뀌면 다시 잰다 */
+/** 피할 곳 안에서 토스트가 덮으면 안 되는 조작부: 보내기·모델 고르기·승인 단추, 입력 칸 */
+const AVOID_CONTROLS =
+  'button, textarea, input, select, [contenteditable="true"], [role="combobox"]';
+
+/** 화면의 피할 곳(`data-toast-avoid`: 입력창 묶음, 설정의 재시작 막대)과 그 안 조작부의 상자. 보이지 않는 것(크기 0)은 뺀다 */
+function avoidsOf(): ToastAvoid[] {
+  const out: ToastAvoid[] = [];
+  for (const el of document.querySelectorAll("[data-toast-avoid]")) {
+    const box = el.getBoundingClientRect();
+    if (box.height === 0) continue;
+    const controls: Box[] = [];
+    for (const c of el.querySelectorAll(AVOID_CONTROLS)) {
+      const r = c.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) controls.push(r);
+    }
+    out.push({ top: box.top, controls });
+  }
+  return out;
+}
+
+/**
+ * 토스트의 아래 간격(DP-152). 기본은 상태 표시줄 위이고, 그 자리의 토스트가 피할 곳의 조작부와 실제로 겹칠 때만 피할 곳 위로 올린다.
+ * 크기, 화면, 토스트 수가 바뀌면 다시 잰다. 대화가 흐르는 동안 DOM이 자주 바뀌므로 한 프레임에 한 번만 잰다
+ */
 function useToastBottom(): number {
-  const [bottom, setBottom] = useState(toastBottomPx(null, 0));
+  const [bottom, setBottom] = useState(TOAST_BOTTOM_DEFAULT_PX);
   useEffect(() => {
+    let frame = 0;
     const measure = (): void => {
-      const el = document.querySelector("[data-toast-avoid]");
-      const box = el === null ? null : el.getBoundingClientRect();
-      setBottom(
-        toastBottomPx(box === null || box.height === 0 ? null : box.top, window.innerHeight),
-      );
+      frame = 0;
+      const region = document.querySelector('[data-slot="toast-viewport"]');
+      if (region === null) return;
+      const box = region.getBoundingClientRect();
+      const toastBox = defaultToastBox(box.left, box.right, box.height, window.innerHeight);
+      setBottom(toastBottomPx(avoidsOf(), toastBox, window.innerHeight));
+    };
+    const schedule = (): void => {
+      if (frame === 0) frame = requestAnimationFrame(measure);
     };
     measure();
-    const resize = new ResizeObserver(measure);
+    const resize = new ResizeObserver(schedule);
     resize.observe(document.body);
+    const watch = (): void => {
+      for (const el of document.querySelectorAll(
+        '[data-toast-avoid], [data-slot="toast-viewport"]',
+      )) {
+        resize.observe(el);
+      }
+    };
+    watch();
     const mutate = new MutationObserver(() => {
-      const el = document.querySelector("[data-toast-avoid]");
-      if (el !== null) resize.observe(el);
-      measure();
+      watch();
+      schedule();
     });
     mutate.observe(document.body, { childList: true, subtree: true });
-    window.addEventListener("resize", measure);
+    window.addEventListener("resize", schedule);
     return () => {
+      if (frame !== 0) cancelAnimationFrame(frame);
       resize.disconnect();
       mutate.disconnect();
-      window.removeEventListener("resize", measure);
+      window.removeEventListener("resize", schedule);
     };
   }, []);
   return bottom;
@@ -178,7 +221,8 @@ function ShellToaster(props: { readonly registry: ShellRegistry }): ReactNode {
   const tabs = props.registry.endTabs(area, screen);
   const bottom = useToastBottom();
   const place = toastPlace(layout, open, wellWidthOf(tabs.find((x) => x.id === tabId) ?? tabs[0]));
-  // 자리는 오른쪽 아래, 상태 표시줄 위다. 입력창 묶음(`data-toast-avoid`)이 있으면 그 위로 올려 입력창의 모델 고르기와 승인 단추를 덮지 않는다(`toastBottomPx`). 대화 머리와 첫 줄을 가리지 않는다. 오류 토스트는 caustic이 닫지 않으므로 닫기 단추와 닫힘 시간은 notices.tsx가 정한다
+  // DP-152 자리는 창 전체 기준 오른쪽 아래(끝에서 16px), 상태 표시줄 위다. 입력창 묶음·재시작 막대(`data-toast-avoid`)의 조작부와 겹칠 때만 그 위로 올린다(`toastBottomPx`).
+  // 모양(outline)과 사라짐 시간은 caustic 기본값이다(DP-151, DP-153). 오류 토스트는 닫을 때까지 남는다
   return (
     <Toaster
       label={t("desktop.shell.toast.label")}
