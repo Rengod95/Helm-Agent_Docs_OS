@@ -22,6 +22,7 @@ import {
   hookOrderOf,
   withDriveDefaults,
   type ExtHostDeps,
+  type LoadOptions,
   type OperationsSettingsSource,
 } from "@fresnel/ext-host";
 import {
@@ -266,6 +267,20 @@ export function secretsSource(settings: SettingsEngine): () => SecretsConfig {
         maxUses: intOr(raw["lease.maxUses"], base.lease.maxUses),
       },
     };
+  };
+}
+
+/**
+ * 화면 앱 정책 두 칸(`x.ui.apps`, `x.ui.allowProjectApps`)을 로더의 `uiPolicy`로 바꾼다(X.loading-trust.spec §4.3.4). 재시작할 때 읽는다.
+ * 불리언이 아닌 칸은 싣지 않고 빼서 로더의 기본을 쓴다(앱 켬, 작업 폴더 앱 끔). 작업 폴더 앱 끔이 보수적인 쪽이라 모르는 값도 그쪽으로 간다.
+ */
+export function uiPolicyOf(
+  apps: unknown,
+  allowProjectApps: unknown,
+): NonNullable<LoadOptions["uiPolicy"]> {
+  return {
+    ...(typeof apps === "boolean" ? { apps } : {}),
+    ...(typeof allowProjectApps === "boolean" ? { allowProjectApps } : {}),
   };
 }
 

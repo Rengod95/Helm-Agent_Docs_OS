@@ -26,6 +26,7 @@ import {
   storeSettingsOf,
   tasksSource,
   toolsSource,
+  uiPolicyOf,
   workspaceSource,
 } from "../../src/assembly/settings-sources.ts";
 
@@ -412,6 +413,23 @@ test("x.loading-trust.paths: absolute and ~/ entries are searched, relative ones
   expect(extensionSearchPathsOf(undefined, "/home/u")).toEqual({ paths: [], ignored: [] });
   expect(extensionSearchPathsOf("/opt/ext", "/home/u")).toEqual({ paths: [], ignored: [] });
   expect(extensionSearchPathsOf(["~", 3], "/home/u")).toEqual({ paths: [], ignored: ["~"] });
+});
+
+test("x.ui.apps and x.ui.allowProjectApps reach the loader as booleans, and other values leave the loader default", async () => {
+  const set = await engineWith({ "x.ui.apps": false, "x.ui.allowProjectApps": true });
+  expect(uiPolicyOf(set.value("x.ui.apps"), set.value("x.ui.allowProjectApps"))).toEqual({
+    apps: false,
+    allowProjectApps: true,
+  });
+  // 값이 없으면 키의 기본(앱 켬, 작업 폴더 앱 끔)이 실린다
+  const unset = await engineWith({});
+  expect(uiPolicyOf(unset.value("x.ui.apps"), unset.value("x.ui.allowProjectApps"))).toEqual({
+    apps: true,
+    allowProjectApps: false,
+  });
+  // 불리언이 아닌 칸은 싣지 않는다. 로더 기본으로 남는다
+  expect(uiPolicyOf("no", 1)).toEqual({});
+  expect(uiPolicyOf(undefined, false)).toEqual({ allowProjectApps: false });
 });
 
 test("host limits read the live value every time", async () => {

@@ -161,6 +161,7 @@ import {
   secretsSource,
   shutdownTimeoutMs,
   spillRetentionDaysOf,
+  uiPolicyOf,
   storeSettingsOf,
 } from "./assembly/settings-sources.ts";
 import { ownerKindOf } from "./handlers/owner.ts";
@@ -1121,10 +1122,12 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       for (const path of extraPaths.ignored) {
         os.logger("ext-loader").warn("ext.extra_path_ignored", { path });
       }
+      // 화면 앱 정책도 재시작할 때 읽는다. 바뀐 값은 다음 시작에 적용한다(X.loading-trust.spec §4.3.4)
       const loaded = await loadExternalExtensions({
         ext,
         operations,
         extraPaths: extraPaths.paths,
+        uiPolicy: uiPolicyOf(settings.value("x.ui.apps"), settings.value("x.ui.allowProjectApps")),
         fs: createLoaderFs(),
         userDir: os.dirs.config,
         homeDir: os.dirs.home,

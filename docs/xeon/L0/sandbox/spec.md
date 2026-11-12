@@ -397,7 +397,7 @@ export function selectSandboxProvider(input: {
 | 네트워크가 기본 정책 이내: `allowedDomains`가 빈 목록(차단 목록 방식, §3.2). 허용 목록 방식을 더하면 설정 `l0.sandbox.network.allowedDomains`의 부분집합 | `network_outside_default` |
 
 - 판정만 한다. 승인 UI, 권한 모드와의 결합, 판정 적용은 `L1.tools.spec`이 한다(`_research/refs/claude-code.md` §3.2 "자동 허용 모드에서는 샌드박스 안 명령은 묻지 않고 실행").
-- 샌드박스 밖 재시도(Claude Code `allowUnsandboxedCommands` 대응. srt 라이브러리 기능이 아님, `_research/notes/L0-1.md` §9)는 `l0.sandbox.escapeRetry` 기본 거짓이고, 켜도 `allowEscape: true` 호출은 항상 `escape_requested`라 승인 대상이다.
+- 샌드박스 밖 재시도(Claude Code `allowUnsandboxedCommands` 대응. srt 라이브러리 기능이 아님, `_research/notes/L0-1.md` §9)는 `l0.sandbox.escapeRetry` 기본 거짓이고, 켜도 `allowEscape: true` 호출은 항상 `escape_requested`라 승인 대상이다. 지금 코드에서 이 분기는 도달하지 않는다. `defaultPolicy`가 `allowEscape: false`를 고정하고(`packages/platform-sandbox/src/service.ts` `defaultPolicy`), 셸·MCP 호출자는 그 정책을 그대로 쓰며(`packages/cap-workspace/src/shell/run.ts`, `packages/platform-process/src/port/mcp-spawn.ts`), 호출마다 사람 승인을 받아 `allowEscape`를 참으로 두는 흐름이 L1 tools에도 없다. 설정만 `allowEscape`에 잇으면 켠 설정이 모든 셸 호출을 승인 없이 샌드박스 밖에 두므로 잇지 않는다. 승인 흐름을 만들 때 호출 단위 정책 재정의와 승인 포트를 함께 설계한다. [결정: 2026-11-12 dzX] [근거: `packages/platform-sandbox/src/service.ts` `defaultPolicy`, `packages/platform-sandbox/src/wrap-shell.ts` `decideExecution`, `packages/cap-workspace/src/shell/run.ts`]
 - `command`는 1차 판정에 쓰지 않는다. 명령 문자열 분석은 우회가 쉬워 보조 신호로도 쓰지 않는다(`docs/design/13-tools-and-execution.md` §3.5.2 (b) 기각).
 
 ### 4.4 자가 시험
@@ -426,7 +426,7 @@ export function selectSandboxProvider(input: {
 | 값 | `wrapShell`의 `exec` | L1 tools가 할 일(요구) |
 |---|---|---|
 | `disable_execute` | `err(ExecutionError("sandbox_unavailable"))` | 셸 실행 도구(`bash`)를 모델에 광고하지 않는다 |
-| `ask` | `allowEscape: false`이면 `sandbox_unavailable`. 승인 뒤 `allowEscape: true`로 다시 부르면 실행 | 호출마다 "격리 없이 실행" 승인을 받는다 |
+| `ask` | `allowEscape: false`이면 `sandbox_unavailable`. 승인 뒤 `allowEscape: true`로 다시 부르면 실행 | 호출마다 "격리 없이 실행" 승인을 받는다. 지금 코드의 `ask`는 `disable_execute`와 같은 거부다(승인 흐름이 없다) [결정: 2026-11-12 dzX] [근거: `packages/platform-sandbox/src/wrap-shell.ts` `decideExecution`] |
 | `run_unsandboxed` | 감싸지 않고 실행, `sandbox.unsandboxedBy: "run_unsandboxed"` | 실행은 허용. 도구 결과와 화면에 격리 없음 표시 |
 
 - `l0.sandbox.enabled = false`(reason `disabled`)는 사용자가 명시적으로 끈 상태다. `run_unsandboxed`와 같이 실행하고 `unsandboxedBy: "disabled"`를 붙인다 [제안]. 시작 로그와 doctor에 경고를 남긴다.

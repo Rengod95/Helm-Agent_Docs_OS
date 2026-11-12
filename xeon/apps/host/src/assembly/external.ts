@@ -10,6 +10,7 @@ import {
   createExtensionLoader,
   type ExtensionLoader,
   type ExtHost,
+  type LoadOptions,
   type LoadReport,
   type OperationsPolicy,
   type SdkModules,
@@ -39,6 +40,8 @@ export interface ExternalLoadingDeps {
   readonly cwd: string;
   /** `x.loading-trust.paths`에서 옮긴 절대 경로(settings-sources.ts `extensionSearchPathsOf`). 사용자 위치 뒤에 탐색한다 */
   readonly extraPaths: readonly string[];
+  /** 화면 앱 정책(`x.ui.apps`, `x.ui.allowProjectApps`, settings-sources.ts `uiPolicyOf`). 빈 객체면 로더 기본을 쓴다 */
+  readonly uiPolicy: NonNullable<LoadOptions["uiPolicy"]>;
   /** 서비스 모드는 "on_demand": 시작 때 프로젝트를 싣지 않고 작업 폴더를 여는 때 `loadProject`가 싣는다 */
   readonly projects?: "cwd" | "on_demand";
   readonly signal: AbortSignal;
@@ -55,6 +58,29 @@ export interface ExternalLoading {
   }[];
 }
 
+/**
+ * 로더의 `loadAll` 입력. 조립이 정한 값(탐색 경로, 화면 앱 정책, 프로젝트 모드, 안전 모드)을 그대로 옮긴다.
+ * 빠진 칸은 로더의 기본을 쓴다. 시험은 이 함수의 값을 본다(외부 로더는 만들어진 뒤라 안을 볼 수 없다).
+ */
+export function loadAllOptionsOf(
+  deps: Pick<
+    ExternalLoadingDeps,
+    "cwd" | "extraPaths" | "uiPolicy" | "projects" | "signal" | "startup"
+  >,
+): LoadOptions {
+  return {
+    builtins: [],
+    cwd: deps.cwd,
+    mode: "headless",
+    trustOverride: false,
+    extraPaths: deps.extraPaths,
+    uiPolicy: deps.uiPolicy,
+    ...(deps.projects === undefined ? {} : { projects: deps.projects }),
+    signal: deps.signal,
+    ...(deps.startup === undefined ? {} : { startup: deps.startup }),
+  };
+}
+
 /** 사용자 위치의 외부 확장을 싣는다. 프로젝트 확장은 시작 때 cwd의 프로젝트만 판정해 싣고(서비스 모드는 싣지 않는다), 작업 폴더는 모든 모드가 여는 때 싣는다(project-extensions.ts) */
 export async function loadExternalExtensions(deps: ExternalLoadingDeps): Promise<ExternalLoading> {
   const loader = createExtensionLoader({
@@ -68,16 +94,7 @@ export async function loadExternalExtensions(deps: ExternalLoadingDeps): Promise
     settings: { enabled: deps.enabled, hasValue: () => false },
     coreCapabilities: coreCapabilityVersions(),
   });
-  const report = await loader.loadAll({
-    builtins: [],
-    cwd: deps.cwd,
-    mode: "headless",
-    trustOverride: false,
-    extraPaths: deps.extraPaths,
-    ...(deps.projects === undefined ? {} : { projects: deps.projects }),
-    signal: deps.signal,
-    ...(deps.startup === undefined ? {} : { startup: deps.startup }),
-  });
+  const report = await loader.loadAll(loadAllOptionsOf(deps));
   for (const diagnostic of report.diagnostics) {
     const fields = {
       extension: diagnostic.extension ?? "",

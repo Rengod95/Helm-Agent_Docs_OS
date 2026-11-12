@@ -1441,6 +1441,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 
 - `x.loading-trust.*` 키는 작업 폴더 범위를 허용하지 않는다. 저장소를 받는 것만으로 신뢰·탐색 설정이 바뀌지 않게 하기 위해서다(F.wire-settings.spec §4.7 규칙 4).
 - `x.ui.*` 키도 같은 이유로 `project` 범위를 허용하지 않는다. F.wire-settings.spec 범위 표 3번의 `local`(작업 폴더의 개인 파일)도 작업 폴더가 쓴 값이라 빼며, `launch`는 `restart` 키에 D7 규칙으로 막힌다. 앱 정책은 시작 때 읽으므로 바뀐 값은 다음 시작에 적용된다. `x.ui.apps`를 끄면 작업 폴더가 `local`로 다시 켤 수 없다.
+- [결정: 2026-11-12 dzX] 조립 루트(`apps/host`)는 재시작할 때 `x.ui.apps`, `x.ui.allowProjectApps`를 읽어 로더 `loadAll`의 `uiPolicy`로 싣는다(`apps/host/src/assembly/settings-sources.ts` `uiPolicyOf`, `apps/host/src/assembly/external.ts` `loadAllOptionsOf`). 불리언이 아닌 칸은 싣지 않아 로더 기본(앱 켬, 작업 폴더 앱 끔)을 쓴다. 작업 폴더 앱 끔이 보수적인 쪽이라 모르는 값도 그쪽으로 간다. 앱 정책 칸은 데스크톱 화면이 설정 값을 직접 읽어 항목을 가리는 일도 맡으므로, 화면과 엔진은 다음 시작까지 값이 어긋날 수 있다 [근거: `apps/desktop/src/plugin-ui/placements.ts`(화면 쪽 `appsAllowed`), `packages/ext-host/src/loading-trust/index.ts` `loadAll` `uiPolicy`].
 - 안전 모드 키(`x.operations.safeMode.default`, `x.operations.safeMode.suggestAfter`)는 X.operations.spec 소유다. L4.settings-ui.spec §표가 `x.loading-trust.*`에 안전 모드를 넣은 표기는 정합성 단계에서 `x.operations.*`로 고친다 [제안].
 - L4 노출: 설정 화면 "플러그인과 그룹" 탭에 확장 목록(상태, 등급, 위치, 진단 수), 토글(`enabled`), 격리 선택(`isolation`), 신뢰 결정 목록(저장 파일 내용)을 둔다. CLI는 `fresnel config`로 같은 키를 다룬다.
 
