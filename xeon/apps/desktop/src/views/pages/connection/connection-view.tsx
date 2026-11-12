@@ -1,5 +1,4 @@
 import { t, type Locale } from "@fresnel/client/i18n";
-import { updateLineKey } from "@fresnel/client/settings";
 import {
   Button,
   Dialog,
@@ -16,9 +15,11 @@ import type { ConnectionScreenHandlers } from "./connection-handlers.ts";
 
 import { HostSection } from "./connection-host-section.tsx";
 import { ScreenHeader } from "../../shell/screen-header.tsx";
+import { UpdateCheckNote } from "../../update-parts.tsx";
 export type { ConnectionScreenHandlers } from "./connection-handlers.ts";
 
 // 연결 화면(P-08)의 그림. 상태와 명령은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
+// 예외는 진단 구역의 업데이트 한 줄이다. 그 줄만 `UpdateContext`를 읽어 상태 칸과 같은 정본을 본다(`UpdateCheckNote`).
 // 한 열이고 내용은 720px 폭에 가운데 맞춘다. 맨 위는 "호스트" 섹션이고, 이 기기에 연결했을 때만 그 아래에 "실행 방식"과
 // "다른 기기 접속"(`serviceSections`, 외부 접근이 켜졌을 때 두 번째가 보인다)이 이어지고, 맨 아래에 "진단"이 온다. 섹션 사이는 `gap-10`이다.
 
@@ -52,7 +53,7 @@ export function ConnectionScreenView(props: ConnectionScreenViewProps): ReactNod
           restarting={engine?.kind === "restarting"}
         />
       ) : (
-        <p className="m-0 text-ui text-text-tertiary">{t(updateLineKey({ state: "unchecked" }))}</p>
+        <UpdateCheckNote />
       )}
     </div>
   );
@@ -100,7 +101,7 @@ function DiagnosticsSection(props: {
             {t("desktop.connection.status.copyDiagnostics")}
           </Button>
         </div>
-        <p className="m-0 text-ui text-text-tertiary">{t(updateLineKey({ state: "unchecked" }))}</p>
+        <UpdateCheckNote />
       </div>
     </ConnectionSection>
   );

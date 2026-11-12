@@ -1638,6 +1638,7 @@
   "desktop.update.latest": "최신 버전을 쓰고 있어요.",
   "desktop.update.available": "새 버전이 있어요.",
   "desktop.update.failed": "업데이트를 확인하지 못했어요.",
+  "desktop.update.notConfigured": "이 실행에서는 앱 업데이트를 확인하지 않아요.",
   "desktop.update.cell.title": "앱 업데이트",
   "desktop.update.cell.checking": "업데이트 확인 중",
   "desktop.update.cell.current": "최신 버전",

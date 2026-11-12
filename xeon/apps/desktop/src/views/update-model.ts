@@ -2,6 +2,7 @@
 // 실패 이유의 문구 표를 둔다. 명령은 `update-invoke.ts`가, 상태 보관과 호출 순서는 `update-controller.ts`가 맡는다.
 // 이 파일은 React와 셸을 보지 않는다. 시험은 값을 비교한다(test/views/update-model.test.ts).
 import type { MessageArgs, MessageId } from "@fresnel/client/i18n";
+import type { UpdateCheckLine } from "@fresnel/client/settings";
 import { assertNever } from "@fresnel/contracts";
 import type { StatusDot } from "./status-cell.tsx";
 
@@ -410,4 +411,43 @@ export function primaryActionOf(state: UpdateState): UpdateAction | null {
   if (state.kind === "available") return "download";
   if (state.kind === "ready") return "install";
   return canRetry(state) ? "retry" : null;
+}
+
+/**
+ * 연결 화면의 업데이트 한 줄(진단 구역 맨 아래). 업데이트 정본 상태를 그대로 읽는다.
+ * - 업데이트 설정이 없는 실행(개발 실행, 설정 파일이 없는 빌드)은 "확인하지 않아요" 한 줄이다.
+ * - 확인이 도는 동안은 "확인하고 있어요"다. 시작 때 확인이 바로 도므로 정본에는 "아직 안 함" 상태가 따로 없다.
+ * - 확인이 실패했을 때만 "확인하지 못했어요"다. 확인이 됐고 내려받기나 설치가 실패한 것은 새 버전이 있다는 줄이다.
+ * - 현재 버전을 모르면(설정을 읽지 못한 드문 경우) 최신과 새 버전 줄은 그리지 않는다. 그 밖의 상태는 버전이 필요 없다.
+ */
+export function updateCheckLineOf(
+  state: UpdateState,
+  currentVersion: string | null,
+): UpdateCheckLine | null {
+  switch (state.kind) {
+    case "unconfigured":
+      return { state: "notConfigured" };
+    case "checking":
+      return { state: "checking" };
+    case "current":
+      return currentVersion === null ? null : { state: "latest", version: currentVersion };
+    case "available":
+    case "downloading":
+    case "ready":
+    case "installing":
+      return availableLineOf(state.version, currentVersion);
+    case "failed":
+    case "offline":
+      return state.stage === "check"
+        ? { state: "failed" }
+        : availableLineOf(state.version, currentVersion);
+    default:
+      return assertNever(state, "UpdateState");
+  }
+}
+
+/** 새 버전이 있다는 줄. 새 버전이나 현재 버전을 모르면 `null`이다 */
+function availableLineOf(version: string | null, current: string | null): UpdateCheckLine | null {
+  if (version === null || current === null) return null;
+  return { state: "available", version, current };
 }

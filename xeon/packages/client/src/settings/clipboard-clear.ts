@@ -79,6 +79,7 @@ export function createClipboardClear(deps: ClipboardClearDeps): ClipboardClear {
 /** 업데이트 확인 한 줄. 내려받기는 하지 않고 표시만 한다(결정 A2) */
 export type UpdateCheckLine =
   | { readonly state: "unchecked" }
+  | { readonly state: "notConfigured" }
   | { readonly state: "checking" }
   | { readonly state: "latest"; readonly version: string }
   | { readonly state: "available"; readonly version: string; readonly current: string }
@@ -86,6 +87,7 @@ export type UpdateCheckLine =
 
 export type UpdateLineKey =
   | "desktop.update.unchecked"
+  | "desktop.update.notConfigured"
   | "desktop.update.checking"
   | "desktop.update.latest"
   | "desktop.update.available"
@@ -96,6 +98,8 @@ export function updateLineKey(line: UpdateCheckLine): UpdateLineKey {
   switch (line.state) {
     case "unchecked":
       return "desktop.update.unchecked";
+    case "notConfigured":
+      return "desktop.update.notConfigured";
     case "checking":
       return "desktop.update.checking";
     case "latest":

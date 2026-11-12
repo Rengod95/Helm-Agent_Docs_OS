@@ -1638,6 +1638,7 @@
   "desktop.update.latest": "You're on the latest version.",
   "desktop.update.available": "A new version is available.",
   "desktop.update.failed": "Couldn't check for updates.",
+  "desktop.update.notConfigured": "This run doesn't check for app updates.",
   "desktop.update.cell.title": "App update",
   "desktop.update.cell.checking": "Checking for updates",
   "desktop.update.cell.current": "Up to date",

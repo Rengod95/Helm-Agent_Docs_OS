@@ -35,7 +35,11 @@ import { createOsReauthGate, UNAVAILABLE_GATE } from "./app/secret-reveal-gate.t
 import { RevealGateContext } from "./views/pages/secrets/reveal-gate-context.ts";
 import { ShellRestartContext } from "./views/shell-restart-context.ts";
 import { UpdateContext } from "./views/update-context.ts";
-import { createUpdateController, type UpdatePort } from "./views/update-controller.ts";
+import {
+  createUpdateController,
+  updaterReachable,
+  type UpdatePort,
+} from "./views/update-controller.ts";
 import type { UpdateChannelOf, UpdateInvoke } from "./views/update-invoke.ts";
 
 // 셸 호출은 모두 어댑터(src/shell)를 거친다. 실행 때 Electron(preload의 window.fresnelShell)이 있는지 고른다
@@ -146,10 +150,13 @@ if (container === null) {
     liveAppVersion: () => updateRef.current?.currentVersion() ?? null,
     frameFallbackMs: 100,
   });
-  // 업데이트는 열 때 한 번 조용히 확인한다. 설정이 안 됐으면 칸과 줄이 "설정되지 않았어요"로 끝나고 토스트는 없다
-  const updateController = createUpdateController(updatePort);
+  // 업데이트는 열 때 한 번 조용히 확인한다. 설정이 안 됐으면 칸과 줄이 "확인하지 않아요"로 끝나고 토스트는 없다.
+  // 웹 문서와 셸 없는 빌드에는 업데이트 명령이 없으므로 컨트롤러를 만들지 않는다(칸과 줄이 그려지지 않는다)
+  const updateController = updaterReachable(shellBridge.kind, window.location)
+    ? createUpdateController(updatePort)
+    : null;
   updateRef.current = updateController;
-  detach(updateController.start(), rethrow);
+  if (updateController !== null) detach(updateController.start(), rethrow);
   // OS 알림 전달기. 듣기는 셸 다리가 연결이 살아 있을 때 건다(`notices.onDelivered`는 연결이 바뀌면 끊긴다)
   const notifier = createOsNotifier({
     subscribe: (listener) => app.commands.notices.onDelivered(listener),

@@ -180,6 +180,7 @@ describe("updateLineKey", () => {
   test("each update check state maps to its desktop.update key", () => {
     const lines: readonly UpdateCheckLine[] = [
       { state: "unchecked" },
+      { state: "notConfigured" },
       { state: "checking" },
       { state: "latest", version: "0.9.1" },
       { state: "available", version: "0.9.2", current: "0.9.1" },
@@ -187,6 +188,7 @@ describe("updateLineKey", () => {
     ];
     expect(lines.map((line) => updateLineKey(line))).toEqual([
       "desktop.update.unchecked",
+      "desktop.update.notConfigured",
       "desktop.update.checking",
       "desktop.update.latest",
       "desktop.update.available",

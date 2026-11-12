@@ -12,13 +12,17 @@ import {
   Progress,
 } from "@caustic/react";
 import { t } from "@fresnel/client/i18n";
-import type { ReactNode } from "react";
+import { updateLineKey } from "@fresnel/client/settings";
+import { useSyncExternalStore, type ReactNode } from "react";
 import { InfoTip } from "./craft/info-tip.tsx";
+import { useUpdate } from "./update-context.ts";
+import type { UpdateController } from "./update-controller.ts";
 import {
   notesLinesOf,
   primaryActionOf,
   progressPercentOf,
   reasonTextOf,
+  updateCheckLineOf,
   updateTargetOf,
   type UpdateState,
 } from "./update-model.ts";
@@ -161,4 +165,26 @@ export function UpdateRestartDialog(props: {
       }
     />
   );
+}
+
+/**
+ * 연결 화면 진단 구역의 업데이트 한 줄. 상태 칸과 같은 정본을 읽는다. 문맥이 없으면(웹, 셸 없는 빌드) 아무것도 그리지 않고,
+ * 줄의 글은 `updateCheckLineOf`가 정한다(설정 없음은 안내, 확인 중, 최신, 새 버전, 확인 실패).
+ */
+export function UpdateCheckNote(): ReactNode {
+  const controller = useUpdate();
+  if (controller === null) return null;
+  return <UpdateCheckNoteOf controller={controller} />;
+}
+
+function UpdateCheckNoteOf(props: { readonly controller: UpdateController }): ReactNode {
+  const { controller } = props;
+  const state = useSyncExternalStore(
+    controller.subscribe,
+    controller.getState,
+    controller.getState,
+  );
+  const line = updateCheckLineOf(state, controller.currentVersion());
+  if (line === null) return null;
+  return <p className="m-0 text-ui text-text-tertiary">{t(updateLineKey(line))}</p>;
 }
