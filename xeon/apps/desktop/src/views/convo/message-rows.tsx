@@ -3,7 +3,12 @@ import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ItemId, JsonObject, JsonValue, ThreadId } from "@fresnel/contracts/conversation";
 import { memo, useContext, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { HeightGlide, useHeightRatchet } from "../../lib/motion-presets.tsx";
+import {
+  Collapse,
+  HeightGlide,
+  handoffHeight,
+  useHeightRatchet,
+} from "../../lib/motion-presets.tsx";
 import { cardOf, provenanceOf } from "../../plugin-ui/placements.ts";
 import {
   useHasToolCall,
@@ -204,23 +209,49 @@ export function argsTailOf(args: string, lines: number): string {
   return args.trimEnd().split("\n").slice(-lines).join("\n");
 }
 
+/** 인자 꼬리를 보일 글. 인자가 아직 없으면 null이라 꼬리는 그려지지 않는다 */
+export function preparingTailOf(args: string): string | null {
+  const tail = argsTailOf(args, ARGS_TAIL_LINES);
+  return tail === "" ? null : tail;
+}
+
 /**
  * 답이 흐르는 동안 쓰이는 도구 호출 한 줄(dzM2 시안 §3). 이름은 아직 없어 "도구 호출을 쓰는 중"과 읽은 대상, 아래에 부분 인자 꼬리를 둔다.
- * 확정되면 같은 자리에 실제 도구 줄(활동 묶음)이 서고 들어옴은 돌지 않는다(transcript-enter.ts)
+ * 꼬리는 `Collapse`로 들고 난다. 확정되면 같은 자리에 실제 도구 줄(활동 묶음)이 서고 들어옴은 돌지 않는다(transcript-enter.ts).
+ * 떠날 때 자기 높이를 item 키로 남기면, 같은 커밋에 서는 실행 중 줄이 그 높이에서 잇는다(`handoffHeight`, dzM2 시안 §4)
  */
-function PreparingCall(props: { readonly name: string; readonly args: string }): ReactNode {
+export function PreparingCall(props: {
+  readonly id: ItemId;
+  readonly name: string;
+  readonly args: string;
+}): ReactNode {
   const head = toolHeadOf(props.name, {}, null);
   const target = partialTargetOf(props.args);
-  const tail = argsTailOf(props.args, ARGS_TAIL_LINES);
+  const tail = preparingTailOf(props.args);
+  const box = useRef<HTMLDivElement>(null);
+  const { id } = props;
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (el === null) return undefined;
+    return () => {
+      handoffHeight(id, el.getBoundingClientRect().height);
+    };
+  }, [id]);
   return (
-    <ToolLine
-      icon={head.icon}
-      verb={props.name === "" ? t("desktop.convo.tool.preparing") : head.verbRunning}
-      rawName={props.name !== "" && head.rawName}
-      target={target === "" ? { kind: "none" } : { kind: "text", text: target, mono: true }}
-      status={{ kind: "running", label: t("desktop.item.toolRunning"), awaiting: false }}
-      below={tail === "" ? null : <div className="convo-tail">{tail}</div>}
-    />
+    <div ref={box} className="grid min-w-0">
+      <ToolLine
+        icon={head.icon}
+        verb={props.name === "" ? t("desktop.convo.tool.preparing") : head.verbRunning}
+        rawName={props.name !== "" && head.rawName}
+        target={target === "" ? { kind: "none" } : { kind: "text", text: target, mono: true }}
+        status={{ kind: "running", label: t("desktop.item.toolRunning"), awaiting: false }}
+        below={
+          <Collapse open={tail !== null}>
+            <div className="convo-tail">{tail}</div>
+          </Collapse>
+        }
+      />
+    </div>
   );
 }
 
@@ -242,7 +273,7 @@ const ReplyPart = memo(function ReplyPart(props: {
   // 흐르는 동안 높이가 잠깐 줄어드는 프레임을 막는다. 확정되면 풀린다
   const box = useHeightRatchet<HTMLDivElement>(props.recorded === null);
   if (props.kind === "thinking") return <ThinkingBlock text={text} live={props.live} />;
-  if (props.kind === "toolCall") return <PreparingCall name="" args={text} />;
+  if (props.kind === "toolCall") return <PreparingCall id={props.id} name="" args={text} />;
   return (
     <>
       <Message ref={box} size="sm" streaming={props.live} className="animate-none">
@@ -314,6 +345,7 @@ export function ReplyRow(props: {
       if (hasCallRow) return null;
       return (
         <PreparingCall
+          id={props.id}
           name={streaming.toolName ?? ""}
           args={streaming.parts.map((part) => part.text).join("")}
         />

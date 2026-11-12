@@ -517,25 +517,25 @@ export function playRowEnter(el: Element, kind: RowEnter): number {
 
 /**
  * 안 내용의 높이가 바뀌면(줄이 사라지거나 생김) 옛 높이에서 새 높이로 잇는다. 펼침 경계(`Collapse`)가 아닌 곳,
- * 예를 들어 끝난 활동 묶음의 접힌 몸이 요약 한 줄로 모일 때 쓴다. 처음 그릴 때와 줄이기에서는 움직이지 않는다.
- * 계속 자라는 내용(스트리밍)에는 쓰지 않는다
+ * 예를 들어 끝난 활동 묶음의 접힌 몸이 요약 한 줄로 모일 때 쓴다. 처음 그릴 때는 넘겨받은 높이(`handoff`)가 있을 때만 움직이고,
+ * 줄이기에서는 움직이지 않는다. 계속 자라는 내용(스트리밍)에는 쓰지 않는다
  */
 export function HeightGlide(props: {
   readonly className?: string;
+  /** 같은 커밋에서 떠난 줄의 키(`handoffHeight`). 있으면 처음 그릴 때 그 높이에서 지금 높이로 잇는다 */
+  readonly handoff?: string;
   readonly children: ReactNode;
 }): ReactNode {
   const outer = useRef<HTMLDivElement | null>(null);
   const inner = useRef<HTMLDivElement | null>(null);
+  const { handoff } = props;
   useLayoutEffect(() => {
     const box = outer.current;
     const content = inner.current;
     if (box === null || content === null || typeof ResizeObserver === "undefined") return undefined;
     let last = content.getBoundingClientRect().height;
     let running: Animation | null = null;
-    const observer = new ResizeObserver(() => {
-      const next = content.getBoundingClientRect().height;
-      const from = running === null ? last : box.getBoundingClientRect().height;
-      last = next;
+    const glide = (from: number, next: number): void => {
       if (Math.abs(next - from) < 1 || isMotionReduced() || typeof box.animate !== "function")
         return;
       running?.cancel();
@@ -556,18 +556,49 @@ export function HeightGlide(props: {
       };
       animation.addEventListener("finish", done);
       animation.addEventListener("cancel", done);
+    };
+    const observer = new ResizeObserver(() => {
+      const next = content.getBoundingClientRect().height;
+      // 높이가 그대로면(너비만 바뀜) 가는 중인 잇기를 다시 겨누지 않는다
+      if (next === last) return;
+      const from = running === null ? last : box.getBoundingClientRect().height;
+      last = next;
+      glide(from, next);
     });
+    const left = handoff === undefined ? undefined : handoffHeightOf(handoff);
+    if (left !== undefined) glide(left, last);
     observer.observe(content);
     return () => {
       observer.disconnect();
       running?.cancel();
     };
-  }, []);
+  }, [handoff]);
   return (
     <div ref={outer} className={props.className}>
       <div ref={inner}>{props.children}</div>
     </div>
   );
+}
+
+// ── 줄 넘겨받기(dzM2 시안 §4) ─────────────────────────────────────────────────
+
+/** 같은 커밋 안에서 떠나는 줄이 남긴 높이. 값은 한 틱 뒤에 지운다 */
+const handoffs = new Map<string, number>();
+
+/**
+ * 줄이 떠날 때(언마운트) 자기 높이를 남긴다. 확정되며 쓰는 중이던 도구 호출 줄이 실행 중 줄로 바뀔 때처럼
+ * 같은 커밋에서 새 줄이 서는 자리에서 쓴다. 한 틱이 지나면 지우므로 다른 커밋에서 다시 그린 줄(가상 목록 재마운트, 과거 대화)은 받지 못한다
+ */
+export function handoffHeight(key: string, px: number): void {
+  handoffs.set(key, px);
+  queueMicrotask(() => {
+    handoffs.delete(key);
+  });
+}
+
+/** 같은 커밋에서 남긴 높이(없으면 undefined). 읽기만 하므로 두 번 실행되는 효과도 같은 값을 본다 */
+export function handoffHeightOf(key: string): number | undefined {
+  return handoffs.get(key);
 }
 
 // ── 상태 바뀜 ────────────────────────────────────────────────────────────────
