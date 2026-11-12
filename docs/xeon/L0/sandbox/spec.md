@@ -350,6 +350,7 @@ export function selectSandboxProvider(input: {
 3. `requiredBinaries()`의 각 프로그램을 PATH에서 절대 경로로 찾는다. 없는 것은 `missing`에 넣고 `reason: "missing_dependency"`. 찾은 경로는 srt 설정(`bwrapPath` 등)에 넣는다.
 4. srt `isSupportedPlatform()`과 `checkDependencies()`를 부른다. 거짓이거나 오류가 있으면 `missing_dependency` 또는 `unsupported_os`로 옮긴다(오류 이름 대응은 구현에서 정한다 [가정]).
 5. srt `initialize(config, undefined, enableLogMonitor)`를 한 번 부른다. `enableLogMonitor`는 macOS 참, Linux 거짓이 기본이다 [제안]. Linux 모니터 값은 샌드박스 프로세스가 조작할 수 있어 진단용으로만 쓸 수 있기 때문이다(`_research/notes/L0-1.md` §5).
+   macOS의 위반 감시(`log stream ... _SBX`)는 srt가 `reset()`에서만 끈다. 호스트가 reset 없이 끝나도 자식이 남지 않게, 초기화 직후 부모 없이(ppid 1) 남은 감시를 거두고 프로세스 `exit` 때 이 프로세스의 감시 자식을 끈다(`log-monitor.ts`). SIGKILL처럼 `exit`가 불리지 않는 종료는 다음 초기화가 거두며, 그 사이는 `just orphans`가 목록에 올린다. [결정: 2026-11-12 dzX]
 6. 마지막 자가 시험이 실패했으면 `reason: "self_test_failed"`.
 7. 상태는 시작 로그 한 줄과 doctor 출력에 남긴다(4.6절).
 

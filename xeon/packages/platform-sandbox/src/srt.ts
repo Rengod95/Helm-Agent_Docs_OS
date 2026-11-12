@@ -3,6 +3,7 @@ import {
   SandboxRuntimeConfigSchema,
   type SandboxRuntimeConfig,
 } from "@anthropic-ai/sandbox-runtime";
+import { createLogMonitorGuard } from "./log-monitor.ts";
 
 // @anthropic-ai/sandbox-runtime(srt)를 import하는 유일한 파일이다(DR-07, L0.sandbox.plan §2).
 // 나머지 파일은 아래 좁은 포트 SrtPort만 쓴다. 단위 시험은 이 포트의 가짜를 주입한다(eng.testing.guide TS-05).
@@ -55,6 +56,7 @@ export interface SrtPort {
 
 /** 실제 srt 싱글턴을 감싼 포트. srt는 프로세스 전역 상태이므로 프로세스에 하나만 쓴다 */
 export function createSrtPort(): SrtPort {
+  const monitorGuard = createLogMonitorGuard();
   return {
     isSupportedPlatform: () => SandboxManager.isSupportedPlatform(),
     checkDependencies: (ripgrepCommand) => {
@@ -64,12 +66,15 @@ export function createSrtPort(): SrtPort {
       return { errors: [...report.errors], warnings: [...report.warnings] };
     },
     // 거부 목록은 질의 콜백보다 먼저 검사된다. 콜백이 true만 돌려주면 목록 밖은 허용이고 거부 목록만 막는다
-    initialize: (config, enableLogMonitor, allowUnlistedHosts) =>
-      SandboxManager.initialize(
+    initialize: async (config, enableLogMonitor, allowUnlistedHosts) => {
+      await SandboxManager.initialize(
         config,
         allowUnlistedHosts ? () => Promise.resolve(true) : undefined,
         enableLogMonitor,
-      ),
+      );
+      // 위반 감시(log stream)가 호스트 종료 뒤에 남지 않게 한다(log-monitor.ts)
+      if (enableLogMonitor) monitorGuard.arm();
+    },
     wrapWithSandboxArgv: async (input) => {
       const wrapped = await SandboxManager.wrapWithSandboxArgv(
         input.command,
@@ -88,7 +93,11 @@ export function createSrtPort(): SrtPort {
     cleanupAfterCommand: () => {
       SandboxManager.cleanupAfterCommand();
     },
-    reset: () => SandboxManager.reset(),
+    reset: async () => {
+      await SandboxManager.reset();
+      // reset이 못 끈 감시가 있으면 여기서 끈다
+      monitorGuard.sweep();
+    },
     validateConfig: (config) => {
       const parsed = SandboxRuntimeConfigSchema.safeParse(config);
       if (parsed.success) return [];
