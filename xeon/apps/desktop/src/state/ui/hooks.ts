@@ -10,11 +10,13 @@ import type {
   CommandOutput,
   ComposerRequest,
   EngineTargetView,
+  LastRemoteSeen,
   LockedThread,
   RestartReason,
   ReviewTarget,
   Screen,
   SettingsJump,
+  TargetNotice,
   UiState,
 } from "./store.ts";
 
@@ -51,3 +53,7 @@ export const useReviewTarget = (): ReviewTarget | null => useUi((s) => s.reviewT
 export const useRestartNeeded = (): readonly RestartReason[] => useUi((s) => s.restartNeeded);
 /** 403으로 실패한 모델(`provider/modelId` 키). 이 앱 실행 동안만 있다 */
 export const useDeniedModels = (): Readonly<Record<string, true>> => useUi((s) => s.deniedModels);
+/** 연결된 동안 본 원격 상태. 끊겼을 때 연결 화면이 "마지막으로 본 상태"를 보인다 */
+export const useLastRemoteSeen = (): LastRemoteSeen | null => useUi((s) => s.lastRemoteSeen);
+/** 앱을 켤 때 마지막 대상으로 붙지 못해 이 컴퓨터로 돌아온 알림 */
+export const useTargetNotice = (): TargetNotice | null => useUi((s) => s.targetNotice);

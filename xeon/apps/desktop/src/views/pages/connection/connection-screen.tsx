@@ -1,11 +1,16 @@
-import { removeTarget, type TargetEntry } from "@fresnel/client";
+import { removeTarget, sshTargetOfAddress, type TargetEntry } from "@fresnel/client";
 import { activeLocale, t, type MessageId } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import { toast } from "@caustic/react";
 import { useCallback, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { useEngineState, useLinkPhase } from "../../../state/engine/index.ts";
 import { useShellActions } from "../../../state/shell/index.ts";
-import { useConnectError, useEngineTarget } from "../../../state/ui/index.ts";
+import {
+  useConnectError,
+  useEngineTarget,
+  useLastRemoteSeen,
+  useTargetNotice,
+} from "../../../state/ui/index.ts";
 import { useCommands } from "../../commands.ts";
 import {
   canConnect,
@@ -14,12 +19,16 @@ import {
   INITIAL_CONNECTION_STATE,
   LOCAL_CHOICE,
   newTargetId,
+  reconnectLinesOf,
   renamedList,
+  switchNeedsConfirm,
   toConnectTarget,
   type TargetChoice,
 } from "./connection-model.ts";
-import { checkHostForm } from "./host-address.ts";
+import { checkHostForm, type HostFields } from "./host-address.ts";
 import { ServiceSectionsContainer } from "./connection-server-container.tsx";
+import { useRowProbe } from "./connection-probe-container.tsx";
+import { UNCHECKED, type AliveReading, type ProbeRunArgs } from "./connection-probe-model.ts";
 import { ConnectionScreenView, type ConnectionScreenHandlers } from "./connection-view.tsx";
 
 // 연결 화면(P-08)의 동작. 호스트 목록과 상태는 명령(`commands.connection`)으로 부르고, 화면 상태는 `connectionReducer`가 든다.
@@ -36,6 +45,9 @@ export function ConnectionScreen(props: {
   const engineTarget = useEngineTarget();
   const shell = useShellActions();
   const [state, dispatch] = useReducer(connectionReducer, INITIAL_CONNECTION_STATE);
+  const targetNotice = useTargetNotice();
+  const lastRemoteSeen = useLastRemoteSeen();
+  const rowProbes = useRowProbe();
   // 화면을 열 때 엔진이 붙은 대상을 잡아 둔다. 목록을 읽은 뒤 이 대상을 엔진 칸으로 맞춘다(떠났다 돌아와도 같은 대상을 본다)
   const [openedTarget] = useState(() => engineTarget);
   // 늦게 온 상태 읽기가 새 읽기를 덮지 않도록 읽기마다 번호를 매긴다
@@ -106,6 +118,52 @@ export function ConnectionScreen(props: {
     dispatch({ type: "engineSeen", observed: { engine, link, connectError } });
   }, [engine, link, connectError]);
 
+  // 대상 바꾸기는 확인을 기다린 뒤에 시작할 수 있어서, 그때의 엔진과 연결 관찰은 가장 최근 렌더의 값을 쓴다
+  const observed = useRef({ engine, link, connectError });
+  useEffect(() => {
+    observed.current = { engine, link, connectError };
+  }, [engine, link, connectError]);
+
+  // 재시도 줄의 "다음 시도까지 몇 초"는 엔진이 다시 띄우는 동안만 1초마다 맞춘다
+  const restarting = engine?.kind === "restarting";
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!restarting) return undefined;
+    const timer = setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [restarting]);
+
+  // 끊긴 원격 대상이 SSH 주소면 원격 서비스가 살아 있는지 한 번 읽는다. 읽은 값은 주소와 함께 두고, 다시 붙으면 보이지 않는다
+  const remoteAddress =
+    state.engineTarget.kind === "remote" ? state.engineTarget.entry.address : null;
+  const [aliveRead, setAliveRead] = useState<{
+    readonly address: string;
+    readonly alive: boolean | null;
+  } | null>(null);
+  useEffect(() => {
+    if (live || remoteAddress === null || sshTargetOfAddress(remoteAddress) === null)
+      return undefined;
+    let current = true;
+    detach(
+      commands.connection.serviceAlive(remoteAddress).then((reading) => {
+        if (current) setAliveRead({ address: remoteAddress, alive: reading.alive });
+        return undefined;
+      }),
+      rethrow,
+    );
+    return () => {
+      current = false;
+    };
+  }, [live, remoteAddress, commands]);
+  const alive: AliveReading =
+    !live && remoteAddress !== null && aliveRead?.address === remoteAddress
+      ? { kind: "read", alive: aliveRead.alive }
+      : UNCHECKED;
+
   /** 호스트 목록을 저장한다. 성공하면 목록을 바꾸고 `true`를, 실패하면 저장 실패 알림을 두고 `false`를 돌려준다 */
   const saveTargets = async (
     list: readonly TargetEntry[],
@@ -137,11 +195,28 @@ export function ConnectionScreen(props: {
     if (!done.ok) dispatch({ type: "connectRejected", kind: done.error });
   };
 
+  /** 대상 바꾸기를 시작한다(진행 표시와 셸 명령). 관찰은 가장 최근 값으로 잡는다 */
+  const startConnect = (choice: TargetChoice): void => {
+    dispatch({ type: "connectStarted", target: choice, observed: observed.current });
+    detach(requestRetarget(choice), rethrow);
+  };
+
+  /**
+   * 대상 바꾸기 전에 도는 것을 본다. 턴이나 승인 대기가 있으면 확인 대화 상자를 연다. 읽지 못했으면 확인 없이 바꾼다.
+   */
+  const connectChecked = async (choice: TargetChoice): Promise<void> => {
+    const read = await commands.connection.switchImpact();
+    if (read.ok && switchNeedsConfirm(read.value)) {
+      dispatch({ type: "switchAsked", ask: { choice, impact: read.value } });
+      return;
+    }
+    startConnect(choice);
+  };
+
   /** 그 행의 호스트로 연결을 시작한다. 진행 중이거나 지금 호스트면 아무 일도 없다 */
   const connect = (choice: TargetChoice): void => {
     if (!canConnect(state, choice)) return;
-    dispatch({ type: "connectStarted", target: choice, observed: { engine, link, connectError } });
-    detach(requestRetarget(choice), rethrow);
+    detach(connectChecked(choice), rethrow);
   };
 
   const retry = (): void => {
@@ -159,7 +234,12 @@ export function ConnectionScreen(props: {
     );
   };
 
-  /** 추가 칸을 저장한다. 칸이 틀리면 칸별 오류를 보이고, 이름이 비었으면 주소의 제안 이름을 쓴다(`checkHostForm`) */
+  /** 저장된 호스트 줄의 연결 시험. 한 번에 한 줄만 돈다(`useRowProbe`) */
+  const testRow = (entry: TargetEntry, args?: ProbeRunArgs): void => {
+    rowProbes.run(entry, args);
+  };
+
+  /** 추가 칸 저장. 칸이 틀리면 칸별 오류를 보이고, 이름이 비었으면 주소의 제안 이름을 쓴다(`checkHostForm`) */
   const submitForm = (): void => {
     const form = state.form;
     if (form === null || state.busy) return;
@@ -243,11 +323,39 @@ export function ConnectionScreen(props: {
     await loadStatus();
   };
 
+  /** 시험이 고른 방식과 칸을 추가 칸에 채운다. 이름은 그대로 두고 칸만 바꾼다 */
+  const fillForm = (fields: HostFields): void => {
+    dispatch({ type: "formFields", fields });
+  };
+
   const handlers: ConnectionScreenHandlers = {
     query: (text) => {
       dispatch({ type: "query", text });
     },
     connect,
+    testRow,
+    fillForm,
+    copyCommand: (text) => {
+      detach(
+        commands.copyText(text).then((ok) => {
+          if (ok) toast({ tone: "success", title: t("desktop.connection.status.copied") });
+          return undefined;
+        }),
+        rethrow,
+      );
+    },
+    switchConfirm: () => {
+      const ask = state.switchAsk;
+      if (ask === null) return;
+      dispatch({ type: "switchClosed" });
+      startConnect(ask.choice);
+    },
+    switchCancel: () => {
+      dispatch({ type: "switchClosed" });
+    },
+    dismissTargetNotice: () => {
+      commands.connection.dismissTargetNotice();
+    },
     retry,
     backToLocal: () => {
       connect(LOCAL_CHOICE);
@@ -329,6 +437,16 @@ export function ConnectionScreen(props: {
       handlers={handlers}
       serviceSections={<ServiceSectionsContainer state={state} handlers={handlers} />}
       embedded={props.embedded ?? false}
+      targetNotice={targetNotice}
+      reconnect={reconnectLinesOf({
+        engine,
+        nowMs,
+        remote: state.engineTarget.kind === "remote",
+        live,
+        lastSeen: lastRemoteSeen,
+        alive,
+      })}
+      rowProbe={rowProbes.row}
     />
   );
 }

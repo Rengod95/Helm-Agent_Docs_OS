@@ -29,11 +29,15 @@ import {
   sameChoice,
   visibleTargets,
   type ConnectionState,
+  type ReconnectLine,
   type RenameState,
   type TargetChoice,
 } from "./connection-model.ts";
 import { hostBadgeOf } from "./connection-text.ts";
 import type { ConnectionScreenHandlers } from "./connection-handlers.ts";
+import { HostFormProbe } from "./connection-probe-container.tsx";
+import { ProbeLines } from "./connection-probe.tsx";
+import type { RowProbe } from "./connection-probe-model.ts";
 
 // "호스트" 섹션. 맨 위는 현재 호스트 카드, 그 아래는 호스트 목록(이 컴퓨터와 원격 호스트 행), 목록 아래에 추가 카드가 펼쳐진다.
 // 섹션 머리 오른쪽에 호스트 추가 단추가 있고, 섹션 맨 위에는 저장 결과 알림이 온다. 행의 "연결"은 그 행의 호스트로 바꾼다.
@@ -50,13 +54,17 @@ function HostRow(props: {
   readonly address: string | null;
   readonly kindBadge: MessageId | null;
   readonly status: HostStatus | null;
+  /** 연결 시험 단추(저장된 원격 줄만 있다). 점검만 하고 붙지 않는다 */
+  readonly test: ReactNode;
   /** 오른쪽 끝의 연결 단추 또는 "연결됨" 글 */
   readonly connect: ReactNode;
   /** 원격 행의 더보기 메뉴. 이 기기 행은 없다 */
   readonly menu: ReactNode;
+  /** 줄 아래에 펼치는 시험 결과(사전 점검 단계 줄 등). 없으면 null이다 */
+  readonly below: ReactNode;
 }): ReactNode {
-  const { label, address, kindBadge, status, connect, menu } = props;
-  return (
+  const { label, address, kindBadge, status, test, connect, menu, below } = props;
+  const row = (
     <div className="flex min-w-0 items-center gap-2 py-1">
       <div className="grid min-w-0 flex-1 gap-1">
         <span className="flex min-w-0 items-center gap-2">
@@ -78,9 +86,17 @@ function HostRow(props: {
         )}
       </div>
       <div className="flex flex-none items-center gap-1">
+        {test}
         {connect}
         {menu}
       </div>
+    </div>
+  );
+  if (below === null) return row;
+  return (
+    <div className="grid gap-2">
+      {row}
+      {below}
     </div>
   );
 }
@@ -272,9 +288,14 @@ export function HostSection(props: {
   readonly engine: EngineState | null;
   readonly locale: Locale;
   readonly handlers: ConnectionScreenHandlers;
+  /** 현재 호스트 카드의 다시 붙기 줄 */
+  readonly reconnect: readonly ReconnectLine[];
+  /** 저장된 호스트 줄의 연결 시험 상태(한 번에 한 줄). 시험 중이면 다른 줄의 단추를 잠근다 */
+  readonly rowProbe: RowProbe | null;
 }): ReactNode {
-  const { state, engine, locale, handlers } = props;
+  const { state, engine, locale, handlers, reconnect, rowProbe } = props;
   const idle = state.busy || state.pending !== null;
+  const rowBusy = rowProbe?.probe.busy === true;
   const rows = visibleTargets(state);
   const localStatus = hostStatusOf(state, engine, LOCAL_CHOICE);
   return (
@@ -305,7 +326,13 @@ export function HostSection(props: {
             {t(state.notice.id)}
           </Alert>
         )}
-        <CurrentHostCard state={state} engine={engine} locale={locale} handlers={handlers} />
+        <CurrentHostCard
+          state={state}
+          engine={engine}
+          locale={locale}
+          handlers={handlers}
+          reconnect={reconnect}
+        />
         <div className="grid content-start gap-2">
           {searchShown(state.items) ? (
             <Input
@@ -336,6 +363,8 @@ export function HostSection(props: {
                 address={null}
                 kindBadge={null}
                 status={localStatus}
+                test={null}
+                below={null}
                 connect={
                   <ConnectSlot
                     state={state}
@@ -351,6 +380,7 @@ export function HostSection(props: {
               const choice: TargetChoice = { kind: "remote", entry };
               if (sameChoice(state.engineTarget, choice)) return null;
               const status = hostStatusOf(state, engine, choice);
+              const probe = rowProbe?.id === entry.id ? rowProbe.probe : null;
               return (
                 <HostRow
                   key={entry.id}
@@ -358,6 +388,20 @@ export function HostSection(props: {
                   address={entry.address}
                   kindBadge={hostBadgeOf(entry.address)}
                   status={status}
+                  test={
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={idle || rowBusy}
+                      loading={probe?.busy === true}
+                      onClick={() => {
+                        handlers.testRow(entry);
+                      }}
+                    >
+                      {t("desktop.connection.test.action")}
+                    </Button>
+                  }
                   connect={
                     <ConnectSlot
                       state={state}
@@ -367,6 +411,17 @@ export function HostSection(props: {
                     />
                   }
                   menu={<HostMenu entry={entry} disabled={idle} handlers={handlers} />}
+                  below={
+                    probe === null ? null : (
+                      <ProbeLines
+                        probe={probe}
+                        onRun={(args) => {
+                          handlers.testRow(entry, args);
+                        }}
+                        onCopy={handlers.copyCommand}
+                      />
+                    )
+                  }
                 />
               );
             })}
@@ -386,6 +441,14 @@ export function HostSection(props: {
               onChange={handlers.formChange}
               onSubmit={handlers.submitForm}
               onCancel={handlers.closeForm}
+              probe={
+                <HostFormProbe
+                  value={state.form.value}
+                  busy={state.busy}
+                  onFill={handlers.fillForm}
+                  onCopy={handlers.copyCommand}
+                />
+              }
             />
           </Card>
         )}

@@ -42,6 +42,12 @@ const handlers: ConnectionScreenHandlers = {
   setStopConfirm: NOOP,
   openExtensions: NOOP,
   retryClients: NOOP,
+  testRow: NOOP,
+  fillForm: NOOP,
+  copyCommand: NOOP,
+  switchConfirm: NOOP,
+  switchCancel: NOOP,
+  dismissTargetNotice: NOOP,
 };
 
 function connectionHtml(locale: Locale): string {

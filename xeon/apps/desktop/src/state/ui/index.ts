@@ -6,11 +6,13 @@ export {
   type ApprovalSend,
   type EngineTargetView,
   type LockedOption,
+  type LastRemoteSeen,
   type LockedThread,
   type RestartReason,
   type ReviewTarget,
   type Screen,
   type SettingsJump,
+  type TargetNotice,
   type UiState,
   type UiStore,
 } from "./store.ts";

@@ -1,4 +1,5 @@
 import { attachErrorKey, attachFixKey } from "@fresnel/client";
+import { assertNever } from "@fresnel/contracts";
 import { t, type Locale, type MessageId } from "@fresnel/client/i18n";
 import {
   Alert,
@@ -20,6 +21,7 @@ import {
   sameChoice,
   stepsOf,
   type ConnectionState,
+  type ReconnectLine,
   type TargetChoice,
 } from "./connection-model.ts";
 import { engineMessageOf, stepMessageOf, timeTextOf } from "./connection-text.ts";
@@ -100,6 +102,54 @@ function summaryOf(state: ConnectionState, locale: Locale, choice: TargetChoice)
       ? "desktop.connection.current.summary.service"
       : "desktop.connection.current.summary.inProcess";
   return t(key, { time: timeTextOf(snapshot.host.startedAt, locale) });
+}
+
+/** 다시 붙기 줄 하나. 재시도 중은 경고, 마지막으로 본 상태는 중립, 원격 서비스 살아 있음은 상태에 맞는 색이다 */
+function ReconnectNotice(props: {
+  readonly line: ReconnectLine;
+  readonly locale: Locale;
+}): ReactNode {
+  const { line, locale } = props;
+  switch (line.kind) {
+    case "attempt":
+      return (
+        <Alert tone="warning" size="sm" variant="outline" className="text-ui">
+          {t("desktop.connection.reconnect.attempt", {
+            attempt: line.attempt,
+            seconds: line.seconds,
+          })}
+        </Alert>
+      );
+    case "lastSeen":
+      return (
+        <Alert tone="neutral" size="sm" variant="outline" className="text-ui">
+          {t("desktop.connection.reconnect.lastSeen", {
+            time: timeTextOf(new Date(line.at).toISOString(), locale),
+            turns: line.turns,
+          })}
+        </Alert>
+      );
+    case "alive":
+      return (
+        <Alert tone="success" size="sm" variant="outline" className="text-ui">
+          {t("desktop.connection.reconnect.alive")}
+        </Alert>
+      );
+    case "gone":
+      return (
+        <Alert tone="warning" size="sm" variant="outline" className="text-ui">
+          {t("desktop.connection.reconnect.gone")}
+        </Alert>
+      );
+    case "unknown":
+      return (
+        <Alert tone="neutral" size="sm" variant="outline" className="text-ui">
+          {t("desktop.connection.reconnect.unknown")}
+        </Alert>
+      );
+    default:
+      return assertNever(line, "ReconnectLine");
+  }
 }
 
 /** 연결 단계 세 개. 단계마다 상태를 붙인다 */
@@ -196,8 +246,10 @@ export function CurrentHostCard(props: {
   readonly engine: EngineState | null;
   readonly locale: Locale;
   readonly handlers: DetailHandlers;
+  /** 끊긴 뒤 다시 붙기 줄(재시도 중, 마지막으로 본 상태, 원격 서비스 살아 있음) */
+  readonly reconnect: readonly ReconnectLine[];
 }): ReactNode {
-  const { state, engine, locale, handlers } = props;
+  const { state, engine, locale, handlers, reconnect } = props;
   const choice = state.engineTarget;
   const status = hostStatusOf(state, engine, choice);
   const summary = summaryOf(state, locale, choice);
@@ -236,11 +288,9 @@ export function CurrentHostCard(props: {
           </Alert>
         )}
         {state.failure === null ? null : <FailureAlert state={state} handlers={handlers} />}
-        {restarting ? (
-          <Alert tone="warning" size="sm" variant="outline" className="text-ui">
-            {t("desktop.connection.restarting")}
-          </Alert>
-        ) : null}
+        {reconnect.map((line) => (
+          <ReconnectNotice key={line.kind} line={line} locale={locale} />
+        ))}
         {host === null || host.idleShutdownAt === null ? null : (
           <Alert tone="neutral" size="sm" variant="outline" className="text-ui">
             {t("desktop.connection.status.idleNotice", {

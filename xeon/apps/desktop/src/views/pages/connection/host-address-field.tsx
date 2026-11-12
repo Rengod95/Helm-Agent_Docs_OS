@@ -28,7 +28,7 @@ import {
 // 취소는 `onCancel`이다. 오류는 `checkHostForm`이 준 칸별 목록을 그 칸 아래에 보인다.
 
 /** 칸 아래 오류와 힌트는 13px로 올린다(caustic 기본은 11.5px) */
-const FIELD_TEXT =
+export const FIELD_TEXT =
   "[&_[data-slot=field-error]]:text-ui [&_[data-slot=field-hint]]:text-ui [&_[data-slot=field-optional-mark]]:text-ui [&_[data-slot=field-required-mark]]:text-ui";
 
 const KIND_LABEL: Readonly<Record<HostKind, MessageId>> = {
@@ -107,6 +107,8 @@ export interface HostAddressFieldProps {
   readonly onSubmit: () => void;
   /** 취소 단추가 부른다 */
   readonly onCancel: () => void;
+  /** 방식별 칸 아래의 시험 자리(SSH의 사전 점검과 고르기, 웹 주소의 지문과 연결 코드). 칸 값을 받는 자식이 그린다 */
+  readonly probe?: ReactNode;
 }
 
 interface RowsProps<F> {
@@ -369,7 +371,7 @@ function kindRowsOf(
 }
 
 export function HostAddressField(props: HostAddressFieldProps): ReactNode {
-  const { value, onChange, errors, busy, onSubmit, onCancel } = props;
+  const { value, onChange, errors, busy, onSubmit, onCancel, probe } = props;
   const [pasteText, setPasteText] = useState("");
   const [pasteReason, setPasteReason] = useState<TargetAddressReason | null>(null);
   const { fields } = value;
@@ -444,6 +446,7 @@ export function HostAddressField(props: HostAddressFieldProps): ReactNode {
       </div>
 
       {kindRowsOf(fields, setFields, errorOf, busy)}
+      {probe}
 
       <Field
         label={t("desktop.connection.form.label")}

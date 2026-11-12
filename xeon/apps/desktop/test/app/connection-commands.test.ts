@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { TARGETS_KEY, type TargetEntry } from "@fresnel/client";
-import { err, ok } from "@fresnel/contracts";
+import { LAST_TARGET_KEY, TARGETS_KEY, type TargetEntry } from "@fresnel/client";
+import { err, ok, type Scheduler } from "@fresnel/contracts";
 import { WIRE_ERRORS, type WireResult } from "@fresnel/contracts/wire";
+import type { LogLine } from "../../src/app/logger.ts";
 import type {
   DesktopIpc,
   EngineState,
+  PreflightEvent,
   RestartOptions,
   ServiceAutostart,
   ServiceStatusReply,
@@ -817,5 +819,406 @@ describe("the login autostart commands", () => {
       error: { code: "unknown" },
     });
     await invalid.app.stop();
+  });
+});
+
+const REMOTE = { kind: "remote", address: SAVED.address, label: SAVED.label } as const;
+
+/** 시한이 `longerThanMs`보다 긴 예약만 시험이 직접 부른다. 짧은 예약은 실제 시간으로 흐른다 */
+function manualLongTimers(longerThanMs: number): {
+  readonly scheduler: Scheduler;
+  readonly fire: (ms: number) => void;
+  readonly pending: (ms: number) => boolean;
+} {
+  const held = new Map<number, { readonly fn: () => void; readonly ms: number }>();
+  let next = -1;
+  return {
+    scheduler: {
+      setTimeout: (fn, ms) => {
+        if (ms < longerThanMs) return Number(setTimeout(fn, ms));
+        const id = next;
+        next -= 1;
+        held.set(id, { fn, ms });
+        return id;
+      },
+      clearTimeout: (id) => {
+        if (id < 0) held.delete(id);
+        else clearTimeout(id);
+      },
+    },
+    fire: (ms) => {
+      for (const [id, timer] of held) {
+        if (timer.ms !== ms) continue;
+        held.delete(id);
+        timer.fn();
+        return;
+      }
+      throw new Error(`no held timer of ${String(ms)} ms`);
+    },
+    pending: (ms) => [...held.values()].some((timer) => timer.ms === ms),
+  };
+}
+
+/** 엔진이 붙은 상태에서 시작한다. 대상 바꾸기 시험은 엔진이 내려갔다 올라오는 것을 흉내 낸다 */
+async function remoteSwitchApp(
+  first: EngineState = RUNNING_STATE,
+  scheduler?: Scheduler,
+): Promise<ReturnType<typeof engineFake> & { readonly app: ReturnType<typeof makeApp> }> {
+  const engine = engineFake([], (n) => (n === 1 ? first : { kind: "stopping" }));
+  const app = makeAppOver(engine.fake.ipc, scheduler === undefined ? {} : { scheduler });
+  await until(() => app.engine.read.getState().engine?.kind === "running", "engine running");
+  return { ...engine, app };
+}
+
+/** 엔진 상태를 보내고, 거울에 들어간 것을 기다린다(상태 적용은 비동기다) */
+async function emitAndWait(
+  fake: { emitState(state: EngineState): void },
+  app: ReturnType<typeof makeApp>,
+  state: EngineState,
+): Promise<void> {
+  fake.emitState(state);
+  await until(() => app.engine.read.getState().engine?.kind === state.kind, `engine ${state.kind}`);
+}
+
+describe("the last target: remembered on a successful change, restored on start", () => {
+  test("a successful remote retarget is remembered, and going back to this computer forgets it", async () => {
+    const { fake, app } = await remoteSwitchApp();
+    await app.commands.connection.retarget(REMOTE);
+    expect(fake.settingsFile[LAST_TARGET_KEY]).toBe(SAVED.address);
+    expect(await app.commands.connection.lastTarget()).toBe(SAVED.address);
+    await emitAndWait(fake, app, { kind: "stopping" });
+    await emitAndWait(fake, app, { kind: "running", source: "sidecar", pid: 2 });
+    await until(() => !app.ui.read.getState().engineSwitching, "hold released");
+    expect(await app.commands.connection.retarget({ kind: "local" })).toEqual({
+      ok: true,
+      value: null,
+    });
+    expect(fake.settingsFile[LAST_TARGET_KEY]).toBe("");
+    expect(await app.commands.connection.lastTarget()).toBeNull();
+    await app.stop();
+  });
+
+  test("a failed save of the remembered target is reported, and the retarget still succeeds", async () => {
+    const engine = engineFake([], (n) => (n === 1 ? RUNNING_STATE : { kind: "stopping" }));
+    const base = engine.fake.ipc;
+    const ipc: DesktopIpc = {
+      ...base,
+      writeSettings: (key, value) =>
+        key === LAST_TARGET_KEY
+          ? Promise.resolve({
+              ok: false,
+              error: { kind: "command", command: "desktop_settings_write", code: "storage-failed" },
+            })
+          : base.writeSettings(key, value),
+    };
+    const lines: LogLine[] = [];
+    const app = makeAppOver(ipc, { logSink: (line) => lines.push(line) });
+    await until(() => app.engine.read.getState().engine?.kind === "running", "engine running");
+    expect(await app.commands.connection.retarget(REMOTE)).toEqual({ ok: true, value: null });
+    expect(app.ui.read.getState().engineTarget).toEqual(REMOTE);
+    expect(lines.find((line) => line.event === "desktop.connection.failed")?.fields).toEqual({
+      reason: "ipc",
+    });
+    await app.stop();
+  });
+
+  test("with nothing saved, the restore does nothing and says none", async () => {
+    const { fake, app } = await remoteSwitchApp();
+    expect(await app.commands.connection.restoreLastTarget()).toBe("none");
+    expect(fake.retargeted).toEqual([]);
+    expect(app.ui.read.getState().targetNotice).toBeNull();
+    await app.stop();
+  });
+
+  test("a saved remote target that comes up running is restored, with no notice", async () => {
+    const { fake, app } = await remoteSwitchApp();
+    fake.settingsFile[TARGETS_KEY] = [SAVED];
+    fake.settingsFile[LAST_TARGET_KEY] = SAVED.address;
+    const pending = app.commands.connection.restoreLastTarget();
+    await until(() => fake.retargeted.length === 1, "remote retarget sent");
+    await emitAndWait(fake, app, { kind: "stopping" });
+    await emitAndWait(fake, app, { kind: "starting", source: "sidecar", attempt: 1 });
+    await emitAndWait(fake, app, { kind: "running", source: "sidecar", pid: 2 });
+    expect(await pending).toBe("restored");
+    expect(app.ui.read.getState().engineTarget).toEqual({
+      kind: "remote",
+      address: SAVED.address,
+      label: "build-box",
+    });
+    expect(app.ui.read.getState().targetNotice).toBeNull();
+    expect(fake.retargeted).toEqual([{ kind: "remote", address: SAVED.address }]);
+    await app.stop();
+  });
+
+  test("a remote target that fails to start falls back to this computer, names it, and keeps the memory", async () => {
+    const { fake, app } = await remoteSwitchApp();
+    fake.settingsFile[TARGETS_KEY] = [SAVED];
+    fake.settingsFile[LAST_TARGET_KEY] = SAVED.address;
+    const pending = app.commands.connection.restoreLastTarget();
+    await until(() => fake.retargeted.length === 1, "remote retarget sent");
+    await emitAndWait(fake, app, { kind: "stopping" });
+    await emitAndWait(fake, app, {
+      kind: "failed",
+      attempts: 1,
+      lastExit: { code: 3, signal: null, at: "2026-11-12T00:00:00.000Z" },
+    });
+    expect(await pending).toBe("fellBack");
+    expect(fake.retargeted).toEqual([
+      { kind: "remote", address: SAVED.address },
+      { kind: "local" },
+    ]);
+    expect(app.ui.read.getState().engineTarget).toEqual({ kind: "local" });
+    expect(app.ui.read.getState().targetNotice).toEqual({ kind: "fellBack", name: "build-box" });
+    expect(fake.settingsFile[LAST_TARGET_KEY]).toBe(SAVED.address);
+    await app.stop();
+  });
+
+  test("a remote target the shell refuses goes back to this computer with the notice", async () => {
+    const engine = engineFake();
+    const retargets: string[] = [];
+    const ipc: DesktopIpc = {
+      ...engine.fake.ipc,
+      retarget: (target) => {
+        retargets.push(target.kind);
+        return Promise.resolve(
+          target.kind === "remote"
+            ? {
+                ok: false,
+                error: { kind: "command", command: "engine_retarget", code: "bad-request" },
+              }
+            : { ok: true, value: null },
+        );
+      },
+    };
+    engine.fake.settingsFile[TARGETS_KEY] = [SAVED];
+    engine.fake.settingsFile[LAST_TARGET_KEY] = SAVED.address;
+    const app = makeAppOver(ipc);
+    await until(() => app.engine.read.getState().engine?.kind === "running", "engine running");
+    expect(await app.commands.connection.restoreLastTarget()).toBe("fellBack");
+    expect(retargets).toEqual(["remote", "local"]);
+    expect(app.ui.read.getState().targetNotice).toEqual({ kind: "fellBack", name: "build-box" });
+    await app.stop();
+  });
+
+  test("a restore that never reaches running gives up at thirty seconds and goes back", async () => {
+    // 30초 감시와 대상 바꾸기의 보류 시한(7초 + 15초)은 시험이 직접 불러 본다
+    const timers = manualLongTimers(10_000);
+    const { fake, app } = await remoteSwitchApp(RUNNING_STATE, timers.scheduler);
+    fake.settingsFile[TARGETS_KEY] = [SAVED];
+    fake.settingsFile[LAST_TARGET_KEY] = SAVED.address;
+    const pending = app.commands.connection.restoreLastTarget();
+    await until(() => fake.retargeted.length === 1, "remote retarget sent");
+    await emitAndWait(fake, app, { kind: "stopping" });
+    expect(timers.pending(30_000)).toBe(true);
+    timers.fire(30_000);
+    timers.fire(22_000);
+    expect(await pending).toBe("fellBack");
+    expect(fake.retargeted).toEqual([
+      { kind: "remote", address: SAVED.address },
+      { kind: "local" },
+    ]);
+    expect(app.ui.read.getState().targetNotice).toEqual({ kind: "fellBack", name: "build-box" });
+    await app.stop();
+  });
+});
+
+describe("the connected remote's state and the switch impact", () => {
+  test("a load on a remote target records what was seen, and on this computer nothing is recorded", async () => {
+    const { app } = await liveApp({
+      results: { "host.status": HOST_STATUS },
+      resultFor: (method) => (method === "settings.get" ? { settings: [] } : undefined),
+    });
+    await app.commands.connection.load();
+    expect(app.ui.read.getState().lastRemoteSeen).toBeNull();
+    app.ui.actions.setEngineTarget(REMOTE);
+    await app.commands.connection.load();
+    expect(app.ui.read.getState().lastRemoteSeen).toEqual({
+      at: expect.any(Number),
+      version: "1.2.3",
+      liveTurns: 1,
+    });
+    await app.stop();
+  });
+
+  test("switchImpact counts the live turns and the waiting approvals, and says whether the service keeps running", async () => {
+    const stdio = await liveApp({
+      results: {
+        "host.status": { ...HOST_STATUS, liveTurns: 2, waitingApprovals: 3, mode: "stdio" },
+      },
+    });
+    expect(await stdio.app.commands.connection.switchImpact()).toEqual({
+      ok: true,
+      value: { liveTurns: 2, waitingApprovals: 3, keepsRunning: false },
+    });
+    await stdio.app.stop();
+    const served = await liveApp({ results: { "host.status": HOST_STATUS } });
+    expect(await served.app.commands.connection.switchImpact()).toEqual({
+      ok: true,
+      value: { liveTurns: 1, waitingApprovals: 0, keepsRunning: true },
+    });
+    await served.app.stop();
+  });
+
+  test("switchImpact with no connection is the offline error", async () => {
+    const base = fakeIpc();
+    const ipc: DesktopIpc = {
+      ...base.ipc,
+      attach: () =>
+        Promise.resolve({
+          ok: false,
+          error: { kind: "command", command: "engine_attach", code: "engine-not-running" },
+        }),
+    };
+    const app = makeAppOver(ipc);
+    expect(await app.commands.connection.switchImpact()).toEqual({
+      ok: false,
+      error: { kind: "offline" },
+    });
+    await app.stop();
+  });
+});
+
+describe("the target notice can be dismissed from the connection screen", () => {
+  test("dismissTargetNotice clears the fell-back notice and leaves the remembered target alone", async () => {
+    const { app } = await liveApp({ results: {} });
+    app.ui.actions.setTargetNotice({ kind: "fellBack", name: "build-box" });
+    expect(app.ui.read.getState().targetNotice).toEqual({ kind: "fellBack", name: "build-box" });
+    app.commands.connection.dismissTargetNotice();
+    expect(app.ui.read.getState().targetNotice).toBeNull();
+    await app.stop();
+  });
+});
+
+describe("the remote attach commands pass their arguments to the shell and map its answers", () => {
+  test("serviceAlive asks the shell only for an ssh address, with the user, host and port", async () => {
+    const { fake, app } = await remoteSwitchApp();
+    expect(
+      await app.commands.connection.serviceAlive("unix:/run/user/1000/fresnel/fresnel.sock"),
+    ).toEqual({ alive: null, version: null, code: null });
+    expect(fake.remoteCalls).toEqual([]);
+    expect(
+      await app.commands.connection.serviceAlive("ssh://me@build:2222/run/fresnel.sock"),
+    ).toEqual({ alive: true, version: "1.2.3", code: "ok" });
+    expect(fake.remoteCalls).toEqual([
+      { command: "ssh_service_alive", args: { target: "me@build:2222" } },
+    ]);
+    await app.stop();
+  });
+
+  test("sshHosts returns the shell's list, and a shell failure is failed", async () => {
+    const hosts = {
+      hosts: [{ name: "build", hostName: "build.local", user: "me", port: null, proxyJump: false }],
+      unreadable: null,
+    };
+    const app = makeApp(fakeIpc({ sshHostsResult: ok(hosts) }));
+    expect(await app.commands.connection.sshHosts()).toEqual({ ok: true, value: hosts });
+    await app.stop();
+    const failing = makeApp(
+      fakeIpc({ sshHostsResult: err({ kind: "command", command: "ssh_hosts", code: "boom" }) }),
+    );
+    expect(await failing.commands.connection.sshHosts()).toEqual({
+      ok: false,
+      error: { kind: "failed" },
+    });
+    await failing.stop();
+  });
+
+  test("preflight streams the step events to the caller and returns the outcome", async () => {
+    const event: PreflightEvent = {
+      step: "connect",
+      status: "action",
+      code: "host_key_new",
+      durationMs: 5,
+      actions: ["trust_host_key"],
+      detail: {
+        hostKey: {
+          fingerprint: "SHA256:ab",
+          keyType: "ED25519",
+          hostname: "build.local",
+          port: 22,
+          scanned: ["build.local ssh-ed25519 AAAA"],
+        },
+      },
+    };
+    const fake = fakeIpc({
+      sshPreflightEvents: [event],
+      sshPreflightResult: ok({
+        ok: false,
+        step: "connect",
+        status: "action",
+        code: "host_key_new",
+        actions: ["trust_host_key"],
+      }),
+    });
+    const app = makeApp(fake);
+    const seen: PreflightEvent[] = [];
+    const outcome = await app.commands.connection.preflight({ target: "me@build" }, (step) => {
+      seen.push(step);
+    });
+    expect(seen).toEqual([event]);
+    expect(outcome).toEqual({
+      ok: true,
+      value: {
+        ok: false,
+        step: "connect",
+        status: "action",
+        code: "host_key_new",
+        actions: ["trust_host_key"],
+      },
+    });
+    expect(fake.remoteCalls).toEqual([{ command: "ssh_preflight", args: { target: "me@build" } }]);
+    await app.stop();
+  });
+
+  test("testTarget and fingerprintOf pass the address and host, and map the probe's refusal", async () => {
+    const fake = fakeIpc({
+      remoteFingerprintResult: ok({ ok: false, code: "refused" }),
+    });
+    const app = makeApp(fake);
+    expect(await app.commands.connection.testTarget(SAVED.address)).toEqual({
+      ok: true,
+      value: { ok: true, code: "ok", durationMs: 12, detail: { serverVersion: "1.2.3" } },
+    });
+    expect(await app.commands.connection.fingerprintOf("gw.local", 7421)).toEqual({
+      ok: false,
+      error: { kind: "probe", code: "refused" },
+    });
+    expect(fake.remoteCalls).toEqual([
+      { command: "remote_test", args: { address: SAVED.address } },
+      { command: "remote_fingerprint", args: { host: "gw.local", port: 7421 } },
+    ]);
+    await app.stop();
+  });
+
+  test("pair returns the device name, and a refusal keeps its code and the wait", async () => {
+    const pairing = {
+      host: "gw.local",
+      port: 7421,
+      pin: "ab".repeat(32),
+      code: "123456",
+      deviceName: "laptop",
+    };
+    const granted = makeApp(fakeIpc());
+    expect(await granted.commands.connection.pair(pairing)).toEqual({
+      ok: true,
+      value: { deviceName: "laptop" },
+    });
+    await granted.stop();
+    const locked = makeApp(
+      fakeIpc({ remotePairResult: ok({ ok: false, code: "locked", retryAfterSeconds: 30 }) }),
+    );
+    expect(await locked.commands.connection.pair(pairing)).toEqual({
+      ok: false,
+      error: { kind: "server", code: "locked", retryAfterSeconds: 30 },
+    });
+    await locked.stop();
+    const wrongCode = makeApp(
+      fakeIpc({ remotePairResult: ok({ ok: false, code: "invalid_code" }) }),
+    );
+    expect(await wrongCode.commands.connection.pair(pairing)).toEqual({
+      ok: false,
+      error: { kind: "server", code: "invalid_code", retryAfterSeconds: null },
+    });
+    await wrongCode.stop();
   });
 });

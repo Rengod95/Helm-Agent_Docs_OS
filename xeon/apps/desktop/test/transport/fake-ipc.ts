@@ -7,15 +7,22 @@ import type {
   EngineState,
   EngineTarget,
   IpcError,
+  PreflightEvent,
+  PreflightOutcome,
   PreviousRemoved,
+  RemoteFingerprintReply,
+  RemotePairReply,
+  RemoteTestOutcome,
   RestartOptions,
   RestoreReport,
   SecretRegisterError,
+  ServiceAliveReply,
   ServiceAutostart,
   ServiceAutostartSetReply,
   ServiceEnsureReply,
   ServiceStatusReply,
   ServiceStopReply,
+  SshHostsReply,
   StorageUsage,
 } from "../../src/transport/ipc.ts";
 
@@ -72,6 +79,25 @@ export const PREVIOUS_REMOVED: PreviousRemoved = {
   freedBytes: 4096,
 };
 
+/** 원격 붙기 명령의 기본 답. 시험이 옵션으로 바꾼다 */
+const SSH_HOSTS_NONE: SshHostsReply = { hosts: [], unreadable: null };
+const PREFLIGHT_STOPPED: PreflightOutcome = {
+  ok: false,
+  step: "resolve",
+  status: "fail",
+  code: "ssh_missing",
+  actions: ["retry"],
+};
+const REMOTE_TEST_OK: RemoteTestOutcome = {
+  ok: true,
+  code: "ok",
+  durationMs: 12,
+  detail: { serverVersion: "1.2.3" },
+};
+const REMOTE_FINGERPRINT_OK: RemoteFingerprintReply = { ok: true, fingerprint: "ab:cd" };
+const REMOTE_PAIR_OK: RemotePairReply = { ok: true, deviceName: "laptop" };
+const SERVICE_ALIVE_OK: ServiceAliveReply = { alive: true, version: "1.2.3", code: "ok" };
+
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
@@ -106,6 +132,8 @@ export type FakeIpc = {
   readonly serviceCalls: string[];
   /** `serviceAutostartSet` 호출에 넘어온 값(`enabled`), 호출 순서 */
   readonly autostartSets: boolean[];
+  /** 원격 붙기 명령 호출(`ssh_hosts`, `ssh_preflight`, `remote_test`, `remote_fingerprint`, `remote_pair`, `ssh_service_alive`)과 인자, 호출 순서 */
+  readonly remoteCalls: { readonly command: string; readonly args: unknown }[];
   epoch(): number;
 };
 
@@ -136,6 +164,20 @@ export type FakeIpcOptions = {
   readonly serviceStopResult?: Result<ServiceStopReply, IpcError>;
   /** `serviceAutostartSet`이 돌려줄 결과. 없으면 `enabled`를 되돌리고 linger 안내가 없는 성공이다 */
   readonly serviceAutostartSetResult?: Result<ServiceAutostartSetReply, IpcError>;
+  /** `ssh_hosts`가 돌려줄 결과. 없으면 빈 목록이다 */
+  readonly sshHostsResult?: Result<SshHostsReply, IpcError>;
+  /** `ssh_preflight`가 답하기 전에 흘릴 단계 이벤트. 없으면 없다 */
+  readonly sshPreflightEvents?: readonly PreflightEvent[];
+  /** `ssh_preflight`가 돌려줄 결과. 없으면 `resolve` 단계에서 `ssh_missing`으로 멈춘다 */
+  readonly sshPreflightResult?: Result<PreflightOutcome, IpcError>;
+  /** `remote_test`가 돌려줄 결과. 없으면 성공이다 */
+  readonly remoteTestResult?: Result<RemoteTestOutcome, IpcError>;
+  /** `remote_fingerprint`가 돌려줄 결과. 없으면 성공이다 */
+  readonly remoteFingerprintResult?: Result<RemoteFingerprintReply, IpcError>;
+  /** `remote_pair`가 돌려줄 결과. 없으면 성공이다 */
+  readonly remotePairResult?: Result<RemotePairReply, IpcError>;
+  /** `ssh_service_alive`가 돌려줄 결과. 없으면 살아 있다 */
+  readonly sshServiceAliveResult?: Result<ServiceAliveReply, IpcError>;
 };
 
 function ignore(): void {
@@ -158,6 +200,7 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
   const dbPreviousRemoveCalls: string[] = [];
   const serviceCalls: string[] = [];
   const autostartSets: boolean[] = [];
+  const remoteCalls: { command: string; args: unknown }[] = [];
   let dbUsageCount = 0;
   let openDataDirCount = 0;
   const fake: FakeIpc = {
@@ -257,6 +300,31 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
         serviceCalls.push("serviceStop");
         return Promise.resolve(options.serviceStopResult ?? ok({ stopped: true }));
       },
+      sshHosts() {
+        remoteCalls.push({ command: "ssh_hosts", args: undefined });
+        return Promise.resolve(options.sshHostsResult ?? ok(SSH_HOSTS_NONE));
+      },
+      sshPreflight(args, onEvent) {
+        remoteCalls.push({ command: "ssh_preflight", args });
+        for (const event of options.sshPreflightEvents ?? []) onEvent(event);
+        return Promise.resolve(options.sshPreflightResult ?? ok(PREFLIGHT_STOPPED));
+      },
+      remoteTest(address) {
+        remoteCalls.push({ command: "remote_test", args: { address } });
+        return Promise.resolve(options.remoteTestResult ?? ok(REMOTE_TEST_OK));
+      },
+      remoteFingerprint(host, port) {
+        remoteCalls.push({ command: "remote_fingerprint", args: { host, port } });
+        return Promise.resolve(options.remoteFingerprintResult ?? ok(REMOTE_FINGERPRINT_OK));
+      },
+      remotePair(args) {
+        remoteCalls.push({ command: "remote_pair", args });
+        return Promise.resolve(options.remotePairResult ?? ok(REMOTE_PAIR_OK));
+      },
+      sshServiceAlive(target) {
+        remoteCalls.push({ command: "ssh_service_alive", args: { target } });
+        return Promise.resolve(options.sshServiceAliveResult ?? ok(SERVICE_ALIVE_OK));
+      },
       serviceAutostartSet(enabled) {
         serviceCalls.push("serviceAutostartSet");
         autostartSets.push(enabled);
@@ -286,6 +354,7 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
     },
     serviceCalls,
     autostartSets,
+    remoteCalls,
     epoch: () => epoch,
   };
   return fake;

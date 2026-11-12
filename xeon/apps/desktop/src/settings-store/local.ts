@@ -1,4 +1,4 @@
-import { TARGETS_KEY } from "@fresnel/client";
+import { LAST_TARGET_KEY, TARGETS_KEY } from "@fresnel/client";
 import { parse, type Result } from "@fresnel/contracts";
 import {
   Type,
@@ -88,6 +88,8 @@ export const LOCAL: {
   >;
   /** 마지막에 보던 대화 id. 앱을 다시 켜면 이 대화를 연다(없어졌으면 빈 무대). 빈 글은 보던 대화가 없다는 뜻이다 */
   readonly lastThread: LocalKey<TString>;
+  /** 마지막으로 붙은 대상의 주소. 앱을 켜면 이 대상으로 다시 붙는다. 빈 값은 이 컴퓨터다(`lastTargetOf`) */
+  readonly lastTarget: LocalKey<TString>;
 } = {
   sidebarOpen: localKey("l4.desktop.window.sidebarOpen", Type.Boolean()),
   sidebarWidth: localKey(
@@ -132,6 +134,7 @@ export const LOCAL: {
     Type.Union([Type.Literal("full"), Type.Literal("summary"), Type.Literal("hidden")]),
   ),
   lastThread: localKey("l4.desktop.window.lastThread", Type.String({ maxLength: 128 })),
+  lastTarget: localKey(LAST_TARGET_KEY, Type.String({ maxLength: 2048 })),
 };
 
 type LocalSettingsError =

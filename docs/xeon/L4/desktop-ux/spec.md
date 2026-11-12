@@ -1838,6 +1838,14 @@ compact 폭(720 이하)과 사이드바 시트:
 - 중복: "서비스 멈추기"는 호스트 카드의 동작 줄과 실행 방식 절에 둘 있습니다. "엔진 다시 시작"과 "진단 복사"는 호스트 카드의 동작 줄과 진단 절에 둘 있습니다. 한쪽만 남길지 사용자가 정합니다. [미결] [근거: `connection-current-host.tsx`, `connection-run-mode.tsx`, `connection-view.tsx`]
 - DP-62와 다른 곳: 진단 절 머리는 `SectionHeader`가 아니라 13px 500 제목입니다. 업데이트 줄은 상태를 잇지 않고 고정 문장입니다. [미결] [근거: `connection-view.tsx`]
 - DP-64와 다른 곳: 연결 방식 고르기는 `SegmentedControl` 네 칸입니다. DP-64는 같은 개념의 방식을 고르는 곳에 3열 카드를 쓰라고 합니다. 카드로 바꿀지 확인합니다. [미결] [근거: `host-address-field.tsx`]
+- [결정: 2026-11-11 사용자] 호스트 추가는 입력을 최소로 하고 연결 시험을 둔다. 기능과 셸 명령은 `L4.remote.spec` §3.3이 정한다. 화면은 디자인 트랙이 다시 짠다. 이번에 붙인 임시 UI는 다음과 같다. 배치를 다시 짜지 않았다.
+  - 호스트 추가 카드(SSH): "SSH 호스트에서 고르기" 단추(ssh config 목록에서 고르면 `user@host`를 채운다)와 "연결 시험" 단추(단계 줄 ✓/✗, 원인, 고치는 법, 호스트 키 지문 확인과 복사할 명령). 통과하면 저장할 `ssh://` 주소가 채워진다.
+  - 호스트 목록 줄: "연결 시험"(붙지 않고 점검만).
+  - 웹 주소 호스트: 지문 확인과 연결 코드 입력으로 기기 토큰을 받는다. 확인한 지문은 주소의 `/pin/<sha256>`으로 저장한다.
+  - 호스트를 바꿀 때 도는 턴이 있으면 확인 대화상자(caustic `Dialog`)를 거친다.
+  - 앱을 켤 때 마지막 대상으로 다시 붙고, 실패하면 이 컴퓨터로 돌아가며 알림 줄(`lastTarget.fellBack`)을 보인다.
+  - 연결이 끊긴 동안 재접속 시도(몇 번째, 다음 시도까지)와 마지막으로 본 원격 상태, SSH 대상은 원격 서비스가 살아 있는지를 말한다(`reconnect.*`).
+- 연결 실패 종류에 `certUntrusted`(처음 보는 인증서)를 더했다. 모든 종류에 원인과 고치는 법이 있고, 자동 조치(`confirm_fingerprint`, `repair`, `preflight`, `retry`)는 `attachFixActionOf`가 정한다. 환경 변수 `FRESNEL_REMOTE_TOKEN` 안내는 연결 코드 입력으로 바꿨다.
 - 연결 실패 문장: `desktop.connection.error.tokenMissing`과 `error.fingerprint.fix`(client 카탈로그)에 "대상"이 남아 있습니다. 화면 용어는 "호스트"이므로 카탈로그와 맞출지 확인합니다. 이 문서는 카탈로그 문장을 그대로 적습니다. [미결] [근거: `packages/client/src/i18n/locales/ko.json`]
 - 승인에 답하기: 엔진 설정 키 `l2.schedule.remote.allowRespond`가 코드베이스에 정의되어 있지 않습니다(2026-11-11 확인). 엔진이 값을 알리기 전까지 스위치는 잠깁니다 [gap: L2 schedule §6 정의 없음]. [미결] [근거: `apps/desktop/src/app/connection.ts`]
 

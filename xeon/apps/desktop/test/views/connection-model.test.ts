@@ -24,6 +24,7 @@ import {
   EMPTY_HOST_FORM,
   INITIAL_CONNECTION_STATE,
   LOCAL_CHOICE,
+  reconnectStatusOf,
   renamedList,
   sameChoice,
   searchShown,
@@ -370,11 +371,13 @@ describe("failures keep the target and say how to retry", () => {
     expect(attachFailureOf("engine_not_running")).toBe("other");
   });
 
-  test("the auth failure's cause says the token is missing or wrong, and its fix line names the environment variable", () => {
+  test("the auth failure's cause says the token is missing or wrong, and its fix line asks for a new connection code", () => {
     expect(catalogOf("ko")[attachErrorKey("auth")]).toBe(
       "원격 서비스가 접속을 거절했어요. 토큰이 없거나 맞지 않아요.",
     );
-    expect(catalogOf("ko")[attachFixKey("auth")]).toContain("FRESNEL_REMOTE_TOKEN");
+    expect(catalogOf("ko")[attachFixKey("auth")]).toBe(
+      "호스트에서 새 연결 코드를 받아 다시 연결해요. 이전 토큰이 폐기됐을 수 있어요.",
+    );
   });
 });
 
@@ -848,5 +851,131 @@ describe("the local service card follows the shell and the stop rule", () => {
     expect(canStopService(INITIAL_CONNECTION_STATE)).toBe(false);
     expect(canStopService({ ...running, busy: true })).toBe(false);
     expect(canStopService(run(running, started(LOCAL_CHOICE, RUNNING, "offline")))).toBe(false);
+  });
+});
+
+/** 문구 한 줄을 en.json 원문에서 가져와 값을 채운다. 엔진 stderr의 첫 줄이 이 영어 문구다 */
+function engineSentence(key: string, values: Readonly<Record<string, string>>): string {
+  const template = catalogOf("en")[key];
+  if (template === undefined) throw new Error(`missing message ${key}`);
+  return Object.entries(values).reduce(
+    (text, [name, value]) => text.replaceAll(`{${name}}`, value),
+    template,
+  );
+}
+
+describe("the TLS sentences from the engine name their own failure kind", () => {
+  test("a changed fingerprint is the fingerprint kind, and an untrusted certificate is certUntrusted", () => {
+    const changed = engineSentence(
+      "cli.errors.engineStart.service.connect.fingerprintChanged.message",
+      {
+        expected: "SHA256:aa",
+        actual: "SHA256:bb",
+      },
+    );
+    const untrusted = engineSentence(
+      "cli.errors.engineStart.service.connect.tlsUntrusted.message",
+      {
+        fingerprint: "SHA256:cc",
+      },
+    );
+    expect(attachFailureOfExit({ code: 3, detail: changed })).toBe("fingerprint");
+    expect(attachFailureOfExit({ code: 3, detail: untrusted })).toBe("certUntrusted");
+  });
+});
+
+const EXIT_AT = "2026-11-12T00:00:00.000Z";
+const NOW_MS = Date.parse(EXIT_AT);
+
+function restartingAt(retryAt: string): EngineState {
+  return {
+    kind: "restarting",
+    attempt: 2,
+    retryAt,
+    lastExit: { code: 3, signal: null, at: EXIT_AT },
+  };
+}
+
+describe("the reconnect status follows the engine state", () => {
+  test("restarting gives the attempt and the seconds to the next try, rounded up and never negative", () => {
+    expect(reconnectStatusOf(restartingAt("2026-11-12T00:00:04.000Z"), NOW_MS)).toEqual({
+      kind: "retrying",
+      attempt: 2,
+      secondsUntilNext: 4,
+    });
+    expect(reconnectStatusOf(restartingAt("2026-11-12T00:00:03.200Z"), NOW_MS)).toEqual({
+      kind: "retrying",
+      attempt: 2,
+      secondsUntilNext: 4,
+    });
+    expect(reconnectStatusOf(restartingAt("2026-11-11T23:59:00.000Z"), NOW_MS)).toEqual({
+      kind: "retrying",
+      attempt: 2,
+      secondsUntilNext: 0,
+    });
+  });
+
+  test("failed gives up with the attempt count", () => {
+    const failed: EngineState = {
+      kind: "failed",
+      attempts: 3,
+      lastExit: { code: 3, signal: null, at: EXIT_AT },
+    };
+    expect(reconnectStatusOf(failed, NOW_MS)).toEqual({ kind: "gave_up", attempts: 3 });
+  });
+
+  test("the other states, and no engine yet, have no reconnect status", () => {
+    const others: EngineState[] = [
+      { kind: "starting", source: "sidecar", attempt: 1 },
+      { kind: "running", source: "service", pid: 4242 },
+      { kind: "stopping" },
+      { kind: "stopped" },
+    ];
+    for (const state of others) {
+      expect(reconnectStatusOf(state, NOW_MS)).toBeNull();
+    }
+    expect(reconnectStatusOf(null, NOW_MS)).toBeNull();
+  });
+});
+
+describe("the switch confirm and the form fill in the screen state", () => {
+  test("a switch that needs a confirm waits in the state until it is confirmed or dropped", () => {
+    const impact = { liveTurns: 1, waitingApprovals: 0, keepsRunning: true };
+    const asked = connectionReducer(INITIAL_CONNECTION_STATE, {
+      type: "switchAsked",
+      ask: { choice: LOCAL_CHOICE, impact },
+    });
+    expect(asked.switchAsk).toEqual({ choice: LOCAL_CHOICE, impact });
+    expect(connectionReducer(asked, { type: "switchClosed" }).switchAsk).toBeNull();
+  });
+
+  test("filling the form replaces its fields, keeps the name, and clears the errors", () => {
+    const opened = connectionReducer(INITIAL_CONNECTION_STATE, { type: "formOpened" });
+    const named = connectionReducer(opened, {
+      type: "formChange",
+      value: { label: "my box", fields: { kind: "ssh", user: "", host: "", port: "", socket: "" } },
+    });
+    const failed = connectionReducer(named, {
+      type: "formFailed",
+      errors: [{ field: "host", reason: "empty" }],
+    });
+    const filled = connectionReducer(failed, {
+      type: "formFields",
+      fields: { kind: "ssh", user: "me", host: "build", port: "", socket: "/run/fresnel.sock" },
+    });
+    expect(filled.form).toEqual({
+      value: {
+        label: "my box",
+        fields: { kind: "ssh", user: "me", host: "build", port: "", socket: "/run/fresnel.sock" },
+      },
+      errors: [],
+    });
+    // 추가 칸이 닫혀 있으면 채울 곳이 없다
+    expect(
+      connectionReducer(INITIAL_CONNECTION_STATE, {
+        type: "formFields",
+        fields: { kind: "tcp", port: "7000" },
+      }).form,
+    ).toBeNull();
   });
 });

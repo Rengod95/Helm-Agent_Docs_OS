@@ -1,5 +1,12 @@
-import { targetsStorageOf, type AttachFailureKind, type TargetEntry } from "@fresnel/client";
-import { err, ok, type Result } from "@fresnel/contracts";
+import {
+  lastTargetOf,
+  sshTargetOfAddress,
+  parseTargetAddress,
+  targetsStorageOf,
+  type AttachFailureKind,
+  type TargetEntry,
+} from "@fresnel/client";
+import { err, ok, type Clock, type Result, type Scheduler } from "@fresnel/contracts";
 import {
   WIRE_ERRORS,
   type HostClientView,
@@ -7,15 +14,29 @@ import {
   type WireResult,
 } from "@fresnel/contracts/wire";
 import { LOCAL, type LocalSettings } from "../settings-store/index.ts";
+import type { EngineMirror, ReadonlyStore } from "../state/engine/index.ts";
+import { watch } from "../state/shared/index.ts";
 import type { UiStore } from "../state/ui/index.ts";
-import type { DesktopIpc, EngineTarget, IpcError } from "../transport/ipc.ts";
+import type {
+  DesktopIpc,
+  EngineTarget,
+  IpcError,
+  PreflightOutcome,
+  RemoteTestOutcome,
+  SshHostsReply,
+} from "../transport/ipc.ts";
 import type {
   AutostartError,
   CommandError,
   ConnectionCommands,
   ConnectionSnapshot,
   ConnectTarget,
+  FingerprintError,
+  PairFailure,
+  RestoreTargetOutcome,
+  ServiceAlive,
   ServiceCard,
+  SwitchImpact,
   TargetStoreError,
 } from "../views/commands.ts";
 import type { EngineSwitch } from "./engine-switch.ts";
@@ -40,6 +61,9 @@ function engineTargetOf(target: ConnectTarget): EngineTarget {
 /** `l4.desktop.engine.shutdownGraceMs` 기본값(settings-store/defs.ts, Rust 기본값과 같다) */
 const DEFAULT_SHUTDOWN_GRACE_MS = 7000;
 
+/** 앱을 켤 때 마지막 대상으로 `running`이 되기를 기다리는 시한(ms). 넘기면 이 컴퓨터로 돌아온다(L4.remote.spec §3.3) */
+const RESTORE_TIMEOUT_MS = 30_000;
+
 type Run = <T>(
   work: (connection: HostConnection) => Promise<T>,
 ) => Promise<Result<T, CommandError>>;
@@ -48,16 +72,40 @@ export interface ConnectionDeps {
   /** 대상 바꾸기는 쓰기 보류(W-08)를 거친다. ipc를 바로 부르지 않는다 */
   readonly engineSwitch: Pick<EngineSwitch, "retarget">;
   readonly local: Pick<LocalSettings, "load" | "get" | "set">;
-  readonly session: Pick<Session, "reconnect" | "restartEngine">;
-  readonly ui: Pick<UiStore, "actions">;
+  readonly session: Pick<Session, "reconnect" | "restartEngine" | "engineVersion">;
+  readonly ui: Pick<UiStore, "actions" | "read">;
   readonly run: Run;
-  /** 이 기기의 서비스 셸 명령(상태 읽기, 켜기, 끄기, 로그인 자동 시작 켜기·끄기) */
+  /** 이 기기의 서비스 셸 명령(상태 읽기, 켜기, 끄기, 로그인 자동 시작 켜기·끄기)과 원격 붙기 명령 */
   readonly ipc: Pick<
     DesktopIpc,
-    "serviceStatus" | "serviceEnsure" | "serviceStop" | "serviceAutostartSet"
+    | "serviceStatus"
+    | "serviceEnsure"
+    | "serviceStop"
+    | "serviceAutostartSet"
+    | "sshHosts"
+    | "sshPreflight"
+    | "remoteTest"
+    | "remoteFingerprint"
+    | "remotePair"
+    | "sshServiceAlive"
   >;
   /** 엔진이 지금 붙은 대상의 종류(UI 스토어의 `engineTarget`). 이 기기일 때만 서비스 명령을 부른다 */
   readonly engineTargetKind: () => "local" | "remote";
+  /** 엔진 상태 거울. 다시 붙기가 `running`이 되는지 본다 */
+  readonly engine: ReadonlyStore<EngineMirror>;
+  /** 다시 붙기의 시한과 감시 해제 시한에 쓴다 */
+  readonly scheduler: Pick<Scheduler, "setTimeout" | "clearTimeout">;
+  /** 본 원격 상태의 시각. 없으면 벽시계다 */
+  readonly clock?: Clock;
+  /** 대상 기억 저장처럼 밖으로 드러나야 하는 실패를 기록한다(TY-25). 저장 실패가 대상 바꾸기를 실패시키지는 않는다 */
+  readonly report: (cause: unknown) => void;
+}
+
+/** 대상 주소의 호스트 이름(알림 문장의 이름으로 쓴다). 소켓 경로만 있는 `unix:` 주소는 주소 그대로다 */
+function hostLabelOf(address: string): string {
+  const parsed = parseTargetAddress(address);
+  if (!parsed.ok || parsed.target.kind === "unix") return address;
+  return parsed.target.host;
 }
 
 /** 셸 오류를 화면이 아는 닫힌 코드로 줄인다. 셸이 준 코드 가운데 두 개만 살리고 나머지는 `unknown`이다(경로나 토큰을 싣지 않는다) */
@@ -70,7 +118,19 @@ function autostartErrorOf(error: IpcError): AutostartError {
 }
 
 export function createConnectionCommands(deps: ConnectionDeps): ConnectionCommands {
-  const { engineSwitch, local, session, ui, run, ipc, engineTargetKind } = deps;
+  const {
+    engineSwitch,
+    local,
+    session,
+    ui,
+    run,
+    ipc,
+    engineTargetKind,
+    engine,
+    scheduler,
+    report,
+  } = deps;
+  const clock: Clock = deps.clock ?? { now: () => Date.now() };
 
   /** 서비스 모드 설정을 사용자 범위에 쓴다. 적용은 호출하는 쪽이 정한다 */
   const writeServiceSetting = async (enabled: boolean): Promise<Result<null, CommandError>> => {
@@ -132,6 +192,126 @@ export function createConnectionCommands(deps: ConnectionDeps): ConnectionComman
     };
   };
 
+  /** 로컬 설정 파일을 읽는다. 읽지 못하면 기록하고 값 없이 간다(저장된 값을 모르면 이 컴퓨터로 본다) */
+  const loadLocal = async (): Promise<void> => {
+    const loaded = await local.load();
+    if (!loaded.ok) report(loaded.error);
+  };
+
+  /**
+   * 엔진 대상을 바꾼다. 성공하면 바뀐 대상을 화면에 적고, `remember`이면 로컬 설정에도 적어 앱을 다시 켤 때 그 대상으로 붙게 한다.
+   * 저장이 실패해도 바꾸기는 성공이다. 저장 실패는 `report`로 남긴다.
+   */
+  const switchTo = async (
+    target: ConnectTarget,
+    remember: boolean,
+  ): Promise<Result<null, AttachFailureKind>> => {
+    // 지난 연결 실패는 이 시도의 결과가 아니므로 먼저 지운다. 그러지 않으면 새 엔진 상태가 낡은 오류와 맞물린다
+    ui.actions.setConnectError(null);
+    // 바꾸는 동안 쓰기는 옛 엔진으로 가지 않고 `switching`으로 거절된다. 대기 한도는 설정 파일의 값이고 없으면 기본값이다
+    await loadLocal();
+    const graceMs = local.get(LOCAL.shutdownGraceMs) ?? DEFAULT_SHUTDOWN_GRACE_MS;
+    const done = await engineSwitch.retarget(engineTargetOf(target), graceMs);
+    if (!done.ok) {
+      // 셸 명령 오류나 바꾸는 중(`switching`)은 연결 실패 종류가 아니다. 엔진이 붙은 대상도 그대로 둔다
+      return err("other");
+    }
+    // 바뀐 대상을 적는다. 상태 표시줄 첫 칸과 연결 화면이 이 값을 읽는다
+    ui.actions.setEngineTarget(target);
+    if (remember) {
+      const saved = await local.set(
+        LOCAL.lastTarget,
+        target.kind === "local" ? "" : target.address,
+      );
+      if (!saved.ok) report(saved.error);
+    }
+    // 연결 루프가 실패로 멈춰 있으면 새 대상으로 다시 붙도록 깨운다. 연결 중이면 아무 일도 없다
+    session.reconnect();
+    return ok(null);
+  };
+
+  /** 대상의 이름. 대상 목록에 같은 주소가 있으면 그 이름이고, 없으면 주소의 호스트 이름이다 */
+  const nameOf = (address: string): string => {
+    const listed = targetsStorageOf(local.get(LOCAL.connectionTargets));
+    const found = listed.find((item) => item.address === address);
+    return found?.label ?? hostLabelOf(address);
+  };
+
+  /**
+   * 엔진이 `running`이 될 때까지 기다린다. 기다리기 전에 엔진이 이미 `running`이었으면, 한 번 내려간 뒤에 다시 `running`이
+   * 돼야 새 엔진으로 본다(옛 엔진의 `running`을 성공으로 잡지 않는다). `failed`나 `stopped`가 먼저 오면 거짓이다.
+   * 시한이 지나도 거짓이다. 결과가 정해지면 감시와 시한을 푼다.
+   */
+  const awaitRunning = (): {
+    readonly done: Promise<boolean>;
+    readonly finish: (up: boolean) => void;
+  } => {
+    const settled = Promise.withResolvers<boolean>();
+    let sawDown = engine.getState().engine?.kind !== "running";
+    let decided = false;
+    let unwatch: (() => void) | null = null;
+    let timer: ReturnType<Scheduler["setTimeout"]> | null = null;
+    const finish = (up: boolean): void => {
+      if (decided) return;
+      decided = true;
+      if (timer !== null) scheduler.clearTimeout(timer);
+      unwatch?.();
+      settled.resolve(up);
+    };
+    unwatch = watch(
+      engine,
+      (mirror) => mirror.engine?.kind ?? null,
+      (kind) => {
+        if (kind === null) return;
+        if (kind === "running") {
+          if (sawDown) finish(true);
+          return;
+        }
+        if (kind === "failed" || kind === "stopped") {
+          finish(false);
+          return;
+        }
+        sawDown = true;
+      },
+      report,
+    );
+    timer = scheduler.setTimeout(() => finish(false), RESTORE_TIMEOUT_MS);
+    return { done: settled.promise, finish };
+  };
+
+  /** 엔진 대상을 바꾸는 보류(`engineSwitching`)가 풀릴 때까지 기다린다. 보류는 제한 시간이 있어 반드시 풀린다 */
+  const untilSwitchSettled = (): Promise<void> => {
+    if (!ui.read.getState().engineSwitching) return Promise.resolve();
+    const settled = Promise.withResolvers<void>();
+    const unwatch = watch(
+      ui.read,
+      (state) => state.engineSwitching,
+      (switching) => {
+        if (switching) return;
+        unwatch();
+        settled.resolve();
+      },
+      report,
+    );
+    return settled.promise;
+  };
+
+  /**
+   * 마지막 대상으로 붙지 못했을 때 이 컴퓨터로 돌아온다. 저장된 마지막 대상은 지우지 않는다(다음에 앱을 켤 때 다시 시도한다).
+   * 돌아오지 못하면 알림을 남기지 않고 기록한다.
+   */
+  const fallBack = async (name: string): Promise<"fellBack"> => {
+    // 시작 실패 뒤에도 보류가 남아 있으면 이 컴퓨터로 가는 바꾸기가 `switching`으로 거절된다. 보류가 풀린 뒤에 바꾼다
+    await untilSwitchSettled();
+    const back = await switchTo({ kind: "local" }, false);
+    if (back.ok) {
+      ui.actions.setTargetNotice({ kind: "fellBack", name });
+    } else {
+      report(back.error);
+    }
+    return "fellBack";
+  };
+
   return {
     async targets(): Promise<Result<readonly TargetEntry[], TargetStoreError>> {
       const loaded = await local.load();
@@ -143,22 +323,23 @@ export function createConnectionCommands(deps: ConnectionDeps): ConnectionComman
       const written = await local.set(LOCAL.connectionTargets, [...list]);
       return written.ok ? ok(null) : err({ kind: "storage" });
     },
-    async retarget(target: ConnectTarget): Promise<Result<null, AttachFailureKind>> {
-      // 지난 연결 실패는 이 시도의 결과가 아니므로 먼저 지운다. 그러지 않으면 새 엔진 상태가 낡은 오류와 맞물린다
-      ui.actions.setConnectError(null);
-      // 바꾸는 동안 쓰기는 옛 엔진으로 가지 않고 `switching`으로 거절된다. 대기 한도는 설정 파일의 값이고 없으면 기본값이다
-      await local.load();
-      const graceMs = local.get(LOCAL.shutdownGraceMs) ?? DEFAULT_SHUTDOWN_GRACE_MS;
-      const done = await engineSwitch.retarget(engineTargetOf(target), graceMs);
-      if (!done.ok) {
-        // 셸 명령 오류나 바꾸는 중(`switching`)은 연결 실패 종류가 아니다. 엔진이 붙은 대상도 그대로 둔다
-        return err("other");
-      }
-      // 바뀐 대상을 적는다. 상태 표시줄 첫 칸과 연결 화면이 이 값을 읽는다(앱을 다시 켜면 이 컴퓨터로 돌아간다)
-      ui.actions.setEngineTarget(target);
-      // 연결 루프가 실패로 멈춰 있으면 새 대상으로 다시 붙도록 깨운다. 연결 중이면 아무 일도 없다
-      session.reconnect();
-      return ok(null);
+    retarget(target: ConnectTarget): Promise<Result<null, AttachFailureKind>> {
+      return switchTo(target, true);
+    },
+    async restoreLastTarget(): Promise<RestoreTargetOutcome> {
+      await loadLocal();
+      const last = lastTargetOf(local.get(LOCAL.lastTarget));
+      if (last === null) return "none";
+      const name = nameOf(last.address);
+      // 감시는 바꾸기 호출 전에 건다. 호출이 돌아오기 전에 엔진 상태가 바뀔 수 있다
+      const waiting = awaitRunning();
+      const switched = await switchTo(
+        { kind: "remote", address: last.address, label: name },
+        false,
+      );
+      if (!switched.ok) waiting.finish(false);
+      if (await waiting.done) return "restored";
+      return fallBack(name);
     },
     async retry(): Promise<void> {
       ui.actions.setConnectError(null);
@@ -168,6 +349,14 @@ export function createConnectionCommands(deps: ConnectionDeps): ConnectionComman
     async load(): Promise<Result<ConnectionSnapshot, CommandError>> {
       const host = await run((c) => c.request("host.status", {}));
       if (!host.ok) return host;
+      // 원격 대상이면 지금 본 상태를 적는다(끊겼을 때 "마지막으로 본 상태"로 쓴다). 이 기기일 때는 적지 않는다
+      if (engineTargetKind() === "remote") {
+        ui.actions.setLastRemoteSeen({
+          at: clock.now(),
+          version: session.engineVersion(),
+          liveTurns: host.value.liveTurns,
+        });
+      }
       const service = await serviceCardOf(host.value);
       const settings = await run((c) => c.request("settings.get", { keys: [SERVICE_ENABLED_KEY] }));
       if (!settings.ok) return settings;
@@ -223,6 +412,63 @@ export function createConnectionCommands(deps: ConnectionDeps): ConnectionComman
     async stopService(): Promise<Result<boolean, CommandError>> {
       const done = await run((c) => c.request("host.shutdown", { reason: "user" }));
       return done.ok ? ok(done.value.accepted) : done;
+    },
+    async sshHosts(): Promise<Result<SshHostsReply, CommandError>> {
+      const read = await ipc.sshHosts();
+      return read.ok ? ok(read.value) : err({ kind: "failed" });
+    },
+    async preflight(input, onEvent): Promise<Result<PreflightOutcome, CommandError>> {
+      const outcome = await ipc.sshPreflight(input, onEvent);
+      return outcome.ok ? ok(outcome.value) : err({ kind: "failed" });
+    },
+    async testTarget(address): Promise<Result<RemoteTestOutcome, CommandError>> {
+      const tested = await ipc.remoteTest(address);
+      return tested.ok ? ok(tested.value) : err({ kind: "failed" });
+    },
+    async fingerprintOf(host, port): Promise<Result<string, FingerprintError>> {
+      const read = await ipc.remoteFingerprint(host, port);
+      if (!read.ok) return err({ kind: "failed" });
+      const reply = read.value;
+      return reply.ok ? ok(reply.fingerprint) : err({ kind: "probe", code: reply.code });
+    },
+    async pair(input): Promise<Result<{ readonly deviceName: string }, PairFailure>> {
+      const paired = await ipc.remotePair(input);
+      if (!paired.ok) return err({ kind: "failed" });
+      const reply = paired.value;
+      if (reply.ok) return ok({ deviceName: reply.deviceName });
+      return err({
+        kind: "server",
+        code: reply.code,
+        retryAfterSeconds: reply.retryAfterSeconds ?? null,
+      });
+    },
+    async serviceAlive(address): Promise<ServiceAlive> {
+      // 원격 서비스 살아 있음은 ssh 주소에만 있다. 서비스를 띄우지 않고 상태만 읽는다
+      const target = sshTargetOfAddress(address);
+      if (target === null) return { alive: null, version: null, code: null };
+      const read = await ipc.sshServiceAlive(target);
+      if (!read.ok) return { alive: null, version: null, code: null };
+      return {
+        alive: read.value.alive,
+        version: read.value.version ?? null,
+        code: read.value.code,
+      };
+    },
+    async switchImpact(): Promise<Result<SwitchImpact, CommandError>> {
+      const host = await run((c) => c.request("host.status", {}));
+      if (!host.ok) return host;
+      return ok({
+        liveTurns: host.value.liveTurns,
+        waitingApprovals: host.value.waitingApprovals ?? 0,
+        keepsRunning: host.value.mode === "service",
+      });
+    },
+    dismissTargetNotice(): void {
+      ui.actions.setTargetNotice(null);
+    },
+    async lastTarget(): Promise<string | null> {
+      await loadLocal();
+      return lastTargetOf(local.get(LOCAL.lastTarget))?.address ?? null;
     },
   };
 }

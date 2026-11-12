@@ -3,6 +3,7 @@ import type { TargetEntry } from "@fresnel/client";
 import type { HostClientView } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
 import { createShellStore, ShellStoreContext } from "../../src/state/shell/index.ts";
+import { CommandsContext } from "../../src/views/commands.ts";
 import type { EngineState } from "../../src/state/engine/index.ts";
 import {
   connectionReducer,
@@ -14,6 +15,7 @@ import {
   ConnectionScreenView,
   type ConnectionScreenHandlers,
 } from "../../src/views/pages/connection/connection-view.tsx";
+import { fakeCommands } from "./fake-commands.ts";
 
 // 연결 화면의 서버 렌더. 상태는 reducer로 만들고 동작 핸들러는 아무것도 하지 않는 것으로 둔다.
 // 클릭과 키 입력은 DOM이 없어 시험하지 못한다(뜻은 connection-model.test.ts가 본다).
@@ -44,6 +46,12 @@ const handlers: ConnectionScreenHandlers = {
   setStopConfirm: NOOP,
   openExtensions: NOOP,
   retryClients: NOOP,
+  testRow: NOOP,
+  fillForm: NOOP,
+  copyCommand: NOOP,
+  switchConfirm: NOOP,
+  switchCancel: NOOP,
+  dismissTargetNotice: NOOP,
 };
 
 function stateAfter(...actions: readonly ConnectionAction[]): ConnectionState {
@@ -52,10 +60,13 @@ function stateAfter(...actions: readonly ConnectionAction[]): ConnectionState {
 
 /** 화면 머리가 셸 스토어(패널 열림 상태)를 읽으므로 셸 맥락 안에서 그린다 */
 function html(state: ConnectionState, engine: EngineState | null = null): string {
+  // 추가 칸은 방식별 시험 자리가 명령을 쓰므로 명령 맥락을 준다(서버 렌더는 명령을 부르지 않는다)
   return renderToString(
-    <ShellStoreContext value={createShellStore(1400)}>
-      <ConnectionScreenView state={state} engine={engine} locale="ko" handlers={handlers} />
-    </ShellStoreContext>,
+    <CommandsContext value={fakeCommands()}>
+      <ShellStoreContext value={createShellStore(1400)}>
+        <ConnectionScreenView state={state} engine={engine} locale="ko" handlers={handlers} />
+      </ShellStoreContext>
+    </CommandsContext>,
   );
 }
 
@@ -300,10 +311,12 @@ describe("the connection failure banner shows the cause line and the fix line", 
     expect(markup).not.toContain("잠시 뒤 다시 해 봐요.");
   });
 
-  test("a target that needs a token says so and names the environment variable, with no token field", () => {
+  test("a target that needs a token says so and points at the connection code, with no token field", () => {
     const markup = html(failedWith("The remote access token is missing"));
-    expect(markup).toContain("이 호스트는 토큰이 필요해요.");
-    expect(markup).toContain("앱을 FRESNEL_REMOTE_TOKEN 환경 변수와 함께 열어요.");
+    expect(markup).toContain("이 호스트는 기기 토큰이 필요해요.");
+    expect(markup).toContain(
+      "호스트의 연결 코드(설정 &gt; 연결 &gt; 이 컴퓨터에 접속 허용)를 넣어 토큰을 받아요.",
+    );
     expect(markup).not.toContain('type="password"');
   });
 });
