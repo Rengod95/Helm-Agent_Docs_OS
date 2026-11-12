@@ -96,14 +96,21 @@ import {
 } from "./status-notify.ts";
 import { WebProvidersParamsSchema, WebProvidersResultSchema } from "./web-providers.ts";
 import {
+  HostRemoteConfigParamsSchema,
+  HostRemoteConfigResultSchema,
   HostRemoteDevicesResultSchema,
   HostRemoteEmptyParamsSchema,
   HostRemotePairResultSchema,
+  HostRemotePreflightResultSchema,
+  HostRemoteProxyExampleParamsSchema,
+  HostRemoteProxyExampleResultSchema,
   HostRemoteRevokeAllParamsSchema,
   HostRemoteRevokeByIdParamsSchema,
   HostRemoteRevokeResultSchema,
   HostRemoteSetEnabledParamsSchema,
   HostRemoteStatusResultSchema,
+  HostRemoteTailscaleParamsSchema,
+  HostRemoteTailscaleResultSchema,
 } from "./remote.ts";
 import {
   ScheduleCancelResultSchema,
@@ -1900,6 +1907,22 @@ interface WireSchemas
     params: typeof HostRemoteRevokeRequestSchema;
     result: typeof HostRemoteRevokeResultSchema;
   };
+  "host.remote.preflight": {
+    params: WithMeta<typeof HostRemoteEmptyParamsSchema>;
+    result: typeof HostRemotePreflightResultSchema;
+  };
+  "host.remote.tailscale": {
+    params: WithMeta<typeof HostRemoteTailscaleParamsSchema>;
+    result: typeof HostRemoteTailscaleResultSchema;
+  };
+  "host.remote.config": {
+    params: WithMeta<typeof HostRemoteConfigParamsSchema>;
+    result: typeof HostRemoteConfigResultSchema;
+  };
+  "host.remote.proxyExample": {
+    params: WithMeta<typeof HostRemoteProxyExampleParamsSchema>;
+    result: typeof HostRemoteProxyExampleResultSchema;
+  };
   "settings.readFile": {
     params: WithMeta<typeof SettingsReadFileParamsSchema>;
     result: typeof SettingsReadFileResultSchema;
@@ -2137,6 +2160,26 @@ export const WIRE_METHODS: {
     "M4",
   ),
   "host.remote.revoke": spec(HostRemoteRevokeRequestSchema, HostRemoteRevokeResultSchema, "M4"),
+  "host.remote.preflight": spec(
+    withMeta(HostRemoteEmptyParamsSchema),
+    HostRemotePreflightResultSchema,
+    "M4",
+  ),
+  "host.remote.tailscale": spec(
+    withMeta(HostRemoteTailscaleParamsSchema),
+    HostRemoteTailscaleResultSchema,
+    "M4",
+  ),
+  "host.remote.config": spec(
+    withMeta(HostRemoteConfigParamsSchema),
+    HostRemoteConfigResultSchema,
+    "M4",
+  ),
+  "host.remote.proxyExample": spec(
+    withMeta(HostRemoteProxyExampleParamsSchema),
+    HostRemoteProxyExampleResultSchema,
+    "M4",
+  ),
   "secret.list": spec(withMeta(SecretListParamsSchema), SecretListResultSchema, "M2"),
   "secret.meta": spec(withMeta(SecretMetaParamsSchema), SecretMetaResultSchema, "M2"),
   "secret.remove": spec(SecretNameRequestSchema, SecretRemoveResultSchema, "M2"),

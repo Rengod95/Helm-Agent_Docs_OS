@@ -5,12 +5,26 @@ import {
   type WireHandlers,
   type WireResult,
 } from "@fresnel/contracts/wire";
+import type {
+  GatewaySettingsView,
+  ProxyExampleError,
+  ProxyExampleInput,
+} from "../service/gateway-settings.ts";
 import type { RemoteDevice, RemoteFailure, RemoteStatusView } from "../service/gateway.ts";
+import type { PreflightResult } from "../service/preflight.ts";
+import type {
+  ProxyExampleOutcome,
+  RemoteConfigOutcome,
+  RemoteLink,
+  RemoteTailscaleAction,
+  RemoteTailscaleReport,
+} from "../service/remote-ops.ts";
 import { notImplemented } from "./not-implemented.ts";
 
-// L4.remote.spec §8.3(페어링·기기 목록·폐기), §10(설정 켜기·끄기), §11(실패 대응). `host.remote.*` 다섯 메서드의 처리기다.
-// 포트는 서비스가 게이트웨이 감독자와 설정 쓰기로 채운다. 서비스가 아닌 호스트(in-process, stdio)에는 포트가 없어 다섯 메서드 모두 notImplemented다.
-// 원격 접속이 꺼져 있을 때 pair·devices·revoke는 `remote.off`다(F wire 5008).
+// L4.remote.spec §8.3(페어링·기기 목록·폐기·연결 링크), §8.8(Tailscale, 사전 점검, 공개 서버 구성), §10(설정 켜기·끄기·쓰기), §11(실패 대응).
+// `host.remote.*` 아홉 메서드의 처리기다. 앞 다섯은 M4 표, 뒤 넷은 [결정: 2026-11-11 사용자]다.
+// 포트는 서비스가 게이트웨이 감독자와 설정 쓰기로 채운다. 서비스가 아닌 호스트(in-process, stdio)에는 포트가 없어 아홉 메서드 모두 notImplemented다.
+// 원격 접속이 꺼져 있을 때 pair·devices·revoke, 루프백 포트가 없을 때 tailscale의 serveOn·serveOff는 `remote.off`다(F wire 5008).
 
 /** 처리기가 쓰는 포트. 실패는 값이다(`RemoteFailure`). 처리기가 wire 오류로 옮긴다 */
 export interface RemotePort {
@@ -18,11 +32,25 @@ export interface RemotePort {
   status(): RemoteStatusView;
   /** `l4.remote.web.enabled`를 쓰고 감독자를 켜거나 끈다. 켠 뒤 상태(시작 결과까지 기다린다)를 돌려준다. 설정 쓰기 실패는 store-failed다 */
   setEnabled(enabled: boolean): Promise<Result<RemoteStatusView, RemoteFailure>>;
-  pair(): Promise<Result<{ readonly code: string; readonly expiresAt: number }, RemoteFailure>>;
+  pair(): Promise<
+    Result<
+      { readonly code: string; readonly expiresAt: number; readonly links: readonly RemoteLink[] },
+      RemoteFailure
+    >
+  >;
   devices(): Promise<Result<readonly RemoteDevice[], RemoteFailure>>;
   revoke(
     target: { readonly id: string } | { readonly all: true },
   ): Promise<Result<{ readonly revoked: number }, RemoteFailure>>;
+  /** 접속 준비 점검. 원격이 꺼져 있어도 답한다 */
+  preflight(): Promise<PreflightResult>;
+  tailscale(action: RemoteTailscaleAction): Promise<Result<RemoteTailscaleReport, RemoteFailure>>;
+  /** `patch`가 null이면 읽기다. `dryRun`이면 검사만 한다 */
+  config(
+    patch: Partial<GatewaySettingsView> | null,
+    dryRun: boolean,
+  ): Promise<Result<RemoteConfigOutcome, RemoteFailure>>;
+  proxyExample(input: ProxyExampleInput): Result<ProxyExampleOutcome, ProxyExampleError>;
 }
 
 type RemoteMethod =
@@ -30,7 +58,11 @@ type RemoteMethod =
   | "host.remote.setEnabled"
   | "host.remote.pair"
   | "host.remote.devices"
-  | "host.remote.revoke";
+  | "host.remote.revoke"
+  | "host.remote.preflight"
+  | "host.remote.tailscale"
+  | "host.remote.config"
+  | "host.remote.proxyExample";
 
 export function createRemoteHandlers(
   port: RemotePort | undefined,
@@ -42,6 +74,10 @@ export function createRemoteHandlers(
       "host.remote.pair": notImplemented("host.remote.pair"),
       "host.remote.devices": notImplemented("host.remote.devices"),
       "host.remote.revoke": notImplemented("host.remote.revoke"),
+      "host.remote.preflight": notImplemented("host.remote.preflight"),
+      "host.remote.tailscale": notImplemented("host.remote.tailscale"),
+      "host.remote.config": notImplemented("host.remote.config"),
+      "host.remote.proxyExample": notImplemented("host.remote.proxyExample"),
     };
   }
   return {
@@ -51,7 +87,11 @@ export function createRemoteHandlers(
       statusOf(unwrap(await port.setEnabled(params.enabled))),
     "host.remote.pair": async () => {
       const pairing = unwrap(await port.pair());
-      return { code: pairing.code, expiresAt: pairing.expiresAt };
+      return {
+        code: pairing.code,
+        expiresAt: pairing.expiresAt,
+        links: pairing.links.map((link) => ({ kind: link.kind, url: link.url })),
+      };
     },
     "host.remote.devices": async () => {
       const devices = unwrap(await port.devices());
@@ -62,6 +102,17 @@ export function createRemoteHandlers(
         await port.revoke("all" in params ? { all: true } : { id: params.id }),
       );
       return { revoked: revoked.revoked };
+    },
+    "host.remote.preflight": async () => preflightOf(await port.preflight()),
+    "host.remote.tailscale": async (params) =>
+      tailscaleOf(unwrap(await port.tailscale(params.action))),
+    "host.remote.config": async (params) =>
+      configOf(unwrap(await port.config(params.patch ?? null, params.dryRun ?? false))),
+    // 입력 거절은 동기 던짐이다(상태를 읽지 않는다). 호출자의 async 흐름에서 거부가 된다
+    "host.remote.proxyExample": (params) => {
+      const outcome = port.proxyExample(params);
+      if (!outcome.ok) throw proxyInvalidParamsOf(outcome.error);
+      return Promise.resolve(proxyExampleOf(outcome.value));
     },
   };
 }
@@ -85,6 +136,10 @@ export function remotePortOf(
     pair: () => current().pair(),
     devices: () => current().devices(),
     revoke: (target) => current().revoke(target),
+    preflight: () => current().preflight(),
+    tailscale: (action) => current().tailscale(action),
+    config: (patch, dryRun) => current().config(patch, dryRun),
+    proxyExample: (input) => current().proxyExample(input),
   };
 }
 
@@ -112,6 +167,58 @@ function deviceOf(device: RemoteDevice): WireResult<"host.remote.devices">["devi
     lastSeenAt: device.lastSeenAt,
     address: device.address,
   };
+}
+
+function preflightOf(result: PreflightResult): WireResult<"host.remote.preflight"> {
+  return {
+    ready: result.ready,
+    items: result.items.map((item) => ({
+      id: item.id,
+      status: item.status,
+      cause: item.cause,
+      fix: item.fix,
+      autoFix: item.autoFix,
+      detail: { ...item.detail },
+    })),
+  };
+}
+
+function tailscaleOf(report: RemoteTailscaleReport): WireResult<"host.remote.tailscale"> {
+  return { ...report, ips: [...report.ips] };
+}
+
+function configOf(outcome: RemoteConfigOutcome): WireResult<"host.remote.config"> {
+  return {
+    settings: {
+      listen: outcome.settings.listen,
+      listenTls: outcome.settings.listenTls,
+      hosts: [...outcome.settings.hosts],
+      tlsCert: outcome.settings.tlsCert,
+      tlsKey: outcome.settings.tlsKey,
+    },
+    issues: outcome.issues.map((issue) => ({ field: issue.field, code: issue.code })),
+    written: outcome.written,
+    restartNeeded: outcome.restartNeeded,
+  };
+}
+
+function proxyExampleOf(outcome: ProxyExampleOutcome): WireResult<"host.remote.proxyExample"> {
+  return {
+    text: outcome.text,
+    plan: {
+      listen: outcome.plan.listen,
+      listenTls: outcome.plan.listenTls,
+      hosts: [...outcome.plan.hosts],
+    },
+  };
+}
+
+/** 입력 거절: 도메인과 포트 중 어느 값이 틀렸는지 경로로 알린다(`jsonrpc.invalidParams`) */
+function proxyInvalidParamsOf(error: ProxyExampleError): WireError {
+  const path = error.kind === "invalid_domain" ? "/domain" : "/tlsPort";
+  return wireError("jsonrpc.invalidParams", {
+    details: { issues: [{ path, message: error.kind }] },
+  });
 }
 
 function unwrap<T>(result: Result<T, RemoteFailure>): T {

@@ -50,6 +50,7 @@ import {
 import {
   createTailscaleHostNames,
   systemTailscaleDeps,
+  type TailscaleDeps,
   type TailscaleHostNames,
 } from "./tailscale.ts";
 import {
@@ -58,6 +59,15 @@ import {
   type GatewaySupervisorDeps,
   type RemoteStatusView,
 } from "./gateway.ts";
+import type { AutostartStatus } from "./autostart.ts";
+import {
+  pairLinksOf,
+  preflightOf,
+  remoteConfigOf,
+  remoteProxyExampleOf,
+  remoteTailscaleOf,
+  type RemoteOpsEnv,
+} from "./remote-ops.ts";
 
 // L4.host-service.spec §4.9 서비스 모드, SV-01·SV-02·SV-04·SV-05·SV-07. `fresnel service run`/`fresnel host --service`의 본체.
 // 순서: 소켓 선점(이중 기동 방지) → 엔진 조립(mode "service") → 원격 포트와 감독자 준비 → 연결 허브에 리스너 연결 → 등록 파일 기록 → 게이트웨이 시작(기다리지 않음) → 유휴 감시.
@@ -82,6 +92,16 @@ export interface ServiceOptions {
   readonly gateway?: GatewaySupervisor;
   /** Tailscale MagicDNS 이름과 IP를 허용 호스트에 더하는 원천. 없으면 이 컴퓨터의 `tailscale`을 읽는다. 시험이 가짜를 넘긴다 */
   readonly tailscaleHosts?: TailscaleHostNames;
+  /**
+   * Tailscale 명령(상태, serve, 허용 호스트 이름, 점검의 `lsof`)을 부르는 기기 접근. 없으면 이 컴퓨터의 `tailscale`을 부른다.
+   * 시험은 실제 tailnet을 쓰지 않도록 가짜를 넘긴다
+   */
+  readonly tailscaleDeps?: TailscaleDeps;
+  /**
+   * 자동 시작 상태(접속 준비 점검의 `autostart` 항목). 없으면 지원하지 않는 기기로 본다.
+   * 서비스 명령(`commands.ts`)이 넘긴다: 이 모듈에서 `defaultServiceCommand`를 가져오면 commands → lifetime → commands 순환이 된다
+   */
+  readonly autostart?: () => Promise<AutostartStatus>;
   /** 기본 SERVICE_STARTUP_GRACE_MS */
   readonly startupGraceMs?: number;
   /** 기본은 설정 `l0.process.service.idleGraceMs`(0 = 꺼지지 않음). 시험이 짧은 값을 넘긴다(설정 범위 밖 값 허용) */
@@ -139,6 +159,18 @@ function failed(message: string): ServiceStart {
 function randomBytes(bytes: number): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(bytes));
 }
+
+/** 자동 시작 상태를 주지 않은 서비스는 지원하지 않는 기기로 본다(점검의 autostart 항목을 건너뛴다) */
+const UNSUPPORTED_AUTOSTART: AutostartStatus = {
+  platform: "",
+  supported: false,
+  registered: false,
+  active: false,
+  path: null,
+  upToDate: false,
+  linger: null,
+};
+const unsupportedAutostart = (): Promise<AutostartStatus> => Promise.resolve(UNSUPPORTED_AUTOSTART);
 
 function idleGraceOf(read: (key: string) => unknown): number {
   const value = read("l0.process.service.idleGraceMs");
@@ -253,8 +285,9 @@ export async function startService(options: ServiceOptions = {}): Promise<Servic
   };
   const supervisor = options.gateway ?? createGatewaySupervisor(gatewayDeps);
   // 허용 호스트에 Tailscale 이름을 자동으로 더한다. 네트워크가 바뀌면 재시작 없이 다시 계산해 게이트웨이만 다시 띄운다 [결정: 2026-11-11 사용자]
+  const tailscaleDeps = options.tailscaleDeps ?? systemTailscaleDeps();
   const tailscaleHosts =
-    options.tailscaleHosts ?? createTailscaleHostNames(systemTailscaleDeps(), TAILSCALE_REFRESH_MS);
+    options.tailscaleHosts ?? createTailscaleHostNames(tailscaleDeps, TAILSCALE_REFRESH_MS);
   const gatewayConfigNow = (): ReturnType<typeof gatewayConfigOf> =>
     gatewayConfigOf(read, localHostNames, () => tailscaleHosts.current());
   const startGateway = async (refresh: boolean): Promise<RemoteStatusView> => {
@@ -264,6 +297,15 @@ export async function startService(options: ServiceOptions = {}): Promise<Servic
     return supervisor.start(config);
   };
   const gatewayHosts: { last: string } = { last: "" };
+  // 점검·연결 링크·Tailscale·설정 처리가 쓰는 기기 접근. 감독자와 설정은 위에서 만든 것을 그대로 쓴다
+  const remoteOps: RemoteOpsEnv = {
+    status: () => supervisor.status(),
+    read,
+    writer: engine.ports.settings,
+    tailscale: tailscaleDeps,
+    clock: time.clock,
+    autostart: options.autostart ?? unsupportedAutostart,
+  };
   remoteSlot.port = {
     status: () => supervisor.status(),
     setEnabled: async (enabled) => {
@@ -280,9 +322,18 @@ export async function startService(options: ServiceOptions = {}): Promise<Servic
       }
       return ok(enabled ? await startGateway(true) : await supervisor.stop());
     },
-    pair: () => supervisor.pair(),
+    pair: async () => {
+      const paired = await supervisor.pair();
+      if (!paired.ok) return paired;
+      // 연결 링크는 코드를 넣은 URL이다. 코드는 로그에 싣지 않는다
+      return ok({ ...paired.value, links: await pairLinksOf(remoteOps, paired.value.code) });
+    },
     devices: () => supervisor.devices(),
     revoke: (target) => supervisor.revoke(target),
+    preflight: () => preflightOf(remoteOps),
+    tailscale: (action) => remoteTailscaleOf(remoteOps, action),
+    config: (patch, dryRun) => remoteConfigOf(remoteOps, patch, dryRun),
+    proxyExample: (input) => remoteProxyExampleOf(remoteOps, input),
   };
 
   // 3. 연결 허브에 리스너를 잇는다. 소켓 위 연결은 TCP만 토큰이 필요하다

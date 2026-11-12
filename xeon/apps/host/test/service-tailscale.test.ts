@@ -77,7 +77,11 @@ const READY: TailscaleState = {
 
 const SERVE_OURS = JSON.stringify({
   TCP: { "443": { HTTPS: true } },
-  Web: { "my-mac.tail1234.ts.net:443": { Handlers: { "/": { Proxy: "http://127.0.0.1:8443" } } } },
+  Web: {
+    "my-mac.tail1234.ts.net:443": {
+      Handlers: { "/": { Proxy: "https+insecure://127.0.0.1:8443" } },
+    },
+  },
 });
 
 const SERVE_OTHER = JSON.stringify({
@@ -204,7 +208,7 @@ test("serve status: an empty object is off, a handler to this port is on with it
   ).toEqual({
     kind: "on",
     url: "https://my-mac.tail1234.ts.net",
-    target: "http://127.0.0.1:8443",
+    target: "https+insecure://127.0.0.1:8443",
   });
   expect(
     await tailscaleServeStatus(
@@ -231,7 +235,7 @@ test("serve status with the daemon off is unavailable as not running, with the o
 
 test("enable runs serve with exactly these arguments and reads the URL back from the status", async () => {
   const fake = fakeTailscale({
-    "tailscale serve --bg --https=443 http://127.0.0.1:8443": {
+    "tailscale serve --bg --https=443 https+insecure://127.0.0.1:8443": {
       stdout: "Available within your tailnet:\n\nhttps://my-mac.tail1234.ts.net/\n",
     },
     "tailscale serve status --json": { stdout: SERVE_OURS },
@@ -242,13 +246,13 @@ test("enable runs serve with exactly these arguments and reads the URL back from
   });
   expect(fake.calls[0]).toEqual({
     cmd: "tailscale",
-    args: ["serve", "--bg", "--https=443", "http://127.0.0.1:8443"],
+    args: ["serve", "--bg", "--https=443", "https+insecure://127.0.0.1:8443"],
   });
 });
 
 test("enable with HTTPS off on the tailnet returns the consent link without the trailing period", async () => {
   const fake = fakeTailscale({
-    "tailscale serve --bg --https=443 http://127.0.0.1:8443": {
+    "tailscale serve --bg --https=443 https+insecure://127.0.0.1:8443": {
       exitCode: 1,
       stderr:
         "Serve is not enabled on your tailnet. To enable, visit: https://login.tailscale.com/f/serve?node=abc123.\n",
@@ -265,7 +269,7 @@ test("enable with HTTPS off on the tailnet returns the consent link without the 
 
 test("enable with the daemon off is not running, and an unknown failure keeps its first output line", async () => {
   const off = fakeTailscale({
-    "tailscale serve --bg --https=443 http://127.0.0.1:8443": {
+    "tailscale serve --bg --https=443 https+insecure://127.0.0.1:8443": {
       exitCode: 1,
       stderr: DAEMON_OFF_STDERR,
     },
@@ -276,7 +280,7 @@ test("enable with the daemon off is not running, and an unknown failure keeps it
     error: { kind: "not_running" },
   });
   const broken = fakeTailscale({
-    "tailscale serve --bg --https=443 http://127.0.0.1:8443": {
+    "tailscale serve --bg --https=443 https+insecure://127.0.0.1:8443": {
       exitCode: 1,
       stderr: "boom: unknown flag\nmore detail",
     },

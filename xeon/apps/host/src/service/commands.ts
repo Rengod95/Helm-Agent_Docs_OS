@@ -220,6 +220,8 @@ export async function runServiceCommand(
       const started = await startService({
         assemble: command.safeMode ? { safeMode: true } : {},
         ...(command.tcp === undefined ? {} : { tcp: command.tcp }),
+        // 접속 준비 점검의 자동 시작 항목. 여기서 주입해야 lifetime이 이 모듈을 가져오지 않는다(순환 방지)
+        autostart: () => autostartStatus(autostartDepsOf(options)),
       });
       if (!started.started) {
         if (started.reason === "in_use") return 0;

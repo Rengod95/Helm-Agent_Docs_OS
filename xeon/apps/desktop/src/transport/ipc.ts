@@ -269,7 +269,6 @@ const ServiceStartFailureSchema: TObject<{ code: TString; detail: TString }> = T
   { code: Type.String({ maxLength: 64 }), detail: Type.String({ maxLength: 512 }) },
   { additionalProperties: false },
 );
-export type ServiceStartFailure = Static<typeof ServiceStartFailureSchema>;
 
 const ServiceStatusSchema: TUnion<
   [

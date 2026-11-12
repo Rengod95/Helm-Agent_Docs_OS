@@ -302,9 +302,13 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | host | `host.shutdown` | `{ reason: "client_exit"\|"version_replace"\|"user", deadlineMs?: integer }` | `{ accepted: boolean }` | M2 |
 | host | `host.remote.status` | `{}` | `{ enabled: boolean, state: "off"\|"starting"\|"running"\|"failed", loopbackPort: integer\|null, tlsPort: integer\|null, hosts: string[], fingerprint: string\|null(소문자 16진 64자), certSource: "self-signed"\|"user"\|null, pushAvailable: boolean, error: { kind: string, message: string }\|null }` | M4 [제안] |
 | host | `host.remote.setEnabled` | `{ enabled: boolean }` | `host.remote.status`와 같다 | M4 [제안] |
-| host | `host.remote.pair` | `{}` | `{ code: string(10자), expiresAt: integer }` | M4 [제안] |
+| host | `host.remote.pair` | `{}` | `{ code: string(10자), expiresAt: integer, links?: { kind: "loopback"\|"lan_ip"\|"mdns_local"\|"tailscale_ip"\|"tailscale_magicdns", url: string }[](최대 64, 연결 링크 [결정: 2026-11-11 사용자]) }` | M4 [제안] |
 | host | `host.remote.devices` | `{}` | `{ devices: { id: string, name: string, kind: "web"\|"desktop", createdAt: integer, lastSeenAt: integer\|null, address: string\|null }[](최대 256) }` | M4 [제안] |
 | host | `host.remote.revoke` | `{ id: string }` 또는 `{ all: true }` | `{ revoked: integer }` | M4 [제안] |
+| host | `host.remote.preflight` | `{}` | `{ ready: boolean, items: { id: string, status: "pass"\|"fail"\|"skip", cause: string\|null, fix: string\|null, autoFix: string\|null, detail: object }[](최대 32) }`. 원격이 꺼져 있어도 답한다. `ready`는 `fail`이 없을 때 참이다. 원인·고치는 법은 코드다 | M4 [결정: 2026-11-11 사용자] |
+| host | `host.remote.tailscale` | `{ action: "status"\|"serveOn"\|"serveOff" }` | `{ state: "not_installed"\|"not_running"\|"needs_login"\|"ready"\|"unreadable", authUrl: string\|null, magicDnsName: string\|null, ips: string[], httpsEnabled: boolean\|null, serve: { kind: "off"\|"on"\|"other"\|"unavailable", url: string\|null }, consentUrl: string\|null, failure: string\|null }`. `serveOn`·`serveOff`은 게이트웨이의 TLS 리스너 포트로 `tailscale serve`를 켜고 끈다(L4.remote.spec §8.8). TLS 포트가 없으면 `remote.off`다. 실패는 값이고 `failure`가 실패 종류다(`https_not_enabled` 등, 성공이면 null) | M4 [결정: 2026-11-11 사용자] |
+| host | `host.remote.config` | `{ patch?: { listen?: string, listenTls?: string\|null, hosts?: string[], tlsCert?: string\|null, tlsKey?: string\|null }, dryRun?: boolean }` | `{ settings: { listen: string, listenTls: string\|null, hosts: string[], tlsCert: string\|null, tlsKey: string\|null }, issues: { field: string, code: string }[], written: boolean, restartNeeded: boolean }`. `patch`가 없으면 읽기다. `dryRun`이면 검사만 하고 쓰지 않는다. 검사에 걸리면 `written: false`와 `issues`다. 저장 실패는 `internal`이다. 쓴 뒤 게이트웨이가 떠 있으면 `restartNeeded`가 참이고, 서비스는 자동으로 다시 띄우지 않는다 | M4 [결정: 2026-11-11 사용자] |
+| host | `host.remote.proxyExample` | `{ kind: "caddy"\|"nginx", domain: string, tlsPort: integer(1..65535) }` | `{ text: string, plan: { listen: string, listenTls: string, hosts: string[] } }`. 상태를 바꾸지 않는다. 잘못된 도메인·포트는 `jsonrpc.invalidParams`다. `plan`은 루프백 전용 구성(`loopbackOnlyPlan`)이고 `listen`의 포트는 설정 `listen`의 포트(없으면 8480)다 | M4 [결정: 2026-11-11 사용자] |
 | host | `host.clients` | `{}` | `{ clients: { connectionId: string, transport: "in-process"\|"stdio"\|"socket", name?: string, version?: string, writeThreads: integer, observedThreads: integer, self: boolean }[] }`. 연결마다 한 행이고 요청한 연결(`self`)이 맨 앞이다(최대 256개). `name`과 `version`은 `host.hello`를 마친 연결만 싣는다. 인증 토큰은 싣지 않는다 | M4 (W-12) |
 | thread | `thread.list` | `{ cursor?: string, limit?: integer(1..200), workspace?: string }` | `{ threads: ThreadSummary[], nextCursor: string \| null }` | M2 |
 | thread | `thread.create` | `{ workspace?: string, title?: string, testRun?: boolean, profileId?: string }`(`testRun`, `profileId`는 M4, W-34) | `{ threadId: ThreadId, position: StreamPosition }` | M1 |
@@ -1034,7 +1038,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 5005 | `store.readOnly` | false | 저장소가 읽기 전용으로 열려 있어 쓸 수 없다 | `reason` |
 | 5006 | `store.io` | false | 저장 매체 입출력 실패. 코드는 OS나 SQLite가 준 값이다. 설정 파일이 JSON 객체가 아니면 `code`가 `settings_file_invalid`이다(§3.3.1) | `code`, `settings_file_invalid`이면 `path`, `line?`, `column?` |
 | 5007 | `store.corrupt` | false | 저장된 행이 스키마와 다르다(손상, 수동 편집). 매체 오류(`store.io`)와 복구 안내가 달라서 나눈다. 복구 길은 `F.records.spec` §3.7 7항이다 | `where` |
-| 5008 | `remote.off` | false | 원격 접속이 꺼져 있어 페어링 등을 받지 않는다(`host.remote.pair` 등). 원격을 켠 뒤 다시 보낸다 [제안] | - |
+| 5008 | `remote.off` | false | 원격 접속이 꺼져 있어 페어링 등을 받지 않는다(`host.remote.pair` 등, `host.remote.tailscale`의 `serveOn`·`serveOff`는 TLS 포트가 없을 때). 원격을 켠 뒤 다시 보낸다 [제안] | - |
 
 #### 3.5.3 오류 코드 구간 [제안]
 

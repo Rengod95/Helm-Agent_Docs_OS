@@ -17,7 +17,7 @@ const CONSENT_LINK = /https:\/\/login\.tailscale\.com\/\S+/u;
 const HTTPS_OFF_TEXT = /not enabled/iu;
 
 /** `run`의 결과. stderr는 끝쪽 출력이고, 없으면 빈 문자열이다 */
-export interface TailscaleRunResult {
+interface TailscaleRunResult {
   readonly exitCode: number;
   readonly stdout: string;
   readonly stderr: string;
@@ -49,7 +49,7 @@ export type TailscaleServeFailure =
   | { readonly kind: "https_not_enabled"; readonly consentUrl: string | null }
   | { readonly kind: "failed"; readonly detail: string };
 
-export type TailscaleServeFailureReason = TailscaleServeFailure["kind"];
+type TailscaleServeFailureReason = TailscaleServeFailure["kind"];
 
 export type ServeStatus =
   | { readonly kind: "off" }
@@ -192,7 +192,8 @@ function serveStatusOf(root: JsonObject, port: number): ServeStatus | null {
       targets.push({ hostPort, path, proxy: textOf(handler["Proxy"]) });
     }
   }
-  const ours = `http://127.0.0.1:${port}`;
+  // 게이트웨이의 TLS 리스너로 보낸다: 루프백 평문 리스너는 공개 이름을 Host로 받지 않는다(origin.ts checkHost). 이 구간의 자체 서명 인증서 검증은 끈다(`https+insecure`)
+  const ours = `https+insecure://127.0.0.1:${port}`;
   const theirs = targets.find((target) => target.proxy !== ours);
   if (theirs !== undefined) return { kind: "other", detail: describeTarget(theirs) };
   const mine = targets[0];
@@ -282,7 +283,7 @@ export async function enableTailscaleServe(
     "serve",
     "--bg",
     `--https=${HTTPS_PORT}`,
-    `http://127.0.0.1:${port}`,
+    `https+insecure://127.0.0.1:${port}`,
   ]);
   if (ran.exitCode !== 0) return err(await serveFailureOf(deps, ran));
   const status = await tailscaleServeStatus(deps, port);

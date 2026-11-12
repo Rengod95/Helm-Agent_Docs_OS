@@ -362,7 +362,7 @@ export type ServiceCard =
     };
 
 /** 서비스를 쓰려다 앱 안 엔진으로 돌아간 마지막 사유. `code`로 번역 문구를 고른다 */
-export interface ServiceFailureCard {
+interface ServiceFailureCard {
   readonly code: string;
   readonly detail: string;
 }
