@@ -823,6 +823,7 @@ function UpdateCellOf(props: { readonly controller: UpdateController }): ReactNo
     controller.getState,
     controller.getState,
   );
+  const commands = useCommands();
   const running = useRunningCount();
   const [open, setOpen] = useState(false);
   const [asking, setAsking] = useState(false);
@@ -853,21 +854,36 @@ function UpdateCellOf(props: { readonly controller: UpdateController }): ReactNo
         open={open}
         onOpenChange={setOpen}
         body={
-          <UpdateBody
-            state={state}
-            currentVersion={controller.currentVersion()}
-            handlers={{
-              download: () => {
-                detach(controller.download(), rethrow);
-              },
-              install,
-              retry: () => {
-                // 설치 단계에서 멈춘 것을 다시 하는 것은 설치와 같으므로 턴을 묻는다
-                if (retryStepOf(state) === "install") install();
-                else detach(controller.retry(), rethrow);
-              },
-            }}
-          />
+          <>
+            <UpdateBody
+              state={state}
+              currentVersion={controller.currentVersion()}
+              handlers={{
+                download: () => {
+                  detach(controller.download(), rethrow);
+                },
+                install,
+                retry: () => {
+                  // 설치 단계에서 멈춘 것을 다시 하는 것은 설치와 같으므로 턴을 묻는다
+                  if (retryStepOf(state) === "install") install();
+                  else detach(controller.retry(), rethrow);
+                },
+              }}
+            />
+            {/* 업데이트의 자세한 상태와 확인 단추는 설정 일반 구역(앱 정보)에 있다(DP-104) */}
+            <Button
+              size="xs"
+              variant="ghost"
+              className="mt-1 -ms-2"
+              data-update-settings=""
+              onClick={() => {
+                setOpen(false);
+                commands.requestSettingsJump({ tab: "general", key: null });
+              }}
+            >
+              {t("desktop.update.cell.openSettings")}
+            </Button>
+          </>
         }
       />
       <UpdateRestartDialog

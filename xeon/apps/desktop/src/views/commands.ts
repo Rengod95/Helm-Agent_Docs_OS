@@ -133,8 +133,11 @@ export interface ExportDocument {
  */
 export type BusyInputMode = "steer" | "followUp";
 
-/** 입력창 승인 모드 칩이 고를 수 있는 모드. `plan`과 `bypass`는 칩으로 들어가는 목표가 아니다(계획 승인과 설정이 정한다) */
-export type SwitchMode = "default" | "acceptEdits";
+/**
+ * 입력창 승인 모드 칩이 설정 쓰기로 고르는 모드(DP-101). `bypass`는 `l1.tools.bypassAllowed`가 참일 때만 칩 메뉴에 나온다.
+ * `plan`은 설정 쓰기가 아니라 `/plan` 명령(`command.run`)으로 들어가고 나온다(계획 서비스가 이전 모드를 기억한다)
+ */
+export type SwitchMode = "default" | "acceptEdits" | "bypass";
 
 export type CommandError =
   | { readonly kind: "offline" }
@@ -968,6 +971,8 @@ export interface Commands {
   setThreadMode(threadId: ThreadId, mode: SwitchMode): Promise<Result<null, CommandError>>;
   /** `settings.get { keys: ["l1.tools.permissionMode"], threadId }`의 값을 검사 없이 돌려준다. 네 모드인지는 `permissionModeOf`가 본다 */
   readThreadMode(threadId: ThreadId): Promise<Result<unknown, CommandError>>;
+  /** `settings.get { keys: ["l1.tools.bypassAllowed"], threadId }`의 값을 검사 없이 돌려준다. 참일 때만 칩 메뉴에 "모두 허용"이 나온다 */
+  readBypassAllowed(threadId: ThreadId): Promise<Result<unknown, CommandError>>;
   /**
    * 이 대화의 권한 모드가 바뀌었을 수 있으면 부른다. 설정 쓰기는 `settings.invalidated`, 계획 승인처럼 호스트 안에서 쓴 세션 값은
    * `events.batch`의 `settings.changed` 기록으로 온다. 반환값은 구독 해제

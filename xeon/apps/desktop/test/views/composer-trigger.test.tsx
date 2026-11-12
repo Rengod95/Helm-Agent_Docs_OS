@@ -1,111 +1,167 @@
 import { describe, expect, test } from "bun:test";
 import type { CommandRowVM } from "@fresnel/client/settings";
 import { renderToString } from "react-dom/server";
+import type { ModelEntry } from "@fresnel/contracts/wire";
 import {
-  ModelSelect,
-  PermissionModeSelect,
   SlashRow,
-  defaultRowText,
-  modelOptionText,
+  StopButton,
+  modeErrorText,
   ownsComposerRequest,
   secretWarningOf,
 } from "../../src/views/composer.tsx";
+import {
+  ModelChip,
+  PermissionModeChip,
+  modelChipText,
+  permissionModeChipText,
+} from "../../src/views/composer-chips.tsx";
 import { slashMenuOf, type SlashMenuRow } from "../../src/views/composer-slash.ts";
-import type { ModelOption } from "../../src/views/model-usage.ts";
 import { thr } from "../state/helpers.ts";
 
-// 입력창 단추 줄의 모델 select. 효과가 없는 서버 렌더로만 본다(DOM이 없다).
+// 입력창 아래 칩(DP-101)과 멈춤 단추. 효과가 없는 서버 렌더로만 본다(DOM이 없다).
 
-describe("model select", () => {
+/** 첫 단추 태그와 그 class 목록 */
+function firstButton(markup: string): {
+  readonly tag: string;
+  readonly classes: readonly string[];
+} {
+  const tag = markup.match(/<button[^>]*>/)?.[0] ?? "";
+  return { tag, classes: (tag.match(/class="([^"]*)"/)?.[1] ?? "").split(" ") };
+}
+
+const MODEL: ModelEntry = {
+  ref: "anthropic/claude-haiku-5-5",
+  name: "Claude Haiku 5.5",
+  contextWindow: 200_000,
+  reasoning: true,
+  inputPrice: 1,
+  outputPrice: 5,
+};
+
+describe("model chip", () => {
   const props = {
     current: "anthropic/claude-haiku-5-5",
     chosen: false,
     fallback: "anthropic/claude-haiku-5-5",
-    choices: [],
+    choices: [MODEL],
     denied: {},
     onChange: () => {},
   };
 
-  test("is a combobox button named for the conversation's model that does not submit the form", () => {
-    const markup = renderToString(<ModelSelect {...props} disabled={false} />);
-    const tag = markup.match(/<button[^>]*>/)?.[0] ?? "";
+  test("shows the model name only, no price or context size, and does not submit the form", () => {
+    const { tag } = firstButton(renderToString(<ModelChip {...props} disabled={false} />));
     expect(tag).toContain('type="button"');
-    expect(tag).toContain('role="combobox"');
-    expect(tag).toContain('aria-label="이 대화의 모델"');
-    expect(tag).not.toMatch(/ disabled=""/);
+    expect(tag).toContain('data-composer-chip="model"');
+    expect(tag).toContain('aria-label="이 대화의 모델: Claude Haiku 5.5"');
+    const text = visibleText(renderToString(<ModelChip {...props} disabled={false} />));
+    expect(text).toBe("Claude Haiku 5.5");
   });
 
-  test("the trigger hides its chevron and pads 10px on every side (DP-67)", () => {
-    const markup = renderToString(<ModelSelect {...props} disabled={false} />);
-    const tag = markup.match(/<button[^>]*>/)?.[0] ?? "";
-    const classes = (tag.match(/class="([^"]*)"/)?.[1] ?? "").split(" ");
-    expect(classes).toContain("[&amp;_[data-slot=picker-trigger-indicator]]:hidden");
+  test("the chip keeps the DP-67 ghost size: 10px on every side and a 16px line", () => {
+    const { classes } = firstButton(renderToString(<ModelChip {...props} disabled={false} />));
     expect(classes).toContain("p-2.5");
     expect(classes).toContain("leading-4");
-    expect(classes.filter((name) => /^(px|py|h)-/.test(name))).toEqual(["h-auto"]);
+    expect(classes).toContain("h-auto");
   });
 
-  test("a disabled composer disables the select", () => {
-    const markup = renderToString(<ModelSelect {...props} disabled />);
-    const tag = markup.match(/<button[^>]*>/)?.[0] ?? "";
+  test("a disabled composer disables the chip", () => {
+    const { tag } = firstButton(renderToString(<ModelChip {...props} disabled />));
     expect(tag).toMatch(/ disabled=""/);
   });
-});
 
-describe("denied model hint", () => {
-  // 403으로 실패한 모델의 줄에만 "이 키로 못 써요"가 뒤에 붙는다. 가격 글은 그대로다
-  const option: ModelOption = {
-    value: "anthropic/claude-haiku-5-5",
-    label: "claude-haiku-5-5",
-    contextWindow: null,
-    price: "unknown",
-  };
-
-  test("a denied model's row adds the note after its price text, and a usable one does not", () => {
-    expect(modelOptionText(option, null, false)).toBe("claude-haiku-5-5 · 가격 모름");
-    expect(modelOptionText(option, null, true)).toBe(
-      "claude-haiku-5-5 · 가격 모름 · 이 키로 못 써요",
-    );
-  });
-
-  test("the default row adds the note only when the default model is denied", () => {
-    expect(defaultRowText("claude-haiku-5-5", false)).toBe("기본 모델 · claude-haiku-5-5");
-    expect(defaultRowText("claude-haiku-5-5", true)).toBe(
-      "기본 모델 · claude-haiku-5-5 · 이 키로 못 써요",
-    );
+  test("an unknown model falls back to the model part of its reference", () => {
+    expect(modelChipText([], "openai/gpt-x")).toBe("gpt-x");
+    expect(modelChipText([MODEL], "anthropic/claude-haiku-5-5")).toBe("Claude Haiku 5.5");
   });
 });
 
-describe("approval mode select", () => {
-  test("is a combobox button named for the conversation's approval mode that does not submit the form", () => {
+describe("permission mode chip", () => {
+  test("names the mode with a short label and an icon, and does not submit the form", () => {
     const markup = renderToString(
-      <PermissionModeSelect mode="default" disabled={false} onChange={() => {}} />,
+      <PermissionModeChip
+        mode="default"
+        bypassAllowed={false}
+        disabled={false}
+        onChange={() => {}}
+      />,
     );
-    const tag = markup.match(/<button[^>]*>/)?.[0] ?? "";
+    const { tag } = firstButton(markup);
     expect(tag).toContain('type="button"');
-    expect(tag).toContain('role="combobox"');
-    expect(tag).toContain('aria-label="이 대화의 승인 모드"');
+    expect(tag).toContain('aria-label="이 대화의 승인 모드: 실행마다 묻기"');
+    expect(visibleText(markup)).toBe("실행마다 묻기");
+    expect(markup).toContain("<svg");
+  });
+
+  test("plan mode reads as plan mode", () => {
+    expect(permissionModeChipText("plan")).toBe("계획 모드");
+    expect(permissionModeChipText("acceptEdits")).toBe("편집 자동 허용");
+    expect(permissionModeChipText("bypass")).toBe("모두 허용");
+  });
+
+  test("a disabled composer disables the chip", () => {
+    const { tag } = firstButton(
+      renderToString(
+        <PermissionModeChip mode="plan" bypassAllowed={false} disabled onChange={() => {}} />,
+      ),
+    );
+    expect(tag).toMatch(/ disabled=""/);
+  });
+
+  test("the bypass chip uses the danger text colour, the other modes the tertiary one", () => {
+    const bypass = firstButton(
+      renderToString(
+        <PermissionModeChip mode="bypass" bypassAllowed disabled={false} onChange={() => {}} />,
+      ),
+    );
+    const normal = firstButton(
+      renderToString(
+        <PermissionModeChip mode="default" bypassAllowed disabled={false} onChange={() => {}} />,
+      ),
+    );
+    expect(bypass.classes).toContain("text-danger-text");
+    expect(normal.classes).toContain("text-text-tertiary");
+    expect(normal.classes).not.toContain("text-danger-text");
+  });
+});
+
+describe("stop button", () => {
+  test("a running turn shows the stop glyph and can be pressed", () => {
+    const { tag } = firstButton(
+      renderToString(<StopButton aborting={false} blockedReason={null} onStop={() => {}} />),
+    );
+    expect(tag).toContain('aria-label="중단"');
+    expect(tag).toContain('data-composer-stop="idle"');
     expect(tag).not.toMatch(/ disabled=""/);
   });
 
-  test("a disabled composer disables the select", () => {
-    const markup = renderToString(
-      <PermissionModeSelect mode="plan" disabled onChange={() => {}} />,
+  test("after stop is pressed it says it is stopping and cannot be pressed again", () => {
+    const { tag } = firstButton(
+      renderToString(<StopButton aborting blockedReason={null} onStop={() => {}} />),
     );
-    const tag = markup.match(/<button[^>]*>/)?.[0] ?? "";
+    expect(tag).toContain('aria-label="멈추는 중…"');
+    expect(tag).toContain('data-composer-stop="stopping"');
+    expect(tag).toContain('aria-busy="true"');
     expect(tag).toMatch(/ disabled=""/);
   });
 
-  test("the bypass mode chip uses the danger text colour, the other modes the normal one", () => {
-    const bypass = renderToString(
-      <PermissionModeSelect mode="bypass" disabled={false} onChange={() => {}} />,
+  test("without an engine the stop button says why and is disabled", () => {
+    const { tag } = firstButton(
+      renderToString(<StopButton aborting={false} blockedReason="엔진 없음" onStop={() => {}} />),
     );
-    const normal = renderToString(
-      <PermissionModeSelect mode="default" disabled={false} onChange={() => {}} />,
+    expect(tag).toContain('aria-label="엔진 없음"');
+    expect(tag).toMatch(/ disabled=""/);
+  });
+});
+
+describe("mode change error text", () => {
+  test("a refused plan command shows the engine's sentence, or the generic one when it gave none", () => {
+    expect(modeErrorText({ kind: "refused", message: "지금은 계획 모드가 아니에요." })).toBe(
+      "지금은 계획 모드가 아니에요.",
     );
-    expect(bypass.match(/<button[^>]*>/)?.[0] ?? "").toContain("text-danger-text");
-    expect(normal.match(/<button[^>]*>/)?.[0] ?? "").toContain("text-text-tertiary");
-    expect(normal).not.toContain("text-danger-text");
+    expect(modeErrorText({ kind: "refused", message: null })).toBe("승인 모드를 바꾸지 못했어요.");
+    expect(modeErrorText({ kind: "command", error: { kind: "unsupported" } })).toBe(
+      "승인 모드를 바꾸지 못했어요.",
+    );
   });
 });
 

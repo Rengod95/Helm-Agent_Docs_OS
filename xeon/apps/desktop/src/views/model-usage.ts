@@ -1,12 +1,12 @@
-import { detach, rethrow, type Result } from "@fresnel/contracts";
+import { assertNever, detach, err, ok, rethrow, type Result } from "@fresnel/contracts";
 import type { ModelThinkingLevel, ThreadId } from "@fresnel/contracts/conversation";
 import type { PermissionMode } from "@fresnel/contracts/services";
 import type { ModelEntry, UsageContext, UsageGauge } from "@fresnel/contracts/wire";
 import type { SetupSnapshot } from "@fresnel/client/settings";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useLinkPhase, useThread } from "../state/engine/index.ts";
-import { useCommands, type CommandError, type SwitchMode } from "./commands.ts";
-import { permissionModeOf } from "./permission-mode-model.ts";
+import { useCommands, type CommandError } from "./commands.ts";
+import { bypassAllowedOf, modeStepOf, permissionModeOf } from "./permission-mode-model.ts";
 import { thinkingLevelOf } from "./thinking-level-model.ts";
 import { usageFractionOf } from "./pages/providers/providers-model.ts";
 
@@ -61,7 +61,7 @@ export function withLimit(usage: SessionUsage, limit: number): SessionUsage {
 }
 
 /** 입력창 모델 select의 값. 대화가 정한 모델을 거두고 기본 모델로 돌아가는 줄이다 */
-export const DEFAULT_MODEL_CHOICE = "default";
+const DEFAULT_MODEL_CHOICE = "default";
 
 /** 100만 토큰당 USD 가격. 카탈로그가 가격을 모르면 `"unknown"`, 카탈로그 밖의 줄이면 null이다 */
 type ModelPrice = { readonly input: number; readonly output: number } | "unknown" | null;
@@ -143,20 +143,6 @@ export function modelOptionsOf(
 /** 가격 한 칸의 짧은 글자: 1 미만은 소수 셋째 자리까지 의미 있게, 그 이상은 둘째 자리까지 */
 export function priceNumberText(usd: number): string {
   return usd < 1 ? String(Number(usd.toFixed(3))) : String(Number(usd.toFixed(2)));
-}
-
-/**
- * 지금 문맥(`contextTokens`)을 이 가격으로 새로 보낼 때의 입력 비용 한 줄. 모델을 바꾸면 캐시가 비워지므로 캐시 읽기 할인 없이 입력 단가로 센다.
- * 0이거나 1센트 이상이면 소수 둘, 그 밑이면 소수 넷이다. 문맥을 모르거나 비어 있으면 null이다
- */
-export function contextCostText(
-  contextTokens: number | null,
-  inputPerMillion: number,
-): string | null {
-  if (contextTokens === null || contextTokens <= 0) return null;
-  const usd = (contextTokens / 1_000_000) * inputPerMillion;
-  if (usd > 0 && usd < 0.0001) return "< $0.0001";
-  return `$${usd.toFixed(usd === 0 || usd >= 0.01 ? 2 : 4)}`;
 }
 
 /** 토큰 수를 짧게: 999 이하는 그대로, 천 단위는 `41k`, 백만 단위는 `1.2M` */
@@ -327,17 +313,26 @@ export function useModelChoices(): readonly ModelEntry[] {
   return models;
 }
 
+/** 모드 바꾸기가 실패한 까닭. 명령 경로(계획)가 거절하면 엔진이 준 문장을 그대로 보인다 */
+export type ModeChangeError =
+  | { readonly kind: "command"; readonly error: CommandError }
+  | { readonly kind: "refused"; readonly message: string | null };
+
 /**
- * 이 대화의 승인 모드(입력창 칩이 보이는 값)와 고르기. 값은 대화 범위 `settings.get`이고, 설정이 바뀌면 다시 읽고, 고르기가 이기면 다시 읽는다.
+ * 이 대화의 승인 모드(입력창 칩이 보이는 값)와 고르기(DP-101). 값은 대화 범위 `settings.get`이고, 설정이 바뀌면 다시 읽고, 고르기가 이기면 다시 읽는다.
  * 읽지 못했거나 네 모드가 아니면 `mode`가 null이고 칩은 그리지 않는다(모르는 값을 지어내지 않는다).
+ * 계획 모드는 `/plan`으로 들어가고 `/plan exit`로 나온다(`modeStepOf`). 나온 뒤에도 계획이면(승인이 필요한 계획 등) 엔진 문장으로 실패를 알린다.
+ * `bypassAllowed`는 `l1.tools.bypassAllowed`이고 참일 때만 메뉴에 모두 허용이 있다
  */
 export function useThreadPermissionMode(threadId: ThreadId): {
   readonly mode: PermissionMode | null;
-  readonly choose: (next: SwitchMode) => Promise<Result<null, CommandError>>;
+  readonly bypassAllowed: boolean;
+  readonly choose: (next: PermissionMode) => Promise<Result<null, ModeChangeError>>;
 } {
   const commands = useCommands();
   const phase = useLinkPhase();
   const [mode, setMode] = useState<PermissionMode | null>(null);
+  const [bypassAllowed, setBypassAllowed] = useState(false);
   // 고르기가 이기면 올려 다시 읽게 한다. 호스트가 준 값(관리 설정이 덮을 수 있다)을 그대로 보인다
   const [reads, setReads] = useState(0);
   useEffect(() => {
@@ -351,6 +346,13 @@ export function useThreadPermissionMode(threadId: ThreadId): {
         }),
         rethrow,
       );
+      detach(
+        commands.readBypassAllowed(threadId).then((result) => {
+          if (!stale) setBypassAllowed(result.ok && bypassAllowedOf(result.value));
+          return undefined;
+        }),
+        rethrow,
+      );
     };
     read();
     const stop = commands.onThreadModeChanged(threadId, read);
@@ -359,12 +361,51 @@ export function useThreadPermissionMode(threadId: ThreadId): {
       stop();
     };
   }, [commands, phase, threadId, reads]);
-  const choose = (next: SwitchMode): Promise<Result<null, CommandError>> =>
-    commands.setThreadMode(threadId, next).then((result) => {
-      if (result.ok) setReads((count) => count + 1);
-      return result;
-    });
-  return { mode, choose };
+  const runPlan = async (line: string): Promise<Result<string | null, ModeChangeError>> => {
+    const ran = await commands.runCommandLine(threadId, line);
+    if (!ran.ok) return err({ kind: "command", error: ran.error });
+    return ok(ran.value.status === "done" ? ran.value.message : null);
+  };
+  const readNow = async (): Promise<PermissionMode | null> => {
+    const read = await commands.readThreadMode(threadId);
+    return read.ok ? permissionModeOf(read.value) : null;
+  };
+  const choose = async (next: PermissionMode): Promise<Result<null, ModeChangeError>> => {
+    if (mode === null) return ok(null);
+    const step = modeStepOf(mode, next);
+    switch (step.kind) {
+      case "none":
+        return ok(null);
+      case "set": {
+        const set = await commands.setThreadMode(threadId, step.mode);
+        if (!set.ok) return err({ kind: "command", error: set.error });
+        setReads((count) => count + 1);
+        return ok(null);
+      }
+      case "enterPlan": {
+        const ran = await runPlan("/plan");
+        if (!ran.ok) return ran;
+        if ((await readNow()) !== "plan") return err({ kind: "refused", message: ran.value });
+        setReads((count) => count + 1);
+        return ok(null);
+      }
+      case "exitPlan": {
+        const ran = await runPlan("/plan exit");
+        if (!ran.ok) return ran;
+        const after = await readNow();
+        if (after === "plan") return err({ kind: "refused", message: ran.value });
+        if (after !== step.target) {
+          const set = await commands.setThreadMode(threadId, step.target);
+          if (!set.ok) return err({ kind: "command", error: set.error });
+        }
+        setReads((count) => count + 1);
+        return ok(null);
+      }
+      default:
+        return assertNever(step, "ModeStep");
+    }
+  };
+  return { mode, bypassAllowed, choose };
 }
 
 /**

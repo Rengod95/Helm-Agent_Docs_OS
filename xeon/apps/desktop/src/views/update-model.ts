@@ -283,7 +283,7 @@ function cellOf(text: MessageId, dot: StatusDot, showCell: boolean): UpdateCell 
 }
 
 /**
- * 상태 칸(d02 `upd`). 내려받기와 설치 단계에서만 보인다. 확인 단계, 최신, 설정 안 됨에서는 숨기고 설정 줄이 상태를 보인다.
+ * 상태 칸(d02 `upd`). 내려받기와 설치 단계에서만 보인다. 확인 단계(실패 포함), 최신, 설정 안 됨에서는 숨기고 설정 줄이 상태를 보인다.
  * 새 버전이 있으면 중립이 아니라 성공 점이다(시안과 같다). 실패는 위험, 연결이 끊긴 것은 경고 점이다.
  */
 export function updateCellOf(state: UpdateState): UpdateCell {
@@ -308,8 +308,10 @@ export function updateCellOf(state: UpdateState): UpdateCell {
       return cellOf("desktop.update.cell.ready", "success", true);
     case "installing":
       return cellOf("desktop.update.cell.installing", "success", true);
+    // 확인 단계 실패(업데이트 서버에 닿지 못함, 설정 안 된 주소 등)는 상태 표시줄에 늘 떠 있지 않게 칸을 숨기고 설정 줄이 보인다(DP-104).
+    // 내려받기·설치가 실패했을 때만 칸이 보인다
     case "failed":
-      return cellOf("desktop.update.cell.failed", "danger", true);
+      return cellOf("desktop.update.cell.failed", "danger", state.stage !== "check");
     case "offline":
       return cellOf("desktop.update.cell.offline", "warning", state.stage !== "check");
     default:

@@ -151,7 +151,7 @@ export function startLink(deps: LinkDeps): EngineLink {
 
   /**
    * head부터 맞춘 뒤에 연결 전의 계획과 대기 입력을 채운다. 거울은 head 뒤의 사건만 받으므로 앞선 `work.plan_*`와 `input.*`는 처음부터 다시
-   * 읽어야 한다. 이 두 종류만 거른 구독을 0부터 열어 따라잡히면 거울에 넣고 닫는다. 재생 한도를 넘으면(`replay.outOfRange`) 채우지 않는다.
+   * 읽어야 한다. 이 두 종류만 거른 구독을 0부터 열어 따라잡히면 거울에 넣고 닫는다. 0이 재생 한도 밖이면(`beforeOldest`) 남은 가장 오래된 사건부터 채우고, 그 밖의 `replay.outOfRange`는 채우지 않는다.
    * 기다리지 않는다: 끝나지 않아도 화면은 head부터의 사건으로 계속 맞는다
    */
   const backfill = async (storeId: StoreId): Promise<void> => {
@@ -161,12 +161,17 @@ export function startLink(deps: LinkDeps): EngineLink {
       early: [],
     };
     backfilling = mine;
-    const result = await attemptAsync(() =>
-      deps.connection.request("events.subscribe", {
-        from: { storeId, seq: 0 },
-        filter: { kindPrefixes: BACKFILL_PREFIXES },
-      }),
-    );
+    const open = (seq: number) =>
+      attemptAsync(() =>
+        deps.connection.request("events.subscribe", {
+          from: { storeId, seq },
+          filter: { kindPrefixes: BACKFILL_PREFIXES },
+        }),
+      );
+    const first = await open(0);
+    // 저장소가 오래된 사건을 정리해 0부터 다시 읽을 수 없으면 남은 가장 오래된 사건부터 한 번 더 연다. 정리된 사건은 어디서도 못 읽으므로 이것이 최선이다
+    const floor = first.ok ? null : replayFloorOf(first.error.cause, storeId);
+    const result = floor === null || backfilling !== mine ? first : await open(floor);
     if (backfilling !== mine) {
       if (result.ok) await unsubscribe(result.value.sub);
       return;
@@ -432,4 +437,13 @@ export function startLink(deps: LinkDeps): EngineLink {
       current = null;
     },
   };
+}
+
+/** 처음부터 다시 읽는 구독이 `beforeOldest`로 거절됐을 때 다시 열 위치(같은 저장소의 가장 오래된 재생 가능 seq). 다른 실패는 null */
+export function replayFloorOf(cause: unknown, storeId: StoreId): number | null {
+  if (!(cause instanceof WireError) || cause.data.kind !== "replay.outOfRange") return null;
+  const details = cause.data.details;
+  if (details?.["reason"] !== "beforeOldest" || details["storeId"] !== storeId) return null;
+  const oldest = details["oldestReplayableSeq"];
+  return typeof oldest === "number" && Number.isSafeInteger(oldest) && oldest > 0 ? oldest : null;
 }

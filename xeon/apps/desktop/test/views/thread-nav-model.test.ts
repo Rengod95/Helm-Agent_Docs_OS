@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { ThreadOrigin } from "@fresnel/contracts/wire";
-import { rowBadgeOf, rowOpensChat } from "../../src/views/thread-nav-model.ts";
+import {
+  relativeTimeOf,
+  rowBadgeOf,
+  rowOpensChat,
+  threadMatches,
+} from "../../src/views/thread-nav-model.ts";
 import { evt, summary, thr, trn } from "../state/helpers.ts";
 
 const RESUMABLE = {
@@ -15,9 +20,10 @@ describe("rowBadgeOf", () => {
     const thread = summary(thr(1), { origin: FROM_SCHEDULE });
     expect(rowBadgeOf(thread, 0, false)).toBe("schedule");
   });
-  test("a user or remote thread gets no schedule badge", () => {
+  test("a user thread gets no badge and a remote thread gets the remote badge", () => {
     expect(rowBadgeOf(summary(thr(2), { origin: { kind: "user" } }), 0, false)).toBeNull();
-    expect(rowBadgeOf(summary(thr(3), { origin: { kind: "remote" } }), 0, false)).toBeNull();
+    expect(rowBadgeOf(summary(thr(3), { origin: { kind: "remote" } }), 0, false)).toBe("remote");
+    expect(rowBadgeOf(summary(thr(3), { origin: { kind: "remote" } }), 1, false)).toBe("approvals");
   });
   test("a thread with no origin mark shows no badge unless it is a child", () => {
     expect(rowBadgeOf(summary(thr(4)), 0, false)).toBeNull();
@@ -30,6 +36,7 @@ describe("rowBadgeOf", () => {
     const resumable = summary(thr(5), { origin: FROM_SCHEDULE, resumable: RESUMABLE });
     expect(rowBadgeOf(resumable, 0, false)).toBe("resumable");
     // 승인을 기다리는 턴은 이어서 실행 후보가 아니라서 승인 수가 이긴다
+    // 답이 필요한 승인이 이어서 실행보다 앞이다(DP-104)
     expect(rowBadgeOf(resumable, 2, false)).toBe("approvals");
     expect(rowBadgeOf(summary(thr(6), { origin: FROM_SCHEDULE }), 2, false)).toBe("approvals");
   });
@@ -77,5 +84,33 @@ describe("rowOpensChat", () => {
     expect(rowOpensChat({ screen: "chat", area: "workbench", chatPlaceScreen: "inbox" })).toBe(
       false,
     );
+  });
+});
+
+describe("threadMatches", () => {
+  test("an empty query matches everything, otherwise the title must contain it, case-insensitive", () => {
+    expect(threadMatches({ title: "Calc 함수" }, "  ")).toBe(true);
+    expect(threadMatches({ title: "Calc 함수" }, "calc")).toBe(true);
+    expect(threadMatches({ title: "Calc 함수" }, "함수")).toBe(true);
+    expect(threadMatches({ title: "Calc 함수" }, "sub")).toBe(false);
+  });
+  test("an untitled thread does not match a query", () => {
+    expect(threadMatches({ title: null }, "")).toBe(true);
+    expect(threadMatches({ title: null }, "a")).toBe(false);
+  });
+});
+
+describe("relativeTimeOf", () => {
+  const now = Date.parse("2026-11-12T12:00:00.000Z");
+  test("under a minute is now, then minutes, hours and days", () => {
+    expect(relativeTimeOf("2026-11-12T11:59:30.000Z", now)).toEqual({ unit: "now" });
+    expect(relativeTimeOf("2026-11-12T11:57:00.000Z", now)).toEqual({ unit: "minutes", count: 3 });
+    expect(relativeTimeOf("2026-11-12T09:00:00.000Z", now)).toEqual({ unit: "hours", count: 3 });
+    expect(relativeTimeOf("2026-11-10T12:00:00.000Z", now)).toEqual({ unit: "days", count: 2 });
+  });
+  test("a week or more is a month and day, and an unreadable time is now", () => {
+    const old = relativeTimeOf("2026-10-01T12:00:00.000Z", now);
+    expect(old.unit).toBe("date");
+    expect(relativeTimeOf("nope", now)).toEqual({ unit: "now" });
   });
 });

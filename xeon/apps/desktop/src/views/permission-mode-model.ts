@@ -7,20 +7,25 @@ import type { EventsBatchParams } from "@fresnel/contracts/wire";
 import type { SwitchMode } from "./commands.ts";
 
 // 입력창 승인 모드 칩의 순수 판정. 화면 부품에서 떼어 React 밖에서 시험한다(permission-mode-model.test.ts).
-// 모드는 설정 `l1.tools.permissionMode`의 대화 범위(`launch`) 값이다. 칩은 기본과 편집 자동 허용만 목표로 준다.
+// 모드는 설정 `l1.tools.permissionMode`의 대화 범위(`launch`) 값이다(DP-101 [결정: 2026-11-11 사용자]).
+// 칩 메뉴는 실행마다 묻기, 편집 자동 허용, 계획 모드, 모두 허용(설정 `l1.tools.bypassAllowed`가 참일 때만) 넷이다.
+// 계획 모드는 설정 쓰기가 아니라 `/plan` 명령으로 들어가고 `/plan exit`로 나온다. 계획에서 다른 모드로 가면 나온 뒤 그 모드를 쓴다.
 
 /** 권한 모드 설정 키(L1.tools). 세션 범위(`launch`)로 대화마다 정한다 */
 export const PERMISSION_MODE_KEY = "l1.tools.permissionMode";
 
+/** 모두 허용을 쓸 수 있는가(L1.tools). 거짓이면 칩 메뉴에 모두 허용이 없다 */
+export const BYPASS_ALLOWED_KEY = "l1.tools.bypassAllowed";
+
 const MODES: readonly PermissionMode[] = ["default", "acceptEdits", "plan", "bypass"];
-const SWITCH_MODES: readonly SwitchMode[] = ["default", "acceptEdits"];
+const SWITCH_MODES: readonly SwitchMode[] = ["default", "acceptEdits", "bypass"];
 
 /** `settings.get`이 준 값이 네 모드 가운데 하나면 그 모드, 아니면 null(모르는 값)이다. 값을 단언하지 않고 같은지만 본다 */
 export function permissionModeOf(value: unknown): PermissionMode | null {
   return MODES.find((mode) => mode === value) ?? null;
 }
 
-/** 칩 메뉴가 고른 값을 바꿀 수 있는 모드로 좁힌다. `plan`·`bypass`와 모르는 값은 null이라 칩이 바꾸지 않는다 */
+/** 설정 쓰기로 고르는 모드로 좁힌다. `plan`과 모르는 값은 null이다(계획은 명령으로 간다) */
 export function switchModeOf(value: string): SwitchMode | null {
   return SWITCH_MODES.find((mode) => mode === value) ?? null;
 }
@@ -33,24 +38,45 @@ export function permissionModeToneOf(mode: PermissionMode): "normal" | "danger" 
   return mode === "bypass" ? "danger" : "normal";
 }
 
+/** 칩 메뉴의 줄 */
 export interface PermissionModeOption {
   readonly mode: PermissionMode;
-  /** 고를 수 있는 줄인가. 지금 모드가 계획이나 모두 허용이면 그 줄은 칩 글을 보이려고만 둔다 */
-  readonly selectable: boolean;
+  /** 지금 모드인가 */
+  readonly selected: boolean;
 }
 
 /**
- * 칩 메뉴의 줄. 기본과 편집 자동 허용은 늘 고를 수 있다. 지금 모드가 그 둘이 아니면(계획, 모두 허용) 그 모드를
- * 고를 수 없는 줄로 끝에 더해, 칩 글이 지금 모드로 보이게 한다. 계획과 모두 허용으로 들어가는 줄은 만들지 않는다.
+ * 칩 메뉴의 줄: 묻기, 편집 자동 허용, 계획, 그리고 모두 허용이 허락되면 모두 허용. 허락되지 않아도 지금 모드가 모두 허용이면(관리 설정 등)
+ * 그 줄을 남겨 지금 상태가 보이게 한다
  */
-export function permissionModeOptionsOf(current: PermissionMode): readonly PermissionModeOption[] {
-  const switchable: readonly PermissionModeOption[] = SWITCH_MODES.map((mode) => ({
-    mode,
-    selectable: true,
-  }));
-  return switchModeOf(current) === null
-    ? [...switchable, { mode: current, selectable: false }]
-    : switchable;
+export function permissionModeOptionsOf(
+  current: PermissionMode,
+  bypassAllowed: boolean,
+): readonly PermissionModeOption[] {
+  const modes: readonly PermissionMode[] =
+    bypassAllowed || current === "bypass" ? MODES : ["default", "acceptEdits", "plan"];
+  return modes.map((mode) => ({ mode, selected: mode === current }));
+}
+
+/** `settings.get`이 준 `l1.tools.bypassAllowed` 값. 참일 때만 참이다(모르면 숨긴다) */
+export function bypassAllowedOf(value: unknown): boolean {
+  return value === true;
+}
+
+/** 모드를 바꾸는 걸음. 계획에 들어가고 나오는 것은 명령이고, 나머지는 설정 쓰기다 */
+export type ModeStep =
+  | { readonly kind: "none" }
+  | { readonly kind: "enterPlan" }
+  /** 계획에서 나온 뒤 계획 서비스가 돌려놓은 모드가 `target`과 다르면 `target`을 쓴다 */
+  | { readonly kind: "exitPlan"; readonly target: SwitchMode }
+  | { readonly kind: "set"; readonly mode: SwitchMode };
+
+/** 지금 모드에서 고른 모드로 가는 걸음 */
+export function modeStepOf(current: PermissionMode, next: PermissionMode): ModeStep {
+  if (current === next) return { kind: "none" };
+  if (next === "plan") return { kind: "enterPlan" };
+  if (current === "plan") return { kind: "exitPlan", target: next };
+  return { kind: "set", mode: next };
 }
 
 /**
@@ -58,7 +84,10 @@ export function permissionModeOptionsOf(current: PermissionMode): readonly Permi
  * 대화 범위만 바뀐 경우는 이 대화의 변경일 때만이다(`invalidationConcerns`, L4.settings-ui §4.5.2)
  */
 export function modeChangeConcerns(notice: SettingsInvalidation, threadId: ThreadId): boolean {
-  const keyChanged = notice.keys.length === 0 || notice.keys.includes(PERMISSION_MODE_KEY);
+  const keyChanged =
+    notice.keys.length === 0 ||
+    notice.keys.includes(PERMISSION_MODE_KEY) ||
+    notice.keys.includes(BYPASS_ALLOWED_KEY);
   return keyChanged && invalidationConcerns(notice, threadId);
 }
 

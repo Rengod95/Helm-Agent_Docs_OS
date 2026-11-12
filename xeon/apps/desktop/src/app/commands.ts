@@ -33,6 +33,7 @@ import type {
 import { turnInputOf } from "../views/attachment-model.ts";
 import { collectExport } from "../views/export-model.ts";
 import {
+  BYPASS_ALLOWED_KEY,
   PERMISSION_MODE_KEY,
   modeChangeConcerns,
   modeEventConcerns,
@@ -389,6 +390,13 @@ export function createCommands(
       );
       if (!got.ok) return got;
       return ok(got.value.settings.find((setting) => setting.key === PERMISSION_MODE_KEY)?.value);
+    },
+    async readBypassAllowed(threadId) {
+      const got = await withConnection((c) =>
+        c.request("settings.get", { keys: [BYPASS_ALLOWED_KEY], threadId }),
+      );
+      if (!got.ok) return got;
+      return ok(got.value.settings.find((setting) => setting.key === BYPASS_ALLOWED_KEY)?.value);
     },
     onThreadModeChanged(threadId, listener) {
       const connection = session.connection();

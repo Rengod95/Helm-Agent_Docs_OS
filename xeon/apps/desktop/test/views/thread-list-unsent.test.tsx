@@ -62,7 +62,8 @@ describe("sidebar unsent mark", () => {
     const out = html();
     // 실패한 줄 하나만 실패 상태 점을 단다
     expect(out.match(/data-status="failed"/g)?.length).toBe(1);
-    // 보조 글은 줄 오른쪽 글 하나와 상태의 화면 낭독 글, 툴팁 한 번씩이다
-    expect(out.match(/보내지 못한 대화/g)?.length).toBe(3);
+    // 상태의 화면 낭독 글과 툴팁은 긴 말, 줄 오른쪽 표식은 짧은 말 하나다(DP-104)
+    expect(out.match(/보내지 못한 대화/g)?.length).toBe(2);
+    expect(out.match(/보내지 못함/g)?.length).toBe(1);
   });
 });

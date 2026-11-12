@@ -6,6 +6,7 @@ import type { TrustChoice } from "@fresnel/contracts/wire";
 import { useEffect, useState, type ReactNode } from "react";
 import { useLinkPhase, useOpenThreadId, useThread } from "../state/engine/index.ts";
 import { useCommands } from "./commands.ts";
+import { ProblemLine } from "./pages/shared/problem-state.tsx";
 import {
   trustCardOf,
   trustedToastOf,
@@ -24,11 +25,24 @@ type Loaded =
 
 export function TrustCard(): ReactNode {
   const threadId = useOpenThreadId();
+  const [reads, setReads] = useState(0);
   if (threadId === null) return null;
-  return <TrustCardFor key={threadId} threadId={threadId} />;
+  // "다시 읽기"는 부품을 새로 올려 판정을 다시 읽는다
+  return (
+    <TrustCardFor
+      key={`${threadId}:${String(reads)}`}
+      threadId={threadId}
+      onReload={() => {
+        setReads((count) => count + 1);
+      }}
+    />
+  );
 }
 
-function TrustCardFor(props: { readonly threadId: ThreadId }): ReactNode {
+function TrustCardFor(props: {
+  readonly threadId: ThreadId;
+  readonly onReload: () => void;
+}): ReactNode {
   const commands = useCommands();
   const phase = useLinkPhase();
   const workspace = useThread(props.threadId)?.workspace ?? null;
@@ -58,10 +72,24 @@ function TrustCardFor(props: { readonly threadId: ThreadId }): ReactNode {
   if (workspace === null || loaded === null || loaded.workspace !== workspace) return null;
   if ("failed" in loaded) {
     return (
-      <section aria-label={t("desktop.trust.card.title")}>
-        <div className="text-ui text-danger-text" role="alert">
+      // 읽지 못해도 대화는 막지 않는다. 입력창 위 한 줄 경고와 다시 읽기(DP-102, 공용 ProblemLine)
+      <section aria-label={t("desktop.trust.card.title")} className="px-3 pb-1">
+        <ProblemLine
+          tone="warning"
+          action={
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={() => {
+                props.onReload();
+              }}
+            >
+              {t("desktop.trust.card.reload")}
+            </Button>
+          }
+        >
           {t("desktop.trust.card.loadFailed")}
-        </div>
+        </ProblemLine>
       </section>
     );
   }
