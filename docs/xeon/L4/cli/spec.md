@@ -693,6 +693,7 @@ export interface GroupTemplatesPort {
 - 값 열람 [결정: review.decisions-2 U-20]: 열람 경로는 M2 CLI `fresnel secret reveal <name>`과 M3 데스크톱 화면(`L4.settings-ui.spec`) 둘이다. 에이전트 경로(모델 도구, 확장 API)에는 열람이 없다.
   - [제안] `reveal`은 stdin과 stdout이 모두 TTY일 때만 동작한다. 아니면 `revealRequiresTty` 사용법 오류(2)다. `--json`을 받지 않는다.
   - [제안] 시작은 값 필드가 없는 `secret.beginReveal { name }`이다. 값 표시는 호스트 쪽 L0.secrets가 맡는다. in-process면 같은 프로세스가 TTY에 직접 쓰고, 서비스 접속이면 서비스 쪽 L0.secrets가 OS 창으로 보인다(`L4.settings-ui.spec` §4.6.4 C안과 같은 경로). 값은 wire 프레임, 로그, 이벤트에 없다.
+  - [결정: 2026-11-11 사용자] 데스크톱 값 보기도 같은 채널 방식을 쓴다. 셸이 0700 폴더의 소켓을 열고 재인증 증거(`reauth: { method: "os-auth", verifiedAt }`)를 `secret.beginReveal`에 싣는다. 호스트가 쓴 값은 셸이 읽어 화면에 넘긴다(`L4.desktop` §4.17). CLI의 `reveal`은 여전히 `tty-confirm`만 쓰고 TTY에서만 동작한다.
   - [결정: 2026-11-12] 같은 컴퓨터의 서비스 접속(라우트 `local`)은 값을 로컬 일회용 채널로 주고받는다. CLI가 `mkdtemp`로 0700 폴더를 만들고 그 안에 유닉스 소켓을 열어 경로를 `secret.beginEntry`·`secret.beginReveal`의 `channel`로 보낸다. `add`·`set`·`rotate`는 호스트가 연결해 EOF까지 읽을 때 CLI가 값을 쓰고, 취소나 빈 값이면 아무것도 쓰지 않고 닫는다. `reveal`은 CLI가 터미널에서 이름을 다시 입력받은 뒤(`reauth: "tty-confirm"`) 호스트가 쓴 값을 읽어 TTY에 쓴다. 폴더와 소켓은 성공, 실패, 취소 모두 지운다. 원격 서비스 접속은 채널을 열지 않고 `이 컴퓨터에서만 값을 넣을 수 있어요`(볼 때는 `볼 수 있어요`)로 거절한다. 호스트의 거절은 `secret.localOnly`(3213)다. 서비스 쪽 OS 입력 창은 이 결정으로 대신한다. F wire §3.3.1 2026-11-12 결정이 정본이다.
   - [제안] OS 인증 재확인(macOS Touch ID·암호, Windows Hello 등)이 가능한 플랫폼에서는 표시 전에 재확인한다. 수단은 `L0.secrets.spec`·`L0.os.spec`이 정한다. 재확인을 못 하는 플랫폼에서는 TTY 확인 문구(이름을 다시 입력)만 받는다.
   - 열람은 감사 기록(`L0.secrets.spec`)에 남긴다. 기록에는 값이 없다.

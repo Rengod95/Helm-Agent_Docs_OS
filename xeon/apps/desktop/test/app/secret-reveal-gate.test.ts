@@ -1,10 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
-import type { RevealGrant, SecretRevealPort } from "@fresnel/client/settings";
+import type { RevealGrant } from "@fresnel/client/settings";
 import { ok, parse } from "@fresnel/contracts";
 import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabilities";
-import { createOsReauthGate, gatedRevealPort } from "../../src/app/secret-reveal-gate.ts";
-import type { OsReauthInvoke } from "../../src/views/os-reauth.ts";
+import {
+  createOsReauthGate,
+  gatedRevealPort,
+  type GatedValuePort,
+} from "../../src/app/secret-reveal-gate.ts";
+import type { OsAuthEvidence, OsReauthInvoke } from "../../src/views/os-reauth.ts";
 
 // 값 보기 재인증 관문(B8): 재인증이 먼저이고 통과했을 때만 값 경로를 연다. 창은 한 번에 하나만 뜬다.
 // 실제 Touch ID 창은 Mac에서만 뜨므로 여기서는 `os_reauth` invoke를 가짜로 둔다.
@@ -52,17 +56,26 @@ function pendingInvoke(): {
   return { invoke, reasons, open, peak: () => state.peak };
 }
 
-function valuePort(): { readonly port: SecretRevealPort; readonly calls: () => number } {
-  const state = { calls: 0 };
+const VALUE_BYTES = new TextEncoder().encode("fake-value-for-the-gate-test");
+
+/** 값 경로. 부른 횟수와 받은 증거를 센다. 값은 가짜 바이트다 */
+function valuePort(): {
+  readonly port: GatedValuePort;
+  readonly calls: () => number;
+  readonly evidence: () => readonly OsAuthEvidence[];
+} {
+  const state: { calls: number; evidence: OsAuthEvidence[] } = { calls: 0, evidence: [] };
   return {
     port: {
-      reveal() {
+      reveal(_name, reauth) {
         state.calls += 1;
-        const grant: RevealGrant = { kind: "shown_by_host" };
+        state.evidence.push(reauth);
+        const grant: RevealGrant = { kind: "value", bytes: VALUE_BYTES.slice() };
         return Promise.resolve(ok(grant));
       },
     },
     calls: () => state.calls,
+    evidence: () => state.evidence.slice(),
   };
 }
 
@@ -80,7 +93,10 @@ describe("the OS re-auth gate", () => {
     await tick();
     expect(fake.reasons).toEqual([t("desktop.secrets.reveal.reauthReason", { name: FIRST })]);
     fake.open[0]?.resolve({ verifiedAtMs: 1_000 });
-    expect(await pending).toEqual({ ok: true, value: undefined });
+    expect(await pending).toEqual({
+      ok: true,
+      value: { method: "os-auth", verifiedAt: 1_000 },
+    });
   });
 
   test("the value port runs only after the re-auth passes, and not at all when it fails", async () => {
@@ -90,8 +106,13 @@ describe("the OS re-auth gate", () => {
     await tick();
     expect(value.calls()).toBe(0);
     passed.open[0]?.resolve({ verifiedAtMs: 1_000 });
-    expect(await revealed).toEqual({ ok: true, value: { kind: "shown_by_host" } });
+    expect(await revealed).toEqual({
+      ok: true,
+      value: { kind: "value", bytes: VALUE_BYTES },
+    });
     expect(value.calls()).toBe(1);
+    // 통과한 증거(인증 시각)가 값 경로에 그대로 간다
+    expect(value.evidence()).toEqual([{ method: "os-auth", verifiedAt: 1_000 }]);
 
     const denied = pendingInvoke();
     const blocked = valuePort();
@@ -136,8 +157,8 @@ describe("the OS re-auth gate", () => {
     await tick();
     expect(fake.open).toHaveLength(1);
     fake.open[0]?.resolve({ verifiedAtMs: 5 });
-    expect(await a).toEqual({ ok: true, value: undefined });
-    expect(await b).toEqual({ ok: true, value: undefined });
+    expect(await a).toEqual({ ok: true, value: { method: "os-auth", verifiedAt: 5 } });
+    expect(await b).toEqual({ ok: true, value: { method: "os-auth", verifiedAt: 5 } });
     // 끝난 뒤의 새 호출은 새 창을 연다(이전 통과를 재사용하지 않는다)
     const c = gate.reauth(FIRST);
     await tick();
@@ -158,7 +179,7 @@ describe("the OS re-auth gate", () => {
     await tick();
     expect(fake.open).toHaveLength(2);
     fake.open[1]?.resolve({ verifiedAtMs: 6 });
-    expect(await b).toEqual({ ok: true, value: undefined });
+    expect(await b).toEqual({ ok: true, value: { method: "os-auth", verifiedAt: 6 } });
     expect(fake.peak()).toBe(1);
     expect(fake.reasons).toEqual([
       t("desktop.secrets.reveal.reauthReason", { name: FIRST }),

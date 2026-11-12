@@ -285,3 +285,35 @@ test("no wire frame carries the value on the channel paths", async () => {
   }
   await connection.close();
 });
+
+test("reveal over the channel with the desktop's os-auth evidence writes the value and reports started", async () => {
+  const host = createFakeHost();
+  host.fake.secrets.records.set(EXA, storedMeta(VALUE));
+  const connection = await openLocal(host);
+  const channel = await openChannel({ collect: true });
+  const verifiedAt = 1_762_900_000_000;
+  const started = await connection.request("secret.beginReveal", {
+    name: EXA,
+    channel: channel.path,
+    reauth: { method: "os-auth", verifiedAt },
+  });
+  expect(started).toEqual({ started: true });
+  await channel.done;
+  expect(channel.received.join("")).toBe(VALUE);
+  // 호스트는 화면이 보낸 증거를 그대로 관리 서비스에 넘긴다(60초 검사는 관리 서비스가 한다)
+  expect(host.fake.secrets.revealed).toEqual([{ method: "os-auth", verifiedAt }]);
+  await connection.close();
+});
+
+test("reveal over the channel without any reauth evidence is started false and the channel gets nothing", async () => {
+  const host = createFakeHost();
+  host.fake.secrets.records.set(EXA, storedMeta(VALUE));
+  const connection = await openLocal(host);
+  const channel = await openChannel({ collect: true });
+  expect(
+    await connection.request("secret.beginReveal", { name: EXA, channel: channel.path }),
+  ).toEqual({ started: false });
+  expect(channel.received).toEqual([]);
+  expect(host.fake.secrets.revealed).toEqual([]);
+  await connection.close();
+});

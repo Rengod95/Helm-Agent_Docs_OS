@@ -1,11 +1,17 @@
 import { assertNever, err, ok, type Result } from "@fresnel/contracts";
 import type { SecretEntryMeta, SecretMeta } from "@fresnel/contracts/capabilities";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
-import type { SecretError, SecretMetaPatch, SecretValueSource } from "@fresnel/contracts/services";
+import type {
+  HumanReauth,
+  SecretError,
+  SecretMetaPatch,
+  SecretValueSource,
+} from "@fresnel/contracts/services";
 import {
   wireError,
   type SecretKeyWhere,
   type SecretListEntry,
+  type SecretRevealReauth,
   type WireError,
   type WireHandler,
   type WireHandlers,
@@ -358,19 +364,26 @@ function createBeginRevealHandler(
     }
     if (params.channel === undefined) return { started: false };
     const path = await localChannelOf(engine, hub(), context, params.channel, "secret.beginReveal");
-    // CLI가 터미널에서 이름을 다시 입력받아 사람을 확인했다는 표시가 없으면 열람하지 않는다
-    if (params.reauth !== "tty-confirm") return { started: false };
+    // 사람 확인 증거가 없으면 열람하지 않는다. 시각이 60초를 넘었는지는 admin.reveal이 본다
+    const reauth = revealReauthOf(params.reauth, clock.now());
+    if (reauth === null) return { started: false };
     const delivery = revealChannel(path);
     log.info("secret.reveal", { name: params.name });
-    const shown = await admin.reveal(
-      handleOf(params.name),
-      { method: "tty-confirm", verifiedAt: clock.now() },
-      delivery.show,
-    );
+    const shown = await admin.reveal(handleOf(params.name), reauth, delivery.show);
     if (!shown.ok) return revealOutcome(shown);
     // 기록은 보이기 전에 남는다. 채널에 쓰지 못했으면 값이 보이지 않았다
     return { started: delivery.delivered() };
   };
+}
+
+/**
+ * 채널 열람의 사람 확인 증거로 바꾼다. `tty-confirm`은 지금 시각으로 찍고(CLI가 방금 이름을 다시 받았다), `os-auth`는 화면이 보낸 시각을 그대로 쓴다.
+ * 증거가 없으면 `null`이다(열람하지 않는다)
+ */
+function revealReauthOf(reauth: SecretRevealReauth | undefined, now: number): HumanReauth | null {
+  if (reauth === undefined) return null;
+  if (reauth === "tty-confirm") return { method: "tty-confirm", verifiedAt: now };
+  return { method: "os-auth", verifiedAt: reauth.verifiedAt };
 }
 
 function revealOutcome(shown: Result<void, SecretError>): { started: boolean } {

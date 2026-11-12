@@ -1521,18 +1521,35 @@ export const SecretBeginEntryResultSchema: TObject<{ started: TBoolean }> = Type
 export type SecretBeginEntryResult = Static<typeof SecretBeginEntryResultSchema>;
 
 /**
+ * 값 보기의 사람 확인 증거(`reauth`). `tty-confirm`은 CLI가 터미널에서 이름을 다시 받았다는 표시다.
+ * `os-auth`는 화면이 OS 재인증(Touch ID, 기기 암호)을 마친 시각(`verifiedAt`, epoch 밀리초)이다. 호스트는 60초 안인지만 본다(L0.secrets §4.9.1).
+ * [결정: 2026-11-11 사용자] 데스크톱 화면은 `os-auth`를 로컬 채널 열람에 붙인다.
+ */
+export const SecretRevealReauthSchema: TUnion<
+  [TLiteral<"tty-confirm">, TObject<{ method: TLiteral<"os-auth">; verifiedAt: TInteger }>]
+> = Type.Union([
+  Type.Literal("tty-confirm"),
+  Type.Object(
+    { method: Type.Literal("os-auth"), verifiedAt: Type.Integer({ minimum: 0 }) },
+    { additionalProperties: false },
+  ),
+]);
+export type SecretRevealReauth = Static<typeof SecretRevealReauthSchema>;
+
+/**
  * secret.beginReveal params. 값 필드가 없다. 표시는 호스트 쪽 L0.secrets가 TTY나 OS 창에 한다(L4.cli.spec §4.7).
- * 같은 컴퓨터의 CLI는 `channel`(로컬 일회용 소켓 경로, 값이 아니다)과 `reauth: "tty-confirm"`(CLI가 터미널에서 이름을 다시 받아 사람을 확인했다)을 보낸다.
+ * 같은 컴퓨터의 CLI는 `channel`(로컬 일회용 소켓 경로, 값이 아니다)과 `reauth: "tty-confirm"`을 보낸다.
+ * 같은 컴퓨터의 데스크톱 화면은 `channel`(셸이 연 소켓)과 `reauth: { method: "os-auth", verifiedAt }`를 보낸다.
  */
 export const SecretBeginRevealParamsSchema: TObject<{
   name: typeof SecretNameSchema;
   channel: TOptional<TString>;
-  reauth: TOptional<TLiteral<"tty-confirm">>;
+  reauth: TOptional<typeof SecretRevealReauthSchema>;
 }> = Type.Object(
   {
     name: SecretNameSchema,
     channel: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
-    reauth: Type.Optional(Type.Literal("tty-confirm")),
+    reauth: Type.Optional(SecretRevealReauthSchema),
   },
   { additionalProperties: false },
 );

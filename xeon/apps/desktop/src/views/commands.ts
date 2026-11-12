@@ -1,3 +1,4 @@
+import type { OsAuthEvidence } from "./os-reauth.ts";
 import type { RemoteAdapter } from "../app/remote/remote-types.ts";
 import type {
   EventId,
@@ -693,7 +694,7 @@ export type SecretCommandError =
 
 /**
  * 시크릿 화면(P-10). 목록과 메타는 요청 결과라 거울에 넣지 않는다(FS-03). 값은 wire를 지나지 않는다:
- * 값 입력은 `registerKey`(셸 명령), 값 보기는 재인증 관문 뒤의 `beginReveal`(값 없이 호스트가 자기 창에 보인다)이다.
+ * 값 입력은 `registerKey`(셸 명령), 값 보기는 재인증 관문 뒤의 `reveal`(셸의 로컬 채널로 값을 받는다)이다.
  */
 export interface SecretCommands {
   /** `secret.list { meta, usage }`의 시크릿 항목 */
@@ -714,8 +715,14 @@ export interface SecretCommands {
     action: "add" | "set",
     value: Uint8Array,
   ): Promise<Result<null, KeyRegisterError>>;
-  /** `secret.beginReveal`. 호스트가 자기 창에 값을 보였으면 `true`다. 값은 이 경로로 오지 않는다 */
-  beginReveal(name: SecretName): Promise<Result<boolean, SecretCommandError>>;
+  /**
+   * 값 보기. 재인증을 마친 증거(`reauth`, 인증 시각)로 호스트에 열람을 시키고, 셸의 로컬 일회용 채널로 값을 받는다.
+   * 호스트가 열람을 시작하지 않았으면 `null`이다. 받은 바이트는 호출자가 쓴 뒤 덮는다. 같은 컴퓨터의 연결만 된다(L4.desktop §4.17)
+   */
+  reveal(
+    name: SecretName,
+    reauth: OsAuthEvidence,
+  ): Promise<Result<Uint8Array | null, SecretCommandError>>;
   /** `secret.keyStatus`. 열쇠 보관 방식과 열쇠가 어느 쪽에 있는지 읽는다. 식별자는 읽지 않는다 */
   keyStatus(): Promise<Result<SecretKeyStatusResult, SecretCommandError>>;
   /** `secret.keyMove`. 열쇠를 `to` 쪽으로 옮기고 설정을 바꾼다. 같은 컴퓨터의 연결만 된다(원격이면 `localOnly`) */

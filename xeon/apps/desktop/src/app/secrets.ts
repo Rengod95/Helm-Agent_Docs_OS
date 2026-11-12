@@ -7,7 +7,8 @@ import { keyRegisterErrorOf } from "./setup.ts";
 import type { Session } from "./session.ts";
 
 // 시크릿 화면(P-10)이 부르는 wire. 화면이 `secret.reauthRequired`, `secret.notFound`, `secret.inUse`를 구분하므로
-// 공통 명령 오류(`errorOf`)보다 자세히 나눈다. 값은 wire를 지나지 않는다: 값 입력은 셸 명령(`registerSecret`)이 받는다.
+// 공통 명령 오류(`errorOf`)보다 자세히 나눈다. 값은 wire를 지나지 않는다: 값 입력은 셸 명령(`registerSecret`)이 받고,
+// 값 보기는 셸의 로컬 일회용 채널(`secret_reveal_*`)로 받는다. wire에는 채널 경로와 재인증 증거만 실린다.
 
 /** wire 오류를 화면이 구분하는 오류로 바꾼다. 구분하지 않는 나머지는 `failed`다 */
 function secretErrorOf(cause: unknown): SecretCommandError {
@@ -29,7 +30,7 @@ function secretErrorOf(cause: unknown): SecretCommandError {
 
 export interface SecretDeps {
   readonly session: Pick<Session, "connection">;
-  readonly ipc: Pick<DesktopIpc, "registerSecret">;
+  readonly ipc: Pick<DesktopIpc, "registerSecret" | "revealOpen" | "revealTake" | "revealClose">;
   readonly clipboard: { writeText(text: string): Promise<void> };
 }
 
@@ -68,9 +69,23 @@ export function createSecretCommands(deps: SecretDeps): SecretCommands {
       const registered = await deps.ipc.registerSecret(name, action, value);
       return registered.ok ? ok(null) : err(keyRegisterErrorOf(registered.error));
     },
-    async beginReveal(name) {
-      const begun = await run((c) => c.request("secret.beginReveal", { name }));
-      return begun.ok ? ok(begun.value.started) : begun;
+    async reveal(name, reauth) {
+      const opened = await deps.ipc.revealOpen();
+      if (!opened.ok) return err({ kind: "failed" });
+      const { id, path: channel } = opened.value;
+      // 받기를 먼저 건다. 호스트는 `secret.beginReveal` 처리 중에 소켓에 쓰므로 그 전에 기다리고 있어야 한다
+      const taken = deps.ipc.revealTake(id);
+      const begun = await run((c) => c.request("secret.beginReveal", { name, channel, reauth }));
+      if (!begun.ok || !begun.value.started) {
+        // 열람이 없었다(거절이나 호스트의 불시작). 채널을 닫아 기다리던 받기를 끝내고, 받은 것이 있어도 버린다
+        await deps.ipc.revealClose(id);
+        const stray = await taken;
+        if (stray.ok && stray.value !== null) stray.value.fill(0);
+        return begun.ok ? ok(null) : err(begun.error);
+      }
+      const received = await taken;
+      if (!received.ok || received.value === null) return err({ kind: "failed" });
+      return ok(received.value);
     },
     keyStatus: () => run((c) => c.request("secret.keyStatus", {})),
     keyMove: (to) => run((c) => c.request("secret.keyMove", { to })),

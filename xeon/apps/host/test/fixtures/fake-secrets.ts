@@ -67,6 +67,8 @@ export interface FakeSecrets {
   readonly received: string[];
   /** 서비스가 show 콜백에 건넨 값(시험 전용) */
   readonly shown: string[];
+  /** 열람에 넘어온 사람 확인 증거의 방식과 시각, 호출 순서(시험 전용). 시각은 증거 그대로다 */
+  readonly revealed: { readonly method: string; readonly verifiedAt: number }[];
   /** 메타 없이 제공자에만 있는 항목(orphaned) */
   readonly orphanRefs: string[];
   /** `linkModelProviders`가 불린 횟수(설정 쓰기 처리기가 연결을 알렸는지) */
@@ -103,6 +105,7 @@ export function createFakeSecrets(config: SecretsConfig = FAKE_SECRETS_CONFIG): 
   const calls: string[] = [];
   const received: string[] = [];
   const shown: string[] = [];
+  const revealed: { readonly method: string; readonly verifiedAt: number }[] = [];
   const orphanRefs: string[] = [];
   const decoder = new TextDecoder();
 
@@ -264,6 +267,7 @@ export function createFakeSecrets(config: SecretsConfig = FAKE_SECRETS_CONFIG): 
     async reveal(handle, reauth: HumanReauth, show) {
       const name = nameOf(handle);
       calls.push(`reveal ${name ?? "?"}`);
+      revealed.push({ method: reauth.method, verifiedAt: reauth.verifiedAt });
       if (reauth.method === "tty-confirm" && reauth.verifiedAt < 0) {
         return err({ kind: "reauth_required" });
       }
@@ -293,6 +297,7 @@ export function createFakeSecrets(config: SecretsConfig = FAKE_SECRETS_CONFIG): 
     calls,
     received,
     shown,
+    revealed,
     orphanRefs,
     linkCalls: () => linked.count,
   };

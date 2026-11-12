@@ -669,6 +669,7 @@ M2 설계(후속 구현):
 ### 4.9.1 OS 인증 재확인 (`os-auth.ts`) [결정: M3-m2c-01]
 
 - `OsAuthProvider`(`available()`, `verify(reason, signal)`)가 사람의 OS 인증을 요청하고 `HumanReauth`(`method: "os-auth"`, `verifiedAt`)를 돌려준다. L4는 reveal 직전에 `runtime.osAuth.verify`를 부르고 받은 증거를 `admin.reveal`에 넘긴다. 서비스는 증거의 시각(60초)만 본다(§4.9 값 보기).
+- [결정: 2026-11-11 사용자] 데스크톱 값 보기의 증거도 `os-auth`다. 화면이 OS 재인증을 마친 시각을 `secret.beginReveal`의 `reauth`(`{ method: "os-auth", verifiedAt }`)로 같은 컴퓨터의 로컬 채널 열람에 싣는다(F wire-settings §3.3.1, `L4.desktop` §4.17). 호스트는 이 증거를 `admin.reveal`에 그대로 넘기고 60초 검사는 여기서 한다. 셸이 이 증거를 만들고, 호스트는 셸을 믿는다는 점은 `tty-confirm`과 같다(같은 사용자의 로컬 연결이라는 경계 안에서).
 - macOS 구현(`selectOsAuth({ platform: "darwin", … })`)은 `/usr/bin/osascript -e 'do shell script "true" with prompt "<문구>" with administrator privileges'`로 인증 대화상자(암호, Touch ID 지원 기기는 생체 인증)를 띄운다. 종료 코드 0이면 인증된 것이다. stderr가 `-128`·`User canceled`면 `cancelled`, 그 밖의 실패는 `denied`, 실행 실패는 `failed`다. 문구에서 따옴표·역슬래시·제어 문자는 공백으로 바꿔 스크립트 문자열을 깨지 못하게 한다. 이 방식은 [결정: 오케스트레이터 기본값]이다(새 의존 없이 쓸 수 있는 수단. Touch ID 전용 네이티브 헬퍼는 후속). 실제 대화상자는 macOS 실기(사용자 묶음)에서 확인한다.
 - `createSecretsRuntime`은 `deps.osAuth`를 넘길 때만 OS 인증을 켠다. 켜면 `osAuthAvailable`이 참이 되어 reveal이 `tty-confirm`을 거부하므로, L4가 `verify`를 연결한 뒤에 넘긴다(연결 전에 켜면 macOS `fresnel secret reveal`이 막힌다). 지원하지 않는 플랫폼에는 `selectOsAuth`가 undefined를 돌려준다.
 - 시험은 가짜 provider(`fakeOsAuth`, `src/testing`)로 취소, 거절, 60초 지난 증거, `tty-confirm` 거부를 값으로 확인한다.

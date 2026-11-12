@@ -541,6 +541,36 @@ describe("M2 method schemas are written out", () => {
     expect(parse(reveal, { name: "github-token", value: "plain" }).ok).toBe(false);
   });
 
+  test("secret.beginReveal takes the desktop's os-auth evidence as a method and a time, and nothing else", () => {
+    const reveal = WIRE_METHODS["secret.beginReveal"].params;
+    const evidence: { readonly method: "os-auth"; readonly verifiedAt: number } = {
+      method: "os-auth",
+      verifiedAt: 1_762_900_000_000,
+    };
+    const accepted = parse(reveal, {
+      name: "github-token",
+      channel: "/tmp/x/c.sock",
+      reauth: evidence,
+    });
+    expect(accepted.ok).toBe(true);
+    expect(accepted.ok && accepted.value.reauth).toEqual(evidence);
+    expect(
+      parse(reveal, { name: "github-token", reauth: { method: "os-auth", verifiedAt: -1 } }).ok,
+    ).toBe(false);
+    expect(
+      parse(reveal, { name: "github-token", reauth: { method: "os-auth", verifiedAt: 1.5 } }).ok,
+    ).toBe(false);
+    expect(
+      parse(reveal, { name: "github-token", reauth: { method: "tty-confirm", verifiedAt: 1 } }).ok,
+    ).toBe(false);
+    expect(
+      parse(reveal, {
+        name: "github-token",
+        reauth: { method: "os-auth", verifiedAt: 1, value: "plain" },
+      }).ok,
+    ).toBe(false);
+  });
+
   test("secret.keyStatus and secret.keyMove carry no value, and the target is keychain or file", () => {
     const status = WIRE_METHODS["secret.keyStatus"];
     expect(status.stage).toBe("M4");

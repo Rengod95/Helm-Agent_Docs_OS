@@ -669,7 +669,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 
 ### 4.17 사람 재인증 `os_reauth` [결정: 2026-11-04 사용자, B8 2안]
 
-시크릿 값 보기는 사람이 기기 인증을 마친 뒤에만 열린다(L0.secrets §4.9.1, `reveal`의 `os-auth` 증거). 셸은 그 인증 창을 띄우는 명령만 준다. 이 명령은 값을 보지 않는다. 값 보기 화면(`SecretsPanel`)이 값 경로(`secret.beginReveal`)보다 먼저 이 명령을 부른다(`createOsReauthGate`, `src/app/secret-reveal-gate.ts`). 사이드카(stdio)와 서비스 연결은 재인증을 통과해도 `secret.beginReveal`이 `started: false`라 값은 열리지 않고 `not_started` 문장을 보인다(desktop-ux W-10).
+시크릿 값 보기는 사람이 기기 인증을 마친 뒤에만 열린다(L0.secrets §4.9.1, `reveal`의 `os-auth` 증거). 셸은 그 인증 창을 띄우는 명령만 준다. 이 명령은 값을 보지 않는다. 값 보기 화면(`SecretsPanel`)이 값 경로(`secret.beginReveal`)보다 먼저 이 명령을 부른다(`createOsReauthGate`, `src/app/secret-reveal-gate.ts`). 재인증을 통과하면 값은 셸의 로컬 일회용 채널로 받는다 [결정: 2026-11-11 사용자]. 아래 "값 보기 채널"을 본다. 같은 컴퓨터의 연결(서비스와 앱 안 엔진 모두 `origin: local`)에서만 열리고, 원격 표시 연결은 `secret.localOnly`로 거절된다(desktop-ux W-10의 `not_started` 문장은 더 쓰지 않는다).
 
 - 구현: 셸 메인 프로세스의 `apps/desktop-shell/src/main/os-reauth.ts`(분류)와 `os-reauth-shell.ts`(어댑터). macOS에서는 `mac-security` 애드온(`canAuthenticate()`, `authenticate(reason)`)이 `LAPolicyDeviceOwnerAuthentication`으로 Touch ID 창을 띄우고 지문이 안 되면 Mac 암호 창으로 넘어간다 [결정: 2026-11-06 사용자](§11.6). 거절은 애드온의 `MacSecurityError.kind`(`cancelled`, `denied`, `unavailable`, `failed`)를 그대로 읽는다. 오류 문구는 읽지 않는다. 다른 OS에서는 항상 `unavailable`이다. 옛 Tauri 구현(커밋 424f338a)은 `src-tauri/src/os_reauth.rs`에서 `objc2-local-authentication` 0.3.2(`=` 고정, 기능 `LAContext`와 `block2`)의 `LAContext.evaluatePolicy`에 `LAPolicy::DeviceOwnerAuthentication`을 주었다. 답은 reply 블록으로 비동기에 왔고, 명령은 그 답을 기다리기만 했다. 명령이 `async`라서 메인 스레드는 막히지 않았다.
 - 사유 문구: 제어 문자는 공백으로 바꾸고, 공백은 한 칸으로 줄이고, 120자까지 쓴다. 비면 `Fresnel`이다.
@@ -684,6 +684,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 | `unavailable` | 인증 수단이 없다(암호 미설정, 생체 인증 없음·미등록·잠김, 비대화형, macOS가 아님) | PasscodeNotSet -5, BiometryNotAvailable -6, BiometryNotEnrolled -7, BiometryLockout -8, NotInteractive -1004 |
 | `failed` | 그 밖의 실패 | InvalidContext -10, 여기 없는 코드 |
 
+- 값 보기 채널 [결정: 2026-11-11 사용자]: 값은 wire로 가지 않는다. 셸(`apps/desktop-shell/src/main/secret-reveal.ts`)이 명령 `secret_reveal_open`으로 mkdtemp 0700 폴더를 만들고 그 안에 유닉스 소켓을 연다. 화면은 같은 순서로 `secret_reveal_take`(받기를 먼저 건다)를 걸고, 소켓 경로와 OS 재인증 증거(`{ method: "os-auth", verifiedAt }`)를 `secret.beginReveal`의 `channel`·`reauth`로 보낸다. 호스트가 값을 소켓에 쓰고 닫으면 셸이 EOF까지 읽어 화면에 넘긴다. 셸의 받기는 값 상한 64 KiB, 기다림 60초다. 기다림이 끝나거나 호스트가 열람을 시작하지 않으면(`started: false`) 셸이 채널을 닫고(`secret_reveal_close`) 받은 것이 있으면 버린다. 셸은 한 번에 채널 하나만 연다. 셸의 바이트 사본은 IPC 응답으로 보낸 뒤 화면에서 덮는다. 값은 로그에 쓰지 않는다. 명령 세 개(`secret_reveal_open`, `secret_reveal_take`, `secret_reveal_close`)는 웹 게이트웨이 표에서 숨긴다(`hidden`).
 - 값 보기 연결 [결정: 2026-11-04 사용자, B8 2안: 재인증 먼저, 그다음 보기]: 앱 진입점(`main.tsx`)이 macOS에서만 `createOsReauthGate`를 `RevealGateContext`에 넣는다. 그 밖의 OS와 웹은 `UNAVAILABLE_GATE`라 값 보기가 잠기고 이유를 보인다. 게이트는 시크릿 이름마다 이 명령을 한 번 부르고 통과했을 때만 값 경로를 연다. 창이 떠 있는 동안 같은 이름의 호출은 그 창의 결과를 함께 기다려 창이 두 번 뜨지 않고, 다른 이름의 호출은 앞의 창이 닫힌 뒤에 자기 창을 띄운다. `cancelled`와 `denied`는 "재인증을 취소했어요", `unavailable`은 잠김 문장, `failed`는 일반 실패로 보인다. 사유 문구에는 시크릿 이름만 싣고 값은 어디에도 싣지 않는다. `osascript` 방식(`platform-secrets/src/os-auth.ts`)은 그대로 둔다.
 - 확인 상태: 옛 Tauri 구현(커밋 424f338a)의 코드 매핑과 문구 정리는 값으로 시험했다. `mac-security`가 LAError 코드를 종류로 바꾸는 값(`kindOfLaCode`)은 셸 시험이 값으로 맞춰 본다. 실제 Touch ID·암호 창과 취소 동작은 Mac에서 사람이 확인하기 전이다(`review.macos-checklist` M-05).
 
