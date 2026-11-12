@@ -34,7 +34,7 @@ import { SIDE_ROW } from "./side-row.ts";
 import { pickWorkspaceFolder, type FolderPickInvoke } from "./folder-pick.ts";
 import { useStartNewThread } from "./new-thread-flow.ts";
 import { recentWorkspacesOf, type RecentWorkspace } from "./new-thread-model.ts";
-import { folderLabel, sidebarGroupsOf } from "./thread-groups.ts";
+import { folderLabel, folderPartsOf, sidebarGroupsOf } from "./thread-groups.ts";
 import {
   relativeTimeOf,
   rowBadgeOf,
@@ -71,7 +71,8 @@ const LIST_COLUMN =
  */
 const ROW_HEIGHT = SIDE_ROW;
 
-/** 행 오른쪽 표식(DP-104). 승인은 경고 꼬리표(답이 필요), 나머지는 12px tertiary 글과 필요한 곳만 아이콘 12. 종류는 `rowBadgeOf`가 정한다 */
+/**
+ * 행 오른쪽 표식(DP-104). 승인은 작은 경고 배지(점 + 수, DP-150: 제목 칸을 먼저 자르지 않게 좁게), 나머지는 12px tertiary 글과 필요한 곳만 아이콘 12. 종류는 `rowBadgeOf`가 정한다 */
 function metaOf(
   thread: ThreadSummary,
   approvals: number,
@@ -85,10 +86,14 @@ function metaOf(
       return (
         <Badge
           size="xs"
-          className="bg-warning-tint text-warning-text"
+          dot
+          className="bg-warning-tint text-warning-text tabular-nums"
           data-thread-badge="approvals"
         >
-          {t("desktop.threads.approvalsBadge", { count: approvals })}
+          <span aria-hidden>{approvals}</span>
+          <span className="sr-only">
+            {t("desktop.threads.approvalsBadge", { count: approvals })}
+          </span>
         </Badge>
       );
     // 이어서 실행은 아이콘과 글(시안 threadMeta의 RotateCcw + 이어서 실행)
@@ -113,7 +118,7 @@ function metaOf(
       return t("desktop.threads.forkedBadge");
     case null:
       // 제목 없는 대화는 서로 구분되도록 언제 만들었는지를 꼬리에 둔다
-      return thread.title === null
+      return rowLabelOf(thread).dim
         ? relativeTimeText(relativeTimeOf(thread.createdAt, now))
         : undefined;
     default:
@@ -160,6 +165,7 @@ const ThreadRow = memo(function ThreadRow(props: {
   // 툴팁에는 제목 아래로 알릴 말을 한 줄씩 더한다. 표시가 없으면 제목만 남는다
   const tooltip = [
     title,
+    approvals > 0 ? t("desktop.threads.approvalsWaiting", { count: approvals }) : null,
     unlisted > 0 ? t("desktop.threads.unlistedApprovals") : null,
     unsent ? t("desktop.threads.status.unsent") : null,
   ]
@@ -368,6 +374,26 @@ function OtherFolder(props: {
   );
 }
 
+/**
+ * 폴더 묶음 머리(DP-150): 마지막 폴더 이름(13/500 secondary) + 부모 경로(12 tertiary, 앞을 생략). 올리면 전체 경로.
+ * 부모 경로는 rtl 칸에 ltr 글을 두어 말줄임이 앞에 온다(caustic Badge mono와 같은 방법)
+ */
+function FolderHeading(props: { readonly path: string }): ReactNode {
+  const { name, parent } = folderPartsOf(props.path);
+  return (
+    <span className="flex min-w-0 flex-1 items-baseline gap-1.5" title={props.path}>
+      <span className="max-w-full shrink-0 truncate text-ui font-medium text-text-secondary">
+        {name}
+      </span>
+      {parent === "" ? null : (
+        <span dir="rtl" className="min-w-0 truncate text-footnote text-text-tertiary">
+          <bdi dir="ltr">{parent}</bdi>
+        </span>
+      )}
+    </span>
+  );
+}
+
 /** 1분마다 바뀌는 지금 시각(ms). 제목 없는 줄의 "3분 전"을 맞춘다 */
 function useMinuteClock(): number {
   const [now, setNow] = useState(Date.now);
@@ -489,9 +515,7 @@ export function ThreadList(props: {
               group.workspace === null ? (
                 t("desktop.threads.noFolder")
               ) : (
-                <span className="font-mono text-mono normal-case" title={group.workspace}>
-                  {folderLabel(group.workspace)}
-                </span>
+                <FolderHeading path={group.workspace} />
               )
             }
             addLabel={

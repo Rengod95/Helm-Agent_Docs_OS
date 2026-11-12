@@ -47,9 +47,10 @@ import {
 import { useCommands } from "./commands.ts";
 import { engineGoneOf } from "./composer-model.ts";
 import {
-  modelLabelOf,
+  prettyModelId,
   tokenCountText,
   useDefaultModel,
+  useModelNameOf,
   useSessionUsage,
   useThreadModel,
   type SessionUsage,
@@ -581,16 +582,29 @@ function LiveCell(): ReactNode {
 
 /**
  * "모델" 칸(시안 `model`). 이 대화가 다음 턴부터 쓰는 모델(대화가 정한 모델, 없으면 기본 모델)을 보인다.
- * 칸 글은 모델 이름만 두고(`provider/` 접두사는 뗀다). 고르는 곳은 입력창의 모델 select다
+ * 칸 글은 카탈로그 표시 이름(`Claude Sonnet 5.5`)이고 참조(`anthropic/claude-sonnet-5-5`)는 Popover 안에만 둔다(DP-144).
+ * 고르는 곳은 입력창의 모델 select다
  */
-export function ModelCell(props: { readonly model: string | null }): ReactNode {
+export function ModelCell(props: {
+  readonly model: string | null;
+  /** 참조를 화면 이름으로. 부르는 쪽이 카탈로그(`useModelNameOf`)를 넘기고, 없으면 id를 다듬은 이름이다 */
+  readonly nameOf?: (ref: string) => string;
+}): ReactNode {
   const [open, setOpen] = useState(false);
+  const nameOf = props.nameOf ?? prettyModelId;
   // 기본 모델을 아직 정하지 않았으면 시안(p01)처럼 "모델 없음"으로 보인다
   return (
     <StatusCell
       cellId="model"
       collapseIcon={<Sparkles className="size-3.5" />}
-      text={props.model === null ? t("desktop.status.cell.model.none") : modelLabelOf(props.model)}
+      text={props.model === null ? t("desktop.status.cell.model.none") : nameOf(props.model)}
+      body={
+        props.model === null ? undefined : (
+          <p className="m-0 mt-1 font-mono text-ui-sm text-text-tertiary [overflow-wrap:anywhere]">
+            {props.model}
+          </p>
+        )
+      }
       title={t("desktop.status.cell.model.title")}
       description={
         props.model === null
@@ -655,9 +669,10 @@ function ThreadUsageCells(props: { readonly threadId: ThreadId }): ReactNode {
   const running = useThreadRunning(props.threadId);
   const model = useThreadModel(props.threadId, useDefaultModel());
   const usage = useSessionUsage(props.threadId, running);
+  const nameOf = useModelNameOf();
   return (
     <>
-      {model.ref === null ? null : <ModelCell model={model.ref} />}
+      {model.ref === null ? null : <ModelCell model={model.ref} nameOf={nameOf} />}
       {usage === null ? null : <TokensCell usage={usage} threadId={props.threadId} />}
       <GoalCell threadId={props.threadId} />
     </>
@@ -675,7 +690,8 @@ function UsageCells(): ReactNode {
 function DefaultModelCell(): ReactNode {
   const phase = useLinkPhase();
   const model = useDefaultModel();
-  return phase === "live" ? <ModelCell model={model} /> : null;
+  const nameOf = useModelNameOf();
+  return phase === "live" ? <ModelCell model={model} nameOf={nameOf} /> : null;
 }
 
 type GoalWire = WireResult<"goal.status">["goal"];

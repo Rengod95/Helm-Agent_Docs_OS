@@ -35,6 +35,20 @@ export function folderLabel(path: string): string {
   return `…/${parts.slice(-2).join("/")}`;
 }
 
+/**
+ * 묶음 머리의 두 부분(DP-150): 마지막 폴더 이름과 그 부모 경로. 부모는 화면에서 앞을 생략해 흐리게 둔다.
+ * 끝의 구분자는 무시하고, 루트 바로 아래 폴더의 부모는 루트(`/`)다. 마디가 없으면 이름이 경로 그대로이고 부모는 빈 글이다
+ */
+export function folderPartsOf(path: string): { readonly name: string; readonly parent: string } {
+  const trimmed = path.replace(/[\\/]+$/, "");
+  const cut = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+  if (trimmed === "" || cut === -1) return { name: trimmed === "" ? path : trimmed, parent: "" };
+  return {
+    name: trimmed.slice(cut + 1),
+    parent: cut === 0 ? trimmed.slice(0, 1) : trimmed.slice(0, cut),
+  };
+}
+
 /** 엔진 내부 일(학습 검토 등)로 만든 대화인가. 목록·팔레트·받은 요청 선택에서 숨긴다(대화는 지우지 않는다) [결정: 오케스트레이터 기본값, rtE R-3] */
 function isInternalThread(thread: Pick<ThreadSummary, "spawnedBy">): boolean {
   return thread.spawnedBy?.kind === "internal";

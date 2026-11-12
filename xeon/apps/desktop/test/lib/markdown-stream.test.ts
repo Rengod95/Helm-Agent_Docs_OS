@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { renderMarkdown } from "../../src/lib/markdown.tsx";
-import { closeStreamingMarkdown, renderStreamingMarkdown } from "../../src/lib/markdown-stream.ts";
+import {
+  closeOpenFence,
+  closeStreamingMarkdown,
+  renderStreamingMarkdown,
+} from "../../src/lib/markdown-stream.ts";
 
 // 입력 → 출력을 정확히 비교한다. 완성된 문서는 그대로여야 하고, 미완성 조각만 닫히거나 보류된다.
 describe("closeStreamingMarkdown", () => {
@@ -132,5 +136,24 @@ describe("renderStreamingMarkdown", () => {
     expect(renderToStaticMarkup(renderStreamingMarkdown("| a | b |\n|---|---|\n| 1 | 2"))).toBe(
       "<table><thead><tr><th>a</th><th>b</th></tr></thead></table>",
     );
+  });
+});
+
+describe("closeOpenFence", () => {
+  test("a finished text cut inside a fence gets the same fence closed after it", () => {
+    expect(closeOpenFence("보세요.\n\n```py\nprint(1)\n# 같")).toEqual({
+      text: "보세요.\n\n```py\nprint(1)\n# 같\n```",
+      cut: true,
+    });
+  });
+  test("a text ending with a newline inside a tilde fence closes without an extra blank line", () => {
+    expect(closeOpenFence("~~~~\nx\n")).toEqual({ text: "~~~~\nx\n~~~~", cut: true });
+  });
+  test("a text whose fences are all closed comes back as is", () => {
+    const text = "```\na\n```\n\n끝";
+    expect(closeOpenFence(text)).toEqual({ text, cut: false });
+  });
+  test("plain text is not touched", () => {
+    expect(closeOpenFence("그냥 글")).toEqual({ text: "그냥 글", cut: false });
   });
 });

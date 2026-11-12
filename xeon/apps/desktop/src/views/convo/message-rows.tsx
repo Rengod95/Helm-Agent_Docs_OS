@@ -2,7 +2,7 @@ import { Button, Message, Textarea } from "@caustic/react";
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ItemId, JsonObject, JsonValue, ThreadId } from "@fresnel/contracts/conversation";
-import { memo, useContext, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { memo, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
   Collapse,
   HeightGlide,
@@ -17,6 +17,7 @@ import {
   useOpenThreadId,
   usePartText,
   useStreamingItem,
+  useTurnFailure,
 } from "../../state/engine/index.ts";
 import type { ShapeBlock } from "../../state/engine/index.ts";
 import { bubbleOf } from "../attachment-bubble-model.ts";
@@ -43,6 +44,89 @@ import { toolHeadOf } from "./tool-view-model.ts";
 const BUBBLE_CLASS =
   "animate-none max-w-[85%] whitespace-pre-wrap [overflow-wrap:anywhere] text-voice-sm bg-(--convo-bubble-bg) px-2.5 py-1.5 shadow-[inset_0_0_0_1px_var(--convo-bubble-edge)]";
 
+/** 사용자 말풍선을 접는 줄 수. 넘으면 이 높이에서 자르고 아래 24px을 흐리게 한다(convo.css `.convo-bubble-clip`, DP-147) */
+export const BUBBLE_CLAMP_LINES = 12;
+
+/**
+ * 말풍선 글이 접을 만큼 긴가. `scrollHeight`는 글 전체 높이, `lineHeightPx`는 계산된 줄 높이다.
+ * 줄 높이를 읽지 못하면(`normal`) 본문 줄 높이 23으로 본다. 1px 넘침은 반올림이라 접지 않는다
+ */
+export function bubbleClampedOf(scrollHeight: number, lineHeightPx: number): boolean {
+  const line = Number.isFinite(lineHeightPx) && lineHeightPx > 0 ? lineHeightPx : 23;
+  return scrollHeight > line * BUBBLE_CLAMP_LINES + 1;
+}
+
+/** 줄당 글자 수 어림(15px 글, 열의 85% 폭에서 한글 기준 보수적으로) */
+const BUBBLE_CHARS_PER_LINE = 48;
+
+/** 그리기 전에 글만 보고 접을지 어림한다. 줄바꿈 줄과 긴 줄의 감김을 센다. 실제 높이는 그린 뒤 `bubbleClampedOf`가 다시 정한다 */
+export function bubbleLikelyClampedOf(text: string): boolean {
+  let lines = 0;
+  for (const line of text.split("\n")) {
+    lines += Math.max(1, Math.ceil(line.length / BUBBLE_CHARS_PER_LINE));
+    if (lines > BUBBLE_CLAMP_LINES) return true;
+  }
+  return false;
+}
+
+/**
+ * 내 말 말풍선. 12줄을 넘으면 접고 아래를 흐리게 하며, 말풍선 아래 "더 보기"·"접기"(xs ghost, 링크 색)를 둔다.
+ * 펼침은 같은 글의 높이가 접힌 높이에서 전체 높이로 잇는 것이라 `HeightGlide`로 잇는다(`Collapse`는 0 ↔ 전체 높이라 맞지 않는다)
+ */
+function UserBubble(props: { readonly text: string }): ReactNode {
+  const [open, setOpen] = useState(false);
+  // 첫 그림부터 접힌 높이로 선다. 긴 글을 전부 펼쳐 그린 뒤 줄이면 가상 목록이 그 높이(수만 px)를 재어 스크롤 자리가 어긋난다
+  const [clamped, setClamped] = useState(() => bubbleLikelyClampedOf(props.text));
+  const box = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (el === null) return undefined;
+    const measure = (): void => {
+      setClamped(
+        bubbleClampedOf(el.scrollHeight, Number.parseFloat(getComputedStyle(el).lineHeight)),
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+  return (
+    <>
+      <Message author="user" className={BUBBLE_CLASS}>
+        <HeightGlide>
+          <div
+            ref={box}
+            className="convo-bubble-clip"
+            data-open={open || !clamped ? "true" : "false"}
+          >
+            {props.text}
+          </div>
+        </HeightGlide>
+      </Message>
+      {clamped ? (
+        <Button
+          size="xs"
+          variant="ghost"
+          className="text-text-link"
+          aria-expanded={open}
+          onClick={() => {
+            setOpen((v) => !v);
+          }}
+        >
+          {open ? t("desktop.convo.collapse") : t("desktop.convo.more")}
+        </Button>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * 말풍선 자리의 편집 칸(DP-147). 말풍선 최대 폭(열의 85%)을 그대로 쓰고, 글 크기도 말풍선과 같다. 높이는 4줄에서 글을 따라 12줄까지 자라고
+ * 그 뒤는 칸 안에서 스크롤한다. 아래 줄에 "보내면 이 아래 대화는 새 가지로 바뀌어요."(12 tertiary)와 취소·보내기를 둔다
+ */
 function EditBox(props: {
   readonly text: string;
   readonly onCancel: () => void;
@@ -51,6 +135,7 @@ function EditBox(props: {
   const [value, setValue] = useState(props.text);
   const [busy, setBusy] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const noteId = useId();
   useLayoutEffect(() => {
     ref.current?.focus();
   }, []);
@@ -66,13 +151,15 @@ function EditBox(props: {
     );
   };
   return (
-    <div className="grid w-full justify-items-end gap-2">
+    <div className="grid w-[85%] gap-2">
       <Textarea
         ref={ref}
         size="sm"
+        rows={4}
         aria-label={t("desktop.convo.actions.edit")}
+        aria-describedby={noteId}
         value={value}
-        className="w-full"
+        className="convo-edit-field"
         onChange={(event) => {
           setValue(event.currentTarget.value);
         }}
@@ -84,7 +171,10 @@ function EditBox(props: {
           if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) send();
         }}
       />
-      <div className="flex gap-1.5">
+      <div className="flex items-center gap-1.5">
+        <p id={noteId} className="m-0 min-w-0 flex-1 text-ui-sm text-text-tertiary">
+          {t("desktop.convo.actions.editBranchNote")}
+        </p>
         <Button size="sm" variant="ghost" onClick={props.onCancel}>
           {t("desktop.convo.cancel")}
         </Button>
@@ -105,9 +195,9 @@ function EditBox(props: {
 export function UserRow(props: {
   readonly threadId: ThreadId;
   readonly id: ItemId;
-  /** 바로 앞 item. 고쳐 보낼 때 여기까지 되감는다. 없으면 고쳐 보내기를 두지 않는다 */
+  /** 바로 앞 item. 고쳐 보낼 때 여기까지 되감는다. 없으면(대화의 첫 말) 고쳐 보내기를 두지 않는다: `thread.revert`는 남길 item(`to`)이 있어야 해서 첫 말 앞으로는 되감지 못한다 */
   readonly prevId: ItemId | null;
-  /** 응답 없이 끝난 말이면 "보내지 못함"과 다시 보내기 */
+  /** 응답 없이 끝난 말이면 "보내지 못함"(실패 띠가 없으면 다시 보내기도) */
   readonly unsent: boolean;
 }): ReactNode {
   const item = useItem(props.id);
@@ -118,7 +208,8 @@ export function UserRow(props: {
   const bubble = bubbleOf(item.message.content);
   const prevId = props.prevId;
   return (
-    <div className="grid justify-items-end gap-1">
+    // 편집 중이면 이 뒤의 대화 줄은 흐려진다(convo.css `[data-row-key]:has([data-editing]) ~ [data-row-key]`, DP-147)
+    <div className="grid justify-items-end gap-1" data-editing={editing ? "true" : undefined}>
       {editing ? (
         <EditBox
           text={bubble.text}
@@ -135,11 +226,7 @@ export function UserRow(props: {
         />
       ) : (
         <>
-          {bubble.text === "" ? null : (
-            <Message author="user" className={BUBBLE_CLASS}>
-              {bubble.text}
-            </Message>
-          )}
+          {bubble.text === "" ? null : <UserBubble text={bubble.text} />}
           <MessageAttachments attachments={bubble.attachments} />
           {props.unsent ? <UnsentNote threadId={props.threadId} text={bubble.text} /> : null}
           <UserActions
@@ -160,9 +247,13 @@ export function UserRow(props: {
   );
 }
 
-/** 응답 없이 끝난 말 아래의 표식과 다시 보내기 */
+/**
+ * 응답 없이 끝난 말 아래의 표식. 턴 실패 띠가 있으면 원인과 동작은 띠가 들고 여기는 "보내지 못함" 글만이다(DP-146).
+ * 띠가 없을 때(앱을 다시 열어 실패 사유가 없음)만 다시 보내기를 둔다
+ */
 function UnsentNote(props: { readonly threadId: ThreadId; readonly text: string }): ReactNode {
   const commands = useCommands();
+  const banded = useTurnFailure(props.threadId) !== null;
   const [busy, setBusy] = useState(false);
   return (
     <footer
@@ -170,7 +261,7 @@ function UnsentNote(props: { readonly threadId: ThreadId; readonly text: string 
       data-unsent="true"
     >
       <span>{t("desktop.item.unsent")}</span>
-      {props.text === "" ? null : (
+      {props.text === "" || banded ? null : (
         <Button
           size="xs"
           variant="outline"
@@ -277,12 +368,19 @@ const ReplyPart = memo(function ReplyPart(props: {
   const catching = paced.length < flowing.length;
   // 흐르는 동안 높이가 잠깐 줄어드는 프레임을 막는다. 확정되고 다 흘린 뒤 풀린다
   const box = useHeightRatchet<HTMLDivElement>(props.recorded === null || catching);
+  // 멈춘 답이 닫히지 않은 코드 블록에서 끝나면 블록 아래에 "중단됨"을 단다(DP-149)
+  const item = useItem(props.id);
+  const stopped = item?.kind === "assistant" && item.message.stopReason === "aborted";
   if (props.kind === "thinking") return <ThinkingBlock text={text} live={props.live} />;
   if (props.kind === "toolCall") return <PreparingCall id={props.id} name="" args={text} />;
   return (
     <>
       <Message ref={box} size="sm" streaming={props.live || catching} className="animate-none">
-        <MarkdownBody text={paced} streaming={props.recorded === null || catching} />
+        <MarkdownBody
+          text={paced}
+          streaming={props.recorded === null || catching}
+          stopped={stopped}
+        />
         {props.live || catching ? <span aria-hidden className="transcript-caret" /> : null}
       </Message>
       {props.recorded === null ? null : (

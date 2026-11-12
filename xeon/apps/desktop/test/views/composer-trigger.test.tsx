@@ -72,8 +72,8 @@ describe("model chip", () => {
     expect(tag).toMatch(/ disabled=""/);
   });
 
-  test("an unknown model falls back to the model part of its reference", () => {
-    expect(modelChipText([], "openai/gpt-x")).toBe("gpt-x");
+  test("an unknown model falls back to a tidied name of its reference (DP-144)", () => {
+    expect(modelChipText([], "openai/gpt-x")).toBe("GPT X");
     expect(modelChipText([MODEL], "anthropic/claude-haiku-5-5")).toBe("Claude Haiku 5.5");
   });
 });

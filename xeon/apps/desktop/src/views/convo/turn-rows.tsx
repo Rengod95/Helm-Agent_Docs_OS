@@ -11,6 +11,7 @@ import {
   useTurnSummaries,
 } from "../../state/engine/index.ts";
 import { useCommands } from "../commands.ts";
+import { useModelNameOf } from "../model-usage.ts";
 import { ReplyActions } from "./message-actions.tsx";
 import {
   clockOf,
@@ -69,17 +70,21 @@ function StopNoticeRow(props: {
   );
 }
 
-/** 턴 발 줄: 왼쪽 답 동작, 오른쪽 메타(올리면 상세). 멈춘 사유가 있으면 그 위에 안내 줄 */
+/**
+ * 턴 발 줄: 왼쪽 답 동작, 오른쪽 메타(올리면 상세). 멈춘 사유가 있으면 그 위에 안내 줄.
+ * 메타는 이번 턴이 새로 쓴 토큰(출력 + 캐시 안 된 입력)을 앞세우고, 전체(캐시 포함)·비용·모델 참조는 상세에 둔다(DP-145)
+ */
 export function TurnFoot(props: {
   readonly threadId: ThreadId;
   readonly turnId: TurnId | null;
   readonly replyId: ItemId | null;
 }): ReactNode {
   const turns = useTurnSummaries(props.threadId);
+  const nameOf = useModelNameOf();
   const summary =
     props.turnId === null ? undefined : turns.find((turn) => turn.turnId === props.turnId);
   const stop = summary === undefined ? null : stopNoticeOf(summary);
-  const meta = summary === undefined ? "" : turnMetaOf(summary);
+  const meta = summary === undefined ? "" : turnMetaOf(summary, nameOf);
   const lines = summary === undefined ? [] : turnDetailLinesOf(summary);
   if (stop === null && meta === "" && props.replyId === null) return null;
   return (
@@ -122,11 +127,16 @@ export function TurnFoot(props: {
 
 /** 변화 표지 한 줄(압축 구분선과 한 벌) */
 export function MarkerRow(props: { readonly marker: ConvoMarker }): ReactNode {
+  const nameOf = useModelNameOf();
   const clock = clockOf(props.marker.at);
+  const text = markerTextOf(props.marker, nameOf);
+  const { change } = props.marker;
+  // 모델 바꿈은 화면 이름으로 적고 참조(`provider/model`)는 hover에 둔다
+  const title = change.kind === "model" ? change.model : undefined;
   return (
-    <div className="convo-divider" role="separator" aria-label={markerTextOf(props.marker)}>
+    <div className="convo-divider" role="separator" aria-label={text}>
       <span className="flex items-baseline gap-2">
-        <span>{markerTextOf(props.marker)}</span>
+        <span title={title}>{text}</span>
         {clock === "" ? null : <span className="text-footnote">{clock}</span>}
       </span>
     </div>

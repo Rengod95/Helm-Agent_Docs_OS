@@ -15,6 +15,7 @@ import {
   noticesAfter,
   noticeTitleViewOf,
   noticeToastVisible,
+  NOTICE_TOAST_MS,
   threadBySeqOf,
   type NoticeEntry,
 } from "../../src/views/notices-model.ts";
@@ -148,9 +149,39 @@ describe("noticeTitleViewOf", () => {
   });
 
   test("an approval notice is not toasted because the live announcer already reads it", () => {
-    expect(noticeToastVisible(of("approval_waiting", "approval.requested", "a: edit"))).toBe(false);
-    expect(noticeToastVisible(of("completed", "turn.completed", "done"))).toBe(true);
-    expect(noticeToastVisible(of("question_waiting", "approval.requested", "q"))).toBe(true);
+    const away = { threadId: thr(1), openThreadId: thr(2), windowActive: true };
+    expect(noticeToastVisible(of("approval_waiting", "approval.requested", "a: edit"), away)).toBe(
+      false,
+    );
+    expect(noticeToastVisible(of("completed", "turn.completed", "done"), away)).toBe(true);
+    expect(noticeToastVisible(of("question_waiting", "approval.requested", "q"), away)).toBe(true);
+  });
+
+  test("the open thread finishing is not toasted while the window is in front", () => {
+    const done = of("completed", "turn.completed", "done");
+    const here = { threadId: thr(1), openThreadId: thr(1) };
+    expect(noticeToastVisible(done, { ...here, windowActive: true })).toBe(false);
+    // 창이 뒤에 있거나 다른 대화가 끝났으면 알린다
+    expect(noticeToastVisible(done, { ...here, windowActive: false })).toBe(true);
+    expect(noticeToastVisible(done, { ...here, openThreadId: thr(2), windowActive: true })).toBe(
+      true,
+    );
+    expect(
+      noticeToastVisible(done, { threadId: null, openThreadId: null, windowActive: true }),
+    ).toBe(true);
+  });
+
+  test("a turn failure of the open thread is never toasted because its failure band shows it", () => {
+    const failed = of("error", "turn.completed", "x");
+    const here = { threadId: thr(1), openThreadId: thr(1) };
+    expect(noticeToastVisible(failed, { ...here, windowActive: false })).toBe(false);
+    expect(noticeToastVisible(failed, { ...here, openThreadId: thr(2), windowActive: true })).toBe(
+      true,
+    );
+  });
+
+  test("a neutral notice toast closes itself after four seconds", () => {
+    expect(NOTICE_TOAST_MS).toBe(4000);
   });
 
   test("an error from a source the app does not know keeps its own title", () => {

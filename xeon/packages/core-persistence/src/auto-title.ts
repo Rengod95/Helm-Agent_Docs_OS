@@ -1,7 +1,7 @@
 // 모델로 대화 제목을 만든다(M3-REQ-83, L1.persistence.spec §4.10.6). 모델 호출은 주입된 포트가 한다.
 // 언제 부를지는 호스트가 정한다(L4.host-service.spec HS-73). 이 파일은 활성 가지 읽기, 입력 정리, 제목 정리와 쓰기만 한다.
 import { attemptAsync, err, ok, parse, type Logger, type Result } from "@fresnel/contracts";
-import type { ItemRecord, ThreadId } from "@fresnel/contracts/conversation";
+import { userWrittenText, type ItemRecord, type ThreadId } from "@fresnel/contracts/conversation";
 import {
   ItemRecordedPayloadSchema,
   type LifecycleError,
@@ -76,8 +76,8 @@ function cutCodePoints(text: string, limit: number): string {
 /** item의 텍스트. 사용자 입력과 어시스턴트 응답만 본다. 텍스트가 없으면 빈 문자열이다 */
 function textOfItem(item: ItemRecord): string {
   if (item.kind === "user") {
-    const content = item.message.content;
-    return typeof content === "string" ? content.trim() : textBlocksOf(content).trim();
+    // 첨부 본문과 이미지 이름은 제목 재료가 아니다(DP-142)
+    return userWrittenText(item.message.content);
   }
   if (item.kind === "assistant") return textBlocksOf(item.message.content).trim();
   return "";

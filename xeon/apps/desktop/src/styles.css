@@ -170,7 +170,10 @@
     /* 칸 사이 12px(4px 격자, DP-104) */
     gap: 12px;
     align-items: center;
-    background: var(--panel);
+    /* DP-137과 같이(dzG 문제 21) 상태 줄은 본문·머리 줄과 같은 면(surface.base)이고 위 1px border-subtle 선으로 나눈다.
+       따로 칠한 면(bg.inset)이면 라이트에서 한 줄 떠 있는 띠로 보인다(VS Code·Zed 상태 줄과 같은 방식) */
+    background: var(--cs-color-surface-base);
+    border-top: 1px solid var(--color-border-subtle);
     padding: 0 12px;
     min-height: 24px;
     font-size: 12px;
@@ -179,7 +182,7 @@
     row-gap: 2px;
     container-type: inline-size;
   }
-  /* 칸 단추(xs, 24px)가 줄 높이를 정하지 않게 20px로 낮춘다. 상태 표시줄은 위 구분선 없이 면 색만 다르다 */
+  /* 칸 단추(xs, 24px)가 줄 높이를 정하지 않게 20px로 낮춘다 */
   .statusbar [data-slot="button"] {
     min-height: 0;
     height: 20px;

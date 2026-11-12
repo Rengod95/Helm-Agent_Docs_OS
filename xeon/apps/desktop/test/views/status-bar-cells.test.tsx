@@ -700,12 +700,20 @@ describe("status bar model and usage cells", () => {
     setActiveLocale(previous);
   });
 
-  test("the model cell shows the model name without its provider prefix", () => {
+  test("the model cell shows the display name, never the provider id", () => {
     expect(
       cellTextOf(renderToString(<ModelCell model="anthropic/claude-haiku-5-5" />), "model"),
-    ).toBe("claude-haiku-5-5");
+    ).toBe("Claude Haiku 5.5");
+    expect(
+      cellTextOf(
+        renderToString(
+          <ModelCell model="anthropic/claude-haiku-5-5" nameOf={() => "Claude Haiku 5.5 (cat)"} />,
+        ),
+        "model",
+      ),
+    ).toBe("Claude Haiku 5.5 (cat)");
     expect(cellTextOf(renderToString(<ModelCell model="sonnet-5-5" />), "model")).toBe(
-      "sonnet-5-5",
+      "Sonnet 5.5",
     );
     expect(cellTextOf(renderToString(<ModelCell model={null} />), "model")).toBe("모델 없음");
   });
@@ -714,13 +722,13 @@ describe("status bar model and usage cells", () => {
     const known = renderToString(
       <TokensCell usage={{ tokens: 41_000, percent: 40, limit: 100_000 }} />,
     );
-    expect(cellTextOf(known, "tokens")).toBe("41k / 100k");
+    expect(cellTextOf(known, "tokens")).toBe("4.1만 / 10만");
     expect(known).toContain('data-slot="progress"');
     expect(known).toContain("--cs-progress:40%");
     const unknown = renderToString(
       <TokensCell usage={{ tokens: 41_000, percent: null, limit: null }} />,
     );
-    expect(cellTextOf(unknown, "tokens")).toBe("41k");
+    expect(cellTextOf(unknown, "tokens")).toBe("4.1만");
     expect(unknown).not.toContain('data-slot="progress"');
   });
 
@@ -729,11 +737,11 @@ describe("status bar model and usage cells", () => {
       <TokensCell usage={{ tokens: 41_000, percent: 40, limit: 100_000 }} />,
     );
     expect(html).toContain("data-bar-collapsible");
-    expect(html).toContain('title="41k / 100k"');
+    expect(html).toContain('title="4.1만 / 10만"');
     expect(html).toContain("data-bar-icon");
     expect(html).toContain("data-bar-trailing");
     const model = renderToString(<ModelCell model="sonnet-5-5" />);
-    expect(model).toContain('title="sonnet-5-5"');
+    expect(model).toContain('title="Sonnet 5.5"');
   });
 
   test("the status bar row is not a live region, only the engine line is", () => {
@@ -745,14 +753,14 @@ describe("status bar model and usage cells", () => {
 
   test("the tokens sentence names the tokens, and the percent only when the limit is known", () => {
     expect(tokensDescriptionOf({ tokens: 41_000, percent: null, limit: null })).toBe(
-      "지금 문맥에 41k 토큰이 있어요.",
+      "지금 문맥에 4.1만 토큰이 있어요.",
     );
     expect(tokensDescriptionOf({ tokens: 41_000, percent: 40.4, limit: 100_000 })).toBe(
-      "지금 문맥에 41k 토큰이 있고, 문맥 창의 40%예요.",
+      "지금 문맥에 4.1만 토큰이 있고, 문맥 창의 40%예요.",
     );
     setActiveLocale("en");
     expect(tokensDescriptionOf({ tokens: 41_000, percent: 40, limit: 100_000 })).toBe(
-      "The context holds 41k tokens right now, 40% of the context window.",
+      "The context holds 41K tokens right now, 40% of the context window.",
     );
   });
 

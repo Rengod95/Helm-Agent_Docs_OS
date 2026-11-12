@@ -158,4 +158,17 @@ describe("threads.list preview", () => {
     expect(row.title).toBeNull();
     expect(row.preview).toBe("원본의 첫 입력");
   });
+
+  test("첨부 표식과 이미지 이름을 빼고, 문장부호만 남으면 없음 (DP-142)", () => {
+    expect(
+      previewOfContent([
+        {
+          type: "text",
+          text: '색을 알려줘.\nred.png\n<attachment name="a.py">\nx = 1\n</attachment>',
+        },
+        { type: "image" },
+      ]),
+    ).toBe("색을 알려줘.");
+    expect(previewOfContent(",")).toBeUndefined();
+  });
 });

@@ -39,3 +39,23 @@ test("an image with only the host blob placeholder has no thumbnail source", () 
 test("plain string content has no attachments", () => {
   expect(bubbleOf("안녕")).toEqual({ text: "안녕", attachments: [] });
 });
+
+test("recorded shape: joined text with an image-name line and a tag, image at the end (DP-142)", () => {
+  const view = bubbleOf(
+    [
+      {
+        type: "text",
+        text: '이 이미지는 무슨 색이고, 파일은 무엇인지 한 문장으로.\nred.png\n<attachment name="calc.py">\ndef add(a, b):\n    return a + b\n</attachment>',
+      },
+      { type: "image", data: "blob:sha256:aa", mimeType: "image/png" },
+    ],
+    (key) => (key === "blob:sha256:aa" ? "data:image/png;base64,QUJD" : null),
+  );
+  expect(view).toEqual({
+    text: "이 이미지는 무슨 색이고, 파일은 무엇인지 한 문장으로.",
+    attachments: [
+      { kind: "image", name: "red.png", src: "data:image/png;base64,QUJD" },
+      { kind: "file", name: "calc.py", detail: null },
+    ],
+  });
+});

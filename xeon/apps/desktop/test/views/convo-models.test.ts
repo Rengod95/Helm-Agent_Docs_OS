@@ -1,12 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
-import type { LeadSegment } from "../../src/state/engine/index.ts";
+import type { LeadSegment, TurnSummary } from "../../src/state/engine/index.ts";
 import { activitySummaryOf } from "../../src/views/convo/activity-model.ts";
 import {
   leaderNameOf,
   leadMetersOf,
   markerTextOf,
+  newTokensOf,
   releaseTextOf,
+  turnDetailLinesOf,
+  turnMetaOf,
 } from "../../src/views/convo/turn-model.ts";
 import {
   commandMetaOf,
@@ -147,7 +150,7 @@ describe("lead", () => {
   test("한도 칸은 한도가 있는 것만, 90%를 넘으면 경고다", () => {
     expect(leadMetersOf(LEAD)).toEqual([
       { text: t("desktop.convo.lead.turns", { used: 3, max: 8 }), warn: false },
-      { text: t("desktop.convo.lead.tokens", { used: 46_000, max: 50_000 }), warn: true },
+      { text: "토큰 4.6만/5만", warn: true },
     ]);
   });
 
@@ -167,8 +170,90 @@ describe("markerTextOf", () => {
     expect(moved("branch")).toBe(t("desktop.convo.marker.branched"));
     expect(moved("rewind")).toBe(t("desktop.convo.marker.rewound"));
     expect(moved("restore")).toBe(t("desktop.convo.marker.restored"));
-    expect(markerTextOf({ seq: 2, at, change: { kind: "model", model: "m-2" } })).toBe(
-      t("desktop.convo.marker.model", { model: "m-2" }),
-    );
+  });
+
+  test("모델 바꿈은 화면 이름으로, 권한 모드는 칩과 같은 이름으로 적는다", () => {
+    const at = "2026-11-11T00:00:00.000Z";
+    const model = {
+      seq: 2,
+      at,
+      change: { kind: "model", model: "anthropic/claude-sonnet-5-5" },
+    } as const;
+    expect(markerTextOf(model)).toBe("모델을 Claude Sonnet 5.5(으)로 바꿈");
+    expect(markerTextOf(model, () => "Sonnet")).toBe("모델을 Sonnet(으)로 바꿈");
+    const mode = (value: string | null): string =>
+      markerTextOf({ seq: 3, at, change: { kind: "permission_mode", value } });
+    expect(mode("acceptEdits")).toBe("권한 모드: 편집 자동 허용");
+    expect(mode("plan")).toBe("권한 모드: 계획 모드");
+    expect(mode("bypass")).toBe("권한 모드: 모두 허용");
+    expect(mode("default")).toBe("권한 모드: 실행마다 묻기");
+    expect(mode("custom")).toBe("권한 모드: custom");
+    expect(mode(null)).toBe("권한 모드를 기본으로 되돌림");
+  });
+});
+
+function turnOf(over: Partial<TurnSummary>): TurnSummary {
+  return {
+    turnId: trn(1),
+    origin: "user",
+    startedSeq: 1,
+    inputItemIds: [],
+    leadScopeId: null,
+    model: null,
+    startedAt: "2026-11-11T00:00:00.000Z",
+    running: false,
+    aborting: false,
+    abort: null,
+    steps: 1,
+    durationMs: 2_200,
+    usage: null,
+    rawUsage: null,
+    end: null,
+    stopReason: null,
+    warnings: [],
+    notices: [],
+    lastContextTokens: null,
+    ...over,
+  };
+}
+
+const GREETING_USAGE = {
+  input: 12,
+  output: 400,
+  cacheRead: 0,
+  cacheWrite: 13_100,
+  totalTokens: 13_512,
+  cost: 0.0006,
+};
+
+describe("turn foot", () => {
+  test("새로 쓴 토큰은 출력 + 캐시 안 된 입력이다", () => {
+    expect(newTokensOf(GREETING_USAGE)).toBe(412);
+  });
+
+  test("메타는 이번 턴이 새로 쓴 토큰을 앞세우고 모델은 화면 이름이다", () => {
+    expect(turnMetaOf(turnOf({ usage: GREETING_USAGE }))).toBe("1단계 · 2.2초 · 새로 412 토큰");
+    expect(
+      turnMetaOf(
+        turnOf({
+          usage: { ...GREETING_USAGE, input: 30_000, cacheRead: 200_000 },
+          model: "anthropic/claude-sonnet-5-5",
+        }),
+      ),
+    ).toBe("1단계 · 2.2초 · 새로 3만 토큰 · Claude Sonnet 5.5");
+  });
+
+  test("상세는 전체(캐시 포함)·입력·출력·캐시·비용·모델 참조 순이다", () => {
+    expect(
+      turnDetailLinesOf(turnOf({ usage: GREETING_USAGE, model: "anthropic/claude-sonnet-5-5" })),
+    ).toEqual([
+      "전체 13,512 토큰(캐시 포함)",
+      "입력 12 토큰",
+      "출력 400 토큰",
+      "캐시 읽기 0 · 쓰기 13,100",
+      t("desktop.convo.foot.cost", { cost: 0.0006 }),
+      "anthropic/claude-sonnet-5-5",
+    ]);
+    expect(turnDetailLinesOf(turnOf({}))).toEqual([]);
   });
 });

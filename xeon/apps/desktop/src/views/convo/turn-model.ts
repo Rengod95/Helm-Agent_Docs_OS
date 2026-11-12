@@ -1,28 +1,45 @@
 import { assertNever } from "@fresnel/contracts";
-import { t } from "@fresnel/client/i18n";
+import { t, type MessageId } from "@fresnel/client/i18n";
+import type { PermissionMode } from "@fresnel/contracts/services";
 import type { ConvoMarker } from "../../state/engine/convo.ts";
 import type { LeadSegment, TurnSummary } from "../../state/engine/index.ts";
+import { prettyModelId, tokenCountText } from "../model-usage.ts";
+import { permissionModeOf } from "../permission-mode-model.ts";
 import { durationText } from "./tool-view-model.ts";
 
 // 턴 발 줄·멈춘 사유·변화 표지·주도 구간 머리의 글(dzT2a 시안 7, 8, 10절). 순수 함수이고 화면 없이 시험한다.
 
-/** 턴 발 줄 오른쪽 메타: "12단계 · 1분 4초 · 3.4만 토큰 · claude-opus" */
-export function turnMetaOf(turn: TurnSummary): string {
+/** 모델 참조를 화면 이름으로 바꾸는 함수. 화면은 카탈로그 이름(`useModelNameOf`)을 넘기고, 넘기지 않으면 id를 다듬은 이름이다 */
+export type ModelNameOf = (ref: string) => string;
+
+/**
+ * 이번 턴이 새로 쓴 토큰: 출력 + 캐시를 거치지 않은 입력. 모델 사용량의 `input`은 이미 캐시 읽기·쓰기를 뺀 값이다
+ * (`totalTokens = input + output + cacheRead + cacheWrite`). 캐시 쓰기(처음 보낸 시스템 프롬프트 등)와 캐시 읽기는 전체 내역에만 둔다
+ */
+export function newTokensOf(usage: NonNullable<TurnSummary["usage"]>): number {
+  return usage.input + usage.output;
+}
+
+/** 턴 발 줄 오른쪽 메타: "12단계 · 1분 4초 · 새로 412 토큰 · Claude Opus 5" */
+export function turnMetaOf(turn: TurnSummary, nameOf: ModelNameOf = prettyModelId): string {
   const parts: string[] = [];
   if (turn.steps > 0) parts.push(t("desktop.convo.foot.steps", { count: turn.steps }));
   if (turn.durationMs !== null) parts.push(durationText(turn.durationMs));
-  if (turn.usage !== null && turn.usage.totalTokens > 0) {
-    parts.push(t("desktop.convo.foot.tokens", { n: turn.usage.totalTokens }));
+  if (turn.usage !== null && newTokensOf(turn.usage) > 0) {
+    parts.push(
+      t("desktop.convo.foot.newTokens", { tokens: tokenCountText(newTokensOf(turn.usage)) }),
+    );
   }
-  if (turn.model !== null) parts.push(turn.model);
+  if (turn.model !== null) parts.push(nameOf(turn.model));
   return parts.join(" · ");
 }
 
-/** 메타 툴팁의 상세 줄 */
+/** 메타 툴팁의 상세 줄: 전체(캐시 포함), 입력, 출력, 캐시, 비용, 모델 id */
 export function turnDetailLinesOf(turn: TurnSummary): readonly string[] {
   const usage = turn.usage;
-  if (usage === null) return [];
+  if (usage === null) return turn.model === null ? [] : [turn.model];
   const lines = [
+    t("desktop.convo.foot.total", { n: usage.totalTokens }),
     t("desktop.convo.foot.input", { n: usage.input }),
     t("desktop.convo.foot.output", { n: usage.output }),
   ];
@@ -31,6 +48,7 @@ export function turnDetailLinesOf(turn: TurnSummary): readonly string[] {
   }
   if (usage.cost !== null && usage.cost > 0)
     lines.push(t("desktop.convo.foot.cost", { cost: usage.cost }));
+  if (turn.model !== null) lines.push(turn.model);
   return lines;
 }
 
@@ -88,16 +106,30 @@ export function stopNoticeOf(turn: TurnSummary): StopNotice | null {
   return null;
 }
 
-/** 변화 표지 한 줄 */
-export function markerTextOf(marker: ConvoMarker): string {
+/** 권한 모드의 화면 이름. 입력창 칩과 같은 키다 */
+const PERMISSION_MODE_NAME: Readonly<Record<PermissionMode, MessageId>> = {
+  default: "desktop.composer.mode.default",
+  acceptEdits: "desktop.composer.mode.acceptEdits",
+  plan: "desktop.composer.mode.plan",
+  bypass: "desktop.composer.mode.bypass",
+};
+
+/** 표지에 보일 권한 모드 이름. 네 모드가 아닌 값(옛 기록·확장 값)은 그대로 둔다 */
+function permissionModeNameOf(value: string): string {
+  const mode = permissionModeOf(value);
+  return mode === null ? value : t(PERMISSION_MODE_NAME[mode]);
+}
+
+/** 변화 표지 한 줄. 모델은 화면 이름(`nameOf`)으로, 권한 모드는 칩과 같은 이름으로 적는다(DP-144) */
+export function markerTextOf(marker: ConvoMarker, nameOf: ModelNameOf = prettyModelId): string {
   const change = marker.change;
   switch (change.kind) {
     case "model":
-      return t("desktop.convo.marker.model", { model: change.model });
+      return t("desktop.convo.marker.model", { model: nameOf(change.model) });
     case "permission_mode":
       return change.value === null
         ? t("desktop.convo.marker.permissionReset")
-        : t("desktop.convo.marker.permission", { mode: change.value });
+        : t("desktop.convo.marker.permission", { mode: permissionModeNameOf(change.value) });
     case "resumed":
       return change.mode === "auto"
         ? t("desktop.convo.marker.resumedAuto", { attempt: change.attempt })
@@ -137,7 +169,15 @@ export function leadMetersOf(lead: LeadSegment): readonly LeadMeter[] {
     if (max === undefined) return;
     const warn = max > 0 && used / max >= 0.9;
     if (id === "turns") out.push({ text: t("desktop.convo.lead.turns", { used, max }), warn });
-    if (id === "tokens") out.push({ text: t("desktop.convo.lead.tokens", { used, max }), warn });
+    if (id === "tokens") {
+      out.push({
+        text: t("desktop.convo.lead.tokens", {
+          used: tokenCountText(used),
+          max: tokenCountText(max),
+        }),
+        warn,
+      });
+    }
     if (id === "spawns") out.push({ text: t("desktop.convo.lead.spawns", { used, max }), warn });
   };
   meter(lead.used.turns, lead.limits.maxTurns, "turns");

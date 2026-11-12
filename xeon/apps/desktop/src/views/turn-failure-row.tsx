@@ -9,8 +9,11 @@ import { InfoTip } from "./craft/info-tip.tsx";
 import { useDefaultModel, useThreadModel } from "./model-usage.ts";
 import { providerOfModelRef, turnFailureOf, type TurnFailureAction } from "./turn-failure-model.ts";
 
-// 실패한 턴의 오류 줄(SC-06). 한국어 한 문장 + 다음 행동 단추 하나, 서버 사유는 정보 아이콘 뒤다(DP-58).
+// 실패한 턴의 오류 줄(SC-06). 한국어 한 문장 + 다음 행동 단추, 서버 사유는 정보 아이콘 뒤다(DP-58).
 // 줄은 읽기 열(item-view ROW_CLASS)과 같은 폭 안에 서고 긴 사유는 줄바꿈하며 길면 잘라 보인다.
+// 원인과 동작은 이 띠 하나가 든다(DP-146). 위 말풍선은 "보내지 못함" 글만 보이고 다시 보내기를 따로 두지 않는다.
+// 대화 열 안의 띠라 Alert는 outline이다(DP-59): 바탕은 대화 바탕 그대로, 테두리와 아이콘만 위험 색이다.
+// 단추 글 대비(대화 바탕 bg.app 위 danger.text): 라이트 5.41:1, 다크 6.91:1. 본문은 text.primary다(emphasis lead).
 
 const ACTION_TEXT = {
   "add-key": "desktop.turnFailure.action.addKey",
@@ -38,6 +41,19 @@ export function CutMarker(): ReactNode {
       </p>
     </div>
   );
+}
+
+/**
+ * 띠의 단추. 첫 단추는 원인을 고치는 동작(outline)이고, 그 동작이 키·모델·제공자를 고치는 것이면 고친 뒤 바로 다시 보낼 수 있게
+ * "다시 보내기"(ghost)를 곁에 둔다. 다시 보내도 같은 결과인 실패(결제, 잘못된 요청: 동작 없음)는 다시 보내기를 두지 않는다
+ */
+export function failureButtonsOf(
+  action: TurnFailureAction | null,
+  canResend: boolean,
+): { readonly primary: TurnFailureAction | null; readonly resend: boolean } {
+  if (action === null) return { primary: null, resend: false };
+  if (action === "resend") return { primary: canResend ? "resend" : null, resend: false };
+  return { primary: action, resend: canResend };
 }
 
 export function TurnFailureRow(props: {
@@ -80,26 +96,39 @@ export function TurnFailureRow(props: {
       rethrow,
     );
   };
-  const blocked = action === "resend" && lastText === null;
+  const buttons = failureButtonsOf(action, lastText !== null);
   return (
     <div className="mx-auto w-full min-w-0 max-w-184 px-3 pb-4">
       <Alert
         tone="danger"
+        variant="outline"
         emphasis="lead"
         role="alert"
         action={
           <span className="flex items-center gap-1.5">
             <InfoTip text={view.detail} label={t("desktop.turnFailure.detail.label")} />
-            {action === null || blocked ? null : (
+            {buttons.resend ? (
               <Button
                 size="xs"
-                variant="soft"
+                variant="ghost"
                 loading={busy}
                 onClick={() => {
-                  run(action);
+                  run("resend");
                 }}
               >
-                {t(ACTION_TEXT[action])}
+                {t(ACTION_TEXT.resend)}
+              </Button>
+            ) : null}
+            {buttons.primary === null ? null : (
+              <Button
+                size="xs"
+                variant="outline"
+                loading={buttons.primary === "resend" && busy}
+                onClick={() => {
+                  if (buttons.primary !== null) run(buttons.primary);
+                }}
+              >
+                {t(ACTION_TEXT[buttons.primary])}
               </Button>
             )}
           </span>

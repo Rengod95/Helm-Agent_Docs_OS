@@ -32,6 +32,7 @@ import {
   WorkTasksKey,
   orderTools,
   renderPlanSubmit,
+  parseTaskList,
   renderTaskList,
   validateCapability,
   validateCapabilitySet,
@@ -294,6 +295,16 @@ describe("work renderers", () => {
       ].join("\n"),
     );
     expect(firstText(renderTaskList({ tasks: [], created: [] }))).toBe("(no tasks)");
+    // parseTaskList는 renderTaskList 결과를 거꾸로 읽는다(DP-143)
+    expect(parseTaskList(firstText(renderTaskList(out)))).toEqual([
+      { id: "t1", status: "completed", label: "content of t1" },
+      { id: "t2", status: "in_progress", label: "writing tests" },
+      { id: "t3", status: "pending", label: "content of t3" },
+      { id: "t4", status: "failed", label: "content of t4" },
+      { id: "t5", status: "cancelled", label: "content of t5" },
+    ]);
+    expect(parseTaskList("(no tasks)")).toEqual([]);
+    expect(parseTaskList("task_ref_unknown: @z")).toBeNull();
   });
 });
 

@@ -295,6 +295,9 @@ export const WorkTasks = defineCapability({
   ],
 });
 export const WorkTasksKey = serviceKey(WorkTasks);
+
+/** renderTaskList 결과 글을 거꾸로 읽는다(화면이 그 시점 전체 목록을 그린다, L4.desktop-ux DP-143). 머리 줄과 모르는 줄은 건너뛰고, 체크리스트 줄이 없으면 null */
+export function parseTaskList(text: string): readonly { id: string; status: WorkTaskStatus; label: string }[] | null;
 ```
 
 - [제안] 모델 도구는 `task_write` 하나다(`_research/l2e.md` §3.1 A1의 "도구: task_write(목록 연산)"). 결과가 전체 목록이라 조회 도구를 따로 두지 않는다. `create`, `update`, `link`, `list`는 그룹 코드와 L4 화면이 쓰는 서비스 메서드다.
@@ -1292,6 +1295,7 @@ export interface JudgePort {
 
 - [결정: WK.3] 구현은 `/plan`, `/plan exit`, `/plan approve|reject|revise`, `/tasks`, `/goal <조건>`, `/goal status`, `/goal clear`다(`src/commands.ts`). `/goal`은 `replace` 없이 `goals.set`을 부르므로 활성 목표가 있으면 "먼저 /goal clear로 해제하세요"를 답한다 [결정: 오케스트레이터 기본값, scH]. `/plan`의 결과 문구는 해요체 한 줄이고 모드는 원시 값이 아니라 입력창 승인 모드 칩과 같은 이름으로 쓴다("계획 모드를 시작했어요. 이전 승인 모드: 기본(실행마다 묻기)"). `/goal clear`는 활성 목표가 없으면 "해제할 활성 목표가 없습니다."를 답한다. `approve`·`reject`·`revise`에 계획 ID를 받지 않는다: 승인 대기 중인 가장 최근 판에 적용한다. 서비스 거부(`CapabilityError`)는 예외 대신 `[<코드>] <메시지>` 한 줄 응답으로 바꾼다. 등록부(`CommandActionRegistry`)는 조립 루트가 `WorkPluginOptions.commands`로 넘길 때만 쓴다. 기능 선택 의존(W-10)이 확정되면 매니페스트 `optional`로 받는다.
 - `/plan exit`가 `plan_not_approved`(승인 필수 설정에서 승인 전 나가기)나 `plan_mode_inactive`로 거절되면 원시 코드와 영어 사유 대신 한국어 해요체 한 줄을 돌려준다: "승인을 기다리는 계획이 있어요. 계획 카드에서 승인하거나 거절하면 나갈 수 있어요."(사람은 승인 대기 중일 때만 이 거절을 받는다, §4.2.5), "지금은 계획 모드가 아니에요." 한 줄 결과라 데스크톱은 토스트로 보인다. 거절 자체는 §4.2.5 그대로다 [결정: 오케스트레이터 기본값, rtG].
+- `/goal status`와 `/goal <조건>`의 결과 줄은 목표 상태를 엔진 코드(`active` 등) 대신 한국어 낱말로 쓴다: 진행 중, 충족, 판정 한도 도달, 해제됨, 판정 실패("진행 중 · 판정 0/3") [결정: 2026-11-12 사용자 지시, dzG, L4.desktop-ux DP-144].
 - 명령 실행의 `requestId`는 클라이언트 입력 키(`in:<clientUlid>`)에서 파생한다(eng.transactions.design §4.8 사용자 입력 행).
 - 이 등록은 work → `dialog.commands` 선택 의존을 만든다. `L2.readme` §6 표에 [미결] 간선으로 올라 있다(§10 W-10, `L2.readme` §10 미결 16).
 

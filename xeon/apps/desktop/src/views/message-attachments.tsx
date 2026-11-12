@@ -1,10 +1,11 @@
 import { t } from "@fresnel/client/i18n";
 import { Chip } from "@caustic/react";
-import { Paperclip } from "@caustic/react/icons";
+import { Image, Paperclip } from "@caustic/react/icons";
 import type { ReactNode } from "react";
 import type { BubbleAttachment } from "./attachment-bubble-model.ts";
 
-// 보낸 메시지 말풍선 아래의 첨부 표시(W2). 파일은 칩, 이미지는 썸네일이다. 썸네일로 그릴 바이트가 없으면(호스트 자리표시자) 이미지 이름 칩이다.
+// 보낸 메시지 말풍선 아래의 첨부 표시(W2, DP-142). 파일은 클립 칩, 이미지는 썸네일이다. 썸네일로 그릴 바이트가 없으면(호스트 자리표시이고
+// 이 창에서 올린 기억도 없음, `image-thumbs.ts`) 이미지 아이콘과 이름의 칩이다.
 // 칩 테두리는 말풍선과 같은 옅은 선(border-subtle)이다. caustic outline 칩의 기본 테두리(neutral-border)를 cn이 덮는다.
 // 대화 안 첨부 칩 테두리는 대화 상자 테두리와 같은 단계(라이트 border.default, 다크 border.subtle, convo.css DP-139)
 const CHIP_EDGE_CLASS = "shadow-[inset_0_0_0_1px_var(--convo-edge)]";
@@ -37,7 +38,7 @@ export function MessageAttachments(props: {
             <img
               src={attachment.src}
               alt={attachment.name === "" ? t("desktop.item.imagePlaceholder") : attachment.name}
-              className="max-h-40 max-w-60 rounded-md object-cover"
+              className="block max-h-40 max-w-60 rounded-md object-cover shadow-[inset_0_0_0_1px_var(--convo-edge)]"
             />
           ) : (
             <Chip
@@ -45,7 +46,7 @@ export function MessageAttachments(props: {
               variant="outline"
               radius="md"
               className={CHIP_EDGE_CLASS}
-              icon={<Paperclip aria-hidden />}
+              icon={attachment.kind === "image" ? <Image aria-hidden /> : <Paperclip aria-hidden />}
               title={
                 attachment.kind === "file" ? (attachment.detail ?? attachment.name) : undefined
               }

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   turnCostText,
   turnDurationText,
+  usageModelRefOf,
   usageRowsOf,
   usageTotalOf,
 } from "../../src/views/chat-header.tsx";
@@ -24,18 +25,30 @@ describe("turn usage text", () => {
 });
 
 describe("usage rows and total", () => {
-  test("the table shows the last eight turns, newest first, numbered from the start", () => {
+  test("the table shows the last eight turns oldest first, numbered from the start", () => {
     const turns = Array.from({ length: 10 }, (_, i) => `t${String(i + 1)}`);
     expect(usageRowsOf(turns).map((row) => [row.index, row.turn])).toEqual([
-      [10, "t10"],
-      [9, "t9"],
-      [8, "t8"],
-      [7, "t7"],
-      [6, "t6"],
-      [5, "t5"],
-      [4, "t4"],
       [3, "t3"],
+      [4, "t4"],
+      [5, "t5"],
+      [6, "t6"],
+      [7, "t7"],
+      [8, "t8"],
+      [9, "t9"],
+      [10, "t10"],
     ]);
+    expect(usageRowsOf(["a", "b"]).map((row) => [row.index, row.turn])).toEqual([
+      [1, "a"],
+      [2, "b"],
+    ]);
+  });
+
+  test("the model cell uses the turn's model, else the model the thread runs on", () => {
+    expect(usageModelRefOf("openai/gpt-5", "anthropic/claude-sonnet-5-5")).toBe("openai/gpt-5");
+    expect(usageModelRefOf(null, "anthropic/claude-sonnet-5-5")).toBe(
+      "anthropic/claude-sonnet-5-5",
+    );
+    expect(usageModelRefOf(null, null)).toBeNull();
   });
 
   test("the total adds only turns with usage, and cost stays null until one is known", () => {

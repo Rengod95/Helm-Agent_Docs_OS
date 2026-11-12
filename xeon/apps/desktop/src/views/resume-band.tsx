@@ -21,6 +21,14 @@ async function settle(
   if (!done.ok) toast({ tone: "danger", title: t("desktop.palette.action.failed") });
 }
 
+/**
+ * 띠의 자리: 대화 열(입력창, 대기 칩, 턴 실패 띠와 같은 최대 736·좌우 12) 안이다. 무대 폭으로 퍼지지 않게 한다(DP-146).
+ * 대화 열 안의 띠라 Alert는 outline이다(DP-59)
+ */
+function BandColumn(props: { readonly children: ReactNode }): ReactNode {
+  return <div className="mx-auto w-full min-w-0 max-w-184 px-3 pb-2">{props.children}</div>;
+}
+
 export function ResumeBand(): ReactNode {
   const thread = useOpenThread();
   const commands = useCommands();
@@ -53,52 +61,58 @@ export function ResumeBand(): ReactNode {
   };
   if (view.kind === "held") {
     return (
-      <Alert
-        tone="info"
-        emphasis="lead"
-        icon={<RotateCcw />}
-        action={
-          <Button
-            size="xs"
-            variant="solid"
-            loading={busy}
-            onClick={() => {
-              run(commands.resumeTurn(threadId));
-            }}
-          >
-            {t("desktop.resumeBand.send.button")}
-          </Button>
-        }
-      >
-        <b>{t("desktop.resumeBand.held.title", { count: view.queued })}</b>{" "}
-        {t("desktop.resumeBand.held.body")}
-      </Alert>
+      <BandColumn>
+        <Alert
+          tone="info"
+          variant="outline"
+          emphasis="lead"
+          icon={<RotateCcw />}
+          action={
+            <Button
+              size="xs"
+              variant="solid"
+              loading={busy}
+              onClick={() => {
+                run(commands.resumeTurn(threadId));
+              }}
+            >
+              {t("desktop.resumeBand.send.button")}
+            </Button>
+          }
+        >
+          <b>{t("desktop.resumeBand.held.title", { count: view.queued })}</b>{" "}
+          {t("desktop.resumeBand.held.body")}
+        </Alert>
+      </BandColumn>
     );
   }
   return (
-    <Alert
-      tone="warning"
-      emphasis="lead"
-      icon={<RotateCcw />}
-      action={
-        <span className="flex items-center gap-1.5">
-          <Button
-            size="xs"
-            variant="ghost"
-            disabled={busy}
-            onClick={() => {
-              run(commands.interrupt(threadId));
-            }}
-          >
-            {t("desktop.resumeBand.leave.button")}
-          </Button>
-          <Button size="xs" variant="solid" loading={busy} onClick={resume}>
-            {t("desktop.resumeBand.resume.button")}
-          </Button>
-        </span>
-      }
-    >
-      <b>{t("desktop.resumeBand.crashed.title")}</b> {t(crashedBodyOf(target.kind === "remote"))}
-    </Alert>
+    <BandColumn>
+      <Alert
+        tone="warning"
+        variant="outline"
+        emphasis="lead"
+        icon={<RotateCcw />}
+        action={
+          <span className="flex items-center gap-1.5">
+            <Button
+              size="xs"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => {
+                run(commands.interrupt(threadId));
+              }}
+            >
+              {t("desktop.resumeBand.leave.button")}
+            </Button>
+            <Button size="xs" variant="solid" loading={busy} onClick={resume}>
+              {t("desktop.resumeBand.resume.button")}
+            </Button>
+          </span>
+        }
+      >
+        <b>{t("desktop.resumeBand.crashed.title")}</b> {t(crashedBodyOf(target.kind === "remote"))}
+      </Alert>
+    </BandColumn>
   );
 }

@@ -183,6 +183,50 @@
   outline: 2px solid var(--cs-color-accent-border);
   outline-offset: -2px;
 }
+/* 멈춰서 닫아 그린 코드 블록의 아래 한 줄(dzG 시안 §5): 12 tertiary */
+.convo-code-foot {
+  padding: 4px 12px;
+  border-top: 1px solid var(--convo-edge);
+  color: var(--cs-color-text-tertiary);
+  font-family: var(--font-ui, var(--cs-font-ui));
+  font-size: 12px;
+  line-height: 16px;
+}
+
+/* 본문 출처 번호 칩(DP-149): 높이 16, 11/500, 좌우 4, 반경 4. 위첨자가 아니라 기준선 -1px에 앉는다 */
+.convo-cite {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  margin-inline: 1px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--convo-chip-bg);
+  color: var(--cs-color-text-secondary);
+  font-family: var(--font-ui, var(--cs-font-ui));
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+  vertical-align: -1px;
+  cursor: pointer;
+}
+.convo-cite:hover {
+  background: var(--cs-color-neutral-hover);
+  color: var(--cs-color-text-primary);
+}
+.convo-cite:focus-visible {
+  outline: 2px solid var(--cs-color-accent-border);
+  outline-offset: 1px;
+}
+/* 출처 칩 앞 번호: 본문 번호 칩과 같은 번호(12 tertiary, 숫자 폭 고정) */
+.convo-source-number {
+  color: var(--cs-color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
 
 /* 표 */
 .convo-table {
@@ -445,9 +489,9 @@
   outline: 2px solid var(--cs-color-accent-border);
   outline-offset: 1px;
 }
-.convo-tag[data-tone="warning"] {
-  border-color: color-mix(in oklab, var(--cs-color-warning-border) 60%, transparent);
-  color: var(--cs-color-warning-text);
+/* 주의 꼬리표(DP-149): 글과 테두리는 다른 꼬리표처럼 차분하게 두고, 아이콘만 경고의 그림 색(caustic Badge dot과 같은 단계)이다 */
+.convo-tag[data-tone="warning"] svg {
+  color: var(--cs-color-warning-graphic);
 }
 
 /* ── 묶음 ──────────────────────────────────────────────────────── */
@@ -512,6 +556,9 @@
   --convo-clip-bg: var(--cs-color-bg-app);
   max-height: 320px;
 }
+.convo-clip[data-size="plan"] {
+  max-height: 240px;
+}
 .convo-clip[data-open="true"] {
   max-height: none;
 }
@@ -552,6 +599,11 @@
 .convo-task[data-status="completed"][data-changed="false"] {
   text-decoration: line-through;
   text-decoration-color: var(--cs-color-border-strong);
+}
+.convo-tasks-more {
+  justify-self: start;
+  margin: 0 0 4px 14px;
+  color: var(--cs-color-text-tertiary);
 }
 .convo-task-glyph {
   flex: none;
@@ -668,4 +720,24 @@
   .convo-actions {
     opacity: 1;
   }
+}
+
+/* ── 내 말 접기와 고쳐 보내기(DP-147) ───────────────────────────────── */
+/* 12줄을 넘는 내 말은 12줄 높이에서 자르고 아래 24px을 흐리게 한다. 바탕이 테마마다 달라(라이트 neutral.well, 다크 투명) 덮는 색 대신 mask로 흐린다 */
+.convo-bubble-clip[data-open="false"] {
+  max-height: 12lh;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
+}
+/* 편집 칸: 말풍선과 같은 글(15/23), 4줄에서 글을 따라 12줄까지 자라고 그 뒤는 칸 안에서 스크롤한다(위아래 안쪽 여백 8px씩 포함) */
+.convo-edit-field {
+  field-sizing: content;
+  min-height: calc(4lh + 16px);
+  max-height: calc(12lh + 16px);
+  font-size: var(--text-voice-sm, 15px);
+  line-height: var(--text-voice-sm--line-height, 23px);
+}
+/* 편집 중인 말 뒤의 대화 줄은 흐린다(블러 없음). 그 줄들은 보내면 새 가지로 바뀐다 */
+[data-row-key]:has([data-editing="true"]) ~ [data-row-key] {
+  opacity: 0.45;
 }

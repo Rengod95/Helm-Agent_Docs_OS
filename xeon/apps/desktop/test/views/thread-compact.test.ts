@@ -20,11 +20,14 @@ describe("compactNoticeOf", () => {
     ).toEqual({
       tone: "success",
       id: "desktop.threads.compact.done",
-      args: { before: 12_500, after: 3_100 },
+      args: { before: "1.3만", after: "3,100" },
     });
   });
   test("요약 뒤가 앞보다 크거나 같으면 줄었다는 말 없이 따로 안내한다", () => {
-    for (const tokensAfter of [19_909, 19_897]) {
+    for (const [tokensAfter, shown] of [
+      [19_909, "2만"],
+      [19_897, "2만"],
+    ] as const) {
       expect(
         compactNoticeOf(
           ok({
@@ -39,7 +42,7 @@ describe("compactNoticeOf", () => {
       ).toEqual({
         tone: "info",
         id: "desktop.threads.compact.done.same",
-        args: { after: tokensAfter },
+        args: { after: shown },
       });
     }
   });
@@ -55,7 +58,7 @@ describe("compactNoticeOf", () => {
     expect(compactNoticeOf(ok({ status: "skipped", why: "nothing_to_summarize" }), 20000)).toEqual({
       tone: "info",
       id: "desktop.threads.compact.skipped.threshold",
-      args: { tokens: 20000 },
+      args: { tokens: "2만" },
     });
     expect(compactNoticeOf(ok({ status: "skipped", why: "last_entry_is_compaction" }))).toEqual({
       tone: "info",
