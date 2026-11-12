@@ -208,7 +208,8 @@ function ShellFrame(props: ShellProps): ReactNode {
   const railArea = useShell((s) => s.area);
   const railScreen = useShell((s) => s.places[s.area].screen);
   // 무대는 오른쪽 끝까지 찬다(DP-68). 오른쪽 막대는 그 위에 떠 있고, 겹치는 곳만 피한다:
-  // 머리줄(`.shell-header`)은 `--shell-rail`만큼 안쪽 여백을 둬 끝 단추가 막대 밑에 들지 않고, 막대는 창 끝에서 12px 떨어져 스크롤 막대를 덮지 않는다(end-panel.tsx)
+  // 막대는 머리 줄 아래 본문의 세로 가운데에 서고(DP-135) 머리 줄은 끝까지 쓴다. 머리 뒤 본문은 막대 자리만큼 안쪽 여백을 두고(styles.css DP-68),
+  // 막대는 창 끝에서 12px 떨어져 스크롤 막대를 덮지 않는다(end-panel.tsx)
   const hasRail = props.registry.endTabs(railArea, railScreen).length > 0;
   // 크래프트 개요는 캔버스가 무대 가장자리까지 깔린다. 여백과 막대 자리 비우기를 두지 않고, 막대와 겹치는 판은 캔버스가 스스로 비킨다
   const bleed = railArea === "workbench" && railScreen === "overview" && !props.settingsOpen;
@@ -313,7 +314,7 @@ function ShellFrame(props: ShellProps): ReactNode {
               tabIndex={-1}
               aria-label={t("desktop.shell.stage.label")}
               data-rail={hasRail && !bleed ? "" : undefined}
-              // `--shell-rail`: 머리 오른쪽 안쪽 여백(막대 34 + 창 끝 12 → 48). `--stage-rail`: 머리 뒤 본문의 같은 여백(styles.css DP-68)
+              // `--stage-rail`: 머리 뒤 본문의 오른쪽 여백(막대 34 + 창 끝 12 → 48, styles.css DP-68). `--shell-rail`: 같은 값을 본문 밖에서 읽는 화면용(플레이그라운드)
               className={`flex min-w-0 flex-1 flex-col outline-none ${hasRail && !bleed ? "[--shell-rail:3rem] [--stage-rail:3rem]" : ""}`}
             >
               <Stage

@@ -164,8 +164,8 @@
     min-height: 0;
     height: 20px;
   }
-  /* 화면 머리줄(대화·설정). 무대가 오른쪽 끝까지 차고(DP-68) 머리도 끝까지 간다. 오른쪽 떠 있는 막대 자리(`--shell-rail`, 막대가 있는 화면만)만큼
-     안쪽 여백을 더해 오른쪽 끝 단추가 막대에 가리지 않게 한다. 좌우 여백은 머리 자체가 가진다 */
+  /* 화면 머리줄(대화·설정). 무대가 오른쪽 끝까지 차고(DP-68) 머리도 끝까지 간다. 오른쪽 떠 있는 막대는 무대 세로 가운데에 서므로(DP-135)
+     머리 줄은 막대 자리를 비우지 않는다. 좌우 여백은 머리 자체가 가진다 */
   /* 머리줄 높이 하나: 사이드 패널 머리(영역 탭 줄 control-md + 위아래 6px + 아래 선 1px)와 화면 머리줄이 같은 값을 읽는다 */
   :root {
     --shell-header-h: calc(var(--spacing-control-md) + 13px);
@@ -173,11 +173,13 @@
     --shell-header-gap: 24px;
   }
   .shell-header {
-    padding-inline: 12px calc(var(--shell-rail, 0px) + 12px);
+    padding-inline: 12px;
     /* 높이는 사이드 패널 머리와 같은 `--shell-header-h`, 아래에 border-subtle 구분선(border-box라 선이 높이에 든다) */
     box-sizing: border-box;
     min-height: var(--shell-header-h);
     border-bottom: 1px solid var(--color-border-subtle);
+    /* DP-137 [결정: 2026-11-12 사용자] 머리 줄은 왼쪽 패널과 같은 면(surface.base)이다. 패널 머리·접힌 막대·화면 머리가 한 띠로 이어진다 */
+    background-color: var(--cs-color-surface-base);
   }
   /* DP-122 머리 띠. 화면 머리 왼쪽에 서는 머리 줄(왼쪽 패널 첫 줄, 막대 로고 칸, 설정 찾기 줄)은 화면 머리와 같은 높이·아래 선을 가져
      머리 선이 창 왼쪽 끝부터 오른쪽 끝까지 한 줄(y 44)로 이어지고, 가운데 줄이 신호등·화면 제목과 같은 y 22에 선다.
@@ -192,6 +194,8 @@
     margin-inline: calc(-1 * var(--band-bleed-start, 0px)) calc(-1 * var(--band-bleed-end, 0px));
     padding-inline: var(--band-bleed-start, 0px) var(--band-bleed-end, 0px);
     border-bottom: 1px solid var(--color-border-subtle);
+    /* DP-137: 머리 띠는 화면 머리와 같은 면이다. 앱 바탕 위에 선 열(설정 내비)의 머리도 띠 색을 이어 받는다 */
+    background-color: var(--cs-color-surface-base);
   }
   [data-slot="side-panel-header"] {
     --band-bleed-top: 6px;
@@ -451,14 +455,26 @@
 }
 
 /* DP-68 [결정: 2026-11-11 사용자] 무대는 오른쪽 끝까지 차고(스크롤 막대도 창 끝), 오른쪽 떠 있는 막대는 그 위에 뜬다.
-   막대가 있는 화면(`#stage[data-rail]`)에서 머리 바로 뒤 본문은 안쪽 오른쪽 여백을 막대 자리 + 12px로 둬, 내용의 오른쪽 끝이
-   머리 단추의 오른쪽 끝(`.shell-header`의 `--shell-rail` + 12px)과 같은 줄에 선다. 본문 상자와 스크롤 막대는 끝까지 간다.
+   DP-135 [결정: 2026-11-12 사용자] 막대는 무대 세로 가운데에 서고 머리 줄은 끝까지 쓴다. 막대는 본문 높이 안에 있으므로
+   막대가 있는 화면(`#stage[data-rail]`)에서 머리 바로 뒤 본문은 안쪽 오른쪽 여백을 막대 자리 + 12px로 둬 내용이 막대 밑에 들지 않는다.
+   본문 상자와 스크롤 막대는 끝까지 간다.
    본문 안은 막대 자리를 이미 비켰으므로 `--shell-rail`을 0으로 돌린다(안쪽에서 그 값을 다시 더하지 않게).
    대화 머리(`data-flush`)는 뺀다: 대화 열은 가운데 정렬이라 막대에 닿지 않는다. 화면 본문의 px 유틸리티를 이기도록 utilities 층에 둔다 */
 @layer utilities {
   #stage[data-rail] .shell-header:not([data-flush]) + * {
     padding-inline-end: calc(var(--stage-rail, 0px) + 12px);
     --shell-rail: 0px;
+  }
+  /* 대화 열(가운데 정렬, 내용 712px)은 무대가 넓으면 막대에 닿지 않는다. 무대가 열 + 양쪽 막대 자리(712 + 2 × 58 ≈ 840px)보다 좁으면
+     (좁은 창, 패널을 편 1024 안팎) 열이 막대 밑으로 들어가므로 대화 본문도 막대 자리를 비운다(DP-135) */
+  #stage[data-rail] {
+    container: stage / inline-size;
+  }
+  @container stage (max-width: 840px) {
+    /* 대화 머리는 위 빛 줄(fx-line)과 한 상자에 싸여 있어 본문은 그 상자의 다음 형제다 */
+    :is(.shell-header[data-flush], :has(> .shell-header[data-flush])) + * {
+      padding-inline-end: calc(var(--stage-rail, 0px) + 12px);
+    }
   }
 }
 
@@ -532,7 +548,7 @@
   :root[data-window-chrome="mac"]:not([data-fullscreen]) [data-chrome-row] {
     padding-inline-start: calc(var(--chrome-start) - 4px);
   }
-  /* 막대(49px): 신호등(76px까지)이 막대 밖 화면 머리까지 걸친다. 막대 위 머리 높이만큼을 화면 머리와 같은 면(앱 바탕)과 아래 선으로 덮어
+  /* 막대(49px): 신호등(76px까지)이 막대 밖 화면 머리까지 걸친다. 막대 위 머리 높이만큼을 화면 머리와 같은 면(왼쪽 패널 면, DP-137)과 아래 선으로 덮어
      신호등 뒤가 한 띠로 읽히게 한다(막대 오른쪽 선이 신호등 사이를 지나가지 않는다). 로고 칸은 감추고 그 띠 아래 6px에서 막대 단추가 시작한다 */
   :root[data-window-chrome="mac"]:not([data-fullscreen])
     [data-start-edge="rail"]
@@ -543,7 +559,7 @@
     inset-inline: 0 -1px;
     box-sizing: border-box;
     height: var(--shell-header-h);
-    background-color: var(--cs-color-bg-app);
+    background-color: var(--cs-color-surface-base);
     border-bottom: 1px solid var(--color-border-subtle);
     pointer-events: none;
   }
@@ -558,11 +574,8 @@
     padding-inline-start: max(12px, calc(var(--chrome-start) - 3rem - 1px));
   }
 
-  /* 창 단추(오버레이): 화면 머리 끝을 단추 폭만큼 비우고, 오른쪽 막대는 머리 아래에서 시작한다 */
+  /* 창 단추(오버레이): 화면 머리 끝을 단추 폭만큼 비운다. 오른쪽 막대는 무대 세로 가운데라(DP-135) 창 단추와 만나지 않는다 */
   :root[data-window-chrome="overlay"] .shell-header {
     padding-inline-end: calc(var(--chrome-end) + 12px);
-  }
-  :root[data-window-chrome="overlay"] [data-end-rail] {
-    top: calc(var(--shell-header-h) + 6px);
   }
 }

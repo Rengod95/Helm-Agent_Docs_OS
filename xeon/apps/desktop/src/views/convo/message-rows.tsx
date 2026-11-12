@@ -31,11 +31,11 @@ import { toolHeadOf } from "./tool-view-model.ts";
 
 /**
  * caustic Message의 마운트 들어옴(animate-rise)은 끈다(`animate-none`): 줄 들어옴은 대화 목록이 새 줄에만 한 번 건다(dzM2 시안 §2).
- * 사용자 말풍선: 채움 없는 outlined(`border-subtle` 1px), 글은 답과 같은 15/23. 오른쪽 정렬, 최대 폭 열의 85%.
+ * 사용자 말풍선: 1px 테두리(라이트 border.strong + neutral.well 바탕, 다크 border.subtle 채움 없음, convo.css DP-139), 글은 답과 같은 15/23. 오른쪽 정렬, 최대 폭 열의 85%.
  * 아래에 동작 줄(올리거나 초점이 들어오면 보임)이 붙는다. "고쳐서 다시 보내기"는 말풍선 자리에서 바로 고친다.
  */
 const BUBBLE_CLASS =
-  "animate-none max-w-[85%] whitespace-pre-wrap [overflow-wrap:anywhere] text-voice-sm bg-transparent px-2.5 py-1.5 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]";
+  "animate-none max-w-[85%] whitespace-pre-wrap [overflow-wrap:anywhere] text-voice-sm bg-(--convo-bubble-bg) px-2.5 py-1.5 shadow-[inset_0_0_0_1px_var(--convo-bubble-edge)]";
 
 function EditBox(props: {
   readonly text: string;

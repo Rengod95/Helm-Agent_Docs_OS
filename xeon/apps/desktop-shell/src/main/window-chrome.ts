@@ -73,12 +73,19 @@ export function trafficLightInsetOf(metrics: TrafficLightMetrics): number {
   return TRAFFIC_LIGHT_X + metrics.pitch * 2 + metrics.size + TRAFFIC_LIGHT_GAP;
 }
 
-/** 창 배경과 오버레이 색. 화면의 앱 바탕(`--cs-color-bg-app`)과 같은 sRGB 값이다(caustic tokens, oklch 0.975 / 0.135) */
+/**
+ * 창 배경과 오버레이 색. `background`는 화면의 앱 바탕(`--cs-color-bg-app`, oklch 0.975 / 0.135)과 같은 sRGB 값이다.
+ * `header`는 머리 줄 면(왼쪽 패널과 같은 `--cs-color-surface-base`, oklch 0.995 / 0.18)이고 Windows·Linux 창 단추 오버레이가 이 색을 쓴다
+ * (DP-137 [결정: 2026-11-12 사용자] 머리 줄 색을 왼쪽 패널 색에 맞춘다)
+ */
 export const CHROME_COLORS: Readonly<
-  Record<"light" | "dark", { readonly background: string; readonly symbol: string }>
+  Record<
+    "light" | "dark",
+    { readonly background: string; readonly header: string; readonly symbol: string }
+  >
 > = {
-  light: { background: "#f7f7f7", symbol: "#3d3d3d" },
-  dark: { background: "#080808", symbol: "#d6d6d6" },
+  light: { background: "#f7f7f7", header: "#fdfdfd", symbol: "#3d3d3d" },
+  dark: { background: "#080808", header: "#121212", symbol: "#d6d6d6" },
 };
 
 export function themeSourceOf(value: unknown): ThemeSource {
@@ -101,7 +108,7 @@ export function readSavedTheme(configDir: string): ThemeSource {
 export function overlayOf(dark: boolean): TitleBarOverlayOptions {
   const colors = CHROME_COLORS[dark ? "dark" : "light"];
   // 오버레이 면은 머리 줄과 같은 색이다. 높이는 아래 선을 뺀 값이라 선이 단추 밑까지 이어진다
-  return { color: colors.background, symbolColor: colors.symbol, height: HEADER_HEIGHT - 1 };
+  return { color: colors.header, symbolColor: colors.symbol, height: HEADER_HEIGHT - 1 };
 }
 
 /** 창을 만들 때 덮어쓸 옵션 */
