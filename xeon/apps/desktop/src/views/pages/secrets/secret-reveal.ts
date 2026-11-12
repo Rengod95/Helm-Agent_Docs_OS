@@ -164,9 +164,17 @@ export function revealPortOf(secrets: Pick<SecretCommands, "beginReveal">): Secr
 
 function revealFailureOf(error: SecretCommandError): RevealFailure {
   switch (error.kind) {
+    // 값 보기의 실패 문장은 일반 문장 하나다(`RevealFailure`가 원인을 나누지 않는다). 구체 문장은 시크릿 목록과 등록 창이 쓴다
     case "offline":
     case "failed":
     case "inUse":
+    case "localOnly":
+    case "keyUnavailable":
+    case "alreadyExists":
+    case "decryptFailed":
+    case "providerUnavailable":
+    case "writeFailed":
+    case "readOnlyProvider":
       return { kind: "failed" };
     case "unsupported":
       return { kind: "unavailable" };

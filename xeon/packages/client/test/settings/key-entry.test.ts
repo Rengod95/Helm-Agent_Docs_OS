@@ -147,6 +147,7 @@ describe("submitKey", () => {
       text: "저장소가 다른 쓰기로 바빠요",
       keystore: false,
       code: "store_busy",
+      fix: "잠시 뒤 다시 등록해요",
       detail: "잠시 뒤 다시 등록해요\n종료 코드 1",
     });
     const timedOut: KeyRegistrar = {
@@ -159,6 +160,64 @@ describe("submitKey", () => {
       keystore: true,
     });
     expect(outcome).not.toHaveProperty("code");
+  });
+
+  test("a known code gives its fix sentence apart from the exit code, and an unknown code has none", async () => {
+    const rows: readonly {
+      readonly code: FailureKind;
+      readonly text: string;
+      readonly fix: string;
+    }[] = [
+      {
+        code: "service_local_only",
+        text: "이 컴퓨터에서만 값을 넣을 수 있어요",
+        fix: "값을 넣을 컴퓨터의 앱에서 등록하거나 그 컴퓨터에서 `fresnel secret add <이름>`을 실행해요",
+      },
+      {
+        code: "key_store",
+        text: "OS 키 저장소를 쓸 수 없어요",
+        fix: "키 저장소 잠금을 풀거나 설정의 시크릿에서 열쇠 보관을 '앱 파일'로 바꿔요",
+      },
+      {
+        code: "already_exists",
+        text: "이미 있는 이름이에요",
+        fix: "값만 바꾸려면 '값 바꾸기'를 써요",
+      },
+      {
+        code: "value_too_short",
+        text: "값이 너무 짧아요(8자 이상)",
+        fix: "키 전체를 붙여 넣었는지 확인해요",
+      },
+      { code: "sops_missing", text: "sops가 없어요", fix: "sops 3.10 이상을 설치해요" },
+    ];
+    const outcomes = await Promise.all(
+      rows.map(async (row) => {
+        const registrar: KeyRegistrar = {
+          registerKey: () =>
+            Promise.resolve(
+              err<KeyRegisterError>({ kind: "rejected", exitCode: 1, code: row.code, detail: "" }),
+            ),
+        };
+        return { row, outcome: await submitKey(registrar, NAME, "add", field(FAKE).field) };
+      }),
+    );
+    for (const { row, outcome } of outcomes) {
+      expect(outcome).toEqual({
+        kind: "failed",
+        text: row.text,
+        keystore: false,
+        code: row.code,
+        fix: row.fix,
+        detail: `${row.fix}\n종료 코드 1`,
+      });
+    }
+    const unknown: KeyRegistrar = {
+      registerKey: () =>
+        Promise.resolve(
+          err<KeyRegisterError>({ kind: "rejected", exitCode: 1, code: "unknown", detail: "" }),
+        ),
+    };
+    expect(await submitKey(unknown, NAME, "add", field(FAKE).field)).not.toHaveProperty("fix");
   });
 
   test("a shell without the route falls back to the terminal hint", async () => {

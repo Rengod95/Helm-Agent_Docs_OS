@@ -56,6 +56,8 @@ export type KeyOutcome =
       readonly keystore: boolean;
       /** 실패의 종류 코드. 키체인 실패는 `key_store`다. 시간 초과나 요청 실패처럼 코드가 없으면 생략한다. 화면과 제공자 카드가 쓴다 */
       readonly code?: FailureKind;
+      /** 고치는 법 한 문장. 알려진 원인이면 있다. 화면은 원인 문장 바로 밑에 보인다. 키체인, 시간 초과, 모르는 원인은 원인 문장에 고치는 법이 들어 있어 없다 */
+      readonly fix?: string;
       /** 기술 문구. 맞은 원인의 해결 문장이 있으면 먼저 오고, 종료 코드 줄이 줄바꿈으로 이어진다. 화면은 "자세히" 뒤에 둔다. 없으면 생략한다 */
       readonly detail?: string;
     };
@@ -189,6 +191,12 @@ export function keyErrorText(error: KeyRegisterError): string {
   }
 }
 
+/** 원인 문장 밑에 바로 보일 해결 문장. 알려진 종류 코드만 있다. 키체인, 시간 초과, 모르는 원인은 `null`이다 */
+function keyErrorFixOf(error: KeyRegisterError): string | null {
+  if (error.kind !== "rejected" || error.code === "unknown") return null;
+  return t(REASON_IDS[error.code].fix);
+}
+
 /**
  * "자세히" 뒤에 둘 기술 문구. 맞은 원인의 해결 문장이 먼저 오고, 모르는 원인이면 사이드카 출력의 첫 줄이 온다.
  * 종료 코드가 있으면 그 줄이 줄바꿈으로 이어진다. 둘 다 없으면 `null`이다
@@ -227,11 +235,13 @@ export async function submitKey(
     if (result.error.kind === "unavailable") return { kind: "terminal" };
     const detail = keyErrorDetail(result.error);
     const code = codeOf(result.error);
+    const fix = keyErrorFixOf(result.error);
     return {
       kind: "failed",
       text: keyErrorText(result.error),
       keystore: result.error.kind === "keystore" || result.error.kind === "timeout",
       ...(code === undefined ? {} : { code }),
+      ...(fix === null ? {} : { fix }),
       ...(detail === null ? {} : { detail }),
     };
   } finally {

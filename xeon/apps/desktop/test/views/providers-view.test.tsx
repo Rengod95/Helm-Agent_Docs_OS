@@ -6,12 +6,14 @@ import { renderToString } from "react-dom/server";
 import {
   initialChecks,
   poolsOf,
+  storeFailedChecks,
   withCheck,
   type ProviderCard,
 } from "../../src/views/pages/providers/providers-model.ts";
 import {
   AccountPool,
   AllowedRules,
+  ErrorLine,
   ModelAccessList,
   ProvidersView,
   RotationRow,
@@ -136,6 +138,59 @@ describe("ProvidersView", () => {
     );
     expect(html).toContain(t("desktop.providers.unreadable"));
     expect(html).not.toContain('data-slot="provider-card"');
+  });
+});
+
+describe("key registration failure on the card", () => {
+  test("the store step keeps the cause and its fix, and the card status line says the same cause", () => {
+    const checks = storeFailedChecks(
+      "이 컴퓨터에서만 값을 넣을 수 있어요",
+      "값을 넣을 컴퓨터의 앱에서 등록해요",
+    );
+    const steps = providerStepsOf(checks, { onKey: NOOP, onEnable: NOOP });
+    const html = renderToString(
+      <ProvidersView
+        {...viewProps({
+          cards: [card({ status: "noKey", secretName: null, modelCount: 0 })],
+          steps: { anthropic: steps },
+        })}
+      />,
+    );
+    expect(html).toContain("이 컴퓨터에서만 값을 넣을 수 있어요");
+    expect(html).toContain("값을 넣을 컴퓨터의 앱에서 등록해요");
+    expect(html).not.toContain(t("desktop.providers.status.noKey"));
+    expect(html).toContain('data-slot="check-steps"');
+  });
+
+  test("a card with no failed step keeps its status words", () => {
+    const html = renderToString(
+      <ProvidersView
+        {...viewProps({
+          cards: [card({ status: "noKey", secretName: null, modelCount: 0 })],
+        })}
+      />,
+    );
+    expect(html).toContain(t("desktop.providers.status.noKey"));
+  });
+});
+
+describe("ErrorLine", () => {
+  test("a cause with a fix shows the cause as the alert and the fix under it", () => {
+    const html = renderToString(
+      <ErrorLine text="그 이름의 키가 없어요" fix="이름을 확인하거나 새 키로 등록해요" />,
+    );
+    expect(html).toContain('role="alert"');
+    expect(html.indexOf("그 이름의 키가 없어요")).toBeLessThan(
+      html.indexOf("이름을 확인하거나 새 키로 등록해요"),
+    );
+    expect(html).toContain("text-text-tertiary");
+  });
+
+  test("a cause without a fix is only the alert, and no text means nothing", () => {
+    expect(renderToString(<ErrorLine text="키가 비어 있어요" />)).not.toContain(
+      "text-text-tertiary",
+    );
+    expect(renderToString(<ErrorLine text={null} />)).toBe("");
   });
 });
 

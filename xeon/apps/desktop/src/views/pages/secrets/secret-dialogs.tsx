@@ -15,7 +15,7 @@ import {
 } from "@caustic/react";
 import { useRef, type ReactNode } from "react";
 import { InfoTip } from "../../craft/info-tip.tsx";
-import type { EntryState, Load, MetaState } from "./secret-model.ts";
+import type { EntryError, EntryState, Load, MetaState } from "./secret-model.ts";
 import type { MetaDraft } from "./secret-draft.ts";
 import { approvalIdOf, commandErrorText } from "./secret-text.ts";
 import { assertNever } from "@fresnel/contracts";
@@ -92,7 +92,7 @@ export function EntryDialog(props: EntryDialogProps): ReactNode {
 function NameStep(props: {
   readonly name: string;
   readonly busy: boolean;
-  readonly error: string | null;
+  readonly error: EntryError | null;
   readonly onName: (name: string) => void;
   readonly onNext: () => void;
   readonly onCancel: () => void;
@@ -105,11 +105,7 @@ function NameStep(props: {
         props.onNext();
       }}
     >
-      <Field
-        label={t("desktop.secrets.entry.nameLabel")}
-        error={props.error ?? undefined}
-        size="sm"
-      >
+      <Field label={t("desktop.secrets.entry.nameLabel")} error={props.error?.text} size="sm">
         {withTip(
           <Input
             size="sm"
@@ -142,10 +138,13 @@ function NameStep(props: {
   );
 }
 
-/** 값 칸. 비제어 입력이라 값은 DOM에만 있고, 저장하면 `take()`가 읽는 즉시 비운다 */
-function ValueStep(props: {
+/**
+ * 값 칸. 비제어 입력이라 값은 DOM에만 있고, 저장하면 `take()`가 읽는 즉시 비운다.
+ * 실패하면 원인 문장 밑에 고치는 법 한 줄을 둔다. 기술 문구(종료 코드)는 여기 없다.
+ */
+export function ValueStep(props: {
   readonly busy: boolean;
-  readonly error: string | null;
+  readonly error: EntryError | null;
   readonly onSubmit: (field: KeyField) => void;
   readonly onCancel: () => void;
 }): ReactNode {
@@ -184,9 +183,14 @@ function ValueStep(props: {
         )}
       </Field>
       {props.error === null ? null : (
-        <Alert tone="danger" size="sm">
-          {props.error}
-        </Alert>
+        <div className="grid gap-1">
+          <Alert tone="danger" size="sm">
+            {props.error.text}
+          </Alert>
+          {props.error.fix === undefined ? null : (
+            <p className="m-0 text-ui text-text-tertiary">{props.error.fix}</p>
+          )}
+        </div>
       )}
       <div className="flex justify-end gap-2">
         <Button

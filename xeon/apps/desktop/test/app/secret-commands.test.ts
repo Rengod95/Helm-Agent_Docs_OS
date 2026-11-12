@@ -67,7 +67,7 @@ describe("secret wire errors keep the kinds the screen tells apart", () => {
         "secret.references": { code: 3201, kind: "secret.notFound" },
         "secret.remove": { code: 3206, kind: "secret.inUse" },
         "secret.beginReveal": { code: 3209, kind: "secret.reauthRequired" },
-        "secret.test": { code: 3203, kind: "secret.providerUnavailable" },
+        "secret.test": { code: 3202, kind: "secret.denied" },
       },
     });
     expect(await app.commands.secrets.references(NAME)).toEqual({
@@ -83,6 +83,49 @@ describe("secret wire errors keep the kinds the screen tells apart", () => {
       error: { kind: "reauthRequired" },
     });
     expect(await app.commands.secrets.test(NAME)).toEqual({ ok: false, error: { kind: "failed" } });
+    await app.stop();
+  });
+
+  test("the 3200-series causes the screen names keep their own kinds, not failed", async () => {
+    const { app } = await liveApp({
+      errors: {
+        "secret.beginEntry": { code: 3207, kind: "secret.alreadyExists" },
+        "secret.beginReveal": { code: 3213, kind: "secret.localOnly" },
+        "secret.test": { code: 3204, kind: "secret.keyUnavailable" },
+        "secret.audit": { code: 3205, kind: "secret.decryptFailed" },
+        "secret.references": { code: 3203, kind: "secret.providerUnavailable" },
+        "secret.remove": { code: 3212, kind: "secret.writeFailed" },
+        "secret.meta": { code: 3208, kind: "secret.readOnlyProvider" },
+      },
+    });
+    expect(await app.commands.secrets.beginEntry(NAME, "add")).toEqual({
+      ok: false,
+      error: { kind: "alreadyExists" },
+    });
+    expect(await app.commands.secrets.beginReveal(NAME)).toEqual({
+      ok: false,
+      error: { kind: "localOnly" },
+    });
+    expect(await app.commands.secrets.test(NAME)).toEqual({
+      ok: false,
+      error: { kind: "keyUnavailable" },
+    });
+    expect(await app.commands.secrets.audit(NAME)).toEqual({
+      ok: false,
+      error: { kind: "decryptFailed" },
+    });
+    expect(await app.commands.secrets.references(NAME)).toEqual({
+      ok: false,
+      error: { kind: "providerUnavailable" },
+    });
+    expect(await app.commands.secrets.remove(NAME)).toEqual({
+      ok: false,
+      error: { kind: "writeFailed" },
+    });
+    expect(await app.commands.secrets.editMeta({ name: NAME, desc: "search key" })).toEqual({
+      ok: false,
+      error: { kind: "readOnlyProvider" },
+    });
     await app.stop();
   });
 });

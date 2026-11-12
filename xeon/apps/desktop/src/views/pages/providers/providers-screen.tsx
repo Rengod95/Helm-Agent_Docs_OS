@@ -27,13 +27,14 @@ import type { SecretName } from "@fresnel/contracts/capabilities";
 import type { UsageGauge } from "@fresnel/contracts/wire";
 import { useCallback, useEffect, useReducer, useState, type ReactNode } from "react";
 import { useLinkPhase } from "../../../state/engine/index.ts";
-import { useCommands } from "../../commands.ts";
+import { useCommands, type SecretCommandError } from "../../commands.ts";
 import { useModelChoices } from "../../model-usage.ts";
 import { errorText } from "../../settings.tsx";
 import type { FieldHandlers } from "../settings/settings-field.tsx";
 import { allFieldsOf } from "../settings/settings-model.ts";
 import type { CheckStep } from "../shared/check-steps.tsx";
 import { providerNameOf } from "../shared/provider-names.ts";
+import { commandErrorText } from "../secrets/secret-text.ts";
 import {
   ROTATION_ENABLED_KEY,
   addableProvidersOf,
@@ -51,6 +52,7 @@ import {
   rotationConfirmOf,
   rotationStepOf,
   secretNameOfRef,
+  storeFailedChecks,
   storedCheckOf,
   stringListOf,
   withCheck,
@@ -81,6 +83,7 @@ import {
   RotationRow,
   providerStepsOf,
   type KeyDialogPhase,
+  type KeyErrorText,
   type KeySource,
 } from "./providers-view.tsx";
 import { invalidTextOf } from "./providers-text.ts";
@@ -177,6 +180,17 @@ interface KeyTarget {
   readonly picked: string | null;
 }
 
+/** 키 등록 결과의 실패를 화면 문장 한 쌍으로. 값은 없다 */
+function keyFailureOf(outcome: { readonly text: string; readonly fix?: string }): KeyErrorText {
+  return { text: outcome.text, ...(outcome.fix === undefined ? {} : { fix: outcome.fix }) };
+}
+
+/** 시험이 떨어진 까닭: 시크릿 명령 오류의 문장 한 줄 */
+function testFailureOf(error: SecretCommandError): ProviderCheckReason {
+  const ref = commandErrorText(error);
+  return { kind: "error", text: t(ref.id, ref.args) };
+}
+
 /**
  * 연결 시험을 차례로 돈다. 단계가 바뀔 때마다 `onStep`으로 알리고, 실패하면 뒤 단계는 건너뛴다.
  * ① 키 저장(`secret.test`) ② 제공자 연결(엔진 설정의 원소) ③ 모델 목록(`models.list`)
@@ -214,9 +228,7 @@ function useProviderTest(): (
         !finish(
           "stored",
           started,
-          tested.ok
-            ? storedCheckOf(tested.value)
-            : { kind: "error", text: t("desktop.providers.check.detail.failed") },
+          tested.ok ? storedCheckOf(tested.value) : testFailureOf(tested.error),
         )
       ) {
         return;
@@ -329,7 +341,7 @@ export function ProvidersPanel(props: ModelsPanelProps): ReactNode {
           setKey((prev) =>
             prev === null
               ? prev
-              : { ...prev, phase: { kind: "entry", error: errorText(begun.error) } },
+              : { ...prev, phase: { kind: "entry", error: { text: errorText(begun.error) } } },
           );
         }
         return undefined;
@@ -345,7 +357,7 @@ export function ProvidersPanel(props: ModelsPanelProps): ReactNode {
       setKey((prev) =>
         prev === null
           ? prev
-          : { ...prev, phase: { kind: "entry", error: errorText(connected.error) } },
+          : { ...prev, phase: { kind: "entry", error: { text: errorText(connected.error) } } },
       );
       return;
     }
@@ -384,17 +396,19 @@ export function ProvidersPanel(props: ModelsPanelProps): ReactNode {
           case "empty":
             setKey({
               ...target,
-              phase: { kind: "entry", error: t("desktop.settings.keyValue.empty") },
+              phase: { kind: "entry", error: { text: t("desktop.settings.keyValue.empty") } },
             });
             break;
           case "terminal":
             setKey({
               ...target,
-              phase: { kind: "entry", error: t("desktop.firstRun.key.unavailable") },
+              phase: { kind: "entry", error: { text: t("desktop.firstRun.key.unavailable") } },
             });
             break;
           case "failed":
-            setKey({ ...target, phase: { kind: "entry", error: outcome.text } });
+            setKey({ ...target, phase: { kind: "entry", error: keyFailureOf(outcome) } });
+            // 등록이 떨어진 사유는 카드의 저장 단계에도 남긴다(대화 상자를 닫아도 카드에서 보인다)
+            setCardSteps(target.providerId, storeFailedChecks(outcome.text, outcome.fix));
             break;
           default:
             assertNever(outcome, "KeyOutcome");
@@ -627,7 +641,7 @@ export function AccountsPanel(props: ModelsPanelProps): ReactNode {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<AccountDraft | null>(null);
-  const [draftError, setDraftError] = useState<string | null>(null);
+  const [draftError, setDraftError] = useState<KeyErrorText | null>(null);
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
   const stored = storedSecretsOf(data.snapshot);
@@ -657,8 +671,8 @@ export function AccountsPanel(props: ModelsPanelProps): ReactNode {
   const submit = (keyField: KeyField): void => {
     if (draft === null) return;
     const current = draft;
-    const fail = (text: string): void => {
-      setDraftError(text);
+    const fail = (text: string, fix?: string): void => {
+      setDraftError(fix === undefined ? { text } : { text, fix });
       setBusy(false);
     };
     if (current.provider === null) {
@@ -704,7 +718,7 @@ export function AccountsPanel(props: ModelsPanelProps): ReactNode {
           fail(t("desktop.firstRun.key.unavailable"));
           return;
         } else {
-          fail(outcome.text);
+          fail(outcome.text, outcome.fix);
           return;
         }
         setBusy(false);

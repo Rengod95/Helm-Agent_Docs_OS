@@ -206,13 +206,30 @@ describe("the entry and metadata dialogs", () => {
   test("a failed step keeps the dialog open with its message and releases the busy flag", () => {
     const state = run(
       { type: "entryChange", name: nameOf("exa-key") },
-      { type: "entryFailed", error: "값을 입력해 주세요." },
+      { type: "entryFailed", error: { text: "값을 입력해 주세요." } },
     );
     expect(state.entry).toEqual({
       kind: "value",
       name: nameOf("exa-key"),
       action: "set",
-      error: "값을 입력해 주세요.",
+      error: { text: "값을 입력해 주세요." },
+      busy: false,
+    });
+  });
+
+  test("a failure with a fix keeps the cause and the fix apart", () => {
+    const state = run(
+      { type: "entryChange", name: nameOf("exa-key") },
+      {
+        type: "entryFailed",
+        error: { text: "이미 있는 이름이에요", fix: "값만 바꾸려면 '값 바꾸기'를 써요" },
+      },
+    );
+    expect(state.entry).toEqual({
+      kind: "value",
+      name: nameOf("exa-key"),
+      action: "set",
+      error: { text: "이미 있는 이름이에요", fix: "값만 바꾸려면 '값 바꾸기'를 써요" },
       busy: false,
     });
   });

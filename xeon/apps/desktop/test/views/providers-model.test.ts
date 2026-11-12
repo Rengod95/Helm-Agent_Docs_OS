@@ -14,6 +14,7 @@ import {
   addableProvidersOf,
   initialChecks,
   isBaseUrl,
+  storeFailedChecks,
   isModelRule,
   linkedCheckOf,
   modelAccessGroupsOf,
@@ -302,6 +303,25 @@ describe("provider list writes", () => {
 });
 
 describe("connection checks", () => {
+  test("a key registration failure is the store step's reason, and the steps after it are skipped", () => {
+    const checks = storeFailedChecks("키 저장소를 쓸 수 없어요", "잠금을 풀어요");
+    expect(checks.map((check) => [check.id, check.state])).toEqual([
+      ["stored", "failed"],
+      ["linked", "skipped"],
+      ["models", "skipped"],
+    ]);
+    expect(checks[0]).toEqual({
+      id: "stored",
+      state: "failed",
+      reason: { kind: "error", text: "키 저장소를 쓸 수 없어요", fix: "잠금을 풀어요" },
+    });
+    expect(storeFailedChecks("다른 사유", undefined)[0]).toEqual({
+      id: "stored",
+      state: "failed",
+      reason: { kind: "error", text: "다른 사유" },
+    });
+  });
+
   test("a failed step skips the steps after it and keeps the ones before", () => {
     const first = withCheck(initialChecks(), {
       id: "stored",

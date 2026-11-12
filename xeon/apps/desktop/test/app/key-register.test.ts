@@ -101,6 +101,7 @@ describe("registering a model key from the settings screen", () => {
       text: t("client.settings.key.reason.providerUnavailable.text"),
       keystore: false,
       code: "provider_unavailable",
+      fix: t("client.settings.key.reason.providerUnavailable.fix"),
       detail: `${t("client.settings.key.reason.providerUnavailable.fix")}\n종료 코드 1`,
     });
     expect(JSON.stringify(outcome)).not.toContain(FAKE);

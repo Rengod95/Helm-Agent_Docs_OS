@@ -659,6 +659,20 @@ export type SecretCommandError =
   | { readonly kind: "notFound" }
   /** `secret.inUse`: 설정이나 대화가 쓰고 있어 지울 수 없다 */
   | { readonly kind: "inUse" }
+  /** `secret.localOnly`: 이 컴퓨터에서만 값을 넣을 수 있다 */
+  | { readonly kind: "localOnly" }
+  /** `secret.keyUnavailable`: OS 키 저장소를 열지 못했다(잠김, 항목 없음, 접근 거부) */
+  | { readonly kind: "keyUnavailable" }
+  /** `secret.alreadyExists`: 같은 이름의 시크릿이 이미 있다 */
+  | { readonly kind: "alreadyExists" }
+  /** `secret.decryptFailed`: 저장된 값을 복호화하지 못했다 */
+  | { readonly kind: "decryptFailed" }
+  /** `secret.providerUnavailable`: 시크릿 제공자(sops 등)를 쓸 수 없다 */
+  | { readonly kind: "providerUnavailable" }
+  /** `secret.writeFailed`: 시크릿 저장소에 쓰지 못했다 */
+  | { readonly kind: "writeFailed" }
+  /** `secret.readOnlyProvider`: 읽기 전용 제공자라 쓸 수 없다 */
+  | { readonly kind: "readOnlyProvider" }
   | { readonly kind: "failed" };
 
 /**

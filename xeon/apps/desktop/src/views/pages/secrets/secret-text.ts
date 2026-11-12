@@ -53,6 +53,20 @@ export function commandErrorText(error: SecretCommandError): MessageRef {
       return message("desktop.secrets.error.notFound");
     case "inUse":
       return message("desktop.secrets.error.inUse");
+    case "localOnly":
+      return message("desktop.secrets.error.localOnly");
+    case "keyUnavailable":
+      return message("desktop.secrets.error.keyUnavailable");
+    case "alreadyExists":
+      return message("desktop.secrets.error.alreadyExists");
+    case "decryptFailed":
+      return message("desktop.secrets.error.decryptFailed");
+    case "providerUnavailable":
+      return message("desktop.secrets.error.providerUnavailable");
+    case "writeFailed":
+      return message("desktop.secrets.error.writeFailed");
+    case "readOnlyProvider":
+      return message("desktop.secrets.error.readOnlyProvider");
     case "failed":
       return message("desktop.secrets.error.failed");
     default:

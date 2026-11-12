@@ -244,7 +244,7 @@ export function SecretsPanel(props: {
   const beginEntry = async (name: SecretName, action: "add" | "set"): Promise<void> => {
     const begun = await commands.secrets.beginEntry(name, action);
     if (!begun.ok) {
-      dispatch({ type: "entryFailed", error: messageOf(commandErrorText(begun.error)) });
+      dispatch({ type: "entryFailed", error: { text: messageOf(commandErrorText(begun.error)) } });
       return;
     }
     if (begun.value) {
@@ -259,7 +259,7 @@ export function SecretsPanel(props: {
     if (state.entry.kind !== "name") return;
     const checked = entryNameOf(state.entry.name);
     if (!checked.ok) {
-      dispatch({ type: "entryFailed", error: t("desktop.secrets.entry.nameInvalid") });
+      dispatch({ type: "entryFailed", error: { text: t("desktop.secrets.entry.nameInvalid") } });
       return;
     }
     dispatch({ type: "entryPending", busy: true });
@@ -292,16 +292,24 @@ export function SecretsPanel(props: {
       case "terminal":
         dispatch({
           type: "entryFailed",
-          error: t("desktop.secrets.entry.terminal", {
-            command: `fresnel secret ${action} ${name}`,
-          }),
+          error: {
+            text: t("desktop.secrets.entry.terminal", {
+              command: `fresnel secret ${action} ${name}`,
+            }),
+          },
         });
         return;
       case "empty":
-        dispatch({ type: "entryFailed", error: t("desktop.secrets.entry.empty") });
+        dispatch({ type: "entryFailed", error: { text: t("desktop.secrets.entry.empty") } });
         return;
       case "failed":
-        dispatch({ type: "entryFailed", error: outcome.text });
+        dispatch({
+          type: "entryFailed",
+          error: {
+            text: outcome.text,
+            ...(outcome.fix === undefined ? {} : { fix: outcome.fix }),
+          },
+        });
         return;
       default:
         return assertNever(outcome, "KeyOutcome");
