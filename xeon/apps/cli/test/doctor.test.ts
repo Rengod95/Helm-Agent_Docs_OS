@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { wireError, type HostBinaryReport } from "@fresnel/contracts/wire";
+import { wireError, type HostBinaryItem, type HostBinaryReport } from "@fresnel/contracts/wire";
 import { EXIT } from "../src/exit-codes.ts";
 import { describeSearch } from "../src/commands/doctor.ts";
 import { createHarness, type Harness } from "./support/harness.ts";
@@ -534,4 +534,124 @@ test("registered secrets without any key is a problem with the fix, and an envir
   expect(h.stdoutText()).toContain(
     "해결: 열쇠 파일을 되돌려 놓거나 `fresnel secret key status`로 위치를 확인해요",
   );
+});
+
+// age 도구 점검(`age_missing`, L4.cli.spec §4.7 표). 열쇠가 앱 파일 방식이면 `host.status`의 `age` 항목을 본다
+
+function ageHost(status: HostBinaryItem["status"]): Record<string, () => Record<string, unknown>> {
+  const item: HostBinaryItem = {
+    name: "age",
+    need: "required",
+    usedBy: "시크릿 키 생성",
+    impact: "새 시크릿 키를 만들 수 없다",
+    status,
+  };
+  return {
+    "host.status": () => ({
+      mode: "in-process",
+      pid: 1,
+      startedAt: "2026-10-26T00:00:00.000Z",
+      connections: 1,
+      liveTurns: 0,
+      idleShutdownAt: null,
+      binaries: {
+        platform: "darwin",
+        ready: status.kind === "ok",
+        blocking: status.kind === "ok" ? [] : ["age"],
+        degraded: [],
+        items: [item],
+      },
+    }),
+  };
+}
+
+const AGE_MISSING_LINE = "  [실패] 시크릿 저장소: age가 없어서 앱 파일 열쇠를 만들 수 없어요";
+const AGE_MISSING_FIX =
+  "         해결: age를 설치해 주세요: brew install age (Linux는 apt install age)";
+
+test("file key mode without the age tool is a failed age_missing check with the fix, and the environment exit code", async () => {
+  const h = harness(
+    {},
+    {},
+    {
+      ...ageHost({ kind: "missing", hint: "age를 설치한다" }),
+      "secret.keyStatus": keyStatusOf({ source: "file", in: "file" }),
+    },
+  );
+  expect(await h.run(["doctor"])).toBe(EXIT.environment);
+  const lines = h.stdoutText().split("\n");
+  expect(lines).toContain(AGE_MISSING_LINE);
+  expect(lines).toContain(AGE_MISSING_FIX);
+});
+
+test("--json carries the age_missing code on that check and on no other", async () => {
+  const h = harness(
+    {},
+    {},
+    {
+      ...ageHost({ kind: "unusable", reason: "exec_failed" }),
+      "secret.keyStatus": keyStatusOf({ source: "auto", in: "file" }),
+    },
+  );
+  expect(await h.run(["doctor", "--json"])).toBe(EXIT.environment);
+  const parsed: {
+    checks: { id: string; status: string; message: string; fix?: string; code?: string }[];
+  } = JSON.parse(h.stdoutText());
+  expect(parsed.checks.filter((check) => check.code !== undefined)).toEqual([
+    {
+      id: "secrets-age",
+      status: "fail",
+      message: "시크릿 저장소: age가 없어서 앱 파일 열쇠를 만들 수 없어요",
+      fix: "age를 설치해 주세요: brew install age (Linux는 apt install age)",
+      code: "age_missing",
+    },
+  ]);
+});
+
+test("auto with the age tool present has no age check and the ok exit code", async () => {
+  const h = harness(
+    {},
+    {},
+    {
+      ...ageHost({ kind: "ok", version: "1.2.1", source: "system" }),
+      "secret.keyStatus": keyStatusOf({ source: "auto", in: "none" }),
+    },
+  );
+  expect(await h.run(["doctor"])).toBe(EXIT.ok);
+  expect(h.stdoutText()).not.toContain("age가 없어서");
+});
+
+test("a keychain key with the keychain setting does not need age, even when age is missing", async () => {
+  const h = harness(
+    {},
+    {},
+    {
+      ...ageHost({ kind: "missing", hint: "age를 설치한다" }),
+      "secret.keyStatus": keyStatusOf({ source: "keychain", in: "keychain" }),
+    },
+  );
+  await h.run(["doctor", "--json"]);
+  const parsed: { checks: { code?: string }[] } = JSON.parse(h.stdoutText());
+  expect(parsed.checks.some((check) => check.code === "age_missing")).toBe(false);
+  expect(h.stdoutText()).not.toContain("age가 없어서");
+});
+
+test("a keychain setting whose key sits in the file is a file key, so age is checked", async () => {
+  const h = harness(
+    {},
+    {},
+    {
+      ...ageHost({ kind: "missing", hint: "age를 설치한다" }),
+      "secret.keyStatus": keyStatusOf({ source: "keychain", in: "file" }),
+    },
+  );
+  expect(await h.run(["doctor"])).toBe(EXIT.environment);
+  expect(h.stdoutText().split("\n")).toContain(AGE_MISSING_LINE);
+});
+
+test("without a binary report the age check says nothing, because the engine did not check", async () => {
+  const h = harness({}, {}, { "secret.keyStatus": keyStatusOf({ source: "file", in: "file" }) });
+  expect(await h.run(["doctor", "--json"])).toBe(EXIT.ok);
+  const parsed: { checks: { code?: string }[] } = JSON.parse(h.stdoutText());
+  expect(parsed.checks.some((check) => check.code === "age_missing")).toBe(false);
 });

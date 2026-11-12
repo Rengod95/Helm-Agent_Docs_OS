@@ -133,6 +133,8 @@
   "cli.doctor.search.fixedNotListed": "{head} — not in the provider list",
   "cli.doctor.search.unknown": "Search provider: unknown (the engine did not return the provider list)",
   "cli.doctor.search.withNote": "{head} — {note}",
+  "cli.doctor.secrets.ageMissing": "Secret store: age is missing, so an app-file key cannot be created",
+  "cli.doctor.secrets.ageMissing.fix": "Install age: brew install age (on Linux, apt install age)",
   "cli.doctor.secrets.failed": "Secret store: {reason}",
   "cli.doctor.secrets.keyFileMissing": "Secret store: the key file the setting points to is missing: {path}",
   "cli.doctor.secrets.keyFileMissing.fix": "Choose a new one with fresnel secret key use file, or put the key file back",

@@ -133,6 +133,8 @@
   "cli.doctor.search.fixedNotListed": "{head} — 목록에 없는 provider다",
   "cli.doctor.search.unknown": "검색 provider: 알 수 없다 (엔진에서 provider 목록을 읽지 못했다)",
   "cli.doctor.search.withNote": "{head} — {note}",
+  "cli.doctor.secrets.ageMissing": "시크릿 저장소: age가 없어서 앱 파일 열쇠를 만들 수 없어요",
+  "cli.doctor.secrets.ageMissing.fix": "age를 설치해 주세요: brew install age (Linux는 apt install age)",
   "cli.doctor.secrets.failed": "시크릿 저장소: {reason}",
   "cli.doctor.secrets.keyFileMissing": "시크릿 저장소: 설정이 가리키는 열쇠 파일이 없어요: {path}",
   "cli.doctor.secrets.keyFileMissing.fix": "`fresnel secret key use file`로 새로 정하거나 열쇠 파일을 되돌려 놓아요",
