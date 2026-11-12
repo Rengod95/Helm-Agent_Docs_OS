@@ -326,6 +326,7 @@ export const ApprovalResolvedPayloadSchema: TObject<{
       TLiteral<"expired">,
     ]
   >;
+  deviceId: TOptional<TString>;
 }> = Type.Object(
   {
     /** approval.requested 이벤트 id */
@@ -342,6 +343,8 @@ export const ApprovalResolvedPayloadSchema: TObject<{
       Type.Literal("superseded"),
       Type.Literal("expired"),
     ]),
+    /** 다른 기기에서 답했으면 그 기기 id(게이트웨이가 hello에 실은 값). 이 컴퓨터에서 답했으면 없다 [결정: 2026-11-12 사용자] */
+    deviceId: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
   },
   { additionalProperties: false },
 );

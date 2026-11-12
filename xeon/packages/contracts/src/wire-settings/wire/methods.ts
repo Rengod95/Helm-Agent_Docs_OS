@@ -159,6 +159,8 @@ export const HostHelloParamsSchema: TObject<{
     name: TString;
     version: TString;
     kind: TUnion<[TLiteral<"cli">, TLiteral<"desktop">, TLiteral<"other">]>;
+    origin: TOptional<TUnion<[TLiteral<"local">, TLiteral<"remote">]>>;
+    deviceId: TOptional<TString>;
   }>;
   experimental: TOptional<TArray<typeof FeatureNameSchema>>;
   auth: TOptional<TObject<{ token: TString }>>;
@@ -170,6 +172,14 @@ export const HostHelloParamsSchema: TObject<{
         name: Type.String({ minLength: 1, maxLength: 64 }),
         version: Type.String({ minLength: 1, maxLength: 64 }),
         kind: Type.Union([Type.Literal("cli"), Type.Literal("desktop"), Type.Literal("other")]),
+        /**
+         * 연결이 어디서 왔는가. 게이트웨이가 다른 기기의 연결을 서비스에 이을 때 `remote`와 기기 id를 항상 덧붙인다(L4.remote.spec §8.9).
+         * 이 표시는 권한을 줄이는 쪽으로만 쓰이므로(`approval.respond`를 막는다) 로컬 클라이언트가 스스로 `remote`라 해도 해가 없다.
+         * 생략은 `local`이다 [결정: 2026-11-12 사용자]
+         */
+        origin: Type.Optional(Type.Union([Type.Literal("local"), Type.Literal("remote")])),
+        /** 연결된 기기 목록의 기기 id. `origin`이 `remote`일 때 게이트웨이가 싣는다. 승인 기록에 어느 기기가 답했는지 남긴다 */
+        deviceId: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
       },
       { additionalProperties: false },
     ),

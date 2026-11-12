@@ -52,6 +52,7 @@ describe("WIRE_ERRORS", () => {
       "thread.cancelledByExtension": 3006,
       "thread.closed": 3007,
       "thread.compactFailed": 3008,
+      "approval.remoteNotAllowed": 3009,
       "settings.unknownKey": 3101,
       "settings.invalidValue": 3102,
       "settings.scopeNotAllowed": 3103,

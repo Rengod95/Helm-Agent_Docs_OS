@@ -297,7 +297,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 
 | 영역 | 메서드 | params | result | 단계 |
 |---|---|---|---|---|
-| host | `host.hello` | `{ protocolVersion: SemVer, client: {name, version, kind: "cli"\|"desktop"\|"other"}, experimental?: FeatureName[], auth?: { token: string } }`(`auth`는 M2) | `{ protocolVersion: SemVer, server: {name, version}, storeId: StoreId, transport: TransportKind, features: FeatureInfo[], experimental: FeatureName[] }` | M1 |
+| host | `host.hello` | `{ protocolVersion: SemVer, client: {name, version, kind: "cli"\|"desktop"\|"other", origin?: "local"\|"remote", deviceId?: string}, experimental?: FeatureName[], auth?: { token: string } }`(`auth`는 M2) | `{ protocolVersion: SemVer, server: {name, version}, storeId: StoreId, transport: TransportKind, features: FeatureInfo[], experimental: FeatureName[] }` | M1 |
 | host | `host.status` | `{ includeBinaries?: boolean }` | `{ mode: "in-process"\|"stdio"\|"service", pid: integer, startedAt: IsoTime, connections: integer, liveTurns: integer, waitingApprovals?: integer(1..), idleShutdownAt: IsoTime \| null, binaries?: HostBinaryReport, safeMode?: boolean, safeModeCause?: "user"\|"startupFailures"\|"flag", startupFailures?: integer, suggestSafeMode?: boolean, settingsProblems?: SettingsFileProblem[], startupNotices?: StartupNotice[] }` | M2 |
 | host | `host.shutdown` | `{ reason: "client_exit"\|"version_replace"\|"user", deadlineMs?: integer }` | `{ accepted: boolean }` | M2 |
 | host | `host.remote.status` | `{}` | `{ enabled: boolean, state: "off"\|"starting"\|"running"\|"failed", loopbackPort: integer\|null, tlsPort: integer\|null, hosts: string[], fingerprint: string\|null(소문자 16진 64자), certSource: "self-signed"\|"user"\|null, pushAvailable: boolean, error: { kind: string, message: string }\|null }` | M4 [제안] |
@@ -997,6 +997,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 3006 | `thread.cancelledByExtension` | false | 확장이 thread 전환·분기·되감기·컴팩션을 막았다 | `point: "thread.fork.before"\|"thread.tree.before"\|"thread.switch.before"\|"thread.compact.before"`, `reason: string \| null` |
 | 3007 | `thread.closed` | false | 이미 닫힌 thread에 쓰기나 수명 주기 호출(`turn.start`, `turn.resume`, `thread.open(write)`, `thread.fork`, `thread.revert`)을 했다. `thread.read`, `thread.list`, `thread.delete`는 닫힌 thread에도 된다 | `threadId` |
 | 3008 | `thread.compactFailed` | false | `thread.compact`가 요약을 만들거나 커밋하지 못했다. 요청 취소는 5001이고 확장이 막은 것은 3006이다 | `reason: "read_failed"\|"projection_failed"\|"summary_failed"\|"summary_has_tool_call"\|"summary_truncated"\|"commit_failed"` |
+| 3009 | `approval.remoteNotAllowed` | false | 다른 기기(게이트웨이를 거쳐 `host.hello`에 `client.origin: "remote"`가 실린 연결)가 `approval.respond`를 보냈는데 설정 `l0.process.service.allowRemoteRespond`가 꺼져 있다. 질문·계획·검토 응답도 같다. 승인 요청은 볼 수 있고 답은 이 컴퓨터에서만 한다 [결정: 2026-11-12 사용자] | - |
 | 3101 | `settings.unknownKey` | false | 등록되지 않은 키 | `key` |
 | 3102 | `settings.invalidValue` | false | 값이 스키마나 range에 맞지 않는다 | `key`, `issues` |
 | 3103 | `settings.scopeNotAllowed` | false | 그 범위에 쓸 수 없는 키 | `key`, `scope`, `allowedScopes` |

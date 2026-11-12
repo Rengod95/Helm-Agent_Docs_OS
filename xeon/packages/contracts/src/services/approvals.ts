@@ -219,6 +219,8 @@ export interface ApprovalResponse {
    */
   readonly answer?: JsonValue;
   readonly remember?: ApprovalRemember;
+  /** 다른 기기에서 답했으면 그 기기 id. 해결 기록(`approval.resolved`)에 그대로 남는다 */
+  readonly deviceId?: string;
 }
 
 export type ApprovalResolvedBy =
@@ -237,6 +239,8 @@ export interface ApprovalResolution {
   readonly remember: ApprovalRemember;
   readonly requestedRemember: ApprovalRemember | null;
   readonly resolvedBy: ApprovalResolvedBy;
+  /** 다른 기기에서 답한 해결이면 그 기기 id */
+  readonly deviceId?: string;
 }
 
 /** 요청 이벤트 커밋이 실패한 이유. 저장소 오류, 커밋 거부, 같은 키에 다른 내용(TY-24: 예상 가능한 실패라 값으로 돌려준다) */

@@ -123,6 +123,7 @@ export type WireErrorKind =
   | "thread.cancelledByExtension"
   | "thread.closed"
   | "thread.compactFailed"
+  | "approval.remoteNotAllowed"
   | "settings.unknownKey"
   | "settings.invalidValue"
   | "settings.scopeNotAllowed"
@@ -367,6 +368,12 @@ export const WIRE_ERRORS: {
       },
       { additionalProperties: false },
     ),
+  },
+  /** 다른 기기(게이트웨이를 거친 연결)에서 온 `approval.respond`를 설정이 막았다. 승인 요청은 볼 수 있고 답은 이 컴퓨터에서만 한다 [결정: 2026-11-12 사용자] */
+  "approval.remoteNotAllowed": {
+    code: 3009,
+    kind: "approval.remoteNotAllowed",
+    retryable: false,
   },
   "settings.unknownKey": {
     code: 3101,

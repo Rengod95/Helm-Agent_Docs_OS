@@ -292,7 +292,7 @@ export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 | `post.accepted` | 예 | `PostAcceptedPayloadSchema` | retired(`retired: true`, [결정: review.decisions-2 U-05]). 새로 쓰지 않는다. M1 개발 DB에 남은 행을 읽을 때만 스키마를 쓴다. 확장 post의 기록은 `input.queued`(`source.type: "extension"`)다 |
 | `settings.changed` | 예 | `SettingsChangedPayloadSchema` | 대화 범위 설정 변경 |
 | `approval.requested` | 예 | `ApprovalRequestedPayloadSchema` | 승인 요청. `body.kind`는 `tool` \| `question` \| `plan`. 승인 id = 이 이벤트 id |
-| `approval.resolved` | 예 | `ApprovalResolvedPayloadSchema` | 승인 응답 결과 |
+| `approval.resolved` | 예 | `ApprovalResolvedPayloadSchema` | 승인 응답 결과. 다른 기기에서 답했으면 선택 필드 `deviceId`에 그 기기 id가 남는다(`L4.remote.spec` §8.9) [결정: 2026-11-12 사용자] |
 | `input.queued` | 예 | `InputQueuedPayloadSchema` | 입력 큐 등록. 입력 id = 이 이벤트 id |
 | `input.placed` | 예 | `InputPlacedPayloadSchema` | 큐 입력을 대화 item으로 배치 |
 | `input.withdrawn` | 예 | `InputWithdrawnPayloadSchema` | 큐 입력 철회 |
