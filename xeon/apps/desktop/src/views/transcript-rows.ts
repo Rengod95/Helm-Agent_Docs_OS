@@ -217,6 +217,30 @@ function bodyRowsOf(
   return { rows, lastReply };
 }
 
+/** 교환 안 줄 하나가 든 item id들. 묶음은 든 호출·생각의 item마다 한 번씩(중복 없이) 센다. 요약 구분선 자리를 고를 때 쓴다 */
+function itemIdsOf(row: TranscriptRow): readonly ItemId[] {
+  switch (row.kind) {
+    case "user":
+    case "reply":
+    case "result":
+    case "custom":
+      return [row.id];
+    case "card":
+      return [row.itemId];
+    case "activity":
+      return [...new Set(row.entries.map((entry) => entry.itemId))];
+    case "live":
+    case "compaction":
+    case "marker":
+    case "leadHead":
+    case "leadEnd":
+    case "turnFoot":
+      return [];
+    default:
+      return assertNever(row, "TranscriptRow");
+  }
+}
+
 /** 표지를 놓을 교환 번호. seq가 그 교환의 턴 시작보다 앞이면 그 교환 앞이다. 어디에도 없으면 끝(교환 수) */
 function markerSlotOf(marker: ConvoMarker, exchanges: readonly Exchange[]): number {
   if (marker.change.kind === "scheduled_start") {
@@ -308,15 +332,18 @@ export function transcriptRowsOf(input: {
       });
     }
     const body = bodyRowsOf(exchange, leaseId, prevOf);
-    for (const row of body.rows) {
+    // 요약 구분선은 자리 item의 줄이 다 나온 뒤 한 번만 선다. 한 item이 묶음에 호출을 여럿 담거나 글 줄과 묶음에 걸치면
+    // 그 item의 줄이 여럿이라, 줄마다 붙이면 같은 구분선(같은 키)이 여러 번 나온다
+    const lastRowOf = new Map<ItemId, number>();
+    body.rows.forEach((row, at) => {
+      for (const id of itemIdsOf(row)) lastRowOf.set(id, at);
+    });
+    body.rows.forEach((row, at) => {
       rows.push(row);
-      const id = "id" in row ? row.id : row.kind === "card" ? row.itemId : null;
-      // 요약 구분선은 자리 item 뒤에 선다. 묶음 안 item 자리는 묶음 뒤다
-      if (id !== null) rows.push(...(after.get(id) ?? []));
-      if (row.kind === "activity") {
-        for (const entry of row.entries) rows.push(...(after.get(entry.itemId) ?? []));
+      for (const id of itemIdsOf(row)) {
+        if (lastRowOf.get(id) === at) rows.push(...(after.get(id) ?? []));
       }
-    }
+    });
     const last = index === exchanges.length - 1;
     const turnRunning = exchange.turn?.running === true || (last && input.running);
     if (!turnRunning && (body.lastReply !== null || exchange.turn !== null)) {
