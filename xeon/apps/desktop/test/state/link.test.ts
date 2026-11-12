@@ -9,6 +9,7 @@ import {
   type WireResult,
 } from "@fresnel/contracts/wire";
 import {
+  replayFloorOf,
   startLink,
   type SnapshotError,
   type TranscriptPort,
@@ -27,6 +28,15 @@ import {
   thr,
   userItem,
 } from "./helpers.ts";
+
+/** 재생 한도 밖 거절(`replay.outOfRange`) */
+function range(reason: string, storeId: string, oldest: number): WireError {
+  return new WireError(2001, "replay.outOfRange", {
+    kind: "replay.outOfRange",
+    retryable: false,
+    details: { reason, storeId, headSeq: 50, oldestReplayableSeq: oldest },
+  });
+}
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 /** 프레임 커밋과 마이크로태스크를 번갈아 돌려 컨트롤러와 거울이 안정될 때까지 진행한다 */
@@ -375,6 +385,83 @@ describe("link: resync with a gap", () => {
     expect(
       fake.calls.filter((c) => c.method === "events.unsubscribe").map((c) => c.params),
     ).toEqual([{ sub: "back" }]);
+  });
+
+  test("when seq 0 is below the replay floor the backfill reopens once from the oldest replayable seq", async () => {
+    const h = harness();
+    const asked: unknown[] = [];
+    const fake = fakeConnection({
+      "events.subscribe": (params) => {
+        asked.push(params.from);
+        if (params.filter === undefined) {
+          return Promise.resolve({
+            sub: "main",
+            start: 50,
+            headSeq: 50,
+            storeId: STORE,
+            mode: "live",
+          });
+        }
+        if (asked.length === 2) {
+          return Promise.reject(
+            new WireError(2001, "replay.outOfRange", {
+              kind: "replay.outOfRange",
+              retryable: false,
+              details: {
+                reason: "beforeOldest",
+                storeId: STORE,
+                headSeq: 50,
+                oldestReplayableSeq: 6,
+              },
+            }),
+          );
+        }
+        return Promise.resolve({
+          sub: "back",
+          start: 6,
+          headSeq: 50,
+          storeId: STORE,
+          mode: "replaying",
+        });
+      },
+      "events.unsubscribe": () => Promise.resolve({}),
+      "thread.list": () => Promise.resolve(listEmpty),
+    });
+    startLink({
+      connection: fake.connection,
+      store: h.store,
+      transcripts: noTranscripts,
+      logger: silent,
+      openThreadId: () => null,
+    });
+    await pump(h);
+    expect(asked).toEqual(["head", { storeId: STORE, seq: 0 }, { storeId: STORE, seq: 6 }]);
+    fake.emit("events.batch", {
+      sub: "back",
+      from: 6,
+      to: 50,
+      caughtUp: true,
+      events: [
+        wire(7, "work.plan_submitted", {
+          planId: "p1",
+          version: 1,
+          title: "바닥 뒤 계획",
+          body: "1. 읽기",
+          artifact: null,
+          supersedes: null,
+        }),
+      ],
+    });
+    await pump(h);
+    expect(h.store.read.getState().plans.map((r) => r.title)).toEqual(["바닥 뒤 계획"]);
+  });
+
+  test("replayFloorOf only reopens for beforeOldest on the same store with a floor above 0", () => {
+    expect(replayFloorOf(range("beforeOldest", STORE, 124), STORE)).toBe(124);
+    expect(replayFloorOf(range("beforeOldest", STORE, 0), STORE)).toBeNull();
+    expect(replayFloorOf(range("storeMismatch", STORE, 124), STORE)).toBeNull();
+    expect(replayFloorOf(range("beforeOldest", "sto_other", 124), STORE)).toBeNull();
+    expect(replayFloorOf(new Error("x"), STORE)).toBeNull();
   });
 
   test("a live withdrawal that lands before the replay of an earlier submission keeps the plan withdrawn", async () => {
