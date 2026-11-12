@@ -362,6 +362,42 @@ export function renderTaskList(out: TaskWriteOutputValue): ToolContent {
   };
 }
 
+/** `renderTaskList`가 그린 체크리스트 한 줄을 읽은 값 */
+export type TaskListLine = {
+  readonly id: string;
+  readonly status: WorkTaskStatus;
+  /** 보인 이름(진행 중이면 activeForm). 선행 조건·담당 꼬리는 뗀다 */
+  readonly label: string;
+};
+
+/** `TASK_MARK`의 거꾸로. 시험이 두 표가 맞는지 본다 */
+const MARK_STATUS: ReadonlyMap<string, WorkTaskStatus> = new Map<string, WorkTaskStatus>([
+  ["[ ]", "pending"],
+  ["[>]", "in_progress"],
+  ["[x]", "completed"],
+  ["[!]", "failed"],
+  ["[-]", "cancelled"],
+]);
+const TASK_LINE = /^(\[[ >x!-]\]) (\S+) (.*?)(?: \(blocked by: [^)]*\))?(?: @\S+)?$/u;
+
+/**
+ * `renderTaskList` 결과 글을 거꾸로 읽는다(화면이 그 시점의 전체 목록을 그릴 때 쓴다, L4.desktop-ux DP-143). 순수 함수.
+ * `Created:` 머리 줄과 모르는 줄은 건너뛴다. 체크리스트 줄이 하나도 없으면 null이다(다른 모양의 결과)
+ */
+export function parseTaskList(text: string): readonly TaskListLine[] | null {
+  const out: TaskListLine[] = [];
+  for (const line of text.split("\n")) {
+    const found = TASK_LINE.exec(line.trimEnd());
+    if (found === null) continue;
+    const status = MARK_STATUS.get(found[1] ?? "");
+    const id = found[2];
+    if (status === undefined || id === undefined) continue;
+    out.push({ id, status, label: found[3] ?? "" });
+  }
+  if (out.length > 0) return out;
+  return text.trim() === "(no tasks)" ? [] : null;
+}
+
 export const MAX_WORK_TASKS: number = 500;
 
 type TasksMethods = {

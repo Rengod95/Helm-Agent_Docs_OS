@@ -295,6 +295,9 @@ export const WorkTasks = defineCapability({
   ],
 });
 export const WorkTasksKey = serviceKey(WorkTasks);
+
+/** renderTaskList 결과 글을 거꾸로 읽는다(화면이 그 시점 전체 목록을 그린다, L4.desktop-ux DP-143). 머리 줄과 모르는 줄은 건너뛰고, 체크리스트 줄이 없으면 null */
+export function parseTaskList(text: string): readonly { id: string; status: WorkTaskStatus; label: string }[] | null;
 ```
 
 - [제안] 모델 도구는 `task_write` 하나다(`_research/l2e.md` §3.1 A1의 "도구: task_write(목록 연산)"). 결과가 전체 목록이라 조회 도구를 따로 두지 않는다. `create`, `update`, `link`, `list`는 그룹 코드와 L4 화면이 쓰는 서비스 메서드다.
