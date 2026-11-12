@@ -6,6 +6,7 @@ import {
   codeOfInput,
   defaultDeviceName,
   formatCodeInput,
+  isExpiredCodeBody,
   languageOf,
   retrySecondsFrom,
   STRINGS,
@@ -83,15 +84,16 @@ function requestPairing(code: string, deviceName: string): Promise<Response> {
   });
 }
 
-function handleResponse(response: Response): void {
+async function handleResponse(response: Response): Promise<void> {
   setBusy(false);
   if (response.ok) {
     location.assign("/");
     return;
   }
-  // 서버는 틀린 코드와 만료된 코드를 같은 401로 답한다(어느 쪽인지 알리지 않는다)
+  // 틀린 코드와 발급된 적 없는 코드는 401 `invalid_code`, 기한이 지난 코드만 401 `expired_code`다(본문으로 가린다)
   if (response.status === 401) {
-    show("code", t.invalidCode);
+    const body = await response.text();
+    show("code", isExpiredCodeBody(body) ? t.expiredCode : t.invalidCode);
     return;
   }
   if (response.status === 429) {
@@ -118,10 +120,12 @@ function submit(): void {
   }
   clearErrors();
   setBusy(true);
-  requestPairing(code, deviceName).then(handleResponse, () => {
-    setBusy(false);
-    show("form", t.network);
-  });
+  requestPairing(code, deviceName)
+    .then(handleResponse)
+    .catch(() => {
+      setBusy(false);
+      show("form", t.network);
+    });
 }
 
 form.addEventListener("submit", (event) => {

@@ -13,6 +13,7 @@ export interface Strings {
   readonly footer: string;
   readonly missing: string;
   readonly invalidCode: string;
+  readonly expiredCode: string;
   readonly locked: (seconds: number) => string;
   readonly invalidName: string;
   readonly network: string;
@@ -38,7 +39,8 @@ export const STRINGS: Readonly<Record<Lang, Strings>> = {
     busy: "Connecting…",
     footer: "Find the code in the Fresnel app › Settings › Remote › Connect a device.",
     missing: "Enter the code and a device name.",
-    invalidCode: "The code is wrong or has expired. Check it on the computer or make a new one.",
+    invalidCode: "The code doesn't match. Check it on the computer or make a new one.",
+    expiredCode: "This code has expired. Make a new one on the computer.",
     locked: (seconds) => `Too many wrong codes. Try again in ${waitEn(seconds)}.`,
     invalidName: "Use a device name of 1 to 64 characters.",
     network: "Couldn't reach the computer. Check the connection and try again.",
@@ -53,7 +55,8 @@ export const STRINGS: Readonly<Record<Lang, Strings>> = {
     busy: "연결하는 중…",
     footer: "코드는 Fresnel 앱 › 설정 › 원격 › 기기 연결에 있어요.",
     missing: "코드와 기기 이름을 넣어요.",
-    invalidCode: "코드가 틀렸거나 만료됐어요. 컴퓨터에서 코드를 확인하거나 새로 만들어요.",
+    invalidCode: "코드가 맞지 않아요. 컴퓨터에서 코드를 확인하거나 새로 만들어요.",
+    expiredCode: "코드가 만료됐어요. 컴퓨터에서 새 코드를 만들어요.",
     locked: (seconds) => `틀린 코드가 많아 잠겼어요. ${waitKo(seconds)} 뒤에 다시 해 봐요.`,
     invalidName: "기기 이름은 1~64글자로 넣어요.",
     network: "컴퓨터에 닿지 않아요. 연결을 확인하고 다시 해 봐요.",
@@ -118,6 +121,14 @@ export function defaultDeviceName(userAgent: string): string {
   const platform = firstMatch(PLATFORMS, userAgent);
   const name = platform === null ? browser : `${platform} · ${browser}`;
   return name.slice(0, 64);
+}
+
+/**
+ * 401 본문이 "기한이 지난 코드"의 답인가(`{"error":"expired_code"}`). 서버가 고정된 모양으로 답하므로 이 글자 모양만 본다.
+ * 틀린 코드의 답(`invalid_code`)과 그 밖의 본문은 아니다(문구는 틀린 코드로 보인다).
+ */
+export function isExpiredCodeBody(body: string): boolean {
+  return /"error"\s*:\s*"expired_code"/u.test(body);
 }
 
 /** `retry-after`(초)를 읽는다. 없거나 틀리면 60초 */

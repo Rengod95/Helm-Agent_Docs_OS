@@ -316,9 +316,13 @@ async function pairRoute(ctx: Ctx): Promise<Response> {
   );
 }
 
-/** 페어링 실패를 상태 코드로. 저장 실패는 세부를 싣지 않는다 */
+/**
+ * 페어링 실패를 상태 코드로. 틀린 코드와 발급된 적 없는 코드는 같은 401 `invalid_code`다.
+ * 기한이 지난 코드만 401 `expired_code`로 따로 답한다(같은 상태, 본문만 다르다). 저장 실패는 세부를 싣지 않는다
+ */
 function pairFailure(tls: boolean, error: RedeemError): Response {
   if (error.kind === "invalid_code") return jsonResponse(tls, 401, { error: "invalid_code" });
+  if (error.kind === "expired_code") return jsonResponse(tls, 401, { error: "expired_code" });
   if (error.kind === "locked") {
     const seconds = Math.max(1, Math.ceil(error.retryAfterMs / 1000));
     return jsonResponse(tls, 429, { error: "locked" }, { "retry-after": String(seconds) });

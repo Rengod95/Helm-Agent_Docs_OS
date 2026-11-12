@@ -3,6 +3,7 @@ import {
   codeOfInput,
   defaultDeviceName,
   formatCodeInput,
+  isExpiredCodeBody,
   languageOf,
   retrySecondsFrom,
   STRINGS,
@@ -44,6 +45,26 @@ describe("strings", () => {
     expect(retrySecondsFrom(null)).toBe(60);
     expect(STRINGS.ko.locked(42)).toBe("틀린 코드가 많아 잠겼어요. 42초 뒤에 다시 해 봐요.");
     expect(STRINGS.en.locked(125)).toBe("Too many wrong codes. Try again in 3 min.");
+  });
+
+  test("the page has separate texts for an expired code and for a wrong one", () => {
+    expect(STRINGS.en.expiredCode).toBe("This code has expired. Make a new one on the computer.");
+    expect(STRINGS.ko.expiredCode).toBe("코드가 만료됐어요. 컴퓨터에서 새 코드를 만들어요.");
+    expect(STRINGS.en.invalidCode).toBe(
+      "The code doesn't match. Check it on the computer or make a new one.",
+    );
+    expect(STRINGS.ko.invalidCode).toBe(
+      "코드가 맞지 않아요. 컴퓨터에서 코드를 확인하거나 새로 만들어요.",
+    );
+  });
+
+  test("only the expired_code body picks the expired text", () => {
+    expect(isExpiredCodeBody('{"error":"expired_code"}')).toBe(true);
+    expect(isExpiredCodeBody('{"error": "expired_code"}')).toBe(true);
+    expect(isExpiredCodeBody('{"error":"invalid_code"}')).toBe(false);
+    expect(isExpiredCodeBody('{"error":"locked"}')).toBe(false);
+    expect(isExpiredCodeBody("")).toBe(false);
+    expect(isExpiredCodeBody("<html>expired_code</html>")).toBe(false);
   });
 
   test("no internal words on the page", () => {

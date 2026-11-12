@@ -70,7 +70,7 @@ describe("pairing codes", () => {
     expect(codes.status().active).toBe(false);
   });
 
-  test("the last millisecond before expiry works and the expiry instant does not", () => {
+  test("the last millisecond before expiry works; at the expiry instant the right code is expired_code", () => {
     const first = setup();
     const a = first.codes.issue();
     first.clock.advance(PAIRING_TTL_MS - 1);
@@ -81,9 +81,39 @@ describe("pairing codes", () => {
     second.clock.advance(PAIRING_TTL_MS);
     expect(second.codes.redeem(b.code, "a")).toEqual({
       ok: false,
-      error: { kind: "invalid_code" },
+      error: { kind: "expired_code" },
     });
     expect(second.codes.status().active).toBe(false);
+  });
+
+  test("a wrong code, a used code and an unknown code all answer invalid_code, expired or not", () => {
+    const { clock, codes } = setup({ maxFailuresTotal: 50, maxFailuresPerAddress: 50 });
+    const used = codes.issue();
+    expect(codes.redeem(used.code, "a").ok).toBe(true);
+    expect(codes.redeem(used.code, "a")).toEqual({ ok: false, error: { kind: "invalid_code" } });
+
+    const live = codes.issue();
+    expect(codes.redeem("ZZZZZZZZZZ", "b")).toEqual({
+      ok: false,
+      error: { kind: "invalid_code" },
+    });
+    clock.advance(PAIRING_TTL_MS);
+    expect(codes.redeem("ZZZZZZZZZZ", "b")).toEqual({
+      ok: false,
+      error: { kind: "invalid_code" },
+    });
+    expect(codes.redeem("garbage", "b")).toEqual({ ok: false, error: { kind: "invalid_code" } });
+    // 기한이 지난 뒤 맞힌 코드만 expired_code다. 새 코드를 만들기 전까지는 그 코드를 맞힐 때마다 그렇게 답한다
+    expect(codes.redeem(live.code, "b")).toEqual({ ok: false, error: { kind: "expired_code" } });
+    expect(codes.redeem(live.code, "b")).toEqual({ ok: false, error: { kind: "expired_code" } });
+  });
+
+  test("a code replaced by a new one after its expiry is invalid_code, not expired", () => {
+    const { clock, codes } = setup();
+    const old = codes.issue();
+    clock.advance(PAIRING_TTL_MS);
+    codes.issue();
+    expect(codes.redeem(old.code, "a")).toEqual({ ok: false, error: { kind: "invalid_code" } });
   });
 
   test("a new code replaces the unused one", () => {
@@ -99,6 +129,23 @@ describe("pairing codes", () => {
     const { codes } = setup();
     expect(codes.redeem("0000000000", "a")).toEqual({ ok: false, error: { kind: "invalid_code" } });
     expect(codes.redeem("garbage", "a")).toEqual({ ok: false, error: { kind: "invalid_code" } });
+  });
+
+  test("expired guesses count toward the lock like wrong ones: the fifth locks", () => {
+    const { clock, codes } = setup();
+    const issued = codes.issue();
+    clock.advance(PAIRING_TTL_MS);
+    const answers = [1, 2, 3, 4, 5].map(() => codes.redeem(issued.code, "a"));
+    expect(answers.slice(0, 4)).toEqual(
+      [1, 2, 3, 4].map(() => ({
+        ok: false,
+        error: { kind: "expired_code" },
+      })),
+    );
+    expect(answers[4]).toEqual({
+      ok: false,
+      error: { kind: "locked", scope: "all", retryAfterMs: PAIRING_LOCK_MS },
+    });
   });
 
   test("the fifth failure discards the code and locks for fifteen minutes", () => {
