@@ -117,7 +117,7 @@ export function TurnFailureRow(props: {
             {action === null || blocked ? null : (
               <Button
                 size="xs"
-                variant="solid"
+                variant="soft"
                 loading={busy}
                 onClick={() => {
                   run(action);
