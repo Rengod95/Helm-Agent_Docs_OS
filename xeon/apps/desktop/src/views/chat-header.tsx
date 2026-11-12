@@ -17,7 +17,7 @@ import { useThread, useTurnSummaries } from "../state/engine/index.ts";
 import { useSelectedThreadId } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
 import { useDesktopShell } from "./desktop-shell-context.ts";
-import { modelLabelOf, tokenCountText } from "./model-usage.ts";
+import { tokenCountText, useDefaultModel, useModelNameOf, useThreadModel } from "./model-usage.ts";
 import { useScheduleOrigin } from "./schedule-origin.ts";
 import { scheduleOriginTextOf } from "./schedule-origin-model.ts";
 import { ScreenHeader } from "./shell/screen-header.tsx";
@@ -204,15 +204,20 @@ export function turnCostText(cost: number | null): string {
   return `$${cost.toFixed(cost > 0 && cost < 0.01 ? 4 : 2)}`;
 }
 
-/** 표에 보일 턴: 끝났거나 도는 턴 가운데 최근 `USAGE_ROWS`개, 새 것이 위 */
+/** 표에 보일 턴: 끝났거나 도는 턴 가운데 최근 `USAGE_ROWS`개를 대화 순서대로(오래된 것이 위, 번호는 대화 처음부터) */
 export function usageRowsOf<T>(turns: readonly T[]): readonly {
   readonly index: number;
   readonly turn: T;
 }[] {
-  return turns
-    .map((turn, index) => ({ index: index + 1, turn }))
-    .slice(-USAGE_ROWS)
-    .toReversed();
+  return turns.map((turn, index) => ({ index: index + 1, turn })).slice(-USAGE_ROWS);
+}
+
+/**
+ * 표의 모델 칸 참조. 턴 기록의 모델은 대화가 모델을 정했을 때만 있다(`turn.started` 때의 `ThreadSummary.model`).
+ * 정하지 않은 대화의 턴은 기본 모델로 돌았으므로 `fallback`(지금 대화가 쓰는 모델)을 쓴다. 둘 다 모르면 null이다
+ */
+export function usageModelRefOf(turnModel: string | null, fallback: string | null): string | null {
+  return turnModel ?? fallback;
 }
 
 /** 이 대화의 합계(사용량을 아는 턴만) */
@@ -238,6 +243,8 @@ export function usageTotalOf(
 function UsageButton(props: { readonly threadId: ThreadId }): ReactNode {
   const turns = useTurnSummaries(props.threadId);
   const [open, setOpen] = useState(false);
+  const nameOf = useModelNameOf();
+  const current = useThreadModel(props.threadId, useDefaultModel()).ref;
   if (turns.length === 0) return null;
   const rows = usageRowsOf(turns);
   const total = usageTotalOf(turns);
@@ -265,39 +272,44 @@ function UsageButton(props: { readonly threadId: ThreadId }): ReactNode {
       <table className="mt-2 w-full border-collapse text-ui-sm tabular-nums">
         <thead>
           <tr className="text-text-tertiary">
-            <th className="py-1 pe-2 text-start font-normal">
+            <th scope="col" className="py-1 pe-2 text-end font-normal">
               {t("desktop.chatHeader.usage.col.turn")}
             </th>
-            <th className="py-1 pe-2 text-start font-normal">
+            <th scope="col" className="py-1 pe-2 text-start font-normal">
               {t("desktop.chatHeader.usage.col.model")}
             </th>
-            <th className="py-1 pe-2 text-end font-normal">
+            <th scope="col" className="py-1 pe-2 text-end font-normal">
               {t("desktop.chatHeader.usage.col.time")}
             </th>
-            <th className="py-1 pe-2 text-end font-normal">
+            <th scope="col" className="py-1 pe-2 text-end font-normal">
               {t("desktop.chatHeader.usage.col.tokens")}
             </th>
-            <th className="py-1 text-end font-normal">{t("desktop.chatHeader.usage.col.cost")}</th>
+            <th scope="col" className="py-1 text-end font-normal">
+              {t("desktop.chatHeader.usage.col.cost")}
+            </th>
           </tr>
         </thead>
         <tbody>
-          {rows.map(({ index, turn }) => (
-            <tr key={turn.turnId} className="border-t border-border-subtle text-text-secondary">
-              <td className="py-1 pe-2">{index}</td>
-              <td className="max-w-32 truncate py-1 pe-2" title={turn.model ?? undefined}>
-                {turn.model === null ? "—" : modelLabelOf(turn.model)}
-              </td>
-              <td className="py-1 pe-2 text-end">
-                {turn.running
-                  ? t("desktop.chatHeader.usage.running")
-                  : turnDurationText(turn.durationMs)}
-              </td>
-              <td className="py-1 pe-2 text-end">
-                {turn.usage === null ? "—" : tokenCountText(turn.usage.totalTokens)}
-              </td>
-              <td className="py-1 text-end">{turnCostText(turn.usage?.cost ?? null)}</td>
-            </tr>
-          ))}
+          {rows.map(({ index, turn }) => {
+            const model = usageModelRefOf(turn.model, current);
+            return (
+              <tr key={turn.turnId} className="border-t border-border-subtle text-text-secondary">
+                <td className="py-1 pe-2 text-end">{index}</td>
+                <td className="max-w-40 truncate py-1 pe-2" title={model ?? undefined}>
+                  {model === null ? "—" : nameOf(model)}
+                </td>
+                <td className="py-1 pe-2 text-end">
+                  {turn.running
+                    ? t("desktop.chatHeader.usage.running")
+                    : turnDurationText(turn.durationMs)}
+                </td>
+                <td className="py-1 pe-2 text-end">
+                  {turn.usage === null ? "—" : tokenCountText(turn.usage.totalTokens)}
+                </td>
+                <td className="py-1 text-end">{turnCostText(turn.usage?.cost ?? null)}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </Popover>

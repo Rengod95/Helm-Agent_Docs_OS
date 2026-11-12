@@ -1,9 +1,10 @@
 import { assertNever, detach, err, ok, rethrow, type Result } from "@fresnel/contracts";
+import { activeLocale } from "@fresnel/client/i18n";
 import type { ModelThinkingLevel, ThreadId } from "@fresnel/contracts/conversation";
 import type { PermissionMode } from "@fresnel/contracts/services";
 import type { ModelEntry, UsageContext, UsageGauge } from "@fresnel/contracts/wire";
 import type { SetupSnapshot } from "@fresnel/client/settings";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useLinkPhase, useThread } from "../state/engine/index.ts";
 import { useCommands, type CommandError } from "./commands.ts";
 import { bypassAllowedOf, modeStepOf, permissionModeOf } from "./permission-mode-model.ts";
@@ -18,6 +19,50 @@ import { usageFractionOf } from "./pages/providers/providers-model.ts";
 export function modelLabelOf(ref: string): string {
   const slash = ref.indexOf("/");
   return slash < 0 ? ref : ref.slice(slash + 1);
+}
+
+const DATED_REF = /-\d{8}$/;
+const LATEST_SUFFIX = / \(latest\)$/;
+
+/** 대문자로 적는 줄임말 낱말 */
+const UPPER_WORDS: ReadonlySet<string> = new Set(["gpt", "ai"]);
+
+/**
+ * 카탈로그 이름을 모를 때의 모델 이름. `provider/`와 끝의 날짜(`-20251001`)를 떼고, 낱말은 첫 글자를 대문자로, 이어진 숫자 조각은 점으로 잇는다.
+ * `anthropic/claude-sonnet-5-5` → `Claude Sonnet 5.5`. 글자가 하나도 없으면 원래 이름을 그대로 둔다
+ */
+export function prettyModelId(ref: string): string {
+  const parts = modelLabelOf(ref)
+    .replace(DATED_REF, "")
+    .split("-")
+    .filter((part) => part !== "");
+  const words: string[] = [];
+  let digits: string[] = [];
+  const flush = (): void => {
+    if (digits.length > 0) words.push(digits.join("."));
+    digits = [];
+  };
+  for (const part of parts) {
+    if (/^\d+$/.test(part)) {
+      digits.push(part);
+      continue;
+    }
+    flush();
+    words.push(
+      UPPER_WORDS.has(part) ? part.toUpperCase() : part.charAt(0).toUpperCase() + part.slice(1),
+    );
+  }
+  flush();
+  return words.length === 0 ? modelLabelOf(ref) : words.join(" ");
+}
+
+/**
+ * 화면에 보일 모델 이름(DP-144). 카탈로그(`models.list`)에 그 참조가 있고 이름이 있으면 그 이름(` (latest)` 뗌), 없으면 `prettyModelId`다.
+ * 참조(`anthropic/claude-sonnet-5-5`)는 `title`(hover)이나 상세에만 둔다
+ */
+export function modelDisplayNameOf(ref: string, choices: readonly ModelEntry[]): string {
+  const name = choices.find((entry) => entry.ref === ref)?.name ?? "";
+  return name === "" ? prettyModelId(ref) : name.replace(LATEST_SUFFIX, "");
 }
 
 /** 이 대화의 사용량. `tokens`는 쓴 토큰이고 `percent`는 한도(문맥 창)를 알 때만 값이 있다(0~100) */
@@ -75,9 +120,6 @@ export interface ModelOption {
   readonly price: ModelPrice;
 }
 
-const DATED_REF = /-\d{8}$/;
-const LATEST_SUFFIX = / \(latest\)$/;
-
 /** 같은 모델의 날짜 붙은 사본(`…-20251001`)은 날짜 없는 별칭이 있으면 감춘다. 지금 쓰는 모델이면 남긴다 */
 function isHiddenDuplicate(
   ref: string,
@@ -117,14 +159,14 @@ export function modelOptionsOf(
     .toSorted(compareEntries)
     .map((entry) => ({
       value: entry.ref,
-      label: entry.name === "" ? modelLabelOf(entry.ref) : entry.name.replace(LATEST_SUFFIX, ""),
+      label: modelDisplayNameOf(entry.ref, [entry]),
       contextWindow: entry.contextWindow,
       price: priceOf(entry),
     }));
   if (current !== null && !refs.has(current)) {
     options.unshift({
       value: current,
-      label: modelLabelOf(current),
+      label: prettyModelId(current),
       contextWindow: null,
       price: null,
     });
@@ -132,7 +174,7 @@ export function modelOptionsOf(
   if (returnTo !== null) {
     options.push({
       value: DEFAULT_MODEL_CHOICE,
-      label: modelLabelOf(returnTo),
+      label: modelDisplayNameOf(returnTo, choices),
       contextWindow: null,
       price: null,
     });
@@ -145,11 +187,15 @@ export function priceNumberText(usd: number): string {
   return usd < 1 ? String(Number(usd.toFixed(3))) : String(Number(usd.toFixed(2)));
 }
 
-/** 토큰 수를 짧게: 999 이하는 그대로, 천 단위는 `41k`, 백만 단위는 `1.2M` */
+/**
+ * 토큰 수의 한 가지 표기(DP-145). 1만 밑은 자릿수 묶음 그대로(`1,200`), 그 위는 지금 로케일의 짧은 표기다(한국어 `2.8만`, 영어 `28K`).
+ * 화면의 토큰 표기(턴 요약, 구분선, 사용량 표, 상태 줄, 알림)는 모두 이것을 거친다
+ */
 export function tokenCountText(tokens: number): string {
-  if (tokens < 1000) return String(Math.round(tokens));
-  if (tokens < 1_000_000) return `${Math.round(tokens / 1000)}k`;
-  return `${(tokens / 1_000_000).toFixed(1)}M`;
+  const locale = activeLocale();
+  const n = Math.round(tokens);
+  if (Math.abs(n) < 10_000) return new Intl.NumberFormat(locale).format(n);
+  return new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 }).format(n);
 }
 
 /** 설정 스냅숏(기본 모델과 제공자 목록). 연결이 살아 있을 때 읽고 설정이 바뀌면(`settings.invalidated`) 다시 읽는다. 읽지 못하면 null이다 */
@@ -286,31 +332,72 @@ export function useThreadModel(
   return model === undefined ? { ref: fallback, chosen: false } : { ref: model, chosen: true };
 }
 
+// 모델 카탈로그(`models.list`)는 입력창, 상태 줄, 턴 요약, 변화 표지, 사용량 표가 같이 읽는다. 줄마다 요청하지 않게 한 벌을 나눠 쓴다.
+// 처음 쓰는 부품이 읽기를 시작하고 설정이 바뀌면(`settings.invalidated`) 다시 읽으며, 마지막 부품이 사라지면 구독을 거둔다.
+const catalog: {
+  models: readonly ModelEntry[];
+  users: number;
+  generation: number;
+  stop: (() => void) | null;
+} = { models: [], users: 0, generation: 0, stop: null };
+const catalogListeners = new Set<() => void>();
+
+function setCatalog(models: readonly ModelEntry[]): void {
+  catalog.models = models;
+  for (const listener of catalogListeners) listener();
+}
+
+function subscribeCatalog(listener: () => void): () => void {
+  catalogListeners.add(listener);
+  return () => {
+    catalogListeners.delete(listener);
+  };
+}
+
+function readCatalog(): readonly ModelEntry[] {
+  return catalog.models;
+}
+
 /** 대화가 고를 수 있는 모델(`models.list`). 연결이 살아 있을 때 읽고 설정이 바뀌면 다시 읽는다. 읽지 못하면 빈 목록이다 */
 export function useModelChoices(): readonly ModelEntry[] {
   const commands = useCommands();
   const phase = useLinkPhase();
-  const [models, setModels] = useState<readonly ModelEntry[]>([]);
   useEffect(() => {
     if (phase !== "live") return undefined;
-    let stale = false;
-    const read = (): void => {
-      detach(
-        commands.listModels().then((result) => {
-          if (!stale) setModels(result.ok ? result.value.models : []);
-          return undefined;
-        }),
-        rethrow,
-      );
-    };
-    read();
-    const stop = commands.setup.onInvalidated(read);
+    catalog.users += 1;
+    if (catalog.users === 1) {
+      const read = (): void => {
+        catalog.generation += 1;
+        const generation = catalog.generation;
+        detach(
+          commands.listModels().then((result) => {
+            if (generation === catalog.generation && catalog.users > 0) {
+              setCatalog(result.ok ? result.value.models : []);
+            }
+            return undefined;
+          }),
+          rethrow,
+        );
+      };
+      read();
+      catalog.stop = commands.setup.onInvalidated(read);
+    }
     return () => {
-      stale = true;
-      stop();
+      catalog.users -= 1;
+      if (catalog.users === 0) {
+        catalog.generation += 1;
+        catalog.stop?.();
+        catalog.stop = null;
+      }
     };
   }, [commands, phase]);
-  return models;
+  return useSyncExternalStore(subscribeCatalog, readCatalog, readCatalog);
+}
+
+/** 모델 참조를 화면 이름으로 바꾸는 함수(`modelDisplayNameOf` + 카탈로그) */
+export function useModelNameOf(): (ref: string) => string {
+  const choices = useModelChoices();
+  return useCallback((ref: string) => modelDisplayNameOf(ref, choices), [choices]);
 }
 
 /** 모드 바꾸기가 실패한 까닭. 명령 경로(계획)가 거절하면 엔진이 준 문장을 그대로 보인다 */

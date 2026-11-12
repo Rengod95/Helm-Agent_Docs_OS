@@ -10,8 +10,8 @@ describe("toast place (S-04)", () => {
     expect(toastPlace("medium", true, 480)).toEqual({ kind: "end", endPx: 480 + 74 });
   });
 
-  test("compact has no side well to avoid, so the toast sits bottom center", () => {
-    expect(toastPlace("compact", true, 352)).toEqual({ kind: "center-bottom" });
+  test("compact has no side well to avoid, so the toast is centered", () => {
+    expect(toastPlace("compact", true, 352)).toEqual({ kind: "center" });
   });
 });
 

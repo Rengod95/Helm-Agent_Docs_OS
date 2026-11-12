@@ -41,6 +41,7 @@ import {
   noticesAfter,
   noticeTitleViewOf,
   noticeToastVisible,
+  NOTICE_TOAST_MS,
   threadBySeqOf,
   type NoticeAction,
   type NoticeBodyView,
@@ -89,24 +90,42 @@ export function NoticeToasts(): ReactNode {
   const phase = useLinkPhase();
   const failures = useTurnFailures();
   const open = useRef<FailureToasts>({ byId: new Map(), seen: new Set() });
-  // 지금 보는 대화의 실패는 대화 끝의 오류 줄이 같은 문장과 단추를 보인다. 토스트는 내지 않는다
+  // 지금 보는 대화의 실패와(오류 띠가 보인다) 창이 앞일 때 그 대화의 끝남(턴 요약 줄이 보인다)은 토스트를 내지 않는다(noticeToastVisible)
   const selected = useRef<ThreadId | null>(null);
   const selectedId = useSelectedThreadId();
   useEffect(() => {
     selected.current = selectedId;
   }, [selectedId]);
+  // 다른 대화의 "끝났어요"에는 어느 대화인지(제목, 없으면 첫 입력 미리보기)를 설명 줄로 붙인다(DP-146)
+  const summaries = useThreadSummaries();
+  const names = useRef<ReadonlyMap<string, string>>(new Map());
+  useEffect(() => {
+    names.current = new Map(
+      summaries.flatMap((summary) => {
+        const name = summary.title ?? summary.preview ?? null;
+        return name === null || name === "" ? [] : [[summary.threadId, name] as const];
+      }),
+    );
+  }, [summaries]);
   useEffect(() => {
     if (phase !== "live") return undefined;
     const timers = new Set<ReturnType<typeof setTimeout>>();
     const off = commands.notices.onDelivered((delivered) => {
       const { notice } = delivered;
-      if (!noticeToastVisible(notice)) return;
+      const shown = noticeToastVisible(notice, {
+        threadId: delivered.threadId,
+        openThreadId: selected.current,
+        windowActive: document.visibilityState === "visible" && document.hasFocus(),
+      });
+      if (!shown) return;
       const isTurnFailure = notice.kind === "error" && notice.sourceType === "turn.completed";
-      if (isTurnFailure && delivered.threadId !== null && delivered.threadId === selected.current) {
-        return;
-      }
       const view = notice.body === null ? null : noticeBodyViewOf(notice);
-      const sentence = view === null ? null : bodyTextOf(view);
+      const sentence =
+        view === null
+          ? delivered.threadId === null
+            ? null
+            : (names.current.get(delivered.threadId) ?? null)
+          : bodyTextOf(view);
       const id = toast({
         tone: notice.kind === "error" ? "danger" : "neutral",
         title: isTurnFailure && sentence !== null ? sentence : noticeTitleText(notice),
@@ -114,7 +133,7 @@ export function NoticeToasts(): ReactNode {
         ...(sentence === null || isTurnFailure ? {} : { description: sentence }),
         ...(notice.kind === "error"
           ? { dismissLabel: t("desktop.turnFailure.toast.dismiss") }
-          : {}),
+          : { duration: NOTICE_TOAST_MS }),
       });
       if (notice.kind !== "error") return;
       if (isTurnFailure && delivered.threadId !== null) {

@@ -10,7 +10,7 @@ import { GitBranch, Pencil, RotateCcw, Undo2 } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow, type Result } from "@fresnel/contracts";
 import type { ItemId, ThreadId } from "@fresnel/contracts/conversation";
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useRef, useState, type ReactNode } from "react";
 import { messageCopyText, useItem, useOpenThreadRunning } from "../../state/engine/index.ts";
 import type { CommandError } from "../commands.ts";
 import { CopyButton } from "./markdown-body.tsx";
@@ -45,7 +45,19 @@ function useRun(): readonly [boolean, (work: () => Promise<unknown>) => void] {
   ] as const;
 }
 
-/** 되감기 단추와 확인 팝오버. 파일 변경은 되돌리지 않는다는 말을 붙인다 */
+/**
+ * 되감기 단추와 확인 팝오버. 파일 변경은 되돌리지 않는다는 말을 붙인다.
+ * 팝오버는 단추 위로 열고 끝을 단추에 맞춘다(폭 280, caustic Popover md). 아래로 열면 바로 다음 말풍선을 덮는다(DP-147).
+ * 위에 자리가 없으면(머리 줄 바로 아래의 첫 말) 아래로 뒤집지 않고 단추 왼쪽에 위 끝을 맞춰 연다(`rewindSideOf`)
+ */
+/** 되감기 확인 팝오버의 높이(제목, 두 줄 설명, 단추 줄, 안쪽 여백)와 단추 사이 간격을 합한 값. 단추 위에 이만큼 자리가 있어야 위로 연다 */
+export const REWIND_POPOVER_ROOM_PX = 160;
+
+/** 되감기 확인을 여는 쪽. `roomAbovePx`는 창 위 끝에서 단추 위 끝까지다. 위에 자리가 없으면 왼쪽에 연다(다음 말풍선을 덮지 않게) */
+export function rewindSideOf(roomAbovePx: number): "top" | "left" {
+  return roomAbovePx >= REWIND_POPOVER_ROOM_PX ? "top" : "left";
+}
+
 function RewindButton(props: {
   readonly port: MessageActionsPort;
   readonly threadId: ThreadId;
@@ -53,16 +65,23 @@ function RewindButton(props: {
   readonly disabled: boolean;
 }): ReactNode {
   const [open, setOpen] = useState(false);
+  const [side, setSide] = useState<"top" | "left">("top");
+  const anchor = useRef<HTMLButtonElement>(null);
   const [busy, run] = useRun();
   return (
     <Popover
-      size="sm"
-      side="top"
-      align="end"
+      size="md"
+      side={side}
+      align={side === "top" ? "end" : "start"}
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(next) => {
+        // 여는 순간 단추 위 자리를 재어 쪽을 고른다
+        if (next) setSide(rewindSideOf(anchor.current?.getBoundingClientRect().top ?? 0));
+        setOpen(next);
+      }}
       anchor={
         <IconButton
+          ref={anchor}
           size="xs"
           tone="ghost"
           label={
@@ -74,7 +93,7 @@ function RewindButton(props: {
         </IconButton>
       }
     >
-      <div className="grid max-w-72 gap-2">
+      <div className="grid gap-2">
         <PopoverTitle>{t("desktop.convo.actions.rewind.title")}</PopoverTitle>
         <PopoverDescription>{t("desktop.convo.actions.rewind.body")}</PopoverDescription>
         <div className="flex justify-end gap-1.5">

@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { folderLabel, groupByWorkspace, sidebarGroupsOf } from "../../src/views/thread-groups.ts";
+import {
+  folderLabel,
+  folderPartsOf,
+  groupByWorkspace,
+  sidebarGroupsOf,
+} from "../../src/views/thread-groups.ts";
 import { summary, thr } from "../state/helpers.ts";
 
 describe("groupByWorkspace", () => {
@@ -28,6 +33,28 @@ describe("folderLabel", () => {
   test("keeps a short path whole", () => {
     expect(folderLabel("/notes")).toBe("/notes");
     expect(folderLabel("/a/b")).toBe("/a/b");
+  });
+});
+
+describe("folderPartsOf", () => {
+  test("splits the last folder name from its parent path", () => {
+    expect(folderPartsOf("/Users/me/webui-home-cyY/work")).toEqual({
+      name: "work",
+      parent: "/Users/me/webui-home-cyY",
+    });
+  });
+  test("ignores a trailing separator", () => {
+    expect(folderPartsOf("/Users/me/proj/")).toEqual({ name: "proj", parent: "/Users/me" });
+  });
+  test("a folder right under the root has the root as its parent", () => {
+    expect(folderPartsOf("/notes")).toEqual({ name: "notes", parent: "/" });
+  });
+  test("reads Windows separators too", () => {
+    expect(folderPartsOf("C:\\work\\app")).toEqual({ name: "app", parent: "C:\\work" });
+  });
+  test("a path with no separator is all name", () => {
+    expect(folderPartsOf("work")).toEqual({ name: "work", parent: "" });
+    expect(folderPartsOf("/")).toEqual({ name: "/", parent: "" });
   });
 });
 

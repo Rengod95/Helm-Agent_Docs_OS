@@ -180,11 +180,32 @@ export function noticeShownAtOf(entry: NoticeEntry): number {
 
 /**
  * 이 알림을 화면 토스트로도 알리나. 새 승인 요청은 낭독 영역(`live-announcer.tsx`)이 이미 읽고, 토스트 영역과 토스트 자체도 낭독 영역이라
- * 같은 문장이 세 번 읽힌다. 승인 알림은 목록과 OS 알림, 대화의 승인 카드와 사이드바 승인 수로 알리고 토스트는 띄우지 않는다
+ * 같은 문장이 세 번 읽힌다. 승인 알림은 목록과 OS 알림, 대화의 승인 카드와 사이드바 승인 수로 알리고 토스트는 띄우지 않는다.
+ * 화면에 이미 보이는 결과도 토스트로 내지 않는다: 보고 있는 대화의 턴 실패와, 창이 앞에 있을 때 보고 있는 대화의 끝남이다
  */
-export function noticeToastVisible(notice: Notice): boolean {
-  return notice.kind !== "approval_waiting";
+export function noticeToastVisible(notice: Notice, context: NoticeToastContext): boolean {
+  if (notice.kind === "approval_waiting") return false;
+  const here = context.threadId !== null && context.threadId === context.openThreadId;
+  if (!here) return true;
+  // 보고 있는 대화의 턴 실패는 대화 끝의 실패 띠가 같은 문장과 단추를 보인다(창이 뒤여도 대화를 열면 띠가 있다)
+  if (notice.kind === "error" && notice.sourceType === "turn.completed") return false;
+  // 보고 있는 대화가 끝난 것은 턴 요약 줄이 이미 말한다. 창이 앞에 있을 때만 토스트를 내지 않는다(DP-146)
+  if (notice.kind === "completed") return !context.windowActive;
+  return true;
 }
+
+/** 토스트를 낼지 정하는 화면 상태 */
+export interface NoticeToastContext {
+  /** 알림이 난 대화. 대화 없는 알림이면 null이다 */
+  readonly threadId: ThreadId | null;
+  /** 지금 열려 있는 대화 */
+  readonly openThreadId: ThreadId | null;
+  /** 창이 보이고 초점이 있나(`document.visibilityState === "visible" && document.hasFocus()`) */
+  readonly windowActive: boolean;
+}
+
+/** 중립 알림 토스트가 스스로 닫히는 때(ms). 오류 토스트는 caustic이 닫지 않아 notices.tsx가 따로 닫는다 */
+export const NOTICE_TOAST_MS = 4000;
 
 /**
  * 알림의 새것 먼저 순서. 시각(`createdAt`)이 큰 것이 먼저이고, 같으면 seq가 큰 것이 먼저다. 대화 없는 알림의 seq는 실행 id의

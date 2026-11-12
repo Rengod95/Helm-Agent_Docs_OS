@@ -32,6 +32,7 @@ import type {
 } from "../views/commands.ts";
 import { turnInputOf } from "../views/attachment-model.ts";
 import { collectExport } from "../views/export-model.ts";
+import { rememberUploadedImage } from "../views/image-thumbs.ts";
 import {
   BYPASS_ALLOWED_KEY,
   PERMISSION_MODE_KEY,
@@ -326,8 +327,14 @@ export function createCommands(
       );
       return listed.ok ? ok(commandListView(listed.value)) : listed;
     },
-    addAttachment: (threadId, source) =>
-      withWriteConnection((c) => c.request("attachments.add", { threadId, source })),
+    async addAttachment(threadId, source) {
+      const added = await withWriteConnection((c) =>
+        c.request("attachments.add", { threadId, source }),
+      );
+      // 보낸 말풍선이 이 이미지를 썸네일로 그릴 수 있게 자리표시와 올린 바이트를 잇는다(DP-142)
+      if (added.ok) rememberUploadedImage(source, added.value.parts);
+      return added;
+    },
     async attachmentLimit() {
       const got = await withConnection((c) =>
         c.request("settings.get", { keys: [ATTACHMENT_LIMIT_KEY] }),

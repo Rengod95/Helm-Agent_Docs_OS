@@ -7,9 +7,13 @@ import {
   type ThreadId,
 } from "@fresnel/contracts/conversation";
 import { renderToString } from "react-dom/server";
+import type { ReactNode } from "react";
+import { EngineStoreContext, type EngineMirror } from "../../src/state/engine/index.ts";
 import type { CompactionRecord } from "../../src/state/engine/state.ts";
+import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
 import { CompactionDividerView } from "../../src/views/compaction-divider.tsx";
 import { compactionViewOf } from "../../src/views/compaction-model.ts";
+import { harness } from "../state/helpers.ts";
 
 // 대화 요약 구분선(L4 desktop-ux §6.6). 효과 없는 서버 렌더로 문구와 펼침 상태의 값을 비교한다.
 
@@ -25,6 +29,19 @@ function eventOf(value: string): EventId {
 }
 const THREAD = threadOf("thr_00000000000000000000000001");
 const EVENT = eventOf("evt_00000000000000000000000001");
+
+/** 상태가 바뀌지 않는 스토어. 펼친 본문(마크다운)이 거울을 읽어서 서버 렌더에 처음 상태를 준다 */
+function frozenStore(state: EngineMirror): ReadonlyStore<EngineMirror> {
+  return { getState: () => state, getInitialState: () => state, subscribe: () => () => {} };
+}
+
+function inEngine(node: ReactNode): string {
+  return renderToString(
+    <EngineStoreContext value={frozenStore(harness().store.read.getState())}>
+      {node}
+    </EngineStoreContext>,
+  );
+}
 
 function recordOf(overrides: Partial<CompactionRecord> = {}): CompactionRecord {
   return {
@@ -54,7 +71,8 @@ describe("구분선의 문구 값", () => {
   });
 
   test("요약 뒤 크기는 토큰 수를 짧게 쓴 글이고, 모르면 없다", () => {
-    expect(compactionViewOf(recordOf({ tokensAfter: 30_000 })).tokensAfter).toBe("30k");
+    expect(compactionViewOf(recordOf({ tokensAfter: 30_000 })).tokensAfter).toBe("3만");
+    expect(compactionViewOf(recordOf({ tokensAfter: 28_400 })).tokensAfter).toBe("2.8만");
     expect(compactionViewOf(recordOf({ tokensAfter: null })).tokensAfter).toBeNull();
   });
 });
@@ -66,20 +84,33 @@ describe("구분선 서버 렌더", () => {
     );
     expect(markup).toContain("여기까지 요약했어요");
     expect(markup).toContain(">자동<");
-    expect(markup).toContain("요약 뒤 약 30k 토큰");
+    expect(markup).toContain("요약 뒤 약 3만 토큰");
     expect(markup).toContain('aria-expanded="false"');
     expect(markup).toContain("요약 보기");
     expect(markup).not.toContain("캐시 무효화 버그");
   });
 
   test("펼친 구분선은 요약 본문을 읽기 영역에 보이고 접기 단추가 된다", () => {
-    const markup = renderToString(
+    const markup = inEngine(
       <CompactionDividerView record={recordOf()} open onToggle={() => undefined} />,
     );
     expect(markup).toContain('aria-expanded="true"');
     expect(markup).toContain("요약 접기");
     expect(markup).toContain('role="region"');
     expect(markup).toContain("사용자는 캐시 무효화 버그를 고치고 있다.");
+  });
+
+  test("펼친 요약 본문은 마크다운으로 그린다(제목이 `##` 글자로 남지 않는다)", () => {
+    const markup = inEngine(
+      <CompactionDividerView
+        record={recordOf({ summary: "## Goal\n\n캐시 버그 고치기" })}
+        open
+        onToggle={() => undefined}
+      />,
+    );
+    expect(markup).toContain("<h2");
+    expect(markup).toContain("Goal</h2>");
+    expect(markup).not.toContain("## Goal");
   });
 
   test("수동 요약은 수동이라고 보이고, 옛 기록은 이유와 크기 줄이 없다", () => {

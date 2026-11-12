@@ -1,12 +1,15 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
+import { setActiveLocale, t } from "@fresnel/client/i18n";
 import type { ModelEntry, UsageGauge } from "@fresnel/contracts/wire";
 import { Bug, parse } from "@fresnel/contracts";
 import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
 import {
   clearCompactedContext,
   compactedContextOf,
+  modelDisplayNameOf,
   modelLabelOf,
   modelOptionsOf,
+  prettyModelId,
   priceNumberText,
   sessionUsageOf,
   setCompactedContext,
@@ -95,14 +98,14 @@ describe("modelOptionsOf", () => {
         null,
       ),
     ).toEqual([
-      { value: "anthropic/a", label: "a", contextWindow: 200_000, price: { input: 1, output: 5 } },
-      { value: "openai/b", label: "b", contextWindow: 128_000, price: "unknown" },
+      { value: "anthropic/a", label: "A", contextWindow: 200_000, price: { input: 1, output: 5 } },
+      { value: "openai/b", label: "B", contextWindow: 128_000, price: "unknown" },
     ]);
   });
   test("지금 쓰는 모델이 카탈로그에 없으면 맨 앞에 가격 없이 더한다", () => {
     expect(modelOptionsOf([entry("openai/b", 128_000)], "gone/x", null)).toEqual([
-      { value: "gone/x", label: "x", contextWindow: null, price: null },
-      { value: "openai/b", label: "b", contextWindow: 128_000, price: "unknown" },
+      { value: "gone/x", label: "X", contextWindow: null, price: null },
+      { value: "openai/b", label: "B", contextWindow: 128_000, price: "unknown" },
     ]);
   });
   test("모르는 현재 모델은 줄을 더하지 않는다", () => {
@@ -110,8 +113,8 @@ describe("modelOptionsOf", () => {
   });
   test("대화가 모델을 정했으면 끝에 기본 모델로 돌아가는 줄이 있다", () => {
     expect(modelOptionsOf([entry("a/x", 1)], "a/x", "a/base")).toEqual([
-      { value: "a/x", label: "x", contextWindow: 1, price: "unknown" },
-      { value: "default", label: "base", contextWindow: null, price: null },
+      { value: "a/x", label: "X", contextWindow: 1, price: "unknown" },
+      { value: "default", label: "Base", contextWindow: null, price: null },
     ]);
   });
   test("날짜 붙은 중복은 감추고 새 버전을 앞에 두며 (latest)를 뗀다", () => {
@@ -151,10 +154,51 @@ describe("priceNumberText", () => {
 });
 
 describe("tokenCountText", () => {
-  test("짧게 줄인다", () => {
+  afterEach(() => {
+    setActiveLocale("ko");
+  });
+  test("한국어: 1만 밑은 자릿수 묶음, 그 위는 만 단위로 짧게", () => {
+    setActiveLocale("ko");
     expect(tokenCountText(950)).toBe("950");
-    expect(tokenCountText(41_000)).toBe("41k");
+    expect(tokenCountText(1_200)).toBe("1,200");
+    expect(tokenCountText(9_999)).toBe("9,999");
+    expect(tokenCountText(28_000)).toBe("2.8만");
+    expect(tokenCountText(1_200_000)).toBe("120만");
+  });
+  test("영어: 1만 밑은 자릿수 묶음, 그 위는 K·M", () => {
+    setActiveLocale("en");
+    expect(tokenCountText(1_200)).toBe("1,200");
+    expect(tokenCountText(28_000)).toBe("28K");
     expect(tokenCountText(1_200_000)).toBe("1.2M");
+  });
+  test("1만 이상은 메시지의 `{n, number, compact}`와 같은 글이다", () => {
+    setActiveLocale("ko");
+    expect(t("desktop.status.core.usage", { tokens: 28_000, usd: 0 })).toContain(
+      tokenCountText(28_000),
+    );
+  });
+});
+
+describe("prettyModelId", () => {
+  test("provider와 날짜를 떼고 낱말은 대문자로, 숫자 조각은 점으로 잇는다", () => {
+    expect(prettyModelId("anthropic/claude-sonnet-5-5")).toBe("Claude Sonnet 5.5");
+    expect(prettyModelId("anthropic/claude-haiku-4-5-20251001")).toBe("Claude Haiku 4.5");
+    expect(prettyModelId("openai/gpt-5-mini")).toBe("GPT 5 Mini");
+    expect(prettyModelId("claude-opus-5")).toBe("Claude Opus 5");
+  });
+});
+
+describe("modelDisplayNameOf", () => {
+  const catalog = [
+    entry("anthropic/claude-sonnet-5-5", 1, { name: "Claude Sonnet 5.5 (latest)" }),
+    entry("local/qwen-3", 1),
+  ];
+  test("카탈로그 이름을 쓰고 (latest)를 뗀다", () => {
+    expect(modelDisplayNameOf("anthropic/claude-sonnet-5-5", catalog)).toBe("Claude Sonnet 5.5");
+  });
+  test("카탈로그에 이름이 없거나 모르는 모델이면 id를 다듬는다", () => {
+    expect(modelDisplayNameOf("local/qwen-3", catalog)).toBe("Qwen 3");
+    expect(modelDisplayNameOf("anthropic/claude-haiku-5-5", [])).toBe("Claude Haiku 5.5");
   });
 });
 

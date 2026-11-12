@@ -4,10 +4,10 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import { WIRE_ERRORS, type WireResult } from "@fresnel/contracts/wire";
 import { toast } from "@caustic/react";
 import type { CommandError, Commands } from "./commands.ts";
-import { setCompactedContext } from "./model-usage.ts";
+import { setCompactedContext, tokenCountText } from "./model-usage.ts";
 
 // "대화 요약"(`thread.compact`)의 진행 표시와 결과 한 줄. 메뉴와 팔레트가 같이 쓴다.
-// 눌렀을 때 진행 토스트를 띄우고, 끝나면 결과(엔진이 준 `tokensBefore`, 요약할 것이 없는 이유)나 실패 이유를 한 줄로 바꾼다.
+// 토큰 수는 `tokenCountText` 한 표기다(DP-145). 눌렀을 때 진행 토스트를 띄우고, 끝나면 결과(엔진이 준 `tokensBefore`, 요약할 것이 없는 이유)나 실패 이유를 한 줄로 바꾼다.
 
 export interface CompactNotice {
   readonly tone: "success" | "info" | "danger";
@@ -33,13 +33,16 @@ export function compactNoticeOf(
         return {
           tone: "info",
           id: "desktop.threads.compact.done.same",
-          args: { after: value.tokensAfter },
+          args: { after: tokenCountText(value.tokensAfter) },
         };
       }
       return {
         tone: "success",
         id: "desktop.threads.compact.done",
-        args: { before: value.tokensBefore, after: value.tokensAfter },
+        args: {
+          before: tokenCountText(value.tokensBefore),
+          after: tokenCountText(value.tokensAfter),
+        },
       };
     }
     if (value.why === "disabled") {
@@ -53,7 +56,7 @@ export function compactNoticeOf(
       return {
         tone: "info",
         id: "desktop.threads.compact.skipped.threshold",
-        args: { tokens: keepTokens },
+        args: { tokens: tokenCountText(keepTokens) },
       };
     }
     return { tone: "info", id: "desktop.threads.compact.skipped.nothing" };

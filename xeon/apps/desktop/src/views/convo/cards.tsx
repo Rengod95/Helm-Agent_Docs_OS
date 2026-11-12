@@ -5,7 +5,7 @@ import { t, type MessageId } from "@fresnel/client/i18n";
 import type { ItemId, JsonObject, ThreadId } from "@fresnel/contracts/conversation";
 import type { ReactNode } from "react";
 import { useShellActions } from "../../state/shell/index.ts";
-import { useAgentRows, useNow, useToolResult } from "../../state/engine/index.ts";
+import { useAgentRows, useToolResult } from "../../state/engine/index.ts";
 import type { AgentRow } from "../../state/engine/index.ts";
 import { summarizeToolArgs } from "../../state/engine/tool-summary.ts";
 import { toolRowModeOf } from "../item-detail-model.ts";
@@ -24,6 +24,8 @@ import {
 } from "./tool-call-row.tsx";
 import { CallChip } from "../call-chip.tsx";
 import { ToolLine, useDisclosure, type LineStatus } from "./tool-line.tsx";
+import { Collapse } from "../../lib/motion-presets.tsx";
+import { checklistOf, type ChecklistRow, type TaskOp } from "./task-checklist-model.ts";
 import { failureLabelOf, planArgsOf, planResultOf, type PlanState } from "./tool-view-model.ts";
 import type { CallBlock } from "../transcript-rows.ts";
 
@@ -203,7 +205,12 @@ function PlanCard(props: { readonly callId: string; readonly args: JsonObject })
           <span className="convo-mono text-text-tertiary">v{state.version}</span>
         )}
         <span className="ml-auto">
-          {state === null ? (
+          {state === null && status.kind === "running" ? (
+            // submit_plan은 사용자의 승인을 기다리는 동안 결과가 없다. "실행 중"이 아니라 승인 대기로 보인다(DP-143)
+            <span className={`text-footnote ${PLAN_STATE.pending.className}`}>
+              {t(PLAN_STATE.pending.label)}
+            </span>
+          ) : state === null ? (
             <StatusText status={status.kind === "done" ? { kind: "none" } : status} />
           ) : (
             <span className={`text-footnote ${PLAN_STATE[state.state].className}`}>
@@ -213,7 +220,12 @@ function PlanCard(props: { readonly callId: string; readonly args: JsonObject })
         </span>
       </div>
       {plan.body === "" ? null : (
-        <div className="convo-clip text-text-secondary" data-open={open ? "true" : "false"}>
+        // 접힌 높이 240(카드 바탕 위 흐림). 96이면 "변경 내용" 제목 바로 아래에서 잘려 빈 구역처럼 보였다(dzV 문제 5)
+        <div
+          className="convo-clip text-text-secondary"
+          data-size="plan"
+          data-open={open ? "true" : "false"}
+        >
           <MarkdownBody text={plan.body} size="compact" />
         </div>
       )}
@@ -252,13 +264,12 @@ function TaskGlyph(props: { readonly status: string | null }): ReactNode {
   return <Circle aria-hidden className="convo-task-glyph text-text-tertiary" />;
 }
 
-/** 할 일 갱신: 머리 줄 + 이번 호출이 바꾼 항목 */
+/** 할 일 갱신(DP-143): 머리 줄(그 시점 진행 n/m) + 그 시점 전체 목록, 이번 호출이 바꾼 줄은 진하게 */
 function TaskChecklist(props: {
   readonly threadId: ThreadId;
   readonly itemId: ItemId;
   readonly call: CallBlock;
 }): ReactNode {
-  const now = useNow(props.threadId);
   const summary = summarizeToolArgs(props.call.name, props.call.args);
   if (summary.kind !== "tasks") {
     return (
@@ -271,46 +282,35 @@ function TaskChecklist(props: {
       />
     );
   }
-  const byId = new Map(now.tasks.map((task) => [task.id, task]));
-  const rows = summary.items.flatMap((op, index) => {
-    if (op.op === "link" || op.op === "unlink") return [];
-    const known = op.ref === null ? undefined : byId.get(op.ref);
-    const content = op.content ?? known?.content ?? op.ref ?? "";
-    return [
-      {
-        key: `${index}:${op.ref ?? content}`,
-        content,
-        status: op.status ?? known?.status ?? null,
-        created: op.op === "create",
-      },
-    ];
-  });
+  return <TaskChecklistView call={props.call} ops={summary.items} />;
+}
+
+function TaskRow(props: { readonly row: ChecklistRow }): ReactNode {
+  const { row } = props;
   return (
-    <TaskChecklistView
-      threadId={props.threadId}
-      itemId={props.itemId}
-      call={props.call}
-      progress={now.progress}
-      rows={rows}
-    />
+    <li
+      className="convo-task"
+      data-changed={row.changed ? "true" : "false"}
+      data-status={row.status ?? "pending"}
+    >
+      <TaskGlyph status={row.status} />
+      <span className="min-w-0">{row.content}</span>
+    </li>
   );
 }
 
 function TaskChecklistView(props: {
-  readonly threadId: ThreadId;
-  readonly itemId: ItemId;
   readonly call: CallBlock;
-  readonly progress: { readonly done: number; readonly total: number };
-  readonly rows: readonly {
-    readonly key: string;
-    readonly content: string;
-    readonly status: string | null;
-    readonly created: boolean;
-  }[];
+  readonly ops: readonly TaskOp[];
 }): ReactNode {
   const result = useToolResult(props.call.callId);
   const running = useCallRunning();
   const view = resultViewOf(result);
+  const [foldOpen, toggleFold] = useDisclosure(false);
+  const list = checklistOf(
+    props.ops,
+    view !== null && view.outcome.kind === "done" ? view.output : null,
+  );
   const status = lineStatusOf({
     outcome: view?.outcome ?? null,
     running,
@@ -324,11 +324,11 @@ function TaskChecklistView(props: {
         verb={t("desktop.convo.tool.tasks")}
         target={{ kind: "none" }}
         meta={
-          props.progress.total === 0
+          list.progress === null || list.progress.total === 0
             ? null
             : t("desktop.convo.tasks.progress", {
-                done: props.progress.done,
-                total: props.progress.total,
+                done: list.progress.done,
+                total: list.progress.total,
               })
         }
         status={status.kind === "done" ? { kind: "none" } : status}
@@ -343,19 +343,32 @@ function TaskChecklistView(props: {
           : {})}
       />
       <ul className="convo-tasks">
-        {props.rows.map((row) => (
-          <li
-            key={row.key}
-            className="convo-task"
-            data-changed="true"
-            data-status={row.status ?? "pending"}
-          >
-            <TaskGlyph status={row.status} />
-            <span className="min-w-0">{row.content}</span>
-            {row.created ? <Badge size="xs">{t("desktop.convo.tasks.new")}</Badge> : null}
-          </li>
+        {list.rows.map((row) => (
+          <TaskRow key={row.key} row={row} />
         ))}
       </ul>
+      {list.folded.length === 0 ? null : (
+        <>
+          <Collapse open={foldOpen}>
+            <ul className="convo-tasks">
+              {list.folded.map((row) => (
+                <TaskRow key={row.key} row={row} />
+              ))}
+            </ul>
+          </Collapse>
+          <Button
+            variant="ghost"
+            size="xs"
+            className="convo-tasks-more"
+            aria-expanded={foldOpen}
+            onClick={toggleFold}
+          >
+            {foldOpen
+              ? t("desktop.convo.tasks.foldClose")
+              : t("desktop.convo.tasks.foldOpen", { count: list.folded.length })}
+          </Button>
+        </>
+      )}
     </div>
   );
 }

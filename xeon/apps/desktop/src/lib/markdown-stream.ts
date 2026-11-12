@@ -60,6 +60,17 @@ export function closeStreamingMarkdown(source: string): string {
   return terminated ? `${body}\n` : body;
 }
 
+/**
+ * 끝난 글이 닫히지 않은 울타리 안에서 끝나면(멈춘 답) 같은 글자·길이로 닫는다(dzG 시안 §5). `cut`은 닫았는가이고,
+ * 닫은 코드 블록은 글 끝까지 이어진다. 울타리가 모두 닫혀 있으면 글을 그대로 돌려준다
+ */
+export function closeOpenFence(source: string): { readonly text: string; readonly cut: boolean } {
+  const fence = fenceAtEnd(source.split("\n"));
+  if (fence === undefined) return { text: source, cut: false };
+  const closer = fence.char.repeat(fence.length);
+  return { text: source.endsWith("\n") ? `${source}${closer}` : `${source}\n${closer}`, cut: true };
+}
+
 /** 스트리밍 조각을 보정한 뒤 렌더한다. `renderMarkdown(closeStreamingMarkdown(source))`와 같다. */
 export function renderStreamingMarkdown(source: string, options?: MarkdownOptions): ReactNode {
   return renderMarkdown(closeStreamingMarkdown(source), options);

@@ -1,4 +1,4 @@
-import { IconButton } from "@caustic/react";
+import { IconButton, Tooltip } from "@caustic/react";
 import { Copy } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
@@ -12,15 +12,22 @@ import {
   type ReactNode,
 } from "react";
 import type { Components } from "react-markdown";
+import type { WebSource } from "../tool-extras-model.ts";
 import { highlightCode, type HighlightedLines } from "../../lib/highlight.ts";
 import { renderMarkdown } from "../../lib/markdown.tsx";
-import { renderStreamingMarkdown } from "../../lib/markdown-stream.ts";
+import { closeOpenFence, renderStreamingMarkdown } from "../../lib/markdown-stream.ts";
 import { SwapFade } from "../../lib/motion-presets.tsx";
 import { DrawnCheck } from "../effects/drawn-check.tsx";
+import { citationIdOfHref, citationNumberOf, linkCitations } from "./citation-model.ts";
 import { useOpenSource } from "./open-source.ts";
+import { useCitationSources } from "./source-chips.tsx";
 
 /** 이 본문이 스트리밍 중인지. 부품 함수를 렌더마다 새로 만들지 않으려고 문맥으로 넘긴다 */
 const StreamingContext = createContext(false);
+/** 본문 출처 칩이 가리키는 이 대화의 출처(id → 출처) */
+const CitationContext = createContext<ReadonlyMap<string, WebSource>>(new Map());
+/** 멈춰서 닫아 그린 마지막 코드 블록의 끝 자리(글 길이). 없으면 null */
+const CutContext = createContext<number | null>(null);
 
 // 답 본문(dzT2a 시안 3.1). 확정 글과 스트리밍 글을 같은 부품과 같은 규칙으로 그려, 확정될 때 모양이 튀지 않는다.
 // 글자·간격 규칙은 `convo.css`의 `.convo-prose`가 맡는다(제목 두 단계, 문단 12, 목록 들여 20, 인용, 표, 인라인 코드).
@@ -130,6 +137,8 @@ function CodeBlock(props: {
   readonly lang: string;
   /** 스트리밍 중이면 강조하지 않는다 */
   readonly streaming: boolean;
+  /** 답이 멈춰 닫히지 않은 블록을 닫아 그렸다: 아래에 "코드가 여기서 끊겼어요" 한 줄 */
+  readonly stopped: boolean;
 }): ReactNode {
   return (
     <div className="convo-code" data-slot="convo-code">
@@ -144,6 +153,9 @@ function CodeBlock(props: {
           {props.streaming ? props.code : <HighlightedCode code={props.code} lang={props.lang} />}
         </code>
       </pre>
+      {props.stopped ? (
+        <div className="convo-code-foot">{t("desktop.convo.codeStopped")}</div>
+      ) : null}
     </div>
   );
 }
@@ -151,15 +163,61 @@ function CodeBlock(props: {
 function MarkdownCode(props: {
   readonly className?: string | undefined;
   readonly children?: ReactNode;
+  /** 마크다운 글에서 이 코드가 끝나는 자리 */
+  readonly end: number | undefined;
 }): ReactNode {
   const streaming = useContext(StreamingContext);
+  const cutEnd = useContext(CutContext);
   const lang = languageOf(props.className);
   const text = codeTextOf(props.children);
   // 울타리 코드는 언어 클래스가 있거나 줄바꿈이 있다. 그 밖은 인라인 코드다
   const block =
     lang !== "" || (typeof props.children === "string" && props.children.includes("\n"));
   if (!block) return <code className="convo-inline-code">{props.children}</code>;
-  return <CodeBlock code={text} lang={lang} streaming={streaming} />;
+  return (
+    <CodeBlock
+      code={text}
+      lang={lang}
+      streaming={streaming}
+      stopped={cutEnd !== null && props.end === cutEnd}
+    />
+  );
+}
+
+/**
+ * 본문 출처 칩(DP-149). 높이 16, 글 11/500, 좌우 4, 반경 4, 위첨자가 아니라 기준선에 앉는다. 올리면 위로 출처 제목·도메인,
+ * 누르면 확인 뒤 그 출처를 연다
+ */
+function CitationChip(props: { readonly source: WebSource }): ReactNode {
+  const open = useOpenSource();
+  const { source } = props;
+  const number = citationNumberOf(source.id) ?? 0;
+  return (
+    <Tooltip
+      side="top"
+      delayDuration={200}
+      content={
+        <span className="grid max-w-72">
+          <span className="truncate">{source.title}</span>
+          {source.title === source.domain ? null : (
+            <span className="truncate">{source.domain}</span>
+          )}
+        </span>
+      }
+    >
+      <a
+        href={source.url}
+        className="convo-cite"
+        aria-label={t("desktop.convo.cite.label", { number, title: source.title })}
+        onClick={(event) => {
+          event.preventDefault();
+          open(source.url);
+        }}
+      >
+        {number}
+      </a>
+    </Tooltip>
+  );
 }
 
 function MarkdownLink(props: {
@@ -167,7 +225,11 @@ function MarkdownLink(props: {
   readonly children?: ReactNode;
 }): ReactNode {
   const open = useOpenSource();
+  const sources = useContext(CitationContext);
   const { href } = props;
+  const citeId = citationIdOfHref(href);
+  const cited = citeId === null ? undefined : sources.get(citeId);
+  if (cited !== undefined) return <CitationChip source={cited} />;
   return (
     <a
       href={href}
@@ -188,7 +250,11 @@ function MarkdownLink(props: {
  */
 const COMPONENTS: Components = {
   pre: ({ children }) => <>{children}</>,
-  code: ({ className, children }) => <MarkdownCode className={className}>{children}</MarkdownCode>,
+  code: ({ className, children, node }) => (
+    <MarkdownCode className={className} end={node?.position?.end.offset}>
+      {children}
+    </MarkdownCode>
+  ),
   a: ({ href, children }) => <MarkdownLink href={href}>{children}</MarkdownLink>,
   table: ({ children }) => (
     <div className="convo-table" tabIndex={0}>
@@ -203,19 +269,31 @@ type MarkdownBodyProps = {
   readonly streaming?: boolean;
   /** 글 크기 단계. reply는 15/23(답 본문), compact는 13/20(생각, 보고, 계획 미리보기) */
   readonly size?: "reply" | "compact";
+  /** 답이 사용자 멈춤으로 끝났다(어시스턴트 item의 `stopReason === "aborted"`). 닫히지 않은 코드 블록 아래에 끊김 한 줄을 둔다 */
+  readonly stopped?: boolean;
 };
 
 export const MarkdownBody: NamedExoticComponent<MarkdownBodyProps> = memo(function MarkdownBody(
   props: MarkdownBodyProps,
 ): ReactNode {
   const streaming = props.streaming === true;
+  const sources = useCitationSources();
+  // 보이는 글만 바꾼다: 출처 표식은 번호 칩 링크로, 끝난 글의 닫히지 않은 울타리는 닫는다(모델 문맥은 그대로)
+  const cited = linkCitations(props.text, sources);
+  const closed = streaming ? null : closeOpenFence(cited);
   return (
     <StreamingContext value={streaming}>
-      <div className="convo-prose" data-size={props.size ?? "reply"}>
-        {streaming
-          ? renderStreamingMarkdown(props.text, { components: COMPONENTS })
-          : renderMarkdown(props.text, { components: COMPONENTS })}
-      </div>
+      <CitationContext value={sources}>
+        <CutContext
+          value={closed?.cut === true && props.stopped === true ? closed.text.length : null}
+        >
+          <div className="convo-prose" data-size={props.size ?? "reply"}>
+            {closed === null
+              ? renderStreamingMarkdown(cited, { components: COMPONENTS })
+              : renderMarkdown(closed.text, { components: COMPONENTS })}
+          </div>
+        </CutContext>
+      </CitationContext>
     </StreamingContext>
   );
 });

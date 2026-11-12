@@ -12,7 +12,7 @@ import { runShellAction, resolveShortcut } from "./shortcuts.ts";
 import type { ShellRegistry } from "./registry.ts";
 import { StartPanel } from "./start-panel.tsx";
 import { useShell, useShellActions } from "../../state/shell/index.ts";
-import { toastBottomPx, toastPlace } from "./toaster-slot.ts";
+import { toastEdgeOf, toastPlace, type ToastAvoidBox } from "./toaster-slot.ts";
 import { GoToThreadContext } from "../thread-link.ts";
 
 const STAGE_ID = "stage";
@@ -139,15 +139,23 @@ function Stage(props: {
   );
 }
 
-/** 입력창 묶음(`data-toast-avoid`: 카드와 입력창)의 위쪽 끝. 묶음이 없으면(높이 0) null이라 시안 자리다. 크기나 화면이 바뀌면 다시 잰다 */
-function useToastBottom(): number {
-  const [bottom, setBottom] = useState(toastBottomPx(null, 0));
+/** 입력창 묶음(`data-toast-avoid`)의 가로 상자. 묶음이 없으면(대화 화면이 아니면) null이다. 크기나 화면이 바뀌면 다시 잰다 */
+function useToastAvoidBox(): { readonly box: ToastAvoidBox | null; readonly viewport: number } {
+  const [seen, setSeen] = useState<{
+    readonly box: ToastAvoidBox | null;
+    readonly viewport: number;
+  }>({ box: null, viewport: 0 });
   useEffect(() => {
     const measure = (): void => {
       const el = document.querySelector("[data-toast-avoid]");
-      const box = el === null ? null : el.getBoundingClientRect();
-      setBottom(
-        toastBottomPx(box === null || box.height === 0 ? null : box.top, window.innerHeight),
+      const rect = el === null ? null : el.getBoundingClientRect();
+      const box = rect === null ? null : { left: rect.left, width: rect.width };
+      setSeen((now) =>
+        now.viewport === window.innerWidth &&
+        now.box?.left === box?.left &&
+        now.box?.width === box?.width
+          ? now
+          : { box, viewport: window.innerWidth },
       );
     };
     measure();
@@ -166,8 +174,11 @@ function useToastBottom(): number {
       window.removeEventListener("resize", measure);
     };
   }, []);
-  return bottom;
+  return seen;
 }
+
+/** 머리 줄 바로 아래 자리: 머리 높이(styles.css `--shell-header-h`) + 12 */
+const TOAST_TOP = "calc(var(--shell-header-h) + 12px)";
 
 function ShellToaster(props: { readonly registry: ShellRegistry }): ReactNode {
   const layout = useShell((s) => s.layout);
@@ -176,17 +187,22 @@ function ShellToaster(props: { readonly registry: ShellRegistry }): ReactNode {
   const tabId = useShell((s) => s.places[s.area].endTab);
   const screen = useShell((s) => s.places[s.area].screen);
   const tabs = props.registry.endTabs(area, screen);
-  const bottom = useToastBottom();
+  const avoid = useToastAvoidBox();
   const place = toastPlace(layout, open, wellWidthOf(tabs.find((x) => x.id === tabId) ?? tabs[0]));
-  // 자리는 오른쪽 아래, 상태 표시줄 위다. 입력창 묶음(`data-toast-avoid`)이 있으면 그 위로 올려 입력창의 모델 고르기와 승인 단추를 덮지 않는다(`toastBottomPx`). 대화 머리와 첫 줄을 가리지 않는다. 오류 토스트는 caustic이 닫지 않으므로 닫기 단추와 닫힘 시간은 notices.tsx가 정한다
+  // 토스트는 대화 열(본문 마지막 줄과 입력창)을 덮지 않는다(DP-146, `toastEdgeOf`): 열 오른쪽 틈이 넓으면 그 틈의 아래(상태 표시줄 위),
+  // 좁으면 머리 줄 아래 오른쪽이다. 가로는 오른쪽 떠 있는 막대와 열린 well을 비킨다(`toastPlace`). 오류 토스트는 caustic이 닫지 않으므로
+  // 닫기 단추와 닫힘 시간은 notices.tsx가 정한다
+  const edge = toastEdgeOf(place, avoid.box, avoid.viewport);
+  const vertical =
+    edge.kind === "top" ? { top: TOAST_TOP, bottom: "auto" } : { bottom: `${String(edge.px)}px` };
   return (
     <Toaster
       label={t("desktop.shell.toast.label")}
       className="transition-[inset] duration-quick"
       style={
-        place.kind === "center-bottom"
-          ? { insetInline: "0.5rem", bottom }
-          : { insetInlineEnd: `${String(place.endPx)}px`, bottom }
+        place.kind === "center"
+          ? { insetInline: "0.5rem", ...vertical }
+          : { insetInlineEnd: `${String(place.endPx)}px`, ...vertical }
       }
     />
   );

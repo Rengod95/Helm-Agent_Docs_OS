@@ -128,6 +128,17 @@ describe("rowLabelOf", () => {
   test("an untitled thread without a preview has no text, so the caller shows the untitled label", () => {
     expect(rowLabelOf(summary(thr(3)))).toEqual({ text: null, dim: true });
   });
+  test("a title made only of punctuation falls back to the preview, dimmed", () => {
+    const thread = summary(thr(5), { title: ",", preview: "계산기 고쳐 줘" });
+    expect(rowLabelOf(thread)).toEqual({ text: "계산기 고쳐 줘", dim: true });
+  });
+  test("punctuation, symbols and spaces only in both title and preview give no text", () => {
+    const thread = summary(thr(6), { title: " … ", preview: "-- / !!" });
+    expect(rowLabelOf(thread)).toEqual({ text: null, dim: true });
+  });
+  test("a title with one letter or digit among symbols stays the title", () => {
+    expect(rowLabelOf(summary(thr(7), { title: "#1" }))).toEqual({ text: "#1", dim: false });
+  });
   test("a preview is never used as the title for filtering", () => {
     expect(threadMatches(summary(thr(4), { preview: "찾는 말" }), "찾는 말")).toBe(false);
   });
