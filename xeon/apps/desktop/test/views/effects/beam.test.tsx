@@ -36,7 +36,14 @@ describe("boxOf", () => {
       width: 776,
       height: 96,
       radius: 20,
+      exponent: 2,
+      shape: "round",
     });
+  });
+
+  test("대상의 corner-shape를 읽는다: squircle은 지수 4(dzE 시안 §1)", () => {
+    const box = boxOf(rect(0, 0, 10, 10), rect(0, 0, 10, 10), "25.2px", "squircle");
+    expect([box.radius, box.exponent, box.shape]).toEqual([25.2, 4, "squircle"]);
   });
 
   test("반경을 읽지 못하면 16px", () => {
@@ -51,7 +58,7 @@ describe("부품", () => {
         <p>입력</p>
       </BeamScope>,
     );
-    expect(html).toBe('<div class="relative "><p>입력</p></div>');
+    expect(html).toBe('<div class="relative"><p>입력</p></div>');
   });
 
   test("BeamLine은 화면 낭독에서 빠지고 상태를 data-state로 둔다", () => {

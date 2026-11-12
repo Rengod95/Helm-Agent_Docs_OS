@@ -225,9 +225,8 @@ export function ToolLine(props: {
   ]
     .filter((part) => part !== "")
     .join(" · ");
-  // 상태가 이 줄이 화면에 있는 동안 바뀌었는가(도는 중 → 끝남·실패). 굴절광은 도는 동안 켜지고, 끝나면 사라지며 꺼진다
+  // 상태가 이 줄이 화면에 있는 동안 바뀌었는가(도는 중 → 끝남·실패). 도는 동안의 빛은 상태 칩 테두리의 beam 하나다(DP-127)
   const changed = useChangedSinceMount(props.status.kind);
-  const running = props.status.kind === "running" && !props.status.awaiting;
   return (
     <div className="grid min-w-0">
       <div
@@ -236,11 +235,6 @@ export function ToolLine(props: {
         data-open={open ? "true" : undefined}
         data-quiet={props.quiet === true ? "true" : undefined}
       >
-        {running || changed ? (
-          <span aria-hidden className="convo-line-beam" data-on={running ? "true" : "false"}>
-            <span className="convo-line-beam-streak" />
-          </span>
-        ) : null}
         {toggle ? (
           <button
             type="button"

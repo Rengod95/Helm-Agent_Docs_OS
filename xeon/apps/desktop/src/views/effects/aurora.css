@@ -1,0 +1,247 @@
+/* 오로라(aurora.tsx, dzE 시안 §2, DP-126 [결정: 2026-11-12 사용자]). 큰 radial 알갱이 셋(보라 h288, 파랑 h262, 청록 h210)이 서로 다른 주기(7.2s·9.6s·12s)로
+   흘러 겹침이 계속 바뀐다. transform·opacity만 움직여 합성기에서 돈다(메인 스레드·스타일 재계산 0. @property 애니메이션은 쓰지 않는다).
+   숨은 창·탭에서는 Chromium이 그리지 않아 멈춘다. 채도와 세기를 절제해 무지개·네온으로 읽히지 않게 한다(로고 렌더의 깊은 남보라 몸 + 가는 청록 굴절).
+   styles.css가 가져온다(CSP가 인라인 <style>을 막는다). */
+
+:root {
+  --fx-aurora-a: light-dark(oklch(0.7 0.15 288), oklch(0.62 0.17 288));
+  --fx-aurora-b: light-dark(oklch(0.72 0.13 262), oklch(0.6 0.16 262));
+  --fx-aurora-c: light-dark(oklch(0.8 0.1 210), oklch(0.74 0.12 210));
+  /* 승인 대기 맥동의 빛깔. 라이트에서 warning.text(L 0.52)로 칠하면 흰 바탕이 갈색으로 탁해져 밝은 warning.graphic을 쓴다 */
+  --fx-aurora-wait: var(--cs-color-warning-graphic);
+  /* 굴절 하이라이트(끝남의 한 번 쓸림, 지금 띠 위 가장자리) */
+  --fx-aurora-glint: light-dark(oklch(0.82 0.09 215), oklch(0.93 0.06 220));
+  --fx-aurora-strength: 0.42;
+  /* 입력창 바깥으로 스미는 거리 */
+  --fx-aurora-out: 12px;
+}
+:root[data-theme="light"] {
+  --fx-aurora-strength: 0.36;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --fx-aurora-strength: 0.36;
+  }
+}
+
+.fx-aurora {
+  position: absolute;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 280ms cubic-bezier(0.4, 0, 1, 1),
+    visibility 0s linear 280ms;
+}
+.fx-aurora:is([data-state="run"], [data-state="wait"], [data-state="stop"], [data-state="done"]) {
+  visibility: visible;
+  transition:
+    opacity 600ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s;
+}
+.fx-aurora[data-state="run"] {
+  opacity: var(--fx-aurora-strength);
+}
+.fx-aurora[data-state="wait"] {
+  opacity: calc(var(--fx-aurora-strength) * 0.9);
+}
+/* 멈추는 중: 흐름은 그대로 두고 세기만 잦아든다 */
+.fx-aurora[data-state="stop"] {
+  opacity: calc(var(--fx-aurora-strength) * 0.25);
+}
+/* 끝남: 하이라이트가 한 번 쓸리는 동안 남았다가 사라진다 */
+.fx-aurora[data-state="done"] {
+  opacity: 0;
+  transition:
+    opacity 520ms cubic-bezier(0.4, 0, 1, 1) 320ms,
+    visibility 0s linear 840ms;
+}
+
+/* (가) 입력창 바깥 띠: 입력창 상자 뒤(BeamScope가 isolate)에 상자보다 --fx-aurora-out만큼 큰 판을 두고 바깥쪽으로 옅어지게 한다.
+   상자 채움이 안쪽을 가리므로 빛은 테두리 바로 바깥에만 보인다. 위쪽(맥락 줄 글이 있는 쪽)은 반만 스민다 */
+.fx-aurora[data-site="composer"] {
+  z-index: -1;
+  box-sizing: content-box;
+  padding: var(--fx-aurora-out);
+  margin: calc(var(--fx-aurora-out) * -1);
+  border-radius: calc(var(--fx-beam-radius, 16px) + var(--fx-aurora-out));
+  mask-image:
+    linear-gradient(
+      to right,
+      transparent,
+      rgb(0 0 0 / 0.45) calc(var(--fx-aurora-out) * 0.5),
+      #000 var(--fx-aurora-out),
+      #000 calc(100% - var(--fx-aurora-out)),
+      rgb(0 0 0 / 0.45) calc(100% - var(--fx-aurora-out) * 0.5),
+      transparent
+    ),
+    linear-gradient(
+      to bottom,
+      transparent calc(var(--fx-aurora-out) * 0.5),
+      #000 var(--fx-aurora-out),
+      #000 calc(100% - var(--fx-aurora-out)),
+      rgb(0 0 0 / 0.45) calc(100% - var(--fx-aurora-out) * 0.5),
+      transparent
+    );
+  mask-composite: intersect;
+}
+
+/* (나) 지금 띠 바탕: 띠 안 아래쪽에서 흐르고 위로 옅어진다(글 대비를 지키려고 위 절반은 거의 비운다) */
+.fx-aurora[data-site="strip"] {
+  /* 접힌 줄(36px)에만 흐른다. 펼친 목록 위로는 번지지 않는다 */
+  inset-inline: 0;
+  top: 0;
+  height: 2.25rem;
+  z-index: 0;
+  border-radius: inherit;
+  mask-image: linear-gradient(to bottom, transparent 25%, rgb(0 0 0 / 0.5) 60%, #000);
+}
+.fx-aurora[data-site="strip"][data-state="run"] {
+  opacity: calc(var(--fx-aurora-strength) * 0.7);
+}
+
+.fx-aurora-blob {
+  position: absolute;
+  top: -30%;
+  left: 0;
+  width: 55%;
+  height: 160%;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    var(--fx-blob),
+    color-mix(in oklch, var(--fx-blob) 45%, transparent) 55%,
+    transparent
+  );
+  will-change: transform;
+  animation: var(--fx-blob-anim) ease-in-out infinite alternate;
+  /* 꺼져 있으면(숨김) 멈춘다: 숨은 요소의 애니메이션은 합성기에 오르지 않고 매 프레임 스타일을 다시 계산한다(dzE 시안 §7) */
+  animation-play-state: paused;
+  transition: opacity 600ms cubic-bezier(0.2, 0, 0, 1);
+}
+.fx-aurora:is([data-state="run"], [data-state="stop"], [data-state="done"]) .fx-aurora-blob {
+  animation-play-state: running;
+}
+.fx-aurora-blob[data-blob="a"] {
+  --fx-blob: var(--fx-aurora-a);
+  --fx-blob-anim: fx-aurora-a 7.2s;
+}
+.fx-aurora-blob[data-blob="b"] {
+  --fx-blob: var(--fx-aurora-b);
+  --fx-blob-anim: fx-aurora-b 9.6s;
+  animation-delay: -3.1s;
+}
+.fx-aurora-blob[data-blob="c"] {
+  --fx-blob: var(--fx-aurora-c);
+  --fx-blob-anim: fx-aurora-c 12s;
+  width: 38%;
+  animation-delay: -5.3s;
+}
+@keyframes fx-aurora-a {
+  from {
+    transform: translate(-35%, 4%);
+  }
+  to {
+    transform: translate(105%, -4%);
+  }
+}
+@keyframes fx-aurora-b {
+  from {
+    transform: translate(120%, -3%);
+  }
+  to {
+    transform: translate(-25%, 5%);
+  }
+}
+@keyframes fx-aurora-c {
+  from {
+    transform: translate(10%, 6%) scaleX(1.3);
+  }
+  to {
+    transform: translate(220%, -6%) scaleX(0.9);
+  }
+}
+
+/* 승인 대기: 흐름이 멈추고 알갱이가 옅어지며 경고 색 한 겹이 4.8초에 고요히 숨 쉰다 */
+.fx-aurora-wash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    120% 160% at 50% 100%,
+    var(--fx-aurora-wait),
+    color-mix(in oklch, var(--fx-aurora-wait) 30%, transparent) 60%,
+    transparent
+  );
+  opacity: 0;
+  transition: opacity 600ms cubic-bezier(0.2, 0, 0, 1);
+}
+.fx-aurora[data-state="wait"] .fx-aurora-blob {
+  animation-play-state: paused;
+  opacity: 0.25;
+}
+.fx-aurora[data-state="wait"] .fx-aurora-wash {
+  animation: fx-aurora-breathe 4.8s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+}
+@keyframes fx-aurora-breathe {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* 굴절 하이라이트: 끝날 때 왼쪽에서 오른쪽으로 한 번 쓸린다 */
+.fx-aurora-glint {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 22%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklch, var(--fx-aurora-glint) 80%, transparent) 50%,
+    transparent
+  );
+  opacity: 0;
+  transform: translateX(-100%);
+}
+.fx-aurora[data-state="done"] .fx-aurora-glint {
+  animation: fx-aurora-glint 760ms cubic-bezier(0.22, 1, 0.36, 1) 1 both;
+}
+@keyframes fx-aurora-glint {
+  0% {
+    opacity: 1;
+    transform: translateX(-100%);
+  }
+  100% {
+    opacity: 0.6;
+    transform: translateX(460%);
+  }
+}
+
+/* 움직임 줄이기: 흐르지 않고 정지한 은은한 빛(세기 0.3배), 맥동·쓸림 없음 */
+@media (prefers-reduced-motion: reduce) {
+  .fx-aurora[data-state] :is(.fx-aurora-blob, .fx-aurora-wash, .fx-aurora-glint) {
+    animation: none;
+  }
+  .fx-aurora[data-state="run"] {
+    opacity: calc(var(--fx-aurora-strength) * 0.55);
+  }
+  .fx-aurora[data-state="wait"] .fx-aurora-wash {
+    opacity: 0.3;
+  }
+}
+:root[data-motion="reduce"]
+  .fx-aurora[data-state]
+  :is(.fx-aurora-blob, .fx-aurora-wash, .fx-aurora-glint) {
+  animation: none;
+}
+:root[data-motion="reduce"] .fx-aurora[data-state="run"] {
+  opacity: calc(var(--fx-aurora-strength) * 0.55);
+}
+:root[data-motion="reduce"] .fx-aurora[data-state="wait"] .fx-aurora-wash {
+  opacity: 0.3;
+}

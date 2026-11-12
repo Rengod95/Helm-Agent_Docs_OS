@@ -219,57 +219,6 @@
   position: relative;
 }
 
-/* 도는 동안 줄 아래 변을 흐르는 가는 굴절광(dzM2 시안 §3). beam의 선 변형을 줄에 맞게 작게: 1px, 폭 28%, 1.6s.
-   transform만 움직여 합성기에서 돈다. 끝나면 160ms에 사라지고 멈춘다. 색은 beam.css의 크리스탈 변수 */
-.convo-line-beam {
-  position: absolute;
-  inset-inline: 6px;
-  bottom: 0;
-  height: 1px;
-  overflow: hidden;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 160ms cubic-bezier(0.4, 0, 1, 1);
-}
-.convo-line-beam[data-on="true"] {
-  opacity: 0.85;
-  transition: opacity 200ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-.convo-line-beam-streak {
-  position: absolute;
-  inset-block: 0;
-  left: 0;
-  width: 28%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--fx-crystal-a) 35%,
-    var(--fx-crystal-b) 60%,
-    var(--fx-crystal-c) 85%,
-    transparent
-  );
-  transform: translateX(-100%);
-  animation: convo-line-flow 1.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
-}
-.convo-line-beam[data-on="false"] .convo-line-beam-streak {
-  animation-play-state: paused;
-}
-@keyframes convo-line-flow {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(360%);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .convo-line-beam {
-    display: none;
-  }
-}
-:root[data-motion="reduce"] .convo-line-beam {
-  display: none;
-}
 .convo-line-hit {
   position: absolute;
   inset: 0;

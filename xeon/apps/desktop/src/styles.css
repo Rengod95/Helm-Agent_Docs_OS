@@ -14,6 +14,7 @@
 @import "./views/thinking-indicator.css";
 @import "./views/call-chip.css";
 @import "./views/effects/beam.css";
+@import "./views/effects/aurora.css";
 @import "./views/effects/drawn-check.css";
 @import "./views/convo/convo.css";
 @import "./lib/highlight-theme.css";
@@ -123,6 +124,25 @@
     overflow-y: auto;
     contain: strict;
     background: transparent;
+  }
+  /* DP-128 대화 기록 위아래의 아주 약한 흐림: 가려진 내용이 있는 쪽 끝(위 20px, 아래 24px)을 mask로 옅게 한다(virtual-list-edge.ts가 속성을 단다).
+     세 정지점(0 → 0.55 → 1)이라 끝이 뿌옇게 풀린다. blur는 쓰지 않는다(스크롤 프레임마다 다시 그림) */
+  .scroller[data-fade-top][data-fade-bottom] {
+    mask-image: linear-gradient(
+      to bottom,
+      rgb(0 0 0 / 0.08),
+      rgb(0 0 0 / 0.55) 10px,
+      #000 20px,
+      #000 calc(100% - 24px),
+      rgb(0 0 0 / 0.55) calc(100% - 12px),
+      rgb(0 0 0 / 0.08)
+    );
+  }
+  .scroller[data-fade-top]:not([data-fade-bottom]) {
+    mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.08), rgb(0 0 0 / 0.55) 10px, #000 20px);
+  }
+  .scroller[data-fade-bottom]:not([data-fade-top]) {
+    mask-image: linear-gradient(to top, rgb(0 0 0 / 0.08), rgb(0 0 0 / 0.55) 12px, #000 24px);
   }
   /* contain: strict가 바깥 그림자를 잘라 내므로 초점 고리는 안쪽에 그린다 */
   .scroller:focus-visible {

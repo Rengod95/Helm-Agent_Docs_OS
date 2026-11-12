@@ -1,8 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import {
+  cornerExponentOf,
   orbitKeyframesOf,
   orbitPointsOf,
   periodMsOf,
+  pointAt,
+  trailLagMsOf,
 } from "../../../src/views/effects/beam-orbit.ts";
 
 // beam 궤도 키프레임(dzM2 시안 §11, DP-120)
@@ -43,7 +46,8 @@ describe("키프레임", () => {
     expect(offsets[0]).toBe(0);
     expect(offsets.at(-1)).toBe(1);
     expect(offsets.every((value, i) => i === 0 || value >= (offsets[i - 1] ?? 0))).toBe(true);
-    expect(frames[0]?.transform).toBe("translate(-20.00px, -10.00px) rotate(0.00deg)");
+    // 고정점은 알갱이 가운데다
+    expect(frames[0]?.transform).toBe("translate(-4.00px, -10.00px) rotate(0.00deg)");
   });
 
   test("빈 상자는 offset 0만 낸다", () => {
@@ -57,5 +61,70 @@ describe("주기 글", () => {
     expect([periodMsOf("3.6s"), periodMsOf(" 2400ms "), periodMsOf("var(--x)")]).toEqual([
       3600, 2400, 3600,
     ]);
+  });
+});
+
+describe("모서리 모양(dzE 시안 §1)", () => {
+  test("corner-shape 계산값을 곡선 지수로 읽는다", () => {
+    expect(
+      [
+        "round",
+        "",
+        "squircle",
+        "superellipse(2)",
+        "superellipse(3)",
+        "bevel",
+        "squircle round",
+      ].map(cornerExponentOf),
+    ).toEqual([2, 2, 4, 4, 8, 1, 4]);
+  });
+
+  test("squircle 궤도의 모서리 점은 |x|⁴+|y|⁴=r⁴ 위에 있다", () => {
+    const r = 24;
+    const points = orbitPointsOf({ width: 300, height: 80, radius: r, exponent: 4 });
+    // 오른쪽 위 모서리(중심 (276, 24))의 점들
+    const corner = points.filter((p) => p.x > 276 + 0.01 && p.y < 24 - 0.01);
+    expect(corner.length).toBeGreaterThan(10);
+    const worst = Math.max(
+      ...corner.map((p) => Math.abs(((p.x - 276) / r) ** 4 + ((24 - p.y) / r) ** 4 - 1)),
+    );
+    expect(worst).toBeLessThan(1e-9);
+  });
+
+  test("squircle 모서리는 원보다 바깥으로 차 있다: 대각선 점이 테두리 쪽으로 2.5px 넘게 나간다", () => {
+    const r = 25.2;
+    const diagonal = (exponent: number): number => {
+      const points = orbitPointsOf({ width: 400, height: 80, radius: r, exponent });
+      // 오른쪽 위 모서리에서 중심으로부터 45° 방향에 가장 가까운 점까지의 거리
+      const cx = 400 - r;
+      const best = points
+        .filter((p) => p.x > cx && p.y < r)
+        .reduce((a, b) =>
+          Math.abs(b.x - cx - (r - b.y)) < Math.abs(a.x - cx - (r - a.y)) ? b : a,
+        );
+      return Math.hypot(best.x - cx, best.y - r);
+    };
+    expect(diagonal(4) - diagonal(2)).toBeGreaterThan(2.5);
+  });
+
+  test("각도는 squircle에서도 0에서 360까지 줄지 않고 끝은 360이다", () => {
+    const angles = orbitPointsOf({ width: 200, height: 60, radius: 20, exponent: 4 }).map(
+      (p) => p.angle,
+    );
+    expect(angles.every((angle, i) => i === 0 || angle >= (angles[i - 1] ?? 0))).toBe(true);
+    expect(angles.at(-1)).toBe(360);
+  });
+});
+
+describe("꼬리", () => {
+  test("간격(px)을 둘레 비율로 바꿔 늦춘다", () => {
+    expect([trailLagMsOf(0, 14, 700, 3600), trailLagMsOf(2, 14, 700, 3600)]).toEqual([0, 144]);
+    expect(trailLagMsOf(3, 14, 0, 3600)).toBe(0);
+  });
+
+  test("pointAt은 둘레 길이로 점을 읽고 둘레를 넘으면 감는다", () => {
+    const points = orbitPointsOf({ width: 100, height: 40, radius: 0 });
+    expect(pointAt(points, 50)).toEqual({ x: 50, y: 0 });
+    expect(pointAt(points, 280 + 120)).toEqual({ x: 100, y: 20 });
   });
 });
