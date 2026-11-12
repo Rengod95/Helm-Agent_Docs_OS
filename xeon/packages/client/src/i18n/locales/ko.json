@@ -5401,7 +5401,6 @@
   "settings.l0.sandbox.credentialFiles.option.allow": "읽게 두기",
   "settings.l0.sandbox.credentialFiles.option.deny": "막기",
   "settings.l0.sandbox.onUnavailable.option.disableExecute": "명령 실행 막기",
-  "settings.l0.sandbox.onUnavailable.option.ask": "물어보기",
   "settings.l0.sandbox.onUnavailable.option.runUnsandboxed": "격리 없이 실행",
   "settings.l0.secrets.ageKey.source.option.auto": "자동",
   "settings.l0.secrets.ageKey.source.option.autoFile": "자동(파일 우선)",

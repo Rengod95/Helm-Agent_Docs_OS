@@ -365,10 +365,18 @@ test("invalid undeclared values fall back to defaults and are reported without t
 test("l0.sandbox.* reach the sandbox source (enabled by default)", async () => {
   expect(sandboxSource(await engineWith({}))().enabled).toBe(true);
   const off = sandboxSource(
-    await engineWith({ "l0.sandbox.enabled": false, "l0.sandbox.onUnavailable": "ask" }),
+    await engineWith({
+      "l0.sandbox.enabled": false,
+      "l0.sandbox.onUnavailable": "run_unsandboxed",
+    }),
   )();
   expect(off.enabled).toBe(false);
-  expect(off.onUnavailable).toBe("ask");
+  expect(off.onUnavailable).toBe("run_unsandboxed");
+});
+
+test("a stored l0.sandbox.onUnavailable ask (option removed) reads as disable_execute", async () => {
+  const stored = sandboxSource(await engineWith({ "l0.sandbox.onUnavailable": "ask" }))();
+  expect(stored.onUnavailable).toBe("disable_execute");
 });
 
 test("l0.secrets.* build the secrets config and drop malformed sops files", async () => {

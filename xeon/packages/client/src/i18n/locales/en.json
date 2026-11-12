@@ -5401,7 +5401,6 @@
   "settings.l0.sandbox.credentialFiles.option.allow": "Allow",
   "settings.l0.sandbox.credentialFiles.option.deny": "Block",
   "settings.l0.sandbox.onUnavailable.option.disableExecute": "Block command execution",
-  "settings.l0.sandbox.onUnavailable.option.ask": "Ask",
   "settings.l0.sandbox.onUnavailable.option.runUnsandboxed": "Run without isolation",
   "settings.l0.secrets.ageKey.source.option.auto": "Automatic",
   "settings.l0.secrets.ageKey.source.option.autoFile": "Automatic (file first)",

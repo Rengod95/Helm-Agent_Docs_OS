@@ -6,6 +6,10 @@ import {
   readSandboxSettings,
 } from "../src/settings.ts";
 
+/** 물어보기를 뺀 뒤에도 사용자 설정 파일에 남아 있을 수 있는 옛 값을 흉내 낸다 */
+const storedAsk = (key: string): unknown =>
+  key === "l0.sandbox.onUnavailable" ? "ask" : undefined;
+
 describe("sandbox settings", () => {
   test("declares the l0.sandbox keys under l0.sandbox with valid definitions", () => {
     expect(SANDBOX_SETTING_DEFS.map((def) => def.key)).toEqual([
@@ -70,7 +74,7 @@ describe("sandbox settings", () => {
   test("reads valid values and falls back to defaults for invalid ones", () => {
     const values: Record<string, unknown> = {
       "l0.sandbox.enabled": false,
-      "l0.sandbox.onUnavailable": "ask",
+      "l0.sandbox.onUnavailable": "run_unsandboxed",
       "l0.sandbox.protectedPaths.extra": ["/a", "~/b"],
       "l0.sandbox.writeRoots.extra": ["/w"],
       "l0.sandbox.escapeRetry": true,
@@ -81,7 +85,7 @@ describe("sandbox settings", () => {
     };
     expect(readSandboxSettings((key) => values[key])).toEqual({
       enabled: false,
-      onUnavailable: "ask",
+      onUnavailable: "run_unsandboxed",
       protectedPathsExtra: ["/a", "~/b"],
       writeRootsExtra: ["/w"],
       escapeRetry: true,
@@ -102,5 +106,14 @@ describe("sandbox settings", () => {
       "l0.sandbox.selfTestIntervalMin": 99999,
     };
     expect(readSandboxSettings((key) => broken[key])).toEqual(DEFAULT_SANDBOX_SETTINGS);
+  });
+
+  test("the unavailable choices are disable_execute and run_unsandboxed only", () => {
+    const def = SANDBOX_SETTING_DEFS.find((item) => item.key === "l0.sandbox.onUnavailable");
+    expect(def?.range).toEqual({ enum: ["disable_execute", "run_unsandboxed"] });
+  });
+
+  test("a stored ask from before the option was removed reads as disable_execute", () => {
+    expect(readSandboxSettings(storedAsk).onUnavailable).toBe("disable_execute");
   });
 });

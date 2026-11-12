@@ -146,13 +146,11 @@ export function decideExecution(
 ): ExecutionDecision {
   if (status.reason === "disabled") return { action: "plain", by: "disabled" };
   if (policy.allowEscape) {
-    const permitted = escapeRetry || (!status.available && status.onUnavailable === "ask");
-    return permitted ? { action: "plain", by: "escape" } : { action: "reject", cause: "escape" };
+    return escapeRetry ? { action: "plain", by: "escape" } : { action: "reject", cause: "escape" };
   }
   if (status.available) return { action: "sandboxed" };
   switch (status.onUnavailable) {
     case "disable_execute":
-    case "ask":
       return { action: "reject", cause: "unavailable" };
     case "run_unsandboxed":
       return { action: "plain", by: "run_unsandboxed" };

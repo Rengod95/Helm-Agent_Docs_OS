@@ -16,7 +16,8 @@ export type SandboxUnavailableReason =
   | "unsupported_os"
   | "self_test_failed"
   | "disabled";
-export type OnUnavailable = "disable_execute" | "ask" | "run_unsandboxed";
+/** 격리를 쓸 수 없을 때의 정책(L0.sandbox.spec §4.5). 물어보기는 없다: 승인 흐름이 없어 막기와 같았다 [결정: 2026-11-11 사용자] */
+export type OnUnavailable = "disable_execute" | "run_unsandboxed";
 
 export type SelfTestItemId =
   | "protected_read_denied"
@@ -77,11 +78,7 @@ const sandboxStatusShape = Type.Object(
     ),
     missing: Type.Optional(Type.Array(Type.String({ maxLength: 64 }), { maxItems: 16 })),
     installHints: Type.Optional(Type.Array(Type.String({ maxLength: 500 }), { maxItems: 16 })),
-    onUnavailable: Type.Union([
-      Type.Literal("disable_execute"),
-      Type.Literal("ask"),
-      Type.Literal("run_unsandboxed"),
-    ]),
+    onUnavailable: Type.Union([Type.Literal("disable_execute"), Type.Literal("run_unsandboxed")]),
     lastSelfTest: Type.Optional(
       Type.Object(
         {
@@ -287,9 +284,7 @@ export function describeSandboxStatus(status: SandboxStatus): SandboxStatusSumma
   const consequence =
     status.onUnavailable === "disable_execute"
       ? "Shell commands are disabled."
-      : status.onUnavailable === "ask"
-        ? "Shell commands need your approval to run without isolation."
-        : "Shell commands run without isolation.";
+      : "Shell commands run without isolation.";
   switch (status.reason) {
     case "missing_dependency": {
       const missing = status.missing ?? [];

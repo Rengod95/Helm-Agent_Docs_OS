@@ -1504,7 +1504,6 @@
       "default": "disable_execute",
       "enum": [
         "disable_execute",
-        "ask",
         "run_unsandboxed"
       ],
       "maxLength": 32,

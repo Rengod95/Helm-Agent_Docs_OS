@@ -241,11 +241,11 @@ describe("status", () => {
       provider,
       enabled: true,
       detection: { kind: "ready", tools: {} },
-      onUnavailable: "ask",
+      onUnavailable: "run_unsandboxed",
       lastSelfTest: undefined,
     });
     expect(formatStatusLine(status)).toBe(
-      "sandbox level=srt platform=linux available=true reason=none onUnavailable=ask",
+      "sandbox level=srt platform=linux available=true reason=none onUnavailable=run_unsandboxed",
     );
   });
 
@@ -254,7 +254,7 @@ describe("status", () => {
     const base = {
       provider,
       enabled: true,
-      onUnavailable: "ask",
+      onUnavailable: "disable_execute",
       lastSelfTest: undefined,
     } as const;
     const ready = buildStatus({

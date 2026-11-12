@@ -167,17 +167,14 @@ describe("wrapArgv", () => {
     expect(r.srt.wrapCalls.length).toBe(0);
   });
 
-  test.each(["disable_execute", "ask"] as const)(
-    "unavailable with %s is err unavailable with the status reason, and srt is never called",
-    async (onUnavailable) => {
-      const r = await rig({ platform: WIN32, settings: { onUnavailable } });
-      expect(r.service.status()).toMatchObject({ available: false, reason: "unsupported_os" });
-      const result = await r.service.wrapArgv(r.policy(), tool(), NO_CANCEL);
-      expect(!result.ok && result.error).toEqual({ kind: "unavailable", reason: "unsupported_os" });
-      expect(r.srt.wrapCalls.length).toBe(0);
-      expect(r.srt.initializeCalls.length).toBe(0);
-    },
-  );
+  test("unavailable with disable_execute is err unavailable with the status reason, and srt is never called", async () => {
+    const r = await rig({ platform: WIN32, settings: { onUnavailable: "disable_execute" } });
+    expect(r.service.status()).toMatchObject({ available: false, reason: "unsupported_os" });
+    const result = await r.service.wrapArgv(r.policy(), tool(), NO_CANCEL);
+    expect(!result.ok && result.error).toEqual({ kind: "unavailable", reason: "unsupported_os" });
+    expect(r.srt.wrapCalls.length).toBe(0);
+    expect(r.srt.initializeCalls.length).toBe(0);
+  });
 
   test("run_unsandboxed returns the plain argv marked run_unsandboxed, with no env and no srt call", async () => {
     const r = await rig({ platform: WIN32, settings: { onUnavailable: "run_unsandboxed" } });

@@ -5,7 +5,8 @@ import type { OnUnavailable } from "@fresnel/contracts/services";
 // L0.sandbox.spec §6. 넓히는 키(enabled, onUnavailable, writeRoots.extra, escapeRetry)는 project 범위를 받지 않는다.
 // 네트워크는 기본 허용이고 차단 도메인만 관리한다(M3-REQ-55). 허용 목록 키(l0.sandbox.network.allowedDomains)는 정의하지 않는다.
 
-const UNAVAILABLE_VALUES = ["disable_execute", "ask", "run_unsandboxed"] as const;
+// 물어보기(ask)는 뺐다 [결정: 2026-11-11 사용자]. 저장된 옛 값은 설정 엔진이 무효로 보고 기본값 disable_execute로 읽는다.
+const UNAVAILABLE_VALUES = ["disable_execute", "run_unsandboxed"] as const;
 
 const CREDENTIAL_FILE_VALUES = ["allow", "deny"] as const;
 type CredentialFilesMode = (typeof CREDENTIAL_FILE_VALUES)[number];
@@ -169,7 +170,7 @@ function isCredentialFilesMode(value: unknown): value is CredentialFilesMode {
 }
 
 function isOnUnavailable(value: unknown): value is OnUnavailable {
-  return value === "disable_execute" || value === "ask" || value === "run_unsandboxed";
+  return value === "disable_execute" || value === "run_unsandboxed";
 }
 
 function isStringArray(value: unknown): value is string[] {
