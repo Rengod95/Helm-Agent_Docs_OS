@@ -591,7 +591,7 @@ M2 첫 실행에서 깨끗한 Mac에는 `fresnel` 명령이 설치되어 있지 
 3. WebView가 `secret_register`를 원시 바이트 본문 `<동작> <이름>\n<값>`으로 부른다(JSON 문자열에 싣지 않는다). 호출이 끝나면 그 바이트 배열을 0으로 덮는다.
 4. 셸은 본문을 검사한다(동작은 `add`·`set`, 이름은 `^[a-z][a-z0-9-]{1,63}$`라서 `-`로 시작하는 옵션이 될 수 없다, 값은 1바이트 이상 8 KiB 이하). 번들된 사이드카를 인자 `secret <동작> <이름>`으로 실행한다. 작업 폴더와 환경은 엔진과 같다(홈, `BUN_OPTIONS` 제거, PATH 보강은 E7). 그러므로 CLI와 사이드카가 같은 OS 디렉터리를 보고 같은 시크릿 저장소(설정 폴더의 시크릿 메타 `<config>/secrets/meta`, SOPS 파일, age 키)를 쓴다. 상태 폴더의 `cli/state.json`은 CLI의 자체 상태 파일이고 시크릿 저장소가 아니다.
 5. 셸은 요청 본문의 값 조각을 복사하지 않고 자식 stdin에 한 번 쓰고 닫는다(EOF). CLI는 stdin이 TTY가 아니면 EOF까지 읽고 끝의 줄바꿈 하나를 지운다(`L4.cli.spec` §4.7, 상한 64 KiB). 셸 쪽 값 상한 8 KiB는 파이프 버퍼보다 작게 두어 자식이 읽지 않고 끝나도 쓰기가 막히지 않게 한다.
-6. 셸은 자식이 끝나기를 30초까지 기다린다. 넘으면 프로세스 그룹째 끝낸다(자식이 부른 sops와 age 포함). 종료 코드 0이면 성공이다. 아니면 `rejected`이고 `detail`에 자식 stderr의 앞부분(600자)을 싣는다. CLI의 오류 문구는 값을 담지 않는다. 그래도 자식 출력에 값이 그대로 들어 있으면 `detail`을 비운다.
+6. 셸은 자식이 끝나기를 30초까지 기다린다. 넘으면 프로세스 그룹째 끝낸다(자식이 부른 sops와 age 포함). 종료 코드 0이면 성공이다. 아니면 `rejected`이고 `detail`에 자식 stderr의 앞부분(600자)을 싣는다. 자식 stderr의 마지막 줄이 `fresnel-code: <코드>`면 그 코드를 `code`로 싣고 그 줄은 `detail`에서 뺀다(아래 규칙). CLI의 오류 문구는 값을 담지 않는다. 그래도 자식 출력에 값이 그대로 들어 있으면 `detail`을 비운다.
 7. 성공하면 화면은 provider를 연결하고 `secret.list`를 다시 읽어 "등록됨"을 보인다.
 
 규칙:
@@ -601,6 +601,30 @@ M2 첫 실행에서 깨끗한 Mac에는 `fresnel` 명령이 설치되어 있지 
 - `secret rotate`는 CLI가 비TTY를 거부하므로(`L4.cli.spec` §4.7) 이 경로는 `add`와 `set`만 쓴다.
 - 개발 빌드에서 `FRESNEL_DESKTOP_ENGINE_BIN`과 `FRESNEL_DESKTOP_ENGINE_ARGS`가 `... host --stdio`로 끝나면 그 앞부분에 `secret <동작> <이름>`을 이어 쓴다. 그 모양이 아니면 번들 사이드카를 쓴다. 덮어쓴 엔진에도 안전 모드 플래그와 대상 인자가 `host --stdio` 뒤에 같은 규칙으로 붙는다(옛 Tauri 구현(커밋 424f338a)의 `engine.rs` `dev_override_argv`, 단위 시험이 있었다. Electron 셸은 `engine/launcher.ts`와 `secret-entry.ts`의 `devOverrideOf`가 맡는다).
 - 사이드카를 띄우지 못하면(`unavailable`) 화면은 기존 터미널 명령 안내로 돌아간다.
+- [결정: 2026-11-12 사용자] 엔진 실패는 `fresnel-code` 줄의 종류 코드로 분류하며 문장 일치를 쓰지 않는다. 앞에서 쓰던 문장 맞춰 보기(셸의 정규식, 화면의 `rejectionOf`)는 이 결정으로 없앤다. 셸은 자식 stderr의 마지막 줄 `fresnel-code: <코드>`를 읽어 `rejected.code`로 싣고, 줄이 없거나 어휘에 없는 코드면 `unknown`이다. `key_store`는 키체인 종류(`keystore`)로 간다. 어휘는 `@fresnel/contracts/services`의 `FAILURE_KINDS`가 정본이고 CLI(`apps/cli/src/errors.ts`), 셸(`secret-entry.ts`), IPC(`SecretRegisterErrorSchema`), 화면(`settings/key-entry.ts`)이 같은 상수를 쓴다. 로그 줄은 `rejected (exit 1, key_store)`처럼 코드를 함께 쓴다. 값은 어디에도 들어가지 않는다.
+- 화면은 코드마다 원인 문장과 해결 문장을 카탈로그 `client.settings.key.reason.<이름>.text|fix`에서 고른다. `<이름>`은 코드를 camelCase로 바꾼 것이다(카탈로그 id는 밑줄을 쓰지 않는다, `MESSAGE_KEY_PATTERN`). `unknown`은 일반 문장(`client.settings.key.rejected`)이고 "자세히"에 사이드카 출력의 첫 줄을 보인다. 코드별 문장은 아래 표다(ko 요지, 해결은 해요체로 같은 뜻).
+
+| 코드 | 원인 문장(ko 요지) | 해결 한 줄(ko 요지) |
+|---|---|---|
+| `key_store` | OS 키 저장소를 쓸 수 없어요 | 키 저장소 잠금을 풀거나 설정의 시크릿에서 열쇠 보관을 '앱 파일'로 바꿔요 |
+| `key_missing` | 복호화 키를 찾을 수 없어요 | 이미 쓰는 시크릿 파일이 있으면 그 키 위치를 확인하고, 처음이면 다시 등록해요 |
+| `key_file` | 열쇠 파일을 쓸 수 없거나 권한이 맞지 않아요 | 설정 폴더의 secrets/age 폴더 권한을 확인해요. 있는 키 파일은 덮어쓰지 않아요 |
+| `service_local_only` | 이 컴퓨터에서만 값을 넣을 수 있어요 | 값을 넣을 컴퓨터의 앱에서 등록하거나 그 컴퓨터에서 `fresnel secret add <이름>`을 실행해요 |
+| `already_exists` | 이미 있는 이름이에요 | 값만 바꾸려면 '값 바꾸기'를 써요 |
+| `not_found` | 그 이름의 키가 없어요 | 이름을 확인하거나 새 키로 등록해요 |
+| `value_too_short` | 값이 너무 짧아요(8자 이상) | 키 전체를 붙여 넣었는지 확인해요 |
+| `value_empty` | 키가 비어 있어요 | 키를 붙여 넣고 다시 등록해요 |
+| `cancelled` | 입력을 취소했어요 | 다시 등록해요 |
+| `sops_missing` | sops가 없어요 | sops 3.10 이상을 설치해요 |
+| `sops_version` | sops 버전이 너무 낮아요 | sops를 3.10 이상(권장 3.12 이상)으로 올려요 |
+| `age_missing` | age가 없어요 | age를 설치해요 |
+| `provider_unavailable` | 시크릿 제공자를 쓸 수 없어요 | sops와 age를 설치하고 설정을 확인해요 |
+| `decrypt_failed` | 시크릿을 복호화하지 못했어요 | age 키가 이 파일의 수신자인지 확인해요 |
+| `read_only_provider` | 읽기 전용 제공자라 쓸 수 없어요 | sops 제공자를 써요 |
+| `write_failed` | 시크릿 저장소에 쓰지 못했어요 | 데이터 폴더 권한과 디스크 상태를 확인해요 |
+| `store_busy` | 저장소가 다른 쓰기로 바빠요 | 잠시 뒤 다시 등록해요 |
+| `service_unreachable` | 엔진 서비스에 연결하지 못했어요 | 잠시 뒤 다시 등록해요 |
+| `unknown` | 키를 저장하지 못했어요(일반 문장) | 없음. "자세히"에 사이드카 출력의 첫 줄과 종료 코드 |
 
 약점(받아들인 것):
 

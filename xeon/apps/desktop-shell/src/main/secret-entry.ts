@@ -16,6 +16,7 @@ import {
   type Scheduler,
   type TimerHandle,
 } from "@fresnel/contracts";
+import { FAILURE_CODE_PREFIX, isFailureKind, type FailureKind } from "@fresnel/contracts/services";
 import {
   detectProcessPlatform,
   spawnPiped,
@@ -65,9 +66,15 @@ export type SecretEntryError =
   | { readonly kind: "busy" }
   | { readonly kind: "timeout" }
   | { readonly kind: "unavailable"; readonly detail: string }
-  /** 사이드카가 OS 키 저장소(키체인 등)에 키를 만들거나 읽지 못했다. 화면은 이 종류로 한국어 문장과 해결 단추를 보인다 */
+  /** 사이드카가 종류 코드 `key_store`(OS 키 저장소를 쓰지 못함)로 끝났다. 화면은 이 종류로 키체인 문장과 다시 시도 단추를 보인다 */
   | { readonly kind: "keystore" }
-  | { readonly kind: "rejected"; readonly exitCode: number | null; readonly detail: string };
+  /** 자식이 0이 아닌 코드로 끝났다. `code`는 자식의 `fresnel-code` 줄(없거나 모르면 `unknown`), `detail`은 그 줄을 뺀 출력의 앞부분이다 */
+  | {
+      readonly kind: "rejected";
+      readonly exitCode: number | null;
+      readonly detail: string;
+      readonly code: FailureKind;
+    };
 
 /** 실행 단계에서 나올 수 있는 거부(본문 검사 거부는 실행 전에 끝난다) */
 type RunFailure = Extract<
@@ -254,19 +261,10 @@ async function runEntry(
   }
   const wroteAll = await written;
   if (exit.code === 0 && wroteAll) return ok(null);
-  const detail = summarize(stderrOf(), request.value);
-  if (isKeyStoreFailure(detail)) return err({ kind: "keystore" });
-  return err({ kind: "rejected", exitCode: exit.code, detail });
-}
-
-/**
- * 사이드카 오류 문장이 OS 키 저장소 실패를 말하는가. 사이드카는 종류 코드를 따로 주지 않고 문장(영어, 한국어)만 stderr에 쓴다.
- * 문장 중 "OS key store"와 "OS 키 저장소"가 키 저장소 오류(`cli.errors.secret.keyStore`, `keyUnavailable.fileAccessDenied`)에만 나온다.
- */
-const KEY_STORE_TEXT = /OS key store|OS 키 저장소/iu;
-
-export function isKeyStoreFailure(detail: string): boolean {
-  return KEY_STORE_TEXT.test(detail);
+  const failure = failureOf(stderrOf(), request.value);
+  // 문장이 아니라 종류 코드로 나눈다(L4.desktop.spec §4.14.1)
+  if (failure.code === "key_store") return err({ kind: "keystore" });
+  return err({ kind: "rejected", exitCode: exit.code, detail: failure.detail, code: failure.code });
 }
 
 /** 자식 stderr를 앞쪽 상한까지 모은다. 돌려주는 함수는 끝난 뒤에 부른다 */
@@ -302,15 +300,33 @@ async function waitForExit(
 }
 
 /**
- * 자식 stderr의 앞부분을 사용자에게 보일 한 덩어리로 만든다. 값 바이트가 그대로 들어 있으면 전부 비운다.
- * 제어 문자는 공백으로 바꾸고(줄바꿈은 둔다) 600자에서 자른다.
+ * 자식 stderr를 사용자에게 보일 덩어리와 종류 코드로 나눈다. 마지막 `fresnel-code: <코드>` 줄이 종류이고 덩어리에서 뺀다.
+ * 값 바이트가 그대로 들어 있으면 덩어리를 비운다(코드는 어휘의 글이라 값이 아니다). 제어 문자는 공백으로 바꾸고(줄바꿈은 둔다) 600자에서 자른다.
  */
-function summarize(stderr: Uint8Array, value: Uint8Array): string {
-  if (value.length > 0 && containsBytes(stderr, value)) return "";
-  const cleaned = LOOSE_UTF8.decode(stderr).replaceAll(CONTROL_CHARS, (char) =>
-    char === "\n" ? char : " ",
-  );
-  return Array.from(cleaned).slice(0, DETAIL_MAX_CHARS).join("").trim();
+function failureOf(
+  stderr: Uint8Array,
+  value: Uint8Array,
+): { readonly detail: string; readonly code: FailureKind } {
+  const { body, code } = codeLineOf(LOOSE_UTF8.decode(stderr));
+  if (value.length > 0 && containsBytes(stderr, value)) return { detail: "", code };
+  const cleaned = body.replaceAll(CONTROL_CHARS, (char) => (char === "\n" ? char : " "));
+  return { detail: Array.from(cleaned).slice(0, DETAIL_MAX_CHARS).join("").trim(), code };
+}
+
+/**
+ * 글의 마지막 줄이 `fresnel-code: <코드>`면 그 코드와 줄을 뺀 글을 돌려준다. 줄이 없거나 모르는 코드면 `unknown`이고,
+ * 줄이 없으면 글은 그대로다.
+ */
+function codeLineOf(text: string): { readonly body: string; readonly code: FailureKind } {
+  const trimmed = text.trimEnd();
+  const cut = trimmed.lastIndexOf("\n");
+  const last = trimmed.slice(cut + 1);
+  if (!last.startsWith(FAILURE_CODE_PREFIX)) return { body: text, code: "unknown" };
+  const word = last.slice(FAILURE_CODE_PREFIX.length).trim();
+  return {
+    body: cut < 0 ? "" : trimmed.slice(0, cut),
+    code: isFailureKind(word) ? word : "unknown",
+  };
 }
 
 function containsBytes(haystack: Uint8Array, needle: Uint8Array): boolean {
@@ -339,7 +355,7 @@ function outcomeText(result: Result<null, RunFailure>): string {
     case "keystore":
       return "keystore";
     case "rejected":
-      return `rejected (exit ${failure.exitCode === null ? "none" : String(failure.exitCode)})`;
+      return `rejected (exit ${failure.exitCode === null ? "none" : String(failure.exitCode)}, ${failure.code})`;
     default:
       return assertNever(failure, "secret entry outcome");
   }

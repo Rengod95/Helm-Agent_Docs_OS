@@ -69,16 +69,22 @@ describe("settings sentences follow the locale", () => {
     );
   });
 
-  test("key entry errors say what to do, keep the exit code in a separate detail, and never show the server detail", () => {
-    expect(inLocale("en", () => keyErrorText({ kind: "rejected", exitCode: 3, detail: "" }))).toBe(
-      "The key couldn't be saved. Try again in a moment.",
-    );
+  test("key entry errors say what to do, keep the exit code in a separate detail, and show the child's first line only in the detail of an unknown code", () => {
     expect(
-      inLocale("ko", () => keyErrorText({ kind: "rejected", exitCode: 3, detail: "bad" })),
+      inLocale("en", () =>
+        keyErrorText({ kind: "rejected", exitCode: 3, code: "unknown", detail: "" }),
+      ),
+    ).toBe("The key couldn't be saved. Try again in a moment.");
+    expect(
+      inLocale("ko", () =>
+        keyErrorText({ kind: "rejected", exitCode: 3, code: "unknown", detail: "bad" }),
+      ),
     ).toBe("키를 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.");
     expect(
-      inLocale("en", () => keyErrorDetail({ kind: "rejected", exitCode: 3, detail: "bad key" })),
-    ).toBe("Exit code 3");
+      inLocale("en", () =>
+        keyErrorDetail({ kind: "rejected", exitCode: 3, code: "unknown", detail: "bad key" }),
+      ),
+    ).toBe("bad key\nExit code 3");
     expect(inLocale("en", () => keyErrorText({ kind: "busy" }))).toBe(
       "Another key registration is in progress. Try again when it finishes.",
     );

@@ -691,6 +691,31 @@ export interface GroupTemplatesPort {
   - [결정: 2026-11-12] 같은 컴퓨터의 서비스 접속(라우트 `local`)은 값을 로컬 일회용 채널로 주고받는다. CLI가 `mkdtemp`로 0700 폴더를 만들고 그 안에 유닉스 소켓을 열어 경로를 `secret.beginEntry`·`secret.beginReveal`의 `channel`로 보낸다. `add`·`set`·`rotate`는 호스트가 연결해 EOF까지 읽을 때 CLI가 값을 쓰고, 취소나 빈 값이면 아무것도 쓰지 않고 닫는다. `reveal`은 CLI가 터미널에서 이름을 다시 입력받은 뒤(`reauth: "tty-confirm"`) 호스트가 쓴 값을 읽어 TTY에 쓴다. 폴더와 소켓은 성공, 실패, 취소 모두 지운다. 원격 서비스 접속은 채널을 열지 않고 `이 컴퓨터에서만 값을 넣을 수 있어요`(볼 때는 `볼 수 있어요`)로 거절한다. 호스트의 거절은 `secret.localOnly`(3213)다. 서비스 쪽 OS 입력 창은 이 결정으로 대신한다. F wire §3.3.1 2026-11-12 결정이 정본이다.
   - [제안] OS 인증 재확인(macOS Touch ID·암호, Windows Hello 등)이 가능한 플랫폼에서는 표시 전에 재확인한다. 수단은 `L0.secrets.spec`·`L0.os.spec`이 정한다. 재확인을 못 하는 플랫폼에서는 TTY 확인 문구(이름을 다시 입력)만 받는다.
   - 열람은 감사 기록(`L0.secrets.spec`)에 남긴다. 기록에는 값이 없다.
+- [결정: 2026-11-12 사용자] 엔진 실패는 `fresnel-code` 줄의 종류 코드로 분류하며 문장 일치를 쓰지 않는다. 시크릿 명령(`add`, `set`, `rotate`, `rm`, `test`, `reveal`, `ls`)의 실패는 문장 뒤에 `fresnel-code: <코드>` 줄을 한 줄 더한다. 이 줄은 출력의 마지막 줄이고, 값과 경로와 외부 도구의 출력은 싣지 않는다. 어휘는 `@fresnel/contracts/services`의 `FAILURE_KINDS`가 정본이고 철자는 고정이다. 셸(`apps/desktop-shell`)과 화면(`packages/client`)은 이 줄로 원인을 나눈다(L4.desktop.spec §4.14.1).
+  - 종류가 없는 실패에는 줄을 더하지 않는다: 사용법 오류, 터미널이 아닐 때의 거절, 두 번 입력한 값 불일치, 64 KiB를 넘는 입력, 확인 문구 불일치, `rm`의 "지우지 않았다". 다른 명령의 출력은 바뀌지 않는다(시크릿 범위가 아니면 종류를 싣지 않는다).
+  - 시크릿 범위의 엔진 실패(wire 오류, 엔진 시작 오류)는 어휘에 없는 원인이면 `unknown`이다. 아래 표가 출처다.
+
+| 코드 | 나는 곳 |
+|---|---|
+| `key_store` | `secret.keyUnavailable`(`key` `file`·`access_denied`, 또는 `reason` `locked`·`access_denied`·`no_secret_service`), `secret.writeFailed`(`target` `key_store`) |
+| `key_missing` | `secret.keyUnavailable`(`reason` `item_missing`) |
+| `key_file` | `secret.keyUnavailable`(`reason` `file_mode`), `secret.writeFailed`(`target` `key_file`) |
+| `service_local_only` | `secret.localOnly`(호스트가 채널을 거절함), 원격 서비스에서 값을 넣거나 볼 때 |
+| `already_exists` | `secret.alreadyExists` |
+| `not_found` | `secret.notFound`, `rm`의 없는 이름 |
+| `value_too_short` | `jsonrpc.invalidParams`의 `value` 자리(-32602, 호스트가 8바이트 미만을 거절함) |
+| `value_empty` | 입력이 비어 있다(stdin이나 프롬프트) |
+| `cancelled` | `secret.cancelled`, 입력 프롬프트를 취소함 |
+| `sops_missing` | `secret.providerUnavailable`(`reason` `binary_missing`), 엔진 시작 `sopsMissing` |
+| `sops_version` | `secret.providerUnavailable`(`reason` `version_too_old`) |
+| `age_missing` | 대응하는 출처가 아직 없다. age 도구를 점검하는 경로가 코드에 없다 [미결] [근거: apps/cli/src/errors.ts의 kindOfStart와 secretFailureOf에 age 출처가 없다] |
+| `provider_unavailable` | `secret.providerUnavailable`(그 밖의 `reason`, `not_registered` 포함), `secret.writeFailed`(`target` `sops_file`이고 `code`가 `lock_timeout`이 아닌 것) |
+| `decrypt_failed` | `secret.decryptFailed` |
+| `read_only_provider` | `secret.readOnlyProvider` |
+| `write_failed` | `secret.writeFailed`(그 밖의 `target`), `secret.auditUnwritable`, `store.diskFull`, `store.readOnly` |
+| `store_busy` | `store.busy`, `secret.writeFailed`(`target` `sops_file`, `code` `lock_timeout`), 엔진 시작 `storeBusy` |
+| `service_unreachable` | 엔진 시작 `serviceUnreachable`, 엔진 연결이 끊기거나 요청하지 못함 |
+| `unknown` | 위에 없는 엔진 실패(`secret.inUse`, `secret.denied`, `secret.reauthRequired`, 그 밖의 wire 오류와 시작 오류) |
 
 #### 4.7.1 검색 provider 상태 출력
 

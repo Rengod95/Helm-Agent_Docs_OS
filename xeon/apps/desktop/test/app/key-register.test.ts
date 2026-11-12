@@ -83,12 +83,13 @@ describe("registering a model key from the settings screen", () => {
     await app.stop();
   });
 
-  test("a rejection whose first line is a CLI sentence shows that sentence and keeps the value out of every result", async () => {
+  test("a rejection with a code shows that code's sentence, and keeps the value out of every result", async () => {
     const { app } = await liveApp(
       engineFake(undefined, undefined, {
         registerError: {
           kind: "rejected",
           exitCode: 1,
+          code: "provider_unavailable",
           detail:
             "fresnel: 시크릿 제공자(sops)를 쓸 수 없다 (not_registered)\n  해결: l0.secrets.defaultProvider가 sops인지 확인한다",
         },
@@ -97,9 +98,10 @@ describe("registering a model key from the settings screen", () => {
     const outcome = await submitKey(app.commands.setup, name, "add", inputOf(FAKE).field);
     expect(outcome).toEqual({
       kind: "failed",
-      text: "시크릿 제공자(sops)를 쓸 수 없다 (not_registered)",
+      text: t("client.settings.key.reason.providerUnavailable.text"),
       keystore: false,
-      detail: `${t("cli.errors.secret.providerUnavailable.notRegistered.fix")}\n종료 코드 1`,
+      code: "provider_unavailable",
+      detail: `${t("client.settings.key.reason.providerUnavailable.fix")}\n종료 코드 1`,
     });
     expect(JSON.stringify(outcome)).not.toContain(FAKE);
     await app.stop();
@@ -153,7 +155,7 @@ describe("shell errors on the page side", () => {
     {
       label: "the OS key store refused the key",
       reject: { kind: "keystore" },
-      outcome: { kind: "failed", text: KEYSTORE_TEXT, keystore: true },
+      outcome: { kind: "failed", text: KEYSTORE_TEXT, keystore: true, code: "key_store" },
     },
   ];
   for (const item of cases) {

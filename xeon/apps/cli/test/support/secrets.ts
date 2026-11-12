@@ -4,6 +4,7 @@ import {
   wireError,
   type SecretListEntry,
   type SecretReferencesResult,
+  type WireError,
 } from "@fresnel/contracts/wire";
 import { secretName } from "./ids.ts";
 import type { FakeHandlers } from "./fake-server.ts";
@@ -53,6 +54,8 @@ export interface FakeSecretStore {
 export interface FakeSecretFailures {
   readonly remove?: Error;
   readonly refuseChannel?: boolean;
+  /** `secret.beginEntry`가 값을 받기 전에 돌려줄 wire 오류(종류 코드 시험). 값은 읽지 않는다 */
+  readonly beginEntry?: WireError;
 }
 
 export function fakeSecrets(
@@ -120,6 +123,7 @@ export function fakeSecrets(
       },
       "secret.beginEntry": async (params) => {
         beginEntryCalls.push({ ...params });
+        if (failures.beginEntry !== undefined) throw failures.beginEntry;
         const name = String(params["name"]);
         const action = String(params["action"]);
         const { outOfBand } = harness();

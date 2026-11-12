@@ -52,7 +52,7 @@ export function keyRegisterErrorOf(error: SecretRegisterError): KeyRegisterError
     case "keystore":
       return { kind: error.kind };
     case "rejected":
-      return { kind: "rejected", exitCode: error.exitCode, detail: error.detail };
+      return { kind: "rejected", exitCode: error.exitCode, detail: error.detail, code: error.code };
     case "bad-request":
     case "unknown":
       return { kind: "failed" };

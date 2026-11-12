@@ -37,12 +37,14 @@ function inputMessage(kind: InputFailure): Failure {
         message: t("cli.secret.input.cancelled.message"),
         fix: t("cli.secret.input.cancelled.fix"),
         code: EXIT.error,
+        kind: "cancelled",
       };
     case "empty":
       return {
         message: t("cli.secret.input.empty.message"),
         fix: t("cli.secret.input.empty.fix"),
         code: EXIT.usage,
+        kind: "value_empty",
       };
     case "mismatch":
       return {
@@ -234,6 +236,7 @@ function enterLocalOnly(action: SecretEntryAction): Failure {
     message: t("cli.secret.localOnly.enter.message"),
     fix: t("cli.secret.localOnly.enter.fix", { action }),
     code: EXIT.error,
+    kind: "service_local_only",
   };
 }
 
@@ -243,6 +246,7 @@ function revealLocalOnly(): Failure {
     message: t("cli.secret.localOnly.reveal.message"),
     fix: t("cli.secret.localOnly.reveal.fix"),
     code: EXIT.error,
+    kind: "service_local_only",
   };
 }
 
@@ -259,6 +263,7 @@ function startFailure(
     message: t("cli.secret.start.notSaved.message"),
     fix: t("cli.secret.start.notSaved.fix"),
     code: EXIT.error,
+    kind: "unknown",
   };
 }
 
@@ -304,6 +309,7 @@ async function applyMeta(
         message: t("cli.secret.hosts.unreadable.message"),
         fix: t("cli.secret.hosts.unreadable.fix"),
         code: EXIT.error,
+        kind: "unknown",
       });
     }
     use = { ...current, hosts: [...flags.hosts] };
@@ -519,6 +525,7 @@ async function runRm(
                 leases: String(references.activeLeases),
               }),
               fix: t("cli.errors.secret.inUse.fix"),
+              kind: "unknown",
             }),
           );
           return EXIT.error;
@@ -538,6 +545,7 @@ async function runRm(
         renderFailure({
           message: t("cli.errors.secret.missing.message"),
           fix: t("cli.secret.rm.missing.fix"),
+          kind: "not_found",
         }),
       );
       return EXIT.error;
@@ -652,6 +660,7 @@ async function runReveal(
               message: t("cli.secret.reveal.notShown.message"),
               fix: t("cli.secret.reveal.notShown.fix"),
               code: EXIT.error,
+              kind: "unknown",
             };
       await io.stderr(renderFailure(failure));
       return failure.code;
@@ -663,23 +672,25 @@ async function runReveal(
 }
 
 export async function runSecret(ctx: CommandContext, command: SecretCommand): Promise<ExitCode> {
+  // 시크릿 명령의 실패는 종류 코드 줄을 싣는다(L4.cli.spec §4.7). 아래 실행 함수는 모두 이 문맥을 쓴다
+  const secret: CommandContext = { ...ctx, failureScope: "secret" };
   switch (command.kind) {
     case "secret.ls":
-      return runLs(ctx, command);
+      return runLs(secret, command);
     case "secret.add":
-      return runEntry(ctx, command.name, "add", command.meta);
+      return runEntry(secret, command.name, "add", command.meta);
     case "secret.set":
-      return runEntry(ctx, command.name, "set", {});
+      return runEntry(secret, command.name, "set", {});
     case "secret.rotate":
-      return runEntry(ctx, command.name, "rotate", {});
+      return runEntry(secret, command.name, "rotate", {});
     case "secret.meta":
-      return runMeta(ctx, command);
+      return runMeta(secret, command);
     case "secret.rm":
-      return runRm(ctx, command);
+      return runRm(secret, command);
     case "secret.test":
-      return runTest(ctx, command);
+      return runTest(secret, command);
     case "secret.reveal":
-      return runReveal(ctx, command);
+      return runReveal(secret, command);
     default:
       return assertNever(command, "SecretCommand");
   }

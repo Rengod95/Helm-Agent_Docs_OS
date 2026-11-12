@@ -19,3 +19,4 @@ export * from "./secret-admin.ts";
 export * from "./mcp.ts";
 export * from "./groups.ts";
 export * from "./devkit.ts";
+export * from "./failure-kind.ts";

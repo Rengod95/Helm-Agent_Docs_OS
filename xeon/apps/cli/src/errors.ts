@@ -1,5 +1,6 @@
 import { assertNever } from "@fresnel/contracts";
 import { WireError } from "@fresnel/contracts/wire";
+import { FAILURE_CODE_PREFIX, type FailureKind } from "@fresnel/contracts/services";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import type { BackupInvalidReason, ExportError, RestoreError } from "@fresnel/platform-store";
 import { HostClientError } from "./host-client.ts";
@@ -15,10 +16,23 @@ export interface Failure {
   readonly message: string;
   readonly fix: string;
   readonly code: ExitCode;
+  /** 엔진 실패의 종류 코드. 시크릿 명령만 싣는다(`FailureScope`). 있으면 출력 끝에 `fresnel-code: <코드>` 줄을 더한다 */
+  readonly kind?: FailureKind;
 }
 
-export function renderFailure(failure: Pick<Failure, "message" | "fix">): string {
-  return `fresnel: ${failure.message}\n  ${t("cli.errors.fixLabel")} ${failure.fix}\n`;
+/** 실패에 종류 코드를 싣는 범위. 시크릿 명령만 `secret`이다. 다른 명령의 실패는 종류가 없어 출력이 그대로다 */
+export type FailureScope = "secret" | "plain";
+
+/** 엔진 실패를 범위에 맞춘다. 시크릿 범위에서 종류가 없는 엔진 실패는 `unknown`이다 */
+function inScope(scope: FailureScope, failure: Failure): Failure {
+  if (scope === "plain") return { message: failure.message, fix: failure.fix, code: failure.code };
+  return { ...failure, kind: failure.kind ?? "unknown" };
+}
+
+export function renderFailure(failure: Pick<Failure, "message" | "fix" | "kind">): string {
+  const text = `fresnel: ${failure.message}\n  ${t("cli.errors.fixLabel")} ${failure.fix}\n`;
+  // 종류가 있으면 기계가 읽는 줄을 마지막에 한 줄 더한다. 값과 경로는 싣지 않는다(L4.cli.spec §4.7)
+  return failure.kind === undefined ? text : `${text}${FAILURE_CODE_PREFIX}${failure.kind}\n`;
 }
 
 export function failureOfUsage(error: UsageError): Failure {
@@ -52,8 +66,40 @@ export function exitCodeOfStartError(kind: EngineStartErrorKind): ExitCode {
   }
 }
 
-export function failureOfStart(error: EngineStartError): Failure {
-  return { message: error.message, fix: error.fix, code: exitCodeOfStartError(error.kind) };
+/** 엔진 시작 실패의 종류 코드(시크릿 범위에서만 싣는다). 어휘에 없는 원인은 `unknown`이다 */
+function kindOfStart(kind: EngineStartErrorKind): FailureKind {
+  switch (kind) {
+    case "sopsMissing":
+      return "sops_missing";
+    case "storeBusy":
+      return "store_busy";
+    case "serviceUnreachable":
+      return "service_unreachable";
+    case "fts5Missing":
+    case "dataDirPermission":
+    case "dataDirUnwritable":
+    case "storeUnavailable":
+    case "storeFutureVersion":
+    case "storeCorrupt":
+    case "storeMigrationFailed":
+    case "catalogConflict":
+    case "missingService":
+    case "pluginFailed":
+    case "protocolUnsupported":
+    case "invalidRemote":
+      return "unknown";
+    default:
+      return assertNever(kind, "EngineStartErrorKind");
+  }
+}
+
+export function failureOfStart(error: EngineStartError, scope: FailureScope = "plain"): Failure {
+  return inScope(scope, {
+    message: error.message,
+    fix: error.fix,
+    code: exitCodeOfStartError(error.kind),
+    kind: kindOfStart(error.kind),
+  });
 }
 
 function detailText(error: WireError, key: string): string | undefined {
@@ -87,6 +133,15 @@ function firstIssueText(error: WireError): string | undefined {
   if (typeof first !== "object" || first === null || !("message" in first)) return undefined;
   const text: unknown = first.message;
   return typeof text === "string" ? text : undefined;
+}
+
+function firstIssuePath(error: WireError): string | undefined {
+  const issues = error.data.details?.["issues"];
+  if (!Array.isArray(issues)) return undefined;
+  const first: unknown = issues[0];
+  if (typeof first !== "object" || first === null || !("path" in first)) return undefined;
+  const path: unknown = first.path;
+  return typeof path === "string" ? path : undefined;
 }
 
 function allowedScopesText(error: WireError): string {
@@ -142,8 +197,22 @@ const SOPS_FILE_FIX_ID: ReadonlyMap<string, MessageId> = new Map<string, Message
   ["lock_timeout", "cli.errors.secret.lockTimeout.fix"],
 ]);
 
-/** 첫 등록이 기본 SOPS 파일이나 age 키를 준비하다 실패했다. 원인(code)별로 고칠 곳을 말한다. 경로와 값은 wire에 없다 */
+/** 쓰기 실패의 종류. sops 파일 잠금 경합만 `store_busy`이고, 나머지 sops 파일 문제는 제공자 문제다 */
+function writeKindOf(target: string | undefined, code: string | undefined): FailureKind {
+  if (target === "sops_file")
+    return code === "lock_timeout" ? "store_busy" : "provider_unavailable";
+  if (target === "key_store") return "key_store";
+  if (target === "key_file") return "key_file";
+  return "write_failed";
+}
+
+/** 첫 등록이 기본 SOPS 파일이나 age 키를 준비하다 실패했다. 문구와 종류를 함께 돌려준다. 경로와 값은 wire에 없다 */
 function writeFailure(target: string | undefined, code: string | undefined): Failure {
+  return { ...writeFailureText(target, code), kind: writeKindOf(target, code) };
+}
+
+/** 쓰기 실패의 문구. 원인(code)별로 고칠 곳을 말한다 */
+function writeFailureText(target: string | undefined, code: string | undefined): Failure {
   if (target === "sops_file") {
     const fixId = code === undefined ? undefined : SOPS_FILE_FIX_ID.get(code);
     return {
@@ -182,6 +251,27 @@ function writeFailure(target: string | undefined, code: string | undefined): Fai
   };
 }
 
+/** 제공자를 쓸 수 없는 원인의 종류. 바이너리 없음과 버전 낮음은 따로 두고, 나머지(등록 없음 포함)는 제공자 문제다 */
+function providerKindOf(reason: string | undefined): FailureKind {
+  if (reason === "binary_missing") return "sops_missing";
+  if (reason === "version_too_old") return "sops_version";
+  return "provider_unavailable";
+}
+
+/**
+ * 키 문제의 원인별 종류. OS 키 저장소를 쓸 수 없어 파일 키가 아직 확인되지 않은 것(`file`, `access_denied`)과
+ * 잠금·접근 거부·Secret Service 없음은 키 저장소 문제다. 항목이나 파일이 없으면 `key_missing`, 파일 권한이면 `key_file`이다
+ */
+function keyKindOf(key: string | undefined, reason: string | undefined): FailureKind {
+  if (key === "file" && reason === "access_denied") return "key_store";
+  if (reason === "item_missing") return "key_missing";
+  if (reason === "file_mode") return "key_file";
+  if (reason === "locked" || reason === "no_secret_service" || reason === "access_denied") {
+    return "key_store";
+  }
+  return "unknown";
+}
+
 function secretFailureOf(
   kind: string,
   field: (name: string) => string | undefined,
@@ -192,18 +282,21 @@ function secretFailureOf(
         message: t("cli.errors.secret.missing.message"),
         fix: t("cli.errors.secret.missing.fix"),
         code: EXIT.error,
+        kind: "not_found",
       };
     case "already_exists":
       return {
         message: t("cli.errors.secret.alreadyExists.message"),
         fix: t("cli.errors.secret.alreadyExists.fix"),
         code: EXIT.error,
+        kind: "already_exists",
       };
     case "in_use":
       return {
         message: t("cli.errors.secret.inUse.message", { leases: field("activeLeases") ?? "?" }),
         fix: t("cli.errors.secret.inUse.fix"),
         code: EXIT.error,
+        kind: "unknown",
       };
     case "provider_unavailable": {
       const reason = field("reason");
@@ -218,6 +311,7 @@ function secretFailureOf(
           message,
           fix: t("cli.errors.secret.providerUnavailable.notRegistered.fix"),
           code: EXIT.environment,
+          kind: providerKindOf(reason),
         };
       }
       if (reason === "version_too_old") {
@@ -225,12 +319,14 @@ function secretFailureOf(
           message,
           fix: t("cli.errors.secret.providerUnavailable.versionTooOld.fix"),
           code: EXIT.environment,
+          kind: providerKindOf(reason),
         };
       }
       return {
         message,
         fix: t("cli.errors.secret.providerUnavailable.fix"),
         code: EXIT.environment,
+        kind: providerKindOf(reason),
       };
     }
     case "key_unavailable": {
@@ -240,6 +336,7 @@ function secretFailureOf(
           message: t("cli.errors.secret.keyUnavailable.fileAccessDenied.message"),
           fix: t("cli.errors.secret.keyUnavailable.fileAccessDenied.fix"),
           code: EXIT.environment,
+          kind: keyKindOf(field("key"), field("reason")),
         };
       }
       if (field("reason") === "item_missing") {
@@ -247,12 +344,14 @@ function secretFailureOf(
           message: t("cli.errors.secret.keyUnavailable.itemMissing.message"),
           fix: t("cli.errors.secret.keyUnavailable.itemMissing.fix"),
           code: EXIT.environment,
+          kind: keyKindOf(field("key"), field("reason")),
         };
       }
       return {
         message: t("cli.errors.secret.keyUnavailable.message"),
         fix: t("cli.errors.secret.keyUnavailable.fix"),
         code: EXIT.environment,
+        kind: keyKindOf(field("key"), field("reason")),
       };
     }
     case "decrypt_failed":
@@ -260,18 +359,21 @@ function secretFailureOf(
         message: t("cli.errors.secret.decryptFailed.message"),
         fix: t("cli.errors.secret.decryptFailed.fix"),
         code: EXIT.error,
+        kind: "decrypt_failed",
       };
     case "read_only_provider":
       return {
         message: t("cli.errors.secret.readOnlyProvider.message"),
         fix: t("cli.errors.secret.readOnlyProvider.fix"),
         code: EXIT.error,
+        kind: "read_only_provider",
       };
     case "cancelled":
       return {
         message: t("cli.errors.secret.cancelled.message"),
         fix: t("cli.errors.common.runAgainIfNeeded.fix"),
         code: EXIT.error,
+        kind: "cancelled",
       };
     case "denied":
     case "reauth_required":
@@ -279,6 +381,7 @@ function secretFailureOf(
         message: t("cli.errors.secret.deniedConfirmation.message"),
         fix: t("cli.errors.secret.deniedConfirmation.fix"),
         code: EXIT.error,
+        kind: "unknown",
       };
     case "write_failed":
       return writeFailure(field("target"), field("code"));
@@ -287,6 +390,7 @@ function secretFailureOf(
         message: t("cli.errors.secret.writeFailed.message"),
         fix: t("cli.errors.common.checkDataDirAndDisk.fix"),
         code: EXIT.environment,
+        kind: "write_failed",
       };
     // fresnel-disable-next-line fresnel/switch-default-never -- 시크릿 오류 kind는 서버가 더 새로우면 늘어난다. 일반 문구로 돌려준다 (eng.typescript.guide TY-14)
     default:
@@ -344,8 +448,12 @@ function settingsFileInvalidFailure(error: WireError): Failure {
   };
 }
 
-/** wire 오류를 §4.10 표의 문구와 종료 코드로 바꾼다 */
-export function failureOfWire(error: WireError): Failure {
+/** wire 오류를 §4.10 표의 문구와 종료 코드로 바꾼다. 종류 코드는 `scope`가 시크릿 명령일 때만 싣는다 */
+export function failureOfWire(error: WireError, scope: FailureScope = "plain"): Failure {
+  return inScope(scope, wireFailureOf(error));
+}
+
+function wireFailureOf(error: WireError): Failure {
   const kind = error.data.kind;
   switch (kind) {
     case "thread.notFound":
@@ -504,18 +612,21 @@ export function failureOfWire(error: WireError): Failure {
         message: t("cli.errors.wire.storeBusy.message"),
         fix: t("cli.errors.common.runAgainShortly.fix"),
         code: EXIT.error,
+        kind: "store_busy",
       };
     case "store.diskFull":
       return {
         message: t("cli.errors.common.storageFull.message"),
         fix: t("cli.errors.common.storageFull.fix"),
         code: EXIT.environment,
+        kind: "write_failed",
       };
     case "store.readOnly":
       return {
         message: t("cli.errors.wire.storeReadOnly.message"),
         fix: t("cli.errors.wire.storeReadOnly.fix"),
         code: EXIT.error,
+        kind: "write_failed",
       };
     case "store.corrupt":
       return {
@@ -561,6 +672,8 @@ export function failureOfWire(error: WireError): Failure {
             : t("cli.errors.wire.invalidParams.messageWithIssue", { issue }),
         fix: t("cli.errors.wire.invalidParams.fix"),
         code: EXIT.usage,
+        // 호스트는 짧은 값을 `value` 자리의 -32602로 거절한다(apps/host secrets/wire.ts). 시크릿 명령에서만 이 자리가 나온다
+        kind: firstIssuePath(error) === "value" ? "value_too_short" : "unknown",
       };
     }
     case "internal": {
@@ -720,17 +833,21 @@ function backupInvalidMessage(reason: BackupInvalidReason): MessageId {
 }
 
 /** 명령 실행 중 잡은 값을 오류 문구로 바꾼다. 버그(그 밖의 예외)는 호출자가 다시 던진다: undefined를 돌려준다 */
-export function failureOfCaught(caught: unknown): Failure | undefined {
-  if (caught instanceof WireError) return failureOfWire(caught);
+export function failureOfCaught(
+  caught: unknown,
+  scope: FailureScope = "plain",
+): Failure | undefined {
+  if (caught instanceof WireError) return failureOfWire(caught, scope);
   if (caught instanceof HostClientError) {
-    return {
+    return inScope(scope, {
       message:
         caught.kind === "closed"
           ? t("cli.errors.connection.closed.message")
           : t("cli.errors.connection.request.message", { kind: caught.kind }),
       fix: t("cli.errors.connection.fix"),
       code: EXIT.error,
-    };
+      kind: "service_unreachable",
+    });
   }
   return undefined;
 }
