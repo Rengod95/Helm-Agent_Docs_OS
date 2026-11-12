@@ -17,6 +17,8 @@ export type {
 // 예약 view-model(P-07, O-08). 앱은 `.` 진입으로만 client를 쓴다(scripts/dependency-allowlist.json DR-10/desktop-client),
 // 그래서 `./schedule` 진입 대신 여기서 다시 낸다. 순수 함수만 있다.
 export * from "./schedule/index.ts";
+// QR 인코더(연결 링크를 모듈 행렬로). 앱은 `.` 진입으로만 쓰므로 여기서 다시 낸다. 순수 함수다.
+export * from "./qr/index.ts";
 // 연결 대상 view-model(P-08). 셸 쪽은 `.` 진입으로만 client를 쓰므로(위 예약과 같은 이유) 여기서 다시 낸다. 순수 함수와 키 상수만 있다.
 export * from "./connection-targets/index.ts";
 // 실패한 턴의 오류 문장을 종류로 나눈다(화면과 CLI가 같이 쓴다, L1.models.spec §3.8). 순수 함수다.
