@@ -3,7 +3,8 @@
 import { MissingArt } from "../illustrations/index.tsx";
 import { t } from "@fresnel/client/i18n";
 import { EmptyState, Toaster } from "@caustic/react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Presence, fadeIn, flipFrom, useScreenEnter } from "../../lib/motion-presets.tsx";
 import { EndPanel, wellWidthOf } from "./end-panel.tsx";
 import type { ContextProfile } from "./context-picker.tsx";
 import { formatKey, resolveKeymap, type ActionId } from "./keybindings.ts";
@@ -216,11 +217,61 @@ function ShellFrame(props: ShellProps): ReactNode {
   const keymap = useMemo(() => resolveKeymap(props.keyOverrides), [props.keyOverrides]);
   const keyLabel = (id: ActionId): string => formatKey(keymap[id], props.mac);
   const compact = layout === "compact";
+  const columnRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  // 화면 전환(DP-106): 영역·화면·설정을 바꾸면 무대가 투명도 + 8px 오름으로 들어온다(fade-through). 옛 화면은 바로 사라진다
+  const screenKey = props.settingsOpen ? "settings" : `${railArea}:${railScreen}`;
+  const stageRef = useScreenEnter<HTMLElement>(screenKey);
+  // 왼쪽 패널 접기·펴기(DP-106): 폭은 한 번에 바뀌고, 무대 열은 옛 자리에서 transform으로 미끄러져 온다(FLIP). 배치는 한 번만 다시 흐른다.
+  // 패널 내용(막대 ↔ 목록)은 투명도로 나타난다. 위치는 그릴 때마다 재 두어 다음 접기의 출발점으로 쓴다
+  const lastLeft = useRef<number | null>(null);
+  const lastOpen = useRef(startOpen);
+  useLayoutEffect(() => {
+    const column = columnRef.current;
+    if (column === null) return;
+    const left = column.getBoundingClientRect().left;
+    if (!compact && lastOpen.current !== startOpen && lastLeft.current !== null) {
+      flipFrom(column, lastLeft.current - left);
+      const panel = panelRef.current;
+      if (panel !== null) {
+        fadeIn(
+          panel.querySelectorAll(
+            "[data-slot=side-panel-header-content], [data-slot=side-panel-body], [data-slot=side-panel-footer] > *",
+          ),
+        );
+      }
+    }
+    lastOpen.current = startOpen;
+    lastLeft.current = left;
+  });
   const navigate = (screen: string): void => {
     props.onSettingsOpenChange(false);
     actions.updatePlace({ screen, scroll: 0 });
     if (compact) actions.setStartOpen(false);
   };
+  const startPanel = (
+    <StartPanel
+      registry={props.registry}
+      floating={compact}
+      settingsOpen={props.settingsOpen}
+      onOpenSettings={() => {
+        props.onSettingsOpenChange(true);
+        if (compact) actions.setStartOpen(false);
+      }}
+      onNavigate={navigate}
+      onSwitchArea={(area) => {
+        props.onSettingsOpenChange(false);
+        actions.switchArea(area);
+      }}
+      threadList={props.threadList}
+      profiles={props.profiles ?? []}
+      onNewThread={() => {
+        if (compact) actions.setStartOpen(false);
+        props.onAction?.("thread.new");
+      }}
+      keyLabel={keyLabel}
+    />
+  );
   return (
     <div
       className="flex h-full min-h-0 flex-col bg-bg-app"
@@ -237,41 +288,27 @@ function ShellFrame(props: ShellProps): ReactNode {
       >
         {t("desktop.shell.skip")}
       </a>
-      <div className="relative flex min-h-0 flex-1">
-        {compact && !startOpen ? null : (
-          <div
-            className={
-              compact
-                ? "absolute inset-y-0 start-0 z-30 flex w-[min(20rem,calc(100%-3rem))] animate-enter-panel enter-from-start"
-                : "flex"
-            }
+      {/* 접기·펴기 동안 무대 열이 창 밖으로 미끄러지는 부분을 자른다 */}
+      <div className="relative flex min-h-0 flex-1 overflow-clip">
+        {compact ? (
+          // 좁은 폭: 떠 있는 패널은 왼쪽에서 미끄러져 들어오고 나갈 때도 미끄러져 나간다(DP-106)
+          <Presence
+            show={startOpen}
+            variant="panelStart"
+            className="absolute inset-y-0 start-0 z-30 flex w-[min(20rem,calc(100%-3rem))]"
           >
-            <StartPanel
-              registry={props.registry}
-              floating={compact}
-              settingsOpen={props.settingsOpen}
-              onOpenSettings={() => {
-                props.onSettingsOpenChange(true);
-                if (compact) actions.setStartOpen(false);
-              }}
-              onNavigate={navigate}
-              onSwitchArea={(area) => {
-                props.onSettingsOpenChange(false);
-                actions.switchArea(area);
-              }}
-              threadList={props.threadList}
-              profiles={props.profiles ?? []}
-              onNewThread={() => {
-                if (compact) actions.setStartOpen(false);
-                props.onAction?.("thread.new");
-              }}
-              keyLabel={keyLabel}
-            />
+            {startPanel}
+          </Presence>
+        ) : (
+          // 무대 열이 접기·펴기 동안 패널 밑으로 미끄러지므로 패널이 위에 온다
+          <div ref={panelRef} className="relative z-10 flex">
+            {startPanel}
           </div>
         )}
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div ref={columnRef} className="flex min-w-0 flex-1 flex-col">
           <div className="relative flex min-h-0 flex-1">
             <main
+              ref={stageRef}
               id={STAGE_ID}
               tabIndex={-1}
               aria-label={t("desktop.shell.stage.label")}

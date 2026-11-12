@@ -230,12 +230,13 @@ export function StartPanel(props: StartPanelProps): ReactNode {
       // 붙박이: 창 왼쪽 끝에서 위아래 끝까지 닿는 평평한 면(outline, 가장자리 헤어라인 하나). 좁은 폭에서 뜰 때만 solid와 그림자 하나.
       variant={props.floating ? "solid" : "outline"}
       shadow={props.floating ? "3" : "none"}
-      // 막대 안쪽은 48px(바깥 6 + 단추 36 + 6)이고 오른쪽 hairline 1px이 더해진다. 폭 전환은 SidePanel의 width 전환(duration-base, ease-standard) 하나다.
+      // 막대 안쪽은 48px(바깥 6 + 단추 36 + 6)이고 오른쪽 hairline 1px이 더해진다. 폭은 애니메이션하지 않는다(transition-none, DP-106):
+      // 폭을 잇면 무대 전체가 프레임마다 다시 배치된다. 셸이 무대를 transform으로 잇고 내용을 투명도로 바꾼다(shell.tsx)
       // 막대에서는 바닥 위 선을 지운다: 48px 폭의 짧은 선은 상태 표시줄 띠와 어긋난 자국으로만 보인다
       className={
         rail
-          ? `${PANEL_SLOTS} w-[calc(3rem+1px)] [&>[data-slot=side-panel-footer]]:border-transparent`
-          : PANEL_SLOTS
+          ? `${PANEL_SLOTS} w-[calc(3rem+1px)] transition-none [&>[data-slot=side-panel-footer]]:border-transparent`
+          : `${PANEL_SLOTS} transition-none`
       }
       header={
         rail ? (

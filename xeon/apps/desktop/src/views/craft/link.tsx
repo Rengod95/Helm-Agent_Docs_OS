@@ -37,6 +37,7 @@ import {
   type LinkRow,
 } from "./link-model.ts";
 import { matchesFilter } from "./strata-model.ts";
+import { isMotionReduced } from "../../lib/motion-presets.tsx";
 
 // 위: 도구 막대 아래. 아래: 찾기 줄 위. 화면(크래프트 셸)의 막대 높이에 맞춘 여백이다.
 const TOP = 60;
@@ -186,10 +187,9 @@ const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.m
 const fx = (v: number): string => v.toFixed(2);
 const keyOf = (focusId: string, rel: Relation): string => `${focusId}|${rel.kind}|${rel.other.id}`;
 
-/** 움직임 줄이기 설정. 창이나 matchMedia가 없으면(그리기 전 시험 환경) 줄이지 않는다 */
+/** 움직임 줄이기 설정(앱 설정과 OS 설정, DP-108). 창이 없으면(그리기 전 시험 환경) 줄이지 않는다 */
 function prefersReducedMotion(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return isMotionReduced();
 }
 
 function bez(p0: Pt, p1: Pt, p2: Pt, p3: Pt, u: number): Pt {

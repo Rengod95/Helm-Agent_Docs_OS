@@ -55,6 +55,7 @@ import {
   formColumnOf,
 } from "./settings-section.tsx";
 import { HEADER_CONTROL_SIZE, ScreenHeader } from "../../shell/screen-header.tsx";
+import { ScreenSwap } from "../../../lib/motion-presets.tsx";
 
 // 설정 화면(P-09, L4.settings-ui §4.1 [결정: 2026-11-11 사용자])의 그림. 상태와 명령은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
 // 왼쪽은 찾기 칸과 구역 내비(묶음 셋: 앱, 에이전트, 엔진), 오른쪽은 구역 이름 머리와 720px 가운데 열 하나다. 열 안에 구역의 부분이
@@ -192,7 +193,10 @@ export function SettingsPageView(props: SettingsPageProps): ReactNode {
               data-slot="settings-column"
               className={`mx-auto w-full ${formColumnOf(searching ? null : section)}`}
             >
-              <Body {...props} />
+              {/* 구역을 바꾸면 본문이 8px 오르며 들어온다(fade-through, DP-106) */}
+              <ScreenSwap swapKey={searching ? "search" : section}>
+                <Body {...props} />
+              </ScreenSwap>
             </div>
           </div>
         </ScrollArea>
