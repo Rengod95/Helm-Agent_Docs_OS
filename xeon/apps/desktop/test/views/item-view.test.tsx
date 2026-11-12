@@ -46,7 +46,7 @@ function render(node: ReactNode, h: Harness): string {
       ui={createUiStore().read}
       commands={fakeCommands()}
     >
-      {node}
+      <PluginUiProvider value={emptyPluginUi()}>{node}</PluginUiProvider>
     </Providers>,
   );
 }
@@ -54,6 +54,18 @@ function render(node: ReactNode, h: Harness): string {
 /** 태그와 주석을 떼고 화면에 보이는 글만 남긴다 */
 function visibleText(html: string): string {
   return html.replace(/<!--[\s\S]*?-->/g, "").replace(/<[^>]*>/g, "");
+}
+
+/** 상태 칩의 글. 칩 글은 DOM 글이 아니라 `data-text`라 화면 글(visibleText)에는 없다(call-chip.tsx) */
+function chipLabels(html: string): readonly string[] {
+  return [...html.matchAll(/class="call-chip-label" data-text="([^"]*)"/g)].map((m) => m[1] ?? "");
+}
+
+/** 펼침 단추가 읽어 주는 줄 이름("동사 · 대상 · 상태") */
+function lineLabels(html: string): readonly string[] {
+  return [
+    ...html.matchAll(/class="convo-line-hit" aria-expanded="(?:true|false)" aria-label="([^"]*)"/g),
+  ].map((m) => m[1] ?? "");
 }
 
 function ingestRecords(h: Harness, records: readonly ItemRecord[]): void {
@@ -139,6 +151,7 @@ describe("user and assistant text", () => {
     ingestRecords(h, [assistantItem(1, "좋아요.\n다음 단계로 갈게요.")]);
     const html = render(<RecordedItem id={itm(1)} />, h);
     expect(visibleText(html)).toBe("좋아요.\n다음 단계로 갈게요.");
+    expect(html).toContain('class="convo-prose"');
     expect(html).not.toContain('data-author="user"');
   });
 });
@@ -171,8 +184,13 @@ describe("one row per tool call while it runs", () => {
       },
     });
     h.store.flush();
-    expect(render(<StreamingRow id={itm(8)} />, h)).toBe("");
-    expect(visibleText(render(<RecordedItem id={itm(1)} />, h))).toContain("read");
+    // 줄 틀(`article.convo-row`)은 남지만 비어 있어 `empty:hidden`으로 숨는다
+    const live = render(<StreamingRow id={itm(8)} />, h);
+    expect(visibleText(live)).toBe("");
+    expect(live).not.toContain('data-slot="call-chip"');
+    expect(visibleText(render(<RecordedItem id={itm(1)} />, h))).toContain(
+      t("desktop.convo.tool.read"),
+    );
   });
 });
 
@@ -181,14 +199,15 @@ describe("MCP server chip on a tool row", () => {
     const h = openedHarness();
     ingestRecords(h, [mcpResultItem(1, "echo", "qa")]);
     const html = render(<RecordedItem id={itm(1)} />, h);
-    expect(visibleText(html)).toContain("서버 qa");
+    expect(html).toContain('data-slot="badge-label" title="qa"');
+    expect(visibleText(html)).toBe("echoqa");
   });
 
   test("a result without a server name shows no server chip", () => {
     const h = openedHarness();
     ingestRecords(h, [toolResultItem(1, "read", "file body", false)]);
     const html = render(<RecordedItem id={itm(1)} />, h);
-    expect(visibleText(html)).not.toContain("서버 ");
+    expect(html).not.toContain('data-slot="badge"');
   });
 });
 
@@ -209,7 +228,8 @@ describe("tool results", () => {
     expect(html).toContain('aria-expanded="true"');
     expect(visibleText(html)).toContain("exit 1: boom");
     const failedWord = t("desktop.item.status.failed");
-    expect(visibleText(html).split(failedWord)).toHaveLength(2);
+    expect(chipLabels(html)).toEqual([failedWord]);
+    expect(visibleText(html)).not.toContain(failedWord);
   });
 });
 
@@ -235,12 +255,13 @@ describe("one row per tool call", () => {
         code: "denied_by_user",
       }),
     ]);
-    const call = visibleText(render(<RecordedItem id={itm(1)} />, h));
-    expect(call).toContain(t("desktop.item.status.denied"));
-    expect(call).toContain(t("desktop.item.denied.body"));
+    const html = render(<RecordedItem id={itm(1)} />, h);
+    const call = visibleText(html);
+    expect(chipLabels(html)).toEqual([t("desktop.item.status.denied")]);
+    expect(call).toContain(t("desktop.convo.denied.body"));
     expect(call).not.toContain("denied_by_user");
-    expect(call).not.toContain(t("desktop.item.status.failed"));
-    expect(render(<RecordedItem id={itm(2)} />, h)).toBe("");
+    expect(html).not.toContain(t("desktop.item.status.failed"));
+    expect(visibleText(render(<RecordedItem id={itm(2)} />, h))).toBe("");
   });
 
   test("a failed call says failed once with its message and an ok call is not marked failed", () => {
@@ -251,12 +272,15 @@ describe("one row per tool call", () => {
       callItem(3, 4, "read"),
       toolResultItem(4, "read", "hello", false),
     ]);
-    const failed = visibleText(render(<RecordedItem id={itm(1)} />, h));
-    expect(failed.split(t("desktop.item.status.failed"))).toHaveLength(2);
+    const failedHtml = render(<RecordedItem id={itm(1)} />, h);
+    const failed = visibleText(failedHtml);
+    expect(chipLabels(failedHtml)).toEqual([t("desktop.item.status.failed")]);
+    expect(failed).not.toContain(t("desktop.item.status.failed"));
     expect(failed).toContain("File not found: missing.txt");
     expect(failed).not.toContain("[not_found]");
-    const ok = visibleText(render(<RecordedItem id={itm(3)} />, h));
+    const ok = render(<RecordedItem id={itm(3)} />, h);
     expect(ok).not.toContain(t("desktop.item.status.failed"));
+    expect(ok).toContain('data-slot="call-chip" data-status="done"');
   });
 
   test("a running call that waits for approval says so and counts no seconds", () => {
@@ -277,11 +301,12 @@ describe("one row per tool call", () => {
       ],
     });
     h.store.flush();
-    const waiting = visibleText(render(<RecordedItem id={itm(1)} />, h));
-    expect(waiting).toContain(t("desktop.item.toolAwaitingApproval"));
-    expect(waiting).not.toContain(t("desktop.item.toolRunning"));
-    const other = visibleText(render(<RecordedItem id={itm(2)} />, h));
-    expect(other).not.toContain(t("desktop.item.toolAwaitingApproval"));
+    const waiting = render(<RecordedItem id={itm(1)} />, h);
+    expect(chipLabels(waiting)).toEqual([t("desktop.item.toolAwaitingApproval")]);
+    expect(waiting).toContain('data-status="running" data-tone="neutral" data-waiting="true"');
+    const other = render(<RecordedItem id={itm(2)} />, h);
+    expect(chipLabels(other)).toEqual([t("desktop.item.toolRunning")]);
+    expect(other).not.toContain('data-waiting="true"');
   });
 
   test("a call queued behind an earlier call's approval in the same message waits for approval too, and a call in another message does not", () => {
@@ -314,18 +339,21 @@ describe("one row per tool call", () => {
       ],
     });
     h.store.flush();
-    const waiting = visibleText(render(<RecordedItem id={itm(1)} />, h));
-    expect(waiting.split(t("desktop.item.toolAwaitingApproval"))).toHaveLength(3);
-    expect(waiting).not.toContain(t("desktop.item.toolRunning"));
-    const other = visibleText(render(<RecordedItem id={itm(2)} />, h));
-    expect(other).not.toContain(t("desktop.item.toolAwaitingApproval"));
+    const waiting = render(<RecordedItem id={itm(1)} />, h);
+    expect(chipLabels(waiting)).toEqual([
+      t("desktop.item.toolAwaitingApproval"),
+      t("desktop.item.toolAwaitingApproval"),
+    ]);
+    const other = render(<RecordedItem id={itm(2)} />, h);
+    expect(chipLabels(other)).toEqual([t("desktop.item.toolRunning")]);
   });
 
   test("a call that never got a result in an idle thread is marked interrupted, not done", () => {
     const h = openedHarness();
     ingestRecords(h, [callItem(1, 9, "bash")]);
-    const call = visibleText(render(<RecordedItem id={itm(1)} />, h));
-    expect(call).toContain(t("desktop.item.status.interrupted"));
+    const call = render(<RecordedItem id={itm(1)} />, h);
+    expect(chipLabels(call)).toEqual([t("desktop.item.status.interrupted")]);
+    expect(call).not.toContain('data-status="done"');
   });
 });
 
@@ -353,17 +381,41 @@ function editCallItem(n: number, resultN: number): ItemRecord {
 }
 
 describe("edit and write rows", () => {
-  test("an edit row with a done result shows its path as the detail and draws neither the args JSON nor the diff while folded", () => {
+  afterEach(() => {
+    setTranscriptDetailValue("full");
+  });
+
+  test("an edit row with a done result shows its path as the target and draws neither the args JSON nor the diff while folded", () => {
+    const h = openedHarness();
+    ingestRecords(h, [
+      editCallItem(1, 2),
+      toolResultItem(2, "edit", "Successfully replaced text in src/a.ts.", false),
+    ]);
+    // 파일 변경은 "모두 보기"에서만 펼쳐 둔다. "요약"에서는 접혀 있다
+    setTranscriptDetailValue("summary");
+    const html = render(<RecordedItem id={itm(1)} />, h);
+    expect(html).toContain('<span class="convo-path" title="src/a.ts">src/a.ts</span>');
+    expect(lineLabels(html)).toEqual([
+      `${t("desktop.convo.tool.edit")} · src/a.ts · ${t("desktop.convo.status.done")}`,
+    ]);
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).not.toContain("oldText");
+    expect(html).not.toContain("const a = 2;");
+  });
+
+  test("with the full setting a done edit row is open and shows the diff instead of the args JSON and the result text", () => {
     const h = openedHarness();
     ingestRecords(h, [
       editCallItem(1, 2),
       toolResultItem(2, "edit", "Successfully replaced text in src/a.ts.", false),
     ]);
     const html = render(<RecordedItem id={itm(1)} />, h);
-    expect(html).toMatch(/data-slot="tool-call-detail"[^>]*>(?:<[^>]+>)*src\/a\.ts</);
-    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('aria-expanded="true"');
+    const detail = visibleText(html.slice(html.indexOf('class="convo-detail"')));
+    expect(detail).toContain("const a = 1;");
+    expect(detail).toContain("const a = 2;");
+    expect(detail).not.toContain("Successfully replaced text in src/a.ts.");
     expect(html).not.toContain("oldText");
-    expect(html).not.toContain("const a = 2;");
   });
 });
 
@@ -408,12 +460,13 @@ describe("an expanded edit row in the DOM", () => {
     }
   });
 
-  test("clicking the row shows the diff lines above the result text, and no args JSON", async () => {
+  test("clicking a folded edit row shows the diff lines, and no args JSON", async () => {
     const h = openedHarness();
     ingestRecords(h, [
       editCallItem(1, 2),
       toolResultItem(2, "edit", "Successfully replaced text in src/a.ts.", false),
     ]);
+    setTranscriptDetailValue("summary");
     const container = document.createElement("div");
     document.body.append(container);
     const root = createRoot(container);
@@ -424,25 +477,33 @@ describe("an expanded edit row in the DOM", () => {
           ui={createUiStore().read}
           commands={fakeCommands()}
         >
-          <RecordedItem id={itm(1)} />
+          <PluginUiProvider value={emptyPluginUi()}>
+            <RecordedItem id={itm(1)} />
+          </PluginUiProvider>
         </Providers>,
       );
     });
-    const header = container.querySelector('[data-slot="tool-call-header"]');
-    expect(header?.getAttribute("aria-expanded")).toBe("false");
-    await act(async () => {
-      header?.dispatchEvent(new window.Event("click", { bubbles: true }));
-    });
-    expect(header?.getAttribute("aria-expanded")).toBe("true");
-    const body = container.querySelector('[data-slot="tool-call-body"]')?.textContent ?? "";
-    expect(body).toContain("const a = 1;");
-    expect(body).toContain("const a = 2;");
-    expect(body).toContain("Successfully replaced text in src/a.ts.");
-    expect(body).not.toContain("oldText");
-    await act(async () => {
-      root.unmount();
-    });
-    container.remove();
+    try {
+      const header = container.querySelector(".convo-line-hit");
+      expect(header?.getAttribute("aria-expanded")).toBe("false");
+      expect(container.querySelector(".convo-detail")).toBe(null);
+      await act(async () => {
+        header?.dispatchEvent(new window.Event("click", { bubbles: true }));
+      });
+      expect(header?.getAttribute("aria-expanded")).toBe("true");
+      const body = container.querySelector(".convo-detail")?.textContent ?? "";
+      expect(body).toContain("const a = 1;");
+      expect(body.indexOf("const a = 1;")).toBeLessThan(body.indexOf("const a = 2;"));
+      // 끝난 파일 변경은 결과 글 대신 diff를 보인다
+      expect(body).not.toContain("Successfully replaced text in src/a.ts.");
+      expect(body).not.toContain("oldText");
+    } finally {
+      await act(async () => {
+        root.unmount();
+      });
+      container.remove();
+      setTranscriptDetailValue("full");
+    }
   });
 });
 
@@ -470,7 +531,7 @@ describe("streaming rows", () => {
     expect(html).toContain('aria-busy="true"');
   });
 
-  test("a streaming tool call is a running tool row with its streamed arguments", () => {
+  test("a streaming tool call is a running tool row named after its tool", () => {
     const h = openedHarness();
     h.store.ingest({
       type: "chunk",
@@ -491,9 +552,9 @@ describe("streaming rows", () => {
     h.store.flush();
     const html = render(<StreamingRow id={itm(8)} />, h);
     expect(html).toContain('data-status="running"');
-    expect(visibleText(html)).toContain("read");
-    expect(visibleText(html)).toContain("src/mai");
-    expect(visibleText(html)).toContain(t("desktop.item.toolRunning"));
+    expect(chipLabels(html)).toEqual([t("desktop.item.toolRunning")]);
+    // 진행 중 호출 줄은 인자를 읽지 않는다(반쯤 온 JSON). 이름만 보이고 대상 칸은 비어 있다
+    expect(visibleText(html)).toBe("read");
   });
 });
 
@@ -536,8 +597,13 @@ describe("agent row", () => {
       agentCall(1, 2),
       agentResult(2, "폴더에는 파일 3개가 있어요.", "completed", false),
     ]);
-    const text = visibleText(renderWithPlugin(<RecordedItem id={itm(1)} />, h));
-    expect(text).toContain("explore · 이 폴더를 조사해");
+    const html = renderWithPlugin(<RecordedItem id={itm(1)} />, h);
+    const text = visibleText(html);
+    expect(html).toContain(
+      '<span class="convo-mono min-w-0 truncate text-text-tertiary">explore</span>',
+    );
+    expect(html).toContain('<p class="convo-card-text">이 폴더를 조사해</p>');
+    expect(text).toContain(t("desktop.convo.agent.title"));
     expect(text).toContain("폴더에는 파일 3개가 있어요.");
     expect(text).not.toContain('"agent"');
   });
@@ -610,9 +676,10 @@ describe("engine failure texts are shown in Korean (rtE R-10)", () => {
       callItem(1, 2, "bash"),
       { ...toolResultItem(2, "bash", "aborted", true), status: "interrupted" },
     ]);
-    const text = visibleText(render(<RecordedItem id={itm(1)} />, h));
+    const html = render(<RecordedItem id={itm(1)} />, h);
+    const text = visibleText(html);
     expect(text).toContain(t("desktop.item.interrupted.body"));
-    expect(text).toContain(t("desktop.item.status.interrupted"));
+    expect(chipLabels(html)).toEqual([t("desktop.item.status.interrupted")]);
     expect(text).not.toContain("aborted");
   });
 
@@ -683,12 +750,13 @@ describe("a hook that stopped a call says which hook and whether it blocked or t
       callItem(1, 2, "read"),
       hookResultItem(2, "[fresnel:denied_by_extension] no reads today", blocked),
     ]);
-    const text = visibleText(render(<RecordedItem id={itm(1)} />, h));
+    const html = render(<RecordedItem id={itm(1)} />, h);
+    const text = visibleText(html);
     expect(text).toContain(
       t("desktop.item.hookDenial.blocked", { extension: "guard", reason: "no reads today" }),
     );
-    expect(text).toContain(t("desktop.item.status.hookBlocked"));
-    expect(text).not.toContain(t("desktop.item.status.failed"));
+    expect(chipLabels(html)).toEqual([t("desktop.item.status.hookBlocked")]);
+    expect(html).not.toContain(t("desktop.item.status.failed"));
     expect(text).not.toContain("fresnel:denied_by_extension");
   });
 
@@ -701,8 +769,8 @@ describe("a hook that stopped a call says which hook and whether it blocked or t
     const html = renderWithRecords(<RecordedItem id={itm(1)} />, h);
     const text = visibleText(html);
     expect(text).toContain(t("desktop.item.hookDenial.threw", { extension: "bad-guard" }));
-    expect(text).toContain(t("desktop.item.status.hookThrew"));
-    expect(text).not.toContain(t("desktop.item.status.failed"));
+    expect(chipLabels(html)).toEqual([t("desktop.item.status.hookThrew")]);
+    expect(html).not.toContain(t("desktop.item.status.failed"));
     expect(text).toContain(t("desktop.item.hookDenial.records"));
   });
 
@@ -772,16 +840,19 @@ describe("transcript detail setting", () => {
     setTranscriptDetailValue("full");
   });
 
-  test("full draws the thinking open, and summary folds it to its toggle", () => {
+  test("full draws the thinking open, and summary folds it to its toggle and a first-line preview", () => {
     const h = openedHarness();
-    ingestRecords(h, [thinkingItem(1, "조용히 따져 본다")]);
-    expect(visibleText(render(<RecordedItem id={itm(1)} />, h))).toContain("조용히 따져 본다");
+    ingestRecords(h, [thinkingItem(1, "먼저 본다\n조용히 따져 본다")]);
+    const full = render(<RecordedItem id={itm(1)} />, h);
+    expect(full).toContain('aria-expanded="true"');
+    expect(visibleText(full)).toContain("조용히 따져 본다");
 
     setTranscriptDetailValue("summary");
     const folded = render(<RecordedItem id={itm(1)} />, h);
     expect(folded).toContain('aria-expanded="false"');
-    expect(visibleText(folded)).not.toContain("조용히 따져 본다");
-    expect(visibleText(folded)).toContain(t("desktop.item.thinking"));
+    expect(folded).not.toContain("convo-thinking-body");
+    // 접힌 머리는 "생각"과 첫 줄 미리보기만 보인다
+    expect(visibleText(folded)).toBe(`${t("desktop.item.thinking")}먼저 본다`);
   });
 
   test("hidden draws no thinking and no done tool row, but keeps a failed one", () => {

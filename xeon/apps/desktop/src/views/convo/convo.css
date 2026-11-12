@@ -1,0 +1,590 @@
+/* 대화 줄 부품(dzT2a 시안 `_notes/design/dz/dzT2a-design.md`). 색은 caustic 토큰만 써서 라이트·다크가 따라간다.
+   셸 CSP가 인라인 <style>을 막아 이 파일로 두고 styles.css가 가져온다. 움직임(들어옴·나감·높이 잇기)은 모션 트랙이 입힌다. */
+
+/* ── 답 본문 마크다운 ─────────────────────────────────────────────── */
+.convo-prose {
+  min-width: 0;
+  color: var(--cs-color-text-primary);
+  font-family: var(--font-voice, var(--cs-font-voice));
+  font-size: 15px;
+  line-height: 23px;
+  overflow-wrap: break-word;
+}
+.convo-prose[data-size="compact"] {
+  font-family: var(--font-ui, var(--cs-font-ui));
+  font-size: 13px;
+  line-height: 20px;
+  color: inherit;
+}
+.convo-prose > :first-child {
+  margin-top: 0;
+}
+.convo-prose > :last-child {
+  margin-bottom: 0;
+}
+.convo-prose p,
+.convo-prose ul,
+.convo-prose ol,
+.convo-prose blockquote,
+.convo-prose .convo-code,
+.convo-prose .convo-table,
+.convo-prose hr {
+  margin: 0 0 12px;
+}
+.convo-prose[data-size="compact"] :is(p, ul, ol, blockquote, .convo-code, .convo-table) {
+  margin-bottom: 8px;
+}
+.convo-prose h1,
+.convo-prose h2,
+.convo-prose h3,
+.convo-prose h4,
+.convo-prose h5,
+.convo-prose h6 {
+  margin: 20px 0 6px;
+  font-weight: 600;
+  color: var(--cs-color-text-primary);
+}
+.convo-prose h1 {
+  font-size: 18px;
+  line-height: 26px;
+}
+.convo-prose h2 {
+  font-size: 16px;
+  line-height: 24px;
+}
+.convo-prose :is(h3, h4, h5, h6) {
+  font-size: 15px;
+  line-height: 23px;
+}
+.convo-prose[data-size="compact"] :is(h1, h2, h3, h4, h5, h6) {
+  margin: 12px 0 4px;
+  font-size: 13px;
+  line-height: 20px;
+}
+.convo-prose ul,
+.convo-prose ol {
+  padding-left: 20px;
+}
+.convo-prose li {
+  margin: 4px 0 0;
+}
+.convo-prose li > :is(ul, ol) {
+  margin-bottom: 0;
+}
+.convo-prose li::marker {
+  color: var(--cs-color-text-tertiary);
+}
+/* 체크 목록(GFM)은 표지 대신 상자를 쓴다 */
+.convo-prose li:has(> input[type="checkbox"]) {
+  list-style: none;
+  margin-left: -20px;
+}
+.convo-prose input[type="checkbox"] {
+  margin: 0 6px 0 0;
+  vertical-align: -1px;
+}
+.convo-prose strong {
+  font-weight: 600;
+}
+.convo-prose blockquote {
+  padding-left: 12px;
+  border-left: 2px solid var(--cs-color-border-default);
+  color: var(--cs-color-text-secondary);
+}
+.convo-prose hr {
+  border: 0;
+  border-top: 1px solid var(--cs-color-border-subtle);
+  margin-block: 20px;
+}
+.convo-link {
+  color: var(--cs-color-text-link);
+  text-decoration: none;
+  cursor: pointer;
+}
+.convo-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.convo-inline-code {
+  padding: 1px 4px;
+  border-radius: var(--cs-radius-xs);
+  background: var(--cs-color-neutral-well);
+  font-family: var(--font-mono, var(--cs-font-mono));
+  font-size: 0.87em;
+}
+
+/* 코드 블록: 머리 32 + 본문 mono 12/18 */
+.convo-code {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--cs-color-border-subtle);
+  border-radius: var(--cs-radius-lg);
+  background: var(--cs-color-neutral-well);
+}
+.convo-code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  padding: 0 4px 0 12px;
+  border-bottom: 1px solid var(--cs-color-border-subtle);
+}
+.convo-code-lang {
+  color: var(--cs-color-text-tertiary);
+  font-family: var(--font-mono, var(--cs-font-mono));
+  font-size: 12px;
+  line-height: 16px;
+}
+.convo-code-body {
+  margin: 0;
+  max-height: 480px;
+  overflow: auto;
+  padding: 10px 14px;
+  color: var(--cs-color-text-primary);
+  font-family: var(--font-mono, var(--cs-font-mono));
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre;
+  tab-size: 2;
+}
+.convo-code-body:focus-visible {
+  outline: 2px solid var(--cs-color-accent-border);
+  outline-offset: -2px;
+}
+
+/* 표 */
+.convo-table {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--cs-color-border-subtle);
+  border-radius: var(--cs-radius-lg);
+}
+.convo-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-ui, var(--cs-font-ui));
+  font-size: 13px;
+  line-height: 18px;
+}
+.convo-table th,
+.convo-table td {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--cs-color-border-subtle);
+  text-align: left;
+  vertical-align: top;
+}
+.convo-table th {
+  background: var(--cs-color-neutral-well);
+  color: var(--cs-color-text-secondary);
+  font-weight: 500;
+}
+.convo-table tr:last-child td {
+  border-bottom: 0;
+}
+
+/* ── 생각 ──────────────────────────────────────────────────────── */
+.convo-thinking-body {
+  max-height: 240px;
+  overflow-y: auto;
+  margin: 2px 0 0 7px;
+  padding: 2px 0 2px 13px;
+  border-left: 2px solid var(--cs-color-border-subtle);
+  color: var(--cs-color-text-tertiary);
+}
+
+/* ── 도구 줄 ───────────────────────────────────────────────────── */
+.convo-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 28px;
+  margin-inline: -6px;
+  padding: 0 6px;
+  border-radius: var(--cs-radius-sm);
+  color: var(--cs-color-text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+}
+/* 줄 전체를 덮는 보이지 않는 단추가 펼침을 맡는다. 줄 안 꼬리표는 그 위에 떠서 따로 눌린다 */
+.convo-line[data-toggle="true"] {
+  position: relative;
+}
+.convo-line-hit {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.convo-line:has(> .convo-line-hit:hover),
+.convo-line:has(> .convo-line-hit:focus-visible) {
+  background: var(--cs-color-neutral-hover);
+}
+.convo-line-hit:focus-visible {
+  outline: 2px solid var(--cs-color-accent-border);
+  outline-offset: -2px;
+}
+.convo-line[data-toggle="true"] > :not(.convo-line-hit) {
+  pointer-events: none;
+}
+.convo-line .convo-tag,
+.convo-line .convo-line-live {
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
+}
+.convo-line-icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--cs-color-text-tertiary);
+}
+.convo-line-verb {
+  flex: none;
+  font-weight: 500;
+  color: var(--cs-color-text-secondary);
+}
+.convo-line-target {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+.convo-line-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--cs-color-text-tertiary);
+}
+.convo-mono {
+  font-family: var(--font-mono, var(--cs-font-mono));
+  font-size: 12px;
+  line-height: 18px;
+}
+/* 경로 칩: 높이 20, 반경 5, 안쪽 6 */
+.convo-path {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  min-width: 0;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--cs-color-neutral-well);
+  color: var(--cs-color-text-secondary);
+  font-family: var(--font-mono, var(--cs-font-mono));
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.convo-line-meta {
+  flex: none;
+  color: var(--cs-color-text-tertiary);
+  font-size: 12px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.convo-line-status {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.convo-line-chevron {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--cs-color-text-tertiary);
+  opacity: 0;
+  transition:
+    transform 120ms ease,
+    opacity 120ms ease;
+}
+.convo-line:has(> .convo-line-hit:hover) .convo-line-chevron,
+.convo-line:has(> .convo-line-hit:focus-visible) .convo-line-chevron,
+.convo-line[data-open="true"] .convo-line-chevron {
+  opacity: 1;
+}
+.convo-line[data-open="true"] .convo-line-chevron {
+  transform: rotate(90deg);
+}
+.convo-add {
+  color: var(--cs-color-diff-add-text);
+}
+.convo-del {
+  color: var(--cs-color-diff-remove-text);
+}
+/* 조용한 줄(기억·스킬) */
+.convo-line[data-quiet="true"] .convo-line-verb {
+  font-weight: 400;
+  color: var(--cs-color-text-tertiary);
+}
+
+/* 펼친 상세: 아이콘 열 아래로 들여 20 */
+.convo-detail {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 2px 0 6px 20px;
+}
+.convo-output {
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: var(--cs-radius-md);
+  background: var(--cs-color-neutral-well);
+  color: var(--cs-color-text-secondary);
+  font-family: var(--font-mono, var(--cs-font-mono));
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.convo-output:focus-visible {
+  outline: 2px solid var(--cs-color-accent-border);
+  outline-offset: -2px;
+}
+.convo-output[data-tone="danger"] {
+  color: var(--cs-color-danger-text);
+}
+/* bash 실행 중 출력 꼬리: 접혀 있어도 보인다 */
+.convo-tail {
+  margin: 2px 0 6px 20px;
+  padding: 6px 10px;
+  border-radius: var(--cs-radius-md);
+  background: var(--cs-color-neutral-well);
+  color: var(--cs-color-text-tertiary);
+  font-family: var(--font-mono, var(--cs-font-mono));
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.convo-note {
+  margin: 0;
+  color: var(--cs-color-text-tertiary);
+  font-size: 13px;
+  line-height: 18px;
+}
+.convo-note[data-tone="warning"] {
+  color: var(--cs-color-warning-text);
+}
+
+/* ── 꼬리표 ────────────────────────────────────────────────────── */
+.convo-tag {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--cs-color-border-subtle);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--cs-color-text-secondary);
+  font-family: var(--font-ui, var(--cs-font-ui));
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.convo-tag svg {
+  width: 12px;
+  height: 12px;
+}
+.convo-tag:hover,
+.convo-tag:focus-visible {
+  background: var(--cs-color-neutral-hover);
+}
+.convo-tag:focus-visible {
+  outline: 2px solid var(--cs-color-accent-border);
+  outline-offset: 1px;
+}
+.convo-tag[data-tone="warning"] {
+  border-color: color-mix(in oklab, var(--cs-color-warning-border) 60%, transparent);
+  color: var(--cs-color-warning-text);
+}
+
+/* ── 묶음 ──────────────────────────────────────────────────────── */
+.convo-group-body {
+  display: grid;
+  min-width: 0;
+  margin-left: 6px;
+  padding-left: 13px;
+  border-left: 1px solid var(--cs-color-border-subtle);
+}
+
+/* ── 카드(하위 에이전트, 계획) ───────────────────────────────────── */
+.convo-card {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--cs-color-border-subtle);
+  border-radius: var(--cs-radius-lg);
+  background: var(--cs-color-surface-base);
+}
+.convo-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 20px;
+}
+.convo-card-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--cs-color-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+}
+.convo-card-text {
+  margin: 0;
+  color: var(--cs-color-text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.convo-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-inline: -6px;
+}
+.convo-clip {
+  position: relative;
+  max-height: 96px;
+  overflow: hidden;
+}
+.convo-clip[data-size="card"] {
+  --convo-clip-bg: var(--cs-color-bg-app);
+  max-height: 320px;
+}
+.convo-clip[data-open="true"] {
+  max-height: none;
+}
+.convo-clip[data-open="false"]::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 32px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--convo-clip-bg, var(--cs-color-surface-base))
+  );
+  pointer-events: none;
+}
+
+/* 할 일 */
+.convo-tasks {
+  display: grid;
+  gap: 2px;
+  margin: 0 0 4px 20px;
+  padding: 0;
+  list-style: none;
+}
+.convo-task {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 22px;
+  color: var(--cs-color-text-tertiary);
+  font-size: 13px;
+  line-height: 20px;
+}
+.convo-task[data-changed="true"] {
+  color: var(--cs-color-text-primary);
+  font-weight: 500;
+}
+.convo-task[data-status="completed"][data-changed="false"] {
+  text-decoration: line-through;
+  text-decoration-color: var(--cs-color-border-strong);
+}
+.convo-task-glyph {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 3px;
+}
+
+/* ── 구분 줄(변화 표지, 압축) ─────────────────────────────────────── */
+.convo-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 28px;
+  color: var(--cs-color-text-tertiary);
+  font-size: 13px;
+  line-height: 18px;
+}
+.convo-divider::before,
+.convo-divider::after {
+  content: "";
+  flex: 1 1 24px;
+  height: 1px;
+  background: var(--cs-color-border-subtle);
+}
+
+/* ── 주도 구간 레일 ─────────────────────────────────────────────── */
+.convo-row[data-lead] {
+  position: relative;
+}
+.convo-row[data-lead]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--cs-color-agent-border);
+}
+.convo-lead-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--cs-color-agent-solid);
+}
+.convo-meter-warn {
+  color: var(--cs-color-warning-text);
+}
+
+/* ── 메시지 동작 줄: 그 메시지에 올리거나 초점이 들어오면 보인다 ─────────── */
+.convo-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.convo-row:hover .convo-actions,
+.convo-row:focus-within .convo-actions,
+.convo-actions[data-pinned="true"] {
+  opacity: 1;
+}
+@media (hover: none) {
+  .convo-actions {
+    opacity: 1;
+  }
+}

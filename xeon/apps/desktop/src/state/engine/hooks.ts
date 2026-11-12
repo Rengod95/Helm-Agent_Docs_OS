@@ -15,6 +15,7 @@ import { useShallow } from "zustand/react/shallow";
 import type { ReadonlyStore } from "../shared/readonly-store.ts";
 import * as sel from "./selectors.ts";
 import * as csel from "./convo-select.ts";
+import { selectTranscriptShapes, type ItemShape } from "./transcript-shape.ts";
 import type { ApprovalTrail, ConvoMarker, Intervention, ToolProgress } from "./convo.ts";
 import type { AnchoredCompaction } from "./compaction-anchor.ts";
 import type { EngineState } from "../../transport/ipc.ts";
@@ -74,7 +75,13 @@ export const useAllThreadSummaries = (): readonly ThreadSummary[] =>
       }),
     ),
   );
-export const useTranscriptItemIds = (): readonly ItemId[] => useEngine(sel.selectTranscriptItemIds);
+/** 열린 대화의 확정 item 모양(줄 모델용). 확정 item이 늘 때만 바뀐다 */
+export const useTranscriptShapes = (): readonly ItemShape[] => useEngine(selectTranscriptShapes);
+/** 여러 도구 호출의 결과 item(호출 순서). 결과가 아직 없으면 그 자리는 undefined다. 활동 묶음 머리가 읽는다 */
+export const useToolResults = (
+  toolCallIds: readonly string[],
+): readonly (ItemRecord | undefined)[] =>
+  useEngine((s) => toolCallIds.map((id) => sel.selectToolResult(s, id)));
 export const useItem = (id: ItemId): ItemRecord | undefined =>
   useEngine((s) => sel.selectItem(s, id));
 export const useToolResult = (toolCallId: string): ItemRecord | undefined =>

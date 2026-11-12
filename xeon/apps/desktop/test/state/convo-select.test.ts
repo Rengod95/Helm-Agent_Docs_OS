@@ -46,6 +46,7 @@ const END = "2026-11-07T00:00:02.500Z";
 const TURN_BASE: TurnRecord = {
   turnId: trn(1),
   startedSeq: null,
+  inputItemIds: [],
   startedAt: null,
   origin: "user",
   scopeId: null,
@@ -221,6 +222,8 @@ describe("selectTurnSummary", () => {
     });
     expect(selectTurnSummary(s, T, trn(1))).toEqual({
       turnId: trn(1),
+      startedSeq: 1,
+      inputItemIds: [],
       origin: "scheduled",
       leadScopeId: "g",
       model: "m-1",

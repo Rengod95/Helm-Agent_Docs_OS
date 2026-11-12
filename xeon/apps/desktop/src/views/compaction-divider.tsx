@@ -5,8 +5,8 @@ import { useState, type ReactNode } from "react";
 import type { CompactionRecord } from "../state/engine/state.ts";
 import { compactionViewOf } from "./compaction-model.ts";
 
-// 대화 요약 구분선(L4 desktop-ux §6.6). 요약한 자리에 가운데 선과 "여기까지 요약했어요"를 두고, "요약 보기"로 요약 본문을 편다.
-// 요약 본문은 읽기 폭 안에서 줄바꿈하고 길면 안쪽에서 스크롤한다. 글은 트랜스크립트의 끊김 표시(CutMarker)와 같은 크기와 빛깔이다.
+// 대화 요약 구분선(L4 desktop-ux §6.6, dzT2a 시안 10절). 변화 표지와 같은 구분 줄(`.convo-divider`)에 "여기까지 요약했어요", 사유, 남은 토큰과
+// "요약 보기"를 한 줄로 두고, 펼치면 요약 본문이 아래에 붙는다(길면 안쪽에서 스크롤). 줄 폭과 여백은 대화 줄 틀이 준다.
 
 /** 구분선. 상태(펼침)는 부모가 쥔다. 서버 렌더 시험이 펼친 모양을 값으로 비교하려고 나눴다 */
 export function CompactionDividerView(props: {
@@ -17,37 +17,35 @@ export function CompactionDividerView(props: {
   const { record, open, onToggle } = props;
   const view = compactionViewOf(record);
   return (
-    <div data-compaction-divider className="mx-auto w-full min-w-0 max-w-184 px-3 py-2">
-      <div className="flex min-w-0 items-center gap-3">
-        <span aria-hidden className="h-px min-w-6 flex-1 bg-border-subtle" />
-        <p className="m-0 flex min-w-0 flex-wrap items-baseline justify-center gap-x-2 text-center text-ui text-text-tertiary">
+    <div data-compaction-divider className="grid min-w-0">
+      <div className="convo-divider">
+        <span className="flex min-w-0 flex-wrap items-center justify-center gap-x-2">
           <span>{t("desktop.compaction.divider")}</span>
-          {view.reason === null ? null : <span className="text-ui">{t(view.reason)}</span>}
-        </p>
-        <span aria-hidden className="h-px min-w-6 flex-1 bg-border-subtle" />
-        <Button size="xs" variant="ghost" aria-expanded={open} onClick={onToggle}>
-          <ChevronRight
-            aria-hidden
-            className={
-              open
-                ? "rotate-90 transition-transform duration-quick"
-                : "transition-transform duration-quick"
-            }
-          />
-          {open ? t("desktop.compaction.hide") : t("desktop.compaction.show")}
-        </Button>
+          {view.reason === null ? null : <span className="text-footnote">{t(view.reason)}</span>}
+          {view.tokensAfter === null ? null : (
+            <span className="text-footnote">
+              {t("desktop.compaction.tokensAfter", { tokens: view.tokensAfter })}
+            </span>
+          )}
+          <Button size="xs" variant="ghost" aria-expanded={open} onClick={onToggle}>
+            <ChevronRight
+              aria-hidden
+              className={
+                open
+                  ? "rotate-90 transition-transform duration-quick"
+                  : "transition-transform duration-quick"
+              }
+            />
+            {open ? t("desktop.compaction.hide") : t("desktop.compaction.show")}
+          </Button>
+        </span>
       </div>
-      {view.tokensAfter === null ? null : (
-        <p className="m-0 mt-0.5 text-center text-ui text-text-tertiary">
-          {t("desktop.compaction.tokensAfter", { tokens: view.tokensAfter })}
-        </p>
-      )}
       {open ? (
         <div
           role="region"
           tabIndex={0}
           aria-label={t("desktop.compaction.summaryLabel")}
-          className="mt-2 max-h-80 overflow-y-auto rounded-2xl bg-neutral-well px-4 py-3 whitespace-pre-wrap [overflow-wrap:anywhere] text-ui text-text-secondary"
+          className="mt-1 max-h-80 overflow-y-auto rounded-lg bg-neutral-well px-3.5 py-2.5 whitespace-pre-wrap [overflow-wrap:anywhere] text-ui-relaxed text-text-secondary"
         >
           {record.summary}
         </div>

@@ -33,6 +33,7 @@ const convo: ThreadConvo = {
     {
       turnId: TURN,
       startedSeq: 3,
+      inputItemIds: [],
       startedAt: "2026-11-11T00:00:00.000Z",
       origin: "user",
       scopeId: null,

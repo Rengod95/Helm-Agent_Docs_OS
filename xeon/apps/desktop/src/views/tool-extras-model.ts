@@ -13,7 +13,6 @@ function strOf(value: JsonValue | undefined): string | null {
   return typeof value === "string" && value !== "" ? value : null;
 }
 
-export const AGENT_TOOL = "agent";
 export const WEB_TOOLS: readonly string[] = ["web_search", "web_fetch"];
 
 const TASK_HEAD_CHARS = 80;

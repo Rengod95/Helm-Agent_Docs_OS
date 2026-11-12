@@ -17,6 +17,7 @@ import { isWebDocument, resolveWebFrameRoot } from "./plugin-ui/frame-root.ts";
 import { createPluginUiRuntime } from "./plugin-ui/runtime.ts";
 import { createConfirmQueue } from "./views/plugin/confirm-host.tsx";
 import { PluginUiProvider } from "./views/plugin/plugin-context.tsx";
+import { MessageActionsContext } from "./views/convo/message-actions.tsx";
 import { createDesktopRegistry } from "./views/desktop-registry.tsx";
 import { createShellStore, ShellStoreContext } from "./state/shell/index.ts";
 import { selectThread } from "./state/engine/index.ts";
@@ -226,19 +227,21 @@ if (container === null) {
           <DesktopShellContext value={desktopShell}>
             <UpdateContext value={updateController}>
               <PluginUiProvider value={pluginUi}>
-                <RevealGateContext value={revealGate}>
-                  {/* 셸이 엔진을 다시 띄울 수 있다. 웹 진입점은 이 문맥을 주지 않아 단추 대신 한 줄만 보인다(U-02) */}
-                  <ShellRestartContext value>
-                    <App
-                      registry={registry}
-                      keyOverrides={localSettings.get(LOCAL.keybindings)}
-                      mac={mac}
-                      folderPick={folderPick}
-                      fileSave={fileSave}
-                    />
-                    <OriginFolderDialogHost picker={originFolderPicker} />
-                  </ShellRestartContext>
-                </RevealGateContext>
+                <MessageActionsContext value={app.commands.message}>
+                  <RevealGateContext value={revealGate}>
+                    {/* 셸이 엔진을 다시 띄울 수 있다. 웹 진입점은 이 문맥을 주지 않아 단추 대신 한 줄만 보인다(U-02) */}
+                    <ShellRestartContext value>
+                      <App
+                        registry={registry}
+                        keyOverrides={localSettings.get(LOCAL.keybindings)}
+                        mac={mac}
+                        folderPick={folderPick}
+                        fileSave={fileSave}
+                      />
+                      <OriginFolderDialogHost picker={originFolderPicker} />
+                    </ShellRestartContext>
+                  </RevealGateContext>
+                </MessageActionsContext>
               </PluginUiProvider>
             </UpdateContext>
           </DesktopShellContext>

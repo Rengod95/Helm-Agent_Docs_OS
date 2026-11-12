@@ -38,6 +38,7 @@ const start = (c: Convo, seq: number, sec: number, origin: "user" | "scheduled" 
     origin,
     scopeId: null,
     requestId: null,
+    inputItemIds: [],
     model: "m1",
   });
 

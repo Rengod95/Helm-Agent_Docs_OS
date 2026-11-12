@@ -1,874 +1,108 @@
-import { Badge, Button, Message, ToolCall } from "@caustic/react";
-import { ChevronRight, Globe } from "@caustic/react/icons";
-import { t } from "@fresnel/client/i18n";
-import { assertNever, detach, rethrow } from "@fresnel/contracts";
-import { normalizeExternalLink } from "@fresnel/client/views/app";
-import { NOT_STARTED_TEXT, OUTCOME_UNKNOWN_TEXT } from "@fresnel/contracts/records";
-import type { ItemId, ItemRecord, JsonObject, JsonValue } from "@fresnel/contracts/conversation";
-import {
-  Fragment,
-  memo,
-  useEffect,
-  useState,
-  type NamedExoticComponent,
-  type ReactNode,
-} from "react";
-import { cardOf, provenanceOf } from "../plugin-ui/placements.ts";
-import {
-  useEngineState,
-  useHasToolCall,
-  useItem,
-  useLinkPhase,
-  useOpenThreadId,
-  useOpenThread,
-  useOpenThreadRunning,
-  usePartText,
-  useStreamingItem,
-  useToolCallAwaitingApproval,
-  useToolResult,
-} from "../state/engine/index.ts";
-import { useCommands } from "./commands.ts";
-import { fileChangeViewOfArgs } from "./approval-form.ts";
-import { bubbleOf } from "./attachment-bubble-model.ts";
-import { engineGoneOf } from "./composer-model.ts";
-import { FileChangeDiff } from "./file-change-view.tsx";
-import { MessageAttachments } from "./message-attachments.tsx";
-import { EntrySurface } from "./plugin/plugin-view.tsx";
-import { usePluginUi, usePluginUiState } from "./plugin/plugin-context.tsx";
-import { useGoToThread } from "./thread-link.ts";
-import { useOpenExtensionRecords } from "./extension-records-link.ts";
-import { hookDenialOf, isUserDenial, type HookDenialView } from "./hook-denial-model.ts";
-import { CallChip, type CallChipTone } from "./call-chip.tsx";
-import { sandboxBlocksOf, type SandboxBlockView } from "./sandbox-block-model.ts";
-import { thinkingModeOf, toolRowModeOf, toolRowOpenOf } from "./item-detail-model.ts";
-import { toolOutputOf } from "./tool-output-model.ts";
-import { useTranscriptDetail } from "./transcript-detail.ts";
-import {
-  AGENT_TOOL,
-  WEB_TOOLS,
-  agentHeadOf,
-  agentResultOf,
-  citedLinksOf,
-  reportFoldOf,
-  webSourcesOf,
-  type WebSource,
-} from "./tool-extras-model.ts";
+import { assertNever } from "@fresnel/contracts";
+import type { ItemId, ThreadId } from "@fresnel/contracts/conversation";
+import { memo, type NamedExoticComponent, type ReactNode } from "react";
+import { useOpenThreadId, useTranscriptShapes } from "../state/engine/index.ts";
+import { CompactionDivider } from "./compaction-divider.tsx";
+import { ActivityGroup } from "./convo/activity-group.tsx";
+import { CardRow } from "./convo/cards.tsx";
+import { CustomRow, ReplyRow, UserRow } from "./convo/message-rows.tsx";
+import { OrphanResultRow } from "./convo/tool-call-row.tsx";
+import { LeadEnd, LeadHead, MarkerRow, TurnFoot } from "./convo/turn-rows.tsx";
+import { transcriptRowsOf, type TranscriptRow } from "./transcript-rows.ts";
 
-// 확정 item과 진행 중 item의 한 행(시안 _chat-rt/items.tsx ItemView). 행 부품은 자기 id만 구독한다(FS-19).
-// 사용자 글은 말풍선, 어시스턴트 글은 말풍선 없는 글이고 역할 이름은 적지 않는다. 도구 호출과 결과는 ToolCall 한 줄이다.
-// 마크다운과 코드 하이라이트는 넣지 않았다(FS-21 [제안]): 평문 줄바꿈 보존으로 그린다.
+// 대화 목록의 한 줄(dzT2a 시안, L4 desktop-ux §16). 줄 모델(`transcript-rows.ts`)이 정한 줄 종류를 `views/convo/`의 부품으로 그린다.
+// 틀(`RowFrame`)이 읽기 열(736px, 좌우 12px)과 줄 종류별 아래 여백을 정하고, 주도 구간 줄에는 왼쪽 레일(`data-lead`)을 단다.
+// 행 부품은 자기 id만 구독한다(FS-19). 목록 부품은 줄 배열만 바뀔 때 다시 그린다.
 
-const PREVIEW_CHARS = 400;
-/** 한 행의 읽기 열(시안 READ_WIDTH)과 행 사이 간격(시안 로그의 gap-4). 행 사이 간격은 아래쪽 pb-4가 맡는다 */
-// 한 열 격자는 열 폭을 minmax(0,1fr)로 고정한다. 그렇지 않으면 긴 도구 인자 한 줄이 열을 대화 칸 밖으로 민다
-// empty:hidden은 표시 정도가 숨긴 줄만 남은 행에서 빈 간격(pb-4)까지 없앤다
-const ROW_CLASS =
-  "mx-auto grid w-full min-w-0 max-w-184 grid-cols-[minmax(0,1fr)] gap-2 px-3 pb-4 empty:hidden";
-/** 글. 줄바꿈을 살리고, 붙은 긴 토큰(파일 이름 등)은 쉴 곳(공백, 하이픈, 점 뒤)에서 먼저 줄을 바꾸며 그래도 넘칠 때만 열 끝에서 꺾는다(글자 사이 강제 분리 대신) */
-const TEXT_CLASS = "m-0 whitespace-pre-wrap [overflow-wrap:break-word] [word-break:normal]";
-/** 보조 글(생각, 확장 종류, 출처). 본문보다 작고 흐리다 */
-const QUIET_CLASS = "m-0 text-ui text-text-tertiary";
-/** 실패·중단 줄. 행 맨 아래에 한 줄로 둔다 */
-const NOTE_CLASS = "m-0 text-ui text-text-tertiary";
-/** 생각 토글 단추. 좌우 여백이 없어 chevron이 행(도구 카드·글)의 왼쪽 끝에 선다(2026-11-08 사용자 결정). 글은 본문 글 크기(13px)다 */
-const THINK_TOGGLE_CLASS = "px-0 text-ui";
-/** 생각 본문. 들여 쓰지 않고 행 폭 전체를 쓴다. 읽기 좋게 본문 글 크기를 쓴다 */
-const THINK_BODY_CLASS = `${TEXT_CLASS} text-ui text-text-secondary`;
-/** 도구 줄 머리의 이름(mono)과 설명(ui)은 같은 18px 글 줄을 이뤄 머리 가운데에 선다 */
-const HEADER_CLASS =
-  "[&_[data-slot=tool-call-name]]:leading-[18px] [&_[data-slot=tool-call-detail]]:leading-[18px]";
-/** 상태 알약의 아이콘과 글은 같은 14px 줄을 이뤄 세로 가운데에 선다. 아이콘은 줄어들지 않는다 */
-const PILL_CLASS =
-  "[&_[data-slot=tool-call-status]]:leading-[14px] [&_[data-slot=tool-call-status]_svg]:shrink-0";
-/** caustic의 상태 알약은 화면에서 가리고(읽는 사람용 글은 남긴다) 같은 자리에 `CallChip`을 그린다 */
-const PILL_HIDDEN_CLASS = "[&_[data-slot=tool-call-status]]:sr-only";
-/** 실패·거부·막힘 줄도 테두리는 평소(끝남) 줄과 같은 얇은 선이다. 실패는 상태 칩의 빛깔로만 알린다(2026-11-08 사용자 결정). caustic의 실패 테두리(danger)를 덮는다 */
-const FAILED_EDGE_CLASS =
-  "[&[data-status=failed]]:shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]";
-/**
- * 사용자 말풍선: 채움 없이 얇은 테두리만 두는 outlined 모양(2026-11-08 사용자 결정)이고 안쪽 여백을 줄였다.
- * 글은 어시스턴트 글과 같은 크기와 줄 높이(text-voice-sm 15px/23px)다. 채움과 테두리는 caustic Message의 기본 클래스를 덮는다.
- */
-const BUBBLE_CLASS =
-  "whitespace-pre-wrap [overflow-wrap:anywhere] text-voice-sm bg-transparent px-2.5 py-1.5 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]";
-/** 도구 결과 본문 */
-/** 펼친 출력의 높이 상한과 안쪽 스크롤 */
-const OUTPUT_BOX_CLASS = "max-h-80 overflow-auto";
-const MONO_CLASS = "m-0 whitespace-pre-wrap [overflow-wrap:anywhere] font-mono text-mono-sm";
-
-type Block = { readonly type: string };
-
-function textOf(content: string | readonly Block[]): string {
-  if (typeof content === "string") return content;
-  const parts: string[] = [];
-  for (const block of content) {
-    if ("text" in block && typeof block.text === "string") parts.push(block.text);
-    else if (block.type === "image") parts.push(t("desktop.item.imagePlaceholder"));
-  }
-  return parts.join("\n");
-}
-
-function clip(text: string): string {
-  return text.length > PREVIEW_CHARS ? `${text.slice(0, PREVIEW_CHARS)}…` : text;
-}
-
-/**
- * 접는 블록(생각, 하위 에이전트의 긴 보고). 시안의 조용한 단추 한 줄이고 펼치면 본문이 아래에 붙는다.
- * `defaultOpen`이 바뀌면(표시 정도 설정) 펼침을 그 값으로 다시 정한다. 그 뒤에는 사용자가 누른 대로 둔다.
- */
-function Collapsible(props: {
-  readonly summary: string;
-  readonly children: ReactNode;
-  /** 처음 펼쳐 둘지. 기본은 접힘이다 */
-  readonly defaultOpen?: boolean;
-  /** 단추에 더하는 클래스(생각 토글의 여백과 글 크기) */
-  readonly toggleClassName?: string;
-}): ReactNode {
-  const defaultOpen = props.defaultOpen === true;
-  const [open, setOpen] = useState(defaultOpen);
-  const [seenDefault, setSeenDefault] = useState(defaultOpen);
-  if (seenDefault !== defaultOpen) {
-    setSeenDefault(defaultOpen);
-    setOpen(defaultOpen);
-  }
-  return (
-    <div className="grid justify-items-start gap-1">
-      <Button
-        size="xs"
-        variant="ghost"
-        className={props.toggleClassName ?? ""}
-        aria-expanded={open}
-        onClick={() => {
-          setOpen((v) => !v);
-        }}
-      >
-        <ChevronRight
-          aria-hidden
-          className={
-            open
-              ? "rotate-90 transition-transform duration-quick"
-              : "transition-transform duration-quick"
-          }
-        />
-        {props.summary}
-      </Button>
-      {open ? props.children : null}
-    </div>
-  );
-}
-
-/** 확장이 오류를 낸 거부의 "기록 보기" 단추. 확장 이름이 없거나 열 곳(문맥)이 없으면 그리지 않는다 */
-function HookRecordsLink(props: { readonly hook: HookDenialView }): ReactNode {
-  const openRecords = useOpenExtensionRecords();
-  const { hook } = props;
-  if (hook.outcome !== "threw" || hook.extension === null || openRecords === null) return null;
-  const extension = hook.extension;
-  return (
-    <div className="justify-self-start">
-      <Button
-        size="xs"
-        variant="ghost"
-        onClick={() => {
-          openRecords(extension);
-        }}
-      >
-        {t("desktop.item.hookDenial.records")}
-      </Button>
-    </div>
-  );
-}
-
-/** 없는 것과 빈 글을 뺀 클래스를 한 줄로 잇는다 */
-function classesOf(...parts: readonly (string | undefined)[]): string {
-  return parts.filter((part) => part !== undefined && part !== "").join(" ");
-}
-
-/** 실패 칩의 빛깔. 정책이 멈춘 것(거부함, 막힘, 훅 막음)은 경고, 중단됨은 중립, 나머지 실패는 위험이다 */
-function failedToneOf(label: string | undefined, hook: boolean): CallChipTone {
-  if (hook) return "warning";
-  if (label === t("desktop.item.status.interrupted")) return "neutral";
-  if (label === t("desktop.item.status.denied") || label === t("desktop.tool.blocked.status")) {
-    return "warning";
-  }
-  return "danger";
-}
-
-/**
- * 도구 호출·결과 한 줄(시안 p02-opus ToolRow). 이름, 짧은 요약, 상태 알약을 보인다.
- * 결과(output)가 있으면 접는 머리가 되고 기본은 접힘이다. 실패한 결과만 펼쳐 둔다. 결과가 없는 호출은 접을 것이 없다.
- * 시안은 머리 위에 투명 단추를 겹쳤지만, caustic ToolCall이 접기를 직접 주므로 그것을 쓴다.
- */
-function ToolRow(props: {
-  readonly name: string;
-  readonly detail?: string;
-  readonly status: "done" | "failed" | "running";
-  /** 실패 알약의 글. 기본은 "실패"다(거부, 중단은 따로 쓴다) */
-  readonly failedLabel?: string;
-  readonly output?: string;
-  /** 엔진 또는 화면이 잘랐을 때 전체 줄 수와 보인 줄 수 */
-  readonly cut?: { readonly shown: number; readonly total: number };
-  /** 실행 중 글. 없으면 "실행 중"(경과 시간 포함) */
-  readonly runningLabel?: (seconds: number) => string;
-  /** 승인을 기다리는 호출. 경과 시간을 세지 않고 "승인 기다리는 중"을 보인다 */
-  readonly awaitingApproval?: boolean;
-  /** 출력 아래에 덧붙이는 것(접은 나머지, 자식 대화 링크) */
-  readonly foot?: ReactNode;
-  /** 훅이 막은 거부. 경고 빛깔이고, 훅이 오류를 냈으면 "기록 보기"를 덧붙인다 */
-  readonly hook?: HookDenialView;
-  /** 끝난 뒤에도 펼쳐 둔다(하위 에이전트의 보고는 결과 블록이다) */
-  readonly openWhenDone?: boolean;
-  /** 펼친 본문에서 결과 글 위에 놓는 그림(edit·write의 diff). 결과가 없는 행에서는 그리지 않는다 */
-  readonly diff?: ReactNode;
-  /** MCP 도구의 서버 이름. 줄 머리에 칩으로 보인다(결과의 `details.server`) */
-  readonly server?: string;
-}): ReactNode {
-  const { output } = props;
-  const awaiting = props.awaitingApproval === true && props.status === "running";
-  const elapsed = useElapsedSeconds(props.status === "running" && !awaiting);
-  const transcriptDetail = useTranscriptDetail();
-  const mode = toolRowModeOf(transcriptDetail, props.status);
-  // 실행 중에 그려진 행이 나중에 끝나도 초기 값만 읽으면 접힌 채로 남는다. 상태나 표시 정도가 바뀔 때 펼칠지 다시 정한다
-  const wantOpen = toolRowOpenOf(mode, props.status, props.openWhenDone === true);
-  const [open, setOpen] = useState(wantOpen);
-  const [seenStatus, setSeenStatus] = useState(props.status);
-  const [seenMode, setSeenMode] = useState(mode);
-  if (seenStatus !== props.status || seenMode !== mode) {
-    setSeenStatus(props.status);
-    setSeenMode(mode);
-    setOpen(wantOpen);
-  }
-  const rowClass = classesOf(HEADER_CLASS, PILL_CLASS, PILL_HIDDEN_CLASS, FAILED_EDGE_CLASS);
-  const activity = awaiting
-    ? t("desktop.item.toolAwaitingApproval")
-    : props.runningLabel !== undefined
-      ? props.runningLabel(elapsed)
-      : elapsed > 0
-        ? t("desktop.item.toolRunningFor", { seconds: elapsed })
-        : t("desktop.item.toolRunning");
-  const failedLabel = props.failedLabel ?? t("desktop.item.status.failed");
-  const detail =
-    props.server === undefined ? (
-      props.detail
-    ) : (
-      <>
-        <Badge size="xs">{t("desktop.item.toolServer", { server: props.server })}</Badge>
-        {props.detail === undefined ? null : ` ${props.detail}`}
-      </>
-    );
-  return (
-    <ToolCall
-      name={props.name}
-      detail={
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="min-w-0 flex-1 truncate">{detail}</span>
-          <CallChip
-            status={props.status}
-            label={
-              props.status === "running"
-                ? activity
-                : props.status === "failed"
-                  ? failedLabel
-                  : undefined
-            }
-            tone={failedToneOf(props.failedLabel, props.hook !== undefined)}
-            waiting={awaiting}
-          />
-        </span>
-      }
-      status={props.status}
-      activity={activity}
-      failedLabel={failedLabel}
-      className={rowClass}
-      collapsible={output !== undefined || props.foot !== undefined}
-      open={open}
-      onOpenChange={setOpen}
-    >
-      {output === undefined && props.foot === undefined ? null : (
-        <>
-          {output === undefined ? null : props.diff}
-          {output === undefined || output === "" ? null : (
-            <pre className={`${MONO_CLASS} ${OUTPUT_BOX_CLASS}`} tabIndex={0}>
-              {output}
-            </pre>
-          )}
-          {props.foot}
-          {props.hook === undefined ? null : <HookRecordsLink hook={props.hook} />}
-          {props.cut === undefined ? null : (
-            <p className={NOTE_CLASS}>
-              {t("desktop.item.output.partial", {
-                total: props.cut.total,
-                shown: props.cut.shown,
-              })}
-            </p>
-          )}
-        </>
-      )}
-    </ToolCall>
-  );
-}
-
-/** JSON 객체인가. `Array.isArray`는 읽기 전용 배열을 걸러내지 못해 직접 가린다 */
-function isJsonObject(value: JsonValue): value is JsonObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/** 기록의 details를 카드의 데이터 문서로 쓴다. 객체가 아니면 빈 문서다 */
-function dataDocOf(details: JsonValue): Readonly<Record<string, unknown>> {
-  return isJsonObject(details) ? details : {};
-}
-
-/**
- * 확장 기록의 본문. 이 종류(`customType`)의 `card` 기여가 있으면 그 화면을 기록의 details로 그리고 출처 줄을 덧붙인다.
- * 카드가 없거나 확장이 꺼졌으면 종류 이름만 보인다. 출처는 와이어 항목과 `forKind`로만 정한다
- */
-function CustomBody(props: {
-  readonly customType: string;
-  readonly details: JsonValue;
-  /** 기록의 본문 글. 카드가 없을 때 종류 이름 대신 이 글을 한 줄로 보인다 */
-  readonly text: string;
-}): ReactNode {
-  const plugin = usePluginUiState();
-  const card = cardOf(plugin.groups.card, plugin.inactive, props.customType);
-  if (card === undefined)
-    return (
-      <p className={`${QUIET_CLASS} whitespace-pre-wrap`}>
-        {props.text === "" ? props.customType : props.text}
-      </p>
-    );
-  return (
-    <>
-      {/* 카드는 높이 상한(max-h-80, 320px)을 넘으면 잘린다. "더 보기"는 아직 없다([미결], spec 2478) */}
-      <div className="max-h-80 overflow-hidden">
-        <EntrySurface entry={card} doc={dataDocOf(props.details)} dense />
-      </div>
-      <div className={QUIET_CLASS}>{provenanceOf(card)}</div>
-    </>
-  );
-}
-
-const CODE_PREFIX = /^\[([^\]]+)\]\s*/;
-
-/** 결과 글머리의 `[코드] ` 꼬리표를 읽는다. 없으면 코드는 null이다 */
-function splitCode(text: string): { readonly code: string | null; readonly body: string } {
-  const found = CODE_PREFIX.exec(text);
-  if (found === null) return { code: null, body: text };
-  return { code: found[1] ?? null, body: text.slice(found[0].length) };
-}
-
-/** 중단된 도구 행에 엔진이 본문으로 싣는 영어 한 낱말 */
-const INTERRUPT_WORDS: ReadonlySet<string> = new Set(["aborted", "Aborted", "cancelled"]);
-
-/**
- * 중단된 도구 행의 본문. 엔진이 모델에 싣는 영어 문장(재개 때 합성한 결과, `OUTCOME_UNKNOWN_TEXT`·`NOT_STARTED_TEXT`)과 영어 한 낱말은
- * 화면에서는 한국어 안내로 바꾼다. 모델에 가는 글은 그대로다. 그 밖의 본문은 그대로 보인다
- */
-function interruptedBodyOf(body: string): string {
-  const text = body.trim();
-  if (text === OUTCOME_UNKNOWN_TEXT) return t("desktop.item.interrupted.unknown");
-  if (text === NOT_STARTED_TEXT) return t("desktop.item.interrupted.notStarted");
-  return INTERRUPT_WORDS.has(text) ? t("desktop.item.interrupted.body") : body;
-}
-
-type ResultView = {
-  readonly status: "done" | "failed";
-  readonly failedLabel?: string;
-  readonly output: string;
-  readonly cut?: { readonly shown: number; readonly total: number };
-  /** 훅이 막은 거부(`details`의 `denied_by_extension`). 있으면 경고 빛깔이고 알약 글과 본문이 훅 문구다 */
-  readonly hook?: HookDenialView;
-  /** 샌드박스가 막은 것(`details`의 `sandbox.*`). 있으면 행 바깥에 이유 줄을 보인다(L1.tools §4.12.3) */
-  readonly blocks?: readonly SandboxBlockView[];
+/** 줄 종류별 아래 여백(시안 1절): 같은 턴 안 블록 사이 8, 사용자 말 뒤 12, 턴 발 줄 뒤 24 */
+const ROW_PAD: Readonly<Record<TranscriptRow["kind"], string>> = {
+  user: "pb-3",
+  reply: "pb-2",
+  activity: "pb-1",
+  card: "pb-3",
+  result: "pb-1",
+  custom: "pb-3",
+  live: "pb-2",
+  compaction: "py-2",
+  marker: "py-2",
+  leadHead: "pb-1",
+  leadEnd: "pb-6",
+  turnFoot: "pb-6",
 };
 
-/** MCP 도구 결과의 서버 이름(`details.server`). 문자열이 아니면 없다. 실행 중인 호출은 결과가 없어 이름도 없다 */
-function serverOfResult(item: ItemRecord): string | undefined {
-  if (item.kind !== "toolResult") return undefined;
-  const { details } = item.message;
-  if (details === undefined || !isJsonObject(details)) return undefined;
-  const server = details["server"];
-  return typeof server === "string" && server !== "" ? server : undefined;
-}
-
-/** 훅 거부의 본문 한 줄. 확장 이름을 모르면 이름 없는 글을 쓴다 */
-function hookDenialText(hook: HookDenialView): string {
-  if (hook.outcome === "blocked") {
-    return hook.extension === null
-      ? t("desktop.item.hookDenial.blockedNoName", { reason: hook.reason })
-      : t("desktop.item.hookDenial.blocked", { extension: hook.extension, reason: hook.reason });
-  }
-  return hook.extension === null
-    ? t("desktop.item.hookDenial.threwNoName")
-    : t("desktop.item.hookDenial.threw", { extension: hook.extension });
-}
-
-/** 샌드박스가 막은 것 한 건의 한국어 이유 글. 대상은 엔진이 싣은 값 그대로다 */
-function sandboxBlockText(block: SandboxBlockView): string {
-  switch (block.code) {
-    case "sandbox.network_blocked":
-      return t("desktop.tool.blocked.network", { domain: block.domain });
-    case "sandbox.write_blocked":
-      return t("desktop.tool.blocked.write", { path: block.path });
-    case "sandbox.read_blocked":
-      return t("desktop.tool.blocked.read", { path: block.path });
-    default:
-      return assertNever(block, "SandboxBlockView");
-  }
-}
-
-/** 샌드박스가 막은 것의 이유 줄. 행 바깥에 늘 보여 접힌 행에서도 이유가 드러난다. 다섯 줄을 넘으면 남은 수만 적는다 */
-const SANDBOX_NOTE_LIMIT = 5;
-const SANDBOX_NOTE_CLASS = "m-0 text-ui text-warning-text";
-function SandboxBlockNotes(props: {
-  readonly blocks: readonly SandboxBlockView[] | undefined;
-}): ReactNode {
-  const { blocks } = props;
-  if (blocks === undefined || blocks.length === 0) return null;
-  const shown = blocks.slice(0, SANDBOX_NOTE_LIMIT);
-  const rest = blocks.length - shown.length;
+function RowFrame(props: { readonly row: TranscriptRow; readonly children: ReactNode }): ReactNode {
+  const { row } = props;
   return (
-    <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
-      {shown.map((block) => (
-        <li
-          key={`${block.code}:${"domain" in block ? block.domain : block.path}`}
-          className={SANDBOX_NOTE_CLASS}
-        >
-          {sandboxBlockText(block)}
-        </li>
-      ))}
-      {rest > 0 ? (
-        <li className={SANDBOX_NOTE_CLASS}>{t("desktop.tool.blocked.more", { count: rest })}</li>
-      ) : null}
-    </ul>
-  );
-}
-
-/** 실행 중인 동안 1초마다 늘어나는 경과 초. 실행 중이 아니면 0 */
-function useElapsedSeconds(active: boolean): number {
-  const [seconds, setSeconds] = useState(0);
-  useEffect(() => {
-    if (!active) return undefined;
-    const startedAt = Date.now();
-    const timer = setInterval(() => {
-      setSeconds(Math.floor((Date.now() - startedAt) / 1000));
-    }, 1000);
-    return () => {
-      clearInterval(timer);
-    };
-  }, [active]);
-  return active ? seconds : 0;
-}
-
-/** 엔진이 영어 문장으로 돌려주는 흔한 실패를 코드나 종류로 골라 카탈로그 문구로 바꾼다. 원문은 바꾸지 않고 보이는 본문만 바꾼다 (rtE R-10) */
-function localizedFailureBody(code: string | null, body: string): string {
-  if (code === "plan_mode_inactive" || body.trim() === "Plan mode is not active.") {
-    return t("desktop.item.planInactive.body");
-  }
-  return body;
-}
-
-/** 도구 결과 item을 행 상태로 옮긴다. 거부와 중단은 알약이 "거부함", "중단됨"이고 내부 오류 코드는 본문에 드러내지 않는다 */
-function resultViewOf(item: ItemRecord): ResultView | null {
-  if (item.kind !== "toolResult") return null;
-  const shown = toolOutputOf(
-    item.message.content,
-    item.message.details,
-    t("desktop.item.imagePlaceholder"),
-  );
-  const cut =
-    shown.totalLines === null ? {} : { cut: { shown: shown.shownLines, total: shown.totalLines } };
-  const blocks = sandboxBlocksOf(item.message.details);
-  if (!item.message.isError && item.status === "completed") {
-    return {
-      status: "done",
-      output: shown.text,
-      ...cut,
-      ...(blocks.length === 0 ? {} : { blocks }),
-    };
-  }
-  const { code, body } = splitCode(shown.text);
-  // 하위 에이전트를 멈추면 엔진은 오류 결과에 details.status "aborted"를 싣는다. 실패가 아니라 중단이다
-  const agentAborted =
-    item.message.toolName === AGENT_TOOL &&
-    agentResultOf(shown.text, item.message.details, true).outcome === "aborted";
-  if (isUserDenial(item.message.details)) {
-    return {
-      status: "failed",
-      failedLabel: t("desktop.item.status.denied"),
-      output: t("desktop.item.denied.body"),
-    };
-  }
-  // 훅이 막은 호출은 모델에 가는 본문이 아니라 화면용 details로 알아본다. 막았는지와 오류를 냈는지를 알약 글로 가른다
-  const hook = hookDenialOf(item.message.details);
-  if (hook !== null) {
-    return {
-      status: "failed",
-      failedLabel: t(
-        hook.outcome === "blocked"
-          ? "desktop.item.status.hookBlocked"
-          : "desktop.item.status.hookThrew",
-      ),
-      output: hookDenialText(hook),
-      hook,
-      ...cut,
-    };
-  }
-  if (
-    item.status === "interrupted" ||
-    code === "fresnel:aborted" ||
-    code === "aborted" ||
-    agentAborted
-  ) {
-    return {
-      status: "failed",
-      failedLabel: t("desktop.item.status.interrupted"),
-      output: interruptedBodyOf(body),
-      ...cut,
-    };
-  }
-  // 샌드박스가 막은 실행은 알약이 "막힘"이다. 막은 것이 없으면 기존 실패 글을 쓴다
-  if (blocks.length > 0) {
-    return {
-      status: "failed",
-      failedLabel: t("desktop.tool.blocked.status"),
-      output: localizedFailureBody(code, body),
-      ...cut,
-      blocks,
-    };
-  }
-  return { status: "failed", output: localizedFailureBody(code, body), ...cut };
-}
-
-/** 열 때 한 번 확인을 거쳐 OS 브라우저로 보낸다. 거부하면 아무 일도 없다 */
-function useOpenSource(): (url: string) => void {
-  const { confirm, openExternal } = usePluginUi();
-  return (url) => {
-    const link = normalizeExternalLink(url);
-    if (link === undefined) return;
-    void confirm
-      .request({
-        kind: "external",
-        extension: "",
-        trust: "builtin",
-        action: link.display,
-        ...(link.punycodeHost === undefined ? {} : { punycodeHost: link.punycodeHost }),
-        label: undefined,
-        paramsSummary: "",
-        approval: false,
-      })
-      .then((answer) => (answer === "allow" ? openExternal(link.href) : undefined));
-  };
-}
-
-/** 출처 칩 줄. 칩은 도메인과 제목을 보이고, 누르면 확인 뒤 외부 브라우저로 연다 */
-function SourceChips(props: { readonly sources: readonly WebSource[] }): ReactNode {
-  return props.sources.length === 0 ? null : <SourceChipList sources={props.sources} />;
-}
-
-function SourceChipList(props: { readonly sources: readonly WebSource[] }): ReactNode {
-  const open = useOpenSource();
-  return (
-    <ul
-      className="m-0 flex list-none flex-wrap gap-1 p-0"
-      aria-label={t("desktop.item.sources.label")}
+    <article
+      className={`convo-row mx-auto grid w-full min-w-0 max-w-184 grid-cols-[minmax(0,1fr)] px-3 empty:hidden ${ROW_PAD[row.kind]}`}
+      data-row-kind={row.kind}
+      data-lead={row.lead ?? undefined}
     >
-      {props.sources.map((source) => (
-        <li key={source.url}>
-          <Button
-            size="xs"
-            variant="outline"
-            title={source.url}
-            onClick={() => {
-              open(source.url);
-            }}
-          >
-            <Globe aria-hidden />
-            {source.title === source.domain ? source.domain : `${source.domain} · ${source.title}`}
-          </Button>
-        </li>
-      ))}
-    </ul>
+      {props.children}
+    </article>
   );
 }
 
-/** 하위 에이전트 행. 머리는 정의 이름과 할 일, 끝나면 자식의 보고(길면 접기)와 자식 대화 링크 */
-function AgentRow(props: {
-  readonly args: JsonObject;
-  readonly result: ItemRecord | undefined;
-  readonly running: boolean;
+function RowBody(props: {
+  readonly threadId: ThreadId;
+  readonly row: TranscriptRow;
+  readonly unsentId: ItemId | null;
 }): ReactNode {
-  const goTo = useGoToThread();
-  const transcriptDetail = useTranscriptDetail();
-  const detail = agentHeadOf(props.args);
-  const result = props.result;
-  if (result === undefined || result.kind !== "toolResult") {
-    return (
-      <ToolRow
-        name={AGENT_TOOL}
-        detail={detail}
-        status={props.running ? "running" : "failed"}
-        {...(props.running
-          ? {
-              runningLabel: (seconds: number) =>
-                seconds > 0
-                  ? t("desktop.item.agent.runningFor", { seconds })
-                  : t("desktop.item.agent.running"),
-            }
-          : { failedLabel: t("desktop.item.status.interrupted") })}
-      />
-    );
+  const { row, threadId } = props;
+  switch (row.kind) {
+    case "user":
+      return (
+        <UserRow
+          threadId={threadId}
+          id={row.id}
+          prevId={row.prevId}
+          unsent={row.id === props.unsentId}
+        />
+      );
+    case "reply":
+      return <ReplyRow id={row.id} blocks={row.blocks} />;
+    case "live":
+      return <ReplyRow id={row.id} blocks={null} />;
+    case "activity":
+      return <ActivityGroup threadId={threadId} entries={row.entries} />;
+    case "card":
+      return <CardRow threadId={threadId} itemId={row.itemId} call={row.call} />;
+    case "result":
+      return <OrphanResultRow id={row.id} />;
+    case "custom":
+      return <CustomRow id={row.id} />;
+    case "compaction":
+      return <CompactionDivider record={row.record} />;
+    case "marker":
+      return <MarkerRow marker={row.marker} />;
+    case "leadHead":
+      return <LeadHead threadId={threadId} leaseId={row.leaseId} />;
+    case "leadEnd":
+      return <LeadEnd threadId={threadId} leaseId={row.leaseId} />;
+    case "turnFoot":
+      return <TurnFoot threadId={threadId} turnId={row.turnId} replyId={row.replyId} />;
+    default:
+      return assertNever(row, "TranscriptRow");
   }
-  const view = resultViewOf(result);
-  if (view === null) return null;
-  if (toolRowModeOf(transcriptDetail, view.status) === "hidden") return null;
-  const parsed = agentResultOf(view.output, result.message.details, result.message.isError);
-  // 중단된 하위 에이전트의 본문은 엔진의 영어 안내 한 줄뿐이라 알약("중단됨")이 대신한다
-  const fold = reportFoldOf(parsed.outcome === "aborted" ? "" : parsed.body);
-  const childId = parsed.childThreadId;
-  const foot = (
-    <>
-      {fold.rest === null ? null : (
-        <Collapsible summary={t("desktop.item.agent.more")}>
-          <pre className={`${MONO_CLASS} ${OUTPUT_BOX_CLASS}`} tabIndex={0}>
-            {fold.rest}
-          </pre>
-        </Collapsible>
-      )}
-      {childId === null || goTo === null ? null : (
-        <div className="justify-self-start">
-          <Button
-            size="xs"
-            variant="ghost"
-            onClick={() => {
-              goTo(childId);
-            }}
-          >
-            {t("desktop.item.agent.openChild")}
-          </Button>
-        </div>
-      )}
-    </>
-  );
-  return (
-    <ToolRow
-      name={AGENT_TOOL}
-      detail={detail}
-      status={view.status}
-      {...(view.failedLabel === undefined ? {} : { failedLabel: view.failedLabel })}
-      output={fold.head}
-      foot={foot}
-      openWhenDone
-    />
-  );
 }
 
-/** 같은 메시지에서 `index`번째 블록보다 앞선 도구 호출들의 id */
-function earlierCallIdsOf(
-  content: readonly { readonly type: string; readonly id?: string }[],
-  index: number,
-): readonly string[] {
-  return content
-    .slice(0, index)
-    .flatMap((block) => (block.type === "toolCall" && block.id !== undefined ? [block.id] : []));
+/** 목록의 한 줄. 가상 목록이 줄마다 부른다 */
+export function TranscriptRowView(props: {
+  readonly threadId: ThreadId;
+  readonly row: TranscriptRow;
+  readonly unsentId: ItemId | null;
+}): ReactNode {
+  return (
+    <RowFrame row={props.row}>
+      <RowBody threadId={props.threadId} row={props.row} unsentId={props.unsentId} />
+    </RowFrame>
+  );
 }
 
 /**
- * 호출 하나에 행 하나. 결과가 오면 같은 행이 결과를 따른다. 결과가 없으면 실행 중이거나(대화가 실행 중) 끝내 못 받은 것이다.
- * `edit`·`write`는 상세에 경로를 보이고, 결과가 있을 때 펼친 본문에 파일 변경 그림을 보인다. 그 밖의 도구와 모양이 맞지 않는 인자는 인자 JSON을 보인다.
+ * 확정 item 하나를 목록과 같은 줄들로 그린다(턴 발 줄은 빼고). 목록 밖에서 item 하나만 보일 때(시험, 미리보기) 쓴다.
+ * item이 열린 대화의 확정 기록에 없거나 그리지 않는 item이면 아무것도 그리지 않는다.
  */
-function CallRow(props: {
-  readonly callId: string;
-  readonly name: string;
-  readonly args: JsonObject;
-  /** 같은 어시스턴트 메시지에서 이 호출보다 앞선 호출 id들. 앞선 호출이 승인을 기다리면 이 호출도 줄 서 기다린다 */
-  readonly earlierCallIds: readonly string[];
-}): ReactNode {
-  const result = useToolResult(props.callId);
-  // 엔진이 없으면 열린 대화가 돈다고 거울이 말해도 그 도구는 더 돌지 않는다(실행 중 표시를 하지 않는다)
-  const engineGone = engineGoneOf(useEngineState(), useLinkPhase());
-  const running = useOpenThreadRunning() && !engineGone;
-  const awaitingApproval = useToolCallAwaitingApproval(props.callId, props.earlierCallIds);
-  const transcriptDetail = useTranscriptDetail();
-  if (props.name === AGENT_TOOL) {
-    return <AgentRow args={props.args} result={result} running={running} />;
-  }
-  const change = fileChangeViewOfArgs(props.name, props.args);
-  const detail = change === null ? clip(JSON.stringify(props.args)) : change.path;
-  const view = result === undefined ? null : resultViewOf(result);
-  if (view === null) {
-    return running ? (
-      <ToolRow
-        name={props.name}
-        detail={detail}
-        status="running"
-        awaitingApproval={awaitingApproval}
-      />
-    ) : (
-      <ToolRow
-        name={props.name}
-        detail={detail}
-        status="failed"
-        failedLabel={t("desktop.item.status.interrupted")}
-      />
-    );
-  }
-  // 표시 정도가 숨기는 줄은 출처 칩까지 그리지 않는다(실패·실행 중 줄은 숨기지 않는다)
-  if (toolRowModeOf(transcriptDetail, view.status) === "hidden") return null;
-  const server = result === undefined ? undefined : serverOfResult(result);
-  const sources =
-    WEB_TOOLS.includes(props.name) && view.status === "done" ? webSourcesOf(view.output) : [];
-  return (
-    <>
-      <ToolRow
-        name={props.name}
-        detail={detail}
-        status={view.status}
-        {...(view.failedLabel === undefined ? {} : { failedLabel: view.failedLabel })}
-        output={view.output}
-        {...(view.cut === undefined ? {} : { cut: view.cut })}
-        {...(view.hook === undefined ? {} : { hook: view.hook })}
-        diff={change === null ? undefined : <FileChangeDiff view={change} />}
-        {...(server === undefined ? {} : { server })}
-      />
-      <SandboxBlockNotes blocks={view.blocks} />
-      <SourceChips sources={sources} />
-    </>
-  );
-}
-
-/** 결과 item 한 줄. 짝이 되는 호출 행이 화면에 있으면 그리지 않는다(그 행이 결과를 보인다) */
-function ResultRow(props: { readonly item: ItemRecord }): ReactNode {
-  const transcriptDetail = useTranscriptDetail();
-  const view = resultViewOf(props.item);
-  if (view === null || props.item.kind !== "toolResult") return null;
-  if (toolRowModeOf(transcriptDetail, view.status) === "hidden") return null;
-  const server = serverOfResult(props.item);
-  return (
-    <>
-      <ToolRow
-        name={props.item.message.toolName}
-        status={view.status}
-        {...(view.failedLabel === undefined ? {} : { failedLabel: view.failedLabel })}
-        output={view.output}
-        {...(view.hook === undefined ? {} : { hook: view.hook })}
-        {...(server === undefined ? {} : { server })}
-      />
-      <SandboxBlockNotes blocks={view.blocks} />
-    </>
-  );
-}
-
-/** 응답 없이 끝난 사용자 말풍선 아래 표식과 다시 보내기. 모델 문맥은 건드리지 않는다(화면 표식만) */
-function UnsentNote(props: { readonly text: string }): ReactNode {
-  const commands = useCommands();
-  const threadId = useOpenThreadId();
-  const [busy, setBusy] = useState(false);
-  return (
-    <footer className={`${NOTE_CLASS} flex items-center justify-end gap-2`} data-unsent="true">
-      <span>{t("desktop.item.unsent")}</span>
-      {threadId === null || props.text === "" ? null : (
-        <Button
-          size="xs"
-          variant="outline"
-          loading={busy}
-          onClick={() => {
-            setBusy(true);
-            detach(
-              commands.sendTurn(threadId, props.text, crypto.randomUUID()).then(() => {
-                setBusy(false);
-                return undefined;
-              }),
-              rethrow,
-            );
-          }}
-        >
-          {t("desktop.turnFailure.action.resend")}
-        </Button>
-      )}
-    </footer>
-  );
-}
-
-function RecordBody(props: { readonly item: ItemRecord; readonly unsent: boolean }): ReactNode {
-  const item = props.item;
-  // 생각 블록이 모두 따르는 표시 정도. 훅은 switch 앞에서 한 번만 부른다(return 앞의 훅 순서를 지킨다)
-  const thinking = thinkingModeOf(useTranscriptDetail());
-  switch (item.kind) {
-    case "user": {
-      const bubble = bubbleOf(item.message.content);
-      // 말풍선 글은 어시스턴트 글과 같은 크기와 줄 높이(text-voice-sm 15px/23px, caustic Message size sm 규칙)다. 글꼴 집안(ui)은 그대로 둔다
-      return (
-        <>
-          {bubble.text === "" ? null : (
-            <Message author="user" className={BUBBLE_CLASS}>
-              {bubble.text}
-            </Message>
-          )}
-          <MessageAttachments attachments={bubble.attachments} />
-          {props.unsent ? <UnsentNote text={bubble.text} /> : null}
-        </>
-      );
-    }
-    case "assistant":
-      return (
-        <>
-          {item.message.content.map((block, index) => {
-            // 파트 id가 있으면 그것을 키로 쓴다. partIds[i]는 content[i]다
-            const key = item.partIds[index] ?? `${item.itemId}:${index}`;
-            switch (block.type) {
-              case "text":
-                return (
-                  <Fragment key={key}>
-                    <Message size="sm">
-                      <p className={TEXT_CLASS}>{block.text}</p>
-                    </Message>
-                    <SourceChips sources={citedLinksOf(block.text, 6)} />
-                  </Fragment>
-                );
-              case "thinking":
-                if (thinking === "none") return null;
-                return (
-                  <Collapsible
-                    key={key}
-                    summary={t("desktop.item.thinking")}
-                    defaultOpen={thinking === "open"}
-                    toggleClassName={THINK_TOGGLE_CLASS}
-                  >
-                    <p className={THINK_BODY_CLASS}>{block.thinking}</p>
-                  </Collapsible>
-                );
-              case "toolCall":
-                return (
-                  <CallRow
-                    key={key}
-                    callId={block.id}
-                    name={block.name}
-                    args={block.arguments}
-                    earlierCallIds={earlierCallIdsOf(item.message.content, index)}
-                  />
-                );
-              default:
-                return assertNever(block, "assistant block");
-            }
-          })}
-        </>
-      );
-    case "toolResult":
-      return <ResultRow item={item} />;
-    case "system":
-      return <p className={QUIET_CLASS}>{textOf(item.message.content)}</p>;
-    case "custom":
-      return (
-        <CustomBody
-          customType={item.message.customType}
-          details={item.message.details}
-          text={textOf(item.message.content)}
-        />
-      );
-    default:
-      return assertNever(item, "item kind");
-  }
-}
-
 export const RecordedItem: NamedExoticComponent<{
   readonly id: ItemId;
   readonly unsent?: boolean;
@@ -876,108 +110,39 @@ export const RecordedItem: NamedExoticComponent<{
   readonly id: ItemId;
   readonly unsent?: boolean;
 }): ReactNode {
-  const item = useItem(props.id);
-  const pairedCall = useHasToolCall(item?.kind === "toolResult" ? item.message.toolCallId : "");
-  const spawned = useOpenThread()?.spawnedBy !== undefined;
-  if (item === undefined) return null;
-  // 위임으로 만든 자식 대화의 사용자 말은 엔진이 넣은 지시문(시스템 프롬프트)이다. 사용자가 쓴 말이 아니라 그리지 않는다 [결정: 오케스트레이터 기본값, rtE R-3]
-  if (spawned && item.kind === "user") return null;
-  // 짝이 되는 호출 행이 결과를 따라 보이므로 결과 item은 따로 그리지 않는다(호출 하나에 행 하나)
-  if (item.kind === "toolResult" && pairedCall) return null;
-  // display가 거짓인 확장 item은 모델 문맥 전용이라 화면에 그리지 않는다(F.conversation.spec 3.5.2)
-  if (item.kind === "custom" && !item.message.display) return null;
-  // system item은 요청 앞에 붙는 시스템 프롬프트다. 모델 문맥 전용이라 그리지 않는다(L4.desktop.spec §4.13)
-  if (item.kind === "system") return null;
-  // 내용 없이 실패한 어시스턴트 item은 보일 것이 없다. 실패 원인은 트랜스크립트 아래 경고 한 곳에만 보인다
-  if (item.kind === "assistant" && item.status === "failed" && item.message.content.length === 0) {
-    return null;
-  }
-  const interrupted = item.status === "failed" || item.status === "interrupted";
-  // 실패한 도구 결과는 도구 줄의 "실패" 알약이 이미 알리므로 아래 줄을 또 적지 않는다
-  const showNote = interrupted && !(item.kind === "toolResult" && item.message.isError);
-  return (
-    <article className={ROW_CLASS} data-status={item.status}>
-      <RecordBody item={item} unsent={props.unsent === true} />
-      {showNote ? (
-        <footer className={NOTE_CLASS}>
-          {item.status === "failed"
-            ? t("desktop.item.status.failed")
-            : t("desktop.item.status.interrupted")}
-        </footer>
-      ) : null}
-    </article>
-  );
-});
-
-/** 작성 중 커서(시안 p02-opus StreamingText). 글은 그대로 두고 끝에 깜빡이는 막대 하나를 붙인다 */
-function StreamingText(props: { readonly text: string; readonly live: boolean }): ReactNode {
+  const threadId = useOpenThreadId();
+  const shape = useTranscriptShapes().find((s) => s.id === props.id);
+  if (threadId === null || shape === undefined) return null;
+  const rows = transcriptRowsOf({
+    shapes: [shape],
+    live: [],
+    showLive: false,
+    anchors: [],
+    turns: [],
+    markers: [],
+    leads: [],
+    running: true,
+  });
   return (
     <>
-      <span>{props.text}</span>
-      {props.live ? <span aria-hidden className="transcript-caret" /> : null}
+      {rows.map((row) => (
+        <TranscriptRowView
+          key={row.key}
+          threadId={threadId}
+          row={row}
+          unsentId={props.unsent === true ? props.id : null}
+        />
+      ))}
     </>
   );
-}
-
-/** 파트 텍스트 하나만 구독한다. 델타는 이 부품 하나만 다시 그린다 */
-const StreamingPartText = memo(function StreamingPartText(props: {
-  readonly id: ItemId;
-  readonly index: number;
-  readonly live: boolean;
-}): ReactNode {
-  return <StreamingText text={usePartText(props.id, props.index)} live={props.live} />;
 });
 
+/** 진행 중 item 하나의 줄(확정되면 같은 부품이 기록을 그린다) */
 export const StreamingRow: NamedExoticComponent<{ readonly id: ItemId }> = memo(
   function StreamingRow(props: { readonly id: ItemId }): ReactNode {
-    const item = useStreamingItem(props.id);
-    const openThreadId = useOpenThreadId();
-    const hasCallRow = useHasToolCall(item?.toolCallId ?? "");
-    // 진행 목록은 모든 thread의 것을 담는다(design 6절). 열린 thread의 것만 그린다
-    if (item === undefined || item.threadId !== openThreadId) return null;
-    if (item.kind === "toolCall") {
-      // 호출 행(어시스턴트 item의 toolCall)이 이미 실행 중으로 보이면 같은 호출을 한 번 더 그리지 않는다(호출 하나에 행 하나)
-      if (hasCallRow) return null;
-      return (
-        <article className={ROW_CLASS}>
-          <ToolCall
-            name={item.toolName ?? ""}
-            status="running"
-            activity={t("desktop.item.toolRunning")}
-            detail={item.parts.map((part) => (
-              <StreamingPartText
-                key={part.partId}
-                id={props.id}
-                index={part.contentIndex}
-                live={false}
-              />
-            ))}
-          />
-        </article>
-      );
-    }
-    // 쓰는 중인 글은 Message streaming으로 감싸 aria-busy를 주고, 아직 끝나지 않은 마지막 덩이 끝에 커서를 둔다
-    const last = item.parts.length - 1;
-    return (
-      <article className={ROW_CLASS}>
-        <Message size="sm" streaming>
-          {item.parts.length === 0 ? (
-            <p className={TEXT_CLASS}>
-              <StreamingText text="" live />
-            </p>
-          ) : (
-            item.parts.map((part, i) => (
-              <p key={part.partId} className={TEXT_CLASS}>
-                <StreamingPartText
-                  id={props.id}
-                  index={part.contentIndex}
-                  live={i === last && !part.done}
-                />
-              </p>
-            ))
-          )}
-        </Message>
-      </article>
-    );
+    const threadId = useOpenThreadId();
+    if (threadId === null) return null;
+    const row: TranscriptRow = { kind: "live", key: props.id, lead: null, id: props.id };
+    return <TranscriptRowView threadId={threadId} row={row} unsentId={null} />;
   },
 );

@@ -149,6 +149,7 @@ const DURABLE: Readonly<
             origin: p.value.origin ?? "user",
             scopeId: p.value.scopeId,
             requestId: p.value.requestId,
+            inputItemIds: p.value.inputItemIds,
           },
         }
       : { ...base, type: "turn.started" };
