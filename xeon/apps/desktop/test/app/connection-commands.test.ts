@@ -351,7 +351,10 @@ describe("host status, service mode and stopping the service", () => {
 
   test("setting the service mode writes the user-scope key and the value", async () => {
     const { app, params } = await liveApp({
-      results: { "settings.set": { setting: serviceSetting(false) } },
+      results: {
+        "settings.get": { settings: [serviceSetting(true)] },
+        "settings.set": { setting: serviceSetting(false) },
+      },
     });
     const written = await app.commands.connection.setServiceMode(false);
     expect(written).toEqual({ ok: true, value: null });
@@ -477,7 +480,11 @@ async function serviceApp(
   extra: EngineExtra = {},
   log: string[] = [],
 ) {
-  const engine = engineFake([summary(thr(1))], undefined, extra);
+  // 쓰기 전에 읽는 이전 값은 기본으로 꺼짐이다. 시험이 `settings.get`을 따로 주면 그 값을 쓴다
+  const engine = engineFake([summary(thr(1))], undefined, {
+    ...extra,
+    results: { "settings.get": { settings: [serviceSetting(false)] }, ...extra.results },
+  });
   const base: DesktopIpc = { ...engine.fake.ipc, ...service };
   const ipc: DesktopIpc = {
     ...base,
@@ -504,9 +511,10 @@ async function serviceApp(
       return base.restart(options);
     },
   };
-  const app = makeAppOver(ipc);
+  const lines: LogLine[] = [];
+  const app = makeAppOver(ipc, { logSink: (line) => lines.push(line) });
   await until(() => app.engine.read.getState().link.phase === "live", "live link");
-  return { app, ...engine, log };
+  return { app, ...engine, log, lines };
 }
 
 const SERVICE_KEY_NAME = "l0.process.service.enabled";
@@ -575,23 +583,141 @@ describe("the local service: enabling and disabling run in one order and report 
     await app.stop();
   });
 
-  test("a stop that fails keeps the setting the user chose, reports it, and does not restart", async () => {
+  test("a stop that fails writes the setting back to on, reports it, and does not restart", async () => {
     const log: string[] = [];
-    const { app, fake } = await serviceApp(
+    const { app, params, fake } = await serviceApp(
       {
         serviceStop: () =>
           Promise.resolve(
             err({ kind: "command", command: "service_stop", code: "service_failed" }),
           ),
       },
-      { results: { "settings.set": SETTING_OFF } },
+      {
+        results: {
+          "settings.get": { settings: [serviceSetting(true)] },
+          "settings.set": SETTING_OFF,
+        },
+      },
       log,
     );
     expect(await app.commands.connection.stopLocalService()).toEqual({
       ok: false,
       error: { kind: "failed" },
     });
-    expect(log).toEqual(["settings.set", "serviceStop"]);
+    expect(log).toEqual(["settings.set", "serviceStop", "settings.set"]);
+    expect(
+      params.filter((entry) => entry.method === "settings.set").map((entry) => entry.params),
+    ).toEqual([
+      { key: SERVICE_KEY_NAME, value: false, scope: "user" },
+      { key: SERVICE_KEY_NAME, value: true, scope: "user" },
+    ]);
+    expect(fake.restarts).toEqual([]);
+    await app.stop();
+  });
+
+  test("a stop whose restore is refused as well still returns the stop failure, and the refused write is reported", async () => {
+    const log: string[] = [];
+    const refused = WIRE_ERRORS["settings.invalidValue"];
+    const { app, lines } = await serviceApp(
+      {
+        serviceStop: () =>
+          Promise.resolve(
+            err({ kind: "command", command: "service_stop", code: "service_failed" }),
+          ),
+      },
+      {
+        results: {
+          "settings.get": { settings: [serviceSetting(true)] },
+          "settings.set": SETTING_OFF,
+        },
+        // 되돌리는 쓰기(값 true)만 거절한다. 처음 끄기 쓰기는 받는다
+        failFor: (method, params) =>
+          method === "settings.set" &&
+          JSON.stringify(params) ===
+            JSON.stringify({ key: SERVICE_KEY_NAME, value: true, scope: "user" })
+            ? { code: refused.code, kind: refused.kind }
+            : undefined,
+      },
+      log,
+    );
+    expect(await app.commands.connection.stopLocalService()).toEqual({
+      ok: false,
+      error: { kind: "failed" },
+    });
+    expect(log).toEqual(["settings.set", "serviceStop", "settings.set"]);
+    expect(
+      lines.filter((line) => line.event === "desktop.connection.failed").map((line) => line.fields),
+    ).toEqual([{ reason: "rejected" }]);
+    await app.stop();
+  });
+
+  test("a stop that succeeds writes the setting once and does not write it back", async () => {
+    const log: string[] = [];
+    const { app, params } = await serviceApp(
+      {},
+      {
+        results: {
+          "settings.get": { settings: [serviceSetting(true)] },
+          "settings.set": SETTING_OFF,
+        },
+      },
+      log,
+    );
+    expect(await app.commands.connection.stopLocalService()).toEqual({ ok: true, value: null });
+    expect(log).toEqual(["settings.set", "serviceStop", "restart"]);
+    expect(
+      params.filter((entry) => entry.method === "settings.set").map((entry) => entry.params),
+    ).toEqual([{ key: SERVICE_KEY_NAME, value: false, scope: "user" }]);
+    await app.stop();
+  });
+
+  test("a start that fails while the setting was already on writes on back, not off", async () => {
+    const log: string[] = [];
+    const { app, params, fake } = await serviceApp(
+      {
+        serviceEnsure: () =>
+          Promise.resolve(
+            err({ kind: "command", command: "service_ensure", code: "start_failed" }),
+          ),
+      },
+      {
+        results: {
+          "settings.get": { settings: [serviceSetting(true)] },
+          "settings.set": SETTING_ON,
+        },
+      },
+      log,
+    );
+    expect(await app.commands.connection.setServiceMode(true)).toEqual({
+      ok: false,
+      error: { kind: "failed" },
+    });
+    expect(log).toEqual(["settings.set", "serviceEnsure", "settings.set"]);
+    expect(
+      params.filter((entry) => entry.method === "settings.set").map((entry) => entry.params),
+    ).toEqual([
+      { key: SERVICE_KEY_NAME, value: true, scope: "user" },
+      { key: SERVICE_KEY_NAME, value: true, scope: "user" },
+    ]);
+    expect(fake.restarts).toEqual([]);
+    await app.stop();
+  });
+
+  test("when the previous setting cannot be read, nothing is written and no service call is made", async () => {
+    const log: string[] = [];
+    const invalid = WIRE_ERRORS["settings.invalidValue"];
+    const { app, params, fake } = await serviceApp(
+      {},
+      { errors: { "settings.get": { code: invalid.code, kind: invalid.kind } } },
+      log,
+    );
+    expect(await app.commands.connection.setServiceMode(true)).toEqual({
+      ok: false,
+      error: { kind: "rejected", code: invalid.code },
+    });
+    expect(log).toEqual([]);
+    expect(params.filter((entry) => entry.method === "settings.set")).toEqual([]);
+    expect(fake.serviceCalls).toEqual([]);
     expect(fake.restarts).toEqual([]);
     await app.stop();
   });

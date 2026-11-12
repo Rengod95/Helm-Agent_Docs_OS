@@ -149,18 +149,23 @@ export function createConnectionCommands(deps: ConnectionDeps): ConnectionComman
     if (!restarted) session.reconnect();
   };
 
-  /** 이 기기 서비스를 켜고 엔진을 그 서비스에 붙인다. 켜지 못하면 설정을 꺼짐으로 되돌린다(화면이 실제 상태를 보이도록) */
+  /** 서비스 모드 설정의 지금 값. 쓰기 전에 읽어야 실패했을 때 되돌릴 값을 안다. 읽지 못하면 아무것도 쓰지 않는다 */
+  const readServiceSetting = async (): Promise<Result<boolean, CommandError>> => {
+    const read = await run((c) => c.request("settings.get", { keys: [SERVICE_ENABLED_KEY] }));
+    if (!read.ok) return read;
+    const setting = read.value.settings.find((item) => item.key === SERVICE_ENABLED_KEY);
+    return ok(setting?.value === true);
+  };
+
+  /** 이 기기 서비스를 켜고 엔진을 그 서비스에 붙인다. 켜지 못하면 오류만 준다(설정은 `setServiceMode`가 되돌린다) */
   const enableLocalService = async (): Promise<Result<null, CommandError>> => {
     const ensured = await ipc.serviceEnsure();
-    if (!ensured.ok) {
-      await writeServiceSetting(false);
-      return err({ kind: "failed" });
-    }
+    if (!ensured.ok) return err({ kind: "failed" });
     await restartLocalEngine();
     return ok(null);
   };
 
-  /** 이 기기 서비스를 멈추고 엔진을 앱 안의 사이드카로 다시 띄운다. 멈추지 못하면 설정은 그대로 두고 오류를 준다 */
+  /** 이 기기 서비스를 멈추고 엔진을 앱 안의 사이드카로 다시 띄운다. 멈추지 못하면 오류만 준다(설정은 `setServiceMode`가 되돌린다) */
   const disableLocalService = async (): Promise<Result<null, CommandError>> => {
     const stopped = await ipc.serviceStop();
     if (!stopped.ok) return err({ kind: "failed" });
@@ -168,12 +173,22 @@ export function createConnectionCommands(deps: ConnectionDeps): ConnectionComman
     return ok(null);
   };
 
+  /**
+   * 서비스 모드를 바꾼다. 설정을 쓴 뒤 서비스를 켜거나 끈다. 서비스 쪽이 실패하면 설정을 바꾸기 전 값으로 되돌리고 그 오류를 준다
+   * (켜기와 끄기가 같은 규칙이다. 되돌리지 못한 쓰기는 `report`로 남긴다). 원격 대상은 설정만 쓴다.
+   */
   const setServiceMode = async (enabled: boolean): Promise<Result<null, CommandError>> => {
+    const before = await readServiceSetting();
+    if (!before.ok) return before;
     const written = await writeServiceSetting(enabled);
     if (!written.ok) return written;
     // 원격 대상은 이 기기의 서비스와 상관없어 설정만 쓴다
     if (engineTargetKind() === "remote") return ok(null);
-    return enabled ? enableLocalService() : disableLocalService();
+    const applied = enabled ? await enableLocalService() : await disableLocalService();
+    if (applied.ok) return applied;
+    const restored = await writeServiceSetting(before.value);
+    if (!restored.ok) report(restored.error);
+    return applied;
   };
 
   /** 이 기기의 서비스 카드. 엔진 대상이 원격이면 읽지 않는다. 읽지 못하면 `unknown`이다(소켓 경로는 싣지 않는다) */

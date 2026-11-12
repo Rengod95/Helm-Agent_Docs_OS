@@ -1830,7 +1830,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 엔진과 연결 | 셸 IPC `EngineState`와 연결 상태 기계(`engine`, `link`, `ui.connectError`). 연결 단계는 엔진과 연결의 관찰로 맞춥니다 |
 | 연결된 클라이언트 | `host.clients`(W-12). 이름이 없으면 전송 종류, 이 앱은 "이 앱"입니다 |
 | 이 기기 서비스 상태 | 셸 `service_status`(`ServiceCard`). 엔진이 원격이면 읽지 않습니다. 토큰과 서비스 파일 경로는 화면에 오지 않습니다 |
-| 실행 방식 고르기 | 외부 접근 컨트롤러 `selectMode`(`app/remote/remote-controller.ts`). 서비스 켜기는 설정 `l0.process.service.enabled`(user)를 쓰고 `service_ensure` 뒤 엔진을 다시 띄웁니다. 끄기는 `service_stop` 뒤 엔진을 다시 띄웁니다 |
+| 실행 방식 고르기 | 외부 접근 컨트롤러 `selectMode`(`app/remote/remote-controller.ts`). 서비스 켜기는 설정 `l0.process.service.enabled`(user)를 쓰고 `service_ensure` 뒤 엔진을 다시 띄웁니다. 끄기는 `service_stop` 뒤 엔진을 다시 띄웁니다. 켜기와 끄기는 같은 규칙입니다: 쓰기 전에 지금 값을 읽고, 셸이 실패하면 설정을 그 값으로 되돌린 뒤 오류를 줍니다 [결정: 2026-11-11 사용자]. 멈추지 못했을 때 설정은 켜짐으로 남습니다 |
 | 원격 호스트 서비스 멈추기 | `host.shutdown { reason: "user" }`(엔진이 원격일 때, 확인 뒤) |
 | 다른 기기 접속 | `host.remote.status`, `host.remote.setEnabled`(켜기와 끄기), `host.remote.pair`(연결 코드), `host.remote.devices`, `host.remote.revoke`(한 기기 또는 모두) |
 | 다른 기기에서 승인하기 | `settings.get { keys: ["l0.process.service.allowRemoteRespond"] }`를 서비스 키와 따로 읽습니다. 엔진이 모르는 키는 `unknownKey`로 거절되고, 화면은 값 모름(`null`)으로 받습니다. 쓰기는 `settings.set { key, scope: "user" }`입니다 |
