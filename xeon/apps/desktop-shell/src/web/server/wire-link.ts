@@ -5,6 +5,7 @@
 import { detach, type Logger } from "@fresnel/contracts";
 import { WIRE_LIMITS } from "@fresnel/contracts/wire";
 import type { ServiceConnection } from "./ports.ts";
+import { createHelloMarker } from "./hello-origin.ts";
 import { MAX_PENDING_BYTES, type SocketData, type SocketLink } from "./link.ts";
 
 /** `/wire` 메시지 하나의 최대 바이트: 프레임 하나(`maxFrameBytes`)와 줄바꿈 하나 */
@@ -22,6 +23,8 @@ const encoder = new TextEncoder();
 export function openWireLink(ws: Bun.ServerWebSocket<SocketData>, deps: WireDeps): SocketLink {
   const deviceId = ws.data.device.id;
   const service = deps.connectService(deps.serviceSocketPath);
+  // 서비스가 이 연결을 "다른 기기에서 온 것"으로 알도록 hello에 표시를 붙인다(L4.remote.spec §8.9)
+  const marker = createHelloMarker(deviceId);
   const state = { closed: false, paused: false, uplinkPending: 0 };
 
   function fail(code: number, reason: string): void {
@@ -70,12 +73,19 @@ export function openWireLink(ws: Bun.ServerWebSocket<SocketData>, deps: WireDeps
     onMessage(message) {
       if (state.closed) return;
       // 바이너리 메시지는 복사해서 쓴다: 쓰기가 끝나기 전에 런타임이 버퍼를 재사용하지 않도록
-      const bytes = typeof message === "string" ? encoder.encode(message) : new Uint8Array(message);
-      const size = bytes.byteLength;
-      if (size > MAX_WIRE_MESSAGE_BYTES) {
+      const received =
+        typeof message === "string" ? encoder.encode(message) : new Uint8Array(message);
+      if (received.byteLength > MAX_WIRE_MESSAGE_BYTES) {
         fail(1009, "message_too_big");
         return;
       }
+      const bytes = marker.feed(received);
+      if (marker.held() > MAX_WIRE_MESSAGE_BYTES) {
+        fail(1009, "message_too_big");
+        return;
+      }
+      const size = bytes.byteLength;
+      if (size === 0) return;
       state.uplinkPending += size;
       if (state.uplinkPending > MAX_PENDING_BYTES) {
         fail(1013, "backlog");
