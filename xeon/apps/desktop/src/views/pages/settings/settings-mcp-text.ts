@@ -32,30 +32,6 @@ export function chipIdOf(chip: StatusChip): MessageId {
   return chip === "alwaysBlocked" ? "desktop.settings.mcp.state.alwaysBlocked" : STATE_ID[chip];
 }
 
-/** 상태 칩의 색. 차단됨은 경고다 */
-export function chipToneOf(chip: StatusChip): ReturnType<typeof stateToneOf> {
-  return chip === "alwaysBlocked" ? "warning" : stateToneOf(chip);
-}
-
-/** 상태 칩의 색. 연결됨은 성공, 실패는 위험, 막힘은 경고다 */
-function stateToneOf(state: McpServerState): "success" | "danger" | "warning" | "info" | "neutral" {
-  switch (state) {
-    case "connected":
-      return "success";
-    case "failed":
-      return "danger";
-    case "blocked":
-      return "warning";
-    case "connecting":
-    case "reconnecting":
-      return "info";
-    case "disabled":
-      return "neutral";
-    default:
-      return assertNever(state, "McpServerState");
-  }
-}
-
 const BLOCKED_ID: Readonly<Record<McpBlockedReason, MessageId>> = {
   approval_required: "desktop.settings.mcp.blocked.approvalRequired",
   denied_by_policy: "desktop.settings.mcp.blocked.deniedByPolicy",

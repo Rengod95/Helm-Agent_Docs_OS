@@ -342,7 +342,7 @@
   }
 }
 
-/* DP-66 [결정: 2026-11-11 사용자] 3열 선택 카드(`views/pages/connection/radio-card.tsx`, 그룹에 .radio-cards)는 떠오르지 않고,
+/* DP-66 [결정: 2026-11-11 사용자] 선택 카드(`views/pages/shared/radio-card.tsx`, 그룹에 .radio-cards)는 떠오르지 않고,
    고른 카드는 잉크로 뒤집지 않는다. caustic 카드는 hover에 이동(lift)·그림자, 누름에 축소(press), 고르면 selected 유틸리티(잉크 채움,
    안쪽 색 변수 반전)를 건다. caustic은 고치지 않고 여기서 덮는다: 이동·축소·hover 그림자를 끄고, 테두리는 1px 바깥 선 하나로 둔다. 안 고른 카드의 hover는
    바탕을 그대로 두고 테두리만 border.strong으로 한 단계 올린다(바탕을 칠하면 고른 카드의 옅은 바탕과 헷갈린다).

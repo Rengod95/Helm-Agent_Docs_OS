@@ -1,8 +1,9 @@
 import { ChoiceGroup, ChoiceGroupItem } from "@caustic/react";
 import type { ReactNode } from "react";
 
-// 3열 선택 카드 그룹. caustic ChoiceGroup(카드 모양)을 얇게 감싼다: 키보드(화살표로 옮기고 고르기)와 radiogroup 의미는
-// ChoiceGroup이 준다. 열 수는 그룹을 감싼 컨테이너 폭으로 정한다. 폭이 32rem 미만이면 한 열이다. 글자는 설명과 제목 모두
+// 선택 카드 그룹(앱 공용, DP-66·DP-109). caustic ChoiceGroup(카드 모양)을 얇게 감싼다: 키보드(화살표로 옮기고 고르기)와 radiogroup
+// 의미는 ChoiceGroup이 준다. 열 수는 `columns`(2 또는 3, 기본 3)이고 그룹을 감싼 컨테이너 폭이 32rem 미만이면 한 열이다.
+// 연결의 실행 방식(3열)과 권한 모드(2×2)가 쓴다. 글자는 설명과 제목 모두
 // 13px로 맞춘다(caustic 기본 카드 글자는 12px 이하라서 쓰지 않는다).
 // 카드는 hover에 떠오르지 않고, 고른 카드는 옅은 바탕과 한 단계 진한 1px 테두리다(DP-66). caustic 카드의 이동·그림자·잉크 반전은
 // `src/styles.css`의 `.radio-cards` 규칙이 덮는다.
@@ -16,17 +17,25 @@ export interface RadioCardGroupProps {
   readonly disabled?: boolean;
   /** 그룹 이름(aria-label). 스크린 리더가 그룹을 이 이름으로 읽는다 */
   readonly label: string;
+  /** 열 수. 2이면 2×2 격자(권한 모드), 3이면 한 줄 셋(실행 방식). 기본 3 */
+  readonly columns?: 2 | 3;
   /** `RadioCardItem`들 */
   readonly children: ReactNode;
 }
 
+/** 열 수마다 컨테이너 32rem 이상에서 쓸 열 클래스(Tailwind가 찾도록 글 그대로 둔다) */
+const COLUMNS_CLASS: Readonly<Record<2 | 3, string>> = {
+  2: "@[32rem]:grid-cols-2",
+  3: "@[32rem]:grid-cols-3",
+};
+
 export function RadioCardGroup(props: RadioCardGroupProps): ReactNode {
-  const { value, onValueChange, disabled = false, label, children } = props;
+  const { value, onValueChange, disabled = false, label, children, columns = 3 } = props;
   return (
     <div className="radio-cards @container">
       <ChoiceGroup
         appearance="card"
-        columns="3"
+        columns={columns === 2 ? "2" : "3"}
         // 카드 안쪽 여백은 sm(10px)로 줄이고, 제목과 설명 사이는 8px로 넓힌다(사용자 2026-11-11)
         size="sm"
         aria-label={label}
@@ -35,7 +44,7 @@ export function RadioCardGroup(props: RadioCardGroupProps): ReactNode {
         onValueChange={(next) => {
           if (typeof next === "string") onValueChange(next);
         }}
-        className="grid-cols-1 @[32rem]:grid-cols-3 [&_[data-slot=choice-group-item]]:gap-y-2 [&_[data-slot=choice-group-title]]:text-ui [&_[data-slot=choice-group-description]]:text-ui"
+        className={`grid-cols-1 ${COLUMNS_CLASS[columns]} [&_[data-slot=choice-group-item]]:gap-y-2 [&_[data-slot=choice-group-title]]:text-ui [&_[data-slot=choice-group-description]]:text-ui`}
       >
         {children}
       </ChoiceGroup>

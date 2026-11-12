@@ -1,19 +1,31 @@
-import { Alert, ListDescription, ListDescriptionRow } from "@caustic/react";
+import { Alert } from "@caustic/react";
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow, type Result } from "@fresnel/contracts";
+import type { SettingKey } from "@fresnel/contracts/settings";
 import type { TrustListEntry, TrustListResult } from "@fresnel/contracts/wire";
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useLinkPhase } from "../../../state/engine/index.ts";
 import { useCommands, type CommandError } from "../../commands.ts";
-import { InfoTip } from "../../craft/info-tip.tsx";
+import { relativeAgeOf } from "../shared/relative-age.ts";
+import { VerdictTable, type Verdict, type VerdictRow } from "../shared/verdict-table.tsx";
+import { FieldRow } from "./settings-field.tsx";
 import { shortenHome } from "./settings-file-paths.ts";
-import { ROWS_CLASS } from "./settings-overview.tsx";
-import { SettingSection } from "./settings-section.tsx";
+import { RowNote, SettingSection } from "./settings-section.tsx";
+import {
+  fieldOf,
+  savedEndOf,
+  verdictLabelOf,
+  type PermissionPanelProps,
+} from "./settings-rules-panel.tsx";
 
-// 개요 탭의 "신뢰한 폴더" 구역(읽기 전용). 저장 파일의 결정을 `trust.list`로 읽어 경로와 허용·거부를 보인다.
-// 지울 수 있는 길은 아직 없어 설명은 정보 아이콘 뒤에 둔다(DP-58). 구형 host(`unsupported`)에서는 구역을 그리지 않는다.
+// 설정 "권한"의 "작업 폴더 신뢰" 구역(DP-109 [결정: 2026-11-11 사용자]). 맨 위 줄은 처음 여는 폴더의 기본값
+// (`x.loading-trust.defaultProjectTrust`), 그 아래는 저장된 결정(`trust.list`)의 판정 표(폴더 · 허용/막기 · 저장한 때)다.
+// 판정을 바꾸면 `trust.decide {kind: "folder"}`로 그 폴더의 결정을 다시 저장하고 목록을 다시 읽는다.
+// 결정을 지우는 wire 메서드는 없어(F wire §3.3.1 `trust.list`는 읽기 전용) 지우기 칸이 없다. 구형 host(`unsupported`)는 표를 그리지 않는다.
 
-/** 읽은 목록의 모양. `null`이면 구역을 그리지 않는다 */
+const DEFAULT_TRUST_KEY: SettingKey = "x.loading-trust.defaultProjectTrust";
+
+/** 읽은 목록의 모양. `null`이면 표를 그리지 않는다 */
 export type TrustedFoldersState =
   | { readonly kind: "ready"; readonly entries: readonly TrustListEntry[] }
   | { readonly kind: "failed" };
@@ -26,68 +38,138 @@ export function trustedFoldersStateOf(
   return result.error.kind === "unsupported" ? null : { kind: "failed" };
 }
 
-/** 구역 하나. 목록이 비었으면 빈 상태 글이다 */
-export function TrustedFoldersView(props: { readonly state: TrustedFoldersState }): ReactNode {
+/** 저장한 때(상대 시각). 옛 파일이라 없거나 읽을 수 없으면 빈 글 */
+export function savedAgeTextOf(savedAt: string | undefined, nowMs: number): string {
+  if (savedAt === undefined) return "";
+  const at = Date.parse(savedAt);
+  if (Number.isNaN(at)) return "";
+  const age = relativeAgeOf(at, nowMs);
+  return t(age.id, age.args);
+}
+
+export interface TrustedFoldersViewProps {
+  readonly state: TrustedFoldersState;
+  /** 결정을 다시 쓰는 중인 폴더 */
+  readonly busy: ReadonlySet<string>;
+  readonly error: string | null;
+  readonly disabled: boolean;
+  readonly nowMs: number;
+  readonly onDecide: (path: string, verdict: "allow" | "deny") => void;
+}
+
+/** 저장된 결정의 판정 표. 비었으면 한 줄 안내, 읽기 실패면 그 사실 */
+export function TrustedFoldersView(props: TrustedFoldersViewProps): ReactNode {
   const { state } = props;
+  if (state.kind === "failed") {
+    return (
+      <Alert tone="danger" variant="outline" emphasis="lead" size="sm">
+        {t("desktop.settings.trust.loadFailed")}
+      </Alert>
+    );
+  }
+  const rows: readonly VerdictRow[] = state.entries.map((entry) => ({
+    key: entry.path,
+    subject: shortenHome(entry.path),
+    subjectTitle: entry.path,
+    verdict: entry.verdict,
+    locked: props.busy.has(entry.path),
+    cells: [
+      <span key="age" className="block truncate text-ui-sm text-text-tertiary tabular-nums">
+        {savedAgeTextOf(entry.savedAt, props.nowMs)}
+      </span>,
+    ],
+  }));
   return (
-    <SettingSection
-      title={t("desktop.settings.trust.title")}
-      end={<InfoTip text={t("desktop.settings.trust.info")} />}
-    >
-      {state.kind === "failed" ? (
-        <Alert tone="danger" variant="outline" emphasis="lead">
-          {t("desktop.settings.trust.loadFailed")}
-        </Alert>
-      ) : state.entries.length === 0 ? (
-        <p className="m-0 text-ui text-text-tertiary">{t("desktop.settings.trust.empty")}</p>
-      ) : (
-        <ListDescription
-          variant="ghost"
-          size="xs"
-          aria-label={t("desktop.settings.trust.title")}
-          className={ROWS_CLASS}
-        >
-          {state.entries.map((entry) => (
-            <ListDescriptionRow
-              key={entry.path}
-              term={shortenHome(entry.path)}
-              mono
-              copyValue={entry.path}
-            >
-              {entry.verdict === "allow"
-                ? t("desktop.settings.trust.allow")
-                : t("desktop.settings.trust.deny")}
-            </ListDescriptionRow>
-          ))}
-        </ListDescription>
-      )}
-    </SettingSection>
+    <div className="grid gap-2">
+      <VerdictTable
+        label={t("desktop.settings.trust.title")}
+        subjectHeader={t("desktop.settings.trust.column.folder")}
+        verdictHeader={t("desktop.settings.perm.rules.column.verdict")}
+        extraColumns={[{ header: t("desktop.settings.trust.column.saved"), track: "6rem" }]}
+        choices={["allow", "deny"]}
+        verdictLabel={verdictLabelOf}
+        rows={rows}
+        disabled={props.disabled}
+        onVerdict={(path, verdict: Verdict) => {
+          if (verdict !== "ask") props.onDecide(path, verdict);
+        }}
+        emptyText={t("desktop.settings.trust.empty")}
+      />
+      {props.error === null ? null : <RowNote tone="danger">{props.error}</RowNote>}
+    </div>
   );
 }
 
-/** 연결이 살아 있을 때 목록을 읽는 구역. 읽는 중과 메서드가 없는 host에서는 그리지 않는다 */
-export function TrustedFoldersPanel(): ReactNode {
+/** 구역 하나: 기본값 줄 카드 + 이어서 결정 표. 표는 연결이 살아 있을 때 읽는다 */
+export function TrustedFoldersPanel(props: PermissionPanelProps): ReactNode {
   const commands = useCommands();
   const live = useLinkPhase() === "live";
   const [state, setState] = useState<TrustedFoldersState | null>(null);
+  const [busy, setBusy] = useState<ReadonlySet<string>>(() => new Set());
+  const [error, setError] = useState<string | null>(null);
+  // 표의 "저장한 때"를 잴 기준 시각. 구역을 열 때 한 번 정한다
+  const [nowMs] = useState(Date.now);
+  const field = fieldOf(props.view, DEFAULT_TRUST_KEY);
+
+  const load = useCallback((): void => {
+    detach(
+      commands.trust.list().then((result) => {
+        setState(trustedFoldersStateOf(result));
+        return undefined;
+      }),
+      rethrow,
+    );
+  }, [commands]);
 
   useEffect(() => {
-    let stale = false;
-    if (live) {
+    if (live) load();
+  }, [live, load]);
+
+  const decide = useCallback(
+    (path: string, verdict: "allow" | "deny"): void => {
+      setBusy((prev) => new Set([...prev, path]));
+      setError(null);
       detach(
-        commands.trust.list().then((result) => {
-          if (stale) return undefined;
-          setState(trustedFoldersStateOf(result));
+        commands.trust.decide(path, { kind: "folder", verdict }).then((result) => {
+          setBusy((prev) => new Set([...prev].filter((item) => item !== path)));
+          if (!result.ok) setError(t("desktop.settings.trust.decideFailed"));
+          load();
           return undefined;
         }),
         rethrow,
       );
-    }
-    return () => {
-      stale = true;
-    };
-  }, [commands, live]);
+    },
+    [commands, load],
+  );
 
-  if (!live || state === null) return null;
-  return <TrustedFoldersView state={state} />;
+  return (
+    <>
+      <SettingSection
+        title={t("desktop.settings.trust.section")}
+        end={savedEndOf(props.saved, [DEFAULT_TRUST_KEY])}
+      >
+        {field === undefined ? null : (
+          <FieldRow
+            field={field}
+            editable={field.editable && (props.live || field.origin === "desktop")}
+            saved={props.saved.has(DEFAULT_TRUST_KEY)}
+            editors={props.editors}
+            handlers={props.handlers}
+          />
+        )}
+      </SettingSection>
+      {!live || state === null ? null : (
+        <SettingSection continues body="bare" label={t("desktop.settings.trust.title")}>
+          <TrustedFoldersView
+            state={state}
+            busy={busy}
+            error={error}
+            disabled={!live}
+            nowMs={nowMs}
+            onDecide={decide}
+          />
+        </SettingSection>
+      )}
+    </>
+  );
 }

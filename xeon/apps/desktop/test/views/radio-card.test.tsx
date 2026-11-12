@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { act, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { parseHTML } from "linkedom";
-import { RadioCardGroup, RadioCardItem } from "../../src/views/pages/connection/radio-card.tsx";
+import { RadioCardGroup, RadioCardItem } from "../../src/views/pages/shared/radio-card.tsx";
 
 // 3열 선택 카드 그룹을 linkedom DOM에 올린다. 값은 DOM 속성과 `onValueChange` 기록으로 비교한다.
 // linkedom은 포커스를 추적하지 않아서, 화살표 키 시험은 `document.activeElement`를 직접 정해 준다(눌린 카드가 포커스라고 본다).

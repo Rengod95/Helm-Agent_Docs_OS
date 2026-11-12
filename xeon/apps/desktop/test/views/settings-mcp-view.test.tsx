@@ -60,16 +60,23 @@ function countOf(markup: string, text: string): number {
   return markup.split(text).length - 1;
 }
 
+/** 줄의 켜기 스위치 태그 */
+function switchOf(markup: string): string {
+  const at = markup.indexOf('role="switch"');
+  if (at < 0) return "";
+  const start = markup.lastIndexOf("<", at);
+  return markup.slice(start, markup.indexOf(">", at) + 1);
+}
+
 describe("McpServersView rows", () => {
   test("a connected settings row shows its source, state, and the edit and remove actions", () => {
     const markup = html({ load: { kind: "ready", rows: [rowOf({ toolCount: 3 })], rev: 0 } });
     expect(markup).toContain("설정");
-    expect(markup).toContain("연결됨");
-    expect(markup).toContain("도구 3개");
-    expect(markup).toContain("고치기");
-    expect(markup).toContain("지우기");
-    expect(markup).toContain("항상 끄기");
-    expect(markup).toContain("다시 시작");
+    expect(markup).toContain(t("desktop.settings.mcp.connectedTools", { count: 3 }));
+    // 고치기와 지우기는 ⋯ 메뉴 안이다(열 때만 그린다). 켜기 스위치는 켜져 있다
+    expect(markup).toContain(t("desktop.settings.mcp.menu", { name: "files" }));
+    expect(markup).toContain(t("desktop.settings.mcp.action.restart"));
+    expect(switchOf(markup)).toContain('aria-checked="true"');
   });
 
   test("a title shows the title with the id beside it", () => {
@@ -88,10 +95,7 @@ describe("McpServersView rows", () => {
         rev: 0,
       },
     });
-    expect(markup).toContain("차단 풀기");
-    // 단추 글자만 본다. 사유 글에도 "항상 끄기"가 든다
-    expect(markup).not.toContain(">항상 끄기<");
-    expect(markup).toContain(t("desktop.settings.mcp.state.alwaysBlocked"));
+    expect(switchOf(markup)).toContain('aria-checked="false"');
     expect(markup).toContain(t("desktop.settings.mcp.blocked.always"));
   });
 
@@ -113,10 +117,10 @@ describe("McpServersView rows", () => {
         rev: 0,
       },
     });
-    expect(markup).toContain("차단됨");
+    expect(markup).toContain(t("desktop.settings.mcp.blocked.always"));
     expect(markup).not.toContain(t("desktop.settings.mcp.state.failed"));
     expect(markup).not.toContain("연결하지 못했어요");
-    expect(markup).toContain("차단 풀기");
+    expect(switchOf(markup)).toContain('aria-checked="false"');
   });
 
   test("a server blocked by policy but not by the user keeps the policy reason and the block button", () => {
@@ -128,7 +132,7 @@ describe("McpServersView rows", () => {
       },
     });
     expect(markup).toContain("차단 목록에 있어요");
-    expect(markup).toContain("항상 끄기");
+    expect(switchOf(markup)).toContain('aria-checked="true"');
   });
 
   test("an approval wait shows its reason, and the explanation sits behind the info icon once", () => {

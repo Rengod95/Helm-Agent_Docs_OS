@@ -59,7 +59,7 @@ import {
 } from "./settings-sections.ts";
 import type { DedicatedEditors, FieldHandlers } from "./settings-field.tsx";
 import { SettingsFileEditorView, type SettingsFileHandlers } from "./settings-file-view.tsx";
-import { SETTINGS_EDITORS } from "./settings-editors-screen.tsx";
+import { FolderPickContext, SETTINGS_EDITORS } from "./settings-editors-screen.tsx";
 import { SettingsPageView, type SettingsPageHandlers } from "./settings-view.tsx";
 import { NotifyPanel } from "./settings-notify-view.tsx";
 import { MemoryFindView, MemoryPanelView, useMemoryPanel } from "./settings-memory-view.tsx";
@@ -67,6 +67,14 @@ import { PluginsPanel } from "./settings-plugins-view.tsx";
 import { ShortcutsPanel } from "./settings-shortcuts-view.tsx";
 import { AppearancePanel } from "./settings-appearance-view.tsx";
 import { TrustedFoldersPanel } from "./settings-trust-view.tsx";
+import {
+  ApprovalWaitPanel,
+  PermissionModePanel,
+  PermissionRulesPanel,
+  WebAccessPanel,
+} from "./settings-rules-panel.tsx";
+import { SandboxPanel } from "./settings-sandbox-panel.tsx";
+import { McpPolicyPanel } from "./settings-mcp-policy.tsx";
 import { AboutPanel, SettingsBanners, SettingsFilesPanel } from "./settings-overview.tsx";
 import { SettingSection } from "./settings-section.tsx";
 import { DataColumns } from "./settings-data-card.tsx";
@@ -443,7 +451,6 @@ export function SettingsPage(props: {
   const openFileDisabled = !live || file.phase !== "closed";
   const appearancePanel = <AppearancePanel />;
   const notifyPanel = <NotifyPanel />;
-  const trustPanel = <TrustedFoldersPanel />;
   const mcpPanel = <McpServersPanel />;
   const toolsWebPanel = <ToolsWebPanel state={toolsWeb} live={live} />;
   const pluginsPanel = <PluginsPanel />;
@@ -480,7 +487,58 @@ export function SettingsPage(props: {
         }}
       />
     ),
-    trust: trustPanel,
+    permissionMode:
+      view === null ? null : (
+        <PermissionModePanel
+          view={view}
+          live={live}
+          saved={saved}
+          editors={EDITORS}
+          handlers={fields}
+        />
+      ),
+    permissionRules:
+      view === null ? null : (
+        <PermissionRulesPanel
+          view={view}
+          live={live}
+          saved={saved}
+          editors={EDITORS}
+          handlers={fields}
+        />
+      ),
+    approvalWait:
+      view === null ? null : (
+        <ApprovalWaitPanel
+          view={view}
+          live={live}
+          saved={saved}
+          editors={EDITORS}
+          handlers={fields}
+        />
+      ),
+    trust:
+      view === null ? null : (
+        <TrustedFoldersPanel
+          view={view}
+          live={live}
+          saved={saved}
+          editors={EDITORS}
+          handlers={fields}
+        />
+      ),
+    webAccess:
+      view === null ? null : (
+        <WebAccessPanel view={view} live={live} saved={saved} editors={EDITORS} handlers={fields} />
+      ),
+    sandbox:
+      view === null ? null : (
+        <SandboxPanel view={view} live={live} saved={saved} editors={EDITORS} handlers={fields} />
+      ),
+    mcpPolicy:
+      view === null ? null : (
+        <McpPolicyPanel view={view} live={live} saved={saved} editors={EDITORS} handlers={fields} />
+      ),
     mcp: mcpPanel,
     toolsWeb: toolsWebPanel,
     plugins: pluginsPanel,
@@ -500,26 +558,28 @@ export function SettingsPage(props: {
     files: <SettingsFilesPanel filePaths={filePaths} />,
   };
   return (
-    <SettingsPageView
-      status={status}
-      loadError={state.loadError?.message ?? t("desktop.settings.loadFailed.unknown")}
-      view={view}
-      section={section}
-      query={query}
-      narrow={narrow}
-      readOnly={!live}
-      saved={saved}
-      restartError={state.restartError?.message ?? null}
-      prompt={pending === null ? null : { to: pending.to, count: pending.keys.length }}
-      fileEditor={fileEditor}
-      fileOpen={file.phase !== "closed"}
-      editors={EDITORS}
-      banners={<SettingsBanners onOpenFile={openFile} openFileDisabled={openFileDisabled} />}
-      panels={panels}
-      memoryMatches={memory.matches}
-      memoryFindPanel={<MemoryFindView props={memory.props} query={query} />}
-      revealKey={taken?.key ?? null}
-      handlers={handlers}
-    />
+    <FolderPickContext.Provider value={props.folderPick ?? null}>
+      <SettingsPageView
+        status={status}
+        loadError={state.loadError?.message ?? t("desktop.settings.loadFailed.unknown")}
+        view={view}
+        section={section}
+        query={query}
+        narrow={narrow}
+        readOnly={!live}
+        saved={saved}
+        restartError={state.restartError?.message ?? null}
+        prompt={pending === null ? null : { to: pending.to, count: pending.keys.length }}
+        fileEditor={fileEditor}
+        fileOpen={file.phase !== "closed"}
+        editors={EDITORS}
+        banners={<SettingsBanners onOpenFile={openFile} openFileDisabled={openFileDisabled} />}
+        panels={panels}
+        memoryMatches={memory.matches}
+        memoryFindPanel={<MemoryFindView props={memory.props} query={query} />}
+        revealKey={taken?.key ?? null}
+        handlers={handlers}
+      />
+    </FolderPickContext.Provider>
   );
 }

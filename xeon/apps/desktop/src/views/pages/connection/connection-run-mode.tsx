@@ -21,7 +21,7 @@ import { InfoTip } from "../../craft/info-tip.tsx";
 import { canStopService, type ConnectionState } from "./connection-model.ts";
 import { ConnectionSection } from "./connection-status.tsx";
 import { serviceFailureIdOf } from "./connection-text.ts";
-import { RadioCardGroup, RadioCardItem } from "./radio-card.tsx";
+import { RadioCardGroup, RadioCardItem } from "../shared/radio-card.tsx";
 
 // "실행 방식" 섹션. 세 카드(앱 안에서·백그라운드·백그라운드 + 다른 기기)로 고른다. 고르기는 외부 접근 컨트롤러의 `selectMode`를 부른다.
 // 백그라운드 계열이면 서비스 상태 한 줄, 로그인 자동 시작 스위치, 서비스 멈추기 단추를 카드 아래에 잇는다.

@@ -1,36 +1,28 @@
 import { t } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
-import type { PolicyRule } from "@fresnel/contracts/services";
-import { useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type Context,
+  type ReactNode,
+} from "react";
 import { useCommands } from "../../commands.ts";
+import { pickWorkspaceFolder, type FolderPickInvoke } from "../../folder-pick.ts";
+import { ListEditor } from "../shared/list-editor.tsx";
+import { PermissionRulesTable } from "./settings-rules-panel.tsx";
 import { HookDefsEditor } from "./settings-hook-defs.tsx";
 import type { DedicatedEditorProps, DedicatedEditors } from "./settings-field.tsx";
-import {
-  checkId,
-  checkTool,
-  conflictsOf,
-  EMPTY_RULE_DRAFT,
-  ruleListOf,
-  ruleOfDraft,
-  toolTextOf,
-  withEffect,
-  withId,
-  withoutRule,
-  withPriority,
-  withTool,
-  type RuleDraft,
-} from "./settings-rules-model.ts";
 import {
   RecordTableView,
   RowsTableView,
   FixedTableView,
-  RulesView,
-  SandboxListView,
   SecretRefView,
   UnreadableEditorNote,
   type SecretListStatus,
 } from "./settings-editors-view.tsx";
-import { entryIssueIdOf, nameIssueIdOf, ruleIssueIdOf } from "./settings-editors-text.ts";
+import { entryIssueIdOf, nameIssueIdOf } from "./settings-editors-text.ts";
 import { addEntry, sandboxListKindOf, textListOf, withoutEntry } from "./settings-sandbox-model.ts";
 import { secretNameOf, secretRefOf } from "./settings-secret-model.ts";
 import {
@@ -48,102 +40,90 @@ import {
 // 설정 전용 편집기의 상태 쪽(P-09 §6.13). 초안 칸(입력 글, 고르기 칸)과 오류 문장을 들고, 검사를 거친 값만 `handlers.edit`으로 보낸다.
 // 고르기 칸(시크릿)만 `handlers.change`로 바로 저장한다. 저장과 되돌리기는 항목 아래 줄이 한다(P-09 초안 흐름).
 
-/** 권한 규칙(`l1.tools.rules`). 행마다 이름, 도구, 동작, 우선순위를 고치고 새 규칙을 더한다 */
+/** 권한 규칙(`l1.tools.rules`). 찾기 결과에서도 구역과 같은 판정 표다(DP-109) */
 function PermissionRulesEditor(props: DedicatedEditorProps): ReactNode {
-  const { field, editable, handlers } = props;
-  const [draft, setDraft] = useState<RuleDraft>(EMPTY_RULE_DRAFT);
-  const [error, setError] = useState<string | null>(null);
-  const rules = ruleListOf(field.value);
-  if (rules === null) {
-    return <UnreadableEditorNote message={t("desktop.settings.rules.unreadable")} />;
-  }
-  const write = (next: readonly PolicyRule[]): void => {
-    setError(null);
-    handlers.edit(field.key, next);
-  };
   return (
-    <RulesView
-      rules={rules}
-      conflicts={conflictsOf(rules)}
-      editable={editable}
-      draft={draft}
-      error={error}
-      onDraft={setDraft}
-      onAdd={() => {
-        const checked = ruleOfDraft(draft, rules);
-        if (!checked.ok) {
-          setError(t(ruleIssueIdOf(checked.error)));
-          return;
-        }
-        write([...rules, checked.value]);
-        setDraft(EMPTY_RULE_DRAFT);
-      }}
-      onId={(index, text) => {
-        const checked = checkId(text, rules, index);
-        if (!checked.ok) {
-          setError(t(ruleIssueIdOf(checked.error)));
-          return;
-        }
-        if (checked.value === rules[index]?.id) return;
-        write(withId(rules, index, checked.value));
-      }}
-      onTool={(index, text) => {
-        const checked = checkTool(text);
-        if (!checked.ok) {
-          setError(t(ruleIssueIdOf(checked.error)));
-          return;
-        }
-        const rule = rules[index];
-        if (rule === undefined || checked.value === toolTextOf(rule)) return;
-        write(withTool(rules, index, checked.value));
-      }}
-      onEffect={(index, effect) => {
-        write(withEffect(rules, index, effect));
-      }}
-      onPriority={(index, priority) => {
-        write(withPriority(rules, index, priority));
-      }}
-      onRemove={(index) => {
-        write(withoutRule(rules, index));
-      }}
-    />
+    <PermissionRulesTable field={props.field} editable={props.editable} handlers={props.handlers} />
   );
 }
 
-/** 샌드박스 글 목록(`l0.sandbox.writeRoots.extra`, `l0.sandbox.network.blockedDomains`). 넣을 때 형식을 검사한다 */
+/**
+ * 폴더 고르기 창을 부르는 함수. 설정 화면이 셸의 `pick_folder`를 넣는다. 웹처럼 창이 없으면 `null`이고, 목록 편집기에
+ * "폴더 고르기" 단추가 없다
+ */
+export const FolderPickContext: Context<FolderPickInvoke | null> =
+  createContext<FolderPickInvoke | null>(null);
+
+/**
+ * 글 목록(쓰기 폴더, 보호 경로, 스킬 경로, 막을 도메인). 공용 목록 편집기(DP-110)로 그리고, 넣고 지우면 바로 저장한다.
+ * 경로 목록은 폴더 고르기 창으로도 넣는다. 넣을 때 형식을 검사한다
+ */
 function SandboxListEditor(props: DedicatedEditorProps): ReactNode {
   const { field, editable, handlers } = props;
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const folderPick = useContext(FolderPickContext);
   const kind = sandboxListKindOf(field.key);
   const items = textListOf(field.value);
   if (kind === null || items === null) {
     return <UnreadableEditorNote message={t("desktop.settings.sandbox.unreadable")} />;
   }
-  const write = (next: readonly string[]): void => {
+  const put = (text: string): void => {
+    const added = addEntry(kind, items, text);
+    if (!added.ok) {
+      setError(t(entryIssueIdOf(added.error)));
+      return;
+    }
     setError(null);
-    handlers.edit(field.key, next);
+    setDraft("");
+    handlers.change(field.key, added.value);
+  };
+  const pick = async (invoke: FolderPickInvoke): Promise<void> => {
+    const picked = await pickWorkspaceFolder(invoke);
+    if (!picked.ok) {
+      setError(t("desktop.settings.list.pickFailed"));
+      return;
+    }
+    if (picked.value !== undefined) put(picked.value);
   };
   return (
-    <SandboxListView
-      kind={kind}
+    <ListEditor
+      label={field.label}
       items={items}
-      editable={editable}
+      emptyText={t(
+        kind === "paths"
+          ? "desktop.settings.list.empty.paths"
+          : "desktop.settings.list.empty.domains",
+      )}
       draft={draft}
+      placeholder={t(
+        kind === "paths"
+          ? "desktop.settings.list.placeholder.path"
+          : "desktop.settings.list.placeholder.domain",
+      )}
       error={error}
-      onDraft={setDraft}
+      disabled={!editable}
+      onDraft={(text) => {
+        setError(null);
+        setDraft(text);
+      }}
       onAdd={() => {
-        const added = addEntry(kind, items, draft);
-        if (!added.ok) {
-          setError(t(entryIssueIdOf(added.error)));
-          return;
-        }
-        write(added.value);
-        setDraft("");
+        put(draft);
       }}
       onRemove={(index) => {
-        write(withoutEntry(items, index));
+        setError(null);
+        handlers.change(field.key, withoutEntry(items, index));
       }}
+      removeLabel={(item) => t("desktop.settings.list.remove", { item })}
+      addLabel={t("desktop.settings.verdict.add")}
+      onPick={
+        kind === "paths" && folderPick !== null
+          ? () => {
+              detach(pick(folderPick), rethrow);
+            }
+          : undefined
+      }
+      pickLabel={t("desktop.settings.list.pick")}
     />
   );
 }

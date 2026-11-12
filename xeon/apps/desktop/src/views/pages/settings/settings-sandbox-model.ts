@@ -9,10 +9,12 @@ export type SandboxListKind = "paths" | "domains";
 
 const KIND_BY_KEY: ReadonlyMap<SettingKey, SandboxListKind> = new Map<SettingKey, SandboxListKind>([
   ["l0.sandbox.writeRoots.extra", "paths"],
+  ["l0.sandbox.protectedPaths.extra", "paths"],
+  ["l2.knowledge.skills.paths", "paths"],
   ["l0.sandbox.network.blockedDomains", "domains"],
 ]);
 
-/** 키로 목록 종류를 고른다. 두 목록이 아니면 `null`이다 */
+/** 키로 목록 종류를 고른다. 경로 목록(쓰기 폴더, 보호 경로, 스킬 경로)이나 도메인 목록이 아니면 `null`이다 */
 export function sandboxListKindOf(key: SettingKey): SandboxListKind | null {
   return KIND_BY_KEY.get(key) ?? null;
 }

@@ -83,7 +83,7 @@ describe("dedicatedEditorOf", () => {
     ).toBe("sandboxLists");
   });
 
-  test("the rules and the two sandbox lists get their editor by key", () => {
+  test("the rules and the sandbox and skill lists get their editor by key", () => {
     expect(dedicatedEditorOf(fieldOf("l1.tools.rules", "permissions", "table"))).toBe(
       "permissionRules",
     );
@@ -95,6 +95,12 @@ describe("dedicatedEditorOf", () => {
     ).toBe("sandboxLists");
     expect(
       dedicatedEditorOf(fieldOf("l0.sandbox.protectedPaths.extra", "permissions", "list")),
+    ).toBe("sandboxLists");
+    expect(dedicatedEditorOf(fieldOf("l2.knowledge.skills.paths", "tools", "list"))).toBe(
+      "sandboxLists",
+    );
+    expect(
+      dedicatedEditorOf(fieldOf("l0.sandbox.credentialFiles", "permissions", "list")),
     ).toBeNull();
   });
 

@@ -20,6 +20,13 @@ export const SEGMENTED_KEYS: ReadonlySet<SettingKey> = new Set<SettingKey>([
   "l0.process.lockFallback.default",
   "l2.schedule.entries.directCreate",
   "l0.os.log.level",
+  // 권한·샌드박스·MCP(DP-109~111)
+  "l0.sandbox.onUnavailable",
+  "l2.web.policy.unseenUrl",
+  "x.loading-trust.defaultProjectTrust",
+  "l2.mcp.approvalMode",
+  // gitleaks generic-api-key가 이 키 이름과 다음 줄을 비밀 값으로 읽어 목록 끝에 둔다(오탐)
+  "l0.sandbox.credentialFiles",
 ]);
 
 /** segmented로 그릴 선택지 수의 상한 */

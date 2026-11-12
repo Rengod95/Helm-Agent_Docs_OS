@@ -1,21 +1,19 @@
 import { describe, expect, test } from "bun:test";
 import type { PolicyResource, PolicyRule } from "@fresnel/contracts/services";
 import {
-  checkId,
-  checkTool,
   conflictsOf,
   globsOverlap,
   partnersOf,
-  priorityOf,
+  patternTextOf,
+  resourceOfPattern,
+  ruleIdFor,
   rulesOverlap,
   ruleListOf,
-  ruleOfDraft,
-  toolTextOf,
+  ruleOfPattern,
+  ruleSummaryOf,
   withEffect,
-  withId,
+  withMemo,
   withoutRule,
-  withPriority,
-  withTool,
 } from "../../src/views/pages/settings/settings-rules-model.ts";
 
 // 권한 규칙 모델(L4.desktop-ux §6.13). 겹침은 글롭과 목록 칸으로 보고, 값은 `toEqual`과 `toBe`로 비교한다.
@@ -155,68 +153,151 @@ describe("ruleListOf", () => {
   });
 });
 
-describe("rule values", () => {
-  test("the tool text is empty for all tools and the priority defaults to 500", () => {
-    expect(toolTextOf(rule("a", "allow"))).toBe("");
-    expect(toolTextOf(rule("b", "allow", { tool: "bash" }))).toBe("bash");
-    expect(priorityOf(rule("a", "allow"))).toBe(500);
-    expect(priorityOf({ ...rule("b", "allow"), priority: 20 })).toBe(20);
+describe("bash command prefixes", () => {
+  const git = rule("a", "allow", {
+    tool: "bash",
+    args: [{ pointer: "/command", pattern: "^git status( |$)" }],
+  });
+  const rm = rule("b", "deny", {
+    tool: "bash",
+    args: [{ pointer: "/command", pattern: "^rm -rf( |$)" }],
   });
 
+  test("two different prefixes do not overlap, a plain bash rule overlaps both", () => {
+    expect(rulesOverlap(git, rm)).toBe(false);
+    expect(rulesOverlap(git, rule("c", "deny", { tool: "bash" }))).toBe(true);
+    expect(conflictsOf([git, rm])).toEqual([]);
+  });
+
+  test("a prefix that starts another prefix overlaps", () => {
+    const gitAll = rule("d", "deny", {
+      tool: "bash",
+      args: [{ pointer: "/command", pattern: "^git( |$)" }],
+    });
+    expect(rulesOverlap(git, gitAll)).toBe(true);
+  });
+});
+
+describe("pattern text", () => {
+  test("a tool glob, all tools and a bash prefix read back as typed", () => {
+    expect(patternTextOf(rule("a", "allow"))).toBe("*");
+    expect(patternTextOf(rule("b", "allow", { tool: "mcp__github__*" }))).toBe("mcp__github__*");
+    expect(
+      patternTextOf(
+        rule("c", "allow", {
+          tool: "bash",
+          args: [{ pointer: "/command", pattern: "^git status( |$)" }],
+        }),
+      ),
+    ).toBe("bash(git status)");
+  });
+
+  test("an escaped prefix is unescaped", () => {
+    expect(
+      patternTextOf(
+        rule("a", "deny", {
+          tool: "bash",
+          args: [{ pointer: "/command", pattern: "^rm \\-rf \\.\\*( |$)" }],
+        }),
+      ),
+    ).toBe("bash(rm -rf .*)");
+  });
+
+  test("rules with other conditions are not a pattern and show a summary", () => {
+    const server = rule("a", "ask", { mcpServer: "docs" });
+    expect(patternTextOf(server)).toBeNull();
+    expect(ruleSummaryOf(server)).toBe("docs");
+    const regex = rule("b", "deny", {
+      tool: "bash",
+      args: [{ pointer: "/command", pattern: "^(git|hg) push" }],
+    });
+    expect(patternTextOf(regex)).toBeNull();
+    expect(ruleSummaryOf(regex)).toBe("bash");
+  });
+
+  test("typed text becomes a resource, and the resource reads back as the same text", () => {
+    expect(resourceOfPattern(" * ")).toEqual({ ok: true, value: {} });
+    expect(resourceOfPattern("read")).toEqual({ ok: true, value: { tool: "read" } });
+    expect(resourceOfPattern("bash()")).toEqual({ ok: true, value: { tool: "bash" } });
+    const typed = "bash(npm run *.ts)";
+    const made = resourceOfPattern(typed);
+    expect(made).toEqual({
+      ok: true,
+      value: {
+        tool: "bash",
+        args: [{ pointer: "/command", pattern: "^npm run \\*\\.ts( |$)" }],
+      },
+    });
+    if (made.ok) expect(patternTextOf(rule("x", "allow", made.value))).toBe(typed);
+  });
+
+  test("bad text is refused with a reason", () => {
+    expect(resourceOfPattern("  ")).toEqual({ ok: false, error: "patternEmpty" });
+    expect(resourceOfPattern("read(x)")).toEqual({ ok: false, error: "patternCommandOnly" });
+    expect(resourceOfPattern("git status")).toEqual({ ok: false, error: "patternForm" });
+    expect(resourceOfPattern("t".repeat(129))).toEqual({ ok: false, error: "patternLong" });
+  });
+});
+
+describe("new rules from the add row", () => {
+  const rules = [
+    rule("allow-read", "allow", { tool: "read" }),
+    rule("deny-bash", "deny", { tool: "bash" }),
+  ];
+
+  test("the id is effect and tool, numbered when taken", () => {
+    expect(ruleIdFor("ask", { tool: "bash" }, rules)).toBe("ask-bash");
+    expect(ruleIdFor("allow", { tool: "read" }, rules)).toBe("allow-read-2");
+    expect(ruleIdFor("deny", {}, rules)).toBe("deny-all");
+    expect(ruleIdFor("allow", { tool: "mcp__gh__*" }, rules)).toBe("allow-mcp__gh__");
+  });
+
+  test("a new rule carries the memo, an empty memo adds no description", () => {
+    expect(ruleOfPattern({ pattern: "web_fetch", effect: "ask", memo: " 외부 " }, rules)).toEqual({
+      ok: true,
+      value: {
+        id: "ask-web_fetch",
+        action: "tool.call",
+        resource: { tool: "web_fetch" },
+        effect: "ask",
+        description: "외부",
+      },
+    });
+    expect(ruleOfPattern({ pattern: "*", effect: "deny", memo: "" }, rules)).toEqual({
+      ok: true,
+      value: { id: "deny-all", action: "tool.call", resource: {}, effect: "deny" },
+    });
+  });
+
+  test("the same pattern with the same verdict is a duplicate, another verdict is not", () => {
+    expect(ruleOfPattern({ pattern: "read", effect: "allow", memo: "" }, rules)).toEqual({
+      ok: false,
+      error: "patternDuplicate",
+    });
+    expect(ruleOfPattern({ pattern: "read", effect: "deny", memo: "" }, rules).ok).toBe(true);
+    expect(ruleOfPattern({ pattern: "x", effect: "deny", memo: "m".repeat(501) }, rules)).toEqual({
+      ok: false,
+      error: "memoLong",
+    });
+  });
+});
+
+describe("row edits", () => {
   test("the edits return a new list and touch only their row", () => {
-    const rules = [rule("a", "allow", { tool: "bash" }), rule("b", "ask")];
     const bash = rule("a", "allow", { tool: "bash" });
     const ask = rule("b", "ask");
+    const rules = [bash, ask];
     expect(withEffect(rules, 1, "deny")).toEqual([bash, rule("b", "deny")]);
-    expect(withPriority(rules, 0, 10)).toEqual([{ ...bash, priority: 10 }, ask]);
-    expect(withId(rules, 1, "c")).toEqual([bash, rule("c", "ask")]);
     expect(withoutRule(rules, 0)).toEqual([ask]);
     expect(rules).toEqual([bash, ask]);
   });
 
-  test("an empty tool text removes the tool and a tool text is trimmed", () => {
-    const rules = [rule("a", "allow", { tool: "bash", caller: "main" })];
-    const cleared = withTool(rules, 0, "  ");
-    expect(cleared).toEqual([rule("a", "allow", { caller: "main" })]);
-    expect(Object.hasOwn(cleared[0]?.resource ?? {}, "tool")).toBe(false);
-    expect(withTool(rules, 0, " read ")).toEqual([
-      rule("a", "allow", { tool: "read", caller: "main" }),
-    ]);
-  });
-});
-
-describe("checks for a rule name and a tool", () => {
-  const rules = [rule("a", "allow"), rule("b", "deny")];
-
-  test("a name is trimmed, must not be empty, must be new unless it is the row itself", () => {
-    expect(checkId(" c ", rules, null)).toEqual({ ok: true, value: "c" });
-    expect(checkId("  ", rules, null)).toEqual({ ok: false, error: "empty" });
-    expect(checkId("b", rules, null)).toEqual({ ok: false, error: "duplicate" });
-    expect(checkId("b", rules, 1)).toEqual({ ok: true, value: "b" });
-    expect(checkId("x".repeat(129), rules, null)).toEqual({ ok: false, error: "long" });
-  });
-
-  test("a tool name longer than 128 characters is refused", () => {
-    expect(checkTool(" bash ")).toEqual({ ok: true, value: "bash" });
-    expect(checkTool("t".repeat(129))).toEqual({ ok: false, error: "toolLong" });
-  });
-
-  test("a new rule needs a name, and an empty tool means all tools", () => {
-    expect(ruleOfDraft({ id: "", tool: "", effect: "ask" }, rules)).toEqual({
-      ok: false,
-      error: "empty",
-    });
-    expect(ruleOfDraft({ id: "a", tool: "", effect: "ask" }, rules)).toEqual({
-      ok: false,
-      error: "duplicate",
-    });
-    expect(ruleOfDraft({ id: "c", tool: "bash", effect: "deny" }, rules)).toEqual({
-      ok: true,
-      value: { id: "c", action: "tool.call", resource: { tool: "bash" }, effect: "deny" },
-    });
-    expect(ruleOfDraft({ id: "d", tool: "", effect: "allow" }, rules)).toEqual({
-      ok: true,
-      value: { id: "d", action: "tool.call", resource: {}, effect: "allow" },
-    });
+  test("a memo is set trimmed, cleared when empty, and the priority stays", () => {
+    const rules: readonly PolicyRule[] = [{ ...rule("a", "allow"), priority: 20 }];
+    const set = withMemo(rules, 0, "  이유  ");
+    expect(set).toEqual([{ ...rule("a", "allow"), priority: 20, description: "이유" }]);
+    const cleared = withMemo(set, 0, " ");
+    expect(cleared).toEqual([{ ...rule("a", "allow"), priority: 20 }]);
+    expect(Object.hasOwn(cleared[0] ?? {}, "description")).toBe(false);
   });
 });

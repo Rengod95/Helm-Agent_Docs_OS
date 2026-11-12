@@ -29,8 +29,14 @@ export type SettingsPanelId =
   | "modelPolicy"
   | "secrets"
   | "secretsAdvanced"
+  | "permissionMode"
+  | "permissionRules"
+  | "approvalWait"
   | "trust"
+  | "webAccess"
+  | "sandbox"
   | "mcp"
+  | "mcpPolicy"
   | "toolsWeb"
   | "plugins"
   | "memory"
@@ -161,19 +167,18 @@ export const SETTINGS_SECTIONS: Readonly<Record<SettingsSectionId, SectionSpec>>
     id: "permissions",
     group: "agent",
     label: "desktop.settings.section.permissions",
+    // 실행 방식 카드 2×2 → 권한 규칙 판정 표 → 승인 기다림(무인·계획) → 작업 폴더 신뢰 → 웹 접근(DP-109 [결정: 2026-11-11 사용자])
     parts: [
-      fields("desktop.settings.part.approval", [
-        "l1.tools.permissionMode",
-        "l1.tools.bypassAllowed",
-        "l1.tools.rules",
+      panel("permissionMode", ["l1.tools.permissionMode", "l1.tools.bypassAllowed"]),
+      panel("permissionRules", ["l1.tools.rules"]),
+      panel("approvalWait", [
         "l1.tools.unattended.approval",
         "l1.tools.unattended.timeoutSeconds",
         "l2.work.plans.requireApproval",
         "l2.work.plans.exitOnApprove",
       ]),
-      fields("desktop.settings.part.trust", ["x.loading-trust.defaultProjectTrust"]),
-      panel("trust"),
-      fields("desktop.settings.part.web", [
+      panel("trust", ["x.loading-trust.defaultProjectTrust"]),
+      panel("webAccess", [
         "l2.web.policy.allow",
         "l2.web.policy.ask",
         "l2.web.policy.deny",
@@ -186,8 +191,9 @@ export const SETTINGS_SECTIONS: Readonly<Record<SettingsSectionId, SectionSpec>>
     id: "sandbox",
     group: "agent",
     label: "desktop.settings.section.sandbox",
+    // 상태 띠와 점검 → 쓰기와 보호 → 네트워크 → 그 밖(DP-110 [결정: 2026-11-11 사용자])
     parts: [
-      fields(null, [
+      panel("sandbox", [
         "l0.sandbox.enabled",
         "l0.sandbox.onUnavailable",
         "l0.sandbox.escapeRetry",
@@ -203,9 +209,10 @@ export const SETTINGS_SECTIONS: Readonly<Record<SettingsSectionId, SectionSpec>>
     id: "tools",
     group: "agent",
     label: "desktop.settings.section.tools",
+    // MCP 서버 카드 → MCP 정책(접힘) → 웹 도구 표 → 스킬과 명령(DP-111 [결정: 2026-11-11 사용자])
     parts: [
       panel("mcp"),
-      fields("desktop.settings.part.mcpPolicy", [
+      panel("mcpPolicy", [
         "l2.mcp.approvalMode",
         "l2.mcp.allowedServers",
         "l2.mcp.deniedServers",
