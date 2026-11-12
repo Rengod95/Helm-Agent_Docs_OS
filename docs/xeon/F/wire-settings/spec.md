@@ -337,6 +337,8 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | trust | `trust.decide` | `{ workspace: string, choice: { kind: "folder"\|"parent"\|"session", verdict: "allow"\|"deny" } }` | `TrustStatus` | M2 |
 | trust | `trust.list` | `{}` | `{ entries: { path: string, verdict: "allow"\|"deny", savedAt?: string }[] }`. 저장 파일(`trust.json`)의 결정을 읽는다. 읽기 전용이고 이번 실행에서 정한 결정은 싣지 않는다. 파일이 손상되었거나 읽지 못하면 `store.io`(`details.code: "trust_store_read"`)다. | M4 |
 | trust | `trust.remove` | `{ workspace: string }` | `TrustStatus`. 이 폴더 자신의 저장된 결정(`trust.json` 항목)과 이 호스트 프로세스의 기억(`session` 결정)을 지운다. 상위 폴더의 결정은 건드리지 않는다. 지운 뒤의 판정을 돌려주므로 결정이 없으면 `undecided`다. 없는 결정을 지워도 아무것도 바꾸지 않는다. 저장 파일이 손상되었거나 쓰지 못하면 `store.io`(`details.code: "trust_store"`)다. 설정 층 다시 읽기와 `settings.invalidated`는 `trust.decide`와 같다 [결정: 2026-11-11 사용자] | M4 |
+| sandbox | `sandbox.lastSelfTest` | `{}` | `{ report: SelfTestReport }`. `report`는 마지막으로 기록된 자가 시험 보고서(L0.sandbox.spec §4.4)다: `at`(시각, epoch ms), `durationMs`, `passed`(전체 통과), `items`(`{ id, passed, detail? }`, `id`는 여섯 항목 가운데 하나, `detail`은 사유 코드 500자 이내). 기록이 없으면 `report`가 null이다. 시험을 돌리지 않고 아무것도 바꾸지 않는다 [결정: 2026-11-11 사용자] | M4 |
+| sandbox | `sandbox.selfTest` | `{}` | `SelfTestReport`(위와 같은 모양). 자가 시험을 지금 한 번 돌리고 보고서를 돌려준다. 이 기기에서 샌드박스를 찔러 볼 뿐 정책은 바꾸지 않는다. 예약 시험과 한 번에 하나씩 돈다. 서비스가 없으면 `internal`이다 [결정: 2026-11-11 사용자] | M4 |
 | workspace | `workspace.status` | `{ workspace: string }` | `{ exists: boolean, path: string }`. 작업 폴더가 지금 있는 폴더인지 본다. 없거나 파일이면 `exists`가 거짓이다. `path`는 있으면 정규 경로, 없으면 `.`·`..`만 정리한 절대 경로다. 상대 경로면 `jsonrpc.invalidParams`(`path: "workspace"`). 아무것도 바꾸지 않는다. | M4 |
 | settings | `settings.get` | `{ keys?: SettingKey[], threadId?: ThreadId }` | `{ settings: EffectiveSetting[] }` | M1 |
 | settings | `settings.set` | `{ key: SettingKey, value: unknown, scope: SettingScope, threadId?: ThreadId }` | `{ setting: EffectiveSetting }` | M2 |
@@ -649,6 +651,8 @@ export interface WireMethodMap {
   "trust.decide":      { params: TrustDecideParams;      result: TrustStatus };
   "trust.list":        { params: TrustListParams;        result: TrustListResult };
   "trust.remove":      { params: TrustRemoveParams;      result: TrustStatus };
+  "sandbox.lastSelfTest": { params: SandboxSelfTestParams; result: SandboxLastSelfTestResult };
+  "sandbox.selfTest":  { params: SandboxSelfTestParams; result: SelfTestReport };
   "workspace.status":  { params: WorkspaceStatusParams;  result: WorkspaceStatusResult };
   "secret.beginEntry": { params: SecretBeginEntryParams; result: SecretBeginEntryResult };
 }

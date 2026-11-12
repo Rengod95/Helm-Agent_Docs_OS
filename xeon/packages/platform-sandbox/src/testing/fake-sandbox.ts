@@ -55,6 +55,8 @@ export function fakeSandbox(options: FakeSandboxOptions = {}): FakeSandbox {
   const wrapped: { command: string | readonly string[]; policy: SandboxPolicy }[] = [];
 
   const wrappedArgv: { request: SandboxArgvRequest; policy: SandboxPolicy }[] = [];
+  /** 마지막 자가 시험 보고서. 가짜 자가 시험이 돌 때마다 바뀐다 */
+  let lastReport: SelfTestReport | undefined;
 
   /** 격리하지 않고 요청 그대로의 argv를 돌려준다. 판정은 실제 규칙을 쓴다. cleanup은 아무 일도 하지 않는다 */
   const wrapArgv: SandboxService["wrapArgv"] = (policy, request) => {
@@ -117,12 +119,16 @@ export function fakeSandbox(options: FakeSandboxOptions = {}): FakeSandbox {
     wrapArgv,
     autoAllow: (policy, request) =>
       options.autoAllow ?? decideAutoAllow(policy, request, status, []),
-    selfTest: (): Promise<SelfTestReport> =>
-      Promise.resolve({
+    selfTest: (): Promise<SelfTestReport> => {
+      const report: SelfTestReport = {
         at: 0,
         durationMs: 0,
         passed: status.available,
         items: SELF_TEST_ITEM_IDS.map((id) => ({ id, passed: status.available })),
-      }),
+      };
+      lastReport = report;
+      return Promise.resolve(report);
+    },
+    lastSelfTestReport: () => lastReport,
   };
 }

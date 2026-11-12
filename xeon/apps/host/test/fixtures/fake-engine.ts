@@ -18,6 +18,7 @@ import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import type { ScheduleService } from "@fresnel/cap-schedule";
 import { partial } from "./unsafe.ts";
 import type { DevkitPort } from "../../src/handlers/m4/devkit.ts";
+import type { SandboxSelfTestPort } from "../../src/handlers/m4/sandbox-self-test.ts";
 import type { DialogAreaPort } from "../../src/handlers/m4/dialog-area.ts";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { matchesFilter } from "../../src/handlers/events.ts";
@@ -140,6 +141,8 @@ export interface FakeEngineOptions {
     /** 대화 영역 포트(`goal.status`, `work.tasks.list`, `schedule.update`, `schedule.runs`)를 바꾼다. 쓰지 않는 멤버는 부르면 바로 실패한다 */
     readonly dialogArea?: Partial<DialogAreaPort>;
     readonly devkit?: Partial<DevkitPort>;
+    /** 샌드박스 자가 시험 포트(`sandbox.lastSelfTest`, `sandbox.selfTest`). 쓰지 않는 멤버는 부르면 바로 실패한다 */
+    readonly sandboxSelfTest?: Partial<SandboxSelfTestPort>;
   };
 }
 
@@ -577,6 +580,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       }),
       dialogArea: partial<DialogAreaPort>({ ...options.overrides?.dialogArea }),
       devkit: partial<DevkitPort>({ ...options.overrides?.devkit }),
+      sandboxSelfTest: partial<SandboxSelfTestPort>({ ...options.overrides?.sandboxSelfTest }),
     },
   };
 

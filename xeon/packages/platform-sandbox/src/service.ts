@@ -139,6 +139,10 @@ export async function createSandboxService(
   let initialized = false;
   let tools: SrtTools = {};
   let lastSelfTest: SandboxStatus["lastSelfTest"];
+  /** 마지막으로 기록한 보고서 전체(항목별 사유 포함). `lastSelfTest`와 같은 시점에 바뀐다 */
+  let lastReport: SelfTestReport | undefined;
+  /** 자가 시험은 같은 `<fresnelData>/selftest/`를 쓴다. 실행을 한 줄로 세워 겹치지 않게 한다(예약 시험과 사람이 누른 시험) */
+  let selfTestTail: Promise<unknown> = Promise.resolve();
   /** 마지막 갱신에서 srt가 거부해 차단 목록에서 뺀 도메인. 갱신할 때마다 새로 정한다 */
   let rejectedBlockedDomains: readonly string[] = [];
   let refreshing: Promise<SandboxStatus> | undefined;
@@ -334,7 +338,7 @@ export async function createSandboxService(
     };
   };
 
-  const selfTest = async (shell: Shell, context: CancelScope): Promise<SelfTestReport> => {
+  const runOneSelfTest = async (shell: Shell, context: CancelScope): Promise<SelfTestReport> => {
     const clock = deps.os.time.clock;
     if (!currentStatus(false).available) {
       // 격리를 쓸 수 없으면 시험할 수 없다. 원래 이유(missing_dependency 등)를 가리지 않도록 기록하지 않는다
@@ -366,10 +370,21 @@ export async function createSandboxService(
       passed: report.passed,
       failed: report.items.filter((entry) => !entry.passed).map((entry) => entry.id),
     };
+    lastReport = report;
     if (report.passed)
       logger.info("sandbox.self_test", { passed: true, durationMs: report.durationMs });
     else logger.error("sandbox.self_test", { passed: false, failed: lastSelfTest.failed });
     return report;
+  };
+
+  const selfTest = (shell: Shell, context: CancelScope): Promise<SelfTestReport> => {
+    const run = selfTestTail.then(() => runOneSelfTest(shell, context));
+    // 앞의 실행이 실패해도 다음 실행은 돈다
+    selfTestTail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
   };
 
   const schedules = new Set<SelfTestSchedule>();
@@ -435,6 +450,7 @@ export async function createSandboxService(
     autoAllow: (policy, request) =>
       decideAutoAllow(policy, request, currentStatus(true), BLOCKED_NETWORK.allowedDomains),
     selfTest,
+    lastSelfTestReport: () => lastReport,
     startSelfTests,
     refresh,
     dispose: async () => {

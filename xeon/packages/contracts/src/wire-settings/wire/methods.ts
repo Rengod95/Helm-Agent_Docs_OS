@@ -34,7 +34,12 @@ import {
   type SemVer,
 } from "../../capabilities/index.ts";
 import { ApprovalAnswerSchema, ApprovalRequestedPayloadSchema } from "../../records/index.ts";
-import type { BinaryName, BinarySource, OsPlatform } from "../../services/index.ts";
+import {
+  SelfTestReportSchema,
+  type BinaryName,
+  type BinarySource,
+  type OsPlatform,
+} from "../../services/index.ts";
 import {
   EventIdSchema,
   ImageContentSchema,
@@ -96,6 +101,7 @@ import {
 } from "./status-notify.ts";
 import { WebProvidersParamsSchema, WebProvidersResultSchema } from "./web-providers.ts";
 import { ProviderCheckAuthParamsSchema, ProviderCheckAuthResultSchema } from "./provider-auth.ts";
+import { SandboxLastSelfTestResultSchema, SandboxSelfTestParamsSchema } from "./sandbox.ts";
 import {
   HostRemoteConfigParamsSchema,
   HostRemoteConfigResultSchema,
@@ -2135,6 +2141,14 @@ interface WireSchemas
     params: WithMeta<typeof TrustRemoveParamsSchema>;
     result: typeof TrustStatusSchema;
   };
+  "sandbox.lastSelfTest": {
+    params: WithMeta<typeof SandboxSelfTestParamsSchema>;
+    result: typeof SandboxLastSelfTestResultSchema;
+  };
+  "sandbox.selfTest": {
+    params: WithMeta<typeof SandboxSelfTestParamsSchema>;
+    result: typeof SelfTestReportSchema;
+  };
   "workspace.status": {
     params: WithMeta<typeof WorkspaceStatusParamsSchema>;
     result: typeof WorkspaceStatusResultSchema;
@@ -2351,6 +2365,12 @@ export const WIRE_METHODS: {
   "trust.decide": spec(withMeta(TrustDecideParamsSchema), TrustStatusSchema, "M2"),
   "trust.list": spec(withMeta(TrustListParamsSchema), TrustListResultSchema, "M4"),
   "trust.remove": spec(withMeta(TrustRemoveParamsSchema), TrustStatusSchema, "M4"),
+  "sandbox.lastSelfTest": spec(
+    withMeta(SandboxSelfTestParamsSchema),
+    SandboxLastSelfTestResultSchema,
+    "M4",
+  ),
+  "sandbox.selfTest": spec(withMeta(SandboxSelfTestParamsSchema), SelfTestReportSchema, "M4"),
   "workspace.status": spec(
     withMeta(WorkspaceStatusParamsSchema),
     WorkspaceStatusResultSchema,

@@ -21,6 +21,7 @@ import type {
   PackResult,
   ScaffoldInput,
   ScaffoldResult,
+  SelfTestReport,
 } from "@fresnel/contracts/services";
 import type { EffectiveSetting, SettingDefWire } from "@fresnel/contracts/settings";
 import type { DenyAnswerJson, PlanAnswerJson, ReviewAnswerJson } from "@fresnel/contracts/records";
@@ -69,6 +70,7 @@ import type {
   SettingsReadFileResult,
   SettingsFileProblem,
   SettingsFileScope,
+  SandboxLastSelfTestResult,
   SettingsWritableFileScope,
   SettingsWriteFileResult,
   StartupNotice,
@@ -194,6 +196,15 @@ interface TrustCommands {
   list(): Promise<Result<TrustListResult, CommandError>>;
   /** `trust.remove`: 이 폴더의 저장된 결정을 지운다. 지운 뒤의 판정을 돌려준다. 설정 화면의 "신뢰한 폴더" 줄이 부른다 */
   remove(workspace: string): Promise<Result<TrustStatus, CommandError>>;
+}
+
+/**
+ * 샌드박스 자가 시험(F.wire-settings.spec `sandbox.lastSelfTest`, `sandbox.selfTest`). 마지막 결과는 구역을 열 때 읽고(시험을 돌리지 않는다),
+ * 다시 시험은 지금 한 번 돌린다. 구형 host에는 메서드가 없어 `unsupported`다.
+ */
+interface SandboxCommands {
+  lastSelfTest(): Promise<Result<SandboxLastSelfTestResult, CommandError>>;
+  selfTest(): Promise<Result<SelfTestReport, CommandError>>;
 }
 
 /**
@@ -1084,6 +1095,7 @@ export interface Commands {
   retargetEngine(target: EngineTarget, graceMs: number): Promise<Result<null, CommandError>>;
   readonly trust: TrustCommands;
   readonly workspace: WorkspaceCommands;
+  readonly sandbox: SandboxCommands;
   readonly setup: SetupCommands;
   /** 크래프트(`workbench`)의 확장 읽기·켜기·되돌리기 */
   readonly workbench: WorkbenchCommands;

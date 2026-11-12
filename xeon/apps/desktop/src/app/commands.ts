@@ -531,6 +531,10 @@ export function createCommands(
     workspace: {
       status: (workspace) => withConnection((c) => c.request("workspace.status", { workspace })),
     },
+    sandbox: {
+      lastSelfTest: () => withConnection((c) => c.request("sandbox.lastSelfTest", {})),
+      selfTest: () => withConnection((c) => c.request("sandbox.selfTest", {})),
+    },
     workbench: createWorkbenchCommands(withConnection, (listener) => {
       const connection = session.connection();
       return connection === null ? () => {} : subscribeExtChanges(connection, listener);

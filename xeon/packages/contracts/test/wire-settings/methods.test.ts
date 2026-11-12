@@ -667,6 +667,44 @@ describe("M2 method schemas are written out", () => {
     expect(WIRE_METHODS["trust.remove"].result).toBe(WIRE_METHODS["trust.decide"].result);
   });
 
+  test("sandbox self-test methods take no params; the last result is a report or null, and a run returns the report", () => {
+    const report = {
+      at: 1_700_000_000_000,
+      durationMs: 42,
+      passed: false,
+      items: [
+        { id: "network_denied", passed: false, detail: "exit=0" },
+        { id: "env_allowlist", passed: true },
+      ],
+    };
+    const last = WIRE_METHODS["sandbox.lastSelfTest"];
+    expect(last.stage).toBe("M4");
+    expect(parse(last.params, {}).ok).toBe(true);
+    expect(parse(last.params, { workspace: "/work" }).ok).toBe(false);
+    expect(parse(last.result, { report: null }).ok).toBe(true);
+    expect(parse(last.result, { report }).ok).toBe(true);
+    expect(parse(last.result, {}).ok).toBe(false);
+    expect(parse(last.result, { report: { ...report, extra: true } }).ok).toBe(false);
+    expect(
+      parse(last.result, { report: { ...report, items: [{ id: "nope", passed: true }] } }).ok,
+    ).toBe(false);
+    expect(
+      parse(last.result, {
+        report: {
+          ...report,
+          items: [{ id: "network_denied", passed: false, detail: "x".repeat(501) }],
+        },
+      }).ok,
+    ).toBe(false);
+
+    const run = WIRE_METHODS["sandbox.selfTest"];
+    expect(run.stage).toBe("M4");
+    expect(parse(run.params, {}).ok).toBe(true);
+    expect(parse(run.result, report).ok).toBe(true);
+    expect(parse(run.result, { report: null }).ok).toBe(false);
+    expect(parse(run.result, { ...report, passed: "no" }).ok).toBe(false);
+  });
+
   test("trust status details are optional names and commands, never env values", () => {
     const { result } = WIRE_METHODS["trust.get"];
     const status = {

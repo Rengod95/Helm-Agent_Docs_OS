@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
 import type { FieldVM } from "@fresnel/client/settings";
+import { err, ok } from "@fresnel/contracts";
 import { renderToString } from "react-dom/server";
 import type { FieldHandlers } from "../../src/views/pages/settings/settings-field.tsx";
 import { PermissionRulesTable } from "../../src/views/pages/settings/settings-rules-panel.tsx";
@@ -10,7 +11,11 @@ import {
   domainRowsOf,
   withDomainVerdict,
 } from "../../src/views/pages/settings/settings-rules-web.ts";
-import { sandboxCheckStepsOf } from "../../src/views/pages/settings/settings-sandbox-panel.tsx";
+import {
+  sandboxCheckStepsOf,
+  sandboxSelfTestStepsOf,
+  selfTestViewOfLast,
+} from "../../src/views/pages/settings/settings-sandbox-panel.tsx";
 import { ListEditor } from "../../src/views/pages/shared/list-editor.tsx";
 import { VerdictTable, type VerdictRow } from "../../src/views/pages/shared/verdict-table.tsx";
 import { defOf, fieldIn, settingOf, viewOf } from "./settings-fixtures.ts";
@@ -315,5 +320,78 @@ describe("sandboxCheckStepsOf", () => {
     expect(sandboxCheckStepsOf({ kind: "failed" })[0]?.fix).toBe(
       t("desktop.settings.sandbox.check.noReportFix"),
     );
+  });
+});
+
+describe("sandboxSelfTestStepsOf", () => {
+  const REPORT = {
+    at: 1_700_000_000_000,
+    durationMs: 9,
+    passed: false,
+    items: [
+      { id: "protected_read_denied" as const, passed: true, detail: "exit=1" },
+      { id: "network_denied" as const, passed: false, detail: "exit=0" },
+    ],
+  };
+
+  test("a report shows one step per item: a passed item has no detail, a failed one has its reason and a fix", () => {
+    expect(sandboxSelfTestStepsOf({ kind: "report", report: REPORT })).toEqual([
+      {
+        id: "protected_read_denied",
+        label: t("desktop.settings.sandbox.selfTest.item.protectedReadDenied"),
+        state: "passed",
+      },
+      {
+        id: "network_denied",
+        label: t("desktop.settings.sandbox.selfTest.item.networkDenied"),
+        state: "failed",
+        detail: t("desktop.settings.sandbox.selfTest.itemFailed", { reason: "exit=0" }),
+        fix: t("desktop.settings.sandbox.selfTest.fix"),
+      },
+    ]);
+  });
+
+  test("a run in progress, no result yet, and a failed read each show one status step", () => {
+    const title = t("desktop.settings.sandbox.selfTest.title");
+    expect(sandboxSelfTestStepsOf({ kind: "running" })).toEqual([
+      { id: "selfTest", label: title, state: "running" },
+    ]);
+    expect(sandboxSelfTestStepsOf({ kind: "never" })).toEqual([
+      {
+        id: "selfTest",
+        label: title,
+        state: "waiting",
+        detail: t("desktop.settings.sandbox.selfTest.never"),
+      },
+    ]);
+    expect(sandboxSelfTestStepsOf({ kind: "failed" })).toEqual([
+      {
+        id: "selfTest",
+        label: title,
+        state: "failed",
+        detail: t("desktop.settings.sandbox.selfTest.failed"),
+        fix: t("desktop.settings.sandbox.selfTest.fix"),
+      },
+    ]);
+  });
+
+  test("an old host without the methods draws no self-test step", () => {
+    expect(sandboxSelfTestStepsOf({ kind: "unsupported" })).toEqual([]);
+  });
+});
+
+describe("selfTestViewOfLast", () => {
+  const REPORT = {
+    at: 1_700_000_000_000,
+    durationMs: 9,
+    passed: true,
+    items: [{ id: "env_allowlist" as const, passed: true }],
+  };
+
+  test("the last result is none yet, a report, an old host, or a failed read", () => {
+    expect(selfTestViewOfLast(ok({ report: null }))).toEqual({ kind: "never" });
+    expect(selfTestViewOfLast(ok({ report: REPORT }))).toEqual({ kind: "report", report: REPORT });
+    expect(selfTestViewOfLast(err({ kind: "unsupported" }))).toEqual({ kind: "unsupported" });
+    expect(selfTestViewOfLast(err({ kind: "failed" }))).toEqual({ kind: "failed" });
   });
 });

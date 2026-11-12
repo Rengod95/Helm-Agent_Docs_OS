@@ -227,8 +227,10 @@ export interface SandboxService {
   wrapArgv(policy: SandboxPolicy, request: SandboxArgvRequest, context: CancelScope): Promise<Result<SandboxedArgv, SandboxWrapError>>;
   /** 판정만 한다. 승인 UI와 적용은 L1 tools */
   autoAllow(policy: SandboxPolicy, request: { command: string | readonly string[]; cwd: string; workspaceRoots: readonly string[]; tempDir: string }): AutoAllowDecision;
-  /** 주어진 Shell을 감싸 자가 시험을 실행하고 status에 반영한다 */
+  /** 주어진 Shell을 감싸 자가 시험을 실행하고 status에 반영한다. 한 번에 하나씩 돈다(4.4절) */
   selfTest(shell: Shell, context: CancelScope): Promise<SelfTestReport>;
+  /** 마지막으로 기록된 자가 시험 보고서 전체(항목별 통과와 사유). 기록이 없으면 없음 [결정: 2026-11-11 사용자] */
+  lastSelfTestReport(): SelfTestReport | undefined;
 }
 export const SandboxServiceName = "fresnel.sandbox" as const;
 ```
@@ -417,6 +419,8 @@ export function selectSandboxProvider(input: {
 
 - 하나라도 기대와 다르면 status를 `available: false`, `reason: "self_test_failed"`로 바꾸고 4.5절 정책을 적용한다.
 - 자가 시험 명령은 `allowEscape: false` 정책으로 감싼다. 결과 보고에는 항목 id와 통과 여부, 실패 시 종료 코드만 싣는다. 출력 원문은 싣지 않는다.
+- [결정: 2026-11-11 사용자] 마지막 보고서 전체는 `lastSelfTestReport()`로 읽는다(시각, 걸린 시간, 전체 통과, 항목마다 id·통과·사유). 사유는 `exit=<코드>`, `exec_error=<코드>`, `sensitive=<개수>`처럼 짧은 코드이고 경로와 출력 원문은 싣지 않는다. 격리를 쓸 수 없어 시험하지 못한 때는 기록하지 않는다. wire `sandbox.lastSelfTest`가 이 값을 읽고 `sandbox.selfTest`가 지금 한 번 돌린다(F.wire-settings §3.3.1).
+- [결정: 2026-11-11 사용자] 예약 시험과 사람이 누른 시험은 같은 `<fresnelData>/selftest/`를 쓰므로 한 번에 하나씩 돈다. 먼저 온 실행이 끝나야 다음 실행이 시작한다. 앞 실행이 실패해도 다음 실행은 돈다.
 - 시험 뒤 `<fresnelData>/selftest/`와 임시 디렉터리를 지운다.
 
 ### 4.5 격리 불가 시 동작
@@ -535,7 +539,7 @@ export function selectSandboxProvider(input: {
 
 | 이름 | 소비 문서 |
 |---|---|
-| `fresnel.sandbox`(`SandboxService`): `status`, `defaultPolicy`, `protectedPaths`, `wrapShell`, `wrapArgv`, `autoAllow`, `selfTest` | `L1.tools.spec`, `L2.workspace.spec`, `L4.host-service.spec`(자가 시험 주기 호출), `L4.cli.spec`(doctor), `platform-process`(stdio MCP 서버, 4.9절) |
+| `fresnel.sandbox`(`SandboxService`): `status`, `defaultPolicy`, `protectedPaths`, `wrapShell`, `wrapArgv`, `autoAllow`, `selfTest`, `lastSelfTestReport` | `L1.tools.spec`, `L2.workspace.spec`, `L4.host-service.spec`(자가 시험 주기 호출), `L4.cli.spec`(doctor), `platform-process`(stdio MCP 서버, 4.9절) |
 | `describeSandboxStatus`(F `services/sandbox.ts`의 순수 함수, review.decisions-2 D-04) | `L4.cli.spec`, `L4.settings-ui.spec`. 구현 패키지를 import하지 않고 F에서 가져온다(DR-14) |
 | `@fresnel/platform-sandbox/testing`: `fakeSandbox`(상태와 판정을 표로 고정, `wrapShell`은 기록만 하는 통과 데코레이터, `wrapArgv`는 요청을 `wrappedArgv`에 기록하고 판정대로 argv를 돌려준다) | `L1.tools.plan`, `L2.workspace.plan` |
 

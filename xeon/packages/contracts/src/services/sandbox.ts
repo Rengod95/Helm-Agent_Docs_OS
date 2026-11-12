@@ -385,6 +385,13 @@ export interface SandboxService {
       tempDir: string;
     },
   ): AutoAllowDecision;
-  /** 주어진 Shell을 감싸 자가 시험을 실행하고 status에 반영한다 */
+  /**
+   * 주어진 Shell을 감싸 자가 시험을 실행하고 status에 반영한다. 예약 시험과 사람이 누른 시험은 한 번에 하나씩 돈다(같은 시험 폴더를 쓴다)
+   */
   selfTest(shell: Shell, context: CancelScope): Promise<SelfTestReport>;
+  /**
+   * 마지막으로 기록된 자가 시험 보고서 전체(항목별 통과와 사유, 시각). 아직 돌지 않았거나 격리를 쓸 수 없어 기록하지 않았으면 없다.
+   * `status().lastSelfTest`가 실패한 항목 id만 싣는 것과 달리 항목 전부를 싣는다
+   */
+  lastSelfTestReport(): SelfTestReport | undefined;
 }
