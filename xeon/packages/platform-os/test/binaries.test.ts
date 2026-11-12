@@ -20,6 +20,17 @@ const LINUX: OsInfo = { platform: "linux", arch: "x64", isWsl: false, release: "
 const DARWIN: OsInfo = { platform: "darwin", arch: "arm64", isWsl: false, release: "" };
 const signal = new AbortController().signal;
 
+/** Linux에서 홈 없이 PATH 다음에 보는 고정 자리(known-paths.ts knownDirs) */
+const LINUX_KNOWN = [
+  "/home/linuxbrew/.linuxbrew/bin",
+  "/usr/local/bin",
+  "/snap/bin",
+  "/usr/bin",
+  "/bin",
+  "/nix/var/nix/profiles/default/bin",
+  "/run/current-system/sw/bin",
+] as const;
+
 let temp: TempDir | undefined;
 afterEach(async () => {
   await temp?.remove();
@@ -292,7 +303,9 @@ describe("resolveBinary: 시스템", () => {
       versions: { "/a/rg": "ripgrep 14.1.0\nfeatures:+pcre2\n", "/b/rg": "ripgrep 1.0.0\n" },
     });
     const result = await createBinaryResolver(deps)("rg", {}, signal);
-    expect(result).toEqual(ok({ name: "rg", path: "/a/rg", version: "14.1.0", source: "system" }));
+    expect(result).toEqual(
+      ok({ name: "rg", path: "/a/rg", version: "14.1.0", source: "system", via: "PATH" }),
+    );
     expect(runs).toEqual([["/a/rg", "--version"]]);
   });
 
@@ -347,10 +360,22 @@ describe("resolveBinary: 시스템", () => {
     });
     const resolver = createBinaryResolver(deps);
     expect(await resolver("security", {}, signal)).toEqual(
-      ok({ name: "security", path: "/usr/bin/security", version: "", source: "system" }),
+      ok({
+        name: "security",
+        path: "/usr/bin/security",
+        version: "",
+        source: "system",
+        via: "PATH",
+      }),
     );
     expect(await resolver("secret-tool", {}, signal)).toEqual(
-      ok({ name: "secret-tool", path: "/usr/bin/secret-tool", version: "", source: "system" }),
+      ok({
+        name: "secret-tool",
+        path: "/usr/bin/secret-tool",
+        version: "",
+        source: "system",
+        via: "PATH",
+      }),
     );
     expect(runs).toEqual([]);
   });
@@ -394,7 +419,13 @@ describe("resolveBinary: 시스템", () => {
       expect(result.ok).toBe(false);
       if (!result.ok && result.error.kind === "not_found") {
         expect(result.error.name === names[index]).toBe(true);
-        expect(result.error.searched).toEqual(["/usr/bin", "/usr/local/bin"]);
+        const name = names[index];
+        // PATH 항목이 먼저, 그 뒤에 흔한 설치 자리(홈 없음: 홈 아래 후보는 없다)
+        expect(result.error.searched).toEqual([
+          "/usr/bin",
+          "/usr/local/bin",
+          ...LINUX_KNOWN.map((dir) => `${dir}/${name}`),
+        ]);
         expect(result.error.hint.length).toBeGreaterThan(0);
       } else {
         throw new Bug("expected not_found");
@@ -411,13 +442,13 @@ describe("resolveBinary: 시스템", () => {
       {
         kind: "not_found",
         name: "bwrap",
-        searched: ["/usr/bin"],
+        searched: ["/usr/bin", ...LINUX_KNOWN.map((dir) => `${dir}/bwrap`)],
         hint: "bubblewrap 패키지를 설치한다 (예: apt install bubblewrap)",
       },
       {
         kind: "not_found",
         name: "socat",
-        searched: ["/usr/bin"],
+        searched: ["/usr/bin", ...LINUX_KNOWN.map((dir) => `${dir}/socat`)],
         hint: "socat 패키지를 설치한다 (예: apt install socat)",
       },
     ]);

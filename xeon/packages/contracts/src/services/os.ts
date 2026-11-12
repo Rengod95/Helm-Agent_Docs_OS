@@ -129,6 +129,8 @@ export interface ResolvedBinary {
   readonly path: string;
   readonly version: string;
   readonly source: BinarySource;
+  /** 시스템 바이너리를 찾은 자리의 이름(PATH, homebrew, mise, mise-shim, asdf, nix, macports, local-bin, snap, system). 번들은 없다 */
+  readonly via?: string;
 }
 
 export type BinaryError =

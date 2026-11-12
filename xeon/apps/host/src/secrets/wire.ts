@@ -133,7 +133,11 @@ export function wireErrorOfSecret(error: SecretError, where: string): WireError 
     case "provider_unavailable":
       return wireError("secret.providerUnavailable", {
         message: `${where}: provider_unavailable`,
-        details: { provider: error.provider, reason: error.reason },
+        details: {
+          provider: error.provider,
+          reason: error.reason,
+          ...(error.detail === undefined ? {} : { detail: error.detail }),
+        },
       });
     case "key_unavailable":
       return wireError("secret.keyUnavailable", {

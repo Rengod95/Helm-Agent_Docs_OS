@@ -127,6 +127,7 @@ export type BinaryCheckStatus =
       readonly path: string;
       readonly version: string;
       readonly source: BinarySource;
+      readonly via?: string;
     }
   | { readonly kind: "missing"; readonly hint: string }
   | { readonly kind: "too_old"; readonly found: string; readonly required: string }
@@ -161,13 +162,20 @@ export interface BinaryCheckDeps {
   ) => Promise<Result<ResolvedBinary, BinaryError>>;
 }
 
+/** 찾아본 자리 요약. 경로는 홈 폴더 값을 담을 수 있어 wire에 싣지 않으므로 자리 종류만 적는다 */
+function searchedNote(searched: readonly string[]): string {
+  return `PATH와 흔한 설치 자리(homebrew, mise, asdf, nix, ~/.local/bin 등) ${String(searched.length)}곳을 찾아봤다. 직접 지정하려면 설정 l0.secrets.sops.binary(sops)를 쓴다`;
+}
+
 function statusOf(result: Result<ResolvedBinary, BinaryError>): BinaryCheckStatus {
   if (result.ok) {
-    const { path, version, source } = result.value;
-    return { kind: "ok", path, version, source };
+    const { path, version, source, via } = result.value;
+    return { kind: "ok", path, version, source, ...(via === undefined ? {} : { via }) };
   }
   const failure = result.error;
-  if (failure.kind === "not_found") return { kind: "missing", hint: failure.hint };
+  if (failure.kind === "not_found") {
+    return { kind: "missing", hint: `${failure.hint}\n${searchedNote(failure.searched)}` };
+  }
   if (failure.kind === "version_too_old") {
     return { kind: "too_old", found: failure.found, required: failure.required };
   }

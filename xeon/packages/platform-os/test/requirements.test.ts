@@ -123,7 +123,10 @@ describe("checkExternalBinaries", () => {
     expect(report.value.ready).toBe(false);
     expect(report.value.blocking).toEqual(["socat"]);
     const socat = report.value.items.find((item) => item.name === "socat");
-    expect(socat?.status).toEqual({ kind: "missing", hint });
+    expect(socat?.status).toEqual({
+      kind: "missing",
+      hint: `${hint}\nPATH와 흔한 설치 자리(homebrew, mise, asdf, nix, ~/.local/bin 등) 1곳을 찾아봤다. 직접 지정하려면 설정 l0.secrets.sops.binary(sops)를 쓴다`,
+    });
     expect(socat?.need).toBe("required");
   });
 

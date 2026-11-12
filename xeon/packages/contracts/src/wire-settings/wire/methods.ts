@@ -251,7 +251,13 @@ export const HostBinaryNameSchema: TUnsafe<BinaryName> = Type.Unsafe<BinaryName>
  * `unusable.reason`은 `BinaryError.kind`(services/os.ts)다. 모르는 값이 와도 화면은 일반 문구로 보일 수 있게 문자열로 둔다.
  */
 export type HostBinaryStatus =
-  | { readonly kind: "ok"; readonly version: string; readonly source: BinarySource }
+  | {
+      readonly kind: "ok";
+      readonly version: string;
+      readonly source: BinarySource;
+      /** 시스템 바이너리를 찾은 자리의 이름(PATH, homebrew, mise 등). 경로는 아니다 */
+      readonly via?: string;
+    }
   | { readonly kind: "missing"; readonly hint: string }
   | { readonly kind: "too_old"; readonly found: string; readonly required: string }
   | { readonly kind: "unusable"; readonly reason: string };
@@ -261,6 +267,7 @@ const binaryStatusShape = Type.Union([
       kind: Type.Literal("ok"),
       version: Type.String({ maxLength: 64 }),
       source: Type.Union([Type.Literal("bundled"), Type.Literal("system")]),
+      via: Type.Optional(Type.String({ maxLength: 32 })),
     },
     { additionalProperties: false },
   ),

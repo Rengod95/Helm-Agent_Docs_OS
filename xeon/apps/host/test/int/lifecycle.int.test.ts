@@ -325,7 +325,12 @@ describe("host.status and unsubscribe", () => {
         item.status.kind === "ok" ? [item.status] : [],
       );
       for (const ok of found)
-        expect(Object.keys(ok).toSorted()).toEqual(["kind", "source", "version"]);
+        // 경로는 싣지 않는다. 시스템 바이너리는 찾은 자리 이름(via)을 싣는다
+        expect(Object.keys(ok).toSorted()).toEqual(
+          ok.source === "system"
+            ? ["kind", "source", "version", "via"]
+            : ["kind", "source", "version"],
+        );
     }
     await session.close();
   });

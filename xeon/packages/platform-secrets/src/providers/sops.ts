@@ -89,8 +89,20 @@ export interface SopsResolver {
   status(): Promise<SecretDiagnostics["sops"]>;
 }
 
-function unavailable(reason: "binary_missing" | "version_too_old"): SecretError {
-  return { kind: "provider_unavailable", provider: "sops", reason };
+function unavailable(reason: "binary_missing" | "version_too_old", detail?: string): SecretError {
+  return {
+    kind: "provider_unavailable",
+    provider: "sops",
+    reason,
+    ...(detail === undefined ? {} : { detail }),
+  };
+}
+
+/** 해석 실패의 원인 코드와 찾아본 자리 수. 경로는 싣지 않는다 */
+function binaryDetail(error: BinaryError): string {
+  if (error.kind === "not_found")
+    return `not_found; searched ${String(error.searched.length)} places`;
+  return error.kind;
 }
 
 export function createSopsResolver(deps: SopsResolverDeps): SopsResolver {
@@ -119,7 +131,10 @@ export function createSopsResolver(deps: SopsResolverDeps): SopsResolver {
     if (found.ok) return ok({ path: found.value.path, version: found.value.version });
     if (found.error.kind === "cancelled") return err({ kind: "cancelled" });
     return err(
-      unavailable(found.error.kind === "version_too_old" ? "version_too_old" : "binary_missing"),
+      unavailable(
+        found.error.kind === "version_too_old" ? "version_too_old" : "binary_missing",
+        binaryDetail(found.error),
+      ),
     );
   }
 

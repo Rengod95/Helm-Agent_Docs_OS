@@ -187,6 +187,7 @@ export async function createOsService(
     info,
     resourceDir: dirs.resource,
     pathEnv: runtime.env.get("PATH"),
+    homeDir: dirs.home,
     fs: runtime.binaryFs,
     run: runtime.run,
     logger,

@@ -10,7 +10,12 @@ type CheckItem = BinaryCheckReport["items"][number];
 function statusOf(status: CheckItem["status"]): HostBinaryStatus {
   switch (status.kind) {
     case "ok":
-      return { kind: "ok", version: status.version, source: status.source };
+      return {
+        kind: "ok",
+        version: status.version,
+        source: status.source,
+        ...(status.via === undefined ? {} : { via: status.via }),
+      };
     case "missing":
       return { kind: "missing", hint: status.hint };
     case "too_old":
