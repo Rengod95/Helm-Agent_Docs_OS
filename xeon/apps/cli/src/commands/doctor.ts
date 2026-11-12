@@ -314,6 +314,85 @@ async function hostStatusChecks(handle: EngineHandle): Promise<{
   return { checks: [...report.items.map(binaryCheck), settings, ...stored], report };
 }
 
+const REMOTE_ITEM_LABEL: Readonly<Record<string, () => string>> = {
+  service_running: () => t("cli.doctor.remote.item.service_running"),
+  gateway_running: () => t("cli.doctor.remote.item.gateway_running"),
+  listen_port: () => t("cli.doctor.remote.item.listen_port"),
+  allowed_hosts: () => t("cli.doctor.remote.item.allowed_hosts"),
+  certificate: () => t("cli.doctor.remote.item.certificate"),
+  autostart: () => t("cli.doctor.remote.item.autostart"),
+  reachable_addresses: () => t("cli.doctor.remote.item.reachable_addresses"),
+};
+
+const REMOTE_CAUSE: Readonly<Record<string, () => string>> = {
+  service_not_running: () => t("cli.doctor.remote.cause.service_not_running"),
+  depends_on_failed: () => t("cli.doctor.remote.cause.depends_on_failed"),
+  gateway_off: () => t("cli.doctor.remote.cause.gateway_off"),
+  gateway_failed: () => t("cli.doctor.remote.cause.gateway_failed"),
+  gateway_starting: () => t("cli.doctor.remote.cause.gateway_starting"),
+  port_in_use: () => t("cli.doctor.remote.cause.port_in_use"),
+  no_hosts: () => t("cli.doctor.remote.cause.no_hosts"),
+  host_missing: () => t("cli.doctor.remote.cause.host_missing"),
+  no_tls_port: () => t("cli.doctor.remote.cause.no_tls_port"),
+  cert_self_signed: () => t("cli.doctor.remote.cause.cert_self_signed"),
+  cert_expiring: () => t("cli.doctor.remote.cause.cert_expiring"),
+  cert_expired: () => t("cli.doctor.remote.cause.cert_expired"),
+  no_certificate: () => t("cli.doctor.remote.cause.no_certificate"),
+  autostart_missing: () => t("cli.doctor.remote.cause.autostart_missing"),
+  autostart_stale: () => t("cli.doctor.remote.cause.autostart_stale"),
+  unsupported_platform: () => t("cli.doctor.remote.cause.unsupported_platform"),
+  no_reachable_address: () => t("cli.doctor.remote.cause.no_reachable_address"),
+};
+
+const REMOTE_FIX: Readonly<Record<string, () => string>> = {
+  start_the_service: () => t("cli.doctor.remote.fix.start_the_service"),
+  turn_on_remote_access: () => t("cli.doctor.remote.fix.turn_on_remote_access"),
+  see_the_error: () => t("cli.doctor.remote.fix.see_the_error"),
+  free_the_port_or_change_it: () => t("cli.doctor.remote.fix.free_the_port_or_change_it"),
+  set_allowed_hosts: () => t("cli.doctor.remote.fix.set_allowed_hosts"),
+  replace_the_certificate: () => t("cli.doctor.remote.fix.replace_the_certificate"),
+  use_tailscale_serve_for_trusted_https: () =>
+    t("cli.doctor.remote.fix.use_tailscale_serve_for_trusted_https"),
+  enable_autostart: () => t("cli.doctor.remote.fix.enable_autostart"),
+  refresh_autostart: () => t("cli.doctor.remote.fix.refresh_autostart"),
+  connect_to_a_network_or_enable_tailscale: () =>
+    t("cli.doctor.remote.fix.connect_to_a_network_or_enable_tailscale"),
+};
+
+function lookupOf(table: Readonly<Record<string, () => string>>, code: string): string | null {
+  if (!Object.hasOwn(table, code)) return null;
+  return table[code]?.() ?? null;
+}
+
+/**
+ * 다른 기기가 이 컴퓨터로 들어올 준비를 점검한다(`host.remote.preflight`, L4.remote.spec §8.8). 서비스가 아닌 호스트(in-process)는 이 호출이 없어
+ * 항목을 내지 않는다. 항목마다 한 줄이고 통과는 ok, 실패는 fail, 건너뜀은 info다. 원인과 고치는 법은 코드를 번역한 문구다.
+ */
+async function remoteChecks(connection: HostConnection): Promise<readonly DoctorCheck[]> {
+  const asked = await attemptAsync(() => connection.request("host.remote.preflight", {}));
+  if (!asked.ok) return [];
+  const checks: DoctorCheck[] = [];
+  for (const item of asked.value.items) {
+    const label = lookupOf(REMOTE_ITEM_LABEL, item.id) ?? item.id;
+    const cause =
+      item.cause === null
+        ? null
+        : (lookupOf(REMOTE_CAUSE, item.cause) ??
+          t("cli.doctor.remote.unknownCause", { code: item.cause }));
+    const fix = item.fix === null ? null : (lookupOf(REMOTE_FIX, item.fix) ?? item.fix);
+    const text = cause === null ? label : `${label}: ${cause}`;
+    const status: CheckStatus =
+      item.status === "pass" ? "ok" : item.status === "fail" ? "fail" : "info";
+    const base: DoctorCheck = {
+      id: `remote-${item.id}`,
+      status,
+      message: t("cli.doctor.remote.line", { item: text }),
+    };
+    checks.push(fix === null || item.status === "skip" ? base : { ...base, fix });
+  }
+  return checks;
+}
+
 async function engineChecks(handle: EngineHandle): Promise<{
   readonly checks: readonly DoctorCheck[];
   readonly binaries: HostBinaryReport | null;
@@ -355,6 +434,7 @@ async function engineChecks(handle: EngineHandle): Promise<{
     status: "info",
     message: service === true ? t("cli.doctor.service.enabled") : t("cli.doctor.service.disabled"),
   });
+  checks.push(...(await remoteChecks(handle.connection)));
   return { checks, binaries: binaries.report };
 }
 

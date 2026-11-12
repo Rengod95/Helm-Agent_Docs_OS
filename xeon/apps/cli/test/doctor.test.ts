@@ -428,3 +428,51 @@ test("a binary check that fails is a warning and doctor goes on", async () => {
   expect(h.stdoutText()).toContain("[경고] 외부 바이너리: 점검하지 못했다 — 요청이 취소되었다");
   expect(h.stdoutText()).toContain("검색 provider:");
 });
+
+test("doctor prints one line per remote-access preflight item with the translated cause and fix", async () => {
+  const h = harness(
+    {},
+    {},
+    {
+      "host.remote.preflight": () => ({
+        ready: false,
+        items: [
+          {
+            id: "service_running",
+            status: "pass",
+            cause: null,
+            fix: null,
+            autoFix: null,
+            detail: {},
+          },
+          {
+            id: "allowed_hosts",
+            status: "fail",
+            cause: "host_missing",
+            fix: "set_allowed_hosts",
+            autoFix: "add_allowed_hosts",
+            detail: {},
+          },
+          {
+            id: "autostart",
+            status: "skip",
+            cause: "unsupported_platform",
+            fix: null,
+            autoFix: null,
+            detail: {},
+          },
+        ],
+      }),
+    },
+  );
+  expect(await h.run(["doctor"])).toBe(EXIT.ok);
+  const text = h.stdoutText();
+  expect(text).toContain("[ok]   원격 접속 준비 · 서비스 실행");
+  expect(text).toContain(
+    "원격 접속 준비 · 허용 호스트 이름: 이 컴퓨터의 일부 이름이 허용 목록에 없어요(접속하면 421이 나요)",
+  );
+  expect(text).toContain("l4.remote.web.hosts에 이름을 더해요");
+  expect(text).toContain(
+    "원격 접속 준비 · 로그인 자동 시작: 이 운영체제는 자동 시작을 지원하지 않아요",
+  );
+});

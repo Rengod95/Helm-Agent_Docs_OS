@@ -167,7 +167,7 @@ const RUNNING_CARD: ServiceCard = {
   startedAt: 1_700_000_000_000,
   attached: true,
 };
-const STOPPED_CARD: ServiceCard = { kind: "stopped", reason: "no registration" };
+const STOPPED_CARD: ServiceCard = { kind: "stopped", reason: "no_registration" };
 
 /** 화면 상태. 이 기기 서비스 카드와 다시 시작 대기를 정한다. 원격 응답은 허용이다 */
 function screenState(service: ServiceCard, restartPending = false): ConnectionState {
@@ -340,7 +340,16 @@ describe("the background lines under the cards", () => {
 
   test("a stopped service says it is off with its reason, and a card that could not be read says so", async () => {
     const off = await mount({ mode: "service", state: screenState(STOPPED_CARD) });
-    expect(textOf(off.container)).toContain("꺼짐 · no registration");
+    expect(textOf(off.container)).toContain("꺼짐 · 서비스가 아직 켜져 있지 않아요");
+    const failed = await mount({
+      mode: "service",
+      state: screenState({
+        ...STOPPED_CARD,
+        startFailure: { code: "ensure_failed", detail: "exit 1" },
+      }),
+    });
+    expect(textOf(failed.container)).toContain("서비스가 시작되지 않았어요.");
+    expect(textOf(failed.container)).toContain("(exit 1)");
     const unknown = await mount({
       mode: "service",
       state: screenState({ kind: "unknown" }),

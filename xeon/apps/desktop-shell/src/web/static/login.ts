@@ -1,6 +1,7 @@
 // 로그인 화면의 스크립트(spec §8.3 2). 게이트웨이가 시작 때 이 파일을 브라우저용 IIFE로 묶어 `/login.js`로 낸다.
 // 문자열은 `textContent`로만 넣는다. 인라인 스크립트와 인라인 스타일을 쓰지 않는다(CSP `script-src 'self'`).
-// 가져오기(import)를 쓰지 않는다: 이 파일은 묶음 하나로만 실행된다.
+// `pair-link.ts`만 가져온다(묶음에 함께 들어간다).
+import { pairingCodeFromHash } from "./pair-link.ts";
 
 type Lang = "en" | "ko";
 type Tone = "error" | "info";
@@ -177,5 +178,10 @@ form.addEventListener("submit", (event) => {
   });
 });
 
-// 이 파일은 묶음의 시작점이다. 모듈로 두어 화면 전역을 어지럽히지 않는다
-export {};
+// 연결 링크(`/login#code=…`)로 들어오면 코드를 채우고 바로 연결한다. 조각은 곧바로 주소창에서 지운다(기록에 코드가 남지 않게)
+const linkedCode = pairingCodeFromHash(location.hash);
+if (linkedCode !== null) {
+  history.replaceState(null, "", location.pathname + location.search);
+  codeInput.value = linkedCode;
+  form.requestSubmit();
+}

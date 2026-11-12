@@ -25,6 +25,7 @@ export interface IdleMonitorOptions {
   readonly clock: Clock;
   readonly scheduler: Scheduler;
   readonly startupGraceMs: number;
+  /** 0 이하면 유휴 종료를 하지 않는다(기본, [결정: 2026-11-11 사용자]). 양수면 그 시간 동안 한가할 때 종료한다 */
   readonly idleGraceMs: number;
   /**
    * 타이머가 울릴 때 현재 입력을 다시 읽는다. 마지막 `update` 뒤에 입력이 바뀌었는데 알림이 늦으면(연결이 막 붙은 틈) 한가하지 않은 서비스를
@@ -73,6 +74,7 @@ export function createIdleMonitor(options: IdleMonitorOptions): IdleMonitor {
   return {
     update(inputs) {
       if (state.fired) return;
+      if (options.idleGraceMs <= 0) return;
       if (!isIdle(inputs)) {
         cancel();
         return;

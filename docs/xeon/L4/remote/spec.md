@@ -193,7 +193,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 | `shell_take_intents`, `notify_take_target` | 트레이·알림 의도 | 탭 안 의도 큐(셸 의도 큐와 같은 동작, 탭별) | 게이트웨이 |
 | `tray_update` | 트레이 메뉴 | 무동작(`ok`). 열린 탭의 제목 접두("(2) Fresnel")로 진행 중 개수를 보인다 [제안] | 브라우저 |
 | `update_status/check/download/install_restart` | 앱 자동 업데이트 | 숨긴다. origin 앱·서비스의 업데이트는 origin 컴퓨터의 데스크톱에서만 한다 | - |
-| `os_reauth` | Touch ID, Mac 암호 | 웹은 쓸 수 없다. 재인증을 거치던 동작(시크릿 값 열람, 서비스 끄기)은 웹 기기에서도 허용하고 기기 인증이 대신한다(§8.6) | - |
+| `os_reauth` | Touch ID, Mac 암호 | 웹은 쓸 수 없다. 재인증을 거치던 동작 중 시크릿 값 열람은 웹 기기에서도 허용하고 기기 인증이 대신한다. 서비스 끄기와 로그인 자동 시작 켜기·끄기(`service_stop`, `service_autostart_set`)는 웹에서 등록하지 않는다(`unknown-command`) [결정: 2026-11-11 사용자](§8.6) | - |
 | `secret_register` | 사이드카를 한 번 띄워 stdin으로 값 전달 | 허용. 값은 TLS 위의 `/shell` 본문으로만 가고 게이트웨이가 사이드카 stdin으로 넘긴다. 게이트웨이 로그에 값을 쓰지 않는다 | origin |
 | `desktop_settings_read/write` | 이 앱의 `desktop-settings.json` | 기기별 설정을 origin의 `<상태 폴더>/remote/device-settings/<기기 id>.json`(0600, 폴더 0700)에 둔다. 닫기 동작·종료 대기·재시작 상한은 origin 데스크톱 전용이라 쓰면 `bad-request`, 읽으면 빠진다 [결정: 2026-11-09 W4] | origin |
 | `db_export`, `db_usage`, `db_previous_remove`, `db_restore` | 백업·복원 | 백업 내려받기는 Blob 다운로드. 복원과 삭제도 데스크톱과 똑같이 허용한다(§8.6, [결정: 2026-11-08]). 파괴적이라 앱의 확인 대화 상자는 그대로 거친다 | origin |
@@ -279,7 +279,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 - 인증된 기기는 모든 wire 메서드와 셸 명령을 쓴다. 웹 기기에 데스크톱과 다른 권한 제한을 두지 않는다. 시크릿 값 열람, 백업 복원·삭제, 서비스 종료, 외부 접근 끄기, 페어링 코드 만들기 모두 웹 기기에서 데스크톱과 똑같이 허용한다 [결정: 2026-11-08 사용자 "웹 기기 권한: 전부 데스크톱과 똑같이 허용". 위험한 것은 origin에서만 허용하자는 rmW 제안은 채택하지 않았다].
 - 이 결정의 결과는 위협 모델(§8.1)이 그대로 받는다: 기기 토큰을 가진 쪽은 이 계정으로 도구를 실행할 수 있으므로 방어는 인증(§8.3), TLS(§8.2), 폐기(§8.3 5)에 있다. 기기를 잃어버리면 곧바로 폐기한다. 폐기 화면과 연결 화면이 이 사실을 문장으로 알린다.
-- 웹에서는 OS 재인증(`os_reauth`)을 쓸 수 없으므로 데스크톱이 재인증을 거치는 동작(시크릿 값 열람, 서비스 끄기)도 웹 기기에서는 재인증 단계 없이 기기 인증이 대신한다 [결정: 2026-11-09 W4: 웹 기기에서는 재인증 단계 없이 기기 인증이 대신한다. 연결 화면의 경고 문장은 "연결을 인증받은 기기는 이 컴퓨터의 계정으로 도구를 실행할 수 있어요."와 "기기를 잃어버렸다면 바로 폐기하세요" 계열이고 항상 보인다].
+- 웹에서는 OS 재인증(`os_reauth`)을 쓸 수 없으므로 데스크톱이 재인증을 거치는 동작(시크릿 값 열람)도 웹 기기에서는 재인증 단계 없이 기기 인증이 대신한다 [결정: 2026-11-09 W4: 웹 기기에서는 재인증 단계 없이 기기 인증이 대신한다. 연결 화면의 경고 문장은 "연결을 인증받은 기기는 이 컴퓨터의 계정으로 도구를 실행할 수 있어요."와 "기기를 잃어버렸다면 바로 폐기하세요" 계열이고 항상 보인다].
 - 읽기 전용 기기 역할(관찰만)은 서비스에 메서드별 인가가 생긴 뒤의 일이다. 이번 범위에 넣지 않는다 [결정: 2026-11-08 "웹 기기는 전부 똑같이"가 이 역할을 두지 않는다].
 - 승인 UI는 연결된 모든 기기에서 같다. 승인하면 origin에서 도구가 실행되므로 연결 화면과 페어링 화면이 이 사실을 문장으로 알린다.
 
@@ -289,6 +289,20 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 - 웹 문서의 CSP: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' wss://<호스트>; frame-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'` [제안]. 인라인 스크립트는 없다(shim은 `/shell/shim.js` 파일이다). `style-src 'unsafe-inline'`은 UI 번들의 `style` 속성 때문에 필요하다 [확인: 2026-11-09 W2, §13].
 - 프레임 문서 CSP는 §6.3이 정한다.
 - 게이트웨이는 UI 번들 HTML을 고쳐서 shim 스크립트 태그를 넣을 때 `nonce` 없이 `script-src 'self'`로 충족되게 파일 참조로만 넣는다.
+
+### 8.8 연결 링크, 설치형 웹 앱, Tailscale, 사전 점검 [결정: 2026-11-11 사용자]
+
+1. 연결 링크: 페어링 코드를 만들 때 주소와 코드가 함께 든 URL `https://<호스트>[:포트]/login#code=<코드>`를 함께 준다(`pairLinkOf`, `apps/desktop-shell/src/web/static/pair-link.ts`). QR은 이 URL 문자열을 그리면 된다(화면이 그린다. 이 저장소에는 QR 그리기 구현이 없고 새 의존성도 더하지 않았다 [미결: QR 그리기 방식]).
+   - 코드는 **URL 조각(#)**에 싣는다. 조각은 서버로 가지 않고 `Referer`로 새지 않는다(`Referrer-Policy: no-referrer`도 있다). 위험은 남는다: 주소창, 브라우저 기록, 링크를 메신저로 보낸 기록, 화면 공유에 코드가 보인다. 그래서 로그인 화면은 조각을 읽자마자 `history.replaceState`로 지우고 코드 칸을 채워 바로 연결한다.
+   - 한 번 쓰면 무효, 5분 만료, 동시에 하나, 틀림 5회 잠금(§8.3)은 그대로다. 링크는 코드와 같은 값으로 다루고 만료 전에 한 번만 쓴다.
+2. 설치형 웹 앱(PWA): `site.webmanifest`는 `start_url: "/"`, `scope: "/"`, `display: "standalone"`, `theme_color`·`background_color: "#101216"`을 가진다. 로그인 페이지와 앱 페이지(`index.html`)가 모두 이 매니페스트와 `theme-color`를 가리킨다. iOS 홈 화면에 추가한 앱이 푸시를 받으려면 서비스 워커와 푸시가 **신뢰되는 HTTPS**(브라우저가 인증서 경고 없이 연 출처)에서 열려야 한다. 자체 서명 인증서에서는 되지 않는다. 사용자 인증서나 `tailscale serve`(아래)가 그 조건을 채운다.
+3. Tailscale(`apps/host/src/service/tailscale.ts`): `tailscale status --json`으로 설치·로그인 여부, MagicDNS 이름, IP를 읽는다(`detectTailscale`). 실행 파일이 없으면 `not_installed`다(macOS는 앱 번들의 CLI도 찾는다). MagicDNS 이름과 Tailscale IP는 게이트웨이의 허용 호스트에 **자동으로 더한다**(`l4.remote.web.hosts`에 적은 값에 더해진다). 서비스는 시작 직후와 30초마다 네트워크 지문과 Tailscale 상태를 다시 읽고, 허용 호스트가 달라졌고 게이트웨이가 떠 있으면 **서비스 재시작 없이 게이트웨이만** 다시 띄운다.
+   - `tailscale serve`: 사용자가 확인한 뒤 앱이 대신 `tailscale serve --bg --https=443 https+insecure://127.0.0.1:<TLS 포트>`를 실행한다(게이트웨이의 **TLS 리스너**로 보낸다. 루프백 평문 리스너는 공개 이름을 `Host`로 받지 않는다(§8.5). 허용 호스트에는 MagicDNS 이름이 자동으로 들어 있다. 이 구간은 자체 서명 인증서라 검증을 끈다. 실제 tailnet에서 `Host`가 그대로 전달되는지는 실기기 확인이 필요하다 [미결: 실기기 확인])(`enableTailscaleServe`), 끄기(`disableTailscaleServe`, 다른 대상을 내보내는 설정은 건드리지 않는다), 상태(`tailscaleServeStatus`)가 있다. tailnet에서 HTTPS가 꺼져 있으면 `https_not_enabled`와 `login.tailscale.com` 동의 링크(`consentUrl`)를 돌려주고, 화면이 그 링크를 사용자에게 보여 준다.
+   - 시험은 실제 tailnet을 쓰지 않고 `run`을 가짜로 바꿔 끼운다.
+4. 사전 점검(`apps/host/src/service/preflight.ts`, `runPreflight`): 항목 일곱 개를 정해진 순서로 돌려준다. 항목마다 `id`, `status`(`pass`, `fail`, `skip`), 원인 코드(`cause`), 고치는 법 코드(`fix`), 앱이 대신 고칠 수 있는 동작 이름(`autoFix`), 부가 값(`detail`)이다. 문장이 아니라 코드이고 화면과 CLI가 번역한다. 항목: `service_running`, `gateway_running`, `listen_port`(충돌하면 점유 프로세스 pid·이름, `lsof`), `allowed_hosts`, `certificate`(자체 서명·사용자·tailscale 신뢰, 만료까지 남은 일수), `autostart`(없음·옛 등록), `reachable_addresses`(루프백, 같은 네트워크 IP, `.local`, Tailscale IP, Tailscale MagicDNS 이름. 주소마다 허용 호스트에 들어 있는지). 앞 단계가 실패하면 뒤 항목은 `skip`(`depends_on_failed`)이다. `ready`는 `fail`이 없을 때다.
+
+5. 게이트웨이 설정 호출(`apps/host/src/service/gateway-settings.ts`): `l4.remote.web.listen`, `listenTls`, `hosts`, `tlsCert`, `tlsKey`를 읽고(`readGatewaySettings`), 검증하고(`validateGatewaySettings`, 이슈는 `field`와 코드), 쓴다(`writeGatewaySettings`: 병합한 값이 하나라도 틀리면 아무것도 쓰지 않는다). 검증은 게이트웨이 시작 때의 판단과 같다: `listen`은 루프백만, 포트 1~65535, 호스트 이름 모양, 인증서와 키는 짝으로 절대 경로, 읽을 수 있음, 파싱, 만료, 키와 인증서의 짝 일치. 인증서·키는 `listenTls`가 있을 때만 본다.
+6. 공개 서버(VPS) 구성: 게이트웨이를 루프백에만 열고(`loopbackOnlyPlan`: `listen = 127.0.0.1:<포트>`, `listenTls = 127.0.0.1:<TLS 포트>`, `hosts = [<도메인>]`) 앞에 리버스 프록시(Caddy, nginx)를 둔다. `proxyExampleOf`가 실제 도메인과 포트로 채운 설정 본문을 돌려준다. 프록시는 **게이트웨이의 TLS 리스너**(`https://127.0.0.1:<TLS 포트>`, 자체 서명 인증서라 이 구간의 검증은 끈다)로 보낸다: 루프백 평문 리스너는 `Host`가 `localhost`·`127.0.0.1`·`[::1]`일 때만 받고 `Origin`도 그 출처와 같아야 하므로(§8.5) 공개 도메인을 `Host`로 넘기는 프록시는 TLS 리스너의 허용 호스트(`hosts`)를 통해야 한다. `Upgrade`·`Connection` 헤더(WebSocket)와 `Host`를 그대로 넘기고 읽기 시한을 길게 둔다. [근거: `apps/desktop-shell/src/web/auth/origin.ts` `checkHost`·`checkOrigin`]
 
 ## 9. 비루프백 리스너 정책과 기존 스펙 충돌의 정리
 

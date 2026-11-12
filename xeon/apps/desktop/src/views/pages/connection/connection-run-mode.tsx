@@ -124,6 +124,12 @@ export function RunModeSection(props: RunModeProps): ReactNode {
         {background ? (
           <>
             <p className="m-0 text-ui text-text-primary">{serviceLineOf(state.service)}</p>
+            {/* 임시 UI: 서비스를 못 켜고 앱 안 엔진으로 돌아간 이유 한 줄(dz 2차). 화면 재설계 때 다시 짠다 */}
+            {state.service.kind !== "unknown" && state.service.startFailure !== undefined ? (
+              <Alert tone="warning" size="sm" variant="outline" className="text-ui">
+                {serviceFailureTextOf(state.service.startFailure)}
+              </Alert>
+            ) : null}
             <AutostartRow
               autostart={remote.autostart}
               linger={remote.autostartLinger}
@@ -157,6 +163,75 @@ export function RunModeSection(props: RunModeProps): ReactNode {
   );
 }
 
+/** 서비스가 꺼진 사유 코드(`service status`의 `reason`)를 문구로 바꾼다. 모르는 코드는 일반 문구다 */
+function serviceReasonOf(reason: string): string {
+  if (reason === "no_registration") return t("desktop.connection.service.reason.noRegistration");
+  if (reason === "unreachable") return t("desktop.connection.service.reason.unreachable");
+  if (reason === "insecure_registration") {
+    return t("desktop.connection.service.reason.insecureRegistration");
+  }
+  return t("desktop.connection.service.reason.unknown");
+}
+
+/** 서비스 시작 실패 코드를 "원인 + 고치는 법" 문구로 바꾼다. 모르는 코드는 일반 문구다. 기술 원인은 괄호로 뒤에 붙인다 */
+function serviceFailureTextOf(failure: { readonly code: string; readonly detail: string }): string {
+  const texts = failureTextsOf(failure.code);
+  return t("desktop.connection.service.failure.line", {
+    cause: texts.cause,
+    fix: texts.fix,
+    detail: failure.detail,
+  });
+}
+
+function failureTextsOf(code: string): { readonly cause: string; readonly fix: string } {
+  if (code === "launch_mode_unrunnable") {
+    return {
+      cause: t("desktop.connection.service.failure.launch_mode_unrunnable.cause"),
+      fix: t("desktop.connection.service.failure.launch_mode_unrunnable.fix"),
+    };
+  }
+  if (code === "launch_mode_failed") {
+    return {
+      cause: t("desktop.connection.service.failure.launch_mode_failed.cause"),
+      fix: t("desktop.connection.service.failure.launch_mode_failed.fix"),
+    };
+  }
+  if (code === "launch_mode_unreadable") {
+    return {
+      cause: t("desktop.connection.service.failure.launch_mode_unreadable.cause"),
+      fix: t("desktop.connection.service.failure.launch_mode_unreadable.fix"),
+    };
+  }
+  if (code === "ensure_unrunnable") {
+    return {
+      cause: t("desktop.connection.service.failure.ensure_unrunnable.cause"),
+      fix: t("desktop.connection.service.failure.ensure_unrunnable.fix"),
+    };
+  }
+  if (code === "ensure_failed") {
+    return {
+      cause: t("desktop.connection.service.failure.ensure_failed.cause"),
+      fix: t("desktop.connection.service.failure.ensure_failed.fix"),
+    };
+  }
+  if (code === "ensure_unusable") {
+    return {
+      cause: t("desktop.connection.service.failure.ensure_unusable.cause"),
+      fix: t("desktop.connection.service.failure.ensure_unusable.fix"),
+    };
+  }
+  if (code === "bridge_failed") {
+    return {
+      cause: t("desktop.connection.service.failure.bridge_failed.cause"),
+      fix: t("desktop.connection.service.failure.bridge_failed.fix"),
+    };
+  }
+  return {
+    cause: t("desktop.connection.service.failure.unknown.cause"),
+    fix: t("desktop.connection.service.failure.unknown.fix"),
+  };
+}
+
 /** 이 기기 서비스 상태 한 줄. 실행 중이면 버전과 pid, 앱이 붙었는지를 잇고, 꺼졌으면 이유를 잇는다 */
 function serviceLineOf(card: ServiceCard): string {
   switch (card.kind) {
@@ -171,7 +246,7 @@ function serviceLineOf(card: ServiceCard): string {
         ),
       });
     case "stopped":
-      return t("desktop.connection.service.card.stopped", { reason: card.reason });
+      return t("desktop.connection.service.card.stopped", { reason: serviceReasonOf(card.reason) });
     case "unknown":
       return t("desktop.connection.service.card.unknown");
     default:

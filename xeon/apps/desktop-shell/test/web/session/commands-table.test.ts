@@ -152,10 +152,8 @@ describe("served set", () => {
           "notify_take_target",
           "origin_folder_list",
           "secret_register",
-          "service_autostart_set",
           "service_ensure",
           "service_status",
-          "service_stop",
           "shell_capabilities",
           "shell_take_intents",
           "view_root",
@@ -172,6 +170,8 @@ describe("served set", () => {
     expect(notServed).toContain("engine_retarget");
     expect(notServed).toContain("pick_folder_open");
     expect(notServed).toContain("pick_folder");
+    expect(notServed).toContain("service_stop");
+    expect(notServed).toContain("service_autostart_set");
     expect(isServedByGateway("db_restore")).toBe(true);
     expect(isServedByGateway("desktop_settings_read")).toBe(true);
     expect(isServedByGateway("origin_folder_list")).toBe(true);

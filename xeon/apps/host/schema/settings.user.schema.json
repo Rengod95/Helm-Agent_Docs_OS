@@ -1266,9 +1266,9 @@
       }
     },
     "l0.process.service.idleGraceMs": {
-      "default": 60000,
+      "default": 0,
       "maximum": 86400000,
-      "minimum": 1000,
+      "minimum": 0,
       "type": "integer",
       "x-fresnel": {
         "allowedScopes": [

@@ -28,8 +28,8 @@ const group = defineSettings("l0.process", {
   },
   "service.idleGraceMs": {
     type: Type.Integer(),
-    default: 60_000,
-    range: { min: 1000, max: 86_400_000 },
+    default: 0,
+    range: { min: 0, max: 86_400_000 },
     runtimeChange: "live",
     allowedScopes: ["managed", "user"],
     ui: {

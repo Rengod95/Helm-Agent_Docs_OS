@@ -3,6 +3,7 @@ import { parseHostArgv } from "../src/argv.ts";
 import type { CommandIo } from "../src/host-command.ts";
 import {
   autostartStatus,
+  refreshAutostart,
   installAutostart,
   launchdPlistOf,
   systemdQuote,
@@ -66,6 +67,11 @@ describe("unit texts", () => {
         "  </array>",
         "  <key>RunAtLoad</key>",
         "  <true/>",
+        "  <key>KeepAlive</key>",
+        "  <dict>",
+        "    <key>SuccessfulExit</key>",
+        "    <false/>",
+        "  </dict>",
         "  <key>ProcessType</key>",
         "  <string>Background</string>",
         "</dict>",
@@ -84,6 +90,8 @@ describe("unit texts", () => {
         "[Service]",
         "Type=simple",
         'ExecStart="/opt/fresnel/bin/fresnel" "service" "run"',
+        "Restart=on-failure",
+        "RestartSec=5",
         "",
         "[Install]",
         "WantedBy=default.target",
@@ -137,6 +145,7 @@ describe("macOS round trip", () => {
       registered: true,
       active: true,
       path: PLIST,
+      upToDate: true,
       linger: null,
     });
     expect(await uninstallAutostart(fake.deps)).toEqual({
@@ -192,8 +201,25 @@ describe("macOS round trip", () => {
       registered: true,
       active: false,
       path: PLIST,
+      upToDate: true,
       linger: null,
     });
+  });
+});
+
+describe("refreshAutostart", () => {
+  test("an old registration without keep-alive is rewritten; a current one is left alone; no registration stays unregistered", async () => {
+    const fake = fakeAutostart({ platform: "darwin" });
+    expect(await refreshAutostart(fake.deps)).toEqual({ kind: "not_registered" });
+    fake.files.set(
+      PLIST,
+      launchdPlistOf(FAKE_COMMAND).replace(/ {2}<key>KeepAlive<\/key>[\s\S]*?<\/dict>\n/, ""),
+    );
+    expect((await autostartStatus(fake.deps)).upToDate).toBe(false);
+    const refreshed = await refreshAutostart(fake.deps);
+    expect(refreshed.kind).toBe("refreshed");
+    expect(fake.files.get(PLIST)).toBe(launchdPlistOf(FAKE_COMMAND));
+    expect(await refreshAutostart(fake.deps)).toEqual({ kind: "up_to_date" });
   });
 });
 
@@ -213,6 +239,7 @@ describe("Linux round trip", () => {
       registered: true,
       active: true,
       path: UNIT,
+      upToDate: true,
       linger: true,
     });
     expect(await uninstallAutostart(fake.deps)).toEqual({
@@ -247,6 +274,7 @@ describe("Linux round trip", () => {
       registered: true,
       active: true,
       path: UNIT,
+      upToDate: true,
       linger: false,
     });
   });
@@ -270,6 +298,7 @@ describe("Linux round trip", () => {
       registered: true,
       active: true,
       path: UNIT,
+      upToDate: true,
       linger: null,
     });
   });
@@ -340,6 +369,7 @@ describe("write failures and unsupported platforms", () => {
       registered: false,
       active: false,
       path: null,
+      upToDate: false,
       linger: null,
     });
     expect(fake.calls).toEqual([]);
@@ -352,6 +382,7 @@ describe("the status line", () => {
     const base = {
       supported: true,
       registered: true,
+      upToDate: true,
       path: UNIT,
     } as const;
     expect(autostartLineOf({ ...base, platform: "linux", active: true, linger: false })).toBe(
@@ -364,7 +395,14 @@ describe("the status line", () => {
       "autostart on",
     );
     expect(
-      autostartLineOf({ ...base, platform: "darwin", active: false, linger: null, path: PLIST }),
+      autostartLineOf({
+        ...base,
+        platform: "darwin",
+        active: false,
+        linger: null,
+        path: PLIST,
+        upToDate: true,
+      }),
     ).toBe("autostart off");
   });
 

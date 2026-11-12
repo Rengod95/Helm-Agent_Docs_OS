@@ -75,6 +75,8 @@ export interface AutostartStatus {
   /** macOS는 `launchctl print`가 성공함(적재됨), Linux는 `is-enabled`가 `enabled`임 */
   readonly active: boolean;
   readonly path: string | null;
+  /** 등록 파일 내용이 지금 코드가 만드는 내용과 같다. 옛 등록(되살리기 없음)이면 false. 등록이 없으면 false */
+  readonly upToDate: boolean;
   /** Linux만 본다: `Linger=yes`면 true, `Linger=no`면 false, 확인하지 못하면 null. macOS는 null */
   readonly linger: boolean | null;
 }
@@ -111,6 +113,12 @@ export function launchdPlistOf(command: ServiceCommand): string {
     "  </array>",
     "  <key>RunAtLoad</key>",
     "  <true/>",
+    // 비정상 종료일 때만 되살린다. 정상 종료(`service stop`, 종료코드 0)는 되살리지 않는다 [결정: 2026-11-11 사용자]
+    "  <key>KeepAlive</key>",
+    "  <dict>",
+    "    <key>SuccessfulExit</key>",
+    "    <false/>",
+    "  </dict>",
     "  <key>ProcessType</key>",
     "  <string>Background</string>",
     "</dict>",
@@ -142,6 +150,8 @@ export function systemdUnitOf(command: ServiceCommand): string {
     "[Service]",
     "Type=simple",
     `ExecStart=${execStart}`,
+    "Restart=on-failure",
+    "RestartSec=5",
     "",
     "[Install]",
     "WantedBy=default.target",
@@ -275,6 +285,7 @@ export async function autostartStatus(deps: AutostartDeps): Promise<AutostartSta
       registered: deps.fs.exists(path),
       active: loaded.exitCode === 0,
       path,
+      upToDate: deps.fs.readFile(path) === launchdPlistOf(deps.command),
       linger: null,
     };
   }
@@ -287,6 +298,7 @@ export async function autostartStatus(deps: AutostartDeps): Promise<AutostartSta
       registered: deps.fs.exists(path),
       active: enabled.stdout.trim() === "enabled",
       path,
+      upToDate: deps.fs.readFile(path) === systemdUnitOf(deps.command),
       linger: await lingerOf(deps),
     };
   }
@@ -296,8 +308,22 @@ export async function autostartStatus(deps: AutostartDeps): Promise<AutostartSta
     registered: false,
     active: false,
     path: null,
+    upToDate: false,
     linger: null,
   };
+}
+
+export type AutostartRefreshResult =
+  | { readonly kind: "not_registered" }
+  | { readonly kind: "up_to_date" }
+  | { readonly kind: "refreshed"; readonly install: AutostartInstallResult };
+
+/** 이미 등록된 옛 자동 시작 파일을 지금 내용으로 고친다. 등록이 없으면 새로 등록하지 않는다(동의 없이 등록하지 않는다) */
+export async function refreshAutostart(deps: AutostartDeps): Promise<AutostartRefreshResult> {
+  const status = await autostartStatus(deps);
+  if (!status.supported || !status.registered) return { kind: "not_registered" };
+  if (status.upToDate) return { kind: "up_to_date" };
+  return { kind: "refreshed", install: await installAutostart(deps) };
 }
 
 const nodeFs: AutostartFs = {

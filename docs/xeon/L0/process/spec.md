@@ -595,7 +595,7 @@ ensureService():
 
 #### 4.4.4 유휴 종료
 
-- 조건: 연결 0 + live task 0 + 대기 예약 0이 `idleGraceMs`(기본 60000 [제안]) 동안 이어질 때만 종료한다(adr.0006 §3.7 4번). 시작 직후 `startupGraceMs`(10000, pi 선례) 동안은 판정하지 않는다. 시작 유예 안에서 한가해졌으면 유예가 끝난 시각부터 `idleGraceMs`를 센다(종료 예정 시각 = max(지금, 시작 + startupGraceMs) + idleGraceMs). 한가함이 이어지는 동안 같은 입력으로 `update`를 다시 불러도 예정 시각은 밀리지 않는다.
+- 조건: 연결 0 + live task 0 + 대기 예약 0이 `idleGraceMs` 동안 이어질 때만 종료한다. `idleGraceMs`가 0(기본)이면 유휴 종료를 하지 않는다 [결정: 2026-11-11 사용자]. 양수를 준 사용자 설정은 그대로 그 시간 뒤 종료한다(adr.0006 §3.7 4번). 시작 직후 `startupGraceMs`(10000, pi 선례) 동안은 판정하지 않는다. 시작 유예 안에서 한가해졌으면 유예가 끝난 시각부터 `idleGraceMs`를 센다(종료 예정 시각 = max(지금, 시작 + startupGraceMs) + idleGraceMs). 한가함이 이어지는 동안 같은 입력으로 `update`를 다시 불러도 예정 시각은 밀리지 않는다.
 - 승인 대기 대화는 live로 센다 [제안](adr.0006 §6 미결, Claude Code 선례 `CC/agent-view.md:819`). 사용자가 나중에 승인하러 돌아왔을 때 서비스가 떠 있어야 바로 이어지기 때문이다.
 - 대기 예약이 하나라도 있으면 종료하지 않는다. 예약 틱은 서비스 프로세스 안에서 돈다(adr.0006 §3.5). 대기 예약 수는 L2 schedule이 채운다. 그 트랙이 오기 전에는 조립 루트가 0을 넘긴다 [결정: 오케스트레이터 기본값, M3b B1-SVC].
 - 판정기는 상태 없이 입력 표본만 받는다. 입력이 바뀔 때마다 타이머를 다시 건다. 시계는 주입한다(수동 시계로 시험, TS-03).
@@ -819,7 +819,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 |---|---|---|---|---|---|---|
 | `l0.process.service.enabled` | boolean | false | - | restart | managed, user | `execution` 탭 토글 "공유 서비스 모드" |
 | `l0.process.service.remote` | string | `""` | - | restart | managed, user | `execution` 탭 텍스트 "원격 서비스 주소"(순서 15) |
-| `l0.process.service.idleGraceMs` | integer | 60000 [제안] | 1000~86400000 | live | managed, user | `execution` 탭 |
+| `l0.process.service.idleGraceMs` | integer | 0 (꺼지지 않음) [결정: 2026-11-11 사용자] | 0~86400000 | live | managed, user | `execution` 탭 |
 | `l0.process.service.startTimeoutMs` | integer | 10000 [제안] | 1000~120000 | live | managed, user | 파일만 |
 | `l0.process.shutdown.timeoutMs` | integer | 3000 | 500~60000 | live | managed, user | `execution` 탭 |
 | `l0.process.lockFallback.default` | string | `"ask"` | enum `ask`, `observe`, `fork` | live | managed, user, project | `execution` 탭 select |

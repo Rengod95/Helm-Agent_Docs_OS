@@ -18,6 +18,7 @@ import { realEngineGate } from "../fixtures/real-engine.ts";
 import { connectedClient, manualTime, scratchRuntimeDir } from "../fixtures/service-harness.ts";
 import { writeUserSettings } from "../fixtures/user-settings.ts";
 import { localHostNames } from "../../src/service/gateway-config.ts";
+import type { TailscaleDeps } from "../../src/service/tailscale.ts";
 
 // 서비스의 원격 접속 연결(L4.remote §5.1, §8.3, §10): 설정이 켜져 있으면 시작 때 감독자를 띄우고, `host.remote.*`에 답하고,
 // 끌 때 감독자를 세우고, 종료할 때 감독자를 정리한다. 실제 엔진과 Unix 소켓, 가짜 감독자(자식 프로세스 없음), 임시 홈.
@@ -29,6 +30,14 @@ afterAll(() => {
   home.dispose();
 });
 
+/** 이 컴퓨터에 Tailscale이 없다고 답하는 가짜. 시험이 실제 `tailscale`을 부르지 않게 한다 */
+function absentTailscale(): TailscaleDeps {
+  return {
+    platform: "linux",
+    run: () => Promise.resolve({ exitCode: 127, stdout: "", stderr: "" }),
+  };
+}
+
 function optionsFor(runtimeDir: string, extra: Partial<ServiceOptions> = {}): ServiceOptions {
   return {
     runtimeDir,
@@ -37,6 +46,7 @@ function optionsFor(runtimeDir: string, extra: Partial<ServiceOptions> = {}): Se
     handleSignals: false,
     startupGraceMs: 0,
     idleGraceMs: 60_000,
+    tailscaleDeps: absentTailscale(),
     ...extra,
   };
 }
@@ -101,9 +111,13 @@ describe("gateway supervisor and the service", () => {
             state: "running",
             loopbackPort: 8480,
           });
+          // 페이크 게이트웨이의 상태에는 외부 리스너가 없으므로 링크는 루프백 하나다
           expect(await client.request("host.remote.pair", {})).toEqual({
             code: FAKE_PAIR_CODE,
             expiresAt: FAKE_PAIR_EXPIRES_AT,
+            links: [
+              { kind: "loopback", url: `http://127.0.0.1:8480/login#code=${FAKE_PAIR_CODE}` },
+            ],
           });
           expect(await client.request("host.remote.devices", {})).toMatchObject({
             devices: [{ id: "dev_0123456789abcdef", kind: "web" }],
@@ -185,6 +199,151 @@ describe("gateway supervisor and the service", () => {
         runtime.dispose();
       }
       expect(gateway.counts.disposes).toBe(1);
+    },
+    60_000,
+  );
+});
+
+describe("service remote checks and settings", () => {
+  realTest(
+    "host.remote.preflight names the gateway gate while the gateway is off; host.remote.config reads, dry-runs and writes without restarting",
+    async () => {
+      writeUserSettings(home, {});
+      const gateway = fakeGateway();
+      const runtime = scratchRuntimeDir();
+      const handle = await started(optionsFor(runtime.dir, { gateway: gateway.supervisor }));
+      try {
+        const client = await connectedClient({ kind: "unix", path: handle.registration.socket });
+        try {
+          // 원격이 꺼져 있어도 점검은 답한다. 서비스는 떠 있고 게이트웨이가 꺼진 것이 첫 실패다
+          expect(await client.request("host.remote.preflight", {})).toEqual({
+            ready: false,
+            items: [
+              {
+                id: "service_running",
+                status: "pass",
+                cause: null,
+                fix: null,
+                autoFix: null,
+                detail: {},
+              },
+              {
+                id: "gateway_running",
+                status: "fail",
+                cause: "gateway_off",
+                fix: "turn_on_remote_access",
+                autoFix: "enable_gateway",
+                detail: {},
+              },
+              {
+                id: "listen_port",
+                status: "skip",
+                cause: "depends_on_failed",
+                fix: null,
+                autoFix: null,
+                detail: {},
+              },
+              {
+                id: "allowed_hosts",
+                status: "skip",
+                cause: "depends_on_failed",
+                fix: null,
+                autoFix: null,
+                detail: {},
+              },
+              {
+                id: "certificate",
+                status: "skip",
+                cause: "no_certificate",
+                fix: null,
+                autoFix: null,
+                detail: { source: null, trust: null, daysLeft: null },
+              },
+              {
+                id: "autostart",
+                status: "skip",
+                cause: "unsupported_platform",
+                fix: null,
+                autoFix: null,
+                detail: {},
+              },
+              {
+                id: "reachable_addresses",
+                status: "fail",
+                cause: "no_reachable_address",
+                fix: "connect_to_a_network_or_enable_tailscale",
+                autoFix: null,
+                detail: { addresses: [] },
+              },
+            ],
+          });
+
+          // 설정 읽기: 기본값이다. 검사할 문제가 없다
+          expect(await client.request("host.remote.config", {})).toEqual({
+            settings: {
+              listen: "127.0.0.1:8480",
+              listenTls: "0.0.0.0:8443",
+              hosts: [],
+              tlsCert: null,
+              tlsKey: null,
+            },
+            issues: [],
+            written: false,
+            restartNeeded: false,
+          });
+
+          // 검사만 하면 쓰지 않는다: 루프백이 아닌 listen은 issues로 알리고 저장된 값은 그대로다
+          expect(
+            await client.request("host.remote.config", {
+              patch: { listen: "0.0.0.0:8480" },
+              dryRun: true,
+            }),
+          ).toEqual({
+            settings: {
+              listen: "0.0.0.0:8480",
+              listenTls: "0.0.0.0:8443",
+              hosts: [],
+              tlsCert: null,
+              tlsKey: null,
+            },
+            issues: [{ field: "listen", code: "listen_not_loopback" }],
+            written: false,
+            restartNeeded: false,
+          });
+          expect(
+            await client.request("settings.get", { keys: ["l4.remote.web.listen"] }),
+          ).toMatchObject({ settings: [{ key: "l4.remote.web.listen", value: "127.0.0.1:8480" }] });
+
+          // 쓰기: 허용 호스트를 저장한다. 게이트웨이가 꺼져 있으므로 다시 시작할 것이 없고, 감독자는 불리지 않는다
+          expect(
+            await client.request("host.remote.config", {
+              patch: { hosts: ["fresnel.example.ts.net"] },
+            }),
+          ).toEqual({
+            settings: {
+              listen: "127.0.0.1:8480",
+              listenTls: "0.0.0.0:8443",
+              hosts: ["fresnel.example.ts.net"],
+              tlsCert: null,
+              tlsKey: null,
+            },
+            issues: [],
+            written: true,
+            restartNeeded: false,
+          });
+          expect(
+            await client.request("settings.get", { keys: ["l4.remote.web.hosts"] }),
+          ).toMatchObject({
+            settings: [{ key: "l4.remote.web.hosts", value: ["fresnel.example.ts.net"] }],
+          });
+          expect(gateway.starts).toEqual([]);
+        } finally {
+          await client.close();
+        }
+      } finally {
+        await handle.shutdown("stop");
+        runtime.dispose();
+      }
     },
     60_000,
   );
