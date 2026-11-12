@@ -256,22 +256,20 @@ export function SshHostList(props: {
             type="button"
             size="sm"
             variant="ghost"
-            className="h-auto w-full justify-start py-1.5 text-left"
+            className="w-full justify-start text-left"
             disabled={disabled}
             onClick={() => {
               onPick(host);
             }}
           >
-            <span className="grid min-w-0 flex-1 gap-0.5">
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="truncate text-ui-strong text-text-primary">{host.name}</span>
-                {host.proxyJump ? (
-                  <Badge size="xs" className="bg-neutral-track text-text-secondary">
-                    {t("desktop.connection.hosts.jump")}
-                  </Badge>
-                ) : null}
-              </span>
-              <span className="truncate font-mono text-ui-sm font-normal text-text-tertiary">
+            <span className="flex min-w-0 flex-1 items-center gap-2">
+              <span className="min-w-0 truncate text-ui-strong text-text-primary">{host.name}</span>
+              {host.proxyJump ? (
+                <Badge size="xs" className="bg-neutral-track text-text-secondary">
+                  {t("desktop.connection.hosts.jump")}
+                </Badge>
+              ) : null}
+              <span className="min-w-0 flex-1 truncate font-mono text-ui-sm font-normal text-text-tertiary">
                 {hostDisplayOf(host)}
               </span>
             </span>

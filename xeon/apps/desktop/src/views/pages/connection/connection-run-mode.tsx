@@ -186,44 +186,44 @@ function serviceFailureTextOf(failure: { readonly code: string; readonly detail:
 function failureTextsOf(code: string): { readonly cause: string; readonly fix: string } {
   if (code === "launch_mode_unrunnable") {
     return {
-      cause: t("desktop.connection.service.failure.launch_mode_unrunnable.cause"),
-      fix: t("desktop.connection.service.failure.launch_mode_unrunnable.fix"),
+      cause: t("desktop.connection.service.failure.launchModeUnrunnable.cause"),
+      fix: t("desktop.connection.service.failure.launchModeUnrunnable.fix"),
     };
   }
   if (code === "launch_mode_failed") {
     return {
-      cause: t("desktop.connection.service.failure.launch_mode_failed.cause"),
-      fix: t("desktop.connection.service.failure.launch_mode_failed.fix"),
+      cause: t("desktop.connection.service.failure.launchModeFailed.cause"),
+      fix: t("desktop.connection.service.failure.launchModeFailed.fix"),
     };
   }
   if (code === "launch_mode_unreadable") {
     return {
-      cause: t("desktop.connection.service.failure.launch_mode_unreadable.cause"),
-      fix: t("desktop.connection.service.failure.launch_mode_unreadable.fix"),
+      cause: t("desktop.connection.service.failure.launchModeUnreadable.cause"),
+      fix: t("desktop.connection.service.failure.launchModeUnreadable.fix"),
     };
   }
   if (code === "ensure_unrunnable") {
     return {
-      cause: t("desktop.connection.service.failure.ensure_unrunnable.cause"),
-      fix: t("desktop.connection.service.failure.ensure_unrunnable.fix"),
+      cause: t("desktop.connection.service.failure.ensureUnrunnable.cause"),
+      fix: t("desktop.connection.service.failure.ensureUnrunnable.fix"),
     };
   }
   if (code === "ensure_failed") {
     return {
-      cause: t("desktop.connection.service.failure.ensure_failed.cause"),
-      fix: t("desktop.connection.service.failure.ensure_failed.fix"),
+      cause: t("desktop.connection.service.failure.ensureFailed.cause"),
+      fix: t("desktop.connection.service.failure.ensureFailed.fix"),
     };
   }
   if (code === "ensure_unusable") {
     return {
-      cause: t("desktop.connection.service.failure.ensure_unusable.cause"),
-      fix: t("desktop.connection.service.failure.ensure_unusable.fix"),
+      cause: t("desktop.connection.service.failure.ensureUnusable.cause"),
+      fix: t("desktop.connection.service.failure.ensureUnusable.fix"),
     };
   }
   if (code === "bridge_failed") {
     return {
-      cause: t("desktop.connection.service.failure.bridge_failed.cause"),
-      fix: t("desktop.connection.service.failure.bridge_failed.fix"),
+      cause: t("desktop.connection.service.failure.bridgeFailed.cause"),
+      fix: t("desktop.connection.service.failure.bridgeFailed.fix"),
     };
   }
   return {
