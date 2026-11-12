@@ -144,6 +144,7 @@ export type WireErrorKind =
   | "secret.cancelled"
   | "secret.auditUnwritable"
   | "secret.writeFailed"
+  | "secret.localOnly"
   | "profile.notFound"
   | "profile.conflict"
   | "profile.fileCorrupt"
@@ -556,6 +557,11 @@ export const WIRE_ERRORS: {
       { additionalProperties: false },
     ),
   },
+  /**
+   * 값을 주고받는 채널(`channel`)을 쓰는 요청이 같은 컴퓨터·같은 사용자의 연결이 아니다(원격 연결이거나 채널 폴더·소켓이 이 사용자 것이 아니다).
+   * 값은 오가지 않았다. details는 없다
+   */
+  "secret.localOnly": { code: 3213, kind: "secret.localOnly", retryable: false },
   // 3300~3399: 프로필과 Test run(`profile.*`, `testRun.*` 메서드)
   /** 그 id의 프로필이 없다(`profile.get`·`profile.delete`·`profile.apply`·`profile.preview`, `thread.create { profileId }`) */
   "profile.notFound": {

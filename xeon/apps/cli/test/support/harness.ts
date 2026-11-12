@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { err, ok } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { JsonRpcMessage, StoreId } from "@fresnel/contracts/wire";
+import { WIRE_PROTOCOL_VERSION, type JsonRpcMessage, type StoreId } from "@fresnel/contracts/wire";
 import type {
   SecretEntryOffer,
   SecretOutOfBandPort,
@@ -93,6 +93,11 @@ export interface HarnessOptions {
   readonly stateDir?: string | null;
   /** `group new`의 파일 작업 가짜. 없으면 템플릿이 없는 메모리 가짜다 */
   readonly groupTemplates?: GroupTemplatesPort;
+  /**
+   * 서비스 접속을 흉내 낸다. "local"은 이 기기의 서비스(라우트 local, 값은 로컬 채널), "remote"는 원격 주소(값 통로 없음).
+   * 가짜 서버가 서비스 역할을 하고, 시험의 처리기가 채널을 실제 소켓으로 다룬다. 없으면 in-process다
+   */
+  readonly service?: "local" | "remote";
 }
 
 /** 가짜 값 전달 통로. 맡긴 수단을 쌓아 두고 호스트 쪽 가짜 처리기가 꺼내 쓴다 */
@@ -210,10 +215,47 @@ export function createHarness(options: HarnessOptions = {}): Harness {
   };
 
   const hostApi: HostApi = {
-    resolveLaunchMode: () => Promise.resolve("in-process"),
-    resolveRemoteEndpoint: () => Promise.resolve({ kind: "none" }),
-    attachToService: () =>
-      Promise.resolve(err({ kind: "ensure_failed", reason: "not_used_by_harness" })),
+    resolveLaunchMode: () =>
+      Promise.resolve(options.service === undefined ? "in-process" : "service"),
+    resolveRemoteEndpoint: () =>
+      Promise.resolve(
+        options.service === "remote"
+          ? {
+              kind: "remote" as const,
+              endpoint: { kind: "tcp" as const, host: "gateway.example", port: 7777 },
+              from: "setting" as const,
+            }
+          : { kind: "none" as const },
+      ),
+    attachToService: async (target, attachOptions) => {
+      if (options.service === undefined) {
+        return err({ kind: "ensure_failed", reason: "not_used_by_harness" });
+      }
+      const pair = createTransportPair();
+      state.server = startFakeServer(
+        pair.server,
+        {
+          storeId: TEST_STORE_ID,
+          settings: { "l4.cli.outputMode": "text" },
+          ...state.serverOptions,
+        },
+        store,
+      );
+      const transport =
+        attachOptions.wrapTransport === undefined
+          ? pair.client
+          : attachOptions.wrapTransport(pair.client);
+      const connection = createHostConnection(transport);
+      const hello = await connection.request("host.hello", {
+        protocolVersion: WIRE_PROTOCOL_VERSION,
+        client: { name: attachOptions.clientName, version: "0.0.0-test", kind: "cli" },
+      });
+      return ok({
+        connection,
+        hello,
+        source: target.kind === "local" ? "local" : "remote",
+      });
+    },
     serviceClock: () => ({ clock, ids: { next: () => "evt_service" } }),
     startInProcessHost(assembleOptions) {
       startOptions.push(assembleOptions ?? {});

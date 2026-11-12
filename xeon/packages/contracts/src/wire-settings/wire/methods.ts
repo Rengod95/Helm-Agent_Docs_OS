@@ -1353,7 +1353,7 @@ export const SecretMetaResultSchema: TObject<{ secret: typeof SecretListEntrySch
   Type.Object({ secret: SecretListEntrySchema }, { additionalProperties: false });
 export type SecretMetaResult = Static<typeof SecretMetaResultSchema>;
 
-/** secret.remove, secret.test, secret.references, secret.beginReveal */
+/** secret.remove, secret.test, secret.references */
 export const SecretNameParamsSchema: TObject<{ name: typeof SecretNameSchema }> = Type.Object(
   { name: SecretNameSchema },
   { additionalProperties: false },
@@ -1477,12 +1477,18 @@ export const SecretBeginEntryParamsSchema: TObject<{
   name: typeof SecretNameSchema;
   action: TUnion<[TLiteral<"add">, TLiteral<"set">, TLiteral<"rotate">]>;
   meta: TOptional<typeof SecretEntryMetaSchema>;
+  channel: TOptional<TString>;
 }> = Type.Object(
   {
     name: SecretNameSchema,
     action: Type.Union([Type.Literal("add"), Type.Literal("set"), Type.Literal("rotate")]),
     /** `add`가 함께 보내는 값 없는 메타(M3-REQ-17). 생략하면 호스트의 기본 메타다 */
     meta: Type.Optional(SecretEntryMetaSchema),
+    /**
+     * 같은 컴퓨터의 CLI가 연 로컬 일회용 소켓의 절대 경로다. 값이 아니다. 호스트는 이 소켓에서 EOF까지 읽는다.
+     * 원격 연결이 보내거나 경로가 이 사용자의 것이 아니면 `secret.localOnly`다 [결정: 2026-11-12]
+     */
+    channel: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
   },
   { additionalProperties: false },
 );
@@ -1494,7 +1500,25 @@ export const SecretBeginEntryResultSchema: TObject<{ started: TBoolean }> = Type
 );
 export type SecretBeginEntryResult = Static<typeof SecretBeginEntryResultSchema>;
 
-/** secret.beginReveal. 값 필드가 없다. 표시는 호스트 쪽 L0.secrets가 TTY나 OS 창에 한다(L4.cli.spec §4.7) */
+/**
+ * secret.beginReveal params. 값 필드가 없다. 표시는 호스트 쪽 L0.secrets가 TTY나 OS 창에 한다(L4.cli.spec §4.7).
+ * 같은 컴퓨터의 CLI는 `channel`(로컬 일회용 소켓 경로, 값이 아니다)과 `reauth: "tty-confirm"`(CLI가 터미널에서 이름을 다시 받아 사람을 확인했다)을 보낸다.
+ */
+export const SecretBeginRevealParamsSchema: TObject<{
+  name: typeof SecretNameSchema;
+  channel: TOptional<TString>;
+  reauth: TOptional<TLiteral<"tty-confirm">>;
+}> = Type.Object(
+  {
+    name: SecretNameSchema,
+    channel: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
+    reauth: Type.Optional(Type.Literal("tty-confirm")),
+  },
+  { additionalProperties: false },
+);
+export type SecretBeginRevealParams = Static<typeof SecretBeginRevealParamsSchema>;
+
+/** secret.beginReveal result. 값 필드가 없다 */
 export const SecretBeginRevealResultSchema: TObject<{ started: TBoolean }> = Type.Object(
   { started: Type.Boolean() },
   { additionalProperties: false },
@@ -1990,7 +2014,7 @@ interface WireSchemas
     result: typeof SecretBeginEntryResultSchema;
   };
   "secret.beginReveal": {
-    params: typeof SecretNameRequestSchema;
+    params: WithMeta<typeof SecretBeginRevealParamsSchema>;
     result: typeof SecretBeginRevealResultSchema;
   };
   "trust.get": {
@@ -2201,7 +2225,11 @@ export const WIRE_METHODS: {
     SecretBeginEntryResultSchema,
     "M2",
   ),
-  "secret.beginReveal": spec(SecretNameRequestSchema, SecretBeginRevealResultSchema, "M2"),
+  "secret.beginReveal": spec(
+    withMeta(SecretBeginRevealParamsSchema),
+    SecretBeginRevealResultSchema,
+    "M2",
+  ),
   "trust.get": spec(withMeta(TrustGetParamsSchema), TrustStatusSchema, "M2"),
   "trust.decide": spec(withMeta(TrustDecideParamsSchema), TrustStatusSchema, "M2"),
   "trust.list": spec(withMeta(TrustListParamsSchema), TrustListResultSchema, "M4"),

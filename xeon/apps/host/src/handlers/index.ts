@@ -109,7 +109,7 @@ export function createWireHandlers(
     "models.list": createModelsListHandler(engine),
     ...createMeasureHandlers(engine),
     ...createProposalHandlers(engine),
-    ...createSecretHandlers(engine),
+    ...createSecretHandlers(engine, hub),
     ...createTrustHandlers(engine),
     ...createWorkspaceHandlers(),
     ...createCommandHandlers(engine, hub),

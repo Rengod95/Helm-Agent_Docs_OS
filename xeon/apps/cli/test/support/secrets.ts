@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { createConnection } from "node:net";
 import {
   wireError,
   type SecretListEntry,
@@ -9,7 +10,32 @@ import type { FakeHandlers } from "./fake-server.ts";
 import type { Harness } from "./harness.ts";
 
 // 가짜 시크릿 관리 처리기. 맡긴 값 입력·열람 수단(Harness.outOfBand)을 호스트처럼 꺼내 쓴다.
+// `channel`이 있으면 호스트가 CLI의 로컬 채널에 실제 소켓으로 연결해 값을 읽거나 쓴다(서비스 접속 흉내).
 // 값은 이 파일 안의 stored에만 둔다. 와이어 응답에는 싣지 않는다.
+
+/** 채널에 연결해 EOF까지 읽는다. 연결이 실패하거나 0바이트면 undefined다(호스트의 input_empty·input_cancelled와 같다) */
+function readFromChannel(path: string): Promise<Uint8Array | undefined> {
+  return new Promise((resolve) => {
+    const chunks: Buffer[] = [];
+    const socket = createConnection(path);
+    socket.on("data", (chunk: Buffer) => chunks.push(chunk));
+    socket.on("end", () => {
+      const joined = Buffer.concat(chunks);
+      resolve(joined.length === 0 ? undefined : new Uint8Array(joined));
+    });
+    socket.on("error", () => resolve(undefined));
+  });
+}
+
+/** 채널에 값을 쓰고 닫는다(열람). 쓰지 못하면 거짓이다 */
+function writeToChannel(path: string, bytes: Uint8Array): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = createConnection(path);
+    socket.on("error", () => resolve(false));
+    socket.on("finish", () => resolve(true));
+    socket.end(bytes);
+  });
+}
 
 export interface FakeSecretStore {
   readonly handlers: FakeHandlers;
@@ -23,10 +49,16 @@ export interface FakeSecretStore {
   readonly referenceCalls: string[];
 }
 
+/** 시험이 넣는 실패. `refuseChannel`이면 로컬 채널을 쓰는 요청을 `secret.localOnly`로 거절한다 */
+export interface FakeSecretFailures {
+  readonly remove?: Error;
+  readonly refuseChannel?: boolean;
+}
+
 export function fakeSecrets(
   harness: () => Harness,
   initial: readonly SecretListEntry[] = [],
-  failures: { readonly remove?: Error } = {},
+  failures: FakeSecretFailures = {},
   references: Readonly<Record<string, SecretReferencesResult>> = {},
 ): FakeSecretStore {
   const entries = new Map<string, SecretListEntry>(initial.map((entry) => [entry.name, entry]));
@@ -92,12 +124,24 @@ export function fakeSecrets(
         const action = String(params["action"]);
         const { outOfBand } = harness();
         const offer = outOfBand.entries.find((o) => o.name === name && o.action === action);
-        if (offer === undefined) return { started: false };
-        const read = await offer.source.read();
-        if (!read.ok) return { started: false };
-        received.push(read.value);
+        let value: Uint8Array | undefined;
+        if (offer !== undefined) {
+          const read = await offer.source.read();
+          if (!read.ok) return { started: false };
+          received.push(read.value);
+          value = read.value;
+        } else if (typeof params["channel"] === "string") {
+          if (failures.refuseChannel === true) {
+            throw wireError("secret.localOnly", { message: "beginEntry: refused" });
+          }
+          value = await readFromChannel(params["channel"]);
+          if (value === undefined) return { started: false };
+          received.push(value);
+        } else {
+          return { started: false };
+        }
         // 호스트는 값을 자기 쪽에 복사해 둔다. CLI 쪽 배열은 CLI가 덮는다
-        stored.set(name, read.value.slice());
+        stored.set(name, value.slice());
         if (!entries.has(name)) {
           entries.set(name, {
             name: secretName(name),
@@ -120,8 +164,16 @@ export function fakeSecrets(
       },
       "secret.beginReveal": async (params) => {
         const { outOfBand, clock } = harness();
-        const offer = outOfBand.reveals.find((o) => o.name === params["name"]);
         const value = stored.get(String(params["name"]));
+        if (typeof params["channel"] === "string") {
+          if (failures.refuseChannel === true) {
+            throw wireError("secret.localOnly", { message: "beginReveal: refused" });
+          }
+          // 사람 확인 표시가 없으면 열지 않는다(호스트의 reauth 규칙)
+          if (params["reauth"] !== "tty-confirm" || value === undefined) return { started: false };
+          return { started: await writeToChannel(params["channel"], value) };
+        }
+        const offer = outOfBand.reveals.find((o) => o.name === params["name"]);
         if (offer === undefined || value === undefined) return { started: false };
         if (clock.now() - offer.reauth.verifiedAt > 60_000) return { started: false };
         const bytes = value.slice();

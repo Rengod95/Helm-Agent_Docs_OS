@@ -527,6 +527,20 @@ describe("M2 method schemas are written out", () => {
     expect(parse(WIRE_METHODS["secret.list"].params, { meta: true, usage: false }).ok).toBe(true);
   });
 
+  test("secret.beginEntry and secret.beginReveal take a socket path and the tty-confirm mark, never a value", () => {
+    const entry = WIRE_METHODS["secret.beginEntry"].params;
+    expect(parse(entry, { name: "github-token", action: "add", channel: "/tmp/x/c.sock" }).ok).toBe(
+      true,
+    );
+    expect(parse(entry, { name: "github-token", action: "add", channel: "" }).ok).toBe(false);
+    const reveal = WIRE_METHODS["secret.beginReveal"].params;
+    expect(
+      parse(reveal, { name: "github-token", channel: "/tmp/x/c.sock", reauth: "tty-confirm" }).ok,
+    ).toBe(true);
+    expect(parse(reveal, { name: "github-token", reauth: "os-auth" }).ok).toBe(false);
+    expect(parse(reveal, { name: "github-token", value: "plain" }).ok).toBe(false);
+  });
+
   test("trust.list and workspace.status take the spec's params and return the spec's shapes", () => {
     const list = WIRE_METHODS["trust.list"];
     expect(list.stage).toBe("M4");

@@ -72,7 +72,7 @@ describe("wire doc tables", () => {
         kind: (c[2] ?? "").replaceAll("`", ""),
         retryable: c[3] === "true",
       }));
-    expect(rows).toHaveLength(64);
+    expect(rows).toHaveLength(65);
     expect(rows).toEqual(
       Object.values(WIRE_ERRORS).map((s) => ({
         code: s.code,

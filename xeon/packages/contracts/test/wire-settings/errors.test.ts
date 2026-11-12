@@ -73,6 +73,7 @@ describe("WIRE_ERRORS", () => {
       "secret.cancelled": 3210,
       "secret.auditUnwritable": 3211,
       "secret.writeFailed": 3212,
+      "secret.localOnly": 3213,
       "profile.notFound": 3301,
       "profile.conflict": 3302,
       "profile.fileCorrupt": 3303,
@@ -174,7 +175,7 @@ describe("WIRE_ERRORS", () => {
 
   test("secret.* errors live in 3200~3299 and carry only safe fields", () => {
     const secretSpecs = specs.filter((s) => s.kind.startsWith("secret."));
-    expect(secretSpecs).toHaveLength(12);
+    expect(secretSpecs).toHaveLength(13);
     for (const spec of secretSpecs) {
       expect({ kind: spec.kind, code: spec.code >= 3200 && spec.code <= 3299 }).toEqual({
         kind: spec.kind,
@@ -193,6 +194,8 @@ describe("WIRE_ERRORS", () => {
     expect(parse(inUse, { activeLeases: -1 }).ok).toBe(false);
     expect(wireError("secret.inUse", { details: { activeLeases: 2 } }).code).toBe(3206);
     expect(WIRE_ERRORS["secret.alreadyExists"].details).toBeUndefined();
+    expect(WIRE_ERRORS["secret.localOnly"].details).toBeUndefined();
+    expect(wireError("secret.localOnly").code).toBe(3213);
   });
 
   test("secret.writeFailed names the write target: key file, OS key store or SOPS file", () => {
