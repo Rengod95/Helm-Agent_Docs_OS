@@ -1,4 +1,7 @@
+import { hasWordCharacter, userWrittenText } from "@fresnel/contracts/conversation";
+
 // 목록의 첫 입력 미리보기(L1.persistence.spec §4.10.7). 순수 함수다: 입력 글을 읽어 표시용 한 줄을 만든다.
+// 첨부 표식과 이미지 이름은 빼고 사람이 쓴 글만 본다(`userWrittenText`, L4.desktop-ux DP-142). 글자·숫자가 없는 글(`,`)은 미리보기로 쓰지 않는다.
 // 저장 행을 바꾸지 않고 `threads.list` 읽기에서만 붙인다. 읽는 곳은 `readFirstUserPreview`(views.ts)다.
 
 /** 미리보기의 상한(코드 포인트). "…"을 포함한다 */
@@ -13,16 +16,8 @@ export type PreviewContent = string | readonly { readonly type: string; readonly
  * 코드 포인트 단위로 자르므로 이모지의 두 코드 유닛을 가르지 않는다. 글이 없으면 undefined다
  */
 export function previewOfContent(content: PreviewContent): string | undefined {
-  const raw =
-    typeof content === "string"
-      ? content
-      : content
-          .flatMap((block) =>
-            block.type === "text" && typeof block.text === "string" ? [block.text] : [],
-          )
-          .join(" ");
-  const collapsed = raw.replaceAll(/\s+/gu, " ").trim();
-  if (collapsed === "") return undefined;
+  const collapsed = userWrittenText(content).replaceAll(/\s+/gu, " ").trim();
+  if (collapsed === "" || !hasWordCharacter(collapsed)) return undefined;
   const points = Array.from(collapsed);
   if (points.length <= PREVIEW_LIMIT) return collapsed;
   const head = points
