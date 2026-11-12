@@ -231,6 +231,39 @@ describe("field facts", () => {
     expect(field?.canReset).toBe(false);
   });
 
+  test("a managed-only setting without a managed value is not editable and says who can change it", () => {
+    const def = wireDef({
+      key: "l2.mcp.managedOnly",
+      type: { type: "boolean" },
+      allowedScopes: ["managed"],
+      ui: { tab: "models", widget: "toggle", order: 1, label: "관리 서버만" },
+    });
+    const setting = effectiveOf("l2.mcp.managedOnly", false, { source: { scope: "default" } });
+    const field = fieldOf(viewOf([def], valuesOf(setting)), "l2.mcp.managedOnly");
+    expect(field?.lock).toEqual({
+      reason: "managed_only",
+      path: null,
+      text: "관리자 설정에서만 바꿀 수 있어요",
+    });
+    expect(field?.writableScopes).toEqual([]);
+    expect(field?.editable).toBe(false);
+    expect(field?.canReset).toBe(false);
+  });
+
+  test("a setting that a user scope can write has no lock line and stays editable", () => {
+    const def = wireDef({
+      key: "l1.models.review",
+      type: { type: "string" },
+      ui: { tab: "models", widget: "text", order: 1, label: "검토" },
+    });
+    const field = fieldOf(
+      viewOf([def], valuesOf(effectiveOf("l1.models.review", "p/m"))),
+      "l1.models.review",
+    );
+    expect(field?.lock).toBeNull();
+    expect(field?.editable).toBe(true);
+  });
+
   test("a missing value is read-only and reports missingValue", () => {
     const def = wireDef({
       key: "l1.models.flag",

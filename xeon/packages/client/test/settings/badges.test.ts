@@ -4,6 +4,7 @@ import {
   defaultWriteScope,
   deprecatedInfo,
   lockInfo,
+  lockOf,
   runtimeBadge,
   scopeBadge,
   shownWriteScope,
@@ -111,6 +112,57 @@ describe("lock info", () => {
       path: null,
       text: "관리 정책(파일 밖 수단)으로 잠겨 있어요",
     });
+  });
+});
+
+describe("lock of a setting: the managed-only definition and the managed value", () => {
+  const managedOnly = wireDef({
+    key: "l2.mcp.managedOnly",
+    type: { type: "boolean" },
+    allowedScopes: ["managed"],
+  });
+  const open = wireDef({ key: "l1.models.x", type: { type: "string" } });
+
+  test("a definition that allows only managed scope is locked with the managed-only reason, even without a value", () => {
+    expect(
+      lockOf(
+        managedOnly,
+        effectiveOf("l2.mcp.managedOnly", false, { source: { scope: "default" } }),
+      ),
+    ).toEqual({
+      reason: "managed_only",
+      path: null,
+      text: "관리자 설정에서만 바꿀 수 있어요",
+    });
+    expect(lockOf(managedOnly, undefined)).toEqual({
+      reason: "managed_only",
+      path: null,
+      text: "관리자 설정에서만 바꿀 수 있어요",
+    });
+  });
+
+  test("a managed value keeps its own lock reason and path, not the managed-only one", () => {
+    const locked = effectiveOf("l2.mcp.managedOnly", true, {
+      locked: true,
+      lockReason: "managed_file",
+      source: { scope: "managed", path: "/etc/fresnel/managed.json" },
+    });
+    expect(lockOf(managedOnly, locked)).toEqual({
+      reason: "managed_file",
+      path: "/etc/fresnel/managed.json",
+      text: "관리 정책으로 잠겨 있어요 정책 파일: /etc/fresnel/managed.json",
+    });
+  });
+
+  test("a definition with a writable scope has no lock without a managed value", () => {
+    expect(lockOf(open, effectiveOf("l1.models.x", "a"))).toBeNull();
+    expect(lockOf(open, undefined)).toBeNull();
+    const withManaged = wireDef({
+      key: "l2.mcp.managedOnly",
+      type: { type: "boolean" },
+      allowedScopes: ["managed", "user"],
+    });
+    expect(lockOf(withManaged, effectiveOf("l2.mcp.managedOnly", false))).toBeNull();
   });
 });
 

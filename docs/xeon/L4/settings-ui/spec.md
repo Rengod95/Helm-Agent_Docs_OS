@@ -996,6 +996,7 @@ sequenceDiagram
 2. `source.path`가 있으면 "정책 파일: {경로}"를 덧붙인다. 없으면 경로 자리를 비운다.
 3. 잠금 사유는 문장이 아니라 종류다 [결정: M3-REQ-15 `EffectiveSetting.lockReason`]. `managed_file`(생략하면 이 값)은 위 1·2번 문구를 그대로 쓰고, `managed_policy`(OS 정책 등 파일 밖 수단)는 "관리 정책(파일 밖 수단)으로 잠겨 있어요"이며 경로 자리가 없다. 종류에 없는 사유를 짐작해 만들지 않는다. 사유 문구를 관리자가 정책 파일에 적는 방법은 [미결]이다(§10 미결 10).
 4. 잠긴 키를 바꾸려면 관리자에게 문의하라는 안내 문구는 두지 않는다. 본인 사용이 첫 대상이라 관리자가 곧 사용자인 경우가 많기 때문이다 [가정].
+5. [결정: 2026-11-11 사용자] 정의가 관리 범위만 허용하면(`allowedScopes`가 `managed`뿐, 예: `l2.mcp.managedOnly`, `l1.tools.bypassAllowed`) 관리 값이 없어도 항목은 바꿀 수 없다(§4.3.6 6번의 후보 없음 가운데 관리 범위뿐인 경우) [근거: packages/client/src/settings/badges.ts `managedOnlyLockOf`]. 이때 잠금 종류는 `managed_only`이고 문구는 "관리자 설정에서만 바꿀 수 있어요"다(경로 자리가 없다). 종류는 정의에서 읽는 사실이라 F의 `lockReason`에 싣지 않고 화면 view-model(`lockOf`)이 정한다. 관리 값이 있으면 1~3번대로 `managed_file`·`managed_policy`다. 항목 줄은 잠긴 항목과 같이 꺼지고 잠금 줄을 보인다.
 
 ### 4.9 코드 위치
 

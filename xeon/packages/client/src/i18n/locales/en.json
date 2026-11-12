@@ -966,6 +966,7 @@
   "client.settings.key.unavailable": "This connection cannot receive a key.",
   "client.settings.lock.managedFile": "Locked by managed policy",
   "client.settings.lock.managedFilePath": "Locked by managed policy. Policy file: {path}",
+  "client.settings.lock.managedOnly": "Only managed settings can change this",
   "client.settings.lock.managedPolicy": "Locked by managed policy (a mechanism outside files)",
   "client.settings.origin.engineOffline": "You can change this once the engine is connected",
   "client.settings.pending.nextTurn": "Applies from the next turn",

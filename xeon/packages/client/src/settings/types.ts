@@ -75,8 +75,11 @@ export interface RuntimeBadge {
 }
 
 export interface LockInfo {
-  /** 잠금 사유의 종류. 문장이 아니다(§4.8.3) */
-  readonly reason: SettingLockReason;
+  /**
+   * 잠금 사유의 종류. 문장이 아니다(§4.8.3). `managed_only`는 정의가 관리 범위만 허용해 관리 값이 없어도 못 바꾸는 경우다.
+   * 정의에서 읽는 사실이라 F의 `lockReason`에는 없고 view-model이 정한다.
+   */
+  readonly reason: SettingLockReason | "managed_only";
   /** 정책 파일 경로. `managed_file`에서만 값이 있다 */
   readonly path: string | null;
   readonly text: string;

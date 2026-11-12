@@ -92,6 +92,27 @@ export function lockInfo(setting: EffectiveSetting): LockInfo | null {
   };
 }
 
+/**
+ * 정의가 관리 범위만 허용하면(`allowedScopes`가 `managed`뿐) 관리 값이 없어도 바꿀 수 없다. 그 사실의 잠금 문구다(§4.8.3).
+ * 관리 값이 있으면 `lockInfo`가 맡는다.
+ */
+function managedOnlyLockOf(def: SettingDefWire): LockInfo | null {
+  if (!def.allowedScopes.every((scope) => scope === "managed")) return null;
+  return { reason: "managed_only", path: null, text: t("client.settings.lock.managedOnly") };
+}
+
+/**
+ * 항목의 잠금 문구. 관리 값이 정한 잠금이 먼저이고, 없으면 정의가 관리 범위만 허용하는 잠금이다.
+ * 둘 다 없으면 null이다.
+ */
+export function lockOf(
+  def: SettingDefWire,
+  setting: EffectiveSetting | undefined,
+): LockInfo | null {
+  if (setting !== undefined && setting.locked) return lockInfo(setting);
+  return managedOnlyLockOf(def);
+}
+
 /** 폐기 정보. 대체 키의 라벨은 같은 카탈로그에서 찾는다 */
 export function deprecatedInfo(
   def: SettingDefWire,
