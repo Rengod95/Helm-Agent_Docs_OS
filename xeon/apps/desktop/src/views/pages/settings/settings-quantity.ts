@@ -36,6 +36,10 @@ const UNIT_OF_KEY: ReadonlyMap<SettingKey, QuantityUnit> = new Map([
   ["l1.persistence.retention.maxAgeDays", "days"],
   ["l1.persistence.retention.maxCount", "count"],
   ["l1.tools.unattended.timeoutSeconds", "seconds"],
+  // 시크릿 고급(DP-85)
+  ["l0.secrets.lease.ttlSeconds", "seconds"],
+  ["l0.secrets.lease.maxUses", "count"],
+  ["l0.secrets.audit.retentionDays", "days"],
 ]);
 
 /** 0이 "제한 없음"인 키. 칸을 비우면 0으로 저장하고, 0이면 칸을 비워 자리 글을 보인다 */

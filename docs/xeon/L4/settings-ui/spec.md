@@ -1060,8 +1060,8 @@ sequenceDiagram
    |---|---|---|
    | 앱 | 일반 | 언어와 창(`l4.ui.locale`, `l4.desktop.window.closeBehavior`), 화면(테마, 움직임, 확대, 기록 자세히), 정보(버전, 업데이트) |
    | 앱 | 알림 | OS 알림(데스크톱 로컬 키) |
-   | 에이전트 | 모델과 계정 | 계정과 제공자, 계정 회전, 쓸 모델(기본·허용·차단) |
-   | 에이전트 | 시크릿 | 시크릿 관리 패널, 시크릿 사용 승인 |
+   | 에이전트 | 모델과 계정 | 제공자 카드(`l1.models.providers`), 계정 풀과 회전(`l1.models.accounts`, 회전 플러그인 키), 쓸 모델(`l1.models.default`·`allowedModels`·`deniedModels`). 셋 다 전용 패널이다(L4.desktop-ux DP-83, DP-84) |
+   | 에이전트 | 시크릿 | 시크릿 표와 상세 시트, 시크릿 사용 승인, 고급(접힘: 저장소·lease·감사 보관 키 7개)(DP-85) |
    | 에이전트 | 권한 | 승인 방식, 신뢰 폴더, 웹 접근 정책 |
    | 에이전트 | 샌드박스 | `l0.sandbox.*` 중 사용자가 정할 것 |
    | 에이전트 | 도구와 MCP | MCP 서버, MCP 정책, 검색, 스킬과 명령 |
@@ -1074,6 +1074,7 @@ sequenceDiagram
 2. 구역에 둘 키는 앱의 구역 표(`apps/desktop/src/views/pages/settings/settings-sections.ts` `SETTINGS_SECTIONS`)가 정한다. 정의의 `ui.tab`은 화면 배치에 쓰지 않는다. 같은 키는 두 구역에 들지 않는다(`settings-sections.test.ts`).
 3. 표에 없는 키는 화면에 그리지 않고 찾기에도 나오지 않는다. 엔진 정의, 기본값, 설정 파일 값은 그대로이고 "파일로 보기"로 고칠 수 있다. 화면에서 뺀 묶음: 예산과 한도(`l1.loop.*`, 이어가기, 추론 예산, 라우팅, 레이트 리밋), 엔진의 OS 알림(`l2.dialog.notify.*`, 알림 구역과 겹침), 서비스와 원격 웹(`l0.process.service.*`, `l4.remote.web.*`, 연결 구역의 실행 방식과 겹침), 운영자 키(저장소 주기, 진단 주소 등).
 4. 설정 점프(`requestSettingsJump`)는 구역 id나 옛 탭 값을 받는다. 키가 표에 있으면 그 키의 구역을 열고, 아니면 받은 구역(옛 탭이면 옮겨 간 구역)을 연다. 연결 열기(`connection.open`)는 `{ tab: "connection" }` 점프다.
+5. [결정: 2026-11-11 사용자] 전용 패널도 자기가 그리는 키를 구역 표에 적는다(`panel(id, keys)`). 그래서 패널이 그리는 키도 한 구역에만 들고, 점프는 그 구역을 열며, 찾기는 맞은 키를 일반 항목 줄로 보인다. 모델과 계정 구역에는 일반 항목 줄이 없다. 시크릿 고급에 넣는 키는 `l0.secrets.providers`, `defaultProvider`, `ageKey.source`, `ageKey.filePath`, `lease.ttlSeconds`, `lease.maxUses`, `audit.retentionDays`다. `sops.binary`, `sops.files`, `redaction.enabled`는 화면에서 뺀다(파일로 보기로 고친다). 옛 "계정 회전" 패널 id(`rotation`)는 계정 패널(`accounts`)에 들어갔다 [근거: apps/desktop/src/views/pages/settings/settings-sections.ts `SETTINGS_SECTIONS`, `SECRET_ADVANCED_KEYS`].
 
 #### 4.12.2 범위 없는 항목 줄
 

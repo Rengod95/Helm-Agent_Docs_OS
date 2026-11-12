@@ -2,13 +2,17 @@ import { describe, expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
 import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabilities";
 import type { SecretAuditEntry, SecretListEntry } from "@fresnel/contracts/wire";
+import type { ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { EngineStoreContext, type EngineMirror } from "../../src/state/engine/index.ts";
 import { createShellStore, ShellStoreContext } from "../../src/state/shell/index.ts";
 import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
+import { UsageLog } from "../../src/views/pages/secrets/secret-audit.tsx";
+import { SecretDetail } from "../../src/views/pages/secrets/secret-detail.tsx";
 import {
   initialSecretsState,
   secretsReducer,
+  secretsViewOf,
   SEARCH_THRESHOLD,
   type SecretsState,
 } from "../../src/views/pages/secrets/secret-model.ts";
@@ -97,6 +101,31 @@ function html(state: SecretsState, shownText: string | null = null): string {
   );
 }
 
+/** 오른쪽 시트 안의 상세. 시트는 서버 렌더에서 닫혀 있으므로 내용 부품을 바로 그린다. 고른 시크릿이 없으면 빈 글 */
+function detailNode(state: SecretsState, shownText: string | null = null): ReactNode {
+  const view = secretsViewOf(state);
+  if (view.selected === null || view.detail === null) return null;
+  return (
+    <SecretDetail
+      entry={view.selected}
+      detail={view.detail}
+      reveal={view.reveal}
+      shownText={shownText}
+      revealAvailable={view.revealAvailable}
+      acting={view.acting}
+      nowMs={NOW}
+      locale="ko"
+      sectionRef={{ current: null }}
+      handlers={handlers.detail}
+      onShowAllUsage={NOOP}
+    />
+  );
+}
+
+function detailHtml(state: SecretsState, shownText: string | null = null): string {
+  return renderToString(detailNode(state, shownText));
+}
+
 function loadedWith(rows: readonly SecretListEntry[]): SecretsState {
   return secretsReducer(initialSecretsState(false), { type: "listLoaded", rows });
 }
@@ -141,7 +170,7 @@ describe("secrets screen server render", () => {
   });
 
   test("the selected value is masked and screen readers hear 값 가려짐, and the shipped gate says why it is locked", () => {
-    const markup = html(loadedWith([ROW]));
+    const markup = detailHtml(loadedWith([ROW]));
     expect(markup).toContain("값 가려짐");
     expect(markup).toContain(
       "이 기기에서는 값 보기를 쓸 수 없어요: 기기 인증(Touch ID나 암호)이 필요해요",
@@ -154,7 +183,7 @@ describe("secrets screen server render", () => {
       type: "reveal",
       view: { status: "revealed", name: ROW.name, hostShown: false, remainingSec: 20 },
     });
-    const markup = html(revealed, SECRET_TEXT);
+    const markup = detailHtml(revealed, SECRET_TEXT);
     expect(markup).toContain(SECRET_TEXT);
     expect(markup).toContain("20초 뒤 가려요");
     expect(JSON.stringify(revealed)).not.toContain(SECRET_TEXT);
@@ -195,14 +224,14 @@ describe("secrets screen server render", () => {
     ];
 
     test("a loaded log shows when, how, the host and the refusal reason, and no value", () => {
-      const markup = html(
+      const markup = detailHtml(
         withAudit({
           type: "audit",
           name: ROW.name,
           load: { kind: "ready", value: { entries: [...AUDIT_ENTRIES] } },
         }),
       );
-      expect(markup).toContain("사용 기록");
+      expect(markup).toContain("최근 사용");
       expect(markup).toContain("요청 헤더");
       expect(markup).toContain("허용하지 않은 호스트");
       expect(markup).toContain("거절");
@@ -213,7 +242,7 @@ describe("secrets screen server render", () => {
     });
 
     test("an empty log, a loading log and a failed log each say what they are", () => {
-      const empty = html(
+      const empty = detailHtml(
         withAudit({
           type: "audit",
           name: ROW.name,
@@ -221,9 +250,11 @@ describe("secrets screen server render", () => {
         }),
       );
       expect(empty).toContain("아직 쓴 기록이 없어요.");
-      const loading = html(withAudit({ type: "audit", name: ROW.name, load: { kind: "loading" } }));
+      const loading = detailHtml(
+        withAudit({ type: "audit", name: ROW.name, load: { kind: "loading" } }),
+      );
       expect(loading).toContain("사용 기록을 불러오는 중이에요.");
-      const failed = html(
+      const failed = detailHtml(
         withAudit({
           type: "audit",
           name: ROW.name,
@@ -233,7 +264,7 @@ describe("secrets screen server render", () => {
       expect(failed).toContain("연결한 엔진이 시크릿을 아직 지원하지 않아요.");
     });
 
-    test("a log longer than one page draws the first 50 rows and offers the rest", () => {
+    test("the sheet shows the latest five with 모두 보기; the full log pages by 50 and offers the rest", () => {
       const many: SecretAuditEntry[] = Array.from({ length: 120 }, (_, index) => ({
         at: new Date(NOW - (index + 1) * 1000).toISOString(),
         decision: "allow",
@@ -243,15 +274,20 @@ describe("secrets screen server render", () => {
         host: null,
         reason: null,
       }));
-      const markup = html(
+      const markup = detailHtml(
         withAudit({
           type: "audit",
           name: ROW.name,
           load: { kind: "ready", value: { entries: many } },
         }),
       );
-      expect(markup.match(/<li /g)?.length).toBe(50);
-      expect(markup).toContain("더 보기 (70개 남음)");
+      expect(markup.match(/data-slot="audit-row"/g)?.length).toBe(5);
+      expect(markup).toContain("모두 보기");
+      const full = renderToString(
+        <UsageLog audit={{ kind: "ready", value: { entries: many } }} nowMs={NOW} locale="ko" />,
+      );
+      expect(full.match(/data-slot="audit-row"/g)?.length).toBe(50);
+      expect(full).toContain("더 보기 (70개 남음)");
     });
 
     test("a conversation row names the conversation by its title, 제목 없음 when it has none, and a short id when the list does not know it", () => {
@@ -283,15 +319,7 @@ describe("secrets screen server render", () => {
       const mirror = h.store.read.getState();
       const markup = renderToString(
         <EngineStoreContext value={frozenStore(mirror)}>
-          <ShellStoreContext value={createShellStore(1400)}>
-            <SecretsScreenView
-              state={state}
-              shownText={null}
-              locale="ko"
-              nowMs={NOW}
-              handlers={handlers}
-            />
-          </ShellStoreContext>
+          <ShellStoreContext value={createShellStore(1400)}>{detailNode(state)}</ShellStoreContext>
         </EngineStoreContext>,
       );
       expect(markup).toContain("캐시 무효화 조사");
@@ -309,7 +337,7 @@ describe("secrets screen server render", () => {
         load: { kind: "ready", value: { entries: [...AUDIT_ENTRIES] } },
       });
       expect(state.detail?.audit.kind).toBe("idle");
-      expect(html(state)).not.toContain("사용 기록");
+      expect(detailHtml(state)).not.toContain("허용하지 않은 호스트");
     });
   });
 });

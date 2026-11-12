@@ -23,8 +23,11 @@ export type SettingsPanelId =
   | "appearance"
   | "about"
   | "notify"
-  | "rotation"
+  | "providers"
+  | "accounts"
+  | "modelPolicy"
   | "secrets"
+  | "secretsAdvanced"
   | "trust"
   | "mcp"
   | "toolsWeb"
@@ -41,7 +44,12 @@ export type SectionPart =
       readonly title: MessageId | null;
       readonly keys: readonly SettingKey[];
     }
-  | { readonly kind: "panel"; readonly panel: SettingsPanelId };
+  | {
+      readonly kind: "panel";
+      readonly panel: SettingsPanelId;
+      /** 패널이 그리는 설정 키. 찾기와 설정 점프가 이 키를 그 구역으로 본다(찾기 결과는 일반 항목 줄로 그린다) */
+      readonly keys: readonly SettingKey[];
+    };
 
 export interface SectionSpec {
   readonly id: SettingsSectionId;
@@ -55,7 +63,11 @@ const fields = (title: MessageId | null, keys: readonly SettingKey[]): SectionPa
   title,
   keys,
 });
-const panel = (id: SettingsPanelId): SectionPart => ({ kind: "panel", panel: id });
+const panel = (id: SettingsPanelId, keys: readonly SettingKey[] = []): SectionPart => ({
+  kind: "panel",
+  panel: id,
+  keys,
+});
 
 export const SETTINGS_GROUPS: readonly {
   readonly id: SettingsGroupId;
@@ -64,6 +76,20 @@ export const SETTINGS_GROUPS: readonly {
   { id: "app", label: "desktop.settings.group.app" },
   { id: "agent", label: "desktop.settings.group.agent" },
   { id: "engine", label: "desktop.settings.group.engine" },
+];
+
+/**
+ * 시크릿 구역 "고급"에 접어 두는 키(DP-85). 운영자 값(`sops.binary`, `sops.files`)과 관리 범위만 쓰는 읽기 전용 값(`redaction.enabled`)은
+ * 넣지 않는다(파일로 보기)
+ */
+export const SECRET_ADVANCED_KEYS: readonly SettingKey[] = [
+  "l0.secrets.providers",
+  "l0.secrets.defaultProvider",
+  "l0.secrets.ageKey.source",
+  "l0.secrets.ageKey.filePath",
+  "l0.secrets.lease.ttlSeconds",
+  "l0.secrets.lease.maxUses",
+  "l0.secrets.audit.retentionDays",
 ];
 
 export const SETTINGS_SECTIONS: Readonly<Record<SettingsSectionId, SectionSpec>> = {
@@ -90,10 +116,11 @@ export const SETTINGS_SECTIONS: Readonly<Record<SettingsSectionId, SectionSpec>>
     id: "models",
     group: "agent",
     label: "desktop.settings.section.models",
+    // 제공자 카드 → 계정 풀과 회전 → 쓸 모델(DP-83, DP-84 [결정: 2026-11-11 사용자]). 셋 다 전용 패널이다
     parts: [
-      fields("desktop.settings.part.accounts", ["l1.models.accounts", "l1.models.providers"]),
-      panel("rotation"),
-      fields("desktop.settings.part.modelPolicy", [
+      panel("providers", ["l1.models.providers"]),
+      panel("accounts", ["l1.models.accounts"]),
+      panel("modelPolicy", [
         "l1.models.default",
         "l1.models.allowedModels",
         "l1.models.deniedModels",
@@ -104,12 +131,14 @@ export const SETTINGS_SECTIONS: Readonly<Record<SettingsSectionId, SectionSpec>>
     id: "secrets",
     group: "agent",
     label: "desktop.settings.section.secrets",
+    // 목록 표와 상세 시트 → 사용 승인 → 고급(저장소·임대·감사 보관, 접힘)(DP-85 [결정: 2026-11-11 사용자])
     parts: [
       panel("secrets"),
       fields("desktop.settings.part.secretApproval", [
         "l0.secrets.approval.default",
         "l0.secrets.approval.writeHosts",
       ]),
+      panel("secretsAdvanced", SECRET_ADVANCED_KEYS),
     ],
   },
   permissions: {
@@ -257,9 +286,7 @@ export const SETTINGS_SECTIONS: Readonly<Record<SettingsSectionId, SectionSpec>>
 /** 화면에 보이는 키 전부와 그 구역. 같은 키가 두 구역에 들지 않는다(시험이 지킨다) */
 export const SECTION_OF_KEY: ReadonlyMap<SettingKey, SettingsSectionId> = new Map(
   SETTINGS_SECTION_IDS.flatMap((id) =>
-    SETTINGS_SECTIONS[id].parts.flatMap((part) =>
-      part.kind === "fields" ? part.keys.map((key) => [key, id] as const) : [],
-    ),
+    SETTINGS_SECTIONS[id].parts.flatMap((part) => part.keys.map((key) => [key, id] as const)),
   ),
 );
 
@@ -317,9 +344,9 @@ export function shownFieldsOf(
   return map;
 }
 
-/** 구역의 항목 부분을 view-model 항목으로 채운다. 값을 아직 모르는(정의가 없는) 키는 빠진다 */
+/** 구역의 부분(항목 카드나 키를 가진 패널)을 view-model 항목으로 채운다. 값을 아직 모르는(정의가 없는) 키는 빠진다 */
 export function partFieldsOf(
-  part: Extract<SectionPart, { readonly kind: "fields" }>,
+  part: SectionPart,
   shown: ReadonlyMap<SettingKey, FieldVM>,
 ): readonly FieldVM[] {
   return part.keys.flatMap((key) => {
@@ -351,7 +378,7 @@ export function searchSectionsOf(
   if (needle === "") return [];
   return SECTION_ORDER.flatMap((id) => {
     const found = SETTINGS_SECTIONS[id].parts.flatMap((part) =>
-      part.kind === "fields" ? partFieldsOf(part, shown).filter((f) => matches(f, needle)) : [],
+      partFieldsOf(part, shown).filter((f) => matches(f, needle)),
     );
     return found.length === 0 ? [] : [{ section: id, fields: found }];
   });

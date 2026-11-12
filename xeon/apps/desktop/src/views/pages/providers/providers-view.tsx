@@ -1,84 +1,69 @@
-import { PlugArt } from "../../illustrations/index.tsx";
 import {
   Alert,
-  Badge,
   Button,
   Dialog,
+  DialogAction,
   DialogClose,
-  EmptyState,
+  Field,
   IconButton,
   Input,
   Menu,
   MenuItem,
   NumberField,
-  Progress,
+  SegmentedControl,
+  SegmentedControlItem,
   Select,
   SelectOption,
-  Skeleton,
   Switch,
 } from "@caustic/react";
-import { LocalizedTagInput } from "../../localized-tag-input.tsx";
-import { Ellipsis, Lock, TriangleAlert, X } from "@caustic/react/icons";
-import { activeLocale, t } from "@fresnel/client/i18n";
-import type { AccountEntry, RateLimitEntry, RotationState } from "@fresnel/client";
-import type { UsageGauge, UsageUnit } from "@fresnel/contracts/wire";
-import { useState, type ReactNode } from "react";
-import { isCommitEnter } from "../../ime-enter.ts";
-import { TONE_CLASS } from "../settings/settings-text.ts";
-import { InfoTip } from "../../craft/info-tip.tsx";
+import { Ellipsis, Lock, Plus, X } from "@caustic/react/icons";
+import { t } from "@fresnel/client/i18n";
+import { assertNever } from "@fresnel/contracts";
+import type { AccountEntry, RotationState } from "@fresnel/client";
+import type { KeyField } from "@fresnel/client/settings";
+import type { ModelEntry } from "@fresnel/contracts/wire";
+import { useId, useRef, type ReactNode, type RefObject } from "react";
+import { modelOptionsOf, tokenCountText } from "../../model-usage.ts";
 import {
+  FIELD_WIDTH,
   FORM_CONTROL_SIZE,
-  RowNote,
   SettingRow,
   SettingSection,
 } from "../settings/settings-section.tsx";
+import { CheckSteps, type CheckStep } from "../shared/check-steps.tsx";
+import { ModelPicker, modelMetaText } from "../shared/model-picker.tsx";
 import { OrderedList, type OrderedItem } from "../shared/ordered-list.tsx";
+import { providerHostOf, providerMarkOf, providerNameOf } from "../shared/provider-names.ts";
 import {
-  ON_LIMIT_ACTIONS,
-  ROLE_IDS,
   foldOf,
-  usageFractionOf,
-  type ChainMap,
+  modelAccessGroupsOf,
+  type ModelAccessRow,
+  type ProviderCard,
+  type ProviderCheckResult,
   type ProviderPool,
-  type RateRow,
-  type RoleRefs,
-  type RoleId,
+  type ProviderStatus,
+  type UsageTotals,
 } from "./providers-model.ts";
-import {
-  amountRefOf,
-  fieldIdOf,
-  onLimitIdOf,
-  resetTextOf,
-  roleIdOf,
-  unitIdOf,
-  windowIdOf,
-  type FieldName,
-} from "./providers-text.ts";
 
-// 계정과 제공자, 예산과 한도 화면(P-11)의 그림. 상태는 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
-// 값은 `providers-screen.tsx`가 검사해서 넘기고, 이 그림은 보여 주고 콜백을 부를 뿐이다.
-// 그림은 목업 `p11-accounts/parts.tsx`와 `app.tsx`를 따른다. 설명은 정보 아이콘 뒤에, 경고와 오류는 글로 보인다.
+// 설정 "모델과 계정" 구역의 그림(P-11, DP-83·DP-84 [결정: 2026-11-11 사용자]). 상태와 명령은 없고 props만 받는다(서버 렌더 시험이 직접 그린다).
+//   제공자      카드 격자(폭 520 이상 두 열). 카드 = 글자 표지 · 이름 · 스위치 / 상태 점과 글 / 누적 사용량 / 키 넣기 · 시험 · ⋯.
+//               시험을 누르면 카드 아래에 점검 줄(키 저장 → 제공자 연결 → 모델 목록)이 펼쳐진다. 빈 상태는 알려진 제공자 고르기 격자다.
+//   키 연결     대화 상자 하나: 붙여 넣기 또는 저장된 키 고르기 → 저장하고 시험 → 점검 줄. 키 값은 DOM에만 있고 `KeyField.take`가 읽는 즉시 비운다.
+//   계정 풀     회전 줄(무엇이 도는지 보조 글로) + 제공자별 계정 순서 목록. 추가는 대화 상자.
+//   쓸 모델     기본 모델 고르기 + 모델 목록 스위치(끄면 막음) + 고른 모델만 쓰기 규칙.
+
+// ── 공용 조각 ────────────────────────────────────────────────────────────
 
 /** 읽을 수 없는 값의 안내. 그 항목은 고칠 수 없고 파일로 본다 */
-export function UnreadableNote(props: { readonly message: string }): ReactNode {
+function UnreadableNote(props: { readonly message: string }): ReactNode {
   return (
-    <Alert tone="warning" variant="ghost" emphasis="lead" size="sm">
+    <Alert tone="warning" variant="outline" size="sm">
       {props.message}
     </Alert>
   );
 }
 
-/** 칸 검사 실패의 한 줄. 칸 이름과 함께 말한다(목업의 칸 아래 오류 글) */
-function ErrorNote(props: { readonly message: string | null }): ReactNode {
-  if (props.message === null) return null;
-  return (
-    <p role="alert" className="m-0 text-ui text-danger-text">
-      {props.message}
-    </p>
-  );
-}
-
-/** 잠긴 이유의 한 줄(목업 LockNote): 자물쇠 아이콘과 글 하나 */
+/** 잠긴 이유의 한 줄: 자물쇠 아이콘과 글 하나 */
 function LockLine(props: { readonly text: string }): ReactNode {
   return (
     <p className="m-0 flex min-w-0 items-center gap-1.5 text-ui text-text-tertiary">
@@ -88,203 +73,876 @@ function LockLine(props: { readonly text: string }): ReactNode {
   );
 }
 
-export function invalidTextOf(field: FieldName): string {
-  return t("desktop.providers.invalid", { field: t(fieldIdOf(field)) });
-}
-
-// ── 사용량 (이 대화) ────────────────────────────────────────────────────
-
-/** 사용량 패널의 자료. 읽는 중, 읽지 못함, 값이 있음을 나눈다 */
-export type UsageLoad =
-  | { readonly status: "loading" }
-  | { readonly status: "failed"; readonly message: string }
-  | { readonly status: "ready"; readonly gauges: readonly UsageGauge[] };
-
-export interface UsagePanelViewProps {
-  readonly load: UsageLoad;
-  /** 연결이 끊겼으면 참. 마지막으로 읽은 값은 보이지 않는다 */
-  readonly offline: boolean;
-  /** 열린 대화가 있으면 참. 없으면 "이 대화"의 값이 없어 안내만 보인다 */
-  readonly hasThread: boolean;
-  readonly onRetry: () => void;
-}
-
-/** 사용량 패널(P-11 맨 위 블록, 목업 UsageSection). 게이지마다 막대와 글을 한 줄에 그린다 */
-export function UsagePanelView(props: UsagePanelViewProps): ReactNode {
+/** 오류 한 줄(13 danger) */
+function ErrorLine(props: { readonly text: string | null }): ReactNode {
+  if (props.text === null) return null;
   return (
-    <SettingSection body="plain" title={t("desktop.providers.usage.title")}>
-      <UsageBody {...props} />
-    </SettingSection>
+    <p role="alert" className="m-0 text-ui text-danger-text">
+      {props.text}
+    </p>
   );
 }
 
-function UsageBody(props: UsagePanelViewProps): ReactNode {
-  const { load } = props;
-  if (!props.hasThread) {
-    return <EmptyState size="sm" surface="none" title={t("desktop.providers.usage.noThread")} />;
-  }
-  if (props.offline) {
-    return <EmptyState size="sm" surface="none" title={t("desktop.providers.usage.offline")} />;
-  }
-  if (load.status === "loading") return <UsageSkeleton />;
-  if (load.status === "failed") {
-    return (
-      <Alert
-        tone="danger"
-        layout="inline"
-        action={
-          <Button size="xs" variant="outline" onClick={props.onRetry}>
-            {t("desktop.providers.usage.retry")}
-          </Button>
-        }
-      >
-        {load.message}
-      </Alert>
-    );
-  }
-  if (load.gauges.length === 0) {
-    return <EmptyState size="sm" surface="none" title={t("desktop.providers.usage.empty")} />;
-  }
+/** 글자 표지 28×28. 로고 대신 이름 첫 글자다(DP-83) */
+function ProviderMark(props: { readonly mark: string }): ReactNode {
   return (
-    <ul className="m-0 grid list-none gap-1 p-0">
-      {load.gauges.map((gauge) => (
-        <li key={gauge.id}>
-          <UsageRow gauge={gauge} />
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-/** 읽는 중의 자리(목업 d03 D-loading): 줄 세 개. 읽는 중 글은 이름으로만 남는다 */
-function UsageSkeleton(): ReactNode {
-  return (
-    <div
-      role="status"
-      aria-label={t("desktop.providers.usage.loading")}
-      className="grid gap-3 py-1"
+    <span
+      aria-hidden
+      className="flex size-7 flex-none items-center justify-center rounded-md bg-neutral-soft text-ui font-semibold text-text-secondary"
     >
-      <Skeleton width="40%" height={12} />
-      <Skeleton width="52%" height={12} />
-      <Skeleton width="28%" height={12} />
+      {props.mark}
+    </span>
+  );
+}
+
+const STATUS_DOT: Readonly<Record<ProviderStatus, string>> = {
+  connected: "bg-success-text",
+  noKey: "bg-warning-text",
+  noModels: "bg-warning-text",
+  missingKey: "bg-danger-text",
+  off: "bg-text-tertiary",
+};
+
+function providerStatusText(card: Pick<ProviderCard, "status" | "modelCount">): string {
+  switch (card.status) {
+    case "connected":
+      return t("desktop.providers.status.connected", { count: card.modelCount });
+    case "noKey":
+      return t("desktop.providers.status.noKey");
+    case "missingKey":
+      return t("desktop.providers.status.missingKey");
+    case "noModels":
+      return t("desktop.providers.status.noModels");
+    case "off":
+      return t("desktop.providers.status.off");
+    default:
+      return assertNever(card.status, "ProviderStatus");
+  }
+}
+
+function usdText(usd: number): string {
+  if (usd > 0 && usd < 0.01) return "< $0.01";
+  return `$${usd.toFixed(2)}`;
+}
+
+/** 누적 사용량 한 줄: "지금까지 1.2M 토큰 · $3.40 · 120회" */
+export function usageLineOf(usage: UsageTotals): string {
+  return t("desktop.providers.usage.line", {
+    tokens: tokenCountText(usage.tokens),
+    usd: usdText(usage.usd),
+    requests: usage.requests,
+  });
+}
+
+// ── 연결 시험 줄 ─────────────────────────────────────────────────────────
+
+const CHECK_LABEL = {
+  stored: "desktop.providers.check.stored",
+  linked: "desktop.providers.check.linked",
+  models: "desktop.providers.check.models",
+} as const;
+
+/** 시험 결과를 점검 줄 단계로. 고치는 동작은 키 넣기(저장·연결 실패)와 켜기(꺼짐)다 */
+export function providerStepsOf(
+  results: readonly ProviderCheckResult[],
+  actions: { readonly onKey: () => void; readonly onEnable: () => void },
+): readonly CheckStep[] {
+  return results.map((result): CheckStep => {
+    const label = t(CHECK_LABEL[result.id]);
+    if (result.state !== "passed" && result.state !== "failed") {
+      return { id: result.id, label, state: result.state };
+    }
+    const base = { id: result.id, label, state: result.state, elapsedMs: result.elapsedMs };
+    const reason = result.reason;
+    switch (reason.kind) {
+      case "stored":
+        return {
+          ...base,
+          detail:
+            reason.length === null
+              ? t("desktop.providers.check.detail.storedPlain")
+              : t("desktop.providers.check.detail.stored", { length: reason.length }),
+        };
+      case "linked":
+        return { ...base, detail: t("desktop.providers.check.detail.linked") };
+      case "models":
+        return {
+          ...base,
+          detail: t("desktop.providers.check.detail.models", { count: reason.count }),
+        };
+      case "noKey":
+      case "missing":
+      case "notLinked":
+        return {
+          ...base,
+          detail: t(
+            reason.kind === "noKey"
+              ? "desktop.providers.check.detail.noKey"
+              : reason.kind === "missing"
+                ? "desktop.providers.check.detail.missing"
+                : "desktop.providers.check.detail.notLinked",
+          ),
+          fix: t("desktop.providers.check.fix.key"),
+          action: { label: t("desktop.providers.key.add"), onAction: actions.onKey },
+        };
+      case "undecryptable":
+        return {
+          ...base,
+          detail: t("desktop.providers.check.detail.undecryptable"),
+          fix: t("desktop.providers.check.fix.undecryptable"),
+          action: { label: t("desktop.providers.key.change"), onAction: actions.onKey },
+        };
+      case "off":
+        return {
+          ...base,
+          detail: t("desktop.providers.check.detail.off"),
+          fix: t("desktop.providers.check.fix.off"),
+          action: { label: t("desktop.providers.check.enable"), onAction: actions.onEnable },
+        };
+      case "noModels":
+        return {
+          ...base,
+          detail: t("desktop.providers.check.detail.noModels"),
+          fix: t("desktop.providers.check.fix.noModels"),
+        };
+      case "error":
+        return { ...base, detail: reason.text };
+      default:
+        return assertNever(reason, "ProviderCheckReason");
+    }
+  });
+}
+
+// ── 제공자 카드 ─────────────────────────────────────────────────────────
+
+interface ProviderCardHandlers {
+  readonly onToggle: (id: string, enabled: boolean) => void;
+  readonly onKey: (id: string) => void;
+  readonly onTest: (id: string) => void;
+  readonly onBaseUrl: (id: string) => void;
+  readonly onRemove: (id: string) => void;
+}
+
+function ProviderCardView(props: {
+  readonly card: ProviderCard;
+  readonly editable: boolean;
+  /** 이 카드의 시험 줄. 시험하지 않았으면 null */
+  readonly steps: readonly CheckStep[] | null;
+  readonly handlers: ProviderCardHandlers;
+}): ReactNode {
+  const { card, editable, handlers } = props;
+  const hasKey = card.secretName !== null;
+  return (
+    <article
+      data-slot="provider-card"
+      data-provider={card.id}
+      data-status={card.status}
+      aria-label={card.name}
+      className="grid min-w-0 content-start gap-3 rounded-xl bg-surface-base px-4 py-3 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]"
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <ProviderMark mark={card.mark} />
+        <div className="grid min-w-0 flex-1">
+          <span className="truncate text-ui font-semibold text-text-primary">{card.name}</span>
+          {card.custom ? (
+            <span className="truncate font-mono text-mono-sm text-text-tertiary">
+              {card.baseUrl ?? card.id}
+            </span>
+          ) : null}
+        </div>
+        <Switch
+          size={FORM_CONTROL_SIZE}
+          aria-label={t("desktop.providers.enabled", { name: card.name })}
+          checked={card.enabled}
+          disabled={!editable}
+          onCheckedChange={(next) => {
+            handlers.onToggle(card.id, next);
+          }}
+        />
+      </div>
+      <div className="grid min-w-0 gap-0.5">
+        <span className="flex min-w-0 items-center gap-1.5 text-ui text-text-secondary">
+          <span
+            aria-hidden
+            className={`size-1.5 flex-none rounded-full ${STATUS_DOT[card.status]}`}
+          />
+          <span className="min-w-0 truncate">{providerStatusText(card)}</span>
+        </span>
+        {card.usage === null ? null : (
+          <span className="truncate ps-3 text-ui-sm text-text-tertiary tabular-nums">
+            {usageLineOf(card.usage)}
+          </span>
+        )}
+      </div>
+      <div className="flex min-w-0 items-center gap-2">
+        <Button
+          size={FORM_CONTROL_SIZE}
+          variant="outline"
+          disabled={!editable}
+          onClick={() => {
+            handlers.onKey(card.id);
+          }}
+        >
+          {t(hasKey ? "desktop.providers.key.change" : "desktop.providers.key.add")}
+        </Button>
+        <Button
+          size={FORM_CONTROL_SIZE}
+          variant="ghost"
+          disabled={!editable || props.steps?.some((step) => step.state === "running") === true}
+          onClick={() => {
+            handlers.onTest(card.id);
+          }}
+        >
+          {t("desktop.check.run")}
+        </Button>
+        <span className="flex-1" />
+        <Menu
+          align="end"
+          trigger={
+            <IconButton
+              size={FORM_CONTROL_SIZE}
+              variant="ghost"
+              label={t("desktop.providers.menu", { name: card.name })}
+              disabled={!editable}
+            >
+              <Ellipsis />
+            </IconButton>
+          }
+        >
+          <MenuItem
+            onSelect={() => {
+              handlers.onBaseUrl(card.id);
+            }}
+          >
+            {t("desktop.providers.menu.baseUrl")}
+          </MenuItem>
+          <MenuItem
+            tone="danger"
+            onSelect={() => {
+              handlers.onRemove(card.id);
+            }}
+          >
+            {t("desktop.providers.menu.remove")}
+          </MenuItem>
+        </Menu>
+      </div>
+      {props.steps === null ? null : (
+        <div className="border-t border-border-subtle pt-3">
+          <CheckSteps
+            label={t("desktop.providers.check.label", { name: card.name })}
+            steps={props.steps}
+            disabled={!editable}
+          />
+        </div>
+      )}
+    </article>
+  );
+}
+
+/** 알려진 제공자 고르기 카드(빈 상태와 추가 대화 상자). 누르는 카드라 hover에 테두리만 한 단계 올린다(DP-66) */
+function ProviderPickCard(props: {
+  readonly id: string | null;
+  readonly disabled: boolean;
+  readonly onPick: () => void;
+}): ReactNode {
+  const name = props.id === null ? t("desktop.providers.custom.title") : providerNameOf(props.id);
+  const sub =
+    props.id === null ? t("desktop.providers.custom.sub") : (providerHostOf(props.id) ?? props.id);
+  return (
+    <button
+      type="button"
+      data-slot="provider-pick"
+      disabled={props.disabled}
+      onClick={props.onPick}
+      className="flex min-h-14 min-w-0 items-center gap-2 rounded-lg bg-surface-base px-3 py-2 text-start shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] transition-shadow outline-none hover:shadow-[inset_0_0_0_1px_var(--cs-color-border-strong)] focus-visible:focus-ring disabled:opacity-50"
+    >
+      {props.id === null ? (
+        <span
+          aria-hidden
+          className="flex size-7 flex-none items-center justify-center rounded-md bg-neutral-soft text-text-secondary"
+        >
+          <Plus className="size-icon-sm" />
+        </span>
+      ) : (
+        <ProviderMark mark={providerMarkOf(props.id)} />
+      )}
+      <span className="grid min-w-0">
+        <span className="truncate text-ui font-medium text-text-primary">{name}</span>
+        <span className="truncate text-ui-sm text-text-tertiary">{sub}</span>
+      </span>
+    </button>
+  );
+}
+
+function PickGrid(props: {
+  readonly addable: readonly string[];
+  readonly disabled: boolean;
+  readonly onPick: (id: string) => void;
+  readonly onCustom: () => void;
+}): ReactNode {
+  return (
+    <div className="@container">
+      <div className="grid grid-cols-1 gap-2 @[30rem]:grid-cols-2">
+        {props.addable.map((id) => (
+          <ProviderPickCard
+            key={id}
+            id={id}
+            disabled={props.disabled}
+            onPick={() => {
+              props.onPick(id);
+            }}
+          />
+        ))}
+        <ProviderPickCard id={null} disabled={props.disabled} onPick={props.onCustom} />
+      </div>
     </div>
   );
 }
 
-function amountTextOf(unit: UsageUnit, amount: number): string {
-  const ref = amountRefOf(unit, amount);
-  return t(ref.id, ref.args);
+export interface ProvidersViewProps {
+  readonly cards: readonly ProviderCard[] | null;
+  /** 읽을 수 없는 값의 안내. 있으면 카드 대신 이것만 */
+  readonly unreadable: string | null;
+  readonly editable: boolean;
+  readonly lockedText: string | null;
+  readonly error: string | null;
+  readonly addable: readonly string[];
+  readonly steps: Readonly<Record<string, readonly CheckStep[]>>;
+  readonly handlers: ProviderCardHandlers & {
+    readonly onAdd: () => void;
+    readonly onPick: (id: string) => void;
+    readonly onCustom: () => void;
+  };
 }
+
+/** 제공자 구역: 머리 + 카드 격자(빈 상태면 고르기 격자) */
+export function ProvidersView(props: ProvidersViewProps): ReactNode {
+  const { cards, editable, handlers } = props;
+  const empty = cards !== null && cards.length === 0;
+  const headingId = useId();
+  // 카드 격자는 카드 안 카드가 되지 않게 바깥 카드 없이 둔다. 머리는 SettingSection과 같은 모양이다(DP-79, DP-83)
+  const end =
+    empty || props.unreadable !== null ? undefined : (
+      <Button
+        size={FORM_CONTROL_SIZE}
+        variant="ghost"
+        disabled={!editable}
+        onClick={handlers.onAdd}
+      >
+        <Plus aria-hidden />
+        {t("desktop.providers.add")}
+      </Button>
+    );
+  return (
+    <section data-slot="setting-section" aria-labelledby={headingId} className="pt-10 first:pt-0">
+      <div className="mb-2 flex min-h-7 items-center gap-2">
+        <h2 id={headingId} className="m-0 min-w-0 flex-1 text-title-2 text-text-primary">
+          {t("desktop.providers.title")}
+        </h2>
+        {end}
+      </div>
+      <div data-slot="providers-body" className="grid gap-2">
+        {props.unreadable !== null ? <UnreadableNote message={props.unreadable} /> : null}
+        {props.unreadable === null && empty ? (
+          <div data-slot="providers-empty" className="grid gap-3">
+            <p className="m-0 text-ui text-text-secondary">{t("desktop.providers.empty.lead")}</p>
+            <PickGrid
+              addable={props.addable}
+              disabled={!editable}
+              onPick={handlers.onPick}
+              onCustom={handlers.onCustom}
+            />
+          </div>
+        ) : null}
+        {props.unreadable === null && cards !== null && cards.length > 0 ? (
+          <div className="@container">
+            <div
+              data-slot="provider-grid"
+              className="grid grid-cols-1 items-start gap-2 @[32rem]:grid-cols-2"
+            >
+              {cards.map((card) => (
+                <ProviderCardView
+                  key={card.id}
+                  card={card}
+                  editable={editable}
+                  steps={props.steps[card.id] ?? null}
+                  handlers={handlers}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {props.lockedText === null ? null : <LockLine text={props.lockedText} />}
+        <ErrorLine text={props.error} />
+      </div>
+    </section>
+  );
+}
+
+// ── 제공자 추가 대화 상자 ─────────────────────────────────────────────────
+
+export interface AddProviderDialogProps {
+  readonly open: boolean;
+  /** 고르기 대신 다른 제공자 칸을 보이는가 */
+  readonly custom: boolean;
+  readonly addable: readonly string[];
+  readonly draftId: string;
+  readonly draftBaseUrl: string;
+  readonly error: string | null;
+  readonly busy: boolean;
+  readonly onPick: (id: string) => void;
+  readonly onCustom: () => void;
+  readonly onDraftId: (text: string) => void;
+  readonly onDraftBaseUrl: (text: string) => void;
+  readonly onSubmitCustom: () => void;
+  readonly onClose: () => void;
+}
+
+export function AddProviderDialog(props: AddProviderDialogProps): ReactNode {
+  return (
+    <Dialog
+      kind="dialog"
+      size="md"
+      open={props.open}
+      onOpenChange={(next) => {
+        if (!next) props.onClose();
+      }}
+      title={t("desktop.providers.add")}
+      description={
+        props.custom ? t("desktop.providers.custom.lead") : t("desktop.providers.addLead")
+      }
+    >
+      {props.custom ? (
+        <form
+          className="grid gap-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            props.onSubmitCustom();
+          }}
+        >
+          <Field label={t("desktop.providers.custom.id")} size={FORM_CONTROL_SIZE}>
+            <Input
+              size={FORM_CONTROL_SIZE}
+              containerClassName={FIELD_WIDTH.medium}
+              className="font-mono"
+              value={props.draftId}
+              placeholder={t("desktop.providers.custom.idPlaceholder")}
+              autoComplete="off"
+              spellCheck={false}
+              disabled={props.busy}
+              onValueChange={props.onDraftId}
+            />
+          </Field>
+          <Field label={t("desktop.providers.baseUrl.label")} size={FORM_CONTROL_SIZE}>
+            <Input
+              size={FORM_CONTROL_SIZE}
+              containerClassName={FIELD_WIDTH.full}
+              className="font-mono"
+              value={props.draftBaseUrl}
+              placeholder="https://"
+              autoComplete="off"
+              spellCheck={false}
+              disabled={props.busy}
+              onValueChange={props.onDraftBaseUrl}
+            />
+          </Field>
+          <ErrorLine text={props.error} />
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              type="button"
+              size={FORM_CONTROL_SIZE}
+              variant="ghost"
+              disabled={props.busy}
+              onClick={props.onClose}
+            >
+              {t("desktop.providers.cancel")}
+            </Button>
+            <Button type="submit" size={FORM_CONTROL_SIZE} variant="solid" loading={props.busy}>
+              {t("desktop.providers.custom.submit")}
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <PickGrid
+          addable={props.addable}
+          disabled={props.busy}
+          onPick={props.onPick}
+          onCustom={props.onCustom}
+        />
+      )}
+    </Dialog>
+  );
+}
+
+// ── 키 넣기 (붙여 넣기 또는 저장된 키) ────────────────────────────────────
+
+/** 키 칸의 방식. 붙여 넣기는 새 시크릿을 만들고, 저장된 키는 있는 시크릿을 가리킨다 */
+export type KeySource = "paste" | "pick";
 
 /**
- * 게이지 한 줄(목업 Gauge). 이름, 막대, 쓴 양과 한도 글을 한 줄에 둔다. 한도를 모르면 막대 대신 빈 막대 자리와
- * "한도 모름"을 보인다(숫자를 지어내지 않는다). 재설정 시각은 알 때만 정보 아이콘 뒤에 있다. 줄의 이름은 스크린 리더 문장이다.
+ * 키 입력 칸. 붙여 넣기 칸은 비제어 password 입력이라 값은 DOM에만 있다. 제출하면 `take()`가 읽는 즉시 비운다.
+ * 저장된 키가 있으면 위에 [붙여 넣기 | 저장된 키] 고르기가 있다.
  */
-function UsageRow(props: { readonly gauge: UsageGauge }): ReactNode {
-  const { gauge } = props;
-  const name = gauge.account === null ? gauge.providerId : `${gauge.providerId} ${gauge.account}`;
-  const unit = t(unitIdOf(gauge.unit));
-  const windowId = windowIdOf(gauge.window);
-  const label =
-    windowId === null
-      ? t("desktop.providers.usage.label", { name, unit })
-      : t("desktop.providers.usage.windowedLabel", { name, window: t(windowId), unit });
-  const value = amountTextOf(gauge.unit, gauge.used);
-  const limitText =
-    gauge.limit === null
-      ? t("desktop.providers.usage.limitUnknown")
-      : t("desktop.providers.usage.limit", { limit: amountTextOf(gauge.unit, gauge.limit) });
-  const resetText =
-    gauge.resetsAt === null
-      ? null
-      : t("desktop.providers.usage.resets", {
-          time: resetTextOf(gauge.resetsAt, activeLocale()),
-        });
-  const sentence = t("desktop.providers.usage.sentence", { label, value, limit: limitText });
-  const fraction = usageFractionOf(gauge);
+function KeyInput(props: {
+  readonly source: KeySource;
+  readonly secretName: string;
+  readonly secrets: readonly string[];
+  readonly picked: string | null;
+  readonly busy: boolean;
+  readonly inputRef: RefObject<HTMLInputElement | null>;
+  readonly onSource: (source: KeySource) => void;
+  readonly onPicked: (name: string) => void;
+}): ReactNode {
+  // 입력 참조는 따로 꺼낸다. props째로 들고 있으면 다른 props를 읽는 것도 참조 읽기로 본다(react refs 규칙)
+  const { inputRef, busy } = props;
   return (
-    <div
-      role="group"
-      aria-label={sentence}
-      className="flex min-w-0 items-center gap-3 py-1 text-ui"
-    >
-      <span className="w-36 flex-none truncate text-text-secondary">{label}</span>
-      {fraction === null ? (
-        <span aria-hidden className="h-1 min-w-0 flex-1 rounded-full bg-neutral-soft" />
-      ) : (
-        <Progress className="min-w-0 flex-1" value={fraction} size="sm" decorative />
+    <div className="grid gap-3">
+      {props.secrets.length === 0 ? null : (
+        <SegmentedControl
+          size={FORM_CONTROL_SIZE}
+          aria-label={t("desktop.providers.key.source")}
+          value={props.source}
+          className="justify-self-start"
+          onValueChange={(value) => {
+            props.onSource(value === "pick" ? "pick" : "paste");
+          }}
+        >
+          <SegmentedControlItem value="paste">
+            {t("desktop.providers.key.paste")}
+          </SegmentedControlItem>
+          <SegmentedControlItem value="pick">
+            {t("desktop.providers.key.pick")}
+          </SegmentedControlItem>
+        </SegmentedControl>
       )}
-      <span className="flex flex-none items-center gap-2 tabular-nums">
-        <span className="font-mono text-mono text-text-primary">{value}</span>
-        <span className="text-ui text-text-tertiary">{limitText}</span>
-        {resetText === null ? null : <InfoTip text={resetText} />}
-      </span>
+      {props.source === "paste" ? (
+        <Field
+          label={t("desktop.providers.key.valueLabel")}
+          size={FORM_CONTROL_SIZE}
+          hint={t("desktop.providers.key.where", { secret: props.secretName })}
+        >
+          <Input
+            ref={inputRef}
+            size={FORM_CONTROL_SIZE}
+            type="password"
+            containerClassName={FIELD_WIDTH.full}
+            placeholder={t("desktop.providers.key.placeholder")}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            defaultValue=""
+            disabled={busy}
+          />
+        </Field>
+      ) : (
+        <Field label={t("desktop.providers.key.pickLabel")} size={FORM_CONTROL_SIZE}>
+          <Select
+            size={FORM_CONTROL_SIZE}
+            className={FIELD_WIDTH.medium}
+            value={props.picked ?? ""}
+            placeholder={t("desktop.providers.key.pickPlaceholder")}
+            disabled={busy}
+            onValueChange={props.onPicked}
+          >
+            {props.secrets.map((name) => (
+              <SelectOption key={name} value={name}>
+                {name}
+              </SelectOption>
+            ))}
+          </Select>
+        </Field>
+      )}
     </div>
   );
 }
 
-// ── 계정 회전 행 ─────────────────────────────────────────────────────────
+/** 키 연결 대화 상자의 단계 */
+export type KeyDialogPhase =
+  | { readonly kind: "entry"; readonly error: string | null }
+  /** 호스트가 자기 창에서 값을 받는다. 다 넣으면 시험한다 */
+  | { readonly kind: "hostWindow" }
+  | { readonly kind: "checking"; readonly steps: readonly CheckStep[] };
 
-/** 회전 행의 자료. `state`가 null이면 엔진 카탈로그에 설정 값이 없다는 뜻이다 */
-export interface RotationRowViewProps {
-  readonly state: RotationState | null;
-  /** 위험 고지 문장(client `modelAccountsView().rotation.notice`) */
-  readonly notice: string;
-  readonly editable: boolean;
-  /** 바꿀 수 없는 이유의 문장. 바꿀 수 있으면 null */
-  readonly lockedText: string | null;
-  /** 마지막 저장 오류의 문장. 없으면 null */
+export interface KeyDialogProps {
+  readonly open: boolean;
+  readonly providerName: string;
+  readonly secretName: string;
+  readonly phase: KeyDialogPhase;
+  readonly source: KeySource;
+  readonly secrets: readonly string[];
+  readonly picked: string | null;
+  readonly busy: boolean;
+  readonly onSource: (source: KeySource) => void;
+  readonly onPicked: (name: string) => void;
+  readonly onSubmitPaste: (field: KeyField) => void;
+  readonly onSubmitPick: () => void;
+  readonly onHostDone: () => void;
+  readonly onRetry: () => void;
+  readonly onClose: () => void;
+}
+
+export function KeyDialog(props: KeyDialogProps): ReactNode {
+  const input = useRef<HTMLInputElement | null>(null);
+  const { phase } = props;
+  const clear = (): void => {
+    if (input.current !== null) input.current.value = "";
+  };
+  const close = (): void => {
+    clear();
+    props.onClose();
+  };
+  const running = phase.kind === "checking" && phase.steps.some((s) => s.state === "running");
+  return (
+    <Dialog
+      kind="dialog"
+      size="md"
+      open={props.open}
+      onOpenChange={(next) => {
+        if (!next) close();
+      }}
+      title={t("desktop.providers.keyDialog.title", { name: props.providerName })}
+    >
+      {phase.kind === "entry" ? (
+        <form
+          className="grid gap-3"
+          autoComplete="off"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (props.source === "pick") {
+              props.onSubmitPick();
+              return;
+            }
+            props.onSubmitPaste({
+              take: () => {
+                const typed = input.current?.value ?? "";
+                clear();
+                return typed;
+              },
+            });
+          }}
+        >
+          <KeyInput
+            source={props.source}
+            secretName={props.secretName}
+            secrets={props.secrets}
+            picked={props.picked}
+            busy={props.busy}
+            inputRef={input}
+            onSource={props.onSource}
+            onPicked={props.onPicked}
+          />
+          <ErrorLine text={phase.error} />
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              type="button"
+              size={FORM_CONTROL_SIZE}
+              variant="ghost"
+              disabled={props.busy}
+              onClick={close}
+            >
+              {t("desktop.providers.cancel")}
+            </Button>
+            <Button
+              type="submit"
+              size={FORM_CONTROL_SIZE}
+              variant="solid"
+              loading={props.busy}
+              disabled={props.source === "pick" && props.picked === null}
+            >
+              {t("desktop.providers.key.submit")}
+            </Button>
+          </div>
+        </form>
+      ) : null}
+      {phase.kind === "hostWindow" ? (
+        <div className="grid gap-3">
+          <p className="m-0 text-ui text-text-secondary">{t("desktop.providers.key.hostWindow")}</p>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button size={FORM_CONTROL_SIZE} variant="ghost" onClick={close}>
+              {t("desktop.providers.cancel")}
+            </Button>
+            <Button
+              size={FORM_CONTROL_SIZE}
+              variant="solid"
+              loading={props.busy}
+              onClick={props.onHostDone}
+            >
+              {t("desktop.providers.key.hostDone")}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      {phase.kind === "checking" ? (
+        <div className="grid gap-4">
+          <CheckSteps
+            label={t("desktop.providers.check.label", { name: props.providerName })}
+            steps={phase.steps}
+            onRetry={props.onRetry}
+          />
+          <div className="flex justify-end gap-2">
+            <DialogClose asChild>
+              <Button size={FORM_CONTROL_SIZE} variant="solid" disabled={running}>
+                {t("desktop.providers.key.done")}
+              </Button>
+            </DialogClose>
+          </div>
+        </div>
+      ) : null}
+    </Dialog>
+  );
+}
+
+// ── 기본 URL, 빼기 ──────────────────────────────────────────────────────
+
+export function BaseUrlDialog(props: {
+  readonly open: boolean;
+  readonly providerName: string;
+  readonly draft: string;
   readonly error: string | null;
-  /** 위험 확인 대화 상자가 열려 있는가 */
+  readonly onDraft: (text: string) => void;
+  readonly onSave: () => void;
+  readonly onClose: () => void;
+}): ReactNode {
+  return (
+    <Dialog
+      kind="dialog"
+      size="md"
+      open={props.open}
+      onOpenChange={(next) => {
+        if (!next) props.onClose();
+      }}
+      title={t("desktop.providers.baseUrl.title", { name: props.providerName })}
+    >
+      <form
+        className="grid gap-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          props.onSave();
+        }}
+      >
+        <Field
+          label={t("desktop.providers.baseUrl.label")}
+          size={FORM_CONTROL_SIZE}
+          hint={t("desktop.providers.baseUrl.hint")}
+        >
+          <Input
+            size={FORM_CONTROL_SIZE}
+            containerClassName={FIELD_WIDTH.full}
+            className="font-mono"
+            value={props.draft}
+            placeholder="https://"
+            autoComplete="off"
+            spellCheck={false}
+            onValueChange={props.onDraft}
+          />
+        </Field>
+        <ErrorLine text={props.error} />
+        <div className="flex justify-end gap-2 pt-1">
+          <Button type="button" size={FORM_CONTROL_SIZE} variant="ghost" onClick={props.onClose}>
+            {t("desktop.providers.cancel")}
+          </Button>
+          <Button type="submit" size={FORM_CONTROL_SIZE} variant="solid">
+            {t("desktop.providers.save")}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+export function RemoveProviderDialog(props: {
+  readonly open: boolean;
+  readonly providerName: string;
+  readonly onConfirm: () => void;
+  readonly onClose: () => void;
+}): ReactNode {
+  return (
+    <Dialog
+      kind="alert"
+      size="sm"
+      tone="danger"
+      open={props.open}
+      onOpenChange={(next) => {
+        if (!next) props.onClose();
+      }}
+      title={t("desktop.providers.remove.title", { name: props.providerName })}
+      description={t("desktop.providers.remove.body")}
+      footer={
+        <>
+          <DialogClose asChild>
+            <Button size={FORM_CONTROL_SIZE} variant="outline" autoFocus>
+              {t("desktop.providers.cancel")}
+            </Button>
+          </DialogClose>
+          <DialogAction onClick={props.onConfirm}>
+            {t("desktop.providers.remove.confirm")}
+          </DialogAction>
+        </>
+      }
+    />
+  );
+}
+
+// ── 계정 풀과 회전 ───────────────────────────────────────────────────────
+
+export interface RotationRowProps {
+  /** null이면 엔진 카탈로그에 회전 키가 없다 */
+  readonly state: RotationState | null;
+  readonly notice: string;
+  readonly pools: readonly ProviderPool[];
+  readonly editable: boolean;
+  readonly lockedText: string | null;
+  readonly error: string | null;
   readonly asking: boolean;
   readonly onToggle: (next: boolean) => void;
   readonly onConfirm: () => void;
   readonly onCancel: () => void;
 }
 
-/**
- * 계정 회전 행(P-11, 목업 계정 회전 줄). 글 제목, 스위치, 그리고 회전이 도는 `on`에서만 "위험 확인함" 배지다.
- * 고지에 동의하지 않은 채 켜면 위험 확인 대화 상자(caustic `Dialog kind="alert"`)가 먼저 뜬다.
- */
-export function RotationRowView(props: RotationRowViewProps): ReactNode {
-  const { state, editable } = props;
+/** 회전 줄의 보조 글: 무엇이 도는지. 꺼짐, 돌 계정 없음, "Anthropic 2개 · OpenAI 3개를 차례로 써요" */
+export function rotationSummaryOf(
+  state: RotationState | null,
+  pools: readonly ProviderPool[],
+): string {
+  if (state !== "on") return t("desktop.providers.rotation.summary.off");
+  const rotating = pools.filter((pool) => pool.accounts.length > 1);
+  if (rotating.length === 0) return t("desktop.providers.rotation.summary.none");
+  const list = rotating
+    .map((pool) =>
+      t("desktop.providers.rotation.summary.pool", {
+        name: providerNameOf(pool.provider),
+        count: pool.accounts.length,
+      }),
+    )
+    .join(" · ");
+  return t("desktop.providers.rotation.summary.on", { list });
+}
+
+/** 회전 줄: 이름표 + 정보 아이콘(위험 고지 전문) + 무엇이 도는지(보조 글), 오른쪽 스위치. 배지를 따로 두지 않는다 */
+export function RotationRow(props: RotationRowProps): ReactNode {
   const title = t("desktop.providers.rotation.title");
   return (
     <>
-      {/* 설정 한 줄(SettingRow): 이름표·배지는 왼쪽, 스위치는 같은 줄 오른쪽. 경고·잠금·오류는 줄 아래(DP-76) */}
       <SettingRow
         slot="rotation-row"
         label={title}
-        badges={
-          state === "on" ? (
-            <Badge size="sm" className={TONE_CLASS.warning} icon={<TriangleAlert />}>
-              {t("desktop.providers.rotation.acknowledged")}
-            </Badge>
-          ) : undefined
-        }
+        info={[t("desktop.providers.rotation.help"), props.notice]}
+        description={rotationSummaryOf(props.state, props.pools)}
         control={
           <Switch
             size={FORM_CONTROL_SIZE}
             aria-label={title}
-            checked={state === "on"}
-            disabled={!editable}
-            onCheckedChange={(next) => {
-              props.onToggle(next);
-            }}
+            checked={props.state === "on"}
+            disabled={!props.editable}
+            onCheckedChange={props.onToggle}
           />
         }
         notes={
-          state === "needsNotice" || props.lockedText !== null || props.error !== null ? (
+          props.lockedText !== null || props.error !== null ? (
             <>
-              {state === "needsNotice" ? (
-                <RowNote>{t("desktop.providers.rotation.warning")}</RowNote>
-              ) : null}
               {props.lockedText === null ? null : <LockLine text={props.lockedText} />}
-              {props.error === null ? null : (
-                <p role="alert" className="m-0 text-ui text-danger-text">
-                  {props.error}
-                </p>
-              )}
+              <ErrorLine text={props.error} />
             </>
           ) : undefined
         }
@@ -302,11 +960,11 @@ export function RotationRowView(props: RotationRowViewProps): ReactNode {
         footer={
           <>
             <DialogClose asChild>
-              <Button size="sm" variant="outline" autoFocus>
+              <Button size={FORM_CONTROL_SIZE} variant="outline" autoFocus>
                 {t("desktop.providers.rotation.confirm.cancel")}
               </Button>
             </DialogClose>
-            <Button size="sm" variant="solid" onClick={props.onConfirm}>
+            <Button size={FORM_CONTROL_SIZE} variant="solid" onClick={props.onConfirm}>
               {t("desktop.providers.rotation.confirm.accept")}
             </Button>
           </>
@@ -316,169 +974,38 @@ export function RotationRowView(props: RotationRowViewProps): ReactNode {
   );
 }
 
-// ── 계정 풀 ──────────────────────────────────────────────────────────────
-
-export interface AccountDraft {
-  readonly provider: string;
-  readonly accountId: string;
-  readonly credential: string;
-  readonly priority: number;
-  readonly reservePct: number;
-}
-
-export const EMPTY_ACCOUNT_DRAFT: AccountDraft = {
-  provider: "",
-  accountId: "",
-  credential: "",
-  priority: 100,
-  reservePct: 0,
-};
-
-export interface AccountPoolViewProps {
+export interface AccountPoolProps {
   readonly pools: readonly ProviderPool[];
   readonly expanded: ReadonlySet<string>;
   readonly editable: boolean;
-  readonly draft: AccountDraft;
-  readonly error: string | null;
-  readonly onDraft: (next: AccountDraft) => void;
-  readonly onAdd: () => void;
   readonly onExpand: (provider: string) => void;
   readonly onMove: (provider: string, orderedIds: readonly string[]) => void;
-  readonly onPriority: (entry: AccountEntry, priority: number) => void;
-  /** 예비율 칸을 바꿨다. 검사는 화면이 한다(`onPriority`와 같은 길) */
   readonly onReserve: (entry: AccountEntry, reservePct: number) => void;
   readonly onRemove: (entry: AccountEntry) => void;
 }
 
-export function AccountPoolView(props: AccountPoolViewProps): ReactNode {
-  const { pools, editable } = props;
-  // 계정이 하나도 없으면 입력 칸 대신 빈 상태를 보이고, "계정 추가"를 누르면 칸이 열린다(시안 d03 D-empty)
-  const [adding, setAdding] = useState(false);
-  const formShown = pools.length > 0 || adding;
-  return (
-    <div className="grid">
-      {pools.length === 0 ? (
-        <EmptyState
-          media={<PlugArt />}
-          size="sm"
-          surface="none"
-          title={t("desktop.providers.pool.empty")}
-          actions={
-            formShown ? undefined : (
-              <Button
-                size={FORM_CONTROL_SIZE}
-                variant="outline"
-                disabled={!editable}
-                onClick={() => {
-                  setAdding(true);
-                }}
-              >
-                {t("desktop.providers.pool.add")}
-              </Button>
-            )
-          }
-        />
-      ) : (
-        pools.map((pool) => <PoolGroup key={pool.provider} pool={pool} {...props} />)
-      )}
-      {formShown ? (
-        <AccountAddForm
-          draft={props.draft}
-          editable={editable}
-          onDraft={props.onDraft}
-          onAdd={props.onAdd}
-        />
-      ) : null}
-      <ErrorNote message={props.error} />
-    </div>
-  );
-}
-
-function PoolGroup(props: AccountPoolViewProps & { readonly pool: ProviderPool }): ReactNode {
-  const { pool, expanded, editable } = props;
-  const fold = foldOf(pool.accounts, expanded.has(pool.provider));
-  const items: OrderedItem[] = fold.shown.map((entry) => ({
-    id: entry.accountId,
-    title: entry.accountId,
-    detail: <span className="font-mono text-mono-sm text-text-tertiary">{entry.credential}</span>,
-    end: (
-      <AccountCells
-        entry={entry}
-        editable={editable}
-        onPriority={props.onPriority}
-        onReserve={props.onReserve}
-        onRemove={props.onRemove}
-      />
-    ),
-  }));
-  return (
-    <SettingSection body="plain" title={pool.provider}>
-      <OrderedList
-        label={t("desktop.providers.pool.listLabel", { provider: pool.provider })}
-        items={items}
-        editable={editable}
-        onMove={(order) => {
-          props.onMove(pool.provider, order);
-        }}
-      />
-      {fold.hidden === 0 ? null : (
-        <div className="flex items-center gap-2">
-          <span className="text-ui text-text-tertiary">
-            {t("desktop.providers.pool.hidden", { count: fold.hidden })}
-          </span>
-          <Button
-            size="xs"
-            variant="ghost"
-            onClick={() => {
-              props.onExpand(pool.provider);
-            }}
-          >
-            {t("desktop.providers.pool.expand")}
-          </Button>
-        </div>
-      )}
-    </SettingSection>
-  );
-}
-
-/** 계정 한 줄의 끝 칸(목업 AccountGrid의 우선, 예비 %, 메뉴). 메뉴에는 지우기만 있다 */
-function AccountCells(props: {
+/** 계정 줄 끝: 예비 %(짧은 폭) · ⋯(빼기) */
+function AccountEnd(props: {
   readonly entry: AccountEntry;
   readonly editable: boolean;
-  readonly onPriority: (entry: AccountEntry, priority: number) => void;
   readonly onReserve: (entry: AccountEntry, reservePct: number) => void;
   readonly onRemove: (entry: AccountEntry) => void;
 }): ReactNode {
-  const { entry, editable } = props;
+  const { entry } = props;
   return (
     <span className="flex items-center gap-2">
-      <span className="text-ui text-text-tertiary">{t("desktop.providers.field.priority")}</span>
-      <NumberField
-        size="xs"
-        containerClassName="w-24"
-        aria-label={`${entry.accountId} ${t("desktop.providers.field.priority")}`}
-        value={entry.priority}
-        min={0}
-        max={1000}
-        step={1}
-        commitMode="release"
-        disabled={!editable}
-        onValueChange={(next) => {
-          props.onPriority(entry, next);
-        }}
-      />
       <span className="text-ui text-text-tertiary">{t("desktop.providers.field.reservePct")}</span>
       <NumberField
-        size="xs"
+        size={FORM_CONTROL_SIZE}
         unit="%"
-        containerClassName="w-24"
-        aria-label={`${entry.accountId} ${t("desktop.providers.field.reservePct")}`}
+        containerClassName={FIELD_WIDTH.short}
+        aria-label={t("desktop.providers.pool.reserveLabel", { account: entry.accountId })}
         value={entry.reservePct}
         min={0}
         max={100}
         step={1}
         commitMode="release"
-        disabled={!editable}
+        disabled={!props.editable}
         onValueChange={(next) => {
           props.onReserve(entry, next);
         }}
@@ -487,10 +1014,10 @@ function AccountCells(props: {
         align="end"
         trigger={
           <IconButton
-            size="xs"
+            size={FORM_CONTROL_SIZE}
             variant="ghost"
             label={t("desktop.providers.pool.menu", { account: entry.accountId })}
-            disabled={!editable}
+            disabled={!props.editable}
           >
             <Ellipsis />
           </IconButton>
@@ -509,300 +1036,449 @@ function AccountCells(props: {
   );
 }
 
-function AccountAddForm(props: {
-  readonly draft: AccountDraft;
-  readonly editable: boolean;
-  readonly onDraft: (next: AccountDraft) => void;
-  readonly onAdd: () => void;
-}): ReactNode {
-  const { draft, editable, onDraft } = props;
+/** 계정 목록: 제공자 묶음 머리(13/500 tertiary) 아래 순서 목록. 빈 풀은 한 줄 안내 */
+export function AccountPool(props: AccountPoolProps): ReactNode {
+  if (props.pools.length === 0) {
+    return (
+      <p data-slot="pool-empty" className="m-0 text-ui text-text-tertiary">
+        {t("desktop.providers.pool.emptyLead")}
+      </p>
+    );
+  }
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Input
-        size="sm"
-        aria-label={t("desktop.providers.field.provider")}
-        placeholder={t("desktop.providers.field.provider")}
-        value={draft.provider}
-        disabled={!editable}
-        onValueChange={(next) => {
-          onDraft({ ...draft, provider: next });
-        }}
-      />
-      <Input
-        size="sm"
-        aria-label={t("desktop.providers.field.accountId")}
-        placeholder={t("desktop.providers.field.accountId")}
-        value={draft.accountId}
-        disabled={!editable}
-        onValueChange={(next) => {
-          onDraft({ ...draft, accountId: next });
-        }}
-      />
-      <Input
-        size="sm"
-        aria-label={t("desktop.providers.field.credential")}
-        placeholder="secret://"
-        value={draft.credential}
-        disabled={!editable}
-        onValueChange={(next) => {
-          onDraft({ ...draft, credential: next });
-        }}
-      />
-      <NumberField
-        size="sm"
-        appearance="stepper"
-        commitMode="release"
-        aria-label={t("desktop.providers.field.priority")}
-        value={draft.priority}
-        min={0}
-        max={1000}
-        step={1}
-        disabled={!editable}
-        onValueChange={(next) => {
-          onDraft({ ...draft, priority: next });
-        }}
-      />
-      <NumberField
-        size="sm"
-        appearance="stepper"
-        commitMode="release"
-        aria-label={t("desktop.providers.field.reservePct")}
-        value={draft.reservePct}
-        min={0}
-        max={100}
-        step={1}
-        disabled={!editable}
-        onValueChange={(next) => {
-          onDraft({ ...draft, reservePct: next });
-        }}
-      />
-      <Button size={FORM_CONTROL_SIZE} variant="ghost" disabled={!editable} onClick={props.onAdd}>
-        {t("desktop.providers.pool.add")}
-      </Button>
+    <div data-slot="account-pool" className="grid gap-4">
+      {props.pools.map((pool) => {
+        const fold = foldOf(pool.accounts, props.expanded.has(pool.provider));
+        const items: OrderedItem[] = fold.shown.map((entry) => ({
+          id: entry.accountId,
+          title: entry.accountId,
+          detail: (
+            <span className="font-mono text-mono-sm text-text-tertiary">
+              {entry.credential.replace(/^secret:\/\//, "")}
+            </span>
+          ),
+          end: (
+            <AccountEnd
+              entry={entry}
+              editable={props.editable}
+              onReserve={props.onReserve}
+              onRemove={props.onRemove}
+            />
+          ),
+        }));
+        return (
+          <div key={pool.provider} className="grid gap-1">
+            <span className="text-ui font-medium text-text-tertiary">
+              {providerNameOf(pool.provider)}
+            </span>
+            <OrderedList
+              label={t("desktop.providers.pool.listLabel", {
+                provider: providerNameOf(pool.provider),
+              })}
+              items={items}
+              editable={props.editable}
+              numbered
+              onMove={(order) => {
+                props.onMove(pool.provider, order);
+              }}
+            />
+            {fold.hidden === 0 ? null : (
+              <div className="flex items-center gap-2">
+                <span className="text-ui text-text-tertiary">
+                  {t("desktop.providers.pool.hidden", { count: fold.hidden })}
+                </span>
+                <Button
+                  size={FORM_CONTROL_SIZE}
+                  variant="ghost"
+                  onClick={() => {
+                    props.onExpand(pool.provider);
+                  }}
+                >
+                  {t("desktop.providers.pool.expand")}
+                </Button>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-// ── 레이트 리밋 표 ──────────────────────────────────────────────────────
-
-export interface RateLimitViewProps {
-  readonly rows: readonly RateRow[];
-  readonly editable: boolean;
-  readonly draftProvider: string;
+export interface AddAccountDialogProps {
+  readonly open: boolean;
+  readonly providers: readonly string[];
+  readonly provider: string | null;
+  readonly accountId: string;
+  readonly secretName: string;
+  readonly source: KeySource;
+  readonly secrets: readonly string[];
+  readonly picked: string | null;
+  readonly busy: boolean;
   readonly error: string | null;
-  readonly onDraftProvider: (next: string) => void;
-  readonly onAdd: () => void;
-  readonly onChange: (provider: string, patch: Partial<RateLimitEntry>) => void;
-  readonly onRemove: (provider: string) => void;
+  readonly onProvider: (id: string) => void;
+  readonly onAccountId: (text: string) => void;
+  readonly onSource: (source: KeySource) => void;
+  readonly onPicked: (name: string) => void;
+  readonly onSubmit: (field: KeyField) => void;
+  readonly onClose: () => void;
 }
 
-/** 레이트 리밋 표(목업 RateRow). 머리 줄과 provider마다 한 줄: 간격, 한도 도달 시, 최대 대기, 지우기 */
-export function RateLimitView(props: RateLimitViewProps): ReactNode {
-  const { rows, editable } = props;
+/** 계정 추가: 제공자 · 계정 이름 · 키(붙여 넣기 또는 저장된 키) 한 상자 */
+export function AddAccountDialog(props: AddAccountDialogProps): ReactNode {
+  const input = useRef<HTMLInputElement | null>(null);
+  const clear = (): void => {
+    if (input.current !== null) input.current.value = "";
+  };
+  return (
+    <Dialog
+      kind="dialog"
+      size="md"
+      open={props.open}
+      onOpenChange={(next) => {
+        if (!next) {
+          clear();
+          props.onClose();
+        }
+      }}
+      title={t("desktop.providers.pool.add")}
+      description={t("desktop.providers.pool.addLead")}
+    >
+      <form
+        className="grid gap-3"
+        autoComplete="off"
+        onSubmit={(event) => {
+          event.preventDefault();
+          props.onSubmit({
+            take: () => {
+              const typed = input.current?.value ?? "";
+              clear();
+              return typed;
+            },
+          });
+        }}
+      >
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={t("desktop.providers.field.provider")} size={FORM_CONTROL_SIZE}>
+            <Select
+              size={FORM_CONTROL_SIZE}
+              className={FIELD_WIDTH.full}
+              value={props.provider ?? ""}
+              placeholder={t("desktop.providers.pool.providerPlaceholder")}
+              disabled={props.busy}
+              onValueChange={props.onProvider}
+            >
+              {props.providers.map((id) => (
+                <SelectOption key={id} value={id}>
+                  {providerNameOf(id)}
+                </SelectOption>
+              ))}
+            </Select>
+          </Field>
+          <Field label={t("desktop.providers.field.accountId")} size={FORM_CONTROL_SIZE}>
+            <Input
+              size={FORM_CONTROL_SIZE}
+              containerClassName={FIELD_WIDTH.full}
+              value={props.accountId}
+              placeholder={t("desktop.providers.pool.accountPlaceholder")}
+              spellCheck={false}
+              disabled={props.busy}
+              onValueChange={props.onAccountId}
+            />
+          </Field>
+        </div>
+        <KeyInput
+          source={props.source}
+          secretName={props.secretName}
+          secrets={props.secrets}
+          picked={props.picked}
+          busy={props.busy}
+          inputRef={input}
+          onSource={props.onSource}
+          onPicked={props.onPicked}
+        />
+        <ErrorLine text={props.error} />
+        <div className="flex justify-end gap-2 pt-1">
+          <Button
+            type="button"
+            size={FORM_CONTROL_SIZE}
+            variant="ghost"
+            disabled={props.busy}
+            onClick={() => {
+              clear();
+              props.onClose();
+            }}
+          >
+            {t("desktop.providers.cancel")}
+          </Button>
+          <Button type="submit" size={FORM_CONTROL_SIZE} variant="solid" loading={props.busy}>
+            {t("desktop.providers.pool.submit")}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+// ── 쓸 모델 ─────────────────────────────────────────────────────────────
+
+function ModelAccessLine(props: {
+  readonly row: ModelAccessRow;
+  readonly editable: boolean;
+  readonly onUsable: (ref: string, usable: boolean) => void;
+}): ReactNode {
+  const { row } = props;
+  const option = row.entry === null ? null : (modelOptionsOf([row.entry], null, null)[0] ?? null);
+  const meta = option === null ? null : modelMetaText(option);
+  const name = row.pattern ? t("desktop.models.list.pattern", { name: row.label }) : row.label;
+  return (
+    <li
+      data-slot="model-access-row"
+      data-usable={row.usable}
+      className="flex min-h-9 min-w-0 items-center gap-3 rounded-md px-2 hover:bg-neutral-hover"
+    >
+      <span
+        className={`min-w-0 flex-1 truncate text-ui ${row.usable ? "text-text-primary" : "text-text-tertiary"}`}
+      >
+        {name}
+      </span>
+      {meta === null ? null : (
+        <span className="flex-none font-mono text-mono-sm text-text-tertiary tabular-nums">
+          {meta}
+        </span>
+      )}
+      {row.usable ? null : (
+        <span className="flex-none text-ui-sm text-text-tertiary">
+          {t("desktop.models.list.blocked")}
+        </span>
+      )}
+      <Switch
+        size={FORM_CONTROL_SIZE}
+        aria-label={t("desktop.models.list.rowLabel", { name })}
+        checked={row.usable}
+        disabled={!props.editable}
+        onCheckedChange={(next) => {
+          props.onUsable(row.ref, next);
+        }}
+      />
+    </li>
+  );
+}
+
+/** 모델 목록: 위 찾기 칸, 제공자 묶음 머리 아래 줄(36). 최대 높이 320에서 스크롤 */
+export function ModelAccessList(props: {
+  readonly models: readonly ModelEntry[];
+  readonly denied: readonly string[];
+  readonly query: string;
+  readonly editable: boolean;
+  readonly onQuery: (text: string) => void;
+  readonly onUsable: (ref: string, usable: boolean) => void;
+}): ReactNode {
+  const total = props.models.length + props.denied.length;
+  if (total === 0) {
+    return <p className="m-0 text-ui text-text-tertiary">{t("desktop.models.list.empty")}</p>;
+  }
+  const groups = modelAccessGroupsOf(props.models, props.denied, props.query);
   return (
     <div className="grid gap-2">
-      {rows.length === 0 ? (
-        <EmptyState size="sm" surface="none" title={t("desktop.providers.rate.empty")} />
+      <Input
+        type="search"
+        size={FORM_CONTROL_SIZE}
+        containerClassName={FIELD_WIDTH.full}
+        aria-label={t("desktop.models.list.search")}
+        placeholder={t("desktop.models.list.search")}
+        value={props.query}
+        spellCheck={false}
+        onValueChange={props.onQuery}
+      />
+      {groups.length === 0 ? (
+        <p role="status" className="m-0 px-2 text-ui text-text-tertiary">
+          {t("desktop.models.list.noMatch")}
+        </p>
       ) : (
-        <div
-          role="table"
-          aria-label={t("desktop.providers.rate.table")}
-          className="grid overflow-x-auto"
-        >
-          <div role="row" className="flex items-center gap-2 pb-1 text-ui text-text-tertiary">
-            <span role="columnheader" className="w-28 flex-none">
-              {t("desktop.providers.field.provider")}
-            </span>
-            <span role="columnheader" className="w-32 flex-none">
-              {t("desktop.providers.field.minIntervalMs")}
-            </span>
-            <span role="columnheader" className="w-28 flex-none">
-              {t("desktop.providers.field.onLimit")}
-            </span>
-            <span role="columnheader" className="w-36 flex-none">
-              {t("desktop.providers.field.maxWaitMs")}
-            </span>
-            <span role="columnheader" className="w-7 flex-none">
-              <span className="sr-only">{t("desktop.providers.rate.remove")}</span>
-            </span>
-          </div>
-          {rows.map((row) => (
-            <div key={row.provider} role="row" className="flex items-center gap-2 py-0.5">
-              <span
-                role="cell"
-                className="w-28 flex-none truncate font-mono text-mono text-text-primary"
-              >
-                {row.provider}
+        <div data-slot="model-access-list" className="-mx-2 grid max-h-80 gap-2 overflow-y-auto">
+          {groups.map((group) => (
+            <div key={group.provider} className="grid">
+              <span className="px-2 pb-1 text-ui-sm font-medium text-text-tertiary">
+                {providerNameOf(group.provider)}
               </span>
-              <span role="cell" className="w-32 flex-none">
-                <NumberField
-                  size="xs"
-                  unit="ms"
-                  commitMode="release"
-                  aria-label={`${row.provider} ${t("desktop.providers.field.minIntervalMs")}`}
-                  value={row.policy.minIntervalMs}
-                  min={0}
-                  max={3_600_000}
-                  step={100}
-                  disabled={!editable}
-                  onValueChange={(next) => {
-                    props.onChange(row.provider, { minIntervalMs: next });
-                  }}
-                />
-              </span>
-              <span role="cell" className="w-28 flex-none">
-                <Select
-                  size="xs"
-                  className="w-full"
-                  aria-label={`${row.provider} ${t("desktop.providers.field.onLimit")}`}
-                  value={row.policy.onLimit}
-                  disabled={!editable}
-                  onValueChange={(next) => {
-                    const action = ON_LIMIT_ACTIONS.find((candidate) => candidate === next);
-                    if (action !== undefined) props.onChange(row.provider, { onLimit: action });
-                  }}
-                >
-                  {ON_LIMIT_ACTIONS.map((action) => (
-                    <SelectOption key={action} value={action}>
-                      {t(onLimitIdOf(action))}
-                    </SelectOption>
-                  ))}
-                </Select>
-              </span>
-              <span role="cell" className="w-36 flex-none">
-                <NumberField
-                  size="xs"
-                  unit="ms"
-                  commitMode="release"
-                  aria-label={`${row.provider} ${t("desktop.providers.field.maxWaitMs")}`}
-                  value={row.policy.maxWaitMs}
-                  min={0}
-                  max={3_600_000}
-                  step={1000}
-                  disabled={!editable}
-                  onValueChange={(next) => {
-                    props.onChange(row.provider, { maxWaitMs: next });
-                  }}
-                />
-              </span>
-              <IconButton
-                size="xs"
-                variant="ghost"
-                label={`${row.provider} ${t("desktop.providers.rate.remove")}`}
-                disabled={!editable}
-                onClick={() => {
-                  props.onRemove(row.provider);
-                }}
-              >
-                <X />
-              </IconButton>
+              <ul className="m-0 grid list-none p-0">
+                {group.rows.map((row) => (
+                  <ModelAccessLine
+                    key={row.ref}
+                    row={row}
+                    editable={props.editable}
+                    onUsable={props.onUsable}
+                  />
+                ))}
+              </ul>
             </div>
           ))}
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          size="sm"
-          aria-label={t("desktop.providers.field.provider")}
-          placeholder={t("desktop.providers.field.provider")}
-          value={props.draftProvider}
-          disabled={!editable}
-          onValueChange={props.onDraftProvider}
-        />
-        <Button size="xs" variant="ghost" disabled={!editable} onClick={props.onAdd}>
-          {t("desktop.providers.rate.add")}
-        </Button>
-        <InfoTip text={t("desktop.providers.rate.defaultNote")} />
-      </div>
-      <ErrorNote message={props.error} />
     </div>
   );
 }
 
-// ── 모델 역할과 대체 사슬 ─────────────────────────────────────────────
-
-/** 역할 하나의 모델 칸. 글은 고르고 떠날 때(또는 Enter) 보낸다. 값이 바뀌면 줄을 새로 만든다(key) */
-function RoleRow(props: {
-  readonly role: RoleId;
-  readonly value: string;
+/** 허용 규칙(고른 모델만 쓰기): 규칙 칩 + 제공자 빠른 칩 + 직접 입력 */
+export function AllowedRules(props: {
+  readonly rules: readonly string[];
+  /** 빠른 칩으로 보일 제공자(아직 규칙에 없는 것) */
+  readonly quick: readonly string[];
+  readonly draft: string;
+  readonly error: string | null;
   readonly editable: boolean;
-  readonly onCommit: (role: RoleId, text: string) => void;
+  readonly onDraft: (text: string) => void;
+  readonly onAdd: (rule: string) => void;
+  readonly onRemove: (rule: string) => void;
 }): ReactNode {
-  const { role, editable } = props;
   return (
-    <label className="flex flex-wrap items-center gap-2">
-      <span className="w-28 text-ui text-text-secondary">{t(roleIdOf(role))}</span>
-      <Input
-        size="sm"
-        aria-label={t(roleIdOf(role))}
-        placeholder={t("desktop.providers.roles.default")}
-        defaultValue={props.value}
-        disabled={!editable}
-        onBlur={(event) => {
-          props.onCommit(role, event.currentTarget.value);
+    <div className="grid gap-2">
+      {props.rules.length === 0 ? (
+        <p className="m-0 text-ui text-text-tertiary">{t("desktop.models.allowed.all")}</p>
+      ) : (
+        <ul className="m-0 flex list-none flex-wrap gap-1.5 p-0">
+          {props.rules.map((rule) => (
+            <li
+              key={rule}
+              className="inline-flex h-7 items-center gap-1 rounded-md bg-neutral-soft ps-2 pe-0.5 font-mono text-mono-sm text-text-primary"
+            >
+              {rule}
+              <IconButton
+                size="xs"
+                variant="ghost"
+                label={t("desktop.models.allowed.remove", { rule })}
+                disabled={!props.editable}
+                onClick={() => {
+                  props.onRemove(rule);
+                }}
+              >
+                <X />
+              </IconButton>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className="flex min-w-0 flex-wrap items-center gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          props.onAdd(props.draft);
         }}
-        onKeyDown={(event) => {
-          if (isCommitEnter(event)) props.onCommit(role, event.currentTarget.value);
-        }}
-      />
-    </label>
-  );
-}
-
-export interface RoleRefsViewProps {
-  readonly refs: RoleRefs;
-  readonly editable: boolean;
-  readonly error: string | null;
-  readonly onCommit: (role: RoleId, text: string) => void;
-}
-
-export function RoleRefsView(props: RoleRefsViewProps): ReactNode {
-  return (
-    <div className="flex flex-col gap-2">
-      {ROLE_IDS.map((role) => (
-        <RoleRow
-          key={`${role}:${props.refs[role] ?? ""}`}
-          role={role}
-          value={props.refs[role] ?? ""}
-          editable={props.editable}
-          onCommit={props.onCommit}
+      >
+        <Input
+          size={FORM_CONTROL_SIZE}
+          containerClassName={FIELD_WIDTH.medium}
+          className="font-mono"
+          aria-label={t("desktop.models.allowed.inputLabel")}
+          placeholder="provider/model"
+          value={props.draft}
+          spellCheck={false}
+          disabled={!props.editable}
+          onValueChange={props.onDraft}
         />
-      ))}
-      <ErrorNote message={props.error} />
+        <Button type="submit" size={FORM_CONTROL_SIZE} variant="outline" disabled={!props.editable}>
+          {t("desktop.models.allowed.add")}
+        </Button>
+        {props.quick.map((id) => (
+          <Button
+            key={id}
+            type="button"
+            size={FORM_CONTROL_SIZE}
+            variant="ghost"
+            disabled={!props.editable}
+            onClick={() => {
+              props.onAdd(`${id}/*`);
+            }}
+          >
+            <Plus aria-hidden />
+            {t("desktop.models.list.pattern", { name: providerNameOf(id) })}
+          </Button>
+        ))}
+      </form>
+      <ErrorLine text={props.error} />
     </div>
   );
 }
 
-export interface ChainMapViewProps {
-  readonly chains: ChainMap;
-  readonly editable: boolean;
-  readonly error: string | null;
-  readonly onChange: (role: RoleId, items: readonly string[]) => void;
+/** 쓸 모델 카드: 기본 모델 · 모델 목록 · 고른 모델만 쓰기 */
+export function ModelPolicyView(props: {
+  readonly defaultModel: string | null;
+  readonly models: readonly ModelEntry[];
+  readonly editable: {
+    readonly default: boolean;
+    readonly denied: boolean;
+    readonly allowed: boolean;
+  };
+  readonly onDefault: (ref: string) => void;
+  readonly access: ReactNode;
+  readonly allowed: ReactNode;
+  readonly notes: ReactNode;
+}): ReactNode {
+  return (
+    <SettingSection title={t("desktop.models.title")}>
+      <SettingRow
+        slot="model-default"
+        label={t("desktop.models.default.label")}
+        info={t("desktop.models.default.info")}
+        control={
+          <ModelPicker
+            value={props.defaultModel}
+            choices={props.models}
+            label={t("desktop.models.default.label")}
+            disabled={!props.editable.default}
+            onChange={props.onDefault}
+          />
+        }
+        notes={props.notes}
+      />
+      <SettingRow
+        slot="model-access"
+        layout="stacked"
+        label={t("desktop.models.list.label")}
+        info={t("desktop.models.list.info")}
+        control={props.access}
+      />
+      <SettingRow
+        slot="model-allowed"
+        layout="stacked"
+        label={t("desktop.models.allowed.label")}
+        info={t("desktop.models.allowed.info")}
+        control={props.allowed}
+      />
+    </SettingSection>
+  );
 }
 
-export function ChainMapView(props: ChainMapViewProps): ReactNode {
-  const { chains, editable } = props;
-  const empty = ROLE_IDS.every((role) => (chains[role] ?? []).length === 0);
+/** 계정 풀 카드: 회전 줄 + 계정 목록 */
+export function AccountsView(props: {
+  readonly rotation: ReactNode;
+  readonly pool: ReactNode;
+  readonly editable: boolean;
+  readonly unreadable: string | null;
+  readonly error: string | null;
+  readonly onAdd: () => void;
+}): ReactNode {
   return (
-    <div className="flex flex-col gap-2">
-      {empty ? (
-        <EmptyState size="sm" surface="none" title={t("desktop.providers.chain.empty")} />
-      ) : null}
-      {ROLE_IDS.map((role) => (
-        <div key={role} className="flex flex-wrap items-start gap-2">
-          <span className="w-28 pt-2 text-ui text-text-secondary">{t(roleIdOf(role))}</span>
-          <LocalizedTagInput
-            size="sm"
-            aria-label={t(roleIdOf(role))}
-            value={[...(chains[role] ?? [])]}
-            disabled={!editable}
-            onValueChange={(next) => {
-              props.onChange(role, next);
-            }}
-          />
-        </div>
-      ))}
-      <ErrorNote message={props.error} />
-    </div>
+    <SettingSection
+      title={t("desktop.providers.pool.title")}
+      end={
+        <Button
+          size={FORM_CONTROL_SIZE}
+          variant="ghost"
+          disabled={!props.editable}
+          onClick={props.onAdd}
+        >
+          <Plus aria-hidden />
+          {t("desktop.providers.pool.add")}
+        </Button>
+      }
+    >
+      {props.rotation}
+      <div className="grid gap-2">
+        {props.unreadable === null ? props.pool : <UnreadableNote message={props.unreadable} />}
+        <ErrorLine text={props.error} />
+      </div>
+    </SettingSection>
   );
 }

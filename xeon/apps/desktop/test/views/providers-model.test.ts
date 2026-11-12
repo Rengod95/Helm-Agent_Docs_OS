@@ -1,25 +1,38 @@
 import { describe, expect, test } from "bun:test";
-import type { AccountEntry, RateLimitEntry } from "@fresnel/client";
-import type { UsageGauge } from "@fresnel/contracts/wire";
+import type { AccountEntry } from "@fresnel/client";
+import type { ProviderEntry } from "@fresnel/client/settings";
+import type { ModelEntry, UsageGauge } from "@fresnel/contracts/wire";
 import {
   ACCOUNT_FOLD_MAX,
-  FALLBACK_MAX,
-  chainsOf,
   fieldOfKey,
   foldOf,
-  isProviderId,
   poolsOf,
-  rateRowsOf,
   reprioritizedOf,
-  roleRefsOf,
   rotationConfirmOf,
   rotationStepOf,
   usageFractionOf,
-  withChain,
-  withRoleRef,
+  addableProvidersOf,
+  initialChecks,
+  isBaseUrl,
+  isModelRule,
+  linkedCheckOf,
+  modelAccessGroupsOf,
+  modelsCheckOf,
+  nextPriorityOf,
+  providerCardsOf,
+  secretNameOfRef,
+  storedCheckOf,
+  stringListOf,
+  usageTotalsOf,
+  withCheck,
+  withModelUsable,
+  withNewProvider,
+  withProviderBaseUrl,
+  withProviderEnabled,
+  withoutProvider,
 } from "../../src/views/pages/providers/providers-model.ts";
 
-// 계정과 제공자 화면(P-11)의 순수 모델. 값은 `toEqual`로 비교한다.
+// 모델과 계정 구역(P-11, DP-83·DP-84)의 순수 모델. 값은 `toEqual`로 비교한다.
 
 function account(
   provider: string,
@@ -29,8 +42,6 @@ function account(
 ): AccountEntry {
   return { provider, accountId, credential: `secret://${accountId}-key`, priority, reservePct };
 }
-
-const POLICY: RateLimitEntry = { minIntervalMs: 500, onLimit: "wait", maxWaitMs: 30000 };
 
 describe("poolsOf", () => {
   test("accounts group by provider, providers by id, accounts by priority", () => {
@@ -75,56 +86,6 @@ describe("reprioritizedOf", () => {
   });
 });
 
-describe("rateRowsOf", () => {
-  test("policies are listed by provider id", () => {
-    expect(rateRowsOf({ openai: POLICY, anthropic: { ...POLICY, minIntervalMs: 0 } })).toEqual([
-      { provider: "anthropic", policy: { ...POLICY, minIntervalMs: 0 } },
-      { provider: "openai", policy: POLICY },
-    ]);
-  });
-});
-
-describe("role references", () => {
-  test("a map of strings reads, anything else does not", () => {
-    expect(roleRefsOf({ main: "anthropic/claude-sonnet-5-5" })).toEqual({
-      main: "anthropic/claude-sonnet-5-5",
-    });
-    expect(roleRefsOf({ main: 3 })).toBeNull();
-    expect(roleRefsOf(["main"])).toBeNull();
-    expect(roleRefsOf(null)).toBeNull();
-  });
-
-  test("a role is set or cleared without touching the others", () => {
-    const refs = { main: "a/b", review: "c/d" };
-    expect(withRoleRef(refs, "judge", "e/f")).toEqual({ main: "a/b", review: "c/d", judge: "e/f" });
-    expect(withRoleRef(refs, "review", null)).toEqual({ main: "a/b" });
-  });
-});
-
-describe("fallback chains", () => {
-  test("a map of string lists reads, anything else does not", () => {
-    expect(chainsOf({ main: ["a/b", "c/d"] })).toEqual({ main: ["a/b", "c/d"] });
-    expect(chainsOf({ main: "a/b" })).toBeNull();
-    expect(chainsOf({ main: [1] })).toBeNull();
-  });
-
-  test("an emptied chain removes its role", () => {
-    expect(withChain({ main: ["a/b"], review: ["c/d"] }, "main", [])).toEqual({ review: ["c/d"] });
-    expect(FALLBACK_MAX).toBe(3);
-  });
-});
-
-describe("isProviderId", () => {
-  test("a lowercase provider id with digits, dots, dashes or underscores passes", () => {
-    expect(isProviderId("anthropic")).toBe(true);
-    expect(isProviderId("open-ai.v2_x")).toBe(true);
-    expect(isProviderId("Anthropic")).toBe(false);
-    expect(isProviderId("a b")).toBe(false);
-    expect(isProviderId("")).toBe(false);
-  });
-});
-
-// 계정 회전 행의 쓰기 모양. 값은 설정 키 이름과 `true`/`false` 그대로 비교한다.
 describe("rotationStepOf", () => {
   const ENABLED = "ext.account-rotation.enabled";
 
@@ -203,5 +164,250 @@ describe("fieldOfKey", () => {
     ];
     expect(fieldOfKey(fields, "ext.account-rotation.enabled")).toEqual(fields[0]);
     expect(fieldOfKey(fields, "ext.account-rotation")).toBeUndefined();
+  });
+});
+
+function provider(id: string, over: Partial<ProviderEntry> = {}): ProviderEntry {
+  return { id, enabled: true, apiKeyRef: `secret://${id}-api-key`, baseUrl: null, ...over };
+}
+
+function model(ref: string, name = ""): ModelEntry {
+  return {
+    ref,
+    name,
+    contextWindow: 200_000,
+    reasoning: false,
+    inputPrice: 3,
+    outputPrice: 15,
+  };
+}
+
+function gauge(providerId: string, unit: UsageGauge["unit"], used: number): UsageGauge {
+  return {
+    id: `${providerId}::session:${unit}`,
+    providerId,
+    account: null,
+    window: "session",
+    unit,
+    used,
+    limit: null,
+    resetsAt: null,
+  };
+}
+
+describe("providerCardsOf", () => {
+  test("each provider gets a status from switch, key reference, stored secret and catalog", () => {
+    const cards = providerCardsOf({
+      providers: [
+        provider("anthropic"),
+        provider("openai", { enabled: false }),
+        provider("google", { apiKeyRef: null }),
+        provider("openrouter"),
+        provider("my-llm", { baseUrl: "https://llm.example" }),
+      ],
+      secrets: [
+        { name: "anthropic-api-key", registered: true },
+        { name: "my-llm-api-key", registered: true },
+      ],
+      models: [model("anthropic/claude-a"), model("anthropic/claude-b")],
+      gauges: [
+        gauge("anthropic", "tokens", 1200),
+        gauge("anthropic", "usd", 0.5),
+        gauge("anthropic", "requests", 3),
+      ],
+    });
+    expect(
+      cards.map((card) => [
+        card.id,
+        card.name,
+        card.mark,
+        card.custom,
+        card.status,
+        card.modelCount,
+      ]),
+    ).toEqual([
+      ["anthropic", "Anthropic", "A", false, "connected", 2],
+      ["openai", "OpenAI", "O", false, "off", 0],
+      ["google", "Google", "G", false, "noKey", 0],
+      ["openrouter", "OpenRouter", "O", false, "missingKey", 0],
+      ["my-llm", "my-llm", "M", true, "noModels", 0],
+    ]);
+    expect(cards[0]?.usage).toEqual({ tokens: 1200, usd: 0.5, requests: 3 });
+    expect(cards[1]?.usage).toBeNull();
+    expect(cards[4]?.baseUrl).toBe("https://llm.example");
+  });
+
+  test("an unread secret list skips the store check instead of claiming the key is missing", () => {
+    const cards = providerCardsOf({
+      providers: [provider("openrouter")],
+      secrets: null,
+      models: [model("openrouter/x")],
+      gauges: [],
+    });
+    expect(cards[0]?.status).toBe("connected");
+  });
+});
+
+describe("usageTotalsOf", () => {
+  test("sums tokens, dollars and requests of one provider only", () => {
+    expect(
+      usageTotalsOf(
+        [
+          gauge("a", "tokens", 10),
+          gauge("a", "tokens", 5),
+          gauge("a", "cacheRead", 99),
+          gauge("b", "usd", 1),
+        ],
+        "a",
+      ),
+    ).toEqual({ tokens: 15, usd: 0, requests: 0 });
+    expect(usageTotalsOf([], "a")).toBeNull();
+  });
+});
+
+describe("provider list writes", () => {
+  const list = [provider("anthropic"), provider("openai")];
+
+  test("toggle, base URL, remove and new provider touch only their entry", () => {
+    expect(withProviderEnabled(list, "openai", false)).toEqual([
+      provider("anthropic"),
+      provider("openai", { enabled: false }),
+    ]);
+    expect(withProviderBaseUrl(list, "anthropic", "  https://proxy.example  ")).toEqual([
+      provider("anthropic", { baseUrl: "https://proxy.example" }),
+      provider("openai"),
+    ]);
+    expect(withProviderBaseUrl(list, "anthropic", " ")).toEqual(list);
+    expect(withoutProvider(list, "anthropic")).toEqual([provider("openai")]);
+    expect(withNewProvider(list, "my-llm", "https://llm.example")).toEqual([
+      ...list,
+      { id: "my-llm", enabled: true, apiKeyRef: null, baseUrl: "https://llm.example" },
+    ]);
+    expect(withNewProvider(list, "openai", "")).toEqual(list);
+  });
+
+  test("known providers already in the list are not offered again", () => {
+    expect(addableProvidersOf(list)).toEqual(["google", "openrouter"]);
+  });
+
+  test("a base URL is empty or an http(s) address", () => {
+    expect([
+      isBaseUrl(""),
+      isBaseUrl("https://a.example/v1"),
+      isBaseUrl("http://localhost:8080"),
+      isBaseUrl("ftp://a"),
+      isBaseUrl("nope"),
+    ]).toEqual([true, true, true, false, false]);
+  });
+});
+
+describe("connection checks", () => {
+  test("a failed step skips the steps after it and keeps the ones before", () => {
+    const first = withCheck(initialChecks(), {
+      id: "stored",
+      state: "passed",
+      reason: { kind: "stored", length: 41 },
+      elapsedMs: 12,
+    });
+    const failed = withCheck(first, {
+      id: "linked",
+      state: "failed",
+      reason: { kind: "off" },
+      elapsedMs: 30,
+    });
+    expect(failed.map((check) => [check.id, check.state])).toEqual([
+      ["stored", "passed"],
+      ["linked", "failed"],
+      ["models", "skipped"],
+    ]);
+  });
+
+  test("each step reads its own source", () => {
+    expect(storedCheckOf({ state: "missing", decryptable: false, length: null })).toEqual({
+      kind: "missing",
+    });
+    expect(storedCheckOf({ state: "registered", decryptable: false, length: null })).toEqual({
+      kind: "undecryptable",
+    });
+    expect(storedCheckOf({ state: "registered", decryptable: true, length: 41 })).toEqual({
+      kind: "stored",
+      length: 41,
+    });
+    const name = secretNameOfRef("secret://anthropic-api-key");
+    expect<string | null>(name).toBe("anthropic-api-key");
+    if (name === null) return;
+    expect(linkedCheckOf([provider("anthropic")], "anthropic", name)).toEqual({ kind: "linked" });
+    expect(linkedCheckOf([provider("anthropic", { enabled: false })], "anthropic", name)).toEqual({
+      kind: "off",
+    });
+    expect(linkedCheckOf([provider("anthropic", { apiKeyRef: null })], "anthropic", name)).toEqual({
+      kind: "notLinked",
+    });
+    expect(modelsCheckOf([model("anthropic/a"), model("openai/b")], "anthropic")).toEqual({
+      kind: "models",
+      count: 1,
+    });
+    expect(modelsCheckOf([], "anthropic")).toEqual({ kind: "noModels" });
+  });
+});
+
+describe("model access", () => {
+  test("blocked models stay in the list as switched-off rows, patterns first", () => {
+    const groups = modelAccessGroupsOf(
+      [model("anthropic/claude-b", "Claude B"), model("anthropic/claude-a", "Claude A")],
+      ["anthropic/claude-old", "openai/*"],
+      "",
+    );
+    expect(
+      groups.map((group) => [
+        group.provider,
+        group.rows.map((row) => [row.label, row.usable, row.pattern]),
+      ]),
+    ).toEqual([
+      [
+        "anthropic",
+        [
+          ["Claude A", true, false],
+          ["Claude B", true, false],
+          ["claude-old", false, false],
+        ],
+      ],
+      ["openai", [["OpenAI", false, true]]],
+    ]);
+  });
+
+  test("the search keeps rows whose name or reference holds the text", () => {
+    const groups = modelAccessGroupsOf(
+      [model("anthropic/claude-a", "Claude A"), model("openai/gpt-x", "GPT X")],
+      [],
+      "gpt",
+    );
+    expect(groups.map((group) => group.rows.map((row) => row.ref))).toEqual([["openai/gpt-x"]]);
+  });
+
+  test("turning a row off blocks it once, turning it on unblocks it", () => {
+    expect(withModelUsable([], "a/x", false)).toEqual(["a/x"]);
+    expect(withModelUsable(["a/x"], "a/x", false)).toEqual(["a/x"]);
+    expect(withModelUsable(["a/x", "b/*"], "a/x", true)).toEqual(["b/*"]);
+  });
+
+  test("allow rules are provider/model or provider/*", () => {
+    expect(
+      ["anthropic/*", "anthropic/claude-a", "anthropic", "Anthropic/x", "a/ b"].map(isModelRule),
+    ).toEqual([true, true, false, false, false]);
+    expect(stringListOf(["a", "b"])).toEqual(["a", "b"]);
+    expect(stringListOf(["a", 1])).toBeNull();
+  });
+});
+
+describe("nextPriorityOf", () => {
+  test("a new account goes after the last of its provider", () => {
+    expect(
+      nextPriorityOf(
+        [account("anthropic", "a", 0), account("anthropic", "b", 20), account("openai", "c", 90)],
+        "anthropic",
+      ),
+    ).toBe(30);
+    expect(nextPriorityOf([], "anthropic")).toBe(0);
   });
 });

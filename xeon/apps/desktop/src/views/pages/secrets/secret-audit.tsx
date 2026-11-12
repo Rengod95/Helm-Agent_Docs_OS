@@ -2,15 +2,16 @@ import { t, type Locale } from "@fresnel/client/i18n";
 import type { SecretAuditEntry, SecretAuditResult } from "@fresnel/contracts/wire";
 import { assertNever } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import { Badge, Button } from "@caustic/react";
+import { Badge, Button, Dialog } from "@caustic/react";
 import { useState, type ReactNode } from "react";
-import { InfoTip } from "../../craft/info-tip.tsx";
+import { FORM_CONTROL_SIZE } from "../settings/settings-section.tsx";
 import { useThread } from "../../../state/engine/index.ts";
 import type { Load } from "./secret-model.ts";
 import { auditModeIdOf, auditReasonIdOf, commandErrorText, lastUsedTextOf } from "./secret-text.ts";
 
 // 시크릿 사용 기록(P-10, W-13 `secret.audit`). 언제, 어느 대화가, 어떤 모습으로 썼는지와 거절 사유를 보인다. 값은 와이어에 없다.
-// 행 사이에 선을 긋지 않고 간격으로 나눈다(DP-26). 기록 개수 상한은 없으므로 처음 PAGE_SIZE개만 그리고 "더 보기"로 늘린다.
+// 상세 시트에는 최근 다섯 줄과 "모두 보기"만 두고, 전체 기록은 대화 상자에서 PAGE_SIZE씩 "더 보기"로 늘린다(DP-85).
+// 줄은 시각 · 대화(아래 모습·호스트) · 결과 두 줄 모양이고 줄 사이에 옅은 선이 있다.
 // 대화 칸은 id가 아니라 제목이다. 제목은 엔진 거울(thread.list)에서 찾는다. 목록에 없으면 id의 앞뒤 몇 글자를 보인다.
 
 /** 한 번에 그리는 행 수 */
@@ -56,56 +57,72 @@ function AuditRow(props: {
   const { entry, nowMs, locale } = props;
   const relative = lastUsedTextOf(entry.at, nowMs, locale);
   const denied = entry.decision === "deny";
+  const how =
+    entry.host === null
+      ? t(auditModeIdOf(entry.mode))
+      : `${t(auditModeIdOf(entry.mode))} · ${entry.host}`;
   return (
-    <li className="grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,1fr)_auto] items-baseline gap-3 py-1">
-      <time dateTime={entry.at} title={entry.at} className="tabular-nums text-text-tertiary">
+    <li
+      data-slot="audit-row"
+      className="grid grid-cols-[4.5rem_minmax(0,1fr)_auto] items-start gap-3 py-1.5"
+    >
+      <time
+        dateTime={entry.at}
+        title={entry.at}
+        className="pt-px text-ui-sm text-text-tertiary tabular-nums"
+      >
         {relative ?? entry.at}
       </time>
-      <span className="min-w-0 truncate">
-        {entry.threadId === null ? (
-          <span className="text-text-tertiary">{t("desktop.secrets.audit.noThread")}</span>
-        ) : (
-          <ThreadCell threadId={entry.threadId} />
-        )}
-      </span>
-      <span className="min-w-0 truncate text-text-secondary">
-        {entry.host === null
-          ? t(auditModeIdOf(entry.mode))
-          : `${t(auditModeIdOf(entry.mode))} · ${entry.host}`}
+      <span className="grid min-w-0">
+        <span className="min-w-0 truncate text-ui">
+          {entry.threadId === null ? (
+            <span className="text-text-secondary">{t("desktop.secrets.audit.noThread")}</span>
+          ) : (
+            <ThreadCell threadId={entry.threadId} />
+          )}
+        </span>
+        <span className="min-w-0 truncate text-ui-sm text-text-tertiary">{how}</span>
       </span>
       {denied ? (
-        <span className="flex items-baseline gap-2">
+        <span className="flex items-center gap-1.5">
           {entry.reason === null ? null : (
-            <span className="text-ui text-text-tertiary">{t(auditReasonIdOf(entry.reason))}</span>
+            <span className="text-ui-sm text-text-tertiary">
+              {t(auditReasonIdOf(entry.reason))}
+            </span>
           )}
-          <Badge size="xs" className="bg-danger-soft text-danger-text">
+          <Badge size="sm" className="bg-danger-soft text-danger-text">
             {t("desktop.secrets.audit.denied")}
           </Badge>
         </span>
       ) : (
-        <span className="text-ui text-text-tertiary">{t("desktop.secrets.audit.used")}</span>
+        <span className="pt-px text-ui-sm text-text-tertiary">
+          {t("desktop.secrets.audit.used")}
+        </span>
       )}
     </li>
   );
 }
 
+/** 기록 줄들. `limit`가 있으면 앞 몇 줄만 그리고 나머지는 "모두 보기"가 연다. 없으면 PAGE_SIZE씩 "더 보기" */
 function AuditRows(props: {
   readonly result: SecretAuditResult;
   readonly nowMs: number;
   readonly locale: Locale;
+  readonly limit?: number | undefined;
+  readonly onShowAll?: (() => void) | undefined;
 }): ReactNode {
   const { result, nowMs, locale } = props;
-  const [shown, setShown] = useState(AUDIT_PAGE_SIZE);
+  const [shown, setShown] = useState(props.limit ?? AUDIT_PAGE_SIZE);
   if (result.entries.length === 0) {
-    return <p className="text-ui text-text-tertiary">{t("desktop.secrets.audit.empty")}</p>;
+    return <p className="m-0 text-ui text-text-tertiary">{t("desktop.secrets.audit.empty")}</p>;
   }
   const rest = result.entries.length - shown;
   const keys = keysOf(result.entries);
   return (
-    <>
+    <div className="grid gap-1">
       <ul
         aria-label={t("desktop.secrets.audit.label")}
-        className="m-0 grid list-none gap-0.5 p-0 text-ui"
+        className="m-0 grid list-none divide-y divide-border-subtle p-0"
       >
         {result.entries.slice(0, shown).map((entry, index) => (
           <AuditRow key={keys[index] ?? entry.at} entry={entry} nowMs={nowMs} locale={locale} />
@@ -114,62 +131,86 @@ function AuditRows(props: {
       {rest > 0 ? (
         <div>
           <Button
-            size="xs"
+            size={FORM_CONTROL_SIZE}
             variant="ghost"
+            className="-ms-2"
             onClick={() => {
-              setShown(shown + AUDIT_PAGE_SIZE);
+              if (props.limit !== undefined && props.onShowAll !== undefined) props.onShowAll();
+              else setShown(shown + AUDIT_PAGE_SIZE);
             }}
           >
-            {t("desktop.secrets.audit.more", { count: rest })}
+            {props.limit !== undefined
+              ? t("desktop.secrets.audit.showAll", { count: result.entries.length })
+              : t("desktop.secrets.audit.more", { count: rest })}
           </Button>
         </div>
       ) : null}
-    </>
+    </div>
   );
 }
 
+/** 상세 시트 안의 "최근 사용": 다섯 줄과 "모두 보기"(전체 기록 대화 상자) */
 export function UsageLog(props: {
   readonly audit: Load<SecretAuditResult>;
   readonly nowMs: number;
   readonly locale: Locale;
+  /** 앞 몇 줄만 보인다. 없으면 전부(더 보기로) */
+  readonly limit?: number | undefined;
+  readonly onShowAll?: (() => void) | undefined;
 }): ReactNode {
   const { audit, nowMs, locale } = props;
   if (audit.kind === "idle") return null;
-  return (
-    <section aria-label={t("desktop.secrets.audit.label")} className="grid gap-1">
-      <h3 className="m-0 flex h-7 items-center gap-2 text-ui font-semibold text-text-secondary">
-        {t("desktop.secrets.audit.label")}
-        <InfoTip text={t("desktop.secrets.audit.info")} />
-      </h3>
-      <AuditBody audit={audit} nowMs={nowMs} locale={locale} />
-    </section>
-  );
-}
-
-function AuditBody(props: {
-  readonly audit: Exclude<Load<SecretAuditResult>, { readonly kind: "idle" }>;
-  readonly nowMs: number;
-  readonly locale: Locale;
-}): ReactNode {
-  const { audit, nowMs, locale } = props;
   switch (audit.kind) {
     case "loading":
       return (
-        <p role="status" className="text-ui text-text-tertiary">
+        <p role="status" className="m-0 text-ui text-text-tertiary">
           {t("desktop.secrets.audit.loading")}
         </p>
       );
     case "failed": {
       const text = commandErrorText(audit.error);
       return (
-        <p role="alert" className="text-ui text-danger-text">
+        <p role="alert" className="m-0 text-ui text-danger-text">
           {t(text.id, text.args)}
         </p>
       );
     }
     case "ready":
-      return <AuditRows result={audit.value} nowMs={nowMs} locale={locale} />;
+      return (
+        <AuditRows
+          result={audit.value}
+          nowMs={nowMs}
+          locale={locale}
+          limit={props.limit}
+          onShowAll={props.onShowAll}
+        />
+      );
     default:
       return assertNever(audit, "Load");
   }
+}
+
+/** 전체 사용 기록 대화 상자 */
+export function UsageLogDialog(props: {
+  readonly open: boolean;
+  readonly name: string;
+  readonly audit: Load<SecretAuditResult>;
+  readonly nowMs: number;
+  readonly locale: Locale;
+  readonly onClose: () => void;
+}): ReactNode {
+  return (
+    <Dialog
+      kind="dialog"
+      size="lg"
+      open={props.open}
+      onOpenChange={(next) => {
+        if (!next) props.onClose();
+      }}
+      title={t("desktop.secrets.audit.allTitle", { name: props.name })}
+      description={t("desktop.secrets.audit.info")}
+    >
+      <UsageLog audit={props.audit} nowMs={props.nowMs} locale={props.locale} />
+    </Dialog>
+  );
 }
