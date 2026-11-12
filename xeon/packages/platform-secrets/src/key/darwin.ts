@@ -3,6 +3,7 @@ import { err, ok, type Result } from "@fresnel/contracts";
 import type { SecretError } from "@fresnel/contracts/services";
 import type { ProcessRunner } from "../providers/process.ts";
 import {
+  identityCopy,
   KEY_ACCOUNT,
   KEY_SERVICE,
   keyCommand,
@@ -12,7 +13,8 @@ import {
 } from "./provider.ts";
 
 // L0.secrets.spec §3.7 표, §4.7 7번. macOS Keychain: `security find-generic-password -s fresnel.age -a default -w`.
-// 항목 존재·접근 승인 대화상자 확인은 macOS 실기(SC-19)다. provision은 `security -i`로 항목을 만든다.
+// 항목 존재·접근 승인 대화상자 확인은 macOS 실기(SC-19)다. provision과 storeIdentity는 `security -i`로 항목을 만든다.
+// identity는 argv에 올리지 않고 `security -i`의 stdin 줄로만 보낸다. keys.move의 readIdentity는 `-w`의 stdout으로 받는다(§4.7 1번 예외).
 
 export interface DarwinKeyExec {
   readonly runner: ProcessRunner;
@@ -24,7 +26,7 @@ export interface DarwinKeyExec {
 export interface DarwinKeyDeps {
   /** fresnel.os가 해석한 security 절대 경로. 없으면 null */
   readonly securityPath: string | null;
-  /** 있으면 provision과 holdsKey를 켠다. 시험은 가짜 실행기를 넣는다 */
+  /** 있으면 provision, holdsKey, 옮기기 메서드를 켠다. 시험은 가짜 실행기를 넣는다 */
   readonly exec?: DarwinKeyExec;
 }
 
@@ -68,23 +70,31 @@ async function holdsItem(securityPath: string, exec: DarwinKeyExec): Promise<boo
 }
 
 /**
- * identity를 만들어 Keychain 항목으로 저장하고 수신자만 돌려준다. 이미 항목이 있으면 만들지 않고 EEXIST다.
- * identity는 argv에 올리지 않는다: `security -i`가 stdin으로 명령 줄을 받는다. 저장 결과는 종료 코드가 아니라
- * 항목을 다시 찾아서 확인한다(interactive 모드의 종료 코드는 개별 명령의 성패를 싣는다고 단정할 수 없다 [가정]).
+ * `security -i`의 stdin 한 줄(add-generic-password)을 만든다. identity 바이트는 이 줄 안에만 있고 argv에는 없다.
+ * 돌려준 버퍼는 호출자가 쓴 뒤 0으로 덮는다
  */
-async function provisionItem(
+function addLine(identity: Uint8Array): Uint8Array {
+  const head = new TextEncoder().encode(
+    `add-generic-password -s ${KEY_SERVICE} -a ${KEY_ACCOUNT} -l "${ITEM_LABEL}" -w `,
+  );
+  const tail = new TextEncoder().encode("\n");
+  const line = new Uint8Array(head.length + identity.length + tail.length);
+  line.set(head, 0);
+  line.set(identity, head.length);
+  line.set(tail, head.length + identity.length);
+  return line;
+}
+
+/**
+ * 항목을 만들고 다시 찾아 확인한다. 이미 있는지는 부르는 쪽이 본다. 저장 결과는 종료 코드가 아니라
+ * 항목을 다시 찾아서 확인한다(interactive 모드의 종료 코드는 개별 명령의 성패를 싣는다고 단정할 수 없다 [가정])
+ */
+async function addItem(
   securityPath: string,
   exec: DarwinKeyExec,
-): Promise<Result<{ readonly recipient: string }, SecretError>> {
-  const before = await lookup(securityPath, exec);
-  if (!before.ok) return before;
-  if (before.value === "found") return err(keyStoreFailure("EEXIST"));
-
-  const identity = await generateIdentity();
-  const recipient = await identityToRecipient(identity);
-  const stdin = new TextEncoder().encode(
-    `add-generic-password -s ${KEY_SERVICE} -a ${KEY_ACCOUNT} -l "${ITEM_LABEL}" -w ${identity}\n`,
-  );
+  identity: Uint8Array,
+): Promise<Result<void, SecretError>> {
+  const stdin = addLine(identity);
   try {
     const run = await exec.runner({
       argv: [securityPath, "-i"],
@@ -102,9 +112,102 @@ async function provisionItem(
     stdin.fill(0);
   }
   const after = await lookup(securityPath, exec);
-  if (!after.ok) return after;
+  if (!after.ok) return err(after.error);
   if (after.value !== "found") return err(keyStoreFailure("add_failed"));
+  return ok(undefined);
+}
+
+/**
+ * identity를 만들어 Keychain 항목으로 저장하고 수신자만 돌려준다. 이미 항목이 있으면 만들지 않고 EEXIST다.
+ */
+async function provisionItem(
+  securityPath: string,
+  exec: DarwinKeyExec,
+): Promise<Result<{ readonly recipient: string }, SecretError>> {
+  const before = await lookup(securityPath, exec);
+  if (!before.ok) return err(before.error);
+  if (before.value === "found") return err(keyStoreFailure("EEXIST"));
+
+  const identity = await generateIdentity();
+  const recipient = await identityToRecipient(identity);
+  const bytes = new TextEncoder().encode(identity);
+  try {
+    const added = await addItem(securityPath, exec, bytes);
+    if (!added.ok) return err(added.error);
+  } finally {
+    bytes.fill(0);
+  }
   return ok({ recipient });
+}
+
+/** 없을 때만 저장한다(keys.move). 이미 있으면 EEXIST이고 기존 항목은 건드리지 않는다 */
+async function storeItem(
+  securityPath: string,
+  exec: DarwinKeyExec,
+  identity: Uint8Array,
+): Promise<Result<void, SecretError>> {
+  const before = await lookup(securityPath, exec);
+  if (!before.ok) return err(before.error);
+  if (before.value === "found") return err(keyStoreFailure("EEXIST"));
+  return addItem(securityPath, exec, identity);
+}
+
+/**
+ * 항목의 identity를 읽는다(keys.move 전용). `-w`의 stdout은 비밀이라 호출자가 쓴 뒤 0으로 덮는 복사본만 돌려준다.
+ * 원본 stdout 버퍼는 여기서 0으로 덮는다
+ */
+async function readItem(
+  securityPath: string,
+  exec: DarwinKeyExec,
+): Promise<Result<Uint8Array, SecretError>> {
+  const run = await exec.runner({
+    argv: [securityPath, "find-generic-password", "-s", KEY_SERVICE, "-a", KEY_ACCOUNT, "-w"],
+    env: exec.env,
+    timeoutMs: TIMEOUT_MS,
+    signal: exec.signal,
+  });
+  if (!run.ok) {
+    return err(
+      run.error.kind === "cancelled" ? { kind: "cancelled" } : keyStoreFailure(run.error.code),
+    );
+  }
+  const out = run.value.stdout;
+  try {
+    if (run.value.exitCode === EXIT_ITEM_NOT_FOUND) {
+      return err({ kind: "key_unavailable", key: "darwin-keychain", reason: "item_missing" });
+    }
+    // 잠김이나 접근 거부(승인 대화상자에서 거절)는 종료 코드로만 구별된다. 어느 쪽이든 읽지 못한 것이다
+    if (run.value.exitCode !== 0) {
+      return err({ kind: "key_unavailable", key: "darwin-keychain", reason: "access_denied" });
+    }
+    const identity = identityCopy(out);
+    if (identity === null) {
+      return err({ kind: "key_unavailable", key: "darwin-keychain", reason: "item_missing" });
+    }
+    return ok(identity);
+  } finally {
+    out.fill(0);
+  }
+}
+
+/** 항목을 지운다(keys.move의 옛 쪽 삭제). 항목이 없으면 이미 지운 것이다 */
+async function removeItem(
+  securityPath: string,
+  exec: DarwinKeyExec,
+): Promise<Result<void, SecretError>> {
+  const run = await exec.runner({
+    argv: [securityPath, "delete-generic-password", "-s", KEY_SERVICE, "-a", KEY_ACCOUNT],
+    env: exec.env,
+    timeoutMs: TIMEOUT_MS,
+    signal: exec.signal,
+  });
+  if (!run.ok) {
+    return err(
+      run.error.kind === "cancelled" ? { kind: "cancelled" } : keyStoreFailure(run.error.code),
+    );
+  }
+  if (run.value.exitCode === 0 || run.value.exitCode === EXIT_ITEM_NOT_FOUND) return ok(undefined);
+  return err(keyStoreFailure("delete_failed"));
 }
 
 export function createDarwinKeyProvider(deps: DarwinKeyDeps): KeyProvider {
@@ -140,5 +243,8 @@ export function createDarwinKeyProvider(deps: DarwinKeyDeps): KeyProvider {
     ...base,
     provision: () => provisionItem(securityPath, exec),
     holdsKey: () => holdsItem(securityPath, exec),
+    readIdentity: () => readItem(securityPath, exec),
+    storeIdentity: (identity) => storeItem(securityPath, exec, identity),
+    removeKey: () => removeItem(securityPath, exec),
   };
 }

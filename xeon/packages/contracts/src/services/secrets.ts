@@ -212,6 +212,8 @@ export interface SecretDiagnostics {
       | "item_missing"
       | "not_implemented"
       | "file_mode";
+    /** 설정이 키 파일 경로를 가리키는데 그 파일이 없다. 기본 경로에 아직 키가 없는 새 설치는 false다 */
+    readonly fileMissing: boolean;
   };
   /** 파일 폴백을 쓰고 있어 고지가 필요한가 */
   readonly fileFallbackNotice: boolean;
@@ -252,7 +254,9 @@ export type SecretError =
         | "item_missing"
         | "no_secret_service"
         | "access_denied"
-        | "file_mode";
+        | "file_mode"
+        /** OS 키 저장소를 쓸 수 없어 `auto`가 파일 폴백으로 떨어졌는데 사람이 아직 확인하지 않았다(L0.secrets.spec §4.7 5번) */
+        | "fallback_unconfirmed";
     }
   | {
       readonly kind: "decrypt_failed";

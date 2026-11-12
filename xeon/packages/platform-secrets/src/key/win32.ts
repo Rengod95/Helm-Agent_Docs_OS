@@ -3,7 +3,11 @@ import type { SecretError } from "@fresnel/contracts/services";
 import type { KeyAvailability, KeyProvider, SopsKeyEnvName } from "./provider.ts";
 
 // L0.secrets.spec §5.1. Windows 자격 증명 관리자는 읽기 수단이 정해지지 않았다(`cmdkey`는 암호를 읽지 못한다).
-// 헬퍼 실행 파일이 정해질 때까지 스텁이다.
+// 헬퍼 실행 파일이 정해질 때까지 스텁이다. 옮기기 메서드도 같은 이유로 지원 안 함 오류를 돌려준다.
+
+function unsupported(): SecretError {
+  return { kind: "key_unavailable", key: "win32-credential", reason: "no_secret_service" };
+}
 
 export function createWin32KeyProvider(): KeyProvider {
   return {
@@ -12,7 +16,16 @@ export function createWin32KeyProvider(): KeyProvider {
       return Promise.resolve({ available: false, reason: "not_implemented" });
     },
     sopsKeyEnv(): Result<Readonly<Partial<Record<SopsKeyEnvName, string>>>, SecretError> {
-      return err({ kind: "key_unavailable", key: "win32-credential", reason: "no_secret_service" });
+      return err(unsupported());
+    },
+    readIdentity() {
+      return Promise.resolve(err(unsupported()));
+    },
+    storeIdentity() {
+      return Promise.resolve(err(unsupported()));
+    },
+    removeKey() {
+      return Promise.resolve(err(unsupported()));
     },
   };
 }

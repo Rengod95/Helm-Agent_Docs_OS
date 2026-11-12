@@ -497,6 +497,7 @@ export const WIRE_ERRORS: {
           Type.Literal("no_secret_service"),
           Type.Literal("access_denied"),
           Type.Literal("file_mode"),
+          Type.Literal("fallback_unconfirmed"),
         ]),
       },
       { additionalProperties: false },

@@ -208,13 +208,33 @@ describe("createSecretService with the SOPS provider", () => {
       expect(lease.error).toEqual({
         kind: "key_unavailable",
         key: "file",
-        reason: "access_denied",
+        reason: "fallback_unconfirmed",
       });
     }
     const diag = await h.service.diagnose();
-    expect(diag.key).toEqual({ source: "file", available: false, reason: "no_secret_service" });
+    expect(diag.key).toEqual({
+      source: "file",
+      available: false,
+      reason: "no_secret_service",
+      fileMissing: false,
+    });
     expect(diag.fileFallbackNotice).toBe(true);
-    expect(diag.hints.join("\n")).toContain("ageKey.source");
+    expect(diag.hints.join("\n")).toContain("fresnel secret key use file");
+  });
+
+  test("auto-file uses the key file without asking, so no fallback_unconfirmed is raised", async () => {
+    const h = await harness({
+      config: (keyFile, binary) => ({
+        ...DEFAULT_SECRETS_CONFIG,
+        sops: { files: [{ env: "dev", path: FIXTURE }], binary },
+        ageKey: { source: "auto-file", filePath: keyFile },
+      }),
+    });
+    const lease = await h.service.withEnv(HANDLE, envCtx("gh api user"));
+    expect(lease.ok).toBe(true);
+    const diag = await h.service.diagnose();
+    expect(diag.fileFallbackNotice).toBe(true);
+    expect(diag.hints.join("\n")).not.toContain("fresnel secret key use file");
   });
 
   test("a key file that others can read blocks leases with file_mode", async () => {
@@ -284,7 +304,7 @@ describe("createSecretService with the SOPS provider", () => {
       "fresnel secret add <name>",
     ]);
     expect(diag.sops).toEqual({ available: true, version: "3.13.3", reason: "ok" });
-    expect(diag.key).toEqual({ source: "file", available: true, reason: "ok" });
+    expect(diag.key).toEqual({ source: "file", available: true, reason: "ok", fileMissing: false });
     expect(diag.fileFallbackNotice).toBe(true);
     expect(diag.providers).toEqual([{ id: "sops", registered: true, entries: 2 }]);
     expect(diag.orphaned).toBe(1);

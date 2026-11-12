@@ -305,7 +305,7 @@ describe.skipIf(!real)("first write on a clean machine (spec §4.8)", () => {
     );
     expect(added).toEqual({
       ok: false,
-      error: { kind: "key_unavailable", key: "file", reason: "access_denied" },
+      error: { kind: "key_unavailable", key: "file", reason: "fallback_unconfirmed" },
     });
     expect(await readdir(join(config, "secrets")).catch(() => [])).not.toContain("age");
     expect(await exists(defaultSopsFile(config).path)).toBe(false);
