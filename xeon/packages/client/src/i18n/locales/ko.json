@@ -1937,6 +1937,7 @@
   "desktop.convo.tool.memory.running": "기억 정리 중",
   "desktop.convo.tool.plan": "계획 올림",
   "desktop.convo.tool.plan.running": "계획 올리는 중",
+  "desktop.convo.tool.preparing": "도구 호출을 쓰는 중",
   "desktop.convo.tool.read": "읽음",
   "desktop.convo.tool.read.running": "읽는 중",
   "desktop.convo.tool.search": "찾음",
