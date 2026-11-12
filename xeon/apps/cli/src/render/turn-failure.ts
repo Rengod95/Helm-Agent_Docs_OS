@@ -1,32 +1,42 @@
-import { classifyTurnFailure, type TurnFailureKind } from "@fresnel/client";
+import { classifyTurnFailure, failureReasonOf, type TurnFailureKind } from "@fresnel/client";
 import { t, type MessageId } from "@fresnel/client/i18n";
 
 // 실패한 turn의 오류 문장을 print 모드의 이유 한 줄과 "해결:" 줄로 바꾼다. 판정은 client의 classifyTurnFailure가 하고
-// 여기서는 문구만 고른다. 원문 JSON은 `--json` 출력에만 남긴다. 종류를 모르는 오류는 원문을 한 줄로 줄여 이유에 싣는다.
+// 여기서는 문구만 고른다. 원문 JSON은 `--json` 출력에만 남긴다. 종류를 모르는 오류는 서버 사유 문장(시크릿 모양은 가린 것)을 한 줄로 줄여 이유에 싣는다.
 
 const MESSAGE: Readonly<Record<TurnFailureKind, MessageId>> = {
+  no_key: "cli.errors.chat.turnFailure.noKey.message",
+  key_unusable: "cli.errors.chat.turnFailure.keyUnusable.message",
   auth: "cli.errors.chat.turnFailure.auth.message",
   permission_denied: "cli.errors.chat.turnFailure.permissionDenied.message",
+  billing: "cli.errors.chat.turnFailure.billing.message",
   host_mismatch: "cli.errors.chat.turnFailure.hostMismatch.message",
   bad_request: "cli.errors.chat.turnFailure.badRequest.message",
   context_overflow: "cli.errors.chat.turnFailure.contextOverflow.message",
   model_not_found: "cli.errors.chat.turnFailure.modelNotFound.message",
   rate_limited: "cli.errors.chat.turnFailure.rateLimited.message",
+  overloaded: "cli.errors.chat.turnFailure.overloaded.message",
   server: "cli.errors.chat.turnFailure.server.message",
+  timeout: "cli.errors.chat.turnFailure.timeout.message",
   network: "cli.errors.chat.turnFailure.network.message",
   interrupted: "cli.errors.chat.turnFailure.interrupted.message",
   unknown: "cli.errors.chat.turnFailure.unknown.message",
 };
 
 const FIX: Readonly<Record<TurnFailureKind, MessageId>> = {
+  no_key: "cli.errors.chat.turnFailure.noKey.fix",
+  key_unusable: "cli.errors.chat.turnFailure.keyUnusable.fix",
   auth: "cli.errors.chat.turnFailure.auth.fix",
   permission_denied: "cli.errors.chat.turnFailure.permissionDenied.fix",
+  billing: "cli.errors.chat.turnFailure.billing.fix",
   host_mismatch: "cli.errors.chat.turnFailure.hostMismatch.fix",
   bad_request: "cli.errors.chat.turnFailure.badRequest.fix",
   context_overflow: "cli.errors.chat.turnFailure.contextOverflow.fix",
   model_not_found: "cli.errors.chat.turnFailure.modelNotFound.fix",
   rate_limited: "cli.errors.chat.turnFailure.rateLimited.fix",
+  overloaded: "cli.errors.chat.turnFailure.overloaded.fix",
   server: "cli.errors.chat.turnFailure.server.fix",
+  timeout: "cli.errors.chat.turnFailure.timeout.fix",
   network: "cli.errors.chat.turnFailure.network.fix",
   interrupted: "cli.errors.chat.turnFailure.interrupted.fix",
   unknown: "cli.errors.chat.turnFailure.unknown.fix",
@@ -56,7 +66,10 @@ export function turnFailureTextOf(error: string | null): TurnFailureText {
   }
   const failure = classifyTurnFailure(error);
   if (failure.kind === "unknown") {
-    return { message: t(MESSAGE.unknown, { error: oneLineOf(error) }), fix: t(FIX.unknown) };
+    return {
+      message: t(MESSAGE.unknown, { error: oneLineOf(failureReasonOf(error)) }),
+      fix: t(FIX.unknown),
+    };
   }
   const seconds = failure.params?.["seconds"];
   const fix =

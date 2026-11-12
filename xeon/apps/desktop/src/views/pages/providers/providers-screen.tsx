@@ -286,8 +286,14 @@ function useProviderTest(): (
 
 // ── 제공자 ──────────────────────────────────────────────────────────────
 
-export function ProvidersPanel(props: ModelsPanelProps): ReactNode {
-  const { view, live, handlers } = props;
+/** 제공자 패널이 설정 화면에서 받는 것. `focusProvider`는 설정 점프가 준 제공자 id다 */
+interface ProvidersPanelProps extends ModelsPanelProps {
+  readonly focusProvider?: string | null;
+  readonly onFocused?: () => void;
+}
+
+export function ProvidersPanel(props: ProvidersPanelProps): ReactNode {
+  const { view, live, handlers, focusProvider = null, onFocused } = props;
   const commands = useCommands();
   const models = useModelChoices();
   const data = useProviderData();
@@ -352,39 +358,52 @@ export function ProvidersPanel(props: ModelsPanelProps): ReactNode {
   };
 
   /** 키 대화 상자를 연다. 호스트가 자기 창에서 값을 받으면 그 안내를, 아니면 붙여 넣기 칸을 보인다 */
-  function openKey(id: string): void {
-    const secret = providerSecretName(id);
-    if (!secret.ok) {
-      setAddError(t("desktop.providers.custom.idInvalid"));
-      return;
-    }
-    const name = secret.value;
-    const exists = stored.includes(name);
-    const action = exists ? "set" : "add";
-    setKey({
-      providerId: id,
-      name,
-      action,
-      phase: { kind: "entry", error: null },
-      source: "paste",
-      picked: null,
-    });
-    detach(
-      commands.setup.beginKeyEntry(name, action).then((begun) => {
-        if (begun.ok && begun.value) {
-          setKey((prev) => (prev === null ? prev : { ...prev, phase: { kind: "hostWindow" } }));
-        } else if (!begun.ok && begun.error.kind !== "unsupported") {
-          setKey((prev) =>
-            prev === null
-              ? prev
-              : { ...prev, phase: { kind: "entry", error: { text: errorText(begun.error) } } },
-          );
-        }
-        return undefined;
-      }),
-      rethrow,
-    );
-  }
+  const openKey = useCallback(
+    (id: string): void => {
+      const secret = providerSecretName(id);
+      if (!secret.ok) {
+        setAddError(t("desktop.providers.custom.idInvalid"));
+        return;
+      }
+      const name = secret.value;
+      const exists = storedSecretsOf(data.snapshot).includes(name);
+      const action = exists ? "set" : "add";
+      setKey({
+        providerId: id,
+        name,
+        action,
+        phase: { kind: "entry", error: null },
+        source: "paste",
+        picked: null,
+      });
+      detach(
+        commands.setup.beginKeyEntry(name, action).then((begun) => {
+          if (begun.ok && begun.value) {
+            setKey((prev) => (prev === null ? prev : { ...prev, phase: { kind: "hostWindow" } }));
+          } else if (!begun.ok && begun.error.kind !== "unsupported") {
+            setKey((prev) =>
+              prev === null
+                ? prev
+                : { ...prev, phase: { kind: "entry", error: { text: errorText(begun.error) } } },
+            );
+          }
+          return undefined;
+        }),
+        rethrow,
+      );
+    },
+    [commands, data.snapshot, setAddError, setKey],
+  );
+
+  // 설정 점프가 준 제공자의 키 대화 상자를 한 번 연다. 시크릿 목록을 읽은 뒤에 연다(넣을지 바꿀지가 목록에 달렸다).
+  // 목록에 없는 제공자면 대화 상자 없이 목록만 보이고, 어느 쪽이든 요청은 받은 것으로 치운다
+  const focusListed =
+    focusProvider !== null && providers.some((entry) => entry.id === focusProvider);
+  useEffect(() => {
+    if (focusProvider === null || data.snapshot === null) return;
+    if (focusListed) openKey(focusProvider);
+    onFocused?.();
+  }, [focusProvider, data.snapshot, focusListed, openKey, onFocused]);
 
   /** 연결하고 대화 상자 안에서 시험한다. `trimmed`는 키 앞뒤를 지웠는지(등록 결과)다 */
   const connectAndTest = async (

@@ -140,7 +140,7 @@ test("a failed print turn names the reason and the fix in English, without the r
   harnesses.push(h);
   expect(await h.run(["chat", "-p", "x"])).toBe(EXIT.error);
   expect(h.stderrText()).toBe(
-    "fresnel: The API key was not accepted\n  Fix: Register the key again with `fresnel secret set <name>`\n",
+    "fresnel: The provider did not accept this key (401)\n  Fix: Register the key again with `fresnel secret set <name>`\n",
   );
 });
 

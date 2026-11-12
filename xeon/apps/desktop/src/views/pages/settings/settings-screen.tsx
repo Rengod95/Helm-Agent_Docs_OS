@@ -129,6 +129,8 @@ export function SettingsPage(props: {
   const [taken, setTaken] = useState<SettingsJump | null>(null);
   // 설정 점프가 고르라고 준 시크릿 이름. 시크릿 화면이 고른 뒤 `onFocused`로 비운다(다시 열 때 옛 이름을 고르지 않게)
   const [focusSecret, setFocusSecret] = useState<SecretName | null>(null);
+  // 설정 점프가 준 제공자. 모델과 계정 구역이 그 제공자의 키 대화 상자를 한 번 열고 `onFocused`로 비운다
+  const [focusProvider, setFocusProvider] = useState<string | null>(null);
   const scrolled = useRef<SettingsJump | null>(null);
   // 설정 파일 편집기(P-09 "파일로 보기"). 읽기와 쓰기마다 번호를 새로 주고, 응답은 그 번호가 맞을 때만 반영된다(reducer)
   const [file, dispatchFile] = useReducer(fileEditorReducer, initialFileEditor);
@@ -259,6 +261,7 @@ export function SettingsPage(props: {
   if (jump !== null && jump !== taken) {
     setTaken(jump);
     setFocusSecret(jump.secretName ?? null);
+    setFocusProvider(jump.providerId ?? null);
     setQuery("");
     requestSection(sectionOfJump(jump.tab, jump.key));
   }
@@ -464,7 +467,18 @@ export function SettingsPage(props: {
     about: aboutPanel,
     shortcuts: shortcutsPanel,
     notify: notifyPanel,
-    providers: view === null ? null : <ProvidersPanel view={view} live={live} handlers={fields} />,
+    providers:
+      view === null ? null : (
+        <ProvidersPanel
+          view={view}
+          live={live}
+          handlers={fields}
+          focusProvider={focusProvider}
+          onFocused={() => {
+            setFocusProvider(null);
+          }}
+        />
+      ),
     accounts: view === null ? null : <AccountsPanel view={view} live={live} handlers={fields} />,
     modelPolicy:
       view === null ? null : <ModelPolicyPanel view={view} live={live} handlers={fields} />,

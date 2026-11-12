@@ -142,16 +142,13 @@ export function NoticeToasts(): ReactNode {
   return null;
 }
 
+// 알림에는 제공자가 없어서 키 단추도 제공자 목록만 연다(키 대화 상자는 대화 줄의 오류 단추가 연다)
 /** 실패 본문의 단추 글. 대화의 오류 줄과 같은 문장을 쓴다 */
 const ACTION_TEXT: Readonly<Record<NoticeAction, MessageId>> = {
-  "reregister-key": "desktop.turnFailure.action.reregisterKey",
+  "add-key": "desktop.turnFailure.action.addKey",
+  "change-key": "desktop.turnFailure.action.changeKey",
   "open-providers": "desktop.turnFailure.action.openProviders",
 };
-
-/** 단추가 여는 설정 탭. 키 다시 등록은 시크릿, 제공자 설정 열기는 제공자 탭이다 */
-function settingsTabOf(action: NoticeAction): "secrets" | "providers" {
-  return action === "reregister-key" ? "secrets" : "providers";
-}
 
 /** 정보 아이콘 뒤 "자세히"의 원문. 대화의 오류 줄과 같은 팝오버다 */
 function Detail(props: { readonly text: string }): ReactNode {
@@ -196,7 +193,7 @@ function NoticeBody(props: { readonly view: NoticeBodyView }): ReactNode {
           size="xs"
           variant="solid"
           onClick={() => {
-            commands.requestSettingsJump({ tab: settingsTabOf(action), key: null });
+            commands.requestSettingsJump({ tab: "providers", key: null });
           }}
         >
           {t(ACTION_TEXT[action])}
