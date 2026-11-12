@@ -4,8 +4,8 @@ import { runShellAction } from "../../../src/views/shell/shortcuts.ts";
 import { toastPlace } from "../../../src/views/shell/toaster-slot.ts";
 
 describe("toast place (S-04)", () => {
-  test("an open well moves the toast to the well's left edge, a closed one leaves it by the bar", () => {
-    expect(toastPlace("wide", false, 352)).toEqual({ kind: "end", endPx: 56 });
+  test("an open well moves the toast to the well's left edge, a closed one keeps it 16px from the window edge", () => {
+    expect(toastPlace("wide", false, 352)).toEqual({ kind: "end", endPx: 16 });
     expect(toastPlace("wide", true, 352)).toEqual({ kind: "end", endPx: 352 + 74 });
     expect(toastPlace("medium", true, 480)).toEqual({ kind: "end", endPx: 480 + 74 });
   });

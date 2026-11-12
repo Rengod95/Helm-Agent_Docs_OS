@@ -55,9 +55,6 @@ import { useGoToThread } from "./thread-link.ts";
 
 type Load = "loading" | "ready" | "error";
 
-/** 턴 실패 토스트가 스스로 닫히는 때(ms). 오류 토스트는 caustic이 자동으로 닫지 않아 이 앱이 닫는다 */
-const ERROR_TOAST_MS = 20_000;
-
 interface FailureToasts {
   /** 열려 있는 실패 토스트 id → 대화 */
   readonly byId: Map<number, ThreadId>;
@@ -97,7 +94,6 @@ export function NoticeToasts(): ReactNode {
   }, [selectedId]);
   useEffect(() => {
     if (phase !== "live") return undefined;
-    const timers = new Set<ReturnType<typeof setTimeout>>();
     const off = commands.notices.onDelivered((delivered) => {
       const { notice } = delivered;
       if (!noticeToastVisible(notice)) return;
@@ -116,16 +112,12 @@ export function NoticeToasts(): ReactNode {
           ? { dismissLabel: t("desktop.turnFailure.toast.dismiss") }
           : {}),
       });
-      if (notice.kind !== "error") return;
+      // 오류 토스트는 닫기 단추로 닫을 때까지 남는다(DP-153). 같은 대화의 다음 턴이 시작되면 아래에서 닫는다
       if (isTurnFailure && delivered.threadId !== null) {
         open.current.byId.set(id, delivered.threadId);
       }
-      timers.add(setTimeout(() => toast.dismiss(id), ERROR_TOAST_MS));
     });
-    return () => {
-      off();
-      for (const timer of timers) clearTimeout(timer);
-    };
+    return off;
   }, [commands, phase]);
   // 같은 대화의 실패가 거울에서 사라지면(다음 턴이 시작됨) 그 토스트를 닫는다
   useEffect(() => {
