@@ -37,6 +37,8 @@ export interface ExternalLoadingDeps {
   /** `ext.<name>.enabled` 유효 값. 값이 없으면 undefined */
   readonly enabled: (name: string) => boolean | undefined;
   readonly cwd: string;
+  /** `x.loading-trust.paths`에서 옮긴 절대 경로(settings-sources.ts `extensionSearchPathsOf`). 사용자 위치 뒤에 탐색한다 */
+  readonly extraPaths: readonly string[];
   /** 서비스 모드는 "on_demand": 시작 때 프로젝트를 싣지 않고 작업 폴더를 여는 때 `loadProject`가 싣는다 */
   readonly projects?: "cwd" | "on_demand";
   readonly signal: AbortSignal;
@@ -71,6 +73,7 @@ export async function loadExternalExtensions(deps: ExternalLoadingDeps): Promise
     cwd: deps.cwd,
     mode: "headless",
     trustOverride: false,
+    extraPaths: deps.extraPaths,
     ...(deps.projects === undefined ? {} : { projects: deps.projects }),
     signal: deps.signal,
     ...(deps.startup === undefined ? {} : { startup: deps.startup }),

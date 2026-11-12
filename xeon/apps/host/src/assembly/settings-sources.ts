@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import type { LogLevel } from "@fresnel/contracts";
 import { isId } from "@fresnel/contracts/conversation";
 import type { ScopeStack } from "@fresnel/contracts/settings";
@@ -267,6 +267,27 @@ export function secretsSource(settings: SettingsEngine): () => SecretsConfig {
       },
     };
   };
+}
+
+/**
+ * `x.loading-trust.paths`(확장 탐색 경로)를 로더의 `extraPaths`로 바꾼다(X.loading-trust.spec §4.2.1). 재시작할 때 읽는다.
+ * 절대 경로는 그대로 쓰고 `~/`는 홈 아래로 푼다(`cap-dialog`의 `~/` 규칙과 같다). 그 밖의 상대 경로는 프로세스의 작업 폴더에
+ * 기대므로 싣지 않고 `ignored`로 돌려준다(조립 루트가 경고로 남긴다). 목록이 아니면 빈 목록이다
+ */
+export function extensionSearchPathsOf(
+  value: unknown,
+  homeDir: string,
+): { readonly paths: readonly string[]; readonly ignored: readonly string[] } {
+  if (!Array.isArray(value)) return { paths: [], ignored: [] };
+  const paths: string[] = [];
+  const ignored: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "string") continue;
+    if (entry.startsWith("~/")) paths.push(join(homeDir, entry.slice(2)));
+    else if (isAbsolute(entry)) paths.push(entry);
+    else ignored.push(entry);
+  }
+  return { paths, ignored };
 }
 
 /** 상태 디렉터리 아래 spill 폴더 이름 */

@@ -11,6 +11,7 @@ import { createSettingsEngine, type SettingsEngine } from "../../src/assembly/se
 import {
   agentsSource,
   execOptionsOf,
+  extensionSearchPathsOf,
   hostLimitsOf,
   logLevelOf,
   loopSource,
@@ -397,6 +398,20 @@ test("l0.secrets.* build the secrets config and drop malformed sops files", asyn
   // 원격 호스트용 값(Secret Service 먼저, 없으면 확인 없이 파일 폴백)이 그대로 전달된다
   const remote = secretsSource(await engineWith({ "l0.secrets.ageKey.source": "auto-file" }))();
   expect(remote.ageKey.source).toBe("auto-file");
+});
+
+test("x.loading-trust.paths: absolute and ~/ entries are searched, relative ones are only reported", async () => {
+  const settings = await engineWith({
+    "x.loading-trust.paths": ["/opt/ext", "~/my-ext", "rel/ext"],
+  });
+  expect(extensionSearchPathsOf(settings.value("x.loading-trust.paths"), "/home/u")).toEqual({
+    paths: ["/opt/ext", "/home/u/my-ext"],
+    ignored: ["rel/ext"],
+  });
+  // 값이 없으면 빈 목록이고, 목록이 아니면 빈 목록이다. `~`만 적은 값은 상대 경로로 본다
+  expect(extensionSearchPathsOf(undefined, "/home/u")).toEqual({ paths: [], ignored: [] });
+  expect(extensionSearchPathsOf("/opt/ext", "/home/u")).toEqual({ paths: [], ignored: [] });
+  expect(extensionSearchPathsOf(["~", 3], "/home/u")).toEqual({ paths: [], ignored: ["~"] });
 });
 
 test("host limits read the live value every time", async () => {

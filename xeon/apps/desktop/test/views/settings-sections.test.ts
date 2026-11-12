@@ -60,6 +60,13 @@ describe("section table", () => {
     }
   });
 
+  test("keys with no reader (write-host approval, telemetry export) are not on the screen", () => {
+    expect(SECTION_OF_KEY.has("l0.secrets.approval.writeHosts")).toBe(false);
+    expect(SECTION_OF_KEY.has("l0.os.telemetry.enabled")).toBe(false);
+    expect(SECTION_OF_KEY.get("l0.secrets.approval.default")).toBe("secrets");
+    expect(SECTION_OF_KEY.get("l0.os.log.level")).toBe("data");
+  });
+
   test("moving in the nav stops at both ends", () => {
     expect(sectionStep("general", -1)).toBe("general");
     expect(sectionStep("general", 1)).toBe("shortcuts");

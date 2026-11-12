@@ -728,7 +728,7 @@ export interface WorktreeOps {
 
 | 키 | 타입 | 기본값 | range | runtimeChange | allowedScopes | ui.tab / widget | secret | L4 노출 |
 |---|---|---|---|---|---|---|---|---|
-| `l0.os.telemetry.enabled` | boolean | `false` | — | restart | managed, user | advanced / toggle | 아니오 | 화면, 파일, 명령 |
+| `l0.os.telemetry.enabled` | boolean | `false` | — | restart | managed, user | advanced / toggle | 아니오 | 파일, 명령 [결정: 2026-11-12 dzX, 화면에서 뺌] |
 | `l0.os.telemetry.exporter` | string | `"file"` | enum `file`, `otlp-http` | restart | managed, user | advanced / select | 아니오 | 화면, 파일 |
 | `l0.os.telemetry.endpoint` | string | `"http://localhost:4318/v1/traces"` | — | restart | managed, user | advanced / text | 아니오 | 화면, 파일 |
 | `l0.os.dirs.override` | string | 없음 | 절대 경로 | restart | managed | 화면에 두지 않음 | 아니오 | 파일(관리 설정)만. 환경 변수 `FRESNEL_HOME`이 같은 역할을 한다 |
@@ -736,6 +736,7 @@ export interface WorktreeOps {
 
 - 알림 켜기·종류 키는 이 표에 두지 않는다. 정본은 `L2.dialog.spec` §6의 `l2.dialog.notify.*`이고 기본값과 탭도 그 표를 따른다 [결정: review.decisions-2 S-04].
 - `dirs.override`: 사용자 설정 파일은 `config` 디렉터리 안에 있으므로 사용자 범위에서 이 값을 읽을 수 없다(순환). 그래서 관리 범위만 허용한다 [제안]. 관리 설정 파일 위치는 L4가 정한다.
+- [결정: 2026-11-12 dzX] `l0.os.telemetry.enabled`는 설정 화면에서 뺀다(데이터 구역의 로그 줄). 코드에 익스포터(`file`, `otlp-http`)가 없고, `OsService.telemetry`는 항상 `enabled: false`인 꺼짐 상수(`platform-os/src/service.ts`의 `DISABLED_TELEMETRY`)다. 켜도 아무 일도 하지 않으므로 화면에 두지 않는다. 익스포터와 SDK 연결(§3.9, OS-15)은 새 외부 의존 승인이 필요해 M5로 미룬다. `telemetry.exporter`, `telemetry.endpoint`도 읽는 곳이 없고 화면에 없다 [근거: `platform-os/src/settings.ts`, `apps/desktop/src/views/pages/settings/settings-sections.ts`]. 키 정의는 모두 남긴다. 익스포터가 생기면 `enabled`를 화면에 다시 올린다.
 - 이 표의 키 이름은 F 키 문법(`^l0\.os(\.[a-z][A-Za-z0-9]*)+$`)을 지킨다.
 
 ## 7. 훅

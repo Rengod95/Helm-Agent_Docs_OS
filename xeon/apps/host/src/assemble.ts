@@ -152,6 +152,7 @@ import { createSettingsEngine, type SettingsEngine } from "./assembly/settings-e
 import { resolveSetting, type SettingCatalog } from "@fresnel/contracts/settings";
 import {
   execOptionsOf,
+  extensionSearchPathsOf,
   layersSource,
   logLevelOf,
   operationsSource,
@@ -1112,9 +1113,18 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
 
     // 3b. 기본 플러그인으로 올린 외부 확장 적재(L4.host-service §4.1, X.loading-trust §4.4.7). 안전 모드는 외부 확장을 싣지 않는다
     if (defaultsEnabled) {
+      // x.loading-trust.paths는 재시작할 때 읽는다. 상대 경로는 작업 폴더에 기대므로 싣지 않고 경고로 남긴다(X.loading-trust.spec §4.2.1)
+      const extraPaths = extensionSearchPathsOf(
+        settings.value("x.loading-trust.paths"),
+        os.dirs.home,
+      );
+      for (const path of extraPaths.ignored) {
+        os.logger("ext-loader").warn("ext.extra_path_ignored", { path });
+      }
       const loaded = await loadExternalExtensions({
         ext,
         operations,
+        extraPaths: extraPaths.paths,
         fs: createLoaderFs(),
         userDir: os.dirs.config,
         homeDir: os.dirs.home,

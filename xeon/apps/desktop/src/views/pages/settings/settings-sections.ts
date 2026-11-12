@@ -150,10 +150,8 @@ export const SETTINGS_SECTIONS: Readonly<Record<SettingsSectionId, SectionSpec>>
     // 목록 표와 상세 시트 → 사용 승인 → 고급(저장소·임대·감사 보관, 접힘)(DP-85 [결정: 2026-11-11 사용자])
     parts: [
       panel("secrets"),
-      fields("desktop.settings.part.secretApproval", [
-        "l0.secrets.approval.default",
-        "l0.secrets.approval.writeHosts",
-      ]),
+      // 쓰기 호스트 승인(l0.secrets.approval.writeHosts)은 읽는 자리가 없어 뺀다(L0.secrets.spec §6.1 [결정: 2026-11-12 dzX])
+      fields("desktop.settings.part.secretApproval", ["l0.secrets.approval.default"]),
       panel("secretsAdvanced", SECRET_ADVANCED_KEYS),
     ],
   },
@@ -293,7 +291,8 @@ export const SETTINGS_SECTIONS: Readonly<Record<SettingsSectionId, SectionSpec>>
     parts: [
       panel("backup"),
       panel("files"),
-      fields("desktop.settings.part.logs", ["l0.os.log.level", "l0.os.telemetry.enabled"]),
+      // 텔레메트리 내보내기(l0.os.telemetry.enabled)는 익스포터가 없어 뺀다(L0.os.spec §3.9 [결정: 2026-11-12 dzX])
+      fields("desktop.settings.part.logs", ["l0.os.log.level"]),
     ],
   },
 };
