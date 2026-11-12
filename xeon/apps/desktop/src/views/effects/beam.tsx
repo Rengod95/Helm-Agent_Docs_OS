@@ -3,6 +3,8 @@
 // 대상의 파일(입력창은 dzT2b 범위)을 고치지 않고 바깥에서 붙이기 위해서다. 고리는 누르기를 막지 않고(pointer-events: none) 화면 낭독에서 빠진다.
 
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { isMotionReduced } from "../../lib/motion-presets.tsx";
+import { orbitKeyframesOf, periodMsOf } from "./beam-orbit.ts";
 
 export type BeamState = "off" | "run" | "wait";
 
@@ -46,6 +48,42 @@ function sameBox(a: Box | null, b: Box): boolean {
   );
 }
 
+/** 번짐 고리가 대상 상자 밖으로 나가는 거리(px). beam.css `.fx-beam-glow`의 inset과 같다 */
+const GLOW_OUTSET = 3;
+
+/**
+ * 빛 덩어리 둘(고리, 번짐)을 잰 상자의 둘레로 돌린다. transform 키프레임이라 합성기에서만 돈다(dzM2 시안 §11).
+ * 상자가 바뀌면 키프레임을 다시 만들되 돌던 자리(진행 비율)를 잇는다. 돌지 않을 때(off·wait)는 멈춰 둔다
+ */
+function useOrbit(host: HTMLDivElement | null, box: Box | null, state: BeamState): void {
+  const progress = useRef(0);
+  useLayoutEffect(() => {
+    if (host === null || box === null || isMotionReduced()) return undefined;
+    const sparks = [...host.querySelectorAll<HTMLElement>(".fx-beam-spark")];
+    const period = periodMsOf(getComputedStyle(host).getPropertyValue("--fx-beam-period"));
+    const running: Animation[] = [];
+    for (const spark of sparks) {
+      if (typeof spark.animate !== "function") continue;
+      const glow = spark.closest(".fx-beam-glow") !== null;
+      const out = glow ? GLOW_OUTSET : 0;
+      const frames = orbitKeyframesOf(
+        { width: box.width + out * 2, height: box.height + out * 2, radius: box.radius + out },
+        { width: spark.offsetWidth, height: spark.offsetHeight },
+      );
+      const animation = spark.animate(frames, { duration: period, iterations: Infinity });
+      animation.currentTime = progress.current * period;
+      if (state !== "run") animation.pause();
+      running.push(animation);
+    }
+    return () => {
+      const first = running[0];
+      const time = first?.currentTime;
+      if (typeof time === "number") progress.current = (time % period) / period;
+      for (const animation of running) animation.cancel();
+    };
+  }, [host, box, state]);
+}
+
 /** 테두리를 도는 빛. `mode="pulse"`는 제자리 맥동이다 */
 export function BeamScope(props: {
   readonly state: BeamState;
@@ -57,6 +95,8 @@ export function BeamScope(props: {
 }): ReactNode {
   const scope = useRef<HTMLDivElement | null>(null);
   const [box, setBox] = useState<Box | null>(null);
+  const [host, setHost] = useState<HTMLDivElement | null>(null);
+  useOrbit(props.mode === "pulse" ? null : host, box, props.state);
   const target = props.target;
   useLayoutEffect(() => {
     const el = scope.current;
@@ -107,6 +147,7 @@ export function BeamScope(props: {
       {props.children}
       {box === null ? null : (
         <div
+          ref={setHost}
           aria-hidden
           className="fx-beam"
           data-state={props.state}

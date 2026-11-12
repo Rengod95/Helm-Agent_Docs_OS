@@ -18,7 +18,8 @@ import {
   Skeleton,
 } from "@caustic/react";
 import { Folder, FolderOpen, RotateCcw, Search, X } from "@caustic/react/icons";
-import { memo, useEffect, useState, type ReactNode } from "react";
+import { memo, useEffect, useRef, useState, type ReactNode } from "react";
+import { useFlipList } from "../lib/motion-presets.tsx";
 import {
   useThreadsStatus,
   useThreadSummaries,
@@ -175,6 +176,8 @@ const ThreadRow = memo(function ThreadRow(props: {
               }
             : {})}
         meta={metaOf(props.thread, approvals, props.child, unsent, props.now)}
+        // 목록 순서가 바뀌거나 행이 들고 날 때 옛 자리에서 이어 온다(ThreadList의 useFlipList)
+        data-flip-key={id}
         title={tooltip}
         // 오른쪽 클릭은 ⋯와 같은 메뉴를 연다(줄 끝 ⋯ 자리에 붙는다)
         onContextMenu={(event) => {
@@ -417,8 +420,15 @@ export function ThreadList(props: {
     query.trim() === "" ? threads : threads.filter((thread) => threadMatches(thread, query));
   const groups = sidebarGroupsOf(shown);
   const recent = recentWorkspacesOf(threads);
+  // 새 대화·지운 대화·순서 바뀜은 FLIP으로 잇는다(dzM2 시안 §11). 찾기 글이 바뀐 커밋은 거르기라 움직이지 않는다
+  const list = useRef<HTMLDivElement | null>(null);
+  useFlipList(
+    list,
+    groups.map((group) => group.items.map((row) => row.thread.threadId).join(",")).join("|"),
+    query.trim(),
+  );
   return (
-    <div className={LIST_COLUMN}>
+    <div ref={list} className={LIST_COLUMN}>
       {threads.length === 0 ? null : (
         <div className="px-1.5 pb-1">
           <Input

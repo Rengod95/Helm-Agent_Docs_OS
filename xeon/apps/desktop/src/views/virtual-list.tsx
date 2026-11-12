@@ -9,8 +9,10 @@ import {
   type ReactNode,
   type WheelEvent as ReactWheelEvent,
 } from "react";
+import { flushSync } from "react-dom";
 import { nextStuck } from "./virtual-list-stick.ts";
 import { glideStep, shouldGlide } from "./virtual-list-glide.ts";
+import { anchorShiftOf, releasesOnExpand, unseenOf } from "./virtual-list-anchor.ts";
 import { isMotionReduced } from "../lib/motion-presets.tsx";
 
 // 가상 스크롤(L4.desktop.spec 4.10 수단 3). 화면에 보이는 행과 앞뒤 여유분만 DOM에 둔다.
@@ -35,17 +37,13 @@ type Props<R extends VirtualRow> = {
   readonly label: string;
   /** 내가 보낸 마지막 말의 행 키. 이 값이 바뀌면(같은 목록 안에서) 위로 올려 둔 채여도 바닥으로 내려간다(scJ S2-2) */
   readonly ownTailKey?: string | null;
+  /** "새 메시지"로 셀 행. 없으면 모든 행이다. 진행 중 행과 그 기록 행은 키가 같아 하나로 센다 */
+  readonly countRow?: (row: R) => boolean;
+  /** 행 요소가 처음 마운트될 때 한 번 부른다(같은 요소가 다시 그려질 때는 부르지 않는다). 들어옴 움직임을 건다 */
+  readonly onRowMount?: (row: R, el: HTMLElement) => void;
 };
 
-/** 진행 중 행의 키 접두사(transcript.tsx). 기록이 오면 이 행은 사라지고 같은 내용의 기록 행이 생긴다 */
-const LIVE_PREFIX = "live:";
-
-/** 바닥에 있던 때보다 늘어난 "새 메시지" 수. 진행 중 행은 기록 행이 생기기 전까지 하나로 센다 */
-function unseenCount(keys: readonly string[], baseline: number): number {
-  const recorded = keys.filter((key) => !key.startsWith(LIVE_PREFIX)).length;
-  const grown = Math.max(0, recorded - baseline);
-  return grown > 0 || recorded === keys.length ? grown : 1;
-}
+const countAll = (): boolean => true;
 
 /** 시작 위치 offsets[i] (i번째 행의 위쪽)와 전체 높이 */
 function layout(
@@ -91,10 +89,9 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
   const lastTop = useRef<number | null>(null);
   const lastScrollHeight = useRef<number | null>(null);
   const [viewport, setViewport] = useState({ top: 0, height: 0 });
-  // 잰 높이. 렌더가 읽으므로 상태다. 관찰자 콜백은 모아 두었다가 프레임마다 한 번 반영한다
+  // 잰 높이. 렌더가 읽으므로 상태다. 관찰자 콜백이 같은 프레임에 반영한다
   const [heights, setHeights] = useState<ReadonlyMap<string, number>>(() => new Map());
   const measured = useRef<Map<string, number>>(new Map());
-  const frame = useRef<number | null>(null);
   // 가장 최근 그린 배치(관찰자 콜백이 읽는다)와, 화면 위쪽 행의 높이가 바뀐 만큼 스크롤을 옮겨 보이는 내용이 밀리지 않게 하는 보정량
   const latest = useRef<{
     keys: readonly string[];
@@ -109,8 +106,9 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
   // 따라 내려가기 보간(DP-106). 도는 동안의 프레임 번호와 직전 시각. 사용자가 위로 움직이면(바닥에서 벗어나면) 다음 프레임에서 멈춘다
   const glide = useRef<number | null>(null);
   const glideAt = useRef(0);
-  // 한 번 화면 밖으로 나갔다 다시 들어오는 행은 들어오는 움직임(animate-rise)을 다시 하지 않는다
-  const seen = useRef<Set<string>>(new Set());
+  // 마운트를 알린 요소. ref 콜백은 렌더마다 다시 불리므로 같은 요소에 두 번 알리지 않는다
+  const reported = useRef<WeakSet<Element>>(new WeakSet());
+  const countRow = props.countRow ?? countAll;
 
   const [observer, setObserver] = useState<ResizeObserver | null>(null);
   useEffect(() => {
@@ -124,9 +122,9 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
           Math.ceil(entry.borderBoxSize[0]?.blockSize ?? entry.contentRect.height),
         );
       }
-      if (frame.current !== null) return;
-      frame.current = requestAnimationFrame(() => {
-        frame.current = null;
+      // 잰 높이는 같은 프레임에 반영한다(flushSync). 관찰자 콜백은 그리기 전에 불리므로, 높이가 바뀐 줄 아래 줄들이
+      // 한 프레임 늦게 옮겨져 겹치거나 틈이 벌어지는 일이 없다(펼침 높이 잇기, 확정 때 줄이 나뉨, dzM2 시안 §10)
+      {
         const batch = measured.current;
         measured.current = new Map();
         // 보이는 영역 위에 통째로 있는 행의 높이가 바뀌면 그만큼 스크롤을 옮긴다. 그렇지 않으면 위로 올릴 때마다 아래 내용이 밀려 튄다.
@@ -134,34 +132,34 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
         const el = scroller.current;
         if (el !== null && !stuck.current) {
           const view = latest.current;
-          let shift = 0;
-          for (const [key, height] of batch) {
-            const index = view.keys.indexOf(key);
-            if (index < 0) continue;
-            const old = view.heights.get(key) ?? ESTIMATED_HEIGHT;
-            if (PAD_TOP_PX + (view.offsets[index] ?? 0) + old <= el.scrollTop)
-              shift += height - old;
-          }
-          pendingShift.current += shift;
+          pendingShift.current += anchorShiftOf({
+            batch,
+            keys: view.keys,
+            offsets: view.offsets,
+            heights: view.heights,
+            scrollTop: el.scrollTop,
+            padTop: PAD_TOP_PX,
+            estimate: ESTIMATED_HEIGHT,
+          });
         }
-        setHeights((prev) => {
-          let changed = false;
-          const next = new Map(prev);
-          for (const [key, height] of batch) {
-            if (next.get(key) !== height) {
-              next.set(key, height);
-              changed = true;
+        flushSync(() => {
+          setHeights((prev) => {
+            let changed = false;
+            const next = new Map(prev);
+            for (const [key, height] of batch) {
+              if (next.get(key) !== height) {
+                next.set(key, height);
+                changed = true;
+              }
             }
-          }
-          return changed ? next : prev;
+            return changed ? next : prev;
+          });
         });
-      });
+      }
     });
     setObserver(created);
     return () => {
       created.disconnect();
-      if (frame.current !== null) cancelAnimationFrame(frame.current);
-      frame.current = null;
     };
   }, []);
 
@@ -201,7 +199,7 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
   // 내가 보내면(ownTailKey가 같은 목록 안에서 바뀌면) 바닥으로 간다. 남의 새 출력은 위로 올린 자리를 지키고 "새 메시지" 단추로 알린다(scJ S2-2)
   const firstKey = useRef<string | undefined>(undefined);
   const ownKey = useRef<string | null | undefined>(props.ownTailKey);
-  const baseline = useRef(0);
+  const baseline = useRef<ReadonlySet<string>>(new Set());
   const [unseen, setUnseen] = useState(0);
   useLayoutEffect(() => {
     latest.current = { keys, offsets, heights };
@@ -231,7 +229,7 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
         glide.current = requestAnimationFrame(glideFrame);
       }
     }
-    if (stuck.current) baseline.current = keys.filter((key) => !key.startsWith(LIVE_PREFIX)).length;
+    if (stuck.current) baseline.current = new Set(keys);
   });
   // 위쪽 행의 높이가 바뀐 만큼 스크롤을 옮긴다(관찰자 콜백이 정한 보정량). 높이 상태가 바뀐 렌더 직후, 그리기 전에 한다
   useLayoutEffect(() => {
@@ -247,8 +245,28 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
   }, [heights]);
   // 새 내용이나 스크롤이 있을 때마다 바닥에서 벗어난 채 늘어난 수를 다시 센다
   useLayoutEffect(() => {
-    setUnseen(followTail && !stuck.current ? unseenCount(keys, baseline.current) : 0);
-  }, [keys, followTail]);
+    setUnseen(followTail && !stuck.current ? unseenOf(rows, baseline.current, countRow) : 0);
+  }, [rows, followTail, countRow]);
+  // 스크롤 영역의 높이가 바뀌면(입력창이 자람, 창 크기) 바닥에 붙어 있을 때 같은 프레임에 바닥을 지킨다. 마지막 줄이 입력창 뒤로 숨지 않는다
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (el === null || typeof ResizeObserver === "undefined") return undefined;
+    let height = el.clientHeight;
+    const resize = new ResizeObserver(() => {
+      if (el.clientHeight === height) return;
+      height = el.clientHeight;
+      if (stuck.current && followTail) {
+        el.scrollTop = el.scrollHeight;
+        lastTop.current = el.scrollTop;
+        lastScrollHeight.current = el.scrollHeight;
+      }
+      setViewport({ top: el.scrollTop, height: el.clientHeight });
+    });
+    resize.observe(el);
+    return () => {
+      resize.disconnect();
+    };
+  }, [followTail]);
 
   const onScroll = (): void => {
     const el = scroller.current;
@@ -264,8 +282,26 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
     });
     lastTop.current = el.scrollTop;
     lastScrollHeight.current = el.scrollHeight;
-    setUnseen(followTail && !stuck.current ? unseenCount(keys, baseline.current) : 0);
+    setUnseen(followTail && !stuck.current ? unseenOf(rows, baseline.current, countRow) : 0);
     setViewport({ top: el.scrollTop, height: el.clientHeight });
+  };
+
+  // 바닥에 붙은 채 마지막이 아닌 줄을 펼치면 붙음을 푼다(따라 내려가면 누른 줄 머리가 위로 밀려 나간다)
+  const onClickCapture = (event: { readonly target: EventTarget }): void => {
+    if (!stuck.current || !(event.target instanceof Element)) return;
+    const toggle = event.target.closest("[aria-expanded]");
+    if (toggle === null) return;
+    const rowKey = toggle.closest("[data-row-key]")?.getAttribute("data-row-key") ?? null;
+    if (
+      releasesOnExpand({
+        opening: toggle.getAttribute("aria-expanded") === "false",
+        rowKey,
+        lastKey: keys.at(-1),
+      })
+    ) {
+      stuck.current = false;
+      stopGlide();
+    }
   };
 
   // 휠을 위로 굴리면 스크롤 이벤트보다 먼저 바닥에서 벗어난 것으로 본다. 바닥 근처에서 조금만 올려도 다시 내려가 튀지 않게 한다
@@ -293,6 +329,7 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
         ref={scroller}
         onScroll={onScroll}
         onWheel={onWheel}
+        onClickCapture={onClickCapture}
         tabIndex={0}
         role="region"
         aria-label={props.label}
@@ -310,12 +347,14 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
               }}
               ref={(el) => {
                 if (el === null) return undefined;
-                // 이미 한 번 마운트됐던 행이면 들어오는 움직임을 끈다(styles.css). 속성은 첫 그림 전에 붙는다
-                if (seen.current.has(row.key)) el.setAttribute("data-seen", "");
+                // 새 요소면 한 번 알린다(들어옴을 돌릴지는 부르는 쪽이 키로 정한다). 첫 그림 전에 불린다
+                if (!reported.current.has(el)) {
+                  reported.current.add(el);
+                  props.onRowMount?.(row, el);
+                }
                 observer?.observe(el);
                 return () => {
                   observer?.unobserve(el);
-                  seen.current.add(row.key);
                 };
               }}
             >
@@ -347,7 +386,7 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
                 lastTop.current = el.scrollTop;
                 lastScrollHeight.current = el.scrollHeight;
                 stuck.current = true;
-                baseline.current = keys.filter((key) => !key.startsWith(LIVE_PREFIX)).length;
+                baseline.current = new Set(keys);
                 setViewport({ top: el.scrollTop, height: el.clientHeight });
               }}
             >

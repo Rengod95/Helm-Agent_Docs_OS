@@ -7,6 +7,7 @@ import type { Transition, Variants } from "motion/react";
 import {
   useLayoutEffect,
   useRef,
+  useState,
   useSyncExternalStore,
   type ReactNode,
   type RefObject,
@@ -251,12 +252,21 @@ export function PresenceList(props: { readonly children: ReactNode }): ReactNode
 /** 목록 한 항목: 들어올 때 높이가 열리며 떠오르고, 나갈 때 높이를 접으며 사라져 아래 항목이 자연히 따라 올라온다 */
 export function PresenceItem(props: {
   readonly className?: string;
+  /** 목록(`ul`) 안이면 "li" */
+  readonly as?: "div" | "li";
   readonly children: ReactNode;
 }): ReactNode {
   const reduced = useMotionReduced();
-  if (reduced) return <div className={props.className}>{props.children}</div>;
+  const li = props.as === "li";
+  if (reduced)
+    return li ? (
+      <li className={props.className}>{props.children}</li>
+    ) : (
+      <div className={props.className}>{props.children}</div>
+    );
+  const Item = li ? motion.li : motion.div;
   return (
-    <motion.div
+    <Item
       className={props.className}
       initial={{ height: 0, opacity: 0, overflow: "hidden" }}
       animate={{
@@ -279,7 +289,7 @@ export function PresenceItem(props: {
       }}
     >
       {props.children}
-    </motion.div>
+    </Item>
   );
 }
 
@@ -370,4 +380,294 @@ export function fadeIn(els: Iterable<Element>): void {
       easing: cssBezier(EASE.standard),
     });
   }
+}
+
+// ── 대화 줄 들어옴(dzM2 시안 §2, DP-117) ─────────────────────────────────────────
+
+/** 줄 들어옴의 갈래. 줄 종류(`TranscriptRow["kind"]`)를 `views/transcript-enter.ts`가 이 값으로 옮긴다 */
+export type RowEnter =
+  | "user"
+  | "reply"
+  | "quiet"
+  | "card"
+  | "foot"
+  | "divider"
+  | "compaction"
+  | "leadHead";
+
+type EnterTrack = {
+  /** 없으면 요소 자체, 있으면 그 가상 요소(`::before`·`::after`)나 그 선택자로 찾은 자식 */
+  readonly pseudo?: "::before" | "::after";
+  readonly child?: string;
+  readonly keyframes: readonly Keyframe[];
+  readonly duration: number;
+  readonly easing: Bezier;
+  readonly delay?: number;
+};
+
+const rise = (px: number, blur = 0): readonly Keyframe[] => [
+  {
+    opacity: 0,
+    transform: `translateY(${String(px)}px)`,
+    ...(blur > 0 ? { filter: `blur(${String(blur)}px)` } : {}),
+  },
+  { opacity: 1, transform: "translateY(0px)", ...(blur > 0 ? { filter: "blur(0px)" } : {}) },
+];
+const FADE: readonly Keyframe[] = [{ opacity: 0 }, { opacity: 1 }];
+const DRAW_X: readonly Keyframe[] = [{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }];
+
+/** 갈래별 키프레임(ms, 곡선). 순수 값이라 시험이 끝값과 넘침 없음을 본다 */
+export const ROW_ENTER: Readonly<Record<RowEnter, readonly EnterTrack[]>> = {
+  // 입력창에서 올라온 듯: 12px 오름
+  user: [{ keyframes: rise(12), duration: 220, easing: EASE.enter }],
+  // 초점이 맞듯: 6px 오름 + 흐림 4 → 0
+  reply: [{ keyframes: rise(SHIFT.block, ENTER_BLUR), duration: 200, easing: EASE.enter }],
+  // 조용히: 4px 오름
+  quiet: [{ keyframes: rise(4), duration: 160, easing: EASE.enter }],
+  // 카드: 조금 더 깊은 초점 맞춤
+  card: [{ keyframes: rise(SHIFT.block, 6), duration: 240, easing: EASE.enter }],
+  // 턴 발 줄: 답 뒤에 늦게, 투명도만
+  foot: [{ keyframes: FADE, duration: 160, easing: EASE.standard, delay: 60 }],
+  // 변화 표지: 글은 투명도, 양쪽 선은 글 쪽에서 바깥으로 그어진다(원점은 convo.css)
+  divider: [
+    { child: ".convo-divider", keyframes: FADE, duration: 160, easing: EASE.standard },
+    {
+      child: ".convo-divider",
+      pseudo: "::before",
+      keyframes: DRAW_X,
+      duration: 280,
+      easing: EASE.panel,
+    },
+    {
+      child: ".convo-divider",
+      pseudo: "::after",
+      keyframes: DRAW_X,
+      duration: 280,
+      easing: EASE.panel,
+    },
+  ],
+  // 요약 구분선: 표지와 같은 선 + 빛 줄기가 한 번 지나간다(`.convo-compact-sweep`)
+  compaction: [
+    { child: ".convo-divider", keyframes: FADE, duration: 160, easing: EASE.standard },
+    {
+      child: ".convo-divider",
+      pseudo: "::before",
+      keyframes: DRAW_X,
+      duration: 280,
+      easing: EASE.panel,
+    },
+    {
+      child: ".convo-divider",
+      pseudo: "::after",
+      keyframes: DRAW_X,
+      duration: 280,
+      easing: EASE.panel,
+    },
+    {
+      child: ".convo-compact-sweep",
+      keyframes: [
+        { opacity: 0, transform: "translateX(-100%)" },
+        { opacity: 1, transform: "translateX(40%)", offset: 0.35 },
+        { opacity: 0, transform: "translateX(180%)" },
+      ],
+      duration: 900,
+      easing: EASE.standard,
+      delay: 80,
+    },
+  ],
+  // 주도 머리: 답과 같은 초점 맞춤 + 레일이 위에서 아래로 그어진다
+  leadHead: [
+    { keyframes: rise(SHIFT.block, ENTER_BLUR), duration: 200, easing: EASE.enter },
+    {
+      pseudo: "::before",
+      keyframes: [{ transform: "scaleY(0)" }, { transform: "scaleY(1)" }],
+      duration: 280,
+      easing: EASE.panel,
+    },
+  ],
+};
+
+/**
+ * 줄 하나에 들어옴을 한 번 건다(WAAPI). 줄 틀의 transform·opacity·filter만 움직여 줄 높이(가상 목록이 재는 값)는 그대로다.
+ * 줄이면 120ms 투명도만 한다. 돌린 애니메이션 수를 돌려준다(시험·측정용)
+ */
+export function playRowEnter(el: Element, kind: RowEnter): number {
+  if (typeof el.animate !== "function") return 0;
+  if (isMotionReduced()) {
+    el.animate([...FADE], { duration: DUR.micro * 1000, easing: cssBezier(EASE.standard) });
+    return 1;
+  }
+  let count = 0;
+  for (const track of ROW_ENTER[kind]) {
+    const target = track.child === undefined ? el : el.querySelector(track.child);
+    if (target === null || typeof target.animate !== "function") continue;
+    target.animate([...track.keyframes], {
+      duration: track.duration,
+      easing: cssBezier(track.easing),
+      delay: track.delay ?? 0,
+      fill: "backwards",
+      ...(track.pseudo === undefined ? {} : { pseudoElement: track.pseudo }),
+    });
+    count += 1;
+  }
+  return count;
+}
+
+// ── 높이 잇기(dzM2 시안 §4) ───────────────────────────────────────────────────
+
+/**
+ * 안 내용의 높이가 바뀌면(줄이 사라지거나 생김) 옛 높이에서 새 높이로 잇는다. 펼침 경계(`Collapse`)가 아닌 곳,
+ * 예를 들어 끝난 활동 묶음의 접힌 몸이 요약 한 줄로 모일 때 쓴다. 처음 그릴 때와 줄이기에서는 움직이지 않는다.
+ * 계속 자라는 내용(스트리밍)에는 쓰지 않는다
+ */
+export function HeightGlide(props: {
+  readonly className?: string;
+  readonly children: ReactNode;
+}): ReactNode {
+  const outer = useRef<HTMLDivElement | null>(null);
+  const inner = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const box = outer.current;
+    const content = inner.current;
+    if (box === null || content === null || typeof ResizeObserver === "undefined") return undefined;
+    let last = content.getBoundingClientRect().height;
+    let running: Animation | null = null;
+    const observer = new ResizeObserver(() => {
+      const next = content.getBoundingClientRect().height;
+      const from = running === null ? last : box.getBoundingClientRect().height;
+      last = next;
+      if (Math.abs(next - from) < 1 || isMotionReduced() || typeof box.animate !== "function")
+        return;
+      running?.cancel();
+      box.style.overflow = "hidden";
+      const shrink = next < from;
+      const animation = box.animate(
+        [{ height: `${String(from)}px` }, { height: `${String(next)}px` }],
+        {
+          duration: (shrink ? DUR.exitLayout : DUR.enter) * 1000,
+          easing: cssBezier(shrink ? EASE.standard : EASE.panel),
+        },
+      );
+      running = animation;
+      const done = (): void => {
+        if (running !== animation) return;
+        running = null;
+        box.style.overflow = "";
+      };
+      animation.addEventListener("finish", done);
+      animation.addEventListener("cancel", done);
+    });
+    observer.observe(content);
+    return () => {
+      observer.disconnect();
+      running?.cancel();
+    };
+  }, []);
+  return (
+    <div ref={outer} className={props.className}>
+      <div ref={inner}>{props.children}</div>
+    </div>
+  );
+}
+
+// ── 상태 바뀜 ────────────────────────────────────────────────────────────────
+
+/**
+ * 값이 이 부품이 마운트된 뒤에 바뀌었는지. 처음 값 그대로면 false, 한 번이라도 바뀌면 그 뒤로 true다.
+ * 상태 바뀜 움직임(체크 그리기, 실패 번짐)을 "바뀐 순간"에만 돌리고, 이미 끝난 줄을 다시 그릴 때는 돌리지 않으려고 쓴다
+ */
+export function useChangedSinceMount(value: string): boolean {
+  const [first] = useState(value);
+  const [changed, setChanged] = useState(false);
+  // 이전 그림의 값에서 정하는 상태(React "이전 렌더의 정보 저장" 꼴). 한 번 바뀌면 처음 값으로 돌아와도 true다
+  if (!changed && value !== first) setChanged(true);
+  return changed || value !== first;
+}
+
+// ── 목록 FLIP(dzM2 시안 §11) ─────────────────────────────────────────────────
+
+/** 옛 자리와 새 자리에서 움직일 거리. 처음 보는 키는 들어옴, 그대로면 null */
+export function flipDeltaOf(
+  before: ReadonlyMap<string, number>,
+  key: string,
+  top: number,
+): { readonly kind: "move"; readonly dy: number } | { readonly kind: "enter" } | null {
+  const old = before.get(key);
+  if (old === undefined) return { kind: "enter" };
+  const dy = old - top;
+  return Math.abs(dy) < 0.5 ? null : { kind: "move", dy };
+}
+
+/**
+ * 컨테이너 안 `[data-flip-key]` 요소의 자리 변화를 transform으로 잇는다(삽입: 투명도 + 4px, 이동: 옛 자리에서 미끄러짐).
+ * `version`이 바뀐 커밋에서만 본다. 처음 그릴 때와 `scope`가 바뀐 커밋(찾기 글 바뀜 같은 거르기)은 자리만 새로 적고 움직이지 않는다
+ */
+export function useFlipList(
+  container: RefObject<Element | null>,
+  version: string,
+  scope: string,
+): void {
+  const tops = useRef<Map<string, number> | null>(null);
+  const last = useRef({ version, scope });
+  useLayoutEffect(() => {
+    const animate = last.current.scope === scope && last.current.version !== version;
+    last.current = { version, scope };
+    const root = container.current;
+    if (root === null) return;
+    // 컨테이너 기준 자리라 목록이 스크롤돼도 옛 값이 틀어지지 않는다
+    const origin = root.getBoundingClientRect().top;
+    const next = new Map<string, number>();
+    const els = [...root.querySelectorAll<HTMLElement>("[data-flip-key]")];
+    for (const el of els) {
+      const key = el.dataset["flipKey"];
+      if (key !== undefined) next.set(key, el.getBoundingClientRect().top - origin);
+    }
+    const before = tops.current;
+    tops.current = next;
+    if (before === null || !animate || isMotionReduced()) return;
+    for (const el of els) {
+      const key = el.dataset["flipKey"];
+      if (key === undefined || typeof el.animate !== "function") continue;
+      const delta = flipDeltaOf(before, key, next.get(key) ?? 0);
+      if (delta === null) continue;
+      if (delta.kind === "enter") {
+        el.animate([...rise(4)], { duration: 160, easing: cssBezier(EASE.enter) });
+      } else {
+        el.animate(
+          [{ transform: `translateY(${String(delta.dy)}px)` }, { transform: "translateY(0px)" }],
+          { duration: DUR.layout * 1000, easing: cssBezier(EASE.panel) },
+        );
+      }
+    }
+  }, [container, version, scope]);
+}
+
+/**
+ * 켜져 있는 동안 요소의 높이가 줄어들지 않게 한다(가장 컸던 높이를 최소 높이로 지킨다). 꺼지면 풀린다.
+ * 스트리밍 중인 답(dzM2 시안 §5): 닫는 울타리를 치는 중(코드 한 줄이 잠깐 생겼다 사라짐), 표 머리가 아직 끝나지 않은 순간처럼
+ * 마크다운이 잠깐 짧아지는 프레임이 있다(측정 12~31px). 그동안 아래 줄과 따라 내려가기가 위아래로 튀지 않는다
+ */
+export function useHeightRatchet<E extends HTMLElement>(active: boolean): RefObject<E | null> {
+  const el = useRef<E | null>(null);
+  useLayoutEffect(() => {
+    const box = el.current;
+    if (box === null) return undefined;
+    if (!active || typeof ResizeObserver === "undefined") {
+      box.style.minHeight = "";
+      return undefined;
+    }
+    let max = 0;
+    const observer = new ResizeObserver(() => {
+      const height = box.offsetHeight;
+      if (height > max) {
+        max = height;
+        box.style.minHeight = `${String(max)}px`;
+      }
+    });
+    observer.observe(box);
+    return () => {
+      observer.disconnect();
+    };
+  }, [active]);
+  return el;
 }

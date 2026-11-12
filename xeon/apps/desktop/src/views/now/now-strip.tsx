@@ -1,6 +1,5 @@
 import { Button, IconButton, Progress } from "@caustic/react";
 import {
-  Check,
   ChevronDown,
   ChevronUp,
   Circle,
@@ -23,6 +22,9 @@ import {
   useOpenThreadId,
 } from "../../state/engine/index.ts";
 import { ShellStoreContext } from "../../state/shell/index.ts";
+import { Presence, SwapFade, useChangedSinceMount } from "../../lib/motion-presets.tsx";
+import { Reveal } from "../convo/tool-line.tsx";
+import { DrawnCheck } from "../effects/drawn-check.tsx";
 import {
   nowShownOf,
   nowViewOf,
@@ -37,7 +39,8 @@ import {
 // 지금 띠(L4.desktop-ux DP-100 [결정: 2026-11-11 사용자]). 입력창 위 맥락 줄 바로 위에 떠서 "지금 무슨 일을 하는지"를 한 줄로 보인다:
 // 지금 할 일(또는 목표), 할 일 진행, 도는 하위 에이전트 수, 주도 중인 플러그인, 기다리는 승인 수. 줄을 누르면 아래로 펼쳐 목표·할 일·에이전트·주도를 보인다.
 // 값은 거울의 선택자라 턴이 도는 동안 사건마다 갱신된다. 그릴 것이 없으면 아무것도 그리지 않는다.
-// 들어옴·나감 모션은 모션 트랙이 `data-now-strip` 경계에 입힌다(이 부품은 조건부로 나타나는 자리 하나만 둔다).
+// 움직임(dzM2 시안 §7, DP-119): 입력창 위로 8px 올라와 가라앉고(band) 사라질 때 4px 내려가며 나간다. 몸은 높이를 잇고(Reveal),
+// 본문 글과 진행 수는 교차 전환, 막대는 caustic Progress 폭 전환, 펼친 목록에서 끝난 할 일은 체크 선이 그려진다.
 
 const ICON = "size-3.5 shrink-0";
 
@@ -52,8 +55,15 @@ function NowStripFor(props: { readonly threadId: ThreadId }): ReactNode {
   const agents = useAgentRows(props.threadId);
   const leads = useLeadSegments(props.threadId);
   const [open, setOpen] = useState(false);
-  if (!nowShownOf(now, agents, leads)) return null;
-  return <NowStripView view={nowViewOf(now, agents, leads)} open={open} onOpenChange={setOpen} />;
+  const shown = nowShownOf(now, agents, leads);
+  return (
+    // 사라지는 동안에는 마지막으로 그린 띠가 남아 내려간다(Presence가 옛 내용을 든다)
+    <Presence show={shown} variant="band" initial={false}>
+      {shown ? (
+        <NowStripView view={nowViewOf(now, agents, leads)} open={open} onOpenChange={setOpen} />
+      ) : null}
+    </Presence>
+  );
 }
 
 function PulseIcon(props: { readonly pulse: NowPulse; readonly goal: boolean }): ReactNode {
@@ -111,8 +121,13 @@ function MetaLine(props: { readonly view: NowView }): ReactNode {
       extra: false,
       node: (
         <span className="inline-flex items-center gap-1.5">
-          <span>
-            {view.progress.done}/{view.progress.total}
+          <span className="relative">
+            <SwapFade
+              swapKey={`${String(view.progress.done)}/${String(view.progress.total)}`}
+              inline
+            >
+              {view.progress.done}/{view.progress.total}
+            </SwapFade>
           </span>
           <Progress value={percent} decorative size="xs" className="w-10" />
         </span>
@@ -195,9 +210,11 @@ export function NowStripView(props: {
           <span
             data-now-headline=""
             title={headline}
-            className={`min-w-0 truncate text-ui ${view.headline.kind === "stopping" ? "text-warning-text" : "text-text-primary"}`}
+            className={`relative min-w-0 truncate text-ui ${view.headline.kind === "stopping" ? "text-warning-text" : "text-text-primary"}`}
           >
-            {headline}
+            <SwapFade swapKey={headline} inline>
+              {headline}
+            </SwapFade>
           </span>
           <MetaLine view={view} />
         </button>
@@ -214,7 +231,9 @@ export function NowStripView(props: {
           {open ? <ChevronDown aria-hidden /> : <ChevronUp aria-hidden />}
         </IconButton>
       </div>
-      {open ? <NowBody id={bodyId} view={view} /> : null}
+      <Reveal open={open}>
+        <NowBody id={bodyId} view={view} />
+      </Reveal>
     </section>
   );
 }
@@ -230,11 +249,13 @@ function SectionHead(props: { readonly children: ReactNode; readonly end?: React
 
 function TaskIcon(props: { readonly task: NowTaskView }): ReactNode {
   const { task } = props;
+  // 펼친 목록에 있는 동안 끝난 할 일만 체크 선이 그려진다. 처음부터 끝난 할 일은 그대로다
+  const changed = useChangedSinceMount(task.status);
   if (task.state === "now") {
     return <LoaderCircle aria-hidden className={`${ICON} animate-spinner text-accent-text`} />;
   }
   if (task.status === "completed")
-    return <Check aria-hidden className={`${ICON} text-success-text`} />;
+    return <DrawnCheck draw={changed} className={`${ICON} text-success-text`} />;
   if (task.status === "failed")
     return <CircleX aria-hidden className={`${ICON} text-danger-text`} />;
   return <Circle aria-hidden className={`${ICON} text-text-tertiary`} />;

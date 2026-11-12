@@ -425,6 +425,7 @@ describe("an expanded edit row in the DOM", () => {
     "document",
     "navigator",
     "Node",
+    "Element",
     "HTMLElement",
     "IS_REACT_ACT_ENVIRONMENT",
   ] as const;
@@ -438,6 +439,7 @@ describe("an expanded edit row in the DOM", () => {
       document,
       navigator: window.navigator,
       Node: window.Node,
+      Element: window.Element,
       HTMLElement: window.HTMLElement,
       IS_REACT_ACT_ENVIRONMENT: true,
     };
@@ -548,13 +550,14 @@ describe("streaming rows", () => {
         },
       },
     });
-    h.store.ingest({ type: "chunk", fact: delta(2, "src/mai", 8) });
+    h.store.ingest({ type: "chunk", fact: delta(2, '{"path":"src/mai', 8) });
     h.store.flush();
     const html = render(<StreamingRow id={itm(8)} />, h);
     expect(html).toContain('data-status="running"');
     expect(chipLabels(html)).toEqual([t("desktop.item.toolRunning")]);
-    // 진행 중 호출 줄은 인자를 읽지 않는다(반쯤 온 JSON). 이름만 보이고 대상 칸은 비어 있다
-    expect(visibleText(html)).toBe("read");
+    // 진행 중 호출 줄은 반쯤 온 인자에서 대상을 읽어 보이고, 아래에 인자 꼬리를 둔다(dzM2 시안 §3)
+    expect(html.match(/class="convo-tail">([^<]*)</)?.[1]).toBe("{&quot;path&quot;:&quot;src/mai");
+    expect(visibleText(html)).toContain("src/mai");
   });
 });
 

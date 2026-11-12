@@ -1,13 +1,26 @@
 import { IconButton } from "@caustic/react";
-import { Check, Copy } from "@caustic/react/icons";
+import { Copy } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
-import { memo, useEffect, useState, type NamedExoticComponent, type ReactNode } from "react";
+import {
+  createContext,
+  memo,
+  useContext,
+  useEffect,
+  useState,
+  type NamedExoticComponent,
+  type ReactNode,
+} from "react";
 import type { Components } from "react-markdown";
 import { highlightCode, type HighlightedLines } from "../../lib/highlight.ts";
 import { renderMarkdown } from "../../lib/markdown.tsx";
 import { renderStreamingMarkdown } from "../../lib/markdown-stream.ts";
+import { SwapFade } from "../../lib/motion-presets.tsx";
+import { DrawnCheck } from "../effects/drawn-check.tsx";
 import { useOpenSource } from "./open-source.ts";
+
+/** 이 본문이 스트리밍 중인지. 부품 함수를 렌더마다 새로 만들지 않으려고 문맥으로 넘긴다 */
+const StreamingContext = createContext(false);
 
 // 답 본문(dzT2a 시안 3.1). 확정 글과 스트리밍 글을 같은 부품과 같은 규칙으로 그려, 확정될 때 모양이 튀지 않는다.
 // 글자·간격 규칙은 `convo.css`의 `.convo-prose`가 맡는다(제목 두 단계, 문단 12, 목록 들여 20, 인용, 표, 인라인 코드).
@@ -42,6 +55,8 @@ export function CopyButton(props: { readonly text: string; readonly label: strin
     <IconButton
       size="xs"
       tone="ghost"
+      // 교차 전환에서 나가는 아이콘이 단추 안에 겹쳐 남는다(popLayout)
+      className="relative"
       label={done ? t("desktop.convo.copied") : props.label}
       onClick={() => {
         detach(
@@ -53,7 +68,10 @@ export function CopyButton(props: { readonly text: string; readonly label: strin
         );
       }}
     >
-      {done ? <Check aria-hidden className="text-success-text" /> : <Copy aria-hidden />}
+      {/* 복사함: 아이콘이 교차 전환되고 체크 선이 그려진다(dzM2 시안 §9) */}
+      <SwapFade swapKey={done ? "done" : "copy"} inline className="inline-flex">
+        {done ? <DrawnCheck draw className="text-success-text" /> : <Copy aria-hidden />}
+      </SwapFade>
     </IconButton>
   );
 }
@@ -130,36 +148,54 @@ function CodeBlock(props: {
   );
 }
 
-function componentsOf(streaming: boolean, openLink: (url: string) => void): Components {
-  return {
-    pre: ({ children }) => <>{children}</>,
-    code: ({ className, children }) => {
-      const lang = languageOf(className);
-      const text = codeTextOf(children);
-      // 울타리 코드는 언어 클래스가 있거나 줄바꿈이 있다. 그 밖은 인라인 코드다
-      const block = lang !== "" || (typeof children === "string" && children.includes("\n"));
-      if (!block) return <code className="convo-inline-code">{children}</code>;
-      return <CodeBlock code={text} lang={lang} streaming={streaming} />;
-    },
-    a: ({ href, children }) => (
-      <a
-        href={href}
-        className="convo-link"
-        onClick={(event) => {
-          event.preventDefault();
-          if (href !== undefined) openLink(href);
-        }}
-      >
-        {children}
-      </a>
-    ),
-    table: ({ children }) => (
-      <div className="convo-table" tabIndex={0}>
-        <table>{children}</table>
-      </div>
-    ),
-  };
+function MarkdownCode(props: {
+  readonly className?: string | undefined;
+  readonly children?: ReactNode;
+}): ReactNode {
+  const streaming = useContext(StreamingContext);
+  const lang = languageOf(props.className);
+  const text = codeTextOf(props.children);
+  // 울타리 코드는 언어 클래스가 있거나 줄바꿈이 있다. 그 밖은 인라인 코드다
+  const block =
+    lang !== "" || (typeof props.children === "string" && props.children.includes("\n"));
+  if (!block) return <code className="convo-inline-code">{props.children}</code>;
+  return <CodeBlock code={text} lang={lang} streaming={streaming} />;
 }
+
+function MarkdownLink(props: {
+  readonly href?: string | undefined;
+  readonly children?: ReactNode;
+}): ReactNode {
+  const open = useOpenSource();
+  const { href } = props;
+  return (
+    <a
+      href={href}
+      className="convo-link"
+      onClick={(event) => {
+        event.preventDefault();
+        if (href !== undefined) open(href);
+      }}
+    >
+      {props.children}
+    </a>
+  );
+}
+
+/**
+ * 마크다운 부품. 모듈에 한 번만 만든다: 렌더마다 새 함수를 넘기면 react-markdown이 코드 블록·표·링크를 델타마다 다시 마운트해
+ * 스트리밍 중 깜빡이고(복사 상태, 가로 스크롤이 풀림) 확정 때 코드 강조가 처음부터 다시 돈다(dzM2 시안 §5)
+ */
+const COMPONENTS: Components = {
+  pre: ({ children }) => <>{children}</>,
+  code: ({ className, children }) => <MarkdownCode className={className}>{children}</MarkdownCode>,
+  a: ({ href, children }) => <MarkdownLink href={href}>{children}</MarkdownLink>,
+  table: ({ children }) => (
+    <div className="convo-table" tabIndex={0}>
+      <table>{children}</table>
+    </div>
+  ),
+};
 
 /** 답 본문 마크다운. `streaming`이면 미완성 표식을 보정해 그린다 */
 type MarkdownBodyProps = {
@@ -172,14 +208,14 @@ type MarkdownBodyProps = {
 export const MarkdownBody: NamedExoticComponent<MarkdownBodyProps> = memo(function MarkdownBody(
   props: MarkdownBodyProps,
 ): ReactNode {
-  const open = useOpenSource();
   const streaming = props.streaming === true;
-  const components = componentsOf(streaming, open);
   return (
-    <div className="convo-prose" data-size={props.size ?? "reply"}>
-      {streaming
-        ? renderStreamingMarkdown(props.text, { components })
-        : renderMarkdown(props.text, { components })}
-    </div>
+    <StreamingContext value={streaming}>
+      <div className="convo-prose" data-size={props.size ?? "reply"}>
+        {streaming
+          ? renderStreamingMarkdown(props.text, { components: COMPONENTS })
+          : renderMarkdown(props.text, { components: COMPONENTS })}
+      </div>
+    </StreamingContext>
   );
 });

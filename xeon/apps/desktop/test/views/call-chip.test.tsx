@@ -14,7 +14,7 @@ describe("CallChip", () => {
     );
   });
 
-  test("done draws only the plain check: no chip frame, fill, label or drawn path", () => {
+  test("done draws only the check: no chip frame, fill or label; the stroke is drawn only on a change", () => {
     const html = renderToStaticMarkup(<CallChip status="done" />);
     expect(html).toContain('data-status="done"');
     expect(html).toContain('class="call-chip-done"');
@@ -22,7 +22,8 @@ describe("CallChip", () => {
     expect(html).not.toContain('class="call-chip"');
     expect(html).not.toContain("call-chip-fill");
     expect(html).not.toContain("call-chip-label");
-    expect(html).not.toContain("pathLength");
+    expect(html).not.toContain('data-draw="true"');
+    expect(renderToStaticMarkup(<CallChip status="done" changed />)).toContain('data-draw="true"');
   });
 
   test("failed defaults to the danger tone and keeps a given tone; other states ignore the tone", () => {
