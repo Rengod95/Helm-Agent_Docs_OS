@@ -111,3 +111,34 @@
 [data-motion="reduce"] .call-chip .call-chip-fill {
   opacity: 0;
 }
+
+/* 묶음 안 줄의 상태 표시(`CallMark`, DP-154). 알약 틀 없이 14px 칸 하나: 실행 중 흐린 점선 고리(승인 대기는 경고 색), 실패는 글리프 + 이름 12px.
+   글리프와 이름 사이는 4px. 높이는 줄 글자(13/18)의 가운데에 맞춘다 */
+.call-mark {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.25rem;
+  height: 1rem;
+  color: var(--cs-color-text-tertiary);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  white-space: nowrap;
+}
+.call-mark-ring {
+  width: var(--cs-icon-sm, 0.875rem);
+  height: var(--cs-icon-sm, 0.875rem);
+}
+.call-mark[data-waiting="true"] {
+  color: var(--cs-color-warning-graphic, var(--cs-color-warning-text));
+}
+.call-mark[data-status="failed"][data-tone="danger"] {
+  color: var(--cs-color-danger-text);
+}
+.call-mark[data-status="failed"][data-tone="warning"] {
+  color: var(--cs-color-warning-text);
+}
+.call-mark .call-chip-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}

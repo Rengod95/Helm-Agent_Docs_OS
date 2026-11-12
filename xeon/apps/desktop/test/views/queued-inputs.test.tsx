@@ -8,7 +8,7 @@ import type { Commands } from "../../src/views/commands.ts";
 import { Providers } from "../../src/views/providers.tsx";
 import { QueuedInputs } from "../../src/views/queued-inputs.tsx";
 import { fakeCommands } from "./fake-commands.ts";
-import { SUB, evt, openedHarness, thr } from "../state/helpers.ts";
+import { SUB, evt, openedHarness, summary, thr } from "../state/helpers.ts";
 
 // 입력창 위 대기 입력 칩의 서버 렌더. 칩의 글, 모드 말, 철회 단추, 정보 아이콘을 본다.
 // 누르기와 철회 상태 전이는 DOM이 없어 시험하지 못한다. 그 전이는 composer-model.test.ts가 본다.
@@ -45,9 +45,13 @@ function queuedFact(
   };
 }
 
-/** 열린 대화(thr(1))에 대기 입력을 넣은 거울. 연결의 시작 위치는 5라서 사실은 6부터 붙인다 */
-function mirrorWith(facts: readonly DurableFact[]): EngineMirror {
+/**
+ * 열린 대화(thr(1))에 대기 입력을 넣은 거울. 연결의 시작 위치는 5라서 사실은 6부터 붙인다.
+ * `status`를 주면 그 상태의 대화 요약을 넣는다(멈춘 뒤 보내기 머리는 쉬는 대화에서만 나온다)
+ */
+function mirrorWith(facts: readonly DurableFact[], status?: "idle" | "running"): EngineMirror {
   const h = openedHarness(5);
+  if (status !== undefined) h.store.ingest({ type: "threads", threads: [summary(T, { status })] });
   h.store.ingest({ type: "batch", sub: SUB, from: 5, to: 5 + facts.length, caughtUp: true, facts });
   h.store.flush();
   return h.store.read.getState();
@@ -59,9 +63,10 @@ function html(
     readonly disabledReason?: string | null;
     readonly commands?: Commands;
     readonly steerable?: (requestId: string) => boolean;
+    readonly status?: "idle" | "running";
   } = {},
 ): string {
-  const engine = frozen(mirrorWith(facts));
+  const engine = frozen(mirrorWith(facts, options.status));
   const ui = frozen<UiState>(createUiStore().read.getState());
   return renderToString(
     <Providers engine={engine} ui={ui} commands={options.commands ?? fakeCommands()}>
@@ -93,7 +98,7 @@ describe("queued input chips above the composer", () => {
     expect(markup).toContain("아직 모델에 전달되지 않은 입력만 철회하거나 지금 반영할 수 있어요.");
   });
 
-  test("steer, after-the-turn and aside inputs each carry their own tag", () => {
+  test("steer, after-the-turn, with-next and aside inputs each carry their own tag", () => {
     const markup = html([
       queuedFact(6, "지금 끼워 줘", { mode: "steer" }),
       queuedFact(7, "끝나면 해 줘", { mode: "followUp" }),
@@ -101,7 +106,8 @@ describe("queued input chips above the composer", () => {
       queuedFact(9, "곁 질문", { mode: "aside" }),
     ]);
     const tags = [...markup.matchAll(/data-queued-mode="([a-zA-Z]+)"/g)].map((m) => m[1]);
-    expect(tags).toEqual(["steer", "followUp", "followUp", "aside"]);
+    // next는 스스로 시작하지 않고 다음 메시지에 붙으므로 "끝나면"이 아니다(DP-156)
+    expect(tags).toEqual(["steer", "followUp", "next", "aside"]);
   });
 
   test("a followUp chip says it goes in when the turn ends", () => {
@@ -135,5 +141,29 @@ describe("queued input chips above the composer", () => {
       disabledReason: "연결을 맞추는 중이에요.",
     });
     expect(withdrawButtonTag(markup, "이 파일도 봐 줘")).toContain(' disabled=""');
+  });
+
+  test("an idle thread holding a startable input says it once in the head with one send button (DP-156)", () => {
+    const facts = [
+      queuedFact(6, "끝나면 해 줘", { mode: "followUp" }),
+      queuedFact(7, "다음 턴에", { mode: "next" }),
+    ];
+    const held = html(facts, { status: "idle", steerable: () => true });
+    expect(held).toContain('data-queue-head="held"');
+    expect(held).toContain("멈춘 뒤라 보내지 않았어요");
+    expect(held).toContain('aria-label="대기 중인 메시지 1개 보내기"');
+    const tags = [...held.matchAll(/data-queued-mode="([a-zA-Z]+)"/g)].map((m) => m[1]);
+    expect(tags).toEqual(["held", "next"]);
+    // 멈춘 뒤에는 도는 턴이 없어 지금 반영이 없다
+    expect(held).not.toContain("data-queued-steer-now");
+    const running = html(facts, { status: "running" });
+    expect(running).toContain('data-queue-head="queued"');
+    expect(running).not.toContain("멈춘 뒤라 보내지 않았어요");
+  });
+
+  test("a next input alone in an idle thread offers no send: turn.resume would not start it (DP-156)", () => {
+    const only = html([queuedFact(6, "다음 턴에", { mode: "next" })], { status: "idle" });
+    expect(only).toContain('data-queue-head="queued"');
+    expect(only).not.toContain("개 보내기");
   });
 });

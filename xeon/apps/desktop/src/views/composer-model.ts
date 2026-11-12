@@ -1,6 +1,7 @@
 import { t } from "@fresnel/client/i18n";
 import { assertNever, type Result } from "@fresnel/contracts";
 import type { EngineState, Link, QueuedInput } from "../state/engine/index.ts";
+import type { ThreadSummary } from "@fresnel/contracts/wire";
 import type { BusyInputMode, CommandError } from "./commands.ts";
 import { setupRequiredText } from "./setup-needed.ts";
 
@@ -151,14 +152,37 @@ export function chipInputs(list: readonly QueuedInput[]): readonly QueuedInput[]
   );
 }
 
-/** 대기 입력의 모드를 칩의 짧은 말로 옮긴다. 다음 턴 경계 뒤 들어가는 followUp과 next는 같은 말이다 */
-export function queuedModeText(mode: QueuedInput["mode"]): string {
+/**
+ * 혼자서 턴을 열 수 있는 대기 입력인가. steer·followUp만이다. next·aside는 다음 턴에 붙기만 하고 스스로 시작하지 않는다
+ * (`L1.tasks.spec` §4.9 B안). Helm 안내처럼 확장이 `when: "next"`로 넣은 입력이 여기에 든다
+ */
+export function startableQueuedMode(mode: QueuedInput["mode"]): boolean {
+  return mode === "steer" || mode === "followUp";
+}
+
+/**
+ * 멈춘 뒤 보내기를 기다리는 대기 입력 수(DP-156). 대화가 쉬고 있고(복구 표식 없음) 스스로 턴을 열 수 있는 칩만 센다.
+ * 엔진은 사용자가 중단한 대화의 큐를 자동으로 시작하지 않으므로, 쉬는 대화에 남은 시작 가능 입력은 보내기(`turn.resume`)를 기다린다.
+ * next·aside는 세지 않는다: `turn.resume`이 그것으로 턴을 열지 않아 보내기가 아무 일도 하지 않는다
+ */
+export function heldCountOf(
+  thread: Pick<ThreadSummary, "status" | "resumable"> | undefined,
+  chips: readonly QueuedInput[],
+): number {
+  if (thread === undefined || thread.status !== "idle" || thread.resumable !== null) return 0;
+  return chips.filter((input) => startableQueuedMode(input.mode)).length;
+}
+
+/** 대기 입력의 모드를 칩 툴팁의 말로 옮긴다. 멈춘 뒤의 시작 가능 입력(`held`)은 보내기를 기다린다고 말한다 */
+export function queuedModeText(mode: QueuedInput["mode"], held = false): string {
+  if (held && startableQueuedMode(mode)) return t("desktop.composer.queue.mode.held");
   switch (mode) {
     case "steer":
       return t("desktop.composer.queue.mode.steer");
     case "followUp":
-    case "next":
       return t("desktop.composer.queue.mode.followUp");
+    case "next":
+      return t("desktop.composer.queue.mode.next");
     case "aside":
       return t("desktop.composer.queue.mode.aside");
     default:

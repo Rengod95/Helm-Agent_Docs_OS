@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
 import type { LeadSegment, TurnSummary } from "../../src/state/engine/index.ts";
-import { activitySummaryOf } from "../../src/views/convo/activity-model.ts";
+import {
+  activitySummaryOf,
+  failureLineOf,
+  groupHeadOf,
+  type ActivityCall,
+} from "../../src/views/convo/activity-model.ts";
 import {
   leaderNameOf,
   leadMetersOf,
@@ -17,6 +22,7 @@ import {
   failureToneOf,
   planArgsOf,
   planResultOf,
+  readableToolName,
   toolHeadOf,
   type ToolResultView,
 } from "../../src/views/convo/tool-view-model.ts";
@@ -43,6 +49,126 @@ describe("toolHeadOf", () => {
   test("MCP 도구는 서버 이름을 처음부터 든다", () => {
     const head = toolHeadOf("mcp__qa__lookup", {}, "qa");
     expect(head.server).toBe("qa");
+  });
+
+  test("MCP 도구 이름은 읽을 모양이고 인자는 줄이 아니라 펼친 상세에 간다(DP-155)", () => {
+    const head = toolHeadOf("mcp__github__list_issues", { repo: "a/b" }, "github");
+    expect(head.target).toEqual({ kind: "text", text: "list issues", mono: false });
+    expect(head.argsDetail).toBe(true);
+    expect(toolHeadOf("mcp__qa__lookup", {}, "qa").argsDetail).toBe(false);
+    // 결과가 오기 전(서버 모름)에도 이름에서 서버를 읽어 같은 모양이다
+    const pending = toolHeadOf("mcp__github__list_issues", { repo: "a/b" }, null);
+    expect(pending.server).toBe("github");
+    expect(pending.target).toEqual({ kind: "text", text: "list issues", mono: false });
+    expect(pending.rawName).toBe(false);
+    expect(readableToolName("getFileContents")).toBe("get file contents");
+    expect(readableToolName("search-code_v2")).toBe("search code v2");
+  });
+
+  test("요약기 없는 내장 도구는 엔진 id 대신 한국어 동사다(DP-155)", () => {
+    const servers = toolHeadOf("mcp_servers", {}, null);
+    expect(servers.verb).toBe("MCP 서버 확인함");
+    expect(servers.verbRunning).toBe("MCP 서버 확인하는 중");
+    expect(servers.rawName).toBe(false);
+    expect(servers.icon).toBe("mcp");
+    expect(servers.argsDetail).toBe(false);
+    const resources = toolHeadOf("mcp_list_resources", { server: "github" }, null);
+    expect(resources.verb).toBe("MCP 자원 목록 봄");
+    expect(resources.target).toEqual({ kind: "none" });
+    expect(resources.argsDetail).toBe(true);
+    expect(toolHeadOf("session_read", { id: "x" }, null).verb).toBe("지난 대화 읽음");
+    // 표에도 없는 확장 도구만 원문 이름이다
+    const ext = toolHeadOf("acme_lookup", { q: 1 }, null);
+    expect(ext.rawName).toBe(true);
+    expect(ext.verb).toBe("acme_lookup");
+  });
+});
+
+const calls = (n: number): ActivityCall[] =>
+  Array.from({ length: n }, (_, i) => ({
+    name: "read",
+    args: { path: `f${i}.ts` },
+    server: null,
+  }));
+
+describe("groupHeadOf (DP-154)", () => {
+  test("한 번에 부른 묶음은 도는 동안 수를 머리에서 한 번 말한다: 실행 중 · 실패 · 초", () => {
+    const head = groupHeadOf({
+      calls: calls(10),
+      steps: 1,
+      pending: 4,
+      failed: 2,
+      live: true,
+      seconds: 7,
+      currentVerb: "읽는 중",
+    });
+    expect(head.title).toBe("도구 10개를 한 번에 부르는 중");
+    expect(head.meta).toEqual([
+      { text: "4개 실행 중", tone: null },
+      { text: "2개 실패", tone: "danger" },
+      { text: "7초", tone: null },
+    ]);
+  });
+
+  test("차례로 부른 묶음은 지금 도는 도구의 동사와 단계 수다. 0초는 말하지 않는다", () => {
+    const head = groupHeadOf({
+      calls: calls(3),
+      steps: 3,
+      pending: 1,
+      failed: 0,
+      live: true,
+      seconds: 0,
+      currentVerb: "실행 중",
+    });
+    expect(head.title).toBe("실행 중");
+    expect(head.meta).toEqual([{ text: "3단계", tone: null }]);
+  });
+
+  test("끝난 묶음은 한 일의 요약과 모양(한 번에/단계)과 실패 수다", () => {
+    const parallel = groupHeadOf({
+      calls: calls(3),
+      steps: 1,
+      pending: 0,
+      failed: 1,
+      live: false,
+      seconds: 0,
+      currentVerb: null,
+    });
+    expect(parallel.title).toBe(activitySummaryOf(calls(3)));
+    expect(parallel.meta).toEqual([
+      { text: "3개 한 번에", tone: null },
+      { text: "1개 실패", tone: "danger" },
+    ]);
+    const sequential = groupHeadOf({
+      calls: calls(2),
+      steps: 2,
+      pending: 0,
+      failed: 0,
+      live: false,
+      seconds: 0,
+      currentVerb: null,
+    });
+    expect(sequential.meta).toEqual([{ text: "2단계", tone: null }]);
+  });
+
+  test("범주가 셋을 넘는 끝난 묶음은 앞 두 조각 + 외 N가지다", () => {
+    const mixed: ActivityCall[] = [
+      { name: "read", args: { path: "a.ts" }, server: null },
+      { name: "bash", args: { command: "ls" }, server: null },
+      { name: "web_search", args: { query: "q" }, server: null },
+      { name: "grep", args: { pattern: "p" }, server: null },
+      { name: "mcp_servers", args: {}, server: null },
+    ];
+    const summary = activitySummaryOf(mixed);
+    expect(summary.split(" · ")).toHaveLength(3);
+    expect(summary.endsWith("외 3가지")).toBe(true);
+  });
+
+  test("실패 줄의 한 줄 요약은 첫 빈 줄 아닌 줄이다", () => {
+    expect(failureLineOf("\n  /x is a directory. Use ls.  \nmore")).toBe(
+      "/x is a directory. Use ls.",
+    );
+    expect(failureLineOf("  \n ")).toBeNull();
   });
 });
 

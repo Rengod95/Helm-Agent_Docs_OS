@@ -95,3 +95,55 @@ export function CallChip(props: CallChipProps): ReactNode {
     </span>
   );
 }
+
+/**
+ * 묶음 안 줄의 상태 표시(DP-154). 알약·경과 초 없이 14px 칸 하나다: 실행 중은 흐린 고리(승인 대기는 경고 색), 끝남은 체크,
+ * 실패는 종류 글리프 + 짧은 이름(12, 톤 글자색). 경과 초와 실행 중 수는 묶음 머리가 한 번 말한다.
+ * 움직이는 빛은 두지 않는다: 열 줄이 동시에 돌 때 빛이 줄마다 겹치지 않게 한다(DP-127)
+ */
+export function CallMark(props: CallChipProps): ReactNode {
+  if (props.status === "done")
+    return (
+      <CallChip
+        status="done"
+        {...(props.changed === undefined ? {} : { changed: props.changed })}
+      />
+    );
+  if (props.status === "running") {
+    return (
+      <span
+        data-slot="call-mark"
+        data-status="running"
+        data-waiting={props.waiting === true ? "true" : undefined}
+        aria-hidden
+        className="call-mark"
+      >
+        <svg viewBox="0 0 16 16" fill="none" aria-hidden className="call-mark-ring">
+          <circle
+            cx="8"
+            cy="8"
+            r="5.25"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeDasharray="2.5 2.25"
+          />
+        </svg>
+      </span>
+    );
+  }
+  const tone = props.tone ?? "danger";
+  return (
+    <span
+      data-slot="call-mark"
+      data-status="failed"
+      data-tone={tone}
+      aria-hidden
+      className="call-mark"
+    >
+      {tone === "warning" ? <BanIcon /> : <AlertIcon />}
+      {props.label === undefined || props.label === "" ? null : (
+        <span className="call-mark-label">{props.label}</span>
+      )}
+    </span>
+  );
+}

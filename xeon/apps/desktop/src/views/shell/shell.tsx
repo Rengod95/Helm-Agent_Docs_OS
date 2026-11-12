@@ -14,11 +14,14 @@ import { StartPanel } from "./start-panel.tsx";
 import { useShell, useShellActions } from "../../state/shell/index.ts";
 import {
   TOAST_BOTTOM_DEFAULT_PX,
-  defaultToastBox,
-  toastBottomPx,
+  TOAST_DEFAULT_WIDTH_PX,
+  TOAST_MIN_WIDTH_ACTION_PX,
+  TOAST_MIN_WIDTH_PX,
+  toastFit,
   toastPlace,
   type Box,
   type ToastAvoid,
+  type ToastFit,
 } from "./toaster-slot.ts";
 import { GoToThreadContext } from "../thread-link.ts";
 
@@ -167,11 +170,14 @@ function avoidsOf(): ToastAvoid[] {
 }
 
 /**
- * 토스트의 아래 간격(DP-152). 기본은 상태 표시줄 위이고, 그 자리의 토스트가 피할 곳의 조작부와 실제로 겹칠 때만 피할 곳 위로 올린다.
- * 크기, 화면, 토스트 수가 바뀌면 다시 잰다. 대화가 흐르는 동안 DOM이 자주 바뀌므로 한 프레임에 한 번만 잰다
+ * 토스트의 폭과 아래 간격(DP-157). 기본은 폭 360, 상태 표시줄 위이고, 그 자리의 토스트가 피할 곳의 조작부와 겹치면 폭을 줄여 오른쪽 틈에 두고,
+ * 틈이 최소 폭보다 좁을 때만 피할 곳 위로 올린다. 크기, 화면, 토스트 수가 바뀌면 다시 잰다. 대화가 흐르는 동안 DOM이 자주 바뀌므로 한 프레임에 한 번만 잰다
  */
-function useToastBottom(): number {
-  const [bottom, setBottom] = useState(TOAST_BOTTOM_DEFAULT_PX);
+function useToastFit(narrow: boolean): ToastFit {
+  const [fit, setFit] = useState<ToastFit>({
+    width: TOAST_DEFAULT_WIDTH_PX,
+    bottom: TOAST_BOTTOM_DEFAULT_PX,
+  });
   useEffect(() => {
     let frame = 0;
     const measure = (): void => {
@@ -179,8 +185,10 @@ function useToastBottom(): number {
       const region = document.querySelector('[data-slot="toast-viewport"]');
       if (region === null) return;
       const box = region.getBoundingClientRect();
-      const toastBox = defaultToastBox(box.left, box.right, box.height, window.innerHeight);
-      setBottom(toastBottomPx(avoidsOf(), toastBox, window.innerHeight));
+      const action = region.querySelector('[data-slot="toast-action"]') !== null;
+      const min = narrow ? (action ? TOAST_MIN_WIDTH_ACTION_PX : TOAST_MIN_WIDTH_PX) : null;
+      const next = toastFit(avoidsOf(), box.right, box.height, window.innerHeight, min);
+      setFit((prev) => (prev.width === next.width && prev.bottom === next.bottom ? prev : next));
     };
     const schedule = (): void => {
       if (frame === 0) frame = requestAnimationFrame(measure);
@@ -208,8 +216,8 @@ function useToastBottom(): number {
       mutate.disconnect();
       window.removeEventListener("resize", schedule);
     };
-  }, []);
-  return bottom;
+  }, [narrow]);
+  return fit;
 }
 
 function ShellToaster(props: { readonly registry: ShellRegistry }): ReactNode {
@@ -219,9 +227,10 @@ function ShellToaster(props: { readonly registry: ShellRegistry }): ReactNode {
   const tabId = useShell((s) => s.places[s.area].endTab);
   const screen = useShell((s) => s.places[s.area].screen);
   const tabs = props.registry.endTabs(area, screen);
-  const bottom = useToastBottom();
   const place = toastPlace(layout, open, wellWidthOf(tabs.find((x) => x.id === tabId) ?? tabs[0]));
-  // DP-152 자리는 창 전체 기준 오른쪽 아래(끝에서 16px), 상태 표시줄 위다. 입력창 묶음·재시작 막대(`data-toast-avoid`)의 조작부와 겹칠 때만 그 위로 올린다(`toastBottomPx`).
+  const { width, bottom } = useToastFit(place.kind === "end");
+  // DP-152 자리는 창 전체 기준 오른쪽 아래(끝에서 16px), 상태 표시줄 위다. 입력창 묶음·재시작 막대(`data-toast-avoid`)의 조작부와 겹치면
+  // 폭을 줄여 그 오른쪽 틈에 두고, 틈이 200(동작 단추가 있으면 280)보다 좁을 때만 그 위로 올린다(DP-157, `toastFit`). 가운데 아래(compact)는 폭을 바꾸지 않는다
   // 모양(outline)과 사라짐 시간은 caustic 기본값이다(DP-151, DP-153). 오류 토스트는 닫을 때까지 남는다
   return (
     <Toaster
@@ -230,7 +239,7 @@ function ShellToaster(props: { readonly registry: ShellRegistry }): ReactNode {
       style={
         place.kind === "center-bottom"
           ? { insetInline: "0.5rem", bottom }
-          : { insetInlineEnd: `${String(place.endPx)}px`, bottom }
+          : { insetInlineEnd: `${String(place.endPx)}px`, bottom, width: `${String(width)}px` }
       }
     />
   );

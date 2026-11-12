@@ -26,8 +26,10 @@ import { useTranscriptDetail } from "../transcript-detail.ts";
 import { interventionTagsOf } from "./intervention-model.ts";
 import { SourceChips } from "./source-chips.tsx";
 import { ToolLine, useDisclosure, type LineStatus } from "./tool-line.tsx";
+import { failureLineOf } from "./activity-model.ts";
 import {
   commandMetaOf,
+  failureToneOf,
   toolHeadOf,
   toolResultOf,
   type ToolOutcome,
@@ -226,6 +228,11 @@ export function CallRow(props: {
   readonly args: JsonObject;
   /** 접힌 묶음 안: 실패·도는 중·개입이 있는 줄만 그린다 */
   readonly flaggedOnly?: boolean;
+  /**
+   * 묶음 안의 줄(DP-154): 상태는 작은 표시 하나(경과 초·알약 없음, 머리가 말한다)이고, 실패 줄은 오류 상자를 접은 채
+   * 한 줄 요약으로 시작한다
+   */
+  readonly grouped?: boolean;
 }): ReactNode {
   const { threadId, callId, name, args } = props;
   const item = useItem(props.itemId);
@@ -242,10 +249,11 @@ export function CallRow(props: {
   const status = lineStatusOf({ outcome: view?.outcome ?? null, running, awaiting, seconds });
   const mode = toolRowModeOf(detailSetting, rowStatusOf(status));
   const change = fileChangeViewOfArgs(name, args);
-  // 실패 줄은 펼친다. 파일 변경은 "모두 보기"에서 펼친다. 요약 설정에서는 실패만 펼친다
+  const grouped = props.grouped === true;
+  // 혼자 선 실패 줄은 펼친다(묶음 안 실패 줄은 접고 한 줄 요약). 파일 변경은 "모두 보기"에서 펼친다. 요약 설정에서는 실패만 펼친다
   const want =
     mode === "default" &&
-    (status.kind === "failed" ||
+    ((status.kind === "failed" && !grouped) ||
       (change !== null && status.kind === "done" && detailSetting === "full"));
   const [open, toggle] = useDisclosure(want);
   if (mode === "hidden") return null;
@@ -270,12 +278,12 @@ export function CallRow(props: {
       : null;
   const detail =
     view === null ? (
-      head.rawName ? (
+      head.argsDetail ? (
         <OutputBox text={argsText(args)} />
       ) : null
     ) : (
       <>
-        {head.rawName ? <OutputBox text={argsText(args)} /> : null}
+        {head.argsDetail ? <OutputBox text={argsText(args)} /> : null}
         {commandFull === null ? null : <OutputBox text={commandFull} />}
         {change === null || view.outcome.kind !== "done" ? null : <FileChangeDiff view={change} />}
         {change !== null && view.outcome.kind === "done" ? null : (
@@ -293,8 +301,14 @@ export function CallRow(props: {
       </>
     );
   const hasDetail = detail !== null;
+  // 묶음 안 실패 줄의 한 줄 요약. 펼치면 상자가 같은 글을 보이므로 감춘다
+  const failLine =
+    grouped && !open && view !== null && view.outcome.kind === "failed"
+      ? failureLineOf(view.output)
+      : null;
   return (
     <ToolLine
+      compact={grouped}
       icon={head.icon}
       verb={status.kind === "running" ? head.verbRunning : head.verb}
       rawName={head.rawName}
@@ -307,6 +321,15 @@ export function CallRow(props: {
       {...(hasDetail ? { detail, open, onToggle: toggle } : {})}
       below={
         <>
+          {failLine === null || view === null || view.outcome.kind !== "failed" ? null : (
+            <p
+              className="convo-fail-line"
+              data-tone={failureToneOf(view.outcome.failure)}
+              title={failLine}
+            >
+              {failLine}
+            </p>
+          )}
           {tail.length === 0 ? null : <div className="convo-tail">{tail.join("\n")}</div>}
           {view === null ? null : <SandboxNotes blocks={view.blocks} />}
           <SourceChips sources={sources} />

@@ -19,6 +19,7 @@ import {
   useEngineState,
   useLinkPhase,
   useOpenThreadId,
+  useQueuedInputs,
   useRetrying,
   useThreadRunning,
   type ProviderRetry,
@@ -55,6 +56,7 @@ import {
 import { ModelChip, PermissionModeChip, ThinkingChip } from "./composer-chips.tsx";
 import {
   busyModeOfEnter,
+  chipInputs,
   composerDisabledReason,
   createEnterGuard,
   createSendLatch,
@@ -85,7 +87,7 @@ import {
   type SlashMenuRow,
 } from "./composer-slash.ts";
 import { runThreadCompact } from "./thread-compact.ts";
-import { QueuedInputs } from "./queued-inputs.tsx";
+import { QueuedInputs, useHeldCount, useSendHeld } from "./queued-inputs.tsx";
 import { useSetupNeeded } from "./setup-needed.ts";
 import { ProblemLine } from "./pages/shared/problem-state.tsx";
 import { Presence, SwapFade } from "../lib/motion-presets.tsx";
@@ -266,6 +268,9 @@ function ComposerFor(props: {
   const deniedModels = useDeniedModels();
   // 멈춤을 누른 뒤 실제로 멈출 때까지(`turn.abort_requested` 뒤 끝나기 전) 멈춤 단추가 "멈추는 중"을 보인다(DP-101)
   const aborting = useAborting(props.threadId);
+  // 멈춘 뒤 보내기를 기다리는 대기 입력(DP-156). 빈 입력창의 보내기(↑, Enter)가 그것을 시작한다
+  const held = useHeldCount(props.threadId, chipInputs(useQueuedInputs(props.threadId)));
+  const sendHeld = useSendHeld(props.threadId);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -460,7 +465,10 @@ function ComposerFor(props: {
       setError(sendBlockedText(chips));
       return;
     }
-    if (text === "" && parts.length === 0) return;
+    if (text === "" && parts.length === 0) {
+      if (held > 0 && !running) sendHeld.send();
+      return;
+    }
     if (parts.length === 0 && !force) {
       // 앱이 직접 하는 명령(`/compact [지침]`)은 모델로 보내지 않고 대화 요약으로 간다
       const app = appSlashOf(text);
@@ -605,6 +613,8 @@ function ComposerFor(props: {
   // 또 Composer는 글이 빈 첨부만의 보내기를 막는다.
   // 경고는 늘 보이게 둔다(정보 아이콘 뒤에 숨기지 않는다): 비밀처럼 보이는 글이나 첨부가 있을 때 입력창 위 한 줄
   const secretWarning = secretWarningOf(draft, chips.length > 0);
+  // 빈 입력창의 보내기 단추가 멈춘 대기 입력을 시작한다(DP-156): 이름도 그 일로 바뀐다
+  const heldSend = held > 0 && !running && draft.trim() === "" && chips.length === 0;
   return (
     <form
       className="grid min-w-0 gap-1.5"
@@ -882,12 +892,17 @@ function ComposerFor(props: {
                 variant="solid"
                 radius="full"
                 size="sm"
-                label={t("desktop.composer.send.button")}
+                label={
+                  heldSend
+                    ? t("desktop.composer.queue.held.sendLabel", { count: held })
+                    : t("desktop.composer.send.button")
+                }
                 disabled={
                   props.disabledReason !== null ||
                   sending ||
+                  (heldSend && sendHeld.busy) ||
                   !chipsReady(chips) ||
-                  (draft.trim() === "" && chips.length === 0)
+                  (draft.trim() === "" && chips.length === 0 && !heldSend)
                 }
               >
                 <ArrowUp aria-hidden />

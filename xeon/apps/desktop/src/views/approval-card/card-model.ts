@@ -59,12 +59,12 @@ type ApprovalKeyLike = {
 };
 
 /**
- * 수식 키(⌘ Ctrl Alt)가 함께 눌리면 바로 가기가 아니다(셸 단축키와 겹치지 않게 한다). Esc는 거부다. Enter는 카드 자체에 초점이 있을 때만
- * 기본 답이다(⌘⇧A로 카드에 온 때). 카드 안의 단추에서 Enter는 그 단추를 누르는 것이라 여기서 다루지 않는다(DP-134)
+ * 수식 키(⌘ Ctrl Alt)가 함께 눌리면 바로 가기가 아니다(셸 단축키와 겹치지 않게 한다). Esc는 카드 키가 아니다: 거부는 되돌릴 수 없어
+ * 팝오버를 닫으려던 Esc가 거부가 되면 안 된다(DP-158). Enter는 카드 자체에 초점이 있을 때만 기본 답이다(⌘⇧A로 카드에 온 때).
+ * 카드 안의 단추에서 Enter는 그 단추를 누르는 것이라 여기서 다루지 않는다(DP-134)
  */
 export function approvalKeyOf(event: ApprovalKeyLike, onCard = false): ApprovalKeyAction | null {
   if (event.metaKey || event.ctrlKey || event.altKey) return null;
-  if (event.key === "Escape") return "deny";
   if (event.key === "Enter") return onCard && !event.shiftKey ? "primary" : null;
   const key = event.key.toLowerCase();
   if (key === "y" && !event.shiftKey) return "primary";

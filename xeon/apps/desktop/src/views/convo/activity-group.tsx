@@ -1,20 +1,20 @@
 import { ChevronRight } from "@caustic/react/icons";
-import { t } from "@fresnel/client/i18n";
 import type { ItemId, ThreadId } from "@fresnel/contracts/conversation";
 import type { ReactNode } from "react";
 import { HeightGlide, SwapFade } from "../../lib/motion-presets.tsx";
 import { useItem, useToolResults } from "../../state/engine/index.ts";
 import { useTranscriptDetail } from "../transcript-detail.ts";
 import type { ActivityEntry } from "../transcript-rows.ts";
-import { activitySummaryOf, type ActivityCall } from "./activity-model.ts";
+import { groupHeadOf, type ActivityCall } from "./activity-model.ts";
 import { ThinkingBlock } from "./thinking-block.tsx";
 import { CallRow, resultViewOf, useCallRunning, useElapsedSeconds } from "./tool-call-row.tsx";
 import { Reveal, useDisclosure } from "./tool-line.tsx";
 import { toolHeadOf } from "./tool-view-model.ts";
 
-// 활동 묶음(dzT2a 시안 6절). 같은 턴에서 글 없이 이어진 도구 호출을 한 머리로 접는다.
+// 활동 묶음(dzT2a 시안 6절, DP-154). 같은 턴에서 글 없이 이어진 도구 호출을 한 머리로 접는다.
+// 묶음은 한 덩어리로 읽힌다: 상태(실행 중 수·실패 수·경과 초)는 머리에서 한 번 말하고, 줄에는 작은 표시 하나만 둔다(`grouped`).
 // 도는 동안은 현재형 머리와 지금 도는 줄이 보이고, 끝나면 접힌다. 접혀도 실패·거부·개입이 있는 줄은 머리 아래에 그대로 나온다.
-// 호출이 하나뿐인 묶음은 머리 없이 그 줄만 그린다.
+// 실패 줄은 오류 상자를 접은 채 한 줄 요약으로 시작한다. 호출이 하나뿐인 묶음은 머리 없이 그 줄만 그린다.
 // 움직임(dzM2 시안 §4): 도는 동안 머리의 "지금 도구" 글은 교차 전환, 끝나 접힌 몸이 줄어들면 높이가 이어져 요약 한 줄로 모인다.
 
 function ThinkingEntry(props: { readonly itemId: ItemId; readonly index: number }): ReactNode {
@@ -43,6 +43,7 @@ function EntryRow(props: {
       name={entry.block.name}
       args={entry.block.args}
       flaggedOnly={props.flaggedOnly}
+      grouped
     />
   );
 }
@@ -92,13 +93,22 @@ export function ActivityGroup(props: {
   // 표시 "숨김": 성공만 있는 끝난 묶음은 머리도 그리지 않고, 표시할 줄만 남긴다
   const hideHead = detailSetting === "hidden" && !live;
   const current = live ? calls.findLast((_, index) => results[index] === undefined) : undefined;
-  const summary =
-    live && current !== undefined
-      ? t("desktop.convo.group.live", {
-          verb: toolHeadOf(current.name, current.args, null).verbRunning,
-          count: calls.length,
-        })
-      : activitySummaryOf(activity);
+  // 단계 수: 호출을 낸 어시스턴트 item 수. 하나면 모델이 한 번에 부른 묶음이다
+  const steps = new Set(
+    props.entries.flatMap((entry) => (entry.block.kind === "call" ? [entry.itemId] : [])),
+  ).size;
+  const headView = groupHeadOf({
+    calls: activity,
+    steps,
+    pending,
+    failed,
+    live,
+    seconds,
+    currentVerb:
+      current === undefined ? null : toolHeadOf(current.name, current.args, null).verbRunning,
+  });
+  const summary = headView.title;
+  const metaText = headView.meta.map((piece) => piece.text).join(" · ");
   const body = (flaggedOnly: boolean): ReactNode =>
     props.entries.map((entry) => (
       <EntryRow
@@ -118,7 +128,7 @@ export function ActivityGroup(props: {
           type="button"
           className="convo-line-hit"
           aria-expanded={open}
-          aria-label={summary}
+          aria-label={metaText === "" ? summary : `${summary} · ${metaText}`}
           onClick={toggle}
         />
         <ChevronRight
@@ -135,12 +145,13 @@ export function ActivityGroup(props: {
             {summary}
           </SwapFade>
         </span>
-        <span className="convo-line-meta">
-          {live && seconds > 0
-            ? t("desktop.convo.group.metaLive", { count: calls.length, seconds })
-            : failed > 0
-              ? t("desktop.convo.group.metaFailed", { count: calls.length, failed })
-              : t("desktop.convo.group.meta", { count: calls.length })}
+        <span className="convo-line-meta" data-slot="convo-group-meta">
+          {headView.meta.map((piece, index) => (
+            <span key={piece.text} data-tone={piece.tone ?? undefined}>
+              {index === 0 ? null : <span aria-hidden> · </span>}
+              {piece.text}
+            </span>
+          ))}
         </span>
         {/* 도는 중 빛은 머리 아래 늘 보이는 도는 줄의 칩이 맡는다. 머리는 동사와 경과 초로 말한다(한 묶음에 움직이는 빛이 겹치지 않게, DP-127) */}
         <span className="convo-line-status" />
