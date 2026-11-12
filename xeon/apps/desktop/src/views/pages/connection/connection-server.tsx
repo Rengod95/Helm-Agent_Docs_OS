@@ -36,13 +36,14 @@ import type {
   RemoteStatus,
   RevokeTarget,
 } from "../../../app/remote/remote-types.ts";
+import { QrCode } from "../shared/qr-code.tsx";
 import { InfoTip } from "../../craft/info-tip.tsx";
 import { canSetRemoteRespond, type ConnectionState } from "./connection-model.ts";
 import { StatusBadge, type StatusTone } from "./connection-badge.tsx";
 import { ConnectionSection } from "./connection-status.tsx";
 
 // "다른 기기 접속" 섹션. 외부 접근이 켜졌을 때만 그린다(실행 방식 섹션이 고른다). 위에서부터 상태 키-값 줄(상태, 접속 주소, 인증서 지문,
-// 인증서, 웹 알림), 연결 코드, 연결된 기기, 승인에 답하기 설정 순이다. 상태와 동작은 컨트롤러와 화면 상태로 받는다.
+// 인증서, 웹 알림), 연결 코드, 연결된 기기, 다른 기기에서 승인하기 설정 순이다. 상태와 동작은 컨트롤러와 화면 상태로 받는다.
 // 설명은 정보 아이콘 뒤에 두고, 경고와 실패는 늘 보이는 글이다.
 
 const ROWS_CLASS =
@@ -79,7 +80,7 @@ function run(work: Promise<void>): void {
 export interface RemoteAccessProps {
   /** 외부 접근 상태. 섹션은 `ready`일 때만 그린다 */
   readonly status: RemoteStatus;
-  /** 화면 상태. 승인에 답하기 설정 값과 잠금을 읽는다 */
+  /** 화면 상태. 다른 기기에서 승인하기 설정 값과 잠금을 읽는다 */
   readonly state: ConnectionState;
   readonly remote: RemoteScreenState;
   readonly actions: RemoteActions;
@@ -303,7 +304,7 @@ function FingerprintValue(props: {
   );
 }
 
-// ── 승인에 답하기 ─────────────────────────────────────────────────────────
+// ── 다른 기기에서 승인하기 ─────────────────────────────────────────────────────────
 
 /** 다른 기기에서 온 승인 요청에 이 컴퓨터가 답하는가. 엔진이 설정을 알리지 않으면 바꿀 수 없다는 줄을 회색으로 보인다 */
 function RespondRow(props: {
@@ -440,6 +441,14 @@ function IssuedCode(props: {
           </>
         )}
       </div>
+      {/* 임시 UI: wizard 트랙이 배치를 다시 짠다 */}
+      {!expired && code.link !== undefined ? (
+        <QrCode
+          value={code.link}
+          size={160}
+          label={t("desktop.connection.server.pairing.qrLabel")}
+        />
+      ) : null}
       {expired ? (
         <div>
           <Button size="sm" variant="soft" disabled={busy} onClick={onIssue}>

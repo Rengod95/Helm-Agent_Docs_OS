@@ -51,7 +51,7 @@ function serviceSetting(value: unknown) {
 const paramsOf = (params: readonly { method: string; params: unknown }[], method: string) =>
   params.find((entry) => entry.method === method)?.params;
 
-const REMOTE_KEY = "l2.schedule.remote.allowRespond";
+const REMOTE_KEY = "l0.process.service.allowRemoteRespond";
 const SERVICE_KEY = "l0.process.service.enabled";
 
 /** 원격 응답 허용 한 줄(`settings.get`의 값 모양) */
@@ -324,7 +324,7 @@ describe("host status, service mode and stopping the service", () => {
     const written = await app.commands.connection.setRemoteRespond(false);
     expect(written).toEqual({ ok: true, value: null });
     expect(paramsOf(params, "settings.set")).toEqual({
-      key: "l2.schedule.remote.allowRespond",
+      key: "l0.process.service.allowRemoteRespond",
       value: false,
       scope: "user",
     });

@@ -250,6 +250,21 @@ describe("승인 기록", () => {
     resolvedBy: "user",
   };
 
+  test("다른 기기가 답한 해결은 기록에 기기 id가 남고, 이 컴퓨터의 답에는 없다", () => {
+    const requested = convoApprovalRequested({}, thr(1), evt(10), request);
+    const remote = convoApprovalResolved(requested, thr(1), pos(11, trn(1), 1), {
+      ...resolved,
+      deviceId: "dev_0123456789abcdef",
+    });
+    expect(thread(remote)?.tools["c1"]?.approvals.map((trail) => trail.deviceId)).toEqual([
+      "dev_0123456789abcdef",
+    ]);
+    const local = convoApprovalResolved(requested, thr(1), pos(11, trn(1), 1), resolved);
+    expect(thread(local)?.tools["c1"]?.approvals.map((trail) => "deviceId" in trail)).toEqual([
+      false,
+    ]);
+  });
+
   test("요청 뒤의 해결은 도구 호출에 decision·remember·resolvedBy·caller를 남긴다", () => {
     const requested = convoApprovalRequested({}, thr(1), evt(10), request);
     const c = convoApprovalResolved(requested, thr(1), pos(11, trn(1), 1), resolved);

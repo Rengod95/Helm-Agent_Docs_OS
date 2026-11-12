@@ -12,7 +12,8 @@ import { readonlyView, type ReadonlyStore } from "../shared/readonly-store.ts";
  * closed(다른 곳에서 이미 해결됨, 잠시 뒤 대기열에서 뺀다), unapplied(적용되지 않았다는 것만 알림, 이유 미상),
  * switching(엔진 대상을 바꾸는 중이라 보내지 않았다, 새 엔진이 붙으면 다시 누른다),
  * gone(host가 모르는 승인이라 더는 답할 수 없다, 사용자가 지운다),
- * locked(다른 프로세스가 이 대화의 쓰기 소유를 쥐고 있다, 3002. 그쪽을 끝낸 뒤 다시 누른다)
+ * locked(다른 프로세스가 이 대화의 쓰기 소유를 쥐고 있다, 3002. 그쪽을 끝낸 뒤 다시 누른다),
+ * thisComputerOnly(다른 기기의 응답을 서비스가 막았다, 3009. 이 컴퓨터에서만 답할 수 있다)
  */
 export type ApprovalFailure =
   | "failed"
@@ -21,7 +22,8 @@ export type ApprovalFailure =
   | "unapplied"
   | "switching"
   | "gone"
-  | "locked";
+  | "locked"
+  | "thisComputerOnly";
 export type ApprovalSend = "sending" | ApprovalFailure;
 
 /** 화면 둘 중 지금 보이는 것. 설정은 대화 화면 위에 열리는 같은 창의 다른 화면이다 */

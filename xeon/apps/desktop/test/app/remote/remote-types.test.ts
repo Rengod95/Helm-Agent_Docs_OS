@@ -125,6 +125,21 @@ describe("parsePairing", () => {
     );
   });
 
+  test("the first connection link rides along for the QR; no links means no link", () => {
+    const base = { code: "1234567890", expiresAt: 1_800_000_300_000 };
+    const url = "https://pc.example:8443/login#code=1234567890";
+    expect(
+      parsePairing({
+        ...base,
+        links: [
+          { kind: "lan", url },
+          { kind: "loopback", url: "http://127.0.0.1:8480/login#code=1234567890" },
+        ],
+      }),
+    ).toEqual(ok({ ...base, link: url }));
+    expect(parsePairing({ ...base, links: [] })).toEqual(ok(base));
+  });
+
   const wrongFields: readonly (readonly [string, unknown])[] = [
     ["code", 123456],
     ["code", ""],
