@@ -566,7 +566,7 @@ WebView 엔진 차이로 생기는 웹 API 제약 [제안. 각 항목은 M2 첫 
 
 - 쓰기 범위는 `user`다. `l1.models.providers`는 목록 전체가 한 키이므로(병합 단위는 키 하나) 현재 값을 읽어 해당 provider 원소만 바꾼 목록을 보낸다. baseUrl은 그대로 둔다.
 - 키 값은 wire와 로그 어디에도 없다. 호스트가 값을 받을 수 있는 연결에서는 값 없는 `secret.beginEntry { name, action }`이 시작하고 값은 호스트가 wire 밖에서 받는다(`L4.settings-ui.spec` §4.6.4 C안).
-- 사이드카(stdio) 호스트에는 값을 받을 수단이 없어 `secret.beginEntry`가 `started: false`를 돌려준다(`L4.host-service.spec` HS-44, 서비스 쪽 OS 입력 창은 M3). 이 연결에서는 셸이 값을 받는다(§4.14.1).
+- 사이드카 연결(stdio와 서비스 접속)에는 맡긴 수단이 없어 `secret.beginEntry`는 요청의 `channel`로 값을 받는다(`L4.host-service.spec` HS-44). 셸이 번들된 `fresnel secret add|set`을 실행하면 CLI가 값을 같은 컴퓨터의 로컬 일회용 채널로 넘기므로, 데스크톱 키 등록은 서비스 모드에서도 된다(§4.14.1). 서비스 쪽 OS 입력 창은 아직 만들지 않았다 [결정: 2026-11-12 사용자].
 - 외부 도구 점검 결과는 `host.status { includeBinaries: true }`의 `binaries`(`HostBinaryReport`)로 받는다(`F.wire-settings.spec` §3.3.1, `L4.host-service.spec` HS-69) [결정: M2 마감 G2-07]. 연결이 결과를 스키마로 검증해 건네므로 화면은 다시 parse하지 않고 `@fresnel/client/settings`의 `diagnostics.ts`가 행으로 바꾼다. 실행 파일 경로는 wire에 없다. 점검은 바이너리마다 자식 프로세스를 띄우므로 설정 화면이 열릴 때와 "다시 확인"에서만 요청한다(`SetupCommands.load({ binaries: true })`). 시작 안내 띠의 읽기(`binaries: false`)와 `settings.invalidated` 뒤 다시 읽기는 점검하지 않고, 화면은 앞서 읽은 점검 결과를 이어 붙인다(`src/app/setup.ts` `keepTools`). `binaries`가 없는 응답(점검을 청하지 않음, 구형 host의 `-32601`), 취소(`request.cancelled`), 읽기 실패는 모두 "받을 수 없음"과 `fresnel doctor` 안내를 보이고, 이 단계는 "확인할 수 없음"으로 표시하되 대화 시작을 막지 않는다. 앱이 보고서를 주입하던 `createApp({ binaryReport })`는 없앴다.
 - `settings.invalidated`를 받으면(`keys`에 `l1.models.`로 시작하는 키가 있거나 `keys`가 빈 알림) 설정 화면과 안내 띠가 `settings.get`으로 다시 읽는다. 구독은 연결이 `live`가 될 때마다 새로 건다. 같은 연결의 `settings.set` 호출자도 알림을 받으므로 저장 직후 화면은 한 번 더 읽는다.
 - 저장이 거절되면(`settings.set`의 3102) 화면은 host가 준 첫 문제의 문장을 그대로 보인다: `저장하지 못했습니다: 알 수 없는 모델 anthropic/claude-sonnet-5.5 (anthropic의 모델: claude-sonnet-5-5, …)`. 기본 모델은 저장하기 전에 host가 카탈로그에서 검사한다(`L4.host-service.spec` HS-78). "provider에 연결"은 그 키의 모델 provider 사용을 허용하는 행위이기도 하다(`L4.host-service.spec` HS-45): 같은 연결을 다시 저장하면 이전 빌드가 빈 정책으로 만든 키의 허용이 다시 맞춰진다 [결정: M2 Mac 실기]. 연결 뒤에는 `secret.meta` 없이 모델 호출이 된다.
@@ -579,7 +579,7 @@ M2 첫 실행에서 깨끗한 Mac에는 `fresnel` 명령이 설치되어 있지 
 
 | 경로 | 값이 지나는 곳 | 약점 |
 |---|---|---|
-| 서비스 쪽 OS 입력 창(M3) | OS 입력 창과 L0.secrets | 서비스 모드가 있어야 한다. M2에는 없다 |
+| 서비스 쪽 OS 입력 창(미결) | OS 입력 창과 L0.secrets | 아직 만들지 않았다. 서비스 연결의 키 등록은 아래 채널 경로로 된다(2026-11-12 결정) |
 | 셸이 번들된 `fresnel secret`을 실행하고 stdin에 한 번 쓴다(채택. 옛 Tauri 구현(커밋 424f338a)에서는 Rust 셸이 실행했고, Electron 셸은 `secret-entry.ts`가 한다) | WebView 입력란, IPC 본문, 셸의 요청 버퍼, 자식 stdin 파이프 | 값이 DOM과 IPC를 지난다(`L4.settings-ui.spec` §4.6.4 B안과 같은 약점). 아래 약점 항목 |
 
 채택한 경로는 시크릿 저장 로직을 셸(Rust 또는 Electron 메인 프로세스)에 두지 않는다. 저장은 ADR-0014대로 사이드카 바이너리가 곧 `fresnel` CLI라는 점을 쓴다. 셸은 CLI와 같은 `secret add|set`을 한 번 실행할 뿐이어서 메타, 감사, SOPS 쓰기 규칙이 엔진 한 곳에 남는다.
@@ -632,7 +632,7 @@ M2 첫 실행에서 깨끗한 Mac에는 `fresnel` 명령이 설치되어 있지 
 
 - 값이 WebView 안에 있다. password 입력란은 화면에 보이지 않을 뿐 DOM 노드의 `value`이고, 읽는 순간 JS 문자열이 하나 생긴다. 문자열은 지울 수 없어 가비지 수집 전까지 WebView 힙에 남는다. 바이트 배열과 입력란만 덮는다.
 - IPC 본문의 전송 사본은 셸이 덮지 못한다 [가정]. 옛 Tauri 구현(커밋 424f338a)에서는 Tauri IPC 본문과 셸의 요청 버퍼를 Tauri가 쥐고 있었다.
-- 같은 사용자의 다른 프로세스가 `ps`로 자식의 인자를 보는 길에는 값이 없지만, 실행 중인 WebView 프로세스 메모리를 읽는 공격자에게는 열려 있다. 값 없는 경로(C안)가 가능한 서비스 쪽 OS 입력 창(M3)이 생기면 그쪽을 먼저 쓴다.
+- 같은 사용자의 다른 프로세스가 `ps`로 자식의 인자를 보는 길에는 값이 없지만, 실행 중인 WebView 프로세스 메모리를 읽는 공격자에게는 열려 있다. 값 없는 경로(C안)가 가능한 서비스 쪽 OS 입력 창이 생기면 그쪽을 먼저 쓴다. 그때까지 서비스 접속의 키 등록은 CLI가 연 로컬 일회용 채널로 되며, 값은 그 채널로만 지난다(2026-11-12 결정).
 - 디버그 빌드의 점검 소켓 `viewport.snapshot`은 보이는 영역을 이미지로 저장한다. password 입력란은 점으로 그려지므로 값이 이미지에 남지 않는다(§4.15) [가정: 실측 전. 옛 Tauri 구현(커밋 424f338a)은 WKWebView, Electron 셸은 `webContents.capturePage`].
 
 ### 4.15 원격 점검 Phase 1 [제안: M2 마감 T7]
