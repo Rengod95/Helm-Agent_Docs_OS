@@ -1,3 +1,4 @@
+import { ToneScopeContext } from "@caustic/react";
 import { CircleAlert, TriangleAlert } from "@caustic/react/icons";
 import type { ReactNode } from "react";
 
@@ -69,7 +70,12 @@ export function ProblemLine(props: {
         <TriangleAlert aria-hidden className={`size-3.5 shrink-0 ${ICON_TONE[tone]}`} />
       )}
       <span className="min-w-0 flex-1">{props.children}</span>
-      {props.action === undefined ? null : <span className="shrink-0">{props.action}</span>}
+      {/* 끝 단추는 줄의 톤을 따른다(DP-121): tone을 주지 않은 Button·IconButton이 위험·경고 톤이 된다 */}
+      {props.action === undefined ? null : (
+        <span className="shrink-0">
+          <ToneScopeContext value={{ tone, variant: "ghost" }}>{props.action}</ToneScopeContext>
+        </span>
+      )}
     </div>
   );
 }
