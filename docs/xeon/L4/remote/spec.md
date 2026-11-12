@@ -296,11 +296,11 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 ### 8.6 권한 범위
 
-- 인증된 기기는 모든 wire 메서드와 셸 명령을 쓴다. 웹 기기에 데스크톱과 다른 권한 제한을 두지 않는다. 시크릿 값 열람, 백업 복원·삭제, 서비스 종료, 외부 접근 끄기, 페어링 코드 만들기 모두 웹 기기에서 데스크톱과 똑같이 허용한다 [결정: 2026-11-08 사용자 "웹 기기 권한: 전부 데스크톱과 똑같이 허용". 위험한 것은 origin에서만 허용하자는 rmW 제안은 채택하지 않았다].
+- 인증된 기기는 모든 wire 메서드와 셸 명령을 쓴다. 웹 기기에 데스크톱과 다른 권한 제한을 두지 않는다(승인에 답하는 일만 사용자가 끌 수 있다, §8.9). 시크릿 값 열람, 백업 복원·삭제, 서비스 종료, 외부 접근 끄기, 페어링 코드 만들기 모두 웹 기기에서 데스크톱과 똑같이 허용한다 [결정: 2026-11-08 사용자 "웹 기기 권한: 전부 데스크톱과 똑같이 허용". 위험한 것은 origin에서만 허용하자는 rmW 제안은 채택하지 않았다].
 - 이 결정의 결과는 위협 모델(§8.1)이 그대로 받는다: 기기 토큰을 가진 쪽은 이 계정으로 도구를 실행할 수 있으므로 방어는 인증(§8.3), TLS(§8.2), 폐기(§8.3 5)에 있다. 기기를 잃어버리면 곧바로 폐기한다. 폐기 화면과 연결 화면이 이 사실을 문장으로 알린다.
 - 웹에서는 OS 재인증(`os_reauth`)을 쓸 수 없으므로 데스크톱이 재인증을 거치는 동작(시크릿 값 열람)도 웹 기기에서는 재인증 단계 없이 기기 인증이 대신한다 [결정: 2026-11-09 W4: 웹 기기에서는 재인증 단계 없이 기기 인증이 대신한다. 연결 화면의 경고 문장은 "연결을 인증받은 기기는 이 컴퓨터의 계정으로 도구를 실행할 수 있어요."와 "기기를 잃어버렸다면 바로 폐기하세요" 계열이고 항상 보인다].
 - 읽기 전용 기기 역할(관찰만)은 서비스에 메서드별 인가가 생긴 뒤의 일이다. 이번 범위에 넣지 않는다 [결정: 2026-11-08 "웹 기기는 전부 똑같이"가 이 역할을 두지 않는다].
-- 승인 UI는 연결된 모든 기기에서 같다. 승인하면 origin에서 도구가 실행되므로 연결 화면과 페어링 화면이 이 사실을 문장으로 알린다.
+- 승인 UI는 연결된 모든 기기에서 같다. "다른 기기에서 승인하기"(§8.9)를 끄면 다른 기기는 승인 요청을 보기만 한다. 승인하면 origin에서 도구가 실행되므로 연결 화면과 페어링 화면이 이 사실을 문장으로 알린다.
 
 ### 8.7 앱 CSP
 
@@ -311,7 +311,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 ### 8.8 연결 링크, 설치형 웹 앱, Tailscale, 사전 점검 [결정: 2026-11-11 사용자]
 
-1. 연결 링크: 페어링 코드를 만들 때 주소와 코드가 함께 든 URL `https://<호스트>[:포트]/login#code=<코드>`를 함께 준다(`pairLinkOf`, `apps/desktop-shell/src/web/static/pair-link.ts`). QR은 이 URL 문자열을 그리면 된다(화면이 그린다. 이 저장소에는 QR 그리기 구현이 없고 새 의존성도 더하지 않았다 [미결: QR 그리기 방식]).
+1. 연결 링크: 페어링 코드를 만들 때 주소와 코드가 함께 든 URL `https://<호스트>[:포트]/login#code=<코드>`를 함께 준다(`pairLinkOf`, `apps/desktop-shell/src/web/static/pair-link.ts`). QR은 이 URL 문자열을 그린다. [결정: 2026-11-12 사용자 "qr - 직접구현 좋아"] 라이브러리 없이 직접 구현한다: `encodeQr`(`packages/client/src/qr/encode.ts`, ISO/IEC 18004 바이트 모드, 오류 정정 M, 버전 자동)가 모듈 행렬을 만들고 `QrCode`(`apps/desktop/src/views/pages/shared/qr-code.tsx`)가 SVG로 그린다(조용한 여백 4칸, 검은 무늬·흰 바탕 고정). 화면 배치는 연결 화면 wizard가 정한다.
    - 코드는 **URL 조각(#)**에 싣는다. 조각은 서버로 가지 않고 `Referer`로 새지 않는다(`Referrer-Policy: no-referrer`도 있다). 위험은 남는다: 주소창, 브라우저 기록, 링크를 메신저로 보낸 기록, 화면 공유에 코드가 보인다. 그래서 로그인 화면은 조각을 읽자마자 `history.replaceState`로 지우고 코드 칸을 채워 바로 연결한다.
    - 한 번 쓰면 무효, 5분 만료, 동시에 하나, 틀림 5회 잠금(§8.3)은 그대로다. 링크는 코드와 같은 값으로 다루고 만료 전에 한 번만 쓴다.
 2. 설치형 웹 앱(PWA): `site.webmanifest`는 `start_url: "/"`, `scope: "/"`, `display: "standalone"`, `theme_color`·`background_color: "#101216"`을 가진다. 로그인 페이지와 앱 페이지(`index.html`)가 모두 이 매니페스트와 `theme-color`를 가리킨다. iOS 홈 화면에 추가한 앱이 푸시를 받으려면 서비스 워커와 푸시가 **신뢰되는 HTTPS**(브라우저가 인증서 경고 없이 연 출처)에서 열려야 한다. 자체 서명 인증서에서는 되지 않는다. 사용자 인증서나 `tailscale serve`(아래)가 그 조건을 채운다.
@@ -322,6 +322,16 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 5. 게이트웨이 설정 호출(`apps/host/src/service/gateway-settings.ts`): `l4.remote.web.listen`, `listenTls`, `hosts`, `tlsCert`, `tlsKey`를 읽고(`readGatewaySettings`), 검증하고(`validateGatewaySettings`, 이슈는 `field`와 코드), 쓴다(`writeGatewaySettings`: 병합한 값이 하나라도 틀리면 아무것도 쓰지 않는다). 검증은 게이트웨이 시작 때의 판단과 같다: `listen`은 루프백만, 포트 1~65535, 호스트 이름 모양, 인증서와 키는 짝으로 절대 경로, 읽을 수 있음, 파싱, 만료, 키와 인증서의 짝 일치. 인증서·키는 `listenTls`가 있을 때만 본다.
 6. 공개 서버(VPS) 구성: 게이트웨이를 루프백에만 열고(`loopbackOnlyPlan`: `listen = 127.0.0.1:<포트>`, `listenTls = 127.0.0.1:<TLS 포트>`, `hosts = [<도메인>]`) 앞에 리버스 프록시(Caddy, nginx)를 둔다. `proxyExampleOf`가 실제 도메인과 포트로 채운 설정 본문을 돌려준다. 프록시는 **게이트웨이의 TLS 리스너**(`https://127.0.0.1:<TLS 포트>`, 자체 서명 인증서라 이 구간의 검증은 끈다)로 보낸다: 루프백 평문 리스너는 `Host`가 `localhost`·`127.0.0.1`·`[::1]`일 때만 받고 `Origin`도 그 출처와 같아야 하므로(§8.5) 공개 도메인을 `Host`로 넘기는 프록시는 TLS 리스너의 허용 호스트(`hosts`)를 통해야 한다. `Upgrade`·`Connection` 헤더(WebSocket)와 `Host`를 그대로 넘기고 읽기 시한을 길게 둔다. [근거: `apps/desktop-shell/src/web/auth/origin.ts` `checkHost`·`checkOrigin`]
+
+### 8.9 원격 표시와 "다른 기기에서 승인하기" [결정: 2026-11-12 사용자]
+
+사용자 결정: "승인 응답 허용도 추천대로". 용어는 더 쉽게 "다른 기기에서 승인하기"(en "Approve from other devices")로 한다. 옛 이름 "승인 응답 허용"은 쓰지 않는다.
+
+1. 원격 표시: 게이트웨이는 `/wire`에서 서비스로 가는 줄(JSON Lines)을 보다가 `host.hello`를 만나면 `params.client`에 `origin: "remote"`와 `deviceId`(연결된 기기 목록의 `dev_…` id)를 **항상** 덧붙인다. 클라이언트가 같은 필드를 보냈어도 덮어쓴다(`apps/desktop-shell/src/web/server/hello-origin.ts`). 줄이 hello인지는 파싱으로 정한다. `\u` 이스케이프로 키 이름을 숨긴 hello도 잡도록 백슬래시나 `hello`가 든 줄을 모두 파싱한다. 서비스가 hello 실패 뒤 다시 hello를 받을 수 있으므로 연결이 끝날 때까지 본다. hello가 아닌 줄은 바이트 그대로 보낸다. 계약은 F wire `host.hello`의 `client.origin`(`"local"|"remote"`, 생략은 `local`)과 `client.deviceId`다.
+2. 위조해도 해가 없다: 이 표시는 권한을 **줄이는** 쪽으로만 쓴다(원격이면 `approval.respond`가 막힐 수 있다). 로컬 클라이언트가 스스로 `remote`라 해도 자기 권한만 줄어든다. 원격 클라이언트가 `local`이라 해도 게이트웨이가 덮어쓰므로 표시를 벗을 수 없다. 게이트웨이를 거치지 않고 서비스 소켓에 직접 붙으려면 소켓 파일 권한(0600)을 가진 이 컴퓨터의 같은 사용자여야 하므로 이미 로컬이다.
+3. 설정: `l0.process.service.allowRemoteRespond`(boolean, 기본 **켜짐**, 즉시 적용, 범위 managed·user, `execution` 탭 토글). 승인은 예약에 한정된 일이 아니므로 옛 `l2.schedule.remote.allowRespond`(L2.schedule §6)는 없애고 서비스 설정(L0.process §6)으로 옮겼다. 저장된 문자열(`turn.*`, `scope.changed`, `lease.*`, `trn_`, `sys_leases`)과 옛 키 읽기는 없다.
+4. 꺼져 있을 때: `origin: "remote"`인 연결의 `approval.respond`(도구 승인, 질문, 계획, 검토 응답 모두)는 `approval.remoteNotAllowed`(3009)로 거절한다. 다른 기기는 `approval.requested` 이벤트와 `approval.list`로 승인 요청을 볼 수 있고, 이 컴퓨터가 답하면 `approval.resolved`로 대기 표시가 사라진다. 거절을 받은 카드는 "이 컴퓨터에서만 승인할 수 있어요."를 보인다.
+5. 누가 답했는가: 원격 연결이 답하면 `approval.resolved` 기록의 `deviceId`에 그 기기 id가 남는다(`ApprovalResolvedPayload.deviceId`, 생략이면 이 컴퓨터에서 답한 것). 이 컴퓨터가 답하면 없다. 화면 표시는 이 값을 읽는 쪽이 정한다.
 
 ## 9. 비루프백 리스너 정책과 기존 스펙 충돌의 정리
 
@@ -347,6 +357,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 | 키 | 기본 | 뜻 |
 |---|---|---|
 | `l0.process.service.enabled` | 거짓 | 있음. 서비스 모드 |
+| `l0.process.service.allowRemoteRespond` | 참 | 다른 기기에서 승인하기. 끄면 원격 표시된 연결의 `approval.respond`를 거절한다(§8.9) |
 | `l4.remote.web.enabled` | 거짓 | 게이트웨이를 띄운다 |
 | `l4.remote.web.listen` | `127.0.0.1:8480` | 루프백 리스너 |
 | `l4.remote.web.listenTls` | `0.0.0.0:8443` | 외부 TLS 리스너 `host:port`. 비어 있는 값(빈 문자열)으로 바꾸면 외부 리스너를 열지 않는다. 포트는 이 키로 바꾼다 |
@@ -383,7 +394,8 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 4. 브라우저 탭 둘이 같은 대화에서 한쪽의 입력과 승인이 다른 쪽에 반영된다.
 5. 기기 폐기가 열린 연결을 닫는다. 페어링 코드는 한 번만 쓸 수 있고, 5분이 지나거나 실패 5번이면 쓸 수 없다(시험: `pairing.test.ts`, `auth-port.test.ts`).
 6. 데스크톱 앱에서 서비스 모드와 외부 접근을 켜고 끌 수 있고, CLI `service start|stop|status`와 같은 결과가 같은 상태 표시로 보인다.
-7. 웹 기기와 데스크톱 기기의 권한이 같다: 어느 wire 메서드나 셸 명령도 기기 종류로 거절하지 않는다(§8.6).
+7. 웹 기기와 데스크톱 기기의 권한이 같다: 어느 wire 메서드나 셸 명령도 기기 종류로 거절하지 않는다(§8.6). 예외는 "다른 기기에서 승인하기"를 껐을 때의 `approval.respond`뿐이다(§8.9).
+8. 게이트웨이를 거친 연결의 hello에는 `origin: "remote"`와 기기 id가 붙고, 클라이언트가 보낸 값은 덮어쓴다. 설정을 끄면 그 연결의 `approval.respond`가 3009로 거절되고, 켜면(기본) 통과하며 `approval.resolved`에 기기 id가 남는다(시험: `hello-origin.test.ts`, `approval-remote.test.ts`).
 
 [확인: 2026-11-10 W8] 브라우저 E2E는 `just web-e2e`(`xeon/apps/desktop/test/web-e2e/web.e2e.ts`)다. 실제 서비스(임시 `FRESNEL_HOME`, 모델만 테이프 제공자), 루프백 HTTP와 TLS 리스너를 둔 게이트웨이, 헤드리스 Chrome 탭 둘(`Bun.WebView`, Chrome 백엔드)로 돌고 `just verify` 밖이다(화면 번들 `just desktop-ui`가 먼저 필요하다). 시험 이름과 기준의 연결:
 

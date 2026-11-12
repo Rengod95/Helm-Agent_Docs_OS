@@ -39,6 +39,8 @@ export interface RemoteStatus {
 export interface PairingCode {
   readonly code: string;
   readonly expiresAt: number;
+  /** 연결 링크(`https://…/login#code=…`). 첫 링크 하나. 서비스가 링크를 주지 않으면 없다. QR이 이 글을 그린다 */
+  readonly link?: string;
 }
 
 /** 페어링된 기기 한 대. `lastSeenAt`이 null이면 한 번도 연결하지 않았다 */
@@ -203,7 +205,10 @@ export function parsePairing(reply: unknown): Result<PairingCode, RemoteError> {
   const code = ownField(reply, "code");
   const expiresAt = ownField(reply, "expiresAt");
   if (!isNonEmptyText(code) || !isCount(expiresAt)) return err(BAD_REPLY);
-  return ok({ code, expiresAt });
+  const links = ownField(reply, "links");
+  const first: unknown = Array.isArray(links) ? links[0] : undefined;
+  const link = ownField(first, "url");
+  return ok(isNonEmptyText(link) ? { code, expiresAt, link } : { code, expiresAt });
 }
 
 /** `host.remote.devices`의 응답(`{ devices }`)을 읽는다. 기기 목록의 순서는 응답 그대로다 */

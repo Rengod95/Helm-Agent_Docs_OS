@@ -142,6 +142,8 @@ export type ApprovalTrail = {
   /** 요청이 제안한 범위. 없으면 null */
   readonly requestedRemember: ApprovalResolvedPayload["requestedRemember"];
   readonly resolvedBy: ApprovalResolvedPayload["resolvedBy"];
+  /** 다른 기기에서 답했으면 그 기기 id. 이 컴퓨터에서 답했으면 없다(L4.remote.spec §8.9) */
+  readonly deviceId?: string;
   readonly title: string;
   /** 요청한 쪽(`main`, `background`, `host`, `subagent:<이름>`, `ext:<이름>`) */
   readonly caller: string;
@@ -747,6 +749,7 @@ export function convoApprovalResolved(
       remember: resolved.remember,
       requestedRemember: resolved.requestedRemember,
       resolvedBy: resolved.resolvedBy,
+      ...(resolved.deviceId === undefined ? {} : { deviceId: resolved.deviceId }),
       title: digest.title,
       caller: digest.caller,
       bodyKind: digest.bodyKind,

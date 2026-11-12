@@ -85,11 +85,12 @@ export function createApprovalPort(deps: ApprovalPortDeps): ApprovalPort {
       return findInStore(approvalId);
     },
 
-    async respond(params) {
+    async respond(params, answeredBy) {
       const response: ApprovalResponse = {
         decision: params.decision,
         ...(params.answer === undefined ? {} : { answer: params.answer }),
         ...(params.remember === undefined ? {} : { remember: params.remember }),
+        ...(answeredBy?.deviceId === undefined ? {} : { deviceId: answeredBy.deviceId }),
       };
       return await approvals.respond(params.approvalId, response);
     },

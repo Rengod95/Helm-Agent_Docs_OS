@@ -1431,8 +1431,9 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 
 1. 원격 클라이언트가 SSH 터널이나 사설망을 거쳐 서비스 로컬 소켓에 접속한다. L4가 `host.hello` 전에 원격 토큰으로 인증하고, 이 토큰으로 연결을 원격으로 표시한다 [가정: `L4.host-service.spec`]. 인증 실패는 hello 전에 연결을 끊는다(`L4.host-service.spec` §4.11).
 2. 클라이언트는 Runtime API(F wire)의 `thread.list`, `events.subscribe`로 대화와 이벤트를 본다. 어느 대화가 답을 기다리는지는 `schedule.remote.pending`(호스트가 중계)이나 `approval.requested` 이벤트로 안다.
+[결정: 2026-11-12 사용자] 승인 응답 허용 스위치는 예약에 한정된 일이 아니라(모든 승인에 걸린다) 키를 `l0.process.service.allowRemoteRespond`("다른 기기에서 승인하기", 기본 켜짐)로 옮겼다. 호스트가 게이트웨이가 hello에 실은 `origin: "remote"`로 원격 연결을 알아 거절한다(`L4.remote.spec` §8.9). 옛 키는 없다.
 3. 클라이언트가 `approval.respond`(F wire §3.3.1)를 보낸다. 호스트는 연결이 원격이면 `schedule.remote.respond({ ...params, clientId })`로 넘기고, 로컬이면 기존 경로(`ApprovalPort.respond`)를 쓴다 [제안].
-4. `respond`는 정책을 검사한다: `l2.schedule.remote.enabled`가 거짓이면 `remote_disabled`, `l2.schedule.remote.allowRespond`가 거짓이면 `respond_not_allowed`, `remember: "always"`는 `remember_not_allowed`다. "항상 허용" 같은 영구 정책 변경은 로컬에서만 하게 하려는 것이다 [제안].
+4. `respond`는 정책을 검사한다: `l2.schedule.remote.enabled`가 거짓이면 `remote_disabled`, `l0.process.service.allowRemoteRespond`(L0.process §6)가 거짓이면 `respond_not_allowed`(wire에서는 `approval.remoteNotAllowed` 3009), `remember: "always"`는 `remember_not_allowed`다. "항상 허용" 같은 영구 정책 변경은 로컬에서만 하게 하려는 것이다 [제안].
 5. 통과하면 `fresnel.approvals`에 응답하고, 승인 요청이 있던 대화에 `schedule.remote_responded`를 커밋한다.
 - 질문 도구(`dialog.ask`)와 계획 승인(`work.plans`), 리뷰(`artifacts.reviews`, kind `review`는 [미결] `L2.readme` §10 미결 14)는 모두 같은 승인 프로토콜을 쓰므로 원격 답도 같은 경로다(결정 5, `product.usecases.spec` "질문·계획 승인" 행).
 - `pending.summary`는 승인 요청의 표시용 요약에서 만든다. 도구 인자 원문과 출력 원문, 시크릿 값을 넣지 않는다. 원격 화면이 잃어버리거나 엿보이는 기기에 있을 수 있기 때문이다.
@@ -1502,7 +1503,6 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 | `l2.schedule.timers.whenServiceOff` | string | `"autoStart"` | enum `autoStart`, `reject`, `keepWithWarning` | live | managed, user | execution | false | 화면 |
 | `l2.schedule.service.ensureOnCreate` | boolean | true | — | live | managed, user | execution | false | 화면. 서비스 모드 연동 |
 | `l2.schedule.remote.enabled` | boolean | false | — | restart | managed, user | execution | false | 화면, 명령(`fresnel service remote on`) |
-| `l2.schedule.remote.allowRespond` | boolean | true | — | live | managed, user | execution | false | 화면 |
 | `l2.schedule.remote.tokenRef` | string(`SecretRef`) | 없음 | — | restart | managed, user | secrets | true | 화면(시크릿 탭). 값은 `secret://<name>` |
 | `l2.schedule.entries.directCreate` | string | `"allow"` | enum `allow`, `ask`, `deny` | live | managed, user | execution | false | 화면. 모델 도구가 아닌 확장·그룹의 `schedule.entries.create` 직접 호출(§4.4.9) [결정: 2026-11-03 사용자] |
 | `l2.schedule.tools.timers` | boolean | true | — | nextTurn | managed, user, project, local, launch | tools | false | 화면. `schedule_*` 도구 노출 |

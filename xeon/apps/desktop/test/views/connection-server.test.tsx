@@ -285,13 +285,13 @@ function buttonAt(container: Element, text: string, index: number): Element {
   return found;
 }
 
-/** 다른 기기에서 승인에 답하기 스위치. 글이 붙은 줄의 `aria-labelledby`가 가리키는 스위치다 */
+/** 다른 기기에서 승인하기 스위치. 글이 붙은 줄의 `aria-labelledby`가 가리키는 스위치다 */
 function respondSwitchOf(container: Element): Element {
   const found = Array.from(container.querySelectorAll('[role="switch"]')).find((sw) => {
     const id = sw.getAttribute("aria-labelledby");
     return (
       id !== null &&
-      container.querySelector(`[id="${id}"]`)?.textContent.trim() === "다른 기기에서 승인에 답하기"
+      container.querySelector(`[id="${id}"]`)?.textContent.trim() === "다른 기기에서 승인하기"
     );
   });
   if (found === undefined) throw new Error("no respond switch");
@@ -521,7 +521,7 @@ describe("the respond switch", () => {
 
   test("the switch row names what it does", async () => {
     const view = await mount();
-    expect(textOf(view.container)).toContain("다른 기기에서 승인에 답하기");
+    expect(textOf(view.container)).toContain("다른 기기에서 승인하기");
   });
 });
 

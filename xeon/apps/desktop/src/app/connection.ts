@@ -47,8 +47,8 @@ import type { Session } from "./session.ts";
 
 /** 서비스 모드 설정 키. 설정 화면과 예약 화면이 같은 키를 쓴다(app/schedule.ts) */
 const SERVICE_ENABLED_KEY = "l0.process.service.enabled";
-/** 원격 응답 허용 설정 키(L2.schedule §6). 엔진 카탈로그에 없으면 `settings.unknownKey`로 거절된다 */
-const REMOTE_RESPOND_KEY = "l2.schedule.remote.allowRespond";
+/** 다른 기기에서 승인하기 설정 키(L0.process §6). 엔진 카탈로그에 없으면 `settings.unknownKey`로 거절된다 */
+const REMOTE_RESPOND_KEY = "l0.process.service.allowRemoteRespond";
 const UNKNOWN_KEY_CODE = WIRE_ERRORS["settings.unknownKey"].code;
 
 const SCOPE = "user";
