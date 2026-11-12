@@ -597,6 +597,7 @@ M2 첫 실행에서 깨끗한 Mac에는 `fresnel` 명령이 설치되어 있지 
 규칙:
 
 - 한 번에 하나만 등록한다. 진행 중에 또 오면 `busy`다.
+- [결정: 2026-11-11 사용자] API 키 입력은 앞뒤를 지운다. 키 넣기 대화 상자(`submitKey`)와 셸 `secret_register`(이름이 `-api-key`로 끝나는 값)는 `normalizePastedKey`(`@fresnel/contracts/services`)로 앞뒤 공백, 줄바꿈, NBSP, U+200B~U+200D, U+2060, U+FEFF를 지우고, 한 쌍으로 둘러싼 따옴표 하나를 지운 뒤 안쪽 앞뒤를 한 번 더 지운다. 안쪽은 건드리지 않는다. 지운 것이 있으면 키 넣기 대화 상자의 검사 단계 맨 위에 "앞뒤 공백을 뺐어요." 한 줄을 보인다. 일반 시크릿 값은 지우지 않는다. 시크릿 화면이 묻는다(§6.14 P-10). API 키 값은 의도적으로 공백으로 끝나지 않는다. 셸은 정리한 복사본을 만들고 호출이 끝나면 본문과 함께 0으로 덮는다. 셸이 값을 글로 바꾸는 것은 이 규칙의 약점이다(아래 약점 항목과 같은 종류).
 - 자식의 인자와 환경 변수에 값이 없다. 셸 로그(`applog`)에는 `secret entry <동작> <이름>: <결과 종류>`만 쓴다. 옛 Tauri 구현(커밋 424f338a)의 요청 구조체 `Debug` 출력에는 값 길이만 있었다.
 - `secret rotate`는 CLI가 비TTY를 거부하므로(`L4.cli.spec` §4.7) 이 경로는 `add`와 `set`만 쓴다.
 - 개발 빌드에서 `FRESNEL_DESKTOP_ENGINE_BIN`과 `FRESNEL_DESKTOP_ENGINE_ARGS`가 `... host --stdio`로 끝나면 그 앞부분에 `secret <동작> <이름>`을 이어 쓴다. 그 모양이 아니면 번들 사이드카를 쓴다. 덮어쓴 엔진에도 안전 모드 플래그와 대상 인자가 `host --stdio` 뒤에 같은 규칙으로 붙는다(옛 Tauri 구현(커밋 424f338a)의 `engine.rs` `dev_override_argv`, 단위 시험이 있었다. Electron 셸은 `engine/launcher.ts`와 `secret-entry.ts`의 `devOverrideOf`가 맡는다).

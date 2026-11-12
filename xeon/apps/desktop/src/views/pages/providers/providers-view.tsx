@@ -689,7 +689,12 @@ export type KeyDialogPhase =
   | { readonly kind: "entry"; readonly error: KeyErrorText | null }
   /** 호스트가 자기 창에서 값을 받는다. 다 넣으면 시험한다 */
   | { readonly kind: "hostWindow" }
-  | { readonly kind: "checking"; readonly steps: readonly CheckStep[] };
+  /** `trimmed`는 키 앞뒤를 지웠다는 뜻이고, 맨 위에 한 줄로 보인다 */
+  | {
+      readonly kind: "checking";
+      readonly steps: readonly CheckStep[];
+      readonly trimmed: boolean;
+    };
 
 export interface KeyDialogProps {
   readonly open: boolean;
@@ -802,6 +807,9 @@ export function KeyDialog(props: KeyDialogProps): ReactNode {
       ) : null}
       {phase.kind === "checking" ? (
         <div className="grid gap-4">
+          {phase.trimmed ? (
+            <p className="m-0 text-ui text-text-secondary">{t("desktop.providers.key.trimmed")}</p>
+          ) : null}
           <CheckSteps
             label={t("desktop.providers.check.label", { name: props.providerName })}
             steps={phase.steps}

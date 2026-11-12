@@ -104,7 +104,7 @@ describe("the registration after the question", () => {
     const outcome = await submitKey(registrar, NAME, "add", input.field, () =>
       confirmFallbackOf(keys, () => Promise.resolve(true)),
     );
-    expect(outcome).toEqual({ kind: "registered" });
+    expect(outcome).toEqual({ kind: "registered", trimmed: true });
     expect(calls).toEqual(["status", "move file", `register add anthropic-api-key ${FAKE}`]);
     expect(input.shown()).toBe("");
   });

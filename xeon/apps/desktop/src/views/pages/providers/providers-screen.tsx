@@ -353,8 +353,12 @@ export function ProvidersPanel(props: ModelsPanelProps): ReactNode {
     );
   }
 
-  /** 연결하고 대화 상자 안에서 시험한다 */
-  const connectAndTest = async (target: KeyTarget, name: SecretName): Promise<void> => {
+  /** 연결하고 대화 상자 안에서 시험한다. `trimmed`는 키 앞뒤를 지웠는지(등록 결과)다 */
+  const connectAndTest = async (
+    target: KeyTarget,
+    name: SecretName,
+    trimmed = false,
+  ): Promise<void> => {
     const connected = await commands.setup.connectProviderKey(target.providerId, name);
     if (!connected.ok) {
       setKey((prev) =>
@@ -376,7 +380,7 @@ export function ProvidersPanel(props: ModelsPanelProps): ReactNode {
         },
       });
       setKey((prev) =>
-        prev === null ? prev : { ...prev, phase: { kind: "checking", steps: shown } },
+        prev === null ? prev : { ...prev, phase: { kind: "checking", steps: shown, trimmed } },
       );
       setSteps((prev) => ({ ...prev, [target.providerId]: shown }));
     };
@@ -400,7 +404,7 @@ export function ProvidersPanel(props: ModelsPanelProps): ReactNode {
         );
         switch (outcome.kind) {
           case "registered":
-            await connectAndTest(target, target.name);
+            await connectAndTest(target, target.name, outcome.trimmed);
             break;
           case "cancelled":
             // 열쇠 보관 확인에서 취소했다. 입력란과 키 창은 그대로 둔다

@@ -53,7 +53,7 @@ describe("registering a model key from the settings screen", () => {
     const { fake, shell, app, params, methods } = await liveApp();
     const input = inputOf(`${FAKE}\n`);
     const outcome = await submitKey(app.commands.setup, name, "add", input.field);
-    expect(outcome).toEqual({ kind: "registered" });
+    expect(outcome).toEqual({ kind: "registered", trimmed: true });
     expect(input.shown()).toBe("");
 
     // 셸 명령은 하나이고 본문은 `<동작> <이름>\n<값>`이다. 보낸 뒤 그 버퍼는 0이다
@@ -188,6 +188,7 @@ describe("registering a model key on a web shell", () => {
     const input = inputOf(`${FAKE}\n`);
     expect(await submitKey(app.commands.setup, name, "add", input.field)).toEqual({
       kind: "registered",
+      trimmed: true,
     });
     expect(input.shown()).toBe("");
     await app.stop();

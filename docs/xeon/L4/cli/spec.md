@@ -675,10 +675,11 @@ export interface GroupTemplatesPort {
   - `rotate`는 TTY 프롬프트만 받는다 [제안]. 사람이 직접 입력하는 동작으로 두기 위해서다(`_research/secrets.md` §6.6 "사람이 입력").
 - 값은 stdout, stderr, 이벤트, 로그, 오류 `details`, JSON 모드 출력 어디에도 없다.
   - [제안] 시크릿 명령에는 `--json` 메시지 탭을 붙이지 않는다. `secret ls`, `secret test`의 `--json`은 결과 객체만 쓴다.
-  - 값을 담은 바이트 배열은 L0.secrets에 넘긴 직후 0으로 덮는다. 문자열로 바꾸지 않는다 [제안].
+  - 값을 담은 바이트 배열은 L0.secrets에 넘긴 직후 0으로 덮는다. 문자열로 바꾸지 않는다 [제안]. 예외: API 키 값의 앞뒤 정리(아래 입력 규칙)는 정리 함수가 글을 받으므로 잠깐 글이 된다 [결정: 2026-11-11 사용자].
 - `secret test`는 존재, 복호화 가능 여부, 길이, SHA-256 hex 앞 8자만 출력한다 [결정: m2c G1-07]. wire 결과는 `state`, `decryptable`, `length`, `sha256Prefix`다(`L0.secrets.spec`의 `SecretTestResult`). 글은 `<이름>: registered (복호화 가능, 길이 <n>바이트, sha256 앞 8자 <hex>)`이고, 복호화할 수 없으면 `registered (복호화할 수 없다)`, 없으면 `missing`이다. `registered`이면서 복호화할 수 있을 때만 0이고 나머지는 1이다. `--json`은 `{ name, state, decryptable, length, sha256Prefix }`를 한 줄로 쓴다. 앞 8자는 사람이 같은 값인지 견주는 데만 쓰고 기록하지 않는다.
 - 입력 규칙 (구현):
   - TTY가 아니면 stdin을 EOF까지 읽고 끝의 줄바꿈 하나(`\n`, `\r\n`)를 지운다. 빈 값은 2, 64 KiB를 넘으면 2다.
+  - [결정: 2026-11-11 사용자] 이름이 `-api-key`로 끝나면(제공자 키 `<provider>-api-key`, 웹 플러그인 키 `exa-api-key`) 값의 앞뒤를 `normalizePastedKey`(`@fresnel/contracts/services`)로 지운다. 공백, 줄바꿈, NBSP, U+200B~U+200D, U+2060, U+FEFF를 지우고, 한 쌍으로 둘러싼 따옴표(`"`, `'`, `` ` ``) 하나를 지운 뒤 안쪽 앞뒤를 한 번 더 지운다. TTY로 받은 값도 같다. 안쪽은 건드리지 않는다. 지운 것이 있으면 성공 뒤 stderr에 `앞뒤 공백을 뺐어요.` 한 줄을 쓴다. 다 지워져 빈 값이면 2다. 그 밖의 시크릿 값(일반 시크릿)은 줄바꿈 하나만 지운다. 일반 시크릿에 쓰는 플래그는 두지 않았다(범위 밖이라 건너뜀). API 키 값은 의도적으로 공백으로 끝나지 않는다.
   - TTY면 `readSecret`으로 두 번 받아 상수 시간으로 비교한다. 다르면 아무것도 저장하지 않고 1이다. Ctrl+C·Ctrl+D는 취소(1)다.
   - 값을 읽는 때는 호스트가 맡긴 수단의 `read()`를 부르는 순간이다. 읽은 바이트 배열은 `secret.beginEntry`가 끝나면 성공·실패와 관계없이 0으로 덮는다.
   - `add`의 `--desc`, `--scope`, `--expires`, `--hosts`는 값을 저장한 뒤 `secret.meta`로 적용한다. `--hosts`는 기존 사용 정책을 `secret.list { meta: true }`로 읽어 `hosts`만 바꾼다. 메타 적용이 실패하면 값은 저장된 상태라고 알린다. `--provider`는 `sops`만 받는다(wire에 제공자 선택이 없다). `secret meta`는 플래그가 하나도 없으면 2다.

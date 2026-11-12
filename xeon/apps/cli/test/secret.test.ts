@@ -94,6 +94,21 @@ test("secret add reads the value from stdin, drops one trailing newline, and han
   expect(s.h.outOfBand.pending()).toBe(0);
 });
 
+test("an API key from stdin loses its edge spaces and CRLF, and says so on stderr", async () => {
+  const s = setup({ stdin: `  ${VALUE}  \r\n` });
+  expect(await s.h.run(["secret", "add", "anthropic-api-key"])).toBe(EXIT.ok);
+  expect(new TextDecoder().decode(s.secrets.stored.get("anthropic-api-key"))).toBe(VALUE);
+  expect(s.h.stderrText()).toContain("앞뒤 공백을 뺐어요.");
+  expectNoValue(s);
+});
+
+test("a general secret from stdin keeps its edge spaces; only the one trailing newline goes", async () => {
+  const s = setup({ stdin: `  ${VALUE} \n` });
+  expect(await s.h.run(["secret", "add", "github-token"])).toBe(EXIT.ok);
+  expect(new TextDecoder().decode(s.secrets.stored.get("github-token"))).toBe(`  ${VALUE} `);
+  expect(s.h.stderrText()).not.toContain("앞뒤 공백을 뺐어요.");
+});
+
 test("the CLI's copy of the value is overwritten with zeros after the host took it", async () => {
   const s = setup({ stdin: VALUE });
   expect(await s.h.run(["secret", "add", "github-token"])).toBe(EXIT.ok);

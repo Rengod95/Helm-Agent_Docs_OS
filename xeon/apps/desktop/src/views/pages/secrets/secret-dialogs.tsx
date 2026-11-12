@@ -1,5 +1,5 @@
 import { t } from "@fresnel/client/i18n";
-import type { KeyField } from "@fresnel/client/settings";
+import { hasEdgeSpace, type EdgeChoice, type KeyField } from "@fresnel/client/settings";
 import type { SecretName, SecretApproval } from "@fresnel/contracts/capabilities";
 import type { SecretReferencesResult } from "@fresnel/contracts/wire";
 import {
@@ -13,7 +13,7 @@ import {
   Select,
   SelectOption,
 } from "@caustic/react";
-import { useRef, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { InfoTip } from "../../craft/info-tip.tsx";
 import type { EntryError, EntryState, Load, MetaState } from "./secret-model.ts";
 import type { MetaDraft } from "./secret-draft.ts";
@@ -46,7 +46,7 @@ export interface EntryDialogProps {
   readonly entry: EntryState;
   readonly onName: (name: string) => void;
   readonly onNext: () => void;
-  readonly onSubmitValue: (field: KeyField) => void;
+  readonly onSubmitValue: (field: KeyField, edge: EdgeChoice) => void;
   readonly onClose: () => void;
 }
 
@@ -141,29 +141,42 @@ function NameStep(props: {
 /**
  * 값 칸. 비제어 입력이라 값은 DOM에만 있고, 저장하면 `take()`가 읽는 즉시 비운다.
  * 실패하면 원인 문장 밑에 고치는 법 한 줄을 둔다. 기술 문구(종료 코드)는 여기 없다.
+ * 값의 앞뒤에 공백이 있으면 저장 전에 한 번 묻는다(임시 UI: 한 줄과 선택 두 개). 기본은 "공백 빼고 저장"이다.
+ * 묻는 동안에도 값은 DOM에만 있다. 검사는 DOM 값을 잠깐 읽어 공백이 있는지만 본다.
  */
 export function ValueStep(props: {
   readonly busy: boolean;
   readonly error: EntryError | null;
-  readonly onSubmit: (field: KeyField) => void;
+  readonly onSubmit: (field: KeyField, edge: EdgeChoice) => void;
   readonly onCancel: () => void;
 }): ReactNode {
   const input = useRef<HTMLInputElement | null>(null);
+  const [asking, setAsking] = useState(false);
   const clear = (): void => {
     if (input.current !== null) input.current.value = "";
   };
+  const takeField = (): KeyField => ({
+    take: () => {
+      const typed = input.current?.value ?? "";
+      clear();
+      return typed;
+    },
+  });
   return (
     <form
       className="grid gap-3"
       onSubmit={(event) => {
         event.preventDefault();
-        props.onSubmit({
-          take: () => {
-            const typed = input.current?.value ?? "";
-            clear();
-            return typed;
-          },
-        });
+        if (asking) {
+          // 기본 선택: 공백을 뺀다
+          props.onSubmit(takeField(), "trim");
+          return;
+        }
+        if (hasEdgeSpace(input.current?.value ?? "")) {
+          setAsking(true);
+          return;
+        }
+        props.onSubmit(takeField(), "keep");
       }}
     >
       <Field label={t("desktop.secrets.entry.valueLabel")} size="sm">
@@ -178,10 +191,16 @@ export function ValueStep(props: {
             spellCheck={false}
             defaultValue=""
             disabled={props.busy}
+            onChange={() => {
+              setAsking(false);
+            }}
           />,
           t("desktop.secrets.entry.valueHint"),
         )}
       </Field>
+      {asking ? (
+        <p className="m-0 text-ui text-text-secondary">{t("desktop.secrets.entry.edgeAsk")}</p>
+      ) : null}
       {props.error === null ? null : (
         <div className="grid gap-1">
           <Alert tone="danger" size="sm">
@@ -206,8 +225,21 @@ export function ValueStep(props: {
         >
           {t("desktop.secrets.cancel")}
         </Button>
+        {asking ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={props.busy}
+            onClick={() => {
+              props.onSubmit(takeField(), "keep");
+            }}
+          >
+            {t("desktop.secrets.entry.edgeKeep")}
+          </Button>
+        ) : null}
         <Button type="submit" variant="solid" size="sm" disabled={props.busy}>
-          {t("desktop.secrets.entry.save")}
+          {asking ? t("desktop.secrets.entry.edgeTrim") : t("desktop.secrets.entry.save")}
         </Button>
       </div>
     </form>

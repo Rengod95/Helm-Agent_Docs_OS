@@ -2,6 +2,7 @@
 // 본문은 원시 바이트 `<동작> <이름>\n<값>`이다. 번들 사이드카를 `secret <동작> <이름>` 인자로 한 번 띄우고,
 // 값은 자식 stdin에 한 번 쓰고 닫는다. 값은 인자, 환경 변수, 앱 로그, 거부 값에 들어가지 않는다.
 // 앱 로그에는 이름과 결과 종류만 쓴다.
+// API 키(이름이 `-api-key`로 끝남)는 앞뒤 공백을 `normalizePastedKey`로 지운 뒤 보낸다(L4.desktop.spec §4.14.1). 일반 시크릿 값은 그대로 보낸다.
 import { Buffer } from "node:buffer";
 import os from "node:os";
 import path from "node:path";
@@ -16,7 +17,13 @@ import {
   type Scheduler,
   type TimerHandle,
 } from "@fresnel/contracts";
-import { FAILURE_CODE_PREFIX, isFailureKind, type FailureKind } from "@fresnel/contracts/services";
+import {
+  FAILURE_CODE_PREFIX,
+  isApiKeySecretName,
+  isFailureKind,
+  normalizePastedKey,
+  type FailureKind,
+} from "@fresnel/contracts/services";
 import {
   detectProcessPlatform,
   spawnPiped,
@@ -54,6 +61,7 @@ const NAME_PATTERN = /^[a-z][a-z0-9-]{1,63}$/u;
 const STRICT_UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 /** 자식 stderr를 요약할 때만 쓴다. 잘못된 바이트는 대체 문자로 바꾼다 */
 const LOOSE_UTF8 = new TextDecoder("utf-8");
+const ENCODER = new TextEncoder();
 const CONTROL_CHARS = /\p{Cc}/gu;
 
 export type EntryAction = "add" | "set";
@@ -85,11 +93,14 @@ type RunFailure = Extract<
 export interface ParsedEntry {
   readonly action: EntryAction;
   readonly name: string;
-  /** 요청 본문의 값 조각. 복사하지 않고 본문을 가리킨다 */
+  /**
+   * 값. 보통은 요청 본문의 조각을 가리킨다. API 키 값의 앞뒤를 지웠으면 새 바이트 배열이다.
+   * 어느 쪽이든 호출한 쪽(`register`)이 끝날 때 0으로 덮는다
+   */
   readonly value: Uint8Array;
 }
 
-/** 요청 본문을 검사한다. 값은 본문 버퍼를 가리키므로 그 버퍼를 덮으면 함께 0이 된다 */
+/** 요청 본문을 검사한다. 값은 본문 버퍼를 가리키므로 그 버퍼를 덮으면 함께 0이 된다(API 키 값을 정리한 경우는 복사본이다) */
 export function parseRequest(body: Uint8Array): Result<ParsedEntry, SecretEntryError> {
   const headEnd = body.subarray(0, MAX_HEAD_BYTES + 1).indexOf(NEWLINE);
   if (headEnd < 0) return err({ kind: "bad-request" });
@@ -101,10 +112,24 @@ export function parseRequest(body: Uint8Array): Result<ParsedEntry, SecretEntryE
   const action = actionOf(head.slice(0, space));
   const name = head.slice(space + 1);
   if (action === null || !NAME_PATTERN.test(name)) return err({ kind: "bad-request" });
-  const value = body.subarray(headEnd + 1);
+  const raw = body.subarray(headEnd + 1);
+  if (raw.length === 0) return err({ kind: "empty" });
+  if (raw.length > MAX_VALUE_BYTES) return err({ kind: "too-large" });
+  const value = isApiKeySecretName(name) ? cleanKeyBytes(raw) : raw;
   if (value.length === 0) return err({ kind: "empty" });
-  if (value.length > MAX_VALUE_BYTES) return err({ kind: "too-large" });
   return ok({ action, name, value });
+}
+
+/**
+ * API 키 값의 앞뒤를 `normalizePastedKey`로 지운다. 지운 것이 없거나 UTF-8이 아니면 본문 조각을 그대로 돌려준다.
+ * 지웠으면 새 바이트 배열을 돌려준다(호출한 쪽이 덮는다)
+ */
+function cleanKeyBytes(value: Uint8Array): Uint8Array {
+  const decoded = attempt(() => STRICT_UTF8.decode(value));
+  if (!decoded.ok) return value;
+  const cleaned = normalizePastedKey(decoded.value);
+  if (!cleaned.trimmed) return value;
+  return ENCODER.encode(cleaned.value);
 }
 
 function actionOf(text: string): EntryAction | null {
@@ -200,9 +225,11 @@ export function createSecretEntry(deps: SecretEntryDeps): SecretEntry {
   let busy = false;
   return {
     async register(body) {
+      let entry: ParsedEntry | null = null;
       try {
         const parsed = parseRequest(body);
         if (!parsed.ok) throw new ShellError(parsed.error);
+        entry = parsed.value;
         if (busy) throw new ShellError({ kind: "busy" });
         const { action, name } = parsed.value;
         busy = true;
@@ -216,7 +243,8 @@ export function createSecretEntry(deps: SecretEntryDeps): SecretEntry {
           busy = false;
         }
       } finally {
-        // 값이 든 본문은 호출이 끝나면 0으로 덮는다. 자식 stdin으로 나가는 쓰기는 runEntry가 끝나야 끝난다
+        // 값이 든 본문과(API 키 정리를 했으면) 정리한 복사본은 호출이 끝나면 0으로 덮는다. 자식 stdin으로 나가는 쓰기는 runEntry가 끝나야 끝난다
+        entry?.value.fill(0);
         body.fill(0);
       }
     },

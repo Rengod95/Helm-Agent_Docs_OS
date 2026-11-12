@@ -1,11 +1,16 @@
 import { t } from "@fresnel/client/i18n";
-import { assertNever, err, ok, parse, type Result } from "@fresnel/contracts";
+import { assertNever, attempt, err, ok, parse, type Result } from "@fresnel/contracts";
 import {
   SecretScopeSchema,
   type SecretName,
   type SecretScope,
 } from "@fresnel/contracts/capabilities";
-import type { SecretEntryAction, SecretValueSource } from "@fresnel/contracts/services";
+import {
+  isApiKeySecretName,
+  normalizePastedKey,
+  type SecretEntryAction,
+  type SecretValueSource,
+} from "@fresnel/contracts/services";
 import {
   WireError,
   type SecretKeyMoveResult,
@@ -31,9 +36,12 @@ import { withEngine, type CommandContext } from "./context.ts";
 // 값을 넘기는 길은 둘이다. in-process 접속은 값 입력·열람 수단을 wire 밖(SecretOutOfBandPort)으로 맡긴다.
 // 같은 컴퓨터의 서비스 접속은 로컬 일회용 채널(secret-channel.ts)을 열고 그 경로만 `channel`로 보낸다.
 // 값을 담은 바이트 배열은 넘긴 직후 0으로 덮는다. 문자열로 바꾸지 않는다.
+// 예외: API 키(이름이 `-api-key`로 끝남)는 앞뒤 공백을 `normalizePastedKey`로 지워야 해서 잠깐 글이 된다(L4.cli.spec §4.7 [결정: 2026-11-11 사용자]).
 
 /** 비TTY stdin에서 받는 값의 상한. 시크릿 값은 짧다. 이보다 크면 잘못된 입력이다 */
 const MAX_VALUE_BYTES = 64 * 1024;
+const STRICT_UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+const ENCODER = new TextEncoder();
 
 type InputFailure = "cancelled" | "empty" | "mismatch" | "tooLarge";
 
@@ -154,6 +162,22 @@ async function readValue(
 interface HeldValue {
   value: Uint8Array | undefined;
   failure: InputFailure | null;
+  /** API 키 값의 앞뒤를 지웠다. 성공하면 한 줄로 알린다 */
+  trimmed: boolean;
+}
+
+/** API 키 값의 앞뒤를 지운다(`normalizePastedKey`). UTF-8이 아니면 그대로 둔다. 지웠으면 새 바이트 배열이고 원본은 0으로 덮는다 */
+function cleanKeyBytes(value: Uint8Array): {
+  readonly bytes: Uint8Array;
+  readonly trimmed: boolean;
+} {
+  const decoded = attempt(() => STRICT_UTF8.decode(value));
+  if (!decoded.ok) return { bytes: value, trimmed: false };
+  const cleaned = normalizePastedKey(decoded.value);
+  if (!cleaned.trimmed) return { bytes: value, trimmed: false };
+  const bytes = ENCODER.encode(cleaned.value);
+  value.fill(0);
+  return { bytes, trimmed: true };
 }
 
 interface EntryOutcome {
@@ -180,17 +204,27 @@ function isLocalOnly(caught: unknown): boolean {
  */
 async function takeValue(
   ctx: CommandContext,
+  name: SecretName,
   held: HeldValue,
   signal: AbortSignal,
 ): Promise<Result<Uint8Array, InputFailure>> {
   if (held.value !== undefined) return ok(held.value);
-  const value = await readValue(ctx, signal);
-  if (value.ok) {
-    held.value = value.value;
-    return value;
+  const read = await readValue(ctx, signal);
+  if (!read.ok) {
+    held.failure = read.error;
+    return read;
   }
-  held.failure = value.error;
-  return value;
+  const cleaned = isApiKeySecretName(name)
+    ? cleanKeyBytes(read.value)
+    : { bytes: read.value, trimmed: false };
+  if (cleaned.bytes.byteLength === 0) {
+    cleaned.bytes.fill(0);
+    held.failure = "empty";
+    return err("empty");
+  }
+  held.value = cleaned.bytes;
+  held.trimmed = cleaned.trimmed;
+  return ok(cleaned.bytes);
 }
 
 /**
@@ -208,7 +242,7 @@ async function enterValue(
   const abort = new AbortController();
   const source: SecretValueSource = {
     async read() {
-      const value = await takeValue(ctx, held, abort.signal);
+      const value = await takeValue(ctx, name, held, abort.signal);
       // 호스트는 받은 바이트를 쓴 뒤 덮는다. 보관한 원본이 남도록 복사해서 준다
       if (value.ok) return ok(value.value.slice());
       return err({ kind: value.error === "empty" ? "input_empty" : "input_cancelled" });
@@ -217,7 +251,7 @@ async function enterValue(
   const retract = handle.secretOutOfBand?.offerEntry({ name, action, source });
   const channel = usesChannel(handle)
     ? await openOneShotChannel(async (socket, signal) => {
-        const value = await takeValue(ctx, held, signal);
+        const value = await takeValue(ctx, name, held, signal);
         // 취소나 빈 값은 아무것도 쓰지 않고 닫는다. 호스트는 빈 입력으로 받는다
         if (value.ok) await sendAndWipe(socket, value.value.slice());
         else socket.end();
@@ -414,7 +448,7 @@ async function runEntry(
     return EXIT.usage;
   }
   return withEngine(ctx, async (handle) => {
-    const held: HeldValue = { value: undefined, failure: null };
+    const held: HeldValue = { value: undefined, failure: null, trimmed: false };
     try {
       let outcome = await enterValue(ctx, handle, name, action, held);
       if (outcome.fallback && ctx.io.terminal.stdinIsTty) {
@@ -451,6 +485,7 @@ async function runEntry(
           : action === "set"
             ? t("cli.secret.done.set", { name })
             : t("cli.secret.done.rotated", { name });
+      if (held.trimmed) await ctx.io.stderr(t("cli.secret.trimmed"));
       await ctx.io.stdout(done);
       return EXIT.ok;
     } finally {

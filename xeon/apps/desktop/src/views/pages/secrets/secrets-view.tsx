@@ -1,5 +1,5 @@
 import { t, type Locale, type MessageId } from "@fresnel/client/i18n";
-import type { KeyField } from "@fresnel/client/settings";
+import type { EdgeChoice, KeyField } from "@fresnel/client/settings";
 import type { SecretName } from "@fresnel/contracts/capabilities";
 import type { SecretListEntry } from "@fresnel/contracts/wire";
 import { Alert, Button, Input, Select, SelectOption, Sheet, Skeleton } from "@caustic/react";
@@ -55,7 +55,7 @@ export interface SecretsScreenHandlers {
   readonly detail: SecretDetailHandlers;
   readonly entryName: (name: string) => void;
   readonly entryNext: () => void;
-  readonly entrySubmit: (field: KeyField) => void;
+  readonly entrySubmit: (field: KeyField, edge: EdgeChoice) => void;
   readonly entryClose: () => void;
   readonly metaDraft: (draft: MetaDraft) => void;
   readonly metaSubmit: () => void;

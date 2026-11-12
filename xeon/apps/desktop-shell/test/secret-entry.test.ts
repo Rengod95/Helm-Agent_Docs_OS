@@ -37,6 +37,13 @@ function isZeroed(bytes: Uint8Array): boolean {
   return bytes.every((byte) => byte === 0);
 }
 
+/** 요청 본문을 검사해 값을 글로 바꾼다(통과한 본문만) */
+function decodeOf(body: Uint8Array): string {
+  const parsed = parseRequest(body);
+  if (!parsed.ok) throw new Error("the test body must parse");
+  return new TextDecoder().decode(parsed.value.value);
+}
+
 /** 존재하는 파일 목록만 있다고 답하는 검사 함수 */
 const onlyFiles =
   (...files: string[]) =>
@@ -156,6 +163,28 @@ describe("request parsing (secret_entry.rs parse_request)", () => {
     expect(new TextDecoder().decode(parsed.value.value)).toBe("line-one\nline-two");
   });
 
+  test("an API key value loses its edge spaces, CRs, LFs, zero-width marks and one pair of quotes", () => {
+    expect(decodeOf(makeBody("add anthropic-api-key", `  ${FAKE_VALUE}\r\n`))).toBe(FAKE_VALUE);
+    expect(decodeOf(makeBody("set openai-api-key", `\u200B"${FAKE_VALUE}"\uFEFF\n`))).toBe(
+      FAKE_VALUE,
+    );
+    // 안쪽은 건드리지 않는다
+    expect(decodeOf(makeBody("add anthropic-api-key", "fake key\tx\n"))).toBe("fake key\tx");
+  });
+
+  test("a general secret value is passed through as it is, edges included", () => {
+    const parsed = parseRequest(makeBody("add github-token", `  ${FAKE_VALUE}\n`));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(new TextDecoder().decode(parsed.value.value)).toBe(`  ${FAKE_VALUE}\n`);
+  });
+
+  test("an API key that is only spaces is empty after cleaning", () => {
+    expect(parseRequest(makeBody("add anthropic-api-key", " \r\n\t"))).toEqual(
+      err({ kind: "empty" }),
+    );
+  });
+
   test("every bad request shape is rejected with its exact error object", () => {
     const badHeads = [
       "remove anthropic-api-key",
@@ -188,7 +217,7 @@ describe("request parsing (secret_entry.rs parse_request)", () => {
   test("a value at the limit is accepted, and a BOM before the action is not", () => {
     const atLimit = "x".repeat(MAX_VALUE_BYTES);
     expect(parseRequest(makeBody("add anthropic-api-key", atLimit)).ok).toBe(true);
-    expect(parseRequest(makeBody("﻿add anthropic-api-key", FAKE_VALUE))).toEqual(
+    expect(parseRequest(makeBody("\uFEFFadd anthropic-api-key", FAKE_VALUE))).toEqual(
       err({ kind: "bad-request" }),
     );
   });
@@ -233,6 +262,18 @@ describe("registration (secret_entry.rs SecretEntry::register)", () => {
     expect(JSON.stringify(command?.env)).not.toContain(FAKE_VALUE);
     expect(logText(fake)).not.toContain(FAKE_VALUE);
     expect(logText(fake)).toMatch(/ secret entry add anthropic-api-key: ok\n$/u);
+    expect(isZeroed(body)).toBe(true);
+  });
+
+  test("an API key's cleaned value is what reaches the child's stdin, and the body is still zeroed", async () => {
+    const fake = fakeCtx();
+    const { launcher, recorded } = fakeLauncher([{ kind: "exit", code: 0 }]);
+    const body = makeBody("add anthropic-api-key", `  ${FAKE_VALUE}\r\n`);
+    expect(await commandOf(fake, entryWith(fake, launcher))(body)).toEqual({
+      ok: true,
+      value: null,
+    });
+    expect(recorded.writes).toEqual([ENCODER.encode(FAKE_VALUE)]);
     expect(isZeroed(body)).toBe(true);
   });
 

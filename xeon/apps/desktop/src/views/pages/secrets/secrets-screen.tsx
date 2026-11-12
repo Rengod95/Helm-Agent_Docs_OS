@@ -1,5 +1,10 @@
 import { activeLocale, t } from "@fresnel/client/i18n";
-import { CLIPBOARD_CLEAR_MS, submitKey, type KeyField } from "@fresnel/client/settings";
+import {
+  CLIPBOARD_CLEAR_MS,
+  submitSecretValue,
+  type EdgeChoice,
+  type KeyField,
+} from "@fresnel/client/settings";
 import { assertNever, detach, rethrow, type Scheduler } from "@fresnel/contracts";
 import type { SecretName } from "@fresnel/contracts/capabilities";
 import {
@@ -311,8 +316,16 @@ export function SecretsPanel(props: {
     name: SecretName,
     action: "add" | "set",
     field: KeyField,
+    edge: EdgeChoice,
   ): Promise<void> => {
-    const outcome = await submitKey(commands.secrets, name, action, field, confirm.preflight);
+    const outcome = await submitSecretValue(
+      commands.secrets,
+      name,
+      action,
+      field,
+      edge,
+      confirm.preflight,
+    );
     switch (outcome.kind) {
       case "registered":
         dispatch({ type: "entryClosed" });
@@ -351,11 +364,11 @@ export function SecretsPanel(props: {
     }
   };
 
-  const entrySubmit = (field: KeyField): void => {
+  const entrySubmit = (field: KeyField, edge: EdgeChoice): void => {
     if (state.entry.kind !== "value") return;
     const { name, action } = state.entry;
     dispatch({ type: "entryPending", busy: true });
-    detach(submitValue(name, action, field), rethrow);
+    detach(submitValue(name, action, field, edge), rethrow);
   };
 
   // ── 열쇠 보관 옮기기 ─────────────────────────────────────────────────

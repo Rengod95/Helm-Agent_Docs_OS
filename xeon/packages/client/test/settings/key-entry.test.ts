@@ -4,9 +4,11 @@ import { SecretNameSchema } from "@fresnel/contracts/capabilities";
 import { FAILURE_KINDS, type FailureKind } from "@fresnel/contracts/services";
 import { activeLocale, setActiveLocale, type Locale } from "../../src/i18n/index.ts";
 import {
+  hasEdgeSpace,
   keyErrorDetail,
   keyErrorText,
   submitKey,
+  submitSecretValue,
   type KeyField,
   type KeyRegisterError,
   type KeyRegistrar,
@@ -69,7 +71,7 @@ describe("submitKey", () => {
     expect(seenByRegistrar).toBe(`add anthropic-api-key ${FAKE}`);
     release.resolve();
     const outcome = await pending;
-    expect(outcome).toEqual({ kind: "registered" });
+    expect(outcome).toEqual({ kind: "registered", trimmed: true });
     // 보낸 바이트는 0으로 덮였다
     expect(wiped(seen.bytes)).toBe(true);
     expect(JSON.stringify(outcome)).not.toContain(FAKE);
@@ -112,10 +114,60 @@ describe("submitKey", () => {
     const outcome = await submitKey(registrar, NAME, "add", input.field, () =>
       Promise.resolve<"proceed" | "cancel">("proceed"),
     );
-    expect(outcome).toEqual({ kind: "registered" });
+    expect(outcome).toEqual({ kind: "registered", trimmed: true });
     expect(input.takes()).toBe(1);
     expect(sent).toEqual([FAKE]);
     expect(input.shown()).toBe("");
+  });
+
+  test("an API key pasted with zero-width marks and quotes is cleaned, and the outcome says it was trimmed", async () => {
+    const sent: string[] = [];
+    const registrar: KeyRegistrar = {
+      registerKey: (_name, _action, value) => {
+        sent.push(new TextDecoder().decode(value));
+        return Promise.resolve(ok(null));
+      },
+    };
+    const quoted = field(`\u200B"${FAKE}"\u00A0\r\n`);
+    expect(await submitKey(registrar, NAME, "add", quoted.field)).toEqual({
+      kind: "registered",
+      trimmed: true,
+    });
+    // 안쪽 글자는 그대로다
+    const interior = field("fake key-0001");
+    expect(await submitKey(registrar, NAME, "add", interior.field)).toEqual({
+      kind: "registered",
+      trimmed: false,
+    });
+    expect(sent).toEqual([FAKE, "fake key-0001"]);
+  });
+
+  test("a general secret keeps its edges when the answer is keep, and trims only whitespace when the answer is trim", async () => {
+    const sent: string[] = [];
+    const registrar: KeyRegistrar = {
+      registerKey: (_name, _action, value) => {
+        sent.push(new TextDecoder().decode(value));
+        return Promise.resolve(ok(null));
+      },
+    };
+    const kept = field(` "quoted"\n`);
+    expect(await submitSecretValue(registrar, NAME, "add", kept.field, "keep")).toEqual({
+      kind: "registered",
+      trimmed: false,
+    });
+    const trimmed = field(` "quoted"\n`);
+    expect(await submitSecretValue(registrar, NAME, "add", trimmed.field, "trim")).toEqual({
+      kind: "registered",
+      trimmed: true,
+    });
+    expect(sent).toEqual([` "quoted"\n`, `"quoted"`]);
+  });
+
+  test("hasEdgeSpace sees only whitespace and line breaks at the edges", () => {
+    expect(hasEdgeSpace(` ${FAKE}`)).toBe(true);
+    expect(hasEdgeSpace(`${FAKE}\n`)).toBe(true);
+    expect(hasEdgeSpace(FAKE)).toBe(false);
+    expect(hasEdgeSpace("a b")).toBe(false);
   });
 
   test("an empty or blank field sends nothing", async () => {
