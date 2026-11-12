@@ -1,108 +1,12 @@
-import { assertNever, parse } from "@fresnel/contracts";
+import { parse } from "@fresnel/contracts";
 import { Type } from "typebox";
-import { parseServiceEndpoint, type EndpointParseError } from "../endpoint.ts";
+import { parseTargetAddress, type TargetAddressReason } from "./address.ts";
+
+export * from "./address.ts";
 
 // 원격 대상 목록(P-08, 데스크톱 로컬 설정 `TARGETS_KEY`). 주소 문법은 `endpoint.ts`를 그대로 쓰고,
 // 화면이 받을 사유만 바꾼다. 저장하는 주소는 루프백 TCP, Unix, SSH, `wss`(LAN·외부 게이트웨이, TLS)다.
 // 평문 비루프백 `tcp://`는 받지 않는다(L4.remote.spec §9). 다른 컴퓨터는 `wss://`나 `ssh://`로 붙는다.
-
-/** 대상 주소의 해석 결과. 화면이 연결 방식을 고르는 데 쓴다 */
-export type TargetAddress =
-  | { readonly kind: "unix"; readonly path: string }
-  | {
-      readonly kind: "ssh";
-      readonly user: string | null;
-      readonly host: string;
-      readonly port: number | null;
-      readonly socket: string;
-    }
-  | { readonly kind: "tcp"; readonly host: string; readonly port: number }
-  /** 게이트웨이 `/wire`. pin은 고정한 서버 지문(소문자 64자리 16진수)이고, 없으면 처음 접속 때 확인해 고정한다 */
-  | {
-      readonly kind: "wss";
-      readonly host: string;
-      readonly port: number;
-      readonly pin: string | null;
-    };
-
-export type TargetAddressReason = "empty" | "bad_format" | "relative_path" | "non_loopback";
-
-export type ParseTargetResult =
-  | { readonly ok: true; readonly target: TargetAddress }
-  | { readonly ok: false; readonly reason: TargetAddressReason };
-
-/** 받는 형식의 머리. 절대 경로만 쓴 주소(`/abs`)는 여기에 없다 */
-const SCHEMES: readonly string[] = ["unix:", "ssh://", "tcp://", "wss://"];
-/** 루프백으로 보는 TCP 호스트. IPv6는 괄호를 뗀 `::1`이다 */
-const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(["127.0.0.1", "::1", "localhost"]);
-
-/** `unix:` 뒤에 내용이 있는데 절대 경로가 아닌 경우 */
-function isRelativeUnixPath(trimmed: string): boolean {
-  if (!trimmed.startsWith("unix:")) return false;
-  const rest = trimmed.slice("unix:".length);
-  return rest !== "" && !rest.startsWith("/");
-}
-
-/** 엔진 쪽 해석 오류를 화면의 사유로 바꾼다 */
-function reasonOf(error: EndpointParseError, trimmed: string): TargetAddressReason {
-  switch (error.kind) {
-    case "empty":
-      return "empty";
-    case "unknown_scheme":
-      return "bad_format";
-    case "invalid":
-      return error.part === "path" && isRelativeUnixPath(trimmed) ? "relative_path" : "bad_format";
-    default:
-      return assertNever(error, "EndpointParseError");
-  }
-}
-
-/** 대상 주소를 해석한다. 문법은 `parseServiceEndpoint`를 쓰고 루프백 검사만 더한다 */
-export function parseTargetAddress(text: string): ParseTargetResult {
-  const trimmed = text.trim();
-  if (trimmed === "") return { ok: false, reason: "empty" };
-  if (!SCHEMES.some((scheme) => trimmed.startsWith(scheme))) {
-    return { ok: false, reason: "bad_format" };
-  }
-  const parsed = parseServiceEndpoint(trimmed);
-  if (!parsed.ok) return { ok: false, reason: reasonOf(parsed.error, trimmed) };
-  const endpoint = parsed.value;
-  switch (endpoint.kind) {
-    case "unix":
-      return { ok: true, target: { kind: "unix", path: endpoint.path } };
-    case "ssh": {
-      // `[user@]host`에서 나눈다. 사용자와 호스트에는 `@`가 들어가지 않는다(endpoint.ts의 문자 규칙)
-      const at = endpoint.target.indexOf("@");
-      return {
-        ok: true,
-        target: {
-          kind: "ssh",
-          user: at < 0 ? null : endpoint.target.slice(0, at),
-          host: at < 0 ? endpoint.target : endpoint.target.slice(at + 1),
-          port: endpoint.port ?? null,
-          socket: endpoint.remoteSocket,
-        },
-      };
-    }
-    case "tcp":
-      if (!LOOPBACK_HOSTS.has(endpoint.host.toLowerCase())) {
-        return { ok: false, reason: "non_loopback" };
-      }
-      return { ok: true, target: { kind: "tcp", host: endpoint.host, port: endpoint.port } };
-    case "wss":
-      return {
-        ok: true,
-        target: {
-          kind: "wss",
-          host: endpoint.host,
-          port: endpoint.port,
-          pin: endpoint.pin ?? null,
-        },
-      };
-    default:
-      return assertNever(endpoint, "ServiceEndpoint");
-  }
-}
 
 // ── 지문 고정(TOFU)과 토큰 보관 이름 ───────────────────────────────────
 
@@ -226,6 +130,8 @@ export type AttachFailureKind =
   | "tunnel"
   | "hostKey"
   | "fingerprint"
+  /** 처음 붙는 `wss` 서버의 인증서를 아직 믿지 않았다. 지문을 보여 확인받으면 고정한다 */
+  | "certUntrusted"
   | "auth"
   | "tokenMissing"
   | "protocol"
@@ -234,6 +140,35 @@ export type AttachFailureKind =
   | "timeout"
   | "permission"
   | "other";
+
+/**
+ * 연결 실패 종류마다 화면이 바로 해 줄 수 있는 조치. `null`이면 사용자가 밖에서 고쳐야 한다(문장만 보인다).
+ * - `confirm_fingerprint`: 서버 지문을 읽어 보여 주고 확인받아 주소에 고정한다(`wss`).
+ * - `repair`: 연결 코드를 받아 기기 토큰을 다시 받는다(`wss`).
+ * - `preflight`: 대상의 연결 시험(호스트 키 확인, 설치·서비스·버전 확인)을 돌린다(`ssh`).
+ * - `retry`: 같은 대상으로 다시 붙는다.
+ */
+export type AttachFixAction = "confirm_fingerprint" | "repair" | "preflight" | "retry";
+
+const ATTACH_FIX_ACTIONS: Readonly<Record<AttachFailureKind, AttachFixAction | null>> = {
+  tunnel: "preflight",
+  hostKey: "preflight",
+  fingerprint: "confirm_fingerprint",
+  certUntrusted: "confirm_fingerprint",
+  auth: "repair",
+  tokenMissing: "repair",
+  protocol: "preflight",
+  socketMissing: "preflight",
+  refused: "retry",
+  timeout: "retry",
+  permission: null,
+  other: "retry",
+};
+
+/** 연결 실패 종류에 화면이 붙일 자동 조치. 없으면 `null`이다 */
+export function attachFixActionOf(kind: AttachFailureKind): AttachFixAction | null {
+  return ATTACH_FIX_ACTIONS[kind];
+}
 
 /** 연결 실패 원인 한 줄의 메시지 키 */
 export function attachErrorKey(
@@ -248,3 +183,5 @@ export function attachFixKey(
 ): `desktop.connection.error.${AttachFailureKind}.fix` {
   return `desktop.connection.error.${kind}.fix`;
 }
+
+export * from "./preflight.ts";

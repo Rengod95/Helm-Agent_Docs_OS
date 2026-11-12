@@ -96,10 +96,16 @@ import type {
 import type {
   BackupReport,
   EngineTarget,
+  PreflightEvent,
+  PreflightOutcome,
   PreviousRemoved,
+  RemotePairArgs,
+  RemoteTestOutcome,
   RestartOptions,
   RestoreReport,
   ServiceAutostart,
+  SshHostsReply,
+  SshPreflightArgs,
   StorageUsage,
 } from "../transport/ipc.ts";
 import type { PaletteUses } from "./palette/palette-model.ts";
@@ -428,7 +434,69 @@ export interface ConnectionCommands {
   setRemoteRespond(enabled: boolean): Promise<Result<null, CommandError>>;
   /** 원격 서비스를 협조 종료한다(`host.shutdown`). 받아들여졌으면 `true`다. 이 기기의 서비스는 `stopLocalService`다 */
   stopService(): Promise<Result<boolean, CommandError>>;
+  /** `~/.ssh/config`의 호스트 목록(셸 `ssh_hosts`). 셸 명령이 실패하면 `failed`다 */
+  sshHosts(): Promise<Result<SshHostsReply, CommandError>>;
+  /**
+   * 사전 점검(셸 `ssh_preflight`). 단계 이벤트는 `onEvent`로 온다. 답은 성공(저장할 주소)이나 멈춘 단계다. 이 기기의 버전은 셸이 정한다.
+   * 점검은 엔진 대상을 바꾸지 않는다. 셸 명령이 실패하면 `failed`다.
+   */
+  preflight(
+    input: SshPreflightArgs,
+    onEvent: (event: PreflightEvent) => void,
+  ): Promise<Result<PreflightOutcome, CommandError>>;
+  /** 주소 하나의 연결 시험(셸 `remote_test`). hello까지 왕복하고 걸린 시간을 준다. 엔진 대상은 바꾸지 않는다 */
+  testTarget(address: string): Promise<Result<RemoteTestOutcome, CommandError>>;
+  /** 서버 인증서 지문 재기(셸 `remote_fingerprint`). 확인받을 지문을 준다. 실패는 셸 명령 실패나 재기 코드다 */
+  fingerprintOf(host: string, port: number): Promise<Result<string, FingerprintError>>;
+  /** 기기 페어링(셸 `remote_pair`). 성공이면 기기 이름이다. 토큰은 셸 밖으로 나오지 않는다 */
+  pair(input: RemotePairArgs): Promise<Result<{ readonly deviceName: string }, PairFailure>>;
+  /**
+   * 저장된 ssh 주소의 원격 서비스가 살아 있는지(셸 `ssh_service_alive`). 서비스를 띄우지 않는다. ssh 주소가 아니거나
+   * 확인하지 못하면 `alive`가 null이다.
+   */
+  serviceAlive(address: string): Promise<ServiceAlive>;
+  /** 대상을 바꾸면 끊기는 것(`host.status`): 도는 턴 수, 승인 대기 수, 서비스에 붙어 계속 도는지. 연결이 없으면 `offline`이다 */
+  switchImpact(): Promise<Result<SwitchImpact, CommandError>>;
+  /** 저장된 마지막 대상의 주소. 이 컴퓨터(빈 값)거나 읽지 못하면 null이다 */
+  lastTarget(): Promise<string | null>;
+  /**
+   * 앱을 켤 때 한 번 부른다. 저장된 마지막 대상으로 다시 붙고, 붙지 못하면(시작 실패, 30초 안에 `running`이 안 됨) 이 컴퓨터로 돌아와
+   * 대상 알림을 남긴다. 저장된 대상이 없으면 `none`이다.
+   */
+  restoreLastTarget(): Promise<RestoreTargetOutcome>;
+  /** 대상 알림 줄을 닫는다(`setTargetNotice(null)`). 저장된 마지막 대상은 건드리지 않는다 */
+  dismissTargetNotice(): void;
 }
+
+/** 서버 지문을 재지 못했다. `failed`는 셸 명령이 실패한 것이고, `probe`는 셸이 준 재기 코드(`refused`, `timeout`, `io`)다 */
+export type FingerprintError =
+  | { readonly kind: "failed" }
+  | { readonly kind: "probe"; readonly code: string };
+
+/**
+ * 기기 페어링이 실패했다. `failed`는 셸 명령이 실패한 것이다. `server`는 쌍 맺기 오류 코드다(`pairErrorKey`가 문장을 고른다).
+ * `retryAfterSeconds`는 잠겨서 기다려야 할 때만 값이 있고 나머지는 null이다.
+ */
+export type PairFailure =
+  | { readonly kind: "failed" }
+  | { readonly kind: "server"; readonly code: string; readonly retryAfterSeconds: number | null };
+
+/** 대상을 바꾸면 끊기는 것. `keepsRunning`은 엔진이 서비스에 붙어 있어 서비스 쪽에서 계속 도는 경우다 */
+export interface SwitchImpact {
+  readonly liveTurns: number;
+  readonly waitingApprovals: number;
+  readonly keepsRunning: boolean;
+}
+
+/** 저장된 ssh 주소의 살아 있음. `alive`가 null이면 알 수 없거나 해당 없다. `version`과 `code`는 셸이 준 값이다 */
+export interface ServiceAlive {
+  readonly alive: boolean | null;
+  readonly version: string | null;
+  readonly code: string | null;
+}
+
+/** 앱을 켤 때 마지막 대상 복원의 결과. `none`은 저장된 대상이 없다는 뜻이다 */
+export type RestoreTargetOutcome = "none" | "restored" | "fellBack";
 
 /** 첫 실행 화면의 기본 그룹(L4.desktop-ux §6.5). 켜기 키는 `ext.<그룹>.enabled`(X 로더 예약 키)다 */
 export type DefaultGroupId = "helm" | "learning";

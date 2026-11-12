@@ -94,6 +94,18 @@ export type EngineTargetView =
   | { readonly kind: "local" }
   | { readonly kind: "remote"; readonly address: string; readonly label: string };
 
+/**
+ * 연결된 동안 마지막으로 본 원격 상태. 시각(ms), hello에서 받은 엔진 버전, 도는 턴 수다. 끊겼을 때 연결 화면이 "마지막으로 본 상태"로 보인다.
+ */
+export type LastRemoteSeen = {
+  readonly at: number;
+  readonly version: string | null;
+  readonly liveTurns: number;
+};
+
+/** 앱을 켤 때 마지막 대상으로 붙지 못해 이 컴퓨터로 돌아왔다는 알림. `name`은 붙으려던 대상의 이름이다 */
+export type TargetNotice = { readonly kind: "fellBack"; readonly name: string };
+
 export type UiState = {
   readonly selectedThreadId: ThreadId | null;
   /** 응답을 보냈지만 approval.resolved를 아직 받지 못한 승인. 낙관적 표시는 이 스토어에 두고 엔진 거울에는 두지 않는다 */
@@ -131,6 +143,10 @@ export type UiState = {
    * 같은 모델로 턴이 성공하면 지운다(`denied-model-model.ts`)
    */
   readonly deniedModels: Readonly<Record<string, true>>;
+  /** 연결된 동안 본 원격 상태. 원격 대상일 때 `load`가 적는다. 이 기기일 때는 적지 않는다(앱을 끄면 지운다) */
+  readonly lastRemoteSeen: LastRemoteSeen | null;
+  /** 대상 알림. 앱을 켜며 마지막 대상으로 붙지 못해 이 컴퓨터로 돌아왔을 때 있다. 화면이 보고 지운다 */
+  readonly targetNotice: TargetNotice | null;
 };
 
 interface UiActions {
@@ -165,6 +181,10 @@ interface UiActions {
   clearRestartNeeded(): void;
   /** 엔진이 붙은 대상을 적는다. 대상 바꾸기가 성공한 뒤에만 부른다 */
   setEngineTarget(target: EngineTargetView): void;
+  /** 연결된 동안 본 원격 상태를 적는다. null이면 지운다 */
+  setLastRemoteSeen(seen: LastRemoteSeen | null): void;
+  /** 대상 알림을 적거나 지운다 */
+  setTargetNotice(notice: TargetNotice | null): void;
   /** 403으로 실패한 모델을 적는다. 이미 있으면 상태를 바꾸지 않는다 */
   noteModelDenied(key: string): void;
   /** 성공한 모델의 403 표시를 지운다. 없으면 상태를 바꾸지 않는다 */
@@ -190,6 +210,8 @@ const INITIAL_UI: UiState = {
   restartNeeded: [],
   engineTarget: { kind: "local" },
   deniedModels: {},
+  lastRemoteSeen: null,
+  targetNotice: null,
 };
 
 export type UiStore = { readonly read: ReadonlyStore<UiState>; readonly actions: UiActions };
@@ -247,6 +269,8 @@ export function createUiStore(): UiStore {
     clearRestartNeeded: () =>
       api.setState((s) => (s.restartNeeded.length === 0 ? s : { restartNeeded: [] })),
     setEngineTarget: (engineTarget) => api.setState({ engineTarget }),
+    setLastRemoteSeen: (lastRemoteSeen) => api.setState({ lastRemoteSeen }),
+    setTargetNotice: (targetNotice) => api.setState({ targetNotice }),
     noteModelDenied: (key) =>
       api.setState((s) =>
         s.deniedModels[key] === true ? s : { deniedModels: { ...s.deniedModels, [key]: true } },

@@ -9,14 +9,21 @@ import type { MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import { WIRE_ERRORS, type HostClientView } from "@fresnel/contracts/wire";
 import type { EngineState, Link } from "../../../state/engine/index.ts";
-import type { EngineTargetView } from "../../../state/ui/index.ts";
+import type { EngineTargetView, LastRemoteSeen } from "../../../state/ui/index.ts";
 import type {
   CommandError,
   ConnectionSnapshot,
   ConnectTarget,
   ServiceCard,
+  SwitchImpact,
 } from "../../commands.ts";
-import { blankFieldsOf, type HostFieldError, type HostFormValue } from "./host-address.ts";
+import {
+  blankFieldsOf,
+  type HostFields,
+  type HostFieldError,
+  type HostFormValue,
+} from "./host-address.ts";
+import type { AliveReading } from "./connection-probe-model.ts";
 
 // 연결 화면(P-08)의 상태 기계. 순수 함수만 둔다: 명령을 부르는 일은 화면이 맡고, 결과와 엔진·연결 관찰을 이 모델의 동작으로 옮긴다.
 // 호스트 목록은 로컬 설정이 주는 값이고 거울에 넣지 않는다. 진행은 엔진 상태 전이와 연결 상태로 본다(셸 명령은 값만 준다).
@@ -153,6 +160,8 @@ export interface ConnectionState {
   readonly remoteAllowRespond: boolean | null;
   /** 서비스 멈추기 확인 대화 상자가 떠 있는가 */
   readonly stopConfirm: boolean;
+  /** 대상을 바꾸기 전 확인 대화 상자가 떠 있을 때의 대상과 도는 것. 없으면 null이다 */
+  readonly switchAsk: SwitchAsk | null;
   /** 목록 저장이나 설정 쓰기가 가고 있다. 같은 동작을 두 번 보내지 않도록 버튼을 잠근다 */
   readonly busy: boolean;
   readonly notice: Notice | null;
@@ -174,9 +183,16 @@ export const INITIAL_CONNECTION_STATE: ConnectionState = {
   restartNeeded: false,
   remoteAllowRespond: null,
   stopConfirm: false,
+  switchAsk: null,
   busy: false,
   notice: null,
 };
+
+/** 대상 바꾸기 확인 대화 상자의 내용: 바꿀 대상과 바꾸면 끊기는 것 */
+interface SwitchAsk {
+  readonly choice: TargetChoice;
+  readonly impact: SwitchImpact;
+}
 
 /** 엔진과 연결의 관찰 한 번. 화면이 거울과 UI 스토어에서 읽어 넘긴다 */
 interface EngineObservation {
@@ -202,6 +218,8 @@ export type ConnectionAction =
   | { readonly type: "formChange"; readonly value: HostFormValue }
   | { readonly type: "formFailed"; readonly errors: readonly HostFieldError[] }
   | { readonly type: "formClosed" }
+  /** 사전 점검이나 연결 시험이 고른 주소를 칸에 채운다. 이름과 오류는 그대로 두고 칸만 바꾼다 */
+  | { readonly type: "formFields"; readonly fields: HostFields }
   /** 삭제 확인을 연다(`entry`)거나 닫는다(`null`) */
   | { readonly type: "removeAsked"; readonly entry: TargetEntry | null }
   | { readonly type: "renameOpened"; readonly entry: TargetEntry }
@@ -224,6 +242,9 @@ export type ConnectionAction =
   | { readonly type: "engineSeen"; readonly observed: EngineObservation }
   | { readonly type: "remoteRespondSet"; readonly enabled: boolean }
   | { readonly type: "stopConfirm"; readonly open: boolean }
+  /** 대상 바꾸기 확인을 연다(`choice`와 도는 것)거나 닫는다(`null`) */
+  | { readonly type: "switchAsked"; readonly ask: SwitchAsk }
+  | { readonly type: "switchClosed" }
   | { readonly type: "notice"; readonly notice: Notice | null };
 
 // ── 호스트 목록 ──────────────────────────────────────────────────────────
@@ -317,6 +338,9 @@ const EXIT_DETAIL_KINDS: readonly (readonly [string, AttachFailureKind])[] = [
   ["refused the connection", "refused"],
   ["cannot be accessed", "permission"],
   ["did not respond in time", "timeout"],
+  // 같은 말이 아니다: 지문이 바뀐 것(경고)과 아직 믿지 않은 것(처음 확인)은 해결이 다르다
+  ["tls fingerprint changed", "fingerprint"],
+  ["certificate is not trusted yet", "certUntrusted"],
   ["host key verification failed", "hostKey"],
   ["ssh tunnel", "tunnel"],
   ["token is missing", "tokenMissing"],
@@ -337,6 +361,77 @@ export function attachFailureOfExit(exit: {
   const text = detail.toLowerCase();
   const found = EXIT_DETAIL_KINDS.find(([phrase]) => text.includes(phrase));
   return found === undefined ? "other" : found[1];
+}
+
+/** 끊긴 뒤 다시 붙기의 상태: 재시도 중(몇 번째, 다음 시도까지 몇 초)이거나 그만뒀다(몇 번) */
+export type ReconnectStatus =
+  | { readonly kind: "retrying"; readonly attempt: number; readonly secondsUntilNext: number }
+  | { readonly kind: "gave_up"; readonly attempts: number };
+
+/**
+ * 엔진 상태로 다시 붙기 상태를 고른다. `restarting`이면 다음 시도까지 남은 초(올림, 0 이상)를, `failed`면 그만둔 것을 준다.
+ * 그 밖의 상태(시작 중, 실행 중, 정지 중, 정지)는 다시 붙기 상태가 없어 `null`이다.
+ */
+export function reconnectStatusOf(
+  engine: EngineState | null,
+  nowMs: number,
+): ReconnectStatus | null {
+  if (engine === null) return null;
+  if (engine.kind === "restarting") {
+    const retryAtMs = Date.parse(engine.retryAt);
+    const remainingMs = Number.isFinite(retryAtMs) ? retryAtMs - nowMs : 0;
+    return {
+      kind: "retrying",
+      attempt: engine.attempt,
+      secondsUntilNext: Math.max(0, Math.ceil(remainingMs / 1000)),
+    };
+  }
+  if (engine.kind === "failed") return { kind: "gave_up", attempts: engine.attempts };
+  return null;
+}
+
+/** 대상 바꾸기 전에 확인을 받는가. 도는 턴이나 승인 대기가 있으면 받는다. 읽지 못한 경우는 호출하는 쪽이 확인 없이 바꾼다 */
+export function switchNeedsConfirm(impact: SwitchImpact): boolean {
+  return impact.liveTurns > 0 || impact.waitingApprovals > 0;
+}
+
+// ── 끊긴 뒤 다시 붙기 줄 ────────────────────────────────────────────────
+
+/** 현재 호스트 카드의 다시 붙기 줄. 재시도 중(몇 번째, 다음 시도까지 초), 마지막으로 본 원격 상태, SSH 서비스 살아 있음이다 */
+export type ReconnectLine =
+  | { readonly kind: "attempt"; readonly attempt: number; readonly seconds: number }
+  | { readonly kind: "lastSeen"; readonly at: number; readonly turns: number }
+  | { readonly kind: "alive" }
+  | { readonly kind: "gone" }
+  | { readonly kind: "unknown" };
+
+/**
+ * 현재 호스트 카드에 낼 다시 붙기 줄. 재시도 줄은 엔진이 `restarting`일 때 나온다. 원격 대상이 끊겼을 때만 마지막으로 본
+ * 상태와 원격 서비스 살아 있음을 낸다. 살아 있음을 읽지 않았으면(ssh 주소가 아니거나 아직 읽는 중) 줄을 두지 않는다.
+ */
+export function reconnectLinesOf(input: {
+  readonly engine: EngineState | null;
+  readonly nowMs: number;
+  readonly remote: boolean;
+  readonly live: boolean;
+  readonly lastSeen: LastRemoteSeen | null;
+  readonly alive: AliveReading;
+}): readonly ReconnectLine[] {
+  const lines: ReconnectLine[] = [];
+  const status = reconnectStatusOf(input.engine, input.nowMs);
+  if (status?.kind === "retrying") {
+    lines.push({ kind: "attempt", attempt: status.attempt, seconds: status.secondsUntilNext });
+  }
+  if (!input.remote || input.live) return lines;
+  if (input.lastSeen !== null) {
+    lines.push({ kind: "lastSeen", at: input.lastSeen.at, turns: input.lastSeen.liveTurns });
+  }
+  if (input.alive.kind === "read") {
+    const { alive } = input.alive;
+    if (alive === null) lines.push({ kind: "unknown" });
+    else lines.push({ kind: alive ? "alive" : "gone" });
+  }
+  return lines;
 }
 
 // ── 연결된 클라이언트 ──────────────────────────────────────────────────
@@ -525,6 +620,12 @@ export function connectionReducer(
       return { ...state, form: { ...state.form, errors: action.errors } };
     case "formClosed":
       return { ...state, form: null };
+    case "formFields":
+      if (state.form === null) return state;
+      return {
+        ...state,
+        form: { value: { ...state.form.value, fields: action.fields }, errors: [] },
+      };
     case "removeAsked":
       return { ...state, removing: action.entry };
     case "renameOpened":
@@ -597,6 +698,10 @@ export function connectionReducer(
       return { ...state, remoteAllowRespond: action.enabled };
     case "stopConfirm":
       return { ...state, stopConfirm: action.open };
+    case "switchAsked":
+      return { ...state, switchAsk: action.ask };
+    case "switchClosed":
+      return { ...state, switchAsk: null };
     case "notice":
       return { ...state, notice: action.notice };
     default:

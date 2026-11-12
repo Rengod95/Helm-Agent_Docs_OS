@@ -1,4 +1,4 @@
-import { TARGETS_KEY } from "@fresnel/client";
+import { LAST_TARGET_KEY, TARGETS_KEY } from "@fresnel/client";
 import { parse, type Result } from "@fresnel/contracts";
 import {
   Type,
@@ -100,6 +100,8 @@ export const LOCAL: {
    * 뗀 플러그인은 `seen`에 남아 다시 자동 고정하지 않는다(`views/plugin/playground-tabs.ts`)
    */
   readonly playgroundTabs: LocalKey<PlaygroundTabsSchema>;
+  /** 마지막으로 붙은 대상의 주소. 앱을 켜면 이 대상으로 다시 붙는다. 빈 값은 이 컴퓨터다(`lastTargetOf`) */
+  readonly lastTarget: LocalKey<TString>;
 } = {
   sidebarOpen: localKey("l4.desktop.window.sidebarOpen", Type.Boolean()),
   sidebarWidth: localKey(
@@ -145,6 +147,7 @@ export const LOCAL: {
   ),
   lastThread: localKey("l4.desktop.window.lastThread", Type.String({ maxLength: 128 })),
   playgroundTabs: localKey("l4.desktop.window.playgroundTabs", PlaygroundTabsShape),
+  lastTarget: localKey(LAST_TARGET_KEY, Type.String({ maxLength: 2048 })),
 };
 
 type LocalSettingsError =

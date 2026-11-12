@@ -123,6 +123,16 @@ export function App(props: AppProps): ReactNode {
     if (opening !== null) lastThreadOpening.current = null;
     detach(commands.saveLastThread(selected), rethrow);
   }, [selected, commands]);
+  // 앱을 켜면 저장된 마지막 연결 대상으로 한 번 다시 붙는다. 붙지 못하면 이 컴퓨터로 돌아오고 알림은 스토어에 남는다(연결 화면이 보인다)
+  const targetRestored = useRef(false);
+  useEffect(() => {
+    if (targetRestored.current) return;
+    targetRestored.current = true;
+    detach(
+      commands.connection.restoreLastTarget().then(() => undefined),
+      rethrow,
+    );
+  }, [commands]);
   // 모델 키와 기본 모델이 끝나지 않았으면 첫 실행 화면(P-01)을 이 앱 실행에서 한 번 무대에 연다. 나중에 다른 화면에 가도 다시 열지 않는다
   const setupNeeded = useSetupNeeded();
   const firstRunOpened = useRef(false);

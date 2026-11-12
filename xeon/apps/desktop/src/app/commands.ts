@@ -70,7 +70,7 @@ const CREATE_THREAD_TIMEOUT_MS = 30_000;
 
 export type CommandDeps = {
   readonly session: Session;
-  /** 키 등록(`registerSecret`), 엔진 대상 바꾸기(`retarget`), 데이터 복원(`dbRestore`), 저장 공간 명령(백업·사용량·사본 지우기·데이터 폴더 열기), 이 기기의 서비스 명령(연결 화면)만 쓴다. 나머지 셸 명령은 세션이 맡는다 */
+  /** 키 등록(`registerSecret`), 엔진 대상 바꾸기(`retarget`), 데이터 복원(`dbRestore`), 저장 공간 명령(백업·사용량·사본 지우기·데이터 폴더 열기), 이 기기의 서비스 명령과 원격 붙기 명령(연결 화면)만 쓴다. 나머지 셸 명령은 세션이 맡는다 */
   readonly ipc: Pick<
     DesktopIpc,
     | "registerSecret"
@@ -84,6 +84,12 @@ export type CommandDeps = {
     | "serviceEnsure"
     | "serviceStop"
     | "serviceAutostartSet"
+    | "sshHosts"
+    | "sshPreflight"
+    | "remoteTest"
+    | "remoteFingerprint"
+    | "remotePair"
+    | "sshServiceAlive"
   >;
   /** 데스크톱 로컬 설정. 원격 대상 목록을 읽고 쓴다(연결 화면) */
   readonly local: Pick<LocalSettings, "load" | "get" | "set">;
@@ -97,7 +103,7 @@ export type CommandDeps = {
   /** 안전 모드 상태 읽기가 실패하면 원인을 남긴다(`setup.loadSafeMode`) */
   readonly logger: Pick<Logger, "warn">;
   /** 이미 해결된 승인을 대기열에서 빼기 전 잠깐 보이는 시간을 잰다(`respondApproval`). 시험은 직접 넘기는 예약기를 준다 */
-  readonly scheduler: Pick<Scheduler, "setTimeout">;
+  readonly scheduler: Pick<Scheduler, "setTimeout" | "clearTimeout">;
 };
 
 /** 첨부 크기 상한 설정 키(L2.dialog, 호스트 값) */
@@ -109,6 +115,16 @@ const COMPACT_KEEP_KEY = "l1.context.keepRecentTokens";
  * host는 이미 해결했다고 답하므로 approval.resolved가 오면 거기서 빠진다. 안 오면 이 시간 뒤에 거울에서 뺀다.
  */
 const CLOSED_APPROVAL_LINGER_MS = 2_500;
+
+/** 기록할 실패 원인 한 줄. 오류 객체의 `kind`나 `Error`의 이름만 쓴다(경로나 값은 싣지 않는다). 그 밖은 `unknown`이다 */
+function failureReasonOf(cause: unknown): string {
+  if (cause instanceof Error) return cause.name;
+  if (typeof cause === "string") return cause;
+  if (typeof cause === "object" && cause !== null && "kind" in cause) {
+    return typeof cause.kind === "string" ? cause.kind : "unknown";
+  }
+  return "unknown";
+}
 
 export function createCommands(
   deps: CommandDeps,
@@ -248,6 +264,11 @@ export function createCommands(
     run: withConnection,
     ipc: deps.ipc,
     engineTargetKind: () => ui.read.getState().engineTarget.kind,
+    engine: engine.read,
+    scheduler: deps.scheduler,
+    report: (cause) => {
+      deps.logger.warn("desktop.connection.failed", { reason: failureReasonOf(cause) });
+    },
   });
 
   return {

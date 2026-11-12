@@ -2,6 +2,7 @@ import {
   createTokenVault,
   nodeProcessRunner,
   type ProcessRunner,
+  type TokenVault,
 } from "@fresnel/platform-secrets/vault";
 
 // 원격(`wss`) 대상의 기기 토큰을 OS 보안 저장소(macOS Keychain, Linux Secret Service)에서 읽는다(L4.remote.spec §8.3 4번).
@@ -24,7 +25,7 @@ export function remoteTokenAccount(address: string): string | null {
   return `${host.toLowerCase()}:${port}`;
 }
 
-export interface RemoteTokenSourceDeps {
+export interface RemoteVaultDeps {
   readonly platform: NodeJS.Platform;
   readonly env: NodeJS.ProcessEnv;
   /** 시험이 바꿔 넣는다. 기본은 child_process 실행기 */
@@ -32,16 +33,16 @@ export interface RemoteTokenSourceDeps {
   readonly signal?: AbortSignal;
 }
 
-/** 대상 주소의 기기 토큰을 읽는다. `wss`가 아니거나 저장소에 없거나 읽지 못하면 undefined다 */
-export function remoteTokenSource(
-  deps: RemoteTokenSourceDeps,
-): (address: string) => Promise<string | undefined> {
+export type RemoteTokenSourceDeps = RemoteVaultDeps;
+
+/** 원격 기기 토큰 보관소. 보안 저장소 도구의 절대 경로를 플랫폼으로 고르고, 도구 환경은 `VAULT_ENV_KEYS`만 넘긴다 */
+export function remoteVaultOf(deps: RemoteVaultDeps): TokenVault {
   const env: Record<string, string> = {};
   for (const key of VAULT_ENV_KEYS) {
     const value = deps.env[key];
     if (value !== undefined) env[key] = value;
   }
-  const vault = createTokenVault({
+  return createTokenVault({
     platform: deps.platform === "darwin" ? "darwin" : deps.platform === "linux" ? "linux" : "other",
     securityPath: deps.platform === "darwin" ? "/usr/bin/security" : null,
     secretToolPath: deps.platform === "linux" ? "/usr/bin/secret-tool" : null,
@@ -49,6 +50,13 @@ export function remoteTokenSource(
     env,
     signal: deps.signal ?? new AbortController().signal,
   });
+}
+
+/** 대상 주소의 기기 토큰을 읽는다. `wss`가 아니거나 저장소에 없거나 읽지 못하면 undefined다 */
+export function remoteTokenSource(
+  deps: RemoteTokenSourceDeps,
+): (address: string) => Promise<string | undefined> {
+  const vault = remoteVaultOf(deps);
   return async (address) => {
     const account = remoteTokenAccount(address);
     if (account === null) return undefined;

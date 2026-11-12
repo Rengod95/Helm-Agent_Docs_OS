@@ -340,6 +340,292 @@ const ServiceAutostartSetSchema: TObject<{ enabled: TBoolean; lingerAdvice: TBoo
   );
 export type ServiceAutostartSetReply = Static<typeof ServiceAutostartSetSchema>;
 
+// ---- 원격 붙기 명령(L4.remote.spec §3.3). 셸이 보낸 값은 모두 스키마로 읽는다(TY-10). 필요한 필드만 선언하고,
+// 모르는 필드는 거절하지 않는다(지시: 모르는 필드는 거절하지 말고 필요한 필드만 읽는다). ----
+
+const NullableString = (maxLength: number): TUnion<[TString, TNull]> =>
+  Type.Union([Type.String({ maxLength }), Type.Null()]);
+
+/** `ssh_hosts`의 항목 하나(`~/.ssh/config`의 `Host`). 값이 없으면 null이다 */
+const SshHostsSchema = Type.Object({
+  hosts: Type.Array(
+    Type.Object({
+      name: Type.String({ maxLength: 256 }),
+      hostName: NullableString(256),
+      user: NullableString(256),
+      port: Type.Union([Type.Integer({ minimum: 1, maximum: 65535 }), Type.Null()]),
+      proxyJump: Type.Boolean(),
+    }),
+  ),
+  unreadable: Type.Union([Type.Literal("missing"), Type.Literal("unreadable"), Type.Null()]),
+});
+/** `ssh_hosts`의 답. `unreadable`은 설정 파일이 없거나 읽지 못했을 때의 사유다(없으면 null) */
+export type SshHostsReply = {
+  readonly hosts: readonly {
+    readonly name: string;
+    readonly hostName: string | null;
+    readonly user: string | null;
+    readonly port: number | null;
+    readonly proxyJump: boolean;
+  }[];
+  readonly unreadable: "missing" | "unreadable" | null;
+};
+
+/** 사전 점검의 단계 이름. 여섯 단계 가운데 하나가 아니면 그 이벤트는 버린다 */
+const PreflightStepSchema = Type.Union([
+  Type.Literal("resolve"),
+  Type.Literal("connect"),
+  Type.Literal("install"),
+  Type.Literal("service"),
+  Type.Literal("socket"),
+  Type.Literal("tunnel"),
+]);
+type PreflightStepName = "resolve" | "connect" | "install" | "service" | "socket" | "tunnel";
+
+const PreflightHostKeySchema = Type.Object({
+  fingerprint: Type.String({ maxLength: 256 }),
+  keyType: Type.String({ maxLength: 32 }),
+  hostname: Type.String({ maxLength: 256 }),
+  port: Type.Integer({ minimum: 0, maximum: 65535 }),
+  scanned: Type.Array(Type.String({ maxLength: 1024 }), { maxItems: 16 }),
+});
+
+/** 점검 이벤트와 답의 상세. 원인별로 쓰는 값만 선언한다. 주소와 토큰은 셸이 싣지 않는다 */
+const PreflightDetailSchema = Type.Object({
+  hostname: Type.Optional(Type.String({ maxLength: 256 })),
+  port: Type.Optional(Type.Integer({ minimum: 0, maximum: 65535 })),
+  user: Type.Optional(Type.String({ maxLength: 256 })),
+  proxyJump: Type.Optional(Type.Boolean()),
+  hostKey: Type.Optional(PreflightHostKeySchema),
+  local: Type.Optional(Type.String({ maxLength: 64 })),
+  remote: Type.Optional(Type.String({ maxLength: 64 })),
+  lower: Type.Optional(Type.Union([Type.Literal("local"), Type.Literal("remote")])),
+  cliDiffers: Type.Optional(Type.Boolean()),
+  action: Type.Optional(Type.Literal("started_service")),
+  reason: Type.Optional(Type.String({ maxLength: 64 })),
+  socket: Type.Optional(Type.String({ maxLength: 4096 })),
+  stderr: Type.Optional(Type.String({ maxLength: 4096 })),
+  serverVersion: Type.Optional(Type.String({ maxLength: 128 })),
+});
+/** 점검 이벤트와 답의 상세. `hostKey`는 새 호스트 키를 확인할 때만 있다 */
+type PreflightDetail = {
+  readonly hostname?: string;
+  readonly port?: number;
+  readonly user?: string;
+  readonly proxyJump?: boolean;
+  readonly hostKey?: {
+    readonly fingerprint: string;
+    readonly keyType: string;
+    readonly hostname: string;
+    readonly port: number;
+    readonly scanned: readonly string[];
+  };
+  readonly local?: string;
+  readonly remote?: string;
+  readonly lower?: "local" | "remote";
+  readonly cliDiffers?: boolean;
+  readonly action?: "started_service";
+  readonly reason?: string;
+  readonly socket?: string;
+  readonly stderr?: string;
+  readonly serverVersion?: string;
+};
+
+/** 고치는 법. `commands`는 터미널에서 복사해 실행할 줄들이다. 설치 경로가 확정되지 않으면 `installPath`는 null이다 */
+const PreflightFixSchema = Type.Object({
+  commands: Type.Array(Type.String({ maxLength: 1024 }), { maxItems: 16 }),
+  hint: Type.Optional(Type.String({ maxLength: 64 })),
+  installPath: Type.Optional(Type.Null()),
+});
+/** 고치는 법. `commands`는 터미널에서 복사해 실행할 줄들이다. 설치 경로가 확정되지 않으면 `installPath`는 null이다 */
+type PreflightFix = {
+  readonly commands: readonly string[];
+  readonly hint?: string;
+  readonly installPath?: null;
+};
+
+/** 단계 이벤트 하나(`{step, status, code, durationMs, actions, detail?, fix?}`). `durationMs`는 밀리초다 */
+const PreflightEventSchema = Type.Object({
+  step: PreflightStepSchema,
+  status: Type.Union([
+    Type.Literal("running"),
+    Type.Literal("pass"),
+    Type.Literal("fail"),
+    Type.Literal("action"),
+  ]),
+  code: Type.String({ minLength: 1, maxLength: 64 }),
+  durationMs: Type.Number({ minimum: 0 }),
+  actions: Type.Array(Type.String({ maxLength: 64 }), { maxItems: 8 }),
+  detail: Type.Optional(PreflightDetailSchema),
+  fix: Type.Optional(PreflightFixSchema),
+});
+/** 단계 이벤트 하나. `durationMs`는 밀리초다 */
+export type PreflightEvent = {
+  readonly step: PreflightStepName;
+  readonly status: "running" | "pass" | "fail" | "action";
+  readonly code: string;
+  readonly durationMs: number;
+  readonly actions: readonly string[];
+  readonly detail?: PreflightDetail;
+  readonly fix?: PreflightFix;
+};
+
+/** 채널 메시지 한 줄. `{type: "step", event}`만 받는다. 다른 모양은 버린다 */
+const PreflightChannelSchema = Type.Object({
+  type: Type.Literal("step"),
+  event: PreflightEventSchema,
+});
+
+/** 사전 점검의 답(`ssh_preflight`의 반환). 성공이면 저장할 주소와 소켓, 멈췄으면 멈춘 단계와 원인이다 */
+const PreflightOkSchema = Type.Object({
+  ok: Type.Literal(true),
+  address: Type.String({ maxLength: 512 }),
+  socket: Type.String({ maxLength: 4096 }),
+  remoteVersion: Type.Object({
+    cli: Type.String({ maxLength: 128 }),
+    contract: Type.String({ maxLength: 128 }),
+  }),
+  serviceVersion: Type.String({ maxLength: 128 }),
+  tunnelMs: Type.Number({ minimum: 0 }),
+});
+const PreflightStopSchema = Type.Object({
+  ok: Type.Literal(false),
+  step: PreflightStepSchema,
+  status: Type.Union([Type.Literal("fail"), Type.Literal("action")]),
+  code: Type.String({ minLength: 1, maxLength: 64 }),
+  actions: Type.Array(Type.String({ maxLength: 64 }), { maxItems: 8 }),
+  detail: Type.Optional(PreflightDetailSchema),
+  fix: Type.Optional(PreflightFixSchema),
+});
+const PreflightOutcomeSchema = Type.Union([PreflightOkSchema, PreflightStopSchema]);
+/** 사전 점검의 답. 성공이면 저장할 주소와 소켓, 멈췄으면 멈춘 단계와 원인이다 */
+export type PreflightOutcome =
+  | {
+      readonly ok: true;
+      readonly address: string;
+      readonly socket: string;
+      readonly remoteVersion: { readonly cli: string; readonly contract: string };
+      readonly serviceVersion: string;
+      readonly tunnelMs: number;
+    }
+  | {
+      readonly ok: false;
+      readonly step: PreflightStepName;
+      readonly status: "fail" | "action";
+      readonly code: string;
+      readonly actions: readonly string[];
+      readonly detail?: PreflightDetail;
+      readonly fix?: PreflightFix;
+    };
+
+/** 연결 시험(`remote_test`)의 답. 같은 상세 모양을 성공과 실패가 쓴다 */
+const RemoteTestDetailSchema = Type.Object({
+  serverVersion: Type.Optional(Type.String({ maxLength: 128 })),
+  reason: Type.Optional(Type.String({ maxLength: 64 })),
+  local: Type.Optional(Type.String({ maxLength: 64 })),
+  remote: Type.Optional(Type.String({ maxLength: 64 })),
+});
+const RemoteTestSchema = Type.Union([
+  Type.Object({
+    ok: Type.Literal(true),
+    code: Type.String({ maxLength: 64 }),
+    durationMs: Type.Number({ minimum: 0 }),
+    detail: Type.Optional(RemoteTestDetailSchema),
+  }),
+  Type.Object({
+    ok: Type.Literal(false),
+    code: Type.String({ minLength: 1, maxLength: 64 }),
+    durationMs: Type.Number({ minimum: 0 }),
+    detail: Type.Optional(RemoteTestDetailSchema),
+  }),
+]);
+/** 연결 시험(`remote_test`)의 답. 성공과 실패가 같은 상세 모양을 쓴다 */
+export type RemoteTestOutcome =
+  | {
+      readonly ok: true;
+      readonly code: string;
+      readonly durationMs: number;
+      readonly detail?: {
+        readonly serverVersion?: string;
+        readonly reason?: string;
+        readonly local?: string;
+        readonly remote?: string;
+      };
+    }
+  | {
+      readonly ok: false;
+      readonly code: string;
+      readonly durationMs: number;
+      readonly detail?: {
+        readonly serverVersion?: string;
+        readonly reason?: string;
+        readonly local?: string;
+        readonly remote?: string;
+      };
+    };
+
+/** 서버 지문 재기(`remote_fingerprint`)의 답. 실패는 재기 코드(`refused`, `timeout`, `io`)다 */
+const RemoteFingerprintSchema = Type.Union([
+  Type.Object({ ok: Type.Literal(true), fingerprint: Type.String({ maxLength: 256 }) }),
+  Type.Object({ ok: Type.Literal(false), code: Type.String({ maxLength: 64 }) }),
+]);
+export type RemoteFingerprintReply =
+  | { readonly ok: true; readonly fingerprint: string }
+  | { readonly ok: false; readonly code: string };
+
+/** 기기 페어링(`remote_pair`)의 답. 토큰은 싣지 않는다. 잠김이면 `retryAfterSeconds`가 있다 */
+const RemotePairSchema = Type.Union([
+  Type.Object({ ok: Type.Literal(true), deviceName: Type.String({ maxLength: 64 }) }),
+  Type.Object({
+    ok: Type.Literal(false),
+    code: Type.String({ minLength: 1, maxLength: 64 }),
+    retryAfterSeconds: Type.Optional(Type.Number({ minimum: 0 })),
+  }),
+]);
+export type RemotePairReply =
+  | { readonly ok: true; readonly deviceName: string }
+  | { readonly ok: false; readonly code: string; readonly retryAfterSeconds?: number };
+
+/** 원격 서비스 살아 있음(`ssh_service_alive`)의 답. 살아 있으면 서비스 버전을 준다. `code`는 점검의 결과 코드다 */
+const ServiceAliveSchema = Type.Object({
+  alive: Type.Boolean(),
+  version: Type.Optional(Type.String({ maxLength: 128 })),
+  code: Type.String({ maxLength: 64 }),
+});
+/** 원격 서비스 살아 있음(`ssh_service_alive`)의 답. `code`는 점검의 결과 코드다 */
+export type ServiceAliveReply = {
+  readonly alive: boolean;
+  readonly version?: string;
+  readonly code: string;
+};
+
+/** 사전 점검 인자. 이 기기의 버전은 셸이 정하므로 화면은 대상과 지문 확인만 준다 */
+export interface SshPreflightArgs {
+  readonly target: string;
+  readonly trustHostKey?: { readonly fingerprint: string };
+  readonly replaceChangedHostKey?: boolean;
+}
+
+/** 기기 페어링 인자. 연결 코드와 기기 이름은 셸 명령 본문으로만 간다 */
+export interface RemotePairArgs {
+  readonly host: string;
+  readonly port: number;
+  readonly pin: string;
+  readonly code: string;
+  readonly deviceName: string;
+}
+
+/** 사전 점검 인자를 셸 인자 모양으로 옮긴다. 정해지지 않은 키는 보내지 않는다 */
+function sshPreflightArgsOf(args: SshPreflightArgs): Readonly<Record<string, unknown>> {
+  return {
+    target: args.target,
+    ...(args.trustHostKey === undefined ? {} : { trustHostKey: args.trustHostKey }),
+    ...(args.replaceChangedHostKey === undefined
+      ? {}
+      : { replaceChangedHostKey: args.replaceChangedHostKey }),
+  };
+}
+
 /** 셸 `db_export`의 stdout을 읽는다. 종료 코드 0일 때만 이것으로 읽는다(app/storage.ts) */
 export function parseBackupReport(text: string): Result<BackupReport, JsonParseError | ParseError> {
   const json = parseJson(text);
@@ -473,6 +759,24 @@ export interface DesktopIpc {
   /** 로컬 설정 한 키를 쓴다. 모르는 키나 범위 밖 값은 셸이 거부한다 */
   writeSettings(key: string, value: unknown): Promise<Result<null, IpcError>>;
   detach(epoch: number): Promise<Result<null, IpcError>>;
+  /** `~/.ssh/config`의 호스트 목록(`ssh_hosts`). 파일이 없거나 읽지 못하면 `unreadable`로 알린다 */
+  sshHosts(): Promise<Result<SshHostsReply, IpcError>>;
+  /**
+   * 사전 점검(`ssh_preflight`). 단계 이벤트는 채널로 와서 `onEvent`로 넘긴다(모양이 맞지 않으면 버린다). 답은 성공이나 멈춘 단계다.
+   * 셸이 거절하면 `IpcError`다.
+   */
+  sshPreflight(
+    args: SshPreflightArgs,
+    onEvent: (event: PreflightEvent) => void,
+  ): Promise<Result<PreflightOutcome, IpcError>>;
+  /** 연결 시험(`remote_test`). 주소 하나로 엔진을 띄워 `host.hello`까지 왕복한다 */
+  remoteTest(address: string): Promise<Result<RemoteTestOutcome, IpcError>>;
+  /** 서버 인증서 지문 재기(`remote_fingerprint`). 검증 없이 재기만 한다. 실패는 재기 코드로 온다 */
+  remoteFingerprint(host: string, port: number): Promise<Result<RemoteFingerprintReply, IpcError>>;
+  /** 기기 페어링(`remote_pair`). 토큰은 셸이 보안 저장소에 두고 답에 싣지 않는다 */
+  remotePair(args: RemotePairArgs): Promise<Result<RemotePairReply, IpcError>>;
+  /** 원격 서비스가 살아 있는지(`ssh_service_alive`). 점검 주소는 `[user@]host[:port]`다. 서비스 상태만 읽고 띄우지 않는다 */
+  sshServiceAlive(target: string): Promise<Result<ServiceAliveReply, IpcError>>;
   /**
    * 모델 키를 등록한다. 셸이 번들된 사이드카를 `fresnel secret <동작> <이름>`으로 실행하고 값을 그 stdin에 한 번 쓴다.
    * 값은 요청 본문 바이트로만 가고 이 함수가 돌아오기 전에 그 버퍼를 0으로 덮는다. `value`는 호출자가 덮는다.
@@ -623,6 +927,36 @@ export function createDesktopIpc(bridge: ShellBridge): DesktopIpc {
         await bridge.invoke("engine_detach", { epoch });
         return null;
       }),
+    sshHosts: () => replyOf("ssh_hosts", SshHostsSchema, () => bridge.invoke("ssh_hosts")),
+    sshPreflight: (args, onEvent) =>
+      replyOf("ssh_preflight", PreflightOutcomeSchema, () => {
+        // 단계 이벤트는 채널 메시지로 온다. 모양이 맞지 않는 메시지는 버린다(TY-10)
+        const events = bridge.createChannel((message) => {
+          const parsed = parse(PreflightChannelSchema, message);
+          if (parsed.ok) onEvent(parsed.value.event);
+        });
+        return bridge.invoke("ssh_preflight", { ...sshPreflightArgsOf(args), events });
+      }),
+    remoteTest: (address) =>
+      replyOf("remote_test", RemoteTestSchema, () => bridge.invoke("remote_test", { address })),
+    remoteFingerprint: (host, port) =>
+      replyOf("remote_fingerprint", RemoteFingerprintSchema, () =>
+        bridge.invoke("remote_fingerprint", { host, port }),
+      ),
+    remotePair: (args) =>
+      replyOf("remote_pair", RemotePairSchema, () =>
+        bridge.invoke("remote_pair", {
+          host: args.host,
+          port: args.port,
+          pin: args.pin,
+          code: args.code,
+          deviceName: args.deviceName,
+        }),
+      ),
+    sshServiceAlive: (target) =>
+      replyOf("ssh_service_alive", ServiceAliveSchema, () =>
+        bridge.invoke("ssh_service_alive", { target }),
+      ),
     async registerSecret(name, action, value) {
       // 본문은 `<동작> <이름>\n<값>`이다. 값을 문자열로 바꾸거나 JSON에 싣지 않는다
       const head = new TextEncoder().encode(`${action} ${name}\n`);

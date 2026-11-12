@@ -1,6 +1,7 @@
 import { t, type Locale } from "@fresnel/client/i18n";
 import { updateLineKey } from "@fresnel/client/settings";
 import {
+  Alert,
   Button,
   Dialog,
   DialogAction,
@@ -10,7 +11,9 @@ import {
 } from "@caustic/react";
 import { useId, type ReactNode } from "react";
 import type { EngineState } from "../../../state/engine/index.ts";
-import type { ConnectionState } from "./connection-model.ts";
+import type { TargetNotice } from "../../../state/ui/index.ts";
+import type { ConnectionState, ReconnectLine } from "./connection-model.ts";
+import type { RowProbe } from "./connection-probe-model.ts";
 import { ConnectionSection } from "./connection-status.tsx";
 import type { ConnectionScreenHandlers } from "./connection-handlers.ts";
 
@@ -34,6 +37,12 @@ export interface ConnectionScreenViewProps {
   readonly serviceSections?: ReactNode;
   /** 설정 구역 안에 실을 때 참이다. 머리와 자기 스크롤 칸 없이 본문 열만 그린다(설정 열이 폭과 스크롤을 맡는다) */
   readonly embedded?: boolean;
+  /** 앱을 켤 때 마지막 대상으로 붙지 못해 이 컴퓨터로 돌아온 알림. 맨 위에 닫을 수 있는 줄로 보인다 */
+  readonly targetNotice?: TargetNotice | null;
+  /** 현재 호스트 카드의 다시 붙기 줄 */
+  readonly reconnect?: readonly ReconnectLine[];
+  /** 저장된 호스트 줄의 연결 시험 상태 */
+  readonly rowProbe?: RowProbe | null;
 }
 
 export function ConnectionScreenView(props: ConnectionScreenViewProps): ReactNode {
@@ -41,9 +50,20 @@ export function ConnectionScreenView(props: ConnectionScreenViewProps): ReactNod
   const headingId = useId();
   // 이 기기의 서비스 쪽 덩어리(실행 방식, 다른 기기 접속, 진단)는 이 기기 대상이고 상태를 읽은 뒤에만 보인다
   const serviceShown = state.engineTarget.kind === "local" && state.status.kind !== "loading";
+  const notice = props.targetNotice ?? null;
   const body = (
     <div className="mx-auto grid w-full max-w-180 gap-10">
-      <HostSection state={state} engine={engine} locale={locale} handlers={handlers} />
+      {notice === null ? null : (
+        <TargetNoticeLine notice={notice} onDismiss={handlers.dismissTargetNotice} />
+      )}
+      <HostSection
+        state={state}
+        engine={engine}
+        locale={locale}
+        handlers={handlers}
+        reconnect={props.reconnect ?? []}
+        rowProbe={props.rowProbe ?? null}
+      />
       {serviceShown ? serviceSections : null}
       {serviceShown ? (
         <DiagnosticsSection
@@ -61,6 +81,7 @@ export function ConnectionScreenView(props: ConnectionScreenViewProps): ReactNod
       <div data-slot="connection-embedded">
         {body}
         <StopDialog state={state} handlers={handlers} />
+        <SwitchDialog state={state} handlers={handlers} />
       </div>
     );
   }
@@ -69,7 +90,84 @@ export function ConnectionScreenView(props: ConnectionScreenViewProps): ReactNod
       <ScreenHeader title={t("desktop.connection.title")} titleId={headingId} />
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">{body}</div>
       <StopDialog state={state} handlers={handlers} />
+      <SwitchDialog state={state} handlers={handlers} />
     </section>
+  );
+}
+
+/** 앱을 켤 때 마지막 대상으로 붙지 못해 이 컴퓨터로 돌아왔다는 알림. 닫을 수 있다 */
+function TargetNoticeLine(props: {
+  readonly notice: TargetNotice;
+  readonly onDismiss: () => void;
+}): ReactNode {
+  const { notice, onDismiss } = props;
+  return (
+    <Alert
+      tone="warning"
+      size="sm"
+      variant="outline"
+      className="text-ui"
+      dismissible
+      dismissLabel={t("desktop.connection.dismiss")}
+      onDismiss={onDismiss}
+    >
+      {t("desktop.connection.lastTarget.fellBack", { name: notice.name })}
+    </Alert>
+  );
+}
+
+/**
+ * 대상 바꾸기 확인. 도는 턴이나 승인 대기가 있을 때만 열린다(`switchNeedsConfirm`). 이 기기의 서비스가 계속 도는 경우에는
+ * 그 말을 한 줄 더한다.
+ */
+function SwitchDialog(props: {
+  readonly state: ConnectionState;
+  readonly handlers: ConnectionScreenHandlers;
+}): ReactNode {
+  const { state, handlers } = props;
+  const ask = state.switchAsk;
+  return (
+    <Dialog
+      kind="alert"
+      size="sm"
+      open={ask !== null}
+      onOpenChange={(open) => {
+        if (!open) handlers.switchCancel();
+      }}
+      title={t("desktop.connection.switch.title")}
+      footer={
+        <>
+          <DialogClose asChild>
+            <Button variant="outline" size="sm" autoFocus>
+              {t("desktop.connection.switch.cancel")}
+            </Button>
+          </DialogClose>
+          <DialogAction onClick={handlers.switchConfirm}>
+            {t("desktop.connection.switch.confirm")}
+          </DialogAction>
+        </>
+      }
+    >
+      {ask === null ? null : (
+        <div className="grid gap-2 text-ui text-text-secondary">
+          {ask.impact.liveTurns > 0 ? (
+            <p className="m-0">
+              {t("desktop.connection.switch.body.turns", { count: ask.impact.liveTurns })}
+            </p>
+          ) : null}
+          {ask.impact.waitingApprovals > 0 ? (
+            <p className="m-0">
+              {t("desktop.connection.switch.body.approvals", {
+                count: ask.impact.waitingApprovals,
+              })}
+            </p>
+          ) : null}
+          {ask.impact.keepsRunning ? (
+            <p className="m-0">{t("desktop.connection.switch.body.keepsRunning")}</p>
+          ) : null}
+        </div>
+      )}
+    </Dialog>
   );
 }
 

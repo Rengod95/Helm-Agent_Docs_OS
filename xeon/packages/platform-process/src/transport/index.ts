@@ -53,3 +53,35 @@ export {
   type WsConnectOptions,
   type WsError,
 } from "./ws.ts";
+export { pairWithGateway, type PairError, type PairGrant, type PairOptions } from "./pair.ts";
+export {
+  parseSshConfig,
+  readSshConfig,
+  type SshConfigDeps,
+  type SshConfigEntry,
+  type SshConfigRead,
+  type SshConfigReadError,
+} from "./ssh-config.ts";
+export {
+  PREFLIGHT_CODES,
+  parseSshTarget,
+  runSshPreflight,
+  spawnExec,
+  type ExecFn,
+  type ExecOptions,
+  type ExecResult,
+  type PreflightAction,
+  type PreflightCode,
+  type PreflightDetail,
+  type PreflightEvent,
+  type PreflightFix,
+  type PreflightFixHint,
+  type PreflightHostKey,
+  type PreflightResult,
+  type PreflightStep,
+  type PreflightStop,
+  type SshPreflightDeps,
+  type SshPreflightInput,
+  type SshTarget,
+  type SshTargetError,
+} from "./ssh-preflight.ts";

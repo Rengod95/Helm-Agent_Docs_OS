@@ -88,6 +88,12 @@ export const COMMAND_TABLE: Readonly<Record<string, Disposition>> = {
   service_ensure: ORIGIN,
   service_stop: HIDDEN,
   service_autostart_set: HIDDEN,
+  ssh_hosts: HIDDEN,
+  ssh_preflight: HIDDEN,
+  ssh_service_alive: HIDDEN,
+  remote_test: HIDDEN,
+  remote_fingerprint: HIDDEN,
+  remote_pair: HIDDEN,
 
   // 기능 감지. 웹과 데스크톱이 다른 값을 돌려준다(§6.1 [제안])
   shell_capabilities: WEB_SPECIFIC,

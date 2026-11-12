@@ -228,24 +228,31 @@ describe("connection failure cause and fix lines in the catalog", () => {
     permission: ["서비스에 접근할 수 없어요.", "서비스 파일과 폴더의 소유자와 권한을 확인해요."],
     tunnel: [
       "SSH 터널을 열지 못했어요.",
-      "주소와 SSH 접속을 확인해요. 비밀번호 없이 접속되는 키나 ssh-agent가 필요해요.",
+      "이 호스트에서 연결 시험을 해 봐요. 어느 단계가 막혔는지 알려 줘요. 비밀번호 없이 접속되는 키나 ssh-agent가 필요해요.",
     ],
     hostKey: [
       "SSH 호스트 키를 확인하지 못했어요.",
-      "터미널에서 한 번 ssh로 접속해 호스트 키를 믿은 뒤 다시 해 봐요.",
+      "이 호스트에서 연결 시험을 해 봐요. 호스트 키 지문을 보여 주니 확인하고 믿으면 돼요.",
     ],
     tokenMissing: [
-      "이 호스트는 토큰이 필요해요.",
-      "앱을 FRESNEL_REMOTE_TOKEN 환경 변수와 함께 열어요.",
+      "이 호스트는 기기 토큰이 필요해요.",
+      "호스트의 연결 코드(설정 > 연결 > 이 컴퓨터에 접속 허용)를 넣어 토큰을 받아요.",
     ],
     auth: [
       "원격 서비스가 접속을 거절했어요. 토큰이 없거나 맞지 않아요.",
-      "FRESNEL_REMOTE_TOKEN이 서버의 토큰과 같은지 확인해요.",
+      "호스트에서 새 연결 코드를 받아 다시 연결해요. 이전 토큰이 폐기됐을 수 있어요.",
     ],
-    protocol: ["원격 서비스와 버전이 맞지 않아요.", "두 쪽을 같은 버전으로 맞춰요."],
+    protocol: [
+      "원격 서비스와 버전이 맞지 않아요.",
+      "이 호스트에서 연결 시험을 해 봐요. 양쪽 버전과 어느 쪽이 낮은지 알려 줘요.",
+    ],
     fingerprint: [
       "서버 지문이 바뀌었어요.",
-      "서버 인증서를 갱신한 적이 없다면 접속하지 마세요. 그렇다면 호스트에서 지문 고정을 지우고 새 지문을 확인해요.",
+      "서버 인증서를 갱신한 적이 없다면 접속하지 마세요. 갱신했다면 새 지문을 확인해 다시 고정해요.",
+    ],
+    certUntrusted: [
+      "이 서버의 인증서를 아직 믿지 않았어요.",
+      "호스트가 보여 주는 지문과 같은지 비교해요. 같으면 확인해서 인증서를 고정해요.",
     ],
     other: ["연결하지 못했어요.", "진단 복사로 로그를 모아 두고 엔진을 다시 시작해 봐요."],
   };
@@ -269,27 +276,31 @@ describe("connection failure cause and fix lines in the catalog", () => {
     ],
     tunnel: [
       "Couldn't open the SSH tunnel.",
-      "Check the address and SSH access. You need a key that logs in without a password, or ssh-agent.",
+      "Run Check connection on this host. It tells you which step failed. You need a key that logs in without a password, or ssh-agent.",
     ],
     hostKey: [
       "Couldn't verify the SSH host key.",
-      "Connect once with ssh in a terminal to trust the host key, then try again.",
+      "Run Check connection on this host. It shows the host key fingerprint so you can trust it.",
     ],
     tokenMissing: [
-      "This host needs a token.",
-      "Open the app with the FRESNEL_REMOTE_TOKEN environment variable set.",
+      "This host needs a device token.",
+      "Enter the connection code from the host (Settings > Connection > Allow access to this computer) to get a token.",
     ],
     auth: [
       "The remote service refused the connection. The token is missing or doesn't match.",
-      "Check that FRESNEL_REMOTE_TOKEN matches the server's token.",
+      "Pair again with a new connection code from the host. The old token may have been revoked.",
     ],
     protocol: [
       "The remote service's version doesn't match.",
-      "Use the same version on both sides.",
+      "Run Check connection on this host. It shows both versions and which side is older.",
     ],
     fingerprint: [
       "The server's TLS fingerprint changed.",
-      "If you didn't renew the server certificate, don't connect. Otherwise remove the pin from the host and confirm the new fingerprint.",
+      "If you didn't renew the server certificate, don't connect. Otherwise confirm the new fingerprint to pin it again.",
+    ],
+    certUntrusted: [
+      "This server's certificate isn't trusted yet.",
+      "Compare the fingerprint with the one the host shows. If they match, confirm it to pin the certificate.",
     ],
     other: [
       "Couldn't connect.",
@@ -307,6 +318,8 @@ describe("connection failure cause and fix lines in the catalog", () => {
     "tokenMissing",
     "auth",
     "protocol",
+    "fingerprint",
+    "certUntrusted",
     "other",
   ];
 
