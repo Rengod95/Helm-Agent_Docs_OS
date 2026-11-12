@@ -6,9 +6,11 @@ import {
   Presence,
   PresenceItem,
   PresenceList,
+  ROW_ENTER,
   SwapFade,
   ScreenSwap,
   cssBezier,
+  flipDeltaOf,
   isMotionReduced,
   motionReducedOf,
   variantsOf,
@@ -102,5 +104,63 @@ describe("부품", () => {
     expect(html).toContain("첫째");
     expect(html).toContain("둘째");
     expect(html).not.toContain("opacity:0");
+  });
+});
+
+describe("줄 들어옴 값(dzM2 시안 §2, DP-117)", () => {
+  const tracks = Object.entries(ROW_ENTER).flatMap(([kind, list]) =>
+    list.map((track) => ({ kind, track })),
+  );
+
+  test("곡선 조절점이 0~1 안이라 넘침이 없다", () => {
+    const out = tracks.filter(({ track }) =>
+      [track.easing[1], track.easing[3]].some((y) => y < 0 || y > 1),
+    );
+    expect(out.map(({ kind }) => kind)).toEqual([]);
+  });
+
+  test("끝 값은 제자리다: 투명도 1, 오름 0, 흐림 0, 선은 다 그어진다(빛 줄기만 0으로 사라진다)", () => {
+    const ends = tracks
+      .filter(({ track }) => track.child !== ".convo-compact-sweep")
+      .map(({ track }) => track.keyframes.at(-1));
+    const wrong = ends.filter(
+      (end) =>
+        end === undefined ||
+        (end.opacity !== undefined && end.opacity !== 1) ||
+        (end.transform !== undefined &&
+          !["translateY(0px)", "scaleX(1)", "scaleY(1)"].includes(String(end.transform))) ||
+        (end.filter !== undefined && end.filter !== "blur(0px)"),
+    );
+    expect(wrong).toEqual([]);
+    const sweep = ROW_ENTER.compaction.find((track) => track.child === ".convo-compact-sweep");
+    expect(sweep?.keyframes.at(-1)?.opacity).toBe(0);
+  });
+
+  test("들어옴은 300ms 안에 끝난다(요약 빛 줄기 제외)", () => {
+    const slow = tracks.filter(
+      ({ track }) =>
+        track.child !== ".convo-compact-sweep" && track.duration + (track.delay ?? 0) > 300,
+    );
+    expect(slow.map(({ kind }) => kind)).toEqual([]);
+  });
+
+  test("답 들어옴은 6px 오름 + 흐림 4에서 시작한다", () => {
+    expect(ROW_ENTER.reply[0]?.keyframes[0]).toEqual({
+      opacity: 0,
+      transform: "translateY(6px)",
+      filter: "blur(4px)",
+    });
+  });
+});
+
+describe("FLIP 변화량", () => {
+  test("모르는 키는 삽입, 0.5px 미만은 그대로, 나머지는 옛 자리와의 차", () => {
+    const before = new Map([
+      ["a", 0],
+      ["b", 40],
+    ]);
+    expect(flipDeltaOf(before, "z", 10)).toEqual({ kind: "enter" });
+    expect(flipDeltaOf(before, "a", 0.3)).toBe(null);
+    expect(flipDeltaOf(before, "b", 0)).toEqual({ kind: "move", dy: 40 });
   });
 });

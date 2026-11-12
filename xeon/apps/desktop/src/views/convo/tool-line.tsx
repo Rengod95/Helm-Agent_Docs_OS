@@ -19,6 +19,7 @@ import { Badge } from "@caustic/react";
 import { assertNever } from "@fresnel/contracts";
 import { t } from "@fresnel/client/i18n";
 import { useState, type ReactNode } from "react";
+import { Collapse, useChangedSinceMount } from "../../lib/motion-presets.tsx";
 import { CallChip } from "../call-chip.tsx";
 import { InterventionTags } from "./intervention-tags.tsx";
 import type { InterventionTag } from "./intervention-model.ts";
@@ -32,7 +33,8 @@ import {
 
 // 도구 줄(dzT2a 시안 3.3). 카드 테두리 없는 28px 한 줄: 아이콘 14 · 동사 13/500 · 대상(경로 칩, 명령 mono, 글) · 꼬리표 · 메타 · 상태.
 // 상세가 있으면 줄 전체가 펼침 단추(보이지 않는 덮개)이고, 상세는 아이콘 열 아래로 들여 붙는다. 펼침 상태는 이 부품 한 곳에서만 쥔다.
-// 상세 본문은 `Reveal` 경계 안에 둔다. 모션 트랙이 높이 잇기와 들어옴·나감을 이 경계에 입힌다.
+// 상세 본문은 `Reveal` 경계(높이 잇기, dzM2 시안 §4) 안에 둔다. 도는 동안 줄 아래 변을 가는 굴절광이 흐르고(§3),
+// 상태가 바뀐 순간에만 체크가 그려지거나 실패 칩이 한 번 번진다(이미 끝난 줄을 다시 그리면 움직이지 않는다).
 
 export type LineStatus =
   | { readonly kind: "running"; readonly label: string; readonly awaiting: boolean }
@@ -113,19 +115,20 @@ function LineTarget(props: { readonly target: ToolTarget }): ReactNode {
   }
 }
 
-function StatusCell(props: { readonly status: LineStatus }): ReactNode {
-  const { status } = props;
+function StatusCell(props: { readonly status: LineStatus; readonly changed: boolean }): ReactNode {
+  const { status, changed } = props;
   switch (status.kind) {
     case "running":
       return <CallChip status="running" label={status.label} waiting={status.awaiting} />;
     case "done":
-      return <CallChip status="done" />;
+      return <CallChip status="done" changed={changed} />;
     case "failed":
       return (
         <CallChip
           status="failed"
           label={failureLabelOf(status.failure)}
           tone={failureToneOf(status.failure)}
+          changed={changed}
         />
       );
     case "none":
@@ -151,9 +154,23 @@ function statusText(status: LineStatus): string {
   }
 }
 
-/** 펼침 본문 경계. 지금은 조건부로 그리고, 모션 트랙이 이 부품에 높이 잇기를 입힌다 */
-export function Reveal(props: { readonly open: boolean; readonly children: ReactNode }): ReactNode {
-  return props.open ? props.children : null;
+/**
+ * 펼침 본문 경계(dzM2 시안 §4, DP-118). 높이를 0 ↔ auto로 잇고(280ms, 접힘 180ms) 내용은 60ms 늦게 나타난다.
+ * 처음 마운트할 때 열려 있으면 움직이지 않는다. 생각·도구 상세·묶음·요약 보기·지금 띠가 모두 이것을 쓴다
+ */
+export function Reveal(props: {
+  readonly open: boolean;
+  readonly className?: string;
+  readonly children: ReactNode;
+}): ReactNode {
+  return (
+    <Collapse
+      open={props.open}
+      {...(props.className === undefined ? {} : { className: props.className })}
+    >
+      {props.children}
+    </Collapse>
+  );
 }
 
 /**
@@ -208,6 +225,9 @@ export function ToolLine(props: {
   ]
     .filter((part) => part !== "")
     .join(" · ");
+  // 상태가 이 줄이 화면에 있는 동안 바뀌었는가(도는 중 → 끝남·실패). 굴절광은 도는 동안 켜지고, 끝나면 사라지며 꺼진다
+  const changed = useChangedSinceMount(props.status.kind);
+  const running = props.status.kind === "running" && !props.status.awaiting;
   return (
     <div className="grid min-w-0">
       <div
@@ -216,6 +236,11 @@ export function ToolLine(props: {
         data-open={open ? "true" : undefined}
         data-quiet={props.quiet === true ? "true" : undefined}
       >
+        {running || changed ? (
+          <span aria-hidden className="convo-line-beam" data-on={running ? "true" : "false"}>
+            <span className="convo-line-beam-streak" />
+          </span>
+        ) : null}
         {toggle ? (
           <button
             type="button"
@@ -242,7 +267,7 @@ export function ToolLine(props: {
           <InterventionTags tags={props.tags ?? []} />
         </span>
         <span className="convo-line-status">
-          <StatusCell status={props.status} />
+          <StatusCell status={props.status} changed={changed} />
           {toggle ? <ChevronRight aria-hidden className="convo-line-chevron" /> : null}
         </span>
       </div>

@@ -1937,6 +1937,7 @@
   "desktop.convo.tool.memory.running": "Updating memory",
   "desktop.convo.tool.plan": "Submitted plan",
   "desktop.convo.tool.plan.running": "Submitting plan",
+  "desktop.convo.tool.preparing": "Writing a tool call",
   "desktop.convo.tool.read": "Read",
   "desktop.convo.tool.read.running": "Reading",
   "desktop.convo.tool.search": "Searched",

@@ -1,5 +1,5 @@
-/* 도구 호출 줄의 상태 칩(`call-chip.tsx`). 실행 중: 채움이 칩을 가로로 쓸고 스피너가 돈다. 끝남: 칩 틀 없이 맨 체크 아이콘 하나(.call-chip-done, DP-67).
-   실패: 빛깔이 바뀌고 위험일 때만 한 번 흔든다. caustic에는 이 keyframes가 없어 여기에 둔다.
+/* 도구 호출 줄의 상태 칩(`call-chip.tsx`, dzM2 시안 §3). 실행 중: 테두리 칩 + 스피너. 끝남: 칩 틀 없이 체크 하나(.call-chip-done, DP-67),
+   바뀐 순간에만 선이 그려진다(drawn-check.css). 실패: 빛깔이 바뀌고 바뀐 순간에만 바탕이 한 번 번진다. caustic에는 이 keyframes가 없어 여기에 둔다.
    Tauri CSP가 인라인 <style>을 막아 이 파일로 두고 styles.css가 가져온다. 색은 caustic 토큰만 쓰므로 라이트·다크는 토큰이 따라간다. */
 .call-chip {
   --call-chip-ink: var(--cs-color-text-tertiary);
@@ -51,26 +51,17 @@
   --call-chip-sweep: var(--cs-color-warning-tint);
 }
 
-/* 채움: 실행 중에는 띠가 왼쪽에서 오른쪽으로 되풀이해 쓸고, 끝나면 칩 전체를 한 번 덮은 뒤 걷힌다 */
+/* 채움: 실패로 바뀐 순간에만(`data-changed`) 칩 바탕이 tint로 번졌다가 투명으로 가라앉는다(흔들기 없음, DP-105).
+   마운트할 때 이미 실패인 칩(기록을 다시 그림)은 돌지 않는다. 실행 중 쓸림은 없다: 줄 아래 변의 굴절광(convo.css .convo-line-beam)이 맡는다 */
 .call-chip-fill {
   position: absolute;
   inset: 0;
   pointer-events: none;
   background: var(--call-chip-sweep);
-  transform-origin: left center;
   opacity: 0;
 }
-.call-chip[data-status="running"] .call-chip-fill {
-  opacity: 1;
-  background: linear-gradient(90deg, transparent, var(--call-chip-sweep) 50%, transparent);
-  animation: call-chip-sweep 1.4s ease-in-out infinite;
-}
-.call-chip[data-status="running"][data-waiting="true"] .call-chip-fill {
-  animation: none;
-  opacity: 0;
-}
-.call-chip[data-status="failed"] .call-chip-fill {
-  animation: call-chip-fill-out 520ms ease-out 1 both;
+.call-chip[data-status="failed"][data-changed="true"] .call-chip-fill {
+  animation: call-chip-bloom 520ms cubic-bezier(0.2, 0, 0, 1) 1 both;
 }
 
 .call-chip-icon,
@@ -100,31 +91,17 @@
   border-top-color: color-mix(in srgb, currentColor 22%, transparent);
 }
 
-@keyframes call-chip-sweep {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(100%);
-  }
-}
 @keyframes call-chip-spin {
   to {
     transform: rotate(360deg);
   }
 }
-@keyframes call-chip-fill-out {
+@keyframes call-chip-bloom {
   0% {
     opacity: 1;
-    transform: scaleX(0);
-  }
-  45% {
-    opacity: 1;
-    transform: scaleX(1);
   }
   100% {
     opacity: 0;
-    transform: scaleX(1);
   }
 }
 /* 움직임 줄이기: 전환 없이 끝 모양이 바로 보인다. 쓸리는 띠도 스피너도 멈춘다(앱 설정 data-motion=reduce는 styles.css의 공통 규칙이 같은 효과를 낸다) */

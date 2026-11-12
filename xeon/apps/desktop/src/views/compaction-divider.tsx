@@ -4,9 +4,11 @@ import { t } from "@fresnel/client/i18n";
 import { useState, type ReactNode } from "react";
 import type { CompactionRecord } from "../state/engine/state.ts";
 import { compactionViewOf } from "./compaction-model.ts";
+import { Reveal } from "./convo/tool-line.tsx";
 
 // 대화 요약 구분선(L4 desktop-ux §6.6, dzT2a 시안 10절). 변화 표지와 같은 구분 줄(`.convo-divider`)에 "여기까지 요약했어요", 사유, 남은 토큰과
 // "요약 보기"를 한 줄로 두고, 펼치면 요약 본문이 아래에 붙는다(길면 안쪽에서 스크롤). 줄 폭과 여백은 대화 줄 틀이 준다.
+// 새로 생길 때는 선이 그어지고 빛이 한 번 지나간다(`.convo-compact-sweep`, dzM2 시안 §6). 요약 보기는 높이를 잇는다(`Reveal`).
 
 /** 구분선. 상태(펼침)는 부모가 쥔다. 서버 렌더 시험이 펼친 모양을 값으로 비교하려고 나눴다 */
 export function CompactionDividerView(props: {
@@ -18,7 +20,8 @@ export function CompactionDividerView(props: {
   const view = compactionViewOf(record);
   return (
     <div data-compaction-divider className="grid min-w-0">
-      <div className="convo-divider">
+      <div className="convo-divider convo-compact-line">
+        <span aria-hidden className="convo-compact-sweep" />
         <span className="flex min-w-0 flex-wrap items-center justify-center gap-x-2">
           <span>{t("desktop.compaction.divider")}</span>
           {view.reason === null ? null : <span className="text-footnote">{t(view.reason)}</span>}
@@ -40,7 +43,7 @@ export function CompactionDividerView(props: {
           </Button>
         </span>
       </div>
-      {open ? (
+      <Reveal open={open}>
         <div
           role="region"
           tabIndex={0}
@@ -49,7 +52,7 @@ export function CompactionDividerView(props: {
         >
           {record.summary}
         </div>
-      ) : null}
+      </Reveal>
     </div>
   );
 }

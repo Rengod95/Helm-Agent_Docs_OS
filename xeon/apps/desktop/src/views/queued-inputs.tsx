@@ -6,6 +6,7 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import { useState, type ReactNode } from "react";
 import { useQueuedInputs, type QueuedInput } from "../state/engine/index.ts";
 import { useCommands } from "./commands.ts";
+import { Presence, PresenceItem, PresenceList } from "../lib/motion-presets.tsx";
 import {
   chipInputs,
   queuedModeText,
@@ -101,7 +102,7 @@ function QueuedChip(props: {
 
   const tag = queuedTagOf(props.input.mode);
   return (
-    <li
+    <div
       data-status={state.status}
       data-queued-mode={tag.kind}
       className="flex h-8 min-w-0 items-center gap-2 rounded-lg bg-neutral-well ps-2 pe-1"
@@ -168,7 +169,7 @@ function QueuedChip(props: {
           ? t("desktop.composer.queue.withdraw.retry")
           : t("desktop.composer.queue.withdraw.button")}
       </Button>
-    </li>
+    </div>
   );
 }
 
@@ -182,7 +183,22 @@ export function QueuedInputs(props: {
   readonly onSteerNow: (requestId: string) => Promise<WithdrawState>;
 }): ReactNode {
   const chips = chipInputs(useQueuedInputs(props.threadId));
-  if (chips.length === 0) return null;
+  // 마지막 칩이 빠지면 머리와 함께 띠가 내려가며 사라진다(옛 내용은 Presence가 든다)
+  return (
+    <Presence show={chips.length > 0} variant="band" initial={false}>
+      {chips.length === 0 ? null : <QueuedList {...props} chips={chips} />}
+    </Presence>
+  );
+}
+
+function QueuedList(props: {
+  readonly threadId: ThreadId;
+  readonly chips: readonly QueuedInput[];
+  readonly disabledReason: string | null;
+  readonly steerable: (requestId: string) => boolean;
+  readonly onSteerNow: (requestId: string) => Promise<WithdrawState>;
+}): ReactNode {
+  const { chips } = props;
   return (
     <div className="grid gap-1">
       <div className="flex h-5 items-center gap-1 px-1 text-ui-sm text-text-tertiary">
@@ -190,17 +206,21 @@ export function QueuedInputs(props: {
         <span className="tabular-nums">{chips.length}</span>
         <InfoTip text={t("desktop.composer.queue.info")} />
       </div>
+      {/* 칩이 들어올 때 높이가 열리며 떠오르고, 철회·반영되면 높이를 접으며 사라진다(dzM2 시안 §8) */}
       <ul aria-label={t("term.inputQueue")} className="m-0 grid list-none gap-1 p-0">
-        {chips.map((input) => (
-          <QueuedChip
-            key={input.inputId}
-            input={input}
-            threadId={props.threadId}
-            disabled={props.disabledReason !== null}
-            steerable={props.steerable(input.requestId)}
-            onSteerNow={props.onSteerNow}
-          />
-        ))}
+        <PresenceList>
+          {chips.map((input) => (
+            <PresenceItem key={input.inputId} as="li">
+              <QueuedChip
+                input={input}
+                threadId={props.threadId}
+                disabled={props.disabledReason !== null}
+                steerable={props.steerable(input.requestId)}
+                onSteerNow={props.onSteerNow}
+              />
+            </PresenceItem>
+          ))}
+        </PresenceList>
       </ul>
     </div>
   );

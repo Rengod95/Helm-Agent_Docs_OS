@@ -47,9 +47,14 @@ afterAll(() => {
   }
 });
 
-function list(keys: readonly string[], ownTailKey: string | null = null) {
+function list(
+  keys: readonly string[],
+  ownTailKey: string | null = null,
+  countRow?: (row: { readonly key: string }) => boolean,
+) {
   return (
     <VirtualList
+      {...(countRow === undefined ? {} : { countRow })}
       ownTailKey={ownTailKey}
       rows={keys.map((key) => ({ key }))}
       followTail
@@ -62,6 +67,7 @@ function list(keys: readonly string[], ownTailKey: string | null = null) {
 async function scrolledUpThen(
   next: readonly string[],
   ownTailKey: string | null = null,
+  countRow?: (row: { readonly key: string }) => boolean,
 ): Promise<{ top: number; text: string }> {
   const container = document.createElement("div");
   document.body.append(container);
@@ -77,9 +83,16 @@ async function scrolledUpThen(
     scroller.scrollTop = 0;
     scroller.dispatchEvent(new Event("scroll"));
   });
-  await act(async () => {
-    root.render(list(next, ownTailKey));
-  });
+  // 내용이 여러 번 이어 와도(흐르는 답) 위로 올린 사용자를 끌어내리지 않는다(dzM2 §10)
+  await next.reduce<Promise<void>>(
+    (before, _key, index) =>
+      before.then(() =>
+        act(async () => {
+          root.render(list(next.slice(0, index + 1), ownTailKey, countRow));
+        }),
+      ),
+    Promise.resolve(),
+  );
   const top = scroller.scrollTop;
   const text = container.textContent;
   await act(async () => root.unmount());
@@ -100,5 +113,12 @@ describe("VirtualList follows the tail", () => {
     const after = await scrolledUpThen(["a1", "a2", "a3"], "a3");
     expect(after.top).toBe(1000);
     expect(after.text).not.toContain("새 메시지");
+  });
+  test("scrolled up stays put through many updates and counts only message rows", async () => {
+    const after = await scrolledUpThen(["a1", "a2", "t3", "a4", "t5"], null, (row) =>
+      row.key.startsWith("a"),
+    );
+    expect(after.top).toBe(0);
+    expect(after.text).toContain("새 메시지 1");
   });
 });

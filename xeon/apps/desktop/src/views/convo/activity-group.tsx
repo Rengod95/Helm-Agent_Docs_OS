@@ -2,6 +2,7 @@ import { ChevronRight } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import type { ItemId, ThreadId } from "@fresnel/contracts/conversation";
 import type { ReactNode } from "react";
+import { HeightGlide, SwapFade } from "../../lib/motion-presets.tsx";
 import { useItem, useToolResults } from "../../state/engine/index.ts";
 import { useTranscriptDetail } from "../transcript-detail.ts";
 import type { ActivityEntry } from "../transcript-rows.ts";
@@ -15,6 +16,7 @@ import { toolHeadOf } from "./tool-view-model.ts";
 // 활동 묶음(dzT2a 시안 6절). 같은 턴에서 글 없이 이어진 도구 호출을 한 머리로 접는다.
 // 도는 동안은 현재형 머리와 지금 도는 줄이 보이고, 끝나면 접힌다. 접혀도 실패·거부·개입이 있는 줄은 머리 아래에 그대로 나온다.
 // 호출이 하나뿐인 묶음은 머리 없이 그 줄만 그린다.
+// 움직임(dzM2 시안 §4): 도는 동안 머리의 "지금 도구" 글은 교차 전환, 끝나 접힌 몸이 줄어들면 높이가 이어져 요약 한 줄로 모인다.
 
 function ThinkingEntry(props: { readonly itemId: ItemId; readonly index: number }): ReactNode {
   const item = useItem(props.itemId);
@@ -125,7 +127,12 @@ export function ActivityGroup(props: {
               : "convo-line-icon transition-transform duration-quick"
           }
         />
-        <span className="convo-line-verb min-w-0 truncate">{summary}</span>
+        <span className="convo-line-verb relative min-w-0 truncate">
+          {/* 도는 동안만 바뀌는 글이 교차 전환된다. 끝난 묶음은 글이 한 번 바뀌고 멈춘다 */}
+          <SwapFade swapKey={summary} inline>
+            {summary}
+          </SwapFade>
+        </span>
         <span className="convo-line-meta">
           {live && seconds > 0
             ? t("desktop.convo.group.metaLive", { count: calls.length, seconds })
@@ -135,7 +142,9 @@ export function ActivityGroup(props: {
         </span>
         <span className="convo-line-status">{live ? <CallChip status="running" /> : null}</span>
       </div>
-      {open ? null : <div className="convo-group-body empty:hidden">{body(true)}</div>}
+      <HeightGlide>
+        {open ? null : <div className="convo-group-body empty:hidden">{body(true)}</div>}
+      </HeightGlide>
       <Reveal open={open}>
         <div className="convo-group-body">{body(false)}</div>
       </Reveal>

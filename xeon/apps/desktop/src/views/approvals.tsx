@@ -1,7 +1,7 @@
 import { t } from "@fresnel/client/i18n";
-import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
 import { ScrollArea } from "@caustic/react";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode, type RefObject } from "react";
 import {
   useAllThreadSummaries,
   useApprovalMirror,
@@ -19,6 +19,7 @@ import {
   type InboxThread,
 } from "./inbox-model.ts";
 import { useProposalPending } from "./proposal-pending-context.tsx";
+import { Presence } from "../lib/motion-presets.tsx";
 
 // 승인 대기열의 마운트 자리 두 곳. 카드 본문과 단추는 approval-card/가 그린다(네 종류가 세 자리에서 같다).
 // 트랜스크립트 끝은 ApprovalQueue, 끝 영역 받은 요청 탭은 InboxApprovals다. P-03 목록은 아직 없어 ApprovalCardList를 그대로 쓴다.
@@ -109,7 +110,21 @@ export function ApprovalQueue(): ReactNode {
       last.scrollIntoView({ block: "nearest" });
     }
   }, [idsKey]);
-  if (ids.length === 0) return null;
+  // 띠가 입력창 위로 올라와 가라앉고, 마지막 승인에 답하면 내려가며 사라진다(dzM2 시안 §8). 대화를 처음 열 때는 움직이지 않는다
+  return (
+    <Presence show={ids.length > 0} variant="band" initial={false} className="grid min-h-0">
+      {ids.length === 0 ? null : <ApprovalBand band={band} ids={ids} within={openThreadId} />}
+    </Presence>
+  );
+}
+
+function ApprovalBand(props: {
+  readonly band: RefObject<HTMLElement | null>;
+  readonly ids: readonly EventId[];
+  readonly within: ThreadId | null;
+}): ReactNode {
+  const { band, ids } = props;
+  const openThreadId = props.within;
   return (
     // 입력창 바로 위 띠. 높이는 화면의 40%까지만 차지하고, 넘는 카드는 띠 안의 스크롤 영역에서 넘긴다.
     // 머리(개수)는 스크롤 밖에 둬 늘 보인다. 카드의 응답 단추 줄은 카드 안에서 바닥에 붙는다(approval-card.tsx).

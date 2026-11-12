@@ -2,15 +2,8 @@ import { Button, Message, Textarea } from "@caustic/react";
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ItemId, JsonObject, JsonValue, ThreadId } from "@fresnel/contracts/conversation";
-import {
-  Fragment,
-  memo,
-  useContext,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { memo, useContext, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { HeightGlide, useHeightRatchet } from "../../lib/motion-presets.tsx";
 import { cardOf, provenanceOf } from "../../plugin-ui/placements.ts";
 import {
   useHasToolCall,
@@ -37,11 +30,12 @@ import { toolHeadOf } from "./tool-view-model.ts";
 // 답 줄은 확정 전과 뒤가 같은 부품(`ReplyRow`)이다. 줄 키도 같아(item id) 확정될 때 다시 마운트되지 않는다.
 
 /**
+ * caustic Message의 마운트 들어옴(animate-rise)은 끈다(`animate-none`): 줄 들어옴은 대화 목록이 새 줄에만 한 번 건다(dzM2 시안 §2).
  * 사용자 말풍선: 채움 없는 outlined(`border-subtle` 1px), 글은 답과 같은 15/23. 오른쪽 정렬, 최대 폭 열의 85%.
  * 아래에 동작 줄(올리거나 초점이 들어오면 보임)이 붙는다. "고쳐서 다시 보내기"는 말풍선 자리에서 바로 고친다.
  */
 const BUBBLE_CLASS =
-  "max-w-[85%] whitespace-pre-wrap [overflow-wrap:anywhere] text-voice-sm bg-transparent px-2.5 py-1.5 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]";
+  "animate-none max-w-[85%] whitespace-pre-wrap [overflow-wrap:anywhere] text-voice-sm bg-transparent px-2.5 py-1.5 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]";
 
 function EditBox(props: {
   readonly text: string;
@@ -193,66 +187,86 @@ function UnsentNote(props: { readonly threadId: ThreadId; readonly text: string 
   );
 }
 
-/** 진행 중 파트 글 하나. 델타는 이 부품만 다시 그린다 */
-const LivePart = memo(function LivePart(props: {
-  readonly id: ItemId;
-  readonly index: number;
-  readonly kind: string;
-  readonly live: boolean;
-}): ReactNode {
-  const text = usePartText(props.id, props.index);
-  if (props.kind === "thinking") return <ThinkingBlock text={text} live={props.live} />;
-  return (
-    <Message size="sm" streaming={props.live}>
-      <MarkdownBody text={text} streaming={props.live} />
-      {props.live ? <span aria-hidden className="transcript-caret" /> : null}
-    </Message>
-  );
-});
+/** 부분 인자 꼬리로 보일 줄 수 */
+const ARGS_TAIL_LINES = 3;
 
-/** 확정된 답의 글·생각 블록 */
-function RecordedReply(props: {
-  readonly id: ItemId;
-  readonly blocks: readonly ShapeBlock[];
-}): ReactNode {
-  const item = useItem(props.id);
-  if (item?.kind !== "assistant") return null;
-  // 끊기거나 실패한 답이면 그 item의 마지막 글 블록이 든 줄 아래에 조용한 상태 줄을 한 번 단다
-  const stopped = item.status === "failed" || item.status === "interrupted";
-  const lastIndex = item.message.content.findLastIndex(
-    (block) => block.type === "text" || block.type === "thinking",
-  );
-  const showStatus = stopped && props.blocks.some((shape) => shape.index === lastIndex);
+/** 흐르는 호출 인자(부분 JSON)에서 대상 하나를 읽는다. 아직 닫히지 않은 문자열도 읽은 데까지 보인다 */
+export function partialTargetOf(args: string): string {
+  const found =
+    /"(?:path|file_path|command|pattern|url|query|description)"\s*:\s*"((?:[^"\\]|\\.)*)/.exec(
+      args,
+    );
+  return (found?.[1] ?? "").replaceAll("\\n", " ").replaceAll('\\"', '"');
+}
+
+/** 인자 글의 끝 몇 줄(꼬리) */
+export function argsTailOf(args: string, lines: number): string {
+  return args.trimEnd().split("\n").slice(-lines).join("\n");
+}
+
+/**
+ * 답이 흐르는 동안 쓰이는 도구 호출 한 줄(dzM2 시안 §3). 이름은 아직 없어 "도구 호출을 쓰는 중"과 읽은 대상, 아래에 부분 인자 꼬리를 둔다.
+ * 확정되면 같은 자리에 실제 도구 줄(활동 묶음)이 서고 들어옴은 돌지 않는다(transcript-enter.ts)
+ */
+function PreparingCall(props: { readonly name: string; readonly args: string }): ReactNode {
+  const head = toolHeadOf(props.name, {}, null);
+  const target = partialTargetOf(props.args);
+  const tail = argsTailOf(props.args, ARGS_TAIL_LINES);
   return (
-    <>
-      {showStatus ? (
-        <p className="convo-note order-last" data-status={item.status}>
-          {item.status === "failed"
-            ? t("desktop.item.status.failed")
-            : t("desktop.item.status.interrupted")}
-        </p>
-      ) : null}
-      {props.blocks.map((shape) => {
-        const block = item.message.content[shape.index];
-        const key = item.partIds[shape.index] ?? `${props.id}:${shape.index}`;
-        if (block?.type === "thinking") return <ThinkingBlock key={key} text={block.thinking} />;
-        if (block?.type !== "text") return null;
-        return (
-          <Fragment key={key}>
-            <Message size="sm">
-              <MarkdownBody text={block.text} />
-            </Message>
-            <SourceChips sources={citedLinksOf(block.text, 6)} indent={false} />
-          </Fragment>
-        );
-      })}
-    </>
+    <ToolLine
+      icon={head.icon}
+      verb={props.name === "" ? t("desktop.convo.tool.preparing") : head.verbRunning}
+      rawName={props.name !== "" && head.rawName}
+      target={target === "" ? { kind: "none" } : { kind: "text", text: target, mono: true }}
+      status={{ kind: "running", label: t("desktop.item.toolRunning"), awaiting: false }}
+      below={tail === "" ? null : <div className="convo-tail">{tail}</div>}
+    />
   );
 }
 
 /**
+ * 답의 글·생각·쓰는 중인 호출 한 조각. 진행 중과 확정이 같은 부품·같은 키(파트 id)라 확정될 때 DOM이 그대로 남는다(다시 마운트 0).
+ * 진행 중이면 글을 진행 목록에서 읽고(델타는 이 부품만 다시 그린다), 확정이면 기록 글을 받는다
+ */
+const ReplyPart = memo(function ReplyPart(props: {
+  readonly id: ItemId;
+  readonly index: number;
+  readonly kind: "text" | "thinking" | "toolCall";
+  /** 확정 글. 진행 중이면 null */
+  readonly recorded: string | null;
+  /** 아직 끝나지 않은 마지막 조각(캐럿) */
+  readonly live: boolean;
+}): ReactNode {
+  const streamed = usePartText(props.id, props.index);
+  const text = props.recorded ?? streamed;
+  // 흐르는 동안 높이가 잠깐 줄어드는 프레임을 막는다. 확정되면 풀린다
+  const box = useHeightRatchet<HTMLDivElement>(props.recorded === null);
+  if (props.kind === "thinking") return <ThinkingBlock text={text} live={props.live} />;
+  if (props.kind === "toolCall") return <PreparingCall name="" args={text} />;
+  return (
+    <>
+      <Message ref={box} size="sm" streaming={props.live} className="animate-none">
+        <MarkdownBody text={text} streaming={props.recorded === null} />
+        {props.live ? <span aria-hidden className="transcript-caret" /> : null}
+      </Message>
+      {props.recorded === null ? null : (
+        <SourceChips sources={citedLinksOf(props.recorded, 6)} indent={false} />
+      )}
+    </>
+  );
+});
+
+type PartView = {
+  readonly key: string;
+  readonly index: number;
+  readonly kind: "text" | "thinking" | "toolCall";
+  readonly recorded: string | null;
+  readonly live: boolean;
+};
+
+/**
  * 답 줄. 확정 기록이 있으면 그것을, 없으면 진행 중 item을 그린다. 같은 키·같은 부품이라 확정될 때 다시 마운트되지 않는다.
- * 진행 중 도구 호출 item(호출 줄이 아직 없을 때)은 실행 중 도구 줄 하나다.
+ * 진행 중 도구 실행 item(호출 줄이 아직 없을 때)은 실행 중 도구 줄 하나와 부분 인자 꼬리다.
  */
 export function ReplyRow(props: {
   readonly id: ItemId;
@@ -262,41 +276,76 @@ export function ReplyRow(props: {
   const streaming = useStreamingItem(props.id);
   const openThreadId = useOpenThreadId();
   const hasCallRow = useHasToolCall(streaming?.toolCallId ?? "");
-  if (recorded !== undefined && props.blocks !== null)
-    return <RecordedReply id={props.id} blocks={props.blocks} />;
-  // 진행 목록은 모든 대화의 것을 담는다. 열린 대화의 것만 그린다
-  if (streaming === undefined || streaming.threadId !== openThreadId) return null;
-  if (streaming.kind === "toolCall") {
-    if (hasCallRow) return null;
-    const name = streaming.toolName ?? "";
-    const head = toolHeadOf(name, {}, null);
-    return (
-      <ToolLine
-        icon={head.icon}
-        verb={head.verbRunning}
-        rawName={head.rawName}
-        target={{ kind: "none" }}
-        status={{ kind: "running", label: t("desktop.item.toolRunning"), awaiting: false }}
-      />
+  let parts: PartView[] = [];
+  let status: ReactNode = null;
+  if (recorded?.kind === "assistant" && props.blocks !== null) {
+    const item = recorded;
+    // 끊기거나 실패한 답이면 그 item의 마지막 글 블록이 든 줄 아래에 조용한 상태 줄을 한 번 단다
+    const stopped = item.status === "failed" || item.status === "interrupted";
+    const lastIndex = item.message.content.findLastIndex(
+      (block) => block.type === "text" || block.type === "thinking",
     );
-  }
-  const last = streaming.parts.length - 1;
-  if (streaming.parts.length === 0) {
-    return (
-      <Message size="sm" streaming>
-        <span aria-hidden className="transcript-caret" />
-      </Message>
-    );
+    if (stopped && props.blocks.some((shape) => shape.index === lastIndex)) {
+      status = (
+        <p key="status" className="convo-note order-last" data-status={item.status}>
+          {item.status === "failed"
+            ? t("desktop.item.status.failed")
+            : t("desktop.item.status.interrupted")}
+        </p>
+      );
+    }
+    parts = props.blocks.flatMap((shape): PartView[] => {
+      const block = item.message.content[shape.index];
+      const key = item.partIds[shape.index] ?? `${props.id}:${shape.index}`;
+      if (block?.type === "thinking")
+        return [
+          { key, index: shape.index, kind: "thinking", recorded: block.thinking, live: false },
+        ];
+      if (block?.type === "text")
+        return [{ key, index: shape.index, kind: "text", recorded: block.text, live: false }];
+      return [];
+    });
+  } else if (recorded !== undefined && props.blocks !== null) {
+    return null;
+  } else {
+    // 진행 목록은 모든 대화의 것을 담는다. 열린 대화의 것만 그린다
+    if (streaming === undefined || streaming.threadId !== openThreadId) return null;
+    if (streaming.kind === "toolCall") {
+      if (hasCallRow) return null;
+      return (
+        <PreparingCall
+          name={streaming.toolName ?? ""}
+          args={streaming.parts.map((part) => part.text).join("")}
+        />
+      );
+    }
+    if (streaming.parts.length === 0) {
+      return (
+        <Message size="sm" streaming className="animate-none">
+          <span aria-hidden className="transcript-caret" />
+        </Message>
+      );
+    }
+    const last = streaming.parts.length - 1;
+    parts = streaming.parts.map((part, i) => ({
+      key: part.partId,
+      index: part.contentIndex,
+      kind: part.kind,
+      recorded: null,
+      live: i === last && !part.done,
+    }));
   }
   return (
     <>
-      {streaming.parts.map((part, i) => (
-        <LivePart
-          key={part.partId}
+      {status}
+      {parts.map((part) => (
+        <ReplyPart
+          key={part.key}
           id={props.id}
-          index={part.contentIndex}
+          index={part.index}
           kind={part.kind}
-          live={i === last && !part.done}
+          recorded={part.recorded}
+          live={part.live}
         />
       ))}
     </>
@@ -346,18 +395,21 @@ export function CustomRow(props: { readonly id: ItemId }): ReactNode {
   }
   return (
     <div className="grid min-w-0 gap-1">
-      <div
-        ref={box}
-        className="convo-clip"
-        data-size="card"
-        data-open={open || !overflow ? "true" : "false"}
-      >
-        <EntrySurface
-          entry={card}
-          doc={isJsonObject(item.message.details) ? item.message.details : {}}
-          dense
-        />
-      </div>
+      {/* "더 보기"·"접기"에서 높이가 이어진다(dzM2 시안 §4) */}
+      <HeightGlide>
+        <div
+          ref={box}
+          className="convo-clip"
+          data-size="card"
+          data-open={open || !overflow ? "true" : "false"}
+        >
+          <EntrySurface
+            entry={card}
+            doc={isJsonObject(item.message.details) ? item.message.details : {}}
+            dense
+          />
+        </div>
+      </HeightGlide>
       <div className="flex items-center gap-2">
         <span className="text-footnote text-text-tertiary">{provenanceOf(card)}</span>
         {overflow ? (

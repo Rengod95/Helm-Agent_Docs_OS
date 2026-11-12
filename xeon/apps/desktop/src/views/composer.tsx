@@ -88,6 +88,7 @@ import { runThreadCompact } from "./thread-compact.ts";
 import { QueuedInputs } from "./queued-inputs.tsx";
 import { useSetupNeeded } from "./setup-needed.ts";
 import { ProblemLine } from "./pages/shared/problem-state.tsx";
+import { Presence, SwapFade } from "../lib/motion-presets.tsx";
 
 // 입력창. 입력 중인 글자는 이 부품만 쓰므로 로컬 상태다(FS-04).
 // requestId는 같은 입력의 재시도가 같은 값을 쓰도록 실패했을 때 유지하고, 성공하면 새로 만든다(spec 4.13).
@@ -630,8 +631,13 @@ function ComposerFor(props: {
               : attachBlocked}
         </p>
       ) : null}
-      {attachNote === null ? null : <ProblemLine>{attachNote}</ProblemLine>}
-      {error === null ? null : <ProblemLine>{error}</ProblemLine>}
+      {/* 입력창에 붙는 줄은 올라와 가라앉고 내려가며 사라진다(dzM2 시안 §8). 배치는 그대로다 */}
+      <Presence show={attachNote !== null} variant="band" initial={false}>
+        {attachNote === null ? null : <ProblemLine>{attachNote}</ProblemLine>}
+      </Presence>
+      <Presence show={error !== null} variant="band" initial={false}>
+        {error === null ? null : <ProblemLine>{error}</ProblemLine>}
+      </Presence>
       <input
         ref={fileInput}
         type="file"
@@ -644,13 +650,15 @@ function ComposerFor(props: {
           detach(addFiles(picked), rethrow);
         }}
       />
-      {secretWarning === null ? null : (
-        <div data-composer-secret-warning="">
-          <ProblemLine tone="warning" role="note">
-            {secretWarning}
-          </ProblemLine>
-        </div>
-      )}
+      <Presence show={secretWarning !== null} variant="band" initial={false}>
+        {secretWarning === null ? null : (
+          <div data-composer-secret-warning="">
+            <ProblemLine tone="warning" role="note">
+              {secretWarning}
+            </ProblemLine>
+          </div>
+        )}
+      </Presence>
       {menuActive || menuIssues.length > 0 ? (
         <ul
           id="composer-slash-list"
@@ -714,7 +722,9 @@ function ComposerFor(props: {
           {t("desktop.composer.slash.unknown")} · /{unknownName}
         </ProblemLine>
       )}
-      {retrying === null ? null : <RetryStatus key={retrying.at} retry={retrying} />}
+      <Presence show={retrying !== null} variant="band" initial={false}>
+        {retrying === null ? null : <RetryStatus key={retrying.at} retry={retrying} />}
+      </Presence>
       <Textarea
         ref={textarea}
         aria-label={t("desktop.composer.input.label")}
@@ -877,12 +887,16 @@ export function StopButton(props: {
       aria-busy={props.aborting || undefined}
       disabled={props.blockedReason !== null || props.aborting}
       onClick={props.onStop}
+      // "멈추는 중"으로 바뀔 때 네모와 회전 표시가 교차 전환된다(나가는 것이 단추 안에 겹쳐 남는다)
+      className="relative"
     >
-      {props.aborting ? (
-        <LoaderCircle aria-hidden className="animate-spinner" />
-      ) : (
-        <span aria-hidden className="block size-stop-glyph rounded-2xs bg-current" />
-      )}
+      <SwapFade swapKey={props.aborting ? "stopping" : "idle"} inline className="inline-flex">
+        {props.aborting ? (
+          <LoaderCircle aria-hidden className="animate-spinner" />
+        ) : (
+          <span aria-hidden className="block size-stop-glyph rounded-2xs bg-current" />
+        )}
+      </SwapFade>
     </IconButton>
   );
 }
