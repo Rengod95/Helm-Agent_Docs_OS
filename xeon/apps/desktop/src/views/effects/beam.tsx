@@ -1,8 +1,15 @@
-// beam 부품(DP-107·125 [결정: 2026-11-12 사용자]). 모양과 움직임은 beam.css, 궤도는 beam-orbit.ts, 상태 판단은 순수 함수다.
-// `BeamScope`는 감싼 내용 안에서 대상(`target` 선택자, 예: 입력창 상자 `.composer-box`)을 찾아 그 자리·반경·모서리 모양을 재고 그 위에 고리를 겹친다
-// (대상 파일을 고치지 않고 바깥에서 붙인다). `BeamEdge`는 부모(예: 실행 중 칩)의 테두리에 같은 고리의 작은 변형을 붙인다.
-// 고리는 누르기를 막지 않고(pointer-events: none) 화면 낭독에서 빠진다.
+// beam 부품(DP-107·160 [결정: 2026-11-12 사용자]). 사용자가 고른 질감은 border-beam(MIT, libraries.dev)의 `line`이다:
+// 가는 무지개 선과 그 안쪽으로 부드럽게 번지는 빛이 숨 쉬듯 일렁인다(음성 녹음 이펙트). 사용자는 그것이 테두리를 따라 돌기를 원했다.
+// - 머리 줄 아래(대화를 불러오는 중): 곧은 한 변이라 border-beam `line`을 그대로 쓴다(`BeamLine`).
+// - 입력창·실행 중 칩: border-beam은 `line`을 아래 변에만 그리고(그레이디언트가 아래 변에 묶여 있다), 도는 `md`는 상자 가운데에서 본
+//   conic 마스크라 712×84 같은 긴 상자에서 속도가 크게 달라지고 빛이 옅게 퍼진다(시안 dzU §1.2 비교). 그래서 `line`의 빛깔·층·숨을 옮긴
+//   "물마루(crest)"를 둘레 위에서 같은 속도로 돌린다: 점 여럿이 잰 둘레를 간격을 두고 따라가며(beam-orbit.ts, transform 키프레임이라 합성기에서만 돈다)
+//   1px 고리 마스크 아래에서는 무지개 선이, 상자 안에서는 번짐이 된다. 모서리에서도 선이 테두리를 따라 휜다.
+// `BeamScope`는 감싼 내용 안에서 대상(`target`, 예: `.composer-box`)을 찾아 그 자리·반경·모서리 모양을 재고 그 위에 판을 겹친다.
+// `BeamEdge`는 부모(실행 중 칩)의 테두리에 선만 있는 작은 변형을 붙인다. 판은 누르기를 막지 않고 화면 낭독에서 빠진다.
+// 승인 대기(wait)는 빛이 멈추고 경고 색 고리로 고정된다. 움직임을 줄이면 정지한 은은한 고리다. 꺼져 있으면 애니메이션이 없다(쉬는 동안 프레임 0).
 
+import { BorderBeam } from "border-beam";
 import {
   useEffect,
   useLayoutEffect,
@@ -11,16 +18,10 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { isMotionReduced } from "../../lib/motion-presets.tsx";
-import { Aurora, type AuroraState } from "./aurora.tsx";
-import {
-  cornerExponentOf,
-  orbitKeyframesOf,
-  orbitPointsOf,
-  periodMsOf,
-  trailLagMsOf,
-} from "./beam-orbit.ts";
-import { auroraOn } from "./fx-config.ts";
+import { isMotionReduced, useMotionReduced } from "../../lib/motion-presets.tsx";
+import { cornerExponentOf, orbitKeyframesOf, orbitPointsOf, trailLagMsOf } from "./beam-orbit.ts";
+import { CREST_TUNE, LINE_TUNE, type CrestVariant } from "./fx-config.ts";
+import { useFxScheme } from "./fx-scheme.ts";
 
 export type BeamState = "off" | "run" | "wait";
 
@@ -33,6 +34,14 @@ export function beamStateOf(input: {
   return input.running ? "run" : "off";
 }
 
+/** 판에 보일 모양. run은 도는 빛, still은 움직임을 줄였을 때의 정지 고리, wait는 경고 고리 */
+export type BeamLook = "off" | "run" | "still" | "wait";
+
+export function beamLookOf(state: BeamState, reduced: boolean): BeamLook {
+  if (state === "run") return reduced ? "still" : "run";
+  return state;
+}
+
 type Box = {
   readonly left: number;
   readonly top: number;
@@ -41,7 +50,7 @@ type Box = {
   readonly radius: number;
   /** 모서리 곡선 지수(beam-orbit `cornerExponentOf`). 원은 2, squircle은 4 */
   readonly exponent: number;
-  /** 대상의 `corner-shape` 계산값. 고리 판이 같은 모양을 쓴다 */
+  /** 대상의 `corner-shape` 계산값. 판이 같은 모양을 쓴다 */
   readonly shape: string;
 };
 
@@ -72,61 +81,55 @@ function sameBox(a: Box | null, b: Box): boolean {
   );
 }
 
-/** 고리 크기 변형. field는 입력창(번짐 고리 + 알갱이 8개), chip은 칩(번짐 없음, 알갱이 4개) */
-type BeamVariant = "field" | "chip";
-
-const TRAIL: Record<BeamVariant, { readonly count: number; readonly gap: number }> = {
-  field: { count: 8, gap: 14 },
-  chip: { count: 5, gap: 7 },
-};
-
-/** 번짐 고리가 대상 상자 밖으로 나가는 거리(px). beam.css `.fx-beam-glow`의 inset과 같다 */
-const GLOW_OUTSET = 3;
+/** 점 하나가 둘레 위 기준점보다 앞(음수) 또는 뒤(양수)에 서는 거리(px). 물마루는 가운데가 기준점이라 앞뒤가 같다 */
+export function crestOffsetsOf(count: number, gap: number): readonly number[] {
+  const center = (count - 1) / 2;
+  return Array.from({ length: count }, (_, i) => (i - center) * gap);
+}
 
 /**
- * 빛 알갱이들을 잰 상자의 둘레로 돌린다. transform 키프레임이라 합성기에서만 돈다. 꼬리 알갱이는 같은 궤도를 간격(px)만큼 늦게 따라가
- * 모서리에서도 꼬리가 테두리를 따라 휜다(dzE 시안 §1). 상자가 바뀌면 키프레임을 다시 만들되 돌던 자리(진행 비율)를 잇는다.
- * 돌지 않을 때(off·wait)는 멈춰 두고, 창이 숨으면 멈춘다
+ * 점들을 잰 상자의 둘레로 돌린다. 상자가 바뀌면 키프레임을 다시 만들되 돌던 자리(진행 비율)를 잇는다.
+ * 돌지 않을 때(still·wait·off)는 만들지 않고, 창이 숨으면 멈춘다
  */
-function useOrbit(
+function useCrestOrbit(
   host: HTMLElement | null,
   box: Box | null,
-  state: BeamState,
-  variant: BeamVariant,
+  look: BeamLook,
+  variant: CrestVariant,
 ): void {
   const progress = useRef(0);
   useLayoutEffect(() => {
-    if (host === null || box === null || isMotionReduced()) return undefined;
-    const period = periodMsOf(getComputedStyle(host).getPropertyValue("--fx-beam-period"));
+    if (host === null || box === null || look !== "run") return undefined;
+    const tune = CREST_TUNE[variant];
+    const period = tune.periodMs;
+    const orbit = {
+      width: box.width,
+      height: box.height,
+      radius: box.radius,
+      exponent: box.exponent,
+    };
+    const perimeter = orbitPointsOf(orbit).at(-1)?.at ?? 0;
     const running: Animation[] = [];
-    const trail = TRAIL[variant];
-    for (const ring of host.querySelectorAll<HTMLElement>(".fx-beam-ring")) {
-      const out = ring.parentElement?.classList.contains("fx-beam-glow") === true ? GLOW_OUTSET : 0;
-      const orbit = {
-        width: box.width + out * 2,
-        height: box.height + out * 2,
-        radius: box.radius + out,
-        exponent: box.exponent,
-      };
-      const perimeter = orbitPointsOf(orbit).at(-1)?.at ?? 0;
-      for (const [index, spark] of [
-        ...ring.querySelectorAll<HTMLElement>(".fx-beam-spark"),
-      ].entries()) {
-        if (typeof spark.animate !== "function") continue;
+    for (const track of host.querySelectorAll<HTMLElement>(".fx-crest-track")) {
+      const gap = Number(track.dataset["gap"] ?? "0");
+      const dots = [...track.querySelectorAll<HTMLElement>(".fx-crest-dot")];
+      const offsets = crestOffsetsOf(dots.length, gap);
+      for (const [index, dot] of dots.entries()) {
+        if (typeof dot.animate !== "function") continue;
         const frames = orbitKeyframesOf(orbit, {
-          width: spark.offsetWidth,
-          height: spark.offsetHeight,
+          width: dot.offsetWidth,
+          height: dot.offsetHeight,
         });
-        const animation = spark.animate(frames, { duration: period, iterations: Infinity });
-        const lag = trailLagMsOf(index, trail.gap, perimeter, period);
+        const animation = dot.animate(frames, { duration: period, iterations: Infinity });
+        const lag = trailLagMsOf(1, offsets[index] ?? 0, perimeter, period);
         animation.currentTime = (((progress.current * period - lag) % period) + period) % period;
-        if (state !== "run" || document.hidden) animation.pause();
+        if (document.hidden) animation.pause();
         running.push(animation);
       }
     }
     const onVisibility = (): void => {
       for (const animation of running) {
-        if (document.hidden || state !== "run") animation.pause();
+        if (document.hidden) animation.pause();
         else animation.play();
       }
     };
@@ -137,110 +140,92 @@ function useOrbit(
       if (typeof time === "number") progress.current = (time % period) / period;
       for (const animation of running) animation.cancel();
     };
-  }, [host, box, state, variant]);
+  }, [host, box, look, variant]);
 }
 
-type SparkStyle = CSSProperties & { readonly "--i": number };
+type DotStyle = CSSProperties & { readonly "--i": number; readonly "--k": number };
 
-/** 꼬리 순번(0이 머리). beam.css가 빛깔과 투명도를 정한다 */
-function sparkStyleOf(index: number): SparkStyle {
-  return { "--i": index };
+/** 점 순번(0이 앞끝). --k는 가운데에서 0, 양 끝에서 1(빛깔·투명도·숨이 이 값을 따른다) */
+function dotStyleOf(index: number, count: number): DotStyle {
+  const center = (count - 1) / 2;
+  return { "--i": index, "--k": center === 0 ? 0 : Math.abs(index - center) / center };
 }
 
-function Sparks(props: { readonly count: number }): ReactNode {
-  return Array.from({ length: props.count }, (_, i) => (
-    <span key={i} className="fx-beam-spark" style={sparkStyleOf(i)} />
-  ));
+function Track(props: {
+  readonly layer: "line" | "bloom";
+  readonly count: number;
+  readonly gap: number;
+}): ReactNode {
+  return (
+    <div className="fx-crest-track" data-layer={props.layer} data-gap={props.gap}>
+      {Array.from({ length: props.count }, (_, i) => (
+        <span key={i} className="fx-crest-dot" style={dotStyleOf(i, props.count)}>
+          <span className="fx-crest-glow" />
+        </span>
+      ))}
+    </div>
+  );
 }
-type RingStyle = CSSProperties & {
+
+type PlateStyle = CSSProperties & {
   readonly "--fx-beam-radius": string;
-  readonly "--fx-beam-corner": string;
+  readonly "--fx-corner": string;
 };
 
-function ringStyleOf(box: Box, placed: boolean): RingStyle {
-  const shape = { "--fx-beam-radius": `${String(box.radius)}px`, "--fx-beam-corner": box.shape };
+function plateStyleOf(box: Box, placed: boolean): PlateStyle {
+  const shape = { "--fx-beam-radius": `${String(box.radius)}px`, "--fx-corner": box.shape };
   return placed
     ? { ...shape, left: box.left, top: box.top, width: box.width, height: box.height }
     : shape;
 }
 
-/** 잰 상자 위의 고리 판(번짐 고리 + 1px 고리, 그 안을 도는 알갱이들) */
-function BeamRing(props: {
+/** 잰 상자 위의 판: 번짐 층(상자 안에서만 보인다), 1px 선 층, 정지 고리 */
+function CrestPlate(props: {
   readonly box: Box;
-  readonly state: BeamState;
-  readonly variant: BeamVariant;
-  readonly mode: "orbit" | "pulse";
+  readonly look: BeamLook;
+  readonly variant: CrestVariant;
   /** 판의 자리를 box로 둔다(BeamScope). 아니면 CSS가 부모에 맞춘다(BeamEdge) */
   readonly placed: boolean;
 }): ReactNode {
   const [host, setHost] = useState<HTMLDivElement | null>(null);
-  useOrbit(props.mode === "pulse" ? null : host, props.box, props.state, props.variant);
-  const count = TRAIL[props.variant].count;
+  const scheme = useFxScheme();
+  useCrestOrbit(host, props.box, props.look, props.variant);
+  const tune = CREST_TUNE[props.variant];
   return (
     <div
       ref={setHost}
       aria-hidden
       className="fx-beam"
-      data-state={props.state}
-      data-mode={props.mode}
+      data-look={props.look}
       data-variant={props.variant}
-      style={ringStyleOf(props.box, props.placed)}
+      data-scheme={scheme}
+      style={plateStyleOf(props.box, props.placed)}
     >
-      {props.variant === "field" ? (
-        <div className="fx-beam-glow">
-          <div className="fx-beam-ring">
-            <Sparks count={count} />
-          </div>
-        </div>
+      {props.look === "run" ? (
+        <>
+          {tune.bloom.count > 0 ? (
+            <Track layer="bloom" count={tune.bloom.count} gap={tune.bloom.gap} />
+          ) : null}
+          <Track layer="line" count={tune.line.count} gap={tune.line.gap} />
+        </>
       ) : null}
-      <div className="fx-beam-ring">
-        <Sparks count={count} />
-      </div>
+      <span className="fx-beam-still" />
     </div>
   );
 }
 
-/** 턴이 끝난 순간(run → off) 한 번 반짝이는 동안 "done"을 낸다. 오로라의 끝남 표시다 */
-export function useDoneFlash<T extends string>(
-  state: T,
-  running: T,
-  idle: T,
-  ms = 900,
-): T | "done" {
-  const [prev, setPrev] = useState(state);
-  const [flash, setFlash] = useState(false);
-  // 앞 상태와 견주어 그리는 중에 정한다(효과 안에서 상태를 바꾸지 않는다)
-  if (prev !== state) {
-    setPrev(state);
-    setFlash(prev === running && state === idle && !isMotionReduced());
-  }
-  useEffect(() => {
-    if (!flash) return undefined;
-    const timer = setTimeout(() => {
-      setFlash(false);
-    }, ms);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [flash, ms]);
-  return flash ? "done" : state;
-}
-
-/** 테두리를 도는 빛. `mode="pulse"`는 제자리 맥동이다. `aurora`면 대상 바깥에 오로라 띠를 함께 둔다(dzE 시안 §2.3) */
+/** 테두리를 도는 빛(입력창). 대상을 재서 그 위에 판을 겹친다 */
 export function BeamScope(props: {
   readonly state: BeamState;
-  /** 고리를 겹칠 대상. 없으면 감싼 판 자체 */
+  /** 빛을 겹칠 대상. 없으면 감싼 판 자체 */
   readonly target?: string;
-  readonly mode?: "orbit" | "pulse";
-  readonly aurora?: boolean;
   readonly className?: string;
   readonly children: ReactNode;
 }): ReactNode {
   const scope = useRef<HTMLDivElement | null>(null);
   const [box, setBox] = useState<Box | null>(null);
+  const reduced = useMotionReduced();
   const target = props.target;
-  const aurora = props.aurora === true && auroraOn("composer");
-  const auroraState: AuroraState = useDoneFlash(props.state, "run", "off");
   useLayoutEffect(() => {
     const el = scope.current;
     if (el === null || typeof ResizeObserver === "undefined") return undefined;
@@ -277,36 +262,23 @@ export function BeamScope(props: {
     };
   }, [target]);
   return (
-    <div
-      ref={scope}
-      className={["relative", aurora ? "isolate" : "", props.className ?? ""]
-        .filter((part) => part !== "")
-        .join(" ")}
-    >
-      {box === null || !aurora ? null : (
-        <Aurora state={auroraState} site="composer" style={ringStyleOf(box, true)} />
-      )}
+    <div ref={scope} className={["relative", props.className ?? ""].join(" ").trim()}>
       {props.children}
       {box === null ? null : (
-        <BeamRing
-          box={box}
-          state={props.state}
-          variant="field"
-          mode={props.mode ?? "orbit"}
-          placed
-        />
+        <CrestPlate box={box} look={beamLookOf(props.state, reduced)} variant="field" placed />
       )}
     </div>
   );
 }
 
 /**
- * 부모 요소의 테두리 위를 도는 작은 beam(실행 중 칩, dzE 시안 §3). 부모는 `position: relative`이고 1px 테두리를 가진다.
+ * 부모 요소의 테두리 위를 도는 작은 빛(실행 중 칩, dzE 시안 §3). 부모는 `position: relative`이고 1px 테두리를 가진다.
  * 판은 CSS가 부모 테두리 위(inset -1px)에 두고, 여기서는 크기와 반경만 잰다(칩의 경과 초가 바뀌면 폭이 바뀐다)
  */
 export function BeamEdge(props: { readonly state: BeamState }): ReactNode {
   const probe = useRef<HTMLSpanElement | null>(null);
   const [box, setBox] = useState<Box | null>(null);
+  const reduced = useMotionReduced();
   useLayoutEffect(() => {
     const el = probe.current;
     const parent = el?.parentElement ?? null;
@@ -332,17 +304,67 @@ export function BeamEdge(props: { readonly state: BeamState }): ReactNode {
   return (
     <span ref={probe} aria-hidden className="fx-beam-edge">
       {box === null ? null : (
-        <BeamRing box={box} state={props.state} variant="chip" mode="orbit" placed={false} />
+        <CrestPlate
+          box={box}
+          look={beamLookOf(props.state, reduced)}
+          variant="chip"
+          placed={false}
+        />
       )}
     </span>
   );
 }
 
-/** 아래 변을 흐르는 선. `position: relative`인 부모의 아래 끝에 붙는다 */
+/**
+ * 아래 변을 흐르는 선(대화를 불러오는 동안 머리 줄 아래). border-beam `line` 그대로다. `position: relative`인 부모를 덮고
+ * 아래 변에서 위로 번진다. 꺼져 있으면 border-beam이 애니메이션을 걸지 않는다
+ */
 export function BeamLine(props: { readonly active: boolean }): ReactNode {
+  const scheme = useFxScheme();
+  const reduced = useMotionReduced();
+  const look: BeamLook = props.active ? (reduced ? "still" : "run") : "off";
+  const tune = LINE_TUNE[scheme];
   return (
-    <div aria-hidden className="fx-line" data-state={props.active ? "run" : "off"}>
-      <span className="fx-line-streak" />
+    <div aria-hidden className="fx-line" data-look={look}>
+      <BorderBeam
+        size="line"
+        active={look === "run"}
+        theme={scheme}
+        colorVariant="colorful"
+        duration={tune.duration}
+        strength={tune.strength}
+        borderRadius={0}
+        className="fx-line-plate"
+      >
+        <div className="fx-line-fill" />
+      </BorderBeam>
+      <span className="fx-beam-still" />
     </div>
   );
+}
+
+/** 턴이 끝난 순간(run → off) 한 번 반짝이는 동안 "done"을 낸다. 지금 띠 오로라의 끝남 표시다 */
+export function useDoneFlash<T extends string>(
+  state: T,
+  running: T,
+  idle: T,
+  ms = 900,
+): T | "done" {
+  const [prev, setPrev] = useState(state);
+  const [flash, setFlash] = useState(false);
+  // 앞 상태와 견주어 그리는 중에 정한다(효과 안에서 상태를 바꾸지 않는다)
+  if (prev !== state) {
+    setPrev(state);
+    setFlash(prev === running && state === idle && !isMotionReduced());
+  }
+  useEffect(() => {
+    if (!flash) return undefined;
+    const timer = setTimeout(() => {
+      setFlash(false);
+    }, ms);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [flash, ms]);
+  return flash ? "done" : state;
 }

@@ -1,7 +1,7 @@
-/* beam(DP-107 [결정: 2026-11-11 사용자]). border-beam(MIT)의 원리를 우리 값으로 직접 쓴 것이다: 고리는 마스크(content-box exclude)로
-   테두리만 남기고, 그 안의 빛 덩어리가 둘레를 같은 속도로 돈다(transform 키프레임, beam-orbit.ts. conic-gradient는 긴 직사각형에서 속도가 고르지 않다).
-   색은 로고의 크리스탈(보라 h288 → 파랑 h262 → 청록 h210). 색 트랙(dzC) 값이 병합되면 이 변수만 바꾼다.
-   켤 때 280ms(들어옴 곡선), 끌 때 180ms(나감 곡선). 움직임을 줄이면 정지한 은은한 고리와 선이다. styles.css가 가져온다(Tauri·Electron CSP가 인라인 <style>을 막는다). */
+/* beam(DP-107·160 [결정: 2026-11-12 사용자]). 질감은 border-beam(MIT, libraries.dev) `line`의 것이다: 가는 무지개 선, 그 안쪽으로 번지는 빛,
+   음성 녹음처럼 일렁이는 숨. 입력창·칩에서는 그 질감의 "물마루"가 둘레를 같은 속도로 돈다(beam.tsx). 머리 줄 아래 선은 border-beam `line` 그대로다.
+   빛깔과 그 차례(왼쪽부터 청록·보라·초록·파랑·[분홍+흰 심]·남색·하늘·주황·자홍)는 border-beam `line`의 colorful과 같다.
+   켤 때 600ms(border-beam과 같은 길이)에 들어온다. 승인 대기·움직임 줄이기는 정지 고리다. styles.css가 가져온다. */
 
 :root {
   --fx-crystal-a: light-dark(oklch(0.56 0.2 288), oklch(0.72 0.17 288));
@@ -9,90 +9,229 @@
   --fx-crystal-c: light-dark(oklch(0.62 0.13 210), oklch(0.8 0.12 210));
   /* 승인 대기 고리. 라이트의 warning.graphic(L 0.91)은 흰 바탕에서 안 보여 라이트는 warning.text(L 0.52)를 쓴다 */
   --fx-beam-wait: light-dark(var(--cs-color-warning-text), var(--cs-color-warning-graphic));
-  --fx-beam-strength: 0.9;
-  /* 세기 단계(dzM2 시안 §11): 0은 dzM의 가는 고리(번짐 4px·0.55, 띠 높이 20), 1은 기본(세기 ×1.1, 번짐 고리 6px·흐림 8px·0.7, 띠 높이 24).
-     border-beam처럼 빛 뒤로 은은한 번짐이 따라온다. 이 값 하나로 두 안을 바꾼다 */
-  --fx-beam-boost: 1;
-  --fx-beam-period: 3.6s;
-  --fx-beam-size: 160px;
-  --fx-line-period: 1.4s;
-}
-:root[data-theme="light"] {
-  --fx-beam-strength: 0.8;
-}
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
-    --fx-beam-strength: 0.8;
-  }
+  /* 물마루 빛깔(border-beam line colorful) */
+  --fx-crest-teal: rgb(30 185 170);
+  --fx-crest-purple: rgb(180 40 240);
+  --fx-crest-green: rgb(50 200 80);
+  --fx-crest-blue: rgb(40 140 255);
+  --fx-crest-pink: rgb(255 50 100);
+  --fx-crest-core: rgb(255 236 244);
+  --fx-crest-indigo: rgb(100 70 255);
+  --fx-crest-cyan: rgb(40 180 220);
+  --fx-crest-orange: rgb(255 160 30);
+  --fx-crest-magenta: rgb(240 50 180);
+  /* 세기: 선, 번짐. 라이트는 흰 바탕에서 흰 심이 사라져 심을 분홍으로 두고 번짐을 조금 낮춘다(색이 탁해지지 않게) */
+  --fx-crest-line: 1;
+  --fx-crest-bloom: 0.5;
 }
 
-/* 고리: 대상(입력창 상자) 위에 겹친 판. 위치·크기·반경·모서리 모양은 BeamScope가 잰 값이다.
-   모서리 모양(--fx-beam-corner)을 대상과 같게 둔다: caustic이 Chromium에서 rounded-*에 squircle을 주는데 고리가 원형 호면 모서리에서 어긋난다(dzE 시안 §1) */
+/* 판: 대상(입력창 상자, 칩) 위에 겹친다. 위치·크기·반경은 beam.tsx가 잰 값이고 모서리 모양(--fx-corner)은 대상과 같다.
+   번짐이 상자 밖으로 새지 않게 판에서 자른다(4번 이미지처럼 빛은 안쪽에만 번진다) */
 .fx-beam {
   position: absolute;
   z-index: 1;
+  overflow: hidden;
   pointer-events: none;
   border-radius: var(--fx-beam-radius, 16px);
-  corner-shape: var(--fx-beam-corner, round);
+  corner-shape: var(--fx-corner, round);
+}
+.fx-beam[data-scheme="light"] {
+  --fx-crest-core: var(--fx-crest-pink);
+  --fx-crest-bloom: 0.42;
+}
+.fx-crest-track {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  corner-shape: var(--fx-corner, round);
+  animation: fx-crest-in 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* 선 층: 1px 고리 마스크 아래에서만 점이 보여 테두리 위의 가는 선이 된다 */
+.fx-crest-track[data-layer="line"] {
+  padding: 1px;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  opacity: var(--fx-crest-line);
+}
+/* 번짐 층: 점 사이가 갈라져 보이지 않게 층째 6px 흐린다(점들이 합성 레이어라 GPU가 흐린다) */
+.fx-crest-track[data-layer="bloom"] {
+  opacity: var(--fx-crest-bloom);
+  filter: blur(6px) saturate(0.9);
+}
+@keyframes fx-crest-in {
+  from {
+    opacity: 0;
+  }
+}
+/* 점: 가운데가 둘레 위에 오고 진행 방향으로 돈다(가로가 둘레를 따라, 세로가 안팎으로) */
+.fx-crest-dot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 20px;
+  height: 6px;
+  transform-origin: 50% 50%;
+  opacity: calc(1 - var(--k, 0) * 0.75);
+}
+.fx-crest-track[data-layer="bloom"] .fx-crest-dot {
+  width: 44px;
+  height: 52px;
+  opacity: calc(1 - var(--k, 0) * 0.6);
+}
+.fx-crest-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--fx-dot-tint, var(--fx-crest-pink)), transparent);
+}
+/* 숨: 번짐 점마다 다른 주기(2.3·3.1·4.1초)로 세로가 0.7~1.3배로 일렁인다. transform만이라 합성기에서 돈다 */
+.fx-crest-track[data-layer="bloom"] .fx-crest-glow {
+  animation: fx-crest-breathe 2.3s ease-in-out infinite;
+}
+.fx-crest-track[data-layer="bloom"] .fx-crest-dot:nth-child(3n + 2) .fx-crest-glow {
+  animation-duration: 3.1s;
+  animation-delay: -0.8s;
+}
+.fx-crest-track[data-layer="bloom"] .fx-crest-dot:nth-child(3n) .fx-crest-glow {
+  animation-duration: 4.1s;
+  animation-delay: -1.9s;
+}
+@keyframes fx-crest-breathe {
+  0%,
+  100% {
+    transform: scaleY(0.75);
+  }
+  30% {
+    transform: scaleY(1.25);
+  }
+  60% {
+    transform: scaleY(0.9);
+  }
+  80% {
+    transform: scaleY(1.3);
+  }
+}
+/* 빛깔 차례: 번짐 9점 */
+.fx-crest-track[data-layer="bloom"] .fx-crest-dot:nth-child(1) {
+  --fx-dot-tint: var(--fx-crest-teal);
+}
+.fx-crest-track[data-layer="bloom"] .fx-crest-dot:nth-child(2) {
+  --fx-dot-tint: var(--fx-crest-purple);
+}
+.fx-crest-track[data-layer="bloom"] .fx-crest-dot:nth-child(3) {
+  --fx-dot-tint: var(--fx-crest-green);
+}
+.fx-crest-track[data-layer="bloom"] .fx-crest-dot:nth-child(4) {
+  --fx-dot-tint: var(--fx-crest-blue);
+}
+.fx-crest-track[data-layer="bloom"] .fx-crest-dot:nth-child(5) {
+  --fx-dot-tint: var(--fx-crest-core);
+}
+.fx-crest-track[data-layer="bloom"] .fx-crest-dot:nth-child(6) {
+  --fx-dot-tint: var(--fx-crest-indigo);
+}
+.fx-crest-track[data-layer="bloom"] .fx-crest-dot:nth-child(7) {
+  --fx-dot-tint: var(--fx-crest-cyan);
+}
+.fx-crest-track[data-layer="bloom"] .fx-crest-dot:nth-child(8) {
+  --fx-dot-tint: var(--fx-crest-orange);
+}
+.fx-crest-track[data-layer="bloom"] .fx-crest-dot:nth-child(9) {
+  --fx-dot-tint: var(--fx-crest-magenta);
+}
+/* 빛깔 차례: 선 15점(칩은 앞 7점의 차례를 가운데로 모은다) */
+.fx-crest-track[data-layer="line"] .fx-crest-dot:nth-child(-n + 2) {
+  --fx-dot-tint: var(--fx-crest-teal);
+}
+.fx-crest-track[data-layer="line"] .fx-crest-dot:nth-child(3) {
+  --fx-dot-tint: var(--fx-crest-purple);
+}
+.fx-crest-track[data-layer="line"] .fx-crest-dot:nth-child(4),
+.fx-crest-track[data-layer="line"] .fx-crest-dot:nth-child(5) {
+  --fx-dot-tint: var(--fx-crest-green);
+}
+.fx-crest-track[data-layer="line"] .fx-crest-dot:nth-child(6) {
+  --fx-dot-tint: var(--fx-crest-blue);
+}
+.fx-crest-track[data-layer="line"] .fx-crest-dot:nth-child(7) {
+  --fx-dot-tint: var(--fx-crest-pink);
+}
+.fx-crest-track[data-layer="line"] .fx-crest-dot:nth-child(8) {
+  --fx-dot-tint: var(--fx-crest-core);
+}
+.fx-crest-track[data-layer="line"] .fx-crest-dot:nth-child(9) {
+  --fx-dot-tint: var(--fx-crest-pink);
+}
+.fx-crest-track[data-layer="line"] .fx-crest-dot:nth-child(10) {
+  --fx-dot-tint: var(--fx-crest-indigo);
+}
+.fx-crest-track[data-layer="line"] .fx-crest-dot:nth-child(11),
+.fx-crest-track[data-layer="line"] .fx-crest-dot:nth-child(12) {
+  --fx-dot-tint: var(--fx-crest-cyan);
+}
+.fx-crest-track[data-layer="line"] .fx-crest-dot:nth-child(13) {
+  --fx-dot-tint: var(--fx-crest-orange);
+}
+.fx-crest-track[data-layer="line"] .fx-crest-dot:nth-child(n + 14) {
+  --fx-dot-tint: var(--fx-crest-magenta);
+}
+.fx-beam[data-variant="chip"] .fx-crest-track[data-layer="line"] .fx-crest-dot:nth-child(1) {
+  --fx-dot-tint: var(--fx-crest-teal);
+}
+.fx-beam[data-variant="chip"] .fx-crest-track[data-layer="line"] .fx-crest-dot:nth-child(2) {
+  --fx-dot-tint: var(--fx-crest-blue);
+}
+.fx-beam[data-variant="chip"] .fx-crest-track[data-layer="line"] .fx-crest-dot:nth-child(3) {
+  --fx-dot-tint: var(--fx-crest-pink);
+}
+.fx-beam[data-variant="chip"] .fx-crest-track[data-layer="line"] .fx-crest-dot:nth-child(4) {
+  --fx-dot-tint: var(--fx-crest-core);
+}
+.fx-beam[data-variant="chip"] .fx-crest-track[data-layer="line"] .fx-crest-dot:nth-child(5) {
+  --fx-dot-tint: var(--fx-crest-indigo);
+}
+.fx-beam[data-variant="chip"] .fx-crest-track[data-layer="line"] .fx-crest-dot:nth-child(6) {
+  --fx-dot-tint: var(--fx-crest-cyan);
+}
+.fx-beam[data-variant="chip"] .fx-crest-track[data-layer="line"] .fx-crest-dot:nth-child(7) {
+  --fx-dot-tint: var(--fx-crest-magenta);
+}
+.fx-beam[data-variant="chip"] .fx-crest-dot {
+  width: 12px;
+  height: 4px;
+}
+
+/* 정지 고리: 승인 대기는 경고 색, 움직임 줄이기는 크리스탈 색이 은은하게 머문다 */
+.fx-beam-still {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  corner-shape: var(--fx-corner, round);
+  pointer-events: none;
   opacity: 0;
   visibility: hidden;
   transition:
     opacity 180ms cubic-bezier(0.4, 0, 1, 1),
     visibility 0s linear 180ms;
 }
-.fx-beam:is([data-state="run"], [data-state="wait"]) {
-  opacity: min(1, calc(var(--fx-beam-strength) * (1 + 0.1 * var(--fx-beam-boost))));
+.fx-beam[data-look="wait"] .fx-beam-still {
+  box-shadow:
+    inset 0 0 0 1px var(--fx-beam-wait),
+    inset 0 0 6px 0 color-mix(in oklch, var(--fx-beam-wait) 35%, transparent);
+  opacity: 0.85;
   visibility: visible;
   transition:
     opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
     visibility 0s;
 }
-.fx-beam-ring {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  border-radius: inherit;
-  corner-shape: var(--fx-beam-corner, round);
-  padding: 1px;
-  mask:
-    linear-gradient(#000 0 0) content-box exclude,
-    linear-gradient(#000 0 0);
-  background-color: transparent;
-  transition: background-color 280ms cubic-bezier(0.2, 0, 0, 1);
+.fx-beam[data-look="still"] .fx-beam-still {
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--fx-crystal-b) 70%, transparent);
+  opacity: 0.6;
+  visibility: visible;
 }
-/* 바깥쪽 번짐: 6px 고리를 흐려 테두리 밖으로 빛이 스민다. 흐림은 마스크 뒤에 걸리도록 감싼 판에 둔다. 안쪽 글 영역(여백 12px)에는 닿지 않는다 */
-.fx-beam-glow {
-  position: absolute;
-  inset: -3px;
-  border-radius: calc(var(--fx-beam-radius, 16px) + 3px);
-  corner-shape: var(--fx-beam-corner, round);
-  filter: blur(calc(4px + 4px * var(--fx-beam-boost)));
-  opacity: calc(0.55 + 0.15 * var(--fx-beam-boost));
-}
-.fx-beam-glow > .fx-beam-ring {
-  padding: calc(4px + 2px * var(--fx-beam-boost));
-}
-/* 빛 알갱이: 둥근 빛 하나가 둘레 위를 가고(beam.tsx가 잰 상자로 만든 transform 키프레임, 고정점은 가운데), 꼬리 알갱이(--i = 1..)가
-   같은 궤도를 14px 간격으로 늦게 따라간다. 곧은 띠 하나와 달리 모서리에서 꼬리가 테두리를 따라 휜다.
-   머리가 청록(굴절), 꼬리로 갈수록 보라로 바뀌며 옅어진다 */
-.fx-beam-spark {
-  --fx-spark-tint: color-mix(
-    in oklch,
-    var(--fx-crystal-a) calc(var(--i, 0) * 15%),
-    var(--fx-crystal-c)
-  );
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 28px;
-  height: 22px;
-  transform-origin: 50% 50%;
-  border-radius: 50%;
-  background: radial-gradient(closest-side, var(--fx-spark-tint), transparent);
-  opacity: calc(1 - var(--i, 0) * 0.11);
-  transition: opacity 180ms cubic-bezier(0.4, 0, 1, 1);
-}
-/* 칩 변형(실행 중 칩, dzE 시안 §3): 번짐 없음, 작은 알갱이 다섯(7px 간격), 한 바퀴 1.8초. 판은 칩 테두리 위(inset -1px)에 겹친다 */
+
+/* 칩 변형(실행 중 칩, dzE 시안 §3): 판은 칩 테두리 위(inset -1px)에 겹친다 */
 .fx-beam-edge {
   position: absolute;
   inset: -1px;
@@ -100,141 +239,40 @@
   border-radius: inherit;
 }
 .fx-beam[data-variant="chip"] {
-  --fx-beam-period: 1.8s;
   inset: 0;
 }
-.fx-beam[data-variant="chip"] .fx-beam-spark {
-  width: 16px;
-  height: 12px;
-  opacity: calc(1 - var(--i, 0) * 0.17);
-}
 
-/* 승인 대기: 빛이 멈추고 고리 전체가 경고 색으로 고정된다 */
-.fx-beam[data-state="wait"] .fx-beam-spark {
-  opacity: 0;
-}
-.fx-beam[data-state="wait"] .fx-beam-ring {
-  background-color: var(--fx-beam-wait);
-}
-.fx-beam[data-state="wait"] {
-  opacity: calc(var(--fx-beam-strength) * 0.75);
-}
-.fx-beam[data-state="wait"] .fx-beam-glow {
-  opacity: 0.35;
-}
-
-/* 제자리 맥동(예비 변형): 고리 전체가 크리스탈 색으로 천천히 숨 쉰다 */
-.fx-beam[data-mode="pulse"] .fx-beam-spark {
-  display: none;
-}
-.fx-beam[data-mode="pulse"][data-state="run"] .fx-beam-ring {
-  background-image: linear-gradient(
-    120deg,
-    var(--fx-crystal-a),
-    var(--fx-crystal-b) 50%,
-    var(--fx-crystal-c)
-  );
-  animation: fx-beam-pulse 2.4s cubic-bezier(0.37, 0, 0.63, 1) infinite;
-}
-@keyframes fx-beam-pulse {
-  0%,
-  100% {
-    opacity: 0.4;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-/* 아래 변을 흐르는 선: 대화를 불러오는 동안 머리 줄 아래 */
+/* 머리 줄 아래 선(border-beam line): 머리 줄을 덮고 아래 변에서 위로 번진다. 움직임을 줄이면 가운데가 밝은 정지 선이다 */
 .fx-line {
   position: absolute;
-  inset-inline: 0;
-  bottom: -1px;
+  inset: 0;
   z-index: 2;
-  height: 1px;
-  /* 옆으로만 자르고 위아래는 열어 둔다: 빛 줄기의 번짐(그림자)이 1px 선 밖으로 보인다 */
-  overflow-x: clip;
-  overflow-y: visible;
   pointer-events: none;
-  opacity: 0;
-  visibility: hidden;
-  transition:
-    opacity 180ms cubic-bezier(0.4, 0, 1, 1),
-    visibility 0s linear 180ms;
 }
-.fx-line[data-state="run"] {
-  opacity: var(--fx-beam-strength);
+.fx-line-plate,
+.fx-line-fill {
+  width: 100%;
+  height: 100%;
+}
+.fx-line .fx-beam-still {
+  inset: auto 0 0;
+  height: 1px;
+  border-radius: 0;
+  background: linear-gradient(90deg, transparent, var(--fx-crystal-b), transparent);
+}
+.fx-line[data-look="still"] .fx-beam-still {
+  opacity: 0.6;
   visibility: visible;
-  transition:
-    opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
-    visibility 0s;
-}
-.fx-line-streak {
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: 0;
-  width: 40%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--fx-crystal-a) 30%,
-    var(--fx-crystal-b) 55%,
-    var(--fx-crystal-c) 80%,
-    transparent
-  );
-  box-shadow: 0 0 6px 0.5px color-mix(in oklch, var(--fx-crystal-b) 55%, transparent);
-  transform: translateX(-100%);
-  animation: fx-line-flow var(--fx-line-period) cubic-bezier(0.45, 0, 0.55, 1) infinite;
-}
-.fx-line[data-state="off"] .fx-line-streak {
-  animation-play-state: paused;
-}
-@keyframes fx-line-flow {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(250%);
-  }
 }
 
-/* 움직임 줄이기: 돌거나 흐르지 않고 정지한 은은한 빛만 남는다 */
-@media (prefers-reduced-motion: reduce) {
-  .fx-beam-spark,
-  .fx-line-streak {
-    display: none;
-  }
-  .fx-beam[data-state="run"] .fx-beam-ring,
-  .fx-line[data-state="run"] {
-    background-image: linear-gradient(
-      90deg,
-      var(--fx-crystal-a),
-      var(--fx-crystal-b) 50%,
-      var(--fx-crystal-c)
-    );
-    animation: none;
-  }
-  .fx-beam[data-state="run"],
-  .fx-line[data-state="run"] {
-    opacity: 0.45;
-  }
-}
-:root[data-motion="reduce"] :is(.fx-beam-spark, .fx-line-streak) {
-  display: none;
-}
-:root[data-motion="reduce"]
-  :is(.fx-beam[data-state="run"] .fx-beam-ring, .fx-line[data-state="run"]) {
-  background-image: linear-gradient(
-    90deg,
-    var(--fx-crystal-a),
-    var(--fx-crystal-b) 50%,
-    var(--fx-crystal-c)
-  );
-  animation: none;
-}
-:root[data-motion="reduce"] :is(.fx-beam[data-state="run"], .fx-line[data-state="run"]) {
-  opacity: 0.45;
+/* 화면 전체 물결(wave-overlay.ts, DP-161): 창 전체를 덮고 누르기를 막지 않는다. 토스트·대화창보다 위, 끝나면 바로 지운다 */
+.fx-wave {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
 }
 
 /* "도는 중" 점(live-dot.tsx): 14px 칸 가운데 6px 점. 크리스탈 빛깔(청록 → 보라)이 1.6초에 숨 쉰다(크기 0.75 ↔ 1, transform·opacity만).

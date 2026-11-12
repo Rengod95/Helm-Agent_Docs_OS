@@ -325,7 +325,7 @@ const scene: { set: ((next: Partial<Scene>) => void) | null } = { set: null };
 
 function Composerish(props: { readonly beam: BeamState; readonly height: number }): ReactNode {
   return (
-    <BeamScope target=".composer-box" state={props.beam} aurora className="flex flex-none flex-col">
+    <BeamScope target=".composer-box" state={props.beam} className="flex flex-none flex-col">
       <div className="mx-auto w-full max-w-184 px-3 pb-3">
         {/* 실제 입력창(composer.tsx)과 같은 반경 클래스: Chromium에서 caustic이 squircle을 준다 */}
         <div

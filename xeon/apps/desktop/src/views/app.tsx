@@ -22,6 +22,7 @@ import { useShellActions, type Area } from "../state/shell/index.ts";
 import { PaletteRestartDialog } from "./restart-confirm-dialog.tsx";
 import { nextApprovalId } from "./approval-focus-model.ts";
 import { useShowChat } from "./plugin/plugin-view.tsx";
+import { WaveCue } from "./effects/wave-cue.tsx";
 import { LiveAnnouncer } from "./live-announcer.tsx";
 import { FocusReturn, focusApprovalCard } from "./focus-return.tsx";
 import { stepThreadId } from "./thread-step-model.ts";
@@ -320,6 +321,8 @@ export function App(props: AppProps): ReactNode {
       <ModelDenialSync />
       <FocusReturn />
       <LiveAnnouncer />
+      {/* 첫 진입과 작업 완료에 화면 전체 물결(DP-161) */}
+      <WaveCue />
       {/* 셸 다리는 대화 열기와 "새 대화"를 App의 함수로 받는다. 대화 이동 문맥은 Shell 안에만 있어 여기서 준다 */}
       <ShellBridges
         onNewThread={() => {
