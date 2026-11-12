@@ -1,6 +1,11 @@
 import { err, ok } from "@fresnel/contracts";
 import type {
+  ProxyExample,
   RemoteAdapter,
+  RemoteConfig,
+  RemotePreflight,
+  TailscaleAction,
+  TailscaleInfo,
   RemoteDevice,
   RemoteError,
   RemoteStatus,
@@ -24,7 +29,51 @@ type RemoteCall =
   | { readonly method: "setEnabled"; readonly enabled: boolean }
   | { readonly method: "pair" }
   | { readonly method: "devices" }
-  | { readonly method: "revoke"; readonly target: RevokeTarget };
+  | { readonly method: "revoke"; readonly target: RevokeTarget }
+  | { readonly method: "preflight" }
+  | { readonly method: "tailscale"; readonly action: TailscaleAction }
+  | { readonly method: "config"; readonly write: boolean }
+  | { readonly method: "proxyExample"; readonly kind: "caddy" | "nginx" };
+
+/** 시험 사전 점검: 모두 통과 */
+const FAKE_PREFLIGHT: RemotePreflight = {
+  ready: true,
+  items: [
+    "service_running",
+    "gateway_running",
+    "listen_port",
+    "allowed_hosts",
+    "certificate",
+    "autostart",
+    "reachable_addresses",
+  ].map((id) => ({ id, status: "pass", cause: null, fix: null, autoFix: null, detail: {} })),
+};
+
+/** 시험 Tailscale: 설치되지 않음 */
+const FAKE_TAILSCALE: TailscaleInfo = {
+  state: "not_installed",
+  authUrl: null,
+  magicDnsName: null,
+  ips: [],
+  httpsEnabled: null,
+  serve: { kind: "unavailable", url: null },
+  consentUrl: null,
+  failure: null,
+};
+
+/** 시험 게이트웨이 설정 */
+const FAKE_CONFIG: RemoteConfig = {
+  settings: {
+    listen: "127.0.0.1:0",
+    listenTls: "0.0.0.0:0",
+    hosts: [],
+    tlsCert: null,
+    tlsKey: null,
+  },
+  issues: [],
+  written: false,
+  restartNeeded: false,
+};
 
 export interface FakeRemoteOptions {
   /** 현재 시각(epoch 밀리초). 페어링 만료 시각을 이것으로 정한다. 기본은 `FAKE_NOW`다 */
@@ -35,6 +84,10 @@ export interface FakeRemoteOptions {
   readonly status?: RemoteStatus;
   /** 처음 기기 목록. 기본은 빈 목록이다 */
   readonly devices?: readonly RemoteDevice[];
+  /** 사전 점검 답. 기본은 모두 통과다 */
+  readonly preflight?: RemotePreflight;
+  /** Tailscale 답. 기본은 설치되지 않음이다 */
+  readonly tailscale?: TailscaleInfo;
 }
 
 export interface FakeRemoteAdapter extends RemoteAdapter {
@@ -137,7 +190,12 @@ export function createFakeRemoteAdapter(options: FakeRemoteOptions = {}): FakeRe
       if (failed !== null) return Promise.resolve(err(failed));
       // 원격 접속이 켜져 있고 실행 중일 때만 코드를 낸다
       if (!current.enabled || current.state !== "running") return Promise.resolve(err(REMOTE_OFF));
-      return Promise.resolve(ok({ code: nextCode(), expiresAt: now() + FAKE_PAIRING_TTL_MS }));
+      const code = nextCode();
+      const links = current.hosts.map((host) => ({
+        kind: "lan_ip" as const,
+        url: `https://${host}:${String(current.tlsPort ?? 443)}/login#code=${code}`,
+      }));
+      return Promise.resolve(ok({ code, expiresAt: now() + FAKE_PAIRING_TTL_MS, links }));
     },
     devices() {
       const failed = enter({ method: "devices" });
@@ -155,6 +213,47 @@ export function createFakeRemoteAdapter(options: FakeRemoteOptions = {}): FakeRe
       const revoked = devices.length - kept.length;
       devices = kept;
       return Promise.resolve(ok({ revoked }));
+    },
+    preflight() {
+      const failed = enter({ method: "preflight" });
+      return Promise.resolve(
+        failed === null ? ok(options.preflight ?? FAKE_PREFLIGHT) : err(failed),
+      );
+    },
+    tailscale(action) {
+      const failed = enter({ method: "tailscale", action });
+      return Promise.resolve(
+        failed === null ? ok(options.tailscale ?? FAKE_TAILSCALE) : err(failed),
+      );
+    },
+    config(params) {
+      const failed = enter({
+        method: "config",
+        write: params.patch !== undefined && params.dryRun !== true,
+      });
+      if (failed !== null) return Promise.resolve(err(failed));
+      const settings = { ...FAKE_CONFIG.settings, ...params.patch };
+      return Promise.resolve(
+        ok({
+          settings,
+          issues: [],
+          written: params.patch !== undefined && params.dryRun !== true,
+          restartNeeded: false,
+        }),
+      );
+    },
+    proxyExample(params) {
+      const failed = enter({ method: "proxyExample", kind: params.kind });
+      if (failed !== null) return Promise.resolve(err(failed));
+      const example: ProxyExample = {
+        text: `${params.domain} {\n  reverse_proxy https://127.0.0.1:${String(params.tlsPort)}\n}\n`,
+        plan: {
+          listen: "127.0.0.1:0",
+          listenTls: `127.0.0.1:${String(params.tlsPort)}`,
+          hosts: [params.domain],
+        },
+      };
+      return Promise.resolve(ok(example));
     },
   };
 }

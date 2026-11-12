@@ -1,66 +1,39 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { activeLocale, setActiveLocale, type Locale } from "@fresnel/client/i18n";
+import { activeLocale, setActiveLocale, t, type Locale } from "@fresnel/client/i18n";
 import { renderToString } from "react-dom/server";
 import { createShellStore, ShellStoreContext } from "../../src/state/shell/index.ts";
-import {
-  connectionReducer,
-  INITIAL_CONNECTION_STATE,
-} from "../../src/views/pages/connection/connection-model.ts";
-import {
-  ConnectionScreenView,
-  type ConnectionScreenHandlers,
-} from "../../src/views/pages/connection/connection-view.tsx";
+import { CommandsContext } from "../../src/views/commands.ts";
+import { ConnectionScreenView } from "../../src/views/pages/connection/connection-view.tsx";
 import { setupRequiredText } from "../../src/views/setup-needed.ts";
+import { fakeCommands } from "./fake-commands.ts";
+import { DEV_BOX, localState, remoteOf } from "./hero-fixtures.ts";
+import { HANDLERS, RUNNING } from "./reach-fixtures.ts";
 
 // `l4.ui.locale=en` 데스크톱 스모크(T-I18N, Y15). 창을 띄우지 않고 서버 렌더로 본다: 로케일이 en이면 화면 문장이 영어 카탈로그에서 나오고
 // 한글이 하나도 없어야 한다. 시험 프로세스는 ko로 시작하므로(scripts/test-preload.ts) 끝나면 되돌린다.
 
 const HANGUL = /[ㄱ-ㆎ가-힣]/;
-const NOOP = (): void => {};
-const handlers: ConnectionScreenHandlers = {
-  query: NOOP,
-  connect: NOOP,
-  retry: NOOP,
-  backToLocal: NOOP,
-  openForm: NOOP,
-  closeForm: NOOP,
-  formChange: NOOP,
-  submitForm: NOOP,
-  removeAsk: NOOP,
-  removeCancel: NOOP,
-  removeConfirm: NOOP,
-  renameOpen: NOOP,
-  renameField: NOOP,
-  renameSubmit: NOOP,
-  renameCancel: NOOP,
-  dismissNotice: NOOP,
-  confirmStop: NOOP,
-  restart: NOOP,
-  copyDiagnostics: NOOP,
-  refresh: NOOP,
-  setRemoteRespond: NOOP,
-  setStopConfirm: NOOP,
-  openExtensions: NOOP,
-  retryClients: NOOP,
-  testRow: NOOP,
-  fillForm: NOOP,
-  copyCommand: NOOP,
-  switchConfirm: NOOP,
-  switchCancel: NOOP,
-  dismissTargetNotice: NOOP,
-};
-
-function connectionHtml(locale: Locale): string {
-  const loaded = connectionReducer(INITIAL_CONNECTION_STATE, {
-    type: "targetsChanged",
-    items: [],
-    notice: null,
-    added: false,
-  });
+/** 이 컴퓨터, 다른 기기 접속이 켜져 도는 화면(구역 다섯이 모두 보인다). `onRemote`면 다른 컴퓨터에 붙은 화면이다 */
+function connectionHtml(locale: Locale, onRemote = false): string {
+  const state = onRemote
+    ? localState({
+        list: { kind: "ready" },
+        items: [DEV_BOX],
+        engineTarget: { kind: "remote", entry: DEV_BOX },
+      })
+    : localState({ list: { kind: "ready" } });
   return renderToString(
-    <ShellStoreContext value={createShellStore(1400)}>
-      <ConnectionScreenView state={loaded} engine={null} locale={locale} handlers={handlers} />
-    </ShellStoreContext>,
+    <CommandsContext value={fakeCommands()}>
+      <ShellStoreContext value={createShellStore(1400)}>
+        <ConnectionScreenView
+          state={state}
+          engine={{ kind: "running", source: "service", pid: 4211 }}
+          locale={locale}
+          handlers={HANDLERS}
+          remote={onRemote ? null : remoteOf([], { status: { kind: "ready", value: RUNNING } })}
+        />
+      </ShellStoreContext>
+    </CommandsContext>,
   );
 }
 
@@ -74,75 +47,29 @@ describe("desktop render with ui.locale=en", () => {
     setActiveLocale(previous);
   });
 
-  test("the connection screen renders English sentences and no Hangul", () => {
+  test("the remote settings screen renders English sentences and no Hangul", () => {
     const markup = connectionHtml("en");
-    expect(markup).toContain("This computer");
-    expect(markup).toContain("Add host");
-    expect(markup).toContain("No remote hosts added yet.");
+    expect(markup).toContain(">This computer</h2>");
+    expect(markup).toContain(`>${t("desktop.connection.keepOn.title")}</h2>`);
+    expect(markup).toContain(`>${t("desktop.connection.computers.title")}</h2>`);
+    expect(markup).toContain(`>${t("desktop.connection.devices.title")}</h2>`);
+    expect(markup).toContain(`${t("desktop.connection.computers.add")}</button>`);
     expect(markup).not.toMatch(HANGUL);
   });
 
-  test("the connected clients list renders English sentences and no Hangul", () => {
-    const withClients = connectionReducer(
-      connectionReducer(INITIAL_CONNECTION_STATE, {
-        type: "statusLoaded",
-        snapshot: {
-          host: {
-            mode: "service",
-            pid: 4211,
-            startedAt: "2026-11-04T01:00:00.000Z",
-            connections: 2,
-            liveTurns: 0,
-            idleShutdownAt: null,
-          },
-          service: {
-            kind: "running",
-            pid: 4211,
-            version: "1.2.0",
-            startedAt: 1_700_000_000_000,
-            attached: true,
-          },
-          restartPending: false,
-          remoteAllowRespond: true,
-        },
-      }),
-      {
-        type: "clientsLoaded",
-        clients: [
-          {
-            connectionId: "c-1",
-            transport: "stdio",
-            name: "fresnel-cli",
-            version: "1.2.0",
-            writeThreads: 2,
-            observedThreads: 1,
-            self: true,
-          },
-          {
-            connectionId: "c-2",
-            transport: "socket",
-            writeThreads: 0,
-            observedThreads: 3,
-            self: false,
-          },
-        ],
-      },
-    );
-    const markup = renderToString(
-      <ShellStoreContext value={createShellStore(1400)}>
-        <ConnectionScreenView state={withClients} engine={null} locale="en" handlers={handlers} />
-      </ShellStoreContext>,
-    );
-    expect(markup).toContain("Connected clients");
-    expect(markup).toContain("This app, Service connection");
+  test("the screen on another computer renders English sentences and no Hangul", () => {
+    const markup = connectionHtml("en", true);
+    expect(markup).toContain("dev-box");
+    expect(markup).toContain(`>${t("desktop.connection.hero.backToLocal")}</button>`);
     expect(markup).not.toMatch(HANGUL);
   });
 
   test("the same screen renders Korean when the locale is ko", () => {
     setActiveLocale("ko");
     const markup = connectionHtml("ko");
-    expect(markup).toContain("이 컴퓨터");
-    expect(markup).toContain("추가한 원격 호스트가 없어요.");
+    expect(markup).toContain(">이 컴퓨터</h2>");
+    expect(markup).toContain(">이 컴퓨터를 계속 켜 두기</h2>");
+    expect(markup).toContain("컴퓨터 추가</button>");
   });
 
   test("a .ts-built sentence follows the locale too", () => {

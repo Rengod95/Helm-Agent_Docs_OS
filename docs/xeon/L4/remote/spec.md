@@ -322,6 +322,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 
 5. 게이트웨이 설정 호출(`apps/host/src/service/gateway-settings.ts`): `l4.remote.web.listen`, `listenTls`, `hosts`, `tlsCert`, `tlsKey`를 읽고(`readGatewaySettings`), 검증하고(`validateGatewaySettings`, 이슈는 `field`와 코드), 쓴다(`writeGatewaySettings`: 병합한 값이 하나라도 틀리면 아무것도 쓰지 않는다). 검증은 게이트웨이 시작 때의 판단과 같다: `listen`은 루프백만, 포트 1~65535, 호스트 이름 모양, 인증서와 키는 짝으로 절대 경로, 읽을 수 있음, 파싱, 만료, 키와 인증서의 짝 일치. 인증서·키는 `listenTls`가 있을 때만 본다.
 6. 공개 서버(VPS) 구성: 게이트웨이를 루프백에만 열고(`loopbackOnlyPlan`: `listen = 127.0.0.1:<포트>`, `listenTls = 127.0.0.1:<TLS 포트>`, `hosts = [<도메인>]`) 앞에 리버스 프록시(Caddy, nginx)를 둔다. `proxyExampleOf`가 실제 도메인과 포트로 채운 설정 본문을 돌려준다. 프록시는 **게이트웨이의 TLS 리스너**(`https://127.0.0.1:<TLS 포트>`, 자체 서명 인증서라 이 구간의 검증은 끈다)로 보낸다: 루프백 평문 리스너는 `Host`가 `localhost`·`127.0.0.1`·`[::1]`일 때만 받고 `Origin`도 그 출처와 같아야 하므로(§8.5) 공개 도메인을 `Host`로 넘기는 프록시는 TLS 리스너의 허용 호스트(`hosts`)를 통해야 한다. `Upgrade`·`Connection` 헤더(WebSocket)와 `Host`를 그대로 넘기고 읽기 시한을 길게 둔다. [근거: `apps/desktop-shell/src/web/auth/origin.ts` `checkHost`·`checkOrigin`]
+7. 화면(2026-11-12, `L4.desktop-ux.spec` DP-112~116): 설정 "원격" 구역이 위 호출을 마법사로 잇는다. "다른 기기에서 열기"는 방식(같은 Wi‑Fi, Tailscale, 공개 서버)을 고르면 `host.remote.preflight`로 점검하고, 앱이 대신 고칠 수 있는 항목은 단추 하나로 고친다(`tailscale serve`는 확인 뒤 `host.remote.tailscale`). 공개 서버는 `host.remote.config`로 `loopbackOnlyPlan`을 적용하고 `host.remote.proxyExample` 본문을 보인다. 연결 패널은 `pair`의 `links`로 QR(`views/pages/shared/qr-code.tsx`, 새 의존성 없음)을 그린다. 점검 항목 `autostart`의 실패는 화면에서 막지 않는 "확인 필요"다. 웹 로그인 화면은 코드 입력 하나(하이픈 자동)이고, 틀린 코드와 만료된 코드는 둘 다 401이라 한 문장으로 알린다.
 
 ### 8.9 원격 표시와 "다른 기기에서 승인하기" [결정: 2026-11-12 사용자]
 
@@ -424,3 +425,5 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 - [확인: 2026-11-09 W2] 승인 해결 알림은 서비스의 이벤트 구독 경로로 그 대화를 구독한 모든 연결에 간다(§7). 웹 CSP의 `style-src 'unsafe-inline'`은 뺄 수 없다: UI 번들이 `style={{…}}` 속성을 80곳, `.style.` 대입을 10곳 쓴다(`apps/desktop/src`). `eval`, `new Function`, 워커는 없어 `script-src 'self'`는 그대로 충족된다(§8.7).
 - [확인: 2026-11-10 W8] 루프백 HTTP(`http://127.0.0.1:<port>`)에서 헤드리스 Chrome 157(macOS arm64)이 쿠키를 받아 로그인하고 UI, `/wire`·`/shell` 연결, 플러그인 프레임이 동작한다. [가정] 브라우저별 서비스 워커 등록, Safari·Firefox, TLS(자체 서명)를 브라우저가 열었을 때의 동작은 아직 실측하지 않았다(헤드리스 Chrome 접속에는 인증서 예외 옵션이 필요하고 `Bun.WebView`에 없다).
 - [제안] 새 이름(`devices.json`, `l4.remote.*`, `shell_capabilities`, `wss` 종류, `fresnel.remote-device` 항목)은 해당 정본 문서가 확정할 때까지 제안이다.
+- [미결: 2026-11-12 dzRW] 공개 서버 방식을 적용하면 `hosts`가 계획 값(도메인 하나)으로 바뀌고 `listen`이 루프백이 되어 같은 Wi‑Fi 접속은 끊긴다. 계약대로 두었다(§8.8 6). 두 방식을 함께 쓸지 사용자가 정한다. [근거: `apps/host/src/service/gateway-settings.ts`]
+- [미결: 2026-11-12 dzRW] Tailscale IPv6 주소가 게이트웨이 `--hosts`에 그대로 들어가 게이트웨이가 "bad name"으로 시작하지 못하는 것을 화면 점검 중에 보았다(§8.8 3, 자동으로 더하는 허용 호스트). IPv6는 대괄호로 싸거나 빼야 한다. 코드는 고치지 않았다. [근거: `apps/host/src/service/tailscale.ts`]

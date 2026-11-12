@@ -39,7 +39,7 @@ describe("commands.remote over a real connection", () => {
     expect(await app.commands.remote.status()).toEqual(ok(STATUS));
     expect(await app.commands.remote.setEnabled(true)).toEqual(ok(STATUS));
     expect(await app.commands.remote.pair()).toEqual(
-      ok({ code: "7QX9M2KD4T", expiresAt: 1_800_000_300_000 }),
+      ok({ code: "7QX9M2KD4T", expiresAt: 1_800_000_300_000, links: [] }),
     );
     expect(await app.commands.remote.devices()).toEqual(ok([]));
     expect(await app.commands.remote.revoke({ id: "dev_1" })).toEqual(ok({ revoked: 1 }));

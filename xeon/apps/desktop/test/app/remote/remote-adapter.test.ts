@@ -61,7 +61,9 @@ describe("remote adapter: calls and replies", () => {
 
   test("pair reads the code and its expiry", async () => {
     const { adapter, sent } = adapterReplying(ok({ code: "481920", expiresAt: 1_800_000_300_000 }));
-    expect(await adapter.pair()).toEqual(ok({ code: "481920", expiresAt: 1_800_000_300_000 }));
+    expect(await adapter.pair()).toEqual(
+      ok({ code: "481920", expiresAt: 1_800_000_300_000, links: [] }),
+    );
     expect(sent()).toEqual([{ method: "host.remote.pair", params: {} }]);
   });
 

@@ -1,10 +1,14 @@
-import { removeTarget, sshTargetOfAddress, type TargetEntry } from "@fresnel/client";
+import {
+  addTarget as addTargetTo,
+  removeTarget,
+  sshTargetOfAddress,
+  type TargetEntry,
+} from "@fresnel/client";
 import { activeLocale, t, type MessageId } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import { toast } from "@caustic/react";
 import { useCallback, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { useEngineState, useLinkPhase } from "../../../state/engine/index.ts";
-import { useShellActions } from "../../../state/shell/index.ts";
 import {
   useConnectError,
   useEngineTarget,
@@ -26,8 +30,12 @@ import {
   toConnectTarget,
   type TargetChoice,
 } from "./connection-model.ts";
-import { checkHostForm, type HostFields } from "./host-address.ts";
-import { ServiceSectionsContainer } from "./connection-server-container.tsx";
+import {
+  useRemoteController,
+  type RemoteScreen,
+} from "../../../app/remote/use-remote-controller.ts";
+import { readShellCapabilities } from "../../shell-capabilities.ts";
+import { useDesktopShell } from "../../desktop-shell-context.ts";
 import { useRowProbe } from "./connection-probe-container.tsx";
 import { UNCHECKED, type AliveReading, type ProbeRunArgs } from "./connection-probe-model.ts";
 import { ConnectionScreenView, type ConnectionScreenHandlers } from "./connection-view.tsx";
@@ -36,7 +44,7 @@ import { ConnectionScreenView, type ConnectionScreenHandlers } from "./connectio
 // 엔진과 연결의 변화는 값이 바뀔 때마다 `engineSeen`으로 넘겨 진행 단계를 맞춘다. 그림은 `connection-view.tsx`가 그린다.
 
 export function ConnectionScreen(props: {
-  /** 설정의 "연결과 서비스" 구역 안에 실을 때 참이다. 머리와 자기 스크롤 없이 본문만 그린다 */
+  /** 설정의 "원격" 구역 안에 실을 때 참이다. 머리와 자기 스크롤 없이 본문만 그린다 */
   readonly embedded?: boolean | undefined;
 }): ReactNode {
   const commands = useCommands();
@@ -44,11 +52,11 @@ export function ConnectionScreen(props: {
   const link = useLinkPhase();
   const connectError = useConnectError();
   const engineTarget = useEngineTarget();
-  const shell = useShellActions();
   const [state, dispatch] = useReducer(connectionReducer, INITIAL_CONNECTION_STATE);
   const targetNotice = useTargetNotice();
   const lastRemoteSeen = useLastRemoteSeen();
   const rowProbes = useRowProbe();
+  const web = useWebShell();
   // 화면을 열 때 엔진이 붙은 대상을 잡아 둔다. 목록을 읽은 뒤 이 대상을 엔진 칸으로 맞춘다(떠났다 돌아와도 같은 대상을 본다)
   const [openedTarget] = useState(() => engineTarget);
   // 살아 있는 엔진의 재시작은 셸이 확인(`confirmed`)을 요구한다. 설정 띠와 같은 확인 대화 상자를 거친다
@@ -242,16 +250,17 @@ export function ConnectionScreen(props: {
     rowProbes.run(entry, args);
   };
 
-  /** 추가 칸 저장. 칸이 틀리면 칸별 오류를 보이고, 이름이 비었으면 주소의 제안 이름을 쓴다(`checkHostForm`) */
-  const submitForm = (): void => {
-    const form = state.form;
-    if (form === null || state.busy) return;
-    const checked = checkHostForm(form.value, state.items, newTargetId(Date.now()));
-    if (!checked.ok) {
-      dispatch({ type: "formFailed", errors: checked.errors });
-      return;
-    }
-    detach(saveTargets(checked.list, "desktop.connection.targets.added", true), rethrow);
+  /** wizard가 점검을 통과한 컴퓨터를 목록에 넣고 저장한다. `connectNow`면 저장한 뒤 그 컴퓨터로 바꾼다 */
+  const addNewTarget = async (
+    fields: { readonly label: string; readonly address: string },
+    connectNow: boolean,
+  ): Promise<boolean> => {
+    const entry: TargetEntry = { id: newTargetId(Date.now()), ...fields };
+    const added = addTargetTo(state.items, entry);
+    if (!added.ok) return false;
+    const saved = await saveTargets(added.list, "desktop.connection.computers.added", true);
+    if (saved && connectNow) detach(connectChecked({ kind: "remote", entry }), rethrow);
+    return saved;
   };
 
   /** 이름 바꾸기를 저장한다. 이름이 비면 칸에 오류를 두고, 저장이 실패하면 칸 아래에 오류를 둔다 */
@@ -326,18 +335,12 @@ export function ConnectionScreen(props: {
     await loadStatus();
   };
 
-  /** 시험이 고른 방식과 칸을 추가 칸에 채운다. 이름은 그대로 두고 칸만 바꾼다 */
-  const fillForm = (fields: HostFields): void => {
-    dispatch({ type: "formFields", fields });
-  };
-
   const handlers: ConnectionScreenHandlers = {
     query: (text) => {
       dispatch({ type: "query", text });
     },
     connect,
     testRow,
-    fillForm,
     copyCommand: (text) => {
       detach(
         commands.copyText(text).then((ok) => {
@@ -359,20 +362,11 @@ export function ConnectionScreen(props: {
     dismissTargetNotice: () => {
       commands.connection.dismissTargetNotice();
     },
+    addTarget: addNewTarget,
     retry,
     backToLocal: () => {
       connect(LOCAL_CHOICE);
     },
-    openForm: () => {
-      dispatch({ type: "formOpened" });
-    },
-    closeForm: () => {
-      dispatch({ type: "formClosed" });
-    },
-    formChange: (value) => {
-      dispatch({ type: "formChange", value });
-    },
-    submitForm,
     removeAsk: (entry) => {
       dispatch({ type: "removeAsked", entry });
     },
@@ -411,9 +405,6 @@ export function ConnectionScreen(props: {
         rethrow,
       );
     },
-    retryClients: () => {
-      detach(loadClients(), rethrow);
-    },
     refresh: () => {
       detach(loadStatus(), rethrow);
     },
@@ -426,21 +417,22 @@ export function ConnectionScreen(props: {
     confirmStop: () => {
       detach(stopHost(), rethrow);
     },
-    openExtensions: () => {
-      // LightCraft 엔진(작업대) 화면으로 간다. 영역을 바꾸고 작업대 자리의 화면을 `engine`으로 둔다
-      shell.switchArea("workbench");
-      shell.updatePlace({ screen: "engine", scroll: 0 });
-    },
   };
 
-  return (
+  const copy = (text: string): void => {
+    handlers.copyCommand(text);
+  };
+  const view = (remote: RemoteScreen | null, clock: number): ReactNode => (
     <>
       <ConnectionScreenView
         state={state}
         engine={engine}
         locale={activeLocale()}
         handlers={handlers}
-        serviceSections={<ServiceSectionsContainer state={state} handlers={handlers} />}
+        remote={remote}
+        web={web}
+        nowMs={clock}
+        copy={copy}
         embedded={props.embedded ?? false}
         targetNotice={targetNotice}
         reconnect={reconnectLinesOf({
@@ -461,4 +453,55 @@ export function ConnectionScreen(props: {
       />
     </>
   );
+  // 이 컴퓨터 대상이고 상태를 읽은 뒤에만 이 컴퓨터의 원격 컨트롤러를 붙인다(다른 컴퓨터의 서비스에 원격 명령을 보내지 않는다)
+  const local = state.engineTarget.kind === "local" && state.status.kind !== "loading";
+  return local ? <WithLocalRemote render={view} /> : view(null, nowMs);
+}
+
+/** 브라우저로 들어온 화면인가(웹 셸). 데스크톱이거나 모르면 거짓이다 */
+function useWebShell(): boolean {
+  const shell = useDesktopShell();
+  const [web, setWeb] = useState(false);
+  useEffect(() => {
+    if (shell === null) return undefined;
+    let stale = false;
+    detach(
+      readShellCapabilities((command) => shell.invoke(command)).then((found) => {
+        if (!stale) setWeb(found.kind === "web");
+        return undefined;
+      }),
+      rethrow,
+    );
+    return () => {
+      stale = true;
+    };
+  }, [shell]);
+  return web;
+}
+
+/**
+ * 이 컴퓨터의 원격 컨트롤러를 붙인 채 그린다. 연결 코드가 떠 있는 동안 1초 시계를 넘긴다(발급하는 순간에도 맞춘다).
+ * 마운트하면 상태·기기·자동 시작을 읽고 기기 목록을 주기적으로 다시 읽는다(`useRemoteController`).
+ */
+function WithLocalRemote(props: {
+  readonly render: (remote: RemoteScreen, nowMs: number) => ReactNode;
+}): ReactNode {
+  const commands = useCommands();
+  const remote = useRemoteController(commands.remote, commands.connection);
+  // 코드가 바뀔 때마다(새로 발급) 바로 한 번 시계를 맞추고, 떠 있는 동안 1초마다 넘긴다
+  const issuedCode = remote.state.pairing.kind === "issued" ? remote.state.pairing.code.code : null;
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (issuedCode === null) return undefined;
+    const tick = (): void => {
+      setNowMs(Date.now());
+    };
+    const first = setTimeout(tick, 0);
+    const timer = setInterval(tick, 1000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(timer);
+    };
+  }, [issuedCode]);
+  return props.render(remote, nowMs);
 }

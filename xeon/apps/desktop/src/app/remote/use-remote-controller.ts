@@ -20,6 +20,7 @@ export interface RemoteActions {
   requestAutostart(enabled: boolean): Promise<void>;
   confirmAutostart(): Promise<void>;
   cancelAutostartConfirm(): void;
+  keepOn(enabled: boolean, serviceRunning: boolean): Promise<void>;
   reloadAutostart(): Promise<void>;
   reloadStatus(): Promise<void>;
   reloadDevices(): Promise<void>;
@@ -87,6 +88,7 @@ function actionsOf(controller: RemoteController): RemoteActions {
     cancelAutostartConfirm: () => {
       controller.cancelAutostartConfirm();
     },
+    keepOn: (enabled, serviceRunning) => controller.keepOn(enabled, serviceRunning),
     reloadAutostart: () => controller.reloadAutostart(),
     reloadStatus: () => controller.reloadStatus(),
     reloadDevices: () => controller.reloadDevices(),

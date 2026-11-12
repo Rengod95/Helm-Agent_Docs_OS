@@ -1,13 +1,14 @@
 import { err, ok, type Result } from "@fresnel/contracts";
+import type { WireParams, WireResult } from "@fresnel/contracts/wire";
 
 // 원격 접속(서버 모드)의 값 모양과 응답 검사. 계약 패키지에 `host.remote.*`가 들어오기 전까지 이 파일이 모양을 정한다.
 // 병합 때는 이 타입과 검사를 계약 타입으로 바꾼다. 응답은 `unknown`이라 `as` 없이 typeof, Array.isArray, 자기 속성으로 좁힌다.
 // 한 줄이라도 모양이 틀리면 값 전체를 `bad-reply`로 거절한다(일부만 살리지 않는다).
 
 /** 원격 접속 상태. `off`는 꺼짐, `starting`은 띄우는 중, `failed`는 띄우지 못함이다 */
-export type RemoteState = "off" | "starting" | "running" | "failed";
+type RemoteState = "off" | "starting" | "running" | "failed";
 /** 인증서 출처. 자체 서명이거나 사용자가 준 인증서다 */
-export type CertSource = "self-signed" | "user";
+type CertSource = "self-signed" | "user";
 /** 기기 종류. 웹 브라우저로 붙은 기기거나 데스크톱 셸이다 */
 export type DeviceKind = "web" | "desktop";
 
@@ -35,13 +36,41 @@ export interface RemoteStatus {
   readonly error: RemoteStatusError | null;
 }
 
-/** `host.remote.pair`의 값. 만료 시각은 epoch 밀리초다 */
+/** 연결 링크의 주소 종류(`host.remote.pair`의 `links[].kind`) */
+export type PairLinkKind =
+  | "loopback"
+  | "lan_ip"
+  | "mdns_local"
+  | "tailscale_ip"
+  | "tailscale_magicdns";
+
+/** 연결 링크 한 개. URL 조각(`#code=`)에 연결 코드가 들어 있다 */
+interface PairLink {
+  readonly kind: PairLinkKind;
+  readonly url: string;
+}
+
+/** `host.remote.pair`의 값. 만료 시각은 epoch 밀리초다. `links`는 응답에 없으면(옛 서비스) 빈 목록으로 읽는다 */
 export interface PairingCode {
   readonly code: string;
   readonly expiresAt: number;
-  /** 연결 링크(`https://…/login#code=…`). 첫 링크 하나. 서비스가 링크를 주지 않으면 없다. QR이 이 글을 그린다 */
-  readonly link?: string;
+  readonly links?: readonly PairLink[];
 }
+
+/** 이 컴퓨터의 사전 점검(`host.remote.preflight`) */
+export type RemotePreflight = WireResult<"host.remote.preflight">;
+/** 점검 항목 한 개 */
+export type RemotePreflightItem = RemotePreflight["items"][number];
+/** Tailscale 감지와 serve 결과(`host.remote.tailscale`) */
+export type TailscaleInfo = WireResult<"host.remote.tailscale">;
+/** Tailscale 동작 */
+export type TailscaleAction = WireParams<"host.remote.tailscale">["action"];
+/** 게이트웨이 설정 읽기·쓰기 인자와 결과(`host.remote.config`) */
+type RemoteConfigParams = WireParams<"host.remote.config">;
+export type RemoteConfig = WireResult<"host.remote.config">;
+/** 프록시 예시 인자와 결과(`host.remote.proxyExample`) */
+type ProxyExampleParams = WireParams<"host.remote.proxyExample">;
+export type ProxyExample = WireResult<"host.remote.proxyExample">;
 
 /** 페어링된 기기 한 대. `lastSeenAt`이 null이면 한 번도 연결하지 않았다 */
 export interface RemoteDevice {
@@ -200,15 +229,39 @@ export function parseStatus(reply: unknown): Result<RemoteStatus, RemoteError> {
   });
 }
 
+const PAIR_LINK_KINDS: readonly PairLinkKind[] = [
+  "loopback",
+  "lan_ip",
+  "mdns_local",
+  "tailscale_ip",
+  "tailscale_magicdns",
+];
+
+function isPairLinkKind(value: unknown): value is PairLinkKind {
+  return PAIR_LINK_KINDS.some((kind) => kind === value);
+}
+
+/** 연결 링크 목록. 없으면(옛 서비스) 빈 목록, 모양이 틀리면 null이다 */
+function pairLinksOf(value: unknown): readonly PairLink[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) return null;
+  const links: PairLink[] = [];
+  for (const item of value) {
+    const kind = ownField(item, "kind");
+    const url = ownField(item, "url");
+    if (!isPairLinkKind(kind) || !isNonEmptyText(url)) return null;
+    links.push({ kind, url });
+  }
+  return links;
+}
+
 /** `host.remote.pair`의 응답을 읽는다 */
 export function parsePairing(reply: unknown): Result<PairingCode, RemoteError> {
   const code = ownField(reply, "code");
   const expiresAt = ownField(reply, "expiresAt");
-  if (!isNonEmptyText(code) || !isCount(expiresAt)) return err(BAD_REPLY);
-  const links = ownField(reply, "links");
-  const first: unknown = Array.isArray(links) ? links[0] : undefined;
-  const link = ownField(first, "url");
-  return ok(isNonEmptyText(link) ? { code, expiresAt, link } : { code, expiresAt });
+  const links = pairLinksOf(ownField(reply, "links"));
+  if (!isNonEmptyText(code) || !isCount(expiresAt) || links === null) return err(BAD_REPLY);
+  return ok({ code, expiresAt, links });
 }
 
 /** `host.remote.devices`의 응답(`{ devices }`)을 읽는다. 기기 목록의 순서는 응답 그대로다 */
@@ -238,4 +291,12 @@ export interface RemoteAdapter {
   pair(): Promise<Result<PairingCode, RemoteError>>;
   devices(): Promise<Result<readonly RemoteDevice[], RemoteError>>;
   revoke(target: RevokeTarget): Promise<Result<RevokeResult, RemoteError>>;
+  /** 이 컴퓨터의 사전 점검. 원격이 꺼져 있어도 답한다 */
+  preflight(): Promise<Result<RemotePreflight, RemoteError>>;
+  /** Tailscale 상태 읽기와 serve 켜기·끄기 */
+  tailscale(action: TailscaleAction): Promise<Result<TailscaleInfo, RemoteError>>;
+  /** 게이트웨이 설정 읽기(`patch` 없음), 검사(`dryRun`), 쓰기 */
+  config(params: RemoteConfigParams): Promise<Result<RemoteConfig, RemoteError>>;
+  /** 공개 서버용 프록시 설정 예시 */
+  proxyExample(params: ProxyExampleParams): Promise<Result<ProxyExample, RemoteError>>;
 }

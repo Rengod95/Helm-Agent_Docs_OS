@@ -72,6 +72,11 @@ export interface RemoteController {
   confirmAutostart(): Promise<void>;
   /** 확인 대화 상자를 닫는다. 어떤 호출도 하지 않는다 */
   cancelAutostartConfirm(): void;
+  /**
+   * "앱을 닫아도 계속 실행"(DP-112). 켜기는 서비스를 띄우고(안 떠 있을 때만), 자동 시작을 지원하고 아직 등록하지 않았으면 확인 없이
+   * 로그인 자동 시작까지 켠다(스위치 하나가 둘을 묶는다. 자동 시작은 따로 끌 수 있다). 끄기는 `selectMode("off")`와 같다.
+   */
+  keepOn(enabled: boolean, serviceRunning: boolean): Promise<void>;
   /** 로그인 자동 시작 상태를 다시 읽는다 */
   reloadAutostart(): Promise<void>;
   /** 상태를 다시 읽는다 */
@@ -290,7 +295,7 @@ export function createRemoteController<TimerHandle>(
     if (!reply.ok) dispatch({ type: "noticeSet", kind: "serviceFailed" });
   }
 
-  return {
+  const controller: RemoteController = {
     state() {
       const pairing = current.pairing;
       if (pairing.kind === "issued" && isPairingExpired(pairing.code, deps.now())) {
@@ -419,8 +424,34 @@ export function createRemoteController<TimerHandle>(
       if (current.autostartConfirmOpen) dispatch({ type: "autostartConfirmClosed" });
     },
 
+    async keepOn(enabled, serviceRunning) {
+      if (writing) return;
+      if (!enabled) {
+        await controller.selectMode("off", serviceRunning);
+        return;
+      }
+      if (!serviceRunning) {
+        // 서비스를 띄우지 못했으면 자동 시작을 쓰지 않는다(쓰기가 알림을 지워 시작 실패가 가려진다)
+        let launched = false;
+        writing = true;
+        try {
+          clearNotice();
+          if (!knownDisabled()) await disableRemote();
+          launched = await startService();
+        } finally {
+          writing = false;
+        }
+        if (!launched) return;
+      }
+      const autostart = current.autostart;
+      if (autostartWritable() && autostart.kind === "ready" && !autostart.value.registered) {
+        await writeAutostart(true);
+      }
+    },
+
     reloadAutostart,
     reloadStatus,
     reloadDevices,
   };
+  return controller;
 }

@@ -198,6 +198,8 @@ interface Harness {
   readonly autostartSets: boolean[];
   /** 로그인 자동 시작 상태를 읽은 횟수 */
   readonly autostartReads: () => number;
+  /** 서비스 띄우기·멈추기와 자동 시작 쓰기가 받은 순서(`keepOn`이 둘을 묶는 차례를 본다) */
+  readonly steps: readonly string[];
   /** 자동 시작 켜기·끄기 응답을 붙잡는 자리 */
   readonly autostartHold: Hold;
 }
@@ -212,6 +214,7 @@ function harnessOf(options: HarnessOptions = {}): Harness {
   const enableHold = holdOf();
   const autostartHold = holdOf();
   const autostartSets: boolean[] = [];
+  const steps: string[] = [];
   let autostartReads = 0;
   let autostartNow: ServiceAutostart = options.autostart ?? AUTOSTART_OFF;
   const fake = createFakeRemoteAdapter({ now: () => clock, ...options.fake });
@@ -229,17 +232,23 @@ function harnessOf(options: HarnessOptions = {}): Harness {
     pair: () => fake.pair(),
     devices: () => fake.devices(),
     revoke: (target) => fake.revoke(target),
+    preflight: () => fake.preflight(),
+    tailscale: (action) => fake.tailscale(action),
+    config: (params) => fake.config(params),
+    proxyExample: (params) => fake.proxyExample(params),
   };
 
   const serviceCommands = {
     startLocalService: () => {
       order.push("startLocalService");
       connection.push("startLocalService");
+      steps.push("startLocalService");
       return Promise.resolve(options.failStart === true ? err(FAILED) : ok(null));
     },
     stopLocalService: () => {
       order.push("stopLocalService");
       connection.push("stopLocalService");
+      steps.push("stopLocalService");
       return Promise.resolve(options.failStop === true ? err(FAILED) : ok(null));
     },
     serviceAutostart: (): Promise<Result<ServiceAutostart, AutostartError>> => {
@@ -249,6 +258,7 @@ function harnessOf(options: HarnessOptions = {}): Harness {
     },
     setServiceAutostart: (enabled: boolean) => {
       autostartSets.push(enabled);
+      steps.push(`setServiceAutostart ${enabled}`);
       const reply: Result<{ readonly lingerAdvice: boolean }, AutostartError> =
         options.failAutostart === undefined
           ? ok({ lingerAdvice: enabled && options.lingerAdvice === true })
@@ -286,6 +296,7 @@ function harnessOf(options: HarnessOptions = {}): Harness {
     autostartSets,
     autostartReads: () => autostartReads,
     autostartHold,
+    steps,
   };
 }
 
@@ -615,7 +626,11 @@ describe("원격 접속 컨트롤러: 페어링", () => {
     const expiresAt = FAKE_NOW + FAKE_PAIRING_TTL_MS;
     expect(h.controller.state().pairing).toEqual({
       kind: "issued",
-      code: { code: "100001", expiresAt },
+      code: {
+        code: "100001",
+        expiresAt,
+        links: [{ kind: "lan_ip", url: "https://192.168.0.10:47443/login#code=100001" }],
+      },
     });
 
     h.moveClock(FAKE_PAIRING_TTL_MS - 1);
@@ -626,7 +641,11 @@ describe("원격 접속 컨트롤러: 페어링", () => {
     await h.controller.issuePairing();
     expect(h.controller.state().pairing).toEqual({
       kind: "issued",
-      code: { code: "100002", expiresAt: expiresAt + FAKE_PAIRING_TTL_MS },
+      code: {
+        code: "100002",
+        expiresAt: expiresAt + FAKE_PAIRING_TTL_MS,
+        links: [{ kind: "lan_ip", url: "https://192.168.0.10:47443/login#code=100002" }],
+      },
     });
   });
 
@@ -910,5 +929,77 @@ describe("원격 접속 컨트롤러: 로그인 자동 시작 스위치", () => 
     await settle();
     expect(h.controller.state().busy).toBe("none");
     expect(h.controller.state().autostart).toEqual({ kind: "ready", value: AUTOSTART_OFF });
+  });
+});
+
+describe("원격 접속 컨트롤러: 계속 켜 두기(keepOn)", () => {
+  test("켜기: 서비스를 띄운 뒤 로그인 자동 시작을 확인 없이 켠다", async () => {
+    const h = harnessOf();
+    h.controller.start();
+    await settle();
+    await h.controller.keepOn(true, false);
+    expect(h.steps).toEqual(["startLocalService", "setServiceAutostart true"]);
+    expect(h.controller.state().autostartConfirmOpen).toBe(false);
+    expect(h.controller.state().autostart).toEqual({
+      kind: "ready",
+      value: { ...AUTOSTART_OFF, registered: true, active: true },
+    });
+  });
+
+  test("켜기: 서비스를 띄우지 못하면 자동 시작을 쓰지 않고 시작 실패 알림을 남긴다", async () => {
+    const h = harnessOf({ failStart: true });
+    h.controller.start();
+    await settle();
+    await h.controller.keepOn(true, false);
+    expect(h.steps).toEqual(["startLocalService"]);
+    expect(h.controller.state().notice).toEqual({ kind: "serviceFailed", code: null });
+  });
+
+  test("켜기: 서비스가 이미 돌면 띄우지 않고 자동 시작만 켠다", async () => {
+    const h = harnessOf();
+    h.controller.start();
+    await settle();
+    await h.controller.keepOn(true, true);
+    expect(h.steps).toEqual(["setServiceAutostart true"]);
+  });
+
+  test("켜기: 자동 시작이 이미 등록돼 있으면 쓰지 않는다", async () => {
+    const h = harnessOf({ autostart: { ...AUTOSTART_OFF, registered: true, active: true } });
+    h.controller.start();
+    await settle();
+    await h.controller.keepOn(true, false);
+    expect(h.steps).toEqual(["startLocalService"]);
+    expect(h.autostartSets).toEqual([]);
+  });
+
+  test("켜기: 자동 시작을 지원하지 않거나 상태를 못 읽었으면 쓰지 않는다", async () => {
+    const unsupported = harnessOf({ autostart: { ...AUTOSTART_OFF, supported: false } });
+    unsupported.controller.start();
+    await settle();
+    await unsupported.controller.keepOn(true, false);
+    expect(unsupported.steps).toEqual(["startLocalService"]);
+
+    const unread = harnessOf({ failAutostartRead: true });
+    unread.controller.start();
+    await settle();
+    await unread.controller.keepOn(true, false);
+    expect(unread.steps).toEqual(["startLocalService"]);
+  });
+
+  test('끄기: selectMode("off")와 같다(원격을 먼저 끄고 서비스를 멈춘다, 자동 시작은 그대로)', async () => {
+    const viaKeepOn = harnessOf({ fake: { status: RUNNING } });
+    viaKeepOn.controller.start();
+    await settle();
+    await viaKeepOn.controller.keepOn(false, true);
+
+    const viaSelect = harnessOf({ fake: { status: RUNNING } });
+    viaSelect.controller.start();
+    await settle();
+    await viaSelect.controller.selectMode("off", true);
+
+    expect(viaKeepOn.order).toEqual(["setEnabled false", "stopLocalService"]);
+    expect(viaKeepOn.order).toEqual(viaSelect.order);
+    expect(viaKeepOn.autostartSets).toEqual([]);
+    expect(viaKeepOn.controller.state().status).toEqual(viaSelect.controller.state().status);
   });
 });

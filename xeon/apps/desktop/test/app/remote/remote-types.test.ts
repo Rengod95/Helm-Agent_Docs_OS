@@ -6,6 +6,7 @@ import {
   parsePairing,
   parseRevoked,
   parseStatus,
+  type PairLinkKind,
   type RemoteDevice,
   type RemoteError,
   type RemoteStatus,
@@ -121,23 +122,26 @@ describe("parseStatus", () => {
 describe("parsePairing", () => {
   test("a code with its expiry is accepted as given", () => {
     expect(parsePairing({ code: "123456", expiresAt: 1_800_000_300_000 })).toEqual(
-      ok({ code: "123456", expiresAt: 1_800_000_300_000 }),
+      ok({ code: "123456", expiresAt: 1_800_000_300_000, links: [] }),
     );
   });
 
-  test("the first connection link rides along for the QR; no links means no link", () => {
+  test("the connection links keep their kind and order; a malformed link rejects the reply", () => {
     const base = { code: "1234567890", expiresAt: 1_800_000_300_000 };
-    const url = "https://pc.example:8443/login#code=1234567890";
-    expect(
-      parsePairing({
-        ...base,
-        links: [
-          { kind: "lan", url },
-          { kind: "loopback", url: "http://127.0.0.1:8480/login#code=1234567890" },
-        ],
-      }),
-    ).toEqual(ok({ ...base, link: url }));
-    expect(parsePairing({ ...base, links: [] })).toEqual(ok(base));
+    const lan: { kind: PairLinkKind; url: string } = {
+      kind: "lan_ip",
+      url: "https://pc.example:8443/login#code=1234567890",
+    };
+    const loopback: { kind: PairLinkKind; url: string } = {
+      kind: "loopback",
+      url: "http://127.0.0.1:8480/login#code=1234567890",
+    };
+    expect(parsePairing({ ...base, links: [lan, loopback] })).toEqual(
+      ok({ ...base, links: [lan, loopback] }),
+    );
+    expect(parsePairing({ ...base, links: [] })).toEqual(ok({ ...base, links: [] }));
+    expect(parsePairing({ ...base, links: [{ kind: "lan", url: lan.url }] })).toEqual(BAD);
+    expect(parsePairing({ ...base, links: [{ kind: "lan_ip", url: "" }] })).toEqual(BAD);
   });
 
   const wrongFields: readonly (readonly [string, unknown])[] = [
