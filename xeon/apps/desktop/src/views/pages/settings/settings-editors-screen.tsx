@@ -38,7 +38,7 @@ import {
   defaultCellOf,
   recordOf,
   rowsOf,
-  withCell,
+  withCellText,
   withField,
   withRowAdded,
   withoutField,
@@ -220,7 +220,7 @@ function TableEditor(props: DedicatedEditorProps): ReactNode {
           editable={editable}
           error={error}
           onCell={(index, column, value) => {
-            write(withCell(rows, index, column, value));
+            write(withCellText(rows, widget.columns, index, column, value));
           }}
           onAdd={() => {
             write(withRowAdded(rows, widget.columns, widget.maxItems));

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { TableColumn } from "@fresnel/client/settings";
+import { checkClientValue, type TableColumn } from "@fresnel/client/settings";
+import type { SettingDefWire } from "@fresnel/contracts/settings";
 import {
   checkRecordName,
   defaultCellOf,
@@ -9,6 +10,7 @@ import {
   recordOf,
   rowsOf,
   withCell,
+  withCellText,
   withField,
   withoutField,
   withoutRow,
@@ -120,5 +122,54 @@ describe("a new record name", () => {
     expect(checkRecordName(" theme ", { color: "x" })).toEqual({ ok: true, value: "theme" });
     expect(checkRecordName("  ", { color: "x" })).toEqual({ ok: false, error: "empty" });
     expect(checkRecordName("color", { color: "x" })).toEqual({ ok: false, error: "duplicate" });
+  });
+});
+
+// 비울 수 있는 글 열(`Nullable(String)`, 예: `l1.models.providers`의 baseUrl). 빈 칸은 `null`로 저장되고 값 검사를 통과해야 한다(F2)
+describe("a text cell that can be cleared", () => {
+  const baseUrl: TableColumn = { ...column("baseUrl", "string"), nullable: true };
+  const columns: readonly TableColumn[] = [column("id", "string"), baseUrl];
+  const providers: SettingDefWire = {
+    key: "l1.models.providers",
+    runtimeChange: "live",
+    layer: "L1",
+    allowedScopes: ["user"],
+    since: "0.1.0",
+    type: {
+      type: "array",
+      maxItems: 64,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id", "enabled", "apiKeyRef", "baseUrl"],
+        properties: {
+          id: { type: "string" },
+          enabled: { type: "boolean" },
+          apiKeyRef: { anyOf: [{ type: "string" }, { type: "null" }] },
+          baseUrl: { anyOf: [{ type: "string", minLength: 1, maxLength: 2048 }, { type: "null" }] },
+        },
+      },
+    },
+  };
+  const rows = [{ id: "my-llm", enabled: true, apiKeyRef: null, baseUrl: "https://llm.example" }];
+
+  test("clearing the text saves null, and the saved rows pass the value check", () => {
+    const next = withCellText(rows, columns, 0, "baseUrl", "");
+    expect(next).toEqual([{ id: "my-llm", enabled: true, apiKeyRef: null, baseUrl: null }]);
+    expect(checkClientValue(providers, next)).toEqual({ ok: true, value: next });
+  });
+
+  test("a text that is typed stays as it is, and a plain text column keeps the empty text", () => {
+    expect(withCellText(rows, columns, 0, "baseUrl", "https://a.example")).toEqual([
+      { id: "my-llm", enabled: true, apiKeyRef: null, baseUrl: "https://a.example" },
+    ]);
+    expect(withCellText(rows, columns, 0, "id", "")).toEqual([
+      { id: "", enabled: true, apiKeyRef: null, baseUrl: "https://llm.example" },
+    ]);
+  });
+
+  test("a new row starts with null for the nullable text column and empty for a plain one", () => {
+    expect(defaultCellOf(baseUrl)).toBeNull();
+    expect(defaultCellOf(column("id", "string"))).toBe("");
   });
 });

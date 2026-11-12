@@ -31,11 +31,11 @@ export function recordOf(value: unknown): Row | null {
   return isRecord(value) ? value : null;
 }
 
-/** 열 하나의 기본 값. 중첩 값 열은 기본이 없어서 `undefined`다(새 행에 넣지 않는다) */
+/** 열 하나의 기본 값. 중첩 값 열은 기본이 없어서 `undefined`다(새 행에 넣지 않는다). 비울 수 있는 글 열은 스키마 기본대로 `null`이다 */
 export function defaultCellOf(column: TableColumn): unknown {
   switch (column.kind) {
     case "string":
-      return "";
+      return column.nullable === true ? null : "";
     case "number":
     case "integer":
       return 0;
@@ -86,6 +86,23 @@ export function withCell(
   value: unknown,
 ): readonly Row[] {
   return rows.map((row, at) => (at === index ? { ...row, [name]: value } : row));
+}
+
+/** 칸에 친 값을 저장할 값으로 바꾼다. 비울 수 있는 글 열의 빈 글은 `null`이다(스키마 `Nullable(String)`의 빈 값, F2). 그 밖은 그대로다 */
+function cellValueOf(column: TableColumn, value: unknown): unknown {
+  return column.kind === "string" && column.nullable === true && value === "" ? null : value;
+}
+
+/** `withCell`에 열 목록을 더한 것. 이름이 열 목록에 있으면 `cellValueOf`로 바꾼 값을 넣는다 */
+export function withCellText(
+  rows: readonly Row[],
+  columns: readonly TableColumn[],
+  index: number,
+  name: string,
+  value: unknown,
+): readonly Row[] {
+  const column = columns.find((item) => item.name === name);
+  return withCell(rows, index, name, column === undefined ? value : cellValueOf(column, value));
 }
 
 /** 행을 끝에 더한다. 최대 개수에 닿았으면 그대로다 */

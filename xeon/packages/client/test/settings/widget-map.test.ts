@@ -172,6 +172,27 @@ describe("widget map: table shapes", () => {
     });
   });
 
+  test("rows: a property that takes null is a nullable column, the others are not (F2)", () => {
+    const row = typed(
+      Type.Array(
+        Type.Object({
+          id: Type.String(),
+          baseUrl: Nullable(Type.String({ minLength: 1, maxLength: 2048 })),
+        }),
+      ),
+      "table",
+    );
+    expect(resolveWidget(row).widget).toEqual({
+      kind: "table",
+      shape: "rows",
+      columns: [
+        { name: "id", kind: "string", options: null, required: true },
+        { name: "baseUrl", kind: "string", options: null, required: true, nullable: true },
+      ],
+      maxItems: null,
+    });
+  });
+
   test("rows with an enum property read the options as an enum column", () => {
     const def = wireDef({
       key: "l1.models.sample",

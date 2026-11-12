@@ -105,13 +105,23 @@ function requiredOf(core: Schema): readonly string[] {
     : [];
 }
 
+/** 속성이 `null`을 받는가(`type`에 null이 있거나 `anyOf`·`oneOf`에 null 원소가 있다). `coreOf`가 null을 떼기 전에 본다 */
+function nullableOf(schema: unknown): boolean {
+  if (!isSchema(schema)) return false;
+  const type = schema["type"];
+  if (isList(type) && type.includes("null")) return true;
+  const members = unionMembersOf(schema);
+  return members !== null && members.some(isNullSchema);
+}
+
 function columnOf(name: string, schema: unknown, required: boolean): TableColumn {
   const core: Schema = isSchema(schema) ? coreOf(schema) : {};
+  const nullable = nullableOf(schema) ? { nullable: true } : {};
   const options = enumOf(core);
-  if (options !== null) return { name, kind: "enum", options, required };
+  if (options !== null) return { name, kind: "enum", options, required, ...nullable };
   const kind = primitiveOf(core);
-  if (kind !== null) return { name, kind, options: null, required };
-  return { name, kind: "json", options: null, required };
+  if (kind !== null) return { name, kind, options: null, required, ...nullable };
+  return { name, kind: "json", options: null, required, ...nullable };
 }
 
 /** 객체 배열. 열은 `items.properties`의 순서다 */
