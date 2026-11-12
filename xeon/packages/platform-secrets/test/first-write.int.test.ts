@@ -213,10 +213,13 @@ describe.skipIf(!real)("first write on a clean machine (spec §4.8)", () => {
       metaFor("exa-api-key"),
       trackedSource("nobin-fake-value-0208"),
     );
-    expect(added).toEqual({
-      ok: false,
-      error: { kind: "provider_unavailable", provider: "sops", reason: "binary_missing" },
-    });
+    expect(added.ok).toBe(false);
+    if (added.ok || added.error.kind !== "provider_unavailable")
+      throw new Error("expected provider_unavailable");
+    expect(added.error.provider).toBe("sops");
+    expect(added.error.reason).toBe("binary_missing");
+    // 원인 코드가 실린다(경로는 싣지 않는다)
+    expect(added.error.detail).toMatch(/^not_found; searched \d+ places$/u);
     expect(await readdir(join(config, "secrets")).catch(() => [])).not.toContain("age");
   });
 

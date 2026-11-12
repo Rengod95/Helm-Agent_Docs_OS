@@ -167,7 +167,7 @@ function binaryCheck(item: HostBinaryItem): DoctorCheck {
           source:
             status.source === "bundled"
               ? t("cli.doctor.binary.source.bundled")
-              : t("cli.doctor.binary.source.system"),
+              : `${t("cli.doctor.binary.source.system")}${status.via === undefined ? "" : `: ${status.via}`}`,
           usedBy: item.usedBy,
         }),
       };

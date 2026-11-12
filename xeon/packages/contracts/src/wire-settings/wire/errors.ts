@@ -479,6 +479,7 @@ export const WIRE_ERRORS: {
           Type.Literal("version_too_old"),
           Type.Literal("not_registered"),
         ]),
+        detail: Type.Optional(Type.String({ maxLength: 256 })),
       },
       { additionalProperties: false },
     ),

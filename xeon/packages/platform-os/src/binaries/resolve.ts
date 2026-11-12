@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile, stat } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { delimiter as hostDelimiter, isAbsolute, join } from "node:path";
 import {
   assertNever,
@@ -19,6 +19,7 @@ import type {
   ResolvedBinary,
 } from "@fresnel/contracts/services";
 import type { RunCommand } from "../proc.ts";
+import { knownCandidates } from "./known-paths.ts";
 import { resolveInsideResource } from "./lock.ts";
 import { compareTriples, findVersion, parseTriple, requireTriple } from "./semver.ts";
 
@@ -89,6 +90,8 @@ export interface BinaryFs {
   readFile(path: string): Promise<Result<Uint8Array, { readonly code: string }>>;
   /** 실행 가능한 일반 파일이면 true */
   isExecutableFile(path: string): Promise<boolean>;
+  /** 폴더 안의 이름들. 읽을 수 없으면 빈 목록. 없으면 버전 폴더를 가진 설치 자리(mise, asdf)는 건너뛴다 */
+  listDir?(path: string): Promise<readonly string[]>;
 }
 
 function errorCode(caught: unknown): string {
@@ -115,6 +118,10 @@ export function createNodeBinaryFs(): BinaryFs {
       // 소유자, 그룹, 기타 중 하나라도 실행 비트가 있는 일반 파일
       return st.value.isFile() && (st.value.mode & 0o111) !== 0;
     },
+    async listDir(path) {
+      const names = await attemptAsync(() => readdir(path));
+      return names.ok ? names.value : [];
+    },
   };
 }
 
@@ -134,6 +141,8 @@ export interface BinaryResolverDeps {
   readonly resourceDir: string;
   /** 환경 변수 PATH 값 */
   readonly pathEnv: string | undefined;
+  /** 사용자 홈. 있으면 PATH에 없을 때 홈 아래 흔한 설치 자리(mise, asdf, nix, ~/.local/bin)도 본다 */
+  readonly homeDir?: string | undefined;
   readonly fs: BinaryFs;
   readonly run: RunCommand;
   readonly logger: Logger;
@@ -327,16 +336,31 @@ async function resolveSystem(
   const delimiter = windows ? ";" : hostDelimiter;
   const fileName = windows ? `${name}.exe` : name;
   const lookup = await lookupOnPath(deps.fs, deps.pathEnv, fileName, delimiter);
-  if (!lookup.ok) {
-    return err({
-      kind: "not_found",
-      name,
-      searched: lookup.error,
-      hint: installHint(name, deps.info),
-    });
+  let path: string;
+  let via = "PATH";
+  if (lookup.ok) {
+    path = lookup.value;
+  } else {
+    // PATH에 없으면 흔한 설치 자리를 본다(GUI 앱의 PATH는 짧다). 보안 도구는 macOS 내장이라 PATH만 본다
+    const known = windows
+      ? []
+      : await knownCandidates(deps.fs, { platform: deps.info.platform, home: deps.homeDir, name });
+    const hits = await Promise.all(known.map((c) => deps.fs.isExecutableFile(c.path)));
+    const index = hits.findIndex((hit) => hit);
+    const hit = known[index];
+    if (index < 0 || hit === undefined) {
+      const seen = known.map((c) => c.path);
+      return err({
+        kind: "not_found",
+        name,
+        searched: [...lookup.error, ...seen],
+        hint: installHint(name, deps.info),
+      });
+    }
+    path = hit.path;
+    via = hit.via;
   }
-  const path = lookup.value;
-  if (NO_VERSION_NAMES.has(name)) return ok({ name, path, version: "", source: "system" });
+  if (NO_VERSION_NAMES.has(name)) return ok({ name, path, version: "", source: "system", via });
 
   const out = await deps.run([path, ...versionArgs(name)], { signal });
   if (!out.ok) {
@@ -352,7 +376,7 @@ async function resolveSystem(
       return err({ kind: "version_too_old", name, found: version, required: opts.minVersion });
     }
   }
-  return ok({ name, path, version, source: "system" });
+  return ok({ name, path, version, source: "system", via });
 }
 
 /** 출력 앞쪽 몇 줄에서 처음 나오는 버전을 읽는다(대부분 첫 줄. socat은 둘째 줄) */

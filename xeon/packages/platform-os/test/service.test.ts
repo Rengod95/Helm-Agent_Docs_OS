@@ -310,7 +310,7 @@ describe("createOsService", () => {
     if (!started.ok) throw new Bug("unreachable");
     const { service } = started.value;
     expect(await service.resolveBinary("git", {}, signal)).toEqual(
-      ok({ name: "git", path: "/usr/bin/git", version: "2.43.0", source: "system" }),
+      ok({ name: "git", path: "/usr/bin/git", version: "2.43.0", source: "system", via: "PATH" }),
     );
     const missing = await service.resolveBinary("bwrap", {}, signal);
     expect(!missing.ok && missing.error.kind).toBe("not_found");

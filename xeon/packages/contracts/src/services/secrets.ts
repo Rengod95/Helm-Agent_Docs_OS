@@ -243,6 +243,8 @@ export type SecretError =
       readonly kind: "provider_unavailable";
       readonly provider: SecretProviderId;
       readonly reason: "binary_missing" | "version_too_old" | "not_registered";
+      /** 원인 코드와 찾아본 자리 요약(BinaryError.kind, 찾아본 곳 수). 경로나 값은 싣지 않는다 */
+      readonly detail?: string;
     }
   | {
       readonly kind: "key_unavailable";

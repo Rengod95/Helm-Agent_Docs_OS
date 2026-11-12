@@ -370,6 +370,8 @@ export interface ResolvedBinary {
   readonly path: string;          // 실행 가능한 절대 경로
   readonly version: string;
   readonly source: BinarySource;
+  /** 시스템 바이너리를 찾은 자리의 이름(PATH, homebrew, mise, mise-shim, asdf, nix, macports, local-bin, snap, system). 번들은 없다 */
+  readonly via?: string;
 }
 export type BinaryError =
   | PlatformError
@@ -386,7 +388,7 @@ export type BinaryError =
 | 이름 | 쓰는 도메인 | 번들 | 부재 시 |
 |---|---|---|---|
 | `rg` | sandbox(srt가 macOS·Linux에서 요구), L2 workspace(검색 도구) | 예. `@vscode/ripgrep` 1.18.0 플랫폼 패키지 | 번들이 깨졌으면 `integrity_mismatch` |
-| `sops`, `age` | secrets | 미정(미결 3) | `not_found` + 설치 안내 |
+| `sops`, `age` | secrets | 예. macOS 묶은 앱과 릴리스 아카이브는 `binaries.lock.json`으로 넣는다 [결정: 2026-11-12 사용자: 시크릿 도구는 앱에 내장한다] | 번들이 없으면(개발 실행, CLI 단독) 시스템 후보, 그래도 없으면 `not_found` + 설치 안내 |
 | `git` | exec(작업 트리 격리, 2차), L2 workspace | 아니오 | `not_found` + 설치 안내 |
 | `bwrap`, `socat` | sandbox(Linux) | 미정(미결 3) | `not_found` + 패키지 관리자 안내 |
 | `security` | secrets(macOS Keychain 키 명령, `L0.secrets.spec` §3.7) | 아니오(OS 내장 `/usr/bin/security`) | `not_found`. macOS에서는 생기지 않는다고 본다 [가정] |
@@ -397,13 +399,17 @@ export type BinaryError =
 1. 번들 후보: `resource` 디렉터리의 바이너리 목록 파일(`binaries.lock.json`, 빌드 때 생성. 이름, 플랫폼, 상대 경로, SHA-256, 버전)에 이름이 있으면 그 파일을 쓴다. 목록은 `generateBinariesLock(resourceDir, inputs, fs)`가 만든다. 항목은 이름·플랫폼·아키텍처 순으로 정렬해 같은 입력이 같은 본문을 내고, resource 디렉터리 밖을 가리키는 경로와 중복 항목은 오류 값이다.
    - 소스 실행(`bun run`): `@vscode/ripgrep`이 제공하는 경로를 그대로 쓴다. 서비스 설정에 `bundledSource`가 없으면 이 연결(`createRipgrepSource`)이 기본이다. 플랫폼 패키지가 없어 모듈이 던지면 번들 없음으로 보고 시스템 후보로 간다. 버전은 `rg --version`에서 읽고, 읽지 못하면 `version_unreadable`이다. 설치 때 npm 락파일의 무결성 해시로 검증되므로 실행 시 해시 검사는 생략한다. postinstall 다운로드는 하지 않는다. pi tools-manager의 해시 없는 다운로드는 쓰지 않는다(`_research/packages.md` §4.2 L0-f).
    - 컴파일 바이너리(`bun build --compile`)와 데스크톱 사이드카 [가정] (옛 Tauri 구현(커밋 424f338a)은 Tauri 사이드카, 지금은 Electron 묶음의 `Resources`, `L4.desktop.spec` §11.7): 번들 파일은 실행 파일 안에 내장되어 바로 실행할 수 없다. 그래서 `cache/bin/<sha256 앞 16자>/<이름>`으로 꺼낸 뒤 SHA-256을 다시 계산해 목록 값과 비교하고, 같을 때만 실행 권한을 주고 경로를 돌려준다. 이미 꺼낸 파일이 있으면 해시만 다시 확인한다. 불일치하면 `integrity_mismatch`이고 그 파일을 실행하지 않는다. 내장과 추출 방식은 `L0.os.plan`의 실측 작업이 확정한다.
-2. 시스템 후보: `allowSystem`이 true이면 `PATH`를 앞에서부터 찾는다(Windows는 `PATHEXT` 확장자 포함). 찾으면 `<이름> --version`(age는 `--version`, bwrap은 `--version`)을 실행해 첫 줄에서 버전을 읽는다. 읽지 못하면 `version_unreadable`이다. `security`와 `secret-tool`은 버전 옵션이 없으므로 버전 확인을 건너뛰고 `version`을 빈 문자열로 둔다. 이 둘에는 `minVersion`을 줄 수 없다 [제안].
+2. 시스템 후보: `allowSystem`이 true이면 `PATH`를 앞에서부터 찾는다(Windows는 `PATHEXT` 확장자 포함). `PATH`에 없으면 흔한 설치 자리를 이 순서로 더 찾는다(`binaries/known-paths.ts`, Windows는 건너뛴다) [결정: 2026-11-12 사용자: 시크릿 도구는 앱에 내장한다. 후보 목록은 기본값 [제안]]. Finder나 Dock에서 띄운 앱의 `PATH`는 `/usr/bin:/bin:/usr/sbin:/sbin`뿐이라 `PATH`만 보면 mise, nix, asdf로 설치한 도구를 놓친다.
+   - 자리(앞이 우선): macOS는 `/opt/homebrew/bin`, `/usr/local/bin`, `/opt/local/bin`(MacPorts). Linux는 `/home/linuxbrew/.linuxbrew/bin`, `/usr/local/bin`, `/snap/bin`, `/usr/bin`, `/bin`. 공통으로 `/nix/var/nix/profiles/default/bin`, `/run/current-system/sw/bin`, 그리고 홈(`OsDirs.home`)이 있으면 `~/.local/bin`, `~/.nix-profile/bin`, mise 설치 폴더(`~/.local/share/mise/installs/<이름>/<버전>/` 아래 `<이름>`, `<이름>/<이름>`, `bin/<이름>`, 큰 버전부터), asdf 설치 폴더(`~/.asdf/installs/<이름>/<버전>/…`), 마지막에 shim(`~/.local/share/mise/shims`, `~/.asdf/shims`. shim은 mise나 asdf가 따로 있어야 돈다).
+   - 위험: `~/.local/bin` 같은 쓰기 가능한 폴더에 가짜 바이너리를 둘 수 있다. 그래서 (1) 번들이 있으면 번들이 먼저고 시스템 후보는 보지 않으며, (2) 설정 `l0.secrets.sops.binary`로 직접 지정한 경로가 항상 우선하고, (3) 찾은 파일도 `--version` 확인과 `minVersion` 검사를 통과해야 하며, (4) 찾은 자리의 이름(`via`)을 `checkBinaries`, `host.status`, doctor에 보인다(경로는 홈 폴더 값을 담을 수 있어 wire에 싣지 않는다). 해시 검증은 번들만 한다.
+   - 진단과 실행은 같은 해석기를 쓴다: `checkBinaries`(doctor, `os.diagnose`)가 `resolveBinary`를 그대로 부르고 따로 찾지 않는다. 그러므로 doctor가 "된다"고 하면 같은 엔진이 실제로도 찾은 것이다. 서비스 모드의 doctor는 실행 중인 엔진의 `PATH`로 답한다(진단을 부른 셸의 `PATH`가 아니다).
+   - 못 찾으면 `not_found.searched`에 본 자리가 모두 들어가고, 점검 결과의 `hint`에는 설치 안내와 "`PATH`와 흔한 설치 자리 N곳을 찾아봤다, 직접 지정은 `l0.secrets.sops.binary`"가 붙는다. sops 제공자의 `provider_unavailable`에는 선택 필드 `detail`(원인 코드와 찾아본 자리 수, 경로 없음)이 실린다. 종류별 사용자 문구는 `L0.secrets.spec`과 화면의 몫이다. 찾으면 `<이름> --version`(age는 `--version`, bwrap은 `--version`)을 실행해 첫 줄에서 버전을 읽는다. 읽지 못하면 `version_unreadable`이다. `security`와 `secret-tool`은 버전 옵션이 없으므로 버전 확인을 건너뛰고 `version`을 빈 문자열로 둔다. 이 둘에는 `minVersion`을 줄 수 없다 [제안].
 3. 둘 다 없으면 `not_found`. `hint`는 OS별 설치 안내 문구다(예: Linux bwrap: "bubblewrap 패키지를 설치한다"). 이 실패는 사용자 환경 문제이고 호출자는 코드를 고칠 대상으로 다루지 않는다. CLI는 환경 문제 종료코드(2 계열)로 끝낸다 [제안: 종료코드 체계는 `L4.cli.spec`].
 
 - 대상 플랫폼과 위치 [결정: review.m3-design-inputs D-M3-25 행 2·3·5, M3-REQ-53]: macOS 14 이상 arm64, Linux x86_64·arm64를 빌드한다(Intel macOS는 빌드하지 않는다). macOS의 `sops`, `age`, `rg`는 앱 자원 디렉터리(`OsDirs.resource`, 읽기 전용, `PlatformOsConfig.resourceDir`로 L4가 넘긴다)의 `binaries.lock.json`에 적은 상대 경로에서 찾는다. Linux의 `bwrap`, `socat`은 시스템 패키지로 요구하고 `checkBinaries`의 `hint`와 doctor가 설치를 안내한다(번들하지 않는다). 위 탐색 구현은 `binaries/resolve.ts`가 이미 한다.
 - 결과는 서비스 수명 동안 이름별로 캐시한다. 바이너리 경로가 바뀌어도 재시작 전까지 반영하지 않는다.
 - 시스템 바이너리 버전 확인은 자식 프로세스 실행이 필요하다. DR-07 표의 `Bun.spawn` 소유 패키지에 `platform-os`가 있다 [결정: review.decisions-2 U-17].
-- 번들 정책: `rg`만 번들로 확정했다. `sops`, `age`, `bwrap`, `socat`의 번들 여부는 미결 3이다. 정해지기 전에는 시스템 바이너리를 요구하고 없으면 안내한다.
+- 번들 정책: `rg`(`@vscode/ripgrep`)와 `sops`, `age`를 번들한다 [결정: 2026-11-12 사용자: 시크릿 도구는 앱에 내장한다]. 묶은 Electron 앱은 파일을 사이드카 옆 `Resources/binaries/<이름>`에 두고 `Resources/binaries.lock.json`을 쓴다(사이드카는 실행 파일 안에 내장하지 않으므로 `cache/bin` 추출이 필요 없고, 해석기가 바로 그 경로를 해시 확인 뒤 돌려준다. `hostResourceDir()`가 사이드카 폴더라서 `Resources`가 자원 디렉터리다). `age-keygen`은 코드가 부르지 않아 넣지 않는다. `bwrap`, `socat`의 번들 여부는 미결 3이다. 정해지기 전에는 시스템 바이너리를 요구하고 없으면 안내한다.
 
 #### 3.6.1 필수/선택 표와 점검
 
@@ -796,7 +802,7 @@ F에 요청:
 
 1. [결정: review.decisions-2 U-03] `Logger`·`Clock` 인터페이스 위치는 F 루트 base((a)안)이고 구현과 ID 발급기 구현은 이 패키지, 테스트 대역은 쓰는 패키지의 `test/`다(3.4절, 3.5절).
 2. [결정: 2026-11-04 사용자, B14 1안] 파일 감시 책임 경계(아래 나눔으로 확정). 작업 공간 = exec(`ExecutionEnv.watch`), 앱 설정·스킬·플러그인 디렉터리 = os(`FileWatcher`). 계획 v2의 "ExecutionEnv.watch를 쓰고 없으면 @parcel/watcher" 문장은 이 나눔으로 대체한다. 외부 라이브러리 `@parcel/watcher` 도입 승인은 별개 질문이다(`review.m3-plan` §9.4 4번). `L0.exec.spec`과 같은 문장으로 맞춘다.
-3. [미결] `sops`, `age`, `bwrap`, `socat`의 번들 정책. 번들하면 설치가 쉬워지고 배포 크기와 라이선스 고지, 보안 갱신 책임이 늘어난다. 정해지기 전에는 시스템 바이너리를 요구한다.
+3. [미결] `bwrap`, `socat`의 번들 정책(`sops`, `age`는 2026-11-12 사용자 결정으로 번들한다, §3.6). 번들하면 설치가 쉬워지고 배포 크기와 라이선스 고지, 보안 갱신 책임이 늘어난다. 정해지기 전에는 시스템 바이너리를 요구한다.
 4. [결정: M3-REQ-50] WSL 알림에서 Windows 토스트 상호운용은 쓰지 않는다(§3.7). 이전 논점: WSL 알림에서 Windows 토스트 상호운용(`powershell.exe`)을 쓸지.
 5. [닫음 결정: 2026-11-04 사용자, 결정 목록 R6] 옛 설정 위치를 읽는 기간은 두지 않는다. 개발 기기는 이전 스크립트로 한 번 옮긴다(m4-decisions 2026-11-01 (8) 6번). 옛 항목: 디렉터리 규칙과 사용자의 기존 설정 위치 충돌. macOS config를 `~/Library/Application Support/fresnel/config`로 둘지 `~/.config/fresnel`으로 둘지, 위치를 바꿀 때 마이그레이션을 둘지.
 6. [미결] 단조 시계를 F 계약에 더할지(`performance.now` 대응). 현재는 `Clock.now()` 차이로 경과 시간을 잰다.
