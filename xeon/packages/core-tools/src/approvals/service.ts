@@ -656,6 +656,7 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
       remember: checked.value.remember,
       requestedRemember: checked.value.requestedRemember,
       resolvedBy: "user",
+      ...(response.deviceId === undefined ? {} : { deviceId: response.deviceId }),
     };
     const committed = await commitSettling(entry, resolution);
     if (!committed.ok) {

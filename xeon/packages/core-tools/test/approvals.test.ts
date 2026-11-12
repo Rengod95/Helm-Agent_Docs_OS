@@ -426,3 +426,31 @@ test("non-interactive runs deny an ask before any request is written", async () 
   expect(out.blocked).toContain("noninteractive_ask_denied");
   expect(kinds(h)).toEqual(["item.recorded"]);
 });
+
+test("a response from another device records its device id in approval.resolved; a local one records none", async () => {
+  const remote = await createHarness();
+  registerWorkspace(remote);
+  const first = await startBash(remote, "call_1");
+  const [request] = remote.runtime.approvals.pending(remote.thread);
+  expect(
+    await remote.runtime.approvals.respond(request?.approvalId ?? "", {
+      decision: "deny",
+      deviceId: "dev_0123456789abcdef",
+    }),
+  ).toEqual({ applied: true });
+  await first.done;
+  const resolvedRemote = remote.session.events.find((event) => event.kind === "approval.resolved");
+  const remotePayload = parse(ApprovalResolvedPayloadSchema, resolvedRemote?.payload);
+  expect(remotePayload.ok && remotePayload.value.deviceId).toBe("dev_0123456789abcdef");
+  expect(remotePayload.ok && remotePayload.value.resolvedBy).toBe("user");
+
+  const local = await createHarness();
+  registerWorkspace(local);
+  const second = await startBash(local, "call_1");
+  const [localRequest] = local.runtime.approvals.pending(local.thread);
+  await local.runtime.approvals.respond(localRequest?.approvalId ?? "", { decision: "deny" });
+  await second.done;
+  const resolvedLocal = local.session.events.find((event) => event.kind === "approval.resolved");
+  const payload = parse(ApprovalResolvedPayloadSchema, resolvedLocal?.payload);
+  expect(payload.ok ? "deviceId" in payload.value : null).toBe(false);
+});
