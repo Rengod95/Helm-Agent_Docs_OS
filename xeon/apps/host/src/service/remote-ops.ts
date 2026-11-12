@@ -283,7 +283,7 @@ export interface ProxyExampleOutcome {
 
 /**
  * 공개 서버(VPS) 구성의 리버스 프록시 예시와 루프백 전용 구성(`host.remote.proxyExample`). 상태는 바꾸지 않는다.
- * 루프백 포트는 설정 `listen`의 포트이고, 없으면 8480이다.
+ * 루프백 포트는 설정 `listen`의 포트이고, 없으면 8480이다. 허용 호스트는 지금 적은 값에 도메인을 더한다(적은 이름을 지우지 않는다).
  */
 export function remoteProxyExampleOf(
   env: Pick<RemoteOpsEnv, "read">,
@@ -291,10 +291,11 @@ export function remoteProxyExampleOf(
 ): Result<ProxyExampleOutcome, ProxyExampleError> {
   const text = proxyExampleOf(input);
   if (!text.ok) return err(text.error);
-  const loopbackPort = portOfBind(readGatewaySettings(env.read).listen) ?? DEFAULT_LOOPBACK_PORT;
+  const settings = readGatewaySettings(env.read);
+  const loopbackPort = portOfBind(settings.listen) ?? DEFAULT_LOOPBACK_PORT;
   return ok({
     text: text.value,
-    plan: loopbackOnlyPlan(loopbackPort, input.tlsPort, input.domain),
+    plan: loopbackOnlyPlan(loopbackPort, input.tlsPort, input.domain, settings.hosts),
   });
 }
 

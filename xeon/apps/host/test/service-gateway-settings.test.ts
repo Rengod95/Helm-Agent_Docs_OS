@@ -455,3 +455,13 @@ test("proxy: the loopback-only plan binds both listeners to 127.0.0.1 and lists 
     hosts: ["fresnel.example.com"],
   });
 });
+
+test("proxy: the loopback-only plan adds the domain to the names already written and drops repeats", () => {
+  expect(
+    loopbackOnlyPlan(8480, 8443, "fresnel.example.com", [
+      "mine.example",
+      "fresnel.example.com",
+      "mine.example",
+    ]).hosts,
+  ).toEqual(["mine.example", "fresnel.example.com"]);
+});

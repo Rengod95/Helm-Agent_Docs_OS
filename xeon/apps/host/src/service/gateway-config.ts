@@ -47,7 +47,7 @@ function isWildcardTls(listenTls: string | null): boolean {
 
 /**
  * `l4.remote.web.*`를 감독자 설정으로 옮긴다. 값이 없거나 타입이 다르면 빈 값(게이트웨이 기본값)으로 본다.
- * 외부 리스너가 모든 주소이고 `hosts`가 비어 있으면 `localNames`(기본 `localHostNames`)로 채운다: 사용자가 `hosts`를 적으면 그 값만 쓴다.
+ * 외부 리스너가 모든 주소이면 `localNames`(기본 `localHostNames`)를 적은 `hosts` 뒤에 더한다: 적은 값과 자동 이름을 함께 쓴다(같은 Wi‑Fi 접속과 공개 도메인이 함께 된다).
  * 결과 `hosts`에는 `extraNames`(Tailscale 이름 등, 루프백 리스너로 들어오는 Host 값)를 더한다. 중복은 뺀다.
  */
 export function gatewayConfigOf(
@@ -57,11 +57,11 @@ export function gatewayConfigOf(
 ): GatewayConfig {
   const listenTls = nullIfEmpty(read("l4.remote.web.listenTls"));
   const hosts = stringsOf(read("l4.remote.web.hosts"));
-  const base = hosts.length === 0 && isWildcardTls(listenTls) ? localNames() : hosts;
+  const automatic = isWildcardTls(listenTls) ? localNames() : [];
   return {
     listen: textOf(read("l4.remote.web.listen")),
     listenTls,
-    hosts: mergeHosts(base, extraNames()),
+    hosts: mergeHosts([...hosts, ...automatic], extraNames()),
     tlsCert: nullIfEmpty(read("l4.remote.web.tlsCert")),
     tlsKey: nullIfEmpty(read("l4.remote.web.tlsKey")),
   };

@@ -50,6 +50,7 @@ test("set values pass through, and non-string entries of the host list are dropp
         "l4.remote.web.tlsCert": "/etc/fresnel/cert.pem",
         "l4.remote.web.tlsKey": "/etc/fresnel/key.pem",
       }),
+      () => [],
     ),
   ).toEqual({
     listen: "127.0.0.1:9000",
@@ -83,7 +84,7 @@ test("the enabled key is on only for the boolean true", () => {
 
 const names = (): readonly string[] => ["box", "box.local", "192.168.0.7"];
 
-test("a wildcard external address with no hosts gets this computer's names; written hosts and a named address are left alone", () => {
+test("a wildcard external address always gets this computer's names, after the names the user wrote; a named address gets none", () => {
   const tls = (value: string, hosts: readonly string[]): SettingReader =>
     readerOf({ "l4.remote.web.listenTls": value, "l4.remote.web.hosts": hosts });
   expect(gatewayConfigOf(tls("0.0.0.0:8443", []), names).hosts).toEqual([
@@ -98,9 +99,48 @@ test("a wildcard external address with no hosts gets this computer's names; writ
   ]);
   expect(gatewayConfigOf(tls("0.0.0.0:8443", ["mine.example"]), names).hosts).toEqual([
     "mine.example",
+    "box",
+    "box.local",
+    "192.168.0.7",
   ]);
   expect(gatewayConfigOf(tls("10.0.0.5:8443", []), names).hosts).toEqual([]);
+  expect(gatewayConfigOf(tls("10.0.0.5:8443", ["mine.example"]), names).hosts).toEqual([
+    "mine.example",
+  ]);
   expect(gatewayConfigOf(readerOf({}), names).hosts).toEqual([]);
+});
+
+test("a public domain and this computer's names are both allowed: value form, no duplicates, Tailscale names last", () => {
+  const read = readerOf({
+    "l4.remote.web.listenTls": "0.0.0.0:8443",
+    "l4.remote.web.hosts": ["fresnel.example", "box", "fresnel.example"],
+  });
+  expect(
+    gatewayConfigOf(
+      read,
+      () => ["box", "box.local", "192.168.0.7"],
+      () => ["box.tail1234.ts.net", "100.64.0.7", "fd7a:115c:a1e0::1"],
+    ).hosts,
+  ).toEqual([
+    "fresnel.example",
+    "box",
+    "box.local",
+    "192.168.0.7",
+    "box.tail1234.ts.net",
+    "100.64.0.7",
+    "[fd7a:115c:a1e0::1]",
+  ]);
+});
+
+test("a loopback external listener (the public-server plan) lists only what the user wrote", () => {
+  const read = readerOf({
+    "l4.remote.web.listenTls": "127.0.0.1:8443",
+    "l4.remote.web.hosts": ["fresnel.example"],
+  });
+  expect(gatewayConfigOf(read, names, () => ["100.64.0.7"]).hosts).toEqual([
+    "fresnel.example",
+    "100.64.0.7",
+  ]);
 });
 
 test("the names of this computer are valid Host names, include localhost, and have no duplicates", () => {
