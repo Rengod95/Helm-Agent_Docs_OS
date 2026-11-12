@@ -109,6 +109,8 @@ interface Mounted {
   readonly retargets: ConnectTarget[];
   /** 저장하려고 넘긴 목록 */
   readonly saves: (readonly TargetEntry[])[];
+  /** 셸에 보낸 엔진 재시작 옵션 */
+  readonly restarts: unknown[];
   readonly press: (text: string) => Promise<void>;
   readonly submit: (form: Element) => Promise<void>;
   readonly cleanup: () => Promise<void>;
@@ -118,8 +120,13 @@ interface Mounted {
 async function mountScreen(): Promise<Mounted> {
   const retargets: ConnectTarget[] = [];
   const saves: (readonly TargetEntry[])[] = [];
+  const restarts: unknown[] = [];
   const base = fakeCommands();
   const commands = fakeCommands({
+    restartEngine: (options) => {
+      restarts.push(options ?? null);
+      return Promise.resolve(true);
+    },
     connection: {
       ...base.connection,
       targets: () => Promise.resolve(ok([BUILD, MINI])),
@@ -168,7 +175,7 @@ async function mountScreen(): Promise<Mounted> {
     });
     container.remove();
   };
-  return { container, retargets, saves, press, submit, cleanup };
+  return { container, retargets, saves, restarts, press, submit, cleanup };
 }
 
 /** 화면이 읽기와 명령의 결과를 그릴 시간을 준다 */
@@ -229,6 +236,15 @@ describe("the host rows connect and lock", () => {
       false,
       false,
     ]);
+    await screen.cleanup();
+  });
+});
+
+describe("engine restart on a live engine", () => {
+  test("the button does not send an unconfirmed restart (the shell would refuse it)", async () => {
+    const screen = await mountScreen();
+    await screen.press("엔진 다시 시작");
+    expect(screen.restarts).toEqual([]);
     await screen.cleanup();
   });
 });

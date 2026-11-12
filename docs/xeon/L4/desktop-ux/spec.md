@@ -1715,6 +1715,8 @@ compact 폭(720 이하)과 사이드바 시트:
 
 그림은 배치와 순서입니다. 글은 `packages/client/src/i18n/locales/ko.json`의 `desktop.connection.*` 문장이고, 이름과 주소는 보기 값입니다. 화면은 한 열이고 최대 폭 720px로 가운데에 맞춥니다. 섹션 사이는 `gap-10`, 섹션 안 묶음 사이는 `gap-4`입니다(DP-62). 원격 호스트에 붙어 있거나 상태를 읽는 중이면 ②·③·④는 그리지 않고, 맨 아래에 업데이트 줄 하나만 둡니다.
 
+"엔진 다시 시작"은 살아 있는 엔진이면 팔레트·상태 표시줄과 같은 확인 대화 상자를 거쳐 `confirmed`로 셸에 보냅니다(셸은 확인 없는 요청을 거절합니다). 실패한 엔진(`failed`)만 확인 없이 다시 띄웁니다. [결정: 2026-11-12 dzX, F1] [근거: `apps/desktop/src/views/pages/connection/connection-screen.tsx`, `apps/desktop-shell/src/main/engine/supervisor.ts` `restartManually`]
+
 - 목적: 앱이 붙을 호스트(엔진이 도는 곳)를 고르고, 이 컴퓨터의 실행 방식과 다른 기기 접속을 맞추고, 진단 동작을 둡니다(SC-08, SC-07).
 - 구조: 섹션은 위에서 아래로 넷입니다. ① 호스트, ② 실행 방식, ③ 다른 기기 접속, ④ 진단입니다. 섹션 머리는 caustic `SectionHeader`(제목 2, 16/22 600)이고, 선이나 상자를 더하지 않습니다(DP-62, DP-03).
 - 코드: `connection-view.tsx`가 한 열과 배치를 잡고, 호스트는 `connection-host-section.tsx`와 `connection-current-host.tsx`, 추가 칸은 `host-address-field.tsx`와 `host-address.ts`, 실행 방식은 `connection-run-mode.tsx`, 다른 기기 접속은 `connection-server.tsx`와 `connection-server-container.tsx`, 선택 카드는 `radio-card.tsx`, 동작은 `connection-screen.tsx`, 상태 기계는 `connection-model.ts`입니다.
