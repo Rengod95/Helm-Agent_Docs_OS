@@ -3171,6 +3171,7 @@
   "desktop.settings.table.empty": "No entries",
   "desktop.settings.table.issue.nameDuplicate": "This name already exists.",
   "desktop.settings.table.issue.nameEmpty": "Enter a name.",
+  "desktop.settings.table.issue.noEmptyValue": "A blank value can't be made here. Add it in the file view.",
   "desktop.settings.table.name.placeholder": "New entry name",
   "desktop.settings.table.record.add.button": "Add entry",
   "desktop.settings.table.remove.button": "Remove",

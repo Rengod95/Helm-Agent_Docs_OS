@@ -120,6 +120,11 @@ export interface TableColumn {
   readonly required: boolean;
   /** 스키마가 `null`을 받는 열(`Nullable`). 글 열의 빈 칸은 `""`가 아니라 `null`로 저장한다. 아니면 생략한다 */
   readonly nullable?: boolean;
+  /**
+   * `json` 열이 스키마에 맞게 받는 빈 값의 모양. `array`면 `[]`, `object`면 `{}`다. 없으면 빈 값을 정할 수 없어
+   * 새 행이나 새 이름에 이 열 값을 넣지 못한다
+   */
+  readonly emptyJson?: "array" | "object";
 }
 
 export type WidgetVM =

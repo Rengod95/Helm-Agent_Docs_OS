@@ -288,6 +288,85 @@ describe("widget map: table shapes", () => {
   });
 });
 
+// 중첩 값 열의 빈 값(`emptyJson`): 스키마가 받는 빈 배열이나 필수 속성이 없는 빈 객체만 표시한다. 그 밖은 표시가 없다
+describe("widget map: the empty value of a nested column", () => {
+  test("a record of lists has a list value column whose empty value is the empty list", () => {
+    expect(
+      resolveWidget(typed(Type.Record(Type.String(), Type.Array(Type.String())), "table")).widget,
+    ).toEqual({
+      kind: "table",
+      shape: "record",
+      columns: [
+        { name: "이름", kind: "string", options: null, required: true },
+        { name: "값", kind: "json", options: null, required: true, emptyJson: "array" },
+      ],
+      maxItems: null,
+    });
+  });
+
+  test("a record of objects takes the empty object only when no property is required", () => {
+    const optional = resolveWidget(
+      typed(Type.Record(Type.String(), Type.Object({ a: Type.Optional(Type.Integer()) })), "table"),
+    );
+    expect(optional.widget).toMatchObject({
+      columns: [{ name: "이름" }, { name: "값", kind: "json", emptyJson: "object" }],
+    });
+    const required = resolveWidget(
+      typed(Type.Record(Type.String(), Type.Object({ a: Type.Integer() })), "table"),
+    );
+    expect(required.widget).toEqual({
+      kind: "table",
+      shape: "record",
+      columns: [
+        { name: "이름", kind: "string", options: null, required: true },
+        { name: "값", kind: "json", options: null, required: true },
+      ],
+      maxItems: null,
+    });
+  });
+
+  test("a list that must not be empty has no empty value", () => {
+    expect(
+      resolveWidget(
+        typed(Type.Record(Type.String(), Type.Array(Type.String(), { minItems: 1 })), "table"),
+      ).widget,
+    ).toEqual({
+      kind: "table",
+      shape: "record",
+      columns: [
+        { name: "이름", kind: "string", options: null, required: true },
+        { name: "값", kind: "json", options: null, required: true },
+      ],
+      maxItems: null,
+    });
+  });
+
+  test("rows: a nested list column has the empty list, a required nested object has none", () => {
+    const row = typed(
+      Type.Array(
+        Type.Object({
+          id: Type.String(),
+          tags: Type.Array(Type.String()),
+          pinned: Type.Array(Type.String(), { minItems: 1 }),
+          nested: Type.Object({ x: Type.String() }),
+        }),
+      ),
+      "table",
+    );
+    expect(resolveWidget(row).widget).toEqual({
+      kind: "table",
+      shape: "rows",
+      columns: [
+        { name: "id", kind: "string", options: null, required: true },
+        { name: "tags", kind: "json", options: null, required: true, emptyJson: "array" },
+        { name: "pinned", kind: "json", options: null, required: true },
+        { name: "nested", kind: "json", options: null, required: true },
+      ],
+      maxItems: null,
+    });
+  });
+});
+
 describe("widget map: secret, readonly, unknown", () => {
   test("secret needs secret: true", () => {
     const secret = wireDef({

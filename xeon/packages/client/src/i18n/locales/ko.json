@@ -3171,6 +3171,7 @@
   "desktop.settings.table.empty": "항목이 없어요",
   "desktop.settings.table.issue.nameDuplicate": "같은 이름이 있어요.",
   "desktop.settings.table.issue.nameEmpty": "이름을 입력하세요.",
+  "desktop.settings.table.issue.noEmptyValue": "여기서는 빈 값을 만들 수 없어요. 파일로 보기에서 넣어 주세요.",
   "desktop.settings.table.name.placeholder": "새 항목 이름",
   "desktop.settings.table.record.add.button": "항목 추가",
   "desktop.settings.table.remove.button": "지우기",

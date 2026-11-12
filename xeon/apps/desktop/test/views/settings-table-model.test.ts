@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { checkClientValue, type TableColumn } from "@fresnel/client/settings";
-import type { SettingDefWire } from "@fresnel/contracts/settings";
+import { checkClientValue, resolveWidget, type TableColumn } from "@fresnel/client/settings";
+import { toSettingDefWire, type SettingDefWire } from "@fresnel/contracts/settings";
+import { Type } from "typebox";
 import {
   checkRecordName,
   defaultCellOf,
@@ -70,6 +71,17 @@ describe("defaults and new rows", () => {
     expect(defaultCellOf(column("e", "enum", ["fast", "slow"]))).toBe("fast");
     expect(defaultCellOf(column("f", "enum", null))).toBeNull();
     expect(defaultCellOf(column("g", "json"))).toBeUndefined();
+  });
+
+  test("a nested column with a schema-valid empty value starts with that empty value", () => {
+    expect(defaultCellOf({ ...column("list", "json"), emptyJson: "array" })).toEqual([]);
+    expect(defaultCellOf({ ...column("map", "json"), emptyJson: "object" })).toEqual({});
+    expect(newRowOf([...COLUMNS, { ...column("tags", "json"), emptyJson: "array" }])).toEqual({
+      name: "",
+      mode: "fast",
+      limit: 0,
+      tags: [],
+    });
   });
 
   test("a new row has the defaults of its plain columns only", () => {
@@ -171,5 +183,66 @@ describe("a text cell that can be cleared", () => {
   test("a new row starts with null for the nullable text column and empty for a plain one", () => {
     expect(defaultCellOf(baseUrl)).toBeNull();
     expect(defaultCellOf(column("id", "string"))).toBe("");
+  });
+});
+
+/** 표의 값 열(두 번째 열). 표 모양이 아니면 `undefined`다 */
+function valueColumnOf(def: SettingDefWire): TableColumn | undefined {
+  const resolved = resolveWidget(def);
+  if (resolved.widget.kind !== "table") return undefined;
+  return resolved.widget.columns[1];
+}
+
+// 새 이름의 값은 값 열의 빈 값이다. 그 값을 넣은 map 전체가 정의의 스키마를 통과해야 한다(row 12: hookOrder는 `null`이면 거절됐다)
+describe("a new name in a record of lists", () => {
+  const hookOrder: SettingDefWire = toSettingDefWire({
+    key: "x.operations.hookOrder",
+    type: Type.Record(Type.String(), Type.Array(Type.String())),
+    runtimeChange: "nextTurn",
+    layer: "X",
+    allowedScopes: ["managed", "user"],
+    ui: { tab: "plugins", widget: "table", order: 600, label: "핸들러 순서" },
+    since: "0.1.0",
+  });
+  const current = { "tool.call.before": ["beta", "alpha"] };
+
+  test("the value column of a record of lists starts with an empty list, and the new map passes the schema", () => {
+    const valueColumn = valueColumnOf(hookOrder);
+    expect(valueColumn).toEqual({
+      name: "값",
+      kind: "json",
+      options: null,
+      required: true,
+      emptyJson: "array",
+    });
+    if (valueColumn === undefined) throw new Error("no value column");
+    const next = withField(current, "tool.call.after", defaultCellOf(valueColumn));
+    expect(next).toEqual({ "tool.call.before": ["beta", "alpha"], "tool.call.after": [] });
+    expect(checkClientValue(hookOrder, next)).toEqual({ ok: true, value: next });
+  });
+
+  test("the old null start is refused by the same schema, so the new name was never saved", () => {
+    const next = withField(current, "tool.call.after", null);
+    expect(checkClientValue(hookOrder, next).ok).toBe(false);
+  });
+
+  test("a value whose empty form the schema refuses has no default, so the name is not added", () => {
+    const needsKeys: SettingDefWire = toSettingDefWire({
+      key: "x.operations.perHook",
+      type: Type.Record(Type.String(), Type.Object({ id: Type.String() })),
+      runtimeChange: "nextTurn",
+      layer: "X",
+      allowedScopes: ["user"],
+      ui: { tab: "plugins", widget: "table", order: 601, label: "훅별 설정" },
+      since: "0.1.0",
+    });
+    expect(valueColumnOf(needsKeys)).toEqual({
+      name: "값",
+      kind: "json",
+      options: null,
+      required: true,
+    });
+    const column = valueColumnOf(needsKeys);
+    expect(column === undefined ? undefined : defaultCellOf(column)).toBeUndefined();
   });
 });
