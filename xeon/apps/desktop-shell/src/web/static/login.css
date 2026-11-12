@@ -1,25 +1,33 @@
-/* 로그인 화면 스타일. 인라인 스타일을 쓰지 않는다(CSP). 색은 토큰으로 두고 밝은 쪽과 어두운 쪽을 나눈다. */
+/* 로그인 화면 스타일(시안 dzRW §9). 인라인 스타일을 쓰지 않는다(CSP). 색은 토큰으로 두고 밝은 쪽과 어두운 쪽을 나눈다.
+   카드 360 · 안쪽 24 · 반경 12. 머리: 로고 32 + 이름 16/600 + 한 줄 13 secondary. 칸과 단추는 44(모바일 손가락), 칸 글자 16
+   (iOS가 확대하지 않는다). 오류는 칸 아래 13 danger, 바닥 안내 13 tertiary. 간격은 4의 배수다. */
 :root {
   --bg: #f5f6f8;
   --card: #ffffff;
+  --field: #ffffff;
   --text: #15171c;
-  --muted: #5b616e;
-  --line: #c9ced8;
-  --accent: #2c5fd6;
+  --secondary: #4a505c;
+  --tertiary: #6b7280;
+  --line: #d5d9e0;
+  --line-strong: #9aa1ad;
+  --accent: #15171c;
   --accent-text: #ffffff;
   --error: #b42318;
-  --focus: #1d4ed8;
+  --focus: #2c5fd6;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #101216;
     --card: #1a1d23;
+    --field: #14171c;
     --text: #f1f3f7;
-    --muted: #a3aab7;
-    --line: #3a404b;
-    --accent: #7aa2ff;
-    --accent-text: #0b1220;
+    --secondary: #b7bdc8;
+    --tertiary: #8b929f;
+    --line: #2f343d;
+    --line-strong: #4b525e;
+    --accent: #f1f3f7;
+    --accent-text: #101216;
     --error: #ff8a80;
     --focus: #9dbcff;
   }
@@ -28,11 +36,14 @@
 :root[data-theme="dark"] {
   --bg: #101216;
   --card: #1a1d23;
+  --field: #14171c;
   --text: #f1f3f7;
-  --muted: #a3aab7;
-  --line: #3a404b;
-  --accent: #7aa2ff;
-  --accent-text: #0b1220;
+  --secondary: #b7bdc8;
+  --tertiary: #8b929f;
+  --line: #2f343d;
+  --line-strong: #4b525e;
+  --accent: #f1f3f7;
+  --accent-text: #101216;
   --error: #ff8a80;
   --focus: #9dbcff;
 }
@@ -50,7 +61,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font:
-    16px/1.5 system-ui,
+    13px/20px system-ui,
     -apple-system,
     "Segoe UI",
     sans-serif;
@@ -58,24 +69,37 @@ body {
 
 .card {
   width: 100%;
-  max-width: 420px;
+  max-width: 360px;
   padding: 24px;
-  border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 24px;
 }
 
 .logo {
   display: block;
-  width: 40px;
-  height: 40px;
-  margin: 0 0 12px;
+  flex: none;
+  width: 32px;
+  height: 32px;
 }
 
 h1 {
-  margin: 0 0 16px;
-  font-size: 1.5rem;
-  font-weight: 650;
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--secondary);
 }
 
 form {
@@ -84,48 +108,61 @@ form {
 }
 
 label {
-  font-weight: 600;
+  font-weight: 500;
+}
+
+label:not(:first-child) {
   margin-top: 8px;
 }
 
 input {
   width: 100%;
-  min-height: 44px;
-  padding: 8px 12px;
-  border: 1px solid var(--line);
+  height: 44px;
+  padding: 0 12px;
+  border: 0;
   border-radius: 8px;
-  background: var(--bg);
+  background: var(--field);
+  box-shadow: inset 0 0 0 1px var(--line);
   color: var(--text);
   font: inherit;
+  font-size: 16px;
+}
+
+input:hover {
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+
+input::placeholder {
+  color: var(--tertiary);
+}
+
+input[aria-invalid="true"] {
+  box-shadow: inset 0 0 0 1px var(--error);
 }
 
 #code {
-  text-transform: uppercase;
   letter-spacing: 0.08em;
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 input:focus-visible,
 button:focus-visible {
-  outline: 3px solid var(--focus);
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
-.hint {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
 button {
-  min-height: 44px;
-  margin-top: 12px;
-  padding: 8px 16px;
+  width: 100%;
+  height: 44px;
+  margin-top: 16px;
+  padding: 0 16px;
   border: 0;
   border-radius: 8px;
   background: var(--accent);
   color: var(--accent-text);
   font: inherit;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -135,15 +172,16 @@ button:disabled {
   cursor: progress;
 }
 
-.message {
-  margin: 16px 0 0;
+.error {
+  margin: 0;
   color: var(--error);
 }
 
-.message[hidden] {
+.error[hidden] {
   display: none;
 }
 
-noscript p {
-  color: var(--error);
+.footer {
+  margin: 24px 0 0;
+  color: var(--tertiary);
 }

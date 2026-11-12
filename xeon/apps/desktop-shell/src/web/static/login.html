@@ -15,42 +15,53 @@
   </head>
   <body>
     <main class="card">
-      <img
-        class="logo"
-        src="/brand/logo/fresnel-logo-32@2x.png"
-        srcset="/brand/logo/fresnel-logo-32@2x.png 2x, /brand/logo/fresnel-logo-32@3x.png 3x"
-        width="40"
-        height="40"
-        alt=""
-      />
-      <h1 id="title">Fresnel</h1>
+      <header class="head">
+        <img
+          class="logo"
+          src="/brand/logo/fresnel-logo-32@2x.png"
+          srcset="/brand/logo/fresnel-logo-32@2x.png 2x, /brand/logo/fresnel-logo-32@3x.png 3x"
+          width="32"
+          height="32"
+          alt=""
+        />
+        <div>
+          <h1 id="title">Fresnel</h1>
+          <p id="subtitle" class="subtitle"></p>
+        </div>
+      </header>
       <form id="pair-form" novalidate>
         <label id="code-label" for="code"></label>
         <input
           id="code"
           name="code"
           type="text"
-          autocomplete="off"
+          inputmode="text"
+          autocomplete="one-time-code"
           autocapitalize="characters"
           autocorrect="off"
           spellcheck="false"
           maxlength="64"
+          placeholder="ABCDE-12345"
+          aria-describedby="code-error"
           required
         />
-        <p id="code-hint" class="hint"></p>
+        <p id="code-error" class="error" role="alert" hidden></p>
         <label id="name-label" for="device-name"></label>
         <input
           id="device-name"
           name="deviceName"
           type="text"
           autocomplete="off"
-          maxlength="256"
+          maxlength="64"
+          aria-describedby="name-error"
           required
         />
+        <p id="name-error" class="error" role="alert" hidden></p>
         <button id="submit" type="submit"></button>
+        <p id="message" class="error" role="alert" hidden></p>
       </form>
-      <p id="message" class="message" role="alert" hidden></p>
-      <noscript><p>JavaScript is required to connect.</p></noscript>
+      <p id="footer" class="footer"></p>
+      <noscript><p class="error">JavaScript is required to connect.</p></noscript>
     </main>
     <script src="/login.js" defer></script>
   </body>
