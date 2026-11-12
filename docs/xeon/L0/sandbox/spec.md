@@ -353,6 +353,13 @@ export function selectSandboxProvider(input: {
 4. srt `isSupportedPlatform()`과 `checkDependencies()`를 부른다. 거짓이거나 오류가 있으면 `missing_dependency` 또는 `unsupported_os`로 옮긴다(오류 이름 대응은 구현에서 정한다 [가정]).
 5. srt `initialize(config, undefined, enableLogMonitor)`를 한 번 부른다. `enableLogMonitor`는 macOS 참, Linux 거짓이 기본이다 [제안]. Linux 모니터 값은 샌드박스 프로세스가 조작할 수 있어 진단용으로만 쓸 수 있기 때문이다(`_research/notes/L0-1.md` §5).
    macOS의 위반 감시(`log stream ... _SBX`)는 srt가 `reset()`에서만 끈다. 호스트가 reset 없이 끝나도 자식이 남지 않게, 초기화 직후 부모 없이(ppid 1) 남은 감시를 거두고 프로세스 `exit` 때 이 프로세스의 감시 자식을 끈다(`log-monitor.ts`). SIGKILL처럼 `exit`가 불리지 않는 종료는 다음 초기화가 거두며, 그 사이는 `just orphans`가 목록에 올린다. [결정: 2026-11-12 dzX]
+   종료 방식별 실측 [결정: 2026-11-12 사용자]. 2026-11-12 맥에서 `createSrtPort().initialize(…, 감시 켬, 허용 목록 밖 허용)`으로 감시를 띄우고 임시 HOME(`/private/tmp/dzK2-home`)에서 시험했다. 셈은 시험이 띄운 감시 자식의 pid와 명령줄로 했다. 감시 1개로 시작해 끝난 뒤 남은 수는 다음과 같다.
+   - 정상 종료(`process.exit(0)`, reset 없음): 1 → 0.
+   - 정상 종료(`reset()` 뒤 `process.exit(0)`): 1 → 0.
+   - SIGTERM, 호스트식 처리기(`process.once("SIGTERM")`가 `process.exit(0)`): 1 → 0.
+   - SIGTERM, 처리기 없음: 1 → 0(10초 뒤에 셈). srt의 SIGTERM 처리기가 `reset()`으로 감시를 껐지만 프로세스는 10초 안에 끝나지 않아 시험기가 SIGKILL했다. 시험기가 stdin을 열어 둔 탓일 수 있어 원인은 확정하지 않았다.
+   - SIGKILL(부모 사망): 1 → 1(ppid 1). `just orphans`가 이 감시를 worktree `dzK2`로 읽기 전용 목록에 올렸다(종료 0). 다음 초기화가 부모 없는 감시를 거두자 0이 됐다.
+   두 번 되풀이해 같은 결과였다. srt 0.0.79는 `initialize` 안에서 `exit`, SIGINT, SIGTERM에 `reset()`을 걸므로(`sandbox-manager.js`의 `registerCleanup`), 앞의 셋에서 srt 처리기와 이 파일의 `exit` 훅 중 어느 쪽이 껐는지는 나누지 않았다. 시험하지 않은 신호는 SIGINT, 처리되지 않은 예외, 프로세스 그룹 전체 신호다. 실제 감시를 띄우는 시험은 맥 전용이고, 다음 초기화가 부모 없는 감시를 모두 끄므로 공용 `just test`에 넣지 않았다. `log-monitor.test.ts`는 같은 명령줄을 가진 가짜 자식으로 정리 로직만 본다.
 6. 마지막 자가 시험이 실패했으면 `reason: "self_test_failed"`.
 7. 상태는 시작 로그 한 줄과 doctor 출력에 남긴다(4.6절).
 
