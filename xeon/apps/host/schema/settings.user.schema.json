@@ -1244,6 +1244,27 @@
         }
       }
     },
+    "l0.process.service.allowRemoteRespond": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L0",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Approve from other devices",
+          "labelKey": "settings.l0.process.service.allowRemoteRespond.label",
+          "order": 16,
+          "tab": "execution",
+          "widget": "toggle"
+        }
+      }
+    },
     "l0.process.service.enabled": {
       "default": false,
       "type": "boolean",

@@ -819,6 +819,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 |---|---|---|---|---|---|---|
 | `l0.process.service.enabled` | boolean | false | - | restart | managed, user | `execution` 탭 토글 "공유 서비스 모드" |
 | `l0.process.service.remote` | string | `""` | - | restart | managed, user | `execution` 탭 텍스트 "원격 서비스 주소"(순서 15) |
+| `l0.process.service.allowRemoteRespond` | boolean | `true` | - | live | managed, user | `execution` 탭 토글 "다른 기기에서 승인하기"(순서 16) [결정: 2026-11-12 사용자] |
 | `l0.process.service.idleGraceMs` | integer | 0 (꺼지지 않음) [결정: 2026-11-11 사용자] | 0~86400000 | live | managed, user | `execution` 탭 |
 | `l0.process.service.startTimeoutMs` | integer | 10000 [제안] | 1000~120000 | live | managed, user | 파일만 |
 | `l0.process.shutdown.timeoutMs` | integer | 3000 | 500~60000 | live | managed, user | `execution` 탭 |
@@ -826,6 +827,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 
 - 자동 재개 키는 이 표에 두지 않는다. `l1.persistence.autoResume`, `l1.persistence.maxResumeAttempts`(`L1.persistence.spec` §6)가 정본이다 [결정: review.decisions-2 S-03].
 - `startupGraceMs`(10000)는 설정으로 열지 않는다 [제안].
+- `l0.process.service.allowRemoteRespond`는 다른 기기(게이트웨이가 hello에 `origin: "remote"`를 실은 연결)가 승인 요청에 답할 수 있는지다. 끄면 그런 연결의 `approval.respond`를 호스트가 `approval.remoteNotAllowed`(3009)로 거절한다. 승인은 예약에 한정되지 않으므로 L2.schedule이 아니라 여기에 둔다(`L4.remote.spec` §8.9) [결정: 2026-11-12 사용자].
 - `l0.process.service.remote`는 원격 서비스 주소다. 빈 값이면 지금처럼 로컬 서비스나 프로세스 안 엔진에 붙는다. 값이 있으면 CLI 대화와 데스크톱 사이드카가 그 주소에 붙는다. 값은 `unix:/절대/경로`, `tcp://host:port`, `ssh://[user@]host[:port]/절대/원격/소켓/경로` 가운데 하나다. 해석은 `@fresnel/client`가 한다. `ssh://` 값은 §4.4.8의 `sshTunnelCommand` 입력이 된다. `tcp://` 값의 토큰은 환경 변수 `FRESNEL_REMOTE_TOKEN`에서만 읽고 설정 파일에는 두지 않는다 [제안]. 비루프백 `tcp://`의 허용 여부는 [해소 P-13: 2026-11-08, 비루프백은 게이트웨이만 열고 서비스 호스트는 열지 않는다. `L4.remote.spec` §9]이다.
 
 ## 7. 훅

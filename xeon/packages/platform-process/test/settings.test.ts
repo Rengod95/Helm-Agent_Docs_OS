@@ -7,10 +7,11 @@ import {
 } from "../src/index.ts";
 
 describe("l0.process settings", () => {
-  test("declares exactly the six keys of the spec table", () => {
+  test("declares exactly the seven keys of the spec table", () => {
     expect(PROCESS_SETTING_DEFS.map((def) => def.key)).toEqual([
       "l0.process.service.enabled",
       "l0.process.service.remote",
+      "l0.process.service.allowRemoteRespond",
       "l0.process.service.idleGraceMs",
       "l0.process.service.startTimeoutMs",
       "l0.process.shutdown.timeoutMs",
@@ -42,6 +43,7 @@ describe("l0.process settings", () => {
     expect(defaults).toEqual({
       "l0.process.service.enabled": false,
       "l0.process.service.remote": "",
+      "l0.process.service.allowRemoteRespond": true,
       "l0.process.service.idleGraceMs": 0,
       "l0.process.service.startTimeoutMs": 10_000,
       "l0.process.shutdown.timeoutMs": 3000,

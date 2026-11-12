@@ -26,6 +26,16 @@ const group = defineSettings("l0.process", {
     ui: { tab: "execution", widget: "text", order: 15, label: "Remote service address" },
     since: "0.1.0",
   },
+  // 다른 기기(게이트웨이를 거친 연결)가 승인 요청에 답할 수 있는가. 끄면 다른 기기는 보기만 하고 답은 이 컴퓨터에서만 한다.
+  // 예약 전용이 아니라 모든 승인(질문·계획·검토 포함)에 걸리므로 L2.schedule이 아니라 서비스 설정에 둔다 [결정: 2026-11-12 사용자]
+  "service.allowRemoteRespond": {
+    type: Type.Boolean(),
+    default: true,
+    runtimeChange: "live",
+    allowedScopes: ["managed", "user"],
+    ui: { tab: "execution", widget: "toggle", order: 16, label: "Approve from other devices" },
+    since: "0.1.0",
+  },
   "service.idleGraceMs": {
     type: Type.Integer(),
     default: 0,
