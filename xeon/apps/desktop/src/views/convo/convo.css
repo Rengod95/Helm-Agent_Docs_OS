@@ -1,6 +1,30 @@
 /* 대화 줄 부품(dzT2a 시안 `_notes/design/dz/dzT2a-design.md`). 색은 caustic 토큰만 써서 라이트·다크가 따라간다.
    셸 CSP가 인라인 <style>을 막아 이 파일로 두고 styles.css가 가져온다. 움직임(들어옴·나감·높이 잇기)은 모션 트랙이 입힌다. */
 
+/* DP-139 [결정: 2026-11-12 사용자] 라이트 대비. 흰 바탕에서 border.subtle(5%)과 neutral.well(3.5%)은 작은 칩·버블 테두리에서 거의 안 보인다.
+   라이트만 한 단계 올린다: 글자 바탕 칩(인라인 코드·경로·실행 꼬리)은 neutral.track(7.5%, 표 머리처럼 읽히는 정도), 대화 안 상자 테두리는
+   border.default, 내 말 버블은 border.strong 테두리 + neutral.well 바탕. 다크는 지금 값 그대로다(앱 테마 data-theme, 없으면 시스템 설정). */
+:root {
+  --convo-chip-bg: var(--cs-color-neutral-track);
+  --convo-edge: var(--cs-color-border-default);
+  --convo-bubble-edge: var(--cs-color-border-strong);
+  --convo-bubble-bg: var(--cs-color-neutral-well);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --convo-chip-bg: var(--cs-color-neutral-well);
+    --convo-edge: var(--cs-color-border-subtle);
+    --convo-bubble-edge: var(--cs-color-border-subtle);
+    --convo-bubble-bg: transparent;
+  }
+}
+:root[data-theme="dark"] {
+  --convo-chip-bg: var(--cs-color-neutral-well);
+  --convo-edge: var(--cs-color-border-subtle);
+  --convo-bubble-edge: var(--cs-color-border-subtle);
+  --convo-bubble-bg: transparent;
+}
+
 /* ── 답 본문 마크다운 ─────────────────────────────────────────────── */
 .convo-prose {
   min-width: 0;
@@ -116,7 +140,7 @@
 .convo-inline-code {
   padding: 1px 4px;
   border-radius: var(--cs-radius-xs);
-  background: var(--cs-color-neutral-well);
+  background: var(--convo-chip-bg);
   font-family: var(--font-mono, var(--cs-font-mono));
   font-size: 0.87em;
 }
@@ -125,7 +149,7 @@
 .convo-code {
   min-width: 0;
   overflow: hidden;
-  border: 1px solid var(--cs-color-border-subtle);
+  border: 1px solid var(--convo-edge);
   border-radius: var(--cs-radius-lg);
   background: var(--cs-color-neutral-well);
 }
@@ -135,7 +159,7 @@
   justify-content: space-between;
   height: 32px;
   padding: 0 4px 0 12px;
-  border-bottom: 1px solid var(--cs-color-border-subtle);
+  border-bottom: 1px solid var(--convo-edge);
 }
 .convo-code-lang {
   color: var(--cs-color-text-tertiary);
@@ -164,7 +188,7 @@
 .convo-table {
   max-width: 100%;
   overflow-x: auto;
-  border: 1px solid var(--cs-color-border-subtle);
+  border: 1px solid var(--convo-edge);
   border-radius: var(--cs-radius-lg);
 }
 .convo-table table {
@@ -177,7 +201,7 @@
 .convo-table th,
 .convo-table td {
   padding: 6px 12px;
-  border-bottom: 1px solid var(--cs-color-border-subtle);
+  border-bottom: 1px solid var(--convo-edge);
   text-align: left;
   vertical-align: top;
 }
@@ -337,7 +361,7 @@
   height: 20px;
   padding: 0 6px;
   border-radius: 5px;
-  background: var(--cs-color-neutral-well);
+  background: var(--convo-chip-bg);
   color: var(--cs-color-text-secondary);
   font-family: var(--font-mono, var(--cs-font-mono));
   font-size: 12px;
@@ -423,7 +447,7 @@
   margin: 2px 0 6px 20px;
   padding: 6px 10px;
   border-radius: var(--cs-radius-md);
-  background: var(--cs-color-neutral-well);
+  background: var(--convo-chip-bg);
   color: var(--cs-color-text-tertiary);
   font-family: var(--font-mono, var(--cs-font-mono));
   font-size: 12px;
@@ -450,7 +474,7 @@
   gap: 4px;
   height: 20px;
   padding: 0 6px;
-  border: 1px solid var(--cs-color-border-subtle);
+  border: 1px solid var(--convo-edge);
   border-radius: 5px;
   background: transparent;
   color: var(--cs-color-text-secondary);
@@ -492,7 +516,7 @@
   gap: 8px;
   min-width: 0;
   padding: 12px 14px;
-  border: 1px solid var(--cs-color-border-subtle);
+  border: 1px solid var(--convo-edge);
   border-radius: var(--cs-radius-lg);
   background: var(--cs-color-surface-base);
 }

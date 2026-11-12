@@ -58,9 +58,12 @@ export const CHILD_ROW = "ms-4 w-auto max-w-[calc(100%-1rem)]";
 /** 제목 없는 줄: 기울임 없이 글자색만 tertiary(DP-104) */
 const UNTITLED_LABEL = "[&_[data-slot=list-navigation-label]]:text-text-tertiary";
 
-/** 긴 제목이 열을 넓히지 않게 목록·그룹·행의 격자 열을 minmax(0,1fr)로 묶는다(말줄임은 caustic 라벨의 truncate가 한다) */
+/**
+ * 긴 제목이 열을 넓히지 않게 목록·그룹·행의 격자 열을 minmax(0,1fr)로 묶는다(말줄임은 caustic 라벨의 truncate가 한다).
+ * 폴더 머리 끝 여백은 대화 줄 안쪽 여백(8px)과 같게 둔다: "+" 글리프 끝이 줄 꼬리 글(만든 때)·⋯ 글리프 끝과 한 세로선(줄 끝 − 8)에 선다(DP-138)
+ */
 const LIST_COLUMN =
-  "grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1 [&_ul]:grid-cols-[minmax(0,1fr)] [&_[data-slot=list-navigation-item]]:min-w-0 [&_[data-slot=list-navigation-item]]:grid-cols-[minmax(0,1fr)] [&_[data-slot=list-navigation-heading]]:text-ui [&_[data-slot=list-navigation-heading]]:normal-case";
+  "grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1 [&_ul]:grid-cols-[minmax(0,1fr)] [&_[data-slot=list-navigation-item]]:min-w-0 [&_[data-slot=list-navigation-item]]:grid-cols-[minmax(0,1fr)] [&_[data-slot=list-navigation-heading]]:text-ui [&_[data-slot=list-navigation-heading]]:normal-case [&_[data-slot=list-navigation-heading]]:pe-2";
 
 /**
  * 대화 행은 위 탐색 줄과 같은 크기(`SIDE_ROW`: 높이 h-control-md, 글자 ui-md)다. 행 뒤 ⋯ 칸도 같은 높이를 쓴다 [결정: 2026-11-08 사용자, dsB·dsM]
@@ -213,9 +216,11 @@ const ThreadRow = memo(function ThreadRow(props: {
       </ListNavigationItem>
       {/* 행 뒤 높이 0인 칸에 ⋯를 겹친다(caustic 행에 동작 자리가 없다). 보임과 승인 수 비움은 styles.css [data-row-menu] */}
       {/* 고른 줄은 ⋯를 늘 보인다(`data-row-menu="current"`, styles.css) */}
+      {/* DP-138: 대화 줄 사이 격자 간격(1px)만큼 더 올려 ⋯ 칸이 줄과 같은 y에 선다(전에는 1px 아래). 끝 3px: 24px 칸 안 14px 글리프의 끝이
+          줄 끝 − 8(줄 꼬리 글과 폴더 머리 "+"의 끝)에 온다 */}
       <li
         data-row-menu={selected ? "current" : ""}
-        className="pointer-events-none relative -mt-control-md flex h-control-md list-none items-center justify-end pe-1"
+        className="pointer-events-none relative -mt-[calc(var(--spacing-control-md)+1px)] flex h-control-md list-none items-center justify-end pe-0.75"
       >
         <ThreadRowMenu
           id={id}
@@ -430,9 +435,10 @@ export function ThreadList(props: {
   return (
     <div ref={list} className={LIST_COLUMN}>
       {threads.length === 0 ? null : (
-        <div className="px-1.5 pb-1">
+        // DP-136 [결정: 2026-11-12 사용자] 찾기 칸은 내비 줄과 같은 32px(md)이고 줄과 같은 폭(패널 안쪽 여백 6px만 남김)이다
+        <div className="pb-1">
           <Input
-            size="sm"
+            size="md"
             // 브라우저 검색칸의 지우기 단추와 겹치지 않게 글칸에 searchbox 역할을 준다(지우기는 아래 suffix 하나)
             type="text"
             role="searchbox"

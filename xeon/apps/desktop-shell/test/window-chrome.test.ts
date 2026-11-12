@@ -11,6 +11,7 @@ import {
   chromeOptionsOf,
   chromeStateFor,
   createWindowChromeModule,
+  overlayOf,
   readSavedTheme,
   recolor,
   themeSourceOf,
@@ -104,6 +105,15 @@ describe("window chrome values", () => {
     expect(themeSourceOf(undefined)).toBe("system");
   });
 
+  test("the overlay paints the header surface (side panel color), the window the app background (DP-137)", () => {
+    expect(CHROME_COLORS).toEqual({
+      light: { background: "#f7f7f7", header: "#fdfdfd", symbol: "#3d3d3d" },
+      dark: { background: "#080808", header: "#121212", symbol: "#d6d6d6" },
+    });
+    expect(overlayOf(true).color).toBe("#121212");
+    expect(overlayOf(false).color).toBe("#fdfdfd");
+  });
+
   test("options per kind hide the title bar and paint the theme background", () => {
     const lights = trafficLightMetricsOf("25.0.0");
     expect(chromeOptionsOf("mac", true, lights)).toEqual({
@@ -115,7 +125,7 @@ describe("window chrome values", () => {
       backgroundColor: CHROME_COLORS.light.background,
       titleBarStyle: "hidden",
       titleBarOverlay: {
-        color: CHROME_COLORS.light.background,
+        color: CHROME_COLORS.light.header,
         symbolColor: CHROME_COLORS.light.symbol,
         height: 44,
       },
@@ -150,7 +160,7 @@ describe("recolor and state", () => {
     recolor(win, "overlay", false);
     expect(win.overlays).toEqual([
       {
-        color: CHROME_COLORS.light.background,
+        color: CHROME_COLORS.light.header,
         symbolColor: CHROME_COLORS.light.symbol,
         height: 44,
       },

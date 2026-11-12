@@ -55,6 +55,22 @@ describe("thread list row menu", () => {
   });
 });
 
+describe("thread list alignment and search field (DP-136, DP-138)", () => {
+  test("the row menu cell rises by the row gap so it shares the row's vertical center and ends 3px in", () => {
+    const out = html(<ThreadList />);
+    const cell = /<li data-row-menu[^>]*class="([^"]*)"/.exec(out)?.[1]?.split(" ") ?? [];
+    expect(
+      cell.filter((c) => c.startsWith("-mt-") || c.startsWith("pe-") || c.startsWith("h-")),
+    ).toEqual(["-mt-[calc(var(--spacing-control-md)+1px)]", "h-control-md", "pe-0.75"]);
+  });
+
+  test("the search field is the 32px md size, like the nav rows", () => {
+    const out = html(<ThreadList />);
+    const field = /<div data-slot="input" data-size="([a-z]+)"/.exec(out)?.[1];
+    expect(field).toBe("md");
+  });
+});
+
 describe("thread list internal and sub conversations", () => {
   test("the internal conversation is not listed and the sub conversation is marked as one", () => {
     const out = html(<ThreadList />);

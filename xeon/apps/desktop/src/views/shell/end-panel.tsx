@@ -1,4 +1,4 @@
-// 오른쪽 떠 있는 막대 + 펼친 well(S-01 끝 영역, DP-10). 탭 내용은 `registry.endTabs(area)`가 준다.
+// 오른쪽 세로 가운데에 떠 있는 막대 + 그 왼쪽에 펼친 well(S-01 끝 영역, DP-10, DP-135). 탭 내용은 `registry.endTabs(area)`가 준다.
 // 영역마다 마지막 탭을 기억한다(`AreaPlace.endTab`). 막대 칸은 6개까지 보이고 나머지는 "더 보기" 메뉴다.
 // 칸의 숫자(`badge`)는 값이 바뀌면 칸이 다시 그리고, 펼친 well 머리와 칸의 이름표에는 같은 글("플러그인 2")이 든다.
 import { Presence } from "../../lib/motion-presets.tsx";
@@ -93,24 +93,26 @@ export function EndPanel(props: { readonly registry: ShellRegistry }): ReactNode
   if (current === undefined) return null;
   const label = tabTitleOf(t(current.label), currentBadge);
   return (
-    // 막대는 창 오른쪽 끝에서 12px(end-3): 무대가 끝까지 차므로(DP-68) 그 끝의 스크롤 막대(≤ 11px)와 겹치지 않는다. 위는 6px로 첫 칸이 머리 가운데에 온다
+    // DP-135 [결정: 2026-11-12 사용자] 막대는 무대 오른쪽 세로 가운데에 선다. 위는 머리 줄 아래(`--shell-header-h`)부터라 머리 줄은 끝까지 쓰고
+    // (창 단추·머리 끝 단추와 만나지 않는다) 막대는 본문 높이의 가운데에 온다. 창 오른쪽 끝에서 12px(end-3): 무대가 끝까지 차므로(DP-68)
+    // 그 끝의 스크롤 막대(≤ 11px)와 겹치지 않는다
     <aside
       ref={asideRef}
       aria-label={t("desktop.shell.end.label")}
       data-end-rail=""
-      className="pointer-events-none absolute end-3 top-1.5 bottom-0 z-20 flex items-start gap-1.5"
+      className="pointer-events-none absolute end-3 top-(--shell-header-h) bottom-0 z-20 flex items-center"
     >
       {tabs.map((tab) =>
         tab.alwaysMounted === undefined ? null : (
           <Fragment key={tab.id}>{tab.alwaysMounted}</Fragment>
         ),
       )}
-      {/* 아이콘 쪽(위 오른쪽)에서 펼쳐지는 느낌: 그 모서리를 원점으로 0.98에서 나타나고, 닫을 때도 같은 모서리로 짧게 사라진다(DP-106) */}
+      {/* well은 막대 바로 왼쪽(6px)에서 본문 높이(위아래 8px)를 쓴다. 막대 쪽 가운데(origin-right)를 원점으로 0.98에서 나타나고 같은 자리로 사라진다(DP-106) */}
       <Presence
         show={open}
         variant="pop"
         initial={false}
-        className="pointer-events-auto absolute inset-y-0 end-[calc(100%+0.375rem)] z-30 flex origin-top-right"
+        className="pointer-events-auto absolute inset-y-2 end-[calc(100%+0.375rem)] z-30 flex origin-right"
       >
         <Card
           variant="well"

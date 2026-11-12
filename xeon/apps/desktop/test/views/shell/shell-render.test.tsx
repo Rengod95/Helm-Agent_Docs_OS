@@ -83,6 +83,18 @@ describe("Shell slots", () => {
     expect(main).toContain("[--shell-rail:3rem]");
   });
 
+  test("the floating bar stands in the vertical middle under the head, not in the head's top right corner (DP-135)", () => {
+    const out = render(1400);
+    const aside = /<aside[^>]*data-end-rail[^>]*>/.exec(out)?.[0] ?? "";
+    const cls = /class="([^"]*)"/.exec(aside)?.[1]?.split(" ") ?? [];
+    expect(cls.filter((c) => /^(top-|bottom-|items-|end-)/.test(c))).toEqual([
+      "end-3",
+      "top-(--shell-header-h)",
+      "bottom-0",
+      "items-center",
+    ]);
+  });
+
   test("a closed start panel stays as a 48px icon rail: new chat, nav icons and settings, no thread list", () => {
     const out = render(1400, (model) => ({ ...model, startOpen: false }));
     const items = [...out.matchAll(/<button[^>]*data-rail-item[^>]*aria-label="([^"]*)"/g)].map(
