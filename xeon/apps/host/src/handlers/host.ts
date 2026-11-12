@@ -114,7 +114,12 @@ export function createHostHelloHandler(
     // 응답 전에 동기로 바꾼다: 같은 연결에서 곧바로 오는 다음 요청이 hello 완료를 본다
     state.phase = "ready";
     state.experimental = experimental;
-    state.client = { name: params.client.name, version: params.client.version };
+    state.client = {
+      name: params.client.name,
+      version: params.client.version,
+      origin: params.client.origin ?? "local",
+      deviceId: params.client.deviceId,
+    };
     return Promise.resolve({
       protocolVersion: WIRE_PROTOCOL_VERSION,
       server: { name: info.serverName, version: info.serverVersion },

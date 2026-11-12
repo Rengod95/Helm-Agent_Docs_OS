@@ -1,5 +1,6 @@
 import { assertNever } from "@fresnel/contracts";
-import type { WireError, WireHandler } from "@fresnel/contracts/wire";
+import { resolveSetting } from "@fresnel/contracts/settings";
+import { wireError, type WireError, type WireHandler } from "@fresnel/contracts/wire";
 import { approvalMaskEntries } from "../display-mask.ts";
 import { wireErrorOfStore } from "../store-error.ts";
 import type { ConnectionHub } from "../connection-types.ts";
@@ -20,6 +21,15 @@ function listFailure(error: ApprovalListFailure): WireError {
   }
 }
 
+/** 다른 기기에서 승인하기 설정 키(L0.process.spec §6). 카탈로그에 없으면 기본값(켜짐)이다 */
+const ALLOW_REMOTE_RESPOND_KEY = "l0.process.service.allowRemoteRespond";
+
+function remoteRespondAllowed(engine: Engine): boolean {
+  const def = engine.catalog.get(ALLOW_REMOTE_RESPOND_KEY);
+  if (def === undefined) return true;
+  return resolveSetting(def, engine.ports.settings.layers(undefined)).setting.value !== false;
+}
+
 /**
  * 승인 응답을 L1.tools에 넘긴다. 모르는 `approvalId`이면 `applied: false`와 이유 `unknown_approval`이다(이미 해결됐거나 응답이 맞지 않은 이유는
  * L1.tools가 `already_resolved`·`answer_invalid`로 낸다, F wire §3.3.1).
@@ -32,12 +42,20 @@ export function createApprovalRespondHandler(
   hub: () => ConnectionHub,
 ): WireHandler<"approval.respond"> {
   const { approvals } = engine.ports;
-  return async (params) => {
+  return async (params, context) => {
+    // 다른 기기(게이트웨이가 hello에 `origin: "remote"`를 실은 연결)의 응답은 설정이 꺼져 있으면 거절한다. 질문·계획·검토 응답도 같다.
+    // 표시는 권한을 줄이는 쪽으로만 쓰므로 로컬 클라이언트가 스스로 remote라 해도 해가 없다(L4.remote.spec §8.9)
+    const client = hub().state(context.connectionId)?.client;
+    const remote = client?.origin === "remote";
+    if (remote && !remoteRespondAllowed(engine)) throw wireError("approval.remoteNotAllowed");
+    const deviceId = remote ? client.deviceId : undefined;
     const located = await approvals.locate(params.approvalId);
     if (!located.ok) throw wireErrorOfStore(located.error, "approval.respond lookup");
     const threadId = located.value;
     if (threadId === undefined) return { applied: false, reason: "unknown_approval" };
-    return await withWriteOwner(engine, hub(), threadId, () => approvals.respond(params));
+    return await withWriteOwner(engine, hub(), threadId, () =>
+      approvals.respond(params, deviceId === undefined ? undefined : { deviceId }),
+    );
   };
 }
 

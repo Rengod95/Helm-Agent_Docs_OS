@@ -692,7 +692,11 @@ export interface ApprovalPort {
    * 그래도 없으면 저장소의 미해결 요청을 훑는다. 어디에도 없으면 undefined다
    */
   locate(approvalId: string): Promise<Result<ThreadId | undefined, ReadFailure>>;
-  respond(params: WireParams<"approval.respond">): Promise<WireResult<"approval.respond">>;
+  /** `answeredBy.deviceId`는 다른 기기에서 온 응답일 때만 있다. 해결 기록에 남는다 */
+  respond(
+    params: WireParams<"approval.respond">,
+    answeredBy?: { readonly deviceId: string },
+  ): Promise<WireResult<"approval.respond">>;
   /** thread의 미해결 요청과 그 시점의 위치(F wire §3.4.6 5항). 이 프로세스가 쥐지 않은 thread도 읽는다 */
   list(threadId: ThreadId): Promise<Result<WireResult<"approval.list">, ApprovalListFailure>>;
   /**

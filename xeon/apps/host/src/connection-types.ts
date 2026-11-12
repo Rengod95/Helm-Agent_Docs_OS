@@ -88,8 +88,18 @@ export interface ConnectionState {
   phase: "awaitingHello" | "ready" | "closed";
   /** host.hello에서 클라이언트가 opt-in한 실험 기능 */
   experimental: readonly string[];
-  /** host.hello의 클라이언트 이름과 버전(`host.clients`가 싣는다). hello 전이거나 연결을 재설정하면 없다 */
-  client: { readonly name: string; readonly version: string } | undefined;
+  /**
+   * host.hello의 클라이언트 이름과 버전(`host.clients`가 싣는다). hello 전이거나 연결을 재설정하면 없다.
+   * `origin`이 `remote`이면 다른 기기에서 게이트웨이를 거쳐 온 연결이고 `deviceId`가 그 기기다. 이 표시는 권한을 줄이는 쪽으로만 쓴다
+   */
+  client:
+    | {
+        readonly name: string;
+        readonly version: string;
+        readonly origin: "local" | "remote";
+        readonly deviceId: string | undefined;
+      }
+    | undefined;
   readonly subs: Map<string, Subscription>;
   /** thread.create·turn.start·thread.open(write 또는 observe)으로 연 thread. stream.chunk를 이 연결에 보낸다(HS-17) */
   readonly openThreads: Set<ThreadId>;
