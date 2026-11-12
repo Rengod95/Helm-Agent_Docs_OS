@@ -23,6 +23,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     setThreadModel: () => Promise.resolve(ok(null)),
     setThreadMode: () => Promise.resolve(ok(null)),
     readThreadMode: () => Promise.resolve(ok(undefined)),
+    readBypassAllowed: () => Promise.resolve(ok(undefined)),
     onThreadModeChanged: () => () => {},
     setThreadThinking: () => Promise.resolve(ok(null)),
     readThreadThinking: () => Promise.resolve(ok(undefined)),

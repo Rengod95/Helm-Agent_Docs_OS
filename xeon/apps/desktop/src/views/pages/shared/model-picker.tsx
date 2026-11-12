@@ -1,7 +1,7 @@
-import { Combobox, type ComboboxGroupData } from "@caustic/react";
+import { Badge, Combobox, type ComboboxGroupData } from "@caustic/react";
 import { t } from "@fresnel/client/i18n";
 import type { ModelEntry } from "@fresnel/contracts/wire";
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 import {
   modelLabelOf,
   modelOptionsOf,
@@ -50,6 +50,15 @@ export interface ModelPickerProps {
   /** 값이 없을 때 트리거 글 */
   readonly placeholder?: string | undefined;
   readonly onChange: (ref: string) => void;
+  /**
+   * 트리거를 바꾼다(입력창의 모델 칩, DP-101). 없으면 폼 크기(28px)·보통 폭(224px) 트리거다.
+   * 바꾼 트리거는 접근성 이름과 열림 상태를 스스로 갖는다
+   */
+  readonly trigger?: ReactElement | undefined;
+  /** 목록 아래 동작 줄(`ComboboxRow`). 입력창은 "기본 모델로 되돌리기"를 둔다 */
+  readonly footer?: ReactNode;
+  /** 이 키로 못 쓰는 모델(403)인가. 참이면 그 줄 끝에 꼬리표를 단다 */
+  readonly isDenied?: ((ref: string) => boolean) | undefined;
 }
 
 /** 닫힌 고르기 단추 안의 글. 목록에 없는 값(꺼진 제공자의 모델)도 이름을 보이고, 비었으면 자리 글 */
@@ -79,9 +88,19 @@ export function ModelPicker(props: ModelPickerProps): ReactNode {
       label: providerNameOf(group.provider),
       options: group.options.map((option) => {
         const meta = modelMetaText(option);
+        const denied = props.isDenied?.(option.value) === true;
         return {
           value: option.value,
           label: option.label,
+          ...(denied
+            ? {
+                badge: (
+                  <Badge size="xs" className="bg-warning-tint text-warning-text">
+                    {t("desktop.composer.model.denied")}
+                  </Badge>
+                ),
+              }
+            : {}),
           ...(meta === null
             ? {}
             : {
@@ -106,7 +125,10 @@ export function ModelPicker(props: ModelPickerProps): ReactNode {
       listLabel={props.label}
       groups={groups}
       popupWidth="lg"
-      className={FIELD_WIDTH.medium}
+      {...(props.trigger === undefined
+        ? { className: FIELD_WIDTH.medium }
+        : { trigger: props.trigger })}
+      {...(props.footer === undefined ? {} : { footer: props.footer })}
       {...(props.value === null ? {} : { value: props.value })}
       disabled={props.disabled === true || empty}
       emptyMessage={t("desktop.modelPicker.empty")}

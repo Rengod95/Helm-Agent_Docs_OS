@@ -21,6 +21,8 @@ import { INBOX_SORTS, inboxThreadOf, type InboxSort, type InboxThread } from "./
 import { useNoticeFeed } from "./notices.tsx";
 import { useProposalPending } from "./proposal-pending-context.tsx";
 import { ChatHeader } from "./chat-header.tsx";
+import { ChatLoadError } from "./chat-load-error.tsx";
+import { NowStrip } from "./now/now-strip.tsx";
 import { Composer } from "./composer.tsx";
 import { SafeModeCard } from "./safe-mode-card.tsx";
 import { SetupBanner } from "./setup-banner.tsx";
@@ -56,27 +58,44 @@ import { HelmPanelTab } from "./plugin/plugin-tabs.tsx";
 import { AddonsScreen } from "./plugin/addons-screen.tsx";
 import { PLAYGROUND_TAB_SCREEN } from "./plugin/playground-tab-store.ts";
 import { PlaygroundTabScreen } from "./plugin/playground-tab-screen.tsx";
-import { useApprovalCount, useOpenThread, useThreadIds } from "../state/engine/index.ts";
+import {
+  useApprovalCount,
+  useOpenThread,
+  useThreadIds,
+  useTranscriptStatus,
+} from "../state/engine/index.ts";
 import { useState, type ReactNode } from "react";
 
 // 지금 만들어져 있는 화면만 등록한다. 나머지 화면 id는 셸이 "아직 없어요" 빈 상태로 그린다.
 // 화면 트랙은 여기에 `registerScreen`·`registerEndTab`을 더한다(shell/README.md).
 
+/**
+ * 대화 화면. 입력창 위 쌓임(DP-100 [결정: 2026-11-11 사용자]), 위에서 아래로:
+ * 1. 행동 카드(신뢰 확인, 승인 대기열, 안전 모드): 사용자가 답해야 하는 것. 승인 대기열은 화면 높이의 40%까지, 넘치면 안쪽 스크롤(approvals.tsx).
+ * 2. 지금 띠: 목표·할 일·하위 에이전트·주도의 한 줄. 펼치면 본문 240px까지.
+ * 3. 대화 맥락 줄(DP-71): 입력창 바로 위에 붙는다.
+ * 4. 입력창(그 안의 대기 입력·재시도·오류 줄은 입력창에 붙는다).
+ * 대화를 읽지 못했으면 대화 기록 자리에 오류 상태(`ChatLoadError`)를 그린다(DP-102)
+ */
 function ChatScreen(): ReactNode {
   const spawned = useOpenThread()?.spawnedBy !== undefined;
+  const transcript = useTranscriptStatus();
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <ChatHeader />
       <SetupBanner />
       <StoreReplacedBanner />
-      <Transcript />
+      {transcript === "error" ? <ChatLoadError /> : <Transcript />}
       {/* 대화 열 폭(시안 46rem)에 맞춰 입력창 위 카드들을 같은 가운데 열에 둔다 */}
       {/* 토스트는 이 묶음(카드와 입력창) 위에 선다. 묶음의 위쪽 끝을 알려 입력창 모델 고르기 단추를 가리지 않게 한다(shell.tsx useToastBottom) */}
       <div data-toast-avoid className="flex flex-none flex-col">
         <div className="mx-auto grid min-h-0 w-full max-w-184 flex-none">
-          <TrustCard />
-          <ApprovalQueue />
-          <SafeModeCard />
+          <div data-chat-actions="" className="grid min-h-0">
+            <TrustCard />
+            <ApprovalQueue />
+            <SafeModeCard />
+          </div>
+          {spawned ? null : <NowStrip />}
           {/* 대화 맥락 줄(DP-71)은 입력창 바로 위에 붙는다. 폴더가 없어졌다는 경고도 이 줄의 폴더 칸이 보인다 */}
           <ThreadContextBar />
         </div>

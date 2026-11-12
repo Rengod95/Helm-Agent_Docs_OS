@@ -352,9 +352,14 @@ describe("the status bar cell", () => {
       [DOWNLOADING, true],
       [READY, true],
       [{ kind: "installing", version: "0.4.2", notes: null }, true],
-      [{ kind: "failed", stage: "check", reason: "no_release", version: null, notes: null }, true],
+      // 확인 단계 실패는 칸을 숨기고 설정 줄이 보인다(DP-104). 내려받기·설치 실패만 칸이 보인다
+      [{ kind: "failed", stage: "check", reason: "no_release", version: null, notes: null }, false],
       [{ kind: "offline", stage: "download", version: "0.4.2", notes: null }, true],
       [{ kind: "offline", stage: "install", version: "0.4.2", notes: null }, true],
+      [
+        { kind: "failed", stage: "download", reason: "network", version: "0.4.2", notes: null },
+        true,
+      ],
     ];
     expect(cases.map(([state]) => updateCellOf(state).showCell)).toEqual(
       cases.map(([, shown]) => shown),

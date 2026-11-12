@@ -93,6 +93,17 @@ describe("queued input chips above the composer", () => {
     expect(markup).toContain("아직 모델에 전달되지 않은 입력만 철회하거나 지금 반영할 수 있어요.");
   });
 
+  test("steer, after-the-turn and aside inputs each carry their own tag", () => {
+    const markup = html([
+      queuedFact(6, "지금 끼워 줘", { mode: "steer" }),
+      queuedFact(7, "끝나면 해 줘", { mode: "followUp" }),
+      queuedFact(8, "다음 턴에", { mode: "next" }),
+      queuedFact(9, "곁 질문", { mode: "aside" }),
+    ]);
+    const tags = [...markup.matchAll(/data-queued-mode="([a-zA-Z]+)"/g)].map((m) => m[1]);
+    expect(tags).toEqual(["steer", "followUp", "followUp", "aside"]);
+  });
+
   test("a followUp chip says it goes in when the turn ends", () => {
     const markup = html([queuedFact(6, "나중에", { mode: "followUp" })]);
     expect(markup).toContain("이번 턴이 끝나면 들어가요");

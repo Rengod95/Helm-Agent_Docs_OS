@@ -1,11 +1,9 @@
 import { t } from "@fresnel/client/i18n";
-import { Button, Chip, IconButton, Select, SelectOption, Textarea } from "@caustic/react";
-import { ArrowUp, Plus } from "@caustic/react/icons";
+import { Button, Chip, IconButton, Textarea } from "@caustic/react";
+import { ArrowUp, LoaderCircle, Plus, RotateCw } from "@caustic/react/icons";
 import type { CommandRowVM } from "@fresnel/client/settings";
 import { detach, rethrow } from "@fresnel/contracts";
-import type { ModelThinkingLevel, ThreadId } from "@fresnel/contracts/conversation";
-import { THINKING_LEVELS, type PermissionMode } from "@fresnel/contracts/services";
-import type { ModelEntry } from "@fresnel/contracts/wire";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   Fragment,
   useEffect,
@@ -17,6 +15,7 @@ import {
   type ReactNode,
 } from "react";
 import {
+  useAborting,
   useEngineState,
   useLinkPhase,
   useOpenThreadId,
@@ -52,9 +51,8 @@ import {
   type AttachmentParts,
   type BusyInputMode,
   type CommandError,
-  type SwitchMode,
 } from "./commands.ts";
-import { modeLabelIdOf } from "./approval-card/card-model.ts";
+import { ModelChip, PermissionModeChip, ThinkingChip } from "./composer-chips.tsx";
 import {
   busyModeOfEnter,
   composerDisabledReason,
@@ -67,25 +65,15 @@ import {
   type WithdrawState,
 } from "./composer-model.ts";
 import { retryLineOf } from "./retry-status-model.ts";
-import { modelKeyOf } from "./denied-model-model.ts";
 import {
-  DEFAULT_MODEL_CHOICE,
-  modelOptionsOf,
-  contextCostText,
-  priceNumberText,
-  type ModelOption,
+  type ModeChangeError,
   useDefaultModel,
   useModelChoices,
-  useSessionUsage,
   useThreadModel,
   useThreadPermissionMode,
   useThreadThinking,
 } from "./model-usage.ts";
-import {
-  THINKING_LEVEL_LABEL_IDS,
-  thinkingLevelOf,
-  thinkingSelectableOf,
-} from "./thinking-level-model.ts";
+import { thinkingSelectableOf } from "./thinking-level-model.ts";
 import {
   appSlashOf,
   slashFillOf,
@@ -97,13 +85,9 @@ import {
   type SlashMenuRow,
 } from "./composer-slash.ts";
 import { runThreadCompact } from "./thread-compact.ts";
-import {
-  permissionModeOptionsOf,
-  permissionModeToneOf,
-  switchModeOf,
-} from "./permission-mode-model.ts";
 import { QueuedInputs } from "./queued-inputs.tsx";
 import { useSetupNeeded } from "./setup-needed.ts";
+import { ProblemLine } from "./pages/shared/problem-state.tsx";
 
 // 입력창. 입력 중인 글자는 이 부품만 쓰므로 로컬 상태다(FS-04).
 // requestId는 같은 입력의 재시도가 같은 값을 쓰도록 실패했을 때 유지하고, 성공하면 새로 만든다(spec 4.13).
@@ -138,10 +122,15 @@ function modelErrorText(error: CommandError): string {
   return t("desktop.composer.model.error");
 }
 
-/** 승인 모드를 바꾸지 못했을 때의 문장. 잠김과 연결 끊김은 보낼 때와 같은 문장이고 나머지는 승인 모드 문장이다 */
-function modeErrorText(error: CommandError): string {
-  if (error.kind === "offline" || error.kind === "switching" || error.kind === "locked") {
-    return sendErrorText(error);
+/**
+ * 승인 모드를 바꾸지 못했을 때의 문장. 잠김과 연결 끊김은 보낼 때와 같은 문장이다. 계획 명령이 거절하면 엔진이 준 문장을 그대로 쓰고,
+ * 없으면 승인 모드 문장이다
+ */
+export function modeErrorText(error: ModeChangeError): string {
+  if (error.kind === "refused") return error.message ?? t("desktop.composer.approvalMode.error");
+  const cause = error.error;
+  if (cause.kind === "offline" || cause.kind === "switching" || cause.kind === "locked") {
+    return sendErrorText(cause);
   }
   return t("desktop.composer.approvalMode.error");
 }
@@ -163,171 +152,6 @@ function thinkingErrorText(error: CommandError): string {
 export const COMPOSER_FOOTER_CLASS =
   "[&_[data-slot=textarea-footer]]:gap-2 [&_[data-slot=textarea-footer]]:pt-0 [&_[data-slot=textarea-footer]]:pb-1 [&_[data-slot=textarea-actions]]:shrink-0 [&_[data-slot=textarea-submit]]:min-w-0";
 
-/** 승인 모드 칩의 글. 모르는 모드는 원시값이다(approval-card/bodies.tsx의 `modeLabelOf`와 같은 규칙) */
-function permissionModeLabelOf(mode: PermissionMode): string {
-  const id = modeLabelIdOf(mode);
-  return id === null ? mode : t(id);
-}
-
-/**
- * 입력창 아래 select 트리거는 ghost다: 배경과 테두리 없이 hover에서만 neutral.hover(2026-11-08, caustic이 hover에 거는 안쪽 테두리도 끈다). caustic Select의 variant는 목록에만 걸려 앱 클래스로 건다.
- * 오른쪽 chevron(`picker-trigger-indicator`)은 그리지 않고, 안쪽 여백은 좌우 10px을 기준으로 위아래도 10px이다(글 줄 16px, 높이 36px, DP-67).
- * 열리는 동작과 접근성 이름은 caustic Select 그대로다
- */
-const GHOST_TRIGGER_CLASS =
-  "h-auto w-auto p-2.5 leading-4 bg-transparent shadow-none hover:bg-neutral-hover hover:shadow-none [&_[data-slot=picker-trigger-indicator]]:hidden [&_[data-slot=picker-trigger-value]]:leading-4";
-
-/**
- * 대화별 승인 모드 칩(입력창 모델 칸 왼쪽). 값은 이 대화의 `l1.tools.permissionMode`(대화 범위)다.
- * 고를 수 있는 것은 기본과 편집 자동 허용뿐이다. 지금이 계획이나 모두 허용이면 그 글을 칩에 보이고, 메뉴에서는 고를 수 없다.
- */
-export function PermissionModeSelect(props: {
-  /** 지금 이 대화의 승인 모드 */
-  readonly mode: PermissionMode;
-  readonly disabled: boolean;
-  /** 고른 모드. 계획과 모두 허용으로는 바꾸지 않는다(고를 수 없는 줄이라 여기 오지 않는다) */
-  readonly onChange: (mode: SwitchMode) => void;
-}): ReactNode {
-  return (
-    <Select
-      size="xs"
-      aria-label={t("desktop.composer.approvalMode.label")}
-      value={props.mode}
-      disabled={props.disabled}
-      onValueChange={(value) => {
-        const next = switchModeOf(value);
-        if (next !== null && next !== props.mode) props.onChange(next);
-      }}
-      className={
-        permissionModeToneOf(props.mode) === "danger"
-          ? `${GHOST_TRIGGER_CLASS} text-danger-text`
-          : `${GHOST_TRIGGER_CLASS} text-text-tertiary`
-      }
-    >
-      {permissionModeOptionsOf(props.mode).map((option) => (
-        <SelectOption key={option.mode} value={option.mode} disabled={!option.selectable}>
-          {permissionModeLabelOf(option.mode)}
-        </SelectOption>
-      ))}
-    </Select>
-  );
-}
-
-/** 모델 행 글. 403으로 실패한 모델이면 뒤에 "이 키로 못 써요"를 붙인다(`denied`) */
-export function modelOptionText(
-  option: ModelOption,
-  contextTokens: number | null,
-  denied: boolean,
-): string {
-  const text = modelPriceText(option, contextTokens);
-  return denied ? `${text} · ${t("desktop.composer.model.denied")}` : text;
-}
-
-/** 기본 모델 줄 글. 기본 모델이 403으로 실패했으면 뒤에 "이 키로 못 써요"를 붙인다 */
-export function defaultRowText(label: string, denied: boolean): string {
-  const text = t("desktop.composer.model.default", { model: label });
-  return denied ? `${text} · ${t("desktop.composer.model.denied")}` : text;
-}
-
-function modelPriceText(option: ModelOption, contextTokens: number | null): string {
-  if (option.price === null) return option.label;
-  if (option.price === "unknown") {
-    return `${option.label} · ${t("desktop.composer.model.priceUnknown")}`;
-  }
-  const base = `${option.label} · ${t("desktop.composer.model.price", {
-    input: priceNumberText(option.price.input),
-    output: priceNumberText(option.price.output),
-  })}`;
-  const estimate = contextCostText(contextTokens, option.price.input);
-  return estimate === null
-    ? base
-    : `${base} · ${t("desktop.composer.model.contextCost", { cost: estimate })}`;
-}
-
-/**
- * 대화별 모델 select(시안 `sonnet-5-5 ⌄`). 값은 대화가 정한 모델이고 정하지 않았으면 기본 모델이다.
- * 고르면 `thread.setModel`로 이 대화의 다음 turn부터 바뀐다. 대화가 모델을 정했으면 끝에 "기본 모델"로 되돌리는 줄이 있다.
- * 목록은 호스트 카탈로그(`models.list`)다
- */
-export function ModelSelect(props: {
-  /** 지금 쓰는 모델 참조(대화가 정한 모델, 없으면 기본 모델) */
-  readonly current: string;
-  /** 대화가 모델을 정했는가 */
-  readonly chosen: boolean;
-  /** 정하지 않았을 때 쓰는 기본 모델. 모르면 null */
-  readonly fallback: string | null;
-  readonly choices: readonly ModelEntry[];
-  readonly disabled: boolean;
-  /** 이 대화의 지금 문맥 토큰. 줄마다 "이 문맥을 보내면 약 얼마"를 보이는 데 쓴다. 모르면 null */
-  readonly contextTokens?: number | null;
-  /** 403으로 실패한 모델의 키(`provider/modelId`). 그 행에 "이 키로 못 써요"를 단다 */
-  readonly denied: Readonly<Record<string, true>>;
-  /** 모델 참조를 고르면 그 값, 기본 모델로 돌아가면 null */
-  readonly onChange: (model: string | null) => void;
-}): ReactNode {
-  const options = modelOptionsOf(
-    props.choices,
-    props.current,
-    props.chosen ? props.fallback : null,
-  );
-  const deniedOf = (value: string): boolean => {
-    // 기본 모델 줄은 기본 모델 참조로 판정한다
-    const key = modelKeyOf(value === DEFAULT_MODEL_CHOICE ? props.fallback : value);
-    return key !== null && props.denied[key] === true;
-  };
-  return (
-    <Select
-      size="xs"
-      aria-label={t("desktop.composer.model.label")}
-      value={props.current}
-      disabled={props.disabled}
-      onValueChange={(value) => {
-        if (value === DEFAULT_MODEL_CHOICE) props.onChange(null);
-        else if (value !== props.current) props.onChange(value);
-      }}
-      className={`${GHOST_TRIGGER_CLASS} max-w-56 min-w-0 shrink text-text-tertiary`}
-    >
-      {options.map((option) => (
-        <SelectOption key={option.value} value={option.value}>
-          {option.value === DEFAULT_MODEL_CHOICE
-            ? defaultRowText(option.label, deniedOf(option.value))
-            : modelOptionText(option, props.contextTokens ?? null, deniedOf(option.value))}
-        </SelectOption>
-      ))}
-    </Select>
-  );
-}
-
-/**
- * 대화별 추론 레벨 select. 값은 이 대화의 `l1.models.thinkingLevel`(대화 범위, 다음 turn부터)이다. 모르는 동안과
- * 추론을 하지 않는 모델에서는 그리지 않는다(부르는 쪽이 정한다)
- */
-function ThinkingLevelSelect(props: {
-  readonly level: ModelThinkingLevel;
-  readonly disabled: boolean;
-  readonly onChange: (level: ModelThinkingLevel) => void;
-}): ReactNode {
-  return (
-    <Select
-      size="xs"
-      aria-label={t("desktop.composer.thinking.label")}
-      value={props.level}
-      disabled={props.disabled}
-      onValueChange={(value) => {
-        const next = thinkingLevelOf(value);
-        if (next !== null && next !== props.level) props.onChange(next);
-      }}
-      className={`${GHOST_TRIGGER_CLASS} text-text-tertiary`}
-    >
-      {THINKING_LEVELS.map((level) => (
-        <SelectOption key={level} value={level}>
-          {t(THINKING_LEVEL_LABEL_IDS[level])}
-        </SelectOption>
-      ))}
-    </Select>
-  );
-}
-
 /**
  * 제공자 재시도를 기다리는 동안의 상태 줄. 남은 초는 1초마다 다시 센다. `clock`은 시험이 고정한다.
  * 진행 상태라 경고 빛이 아니고, 초가 매초 바뀌므로 실시간 영역(role=status)으로 알리지 않는다.
@@ -348,7 +172,11 @@ export function RetryStatus(props: {
   }, [clock]);
   const line = retryLineOf(props.retry, now);
   return (
-    <p data-composer-retry className="m-0 px-1 text-ui text-text-secondary">
+    <p
+      data-composer-retry
+      className="m-0 flex min-h-7 items-center gap-2 px-1 text-ui text-text-secondary tabular-nums"
+    >
+      <RotateCw aria-hidden className="size-3.5 shrink-0 text-text-tertiary" />
       {line.soon
         ? t("desktop.composer.retryingSoon", { attempt: line.attempt, max: line.max })
         : t("desktop.composer.retrying", {
@@ -423,7 +251,8 @@ function ComposerFor(props: {
   const thinking = useThreadThinking(props.threadId);
   const modelChoices = useModelChoices();
   const deniedModels = useDeniedModels();
-  const usage = useSessionUsage(props.threadId, running);
+  // 멈춤을 누른 뒤 실제로 멈출 때까지(`turn.abort_requested` 뒤 끝나기 전) 멈춤 단추가 "멈추는 중"을 보인다(DP-101)
+  const aborting = useAborting(props.threadId);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -801,16 +630,8 @@ function ComposerFor(props: {
               : attachBlocked}
         </p>
       ) : null}
-      {attachNote === null ? null : (
-        <p role="alert" className="m-0 px-1 text-ui text-danger-text">
-          {attachNote}
-        </p>
-      )}
-      {error === null ? null : (
-        <p role="alert" className="m-0 px-1 text-ui text-danger-text">
-          {error}
-        </p>
-      )}
+      {attachNote === null ? null : <ProblemLine>{attachNote}</ProblemLine>}
+      {error === null ? null : <ProblemLine>{error}</ProblemLine>}
       <input
         ref={fileInput}
         type="file"
@@ -824,9 +645,11 @@ function ComposerFor(props: {
         }}
       />
       {secretWarning === null ? null : (
-        <p role="note" data-composer-secret-warning className="m-0 px-1 text-ui text-warning-text">
-          {secretWarning}
-        </p>
+        <div data-composer-secret-warning="">
+          <ProblemLine tone="warning" role="note">
+            {secretWarning}
+          </ProblemLine>
+        </div>
       )}
       {menuActive || menuIssues.length > 0 ? (
         <ul
@@ -872,25 +695,24 @@ function ComposerFor(props: {
         </ul>
       ) : null}
       {unknownName === null ? null : (
-        <p
+        <ProblemLine
+          tone="warning"
           role="status"
-          data-composer-slash-unknown
-          className="m-0 flex flex-wrap items-center gap-2 px-1 text-ui text-warning-text"
+          action={
+            <Button
+              type="button"
+              size="xs"
+              variant="ghost"
+              onClick={() => {
+                detach(send(true), rethrow);
+              }}
+            >
+              {t("desktop.composer.slash.sendAsIs")}
+            </Button>
+          }
         >
-          <span>
-            {t("desktop.composer.slash.unknown")} · /{unknownName}
-          </span>
-          <Button
-            type="button"
-            size="xs"
-            variant="outline"
-            onClick={() => {
-              detach(send(true), rethrow);
-            }}
-          >
-            {t("desktop.composer.slash.sendAsIs")}
-          </Button>
-        </p>
+          {t("desktop.composer.slash.unknown")} · /{unknownName}
+        </ProblemLine>
       )}
       {retrying === null ? null : <RetryStatus key={retrying.at} retry={retrying} />}
       <Textarea
@@ -947,8 +769,9 @@ function ComposerFor(props: {
         submit={
           <span className="flex min-w-0 items-center gap-1">
             {permission.mode === null ? null : (
-              <PermissionModeSelect
+              <PermissionModeChip
                 mode={permission.mode}
+                bypassAllowed={permission.bypassAllowed}
                 disabled={props.disabledReason !== null}
                 onChange={(next) => {
                   detach(
@@ -962,13 +785,12 @@ function ComposerFor(props: {
               />
             )}
             {threadModel.ref === null ? null : (
-              <ModelSelect
+              <ModelChip
                 current={threadModel.ref}
                 chosen={threadModel.chosen}
                 fallback={defaultModel}
                 choices={modelChoices}
                 disabled={props.disabledReason !== null}
-                contextTokens={usage === null ? null : usage.tokens}
                 denied={deniedModels}
                 onChange={(model) => {
                   detach(
@@ -984,7 +806,7 @@ function ComposerFor(props: {
             {thinking.level === null ||
             threadModel.ref === null ||
             !thinkingSelectableOf(modelChoices, threadModel.ref) ? null : (
-              <ThinkingLevelSelect
+              <ThinkingChip
                 level={thinking.level}
                 disabled={props.disabledReason !== null}
                 onChange={(next) => {
@@ -999,19 +821,13 @@ function ComposerFor(props: {
               />
             )}
             {threadRunning ? (
-              <IconButton
-                type="button"
-                variant="solid"
-                radius="full"
-                size="xs"
-                label={stopBlocked ?? t("desktop.composer.interrupt.button")}
-                disabled={stopBlocked !== null}
-                onClick={() => {
+              <StopButton
+                aborting={aborting}
+                blockedReason={stopBlocked}
+                onStop={() => {
                   detach(commands.interrupt(props.threadId), rethrow);
                 }}
-              >
-                <span aria-hidden className="block size-stop-glyph rounded-2xs bg-current" />
-              </IconButton>
+              />
             ) : null}
             <IconButton
               type="submit"
@@ -1032,6 +848,42 @@ function ComposerFor(props: {
         }
       />
     </form>
+  );
+}
+
+/**
+ * 멈춤 단추(입력창 아래 줄, 보내기 단추 왼쪽). 멈춤을 누른 뒤 엔진이 멈출 때까지는 회전 표시로 바뀌고 다시 누를 수 없다.
+ * 이름도 "멈추는 중…"으로 바뀌어 읽기 프로그램이 상태를 안다
+ */
+export function StopButton(props: {
+  readonly aborting: boolean;
+  /** 누를 수 없는 까닭(엔진이 없음). 없으면 null */
+  readonly blockedReason: string | null;
+  readonly onStop: () => void;
+}): ReactNode {
+  return (
+    <IconButton
+      type="button"
+      variant="solid"
+      radius="full"
+      size="xs"
+      data-composer-stop={props.aborting ? "stopping" : "idle"}
+      label={
+        props.blockedReason ??
+        (props.aborting
+          ? t("desktop.composer.interrupt.stopping")
+          : t("desktop.composer.interrupt.button"))
+      }
+      aria-busy={props.aborting || undefined}
+      disabled={props.blockedReason !== null || props.aborting}
+      onClick={props.onStop}
+    >
+      {props.aborting ? (
+        <LoaderCircle aria-hidden className="animate-spinner" />
+      ) : (
+        <span aria-hidden className="block size-stop-glyph rounded-2xs bg-current" />
+      )}
+    </IconButton>
   );
 }
 

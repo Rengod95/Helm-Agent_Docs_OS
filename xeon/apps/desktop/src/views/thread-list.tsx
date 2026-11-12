@@ -5,6 +5,7 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
 import {
   Alert,
+  Badge,
   Button,
   Dialog,
   EmptyState,
@@ -16,8 +17,8 @@ import {
   ListNavigationItem,
   Skeleton,
 } from "@caustic/react";
-import { Folder, FolderOpen, RotateCcw } from "@caustic/react/icons";
-import { memo, useState, type ReactNode } from "react";
+import { Folder, FolderOpen, RotateCcw, Search, X } from "@caustic/react/icons";
+import { memo, useEffect, useState, type ReactNode } from "react";
 import {
   useThreadsStatus,
   useThreadSummaries,
@@ -33,7 +34,13 @@ import { pickWorkspaceFolder, type FolderPickInvoke } from "./folder-pick.ts";
 import { useStartNewThread } from "./new-thread-flow.ts";
 import { recentWorkspacesOf, type RecentWorkspace } from "./new-thread-model.ts";
 import { folderLabel, sidebarGroupsOf } from "./thread-groups.ts";
-import { rowBadgeOf, rowOpensChat } from "./thread-nav-model.ts";
+import {
+  relativeTimeOf,
+  rowBadgeOf,
+  rowOpensChat,
+  threadMatches,
+  type RelativeTime,
+} from "./thread-nav-model.ts";
 import { ThreadRowMenu } from "./thread-row-menu.tsx";
 import { unsentRowOf } from "./turn-failure-model.ts";
 import { checkWorkspaceInput, createFailureText, workspaceHint } from "./workspace-model.ts";
@@ -47,8 +54,8 @@ const DIALOG_CLOSE_MS = 300;
  */
 export const CHILD_ROW = "ms-4 w-auto max-w-[calc(100%-1rem)]";
 
-const UNTITLED_LABEL =
-  "[&_[data-slot=list-navigation-label]]:italic [&_[data-slot=list-navigation-label]]:text-text-tertiary";
+/** 제목 없는 줄: 기울임 없이 글자색만 tertiary(DP-104) */
+const UNTITLED_LABEL = "[&_[data-slot=list-navigation-label]]:text-text-tertiary";
 
 /** 긴 제목이 열을 넓히지 않게 목록·그룹·행의 격자 열을 minmax(0,1fr)로 묶는다(말줄임은 caustic 라벨의 truncate가 한다) */
 const LIST_COLUMN =
@@ -59,39 +66,70 @@ const LIST_COLUMN =
  */
 const ROW_HEIGHT = SIDE_ROW;
 
-/** 행 오른쪽 짧은 글자. 종류는 `rowBadgeOf`가 정한다(시안: 행 meta는 짧게) */
+/** 행 오른쪽 표식(DP-104). 승인은 경고 꼬리표(답이 필요), 나머지는 12px tertiary 글과 필요한 곳만 아이콘 12. 종류는 `rowBadgeOf`가 정한다 */
 function metaOf(
   thread: ThreadSummary,
   approvals: number,
   child: boolean,
   unsent: boolean,
+  now: number,
 ): ReactNode {
   const badge = rowBadgeOf(thread, approvals, child, unsent);
   switch (badge) {
+    case "approvals":
+      return (
+        <Badge
+          size="xs"
+          className="bg-warning-tint text-warning-text"
+          data-thread-badge="approvals"
+        >
+          {t("desktop.threads.approvalsBadge", { count: approvals })}
+        </Badge>
+      );
     // 이어서 실행은 아이콘과 글(시안 threadMeta의 RotateCcw + 이어서 실행)
     case "resumable":
       return (
-        <span className="inline-flex items-center gap-1">
-          <RotateCcw aria-hidden className="size-icon-xs" />
+        <span className="inline-flex items-center gap-1" data-thread-badge="resumable">
+          <RotateCcw aria-hidden className="size-3" />
           {t("desktop.threads.resumableBadge")}
         </span>
       );
-    case "approvals":
-      return t("desktop.threads.approvalsBadge", { count: approvals });
+    case "unsent":
+      return <span className="text-danger-text">{t("desktop.threads.unsentBadge")}</span>;
     case "schedule":
       return t("desktop.threads.scheduleBadge");
+    case "remote":
+      return t("desktop.threads.remoteBadge");
     case "closed":
       return t("desktop.threads.closedBadge");
-    case "unsent":
-      return t("desktop.threads.status.unsent");
     case "sub":
       return t("desktop.threads.subBadge");
     case "forked":
       return t("desktop.threads.forkedBadge");
     case null:
-      return undefined;
+      // 제목 없는 대화는 서로 구분되도록 언제 만들었는지를 꼬리에 둔다
+      return thread.title === null
+        ? relativeTimeText(relativeTimeOf(thread.createdAt, now))
+        : undefined;
     default:
       return assertNever(badge, "rowBadgeOf");
+  }
+}
+
+function relativeTimeText(time: RelativeTime): string {
+  switch (time.unit) {
+    case "now":
+      return t("desktop.threads.time.now");
+    case "minutes":
+      return t("desktop.threads.time.minutes", { count: time.count });
+    case "hours":
+      return t("desktop.threads.time.hours", { count: time.count });
+    case "days":
+      return t("desktop.threads.time.days", { count: time.count });
+    case "date":
+      return t("desktop.threads.time.date", { month: time.month, day: time.day });
+    default:
+      return assertNever(time, "RelativeTime");
   }
 }
 
@@ -99,6 +137,8 @@ const ThreadRow = memo(function ThreadRow(props: {
   readonly thread: ThreadSummary;
   /** 하위 에이전트가 만든 자식 대화: 부모 아래 들여 쓴 행 */
   readonly child: boolean;
+  /** 지금 시각(ms). 제목 없는 줄의 상대 시각에 쓴다. 목록이 1분마다 올린다 */
+  readonly now: number;
 }): ReactNode {
   const commands = useCommands();
   const shell = useShellActions();
@@ -108,6 +148,8 @@ const ThreadRow = memo(function ThreadRow(props: {
   const unlisted = useUnlistedApprovals(id);
   const approvals = useThreadApprovals(id);
   const unsent = unsentRowOf(useTurnFailure(id));
+  const [menuOpen, setMenuOpen] = useState(false);
+  // 제목이 없는 대화는 "제목 없음"을 흐리게 두고, 꼬리에 만든 때를 붙여 서로 구분한다(DP-104)
   const title = props.thread.title ?? t("desktop.threads.untitled");
   // 툴팁에는 제목 아래로 알릴 말을 한 줄씩 더한다. 표시가 없으면 제목만 남는다
   const tooltip = [
@@ -132,8 +174,13 @@ const ThreadRow = memo(function ThreadRow(props: {
                 statusLabels: { failed: t("desktop.threads.status.unsent") },
               }
             : {})}
-        meta={metaOf(props.thread, approvals, props.child, unsent)}
+        meta={metaOf(props.thread, approvals, props.child, unsent, props.now)}
         title={tooltip}
+        // 오른쪽 클릭은 ⋯와 같은 메뉴를 연다(줄 끝 ⋯ 자리에 붙는다)
+        onContextMenu={(event) => {
+          event.preventDefault();
+          setMenuOpen(true);
+        }}
         className={[
           ROW_HEIGHT,
           props.thread.title === null ? UNTITLED_LABEL : "",
@@ -162,11 +209,19 @@ const ThreadRow = memo(function ThreadRow(props: {
         {title}
       </ListNavigationItem>
       {/* 행 뒤 높이 0인 칸에 ⋯를 겹친다(caustic 행에 동작 자리가 없다). 보임과 승인 수 비움은 styles.css [data-row-menu] */}
+      {/* 고른 줄은 ⋯를 늘 보인다(`data-row-menu="current"`, styles.css) */}
       <li
-        data-row-menu=""
+        data-row-menu={selected ? "current" : ""}
         className="pointer-events-none relative -mt-control-md flex h-control-md list-none items-center justify-end pe-1"
       >
-        <ThreadRowMenu id={id} title={title} status={props.thread.status} bare />
+        <ThreadRowMenu
+          id={id}
+          title={title}
+          status={props.thread.status}
+          bare
+          open={menuOpen}
+          onOpenChange={setMenuOpen}
+        />
       </li>
     </>
   );
@@ -307,6 +362,20 @@ function OtherFolder(props: {
   );
 }
 
+/** 1분마다 바뀌는 지금 시각(ms). 제목 없는 줄의 "3분 전"을 맞춘다 */
+function useMinuteClock(): number {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(Date.now());
+    }, 60_000);
+    return () => {
+      clearInterval(timer);
+    };
+  }, []);
+  return now;
+}
+
 export function ThreadList(props: {
   /** 폴더 선택 창을 부르는 invoke. 없으면(웹 등) 고르기 단추를 보이지 않는다 */
   readonly folderPick?: FolderPickInvoke | undefined;
@@ -342,10 +411,57 @@ export function ThreadList(props: {
     detach(run(), rethrow);
   };
 
-  const groups = sidebarGroupsOf(threads);
+  const [query, setQuery] = useState("");
+  const now = useMinuteClock();
+  const shown =
+    query.trim() === "" ? threads : threads.filter((thread) => threadMatches(thread, query));
+  const groups = sidebarGroupsOf(shown);
   const recent = recentWorkspacesOf(threads);
   return (
     <div className={LIST_COLUMN}>
+      {threads.length === 0 ? null : (
+        <div className="px-1.5 pb-1">
+          <Input
+            size="sm"
+            // 브라우저 검색칸의 지우기 단추와 겹치지 않게 글칸에 searchbox 역할을 준다(지우기는 아래 suffix 하나)
+            type="text"
+            role="searchbox"
+            data-thread-search=""
+            value={query}
+            aria-label={t("desktop.threads.search.label")}
+            placeholder={t("desktop.threads.search.placeholder")}
+            spellCheck={false}
+            autoComplete="off"
+            prefix={<Search aria-hidden />}
+            onValueChange={setQuery}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && query !== "") {
+                event.preventDefault();
+                setQuery("");
+              }
+            }}
+            suffix={
+              query === "" ? null : (
+                <IconButton
+                  size="xs"
+                  variant="ghost"
+                  label={t("desktop.threads.search.clear")}
+                  onClick={() => {
+                    setQuery("");
+                  }}
+                >
+                  <X aria-hidden />
+                </IconButton>
+              )
+            }
+          />
+        </div>
+      )}
+      {query.trim() !== "" && shown.length === 0 ? (
+        <p role="status" className="m-0 px-3 py-2 text-ui text-text-tertiary">
+          {t("desktop.threads.search.empty", { query: query.trim() })}
+        </p>
+      ) : null}
       <ListNavigation
         aria-label={t("desktop.threads.listLabel")}
         kind="sessions"
@@ -374,7 +490,12 @@ export function ThreadList(props: {
             }}
           >
             {group.items.map((row) => (
-              <ThreadRow key={row.thread.threadId} thread={row.thread} child={row.child} />
+              <ThreadRow
+                key={row.thread.threadId}
+                thread={row.thread}
+                child={row.child}
+                now={now}
+              />
             ))}
           </ListNavigationGroup>
         ))}

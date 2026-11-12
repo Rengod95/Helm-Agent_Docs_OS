@@ -1,0 +1,249 @@
+import { Button, ComboboxRow, Menu, MenuItem } from "@caustic/react";
+import {
+  Check,
+  ListChecks,
+  LockOpen,
+  Pencil,
+  RotateCcw,
+  Shield,
+  Sparkles,
+} from "@caustic/react/icons";
+import { t, type MessageId } from "@fresnel/client/i18n";
+import { assertNever } from "@fresnel/contracts";
+import type { ModelThinkingLevel } from "@fresnel/contracts/conversation";
+import { THINKING_LEVELS, type PermissionMode } from "@fresnel/contracts/services";
+import type { ModelEntry } from "@fresnel/contracts/wire";
+import type { ReactNode } from "react";
+import { modelKeyOf } from "./denied-model-model.ts";
+import { modelOptionsOf } from "./model-usage.ts";
+import { ModelPicker } from "./pages/shared/model-picker.tsx";
+import { permissionModeOptionsOf, permissionModeToneOf } from "./permission-mode-model.ts";
+import { THINKING_LEVEL_LABEL_IDS, thinkingLevelOf } from "./thinking-level-model.ts";
+
+// 입력창 아래 칩 셋(L4.desktop-ux DP-101 [결정: 2026-11-11 사용자]): 권한 모드, 모델, 생각 수준.
+// 칩은 DP-67의 ghost 고르기 단추 치수(높이 36 = 위아래 10 + 글 줄 16, 좌우 10, chevron 없음, 배경·테두리 없이 hover만 `neutral.hover`)에
+// 앞 아이콘 14와 글(13px) 사이 4px를 더한 것이다. 칩 글은 이름만 짧게 둔다(모델 가격·문맥 창, 모드 설명은 열리는 목록 안).
+
+/** DP-67 치수의 ghost 칩. 세 칩이 같은 클래스를 쓴다 */
+const COMPOSER_CHIP_CLASS =
+  "h-auto min-w-0 gap-1 p-2.5 text-ui leading-4 font-normal text-text-tertiary hover:bg-neutral-hover hover:text-text-secondary [&_svg]:size-3.5 [&_svg]:shrink-0";
+
+/** 모드마다 앞 아이콘 14 */
+function modeIcon(mode: PermissionMode): ReactNode {
+  switch (mode) {
+    case "default":
+      return <Shield aria-hidden />;
+    case "acceptEdits":
+      return <Pencil aria-hidden />;
+    case "plan":
+      return <ListChecks aria-hidden />;
+    case "bypass":
+      return <LockOpen aria-hidden />;
+    default:
+      return assertNever(mode, "PermissionMode");
+  }
+}
+
+/** 칩에 보이는 짧은 이름 */
+const MODE_CHIP_ID: Readonly<Record<PermissionMode, MessageId>> = {
+  default: "desktop.composer.mode.default",
+  acceptEdits: "desktop.composer.mode.acceptEdits",
+  plan: "desktop.composer.mode.plan",
+  bypass: "desktop.composer.mode.bypass",
+};
+
+/** 메뉴 줄의 한 줄 설명 */
+const MODE_HINT_ID: Readonly<Record<PermissionMode, MessageId>> = {
+  default: "desktop.composer.mode.default.hint",
+  acceptEdits: "desktop.composer.mode.acceptEdits.hint",
+  plan: "desktop.composer.mode.plan.hint",
+  bypass: "desktop.composer.mode.bypass.hint",
+};
+
+export function permissionModeChipText(mode: PermissionMode): string {
+  return t(MODE_CHIP_ID[mode]);
+}
+
+/** 메뉴 줄 안: 이름(13) 아래 설명(12 tertiary) */
+function MenuText(props: { readonly title: string; readonly hint: string }): ReactNode {
+  return (
+    <span className="grid min-w-0 gap-0.5 py-0.5 text-start">
+      <span className="truncate">{props.title}</span>
+      <span className="text-ui-sm text-text-tertiary">{props.hint}</span>
+    </span>
+  );
+}
+
+/**
+ * 권한 모드 칩. 메뉴는 묻기, 편집 자동 허용, 계획, 그리고 허락되면 모두 허용(`permissionModeOptionsOf`). 모두 허용은 위험 색이다.
+ * 계획으로 들어가고 나오는 것은 부르는 쪽(`useThreadPermissionMode`)이 명령으로 한다
+ */
+export function PermissionModeChip(props: {
+  readonly mode: PermissionMode;
+  readonly bypassAllowed: boolean;
+  readonly disabled: boolean;
+  readonly onChange: (mode: PermissionMode) => void;
+}): ReactNode {
+  const danger = permissionModeToneOf(props.mode) === "danger";
+  return (
+    <Menu
+      size="sm"
+      side="top"
+      align="end"
+      aria-label={t("desktop.composer.approvalMode.label")}
+      className="w-72"
+      trigger={
+        <Button
+          type="button"
+          size="xs"
+          variant="ghost"
+          disabled={props.disabled}
+          data-composer-chip="mode"
+          aria-label={`${t("desktop.composer.approvalMode.label")}: ${permissionModeChipText(props.mode)}`}
+          className={`${COMPOSER_CHIP_CLASS} ${danger ? "text-danger-text hover:text-danger-text" : ""}`}
+        >
+          {modeIcon(props.mode)}
+          <span className="truncate">{permissionModeChipText(props.mode)}</span>
+        </Button>
+      }
+    >
+      {permissionModeOptionsOf(props.mode, props.bypassAllowed).map((option) => (
+        <MenuItem
+          key={option.mode}
+          role="menuitemradio"
+          selected={option.selected}
+          tone={option.mode === "bypass" ? "danger" : "neutral"}
+          className="h-auto min-h-control-md items-start py-1.5 [&>[data-slot=menu-icon]]:pt-0.5"
+          icon={modeIcon(option.mode)}
+          end={option.selected ? <Check aria-hidden className="size-3.5" /> : undefined}
+          onSelect={() => {
+            if (!option.selected) props.onChange(option.mode);
+          }}
+        >
+          <MenuText
+            title={permissionModeChipText(option.mode)}
+            hint={t(MODE_HINT_ID[option.mode])}
+          />
+        </MenuItem>
+      ))}
+    </Menu>
+  );
+}
+
+/** 칩에 보이는 모델 이름: 카탈로그 이름(없으면 참조의 모델 부분) */
+export function modelChipText(choices: readonly ModelEntry[], ref: string): string {
+  const option = modelOptionsOf(choices, ref, null).find((found) => found.value === ref);
+  return option?.label ?? ref.slice(ref.indexOf("/") + 1);
+}
+
+/**
+ * 모델 칩. 이름만 보이고, 누르면 공용 모델 고르기(`ModelPicker`: 검색, 제공자 묶음, 문맥 창·가격 곁 정보, 403 꼬리표)가 위로 열린다.
+ * 대화가 모델을 정했으면 목록 아래 "기본 모델로 되돌리기" 줄이 있다
+ */
+export function ModelChip(props: {
+  /** 지금 쓰는 모델 참조(대화가 정한 모델, 없으면 기본 모델) */
+  readonly current: string;
+  /** 대화가 모델을 정했는가 */
+  readonly chosen: boolean;
+  /** 기본 모델. 모르면 null */
+  readonly fallback: string | null;
+  readonly choices: readonly ModelEntry[];
+  readonly disabled: boolean;
+  /** 403으로 실패한 모델의 키(`provider/modelId`) */
+  readonly denied: Readonly<Record<string, true>>;
+  /** 모델 참조를 고르면 그 값, 기본 모델로 돌아가면 null */
+  readonly onChange: (model: string | null) => void;
+}): ReactNode {
+  const text = modelChipText(props.choices, props.current);
+  const deniedOf = (ref: string): boolean => {
+    const key = modelKeyOf(ref);
+    return key !== null && props.denied[key] === true;
+  };
+  return (
+    <ModelPicker
+      value={props.current}
+      choices={props.choices}
+      label={t("desktop.composer.model.label")}
+      disabled={props.disabled}
+      isDenied={deniedOf}
+      onChange={(ref) => {
+        props.onChange(ref);
+      }}
+      trigger={
+        <Button
+          type="button"
+          size="xs"
+          variant="ghost"
+          disabled={props.disabled}
+          data-composer-chip="model"
+          aria-label={`${t("desktop.composer.model.label")}: ${text}`}
+          title={text}
+          className={`${COMPOSER_CHIP_CLASS} max-w-48 shrink`}
+        >
+          <span className="truncate">{text}</span>
+        </Button>
+      }
+      footer={
+        props.chosen && props.fallback !== null ? (
+          <ComboboxRow
+            leading={<RotateCcw aria-hidden className="size-3.5" />}
+            onSelect={() => {
+              props.onChange(null);
+            }}
+          >
+            {t("desktop.composer.model.useDefault", {
+              model: modelChipText(props.choices, props.fallback),
+            })}
+          </ComboboxRow>
+        ) : undefined
+      }
+    />
+  );
+}
+
+/** 생각 수준 칩. 값은 이 대화의 `l1.models.thinkingLevel`(대화 범위, 다음 turn부터)이다 */
+export function ThinkingChip(props: {
+  readonly level: ModelThinkingLevel;
+  readonly disabled: boolean;
+  readonly onChange: (level: ModelThinkingLevel) => void;
+}): ReactNode {
+  const text = t(THINKING_LEVEL_LABEL_IDS[props.level]);
+  return (
+    <Menu
+      size="sm"
+      side="top"
+      align="end"
+      aria-label={t("desktop.composer.thinking.label")}
+      className="w-44"
+      trigger={
+        <Button
+          type="button"
+          size="xs"
+          variant="ghost"
+          disabled={props.disabled}
+          data-composer-chip="thinking"
+          aria-label={`${t("desktop.composer.thinking.label")}: ${text}`}
+          className={COMPOSER_CHIP_CLASS}
+        >
+          <Sparkles aria-hidden />
+          <span className="truncate">{text}</span>
+        </Button>
+      }
+    >
+      {THINKING_LEVELS.map((level) => (
+        <MenuItem
+          key={level}
+          role="menuitemradio"
+          selected={level === props.level}
+          end={level === props.level ? <Check aria-hidden className="size-3.5" /> : undefined}
+          onSelect={() => {
+            const next = thinkingLevelOf(level);
+            if (next !== null && next !== props.level) props.onChange(next);
+          }}
+        >
+          {t(THINKING_LEVEL_LABEL_IDS[level])}
+        </MenuItem>
+      ))}
+    </Menu>
+  );
+}

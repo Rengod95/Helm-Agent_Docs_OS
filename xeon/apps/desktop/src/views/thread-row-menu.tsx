@@ -56,6 +56,9 @@ export function ThreadRowMenu(props: {
   readonly status: "idle" | "running" | "closed";
   /** 대화 목록 행 뒤에 겹쳐 놓을 때 true. 자리는 바깥 칸이 정한다 */
   readonly bare?: boolean;
+  /** 열림을 바깥이 들 때(목록 줄의 오른쪽 클릭). 없으면 메뉴가 스스로 든다 */
+  readonly open?: boolean;
+  readonly onOpenChange?: (open: boolean) => void;
 }): ReactNode {
   const commands = useCommands();
   const [renaming, setRenaming] = useState(false);
@@ -76,6 +79,8 @@ export function ThreadRowMenu(props: {
       <Menu
         size="sm"
         align="end"
+        {...(props.open === undefined ? {} : { open: props.open })}
+        {...(props.onOpenChange === undefined ? {} : { onOpenChange: props.onOpenChange })}
         aria-label={t("desktop.threads.menu.label", { title: props.title })}
         trigger={
           <IconButton
