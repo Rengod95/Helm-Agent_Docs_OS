@@ -732,6 +732,26 @@ describe("확장 목록을 다시 읽을 알림", () => {
     expect(woke).toBe(1);
   });
 
+  test("빈 키 목록의 설정 알림은 적용이 끝났다는 신호(settled)로 부른다. 키가 있는 알림과 이벤트는 아니다", () => {
+    const fake = fakeConnection({});
+    const seen: boolean[] = [];
+    const stop = subscribeExtChanges(fake.connection, (settled) => {
+      seen.push(settled);
+    });
+    fake.emit("settings.invalidated", { keys: [], scopes: ["user"], threadId: null });
+    fake.emit("settings.invalidated", {
+      keys: ["ext.review.enabled"],
+      scopes: ["user"],
+      threadId: null,
+    });
+    fake.emit(
+      "stream.chunk",
+      failedChunk({ ...failurePayload, consecutive: 5, asksDisable: true }),
+    );
+    expect(seen).toEqual([true, false, false]);
+    stop();
+  });
+
   test("구독은 맞는 알림마다 한 번 부르고, 구독을 풀면 더 부르지 않는다", () => {
     const fake = fakeConnection({});
     let woke = 0;

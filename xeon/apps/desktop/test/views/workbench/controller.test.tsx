@@ -227,10 +227,11 @@ describe("목록이 다시 읽히면 자동 꺼짐 표시는 스토어를 따른
 
   test("확장 설정 알림을 받으면 목록을 다시 읽고, 같은 화면이 선택 패널과 개수를 새 값으로 그린다", async () => {
     const store = createWorkbenchStore();
-    const seen: { listener: (() => void) | null; listed: readonly ExtListEntry[] } = {
-      listener: null,
-      listed: [WEB, REVIEW_OFF],
-    };
+    const seen: { listener: ((settled: boolean) => void) | null; listed: readonly ExtListEntry[] } =
+      {
+        listener: null,
+        listed: [WEB, REVIEW_OFF],
+      };
     const commands = commandsWith({
       list: () => Promise.resolve(ok(seen.listed)),
       onChanged: (listener) => {
@@ -248,7 +249,7 @@ describe("목록이 다시 읽히면 자동 꺼짐 표시는 스토어를 따른
 
     const stop = reloadOnExtChanges(commands.workbench, () => controller.reload());
     seen.listed = [WEB, REVIEW_ON];
-    seen.listener?.();
+    seen.listener?.(false);
     await settle();
 
     expect(store.actions.snapshot().entries).toEqual([WEB, REVIEW_ON]);
@@ -335,5 +336,40 @@ describe("안전 모드: 훅 질문은 스토어에 담기지 않는다", () => 
         point: null,
       },
     ]);
+  });
+});
+
+describe("켜기 뒤 적용이 끝난 목록(F9)", () => {
+  test("설정은 저장됐지만 확장이 실리지 않으면, 적용 알림 뒤 대기 표시를 걷고 목록의 실제 상태를 그린다", async () => {
+    const store = createWorkbenchStore();
+    const seen: { listener: ((settled: boolean) => void) | null } = { listener: null };
+    // 엔진은 켜기를 저장하지만 확장은 시작 조건(필수 설정) 때문에 실리지 않는다. 목록에는 꺼짐과 진단이 남는다
+    const notLoaded = entry("web", {
+      status: "disabled",
+      diagnostics: [{ severity: "error", code: "config_required", message: "setting required" }],
+    });
+    const commands = commandsWith({
+      list: () => Promise.resolve(ok([notLoaded])),
+      toggle: () => Promise.resolve(ok(null)),
+      onChanged: (listener) => {
+        seen.listener = listener;
+        return () => {
+          seen.listener = null;
+        };
+      },
+    });
+    const controller = controllerOf(store, commands);
+    await controller.reload();
+    const stop = reloadOnExtChanges(commands.workbench, (settled) => controller.reload(settled));
+
+    await controller.toggle("web", true);
+    // 적용이 끝나기 전 목록은 꺼짐이라 대기 표시가 남는다
+    expect(store.actions.snapshot().pending).toEqual({ web: true });
+
+    seen.listener?.(true);
+    await settle();
+    expect(store.actions.snapshot().pending).toEqual({});
+    expect(store.actions.snapshot().entries.map((item) => item.status)).toEqual(["disabled"]);
+    stop();
   });
 });

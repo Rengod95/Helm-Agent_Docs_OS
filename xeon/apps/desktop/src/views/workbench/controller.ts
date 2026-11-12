@@ -11,6 +11,7 @@ import { useWorkbenchActions, useWorkbenchScope } from "../../state/workbench/in
 import { useCommands, type WorkbenchCommands } from "../commands.ts";
 import { scopeArg } from "../craft/craft-scope.ts";
 import { showFailureToast } from "./failure-toast.ts";
+import { toggleReasonOf, unmetToggleOf } from "./toggle-outcome.ts";
 import { useSafeMode } from "../safe-mode-context.ts";
 import { mapLimited } from "./load-details.ts";
 import { orderTableOf } from "./order-merge.ts";
@@ -31,15 +32,16 @@ export function detachVoid(work: Promise<void>): void {
  */
 export function reloadOnExtChanges(
   workbench: Pick<WorkbenchCommands, "onChanged">,
-  reload: () => Promise<void>,
+  reload: (settled: boolean) => Promise<void>,
 ): () => void {
-  return workbench.onChanged(() => {
-    detachVoid(reload());
+  return workbench.onChanged((settled) => {
+    detachVoid(reload(settled));
   });
 }
 
 export interface WorkbenchController {
-  reload(): Promise<void>;
+  /** `settled`는 확장 설정 적용이 끝난 뒤의 다시 읽기다. 대기 중인 켜기·끄기가 목표에 못 닿았으면 그 사유를 알린다 */
+  reload(settled?: boolean): Promise<void>;
   /** 훅 순서만 다시 읽는다(`hooks.list`와 `hooks.order.get`). 저장·되돌리기 뒤에 쓴다 */
   reloadOrders(): Promise<void>;
   toggle(name: string, target: boolean): Promise<void>;
@@ -96,20 +98,38 @@ export function useWorkbenchController(): WorkbenchController {
     if (got.ok) actions.healthLoaded(got.value);
   }, [actions, commands]);
 
-  const reload = useCallback(async (): Promise<void> => {
-    if (actions.snapshot().list !== "ready") actions.listLoading();
-    const listed = await commands.workbench.list();
-    if (!listed.ok) {
-      actions.listFailed();
-      return;
-    }
-    actions.listLoaded(listed.value);
-    await Promise.all([
-      reloadDetails(listed.value.map((entry) => entry.name)),
-      reloadHealth(),
-      reloadOrders(),
-    ]);
-  }, [actions, commands, reloadDetails, reloadHealth, reloadOrders]);
+  // `settled`이면 적용이 끝난 목록이다: 목표 값에 닿지 못한 대기 켜기·끄기를 걷고 사유를 알린다(F9). 아니면 대기 표시를 그대로 둔다
+  const reload = useCallback(
+    async (settled = false): Promise<void> => {
+      if (actions.snapshot().list !== "ready") actions.listLoading();
+      const listed = await commands.workbench.list();
+      if (!listed.ok) {
+        actions.listFailed();
+        return;
+      }
+      const waiting = actions.snapshot().pending;
+      actions.listLoaded(listed.value);
+      if (settled) {
+        for (const unmet of unmetToggleOf(listed.value, waiting)) {
+          actions.clearPending(unmet.name);
+          showFailureToast({
+            title: t(
+              unmet.target
+                ? "desktop.workbench.toggle.enableFailed"
+                : "desktop.workbench.toggle.disableFailed",
+            ),
+            description: toggleReasonOf(unmet.code),
+          });
+        }
+      }
+      await Promise.all([
+        reloadDetails(listed.value.map((entry) => entry.name)),
+        reloadHealth(),
+        reloadOrders(),
+      ]);
+    },
+    [actions, commands, reloadDetails, reloadHealth, reloadOrders],
+  );
 
   const toggle = useCallback(
     async (name: string, target: boolean): Promise<void> => {

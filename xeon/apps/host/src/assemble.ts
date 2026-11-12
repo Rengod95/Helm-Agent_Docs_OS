@@ -1144,6 +1144,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         loader: () => external.loader,
         autoDisabler: operations.autoDisabler,
         logger: os.logger("ext-enabled"),
+        // 빈 변경 목록은 "전부 다시 읽으라"는 알림이다(설정 저장소의 전체 갱신과 같다). 확장 키 목록을 비워 이 알림이 다시 적용을 부르지 않게 한다
+        settled: () => {
+          settings.notifyChanged({ keys: [], scopes: ["user"], threadId: null });
+        },
         signal: lifetime.signal,
       });
       externalGroups.push(...loaded.manifests);
