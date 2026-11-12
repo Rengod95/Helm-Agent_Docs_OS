@@ -39,6 +39,18 @@ export function rowBadgeOf(
   return thread.forkedFrom === null ? null : "forked";
 }
 
+/**
+ * 행의 글(DP-141 [결정: 2026-11-11 사용자]). 제목이 있으면 제목을 그대로 쓴다. 제목이 없으면 첫 입력 미리보기(`preview`)를 제목 자리에
+ * 흐리게 쓴다. 미리보기도 없으면 text가 null이고 호출자가 "제목 없음"을 흐리게 쓴다. dim은 제목이 없는 행이다
+ */
+export function rowLabelOf(thread: Pick<ThreadSummary, "title" | "preview">): {
+  readonly text: string | null;
+  readonly dim: boolean;
+} {
+  if (thread.title !== null) return { text: thread.title, dim: false };
+  return { text: thread.preview ?? null, dim: true };
+}
+
 /** 제목으로 거르기(대화 목록 맨 위 찾기 칸). 앞뒤 공백을 지운 글이 비면 모두, 아니면 대소문자 없이 제목에 든 대화만. 제목 없는 대화는 빠진다 */
 export function threadMatches(thread: Pick<ThreadSummary, "title">, query: string): boolean {
   const needle = query.trim().toLowerCase();

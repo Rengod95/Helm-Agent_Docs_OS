@@ -1,12 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
 import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabilities";
+import type { OsAuthEvidence } from "../../src/views/os-reauth.ts";
 import type {
   SecretAuditEntry,
   SecretKeyMoveResult,
   SecretKeyStatusResult,
   SecretListEntry,
 } from "@fresnel/contracts/wire";
+import { REVEAL_ID, REVEAL_PATH } from "../transport/fake-ipc.ts";
 import { summary, thr } from "../state/helpers.ts";
 import { engineFake, makeApp, until, type EngineExtra } from "./support.ts";
 
@@ -20,6 +22,10 @@ function nameOf(text: string): SecretName {
 }
 
 const NAME = nameOf("exa-api-key");
+/** 재인증 증거(화면이 OS 재인증을 마친 시각). 값이 아니다 */
+const EVIDENCE: OsAuthEvidence = { method: "os-auth", verifiedAt: 1_762_900_000_000 };
+/** 채널이 돌려줄 가짜 값 바이트 */
+const REVEALED = new TextEncoder().encode("fake-revealed-value-not-real");
 
 const ENTRY: SecretListEntry = {
   name: NAME,
@@ -83,7 +89,7 @@ describe("secret wire errors keep the kinds the screen tells apart", () => {
       ok: false,
       error: { kind: "inUse" },
     });
-    expect(await app.commands.secrets.beginReveal(NAME)).toEqual({
+    expect(await app.commands.secrets.reveal(NAME, EVIDENCE)).toEqual({
       ok: false,
       error: { kind: "reauthRequired" },
     });
@@ -107,7 +113,7 @@ describe("secret wire errors keep the kinds the screen tells apart", () => {
       ok: false,
       error: { kind: "alreadyExists" },
     });
-    expect(await app.commands.secrets.beginReveal(NAME)).toEqual({
+    expect(await app.commands.secrets.reveal(NAME, EVIDENCE)).toEqual({
       ok: false,
       error: { kind: "localOnly" },
     });
@@ -208,10 +214,56 @@ describe("the other secret methods return the host's values", () => {
     await app.stop();
   });
 
-  test("beginReveal returns only whether the host showed the value, never the value", async () => {
-    const { app, params } = await liveApp({ results: { "secret.beginReveal": { started: true } } });
-    expect(await app.commands.secrets.beginReveal(NAME)).toEqual({ ok: true, value: true });
-    expect(paramsOf(params, "secret.beginReveal")).toEqual({ name: NAME });
+  test("reveal opens a local channel, sends only its path and the evidence on wire, and returns the bytes the channel gave", async () => {
+    const { app, params, fake } = await liveApp({
+      results: { "secret.beginReveal": { started: true } },
+      revealBytes: REVEALED,
+    });
+    const revealed = await app.commands.secrets.reveal(NAME, EVIDENCE);
+    expect(revealed.ok && revealed.value).toEqual(REVEALED);
+    // 값은 wire에 없다. 경로와 증거만 실린다
+    expect(paramsOf(params, "secret.beginReveal")).toEqual({
+      name: NAME,
+      channel: REVEAL_PATH,
+      reauth: EVIDENCE,
+    });
+    expect(fake.revealCalls).toEqual(["open", `take ${REVEAL_ID}`]);
+    await app.stop();
+  });
+
+  test("a host that did not start the reveal gives null, and the channel is closed with nothing kept", async () => {
+    const { app, fake } = await liveApp({
+      results: { "secret.beginReveal": { started: false } },
+      revealBytes: REVEALED,
+    });
+    expect(await app.commands.secrets.reveal(NAME, EVIDENCE)).toEqual({ ok: true, value: null });
+    expect(fake.revealCalls).toEqual(["open", `take ${REVEAL_ID}`, `close ${REVEAL_ID}`]);
+    await app.stop();
+  });
+
+  test("a started reveal whose channel gives no value is a failure, not a value", async () => {
+    const { app } = await liveApp({ results: { "secret.beginReveal": { started: true } } });
+    expect(await app.commands.secrets.reveal(NAME, EVIDENCE)).toEqual({
+      ok: false,
+      error: { kind: "failed" },
+    });
+    await app.stop();
+  });
+
+  test("when the channel cannot be opened the reveal fails before the host is asked", async () => {
+    const { app, params } = await liveApp({
+      results: { "secret.beginReveal": { started: true } },
+      revealOpenError: {
+        kind: "command",
+        command: "secret_reveal_open",
+        code: "reveal_unavailable",
+      },
+    });
+    expect(await app.commands.secrets.reveal(NAME, EVIDENCE)).toEqual({
+      ok: false,
+      error: { kind: "failed" },
+    });
+    expect(paramsOf(params, "secret.beginReveal")).toBeUndefined();
     await app.stop();
   });
 

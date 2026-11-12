@@ -12,6 +12,7 @@ import {
 } from "@fresnel/contracts/conversation";
 import {
   EffectStatusSchema,
+  ItemRecordedPayloadSchema,
   type AgentView,
   type ApprovalView,
   type EffectView,
@@ -22,8 +23,10 @@ import {
   type ThreadSummaryRow,
   type TurnView,
 } from "@fresnel/contracts/records";
+import { envelopeOfRow } from "./events.ts";
 import { columns, rowInvalid, type RowFault } from "./rows.ts";
 import { AgentSettledStatusSchema } from "./agent-status.ts";
+import { previewOfContent } from "./preview.ts";
 
 // 투영 테이블(p_*)을 읽는 질의 묶음. TxView(커밋 트랜잭션 안)와 ProjectionQuery(밖)가 같은 SQL을 쓴다.
 // 이 패키지 밖에서 p_* 이름이 나오지 않게 하는 것이 목적이다(CM-02, TX-07).
@@ -403,6 +406,58 @@ export function readThreadSummary(
     pendingApprovals: approvals.value.length,
     lastTurnId: lastTurnId.value,
   });
+}
+
+/**
+ * `bound` 이하 seq에서 이 thread(와 출처 사슬)의 가장 먼저 든 사용자 item 행. 출처가 있으면 fork 지점 이전 것을 먼저 본다:
+ * fork한 thread의 활성 가지는 출처의 fork 지점까지를 앞에 잇는다(F.wire-settings.spec §3.4.6 3.1). 가지 갈림은 따지지 않는다
+ * (readLastTurnId와 같다). 출처 사슬 한 단계마다 질의 최대 세 번(thread 행, fork 이벤트의 seq, 첫 사용자 item)이다
+ */
+function firstUserRow(
+  tx: SqlTx,
+  threadId: string,
+  bound: number,
+): Result<SqlRow | undefined, RowFault> {
+  const thread = readThread(tx, threadId);
+  if (!thread.ok) return thread;
+  if (thread.value === undefined) return ok(undefined);
+  const origin = thread.value.forkedFrom;
+  if (origin !== null) {
+    const at = tx.get("SELECT seq FROM events WHERE id = ?", [origin.eventId]);
+    if (at !== undefined) {
+      const seq = columns(at, "events").int("seq");
+      if (!seq.ok) return seq;
+      const inherited = firstUserRow(tx, origin.threadId, Math.min(bound, seq.value));
+      if (!inherited.ok) return inherited;
+      if (inherited.value !== undefined) return inherited;
+    }
+  }
+  const own = tx.get(
+    `SELECT e.envelope AS envelope FROM p_items i JOIN events e ON e.id = i.event_id
+     WHERE i.thread_id = ? AND i.kind = 'user' AND i.seq <= ? ORDER BY i.seq LIMIT 1`,
+    [threadId, bound],
+  );
+  return ok(own);
+}
+
+/**
+ * 목록 행의 첫 입력 미리보기(L1.persistence.spec §4.10.7). 저장된 첫 사용자 item의 글을 읽는다: 새 열(migration)과 투영 다시 만들기
+ * 없이 기존 기록만 쓴다. 보관된 큰 값(`detached`)이 붙은 기록은 되돌리지 않는다(그 자리는 자리표시 문자열이라 미리보기를 주지 않는다).
+ * 글이 없거나 payload가 현재 모양과 다르면 undefined다. 미리보기는 목록을 막지 않는 부가 값이라 그때 목록을 실패시키지 않는다.
+ */
+export function readFirstUserPreview(
+  tx: SqlTx,
+  threadId: string,
+): Result<string | undefined, RowFault> {
+  const row = firstUserRow(tx, threadId, Number.MAX_SAFE_INTEGER);
+  if (!row.ok) return row;
+  if (row.value === undefined) return ok(undefined);
+  const envelope = envelopeOfRow(row.value);
+  if (!envelope.ok) return envelope;
+  if ((envelope.value.detached ?? []).length > 0) return ok(undefined);
+  const payload = parse(ItemRecordedPayloadSchema, envelope.value.payload);
+  if (!payload.ok || payload.value.item.kind !== "user") return ok(undefined);
+  return ok(previewOfContent(payload.value.item.message.content));
 }
 
 const AGENT_COLUMNS =

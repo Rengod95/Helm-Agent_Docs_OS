@@ -80,6 +80,8 @@ export type SettingsJump = {
   readonly tab: SettingsJumpTarget;
   readonly key: SettingKey | null;
   readonly secretName?: SecretName;
+  /** 제공자 id. 모델과 계정 구역에서 그 제공자의 키 대화 상자를 한 번 연다(목록을 읽은 뒤) */
+  readonly providerId?: string;
 };
 
 /**

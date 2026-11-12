@@ -143,16 +143,20 @@ export function proxyExampleOf(input: ProxyExampleInput): Result<string, ProxyEx
   return ok(text);
 }
 
-/** 루프백에만 여는 구성: 외부 리스너를 끈다. 적용은 `writeGatewaySettings`가 한다 */
+/**
+ * 루프백에만 여는 구성: 외부 리스너를 끈다. 적용은 `writeGatewaySettings`가 한다.
+ * `hosts`는 `existing`(지금 적은 허용 호스트)에 도메인을 더한 값이다: 적은 이름을 지우지 않는다. 중복은 뺀다.
+ */
 export function loopbackOnlyPlan(
   loopbackPort: number,
   tlsPort: number,
   domain: string,
+  existing: readonly string[] = [],
 ): { listen: string; listenTls: string; hosts: readonly string[] } {
   return {
     listen: `127.0.0.1:${loopbackPort}`,
     listenTls: `127.0.0.1:${tlsPort}`,
-    hosts: [domain],
+    hosts: [...new Set([...existing, domain])],
   };
 }
 

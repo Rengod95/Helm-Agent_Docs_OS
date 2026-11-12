@@ -159,9 +159,10 @@ describe("model-only and failed items", () => {
     expect(shown.match(/role="alert"/g)?.length).toBe(1);
     expect(shown.match(/실패/g)).toBeNull();
     // 원문은 "자세히" 뒤에 있고 줄에는 한국어 문장과 모델 바꾸기 단추가 보인다
-    expect(shown).toContain("이 모델을 찾을 수 없어요");
+    expect(shown).toContain("모델을 찾지 못했어요");
     expect(shown).toContain("모델 바꾸기");
-    expect(shown).not.toContain("is not in the catalog");
+    // 원문은 정보 아이콘의 숨은 설명(낭독기용)에만 한 번 있고, 보이는 줄에는 없다
+    expect(shown.split("is not in the catalog").length - 1).toBe(1);
   });
 });
 
@@ -188,8 +189,9 @@ describe("turn failure", () => {
     });
     h.store.flush();
     const shown = render(<Transcript />, h);
-    expect(shown).toContain("키가 맞지 않아요");
-    expect(shown).toContain("키 다시 등록");
+    // 제공자가 키를 거절한 줄(401)이고 단추는 키 바꾸기다. 제공자 이름은 대화의 모델에 따라 붙는다
+    expect(shown).toContain("이 키를 받지 않았어요(401)");
+    expect(shown).toContain("키 바꾸기");
     expect(shown).toContain('role="alert"');
     h.store.ingest({
       type: "batch",
@@ -209,6 +211,6 @@ describe("turn failure", () => {
       ],
     });
     h.store.flush();
-    expect(render(<Transcript />, h)).not.toContain("키가 맞지 않아요");
+    expect(render(<Transcript />, h)).not.toContain("이 키를 받지 않았어요(401)");
   });
 });

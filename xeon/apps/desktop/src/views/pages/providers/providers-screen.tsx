@@ -39,10 +39,12 @@ import { commandErrorText } from "../secrets/secret-text.ts";
 import {
   ROTATION_ENABLED_KEY,
   addableProvidersOf,
+  authCheckOf,
   fieldOfKey,
   initialChecks,
   isBaseUrl,
   isModelRule,
+  isNeutral,
   isPassing,
   linkedCheckOf,
   modelsCheckOf,
@@ -93,7 +95,8 @@ import { invalidTextOf } from "./providers-text.ts";
 // 설정 값은 설정 화면의 view-model(`view`)에서 읽고, 바꾸면 바로 저장한다(`handlers.change`, `settings.set` 한 번).
 // 키 값은 이 파일의 어느 상태에도 들어가지 않는다: `submitKey`가 입력란을 읽는 즉시 비우고 셸(`setup.registerKey`)로 보낸다.
 // 키를 넣으면 제공자에 잇고(`setup.connectProviderKey`: 엔진의 지금 목록을 읽어 원소만 바꿔 쓴다) 곧바로 연결 시험을 돈다.
-// 연결 시험의 셋째 단계는 엔진 카탈로그(`models.list`)가 이 제공자의 모델을 내는지까지다. 제공자 API를 실제로 부르는 경로는 wire에 없다.
+// 연결 시험의 셋째 단계는 엔진 카탈로그(`models.list`)가 이 제공자의 모델을 내는지이고, 넷째 단계(`provider.checkAuth`)가 제공자가 키를 받는지다.
+// 카드의 "연결됨"은 넷째 단계가 통과했을 때만이다(DP-83 [결정: 2026-11-11 사용자]).
 
 /** 설정 화면이 패널에 넘기는 것 */
 export interface ModelsPanelProps {
@@ -194,7 +197,7 @@ function testFailureOf(error: SecretCommandError): ProviderCheckReason {
 
 /**
  * 연결 시험을 차례로 돈다. 단계가 바뀔 때마다 `onStep`으로 알리고, 실패하면 뒤 단계는 건너뛴다.
- * ① 키 저장(`secret.test`) ② 제공자 연결(엔진 설정의 원소) ③ 모델 목록(`models.list`)
+ * ① 키 저장(`secret.test`) ② 제공자 연결(엔진 설정의 원소) ③ 모델 목록(`models.list`) ④ 제공자가 키를 받는지(`provider.checkAuth`)
  */
 function useProviderTest(): (
   providerId: string,
@@ -215,8 +218,14 @@ function useProviderTest(): (
         reason: ProviderCheckReason,
       ): boolean => {
         const passed = isPassing(reason);
-        step({ id, state: passed ? "passed" : "failed", reason, elapsedMs: nowMs() - started });
-        return passed;
+        const neutral = isNeutral(reason);
+        step({
+          id,
+          state: passed ? "passed" : neutral ? "neutral" : "failed",
+          reason,
+          elapsedMs: nowMs() - started,
+        });
+        return passed || neutral;
       };
       let started = nowMs();
       step({ id: "stored", state: "running" });
@@ -251,12 +260,24 @@ function useProviderTest(): (
       started = nowMs();
       step({ id: "models", state: "running" });
       const models = await commands.listModels();
+      if (
+        !finish(
+          "models",
+          started,
+          models.ok
+            ? modelsCheckOf(models.value.models, providerId)
+            : { kind: "error", text: errorText(models.error) },
+        )
+      ) {
+        return;
+      }
+      started = nowMs();
+      step({ id: "auth", state: "running" });
+      const auth = await commands.checkProviderAuth(providerId);
       finish(
-        "models",
+        "auth",
         started,
-        models.ok
-          ? modelsCheckOf(models.value.models, providerId)
-          : { kind: "error", text: errorText(models.error) },
+        auth.ok ? authCheckOf(auth.value) : { kind: "error", text: errorText(auth.error) },
       );
     },
     [commands],
@@ -265,8 +286,14 @@ function useProviderTest(): (
 
 // ── 제공자 ──────────────────────────────────────────────────────────────
 
-export function ProvidersPanel(props: ModelsPanelProps): ReactNode {
-  const { view, live, handlers } = props;
+/** 제공자 패널이 설정 화면에서 받는 것. `focusProvider`는 설정 점프가 준 제공자 id다 */
+interface ProvidersPanelProps extends ModelsPanelProps {
+  readonly focusProvider?: string | null;
+  readonly onFocused?: () => void;
+}
+
+export function ProvidersPanel(props: ProvidersPanelProps): ReactNode {
+  const { view, live, handlers, focusProvider = null, onFocused } = props;
   const commands = useCommands();
   const models = useModelChoices();
   const data = useProviderData();
@@ -278,6 +305,10 @@ export function ProvidersPanel(props: ModelsPanelProps): ReactNode {
   const read = readProviders(field?.value ?? []);
   const providers = read.ok ? read.value : [];
   const [steps, setSteps] = useState<Readonly<Record<string, readonly CheckStep[]>>>({});
+  // 제공자별 마지막 연결 시험 결과(카드 상태의 근거). 화면 상태에만 있고 저장하지 않는다
+  const [results, setResults] = useState<Readonly<Record<string, readonly ProviderCheckResult[]>>>(
+    {},
+  );
   const [adding, setAdding] = useState<{ readonly custom: boolean } | null>(null);
   const [draftId, setDraftId] = useState("");
   const [draftBaseUrl, setDraftBaseUrl] = useState("");
@@ -305,6 +336,14 @@ export function ProvidersPanel(props: ModelsPanelProps): ReactNode {
       },
     });
     setSteps((prev) => ({ ...prev, [id]: shown }));
+    setResults((prev) => ({ ...prev, [id]: checks }));
+  };
+
+  /** 설정이 바뀐 제공자의 지난 시험 결과를 버린다. 다시 시험하기 전까지 카드는 확인 안 됨이다 */
+  const forgetResult = (id: string): void => {
+    setResults((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([entryId]) => entryId !== id)),
+    );
   };
 
   const testCard = (id: string): void => {
@@ -319,42 +358,59 @@ export function ProvidersPanel(props: ModelsPanelProps): ReactNode {
   };
 
   /** 키 대화 상자를 연다. 호스트가 자기 창에서 값을 받으면 그 안내를, 아니면 붙여 넣기 칸을 보인다 */
-  function openKey(id: string): void {
-    const secret = providerSecretName(id);
-    if (!secret.ok) {
-      setAddError(t("desktop.providers.custom.idInvalid"));
-      return;
-    }
-    const name = secret.value;
-    const exists = stored.includes(name);
-    const action = exists ? "set" : "add";
-    setKey({
-      providerId: id,
-      name,
-      action,
-      phase: { kind: "entry", error: null },
-      source: "paste",
-      picked: null,
-    });
-    detach(
-      commands.setup.beginKeyEntry(name, action).then((begun) => {
-        if (begun.ok && begun.value) {
-          setKey((prev) => (prev === null ? prev : { ...prev, phase: { kind: "hostWindow" } }));
-        } else if (!begun.ok && begun.error.kind !== "unsupported") {
-          setKey((prev) =>
-            prev === null
-              ? prev
-              : { ...prev, phase: { kind: "entry", error: { text: errorText(begun.error) } } },
-          );
-        }
-        return undefined;
-      }),
-      rethrow,
-    );
-  }
+  const openKey = useCallback(
+    (id: string): void => {
+      const secret = providerSecretName(id);
+      if (!secret.ok) {
+        setAddError(t("desktop.providers.custom.idInvalid"));
+        return;
+      }
+      const name = secret.value;
+      const exists = storedSecretsOf(data.snapshot).includes(name);
+      const action = exists ? "set" : "add";
+      setKey({
+        providerId: id,
+        name,
+        action,
+        phase: { kind: "entry", error: null },
+        source: "paste",
+        picked: null,
+      });
+      detach(
+        commands.setup.beginKeyEntry(name, action).then((begun) => {
+          if (begun.ok && begun.value) {
+            setKey((prev) => (prev === null ? prev : { ...prev, phase: { kind: "hostWindow" } }));
+          } else if (!begun.ok && begun.error.kind !== "unsupported") {
+            setKey((prev) =>
+              prev === null
+                ? prev
+                : { ...prev, phase: { kind: "entry", error: { text: errorText(begun.error) } } },
+            );
+          }
+          return undefined;
+        }),
+        rethrow,
+      );
+    },
+    [commands, data.snapshot, setAddError, setKey],
+  );
 
-  /** 연결하고 대화 상자 안에서 시험한다 */
-  const connectAndTest = async (target: KeyTarget, name: SecretName): Promise<void> => {
+  // 설정 점프가 준 제공자의 키 대화 상자를 한 번 연다. 시크릿 목록을 읽은 뒤에 연다(넣을지 바꿀지가 목록에 달렸다).
+  // 목록에 없는 제공자면 대화 상자 없이 목록만 보이고, 어느 쪽이든 요청은 받은 것으로 치운다
+  const focusListed =
+    focusProvider !== null && providers.some((entry) => entry.id === focusProvider);
+  useEffect(() => {
+    if (focusProvider === null || data.snapshot === null) return;
+    if (focusListed) openKey(focusProvider);
+    onFocused?.();
+  }, [focusProvider, data.snapshot, focusListed, openKey, onFocused]);
+
+  /** 연결하고 대화 상자 안에서 시험한다. `trimmed`는 키 앞뒤를 지웠는지(등록 결과)다 */
+  const connectAndTest = async (
+    target: KeyTarget,
+    name: SecretName,
+    trimmed = false,
+  ): Promise<void> => {
     const connected = await commands.setup.connectProviderKey(target.providerId, name);
     if (!connected.ok) {
       setKey((prev) =>
@@ -376,9 +432,10 @@ export function ProvidersPanel(props: ModelsPanelProps): ReactNode {
         },
       });
       setKey((prev) =>
-        prev === null ? prev : { ...prev, phase: { kind: "checking", steps: shown } },
+        prev === null ? prev : { ...prev, phase: { kind: "checking", steps: shown, trimmed } },
       );
       setSteps((prev) => ({ ...prev, [target.providerId]: shown }));
+      setResults((prev) => ({ ...prev, [target.providerId]: checks }));
     };
     await runTest(target.providerId, name, show);
     await data.reload();
@@ -400,7 +457,7 @@ export function ProvidersPanel(props: ModelsPanelProps): ReactNode {
         );
         switch (outcome.kind) {
           case "registered":
-            await connectAndTest(target, target.name);
+            await connectAndTest(target, target.name, outcome.trimmed);
             break;
           case "cancelled":
             // 열쇠 보관 확인에서 취소했다. 입력란과 키 창은 그대로 둔다
@@ -487,6 +544,7 @@ export function ProvidersPanel(props: ModelsPanelProps): ReactNode {
         secrets: data.snapshot?.secrets ?? null,
         models,
         gauges: data.gauges,
+        checks: results,
       })
     : null;
   const keyName = key === null ? "" : providerNameOf(key.providerId);
@@ -512,6 +570,7 @@ export function ProvidersPanel(props: ModelsPanelProps): ReactNode {
             setAdding({ custom: true });
           },
           onToggle: (id, enabled) => {
+            forgetResult(id);
             write(withProviderEnabled(providers, id, enabled));
           },
           onKey: openKey,
@@ -594,6 +653,7 @@ export function ProvidersPanel(props: ModelsPanelProps): ReactNode {
             setBaseUrlError(t("desktop.providers.baseUrl.invalid"));
             return;
           }
+          forgetResult(baseUrl.id);
           write(withProviderBaseUrl(providers, baseUrl.id, baseUrl.draft));
           setBaseUrl(null);
         }}
@@ -605,7 +665,10 @@ export function ProvidersPanel(props: ModelsPanelProps): ReactNode {
         open={removing !== null}
         providerName={removing === null ? "" : providerNameOf(removing)}
         onConfirm={() => {
-          if (removing !== null) write(withoutProvider(providers, removing));
+          if (removing !== null) {
+            forgetResult(removing);
+            write(withoutProvider(providers, removing));
+          }
           setRemoving(null);
         }}
         onClose={() => {

@@ -153,7 +153,7 @@ export function tokenCountText(tokens: number): string {
 }
 
 /** 설정 스냅숏(기본 모델과 제공자 목록). 연결이 살아 있을 때 읽고 설정이 바뀌면(`settings.invalidated`) 다시 읽는다. 읽지 못하면 null이다 */
-export function useSetupSnapshot(): SetupSnapshot | null {
+function useSetupSnapshot(): SetupSnapshot | null {
   const commands = useCommands();
   const phase = useLinkPhase();
   const [snapshot, setSnapshot] = useState<SetupSnapshot | null>(null);

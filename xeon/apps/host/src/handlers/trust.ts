@@ -37,13 +37,22 @@ function trustFailure(failure: TrustPortFailure): WireError {
   }
 }
 
-// trust.list는 저장 파일을 읽기만 한다(F wire §3.3.1). 제거와 바꾸기는 아직 없다.
+// trust.list는 저장 파일을 읽기만 한다(F wire §3.3.1). 지우기는 trust.remove가 맡는다.
 function createTrustListHandler(engine: Engine): WireHandler<"trust.list"> {
   const { trust } = engine.ports;
   return async (_params, context) => {
     const listed = await trust.list(context.signal);
     if (!listed.ok) throw trustFailure(listed.error);
     return listed.value;
+  };
+}
+
+function createTrustRemoveHandler(engine: Engine): WireHandler<"trust.remove"> {
+  const { trust } = engine.ports;
+  return async (params, context) => {
+    const status = await trust.remove(params.workspace, context.signal);
+    if (!status.ok) throw trustFailure(status.error);
+    return status.value;
   };
 }
 
@@ -67,10 +76,11 @@ function createTrustDecideHandler(engine: Engine): WireHandler<"trust.decide"> {
 
 export function createTrustHandlers(
   engine: Engine,
-): Pick<WireHandlers, "trust.get" | "trust.decide" | "trust.list"> {
+): Pick<WireHandlers, "trust.get" | "trust.decide" | "trust.list" | "trust.remove"> {
   return {
     "trust.get": createTrustGetHandler(engine),
     "trust.decide": createTrustDecideHandler(engine),
     "trust.list": createTrustListHandler(engine),
+    "trust.remove": createTrustRemoveHandler(engine),
   };
 }

@@ -22,7 +22,7 @@ import { assertNever } from "@fresnel/contracts";
 import type { AccountEntry, RotationState } from "@fresnel/client";
 import type { KeyField } from "@fresnel/client/settings";
 import type { ModelEntry } from "@fresnel/contracts/wire";
-import { useId, useRef, type ReactNode, type RefObject } from "react";
+import { useId, useRef, useState, type ReactNode, type RefObject } from "react";
 import { modelOptionsOf, tokenCountText } from "../../model-usage.ts";
 import {
   FIELD_WIDTH,
@@ -36,9 +36,11 @@ import { OrderedList, type OrderedItem } from "../shared/ordered-list.tsx";
 import { providerHostOf, providerMarkOf, providerNameOf } from "../shared/provider-names.ts";
 import {
   foldOf,
+  isSubscriptionTokenText,
   modelAccessGroupsOf,
   type ModelAccessRow,
   type ProviderCard,
+  type ProviderCheckReason,
   type ProviderCheckResult,
   type ProviderPool,
   type ProviderStatus,
@@ -47,7 +49,7 @@ import {
 
 // 설정 "모델과 계정" 구역의 그림(P-11, DP-83·DP-84 [결정: 2026-11-11 사용자]). 상태와 명령은 없고 props만 받는다(서버 렌더 시험이 직접 그린다).
 //   제공자      카드 격자(폭 520 이상 두 열). 카드 = 글자 표지 · 이름 · 스위치 / 상태 점과 글 / 누적 사용량 / 키 넣기 · 시험 · ⋯.
-//               시험을 누르면 카드 아래에 점검 줄(키 저장 → 제공자 연결 → 모델 목록)이 펼쳐진다. 빈 상태는 알려진 제공자 고르기 격자다.
+//               시험을 누르면 카드 아래에 점검 줄(키 저장 → 제공자 연결 → 모델 목록 → 제공자가 키를 받는지)이 펼쳐진다. 빈 상태는 알려진 제공자 고르기 격자다.
 //   키 연결     대화 상자 하나: 붙여 넣기 또는 저장된 키 고르기 → 저장하고 시험 → 점검 줄. 키 값은 DOM에만 있고 `KeyField.take`가 읽는 즉시 비운다.
 //   계정 풀     회전 줄(무엇이 도는지 보조 글로) + 제공자별 계정 순서 목록. 추가는 대화 상자.
 //   쓸 모델     기본 모델 고르기 + 모델 목록 스위치(끄면 막음) + 고른 모델만 쓰기 규칙.
@@ -113,6 +115,9 @@ function ProviderMark(props: { readonly mark: string }): ReactNode {
 
 const STATUS_DOT: Readonly<Record<ProviderStatus, string>> = {
   connected: "bg-success-text",
+  confirmed: "bg-success-text",
+  rejected: "bg-danger-text",
+  unchecked: "bg-text-tertiary",
   noKey: "bg-warning-text",
   noModels: "bg-warning-text",
   missingKey: "bg-danger-text",
@@ -123,6 +128,12 @@ function providerStatusText(card: Pick<ProviderCard, "status" | "modelCount">): 
   switch (card.status) {
     case "connected":
       return t("desktop.providers.status.connected", { count: card.modelCount });
+    case "confirmed":
+      return t("desktop.providers.status.confirmed", { count: card.modelCount });
+    case "rejected":
+      return t("desktop.providers.status.rejected");
+    case "unchecked":
+      return t("desktop.providers.status.unchecked");
     case "noKey":
       return t("desktop.providers.status.noKey");
     case "missingKey":
@@ -156,22 +167,75 @@ const CHECK_LABEL = {
   stored: "desktop.providers.check.stored",
   linked: "desktop.providers.check.linked",
   models: "desktop.providers.check.models",
+  auth: "desktop.providers.check.auth",
 } as const;
 
-/** 시험 결과를 점검 줄 단계로. 고치는 동작은 키 넣기(저장·연결 실패)와 켜기(꺼짐)다 */
+/** 제공자 확인(넷째 단계)의 실패 한 가지를 문장과 고치는 법으로. 구독 로그인 토큰과 거절은 키 바꾸기를 함께 준다 */
+function authFailureOf(
+  reason: Extract<ProviderCheckReason, { readonly kind: "authFailed" }>,
+  onKey: () => void,
+): Pick<CheckStep, "detail" | "fix" | "action"> {
+  switch (reason.cause) {
+    case "rejected": {
+      const fixed = t("desktop.providers.check.fix.rejected");
+      return {
+        detail:
+          reason.status === undefined
+            ? t("desktop.providers.check.detail.rejected")
+            : t("desktop.providers.check.detail.rejectedStatus", { status: reason.status }),
+        fix:
+          reason.reason === undefined
+            ? fixed
+            : `${t("desktop.providers.check.fix.reason", { reason: reason.reason })} ${fixed}`,
+        action: { label: t("desktop.providers.key.change"), onAction: onKey },
+      };
+    }
+    case "oauthTokenNotApiKey":
+      return {
+        detail: t("desktop.providers.subscriptionToken.text"),
+        fix: t("desktop.providers.subscriptionToken.fix"),
+        action: { label: t("desktop.providers.key.change"), onAction: onKey },
+      };
+    case "badAddress":
+      return {
+        detail: t("desktop.providers.check.detail.badAddress"),
+        fix: t("desktop.providers.check.fix.badAddress"),
+      };
+    case "quotaOrBilling":
+      return {
+        detail: t("desktop.providers.check.detail.quotaOrBilling"),
+        fix: t("desktop.providers.check.fix.quotaOrBilling"),
+      };
+    case "timeout":
+      return {
+        detail: t("desktop.providers.check.detail.timeout"),
+        fix: t("desktop.providers.check.fix.timeout"),
+      };
+    case "upstream":
+      return {
+        detail: t("desktop.providers.check.detail.upstream"),
+        fix: t("desktop.providers.check.fix.upstream"),
+      };
+    default:
+      return assertNever(reason.cause, "AuthFailureCause");
+  }
+}
+
+/** 시험 결과를 점검 줄 단계로. 고치는 동작은 키 넣기(저장·연결 실패, 거절)와 켜기(꺼짐)다 */
 export function providerStepsOf(
   results: readonly ProviderCheckResult[],
   actions: { readonly onKey: () => void; readonly onEnable: () => void },
 ): readonly CheckStep[] {
   return results.map((result): CheckStep => {
     const label = t(CHECK_LABEL[result.id]);
-    if (result.state !== "passed" && result.state !== "failed") {
+    if (result.state !== "passed" && result.state !== "failed" && result.state !== "neutral") {
       return { id: result.id, label, state: result.state };
     }
-    const base = {
+    const base: Pick<CheckStep, "id" | "label" | "state" | "elapsedMs"> = {
       id: result.id,
       label,
-      state: result.state,
+      // 실패가 아닌 건너뜀은 점검 줄에서 건너뜀 상태(회색 빼기)로 보인다
+      state: result.state === "neutral" ? "skipped" : result.state,
       ...(result.elapsedMs === undefined ? {} : { elapsedMs: result.elapsedMs }),
     };
     const reason = result.reason;
@@ -226,6 +290,12 @@ export function providerStepsOf(
           detail: t("desktop.providers.check.detail.noModels"),
           fix: t("desktop.providers.check.fix.noModels"),
         };
+      case "authOk":
+        return { ...base, detail: t("desktop.providers.check.detail.authOk") };
+      case "authUnsupported":
+        return { ...base, detail: t("desktop.providers.check.detail.unsupported") };
+      case "authFailed":
+        return { ...base, ...authFailureOf(reason, actions.onKey) };
       case "error":
         return {
           ...base,
@@ -257,8 +327,15 @@ function ProviderCardView(props: {
 }): ReactNode {
   const { card, editable, handlers } = props;
   const hasKey = card.secretName !== null;
-  // 마지막 점검이 떨어졌으면 그 사유를 상태 줄에 보인다(아래 점검 줄과 같은 문장). 점검을 다시 통과하면 상태로 돌아간다
+  // 마지막 점검이 떨어졌으면 그 사유를 상태 줄에 보인다(아래 점검 줄과 같은 문장). 점검을 다시 통과하면 상태로 돌아간다.
+  // 거절됨과 확인 안 됨은 상태 말이 먼저 오고 사유가 뒤에 붙는다(무엇을 고칠지 같이 보이게)
   const failure = props.steps?.find((step) => step.state === "failed")?.detail ?? null;
+  const statusLine =
+    failure === null
+      ? providerStatusText(card)
+      : card.status === "rejected" || card.status === "unchecked"
+        ? `${providerStatusText(card)} · ${failure}`
+        : failure;
   return (
     <article
       data-slot="provider-card"
@@ -293,7 +370,7 @@ function ProviderCardView(props: {
             aria-hidden
             className={`size-1.5 flex-none rounded-full ${STATUS_DOT[card.status]}`}
           />
-          <span className="min-w-0 truncate">{failure ?? providerStatusText(card)}</span>
+          <span className="min-w-0 truncate">{statusLine}</span>
         </span>
         {card.usage === null ? null : (
           <span className="truncate ps-3 text-ui-sm text-text-tertiary tabular-nums">
@@ -619,6 +696,8 @@ function KeyInput(props: {
   readonly inputRef: RefObject<HTMLInputElement | null>;
   readonly onSource: (source: KeySource) => void;
   readonly onPicked: (name: string) => void;
+  /** 입력할 때마다 구독 로그인 토큰 접두인지 알린다. 값은 넘기지 않는다 */
+  readonly onSubscriptionToken?: (looksLikeToken: boolean) => void;
 }): ReactNode {
   // 입력 참조는 따로 꺼낸다. props째로 들고 있으면 다른 props를 읽는 것도 참조 읽기로 본다(react refs 규칙)
   const { inputRef, busy } = props;
@@ -660,6 +739,9 @@ function KeyInput(props: {
             spellCheck={false}
             defaultValue=""
             disabled={busy}
+            onValueChange={(value) => {
+              props.onSubscriptionToken?.(isSubscriptionTokenText(value));
+            }}
           />
         </Field>
       ) : (
@@ -689,7 +771,12 @@ export type KeyDialogPhase =
   | { readonly kind: "entry"; readonly error: KeyErrorText | null }
   /** 호스트가 자기 창에서 값을 받는다. 다 넣으면 시험한다 */
   | { readonly kind: "hostWindow" }
-  | { readonly kind: "checking"; readonly steps: readonly CheckStep[] };
+  /** `trimmed`는 키 앞뒤를 지웠다는 뜻이고, 맨 위에 한 줄로 보인다 */
+  | {
+      readonly kind: "checking";
+      readonly steps: readonly CheckStep[];
+      readonly trimmed: boolean;
+    };
 
 export interface KeyDialogProps {
   readonly open: boolean;
@@ -711,14 +798,18 @@ export interface KeyDialogProps {
 
 export function KeyDialog(props: KeyDialogProps): ReactNode {
   const input = useRef<HTMLInputElement | null>(null);
+  // 붙여 넣은 글이 구독 로그인 토큰 접두로 시작하는가. 참·거짓만 두고 값은 두지 않는다. 참이면 저장을 막는다
+  const [subscriptionToken, setSubscriptionToken] = useState(false);
   const { phase } = props;
   const clear = (): void => {
     if (input.current !== null) input.current.value = "";
   };
   const close = (): void => {
     clear();
+    setSubscriptionToken(false);
     props.onClose();
   };
+  const blocked = subscriptionToken && props.source === "paste";
   const running = phase.kind === "checking" && phase.steps.some((s) => s.state === "running");
   return (
     <Dialog
@@ -740,6 +831,11 @@ export function KeyDialog(props: KeyDialogProps): ReactNode {
               props.onSubmitPick();
               return;
             }
+            // 구독 로그인 토큰이면 저장하지 않는다. 입력란 값은 접두만 보고 `take()`로 넘기지 않는다(입력란은 그대로 둔다)
+            if (isSubscriptionTokenText(input.current?.value ?? "")) {
+              setSubscriptionToken(true);
+              return;
+            }
             props.onSubmitPaste({
               take: () => {
                 const typed = input.current?.value ?? "";
@@ -756,10 +852,22 @@ export function KeyDialog(props: KeyDialogProps): ReactNode {
             picked={props.picked}
             busy={props.busy}
             inputRef={input}
-            onSource={props.onSource}
+            onSource={(source) => {
+              // 방식을 바꾸면 붙여 넣기 칸이 사라지므로 구독 토큰 판정도 지운다
+              setSubscriptionToken(false);
+              props.onSource(source);
+            }}
             onPicked={props.onPicked}
+            onSubscriptionToken={setSubscriptionToken}
           />
-          <ErrorLine text={phase.error?.text ?? null} fix={phase.error?.fix} />
+          {blocked ? (
+            <ErrorLine
+              text={t("desktop.providers.subscriptionToken.text")}
+              fix={t("desktop.providers.subscriptionToken.fix")}
+            />
+          ) : (
+            <ErrorLine text={phase.error?.text ?? null} fix={phase.error?.fix} />
+          )}
           <div className="flex justify-end gap-2 pt-1">
             <Button
               type="button"
@@ -775,7 +883,7 @@ export function KeyDialog(props: KeyDialogProps): ReactNode {
               size={FORM_CONTROL_SIZE}
               variant="solid"
               loading={props.busy}
-              disabled={props.source === "pick" && props.picked === null}
+              disabled={(props.source === "pick" && props.picked === null) || blocked}
             >
               {t("desktop.providers.key.submit")}
             </Button>
@@ -802,6 +910,9 @@ export function KeyDialog(props: KeyDialogProps): ReactNode {
       ) : null}
       {phase.kind === "checking" ? (
         <div className="grid gap-4">
+          {phase.trimmed ? (
+            <p className="m-0 text-ui text-text-secondary">{t("desktop.providers.key.trimmed")}</p>
+          ) : null}
           <CheckSteps
             label={t("desktop.providers.check.label", { name: props.providerName })}
             steps={phase.steps}

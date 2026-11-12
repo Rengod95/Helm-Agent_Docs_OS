@@ -139,7 +139,6 @@ describe("describeSandboxStatus", () => {
     expect(
       describeSandboxStatus(status({ ...base, onUnavailable: "disable_execute" })).severity,
     ).toBe("critical");
-    expect(describeSandboxStatus(status({ ...base, onUnavailable: "ask" })).severity).toBe("warn");
     expect(
       describeSandboxStatus(status({ ...base, onUnavailable: "run_unsandboxed" })).severity,
     ).toBe("warn");
@@ -158,14 +157,19 @@ describe("describeSandboxStatus", () => {
 
   test("disabled explains how to turn it on", () => {
     const summary = describeSandboxStatus(
-      status({ level: "none", available: false, reason: "disabled", onUnavailable: "ask" }),
+      status({
+        level: "none",
+        available: false,
+        reason: "disabled",
+        onUnavailable: "disable_execute",
+      }),
     );
     expect(summary.severity).toBe("warn");
     expect(summary.hints[0]).toContain("l0.sandbox.enabled");
   });
 
   test("disabled by setting is warn whatever onUnavailable says, and shell commands run unsandboxed", () => {
-    for (const onUnavailable of ["disable_execute", "ask", "run_unsandboxed"] as const) {
+    for (const onUnavailable of ["disable_execute", "run_unsandboxed"] as const) {
       const summary = describeSandboxStatus(
         status({ level: "none", available: false, reason: "disabled", onUnavailable }),
       );

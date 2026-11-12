@@ -286,6 +286,14 @@ describe.skipIf(!hasOpenssl)("pairWithGateway", () => {
     });
   });
 
+  test("401 expired_code is also invalid_code: the desktop message names both causes", async () => {
+    const server = startPairServer(certA, json(401, { error: "expired_code" }));
+    expect(await pairWithGateway(optionsFor(server.port))).toEqual({
+      ok: false,
+      error: { kind: "invalid_code" },
+    });
+  });
+
   test("429 locked carries retryAfterSeconds from the retry-after header", async () => {
     const server = startPairServer(certA, json(429, { error: "locked" }, { "retry-after": "42" }));
     expect(await pairWithGateway(optionsFor(server.port))).toEqual({

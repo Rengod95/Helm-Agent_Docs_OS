@@ -14,7 +14,7 @@ import {
 import { t, tKey } from "../i18n/index.ts";
 import {
   deprecatedInfo,
-  lockInfo,
+  lockOf,
   runtimeBadge,
   runtimeBadgeOf,
   scopeBadge,
@@ -168,7 +168,7 @@ function factsOf(
     scope: scopeBadge(setting?.source ?? DEFAULT_SOURCE),
     runtime:
       setting === undefined ? runtimeBadgeOf(def.runtimeChange, null) : runtimeBadge(setting),
-    lock: setting === undefined ? null : lockInfo(setting),
+    lock: lockOf(def, setting),
     shadowed: (setting?.shadowed ?? []).map((source) => shadowedOf(def, source, fileValues)),
     filePath: setting?.source.path ?? null,
     writable: writableScopes(def, setting, hasThread),

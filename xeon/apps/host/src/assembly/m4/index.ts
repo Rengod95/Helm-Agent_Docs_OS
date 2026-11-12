@@ -5,6 +5,7 @@ import type { ExtMethodPort } from "../../handlers/m4/ext-method.ts";
 import type { ExtReadPort } from "../../handlers/m4/ext-read.ts";
 import type { ExtUiVersionPort } from "../../handlers/m4/ext-ui-version.ts";
 import type { ProfileTestRunPort } from "../../handlers/m4/profile-test-run.ts";
+import type { SandboxSelfTestPort } from "../../handlers/m4/sandbox-self-test.ts";
 import type { M4EngineDeps, M4HostEnv, M4PortDeps } from "./deps.ts";
 import type { ExtUiVersionSource } from "./ext-ui-version-source.ts";
 import { createDevkitPort } from "./devkit-port.ts";
@@ -12,6 +13,7 @@ import { createDialogAreaPort } from "./dialog-area-port.ts";
 import { createExtReadPort, type ExtReadSources } from "./ext-read-port.ts";
 import { createExtUiVersionPort } from "./ext-ui-version-port.ts";
 import { createProfileTestRunPort } from "./profile-test-run-port.ts";
+import { createSandboxSelfTestPort } from "./sandbox-self-test-port.ts";
 
 // M4 wire 처리기 43개의 포트 묶음(`spec-deltas/t-f.md` §5). 이 파일은 T-F가 한 번 쓰고, 그 뒤에는 T-XD가
 // 계측 읽기와 Test run 제어(`emptyTraceRead`, `emptyTestRunControl`)를 ext-host 구현으로 바꾸는 한 줄만 고친다.
@@ -24,6 +26,8 @@ export interface M4Ports {
   readonly profileTestRun: ProfileTestRunPort;
   readonly dialogArea: DialogAreaPort;
   readonly devkit: DevkitPort;
+  /** 샌드박스 자가 시험 읽기와 실행(`sandbox.lastSelfTest`, `sandbox.selfTest`) */
+  readonly sandboxSelfTest: SandboxSelfTestPort;
 }
 
 /**
@@ -64,5 +68,6 @@ export function createM4Ports(
     profileTestRun,
     dialogArea: createDialogAreaPort(deps),
     devkit: createDevkitPort(deps, { profiles: profileTestRun }),
+    sandboxSelfTest: createSandboxSelfTestPort(host),
   };
 }

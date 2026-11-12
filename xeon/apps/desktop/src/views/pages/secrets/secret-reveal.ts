@@ -15,9 +15,12 @@ import {
   REVEAL_VISIBLE_MS,
   type RevealFailure,
   type RevealGrant,
-  type SecretRevealPort,
 } from "@fresnel/client/settings";
-import { gatedRevealPort, type RevealGate } from "../../../app/secret-reveal-gate.ts";
+import {
+  gatedRevealPort,
+  type GatedValuePort,
+  type RevealGate,
+} from "../../../app/secret-reveal-gate.ts";
 import type { SecretCommandError, SecretCommands } from "../../commands.ts";
 
 // 값 보기 세션. `createSecretReveal`(hidden → reauth → revealed | failed)과 클립보드 지우기 시한을 묶는다.
@@ -42,8 +45,8 @@ export const HIDDEN_REVEAL: RevealView = { status: "hidden" };
 
 export interface RevealSessionDeps {
   readonly gate: RevealGate;
-  /** 재인증을 통과한 뒤에만 불리는 값 경로(wire 어댑터) */
-  readonly valuePort: SecretRevealPort;
+  /** 재인증을 통과한 뒤에만 불리는 값 경로(셸 로컬 채널, `revealPortOf`) */
+  readonly valuePort: GatedValuePort;
   readonly scheduler: Scheduler;
   readonly clock: { now(): number };
   readonly clipboard: { writeText(text: string): Promise<void> };
@@ -149,14 +152,17 @@ export function createRevealSession(deps: RevealSessionDeps): RevealSession {
   };
 }
 
-/** 값 경로: `secret.beginReveal`. 호스트가 자기 창에 보였으면 값 없는 `shown_by_host`다 */
-export function revealPortOf(secrets: Pick<SecretCommands, "beginReveal">): SecretRevealPort {
+/**
+ * 값 경로: 셸 로컬 채널로 `secret.beginReveal`을 부르고 받은 바이트를 그대로 넘긴다. 화면이 그리고 시한이 지나면 덮는다.
+ * 호스트가 열람을 시작하지 않았으면(`null`) `not_started`다
+ */
+export function revealPortOf(secrets: Pick<SecretCommands, "reveal">): GatedValuePort {
   return {
-    async reveal(name): Promise<Result<RevealGrant, RevealFailure>> {
-      const begun = await secrets.beginReveal(name);
-      if (!begun.ok) return err(revealFailureOf(begun.error));
-      if (!begun.value) return err({ kind: "not_started" });
-      const grant: RevealGrant = { kind: "shown_by_host" };
+    async reveal(name, reauth): Promise<Result<RevealGrant, RevealFailure>> {
+      const revealed = await secrets.reveal(name, reauth);
+      if (!revealed.ok) return err(revealFailureOf(revealed.error));
+      if (revealed.value === null) return err({ kind: "not_started" });
+      const grant: RevealGrant = { kind: "value", bytes: revealed.value };
       return ok(grant);
     },
   };

@@ -38,6 +38,7 @@ import { folderLabel, sidebarGroupsOf } from "./thread-groups.ts";
 import {
   relativeTimeOf,
   rowBadgeOf,
+  rowLabelOf,
   rowOpensChat,
   threadMatches,
   type RelativeTime,
@@ -55,7 +56,7 @@ const DIALOG_CLOSE_MS = 300;
  */
 export const CHILD_ROW = "ms-4 w-auto max-w-[calc(100%-1rem)]";
 
-/** 제목 없는 줄: 기울임 없이 글자색만 tertiary(DP-104) */
+/** 제목 없는 줄(첫 입력 미리보기 포함): 기울임 없이 글자색만 tertiary(DP-104, DP-141) */
 const UNTITLED_LABEL = "[&_[data-slot=list-navigation-label]]:text-text-tertiary";
 
 /**
@@ -153,8 +154,9 @@ const ThreadRow = memo(function ThreadRow(props: {
   const approvals = useThreadApprovals(id);
   const unsent = unsentRowOf(useTurnFailure(id));
   const [menuOpen, setMenuOpen] = useState(false);
-  // 제목이 없는 대화는 "제목 없음"을 흐리게 두고, 꼬리에 만든 때를 붙여 서로 구분한다(DP-104)
-  const title = props.thread.title ?? t("desktop.threads.untitled");
+  // 제목이 없는 대화는 첫 입력 미리보기를 제목 자리에 흐리게 두고(DP-141), 미리보기도 없으면 "제목 없음"을 흐리게 둔다. 꼬리에 만든 때를 붙여 서로 구분한다(DP-104)
+  const label = rowLabelOf(props.thread);
+  const title = label.text ?? t("desktop.threads.untitled");
   // 툴팁에는 제목 아래로 알릴 말을 한 줄씩 더한다. 표시가 없으면 제목만 남는다
   const tooltip = [
     title,
@@ -187,11 +189,7 @@ const ThreadRow = memo(function ThreadRow(props: {
           event.preventDefault();
           setMenuOpen(true);
         }}
-        className={[
-          ROW_HEIGHT,
-          props.thread.title === null ? UNTITLED_LABEL : "",
-          props.child ? CHILD_ROW : "",
-        ]
+        className={[ROW_HEIGHT, label.dim ? UNTITLED_LABEL : "", props.child ? CHILD_ROW : ""]
           .filter((c) => c !== "")
           .join(" ")}
         onSelect={() => {
@@ -224,7 +222,7 @@ const ThreadRow = memo(function ThreadRow(props: {
       >
         <ThreadRowMenu
           id={id}
-          title={title}
+          title={props.thread.title ?? t("desktop.threads.untitled")}
           status={props.thread.status}
           bare
           open={menuOpen}

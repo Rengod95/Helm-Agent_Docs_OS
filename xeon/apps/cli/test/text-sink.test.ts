@@ -90,7 +90,7 @@ test("a failed turn names the kind and its fix, never the raw JSON", () => {
   expect(
     failedTurnText('401 {"type":"error","error":{"type":"authentication_error","message":"x"}}'),
   ).toBe(
-    "fresnel: 키가 맞지 않아요\n  해결: `fresnel secret set <이름>`으로 키를 다시 등록해 주세요\n",
+    "fresnel: 제공자가 이 키를 받지 않았어요(401)\n  해결: `fresnel secret set <이름>`으로 키를 다시 등록해 주세요\n",
   );
   expect(failedTurnText("429 rate_limit_error [retry-after=7]")).toBe(
     "fresnel: 요청이 많아 잠시 막혔어요\n  해결: 7초 뒤 다시 실행해 주세요\n",

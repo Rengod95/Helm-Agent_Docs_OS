@@ -117,7 +117,7 @@ export interface PortsDeps {
   /** 수동 컴팩션(`thread.compact`)이 부른다 */
   readonly context: Pick<ContextService, "compact">;
   /** 수동 컴팩션이 현재 모델(역할 `main`)의 바인딩과 창 크기를 정할 때 쓴다. `usage`는 사용량 원천(`usage.get`)이 구독한다 */
-  readonly models: Pick<ModelService, "resolve" | "list" | "usage">;
+  readonly models: Pick<ModelService, "resolve" | "list" | "usage" | "checkProviderAuth">;
   readonly tasks: TaskService;
   readonly approvals: ApprovalService;
   /** 열 때 복구가 도구의 현재 재실행 정책을 본다(ToolService.meta) */
@@ -710,6 +710,20 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     holds: (threadId) => held.has(threadId),
   });
 
+  /** 신뢰가 바뀐 뒤: 작업 폴더의 project·local 층을 다시 읽고 알린 뒤 허용된 프로젝트 확장을 싣는다(결정과 지우기가 같이 쓴다) */
+  const afterTrustChanged = async (workspace: string, signal: AbortSignal): Promise<void> => {
+    // 신뢰가 바뀌었으므로 작업 폴더의 project·local 층을 다시 판정해 읽는다. 쥔 thread는 지금 바로 다시 읽는다
+    deps.settings.clearWorkspaceFiles();
+    await sequentially(Array.from(held.keys()), async (threadId) => {
+      await settings.prepare(threadId);
+      await deps.afterSettingsPrepare?.(threadId);
+    });
+    // 어느 키가 바뀌었는지 모르는 변경이다(keys가 빈 알림, F wire §3.3.2)
+    deps.settings.notifyChanged({ keys: [], scopes: ["project", "local"], threadId: null });
+    // 허용된 작업 폴더의 프로젝트 확장을 지금 싣는다(모든 호스트 모드)
+    await deps.projectExtensions.ensure(workspace, signal);
+  };
+
   const trust: TrustPort = {
     async list() {
       const listed = await deps.trust.list();
@@ -736,17 +750,15 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       if (!isAbsolute(workspace)) return err({ kind: "workspace_not_absolute" });
       const decided = await deps.trust.decide(workspace, choice, signal);
       if (!decided.ok) return decided;
-      // 신뢰가 바뀌었으므로 작업 폴더의 project·local 층을 다시 판정해 읽는다. 쥔 thread는 지금 바로 다시 읽는다
-      deps.settings.clearWorkspaceFiles();
-      await sequentially(Array.from(held.keys()), async (threadId) => {
-        await settings.prepare(threadId);
-        await deps.afterSettingsPrepare?.(threadId);
-      });
-      // 어느 키가 바뀌었는지 모르는 변경이다(keys가 빈 알림, F wire §3.3.2)
-      deps.settings.notifyChanged({ keys: [], scopes: ["project", "local"], threadId: null });
-      // 허용된 작업 폴더의 프로젝트 확장을 지금 싣는다(모든 호스트 모드)
-      await deps.projectExtensions.ensure(workspace, signal);
+      await afterTrustChanged(workspace, signal);
       return ok(trustStatusOf(decided.value));
+    },
+    async remove(workspace, signal) {
+      if (!isAbsolute(workspace)) return err({ kind: "workspace_not_absolute" });
+      const removed = await deps.trust.remove(workspace, signal);
+      if (!removed.ok) return removed;
+      await afterTrustChanged(workspace, signal);
+      return ok(trustStatusOf(removed.value));
     },
   };
 
@@ -837,6 +849,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     models: {
       modelIds: (provider) => modelIdsOf(deps.models, provider),
       available: () => deps.models.list({ available: true }),
+      checkAuth: (provider, signal) => deps.models.checkProviderAuth(provider, signal),
     },
     commands: createCommandPort({ holder: deps.commands, ids: deps.ids }),
     web: createWebPort({ holder: deps.web, settings: deps.settings }),

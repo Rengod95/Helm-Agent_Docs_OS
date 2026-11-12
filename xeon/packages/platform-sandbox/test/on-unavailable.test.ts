@@ -78,11 +78,12 @@ describe("onUnavailable", () => {
     expect(r.srt.initializeCalls.length).toBe(0);
   });
 
-  test("ask needs escape: a plain call is rejected, an approved escape runs", async () => {
-    const r = await rig(WIN32, { onUnavailable: "ask" });
-    const plain = await exec(r, r.policy());
-    expect(!plain.ok && plain.error.code).toBe("sandbox_unavailable");
+  test("an escape call on an unavailable sandbox is refused unless escapeRetry is on", async () => {
+    const r = await rig(WIN32, { onUnavailable: "disable_execute" });
+    const refused = await exec(r, r.policy({ allowEscape: true }));
+    expect(!refused.ok && refused.error.code).toBe("sandbox_unavailable");
     expect(r.shell.calls.length).toBe(0);
+    r.set({ escapeRetry: true });
     const escaped = await exec(r, r.policy({ allowEscape: true }));
     expect(escaped.ok && escaped.value.sandbox).toEqual({
       sandboxed: false,
@@ -104,7 +105,7 @@ describe("onUnavailable", () => {
     expect(r.srt.wrapCalls.length).toBe(0);
   });
 
-  test("an escape call is rejected unless escapeRetry is on or the policy is ask", async () => {
+  test("an escape call is rejected unless escapeRetry is on", async () => {
     const r = await rig(linuxPlatform());
     expect(r.service.status().available).toBe(true);
     const denied = await exec(r, r.policy({ allowEscape: true }));
@@ -123,7 +124,7 @@ describe("onUnavailable", () => {
     ["wsl1", linuxPlatform({ procVersion: "Linux version 4.4.0-19041-Microsoft" })],
     ["ia32", linuxPlatform({ arch: "ia32" })],
   ];
-  const values: readonly OnUnavailable[] = ["disable_execute", "ask", "run_unsandboxed"];
+  const values: readonly OnUnavailable[] = ["disable_execute", "run_unsandboxed"];
   const combos = platforms.flatMap(([name, platform]) =>
     values.map((onUnavailable) => [name, platform, onUnavailable] as const),
   );

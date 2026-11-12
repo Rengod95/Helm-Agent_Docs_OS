@@ -201,6 +201,41 @@ test("list reads the stored decisions in file order without writing, and omits s
   });
 });
 
+// 지우기(`verdict: null`): 그 항목 하나만 빠지고, 폴더는 상위 폴더 결정이나 미결정으로 돌아간다
+test("a null verdict removes only that entry, and the folder falls back to its parent or to undecided", async () => {
+  const backend = memoryTrustBackend(
+    file({
+      "/work": { verdict: "allow" },
+      "/work/app": { verdict: "deny" },
+      "/other": { verdict: "allow" },
+    }),
+  );
+  const store = storeOf(backend);
+  expect(await store.lookup("/work/app")).toEqual({
+    kind: "found",
+    verdict: "deny",
+    path: "/work/app",
+  });
+
+  const removed = await store.setMany([{ path: "/work/app", verdict: null, via: "prompt" }]);
+  expect(removed.ok).toBe(true);
+  expect(entryPaths(backend.text())).toEqual(["/other", "/work"]);
+  expect(await store.lookup("/work/app")).toEqual({
+    kind: "found",
+    verdict: "allow",
+    path: "/work",
+  });
+
+  await store.setMany([{ path: "/other", verdict: null, via: "prompt" }]);
+  expect(await store.lookup("/other")).toEqual({ kind: "none" });
+  expect(entryPaths(backend.text())).toEqual(["/work"]);
+
+  // 없는 항목을 지워도 남은 항목은 그대로다
+  const before = entriesOf(backend.text());
+  expect((await store.setMany([{ path: "/missing", verdict: null, via: "prompt" }])).ok).toBe(true);
+  expect(entriesOf(backend.text())).toEqual(before);
+});
+
 test("a backend failure is an io error and the store stays usable", async () => {
   const backend = memoryTrustBackend(file({ "/a": { verdict: "allow" } }));
   const store = storeOf(backend);

@@ -993,7 +993,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 | 7 | `tool.result`(chain)와 결과 기록 | 단계 9, 10 | — |
 
 - Helm 쓰기 거부가 샌드박스보다 먼저인 이유: 거부된 호출은 실행하지 않으므로 샌드박스의 허용·거부 판정이 필요 없고, 승인 대기와 감사 이벤트도 남기지 않습니다. 샌드박스는 허용된 호출의 마지막 방어선입니다.
-- 샌드박스를 쓸 수 없을 때(`disable_execute`, `ask`)의 결과는 거부 오류이고, `run_unsandboxed`이면 실행한 뒤 `tool.sandbox_bypassed`가 남습니다.
+- 샌드박스를 쓸 수 없을 때(`disable_execute`)의 결과는 거부 오류이고, `run_unsandboxed`이면 실행한 뒤 `tool.sandbox_bypassed`가 남습니다.
 - 확장이 `tool.call.before`에서 샌드박스를 우회하게 하는 경로는 없습니다. 이 훅의 결정에는 허용 변형이 없고(`ToolCallDecision`), `allowEscape`는 호출자(도구 구현)만 정하며 항상 승인 대상입니다(`L0.sandbox.spec` §4.2).
 
 #### 4.1.5 사용자 순서 덮어쓰기 [결정: 2026-11-03 M4 T-ORDER, m4-decisions 15-2]

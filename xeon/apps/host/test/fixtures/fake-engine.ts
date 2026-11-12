@@ -18,6 +18,7 @@ import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import type { ScheduleService } from "@fresnel/cap-schedule";
 import { partial } from "./unsafe.ts";
 import type { DevkitPort } from "../../src/handlers/m4/devkit.ts";
+import type { SandboxSelfTestPort } from "../../src/handlers/m4/sandbox-self-test.ts";
 import type { DialogAreaPort } from "../../src/handlers/m4/dialog-area.ts";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { matchesFilter } from "../../src/handlers/events.ts";
@@ -128,6 +129,7 @@ export interface FakeEngineOptions {
     readonly startupNotices?: Partial<StartupNoticePort>;
     readonly approvals?: Partial<ApprovalPort>;
     readonly trust?: Partial<TrustPort>;
+    readonly models?: Partial<Engine["ports"]["models"]>;
     readonly commands?: Partial<CommandPort>;
     readonly web?: Partial<WebPort>;
     readonly dialog?: Partial<DialogWirePort>;
@@ -139,6 +141,8 @@ export interface FakeEngineOptions {
     /** 대화 영역 포트(`goal.status`, `work.tasks.list`, `schedule.update`, `schedule.runs`)를 바꾼다. 쓰지 않는 멤버는 부르면 바로 실패한다 */
     readonly dialogArea?: Partial<DialogAreaPort>;
     readonly devkit?: Partial<DevkitPort>;
+    /** 샌드박스 자가 시험 포트(`sandbox.lastSelfTest`, `sandbox.selfTest`). 쓰지 않는 멤버는 부르면 바로 실패한다 */
+    readonly sandboxSelfTest?: Partial<SandboxSelfTestPort>;
   };
 }
 
@@ -496,6 +500,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       get: () => Promise.reject(new Error("trust.get is not part of the fake")),
       decide: () => Promise.reject(new Error("trust.decide is not part of the fake")),
       list: () => Promise.reject(new Error("trust.list is not part of the fake")),
+      remove: () => Promise.reject(new Error("trust.remove is not part of the fake")),
       ...options.overrides?.trust,
     },
     activity: {
@@ -518,6 +523,9 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     models: {
       modelIds: (provider) => (provider === "tape" ? ["tape-1"] : []),
       available: () => [TAPE_MODEL],
+      // 인증 확인은 기본으로 확인 경로가 없는 provider로 답한다. 시험은 `overrides.models`로 바꾼다
+      checkAuth: () => Promise.resolve({ kind: "unsupported" }),
+      ...options.overrides?.models,
     },
     ids,
     clock: { now: () => RECORDED_AT },
@@ -572,6 +580,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       }),
       dialogArea: partial<DialogAreaPort>({ ...options.overrides?.dialogArea }),
       devkit: partial<DevkitPort>({ ...options.overrides?.devkit }),
+      sandboxSelfTest: partial<SandboxSelfTestPort>({ ...options.overrides?.sandboxSelfTest }),
     },
   };
 

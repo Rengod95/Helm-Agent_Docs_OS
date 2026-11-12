@@ -35,10 +35,21 @@ test("호스트 불일치는 키 오류 이름보다 먼저 보고 호스트를 
 
 test("상태 코드와 오류 이름별 종류", () => {
   const rows: readonly (readonly [string, TurnFailure])[] = [
+    // 키가 없음과 제공자가 키를 거절함(401)은 다른 종류다
     [AUTH_JSON, { kind: "auth" }],
     ["401 unauthorized", { kind: "auth" }],
+    ["secret_unresolved: secret k could not be leased (secret_missing)", { kind: "no_key" }],
+    ["secret_unresolved: no value stored", { kind: "no_key" }],
+    ["secret_unresolved: secret k could not be used (decrypt_failed)", { kind: "key_unusable" }],
+    [
+      "oauth_token_on_default_provider: provider anthropic does not accept subscription OAuth tokens",
+      { kind: "key_unusable" },
+    ],
     [PERMISSION_JSON, { kind: "permission_denied" }],
     ["403 Forbidden", { kind: "permission_denied" }],
+    ["402 payment required", { kind: "billing" }],
+    ["429 insufficient_quota", { kind: "billing" }],
+    ["400 credit balance is too low to access the API", { kind: "billing" }],
     ['404 {"error":{"type":"not_found_error","message":"model: x"}}', { kind: "model_not_found" }],
     [OVERFLOW_JSON, { kind: "context_overflow" }],
     ["400 maximum context length is 128000 tokens", { kind: "context_overflow" }],
@@ -46,12 +57,15 @@ test("상태 코드와 오류 이름별 종류", () => {
     ['400 {"error":{"type":"invalid_request_error"}}', { kind: "bad_request" }],
     ["429 rate limit", { kind: "rate_limited" }],
     ["429 rate_limit_error [retry-after=7]", { kind: "rate_limited", params: { seconds: "7" } }],
-    ["529 overloaded_error", { kind: "server" }],
-    ["503 Service Unavailable", { kind: "server" }],
+    ["529 overloaded_error", { kind: "overloaded" }],
+    ["503 Service Unavailable", { kind: "overloaded" }],
+    ["500 Internal Server Error", { kind: "server" }],
+    ["502 Bad Gateway", { kind: "server" }],
+    ["504 Gateway Timeout", { kind: "timeout" }],
+    ["request timed out after 60s", { kind: "timeout" }],
     ["Connection error.", { kind: "network" }],
     ["provider_unavailable: no route", { kind: "network" }],
     ["model_not_found: anthropic/x", { kind: "model_not_found" }],
-    ["secret_unresolved: no value stored", { kind: "auth" }],
     ["뭔지 모를 오류", { kind: "unknown" }],
   ];
   for (const [error, expected] of rows) {

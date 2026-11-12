@@ -71,10 +71,13 @@ const CREATE_THREAD_TIMEOUT_MS = 30_000;
 
 export type CommandDeps = {
   readonly session: Session;
-  /** 키 등록(`registerSecret`), 엔진 대상 바꾸기(`retarget`), 데이터 복원(`dbRestore`), 저장 공간 명령(백업·사용량·사본 지우기·데이터 폴더 열기), 이 기기의 서비스 명령과 원격 붙기 명령(연결 화면)만 쓴다. 나머지 셸 명령은 세션이 맡는다 */
+  /** 키 등록(`registerSecret`), 값 보기 채널(`revealOpen`·`revealTake`·`revealClose`), 엔진 대상 바꾸기(`retarget`), 데이터 복원(`dbRestore`), 저장 공간 명령(백업·사용량·사본 지우기·데이터 폴더 열기), 이 기기의 서비스 명령과 원격 붙기 명령(연결 화면)만 쓴다. 나머지 셸 명령은 세션이 맡는다 */
   readonly ipc: Pick<
     DesktopIpc,
     | "registerSecret"
+    | "revealOpen"
+    | "revealTake"
+    | "revealClose"
     | "retarget"
     | "dbRestore"
     | "dbExport"
@@ -440,6 +443,8 @@ export function createCommands(
       });
     },
     listModels: () => withConnection((c) => c.request("models.list", {})),
+    checkProviderAuth: (provider) =>
+      withConnection((c) => c.request("provider.checkAuth", { provider })),
     async closeThread(threadId) {
       const done = await withWriteConnection((c) => c.request("thread.close", { threadId }));
       return done.ok ? ok(null) : done;
@@ -523,10 +528,15 @@ export function createCommands(
       status: (workspace) => withConnection((c) => c.request("trust.get", { workspace })),
       decide: (workspace, choice) =>
         withWriteConnection((c) => c.request("trust.decide", { workspace, choice })),
+      remove: (workspace) => withWriteConnection((c) => c.request("trust.remove", { workspace })),
       list: () => withConnection((c) => c.request("trust.list", {})),
     },
     workspace: {
       status: (workspace) => withConnection((c) => c.request("workspace.status", { workspace })),
+    },
+    sandbox: {
+      lastSelfTest: () => withConnection((c) => c.request("sandbox.lastSelfTest", {})),
+      selfTest: () => withConnection((c) => c.request("sandbox.selfTest", {})),
     },
     workbench: createWorkbenchCommands(withConnection, (listener) => {
       const connection = session.connection();

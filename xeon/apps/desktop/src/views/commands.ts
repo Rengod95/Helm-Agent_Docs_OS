@@ -1,3 +1,4 @@
+import type { OsAuthEvidence } from "./os-reauth.ts";
 import type { RemoteAdapter } from "../app/remote/remote-types.ts";
 import type {
   EventId,
@@ -21,6 +22,7 @@ import type {
   PackResult,
   ScaffoldInput,
   ScaffoldResult,
+  SelfTestReport,
 } from "@fresnel/contracts/services";
 import type { EffectiveSetting, SettingDefWire } from "@fresnel/contracts/settings";
 import type { DenyAnswerJson, PlanAnswerJson, ReviewAnswerJson } from "@fresnel/contracts/records";
@@ -69,6 +71,7 @@ import type {
   SettingsReadFileResult,
   SettingsFileProblem,
   SettingsFileScope,
+  SandboxLastSelfTestResult,
   SettingsWritableFileScope,
   SettingsWriteFileResult,
   StartupNotice,
@@ -192,6 +195,17 @@ interface TrustCommands {
   decide(workspace: string, choice: TrustChoice): Promise<Result<TrustStatus, CommandError>>;
   /** `trust.list`: 저장된 결정 목록(읽기 전용). 설정 화면의 "신뢰한 폴더" 구역이 읽는다 */
   list(): Promise<Result<TrustListResult, CommandError>>;
+  /** `trust.remove`: 이 폴더의 저장된 결정을 지운다. 지운 뒤의 판정을 돌려준다. 설정 화면의 "신뢰한 폴더" 줄이 부른다 */
+  remove(workspace: string): Promise<Result<TrustStatus, CommandError>>;
+}
+
+/**
+ * 샌드박스 자가 시험(F.wire-settings.spec `sandbox.lastSelfTest`, `sandbox.selfTest`). 마지막 결과는 구역을 열 때 읽고(시험을 돌리지 않는다),
+ * 다시 시험은 지금 한 번 돌린다. 구형 host에는 메서드가 없어 `unsupported`다.
+ */
+interface SandboxCommands {
+  lastSelfTest(): Promise<Result<SandboxLastSelfTestResult, CommandError>>;
+  selfTest(): Promise<Result<SelfTestReport, CommandError>>;
 }
 
 /**
@@ -680,7 +694,7 @@ export type SecretCommandError =
 
 /**
  * 시크릿 화면(P-10). 목록과 메타는 요청 결과라 거울에 넣지 않는다(FS-03). 값은 wire를 지나지 않는다:
- * 값 입력은 `registerKey`(셸 명령), 값 보기는 재인증 관문 뒤의 `beginReveal`(값 없이 호스트가 자기 창에 보인다)이다.
+ * 값 입력은 `registerKey`(셸 명령), 값 보기는 재인증 관문 뒤의 `reveal`(셸의 로컬 채널로 값을 받는다)이다.
  */
 export interface SecretCommands {
   /** `secret.list { meta, usage }`의 시크릿 항목 */
@@ -701,8 +715,14 @@ export interface SecretCommands {
     action: "add" | "set",
     value: Uint8Array,
   ): Promise<Result<null, KeyRegisterError>>;
-  /** `secret.beginReveal`. 호스트가 자기 창에 값을 보였으면 `true`다. 값은 이 경로로 오지 않는다 */
-  beginReveal(name: SecretName): Promise<Result<boolean, SecretCommandError>>;
+  /**
+   * 값 보기. 재인증을 마친 증거(`reauth`, 인증 시각)로 호스트에 열람을 시키고, 셸의 로컬 일회용 채널로 값을 받는다.
+   * 호스트가 열람을 시작하지 않았으면 `null`이다. 받은 바이트는 호출자가 쓴 뒤 덮는다. 같은 컴퓨터의 연결만 된다(L4.desktop §4.17)
+   */
+  reveal(
+    name: SecretName,
+    reauth: OsAuthEvidence,
+  ): Promise<Result<Uint8Array | null, SecretCommandError>>;
   /** `secret.keyStatus`. 열쇠 보관 방식과 열쇠가 어느 쪽에 있는지 읽는다. 식별자는 읽지 않는다 */
   keyStatus(): Promise<Result<SecretKeyStatusResult, SecretCommandError>>;
   /** `secret.keyMove`. 열쇠를 `to` 쪽으로 옮기고 설정을 바꾼다. 같은 컴퓨터의 연결만 된다(원격이면 `localOnly`) */
@@ -1013,6 +1033,13 @@ export interface Commands {
   onThreadThinkingChanged(threadId: ThreadId, listener: () => void): () => void;
   /** `models.list`: 대화가 고를 수 있는 모델(문맥 창 포함). 요청 결과라 거울에 넣지 않는다(FS-03) */
   listModels(): Promise<Result<WireResult<"models.list">, CommandError>>;
+  /**
+   * `provider.checkAuth { provider }`: 저장된 키로 제공자가 받는지 한 번 본다(제공자의 값 없는 GET 하나). 결과 종류와 가린 사유만 온다.
+   * 연결 시험의 넷째 단계다. 생성 호출은 하지 않는다
+   */
+  checkProviderAuth(
+    provider: string,
+  ): Promise<Result<WireResult<"provider.checkAuth">, CommandError>>;
   /** `thread.close`: 대화를 닫는다(열린 turn이 있으면 host가 `turn_running`으로 거절한다). 닫힘 표시는 `thread.closed` 이벤트가 한다 */
   closeThread(threadId: ThreadId): Promise<Result<null, CommandError>>;
   /** `thread.delete`: 대화를 지운다. 성공하면 목록을 다시 읽고, 열려 있던 대화였다면 선택을 푼다 */
@@ -1069,12 +1096,13 @@ export interface Commands {
   dismissApproval(approvalId: EventId): void;
   /**
    * 엔진 대상을 바꾼다(W-08, `engine_retarget`). 바꾸는 동안 쓰기 명령(`sendTurn`, `interrupt`, `withdrawInput`, `respondApproval`, `createThread`,
-   * `forkThread`, `trust.decide`)은 `switching`으로 거절한다. 옛 엔진이 `shutdownGraceMs`까지 쓰기를 받을 수 있어서다.
+   * `forkThread`, `trust.decide`, `trust.remove`)은 `switching`으로 거절한다. 옛 엔진이 `shutdownGraceMs`까지 쓰기를 받을 수 있어서다.
    * `graceMs`는 `l4.desktop.engine.shutdownGraceMs`.
    */
   retargetEngine(target: EngineTarget, graceMs: number): Promise<Result<null, CommandError>>;
   readonly trust: TrustCommands;
   readonly workspace: WorkspaceCommands;
+  readonly sandbox: SandboxCommands;
   readonly setup: SetupCommands;
   /** 크래프트(`workbench`)의 확장 읽기·켜기·되돌리기 */
   readonly workbench: WorkbenchCommands;

@@ -265,6 +265,24 @@ describe("field rows have no scope choice", () => {
     expect(out).toContain('aria-disabled="true"');
   });
 
+  test("a managed-only setting with no managed value shows who can change it, and its row is disabled", () => {
+    const managedOnly = defOf(
+      "l2.mcp.managedOnly",
+      "tools",
+      "toggle",
+      { type: "boolean" },
+      { allowedScopes: ["managed"] },
+      { order: 1, label: "관리 서버만 허용" },
+    );
+    const view = viewOf(
+      [managedOnly],
+      [settingOf(managedOnly.key, false, { source: { scope: "default" } })],
+    );
+    const row = rowOf(html(propsOf({ view, query: "관리 서버만" })), managedOnly.key);
+    expect(row).toContain("관리자 설정에서만 바꿀 수 있어요");
+    expect(row).toContain('aria-disabled="true"');
+  });
+
   test("a field error sits under its field with the message of its kind", () => {
     const state = reduceSettings(stateOf([MODEL], SETTINGS), {
       type: "writeBlocked",

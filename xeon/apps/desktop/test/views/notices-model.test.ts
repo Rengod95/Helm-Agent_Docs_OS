@@ -193,12 +193,12 @@ const threadlessFailure = (seq: number, body: string | null, createdAt: number):
 });
 
 describe("noticeBodyViewOf", () => {
-  test("a 401 JSON body gives the conversation's key sentence and button, the JSON stays in details", () => {
+  test("a 401 JSON body gives the provider's rejection sentence and key button, the server reason is in details", () => {
     expect(noticeBodyViewOf(failedTurn(AUTH_JSON))).toEqual({
       kind: "failure",
-      text: "desktop.turnFailure.auth",
-      action: "reregister-key",
-      detail: AUTH_JSON,
+      text: "desktop.turnFailure.authAny",
+      action: "change-key",
+      detail: "invalid x-api-key",
     });
   });
 

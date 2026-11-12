@@ -1,6 +1,7 @@
 // L4.remote 접속 준비 점검. "다른 기기에서 이 컴퓨터로 들어올 준비가 됐는가"를 항목별로 본다. 화면(wizard)과 `fresnel doctor`가 같은 결과를 쓴다.
 // 이 모듈은 I/O를 하지 않는다. 호출하는 쪽이 사실(PreflightFacts)을 모아 넘기고, 여기서는 코드(원인, 고치는 법, 앱이 대신 고칠 동작)를 돌려준다. 문장은 화면이 번역한다.
 // `findPortHolder`만 외부 명령을 부른다. `run`은 명령이 없거나 실행에 실패해도 거부하지 않고 0이 아닌 종료 코드로 답한다고 본다. 거부는 그대로 전파한다.
+import { hostNameOf } from "./gateway-config.ts";
 
 export type PreflightItemId =
   | "service_running"
@@ -155,8 +156,10 @@ function sameHost(a: string, b: string): boolean {
   return a.toLowerCase() === b.toLowerCase();
 }
 
+/** 허용 호스트에 이 주소가 들어 있나. 두 쪽을 게이트웨이 모양(`hostNameOf`, IPv6는 대괄호)으로 맞춰 본다 */
 function allowedBy(hosts: readonly string[], host: string): boolean {
-  return hosts.some((allowed) => sameHost(allowed, host));
+  const name = hostNameOf(host);
+  return name !== null && hosts.some((allowed) => sameHost(allowed, name));
 }
 
 /** URL에서 IPv6 주소는 대괄호로 감싼다 */
@@ -262,9 +265,11 @@ function allowedHostsItem(facts: PreflightFacts): PreflightItem {
   if (gate !== null) return itemOf("allowed_hosts", "skip", { cause: gate });
   const { gateway, names } = facts;
   if (gateway.tlsPort === null) return itemOf("allowed_hosts", "skip", { cause: "no_tls_port" });
-  const missing = remoteNamesOf(names)
-    .map((remote) => remote.host)
-    .filter((host) => !allowedBy(gateway.hosts, host));
+  // 빠진 이름은 허용 호스트에 쓸 모양(IPv6는 대괄호)으로 낸다: 자동 고치기가 이 값을 그대로 설정에 쓴다
+  const missing = remoteNamesOf(names).flatMap((remote) => {
+    const name = hostNameOf(remote.host);
+    return name === null || allowedBy(gateway.hosts, name) ? [] : [name];
+  });
   const detail = { missing };
   if (gateway.hosts.length === 0) {
     return itemOf("allowed_hosts", "fail", {

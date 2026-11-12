@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { renderToString } from "react-dom/server";
 import {
   Collapse,
+  HeightGlide,
   PRESETS,
   Presence,
   PresenceItem,
@@ -11,6 +12,8 @@ import {
   ScreenSwap,
   cssBezier,
   flipDeltaOf,
+  handoffHeight,
+  handoffHeightOf,
   isMotionReduced,
   motionReducedOf,
   variantsOf,
@@ -162,5 +165,31 @@ describe("FLIP 변화량", () => {
     expect(flipDeltaOf(before, "z", 10)).toEqual({ kind: "enter" });
     expect(flipDeltaOf(before, "a", 0.3)).toBe(null);
     expect(flipDeltaOf(before, "b", 0)).toEqual({ kind: "move", dy: 40 });
+  });
+});
+
+describe("줄 넘겨받기와 높이 잇기(dzM2 시안 §4, DP-140)", () => {
+  test("떠난 줄의 높이는 같은 틱 안에서만 읽힌다", async () => {
+    handoffHeight("itm-handoff-1", 121);
+    expect(handoffHeightOf("itm-handoff-1")).toBe(121);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(handoffHeightOf("itm-handoff-1")).toBeUndefined();
+  });
+
+  test("넘긴 적 없는 키는 높이가 없다", () => {
+    expect(handoffHeightOf("itm-never")).toBeUndefined();
+  });
+
+  test("HeightGlide는 바깥 상자와 안쪽 내용 상자로 그리고, 넘겨받는 키는 그릴 때 모양을 바꾸지 않는다", () => {
+    expect(renderToString(<HeightGlide className="x">내용</HeightGlide>)).toBe(
+      '<div class="x"><div>내용</div></div>',
+    );
+    expect(
+      renderToString(
+        <HeightGlide className="x" handoff="itm-handoff-2">
+          내용
+        </HeightGlide>,
+      ),
+    ).toBe('<div class="x"><div>내용</div></div>');
   });
 });

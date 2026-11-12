@@ -75,8 +75,11 @@ export interface RuntimeBadge {
 }
 
 export interface LockInfo {
-  /** 잠금 사유의 종류. 문장이 아니다(§4.8.3) */
-  readonly reason: SettingLockReason;
+  /**
+   * 잠금 사유의 종류. 문장이 아니다(§4.8.3). `managed_only`는 정의가 관리 범위만 허용해 관리 값이 없어도 못 바꾸는 경우다.
+   * 정의에서 읽는 사실이라 F의 `lockReason`에는 없고 view-model이 정한다.
+   */
+  readonly reason: SettingLockReason | "managed_only";
   /** 정책 파일 경로. `managed_file`에서만 값이 있다 */
   readonly path: string | null;
   readonly text: string;
@@ -117,6 +120,11 @@ export interface TableColumn {
   readonly required: boolean;
   /** 스키마가 `null`을 받는 열(`Nullable`). 글 열의 빈 칸은 `""`가 아니라 `null`로 저장한다. 아니면 생략한다 */
   readonly nullable?: boolean;
+  /**
+   * `json` 열이 스키마에 맞게 받는 빈 값의 모양. `array`면 `[]`, `object`면 `{}`다. 없으면 빈 값을 정할 수 없어
+   * 새 행이나 새 이름에 이 열 값을 넣지 못한다
+   */
+  readonly emptyJson?: "array" | "object";
 }
 
 export type WidgetVM =

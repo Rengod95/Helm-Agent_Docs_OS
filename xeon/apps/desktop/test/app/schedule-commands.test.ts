@@ -69,7 +69,10 @@ async function liveApp(extra: EngineExtra) {
 /** 셸의 서비스 켜기만 시험이 정한 답으로 바꾼 앱(연결 화면의 켜기 흐름이 셸을 부른다) */
 async function liveAppWithEnsure(ensure: Pick<DesktopIpc, "serviceEnsure">["serviceEnsure"]) {
   const engine = engineFake([summary(thr(1))], undefined, {
-    results: { "settings.set": { setting: serviceSetting(true) } },
+    results: {
+      "settings.get": { settings: [serviceSetting(false)] },
+      "settings.set": { setting: serviceSetting(true) },
+    },
   });
   const app = makeAppOver({ ...engine.fake.ipc, serviceEnsure: ensure });
   await until(() => app.engine.read.getState().link.phase === "live", "live link");
@@ -236,7 +239,10 @@ describe("schedule create, cancel, fire and enable return the host's values", ()
 
   test("enableService writes the service key at user scope with the value true, and reports no restart pending", async () => {
     const { app, params, fake } = await liveApp({
-      results: { "settings.set": { setting: serviceSetting(true, "restart") } },
+      results: {
+        "settings.get": { settings: [serviceSetting(false)] },
+        "settings.set": { setting: serviceSetting(true, "restart") },
+      },
     });
     const enabled = await app.commands.schedule.enableService();
     expect(enabled).toEqual({ ok: true, value: { restartPending: false } });

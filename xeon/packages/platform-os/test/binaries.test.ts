@@ -12,6 +12,7 @@ import {
   type BinaryResolverDeps,
 } from "../src/binaries/resolve.ts";
 import { compareTriples, findVersion, parseTriple } from "../src/binaries/semver.ts";
+import { checkExternalBinaries } from "../src/binaries/requirements.ts";
 import type { CommandOutput, RunCommand } from "../src/proc.ts";
 import { tempDir, type TempDir } from "../src/testing/index.ts";
 import { memoryLogger } from "./support/clock.ts";
@@ -583,4 +584,72 @@ describe("실제 파일 시스템 (임시 디렉터리)", () => {
     expect(!second.ok && second.error.kind).toBe("integrity_mismatch");
     expect(runs).toEqual([]);
   });
+});
+
+// 가짜 PATH(임시 폴더)에 age가 있을 때와 없을 때의 점검 보고서. CLI doctor의 `age_missing` 줄이 이 항목을 읽는다
+describe("가짜 PATH의 age 점검 (age_missing 근거)", () => {
+  const unixOnly = process.platform === "win32" ? test.skip : test;
+
+  unixOnly(
+    "PATH에 실행 파일 age가 있으면 시스템 항목 ok, 없으면 missing이고 필수 막힘에 든다",
+    async () => {
+      const dir = await tempDir();
+      temp = dir;
+      const root = dir.path;
+      const withAge = join(root, "with");
+      const withoutAge = join(root, "without");
+      await mkdir(withAge);
+      await mkdir(withoutAge);
+      const exe = join(withAge, "age");
+      await writeFile(exe, "#!/bin/sh\necho 1.2.1\n");
+      await chmod(exe, 0o755);
+      const real = createNodeBinaryFs();
+      // 설치 자리(/usr/local/bin 등)를 보지 않도록 실행 가능 판정을 임시 폴더 안으로만 좁힌다
+      const fs: BinaryFs = {
+        ...real,
+        isExecutableFile: (path) =>
+          path.startsWith(root) ? real.isExecutableFile(path) : Promise.resolve(false),
+      };
+      const present = harness({
+        fs,
+        info: DARWIN,
+        resourceDir: join(root, "res"),
+        pathEnv: withAge,
+        versions: { [exe]: "1.2.1\n" },
+      });
+      const found = await checkExternalBinaries(
+        { platform: "darwin", resolveBinary: createBinaryResolver(present.deps) },
+        signal,
+      );
+      const ageFound = found.ok ? found.value.items.find((item) => item.name === "age") : undefined;
+      expect(ageFound?.status).toEqual({
+        kind: "ok",
+        path: exe,
+        version: "1.2.1",
+        source: "system",
+        via: "PATH",
+      });
+
+      const absent = harness({
+        fs,
+        info: DARWIN,
+        resourceDir: join(root, "res"),
+        pathEnv: withoutAge,
+        versions: {},
+      });
+      const missing = await checkExternalBinaries(
+        { platform: "darwin", resolveBinary: createBinaryResolver(absent.deps) },
+        signal,
+      );
+      const ageMissing = missing.ok
+        ? missing.value.items.find((item) => item.name === "age")
+        : undefined;
+      expect(ageMissing?.status).toEqual({
+        kind: "missing",
+        hint: expect.stringContaining("brew install age"),
+      });
+      expect(missing.ok && missing.value.blocking).toContain("age");
+      expect(absent.runs).toEqual([]);
+    },
+  );
 });

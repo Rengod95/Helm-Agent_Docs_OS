@@ -336,6 +336,9 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | trust | `trust.get` | `{ workspace: string }` | `TrustStatus` | M2 |
 | trust | `trust.decide` | `{ workspace: string, choice: { kind: "folder"\|"parent"\|"session", verdict: "allow"\|"deny" } }` | `TrustStatus` | M2 |
 | trust | `trust.list` | `{}` | `{ entries: { path: string, verdict: "allow"\|"deny", savedAt?: string }[] }`. 저장 파일(`trust.json`)의 결정을 읽는다. 읽기 전용이고 이번 실행에서 정한 결정은 싣지 않는다. 파일이 손상되었거나 읽지 못하면 `store.io`(`details.code: "trust_store_read"`)다. | M4 |
+| trust | `trust.remove` | `{ workspace: string }` | `TrustStatus`. 이 폴더 자신의 저장된 결정(`trust.json` 항목)과 이 호스트 프로세스의 기억(`session` 결정)을 지운다. 상위 폴더의 결정은 건드리지 않는다. 지운 뒤의 판정을 돌려주므로 결정이 없으면 `undecided`다. 없는 결정을 지워도 아무것도 바꾸지 않는다. 저장 파일이 손상되었거나 쓰지 못하면 `store.io`(`details.code: "trust_store"`)다. 설정 층 다시 읽기와 `settings.invalidated`는 `trust.decide`와 같다 [결정: 2026-11-11 사용자] | M4 |
+| sandbox | `sandbox.lastSelfTest` | `{}` | `{ report: SelfTestReport }`. `report`는 마지막으로 기록된 자가 시험 보고서(L0.sandbox.spec §4.4)다: `at`(시각, epoch ms), `durationMs`, `passed`(전체 통과), `items`(`{ id, passed, detail? }`, `id`는 여섯 항목 가운데 하나, `detail`은 사유 코드 500자 이내). 기록이 없으면 `report`가 null이다. 시험을 돌리지 않고 아무것도 바꾸지 않는다 [결정: 2026-11-11 사용자] | M4 |
+| sandbox | `sandbox.selfTest` | `{}` | `SelfTestReport`(위와 같은 모양). 자가 시험을 지금 한 번 돌리고 보고서를 돌려준다. 이 기기에서 샌드박스를 찔러 볼 뿐 정책은 바꾸지 않는다. 예약 시험과 한 번에 하나씩 돈다. 서비스가 없으면 `internal`이다 [결정: 2026-11-11 사용자] | M4 |
 | workspace | `workspace.status` | `{ workspace: string }` | `{ exists: boolean, path: string }`. 작업 폴더가 지금 있는 폴더인지 본다. 없거나 파일이면 `exists`가 거짓이다. `path`는 있으면 정규 경로, 없으면 `.`·`..`만 정리한 절대 경로다. 상대 경로면 `jsonrpc.invalidParams`(`path: "workspace"`). 아무것도 바꾸지 않는다. | M4 |
 | settings | `settings.get` | `{ keys?: SettingKey[], threadId?: ThreadId }` | `{ settings: EffectiveSetting[] }` | M1 |
 | settings | `settings.set` | `{ key: SettingKey, value: unknown, scope: SettingScope, threadId?: ThreadId }` | `{ setting: EffectiveSetting }` | M2 |
@@ -347,6 +350,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | attachments | `attachments.add` | `{ threadId?: ThreadId, source: AttachmentSource }` | `{ attachment: Attachment, parts: (TextContent\|ImageContent)[] }` | M3 |
 | notify | `notify.list` | `{ threadId?: ThreadId, afterSeq: integer, kinds?: NoticeKind[], limit?: integer(1..500) }` | `{ notices: Notice[], nextSeq: integer, threadless?: Notice[](최대 100) }`. `Notice`는 `createdAt`(epoch ms)을 싣는다. `threadless`는 대화에 묶이지 않은 알림(예약이 대화를 열기 전에 실패한 실행)이고 `threadId`를 주지 않은 호출에만 싣는다 [결정: 오케스트레이터 기본값, fxSC2] | M3 |
 | web | `web.providers` | `{}` | `{ providers: WebProviderStatus[](최대 64), settings: WebSettings }`. 모양은 아래 글머리 | M3 |
+| provider | `provider.checkAuth` | `{ provider: ProviderId }` | `{ kind: ProviderAuthKind, status?: integer(100..599), reason?: string(최대 200자) }`. 종류와 가림 규칙은 아래 글머리다. 키 값은 싣지 않는다 | M4 [결정: 2026-11-11 사용자] |
 | usage | `usage.get` | `{ providerId?: string, threadId?: ThreadId }` | `{ gauges: UsageGauge[], asOf: IsoTime, context?: { model: string, used: number, limit: integer } }`(`context`는 M4 T-MODEL) | M3 |
 | secret | `secret.list` | `{ meta?: boolean, usage?: boolean }` | `{ secrets: SecretListEntry[] }` | M2 |
 | secret | `secret.meta` | `{ name: SecretName, …메타·정책 필드 }` | `{ secret: SecretListEntry }` | M2 |
@@ -355,7 +359,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | secret | `secret.references` | `{ name: SecretName }` | `{ settingKeys: SettingKey[], activeLeases: integer, sessions: ThreadId[] }` | M2 |
 | secret | `secret.audit` | `{ name: SecretName, limit?: integer }` | `{ entries: SecretAuditEntry[] }` | M4 |
 | secret | `secret.beginEntry` | `{ name: SecretName, action: "add"\|"set"\|"rotate", meta?: SecretEntryMeta, channel?: string(최대 4096, 로컬 일회용 소켓의 절대 경로, 값이 아니다) }` | `{ started: boolean }` | M2 |
-| secret | `secret.beginReveal` | `{ name: SecretName, channel?: string(최대 4096), reauth?: "tty-confirm" }` | `{ started: boolean }` | M2 |
+| secret | `secret.beginReveal` | `{ name: SecretName, channel?: string(최대 4096), reauth?: "tty-confirm" \| { method: "os-auth", verifiedAt: integer(≥0) } }` | `{ started: boolean }` | M2 |
 | secret | `secret.keyStatus` | `{}` | `{ source: "auto"\|"auto-file"\|"keychain"\|"file", in: "none"\|"keychain"\|"file", filePath: string, keychainUsable: boolean, fallbackUnconfirmed: boolean, fileMissing: boolean }` | M4 |
 | secret | `secret.keyMove` | `{ to: "keychain"\|"file" }` | `{ moved: boolean, created: boolean, oldRemoved: boolean, source: "keychain"\|"file" }` | M4 |
 | proposal | `proposal.list` | `{ source?: "learning"\|"knowledge", status?: ProposalStatusWire[], limit?: integer(1..200), cursor?: string }` | `{ proposals: ProposalRow[], nextCursor: string \| null, unavailable: ProposalSource[] }` | M3 |
@@ -451,6 +455,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 - [결정: 오케스트레이터 기본값, M4 T-MODEL] `thread.setModel`은 대화가 다음 turn부터 쓸 모델을 정한다. 스펙에 정해진 전환 계약이 없어(CLI의 `/model`은 `l1.models.default` 별칭뿐이다, `L4.cli.spec` 슬래시 명령) 가장 작은 계약으로 낸다. 호스트는 `thread.updated { model }`를 커밋하고 그 위치를 `position`으로 돌려준다. `model`은 `provider/id`이고 L1.models 카탈로그(`ModelService.list`)에 없으면 `jsonrpc.invalidParams`(`/model`)로 거절한다. null은 지정을 거두어 기본 모델로 돌아간다. 쓰기 소유 규칙과 오류는 `thread.rename`과 같다(3001, 3002, 3007). 진행 중인 turn은 이미 묶은 모델로 끝나고 다음 turn부터 바뀐다. `ThreadSummary.model`이 저장된 값을 보이고 생략이면 기본 모델이다. 모델을 바꿀 때 비용·캐시 경고를 보일지는 사용자 정책이라 이 계약은 정하지 않는다.
 - [결정: 오케스트레이터 기본값, M4 T-MODEL] `models.list`는 대화가 `thread.setModel`로 고를 수 있는 모델을 준다. 클라이언트에 모델 카탈로그를 읽는 길이 없어(설정 `l1.models.providers`는 provider id만 담는다) 더했다. L1.models `list({ available: true })`(자격 증명이 있는 provider의 모델)를 `ref` 순서로 `{ ref, name, contextWindow, reasoning, inputPrice, outputPrice }`만 싣는다. 가격은 입출력 100만 토큰당 USD이고 카탈로그가 가격을 모르면(입력·출력이 모두 0) 둘 다 null이며 화면은 "가격 모름"으로 보인다(0원으로 보이지 않는다). 1000개를 넘으면 뒤를 자른다. 읽기만 하고 쓰기 소유를 얻지 않는다. 허용·차단 목록은 L1.models가 이미 적용한 결과다.
   - 첫 입력에서 제목을 정하는 규칙(M2): 첫 `turn.start` 입력의 앞 80자(줄바꿈은 공백 하나로)를 제목으로 쓴다. 정하는 주체는 호스트이고 이 메서드와 같은 커밋 경로를 쓴다. 이미 제목이 있는 thread는 바꾸지 않는다. 모델이 만드는 자동 제목은 M3다.
+- [결정: 2026-11-11 사용자] `provider.checkAuth { provider }`는 사용자가 연결 시험을 누른 제공자의 저장된 키가 받아들여지는지 한 번 확인한다(`L1.models.spec` §3.13). 모델 호출이 아니라 값 없는 GET 하나다. 결과 `kind`는 `ok`, `rejected`(401·403), `badAddress`(주소 틀림·연결 실패·404·3xx), `quotaOrBilling`(402·429, 또는 본문이 결제·할당량을 말함), `upstream`(5xx와 그 밖의 응답), `timeout`(8초), `unsupported`(확인 경로를 모르는 provider), `oauthTokenNotApiKey`(`sk-ant-oat` 접두, 네트워크 없음), `noKey`(키 참조가 없거나 풀 수 없음)다. `status`는 응답이 왔을 때만 있고, `reason`은 제공자 오류 글(200자 이내)이며 키 값은 `••••`로 가린다. [제안: `upstream`과 `noKey`는 이 결정에 없던 종류라 더했다. 5xx를 `badAddress`로 보면 주소를 고치라는 잘못된 안내가 되고, 키 없음을 `rejected`로 보면 키가 틀렸다는 안내가 되기 때문이다.] 호출자가 취소하면 `request.cancelled`(5001)다.
 - [결정: m2c G1-07] 시크릿 wire 보강 네 가지다(`L4.host-service.spec` §10 19번, 23번).
   - `secret.test`의 결과는 `state`에 `decryptable`, `length`, `sha256Prefix`를 더했다(`L0.secrets.spec`의 `SecretTestResult`). `length`는 값의 바이트 수, `sha256Prefix`는 SHA-256 hex 앞 8자(소문자)이고 값이 없거나 풀 수 없으면 둘 다 null이다. 값은 어디에도 싣지 않는다. 앞 8자는 사람이 같은 값인지 견주는 표시용이고 감사 기록과 로그에는 남기지 않는다. 필드는 모두 필수라 옛 모양(`state`만)은 거부한다.
   - `secret.references { name }`는 삭제 전에 이 시크릿을 가리키는 곳을 보인다(`L0.secrets.spec` `references`, `L4.cli.spec` §4.7 `secret rm`). 결과는 `{ settingKeys, activeLeases, sessions }`다. 메서드는 읽기 전용이다. 활성 drive 락이 있으면 `secret.remove`가 `secret.inUse`로 거부한다.
@@ -464,7 +469,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   - `trust.decide`의 `choice`가 그 폴더의 `options`에 없으면 `jsonrpc.invalidParams`(`path: "choice"`)다. `session`은 저장하지 않고 그 호스트 프로세스 동안만 유지한다. `workspace`가 절대 경로가 아니면 `jsonrpc.invalidParams`(`path: "workspace"`)이고, 결정을 저장하지 못하면(손상된 저장 파일, 쓰기 실패) `store.io`(`details.code: "trust_store"`)다. `trust.get`은 아무것도 바꾸지 않는다. 신뢰 필요 자원이 없는 폴더도 `trust.decide`로 미리 정할 수 있다.
   - 결정 뒤 호스트는 그 폴더의 project·local 설정 파일 층을 다시 읽고 `settings.invalidated`(§3.3.2)를 보낸다. 작업 폴더 스킬은 다음 thread를 열 때, MCP 서버 정의는 다음 서버 로드 때 반영된다. 이미 열린 thread가 새 결정을 모두 받게 하려면 결정을 thread 열기 전에 한다.
   - 저장 파일 `trust.json`은 두 클라이언트(CLI의 `fresnel trust`, 데스크톱 카드)가 같은 호스트를 거쳐 쓴다. 프로세스 사이 쓰기 충돌은 L0.os의 `fileLock`이 막는다(`review.m2-plan` G1-10). wire는 이 잠금을 드러내지 않는다.
-  - [결정: 오케스트레이터 기본값, fxPT] `trust.list`(신뢰 목록 항목)는 저장 파일의 항목을 파일 순서(경로 사전순)로 싣는다. 항목은 `{ path, verdict, savedAt? }`이고 `savedAt`은 저장 시각(ISO 8601, UTC)이다. 버전 없는 옛 형식의 항목은 저장 시각이 없어 `savedAt`을 싣지 않는다. 이번 실행에서 정한 결정은 저장하지 않으므로 목록에 없다. 이 메서드는 읽기 전용이다. 결정을 지우거나 바꾸는 메서드는 아직 없다(사용자 결정 대기) [근거: `xeon/packages/contracts/src/wire-settings/wire/methods.ts`].
+  - [결정: 오케스트레이터 기본값, fxPT] `trust.list`(신뢰 목록 항목)는 저장 파일의 항목을 파일 순서(경로 사전순)로 싣는다. 항목은 `{ path, verdict, savedAt? }`이고 `savedAt`은 저장 시각(ISO 8601, UTC)이다. 버전 없는 옛 형식의 항목은 저장 시각이 없어 `savedAt`을 싣지 않는다. 이번 실행에서 정한 결정은 저장하지 않으므로 목록에 없다. 이 메서드는 읽기 전용이다. 지우기는 `trust.remove`다(위 표의 행, [결정: 2026-11-11 사용자]). [근거: `xeon/packages/contracts/src/wire-settings/wire/methods.ts`]
   - [결정: 오케스트레이터 기본값, fxPT] `workspace.status`는 대화의 작업 폴더가 지금 있는지 클라이언트가 묻는 메서드다. 데스크톱은 대화를 열 때와 연결이 살아날 때 부르고, 없으면 입력창 위 대화 맥락 줄의 폴더 칸에 경고를 보인다(입력은 막지 않는다). 존재 판정은 `thread.create`가 쓰는 작업 폴더 규칙(`canonicalWorkspace`)과 같다. 호스트가 옛 버전이면 `host.hello`의 `features`에 없어 클라이언트는 경고하지 않는다.
   - `thread.trust.before` 훅은 이 메서드와 별개다. 확장이 결정을 내는 길이고 thread 없이 호스트 수준에서 발화한다(`F.extensions.spec` §7). M2에는 그 훅에 핸들러를 거는 확장이 없어 호스트는 발화하지 않고 저장소 판정만 쓴다.
 - [결정: m2c G1-02] `turn.resume`은 프로세스 종료로 끊긴 turn을 이어 실행하는 메서드다(`L1.loop.spec` §4.6 `LoopService.resume`, `L4.host-service.spec` §10 21번). `thread.list`가 `ThreadSummary.resumable`로 후보를 알리고(§3.3.1 아래 코드), 클라이언트가 사용자 확인 뒤 이 메서드를 부른다. 호스트는 자동 재개를 하지 않는다. 한 thread에 열린 turn은 하나라서 `turnId`를 받지 않는다.
@@ -512,6 +517,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 - [결정: m2-plan F.5] `secret.beginReveal { name }`을 M2 메서드로 받았다(`L4.cli.spec` §4.7, review.decisions-2 U-20). 결과 `started`가 거짓이면 호스트가 열람을 시작하지 못한 것이다(맡긴 열람 수단이 없거나 사람 확인이 끝나지 않음). 값은 요청·응답·이벤트·오류 `details` 어디에도 없다.
 - [결정: 2026-11-12] 같은 컴퓨터의 서비스 접속도 값을 넘길 수 있다(로컬 일회용 채널). 서비스 접속의 `secret.beginEntry`·`secret.beginReveal`은 `channel`(CLI가 mkdtemp로 만든 0700 폴더 안에 연 유닉스 소켓의 절대 경로)을 싣는다. 값은 이 소켓으로만 오간다: `add`·`set`·`rotate`는 CLI가 값을 쓰고 닫으면 호스트가 EOF까지 읽는다(8192바이트 상한, 0바이트는 입력 없음으로 보아 `started: false`). `reveal`은 호스트가 값을 쓰고 닫으면 CLI가 읽는다. 호스트는 `channel`을 보낸 연결이 `client.origin`이 `local`이고 경로가 절대 경로이며 부모 폴더가 현재 uid 소유의 0700 디렉터리이고 소켓이 현재 uid 소유일 때만 연다. 아니면 `secret.localOnly`(3213)다. `reveal`은 `reauth: "tty-confirm"`(CLI가 터미널에서 이름을 다시 입력받아 사람을 확인했다는 표시)이 있을 때만 열고, 호스트 시계로 `verifiedAt`을 찍는다. 없으면 `started: false`다. 값은 요청·응답·이벤트·오류 어디에도 없고 경로만 wire에 있다(§3.3.1 값 없음 규칙은 그대로다). 원격 연결과 `in-process` 맡김(아래 다음 결정)은 바뀌지 않는다.
 - [결정: 2026-11-12 사용자] 열쇠 보관 방식을 보고 옮기는 메서드 두 개를 더했다(`L0.secrets.spec` §4.7 (b)·(e), `L4.cli.spec` §4.7). 둘 다 값과 identity 필드가 없고 M4다. `secret.keyStatus {}`는 읽기 전용이다. 결과 `in`은 열쇠가 있는 쪽(`none`, `keychain`, `file`)이고 `source`는 설정 `l0.secrets.ageKey.source`의 값이다. `fallbackUnconfirmed`는 `auto`가 OS 키 저장소를 쓸 수 없어 파일로 떨어졌고 사람이 아직 확인하지 않았다는 뜻이며, `fileMissing`은 설정이 가리키는 열쇠 파일이 없다는 뜻이다. `secret.keyMove { to }`는 열쇠를 `to` 쪽으로 옮기고 설정을 `to`로 바꾼다. 같은 컴퓨터의 연결만 받는다(원격이면 `secret.localOnly`, 3213). 옮길 열쇠가 없거나 이미 그 쪽에 있으면 `moved: false`이고 설정만 바뀐다. 결과 `source`는 `to`다. 쓰기 실패는 `secret.writeFailed`(`target: "settings"`)다. 오류 kind는 새로 만들지 않았다.
+- [결정: 2026-11-11 사용자] `secret.beginReveal`의 `reauth`는 `"tty-confirm"`이거나 `{ method: "os-auth", verifiedAt }`다. `os-auth`는 화면이 OS 재인증(Touch ID, 기기 암호)을 마친 시각(epoch 밀리초, 0 이상 정수)이다. 같은 컴퓨터의 연결이 `channel`과 함께 보내면 호스트는 증거를 그대로 `admin.reveal`에 넘기고, 시각이 60초를 넘었는지는 관리 서비스가 본다(L0.secrets §4.9.1). `reauth`가 없으면 `started: false`다. 증거는 값이 아니고 로그에도 값 없이 방식만 남는다. 데스크톱 값 보기가 이 경로를 쓴다(`L4.desktop` §4.17).
 - [결정: m2-plan F.5] in-process 접속의 wire 밖 값 전달은 `@fresnel/contracts/services`의 `SecretOutOfBandPort`다(`services/secret-admin.ts`). CLI가 값 입력 수단(`SecretEntryOffer`)이나 열람 수단(`SecretRevealOffer`)을 이 포트에 맡긴 뒤 `secret.beginEntry`나 `secret.beginReveal`을 보내면, 호스트 처리기가 같은 이름의 맡긴 수단 하나를 꺼내 `SecretAdminService`에 넘긴다. 맡긴 수단은 한 번 쓰이면 비워진다. 서비스 접속에는 이 포트가 없다. 구현은 `@fresnel/host`다.
 - [제안] `turn.start`의 `requestId`는 같은 연결 재시도의 중복 제출을 막는 멱등 키다. 같은 thread에서 같은 키가 오면 처음 발급한 `turnId`를 돌려준다. 의미 정본은 `F.conversation.spec` §3.5의 `requestId`다(`TurnStartedPayload.requestId`, 사용자 `ItemRecord.requestId`). 브랜드 없는 문자열이다.
 - [결정: m2-plan F.6] `ThreadSummary`는 `thread.list`의 결과 원소다(`wire/methods.ts` `ThreadSummarySchema`, §10 미결 9). 필드는 `L1.persistence.spec` §3.4 `ThreadSummaryRow`를 따르고 시각은 IsoTime 문자열이다.
@@ -541,8 +547,10 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
     testRun: Type.Optional(TestRunMarkerSchema), // M4, W-34. { profileId, target, paused }. Test run이 아니면 생략
     spawnedBy: Type.Optional(ThreadSpawnedBySchema), // M4, rtE R-3. { threadId(부모), kind: "subagent"\|"internal" }. 위임으로 만든 자식이 아니면 생략 [결정: 오케스트레이터 기본값, rtE R-3]
     model: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })), // M4, T-MODEL. 대화가 다음 turn부터 쓰도록 정한 `provider/id`. 정하지 않았으면 생략(기본 모델)
+    preview: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })), // 첫 사용자 입력의 글 앞부분, 80 코드 포인트(잘리면 "…" 포함). 글이 없으면 생략. 목록 읽기만 싣는다
   }, { additionalProperties: false });
   ```
+- [결정: 2026-11-11 사용자] `ThreadSummary.preview`(선택)는 제목이 없는 대화를 목록에서 흐리게 보이는 글이다. 값은 `L1.persistence.spec` §4.10.7이 정한다: 텍스트 블록만 잇고 공백을 한 칸으로 줄이고 앞뒤를 자른 뒤 80 코드 포인트로 자른다(잘리면 79 코드 포인트와 "…"). 이미지와 그 밖의 첨부 내용은 넣지 않는다. 글이 없으면 생략한다(`""`로 싣지 않는다). 상한 160은 UTF-16 길이 상한이다. 이 필드가 없는 옛 호스트의 응답은 클라이언트가 그대로 "제목 없음"을 쓴다.
 
 - [결정: m2-plan F.6] `thread.list`의 `workspace` 필터는 `thread.started.workspace`(`F.conversation.spec` §3.5.3)에 저장한 값과 정확히 같은 문자열을 찾는다. 호스트가 `thread.create`의 `workspace`를 정규 절대 경로로 바꿔 저장하는 규칙은 `L4.host-service.spec`이 정한다.
 - `TurnStartInput` [제안]: pi `UserMessage["content"]`와 같은 모양이다. 스키마는 `F.conversation.spec`의 콘텐츠 스키마로 만든다. `F.extensions.spec`의 `TurnInput`(drive 함수의 `loop.turn()` 입력, `{ input: PostItem, requestId? }`)과 모양이 달라서 이름을 나눈다.
@@ -643,6 +651,9 @@ export interface WireMethodMap {
   "trust.get":         { params: TrustGetParams;         result: TrustStatus };
   "trust.decide":      { params: TrustDecideParams;      result: TrustStatus };
   "trust.list":        { params: TrustListParams;        result: TrustListResult };
+  "trust.remove":      { params: TrustRemoveParams;      result: TrustStatus };
+  "sandbox.lastSelfTest": { params: SandboxSelfTestParams; result: SandboxLastSelfTestResult };
+  "sandbox.selfTest":  { params: SandboxSelfTestParams; result: SelfTestReport };
   "workspace.status":  { params: WorkspaceStatusParams;  result: WorkspaceStatusResult };
   "secret.beginEntry": { params: SecretBeginEntryParams; result: SecretBeginEntryResult };
 }

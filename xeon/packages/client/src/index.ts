@@ -28,6 +28,8 @@ export {
   type TurnFailure,
   type TurnFailureKind,
 } from "./turn-failure/classify.ts";
+// 실패 문장의 서버 사유를 시크릿 모양을 가린 채 준다(화면의 정보 아이콘과 CLI의 원문 줄이 쓴다). 순수 함수다.
+export { failureReasonOf } from "./turn-failure/reason.ts";
 // 웹 검색 view-model(P-01 첫 실행, P-12 도구와 웹). 셸은 `.` 진입으로만 client를 쓰므로 여기서 다시 낸다(DR-10/desktop-client).
 export {
   moveInOrder,

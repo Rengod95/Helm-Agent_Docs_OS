@@ -1,21 +1,20 @@
-import { Alert, Button, IconButton, Popover } from "@caustic/react";
-import { Info } from "@caustic/react/icons";
+import { Alert, Button } from "@caustic/react";
 import { t } from "@fresnel/client/i18n";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { detach, rethrow } from "@fresnel/contracts";
 import { useState, type ReactNode } from "react";
 import { useLastUserText } from "../state/engine/index.ts";
 import { useCommands } from "./commands.ts";
-import { useDefaultModel, useSetupSnapshot, useThreadModel } from "./model-usage.ts";
-import { keySecretOfModel, turnFailureOf, type TurnFailureAction } from "./turn-failure-model.ts";
+import { InfoTip } from "./craft/info-tip.tsx";
+import { useDefaultModel, useThreadModel } from "./model-usage.ts";
+import { providerOfModelRef, turnFailureOf, type TurnFailureAction } from "./turn-failure-model.ts";
 
-// 실패한 턴의 오류 줄(SC-06). 한국어 한 문장 + 다음 행동 단추 하나, 원문은 정보 아이콘 뒤 "자세히"다(DP-58).
-// 줄은 읽기 열(item-view ROW_CLASS)과 같은 폭 안에 서고 긴 원문은 줄바꿈하며 길면 잘라 보인다.
-
-const DETAIL_MAX = 1200;
+// 실패한 턴의 오류 줄(SC-06). 한국어 한 문장 + 다음 행동 단추 하나, 서버 사유는 정보 아이콘 뒤다(DP-58).
+// 줄은 읽기 열(item-view ROW_CLASS)과 같은 폭 안에 서고 긴 사유는 줄바꿈하며 길면 잘라 보인다.
 
 const ACTION_TEXT = {
-  "reregister-key": "desktop.turnFailure.action.reregisterKey",
+  "add-key": "desktop.turnFailure.action.addKey",
+  "change-key": "desktop.turnFailure.action.changeKey",
   "open-providers": "desktop.turnFailure.action.openProviders",
   "change-model": "desktop.turnFailure.action.changeModel",
   resend: "desktop.turnFailure.action.resend",
@@ -28,28 +27,6 @@ function openModelPicker(): void {
   );
   picker?.focus();
   picker?.click();
-}
-
-function Detail(props: { readonly text: string }): ReactNode {
-  const [open, setOpen] = useState(false);
-  const clipped =
-    props.text.length > DETAIL_MAX ? `${props.text.slice(0, DETAIL_MAX)}…` : props.text;
-  return (
-    <Popover
-      trigger="click"
-      size="xs"
-      className="craft-glass"
-      open={open}
-      onOpenChange={setOpen}
-      anchor={
-        <IconButton label={t("desktop.turnFailure.detail.label")} size="xs" variant="ghost">
-          <Info />
-        </IconButton>
-      }
-    >
-      <div className="max-w-96 whitespace-pre-wrap [overflow-wrap:anywhere]">{clipped}</div>
-    </Popover>
-  );
 }
 
 /** 끊긴 응답의 표시. 부분 답 바로 뒤, 오류 줄 위에 흐린 글 한 줄로 둔다(L4 desktop-ux 턴 실패 안내) */
@@ -70,19 +47,18 @@ export function TurnFailureRow(props: {
   const commands = useCommands();
   const lastText = useLastUserText();
   const [busy, setBusy] = useState(false);
-  // 실패한 턴의 모델(대화의 모델, 없으면 기본 모델)을 제공자 설정과 맞춰 그 제공자가 쓰는 키의 시크릿을 연다
+  // 실패한 턴의 모델(대화의 모델, 없으면 기본 모델)의 제공자. 키 단추는 그 제공자의 키 대화 상자를 연다
   const fallbackModel = useDefaultModel();
   const model = useThreadModel(props.threadId, fallbackModel);
-  const setup = useSetupSnapshot();
-  const keySecret = keySecretOfModel(model.ref, setup?.providers ?? []);
-  const view = turnFailureOf(props.error);
+  const providerId = providerOfModelRef(model.ref);
+  const view = turnFailureOf(props.error, providerId);
   const action = view.action;
   const run = (kind: TurnFailureAction): void => {
-    if (kind === "reregister-key") {
+    if (kind === "add-key" || kind === "change-key") {
       commands.requestSettingsJump(
-        keySecret === null
-          ? { tab: "secrets", key: null }
-          : { tab: "secrets", key: null, secretName: keySecret },
+        providerId === null
+          ? { tab: "providers", key: null }
+          : { tab: "providers", key: null, providerId },
       );
       return;
     }
@@ -113,7 +89,7 @@ export function TurnFailureRow(props: {
         role="alert"
         action={
           <span className="flex items-center gap-1.5">
-            <Detail text={view.detail} />
+            <InfoTip text={view.detail} label={t("desktop.turnFailure.detail.label")} />
             {action === null || blocked ? null : (
               <Button
                 size="xs"

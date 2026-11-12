@@ -1,6 +1,7 @@
 import { dirname } from "node:path";
 import { t } from "@fresnel/client/i18n";
 import { assertNever, attemptAsync, type Result } from "@fresnel/contracts";
+import type { FailureKind } from "@fresnel/contracts/services";
 import type {
   HostBinaryItem,
   HostBinaryReport,
@@ -37,6 +38,8 @@ interface DoctorCheck {
   readonly status: CheckStatus;
   readonly message: string;
   readonly fix?: string;
+  /** 원인 종류 코드(`fresnel-code`와 같은 어휘). 코드를 내는 항목만 싣는다(L4.cli.spec §4.7 표) */
+  readonly code?: FailureKind;
 }
 
 export interface SearchStatus {
@@ -393,23 +396,63 @@ async function remoteChecks(connection: HostConnection): Promise<readonly Doctor
   return checks;
 }
 
-/** 시크릿 줄의 판정. `environment`는 열쇠가 없어 환경을 고쳐야 한다는 뜻이다(종료 코드 2) */
+/** 바이너리 보고서에서 읽는 것만 본뜬 모양. `HostBinaryReport`가 이 모양을 만족한다 */
+interface BinaryItemsView {
+  readonly items: readonly { readonly name: string; readonly status: { readonly kind: string } }[];
+}
+
+/**
+ * 열쇠를 앱 파일에 두는 방식인가. 설정이 `file`이거나 `auto`·`auto-file`이면 앱 파일을 고를 수 있고(selectable),
+ * 설정이 `keychain`이어도 열쇠가 지금 파일에 있으면 파일 방식이다. 설정이 `keychain`이고 열쇠가 키체인에 있으면 아니다
+ */
+function fileKeyModeOf(status: { readonly source: string; readonly in: string }): boolean {
+  return status.source !== "keychain" || status.in === "file";
+}
+
+/**
+ * age 도구 점검(`age_missing`). 파일 열쇠 방식이면 엔진 점검(`host.status`의 `age` 항목)을 보고 쓸 수 없으면 실패 한 줄을 낸다.
+ * 보고서가 없거나 `age` 항목이 없으면 판단하지 않는다(`null`). 버전이 낮은 것은 바이너리 줄이 고치는 법을 말하므로 여기서 내지 않는다
+ */
+function ageCheckOf(
+  status: { readonly source: string; readonly in: string },
+  binaries: BinaryItemsView | null,
+): DoctorCheck | null {
+  if (binaries === null || !fileKeyModeOf(status)) return null;
+  const age = binaries.items.find((item) => item.name === "age");
+  if (age === undefined) return null;
+  if (age.status.kind !== "missing" && age.status.kind !== "unusable") return null;
+  return {
+    id: "secrets-age",
+    status: "fail",
+    message: t("cli.doctor.secrets.ageMissing"),
+    fix: t("cli.doctor.secrets.ageMissing.fix"),
+    code: "age_missing",
+  };
+}
+
+/** 시크릿 줄의 판정. `environment`는 열쇠가 없어 환경을 고쳐야 한다는 뜻이다(종료 코드 3) */
 interface SecretKeyCheck {
   readonly check: DoctorCheck;
   readonly environment: boolean;
+  /** age 도구 점검 한 줄. 판단할 것이 없으면 없다 */
+  readonly age: DoctorCheck | null;
 }
 
 /**
  * 시크릿 줄. 등록 수만 보면 열쇠가 없어도 "사용할 수 있다"가 나온다(L0.secrets.spec §4.7 (e)). 열쇠 위치(`secret.keyStatus`)를 함께 본다.
  * 설정이 가리키는 열쇠 파일이 없거나, 등록된 시크릿이 있는데 열쇠가 없으면 문제다. 열쇠도 시크릿도 없으면 첫 등록 때 만든다
  */
-async function secretKeyCheck(handle: EngineHandle, count: number): Promise<SecretKeyCheck> {
+async function secretKeyCheck(
+  handle: EngineHandle,
+  count: number,
+  binaries: BinaryItemsView | null,
+): Promise<SecretKeyCheck> {
   const usable: DoctorCheck = {
     id: "secrets",
     status: "ok",
     message: t("cli.doctor.secrets.ok", { count: String(count) }),
   };
-  if (!handle.supports("secret.keyStatus")) return { check: usable, environment: false };
+  if (!handle.supports("secret.keyStatus")) return { check: usable, environment: false, age: null };
   const keyStatus = await attemptAsync(() => handle.connection.request("secret.keyStatus", {}));
   if (!keyStatus.ok) {
     const failure = failureOfCaught(keyStatus.error.cause);
@@ -422,9 +465,11 @@ async function secretKeyCheck(handle: EngineHandle, count: number): Promise<Secr
         fix: failure.fix,
       },
       environment: false,
+      age: null,
     };
   }
   const status = keyStatus.value;
+  const age = ageCheckOf(status, binaries);
   if (status.fileMissing) {
     return {
       check: {
@@ -434,6 +479,7 @@ async function secretKeyCheck(handle: EngineHandle, count: number): Promise<Secr
         fix: t("cli.doctor.secrets.keyFileMissing.fix"),
       },
       environment: true,
+      age,
     };
   }
   if (status.in === "none") {
@@ -445,6 +491,7 @@ async function secretKeyCheck(handle: EngineHandle, count: number): Promise<Secr
           message: t("cli.doctor.secrets.keyNotYet"),
         },
         environment: false,
+        age,
       };
     }
     return {
@@ -455,9 +502,10 @@ async function secretKeyCheck(handle: EngineHandle, count: number): Promise<Secr
         fix: t("cli.doctor.secrets.keyLost.fix"),
       },
       environment: true,
+      age,
     };
   }
-  return { check: usable, environment: false };
+  return { check: usable, environment: false, age };
 }
 
 async function engineChecks(handle: EngineHandle): Promise<{
@@ -477,12 +525,15 @@ async function engineChecks(handle: EngineHandle): Promise<{
       message: t("cli.doctor.stateDir", { path: dirname(handle.paths.cliStateFile) }),
     },
   ];
+  // age 도구 줄은 바이너리 보고서를 쓰므로 바이너리 점검을 먼저 받는다. 줄 순서는 아래 push 순서가 정한다(시크릿 줄, age 줄, 바이너리 줄)
+  const binaries = await hostStatusChecks(handle);
   const secrets = await attemptAsync(() => handle.connection.request("secret.list", {}));
   let keyEnvironment = false;
   if (secrets.ok) {
-    const key = await secretKeyCheck(handle, secrets.value.secrets.length);
+    const key = await secretKeyCheck(handle, secrets.value.secrets.length, binaries.report);
     checks.push(key.check);
-    keyEnvironment = key.environment;
+    if (key.age !== null) checks.push(key.age);
+    keyEnvironment = key.environment || key.age !== null;
   } else {
     const failure = failureOfCaught(secrets.error.cause);
     if (failure === undefined) throw secrets.error.cause;
@@ -493,7 +544,6 @@ async function engineChecks(handle: EngineHandle): Promise<{
       fix: failure.fix,
     });
   }
-  const binaries = await hostStatusChecks(handle);
   checks.push(...binaries.checks);
   const service = await readOne(handle.connection, "l0.process.service.enabled");
   checks.push({

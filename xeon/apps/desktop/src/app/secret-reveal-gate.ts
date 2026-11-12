@@ -1,8 +1,13 @@
 import { t } from "@fresnel/client/i18n";
 import { assertNever, err, ok, type Result } from "@fresnel/contracts";
 import type { SecretName } from "@fresnel/contracts/capabilities";
-import type { RevealFailure, SecretRevealPort } from "@fresnel/client/settings";
-import { requestOsReauth, type OsReauthError, type OsReauthInvoke } from "../views/os-reauth.ts";
+import type { RevealFailure, RevealGrant, SecretRevealPort } from "@fresnel/client/settings";
+import {
+  requestOsReauth,
+  type OsAuthEvidence,
+  type OsReauthError,
+  type OsReauthInvoke,
+} from "../views/os-reauth.ts";
 
 // 값 보기 재인증 관문(DECISION B8 2안 [결정: 2026-11-04 사용자]). 값은 사람이 기기 인증(Touch ID, 기기 암호)을 마친 뒤에만 보인다.
 // 재인증 창은 Rust `os_reauth`(L4.desktop.spec §4.17)가 띄운다. `createOsReauthGate`가 그 명령을 부르고, 통과했을 때만 값 경로를 연다.
@@ -12,11 +17,19 @@ import { requestOsReauth, type OsReauthError, type OsReauthInvoke } from "../vie
 export interface RevealGate {
   /** 이 기기에서 재인증을 띄울 수 있는가. 거짓이면 화면은 값 보기를 잠그고 이유를 보인다 */
   readonly available: boolean;
-  /** 사람이 재인증을 마치면 `ok`다. 거절, 만료, 수단 없음은 `RevealFailure`로 돌려준다. 값은 다루지 않는다 */
-  reauth(name: SecretName): Promise<Result<void, RevealFailure>>;
+  /**
+   * 사람이 재인증을 마치면 `ok`와 증거(`os-auth`, 인증이 끝난 시각)를 준다. 거절, 만료, 수단 없음은 `RevealFailure`로 돌려준다.
+   * 값은 다루지 않는다. 증거는 값 경로가 호스트에 넘긴다(L4.desktop §4.17)
+   */
+  reauth(name: SecretName): Promise<Result<OsAuthEvidence, RevealFailure>>;
 }
 
-const UNAVAILABLE_REAUTH: Result<void, RevealFailure> = err({ kind: "unavailable" });
+/** 재인증을 통과한 뒤에만 불리는 값 경로. 증거를 받아 값을 연다(운영은 `revealPortOf`, `views/pages/secrets/secret-reveal.ts`) */
+export interface GatedValuePort {
+  reveal(name: SecretName, reauth: OsAuthEvidence): Promise<Result<RevealGrant, RevealFailure>>;
+}
+
+const UNAVAILABLE_REAUTH: Result<OsAuthEvidence, RevealFailure> = err({ kind: "unavailable" });
 
 /** 출하 구현. 재인증 수단이 없으므로 항상 `unavailable`이다 */
 export const UNAVAILABLE_GATE: RevealGate = {
@@ -42,21 +55,21 @@ function failureOf(error: OsReauthError): RevealFailure {
 /**
  * 운영 구현. 이름마다 사람 재인증 창(`os_reauth`)을 띄운다. 창이 떠 있는 동안 같은 이름의 호출은 그 결과를 함께 기다리고
  * (창이 두 번 뜨지 않는다), 다른 이름의 호출은 앞의 창이 닫힌 뒤에 자기 창을 띄운다(창은 한 번에 하나다).
- * 성공 증거 시각은 여기서 쓰지 않는다: 호스트의 값 보기(`secret.beginReveal`)는 자기 창에 보이는 경로라 증거를 받지 않는다.
+ * 성공 증거(인증이 끝난 시각)는 그대로 돌려준다. 값 경로가 `secret.beginReveal`에 실어 호스트가 60초 안인지 본다.
  */
 export function createOsReauthGate(invoke: OsReauthInvoke): RevealGate {
   interface Running {
     readonly id: number;
     readonly name: SecretName;
-    readonly promise: Promise<Result<void, RevealFailure>>;
+    readonly promise: Promise<Result<OsAuthEvidence, RevealFailure>>;
   }
   const state: { running: Running | null; seq: number } = { running: null, seq: 0 };
-  const prompt = async (name: SecretName): Promise<Result<void, RevealFailure>> => {
+  const prompt = async (name: SecretName): Promise<Result<OsAuthEvidence, RevealFailure>> => {
     const granted = await requestOsReauth(
       invoke,
       t("desktop.secrets.reveal.reauthReason", { name }),
     );
-    return granted.ok ? ok(undefined) : err(failureOf(granted.error));
+    return granted.ok ? ok(granted.value) : err(failureOf(granted.error));
   };
   return {
     available: true,
@@ -65,7 +78,7 @@ export function createOsReauthGate(invoke: OsReauthInvoke): RevealGate {
       if (before !== null && before.name === name) return before.promise;
       state.seq += 1;
       const id = state.seq;
-      const promise = (async (): Promise<Result<void, RevealFailure>> => {
+      const promise = (async (): Promise<Result<OsAuthEvidence, RevealFailure>> => {
         try {
           if (before !== null) await before.promise;
           return await prompt(name);
@@ -80,13 +93,13 @@ export function createOsReauthGate(invoke: OsReauthInvoke): RevealGate {
   };
 }
 
-/** 재인증을 먼저 부르고, 통과했을 때만 값 경로를 부른다. 재인증이 실패하면 값 경로는 건드리지 않는다 */
-export function gatedRevealPort(gate: RevealGate, value: SecretRevealPort): SecretRevealPort {
+/** 재인증을 먼저 부르고, 통과했을 때만 증거를 붙여 값 경로를 부른다. 재인증이 실패하면 값 경로는 건드리지 않는다 */
+export function gatedRevealPort(gate: RevealGate, value: GatedValuePort): SecretRevealPort {
   return {
     async reveal(name) {
       const reauthed = await gate.reauth(name);
       if (!reauthed.ok) return reauthed;
-      return value.reveal(name);
+      return value.reveal(name, reauthed.value);
     },
   };
 }

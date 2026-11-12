@@ -794,7 +794,33 @@ export interface DesktopIpc {
     action: "add" | "set",
     value: Uint8Array,
   ): Promise<Result<null, SecretRegisterError>>;
+  /**
+   * 값 보기의 로컬 채널을 연다(`secret_reveal_open`). 셸이 0700 폴더에 일회용 유닉스 소켓을 만들고 그 경로를 돌려준다.
+   * 경로는 `secret.beginReveal`의 `channel`로 wire에 실린다. 값은 이 답에 없다.
+   */
+  revealOpen(): Promise<Result<RevealChannelReply, IpcError>>;
+  /**
+   * 채널에서 호스트가 쓴 값을 기다려 받는다(`secret_reveal_take`). 없었거나 시한이 지나거나 닫혔으면 `null`이다.
+   * 받은 바이트는 호출자가 쓴 뒤 0으로 덮는다.
+   */
+  revealTake(id: string): Promise<Result<Uint8Array | null, IpcError>>;
+  /** 채널을 닫는다(`secret_reveal_close`). 기다리던 받기는 `null`로 끝난다 */
+  revealClose(id: string): Promise<Result<null, IpcError>>;
 }
+
+/** `secret_reveal_open`의 답. `path`는 소켓의 절대 경로이고 값이 아니다 */
+interface RevealChannelReply {
+  readonly id: string;
+  readonly path: string;
+}
+
+const RevealChannelSchema = Type.Object(
+  {
+    id: Type.String({ minLength: 1, maxLength: 64 }),
+    path: Type.String({ minLength: 1, maxLength: 4096 }),
+  },
+  { additionalProperties: false },
+);
 
 function codeOf(cause: unknown): string {
   return typeof cause === "string" ? cause : "unknown";
@@ -980,5 +1006,24 @@ export function createDesktopIpc(bridge: ShellBridge): DesktopIpc {
         body.fill(0);
       }
     },
+    revealOpen: () =>
+      replyOf("secret_reveal_open", RevealChannelSchema, () => bridge.invoke("secret_reveal_open")),
+    async revealTake(id) {
+      const raw = await call<unknown>("secret_reveal_take", () =>
+        bridge.invoke("secret_reveal_take", { id }),
+      );
+      if (!raw.ok) return raw;
+      // `null`은 값이 없었다는 뜻이다. 그 밖의 모양은 바이트여야 한다(TY-10)
+      if (raw.value === null) return { ok: true, value: null };
+      const bytes = bytesOf(raw.value);
+      return bytes === null
+        ? { ok: false, error: { kind: "invalid", command: "secret_reveal_take" } }
+        : { ok: true, value: bytes };
+    },
+    revealClose: (id) =>
+      call("secret_reveal_close", async () => {
+        await bridge.invoke("secret_reveal_close", { id });
+        return null;
+      }),
   };
 }

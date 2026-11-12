@@ -56,7 +56,7 @@ binds: [xeon/packages/platform-sandbox/**]
 | 네트워크 | 네트워크 네임스페이스 + 데몬 CONNECT 프록시(R-6) | 1차 전부 차단, 2차 srt 내장 프록시와 도메인 목록 | 계획 v2 L0-b |
 | 프로세스 분리 | PID 네임스페이스 권장(R-5) | srt의 플랫폼 동작을 따른다 [가정: srt Linux 구성의 PID 네임스페이스 여부 미확인] | `_research/notes/L0-1.md` §6 |
 | 자원 한도 | `MemoryMax`, `TasksMax`(R-7) | 1차 없음. 시간 제한은 `fresnel.exec` timeout | [제안] |
-| 격리 불가 시 | `execute` 끔(R-10), 운영자 `off`만 S0 | `l0.sandbox.onUnavailable` 3값, 기본 `disable_execute` | 18 R-10 계승 [제안] |
+| 격리 불가 시 | `execute` 끔(R-10), 운영자 `off`만 S0 | `l0.sandbox.onUnavailable` 2값(`disable_execute`, `run_unsandboxed`), 기본 `disable_execute` | 18 R-10 계승 [제안] |
 | 자가 시험 | 시작·1시간마다·doctor, 9항목(§3.11.4) | 시작·주기·doctor, 6항목(4.4절) | 18 §3.11.4 이식 |
 | 보호 경로 | Helm 경로(`/srv/volumes`, `~/.config/helm`) 포함 | Fresnel 경로로 바꾼 표(3.3절) | 18 §3.11.5 |
 
@@ -116,7 +116,7 @@ import type { SandboxRunReport, SandboxViolation } from "./sandbox-report.ts";
 
 export type SandboxPlatform = "darwin" | "linux" | "wsl2" | "wsl1" | "win32" | "other";
 export type SandboxUnavailableReason = "missing_dependency" | "unsupported_os" | "self_test_failed" | "disabled";
-export type OnUnavailable = "disable_execute" | "ask" | "run_unsandboxed";
+export type OnUnavailable = "disable_execute" | "run_unsandboxed"; // 물어보기 없음(4.5절)
 
 export interface SandboxStatus {
   level: "srt" | "none";
@@ -227,8 +227,10 @@ export interface SandboxService {
   wrapArgv(policy: SandboxPolicy, request: SandboxArgvRequest, context: CancelScope): Promise<Result<SandboxedArgv, SandboxWrapError>>;
   /** 판정만 한다. 승인 UI와 적용은 L1 tools */
   autoAllow(policy: SandboxPolicy, request: { command: string | readonly string[]; cwd: string; workspaceRoots: readonly string[]; tempDir: string }): AutoAllowDecision;
-  /** 주어진 Shell을 감싸 자가 시험을 실행하고 status에 반영한다 */
+  /** 주어진 Shell을 감싸 자가 시험을 실행하고 status에 반영한다. 한 번에 하나씩 돈다(4.4절) */
   selfTest(shell: Shell, context: CancelScope): Promise<SelfTestReport>;
+  /** 마지막으로 기록된 자가 시험 보고서 전체(항목별 통과와 사유). 기록이 없으면 없음 [결정: 2026-11-11 사용자] */
+  lastSelfTestReport(): SelfTestReport | undefined;
 }
 export const SandboxServiceName = "fresnel.sandbox" as const;
 ```
@@ -351,6 +353,13 @@ export function selectSandboxProvider(input: {
 4. srt `isSupportedPlatform()`과 `checkDependencies()`를 부른다. 거짓이거나 오류가 있으면 `missing_dependency` 또는 `unsupported_os`로 옮긴다(오류 이름 대응은 구현에서 정한다 [가정]).
 5. srt `initialize(config, undefined, enableLogMonitor)`를 한 번 부른다. `enableLogMonitor`는 macOS 참, Linux 거짓이 기본이다 [제안]. Linux 모니터 값은 샌드박스 프로세스가 조작할 수 있어 진단용으로만 쓸 수 있기 때문이다(`_research/notes/L0-1.md` §5).
    macOS의 위반 감시(`log stream ... _SBX`)는 srt가 `reset()`에서만 끈다. 호스트가 reset 없이 끝나도 자식이 남지 않게, 초기화 직후 부모 없이(ppid 1) 남은 감시를 거두고 프로세스 `exit` 때 이 프로세스의 감시 자식을 끈다(`log-monitor.ts`). SIGKILL처럼 `exit`가 불리지 않는 종료는 다음 초기화가 거두며, 그 사이는 `just orphans`가 목록에 올린다. [결정: 2026-11-12 dzX]
+   종료 방식별 실측 [결정: 2026-11-12 사용자]. 2026-11-12 맥에서 `createSrtPort().initialize(…, 감시 켬, 허용 목록 밖 허용)`으로 감시를 띄우고 임시 HOME(`/private/tmp/dzK2-home`)에서 시험했다. 셈은 시험이 띄운 감시 자식의 pid와 명령줄로 했다. 감시 1개로 시작해 끝난 뒤 남은 수는 다음과 같다.
+   - 정상 종료(`process.exit(0)`, reset 없음): 1 → 0.
+   - 정상 종료(`reset()` 뒤 `process.exit(0)`): 1 → 0.
+   - SIGTERM, 호스트식 처리기(`process.once("SIGTERM")`가 `process.exit(0)`): 1 → 0.
+   - SIGTERM, 처리기 없음: 1 → 0(10초 뒤에 셈). srt의 SIGTERM 처리기가 `reset()`으로 감시를 껐지만 프로세스는 10초 안에 끝나지 않아 시험기가 SIGKILL했다. 시험기가 stdin을 열어 둔 탓일 수 있어 원인은 확정하지 않았다.
+   - SIGKILL(부모 사망): 1 → 1(ppid 1). `just orphans`가 이 감시를 worktree `dzK2`로 읽기 전용 목록에 올렸다(종료 0). 다음 초기화가 부모 없는 감시를 거두자 0이 됐다.
+   두 번 되풀이해 같은 결과였다. srt 0.0.79는 `initialize` 안에서 `exit`, SIGINT, SIGTERM에 `reset()`을 걸므로(`sandbox-manager.js`의 `registerCleanup`), 앞의 셋에서 srt 처리기와 이 파일의 `exit` 훅 중 어느 쪽이 껐는지는 나누지 않았다. 시험하지 않은 신호는 SIGINT, 처리되지 않은 예외, 프로세스 그룹 전체 신호다. 실제 감시를 띄우는 시험은 맥 전용이고, 다음 초기화가 부모 없는 감시를 모두 끄므로 공용 `just test`에 넣지 않았다. `log-monitor.test.ts`는 같은 명령줄을 가진 가짜 자식으로 정리 로직만 본다.
 6. 마지막 자가 시험이 실패했으면 `reason: "self_test_failed"`.
 7. 상태는 시작 로그 한 줄과 doctor 출력에 남긴다(4.6절).
 
@@ -360,7 +369,7 @@ export function selectSandboxProvider(input: {
 
 1. 유효 정책 = `policy` ∪ 보호 경로 ∪ 설정 추가분(`protectedPaths.extra`, `writeRoots.extra`). 보호 경로 안의 쓰기 루트를 지운다.
 2. `policy.allowEscape`가 참이면:
-   - `l0.sandbox.escapeRetry`가 참이거나 status가 불가이고 `onUnavailable = "ask"`일 때만 허용한다. 아니면 `err(ExecutionError("sandbox_unavailable"))`.
+   - `l0.sandbox.escapeRetry`가 참일 때만 허용한다. 아니면 `err(ExecutionError("sandbox_unavailable"))`. (격리 불가 판정과 무관하다. `onUnavailable`의 물어보기 값은 뺐다, 4.5절.)
    - 허용이면 감싸지 않고 `shell.exec`를 부른 뒤 결과에 `sandbox: { sandboxed: false, level: "none", unsandboxedBy: "escape", violations: [], violationsTruncated: false }`를 붙인다.
 3. status가 불가이면 4.5절 표를 따른다.
 4. 명령이 argv 배열이면 POSIX 작은따옴표 규칙으로 이어 셸 문자열 하나로 만든다(srt 입력이 문자열이다).
@@ -417,17 +426,21 @@ export function selectSandboxProvider(input: {
 
 - 하나라도 기대와 다르면 status를 `available: false`, `reason: "self_test_failed"`로 바꾸고 4.5절 정책을 적용한다.
 - 자가 시험 명령은 `allowEscape: false` 정책으로 감싼다. 결과 보고에는 항목 id와 통과 여부, 실패 시 종료 코드만 싣는다. 출력 원문은 싣지 않는다.
+- [결정: 2026-11-11 사용자] 마지막 보고서 전체는 `lastSelfTestReport()`로 읽는다(시각, 걸린 시간, 전체 통과, 항목마다 id·통과·사유). 사유는 `exit=<코드>`, `exec_error=<코드>`, `sensitive=<개수>`처럼 짧은 코드이고 경로와 출력 원문은 싣지 않는다. 격리를 쓸 수 없어 시험하지 못한 때는 기록하지 않는다. wire `sandbox.lastSelfTest`가 이 값을 읽고 `sandbox.selfTest`가 지금 한 번 돌린다(F.wire-settings §3.3.1).
+- [결정: 2026-11-11 사용자] 예약 시험과 사람이 누른 시험은 같은 `<fresnelData>/selftest/`를 쓰므로 한 번에 하나씩 돈다. 먼저 온 실행이 끝나야 다음 실행이 시작한다. 앞 실행이 실패해도 다음 실행은 돈다.
 - 시험 뒤 `<fresnelData>/selftest/`와 임시 디렉터리를 지운다.
 
 ### 4.5 격리 불가 시 동작
 
-`l0.sandbox.onUnavailable`(기본 `disable_execute` [제안, 18 R-10 계승]):
+`l0.sandbox.onUnavailable`(기본 `disable_execute` [제안, 18 R-10 계승]). 값은 두 개다 [결정: 2026-11-11 사용자]:
 
 | 값 | `wrapShell`의 `exec` | L1 tools가 할 일(요구) |
 |---|---|---|
 | `disable_execute` | `err(ExecutionError("sandbox_unavailable"))` | 셸 실행 도구(`bash`)를 모델에 광고하지 않는다 |
-| `ask` | `allowEscape: false`이면 `sandbox_unavailable`. 승인 뒤 `allowEscape: true`로 다시 부르면 실행 | 호출마다 "격리 없이 실행" 승인을 받는다. 지금 코드의 `ask`는 `disable_execute`와 같은 거부다(승인 흐름이 없다) [결정: 2026-11-12 dzX] [근거: `packages/platform-sandbox/src/wrap-shell.ts` `decideExecution`] |
 | `run_unsandboxed` | 감싸지 않고 실행, `sandbox.unsandboxedBy: "run_unsandboxed"` | 실행은 허용. 도구 결과와 화면에 격리 없음 표시 |
+
+- `ask`(물어보기)는 뺐다 [결정: 2026-11-11 사용자]. 이전 값은 `allowEscape: true`로 다시 부르는 승인 흐름을 전제했지만 그 흐름이 없어(L1 tools에 호출 단위 승인이 없고, 생산 코드의 `defaultPolicy`는 `allowEscape: false`를 고정한다, 4.3절) 실제로는 `disable_execute`와 같은 거부였다. 승인 흐름(호출 단위 정책 재정의와 승인 포트)을 설계한 뒤 값을 다시 더한다.
+- 저장된 `l0.sandbox.onUnavailable = "ask"`는 설정 엔진이 무효 값으로 보고 건너뛰어 기본값 `disable_execute`(막기)로 읽는다. 설정 파일은 고치지 않는다. 같은 규칙으로 관리 범위(managed)의 옛 `ask`도 무효가 되어 사용자 범위의 값이 대신 적용될 수 있다 [미결: 관리 범위의 옛 값을 막기로 읽을지 정한다. 지금은 건너뛴다] [근거: `packages/contracts/src/wire-settings/settings/effective.ts` `resolveSetting`의 무효 값 건너뛰기].
 
 - `l0.sandbox.enabled = false`(reason `disabled`)는 사용자가 명시적으로 끈 상태다. `run_unsandboxed`와 같이 실행하고 `unsandboxedBy: "disabled"`를 붙인다 [제안]. 시작 로그와 doctor에 경고를 남긴다.
 - Windows 네이티브, WSL1, 지원 밖 아키텍처는 `unsupported_os`로 이 표를 따른다. 기본값에서는 셸 실행 도구가 꺼지므로 격리 없이 조용히 실행되는 경로가 없다.
@@ -505,7 +518,7 @@ export function selectSandboxProvider(input: {
 | 키 | 타입 | 기본값 | 범위(`allowedScopes`) | 변경 반영 | 단계 | L4 노출 |
 |---|---|---|---|---|---|---|
 | `l0.sandbox.enabled` | `boolean` | `true` | `managed`, `user` | `nextTurn` | M1 | 탭 `permissions`(임시. `"sandbox"` 추가 요청, 목표는 '샌드박스와 네트워크' 탭), `toggle`. 끌 때 위험 고지 필요 |
-| `l0.sandbox.onUnavailable` | `string`(`range.enum`: `disable_execute`, `ask`, `run_unsandboxed`) | `disable_execute` | `managed`, `user` | `nextTurn` | M1 | `permissions`(임시), `select`. `run_unsandboxed` 선택 시 위험 고지 |
+| `l0.sandbox.onUnavailable` | `string`(`range.enum`: `disable_execute`, `run_unsandboxed`) | `disable_execute` | `managed`, `user` | `nextTurn` | M1 | `permissions`(임시), `select`. `run_unsandboxed` 선택 시 위험 고지 |
 | `l0.sandbox.protectedPaths.extra` | `string[]`(절대 경로 또는 `~/`로 시작) | `[]` | `managed`, `user`, `project` | `nextTurn` | M1 | `permissions`(임시), `list`. 기본 보호 경로는 읽기 전용으로 함께 표시 |
 | `l0.sandbox.writeRoots.extra` | `string[]` | `[]` | `managed`, `user` | `nextTurn` | M1 | `permissions`(임시), `list` |
 | `l0.sandbox.escapeRetry` | `boolean` | `false` | `managed`, `user` | `nextTurn` | M1 | `permissions`(임시), `toggle`. 켜도 매 호출 승인 |
@@ -533,7 +546,7 @@ export function selectSandboxProvider(input: {
 
 | 이름 | 소비 문서 |
 |---|---|
-| `fresnel.sandbox`(`SandboxService`): `status`, `defaultPolicy`, `protectedPaths`, `wrapShell`, `wrapArgv`, `autoAllow`, `selfTest` | `L1.tools.spec`, `L2.workspace.spec`, `L4.host-service.spec`(자가 시험 주기 호출), `L4.cli.spec`(doctor), `platform-process`(stdio MCP 서버, 4.9절) |
+| `fresnel.sandbox`(`SandboxService`): `status`, `defaultPolicy`, `protectedPaths`, `wrapShell`, `wrapArgv`, `autoAllow`, `selfTest`, `lastSelfTestReport` | `L1.tools.spec`, `L2.workspace.spec`, `L4.host-service.spec`(자가 시험 주기 호출), `L4.cli.spec`(doctor), `platform-process`(stdio MCP 서버, 4.9절) |
 | `describeSandboxStatus`(F `services/sandbox.ts`의 순수 함수, review.decisions-2 D-04) | `L4.cli.spec`, `L4.settings-ui.spec`. 구현 패키지를 import하지 않고 F에서 가져온다(DR-14) |
 | `@fresnel/platform-sandbox/testing`: `fakeSandbox`(상태와 판정을 표로 고정, `wrapShell`은 기록만 하는 통과 데코레이터, `wrapArgv`는 요청을 `wrappedArgv`에 기록하고 판정대로 argv를 돌려준다) | `L1.tools.plan`, `L2.workspace.plan` |
 
@@ -553,7 +566,7 @@ export function selectSandboxProvider(input: {
 | `fresnel.os`(`OsService`, `L0.os.spec`) | `OsDirs.home`, `OsDirs.config`, `OsDirs.data`(DB·blob 포함), `OsDirs.tmp`의 절대 경로(`L0.os.spec` §3.2). `resolveBinary("rg" \| "bwrap" \| "socat")`(§3.6) |
 | `fresnel.secrets`(`SecretService`, `L0.secrets.spec`) | `protectedPaths()`: 시크릿 파일 절대 경로 목록(값 없음, `L0.secrets.spec` §3.6). 보호 경로 `secret_key` 행. 후속에서 sentinel 모드의 프록시 훅 요구를 받는다(10절 9번) |
 | `fresnel.exec`(`L0.exec.spec`) | `SENSITIVE_ENV_PATTERNS`를 F에 두는 것(자가 시험 `env_allowlist`), `Shell` 데코레이션 성질(§3.7) |
-| `L1.tools.spec` | (1) 셸 도구 실행 경로에서 `wrapShell`로 감싼 `Shell`을 쓰는 조립. (2) `onUnavailable` 표(4.5절)의 도구 광고·승인 처리. (3) `autoAllow` 판정의 적용. (4) 파일 도구가 `protectedPaths()`와 `matchProtectedPath`로 realpath 검사(18 R-12). (5) 격리 없이 실행한 호출의 기록(이벤트 소유 [미결]) |
+| `L1.tools.spec` | (1) 셸 도구 실행 경로에서 `wrapShell`로 감싼 `Shell`을 쓰는 조립. (2) `onUnavailable` 표(4.5절)의 도구 광고 처리(`disable_execute`면 광고하지 않는다). (3) `autoAllow` 판정의 적용. (4) 파일 도구가 `protectedPaths()`와 `matchProtectedPath`로 realpath 검사(18 R-12). (5) 격리 없이 실행한 호출의 기록(이벤트 소유 [미결]) |
 | `L2.workspace.spec` | §4.3 6번 보호 경로 검사에 `matchProtectedPath` 사용. 쓰기 루트를 `defaultPolicy` 입력과 같은 값으로 쓰기 |
 | `L4.host-service.spec`, apps/host | 시작 때와 `l0.sandbox.selfTestIntervalMin`마다 `selfTest(<fresnel.exec Shell>, …)` 호출. exec·sandbox 조립 위치 |
 | `L4.cli.spec` | doctor 출력에 `describeSandboxStatus`, `missing_dependency`는 종료 코드 2 계열 |

@@ -217,6 +217,20 @@ test("proxyExample answers the text and the loopback plan with the settings' lis
     domain: "fresnel.example.com",
     tlsPort: 8443,
   });
+  const withNames = envOf({
+    tailscale: tailscaleWith({}),
+    settings: { "l4.remote.web.hosts": ["mine.example", "box.local"] },
+  });
+  const added = remoteProxyExampleOf(withNames, {
+    kind: "caddy",
+    domain: "fresnel.example.com",
+    tlsPort: 8443,
+  });
+  expect(added.ok ? added.value.plan.hosts : null).toEqual([
+    "mine.example",
+    "box.local",
+    "fresnel.example.com",
+  ]);
   expect(made.ok ? made.value.plan : null).toEqual({
     listen: "127.0.0.1:9000",
     listenTls: "127.0.0.1:8443",

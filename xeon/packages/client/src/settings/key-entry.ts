@@ -1,6 +1,10 @@
 import { assertNever, type Result } from "@fresnel/contracts";
 import type { SecretName } from "@fresnel/contracts/capabilities";
-import type { FailureKind } from "@fresnel/contracts/services";
+import {
+  normalizePastedKey,
+  type FailureKind,
+  type NormalizedKey,
+} from "@fresnel/contracts/services";
 import { t, type MessageId } from "../i18n/index.ts";
 
 // 모델 키 값 입력(L4.desktop.spec §4.14.1). 값은 입력란을 떠나는 순간 `take()`가 입력란을 비우고, 그 뒤로는 바이트 배열
@@ -49,7 +53,8 @@ export interface KeyField {
 export type KeyPreflight = () => Promise<"proceed" | "cancel">;
 
 export type KeyOutcome =
-  | { readonly kind: "registered" }
+  /** 등록했다. `trimmed`는 앞뒤를 지웠는지다(키 넣기 대화 상자가 "앞뒤 공백을 뺐어요"를 보인다) */
+  | { readonly kind: "registered"; readonly trimmed: boolean }
   /** 입력란이 비어 있었다. 아무것도 보내지 않았다 */
   | { readonly kind: "empty" }
   /** 등록 전 확인에서 사용자가 취소했다. 입력란은 그대로 있고 아무것도 보내지 않았다 */
@@ -228,10 +233,19 @@ export function keyErrorDetail(error: KeyRegisterError): string | null {
   return lines.length === 0 ? null : lines.join("\n");
 }
 
+/** 일반 시크릿 값의 앞뒤 공백에 대한 답. 화면이 사람에게 묻고 고른 답을 그대로 넘긴다 */
+export type EdgeChoice = "trim" | "keep";
+
+/** 값에 앞뒤 공백이나 줄바꿈이 있는가. 일반 시크릿 입력에서 묻기 전에 본다. 값은 돌려주지 않는다 */
+export function hasEdgeSpace(text: string): boolean {
+  return text !== text.trim();
+}
+
 /**
- * 입력란에서 값을 꺼내 등록한다. `preflight`가 없으면 `take()`는 첫 `await` 전에 호출되므로 입력란은 이 함수가 돌아오기 전에
+ * API 키를 입력란에서 꺼내 등록한다(키 넣기 대화 상자, 첫 시작 화면). 앞뒤 공백, 줄바꿈, NBSP, 너비 없는 글자, 한 쌍의 따옴표를
+ * `normalizePastedKey`로 지운다. 지운 것이 있으면 결과의 `trimmed`가 true다.
+ * `preflight`가 없으면 `take()`는 첫 `await` 전에 호출되므로 입력란은 이 함수가 돌아오기 전에
  * 이미 비어 있다. `preflight`가 있으면 그 답을 기다린 뒤에 `take()`한다(확인 대화 상자가 떠 있는 동안 값은 입력란 DOM에만 있다).
- * 앞뒤 공백과 줄바꿈은 지운다(붙여넣기에 따라온다).
  */
 export async function submitKey(
   registrar: KeyRegistrar,
@@ -240,13 +254,50 @@ export async function submitKey(
   field: KeyField,
   preflight?: KeyPreflight,
 ): Promise<KeyOutcome> {
+  return submitWith(registrar, secretName, action, field, normalizePastedKey, preflight);
+}
+
+/**
+ * 일반 시크릿 값을 입력란에서 꺼내 등록한다(시크릿 화면의 추가·바꾸기). 앞뒤를 지우지 않고 사람이 고른 답을 따른다:
+ * `trim`은 JS `trim()`으로 앞뒤의 공백과 줄바꿈만 지우고, `keep`은 그대로 보낸다. 따옴표는 건드리지 않는다.
+ */
+export async function submitSecretValue(
+  registrar: KeyRegistrar,
+  secretName: SecretName,
+  action: "add" | "set",
+  field: KeyField,
+  edge: EdgeChoice,
+  preflight?: KeyPreflight,
+): Promise<KeyOutcome> {
+  return submitWith(
+    registrar,
+    secretName,
+    action,
+    field,
+    (raw): NormalizedKey => {
+      if (edge === "keep") return { value: raw, trimmed: false };
+      const value = raw.trim();
+      return { value, trimmed: value !== raw };
+    },
+    preflight,
+  );
+}
+
+async function submitWith(
+  registrar: KeyRegistrar,
+  secretName: SecretName,
+  action: "add" | "set",
+  field: KeyField,
+  prepare: (raw: string) => NormalizedKey,
+  preflight: KeyPreflight | undefined,
+): Promise<KeyOutcome> {
   if (preflight !== undefined && (await preflight()) === "cancel") return { kind: "cancelled" };
-  const typed = field.take().trim();
-  if (typed === "") return { kind: "empty" };
-  const bytes = ENCODER.encode(typed);
+  const cleaned = prepare(field.take());
+  if (cleaned.value === "") return { kind: "empty" };
+  const bytes = ENCODER.encode(cleaned.value);
   try {
     const result = await registrar.registerKey(secretName, action, bytes);
-    if (result.ok) return { kind: "registered" };
+    if (result.ok) return { kind: "registered", trimmed: cleaned.trimmed };
     if (result.error.kind === "unavailable") return { kind: "terminal" };
     const detail = keyErrorDetail(result.error);
     const code = codeOf(result.error);

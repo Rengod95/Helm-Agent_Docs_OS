@@ -253,4 +253,52 @@ describe("transcriptRowsOf: 턴과 표지", () => {
     });
     expect(keys(rows)).toEqual([itm(1), "act:c1", `compact:${evt(1)}`, itm(4), `foot:${itm(1)}`]);
   });
+
+  test("도구 결과 뒤에 선 요약은 묶음 안 호출 두 개 뒤에 한 번만 선다(같은 키가 두 번 나오지 않는다)", () => {
+    const rows = rowsOf({
+      shapes: [
+        user(1),
+        assistant(2, call(0, "c1", "read"), call(1, "c2", "read")),
+        hidden(3),
+        hidden(4),
+      ],
+      anchors: [anchor(1, itm(3))],
+    });
+    expect(rows).toEqual([
+      { kind: "user", key: itm(1), lead: null, id: itm(1), prevId: null },
+      {
+        kind: "activity",
+        key: "act:c1",
+        lead: null,
+        entries: [
+          {
+            itemId: itm(2),
+            block: { kind: "call", index: 0, callId: "c1", name: "read", args: {} },
+          },
+          {
+            itemId: itm(2),
+            block: { kind: "call", index: 1, callId: "c2", name: "read", args: {} },
+          },
+        ],
+      },
+      { kind: "compaction", key: `compact:${evt(1)}`, lead: null, record: recordOf(1) },
+    ]);
+  });
+
+  test("글 줄과 묶음에 걸친 item의 요약은 그 item의 마지막 줄 뒤에 한 번만 선다", () => {
+    const rows = rowsOf({
+      shapes: [user(1), assistant(2, text(0), call(1, "c1", "read")), hidden(3)],
+      anchors: [anchor(1, itm(3))],
+    });
+    expect(keys(rows)).toEqual([itm(1), itm(2), "act:c1", `compact:${evt(1)}`, `foot:${itm(1)}`]);
+  });
+
+  test("요약 구분선 키는 요약마다 하나씩이고 서로 다르다", () => {
+    const rows = rowsOf({
+      shapes: [user(1), assistant(2, call(0, "c1", "read"), call(1, "c2", "read")), hidden(3)],
+      anchors: [anchor(1, itm(3)), anchor(2, itm(3))],
+    });
+    const compactKeys = keys(rows).filter((key) => key.startsWith("compact:"));
+    expect(compactKeys).toEqual([`compact:${evt(1)}`, `compact:${evt(2)}`]);
+  });
 });

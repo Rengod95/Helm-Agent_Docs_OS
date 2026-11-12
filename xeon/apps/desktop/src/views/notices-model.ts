@@ -88,7 +88,7 @@ export function noticeTitleViewOf(notice: Notice): NoticeTitleView | null {
 }
 
 /** 알림 본문 단추 중 알림 목록에서도 되는 것. 모델 고르기와 다시 보내기는 입력창이 있는 대화에서만 되어 뺀다 */
-export type NoticeAction = Extract<TurnFailureAction, "reregister-key" | "open-providers">;
+export type NoticeAction = Extract<TurnFailureAction, "add-key" | "change-key" | "open-providers">;
 
 /**
  * 알림 본문을 화면에 보일 모양. 실패 문장이면 대화의 오류 줄과 같은 문장과 단추이고, 원문은 정보 아이콘 뒤 "자세히"에 둔다.
@@ -115,7 +115,9 @@ export type NoticeBodyView =
 const RAW_FAILURE = /^\s*(?:\d{3}\s*)?\{/;
 
 function noticeActionOf(action: TurnFailureAction | null): NoticeAction | null {
-  return action === "reregister-key" || action === "open-providers" ? action : null;
+  return action === "add-key" || action === "change-key" || action === "open-providers"
+    ? action
+    : null;
 }
 
 function failureViewOf(view: TurnFailureView): NoticeBodyView {

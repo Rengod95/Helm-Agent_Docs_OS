@@ -1,6 +1,11 @@
 import { repeatAsync } from "@fresnel/contracts";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
-import type { DesktopIpc, EngineState, SecretRegisterError } from "../../src/transport/ipc.ts";
+import type {
+  DesktopIpc,
+  EngineState,
+  IpcError,
+  SecretRegisterError,
+} from "../../src/transport/ipc.ts";
 import { createApp, type App } from "../../src/app/bootstrap.ts";
 import { fakeIpc, requestId, type FakeIpc } from "../transport/fake-ipc.ts";
 import { STORE, summary, thr, userItem } from "../state/helpers.ts";
@@ -9,6 +14,10 @@ import { STORE, summary, thr, userItem } from "../state/helpers.ts";
 export type EngineExtra = {
   /** `registerSecret`이 돌려줄 오류(가짜 ipc 직접 호출용). 없으면 성공 */
   readonly registerError?: SecretRegisterError;
+  /** 값 보기 채널의 `take`가 돌려줄 바이트(가짜 셸). 없으면 `null`이다 */
+  readonly revealBytes?: Uint8Array | null;
+  /** 값 보기 채널 열기가 실패하게 한다(가짜 셸) */
+  readonly revealOpenError?: IpcError;
   readonly results?: Readonly<Record<string, unknown>>;
   readonly errors?: Readonly<Record<string, { code: number; kind: string; details?: unknown }>>;
   /** 요청 인자까지 보고 결과를 고른다(같은 메서드를 인자만 바꿔 두 번 부르는 시험용). `undefined`를 주면 `results`를 쓴다 */
@@ -77,6 +86,8 @@ export function engineFake(
     extra.resultFor?.(method, params) ?? extra.results?.[method] ?? results[method] ?? {};
   const fake = fakeIpc({
     ...(extra.registerError === undefined ? {} : { registerError: extra.registerError }),
+    ...(extra.revealBytes === undefined ? {} : { revealBytes: extra.revealBytes }),
+    ...(extra.revealOpenError === undefined ? {} : { revealOpenError: extra.revealOpenError }),
     ...(stateForAttach === undefined ? {} : { stateForAttach }),
     onWrite: (message, f) => {
       const method = methodOf(message);

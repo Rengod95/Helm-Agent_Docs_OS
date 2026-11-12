@@ -229,7 +229,13 @@ function TableEditor(props: DedicatedEditorProps): ReactNode {
               setError(t(nameIssueIdOf(checked.error)));
               return;
             }
-            write(withField(record, checked.value, defaultCellOf(valueColumn) ?? null));
+            // 값 열이 스키마의 빈 값을 정할 수 없으면 이름을 넣지 않는다(빈 값 대신 `null`을 저장하면 검사에서 거절된다)
+            const initial = defaultCellOf(valueColumn);
+            if (initial === undefined) {
+              setError(t("desktop.settings.table.issue.noEmptyValue"));
+              return;
+            }
+            write(withField(record, checked.value, initial));
             setName("");
           }}
           onValue={(entry, value) => {

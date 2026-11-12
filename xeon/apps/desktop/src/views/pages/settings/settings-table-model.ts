@@ -31,7 +31,10 @@ export function recordOf(value: unknown): Row | null {
   return isRecord(value) ? value : null;
 }
 
-/** 열 하나의 기본 값. 중첩 값 열은 기본이 없어서 `undefined`다(새 행에 넣지 않는다). 비울 수 있는 글 열은 스키마 기본대로 `null`이다 */
+/**
+ * 열 하나의 기본 값. 중첩 값 열은 스키마가 받는 빈 값(`emptyJson`: `[]` 또는 `{}`)이고, 빈 값을 정할 수 없으면 `undefined`다
+ * (새 행에 넣지 않는다). 비울 수 있는 글 열은 스키마 기본대로 `null`이다
+ */
 export function defaultCellOf(column: TableColumn): unknown {
   switch (column.kind) {
     case "string":
@@ -44,6 +47,8 @@ export function defaultCellOf(column: TableColumn): unknown {
     case "enum":
       return column.options?.[0] ?? null;
     case "json":
+      if (column.emptyJson === "array") return [];
+      if (column.emptyJson === "object") return {};
       return undefined;
     default:
       return assertNever(column.kind, "TableColumn");

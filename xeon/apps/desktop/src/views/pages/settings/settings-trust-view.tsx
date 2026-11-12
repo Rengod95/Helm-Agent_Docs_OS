@@ -21,7 +21,8 @@ import {
 // 설정 "권한"의 "작업 폴더 신뢰" 구역(DP-109 [결정: 2026-11-11 사용자]). 맨 위 줄은 처음 여는 폴더의 기본값
 // (`x.loading-trust.defaultProjectTrust`), 그 아래는 저장된 결정(`trust.list`)의 판정 표(폴더 · 허용/막기 · 저장한 때)다.
 // 판정을 바꾸면 `trust.decide {kind: "folder"}`로 그 폴더의 결정을 다시 저장하고 목록을 다시 읽는다.
-// 결정을 지우는 wire 메서드는 없어(F wire §3.3.1 `trust.list`는 읽기 전용) 지우기 칸이 없다. 구형 host(`unsupported`)는 표를 그리지 않는다.
+// 지우기 칸은 `trust.remove`로 그 폴더의 저장된 결정을 바로 지운다(확인 없음, 권한 규칙·웹 도메인 줄과 같다). 지운 폴더는 미결정이라 다음에 열 때 다시 묻는다.
+// 구형 host(`unsupported`)는 표를 그리지 않는다.
 
 const DEFAULT_TRUST_KEY: SettingKey = "x.loading-trust.defaultProjectTrust";
 
@@ -55,6 +56,8 @@ export interface TrustedFoldersViewProps {
   readonly disabled: boolean;
   readonly nowMs: number;
   readonly onDecide: (path: string, verdict: "allow" | "deny") => void;
+  /** 저장된 결정을 지운다(`trust.remove`) */
+  readonly onRemove: (path: string) => void;
 }
 
 /** 저장된 결정의 판정 표. 비었으면 한 줄 안내, 읽기 실패면 그 사실 */
@@ -93,6 +96,10 @@ export function TrustedFoldersView(props: TrustedFoldersViewProps): ReactNode {
         onVerdict={(path, verdict: Verdict) => {
           if (verdict !== "ask") props.onDecide(path, verdict);
         }}
+        onRemove={props.onRemove}
+        removeLabel={(row) =>
+          t("desktop.settings.trust.remove", { folder: row.subjectTitle ?? row.key })
+        }
         emptyText={t("desktop.settings.trust.empty")}
       />
       {props.error === null ? null : <RowNote tone="danger">{props.error}</RowNote>}
@@ -125,21 +132,40 @@ export function TrustedFoldersPanel(props: PermissionPanelProps): ReactNode {
     if (live) load();
   }, [live, load]);
 
-  const decide = useCallback(
-    (path: string, verdict: "allow" | "deny"): void => {
+  /** 줄 하나를 쓴다: 쓰는 동안 그 줄을 잠그고, 끝나면 실패 글을 보이고 목록을 다시 읽는다 */
+  const write = useCallback(
+    (path: string, send: () => Promise<Result<unknown, CommandError>>, failure: string): void => {
       setBusy((prev) => new Set([...prev, path]));
       setError(null);
       detach(
-        commands.trust.decide(path, { kind: "folder", verdict }).then((result) => {
+        send().then((result) => {
           setBusy((prev) => new Set([...prev].filter((item) => item !== path)));
-          if (!result.ok) setError(t("desktop.settings.trust.decideFailed"));
+          if (!result.ok) setError(failure);
           load();
           return undefined;
         }),
         rethrow,
       );
     },
-    [commands, load],
+    [load],
+  );
+
+  const decide = useCallback(
+    (path: string, verdict: "allow" | "deny"): void => {
+      write(
+        path,
+        () => commands.trust.decide(path, { kind: "folder", verdict }),
+        t("desktop.settings.trust.decideFailed"),
+      );
+    },
+    [commands, write],
+  );
+
+  const remove = useCallback(
+    (path: string): void => {
+      write(path, () => commands.trust.remove(path), t("desktop.settings.trust.removeFailed"));
+    },
+    [commands, write],
   );
 
   return (
@@ -167,6 +193,7 @@ export function TrustedFoldersPanel(props: PermissionPanelProps): ReactNode {
             disabled={!live}
             nowMs={nowMs}
             onDecide={decide}
+            onRemove={remove}
           />
         </SettingSection>
       )}

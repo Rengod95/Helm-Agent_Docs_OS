@@ -1,8 +1,7 @@
 import { attemptAsync, err, ok, type Result } from "@fresnel/contracts";
-import type { HumanReauth } from "@fresnel/contracts/services";
 
 // 사람 재인증(L4.desktop.spec §4.17). 창은 Rust `os_reauth`가 띄운다(macOS Touch ID나 기기 암호).
-// 성공하면 reveal이 받는 `HumanReauth`(`os-auth`) 증거를 돌려준다. 값 보기 관문(`createOsReauthGate`, `src/app/secret-reveal-gate.ts`)이 이 함수를 쓴다.
+// 성공하면 값 보기가 호스트에 넘기는 `OsAuthEvidence`(`os-auth`, 인증 시각)를 돌려준다. 값 보기 관문(`createOsReauthGate`, `src/app/secret-reveal-gate.ts`)이 이 함수를 쓴다.
 // 운영은 main.tsx가 셸 다리의 `invoke`를 넘기고, 시험은 가짜를 넣는다(folder-pick.ts와 같은 방식).
 
 /** `os_reauth`의 invoke 모양. 인자는 시스템 창에 보일 한 줄 사유다 */
@@ -10,6 +9,15 @@ export type OsReauthInvoke = (
   command: "os_reauth",
   args: { readonly reason: string },
 ) => Promise<unknown>;
+
+/**
+ * 화면이 OS 재인증을 마쳤다는 증거. `secret.beginReveal`의 `reauth`로 그대로 보낸다(호스트가 60초 안인지 본다).
+ * 방식은 이 한 가지다: 셸 재인증(`os_reauth`)만 이 증거를 만든다
+ */
+export interface OsAuthEvidence {
+  readonly method: "os-auth";
+  readonly verifiedAt: number;
+}
 
 /** Rust `ReauthError`의 kind와 같다 */
 type OsReauthKind = "cancelled" | "denied" | "unavailable" | "failed";
@@ -25,13 +33,13 @@ const KINDS: readonly OsReauthKind[] = ["cancelled", "denied", "unavailable", "f
 export async function requestOsReauth(
   invoke: OsReauthInvoke,
   reason: string,
-): Promise<Result<HumanReauth, OsReauthError>> {
+): Promise<Result<OsAuthEvidence, OsReauthError>> {
   const reply = await attemptAsync(() => invoke("os_reauth", { reason }));
   if (!reply.ok) return err({ kind: kindOf(reply.error.cause) });
   return grantOf(reply.value);
 }
 
-function grantOf(reply: unknown): Result<HumanReauth, OsReauthError> {
+function grantOf(reply: unknown): Result<OsAuthEvidence, OsReauthError> {
   if (typeof reply === "object" && reply !== null && "verifiedAtMs" in reply) {
     const verifiedAt = reply.verifiedAtMs;
     if (typeof verifiedAt === "number" && Number.isSafeInteger(verifiedAt) && verifiedAt >= 0) {

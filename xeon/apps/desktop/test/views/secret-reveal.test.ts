@@ -6,10 +6,14 @@ import {
   REVEAL_VISIBLE_MS,
   type RevealFailure,
   type RevealGrant,
-  type SecretRevealPort,
 } from "@fresnel/client/settings";
+import type { OsAuthEvidence } from "../../src/views/os-reauth.ts";
 import type { SecretListEntry } from "@fresnel/contracts/wire";
-import { UNAVAILABLE_GATE, type RevealGate } from "../../src/app/secret-reveal-gate.ts";
+import {
+  UNAVAILABLE_GATE,
+  type GatedValuePort,
+  type RevealGate,
+} from "../../src/app/secret-reveal-gate.ts";
 import {
   createRevealSession,
   revealPortOf,
@@ -112,7 +116,7 @@ function fakeClipboard(refuse = false): {
 
 /** 값 포트. 부를 때마다 새 바이트를 내고, 낸 바이트를 모두 기억한다(덮였는지 본다) */
 function fakeValuePort(text: string): {
-  port: SecretRevealPort;
+  port: GatedValuePort;
   handed(): readonly Uint8Array[];
   calls(): number;
 } {
@@ -134,7 +138,9 @@ function fakeValuePort(text: string): {
 }
 
 /** 가짜 재인증 관문. 정해진 결과를 돌려주고 부른 횟수를 센다 */
-function fakeGate(outcome: Result<void, RevealFailure>): RevealGate & { calls(): number } {
+function fakeGate(
+  outcome: Result<OsAuthEvidence, RevealFailure>,
+): RevealGate & { calls(): number } {
   const state = { calls: 0 };
   return {
     available: true,
@@ -146,11 +152,11 @@ function fakeGate(outcome: Result<void, RevealFailure>): RevealGate & { calls():
   };
 }
 
-const PASSED: Result<void, RevealFailure> = ok(undefined);
+const PASSED: Result<OsAuthEvidence, RevealFailure> = ok({ method: "os-auth", verifiedAt: 0 });
 
 function sessionFor(options: {
   readonly gate: RevealGate;
-  readonly port: SecretRevealPort;
+  readonly port: GatedValuePort;
   readonly scheduler: Scheduler;
   readonly clock: { now(): number };
   readonly clipboard: { writeText(text: string): Promise<void> };
@@ -383,12 +389,14 @@ describe("secrets.value-never-in-state", () => {
 });
 
 function secretsWith(
-  answer: Result<boolean, SecretCommandError>,
-): Pick<SecretCommands, "beginReveal"> {
-  return { beginReveal: () => Promise.resolve(answer) };
+  answer: Result<Uint8Array | null, SecretCommandError>,
+): Pick<SecretCommands, "reveal"> {
+  return { reveal: () => Promise.resolve(answer) };
 }
 
-async function outcomeOf(answer: Result<boolean, SecretCommandError>): Promise<RevealView> {
+async function outcomeOf(
+  answer: Result<Uint8Array | null, SecretCommandError>,
+): Promise<RevealView> {
   const session = sessionFor({
     gate: fakeGate(PASSED),
     port: revealPortOf(secretsWith(answer)),
@@ -401,17 +409,17 @@ async function outcomeOf(answer: Result<boolean, SecretCommandError>): Promise<R
 }
 
 describe("the wire answers map to reveal outcomes", () => {
-  test("the host showing the value is a revealed state with no value in this process", async () => {
-    expect(await outcomeOf(ok(true))).toEqual({
+  test("the value the channel gave is a revealed state that holds it here, for the visible time", async () => {
+    expect(await outcomeOf(ok(new TextEncoder().encode(SECRET)))).toEqual({
       status: "revealed",
       name: NAME,
-      hostShown: true,
+      hostShown: false,
       remainingSec: REVEAL_VISIBLE_MS / 1000,
     });
   });
 
   test("a host that did not start the reveal is not_started", async () => {
-    expect(await outcomeOf(ok(false))).toEqual({
+    expect(await outcomeOf(ok(null))).toEqual({
       status: "failed",
       name: NAME,
       failure: { kind: "not_started" },

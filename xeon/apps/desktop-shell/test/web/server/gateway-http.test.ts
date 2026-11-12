@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { err } from "@fresnel/contracts";
+import { PAIRING_TTL_MS } from "../../../src/web/auth/pairing.ts";
 import { appCsp, loginCsp } from "../../../src/web/server/csp.ts";
 import {
   cleanupTempDirs,
@@ -208,6 +209,33 @@ describe("pairing (POST /pair)", () => {
       body: JSON.stringify({ code: issued.code, deviceName: "Late", kind: "web" }),
     });
     expect(during.status).toBe(429);
+  });
+
+  test("an expired code answers 401 expired_code; a wrong code answers 401 invalid_code with the same status and headers", async () => {
+    const h = await harness();
+    const issued = h.auth.createPairingCode();
+    h.clock.advance(PAIRING_TTL_MS);
+    const attempt = (code: string) =>
+      rawHttp({
+        port: portOf(h),
+        method: "POST",
+        path: "/pair",
+        headers: { host: hostOf(h), origin: h.origin },
+        body: JSON.stringify({ code, deviceName: "Late", kind: "web" }),
+      });
+    const expired = await attempt(issued.code);
+    const wrong = await attempt("ZZZZZZZZZZ");
+    expect([expired.status, jsonOf(expired.body)]).toEqual([401, { error: "expired_code" }]);
+    expect([wrong.status, jsonOf(wrong.body)]).toEqual([401, { error: "invalid_code" }]);
+    expect([
+      wrong.headers["content-type"],
+      wrong.headers["set-cookie"],
+      wrong.headers["retry-after"],
+    ]).toEqual([
+      expired.headers["content-type"],
+      expired.headers["set-cookie"],
+      expired.headers["retry-after"],
+    ]);
   });
 
   test("a device name the auth port refuses is 400 and does not use up the code", async () => {

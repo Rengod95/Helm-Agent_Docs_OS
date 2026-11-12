@@ -541,6 +541,36 @@ describe("M2 method schemas are written out", () => {
     expect(parse(reveal, { name: "github-token", value: "plain" }).ok).toBe(false);
   });
 
+  test("secret.beginReveal takes the desktop's os-auth evidence as a method and a time, and nothing else", () => {
+    const reveal = WIRE_METHODS["secret.beginReveal"].params;
+    const evidence: { readonly method: "os-auth"; readonly verifiedAt: number } = {
+      method: "os-auth",
+      verifiedAt: 1_762_900_000_000,
+    };
+    const accepted = parse(reveal, {
+      name: "github-token",
+      channel: "/tmp/x/c.sock",
+      reauth: evidence,
+    });
+    expect(accepted.ok).toBe(true);
+    expect(accepted.ok && accepted.value.reauth).toEqual(evidence);
+    expect(
+      parse(reveal, { name: "github-token", reauth: { method: "os-auth", verifiedAt: -1 } }).ok,
+    ).toBe(false);
+    expect(
+      parse(reveal, { name: "github-token", reauth: { method: "os-auth", verifiedAt: 1.5 } }).ok,
+    ).toBe(false);
+    expect(
+      parse(reveal, { name: "github-token", reauth: { method: "tty-confirm", verifiedAt: 1 } }).ok,
+    ).toBe(false);
+    expect(
+      parse(reveal, {
+        name: "github-token",
+        reauth: { method: "os-auth", verifiedAt: 1, value: "plain" },
+      }).ok,
+    ).toBe(false);
+  });
+
   test("secret.keyStatus and secret.keyMove carry no value, and the target is keychain or file", () => {
     const status = WIRE_METHODS["secret.keyStatus"];
     expect(status.stage).toBe("M4");
@@ -637,6 +667,72 @@ describe("M2 method schemas are written out", () => {
     expect(parse(result, { ...status, verdict: "maybe" }).ok).toBe(false);
     expect(parse(result, { ...status, via: "somewhere" }).ok).toBe(false);
     expect(parse(result, { ...status, extra: true }).ok).toBe(false);
+  });
+
+  test("trust.remove takes a workspace and returns the status after the removal", () => {
+    const remove = WIRE_METHODS["trust.remove"];
+    expect(remove.stage).toBe("M4");
+    expect(parse(remove.params, { workspace: "/work/app" }).ok).toBe(true);
+    expect(parse(remove.params, {}).ok).toBe(false);
+    expect(parse(remove.params, { workspace: "" }).ok).toBe(false);
+    expect(parse(remove.params, { workspace: "/work/app", path: "/work/app" }).ok).toBe(false);
+    // 지운 뒤에는 결정이 없어 미결정이고, 상위 폴더 결정이 있으면 그 판정이다
+    const after = {
+      projectRoot: "/work/app",
+      required: true,
+      verdict: "undecided",
+      via: "headless",
+      resources: [".mcp.json"],
+      options: [
+        {
+          choice: { kind: "folder", verdict: "allow" },
+          label: "trust-folder",
+          savedPath: "/work/app",
+        },
+      ],
+    };
+    expect(parse(remove.result, after).ok).toBe(true);
+    expect(parse(remove.result, { ...after, verdict: "allow", via: "store" }).ok).toBe(true);
+    expect(parse(remove.result, { ...after, verdict: "maybe" }).ok).toBe(false);
+    expect(WIRE_METHODS["trust.remove"].result).toBe(WIRE_METHODS["trust.decide"].result);
+  });
+
+  test("sandbox self-test methods take no params; the last result is a report or null, and a run returns the report", () => {
+    const report = {
+      at: 1_700_000_000_000,
+      durationMs: 42,
+      passed: false,
+      items: [
+        { id: "network_denied", passed: false, detail: "exit=0" },
+        { id: "env_allowlist", passed: true },
+      ],
+    };
+    const last = WIRE_METHODS["sandbox.lastSelfTest"];
+    expect(last.stage).toBe("M4");
+    expect(parse(last.params, {}).ok).toBe(true);
+    expect(parse(last.params, { workspace: "/work" }).ok).toBe(false);
+    expect(parse(last.result, { report: null }).ok).toBe(true);
+    expect(parse(last.result, { report }).ok).toBe(true);
+    expect(parse(last.result, {}).ok).toBe(false);
+    expect(parse(last.result, { report: { ...report, extra: true } }).ok).toBe(false);
+    expect(
+      parse(last.result, { report: { ...report, items: [{ id: "nope", passed: true }] } }).ok,
+    ).toBe(false);
+    expect(
+      parse(last.result, {
+        report: {
+          ...report,
+          items: [{ id: "network_denied", passed: false, detail: "x".repeat(501) }],
+        },
+      }).ok,
+    ).toBe(false);
+
+    const run = WIRE_METHODS["sandbox.selfTest"];
+    expect(run.stage).toBe("M4");
+    expect(parse(run.params, {}).ok).toBe(true);
+    expect(parse(run.result, report).ok).toBe(true);
+    expect(parse(run.result, { report: null }).ok).toBe(false);
+    expect(parse(run.result, { ...report, passed: "no" }).ok).toBe(false);
   });
 
   test("trust status details are optional names and commands, never env values", () => {

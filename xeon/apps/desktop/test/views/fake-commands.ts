@@ -29,6 +29,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     readThreadThinking: () => Promise.resolve(ok(undefined)),
     onThreadThinkingChanged: () => () => {},
     listModels: () => Promise.resolve(ok({ models: [] })),
+    checkProviderAuth: () => Promise.resolve(ok({ kind: "ok" })),
     closeThread: () => Promise.resolve(ok(null)),
     deleteThread: () => Promise.resolve(ok(null)),
     exportThread: () => Promise.resolve(err({ kind: "unsupported" })),
@@ -55,6 +56,11 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       status: () => Promise.resolve(err({ kind: "unsupported" })),
       decide: () => Promise.resolve(err({ kind: "unsupported" })),
       list: () => Promise.resolve(err({ kind: "unsupported" })),
+      remove: () => Promise.resolve(err({ kind: "unsupported" })),
+    },
+    sandbox: {
+      lastSelfTest: () => Promise.resolve(err({ kind: "unsupported" })),
+      selfTest: () => Promise.resolve(err({ kind: "unsupported" })),
     },
     workspace: {
       status: () => Promise.resolve(err({ kind: "unsupported" })),
@@ -205,7 +211,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       remove: () => Promise.resolve(err({ kind: "unsupported" })),
       beginEntry: () => Promise.resolve(err({ kind: "unsupported" })),
       registerKey: () => Promise.resolve(ok(null)),
-      beginReveal: () => Promise.resolve(err({ kind: "unsupported" })),
+      reveal: () => Promise.resolve(err({ kind: "unsupported" })),
       keyStatus: () => Promise.resolve(err({ kind: "unsupported" })),
       keyMove: () => Promise.resolve(err({ kind: "unsupported" })),
       writeClipboard: () => Promise.resolve(),

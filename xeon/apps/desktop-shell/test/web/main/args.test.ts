@@ -94,6 +94,25 @@ describe("parseArgs: accepted", () => {
     });
   });
 
+  test("an IPv6 name in --hosts is accepted in brackets (the form the service writes) and kept without them", () => {
+    const parsed = parseArgs(
+      [
+        ...BASE,
+        "--listen-tls",
+        "0.0.0.0:8443",
+        "--hosts",
+        "box.local,100.64.0.7,[fd7a:115c:a1e0::1]",
+      ],
+      DEFAULTS,
+    );
+    expect(
+      parsed.ok && parsed.value.kind === "run" ? parsed.value.options.tls?.hosts : null,
+    ).toEqual(["box.local", "100.64.0.7", "fd7a:115c:a1e0::1"]);
+    expect(usageOf([...BASE, "--listen-tls", "0.0.0.0:8443", "--hosts", "fd7a:115c:a1e0::1"])).toBe(
+      '--hosts has a bad name: "fd7a:115c:a1e0::1"',
+    );
+  });
+
   test("a wildcard TLS address takes its names from --hosts only", () => {
     const parsed = parseArgs(
       [...BASE, "--listen-tls", "[::]:8443", "--hosts", "fresnel.lan"],

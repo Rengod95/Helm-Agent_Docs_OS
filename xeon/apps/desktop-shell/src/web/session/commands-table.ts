@@ -74,6 +74,10 @@ export const COMMAND_TABLE: Readonly<Record<string, Disposition>> = {
 
   // 키 등록과 설정. 웹은 기기마다 파일 하나에 쓴다(device-settings.ts). 창 닫기와 엔진 키는 거절한다
   secret_register: ORIGIN,
+  // 값 보기의 로컬 채널(데스크톱 전용). 웹 탭은 같은 컴퓨터의 소켓을 열 수 없으므로 거절한다
+  secret_reveal_open: HIDDEN,
+  secret_reveal_take: HIDDEN,
+  secret_reveal_close: HIDDEN,
   desktop_settings_read: ORIGIN,
   desktop_settings_write: ORIGIN,
 

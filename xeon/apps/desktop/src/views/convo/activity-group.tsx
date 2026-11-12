@@ -70,14 +70,17 @@ export function ActivityGroup(props: {
     first !== undefined &&
     props.entries.length === 1
   ) {
+    // 쓰는 중이던 호출 줄이 확정되어 이 줄이 될 때 그 줄의 높이(인자 꼬리 포함)에서 이어 준다(dzM2 시안 §4)
     return (
-      <CallRow
-        threadId={props.threadId}
-        itemId={first.itemId}
-        callId={only.callId}
-        name={only.name}
-        args={only.args}
-      />
+      <HeightGlide handoff={first.itemId}>
+        <CallRow
+          threadId={props.threadId}
+          itemId={first.itemId}
+          callId={only.callId}
+          name={only.name}
+          args={only.args}
+        />
+      </HeightGlide>
     );
   }
   const activity: ActivityCall[] = calls.map((call, index) => ({

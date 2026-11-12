@@ -114,6 +114,21 @@ function nullableOf(schema: unknown): boolean {
   return members !== null && members.some(isNullSchema);
 }
 
+/**
+ * 중첩 값 열이 받는 빈 값의 모양. 빈 배열이 스키마에 맞으면 `array`, 필수 속성이 없는 객체면 `object`다.
+ * 둘 다 아니면 빈 값을 정할 수 없으므로 아무것도 더하지 않는다(새 행이나 새 이름에 이 열을 넣지 못한다).
+ */
+function emptyJsonOf(core: Schema): { readonly emptyJson?: "array" | "object" } {
+  if (core["type"] === "array") {
+    return (numberOrNull(core["minItems"]) ?? 0) > 0 ? {} : { emptyJson: "array" };
+  }
+  if (core["type"] === "object") {
+    const needsKeys = requiredOf(core).length > 0 || (numberOrNull(core["minProperties"]) ?? 0) > 0;
+    return needsKeys ? {} : { emptyJson: "object" };
+  }
+  return {};
+}
+
 function columnOf(name: string, schema: unknown, required: boolean): TableColumn {
   const core: Schema = isSchema(schema) ? coreOf(schema) : {};
   const nullable = nullableOf(schema) ? { nullable: true } : {};
@@ -121,7 +136,7 @@ function columnOf(name: string, schema: unknown, required: boolean): TableColumn
   if (options !== null) return { name, kind: "enum", options, required, ...nullable };
   const kind = primitiveOf(core);
   if (kind !== null) return { name, kind, options: null, required, ...nullable };
-  return { name, kind: "json", options: null, required, ...nullable };
+  return { name, kind: "json", options: null, required, ...nullable, ...emptyJsonOf(core) };
 }
 
 /** 객체 배열. 열은 `items.properties`의 순서다 */
@@ -181,7 +196,9 @@ function recordOf(core: Schema): WidgetVM | null {
   if (core["type"] !== "object" || propertiesOf(core) !== null) return null;
   const value = recordValueSchema(core);
   if (value === null) return null;
-  const valueKind = primitiveOf(coreOf(value)) ?? "json";
+  const valueCore = coreOf(value);
+  const valueKind = primitiveOf(valueCore) ?? "json";
+  const valueEmpty = valueKind === "json" ? emptyJsonOf(valueCore) : {};
   const columns: readonly TableColumn[] = [
     { name: t("client.settings.widget.recordName"), kind: "string", options: null, required: true },
     {
@@ -189,6 +206,7 @@ function recordOf(core: Schema): WidgetVM | null {
       kind: valueKind,
       options: null,
       required: true,
+      ...valueEmpty,
     },
   ];
   return { kind: "table", shape: "record", columns, maxItems: numberOrNull(core["maxProperties"]) };

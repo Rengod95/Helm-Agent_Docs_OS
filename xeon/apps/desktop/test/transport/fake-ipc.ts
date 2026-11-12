@@ -99,6 +99,9 @@ const REMOTE_PAIR_OK: RemotePairReply = { ok: true, deviceName: "laptop" };
 const SERVICE_ALIVE_OK: ServiceAliveReply = { alive: true, version: "1.2.3", code: "ok" };
 
 const enc = new TextEncoder();
+/** 값 보기 채널의 가짜 답. 경로는 실제 소켓이 아니다(셸이 없는 시험) */
+export const REVEAL_ID = "00000000-0000-4000-8000-000000000001";
+export const REVEAL_PATH = "/fake/fresnel-reveal/reveal.sock";
 const dec = new TextDecoder();
 
 export type FakeIpc = {
@@ -118,6 +121,8 @@ export type FakeIpc = {
   readonly settingsFile: Record<string, unknown>;
   /** `registerSecret` 호출. 값은 호출 시점의 글자로 남긴다(호출자가 바이트를 덮은 뒤에도 비교할 수 있다) */
   readonly registered: { readonly name: string; readonly action: string; readonly text: string }[];
+  /** 값 보기 채널 호출 순서. `open`, `take <id>`, `close <id>` 꼴이다 */
+  readonly revealCalls: string[];
   /** `dbRestore` 호출에 넘어온 백업 폴더, 호출 순서 */
   readonly restored: string[];
   /** `dbExport` 호출에 넘어온 부모 폴더, 호출 순서 */
@@ -146,6 +151,10 @@ export type FakeIpcOptions = {
   readonly writeError?: IpcError;
   /** `registerSecret`이 돌려줄 오류. 없으면 성공 */
   readonly registerError?: SecretRegisterError;
+  /** 값 보기 채널의 `take`가 돌려줄 바이트. 없으면 `null`(값이 없었다)이다 */
+  readonly revealBytes?: Uint8Array | null;
+  /** 값 보기 채널 열기가 실패하게 한다. 없으면 성공이다 */
+  readonly revealOpenError?: IpcError;
   /** `dbRestore`가 돌려줄 결과. 없으면 종료 코드 0과 `RESTORE_REPORT`다 */
   readonly dbRestoreResult?: Result<DbRestoreReply, IpcError>;
   /** `dbExport`가 돌려줄 결과. 없으면 종료 코드 0과 `BACKUP_REPORT`다 */
@@ -195,6 +204,7 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
   const retargeted: EngineTarget[] = [];
   const settingsFile: Record<string, unknown> = {};
   const registered: { name: string; action: string; text: string }[] = [];
+  const revealCalls: string[] = [];
   const restored: string[] = [];
   const dbExportCalls: string[] = [];
   const dbPreviousRemoveCalls: string[] = [];
@@ -252,6 +262,23 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
             ? { ok: true, value: null }
             : { ok: false, error: options.registerError },
         );
+      },
+      revealOpen() {
+        revealCalls.push("open");
+        return Promise.resolve(
+          options.revealOpenError === undefined
+            ? { ok: true, value: { id: REVEAL_ID, path: REVEAL_PATH } }
+            : { ok: false, error: options.revealOpenError },
+        );
+      },
+      revealTake(id) {
+        revealCalls.push(`take ${id}`);
+        const bytes = options.revealBytes ?? null;
+        return Promise.resolve({ ok: true, value: bytes === null ? null : bytes.slice() });
+      },
+      revealClose(id) {
+        revealCalls.push(`close ${id}`);
+        return Promise.resolve({ ok: true, value: null });
       },
       dbRestore(backupDir) {
         restored.push(backupDir);
@@ -343,6 +370,7 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
     retargeted,
     settingsFile,
     registered,
+    revealCalls,
     restored,
     dbExportCalls,
     dbPreviousRemoveCalls,

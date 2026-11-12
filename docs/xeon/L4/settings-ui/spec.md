@@ -651,6 +651,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 - [결정: M3b B3-SET] `table`은 세 모양을 더 받는다. `fixed`는 `properties`가 고정된 원시 값 객체이고 `additionalProperties`가 없다(열 = 속성 이름, 예: `l1.models.thinkingBudgets`의 레벨별 토큰 예산 여섯 개). `record`는 `additionalProperties`나 TypeBox `Type.Record`가 내는 항목 하나짜리 `patternProperties`를 값 스키마로 읽고, 값이 객체 같은 중첩 값이면 `값` 열이 `json`(읽기만, 편집은 파일 편집기)이다. 널을 허용하는 원시 값(`anyOf [X, null]`, `type: [X, "null"]`)은 그 원시 값으로 본다. 모델 참조(`provider/modelId`)는 `text`다: `l1.models.routing.*`는 `text`로 선언한다.
 - 위젯이 `widgetMismatch`이거나 알 수 없는 값(`unknownWidget`)이면 그 항목을 `readonly`로 그리고 진단을 advanced 탭에 모은다. 편집은 파일 편집기로만 한다 [제안].
 - 표 열 하나가 원시 타입이나 enum이 아니면(중첩 객체) 그 열은 JSON 접힘 보기로 읽기만 하고, 그 열 편집은 파일 편집기로 넘긴다 [제안].
+- [결정: 2026-11-11 사용자] 새 행(`rows`)과 새 이름(`record`)의 값은 열이 스키마에 맞게 받는 빈 값이다. 중첩 값 열이 배열이면 `[]`, 필수 속성이 없는 객체면 `{}`다(`TableColumn.emptyJson`). 빈 값을 정할 수 없으면(필수 속성이 있는 객체 등) 행이나 이름을 넣지 않고 "여기서는 빈 값을 만들 수 없어요. 파일로 보기에서 넣어 주세요."를 보인다. `null`은 넣지 않는다. 스키마가 받지 않아 저장이 `settings.invalidValue`로 거절되기 때문이다 [근거: apps/desktop/src/views/pages/settings/settings-table-model.ts `defaultCellOf`]. 값 열은 표에서 고치지 않으므로 넣은 뒤 내용은 파일 편집기로 채운다.
 - 표 열 머리와 선택지 값은 카탈로그 문장으로 보인다: `settings.<설정 키>.column.<열 이름>`, `settings.<설정 키>.option.<값>`(값의 `-`·`_`는 camelCase). 없으면 열 이름이나 값 그대로 보인다 [제안].
 
 #### 4.2.2 값이 없을 때
@@ -946,7 +947,7 @@ sequenceDiagram
 | C. L0.secrets 흐름 위임 | WebView는 `secret.beginEntry {name, action}` 같은 값 없는 요청만 보낸다 → 호스트의 L0.secrets가 OS 보안 입력(키체인 대화상자, pinentry 등)이나 터미널 프롬프트를 띄워 값을 직접 받는다 → 결과 상태만 돌려준다 | L0.secrets와 OS 입력 창 | 값이 DOM, wire, 이벤트 어디에도 없다. 열람(`secret.beginReveal`)도 같은 경로로 OS 창에 한 번 보이고 닫힌다. CLI의 `secret add`(stdin) 흐름과 소유 위치가 같다(`_research/secrets.md` §6.6) | OS별 보안 입력 구현이 필요하다(L0.os·L0.secrets). Linux에 pinentry가 없으면 대체 경로가 필요하다 | 값 없는 메서드 추가 |
 
 - [제안] C안을 쓴다. CLI의 `secret add/set/rotate`도 같은 값 없는 `secret.beginEntry`를 쓴다(`L4.cli.spec` §4.7). 메서드 이름은 단수 `secret.*`이고 `L4.readme` §8.1 표가 정본이다. 호스트가 값을 받는 길은 서비스 접속에서 요청의 로컬 일회용 채널이다(HS-44). 2026-11-12 결정으로 서비스 연결도 사이드카(`fresnel secret add`)가 같은 채널로 값을 전달하므로 데스크톱 키 등록이 서비스 모드에서도 된다 [결정: 2026-11-12 사용자]. 이 연결의 최소 설정 화면은 C안 대신 B안의 변형을 쓴다 [결정: M2 첫 실행 M-12]: 화면 안의 등록 창이 값을 한 번 받아 셸에 넘기고(옛 Tauri 구현(커밋 424f338a)은 Rust 셸, 지금은 Electron `secret-entry.ts`, `L4.desktop.spec` §11.5), 셸은 번들된 `fresnel secret add|set`을 실행해 stdin에 한 번 쓴다. 시크릿 저장 로직은 셸에 새로 생기지 않고 CLI의 것을 그대로 쓴다. 약점은 B안과 같다(값이 DOM과 셸 IPC를 지난다). 규칙과 약점은 `L4.desktop.spec` §4.14.1이다. 셸 경로가 없으면 `fresnel secret add <이름>` 명령 안내로 돌아간다(이 명령은 stdin으로 값을 받는다, `_research/secrets.md` §6.6). M3의 시크릿 탭은 C안을 쓴다.
-- [결정: review.decisions-2 U-20] 값 열람 경로는 M2 CLI `fresnel secret reveal`(`L4.cli.spec` §4.7)과 M3 이 화면의 "값 보기" 둘이다. 에이전트 경로에는 열람이 없다. 이 화면의 열람은 C안 경로(`secret.beginReveal`, OS 인증 재확인)를 쓴다.
+- [결정: review.decisions-2 U-20] 값 열람 경로는 M2 CLI `fresnel secret reveal`(`L4.cli.spec` §4.7)과 M3 이 화면의 "값 보기" 둘이다. 에이전트 경로에는 열람이 없다. 이 화면의 열람은 C안 경로(`secret.beginReveal`, OS 인증 재확인)를 쓴다. 값은 셸 로컬 채널로 받는다(2026-11-11 결정, `L4.desktop` §4.17 "값 보기 채널"). 화면의 값 경로는 `revealPortOf`(`src/views/pages/secrets/secret-reveal.ts`)로 `{ kind: "value", bytes }`를 넘기고, `null`이면 `not_started`다.
 - [제안] C안에서 셸 포트 `openSecretFlow`는 desktop이 호스트 메서드를 불러 구현한다. settings-ui는 결과 상태(`SecretFlowOutcome`)만 받는다.
 - C안이 OS에서 불가능한 경우의 대체로 A안을 쓸지는 [미결]이다(§10 미결 2). A안을 쓰면 값이 wire를 지나므로 `L4.readme` §4 시크릿 행, `L4.desktop.spec` E11, `L0.secrets.spec` §8.3 R4의 전제를 함께 고쳐야 한다. 그때도 입력란은 한 번 쓰고 비우는 별도 창에 두고, view-model 상태에는 넣지 않는다.
 - 어느 안이든 F 메서드 추가가 필요하므로 F 변경 요청 여부를 §10 미결 2, 3에 둔다.
@@ -996,6 +997,7 @@ sequenceDiagram
 2. `source.path`가 있으면 "정책 파일: {경로}"를 덧붙인다. 없으면 경로 자리를 비운다.
 3. 잠금 사유는 문장이 아니라 종류다 [결정: M3-REQ-15 `EffectiveSetting.lockReason`]. `managed_file`(생략하면 이 값)은 위 1·2번 문구를 그대로 쓰고, `managed_policy`(OS 정책 등 파일 밖 수단)는 "관리 정책(파일 밖 수단)으로 잠겨 있어요"이며 경로 자리가 없다. 종류에 없는 사유를 짐작해 만들지 않는다. 사유 문구를 관리자가 정책 파일에 적는 방법은 [미결]이다(§10 미결 10).
 4. 잠긴 키를 바꾸려면 관리자에게 문의하라는 안내 문구는 두지 않는다. 본인 사용이 첫 대상이라 관리자가 곧 사용자인 경우가 많기 때문이다 [가정].
+5. [결정: 2026-11-11 사용자] 정의가 관리 범위만 허용하면(`allowedScopes`가 `managed`뿐, 예: `l2.mcp.managedOnly`, `l1.tools.bypassAllowed`) 관리 값이 없어도 항목은 바꿀 수 없다(§4.3.6 6번의 후보 없음 가운데 관리 범위뿐인 경우) [근거: packages/client/src/settings/badges.ts `managedOnlyLockOf`]. 이때 잠금 종류는 `managed_only`이고 문구는 "관리자 설정에서만 바꿀 수 있어요"다(경로 자리가 없다). 종류는 정의에서 읽는 사실이라 F의 `lockReason`에 싣지 않고 화면 view-model(`lockOf`)이 정한다. 관리 값이 있으면 1~3번대로 `managed_file`·`managed_policy`다. 항목 줄은 잠긴 항목과 같이 꺼지고 잠금 줄을 보인다.
 
 ### 4.9 코드 위치
 
@@ -1090,6 +1092,7 @@ sequenceDiagram
 3. 표에 없는 키는 화면에 그리지 않고 찾기에도 나오지 않는다. 엔진 정의, 기본값, 설정 파일 값은 그대로이고 "파일로 보기"로 고칠 수 있다. 화면에서 뺀 묶음: 예산과 한도(`l1.loop.*`, 이어가기, 추론 예산, 라우팅, 레이트 리밋), 엔진의 OS 알림(`l2.dialog.notify.*`, 알림 구역과 겹침), 서비스와 원격 웹(`l0.process.service.*`, `l4.remote.web.*`, 연결 구역의 실행 방식과 겹침), 운영자 키(저장소 주기, 진단 주소 등). [결정: 2026-11-12 dzX] 읽는 곳이 없는 키도 뺀다: `l0.secrets.approval.writeHosts`(L0.secrets.spec §6.1), `l0.os.telemetry.enabled`(L0.os.spec §6).
 4. 설정 점프(`requestSettingsJump`)는 구역 id나 옛 탭 값을 받는다. 키가 표에 있으면 그 키의 구역을 열고, 아니면 받은 구역(옛 탭이면 옮겨 간 구역)을 연다. 연결 열기(`connection.open`)는 `{ tab: "connection" }` 점프다.
 5. [결정: 2026-11-11 사용자] 전용 패널도 자기가 그리는 키를 구역 표에 적는다(`panel(id, keys)`). 그래서 패널이 그리는 키도 한 구역에만 들고, 점프는 그 구역을 열며, 찾기는 맞은 키를 일반 항목 줄로 보인다. 모델과 계정, 권한, 샌드박스 구역에는 일반 항목 줄이 없다. 시크릿 고급에 넣는 키는 `l0.secrets.providers`, `defaultProvider`, `ageKey.filePath`, `lease.ttlSeconds`, `lease.maxUses`, `audit.retentionDays`다. `ageKey.source`는 시크릿 구역의 열쇠 보관 줄(§4.6.5)이 맡는다 [결정: 2026-11-12 사용자]. `sops.binary`, `sops.files`, `redaction.enabled`는 화면에서 뺀다(파일로 보기로 고친다). 옛 "계정 회전" 패널 id(`rotation`)는 계정 패널(`accounts`)에 들어갔다 [근거: apps/desktop/src/views/pages/settings/settings-sections.ts `SETTINGS_SECTIONS`, `SECRET_ADVANCED_KEYS`].
+6. [결정: 2026-11-11 사용자] 샌드박스 구역의 "쓸 수 없을 때" 선택지는 둘이다: 명령 실행 막기(`disable_execute`)와 격리 없이 실행(`run_unsandboxed`). "물어보기"(`ask`)는 뺐다(L0.sandbox.spec §4.5). 선택지는 `l0.sandbox.onUnavailable`의 범위 값에서 오고 화면은 따로 목록을 두지 않는다. 저장된 옛 값 `ask`는 막기로 읽는다.
 
 #### 4.12.2 범위 없는 항목 줄
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { describeSandboxStatus, type BinaryName } from "@fresnel/contracts/services";
+import { describeSandboxStatus, type BinaryName, type Shell } from "@fresnel/contracts/services";
 import { createSandboxService } from "../src/service.ts";
 import { selectSandboxProvider, type PlatformInput } from "../src/select.ts";
 import {
@@ -241,11 +241,11 @@ describe("status", () => {
       provider,
       enabled: true,
       detection: { kind: "ready", tools: {} },
-      onUnavailable: "ask",
+      onUnavailable: "run_unsandboxed",
       lastSelfTest: undefined,
     });
     expect(formatStatusLine(status)).toBe(
-      "sandbox level=srt platform=linux available=true reason=none onUnavailable=ask",
+      "sandbox level=srt platform=linux available=true reason=none onUnavailable=run_unsandboxed",
     );
   });
 
@@ -254,7 +254,7 @@ describe("status", () => {
     const base = {
       provider,
       enabled: true,
-      onUnavailable: "ask",
+      onUnavailable: "disable_execute",
       lastSelfTest: undefined,
     } as const;
     const ready = buildStatus({
@@ -339,6 +339,75 @@ describe("status", () => {
     expect(report.items.every((item) => item.detail === "sandbox_unavailable")).toBe(true);
     expect(service.status().reason).toBe("missing_dependency");
     expect(service.status().lastSelfTest).toBeUndefined();
+    expect(service.lastSelfTestReport()).toBeUndefined();
+  });
+
+  // 마지막 보고서 전체(항목별 사유)는 status의 실패 id 목록과 달리 항목을 모두 싣는다. 시험 전에는 없다
+  test("the last report keeps every item with its reason, and is absent before any run", async () => {
+    const dirs = makeTestDirs();
+    const service = await createSandboxService(
+      {
+        os: fakeOs(dirs),
+        settings: () => settingsOf(),
+        srt: fakeSrt({ passthrough: true }),
+        platform: linuxPlatform(),
+        parentEnv: () => ({}),
+      },
+      new AbortController().signal,
+    );
+    expect(service.lastSelfTestReport()).toBeUndefined();
+    const failing = await service.selfTest(selfTestShell(new Set(["network_denied"])), NO_CANCEL);
+    expect(service.lastSelfTestReport()).toBe(failing);
+    expect(service.lastSelfTestReport()?.items.map((item) => item.id)).toEqual([
+      "protected_read_denied",
+      "fresnel_data_write_denied",
+      "network_denied",
+      "workspace_write_allowed",
+      "env_allowlist",
+      "git_hooks_write_denied",
+    ]);
+    expect(
+      service.lastSelfTestReport()?.items.find((item) => item.id === "network_denied"),
+    ).toEqual({ id: "network_denied", passed: false, detail: "exit=0" });
+    const passing = await service.selfTest(selfTestShell(), NO_CANCEL);
+    expect(service.lastSelfTestReport()).toBe(passing);
+    expect(service.lastSelfTestReport()?.passed).toBe(true);
+  });
+
+  // 예약 시험과 사람이 누른 시험은 같은 `selftest/` 폴더를 쓴다. 한 번에 하나만 돌아야 서로의 표식을 지우지 않는다
+  test("two self-test runs started together take turns: no command of one runs while the other is in flight", async () => {
+    const inner = selfTestShell();
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const shell: Shell = {
+      ...inner,
+      exec: async (command, options, context) => {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        inFlight -= 1;
+        return inner.exec(command, options, context);
+      },
+    };
+    const dirs = makeTestDirs();
+    const service = await createSandboxService(
+      {
+        os: fakeOs(dirs),
+        settings: () => settingsOf(),
+        srt: fakeSrt({ passthrough: true }),
+        platform: linuxPlatform(),
+        parentEnv: () => ({}),
+      },
+      new AbortController().signal,
+    );
+    const [first, second] = await Promise.all([
+      service.selfTest(shell, NO_CANCEL),
+      service.selfTest(shell, NO_CANCEL),
+    ]);
+    expect(maxInFlight).toBe(1);
+    expect([first.passed, second.passed]).toEqual([true, true]);
+    // 나중에 끝난 실행이 마지막 보고서다
+    expect(service.lastSelfTestReport()).toBe(second);
   });
 });
 

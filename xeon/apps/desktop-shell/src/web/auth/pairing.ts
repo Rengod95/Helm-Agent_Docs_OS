@@ -28,8 +28,10 @@ export interface IssuedCode {
 }
 
 export type PairingError =
-  /** 틀림, 만료, 이미 씀, 발급된 코드 없음을 구분하지 않는다(코드 존재 여부를 흘리지 않는다) */
+  /** 틀린 코드, 이미 쓴 코드, 발급된 코드 없음을 구분하지 않는다(코드 존재 여부를 흘리지 않는다) */
   | { readonly kind: "invalid_code" }
+  /** 발급됐던 코드를 기한(5분)이 지난 뒤에 맞혔다. 틀린 코드와 다르게 답하는 유일한 경우다 [결정: 2026-11-11 사용자] */
+  | { readonly kind: "expired_code" }
   | { readonly kind: "locked"; readonly scope: "address" | "all"; readonly retryAfterMs: number };
 
 export type PairingEvent =
@@ -148,10 +150,15 @@ export function createPairingCodes(options: PairingOptions): PairingCodes {
 
       const normalized = normalizeCode(input);
       const candidate = active;
-      const live = candidate !== null && candidate.expiresAt > now ? candidate : null;
-      // 모양이 틀려도, 코드가 없어도 같은 비용으로 비교한다
-      const same = timingSafeEqual(digest(normalized ?? ""), digest(live?.code ?? ""));
-      if (normalized === null || live === null || !same) return err(fail(address, now));
+      // 모양이 틀려도, 코드가 없어도 같은 비용으로 비교한다. 기한이 지난 코드도 `active`에 남아 있어서 만료를 가려낼 수 있다
+      const same = timingSafeEqual(digest(normalized ?? ""), digest(candidate?.code ?? ""));
+      if (normalized === null || candidate === null || !same) return err(fail(address, now));
+      if (candidate.expiresAt <= now) {
+        // 맞힌 코드가 기한을 넘겼다. 실패로 세는 것은 같고(잠금 규칙도 같다), 답만 다르다
+        const failed = fail(address, now);
+        const expired: PairingError = { kind: "expired_code" };
+        return err(failed.kind === "invalid_code" ? expired : failed);
+      }
 
       active = null;
       total = { count: 0, since: 0 };

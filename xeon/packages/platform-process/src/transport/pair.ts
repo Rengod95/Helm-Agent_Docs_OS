@@ -308,6 +308,8 @@ function classify(reply: HttpReply): Result<PairGrant, PairError> {
 function failureOf(status: number, code: string, retryAfter: string | undefined): PairError {
   if (status === 400 && code === "invalid_device_name") return { kind: "invalid_device_name" };
   if (status === 401 && code === "invalid_code") return { kind: "invalid_code" };
+  // 기한이 지난 코드도 `invalid_code`로 옮긴다: 데스크톱의 문장("맞지 않거나 만료됐어요")이 두 경우를 함께 말한다 [결정: 2026-11-11 사용자]
+  if (status === 401 && code === "expired_code") return { kind: "invalid_code" };
   if (status === 429 && code === "locked") {
     if (retryAfter === undefined || !DECIMAL_SECONDS.test(retryAfter)) {
       return { kind: "bad_response" };

@@ -539,6 +539,19 @@ export function setup(g: ScopeApi<unknown>): void;
 - 시험: 어댑터 원시 이벤트를 테이프 차례의 `rawEvents`로 재생한다(`@fresnel/core-models/testing`의 테이프 provider). 네트워크 호출은 없다.
 - 범위 밖: 이 포트는 대화 기록에 남지 않는 단일 턴 요청이다. 메인 모델의 일반 턴 요청에 서버 도구를 넣는 일(`L2.web.spec` §4.8.1 A안)은 M2에 구현하지 않았다. 사유는 §10 12번이다.
 
+### 3.13 provider 인증 확인 [결정: 2026-11-11 사용자]
+
+`ModelService.checkProviderAuth(providerId, signal)`(F `ModelService`, `@fresnel/contracts/services`)는 사용자가 연결 시험을 누른 provider의 저장된 키가 받아들여지는지 한 번 확인한다. 와이어는 `provider.checkAuth`다(`F.wire-settings.spec` 메서드 표). 구현은 `core-models/src/provider-auth.ts`다.
+
+- 요청: 제공자의 값 없는 GET 하나만 보낸다. 생성 호출, 토큰을 쓰는 요청, 도구 호출은 하지 않는다. 경로는 내장 provider id별로 정한다. `anthropic`은 `GET {주소}/v1/models`(`x-api-key`, `anthropic-version`), `openai`는 `GET {주소}/models`(`authorization: Bearer`), `google`은 `GET {주소}/models`(`x-goog-api-key`), `openrouter`는 `GET {주소}/key`(`authorization: Bearer`)다. 기본 주소가 버전 경로를 포함하므로(`openai` `https://api.openai.com/v1`, `google` `.../v1beta`, `openrouter` `https://openrouter.ai/api/v1`) 붙는 경로가 그에 맞춘다. 공식 참조에서 OpenRouter 키 정보 경로는 `/key`였다. [미확인: Anthropic 예시는 `Authorization: Bearer`와 버전 `2026-10-21`을 보였고, 이 구현은 pi-ai의 `x-api-key` 쓰임과 `2023-06-01`을 따른다. 실제 응답으로 확인하지 못했다.] 목록에 없는 provider(사용자 정의 OpenAI 호환 등)는 경로를 모르므로 `unsupported`다.
+- 주소: 설정 `l1.models.providers`의 `baseUrl` → 등록부 덮어쓰기 → provider 기본 주소 순이다(`providerTarget`과 같은 순서). 다른 주소로는 가지 않는다. 리다이렉트는 따라가지 않는다(`redirect: manual`, 3xx는 `badAddress`).
+- 정책 관계: 웹 도구의 허용·거부 도메인(`L2.web`)과 샌드박스 정책을 받지 않는다. 이 호출은 모델이나 도구의 호출이 아니라 사용자가 누른 설정 동작이다. 대신 키는 §3.9의 `lease`를 그대로 거친다(`runtime-http`, purpose `model.provider:<id>`, 목적지는 설정 주소의 호스트). 키 정책이 설정 주소를 허락하지 않으면 `noKey`다. 새 허용을 만들지 않는다.
+- 시한과 취소: 8초(`PROVIDER_AUTH_TIMEOUT_MS`)가 지나면 `timeout`이다. 호출자가 `signal`을 끊으면 함수는 거절(throw)하고, 와이어는 `request.cancelled`(5001)로 옮긴다.
+- 결과 종류(`ProviderAuthCheck.kind`): `ok`(2xx, `status`), `rejected`(401·403, 그리고 400·422 같은 4xx 본문이 키를 말함. Google은 잘못된 키를 400으로 준다), `quotaOrBilling`(402·429, 또는 4xx 본문이 결제·할당량·잔액을 말함), `badAddress`(404, 3xx, DNS·연결 거부, 해석할 수 없는 주소), `upstream`(그 밖의 응답, 5xx 포함), `timeout`, `unsupported`, `oauthTokenNotApiKey`(키가 `sk-ant-oat`로 시작하면 네트워크를 쓰지 않고 접두만 보고 거절한다. §3.9 위장 가드와 같은 접두다), `noKey`(키 참조가 없거나 끈 provider, 또는 시크릿을 풀 수 없음. 사유에는 시크릿 이름과 오류 종류만 싣는다).
+- 가림: `reason`은 오류 본문의 `error.message`(중첩 포함)나 짧은 평문이다. HTML 본문은 사유가 아니다. 키 값 전체와 8자 이상인 앞·뒤 조각을 `••••`로 바꾼 뒤 200자로 자른다. 결과와 로그에는 키 값을 싣지 않는다.
+- 로그: `provider.auth_checked`에 provider id, 결과 종류, HTTP 상태만 남긴다.
+- 범위 밖: 이 절은 provider 키만 본다. 계정 풀(`l1.models.accounts`)의 계정 키는 확인하지 않는다. 클라이언트 쪽 연결 시험 줄은 화면 작업이다.
+
 ## 4. 동작 규칙
 
 ### 4.1 역할 해석
