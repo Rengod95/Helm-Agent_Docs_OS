@@ -105,6 +105,8 @@ export const COMMAND_TABLE: Readonly<Record<string, Disposition>> = {
   // 창 틀(신호등·창 단추 자리, 창 배경색). 브라우저 탭에는 OS 창이 없다(L4.desktop-ux DP-80)
   window_chrome_state: HIDDEN,
   window_theme_set: HIDDEN,
+  // 창 찍기(물결의 렌즈 굴절·흐림). 브라우저 탭에는 찍을 창이 없다. 웹 화면은 색 물결과 입자만 돈다(L4.desktop-ux DP-166)
+  window_capture: HIDDEN,
 };
 
 /** 명령의 처리 위치. 표에 없으면 `undefined`다 */
