@@ -28,6 +28,7 @@ import type {
   ModelService,
   OsService,
   TaskService,
+  ToolOutputFiles,
   ToolService,
 } from "@fresnel/contracts/services";
 import {
@@ -106,6 +107,8 @@ export interface PortsDeps {
   readonly signal: AbortSignal;
   readonly mode: HostMode;
   readonly os: OsService;
+  /** 지운 대화의 잘린 출력 사본을 함께 지운다 */
+  readonly toolOutputs: Pick<ToolOutputFiles, "removeThread">;
   readonly clock: Clock;
   /** 관찰 폴링 같은 호스트 자신의 타이머. L0.os의 스케줄러다 */
   readonly scheduler: Scheduler;
@@ -408,6 +411,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       if (!removed.ok) return removed;
       testRunThreads.delete(threadId);
       await dropHeldThread(threadId);
+      await deps.toolOutputs.removeThread(threadId);
       return removed;
     },
     read(params) {

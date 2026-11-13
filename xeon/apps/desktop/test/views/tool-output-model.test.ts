@@ -30,4 +30,19 @@ describe("toolOutputOf", () => {
     );
     expect(view).toEqual({ text: seq(50), shownLines: 50, totalLines: 9000 });
   });
+
+  test("the new one-line notice is dropped the same way", () => {
+    const view = toolOutputOf(
+      [
+        { type: "text", text: seq(50) },
+        {
+          type: "text",
+          text: "[Showing lines 1-50 of 9,000. Full output: /state/spill/tool-output/t/h.txt]",
+        },
+      ],
+      { truncation: { totalLines: 9000, outputLines: 50 } },
+      "[img]",
+    );
+    expect(view).toEqual({ text: seq(50), shownLines: 50, totalLines: 9000 });
+  });
 });

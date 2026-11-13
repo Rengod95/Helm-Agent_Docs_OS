@@ -85,6 +85,8 @@ function stateWithSpill(): {
   return { state, old, fresh };
 }
 
+const NO_TOOL_OUTPUTS: DataOpsDeps["toolOutputs"] = { sweep: () => Promise.resolve(0) };
+
 function spillDeps(
   state: string,
   retentionDays: () => number,
@@ -101,6 +103,7 @@ function spillDeps(
     runsBlobGc: false,
     store: partial<DataOpsDeps["store"]>({}),
     query: partial<DataOpsDeps["query"]>({}),
+    toolOutputs: NO_TOOL_OUTPUTS,
   };
 }
 
@@ -205,6 +208,7 @@ function gcDeps(
     blobGcEnabled: () => options.enabled,
     runsBlobGc: true,
     store: store.opened,
+    toolOutputs: NO_TOOL_OUTPUTS,
     query: partial<SessionService["query"]>({
       liveBlobRefs: () => ok(options.liveRefs),
     }),
@@ -262,6 +266,7 @@ describe("blob GC", () => {
         },
       }),
       query: partial<DataOpsDeps["query"]>({ liveBlobRefs: () => ok([]) }),
+      toolOutputs: NO_TOOL_OUTPUTS,
     });
     scheduler.advance(2 * DAY);
     expect(calls).toBe(0);
@@ -286,6 +291,7 @@ describe("blob GC", () => {
         },
       }),
       query: partial<DataOpsDeps["query"]>({ liveBlobRefs: () => ok([]) }),
+      toolOutputs: NO_TOOL_OUTPUTS,
     });
     scheduler.advance(BLOB_GC_FIRST_RUN_MS);
     scheduler.advance(DAY);

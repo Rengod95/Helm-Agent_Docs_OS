@@ -321,6 +321,12 @@ function harness(): Harness {
     deps: {
       mode: "stdio" as const,
       signal: new AbortController().signal,
+      toolOutputs: {
+        removeThread: () => {
+          result.calls.push("toolOutputs.remove");
+          return Promise.resolve();
+        },
+      },
       os,
       clock: { now: () => 1 },
       scheduler: createManualScheduler(),
@@ -705,6 +711,7 @@ describe("threads", () => {
       "keepAlive.dispose",
       "ext.closeThread",
       "lease.release",
+      "toolOutputs.remove",
     ]);
   });
 
