@@ -17,6 +17,7 @@ import { shellIntentsModule } from "./shell-intents.ts";
 import { singleInstanceShellModule } from "./single-instance-shell.ts";
 import { trayShellModule } from "./tray-shell.ts";
 import { viewSchemeModule } from "./view-scheme.ts";
+import { windowCaptureModule } from "./window-capture.ts";
 import { windowStateModule } from "./window-state.ts";
 import { updaterShellModule } from "./updater-shell.ts";
 
@@ -27,6 +28,7 @@ export const MODULES: readonly ShellModule[] = [
   engineModule,
   inspectModule,
   windowStateModule,
+  windowCaptureModule,
   openExternalModule,
   logFolderShellModule,
   dbToolsShellModule,

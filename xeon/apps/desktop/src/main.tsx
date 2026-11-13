@@ -24,6 +24,7 @@ import { selectThread } from "./state/engine/index.ts";
 import { persistShell, restoreShell } from "./views/shell/persist.ts";
 import { installDocumentScrollGuard } from "./views/shell/document-scroll-guard.ts";
 import { installWindowChrome } from "./views/shell/window-chrome.ts";
+import { installWaveCapture } from "./views/effects/wave-capture.ts";
 import { DesktopShellContext, type DesktopShell } from "./views/desktop-shell-context.ts";
 import { createOsNotifier, NOTIFY_FAILED_EVENT, type OsNotifyInvoke } from "./views/os-notify.ts";
 import { appearancePortOf, appearancePrefsOf, applyAppearance } from "./views/appearance-prefs.ts";
@@ -100,6 +101,8 @@ if (desktopWindow) {
     listen: (event, onEvent) => shellBridge.listen(event, onEvent),
     root: document.documentElement,
   });
+  // 물결의 렌즈 굴절·흐림(DP-166)은 창을 찍을 수 있는 Electron 창에서만 돈다. 웹 문서는 색 물결과 입자만이다
+  installWaveCapture(() => invoke("window_capture"));
 }
 const onThemeSaved = desktopWindow
   ? (theme: string): void => {

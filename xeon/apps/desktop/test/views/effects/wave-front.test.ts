@@ -6,7 +6,9 @@ import {
   oklabOf,
   waveDurationOf,
   waveFieldAt,
+  waveFrontAt,
   waveLumpsAt,
+  waveParticlesAt,
 } from "../../../src/views/effects/wave-front.ts";
 
 // 화면 전체 물결의 순수 모델(DP-161). 원본(DistortionWavesKit)의 식을 옮긴 값이 맞는지 본다.
@@ -53,6 +55,67 @@ describe("waveFieldAt", () => {
       (p) => waveFieldAt(p, source, size, WAVE_VERTICAL)[3] ?? 0,
     );
     expect(radii).toEqual(radii.toSorted((a, b) => a - b));
+  });
+});
+
+describe("모으기와 렌즈(원본 WaveFront.gravity·energy)", () => {
+  test("모으기 끝(앞선이 떠나는 순간)에 당김은 pull 전부, 떠난 뒤 0.22초 안에 놓는다", () => {
+    const duration = waveDurationOf(WAVE_VERTICAL);
+    const at = (seconds: number) => waveFrontAt(seconds / duration, source, size, WAVE_VERTICAL);
+    expect([at(0).gravity, Number(at(0.5).gravity.toFixed(3)), at(0.8).gravity]).toEqual([
+      0, 24, 0,
+    ]);
+    expect(at(0.5).energy).toBe(0);
+    expect(at(0.6).energy).toBeGreaterThan(0.9);
+    expect(at(3.6).energy).toBe(0);
+  });
+
+  test("셰이더 칸 10이 당김이다", () => {
+    const f = waveFieldAt(0.5 / waveDurationOf(WAVE_VERTICAL), source, size, WAVE_VERTICAL);
+    expect(Number((f[10] ?? 0).toFixed(3))).toBe(24);
+  });
+});
+
+/** 보이는(불투명도 > 0) 입자의 y */
+function visibleY(dots: Float32Array): number[] {
+  return Array.from({ length: 64 }, (_, i) => i)
+    .filter((i) => (dots[i * 4 + 3] ?? 0) > 0)
+    .map((i) => dots[i * 4 + 1] ?? 0);
+}
+
+describe("waveParticlesAt(원본 WaveParticles)", () => {
+  const duration = waveDurationOf(WAVE_VERTICAL);
+  const dotsAt = (seconds: number): Float32Array =>
+    waveParticlesAt(
+      waveFrontAt(seconds / duration, source, size, WAVE_VERTICAL),
+      source,
+      WAVE_VERTICAL,
+    );
+
+  test("64개 × (x, y, 지름, 불투명도), 지름은 1.8의 0.55~1배", () => {
+    const dots = dotsAt(1);
+    expect(dots.length).toBe(256);
+    const sizes = Array.from({ length: 64 }, (_, i) => dots[i * 4 + 2] ?? 0);
+    expect(Math.min(...sizes)).toBeGreaterThanOrEqual(0.99);
+    expect(Math.max(...sizes)).toBeLessThanOrEqual(1.8);
+  });
+
+  test("모으기 동안은 원천 위에서 원천 쪽으로 날아들고, 떠난 뒤에는 앞선과 함께 위로 흩어진다", () => {
+    const before = dotsAt(0.3);
+    const after = dotsAt(1.2);
+    const gather = visibleY(before);
+    expect(gather.length).toBeGreaterThan(0);
+    // 원천 윗면(800)에서 위로 gap 24 ~ reach 150 사이
+    expect(Math.min(...gather)).toBeGreaterThanOrEqual(800 - 150 - 1);
+    expect(Math.max(...gather)).toBeLessThanOrEqual(800);
+    expect(Math.min(...visibleY(after))).toBeLessThan(400);
+  });
+
+  test("수명이 지나면 모두 사라진다", () => {
+    const dots = dotsAt(0.5 + 2.2);
+    expect(Array.from({ length: 64 }, (_, i) => dots[i * 4 + 3])).toEqual(
+      Array.from({ length: 64 }, () => 0),
+    );
   });
 });
 

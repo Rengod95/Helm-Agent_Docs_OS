@@ -5,8 +5,8 @@ import {
   BeamScope,
   beamLookOf,
   beamStateOf,
+  BeamEdge,
   boxOf,
-  crestOffsetsOf,
 } from "../../../src/views/effects/beam.tsx";
 
 // beam(DP-107). 상태 판단과 자리 계산은 순수하게, 부품은 서버 렌더로 본다.
@@ -51,26 +51,17 @@ describe("boxOf", () => {
       width: 776,
       height: 96,
       radius: 20,
-      exponent: 2,
       shape: "round",
     });
   });
 
-  test("대상의 corner-shape를 읽는다: squircle·superellipse(2)는 지수 4(dzE 시안 §1)", () => {
+  test("대상의 corner-shape를 읽어 판이 같은 모양을 쓴다(dzE 시안 §1)", () => {
     const box = boxOf(rect(0, 0, 10, 10), rect(0, 0, 10, 10), "23.2px", " superellipse(2) ");
-    expect([box.radius, box.exponent, box.shape]).toEqual([23.2, 4, "superellipse(2)"]);
+    expect([box.radius, box.shape]).toEqual([23.2, "superellipse(2)"]);
   });
 
   test("반경을 읽지 못하면 16px", () => {
     expect(boxOf(rect(0, 0, 10, 10), rect(0, 0, 10, 10), "").radius).toBe(16);
-  });
-});
-
-describe("crestOffsetsOf", () => {
-  test("물마루는 기준점 앞뒤로 같은 간격으로 선다(가운데가 0)", () => {
-    expect(crestOffsetsOf(5, 8)).toEqual([-16, -8, 0, 8, 16]);
-    expect(crestOffsetsOf(4, 10)).toEqual([-15, -5, 5, 15]);
-    expect(crestOffsetsOf(1, 8)).toEqual([0]);
   });
 });
 
@@ -82,6 +73,24 @@ describe("부품", () => {
       </BeamScope>,
     );
     expect(html).toBe('<div class="relative"><p>입력</p></div>');
+  });
+
+  test("BeamEdge는 돌지 않는 아래 변 빛이다: 흐르는 무지개와 알갱이 셋, 번짐 없음", () => {
+    const run = renderToString(<BeamEdge state="run" />);
+    expect(run.match(/class="fx-glow-spark"/g)?.length).toBe(3);
+    expect(run).toContain('class="fx-glow-flow"');
+    expect(run).toContain('data-variant="chip"');
+    expect(run).not.toContain("fx-glow-bloom");
+    expect(run).not.toContain("fx-glow-haze");
+    expect(run).toContain('data-phase="0" style="--x:20%;--w:55%;--c:var(--fx-glow-teal)"');
+  });
+
+  test("승인 대기는 빛이 멈춘다: 알갱이와 흐름 없이 멈춘 선만", () => {
+    const wait = renderToString(<BeamEdge state="wait" />);
+    expect(wait).toContain('data-look="wait"');
+    expect(wait).not.toContain("fx-glow-spark");
+    expect(wait).not.toContain("fx-glow-flow");
+    expect(wait).toContain('class="fx-glow-hold"');
   });
 
   test("BeamLine은 화면 낭독에서 빠지고 border-beam line 판과 정지 선을 둔다", () => {

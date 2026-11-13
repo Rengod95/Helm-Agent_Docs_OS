@@ -1,6 +1,6 @@
 // 이펙트 설정 한 곳(dzE 시안 §2.5, dzU 시안). 세기·자리·조건을 이 파일의 상수로만 바꾼다.
 // - 오로라 자리(DP-126): 입력창 오로라는 border-beam으로 바뀌어(DP-160) 지금 띠 바탕만 남았다. 기본은 끔.
-// - 입력창 테두리 빛(DP-160), 화면 전체 물결(DP-161), 생각 중 orb(DP-162)의 값.
+// - 입력창 아래 변 빛(DP-167), 화면 전체 물결(DP-161·166), 생각 중 orb(DP-162·168)의 값.
 // 견본·검수에서는 `<html data-fx-aurora="strip">`로 오로라를 덮어 견줄 수 있다.
 
 import type { OrbState } from "thinking-orbs";
@@ -40,28 +40,78 @@ export function schemeOf(root: HTMLElement, osDark: boolean): FxScheme {
   return osDark ? "dark" : "light";
 }
 
-// ── 입력창 테두리 빛(DP-160) ─────────────────────────────────────────
+// ── 입력창 아래 변 빛(DP-167) ────────────────────────────────────────
 
-/** 물마루 크기 변형. field는 입력창(선 + 안쪽 번짐), chip은 실행 중 칩(선만: 번짐이 칩 글을 덮는다) */
-export type CrestVariant = "field" | "chip";
+/** 크기 변형. field는 입력창(선 + 안쪽 번짐), chip은 실행 중 칩(선만: 번짐이 칩 글을 덮는다) */
+export type GlowVariant = "field" | "chip";
 
-export type CrestTune = {
-  /** 한 바퀴(ms). 둘레 길이와 상관없이 같은 시간이라 긴 상자는 빨리, 짧은 칩은 천천히 돈다 */
-  readonly periodMs: number;
-  /** 1px 무지개 선을 이루는 점 수와 간격(px). 선 길이는 대략 count × gap */
-  readonly line: { readonly count: number; readonly gap: number };
-  /** 안쪽 번짐 점 수와 간격(px). 0이면 번짐이 없다 */
-  readonly bloom: { readonly count: number; readonly gap: number };
+/** 빛깔 이름. beam.css의 `--fx-glow-<이름>`(border-beam `line` colorful 팔레트) */
+type GlowTint =
+  | "teal"
+  | "purple"
+  | "green"
+  | "blue"
+  | "pink"
+  | "core"
+  | "indigo"
+  | "cyan"
+  | "orange"
+  | "magenta";
+
+/** 아래 변 위의 빛 알갱이 하나. 자리와 폭은 상자 폭에 대한 비율이다 */
+export type GlowSpark = {
+  /** 가운데 자리(0 왼끝, 1 오른끝) */
+  readonly at: number;
+  readonly width: number;
+  readonly tint: GlowTint;
+  /** 숨의 위상(4분의 1 주기 단위). beam.css의 키프레임 `fx-glow-spark-<위상>`·`fx-glow-rise-<위상>`이 같은 곡선을 그만큼 밀어 둔다 */
+  readonly phase: GlowPhase;
+};
+
+type GlowPhase = 0 | 1 | 2 | 3;
+
+export type GlowTune = {
+  /** 1px 선 위의 알갱이 */
+  readonly line: readonly GlowSpark[];
+  /** 상자 안쪽으로 번지는 알갱이. 비면 번짐이 없다 */
+  readonly bloom: readonly GlowSpark[];
 };
 
 /**
- * border-beam `line`(4번 이미지)의 선 길이(마스크 78px × 숨 0.5~1.5)와 번짐 높이(28~40px)에 맞춘 값. 입력창 둘레(약 1,590px)를
- * 4.8초에 돌아 초당 330px쯤이다(border-beam `line`은 한 변 520px을 3.1초, 초당 170px. 둘레가 세 배라 조금 빠르게).
- * 빛깔·세기는 beam.css(`--fx-crest-*`)가 테마마다 정한다
+ * border-beam `line`(사용자 이미지 1112c-4)의 결을 아래 변 전체로 편 값. 그 빛 한 점은 선 길이 78px·번짐 높이 28~40px이고 2.4~4초 주기로
+ * 숨 쉰다(breathe 1.3배, spike 1.33·1.7배). 712px 입력창에 그 점을 일곱 개 겹쳐 놓고(폭 26%, 이웃과 반쯤 겹침) 이웃끼리 숨의 위상을
+ * 달리해 자리마다 세기·빛깔이 다르게 숨 쉬고 흐른다. 번짐은 여섯 덩이(폭 30%)가 높이가 오르내린다.
+ * 주기는 하나(beam.css 3.6초)이고 늦춤 없이 위상을 키프레임에 넣었다: 주기·늦춤이 다른 CSS 애니메이션은 그 조합 수만큼 메인 스레드 스타일
+ * 재계산을 부른다(실측 dzU2 §6: 조합 13개 3초에 약 90ms, 하나면 14ms)
  */
-export const CREST_TUNE: Readonly<Record<CrestVariant, CrestTune>> = {
-  field: { periodMs: 4800, line: { count: 15, gap: 8 }, bloom: { count: 9, gap: 14 } },
-  chip: { periodMs: 2000, line: { count: 7, gap: 5 }, bloom: { count: 0, gap: 0 } },
+export const GLOW_TUNE: Readonly<Record<GlowVariant, GlowTune>> = {
+  field: {
+    line: [
+      { at: 0.07, width: 0.26, tint: "teal", phase: 0 },
+      { at: 0.21, width: 0.26, tint: "purple", phase: 2 },
+      { at: 0.36, width: 0.26, tint: "blue", phase: 1 },
+      { at: 0.5, width: 0.26, tint: "core", phase: 3 },
+      { at: 0.64, width: 0.26, tint: "indigo", phase: 0 },
+      { at: 0.79, width: 0.26, tint: "cyan", phase: 2 },
+      { at: 0.93, width: 0.26, tint: "magenta", phase: 1 },
+    ],
+    bloom: [
+      { at: 0.1, width: 0.3, tint: "teal", phase: 1 },
+      { at: 0.27, width: 0.3, tint: "purple", phase: 3 },
+      { at: 0.44, width: 0.3, tint: "pink", phase: 0 },
+      { at: 0.6, width: 0.3, tint: "blue", phase: 2 },
+      { at: 0.76, width: 0.3, tint: "indigo", phase: 1 },
+      { at: 0.92, width: 0.3, tint: "orange", phase: 3 },
+    ],
+  },
+  chip: {
+    line: [
+      { at: 0.2, width: 0.55, tint: "teal", phase: 0 },
+      { at: 0.5, width: 0.55, tint: "core", phase: 2 },
+      { at: 0.8, width: 0.55, tint: "magenta", phase: 1 },
+    ],
+    bloom: [],
+  },
 };
 
 /** 대화를 불러오는 동안 머리 줄 아래를 흐르는 선(border-beam `line`). 한 번 지나가는 데 걸리는 초와 세기 */
@@ -86,7 +136,8 @@ export type WaveCause = "intro" | "done";
 
 /**
  * 원본 휴대폰 값에서 데스크톱으로 옮긴 값. 본문 위를 지나는 시간을 줄이고(앞 띠 lead 130 → 110, 뒤 꼬리 300 → 220),
- * 가장자리 색이 남는 시간을 3.0s → 2.2s로 줄였다. 모서리는 창 모서리(macOS 10px)에 가깝게 12
+ * 가장자리 색이 남는 시간을 3.0s → 2.2s로, 입자 수명을 2.19s → 2.0s로(전체 2.45s 안에 끝나게) 줄였다. 모서리는 창 모서리(macOS 10px)에 가깝게 12.
+ * 렌즈(amplitude 34, lensWidth 150, aberration 0.78, pull 24)·흐림(18, 앞 90, 뒤 240)·입자 수와 크기는 원본 그대로다(DP-166)
  */
 const WAVE_DESKTOP: WaveStyle = {
   ...WAVE_VERTICAL,
@@ -99,18 +150,29 @@ const WAVE_DESKTOP: WaveStyle = {
   tail: 220,
   rimWidth: 12,
   cornerRadius: 12,
+  particleLife: 2,
 };
 
 export type WaveTune = {
   readonly wave: WaveStyle;
-  /** canvas 전체 불투명도. 글 대비를 지키는 마지막 손잡이 */
+  /** 색 띠·가장자리·입자의 불투명도. 글 대비를 지키는 마지막 손잡이(렌즈에는 걸지 않는다) */
   readonly opacity: number;
+  /** 입자 빛깔(sRGB 0~1). 원본은 흰 점이고, 라이트에서는 흰 바탕에 묻혀 짙은 남보라로 둔다 */
+  readonly dot: readonly [number, number, number];
 };
 
 /** 테마별 세기. 라이트는 흰 바탕에서 띠 가운데(흰빛)가 사라지므로 색 쪽을 조금 올린다 */
 const WAVE_TUNE: Readonly<Record<FxScheme, WaveTune>> = {
-  dark: { wave: { ...WAVE_DESKTOP, strength: 0.62, rimStrength: 0.75 }, opacity: 1 },
-  light: { wave: { ...WAVE_DESKTOP, strength: 0.7, rimStrength: 0.8 }, opacity: 0.9 },
+  dark: {
+    wave: { ...WAVE_DESKTOP, strength: 0.62, rimStrength: 0.75 },
+    opacity: 1,
+    dot: [1, 1, 1],
+  },
+  light: {
+    wave: { ...WAVE_DESKTOP, strength: 0.7, rimStrength: 0.8 },
+    opacity: 0.9,
+    dot: [0.33, 0.29, 0.7],
+  },
 };
 
 /** 원인과 지금 테마에 맞는 물결 값. 첫 진입과 작업 완료는 같은 모양이다 */

@@ -2,12 +2,12 @@ import { ChevronRight } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import type { ReactNode } from "react";
 import { thinkingModeOf } from "../item-detail-model.ts";
-import { ShimmerText, ThinkingIndicator } from "../thinking-indicator.tsx";
+import { ThinkingLive } from "../thinking-indicator.tsx";
 import { useTranscriptDetail } from "../transcript-detail.ts";
 import { Reveal, useDisclosure } from "./tool-line.tsx";
 
 // 생각 블록(dzT2a 시안 3.2). 본문보다 한 단계 물러난다: 13/20 tertiary, 왼쪽 2px 레일. 펼쳐도 240px 넘으면 안쪽에서 스크롤해 답을 밀지 않는다.
-// 머리 한 줄(28): chevron + "생각" + 접혀 있으면 첫 줄 미리보기. 생각하는 동안은 chevron 자리에 orb(20 프리셋, DP-162)가 돌고 "생각하는 중"이 반짝인다. 설정 "모두 보기"=펼침, "요약"=접힘, "숨김"=없음.
+// 머리 한 줄(28): chevron + "생각" + 접혀 있으면 첫 줄 미리보기. 생각하는 동안은 chevron 자리에 작은 orb(DP-168)가 돌고 "생각하는 중"이 반짝인다. 설정 "모두 보기"=펼침, "요약"=접힘, "숨김"=없음.
 
 function previewLine(text: string): string {
   const line =
@@ -37,9 +37,7 @@ export function ThinkingBlock(props: {
           onClick={toggle}
         />
         {live ? (
-          <span className="convo-line-icon">
-            <ThinkingIndicator size={20} active className="thinking-indicator-inline" />
-          </span>
+          <ThinkingLive label={t("desktop.convo.thinking.live")} />
         ) : (
           <ChevronRight
             aria-hidden
@@ -50,11 +48,7 @@ export function ThinkingBlock(props: {
             }
           />
         )}
-        {live ? (
-          <ShimmerText className="convo-line-verb" text={t("desktop.convo.thinking.live")} />
-        ) : (
-          <span className="convo-line-verb">{t("desktop.item.thinking")}</span>
-        )}
+        {live ? null : <span className="convo-line-verb">{t("desktop.item.thinking")}</span>}
         {open ? null : <span className="convo-line-text">{previewLine(props.text)}</span>}
       </div>
       <Reveal open={open}>
