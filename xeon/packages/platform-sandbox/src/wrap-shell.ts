@@ -34,6 +34,8 @@ export interface WrapShellDeps {
   readonly parentEnv: () => Readonly<Record<string, string | undefined>>;
   /** 호출마다 읽는다. onUnavailable과 disabled 판정이 설정 변경(nextTurn)을 따라가게 한다 */
   readonly status: () => SandboxStatus;
+  /** 거부 문구를 출력한 실패 명령이 쓰기 거부 줄을 기다리는 최대 시간(ms). 생략하면 600 */
+  readonly violationWaitMs?: number;
   /** l0.sandbox.escapeRetry */
   readonly escapeRetry: () => boolean;
   /** 호출자 정책에 보호 경로와 설정 추가분을 합쳐 유효 정책을 만든다 */
@@ -216,6 +218,37 @@ export async function srtWrap(
   return ok(wrapped);
 }
 
+/** 쓰기 거부를 기다리는 최대 시간(ms). 늦게 도착한 거부 줄이 막힌 경로를 알려 쓰기 허용 질문을 가능하게 한다(L2.workspace.spec §4.3.1) */
+const WRITE_VIOLATION_WAIT_MS = 600;
+
+/** 출력이 이 문구를 담으면 쓰기 거부일 수 있다. 막힌 경로를 정하는 근거가 아니라(경로는 위반 보고에서만 읽는다) 위반 줄을 기다릴지 정하는 신호다 */
+const DENIAL_TEXT = /operation not permitted|permission denied|read-only file system/i;
+const WRITE_VIOLATION_STEP_MS = 50;
+
+function hasWriteBlock(lines: readonly string[], provider: Pick<SandboxProvider, "kind">): boolean {
+  return toViolations(lines, provider).blocks.some(
+    (block) => block.code === "sandbox.write_blocked",
+  );
+}
+
+/** 쓰기 거부 줄이 올 때까지 최대 `violationWaitMs`만 기다려 다시 읽는다. 이미 있으면 바로 돌려준다 */
+async function settleWriteBlocks(
+  deps: WrapShellDeps,
+  commandId: string,
+  lines: readonly string[],
+  waitedMs: number,
+): Promise<readonly string[]> {
+  const limit = deps.violationWaitMs ?? WRITE_VIOLATION_WAIT_MS;
+  if (waitedMs >= limit || hasWriteBlock(lines, deps.provider)) return lines;
+  await new Promise<void>((resolve) => setTimeout(resolve, WRITE_VIOLATION_STEP_MS));
+  return settleWriteBlocks(
+    deps,
+    commandId,
+    deps.srt.getViolationLines(commandId),
+    waitedMs + WRITE_VIOLATION_STEP_MS,
+  );
+}
+
 function isAborted(context: CancelScope): boolean {
   return context.abortSignal?.aborted === true;
 }
@@ -257,17 +290,26 @@ export function wrapShellWith(deps: WrapShellDeps, shell: Shell, policy: Sandbox
     if (!wrapped.ok) return err(wrapped.error);
 
     const additions = envAdditions(deps.parentEnv(), wrapped.value.env);
+    const seen = { denial: false };
     const execOptions: ShellExecOptions = {
       ...options,
       ...(Object.keys(additions).length > 0 ? { env: { ...options?.env, ...additions } } : {}),
+      onOutput: (text, scope, info) => {
+        if (!seen.denial && DENIAL_TEXT.test(text)) seen.denial = true;
+        options?.onOutput?.(text, scope, info);
+      },
     };
 
     let result: Result<ShellExecResult, ExecutionError>;
     let lines: readonly string[] = [];
+    let failed = false;
     try {
       result = await shell.exec(wrapped.value.argv, execOptions, context);
+      failed = result.ok && result.value.exitCode !== 0;
     } finally {
       lines = deps.srt.getViolationLines(commandId);
+      // macOS는 위반을 로그 스트림으로 받아 명령이 끝난 뒤에 도착할 수 있다. 실패한 명령의 출력에 거부 문구가 있으면 쓰기 거부 줄을 잠깐 기다린다
+      if (failed && seen.denial) lines = await settleWriteBlocks(deps, commandId, lines, 0);
       try {
         deps.srt.cleanupAfterCommand();
       } catch (caught) {

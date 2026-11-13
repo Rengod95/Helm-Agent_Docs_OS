@@ -5385,7 +5385,7 @@
   "settings.l0.sandbox.enabled.help": "끄면 셸 명령이 격리 없이 실행돼요",
   "settings.l0.sandbox.onUnavailable.help": "\"격리 없이 실행\"을 고르면 셸 명령이 격리 없이 실행돼요",
   "settings.l0.sandbox.protectedPaths.extra.help": "절대 경로나 ~/로 시작하는 경로예요. 기본 보호 경로는 뺄 수 없어요",
-  "settings.l0.sandbox.escapeRetry.help": "샌드박스 밖에서 하는 호출도 승인이 필요해요",
+  "settings.l0.sandbox.escapeRetry.help": "아직 쓰이지 않아요. 지금은 샌드박스 밖에서 실행하는 호출이 없어요. 샌드박스가 막은 쓰기는 이 설정 대신 허용할지 물어보고, 항상 허용할 폴더는 쓰기 허용 폴더에 적어요",
   "settings.l0.sandbox.network.blockedDomains.help": "샌드박스 셸 명령은 이 도메인에 닿지 못해요. 나머지는 그대로 닿아요",
   "settings.l0.sandbox.credentialFiles.help": "\"막기\"를 고르면 샌드박스 셸 명령이 이 파일을 읽지 못해요",
   "settings.l0.sandbox.nestedNamespaces.help": "샌드박스 안에서 브라우저를 띄우려면 필요해요. 격리가 약해지니 아니면 꺼 두세요",

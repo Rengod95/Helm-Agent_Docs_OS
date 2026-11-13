@@ -5385,7 +5385,7 @@
   "settings.l0.sandbox.enabled.help": "Turning this off runs shell commands without isolation.",
   "settings.l0.sandbox.onUnavailable.help": "run_unsandboxed runs shell commands without isolation.",
   "settings.l0.sandbox.protectedPaths.extra.help": "Absolute paths or paths starting with ~/. Default protected paths cannot be removed.",
-  "settings.l0.sandbox.escapeRetry.help": "Every call outside the sandbox still needs approval.",
+  "settings.l0.sandbox.escapeRetry.help": "Not used yet: no call runs outside the sandbox today. A write the sandbox blocks is asked about instead, and \"Extra writable directories\" keeps the answer.",
   "settings.l0.sandbox.network.blockedDomains.help": "Shell commands in the sandbox cannot reach these domains. Everything else stays reachable.",
   "settings.l0.sandbox.credentialFiles.help": "deny also blocks reading them from sandboxed shell commands.",
   "settings.l0.sandbox.nestedNamespaces.help": "Needed to start a browser inside the sandbox. It weakens isolation, so keep it off otherwise.",

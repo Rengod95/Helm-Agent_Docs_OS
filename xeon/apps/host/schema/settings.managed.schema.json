@@ -1451,7 +1451,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Every call outside the sandbox still needs approval.",
+          "help": "Not used yet: no call runs outside the sandbox today. A write the sandbox blocks is asked about instead, and \"Extra writable directories\" keeps the answer.",
           "helpKey": "settings.l0.sandbox.escapeRetry.help",
           "label": "Allow retry outside the sandbox",
           "labelKey": "settings.l0.sandbox.escapeRetry.label",
