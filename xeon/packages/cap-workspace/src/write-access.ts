@@ -109,11 +109,31 @@ export function pathsFromDenialOutput(output: string): readonly string[] {
   return [...found];
 }
 
+interface WriteAccessEntry {
+  /** 막힌 경로 */
+  readonly path: string;
+  /** 허용하면 쓰기 루트에 더할 경로 */
+  readonly root: string;
+}
+
 export interface WriteAccessPlan {
-  /** 묻거나 허용할 쓰기 루트 후보 */
+  readonly entries: readonly WriteAccessEntry[];
+  /** 묻거나 허용할 쓰기 루트 후보(정렬, 중복 없음) */
   readonly roots: readonly string[];
   /** 막힌 경로 중 이미 허용한 루트 밖이고 보호 경로가 아닌 것 */
   readonly paths: readonly string[];
+  /** 후보에 사용자 홈 폴더 전체가 들어 있으면 참. 카드가 "홈 폴더 전체"를 드러내는 값이다 */
+  readonly homeWide: boolean;
+}
+
+function planOf(entries: readonly WriteAccessEntry[], home: string | undefined): WriteAccessPlan {
+  const roots = [...new Set(entries.map((entry) => entry.root))].toSorted();
+  return {
+    entries,
+    roots,
+    paths: [...new Set(entries.map((entry) => entry.path))].toSorted(),
+    homeWide: home !== undefined && roots.includes(home),
+  };
 }
 
 /**
@@ -126,18 +146,34 @@ export function planWriteAccess(
   granted: readonly string[],
   home: string | undefined,
 ): WriteAccessPlan {
-  const roots = new Set<string>();
-  const paths = new Set<string>();
+  const entries: WriteAccessEntry[] = [];
   for (const path of blocked) {
     if (!path.startsWith("/")) continue;
     if (granted.some((root) => isWithin(root, path))) continue;
     if (isProtected(protectedEntries, path, "write")) continue;
     const root = grantRootFor(path, home);
     if (root === undefined || isProtected(protectedEntries, root, "write")) continue;
-    paths.add(path);
-    roots.add(root);
+    entries.push({ path, root });
   }
-  return { roots: [...roots].toSorted(), paths: [...paths].toSorted() };
+  return planOf(entries, home);
+}
+
+/**
+ * 홈 바로 아래의 **이미 있는** 파일은 홈 전체 대신 그 파일 경로만 후보로 한다(없는 파일은 Seatbelt가 경로 하나로는 열지 못해 홈이 후보로 남는다).
+ * 홈이 후보로 남으면 `homeWide`가 참이다.
+ */
+export async function narrowHomeRoots(
+  plan: WriteAccessPlan,
+  home: string | undefined,
+  exists: (path: string) => Promise<boolean>,
+): Promise<WriteAccessPlan> {
+  if (home === undefined || !plan.homeWide) return plan;
+  const entries = await Promise.all(
+    plan.entries.map(async (entry) =>
+      entry.root === home && (await exists(entry.path)) ? { ...entry, root: entry.path } : entry,
+    ),
+  );
+  return planOf(entries, home);
 }
 
 function sha256Hex(text: string): string {
@@ -151,12 +187,15 @@ export interface WriteAccessAsk {
   /** 같은 호출 안에서 질문을 구분하는 번호 */
   readonly round: number;
   readonly signal: AbortSignal | undefined;
+  /** bash면 명령 원문. 카드가 무엇을 하려는지 보여 준다 */
+  readonly command?: string;
 }
 
 /**
- * 쓰기 허용 승인을 올리는 유일한 지점이다. 허용이면 true.
- * 사람이 없는 실행(`interactive === false`), 대화가 없는 호출, 포트가 없을 때, 요청이 실패하거나 끊길 때는 묻지 않고 false다.
- * [미결] 권한 모드 bypass일 때의 동작(지금은 bypass에서도 묻는다)은 이 함수 한 곳에서 정한다.
+ * 쓰기 허용 승인을 올리는 유일한 지점이다. 허용이면 true. 선택지는 셋이다: 앞으로 전부 허용(이 대화에서 이후 샌드박스 밖 쓰기 전체), 이번만 허용, 거절.
+ * 권한 모드와 무관하게 처음 막혔을 때 한 번 묻는다(bypass 포함) [결정: 2026-11-13 사용자]. 이 대화(또는 이 대화를 띄운 부모 대화)에서 이미 "앞으로 전부 허용"을
+ * 골랐으면 묻지 않고 true다(하위 대화·무인 실행도 물려받는다). 보호 경로는 호출한 쪽이 계획에서 이미 뺐으므로 이 선택과 무관하게 막힌다.
+ * 그 밖에 사람이 없는 실행(`interactive === false`), 대화가 없는 호출, 포트가 없을 때, 요청이 실패하거나 끊길 때는 묻지 않고 false다.
  */
 export async function requestWriteAccess(
   deps: WorkspaceDeps,
@@ -165,9 +204,10 @@ export async function requestWriteAccess(
   const { writeAccess } = deps;
   const { context, plan } = ask;
   if (writeAccess === undefined || context === undefined) return false;
-  if (context.interactive === false) return false;
   const threadId = context.threadId;
   if (threadId === undefined || plan.roots.length === 0) return false;
+  if ((await writeAccess.granted?.(threadId)) === true) return true;
+  if (context.interactive === false) return false;
   const raw = `wa-${context.toolCallId ?? sha256Hex(plan.paths.join("|")).slice(0, 12)}-${ask.round}`;
   const answered = await writeAccess.ask(
     {
@@ -175,11 +215,13 @@ export async function requestWriteAccess(
       via: ask.via,
       paths: plan.paths,
       roots: plan.roots,
+      homeWide: plan.homeWide,
+      ...(ask.command === undefined ? {} : { command: ask.command }),
       requestKey: requestKeyFor(raw, sha256Hex),
     },
     ask.signal ?? new AbortController().signal,
   );
-  return answered.ok && answered.value === "allow";
+  return answered.ok && answered.value !== "deny";
 }
 
 /**
@@ -195,7 +237,7 @@ export function askOutsideWrite(
   return (canonical) =>
     requestWriteAccess(deps, {
       via,
-      plan: { roots: [canonical], paths: [canonical] },
+      plan: planOf([{ path: canonical, root: canonical }], undefined),
       context,
       round: 1,
       signal,

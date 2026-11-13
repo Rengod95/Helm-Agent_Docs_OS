@@ -15,28 +15,36 @@ import { memoryEnv } from "./support/memory-env.ts";
 // L2.workspace.spec §4.3.1. 작업 폴더 밖 쓰기를 막지 않고 묻는다. 보호 경로와 무인 호출은 묻지 않는다.
 
 const HOME = "/Users/me";
-const THREAD: ThreadId = fixedIdFactory().next("thr");
+const IDS = fixedIdFactory();
+const THREAD: ThreadId = IDS.next("thr");
+const OTHER_THREAD: ThreadId = IDS.next("thr");
 const PROTECTED: readonly ProtectedPathEntry[] = [
   { path: `${HOME}/.ssh`, match: "prefix", access: "read_write", reason: "credentials" },
   { path: `${HOME}/.claude`, match: "prefix", access: "read_write", reason: "credentials" },
   { path: ".env", match: "basename", access: "read_write", reason: "secret_key" },
 ];
 
-function asker(answer: "allow" | "deny") {
+type Answer = "allow" | "allow_all" | "deny";
+
+/** 대화별 "앞으로 전부 허용"을 기억하는 승인 대역. allow_all을 받으면 그 대화는 이후 묻지 않는다 */
+function asker(answer: Answer) {
   const requests: WriteAccessRequest[] = [];
+  const grantedThreads = new Set<string>();
   const port: WriteAccessPort = {
     ask: (request) => {
       requests.push(request);
+      if (answer === "allow_all") grantedThreads.add(request.threadId);
       return Promise.resolve(ok(answer));
     },
+    granted: (threadId) => Promise.resolve(grantedThreads.has(threadId)),
   };
-  return { port, requests };
+  return { port, requests, grantedThreads };
 }
 
-function human(interactive = true): CallOptions {
+function human(interactive = true, threadId: ThreadId = THREAD): CallOptions {
   return {
     context: {
-      threadId: THREAD,
+      threadId,
       toolCallId: "call_1",
       caller: { kind: "model", agent: "main" },
       interactive,
@@ -56,7 +64,7 @@ function blockedRun(paths: readonly string[], exitCode: number) {
   return { chunks: [{ text: exitCode === 0 ? "done\n" : "denied\n" }], exitCode, sandbox };
 }
 
-function shellSetup(answer: "allow" | "deny") {
+function shellSetup(answer: Answer) {
   const env = memoryEnv({ cwd: "/work" });
   env.mkdir("/work");
   const sandbox = fakeSandbox(PROTECTED);
@@ -64,11 +72,11 @@ function shellSetup(answer: "allow" | "deny") {
     sandbox.policies.push(policy);
     return inner;
   };
-  const { port, requests } = asker(answer);
+  const { port, requests, grantedThreads } = asker(answer);
   const shell = createShellApi(
     depsFor(env, { sandbox, protectedPaths: PROTECTED, writeAccess: port, homeDir: HOME }),
   );
-  return { env, shell, sandbox, requests };
+  return { env, shell, sandbox, requests, grantedThreads };
 }
 
 describe("grantRootFor", () => {
@@ -106,7 +114,9 @@ describe("planWriteAccess", () => {
       ["/work"],
       HOME,
     );
-    expect(plan).toEqual({ roots: [`${HOME}/.npm`], paths: [`${HOME}/.npm/_logs/1.log`] });
+    expect(plan.roots).toEqual([`${HOME}/.npm`]);
+    expect(plan.paths).toEqual([`${HOME}/.npm/_logs/1.log`]);
+    expect(plan.homeWide).toBe(false);
   });
 });
 
@@ -226,15 +236,15 @@ describe("bash write access", () => {
   });
 });
 
-function filesSetup(answer: "allow" | "deny") {
+function filesSetup(answer: Answer) {
   const env = memoryEnv({ cwd: "/work" });
   env.mkdir("/work");
   env.mkdir(`${HOME}/notes`);
-  const { port, requests } = asker(answer);
+  const { port, requests, grantedThreads } = asker(answer);
   const files = createFilesApi(
     depsFor(env, { protectedPaths: PROTECTED, writeAccess: port, homeDir: HOME }),
   );
-  return { env, files, requests };
+  return { env, files, requests, grantedThreads };
 }
 
 describe("file tools outside the workspace", () => {
@@ -273,5 +283,115 @@ describe("file tools outside the workspace", () => {
     );
     expect(error.data.detail).toMatchObject({ reason: "outside_root" });
     expect(requests).toHaveLength(0);
+  });
+});
+
+describe("three choices", () => {
+  test("allow once: asks, reruns, and asks again for the next blocked write", async () => {
+    const { env, shell, requests, grantedThreads } = shellSetup("allow");
+    env.reply(blockedRun([`${HOME}/.npm/a`], 1), blockedRun([], 0));
+    await shell.run({ command: "npm ci" }, human());
+    env.reply(blockedRun([`${HOME}/.cache/pip/b`], 1), blockedRun([], 0));
+    await shell.run({ command: "pip install x" }, human());
+    expect(requests).toHaveLength(2);
+    expect(grantedThreads.size).toBe(0);
+  });
+
+  test("deny: asks once, no rerun, and asks again next time", async () => {
+    const { env, shell, requests } = shellSetup("deny");
+    env.reply(blockedRun([`${HOME}/.npm/a`], 1));
+    await shell.run({ command: "npm ci" }, human());
+    env.reply(blockedRun([`${HOME}/.npm/a`], 1));
+    await shell.run({ command: "npm ci" }, human());
+    expect(requests).toHaveLength(2);
+    expect(env.calls).toHaveLength(2);
+  });
+
+  test("allow all: later blocked writes anywhere pass without asking and are rerun with the widened roots", async () => {
+    const { env, shell, sandbox, requests } = shellSetup("allow_all");
+    env.reply(blockedRun([`${HOME}/.npm/a`], 1), blockedRun([], 0));
+    await shell.run({ command: "npm ci" }, human());
+    expect(requests).toHaveLength(1);
+
+    env.reply(blockedRun([`${HOME}/Library/Caches/Foo/x`], 1), blockedRun([], 0));
+    const out = await shell.run({ command: "build" }, human());
+    expect(out.exitCode).toBe(0);
+    expect(requests).toHaveLength(1);
+    expect(sandbox.policies.at(-1)?.writeRoots).toContain(`${HOME}/Library/Caches/Foo`);
+  });
+
+  test("allow all still blocks protected paths without asking", async () => {
+    const { env, shell, requests } = shellSetup("allow_all");
+    env.reply(blockedRun([`${HOME}/.npm/a`], 1), blockedRun([], 0));
+    await shell.run({ command: "npm ci" }, human());
+    env.reply(blockedRun([`${HOME}/.ssh/authorized_keys`], 1));
+    const out = await shell.run({ command: "echo > ~/.ssh/authorized_keys" }, human());
+    expect(out.exitCode).toBe(1);
+    expect(requests).toHaveLength(1);
+    expect(env.calls).toHaveLength(3);
+  });
+
+  test("allow all covers file tools too", async () => {
+    const { env, files, requests } = filesSetup("allow_all");
+    env.mkdir(`${HOME}/other`);
+    await files.write({ path: `${HOME}/notes/a.txt`, content: "1" }, human());
+    await files.write({ path: `${HOME}/other/b.txt`, content: "2" }, human());
+    expect(requests).toHaveLength(1);
+    const read = await env.readTextFile(`${HOME}/other/b.txt`, { abortSignal: undefined });
+    expect(read.ok && read.value).toBe("2");
+  });
+
+  test("a new conversation asks again", async () => {
+    const { env, shell, requests } = shellSetup("allow_all");
+    env.reply(blockedRun([`${HOME}/.npm/a`], 1), blockedRun([], 0));
+    await shell.run({ command: "npm ci" }, human(true, THREAD));
+    env.reply(blockedRun([`${HOME}/.cache/pip/b`], 1), blockedRun([], 0));
+    await shell.run({ command: "pip install x" }, human(true, OTHER_THREAD));
+    expect(requests.map((request) => request.threadId)).toEqual([THREAD, OTHER_THREAD]);
+  });
+
+  test("an unattended run without a grant is not asked and fails; with a grant it passes", async () => {
+    const { env, shell, requests, grantedThreads } = shellSetup("allow");
+    env.reply(blockedRun([`${HOME}/.npm/a`], 1));
+    const failed = await shell.run({ command: "npm ci" }, human(false));
+    expect(failed.exitCode).toBe(1);
+    expect(requests).toHaveLength(0);
+
+    // 부모 대화가 앞으로 전부 허용을 골랐다면 하위(무인) 실행도 물려받는다
+    grantedThreads.add(THREAD);
+    env.reply(blockedRun([`${HOME}/.npm/a`], 1), blockedRun([], 0));
+    const passed = await shell.run({ command: "npm ci" }, human(false));
+    expect(passed.exitCode).toBe(0);
+    expect(requests).toHaveLength(0);
+  });
+
+  test("the request carries the command, tool name and structured paths", async () => {
+    const { env, shell, requests } = shellSetup("allow");
+    env.reply(blockedRun([`${HOME}/.npm/a`], 1), blockedRun([], 0));
+    await shell.run({ command: "npm ci --prefer-offline" }, human());
+    expect(requests[0]).toMatchObject({
+      via: "bash",
+      command: "npm ci --prefer-offline",
+      paths: [`${HOME}/.npm/a`],
+      roots: [`${HOME}/.npm`],
+      homeWide: false,
+    });
+  });
+});
+
+describe("home folder candidates", () => {
+  test("a new file directly under home offers the whole home and says so", async () => {
+    const { env, shell, requests } = shellSetup("allow");
+    env.reply(blockedRun([`${HOME}/scratch.txt`], 1), blockedRun([], 0));
+    await shell.run({ command: "touch ~/scratch.txt" }, human());
+    expect(requests[0]).toMatchObject({ roots: [HOME], homeWide: true });
+  });
+
+  test("an existing file directly under home offers only that file", async () => {
+    const { env, shell, requests } = shellSetup("allow");
+    env.put(`${HOME}/existing.txt`, "x");
+    env.reply(blockedRun([`${HOME}/existing.txt`], 1), blockedRun([], 0));
+    await shell.run({ command: "echo y > ~/existing.txt" }, human());
+    expect(requests[0]).toMatchObject({ roots: [`${HOME}/existing.txt`], homeWide: false });
   });
 });

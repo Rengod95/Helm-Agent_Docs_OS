@@ -12,7 +12,12 @@ import { resolveWorkspacePath } from "../roots.ts";
 import { scopedDeps } from "../scope.ts";
 import { runBashCommand, type BashOutcome } from "./upstream/bash.ts";
 import { unattendedTimeoutSec } from "./unattended.ts";
-import { pathsFromDenialOutput, planWriteAccess, requestWriteAccess } from "../write-access.ts";
+import {
+  narrowHomeRoots,
+  pathsFromDenialOutput,
+  planWriteAccess,
+  requestWriteAccess,
+} from "../write-access.ts";
 
 // L2.workspace.spec §3.3, §4.2. 샌드박스 래핑(fresnel.sandbox)과 실행(fresnel.exec)은 F 인터페이스로만 만난다.
 
@@ -182,11 +187,18 @@ export function createShellApi(base: WorkspaceDeps): ShellApi {
           );
           // 위반 보고가 비면(macOS는 일부 거부를 보고하지 않는다) 거부 문구가 든 출력 줄의 경로를 후보로 쓴다
           const blocked = reported.length > 0 ? reported : pathsFromDenialOutput(outcome.output);
-          const plan = planWriteAccess(
-            blocked,
-            deps.roots.protectedPaths([...roots.read, ...roots.write]),
-            [...roots.write, ...grants],
+          const plan = await narrowHomeRoots(
+            planWriteAccess(
+              blocked,
+              deps.roots.protectedPaths([...roots.read, ...roots.write]),
+              [...roots.write, ...grants],
+              deps.homeDir,
+            ),
             deps.homeDir,
+            async (path) => {
+              const found = await deps.env.exists(path, context);
+              return found.ok && found.value;
+            },
           );
           if (plan.roots.length === 0) return previous;
           const allowed = await requestWriteAccess(deps, {
@@ -195,6 +207,7 @@ export function createShellApi(base: WorkspaceDeps): ShellApi {
             context: callContext,
             round,
             signal: options?.signal,
+            command: input.command,
           });
           if (!allowed) return previous;
           const next = [...grants, ...plan.roots];

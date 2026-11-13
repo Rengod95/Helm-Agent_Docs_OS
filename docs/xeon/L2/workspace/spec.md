@@ -607,12 +607,13 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 
 작업 폴더 밖 쓰기와 캐시 쓰기(`~/.npm`, `~/Library/Caches/<앱>`, `$TMPDIR` 등)는 무조건 막지 않고, 보호 경로가 아니면 사람에게 물은 뒤 허용한다. 승인을 올리는 곳은 `src/write-access.ts`의 `requestWriteAccess` 한 함수이고, 포트 `WriteAccessPort`(`src/ports/write-access.ts`)를 거친다. 조립 루트는 `fresnel.approvals`를 감싼 L2 승인 포트로 이 포트를 만든다(`write-access-adapter.ts`). 요청은 기존 도구 승인(kind `tool`)이고 새 화면 부품이 없다. `toolName`은 `bash`, `write`, `edit`이고 `args`는 `{ writePaths, allowRoots }`다. 명령 원문은 싣지 않는다.
 
-- `bash`: 샌드박스 안에서 실행한 결과가 0이 아닌 종료 코드이고 `sandboxBlocks`에 `sandbox.write_blocked` 경로가 있으면, 그 경로를 쓰기 루트 후보로 바꿔 한 번 묻고(경로는 `grantRootFor`: `$TMPDIR` 꼴은 그 폴더, `Library/Caches/<앱>`·`.cache/<앱>`은 앱 폴더, `~/.<이름>`은 그 폴더, 홈 바로 아래 파일은 홈(아직 없는 파일 하나만 허용하는 루트는 Seatbelt에서 쓰기를 열지 못한다, 실측), 그 밖은 부모 폴더, 부모가 `/etc`·`/usr` 같은 최상위 시스템 폴더면 묻지 않고 막는다) 허용이면 후보를 이 호출의 쓰기 루트에 더해 **같은 명령을 다시 실행한다**. 한 호출에서 최대 3번 묻는다. 거부이면 첫 결과를 그대로 돌려준다. 종료 코드가 0이면 다시 실행하지 않는다. 막힌 경로는 L0.sandbox의 위반 보고(`SandboxBlock`, L0.sandbox.spec §4.2 11번)에서 읽는다. 한계: macOS는 위반을 로그 스트림으로 받아 일부 거부가 보고되지 않는다(실측: 쓰기 거부 20번 중 4~6번만 보고). 그래서 보고가 비면 마지막 수단으로 출력에서 `Operation not permitted`(EPERM)·`Read-only file system`이 든 줄의 절대 경로를 후보로 쓴다(`pathsFromDenialOutput`). 일반 권한 오류(`Permission denied`)는 샌드박스 때문이 아니므로 쓰지 않는다. 후보는 같은 보호 경로 검사를 거치고 사람이 보고 정하므로 잘못 뽑아도 묻는 경로가 틀릴 뿐이다. 출력에도 거부 문구가 없으면 묻지 않고 실패로 끝난다. Linux 위반 보고(seccomp 관찰자)는 쓰기 의도 syscall만 알린다. 다시 실행하는 명령은 앞선 시도의 부작용을 되돌리지 않는다.
+- `bash`: 샌드박스 안에서 실행한 결과가 0이 아닌 종료 코드이고 `sandboxBlocks`에 `sandbox.write_blocked` 경로가 있으면, 그 경로를 쓰기 루트 후보로 바꿔 한 번 묻고(경로는 `grantRootFor`: `$TMPDIR` 꼴은 그 폴더, `Library/Caches/<앱>`·`.cache/<앱>`은 앱 폴더, `~/.<이름>`은 그 폴더, 홈 바로 아래 파일은 이미 있으면 그 파일 경로만, 아직 없으면 홈(없는 파일 하나만 허용하는 루트는 Seatbelt에서 쓰기를 열지 못한다, 실측. 이때 요청의 `homeWide`가 참이라 카드가 "홈 폴더 전체"임을 드러낸다), 그 밖은 부모 폴더, 부모가 `/etc`·`/usr` 같은 최상위 시스템 폴더면 묻지 않고 막는다) 허용이면 후보를 이 호출의 쓰기 루트에 더해 **같은 명령을 다시 실행한다**. 한 호출에서 최대 3번 묻는다. 거부이면 첫 결과를 그대로 돌려준다. 종료 코드가 0이면 다시 실행하지 않는다. 막힌 경로는 L0.sandbox의 위반 보고(`SandboxBlock`, L0.sandbox.spec §4.2 11번)에서 읽는다. 한계: macOS는 위반을 로그 스트림으로 받아 일부 거부가 보고되지 않는다(실측: 쓰기 거부 20번 중 4~6번만 보고). 그래서 보고가 비면 마지막 수단으로 출력에서 `Operation not permitted`(EPERM)·`Read-only file system`이 든 줄의 절대 경로를 후보로 쓴다(`pathsFromDenialOutput`). 일반 권한 오류(`Permission denied`)는 샌드박스 때문이 아니므로 쓰지 않는다. 후보는 같은 보호 경로 검사를 거치고 사람이 보고 정하므로 잘못 뽑아도 묻는 경로가 틀릴 뿐이다. 출력에도 거부 문구가 없으면 묻지 않고 실패로 끝난다. Linux 위반 보고(seccomp 관찰자)는 쓰기 의도 syscall만 알린다. 다시 실행하는 명령은 앞선 시도의 부작용을 되돌리지 않는다.
 - `write`, `edit`: 쓰기 root 밖이고 보호 경로가 아닌 경로(§4.3 5번 위반)는 묻고, 허용이면 **이 호출의 그 경로만** 쓴다. 거부이거나 물을 수 없으면 지금처럼 `denied`/`outside_root`다.
 - 묻지 않고 막는 것: 보호 경로(`~/.ssh`, `~/.claude`, `~/.codex`, `~/.pi`, `~/.aws`, `~/.kube`, Fresnel 데이터·시크릿 폴더, `.env` 이름, root별 `.git` 실행 경로)와 deny 규칙. 허용한 루트를 정책에 더해도 L0.sandbox가 보호 경로를 다시 뺀다(`analyzeRoots`).
 - 사람이 없는 호출(`CallContext.interactive === false`: 예약, 서브에이전트, Helm), 대화가 없는 호출, 승인 포트가 없는 조립에서는 묻지 않고 지금처럼 실패로 끝난다. 도구 결과의 막은 것 줄이 막힌 경로와 설정 키 `l0.sandbox.writeRoots.extra`를 적는다(L1.tools.spec §4.12.3).
-- 기억 범위는 도구 승인과 같이 이번만이다(`remember: ["once"]`, L1.tools.spec §4.7 6번 [결정: 2026-10-31 사용자]). 이 대화 동안·항상은 제안하지 않는다. 항상 허용할 폴더는 사용자 설정 `l0.sandbox.writeRoots.extra`에 적는다.
-- 이 승인은 실행 허가 성격이다. 권한 모드 `bypass`에서 묻을지는 `requestWriteAccess`가 한 곳에서 정한다(지금은 모드를 보지 않고 묻는다) [미결].
+- 선택지는 셋이다 [결정: 2026-11-13 사용자]: (가) 앞으로 전부 허용, (나) 이번만 허용, (다) 거절. 요청은 `remember: ["once", "thread"]`를 낸다(이 승인 종류에 한해 L1.tools.spec §4.7 6번의 once 전용 규칙을 대체한다. 다른 도구 승인은 once뿐). 허용+`thread` = (가), 허용+`once`(옛 카드의 허용도 같다) = (나), 거절 = (다). (가)의 범위는 **그 대화에서 이후의 샌드박스 밖 쓰기 전체**(경로 무관, bash·파일 도구 모두)다. 이후에는 묻지 않고 필요한 루트를 넓혀 재실행하며, 보호 경로는 (가) 뒤에도 묻지 않고 막는다. 선택은 `approval.resolved` 기록(`remember: "thread"`)에서 읽으므로(`ApprovalService.remembered`) 재시작·이어하기 뒤에도 유지되고, 새 대화는 처음 한 번 다시 묻는다. 하위 대화(서브에이전트)는 부모 대화의 선택을 물려받고, 물려받은 (가)는 사람이 없는 실행에서도 적용된다. (가)가 없을 때 무인 실행은 묻지 않고 실패한다. 영구 허용은 사용자 설정 `l0.sandbox.writeRoots.extra`다.
+- 요청 본문(화면용 구조화 값): 도구 승인 body이고 `ruleId: "sandbox.write_access"`(`WRITE_ACCESS_RULE_ID`), `toolName`은 `bash`·`write`·`edit`, `args`는 `{ subject: "write_access", tool, command?(bash), writePaths, allowRoots, homeWide }`다. 화면은 `ruleId`나 `args.subject`로 알아보고 번역 키로 제목과 세 선택지를 그린다. 영어 `title`은 새 선택지를 모르는 카드의 대체 문장이다.
+- 이 승인은 실행 허가 성격이지만 권한 모드와 무관하게(모두 허용 `bypass` 포함) 처음 막혔을 때 한 번 묻는다 [결정: 2026-11-13 사용자]. `coversRunApprovals`를 보지 않는다. 이후는 (가)를 골랐을 때만 묻지 않는다. 판단은 `requestWriteAccess` 한 곳이다.
 
 ### 4.4 편집 방식
 
@@ -799,7 +800,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 
 ## 10. 미결 사항
 
-0. [미결: 2026-11-13 dzSx] §4.3.1의 승인이 권한 모드 `bypass`에서 묻는지. 기본은 묻는다. 모든 허용(bypass)이면 실행 허가 성격의 승인을 묻지 않는 흐름(dzPm)과 병합 때 맞춘다. 바꾸는 곳은 `requestWriteAccess` 한 함수다.
+0. [결정: 2026-11-13 사용자] §4.3.1의 승인은 권한 모드와 무관하게 처음 한 번 묻고 (가) 앞으로 전부 허용 · (나) 이번만 허용 · (다) 거절을 낸다.
 
 1. [결정: review.decisions-2 D-08] 절단 함수 위치. 포크 원본은 `platform-exec`에 두고 `cap-workspace`는 F 서비스(`ExecutionEnv`)로 호출한다(§4.5).
 2. [결정: review.m2-plan DG.3] `workspace.images` 최소형(처리기 없음)을 M2에 둔다. JSON은 "이미지와 첨부 처리" 2차이고 `dialog.attachments`(M2)는 이 기능을 필수로 쓴다(`L2.readme` §2 각주). 구현은 §4.6.
