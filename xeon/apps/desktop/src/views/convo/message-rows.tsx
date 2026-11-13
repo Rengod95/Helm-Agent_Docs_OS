@@ -210,7 +210,10 @@ export function UserRow(props: {
   const prevId = props.prevId;
   return (
     // 편집 중이면 이 뒤의 대화 줄은 흐려진다(convo.css `[data-row-key]:has([data-editing]) ~ [data-row-key]`, DP-147)
-    <div className="grid justify-items-end gap-1" data-editing={editing ? "true" : undefined}>
+    <div
+      className="grid min-w-0 grid-cols-[minmax(0,1fr)] justify-items-end gap-1"
+      data-editing={editing ? "true" : undefined}
+    >
       {editing ? (
         <EditBox
           text={bubble.text}

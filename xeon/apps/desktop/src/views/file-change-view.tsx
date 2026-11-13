@@ -31,7 +31,13 @@ function EditDiff(props: {
   readonly rest: readonly FileChangeRow[];
 }): ReactNode {
   return (
-    <div className={codeDiffVariants({ variant: "outline", size: "md", className: "rounded-xl" })}>
+    <div
+      className={codeDiffVariants({
+        variant: "outline",
+        size: "md",
+        className: "convo-diff rounded-xl",
+      })}
+    >
       <DiffRows rows={props.head} first={0} />
       {props.rest.length === 0 ? null : (
         <details className="font-ui text-ui text-text-secondary">
@@ -53,7 +59,11 @@ function WritePreview(props: {
   return (
     <>
       <div
-        className={codeDiffVariants({ variant: "outline", size: "md", className: "rounded-xl" })}
+        className={codeDiffVariants({
+          variant: "outline",
+          size: "md",
+          className: "convo-diff rounded-xl",
+        })}
       >
         <DiffRows
           rows={props.head.map((text): FileChangeRow => ({ kind: "context", text }))}
