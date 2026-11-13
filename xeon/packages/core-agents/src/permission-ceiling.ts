@@ -8,7 +8,7 @@ import {
   type PolicyCeiling,
 } from "@fresnel/contracts/services";
 
-/** 자식 모드: 부모 모드와 정의가 요청한 모드 중 엄격한 쪽. 부모가 plan이면 자식도 plan이다 */
+/** 자식 모드: 부모 모드와 정의가 요청한 모드 중 엄격한 쪽(`PERMISSION_MODE_STRICTNESS` 순서) */
 export function childMode(
   parent: PermissionMode,
   requested: PermissionMode | undefined,

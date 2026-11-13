@@ -212,8 +212,6 @@ test("restore resolves requests whose expiresAt passed while the engine was down
     ext: h.deps.ext,
     logger: undefined,
     callOf: () => undefined,
-    modeOf: () => "default",
-    setMode: (_thread, mode) => Promise.resolve({ ok: true, mode }),
   });
   const pending = expectOk(await fresh.restore(h.thread));
   expect(pending.map((request) => request.approvalId)).toEqual([later.request.approvalId]);
@@ -403,8 +401,6 @@ function flakyService(h: Harness, time: ReturnType<typeof manualTime>) {
     ext: h.deps.ext,
     logger: undefined,
     callOf: () => undefined,
-    modeOf: () => "default",
-    setMode: (_thread, mode) => Promise.resolve({ ok: true, mode }),
   });
   return { state, service };
 }

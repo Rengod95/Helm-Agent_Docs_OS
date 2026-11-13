@@ -121,35 +121,6 @@ test("a registered global deny removes the tool from advertise with the default 
   ]);
 });
 
-test("plan_mode_blocks_write_tools: write and exec tools are denied, reads pass, the advertised list is the same as in default mode", async () => {
-  const h = await createHarness();
-  const writer = addWriteTool(h, "write_file", "write");
-  const reader = addWriteTool(h, "peek", "read");
-  const before = expectOk(await h.runtime.tools.advertise({ run: h.run(), activated: new Set() }));
-  expect(await h.runtime.tools.setMode(h.thread, "plan", "user")).toMatchObject({ ok: true });
-  const after = expectOk(await h.runtime.tools.advertise({ run: h.run(), activated: new Set() }));
-  expect(after.fingerprint).toBe(before.fingerprint);
-
-  const blocked = await callTool(h.runtime.tools, h.run(), {
-    id: "p1",
-    name: "write_file",
-    args: {},
-  });
-  expect(blocked.blocked).toContain("denied_by_mode");
-  expect(writer.calls).toBe(0);
-  const read = await callTool(h.runtime.tools, h.run(), { id: "p2", name: "peek", args: {} });
-  expect(read.blocked).toBeUndefined();
-  expect(reader.calls).toBe(1);
-  // plan에서 빠져나오면 쓰기 도구는 다시 ask다(비대화형이라 deny 문장은 noninteractive)
-  await h.runtime.tools.setMode(h.thread, "default", "plan_approval");
-  const back = await callTool(h.runtime.tools, h.run({ interactive: false }), {
-    id: "p3",
-    name: "write_file",
-    args: {},
-  });
-  expect(back.blocked).toContain("noninteractive_ask_denied");
-});
-
 test("acceptEdits allows write tools without asking but still asks for exec; bypass allows exec", async () => {
   const h = await createHarness();
   const writer = addWriteTool(h, "write_file", "write");

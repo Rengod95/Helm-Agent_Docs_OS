@@ -223,7 +223,7 @@ test("resource fields: tool glob, risk, caller, minDepth, mode, mcpServer, capab
   ).toBe(true);
   expect(ruleMatches({ ...base, resource: { minDepth: 1 } }, input({ depth: 0 }))).toBe(false);
   expect(ruleMatches({ ...base, resource: { minDepth: 1 } }, input({ depth: 2 }))).toBe(true);
-  expect(ruleMatches({ ...base, resource: { mode: ["plan"] } }, input())).toBe(false);
+  expect(ruleMatches({ ...base, resource: { mode: ["acceptEdits"] } }, input())).toBe(false);
   expect(
     ruleMatches({ ...base, resource: { mcpServer: "gi*" } }, input({ mcpServer: "github" })),
   ).toBe(true);
@@ -240,14 +240,6 @@ test("resource fields: tool glob, risk, caller, minDepth, mode, mcpServer, capab
       input({ classes: ["spawn", "external_send"] }),
     ),
   ).toBe(true);
-});
-
-test("plan mode denies write and exec but allows read; reads still pass", () => {
-  expect(evaluatePolicy(input({ mode: "plan", risk: "exec" }), []).effect).toBe("deny");
-  expect(evaluatePolicy(input({ mode: "plan", risk: "write" }), []).effect).toBe("deny");
-  expect(evaluatePolicy(input({ mode: "plan", risk: "read", tool: "read" }), []).effect).toBe(
-    "allow",
-  );
 });
 
 test("bypass allows everything except deny rules; a managed ban demotes it to default", () => {
@@ -301,7 +293,6 @@ test("mode defaults follow the table", () => {
   expect(modeDefault("default", "write")).toBe("ask");
   expect(modeDefault("acceptEdits", "write")).toBe("allow");
   expect(modeDefault("acceptEdits", "exec")).toBe("ask");
-  expect(modeDefault("plan", "exec")).toBe("deny");
   expect(modeDefault("bypass", "exec")).toBe("allow");
 });
 

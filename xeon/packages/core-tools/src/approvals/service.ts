@@ -21,33 +21,31 @@ import {
   type StampedDraft,
   type StepCheckpointInput,
 } from "@fresnel/contracts/records";
-import {
-  PERMISSION_MODE_STRICTNESS,
-  type ApprovalApplyOutcome,
-  type CallerId,
-  type RunSource,
-  type ApprovalOrigin,
-  type ApprovalWaitFailure,
-  type OpenedApproval,
-  type ApprovalRequest,
-  type ApprovalRequestInput,
-  type ApprovalResolution,
-  type ApprovalResponse,
-  type ApprovalService,
-  type ModeChangeResult,
-  type PermissionMode,
-  type ToolRunContext,
+import type {
+  ApprovalApplyOutcome,
+  CallerId,
+  RunSource,
+  ApprovalOrigin,
+  ApprovalWaitFailure,
+  OpenedApproval,
+  ApprovalRequest,
+  ApprovalRequestInput,
+  ApprovalResolution,
+  ApprovalResponse,
+  ApprovalService,
+  ToolRunContext,
 } from "@fresnel/contracts/services";
 import type { ExtHost } from "@fresnel/ext-host";
 import { commitWithRetry, type CommitFailure } from "../commit.ts";
 import { UNATTENDED_DEFAULTS, type ToolsUnattendedConfig } from "../settings.ts";
-import { isJsonObject, messageOf } from "../util.ts";
+import { messageOf } from "../util.ts";
 import { requestCommitKey, resolveCommitKey } from "./keys.ts";
 import { scanApprovals, type ScannedApprovals } from "./pending.ts";
 import { unattendedPlan } from "./unattended.ts";
 import { invalidDetail, requestIssue, validateResponse } from "./protocol.ts";
 
-// L1.tools.spec §3.6, §4.7 승인 대기. 도구 승인(tool), 계획 승인(plan), 질문(question)이 하나의 대기 형식을 쓴다.
+// L1.tools.spec §3.6, §4.7 승인 대기. 도구 승인(tool), 질문(question), 검토(review)가 하나의 대기 형식을 쓴다.
+// 계획 승인(plan)은 더는 만들지 않는다 [결정: 2026-11-13 사용자]. 옛 대기는 `restore`에서 취소로 정착한다.
 // L2 기능은 자기 도구의 실행 안에서 `request`(또는 비차단 `open`+`wait`)를 부른다.
 
 /** 승인을 일으킨 도구 호출의 활성 상태. 대기 체크포인트 초안과 비대화형 판정에 쓴다 */
@@ -77,9 +75,6 @@ export interface ApprovalDeps {
         readonly source?: RunSource;
       }
     | undefined;
-  /** 계획 승인의 `{ mode }`를 적용한다(ToolService.setMode "plan_approval") */
-  readonly setMode: (threadId: ThreadId, mode: PermissionMode) => Promise<ModeChangeResult>;
-  readonly modeOf: (threadId: ThreadId) => PermissionMode;
   /** 만료 타이머. 없으면 타이머 없이 `restore`, `respond`, `open`이 시계를 보고 만료를 해결한다 */
   readonly scheduler?: Scheduler;
   /** 사람이 답할 수 없는 주 대화 turn의 승인 정책(`l1.tools.unattended.*`). 없으면 설정 기본값이다 */
@@ -119,6 +114,11 @@ interface Entry {
 
 function ruleOf(request: ApprovalRequest): string | null {
   return request.body.kind === "tool" ? request.body.tool.ruleId : null;
+}
+
+/** 옛 계획 승인 대기인가. 계획 승인은 더는 만들지 않는다 [결정: 2026-11-13 사용자] */
+function isLegacyPlan(entry: Entry): boolean {
+  return entry.request.body.kind === "plan";
 }
 
 function grantsThread(resolution: {
@@ -179,20 +179,6 @@ function scopeIds(request: ApprovalRequest): {
   return request.origin.threadId === request.surfaceThreadId
     ? { turnId: request.origin.turnId, stepId: request.origin.stepId }
     : { turnId: null, stepId: null };
-}
-
-function isMode(value: unknown): value is PermissionMode {
-  return PERMISSION_MODE_STRICTNESS.some((mode) => mode === value);
-}
-
-/** 계획 승인 해결의 `{ mode }`. 없거나 모드가 아니면 undefined */
-function planModeOf(
-  request: ApprovalRequest,
-  resolution: ApprovalResolution,
-): PermissionMode | undefined {
-  if (request.body.kind !== "plan" || resolution.decision !== "allow") return undefined;
-  const mode = isJsonObject(resolution.answer) ? resolution.answer["mode"] : undefined;
-  return isMode(mode) ? mode : undefined;
 }
 
 function expiredResolution(
@@ -367,29 +353,7 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     evictResolved();
   }
 
-  /**
-   * 계획 승인이 허용이고 `{ mode }`가 있으면 권한 모드를 바꾼다(L1.tools.spec §4.7 5번). 대기를 풀기 전에 하므로 계획 도구가 이어갈 때 모드가 이미 바뀌어 있다.
-   * 같은 모드면 쓰지 않는다: 해결이 이미 커밋된 뒤 재시작해 이 호출이 다시 올 때 중복 기록이 없다. 바꾸지 못해도 해결은 그대로다(경고만 남긴다)
-   */
-  async function applyPlanMode(
-    request: ApprovalRequest,
-    resolution: ApprovalResolution,
-  ): Promise<void> {
-    const mode = planModeOf(request, resolution);
-    if (mode === undefined) return;
-    const threadId = request.origin.threadId;
-    if (deps.modeOf(threadId) === mode) return;
-    const changed = await deps.setMode(threadId, mode);
-    if (!changed.ok) {
-      deps.logger?.warn("tools.plan_mode_not_applied", {
-        approvalId: request.approvalId,
-        mode,
-        reason: changed.error.kind,
-      });
-    }
-  }
-
-  /** approval.resolved 커밋. 성공하면 모드를 적용하고 entry를 해결 상태로 바꾼다 */
+  /** approval.resolved 커밋. 성공하면 entry를 해결 상태로 바꾼다 */
   async function commitResolution(
     entry: Entry,
     resolution: ApprovalResolution,
@@ -422,7 +386,6 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
       },
     });
     if (!committed.ok) return err(committed.failure);
-    await applyPlanMode(request, resolution);
     settle(entry, resolution);
     await prompt(entry, "end");
     return ok(undefined);
@@ -584,12 +547,9 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     }
     const entry = add(eventId, request);
     if (stored !== undefined) {
-      // 그 사이 응답이 커밋되었으면 이어 받는다. 해결은 커밋됐지만 모드 변경 전에 끊겼을 수 있어, 계획 도구가 다시 요청하는 이 자리에서 이어서 적용한다
+      // 그 사이 응답이 커밋되었으면 이어 받는다
       const resolved = stored.resolved.get(entry.request.approvalId);
-      if (resolved !== undefined) {
-        await applyPlanMode(entry.request, resolved);
-        settle(entry, resolved);
-      }
+      if (resolved !== undefined) settle(entry, resolved);
     } else if (silent) {
       settle(entry, silentResolution);
     } else {
@@ -715,9 +675,27 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
       if (resolved !== undefined) settle(entry, resolved);
       else added.push(entry);
     }
-    // 재시작 사이에 만료 시각이 지난 요청은 되살리면서 바로 해결한다
+    // 계획 승인은 더는 만들지 않는다 [결정: 2026-11-13 사용자]. 대기 중이던 옛 계획 승인은 응답할 길이 없으니 취소로 정착한다
+    await Promise.all(added.filter(isLegacyPlan).map(settleLegacyPlan));
+    // 재시작 사이에 만료 시각이 지난 요청은 되살리면서 바로 해결한다(이미 정착한 옛 계획 승인은 `expire`가 건너뛴다)
     await Promise.all(added.filter(overdue).map(expire));
     return ok(pending(threadId));
+  }
+
+  /**
+   * 옛 계획 승인 대기를 취소로 정착한다(`resolvedBy: "cancelled"`). 커밋이 실패하면 대기로 남기고 경고만 남긴다:
+   * 그 요청은 거부로 닫을 수 있다(거부는 모든 kind가 받는다)
+   */
+  async function settleLegacyPlan(entry: Entry): Promise<void> {
+    if (stateOf(entry) !== "pending") return;
+    const committed = await commitSettling(entry, cancelledResolution(entry.request));
+    if (committed.ok) {
+      deps.logger?.info("tools.legacy_plan_cancelled", { approvalId: entry.request.approvalId });
+    } else {
+      deps.logger?.warn("tools.legacy_plan_cancel_failed", {
+        approvalId: entry.request.approvalId,
+      });
+    }
   }
 
   async function rememberedIn(

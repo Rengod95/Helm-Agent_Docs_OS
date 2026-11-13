@@ -60,8 +60,9 @@ function call(overrides: Partial<PolicyInput> = {}): PolicyInput {
 describe("child mode and ceiling", () => {
   // spec plan child_mode_never_looser_than_parent
   test("child_mode_never_looser_than_parent", () => {
-    expect(childMode("plan", "acceptEdits")).toBe("plan");
-    expect(childMode("acceptEdits", "plan")).toBe("plan");
+    expect(childMode("acceptEdits", "default")).toBe("default");
+    expect(childMode("default", "acceptEdits")).toBe("default");
+    expect(childMode("acceptEdits", "bypass")).toBe("acceptEdits");
     expect(childMode("default", undefined)).toBe("default");
     expect(childMode("default", "bypass")).toBe("default");
     expect(childMode("bypass", "default")).toBe("default");
@@ -80,11 +81,11 @@ describe("child mode and ceiling", () => {
   test("ceilingOf keeps the parent's view and the definition limit", () => {
     expect(
       ceilingOf({
-        parent: { caller: "main", depth: 0, mode: "plan" },
+        parent: { caller: "main", depth: 0, mode: "acceptEdits" },
         definitionTools: ["read*", "grep"],
         requestAllow: ["read*"],
       }),
-    ).toEqual({ caller: "main", depth: 0, mode: "plan", allow: ["read*"] });
+    ).toEqual({ caller: "main", depth: 0, mode: "acceptEdits", allow: ["read*"] });
     expect(
       ceilingOf({
         parent: { caller: "main", depth: 0, mode: "default" },

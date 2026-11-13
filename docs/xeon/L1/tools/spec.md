@@ -14,7 +14,7 @@ binds: [xeon/packages/core-tools/**]
 
 ## 1. 목적과 범위
 
-모델이 부른 도구를 광고하고, 검증하고, 허용 여부를 정하고, 실행하고, 결과를 기록하는 L1 코어를 정한다. 승인·질문·계획 승인을 하나로 묶은 승인 프로토콜도 이 문서가 정한다.
+모델이 부른 도구를 광고하고, 검증하고, 허용 여부를 정하고, 실행하고, 결과를 기록하는 L1 코어를 정한다. 승인과 질문을 하나로 묶은 승인 프로토콜도 이 문서가 정한다.
 
 근거:
 
@@ -56,8 +56,8 @@ binds: [xeon/packages/core-tools/**]
 | 티어 (tier) | 규칙의 출처 등급. 낮은 쪽부터 `default` < `extension` < `user` < `managed` |
 | 위험 등급 (risk) | 도구가 선언한 효과 범위. `read` < `write` < `exec`. 미선언은 `exec` |
 | 도구 부류 (tool class) | 정책이 도구 이름 대신 쓰는 의미 표지. `spawn`, `user_interaction`, `shared_state_write`, `external_send` |
-| 권한 모드 | 규칙이 정하지 않은 호출에 적용할 기본 허용 범위. `default`, `acceptEdits`, `plan`, `bypass` |
-| 승인 요청 | 사람의 응답을 기다리는 단일 대기 레코드. 종류는 `tool`(도구 승인), `plan`(계획 승인), `question`(사용자 질문) |
+| 권한 모드 | 규칙이 정하지 않은 호출에 적용할 기본 허용 범위. `default`, `acceptEdits`, `bypass`. 계획 모드(`plan`)는 없다 [결정: 2026-11-13 사용자] [근거: 2026-11-13 사용자 결정] |
+| 승인 요청 | 사람의 응답을 기다리는 단일 대기 레코드. 종류는 `tool`(도구 승인), `question`(사용자 질문). 계획 승인(`plan`)은 더는 만들지 않는다 [결정: 2026-11-13 사용자] |
 | 결과 경계화 | 모델에 보낼 도구 결과를 한도 안으로 줄이고 원문을 blob으로 옮기는 일 |
 | 대화형 실행 | 사람이 승인 요청에 답할 수 있는 실행. 예약 실행과 헤드리스 실행은 비대화형이다 |
 
@@ -252,7 +252,7 @@ export interface ToolService extends ToolsPort {
 
   /** 대화의 권한 모드. 이번 실행(launch) 범위 설정 l1.tools.permissionMode를 바꾸고 settings.changed로 남는다 */
   mode(threadId: ThreadId): PermissionMode;
-  setMode(threadId: ThreadId, mode: PermissionMode, source: "user" | "plan_approval"): Promise<ModeChangeResult>;
+  setMode(threadId: ThreadId, mode: PermissionMode, source: "user"): Promise<ModeChangeResult>;
 }
 ```
 
@@ -356,9 +356,9 @@ export type PolicyEffect = "allow" | "ask" | "deny";
 export type PolicyTier = "default" | "extension" | "user" | "managed";
 export const POLICY_TIER_ORDER: readonly PolicyTier[] = ["default", "extension", "user", "managed"];
 
-export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypass";
+export type PermissionMode = "default" | "acceptEdits" | "bypass";   // 계획 모드 없음 [결정: 2026-11-13 사용자]
 /** 엄격한 쪽이 앞이다. 자식 모드 계산(L1.agents.spec)에 쓴다 */
-export const PERMISSION_MODE_STRICTNESS: readonly PermissionMode[] = ["plan", "default", "acceptEdits", "bypass"];
+export const PERMISSION_MODE_STRICTNESS: readonly PermissionMode[] = ["default", "acceptEdits", "bypass"];
 
 /** 1차 동작은 도구 호출 하나. 2차에 "shell.command"를 더한다(§4.11) */
 export type PolicyAction = "tool.call";
@@ -466,7 +466,7 @@ export function validateRules(rules: readonly PolicyRule[]): readonly { readonly
 ```ts
 export const ApprovalServiceName = "fresnel.approvals" as const;
 
-export type ApprovalKind = "tool" | "plan" | "question";
+export type ApprovalKind = "tool" | "plan" | "question";   // plan은 더는 만들지 않는다. 옛 기록 읽기 전용 [결정: 2026-11-13 사용자]
 export type ApprovalDecision = "allow" | "deny" | "answer";
 export type ApprovalRemember = "once" | "thread" | "always";
 
@@ -503,6 +503,7 @@ export interface ToolApprovalBody {
   readonly mcp?: { readonly server: string; readonly declared?: McpDeclaredHints };
 }
 
+/** 더는 만들지 않음 [결정: 2026-11-13 사용자]. 옛 기록 읽기 전용. `nextModes`에 옛 `plan` 문자열이 있을 수 있어 서비스가 버린다 */
 export interface PlanApprovalBody {
   /** 계획 본문(마크다운). 큰 값은 BlobRef */
   readonly plan: string | BlobRef;
@@ -532,7 +533,7 @@ export interface QuestionBody {
 
 export type ApprovalBody =
   | { readonly kind: "tool"; readonly tool: ToolApprovalBody }
-  | { readonly kind: "plan"; readonly plan: PlanApprovalBody }
+  | { readonly kind: "plan"; readonly plan: PlanApprovalBody }   // 옛 기록 읽기 전용
   | { readonly kind: "question"; readonly question: QuestionBody }
   | { readonly kind: "review"; readonly review: ReviewBody };   // F services/approvals.ts. 본문 최소 집합은 adr.0018 §6
 
@@ -562,7 +563,7 @@ export type QuestionAnswer = Readonly<Record<string, { readonly selected: readon
 
 export interface ApprovalResponse {
   readonly decision: ApprovalDecision;
-  /** decision "answer"면 QuestionAnswer(question) 또는 { mode }(plan). decision "deny"면 { feedback } 허용 */
+  /** decision "answer"면 QuestionAnswer(question). decision "deny"면 { feedback } 허용. 옛 plan 기록의 allow는 받지 않는다 */
   readonly answer?: JsonValue;
   readonly remember?: ApprovalRemember;
 }
@@ -620,16 +621,16 @@ export const ApprovalResolutionSchema: TSchema;
 |---|---|---|---|
 | `review` | `answer`, `deny` | answer일 때 `ReviewAnswer`(`decisions`, `comments`, `submit` 필수. F `ReviewAnswerSchema`) 필수, deny일 때 `{ feedback }` 선택 | `once` |
 | `tool` | `allow`, `deny` | deny일 때 `{ feedback: string }` 선택 | `once`, `thread`. 파이프라인은 `always`를 제안하지 않는다(§4.7 6번) |
-| `plan` | `allow`, `deny` | allow일 때 `{ mode?, note? }` 선택(`mode`는 `nextModes` 안), deny일 때 `{ feedback }` 선택 | `once` |
+| `plan`(옛 기록) | `deny` | deny일 때 `{ feedback }` 선택. 계획 승인은 더는 만들지 않는다 [결정: 2026-11-13 사용자](§4.7 9번) | `once` |
 | `question` | `answer`, `deny` | answer일 때 `QuestionAnswer` 필수(질문 id마다) | `once` |
 
 - 응답 검사 규칙 [제안]: 모두 `respond`가 커밋 전에 한다. 어긋나면 `applied: false`이고 이벤트를 쓰지 않는다. 요청은 대기 상태로 남는다. 결과의 `reason`이 클라이언트에 이유를 알린다: `answer_invalid`(decision이 kind에 맞지 않거나 answer·remember가 맞지 않음. `detail`에 한 줄. 요청은 대기 그대로라 고쳐 다시 보낼 수 있다), `already_resolved`(해결됐거나 다른 응답이 해결을 커밋하는 중), `unknown_approval`(이 런타임의 대기 목록에 없음. 메모리 표에서 빠진 해결된 요청도 여기에 든다), `commit_failed`(응답은 맞았으나 `approval.resolved` 커밋이 실패. 요청은 대기 그대로)(F `ApprovalApplyOutcome`, M2 마감 G1-09).
   - `tool`: `allow` 또는 `deny`. `remember`는 요청이 낸 범위 안이어야 한다.
-  - `plan`: `allow`의 `answer`는 생략하거나 `{ mode?, note? }`다. `mode`는 요청 `nextModes` 안이어야 한다. `deny`의 `answer`는 `{ feedback }`만 받는다.
+  - `plan`(옛 기록): `allow`는 받지 않는다(`answer_invalid`). `deny`의 `answer`는 `{ feedback }`만 받는다.
   - `question`: `answer`의 `QuestionAnswer`는 질문마다 항목이 하나씩 있고(`{ selected: string[], text?: string }`, 그 밖의 필드 없음), `selected`의 id는 그 질문의 선택지 안에 있고 중복이 없고, `multiSelect`가 거짓이면 하나 이하다. `allowFreeText`가 거짓이면 `text`가 없다. 선택도 `text`도 비면 거부한다. `deny`의 `answer`는 `{ feedback }`만 받는다.
   - `review` [결정: M3-REQ-74, adr.0018]: `answer`의 `ReviewAnswer`는 F 스키마로 검사한다. 결정이 가리키는 hunk와 코멘트 대상이 실제로 있는지는 도메인(cap-artifacts)이 `approval.resolved`를 받을 때 본다. `allow`는 `answer_invalid`다. 요청은 `round >= 1`이고 파일 경로가 중복되지 않아야 한다.
-  - `remember`: `plan`, `question`, `review`는 `once`만 낸다.
-- 요청 검사 [제안]: `request`와 `open`은 커밋 전에 입력을 본다. `requestKey` 1~48자, `remember`는 위 표대로, 질문은 1~4개이고 질문 id와 선택지 id(1~32자)가 각각 유일하고 선택지가 없는 질문은 `allowFreeText: true`여야 한다. `nextModes`는 모드 이름이고 중복이 없다. 어긋나면 `ApprovalRequestError { kind: "rejected", code: "approvals.request_invalid" }` 값이다. 이벤트 payload 스키마(`ApprovalRequestedPayloadSchema`)도 같은 시점에 확인해, 저장소가 Bug로 거부하기 전에 값으로 돌려준다(TY-24).
+  - `remember`: `question`, `review`는 `once`만 낸다.
+- 요청 검사 [제안]: `request`와 `open`은 커밋 전에 입력을 본다. `requestKey` 1~48자, `remember`는 위 표대로, 질문은 1~4개이고 질문 id와 선택지 id(1~32자)가 각각 유일하고 선택지가 없는 질문은 `allowFreeText: true`여야 한다. 계획 승인(`plan`) 요청은 모두 거절한다(§4.7 9번). 어긋나면 `ApprovalRequestError { kind: "rejected", code: "approvals.request_invalid" }` 값이다. 이벤트 payload 스키마(`ApprovalRequestedPayloadSchema`)도 같은 시점에 확인해, 저장소가 Bug로 거부하기 전에 값으로 돌려준다(TY-24).
 - 비차단 요청 [제안]: `ApprovalService.request`는 `open`과 `wait`을 합친 것이다. L2 어댑터는 `open`(커밋만 하고 현재 상태를 돌려준다. 같은 `requestKey`면 기존 요청의 현재 상태)과 `wait(approvalId, signal)`(해결이 기록되면 이행. signal이 끊기면 기다림만 그만두고 요청은 남는다), `get(approvalId)`로 `L2ApprovalsPort`(`request`/`wait`/`get`)를 만든다. 세 메서드는 F `ApprovalService`에 올라갔다(§8.3 F 요청 11, m2 F.8). core-tools 구현은 `ApprovalsInternal`(= `ApprovalService`)이다.
 
 ### 3.7 결과 경계화 (`core-tools/src/bound.ts`)
@@ -674,7 +675,7 @@ export type ToolsErrorCode =
   | "tools.mode_forbidden"       // managed가 금지한 모드로 바꾸려 함
   | "approvals.unknown"          // 없는 approvalId
   | "approvals.invalid_response" // kind와 맞지 않는 decision·answer
-  | "approvals.noninteractive";  // 비대화형 실행에서 question·plan 요청
+  | "approvals.noninteractive";  // 비대화형 실행에서 question 요청
 
 export interface ToolsError { readonly kind: ToolsErrorCode; readonly message: string; readonly detail?: JsonValue }
 ```
@@ -720,7 +721,7 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 
 1. 순서: 등록된 도구 전체에 `orderTools`(F.capabilities.spec §3.8)를 적용한다. 기능 밖 도구도 같은 비교 함수에 넣는다(§3.1 순서 키). 광고 목록의 순서는 이 결과의 부분 수열이다. 그래서 같은 등록 상태면 입력 순서와 무관하게 같은 목록과 같은 `fingerprint`가 나온다.
 2. 전역 deny 제거 [제안]: 도구마다 `PolicyInput{ args: null }`로 `evaluatePolicy`를 부른다. 결과가 `deny`이고 그 규칙의 resource에 `args`와 `mode` 조건이 없으면 광고 목록에서 뺀다. 거부 응답을 내는 대신 목록에서 빼는 방식은 Gemini CLI 정책 엔진에서 가져왔다(`_research/item-catalog.md` 진보된 설계 5번, opencode `registry.snapshot(permissions)` `_research/refs/opencode.md` 161행). 인자나 모드에 따라 달라지는 deny는 목록에 남기고 실행 시점에 거부한다.
-3. 모드에 따른 제거는 하지 않는다 [제안]. 계획 모드의 쓰기 차단(§4.6)은 실행 시점에 거부한다. 모드를 바꿀 때마다 광고 목록이 바뀌면 프롬프트 캐시 접두가 깨지기 때문이다(`_research/ref-synthesis.md` L1 코어 (c) 캐시 원칙). 모드에 묶인 지연 도구를 켜는 것(규칙 5의 `activeWhen`)은 제거가 아니라 대화 중 추가이고, 대화 중 도구 추가를 받는 모델에서만 일어나므로 접두를 깨지 않는다.
+3. 모드에 따른 제거는 하지 않는다 [제안]. 모드가 정하는 허용과 확인(§4.6)은 실행 시점에 판정한다. 모드를 바꿀 때마다 광고 목록이 바뀌면 프롬프트 캐시 접두가 깨지기 때문이다(`_research/ref-synthesis.md` L1 코어 (c) 캐시 원칙). 모드에 묶인 지연 도구를 켜는 것(규칙 5의 `activeWhen`)은 제거가 아니라 대화 중 추가이고, 대화 중 도구 추가를 받는 모델에서만 일어나므로 접두를 깨지 않는다.
 4. 지연 노출 [제안]:
    - `exposure: "always"`는 항상 광고한다. 내장 도구와 L2 작업 도구의 기본값이다.
    - `exposure: "deferred"`는 처음부터 지연 도구다.
@@ -728,7 +729,7 @@ export type ApprovalResolvedPayload = ApprovalResolution;
    - 내장 도구의 노출 [결정: 2026-11-13 사용자 "애매한 것들 전부 지연으로 넣어"]: 항상 싣는 도구는 작업 폴더 도구(`read`, `write`, `edit`, `bash`, `grep`), 질문(`ask_user`), 작업 목록(`task_write`)과 도구 실행 틀이 스스로 쓰는 `tool_search`(지연 도구가 있을 때), `read_tool_output`(잘린 출력의 원문을 다시 읽는 길이라 모델이 찾아 나설 수 없다)이다. 그 밖의 내장 도구는 각 기능의 등록(`CapabilityToolsRegistration.exposure`)이 `deferred`로 지정한다: 웹(`web_search`, `web_fetch`, `web_browse_*`), 지식(`knowledge_search`, `session_scroll`, `session_read`, `memory_manage`, `skill_view`, `skill_manage`), MCP 기능 도구(`mcp_servers`, `mcp_list_resources`, `mcp_read_resource`)와 MCP 서버 도구, 산출물(`artifact_create`, `artifact_update`, `review_request`, `session_rename`), 예약(`schedule_create`), 계획 도구(`enter_plan_mode`, `exit_plan_mode`, `submit_plan`), 서브에이전트(`agent`), 학습 제안(`learning_propose`). 작업 폴더 도구 `ls`와 `find`도 지연이다 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]: 목록과 찾기는 `bash`가 맡고, 두 도구는 등록이 살아 있어 `tool_search`로 찾을 수 있다(`WorkspaceFiles` 등록의 `exposure`, L2.workspace.spec §3.2). 기본값 `always`는 바꾸지 않는다: 지정하지 않은 확장·그룹 도구는 그대로 항상 실린다. 확장·그룹 도구 정의(`ToolResourceDef.exposure`)와 직접 등록(`DirectToolRegistration.exposure`)도 같은 값을 받는다.
    - 지연 도구가 하나라도 있으면 내장 도구 `tool_search`(순서 키 `core.tools`)를 광고한다. `tool_search`는 질의(`query: string`, `limit?: number`)로 지연 도구의 이름·설명을 찾고, 결과로 고른 도구를 활성화한다. 활성화된 도구는 다음 단계부터 광고된다.
    - 대화 중간의 추가는 L1.context.spec이 `diffToolsets`의 `added`를 pi-ai `SystemMessage.toolsAdded`로 대화 기록에 넣는다(F.capabilities.spec §4.5). Anthropic 경로에서는 pi-ai가 `tool_addition` 블록으로 바꾸고, 첫 요청의 지연 자리표시 도구(`anthropic-messages.ts:200-209`, `defer_loading: true`)가 캐시 접두를 지킨다(`anthropic-messages.ts:1141-1149`).
-5. 활성화 [결정: 2026-11-13 사용자 "애매한 것들 전부 지연으로 넣어"]: 지연 도구는 셋 중 하나면 광고된다. (가) `tool_search`가 활성화했다(아래). (나) 등록이 준 상태 조건 `activeWhen(threadId)`이 참이다. 계획 모드에 들어가 있는 동안의 `exit_plan_mode`, `submit_plan`이 이 경우다(L2.work.spec §4.2): 사용자가 `/plan`을 쳤는데 모델이 계획을 낼 도구를 못 찾는 일이 없어야 한다. 조건은 대화 상태를 읽기만 하는 동기 질의이고 `planExposure`가 부른다. (다) 서브에이전트 정의의 도구 제한(`allow`)이 그 도구의 이름을 glob 없이 그대로 적었다. 정의가 그 도구를 쓰라고 정한 것이라 검색을 거치지 않는다(학습 검토 에이전트의 `learning_propose`). 모델이 대화 중 도구 추가를 받을 수 없으면(`AdvertiseInput.deferralAvailable === false`, core-loop가 `CachePolicy.midConversationToolChanges`에서 채운다) 활성화한 도구가 요청에 실리지 않으므로(L1.context.spec §4.3 5번 `defer`) 지연하지 않고 모든 도구를 싣고 `tool_search`는 싣지 않는다. 도구가 128개를 넘으면 이 예외 없이 지연으로 줄인다. 이 모델에서는 도구 정의가 줄지 않는다.
+5. 활성화 [결정: 2026-11-13 사용자 "애매한 것들 전부 지연으로 넣어"]: 지연 도구는 셋 중 하나면 광고된다. (가) `tool_search`가 활성화했다(아래). (나) 등록이 준 상태 조건 `activeWhen(threadId)`이 참이다. 조건은 대화 상태를 읽기만 하는 동기 질의이고 `planExposure`가 부른다. (다) 서브에이전트 정의의 도구 제한(`allow`)이 그 도구의 이름을 glob 없이 그대로 적었다. 정의가 그 도구를 쓰라고 정한 것이라 검색을 거치지 않는다(학습 검토 에이전트의 `learning_propose`). 모델이 대화 중 도구 추가를 받을 수 없으면(`AdvertiseInput.deferralAvailable === false`, core-loop가 `CachePolicy.midConversationToolChanges`에서 채운다) 활성화한 도구가 요청에 실리지 않으므로(L1.context.spec §4.3 5번 `defer`) 지연하지 않고 모든 도구를 싣고 `tool_search`는 싣지 않는다. 도구가 128개를 넘으면 이 예외 없이 지연으로 줄인다. 이 모델에서는 도구 정의가 줄지 않는다.
    - 활성화 상태는 이벤트에서 다시 계산한다. `tool_search`의 `effect.result.output.structuredContent`에 `{ activated: ToolName[] }`를 남기고, `advertise`의 `activated`는 그 대화의 이 값들의 합집합이다. 재개 뒤에도 같은 광고 목록이 나온다.
    - `tool_search` 구현 [결정: L1A.5]: 인자는 `query`(1~200자)와 `limit`(1~20, 기본 5)다. 질의를 영숫자 토큰으로 나눠 아직 활성화되지 않은 지연 도구의 이름(일치 10점, 포함 5점)과 설명(포함 2점)에 점수를 매기고 점수 0은 뺀다. 한글 같은 비영숫자 질의는 토큰이 없어 맞는 것이 없다. 그래서 도구 설명이 영어 키워드로 질의하라고 알리고, 맞는 도구가 없으면 결과가 지연 도구의 이름만 나열한다(설명은 싣지 않는다) [결정: 2026-11-13 사용자 "애매한 것들 전부 지연으로 넣어"의 구현 판단]. 점수가 같으면 순서 키 순이다. 전역 deny로 뺀 도구는 찾지 않는다. 결과 `content`는 도구 이름과 설명 첫 줄의 목록이고 `structuredContent`는 `{ activated }`다. 광고 목록에 남은 자리(128 − 현재 광고 수)만큼만 활성화하고 넘는 수는 결과 문장에 적는다. 도구는 `risk: read`, `replay: "safe"`다.
    - 재계산 위치: `tool_search`와 core-loop가 각자 활성 가지의 `effect.intent`(도구 이름)와 `effect.result`(`structuredContent.activated`)를 읽는다. core-loop는 turn마다 한 번 읽고 같은 turn의 `tool_search` 결과를 그때그때 더한다.
@@ -806,7 +807,7 @@ export type ApprovalResolvedPayload = ApprovalResolution;
   - `approvalId`가 없는 변형(L2.mcp의 `inputRequests`와 `requestState`)은 D5(a)대로 어댑터가 질문 승인으로 올린다 [결정: L1F]. 출력이 F `McpInputRequiredSchema`에 맞으면 `planMcpQuestionBody`로 질문 묶음을 만들고 kind `question` 승인을 비차단으로 연다(`ApprovalService.open`). 요청 키는 `mcp:<toolCallId 해시 32자>#r<round>`를 `requestKeyFor`로 줄인 값이라 라운드마다 다른 요청이고, 재시작 뒤 같은 라운드는 기록된 요청을 이어 받는다. 승인과 대기 체크포인트는 한 커밋이다(비대화형이면 요청과 거부 해결이 한 커밋). 해결이 오면 `decodeMcpAnswer`(답)나 `uniformMcpAnswer`(거부는 `decline`, 취소는 `cancel`)로 `inputResponses`를 만들고, 같은 입력과 같은 `requestId`로 메서드를 다시 부르며 `CallOptions.continuation = { round: 이전 라운드 + 1, inputResponses, requestState }`를 싣는다. 구현은 `src/mcp-input.ts`다.
   - 질문이 4개를 넘거나, 사용자 답이 폼에 맞지 않거나(JSON 폼 파싱 실패 등), 승인 요청 커밋이 실패하면 호출은 `[fresnel:input_questions_too_many]`, `[fresnel:input_answer_invalid]`, `[fresnel:input_request_failed]` 오류 결과로 끝난다. `approvalId`도 MCP 모양도 아닌 `status: "input_required"` 출력은 일반 결과로 흘려 보내지 않고 `[fresnel:input_required_invalid]` 오류 결과다.
   - `DirectToolRegistration`(동적 MCP 서버 도구)은 pi `AgentTool.execute` 시그니처에 연속 정보를 실을 자리가 없어, 선택 필드 `executeWithContinuation`으로 같은 길을 쓴다 [결정: 병합 HOST.6]. 이 필드가 있으면 어댑터는 `tool.execute` 대신 이것을 부른다. 결과가 `status: "input_required"`이면 `details.round`, `details.questions`와 `inputRequired`(`inputRequests`, `requestState`)를 `McpInputRequired`로 읽고, 위와 같은 질문 승인과 재호출(`continuation` 인자)을 한다. 읽을 수 없는 모양은 `[fresnel:input_required_invalid]` 오류 결과이고 8라운드 상한도 같다. 구현은 `src/entries.ts`의 `settleDirectInput`과 `src/mcp-input.ts`의 `inputRequestOfResult`다. 필드가 없는 직접 등록 도구는 한 번만 부른다.
-  - 재시작 뒤: 대기 체크포인트(`waiting: "approval"`)와 열린 효과가 남는다. `ask_user`, `submit_plan`은 `replay: "safe"`라 `decideEffectRecovery`가 `rerun`을 내고, `rerun`이 같은 경로로 도구를 다시 부르면 도구는 같은 `requestId`로 기존 승인을 이어 받는다.
+  - 재시작 뒤: 대기 체크포인트(`waiting: "approval"`)와 열린 효과가 남는다. `ask_user`는 `replay: "safe"`라 `decideEffectRecovery`가 `rerun`을 내고, `rerun`이 같은 경로로 도구를 다시 부르면 도구는 같은 `requestId`로 기존 승인을 이어 받는다.
 
 ### 4.4 효과 기록
 
@@ -827,19 +828,18 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 
 1. 일치 규칙 M = `rules` 중 `action`이 같고 `ruleMatches`가 참인 것.
 2. M에 `effect: "deny"`가 하나라도 있으면 deny다. 가장 높은 티어, 그 안에서 가장 큰 priority의 deny 규칙을 `ruleId`로 낸다. 어느 티어의 allow도 deny를 뒤집지 못한다. 그래서 상위 티어 deny는 하위 allow에 지지 않는다.
-3. 모드 `plan`이고 `input.risk`가 `write` 또는 `exec`이면 deny(`reason: "mode"`)다(§4.6).
-4. 모드 `bypass`이면: `bypassAllowed`가 거짓이면 모드를 `default`로 보고 계속한다(`reason`에 `bypass_forbidden` 표시). 참이면 allow(`reason: "mode"`)다.
-5. M이 비지 않으면 M에서 가장 높은 티어의 규칙만 남긴다. 그 안에서 가장 큰 priority의 규칙만 남긴다. 남은 규칙 중 ask가 있으면 ask, 아니면 allow다(`reason: "rule"`).
-6. M이 비면 모드 기본값(§4.6 표)이다(`reason: "mode"`).
-7. 결과가 ask이고 `interactive`가 거짓이면 deny(`reason: "noninteractive"`)다.
+3. 모드 `bypass`이면: `bypassAllowed`가 거짓이면 모드를 `default`로 보고 계속한다(`reason`에 `bypass_forbidden` 표시). 참이면 allow(`reason: "mode"`)다.
+4. M이 비지 않으면 M에서 가장 높은 티어의 규칙만 남긴다. 그 안에서 가장 큰 priority의 규칙만 남긴다. 남은 규칙 중 ask가 있으면 ask, 아니면 allow다(`reason: "rule"`).
+5. M이 비면 모드 기본값(§4.6 표)이다(`reason: "mode"`).
+6. 결과가 ask이고 `interactive`가 거짓이면 deny(`reason: "noninteractive"`)다.
 
-- 상위 티어 우선(5단계)으로 사용자 규칙이 기본 규칙의 ask를 allow로 풀 수 있고, managed 규칙이 사용자 규칙을 덮는다. deny는 2단계에서 티어와 무관하게 확정된다.
+- 상위 티어 우선(4단계)으로 사용자 규칙이 기본 규칙의 ask를 allow로 풀 수 있고, managed 규칙이 사용자 규칙을 덮는다. deny는 2단계에서 티어와 무관하게 확정된다.
 
 ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 
 - `ToolRunContext.ceiling`이 있으면 5b의 결정은 `stricter(childDecision(call, parent, child, rules), evaluatePolicy(input, rules))`다. `parent`는 `ToolRunContext.ceiling`, `child`는 자식 관점 입력(caller, depth, 자식 모드)이다. `childDecision`은 부모 관점 평가, 자식 관점 평가, 정의 제한(`ceiling.allow`)을 `stricter`로 합치는 순수 함수다(L1.agents.spec §4.3 1번). F `policy.ts`에 두도록 요청한다(§8.3 F 요청 9, L1.agents.spec §8.3 5와 같은 항목).
-- `evaluatePolicy` 자체는 ceiling을 받지 않는다. ceiling 단계는 파이프라인이 평가기 바깥에서 적용한다. 그래서 위 1~7단계의 순수성과 번호는 그대로다.
-- 합친 결과가 ask이고 `interactive`가 거짓이면 deny(`reason: "noninteractive"`)다. 7단계와 같은 규칙이다.
+- `evaluatePolicy` 자체는 ceiling을 받지 않는다. ceiling 단계는 파이프라인이 평가기 바깥에서 적용한다. 그래서 위 1~6단계의 순수성은 그대로다.
+- 합친 결과가 ask이고 `interactive`가 거짓이면 deny(`reason: "noninteractive"`)다. 6단계와 같은 규칙이다.
 - 구현 [결정: L1A.6]: `prepare`는 `ceiling`이 있으면 `stricter(childDecision(evaluatePolicy, input, ceiling, { caller, depth, mode }, rules), evaluatePolicy(input, rules))`를 5b 결정으로 쓴다. `stricter`와 `childDecision`은 F `@fresnel/contracts/services`의 순수 함수이고 core-tools는 사본을 두지 않는다. 자식 관점의 `mode`는 자식 대화의 유효 권한 모드(`l1.tools.permissionMode`, core-agents가 교집합으로 써 둔다)다. 정의의 도구 제한은 `ceiling.allow`가 실행 시점에 거부하고(`agent.<이름>.tools`), 호출자의 `tools.deny`는 `ceiling.deny`가 거부한다(`agent.<이름>.tools.deny`). 두 거부 문장은 `ceiling.denyHint`로 끝난다 [제안: M3-REQ-78]. 정의가 더하는 규칙은 `registerRules("core:agents")`의 default 티어 규칙으로 들어온다.
 - 서브에이전트 승인 [결정: L1A.6]: 자식 호출의 승인 요청은 `surfaceThreadId`(소유 트리 루트 대화)에 기록하고 `origin`에 자식 대화·호출·caller를 남긴다. 한 커밋은 한 대화의 것이라 대기 체크포인트는 같은 커밋에 넣지 않는다. 이벤트의 `turnId`·`stepId`는 비운다. 자식 대화는 재개 때 마지막 단계 체크포인트의 `tools` 진입으로 같은 `requestKey` 요청을 다시 내고, 커밋이 `replayed`로 끝나 기록된 요청을 이어 받는다.
 - `childDecision`이 F에 들어가기 전에는 ceiling 단계를 켜지 않는다. 그 사이 자식 대화는 M2 착수 조건을 채우지 못한 것으로 본다(L1.tools.plan TL-13 선행).
@@ -863,38 +863,40 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 
 ### 4.6 권한 모드와 위험 등급
 
-모드는 네 가지다. 화면(설정 화면, 입력창 칩, 승인 카드)에서 부르는 이름은 `default` 기본(실행마다 묻기), `acceptEdits` 편집 자동 허용, `plan` 계획만, `bypass` 모두 허용이다 [결정: 2026-11-08]. 계획 v2 구성요소 표기를 따른다(`_research/layer-plan-v2.json` L1-d "권한 모드").
+모드는 세 가지다. 화면(설정 화면, 입력창 칩, 승인 카드)에서 부르는 이름은 `default` 기본(실행마다 묻기), `acceptEdits` 편집 자동 허용, `bypass` 모두 허용이다 [결정: 2026-11-08]. 계획 모드(`plan`)는 없다 [결정: 2026-11-13 사용자] [근거: 2026-11-13 사용자 결정]. 계획은 모델이 글로 쓰고 `ask_user`로 묻는다. 시스템 프롬프트·환경 블록·도구 설명에 계획 모드 안내를 더하지 않는다. 계획 v2 구성요소 표기를 따른다(`_research/layer-plan-v2.json` L1-d "권한 모드").
 
 | 모드 | read | write | exec | 비고 |
 |---|---|---|---|---|
 | `default` | allow | ask | ask | 기본값 |
 | `acceptEdits` | allow | allow | ask | 편집 도구 자동 허용 |
-| `plan` | allow | deny | deny | 쓰기 도구 차단. 계획 승인(§4.7)으로 빠져나온다 |
 | `bypass` | allow | allow | allow | 규칙 ask도 allow. deny 규칙은 남는다. managed가 `l1.tools.bypassAllowed = false`로 금지할 수 있다 |
 
 - 위험 등급 [제안]: 도구가 등급을 선언하고 선언이 없으면 가장 위험한 쪽을 쓴다(`_research/item-catalog.md` L1-d "위험 등급과 승인 필요 선언", omp 미선언 시 exec). 등급과 재생 선언은 도구 등록 필드로 받는다. 미선언 등급은 `exec`, 미선언 재생은 `unsafe`다.
 - 등급 유도 [제안]: `ToolPolicyMeta.risk`가 있으면 그 값이다. 없으면 `hints.readOnly === true`면 `read`, 그 밖은 `exec`다. MCP annotation(`readOnlyHint` 등)은 `hints`로 들어오는 입력일 뿐이다. annotation이 `destructiveHint: false`라도 등급을 `write`로 낮추지 않는다. 신뢰할 수 없는 서버의 선언이기 때문이다.
 - 위험 등급은 F `ToolSpec`에 필드가 없다. F.capabilities.spec에 `risk?: ToolRisk`, `classes?: ToolClass[]` 추가를 요청한다(§8.3 F 요청 1). 추가 전에는 `CapabilityToolsRegistration.policy`로 받는다.
 - 권한 모드는 대화 범위 설정 `l1.tools.permissionMode`의 유효 값이다. 모드 변경은 다음 도구 호출부터 적용한다(`runtimeChange: "live"`). 이미 승인 대기 중인 요청은 모드가 바뀌어도 그대로 둔다.
-- 새 대화의 기본 모드는 `bypass`다 [결정: 2026-11-13 사용자]("에이전트에게 자유로운 권한을 주는 것을 기본값으로"). 설정 기본값만 바뀐다: 이미 저장된 대화의 모드(대화 범위 값)와 managed의 `l1.tools.bypassAllowed = false`는 그대로이고, 금지되면 평가기가 `default`로 본다(4단계). 기본값을 물려받아 넓어지는 곳은 사람이 없는 실행이다: 예약 실행(L2.schedule)과 헤드리스 CLI의 새 대화는 설정의 기본 모드를 따르므로 비대화형이라도 규칙이 정하지 않은 호출이 ask가 아니라 allow다(7단계의 ask→deny는 ask가 있을 때만 일어난다). 서브에이전트는 부모 모드를 `childMode`로 이어받는다(더 느슨해지지 않는다). deny 규칙은 모드와 무관하게 막는다.
-- "실행 허가" 승인의 덮기 [결정: 2026-11-13 사용자]: 정책 단계 밖에서 따로 묻던 승인 중 실행 허가 성격의 것은 `ToolService.coversRunApprovals(threadId)`를 묻기 전에 부른다. 이 판정은 대화의 모드가 `bypass`이고 `bypassAllowed`가 거짓이 아니며 그 모드가 저장소 범위(`project`, `local`)에서 온 값이 아닐 때만 참이며(`modeCoversRunApprovals`), `bypass` 문자열 비교는 정책 평가기와 이 함수에만 둔다. 덮는 승인: 웹 도메인 확인(`policy_ask`)과 처음 보는 URL(`unseen_url`)(`L2.web.spec` §4.5.3, §4.6.6), 브라우저 동작 확인(`L2.web.spec` §4.10.3). 덮지 않는 승인(질문 자체가 목적이거나 사용자의 내용 판단이 필요하다): `ask_user`, 계획 제출(`submit_plan`), 학습 제안, 메모리·스킬 쓰기, 확장 화면의 승인 요청(`requestApproval`)·`loop.ask`, MCP 서버가 묻는 질문(elicitation), 리뷰 카드, 도구 대체 승인(§4.13). 시크릿 사용 승인(§4.12), 폴더 신뢰, 시크릿 패턴이 든 URL의 웹 질문(`secret_pattern`)은 이 판정을 쓰지 않아 모드와 무관하게 묻는다. 정책의 deny 규칙, 도메인 deny와 `unseenUrl = deny` 설정도 그대로 막는다.
+- 옛 `plan` 값 [결정: 2026-11-13 사용자, 옛 대화 보호]: 계획 모드 시절에 저장된 대화·설정의 `l1.tools.permissionMode` 값이 문자열 `"plan"`이면 열 때 `default`로 취급한다. `settings.ts`의 `pickMode`가 그 값을 만나면 그 층의 값으로 `default`를 돌려주고 아래 층으로 넘어가지 않는다. 저장된 문자열은 바꾸지 않는다. 설정 값 검사(`validateSettingValue`)는 `plan`을 거부한다.
+  - [미결] 설정 읽기 `resolveSetting`(F wire-settings)은 값 검사에 걸리는 층을 건너뛴다. 그래서 `settings.get`은 옛 `plan` 층을 건너뛰고 아래 층의 값을 보일 수 있는데, 엔진은 `default`로 판정한다. 화면과 엔진이 다른 값을 보이지 않게 하는 방법은 사용자 결정이 필요하다. [근거: packages/contracts/src/wire-settings/settings/effective.ts resolveSetting]
+  - [미결] 저장된 정책 규칙의 `resource.mode`와 에이전트 정의의 `permissions.mode`에 남은 `"plan"`은 스키마에 없어 검사에서 거부된다. 이 값은 옛 대화 보호의 예외가 아니다. 어떻게 읽을지는 사용자 결정 대기다. [근거: packages/contracts/src/services/tools.ts PolicyRuleSchema, packages/core-agents/src/definitions/loader.ts]
+- 새 대화의 기본 모드는 `bypass`다 [결정: 2026-11-13 사용자]("에이전트에게 자유로운 권한을 주는 것을 기본값으로"). 설정 기본값만 바뀐다: 이미 저장된 대화의 모드(대화 범위 값)와 managed의 `l1.tools.bypassAllowed = false`는 그대로이고, 금지되면 평가기가 `default`로 본다(3단계). 기본값을 물려받아 넓어지는 곳은 사람이 없는 실행이다: 예약 실행(L2.schedule)과 헤드리스 CLI의 새 대화는 설정의 기본 모드를 따르므로 비대화형이라도 규칙이 정하지 않은 호출이 ask가 아니라 allow다(6단계의 ask→deny는 ask가 있을 때만 일어난다). 서브에이전트는 부모 모드를 `childMode`로 이어받는다(더 느슨해지지 않는다). deny 규칙은 모드와 무관하게 막는다.
+- "실행 허가" 승인의 덮기 [결정: 2026-11-13 사용자]: 정책 단계 밖에서 따로 묻던 승인 중 실행 허가 성격의 것은 `ToolService.coversRunApprovals(threadId)`를 묻기 전에 부른다. 이 판정은 대화의 모드가 `bypass`이고 `bypassAllowed`가 거짓이 아니며 그 모드가 저장소 범위(`project`, `local`)에서 온 값이 아닐 때만 참이며(`modeCoversRunApprovals`), `bypass` 문자열 비교는 정책 평가기와 이 함수에만 둔다. 덮는 승인: 웹 도메인 확인(`policy_ask`)과 처음 보는 URL(`unseen_url`)(`L2.web.spec` §4.5.3, §4.6.6), 브라우저 동작 확인(`L2.web.spec` §4.10.3). 덮지 않는 승인(질문 자체가 목적이거나 사용자의 내용 판단이 필요하다): `ask_user`, 학습 제안, 메모리·스킬 쓰기, 확장 화면의 승인 요청(`requestApproval`)·`loop.ask`, MCP 서버가 묻는 질문(elicitation), 리뷰 카드, 도구 대체 승인(§4.13). 시크릿 사용 승인(§4.12), 폴더 신뢰, 시크릿 패턴이 든 URL의 웹 질문(`secret_pattern`)은 이 판정을 쓰지 않아 모드와 무관하게 묻는다. 정책의 deny 규칙, 도메인 deny와 `unseenUrl = deny` 설정도 그대로 막는다.
 - 비대화형 실행: [제안] 비대화형 실행에서 ask는 deny로 해석한다(`_research/item-catalog.md` L1-d "권한 모드"). `ToolRunContext.interactive`는 turn을 시작한 쪽이 정한다 [제안]. 사용자 입력 turn(`turn.start`)은 대화형, 예약 실행(L2.schedule)과 헤드리스 CLI 실행은 비대화형이다. drive와 위임 turn은 부모 대화를 따른다.
 - 보류 [제안: 카탈로그 "보류" 표기를 따른다]: 자동 분류 모드(별도 모델이 ask를 판정)와 자동 승인 리뷰어·연속 거부 서킷브레이커(`_research/item-catalog.md` L1-d, 진보된 설계 3·4번)는 이 문서 범위 밖이다. 도입하면 리뷰어 장애 시 거부하는 쪽으로 설계한다. 모델 자가 위험도(OpenHands `security_risk`)는 정책 입력의 하나로만 검토한다.
 
 ### 4.7 승인 프로토콜
 
-[결정] 도구 승인, 계획 승인, 사용자 질문은 하나의 대기 형식으로 처리하고 대기 상태는 L1-f에 저장한다(`_research/layer-plan-v2.json` L1-d "승인과 질문 프로토콜", `_research/foundation-plan.md` §1 결정 5).
+[결정] 도구 승인과 사용자 질문은 하나의 대기 형식으로 처리하고 대기 상태는 L1-f에 저장한다(`_research/layer-plan-v2.json` L1-d "승인과 질문 프로토콜", `_research/foundation-plan.md` §1 결정 5).
 
 흐름:
 
-1. 요청자: 도구 승인은 core-tools 파이프라인(§4.2 5c)이 낸다. 질문과 계획 승인은 L2 dialog·work 기능이 자기 도구의 실행 안에서 `fresnel.approvals.request`를 부른다(eng.context-map.design §4.4 표 3행).
+1. 요청자: 도구 승인은 core-tools 파이프라인(§4.2 5c)이 낸다. 질문 승인은 L2 dialog 기능이 자기 도구의 실행 안에서 `fresnel.approvals.request`를 부른다(eng.context-map.design §4.4 표 3행).
 2. 커밋: `request`는 한 커밋에 `approval.requested`와 `checkpoint.step`(`ToolRunContext.drafts.waitingCheckpoint`, `next: "await_input"`(L1.loop.spec §4.5 재진입 표), 해당 호출의 `pendingToolCalls[].waiting = "approval"`)을 쓴다. requestId는 §3.9 표다. 커밋 뒤 `thread.prompt.before`를 발화한다.
-   - L2가 낸 요청은 `origin.toolCallId`로 core-tools의 활성 호출 표에서 그 호출의 `ToolRunContext`를 찾아 체크포인트 초안을 만든다. 도구 승인은 의도 전이라 `pendingToolCalls[].effectId`가 null이고, 도구 실행 안에서 낸 질문·계획 요청은 그 호출의 `effect.intent`의 `effectId`를 싣는다. `waiting`은 모두 `"approval"`이다(저장소의 A1 예외가 이 값만 받는다). 활성 호출이 없는 요청(그룹 코드가 턴 밖에서 낸 요청)은 체크포인트 없이 이벤트만 쓴다.
+   - L2가 낸 요청은 `origin.toolCallId`로 core-tools의 활성 호출 표에서 그 호출의 `ToolRunContext`를 찾아 체크포인트 초안을 만든다. 도구 승인은 의도 전이라 `pendingToolCalls[].effectId`가 null이고, 도구 실행 안에서 낸 질문 요청은 그 호출의 `effect.intent`의 `effectId`를 싣는다. `waiting`은 모두 `"approval"`이다(저장소의 A1 예외가 이 값만 받는다). 활성 호출이 없는 요청(그룹 코드가 턴 밖에서 낸 요청)은 체크포인트 없이 이벤트만 쓴다.
 3. 대기: 메모리 대기 목록에 넣고 응답을 기다린다. 대기 중에 도는 프로세스는 없다(architecture.runtime-flow.design §4.5).
 4. 응답: `respond`가 kind별 규칙(§3.6 표)을 검사하고 `approval.resolved`를 커밋한다. 커밋 뒤 대기를 풀고 `thread.prompt.after`를 발화한다. 같은 `approvalId`의 두 번째 응답은 `applied: false`다.
 5. 결과 반영:
    - tool: allow → 파이프라인 6단계로 간다. deny → `{ block: true, reason }`. 사유 문장은 같은 파일의 다른 거부 사유처럼 영어 `"The user denied this tool call."`이고 feedback이 있으면 `" Feedback: <feedback>"`를 붙인다(엔진 문자열은 로케일을 따르지 않으므로 영어 CLI 출력에 한국어가 섞이지 않게 한다). 모델이 코드를 그대로 읊지 않도록 글에는 코드를 넣지 않고, 결과의 구조 필드 `details: { code: "denied_by_user" }`에만 둔다(화면이 이 필드로 "거부함"을 알아본다). 취소·만료·대화형이 아닌 실행의 거부는 글머리의 `[fresnel:<코드>]`가 그대로다. 사용자 거부의 공통 결과 한 곳(`approvals/protocol.ts`의 `denialReason`·`denialDetails`)에서 만든다 [결정: 오케스트레이터 기본값, fxMC2].
-   - plan: allow이고 `answer.mode`가 있으면 `ToolService.setMode(threadId, mode, "plan_approval")`을 부른다. 계획 도구의 결과 내용은 L2.work.spec이 정한다.
+   - plan(옛 기록): 새로 만들지 않는다. 열 때 취소로 정착한다(9번).
    - question: `QuestionAnswer`를 질문 도구에 돌려준다. 결과 문장은 L2.dialog.spec이 정한다.
 6. 기억 범위:
    - `once`: 이번 호출만.
@@ -902,10 +904,10 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
    - `thread`·`always`: M4의 승인 기억은 요청 단위뿐이라 도구 승인(`remember`는 `["once"]`)도 어댑터 요청도 제안하지 않는다 [결정: 2026-10-31 사용자, 점검 2026-11-04]. `open`·`request`는 `once` 하나가 아닌 목록을 `approvals.request_invalid`로 거절하고, 응답이 `once` 밖이면 `answer_invalid`이며 요청은 대기 그대로다. 같은 도구의 다음 ask는 다시 묻는다(대화 단위 허용 목록 `isRemembered`는 없앴다). 예외 [결정: 2026-11-13 사용자]: 샌드박스 밖 쓰기 허용 승인(`ruleId: "sandbox.write_access"`, L2.workspace.spec §4.3.1)만 `remember: ["once", "thread"]`를 낸다. 이 규칙에서 허용+`thread`는 그 대화(와 하위 대화)에서 이후 이 규칙의 질문을 건너뛴다. `ApprovalService.remembered(threadId, ruleId)`가 `approval.resolved` 기록에서 읽는다(재시작 뒤에도 같다). 다른 규칙이 `thread`를 내면 요청이 거절된다(`approvals.request_invalid`). 영구 허용은 사용자 범위 규칙 `l1.tools.rules`의 allow 규칙을 쓴다. 저장된 `approval.requested`·`approval.resolved` 사건의 `thread`·`always` 값은 스키마가 그대로 읽는다(저장 문자열은 바꾸지 않는다).
 6b. 만료 [결정: M3-REQ-72, M3-06]: 요청의 `expiresAt`(epoch ms)과 `onExpire`는 `approval.requested`에 기록한다. 주입한 `Scheduler`(없으면 `setTimeout` 기반 대체 `systemScheduler`. 타이머가 없어 무인 turn이 영원히 기다리는 일을 막는다)가 `expiresAt`에 깨어 `expiresAt <= clock.now()`이면 `onExpire`대로 `approval.resolved`를 커밋한다: `deny`(기본) 또는 요청 kind가 받아들이는 `answer`(맞지 않으면 deny). 해결에는 `resolvedBy: "expired"`가 붙고 거부 사유 문장은 `[fresnel:approval_expired] …`다. 타이머가 시계보다 일찍 깨면 다시 걸 뿐이다. 응답이 `expiresAt` 뒤에 오면 만료가 먼저라 `already_resolved`다. 재시작 때 `restore`와 같은 `requestKey`의 `open`은 기록된 `expiresAt`을 쓴다: 지난 요청은 바로 해결하고 남은 요청은 처음부터 다시 재지 않는다. 만료 커밋이 실패하거나 던지면 대기로 되돌리고 5초 뒤 다시 시도한다. 만료 시각이 지난 요청은 만료 커밋이 실패해 아직 대기여도 응답을 받지 않는다(`already_resolved`, 만료를 다시 시도한다).
 6c. 무인 정책 [결정: D-M3-12, M3-REQ-73. 키 이름과 기본 제한 시간은 제안]: 사람이 답할 수 없는(`interactive: false`) **주 대화**(`caller: "main"`, `depth: 0`, 표면 대화가 자기 자신) turn의 승인은 설정 `l1.tools.unattended.approval`을 따른다. `expire`(기본)는 기다리다 `l1.tools.unattended.timeoutSeconds`(기본 3600 [제안])가 지나면 6b로 거부한다(요청에 `expiresAt`이 이미 있으면 그 값이 먼저다). `wait`는 만료 없이 기다린다. `deny`는 7번처럼 바로 거부한다. 정책 평가는 `wait`·`expire`일 때 ask를 거부로 바꾸지 않고 승인 요청으로 보낸다(`interactive` 입력 = `run.interactive || 기다리는 정책`). 서브에이전트 등 주 대화가 아닌 호출은 정책과 관계없이 7번대로 바로 거부한다. print 모드는 사용자 입력이라 대화형이므로 이 정책 밖이다(사전 허용 규칙 적용과 전체 자동 승인 플래그는 L4 몫, D-M3-14).
-7. 비대화형(무인 정책 `deny`이거나 주 대화가 아닌 호출): 정책이 낸 도구 승인은 정책이 이미 deny로 바꾸므로 요청이 나가지 않는다(§4.5 7단계). 정책을 지나지 않는 요청은 kind와 관계없이 사람이 없다: 정책이 허용한 뒤 파이프라인이 다시 묻는 시크릿 사용 승인(§4.12)과 기능 서비스가 올리는 도구 승인(웹 도메인 승인 등)이 그렇다. 이 요청과 question·plan 요청은 `approval.requested`와 `approval.resolved{ decision: "deny", resolvedBy: "noninteractive" }`를 한 커밋에 쓰고 바로 deny를 돌려준다. 감사 기록을 남기기 위해서다. 이 커밋에는 대기 체크포인트와 `ui_prompt` 발화가 없다. 비대화형인지는 요청의 `origin`으로 찾은 활성 호출의 `ToolRunContext.interactive`로 본다. 활성 호출이 없는 요청(턴 밖의 그룹 코드)은 대화형으로 본다.
+7. 비대화형(무인 정책 `deny`이거나 주 대화가 아닌 호출): 정책이 낸 도구 승인은 정책이 이미 deny로 바꾸므로 요청이 나가지 않는다(§4.5 6단계). 정책을 지나지 않는 요청은 kind와 관계없이 사람이 없다 [근거: packages/core-tools/src/approvals/service.ts open]: 정책이 허용한 뒤 파이프라인이 다시 묻는 시크릿 사용 승인(§4.12)과 기능 서비스가 올리는 도구 승인(웹 도메인 승인 등)이 그렇다. 이 요청과 question 요청은 `approval.requested`와 `approval.resolved{ decision: "deny", resolvedBy: "noninteractive" }`를 한 커밋에 쓰고 바로 deny를 돌려준다. 감사 기록을 남기기 위해서다. 이 커밋에는 대기 체크포인트와 `ui_prompt` 발화가 없다. 비대화형인지는 요청의 `origin`으로 찾은 활성 호출의 `ToolRunContext.interactive`로 본다. 활성 호출이 없는 요청(턴 밖의 그룹 코드)은 대화형으로 본다.
 8. 취소: 턴 취소(eng.transactions.design §6.2)는 그 턴의 미해결 요청을 `resolvedBy: "cancelled"`로 닫는다. 대기 중이던 도구 호출은 의도가 없으므로 실행되지 않고, 루프는 `not_executed` 합성 결과로 닫는다.
    - 살아 있는 호출이 기다리는 요청은 파이프라인(`decide`)과 어댑터(`input_required` 대기)가 신호가 끊길 때 닫는다. 프로세스가 끊긴 뒤 남은 요청은 호출이 없다. core-loop가 열린 turn을 닫을 때(`closeOpenTurn`) `ApprovalService.restore`로 미해결 요청을 읽어 그 turn의 것을 `cancel`로 닫는다.
-9. 계획 승인의 모드 변경 [결정: L1A.4]: `allow`의 `answer.mode`가 현재 모드와 다르면 `setMode(origin.threadId, mode, "plan_approval")`을 부른다. `approval.resolved` 커밋 뒤, 대기를 풀기 전에 한다. 그래서 계획 도구가 이어갈 때 모드가 이미 바뀌어 있다. 모드를 바꾸지 못해도(`tools.mode_forbidden`, 저장소 실패) 해결은 그대로이고 경고를 남긴다. 해결 커밋 뒤 모드 쓰기 전에 끊기면, 재시작 뒤 계획 도구가 같은 `requestKey`로 다시 요청할 때 저장된 해결을 읽는 자리에서 같은 규칙으로 이어서 적용한다(이미 같은 모드면 쓰지 않는다).
+9. 옛 계획 승인의 정착 [결정: 2026-11-13 사용자]: 계획 승인은 더는 만들지 않는다(`plan` 요청은 `approvals.request_invalid`로 거절된다). 열 때(`restore`) 대기 중이던 옛 `plan` 승인은 `resolvedBy: "cancelled"`(`decision: "deny"`, `answer` 없음, `remember: "once"`)로 커밋해 정착한다. 응답할 길이 없으므로 취소가 맞다. 커밋이 실패하면 대기로 남기고 경고를 남긴다(그 요청은 거부로 닫을 수 있다). 이미 해결된 옛 `plan` 승인은 기록대로 읽기만 한다. 옛 해결의 `answer.mode`는 모드를 바꾸지 않는다. 모드를 쓰는 경로는 더는 없다. [근거: packages/core-tools/src/approvals/service.ts restore]
 10. 메모리 표의 크기 [결정: 통합 검토 L7]: 해결된 요청은 `RESOLVED_KEPT`(256)개까지만 `byId`·`byKey`에 남기고, 넘으면 가장 먼저 해결된 요청부터 뺀다(FIFO). 대기 중인 요청은 해결되기 전이라 표에 오르지 않으므로 빼지 않는다(해결된 요청의 대기자는 해결 때 모두 깨워 비우고 새 대기자는 즉시 해결을 받으므로, 해결된 요청에 대기자가 남아 빼기를 막는 경우는 없다) [결정: 통합 검토 L7 후속 N-6]. 빠진 요청도 이벤트는 남아 있다. 같은 `requestKey`의 `open`은 커밋 키로 기록된 요청을 되찾고 저장된 해결을 이어 받는다(`replayed`, 같은 `approvalId`, 새 이벤트 없음). 빠진 `approvalId`로 `get`은 `undefined`, `wait`은 `unknown`이고 `respond`는 적용하지 않는다. 대화 허용 목록(`remember: "thread"`)은 이 표와 따로 둔다.
 
 내구화와 재개:
@@ -944,7 +946,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
    - `details`에 `{ truncation: { totalLines, totalBytes, outputLines, outputBytes, truncatedBy } }`를 더한다.
 4. 원문 상한 [제안]: blob 원문이 50 MiB를 넘으면 앞뒤 25 MiB씩만 저장하고 가운데 생략 표시를 둔다(`docs/design/13-tools-and-execution.md` §3.3.2 "전체 출력" 행 참고). 상한 값은 설정하지 않는다.
 5. `outputLimits: "self"` 도구: 스스로 경계화한 도구(예: L2.workspace의 bash가 durable `harness/output.ts` 방식으로 꼬리를 남기는 경우)는 이 단계를 건너뛴다. 그 도구가 낸 `blobRef`는 `details.blobRef`로 받아 `effect.result.blobRef`에 옮긴다.
-6. 모델이 원문을 다시 읽는 길 [결정: 2026-11-13 사용자, `read_tool_output` 폐지]: 전용 도구는 없다. 모델은 안내의 경로를 가진 도구로 읽는다(`read`의 `offset`·`limit`, `grep`, `bash`). 파일 도구의 **읽기** 루트에만 `spill/tool-output/` 폴더가 더해진다(쓰기 루트에는 없다, L2.workspace.spec §4.3). 읽기 전용 상황(계획 모드, `read`·`grep`만 가진 서브에이전트)에서도 같은 길이다. bash 샌드박스는 읽기를 기본 허용하므로 `cat`·`sed`도 된다. blob 저장소가 정본이므로 사본은 지워져도 된다: 파일 도구가 이 폴더 안의 없는 `<threadId>/<sha256>.txt`를 읽으려 하면 읽기 직전에 blob에서 다시 만든다(`ToolOutputFiles.restore`). 재시작·이어하기·보관 정리 뒤에도 안내의 경로가 살아 있다.
+6. 모델이 원문을 다시 읽는 길 [결정: 2026-11-13 사용자, `read_tool_output` 폐지]: 전용 도구는 없다. 모델은 안내의 경로를 가진 도구로 읽는다(`read`의 `offset`·`limit`, `grep`, `bash`). 파일 도구의 **읽기** 루트에만 `spill/tool-output/` 폴더가 더해진다(쓰기 루트에는 없다, L2.workspace.spec §4.3). 읽기 전용 상황(`read`·`grep`만 가진 서브에이전트)에서도 같은 길이다. bash 샌드박스는 읽기를 기본 허용하므로 `cat`·`sed`도 된다. blob 저장소가 정본이므로 사본은 지워져도 된다: 파일 도구가 이 폴더 안의 없는 `<threadId>/<sha256>.txt`를 읽으려 하면 읽기 직전에 blob에서 다시 만든다(`ToolOutputFiles.restore`). 재시작·이어하기·보관 정리 뒤에도 안내의 경로가 살아 있다.
    - 정리: 대화를 지우면(`thread.delete`) 그 대화의 폴더도 지운다. 보관 정리가 대화를 지우는 경로는 하루마다 도는 쓸어내기(`sweep`)가 대화가 없는 폴더를 지운다. 기간·크기 상한은 두지 않는다: 사본은 blob이 정본이라 지워도 복원되고, 한 건은 blob 상한(4번, 50 MiB)을 넘지 않으며, spill 정리(`l0.exec.spillRetentionDays`)는 이 폴더를 건드리지 않는다(상위 폴더의 `tmp-` 접두 폴더와 파일만 지운다). `l0.exec.spillMaxBytes` 사용량에는 세어진다.
    - 옛 대화 기록에 남은 `read_tool_output` 호출은 표에 없는 도구로 보이고(화면은 generic 요약) 실행하지 않는다.
 7. 꼬리 보존 미리보기(bash처럼 끝부분이 중요한 출력)는 durable 포크에 `truncateTail`이 없어 1차에 두지 않는다. 필요한 도구는 `"self"`로 스스로 처리한다. 공통 꼬리 모드를 둘지는 [미결](§10)이다.
@@ -1057,7 +1059,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 | 키 | 타입 | 기본값 | runtimeChange | allowedScopes | 탭 | widget |
 |---|---|---|---|---|---|---|
-| `l1.tools.permissionMode` | `"default" \| "acceptEdits" \| "plan" \| "bypass"` | `"bypass"` [결정: 2026-11-13 사용자] | live | managed, user, project, local, launch | permissions | select |
+| `l1.tools.permissionMode` | `"default" \| "acceptEdits" \| "bypass"` | `"bypass"` [결정: 2026-11-13 사용자] | live | managed, user, project, local, launch | permissions | select |
 | `l1.tools.bypassAllowed` | boolean | `true` | live | managed | permissions | toggle |
 | `l1.tools.rules` | `PolicyRule[]` | `[]` | live | managed, user, project, local, launch | permissions | table |
 | `l1.tools.output.maxLines` | integer(100~100,000) | 2000 | nextTurn | managed, user, project, local | tools | number |
@@ -1160,10 +1162,10 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 6. 정상 실행 한 건은 `effect.intent`, `effect.exec`, `effect.result` 순서로 기록되고, `effect.result`와 toolResult `item.recorded`는 같은 커밋(같은 requestId, 연속 seq)에 있다.
 7. managed 티어 deny와 user 티어 allow가 같은 호출에 일치하면 deny다. user 티어 allow와 default 티어 ask가 일치하면 allow다.
 8. `interactive: false`이고 결과가 ask인 입력은 deny(`reason: "noninteractive"`)다.
-9. 모드 `plan`에서 risk `write`·`exec` 도구 호출은 deny이고 `read` 도구는 allow다. 광고 목록은 모드 `default`일 때와 같다.
+9. 모드 `acceptEdits`에서 risk `write` 도구 호출은 allow이고 `exec` 도구 호출은 ask다. 광고 목록은 모드 `default`일 때와 같다.
 10. 승인 대기 중 프로세스를 강제 종료한 뒤 재개하면 `ApprovalService.pending(threadId)`가 같은 `approvalId`의 요청 하나를 돌려주고, 새 `approval.requested` 이벤트가 생기지 않는다.
 11. 출력 60,000바이트 텍스트를 내는 도구 호출은 `effect.result.blobRef`가 원문 sha256을 가리키고, 모델용 toolResult 내용은 51,200바이트 이하 미리보기와 안내 문장이다.
-12. 질문 도구 요청과 계획 승인 요청은 둘 다 `approval.requested` 이벤트이고 payload가 `ApprovalRequestSchema`를 통과하며 `body.kind`만 다르다.
+12. 질문 도구 요청은 `approval.requested` 이벤트이고 payload가 `ApprovalRequestSchema`를 통과한다. 계획 승인 요청은 `approvals.request_invalid`로 거절되어 이벤트를 쓰지 않는다.
 13. `evaluatePolicy`는 같은 입력에 같은 결과를 내고 입력 객체를 바꾸지 않는다(동결 객체로 확인).
 14. 광고 목록은 128개를 넘지 않는다. always 도구 129개를 등록하면 `advertise`가 `tools.too_many`를 돌려준다.
 15. 같은 파일을 쓰는 두 호출(잠금 선언 `write`, 경로 표기는 상대 경로와 심볼릭 링크로 다름)이 한 병렬 배치에 있으면 실행 구간이 겹치지 않는다. 다른 파일이면 겹친다.
@@ -1173,7 +1175,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 19. `registerRules("core:agents", …)`를 두 번 부르면 두 번째 규칙 집합만 평가에 쓰이고, 잘못된 규칙은 `issues`로 돌아오며 적재되지 않는다.
 20. 도구 결과에 알려진 시크릿 값이 있으면 `effect.result`, toolResult `item.recorded`, blob 원문, `tool.result`·`tool.execution.update` 페이로드에 값 문자열이 없다.
 21. core-tools와 F capabilities 소스의 import 목록에 `@earendil-works/pi-agent-core`가 없다(check-layers, DR-07).
-22. 계획 승인 `allow { mode }`는 계획 도구가 이어가기 전에 대화 모드를 바꾼다. 해결이 커밋된 뒤 모드 쓰기 전에 끊겨도, 재시작 뒤 같은 `requestKey` 요청이 모드를 이어서 적용하고 모드 변경을 두 번 쓰지 않는다. 모드 밖의 `mode`, 질문용 decision은 `applied: false`다.
+22. 옛 계획 승인 기록(`body.kind: plan`, `nextModes`에 `plan` 문자열 포함)은 디코드된다. 열 때 대기 중이던 것은 `cancelled`로 정착하고, 해결된 것은 기록대로 읽힌다. 어느 쪽도 모드를 바꾸지 않는다. 옛 계획 승인에 `allow`를 보내면 `applied: false`다.
 23. 질문 응답은 질문 묶음에 맞지 않으면(모르는 id, 없는 선택지, 단일 선택에 둘, 자유 입력 불허에 text, 빈 답) `applied: false`이고 이벤트가 없다.
 24. 비대화형 실행의 질문·계획 요청은 `approval.requested`와 `approval.resolved{ deny, noninteractive }`가 한 커밋이고 대기 체크포인트가 없다.
 25. `input_required { approvalId }`를 낸 도구 호출은 승인 해결까지 `effect.result` 없이 기다리고, 해결 뒤 같은 `requestId`로 다시 불려 완료 결과를 한 번 기록한다. 대기 중 turn 취소는 그 승인을 `cancelled`로 닫는다.

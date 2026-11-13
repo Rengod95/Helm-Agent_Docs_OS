@@ -201,7 +201,7 @@ const MODE_KEY = "l1.tools.permissionMode";
 
 /**
  * 엔진 기본 모드는 bypass(2026-11-13 사용자 결정)지만 이 시험들은 "묻는" 경로를 본다. 시험이 모드를 정하지 않았으면
- * 가장 낮은 user 범위 값으로 default를 깐다. 모드를 정한 시험(plan, bypass 등)은 그대로다
+ * 가장 낮은 user 범위 값으로 default를 깐다. 모드를 정한 시험(acceptEdits, bypass 등)은 그대로다
  */
 function withDefaultMode(layers: ScopeStack): ScopeStack {
   if (layers.some((candidate) => candidate.values.has(MODE_KEY))) return layers;

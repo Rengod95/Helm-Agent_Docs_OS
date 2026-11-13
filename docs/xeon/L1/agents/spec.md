@@ -377,7 +377,7 @@ export type AgentJudgedPayload = JudgeRecord;
    - 자식 관점: `evaluatePolicy({ …호출, caller: "subagent:<agent>", depth: 자식 depth, mode: 자식 모드 }, 규칙 + 정의 규칙)`.
    - 정의 제한: 도구 이름이 정의 `tools`(와 `ChildToolPolicy.allow`의 교집합) glob에 없거나 `deny`에 있으면 deny(`ruleId: "agent.<이름>.tools"`).
    - 그래서 자식은 부모가 거부한 도구를 쓸 수 없고, 정의가 allow 규칙을 더해도 부모 결정보다 넓어지지 않는다. `caller: "main"` 조건 규칙도 부모 관점 평가에서 그대로 적용된다.
-2. 자식 모드: `PERMISSION_MODE_STRICTNESS`에서 부모 모드와 정의 `permissions.mode` 중 앞쪽(엄격한 쪽)이다. 부모가 `plan`이면 자식도 `plan`이다.
+2. 자식 모드: `PERMISSION_MODE_STRICTNESS`에서 부모 모드와 정의 `permissions.mode` 중 앞쪽(엄격한 쪽)이다. 정의의 `permissions.mode`는 `default`·`acceptEdits`·`bypass`만 받는다. 계획 모드(`plan`)는 없다 [결정: 2026-11-13 사용자] [근거: 2026-11-13 사용자 결정].
 3. 광고 목록: 자식의 `advertise`는 `allow`에 정의 제한을 넣고, 자식 관점 전역 deny와 부모 관점 전역 deny를 모두 뺀다. `keepParentList`면 부모 목록을 그대로 쓰고 위 결정을 실행 시점에만 적용한다(L1.tools.spec §4.1 7번).
 4. 이 계산은 core-agents의 `permission-ceiling.ts`가 순수 함수로 하고, core-tools 파이프라인은 자식 `ToolRunContext.ceiling`이 있으면 이 함수의 결과와 일반 평가 중 엄격한 쪽을 정책 결정으로 쓴다(L1.tools.spec §4.5 ceiling 단계) [제안]. [가정] core-tools가 ceiling 평가를 호출할 수 있게 함수가 F `policy.ts`에 있어야 한다. 그래서 `childDecision(call, parent, child, rules)`을 F로 옮기도록 요청한다(§8.3 F 요청 5).
 5. 승인: 자식의 ask는 부모 대화의 사용자에게 올라간다. 승인 요청 이벤트는 `surfaceThreadId`(소유 트리 루트) 대화에 기록되고 `origin.threadId`는 자식 대화다(L1.tools.spec §3.9). `remember: "thread"`는 루트 대화 기준으로 적용된다.
@@ -393,7 +393,7 @@ export type AgentJudgedPayload = JudgeRecord;
 | 규칙 id | resource | 비고 |
 |---|---|---|
 | `subagent.no-spawn` | `{ classes: ["spawn"], caller: "subagent", minDepth: l1.agents.maxDepth }` | 깊이 한도에 이른 자식만. 기본 깊이 1이면 모든 자식 |
-| `subagent.no-user-interaction` | `{ classes: ["user_interaction"], caller: "subagent" }` | 질문 도구, 계획 승인 도구. 도구 승인 요청은 막지 않는다 |
+| `subagent.no-user-interaction` | `{ classes: ["user_interaction"], caller: "subagent" }` | 질문 도구. 도구 승인 요청은 막지 않는다 |
 | `subagent.no-shared-write` | `{ classes: ["shared_state_write"], caller: "subagent" }` | 메모리·스킬 쓰기 등 |
 | `subagent.no-external-send` | `{ classes: ["external_send"], caller: "subagent" }` | 메시지 발신, 알림 등 |
 
@@ -577,7 +577,7 @@ export type AgentJudgedPayload = JudgeRecord;
 - L1.loop.spec §3.1: `LoopService.runChildTurn(request: ChildTurnRequest)` 추가(§4.1 5번). 자식 thread의 turn을 주 대화와 같은 래퍼로 돌리되 시스템 프롬프트, 모델, `ToolRunContext` 값(caller, depth, ceiling, surfaceThreadId)을 요청에서 받는다. 반영됨: L1.loop.spec §3.1, §4.13.
 - eng.transactions.design §4.8 표: `agent.spawned` 키 `spawn:<toolCallId>`를 `<ownerRequestId>:spawn:<n>` 파생 규칙으로, 백그라운드 완료 키 `deleg:<childSessionId>:done`을 `<requestId>:report`로 고친다. `childSessionId`는 F 이름 `childThreadId`로 바꾼다. §7 표에 "백그라운드 위임 완료 보고 | outbox 불필요(`agent.settled`와 같은 커밋)" 행을 더한다.
 - L3.group-sdk.spec §3.4: `DelegateSpec` → `DelegateRequest` 필드 대응(§3.2 끝)을 반영하고 [가정] "`g.capability(AgentsDelegateKey)`"를 "X가 주입한 `fresnel.agents` 서비스"로 고친다. `fresnel.agents`는 기능 정의가 없는 코어 서비스이므로 `capability()` 경로를 쓰지 않는다(L3.learning.spec 96행과 같은 판단).
-- L2 spec 전체: 도구 등록에 부류 표지(`classes`)를 선언한다. 질문·계획 도구는 `user_interaction`, 메모리·스킬 쓰기는 `shared_state_write`, 외부 메시지 발신은 `external_send`.
+- L2 spec 전체: 도구 등록에 부류 표지(`classes`)를 선언한다. 질문 도구는 `user_interaction`, 메모리·스킬 쓰기는 `shared_state_write`, 외부 메시지 발신은 `external_send`.
 
 ## 9. 수용 기준
 

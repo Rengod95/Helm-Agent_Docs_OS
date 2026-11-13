@@ -137,7 +137,7 @@ function demoteCompound(rule: TieredRule, input: PolicyInput): TieredRule {
   return { ...rule, effect: "ask" };
 }
 
-/** 7단계. ask인데 사람이 답할 수 없으면 deny다 */
+/** 6단계. ask인데 사람이 답할 수 없으면 deny다 */
 function finish(decision: PolicyDecision, input: PolicyInput): PolicyDecision {
   if (decision.effect === "ask" && !input.interactive) {
     return {
@@ -153,9 +153,8 @@ function finish(decision: PolicyDecision, input: PolicyInput): PolicyDecision {
 
 /**
  * 평가 순서(L1.tools.spec §4.5):
- * 1 일치 규칙 M, 2 deny가 있으면 가장 높은 티어·priority의 deny, 3 plan 모드의 write·exec는 deny,
- * 4 bypass(금지면 default로 보고 계속), 5 M에서 가장 높은 티어·priority(ask가 있으면 ask), 6 모드 기본값,
- * 7 비대화형이면 ask를 deny로.
+ * 1 일치 규칙 M, 2 deny가 있으면 가장 높은 티어·priority의 deny, 3 bypass(금지면 default로 보고 계속),
+ * 4 M에서 가장 높은 티어·priority(ask가 있으면 ask), 5 모드 기본값, 6 비대화형이면 ask를 deny로.
  * bypass가 금지되어 default로 내려온 호출이 6단계(모드 기본값)로 정해지면 reason은 "bypass_forbidden"이다.
  */
 export function evaluatePolicy(input: PolicyInput, rules: readonly TieredRule[]): PolicyDecision {
@@ -175,19 +174,6 @@ export function evaluatePolicy(input: PolicyInput, rules: readonly TieredRule[])
     }
     mode = "default";
     bypassDemoted = true;
-  }
-
-  if (mode === "plan" && input.risk !== "read") {
-    return finish(
-      {
-        effect: "deny",
-        reason: "mode",
-        ruleId: null,
-        tier: null,
-        message: `[fresnel:denied_by_mode] Tool "${input.tool}" changes state and is not allowed in plan mode.`,
-      },
-      input,
-    );
   }
 
   if (matched.length > 0) {

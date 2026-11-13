@@ -12,7 +12,7 @@ description: Explores the repository.
 tools: [read, grep]
 model: review
 permissions:
-  mode: plan
+  mode: acceptEdits
   rules:
     - id: no-bash
       action: tool.call
@@ -37,8 +37,23 @@ describe("definition files", () => {
         prompt: "You explore the repository.",
         tools: ["read", "grep"],
         model: "review",
-        permissions: { mode: "plan" },
+        permissions: { mode: "acceptEdits" },
         source: { kind: "extension", extension: "helm" },
+      });
+    }
+  });
+
+  test("a definition that names the removed plan mode is one diagnostic, not a definition", () => {
+    const parsed = parseDefinitionFile(
+      "/ext/explorer.md",
+      GOOD.replace("mode: acceptEdits", "mode: plan"),
+      { kind: "extension", extension: "helm", path: "/ext/explorer.md" },
+    );
+    expect("diagnostic" in parsed).toBe(true);
+    if ("diagnostic" in parsed) {
+      expect(parsed.diagnostic).toMatchObject({
+        code: "agents.definition_invalid",
+        path: "/ext/explorer.md",
       });
     }
   });

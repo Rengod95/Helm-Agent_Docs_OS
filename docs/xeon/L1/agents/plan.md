@@ -130,7 +130,7 @@ xeon/packages/core-agents/
 | 테스트 | 확인할 동작 | 작업 |
 |---|---|---|
 | `child_cannot_use_tool_denied_to_parent` | 부모 관점 deny(`caller: "main"` 조건 포함) 도구는 자식에서 거부되고, 정의 규칙의 allow가 있어도 거부된다 | AG-3 |
-| `child_mode_never_looser_than_parent` | 부모 `plan` + 정의 `acceptEdits` → 자식 `plan`. 부모 `acceptEdits` + 정의 `plan` → `plan` | AG-3 |
+| `child_mode_never_looser_than_parent` | 부모 `acceptEdits` + 정의 `default` → 자식 `default`. 부모 `bypass` + 정의 `acceptEdits` → `acceptEdits` | AG-3 |
 | `child_denylist_blocks_recursive_spawn` | 깊이 한도의 자식 광고 목록에 `agent`가 없고, 직접 호출은 `subagent.no-spawn` 거부다 | AG-4 |
 | `child_denylist_blocks_user_interaction` | `classes: ["user_interaction"]` 도구는 자식에서 거부, 자식의 일반 도구 ask는 부모 대화의 승인 요청이 된다 | AG-4 |
 | `depth_one_rejects_nested_spawn` | `maxDepth = 1`에서 자식의 `spawn`은 `agents.depth_exceeded`, `maxDepth = 2`면 손자 생성 성공 | AG-4, AG-6 |

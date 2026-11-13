@@ -53,9 +53,9 @@ test("exposure_removes_denied_tools: a global deny removes the tool, an args or 
             effect: "deny",
           },
           {
-            id: "m.no-plan-writes",
+            id: "m.no-edit-writes",
             action: "tool.call",
-            resource: { tool: "plan_tool", mode: ["plan"] },
+            resource: { tool: "edit_tool", mode: ["acceptEdits"] },
             effect: "deny",
           },
         ],
@@ -64,12 +64,13 @@ test("exposure_removes_denied_tools: a global deny removes the tool, an args or 
   });
   registerWorkspace(h);
   add(h, "rm_tool", "ext.a");
-  add(h, "plan_tool", "ext.a");
+  add(h, "edit_tool", "ext.a");
   const toolset = await advertised(h);
   const names = toolset.tools.map((tool) => tool.name);
   expect(names).not.toContain("bash");
   expect(names).toContain("rm_tool");
-  expect(names).toContain("plan_tool");
+  // 모드 조건은 기본 모드(default)에 맞지 않아 광고를 바꾸지 않는다
+  expect(names).toContain("edit_tool");
   expect(names).toContain("read");
   expect(toolset.removed).toEqual([
     { ref: { capability: "workspace.shell", name: "bash" }, ruleId: "m.no-bash", tier: "managed" },
