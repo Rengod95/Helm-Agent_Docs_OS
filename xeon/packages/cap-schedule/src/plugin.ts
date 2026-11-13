@@ -69,6 +69,7 @@ export function schedulePlugin(options: SchedulePluginOptions): ExtensionUnit {
         def: ScheduleEntries,
         key: ScheduleEntriesKey,
         policy: { schedule_create: { risk: "exec" } },
+        exposure: { schedule_create: "deferred" },
       });
       if (!registered.ok) return err({ reason: registered.error.kind, cause: registered.error });
       g.onDispose(registered.value);

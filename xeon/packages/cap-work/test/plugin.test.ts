@@ -211,6 +211,29 @@ describe("plugin", () => {
     expect(opened.eventCount()).toBe(events);
   });
 
+  test("plan tools are deferred; submit_plan and exit_plan_mode switch on while the thread is in plan mode", async () => {
+    const { registered, mode, opened } = await boot();
+    const plans = registered[1];
+    if (plans === undefined || plans.kind !== "capability") throw new Error("plans registration");
+    expect(plans.exposure).toEqual({
+      enter_plan_mode: "deferred",
+      exit_plan_mode: "deferred",
+      submit_plan: "deferred",
+    });
+    expect(Object.keys(plans.activeWhen ?? {}).toSorted()).toEqual([
+      "exit_plan_mode",
+      "submit_plan",
+    ]);
+    expect(plans.activeWhen?.submit_plan?.(opened.threadId)).toBe(false);
+    await mode.set(opened.threadId, "plan");
+    expect(plans.activeWhen?.submit_plan?.(opened.threadId)).toBe(true);
+    expect(plans.activeWhen?.exit_plan_mode?.(opened.threadId)).toBe(true);
+    await mode.set(opened.threadId, "default");
+    expect(plans.activeWhen?.submit_plan?.(opened.threadId)).toBe(false);
+    // task_write는 핵심 도구라 지연하지 않는다
+    expect(registered[0]?.kind === "capability" ? registered[0].exposure : "x").toBeUndefined();
+  });
+
   test("task_write reaches L1.tools with read risk so plan mode can keep the list", async () => {
     const { registered } = await boot();
     expect(registered).toHaveLength(2);

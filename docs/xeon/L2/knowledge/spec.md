@@ -1216,6 +1216,8 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 ### 4.8 대화 검색
 
+- 노출 [결정: 2026-11-13 사용자 "애매한 것들 전부 지연으로 넣어"]: `knowledge_search`, `session_scroll`, `session_read`, `memory_manage`, `skill_view`, `skill_manage`는 모두 `exposure: "deferred"`다(L1.tools.spec §4.1).
+
 #### 4.8.1 색인 소비자
 
 - 소비자 `cap.knowledge.fts`는 내구 피드(`fresnel.session`의 `subscribe(afterSeq, listener, { kindPrefixes: ["item.recorded"] })`)를 이벤트 `seq` 순으로 받는다 [결정: KN.4. 초안의 `pos` 커서 기반 읽기는 이 구독으로 대신한다. 구독은 커서 뒤의 따라잡기와 실시간을 같은 구간에서 잇는다].

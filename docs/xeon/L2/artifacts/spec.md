@@ -1131,6 +1131,8 @@ export const ARTIFACTS_CAPABILITIES = [ArtifactsRegistry, ArtifactsReviews, Arti
 
 ### 4.1 산출물 레지스트리
 
+- 노출 [결정: 2026-11-13 사용자 "애매한 것들 전부 지연으로 넣어"]: `artifact_create`, `artifact_update`, `review_request`, `session_rename`은 모두 `exposure: "deferred"`다(L1.tools.spec §4.1).
+
 #### 4.1.1 종류와 본문
 
 - 산출물 하나는 버전마다 blob 하나를 가진다. 여러 파일 묶음은 `changeset`(통합 diff 하나) 또는 확장 kind(예: zip 묶음)로 표현한다.

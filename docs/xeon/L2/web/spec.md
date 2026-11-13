@@ -1307,6 +1307,8 @@ Claude Code의 `WebFetch(domain:…)` 문법을 따른다(`_research/web-tools.m
 
 ### 4.8 `web.search`
 
+- 노출 [결정: 2026-11-13 사용자 "애매한 것들 전부 지연으로 넣어"]: `web_search`, `web_fetch`, `web_browse_open`·`act`·`read`·`close`는 모두 `exposure: "deferred"`다(L1.tools.spec §4.1). 등록은 호스트 조립 `assembly/cap-web.ts`가 한다.
+
 #### 4.8.1 두 경로
 
 ADR-0005 §3.1의 ①(모델용 도구)과 ②(서비스 API)를 이 문서의 이름으로 옮긴다.
