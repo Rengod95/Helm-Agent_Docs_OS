@@ -536,6 +536,7 @@ export function createRegistrationApi(
         description: def.description,
         parameters: def.parameters,
         replay: def.replay,
+        ...(def.exposure === undefined ? {} : { exposure: def.exposure }),
         ...(def.risk === undefined ? {} : { risk: def.risk }),
         ...(def.hints === undefined ? {} : { hints: def.hints }),
         execute: (args, ctx) =>

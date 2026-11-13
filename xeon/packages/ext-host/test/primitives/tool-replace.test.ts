@@ -194,3 +194,19 @@ test("a replacement does not rename or capture other extensions' tools of the sa
       .toSorted(),
   ).toEqual(["acme-files:read", "other-ext:lookup"]);
 });
+
+test("a tool def's exposure reaches the tools port; a def without one stays unset", async () => {
+  const t = await createTestHost({ resourcePolicy: createResourcePolicy(NO_RESERVED_NAMES) });
+  const registered = await withToolsPort(t);
+  await t.host.install(
+    makeUnit({ name: "acme-lazy", builtin: false }, (g) => {
+      hostOf(g).registerTool({ ...def("lazy_one"), exposure: "deferred" });
+      hostOf(g).registerTool(def("plain_one"));
+    }),
+  );
+  const exposureOf = (suffix: string) =>
+    [...registered.values()].flat().find((registeredDef) => registeredDef.name.endsWith(suffix))
+      ?.exposure;
+  expect(exposureOf("lazy_one")).toBe("deferred");
+  expect(exposureOf("plain_one")).toBeUndefined();
+});

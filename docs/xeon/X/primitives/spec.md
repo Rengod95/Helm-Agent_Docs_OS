@@ -1516,6 +1516,8 @@ recordPrivate(kind, payload):
 
 [결정: M3-REQ-102] `hostOf(g).registerTool`과 `registerCommand`는 받은 정의를 감싸서 등록한다. 감싼 `execute`와 `handler`는 호출 하나마다 ambient(§4.2)를 열고 정의의 함수를 그 안에서 부른다. 그래서 `g.state()`, `g.commit`, `g.updateState`, `g.record`, `g.recordPrivate`, `g.readRecords`, `g.post`가 `no_thread` 없이 동작한다.
 
+[결정: 2026-11-13 사용자 "애매한 것들 전부 지연으로 넣어"] `registerTool`은 정의의 `exposure`(`always` | `deferred`, 생략은 `always`)도 `ToolsPort`로 그대로 넘긴다(L1.tools.spec §4.1).
+
 [제안: M3-REQ-78] `registerTool`은 정의의 `risk`와 `hints`를 `ToolsPort`로 그대로 넘긴다. 승인 요구를 낮추는 선언(`risk`가 `read`·`write`이거나 `hints.readOnly`가 참)은 builtin 확장만 낼 수 있다. 그 밖의 확장이 내면 `registerTool`이 `tool_risk_reserved`로 던지고 등록은 일어나지 않는다. 사용자·프로젝트 확장 도구는 선언 없이(`exec`) 등록되어 승인 정책을 그대로 받는다.
 
 [결정: 2026-11-03 사용자] 내장 도구 같은 이름 대체(F.capabilities.spec §10). `registerTool`은 정의의 이름이 그 플러그인의 매니페스트 `replaces`에 있을 때만 대체 등록이다. 이때 `ToolResourceDef.replaces`(`ToolReplaceClaim`: 확장 이름, 신뢰 등급: 로더가 정한 유효 등급(`ExtensionUnit.trust`, 설치 위치 상한과 요청의 낮은 쪽이고 매니페스트 요청 값을 그대로 쓰지 않는다. 로더 없이 설치한 단위는 builtin이면 `builtin`, 아니면 `untrusted`)를 `ToolsPort`로 함께 넘기고, 리소스 레코드는 이름 정책(`ResourcePolicy`)의 집합에 넣지 않고 요청한 이름 그대로 노출한다. `replaces`에 없는 이름은 대체가 아니라 기존 이름 정책(정식 이름 `<확장>__<이름>`이나 `resource_conflict`)을 따른다. 같은 이름의 대체 레코드가 이미 있으면 `resource_conflict`(replace_conflict)이고, 포트가 `replace_forbidden`·`replace_conflict`를 돌려주면 `resource_conflict`로 던진다. 활성화 승인과 위험 등급 하한은 L1.tools.spec §4.13이 맡는다. 시험: `test/primitives/tool-replace.test.ts`, `test/loading-trust/pipeline.test.ts`(매니페스트 집합의 `replace_conflict`는 뒤의 확장을 거부한다).
