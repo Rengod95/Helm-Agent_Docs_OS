@@ -130,7 +130,7 @@ function ApprovalBand(props: {
     // 머리(개수)는 스크롤 밖에 둬 늘 보인다. 카드의 응답 단추 줄은 카드 안에서 바닥에 붙는다(approval-card.tsx).
     <section
       ref={band}
-      className="flex min-h-0 max-h-[40dvh] flex-col gap-2"
+      className="flex min-h-0 max-h-[calc(var(--app-dvh)*0.4)] flex-col gap-2"
       aria-label={t("desktop.approvals.queue.label")}
     >
       <h2 className="m-0 flex-none px-3 text-ui-strong text-text-primary">

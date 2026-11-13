@@ -93,7 +93,7 @@ export function PluginPagesTab(): ReactNode {
   const items = pluginScreenItemsOf(state);
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="max-h-[40vh] flex-none overflow-y-auto">
+      <div className="max-h-[calc(var(--app-vh)*0.4)] flex-none overflow-y-auto">
         <ThreadSwitches />
       </div>
       <EntryList items={items} />

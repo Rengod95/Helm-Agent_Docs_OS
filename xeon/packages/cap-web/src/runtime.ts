@@ -60,6 +60,8 @@ export interface WebRuntimeOptions {
   readonly convert?: ConvertRunner;
   readonly store?: WebStorePort;
   readonly asker?: WebAskPort;
+  /** 대화의 권한 모드가 실행 허가 성격의 승인을 덮는가(`ToolService.coversRunApprovals`). 도메인·처음 보는 URL·브라우저 동작 확인이 쓴다. 없으면 덮지 않는다 */
+  readonly approvalCover?: (threadId: ThreadId) => boolean;
   readonly guard?: OutboundSecretGuard;
   /** 플러그인 provider의 헤더 시크릿 통로(L2.web.spec §3.6.1). 조립 쪽이 L0 `withHttp` 경로로 채운다. 없으면 시크릿 헤더 provider는 no-key다 */
   readonly headerSecrets?: HeaderSecretSender;
@@ -124,6 +126,7 @@ export function createWebRuntime(options: WebRuntimeOptions): WebRuntime {
     seen,
     guard: options.guard,
     asker: options.asker,
+    ...(options.approvalCover === undefined ? {} : { approvalCover: options.approvalCover }),
   });
   const content = createContentHttp(access, transport);
 
@@ -221,10 +224,10 @@ export function createWebRuntime(options: WebRuntimeOptions): WebRuntime {
     probes,
     notices,
   };
-  const browse = createBrowseApi(
-    deps,
-    options.browseConfirm === undefined ? {} : { confirm: options.browseConfirm },
-  );
+  const browse = createBrowseApi(deps, {
+    ...(options.browseConfirm === undefined ? {} : { confirm: options.browseConfirm }),
+    ...(options.approvalCover === undefined ? {} : { approvalCover: options.approvalCover }),
+  });
   return {
     service: createWebService(deps, browse),
     browse,

@@ -24,6 +24,7 @@ import { readToolOutputEntry } from "./builtin/read-tool-output.ts";
 import { toolSearchEntry } from "./builtin/tool-search.ts";
 import { evaluatePolicy } from "./policy/engine.ts";
 import { createCoreRules } from "./policy/core-rules.ts";
+import { modeCoversRunApprovals } from "./policy/modes.ts";
 import { createRegistry } from "./registry.ts";
 import { createToolReplaceGate } from "./replace-gate.ts";
 import { TOOLS_SETTING_KEYS } from "./settings.ts";
@@ -168,6 +169,14 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
       );
     },
     mode: (threadId) => deps.config(threadId).mode,
+    coversRunApprovals(threadId) {
+      const config = deps.config(threadId);
+      // 저장소(project·local)가 적은 bypass는 사용자가 고른 것이 아니라서 승인을 덮지 못한다(§4.13과 같은 이유)
+      return modeCoversRunApprovals(
+        config.mode,
+        config.bypassAllowed && !config.modeFromRepository,
+      );
+    },
     setMode(threadId, mode) {
       // managed가 bypass를 금지했으면 모드를 바꾸지 않는다(L1.tools.spec §5 사례 11). 이미 세션 값이 bypass인 채 금지가 생기면 평가기가 default로 본다
       if (mode === "bypass" && !deps.config(threadId).bypassAllowed) {

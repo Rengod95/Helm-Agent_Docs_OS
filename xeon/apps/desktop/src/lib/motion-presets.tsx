@@ -22,6 +22,7 @@ import {
   motion,
   type Bezier,
 } from "./motion.ts";
+import { cssPxOf, cssZoomOf } from "./zoom.ts";
 
 const REDUCE_QUERY = "(prefers-reduced-motion: reduce)";
 
@@ -293,7 +294,7 @@ export function PresenceItem(props: {
   );
 }
 
-/** 배치가 한 번에 바뀐 뒤 옛 자리(dx, dy)에서 transform만으로 이어 온다(FLIP). 줄이면 아무것도 하지 않는다 */
+/** 배치가 한 번에 바뀐 뒤 옛 자리(dx, dy, 요소의 CSS px)에서 transform만으로 이어 온다(FLIP). 줄이면 아무것도 하지 않는다 */
 export function flipFrom(el: Element, dx: number, dy = 0): Animation | null {
   if ((dx === 0 && dy === 0) || isMotionReduced() || typeof el.animate !== "function") return null;
   return el.animate(
@@ -533,7 +534,10 @@ export function HeightGlide(props: {
     const box = outer.current;
     const content = inner.current;
     if (box === null || content === null || typeof ResizeObserver === "undefined") return undefined;
-    let last = content.getBoundingClientRect().height;
+    // 높이는 상자의 CSS px로 다룬다. 화면 px(`getBoundingClientRect`)을 그대로 키프레임에 쓰면 앱 확대가 한 번 더 곱해진다(DP-173)
+    const heightOf = (el: HTMLElement): number =>
+      cssPxOf(el.getBoundingClientRect().height, cssZoomOf(el));
+    let last = heightOf(content);
     let running: Animation | null = null;
     const glide = (from: number, next: number): void => {
       if (Math.abs(next - from) < 1 || isMotionReduced() || typeof box.animate !== "function")
@@ -558,10 +562,10 @@ export function HeightGlide(props: {
       animation.addEventListener("cancel", done);
     };
     const observer = new ResizeObserver(() => {
-      const next = content.getBoundingClientRect().height;
+      const next = heightOf(content);
       // 높이가 그대로면(너비만 바뀜) 가는 중인 잇기를 다시 겨누지 않는다
       if (next === last) return;
-      const from = running === null ? last : box.getBoundingClientRect().height;
+      const from = running === null ? last : heightOf(box);
       last = next;
       glide(from, next);
     });
@@ -582,7 +586,7 @@ export function HeightGlide(props: {
 
 // ── 줄 넘겨받기(dzM2 시안 §4) ─────────────────────────────────────────────────
 
-/** 같은 커밋 안에서 떠나는 줄이 남긴 높이. 값은 한 틱 뒤에 지운다 */
+/** 같은 커밋 안에서 떠나는 줄이 남긴 높이(CSS px). 값은 한 틱 뒤에 지운다 */
 const handoffs = new Map<string, number>();
 
 /**
@@ -590,6 +594,7 @@ const handoffs = new Map<string, number>();
  * 같은 커밋에서 새 줄이 서는 자리에서 쓴다. 한 틱이 지나면 지우므로 다른 커밋에서 다시 그린 줄(가상 목록 재마운트, 과거 대화)은 받지 못한다
  */
 export function handoffHeight(key: string, px: number): void {
+  // px은 CSS px이다(화면 px이면 앱 확대로 나눠 넘긴다, DP-173)
   handoffs.set(key, px);
   queueMicrotask(() => {
     handoffs.delete(key);
@@ -656,6 +661,8 @@ export function useFlipList(
     const before = tops.current;
     tops.current = next;
     if (before === null || !animate || isMotionReduced()) return;
+    // 자리는 화면 px이고 transform은 확대 안의 CSS px이라 확대로 나눈다(DP-173)
+    const zoom = cssZoomOf(root);
     for (const el of els) {
       const key = el.dataset["flipKey"];
       if (key === undefined || typeof el.animate !== "function") continue;
@@ -665,7 +672,10 @@ export function useFlipList(
         el.animate([...rise(4)], { duration: 160, easing: cssBezier(EASE.enter) });
       } else {
         el.animate(
-          [{ transform: `translateY(${String(delta.dy)}px)` }, { transform: "translateY(0px)" }],
+          [
+            { transform: `translateY(${String(cssPxOf(delta.dy, zoom))}px)` },
+            { transform: "translateY(0px)" },
+          ],
           { duration: DUR.layout * 1000, easing: cssBezier(EASE.panel) },
         );
       }

@@ -27,7 +27,7 @@ export function createRead(deps: WorkspaceDeps): ReadMethod {
     if (info.value.kind === "directory") {
       throw new WorkspaceFailure(
         "invalid_input",
-        `${input.path} is a directory. Use ls to list it.`,
+        `${input.path} is a directory. Use bash (ls) to list it.`,
         { detail: { reason: "is_directory" } },
       );
     }

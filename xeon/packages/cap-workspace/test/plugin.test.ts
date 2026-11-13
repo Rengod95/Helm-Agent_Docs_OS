@@ -284,6 +284,11 @@ describe("plugin", () => {
       grep: { risk: "read" },
       find: { risk: "read" },
     });
+    // ls와 find만 지연이다. 나머지 files 도구와 bash는 항상 싣는다(사용자 결정 2026-11-13)
+    expect(files?.kind === "capability" ? files.exposure : undefined).toEqual({
+      ls: "deferred",
+      find: "deferred",
+    });
     expect(shell?.kind === "capability" ? shell.def.tools.map((tool) => tool.name) : []).toEqual([
       "bash",
     ]);

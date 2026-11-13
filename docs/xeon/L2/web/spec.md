@@ -1233,6 +1233,7 @@ Claude Code의 `WebFetch(domain:…)` 문법을 따른다(`_research/web-tools.m
 - 승인 대기가 끊기면(호출 중단, 탐구 하위 대화의 끝) 그 요청을 `cancel`로 닫는다. 답을 줄 곳이 없는 요청이 승인 대기 표시로 남지 않게 한다. 호출은 `unavailable`이다.
 - 호출자가 확장이고 대화가 없으면 승인 창을 띄울 곳이 없다. 이때 `ask`는 `denied`(`detail.reason: "ask_without_session"`)다.
 - 백그라운드 포크(`caller.agent = "background"`)는 `ask`를 `denied`로 바꾼다. 사람이 없는 경로에서 승인 대기를 만들지 않는다 [제안].
+- 권한 모드가 "모두 허용"이면(`ToolService.coversRunApprovals`, `L1.tools.spec` §4.5) 도메인 확인(`policy_ask`)과 처음 보는 URL(`unseen_url`)은 묻지 않고 허용한다 [결정: 2026-11-13 사용자]. 대화가 없는 호출은 판정할 수 없어 그대로다. 이유에 `secret_pattern`이 있으면 모드와 무관하게 묻는다. 도메인 `deny`와 `unseenUrl = deny`는 그대로 막는다. 조립 루트가 `WebRuntimeOptions.approvalCover`로 판정을 넘긴다(없으면 덮지 않는다).
 
 #### 4.5.4 provider 매핑 한계
 
@@ -1496,6 +1497,7 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
   - 대상 요소의 역할·이름(`BrowserSessionHandle.describe`)이 결제·구매·주문·송금·전송·게시·삭제·약관 동의 어휘에 맞는 `click`. 어휘 표는 `browse/confirm.ts`의 상수다(영어·한국어).
   - 현재 origin과 다른 origin으로 제출되는 폼(`formAction`).
   - `caller.afterUntrusted = true`인 `fill`, `type`, 폼 제출(§4.6.6).
+- 권한 모드가 "모두 허용"이면 위 사람 확인은 묻지 않고 허용한다(`BrowseServiceOptions.approvalCover`) [결정: 2026-11-13 사용자]. 그 밖의 모드는 그대로 묻는다.
 - 어휘 판정은 완전하지 않다. 그래서 브라우저 "세션"은 격리된 새 프로필(자격 증명 없음)을 기본으로 두는 것이 1차 방어다.
 
 #### 4.10.4 `playwright-local` provider (미구현, 기본 경로 아님: §4.10.4a)
@@ -1691,7 +1693,7 @@ stateDiagram-v2
 | `l2.web.policy.ask` | string[](도메인 패턴) | `[]` | — | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.web.policy.deny` | string[](도메인 패턴) | `[]` | — | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.web.policy.allowPrivateNetwork` | boolean | `false` | — | nextTurn | managed, user, local | tools | false |
-| `l2.web.policy.unseenUrl` | string | `"ask"` | enum ask, allow, deny | nextTurn | managed, user, local, launch | tools | false |
+| `l2.web.policy.unseenUrl` | string | `"ask"` (권한 모드가 "모두 허용"이면 묻지 않고 허용, §4.6.6) | enum ask, allow, deny | nextTurn | managed, user, local, launch | tools | false |
 | `l2.web.policy.robots` | string | `"never"` | enum auto, always, never | nextTurn | managed, user, project, local | tools | false |
 | `l2.web.cache.searchTtlMinutes` | integer | `20` | min 0, max 1440 | live | managed, user, project, local | tools | false |
 | `l2.web.cache.fetchTtlMinutes` | integer | `15` | min 0, max 1440 | live | managed, user, project, local | tools | false |

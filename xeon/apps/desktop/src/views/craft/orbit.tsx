@@ -44,6 +44,7 @@ import { PANEL_W } from "./selection-panel.tsx";
 import { SPRING_MS, springLinear } from "./spring.ts";
 import { SpaceBackground } from "./space-bg.tsx";
 import { useViewport } from "./use-viewport.ts";
+import { cssPxOf, cssZoomOf } from "../../lib/zoom.ts";
 
 // ── 배치 상수 ─────────────────────────────────────────────────────
 
@@ -180,12 +181,13 @@ export function useCraftTheme(): "dark" | "light" {
 
 // ── 점 ────────────────────────────────────────────────────────────
 
-/** 이름표 안쪽의 빛이 포인터를 따라온다(CSS 변수 둘). 렌더를 거치지 않는다. */
+/** 이름표 안쪽의 빛이 포인터를 따라온다(CSS 변수 둘). 렌더를 거치지 않는다. 포인터 자리는 화면 px이라 앱 확대로 나눈다(DP-173) */
 function spot(e: ReactPointerEvent<HTMLElement>): void {
   const el = e.currentTarget;
   const r = el.getBoundingClientRect();
-  el.style.setProperty("--mx", `${e.clientX - r.left}px`);
-  el.style.setProperty("--my", `${e.clientY - r.top}px`);
+  const zoom = cssZoomOf(el);
+  el.style.setProperty("--mx", `${String(cssPxOf(e.clientX - r.left, zoom))}px`);
+  el.style.setProperty("--my", `${String(cssPxOf(e.clientY - r.top, zoom))}px`);
 }
 
 /** 화면 위치에 놓는 틀. 안쪽은 글자 배율만큼 키운다 */

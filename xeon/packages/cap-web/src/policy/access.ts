@@ -30,6 +30,12 @@ export interface AccessDeps {
   readonly guard: OutboundSecretGuard | undefined;
   /** 없으면 ask 판정은 모두 거부한다 */
   readonly asker: WebAskPort | undefined;
+  /**
+   * 대화의 권한 모드가 실행 허가 성격의 승인을 덮는가(`ToolService.coversRunApprovals`) [결정: 2026-11-13 사용자].
+   * 참이면 도메인 확인(`policy_ask`)과 처음 보는 URL(`unseen_url`)은 묻지 않고 허용한다. 비밀 패턴(`secret_pattern`)이
+   * 이유에 있으면 모드와 무관하게 묻는다. 없으면 덮지 않는다
+   */
+  readonly approvalCover?: (threadId: ThreadId) => boolean;
 }
 
 export interface AccessContext {
@@ -169,6 +175,12 @@ export function createAccess(deps: AccessDeps): Access {
           host: checked.host,
         },
       );
+    }
+    if (
+      deps.approvalCover?.(ctx.threadId) === true &&
+      reasons.every((reason) => reason !== "secret_pattern")
+    ) {
+      return undefined;
     }
     if (ctx.caller.agent === "background") {
       return deniedFailure("background_ask", "A background fork cannot ask for confirmation.", {

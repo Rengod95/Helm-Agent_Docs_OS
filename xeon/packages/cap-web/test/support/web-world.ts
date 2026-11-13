@@ -58,6 +58,8 @@ export interface WebWorldOptions {
   };
   /** 브라우저 동작의 사람 확인 대역. 없으면 확인이 필요한 동작은 거부된다 */
   readonly browseConfirm?: BrowseConfirmPort;
+  /** 권한 모드가 실행 허가 성격의 승인을 덮는 대화. 없으면 덮는 대화가 없다 */
+  readonly approvalCover?: (threadId: ThreadId) => boolean;
   /** 브라우저 엔진 포트 대역. 있으면 `stagehand` 후보가 등록된다 */
   readonly browserEngine?: BrowserEnginePort;
   /** 브라우저 MCP 포트 대역. 있으면 `playwright-mcp` 후보가 등록된다 */
@@ -160,6 +162,7 @@ export async function makeWebWorld(options: WebWorldOptions = {}): Promise<WebWo
     ...(options.registrations === undefined ? {} : { registrations: options.registrations }),
     builtin: options.builtin ?? { search: [], fetch: [] },
     ...(options.browseConfirm === undefined ? {} : { browseConfirm: options.browseConfirm }),
+    ...(options.approvalCover === undefined ? {} : { approvalCover: options.approvalCover }),
     ...(options.browserEngine === undefined ? {} : { browserEngine: options.browserEngine }),
     ...(options.browserMcp === undefined ? {} : { browserMcp: options.browserMcp }),
     builtinSearch: options.builtinSearch === true,
@@ -175,10 +178,10 @@ export async function makeWebWorld(options: WebWorldOptions = {}): Promise<WebWo
   const browseControl =
     options.catalog === undefined
       ? runtime.browse
-      : createBrowseApi(
-          deps,
-          options.browseConfirm === undefined ? {} : { confirm: options.browseConfirm },
-        );
+      : createBrowseApi(deps, {
+          ...(options.browseConfirm === undefined ? {} : { confirm: options.browseConfirm }),
+          ...(options.approvalCover === undefined ? {} : { approvalCover: options.approvalCover }),
+        });
   const service =
     options.catalog === undefined ? runtime.service : createWebService(deps, browseControl);
   return {

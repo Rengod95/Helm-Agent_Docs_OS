@@ -5,6 +5,7 @@ import {
   TOAST_MIN_WIDTH_ACTION_PX,
   TOAST_MIN_WIDTH_PX,
   boxesOverlap,
+  cssBoxOf,
   defaultToastBox,
   toastWidth,
 } from "../../src/views/shell/toaster-slot.ts";
@@ -76,5 +77,35 @@ describe("toastWidth narrows the toast into the gap right of the composer and ne
   test("a control reaching past the toast's right edge (restart bar button) keeps the minimum width", () => {
     const button = { left: 1200, top: 720, right: 1270, bottom: 748 };
     expect(toastWidth([button], 1264, 0, VH, 200)).toBe(200);
+  });
+});
+
+describe("toastWidth under app zoom measures in CSS px (DP-173)", () => {
+  test("cssBoxOf divides a screen-px box by the zoom", () => {
+    expect(cssBoxOf({ left: 125, top: 250, right: 375, bottom: 500 }, 1.25)).toEqual({
+      left: 100,
+      top: 200,
+      right: 300,
+      bottom: 400,
+    });
+    expect(cssBoxOf({ left: 1, top: 2, right: 3, bottom: 4 }, 0)).toEqual({
+      left: 1,
+      top: 2,
+      right: 3,
+      bottom: 4,
+    });
+  });
+
+  test("1440×900 at 125%: the toast fits the 324px screen gap instead of overlapping the composer", () => {
+    // 화면 px: 입력창 오른쪽 끝 1100, 토스트 영역 오른쪽 끝 1424. 틈 324 - 12 = 312(화면) = 249.6(CSS)
+    const z = 1.25;
+    const field = { left: 500, top: 760, right: 1100, bottom: 825 };
+    const fixed = toastWidth([cssBoxOf(field, z)], 1424 / z, 52 / z, 900 / z, 200);
+    expect(fixed).toBe(247);
+    // 화면에서 토스트 왼쪽 끝은 입력창 오른쪽 끝 + 12 이상(1424 - 247 × 1.25 = 1115.25)
+    expect(1424 - fixed * z).toBeGreaterThanOrEqual(1100 + 12);
+    // 고치기 전처럼 화면 px을 그대로 넣으면 312(CSS)라 화면 390px로 입력창을 66px 덮는다
+    const naive = toastWidth([field], 1424, 52, 900, 200);
+    expect([naive, 1424 - naive * z]).toEqual([312, 1034]);
   });
 });
