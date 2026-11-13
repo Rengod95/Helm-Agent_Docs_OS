@@ -11,6 +11,7 @@ import { t } from "@fresnel/client/i18n";
 import { detach, rethrow, type Result } from "@fresnel/contracts";
 import type { ItemId, ThreadId } from "@fresnel/contracts/conversation";
 import { createContext, useContext, useRef, useState, type ReactNode } from "react";
+import { cssPxOf, cssZoomOf } from "../../lib/zoom.ts";
 import { messageCopyText, useItem, useOpenThreadRunning } from "../../state/engine/index.ts";
 import type { CommandError } from "../commands.ts";
 import { CopyButton } from "./markdown-body.tsx";
@@ -53,7 +54,7 @@ function useRun(): readonly [boolean, (work: () => Promise<unknown>) => void] {
 /** 되감기 확인 팝오버의 높이(제목, 두 줄 설명, 단추 줄, 안쪽 여백)와 단추 사이 간격을 합한 값. 단추 위에 이만큼 자리가 있어야 위로 연다 */
 export const REWIND_POPOVER_ROOM_PX = 160;
 
-/** 되감기 확인을 여는 쪽. `roomAbovePx`는 창 위 끝에서 단추 위 끝까지다. 위에 자리가 없으면 왼쪽에 연다(다음 말풍선을 덮지 않게) */
+/** 되감기 확인을 여는 쪽. `roomAbovePx`는 창 위 끝에서 단추 위 끝까지(CSS px, 화면 px이면 앱 확대로 나눠 넘긴다)다. 위에 자리가 없으면 왼쪽에 연다(다음 말풍선을 덮지 않게) */
 export function rewindSideOf(roomAbovePx: number): "top" | "left" {
   return roomAbovePx >= REWIND_POPOVER_ROOM_PX ? "top" : "left";
 }
@@ -75,8 +76,11 @@ function RewindButton(props: {
       align={side === "top" ? "end" : "start"}
       open={open}
       onOpenChange={(next) => {
-        // 여는 순간 단추 위 자리를 재어 쪽을 고른다
-        if (next) setSide(rewindSideOf(anchor.current?.getBoundingClientRect().top ?? 0));
+        // 여는 순간 단추 위 자리를 재어 쪽을 고른다. 잰 값은 화면 px이라 앱 확대로 나눈다(DP-173)
+        const el = anchor.current;
+        if (next && el !== null) {
+          setSide(rewindSideOf(cssPxOf(el.getBoundingClientRect().top, cssZoomOf(el))));
+        } else if (next) setSide(rewindSideOf(0));
         setOpen(next);
       }}
       anchor={

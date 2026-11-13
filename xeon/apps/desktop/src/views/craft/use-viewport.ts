@@ -17,6 +17,7 @@ import {
 } from "@fresnel/client/workbench/canvas";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { isMotionReduced } from "../../lib/motion-presets.tsx";
+import { cssPxOf, cssZoomOf } from "../../lib/zoom.ts";
 
 /** 이름표가 옆으로 나오는 폭(화면 px). 맞춤 계산이 이 폭을 뺀다 */
 const LABEL_PAD = 150;
@@ -140,9 +141,11 @@ export function useViewport(
     // 끌고 난 직후의 click은 누르기로 세지 않는다(끌기 뒤 버튼이 눌리는 것을 막는다)
     let suppressClick = false;
 
+    // 포인터 자리는 화면 px, 시야(--tx·--ty)는 확대 안의 CSS px이라 앱 확대로 나눈다(DP-173)
     const local = (e: { readonly clientX: number; readonly clientY: number }) => {
       const r = el.getBoundingClientRect();
-      return { x: e.clientX - r.left, y: e.clientY - r.top };
+      const zoom = cssZoomOf(el);
+      return { x: cssPxOf(e.clientX - r.left, zoom), y: cssPxOf(e.clientY - r.top, zoom) };
     };
 
     const onWheel = (e: WheelEvent): void => {
@@ -198,7 +201,8 @@ export function useViewport(
         el.setPointerCapture(e.pointerId);
         setPanning(true);
       }
-      view.current = panBy(drag.start, dx, dy);
+      const zoom = cssZoomOf(el);
+      view.current = panBy(drag.start, cssPxOf(dx, zoom), cssPxOf(dy, zoom));
       write();
     };
 

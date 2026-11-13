@@ -121,7 +121,7 @@ export function EndPanel(props: { readonly registry: ShellRegistry }): ReactNode
           role="region"
           tabIndex={-1}
           aria-label={label}
-          className="flex max-w-[calc(100vw-4.5rem)] flex-col shadow-3 outline-none"
+          className="flex max-w-[calc(var(--app-vw)-4.5rem)] flex-col shadow-3 outline-none"
           style={{ width: wellWidthOf(current) }}
         >
           <div className="flex h-8 flex-none items-center gap-1.5 ps-2.5 pe-0.5">

@@ -498,6 +498,31 @@
   }
 }
 
+/* DP-173 앱 확대 단계(`<html data-zoom>`, views/appearance-prefs.ts)와 확대를 되돌린 창 크기.
+   Chromium에서 `vw`·`vh`·`dvh`와 UA `env()` 값은 확대 안에서 한 번 더 곱해진다(1280 창, 125%에서 `100vw`가 화면 1600px).
+   창에 맞춰야 하는 상한은 `--app-vw`·`--app-vh`·`--app-dvh`를 쓴다(확대로 나눈 값이라 화면에서 늘 창 크기다).
+   Radix 팝오버 안은 감싸개가 확대를 되돌렸다 다시 걸어 실효 확대가 같으므로 같은 값을 쓴다 */
+@layer utilities {
+  :root {
+    --app-zoom: 1;
+    --app-vw: calc(100vw / var(--app-zoom));
+    --app-vh: calc(100vh / var(--app-zoom));
+    --app-dvh: calc(100dvh / var(--app-zoom));
+  }
+  :root[data-zoom="90"] {
+    --app-zoom: 0.9;
+  }
+  :root[data-zoom="125"] {
+    --app-zoom: 1.25;
+  }
+  :root[data-zoom="150"] {
+    --app-zoom: 1.5;
+  }
+  :root[data-zoom="200"] {
+    --app-zoom: 2;
+  }
+}
+
 /* DP-80·81 [결정: 2026-11-11 사용자] 창 틀. 데스크톱 셸이 OS 제목 막대를 숨기면(`<html data-window-chrome>`, views/shell/window-chrome.ts)
    맨 위 머리 줄(사이드 패널 머리, 화면 머리)이 창 틀이다. 웹 문서에는 속성이 없어 아래 규칙이 하나도 걸리지 않는다.
    - 끌기: 머리 줄의 빈 곳은 창을 끈다(더블클릭은 OS 설정대로 확대·최소화). 누르는 것(단추·입력·탭·링크)과 떠 있는 층은 어디서든 끌지 않는다.
@@ -510,28 +535,16 @@
    - 앱 확대(`data-zoom`)는 CSS px를 키우지만 OS가 그리는 신호등과 창 단추는 그대로라 비우는 폭을 확대 비율로 나눈다 */
 @layer utilities {
   :root[data-window-chrome] {
-    --chrome-zoom: 1;
     --chrome-start: 0px;
     --chrome-end: 0px;
   }
-  :root[data-window-chrome][data-zoom="90"] {
-    --chrome-zoom: 0.9;
-  }
-  :root[data-window-chrome][data-zoom="125"] {
-    --chrome-zoom: 1.25;
-  }
-  :root[data-window-chrome][data-zoom="150"] {
-    --chrome-zoom: 1.5;
-  }
-  :root[data-window-chrome][data-zoom="200"] {
-    --chrome-zoom: 2;
-  }
   :root[data-window-chrome="mac"]:not([data-fullscreen]) {
-    --chrome-start: calc(var(--chrome-inset-start, 0px) / var(--chrome-zoom));
+    --chrome-start: calc(var(--chrome-inset-start, 0px) / var(--app-zoom));
   }
+  /* `100vw`와 `env(titlebar-area-*)`는 둘 다 확대가 곱해진 채 빼지므로 차(단추 폭)를 확대로 나누면 화면에서 단추 폭 그대로다(DP-173, 측정은 스펙) */
   :root[data-window-chrome="overlay"] {
     --chrome-end: calc(
-      (100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw)) / var(--chrome-zoom)
+      (100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw)) / var(--app-zoom)
     );
   }
 
