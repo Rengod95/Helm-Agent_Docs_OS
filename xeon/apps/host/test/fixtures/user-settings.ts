@@ -12,8 +12,12 @@ export function writeUserSettings(
   writeFileSync(join(dir, "settings.json"), JSON.stringify(values));
 }
 
-/** 모델 테이프 provider를 기본 모델로 쓰는 설정. 테이프 provider는 키가 필요 없다 */
+/**
+ * 모델 테이프 provider를 기본 모델로 쓰는 설정. 테이프 provider는 키가 필요 없다.
+ * 엔진 기본 모드는 bypass(2026-11-13 사용자 결정)지만 승인 시험은 "묻는" 경로를 보므로 default로 둔다
+ */
 export const TAPE_SETTINGS: Readonly<Record<string, unknown>> = {
+  "l1.tools.permissionMode": "default",
   "l1.models.default": "tape/tape-1",
   "l1.models.providers": [{ id: "tape", enabled: true, apiKeyRef: null, baseUrl: null }],
 };

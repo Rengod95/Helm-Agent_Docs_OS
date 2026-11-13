@@ -11,8 +11,12 @@ export const TAPES_DIR: string = join(import.meta.dir, "..", "fixtures", "tapes"
 export const SCENARIO_MAIN: string = join(import.meta.dir, "..", "fixtures", "scenario-main.ts");
 export const NOTES_TEXT: string = "hello from notes\n";
 
-/** 모델 테이프가 바로 읽는 설정. 테이프 provider는 키가 필요 없다 */
+/**
+ * 모델 테이프가 바로 읽는 설정. 테이프 provider는 키가 필요 없다.
+ * 엔진 기본 모드는 bypass(2026-11-13 사용자 결정)지만 승인 카드를 보는 시험이 많아 default로 둔다
+ */
 const TAPE_SETTINGS = {
+  "l1.tools.permissionMode": "default",
   "l1.models.default": "tape/tape-1",
   "l1.models.providers": [{ id: "tape", enabled: true, apiKeyRef: null, baseUrl: null }],
 };

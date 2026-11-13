@@ -51,7 +51,8 @@ export const TOOLS_SETTING_DEFAULTS: {
   readonly unattendedApproval: UnattendedApproval;
   readonly unattendedTimeoutSeconds: number;
 } = {
-  permissionMode: "default",
+  // [결정: 2026-11-13 사용자] 새 대화의 기본은 "모두 허용"이다. 저장된 대화의 모드와 안전 모드는 바꾸지 않는다
+  permissionMode: "bypass",
   bypassAllowed: true,
   outputMaxLines: 2000,
   outputMaxBytes: 51_200,
