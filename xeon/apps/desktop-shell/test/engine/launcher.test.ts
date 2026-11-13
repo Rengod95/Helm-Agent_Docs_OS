@@ -66,6 +66,19 @@ describe("command plan (engine.rs launch and run_once)", () => {
     );
   });
 
+  test("an unpackaged dev sidecar gets FRESNEL_DEV=1 and the bundled one never does, even when the user's environment has it", () => {
+    const dev = planCommand(withOverride("host --stdio"), { kind: "engine", flags: [] });
+    expect(dev.ok && dev.value.env["FRESNEL_DEV"]).toBe("1");
+    const bundled = planCommand(
+      inputs({
+        env: { PATH: "/usr/bin:/bin", FRESNEL_DEV: "1" },
+        exists: (file) => file === BUNDLED,
+      }),
+      { kind: "engine", flags: [] },
+    );
+    expect(bundled.ok && "FRESNEL_DEV" in bundled.value.env).toBe(false);
+  });
+
   test("the dev override gets only the engine flags after its host --stdio arguments", () => {
     const local = planCommand(withOverride("--inspect  host --stdio"), {
       kind: "engine",

@@ -540,6 +540,9 @@ export function createLeaseBroker(
       if (generation === null || generation.stale) continue;
       if (!generation.open && !txn.opening.includes(record)) continue;
       if (generation.drive === null) continue;
+      // 그 상태 문서에서 락을 원하지 않으면 후보가 아니다(`DriveOptions.wants`). 유휴 drive가 락을 쥐고 다른 그룹을 기다리게 하지 않는다
+      const wants = generation.drive.options.wants;
+      if (wants !== undefined && !wants(stateService.docOf(thread.threadId, record.id))) continue;
       // loop.ask로 답을 기다리는 Registration은 답이 해결될 때까지 후보가 아니다. trackWaiting도 이 목록으로 대기를 세므로
       // 답을 기다리는 동안에는 x.primitives.leaseWaitLimit의 대기 계수에 들지 않는다(X-17)
       if (askWaiting.get(thread)?.has(record.id) === true) continue;

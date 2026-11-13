@@ -3,7 +3,6 @@ import type { CapabilityId } from "@fresnel/contracts/capabilities";
 import type { IdFactory, ThreadId, TurnId, StepId, EventId } from "@fresnel/contracts/conversation";
 import type {
   DriveLimits,
-  DriveOptions,
   ExtensionManifest,
   ExtensionName,
   HookName,
@@ -25,7 +24,7 @@ import type {
 import type { CordisBridge, FiberHandle, OpenedFiber } from "./cordis-bridge.ts";
 import type { StateMigration } from "./state-migration.ts";
 import type { Dispatcher } from "./dispatch.ts";
-import type { AnyState, DriveCall } from "./erased-types.ts";
+import type { AnyState, DriveCall, ErasedDriveOptions } from "./erased-types.ts";
 import type { DispatchPolicy } from "./dispatch-types.ts";
 import type { ExtDiagnostic, PrimitiveErrorCode } from "./errors.ts";
 import type { HandlerRegistry } from "./registry.ts";
@@ -105,7 +104,7 @@ export interface Generation {
   opened: OpenedFiber | null;
   fiber: FiberHandle | null;
   readonly usage: UsageRecorder;
-  drive: { readonly fn: DriveCall; readonly options: DriveOptions } | null;
+  drive: { readonly fn: DriveCall; readonly options: ErasedDriveOptions } | null;
   readonly disposers: (() => void | Promise<void>)[];
   api: RegistrationApi<AnyState> | null;
   /** 상태 마이그레이션 훅(`hostOf(g).migrateState`). setup 안에서 한 번만 등록한다 */

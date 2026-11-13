@@ -44,6 +44,7 @@ test("the committed release-bundle.json parses into the bundle the release build
   if (!result.ok) return;
   expect(result.value).toEqual({
     templates: "packages/group-sdk/templates",
+    guide: "packages/group-guide/skills",
     defaultPlugins: [{ name: "helm", buildScript: "packages/group-helm/scripts/build-plugin.ts" }],
     bundledBinaries: {
       [MAC]: {
@@ -80,9 +81,10 @@ test("every path the bundle config names exists in the repository", () => {
   if (!result.ok) throw new Error("the committed config does not parse");
   const paths = [
     result.value.templates,
+    result.value.guide,
     ...result.value.defaultPlugins.map((plugin) => plugin.buildScript),
   ];
-  expect(paths.map((path) => existsSync(join(REPO, "xeon", path)))).toEqual([true, true]);
+  expect(paths.map((path) => existsSync(join(REPO, "xeon", path)))).toEqual([true, true, true]);
 });
 
 test("a bundle config with a bad value, an extra key or a missing field is config.invalid", () => {
@@ -92,6 +94,7 @@ test("a bundle config with a bad value, an extra key or a missing field is confi
     ["empty license", '"license": "BSD-3-Clause"', '"license": ""'],
     ["unknown key", '"systemRequired": {', '"extra": 1,\n  "systemRequired": {'],
     ["missing templates", '"templates": "packages/group-sdk/templates",', ""],
+    ["missing guide", '"guide": "packages/group-guide/skills",', ""],
     ["number platform", '"platform": "darwin"', '"platform": 7'],
     ["empty plugin name", '"name": "helm"', '"name": ""'],
   ];
@@ -359,6 +362,7 @@ test("requiredPaths asks for the lock and the bundled binaries only on macOS", (
     "fresnel-web",
     "ui/index.html",
     "group-sdk/templates/index.json",
+    "guide/skills/fresnel-plugin-authoring/SKILL.md",
     "default-plugins/helm/.fresnel-plugin/plugin.json",
     "THIRD-PARTY-NOTICES.txt",
     "SHA256SUMS",

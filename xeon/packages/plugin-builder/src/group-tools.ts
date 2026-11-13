@@ -1,7 +1,7 @@
 import { parse } from "@fresnel/contracts";
 import { toJsonValue, type JsonValue, type ThreadId } from "@fresnel/contracts/conversation";
 import { CompositionDeclSchema, type ToolResourceDef } from "@fresnel/contracts/extensions";
-import type { DevkitError, DevkitService } from "@fresnel/contracts/services";
+import type { DevkitService } from "@fresnel/contracts/services";
 import { checkGroupName } from "@fresnel/group-sdk";
 import { Type, type TSchema } from "typebox";
 import { CATALOG_VERSION } from "./catalog.ts";
@@ -15,10 +15,11 @@ import {
 import { replayInDevMode } from "./release.ts";
 import { resolveTargetDir } from "./target-dir.ts";
 
-// L3.authoring.spec §3.2 모델 도구 아홉. 도구는 입력 검사, 대화 상태 커밋, 결과 요약만 하고 일은 `fresnel.devkit` 서비스가 한다.
+// L3.authoring.spec §3.2 모델 도구 열하나(모두 지연 노출). 도구는 입력 검사, 대화 상태 커밋, 결과 요약만 하고 일은 `fresnel.devkit` 서비스가 한다.
 // 사람 확인이 필요한 단계(시험, 묶기, 설치, 고치기 한도)는 도구가 요청(`pending`)만 커밋하고 drive가 `loop.ask`로 확인한 뒤 실행한다(A-4).
 
 export const AUTHORING_TOOL_NAMES = [
+  "authoring_guide",
   "authoring_kinds",
   "authoring_start",
   "authoring_compose",
@@ -31,6 +32,26 @@ export const AUTHORING_TOOL_NAMES = [
   "authoring_stop",
 ] as const;
 
+/** Fresnel 가이드(제품 지식 스킬)를 읽는 면. 호스트가 같은 원본 폴더를 읽는 구현을 넘긴다(그룹 `guide`가 꺼져 있어도 읽힌다) */
+export interface AuthoringGuide {
+  topics():
+    | {
+        readonly ok: true;
+        readonly value: readonly {
+          readonly name: string;
+          readonly description: string;
+          readonly files: readonly string[];
+        }[];
+      }
+    | { readonly ok: false; readonly error: { readonly kind: string; readonly message: string } };
+  read(
+    topic: string,
+    file?: string,
+  ):
+    | { readonly ok: true; readonly value: string }
+    | { readonly ok: false; readonly error: { readonly kind: string; readonly message: string } };
+}
+
 /** 도구가 쓰는 상태 문서 면. `RegistrationApi`의 부분형이다 */
 interface StateAccess {
   state(): Readonly<AuthoringState>;
@@ -40,6 +61,8 @@ interface StateAccess {
 export interface ToolsEnv {
   readonly g: StateAccess;
   readonly devkit: DevkitService;
+  /** Fresnel 가이드 읽기. 없으면 `authoring_guide`는 `guide_unavailable`이다 */
+  readonly guide: AuthoringGuide | undefined;
   /** 개발 모드 판정. 호스트 한 곳이 준다(A-5) */
   readonly devMode: () => boolean;
   /** 같은 검사 오류가 남는 고치기 반복 한도(`l3.authoring.fixLoopLimit`, 기본 3) */
@@ -50,7 +73,7 @@ export interface ToolsEnv {
 
 const sessionShape = { sessionId: Type.String({ minLength: 1, maxLength: 80 }) };
 
-function failure(error: DevkitError): JsonValue {
+function failure(error: { readonly kind: string; readonly message: string }): JsonValue {
   return { ok: false, error: { kind: error.kind, message: error.message } };
 }
 
@@ -100,7 +123,7 @@ function tool(
         : {};
     return run(input, ctx.threadId);
   };
-  return { name, description, parameters, replay: "unsafe", risk, execute };
+  return { name, description, parameters, replay: "unsafe", exposure: "deferred", risk, execute };
 }
 
 function str(input: Record<string, unknown>, key: string): string {
@@ -136,9 +159,40 @@ async function request(
 export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
   const { devkit } = env;
 
+  const guide = tool(
+    "authoring_guide",
+    "Plugin authoring: read the Fresnel guide for building a plugin or extension (manifest format, hooks, tools, install location, build flow). Without a topic it lists the topics.",
+    Type.Object(
+      {
+        topic: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+        file: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+      },
+      { additionalProperties: false },
+    ),
+    "read",
+    (input) => {
+      if (env.guide === undefined)
+        return Promise.resolve(refusal("guide_unavailable", "the Fresnel guide is not installed"));
+      const topic = optStr(input, "topic");
+      if (topic === undefined) {
+        const listed = env.guide.topics();
+        if (!listed.ok) return Promise.resolve(failure(listed.error));
+        return Promise.resolve({
+          ok: true,
+          topics: listed.value.map((entry) =>
+            json({ topic: entry.name, description: entry.description, files: entry.files }),
+          ),
+        });
+      }
+      const text = env.guide.read(topic, optStr(input, "file"));
+      if (!text.ok) return Promise.resolve(failure(text.error));
+      return Promise.resolve({ ok: true, topic, text: text.value });
+    },
+  );
+
   const kinds = tool(
     "authoring_kinds",
-    "List the kinds of extension that can be built, with their status and the decisions the author must make.",
+    "Plugin authoring: list the kinds of plugin or extension that can be built, with their status and the decisions the author must make.",
     Type.Object(
       { layer: Type.Optional(Type.String()), query: Type.Optional(Type.String()) },
       { additionalProperties: false },
@@ -170,7 +224,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const start = tool(
     "authoring_start",
-    "Open an authoring session for one extension. The user confirms the kind and the name before the next steps.",
+    "Plugin authoring: open a build session for one new plugin or extension. The user confirms the kind and the name before the next steps.",
     Type.Object(
       {
         kind: Type.Union([Type.Literal("single-plugin"), Type.Literal("plugin-group")]),
@@ -461,5 +515,5 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
     },
   );
 
-  return [kinds, start, compose, scaffold, validate, trial, replay, pack, install, stop];
+  return [guide, kinds, start, compose, scaffold, validate, trial, replay, pack, install, stop];
 }

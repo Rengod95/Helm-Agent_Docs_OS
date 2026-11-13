@@ -56,6 +56,7 @@ export function requiredPaths(triple: string): readonly string[] {
     triple.includes("-windows-") ? "fresnel-web.exe" : "fresnel-web",
     "ui/index.html",
     "group-sdk/templates/index.json",
+    "guide/skills/fresnel-plugin-authoring/SKILL.md",
     "default-plugins/helm/.fresnel-plugin/plugin.json",
     "THIRD-PARTY-NOTICES.txt",
     "SHA256SUMS",

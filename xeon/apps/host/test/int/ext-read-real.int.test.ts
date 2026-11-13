@@ -253,8 +253,9 @@ realTest(
           .map((row) => [row.id, row.usesDrive, row.scope])
           .toSorted((a, b) => String(a[0]).localeCompare(String(b[0]))),
       ).toEqual([
-        // 제작 그룹(`authoring`)은 내장이고 기본 꺼짐이다
-        ["authoring", true, "disabled"],
+        // 제작 그룹(`authoring`)은 내장이고 기본 켜짐이다. 가이드 그룹(`guide`)은 내장이고 기본 꺼짐이다([결정: 2026-11-13 사용자])
+        ["authoring", true, "enabled"],
+        ["guide", false, "disabled"],
         ["learning", false, "enabled"],
         [groupId, true, "enabled"],
       ]);

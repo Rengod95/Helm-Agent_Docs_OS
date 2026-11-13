@@ -53,6 +53,7 @@ fresnel-<버전>-<triple>/
 ├── fresnel-web                      웹 게이트웨이 (Windows는 fresnel-web.exe). 서비스가 `fresnel` 옆에서 찾는다 (`L4.remote.spec` §5.1)
 ├── ui/                           게이트웨이가 내는 화면 번들 (`apps/desktop/dist/ui`)
 ├── group-sdk/templates/          `fresnel group new`의 템플릿과 index.json
+├── guide/skills/                 Fresnel Guide 스킬(`L3.guide.spec`). `locateGuideSkills`가 이 자리로 찾는다
 ├── default-plugins/
 │   └── helm/                     .fresnel-plugin/plugin.json과 엔트리 번들
 ├── binaries/                     macOS만: sops, age, rg

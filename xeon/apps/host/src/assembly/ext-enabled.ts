@@ -102,7 +102,7 @@ export interface BuiltinEnabledFollowDeps {
 }
 
 /**
- * 내장 그룹(`authoring`, `learning`)의 `ext.<이름>.enabled` 변경을 등록의 켜기·끄기로 옮긴다. 외부 확장은 로더가 하지만(`followExtEnabled`)
+ * 내장 그룹(`authoring`, `learning`, `guide`)의 `ext.<이름>.enabled` 변경을 등록의 켜기·끄기로 옮긴다. 외부 확장은 로더가 하지만(`followExtEnabled`)
  * 내장 단위는 로더를 거치지 않아 값만 바뀌고 켜지지 않았다(rtC R-3). 켜기·끄기는 다음 단계 경계에서 적용된다.
  */
 export function followBuiltinEnabled(deps: BuiltinEnabledFollowDeps): () => void {
@@ -125,7 +125,7 @@ export function followBuiltinEnabled(deps: BuiltinEnabledFollowDeps): () => void
 }
 
 /** 설정 값(`ext.<이름>.enabled`)이 켜짐을 정하는 내장 그룹. 정적 카탈로그에 예약 키가 있는 것만이다(HS-113). 시험이 더하는 단위는 매니페스트 기본을 따른다 */
-export const BUILTIN_GROUP_NAMES: readonly string[] = ["learning", "authoring"];
+export const BUILTIN_GROUP_NAMES: readonly string[] = ["learning", "authoring", "guide"];
 
 export interface ThreadEnabledFollowDeps {
   readonly onChange: (listener: (change: SettingsChange) => void) => () => void;

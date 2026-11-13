@@ -193,6 +193,8 @@ export interface GroupRig {
   readonly thread: ThreadId;
   /** 등록된 도구 이름 */
   toolNames(): string[];
+  /** 등록된 도구의 광고 방식(이름순) */
+  exposures(): (string | undefined)[];
   readonly approvals: FakeApprovals;
   readonly probe: DevkitProbe;
   /** 도구 호출. 결과는 JSON 값이다 */
@@ -245,7 +247,7 @@ export async function createGroupRig(options: Partial<AuthoringDeps> = {}): Prom
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.settled();
-  // 기본이 꺼짐이므로 켠다. 켜기 요청은 유휴 경계에서 적용된다
+  // 기본 켜짐이지만 켜기 요청은 멱등이다. 요청은 유휴 경계에서 적용된다
   t.host.registration("authoring")?.enable();
   await t.boundary(thread).idle();
   await t.settled();
@@ -267,6 +269,10 @@ export async function createGroupRig(options: Partial<AuthoringDeps> = {}): Prom
     probe,
     state,
     toolNames: () => [...tools.keys()].toSorted(),
+    exposures: () =>
+      [...tools.entries()]
+        .toSorted(([a], [b]) => a.localeCompare(b))
+        .map(([, def]) => def.exposure),
     async call(name, args) {
       const def = tools.get(name);
       if (def === undefined) throw new Error(`tool ${name} is not registered`);

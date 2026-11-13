@@ -2,10 +2,14 @@ import { err, ok } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ExtensionUnit } from "@fresnel/ext-host";
 import type { DevkitService } from "@fresnel/contracts/services";
-import { createAuthoringGroup, type AuthoringDeps } from "@fresnel/plugin-builder";
+import {
+  createAuthoringGroup,
+  type AuthoringDeps,
+  type AuthoringGuide,
+} from "@fresnel/plugin-builder";
 import type { DevkitPort } from "../handlers/m4/devkit.ts";
 
-// 제작 그룹 `authoring`(L3.authoring.spec §3.1)을 내장 그룹으로 싣는다. 기본은 꺼짐이다([결정: 2026-11-01 사용자]).
+// 제작 그룹 `authoring`(L3.authoring.spec §3.1)을 내장 그룹으로 싣는다. 기본은 켜짐이고 도구는 모두 지연이다([결정: 2026-11-13 사용자], 2026-11-01의 기본 꺼짐을 대체).
 // 그룹이 쓰는 서비스 `fresnel.devkit`은 wire 처리기와 같은 포트(`m4.devkit`)를 어댑터로 감싼 것이라 에이전트와 화면이 같은 검사와 같은 뼈대를 얻는다.
 // 포트는 엔진 포트가 만들어진 뒤에야 있으므로 쓸 때 읽는다. 조립 루트 코드(DR-14 예외 2).
 
@@ -22,6 +26,8 @@ export interface AuthoringWiring {
   readonly devkit: () => DevkitPort | undefined;
   /** 개발 모드 판정(`l3.authoring.devMode`의 현재 값). 조립 루트가 설정 값을 읽어 준다. 그룹은 도구를 부를 때마다 부른다 */
   readonly devMode: () => boolean;
+  /** Fresnel 가이드 읽기(`authoring_guide`). 가이드 그룹이 꺼져 있어도 같은 원본 폴더를 읽는다. 폴더를 못 찾으면 없다 */
+  readonly guide?: AuthoringGuide | undefined;
   /** 대화의 작업 폴더. 상대 `dir`을 푸는 기준이다 */
   readonly workspaceOf: (threadId: ThreadId) => string | undefined;
 }
@@ -91,6 +97,7 @@ export function devkitServiceOf(wiring: AuthoringWiring): DevkitService {
 export function authoringDepsOf(wiring: AuthoringWiring): AuthoringDeps {
   return {
     devkit: devkitServiceOf(wiring),
+    ...(wiring.guide === undefined ? {} : { guide: wiring.guide }),
     devMode: wiring.devMode,
     workspaceOf: wiring.workspaceOf,
   };

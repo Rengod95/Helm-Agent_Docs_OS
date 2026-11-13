@@ -166,6 +166,8 @@ import {
 } from "./assembly/settings-sources.ts";
 import { ownerKindOf } from "./handlers/owner.ts";
 import { createFileStartupHealth, startupHealthOf } from "./assembly/startup-health.ts";
+import { guideForcedOn, guideWiringOf } from "./assembly/guide.ts";
+import { GUIDE_GROUP_NAME } from "@fresnel/group-guide";
 import { defaultPluginsDir, hostResourceDir } from "./state-paths.ts";
 import type { AssembleIssue, AssembleOptions, Engine } from "./types.ts";
 import { createExternalHooks, HOOK_DEFS_KEY, stringsOf } from "./assembly/external-hooks.ts";
@@ -991,6 +993,13 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       learningAgents.length === 0
         ? undefined
         : [...(options.agentDefinitions ?? []), ...learningAgents, ...pluginAgents];
+    // 가이드 폴더(스킬 원본). 개발 모드이거나 `ext.guide.enabled`가 참일 때만 모델에게 스킬로 내보인다. 플러그인 빌더는 켜짐과 무관하게 읽는다
+    const guideWiring = guideWiringOf({
+      env: process.env,
+      resourceDir: hostResourceDir(),
+      devMode: () => settings.value("l3.authoring.devMode") === true,
+      enabledSetting: () => settings.value("ext.guide.enabled") === true,
+    });
     const units: ExtensionUnit[] = [
       ...builtinUnits({
         commands,
@@ -1024,8 +1033,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         authoring: {
           devkit: () => portsHandle?.ports.m4.devkit,
           devMode: () => settings.value("l3.authoring.devMode") === true,
+          guide: guideWiring.reader,
           workspaceOf,
         },
+        guide: guideWiring,
         ...(options.defaultGroups === undefined ? {} : { defaultGroups: options.defaultGroups }),
         safeMode,
         groups: {
@@ -1070,10 +1081,13 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       return typeof value === "boolean" ? value : undefined;
     };
     const installable = units.map((unit): ExtensionUnit => {
+      // 가이드 그룹은 개발 모드면 설정 값과 무관하게 켜진 채로 시작한다(`ext.list`의 상태가 `forcedOn`과 맞는다)
       const initialEnabled =
-        unit.builtin && BUILTIN_GROUP_NAMES.includes(unit.manifest.name)
-          ? enabledOfBuiltin(unit.manifest.name)
-          : undefined;
+        unit.builtin && unit.manifest.name === GUIDE_GROUP_NAME
+          ? guideWiring.active()
+          : unit.builtin && BUILTIN_GROUP_NAMES.includes(unit.manifest.name)
+            ? enabledOfBuiltin(unit.manifest.name)
+            : undefined;
       return initialEnabled === undefined ? unit : { ...unit, initialEnabled };
     });
     unitList.units = installable;
@@ -1094,7 +1108,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     });
     const unfollowGlobal = followBuiltinEnabled({
       onChange: (listener) => settings.onChange(listener),
-      value: (key) => settings.value(key),
+      // 가이드 그룹의 켜짐은 개발 모드와 스위치를 합친 값이다
+      value: (key) =>
+        key === `ext.${GUIDE_GROUP_NAME}.enabled` ? guideWiring.active() : settings.value(key),
       host: ext,
       names: () =>
         unitList.units
@@ -1104,7 +1120,19 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         operations.autoDisabler.clearLedger(`ext:${name}`);
       },
     });
+    // 개발 모드 설정이 바뀌면 가이드 그룹의 등록도 따라간다
+    const unfollowGuideDevMode = settings.onChange((change) => {
+      if (change.threadId !== null || !change.keys.includes("l3.authoring.devMode")) return;
+      for (const info of ext
+        .registrations()
+        .filter((scope) => scope.extension === GUIDE_GROUP_NAME)) {
+        const handle = ext.registration(info.id);
+        if (guideWiring.active()) handle?.enable();
+        else handle?.disable();
+      }
+    });
     external.unfollowBuiltin = () => {
+      unfollowGuideDevMode();
       unfollowGlobal();
       unfollowThread();
     };
@@ -1326,6 +1354,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       dialogArea,
       extRead: {
         operations,
+        forcedOn: (name) => guideForcedOn(guideWiring, name),
         externalHooks: (threadId) =>
           safeMode
             ? []

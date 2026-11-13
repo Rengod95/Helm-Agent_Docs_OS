@@ -40,4 +40,4 @@ export {
   type AuthoringPhase,
   type AuthoringState,
 } from "./group-state.ts";
-export { AUTHORING_TOOL_NAMES } from "./group-tools.ts";
+export { AUTHORING_TOOL_NAMES, type AuthoringGuide } from "./group-tools.ts";
