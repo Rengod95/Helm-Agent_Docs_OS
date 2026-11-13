@@ -339,6 +339,7 @@ function turnOf(over: Partial<TurnSummary>): TurnSummary {
     warnings: [],
     notices: [],
     lastContextTokens: null,
+    composition: null,
     ...over,
   };
 }

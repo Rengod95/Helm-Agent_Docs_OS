@@ -2,10 +2,12 @@ import {
   CalendarClock,
   Compass,
   Inbox,
+  Layers,
   Lightbulb,
   Link,
   ListChecks,
   MessageSquare,
+  SquarePen,
   WandSparkles,
 } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
@@ -59,6 +61,9 @@ import { HelmPanelTab } from "./plugin/plugin-tabs.tsx";
 import { AddonsScreen } from "./plugin/addons-screen.tsx";
 import { PLAYGROUND_TAB_SCREEN } from "./plugin/playground-tab-store.ts";
 import { PlaygroundTabScreen } from "./plugin/playground-tab-screen.tsx";
+import { ChangesTab } from "./panels/changes/changes-tab.tsx";
+import { ContextTab } from "./panels/context/context-tab.tsx";
+import { CHANGES_TAB_ID, CONTEXT_TAB_ID } from "./panels/tab-ids.ts";
 import {
   useApprovalCount,
   useOpenThread,
@@ -305,6 +310,26 @@ const WORK_TAB: EndTabDef = {
   render: () => <WorkScreen />,
 };
 
+// 변경 탭(DP-198~200): 이 대화가 바꾼 파일을 전체와 턴별로, 턴 끝으로 대화 되감기
+const CHANGES_TAB: EndTabDef = {
+  id: CHANGES_TAB_ID,
+  area: "chat",
+  label: "desktop.changes.tab",
+  icon: <SquarePen />,
+  screens: ["chat"],
+  render: () => <ChangesTab />,
+};
+
+// 컨텍스트 탭(DP-201~203): 채움과 자동 요약 문턱, 턴별 구성, 요약 기록, 토큰·비용, 실린 것
+const CONTEXT_TAB: EndTabDef = {
+  id: CONTEXT_TAB_ID,
+  area: "chat",
+  label: "desktop.context.tab",
+  icon: <Layers />,
+  screens: ["chat"],
+  render: () => <ContextTab />,
+};
+
 /** 크래프트 화면 셋(개요·확장·엔진)은 `registerWorkbench`가 등록한다. 개요는 캔버스 하나이고 목록을 못 읽으면 띠가 상태를 보인다 */
 export function createDesktopRegistry(): ShellRegistry {
   const registry = createShellRegistry();
@@ -350,6 +375,8 @@ export function createDesktopRegistry(): ShellRegistry {
   // 런타임 탭(§4.9.8): 이 대화의 주도 락, 켜진 그룹과 확장, 실패. 훅 알림을 위해 같은 워크벤치 스토어를 받는다
   registry.registerEndTab(runtimeEndTab(workbench));
   registry.registerEndTab(WORK_TAB);
+  registry.registerEndTab(CHANGES_TAB);
+  registry.registerEndTab(CONTEXT_TAB);
   registry.registerEndTab(HELM_TAB);
   registry.registerEndTab(pluginPagesEndTab(workbench));
   registerWorkbench(registry, workbench);

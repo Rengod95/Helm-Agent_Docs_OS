@@ -425,6 +425,7 @@ function turn(
     lastStopReason: options.limit === true ? "toolUse" : "stop",
     warnings: [],
     lastContextTokens: null,
+    lastComposition: null,
     notices: [],
     abort: null,
     completion: {

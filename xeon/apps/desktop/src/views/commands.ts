@@ -987,6 +987,13 @@ export interface Commands {
   attachmentLimit(): Promise<number | null>;
   /** 요약 뒤에도 그대로 두는 최근 토큰 수(`l1.context.keepRecentTokens`, 호스트 값). 이보다 적게 쌓인 대화는 요약할 것이 없다. 읽지 못하면 `null` */
   compactKeepTokens(): Promise<number | null>;
+  /**
+   * 자동 요약 정책(`l1.context.autoCompact`, `l1.context.reserveTokens`, 이 대화 기준 호스트 값). 엔진은 문맥이 `창 − reserveTokens`를 넘으면
+   * 요청 전에 요약한다(core-context). 컨텍스트 탭이 문턱 눈금과 남은 양을 그린다(DP-201). 읽지 못하면 `null`
+   */
+  compactPolicy(
+    threadId: ThreadId,
+  ): Promise<{ readonly autoCompact: boolean; readonly reserveTokens: number } | null>;
   interrupt(threadId: ThreadId): Promise<Result<null, CommandError>>;
   /**
    * `turn.withdraw`(W-17): 큐에 넣고 아직 배치되지 않은 입력을 요청 키로 거둔다. 거둬졌으면 `true`, 찾지 못했거나 이미 배치됐으면 `false`다.
