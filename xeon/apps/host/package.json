@@ -34,6 +34,7 @@
     "@fresnel/core-tools": "workspace:*",
     "@fresnel/ext-host": "workspace:*",
     "@fresnel/group-account-rotation": "workspace:*",
+    "@fresnel/group-guide": "workspace:*",
     "@fresnel/group-helm": "workspace:*",
     "@fresnel/group-learning": "workspace:*",
     "@fresnel/group-provider-anthropic-oauth": "workspace:*",

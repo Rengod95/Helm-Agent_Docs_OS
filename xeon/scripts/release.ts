@@ -6,6 +6,7 @@
 //     fresnel-web, ui/                the web gateway program and the UI bundle (apps/desktop/dist/ui) it serves; the service
 //                                     looks for both next to `fresnel` (apps/host gateway-command.ts)
 //     group-sdk/templates/         group templates for `fresnel group new` (locateGroupTemplates)
+//     guide/skills/                the Fresnel Guide skills (group-guide locateGuideSkills)
 //     default-plugins/<name>/      default plugin bundles (installDefaultPlugins)
 //     binaries/<name> + binaries.lock.json   bundled external binaries (macOS only, L0.os.spec 3.6)
 //     THIRD-PARTY-NOTICES.txt, SHA256SUMS
@@ -51,6 +52,7 @@ const BundledBinarySchema = Type.Object(
 const BundleConfigSchema = Type.Object(
   {
     templates: Type.String({ minLength: 1 }),
+    guide: Type.String({ minLength: 1 }),
     defaultPlugins: Type.Array(
       Type.Object(
         { name: Type.String({ minLength: 1 }), buildScript: Type.String({ minLength: 1 }) },
@@ -83,6 +85,8 @@ export interface BundledBinary {
 export interface BundleConfig {
   /** Relative to xeon/. */
   readonly templates: string;
+  /** Relative to xeon/. The Fresnel Guide skills folder. */
+  readonly guide: string;
   readonly defaultPlugins: readonly { readonly name: string; readonly buildScript: string }[];
   /** Rust target triple -> binaries the archive bundles. */
   readonly bundledBinaries: Readonly<
@@ -368,6 +372,10 @@ export async function buildRelease(request: ReleaseRequest): Promise<Result<stri
   if (!existsSync(join(templates, "index.json")))
     return fail({ kind: "input.missing", path: templates });
   copyTree(templates, join(stage, "group-sdk", "templates"));
+
+  const guide = join(fresnelRoot, config.value.guide);
+  if (!existsSync(guide)) return fail({ kind: "input.missing", path: guide });
+  copyTree(guide, join(stage, "guide", "skills"));
 
   const pluginSteps = await config.value.defaultPlugins.reduce<Promise<Result<true, ReleaseError>>>(
     async (previous, plugin) => {

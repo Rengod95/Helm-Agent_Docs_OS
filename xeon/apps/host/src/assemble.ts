@@ -166,6 +166,7 @@ import {
 } from "./assembly/settings-sources.ts";
 import { ownerKindOf } from "./handlers/owner.ts";
 import { createFileStartupHealth, startupHealthOf } from "./assembly/startup-health.ts";
+import { guideWiringOf } from "./assembly/guide.ts";
 import { defaultPluginsDir, hostResourceDir } from "./state-paths.ts";
 import type { AssembleIssue, AssembleOptions, Engine } from "./types.ts";
 import { createExternalHooks, HOOK_DEFS_KEY, stringsOf } from "./assembly/external-hooks.ts";
@@ -991,6 +992,13 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       learningAgents.length === 0
         ? undefined
         : [...(options.agentDefinitions ?? []), ...learningAgents, ...pluginAgents];
+    // 가이드 폴더(스킬 원본). 개발 모드이거나 `ext.guide.enabled`가 참일 때만 모델에게 스킬로 내보인다. 플러그인 빌더는 켜짐과 무관하게 읽는다
+    const guideWiring = guideWiringOf({
+      env: process.env,
+      resourceDir: hostResourceDir(),
+      devMode: () => settings.value("l3.authoring.devMode") === true,
+      enabledSetting: () => settings.value("ext.guide.enabled") === true,
+    });
     const units: ExtensionUnit[] = [
       ...builtinUnits({
         commands,
@@ -1024,8 +1032,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         authoring: {
           devkit: () => portsHandle?.ports.m4.devkit,
           devMode: () => settings.value("l3.authoring.devMode") === true,
+          guide: guideWiring.reader,
           workspaceOf,
         },
+        guide: guideWiring,
         ...(options.defaultGroups === undefined ? {} : { defaultGroups: options.defaultGroups }),
         safeMode,
         groups: {

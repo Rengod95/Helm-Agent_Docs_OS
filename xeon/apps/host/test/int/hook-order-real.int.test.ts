@@ -307,7 +307,8 @@ realTest(
   "preview of a closed first hook names the handler after the first answer as first_answer and first_failure_deny, with the handlers before it",
   async () => {
     const home = useEngineHome();
-    writeUserSettings(home, TAPE_SETTINGS);
+    // 내장 `authoring`의 쓰기 가드(`tool.call.before`)는 기본 켜짐이라 이 hook의 순서에 끼어든다. 이 시험은 사용자 확장 둘의 순서만 보므로 끈다(명시적 끔은 존중된다)
+    writeUserSettings(home, { ...TAPE_SETTINGS, "ext.authoring.enabled": false });
     writeHookProbe(home, FIRST_A, CALL);
     writeHookProbe(home, FIRST_B, CALL);
     const running = await openHost(ANSWERS);

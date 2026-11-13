@@ -123,7 +123,9 @@ test("the core groups build one catalog with the keys of every package that decl
   ]);
   // 내장 확장의 예약 키가 정적 카탈로그에 있어 파일 스키마와 `config list`가 같은 키를 본다(X10)
   expect(built.catalog.has("ext.cap-web.enabled")).toBe(true);
-  expect(built.catalog.get("ext.authoring.enabled")?.default).toBe(false);
+  // 플러그인 빌더는 기본 켜짐이고 도구는 지연이다([결정: 2026-11-13 사용자]). 가이드는 기본 꺼짐이고 개발 모드에서 켜진다
+  expect(built.catalog.get("ext.authoring.enabled")?.default).toBe(true);
+  expect(built.catalog.get("ext.guide.enabled")?.default).toBe(false);
   expect(built.catalog.get("ext.learning.enabled")?.default).toBe(true);
   for (const key of [
     "x.primitives.driveDefaultLimits",
