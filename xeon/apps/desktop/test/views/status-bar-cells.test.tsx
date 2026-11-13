@@ -9,19 +9,23 @@ import { createUiStore, type UiState } from "../../src/state/ui/store.ts";
 import { PluginUiProvider } from "../../src/views/plugin/plugin-context.tsx";
 import { Providers } from "../../src/views/providers.tsx";
 import {
+  CONTEXT_NEAR_PERCENT,
+  ContextCell,
+  contextNearOf,
+  contextTextOf,
   engineDescriptionOf,
   engineDotOf,
   goalCellOf,
   goalShownOf,
+  healthOf,
   linkDescriptionOf,
   liveDotOf,
   liveKindsOf,
   LiveList,
   liveRowsOf,
-  ModelCell,
+  SandboxOffCell,
   scheduleFailureRowOf,
   StatusBar,
-  TokensCell,
   tokensDescriptionOf,
   type LiveRow,
 } from "../../src/views/status-bar.tsx";
@@ -58,6 +62,41 @@ describe("status bar engine cell", () => {
     expect(engineDescriptionOf(RESTARTING)).toBe("desktop.status.cell.engine.restarting");
     expect(engineDescriptionOf(RUNNING)).toBe("desktop.status.cell.engine.running");
     expect(engineDescriptionOf(null)).toBeUndefined();
+  });
+
+  test("the health cell says nothing when all is well, and names only what is wrong", () => {
+    const local = { kind: "local" } as const;
+    const remote = { kind: "remote", address: "unix:/run/box.sock", label: "box" } as const;
+    expect(healthOf(RUNNING, "live", 0, local)).toEqual({
+      dot: "success",
+      text: null,
+      tone: undefined,
+    });
+    expect(healthOf(RUNNING, "live", 0, remote)).toEqual({
+      dot: "success",
+      text: "원격 · box",
+      tone: undefined,
+    });
+    expect(healthOf(RUNNING, "resync", 2, local)).toEqual({
+      dot: "warning",
+      text: "다시 맞추는 중 (2/3)",
+      tone: undefined,
+    });
+    expect(healthOf(RUNNING, "failed", 0, local)).toEqual({
+      dot: "danger",
+      text: "연결 복구 실패",
+      tone: "danger",
+    });
+    expect(healthOf(RESTARTING, "offline", 0, local)).toEqual({
+      dot: "warning",
+      text: "엔진 다시 시작 중",
+      tone: undefined,
+    });
+    expect(healthOf(FAILED, "offline", 0, local)).toEqual({
+      dot: "danger",
+      text: "엔진 시작 실패",
+      tone: "danger",
+    });
   });
 });
 
@@ -442,8 +481,14 @@ describe("status bar in-progress cell with a failed schedule", () => {
     expect(live.slice(0, live.indexOf("</button>"))).toContain('data-bar-dot="danger"');
   });
 
+  test("with nothing running and no failure there is no live cell at all", () => {
+    expect(cellIdsOf(barWith(liveMirror([])))).toEqual(["health"]);
+  });
+
   test("without a failure the live cell draws no dot", () => {
-    const html = barWith(liveMirror([]));
+    const html = barWith(
+      liveMirror([summary(thr(1), { status: "running", title: "캐시 무효화 조사" })]),
+    );
     expect(cellIdsOf(html)).toContain("live");
     const live = html.slice(html.indexOf('data-bar-cell="live"'));
     expect(live.slice(0, live.indexOf("</button>"))).not.toContain("data-bar-dot");
@@ -473,7 +518,7 @@ function frozenStore(state: EngineMirror): ReadonlyStore<EngineMirror> {
 }
 
 describe("status bar server render", () => {
-  test("a failed engine draws its engine and link cells from the mirror, with no in-progress count", () => {
+  test("a failed engine draws one health cell with the failure, with no in-progress count", () => {
     const h = harness();
     h.store.ingest({ type: "engine", state: FAILED });
     h.store.ingest({
@@ -496,11 +541,11 @@ describe("status bar server render", () => {
         </PluginUiProvider>
       </Providers>,
     );
-    expect(html).toContain('data-bar-cell="engine"');
-    expect(html).toContain("엔진 시작 실패");
+    expect(cellTextOf(html, "health")).toBe("엔진 시작 실패");
     expect(html).toContain('data-bar-dot="danger"');
-    expect(html).toContain('data-bar-cell="link"');
-    expect(html).toContain("연결 없음");
+    expect(html).toContain('data-bar-tone="danger"');
+    expect(html).not.toContain('data-bar-cell="engine"');
+    expect(html).not.toContain('data-bar-cell="link"');
     expect(html).not.toContain('data-bar-cell="live"');
     expect(html).not.toContain("진행 중 2");
     expect(html).not.toContain("끝난 대화");
@@ -601,24 +646,24 @@ describe("status bar cell order", () => {
     setActiveLocale(previous);
   });
 
-  test("engine and link lead on the left, and in-progress then approvals follow the spacer on the right", () => {
+  test("the health cell leads on the left, and in-progress then approvals follow the spacer on the right", () => {
     const html = barWith(mirrorWithApproval());
-    expect(cellIdsOf(html)).toEqual(["engine", "link", "live", "model", "approvals"]);
+    expect(cellIdsOf(html)).toEqual(["health", "live", "approvals"]);
     const spacer = html.indexOf('class="grow"');
-    expect(html.indexOf('data-bar-cell="link"')).toBeLessThan(spacer);
+    expect(html.indexOf('data-bar-cell="health"')).toBeLessThan(spacer);
     expect(spacer).toBeLessThan(html.indexOf('data-bar-cell="live"'));
   });
 
   test("the approval cell reads its count, and is absent when no approval waits", () => {
-    expect(cellTextOf(barWith(mirrorWithApproval()), "approvals")).toBe("승인 1");
-    expect(cellIdsOf(barWith(mirrorWithFailure()))).toEqual(["engine", "link", "live", "model"]);
+    expect(cellTextOf(barWith(mirrorWithApproval()), "approvals")).toBe("승인 대기 1");
+    expect(cellIdsOf(barWith(mirrorWithFailure()))).toEqual(["health", "live"]);
   });
 
   test("the bar has no settings button, the sidebar footer is the way to settings", () => {
     expect(barWith(mirrorWithApproval())).not.toContain("설정");
   });
 
-  test("failure buttons sit beside their cells: restart after the engine, reconnect and copy after the link", () => {
+  test("failure buttons follow the health cell: restart, then reconnect and copy", () => {
     const h = harness();
     h.store.ingest({ type: "engine", state: FAILED });
     h.store.flush();
@@ -626,9 +671,8 @@ describe("status bar cell order", () => {
     ui.actions.setConnectError("hello:1002");
     // 엔진이 실패했으면 거울의 "진행 중" 수는 오래된 것이라 그 칸은 없다
     expect(sequenceOf(barWithUi(h.store.read.getState(), ui.read.getState()))).toEqual([
-      "engine",
+      "health",
       "엔진 다시 시작",
-      "link",
       "다시 연결",
       "진단 복사",
     ]);
@@ -662,7 +706,7 @@ describe("status bar engine cell names the attached target", () => {
     setActiveLocale(previous);
   });
 
-  test("a remote target shows its name on the engine cell and in the screen reader line", () => {
+  test("a remote target shows its name on the health cell and the full line to screen readers", () => {
     const ui = createUiStore();
     ui.actions.setEngineTarget({
       kind: "remote",
@@ -670,23 +714,27 @@ describe("status bar engine cell names the attached target", () => {
       label: "build-box",
     });
     const html = barWithUi(mirrorRunning(), ui.read.getState());
-    expect(cellTextOf(html, "engine")).toBe("엔진 실행 중 (원격 · build-box)");
+    expect(cellTextOf(html, "health")).toBe("원격 · build-box");
     expect(html).toContain(
       '<span role="status" class="sr-only">엔진 실행 중 (원격 · build-box)</span>',
     );
   });
 
-  test("a running process whose link is not live yet is a starting engine on the cell, not a green running one", () => {
+  test("a running process whose link is not live yet shows the link state with a warning dot, not a green dot", () => {
     const h = harness();
     h.store.ingest({ type: "engine", state: RUNNING });
     h.store.flush();
     const html = barWithUi(h.store.read.getState(), createUiStore().read.getState());
-    expect(cellTextOf(html, "engine")).toBe("엔진 시작 중");
+    expect(cellTextOf(html, "health")).toBe("연결 없음");
+    expect(html).not.toContain('data-bar-dot="success"');
   });
 
-  test("this computer keeps the in-app source on the engine cell", () => {
+  test("this computer on a live link says nothing: one success dot named by its label", () => {
     const html = barWithUi(mirrorRunning(), createUiStore().read.getState());
-    expect(cellTextOf(html, "engine")).toBe("엔진 실행 중 (앱 안)");
+    expect(cellTextOf(html, "health")).toBeNull();
+    expect(html).toContain('data-bar-dot="success"');
+    expect(html).toContain('aria-label="엔진 실행 중 (앱 안) · 연결됨"');
+    expect(html).not.toContain("연결됨<");
   });
 });
 
@@ -700,48 +748,47 @@ describe("status bar model and usage cells", () => {
     setActiveLocale(previous);
   });
 
-  test("the model cell shows the display name, never the provider id", () => {
-    expect(
-      cellTextOf(renderToString(<ModelCell model="anthropic/claude-haiku-5-5" />), "model"),
-    ).toBe("Claude Haiku 5.5");
-    expect(
-      cellTextOf(
-        renderToString(
-          <ModelCell model="anthropic/claude-haiku-5-5" nameOf={() => "Claude Haiku 5.5 (cat)"} />,
-        ),
-        "model",
-      ),
-    ).toBe("Claude Haiku 5.5 (cat)");
-    expect(cellTextOf(renderToString(<ModelCell model="sonnet-5-5" />), "model")).toBe(
-      "Sonnet 5.5",
-    );
-    expect(cellTextOf(renderToString(<ModelCell model={null} />), "model")).toBe("모델 없음");
-  });
-
-  test("the tokens cell shows the count and draws the bar only when the limit is known", () => {
+  test("the context cell reads the percent with a bar when the window is known, and the tokens otherwise", () => {
     const known = renderToString(
-      <TokensCell usage={{ tokens: 41_000, percent: 40, limit: 100_000 }} />,
+      <ContextCell usage={{ tokens: 41_000, percent: 40.4, limit: 100_000 }} />,
     );
-    expect(cellTextOf(known, "tokens")).toBe("4.1만 / 10만");
+    expect(cellTextOf(known, "context")).toBe("문맥 40%");
     expect(known).toContain('data-slot="progress"');
     expect(known).toContain("--cs-progress:40%");
+    expect(known).not.toContain("data-bar-tone");
     const unknown = renderToString(
-      <TokensCell usage={{ tokens: 41_000, percent: null, limit: null }} />,
+      <ContextCell usage={{ tokens: 41_000, percent: null, limit: null }} />,
     );
-    expect(cellTextOf(unknown, "tokens")).toBe("4.1만");
+    expect(cellTextOf(unknown, "context")).toBe("문맥 4.1만");
     expect(unknown).not.toContain('data-slot="progress"');
+  });
+
+  test("a context at 80% or more is near the automatic summary and turns the cell to the warning tone", () => {
+    expect(CONTEXT_NEAR_PERCENT).toBe(80);
+    expect(contextNearOf({ tokens: 79_000, percent: 79.4, limit: 100_000 })).toBe(false);
+    expect(contextNearOf({ tokens: 80_000, percent: 80, limit: 100_000 })).toBe(true);
+    expect(contextNearOf({ tokens: 900_000, percent: null, limit: null })).toBe(false);
+    const html = renderToString(
+      <ContextCell usage={{ tokens: 91_000, percent: 91, limit: 100_000 }} />,
+    );
+    expect(html).toContain('data-bar-tone="warning"');
+    expect(contextTextOf({ tokens: 91_000, percent: 91, limit: 100_000 })).toBe("문맥 91%");
   });
 
   test("collapsible cells keep their text for screen readers and carry it as the tooltip", () => {
     const html = renderToString(
-      <TokensCell usage={{ tokens: 41_000, percent: 40, limit: 100_000 }} />,
+      <ContextCell usage={{ tokens: 41_000, percent: 40, limit: 100_000 }} />,
     );
     expect(html).toContain("data-bar-collapsible");
-    expect(html).toContain('title="4.1만 / 10만"');
+    expect(html).toContain('title="문맥 40%"');
     expect(html).toContain("data-bar-icon");
     expect(html).toContain("data-bar-trailing");
-    const model = renderToString(<ModelCell model="sonnet-5-5" />);
-    expect(model).toContain('title="Sonnet 5.5"');
+  });
+
+  test("the sandbox-off cell is a warning cell with its own words", () => {
+    const html = renderToString(<SandboxOffCell openSettings={() => {}} />);
+    expect(cellTextOf(html, "sandbox")).toBe("샌드박스 꺼짐");
+    expect(html).toContain('data-bar-tone="warning"');
   });
 
   test("the status bar row is not a live region, only the engine line is", () => {
@@ -764,10 +811,14 @@ describe("status bar model and usage cells", () => {
     );
   });
 
-  test("the model and usage sentences exist in ko and en with their placeholders", () => {
+  test("the status bar words exist in ko and en with their placeholders", () => {
     const locales: readonly Locale[] = ["ko", "en"];
     for (const locale of locales) {
-      expect(catalogOf(locale)["desktop.status.cell.model.description"]).toMatch(/\S/);
+      expect(catalogOf(locale)["desktop.status.context"]).toMatch(/\{percent\}/);
+      expect(catalogOf(locale)["desktop.status.contextTokens"]).toMatch(/\{tokens\}/);
+      expect(catalogOf(locale)["desktop.status.approvalsWaiting"]).toMatch(/\{count\}/);
+      expect(catalogOf(locale)["desktop.status.liveFailed"]).toMatch(/\{count\}/);
+      expect(catalogOf(locale)["desktop.status.sandboxOff"]).toMatch(/\S/);
       expect(catalogOf(locale)["desktop.status.cell.tokens.description"]).toMatch(/\{tokens\}/);
       expect(catalogOf(locale)["desktop.status.cell.tokens.limitDescription"]).toMatch(
         /\{tokens\}.*\{percent\}/,
@@ -779,8 +830,7 @@ describe("status bar model and usage cells", () => {
     const ui = createUiStore();
     ui.actions.selectThread(thr(1));
     expect(cellIdsOf(barWithUi(mirrorWithApproval(), ui.read.getState()))).toEqual([
-      "engine",
-      "link",
+      "health",
       "live",
       "approvals",
     ]);
@@ -866,14 +916,14 @@ describe("status bar in-progress cell follows the engine", () => {
     });
     h.store.flush();
     const html = barWith(h.store.read.getState());
-    expect(cellIdsOf(html)).toEqual(["engine", "link"]);
+    expect(cellIdsOf(html)).toEqual(["health"]);
     expect(html).not.toContain("진행 중 1");
   });
 
   test("a down link under a running engine draws no in-progress cell", () => {
     const stale = liveMirror([summary(thr(1), { status: "running", title: "캐시 무효화 조사" })]);
     const html = barWith({ ...stale, link: { phase: "offline" } });
-    expect(cellIdsOf(html)).toEqual(["engine", "link"]);
+    expect(cellIdsOf(html)).toEqual(["health"]);
     expect(html).not.toContain("진행 중 1");
   });
 });

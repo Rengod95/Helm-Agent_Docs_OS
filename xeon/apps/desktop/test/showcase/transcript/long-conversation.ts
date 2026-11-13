@@ -9,7 +9,7 @@ import {
 } from "../../../src/state/engine/convo.ts";
 import { itm, recorded, thr, trn } from "../../state/helpers.ts";
 
-export const LONG_THREAD: ThreadId = thr(1);
+const LONG_THREAD: ThreadId = thr(1);
 const T0 = Date.parse("2026-11-13T05:00:00.000Z");
 const stamp = (n: number): number => T0 + n * 4000;
 const iso = (ms: number): string => new Date(ms).toISOString();

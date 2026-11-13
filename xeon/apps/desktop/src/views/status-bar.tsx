@@ -1,5 +1,5 @@
 import { Button, Progress } from "@caustic/react";
-import { Layers, Link2, Sparkles, TriangleAlert } from "@caustic/react/icons";
+import { Inbox, Layers, Link2, Shield, TriangleAlert } from "@caustic/react/icons";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { Notice } from "@fresnel/contracts/capabilities";
@@ -46,22 +46,14 @@ import {
 } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
 import { engineGoneOf } from "./composer-model.ts";
-import {
-  prettyModelId,
-  tokenCountText,
-  useDefaultModel,
-  useModelNameOf,
-  useSessionUsage,
-  useThreadModel,
-  type SessionUsage,
-} from "./model-usage.ts";
+import { tokenCountText, useSessionUsage, type SessionUsage } from "./model-usage.ts";
 import { EntrySurface, screenKeyOf } from "./plugin/plugin-view.tsx";
 import { usePluginUi, usePluginUiState } from "./plugin/plugin-context.tsx";
 import { RestartLine } from "./restart-line.tsx";
 import { UsageBreakdownBody } from "./usage-breakdown.tsx";
 import { SafeModeChip } from "./safe-mode-chip.tsx";
 import { useScheduleRunFailures } from "./schedule-run-failures.ts";
-import { StatusCell, type StatusDot } from "./status-cell.tsx";
+import { StatusAction, StatusCell, type StatusDot, type StatusTone } from "./status-cell.tsx";
 import { statusItemText } from "./status-item-text.ts";
 import { useGoToThread, type GoToThread } from "./thread-link.ts";
 import { useUpdate } from "./update-context.ts";
@@ -407,38 +399,155 @@ export function liveDotOf(rows: readonly LiveRow[]): StatusDot | undefined {
   return rows.some((row) => row.failed) ? "danger" : undefined;
 }
 
-function LinkCell(props: { readonly phase: Link["phase"]; readonly attempt: number }): ReactNode {
-  const { phase, attempt } = props;
+/** 엔진·연결 칸의 겉. 정상이면 점 하나이고(원격 대상이면 "원격 · 이름"), 이상이면 점과 그 상태 글이다(DP-182) */
+export interface HealthView {
+  readonly dot: StatusDot;
+  readonly text: string | null;
+  readonly tone: StatusTone | undefined;
+}
+
+/**
+ * 상태 줄의 엔진·연결 칸. 정상인 상태("엔진 실행 중", "연결됨")는 글로 말하지 않는다. 엔진이 돌지 않으면 엔진 글(시작 중, 다시 시작 중, 꺼짐,
+ * 시작 실패와 그 이유), 엔진은 도는데 연결이 live가 아니면 연결 글(연결 중, 따라잡는 중, 다시 맞추는 중, 연결 없음, 복구 실패)이다.
+ * 실패만 위험 글자색이고, 지나가는 상태는 점만 경고색이다. `engine`은 셸이 보낸 그대로(`shownEngineOf` 전)의 값이다
+ */
+export function healthOf(
+  engine: EngineState | null | undefined,
+  phase: Link["phase"],
+  attempt: number,
+  target: EngineTargetView | undefined,
+): HealthView {
+  if (engine?.kind !== "running") {
+    const dot = engineDotOf(engine);
+    return { dot, text: t(engineTextOf(engine)), tone: dot === "danger" ? "danger" : undefined };
+  }
+  if (phase !== "live") {
+    const tail = attempt > 0 ? ` ${t("desktop.status.link.attempt", { attempt })}` : "";
+    const dot = LINK_DOT[phase];
+    return {
+      dot,
+      text: `${t(LINK_TEXT[phase])}${tail}`,
+      tone: dot === "danger" ? "danger" : undefined,
+    };
+  }
+  if (target?.kind === "remote")
+    return {
+      dot: "success",
+      text: t("desktop.status.engine.sourceRemote", { name: target.label }),
+      tone: undefined,
+    };
+  return { dot: "success", text: null, tone: undefined };
+}
+
+/** 엔진·연결 칸 하나(전에는 엔진 칸과 연결 칸 둘). 팝오버는 엔진 줄과 연결 줄, 그리고 지금 상태의 설명 한 문장이다 */
+function HealthCell(props: {
+  readonly engine: EngineState | null | undefined;
+  readonly shown: EngineState | null | undefined;
+  readonly phase: Link["phase"];
+  readonly attempt: number;
+}): ReactNode {
+  const { engine, shown, phase, attempt } = props;
   const [open, setOpen] = useState(false);
   const target = useEngineTarget();
-  const description = linkDescriptionOf(phase, target.kind === "remote");
+  const view = healthOf(engine, phase, attempt, target);
+  const linkLine = `${t(LINK_TEXT[phase])}${attempt > 0 ? ` ${t("desktop.status.link.attempt", { attempt })}` : ""}`;
+  const description =
+    engine?.kind === "running" && phase !== "live"
+      ? linkDescriptionOf(phase, target.kind === "remote")
+      : engineDescriptionOf(shown);
   return (
     <StatusCell
-      cellId="link"
-      collapseIcon={<Link2 className="size-3.5" />}
-      text={`${t(LINK_TEXT[phase])}${attempt > 0 ? ` ${t("desktop.status.link.attempt", { attempt })}` : ""}`}
-      dot={LINK_DOT[phase]}
-      title={t("desktop.status.cell.link.title")}
+      cellId="health"
+      text={view.text}
+      label={t("desktop.status.health.label", {
+        engine: engineLineOf(shown, target),
+        link: linkLine,
+      })}
+      dot={view.dot}
+      tone={view.tone}
+      collapseIcon={view.text === null ? undefined : <Link2 className="size-3.5" />}
+      title={t("desktop.status.health.title")}
       description={description === undefined ? undefined : t(description)}
+      body={
+        <dl className="m-0 mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-ui">
+          <dt className="text-text-tertiary">{t("desktop.status.cell.engine.title")}</dt>
+          <dd className="m-0 text-text-primary">{engineLineOf(shown, target)}</dd>
+          <dt className="text-text-tertiary">{t("desktop.status.cell.link.title")}</dt>
+          <dd className="m-0 text-text-primary">{linkLine}</dd>
+        </dl>
+      }
       open={open}
       onOpenChange={setOpen}
     />
   );
 }
 
-function EngineCell(props: { readonly engine: EngineState | null | undefined }): ReactNode {
+/** 샌드박스 켜짐 값을 읽는다(연결이 live일 때, 설정이 바뀔 때마다). 읽지 못하면 마지막 값을 둔다. 꺼졌으면 참 */
+function useSandboxOff(): boolean {
+  const commands = useCommands();
+  const live = useLinkPhase() === "live";
+  const [off, setOff] = useState(false);
+  useEffect(() => {
+    if (!live) return undefined;
+    let stale = false;
+    const read = (): void => {
+      detach(
+        commands.setup.loadSandboxEnabled().then((result) => {
+          if (!stale && result.ok) setOff(!result.value);
+          return undefined;
+        }),
+        rethrow,
+      );
+    };
+    read();
+    const unsubscribe = commands.setup.onAnyInvalidated(read);
+    return () => {
+      stale = true;
+      unsubscribe();
+    };
+  }, [commands, live]);
+  return live && off;
+}
+
+/** "샌드박스 꺼짐" 칸(DP-182). 샌드박스(기본 켬)를 끈 때만 경고색으로 보이고, 누르면 설명과 샌드박스 설정으로 가는 단추가 있다 */
+export function SandboxOffCell(props: { readonly openSettings: () => void }): ReactNode {
   const [open, setOpen] = useState(false);
-  const target = useEngineTarget();
-  const description = engineDescriptionOf(props.engine);
   return (
     <StatusCell
-      cellId="engine"
-      text={engineLineOf(props.engine, target)}
-      dot={engineDotOf(props.engine)}
-      title={t("desktop.status.cell.engine.title")}
-      description={description === undefined ? undefined : t(description)}
+      cellId="sandbox"
+      text={t("desktop.status.sandboxOff")}
+      icon={<Shield />}
+      tone="warning"
+      title={t("desktop.status.cell.sandbox.title")}
+      description={t("desktop.status.cell.sandbox.description")}
+      body={
+        <Button
+          size="xs"
+          variant="outline"
+          className="mt-1 justify-self-start"
+          onClick={() => {
+            setOpen(false);
+            props.openSettings();
+          }}
+        >
+          {t("desktop.status.cell.sandbox.open")}
+        </Button>
+      }
       open={open}
       onOpenChange={setOpen}
+    />
+  );
+}
+
+function SandboxCell(): ReactNode {
+  const off = useSandboxOff();
+  const commands = useCommands();
+  if (!off) return null;
+  return (
+    <SandboxOffCell
+      openSettings={() => {
+        commands.requestSettingsJump({ tab: "sandbox", key: null });
+      }}
     />
   );
 }
@@ -547,79 +656,57 @@ function ScheduleFailureLine(props: { readonly reason: string | null }): ReactNo
   );
 }
 
-/** "진행 중 n" 칸과 Popover(N-58). 목록이 비면 빈 글을 보인다. 행을 누르면 그 대화로 가고 Popover를 닫는다 */
+/**
+ * "진행 중 n" 칸과 Popover(N-58). 돌고 있는 것이 없으면 칸을 두지 않는다(DP-182, 전에는 "진행 중 0"이 늘 보였다).
+ * 돌고 있는 대화가 없어도 예약 실패가 남았으면 "실패 n"을 위험 글자색으로 보인다. 행을 누르면 그 대화로 가고 Popover를 닫는다
+ */
 function LiveCell(): ReactNode {
   const running = useRunningCount();
   const scheduleFailures = useScheduleRunFailures();
   const rows = liveRowsOf(useThreadSummaries(), useTurnFailures(), scheduleFailures);
   const goTo = useGoToThread();
   const [open, setOpen] = useState(false);
+  const failed = rows.filter((row) => row.failed).length;
+  if (running === 0 && failed === 0) return null;
   return (
     <StatusCell
       cellId="live"
-      text={t("desktop.status.running", { count: running })}
+      text={
+        running > 0
+          ? t("desktop.status.running", { count: running })
+          : t("desktop.status.liveFailed", { count: failed })
+      }
       dot={liveDotOf(rows)}
+      tone={running === 0 ? "danger" : undefined}
       title={t("desktop.status.cell.live.title")}
       wide
       open={open}
       onOpenChange={setOpen}
       body={
-        rows.length === 0 ? (
-          <p className="m-0 text-ui text-text-tertiary">{t("desktop.status.cell.live.empty")}</p>
-        ) : (
-          <LiveList
-            rows={rows}
-            goTo={goTo}
-            close={() => {
-              setOpen(false);
-            }}
-          />
-        )
+        <LiveList
+          rows={rows}
+          goTo={goTo}
+          close={() => {
+            setOpen(false);
+          }}
+        />
       }
-    />
-  );
-}
-
-/**
- * "모델" 칸(시안 `model`). 이 대화가 다음 턴부터 쓰는 모델(대화가 정한 모델, 없으면 기본 모델)을 보인다.
- * 칸 글은 카탈로그 표시 이름(`Claude Sonnet 5.5`)이고 참조(`anthropic/claude-sonnet-5-5`)는 Popover 안에만 둔다(DP-144).
- * 고르는 곳은 입력창의 모델 select다
- */
-export function ModelCell(props: {
-  readonly model: string | null;
-  /** 참조를 화면 이름으로. 부르는 쪽이 카탈로그(`useModelNameOf`)를 넘기고, 없으면 id를 다듬은 이름이다 */
-  readonly nameOf?: (ref: string) => string;
-}): ReactNode {
-  const [open, setOpen] = useState(false);
-  const nameOf = props.nameOf ?? prettyModelId;
-  // 기본 모델을 아직 정하지 않았으면 시안(p01)처럼 "모델 없음"으로 보인다
-  return (
-    <StatusCell
-      cellId="model"
-      collapseIcon={<Sparkles className="size-3.5" />}
-      text={props.model === null ? t("desktop.status.cell.model.none") : nameOf(props.model)}
-      body={
-        props.model === null ? undefined : (
-          <p className="m-0 mt-1 font-mono text-ui-sm text-text-tertiary [overflow-wrap:anywhere]">
-            {props.model}
-          </p>
-        )
-      }
-      title={t("desktop.status.cell.model.title")}
-      description={
-        props.model === null
-          ? t("desktop.status.cell.model.noneDescription")
-          : t("desktop.status.cell.model.description")
-      }
-      open={open}
-      onOpenChange={setOpen}
     />
   );
 }
 
 /** 사용량 막대(시안 `TokenBar`, C-05 대용). 한도 비율을 알 때만 그린다. 장식이라 숨기고 칸 글이 뜻을 맡는다 */
-function TokenBar(props: { readonly percent: number }): ReactNode {
-  return <Progress value={Math.round(props.percent)} decorative size="xs" className="w-12" />;
+function TokenBar(props: { readonly percent: number; readonly near: boolean }): ReactNode {
+  // 채움은 평소 회색 그림 색이고(글보다 튀지 않게), 자동 요약이 가까우면 칸 글과 같은 경고색이다
+  return (
+    <Progress
+      value={Math.round(props.percent)}
+      decorative
+      size="xs"
+      tone={props.near ? "warning" : "neutral"}
+      className="w-12"
+    />
+  );
 }
 
 /**
@@ -635,26 +722,45 @@ export function tokensDescriptionOf(usage: SessionUsage): string {
       });
 }
 
-/** "사용량" 칸(시안 `tokens`). 글은 쓴 토큰 수이고, 한도를 알 때만 칸 뒤에 막대를 붙인다 */
-export function TokensCell(props: {
+/** 문맥이 이 비율 이상 차면 칸을 경고 글자색으로 보인다(자동 요약이 가깝다, DP-182) */
+export const CONTEXT_NEAR_PERCENT = 80;
+
+/** 문맥 칸의 글. 한도를 알면 "문맥 42%", 모르면 "문맥 4.1만"(토큰 수)이다 */
+export function contextTextOf(usage: SessionUsage): string {
+  return usage.percent === null
+    ? t("desktop.status.contextTokens", { tokens: tokenCountText(usage.tokens) })
+    : t("desktop.status.context", { percent: Math.round(usage.percent) });
+}
+
+/** 문맥이 자동 요약에 가까운가. 한도를 모르면 판정하지 않는다 */
+export function contextNearOf(usage: SessionUsage): boolean {
+  return usage.percent !== null && usage.percent >= CONTEXT_NEAR_PERCENT;
+}
+
+/**
+ * "문맥" 칸(전 "사용량" 칸). 이 대화가 문맥 창을 얼마나 채웠는지를 보이고, 한도를 알면 48px 막대를 붙인다.
+ * 80% 이상이면 경고 글자색과 설명 한 문장을 더한다. Popover에 토큰·비용 내역이 있다
+ */
+export function ContextCell(props: {
   readonly usage: SessionUsage;
   /** 있으면 Popover에 토큰·비용 내역을 더한다 */
   readonly threadId?: ThreadId;
 }): ReactNode {
   const { usage } = props;
   const [open, setOpen] = useState(false);
+  const near = contextNearOf(usage);
+  const description = tokensDescriptionOf(usage);
   return (
     <StatusCell
-      cellId="tokens"
+      cellId="context"
       collapseIcon={<Layers className="size-3.5" />}
-      text={
-        usage.limit === null
-          ? tokenCountText(usage.tokens)
-          : `${tokenCountText(usage.tokens)} / ${tokenCountText(usage.limit)}`
+      text={contextTextOf(usage)}
+      tone={near ? "warning" : undefined}
+      trailing={
+        usage.percent === null ? undefined : <TokenBar percent={usage.percent} near={near} />
       }
-      trailing={usage.percent === null ? undefined : <TokenBar percent={usage.percent} />}
       title={t("desktop.status.cell.tokens.title")}
-      description={tokensDescriptionOf(usage)}
+      description={near ? `${description} ${t("desktop.status.cell.context.near")}` : description}
       body={
         props.threadId === undefined ? undefined : <UsageBreakdownBody threadId={props.threadId} />
       }
@@ -664,34 +770,23 @@ export function TokensCell(props: {
   );
 }
 
-/** 모델과 사용량 칸을 대화에 맞춰 읽는다. 훅은 대화 id가 있어야 하므로 대화가 있을 때만 이 조각을 그린다 */
-function ThreadUsageCells(props: { readonly threadId: ThreadId }): ReactNode {
+/** 문맥과 목표 칸을 대화에 맞춰 읽는다. 훅은 대화 id가 있어야 하므로 대화가 있을 때만 이 조각을 그린다. 모델은 입력창 칩이 맡는다 */
+function ThreadCells(props: { readonly threadId: ThreadId }): ReactNode {
   const running = useThreadRunning(props.threadId);
-  const model = useThreadModel(props.threadId, useDefaultModel());
   const usage = useSessionUsage(props.threadId, running);
-  const nameOf = useModelNameOf();
   return (
     <>
-      {model.ref === null ? null : <ModelCell model={model.ref} nameOf={nameOf} />}
-      {usage === null ? null : <TokensCell usage={usage} threadId={props.threadId} />}
       <GoalCell threadId={props.threadId} />
+      {usage === null ? null : <ContextCell usage={usage} threadId={props.threadId} />}
     </>
   );
 }
 
-/** 모델과 사용량 칸(시안 `model`, `tokens`). 대화를 고르지 않았으면 아무것도 그리지 않고, 값을 읽기 전에는 칸을 두지 않는다 */
+/** 대화가 열려 있을 때만 대화 칸을 그린다(설정·크래프트 같은 화면에서는 전역 칸만 남는다) */
 function UsageCells(): ReactNode {
   const threadId = useSelectedThreadId();
-  if (threadId === null) return <DefaultModelCell />;
-  return <ThreadUsageCells threadId={threadId} />;
-}
-
-/** 대화를 고르지 않았을 때의 모델 칸. 연결이 살아 있을 때만 그려서, 값을 읽기 전에 "모델 없음"이 깜박이지 않게 한다 */
-function DefaultModelCell(): ReactNode {
-  const phase = useLinkPhase();
-  const model = useDefaultModel();
-  const nameOf = useModelNameOf();
-  return phase === "live" ? <ModelCell model={model} nameOf={nameOf} /> : null;
+  if (threadId === null) return null;
+  return <ThreadCells threadId={threadId} />;
 }
 
 type GoalWire = WireResult<"goal.status">["goal"];
@@ -802,17 +897,19 @@ function GoalCell(props: { readonly threadId: ThreadId }): ReactNode {
   );
 }
 
-/** "승인 n" 칸. 답을 기다리는 승인이 있을 때만 그린다(0이면 칸을 두지 않는다). 시안처럼 점은 없고 글만 있다 */
+/** "승인 대기 n" 칸. 답을 기다리는 승인이 있을 때만 그린다. 누르면 받은 요청 탭이 열린다(설명만 있는 팝오버를 거치지 않는다) */
 function ApprovalsCell(props: { readonly count: number }): ReactNode {
-  const [open, setOpen] = useState(false);
+  const shell = useContext(ShellStoreContext);
   return (
-    <StatusCell
+    <StatusAction
       cellId="approvals"
-      text={t("desktop.status.approvals", { count: props.count })}
-      title={t("desktop.status.cell.approvals.title")}
-      description={t("desktop.status.cell.approvals.description", { count: props.count })}
-      open={open}
-      onOpenChange={setOpen}
+      text={t("desktop.status.approvalsWaiting", { count: props.count })}
+      dot="warning"
+      collapseIcon={<Inbox className="size-3.5" />}
+      label={t("desktop.status.cell.approvals.open")}
+      onSelect={() => {
+        shell?.actions.openEndTab("inbox", "chat");
+      }}
     />
   );
 }
@@ -921,11 +1018,17 @@ function UpdateCellOf(props: { readonly controller: UpdateController }): ReactNo
   );
 }
 
+/**
+ * 하단 상태 줄(DP-181, DP-182). 바탕 없이 무대 위에 글과 표시만 뜬다. "정상임"은 글로 말하지 않는다: 엔진·연결이 정상이면 점 하나다.
+ * 왼쪽은 환경(엔진·연결 이상, 원격 엔진, 샌드박스 꺼짐, 안전 모드, 업데이트, 다시 시작 필요, 확장 칸), 오른쪽은 이 대화의 자원(목표, 문맥)과
+ * 돌고 있는 것(진행 중), 기다리는 것(승인 대기, 맨 끝)이다. 폴더·실행 위치·권한 모드·모델·추론은 입력창 칩이 맡아 여기 두지 않는다.
+ * 실패 단추는 엔진·연결 칸 바로 뒤에 둔다
+ */
 export function StatusBar(): ReactNode {
   const commands = useCommands();
   const engineRaw = useEngineState();
   const linkPhase = useLinkPhase();
-  // 화면의 엔진 칸과 줄은 연결이 live인 뒤에만 "실행 중"을 보인다. 엔진 꺼짐 판정은 실제 상태로 한다
+  // 화면의 엔진 줄은 연결이 live인 뒤에만 "실행 중"을 보인다. 엔진 꺼짐 판정은 실제 상태로 한다
   const engine = shownEngineOf(engineRaw, linkPhase === "live");
   const engineTarget = useEngineTarget();
   const banner = useLinkBanner();
@@ -938,16 +1041,13 @@ export function StatusBar(): ReactNode {
   const copy = async (): Promise<void> => {
     setCopied(await commands.copyDiagnostics());
   };
-  // 왼쪽은 엔진과 연결 칸이고, 그 뒤에 안전 모드·업데이트·다시 시작 줄·연결 실패 글·대화와 확장의 칸이 붙는다(시안 `startExtra`).
-  // 실패 단추는 자기 칸 옆에 둔다(시안 `inline`). 오른쪽은 진행 중, 모델, 사용량, 승인 칸이다. 모델과 사용량 칸은 열린 대화가 있고
-  // 값을 읽었을 때만 그린다. 목표 칸은 `goal.status`를 읽어 그린다. 시안의 Helm 칸은 클라이언트에 맞는 값이 없고(탐구 단계를 거울이 들고 있지 않다), 알림 칸은 개수를 거울이 들고 있지 않아 아직 없다.
   return (
     <footer className="statusbar">
       {/* 줄 전체를 낭독 영역으로 두면 갱신마다 읽힌다. 사용자가 알아야 할 바뀜(엔진 상태)만 이 한 줄이 맡는다 */}
       <span role="status" className="sr-only">
         {engineLineOf(engine, engineTarget)}
       </span>
-      <EngineCell engine={engine} />
+      <HealthCell engine={engineRaw} shown={engine} phase={banner.phase} attempt={banner.attempt} />
       {engine?.kind === "failed" ? (
         <Button
           size="xs"
@@ -971,7 +1071,6 @@ export function StatusBar(): ReactNode {
           {t("desktop.status.engine.openRestore")}
         </Button>
       ) : null}
-      <LinkCell phase={banner.phase} attempt={banner.attempt} />
       {banner.phase === "failed" || connectError !== null ? (
         <>
           {/* 원격 대상이 끊기면 안내는 서비스 기준이다. 이 기기 대상은 연결 실패 글과 단추가 맡는다 */}
@@ -1005,6 +1104,7 @@ export function StatusBar(): ReactNode {
           )}
         </>
       ) : null}
+      <SandboxCell />
       <SafeModeChip />
       <UpdateCell />
       <RestartLine reasons={restartNeeded} />
@@ -1014,8 +1114,8 @@ export function StatusBar(): ReactNode {
       <StatusItems />
       <StatusCells />
       <span className="grow" />
-      {engineGone ? null : <LiveCell />}
       <UsageCells />
+      {engineGone ? null : <LiveCell />}
       {approvals > 0 ? <ApprovalsCell count={approvals} /> : null}
     </footer>
   );
