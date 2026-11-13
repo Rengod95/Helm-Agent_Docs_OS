@@ -3,16 +3,13 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   EffectIntentSchema,
   EffectResultSchema,
-  type BlobRef,
   type ReadFailure,
   type SessionService,
 } from "@fresnel/contracts/records";
 import { TOOL_SEARCH_NAME } from "@fresnel/contracts/services";
 import { isJsonObject } from "../util.ts";
 
-// L1.tools.spec §4.1 규칙 5, §4.8 6번. 두 내장 도구가 대화 기록(이벤트)에서 상태를 다시 읽는다.
-// - 활성화한 지연 도구: `tool_search` 효과 결과의 `structuredContent.activated` 합집합
-// - 도구 출력 blob: `effect.result.blobRef`
+// L1.tools.spec §4.1 규칙 5. 활성화한 지연 도구는 `tool_search` 효과 결과의 `structuredContent.activated` 합집합으로 대화 기록에서 다시 읽는다.
 
 export type BranchReader = Pick<SessionService, "readBranch">;
 
@@ -41,19 +38,4 @@ export async function activatedTools(
     }
   }
   return ok(activated);
-}
-
-/** 이 대화의 도구 결과가 원문을 옮겨 둔 blob 중 해시가 맞는 것. 없으면 undefined */
-export async function toolOutputBlob(
-  session: BranchReader,
-  threadId: ThreadId,
-  sha256: string,
-): Promise<Result<BlobRef | undefined, ReadFailure>> {
-  for await (const read of session.readBranch(threadId)) {
-    if (!read.ok) return read;
-    if (read.value.kind !== "effect.result") continue;
-    const result = parse(EffectResultSchema, read.value.payload);
-    if (result.ok && result.value.blobRef?.sha256 === sha256) return ok(result.value.blobRef);
-  }
-  return ok(undefined);
 }

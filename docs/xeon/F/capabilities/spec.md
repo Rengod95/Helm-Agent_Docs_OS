@@ -1132,7 +1132,7 @@ export type NotifyError =
   4. 기본 자동 허용 배제: 대체 도구의 정책 판정이 내장 기본 규칙(`default` 티어)의 allow이거나 위험 등급 때문에 생기는 모드 기본 allow이면 ask로 낮춘다(`demoteReplacementAllow`). `read`·`ls`의 기본 허용(안전 1차가 기능 `workspace.files`와 위험 `read`로 묶은 것)도 마찬가지다. deny·ask 규칙, 사용자·managed 규칙의 allow, 사용자가 고른 bypass는 그대로 적용된다. 사람이 답할 수 없으면 ask는 deny다. 저장소 범위(`project`, `local`) 설정의 처리는 여기서 정하지 않고 `L1.tools.spec` §4.13 [제안]이 맡는다.
   5. 한 도구에 대체는 하나: 두 확장이 같은 내장 도구를 대체하면 오류다(`replace_conflict`, 매니페스트 집합과 등록 모두).
   6. 경로 보호: 경로 보호(쓰기 범위, 민감 경로 차단)는 내장 파일 도구 안에 있다. 대체 도구는 스스로 지켜야 하고, 승인 요청 본문과 매니페스트 문서가 그렇게 알린다.
-  7. 도구 실행 틀은 대체할 수 없다: 정책, 승인, 효과 기록, 마스킹, 절단, 시크릿 검사는 대체 도구도 그대로 지난다. `tool_search`, `read_tool_output`, MCP 도구, 확장 도구는 대체할 수 없다(`replace_forbidden`). `tool.call.before`는 여전히 인자를 바꾸지 못한다(U-06).
+  7. 도구 실행 틀은 대체할 수 없다: 정책, 승인, 효과 기록, 마스킹, 절단, 시크릿 검사는 대체 도구도 그대로 지난다. `tool_search`, MCP 도구, 확장 도구는 대체할 수 없다(`replace_forbidden`). `tool.call.before`는 여전히 인자를 바꾸지 못한다(U-06).
   8. 작업 폴더 범위: 신뢰 등급이 `project`인 플러그인도 같은 선언과 같은 승인을 거친다. 승인 요청 본문에 신뢰 등급이 실린다.
 - 닫음: 도구 이름 네임스페이스. 후보 (b) `<확장 이름>__<이름>`으로 정했다(§3.1, `X.operations.spec` §4.5). 내장 기능끼리의 충돌은 `tool_name_conflict` 오류로 거부한다.
 - 닫음 [결정: review.m3-design-inputs A-01, M3-REQ-13]: A안(§3.5). F는 `ServiceKey<Api>`만 둔다.

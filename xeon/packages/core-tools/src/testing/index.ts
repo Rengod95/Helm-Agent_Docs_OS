@@ -7,6 +7,7 @@ export {
   type RecordedCommit,
 } from "./fake-session.ts";
 export { fakeStore, type FakeStore } from "./fake-store.ts";
+export { fakeOutputFiles, type FakeOutputFiles } from "./fake-output-files.ts";
 export { fakeRedactor } from "./fake-secrets.ts";
 export { fakeTruncator } from "./fake-truncator.ts";
 export { fakeRunContext, type FakeRunOptions } from "./run-context.ts";

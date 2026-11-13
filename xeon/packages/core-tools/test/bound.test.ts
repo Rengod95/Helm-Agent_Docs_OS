@@ -57,18 +57,18 @@ test("truncate_spills_full_output_to_blob: 60,000 bytes become one blob and a bo
   expect(
     preview?.type === "text" && new TextEncoder().encode(preview.text).length,
   ).toBeLessThanOrEqual(51_200);
-  expect(notice?.type === "text" && notice.text).toContain(
-    "[fresnel:output_truncated] Showing the first",
+  const path = `${h.outputFiles.dir}/${h.thread}/${result.value.blobRef?.sha256}.txt`;
+  expect(notice?.type === "text" && notice.text).toBe(
+    `[Showing lines 1-512 of 601 (50.0KB of 58.6KB). Full output: ${path}]`,
   );
-  expect(notice?.type === "text" && notice.text).toContain(
-    `blob sha256:${result.value.blobRef?.sha256}`,
-  );
+  // 파일 사본은 blob과 같은 원문이다
+  expect(new TextDecoder().decode(h.outputFiles.files.get(path))).toBe(full);
   expect(out.result?.details).toMatchObject({
     truncation: { totalBytes: 60_000, truncatedBy: "bytes" },
   });
   // toolResult item에도 같은 미리보기가 들어간다
   const item = h.session.events.find((event) => event.kind === "item.recorded");
-  expect(JSON.stringify(item?.payload)).toContain("output_truncated");
+  expect(JSON.stringify(item?.payload)).toContain("Showing lines");
 });
 
 test("bound_uses_exec_truncation: the injected truncation function decides the preview", async () => {
@@ -104,7 +104,7 @@ test("bound_uses_exec_truncation: the injected truncation function decides the p
   });
   expect(seen).toEqual([{ content: "a\nb\nc\nd", maxLines: 2000, maxBytes: 51_200 }]);
   expect(out.result?.content[0]).toEqual({ type: "text", text: "PREVIEW" });
-  expect(textOf(out.result)).toContain("Showing the first 1 of 4 lines (7-bytes of 7-bytes)");
+  expect(textOf(out.result)).toContain("Showing lines 1-1 of 4. Full output: ");
 });
 
 test("a text below the limits is left alone and stores no blob", async () => {
@@ -273,6 +273,6 @@ test("a first line longer than maxBytes still shows its head as the preview, cut
   const [preview, notice] = bounded.bounded.content;
   expect(preview).toEqual({ type: "text", text: "가".repeat(33) });
   expect(notice).toMatchObject({ type: "text" });
-  expect(JSON.stringify(notice)).toContain("Showing the first 1 of 2 lines (99B of");
+  expect(JSON.stringify(notice)).toContain("Showing lines 1-1 of 2 (99B of");
   expect(bounded.bounded.blobRef).not.toBeNull();
 });

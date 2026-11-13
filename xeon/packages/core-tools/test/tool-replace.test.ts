@@ -391,9 +391,6 @@ test("tools that are not built-in file or shell tools cannot be replaced", async
       error: { kind: "replace_forbidden", toolName: "tool_search", reason: "core_pipeline" },
     },
   );
-  expect(
-    h.runtime.tools.register("acme-files/main", replacement("read_tool_output", USER, [])),
-  ).toMatchObject({ ok: false, error: { reason: "core_pipeline" } });
   // 없는 이름
   expect(
     h.runtime.tools.register("acme-files/main", replacement("nothing_here", USER, [])),

@@ -192,7 +192,7 @@ test("child_advertise_respects_allow_and_keep_parent_list", async () => {
   const run = { threadId: h.thread, caller: "subagent:worker" as const, depth: 1, ceiling: PARENT };
   // 자식 관점 deny(tool_b)와 부모 관점 deny(tool_c)가 빠진다
   const child = expectOk(await h.runtime.tools.advertise({ run, activated: new Set() }));
-  expect(child.tools.map((tool) => tool.name)).toEqual(["read_tool_output", "tool_a", "tool_d"]);
+  expect(child.tools.map((tool) => tool.name)).toEqual(["tool_a", "tool_d"]);
   expect(child.removed.map((entry) => entry.ruleId).toSorted()).toEqual([
     "m.child-no-b",
     "m.main-no-c",

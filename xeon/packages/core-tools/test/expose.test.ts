@@ -31,9 +31,9 @@ function add(
   );
 }
 
-/** 내장 `read_tool_output`(always)을 뺀 광고 이름. 정렬은 순서 키 순이다 */
+/** 광고 이름. 정렬은 순서 키 순이다 */
 function namesOf(toolset: { readonly tools: readonly { readonly name: string }[] }): string[] {
-  return toolset.tools.map((tool) => tool.name).filter((name) => name !== "read_tool_output");
+  return toolset.tools.map((tool) => tool.name);
 }
 
 async function advertised(h: Harness) {
@@ -98,9 +98,8 @@ test("exposure_order_deterministic: any registration order gives the same list a
     expect(toolset.tools.map((tool) => tool.name)).toEqual(baseline.tools.map((tool) => tool.name));
     expect(toolset.fingerprint).toBe(baseline.fingerprint);
   }
-  // 순서는 순서 키(기능 id 또는 접두)와 이름의 바이트 순이다. 내장 도구(core.tools)가 맨 앞에 선다
+  // 순서는 순서 키(기능 id 또는 접두)와 이름의 바이트 순이다
   expect(baseline.tools.map((tool) => `${tool.capability}/${tool.name}`)).toEqual([
-    "core.tools/read_tool_output",
     "ext.k0/charlie",
     "ext.k0/delta",
     "ext.k1/alpha",
@@ -114,10 +113,10 @@ test("exposure_caps_at_128: 129 always tools fail, auto tools fill the remaining
   // 설정이 만드는 상한 초과는 던지지 않고 오류 값으로 돌아온다
   expect(await over.runtime.tools.advertise({ run: over.run(), activated: new Set() })).toEqual({
     ok: false,
-    error: { kind: "too_many", always: 130, limit: 128, withToolSearch: true },
+    error: { kind: "too_many", always: 129, limit: 128, withToolSearch: true },
   });
 
-  // 광고 후보(always 101 = 100 + read_tool_output, auto 50)가 임계 128을 넘으므로 auto는 모두 지연 도구가 된다
+  // 광고 후보(always 100, auto 50)가 임계 128을 넘으므로 auto는 모두 지연 도구가 된다
   const h = await createHarness({
     layers: [layer("user", { "l1.tools.exposure.deferThreshold": 128 })],
   });
@@ -127,12 +126,12 @@ test("exposure_caps_at_128: 129 always tools fail, auto tools fill the remaining
   add(h, "later", "ext.zzz", { exposure: "deferred" });
   const toolset = await advertised(h);
   const names = toolset.tools.map((tool) => tool.name);
-  expect(toolset.tools).toHaveLength(100 + 1 + 1);
+  expect(toolset.tools).toHaveLength(100 + 1);
   expect(names).toContain("tool_search");
   expect(names.some((name) => name.startsWith("m_"))).toBe(false);
   expect(toolset.deferred).toHaveLength(50 + 1);
 
-  // 임계 안이면 auto 도구도 싣는다: 후보 101 + 20 = 121 <= 128, 지연 도구가 없으면 tool_search도 없다
+  // 임계 안이면 auto 도구도 싣는다: 후보 100 + 20 = 120 <= 128, 지연 도구가 없으면 tool_search도 없다
   const fits = await createHarness({
     layers: [layer("user", { "l1.tools.exposure.deferThreshold": 128 })],
   });
@@ -140,7 +139,7 @@ test("exposure_caps_at_128: 129 always tools fail, auto tools fill the remaining
   for (let i = 0; i < 20; i += 1)
     add(fits, `m_${String(i).padStart(3, "0")}`, "ext.mcp", { exposure: "auto" });
   const roomy = await advertised(fits);
-  expect(roomy.tools).toHaveLength(121);
+  expect(roomy.tools).toHaveLength(120);
   expect(roomy.deferred).toEqual([]);
   expect(roomy.tools.map((tool) => tool.name)).not.toContain("tool_search");
 });

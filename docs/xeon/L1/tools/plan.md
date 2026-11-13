@@ -22,7 +22,7 @@ binds: [xeon/packages/core-tools/**]
 |---|---|---|
 | M0 | core-tools 코드 없음. 선행 조건만: contracts에 L1.tools.spec §8.3 F 요청 1·4·6의 타입이 들어가야 한다(F.capabilities.plan, F.extensions.plan, `@fresnel/contracts/services`). 요청 3의 `approval.*` kind는 F.records 카탈로그에 있다 | `_research/foundation-plan.md` §5 P4 M0 범위 |
 | M1 | 어댑터와 파이프라인(agent-core 훅 연결), tool 범위 노드와 키 큐 연결(잠금 키 산출 포함), 2계층 시크릿 마스킹, 의도·실행·결과 커밋, 최소 정책(티어 default·user, resource는 `tool` glob과 `args` 패턴만), 내장 규칙(read·ls allow, bash ask), 권한 모드 `default`만, 결과 경계화(`fresnel.exec` 절단 + blob), 최소 승인 대기(kind `tool`만, CLI 한 곳에서 응답), 대기 내구화와 재개 복원 | `_research/foundation-plan.md` §5 P4 M1(도구 read, ls, bash), product.scope.spec M1 종료 조건(승인과 명령 패턴을 갖춘 bash 호출) |
-| M2 | 정책 티어 4종 전체와 resource 전 필드, 코어 규칙 등록(`registerRules`), `tools` 풀 슬롯(C3 순서), 모드 4종(`acceptEdits`, `plan`, `bypass`, managed 금지), 승인·질문·계획 승인 통합 프로토콜(`kind: plan`, `question`, wire `approval.respond`), 도구 지연 노출(`tool_search`), `read_tool_output`, 서브에이전트 ceiling 연결 | product.scope.spec M2 종료 조건 "질문 도구와 계획 승인이 같은 승인 요청 레코드로 기록된다", L1.agents.plan M2 |
+| M2 | 정책 티어 4종 전체와 resource 전 필드, 코어 규칙 등록(`registerRules`), `tools` 풀 슬롯(C3 순서), 모드 4종(`acceptEdits`, `plan`, `bypass`, managed 금지), 승인·질문·계획 승인 통합 프로토콜(`kind: plan`, `question`, wire `approval.respond`), 도구 지연 노출(`tool_search`), 서브에이전트 ceiling 연결 | product.scope.spec M2 종료 조건 "질문 도구와 계획 승인이 같은 승인 요청 레코드로 기록된다", L1.agents.plan M2 |
 | M3 | 서비스 모드의 승인 대기 처리(runtime-flow §7 [미결] 결정 뒤), 원격 클라이언트 응답 | product.scope.spec M3 |
 | 2차(M3 이후) | 항상 허용 캐시(`core_tools_approvals`), 셸 명령 접두 규칙, 인자 변경용 별도 chain 훅(`tool.call.before`은 인자 변경 없음, review.decisions-2 U-06), 확장 티어 규칙 등록 | `_research/layer-plan-v2.json` L1-d 2차 행 |
 | 보류 | 자동 분류 모드, 자동 승인 리뷰어와 연속 거부 서킷브레이커, 모델 자가 위험도 | `_research/item-catalog.md` L1-d "보류" 행 |
@@ -60,7 +60,6 @@ xeon/packages/core-tools/
       pending.ts               # 대기 내구화(checkpoint 초안), restore (TL-5)
     builtin/
       tool-search.ts           # tool_search 도구 (M2, TL-10)
-      read-tool-output.ts      # read_tool_output 도구 (M2, TL-11)
     settings.ts                # defineSettings("l1.tools", …) (TL-8)
     testing/
       index.ts                 # fakeSession(커밋 기록), fakeExtDispatch, fakeStore(putBlob) — 다른 패키지 테스트용
@@ -90,7 +89,7 @@ xeon/packages/core-tools/
 | TL-8 | 서비스·설정 등록: `plugin.ts`, `service.ts`(등록 표, 이름 충돌), `settings.ts`(L1.tools.spec §6 키 6개), 범위별 규칙 수집(`tiers.ts`) | TL-1, TL-3 | M | M1 |
 | TL-9 | `tool.call.before` fail-closed: ext-host first 디스패치 결과 처리, 핸들러 예외·디스패처 예외·결정 스키마 위반을 모두 거부로, 거부 사유 문장 고정 | TL-0 | S | M1 |
 | TL-10 | `tool_search` 내장 도구와 지연 노출 (완료 2026-10-24: `builtin/tool-search.ts`, `builtin/activation.ts`) | TL-7 | M | M2 |
-| TL-11 | `read_tool_output` 내장 도구 (완료 2026-10-24: `builtin/read-tool-output.ts`) | TL-6 | S | M2 |
+| TL-11 | ~~`read_tool_output` 내장 도구~~ 폐지(2026-11-13): 잘린 출력은 파일 사본의 경로를 안내하고 `read`로 읽는다(spec §4.8 6번) | TL-6 | S | M2 |
 | TL-12 | 질문·계획 승인 통합: `kind: plan`(`setMode` 연결), `kind: question`(`QuestionAnswer` 검사), 활성 호출 표로 L2 요청의 체크포인트 초안 생성, wire `approval.respond` 연결 확인(L4.host-service와 함께) (완료 2026-10-24: `plan_approval`이 모드를 바꾸고, `input_required { approvalId }` 변형은 어댑터가 승인 해결을 기다려 재호출, 시험용 `L2ApprovalsPort` 어댑터는 `testing/l2-port.ts`. MCP 변형은 L1F에서 `mcp-input.ts`로 완료: 질문 승인을 올리고 `continuation`으로 재호출. 동적 MCP 도구(`DirectToolRegistration`)의 재호출은 F 변경 뒤) | TL-5 | M | M2 |
 | TL-13 | 서브에이전트 ceiling 연결: `ToolRunContext.ceiling`이 있으면 5b 결정을 `stricter(childDecision(…), evaluatePolicy(…))`로 낸다(L1.tools.spec §4.5 ceiling 단계), 비대화형 ask → deny, 자식 광고 목록(`allow`, `keepParentList`), `registerRules("core:agents")` 수용 (완료 2026-10-24: `stricter`·`childDecision`은 F 것을 쓰고 core-tools 사본은 없앴다. 자식 광고는 `allow`·`keepParentList`·부모 관점 deny) | TL-3, TL-7, F `policy.ts`의 `childDecision`(F 요청 9), L1.agents.plan AG-3 | S | M2 |
 | TL-14 | `rerun`: 저장된 `intent.args`로 단계 7a~11 실행(키 잠금·슬롯 재획득 포함), `tool.call.before`·정책 생략 | TL-2, TL-17 | S | M1 |
@@ -165,7 +164,7 @@ xeon/packages/core-tools/
 | `approval_turn_abort_cancels_pending` | 턴 취소가 대기 요청을 `resolvedBy: "cancelled"`로 닫고 도구는 실행되지 않는다 | TL-5 |
 | `question_and_plan_approval_share_request_shape` | 질문 요청과 계획 요청이 모두 `approval.requested`이고 `ApprovalRequestSchema`를 통과하며 `body.kind`만 다르다 | TL-12 |
 | `tool_search_activates_for_next_step` (core-tools) | 지연 도구를 찾으면 활성화가 기록되고 다음 `advertise`가 그 도구를 싣는다. 재시작 뒤에도 같다 | TL-10 |
-| `read_tool_output_pages_blob` (core-tools) | 줄 범위로 원문을 돌려주고 모르는 해시·도구 출력이 아닌 blob은 오류 결과다 | TL-11 |
+| `bound_notice_names_output_file` (core-tools) | 잘린 결과의 안내가 `[Showing lines 1-N of T. Full output: <path>]` 한 꼴이고 그 파일이 blob과 같은 원문이다 | TL-11 |
 | `tools_pool_cap_waits_after_lock` (core-tools) | 슬롯 1개면 두 번째 실행이 첫 실행의 반납 뒤 시작하고 키 잠금 → 슬롯 순서다 | TL-17 |
 | `ask_user_waits_for_the_answer` | `input_required`를 낸 도구가 승인 해결까지 `effect.result` 없이 기다리고, 해결 뒤 같은 `requestId`로 다시 불려 결과를 한 번 기록한다 | TL-12 |
 | `ask_user_after_restart` | 재시작 뒤 `restore`와 `rerun`이 같은 승인 요청을 이어 받고 새 `approval.requested`가 없다 | TL-12 |
@@ -181,7 +180,7 @@ xeon/packages/core-tools/
 | `tool_result_handler_throw_skipped` | `tool.result` 핸들러 하나가 던져도 다른 핸들러 패치는 적용되고 결과가 오류로 바뀌지 않는다 | TL-2 |
 | `close_unexecuted_marks_not_executed` | 병렬 배치 중단 뒤 남은 호출이 `not_executed` 결과로 닫히고, 의도가 있던 호출은 `effect.result{ status: "abandoned" }`와 같은 커밋이다 | TL-15 |
 | `tool_search_activates_for_next_step` | `tool_search` 결과의 `activated`가 다음 `advertise`에 들어가고 재개 뒤 재계산해도 같다 | TL-10 |
-| `read_tool_output_pages_blob` | `read_tool_output{ sha256, offset, limit }`가 blob 원문의 해당 구간을 돌려주고 risk `read`로 평가된다. 없는 해시는 `isError: true` 결과 | TL-11 |
+| `bound_notice_names_output_file` | 한도를 넘은 도구 결과의 안내에 파일 사본 경로가 있고, 사본이 지워져도 `read`가 blob에서 되살려 읽는다(cap-workspace `roots`·`read` 시험) | TL-11 |
 | `child_ceiling_uses_stricter_decision` | `ceiling`이 있는 호출에서 부모 관점 deny면 자식 관점 allow여도 deny, 자식 결과 ask이고 `interactive: false`면 deny, 정의 `allow` 밖 도구는 `agent.<이름>.tools` deny | TL-13 |
 | `child_advertise_respects_allow_and_keep_parent_list` | 자식 `advertise`에서 `allow` 밖 도구와 자식·부모 관점 전역 deny 도구가 빠진다. `keepParentList`면 부모 목록과 같고 실행 시점에 거부된다 | TL-13 |
 | `register_rules_replaces_same_source` | 같은 `core:agents` 출처 두 번째 등록이 첫 집합을 대체하고, 잘못된 규칙은 `issues`로 돌아와 적재되지 않으며, `dispose` 뒤 평가에서 빠진다 | TL-3 |

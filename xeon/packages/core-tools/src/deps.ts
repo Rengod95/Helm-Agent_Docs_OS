@@ -1,7 +1,7 @@
 import type { Clock, Logger, Scheduler } from "@fresnel/contracts";
 import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import type { ProducerHandle, SessionService, StoreService } from "@fresnel/contracts/records";
-import type { Redactor, TieredRule } from "@fresnel/contracts/services";
+import type { Redactor, TieredRule, ToolOutputFiles } from "@fresnel/contracts/services";
 import type { ExtHost } from "@fresnel/ext-host";
 import type { CapabilityResolver } from "./entries.ts";
 import type { LockEnv, ToolTasks } from "./tasks.ts";
@@ -31,6 +31,8 @@ export interface ToolsDeps {
   /** 잠금 키 산출용. 없으면 키 큐를 쓰지 않는다 */
   readonly lockEnv: LockEnv | undefined;
   readonly truncator: OutputTruncator;
+  /** 잘린 출력의 파일 사본. 없으면 안내 문장에 경로가 없다 */
+  readonly outputFiles?: ToolOutputFiles;
   readonly redactor: Redactor;
   /** 시크릿 사용 정책 판정(`check`). 없으면 `secretEnv`를 쓰는 호출은 거부한다 */
   readonly secrets: SecretChecker | undefined;

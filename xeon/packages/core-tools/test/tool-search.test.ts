@@ -38,23 +38,17 @@ async function advertise(h: Harness, activated: string[] = []) {
 }
 
 test("auto tools stay in the list up to the threshold; above it they are all deferred behind tool_search", async () => {
-  const within = await createHarness({ layers: [threshold(5)] });
-  // 후보: read_tool_output(always) + auto 4 = 5 <= 5
+  const within = await createHarness({ layers: [threshold(4)] });
+  // 후보: auto 4 <= 4
   for (const name of ["a1", "a2", "a3", "a4"]) addMcp(within, name, `tool ${name}`);
   const listed = await advertise(within);
-  expect(listed.tools.map((tool) => tool.name)).toEqual([
-    "read_tool_output",
-    "a1",
-    "a2",
-    "a3",
-    "a4",
-  ]);
+  expect(listed.tools.map((tool) => tool.name)).toEqual(["a1", "a2", "a3", "a4"]);
   expect(listed.deferred).toEqual([]);
 
-  const over = await createHarness({ layers: [threshold(5)] });
+  const over = await createHarness({ layers: [threshold(4)] });
   for (const name of ["a1", "a2", "a3", "a4", "a5"]) addMcp(over, name, `tool ${name}`);
   const deferred = await advertise(over);
-  expect(deferred.tools.map((tool) => tool.name)).toEqual(["read_tool_output", "tool_search"]);
+  expect(deferred.tools.map((tool) => tool.name)).toEqual(["tool_search"]);
   expect(deferred.deferred.map((ref) => ref.name)).toEqual(["a1", "a2", "a3", "a4", "a5"]);
 
   // 임계 0이면 auto 도구는 모두 지연 도구다
@@ -92,7 +86,7 @@ test("tool_search_activates_for_next_step: the matches are recorded as activated
   addMcp(h, "get_commit", "Show a commit");
   addMcp(h, "merge_pull_request", "Merge a pull request");
   const before = await advertise(h);
-  expect(before.tools.map((tool) => tool.name)).toEqual(["read_tool_output", "tool_search"]);
+  expect(before.tools.map((tool) => tool.name)).toEqual(["tool_search"]);
 
   const found = await callTool(h.runtime.tools, h.run(), {
     id: "search_1",
@@ -116,7 +110,6 @@ test("tool_search_activates_for_next_step: the matches are recorded as activated
   expect([...activated].toSorted()).toEqual(["create_issue", "list_issues"]);
   const after = await advertise(h, [...activated]);
   expect(after.tools.map((tool) => tool.name)).toEqual([
-    "read_tool_output",
     "tool_search",
     "create_issue",
     "list_issues",
@@ -222,9 +215,9 @@ test("a subagent's tool_search lists only deferred tools inside its allow list",
 });
 
 test("activation beyond the request limit is reported and not recorded", async () => {
-  // always 124 + read_tool_output + tool_search = 126, room 2
+  // always 125 + tool_search = 126, room 2
   const h = await createHarness({ layers: [threshold(128)] });
-  for (let i = 0; i < 124; i += 1) {
+  for (let i = 0; i < 125; i += 1) {
     expectOk(
       h.runtime.tools.register({
         kind: "direct",
