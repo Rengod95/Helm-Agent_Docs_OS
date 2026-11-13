@@ -762,3 +762,74 @@
 [data-row-key]:has([data-editing="true"]) ~ [data-row-key] {
   opacity: 0.45;
 }
+
+/* ── 가로 넘침 막기(DP-180) ─────────────────────────────────────────
+   그리드의 열은 기본(auto)이면 자식의 최소 내용 폭까지 늘어난다. 공백 없는 긴 한 줄(주소, base64, minified JSON)이나
+   `white-space: pre`인 코드가 그 최소 폭을 수천 px로 만들면 대화 열이 가로로 넘친다. 대화 줄 안의 한 열 그리드는 열을
+   minmax(0, 1fr)로 묶고, 코드·표·diff·원문 출력은 자기 상자 안에서 가로 스크롤, 산문은 어디서든 줄을 바꾼다. */
+.convo-row [data-slot="message"][data-author="agent"],
+.convo-row [data-slot="message-body"],
+.convo-card,
+.convo-detail,
+.convo-group-body,
+.convo-thinking-body {
+  min-width: 0;
+}
+.convo-row [data-slot="message"][data-author="agent"],
+.convo-card,
+.convo-detail,
+.convo-group-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+/* 산문: break-word는 최소 폭을 줄이지 않는다. anywhere라야 긴 조각이 열 폭에서 끊긴다 */
+.convo-prose,
+.convo-thinking-body,
+.convo-note,
+.convo-card-text {
+  overflow-wrap: anywhere;
+}
+/* 표는 자기 상자 안에서 가로 스크롤. 칸 하나가 끝없이 넓어지지 않게 긴 조각은 칸 안에서 끊는다(칸 최소 8em) */
+.convo-table table {
+  width: max-content;
+  min-width: 100%;
+}
+.convo-table :is(th, td) {
+  min-width: 8em;
+  max-width: 28em;
+  overflow-wrap: anywhere;
+}
+/* 코드 블록 안 글은 산문의 줄바꿈 규칙을 이어받지 않는다(가로 스크롤) */
+.convo-code-body,
+.convo-row pre:not(.convo-output) {
+  overflow-wrap: normal;
+}
+/* diff·쓸 내용 미리보기: 줄 묶음 상자가 대화 열 폭에 묶이고 그 안에서 가로 스크롤한다 */
+.convo-diff {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+/* 첨부 칩: 이름이 길면 칩 안에서 말줄임 */
+.convo-attachments [data-slot="chip"] {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 100%;
+}
+.convo-attachments [data-slot="chip-label"] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 카드 머리: 제목만 줄어들고(말줄임) 판·상태·꼬리 칸은 제 폭을 지킨다 */
+.convo-card-head > :not(.convo-card-title, .truncate) {
+  flex: none;
+  white-space: nowrap;
+}
+/* 묶음 머리 곁 정보는 좁은 열에서 말줄임으로 줄어든다(동사가 먼저 남는다) */
+[data-slot="convo-group-meta"] {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

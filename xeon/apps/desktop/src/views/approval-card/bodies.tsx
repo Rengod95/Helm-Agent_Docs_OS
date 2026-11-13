@@ -62,7 +62,9 @@ type ApprovalBody = ApprovalRequestedPayload["body"];
 type PlanView = Extract<ApprovalBody, { kind: "plan" }>["plan"];
 type ReviewView = Extract<ApprovalBody, { kind: "review" }>["review"];
 
-const BLOCK_CODE = "block max-h-40 overflow-auto whitespace-pre-wrap break-words";
+// 공백 없는 긴 조각(주소, base64)도 카드 폭 안에서 끊는다. break-words는 최소 폭을 줄이지 못해 카드가 넓어진다(DP-180)
+const BLOCK_CODE =
+  "block max-h-40 min-w-0 overflow-auto whitespace-pre-wrap [overflow-wrap:anywhere]";
 
 const RISK_TEXT: Readonly<Record<string, MessageId>> = {
   read: "desktop.approvals.risk.read",

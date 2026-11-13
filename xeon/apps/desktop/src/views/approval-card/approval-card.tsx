@@ -322,7 +322,11 @@ function PendingCard(props: {
             {tile.icon}
           </span>
           <div className="grid min-w-0 flex-1 gap-0.5 pt-px">
-            <h3 id={titleId} data-slot="approval-title" className="m-0 text-ui-strong break-words">
+            <h3
+              id={titleId}
+              data-slot="approval-title"
+              className="m-0 text-ui-strong [overflow-wrap:anywhere]"
+            >
               {cardTitle}
             </h3>
             <p data-slot="approval-subtitle" className="m-0 text-ui-sm text-text-tertiary">

@@ -249,8 +249,10 @@ describe("react surface (server render, no DOM)", () => {
         </PluginUiProvider>
       </Providers>,
     );
+    // 엔진·연결 칸은 하나다. 엔진을 아직 모르면 엔진 글만 보이고 연결 상태는 팝오버에 있다(DP-182)
+    expect(html).toContain('data-bar-cell="health"');
     expect(html).toContain("엔진 상태 확인 중");
-    expect(html).toContain("연결 없음");
+    expect(html).not.toContain('data-bar-cell="link"');
     // 엔진을 아직 모르면(`engineGoneOf`) "진행 중" 칸을 그리지 않는다. 거울의 실행 중 수를 믿지 않는다
     expect(html).not.toContain("진행 중");
   });
