@@ -203,6 +203,7 @@ const INBOX_SCREEN: ScreenDef = {
   label: "desktop.shell.nav.inbox",
   icon: <Inbox />,
   Badge: (p) => p.render(useApprovalCount()),
+  attention: true,
   render: () => <InboxScreen />,
 };
 
@@ -232,6 +233,7 @@ const PROPOSALS_SCREEN: ScreenDef = {
   label: "desktop.shell.nav.proposals",
   icon: <Lightbulb />,
   Badge: (p) => p.render(useProposalPending().count),
+  attention: true,
   render: () => <ProposalsScreen />,
 };
 
