@@ -16,7 +16,7 @@ describe("tool and policy constants", () => {
     expect(TOOL_RISK_ORDER).toEqual(["read", "write", "exec"]);
     expect(POLICY_TIER_ORDER).toEqual(["default", "extension", "user", "managed"]);
     // 엄격한 쪽이 앞이다
-    expect(PERMISSION_MODE_STRICTNESS).toEqual(["plan", "default", "acceptEdits", "bypass"]);
+    expect(PERMISSION_MODE_STRICTNESS).toEqual(["default", "acceptEdits", "bypass"]);
     expect(TOOL_SEARCH_NAME).toBe("tool_search");
   });
 });
@@ -64,12 +64,21 @@ describe("AgentDefinitionSchema", () => {
     prompt: "You review code.",
     tools: ["read", "grep"],
     model: "review",
-    permissions: { mode: "plan" },
+    permissions: { mode: "acceptEdits" },
   };
 
   test("accepts a definition front matter", () => {
     expect(parse(AgentDefinitionSchema, definition).ok).toBe(true);
     expect(new RegExp(AGENT_NAME_PATTERN).test("reviewer")).toBe(true);
+  });
+
+  test("the removed plan mode is not a permission mode of a definition", () => {
+    expect(parse(AgentDefinitionSchema, { ...definition, permissions: { mode: "plan" } }).ok).toBe(
+      false,
+    );
+    expect(
+      parse(AgentDefinitionSchema, { ...definition, permissions: { mode: "bypass" } }).ok,
+    ).toBe(true);
   });
 
   test("rejects bad names and unknown keys; the source comes from the file location", () => {

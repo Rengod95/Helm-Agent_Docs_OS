@@ -116,9 +116,11 @@ describe("childDecision", () => {
     expect(childDecision(parentDenies.evaluate, CALL, PARENT, CHILD, [])).toBe(DENY);
     const childAsks = recordingEvaluator((input) => (input.caller === "main" ? ALLOW : ASK));
     expect(childDecision(childAsks.evaluate, CALL, PARENT, CHILD, [])).toBe(ASK);
-    const parentPlan = recordingEvaluator((input) => (input.mode === "plan" ? DENY : ALLOW));
-    const planParent: PolicyCeiling = { caller: "main", depth: 0, mode: "plan" };
-    expect(childDecision(parentPlan.evaluate, CALL, planParent, CHILD, [])).toBe(DENY);
+    const parentEdits = recordingEvaluator((input) =>
+      input.mode === "acceptEdits" ? DENY : ALLOW,
+    );
+    const editsParent: PolicyCeiling = { caller: "main", depth: 0, mode: "acceptEdits" };
+    expect(childDecision(parentEdits.evaluate, CALL, editsParent, CHILD, [])).toBe(DENY);
   });
 
   test("definition rules reach only the child-view evaluation", () => {

@@ -69,7 +69,6 @@ const agentDefinitionShape = Type.Object(
             Type.Union([
               Type.Literal("default"),
               Type.Literal("acceptEdits"),
-              Type.Literal("plan"),
               Type.Literal("bypass"),
             ]),
           ),

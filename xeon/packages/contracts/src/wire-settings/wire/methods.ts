@@ -1066,7 +1066,7 @@ export const ApprovalRespondParamsSchema: TObject<{
     decision: Type.Union([Type.Literal("allow"), Type.Literal("deny"), Type.Literal("answer")]),
     /**
      * kind별 정본 모양(F.wire-settings.spec §3.3.1): 질문 `answer`는 QuestionAnswer(질문 id → `{ selected, text? }`),
-     * 계획 `allow`는 `{ mode }`, `deny`는 `{ feedback }`. L2.dialog의 `AskAnswer`로 옮기는 일은 cap-dialog 어댑터가 한다
+     * `deny`는 `{ feedback }`이다(계획 승인의 `allow`는 계획 모드와 함께 없어졌다 [결정: 2026-11-13 사용자]). L2.dialog의 `AskAnswer`로 옮기는 일은 cap-dialog 어댑터가 한다
      */
     answer: Type.Optional(ApprovalAnswerSchema),
     remember: Type.Optional(

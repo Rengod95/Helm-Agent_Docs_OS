@@ -299,10 +299,10 @@ export type PolicyEffect = "allow" | "ask" | "deny";
 export type PolicyTier = "default" | "extension" | "user" | "managed";
 export const POLICY_TIER_ORDER: readonly PolicyTier[] = ["default", "extension", "user", "managed"];
 
-export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypass";
+/** 권한 모드. 계획 모드(`plan`)는 없다 [결정: 2026-11-13 사용자]. 저장된 옛 `plan` 값은 설정 읽기가 `default`로 본다(core-tools settings) */
+export type PermissionMode = "default" | "acceptEdits" | "bypass";
 /** 엄격한 쪽이 앞이다. 자식 모드 계산(L1.agents)에 쓴다 */
 export const PERMISSION_MODE_STRICTNESS: readonly PermissionMode[] = [
-  "plan",
   "default",
   "acceptEdits",
   "bypass",
@@ -463,7 +463,6 @@ const policyRuleShape = Type.Object(
             Type.Union([
               Type.Literal("default"),
               Type.Literal("acceptEdits"),
-              Type.Literal("plan"),
               Type.Literal("bypass"),
             ]),
             { maxItems: 4 },
@@ -513,7 +512,7 @@ export type ToolsErrorCode =
   | "approvals.unknown"
   /** kind와 맞지 않는 decision·answer */
   | "approvals.invalid_response"
-  /** 비대화형 실행에서 question·plan 요청 */
+  /** 비대화형 실행에서 question 요청 */
   | "approvals.noninteractive";
 
 export interface ToolsError {
@@ -669,15 +668,11 @@ export interface ToolService extends ToolsPort {
   /**
    * 이 대화의 권한 모드가 "실행 허가" 성격의 승인을 덮는가(모드가 bypass이고 managed가 bypass를 막지 않았다)
    * [결정: 2026-11-13 사용자]. 정책 단계 밖에서 묻던 승인 중 실행 허가 성격인 것(웹 도메인·처음 보는 URL, 브라우저 동작 확인)이
-   * 묻기 전에 이 판정을 한 곳에서 부른다. 질문 자체가 목적인 승인(`ask_user`, 계획 제출, 학습 제안, 메모리·스킬 쓰기)과
+   * 묻기 전에 이 판정을 한 곳에서 부른다. 질문 자체가 목적인 승인(`ask_user`, 학습 제안, 메모리·스킬 쓰기)과
    * 시크릿·폴더 신뢰·deny 규칙은 이 판정을 쓰지 않는다.
    */
   coversRunApprovals(threadId: ThreadId): boolean;
-  setMode(
-    threadId: ThreadId,
-    mode: PermissionMode,
-    source: "user" | "plan_approval",
-  ): Promise<ModeChangeResult>;
+  setMode(threadId: ThreadId, mode: PermissionMode, source: "user"): Promise<ModeChangeResult>;
 
   /**
    * 슬롯을 쥔 호출이 다른 노드(자식 대화)를 기다리는 동안 `tools` 풀 슬롯을 내려놓고, 기다림이 끝나면 다시 얻는다.
