@@ -69,6 +69,12 @@ export const TOOL_RISK_ORDER: readonly ToolRisk[] = ["read", "write", "exec"];
 /** 광고 방식. auto는 도구 수가 지연 임계를 넘을 때 지연 도구가 된다 */
 export type ExposureMode = "always" | "deferred" | "auto";
 
+/**
+ * 상태에 묶인 지연 도구의 자동 활성화 조건. 참이면 그 대화에서 `tool_search` 없이 광고한다(L1.tools.spec §4.1 규칙 5).
+ * 대화 상태(권한 모드 등)를 읽기만 하는 동기 질의여야 하고, 같은 상태에서는 같은 값을 낸다
+ */
+export type ToolActivation = (threadId: ThreadId) => boolean;
+
 /** 결과 경계화 한도. 생략한 값은 설정 l1.tools.output.*을 쓴다 */
 export interface OutputLimits {
   readonly maxLines?: number;
@@ -123,6 +129,8 @@ export interface CapabilityToolsRegistration {
   /** 도구 이름별 정책 메타. 생략한 도구는 hints에서 유도한다 */
   readonly policy?: Readonly<Record<string, ToolPolicyMeta>>;
   readonly exposure?: Readonly<Record<string, ExposureMode>>;
+  /** 도구 이름별 자동 활성화 조건. 지연 도구에만 뜻이 있다 */
+  readonly activeWhen?: Readonly<Record<string, ToolActivation>>;
   readonly outputLimits?: Readonly<Record<string, OutputLimits | "self">>;
 }
 
@@ -135,6 +143,8 @@ export interface DirectToolRegistration {
   readonly hints?: ToolSpec["hints"];
   readonly policy?: ToolPolicyMeta;
   readonly exposure?: ExposureMode;
+  /** 자동 활성화 조건. 지연 도구에만 뜻이 있다 */
+  readonly activeWhen?: ToolActivation;
   readonly outputLimits?: OutputLimits | "self";
   /**
    * 서버 주도 입력 요청(MCP `input_required`)을 낼 수 있는 도구의 실행. 있으면 `tool.execute` 대신 이것으로 부른다.
@@ -243,6 +253,11 @@ export interface AdvertiseInput {
   readonly allow?: readonly string[];
   /** 광고 목록을 부모와 같게 유지하고 실행 시점에만 거를지(캐시 접두 공유) */
   readonly keepParentList?: { readonly parent: AdvertisedToolset };
+  /**
+   * 이 요청의 모델이 대화 중 도구 추가를 받을 수 있는가(`CachePolicy.midConversationToolChanges`). 생략은 참이다.
+   * 거짓이면 활성화한 도구가 요청에 실리지 않으므로 지연하지 않고 모두 싣는다(`tool_search`도 싣지 않는다)
+   */
+  readonly deferralAvailable?: boolean;
 }
 
 export interface RemovedTool {

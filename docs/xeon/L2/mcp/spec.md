@@ -422,6 +422,8 @@ export interface McpService extends McpPort {
 
 ### 3.3 동적 도구 광고
 
+- 노출 [결정: 2026-11-13 사용자 "애매한 것들 전부 지연으로 넣어"]: MCP 기능 도구(`mcp_servers`, `mcp_list_resources`, `mcp_read_resource`)와 서버 도구(직접 등록·`ToolsPort` 등록 모두)는 `exposure: "deferred"`다(기본 `auto`가 아니다). 서버가 몇 개든 요청의 도구 정의는 늘지 않고 `tool_search`로 찾아 쓴다(L1.tools.spec §4.1).
+
 서버 도구는 X 리소스 등록으로 광고한다(`F.capabilities.spec` §4.4 마지막 단락, §5 6항). 등록 API는 `hostOf(g).registerTool(def: ToolResourceDef)`이고 X가 `ToolsPort.register(owner, def)`(`fresnel.tools`)로 넘긴다(`X.primitives.spec` §3.8, §3.9, §4.8). 등록은 `cap-mcp` scope 세대의 fiber effect라 scope가 꺼지면 자동으로 해제된다(`X.primitives.spec` §4.8 등록 규칙 1). 서버가 끊기거나 도구가 사라질 때는 `cap-mcp`가 등록할 때 잡은 해제기를 부른다 [제안]. `cap-mcp` 내부에서 쓰는 값은 다음 모양이고, 등록할 때 `ToolResourceDef`로 바꾼다 [제안].
 
 ```ts

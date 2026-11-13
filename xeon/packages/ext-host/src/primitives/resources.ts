@@ -267,6 +267,7 @@ export function createResourceStore(deps: ResourceStoreDeps): ResourceStore {
           description: original.description,
           parameters: original.parameters,
           replay: original.replay,
+          ...(original.exposure === undefined ? {} : { exposure: original.exposure }),
           ...(original.risk === undefined ? {} : { risk: original.risk }),
           ...(original.hints === undefined ? {} : { hints: original.hints }),
           ...(record.replaces === undefined ? {} : { replaces: record.replaces }),

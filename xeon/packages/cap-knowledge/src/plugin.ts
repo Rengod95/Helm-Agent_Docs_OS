@@ -260,6 +260,7 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
           def: advertisedSkillsDef(),
           key: KnowledgeSkillsKey,
           policy: { skill_view: { risk: "read" }, skill_manage: WRITE_TOOL_POLICY },
+          exposure: { skill_view: "deferred", skill_manage: "deferred" },
         },
       ];
       // 메모리를 끈 채 시작하면 `memory_manage`를 광고하지 않는다(`l2.knowledge.memory.enabled`는 재시작 없이는 도구 집합을 바꾸지 않는다)
@@ -269,6 +270,7 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
           def: KnowledgeMemory,
           key: KnowledgeMemoryKey,
           policy: { memory_manage: WRITE_TOOL_POLICY },
+          exposure: { memory_manage: "deferred" },
         });
       }
       // 검색 도구 셋(knowledge_search, session_scroll, session_read)은 읽기 전용이다. 검색을 끄고 시작하면 올리지 않는다
@@ -281,6 +283,11 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
             knowledge_search: { risk: "read" },
             session_scroll: { risk: "read" },
             session_read: { risk: "read" },
+          },
+          exposure: {
+            knowledge_search: "deferred",
+            session_scroll: "deferred",
+            session_read: "deferred",
           },
         });
       }

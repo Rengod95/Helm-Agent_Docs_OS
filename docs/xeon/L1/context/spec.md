@@ -301,7 +301,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 2. 접두 뒤에는 `diffToolsets(직전 광고 목록, 이번 목록)`을 계산한다. 직전 광고 목록은 접두 `toolsAdded`에 그 뒤 도구 변경 item을 차례로 적용한 결과다.
 3. `added`, `removed`가 모두 비면 아무것도 하지 않는다.
 4. `cachePolicy.midConversationToolChanges`가 참이면 `SystemMessage{ toolsAdded: added, toolsRemoved: removed }`를 `pendingItems`(`purpose: "tool_change"`)로 낸다. 결정 `append`. 접두는 바뀌지 않는다.
-5. 거짓이면 변경을 미룬다. 결정 `defer`. 광고 목록은 그대로이고, 사라진 도구의 호출은 core-tools 디스패치가 거부한다(`L1.tools.spec`, 광고 고정·허용은 디스패치). 경고 `tools_deferred`.
+5. 거짓이면 변경을 미룬다. 그래서 L1.tools는 그런 모델에는 도구를 지연하지 않고 모두 싣는다(`AdvertiseInput.deferralAvailable`, L1.tools.spec §4.1 규칙 5) [결정: 2026-11-13 사용자 "애매한 것들 전부 지연으로 넣어"]. 결정 `defer`. 광고 목록은 그대로이고, 사라진 도구의 호출은 core-tools 디스패치가 거부한다(`L1.tools.spec`, 광고 고정·허용은 디스패치). 경고 `tools_deferred`.
 6. 재광고는 세 경우에만 한다: 첫 요청(1번), 컴팩션(§4.6 5번), 사용자의 명시 명령(`/tools reload` 같은 L4 명령, 결정 `readvertise(explicit)`).
 7. `firstChangedIndex`의 쓰임: 재광고할 때 접두 캐시가 깨지는 위치다. `null`이면 정렬 목록이 같아 재광고하지 않는다. 미룬 변경(`defer`)에도 값을 기록해 두고, 재광고 때 경고 `cache_prefix_reset{ at }`에 싣는다. 컴팩션 재구성은 어차피 접두를 새로 만들므로 이 값을 비용 판단에 쓰지 않는다.
 

@@ -8,7 +8,7 @@ import {
   WorkTasksKey,
   type CommandActionRegistry,
 } from "@fresnel/contracts/capabilities";
-import type { IdFactory } from "@fresnel/contracts/conversation";
+import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import {
   ScopedStorePortKey,
   type ExtensionEntry,
@@ -85,7 +85,9 @@ function optionalPort<Api>(host: RegistrationHostApi, key: PortKey<Api>): Api | 
 }
 
 /** 모델에 광고하는 도구 등록. 계획 도구는 WK.2·WK.3에서 같은 기능 묶음에 더한다 */
-function toolRegistrations(): readonly ToolRegistration[] {
+function toolRegistrations(mode: PermissionModePort | undefined): readonly ToolRegistration[] {
+  // 계획 모드에 들어가 있으면 계획을 내는 도구가 검색 없이 실려야 한다(사용자가 /plan을 쳤는데 모델이 도구를 못 찾는 일을 막는다)
+  const inPlanMode = (threadId: ThreadId): boolean => mode?.current(threadId) === "plan";
   return [
     {
       kind: "capability",
@@ -105,6 +107,12 @@ function toolRegistrations(): readonly ToolRegistration[] {
         exit_plan_mode: { risk: "read" },
         submit_plan: { risk: "read", classes: ["user_interaction"] },
       },
+      exposure: {
+        enter_plan_mode: "deferred",
+        exit_plan_mode: "deferred",
+        submit_plan: "deferred",
+      },
+      activeWhen: { exit_plan_mode: inPlanMode, submit_plan: inPlanMode },
     },
   ];
 }
@@ -211,7 +219,7 @@ export function workPlugin(options: WorkPluginOptions): ExtensionUnit {
         return ok(undefined);
       }
       const unregisters: (() => void)[] = [];
-      for (const registration of toolRegistrations()) {
+      for (const registration of toolRegistrations(mode)) {
         const registered = tools.register(registration);
         if (!registered.ok) {
           for (const unregister of unregisters.toReversed()) unregister();

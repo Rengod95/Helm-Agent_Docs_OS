@@ -55,6 +55,8 @@ export function createToolServiceRegistrar(host: DirectToolHost): McpToolRegistr
         orderKey: tool.orderKey,
         tool: agentTool,
         hints: tool.hints,
+        // MCP 서버 도구는 지연이다. 서버가 많아도 요청 도구 정의가 늘지 않고 `tool_search`로 찾아 쓴다(L1.tools.spec §4.1)
+        exposure: "deferred",
         policy: {
           mcpServer: tool.server,
           ...(tool.declared === undefined ? {} : { mcpDeclared: tool.declared }),
@@ -75,6 +77,7 @@ export function createToolsPortRegistrar(port: ToolsPort, owner: RegistrationId)
         description: tool.wire.description,
         parameters: tool.wire.parameters,
         replay: "unsafe",
+        exposure: "deferred",
         execute: (args: JsonValue, context) =>
           tool.execute(asJsonObject(args) ?? {}, {
             signal: context.signal,

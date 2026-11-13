@@ -23,9 +23,12 @@ const ParamsSchema = Type.Object(
   { additionalProperties: false },
 );
 
+// 지연 도구의 이름은 문맥에 싣지 않는다(사용자 원칙). 대신 이 설명이 무엇이 지연돼 있는지 범주로 알린다.
+// 검색은 영어 이름·설명을 영숫자 토큰으로 맞추므로 사용자가 다른 언어로 말해도 질의는 영어 키워드로 쓰게 한다
 const SEARCH_DESCRIPTION =
-  "Search the tools that are not loaded yet by name or description. " +
-  "The tools you find become available from the next step. Use short keywords.";
+  "Search the tools that are not loaded yet and make the ones you find available from the next step. " +
+  "Not loaded: web search and fetch, browser, knowledge, memory and skills, MCP servers, artifacts, scheduling, sessions, plan mode, review requests, subagents. " +
+  "Call this before saying a capability is unavailable. Query with short English keywords (tool names or what the tool does), even if the user writes another language.";
 
 function tokensOf(query: string): string[] {
   return query
@@ -110,7 +113,10 @@ async function search(deps: SearchDeps, call: RawCall): Promise<RawOutcome> {
 
   const lines: string[] = [];
   if (found.length === 0) {
-    lines.push(`No unloaded tool matches "${query}".`);
+    lines.push(`No unloaded tool matches "${query}". Try other English keywords.`);
+    // 질의가 안 맞아도 막다른 길이 되지 않도록 이름만 알린다. 이름은 짧아 문맥에 상시로 싣는 것과 달리 이 결과에만 든다
+    const names = plan.deferred.map((entry) => entry.name);
+    if (names.length > 0) lines.push(`Unloaded tools: ${names.join(", ")}.`);
   } else {
     lines.push(
       `Found ${found.length} tool(s). ${chosen.length > 0 ? "They are available from the next step:" : ""}`.trimEnd(),

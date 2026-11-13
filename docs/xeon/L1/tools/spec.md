@@ -124,6 +124,8 @@ export interface CapabilityToolsRegistration {
   /** 도구 이름별 정책 메타. 생략한 도구는 hints에서 유도한다(§4.6) */
   readonly policy?: Readonly<Record<string, ToolPolicyMeta>>;
   readonly exposure?: Readonly<Record<string, ExposureMode>>;
+  /** 도구 이름별 상태 조건. 참이면 지연 도구도 검색 없이 광고한다(§4.1 규칙 5) */
+  readonly activeWhen?: Readonly<Record<string, (threadId: ThreadId) => boolean>>;
   readonly outputLimits?: Readonly<Record<string, OutputLimits | "self">>;
 }
 
@@ -136,6 +138,7 @@ export interface DirectToolRegistration {
   readonly hints?: ToolSpec["hints"];
   readonly policy?: ToolPolicyMeta;
   readonly exposure?: ExposureMode;
+  readonly activeWhen?: (threadId: ThreadId) => boolean;
   readonly outputLimits?: OutputLimits | "self";
   /** 서버 주도 입력 요청(MCP `input_required`)을 낼 수 있는 도구의 실행. 있으면 `tool.execute` 대신 쓴다 (§4.3 `input_required`) */
   readonly executeWithContinuation?: (call: {
@@ -254,7 +257,7 @@ export interface ToolService extends ToolsPort {
 ```
 
 - [결정: review.decisions-2 D-04] `ToolService`는 `ToolsPort`(`F.extensions.spec` §3.2.1 `ports.ts`, X.primitives.spec §3.9)를 확장한다(`F.capabilities.spec` §3.12 규칙 2, `services/tools.ts`). X는 같은 서비스 이름 `fresnel.tools`에 별도 인터페이스를 등록하지 않고, 확장의 `hostOf(g).registerTool(def)`는 `register(owner, def)` 오버로드로 들어온다. 이 오버로드가 `ToolsPort`를 충족한다.
-- `register(owner, def)` 변환 규칙 [제안]: `orderKey`는 `ext.<owner의 확장 이름>`, `tool`은 `def.name`·`def.description`·`def.parameters`와 `def.execute`를 감싼 `AgentTool`, 재생 정책은 `def.replay`다. `def.risk`와 `def.hints`가 있으면 `ToolMeta.risk`·`hints`로 쓰고(`risk`가 없으면 `hints.readOnly`로 유도하고 그것도 없으면 `exec`), `policy`·`exposure`·`outputLimits`는 생략하고 §4.6 유도 규칙을 따른다 [제안: M3-REQ-78]. 선언의 신뢰는 core-tools가 가리지 않는다: builtin이 아닌 확장의 `read`·`write`·`hints.readOnly` 선언은 X의 `registerTool`이 `tool_risk_reserved`로 거부해 이 오버로드까지 오지 않는다(X.primitives.spec §4.6.6). 그래서 learning 같은 builtin 그룹의 도구가 `risk: "read"`로 등록되면 무인 위임 자식에서도 승인 없이 돈다. 반환 `Unregister`는 F `Unsubscribe`와 같은 모양(`() => void`)이다. owner scope가 dispose되면 X가 이 함수를 부른다.
+- `register(owner, def)` 변환 규칙 [제안]: `orderKey`는 `ext.<owner의 확장 이름>`, `tool`은 `def.name`·`def.description`·`def.parameters`와 `def.execute`를 감싼 `AgentTool`, 재생 정책은 `def.replay`다. `def.risk`와 `def.hints`가 있으면 `ToolMeta.risk`·`hints`로 쓰고(`risk`가 없으면 `hints.readOnly`로 유도하고 그것도 없으면 `exec`), `policy`·`outputLimits`는 생략하고 §4.6 유도 규칙을 따르고, `exposure`는 `def.exposure`(`always` | `deferred`, 생략은 `always`)다 [제안: M3-REQ-78]. 선언의 신뢰는 core-tools가 가리지 않는다: builtin이 아닌 확장의 `read`·`write`·`hints.readOnly` 선언은 X의 `registerTool`이 `tool_risk_reserved`로 거부해 이 오버로드까지 오지 않는다(X.primitives.spec §4.6.6). 그래서 learning 같은 builtin 그룹의 도구가 `risk: "read"`로 등록되면 무인 위임 자식에서도 승인 없이 돈다. 반환 `Unregister`는 F `Unsubscribe`와 같은 모양(`() => void`)이다. owner scope가 dispose되면 X가 이 함수를 부른다.
 
 ```ts
 /** `prepare`를 통과해 실행할 수 있는 호출. 인자는 도구 스키마 검증과 변환을 마친 값이다 */
@@ -322,6 +325,8 @@ export interface AdvertiseInput {
   readonly allow?: readonly string[];        // 도구 이름 glob
   /** 광고 목록을 부모와 같게 유지하고 실행 시점에만 거를지(L1.agents.spec 캐시 접두 공유) */
   readonly keepParentList?: { readonly parent: AdvertisedToolset };
+  /** 모델이 대화 중 도구 추가를 받을 수 있는가. 생략은 참. 거짓이면 지연 없이 모두 싣는다(§4.1 규칙 5) */
+  readonly deferralAvailable?: boolean;
 }
 
 export interface RemovedTool {
@@ -715,15 +720,17 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 
 1. 순서: 등록된 도구 전체에 `orderTools`(F.capabilities.spec §3.8)를 적용한다. 기능 밖 도구도 같은 비교 함수에 넣는다(§3.1 순서 키). 광고 목록의 순서는 이 결과의 부분 수열이다. 그래서 같은 등록 상태면 입력 순서와 무관하게 같은 목록과 같은 `fingerprint`가 나온다.
 2. 전역 deny 제거 [제안]: 도구마다 `PolicyInput{ args: null }`로 `evaluatePolicy`를 부른다. 결과가 `deny`이고 그 규칙의 resource에 `args`와 `mode` 조건이 없으면 광고 목록에서 뺀다. 거부 응답을 내는 대신 목록에서 빼는 방식은 Gemini CLI 정책 엔진에서 가져왔다(`_research/item-catalog.md` 진보된 설계 5번, opencode `registry.snapshot(permissions)` `_research/refs/opencode.md` 161행). 인자나 모드에 따라 달라지는 deny는 목록에 남기고 실행 시점에 거부한다.
-3. 모드에 따른 제거는 하지 않는다 [제안]. 계획 모드의 쓰기 차단(§4.6)은 실행 시점에 거부한다. 모드를 바꿀 때마다 광고 목록이 바뀌면 프롬프트 캐시 접두가 깨지기 때문이다(`_research/ref-synthesis.md` L1 코어 (c) 캐시 원칙).
+3. 모드에 따른 제거는 하지 않는다 [제안]. 계획 모드의 쓰기 차단(§4.6)은 실행 시점에 거부한다. 모드를 바꿀 때마다 광고 목록이 바뀌면 프롬프트 캐시 접두가 깨지기 때문이다(`_research/ref-synthesis.md` L1 코어 (c) 캐시 원칙). 모드에 묶인 지연 도구를 켜는 것(규칙 5의 `activeWhen`)은 제거가 아니라 대화 중 추가이고, 대화 중 도구 추가를 받는 모델에서만 일어나므로 접두를 깨지 않는다.
 4. 지연 노출 [제안]:
    - `exposure: "always"`는 항상 광고한다. 내장 도구와 L2 작업 도구의 기본값이다.
    - `exposure: "deferred"`는 처음부터 지연 도구다.
    - `exposure: "auto"`는 광고 후보 수(always + auto)가 `l1.tools.exposure.deferThreshold`를 넘으면 지연 도구가 된다. MCP 서버 도구의 기본값이다. 넘으면 auto 도구가 모두 지연이고(일부만 고르지 않는다), 임계가 0이면 항상 지연이다. 후보 수에는 내장 `read_tool_output`이 always로 들어간다.
+   - 내장 도구의 노출 [결정: 2026-11-13 사용자 "애매한 것들 전부 지연으로 넣어"]: 항상 싣는 도구는 작업 폴더 도구(`read`, `write`, `edit`, `bash`, `grep`, `find`, `ls`), 질문(`ask_user`), 작업 목록(`task_write`)과 도구 실행 틀이 스스로 쓰는 `tool_search`(지연 도구가 있을 때), `read_tool_output`(잘린 출력의 원문을 다시 읽는 길이라 모델이 찾아 나설 수 없다)이다. 그 밖의 내장 도구는 각 기능의 등록(`CapabilityToolsRegistration.exposure`)이 `deferred`로 지정한다: 웹(`web_search`, `web_fetch`, `web_browse_*`), 지식(`knowledge_search`, `session_scroll`, `session_read`, `memory_manage`, `skill_view`, `skill_manage`), MCP 기능 도구(`mcp_servers`, `mcp_list_resources`, `mcp_read_resource`)와 MCP 서버 도구, 산출물(`artifact_create`, `artifact_update`, `review_request`, `session_rename`), 예약(`schedule_create`), 계획 도구(`enter_plan_mode`, `exit_plan_mode`, `submit_plan`), 서브에이전트(`agent`), 학습 제안(`learning_propose`). 기본값 `always`는 바꾸지 않는다: 지정하지 않은 확장·그룹 도구는 그대로 항상 실린다. 확장·그룹 도구 정의(`ToolResourceDef.exposure`)와 직접 등록(`DirectToolRegistration.exposure`)도 같은 값을 받는다.
    - 지연 도구가 하나라도 있으면 내장 도구 `tool_search`(순서 키 `core.tools`)를 광고한다. `tool_search`는 질의(`query: string`, `limit?: number`)로 지연 도구의 이름·설명을 찾고, 결과로 고른 도구를 활성화한다. 활성화된 도구는 다음 단계부터 광고된다.
    - 대화 중간의 추가는 L1.context.spec이 `diffToolsets`의 `added`를 pi-ai `SystemMessage.toolsAdded`로 대화 기록에 넣는다(F.capabilities.spec §4.5). Anthropic 경로에서는 pi-ai가 `tool_addition` 블록으로 바꾸고, 첫 요청의 지연 자리표시 도구(`anthropic-messages.ts:200-209`, `defer_loading: true`)가 캐시 접두를 지킨다(`anthropic-messages.ts:1141-1149`).
-5. 활성화 상태는 이벤트에서 다시 계산한다. `tool_search`의 `effect.result.output.structuredContent`에 `{ activated: ToolName[] }`를 남기고, `advertise`의 `activated`는 그 대화의 이 값들의 합집합이다. 재개 뒤에도 같은 광고 목록이 나온다.
-   - `tool_search` 구현 [결정: L1A.5]: 인자는 `query`(1~200자)와 `limit`(1~20, 기본 5)다. 질의를 영숫자 토큰으로 나눠 아직 활성화되지 않은 지연 도구의 이름(일치 10점, 포함 5점)과 설명(포함 2점)에 점수를 매기고 점수 0은 뺀다. 점수가 같으면 순서 키 순이다. 전역 deny로 뺀 도구는 찾지 않는다. 결과 `content`는 도구 이름과 설명 첫 줄의 목록이고 `structuredContent`는 `{ activated }`다. 광고 목록에 남은 자리(128 − 현재 광고 수)만큼만 활성화하고 넘는 수는 결과 문장에 적는다. 도구는 `risk: read`, `replay: "safe"`다.
+5. 활성화 [결정: 2026-11-13 사용자 "애매한 것들 전부 지연으로 넣어"]: 지연 도구는 셋 중 하나면 광고된다. (가) `tool_search`가 활성화했다(아래). (나) 등록이 준 상태 조건 `activeWhen(threadId)`이 참이다. 계획 모드에 들어가 있는 동안의 `exit_plan_mode`, `submit_plan`이 이 경우다(L2.work.spec §4.2): 사용자가 `/plan`을 쳤는데 모델이 계획을 낼 도구를 못 찾는 일이 없어야 한다. 조건은 대화 상태를 읽기만 하는 동기 질의이고 `planExposure`가 부른다. (다) 서브에이전트 정의의 도구 제한(`allow`)이 그 도구의 이름을 glob 없이 그대로 적었다. 정의가 그 도구를 쓰라고 정한 것이라 검색을 거치지 않는다(학습 검토 에이전트의 `learning_propose`). 모델이 대화 중 도구 추가를 받을 수 없으면(`AdvertiseInput.deferralAvailable === false`, core-loop가 `CachePolicy.midConversationToolChanges`에서 채운다) 활성화한 도구가 요청에 실리지 않으므로(L1.context.spec §4.3 5번 `defer`) 지연하지 않고 모든 도구를 싣고 `tool_search`는 싣지 않는다. 도구가 128개를 넘으면 이 예외 없이 지연으로 줄인다. 이 모델에서는 도구 정의가 줄지 않는다.
+   - 활성화 상태는 이벤트에서 다시 계산한다. `tool_search`의 `effect.result.output.structuredContent`에 `{ activated: ToolName[] }`를 남기고, `advertise`의 `activated`는 그 대화의 이 값들의 합집합이다. 재개 뒤에도 같은 광고 목록이 나온다.
+   - `tool_search` 구현 [결정: L1A.5]: 인자는 `query`(1~200자)와 `limit`(1~20, 기본 5)다. 질의를 영숫자 토큰으로 나눠 아직 활성화되지 않은 지연 도구의 이름(일치 10점, 포함 5점)과 설명(포함 2점)에 점수를 매기고 점수 0은 뺀다. 한글 같은 비영숫자 질의는 토큰이 없어 맞는 것이 없다. 그래서 도구 설명이 영어 키워드로 질의하라고 알리고, 맞는 도구가 없으면 결과가 지연 도구의 이름만 나열한다(설명은 싣지 않는다) [결정: 2026-11-13 사용자 "애매한 것들 전부 지연으로 넣어"의 구현 판단]. 점수가 같으면 순서 키 순이다. 전역 deny로 뺀 도구는 찾지 않는다. 결과 `content`는 도구 이름과 설명 첫 줄의 목록이고 `structuredContent`는 `{ activated }`다. 광고 목록에 남은 자리(128 − 현재 광고 수)만큼만 활성화하고 넘는 수는 결과 문장에 적는다. 도구는 `risk: read`, `replay: "safe"`다.
    - 재계산 위치: `tool_search`와 core-loop가 각자 활성 가지의 `effect.intent`(도구 이름)와 `effect.result`(`structuredContent.activated`)를 읽는다. core-loop는 turn마다 한 번 읽고 같은 turn의 `tool_search` 결과를 그때그때 더한다.
    - `tool_search` 광고: 지연 도구가 있거나 상한 때문에 지연이 생길 때 광고한다. 한 번 광고하면 지연 도구를 모두 활성화해도 목록에 남겨 캐시 접두를 흔들지 않는다(같은 등록 상태에서). 자리는 하나를 쓴다.
 6. 도구 수 상한: 광고 목록(내장 `tool_search` 포함)은 `MAX_TOOLS_PER_REQUEST = 128`(F.capabilities.spec §4.3) 이하다. core-tools가 집행한다.
@@ -1166,6 +1173,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 25. `input_required { approvalId }`를 낸 도구 호출은 승인 해결까지 `effect.result` 없이 기다리고, 해결 뒤 같은 `requestId`로 다시 불려 완료 결과를 한 번 기록한다. 대기 중 turn 취소는 그 승인을 `cancelled`로 닫는다.
 26. `secretEnv`를 쓰는 호출에서 `check`가 `needs_approval`이면, 정책 승인을 사용자가 방금 허용한 호출은 그 승인이 증거이고 그렇지 않은 호출은 규칙 id `secret.use` 요청을 따로 올린다. `check`가 거부하거나 참조 형식이 틀리면 승인 요청 없이 거부한다.
 
+27a. 지연 도구의 `activeWhen`이 참이면 검색 없이 광고되고 거짓이면 지연으로 남는다. `allow`가 이름을 그대로 적은 지연 도구는 광고되고 glob은 그렇지 않다. `deferralAvailable: false`이면 지연 도구가 모두 광고되고 `tool_search`는 광고되지 않는다. 맞는 도구가 없는 `tool_search` 결과는 지연 도구의 이름을 나열하고 아무것도 활성화하지 않는다.
 27. 광고 후보가 임계를 넘으면 auto 도구는 모두 지연 도구이고 `tool_search`가 광고된다. 지연 도구가 없으면 `tool_search`는 광고되지 않는다. `tool_search`가 기록한 활성화 집합을 `advertise`에 넘기면 그 도구들이 광고되고, 재시작 뒤 이벤트에서 다시 읽은 집합으로도 같은 목록이 나온다.
 28. `read_tool_output`은 이 대화의 도구 출력 blob을 줄 단위로 돌려준다. 모르는 해시와 도구 출력이 아닌 blob은 오류 결과다.
 29. `runUserShell`은 caller `main`, 대화형으로 평가해 ask를 승인 요청 없이 실행하고 deny는 실행 없이 거부한다. 효과 3단이 남고 toolResult item은 없다.

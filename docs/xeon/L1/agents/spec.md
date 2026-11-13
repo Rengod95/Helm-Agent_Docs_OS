@@ -323,6 +323,8 @@ export type AgentJudgedPayload = JudgeRecord;
 
 ### 4.1 자식 대화 생성
 
+- 노출 [결정: 2026-11-13 사용자 "애매한 것들 전부 지연으로 넣어"]: `agent` 도구(`DirectToolRegistration.exposure`)는 `"deferred"`다. 모델은 `tool_search`로 찾아 쓴다. 정의의 `tools` 제한이 도구 이름을 glob 없이 그대로 적으면 그 도구는 자식 요청에 검색 없이 실린다(L1.tools.spec §4.1 규칙 5).
+
 [제안] 자식 대화는 같은 프로세스에서 연다. 계획 v2 구성요소 표기를 따른다(`_research/layer-plan-v2.json` L1-g "인프로세스 자식 세션", `_research/item-catalog.md` L1-g "실행 위치").
 
 1. 검사: 정의 존재, 깊이(§4.4), 부모 turn의 취소 의도(`agents.parent_aborting`, eng.transactions.design §6.2 규칙 3), 정책(부모 관점에서 `agent` 도구 호출은 이미 파이프라인을 지났다. drive·scope 경로는 §4.3의 생성 검사).

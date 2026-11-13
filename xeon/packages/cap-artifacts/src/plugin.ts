@@ -231,6 +231,7 @@ export function artifactsPlugin(options: ArtifactsPluginOptions): ExtensionUnit 
           def: ArtifactsRegistry,
           key: ArtifactsRegistryKey,
           policy: { artifact_create: { risk: "read" }, artifact_update: { risk: "read" } },
+          exposure: { artifact_create: "deferred", artifact_update: "deferred" },
         }),
       ];
       if (settingsAt(undefined).tools.reviewRequest) {
@@ -241,6 +242,7 @@ export function artifactsPlugin(options: ArtifactsPluginOptions): ExtensionUnit 
             key: ArtifactsReviewsKey,
             // 리뷰를 열 뿐 파일을 바꾸지 않는다. 승인 대기는 대화를 막지 않는다(spec §4.2.4)
             policy: { review_request: { risk: "read" } },
+            exposure: { review_request: "deferred" },
           }),
         );
       } else {
@@ -256,6 +258,7 @@ export function artifactsPlugin(options: ArtifactsPluginOptions): ExtensionUnit 
             def: ArtifactsSessions,
             key: ArtifactsSessionsKey,
             policy: sessionPolicy,
+            exposure: { session_rename: "deferred" },
           }),
         );
       } else {

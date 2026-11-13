@@ -253,6 +253,8 @@ export interface ToolResourceDef {
   readonly description: string;
   readonly parameters: TSchema;
   readonly replay: "safe" | "unsafe";
+  /** 광고 방식. 생략은 "always"다. "deferred"이면 `tool_search`로 찾아야 광고된다(L1.tools.spec §4.1) */
+  readonly exposure?: "always" | "deferred";
   /**
    * 선언한 위험 등급(`ToolRisk`). 생략하면 `hints`로 유도하고 그것도 없으면 `exec`다 [제안: M3-REQ-78].
    * `read`보다 낮은 승인 요구를 만드는 선언은 builtin 확장만 낼 수 있다. 그 밖의 확장이 `exec`보다 낮게 선언하면 X가 등록을 거부한다

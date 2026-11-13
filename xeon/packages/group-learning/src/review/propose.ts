@@ -330,6 +330,8 @@ export function proposeTool(deps: ProposeDeps): ToolResourceDef {
     description: PROPOSE_DESCRIPTION,
     parameters: inputShape,
     replay: "safe",
+    // 지연 도구다. 검토 서브에이전트가 정의의 도구 제한에 이름을 적어 검색 없이 받는다(L1.tools.spec §4.1 규칙 5). 그 밖의 대화는 필요 없다
+    exposure: "deferred",
     // 파일을 바꾸지 않고 대기열에 후보만 넣는다. 읽기 등급이라 무인 검토 포크가 승인을 기다리지 않는다(M3-REQ-78, builtin 그룹만 선언할 수 있다).
     // 같은 호출 id와 같은 후보는 한 번만 남는다
     risk: "read",

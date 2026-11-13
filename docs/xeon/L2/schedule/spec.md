@@ -1284,6 +1284,8 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 
 ### 4.4 예약 실행
 
+- 노출 [결정: 2026-11-13 사용자 "애매한 것들 전부 지연으로 넣어"]: `schedule_create`는 `exposure: "deferred"`다(L1.tools.spec §4.1).
+
 [결정] 예약·원격·알림은 범위에 포함된다(`_research/decisions-log.md` 2026-10-21 결정(3차), `_research/foundation-plan.md` §1 결정 2). 계획 v2는 예약 실행을 "보류"로 두었으나 3차 결정이 덮어쓴다(`product.scope.spec` §4.1 I4 해설, I13).
 
 #### 4.4.1 실행 형태

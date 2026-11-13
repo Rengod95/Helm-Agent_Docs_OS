@@ -967,6 +967,8 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 
 ### 4.2 계획 모드와 승인
 
+- 노출 [결정: 2026-11-13 사용자 "애매한 것들 전부 지연으로 넣어"]: `enter_plan_mode`, `exit_plan_mode`, `submit_plan`은 `exposure: "deferred"`이고, `task_write`는 항상 싣는다. 사용자가 `/plan`으로 들어가거나 모델이 `enter_plan_mode`로 들어가 대화가 계획 모드인 동안에는 `exit_plan_mode`와 `submit_plan`이 `activeWhen`(`PermissionModePort.current(threadId) === "plan"`)으로 검색 없이 광고된다(L1.tools.spec §4.1 규칙 5). `enter_plan_mode`는 모드에 들어가기 전에 쓰는 도구라 `activeWhen`이 없고 `tool_search`로 찾는다. 목표(`/goal`)는 모델 도구를 요구하지 않는다.
+
 #### 4.2.1 소유 경계
 
 | 일 | 소유 |

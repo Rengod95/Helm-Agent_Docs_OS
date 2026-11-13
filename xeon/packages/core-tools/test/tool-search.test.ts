@@ -151,6 +151,15 @@ test("tool_search with no match says so and activates nothing; a limit caps the 
     args: { query: "weather" },
   });
   expect(textOf(none.result)).toContain('No unloaded tool matches "weather"');
+  // 질의가 안 맞아도 이름은 알려 준다: 다른 언어 질의로 막다른 길에 서지 않게 한다
+  expect(textOf(none.result)).toContain("Unloaded tools: issue_0, issue_1,");
+  const korean = await callTool(h.runtime.tools, h.run(), {
+    id: "search_k",
+    name: "tool_search",
+    args: { query: "이슈 검색" },
+  });
+  expect(textOf(korean.result)).toContain("Unloaded tools: issue_0");
+  expect(expectOk(await activatedTools(h.session, h.thread)).size).toBe(0);
   const limited = await callTool(h.runtime.tools, h.run(), {
     id: "search_3",
     name: "tool_search",
