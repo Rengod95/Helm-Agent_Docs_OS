@@ -17,11 +17,9 @@ import {
   TOAST_DEFAULT_WIDTH_PX,
   TOAST_MIN_WIDTH_ACTION_PX,
   TOAST_MIN_WIDTH_PX,
-  toastFit,
   toastPlace,
+  toastWidth,
   type Box,
-  type ToastAvoid,
-  type ToastFit,
 } from "./toaster-slot.ts";
 import { GoToThreadContext } from "../thread-link.ts";
 
@@ -153,71 +151,68 @@ function Stage(props: {
 const AVOID_CONTROLS =
   'button, textarea, input, select, [contenteditable="true"], [role="combobox"]';
 
-/** 화면의 피할 곳(`data-toast-avoid`: 입력창 묶음, 설정의 재시작 막대)과 그 안 조작부의 상자. 보이지 않는 것(크기 0)은 뺀다 */
-function avoidsOf(): ToastAvoid[] {
-  const out: ToastAvoid[] = [];
+/** 화면의 피할 곳(`data-toast-avoid`: 입력창 묶음, 설정의 재시작 막대) 안 조작부의 상자. 보이지 않는 것(크기 0)은 뺀다 */
+function avoidControlsOf(): Box[] {
+  const out: Box[] = [];
   for (const el of document.querySelectorAll("[data-toast-avoid]")) {
-    const box = el.getBoundingClientRect();
-    if (box.height === 0) continue;
-    const controls: Box[] = [];
+    if (el.getBoundingClientRect().height === 0) continue;
     for (const c of el.querySelectorAll(AVOID_CONTROLS)) {
       const r = c.getBoundingClientRect();
-      if (r.width > 0 && r.height > 0) controls.push(r);
+      if (r.width > 0 && r.height > 0) out.push(r);
     }
-    out.push({ top: box.top, controls });
   }
   return out;
 }
 
 /**
- * 토스트의 폭과 아래 간격(DP-157). 기본은 폭 360, 상태 표시줄 위이고, 그 자리의 토스트가 피할 곳의 조작부와 겹치면 폭을 줄여 오른쪽 틈에 두고,
- * 틈이 최소 폭보다 좁을 때만 피할 곳 위로 올린다. 크기, 화면, 토스트 수가 바뀌면 다시 잰다. 대화가 흐르는 동안 DOM이 자주 바뀌므로 한 프레임에 한 번만 잰다
+ * 토스트의 폭(DP-157, DP-170). 기본은 360이고, 그 자리의 토스트가 피할 곳의 조작부와 겹치면 폭을 줄여 오른쪽 틈에 두되 최소 폭보다 좁히지 않는다.
+ * 아래 간격은 바꾸지 않는다. 크기, 화면, 토스트 수가 바뀌면 다시 잰다. 대화가 흐르는 동안 DOM이 자주 바뀌므로 한 프레임에 한 번만 잰다.
+ * `narrow`가 거짓(가운데 아래 자리)이면 재지 않고 기본 폭이다
  */
-function useToastFit(narrow: boolean): ToastFit {
-  const [fit, setFit] = useState<ToastFit>({
-    width: TOAST_DEFAULT_WIDTH_PX,
-    bottom: TOAST_BOTTOM_DEFAULT_PX,
-  });
-  useEffect(() => {
-    let frame = 0;
-    const measure = (): void => {
-      frame = 0;
-      const region = document.querySelector('[data-slot="toast-viewport"]');
-      if (region === null) return;
-      const box = region.getBoundingClientRect();
-      const action = region.querySelector('[data-slot="toast-action"]') !== null;
-      const min = narrow ? (action ? TOAST_MIN_WIDTH_ACTION_PX : TOAST_MIN_WIDTH_PX) : null;
-      const next = toastFit(avoidsOf(), box.right, box.height, window.innerHeight, min);
-      setFit((prev) => (prev.width === next.width && prev.bottom === next.bottom ? prev : next));
-    };
-    const schedule = (): void => {
-      if (frame === 0) frame = requestAnimationFrame(measure);
-    };
-    measure();
-    const resize = new ResizeObserver(schedule);
-    resize.observe(document.body);
-    const watch = (): void => {
-      for (const el of document.querySelectorAll(
-        '[data-toast-avoid], [data-slot="toast-viewport"]',
-      )) {
-        resize.observe(el);
-      }
-    };
+function useToastWidth(narrow: boolean): number {
+  const [width, setWidth] = useState(TOAST_DEFAULT_WIDTH_PX);
+  useEffect(() => (narrow ? watchToastWidth(setWidth) : undefined), [narrow]);
+  return narrow ? width : TOAST_DEFAULT_WIDTH_PX;
+}
+
+/** 토스트 폭을 재어 `onWidth`로 알리고, 크기·DOM이 바뀔 때마다 다시 잰다. 돌려준 함수가 지켜보기를 멈춘다 */
+function watchToastWidth(onWidth: (width: number) => void): () => void {
+  let frame = 0;
+  const measure = (): void => {
+    frame = 0;
+    const region = document.querySelector('[data-slot="toast-viewport"]');
+    if (region === null) return;
+    const box = region.getBoundingClientRect();
+    const action = region.querySelector('[data-slot="toast-action"]') !== null;
+    const min = action ? TOAST_MIN_WIDTH_ACTION_PX : TOAST_MIN_WIDTH_PX;
+    onWidth(toastWidth(avoidControlsOf(), box.right, box.height, window.innerHeight, min));
+  };
+  const schedule = (): void => {
+    if (frame === 0) frame = requestAnimationFrame(measure);
+  };
+  measure();
+  const resize = new ResizeObserver(schedule);
+  resize.observe(document.body);
+  const watch = (): void => {
+    for (const el of document.querySelectorAll(
+      '[data-toast-avoid], [data-slot="toast-viewport"]',
+    )) {
+      resize.observe(el);
+    }
+  };
+  watch();
+  const mutate = new MutationObserver(() => {
     watch();
-    const mutate = new MutationObserver(() => {
-      watch();
-      schedule();
-    });
-    mutate.observe(document.body, { childList: true, subtree: true });
-    window.addEventListener("resize", schedule);
-    return () => {
-      if (frame !== 0) cancelAnimationFrame(frame);
-      resize.disconnect();
-      mutate.disconnect();
-      window.removeEventListener("resize", schedule);
-    };
-  }, [narrow]);
-  return fit;
+    schedule();
+  });
+  mutate.observe(document.body, { childList: true, subtree: true });
+  window.addEventListener("resize", schedule);
+  return () => {
+    if (frame !== 0) cancelAnimationFrame(frame);
+    resize.disconnect();
+    mutate.disconnect();
+    window.removeEventListener("resize", schedule);
+  };
 }
 
 function ShellToaster(props: { readonly registry: ShellRegistry }): ReactNode {
@@ -228,9 +223,11 @@ function ShellToaster(props: { readonly registry: ShellRegistry }): ReactNode {
   const screen = useShell((s) => s.places[s.area].screen);
   const tabs = props.registry.endTabs(area, screen);
   const place = toastPlace(layout, open, wellWidthOf(tabs.find((x) => x.id === tabId) ?? tabs[0]));
-  const { width, bottom } = useToastFit(place.kind === "end");
+  const width = useToastWidth(place.kind === "end");
+  const bottom = TOAST_BOTTOM_DEFAULT_PX;
   // DP-152 자리는 창 전체 기준 오른쪽 아래(끝에서 16px), 상태 표시줄 위다. 입력창 묶음·재시작 막대(`data-toast-avoid`)의 조작부와 겹치면
-  // 폭을 줄여 그 오른쪽 틈에 두고, 틈이 200(동작 단추가 있으면 280)보다 좁을 때만 그 위로 올린다(DP-157, `toastFit`). 가운데 아래(compact)는 폭을 바꾸지 않는다
+  // 폭을 줄여 그 오른쪽 틈에 두되 200(동작 단추가 있으면 280)보다 좁히지 않는다(DP-157, `toastWidth`). 어느 창 폭에서도 위로 올리지 않는다(DP-170).
+  // 가운데 아래(compact)는 폭을 바꾸지 않는다
   // 모양(outline)과 사라짐 시간은 caustic 기본값이다(DP-151, DP-153). 오류 토스트는 닫을 때까지 남는다
   return (
     <Toaster
