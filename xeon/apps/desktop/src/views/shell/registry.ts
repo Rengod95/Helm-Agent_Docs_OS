@@ -17,6 +17,10 @@ export interface ScreenDef {
   readonly Badge?: (props: {
     readonly render: (count: number | undefined) => ReactNode;
   }) => ReactNode;
+  /**
+   * 참이면 배지 수가 "내 확인을 기다리는 것"의 수다(받은 요청, 대기 제안). 내비 줄은 수 앞에 주의 표시를 둔다(DP-189)
+   */
+  readonly attention?: boolean;
   /** 무대에 그릴 내용 */
   readonly render: () => ReactNode;
   /** 화면을 열 때 오른쪽 탭 기본값. 영역이 기억한 탭이 있으면 그것이 우선이다 */

@@ -16,6 +16,7 @@
 @import "./views/effects/beam.css";
 @import "./views/effects/aurora.css";
 @import "./views/effects/drawn-check.css";
+@import "./views/effects/attention.css";
 @import "./views/convo/convo.css";
 @import "./lib/highlight-theme.css";
 @source "./";

@@ -44,7 +44,9 @@ describe("inbox proposal row", () => {
     const page = html("all", 3);
     const title = t("desktop.inbox.proposals.waiting", { count: 3 });
     const open = t("desktop.inbox.proposals.open");
-    expect(page.split(title).length - 1).toEqual(1);
+    // 한 장의 요청 카드(DP-191). 제목은 글과 말줄임 툴팁(title)에 한 번씩 있다
+    expect(page.split('data-slot="request-card"').length - 1).toEqual(1);
+    expect(page.split(title).length - 1).toEqual(2);
     expect(page.split(open).length - 1).toEqual(1);
     expect(page.indexOf(title)).toBeLessThan(page.indexOf(t("desktop.approvals.inbox.empty")));
   });

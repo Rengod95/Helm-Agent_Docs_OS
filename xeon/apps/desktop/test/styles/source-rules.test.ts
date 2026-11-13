@@ -117,3 +117,32 @@ test("alertSpansOf covers the action prop and the children", () => {
     spans.map((span) => [...span.matchAll(/<(Button|IconButton)\b[^>]*/g)].map((m) => m[0])),
   ).toEqual([['<Button tone="neutral"', "<Button"], ['<IconButton label="i" /']]);
 });
+
+/** 주석을 지운 소스(주석 안의 설명은 걸리지 않게) */
+function codeOf(file: string): string {
+  return read(file)
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:"'`])\/\/[^\n]*/g, "$1");
+}
+
+test("no caustic spectrum ring (orb) in the app (DP-188)", () => {
+  // 사용자 결정(2026-11-13, 영구): 파랑 → 보라 그라데이션 고리(caustic `orb` 유틸리티: conic 스펙트럼 + 가운데 구멍 + 회전)는 어디에도 쓰지 않는다.
+  // 그 고리로 가는 길을 막는다. 주의는 AttentionMark, 진행은 LiveDot(views/effects)을 쓴다.
+  const ANYWHERE: readonly (readonly [string, RegExp])[] = [
+    ["orb class", /["'`\s]orb(-sm|-lg|-dot)?["'`\s]/],
+    ["CardOrb", /\bCardOrb\b/],
+    ["AgentRequest proposal/review", /<AgentRequest\b(?![^>]*\bkind="(permission|question)")/],
+    ["agent tone or variant", /\b(tone|variant)=["']agent["']/],
+    ["EmptyState orb", /\bmark=["']orb["']|\bpreset=["']agent["']/],
+  ];
+  // 진행 상태는 그 부품을 쓰는 파일에서만 본다(다른 곳의 status: "running"은 제 모델의 값이다)
+  const LIST_STATUS = /\bstatus(=|:\s*)["'](running|working)["']/;
+  const found = sourceFiles([".tsx"]).flatMap((file) => {
+    const code = codeOf(file);
+    const hits = ANYWHERE.filter(([, re]) => re.test(code)).map(([name]) => name);
+    if (/<(ListNavigationItem|ListItem)\b/.test(code) && LIST_STATUS.test(code))
+      hits.push("list running status");
+    return hits.map((name) => `${relative(file)}: ${name}`);
+  });
+  expect(found).toEqual([]);
+});

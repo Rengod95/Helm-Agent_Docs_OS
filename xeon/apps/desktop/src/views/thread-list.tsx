@@ -20,6 +20,8 @@ import {
 import { Folder, FolderOpen, RotateCcw, Search, X } from "@caustic/react/icons";
 import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { useFlipList } from "../lib/motion-presets.tsx";
+import { AttentionMark } from "./effects/attention-mark.tsx";
+import { LiveDot } from "./effects/live-dot.tsx";
 import {
   useThreadsStatus,
   useThreadSummaries,
@@ -72,7 +74,7 @@ const LIST_COLUMN =
 const ROW_HEIGHT = SIDE_ROW;
 
 /**
- * 행 오른쪽 표식(DP-104). 승인은 작은 경고 배지(점 + 수, DP-150: 제목 칸을 먼저 자르지 않게 좁게), 나머지는 12px tertiary 글과 필요한 곳만 아이콘 12. 종류는 `rowBadgeOf`가 정한다 */
+ * 행 오른쪽 표식(DP-104). 승인은 작은 경고 배지(수, 주의는 앞 칸의 주의 표시가 맡는다 DP-189. DP-150: 제목 칸을 먼저 자르지 않게 좁게), 나머지는 12px tertiary 글과 필요한 곳만 아이콘 12. 종류는 `rowBadgeOf`가 정한다 */
 function metaOf(
   thread: ThreadSummary,
   approvals: number,
@@ -86,7 +88,6 @@ function metaOf(
       return (
         <Badge
           size="xs"
-          dot
           className="bg-warning-tint text-warning-text tabular-nums"
           data-thread-badge="approvals"
         >
@@ -158,6 +159,8 @@ const ThreadRow = memo(function ThreadRow(props: {
   const unlisted = useUnlistedApprovals(id);
   const approvals = useThreadApprovals(id);
   const unsent = unsentRowOf(useTurnFailure(id));
+  const attention = approvals > 0 || unlisted > 0;
+  const running = props.thread.status === "running";
   const [menuOpen, setMenuOpen] = useState(false);
   // 제목이 없는 대화는 첫 입력 미리보기를 제목 자리에 흐리게 두고(DP-141), 미리보기도 없으면 "제목 없음"을 흐리게 둔다. 꼬리에 만든 때를 붙여 서로 구분한다(DP-104)
   const label = rowLabelOf(props.thread);
@@ -175,17 +178,18 @@ const ThreadRow = memo(function ThreadRow(props: {
     <>
       <ListNavigationItem
         current={selected}
-        {...(props.thread.status === "running"
-          ? {
-              status: "running" as const,
-              statusLabels: { running: t("desktop.threads.status.running") },
-            }
-          : unsent
-            ? {
-                status: "failed" as const,
-                statusLabels: { failed: t("desktop.threads.status.unsent") },
-              }
-            : {})}
+        // 앞 칸(DP-189): 내 확인이 필요하면 주의 표시, 도는 중이면 크리스탈 점, 안 보냈으면 caustic 실패 점. caustic `status="running"`은
+        // 스펙트럼 고리를 그려 쓰지 않는다(DP-188). 승인을 기다리는 턴은 도는 중이 아니라 멈춰 있으므로 주의 표시가 이긴다
+        {...(attention
+          ? { leading: <AttentionMark /> }
+          : running
+            ? { leading: <LiveDot state="run" /> }
+            : unsent
+              ? {
+                  status: "failed" as const,
+                  statusLabels: { failed: t("desktop.threads.status.unsent") },
+                }
+              : {})}
         meta={metaOf(props.thread, approvals, props.child, unsent, props.now)}
         // 목록 순서가 바뀌거나 행이 들고 날 때 옛 자리에서 이어 온다(ThreadList의 useFlipList)
         data-flip-key={id}
@@ -195,7 +199,12 @@ const ThreadRow = memo(function ThreadRow(props: {
           event.preventDefault();
           setMenuOpen(true);
         }}
-        className={[ROW_HEIGHT, label.dim ? UNTITLED_LABEL : "", props.child ? CHILD_ROW : ""]
+        className={[
+          ROW_HEIGHT,
+          label.dim ? UNTITLED_LABEL : "",
+          props.child ? CHILD_ROW : "",
+          attention ? "fx-attend-row" : "",
+        ]
           .filter((c) => c !== "")
           .join(" ")}
         onSelect={() => {
@@ -216,6 +225,9 @@ const ThreadRow = memo(function ThreadRow(props: {
           commands.selectThread(id);
         }}
       >
+        {running && !attention ? (
+          <span className="sr-only">{`${t("desktop.threads.status.running")}: `}</span>
+        ) : null}
         {title}
       </ListNavigationItem>
       {/* 행 뒤 높이 0인 칸에 ⋯를 겹친다(caustic 행에 동작 자리가 없다). 보임과 승인 수 비움은 styles.css [data-row-menu] */}
