@@ -733,6 +733,7 @@ export type ApprovalResolvedPayload = ApprovalResolution;
    - `tool_search` 구현 [결정: L1A.5]: 인자는 `query`(1~200자)와 `limit`(1~20, 기본 5)다. 질의를 영숫자 토큰으로 나눠 아직 활성화되지 않은 지연 도구의 이름(일치 10점, 포함 5점)과 설명(포함 2점)에 점수를 매기고 점수 0은 뺀다. 한글 같은 비영숫자 질의는 토큰이 없어 맞는 것이 없다. 그래서 도구 설명이 영어 키워드로 질의하라고 알리고, 맞는 도구가 없으면 결과가 지연 도구의 이름만 나열한다(설명은 싣지 않는다) [결정: 2026-11-13 사용자 "애매한 것들 전부 지연으로 넣어"의 구현 판단]. 점수가 같으면 순서 키 순이다. 전역 deny로 뺀 도구는 찾지 않는다. 결과 `content`는 도구 이름과 설명 첫 줄의 목록이고 `structuredContent`는 `{ activated }`다. 광고 목록에 남은 자리(128 − 현재 광고 수)만큼만 활성화하고 넘는 수는 결과 문장에 적는다. 도구는 `risk: read`, `replay: "safe"`다.
    - 재계산 위치: `tool_search`와 core-loop가 각자 활성 가지의 `effect.intent`(도구 이름)와 `effect.result`(`structuredContent.activated`)를 읽는다. core-loop는 turn마다 한 번 읽고 같은 turn의 `tool_search` 결과를 그때그때 더한다.
    - `tool_search` 광고: 지연 도구가 있거나 상한 때문에 지연이 생길 때 광고한다. 한 번 광고하면 지연 도구를 모두 활성화해도 목록에 남겨 캐시 접두를 흔들지 않는다(같은 등록 상태에서). 자리는 하나를 쓴다.
+6a. 광고 구조 [결정: 2026-11-13 사용자]: 광고하는 `parameters`는 F.capabilities.spec §4.3 `toModelSchema`로 줄인 구조다(anyOf-const는 `enum`, 내장 도구는 검증 키워드 제거, MCP·확장·그룹 도구는 `enum`만). 실행 전 검증은 도구 정의의 원래 `parameters`로 한다(`validateToolArguments`). 서버가 거부하는 한도 중 모델이 알아야 하는 것은 필드 `description`에 있다.
 6. 도구 수 상한: 광고 목록(내장 `tool_search` 포함)은 `MAX_TOOLS_PER_REQUEST = 128`(F.capabilities.spec §4.3) 이하다. core-tools가 집행한다.
    - always + auto 후보가 128을 넘으면 auto 도구를 순서 뒤쪽부터 지연 도구로 돌린다.
    - always 도구만으로 128을 넘으면 `advertise`가 `AdvertiseError { kind: "too_many" }` 값을 돌려주고(던지지 않는다. 확장이 정하는 always 도구 수가 만드는 예상 가능한 실패다) 루프는 그 단계의 모델 요청을 보내지 않고 `tools_unavailable`로 닫는다.
