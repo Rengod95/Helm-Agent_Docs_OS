@@ -3,6 +3,7 @@ import {
   type CancelScope,
   type ExecutionEnv,
   type ProtectedPathEntry,
+  type ToolOutputFiles,
 } from "@fresnel/contracts/services";
 import { WorkspaceFailure } from "./errors.ts";
 import { getOrThrow } from "./upstream/get-or-throw.ts";
@@ -34,6 +35,11 @@ export interface RootsDeps {
    * 샌드박스가 root별 git 항목(`.git/hooks` 등)을 더한다. 넘기지 않으면 bash를 돌리기 전에는 그 항목이 비어 있다.
    */
   readonly protectedPaths: (roots: readonly string[]) => readonly ProtectedPathEntry[];
+  /**
+   * 잘린 도구 출력의 파일 사본. 있으면 그 폴더가 읽기 root에 더해지고(쓰기 root에는 더하지 않는다), 없는 사본을 읽으려 하면
+   * 읽기 직전에 blob에서 다시 만든다(L2.workspace.spec §4.3 [결정: 2026-11-13 사용자]).
+   */
+  readonly outputs?: ToolOutputFiles;
 }
 
 export interface ResolvedPath {
@@ -48,9 +54,13 @@ export interface ResolvedPath {
 export async function defaultRoots(
   env: Pick<ExecutionEnv, "cwd" | "canonicalPath">,
   context: CancelScope,
+  outputs?: ToolOutputFiles,
 ): Promise<AllowedRoots> {
   const root = getOrThrow(await env.canonicalPath(env.cwd, context));
-  return { read: [root], write: [root] };
+  if (outputs === undefined) return { read: [root], write: [root] };
+  // 폴더가 아직 없으면(첫 사본 전) 설정된 경로 그대로 둔다. 읽기 직전 복원이 폴더를 만든다
+  const canonical = await env.canonicalPath(outputs.dir, context);
+  return { read: [root, canonical.ok ? canonical.value : outputs.dir], write: [root] };
 }
 
 function segmentsOf(path: string): string[] {
@@ -146,6 +156,11 @@ export async function resolveWorkspacePath(
       ? await resolveReadToolPath(deps.env, requested, context)
       : await resolveToolPath(deps.env, requested, context);
 
+  if (access === "read" && deps.outputs !== undefined) {
+    // 안내에 적힌 사본 경로가 재시작이나 정리 뒤에 죽은 경로가 되지 않게, 읽으려는 순간 blob에서 되살린다
+    // 되살리지 못하면(blob이 지워졌다 등) 사본이 없는 것과 같다. 아래 not_found 경로가 말한다
+    await deps.outputs.restore(absolute);
+  }
   const direct = await deps.env.canonicalPath(absolute, context);
   let canonical: string;
   let exists = true;

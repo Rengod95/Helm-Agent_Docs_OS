@@ -25,6 +25,8 @@ const BLOB_HALF_BYTES = 25 * 1024 * 1024;
 export interface BoundDeps {
   readonly truncator: OutputTruncator;
   readonly store: Pick<StoreService, "putBlob">;
+  /** 원문 사본 파일의 경로(안내 문장에 적는다). 없으면 사본을 만들지 않는 구성이다 */
+  readonly outputPath?: (sha256: string) => string;
 }
 
 export interface BoundOutput {
@@ -33,9 +35,15 @@ export interface BoundOutput {
   readonly details: JsonValue | null;
   /** blob 저장이 실패했으면 그 종류 */
   readonly blobError: BlobError["kind"] | null;
+  /** blob에 넣은 원문(파일 사본으로 쓴다). 잘리지 않았거나 blob 저장이 실패했으면 null */
+  readonly original: Uint8Array | null;
 }
 
 const TEXT_SEPARATOR = "\n";
+
+function count(value: number): string {
+  return value.toLocaleString("en-US");
+}
 
 /** 상한을 넘는 원문은 앞뒤만 남긴다. 가운데에 생략 표시를 둔다 */
 function limitOriginal(bytes: Uint8Array): Uint8Array {
@@ -101,6 +109,7 @@ export function boundResult(
     },
     details,
     blobError: null,
+    original: null,
   };
   if (texts.length === 0) return unbounded;
 
@@ -117,7 +126,8 @@ export function boundResult(
     };
   }
 
-  const stored = deps.store.putBlob(limitOriginal(utf8Bytes(full)), "text/plain; charset=utf-8");
+  const original = limitOriginal(utf8Bytes(full));
+  const stored = deps.store.putBlob(original, "text/plain; charset=utf-8");
   const blobRef = stored.ok ? stored.value : null;
   const blobError = stored.ok ? null : stored.error.kind;
   // 첫 줄 하나가 바이트 한도를 넘으면 절단 함수는 빈 내용을 준다. 그 줄의 앞부분을 한도만큼 미리보기로 쓴다
@@ -127,11 +137,17 @@ export function boundResult(
   const previewText = partial === null ? cut.content : partial.text;
   const outputLines = partial === null ? cut.outputLines : 1;
   const outputBytes = partial === null ? cut.outputBytes : partial.bytes;
-  const sizes = `${outputLines} of ${cut.totalLines} lines (${deps.truncator.formatSize(outputBytes)} of ${deps.truncator.formatSize(cut.totalBytes)})`;
+  const bytesNote =
+    cut.truncatedBy === "bytes" || partial !== null
+      ? ` (${deps.truncator.formatSize(outputBytes)} of ${deps.truncator.formatSize(cut.totalBytes)})`
+      : "";
+  const shown = `Showing lines 1-${count(outputLines)} of ${count(cut.totalLines)}${bytesNote}.`;
   const notice =
     blobRef === null
-      ? `[fresnel:output_truncated] Showing the first ${sizes}. The full output was not stored.`
-      : `[fresnel:output_truncated] Showing the first ${sizes}. The full output is stored as blob sha256:${blobRef.sha256}.`;
+      ? `[${shown} The full output was not stored.]`
+      : deps.outputPath === undefined
+        ? `[${shown} The full output was not saved to a file.]`
+        : `[${shown} Full output: ${deps.outputPath(blobRef.sha256)}]`;
   const truncation: JsonObject = {
     totalLines: cut.totalLines,
     totalBytes: cut.totalBytes,
@@ -150,5 +166,6 @@ export function boundResult(
     },
     details: withTruncation(details, truncation),
     blobError,
+    original: blobRef === null ? null : original,
   };
 }

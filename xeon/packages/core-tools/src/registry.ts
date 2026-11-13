@@ -67,7 +67,7 @@ function forbiddenReason(
   original: ToolEntry | undefined,
 ): Extract<ToolRegisterError, { kind: "replace_forbidden" }>["reason"] | undefined {
   if (original === undefined) return "no_target";
-  // `core.*` 순서 키는 core-tools·core-agents가 직접 등록한 도구 실행 틀 도구(tool_search, read_tool_output, spawn 등)다
+  // `core.*` 순서 키는 core-tools·core-agents가 직접 등록한 도구 실행 틀 도구(tool_search, spawn 등)다
   if (original.ref.capability.startsWith("core.")) return "core_pipeline";
   // 내장 기능 도구만 대체한다. MCP 서버 도구와 확장 도구는 기능이 없다
   if (original.capability === undefined || original.mcpServer !== undefined) return "not_builtin";

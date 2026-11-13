@@ -311,6 +311,11 @@ const SPILL_DIR_NAME = "spill";
 /** l0.exec.spillMaxBytes 기본값(1 GiB). platform-exec의 기본값과 같다(L0.exec.spec §3.8.2) */
 const SPILL_MAX_DEFAULT_BYTES = 1_073_741_824;
 
+/** 잘린 도구 출력의 파일 사본 폴더. bash spill과 같은 폴더 아래 `tool-output/`다(L0.exec.spec §3.8.3) */
+export function toolOutputDirOf(stateDir: string): string {
+  return join(stateDir, SPILL_DIR_NAME, "tool-output");
+}
+
 export interface ExecOptionsValues {
   readonly cwd: string;
   /** 출력 spill 파일과 임시 파일을 두는 폴더. `<상태 디렉터리>/spill`이다(L0.exec.spec §3.8) */

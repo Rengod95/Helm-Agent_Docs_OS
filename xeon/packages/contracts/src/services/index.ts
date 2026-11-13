@@ -21,3 +21,4 @@ export * from "./groups.ts";
 export * from "./devkit.ts";
 export * from "./failure-kind.ts";
 export * from "./secret-input.ts";
+export * from "./tool-output.ts";

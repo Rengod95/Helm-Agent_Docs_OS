@@ -56,7 +56,11 @@ import {
   type RegistrationControl,
 } from "@fresnel/ext-host";
 import type { ScheduleService } from "@fresnel/cap-schedule";
-import { createExecPlatformModule, detectExecPlatform } from "@fresnel/platform-exec";
+import {
+  createExecPlatformModule,
+  createToolOutputFiles,
+  detectExecPlatform,
+} from "@fresnel/platform-exec";
 import {
   PRODUCT,
   createIdFactory,
@@ -163,6 +167,7 @@ import {
   spillRetentionDaysOf,
   uiPolicyOf,
   storeSettingsOf,
+  toolOutputDirOf,
 } from "./assembly/settings-sources.ts";
 import { ownerKindOf } from "./handlers/owner.ts";
 import { createFileStartupHealth, startupHealthOf } from "./assembly/startup-health.ts";
@@ -817,6 +822,12 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     for (const warning of store.value.warnings) logStoreWarning(logger, warning);
     // 시작 때 사용자에게 알릴 저장소 일은 포트가 `host.status`에 싣는다(F wire §3.3.1)
     const startupNotices = startupNoticesOf(store.value.warnings);
+    // 잘린 도구 출력의 파일 사본. 정본은 blob이고 사본은 읽기 직전에 되살린다
+    const toolOutputs = createToolOutputFiles({
+      dir: toolOutputDirOf(os.dirs.state),
+      readBlobByHash: (sha256) => store.value.service.readBlobByHash(sha256),
+      logger: logger.child({ component: "tool-output" }),
+    });
 
     const secrets = (options.secretsRuntime ?? createSecretsRuntime)({
       os,
@@ -1006,6 +1017,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         dialogArea,
         web,
         mode: options.mode,
+        toolOutputs,
         clock,
         scheduler: runtime.scheduler,
         ids,
@@ -1309,6 +1321,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       runsBlobGc: options.mode === "service",
       store: store.value,
       query: session.query,
+      toolOutputs,
     });
 
     const storeId = parse(StoreIdSchema, storeService.storeId);
@@ -1321,6 +1334,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         enabled: () => operations.trace().enabled,
       },
       mode: options.mode,
+      toolOutputs,
       os,
       clock,
       scheduler: os.time.scheduler,

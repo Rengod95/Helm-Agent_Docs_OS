@@ -23,3 +23,5 @@ export {
   type SpillError,
 } from "./spill-store.ts";
 export { createExecPlatformModule, type ExecPlatformModuleConfig } from "./platform-module.ts";
+// 잘린 도구 출력의 파일 사본(L0.exec.spec §3.8.3). blob이 정본이고 사본은 읽기 직전에 다시 만든다
+export { createToolOutputFiles, type ToolOutputFilesOptions } from "./tool-output-files.ts";

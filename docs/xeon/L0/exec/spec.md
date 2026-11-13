@@ -537,6 +537,14 @@ export function createExecService(
 - 두 기본값을 함께 쓰면(보관 정리 0, 상한 1 GiB) 사용량이 상한 이상이 된 뒤 spill은 기간을 정하거나 상한을 올리거나 파일을 직접 지울 때까지 멈춘다. 이 결과를 기본값으로 받아들인다 [결정: 오케스트레이터 기본값].
 - 두 키의 `stage`는 `active`다. 읽는 쪽은 조립 루트(apps/host)다. `stage: reserved`였던 기간에는 설정 목록과 `settings.set`에서 빠졌다(`settings.reserved`, `F.wire-settings.spec` §3.8.2) [결정: 오케스트레이터 기본값]. 조립 루트가 읽기 전에 키를 켜 두면 값이 보이지만 효과는 없다. 그래서 두 커밋(stage 해제, 조립 루트 연결)은 같은 M3b 묶음 안에서 잇달아 들어간다.
 
+### 3.8.3 잘린 도구 출력의 파일 사본 [결정: 2026-11-13 사용자]
+
+`createToolOutputFiles({ dir, readBlobByHash, logger })`(`ToolOutputFiles`, F `services/tool-output.ts`)가 만든다. 운영 조립은 `dir`을 `<상태 디렉터리>/spill/tool-output`으로 준다.
+
+- 경로는 `<dir>/<threadId>/<sha256>.txt`, 파일 0600·폴더 0700이다. `write`는 임시 이름에 쓰고 옮기며 이미 있으면 그대로 둔다. `threadId`와 `sha256`은 정해진 글자(`[A-Za-z0-9_-]`, 64자 hex)만 받아 폴더 밖으로 나가는 키를 막는다.
+- 원문의 정본은 blob 저장소다. `restore(path)`가 `<dir>/<thread>/<sha>.txt` 꼴의 경로이고 파일이 없으면 `readBlobByHash`로 다시 만든다. 그 꼴이 아니면 `false`다.
+- `removeThread`는 대화의 폴더를 지운다. `sweep(isLive)`는 살아 있지 않은 대화의 폴더를 지운다. `pruneSpill`은 이 폴더를 건드리지 않는다(폴더 이름이 `tmp-`로 시작하지 않는다).
+
 ### 3.9 백그라운드 실행 `startBackground` [제안]
 
 `L0.process.spec` §4.3의 백그라운드 레지스트리는 등록자가 `pid`와 `BackgroundStopper`를 넘긴다고 전제한다. `Shell.exec`는 종료까지 기다리는 호출이고 pid와 개별 정지 수단을 돌려주지 않으므로, 그 전제를 채우는 실행 계약을 여기서 정한다.

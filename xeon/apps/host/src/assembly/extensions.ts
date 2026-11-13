@@ -48,7 +48,7 @@ import { APPROVAL_SOURCE, REVIEW_AGENT_NAME } from "@fresnel/group-learning";
 import { workPlugin } from "@fresnel/cap-work";
 import { workspacePlugin, writeAccessTitle } from "@fresnel/cap-workspace";
 import { readUnattendedTimeoutMs } from "@fresnel/platform-exec";
-import type { AgentDefinition } from "@fresnel/contracts/services";
+import type { AgentDefinition, ToolOutputFiles } from "@fresnel/contracts/services";
 import { agentsPlugin } from "@fresnel/core-agents";
 import { contextSettingsOf, createContextExtension } from "@fresnel/core-context";
 import { cancelledByOwnerOf } from "./owner-cancel.ts";
@@ -102,6 +102,8 @@ import {
 
 export interface ExtensionDeps {
   readonly mode: HostMode;
+  /** 잘린 도구 출력의 파일 사본. core-tools가 쓰고 cap-workspace가 읽기 루트에 더한다 */
+  readonly toolOutputs: ToolOutputFiles;
   readonly clock: Clock;
   /** 계정 회전의 간격·한도 대기가 쓰는 타이머. 시계를 따로 넘기면 core-models가 OS 타이머를 쓰지 않으므로 함께 넘긴다 */
   readonly scheduler: Scheduler;
@@ -220,7 +222,7 @@ export const L2_TOOL_CAPABILITIES: readonly AnyCapabilityDef[] = [
  * MCP 서버 도구가 쓰면 안 되는 기계 이름: 도구를 올리는 L2 기능의 도구와 코어 내장 도구. 같은 이름을 낸 서버 도구는 `name_conflict`로 숨는다
  */
 function reservedToolNames(): ReadonlySet<string> {
-  const names = new Set<string>(["read", "ls", "bash", "read_tool_output", "tool_search", "agent"]);
+  const names = new Set<string>(["read", "ls", "bash", "tool_search", "agent"]);
   for (const def of L2_TOOL_CAPABILITIES) for (const tool of def.tools) names.add(tool.name);
   return names;
 }
@@ -314,6 +316,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           ids: deps.ids,
           settings: toolsSource(settings),
           logger: deps.logger.child({ component: "core-tools" }),
+          outputFiles: deps.toolOutputs,
           // 이 기능들의 도구를 부르려면 core-tools가 매니페스트 optional로 선언해야 한다(RegistrationHostApi.capability)
           capabilities: L2_TOOL_CAPABILITIES,
           loadIndex,
@@ -378,6 +381,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           unattendedTimeoutMs: () => readUnattendedTimeoutMs((key) => settings.value(key)),
           // 작업 폴더 밖 쓰기(샌드박스가 막은 경로, 파일 도구)는 도구 승인 카드로 묻는다(L2.workspace.spec §4.3.1)
           approvals: (service) => createBareL2ApprovalsPort(service, writeAccessTitle),
+          outputFiles: deps.toolOutputs,
           loadIndex,
         }),
     ],

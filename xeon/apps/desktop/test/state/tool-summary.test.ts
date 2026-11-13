@@ -285,6 +285,14 @@ describe("summarizeToolArgs: 도구별 입력 → 요약", () => {
     });
   });
 
+  test("없어진 read_tool_output의 옛 기록 호출은 표에 없는 도구라 generic으로 보인다", () => {
+    expect(summarizeToolArgs("read_tool_output", { sha256: "ab", offset: 5 })).toEqual({
+      kind: "generic",
+      text: '{"sha256":"ab","offset":5}',
+    });
+    expect(toolCategoryOf("read_tool_output")).toBe(toolCategoryOf("ask_user"));
+  });
+
   test("generic 글은 400글자 이내로 줄이고 끝에 …을 붙인다", () => {
     const summary = summarizeToolArgs("skill_view", { text: "a".repeat(500) });
     // `{"text":"` 아홉 글자 뒤 a 390개로 400글자, 끝의 …까지 합쳐 400글자다

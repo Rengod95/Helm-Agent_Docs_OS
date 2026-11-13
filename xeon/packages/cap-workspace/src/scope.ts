@@ -16,6 +16,10 @@ export function scopedDeps(deps: WorkspaceDeps, threadId: ThreadId | undefined):
   return {
     ...deps,
     env,
-    roots: { ...deps.roots, env, roots: (context) => defaultRoots(env, context) },
+    roots: {
+      ...deps.roots,
+      env,
+      roots: (context) => defaultRoots(env, context, deps.roots.outputs),
+    },
   };
 }

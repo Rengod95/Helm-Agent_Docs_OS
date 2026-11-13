@@ -14,7 +14,10 @@ export const OUTPUT_VIEW_MAX_LINES = 200;
 /** 줄 수와 별개로 싣는 글자 수 상한(한 줄이 매우 긴 출력 보호) */
 const OUTPUT_VIEW_MAX_CHARS = 20000;
 
-const TRUNCATED_NOTICE = "[fresnel:output_truncated]";
+/** 엔진의 잘림 안내 줄. 앞의 것은 옛 기록의 꼴이다 */
+function isTruncatedNotice(text: string): boolean {
+  return text.startsWith("[fresnel:output_truncated]") || text.startsWith("[Showing lines ");
+}
 
 export interface ToolOutputView {
   readonly text: string;
@@ -53,7 +56,7 @@ export function toolOutputOf(
     for (const block of content) {
       if (typeof block.text === "string") {
         // 엔진의 영어 안내 줄은 화면 문구("N줄 중 M줄만 보여요")로 대신한다
-        if (block.text.startsWith(TRUNCATED_NOTICE)) continue;
+        if (isTruncatedNotice(block.text)) continue;
         parts.push(block.text);
       } else if (block.type === "image") parts.push(placeholder);
     }

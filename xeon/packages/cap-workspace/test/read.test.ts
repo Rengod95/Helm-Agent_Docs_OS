@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { err, ok } from "@fresnel/contracts";
 import { createFilesApi } from "../src/service.ts";
 import { DEFAULT_WORKSPACE_SETTINGS, type WorkspaceSettings } from "../src/settings.ts";
 import { rejection, numbered } from "./support/assertions.ts";
@@ -152,5 +153,36 @@ describe("read", () => {
     env.put("/work/café.txt", "nfd\n");
     expect(asText(await files.read({ path: "shot 9.41 AM.txt" })).text).toBe("narrow\n");
     expect(asText(await files.read({ path: "café.txt" })).text).toBe("nfd\n");
+  });
+});
+
+describe("read of a saved tool output", () => {
+  const SHA = "c".repeat(64);
+  const DIR = "/state/spill/tool-output";
+  const PATH = `${DIR}/thr_1/${SHA}.txt`;
+
+  test("read pages a restored copy outside the workspace; a plain read tool is enough (plan mode, read-only subagents)", async () => {
+    const env = memoryEnv({ cwd: "/work" });
+    env.mkdir("/work");
+    env.mkdir(DIR);
+    const original = numbered(300);
+    const files = createFilesApi(
+      depsFor(env, {
+        outputs: {
+          dir: DIR,
+          pathFor: (threadId, sha256) => `${DIR}/${threadId}/${sha256}.txt`,
+          write: () => Promise.resolve(err({ kind: "io", cause: "unused" })),
+          restore: (path) => {
+            env.put(path, original);
+            return Promise.resolve(ok(true));
+          },
+          removeThread: () => Promise.resolve(),
+          sweep: () => Promise.resolve(0),
+        },
+      }),
+    );
+    const out = asText(await files.read({ path: PATH, offset: 101, limit: 3 }));
+    expect([out.startLine, out.endLine, out.totalLines]).toEqual([101, 103, 300]);
+    expect(out.text).toBe("line 101\nline 102\nline 103");
   });
 });

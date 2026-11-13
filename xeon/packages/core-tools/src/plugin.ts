@@ -23,6 +23,7 @@ import {
   StoreServicePortKey,
   TaskServicePortKey,
   ToolServicePortKey,
+  type ToolOutputFiles,
 } from "@fresnel/contracts/services";
 import type { ScopeStack } from "@fresnel/contracts/settings";
 import { ExtHostPortKey, hostOf, type ExtensionUnit } from "@fresnel/ext-host";
@@ -56,6 +57,8 @@ export interface ToolsPluginOptions {
   /** 파일 범위(managed, user, project, local) 설정 층. 세션 범위는 fresnel.session에서 읽는다 */
   readonly settings: ToolsSettingsSource;
   readonly logger?: Logger;
+  /** 잘린 도구 출력의 파일 사본. 조립 루트가 만들어 넘긴다 */
+  readonly outputFiles?: ToolOutputFiles;
   /** 매니페스트 optional에 더할 기능(워크스페이스 기능 밖의 L2 기능 도구를 쓸 때) */
   readonly capabilities?: readonly AnyCapabilityDef[];
   readonly loadIndex?: number;
@@ -122,6 +125,7 @@ export function toolsPlugin(options: ToolsPluginOptions): ExtensionUnit {
         lockEnv: exec,
         // 출력 절단은 fresnel.exec가 제공한다. core-tools에는 사본을 두지 않는다(review.decisions-2 D-08, B-04)
         truncator: exec,
+        ...(options.outputFiles === undefined ? {} : { outputFiles: options.outputFiles }),
         redactor: secrets.redactor,
         secrets,
         ext,

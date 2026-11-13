@@ -1,7 +1,9 @@
 import { join } from "node:path";
-import { attempt, type Clock, type Logger } from "@fresnel/contracts";
+import { attempt, detach, parse, type Clock, type Logger } from "@fresnel/contracts";
+import { ThreadIdSchema } from "@fresnel/contracts/conversation";
 import type { SessionService } from "@fresnel/contracts/records";
 import { pruneSpill } from "@fresnel/platform-exec";
+import type { ToolOutputFiles } from "@fresnel/contracts/services";
 import type { OpenedStore } from "@fresnel/platform-store";
 
 // L4.host-service.spec §4.18(보관 정리와 블롭 GC 연결), L0.exec.spec §3.8.2, L0.store.spec §4.9, L1.persistence.spec §6.1.
@@ -33,7 +35,9 @@ export interface DataOpsDeps {
    */
   readonly runsBlobGc: boolean;
   readonly store: Pick<OpenedStore, "gcBlobs">;
-  readonly query: Pick<SessionService["query"], "liveBlobRefs">;
+  readonly query: Pick<SessionService["query"], "liveBlobRefs" | "thread">;
+  /** 잘린 도구 출력의 파일 사본. 지워진 대화의 폴더를 하루마다 쓸어 낸다(보관 정리가 대화를 지울 때 부를 자리가 없다) */
+  readonly toolOutputs: Pick<ToolOutputFiles, "sweep">;
 }
 
 export interface DataOps {
@@ -78,6 +82,16 @@ export function startDataOps(deps: DataOpsDeps): DataOps {
         });
       }
     }
+    // 대화가 없는 폴더만 지운다. 조회가 실패하면 살아 있는 것으로 본다
+    detach(
+      deps.toolOutputs.sweep((threadId) => {
+        const id = parse(ThreadIdSchema, threadId);
+        if (!id.ok) return true;
+        const found = deps.query.thread(id.value);
+        return !found.ok || found.value !== undefined;
+      }),
+      (cause) => deps.logger.warn("tool_output.sweep_failed", { kind: String(cause) }),
+    );
     arm("spill", DATA_OPS_DAY_MS, pruneSpillNow);
   }
 

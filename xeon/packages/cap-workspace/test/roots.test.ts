@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { CancelScope, ProtectedPathEntry } from "@fresnel/contracts/services";
+import { err, ok } from "@fresnel/contracts";
+import type { CancelScope, ProtectedPathEntry, ToolOutputFiles } from "@fresnel/contracts/services";
 import { WorkspaceFailure } from "../src/errors.ts";
 import { defaultRoots, isWithin, resolveWorkspacePath, type PathAccess } from "../src/roots.ts";
 import { memoryEnv } from "./support/memory-env.ts";
@@ -137,5 +138,68 @@ describe("path resolution", () => {
       canonical: "/work/missing/file.txt",
       exists: false,
     });
+  });
+});
+
+describe("saved tool output (read root)", () => {
+  const SHA = "b".repeat(64);
+  const DIR = "/state/spill/tool-output";
+  const PATH = `${DIR}/thr_1/${SHA}.txt`;
+
+  function withOutputs(blobs: Record<string, string>) {
+    const env = memoryEnv({ cwd: "/work" });
+    env.mkdir("/work");
+    env.mkdir(DIR);
+    const outputs: ToolOutputFiles = {
+      dir: DIR,
+      pathFor: (threadId, sha256) => `${DIR}/${threadId}/${sha256}.txt`,
+      write: () => Promise.resolve(err({ kind: "io", cause: "unused" })),
+      restore: (path) => {
+        const sha256 = path.slice(path.lastIndexOf("/") + 1, -".txt".length);
+        const text = blobs[sha256];
+        if (!path.startsWith(`${DIR}/`)) return Promise.resolve(ok(false));
+        if (text === undefined) return Promise.resolve(err({ kind: "blob_missing", sha256 }));
+        env.put(path, text);
+        return Promise.resolve(ok(true));
+      },
+      removeThread: () => Promise.resolve(),
+      sweep: () => Promise.resolve(0),
+    };
+    const deps = {
+      env,
+      roots: (context: CancelScope) => defaultRoots(env, context, outputs),
+      protectedPaths: () => [],
+      outputs,
+    };
+    return { env, deps };
+  }
+
+  test("the folder is a read root but not a write root", async () => {
+    const { env, deps } = withOutputs({});
+    env.put(PATH, "kept");
+    expect(await deps.roots(CONTEXT)).toEqual({ read: ["/work", DIR], write: ["/work"] });
+    expect((await resolveWorkspacePath(deps, PATH, "read", CONTEXT)).canonical).toBe(PATH);
+    const denied = await failure(resolveWorkspacePath(deps, PATH, "write", CONTEXT));
+    expect(denied.detail).toMatchObject({ reason: "outside_root" });
+  });
+
+  test("a copy that is gone is rebuilt from the blob right before the read", async () => {
+    const { env, deps } = withOutputs({ [SHA]: "full text" });
+    expect((await env.canonicalPath(PATH, CONTEXT)).ok).toBe(false);
+    const resolved = await resolveWorkspacePath(deps, PATH, "read", CONTEXT);
+    expect(resolved).toEqual({ requested: PATH, canonical: PATH, exists: true });
+  });
+
+  test("a copy whose blob is gone resolves as a missing file inside the root", async () => {
+    const { deps } = withOutputs({});
+    const resolved = await resolveWorkspacePath(deps, PATH, "read", CONTEXT);
+    expect(resolved.exists).toBe(false);
+  });
+
+  test("other folders outside the workspace stay denied", async () => {
+    const { env, deps } = withOutputs({});
+    env.put("/state/config.json", "{}");
+    const denied = await failure(resolveWorkspacePath(deps, "/state/config.json", "read", CONTEXT));
+    expect(denied.detail).toMatchObject({ reason: "outside_root" });
   });
 });

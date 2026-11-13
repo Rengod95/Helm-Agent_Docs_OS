@@ -33,12 +33,14 @@ import { createToolRuntime, type ToolRuntime } from "../../src/runtime.ts";
 import type { SecretChecker } from "../../src/secret-gate.ts";
 import type { ToolsSettingsSource, ToolsUnattendedConfig } from "../../src/settings.ts";
 import {
+  fakeOutputFiles,
   fakeRedactor,
   fakeRunContext,
   fakeSession,
   fakeStore,
   fakeTruncator,
   sequentialIds,
+  type FakeOutputFiles,
   type FakeSession,
   type FakeStore,
 } from "../../src/testing/index.ts";
@@ -71,6 +73,7 @@ export interface Harness {
   readonly clock: Clock;
   readonly session: FakeSession;
   readonly store: FakeStore;
+  readonly outputFiles: FakeOutputFiles;
   readonly tasks: FakeTasks;
   readonly host: TestHost;
   readonly runtime: ToolRuntime;
@@ -121,6 +124,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
   const ids = sequentialIds(1000);
   const session = fakeSession({ clock, ids });
   const store = fakeStore();
+  const outputFiles = fakeOutputFiles();
   const tasks = fakeTasks(
     options.toolsCapacity === undefined ? {} : { toolsCapacity: options.toolsCapacity },
   );
@@ -134,6 +138,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     session,
     producer: session.producer("core.tools"),
     store,
+    outputFiles,
     tasks: options.withTasks === false ? undefined : tasks,
     lockEnv: undefined,
     truncator: fakeTruncator(),
@@ -160,6 +165,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     clock,
     session,
     store,
+    outputFiles,
     tasks,
     host,
     runtime,

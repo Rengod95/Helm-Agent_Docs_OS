@@ -20,7 +20,6 @@ import { entriesOf, resourceEntry, toToolMeta } from "./entries.ts";
 import type { InputBridge, InputWaitResult } from "./mcp-input.ts";
 import { advertiseTools } from "./expose.ts";
 import { createPipeline } from "./pipeline.ts";
-import { readToolOutputEntry } from "./builtin/read-tool-output.ts";
 import { toolSearchEntry } from "./builtin/tool-search.ts";
 import { evaluatePolicy } from "./policy/engine.ts";
 import { createCoreRules } from "./policy/core-rules.ts";
@@ -71,10 +70,9 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
     setMode: (threadId, mode) => tools.setMode(threadId, mode, "plan_approval"),
   });
   const pipeline = createPipeline(deps, registry, calls, approvals);
-  // 내장 도구 `tool_search`, `read_tool_output`(순서 키 core.tools). 같은 파이프라인을 지난다
+  // 내장 도구 `tool_search`(순서 키 core.tools). 같은 파이프라인을 지난다
   registry.seed([
     toolSearchEntry({ session: deps.session, config: deps.config, entries: () => registry.all() }),
-    readToolOutputEntry({ session: deps.session, store: deps.store, config: deps.config }),
   ]);
 
   const replaceGate = createToolReplaceGate({

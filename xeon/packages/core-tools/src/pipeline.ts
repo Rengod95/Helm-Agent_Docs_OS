@@ -1181,10 +1181,32 @@ export function createPipeline(
       blobRef = selfBlobRef(finalResult);
     } else {
       const config = deps.config(run.threadId);
-      const bounded = boundResult({ truncator: deps.truncator, store: deps.store }, finalResult, {
-        maxLines: entry.outputLimits.maxLines ?? config.output.maxLines,
-        maxBytes: entry.outputLimits.maxBytes ?? config.output.maxBytes,
-      });
+      const files = deps.outputFiles;
+      const bounded = boundResult(
+        {
+          truncator: deps.truncator,
+          store: deps.store,
+          ...(files === undefined
+            ? {}
+            : { outputPath: (sha256: string) => files.pathFor(run.threadId, sha256) }),
+        },
+        finalResult,
+        {
+          maxLines: entry.outputLimits.maxLines ?? config.output.maxLines,
+          maxBytes: entry.outputLimits.maxBytes ?? config.output.maxBytes,
+        },
+      );
+      if (files !== undefined && bounded.original !== null && bounded.bounded.blobRef !== null) {
+        // 사본을 못 써도 안내의 경로는 읽는 순간 blob에서 다시 만들어진다. 기록만 남긴다
+        const written = await files.write(
+          run.threadId,
+          bounded.bounded.blobRef.sha256,
+          bounded.original,
+        );
+        if (!written.ok) {
+          deps.logger?.warn("tools.output_file_failed", { kind: written.error.kind });
+        }
+      }
       content = [...bounded.bounded.content];
       details = bounded.details;
       blobRef = bounded.bounded.blobRef;

@@ -9,6 +9,7 @@ import { createToolRuntime, type ToolRuntime } from "../runtime.ts";
 import { configReader } from "../plugin.ts";
 import { fakeRedactor } from "./fake-secrets.ts";
 import { fakeStore } from "./fake-store.ts";
+import { fakeOutputFiles, type FakeOutputFiles } from "./fake-output-files.ts";
 import { fakeTruncator } from "./fake-truncator.ts";
 import { sequentialIds } from "./ids.ts";
 
@@ -38,6 +39,8 @@ export interface RealToolsOptions {
 
 export interface RealTools extends ToolRuntime {
   readonly host: TestHost;
+  /** 잘린 출력 사본 대역 */
+  readonly outputFiles: FakeOutputFiles;
   readonly ids: IdFactory;
   /** 이 조립이 쓰는 `core.tools` 생산자 핸들 */
   readonly producer: ProducerHandle;
@@ -51,6 +54,7 @@ export async function realTools(options: RealToolsOptions): Promise<RealTools> {
   const host = options.host ?? (await createTestHost());
   const layers = options.layers ?? ((): ScopeStack => []);
   const producer = options.producer ?? options.session.producer("core.tools");
+  const outputFiles = fakeOutputFiles();
   const deps: ToolsDeps = {
     session: options.session,
     producer,
@@ -58,6 +62,7 @@ export async function realTools(options: RealToolsOptions): Promise<RealTools> {
     tasks: undefined,
     lockEnv: undefined,
     truncator: fakeTruncator(),
+    outputFiles,
     redactor: fakeRedactor(),
     secrets: undefined,
     ext: host.host,
@@ -72,6 +77,7 @@ export async function realTools(options: RealToolsOptions): Promise<RealTools> {
   return {
     ...runtime,
     host,
+    outputFiles,
     ids,
     producer,
     openThread: (threadId) => host.host.openThread(threadId),
