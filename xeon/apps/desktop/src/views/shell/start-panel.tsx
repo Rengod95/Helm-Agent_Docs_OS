@@ -189,21 +189,6 @@ function NavRow(props: {
   return Badge === undefined ? row(undefined) : <Badge render={row} />;
 }
 
-/** 브랜드 로고: 경로 고해상도 렌더를 줄인 것(public/brand/logo). 이름은 옆 탭이 말하므로 장식이다 */
-function BrandMark(props: { readonly className?: string }): ReactNode {
-  return (
-    <img
-      src="./brand/logo/fresnel-logo-20@2x.png"
-      srcSet="./brand/logo/fresnel-logo-20@2x.png 2x, ./brand/logo/fresnel-logo-20@3x.png 3x"
-      width={20}
-      height={20}
-      alt=""
-      draggable={false}
-      className={`size-5 shrink-0 select-none ${props.className ?? ""}`}
-    />
-  );
-}
-
 // 머리·바닥 밀도는 시안의 size="sm"과 같은 값을 자리 클래스로 준다(SidePanel size 속성은 lint가 쓰지 못하게 막는다).
 // 바닥은 위아래 4px: 설정 줄(32)이 위 줄들과 같은 높이로 보인다(DP-68, 전에는 8px로 49px)
 const PANEL_SLOTS =
@@ -241,10 +226,9 @@ export function StartPanel(props: StartPanelProps): ReactNode {
       header={
         rail ? (
           <div className="grid justify-items-start gap-1.5">
-            {/* 창 틀(DP-80): macOS 신호등이 이 칸 자리에 온다. styles.css가 그때 로고를 감춘다(칸은 남아 아래 단추가 움직이지 않는다) */}
-            <span data-chrome-brand="" data-header-band="" className="grid place-items-center">
-              <BrandMark />
-            </span>
+            {/* 머리 띠 칸(DP-122): 로고는 없다(DP-172). 칸은 남아 머리 선이 이어지고 아래 단추가 움직이지 않는다.
+                창 틀(DP-80): macOS 신호등은 이 칸 위에 온다 */}
+            <span data-header-band="" />
             {area === "chat" ? (
               <RailButton
                 label={t("desktop.shell.start.newThread")}
@@ -258,10 +242,9 @@ export function StartPanel(props: StartPanelProps): ReactNode {
         ) : (
           <div className="grid min-w-0 gap-1.5">
             {/* 영역 탭 줄 끝에 패널 접기 단추를 둔다(찾기 줄은 없다. 명령 팔레트는 ⌘K) */}
-            {/* 창 틀(DP-80): macOS 신호등 자리만큼 styles.css가 이 줄 앞을 비운다 */}
+            {/* 창 틀(DP-80): macOS 신호등 자리만큼 styles.css가 이 줄 앞을 비운다. 로고는 없고 영역 탭이 첫 요소다(DP-172) */}
             {/* 머리 띠(DP-122): 화면 머리와 같은 `--shell-header-h` 높이와 아래 선. 가운데 줄이 신호등·화면 제목과 같은 y 22에 선다 */}
             <div data-chrome-row="" data-header-band="" className="flex min-w-0 items-center gap-1">
-              <BrandMark className="ms-1 me-0.5" />
               <AreaSwitch onSwitch={props.onSwitchArea} />
               <IconButton
                 size="sm"

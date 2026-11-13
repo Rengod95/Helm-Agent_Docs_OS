@@ -5,6 +5,8 @@ import { detach, rethrow } from "@fresnel/contracts";
 // `--chrome-inset-start`(px, 셸이 macOS 판에 맞춰 잰 값)를 건다.
 // styles.css가 이 속성으로 끌기 영역과 신호등·창 단추 자리를 둔다. 속성이 없으면(웹, 셸이 없거나 오래된 셸) 아무 것도 바뀌지 않는다.
 // 전체 화면을 들어가고 나올 때 셸이 `window-chrome` 이벤트를 보내면 다시 읽는다(전체 화면에는 신호등이 없다).
+// 읽을 때 앱 확대(%, `<html data-zoom>`)를 함께 보내 셸이 신호등을 커진 머리 줄의 세로 가운데에 다시 두게 하고(DP-172),
+// 확대가 바뀌면 다시 읽는다.
 
 export const WINDOW_CHROME_EVENT = "window-chrome";
 
@@ -52,16 +54,27 @@ export function applyWindowChrome(root: WindowChromeRoot, state: WindowChromeSta
   else root.style.removeProperty("--chrome-inset-start");
 }
 
+/** 지금 앱 확대(%). appearance-prefs가 100이 아닐 때만 `data-zoom`을 건다 */
+export function zoomPercentOfRoot(root: Pick<WindowChromeRoot, "dataset">): number {
+  const zoom = Number(root.dataset["zoom"]);
+  return Number.isInteger(zoom) && zoom > 0 ? zoom : 100;
+}
+
 export interface WindowChromeDeps {
-  readonly invoke: (command: string) => Promise<unknown>;
+  readonly invoke: (command: string, args: { readonly zoom: number }) => Promise<unknown>;
   readonly listen: (event: string, onEvent: () => void) => Promise<() => void>;
   readonly root: WindowChromeRoot;
+  /** 앱 확대(`data-zoom`)가 바뀌면 부른다. 없으면 처음 한 번만 보낸다 */
+  readonly watchZoom?: (onChange: () => void) => void;
 }
 
 /** 지금 상태를 걸고 바뀔 때마다 다시 건다. 셸이 명령을 모르면(거절) 틀 속성을 걸지 않는다 */
 export function installWindowChrome(deps: WindowChromeDeps): void {
   const refresh = async (): Promise<void> => {
-    const state = await deps.invoke("window_chrome_state").then(windowChromeStateOf, () => NONE);
+    const zoom = zoomPercentOfRoot(deps.root);
+    const state = await deps
+      .invoke("window_chrome_state", { zoom })
+      .then(windowChromeStateOf, () => NONE);
     applyWindowChrome(deps.root, state);
   };
   detach(refresh(), rethrow);
@@ -71,4 +84,11 @@ export function installWindowChrome(deps: WindowChromeDeps): void {
     }),
     rethrow,
   );
+  let lastZoom = zoomPercentOfRoot(deps.root);
+  deps.watchZoom?.(() => {
+    const zoom = zoomPercentOfRoot(deps.root);
+    if (zoom === lastZoom) return;
+    lastZoom = zoom;
+    detach(refresh(), rethrow);
+  });
 }
