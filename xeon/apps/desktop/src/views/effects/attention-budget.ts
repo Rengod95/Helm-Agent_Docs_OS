@@ -1,19 +1,21 @@
-// 주의 표시의 "살아 움직이는 수" 상한(DP-190). 화면 전체에서 반짝이는 주의 표시는 3개, 흐르는 카드 오로라는 1개까지다.
+// 살아 움직이는 표시의 수 상한(DP-190). 화면 전체에서 움직이는 주의 구슬은 3개, 진행 구슬은 8개, 흐르는 카드 오로라는 1개까지다.
 // 먼저 붙은 것이 자리를 받고, 자리를 가진 것이 떨어지면 다음 것이 받는다. 나머지는 같은 모양으로 멈춰 있다.
 // 상태는 모듈 하나가 가진다(부품마다 따로 세면 상한이 안 된다). 움직임 줄이기면 아무도 움직이지 않는다.
 
 import { useEffect, useId, useSyncExternalStore } from "react";
 import { useMotionReduced } from "../../lib/motion-presets.tsx";
 
-export type AttentionLiveKind = "mark" | "card";
+/** mark 주의 구슬(AttentionMark), progress 진행 구슬(ProgressOrb), card 카드 오로라(AttendGlow) */
+export type AttentionLiveKind = "mark" | "progress" | "card";
 
 /** 종류마다 동시에 움직일 수 있는 수 */
 export const ATTENTION_LIVE_LIMIT: Readonly<Record<AttentionLiveKind, number>> = {
   mark: 3,
+  progress: 8,
   card: 1,
 };
 
-const queues: Record<AttentionLiveKind, string[]> = { mark: [], card: [] };
+const queues: Record<AttentionLiveKind, string[]> = { mark: [], progress: [], card: [] };
 const listeners = new Set<() => void>();
 
 function notify(): void {

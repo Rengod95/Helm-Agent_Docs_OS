@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import { allLiterals, read, relative, sourceFiles } from "./source-scan.ts";
+import { join } from "node:path";
+import { allLiterals, read, relative, sourceFiles, SRC } from "./source-scan.ts";
 
 // 화면 소스에 두 가지 함정이 다시 생기지 않게 한다.
 
@@ -127,7 +128,7 @@ function codeOf(file: string): string {
 
 test("no caustic spectrum ring (orb) in the app (DP-188)", () => {
   // 사용자 결정(2026-11-13, 영구): 파랑 → 보라 그라데이션 고리(caustic `orb` 유틸리티: conic 스펙트럼 + 가운데 구멍 + 회전)는 어디에도 쓰지 않는다.
-  // 그 고리로 가는 길을 막는다. 주의는 AttentionMark, 진행은 LiveDot(views/effects)을 쓴다.
+  // 그 고리로 가는 길을 막는다. 주의는 AttentionMark, 진행은 ProgressOrb(views/effects, 점 구슬)를 쓴다.
   const ANYWHERE: readonly (readonly [string, RegExp])[] = [
     ["orb class", /["'`\s]orb(-sm|-lg|-dot)?["'`\s]/],
     ["CardOrb", /\bCardOrb\b/],
@@ -145,4 +146,39 @@ test("no caustic spectrum ring (orb) in the app (DP-188)", () => {
     return hits.map((name) => `${relative(file)}: ${name}`);
   });
   expect(found).toEqual([]);
+});
+
+test("status marks are dotted orbs, never stars or solid dots (DP-189)", () => {
+  // 사용자 결정(2026-11-13 밤, 영구): 네 꼭지 별·반짝임, 단색 점(LiveDot), 불씨 원, 느낌표 글리프를 표시로 쓰지 않는다.
+  // 진행과 주의 표시는 생각 구슬과 같은 점 구슬(dot-orb.tsx: ProgressOrb, AttentionMark)이다.
+  const TSX: readonly (readonly [string, RegExp])[] = [
+    ["LiveDot", /\bLiveDot\b|live-dot\.tsx/],
+    ["solid dot class", /["'`\s]fx-dot(-core)?["'`\s]/],
+    ["star glint", /\bGLINT|fx-attend-(glint|halo)\b/],
+    ["dot badge", /<Badge\b[^>]*\sdot[\s=/>]/],
+  ];
+  const CSS: readonly (readonly [string, RegExp])[] = [
+    ["solid dot rule", /\.fx-dot(-core)?\b(?!-orb)|fx-dot-breathe/],
+    ["star glint rule", /\.fx-attend-(glint|halo)\b|fx-attend-twinkle/],
+  ];
+  const found = [
+    ...sourceFiles([".tsx", ".ts"]).flatMap((file) => {
+      const code = codeOf(file);
+      return TSX.filter(([, re]) => re.test(code)).map(([name]) => `${relative(file)}: ${name}`);
+    }),
+    ...sourceFiles([".css"]).flatMap((file) => {
+      const code = read(file).replace(/\/\*[\s\S]*?\*\//g, "");
+      return CSS.filter(([, re]) => re.test(code)).map(([name]) => `${relative(file)}: ${name}`);
+    }),
+  ];
+  expect(found).toEqual([]);
+  // 두 표시 부품은 점 구슬을 그린다(벡터 모양으로 돌아가지 않는다)
+  for (const file of ["views/effects/attention-mark.tsx", "views/effects/progress-orb.tsx"]) {
+    const code = codeOf(join(SRC, file));
+    expect([file, /<DotOrb\b/.test(code), /<(svg|path|circle)\b/.test(code)]).toEqual([
+      file,
+      true,
+      false,
+    ]);
+  }
 });

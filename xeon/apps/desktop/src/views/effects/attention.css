@@ -1,7 +1,7 @@
-/* 주의 표시와 주의 면(attention-mark.tsx, DP-188~191 [결정: 2026-11-13 사용자]). "내 확인이 필요함"은 따뜻한 빛(호박 → 산호)이 맡고,
-   "도는 중"은 차가운 크리스탈 점(beam.css .fx-dot)이 맡는다. 움직이는 것은 transform·opacity뿐이고(합성기), 반짝임은 모두 한 주기(2.4초)에
-   늦춤 없이 돈다(DP-169: 조합 하나). 동시에 움직이는 수는 attention-budget.ts가 정한다(표시 3, 카드 오로라 1).
-   caustic의 스펙트럼 고리(`orb` 유틸리티)는 앱에서 쓰지 않는다(DP-188). 맨 아래 안전망이 caustic 고리 칸을 크리스탈 점으로 덮는다.
+/* 주의 표시와 주의 면(attention-mark.tsx, dot-orb.tsx, DP-188~191 [결정: 2026-11-13 사용자]). "내 확인이 필요함"은 따뜻한 빛(호박 → 산호)이 맡고,
+   "도는 중"은 생각 구슬과 같은 흑백 점 구슬(progress-orb.tsx)이 맡는다. 구슬은 canvas라 여기는 칸과 면만 그린다.
+   표시를 더하기보다 면(줄 물듦·카드 빛)을 먼저 쓴다. 동시에 움직이는 수는 attention-budget.ts가 정한다(주의 구슬 3, 진행 구슬 8, 카드 오로라 1).
+   caustic의 스펙트럼 고리(`orb` 유틸리티), 별·느낌표·단색 점은 앱에서 쓰지 않는다(DP-188, 시험 source-rules).
    styles.css가 가져온다(CSP가 인라인 <style>을 막는다). */
 
 :root {
@@ -26,10 +26,17 @@
   }
 }
 
-/* ---------- 주의 표시(작은 마크) ---------- */
+/* ---------- 점 구슬 칸(dot-orb.tsx) ---------- */
+
+/* canvas는 칸 크기 그대로 서고 줄의 글자 가운데에 맞는다. 크기는 부품이 style로 준다(12·14) */
+.fx-dot-orb {
+  display: block;
+  flex: none;
+}
+
+/* ---------- 주의 표시(주의 구슬) ---------- */
 
 .fx-attend-mark {
-  position: relative;
   display: inline-grid;
   flex: none;
   place-items: center;
@@ -40,66 +47,20 @@
   width: 0.75rem;
   height: 0.75rem;
 }
-.fx-attend-halo,
-.fx-attend-glint {
-  grid-area: 1 / 1;
-}
-/* 번짐: 칸만 한 따뜻한 빛. filter 없이 radial로 그린다 */
-.fx-attend-halo {
-  width: 100%;
-  height: 100%;
-  border-radius: 9999px;
-  background: radial-gradient(
-    closest-side,
-    color-mix(in oklch, var(--fx-attend-a) 45%, transparent),
-    transparent
-  );
-  opacity: 0.6;
-}
-.fx-attend-glint {
-  width: 0.625rem;
-  height: 0.625rem;
-  overflow: visible;
-}
-.fx-attend-mark[data-size="sm"] .fx-attend-glint {
-  width: 0.5rem;
-  height: 0.5rem;
-}
-.fx-attend-mark[data-live="true"] .fx-attend-glint {
-  animation: fx-attend-twinkle 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
-}
-.fx-attend-mark[data-live="true"] .fx-attend-halo {
-  animation: fx-attend-halo 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
-}
-/* 반짝임: 별이 0.82에서 1로 커지며 45° 돌았다가 돌아온다(네 꼭지 별이라 45°에서 마름모 쪽으로 기운 모습이 반짝임으로 읽힌다) */
-@keyframes fx-attend-twinkle {
-  0%,
-  100% {
-    transform: scale(0.82) rotate(0deg);
-  }
-  50% {
-    transform: scale(1) rotate(45deg);
-  }
-}
-@keyframes fx-attend-halo {
-  0%,
-  100% {
-    opacity: 0.3;
-    transform: scale(0.8);
-  }
-  50% {
-    opacity: 0.75;
-    transform: scale(1);
-  }
-}
 
-/* 내비 줄 끝 수 앞(start-panel NavRow의 meta): caustic 줄의 칸 사이(10px)를 6px 당겨 별과 수 사이가 6px이 되고,
-   meta 칸을 줄 가운데에 세워 별이 수의 글자 가운데에 맞는다 */
+/* 내비 줄 끝 수 앞(start-panel NavRow의 meta): caustic 줄의 칸 사이(10px)를 6px 당겨 구슬과 수 사이가 4px이 되고,
+   meta 칸을 줄 가운데에 세워 구슬이 수의 글자 가운데에 맞는다 */
 [data-slot="list-navigation-meta"]:has(> .fx-attend-mark) {
   display: inline-flex;
   align-items: center;
   align-self: stretch;
   margin-inline-end: -6px;
+}
+/* 대화 목록 줄 끝의 진행 구슬(thread-list.tsx): 꼬리 글과 구슬 칸을 줄 가운데에 세운다(글 줄높이 위에 서면 구슬이 2px 위로 뜬다) */
+[data-slot="list-navigation-meta"]:has(> [data-slot="row-progress"]) {
+  display: inline-flex;
+  align-items: center;
+  align-self: stretch;
 }
 
 /* ---------- 줄 물듦(대화 목록 줄) ---------- */
@@ -170,49 +131,39 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .fx-attend-mark .fx-attend-glint,
-  .fx-attend-mark .fx-attend-halo,
   .fx-attend-glow .fx-attend-glow-haze {
     animation: none;
   }
 }
-:root[data-motion="reduce"] .fx-attend-mark .fx-attend-glint,
-:root[data-motion="reduce"] .fx-attend-mark .fx-attend-halo,
 :root[data-motion="reduce"] .fx-attend-glow .fx-attend-glow-haze {
   animation: none;
 }
 
+/* ---------- 줄 끝 수(대화 목록 줄의 승인 수) ---------- */
+
+/* 바탕 없는 숫자만. 물듦과 같은 호박 → 산호 계열의 글자색(라이트는 짙게), 굵기 600으로 줄 꼬리 글(400 tertiary)과 구분한다 */
+.fx-attend-count {
+  color: light-dark(oklch(0.54 0.17 48), oklch(0.8 0.15 65));
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+:root[data-theme="light"] .fx-attend-count {
+  color: oklch(0.54 0.17 48);
+}
+:root[data-theme="dark"] .fx-attend-count {
+  color: oklch(0.8 0.15 65);
+}
+
 /* ---------- 안전망: caustic 스펙트럼 고리를 쓰지 않는다(DP-188) ---------- */
 
-/* caustic 부품이 `orb`(conic 스펙트럼 + 가운데 구멍 + 회전)를 그리는 칸은 모두 `*-orb` 슬롯이다. 앱에서는 그 칸을 "도는 중" 크리스탈 점
-   (.fx-dot과 같은 6px 점, 1.6초 숨)으로 바꿔 그린다. 앱 화면은 이 칸에 이르지 않게 짰고(시험 source-rules), 이것은 플러그인 활동 트리처럼
-   caustic 부품 안에서 고리를 고를 수 없는 곳과 다시 들어온 경우를 위한 것이다 */
+/* caustic 부품이 `orb`(conic 스펙트럼 + 가운데 구멍 + 회전)를 그리는 칸은 모두 `*-orb` 슬롯이다. 앱은 그 칸의 고리를 지운다.
+   진행 구슬을 끼울 수 있는 곳(플러그인 활동 트리, native-tree.tsx)은 칸 안에 ProgressOrb를 넣는다. 그 밖에 caustic 부품 안에서 고리를 고를 수 없는
+   곳은 칸을 비워 둔다(별·단색 점으로 메우지 않는다). 앱 화면은 이 칸에 이르지 않게 짰다(시험 source-rules) */
 :root [data-slot$="-orb"] {
   display: inline-grid;
   place-items: center;
   background: none;
   -webkit-mask: none;
   mask: none;
-  animation: none;
-}
-:root [data-slot$="-orb"]::after {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 9999px;
-  background: linear-gradient(
-    135deg,
-    var(--fx-crystal-c),
-    var(--fx-crystal-b) 50%,
-    var(--fx-crystal-a)
-  );
-  animation: fx-dot-breathe 1.6s cubic-bezier(0.37, 0, 0.63, 1) infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  :root [data-slot$="-orb"]::after {
-    animation: none;
-  }
-}
-:root[data-motion="reduce"] [data-slot$="-orb"]::after {
   animation: none;
 }
