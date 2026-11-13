@@ -27,7 +27,8 @@ import { Aurora, type AuroraState } from "../effects/aurora.tsx";
 import { useDoneFlash } from "../effects/beam.tsx";
 import { DrawnCheck } from "../effects/drawn-check.tsx";
 import { auroraOn } from "../effects/fx-config.ts";
-import { LiveDot } from "../effects/live-dot.tsx";
+import { AttentionMark } from "../effects/attention-mark.tsx";
+import { ProgressOrb } from "../effects/progress-orb.tsx";
 import {
   nowShownOf,
   nowViewOf,
@@ -44,7 +45,7 @@ import {
 // 값은 거울의 선택자라 턴이 도는 동안 사건마다 갱신된다. 그릴 것이 없으면 아무것도 그리지 않는다.
 // 움직임(dzM2 시안 §7, DP-119): 입력창 위로 8px 올라와 가라앉고(band) 사라질 때 4px 내려가며 나간다. 몸은 높이를 잇고(Reveal),
 // 본문 글과 진행 수는 교차 전환, 막대는 caustic Progress 폭 전환, 펼친 목록에서 끝난 할 일은 체크 선이 그려진다.
-// 도는 중 표시는 회전 스피너가 아니라 크리스탈 점(LiveDot, DP-127)이다. 오로라 자리(fx-config)가 strip이면 띠 바탕에 오로라가 흐른다(DP-126).
+// 도는 중 표시는 회전 스피너가 아니라 생각 구슬과 같은 점 구슬(ProgressOrb, DP-127·189)이고, 승인을 기다리며 멈췄으면 주의 구슬(AttentionMark)이다. 오로라 자리(fx-config)가 strip이면 띠 바탕에 오로라가 흐른다(DP-126).
 
 const ICON = "size-3.5 shrink-0";
 
@@ -81,7 +82,7 @@ function PulseIcon(props: {
   }
   switch (props.pulse) {
     case "running":
-      return <LiveDot state={props.waiting ? "wait" : "run"} />;
+      return props.waiting ? <AttentionMark /> : <ProgressOrb />;
     case "stopping":
       return <Stop aria-hidden className={`${ICON} text-warning-text`} />;
     case "idle":
@@ -277,7 +278,7 @@ function TaskIcon(props: { readonly task: NowTaskView }): ReactNode {
   const { task } = props;
   // 펼친 목록에 있는 동안 끝난 할 일만 체크 선이 그려진다. 처음부터 끝난 할 일은 그대로다
   const changed = useChangedSinceMount(task.status);
-  if (task.state === "now") return <LiveDot state="run" />;
+  if (task.state === "now") return <ProgressOrb />;
   if (task.status === "completed")
     return <DrawnCheck draw={changed} className={`${ICON} text-success-text`} />;
   if (task.status === "failed")
@@ -382,7 +383,7 @@ function NowBody(props: { readonly id: string; readonly view: NowView }): ReactN
             {view.agents.map((agent) => (
               <li key={agent.id} className="flex min-h-7 items-center gap-2">
                 {agent.running ? (
-                  <LiveDot state="run" />
+                  <ProgressOrb />
                 ) : (
                   <SquareStack aria-hidden className={`${ICON} text-text-tertiary`} />
                 )}

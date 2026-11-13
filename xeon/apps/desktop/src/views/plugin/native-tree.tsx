@@ -48,6 +48,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
+import { ProgressOrb } from "../effects/progress-orb.tsx";
 
 // 선언형 화면 트리(ADR-0021 §3.4.1)를 caustic 부품으로 그린다. 순수 렌더러이고 앱 밖의 일을 하지 않는다.
 // 규칙:
@@ -801,10 +803,43 @@ function activityOf(item: ResolvedItem, index: number): ActivityNode {
   };
 }
 
+/**
+ * 활동 트리의 진행 단계 칸(caustic `activity-tree-orb`)에 진행 구슬을 끼운다(DP-189). caustic은 그 칸에 스펙트럼 고리를 그리고
+ * 앱 CSS(attention.css 안전망)가 고리를 지운다. 칸은 caustic이 그리므로 바뀔 때마다 찾아 그 안에 ProgressOrb를 portal로 둔다
+ */
+function useActivityOrbSlots(): {
+  readonly attach: (el: HTMLDivElement | null) => void;
+  readonly orbs: ReactNode;
+} {
+  const [root, setRoot] = useState<HTMLDivElement | null>(null);
+  const [slots, setSlots] = useState<readonly Element[]>([]);
+  useEffect(() => {
+    if (root === null) return undefined;
+    const collect = (): void => {
+      const found = [...root.querySelectorAll('[data-slot="activity-tree-orb"]')];
+      setSlots((prev) =>
+        prev.length === found.length && prev.every((el, i) => el === found[i]) ? prev : found,
+      );
+    };
+    collect();
+    const observer = new MutationObserver(collect);
+    observer.observe(root, { childList: true, subtree: true });
+    return () => {
+      observer.disconnect();
+    };
+  }, [root]);
+  return {
+    attach: setRoot,
+    orbs: slots.map((slot, i) => createPortal(<ProgressOrb size="sm" />, slot, String(i))),
+  };
+}
+
 function ActivityTreeNode({ node }: NodeProps): ReactNode {
   const items = node.lists?.["items"];
+  const { attach, orbs } = useActivityOrbSlots();
   return (
-    <div className="grid min-w-0 gap-2">
+    <div ref={attach} className="grid min-w-0 gap-2">
+      {orbs}
       {items === undefined ? null : (
         <ActivityTree
           nodes={items.map(activityOf)}

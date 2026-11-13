@@ -5,7 +5,6 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
 import {
   Alert,
-  Badge,
   Button,
   Dialog,
   EmptyState,
@@ -20,8 +19,7 @@ import {
 import { Folder, FolderOpen, RotateCcw, Search, X } from "@caustic/react/icons";
 import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { useFlipList } from "../lib/motion-presets.tsx";
-import { AttentionMark } from "./effects/attention-mark.tsx";
-import { LiveDot } from "./effects/live-dot.tsx";
+import { ProgressOrb } from "./effects/progress-orb.tsx";
 import {
   useThreadsStatus,
   useThreadSummaries,
@@ -74,7 +72,7 @@ const LIST_COLUMN =
 const ROW_HEIGHT = SIDE_ROW;
 
 /**
- * 행 오른쪽 표식(DP-104). 승인은 작은 경고 배지(수, 주의는 앞 칸의 주의 표시가 맡는다 DP-189. DP-150: 제목 칸을 먼저 자르지 않게 좁게), 나머지는 12px tertiary 글과 필요한 곳만 아이콘 12. 종류는 `rowBadgeOf`가 정한다 */
+ * 행 오른쪽 표식(DP-104). 승인은 바탕 없는 따뜻한 숫자(DP-189: 주의는 줄 물듦이 맡는다. DP-150: 제목 칸을 먼저 자르지 않게 좁게), 나머지는 12px tertiary 글과 필요한 곳만 아이콘 12. 종류는 `rowBadgeOf`가 정한다 */
 function metaOf(
   thread: ThreadSummary,
   approvals: number,
@@ -86,16 +84,13 @@ function metaOf(
   switch (badge) {
     case "approvals":
       return (
-        <Badge
-          size="xs"
-          className="bg-warning-tint text-warning-text tabular-nums"
-          data-thread-badge="approvals"
-        >
+        // 바탕 없는 숫자만(DP-189 [결정: 2026-11-13 사용자 "원형 뒷배경 빼는게"]). 물듦과 같은 따뜻한 색 + 굵기, 뜻은 sr-only 글이 말한다
+        <span className="fx-attend-count" data-thread-badge="approvals">
           <span aria-hidden>{approvals}</span>
           <span className="sr-only">
             {t("desktop.threads.approvalsBadge", { count: approvals })}
           </span>
-        </Badge>
+        </span>
       );
     // 이어서 실행은 아이콘과 글(시안 threadMeta의 RotateCcw + 이어서 실행)
     case "resumable":
@@ -178,19 +173,25 @@ const ThreadRow = memo(function ThreadRow(props: {
     <>
       <ListNavigationItem
         current={selected}
-        // 앞 칸(DP-189): 내 확인이 필요하면 주의 표시, 도는 중이면 크리스탈 점, 안 보냈으면 caustic 실패 점. caustic `status="running"`은
-        // 스펙트럼 고리를 그려 쓰지 않는다(DP-188). 승인을 기다리는 턴은 도는 중이 아니라 멈춰 있으므로 주의 표시가 이긴다
-        {...(attention
-          ? { leading: <AttentionMark /> }
-          : running
-            ? { leading: <LiveDot state="run" /> }
-            : unsent
-              ? {
-                  status: "failed" as const,
-                  statusLabels: { failed: t("desktop.threads.status.unsent") },
-                }
-              : {})}
-        meta={metaOf(props.thread, approvals, props.child, unsent, props.now)}
+        // 앞 칸(DP-189 [결정: 2026-11-13 사용자 "좌측 아이콘은 아예 빼버리고"]): 줄 앞에는 표시를 두지 않아 모든 줄의 제목이 같은 열에 선다.
+        // 내 확인이 필요하면 줄 물듦(fx-attend-row)과 끝의 숫자, 도는 중이면 끝의 진행 구슬, 안 보냈으면 caustic 실패 점이다. caustic
+        // `status="running"`은 스펙트럼 고리를 그려 쓰지 않는다(DP-188). 승인을 기다리는 턴은 멈춰 있으므로 주의가 이긴다(진행 구슬 없음)
+        {...(!attention && !running && unsent
+          ? {
+              status: "failed" as const,
+              statusLabels: { failed: t("desktop.threads.status.unsent") },
+            }
+          : {})}
+        meta={
+          running && !attention ? (
+            <span data-slot="row-progress" className="inline-flex items-center gap-1.5">
+              {metaOf(props.thread, approvals, props.child, unsent, props.now)}
+              <ProgressOrb />
+            </span>
+          ) : (
+            metaOf(props.thread, approvals, props.child, unsent, props.now)
+          )
+        }
         // 목록 순서가 바뀌거나 행이 들고 날 때 옛 자리에서 이어 온다(ThreadList의 useFlipList)
         data-flip-key={id}
         title={tooltip}
