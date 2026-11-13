@@ -7,6 +7,7 @@ import {
   beamStateOf,
   BeamEdge,
   boxOf,
+  cssZoomOf,
 } from "../../../src/views/effects/beam.tsx";
 
 // beam(DP-107). 상태 판단과 자리 계산은 순수하게, 부품은 서버 렌더로 본다.
@@ -62,6 +63,42 @@ describe("boxOf", () => {
 
   test("반경을 읽지 못하면 16px", () => {
     expect(boxOf(rect(0, 0, 10, 10), rect(0, 0, 10, 10), "").radius).toBe(16);
+  });
+
+  test("앱 확대에서 화면 px을 판의 CSS px로 나눠 판이 대상과 겹친다(DP-171)", () => {
+    // 1280 창, 입력창 CSS 상자(48, 542, 712, 84)와 감싼 판(0, 500)을 확대마다 화면 px로 잰 값
+    const rows = [90, 100, 125, 150, 200].map((percent) => {
+      const z = percent / 100;
+      const box = boxOf(
+        rect(0, 500 * z, 1280, 140 * z),
+        rect(48 * z, 542 * z, 712 * z, 84 * z),
+        "20px",
+        "",
+        z,
+      );
+      // 판은 확대 안에 있으므로 화면에서는 CSS px × 확대로 그려진다. 대상 화면 상자와의 차이(px)
+      const drawn = [box.left * z, (box.top + 500) * z, box.width * z, box.height * z];
+      const target = [48 * z, 542 * z, 712 * z, 84 * z];
+      return drawn.map((v, i) => Math.round((v - (target[i] ?? 0)) * 1000) / 1000);
+    });
+    expect(rows).toEqual([
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+    ]);
+    // 고치기 전처럼 확대를 모르면 125%에서 판이 대상보다 25% 크다
+    const naive = boxOf(rect(0, 625, 1600, 175), rect(60, 677.5, 890, 105), "20px");
+    expect([naive.width * 1.25, naive.height * 1.25]).toEqual([1112.5, 131.25]);
+  });
+
+  test("확대를 모르거나 틀린 값이면 1", () => {
+    expect(cssZoomOf({ currentCSSZoom: 1.25 })).toBe(1.25);
+    expect(cssZoomOf({})).toBe(1);
+    expect(cssZoomOf({ currentCSSZoom: 0 })).toBe(1);
+    expect(cssZoomOf({ currentCSSZoom: Number.NaN })).toBe(1);
+    expect(boxOf(rect(0, 0, 10, 10), rect(5, 5, 10, 10), "", "", 0).left).toBe(5);
   });
 });
 

@@ -97,9 +97,16 @@ installDocumentScrollGuard(document, window);
 const desktopWindow = shellBridge.kind === "electron" && !isWebDocument(window.location);
 if (desktopWindow) {
   installWindowChrome({
-    invoke: (command) => invoke(command),
+    invoke: (command, args) => invoke(command, args),
     listen: (event, onEvent) => shellBridge.listen(event, onEvent),
     root: document.documentElement,
+    // 앱 확대(appearance-prefs의 `data-zoom`)가 바뀌면 신호등 자리를 다시 둔다(DP-172). 창이 닫힐 때까지 둔다
+    watchZoom: (onChange) => {
+      new MutationObserver(onChange).observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["data-zoom"],
+      });
+    },
   });
   // 물결의 렌즈 굴절·흐림(DP-166)은 창을 찍을 수 있는 Electron 창에서만 돈다. 웹 문서는 색 물결과 입자만이다
   installWaveCapture(() => invoke("window_capture"));

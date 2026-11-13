@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   applyWindowChrome,
   installWindowChrome,
+  zoomPercentOfRoot,
   WINDOW_CHROME_EVENT,
   windowChromeStateOf,
   type WindowChromeRoot,
@@ -81,8 +82,8 @@ describe("install", () => {
     const asked: string[] = [];
     const listeners = new Map<string, () => void>();
     installWindowChrome({
-      invoke: (command) => {
-        asked.push(command);
+      invoke: (command, args) => {
+        asked.push(`${command} ${String(args.zoom)}`);
         return Promise.resolve(answers.shift());
       },
       listen: (event, onEvent) => {
@@ -98,7 +99,39 @@ describe("install", () => {
     listeners.get(WINDOW_CHROME_EVENT)?.();
     await flush();
     expect(root.dataset).toEqual({ windowChrome: "mac", fullscreen: "" });
-    expect(asked).toEqual(["window_chrome_state", "window_chrome_state"]);
+    expect(asked).toEqual(["window_chrome_state 100", "window_chrome_state 100"]);
+  });
+
+  test("sends the app zoom and asks again when it changes (DP-172)", async () => {
+    const root = rootOf();
+    root.dataset["zoom"] = "125";
+    const asked: number[] = [];
+    const watchers: (() => void)[] = [];
+    const zoomChanged = (): void => {
+      for (const watcher of watchers) watcher();
+    };
+    installWindowChrome({
+      invoke: (_command, args) => {
+        asked.push(args.zoom);
+        return Promise.resolve({ kind: "mac", fullscreen: false, insetStart: 92 });
+      },
+      listen: () => Promise.resolve(() => undefined),
+      root,
+      watchZoom: (onChange) => {
+        watchers.push(onChange);
+      },
+    });
+    await flush();
+    root.dataset["zoom"] = "150";
+    zoomChanged();
+    // 같은 값이면 다시 묻지 않는다
+    zoomChanged();
+    await flush();
+    delete root.dataset["zoom"];
+    zoomChanged();
+    await flush();
+    expect(asked).toEqual([125, 150, 100]);
+    expect(zoomPercentOfRoot({ dataset: { zoom: "abc" } })).toBe(100);
   });
 
   test("an older shell that does not know the command leaves the root alone", async () => {

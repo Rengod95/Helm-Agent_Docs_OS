@@ -12,12 +12,14 @@ import {
   chromeStateFor,
   createWindowChromeModule,
   overlayOf,
+  placeTrafficLights,
   readSavedTheme,
   recolor,
   themeSourceOf,
   trafficLightInsetOf,
   trafficLightMetricsOf,
   trafficLightPositionOf,
+  zoomPercentOf,
   type ChromeWindow,
   type NativeThemePort,
   type ThemeSource,
@@ -30,6 +32,7 @@ class FakeChromeWindow implements ChromeWindow {
   readonly listeners = new Map<string, (() => void)[]>();
   readonly backgrounds: string[] = [];
   readonly overlays: TitleBarOverlayOptions[] = [];
+  readonly buttons: ({ readonly x: number; readonly y: number } | null)[] = [];
   fullscreen = false;
   destroyed = false;
 
@@ -48,6 +51,9 @@ class FakeChromeWindow implements ChromeWindow {
   }
   setTitleBarOverlay(options: TitleBarOverlayOptions): void {
     this.overlays.push(options);
+  }
+  setWindowButtonPosition(position: { readonly x: number; readonly y: number } | null): void {
+    this.buttons.push(position);
   }
   on(event: "enter-full-screen" | "leave-full-screen", listener: () => void): unknown {
     this.listeners.set(event, [...(this.listeners.get(event) ?? []), listener]);
@@ -96,6 +102,48 @@ describe("window chrome values", () => {
     // 16 + 23·2 + 14 + 16, 16 + 20·2 + 12 + 16
     expect(trafficLightInsetOf(tahoe)).toBe(92);
     expect(trafficLightInsetOf(older)).toBe(84);
+  });
+
+  test("traffic lights follow the app zoom to stay centered in the zoomed header (DP-172)", () => {
+    const tahoe = trafficLightMetricsOf("25.5.0");
+    const older = trafficLightMetricsOf("24.6.0");
+    // 머리 줄 본문 44 × 확대 안에서 가운데: (44z - 14) / 2
+    const ys = [90, 100, 125, 150, 200].map((zoom) => trafficLightPositionOf(tahoe, zoom).y);
+    expect(ys).toEqual([13, 15, 21, 26, 37]);
+    expect(trafficLightPositionOf(older, 125)).toEqual({ x: 16, y: 22 });
+    // 단추 가운데와 머리 줄 본문 가운데의 차이는 1px 안이다
+    for (const zoom of [90, 100, 110, 125, 150, 200]) {
+      const center = trafficLightPositionOf(tahoe, zoom).y + tahoe.size / 2;
+      expect(Math.abs(center - (44 * zoom) / 100 / 2)).toBeLessThanOrEqual(0.5);
+    }
+  });
+
+  test("zoom argument is an integer percent in range", () => {
+    expect(zoomPercentOf(undefined)).toBeNull();
+    expect(zoomPercentOf({})).toBeNull();
+    expect(zoomPercentOf({ zoom: 125 })).toBe(125);
+    expect(zoomPercentOf({ zoom: 1.25 })).toBe("bad");
+    expect(zoomPercentOf({ zoom: 20 })).toBe("bad");
+    expect(zoomPercentOf({ zoom: 400 })).toBe("bad");
+    expect(zoomPercentOf({ zoom: "125" })).toBe("bad");
+  });
+
+  test("placing traffic lights touches only mac windows that are alive", () => {
+    const lights = trafficLightMetricsOf("25.5.0");
+    const mac = new FakeChromeWindow();
+    placeTrafficLights(mac, "mac", lights, 125);
+    placeTrafficLights(mac, "mac", lights, 100);
+    expect(mac.buttons).toEqual([
+      { x: 16, y: 21 },
+      { x: 16, y: 15 },
+    ]);
+    const overlay = new FakeChromeWindow();
+    placeTrafficLights(overlay, "overlay", lights, 125);
+    expect(overlay.buttons).toEqual([]);
+    const gone = new FakeChromeWindow();
+    gone.destroyed = true;
+    placeTrafficLights(gone, "mac", lights, 125);
+    expect(gone.buttons).toEqual([]);
   });
 
   test("theme source falls back to system", () => {
@@ -258,6 +306,14 @@ describe("module", () => {
     expect(await call("window_chrome_state")).toEqual({
       ok: true,
       value: { kind: "none", fullscreen: false, insetStart: 0 },
+    });
+    expect(await call("window_chrome_state", { zoom: 125 })).toEqual({
+      ok: true,
+      value: { kind: "none", fullscreen: false, insetStart: 0 },
+    });
+    expect(await call("window_chrome_state", { zoom: 1.25 })).toEqual({
+      ok: false,
+      error: "bad-request",
     });
     expect(emitted).toEqual([]);
     expect(WINDOW_CHROME_EVENT).toBe("window-chrome");

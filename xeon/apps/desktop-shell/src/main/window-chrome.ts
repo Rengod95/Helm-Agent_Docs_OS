@@ -5,6 +5,8 @@
 // 테마: 시작할 때 데스크톱 설정 파일의 `l4.desktop.appearance.theme`을 창을 만들기 전에 읽어 `nativeTheme.themeSource`와
 // 창 배경색을 맞춘다(첫 그림 전 흰 번쩍임 방지). 화면이 테마를 바꾸면 `window_theme_set`으로 알린다.
 // 화면은 `window_chrome_state`로 틀 종류와 전체 화면 여부를 읽고, 바뀌면 `window-chrome` 이벤트를 받아 다시 읽는다.
+// 앱 확대(화면의 `<html>` `zoom`)는 머리 줄을 화면 px로 키우지만 신호등은 OS가 그대로 그린다. 화면이 `window_chrome_state {zoom}`으로
+// 확대(%)를 알리면 신호등 y를 커진 머리 줄의 세로 가운데로 다시 둔다(DP-172, `setWindowButtonPosition`).
 // 웹 탭에는 OS 창이 없다. 두 명령은 웹 게이트웨이 표에서 숨기고(commands-table.ts), 혹시 닿아도 "none"으로 답한다.
 import type {
   BrowserWindow,
@@ -37,7 +39,8 @@ export interface WindowChromeState {
 
 /**
  * 머리 줄 높이(px). 화면의 `--shell-header-h`(control-md 32 + 위아래 6 + 아래 선 1)와 같아야 한다.
- * 신호등과 오버레이 높이가 이 값으로 정해진다. 앱 확대(zoom)는 따라가지 않는다(OS가 그리는 부분이라 px 고정)
+ * 신호등과 오버레이 높이가 이 값으로 정해진다. 앱 확대(zoom)는 신호등 y만 따라간다(`trafficLightPositionOf`, DP-172).
+ * 오버레이 높이는 OS가 그리는 부분이라 px 고정이다
  */
 export const HEADER_HEIGHT = 45;
 /** 신호등 첫 단추의 창 왼쪽 끝에서 거리(px). Claude·Codex 데스크톱, Linear 모두 16~20px이다 */
@@ -60,12 +63,31 @@ export function trafficLightMetricsOf(release: string): TrafficLightMetrics {
   return Number.isInteger(major) && major >= 25 ? { size: 14, pitch: 23 } : { size: 12, pitch: 20 };
 }
 
-/** 신호등 첫 단추의 왼쪽 위 자리. 아래 선 1px을 뺀 44px 안에서 세로 가운데다 */
-export function trafficLightPositionOf(metrics: TrafficLightMetrics): {
+/** 화면이 알릴 수 있는 앱 확대(%) 범위. 화면의 확대 단계(90~200, appearance-prefs `ZOOM_STEPS`)를 담는다 */
+export const ZOOM_PERCENT_MIN = 50;
+export const ZOOM_PERCENT_MAX = 300;
+
+/**
+ * 신호등 첫 단추의 왼쪽 위 자리(창 px). 머리 줄은 앱 확대를 따라 화면에서 `HEADER_HEIGHT × 확대`가 되므로, 아래 선을 뺀
+ * `(HEADER_HEIGHT - 1) × 확대` 안에서 세로 가운데다(DP-172. 100%: 44 안에서 y 15, 125%: 55 안에서 y 21). x는 확대와 무관하다
+ */
+export function trafficLightPositionOf(
+  metrics: TrafficLightMetrics,
+  zoomPercent = 100,
+): {
   readonly x: number;
   readonly y: number;
 } {
-  return { x: TRAFFIC_LIGHT_X, y: Math.round((HEADER_HEIGHT - 1 - metrics.size) / 2) };
+  const zoom = zoomPercent / 100;
+  return { x: TRAFFIC_LIGHT_X, y: Math.round(((HEADER_HEIGHT - 1) * zoom - metrics.size) / 2) };
+}
+
+/** `window_chrome_state`의 인자에서 확대(%)를 읽는다. 없으면 null, 범위 밖이거나 정수가 아니면 "bad" */
+export function zoomPercentOf(args: unknown): number | null | "bad" {
+  const zoom = ownField(args, "zoom");
+  if (zoom === undefined) return null;
+  if (typeof zoom !== "number" || !Number.isInteger(zoom)) return "bad";
+  return zoom >= ZOOM_PERCENT_MIN && zoom <= ZOOM_PERCENT_MAX ? zoom : "bad";
 }
 
 /** 창 왼쪽 끝에서 머리 줄 첫 요소까지 비울 폭(px): 첫 단추 자리 + 세 단추 폭 + 간격 */
@@ -149,6 +171,8 @@ export interface ChromeWindow {
   isFullScreen(): boolean;
   setBackgroundColor(color: string): void;
   setTitleBarOverlay(options: TitleBarOverlayOptions): void;
+  /** macOS 신호등 자리. 앱 확대가 바뀌면 다시 둔다(DP-172) */
+  setWindowButtonPosition(position: { readonly x: number; readonly y: number } | null): void;
   on(event: "enter-full-screen" | "leave-full-screen", listener: () => void): unknown;
 }
 
@@ -159,6 +183,24 @@ export function recolor(win: ChromeWindow, kind: ChromeKind, dark: boolean): voi
   if (kind === "overlay") win.setTitleBarOverlay(overlayOf(dark));
 }
 
+/** 요청한 화면의 창. 웹 탭이거나 창을 못 찾거나 닫혔으면 null이다 */
+function callerWindow<W extends ChromeWindow>(caller: IpcCaller, windows: readonly W[]): W | null {
+  if ("kind" in caller.sender) return null;
+  const win = windows.find((candidate) => candidate.webContents === caller.sender);
+  return win === undefined || win.isDestroyed() ? null : win;
+}
+
+/** 신호등을 앱 확대에 맞춰 머리 줄 세로 가운데에 다시 둔다. 신호등이 있는 틀(mac)에서만 한다 */
+export function placeTrafficLights(
+  win: ChromeWindow,
+  kind: ChromeKind,
+  lights: TrafficLightMetrics,
+  zoomPercent: number,
+): void {
+  if (kind !== "mac" || win.isDestroyed()) return;
+  win.setWindowButtonPosition({ ...trafficLightPositionOf(lights, zoomPercent) });
+}
+
 /** 요청한 화면의 창을 찾아 틀 상태를 만든다. 웹 탭이거나 창을 못 찾으면 `none`이다 */
 export function chromeStateFor(
   caller: IpcCaller,
@@ -167,9 +209,8 @@ export function chromeStateFor(
   lights: TrafficLightMetrics,
 ): WindowChromeState {
   const none: WindowChromeState = { kind: "none", fullscreen: false, insetStart: 0 };
-  if ("kind" in caller.sender) return none;
-  const win = windows.find((candidate) => candidate.webContents === caller.sender);
-  if (win === undefined || win.isDestroyed()) return none;
+  const win = callerWindow(caller, windows);
+  if (win === null) return none;
   const fullscreen = win.isFullScreen();
   // 전체 화면에는 신호등이 없다(맨 위로 마우스를 올리면 OS 메뉴 막대와 함께 따로 내려온다)
   const insetStart = kind === "mac" && !fullscreen ? trafficLightInsetOf(lights) : 0;
@@ -206,9 +247,14 @@ export function createWindowChromeModule(deps: WindowChromeDeps): ShellModule {
       });
       // 운영체제 테마가 바뀌면("system"일 때) 창 색도 따라간다
       deps.theme.onUpdated(recolorAll);
-      ctx.handle("window_chrome_state", (caller) =>
-        chromeStateFor(caller, kind, windows(), lights),
-      );
+      // 인자 `{zoom}`(%)이 있으면 그 창의 신호등을 확대에 맞춰 다시 둔 뒤 상태를 답한다(DP-172)
+      ctx.handle("window_chrome_state", (caller, args) => {
+        const zoom = zoomPercentOf(args);
+        if (zoom === "bad") throw new ShellError("bad-request");
+        const win = zoom === null ? null : callerWindow(caller, windows());
+        if (win !== null && zoom !== null) placeTrafficLights(win, kind, lights, zoom);
+        return chromeStateFor(caller, kind, windows(), lights);
+      });
       ctx.handle("window_theme_set", (caller, args) => {
         // 웹 탭의 테마는 그 기기 화면에만 걸린다. 데스크톱 창 색을 바꾸지 않는다
         if ("kind" in caller.sender) throw new ShellError("unsupported-on-web");
