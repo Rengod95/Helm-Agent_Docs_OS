@@ -24,6 +24,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
+import { cssPxOf, cssZoomOf } from "../../lib/zoom.ts";
 import { useCraft } from "./craft-context.tsx";
 import { Mark, shapeOf } from "./marks.tsx";
 import { layerTitle } from "./orbit-names.ts";
@@ -388,33 +389,39 @@ function LinkCanvas({ focus }: { readonly focus: CanvasPlugin }): ReactNode {
   }, []);
 
   // 점과 행의 자리는 화면 좌표로 잰다. 열이 스크롤되면 다시 잰다.
+  // 잰 값은 화면 px이고 선(SVG)·떠 있는 카드는 확대 안의 CSS px로 그리므로 앱 확대로 나눈다(DP-173)
   const measure = useCallback((): void => {
     const root = rootRef.current;
     if (root === null) return;
+    const zoom = cssZoomOf(root);
+    const px = (v: number): number => cssPxOf(v, zoom);
     const base = root.getBoundingClientRect();
     const anchors: Record<string, Pt> = {};
     anchorEls.current.forEach((el, k) => {
       const r = el.getBoundingClientRect();
-      anchors[k] = { x: r.left + r.width / 2 - base.left, y: r.top + r.height / 2 - base.top };
+      anchors[k] = {
+        x: px(r.left + r.width / 2 - base.left),
+        y: px(r.top + r.height / 2 - base.top),
+      };
     });
     const rows: Record<string, Pt> = {};
     rowEls.current.forEach((el, id) => {
       const r = el.getBoundingClientRect();
-      rows[id] = { x: r.left - base.left, y: r.top + r.height / 2 - base.top };
+      rows[id] = { x: px(r.left - base.left), y: px(r.top + r.height / 2 - base.top) };
     });
     const col = colRef.current?.getBoundingClientRect();
     const card = cardRef.current?.getBoundingClientRect();
     const next: Geo = {
-      w: base.width,
-      h: base.height,
+      w: px(base.width),
+      h: px(base.height),
       anchors,
       rows,
       view:
         col === undefined
-          ? { top: 0, bottom: base.height }
-          : { top: col.top - base.top, bottom: col.bottom - base.top },
-      cardRight: card === undefined ? SIDE : card.right - base.left,
-      colLeft: col === undefined ? base.width - SIDE : col.left - base.left,
+          ? { top: 0, bottom: px(base.height) }
+          : { top: px(col.top - base.top), bottom: px(col.bottom - base.top) },
+      cardRight: card === undefined ? SIDE : px(card.right - base.left),
+      colLeft: col === undefined ? px(base.width) - SIDE : px(col.left - base.left),
     };
     setGeo((prev) =>
       prev !== null && JSON.stringify(prev) === JSON.stringify(next) ? prev : next,

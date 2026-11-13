@@ -3638,7 +3638,7 @@
       }
     },
     "l1.tools.permissionMode": {
-      "default": "default",
+      "default": "bypass",
       "enum": [
         "default",
         "acceptEdits",

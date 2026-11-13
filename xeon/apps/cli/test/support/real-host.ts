@@ -87,6 +87,7 @@ export function createRealCli(options: RealCliOptions = {}): RealCli {
     writeFileSync(
       settingsFile,
       JSON.stringify({
+        "l1.tools.permissionMode": "default",
         "l1.models.default": "tape/tape-1",
         "l1.models.providers": [{ id: "tape", enabled: true, apiKeyRef: null, baseUrl: null }],
         ...options.settings,

@@ -19,6 +19,7 @@ import {
   type ReactNode,
 } from "react";
 import { isMotionReduced, useMotionReduced } from "../../lib/motion-presets.tsx";
+import { cssZoomOf } from "../../lib/zoom.ts";
 import { GLOW_TUNE, LINE_TUNE, type GlowSpark, type GlowVariant } from "./fx-config.ts";
 import { useFxScheme } from "./fx-scheme.ts";
 
@@ -50,15 +51,6 @@ type Box = {
   /** 대상의 `corner-shape` 계산값. 판이 같은 모양을 쓴다 */
   readonly shape: string;
 };
-
-/**
- * 판이 서는 자리의 실효 CSS 확대(DP-171). 앱 확대는 `<html>`의 `zoom`이고(appearance-prefs.ts), `getBoundingClientRect`는 확대가 곱해진
- * 화면 px을 주지만 판의 `left`·`width`는 확대 안의 CSS px라 한 번 더 곱해진다. 확대를 모르는 브라우저는 1이다
- */
-export function cssZoomOf(el: { readonly currentCSSZoom?: number }): number {
-  const zoom = el.currentCSSZoom;
-  return typeof zoom === "number" && Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
-}
 
 /**
  * 대상 상자의 자리(감싼 판 기준, 판의 CSS px), 모서리 반경과 모양. 두 상자는 화면 px(`getBoundingClientRect`)이라 `zoom`으로 나눠

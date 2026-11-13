@@ -80,7 +80,7 @@ describe("work commands", () => {
   test("/plan enters plan mode and /plan exit leaves it after an approval", async () => {
     const { h, registry } = await boot();
     expect((await registry.run("plan", [])).message).toBe(
-      "계획 모드를 시작했어요. 이전 승인 모드: 기본(실행마다 묻기)",
+      "계획 모드를 시작했어요. 이전 승인 모드: 모두 허용",
     );
     expect(h.mode.current(h.threadId)).toBe("plan");
     await h.plans.submit({ title: "t", body: "b" }, h.opts("c1"));
@@ -88,7 +88,7 @@ describe("work commands", () => {
       "계획 p1 v1을 승인했어요.",
     );
     await h.settle();
-    expect(h.mode.current(h.threadId)).toBe("default");
+    expect(h.mode.current(h.threadId)).toBe("bypass");
   });
 
   test("/plan reject and /plan revise answer the pending plan", async () => {
@@ -129,8 +129,8 @@ describe("work commands", () => {
     const { h, registry } = await boot();
     await registry.run("plan", []);
     const result = await registry.run("plan", ["exit"]);
-    expect(result.message).toBe("계획 모드를 끝냈어요. 지금 승인 모드: 기본(실행마다 묻기)");
-    expect(h.mode.current(h.threadId)).toBe("default");
+    expect(result.message).toBe("계획 모드를 끝냈어요. 지금 승인 모드: 모두 허용");
+    expect(h.mode.current(h.threadId)).toBe("bypass");
   });
 
   test("leaving plan mode while a plan waits for approval says what to do, in Korean", async () => {

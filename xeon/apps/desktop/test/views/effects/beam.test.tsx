@@ -7,7 +7,6 @@ import {
   beamStateOf,
   BeamEdge,
   boxOf,
-  cssZoomOf,
 } from "../../../src/views/effects/beam.tsx";
 
 // beam(DP-107). 상태 판단과 자리 계산은 순수하게, 부품은 서버 렌더로 본다.
@@ -93,11 +92,7 @@ describe("boxOf", () => {
     expect([naive.width * 1.25, naive.height * 1.25]).toEqual([1112.5, 131.25]);
   });
 
-  test("확대를 모르거나 틀린 값이면 1", () => {
-    expect(cssZoomOf({ currentCSSZoom: 1.25 })).toBe(1.25);
-    expect(cssZoomOf({})).toBe(1);
-    expect(cssZoomOf({ currentCSSZoom: 0 })).toBe(1);
-    expect(cssZoomOf({ currentCSSZoom: Number.NaN })).toBe(1);
+  test("확대가 틀린 값이면 1로 본다", () => {
     expect(boxOf(rect(0, 0, 10, 10), rect(5, 5, 10, 10), "", "", 0).left).toBe(5);
   });
 });

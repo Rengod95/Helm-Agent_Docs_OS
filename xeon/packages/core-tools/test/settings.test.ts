@@ -5,7 +5,7 @@ import { callTool, createHarness, layer, registerWorkspace } from "./support/har
 
 test("defaults match the l1.tools settings table", () => {
   expect(readScalarConfig([])).toEqual({
-    mode: "default",
+    mode: "bypass",
     modeFromRepository: false,
     bypassAllowed: true,
     output: { maxLines: 2000, maxBytes: 51_200 },
@@ -53,7 +53,7 @@ test("bypassAllowed is read from the managed scope only; output limits are not a
     readScalarConfig([layer("launch", { "l1.tools.output.maxBytes": 4096 })]).output.maxBytes,
   ).toBe(51_200);
   expect(readScalarConfig([layer("user", { "l1.tools.permissionMode": "nope" })]).mode).toBe(
-    "default",
+    "bypass",
   );
   expect(
     readScalarConfig([layer("user", { "l1.tools.exposure.deferThreshold": 129 })]).deferThreshold,

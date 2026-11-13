@@ -1,6 +1,7 @@
 // S-04 토스트 자리(U-14, §6.4, DP-152, DP-157, DP-170). 창 전체 기준 오른쪽 아래, 상태 표시줄 위. 오른쪽 well이 열려 있으면 well 왼쪽 끝으로 옮겨
 // well 내용을 가리지 않는다. 입력창 묶음 같은 피할 곳(`data-toast-avoid`)의 조작부와 겹치면 폭을 줄여 그 오른쪽 틈에 넣고,
 // 틈이 최소 폭보다 좁으면 최소 폭으로 같은 자리에 둔다. 토스트는 어느 창 폭에서도 위로 올라가지 않는다(`toastWidth`).
+import { cssPxOf } from "../../lib/zoom.ts";
 import type { Layout } from "../../state/shell/index.ts";
 
 /** well 기본 폭 352 + 막대와 well 사이 간격 6 + 막대 폭과 창 여백 56 + 여유 12 */
@@ -32,6 +33,16 @@ export interface Box {
   readonly top: number;
   readonly right: number;
   readonly bottom: number;
+}
+
+/** 화면 px로 잰 상자를 앱 확대 `zoom` 아래의 CSS px로 옮긴다. 토스트 폭은 CSS px이라 잰 상자와 창 높이를 이것으로 맞춘다(DP-173) */
+export function cssBoxOf(box: Box, zoom: number): Box {
+  return {
+    left: cssPxOf(box.left, zoom),
+    top: cssPxOf(box.top, zoom),
+    right: cssPxOf(box.right, zoom),
+    bottom: cssPxOf(box.bottom, zoom),
+  };
 }
 
 /** 두 상자가 넓이를 갖고 겹치는지. 맞닿기만 하면 겹치지 않는다 */

@@ -27,3 +27,11 @@ export function deriveRisk(
   if (declared !== undefined) return declared;
   return hints?.readOnly === true ? "read" : "exec";
 }
+
+/**
+ * 모드가 "실행 허가" 성격의 승인을 덮는가(L1.tools.spec §4.5). bypass이고 managed가 막지 않았을 때만 참이다.
+ * bypass 여부를 비교하는 곳은 정책 평가기와 이 함수 두 군데뿐이다 [결정: 2026-11-13 사용자]
+ */
+export function modeCoversRunApprovals(mode: PermissionMode, bypassAllowed: boolean): boolean {
+  return mode === "bypass" && bypassAllowed;
+}

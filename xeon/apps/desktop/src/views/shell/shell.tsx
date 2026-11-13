@@ -5,6 +5,7 @@ import { t } from "@fresnel/client/i18n";
 import { EmptyState, Toaster } from "@caustic/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Presence, fadeIn, flipFrom, useScreenEnter } from "../../lib/motion-presets.tsx";
+import { cssPxOf, cssZoomOf } from "../../lib/zoom.ts";
 import { EndPanel, wellWidthOf } from "./end-panel.tsx";
 import type { ContextProfile } from "./context-picker.tsx";
 import { formatKey, resolveKeymap, type ActionId } from "./keybindings.ts";
@@ -19,6 +20,7 @@ import {
   TOAST_MIN_WIDTH_PX,
   toastPlace,
   toastWidth,
+  cssBoxOf,
   type Box,
 } from "./toaster-slot.ts";
 import { GoToThreadContext } from "../thread-link.ts";
@@ -185,7 +187,17 @@ function watchToastWidth(onWidth: (width: number) => void): () => void {
     const box = region.getBoundingClientRect();
     const action = region.querySelector('[data-slot="toast-action"]') !== null;
     const min = action ? TOAST_MIN_WIDTH_ACTION_PX : TOAST_MIN_WIDTH_PX;
-    onWidth(toastWidth(avoidControlsOf(), box.right, box.height, window.innerHeight, min));
+    // 잰 상자와 창 높이는 화면 px, 토스트 폭·간격은 CSS px라 앱 확대로 나눠 맞춘다(DP-173)
+    const zoom = cssZoomOf(region);
+    onWidth(
+      toastWidth(
+        avoidControlsOf().map((c) => cssBoxOf(c, zoom)),
+        cssPxOf(box.right, zoom),
+        cssPxOf(box.height, zoom),
+        cssPxOf(window.innerHeight, zoom),
+        min,
+      ),
+    );
   };
   const schedule = (): void => {
     if (frame === 0) frame = requestAnimationFrame(measure);
@@ -282,7 +294,8 @@ function ShellFrame(props: ShellProps): ReactNode {
     if (column === null) return;
     const left = column.getBoundingClientRect().left;
     if (!compact && lastOpen.current !== startOpen && lastLeft.current !== null) {
-      flipFrom(column, lastLeft.current - left);
+      // 자리는 화면 px이라 확대로 나눠 transform의 CSS px로 옮긴다(DP-173)
+      flipFrom(column, cssPxOf(lastLeft.current - left, cssZoomOf(column)));
       const panel = panelRef.current;
       if (panel !== null) {
         fadeIn(
