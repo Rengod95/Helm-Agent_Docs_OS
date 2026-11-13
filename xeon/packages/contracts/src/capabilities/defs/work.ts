@@ -514,7 +514,11 @@ export const PlanDecisionSchema: TUnion<
 export type PlanDecision = Static<typeof PlanDecisionSchema>;
 
 const PlanTitle = Type.String({ minLength: 1, maxLength: 200 });
-const PlanBody = Type.String({ minLength: 1, maxLength: 65536, description: "Markdown plan body" });
+const PlanBody = Type.String({
+  minLength: 1,
+  maxLength: 65536,
+  description: "Markdown plan body, max 64 KiB",
+});
 
 export type PlanVersion = {
   planId: PlanId;

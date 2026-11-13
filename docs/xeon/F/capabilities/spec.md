@@ -487,6 +487,12 @@ export function validateCapabilitySet(defs: readonly AnyCapabilityDef[]): readon
 
 /** TypeBox 스키마를 JSON Schema 2020-12 문서(순수 JSON)로 바꾼다. §4.3 규칙 */
 export function toJsonSchema(schema: TSchema): JsonValue;
+
+/** 모델에게 광고하는 입력 구조. toJsonSchema 결과를 줄인다. 순수 함수, 멱등. §4.3 "모델이 보는 구조" */
+export type ModelSchemaScope = "builtin" | "external";
+export function toModelSchema(schema: TSchema, scope: ModelSchemaScope): JsonValue;
+/** 기능 ID로 범위를 정한다. ext.*, x.*, grp.*, 동적 MCP 서버 도구(mcp.<서버>, 단 mcp.client는 내장)와 빈 ID는 external */
+export function modelSchemaScope(capability: string): ModelSchemaScope;
 ```
 
 검사 규칙 목록은 §4.6에 있다.
@@ -963,6 +969,11 @@ export type NotifyError =
   - 함수, `RegExp`, `undefined`, 심볼은 지운다. 이 과정에서 무언가 지워지면 `schema_not_json` 경고다.
   - `Type.Refine`의 검사 함수는 JSON Schema로 표현되지 않으므로 모델에게 보이지 않는다. `schema_refine_dropped` 경고를 낸다. 런타임 검증(L1.tools의 `Value.Check`)에서는 그대로 적용된다.
   - `$schema` 키는 넣지 않는다. 방언은 계약으로 고정한다.
+- 모델이 보는 구조 `toModelSchema(schema, scope)` [결정: 2026-11-13 사용자]: 모델에게 보내는 입력 구조는 `toJsonSchema` 결과를 한 번 더 줄인 것이다. 정의(TypeBox `parameters`)는 고치지 않고 서버 검증(`validateToolArguments`)은 원래 구조로 계속 한다. 지운 한도를 넘은 인자는 그대로 검증 오류다.
+  - (a) 멤버가 전부 `{const, type?}`뿐인 `anyOf`는 `enum`으로 바꾼다(멤버 type이 같으면 `type`을 함께 둔다). const가 아닌 멤버가 있는 `anyOf`는 그대로 둔다. 뜻이 같으므로 `builtin`과 `external` 모두에 적용한다.
+  - (b) `builtin`만: `minLength`, `maxLength`, `pattern`, `minimum`, `maximum`, `minItems`, `maxItems`, `format`을 스키마 자리 어디서나 지운다. `properties` 등 이름 맵 아래의 속성 이름과 `enum`, `const`, `default`, `examples`, `required`의 값은 건드리지 않는다. 외부 도구(MCP, 확장, 그룹)는 우리 쪽 서버 검증이 없어 한도가 모델이 보는 유일한 안내이므로 (b)를 하지 않는다.
+  - (c) 지우면 모델이 알 길이 없어지는 제약은 해당 필드의 `description`에 짧은 영어로 적는다(예: `schedule_create.at`의 ISO 8601, 스킬 이름 규칙, `ask_user` id·header·label 한도, 본문 최대 크기). 도구 `description`은 늘리지 않는다.
+  - 범위는 기능 ID로 정한다(`modelSchemaScope`). 모델 도구 정의가 아닌 구조(`ask_user` 답 스키마, MCP elicitation 폼)는 이 변환을 거치지 않는다.
 - 루트: `parameters`와 메서드 `input`의 루트는 `type: "object"`여야 한다(`parameters_not_object`, `method_input_not_object`).
 - `$ref` [제안]: 같은 스키마 안의 `#/$defs/<이름>`만 허용한다. 외부 URI와 `$id` 기반 참조는 `schema_ref_external` 오류다. 순환 참조(`Type.Cyclic`)는 허용하되 `schema_cyclic` 경고를 낸다. 순환을 지원하지 않는 provider를 위한 인라인 전개는 L1.models 어댑터 몫이다.
 - 크기 한도 [제안]. 수치는 provider 공식 한도를 확인하지 않은 보수값이다 [가정].
@@ -989,9 +1000,10 @@ export type NotifyError =
 - `toolOrderKey(a, b)`: `a.capability`와 `b.capability`를 바이트 순으로 비교하고, 같으면 `a.name`과 `b.name`을 비교한다. `localeCompare`를 쓰지 않는다.
 - 기능 밖의 도구도 같은 비교 함수에 넣는다 [제안]. 순서 키의 `capability` 자리에 확장 도구는 `ext.<확장 이름>`, MCP 도구는 `mcp.<서버 이름>`을 쓴다.
 - `orderTools(defs)`는 입력 배열 순서와 무관하게 같은 결과를 낸다. 같은 키가 두 번 나오면 결과를 만들지 않고 예외를 던진다. 이 경우는 `validateCapabilitySet`의 `tool_name_conflict`로 먼저 걸러야 한다.
-- `toolsetFingerprint`는 모델에게 보이는 부분만 해시한다. 입력은 순서대로 늘어놓은 `{ name, description, parameters: toJsonSchema(parameters) }` 배열의 정규화 JSON이다. `label`, `hints`, `replay`, `version`은 포함하지 않는다.
+- `toolsetFingerprint`는 모델에게 보이는 부분만 해시한다. 입력은 순서대로 늘어놓은 `{ name, description, parameters: toModelSchema(parameters, modelSchemaScope(capability)) }` 배열의 정규화 JSON이다. 변환이 멱등이라 접두에 이미 줄어서 기록된 광고와 정의에서 새로 만든 광고의 지문이 같다(기록된 접두의 지문은 기능 ID가 없어 external 범위로 계산하며, 기록된 바이트 그대로의 해시다). `label`, `hints`, `replay`, `version`은 포함하지 않는다.
 - 해시는 Web Crypto SHA-256을 쓴다 [제안]. Bun 1.4, 데스크톱 WebView(Electron의 Chromium), 브라우저에 모두 있는 표준 API이므로 F에 패키지 의존이 늘지 않는다. 비동기라서 반환 타입이 `Promise`다. 대안인 순수 TS 구현은 F.capabilities.plan §3 P6에서 비교한다.
 - 대화 중간의 추가·제거: 첫 요청의 도구 집합은 정렬 목록 전체를 앞머리에 둔다. 그 뒤의 변경은 정렬 목록을 다시 만들지 않는다. L1.context가 `diffToolsets(prev, next)`의 `added`와 `removed`를 pi-ai `SystemMessage.toolsAdded`, `toolsRemoved`로 대화 기록의 그 위치에 넣는다(`~/projects/_ref/pi-src/packages/ai/src/types.ts:541-557`). Anthropic API에서는 pi-ai가 이 메시지를 `tool_addition`, `tool_removal` 블록으로 바꾼다(`~/projects/_ref/pi-src/packages/ai/src/api/anthropic-messages.ts:1325-1352`). 같은 이름의 재정의는 제거 없이 추가만 보낸다(같은 파일 1340-1343행). 이렇게 하면 앞머리 접두가 유지되어 프롬프트 캐시가 깨지지 않는다(`_research/item-catalog.md` 진보된 설계 10번).
+- `modelWire(tool)`은 광고 선언 `{ name, description, parameters: toModelSchema(...) }`을 만든다. 접두 `toolsAdded`와 `diffToolsets`의 `added`가 이것을 싣는다. 도구 정의의 `description`(필드 설명 포함)이 바뀌면 그 도구는 `added`에 들어간다(재정의).
 - `firstChangedIndex`는 정렬 목록 전체를 다시 광고할 경우 캐시 접두가 깨지는 위치를 알려 준다. L1.context가 재광고와 시스템 메시지 추가 중 하나를 고르는 근거로 쓴다.
 
 ### 4.6 정적 검증 규칙
@@ -1091,6 +1103,7 @@ export type NotifyError =
 
 1. 같은 `CapabilityDef` 집합을 어떤 순열로 넣어도 `orderTools`의 결과와 `toolsetFingerprint`가 같다.
 2. `tools[i].method`가 `service.methods`에 없는 정의는 `validateCapability`가 `method_missing` 오류를 낸다. 타입 검사 단계에서도 컴파일 오류가 난다.
+3a. `toModelSchema`는 멱등이고, `anyOf`-const를 `enum`으로 바꾸며, `builtin`일 때만 검증 키워드를 지우고 속성 이름은 지우지 않는다. 지운 한도를 넘긴 인자는 `validateToolArguments`가 여전히 거부한다(`contracts/test/capabilities/model-schema.test.ts`, `core-tools/test/model-schema-validation.test.ts`).
 3. `Type.Object` 파라미터를 `toJsonSchema`에 넣으면 `~` 접두 키가 없는 JSON이 나오고, 그 JSON을 다시 JSON Schema 2020-12 검증기로 검사한 결과와 TypeBox `Value.Check` 결과가 표본 입력 집합에서 같다(손실 없음).
 4. consumer 코드가 provider 패키지를 import하지 않고 정의와 `serviceKey`만으로 `search({ query })` 호출의 입력·출력 타입을 추론해 타입 검사를 통과한다.
 5. 한 정의 안의 중복 도구 이름, `TOOL_NAME_WIRE_PATTERN` 위반 이름은 오류다. 내장 기능 도구에서 대문자나 하이픈을 쓴 이름은 경고다. 확장 도구 이름 `web-exa__search`는 `EXTENSION_TOOL_NAME_PATTERN`을 통과하고 경고가 없다.

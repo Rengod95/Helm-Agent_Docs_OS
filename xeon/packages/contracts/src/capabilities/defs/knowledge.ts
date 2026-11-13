@@ -22,6 +22,8 @@ import type { ToolContent, ToolSpec } from "../tool-spec.ts";
 /** Agent Skills 이름 규칙. pi skills.ts validateName과 같다(소문자, 숫자, 하이픈, 64자) */
 export const SkillNameSchema: TString = Type.String({
   pattern: "^[a-z0-9](?:[a-z0-9]|-(?!-)){0,62}[a-z0-9]$|^[a-z0-9]$",
+  description:
+    "Lowercase letters, digits, hyphens; max 64 chars; no leading, trailing or doubled hyphen",
 });
 
 export const SkillScopeSchema: TUnion<
@@ -64,6 +66,7 @@ export const SKILL_FILE_PATH_PATTERN: string =
 export const SkillFilePathSchema: TString = Type.String({
   pattern: SKILL_FILE_PATH_PATTERN,
   maxLength: 256,
+  description: "Relative path starting with references/, templates/, scripts/ or assets/",
 });
 
 const SKILL_FILE_PATH_REGEX = new RegExp(SKILL_FILE_PATH_PATTERN);
@@ -342,7 +345,7 @@ export type SkillCreateInput = WriteExtras & {
 const skillCreateInputShape = Type.Object({
   name: SkillNameSchema,
   description: Type.String({ minLength: 1, maxLength: 1024 }),
-  body: Type.String({ minLength: 1, maxLength: 100_000 }),
+  body: Type.String({ minLength: 1, maxLength: 100_000, description: "Max 100000 chars" }),
   scope: Type.Optional(WritableSkillScopeSchema),
   ...writeExtras,
 });
@@ -362,7 +365,9 @@ const skillEditInputShape = Type.Object({
   scope: Type.Optional(WritableSkillScopeSchema),
   baseHash: HashHexSchema,
   description: Type.Optional(Type.String({ minLength: 1, maxLength: 1024 })),
-  body: Type.Optional(Type.String({ minLength: 1, maxLength: 100_000 })),
+  body: Type.Optional(
+    Type.String({ minLength: 1, maxLength: 100_000, description: "Max 100000 chars" }),
+  ),
   ...writeExtras,
 });
 export const SkillEditInputSchema: TUnsafe<SkillEditInput> = Type.Unsafe<SkillEditInput>(
@@ -461,7 +466,9 @@ const skillManageFields = {
   ]),
   name: SkillNameSchema,
   description: Type.Optional(Type.String({ minLength: 1, maxLength: 1024 })),
-  body: Type.Optional(Type.String({ minLength: 1, maxLength: 100_000 })),
+  body: Type.Optional(
+    Type.String({ minLength: 1, maxLength: 100_000, description: "Max 100000 chars" }),
+  ),
   baseHash: Type.Optional(HashHexSchema),
   edits: Type.Optional(Type.Array(skillPatchEditShape, { minItems: 1, maxItems: 32 })),
   path: Type.Optional(SkillFilePathSchema),
