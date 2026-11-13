@@ -18,14 +18,16 @@ async function confirmedSession(rig: GroupRig): Promise<void> {
   await rig.answer("yes");
 }
 
-test("authoring.manifest: builtin plugin group, default off, ten tools registered", async () => {
+test("authoring.manifest: builtin plugin group, default on, eleven tools registered, all deferred", async () => {
   expect(authoringManifest.name).toBe("authoring");
-  expect(authoringManifest.defaultEnabled).toBe(false);
+  expect(authoringManifest.defaultEnabled).toBe(true);
   expect(authoringManifest.trust).toEqual({ level: "builtin" });
   expect(authoringManifest.group).toEqual({});
   const rig = await createGroupRig();
   const names = rig.toolNames();
   expect(names).toEqual([...AUTHORING_TOOL_NAMES].toSorted());
+  // 문맥 비용 0: 도구는 모두 `tool_search`로 찾아야 광고된다
+  expect(rig.exposures()).toEqual(AUTHORING_TOOL_NAMES.map(() => "deferred"));
 });
 
 test("authoring.intent: tools wait for the user to confirm the kind and the name", async () => {
@@ -314,4 +316,46 @@ test("authoring.card-text: the confirmation cards are Korean and name the kind a
   expect(JSON.stringify(request?.body)).toContain('"label":"예"');
   expect(JSON.stringify(request?.body)).toContain('"label":"아니요"');
   expect(request?.title).toBe("Plugin Builder");
+});
+
+test("authoring.guide: lists the topics and reads a body or a reference file from the injected guide", async () => {
+  const rig = await createGroupRig({
+    guide: {
+      topics: () => ({
+        ok: true,
+        value: [{ name: "plugins", description: "Use when building", files: ["references/a.md"] }],
+      }),
+      read: (topic, file) =>
+        topic === "plugins"
+          ? { ok: true, value: `text:${file ?? "SKILL"}` }
+          : { ok: false, error: { kind: "not_found", message: `no guide topic ${topic}` } },
+    },
+  });
+  expect(await rig.call("authoring_guide", {})).toEqual({
+    ok: true,
+    topics: [{ topic: "plugins", description: "Use when building", files: ["references/a.md"] }],
+  });
+  expect(await rig.call("authoring_guide", { topic: "plugins" })).toEqual({
+    ok: true,
+    topic: "plugins",
+    text: "text:SKILL",
+  });
+  expect(await rig.call("authoring_guide", { topic: "plugins", file: "references/a.md" })).toEqual({
+    ok: true,
+    topic: "plugins",
+    text: "text:references/a.md",
+  });
+  expect(await rig.call("authoring_guide", { topic: "nope" })).toEqual({
+    ok: false,
+    error: { kind: "not_found", message: "no guide topic nope" },
+  });
+});
+
+test("authoring.guide: without an injected guide the tool says so and opens no session", async () => {
+  const rig = await createGroupRig();
+  expect(await rig.call("authoring_guide", {})).toMatchObject({
+    ok: false,
+    error: { kind: "guide_unavailable" },
+  });
+  expect(rig.state().sessionId).toBeNull();
 });
