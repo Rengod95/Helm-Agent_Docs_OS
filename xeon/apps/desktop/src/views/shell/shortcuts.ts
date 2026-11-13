@@ -31,6 +31,9 @@ export function runShellAction(
     case "panel.work":
       actions.openEndTab("work");
       return true;
+    case "panel.running":
+      actions.openEndTab("running");
+      return true;
     case "area.toggle":
       settingsOpen.set(false);
       actions.toggleArea();

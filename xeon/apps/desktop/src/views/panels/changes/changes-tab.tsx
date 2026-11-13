@@ -22,7 +22,7 @@ import {
   useTurnSummaries,
 } from "../../../state/engine/index.ts";
 import { MessageActionsContext } from "../../convo/message-actions.tsx";
-import { LiveDot } from "../../effects/live-dot.tsx";
+import { ProgressOrb } from "../../effects/progress-orb.tsx";
 import { FileChangeDiff } from "../../file-change-view.tsx";
 import { ListSkeleton } from "../../pages/shared/panel-parts.tsx";
 import { relativeAgeOf } from "../../pages/shared/relative-age.ts";
@@ -161,7 +161,7 @@ function FileList(props: {
           <AccordionTrigger>
             <span className="flex min-w-0 flex-1 items-center gap-2">
               <FileName path={file.path} />
-              {file.pending ? <LiveDot state="run" /> : null}
+              {file.pending ? <ProgressOrb /> : null}
               <LineCounts added={file.added} removed={file.removed} wholeWrite={file.wholeWrite} />
             </span>
           </AccordionTrigger>
@@ -293,7 +293,7 @@ function UntrackedList(props: {
                 ) : null}
                 {call.text}
               </span>
-              {call.state === "pending" ? <LiveDot state="run" /> : null}
+              {call.state === "pending" ? <ProgressOrb /> : null}
               {props.showTurn && turn !== undefined ? (
                 <span className="flex-none text-footnote text-text-tertiary tabular-nums">
                   {turnLabelOf(turn)}
@@ -417,7 +417,7 @@ function TurnChanges(props: {
               </button>
             }
             detail={turnDetailOf(turn)}
-            time={turn.running ? <LiveDot state="run" /> : ageText(turn.startedAt, nowMs)}
+            time={turn.running ? <ProgressOrb /> : ageText(turn.startedAt, nowMs)}
             {...(turn.startedAt === null ? {} : { dateTime: turn.startedAt })}
             confirmMessage={
               turnRewind.kind === "ok"

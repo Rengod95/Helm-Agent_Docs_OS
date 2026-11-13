@@ -1,19 +1,7 @@
 import { t } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
-import {
-  Alert,
-  Badge,
-  Button,
-  Dialog,
-  EmptyState,
-  Field,
-  Input,
-  Plan,
-  Skeleton,
-  Timeline,
-  TimelineItem,
-} from "@caustic/react";
-import { ChevronRight } from "@caustic/react/icons";
+import { Alert, Badge, Button, Dialog, Input, Skeleton } from "@caustic/react";
+import { FileText, Target } from "@caustic/react/icons";
 import { useId, useState, type ReactNode } from "react";
 import { InfoTip } from "../../craft/info-tip.tsx";
 import {
@@ -21,20 +9,18 @@ import {
   planCardOf,
   planLoadViewOf,
   planVersionListOf,
-  taskListOf,
   type GoalVM,
   type PlanLoadView,
   type PlanVersionListVM,
   type PlanVersionRow,
   type PlanVersionWire,
-  type TaskListVM,
   type WorkNotice,
   type WorkState,
 } from "./work-model.ts";
 
-// 목표와 작업 화면(P-14)의 그림. 상태와 동작은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
-// 목표 걸기와 해제는 `work-screen.tsx`가 `/goal` 줄로 보낸다. 작업 행은 누를 수 없다(만든 턴으로 가는 값이 wire에 없다).
-// 계획 카드(W-18)는 최근 계획의 최신 판을 한 줄로 보이고, "보기"가 판 목록 대화상자를 연다.
+// 작업 탭(P-14, DP-195)의 목표·계획 그림과 작업 판 자리. 상태와 동작은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
+// 위에서 아래로: 목표 띠(있으면 조건·판정·해제, 없으면 걸기 한 줄) · 계획 한 줄 · 작업 판(`tasks`, 거울에서 그린다).
+// 목표 걸기와 해제는 `work-screen.tsx`가 `/goal` 줄로 보낸다. 계획 줄의 "보기"가 판 목록 대화상자를 연다.
 // 연결이 없으면 마지막으로 읽은 값을 흐리게 두고 쓰기 단추만 잠근다(mockups/d03 P-14 D-offline).
 
 export interface WorkHandlers {
@@ -42,21 +28,19 @@ export interface WorkHandlers {
   readonly submitGoal: () => void;
   readonly clearGoal: () => void;
   readonly retryGoal: () => void;
-  readonly retryTasks: () => void;
   readonly retryPlan: () => void;
   readonly viewPlan: () => void;
   readonly openVersions: () => void;
   readonly closeVersions: () => void;
-  readonly toggleDone: () => void;
   readonly dismissNotice: () => void;
 }
 
 export interface WorkViewProps {
-  /** 열린 대화가 있는가. 없으면 빈 상태만 그린다 */
-  readonly threadOpen: boolean;
   readonly state: WorkState;
   readonly live: boolean;
   readonly handlers: WorkHandlers;
+  /** 작업 판(거울에서 그린다). 목표·계획 아래에 놓인다 */
+  readonly tasks: ReactNode;
 }
 
 /**
@@ -74,12 +58,9 @@ const BADGE_TONE_CLASS: Readonly<Record<BadgeTone, string>> = {
 };
 
 export function WorkView(props: WorkViewProps): ReactNode {
-  const { threadOpen, state, live, handlers } = props;
-  if (!threadOpen) {
-    return <EmptyState size="sm" title={t("desktop.work.noThread")} />;
-  }
+  const { state, live, handlers } = props;
   return (
-    <div className="grid gap-5">
+    <div className="grid gap-3">
       {live ? null : (
         <Alert tone="neutral" size="sm">
           {t("desktop.work.offline")}
@@ -88,30 +69,11 @@ export function WorkView(props: WorkViewProps): ReactNode {
       {state.notice === null ? null : (
         <NoticeLine notice={state.notice} onDismiss={handlers.dismissNotice} />
       )}
-      <div className={live ? "grid gap-5" : "grid gap-5 opacity-60"}>
+      <div className={live ? "grid gap-3" : "grid gap-3 opacity-60"}>
         <GoalPanel state={state} live={live} handlers={handlers} />
         <PlanPanel state={state} live={live} handlers={handlers} />
-        <TasksPanel state={state} handlers={handlers} />
       </div>
-    </div>
-  );
-}
-
-/** 절 머리. 가운데 글은 `h2`이고, 머리 오른쪽 칸(단추나 정보 아이콘)은 `end`로 받는다 */
-function SectionHead(props: {
-  readonly id: string;
-  readonly title: string;
-  readonly end?: ReactNode;
-}): ReactNode {
-  return (
-    <div className="flex min-h-6 items-center gap-1.5">
-      <h2
-        id={props.id}
-        className="m-0 flex flex-1 items-baseline gap-1.5 text-ui font-semibold text-text-primary"
-      >
-        {props.title}
-      </h2>
-      {props.end}
+      {props.tasks}
     </div>
   );
 }
@@ -153,28 +115,32 @@ function PlanPanel(props: {
       <PlanVersionsBody view={view} versions={versions} onRetry={handlers.retryPlan} />
     </Dialog>
   );
+  // 계획 한 줄(높이 32): 문서 아이콘 · "계획" · 제목(넘치면 말줄임) · 버전 · 상태 · 보기. 읽기 상태는 줄 아래 알림이다
   return (
     <section aria-labelledby={headingId} className="grid gap-1.5">
-      <SectionHead
-        id={headingId}
-        title={t("desktop.work.plan.heading")}
-        end={<InfoTip text={t("desktop.work.plan.info")} />}
-      />
-      {card === null ? (
-        <>
-          <PlanNotice view={view} onRetry={handlers.retryPlan} />
-          {versionsDialog}
-        </>
-      ) : (
-        <div className="-mx-1.5 flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-1 text-ui hover:bg-fill-hover">
-          <span className="min-w-0 flex-1 truncate text-text-primary">{card.title}</span>
-          <span className="flex-none text-ui text-text-tertiary">
-            {t("desktop.work.plan.version", { version: card.version })}
-          </span>
-          <Badge size="xs">{t(card.statusRef.id)}</Badge>
-          {versionsDialog}
-        </div>
-      )}
+      <div className="flex min-h-8 min-w-0 items-center gap-2 rounded-lg border border-border-subtle px-2.5">
+        <FileText aria-hidden className="size-icon-sm flex-none text-text-tertiary" />
+        <h3
+          id={headingId}
+          className="m-0 flex flex-none items-center gap-1 text-ui-sm text-text-tertiary"
+        >
+          {t("desktop.work.plan.heading")}
+          <InfoTip text={t("desktop.work.plan.info")} />
+        </h3>
+        <span className="min-w-0 flex-1 truncate text-ui text-text-primary">
+          {card === null ? null : card.title}
+        </span>
+        {card === null ? null : (
+          <>
+            <span className="flex-none text-ui-sm font-normal tabular-nums text-text-tertiary">
+              {t("desktop.work.plan.version", { version: card.version })}
+            </span>
+            <Badge size="xs">{t(card.statusRef.id)}</Badge>
+          </>
+        )}
+        {versionsDialog}
+      </div>
+      {card === null ? <PlanNotice view={view} onRetry={handlers.retryPlan} /> : null}
     </section>
   );
 }
@@ -333,21 +299,36 @@ function GoalPanel(props: {
   const goal = state.goal;
   const vm = goal.status === "ready" && goal.value !== null ? goalVMOf(goal.value) : null;
   const writable = live && !state.busy;
-  // 진행 중인 목표는 "해제"만 보이고, 끝난 목표나 목표 없음은 걸기 칸이 바로 보인다
+  // 진행 중인 목표는 "해제"만 보이고, 끝난 목표나 목표 없음은 걸기 한 줄이 바로 보인다
   const active = vm !== null && vm.status === "active";
   return (
-    <section aria-labelledby={headingId} className="grid gap-1.5">
-      <SectionHead
-        id={headingId}
-        title={t("desktop.work.goal.heading")}
-        end={
-          active ? (
-            <Button size="xs" variant="ghost" disabled={!writable} onClick={handlers.clearGoal}>
-              {t("desktop.work.goal.clear")}
-            </Button>
-          ) : undefined
-        }
-      />
+    <section
+      aria-labelledby={headingId}
+      className="grid gap-1.5 rounded-xl border border-border-subtle bg-surface-base px-3 py-2.5"
+    >
+      <div className="flex h-6 min-w-0 items-center gap-1.5">
+        <Target aria-hidden className="size-icon-sm flex-none text-text-tertiary" />
+        <h3 id={headingId} className="m-0 flex items-center gap-1 text-ui-sm text-text-tertiary">
+          {t("desktop.work.goal.heading")}
+          {active ? null : <InfoTip text={t("desktop.work.goal.info")} />}
+        </h3>
+        {vm === null || active ? null : (
+          <Badge size="xs" className={BADGE_TONE_CLASS[goalToneOf(vm)]}>
+            {t(vm.statusRef.id, vm.statusRef.args)}
+          </Badge>
+        )}
+        <span className="flex-1" />
+        {vm === null ? null : (
+          <span className="flex-none text-ui-sm font-normal tabular-nums text-text-tertiary">
+            {t("desktop.work.goal.judged", { judged: vm.judged, max: vm.maxJudgments })}
+          </span>
+        )}
+        {active ? (
+          <Button size="xs" variant="ghost" disabled={!writable} onClick={handlers.clearGoal}>
+            {t("desktop.work.goal.clear")}
+          </Button>
+        ) : null}
+      </div>
       {goal.status === "loading" ? <GoalSkeleton /> : null}
       {goal.status === "failed" ? (
         <Alert
@@ -363,10 +344,10 @@ function GoalPanel(props: {
         </Alert>
       ) : null}
       {goal.status === "ready" ? (
-        <div className="grid gap-2.5">
+        <>
           {vm === null ? null : <GoalSummary goal={vm} />}
           {active ? null : <GoalForm draft={state.draft} writable={writable} handlers={handlers} />}
-        </div>
+        </>
       ) : null}
     </section>
   );
@@ -374,50 +355,43 @@ function GoalPanel(props: {
 
 function GoalSkeleton(): ReactNode {
   return (
-    <div className="grid gap-2" aria-busy>
-      <Skeleton width="80%" height={16} />
-      <Skeleton width="100%" height={12} />
-      <Skeleton width="100%" height={12} />
+    <div className="grid gap-1.5" aria-busy>
+      <Skeleton width="80%" height={14} />
+      <Skeleton width="50%" height={12} />
     </div>
   );
 }
 
-/** 목표 한 개: 조건, 상태 배지와 판정 횟수, 마지막 판정(판정 기록 한 줄), 끝난 까닭 */
+/** 목표 한 개: 조건(13/500, 세 줄까지), 마지막 판정 한 줄, 끝난 까닭 */
 function GoalSummary(props: { readonly goal: GoalVM }): ReactNode {
   const { goal } = props;
+  const verdict =
+    goal.verdict === null
+      ? null
+      : t(goal.verdict.met ? "desktop.work.goal.verdict.met" : "desktop.work.goal.verdict.unmet");
   return (
-    <div className="grid gap-1.5">
-      <p className="m-0 text-ui-strong text-text-primary">{goal.condition}</p>
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui text-text-tertiary">
-        <Badge size="xs" className={BADGE_TONE_CLASS[goalToneOf(goal)]}>
-          {t(goal.statusRef.id, goal.statusRef.args)}
-        </Badge>
-        <span className="tabular-nums">
-          {t("desktop.work.goal.judged", { judged: goal.judged, max: goal.maxJudgments })}
-        </span>
-      </div>
-      {goal.verdict === null ? null : (
-        <Timeline size="sm" aria-label={t("desktop.work.goal.verdicts")}>
-          <TimelineItem
-            author="system"
-            title={t(
-              goal.verdict.met
-                ? "desktop.work.goal.verdict.met"
-                : "desktop.work.goal.verdict.unmet",
-            )}
-            detail={goal.verdict.reason === "" ? undefined : goal.verdict.reason}
-          />
-        </Timeline>
+    <>
+      <p className="m-0 line-clamp-3 text-ui font-medium text-text-primary" title={goal.condition}>
+        {goal.condition}
+      </p>
+      {verdict === null || goal.verdict === null ? null : (
+        <p
+          aria-label={t("desktop.work.goal.verdicts")}
+          className="m-0 line-clamp-2 text-ui-sm font-normal text-text-secondary"
+        >
+          {goal.verdict.reason === "" ? verdict : `${verdict} · ${goal.verdict.reason}`}
+        </p>
       )}
       {goal.endRef === null ? null : (
-        <p className="m-0 text-ui font-normal text-text-secondary">
+        <p className="m-0 text-ui-sm font-normal text-text-secondary">
           {t(goal.endRef.id, goal.endRef.args)}
         </p>
       )}
-    </div>
+    </>
   );
 }
 
+/** 목표 걸기 한 줄: 입력(sm 28, 남는 폭) + 단추(sm 28). 같은 높이로 한 줄에 선다(폼 표준 §1) */
 function GoalForm(props: {
   readonly draft: string;
   readonly writable: boolean;
@@ -426,117 +400,26 @@ function GoalForm(props: {
   const { draft, writable, handlers } = props;
   return (
     <form
-      className="grid gap-2.5"
+      className="flex min-w-0 items-center gap-2"
       onSubmit={(event) => {
         event.preventDefault();
         if (writable) handlers.submitGoal();
       }}
     >
-      <Field label={t("desktop.work.goal.set.label")} size="sm">
-        <Input
-          size="sm"
-          value={draft}
-          disabled={!writable}
-          placeholder={t("desktop.work.goal.set.placeholder")}
-          onChange={(event) => {
-            handlers.draftChange(event.target.value);
-          }}
-        />
-      </Field>
-      <div>
-        <Button type="submit" size="sm" variant="solid" disabled={!writable}>
-          {t("desktop.work.goal.set.submit")}
-        </Button>
-      </div>
-    </form>
-  );
-}
-
-function TasksPanel(props: {
-  readonly state: WorkState;
-  readonly handlers: WorkHandlers;
-}): ReactNode {
-  const { state, handlers } = props;
-  const headingId = useId();
-  const tasks = state.tasks;
-  if (tasks.status === "loading") {
-    return (
-      <div className="grid gap-2" aria-busy>
-        <Skeleton width={64} height={12} />
-        <Skeleton width="90%" height={12} />
-        <Skeleton width="70%" height={12} />
-        <Skeleton width="80%" height={12} />
-      </div>
-    );
-  }
-  if (tasks.status === "failed") {
-    return (
-      <Alert
-        tone="danger"
+      <Input
         size="sm"
-        action={
-          <Button size="xs" variant="ghost" onClick={handlers.retryTasks}>
-            {t("desktop.work.retry")}
-          </Button>
-        }
-      >
-        {t("desktop.work.tasks.load.failed")}
-      </Alert>
-    );
-  }
-  const list = taskListOf(tasks.value, state.doneExpanded);
-  if (list.total === 0) {
-    return (
-      <section aria-labelledby={headingId} className="grid gap-1.5">
-        <SectionHead id={headingId} title={t("desktop.work.tasks.heading")} />
-        <p className="m-0 text-ui font-normal text-text-tertiary">
-          {t("desktop.work.tasks.empty")}
-        </p>
-      </section>
-    );
-  }
-  return <TaskList list={list} doneExpanded={state.doneExpanded} handlers={handlers} />;
-}
-
-function TaskList(props: {
-  readonly list: TaskListVM;
-  readonly doneExpanded: boolean;
-  readonly handlers: WorkHandlers;
-}): ReactNode {
-  const { list, doneExpanded, handlers } = props;
-  return (
-    <div className="grid gap-1.5">
-      <Plan
-        bare
-        title={t("desktop.work.tasks.heading")}
-        // 개수 글은 뺀다(caustic Plan은 countLabel이 필수라 빈 글을 준다)
-        countLabel={() => ""}
-        statusLabels={{
-          done: t("desktop.work.tasks.status.done"),
-          now: t("desktop.work.tasks.status.now"),
-          todo: t("desktop.work.tasks.status.todo"),
+        value={draft}
+        disabled={!writable}
+        aria-label={t("desktop.work.goal.set.label")}
+        placeholder={t("desktop.work.goal.set.placeholder")}
+        containerClassName="min-w-0 flex-1"
+        onChange={(event) => {
+          handlers.draftChange(event.target.value);
         }}
-        steps={list.steps.map((step) => ({
-          id: step.id,
-          label: step.label,
-          status: step.status,
-          clickable: false,
-          ...(step.detailRef === null ? {} : { detail: t(step.detailRef.id, step.detailRef.args) }),
-        }))}
       />
-      {list.foldable ? (
-        <div>
-          <Button
-            size="xs"
-            variant="ghost"
-            aria-expanded={doneExpanded}
-            iconStart={<ChevronRight className={doneExpanded ? "rotate-90" : undefined} />}
-            onClick={handlers.toggleDone}
-          >
-            {t("desktop.work.tasks.done")}
-          </Button>
-        </div>
-      ) : null}
-    </div>
+      <Button type="submit" size="sm" variant="outline" disabled={!writable}>
+        {t("desktop.work.goal.set.submit")}
+      </Button>
+    </form>
   );
 }

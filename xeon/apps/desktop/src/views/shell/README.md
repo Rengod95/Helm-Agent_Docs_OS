@@ -28,7 +28,8 @@ S-01 앱 셸의 자리(슬롯), 영역 바꾸기, 맥락 모델의 정본 설명
 | 슬롯 | 누가 채우나 | 어떻게 |
 |---|---|---|
 | 무대(가운데) | 화면 트랙 | `registry.registerScreen({ id, area, label, icon, Badge?, render })`(`desktop-registry.tsx`에 더함). `Badge`는 개수를 읽어 `render`로 넘기는 부품이라 값이 바뀌면 내비 줄이 따라 바뀐다. `id`는 내비 항목 id(`nav.ts`)와 같다 |
-| 오른쪽 탭 | 화면 트랙, 플러그인 well | `registry.registerEndTab({ id, area, label, icon, badge?, alwaysMounted?, width?, screens?, render })`. `badge`는 `TabBadge`(`read`, `subscribe`)라서 칸 숫자와 well 머리 글("플러그인 2")이 값이 바뀌면 따라 바뀐다. `alwaysMounted`는 탭을 열지 않아도 막대와 함께 그리는 부품(데이터를 읽어 두는 자리). 막대 칸 6개 뒤는 "더 보기" |
+| 오른쪽 탭 | 화면 트랙 | `registry.registerEndTab({ id, area, label, icon, badge?, Count?, Summary?, shortcut?, alwaysMounted?, width?, screens?, render })`. `badge`는 `TabBadge`(`read`, `subscribe`)이고 `Count`는 칸 수를 훅으로 읽는 부품(둘 다 있으면 `Count`). `Summary`는 well 머리 제목 옆 한 줄 요약, `shortcut`은 툴팁에 보일 동작 id. `alwaysMounted`는 탭을 열지 않아도 막대와 함께 그리는 부품. 막대에는 고정 탭만 서고 넘침 메뉴는 없다(DP-192) |
+| 플러그인 패널 | 플러그인, 호스트 상태 화면 | `registry.registerPluginEndTab({ ...EndTabDef, description, source: "plugin" \| "host" })`. 막대의 "플러그인" 단추 하나가 여는 2차 메뉴에 `source`별로 묶여 서고(플러그인 패널 → 이 대화의 플러그인), 고른 탭은 일반 탭처럼 well에 열린다. id는 막대 탭과 같은 이름 공간이라 겹치면 `Bug`(DP-194) |
 | 왼쪽 대화 목록 | 대화 트랙 | `Shell`의 `threadList` 속성 |
 | 상태 표시줄(S-03) | 대화 트랙 | `Shell`의 `statusBar` 속성(지금 `status-bar.tsx`) |
 | 명령 팔레트(S-02) | T-CHAT1 | `Shell`의 `palette` 속성. 열림은 `useShell(s => s.paletteOpen)`, 여닫기는 `setPaletteOpen` |
@@ -39,7 +40,7 @@ S-01 앱 셸의 자리(슬롯), 영역 바꾸기, 맥락 모델의 정본 설명
 - 같은 `id`를 두 번 등록하면 `Bug`입니다.
 - 화면 `id` 목록: 대화 `chat`, `inbox`, `proposals`, `schedules`, `connection`, `plugins`(내비 줄은 `proposals`·`schedules`·`plugins` 셋이다. `chat`은 맨 위 "새 대화" 줄과 대화 목록, ⌘1이 열고, `connection`은 `connection.open`(⌘5, 팔레트)이 연다. DP-69). 작업대 `overview`, `extensions`, `tests`, `metrics`, `compose`, `engine`. `tests`(P-19 테스트)는 `views/tests/`가 그리고 `views/workbench/index.tsx`가 등록합니다. `plugins`(플러그인 화면)는 대화 영역 내비의 마지막 항목(⌘6)이고 `desktop-registry.tsx`가 등록합니다. 플러그인 화면 내비 항목은 하나이고 확장마다 항목을 두지 않습니다. 무대에는 모든 확장의 `page`와 Helm이 아닌 `panel` 항목을 그리며 항목 키는 `<확장>/<화면>`입니다(`PluginPagesTab`). 작업대 확장 상세의 "플러그인 화면 열기"가 이 화면으로 갑니다. 오른쪽 탭 `helm`(Helm 패널)과 `plugin-pages`(그 밖의 `page`·`panel`)가 그립니다(T-VIEW).
 - 오른쪽 탭은 `screens`(화면 id 목록)를 줄 수 있다. 주면 그 화면에서만 보이고(`registry.endTabs(area, screen)`), 없으면 영역의 모든 화면에서 보인다. `work` 탭은 `["chat"]`이다.
-- 오른쪽 탭 id 규약: `inbox`(받은 요청), `runtime`, `work`, `helm`(대화 영역), `inspect`, `log`, `thread`(작업대 영역). `panel.inbox`·`panel.helm`·`panel.work` 키는 `inbox`·`helm`·`work` 탭 id를 엽니다.
+- 오른쪽 탭 id 규약: 대화 영역 막대는 `inbox`(받은 요청), `work`(작업), `running`(실행 중), `changes`(변경), `context`(컨텍스트) 차례이고, 플러그인 메뉴에는 `helm`(Helm), `runtime`(켜진 플러그인과 그룹), `plugin-pages`(플러그인 화면과 알림)가 있다. 작업대 영역은 `inbox`, `running`, `inspect`, `log`, `thread`. `panel.inbox`·`panel.work`·`panel.running`·`panel.helm` 키(⌘⇧I·T·R·H)는 같은 이름의 탭 id를 연다. 상태 표시줄 같은 다른 부품은 `useShellActions().openEndTab(<id>, "chat")`으로 연다.
 - 문자열은 메시지 키(`desktop.shell.*`)입니다. 화면 이름과 라벨을 코드에 한국어로 쓰지 않습니다.
 - 색과 간격은 caustic 토큰과 Tailwind 유틸리티뿐입니다. 셸은 재디자인 토큰을 쓰지 않습니다(T-LANG 되돌림).
 

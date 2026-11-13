@@ -3,44 +3,21 @@ import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { useCallback, useEffect, useReducer, useRef, type ReactNode } from "react";
 import { useLinkPhase, usePlans, useThreadRunning } from "../../../state/engine/index.ts";
-import { useSelectedThreadId } from "../../../state/ui/index.ts";
 import { useCommands } from "../../commands.ts";
 import { jumpToPlanCard } from "../../plan-card-jump.ts";
 import { commandErrorIdOf } from "./work-text.ts";
 import { goalCommandTextOf, INITIAL_WORK_STATE, planActionOf, workReducer } from "./work-model.ts";
 import { WorkView, type WorkHandlers } from "./work-view.tsx";
 
-// 목표와 작업 탭(P-14)의 동작. 열린 대화의 목표와 작업 목록은 `commands.work`로 읽고, 목표 걸기·해제는 `/goal` 줄을
+// 작업 탭(P-14, DP-195)의 목표·계획 동작. 열린 대화의 목표는 `commands.work.goal`로 읽고, 목표 걸기·해제는 `/goal` 줄을
 // `command.run`으로 보낸다. 계획 카드(W-18)는 거울이 받은 계획 기록의 마지막 계획 id로 판 목록을 읽는다.
-// 상태는 `workReducer`가 들고 그림은 `work-view.tsx`가 그린다.
+// 작업 판은 부르는 쪽(`views/panels/tasks/tasks-tab.tsx`)이 거울에서 그려 `tasks`로 넘긴다.
+// 상태는 `workReducer`가 들고 그림은 `work-view.tsx`가 그린다. 대화가 바뀌면 부르는 쪽이 `key`로 새로 시작한다
 
-/** 열린 대화가 없을 때 쓰는 빈 상태 */
-const NO_HANDLERS: WorkHandlers = {
-  draftChange: () => {},
-  submitGoal: () => {},
-  clearGoal: () => {},
-  retryGoal: () => {},
-  retryTasks: () => {},
-  retryPlan: () => {},
-  viewPlan: () => {},
-  openVersions: () => {},
-  closeVersions: () => {},
-  toggleDone: () => {},
-  dismissNotice: () => {},
-};
-
-export function WorkScreen(): ReactNode {
-  const threadId = useSelectedThreadId();
-  if (threadId === null) {
-    return (
-      <WorkView threadOpen={false} state={INITIAL_WORK_STATE} live={false} handlers={NO_HANDLERS} />
-    );
-  }
-  // 대화가 바뀌면 상태(초안, 접기, 알림)를 새로 시작한다
-  return <OpenThreadWork key={threadId} threadId={threadId} />;
-}
-
-function OpenThreadWork(props: { readonly threadId: ThreadId }): ReactNode {
+export function ThreadWork(props: {
+  readonly threadId: ThreadId;
+  readonly tasks: ReactNode;
+}): ReactNode {
   const { threadId } = props;
   const commands = useCommands();
   const live = useLinkPhase() === "live";
@@ -66,22 +43,18 @@ function OpenThreadWork(props: { readonly threadId: ThreadId }): ReactNode {
     latestRead.current += 1;
     const seq = latestRead.current;
     dispatch({ type: "loadStarted" });
-    const [goal, tasks] = await Promise.all([
-      commands.work.goal(threadId),
-      commands.work.tasks(threadId),
-    ]);
+    const goal = await commands.work.goal(threadId);
     if (seq !== latestRead.current) return;
     dispatch(goal.ok ? { type: "goalLoaded", goal: goal.value.goal } : { type: "goalFailed" });
-    dispatch(
-      tasks.ok ? { type: "tasksLoaded", tasks: tasks.value.tasks } : { type: "tasksFailed" },
-    );
     await readPlan(latestPlanId);
   }, [commands, threadId, latestPlanId, readPlan]);
 
-  // 연결이 살아 있고 턴이 돌고 있지 않을 때 읽는다. 턴이 끝나면 판정과 작업이 바뀌었을 수 있어 다시 읽는다
+  // 연결이 살아 있고 턴이 돌고 있지 않을 때 읽는다. 턴이 끝나면 판정이 바뀌었을 수 있어 다시 읽는다.
+  // 턴이 도는 중에 탭을 열었으면 아직 한 번도 못 읽었으므로 그때도 읽는다(아니면 뼈대가 턴 끝까지 남는다)
+  const goalUnread = state.goal.status === "loading";
   useEffect(() => {
-    if (live && !running) detach(read(), rethrow);
-  }, [live, running, read]);
+    if (live && (!running || goalUnread)) detach(read(), rethrow);
+  }, [live, running, goalUnread, read]);
 
   const notify = (tone: "success" | "danger" | "info", text: string): void => {
     dispatch({ type: "noticeSet", notice: { tone, text } });
@@ -131,9 +104,6 @@ function OpenThreadWork(props: { readonly threadId: ThreadId }): ReactNode {
     retryGoal: () => {
       detach(read(), rethrow);
     },
-    retryTasks: () => {
-      detach(read(), rethrow);
-    },
     retryPlan: () => {
       detach(readPlan(latestPlanId), rethrow);
     },
@@ -150,12 +120,9 @@ function OpenThreadWork(props: { readonly threadId: ThreadId }): ReactNode {
     closeVersions: () => {
       dispatch({ type: "versionsClosed" });
     },
-    toggleDone: () => {
-      dispatch({ type: "doneToggled" });
-    },
     dismissNotice: () => {
       dispatch({ type: "noticeSet", notice: null });
     },
   };
-  return <WorkView threadOpen state={state} live={live} handlers={handlers} />;
+  return <WorkView state={state} live={live} handlers={handlers} tasks={props.tasks} />;
 }

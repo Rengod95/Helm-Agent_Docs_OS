@@ -6,7 +6,7 @@ import { EmptyState, Toaster } from "@caustic/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Presence, fadeIn, flipFrom, useScreenEnter } from "../../lib/motion-presets.tsx";
 import { cssPxOf, cssZoomOf } from "../../lib/zoom.ts";
-import { EndPanel, wellWidthOf } from "./end-panel.tsx";
+import { currentEndTabOf, EndPanel, wellWidthOf } from "./end-panel.tsx";
 import type { ContextProfile } from "./context-picker.tsx";
 import { formatKey, resolveKeymap, type ActionId } from "./keybindings.ts";
 import { runShellAction, resolveShortcut } from "./shortcuts.ts";
@@ -234,7 +234,8 @@ function ShellToaster(props: { readonly registry: ShellRegistry }): ReactNode {
   const tabId = useShell((s) => s.places[s.area].endTab);
   const screen = useShell((s) => s.places[s.area].screen);
   const tabs = props.registry.endTabs(area, screen);
-  const place = toastPlace(layout, open, wellWidthOf(tabs.find((x) => x.id === tabId) ?? tabs[0]));
+  const pluginTabs = props.registry.pluginEndTabs(area, screen);
+  const place = toastPlace(layout, open, wellWidthOf(currentEndTabOf(tabs, pluginTabs, tabId)));
   const width = useToastWidth(place.kind === "end");
   const bottom = TOAST_BOTTOM_DEFAULT_PX;
   // DP-152 자리는 창 전체 기준 오른쪽 아래(끝에서 16px), 상태 표시줄 위다. 입력창 묶음·재시작 막대(`data-toast-avoid`)의 조작부와 겹치면
@@ -272,7 +273,9 @@ function ShellFrame(props: ShellProps): ReactNode {
   // 무대는 오른쪽 끝까지 찬다(DP-68). 오른쪽 막대는 그 위에 떠 있고, 겹치는 곳만 피한다:
   // 막대는 머리 줄 아래 본문의 세로 가운데에 서고(DP-135) 머리 줄은 끝까지 쓴다. 머리 뒤 본문은 막대 자리만큼 안쪽 여백을 두고(styles.css DP-68),
   // 막대는 창 끝에서 12px 떨어져 스크롤 막대를 덮지 않는다(end-panel.tsx)
-  const hasRail = props.registry.endTabs(railArea, railScreen).length > 0;
+  const hasRail =
+    props.registry.endTabs(railArea, railScreen).length > 0 ||
+    props.registry.pluginEndTabs(railArea, railScreen).length > 0;
   // 크래프트 개요는 캔버스가 무대 가장자리까지 깔린다. 여백과 막대 자리 비우기를 두지 않고, 막대와 겹치는 판은 캔버스가 스스로 비킨다
   const bleed = railArea === "workbench" && railScreen === "overview" && !props.settingsOpen;
   useWindowResize();
@@ -386,7 +389,7 @@ function ShellFrame(props: ShellProps): ReactNode {
                 settingsScreen={props.settingsScreen}
               />
             </main>
-            <EndPanel registry={props.registry} />
+            <EndPanel registry={props.registry} keyLabel={keyLabel} />
           </div>
           {props.statusBar}
         </div>

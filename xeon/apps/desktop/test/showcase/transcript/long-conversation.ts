@@ -234,6 +234,7 @@ export function longItemFacts(): readonly DurableFact[] {
 
 function turn(input: ItemId): TurnRecord {
   return {
+    lastComposition: null,
     turnId: trn(1),
     startedSeq: 101,
     startedAt: iso(T0),

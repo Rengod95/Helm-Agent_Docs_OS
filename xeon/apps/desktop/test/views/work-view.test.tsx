@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
-import type { GoalStatusResult, WorkTasksListResult } from "@fresnel/contracts/wire";
+import type { GoalStatusResult } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
 import {
   INITIAL_WORK_STATE,
@@ -15,7 +15,8 @@ import {
 } from "../../src/views/pages/work/work-view.tsx";
 import { version, versionsUpTo } from "./plan-fixtures.ts";
 
-// 목표와 작업 탭(P-14)의 서버 렌더. 빈(목표 없음, 대화 없음), 읽는 중, 오류, 오프라인, 권한 필요(해당 없음), 긴 내용을 그린다.
+// 작업 탭(P-14, DP-195)의 목표·계획 서버 렌더. 빈(목표 없음), 읽는 중, 오류, 오프라인, 권한 필요(해당 없음)를 그린다.
+// 작업 판(거울)은 `tasks` 자리로 들어오고 그 그림은 task-board.test.tsx가 본다.
 // 계획 카드(W-18)와 판 목록 본문도 그린다. 대화상자는 열린 때만 포털로 나가므로 본문은 `PlanVersionsBody`를 직접 그린다.
 // 클릭과 입력은 DOM이 없어 시험하지 못한다(뜻은 work-model 시험이 본다).
 
@@ -25,17 +26,14 @@ const HANDLERS: WorkHandlers = {
   submitGoal: NOOP,
   clearGoal: NOOP,
   retryGoal: NOOP,
-  retryTasks: NOOP,
   retryPlan: NOOP,
   viewPlan: NOOP,
   openVersions: NOOP,
   closeVersions: NOOP,
-  toggleDone: NOOP,
   dismissNotice: NOOP,
 };
 
 type GoalWire = NonNullable<GoalStatusResult["goal"]>;
-type TaskWire = WorkTasksListResult["tasks"][number];
 
 const ACTIVE: GoalWire = {
   condition: "시험이 모두 통과한다",
@@ -45,25 +43,19 @@ const ACTIVE: GoalWire = {
   lastVerdict: { met: false, reason: "e2e 2개 실패" },
 };
 
-function task(id: number, status: TaskWire["status"]): TaskWire {
-  return { taskId: `t${String(id)}`, content: `작업 ${String(id)}`, status, blockedBy: null };
-}
-
 function withGoal(goal: GoalWire | null): WorkState {
   return workReducer(INITIAL_WORK_STATE, { type: "goalLoaded", goal });
 }
 
-function withTasks(state: WorkState, tasks: readonly TaskWire[]): WorkState {
-  return workReducer(state, { type: "tasksLoaded", tasks });
-}
+const TASKS_SLOT = "작업 판 자리";
 
-function html(state: WorkState, over: { live?: boolean; threadOpen?: boolean } = {}): string {
+function html(state: WorkState, over: { live?: boolean } = {}): string {
   return renderToString(
     <WorkView
-      threadOpen={over.threadOpen ?? true}
       state={state}
       live={over.live ?? true}
       handlers={HANDLERS}
+      tasks={<p>{TASKS_SLOT}</p>}
     />,
   );
 }
@@ -77,40 +69,29 @@ function buttonOf(markup: string, label: string): string {
 }
 
 describe("WorkView states", () => {
-  test("no conversation open: only the empty text says so, with no goal or task panel", () => {
-    const markup = html(INITIAL_WORK_STATE, { threadOpen: false });
-    expect(markup).toContain(t("desktop.work.noThread"));
-    expect(markup).not.toContain(t("desktop.work.goal.set.submit"));
-    expect(markup).not.toContain(t("desktop.work.tasks.empty"));
-  });
-
-  test("empty goal: the panel offers the condition form only, with no goal text (mockup S5)", () => {
-    const state = withTasks(withGoal(null), []);
-    const markup = html(state);
+  test("empty goal: the goal strip offers the one-line condition form, and the task board slot follows", () => {
+    const markup = html(withGoal(null));
     expect(markup).toContain(t("desktop.work.goal.set.submit"));
+    expect(markup).toContain(t("desktop.work.goal.info"));
     expect(markup).not.toContain(t("desktop.work.goal.clear"));
-    expect(markup).toContain(t("desktop.work.tasks.empty"));
+    expect(markup).toContain(TASKS_SLOT);
   });
 
-  test("reading: both panels show skeletons and no empty text", () => {
+  test("reading: the goal strip shows skeletons and no form", () => {
     const markup = html(INITIAL_WORK_STATE);
     expect(markup).toContain('data-slot="skeleton"');
     expect(markup).not.toContain(t("desktop.work.goal.set.submit"));
-    expect(markup).not.toContain(t("desktop.work.tasks.empty"));
   });
 
-  test("error: a failed goal read and a failed task read each say so with a retry", () => {
-    const failed = workReducer(workReducer(INITIAL_WORK_STATE, { type: "goalFailed" }), {
-      type: "tasksFailed",
-    });
-    const markup = html(failed);
+  test("error: a failed goal read says so with a retry, and the task board still shows", () => {
+    const markup = html(workReducer(INITIAL_WORK_STATE, { type: "goalFailed" }));
     expect(markup).toContain(t("desktop.work.goal.load.failed"));
-    expect(markup).toContain(t("desktop.work.tasks.load.failed"));
     expect(markup).toContain(t("desktop.work.retry"));
+    expect(markup).toContain(TASKS_SLOT);
   });
 
   test("error from a goal command shows its sentence as a notice", () => {
-    const noticed = workReducer(withTasks(withGoal(ACTIVE), []), {
+    const noticed = workReducer(withGoal(ACTIVE), {
       type: "noticeSet",
       notice: { tone: "danger", text: t("desktop.work.command.failed") },
     });
@@ -118,20 +99,20 @@ describe("WorkView states", () => {
   });
 
   test("offline: the banner says so, the clear button is locked, and the read goal stays", () => {
-    const markup = html(withTasks(withGoal(ACTIVE), [task(1, "pending")]), { live: false });
+    const markup = html(withGoal(ACTIVE), { live: false });
     expect(markup).toContain(t("desktop.work.offline"));
     expect(markup).toContain(ACTIVE.condition);
     expect(buttonOf(markup, t("desktop.work.goal.clear"))).toContain('disabled=""');
   });
 
   test("permission needed does not apply: nothing on the tab asks for approval", () => {
-    const markup = html(withTasks(withGoal(ACTIVE), [task(1, "pending")]));
+    const markup = html(withGoal(ACTIVE));
     expect(markup).not.toContain(t("client.settings.proposals.failed.approvalRequired"));
     expect(markup).not.toContain(t("desktop.approvals.failure.switching"));
   });
 
   test("an active goal shows its condition, the judged count and the last verdict", () => {
-    const markup = html(withTasks(withGoal(ACTIVE), []));
+    const markup = html(withGoal(ACTIVE));
     expect(markup).toContain(ACTIVE.condition);
     expect(markup).toContain(t("desktop.work.goal.judged", { judged: 2, max: 3 }));
     expect(markup).toContain(t("desktop.work.goal.verdict.unmet"));
@@ -139,21 +120,11 @@ describe("WorkView states", () => {
     // 진행 중인 목표가 있으면 목표 걸기 칸은 보이지 않는다
     expect(markup).not.toContain(t("desktop.work.goal.set.submit"));
   });
-
-  test("long content: over the limit the done tasks fold and the button says how many are hidden", () => {
-    const tasks = Array.from({ length: 101 }, (_, index) =>
-      task(index + 1, index < 60 ? "done" : "pending"),
-    );
-    const markup = html(withTasks(withGoal(ACTIVE), tasks));
-    expect(markup).toContain(t("desktop.work.tasks.done"));
-    expect(markup).not.toContain("작업 1<");
-    expect(markup).toContain("작업 101");
-  });
 });
 
 /** 계획 p1을 읽는 중인 상태(판 목록은 아직 없다) */
 function startedPlan(): WorkState {
-  return workReducer(withTasks(withGoal(null), []), { type: "planLoadStarted", planId: "p1" });
+  return workReducer(withGoal(null), { type: "planLoadStarted", planId: "p1" });
 }
 
 /** 계획 p1의 판 목록을 읽어 온 상태 */
@@ -168,7 +139,7 @@ function skeletonsOf(markup: string): number {
 
 describe("WorkView plan card (W-18)", () => {
   test("no plan: the card is not drawn at all, its heading and info are absent", () => {
-    const markup = html(withTasks(withGoal(null), []));
+    const markup = html(withGoal(null));
     expect(markup).not.toContain(t("desktop.work.plan.heading"));
     expect(markup).not.toContain(t("desktop.work.plan.info"));
     expect(buttonOf(markup, t("desktop.work.plan.versions.open"))).toBe("");
@@ -192,7 +163,7 @@ describe("WorkView plan card (W-18)", () => {
   });
 
   test("loading: the card waits with one skeleton, and offline while loading says so instead", () => {
-    const loading = workReducer(withTasks(withGoal(null), []), {
+    const loading = workReducer(withGoal(null), {
       type: "planLoadStarted",
       planId: "p1",
     });

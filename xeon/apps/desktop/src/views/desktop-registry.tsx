@@ -1,12 +1,15 @@
 import {
   CalendarClock,
   Compass,
+  Component,
   Inbox,
   Layers,
+  LayoutGrid,
   Lightbulb,
   Link,
   ListChecks,
   MessageSquare,
+  Play,
   SquarePen,
   WandSparkles,
 } from "@caustic/react/icons";
@@ -37,7 +40,9 @@ import { ConnectionScreen } from "./pages/connection/connection-screen.tsx";
 import { FirstRunScreen } from "./pages/first-run/first-run-screen.tsx";
 import { ProposalsScreen } from "./pages/proposals/proposals-screen.tsx";
 import { ReviewScreen } from "./pages/review/review-screen.tsx";
-import { WorkScreen } from "./pages/work/work-screen.tsx";
+import { TasksSummary, TasksTab } from "./panels/tasks/tasks-tab.tsx";
+import { RunningSummary, RunningTab } from "./panels/running/running-tab.tsx";
+import { AttentionMark } from "./effects/attention-mark.tsx";
 import { SecretsPanel } from "./pages/secrets/secrets-screen.tsx";
 import { TrustCard } from "./trust.tsx";
 import { ThreadContextBar } from "./thread-context-bar.tsx";
@@ -67,6 +72,7 @@ import { CHANGES_TAB_ID, CONTEXT_TAB_ID } from "./panels/tab-ids.ts";
 import {
   useApprovalCount,
   useOpenThread,
+  useRunningThreadCount,
   useThreadIds,
   useTranscriptStatus,
 } from "../state/engine/index.ts";
@@ -284,30 +290,55 @@ const REVIEW_SCREEN: ScreenDef = {
   render: () => <ReviewScreen />,
 };
 
+/** 받은 요청 well 머리 요약(DP-193): 주의 표시 + "승인 2개가 기다려요", 없으면 "기다리는 요청이 없어요" */
+function InboxSummary(): ReactNode {
+  const count = useApprovalCount();
+  if (count === 0) return t("desktop.shell.end.inboxSummary.none");
+  return (
+    <>
+      <AttentionMark size="sm" />
+      {t("desktop.shell.end.inboxSummary.waiting", { count })}
+    </>
+  );
+}
+
+// 오른쪽 막대의 고정 탭 다섯(DP-192). 플러그인과 무관한 하네스 공통 기능이고 순서·자리가 바뀌지 않는다:
+// 받은 요청 · 작업 · 실행 중 · 변경 · 컨텍스트. 플러그인이 더한 패널은 구분선 뒤 "플러그인" 단추의 2차 메뉴로 간다(DP-194)
 const INBOX_TAB: EndTabDef = {
   id: "inbox",
   area: "both",
   label: "desktop.shell.nav.inbox",
   icon: <Inbox />,
+  shortcut: "panel.inbox",
+  width: 400,
+  Count: (p) => p.render(useApprovalCount()),
+  Summary: () => <InboxSummary />,
   render: () => <InboxTab />,
 };
 
-const HELM_TAB: EndTabDef = {
-  id: "helm",
-  area: "chat",
-  label: "desktop.plugin.tab.helm",
-  icon: <Compass />,
-  render: () => <HelmPanelTab />,
-};
-
-// 목표와 작업 탭(P-14). 대화 영역의 끝 영역이고 열린 대화의 목표와 작업을 보인다(`panel.work`, ⌘⇧T)
+// 작업 탭(P-14, DP-195). 열린 대화의 목표·계획과 작업 판(거울), 대화가 없으면 열린 작업이 있는 최근 대화들(⌘⇧T)
 const WORK_TAB: EndTabDef = {
   id: "work",
   area: "chat",
   label: "desktop.work.tab",
   icon: <ListChecks />,
-  screens: ["chat"],
-  render: () => <WorkScreen />,
+  shortcut: "panel.work",
+  width: 360,
+  Summary: () => <TasksSummary />,
+  render: () => <TasksTab />,
+};
+
+// 실행 중 탭(DP-196). 모든 대화의 도는 턴·하위 에이전트·예약 실행, 기다림, 방금 끝남(⌘⇧R). 두 영역 모두에 있다
+const RUNNING_TAB: EndTabDef = {
+  id: "running",
+  area: "both",
+  label: "desktop.running.tab",
+  icon: <Play />,
+  shortcut: "panel.running",
+  width: 380,
+  Count: (p) => p.render(useRunningThreadCount()),
+  Summary: () => <RunningSummary />,
+  render: () => <RunningTab />,
 };
 
 // 변경 탭(DP-198~200): 이 대화가 바꾼 파일을 전체와 턴별로, 턴 끝으로 대화 되감기
@@ -316,6 +347,7 @@ const CHANGES_TAB: EndTabDef = {
   area: "chat",
   label: "desktop.changes.tab",
   icon: <SquarePen />,
+  width: 440,
   screens: ["chat"],
   render: () => <ChangesTab />,
 };
@@ -326,6 +358,7 @@ const CONTEXT_TAB: EndTabDef = {
   area: "chat",
   label: "desktop.context.tab",
   icon: <Layers />,
+  width: 360,
   screens: ["chat"],
   render: () => <ContextTab />,
 };
@@ -370,15 +403,39 @@ export function createDesktopRegistry(): ShellRegistry {
   registry.registerScreen(SECRETS_SCREEN);
   registry.registerScreen(FIRST_RUN_SCREEN);
   registry.registerScreen(REVIEW_SCREEN);
-  // 막대 순서는 스펙 §4.9.4와 시안 chatRightTabs를 따른다: 받은 요청, 런타임, 작업, 플러그인
+  // 막대 순서(DP-192): 받은 요청 · 작업 · 실행 중 · 변경 · 컨텍스트 | 플러그인. 크래프트 영역은 받은 요청 · 실행 중 · 검사
   registry.registerEndTab(INBOX_TAB);
-  // 런타임 탭(§4.9.8): 이 대화의 주도 락, 켜진 그룹과 확장, 실패. 훅 알림을 위해 같은 워크벤치 스토어를 받는다
-  registry.registerEndTab(runtimeEndTab(workbench));
   registry.registerEndTab(WORK_TAB);
+  registry.registerEndTab(RUNNING_TAB);
   registry.registerEndTab(CHANGES_TAB);
   registry.registerEndTab(CONTEXT_TAB);
-  registry.registerEndTab(HELM_TAB);
-  registry.registerEndTab(pluginPagesEndTab(workbench));
+  // 플러그인 2차 메뉴(DP-194). 첫 묶음은 플러그인이 기여한 패널이고 Helm이 이 자리의 첫 소비자다(내용 `HelmPanelTab`은 그대로)
+  registry.registerPluginEndTab({
+    id: "helm",
+    area: "chat",
+    source: "plugin",
+    label: "desktop.plugin.tab.helm",
+    description: "desktop.plugin.tab.helmDescription",
+    icon: <Compass />,
+    shortcut: "panel.helm",
+    render: () => <HelmPanelTab />,
+  });
+  // 둘째 묶음은 호스트가 그리는 이 대화의 플러그인 상태다: 옛 "런타임"(§4.9.8: 주도 락, 켜진 그룹과 확장, 실패)과 옛 "플러그인"(알림, 프로필, 화면 목록).
+  // 탭 id(`runtime`, `plugin-pages`)는 그대로라 상태 줄·대화 머리의 링크가 계속 연다
+  registry.registerPluginEndTab({
+    ...runtimeEndTab(workbench),
+    source: "host",
+    label: "desktop.shell.end.runtimeName",
+    description: "desktop.shell.end.runtimeDescription",
+    icon: <Component />,
+  });
+  registry.registerPluginEndTab({
+    ...pluginPagesEndTab(workbench),
+    source: "host",
+    label: "desktop.shell.end.pagesName",
+    description: "desktop.shell.end.pagesDescription",
+    icon: <LayoutGrid />,
+  });
   registerWorkbench(registry, workbench);
   registry.registerEndTab(inspectEndTab(workbench));
   return registry;
