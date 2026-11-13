@@ -144,6 +144,14 @@ describe("method step", () => {
   });
 });
 
+/** Stepper 단계마다 [상태, 도는 중] */
+function stepperOf(markup: string): (readonly [string, boolean])[] {
+  return [...markup.matchAll(/<li[^>]*data-slot="stepper-item"[^>]*>/g)].map((m) => {
+    const tag = m[0];
+    return [/data-status="(\w+)"/.exec(tag)?.[1] ?? "", tag.includes('aria-busy="true"')] as const;
+  });
+}
+
 describe("check step over SSH", () => {
   test("a running check shows six lines and no save button", () => {
     const state = stateOf("ssh", ...SSH_CHECK, {
@@ -157,6 +165,11 @@ describe("check step over SSH", () => {
     expect(markup).toContain('data-step="check"');
     expect(markup).toContain('data-slot="check-steps" data-state="running"');
     expect(markup.split('data-slot="check-step"').length - 1).toBe(6);
+    expect(stepperOf(markup)).toEqual([
+      ["done", false],
+      ["current", true],
+      ["upcoming", false],
+    ]);
     const foot = footer(state);
     expect(buttonTagsNamed(foot, t("desktop.connection.add.save.connect"))).toHaveLength(0);
     expect(buttonTagsNamed(foot, t("desktop.connection.add.back")).map(isLocked)).toEqual([true]);
@@ -322,6 +335,11 @@ describe("check step over the web", () => {
   test("reading the value is a running inline check", () => {
     const markup = body(stateOf("web", ...start));
     expect(markup).toContain('data-slot="check-inline" data-state="running"');
+    expect(stepperOf(markup)).toEqual([
+      ["done", false],
+      ["current", true],
+      ["upcoming", false],
+    ]);
     expect(markup).not.toContain('data-slot="cert-box"');
   });
 
@@ -334,6 +352,7 @@ describe("check step over the web", () => {
     expect(markup).toContain('data-slot="cert-box"');
     expect(markup).toContain("ABAB ABAB");
     expect(markup).toContain('placeholder="ABCDE-12345"');
+    expect(stepperOf(body(state))[1]).toEqual(["current", false]);
     const pair = t("desktop.connection.add.web.pair");
     expect(buttonTagsNamed(footer(state), pair).map(isLocked)).toEqual([true]);
     const typed = addReducer(state, { type: "code", text: "abcde12345" });

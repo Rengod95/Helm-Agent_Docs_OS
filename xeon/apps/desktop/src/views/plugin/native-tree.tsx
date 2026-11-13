@@ -772,7 +772,8 @@ function StepperNode({ node }: NodeProps): ReactNode {
       return { id, label: textProp(child, "text") ?? id };
     });
   const value = steps.findIndex((step) => step.id === current) + 1;
-  return <Stepper steps={steps} value={value} variant="ghost" />;
+  // 앱 wizard와 같은 기본 모양(완료 = 옅은 원 + 체크, DP-186). 플러그인 트리는 상태를 주지 않으므로 value만 쓴다
+  return <Stepper steps={steps} value={value} />;
 }
 
 function activityOf(item: ResolvedItem, index: number): ActivityNode {

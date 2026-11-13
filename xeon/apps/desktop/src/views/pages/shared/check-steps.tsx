@@ -1,5 +1,5 @@
 import { Button } from "@caustic/react";
-import { Check, Circle, CircleAlert, LoaderCircle, Minus, X } from "@caustic/react/icons";
+import { Check, CircleAlert, Minus, X } from "@caustic/react/icons";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { ReactNode } from "react";
@@ -11,6 +11,8 @@ import { FORM_CONTROL_SIZE } from "../settings/settings-section.tsx";
 //               실패 줄 아래 들여서 고치는 법(13 tertiary)과 동작 단추 하나. 머리에 "N개 중 M개 통과"와 "다시 시험"을 둘 수 있다.
 //   CheckInline 한 단계. [시험] 단추 옆에 결과 한 줄, 실패면 아래에 고치는 법과 동작 단추.
 // 바탕·테두리·그림자가 없다. 넣는 카드의 면을 쓴다. 상태 색은 아이콘에만 주고 글은 secondary다(색만으로 뜻을 주지 않고 낭독기 글이 따로 있다).
+// 표시는 caustic Stepper의 렌즈와 한 식구다(DP-187): 기다림 = 1px 테 원, 도는 중 = 1.5px 테 + 숨 쉬는 심, 통과 체크, 실패 ×,
+// 건너뜀 −. 회전 스피너는 쓰지 않는다. 움직임 줄이기에서 심은 멈춘다(caustic 토큰 규칙).
 
 /** 단계 하나의 상태. 기다림 → 도는 중 → 통과·실패·건너뜀. `attention`은 실패가 아니라 사용자 확인을 기다리는 멈춤이다(새 호스트 키) */
 export type CheckState = "waiting" | "running" | "passed" | "failed" | "attention" | "skipped";
@@ -57,7 +59,7 @@ export function overallOf(steps: readonly CheckStep[]): CheckState {
   return "waiting";
 }
 
-/** 상태 아이콘 14px. 16px 칸 가운데 글자 첫 줄에 맞춘다 */
+/** 상태 표시 14px(렌즈 둘은 12px). 16px 칸 가운데 글자 첫 줄에 맞춘다 */
 function CheckIcon(props: { readonly state: CheckState }): ReactNode {
   const cls = "size-icon-sm";
   switch (props.state) {
@@ -68,11 +70,23 @@ function CheckIcon(props: { readonly state: CheckState }): ReactNode {
     case "attention":
       return <CircleAlert aria-hidden className={`${cls} text-warning-text`} />;
     case "running":
-      return <LoaderCircle aria-hidden className={`${cls} text-text-tertiary animate-spinner`} />;
+      return (
+        <span
+          aria-hidden
+          className="grid size-3 place-items-center rounded-full shadow-[inset_0_0_0_1.5px_var(--cs-color-accent-solid)]"
+        >
+          <span className="size-1 animate-breathe rounded-full bg-accent-solid" />
+        </span>
+      );
     case "skipped":
       return <Minus aria-hidden className={`${cls} text-text-tertiary`} />;
     case "waiting":
-      return <Circle aria-hidden className={`${cls} text-text-tertiary`} />;
+      return (
+        <span
+          aria-hidden
+          className="size-3 rounded-full shadow-[inset_0_0_0_1px_var(--cs-color-border-strong)]"
+        />
+      );
     default:
       return assertNever(props.state, "CheckState");
   }
