@@ -1,3 +1,4 @@
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { WebFailure } from "../../src/errors.ts";
 import type { CallerInfo } from "@fresnel/contracts/capabilities";
 import { createAccess, type Access, type AccessContext } from "../../src/policy/access.ts";
@@ -24,6 +25,8 @@ export interface WorldOptions {
   readonly hosts?: Readonly<Record<string, readonly string[]>>;
   readonly routes?: Readonly<Record<string, FixtureRoute>>;
   readonly asker?: FakeAsker;
+  /** 권한 모드가 실행 허가 성격의 승인을 덮는 대화 */
+  readonly approvalCover?: (threadId: ThreadId) => boolean;
   readonly secretValues?: readonly string[];
   /** 전송이 연결 시점에 호스트를 다시 풀어 검사할지. 기본 참 */
   readonly connectCheck?: boolean;
@@ -61,6 +64,7 @@ export function makeWorld(options: WorldOptions = {}): World {
     seen,
     guard: fakeSecretGuard(options.secretValues ?? []),
     asker,
+    ...(options.approvalCover === undefined ? {} : { approvalCover: options.approvalCover }),
   });
   const controller = new AbortController();
   return {
