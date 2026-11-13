@@ -48,6 +48,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { stepperLive } from "../thinking-indicator.tsx";
 
 // 선언형 화면 트리(ADR-0021 §3.4.1)를 caustic 부품으로 그린다. 순수 렌더러이고 앱 밖의 일을 하지 않는다.
 // 규칙:
@@ -772,8 +773,8 @@ function StepperNode({ node }: NodeProps): ReactNode {
       return { id, label: textProp(child, "text") ?? id };
     });
   const value = steps.findIndex((step) => step.id === current) + 1;
-  // 앱 wizard와 같은 기본 모양(완료 = 옅은 원 + 체크, DP-186). 플러그인 트리는 상태를 주지 않으므로 value만 쓴다
-  return <Stepper steps={steps} value={value} />;
+  // 앱 wizard와 같은 모양(프레넬 홈 레일, 지금 단계는 생각 구슬, DP-185·186). 플러그인 트리는 상태를 주지 않으므로 value만 쓴다
+  return <Stepper steps={steps} value={value} live={stepperLive} />;
 }
 
 function activityOf(item: ResolvedItem, index: number): ActivityNode {

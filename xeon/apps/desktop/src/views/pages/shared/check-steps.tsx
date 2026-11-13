@@ -4,6 +4,7 @@ import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { ReactNode } from "react";
 import { FORM_CONTROL_SIZE } from "../settings/settings-section.tsx";
+import { ThinkingIndicator } from "../../thinking-indicator.tsx";
 
 // 점검 줄(L4.desktop-ux DP-85 [결정: 2026-11-11 사용자]). "넣기 → 시험 → 결과"를 보이는 앱 공용 부품이다.
 // 모델 제공자 키, 시크릿, 원격 연결 wizard, MCP 연결 시험, 샌드박스 자가 점검이 같은 모양을 쓴다. 순수 표시 부품이고 데이터와 동작은 props다.
@@ -11,8 +12,8 @@ import { FORM_CONTROL_SIZE } from "../settings/settings-section.tsx";
 //               실패 줄 아래 들여서 고치는 법(13 tertiary)과 동작 단추 하나. 머리에 "N개 중 M개 통과"와 "다시 시험"을 둘 수 있다.
 //   CheckInline 한 단계. [시험] 단추 옆에 결과 한 줄, 실패면 아래에 고치는 법과 동작 단추.
 // 바탕·테두리·그림자가 없다. 넣는 카드의 면을 쓴다. 상태 색은 아이콘에만 주고 글은 secondary다(색만으로 뜻을 주지 않고 낭독기 글이 따로 있다).
-// 표시는 caustic Stepper의 렌즈와 한 식구다(DP-187): 기다림 = 1px 테 원, 도는 중 = 1.5px 테 + 숨 쉬는 심, 통과 체크, 실패 ×,
-// 건너뜀 −. 회전 스피너는 쓰지 않는다. 움직임 줄이기에서 심은 멈춘다(caustic 토큰 규칙).
+// 표시는 caustic Stepper(프레넬 홈 레일)와 한 식구다(DP-187): 기다림 = 1px 테 원, 도는 중 = 생각 구슬(ThinkingIndicator, 14칸),
+// 통과 체크, 실패 ×, 건너뜀 −. 회전 스피너·고리·단색 점은 쓰지 않는다. 움직임 줄이기에서 구슬은 멈춘 한 장면이다.
 
 /** 단계 하나의 상태. 기다림 → 도는 중 → 통과·실패·건너뜀. `attention`은 실패가 아니라 사용자 확인을 기다리는 멈춤이다(새 호스트 키) */
 export type CheckState = "waiting" | "running" | "passed" | "failed" | "attention" | "skipped";
@@ -59,7 +60,7 @@ export function overallOf(steps: readonly CheckStep[]): CheckState {
   return "waiting";
 }
 
-/** 상태 표시 14px(렌즈 둘은 12px). 16px 칸 가운데 글자 첫 줄에 맞춘다 */
+/** 상태 표시 14px(기다림 원은 12px). 16px 칸 가운데 글자 첫 줄에 맞춘다 */
 function CheckIcon(props: { readonly state: CheckState }): ReactNode {
   const cls = "size-icon-sm";
   switch (props.state) {
@@ -71,11 +72,8 @@ function CheckIcon(props: { readonly state: CheckState }): ReactNode {
       return <CircleAlert aria-hidden className={`${cls} text-warning-text`} />;
     case "running":
       return (
-        <span
-          aria-hidden
-          className="grid size-3 place-items-center rounded-full shadow-[inset_0_0_0_1.5px_var(--cs-color-accent-solid)]"
-        >
-          <span className="size-1 animate-breathe rounded-full bg-accent-solid" />
+        <span aria-hidden className="grid size-3.5 place-items-center">
+          <ThinkingIndicator active className="thinking-indicator-inline" />
         </span>
       );
     case "skipped":

@@ -31,6 +31,7 @@ import {
   type WorkNotice,
   type WorkState,
 } from "./work-model.ts";
+import { stepperLive } from "../../thinking-indicator.tsx";
 
 // 목표와 작업 화면(P-14)의 그림. 상태와 동작은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
 // 목표 걸기와 해제는 `work-screen.tsx`가 `/goal` 줄로 보낸다. 작업 행은 누를 수 없다(만든 턴으로 가는 값이 wire에 없다).
@@ -508,6 +509,7 @@ function TaskList(props: {
     <div className="grid gap-1.5">
       <Plan
         bare
+        live={stepperLive}
         title={t("desktop.work.tasks.heading")}
         // 개수 글은 뺀다(caustic Plan은 countLabel이 필수라 빈 글을 준다)
         countLabel={() => ""}

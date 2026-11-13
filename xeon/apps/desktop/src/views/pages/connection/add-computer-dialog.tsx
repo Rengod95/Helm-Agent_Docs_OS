@@ -56,6 +56,7 @@ import {
   type ProbeRunArgs,
   type ProbeState,
 } from "./connection-probe-model.ts";
+import { stepperLive } from "../../thinking-indicator.tsx";
 
 // "컴퓨터 추가" wizard(시안 §5.2, DP-115, DP-186). caustic Dialog(md) + 가로 Stepper(방식 · 점검 · 저장, 렌즈 마디). 본문은 최소 320px라서
 // 단계가 바뀌어도 대화 상자 높이가 출렁이지 않는다. 점검을 통과하기 전에는 저장 단추가 없다.
@@ -771,6 +772,7 @@ export function AddComputerBody(props: AddComputerBodyProps): ReactNode {
           stepperStepOf(step, i === stepIndex && probeStopped, i === stepIndex && checking),
         )}
         value={stepIndex + 1}
+        live={stepperLive}
       />
       <div className="grid min-h-80 content-start">
         {state.step === "method" ? (
