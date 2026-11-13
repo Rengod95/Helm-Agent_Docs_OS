@@ -5,6 +5,7 @@ import {
   type SandboxPolicy,
   type SandboxService,
   type Shell,
+  type ToolOutputFiles,
 } from "@fresnel/contracts/services";
 import type { ScopeStack } from "@fresnel/contracts/settings";
 import type { RgResolver, WorkspaceDeps } from "../../src/deps.ts";
@@ -103,6 +104,8 @@ export interface DepsOptions {
   readonly unattendedTimeoutMs?: () => number;
   readonly writeAccess?: WriteAccessPort;
   readonly homeDir?: string;
+  /** 잘린 도구 출력의 파일 사본(읽기 루트와 복원) */
+  readonly outputs?: ToolOutputFiles;
 }
 
 /** 대역 환경으로 서비스 의존을 만든다. sandbox가 null이면 서비스가 없는 상태다 */
@@ -114,8 +117,9 @@ export function depsFor(env: MemoryEnv, options: DepsOptions = {}): WorkspaceDep
     env,
     roots: {
       env,
-      roots: (context) => defaultRoots(env, context),
+      roots: (context) => defaultRoots(env, context, options.outputs),
       protectedPaths: () => protectedPaths,
+      ...(options.outputs === undefined ? {} : { outputs: options.outputs }),
     },
     sandbox,
     tempDir: "/tmp/fresnel",

@@ -20,6 +20,7 @@ import {
   type ExecService,
   type L2ApprovalsPort,
   type OsService,
+  type ToolOutputFiles,
   type SandboxService,
   type ToolRegistration,
   type ToolService,
@@ -52,6 +53,8 @@ export interface WorkspacePluginOptions {
   readonly unattendedTimeoutMs?: () => number;
   /** `fresnel.approvals`를 작업 폴더 밖 쓰기 허용 승인(kind tool)을 내는 포트로 감싸는 함수. 조립 루트가 넘긴다. 없으면 묻지 않고 막는다 */
   readonly approvals?: (service: ApprovalService) => L2ApprovalsPort;
+  /** 잘린 도구 출력의 파일 사본. 조립 루트가 넘긴다. 있으면 그 폴더를 `read`·`grep`의 읽기 루트에 더한다 */
+  readonly outputFiles?: ToolOutputFiles;
   readonly loadIndex?: number;
 }
 
@@ -117,8 +120,9 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
 
       const roots: RootsDeps = {
         env: exec,
-        roots: (context) => defaultRoots(exec, context),
+        roots: (context) => defaultRoots(exec, context, options.outputFiles),
         protectedPaths: (allowed) => sandbox?.protectedPaths(allowed) ?? [],
+        ...(options.outputFiles === undefined ? {} : { outputs: options.outputFiles }),
       };
       const deps: WorkspaceDeps = {
         env: exec,

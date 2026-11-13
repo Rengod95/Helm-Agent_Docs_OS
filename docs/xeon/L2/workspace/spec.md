@@ -602,6 +602,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 - 허용 root를 얻는 API는 `L1.tools.spec`이 정한다 [가정]. 그 API가 생기기 전에는 읽기 root와 쓰기 root 모두 대화의 작업 폴더 하나로 둔다 [제안].
 - [결정: review.m2-plan DG.4, open-issues M-06] 대화의 작업 폴더는 `thread.started`의 `workspace`(`ThreadSummaryRow.workspace`)다. 호출 문맥(`CallOptions.context.threadId`)으로 `fresnel.session`의 대화 투영을 읽고(`ThreadWorkspaces.workspaceOf`), 값이 있으면 그 폴더가 다음 셋의 기준이 된다. (1) 상대 경로를 푸는 cwd, (2) 읽기·쓰기 root 하나, (3) `bash`의 기본 cwd와 샌드박스 쓰기 root. 실행 환경은 `fresnel.exec`의 `withCwd`로 만든다. 값이 없거나(옛 행) 대화 문맥이 없으면 엔진의 cwd를 쓴다(M1 동작). 작업 폴더가 없는 경로를 가리키면 `not_found`이고 엔진 cwd로 물러나지 않는다. 한 엔진이 여러 작업 폴더의 대화를 동시에 열어도 대화마다 root가 다르다.
 - 같은 쓰기를 파일 도구는 L2에서, bash는 L0 샌드박스가 먼저 막고, 보호 경로가 아니면 §4.3.1로 사람에게 묻는다. 파일 도구는 샌드박스를 거치지 않으므로 L2 검사가 유일한 경로 방어다.
+- [결정: 2026-11-13 사용자, `read_tool_output` 폐지] 잘린 도구 출력의 파일 사본 폴더(`<상태 디렉터리>/spill/tool-output`, L1.tools.spec §4.8 6번)는 **읽기 root에만** 더한다(`RootsDeps.outputs`). 쓰기 root에는 없어서 `write`·`edit`는 거기에 묻지 않고 막는다(`outside_root`). 읽기 직전에 이 폴더 안의 없는 사본은 blob에서 되살린다(`ToolOutputFiles.restore`). 되살리지 못하면(blob이 지워짐) 일반 `not_found`다. 엔진이 원격 컴퓨터에서 돌아도 같은 엔진 안의 경로다.
 
 ### 4.3.1 작업 폴더 밖 쓰기는 막지 않고 묻는다 [결정: 2026-11-13 사용자]
 
