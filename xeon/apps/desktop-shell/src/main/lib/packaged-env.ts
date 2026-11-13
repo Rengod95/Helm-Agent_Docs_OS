@@ -10,6 +10,7 @@ export const DEV_ONLY_ENV: readonly string[] = [
   "FRESNEL_DESKTOP_ENGINE_BIN",
   "FRESNEL_DESKTOP_ENGINE_ARGS",
   "FRESNEL_UI_DIR",
+  "FRESNEL_DEV",
 ];
 
 /** 묶은 앱이면 개발용 변수를 뺀 사본을, 아니면 받은 환경을 그대로 돌려준다 */

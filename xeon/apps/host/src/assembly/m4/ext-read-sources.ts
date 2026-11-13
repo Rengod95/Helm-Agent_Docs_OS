@@ -67,6 +67,8 @@ export interface ExtReadAssembly {
   readonly groupService: () => GroupServiceWithUsage | undefined;
   /** `mcp.client` 공급자(cap-mcp가 올라올 때 채운다). 그 전에는 없다 */
   readonly mcpClient: () => McpClientPort | undefined;
+  /** 설정 값과 무관하게 켜진 채 잠긴 내장 그룹의 이유(개발 모드). 아니면 null */
+  readonly forcedOn: (name: string) => "devMode" | null;
 }
 
 /** 엔진 포트 조립(`ports.ts`)이 더하는 것 */
@@ -363,6 +365,7 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
       if (extension === undefined) return "default";
       return enabledSourceOf(catalog, layersOf(env.settings, threadId), extension);
     },
+    forcedOn: (name) => assembly.forcedOn(name),
     managedLocked(name) {
       const def = catalog.get(`ext.${name}.enabled`);
       if (def === undefined) return false;

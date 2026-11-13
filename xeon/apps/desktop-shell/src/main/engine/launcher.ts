@@ -134,6 +134,9 @@ export function planCommand(
   if (!(mode.kind === "engine" && mode.flags.includes("--remote"))) delete env[REMOTE_TOKEN_ENV];
   else if (mode.token !== undefined && mode.token !== "") env[REMOTE_TOKEN_ENV] = mode.token;
   const lookup = resolveSidecar(inputs);
+  // 묶지 않은 개발 사이드카를 띄울 때만 엔진에 개발 실행임을 알린다(`FRESNEL_DEV=1`). 묶은 사이드카에는 사용자 환경의 값도 넘기지 않는다
+  if (lookup.bundled) delete env["FRESNEL_DEV"];
+  else env["FRESNEL_DEV"] = "1";
   const override = devOverrideOf(inputs.env);
   if (override !== null && !lookup.bundled) {
     if (mode.kind === "engine") {

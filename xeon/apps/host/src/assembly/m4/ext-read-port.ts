@@ -152,6 +152,8 @@ export interface ExtReadSources {
   enabledSource(registrationId: string, threadId: string | undefined): EnabledSource;
   /** `ext.<이름>.enabled`가 managed 범위에서 잠겼는가 */
   managedLocked(name: string): boolean;
+  /** 설정 값과 무관하게 켜진 채 잠긴 이유(개발 모드). 아니면 null */
+  forcedOn(name: string): "devMode" | null;
   /** `mcp.client` 기능의 공급자. 아직 올라오지 않았으면 undefined(MCP 목록은 빈 목록이다) */
   mcpClient(): McpClientPort | undefined;
   health(name: string): ExtHealthStats;
@@ -230,6 +232,7 @@ export const EMPTY_EXT_READ_SOURCES: ExtReadSources = {
   threadStatus: () => undefined,
   enabledSource: () => "default",
   managedLocked: () => false,
+  forcedOn: () => null,
   mcpClient: () => undefined,
   health: () => ({
     consecutiveFailures: 0,
@@ -580,6 +583,12 @@ export function createExtReadPort(
     return question === null ? {} : { keepOffQuestion: question };
   }
 
+  /** 개발 모드라 켜진 채 잠겨 있으면 `forcedOn` 필드를 더한다. 아니면 필드를 싣지 않는다 */
+  function forcedOnOf(name: string): { readonly forcedOn?: "devMode" } {
+    const reason = sources.forcedOn(name);
+    return reason === null ? {} : { forcedOn: reason };
+  }
+
   function entryOf(
     record: ExtensionRecord,
     infos: ReadonlyMap<string, RegistrationStatus>,
@@ -622,6 +631,7 @@ export function createExtReadPort(
       autoDisabled: sources.autoDisabled(manifest.name),
       ...keepOffOf(manifest.name),
       safeModeExcluded: !record.loaded && safe.active ? (safe.cause ?? "flag") : null,
+      ...forcedOnOf(manifest.name),
       hookCount: entries.reduce((sum, entry) => sum + entry.decl.hooks.length, 0),
     };
   }

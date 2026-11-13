@@ -232,11 +232,7 @@ realTest(
 realTest(
   "a real host reads per-thread status and the drive lock of the group, its metrics, and refuses unknown names and threads",
   async () => {
-    // `authoring`은 기본 켜짐이고 drive를 쓴다. 켜 두면 유휴 drive가 먼저 임대를 쥐어(경계 둘이 지나야 반납) 이 시험의 그룹이 받지 못한다. 끈다
-    const { home, host, connection, group } = await startReal({
-      fail: false,
-      settings: { "ext.authoring.enabled": false },
-    });
+    const { home, host, connection, group } = await startReal({ fail: false });
     try {
       const groupId = group.module.manifest.name;
       const created = await connection.request("thread.create", {});
@@ -257,8 +253,8 @@ realTest(
           .map((row) => [row.id, row.usesDrive, row.scope])
           .toSorted((a, b) => String(a[0]).localeCompare(String(b[0]))),
       ).toEqual([
-        // 제작 그룹(`authoring`)은 이 시험이 끈다. 가이드 그룹(`guide`)은 내장이고 기본 꺼짐이다([결정: 2026-11-13 사용자])
-        ["authoring", true, "disabled"],
+        // 제작 그룹(`authoring`)은 내장이고 기본 켜짐이다. 가이드 그룹(`guide`)은 내장이고 기본 꺼짐이다([결정: 2026-11-13 사용자])
+        ["authoring", true, "enabled"],
         ["guide", false, "disabled"],
         ["learning", false, "enabled"],
         [groupId, true, "enabled"],

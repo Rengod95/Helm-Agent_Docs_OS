@@ -29,6 +29,8 @@ const GUIDE_SKILLS = [
 interface Run {
   readonly payloadText: string;
   readonly toolText: string;
+  /** `ext.list`의 가이드 그룹 행 */
+  readonly extGuide: { readonly status: string; readonly forcedOn?: string } | undefined;
 }
 
 /** 모델이 `calls`에 적은 도구를 차례로 부르고 끝내는 대화 하나를 돌린다. 호출이 없으면 "hi"에 답만 한다 */
@@ -85,8 +87,14 @@ async function run(options: {
     await collector.waitFor((event) => event.kind === "turn.completed");
     const first = provider.calls()[0];
     const toolText = toolResultTexts(collector.events, 6000).join("\n");
+    const listed = await connection.request("ext.list", {});
+    const row = listed.extensions.find((entry) => entry.name === "guide");
+    const extGuide =
+      row === undefined
+        ? undefined
+        : { status: row.status, ...(row.forcedOn === undefined ? {} : { forcedOn: row.forcedOn }) };
     await connection.close();
-    return { payloadText: JSON.stringify(first?.payload ?? null), toolText };
+    return { payloadText: JSON.stringify(first?.payload ?? null), toolText, extGuide };
   } finally {
     await host.close();
     rmSync(workspace, { recursive: true, force: true });
@@ -129,6 +137,26 @@ realTest(
     for (const name of GUIDE_SKILLS) expect(on.payloadText).toContain(name);
     const off = await run({ settings: { "ext.guide.enabled": false } });
     for (const name of GUIDE_SKILLS) expect(off.payloadText).not.toContain(name);
+  },
+  60_000,
+);
+
+realTest(
+  "a dev run (FRESNEL_DEV=1) turns the guide on and the extension list says it is forced on",
+  async () => {
+    const previous = process.env["FRESNEL_DEV"];
+    process.env["FRESNEL_DEV"] = "1";
+    try {
+      const on = await run({});
+      for (const name of GUIDE_SKILLS) expect(on.payloadText).toContain(name);
+      expect(on.extGuide).toMatchObject({ status: "enabled", forcedOn: "devMode" });
+    } finally {
+      if (previous === undefined) delete process.env["FRESNEL_DEV"];
+      else process.env["FRESNEL_DEV"] = previous;
+    }
+    const off = await run({});
+    expect(off.extGuide?.forcedOn).toBeUndefined();
+    expect(off.extGuide).toMatchObject({ status: "disabled" });
   },
   60_000,
 );
