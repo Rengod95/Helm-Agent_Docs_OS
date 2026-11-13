@@ -1,6 +1,7 @@
 import type { MessageId } from "@fresnel/client/i18n";
 import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
 import { mcpStartViewOf } from "../approval-form.ts";
+import { isWriteAccessTool } from "./write-access-model.ts";
 
 // 승인 카드가 그리는 순수 값(시간 표시, 만료, 키 해석, 계획 접기, 검토 합계). React 밖에서 시험한다(approval-card-model.test.ts).
 // 도구 인자·질문 답 조립은 ../approval-form.ts가 맡는다.
@@ -47,7 +48,10 @@ export function approvalExpiryOf(request: ApprovalRequestedPayload): ApprovalExp
   };
 }
 
-/** 카드 안의 바로 가기 동작. Y는 기본 답, N은 거부. 승인 기억은 요청 단위뿐이라 "항상"은 없다 [결정: 2026-10-31 사용자] */
+/**
+ * 카드 안의 바로 가기 동작. Y는 기본 답, N은 거부. 승인 기억은 요청 단위뿐이라 "항상"은 없다 [결정: 2026-10-31 사용자].
+ * 샌드박스 밖 쓰기 승인의 "이 대화에서 계속 허용"도 글쇠가 없다: 넓은 허용을 한 글쇠로 고르지 않게 단추로만 고른다(DP-204)
+ */
 type ApprovalKeyAction = "primary" | "deny";
 
 type ApprovalKeyLike = {
@@ -115,6 +119,7 @@ export function threadLinkVisibleOf(input: {
 export type CardTitleView =
   | { readonly id: "desktop.approvals.title.tool"; readonly params: { readonly tool: string } }
   | { readonly id: "desktop.approvals.title.plan" }
+  | { readonly id: "desktop.approvals.title.writeAccess" }
   | { readonly id: "desktop.approvals.title.web"; readonly params: { readonly host: string } }
   | {
       readonly id: "desktop.approvals.title.mcpStart";
@@ -146,6 +151,10 @@ const WRITE_TITLE = /^Approve (\S+) on (?:skill (.+)|(.+) memory)\?$/;
 
 export function cardTitleViewOf(request: ApprovalRequestedPayload): CardTitleView | null {
   const { body } = request;
+  // 샌드박스 밖 쓰기 승인은 엔진 제목(영어 대체 문장)과 상관없이 이 종류의 제목이다(DP-204)
+  if (body.kind === "tool" && isWriteAccessTool(body.tool)) {
+    return { id: "desktop.approvals.title.writeAccess" };
+  }
   // 기동 승인은 저장된 영어 제목 대신 인자의 서버 이름으로 그린다(인자 모양이 맞지 않으면 원문)
   const mcp = body.kind === "tool" ? mcpStartViewOf(body.tool) : null;
   if (mcp !== null)

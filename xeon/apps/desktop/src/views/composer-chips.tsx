@@ -1,5 +1,13 @@
-import { Button, ComboboxRow, Menu, MenuItem } from "@caustic/react";
-import { Check, ListChecks, LockOpen, Pencil, RotateCcw, Shield } from "@caustic/react/icons";
+import { Button, ComboboxRow, Menu, MenuItem, MenuSeparator } from "@caustic/react";
+import {
+  Check,
+  FolderOpen,
+  ListChecks,
+  LockOpen,
+  Pencil,
+  RotateCcw,
+  Shield,
+} from "@caustic/react/icons";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { ModelThinkingLevel } from "@fresnel/contracts/conversation";
@@ -70,14 +78,19 @@ function MenuText(props: { readonly title: string; readonly hint: string }): Rea
 
 /**
  * 권한 모드 칩. 메뉴는 묻기, 편집 자동 허용, 계획, 그리고 허락되면 모두 허용(`permissionModeOptionsOf`). 모두 허용은 위험 색이다.
- * 계획으로 들어가고 나오는 것은 부르는 쪽(`useThreadPermissionMode`)이 명령으로 한다
+ * 계획으로 들어가고 나오는 것은 부르는 쪽(`useThreadPermissionMode`)이 명령으로 한다.
+ * `writeAccess`(이 대화에서 샌드박스 밖 쓰기를 계속 허용함, DP-205)면 모드 이름 뒤에 폴더 아이콘 14(사이 4)를 붙이고,
+ * 메뉴 맨 아래 구분선 뒤에 누를 수 없는 설명 줄(12 tertiary)을 둔다. 철회 동작은 없다(엔진에 방법이 없다)
  */
 export function PermissionModeChip(props: {
   readonly mode: PermissionMode;
   readonly bypassAllowed: boolean;
   readonly disabled: boolean;
+  readonly writeAccess?: boolean;
   readonly onChange: (mode: PermissionMode) => void;
 }): ReactNode {
+  const writeAccess = props.writeAccess === true;
+  const chipLabel = `${t("desktop.composer.approvalMode.label")}: ${permissionModeChipText(props.mode)}`;
   const danger = permissionModeToneOf(props.mode) === "danger";
   return (
     <Menu
@@ -93,11 +106,14 @@ export function PermissionModeChip(props: {
           variant="ghost"
           disabled={props.disabled}
           data-composer-chip="mode"
-          aria-label={`${t("desktop.composer.approvalMode.label")}: ${permissionModeChipText(props.mode)}`}
+          aria-label={
+            writeAccess ? `${chipLabel}, ${t("desktop.composer.writeAccess.label")}` : chipLabel
+          }
           className={`${COMPOSER_CHIP_CLASS} ${danger ? "text-danger-text hover:text-danger-text" : ""}`}
         >
           {modeIcon(props.mode)}
           <span className="truncate">{permissionModeChipText(props.mode)}</span>
+          {writeAccess ? <FolderOpen aria-hidden data-slot="write-access-mark" /> : null}
         </Button>
       }
     >
@@ -120,6 +136,18 @@ export function PermissionModeChip(props: {
           />
         </MenuItem>
       ))}
+      {writeAccess ? (
+        <>
+          <MenuSeparator />
+          <p
+            data-slot="write-access-note"
+            className="m-0 flex items-start gap-2 px-2 py-1.5 text-ui-sm text-text-tertiary [&_svg]:mt-px [&_svg]:size-3.5 [&_svg]:shrink-0"
+          >
+            <FolderOpen aria-hidden />
+            {t("desktop.composer.writeAccess.note")}
+          </p>
+        </>
+      ) : null}
     </Menu>
   );
 }

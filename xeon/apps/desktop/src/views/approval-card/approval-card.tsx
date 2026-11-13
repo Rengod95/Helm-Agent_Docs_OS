@@ -36,6 +36,12 @@ import {
 } from "./card-model.ts";
 import { useGoToThread } from "../thread-link.ts";
 import { AttendGlow } from "../effects/attention-mark.tsx";
+import { WriteAccessBody } from "./write-access-body.tsx";
+import {
+  writeAccessDecisionsOf,
+  writeAccessFoldsOf,
+  writeAccessViewOf,
+} from "./write-access-model.ts";
 
 // 승인 카드. 트랜스크립트 끝, 끝 영역 받은 요청(InboxApprovals), P-03 목록이 같은 카드를 쓴다(FS-02).
 // 카드는 거울의 approvals를 읽고 응답 직후 표시는 UI 스토어가 가진다. 대기열에서 빠지는 일은 approval.resolved가 한다.
@@ -106,11 +112,15 @@ function ageTextOf(age: ApprovalAge): string {
   }
 }
 
-/** 카드가 보내는 답들. primary는 Y, deny는 N, edit는 계획의 수정 요청이다. null이면 그 동작을 끈다 */
+/**
+ * 카드가 보내는 답들. primary는 Y, deny는 N, edit는 계획의 수정 요청, thread는 샌드박스 밖 쓰기의 "이 대화에서 계속 허용"이다.
+ * null이면 그 동작을 끈다(edit·thread는 그 단추를 그리지 않는다)
+ */
 type Decisions = {
   readonly primary: ApprovalDecision | null;
   readonly deny: ApprovalDecision;
   readonly edit: ApprovalDecision | null;
+  readonly thread: ApprovalDecision | null;
 };
 
 type Action = {
@@ -165,11 +175,14 @@ function PendingCard(props: {
   const [feedback, setFeedback] = useState("");
   // 도구 인자(원시 JSON)는 접어 두고 단추 줄 왼쪽의 펼침 단추로 연다
   const [argsOpen, setArgsOpen] = useState(false);
+  // 쓰기 허용 본문이 폭 때문에 잘린 값이 있다고 알린 상태(펼침 단추를 세운다)
+  const [clipped, setClipped] = useState(false);
   const argsId = useId();
   const titleId = useId();
   const { body } = request;
   const busy = sendState === "sending";
 
+  const writeAccess = writeAccessViewOf(request);
   const decisions: Decisions = decisionsOf(request, { draft, mode, feedback });
   const respond = (decision: ApprovalDecision): void => {
     detach(commands.respondApproval(id, decision), rethrow);
@@ -202,11 +215,13 @@ function PendingCard(props: {
         ? t(titleView.id, titleView.params)
         : titleView.id === "desktop.approvals.title.plan"
           ? t(titleView.id)
-          : titleView.id === "desktop.approvals.title.web"
-            ? t(titleView.id, titleView.params)
-            : titleView.id === "desktop.approvals.title.mcpStart"
+          : titleView.id === "desktop.approvals.title.writeAccess"
+            ? t(titleView.id)
+            : titleView.id === "desktop.approvals.title.web"
               ? t(titleView.id, titleView.params)
-              : t(titleView.id, { name: titleView.params.name, op: t(titleView.params.opId) });
+              : titleView.id === "desktop.approvals.title.mcpStart"
+                ? t(titleView.id, titleView.params)
+                : t(titleView.id, { name: titleView.params.name, op: t(titleView.params.opId) });
   const origin = approvalOriginView(request.origin.caller, request.origin.source);
   const expiry = approvalExpiryOf(request);
   const review = body.kind === "review" ? body.review : null;
@@ -256,7 +271,7 @@ function PendingCard(props: {
       </>
     );
 
-  // 오른쪽 아래 단추 묶음, 읽는 순서대로: [거부] [(계획) 수정 요청] [주 동작]. 주 동작만 채움이다
+  // 오른쪽 아래 단추 묶음, 읽는 순서대로: [거부] [(계획) 수정 요청 | (쓰기 허용) 이 대화에서 계속 허용] [주 동작]. 주 동작만 채움이다
   const answers: Action[] = [
     { id: "deny", label: denyLabelOf(body.kind), decision: decisions.deny, look: "ghost" },
   ];
@@ -268,17 +283,32 @@ function PendingCard(props: {
       look: "soft",
     });
   }
+  if (decisions.thread !== null) {
+    answers.push({
+      id: "allow-thread",
+      label: "desktop.approvals.writeAccess.thread.button",
+      decision: decisions.thread,
+      look: "soft",
+    });
+  }
   answers.push({
     id: "primary",
-    label: primaryLabelOf(body.kind),
+    label:
+      writeAccess === null
+        ? primaryLabelOf(body.kind)
+        : "desktop.approvals.writeAccess.once.button",
     decision: decisions.primary,
     look: "solid",
   });
   const tool = body.kind === "tool" ? body.tool : null;
-  const hasArgs = tool !== null && toolHasArgs(tool);
+  // 쓰기 허용 승인은 같은 값을 구조로 이미 보여 원시 인자 단추 대신, 잘린 경로·명령이 있을 때만 "전체 보기"를 둔다
+  const hasArgs = writeAccess === null && tool !== null && toolHasArgs(tool);
+  const folds = writeAccess !== null && (clipped || writeAccessFoldsOf(writeAccess));
 
   const bodyNode =
-    body.kind === "tool" ? (
+    writeAccess !== null ? (
+      <WriteAccessBody view={writeAccess} open={argsOpen} id={argsId} onClipped={setClipped} />
+    ) : body.kind === "tool" ? (
       <ToolBody body={body.tool} argsOpen={argsOpen} argsId={argsId} />
     ) : body.kind === "question" ? (
       <QuestionBody
@@ -391,6 +421,27 @@ function PendingCard(props: {
               {t(argsOpen ? "desktop.approvals.args.hide" : "desktop.approvals.args.show")}
             </Button>
           ) : null}
+          {folds ? (
+            <Button
+              type="button"
+              data-action="fold"
+              size={ACTION_SIZE}
+              variant="ghost"
+              aria-expanded={argsOpen}
+              aria-controls={argsId}
+              className="-ml-2.5 gap-1 text-text-secondary [&_svg]:size-3.5 [&_svg]:transition-transform aria-expanded:[&_svg]:rotate-90"
+              onClick={() => {
+                setArgsOpen((open) => !open);
+              }}
+            >
+              <ChevronRight aria-hidden />
+              {t(
+                argsOpen
+                  ? "desktop.approvals.writeAccess.less"
+                  : "desktop.approvals.writeAccess.full",
+              )}
+            </Button>
+          ) : null}
           {body.kind === "review" ? (
             <Button
               type="button"
@@ -403,27 +454,32 @@ function PendingCard(props: {
               {t("desktop.approvals.review.open.button")}
             </Button>
           ) : null}
-          <span aria-hidden className="flex-1" />
-          {busy ? (
-            <span role="status" className="text-ui-sm text-text-tertiary">
-              {t("desktop.approvals.sendingStatus")}
-            </span>
-          ) : null}
-          {sendState === "gone" ? (
-            <Button
-              type="button"
-              data-action="dismiss"
-              size={ACTION_SIZE}
-              variant="ghost"
-              onClick={dismiss}
-            >
-              {t("desktop.approvals.failure.gone.dismiss")}
-            </Button>
-          ) : (
-            answers.map((action) => (
-              <ActionButton key={action.id} action={action} disabled={busy} onRespond={respond} />
-            ))
-          )}
+          {/* 답 단추 묶음은 오른쪽 끝에 붙고, 좁은 폭에서 줄이 넘치면 묶음째 다음 줄 오른쪽으로 내려간다(주 동작이 혼자 왼쪽으로 떨어지지 않게) */}
+          <span
+            data-slot="approval-answers"
+            className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2"
+          >
+            {busy ? (
+              <span role="status" className="text-ui-sm text-text-tertiary">
+                {t("desktop.approvals.sendingStatus")}
+              </span>
+            ) : null}
+            {sendState === "gone" ? (
+              <Button
+                type="button"
+                data-action="dismiss"
+                size={ACTION_SIZE}
+                variant="ghost"
+                onClick={dismiss}
+              >
+                {t("desktop.approvals.failure.gone.dismiss")}
+              </Button>
+            ) : (
+              answers.map((action) => (
+                <ActionButton key={action.id} action={action} disabled={busy} onRespond={respond} />
+              ))
+            )}
+          </span>
         </div>
       </article>
     </li>
@@ -459,11 +515,18 @@ function decisionsOf(
 ): Decisions {
   const { body } = request;
   const deny: ApprovalDecision = { decision: "deny" };
+  // 샌드박스 밖 쓰기 승인: 이번만(주 동작) · 이 대화에서 계속 허용 · 거부(L2.workspace §4.3.1, DP-204)
+  const writeAccess = writeAccessViewOf(request);
+  if (writeAccess !== null) {
+    const choices = writeAccessDecisionsOf(writeAccess);
+    return { primary: choices.once, deny: choices.deny, edit: null, thread: choices.thread };
+  }
   if (body.kind === "tool") {
     return {
       primary: { decision: "allow", remember: "once" },
       deny,
       edit: null,
+      thread: null,
     };
   }
   if (body.kind === "question") {
@@ -472,6 +535,7 @@ function decisionsOf(
       primary: answer === null ? null : { decision: "answer", answer },
       deny,
       edit: null,
+      thread: null,
     };
   }
   if (body.kind === "plan") {
@@ -484,12 +548,14 @@ function decisionsOf(
       },
       deny,
       edit: text === null ? null : { decision: "deny", answer: { feedback: text } },
+      thread: null,
     };
   }
   return {
     primary: { decision: "answer", answer: APPROVE_ALL_ANSWER },
     deny,
     edit: null,
+    thread: null,
   };
 }
 
