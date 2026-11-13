@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ShellExecOptions } from "@fresnel/contracts/services";
+import { ok } from "@fresnel/contracts";
+import type { Shell, ShellExecOptions } from "@fresnel/contracts/services";
 import { createSandboxService, type SandboxServiceHandle } from "../src/service.ts";
 import { MAX_VIOLATIONS } from "../src/violations.ts";
 import { envAdditions, newCommandId, quoteArgv } from "../src/wrap-shell.ts";
@@ -54,7 +55,51 @@ function policyFor(f: Fixture): ReturnType<SandboxServiceHandle["defaultPolicy"]
   return f.service.defaultPolicy({ workspaceRoots: [f.dirs.workspace], tempDir: f.dirs.tmp });
 }
 
-const onOutput = (): void => undefined;
+const seenOutput: string[] = [];
+const onOutput = (text: string): void => {
+  seenOutput.push(text);
+};
+
+/** 종료 코드 1로 끝나는 셸. `said`가 있으면 그 글을 stderr로 먼저 낸다 */
+function failing(said?: string): Shell {
+  return {
+    exec: (_command, options, context) => {
+      if (said !== undefined) options?.onOutput?.(said, context, { stream: "stderr" });
+      return Promise.resolve(ok({ exitCode: 1 }));
+    },
+    cleanup: () => Promise.resolve(),
+  };
+}
+
+describe("late write violations", () => {
+  const WRITE = "bash(7) deny(1) file-write-create /home/u/.npm/_logs/1.log";
+
+  test("a failed command that printed a denial waits for a write violation that arrives after it exits", async () => {
+    const f = await fixture({ violationLinesByRead: [[], [], [WRITE]] }, { darwin: true });
+    const result = await f.service
+      .wrapShell(failing("npm error EPERM: operation not permitted, mkdir"), policyFor(f))
+      .exec("npm ci", undefined, NO_CANCEL);
+    expect(result.ok && result.value.sandbox?.blocks).toEqual([
+      { code: "sandbox.write_blocked", path: "/home/u/.npm/_logs/1.log" },
+    ]);
+  });
+
+  test("a failed command that printed no denial does not wait", async () => {
+    const f = await fixture({ violationLinesByRead: [[], [WRITE]] }, { darwin: true });
+    const result = await f.service
+      .wrapShell(failing("no match"), policyFor(f))
+      .exec("grep x y", undefined, NO_CANCEL);
+    expect(result.ok && result.value.sandbox?.blocks).toBeUndefined();
+  });
+
+  test("a command that exits 0 reads the violations once and does not wait", async () => {
+    const f = await fixture({ violationLinesByRead: [[], [WRITE]] }, { darwin: true });
+    const result = await f.service
+      .wrapShell(recordingShell(), policyFor(f))
+      .exec("true", undefined, NO_CANCEL);
+    expect(result.ok && result.value.sandbox?.blocks).toBeUndefined();
+  });
+});
 
 describe("wrapShell", () => {
   test("merges protected paths and forwards options unchanged", async () => {
@@ -82,7 +127,9 @@ describe("wrapShell", () => {
     const call = shell.calls[0];
     expect(call?.command).toEqual(["bash", "-c", "WRAPPED:echo hi"]);
     expect(call?.options?.secretEnv).toBe(secretEnv);
-    expect(call?.options?.onOutput).toBe(onOutput);
+    // 출력 관찰을 위해 감싸지만 호출자의 onOutput에는 같은 인자로 그대로 전달한다
+    call?.options?.onOutput?.("chunk", NO_CANCEL, { stream: "stdout" });
+    expect(seenOutput).toEqual(["chunk"]);
     expect(call?.options?.window).toBe(options.window);
     expect(call?.options?.spill).toBe(options.spill);
     expect(call?.options?.timeout).toBe(9);

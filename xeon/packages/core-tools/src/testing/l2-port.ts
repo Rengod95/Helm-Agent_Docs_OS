@@ -55,7 +55,13 @@ function snapshotOf(approvalId: string, opened: OpenedApproval): L2ApprovalSnaps
     approvalId: toApprovalId(approvalId),
     state: stateOf(opened),
     resolution:
-      resolution === null ? null : { decision: resolution.decision, answer: resolution.answer },
+      resolution === null
+        ? null
+        : {
+            decision: resolution.decision,
+            answer: resolution.answer,
+            remember: resolution.remember,
+          },
   };
 }
 
@@ -66,7 +72,11 @@ function snapshotOfResolution(
   return {
     approvalId: toApprovalId(approvalId),
     state: resolution.resolvedBy === "cancelled" ? "cancelled" : "resolved",
-    resolution: { decision: resolution.decision, answer: resolution.answer },
+    resolution: {
+      decision: resolution.decision,
+      answer: resolution.answer,
+      remember: resolution.remember,
+    },
   };
 }
 
@@ -111,7 +121,7 @@ export function l2ApprovalsPort(
         requestKey: requestKeyFor(input.requestId, sha256HexSync),
         title: options.title?.(input) ?? DEFAULT_TITLES[input.kind],
         body,
-        remember: ["once"],
+        remember: input.remember ?? ["once"],
       });
       if (!opened.ok) return opened;
       return ok(snapshotOf(opened.value.request.approvalId, opened.value));
@@ -131,6 +141,10 @@ export function l2ApprovalsPort(
     },
     cancel(_threadId: ThreadId, approvalId: ApprovalId, reason: string) {
       return approvals.cancel(approvalId, reason);
+    },
+    async remembered(threadId, ruleId) {
+      const found = await approvals.remembered?.(threadId, ruleId);
+      return found?.ok === true && found.value;
     },
     async wait(_threadId: ThreadId, approvalId: ApprovalId, signal: AbortSignal) {
       const waited = await approvals.wait(approvalId, signal);

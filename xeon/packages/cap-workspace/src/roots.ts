@@ -132,7 +132,14 @@ export async function resolveWorkspacePath(
   requested: string,
   access: PathAccess,
   context: CancelScope,
-  options: { readonly variants?: boolean } = {},
+  options: {
+    readonly variants?: boolean;
+    /**
+     * 쓰기 접근이 허용 root 밖일 때(보호 경로가 아닌 경우만) 사람에게 묻는다. 참이면 이 호출만 허용한다(spec §4.3.1).
+     * 없으면 지금처럼 `outside_root`로 거부한다
+     */
+    readonly askOutsideWrite?: (canonical: string) => Promise<boolean>;
+  } = {},
 ): Promise<ResolvedPath> {
   const absolute =
     access === "read" && options.variants === true
@@ -159,14 +166,16 @@ export async function resolveWorkspacePath(
 
   const roots = await deps.roots(context);
   const allowed = access === "write" ? roots.write : roots.read;
+  const protectedEntries = deps.protectedPaths([...roots.read, ...roots.write]);
+  const protectedEntry = matchProtectedPath(protectedEntries, canonical, access);
   if (!allowed.some((root) => isWithin(root, canonical))) {
-    throw denied("outside_root", requested, canonical);
+    // 보호 경로는 묻지 않고 막는다. 이 호출만 허용하는 승인이므로 root는 넓히지 않는다
+    const asked =
+      access === "write" && protectedEntry === undefined && options.askOutsideWrite !== undefined
+        ? await options.askOutsideWrite(canonical)
+        : false;
+    if (!asked) throw denied("outside_root", requested, canonical);
   }
-  const protectedEntry = matchProtectedPath(
-    deps.protectedPaths([...roots.read, ...roots.write]),
-    canonical,
-    access,
-  );
   if (protectedEntry !== undefined) {
     throw denied("protected_path", requested, canonical, { protectedBy: protectedEntry.reason });
   }

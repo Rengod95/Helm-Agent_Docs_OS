@@ -6,6 +6,10 @@ import { isJsonObject } from "./util.ts";
 // L1.tools.spec §4.12.3. 샌드박스가 막은 것을 도구 결과에 싣는다.
 // 모델에 가는 글은 영어 줄이고(엔진 문자열은 로케일을 따르지 않는다), 화면용 details는 code와 대상을 싣는다.
 
+/** 쓰기 거부 줄 끝의 안내. 물어볼 수 없었거나 사용자가 거부한 경우에 모델이 읽는다(L2.workspace.spec §4.3.1) */
+const WRITE_HINT =
+  " To allow a folder that is not protected, add it to l0.sandbox.writeRoots.extra.";
+
 /** 글에 나열하는 대상 수. 넘는 것은 "(and N more)"로 줄인다 */
 const LIST_LIMIT = 5;
 
@@ -44,7 +48,7 @@ export function sandboxBlockLines(blocks: readonly SandboxBlock[]): readonly str
   }
   if (writes.size > 0) {
     lines.push(
-      `Blocked by sandbox: writing outside the workspace or to a protected path is not allowed: ${listOf([...writes])}`,
+      `Blocked by sandbox: writing outside the workspace or to a protected path is not allowed: ${listOf([...writes])}.${WRITE_HINT}`,
     );
   }
   if (reads.size > 0) {

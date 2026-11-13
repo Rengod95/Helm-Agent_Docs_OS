@@ -175,6 +175,52 @@ suite("real sandbox (srt)", () => {
     }
   });
 
+  test("a blocked write reports its path, and the same command passes once the folder is added as a write root", async () => {
+    // L2.workspace.spec §4.3.1의 엔진 쪽 절반: 거부 → 막힌 경로 보고 → 쓰기 루트에 더해 같은 명령을 다시 실행
+    const cache = join(outside, "cache");
+    mkdirSync(cache, { recursive: true });
+    const target = join(cache, "db.tmp");
+    const command = `echo cached > ${target}`;
+
+    const first = await runCollected(box.service.wrapShell(box.shell, policyFor()), command, {
+      cwd: box.dirs.workspace,
+    });
+    expect(first.exitCode).not.toBe(0);
+    expect(existsSync(target)).toBe(false);
+    // macOS의 위반 보고는 로그 스트림이라 일부 거부가 오지 않는다(실측 20번 중 4~6번만 보고). 보고가 오면 경로가 맞아야 한다.
+    // 보고가 없을 때의 경로는 cap-workspace가 출력의 거부 문구에서 뽑는다(L2.workspace.spec §4.3.1)
+    const blocks = first.raw.ok ? (first.raw.value.sandbox?.blocks ?? []) : [];
+    for (const block of blocks) {
+      expect(block).toEqual({ code: "sandbox.write_blocked", path: target });
+    }
+
+    const widened = box.service.defaultPolicy({
+      workspaceRoots: [box.dirs.workspace, cache],
+      tempDir: box.dirs.tmp,
+    });
+    const second = await runCollected(box.service.wrapShell(box.shell, widened), command, {
+      cwd: box.dirs.workspace,
+    });
+    expect(second.exitCode).toBe(0);
+    expect(readFileSync(target, "utf8")).toBe("cached\n");
+  });
+
+  test("adding a protected folder as a write root does not unlock it", async () => {
+    const target = join(box.vault, "planted.txt");
+    const widened = box.service.defaultPolicy({
+      workspaceRoots: [box.dirs.workspace, box.vault],
+      tempDir: box.dirs.tmp,
+    });
+    expect(widened.writeRoots).not.toContain(box.vault);
+    const ran = await runCollected(
+      box.service.wrapShell(box.shell, widened),
+      `echo planted > ${target}`,
+      { cwd: box.dirs.workspace },
+    );
+    expect(ran.exitCode).not.toBe(0);
+    expect(existsSync(target)).toBe(false);
+  });
+
   test("the built-in self test passes all six items against the real sandbox", async () => {
     const report = await box.service.selfTest(box.shell, { abortSignal: undefined });
     expect(report.items.filter((item) => !item.passed)).toEqual([]);
