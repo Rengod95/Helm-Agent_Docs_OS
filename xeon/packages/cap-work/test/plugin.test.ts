@@ -1,13 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import {
-  Bug,
-  err,
-  ok,
-  type Clock,
-  type Logger,
-  type LogFields,
-  type Result,
-} from "@fresnel/contracts";
+import { err, ok, type Clock, type Logger, type LogFields, type Result } from "@fresnel/contracts";
 import {
   WorkPlansKey,
   WorkTasksKey,
@@ -25,19 +17,18 @@ import {
   type ToolRegisterError,
 } from "@fresnel/contracts/extensions";
 import {
-  ApprovalServicePortKey,
   SessionPortKey,
   type ToolRegistration,
   type Unregister,
 } from "@fresnel/contracts/services";
 import type { ScopeLayer } from "@fresnel/contracts/settings";
 import type { ExtensionUnit } from "@fresnel/ext-host";
-import { createTestHost, flushMicrotasks, type TestHost } from "@fresnel/ext-host/testing";
+import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
 import { workManifest, WORK_EXTENSION_NAME } from "../src/manifest.ts";
 import { workPlugin } from "../src/plugin.ts";
 import { rejection } from "./support/assertions.ts";
 import { openBase, type Base } from "./support/harness.ts";
-import { approvalsDriver, modeDriver } from "./support/l1.ts";
+import { PlanId } from "./support/plans.ts";
 import { tid } from "./support/tasks.ts";
 
 interface FakeTools {
@@ -102,8 +93,6 @@ async function boot(
         logger: () => recordingLogger(lines),
         time: { clock: { now: () => 1_767_571_200_000 } },
       });
-      // 승인은 실제 core-tools 서비스다. 플러그인이 이 포트를 `planApprovalsOver`로 감싸 쓴다
-      ctx.providePort(ApprovalServicePortKey, opened.l1.approvals);
       if (options.tools !== false) {
         ctx.providePort(ToolsKey, {
           register: (registration) => {
@@ -118,24 +107,17 @@ async function boot(
       }
     },
   });
-  const mode = modeDriver(opened.l1.tools);
-  const approvals = approvalsDriver({
-    session: opened.session,
-    approvals: opened.l1.approvals,
-    faults: opened.faults,
-  });
   const installed = await t.host.install(
     workPlugin({
       ids: opened.ids,
       settings: { layers: () => [userLayer(options.settings ?? {})] },
-      mode,
       ...(options.commands === undefined ? {} : { commands: options.commands }),
     }),
   );
-  return { t, opened, installed, registered, unregistered, lines, mode, approvals };
+  return { t, opened, installed, registered, unregistered, lines };
 }
 
-/** work.tasks를 requires로 쓰는 소비자(L3 그룹 경로: 서비스를 직접 부른다) */
+/** work.tasks와 work.plans를 requires로 쓰는 소비자(L3 그룹 경로: 서비스를 직접 부른다) */
 function consumer() {
   const apis: { tasks?: CapabilityApi<typeof WorkTasks>; plans?: CapabilityApi<typeof WorkPlans> } =
     {};
@@ -175,6 +157,7 @@ describe("manifest", () => {
     expect(checked.issues.filter((issue) => issue.severity === "error")).toEqual([]);
     expect(checked.manifest?.name).toBe(WORK_EXTENSION_NAME);
     expect(checked.manifest?.plugins[0]?.layer).toBe("L2");
+    // work.plans는 옛 계획 기록을 읽는 versions만 제공한다(계획 모드 제거 뒤)
     expect(checked.manifest?.plugins[0]?.provides).toEqual([
       { id: "work.tasks", version: "1.0.0" },
       { id: "work.plans", version: "1.0.0" },
@@ -183,7 +166,6 @@ describe("manifest", () => {
     ]);
     expect(checked.manifest?.plugins[0]?.hooks).toEqual([
       "input.agent.before",
-      "thread.start",
       "boundary.step.after",
       "boundary.settle.before",
     ]);
@@ -211,33 +193,10 @@ describe("plugin", () => {
     expect(opened.eventCount()).toBe(events);
   });
 
-  test("plan tools are deferred; submit_plan and exit_plan_mode switch on while the thread is in plan mode", async () => {
-    const { registered, mode, opened } = await boot();
-    const plans = registered[1];
-    if (plans === undefined || plans.kind !== "capability") throw new Error("plans registration");
-    expect(plans.exposure).toEqual({
-      enter_plan_mode: "deferred",
-      exit_plan_mode: "deferred",
-      submit_plan: "deferred",
-    });
-    expect(Object.keys(plans.activeWhen ?? {}).toSorted()).toEqual([
-      "exit_plan_mode",
-      "submit_plan",
-    ]);
-    expect(plans.activeWhen?.submit_plan?.(opened.threadId)).toBe(false);
-    await mode.set(opened.threadId, "plan");
-    expect(plans.activeWhen?.submit_plan?.(opened.threadId)).toBe(true);
-    expect(plans.activeWhen?.exit_plan_mode?.(opened.threadId)).toBe(true);
-    await mode.set(opened.threadId, "default");
-    expect(plans.activeWhen?.submit_plan?.(opened.threadId)).toBe(false);
-    // task_write는 핵심 도구라 지연하지 않는다
-    expect(registered[0]?.kind === "capability" ? registered[0].exposure : "x").toBeUndefined();
-  });
-
-  test("task_write reaches L1.tools with read risk so plan mode can keep the list", async () => {
+  test("task_write is the only advertised tool and reaches L1.tools with read risk so it works in every mode", async () => {
     const { registered } = await boot();
-    expect(registered).toHaveLength(2);
-    const [registration, plansRegistration] = registered;
+    expect(registered).toHaveLength(1);
+    const [registration] = registered;
     expect(registration?.kind === "capability" ? registration.def.id : undefined).toBe(
       "work.tasks",
     );
@@ -250,27 +209,12 @@ describe("plugin", () => {
     expect(registration?.kind === "capability" ? registration.policy : undefined).toEqual({
       task_write: { risk: "read" },
     });
-    expect(
-      plansRegistration?.kind === "capability"
-        ? plansRegistration.def.tools.map((tool) => tool.name)
-        : [],
-    ).toEqual(["enter_plan_mode", "exit_plan_mode", "submit_plan"]);
-    expect(plansRegistration?.kind === "capability" ? plansRegistration.key : undefined).toEqual(
-      WorkPlansKey,
-    );
-    expect(plansRegistration?.kind === "capability" ? plansRegistration.policy : undefined).toEqual(
-      {
-        enter_plan_mode: { risk: "read" },
-        exit_plan_mode: { risk: "read" },
-        submit_plan: { risk: "read", classes: ["user_interaction"] },
-      },
-    );
   });
 
   test("uninstalling takes back the tool registration", async () => {
     const { t, unregistered } = await boot();
     await t.host.uninstall(WORK_EXTENSION_NAME);
-    expect(unregistered.toSorted()).toEqual(["work.plans", "work.tasks"]);
+    expect(unregistered.toSorted()).toEqual(["work.tasks"]);
   });
 
   test("a refused tool registration fails the setup by value", async () => {
@@ -300,6 +244,37 @@ describe("plugin", () => {
     const error = await rejection(apis.tasks?.list({}) ?? Promise.resolve());
     expect(error.data.code).toBe("invalid_input");
   });
+
+  test("the plans capability reads only: an unknown plan through the provider is not_found and nothing is written", async () => {
+    const { t, opened } = await boot();
+    const { apis, unit } = consumer();
+    await t.host.install(unit);
+    await t.settled();
+    const events = opened.eventCount();
+    const error = await rejection(
+      apis.plans?.versions({ planId: PlanId("p1") }, opened.opts()) ?? Promise.resolve(),
+    );
+    expect(error.data.code).toBe("not_found");
+    expect(opened.eventCount()).toBe(events);
+  });
+});
+
+describe("commands through the plugin", () => {
+  test("a command registry from the assembly gets /tasks and /goal and loses them on uninstall", async () => {
+    const calls: string[] = [];
+    const commands: CommandActionRegistry = {
+      registerAction(decl) {
+        calls.push(`add:${decl.name}`);
+        return () => {
+          calls.push(`remove:${decl.name}`);
+        };
+      },
+    };
+    const { t } = await boot({ commands });
+    expect(calls).toEqual(["add:tasks", "add:goal"]);
+    await t.host.uninstall(WORK_EXTENSION_NAME);
+    expect(calls.toSorted()).toEqual(["add:goal", "add:tasks", "remove:goal", "remove:tasks"]);
+  });
 });
 
 async function dispatch(t: TestHost, threadId: ReturnType<TestHost["newThread"]>) {
@@ -313,103 +288,6 @@ async function dispatch(t: TestHost, threadId: ReturnType<TestHost["newThread"]>
     },
   );
 }
-
-describe("work.plans through the plugin", () => {
-  test("a group enters plan mode, submits, gets approved and the mode is restored by the feed listener", async () => {
-    const { t, opened, mode, approvals } = await boot();
-    const { apis, unit } = consumer();
-    await t.host.install(unit);
-    await t.settled();
-    await mode.set(opened.threadId, "acceptEdits");
-    expect(await apis.plans?.enterMode({}, opened.opts("e1"))).toEqual({
-      mode: "plan",
-      previousMode: "acceptEdits",
-    });
-    const submitted = await apis.plans?.submit({ title: "t", body: "b" }, opened.opts("c1"));
-    expect(submitted).toMatchObject({ status: "input_required", planId: "p1" });
-    const request = approvals.requests[0];
-    if (request === undefined) throw new Bug("no approval request");
-    await approvals.respond(request.approvalId, "allow");
-    await flushMicrotasks();
-    expect(mode.current(opened.threadId)).toBe("acceptEdits");
-    expect(await apis.plans?.submit({ title: "t", body: "b" }, opened.opts("c1"))).toMatchObject({
-      status: "decided",
-      decision: "approved",
-    });
-  });
-
-  test("session_start repairs a plan whose approval request never went out", async () => {
-    const { t, opened, approvals } = await boot();
-    const { apis, unit } = consumer();
-    await t.host.install(unit);
-    await t.host.openThread(opened.threadId);
-    await t.settled();
-    approvals.failRequests(1);
-    await rejection(
-      apis.plans?.submit({ title: "t", body: "b" }, opened.opts("c1")) ?? Promise.resolve(),
-    );
-    expect(approvals.requests).toHaveLength(0);
-    await t.host.dispatch(
-      "thread.start",
-      { reason: "resume", threadId: opened.threadId },
-      { threadId: opened.threadId, dispatchKey: "start-1" },
-    );
-    await flushMicrotasks();
-    expect(approvals.requests).toHaveLength(1);
-  });
-
-  test("a command registry from the assembly gets /plan, /tasks and /goal and loses them on uninstall", async () => {
-    const calls: string[] = [];
-    const commands: CommandActionRegistry = {
-      registerAction(decl) {
-        calls.push(`add:${decl.name}`);
-        return () => {
-          calls.push(`remove:${decl.name}`);
-        };
-      },
-    };
-    const { t } = await boot({ commands });
-    expect(calls).toEqual(["add:plan", "add:tasks", "add:goal"]);
-    await t.host.uninstall(WORK_EXTENSION_NAME);
-    expect(calls.toSorted()).toEqual([
-      "add:goal",
-      "add:plan",
-      "add:tasks",
-      "remove:goal",
-      "remove:plan",
-      "remove:tasks",
-    ]);
-  });
-
-  test("a plugin without approvals reports submit_plan as unavailable and says so at startup", async () => {
-    const opened = await openBase();
-    base = opened;
-    const t: TestHost = await createTestHost({ without: ["records"] });
-    const lines: LogLine[] = [];
-    await t.host.registerPlatform({
-      name: "fake-l0",
-      setup(ctx) {
-        ctx.providePort(SessionPortKey, opened.session);
-        ctx.providePort(ScopedStorePortKey, opened.store.service);
-        ctx.providePort(OsKey, {
-          logger: () => recordingLogger(lines),
-          time: { clock: { now: () => 1_767_571_200_000 } },
-        });
-      },
-    });
-    await t.host.install(workPlugin({ ids: opened.ids, settings: { layers: () => [] } }));
-    const { apis, unit } = consumer();
-    await t.host.install(unit);
-    await t.settled();
-    const events = lines.map((line) => line.event);
-    expect(events).toContain("work.approvals_missing");
-    expect(events).toContain("work.mode_missing");
-    const error = await rejection(
-      apis.plans?.submit({ title: "t", body: "b" }, opened.opts("c1")) ?? Promise.resolve(),
-    );
-    expect(error.data.code).toBe("unavailable");
-  });
-});
 
 describe("before_agent_start reminder", () => {
   test("an idle list is reported once the setting turns it on and writes nothing", async () => {

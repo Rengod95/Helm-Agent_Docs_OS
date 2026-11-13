@@ -190,14 +190,14 @@ export interface WebService {
 
 ### 5.7 질문과 승인
 
-- [결정] 질문 도구와 계획 승인은 L1.tools의 승인 프로토콜 하나로 합친다(`_research/foundation-plan.md` §1 5번). 서비스는 `fresnel.approvals`이고 이벤트는 `approval.requested`와 `approval.resolved`다(`eng.context-map.design` §5.1).
+- [결정] 질문 도구와 계획 승인은 L1.tools의 승인 프로토콜 하나로 합친다(`_research/foundation-plan.md` §1 5번). 서비스는 `fresnel.approvals`이고 이벤트는 `approval.requested`와 `approval.resolved`다(`eng.context-map.design` §5.1). [결정: 2026-11-13 사용자] 계획 승인은 삭제됐다. 승인 프로토콜은 질문만 쓴다.
 - L2는 승인을 요청하고 결과 이벤트를 받는다. 승인 대기 중에는 루프가 승인 대기 상태를 단계 체크포인트로 커밋하고 멈춘다(`architecture.runtime-flow.design` §4.5). 대기 중에 도는 프로세스는 없다.
 - L2가 쓰는 kind는 넷이다. `eng.events.design` §4.4의 `approval.requested` kind는 `tool | question | plan` 셋이므로 `review` 추가는 `L1.tools.spec`에 올리는 변경 요청이다(§10 미결 14).
 
 | kind | 쓰는 기능 | 대상(`subject`)·답 스키마를 정하는 문서 | 비고 |
 |---|---|---|---|
 | `question` | `dialog.ask`, `mcp.client`(MCP 서버 주도 요청) | `L2.dialog.spec` §4.1, `L2.mcp.spec` §4.6 | mcp는 L1.tools가 올리는 안과 `cap-mcp`가 포트로 직접 부르는 안이 [미결]이다(`L2.mcp.spec` §10 미결 2) |
-| `plan` | `work.plans` | `L2.work.spec` §4.2.2 | 차단 요청(턴이 기다린다) |
+| `plan` | 없음(옛 기록 읽기만) | `L2.work.spec` §4.2 | 삭제됨 [결정: 2026-11-13 사용자]. 새 요청은 L1.tools가 `approvals.request_invalid`로 거부한다 |
 | `review` | `artifacts.reviews` | `L2.artifacts.spec` §4.2.4 | [미결] 비차단 요청. 받아들여지지 않으면 `question` + `answerSchema`로 대신한다(`L2.artifacts.spec` §10 미결 4) |
 | `tool` | `knowledge.*` 쓰기 게이트, `schedule.loops`(그룹이 시작한 셸 종료 조건) | `L2.knowledge.spec` §4.5.1, `L2.schedule.spec` §4.1.2 | |
 
@@ -274,7 +274,6 @@ L2 도메인의 내구·휘발 이벤트 카탈로그 형식은 `F.records.spec`
 ```mermaid
 flowchart LR
   dialog_attachments["dialog.attachments"] -->|requires| workspace_images["workspace.images"]
-  work_plans["work.plans"] -.->|optional| artifacts_registry["artifacts.registry"]
   schedule_loops["schedule.loops"] -.->|optional| work_goals["work.goals"]
   artifacts_reviews["artifacts.reviews"] -.->|"optional [미결]"| workspace_files["workspace.files"]
   work_cmds["work(명령 등록)"] -.->|"optional [미결]"| dialog_commands["dialog.commands"]
@@ -284,10 +283,9 @@ flowchart LR
 | 의존하는 기능 | 대상 기능 | 종류 | 쓰임 | 선언 위치 |
 |---|---|---|---|---|
 | `dialog.attachments` | `workspace.images` | requires | 붙여넣은 이미지의 형식·크기 검사와 blob 등록 | `cap-dialog` 매니페스트 `requires`, 정의 `requires` |
-| `work.plans` | `artifacts.registry` | optional | 제출된 계획의 각 판을 산출물로 등록(`L2.work.spec` §4.2.4) | `cap-work` 매니페스트 `optional` |
 | `schedule.loops` | `work.goals` | optional | 루프 종료 조건에 목표 판정 사용 | `cap-schedule` 매니페스트 `optional` |
 | `artifacts.reviews` | `workspace.files` | optional, [미결] | 리뷰 hunk의 현재 파일 내용 조회, 거절 hunk 되돌림(`L2.artifacts.spec` 안 A) | `cap-artifacts` 매니페스트 `optional` |
-| `work`(cap-work 시작 시) | `dialog.commands` | optional, [미결] | `/goal`, `/plan`, `/tasks` 동작 명령 등록(`L2.work.spec` §6.2, W-10) | `cap-work` 매니페스트 `optional` |
+| `work`(cap-work 시작 시) | `dialog.commands` | optional, [미결] | `/goal`, `/tasks` 동작 명령 등록(`L2.work.spec` §6.2, W-10) | `cap-work` 매니페스트 `optional` | [근거: 2026-11-13 사용자 결정]
 | `mcp.client` | `dialog.commands` | optional, [미결] | MCP 프롬프트를 슬래시 명령으로 등록(`L2.mcp.spec` §1.2) | `cap-mcp` 매니페스트 `optional` |
 
 - 순환이 없다. 기능 단위로 보면 간선 여섯의 끝점(`workspace.images`, `artifacts.registry`, `work.goals`, `workspace.files`, `dialog.commands`)은 어느 L2 기능에도 의존하지 않는다. 도메인 단위로 묶으면 의존하는 쪽은 schedule → work, work → artifacts, work → dialog, mcp → dialog, artifacts → workspace, dialog → workspace다. workspace는 다른 L2 도메인에 의존하지 않고, artifacts와 dialog는 workspace에만, work는 artifacts와 dialog에만, schedule은 work에만, mcp는 dialog에만 의존한다. 이 순서(workspace → artifacts·dialog → work·mcp → schedule)를 거꾸로 가는 간선이 없으므로 사슬은 닫히지 않는다. dialog는 등록된 명령 처리기를 실행할 뿐 work나 mcp의 서비스를 부르지 않는다(`L2.dialog.spec` §4.3).
@@ -323,7 +321,7 @@ flowchart LR
 | `secrets` | L2 키가 참조하는 `secret://` 이름의 표시(예: `l2.schedule.remote.tokenRef`). 값 관리는 L0.secrets 소관 |
 | `sessions` | 대화 제목·메타, 핸드오프, 내보내기, 산출물 한도(artifacts), 메모리·대화 검색(knowledge) |
 | `execution` | 루프·예약·백그라운드 작업·원격(schedule), 알림(dialog.notify) |
-| `permissions` | 계획 모드 승인 키 두 개(`l2.work.plans.requireApproval`, `l2.work.plans.exitOnApprove`). 권한 모드 전환과 연결된 키라 이 탭에 둔다. 그 밖의 도구 승인 규칙은 L1.tools 키다. MCP 도구별 승인 모드처럼 L2가 기본값을 공급하는 키는 `tools` 탭에 두고 L1.tools 규칙 키 형식(`mcp__<서버>`)을 맞춘다 |
+| `permissions` | 계획 모드 키는 없다(`l2.work.plans.*` 삭제 [결정: 2026-11-13 사용자]). 도구 승인 규칙은 L1.tools 키다. MCP 도구별 승인 모드처럼 L2가 기본값을 공급하는 키는 `tools` 탭에 두고 L1.tools 규칙 키 형식(`mcp__<서버>`)을 맞춘다 | [근거: 2026-11-13 사용자 결정]
 | `appearance` | 상태줄 세그먼트와 출력 스타일(`l2.dialog.status.segments`, `l2.dialog.styles.active`) |
 | `advanced` | 화면에 두지 않고 파일로만 바꾸는 세부 한도·간격(knowledge, work, artifacts, schedule) |
 

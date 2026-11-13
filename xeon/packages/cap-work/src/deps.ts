@@ -1,9 +1,6 @@
 import type { Logger } from "@fresnel/contracts";
 import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import type { ProducerHandle } from "@fresnel/contracts/records";
-import type { PlanArtifactsPort } from "./ports/artifacts.ts";
-import type { PlanApprovalsFactory } from "./ports/approvals.ts";
-import type { PermissionModePort } from "./ports/permission-mode.ts";
 import type { WorkReader, WorkSessionPort } from "./ports/session.ts";
 import type { WorkSettings } from "./settings.ts";
 
@@ -20,12 +17,7 @@ export interface WorkTasksDeps {
   readonly settings: (threadId: ThreadId) => WorkSettings;
 }
 
-/** 계획 서비스의 의존: 작업 서비스와 같은 저장소 포트에 권한 모드, 승인, 산출물 포트를 더한다 */
-export interface WorkPlansDeps extends WorkTasksDeps {
-  /** 없으면 계획 모드 전환과 계획 제출은 unavailable로 거부한다 */
-  readonly mode: PermissionModePort | undefined;
-  /** 없으면 계획 제출과 결정 메서드는 unavailable로 거부한다 */
-  readonly approvals: PlanApprovalsFactory | undefined;
-  /** 선택. 없으면 `artifact: null`로 제출한다 */
-  readonly artifacts: PlanArtifactsPort | undefined;
+/** 옛 계획 기록을 읽는 work.plans 서비스의 의존. 쓰지 않으므로 투영 읽기 핸들만 받는다 [결정: 2026-11-13 사용자] */
+export interface WorkPlansDeps {
+  readonly reader: WorkReader;
 }

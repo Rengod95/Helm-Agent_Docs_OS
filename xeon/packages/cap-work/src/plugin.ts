@@ -1,14 +1,13 @@
-import { attemptAsync, err, ok } from "@fresnel/contracts";
+import { err, ok } from "@fresnel/contracts";
 import {
   WorkGoalsKey,
-  WorkPlans,
   WorkPlansKey,
   WorkReportsKey,
   WorkTasks,
   WorkTasksKey,
   type CommandActionRegistry,
 } from "@fresnel/contracts/capabilities";
-import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
+import type { IdFactory } from "@fresnel/contracts/conversation";
 import {
   ScopedStorePortKey,
   type ExtensionEntry,
@@ -16,13 +15,11 @@ import {
 } from "@fresnel/contracts/extensions";
 import {
   AgentServicePortKey,
-  ApprovalServicePortKey,
   OsPortKey,
   SessionPortKey,
   ToolServicePortKey,
   type ToolRegistration,
   type AgentService,
-  type ApprovalService,
   type ToolService,
 } from "@fresnel/contracts/services";
 import {
@@ -32,23 +29,20 @@ import {
   type RegistrationHostApi,
 } from "@fresnel/ext-host";
 import { registerWorkCommands } from "./commands.ts";
+import type { WorkTasksDeps } from "./deps.ts";
 import { createSettleGate } from "./goals/gate.ts";
 import { createGoals } from "./goals/service.ts";
-import type { WorkPlansDeps } from "./deps.ts";
 import { workManifest } from "./manifest.ts";
 import { createWorkProjector } from "./projection/projector.ts";
 import { readMeta, readTasks } from "./projection/read.ts";
-import { startPlanModeListener } from "./plans/listener.ts";
 import { createPlans } from "./plans/service.ts";
-import { planApprovalsOver, type PlanApprovalsFactory } from "./ports/approvals.ts";
-import type { PlanArtifactsPort } from "./ports/artifacts.ts";
-import { toolsPermissionMode, type PermissionModePort } from "./ports/permission-mode.ts";
 import { readJudgeMaxRuns, readWorkSettings, type WorkSettingsSource } from "./settings.ts";
 import { reminderMessage } from "./tasks/reminder.ts";
 import { createTasksApi } from "./tasks/service.ts";
 
 // L2.work.plan 패키지 구조. 구현 패키지(core-persistence, core-tools, platform-store)를 import하지 않고 F 서비스 인터페이스를
 // 포트(fresnel.session, fresnel.store, fresnel.tools, fresnel.os)로만 받는다. Cordis는 import하지 않는다(DR-11).
+// 계획 모드와 계획 승인은 없앴다 [결정: 2026-11-13 사용자]. work.plans는 옛 계획 기록을 읽는 `versions`만 제공한다.
 
 export const WORK_PRODUCER = "cap.work";
 
@@ -58,16 +52,7 @@ export interface WorkPluginOptions {
   /** 설정 층. 파일 범위와 세션 범위를 합친 스택을 호출마다 돌려준다 */
   readonly settings: WorkSettingsSource;
   /**
-   * 계획 승인(F `L2ApprovalsPort`)을 출처별로 만드는 공장. 생략하면 `fresnel.approvals` 포트를 `planApprovalsOver`로 감싼 기본 구현을 쓴다.
-   * 둘 다 없으면 계획 제출과 결정 메서드는 `unavailable`로 거부한다
-   */
-  readonly approvals?: PlanApprovalsFactory;
-  /** 권한 모드 포트. 생략하면 `fresnel.tools`의 `mode`·`setMode`를 감싼 기본 구현을 쓴다 */
-  readonly mode?: PermissionModePort;
-  /** 계획 본문을 산출물로 등록하는 선택 의존(`artifacts.registry`). 없으면 `artifact: null`이다 */
-  readonly artifacts?: PlanArtifactsPort;
-  /**
-   * `dialog.commands`의 동작 명령 등록부(선택 의존, spec §6.2·W-10). 있으면 `/plan`, `/tasks`를 등록한다.
+   * `dialog.commands`의 동작 명령 등록부(선택 의존, spec §6.2·W-10). 있으면 `/tasks`, `/goal`을 등록한다.
    * 기능 선택 의존이 확정되면(W-10) 매니페스트 `optional`로 받는다
    */
   readonly commands?: CommandActionRegistry;
@@ -84,35 +69,15 @@ function optionalPort<Api>(host: RegistrationHostApi, key: PortKey<Api>): Api | 
   }
 }
 
-/** 모델에 광고하는 도구 등록. 계획 도구는 WK.2·WK.3에서 같은 기능 묶음에 더한다 */
-function toolRegistrations(mode: PermissionModePort | undefined): readonly ToolRegistration[] {
-  // 계획 모드에 들어가 있으면 계획을 내는 도구가 검색 없이 실려야 한다(사용자가 /plan을 쳤는데 모델이 도구를 못 찾는 일을 막는다)
-  const inPlanMode = (threadId: ThreadId): boolean => mode?.current(threadId) === "plan";
+/** 모델에 광고하는 도구 등록. 남는 도구는 task_write뿐이다 */
+function toolRegistrations(): readonly ToolRegistration[] {
   return [
     {
       kind: "capability",
       def: WorkTasks,
       key: WorkTasksKey,
-      // 작업 목록은 작업 영역 파일을 바꾸지 않는다. 계획 모드(쓰기 거부)에서도 목록을 쓸 수 있도록 read로 둔다
+      // 작업 목록은 작업 영역 파일을 바꾸지 않으므로 read다
       policy: { task_write: { risk: "read" } },
-    },
-    {
-      kind: "capability",
-      def: WorkPlans,
-      key: WorkPlansKey,
-      // 계획 도구는 작업 영역을 바꾸지 않는다. 계획 모드(쓰기 거부) 안에서 불러야 하므로 read다.
-      // 질문과 같이 사용자 응답을 기다리므로 user_interaction 부류를 달아 서브에이전트에서 막을 수 있게 한다(L1.agents.spec §4.6)
-      policy: {
-        enter_plan_mode: { risk: "read" },
-        exit_plan_mode: { risk: "read" },
-        submit_plan: { risk: "read", classes: ["user_interaction"] },
-      },
-      exposure: {
-        enter_plan_mode: "deferred",
-        exit_plan_mode: "deferred",
-        submit_plan: "deferred",
-      },
-      activeWhen: { exit_plan_mode: inPlanMode, submit_plan: inPlanMode },
     },
   ];
 }
@@ -128,7 +93,6 @@ export function workPlugin(options: WorkPluginOptions): ExtensionUnit {
       const os = host.port(OsPortKey);
       const logger = os.logger("work");
       const tools = optionalPort<ToolService>(host, ToolServicePortKey);
-      const approvalService = optionalPort<ApprovalService>(host, ApprovalServicePortKey);
 
       const projector = session.projectors.register(createWorkProjector());
       if (!projector.ok) return err({ reason: projector.error.kind, cause: projector.error });
@@ -136,28 +100,15 @@ export function workPlugin(options: WorkPluginOptions): ExtensionUnit {
         projector.value.dispose();
       });
 
-      const mode = options.mode ?? (tools === undefined ? undefined : toolsPermissionMode(tools));
-      const approvals =
-        options.approvals ??
-        (approvalService === undefined ? undefined : planApprovalsOver(approvalService));
-      const deps: WorkPlansDeps = {
+      const deps: WorkTasksDeps = {
         session,
         reader,
         producer: session.producer(WORK_PRODUCER),
         ids: options.ids,
         logger,
         settings: (threadId) => readWorkSettings(options.settings.layers(threadId)),
-        mode,
-        approvals,
-        artifacts: options.artifacts,
       };
-      const plans = createPlans(deps);
-      host.provide(WorkPlansKey, plans.api);
-      if (mode === undefined)
-        logger.warn("work.mode_missing", { effect: "plan mode is unavailable" });
-      if (approvals === undefined) {
-        logger.warn("work.approvals_missing", { effect: "submit_plan is unavailable" });
-      }
+      host.provide(WorkPlansKey, createPlans({ reader }));
       const tasksApi = createTasksApi(deps);
       host.provide(WorkTasksKey, tasksApi);
       // 목표 지속(M3-REQ-90): 판정과 완료 보고. 완료 게이트는 `boundary.settle.before` chain 핸들러 하나다
@@ -170,10 +121,8 @@ export function workPlugin(options: WorkPluginOptions): ExtensionUnit {
       host.provide(WorkReportsKey, goals.reportsApi);
       if (options.commands !== undefined) {
         const unregister = registerWorkCommands(options.commands, {
-          plans: plans.api,
           tasks: tasksApi,
           goals: goals.goalsApi,
-          runtime: plans,
         });
         g.onDispose(unregister);
       }
@@ -190,15 +139,6 @@ export function workPlugin(options: WorkPluginOptions): ExtensionUnit {
         return undefined;
       });
       g.on("boundary.settle.before", (payload, current, ctx) => gate.settle(payload, current, ctx));
-      const listener = startPlanModeListener(session, plans, logger);
-      g.onDispose(() => {
-        listener?.stop();
-      });
-      // 스레드를 다시 열 때 승인 요청이 빠진 판을 다시 요청하고 모드 복원을 마무리한다(spec §4.5)
-      g.on("thread.start", async (payload) => {
-        const resumed = await attemptAsync(() => plans.resume(payload.threadId));
-        if (!resumed.ok) logger.error("work.plans.resume_failed", { thread: payload.threadId });
-      });
 
       // L2.work.spec §4.1.6. 질의만 하고 이벤트를 쓰지 않는다
       g.on("input.agent.before", (_payload, ctx) => {
@@ -219,7 +159,7 @@ export function workPlugin(options: WorkPluginOptions): ExtensionUnit {
         return ok(undefined);
       }
       const unregisters: (() => void)[] = [];
-      for (const registration of toolRegistrations(mode)) {
+      for (const registration of toolRegistrations()) {
         const registered = tools.register(registration);
         if (!registered.ok) {
           for (const unregister of unregisters.toReversed()) unregister();

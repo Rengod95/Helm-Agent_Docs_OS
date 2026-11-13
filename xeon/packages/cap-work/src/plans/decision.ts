@@ -2,7 +2,7 @@ import { assertNever, parse } from "@fresnel/contracts";
 import type { PlanDecision } from "@fresnel/contracts/capabilities";
 import { JsonObjectSchema, type JsonValue } from "@fresnel/contracts/conversation";
 
-// L2.work.spec §4.2.3. 승인 해결(approval.resolved)을 계획 상태로 옮기는 표. 투영기와 submit 응답이 같은 표를 쓴다.
+// 옛 승인 해결(approval.resolved)을 계획 상태로 옮기는 표. 투영기만 쓴다. 더는 쓰지 않음 [결정: 2026-11-13 사용자]. 옛 기록 읽기 전용이다.
 
 /** 계획 한 판의 결정. withdrawn은 요청이 취소된 경우다 */
 export type PlanOutcome =

@@ -4,9 +4,9 @@ import { defineManifest, type ExtensionManifest } from "@fresnel/contracts/exten
 export const WORK_EXTENSION_NAME = "cap-work";
 
 /**
- * 내장 L2 플러그인 매니페스트(L2.work.spec §7.1). 제공하는 기능은 `work.tasks`, `work.plans`(M2)와 `work.goals`, `work.reports`(M3)다.
- * 선택 의존(`artifacts.registry`, `dialog.commands`)과 `usesPost`도 그때 더한다. 지금은 조립 루트가 포트 객체로 넘긴다
- * (`WorkPluginOptions.artifacts`, `commands`).
+ * 내장 L2 플러그인 매니페스트(L2.work.spec §7.1). 제공하는 기능은 `work.tasks`, `work.goals`, `work.reports`와
+ * 옛 계획 기록을 읽는 `work.plans`(읽기 전용, 계획 모드는 없앴다 [결정: 2026-11-13 사용자])다.
+ * 선택 의존(`dialog.commands`)과 `usesPost`는 그때 더한다. 지금은 조립 루트가 포트 객체로 넘긴다(`WorkPluginOptions.commands`).
  */
 export function workManifest(): ExtensionManifest {
   return defineManifest({
@@ -20,12 +20,7 @@ export function workManifest(): ExtensionManifest {
     plugins: [
       {
         layer: "L2",
-        hooks: [
-          "input.agent.before",
-          "thread.start",
-          "boundary.step.after",
-          "boundary.settle.before",
-        ],
+        hooks: ["input.agent.before", "boundary.step.after", "boundary.settle.before"],
         provides: [
           { id: WorkTasks.id, version: WorkTasks.version },
           { id: WorkPlans.id, version: WorkPlans.version },
