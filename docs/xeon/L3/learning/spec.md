@@ -326,6 +326,7 @@ export type ProposeRefusal =
 ```
 
 - 대상(`target`) 형식 [제안]: 스킬 create·patch·archive는 `<스킬 이름>`, add_file은 `<스킬 이름>/<지원 파일 경로>`, 메모리 add는 `user` 또는 `environment`, replace·remove는 `<영역>/<항목 id 12자>`, 피드백은 `user/work-style`이다. 메모리 `environment`는 L2 저장소 `env`다.
+- `learning_propose`는 `exposure: "deferred"`다 [결정: 2026-11-13 사용자 "애매한 것들 전부 지연으로 넣어"]. 검토 서브에이전트의 정의가 `tools`에 이름을 그대로 적으므로 검색 없이 실리고(L1.tools.spec §4.1 규칙 5), 그 밖의 대화에는 실리지 않는다.
 - 도구는 `g.registerTool`로 등록한다(L3.group-sdk.spec §3.2, X `hostOf(g).registerTool`, X.primitives.spec §4.8). 도구 결과 3채널 형식은 F.conversation.spec §3.6을 따른다.
 - 이 도구는 파일을 바꾸지 않는다. 후보 행을 대기열에 넣는 것만 한다(§4.5).
 - 같은 도구를 주 대화의 모델도 볼 수 있다. 캐시 접두를 위해 부모와 포크의 도구 배열을 같게 두기 때문이다(§4.3). 주 대화에서 부른 제안도 같은 대기열로 들어가고 같은 승인 규칙을 따른다 [제안].
