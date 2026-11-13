@@ -327,6 +327,11 @@ export type ThreadConvo = {
   /** 도구 호출에 묶이지 않은 개입(시크릿 가림, 시크릿 승인)과 도구 호출 id 없는 승인 기록 */
   readonly looseInterventions: readonly Intervention[];
   readonly looseApprovals: readonly ApprovalTrail[];
+  /**
+   * 이 대화에서 샌드박스 밖 쓰기를 "이 대화에서 계속 허용"했다(DP-205). 허용 + remember thread인 해결 사건을 본 적이 있으면 참이다.
+   * thread 기억은 샌드박스 밖 쓰기 규칙만 낼 수 있어(L1.tools §4.7 6번 예외) 다른 승인과 섞이지 않는다. 철회는 없다
+   */
+  readonly writeAccessAllowed: boolean;
   readonly leases: readonly LeaseRecord[];
   readonly agents: readonly AgentRecord[];
   /** 판정 에이전트의 판정(`agent.judged`). 받은 순서 */
@@ -345,6 +350,7 @@ export const EMPTY_THREAD_CONVO: ThreadConvo = {
   approvalOrder: [],
   looseInterventions: [],
   looseApprovals: [],
+  writeAccessAllowed: false,
   leases: [],
   agents: [],
   judgments: [],
@@ -745,7 +751,11 @@ export function convoApprovalResolved(
   at: ConvoAt,
   resolved: ApprovalResolvedPayload,
 ): Convo {
-  return withThread(convo, threadId, (c) => {
+  return withThread(convo, threadId, (base) => {
+    const c =
+      !base.writeAccessAllowed && resolved.decision === "allow" && resolved.remember === "thread"
+        ? { ...base, writeAccessAllowed: true }
+        : base;
     const digest = c.approvalDigests[resolved.approvalId];
     if (digest === undefined) return c;
     const trail: ApprovalTrail = {

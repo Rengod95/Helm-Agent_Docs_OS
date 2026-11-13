@@ -61,6 +61,10 @@ export const selectLooseApprovals = (
   threadId: ThreadId,
 ): readonly ApprovalTrail[] => convoOf(s, threadId).looseApprovals;
 
+/** 이 대화에서 샌드박스 밖 쓰기를 계속 허용했는가(입력창 권한 칩의 조용한 표시, DP-205) */
+export const selectWriteAccessAllowed = (s: EngineMirror, threadId: ThreadId): boolean =>
+  convoOf(s, threadId).writeAccessAllowed;
+
 // ── 턴 요약 ───────────────────────────────────────────────────────────
 
 type TurnUsageSummary = {
