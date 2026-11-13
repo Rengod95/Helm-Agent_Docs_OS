@@ -20,6 +20,13 @@ export const ApprovalServiceName = "fresnel.approvals" as const;
 /** `fresnel.approvals` 전체 모양(ApprovalService)의 포트 키. 제공 core-tools */
 export const ApprovalServicePortKey: PortKey<ApprovalService> = { name: ApprovalServiceName };
 
+/**
+ * 샌드박스 밖 쓰기 허용 승인(L2.workspace.spec §4.3.1)의 `ruleId`. 이 규칙의 도구 승인만 `remember: ["once", "thread"]`를 낼 수 있다
+ * (나머지 승인은 once뿐, L1.tools.spec §4.7 6번). `thread`로 허용하면 그 대화(와 그 대화에서 띄운 하위 대화)에서 이후 이 규칙의 질문을 건너뛴다.
+ * 화면은 이 값과 `args.subject === "write_access"`로 이 요청을 알아본다
+ */
+export const WRITE_ACCESS_RULE_ID = "sandbox.write_access" as const;
+
 export type ApprovalKind = "tool" | "plan" | "question" | "review";
 export type ApprovalDecision = "allow" | "deny" | "answer";
 export type ApprovalRemember = "once" | "thread" | "always";
@@ -289,6 +296,11 @@ export interface ApprovalService {
   ): Promise<Result<ApprovalResolution, ApprovalWaitFailure>>;
   /** 메모리 대기 목록의 요청과 해결 상태. 동기 조회. 모르는 approvalId면 undefined(`restore` 전의 재시작 직후 포함) */
   get(approvalId: string): OpenedApproval | undefined;
+  /**
+   * 이 대화(또는 이 대화를 띄운 부모 대화)에서 `ruleId`의 승인을 `remember: "thread"`로 허용한 적이 있는가.
+   * 기록(approval.resolved)에서 읽으므로 재시작·이어하기 뒤에도 같다. 이 규칙은 `WRITE_ACCESS_RULE_ID`뿐이다. 구현이 없으면 생략한다
+   */
+  remembered?(threadId: ThreadId, ruleId: string): Promise<Result<boolean, ReadFailure>>;
 }
 
 // approval.requested·approval.resolved payload 스키마는 records가 가진다(ApprovalRequestedPayloadSchema, ApprovalResolvedPayloadSchema,
@@ -323,6 +335,8 @@ export interface L2ApprovalSnapshot {
     readonly answer: JsonValue | null;
     /** 누가 해결했는가. `expired`면 만료로 해결됐다. 이유를 알리지 않는 구현(시험용 가짜)은 생략할 수 있다 [결정: m2c G1-11] */
     readonly resolvedBy?: ApprovalResolvedBy;
+    /** 실제 적용한 기억 범위. 이유를 알리지 않는 구현은 생략한다(once로 본다) */
+    readonly remember?: ApprovalRemember;
   } | null;
 }
 
@@ -340,6 +354,8 @@ export interface L2ApprovalRequest {
   /** 만료 시각(epoch ms)과 만료 때의 해결. `ApprovalRequestInput`의 같은 이름 필드로 옮긴다 [결정: m2c G1-11] */
   readonly expiresAt?: number;
   readonly onExpire?: ApprovalOnExpire;
+  /** 이 요청에서 고를 수 있는 기억 범위. 생략하면 `["once"]`. once 밖은 `WRITE_ACCESS_RULE_ID` 도구 승인만 낼 수 있다 */
+  readonly remember?: readonly ApprovalRemember[];
 }
 
 export interface L2ApprovalRespondInput {
@@ -373,4 +389,6 @@ export interface L2ApprovalsPort {
     approvalId: ApprovalId,
     signal: AbortSignal,
   ): Promise<Result<L2ApprovalSnapshot, { readonly kind: "cancelled" }>>;
+  /** `ApprovalService.remembered`와 같다. 구현이 없으면 생략한다 */
+  remembered?(threadId: ThreadId, ruleId: string): Promise<boolean>;
 }
