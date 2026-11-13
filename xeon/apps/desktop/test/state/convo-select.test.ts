@@ -57,6 +57,7 @@ const TURN_BASE: TurnRecord = {
   lastStopReason: null,
   warnings: [],
   lastContextTokens: null,
+  lastComposition: null,
   notices: [],
   abort: null,
   completion: null,
@@ -240,6 +241,7 @@ describe("selectTurnSummary", () => {
       warnings: [],
       notices: [],
       lastContextTokens: 1200,
+      composition: null,
     });
     expect(selectTurnSummary(s, T, trn(9))).toBeUndefined();
   });

@@ -321,4 +321,40 @@ describe("attachments", () => {
     expect(await app.commands.compactKeepTokens()).toBe(20000);
     await app.stop();
   });
+
+  test("compactPolicy reads the auto compaction switch and reserve that set the compaction threshold (DP-201)", async () => {
+    const { app } = await liveApp({
+      results: {
+        "settings.get": {
+          settings: [
+            {
+              key: "l1.context.autoCompact",
+              value: true,
+              source: { scope: "user" },
+              locked: false,
+              shadowed: [],
+              runtimeChange: "nextTurn",
+              pendingUntil: null,
+              deprecated: false,
+            },
+            {
+              key: "l1.context.reserveTokens",
+              value: 16384,
+              source: { scope: "user" },
+              locked: false,
+              shadowed: [],
+              runtimeChange: "nextTurn",
+              pendingUntil: null,
+              deprecated: false,
+            },
+          ],
+        },
+      },
+    });
+    expect(await app.commands.compactPolicy(thr(1))).toEqual({
+      autoCompact: true,
+      reserveTokens: 16384,
+    });
+    await app.stop();
+  });
 });

@@ -204,3 +204,30 @@ export const useWriteAccessAllowed = (threadId: ThreadId): boolean =>
 /** 도구 호출 id 없는 승인(계획·질문·검토)의 기록 */
 export const useLooseApprovals = (threadId: ThreadId): readonly ApprovalTrail[] =>
   useEngine((s) => csel.selectLooseApprovals(s, threadId));
+
+/** 열린 대화의 확정 기록 한 벌. 변경 탭과 컨텍스트 탭이 item 인자(도구 호출, 시스템 접두)를 읽는다(DP-198, DP-203) */
+export type OpenTranscriptView =
+  | { readonly status: "none" | "loading" | "error" }
+  | {
+      readonly status: "ready";
+      readonly threadId: ThreadId;
+      readonly itemIds: readonly ItemId[];
+      readonly items: Readonly<Record<string, ItemRecord>>;
+      /** 읽는 상한에서 멈춰 오래된 item이 없다 */
+      readonly truncated: boolean;
+    };
+
+/** 대화가 `threadId`일 때만 그 기록을 준다. 다른 대화가 열려 있으면 `none`이다. 같은 기록이면 같은 값이라 다시 그리지 않는다 */
+export const useOpenTranscript = (threadId: ThreadId | null): OpenTranscriptView =>
+  useEngine((s: EngineMirror): OpenTranscriptView => {
+    const t = s.transcript;
+    if (threadId === null || t === null || t.threadId !== threadId) return { status: "none" };
+    if (t.status !== "ready") return { status: t.status };
+    return {
+      status: "ready",
+      threadId: t.threadId,
+      itemIds: t.itemIds,
+      items: t.items,
+      truncated: t.truncated === true,
+    };
+  });

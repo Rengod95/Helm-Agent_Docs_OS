@@ -105,6 +105,8 @@ export type TurnSummary = {
   readonly warnings: TurnRecord["warnings"];
   readonly notices: readonly TurnNoticeRecord[];
   readonly lastContextTokens: number | null;
+  /** 마지막 단계 요청의 구성 어림. 없으면 null */
+  readonly composition: TurnRecord["lastComposition"];
 };
 
 function usageSummaryOf(usage: Usage | null): TurnUsageSummary | null {
@@ -142,6 +144,7 @@ function summarizeTurn(turn: TurnRecord): TurnSummary {
     warnings: turn.warnings,
     notices: turn.notices,
     lastContextTokens: turn.lastContextTokens,
+    composition: turn.lastComposition,
   };
 }
 

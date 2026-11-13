@@ -8,6 +8,7 @@ import type {
   ItemId,
   ItemRecord,
   StepCompletedPayload,
+  StepComposition,
   StepContextWarning,
   ThreadId,
   TurnId,
@@ -229,6 +230,8 @@ export type TurnRecord = {
   readonly warnings: readonly StepContextWarning[];
   /** 마지막 단계 요청의 추정 토큰 합. 없으면 null */
   readonly lastContextTokens: number | null;
+  /** 마지막 단계 요청의 소유자별 토큰 어림(`step.completed.composition`, T-MEAS-CTX). 옛 기록에는 없어 null(DP-202) */
+  readonly lastComposition: StepComposition | null;
   readonly notices: readonly TurnNoticeRecord[];
   readonly abort: TurnAbortRecord | null;
   readonly completion: TurnCompletion | null;
@@ -413,6 +416,7 @@ function newTurn(turnId: TurnId): TurnRecord {
     lastStopReason: null,
     warnings: [],
     lastContextTokens: null,
+    lastComposition: null,
     notices: [],
     abort: null,
     completion: null,
@@ -879,6 +883,7 @@ export function convoApply(
             lastContextTokens: latest
               ? (p.composition?.total ?? t.lastContextTokens)
               : t.lastContextTokens,
+            lastComposition: latest ? (p.composition ?? t.lastComposition) : t.lastComposition,
           };
         }),
       );

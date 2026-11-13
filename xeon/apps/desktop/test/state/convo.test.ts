@@ -473,3 +473,48 @@ describe("EMPTY_THREAD_CONVO", () => {
     });
   });
 });
+
+const composed = (c: Convo, seq: number, stepIndex: number, history: number): Convo =>
+  convoApply(c, thr(1), pos(seq, trn(1), seq), {
+    kind: "step.completed",
+    payload: {
+      stepIndex,
+      status: "completed",
+      stopReason: "stop",
+      assistantItemId: null,
+      toolResultItemIds: [],
+      composition: {
+        system: 900,
+        tools: 2400,
+        sections: { rules: 300 },
+        injected: 120,
+        volatile: 40,
+        history,
+        total: 900 + 300 + 120 + 40 + history,
+      },
+    },
+  });
+
+describe("단계 구성 어림(DP-202)", () => {
+  test("마지막 단계의 구성을 턴에 남기고 늦게 온 앞 단계는 덮지 않는다", () => {
+    let c = start({}, 1, 0);
+    c = composed(c, 2, 1, 5000);
+    c = composed(c, 3, 0, 100);
+    const turn = thread(c)?.turns[0];
+    expect(turn?.lastComposition).toEqual({
+      system: 900,
+      tools: 2400,
+      sections: { rules: 300 },
+      injected: 120,
+      volatile: 40,
+      history: 5000,
+      total: 6360,
+    });
+    expect(turn?.lastContextTokens).toBe(6360);
+  });
+
+  test("구성이 없는 단계(옛 기록)는 null로 둔다", () => {
+    const c = step(start({}, 1, 0), 2, 1, 0, "stop");
+    expect(thread(c)?.turns[0]?.lastComposition).toBeNull();
+  });
+});

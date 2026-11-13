@@ -44,6 +44,7 @@ const convo: ThreadConvo = {
       lastStopReason: "stop",
       warnings: [],
       lastContextTokens: null,
+      lastComposition: null,
       notices: [],
       abort: { code: "user", message: null, cause: "direct", background: false },
       completion: null,

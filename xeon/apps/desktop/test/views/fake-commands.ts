@@ -16,6 +16,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     addAttachment: () => Promise.resolve(err({ kind: "unsupported" })),
     attachmentLimit: () => Promise.resolve(null),
     compactKeepTokens: () => Promise.resolve(null),
+    compactPolicy: () => Promise.resolve(null),
     interrupt: () => Promise.resolve(ok(null)),
     withdrawInput: () => Promise.resolve(ok(true)),
     compactThread: () => Promise.resolve(err({ kind: "unsupported" })),
