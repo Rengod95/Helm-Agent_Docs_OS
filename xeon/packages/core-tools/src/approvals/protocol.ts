@@ -3,6 +3,7 @@ import type { JsonObject, JsonValue } from "@fresnel/contracts/conversation";
 import { ReviewAnswerSchema } from "@fresnel/contracts/records";
 import {
   PERMISSION_MODE_STRICTNESS,
+  WRITE_ACCESS_RULE_ID,
   type ApprovalDecision,
   type ApprovalRemember,
   type ApprovalRequest,
@@ -66,11 +67,15 @@ function reviewIssue(body: ReviewBody): string | undefined {
 }
 
 function rememberIssue(input: ApprovalRequestInput): string | undefined {
-  // M4의 승인 기억은 요청 단위뿐이다 [결정: 2026-10-31 사용자, 2026-11-04 B5 점검]. 어떤 종류도 once만 제안한다
-  const { remember } = input;
-  return remember.length === 1 && remember[0] === "once"
-    ? undefined
-    : `${input.body.kind} requests offer only "once"`;
+  // M4의 승인 기억은 요청 단위뿐이다 [결정: 2026-10-31 사용자, 2026-11-04 B5 점검]. 어떤 종류도 once만 제안한다.
+  // 예외: 샌드박스 밖 쓰기 허용 승인은 "이 대화 동안 전부 허용"(thread)을 함께 제안한다 [결정: 2026-11-13 사용자]
+  const { remember, body } = input;
+  if (remember.length === 1 && remember[0] === "once") return undefined;
+  const writeAccess = body.kind === "tool" && body.tool.ruleId === WRITE_ACCESS_RULE_ID;
+  if (writeAccess && remember.length === 2 && remember[0] === "once" && remember[1] === "thread") {
+    return undefined;
+  }
+  return `${body.kind} requests offer only "once"`;
 }
 
 /**
