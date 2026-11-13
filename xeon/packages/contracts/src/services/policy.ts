@@ -53,6 +53,14 @@ export function matchToolGlob(pattern: string, name: string): boolean {
   return row[name.length] ?? false;
 }
 
+/**
+ * 도구 이름 목록에서 glob이 아닌 항목(`*`·`?`가 없다). 이름을 글자 그대로 적은 항목만 지연 도구를 검색 없이 싣게 한다
+ * (L1.tools §4.1 5번 (다)). 순수 함수
+ */
+export function exactToolNames(globs: readonly string[]): readonly string[] {
+  return globs.filter((glob) => !glob.includes("*") && !glob.includes("?"));
+}
+
 const NONINTERACTIVE_MESSAGE =
   "[fresnel:noninteractive_ask_denied] This tool call needs approval, but nobody can answer in a non-interactive run.";
 

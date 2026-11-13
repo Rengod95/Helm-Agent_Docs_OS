@@ -8,6 +8,7 @@ import {
 } from "@fresnel/contracts/capabilities";
 import {
   TOOL_SEARCH_NAME,
+  exactToolNames,
   matchToolGlob,
   type AdvertisedToolset,
   type AdvertiseError,
@@ -115,12 +116,12 @@ function refOrder(a: ToolEntry, b: ToolEntry): number {
 function isActivated(
   entry: ToolEntry,
   input: AdvertiseInput,
-  allow: readonly string[] | undefined,
+  exactAllow: readonly string[],
 ): boolean {
   return (
     input.activated.has(entry.name) ||
     entry.activeWhen?.(input.run.threadId) === true ||
-    (allow?.some((glob) => glob === entry.name) ?? false)
+    exactAllow.includes(entry.name)
   );
 }
 
@@ -141,6 +142,7 @@ export function planExposure(
   const search = ordered.find(isToolSearch);
   // 서브에이전트 정의의 도구 제한(glob). 없으면 제한이 없다. `tool_search`는 제한 밖이어도 지연 도구를 찾는 데 필요해 아래에서 따로 다룬다
   const allow = input.allow ?? input.run.ceiling?.allow;
+  const exactAllow = exactToolNames(allow ?? []);
   const removed: RemovedTool[] = [];
   const visible: ToolEntry[] = [];
   for (const entry of ordered) {
@@ -181,7 +183,7 @@ export function planExposure(
   const stillDeferred: ToolEntry[] = [];
   let left = room - advertisedAutos.length;
   for (const entry of deferredAll) {
-    if (isActivated(entry, input, allow) && left > 0) {
+    if (isActivated(entry, input, exactAllow) && left > 0) {
       advertised.push(entry);
       left -= 1;
     } else {
