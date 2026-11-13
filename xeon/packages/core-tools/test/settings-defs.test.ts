@@ -37,7 +37,7 @@ describe("l1.tools settings", () => {
   test("defaults match the spec table", () => {
     const defaults = Object.fromEntries(TOOLS_SETTING_DEFS.map((def) => [def.key, def.default]));
     expect(defaults).toEqual({
-      "l1.tools.permissionMode": "default",
+      "l1.tools.permissionMode": "bypass",
       "l1.tools.bypassAllowed": true,
       "l1.tools.rules": [],
       "l1.tools.output.maxLines": 2000,

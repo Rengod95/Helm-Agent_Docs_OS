@@ -127,7 +127,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
   const host = await createTestHost();
   const apis = new Map<string, unknown>();
   let fileLayers: ScopeStack = options.layers ?? [];
-  const source: ToolsSettingsSource = { layers: () => fileLayers };
+  const source: ToolsSettingsSource = { layers: () => withDefaultMode(fileLayers) };
   const thread = ids.next("thr");
   await host.host.openThread(thread);
   const deps: ToolsDeps = {
@@ -189,6 +189,23 @@ export function expectOk<T>(result: Result<T, { readonly kind: string }>): T {
   if (!result.ok)
     throw new Bug(`unexpected failure: ${result.error.kind}`, { cause: result.error });
   return result.value;
+}
+
+const MODE_KEY = "l1.tools.permissionMode";
+
+/**
+ * 엔진 기본 모드는 bypass(2026-11-13 사용자 결정)지만 이 시험들은 "묻는" 경로를 본다. 시험이 모드를 정하지 않았으면
+ * 가장 낮은 user 범위 값으로 default를 깐다. 모드를 정한 시험(plan, bypass 등)은 그대로다
+ */
+function withDefaultMode(layers: ScopeStack): ScopeStack {
+  if (layers.some((candidate) => candidate.values.has(MODE_KEY))) return layers;
+  const user = layers.find((candidate) => candidate.scope === "user");
+  if (user === undefined) return [...layers, layer("user", { [MODE_KEY]: "default" })];
+  return layers.map((candidate) =>
+    candidate === user
+      ? { ...candidate, values: new Map([...candidate.values, [MODE_KEY, "default"]]) }
+      : candidate,
+  );
 }
 
 export function layer(
