@@ -17,6 +17,7 @@ import type {
 } from "./convo.ts";
 import { EMPTY_THREAD_CONVO } from "./convo.ts";
 import type { EngineMirror, Streaming } from "./state.ts";
+import type { ThreadSummary } from "@fresnel/contracts/wire";
 
 const NO_INTERVENTIONS: readonly Intervention[] = Object.freeze([]);
 const NO_APPROVALS: readonly ApprovalTrail[] = Object.freeze([]);
@@ -397,3 +398,114 @@ export function selectMarkers(s: EngineMirror, threadId: ThreadId): readonly Con
   const markers = convoOf(s, threadId).markers;
   return markers.length === 0 ? NO_MARKERS : markers;
 }
+
+// ── 작업 판(DP-195) ────────────────────────────────────────────────────
+
+/** 작업 한 개(`work.task_*` 사건으로 쌓은 기록). 내용, 진행형 문장, 상태, 소유자, 막는 작업 id */
+export type TaskRecord = ThreadConvo["tasks"][string]["task"];
+
+const NO_TASK_RECORDS: readonly TaskRecord[] = Object.freeze([]);
+const taskRecordsCache = new WeakMap<ThreadConvo, readonly TaskRecord[]>();
+
+function taskRecordsOf(c: ThreadConvo): readonly TaskRecord[] {
+  if (c.taskOrder.length === 0) return NO_TASK_RECORDS;
+  const known = taskRecordsCache.get(c);
+  if (known !== undefined) return known;
+  const made = c.taskOrder.flatMap((id): TaskRecord[] => {
+    const state = c.tasks[id];
+    return state === undefined ? [] : [state.task];
+  });
+  taskRecordsCache.set(c, made);
+  return made;
+}
+
+/** thread의 작업 기록(만든 순서). 컴팩션과 무관하게 사건에서 쌓인다. 없으면 빈 목록 */
+export function selectTaskRecords(s: EngineMirror, threadId: ThreadId): readonly TaskRecord[] {
+  return taskRecordsOf(convoOf(s, threadId));
+}
+
+/** 작업이 있는 대화 하나 */
+export type ThreadTasks = { readonly threadId: ThreadId; readonly tasks: readonly TaskRecord[] };
+
+const NO_THREAD_TASKS: readonly ThreadTasks[] = Object.freeze([]);
+const threadTasksCache = new WeakMap<
+  EngineMirror["convo"],
+  { readonly ids: readonly ThreadId[]; readonly made: readonly ThreadTasks[] }
+>();
+
+/** 작업 기록이 있는 대화들(목록 순서: 최근 활동 먼저). 열린 대화가 없을 때 작업 탭이 묶어 보인다 */
+export function selectThreadsWithTasks(s: EngineMirror): readonly ThreadTasks[] {
+  const known = threadTasksCache.get(s.convo);
+  if (known !== undefined && known.ids === s.threads.ids) return known.made;
+  const made = s.threads.ids.flatMap((threadId): ThreadTasks[] => {
+    const c = s.convo[threadId];
+    if (c === undefined || c.taskOrder.length === 0) return [];
+    return [{ threadId, tasks: taskRecordsOf(c) }];
+  });
+  const result = made.length === 0 ? NO_THREAD_TASKS : made;
+  threadTasksCache.set(s.convo, { ids: s.threads.ids, made: result });
+  return result;
+}
+
+// ── 실행 중(DP-196) ────────────────────────────────────────────────────
+
+/**
+ * 실행 중 탭이 읽는 대화 하나의 값. 무엇을 보일지(도는 중, 기다림, 방금 끝남)는 화면 모델(`views/panels/running/running-model.ts`)이 시각과 함께 정한다.
+ * 끝남은 엔진 상태(대화 `status`, 턴 `completion`, 에이전트 `status`)에서만 온다
+ */
+export type RunSource = {
+  readonly summary: ThreadSummary;
+  /** 거울이 아는 마지막 턴. 모르면 null */
+  readonly lastTurn: TurnRecord | null;
+  /** 지금 실행 중인 도구 이름(확정 전 진행 item). 없으면 null */
+  readonly currentTool: string | null;
+  /** 이 대화를 띄운 하위 에이전트 기록(자식 대화일 때 부모 거울에서 찾는다). 없으면 null */
+  readonly agent: AgentRecord | null;
+};
+
+const runSourcesCache = new WeakMap<
+  EngineMirror["threads"],
+  {
+    readonly convo: EngineMirror["convo"];
+    readonly streaming: Streaming;
+    readonly made: readonly RunSource[];
+  }
+>();
+
+/** 엔진 내부 일로 만든 대화를 뺀 모든 대화의 실행 값(목록 순서) */
+export function selectRunSources(s: EngineMirror): readonly RunSource[] {
+  const known = runSourcesCache.get(s.threads);
+  if (known !== undefined && known.convo === s.convo && known.streaming === s.streaming) {
+    return known.made;
+  }
+  const agentsByChild = new Map<string, AgentRecord>();
+  for (const c of Object.values(s.convo)) {
+    for (const agent of c.agents) agentsByChild.set(agent.childThreadId, agent);
+  }
+  const made = s.threads.ids.flatMap((threadId): RunSource[] => {
+    const summary = s.threads.byId[threadId];
+    if (summary === undefined || summary.spawnedBy?.kind === "internal") return [];
+    const c = s.convo[threadId];
+    return [
+      {
+        summary,
+        lastTurn: c?.turns.at(-1) ?? null,
+        currentTool: summary.status === "running" ? currentToolOf(s.streaming, threadId) : null,
+        agent: agentsByChild.get(threadId) ?? null,
+      },
+    ];
+  });
+  runSourcesCache.set(s.threads, { convo: s.convo, streaming: s.streaming, made });
+  return made;
+}
+
+/** 도는 대화 수(엔진 내부 대화 제외). 막대 "실행 중" 칸의 숫자다 */
+export const selectRunningThreadCount = (s: EngineMirror): number =>
+  s.threads.ids.reduce((n, id) => {
+    const summary = s.threads.byId[id];
+    return summary !== undefined &&
+      summary.status === "running" &&
+      summary.spawnedBy?.kind !== "internal"
+      ? n + 1
+      : n;
+  }, 0);

@@ -79,9 +79,11 @@ describe("플러그인 탭의 칸 숫자와 이름표", () => {
     expect(shellHtml(storeOf(TWO_NOTICES), false)).toContain(`aria-label="${LABEL} 2"`);
   });
 
-  test("펼친 well 머리도 같은 글을 쓴다", () => {
-    expect(shellHtml(storeOf(TWO_NOTICES), true)).toContain(`${LABEL} 2</h2>`);
-    expect(shellHtml(storeOf([entry("web")]), true)).toContain(`${LABEL}</h2>`);
+  test("펼친 well 머리는 제목 옆 요약 칸에 같은 수를 쓴다(DP-193)", () => {
+    const out = shellHtml(storeOf(TWO_NOTICES), true);
+    expect(out).toContain(`${LABEL}</span>`);
+    expect(out).toMatch(/data-end-summary=""[^>]*>2<\/span>/);
+    expect(shellHtml(storeOf([entry("web")]), true)).toMatch(/data-end-summary=""[^>]*><\/span>/);
   });
 });
 

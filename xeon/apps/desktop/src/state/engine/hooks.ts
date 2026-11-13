@@ -201,3 +201,13 @@ export const useLooseInterventions = (threadId: ThreadId): readonly Intervention
 /** 도구 호출 id 없는 승인(계획·질문·검토)의 기록 */
 export const useLooseApprovals = (threadId: ThreadId): readonly ApprovalTrail[] =>
   useEngine((s) => csel.selectLooseApprovals(s, threadId));
+/** 열린 대화의 작업 기록(DP-195). 사건마다 바뀐다 */
+export const useTaskRecords = (threadId: ThreadId): readonly csel.TaskRecord[] =>
+  useEngine((s) => csel.selectTaskRecords(s, threadId));
+/** 작업 기록이 있는 대화들(최근 활동 먼저) */
+export const useThreadsWithTasks = (): readonly csel.ThreadTasks[] =>
+  useEngine(csel.selectThreadsWithTasks);
+/** 실행 중 탭의 대화 값들(DP-196) */
+export const useRunSources = (): readonly csel.RunSource[] => useEngine(csel.selectRunSources);
+/** 도는 대화 수(엔진 내부 대화 제외) */
+export const useRunningThreadCount = (): number => useEngine(csel.selectRunningThreadCount);

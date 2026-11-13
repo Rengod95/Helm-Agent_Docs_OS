@@ -3,12 +3,12 @@ import { assertNever, type Result } from "@fresnel/contracts";
 import type { WireResult } from "@fresnel/contracts/wire";
 import type { CommandError } from "../../commands.ts";
 
-// 목표와 작업 화면(P-14)의 순수 모델. 목표 상태 값, 작업 목록의 접기, 목표 명령 줄과 읽기 상태를 다룬다.
+// 작업 탭(P-14, DP-195)의 목표·계획 순수 모델. 목표 상태 값, 목표 명령 줄과 읽기 상태를 다룬다.
+// 작업 목록은 거울에서 사건마다 읽으므로 여기 없다(`views/panels/tasks/task-board-model.ts`).
 // 계획 카드(W-18)의 값과 판 목록도 여기서 만든다. 값은 `toEqual`로 비교한다.
 // 문장은 `MessageRef`(id와 인자)로 돌려주고 그릴 때 `t()`로 만든다.
 
 export type GoalWire = WireResult<"goal.status">["goal"];
-export type TaskWire = WireResult<"work.tasks.list">["tasks"][number];
 export type PlanVersionWire = WireResult<"work.plans.versions">["versions"][number];
 type GoalStatusWire = "active" | "met" | "exhausted" | "cleared";
 
@@ -76,56 +76,6 @@ function goalEndRefOf(goal: NonNullable<GoalWire>): MessageRef | null {
     default:
       return assertNever(goal.status, "GoalStatusWire");
   }
-}
-
-/** 작업 목록을 접는 기준. 작업이 이만큼을 넘으면 완료된 작업을 접는다 */
-export const DONE_FOLD_LIMIT = 100;
-
-type TaskStepStatus = "todo" | "now" | "done";
-
-interface TaskStep {
-  readonly id: string;
-  readonly label: string;
-  readonly status: TaskStepStatus;
-  /** 막힘 사유나 취소 표지. 없으면 null */
-  readonly detailRef: MessageRef | null;
-}
-
-export interface TaskListVM {
-  /** 그릴 작업 행(접힌 완료 작업은 뺀다) */
-  readonly steps: readonly TaskStep[];
-  readonly total: number;
-  readonly doneCount: number;
-  /** 완료 작업을 접을 수 있는가(작업이 `DONE_FOLD_LIMIT`을 넘을 때) */
-  readonly foldable: boolean;
-  /** 접혀 있어 보이지 않는 완료 작업 수 */
-  readonly hiddenDone: number;
-}
-
-export function taskListOf(tasks: readonly TaskWire[], doneExpanded: boolean): TaskListVM {
-  const all = tasks.map(taskStepOf);
-  const doneCount = all.filter((step) => step.status === "done").length;
-  const foldable = tasks.length > DONE_FOLD_LIMIT;
-  const hideDone = foldable && !doneExpanded;
-  const steps = hideDone ? all.filter((step) => step.status !== "done") : all;
-  return {
-    steps,
-    total: tasks.length,
-    doneCount,
-    foldable,
-    hiddenDone: hideDone ? doneCount : 0,
-  };
-}
-
-function taskStepOf(task: TaskWire): TaskStep {
-  const status: TaskStepStatus =
-    task.status === "done" ? "done" : task.status === "in_progress" ? "now" : "todo";
-  let detailRef: MessageRef | null = null;
-  if (task.status === "cancelled") detailRef = { id: "desktop.work.tasks.cancelled" };
-  else if (task.blockedBy !== null) {
-    detailRef = { id: "desktop.work.tasks.blocked", args: { reason: task.blockedBy } };
-  }
-  return { id: task.taskId, label: task.content, status, detailRef };
 }
 
 /** 목표 명령 줄. 걸기는 조건 글을, 해제는 `clear`다 */
@@ -323,11 +273,9 @@ export interface WorkNotice {
 
 export interface WorkState {
   readonly goal: WorkLoad<GoalWire>;
-  readonly tasks: WorkLoad<readonly TaskWire[]>;
   readonly plan: PlanState;
   /** 판 목록 대화상자가 열려 있나 */
   readonly versionsOpen: boolean;
-  readonly doneExpanded: boolean;
   readonly draft: string;
   readonly busy: boolean;
   readonly notice: WorkNotice | null;
@@ -335,10 +283,8 @@ export interface WorkState {
 
 export const INITIAL_WORK_STATE: WorkState = {
   goal: { status: "loading" },
-  tasks: { status: "loading" },
   plan: { planId: null, load: { status: "loading" } },
   versionsOpen: false,
-  doneExpanded: false,
   draft: "",
   busy: false,
   notice: null,
@@ -348,8 +294,6 @@ export type WorkAction =
   | { readonly type: "loadStarted" }
   | { readonly type: "goalLoaded"; readonly goal: GoalWire }
   | { readonly type: "goalFailed" }
-  | { readonly type: "tasksLoaded"; readonly tasks: readonly TaskWire[] }
-  | { readonly type: "tasksFailed" }
   | { readonly type: "planLoadStarted"; readonly planId: string | null }
   | {
       readonly type: "planLoaded";
@@ -361,7 +305,6 @@ export type WorkAction =
   | { readonly type: "versionsClosed" }
   | { readonly type: "draftChanged"; readonly draft: string }
   | { readonly type: "busyChanged"; readonly busy: boolean }
-  | { readonly type: "doneToggled" }
   | { readonly type: "noticeSet"; readonly notice: WorkNotice | null };
 
 export function workReducer(state: WorkState, action: WorkAction): WorkState {
@@ -371,16 +314,11 @@ export function workReducer(state: WorkState, action: WorkAction): WorkState {
       return {
         ...state,
         goal: state.goal.status === "ready" ? state.goal : { status: "loading" },
-        tasks: state.tasks.status === "ready" ? state.tasks : { status: "loading" },
       };
     case "goalLoaded":
       return { ...state, goal: { status: "ready", value: action.goal } };
     case "goalFailed":
       return { ...state, goal: { status: "failed" } };
-    case "tasksLoaded":
-      return { ...state, tasks: { status: "ready", value: action.tasks } };
-    case "tasksFailed":
-      return { ...state, tasks: { status: "failed" } };
     case "planLoadStarted": {
       // 같은 계획의 마지막 판 목록은 다시 읽는 동안에도 둔다. 계획이 바뀌었거나 처음이면 읽는 중이다
       const kept =
@@ -415,8 +353,6 @@ export function workReducer(state: WorkState, action: WorkAction): WorkState {
       return { ...state, draft: action.draft };
     case "busyChanged":
       return { ...state, busy: action.busy };
-    case "doneToggled":
-      return { ...state, doneExpanded: !state.doneExpanded };
     case "noticeSet":
       return { ...state, notice: action.notice };
     default:
