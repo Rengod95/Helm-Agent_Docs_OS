@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { parseHTML } from "linkedom";
 import {
   AURORA_SITE,
+  GLOW_TUNE,
   ORB_STATE,
   WAVE_DONE_GAP_MS,
   auroraOn,
@@ -70,4 +71,14 @@ describe("waveDueOnDone", () => {
 
 test("생각 orb는 사용자가 짚은 미리보기 칸의 상태다", () => {
   expect(ORB_STATE).toBe("connecting");
+});
+
+test("아래 변 빛: 이웃한 알갱이는 숨의 위상이 달라 폭 전체가 한 번에 같이 숨 쉬지 않는다", () => {
+  for (const tune of Object.values(GLOW_TUNE)) {
+    for (const sparks of [tune.line, tune.bloom]) {
+      const phases = sparks.map((spark) => spark.phase);
+      expect(phases.every((phase, i) => i === 0 || phase !== phases[i - 1])).toBe(true);
+    }
+  }
+  expect(GLOW_TUNE.field.line.map((spark) => spark.phase)).toEqual([0, 2, 1, 3, 0, 2, 1]);
 });

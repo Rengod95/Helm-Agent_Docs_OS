@@ -1,38 +1,20 @@
-// 화면 전체 물결의 색 셰이더(DP-161). WebGL2(GLSL ES 3.00). 앞선을 따라 흐르는 색 띠와, 띠가 지나간 뒤 화면 가장자리에 남는 색·머리카락 선을 그린다.
+// 화면 전체 물결의 셰이더(DP-161·166). WebGL2(GLSL ES 3.00). 네 프로그램이다:
+// - 렌즈(`WAVE_LENS_FRAGMENT`): 데스크톱 셸이 찍은 창 한 장을 읽어 앞선을 따라 부풀리고(굴절), 색을 갈라지게 하고(색수차), 앞선 위에서 흐린다.
+//   원천 쪽으로 당기는 모으기(중력)도 여기서다. 내용이 움직이거나 흐려지지 않는 곳은 투명이라 그 아래 실제 화면이 그대로 보인다.
+// - 흐림 준비(`WAVE_BLUR_FRAGMENT`): 찍은 그림을 줄여 가까운 흐림·먼 흐림 두 장을 한 번만 만든다(그림이 물결 동안 바뀌지 않는다).
+// - 색(`WAVE_FRAGMENT`): 앞선을 따라 흐르는 색 띠와, 띠가 지나간 뒤 화면 가장자리에 남는 색·머리카락 선.
+// - 입자(`WAVE_DOT_*`): 원천으로 모였다가 앞선과 함께 흩어지는 작은 점.
 //
-// 옮긴 출처: Libraries.dev "Distortion waves" iOS 포트의 DistortionWaveShaders.metal `waveBand`(와 fieldAt·perimeterAt·continuousRectSDF·rimThickness)
+// 옮긴 출처: Libraries.dev "Distortion waves" iOS 포트의 DistortionWaveShaders.metal `waveLens`, `waveBlurMask`, `waveBand`(와 fieldAt·perimeterAt·
+//   continuousRectSDF·rimThickness), DistortionWave.swift(흐린 사본 두 장을 쌓는 방식), WaveParticles.swift(점 그리기)
 //   https://github.com/Jakubantalik/Libraries.dev/blob/main/packages/distortion-waves/ports/ios/DistortionWavesKit/Sources/DistortionWavesKit/DistortionWaveShaders.metal
 // MIT License, Copyright (c) 2026 Jakub Antalik (전문은 wave-front.ts 머리와 docs의 제3자 표기).
 //
-// 다른 점: Metal의 stitchable colorEffect를 화면 전체 삼각형 하나의 조각 셰이더로 옮겼다. 좌표는 CSS px이고 위가 0이다(원본 pt와 같은 방향).
-// waveLens(렌즈)·waveBlurMask(점진 흐림)는 화면을 읽어야 해서 옮기지 않았다. 앞선 방향(n)은 렌즈만 쓰므로 뺐다.
+// 다른 점: Metal의 stitchable layerEffect·colorEffect를 화면 전체 삼각형 하나의 조각 셰이더로 옮겼다. 좌표는 CSS px이고 위가 0이다(원본 pt와 같은 방향).
+// 원본은 두 화면(떠나는 것·드러나는 것)을 앞선에서 섞는다. 여기서는 같은 화면 위를 지나가므로 한 장이고 덮기(cover)는 없다.
+// 원본은 흐린 사본을 내용째 SwiftUI blur로 만든다. 여기서는 찍은 그림을 반 해상도로 줄여 가우스 흐림 두 장(7px, blur)을 미리 만든다.
 
-export const WAVE_VERTEX = `#version 300 es
-in vec2 a_pos;
-void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
-`;
-
-export const WAVE_FRAGMENT = `#version 300 es
-precision highp float;
-out vec4 outColor;
-
-uniform vec2 u_size;      // CSS px
-uniform float u_scale;    // device px per CSS px
-uniform float u_f[19];    // wave-front.ts waveFieldAt
-uniform vec3 u_pal[9];    // OKLab: seven colours, then the warm and cool fringe
-uniform vec3 u_lumps[7];  // centre along the perimeter, length, depth
-uniform float u_lead;
-uniform float u_tail;
-uniform float u_strength;
-uniform float u_rimWidth;
-uniform float u_rimSoftness;
-uniform float u_corner;
-uniform float u_uneven;
-uniform float u_pulse;
-uniform float u_hairWidth;
-uniform float u_hairOpacity;
-uniform float u_hairWhite;
-
+const FIELD_GLSL = `
 const float PI = 3.14159265;
 
 float heldAt(vec2 p) {
@@ -41,7 +23,7 @@ float heldAt(vec2 p) {
   return smoothstep(hold * 0.9, hold * 1.8, length(p - vec2(u_f[0], u_f[1])));
 }
 
-struct Field { float d; vec2 q; float g; };
+struct Field { float d; vec2 n; vec2 q; vec2 raw; float g; };
 
 Field fieldAt(vec2 p) {
   vec2 raw = p - vec2(u_f[0], u_f[1]);
@@ -61,13 +43,199 @@ Field fieldAt(vec2 p) {
     float s = mx * 0.0058;
     bend = 0.62 * sin(s + time * 1.1) + 0.38 * sin(s * 2.1 - time * 1.5 + 1.7);
   }
+  vec2 n = grad / g;
   Field o;
   o.d = (l - radius) / g + swell * bend;
+  o.n = vec2(cs * n.x - sn * n.y, sn * n.x + cs * n.y);
   o.q = q;
+  o.raw = raw;
   o.g = g;
   return o;
 }
+`;
 
+export const WAVE_VERTEX: string = `#version 300 es
+in vec2 a_pos;
+void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
+`;
+
+/**
+ * 렌즈(원본 `waveLens` + `waveBlurMask`). 찍은 그림(u_tex, BGRA를 RGBA로 올린 것)과 미리 흐린 두 장(u_near, u_far, RGB)을 읽는다.
+ * 내놓는 값은 premultiplied이고, 내용이 4분의 1 px 넘게 움직였거나 흐려진 곳만 덮는다(그 밖은 0이라 아래 실제 화면이 보인다)
+ */
+export const WAVE_LENS_FRAGMENT: string = `#version 300 es
+precision highp float;
+out vec4 outColor;
+
+uniform vec2 u_size;      // CSS px
+uniform float u_scale;    // canvas device px per CSS px
+uniform float u_f[19];
+uniform sampler2D u_tex;
+uniform sampler2D u_near;
+uniform sampler2D u_far;
+uniform float u_amplitude;
+uniform float u_lensWidth;
+uniform float u_aberration;
+uniform float u_blur;
+uniform float u_blurAhead;
+uniform float u_blurBehind;
+uniform float u_alpha;    // 1; fades to 0 over 150ms when the screen changes (lens retired)
+${FIELD_GLSL}
+const float NEAR_BLUR = 7.0;
+const int SPECTRUM = 5;
+const vec3 spectrum[5] = vec3[5](
+  vec3(0.571, 0.000, 0.000),
+  vec3(0.343, 0.206, 0.000),
+  vec3(0.086, 0.588, 0.086),
+  vec3(0.000, 0.206, 0.343),
+  vec3(0.000, 0.000, 0.571)
+);
+
+float blurAt(vec2 p) {
+  Field w = fieldAt(p);
+  float u = w.d / (w.d > 0.0 ? u_blurAhead : u_blurBehind);
+  return u_f[6] * u_blur * exp(-u * u) * heldAt(p);
+}
+
+float ramp(float x) {
+  float t = clamp(x, 0.0, 1.0);
+  return t * t * (3.0 - 2.0 * t);
+}
+
+// Content here: two blurred copies take over from the sharp one as the blur radius grows (the original stacks two copies)
+vec3 contentAt(vec2 s, float radius) {
+  vec2 uv = clamp(s, vec2(0.5), u_size - 0.5) / u_size;
+  vec3 sharp = texture(u_tex, uv).bgr;
+  if (radius <= 0.01) return sharp;
+  vec3 near = texture(u_near, uv).rgb;
+  vec3 c = mix(sharp, near, ramp(radius / NEAR_BLUR));
+  if (radius <= NEAR_BLUR) return c;
+  return mix(c, texture(u_far, uv).rgb, ramp((radius - NEAR_BLUR) / max(u_blur - NEAR_BLUR, 1e-3)));
+}
+
+void main() {
+  vec2 frag = gl_FragCoord.xy / u_scale;
+  vec2 p = vec2(frag.x, u_size.y - frag.y);
+  float energy = u_f[6], gravity = u_f[10];
+  if (energy <= 0.0 && gravity <= 0.0) { outColor = vec4(0.0); return; }
+  Field w = fieldAt(p);
+  float u = w.d / (u_lensWidth * (w.d > 0.0 ? 0.85 : 1.5));
+  float lift = exp(-u * u);
+  float r = max(length(w.raw), 1.0);
+  float held = heldAt(p);
+  vec2 swollen = w.n * energy * u_amplitude * lift * held;
+  vec2 inward = w.raw / r;
+  vec2 s = p - swollen + inward * gravity * exp(-r / 900.0) * held;
+  vec2 split = (swollen - inward * gravity * exp(-r / 240.0) * held) * u_aberration;
+  float radius = energy > 0.0 ? blurAt(s) : 0.0;
+  float moved = length(p - s) + length(split);
+  // Coverage: the original redraws the whole screen; here only moved or blurred pixels are covered so the live DOM shows elsewhere
+  float cover = max(smoothstep(0.1, 0.5, moved), smoothstep(0.05, 0.6, radius)) * u_alpha;
+  if (cover <= 0.0) { outColor = vec4(0.0); return; }
+  vec3 c;
+  if (dot(split, split) < 0.0625) {
+    c = contentAt(s, radius);
+  } else {
+    c = vec3(0.0);
+    for (int i = 0; i < SPECTRUM; i++) {
+      float along = float(i) / float(SPECTRUM - 1) * 2.0 - 1.0;
+      c += contentAt(s + split * along, radius) * spectrum[i];
+    }
+  }
+  outColor = vec4(c * cover, cover);
+}
+`;
+
+/**
+ * 흐림 준비. 한 방향 가우스(시그마 u_sigma, 받는 쪽 텍셀). u_swizzle이 1이면 BGRA 원본을 RGB로 바꿔 읽는다.
+ * 한 번 줄이고(가로·세로) 두 번(가까운·먼) 돌려 물결이 시작하기 전에 끝낸다
+ */
+export const WAVE_BLUR_FRAGMENT: string = `#version 300 es
+precision highp float;
+out vec4 outColor;
+uniform sampler2D u_src;
+uniform vec2 u_dst;       // target size (texels)
+uniform vec2 u_dir;       // (1,0) horizontal, (0,1) vertical
+uniform float u_sigma;    // in target texels
+uniform float u_swizzle;
+
+vec3 at(vec2 uv) {
+  vec4 t = texture(u_src, uv);
+  return u_swizzle > 0.5 ? t.bgr : t.rgb;
+}
+
+void main() {
+  // Texel row 0 is the top line (upload and FBO share the order, so no flip)
+  vec2 uv = gl_FragCoord.xy / u_dst;
+  vec2 step = u_dir / u_dst;
+  if (u_sigma <= 0.0) { outColor = vec4(at(uv), 1.0); return; }
+  int reach = int(ceil(u_sigma * 3.0));
+  vec3 sum = at(uv);
+  float total = 1.0;
+  for (int i = 1; i <= 48; i++) {
+    if (i > reach) break;
+    float k = exp(-0.5 * float(i * i) / (u_sigma * u_sigma));
+    sum += (at(uv + step * float(i)) + at(uv - step * float(i))) * k;
+    total += 2.0 * k;
+  }
+  outColor = vec4(sum / total, 1.0);
+}
+`;
+
+/** 입자: 점 하나가 정점 하나(a_dot = x, y, 지름, 불투명도). 원본처럼 테두리 없는 평평한 점이다 */
+export const WAVE_DOT_VERTEX: string = `#version 300 es
+in vec4 a_dot;
+uniform vec2 u_size;
+uniform float u_scale;
+out float v_radius;
+out float v_alpha;
+void main() {
+  vec2 clip = vec2(a_dot.x / u_size.x * 2.0 - 1.0, 1.0 - a_dot.y / u_size.y * 2.0);
+  gl_Position = vec4(clip, 0.0, 1.0);
+  v_radius = a_dot.z * 0.5 * u_scale;
+  v_alpha = a_dot.w;
+  gl_PointSize = a_dot.w > 0.0 ? ceil(a_dot.z * u_scale) + 2.0 : 0.0;
+}
+`;
+
+export const WAVE_DOT_FRAGMENT: string = `#version 300 es
+precision highp float;
+in float v_radius;
+in float v_alpha;
+uniform vec3 u_dotColor;
+uniform float u_opacity;
+out vec4 outColor;
+void main() {
+  float size = v_radius * 2.0 + 2.0;
+  float d = length((gl_PointCoord - 0.5) * size);
+  float a = v_alpha * u_opacity * (1.0 - smoothstep(v_radius - 0.5, v_radius + 0.5, d));
+  outColor = vec4(u_dotColor * a, a);
+}
+`;
+
+export const WAVE_FRAGMENT: string = `#version 300 es
+precision highp float;
+out vec4 outColor;
+
+uniform vec2 u_size;      // CSS px
+uniform float u_scale;    // device px per CSS px
+uniform float u_f[19];    // wave-front.ts waveFieldAt
+uniform vec3 u_pal[9];    // OKLab: seven colours, then the warm and cool fringe
+uniform vec3 u_lumps[7];  // centre along the perimeter, length, depth
+uniform float u_lead;
+uniform float u_tail;
+uniform float u_strength;
+uniform float u_rimWidth;
+uniform float u_rimSoftness;
+uniform float u_corner;
+uniform float u_uneven;
+uniform float u_pulse;
+uniform float u_hairWidth;
+uniform float u_hairOpacity;
+uniform float u_hairWhite;
+uniform float u_opacity;  // final color knob (never on the lens: the live DOM bleeding through a displaced lens doubles the image)
+
+${FIELD_GLSL}
 vec3 oklabToSRGB(vec3 c) {
   float l = c.x + 0.3963377774 * c.y + 0.2158037573 * c.z;
   float m = c.x - 0.1055613458 * c.y - 0.0638541728 * c.z;
@@ -222,6 +390,6 @@ void main() {
   }
 
   float noise = dither(gl_FragCoord.xy) * 2.0 / 255.0;
-  outColor = vec4(clamp(rgb * total + noise, 0.0, 1.0), clamp(total + noise, 0.0, 1.0));
+  outColor = vec4(clamp(rgb * total + noise, 0.0, 1.0), clamp(total + noise, 0.0, 1.0)) * u_opacity;
 }
 `;

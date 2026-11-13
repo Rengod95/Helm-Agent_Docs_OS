@@ -1,6 +1,5 @@
-/* 생각 표시(DP-162). orb 자체는 thinking-orbs가 canvas에 그린다. 여기는 자리, 대기 알약, 반짝이는 글이다.
-   알약과 반짝임은 libraries.dev/orbs 미리보기 칸(.ex-pill, .t-shimmer)의 짜임을 대화 줄 크기로 옮긴 것이다:
-   원본 74px 알약·orb 56·글 18px → 우리 44px 알약·orb 36·글 13px(본문 글 단계). 띠 폭 400%, 2초 linear는 원본 그대로. */
+/* 생각 표시(DP-162·168). orb 자체는 thinking-orbs가 canvas에 그린다. 여기는 자리와 반짝이는 글이다.
+   반짝임은 libraries.dev/orbs 미리보기 칸(.t-shimmer)의 짜임 그대로다(띠 폭 400%, 2초 linear). 구슬은 작은 프리셋(20) 하나다. */
 
 .thinking-indicator {
   display: block;
@@ -10,18 +9,6 @@
 /* 글줄 안 orb(생각 블록 머리): 20 프리셋을 아이콘 칸(14px)에 겹쳐 둔다. 바깥 여백 -3px로 줄 높이와 글 시작점이 흔들리지 않는다 */
 .thinking-indicator-inline {
   margin: -3px;
-}
-
-/* 대기 알약: 높이 44, 왼쪽 4(orb 둘레가 알약 둥근 끝과 같은 거리), 오른쪽 16, 사이 8 */
-.thinking-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 44px;
-  padding: 0 16px 0 4px;
-  border-radius: 9999px;
-  background: color-mix(in oklch, var(--cs-color-surface-raised) 60%, transparent);
-  box-shadow: inset 0 0 0 1px var(--cs-color-border-subtle);
 }
 
 .thinking-shimmer {

@@ -26,7 +26,7 @@ import { CutMarker, TurnFailureRow } from "./turn-failure-row.tsx";
 import { turnFailureOf } from "./turn-failure-model.ts";
 import { EmptyThread } from "./empty-thread.tsx";
 import { ResumeBand } from "./resume-band.tsx";
-import { ThinkingPill } from "./thinking-indicator.tsx";
+import { ThinkingLive } from "./thinking-indicator.tsx";
 import { VirtualList } from "./virtual-list.tsx";
 import { transcriptRowsOf, type TranscriptRow } from "./transcript-rows.ts";
 import { TranscriptRowView } from "./item-view.tsx";
@@ -168,11 +168,14 @@ function ThreadRows(props: { readonly threadId: ThreadId }): ReactNode {
   // 앞부분 답이 온 뒤 끊긴 응답이면 마지막 답 바로 뒤에 끊김을 표시한다. 자동으로 다시 보내지는 않는다
   const cutNotice =
     failure !== null && turnFailureOf(failure).kind === "interrupted" ? <CutMarker /> : null;
-  // 첫 응답을 기다리는 동안(마지막으로 그려지는 item이 내 말이고 진행 중인 글이 아직 없다) orb 알약을 보인다(DP-162)
+  // 첫 응답을 기다리는 동안(마지막으로 그려지는 item이 내 말이고 진행 중인 글이 아직 없다) 생각 블록 머리와 같은 줄을 보인다(DP-168):
+  // 같은 열(px-3), 같은 줄 높이 28, 같은 작은 구슬과 동사라 생각이 시작돼도 자리가 움직이지 않는다
   const waiting =
     awaiting && live.length === 0 ? (
-      <div role="status" className="mx-auto flex w-full max-w-184 px-3 py-2 text-ui">
-        <ThinkingPill label={t("desktop.item.thinkingWait")} />
+      <div role="status" className="mx-auto grid w-full min-w-0 max-w-184 px-3 pb-1">
+        <div className="convo-line">
+          <ThinkingLive label={t("desktop.convo.thinking.live")} />
+        </div>
       </div>
     ) : null;
   if (rows.length === 0) {
