@@ -453,13 +453,14 @@
   visibility: visible;
 }
 
-/* 화면 전체 물결(wave-overlay.ts, DP-161): 창 전체를 덮고 누르기를 막지 않는다. 토스트·대화창보다 위, 끝나면 바로 지운다 */
+/* 화면 전체 물결(wave-overlay.ts, DP-161): 창 전체를 덮고 누르기를 막지 않는다. 토스트·대화창보다 위, 끝나면 바로 지운다.
+   크기는 뷰포트(담는 상자)의 100%다. `100vw`·`100vh`는 앱 확대(`<html>`의 `zoom`)가 한 번 더 곱해져 125%에서 창보다 25% 커진다(DP-171) */
 .fx-wave {
   position: fixed;
   inset: 0;
   z-index: 2147483000;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
 }
 

@@ -5,6 +5,7 @@
 //   직접 만든 "아래 변 빛(edge glow)"이다: 1px 고리 마스크의 아래쪽(모서리 곡선이 시작하는 곳부터 끝까지)에 무지개가 흐르고, 그 위의 빛 알갱이들이
 //   이웃끼리 다른 위상으로 세기와 자리를 바꾸며, 입력창은 같은 알갱이가 상자 안쪽으로 흐리게 번진다. 모두 transform·opacity 키프레임이라 합성기에서만 돈다.
 // `BeamScope`는 감싼 내용 안에서 대상(`target`, 예: `.composer-box`)을 찾아 그 자리·반경·모서리 모양을 재고 그 위에 판을 겹친다.
+// 잰 값은 화면 px이므로 앱 확대(`<html>`의 `zoom`)로 나눠 판의 CSS px로 옮긴다(DP-171, `boxOf`). 확대를 바꾸면 상자 크기가 바뀌어 다시 잰다.
 // `BeamEdge`는 부모(실행 중 칩)의 아래 변에 선만 있는 작은 변형을 붙인다. 판은 누르기를 막지 않고 화면 낭독에서 빠진다.
 // 승인 대기(wait)는 빛이 멈추고 아래 변이 경고 색으로 고정된다. 움직임을 줄이면 정지한 무지개 선이다. 꺼져 있으면 애니메이션이 없다(쉬는 동안 프레임 0).
 
@@ -50,15 +51,28 @@ type Box = {
   readonly shape: string;
 };
 
-/** 대상 상자의 자리(감싼 판 기준), 모서리 반경과 모양. 반경을 읽지 못하면 16px, 모양이 없으면 round */
-export function boxOf(scope: DOMRect, target: DOMRect, radius: string, shape = ""): Box {
+/**
+ * 판이 서는 자리의 실효 CSS 확대(DP-171). 앱 확대는 `<html>`의 `zoom`이고(appearance-prefs.ts), `getBoundingClientRect`는 확대가 곱해진
+ * 화면 px을 주지만 판의 `left`·`width`는 확대 안의 CSS px라 한 번 더 곱해진다. 확대를 모르는 브라우저는 1이다
+ */
+export function cssZoomOf(el: { readonly currentCSSZoom?: number }): number {
+  const zoom = el.currentCSSZoom;
+  return typeof zoom === "number" && Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+}
+
+/**
+ * 대상 상자의 자리(감싼 판 기준, 판의 CSS px), 모서리 반경과 모양. 두 상자는 화면 px(`getBoundingClientRect`)이라 `zoom`으로 나눠
+ * 판의 CSS px로 옮긴다(DP-171). 반경·모양은 계산된 스타일이라 이미 CSS px다. 반경을 읽지 못하면 16px, 모양이 없으면 round
+ */
+export function boxOf(scope: DOMRect, target: DOMRect, radius: string, shape = "", zoom = 1): Box {
   const parsed = Number.parseFloat(radius);
   const corner = shape.trim() === "" ? "round" : shape.trim();
+  const z = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
   return {
-    left: target.left - scope.left,
-    top: target.top - scope.top,
-    width: target.width,
-    height: target.height,
+    left: (target.left - scope.left) / z,
+    top: (target.top - scope.top) / z,
+    width: target.width / z,
+    height: target.height / z,
     radius: Number.isFinite(parsed) ? parsed : 16,
     shape: corner,
   };
@@ -201,6 +215,7 @@ export function BeamScope(props: {
         found.getBoundingClientRect(),
         style.borderTopLeftRadius,
         style.getPropertyValue("corner-shape"),
+        cssZoomOf(el),
       );
       setBox((prev) => (sameBox(prev, next) ? prev : next));
     };
