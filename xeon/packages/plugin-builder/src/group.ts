@@ -88,7 +88,11 @@ export function createAuthoringGroup(deps: AuthoringDeps): GroupModule {
           { when: "next", requestId: `authoring:restore:${state.name ?? ""}`.slice(0, 64) },
         );
       });
-      g.drive(authoringDrive(g, deps.devkit));
+      // 제작 대화가 열려 있거나 사람 확인 요청이 남아 있을 때만 drive 락 후보가 된다. 기본 켜짐인 유휴 빌더가 락을 쥐어 다른 drive 그룹을
+      // 기다리게 하지 않는다(`authoring_start` 전과 `authoring_stop`·완료 뒤에는 참여하지 않는다)
+      g.drive(authoringDrive(g, deps.devkit), {
+        wants: (state) => sessionOpen(state) || state.pending !== null,
+      });
     },
   });
 }

@@ -16,9 +16,15 @@ export interface DriveLimits {
   readonly maxTokens?: number;
 }
 
-export interface DriveOptions {
+export interface DriveOptions<S = never> {
   /** 그룹이 요청하는 상한. 없는 필드는 X 기본값 `x.primitives.driveDefaultLimits`를 쓰고, 천장 `x.primitives.driveLimits`보다 클 수 없다 */
   readonly limits?: DriveLimits;
+  /**
+   * 이 상태 문서에서 drive 락을 받고 싶은가. 거짓이면 그 thread에서 이 Registration은 drive 락 후보가 아니다(다른 drive 그룹이 지연 없이 락을 받고
+   * 대기 계수에도 들지 않는다). 생략은 항상 후보다. 이미 락을 쥔 drive는 이 값으로 회수하지 않고 기존 유휴 반납 규칙(효과 없는 반환 둘)을 따른다.
+   * 순수 함수여야 한다(경계마다 불린다)
+   */
+  readonly wants?: (state: S) => boolean;
 }
 
 /** 남은 예산. null은 상한 없음 */

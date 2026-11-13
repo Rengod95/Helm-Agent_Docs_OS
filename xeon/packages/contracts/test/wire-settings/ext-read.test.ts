@@ -268,6 +268,15 @@ describe("M4 ext read methods", () => {
     expect(bad.ok).toBe(false);
   });
 
+  test("ext.list carries forcedOn devMode for a group that is on and locked by development mode, and rejects other reasons", () => {
+    roundTrip(WIRE_METHODS["ext.list"].result, {
+      extensions: [{ ...entry, forcedOn: "devMode" }],
+    });
+    expect(
+      parse(WIRE_METHODS["ext.list"].result, { extensions: [{ ...entry, forcedOn: "other" }] }).ok,
+    ).toBe(false);
+  });
+
   test("ext.ui.* replace ext.view.*", () => {
     const names = Object.keys(WIRE_METHODS);
     expect(names.filter((name) => name.startsWith("ext.ui."))).toEqual([

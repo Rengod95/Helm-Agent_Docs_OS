@@ -22,7 +22,9 @@ binds: [xeon/packages/group-guide/**]
 | 이름 | `guide`, 표시 이름 "Fresnel Guide", 패키지 `xeon/packages/group-guide`, 설정 키 `ext.guide.enabled` |
 | 선언 | 내장(`trust.level: "builtin"`), 루트 L3 플러그인, `group: {}`, `defaultEnabled: false`. 도구와 drive는 없고 훅 `thread.shutdown` 하나(아무 일도 안 함)가 그룹 선언을 채웁니다 |
 | 내용 | `xeon/packages/group-guide/skills/<이름>/SKILL.md`와 `references/*.md`. 영어, 모델용으로 다시 쓴 짧은 글입니다. 스펙 문서를 통째로 싣지 않습니다 |
-| 켜짐 판정 | 개발 모드(`l3.authoring.devMode`가 참)이거나 `ext.guide.enabled`가 참 |
+| 켜짐 판정 | 개발 모드이거나 `ext.guide.enabled`가 참. 개발 모드 = 설정 `l3.authoring.devMode`가 참이거나 Fresnel을 개발 실행으로 띄운 경우(환경 변수 `FRESNEL_DEV=1`) [결정: 2026-11-13 사용자 지시] |
+| 개발 실행 신호 | 데스크톱 셸이 묶지 않은 개발 사이드카(`just desktop-run`)를 띄울 때 엔진 환경에 `FRESNEL_DEV=1`을 넣는다(셸이 이미 아는 "묶음 여부"를 같은 이름의 기존 변수로 넘긴다, `apps/cli/src/dev-mode.ts`와 같은 이름). 묶은 사이드카에는 넘기지 않는다. 소스 실행(`bun src/main.ts`)은 엔진이 따로 알아채지 않는다: 시험도 소스에서 돌아 구분되지 않는다. 소스에서 돌리는 host·CLI는 `FRESNEL_DEV=1`을 직접 준다 |
+| 목록 표시 | 개발 모드면 `ext.list`의 `guide` 행이 `status: "enabled"`, `forcedOn: "devMode"`(켜진 채 잠김, `F.wire-settings.spec` `ext.list`)이다. 이때는 `ext.guide.enabled` 값과 무관하다 |
 | 안전 모드 | 싣지 않습니다(`defaultGroups: false`도 같습니다) |
 
 ## 2. 스킬 통로

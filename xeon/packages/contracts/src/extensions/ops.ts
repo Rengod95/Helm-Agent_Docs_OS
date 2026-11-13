@@ -35,5 +35,5 @@ export interface ExtensionOps<S> {
   on<N extends HookName>(point: N, handler: Handler<N, S>): Unsubscribe;
   post(item: PostItem, options: PostOptions): Promise<PostReceipt>;
   /** 그룹만 쓴다. 등록만 하고 임대는 X가 중재한다 */
-  drive(fn: DriveFn<S>, options?: DriveOptions): void;
+  drive(fn: DriveFn<S>, options?: DriveOptions<S>): void;
 }

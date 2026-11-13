@@ -359,3 +359,24 @@ test("authoring.guide: without an injected guide the tool says so and opens no s
   });
   expect(rig.state().sessionId).toBeNull();
 });
+
+test("authoring.lease: with no authoring session the builder never takes a drive lock, and an open session does", async () => {
+  const rig = await createGroupRig();
+  const acquired = () =>
+    rig.t.records
+      .events(rig.thread)
+      .filter((event) => event.kind === "lease.acquired")
+      .map((event) => event.payload);
+  // 기본 켜짐이어도 제작 세션이 없으면 drive 락 후보가 아니다
+  await rig.t.boundary(rig.thread).turnSettled();
+  await rig.t.settled();
+  await rig.t.boundary(rig.thread).idle();
+  await rig.t.settled();
+  expect(acquired()).toEqual([]);
+  expect(rig.t.host.leaseOf(rig.thread)).toBeNull();
+  await confirmedSession(rig);
+  // 확인을 기다리는 동안 락을 반납하고 답 뒤에 다시 받으므로(X-17) 두 번 이상이다. 받는 쪽은 언제나 빌더다
+  const taken = acquired();
+  expect(taken.length).toBeGreaterThan(0);
+  for (const payload of taken) expect(payload).toMatchObject({ scopeId: "authoring" });
+});

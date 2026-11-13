@@ -249,7 +249,7 @@ export function wrap<S, D extends GroupSettingDefs>(
       if (!receipt.duplicate) counter.bump("posts");
       return receipt;
     },
-    drive: (fn: DriveFn<S>, options?: DriveOptions) => {
+    drive: (fn: DriveFn<S>, options?: DriveOptions<S>) => {
       api.drive((loop, state) => fn(wrapLoop(loop, counter), state), options);
     },
     state: () => api.state(),

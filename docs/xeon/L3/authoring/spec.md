@@ -323,7 +323,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 
 1. (결정) `L3/README.md` 도메인 표에 `authoring`을 더했다 [결정: 2026-11-04 사용자 B20].
 2. [미결] 서비스 `fresnel.devkit`의 정본 위치(F `services/devkit.ts` [제안])와 L4 구현 위치(`apps/host`).
-3. [결정: 2026-11-13 사용자] Plugin Builder는 기본 켜짐이고 도구는 모두 지연 노출입니다(2026-11-01 결정 "기본 꺼짐"을 대체). 같은 drive를 쓰는 다른 그룹과의 drive 락 경쟁은 [미결]입니다(경계 둘이 지나야 유휴 drive가 락을 반납하므로 그동안 다른 drive 그룹이 기다립니다).
+3. [결정: 2026-11-13 사용자] Plugin Builder는 기본 켜짐이고 도구는 모두 지연 노출입니다(2026-11-01 결정 "기본 꺼짐"을 대체). 기본 켜짐인 빌더가 유휴 상태로 drive 락을 쥐어 다른 drive 그룹을 기다리게 하지 않도록, 빌더는 제작 대화가 열려 있는 동안(또는 사람 확인 요청이 남아 있을 때)만 drive 락 후보가 됩니다(`drive(fn, { wants })`, `X.primitives.spec` §4.4). `authoring_start` 전과 `authoring_stop`·완료 뒤에는 참여하지 않습니다 [결정: 2026-11-13 사용자 지시]. 쓰기 가드(`tool.call.before`)는 제작 대화가 없으면 아무 일도 하지 않지만 핸들러는 등록된 채라 `hooks.order.preview`의 가림·자동 끄기 목록에 tier 5 항목으로 보입니다(핸들러 등록은 세대 단위로 고정이고 미리보기는 대화와 무관한 전역 순서라 끌 수 없습니다) [미결] [근거: 2026-11-13 사용자 지시 2번, apps/host/test/int/hook-order-real.int.test.ts].
 4. [미결] 묶음 형식(폴더 사본, tar, 서명). 서명은 릴리즈 서명(`L4.release.spec`)과 함께 정합니다.
 5. [결정: 2026-11-04 사용자, 결정 목록 R16] 로컬 카탈로그 공유와 묶음 서명은 M4 밖입니다(`review.m4-plan` §1.2). 로컬 카탈로그 경로는 구현 세부로 남깁니다.
 6. [결정: 2026-11-04 사용자, 결정 목록 R16] replay·benchmark·코어 변경 검사는 개발 모드에서만 돕니다(`L4.desktop-ux.spec` §12.3 U-4, m4-decisions Desktop UX 4). 배포 앱에서 개발 모드를 켜는 조건은 M4 밖입니다. 켬/끔 비교(Test run 묶음 실행)는 배포 앱에도 엽니다(2026-11-03 결정).

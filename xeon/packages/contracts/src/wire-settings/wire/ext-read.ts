@@ -147,6 +147,11 @@ export interface ExtListEntry {
   readonly keepOffQuestion?: ExtKeepOffQuestion;
   /** 안전 모드에서 실리지 않은 이유. 실렸으면 null */
   readonly safeModeExcluded: string | null;
+  /**
+   * 설정 값과 무관하게 켜진 채 잠겨 있으면 그 이유(`devMode`: 개발 모드라 항상 켜짐 [결정: 2026-11-13 사용자]). 없으면 설정 값을 따른다.
+   * 화면은 이 필드가 있으면 켜짐·잠김으로 보이면 된다. 호스트가 아직 채우지 않으면 없다
+   */
+  readonly forcedOn?: "devMode";
   /** 모든 플러그인의 Hook 수 */
   readonly hookCount: number;
 }
@@ -175,6 +180,7 @@ const ExtListEntryShape = closed({
     }),
   ),
   safeModeExcluded: Type.Union([Line, Type.Null()]),
+  forcedOn: Type.Optional(Type.Literal("devMode")),
   hookCount: Count,
 });
 const ExtListEntryShape2 = ExtListEntryShape;
