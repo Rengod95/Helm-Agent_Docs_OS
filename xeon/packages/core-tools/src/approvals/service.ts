@@ -117,6 +117,17 @@ interface Entry {
   timer: TimerHandle | undefined;
 }
 
+function ruleOf(request: ApprovalRequest): string | null {
+  return request.body.kind === "tool" ? request.body.tool.ruleId : null;
+}
+
+function grantsThread(resolution: {
+  readonly decision: string;
+  readonly remember: string;
+}): boolean {
+  return resolution.decision === "allow" && resolution.remember === "thread";
+}
+
 function cancelledResolution(request: ApprovalRequest): ApprovalResolution {
   return {
     approvalId: request.approvalId,
@@ -336,7 +347,14 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     }
   }
 
+  /** 대화별 "이 규칙을 thread로 허용했는가"의 캐시(`${threadId}|${ruleId}`). 기록에서 한 번 읽은 값과 이 프로세스의 해결로 채운다 */
+  const rememberedCache = new Map<string, boolean>();
+
   function settle(entry: Entry, resolution: ApprovalResolution): void {
+    const rule = ruleOf(entry.request);
+    if (rule !== null && grantsThread(resolution)) {
+      rememberedCache.set(`${entry.request.surfaceThreadId}|${rule}`, true);
+    }
     if (entry.timer !== undefined) {
       deps.scheduler?.clearTimeout(entry.timer);
       entry.timer = undefined;
@@ -702,9 +720,38 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     return ok(pending(threadId));
   }
 
+  async function rememberedIn(
+    threadId: ThreadId,
+    ruleId: string,
+  ): Promise<Result<boolean, ReadFailure>> {
+    const key = `${threadId}|${ruleId}`;
+    const cached = rememberedCache.get(key);
+    if (cached !== undefined) return ok(cached);
+    const scanned = await scanApprovals(deps.session, threadId);
+    if (!scanned.ok) return scanned;
+    const found = scanned.value.requests.some(({ request }) => {
+      const resolved = scanned.value.resolved.get(request.approvalId);
+      return ruleOf(request) === ruleId && resolved !== undefined && grantsThread(resolved);
+    });
+    rememberedCache.set(key, found);
+    return ok(found);
+  }
+
+  /** 이 대화에서, 없으면 이 대화를 띄운 부모 대화에서 `thread`로 허용한 적이 있는가(하위 대화는 부모의 선택을 물려받는다) */
+  async function remembered(
+    threadId: ThreadId,
+    ruleId: string,
+  ): Promise<Result<boolean, ReadFailure>> {
+    const own = await rememberedIn(threadId, ruleId);
+    if (!own.ok || own.value) return own;
+    const parent = deps.requesterOf?.(threadId)?.surfaceThreadId;
+    return parent === undefined || parent === threadId ? own : rememberedIn(parent, ruleId);
+  }
+
   return {
     request: requestAndWait,
     open,
+    remembered,
     wait,
     get(approvalId) {
       const entry = byId.get(approvalId);

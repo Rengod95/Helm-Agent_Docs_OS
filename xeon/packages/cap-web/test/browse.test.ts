@@ -73,7 +73,7 @@ async function rejection(promise: Promise<unknown>): Promise<CapabilityError> {
 
 function worldOf(
   candidates: readonly BrowseCandidate[],
-  options: Pick<WebWorldOptions, "settings" | "hosts" | "browseConfirm"> = {},
+  options: Pick<WebWorldOptions, "settings" | "hosts" | "browseConfirm" | "approvalCover"> = {},
 ): Promise<WebWorld> {
   return makeWebWorld({ ...options, catalog: fakeCatalog([], [], candidates) });
 }
@@ -711,5 +711,35 @@ describe("web.browse named profiles", () => {
     );
     expect(withoutPort.data.code).toBe("confirmation_denied");
     expect(noPort.opened).toEqual([]);
+  });
+});
+
+describe("web.browse confirmation under a mode that covers run approvals", () => {
+  test("a covered thread clicks a sensitive control without asking", async () => {
+    const local = fakeBrowseProvider("local-browser", { pages: PAGES });
+    const confirm = confirmWith(DENY());
+    const world = await worldOf([browseCandidate(local, "builtin")], {
+      browseConfirm: confirm.port,
+      approvalCover: (threadId) => threadId === THREAD,
+    });
+    const { sessionId } = await world.browse.open({ url: SHOP }, hostCall());
+    await world.browse.act({ sessionId, action: "click", target: { ref: "e1" } }, hostCall());
+    expect(local.log).toEqual([`navigate:${SHOP}`, "click"]);
+    expect(confirm.requests).toEqual([]);
+  });
+
+  test("a thread the mode does not cover still asks and honours the answer", async () => {
+    const local = fakeBrowseProvider("local-browser", { pages: PAGES });
+    const confirm = confirmWith(DENY());
+    const world = await worldOf([browseCandidate(local, "builtin")], {
+      browseConfirm: confirm.port,
+      approvalCover: (threadId) => threadId !== THREAD,
+    });
+    const { sessionId } = await world.browse.open({ url: SHOP }, hostCall());
+    const caught = await rejection(
+      world.browse.act({ sessionId, action: "click", target: { ref: "e1" } }, hostCall()),
+    );
+    expect(caught.data.code).toBe("confirmation_denied");
+    expect(confirm.requests.map((request) => request.reason)).toEqual(["sensitive_click"]);
   });
 });

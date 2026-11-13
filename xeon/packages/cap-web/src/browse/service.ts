@@ -62,6 +62,8 @@ interface Session {
 export interface BrowseServiceOptions {
   /** 없으면 사람 확인이 필요한 동작은 `confirmation_denied`로 거부한다 */
   readonly confirm?: BrowseConfirmPort;
+  /** 대화의 권한 모드가 실행 허가 성격의 승인을 덮으면 참(`ToolService.coversRunApprovals`). 참이면 사람 확인 없이 허용한다 [결정: 2026-11-13 사용자] */
+  readonly approvalCover?: (threadId: ThreadId) => boolean;
 }
 
 function neverAbortedSignal(): AbortSignal {
@@ -173,6 +175,9 @@ export function createBrowseApi(
     requestKey: string,
     signal: AbortSignal,
   ): Promise<boolean> {
+    if (session.threadId !== undefined && options.approvalCover?.(session.threadId) === true) {
+      return true;
+    }
     if (options.confirm === undefined) return false;
     const answer = await options.confirm.confirm(
       {

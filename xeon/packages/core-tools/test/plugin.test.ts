@@ -71,7 +71,14 @@ async function boot() {
     toolsPlugin({
       clock,
       ids,
-      settings: { layers: () => [layer("user", { "l1.tools.unattended.approval": "deny" })] },
+      settings: {
+        layers: () => [
+          layer("user", {
+            "l1.tools.unattended.approval": "deny",
+            "l1.tools.permissionMode": "default",
+          }),
+        ],
+      },
     }),
   );
   return { t, installed, session, tasks, ids };

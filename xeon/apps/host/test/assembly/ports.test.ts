@@ -349,6 +349,7 @@ function harness(): Harness {
       }),
       // 포트 시험은 확장 읽기를 부르지 않는다. 자리만 채운다
       extRead: {
+        forcedOn: () => null,
         operations: partial<OperationsPolicy>({}),
         safeMode: { active: false, cause: null },
         extensions: () => [],

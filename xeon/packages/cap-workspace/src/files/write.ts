@@ -2,6 +2,7 @@ import type { CancelScope } from "@fresnel/contracts/services";
 import type { WorkspaceDeps } from "../deps.ts";
 import { WorkspaceFailure } from "../errors.ts";
 import { relativeToRoots, resolveWorkspacePath } from "../roots.ts";
+import { askOutsideWrite } from "../write-access.ts";
 import { getOrThrow } from "../upstream/get-or-throw.ts";
 import { atomicWrite } from "./atomic.ts";
 import { buildFileChange } from "./diff.ts";
@@ -21,7 +22,9 @@ export function createWrite(deps: WorkspaceDeps): WriteMethod {
     return queueInCallOrder(
       deps.env.id,
       async () => ({
-        resolved: await resolveWorkspacePath(deps.roots, input.path, "write", context),
+        resolved: await resolveWorkspacePath(deps.roots, input.path, "write", context, {
+          askOutsideWrite: askOutsideWrite(deps, "write", options?.context, options?.signal),
+        }),
         roots: await deps.roots.roots(context),
       }),
       ({ resolved }) => mutationKey(deps.env.id, resolved.canonical),

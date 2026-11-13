@@ -1,6 +1,7 @@
 import type { ServiceKey } from "@fresnel/contracts/capabilities";
 import type {
   DriveFn,
+  DriveOptions,
   Handler,
   HookName,
   PortKey,
@@ -19,7 +20,7 @@ import type {
   ExtWriters,
 } from "./operations/storage/table-types.ts";
 import type { ExtTableDefs } from "./operations/storage/tables.ts";
-import type { AnyState, DriveCall } from "./primitives/erased-types.ts";
+import type { AnyState, DriveCall, ErasedDriveOptions } from "./primitives/erased-types.ts";
 import type {
   AnyDispatchOptions,
   AnyDispatchOutcome,
@@ -54,6 +55,21 @@ export function eraseHandler<N extends HookName>(handler: Handler<N>): HandlerEn
 export function eraseDrive<S>(fn: DriveFn<S>): DriveCall {
   // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A3 타입 지움: 상태 타입 S를 지운다 (eng.typescript.guide TY-06)
   return fn as unknown as DriveCall;
+}
+
+function eraseWants(wants: (state: never) => boolean): (state: unknown) => boolean {
+  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A3 타입 지움: 상태 타입 S를 지운다 (eng.typescript.guide TY-06)
+  return wants as unknown as (state: unknown) => boolean;
+}
+
+/** 상태 타입 S를 지운 drive 옵션. `wants`는 StateDecl.schema로 검증된 문서만 받는다 */
+export function eraseDriveOptions<S>(options: DriveOptions<S> | undefined): ErasedDriveOptions {
+  if (options === undefined) return {};
+  const { limits, wants } = options;
+  return {
+    ...(limits === undefined ? {} : { limits }),
+    ...(wants === undefined ? {} : { wants: eraseWants(wants) }),
+  };
 }
 
 /** 상태 타입 S를 지운 scope 정의와 setup. 같은 정의에서 만든 g만 setup에 넘긴다 */

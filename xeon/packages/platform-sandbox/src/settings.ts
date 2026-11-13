@@ -78,7 +78,7 @@ const sandboxSettings = defineSettings("l0.sandbox", {
       widget: "toggle",
       order: 104,
       label: "Allow retry outside the sandbox",
-      help: "Every call outside the sandbox still needs approval.",
+      help: 'Not used yet: no call runs outside the sandbox today. A write the sandbox blocks is asked about instead, and "Extra writable directories" keeps the answer.',
     },
     since: "0.1.0",
   },

@@ -22,10 +22,10 @@ function wiringOf(
   return { devkit: () => port, devMode, workspaceOf: () => undefined };
 }
 
-test("authoring unit: a builtin L3 group that stays off by default", () => {
+test("authoring unit: a builtin L3 group that is on by default", () => {
   const unit = authoringUnit(wiringOf(undefined), 7);
   expect(unit.manifest.name).toBe("authoring");
-  expect(unit.manifest.defaultEnabled).toBe(false);
+  expect(unit.manifest.defaultEnabled).toBe(true);
   expect(unit.manifest.trust).toEqual({ level: "builtin" });
   expect(unit.builtin).toBe(true);
   expect(unit.loadIndex).toBe(7);

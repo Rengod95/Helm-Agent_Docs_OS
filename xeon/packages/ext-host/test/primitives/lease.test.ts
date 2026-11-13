@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { Type } from "typebox";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   DriveLockArbiterPortKey,
@@ -239,4 +240,71 @@ test("a child conversation gets no drive lease and its drive function never runs
   await t.settled();
   expect(calls).toEqual(["ls-child"]);
   expect(kinds(t, main, "lease.acquired")).toMatchObject([{ scopeId: "ls-child" }]);
+});
+
+const OpenSchema = Type.Object({ open: Type.Boolean() }, { additionalProperties: false });
+
+test("a drive that does not want the lock is no candidate: another drive group gets it at once, and it joins when its state wants it", async () => {
+  const t = await createTestHost();
+  const thread = t.newThread();
+  const calls: string[] = [];
+  // 로드 순서가 앞서는 그룹이 원하지 않는 동안에는 뒤 그룹이 락을 받는다
+  await t.host.install(
+    makeGroupUnit(
+      {
+        name: "ls-lazy",
+        loadIndex: 0,
+        def: { state: { schema: OpenSchema, initial: { open: false }, version: 1 } },
+      },
+      (g) => {
+        g.drive(
+          () => {
+            calls.push("ls-lazy");
+            return Promise.resolve();
+          },
+          { wants: (state) => state.open },
+        );
+      },
+    ),
+  );
+  await t.host.install(
+    makeGroupUnit({ name: "ls-busy", loadIndex: 1 }, (g) => {
+      g.drive(async (loop) => {
+        calls.push("ls-busy");
+        await loop.turn({ input: { kind: "user", content: "busy" } });
+      });
+    }),
+  );
+  await t.host.openThread(thread);
+  await t.settled();
+  expect(calls).toEqual(["ls-busy"]);
+  expect(kinds(t, thread, "lease.acquired")).toMatchObject([{ scopeId: "ls-busy" }]);
+  expect(calls).not.toContain("ls-lazy");
+});
+
+test("a drive whose state wants the lock is a candidate again and runs", async () => {
+  const t = await createTestHost();
+  const thread = t.newThread();
+  const calls: string[] = [];
+  await t.host.install(
+    makeGroupUnit(
+      {
+        name: "ls-lazy2",
+        def: { state: { schema: OpenSchema, initial: { open: true }, version: 1 } },
+      },
+      (g) => {
+        g.drive(
+          () => {
+            calls.push("ls-lazy2");
+            return Promise.resolve();
+          },
+          { wants: (state) => state.open },
+        );
+      },
+    ),
+  );
+  await t.host.openThread(thread);
+  await t.settled();
+  expect(calls).toEqual(["ls-lazy2"]);
+  expect(kinds(t, thread, "lease.acquired")).toMatchObject([{ scopeId: "ls-lazy2" }]);
 });

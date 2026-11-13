@@ -12,6 +12,12 @@ import { resolveWorkspacePath } from "../roots.ts";
 import { scopedDeps } from "../scope.ts";
 import { runBashCommand, type BashOutcome } from "./upstream/bash.ts";
 import { unattendedTimeoutSec } from "./unattended.ts";
+import {
+  narrowHomeRoots,
+  pathsFromDenialOutput,
+  planWriteAccess,
+  requestWriteAccess,
+} from "../write-access.ts";
 
 // L2.workspace.spec §3.3, §4.2. 샌드박스 래핑(fresnel.sandbox)과 실행(fresnel.exec)은 F 인터페이스로만 만난다.
 
@@ -23,6 +29,9 @@ const CAPABILITY = WorkspaceShell.id;
 
 /** 시간 초과로 끝난 명령에는 종료 코드가 없다. RunOutput이 정수를 요구해 -1로 싣는다 */
 const NO_EXIT_CODE = -1;
+
+/** 한 호출에서 쓰기 허용을 묻고 다시 실행하는 최대 횟수. 명령이 막힌 경로를 차례로 드러내므로 한 번보다 많다 */
+const MAX_WRITE_ACCESS_ROUNDS = 3;
 
 function isSecretRef(value: string): value is SecretRef {
   return value.startsWith("secret://");
@@ -135,11 +144,6 @@ export function createShellApi(base: WorkspaceDeps): ShellApi {
           });
         }
         const roots = await deps.roots.roots(context);
-        const policy = sandbox.defaultPolicy({
-          workspaceRoots: roots.write,
-          tempDir: deps.tempDir,
-        });
-        const shell = sandbox.wrapShell(deps.env, policy);
 
         // 3~4. 제한 시간: 입력 → 설정 기본값 순. 무인 호출은 상한을 더 받는다(L0.exec.spec §3.8.1). 실행한다
         const requestedSec =
@@ -151,17 +155,65 @@ export function createShellApi(base: WorkspaceDeps): ShellApi {
             : requestedSec;
         const secretEnv = secretEnvOf(input, callContext);
         const startedAt = deps.clock.now();
-        const ran = await runBashCommand(
-          shell,
-          {
+        // 허용한 쓰기 루트(grants)를 정책에 더해 한 번 실행한다. 정책의 보호 경로 처리가 보호 경로 안의 루트를 다시 뺀다
+        const execute = (grants: readonly string[]): ReturnType<typeof runBashCommand> => {
+          const policy = sandbox.defaultPolicy({
+            workspaceRoots: [...roots.write, ...grants],
+            tempDir: deps.tempDir,
+          });
+          return runBashCommand(
+            sandbox.wrapShell(deps.env, policy),
+            {
+              command: input.command,
+              cwd,
+              ...(timeoutSec === undefined ? {} : { timeoutSec }),
+              ...(secretEnv === undefined ? {} : { secretEnv }),
+            },
+            { maxLines: settings.shell.maxLines, maxBytes: settings.shell.maxBytes },
+            context,
+          );
+        };
+        // 샌드박스의 쓰기 거부로 실패했으면 막힌 경로를 물어보고, 허용이면 같은 명령을 다시 실행한다(spec §4.3.1)
+        const withWriteAccess = async (
+          previous: Awaited<ReturnType<typeof execute>>,
+          grants: readonly string[],
+          round: number,
+        ): Promise<Awaited<ReturnType<typeof execute>>> => {
+          if (!previous.ok || round > MAX_WRITE_ACCESS_ROUNDS) return previous;
+          const outcome = previous.value;
+          if (outcome.exitCode === 0 || outcome.sandbox?.sandboxed !== true) return previous;
+          const reported = (outcome.sandbox.blocks ?? []).flatMap((block) =>
+            block.code === "sandbox.write_blocked" ? [block.path] : [],
+          );
+          // 위반 보고가 비면(macOS는 일부 거부를 보고하지 않는다) 거부 문구가 든 출력 줄의 경로를 후보로 쓴다
+          const blocked = reported.length > 0 ? reported : pathsFromDenialOutput(outcome.output);
+          const plan = await narrowHomeRoots(
+            planWriteAccess(
+              blocked,
+              deps.roots.protectedPaths([...roots.read, ...roots.write]),
+              [...roots.write, ...grants],
+              deps.homeDir,
+            ),
+            deps.homeDir,
+            async (path) => {
+              const found = await deps.env.exists(path, context);
+              return found.ok && found.value;
+            },
+          );
+          if (plan.roots.length === 0) return previous;
+          const allowed = await requestWriteAccess(deps, {
+            via: "bash",
+            plan,
+            context: callContext,
+            round,
+            signal: options?.signal,
             command: input.command,
-            cwd,
-            ...(timeoutSec === undefined ? {} : { timeoutSec }),
-            ...(secretEnv === undefined ? {} : { secretEnv }),
-          },
-          { maxLines: settings.shell.maxLines, maxBytes: settings.shell.maxBytes },
-          context,
-        );
+          });
+          if (!allowed) return previous;
+          const next = [...grants, ...plan.roots];
+          return withWriteAccess(await execute(next), next, round + 1);
+        };
+        const ran = await withWriteAccess(await execute([]), [], 1);
         const durationMs = Math.max(0, deps.clock.now() - startedAt);
 
         if (!ran.ok) {

@@ -32,7 +32,12 @@ export function CommandOutputSheet(): ReactNode {
         }
       }}
       title={output === null ? "" : t("desktop.commandOutput.title", { name: output.name })}
-      description={output?.message ?? undefined}
+      description={
+        output?.message === undefined || output.message === null ? undefined : (
+          // 공백 없는 긴 메시지도 시트 폭 안에서 줄을 바꾼다(DP-180)
+          <span className="[overflow-wrap:anywhere]">{output.message}</span>
+        )
+      }
       footer={
         output === null ? null : (
           <>
@@ -80,7 +85,7 @@ export function CommandOutputSheet(): ReactNode {
           {expanded ? (
             <pre
               aria-label={t("desktop.commandOutput.result")}
-              className="max-h-96 overflow-auto rounded-md bg-control-raised p-3 font-mono text-caption whitespace-pre text-text-primary"
+              className="max-h-96 min-w-0 max-w-full overflow-auto rounded-md bg-control-raised p-3 font-mono text-caption whitespace-pre text-text-primary"
             >
               {resultJsonOf(output.result)}
             </pre>

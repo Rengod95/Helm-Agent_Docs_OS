@@ -23,6 +23,7 @@ import type {
 } from "@fresnel/contracts/extensions";
 import {
   eraseDrive,
+  eraseDriveOptions,
   eraseHandler,
   restoreAs,
   serviceAs,
@@ -297,7 +298,7 @@ export function createRegistrationApi(
       assertWritable(record);
       return deps.post.post(record, generation, item, options);
     },
-    drive(fn, options?: DriveOptions) {
+    drive(fn, options?: DriveOptions<AnyState>) {
       assertOpen(record, generation);
       if (!generation.setupPhase) {
         throw new PrimitiveError(
@@ -326,7 +327,7 @@ export function createRegistrationApi(
         });
       }
       generation.usage.drive = true;
-      const registration = { fn: eraseDrive(fn), options: options ?? {} };
+      const registration = { fn: eraseDrive(fn), options: eraseDriveOptions(options) };
       generation.drive = registration;
       fiberOf(generation).effect(
         () => () => {

@@ -10,6 +10,7 @@ import type { ScopeStack } from "@fresnel/contracts/settings";
 import type { RgResolver, WorkspaceDeps } from "../../src/deps.ts";
 import type { BlobSink } from "../../src/ports/blobs.ts";
 import type { ThreadWorkspaces } from "../../src/ports/threads.ts";
+import type { WriteAccessPort } from "../../src/ports/write-access.ts";
 import { defaultRoots } from "../../src/roots.ts";
 import {
   DEFAULT_WORKSPACE_SETTINGS,
@@ -100,6 +101,8 @@ export interface DepsOptions {
   readonly blobs?: BlobSink;
   readonly threads?: ThreadWorkspaces;
   readonly unattendedTimeoutMs?: () => number;
+  readonly writeAccess?: WriteAccessPort;
+  readonly homeDir?: string;
 }
 
 /** 대역 환경으로 서비스 의존을 만든다. sandbox가 null이면 서비스가 없는 상태다 */
@@ -125,6 +128,8 @@ export function depsFor(env: MemoryEnv, options: DepsOptions = {}): WorkspaceDep
     ...(options.blobs === undefined ? {} : { blobs: options.blobs }),
     ...(options.threads === undefined ? {} : { threads: options.threads }),
     ...(rg === undefined ? {} : { rg }),
+    ...(options.writeAccess === undefined ? {} : { writeAccess: options.writeAccess }),
+    ...(options.homeDir === undefined ? {} : { homeDir: options.homeDir }),
     ...(options.unattendedTimeoutMs === undefined
       ? {}
       : { unattendedTimeoutMs: options.unattendedTimeoutMs }),

@@ -353,7 +353,7 @@ const ArtifactCreateParams: TObject<{
     Type.Literal("log"),
   ]),
   title: Type.String({ minLength: 1, maxLength: 200 }),
-  text: Type.String({ minLength: 1, maxLength: 1_048_576, description: "Body" }),
+  text: Type.String({ minLength: 1, maxLength: 1_048_576, description: "Body, max 1 MiB" }),
   mediaType: Type.Optional(MediaTypeSchema),
   summary: Type.Optional(Type.String({ maxLength: 500 })),
 });
@@ -370,7 +370,9 @@ const ArtifactUpdateParams: TObject<{
   artifactId: ArtifactIdSchema,
   baseVersion: Type.Integer({ minimum: 1 }),
   title: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
-  text: Type.Optional(Type.String({ minLength: 1, maxLength: 1_048_576 })),
+  text: Type.Optional(
+    Type.String({ minLength: 1, maxLength: 1_048_576, description: "New body, max 1 MiB" }),
+  ),
   mediaType: Type.Optional(MediaTypeSchema),
   summary: Type.Optional(Type.String({ maxLength: 500 })),
 });

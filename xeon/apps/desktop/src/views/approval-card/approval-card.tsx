@@ -35,6 +35,7 @@ import {
   type ApprovalAge,
 } from "./card-model.ts";
 import { useGoToThread } from "../thread-link.ts";
+import { AttendGlow } from "../effects/attention-mark.tsx";
 
 // 승인 카드. 트랜스크립트 끝, 끝 영역 받은 요청(InboxApprovals), P-03 목록이 같은 카드를 쓴다(FS-02).
 // 카드는 거울의 approvals를 읽고 응답 직후 표시는 UI 스토어가 가진다. 대기열에서 빠지는 일은 approval.resolved가 한다.
@@ -308,8 +309,10 @@ function PendingCard(props: {
         aria-labelledby={titleId}
         tabIndex={-1}
         onKeyDown={onKeyDown}
-        className="grid gap-3 rounded-xl bg-surface-base p-4 text-ui text-text-primary shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle),var(--cs-focus)]"
+        // 주의 면(DP-190): 대기 중인 카드는 위 변 빛과 안쪽 오로라가 깔린다(답을 보내는 동안은 걷는다)
+        className="fx-attend-card grid gap-3 rounded-xl bg-surface-base p-4 text-ui text-text-primary shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle),var(--cs-focus)]"
       >
+        <AttendGlow pending={!busy} />
         {/* 머리: 아이콘 칸 28, 제목 13/600, 곁 줄 12 tertiary(종류 · 대화 · 시각). 위험도·출처는 오른쪽 끝 */}
         <header data-slot="approval-head" className="flex min-w-0 items-start gap-3">
           <span
@@ -319,7 +322,11 @@ function PendingCard(props: {
             {tile.icon}
           </span>
           <div className="grid min-w-0 flex-1 gap-0.5 pt-px">
-            <h3 id={titleId} data-slot="approval-title" className="m-0 text-ui-strong break-words">
+            <h3
+              id={titleId}
+              data-slot="approval-title"
+              className="m-0 text-ui-strong [overflow-wrap:anywhere]"
+            >
               {cardTitle}
             </h3>
             <p data-slot="approval-subtitle" className="m-0 text-ui-sm text-text-tertiary">

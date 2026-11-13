@@ -202,6 +202,126 @@ export function toJsonSchema(schema: TSchema): JsonValue {
   return analyzeSchema(schema).json;
 }
 
+// ── 모델에게 보내는 구조(F.capabilities.spec §4.3) ────────────────────────
+
+/** 모델이 보는 구조에서 지우는 검증 키워드. 서버 검증은 원래 스키마로 계속 한다 */
+const MODEL_DROPPED_KEYWORDS: ReadonlySet<string> = new Set([
+  "minLength",
+  "maxLength",
+  "pattern",
+  "minimum",
+  "maximum",
+  "minItems",
+  "maxItems",
+  "format",
+]);
+/** 값 자리라 안쪽을 바꾸지 않는 키워드 */
+const MODEL_VALUE_KEYWORDS: ReadonlySet<string> = new Set([
+  "enum",
+  "const",
+  "default",
+  "examples",
+  "required",
+]);
+const MODEL_MAP_KEYWORDS: ReadonlySet<string> = new Set([
+  "properties",
+  "patternProperties",
+  "$defs",
+  "definitions",
+  "dependentSchemas",
+]);
+
+/**
+ * `builtin`: 내장 도구(서버가 원래 스키마로 검증한다). anyOf-const → enum과 검증 키워드 제거를 한다.
+ * `external`: MCP·확장 도구. 서버 검증이 우리에게 없으므로 anyOf-const → enum만 한다(뜻이 같다).
+ */
+export type ModelSchemaScope = "builtin" | "external";
+
+/**
+ * 도구를 광고하는 기능 ID로 범위를 정한다. 외부 확장(ext.*, x.*), 그룹(grp.*), 동적 MCP 서버 도구(mcp.<서버>)는
+ * external이고 내장 기능 정의(mcp.client 포함)와 core.*는 builtin이다. 기능 ID가 비면 external이다(이미 광고된 구조를 다시 정규화할 때)
+ */
+export function modelSchemaScope(capability: string): ModelSchemaScope {
+  if (capability === "") return "external";
+  if (capability === "mcp.client") return "builtin";
+  const first = capability.split(".")[0];
+  if (first === "ext" || first === "x" || first === "grp" || first === "mcp") return "external";
+  return "builtin";
+}
+
+function jsonTypeOf(value: JsonValue): string {
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "array";
+  if (typeof value === "number") return Number.isInteger(value) ? "integer" : "number";
+  return typeof value;
+}
+
+/** 멤버가 모두 `{const, type?}`뿐이면 그 const 목록을, 아니면 undefined */
+function constMembers(anyOf: readonly JsonValue[]): readonly JsonObject[] | undefined {
+  if (anyOf.length === 0) return undefined;
+  const members: JsonObject[] = [];
+  for (const member of anyOf) {
+    if (!isJsonObject(member) || !Object.hasOwn(member, "const")) return undefined;
+    if (!Object.keys(member).every((key) => key === "const" || key === "type")) return undefined;
+    members.push(member);
+  }
+  return members;
+}
+
+function modelNode(node: JsonValue, scope: ModelSchemaScope): JsonValue {
+  if (isJsonArray(node)) return node.map((item) => modelNode(item, scope));
+  if (!isJsonObject(node)) return node;
+  const out: JsonObject = {};
+  let current: JsonObject = node;
+  const anyOf = current["anyOf"];
+  if (anyOf !== undefined && isJsonArray(anyOf)) {
+    const members = constMembers(anyOf);
+    if (members !== undefined) {
+      const values: JsonValue[] = [];
+      const types = new Set<string>();
+      for (const member of members) {
+        const value = member["const"] ?? null;
+        values.push(value);
+        const declared = member["type"];
+        types.add(typeof declared === "string" ? declared : jsonTypeOf(value));
+      }
+      const rest: JsonObject = {};
+      for (const [key, value] of Object.entries(current)) if (key !== "anyOf") rest[key] = value;
+      const [only] = [...types];
+      current = {
+        ...rest,
+        ...(rest["type"] === undefined && types.size === 1 && only !== undefined
+          ? { type: only }
+          : {}),
+        enum: values,
+      };
+    }
+  }
+  for (const [key, value] of Object.entries(current)) {
+    if (MODEL_VALUE_KEYWORDS.has(key)) {
+      out[key] = value;
+    } else if (scope === "builtin" && MODEL_DROPPED_KEYWORDS.has(key)) {
+      continue;
+    } else if (MODEL_MAP_KEYWORDS.has(key) && isJsonObject(value)) {
+      // 속성 이름은 키워드가 아니다. 이름 아래 스키마만 바꾼다
+      const mapped: JsonObject = {};
+      for (const [name, member] of Object.entries(value)) mapped[name] = modelNode(member, scope);
+      out[key] = mapped;
+    } else {
+      out[key] = modelNode(value, scope);
+    }
+  }
+  return out;
+}
+
+/**
+ * 모델에게 광고하는 입력 구조. toJsonSchema 결과에서 anyOf-const를 enum으로 바꾸고, builtin이면 검증 키워드를 지운다.
+ * 순수 함수이고 멱등이다(이미 줄인 구조를 다시 넣어도 같다). 서버 검증(validateToolArguments)은 원래 `parameters`로 계속 한다.
+ */
+export function toModelSchema(schema: TSchema, scope: ModelSchemaScope): JsonValue {
+  return modelNode(toJsonSchema(schema), scope);
+}
+
 // ── 스키마 구조 검사 ────────────────────────────────────────────────────
 
 const SCHEMA_MAP_KEYS: readonly string[] = [

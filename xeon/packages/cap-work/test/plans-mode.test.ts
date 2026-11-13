@@ -116,8 +116,8 @@ describe("leaving plan mode", () => {
     const model = await rejection(h.plans.exitMode({}, h.opts("x2")));
     expect(model.data.code).toBe("plan_not_approved");
     const out = await h.plans.exitMode({}, hostOpts(h, "x3"));
-    expect(out).toEqual({ mode: "default", previousMode: "plan" });
-    expect(h.mode.current(h.threadId)).toBe("default");
+    expect(out).toEqual({ mode: "bypass", previousMode: "plan" });
+    expect(h.mode.current(h.threadId)).toBe("bypass");
   });
 
   test("an approval leaves plan mode once when exitOnApprove is on", async () => {
@@ -144,9 +144,9 @@ describe("leaving plan mode", () => {
     await h.settle();
     expect(h.mode.current(h.threadId)).toBe("plan");
     const out = await h.plans.exitMode({}, h.opts("x1"));
-    expect(out).toEqual({ mode: "default", previousMode: "plan" });
+    expect(out).toEqual({ mode: "bypass", previousMode: "plan" });
     expect(h.mode.calls.filter((call) => call.startsWith("restore"))).toEqual([
-      "restore:default:user",
+      "restore:bypass:user",
     ]);
   });
 
@@ -176,7 +176,7 @@ describe("leaving plan mode", () => {
     await h.plans.enterMode({}, h.opts("e1"));
     await h.plans.submit({ title: "t", body: "b" }, h.opts("c1"));
     const out = await h.plans.exitMode({}, h.opts("x1"));
-    expect(out).toEqual({ mode: "default", previousMode: "plan" });
+    expect(out).toEqual({ mode: "bypass", previousMode: "plan" });
     expect(statuses(h)).toEqual(["p1:withdrawn"]);
     let withdrawn = 0;
     for await (const item of h.session.readFrom(0)) {

@@ -562,6 +562,7 @@ export function createFakeTools(options: {
     },
     checkSpawn: () => ({ effect: "allow", reason: "mode", ruleId: null, tier: null }),
     mode: () => "default",
+    coversRunApprovals: () => false,
     setMode: () => notImplemented("setMode"),
     suspendWhile: (_threadId, _toolCallId, wait) => wait,
   };

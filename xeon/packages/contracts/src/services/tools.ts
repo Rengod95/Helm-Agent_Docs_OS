@@ -666,6 +666,13 @@ export interface ToolService extends ToolsPort {
 
   /** 대화의 권한 모드. 세션 범위 설정 l1.tools.permissionMode를 바꾸고 settings.changed로 남는다 */
   mode(threadId: ThreadId): PermissionMode;
+  /**
+   * 이 대화의 권한 모드가 "실행 허가" 성격의 승인을 덮는가(모드가 bypass이고 managed가 bypass를 막지 않았다)
+   * [결정: 2026-11-13 사용자]. 정책 단계 밖에서 묻던 승인 중 실행 허가 성격인 것(웹 도메인·처음 보는 URL, 브라우저 동작 확인)이
+   * 묻기 전에 이 판정을 한 곳에서 부른다. 질문 자체가 목적인 승인(`ask_user`, 계획 제출, 학습 제안, 메모리·스킬 쓰기)과
+   * 시크릿·폴더 신뢰·deny 규칙은 이 판정을 쓰지 않는다.
+   */
+  coversRunApprovals(threadId: ThreadId): boolean;
   setMode(
     threadId: ThreadId,
     mode: PermissionMode,

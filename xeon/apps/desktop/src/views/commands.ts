@@ -594,6 +594,11 @@ export interface SetupCommands {
   loadGroups(): Promise<Result<GroupsSnapshot, CommandError>>;
   /** 안전 모드 상태를 읽는다(`host.status`의 `safeMode`, `safeModeCause`, `startupFailures`, `suggestSafeMode`) */
   loadSafeMode(): Promise<Result<SafeModeSnapshot, CommandError>>;
+  /**
+   * 샌드박스가 켜져 있는지 읽는다(`settings.get l0.sandbox.enabled`, 기본 켬). 값이 `false`일 때만 거짓이다.
+   * 상태 줄이 꺼졌을 때만 경고 칸을 보인다(DP-182). 설정이 바뀌면 `onAnyInvalidated`로 다시 읽는다
+   */
+  loadSandboxEnabled(): Promise<Result<boolean, CommandError>>;
   /** 호스트 알림을 읽는다(`host.status`의 `settingsProblems`). 읽지 못한 설정 파일이 없으면 빈 목록이다 */
   loadHostNotices(): Promise<Result<HostNoticesSnapshot, CommandError>>;
   /** 기본 그룹 하나를 켜거나 끈다(`settings.set { key: "ext.<그룹>.enabled", scope: "user" }`). 적용은 다음 단계 경계다 */

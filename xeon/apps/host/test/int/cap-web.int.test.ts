@@ -93,6 +93,36 @@ realTest(
   30_000,
 );
 
+realTest(
+  "with the permission mode on allow-all, web_fetch reads an unknown domain without any approval request",
+  async () => {
+    const home = useEngineHome();
+    // [결정: 2026-11-13 사용자] 모두 허용은 도메인 질문을 덮는다
+    writeUserSettings(home, { ...TAPE_SETTINGS, "l1.tools.permissionMode": "bypass" });
+    const url = "http://fixture.example/page";
+    const host = await startInProcessHost({
+      devChecks: true,
+      defaultGroups: false,
+      buildModels: fetchingModels("web", url),
+      webPorts: { resolver: fixtureResolver, transport: fixtureTransport },
+    });
+    const connection = createHostConnection(host.client);
+    await connection.request("host.hello", HELLO_PARAMS);
+    const collector = collectEvents(connection);
+    await connection.request("events.subscribe", { from: "head" });
+    const created = await connection.request("thread.create", {});
+    await connection.request("turn.start", { threadId: created.threadId, input: `read ${url}` });
+    const done = await collector.waitFor((event) => event.kind === "turn.completed");
+    expect(done.payload).toMatchObject({ status: "completed" });
+    expect(toolResultTexts(collector.events).join("\n")).toContain("hello from the fixture page");
+    expect(collector.events.filter((event) => event.kind === "approval.requested")).toEqual([]);
+    await connection.close();
+    await host.close();
+    home.dispose();
+  },
+  30_000,
+);
+
 // E4(M2 종료 조건, ADR-0005 개정, H1): `web.search`의 기본 provider는 내장 검색 래퍼다. 키 기반 플러그인은 설치하고 설정했을 때만 쓴다.
 // 조립 루트가 `fresnel.models`의 hosted 검색을 cap-web에 넘기지 않으면 래퍼가 후보에 들지 않는다.
 

@@ -45,6 +45,7 @@ import { PROCESS_SETTING_DEFS } from "@fresnel/platform-process";
 import { SANDBOX_SETTING_DEFS } from "@fresnel/platform-sandbox";
 import { SECRETS_SETTING_DEFS } from "@fresnel/platform-secrets";
 import { STORE_SETTING_DEFS } from "@fresnel/platform-store";
+import { guideManifest } from "@fresnel/group-guide";
 import { authoringManifest, authoringSettings } from "@fresnel/plugin-builder";
 import { hostSettings, remoteSettings } from "../settings.ts";
 
@@ -98,6 +99,7 @@ function builtinExtensionKeyGroups(): readonly CatalogGroupInput[] {
     // 설정 정의의 label은 영어 대체 문구다(한글은 locale 카탈로그에만 둔다)
     { ...learningManifest, displayName: "Learning" },
     authoringManifest,
+    guideManifest,
   ];
   return manifests.map((manifest) => {
     const group = reservedExtensionSettings(manifest, "builtin");

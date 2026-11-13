@@ -272,6 +272,9 @@ export function hostWebPlugin(options: HostWebOptions): ExtensionUnit {
         ...(approvals === undefined
           ? {}
           : { asker: createAskAdapter(createBareL2ApprovalsPort(approvals, webApprovalTitle)) }),
+        ...(tools === undefined
+          ? {}
+          : { approvalCover: (threadId) => tools.coversRunApprovals(threadId) }),
         ...(secrets === undefined ? {} : { guard: secrets.redactor }),
         ...(headerSecrets === undefined ? {} : { headerSecrets }),
         browserEngine,

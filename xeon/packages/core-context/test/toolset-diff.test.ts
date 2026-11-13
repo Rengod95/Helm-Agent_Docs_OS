@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import type { OrderedTool } from "@fresnel/contracts/capabilities";
 import type { SystemMessage } from "@fresnel/contracts/conversation";
+import { Type } from "typebox";
+import { buildPrefixMessage, prefixToolset } from "../src/prefix.ts";
 import { decideToolChange } from "../src/toolset-diff.ts";
 import {
   assembleOptions,
@@ -152,5 +155,76 @@ describe("assemble tool changes", () => {
     const again = valueOf(await h.service.assemble(h.log.threadId, h.log.leaf(), options));
     expect(again.toolChange).toBeNull();
     expect(again.pendingItems).toHaveLength(0);
+  });
+});
+
+const rich = (capability: string): OrderedTool => ({
+  capability,
+  name: "rich",
+  wire: {
+    name: "rich",
+    description: "r",
+    parameters: Type.Object({
+      text: Type.String({ minLength: 1, maxLength: 5 }),
+      mode: Type.Union([Type.Literal("a"), Type.Literal("b")]),
+    }),
+  },
+});
+
+function externalRich(): OrderedTool {
+  const base = rich("mcp.github");
+  return { ...base, name: "ext_rich", wire: { ...base.wire, name: "ext_rich" } };
+}
+
+describe("model schema and recorded prefixes", () => {
+  test("a prefix recorded before the diet raises no tool change for the same tool", () => {
+    const old = {
+      name: "rich",
+      description: "r",
+      parameters: JSON.parse(JSON.stringify(rich("workspace.files").wire.parameters)),
+    };
+    expect(JSON.stringify(old.parameters)).toContain("maxLength");
+    const change = decideToolChange({
+      advertised: [old],
+      next: [rich("workspace.files")],
+      policy: cachePolicy,
+      timestamp: 9,
+    });
+    expect(change.decision).toBeNull();
+    expect(change.message).toBeNull();
+    expect(change.warnings).toEqual([]);
+  });
+
+  test("a new prefix carries the reduced schema, and a change message carries it too", () => {
+    const prefix = buildPrefixMessage({
+      basePrompt: "p",
+      sections: {},
+      tools: [rich("workspace.files"), externalRich()],
+      timestamp: 1,
+    });
+    const builtin = prefix.toolsAdded?.find((tool) => tool.name === "rich");
+    const external = prefix.toolsAdded?.find((tool) => tool.name === "ext_rich");
+    expect(JSON.stringify(builtin?.parameters)).not.toContain("maxLength");
+    expect(JSON.stringify(builtin?.parameters)).toContain('"enum":["a","b"]');
+    expect(JSON.stringify(external?.parameters)).toContain("maxLength");
+    expect(JSON.stringify(external?.parameters)).toContain('"enum":["a","b"]');
+
+    const change = decideToolChange({
+      advertised: [],
+      next: [rich("workspace.files")],
+      policy: cachePolicy,
+      timestamp: 9,
+    });
+    expect(JSON.stringify(change.message?.toolsAdded)).not.toContain("maxLength");
+  });
+
+  test("the recorded prefix fingerprint is the hash of what was recorded", async () => {
+    const prefix = buildPrefixMessage({
+      basePrompt: "p",
+      sections: {},
+      tools: [rich("workspace.files")],
+      timestamp: 1,
+    });
+    expect(await prefixToolset(prefix)).toBe(await prefixToolset(prefix));
   });
 });

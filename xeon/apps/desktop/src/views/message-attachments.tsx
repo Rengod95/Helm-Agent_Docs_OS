@@ -29,7 +29,7 @@ export function MessageAttachments(props: {
   if (props.attachments.length === 0) return null;
   return (
     <ul
-      className="m-0 flex list-none flex-wrap justify-end gap-1.5 p-0"
+      className="convo-attachments m-0 flex list-none flex-wrap justify-end gap-1.5 p-0"
       aria-label={t("desktop.item.attachments.label")}
     >
       {keyed(props.attachments).map(({ key, attachment }) => (

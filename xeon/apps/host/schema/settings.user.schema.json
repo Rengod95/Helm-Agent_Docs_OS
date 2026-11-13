@@ -79,7 +79,7 @@
       }
     },
     "ext.authoring.enabled": {
-      "default": false,
+      "default": true,
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
@@ -502,6 +502,33 @@
           "label": "Enable Tool runtime",
           "labelArgs": {
             "name": "Tool runtime"
+          },
+          "labelKey": "settings.ext.enabled.label",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.guide.enabled": {
+      "default": false,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "launch"
+        ],
+        "layer": "L3",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Enable Fresnel Guide",
+          "labelArgs": {
+            "name": "Fresnel Guide"
           },
           "labelKey": "settings.ext.enabled.label",
           "order": 10,
@@ -1437,7 +1464,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Every call outside the sandbox still needs approval.",
+          "help": "Not used yet: no call runs outside the sandbox today. A write the sandbox blocks is asked about instead, and \"Extra writable directories\" keeps the answer.",
           "helpKey": "settings.l0.sandbox.escapeRetry.help",
           "label": "Allow retry outside the sandbox",
           "labelKey": "settings.l0.sandbox.escapeRetry.label",
@@ -3611,7 +3638,7 @@
       }
     },
     "l1.tools.permissionMode": {
-      "default": "default",
+      "default": "bypass",
       "enum": [
         "default",
         "acceptEdits",

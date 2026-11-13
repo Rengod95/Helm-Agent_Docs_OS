@@ -7,12 +7,14 @@ import type {
   ToolResourceDef,
 } from "@fresnel/contracts/extensions";
 import type {
+  AdvertiseInput,
   DirectToolRegistration,
   PermissionMode,
   PolicyRule,
   ToolRegistration,
   Unregister,
 } from "@fresnel/contracts/services";
+import { Type } from "typebox";
 import type { AgentsTools } from "../../src/index.ts";
 
 export interface FakeTools extends AgentsTools {
@@ -28,6 +30,10 @@ export interface FakeTools extends AgentsTools {
   denySpawn(message: string): void;
   /** 등록된 direct 도구 하나 */
   directTool(name: string): DirectToolRegistration | undefined;
+  /** `advertise` 호출 기록(입력 그대로) */
+  readonly advertised: AdvertiseInput[];
+  /** 지연 도구 이름을 정한다. `advertise`는 활성화 집합에 든 이름만 싣는다 */
+  setDeferredTools(names: readonly string[]): void;
 }
 
 export function fakeTools(): FakeTools {
@@ -38,6 +44,8 @@ export function fakeTools(): FakeTools {
   const suspensions: { readonly threadId: ThreadId; readonly toolCallId: string }[] = [];
   let suspendedNow = 0;
   let spawnDenied: string | undefined;
+  let deferredNames: readonly string[] = [];
+  const advertised: AdvertiseInput[] = [];
   function register(registration: ToolRegistration): Result<Unregister, ToolRegisterError>;
   function register(
     owner: RegistrationId,
@@ -97,15 +105,28 @@ export function fakeTools(): FakeTools {
       modeChanges.push({ threadId, mode });
       return Promise.resolve({ ok: true, mode });
     },
-    advertise: () =>
-      Promise.resolve(
+    advertised,
+    setDeferredTools(names) {
+      deferredNames = names;
+    },
+    advertise: (input) => {
+      advertised.push(input);
+      // 활성화 집합에 든 지연 도구만 싣는다(core-tools의 규칙을 흉내 낸다. 규칙 자체의 시험은 core-tools에 있다)
+      const loaded = deferredNames.filter((name) => input.activated.has(name));
+      const hidden = deferredNames.filter((name) => !input.activated.has(name));
+      return Promise.resolve(
         ok({
-          tools: [],
-          deferred: [],
+          tools: loaded.map((name) => ({
+            capability: "ext.fixture",
+            name,
+            wire: { name, description: name, parameters: Type.Object({}) },
+          })),
+          deferred: hidden.map((name) => ({ capability: "ext.fixture", name })),
           removed: [],
           fingerprint: "sha256:0",
         }),
-      ),
+      );
+    },
     register: register,
     registerRules(source, next) {
       rules.set(source, next);

@@ -10,9 +10,9 @@ import {
   sessionOpen,
   type AuthoringState,
 } from "./group-state.ts";
-import { authoringTools, AUTHORING_TOOL_NAMES } from "./group-tools.ts";
+import { authoringTools, AUTHORING_TOOL_NAMES, type AuthoringGuide } from "./group-tools.ts";
 
-// L3.authoring.spec §3.1 그룹 `authoring`. 내장 L3 플러그인 그룹이고 기본은 꺼짐이다([결정: 2026-11-01 사용자]).
+// L3.authoring.spec §3.1 그룹 `authoring`. 내장 L3 플러그인 그룹이고 기본은 켜짐이다([결정: 2026-11-13 사용자], 2026-11-01의 기본 꺼짐을 대체). 도구는 모두 지연(`deferred`)이라 문맥 비용이 0이다.
 // 일은 주입받은 `fresnel.devkit` 서비스가 하고, 그룹은 도구, 단계 머신(drive), 쓰기 범위 가드(`tool.call.before`)만 가진다.
 // Plugin UI 기여(page, well, card, command)는 T-VIEW 뒤에 더한다.
 
@@ -23,7 +23,7 @@ export const authoringManifest: GroupManifest = defineManifest({
   displayName: "Plugin Builder",
   description: "플러그인과 플러그인 그룹을 만드는 도구, 단계 머신, 쓰기 범위 가드",
   entry: "./src/index.ts",
-  defaultEnabled: false,
+  defaultEnabled: true,
   trust: { level: "builtin" },
   plugins: [
     {
@@ -41,6 +41,8 @@ export const authoringManifest: GroupManifest = defineManifest({
 export interface AuthoringDeps {
   /** 제작 서비스(`fresnel.devkit`). 호스트가 구현해 넘긴다 */
   readonly devkit: DevkitService;
+  /** Fresnel 가이드 읽기(`authoring_guide`). 호스트가 가이드 그룹과 같은 원본 폴더를 읽는 구현을 넘긴다. 없으면 도구는 `guide_unavailable`이다 */
+  readonly guide?: AuthoringGuide;
   /** 개발 모드 판정(replay가 개발 모드에서만 돈다, A-5) */
   readonly devMode?: () => boolean;
   /** 같은 검사 오류가 남는 고치기 반복 한도. 기본 3(`l3.authoring.fixLoopLimit`) */
@@ -59,6 +61,7 @@ export function createAuthoringGroup(deps: AuthoringDeps): GroupModule {
       for (const def of authoringTools({
         g,
         devkit: deps.devkit,
+        guide: deps.guide,
         devMode: deps.devMode ?? (() => false),
         fixLoopLimit: deps.fixLoopLimit ?? (() => DEFAULT_FIX_LOOP_LIMIT),
         workspaceOf: deps.workspaceOf ?? (() => undefined),
@@ -85,7 +88,11 @@ export function createAuthoringGroup(deps: AuthoringDeps): GroupModule {
           { when: "next", requestId: `authoring:restore:${state.name ?? ""}`.slice(0, 64) },
         );
       });
-      g.drive(authoringDrive(g, deps.devkit));
+      // 제작 대화가 열려 있거나 사람 확인 요청이 남아 있을 때만 drive 락 후보가 된다. 기본 켜짐인 유휴 빌더가 락을 쥐어 다른 drive 그룹을
+      // 기다리게 하지 않는다(`authoring_start` 전과 `authoring_stop`·완료 뒤에는 참여하지 않는다)
+      g.drive(authoringDrive(g, deps.devkit), {
+        wants: (state) => sessionOpen(state) || state.pending !== null,
+      });
     },
   });
 }

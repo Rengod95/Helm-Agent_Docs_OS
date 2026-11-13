@@ -36,10 +36,14 @@ import { fakeConnection } from "../../state/fake-connection.ts";
 import { openedHarness } from "../../state/helpers.ts";
 import { fakeCommands } from "../../views/fake-commands.ts";
 import { compactionFact, CONVO, itemFacts, THREAD } from "./conversation.ts";
+import { LONG_CONVO, longItemFacts } from "./long-conversation.ts";
 
 // 화면 글은 제품 기본인 한국어로 고정한다(브라우저 언어와 상관없이)
 setActiveLocale("ko");
-const theme = new URLSearchParams(window.location.search).get("theme");
+const params = new URLSearchParams(window.location.search);
+const theme = params.get("theme");
+// `?set=long`이면 긴 줄 대화(넘침 재기, DP-180)를 그린다
+const longSet = params.get("set") === "long";
 document.documentElement.dataset["theme"] = theme === "light" ? "light" : "dark";
 
 /** 읽기만 하는 고정 거울 */
@@ -49,11 +53,13 @@ function frozen<T>(state: T): ReadonlyStore<T> {
 
 function mirror(): EngineMirror {
   const h = openedHarness(5, THREAD);
-  const facts = [...itemFacts(), compactionFact()].toSorted((a, b) => a.seq - b.seq);
+  const facts = longSet
+    ? [...longItemFacts()]
+    : [...itemFacts(), compactionFact()].toSorted((a, b) => a.seq - b.seq);
   h.store.ingest({ type: "batch", sub: "s1", from: 5, to: 200, caughtUp: true, facts });
   h.store.flush();
   const state = h.store.read.getState();
-  return { ...state, convo: { ...state.convo, [THREAD]: CONVO } };
+  return { ...state, convo: { ...state.convo, [THREAD]: longSet ? LONG_CONVO : CONVO } };
 }
 
 /** 확장 카드 하나(`x.helm.progress.saved`)를 아는 플러그인 문맥 */

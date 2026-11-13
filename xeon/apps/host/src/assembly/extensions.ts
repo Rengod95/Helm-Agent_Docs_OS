@@ -46,7 +46,7 @@ import { dialogPlugin, type ChunkNumbering } from "@fresnel/cap-dialog";
 import { knowledgePlugin } from "@fresnel/cap-knowledge";
 import { APPROVAL_SOURCE, REVIEW_AGENT_NAME } from "@fresnel/group-learning";
 import { workPlugin } from "@fresnel/cap-work";
-import { workspacePlugin } from "@fresnel/cap-workspace";
+import { workspacePlugin, writeAccessTitle } from "@fresnel/cap-workspace";
 import { readUnattendedTimeoutMs } from "@fresnel/platform-exec";
 import type { AgentDefinition } from "@fresnel/contracts/services";
 import { agentsPlugin } from "@fresnel/core-agents";
@@ -74,6 +74,7 @@ import {
   type LearningWiring,
 } from "./learning.ts";
 import { authoringLoaded, authoringUnit, type AuthoringWiring } from "./authoring.ts";
+import { guideLoaded, guideSkillRoots, guideUnit, type GuideWiring } from "./guide.ts";
 import { hostWebPlugin } from "./cap-web.ts";
 import { openingChildThreads } from "./child-threads.ts";
 import { createBareL2ApprovalsPort } from "./l2-approvals.ts";
@@ -152,6 +153,8 @@ export interface ExtensionDeps {
   readonly learning: LearningWiring;
   /** 제작 그룹이 쓰는 devkit 포트 자리(엔진 포트가 만들어진 뒤에 읽는다) */
   readonly authoring: AuthoringWiring;
+  /** 가이드 그룹(스킬만 내는 내장 그룹)의 가이드 폴더와 켜짐 판정 */
+  readonly guide: GuideWiring;
   /** AssembleOptions.defaultGroups. false면 L3 기본 그룹(학습)을 싣지 않는다 */
   readonly defaultGroups?: boolean;
   /** AssembleOptions.safeMode. 참이면 L3 내장 그룹을 싣지 않는다 */
@@ -247,6 +250,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
     isId("thr", threadId) ? deps.workspaceOf(threadId) : undefined;
   const learning = learningLoaded({ defaultGroups: deps.defaultGroups, safeMode: deps.safeMode });
   const authoring = authoringLoaded({ defaultGroups: deps.defaultGroups, safeMode: deps.safeMode });
+  const guide = guideLoaded({ defaultGroups: deps.defaultGroups, safeMode: deps.safeMode });
   const modules: readonly (readonly [ExtensionName, (loadIndex: number) => ExtensionUnit])[] = [
     [
       "core-persistence",
@@ -372,6 +376,8 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           settings: workspaceSource(settings),
           // 무인 호출(예약·루프)의 명령 시간 상한. 설정은 호출마다 읽는다(M3-16, l0.exec.unattendedTimeoutMs)
           unattendedTimeoutMs: () => readUnattendedTimeoutMs((key) => settings.value(key)),
+          // 작업 폴더 밖 쓰기(샌드박스가 막은 경로, 파일 도구)는 도구 승인 카드로 묻는다(L2.workspace.spec §4.3.1)
+          approvals: (service) => createBareL2ApprovalsPort(service, writeAccessTitle),
           loadIndex,
         }),
     ],
@@ -466,6 +472,8 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           workspaceOf: workspaceOfId,
           // 학습 그룹을 싣는 구성에서만 그 대기열의 승인 증거를 믿는다(M3-REQ-104)
           trustedEvidenceSources: learning ? [APPROVAL_SOURCE] : [],
+          // 가이드 그룹이 켜진 때(또는 개발 모드)만 가이드 스킬을 싣는다. 꺼져 있으면 빈 목록이라 문맥에 아무것도 더하지 않는다
+          extensionSkillRoots: () => (guide ? guideSkillRoots(deps.guide) : []),
           loadIndex,
         }),
     ],
@@ -494,6 +502,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
     ...(authoring
       ? [["authoring", (loadIndex: number) => authoringUnit(deps.authoring, loadIndex)] as const]
       : []),
+    ...(guide ? [["guide", (loadIndex: number) => guideUnit(loadIndex)] as const] : []),
   ];
   return modules.map(([, make], index) => make(index));
 }

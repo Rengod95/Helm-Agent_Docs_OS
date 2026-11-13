@@ -23,6 +23,7 @@ import {
   type CancelTarget,
   type ChildStatus,
   type DelegateRequest,
+  exactToolNames,
   type DelegateResult,
   type GuardedReport,
   type MimicryFlag,
@@ -615,7 +616,8 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     if (request.tools?.keepParentList === true) {
       const advertised = await tools.advertise({
         run: { threadId: origin.parentThreadId, caller: origin.caller, depth: origin.depth },
-        activated: new Set(),
+        // 자식 상한(allow)에 이름을 글자 그대로 적은 지연 도구는 부모 목록에 더해 싣는다(L1.tools §4.1 5번 (다)). 일반 자식과 같은 규칙이다
+        activated: new Set(exactToolNames(ceiling.allow ?? [])),
       });
       if (!advertised.ok) {
         // 부모의 광고 목록을 만들 수 없으면 같은 목록을 공유할 수 없다. 자식을 돌리지 않고 오류로 정착한다

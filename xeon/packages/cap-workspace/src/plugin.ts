@@ -9,13 +9,16 @@ import {
 import type { ExtensionEntry, PortKey } from "@fresnel/contracts/extensions";
 import type { SessionService } from "@fresnel/contracts/records";
 import {
+  ApprovalServicePortKey,
   ExecPortKey,
   OsPortKey,
   SandboxServiceName,
   SessionPortKey,
   StoreServicePortKey,
   ToolServiceName,
+  type ApprovalService,
   type ExecService,
+  type L2ApprovalsPort,
   type OsService,
   type SandboxService,
   type ToolRegistration,
@@ -30,6 +33,7 @@ import {
 import type { RgResolver, WorkspaceDeps } from "./deps.ts";
 import { envAtCwd } from "./env.ts";
 import { workspaceManifest } from "./manifest.ts";
+import { createWriteAccessAdapter } from "./write-access-adapter.ts";
 import type { ThreadWorkspaces } from "./ports/threads.ts";
 import { defaultRoots, type RootsDeps } from "./roots.ts";
 import { createWorkspaceService } from "./service.ts";
@@ -46,6 +50,8 @@ export interface WorkspacePluginOptions {
   readonly settings: WorkspaceSettingsSource;
   /** 무인 호출의 셸 제한 시간 상한(ms). 조립 루트가 `l0.exec.unattendedTimeoutMs`를 읽어 넘긴다. 없으면 상한을 걸지 않는다 */
   readonly unattendedTimeoutMs?: () => number;
+  /** `fresnel.approvals`를 작업 폴더 밖 쓰기 허용 승인(kind tool)을 내는 포트로 감싸는 함수. 조립 루트가 넘긴다. 없으면 묻지 않고 막는다 */
+  readonly approvals?: (service: ApprovalService) => L2ApprovalsPort;
   readonly loadIndex?: number;
 }
 
@@ -103,6 +109,11 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
       const session = optionalPort(host, SessionPortKey);
       const store = optionalPort(host, StoreServicePortKey);
       const logger = os.logger("workspace");
+      const approvalService = optionalPort(host, ApprovalServicePortKey);
+      const writeAccess =
+        options.approvals === undefined || approvalService === undefined
+          ? undefined
+          : createWriteAccessAdapter(options.approvals(approvalService));
 
       const roots: RootsDeps = {
         env: exec,
@@ -119,6 +130,8 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
         ...(store === undefined ? {} : { blobs: store }),
         ...(session === undefined ? {} : { threads: threadWorkspaces(session, exec) }),
         rg: rgResolver(os),
+        homeDir: os.dirs.home,
+        ...(writeAccess === undefined ? {} : { writeAccess }),
         ...(options.unattendedTimeoutMs === undefined
           ? {}
           : { unattendedTimeoutMs: options.unattendedTimeoutMs }),
@@ -159,6 +172,8 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
             grep: { risk: "read" },
             find: { risk: "read" },
           },
+          // ls·find는 bash로 대체한다(사용자 결정 2026-11-13). 등록은 살리고 광고만 지연으로 둔다
+          exposure: { ls: "deferred", find: "deferred" },
         },
         {
           kind: "capability",

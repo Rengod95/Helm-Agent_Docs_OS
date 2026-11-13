@@ -155,6 +155,8 @@ export interface FakeSrtOptions {
   readonly wrapError?: Error;
   /** getViolationLines가 돌려줄 줄 */
   readonly violationLines?: readonly string[];
+  /** n번째 getViolationLines가 돌려줄 줄(마지막 항목이 이후에도 반복). 위반 줄이 늦게 도착하는 상황을 만든다. violationLines보다 먼저 쓴다 */
+  readonly violationLinesByRead?: readonly (readonly string[])[];
   /** wrap이 돌려줄 env */
   readonly wrapEnv?: Readonly<Record<string, string | undefined>>;
   /** true이면 wrap이 ["bash", "-c", <원래 명령>]을 돌려준다. 아니면 앞에 WRAPPED:를 붙인다 */
@@ -178,6 +180,7 @@ export interface FakeSrt extends SrtPort {
 }
 
 export function fakeSrt(options: FakeSrtOptions = {}): FakeSrt {
+  let reads = 0;
   const fake: FakeSrt = {
     initializeCalls: [],
     wrapCalls: [],
@@ -204,7 +207,12 @@ export function fakeSrt(options: FakeSrtOptions = {}): FakeSrt {
           : ["bash", "-c", `WRAPPED:${input.command}`];
       return Promise.resolve({ argv, env: options.wrapEnv ?? {} });
     },
-    getViolationLines: () => options.violationLines ?? [],
+    getViolationLines: () => {
+      const byRead = options.violationLinesByRead;
+      if (byRead === undefined) return options.violationLines ?? [];
+      reads += 1;
+      return byRead[Math.min(reads, byRead.length) - 1] ?? [];
+    },
     cleanupAfterCommand: () => {
       fake.cleanupCalls += 1;
     },

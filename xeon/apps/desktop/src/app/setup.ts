@@ -95,6 +95,9 @@ export function hostNoticesOf(status: WireResult<"host.status">): HostNoticesSna
   };
 }
 
+/** 샌드박스 켜기 키(L0.sandbox.spec §6). 상태 줄의 "샌드박스 꺼짐" 칸이 읽는다 */
+const SANDBOX_ENABLED_KEY = "l0.sandbox.enabled";
+
 export function createSetupCommands(
   run: Run,
   onInvalidated: (listener: () => void) => () => void,
@@ -190,6 +193,12 @@ export function createSetupCommands(
         safeMode: status.value.safeMode === true,
       };
       return ok(snapshot);
+    },
+    async loadSandboxEnabled() {
+      const read = await run((c) => c.request("settings.get", { keys: [SANDBOX_ENABLED_KEY] }));
+      if (!read.ok) return read;
+      // 값을 쓴 적 없으면 기본(켬)이다. 거짓을 쓴 때만 꺼짐
+      return ok(read.value.settings.find((s) => s.key === SANDBOX_ENABLED_KEY)?.value !== false);
     },
     async loadSafeMode() {
       const status = await run((c) => c.request("host.status", {}));

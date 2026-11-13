@@ -30,7 +30,7 @@
       }
     },
     "ext.authoring.enabled": {
-      "default": false,
+      "default": true,
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
@@ -453,6 +453,33 @@
           "label": "Enable Tool runtime",
           "labelArgs": {
             "name": "Tool runtime"
+          },
+          "labelKey": "settings.ext.enabled.label",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.guide.enabled": {
+      "default": false,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "launch"
+        ],
+        "layer": "L3",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Enable Fresnel Guide",
+          "labelArgs": {
+            "name": "Fresnel Guide"
           },
           "labelKey": "settings.ext.enabled.label",
           "order": 10,
@@ -1762,7 +1789,7 @@
       }
     },
     "l1.tools.permissionMode": {
-      "default": "default",
+      "default": "bypass",
       "enum": [
         "default",
         "acceptEdits",

@@ -86,6 +86,9 @@
       "path": "../../packages/group-sdk"
     },
     {
+      "path": "../../packages/group-guide"
+    },
+    {
       "path": "../../packages/plugin-builder"
     },
     {
