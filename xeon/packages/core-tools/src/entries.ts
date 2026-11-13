@@ -303,6 +303,7 @@ function capabilityEntries(
       hints: spec.hints ?? {},
       replay: spec.replay ?? "unsafe",
       exposure: registration.exposure?.[spec.name] ?? "always",
+      activeWhen: registration.activeWhen?.[spec.name],
       outputLimits: registration.outputLimits?.[spec.name] ?? {},
       raw: (call) => invokeCapability(registration, spec, method, resolve, bridge, call),
       locks: lockDeclarerOf(spec),
@@ -393,6 +394,7 @@ function directEntry(registration: DirectToolRegistration, bridge: InputBridge):
     hints: registration.hints ?? {},
     replay: toReplayPolicy(tool.replay),
     exposure: registration.exposure ?? (mcpServer === undefined ? "always" : "auto"),
+    activeWhen: registration.activeWhen,
     outputLimits: registration.outputLimits ?? {},
     raw: async (call) => {
       const settled = await settleDirectInput(registration, bridge, call);
@@ -444,7 +446,7 @@ export function resourceEntry(owner: RegistrationId, def: ToolResourceDef): Tool
     classes: [],
     hints: def.hints ?? {},
     replay: def.replay,
-    exposure: "always",
+    exposure: def.exposure ?? "always",
     outputLimits: {},
     raw: async (call) => {
       if (!isJsonValue(call.params)) {

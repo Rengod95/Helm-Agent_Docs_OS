@@ -65,6 +65,7 @@ export async function prepareRequest(run: TurnRun): Promise<Result<RequestInput,
             ceiling: child.tools.ceiling,
           },
     activated: activated.value,
+    deferralAvailable: resolved.value.cachePolicy.midConversationToolChanges,
     ...(child?.tools.allow === undefined ? {} : { allow: child.tools.allow }),
     ...(child?.tools.keepParentList === undefined
       ? {}

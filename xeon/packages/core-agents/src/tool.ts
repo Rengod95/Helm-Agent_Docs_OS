@@ -213,5 +213,6 @@ export function agentToolRegistration(
     orderKey: "core.agents",
     tool: createAgentTool(service, tasks, tools, unlisted),
     policy: { risk: "exec", classes: ["spawn"] },
+    exposure: "deferred",
   };
 }

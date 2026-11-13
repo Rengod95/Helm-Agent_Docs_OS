@@ -54,3 +54,10 @@ test("a later turn sees the activations of an earlier turn", async () => {
   await h.settle();
   expect(h.tools.advertisedActivated.at(-1)).toEqual(["gh_issue", "gh_pr"]);
 });
+
+test("advertise is told whether the resolved model can take mid-conversation tool changes", async () => {
+  const h = await createHarness({ tools, script: [text("hi")] });
+  await h.loop.admit({ threadId: h.threadId, content: "hello", via: "interactive" });
+  await h.settle();
+  expect(h.tools.advertiseInputs.map((input) => input.deferralAvailable)).toEqual([true]);
+});

@@ -131,10 +131,11 @@ async function connect(tools: ToolService, def: { tools?: { deny: string[] } } =
 async function advertisedNames(
   tools: ToolService,
   thread: Awaited<ReturnType<typeof bootTools>>["thread"],
+  activated: readonly string[] = ["echo", "add"],
 ): Promise<string[]> {
   const toolset = await tools.advertise({
     run: { threadId: thread, caller: "main", depth: 0 },
-    activated: new Set(),
+    activated: new Set(activated),
   });
   if (!toolset.ok) throw new Bug("test.advertise_failed");
   return toolset.value.tools
@@ -155,6 +156,15 @@ describe("MCP tools in the real ToolService", () => {
     expect(meta?.ref).toEqual({ capability: "mcp.stub", name: "echo" });
     expect(meta?.mcpServer).toBe("stub");
     expect(meta?.risk).toBe("read");
+  });
+
+  test("MCP server tools are deferred: they are advertised only after tool_search activates them", async () => {
+    const { tools, thread } = await bootTools();
+    const world = await connect(tools);
+    await world.runtime.applyBoundary();
+    expect(await advertisedNames(tools, thread, [])).toEqual([]);
+    expect(await advertisedNames(tools, thread, ["echo"])).toEqual(["echo"]);
+    expect(tools.meta("echo")?.exposure).toBe("deferred");
   });
 
   test("a denied tool never reaches the advertised set, and a dropped server leaves it at the next boundary", async () => {

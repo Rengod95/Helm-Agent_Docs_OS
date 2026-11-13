@@ -16,6 +16,7 @@ import type {
   ApprovalEvidence,
   ExecService,
   ExposureMode,
+  ToolActivation,
   McpDeclaredHints,
   OutputLimits,
   Slot,
@@ -92,6 +93,8 @@ export interface ToolEntry {
   readonly hints: NonNullable<ToolSpec["hints"]>;
   readonly replay: ReplayPolicy;
   readonly exposure: ExposureMode;
+  /** 지연 도구를 `tool_search` 없이 광고할 대화 상태 조건(L1.tools.spec §4.1 규칙 5) */
+  readonly activeWhen?: ToolActivation | undefined;
   readonly outputLimits: OutputLimits | "self";
   readonly raw: RawExecutor;
   readonly locks: LockDeclarer | undefined;

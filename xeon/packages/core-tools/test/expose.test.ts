@@ -13,7 +13,11 @@ function add(
   h: Harness,
   name: string,
   orderKey: string,
-  extra: { exposure?: ExposureMode; risk?: "read" | "write" | "exec" } = {},
+  extra: {
+    exposure?: ExposureMode;
+    risk?: "read" | "write" | "exec";
+    activeWhen?: () => boolean;
+  } = {},
 ): () => void {
   return expectOk(
     h.runtime.tools.register({
@@ -22,8 +26,14 @@ function add(
       tool: directTool(name, () => Promise.resolve({ content: [], details: null })),
       policy: { risk: extra.risk ?? "read" },
       ...(extra.exposure === undefined ? {} : { exposure: extra.exposure }),
+      ...(extra.activeWhen === undefined ? {} : { activeWhen: extra.activeWhen }),
     }),
   );
+}
+
+/** 내장 `read_tool_output`(always)을 뺀 광고 이름. 정렬은 순서 키 순이다 */
+function namesOf(toolset: { readonly tools: readonly { readonly name: string }[] }): string[] {
+  return toolset.tools.map((tool) => tool.name).filter((name) => name !== "read_tool_output");
 }
 
 async function advertised(h: Harness) {
@@ -220,4 +230,77 @@ test("the extension ToolsPort overload registers under ext.<name> with undeclare
   });
   unregister();
   expect(h.runtime.tools.meta("note_add")).toBeUndefined();
+});
+
+test("a deferred tool whose activeWhen holds is advertised without a search; otherwise it stays deferred", async () => {
+  const h = await createHarness();
+  let planning = false;
+  add(h, "submit_it", "ext.plan", { exposure: "deferred", activeWhen: () => planning });
+  add(h, "other_deferred", "ext.plan", { exposure: "deferred" });
+  const before = await advertised(h);
+  expect(before.tools.map((tool) => tool.name)).toContain("tool_search");
+  expect(before.tools.map((tool) => tool.name)).not.toContain("submit_it");
+  expect(before.deferred.map((ref) => ref.name)).toEqual(["other_deferred", "submit_it"]);
+  planning = true;
+  const after = await advertised(h);
+  const names = after.tools.map((tool) => tool.name);
+  expect(names).toContain("submit_it");
+  expect(names).not.toContain("other_deferred");
+  expect(after.deferred.map((ref) => ref.name)).toEqual(["other_deferred"]);
+});
+
+test("a subagent allow list that names a deferred tool exactly gets it without a search; a glob does not", async () => {
+  const h = await createHarness();
+  add(h, "learning_propose", "ext.learning", { exposure: "deferred" });
+  add(h, "learning_other", "ext.learning", { exposure: "deferred" });
+  const exact = expectOk(
+    await h.runtime.tools.advertise({
+      run: h.run(),
+      activated: new Set(),
+      allow: ["learning_propose"],
+    }),
+  );
+  expect(namesOf(exact)).toEqual(["tool_search", "learning_propose"]);
+  const glob = expectOk(
+    await h.runtime.tools.advertise({ run: h.run(), activated: new Set(), allow: ["learning_*"] }),
+  );
+  expect(namesOf(glob)).toEqual(["tool_search"]);
+  expect(glob.deferred.map((ref) => ref.name)).toEqual(["learning_other", "learning_propose"]);
+});
+
+test("when the model cannot take mid-conversation tool changes, deferred tools are advertised up front and tool_search is not", async () => {
+  const h = await createHarness();
+  add(h, "later_one", "ext.a", { exposure: "deferred" });
+  const supported = expectOk(
+    await h.runtime.tools.advertise({ run: h.run(), activated: new Set() }),
+  );
+  expect(namesOf(supported)).toEqual(["tool_search"]);
+  const unsupported = expectOk(
+    await h.runtime.tools.advertise({
+      run: h.run(),
+      activated: new Set(),
+      deferralAvailable: false,
+    }),
+  );
+  expect(namesOf(unsupported)).toEqual(["later_one"]);
+  expect(unsupported.deferred).toEqual([]);
+});
+
+test("an extension tool def can ask for deferred exposure; the default stays always", async () => {
+  const h = await createHarness();
+  const parameters = directTool("x", () =>
+    Promise.resolve({ content: [], details: null }),
+  ).parameters;
+  const def = (name: string, exposure?: "deferred") => ({
+    name,
+    description: "d",
+    parameters,
+    replay: "safe" as const,
+    ...(exposure === undefined ? {} : { exposure }),
+    execute: () => Promise.resolve("ok"),
+  });
+  expectOk(h.runtime.tools.register("acme/main", def("eager_tool")));
+  expectOk(h.runtime.tools.register("acme/main", def("lazy_tool", "deferred")));
+  expect(h.runtime.tools.meta("eager_tool")?.exposure).toBe("always");
+  expect(h.runtime.tools.meta("lazy_tool")?.exposure).toBe("deferred");
 });

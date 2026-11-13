@@ -109,6 +109,22 @@ function refOrder(a: ToolEntry, b: ToolEntry): number {
 }
 
 /**
+ * 지연 도구가 이 요청에서 활성화됐는가: `tool_search`가 활성화했거나, 상태 조건(`activeWhen`)이 참이거나,
+ * 서브에이전트 정의의 도구 제한이 이름을 그대로(glob 아님) 적었다. 마지막은 정의가 그 도구를 쓰라고 정한 것이라 검색을 거치지 않는다
+ */
+function isActivated(
+  entry: ToolEntry,
+  input: AdvertiseInput,
+  allow: readonly string[] | undefined,
+): boolean {
+  return (
+    input.activated.has(entry.name) ||
+    entry.activeWhen?.(input.run.threadId) === true ||
+    (allow?.some((glob) => glob === entry.name) ?? false)
+  );
+}
+
+/**
  * 광고 계획을 세운다. 순수 함수이고 입력 순서와 무관하게 같은 결과를 낸다.
  *
  * 1. 전역 deny 도구를 뺀다. 2. `always`는 항상 싣는다. `deferred`는 지연이다. `auto`는 광고 후보(always + auto)가
@@ -135,9 +151,11 @@ export function planExposure(
       visible.push(entry);
     }
   }
-  const always = visible.filter((entry) => entry.exposure === "always");
-  const autos = visible.filter((entry) => entry.exposure === "auto");
-  const explicit = visible.filter((entry) => entry.exposure === "deferred");
+  // 모델이 대화 중 도구 추가를 받지 못하면 활성화한 도구가 요청에 실리지 않는다. 그때는 지연하지 않고 모두 싣는다(상한 128을 넘으면 지연으로 줄이는 쪽이 낫다)
+  const deferralOn = input.deferralAvailable !== false || visible.length > MAX_TOOLS_PER_REQUEST;
+  const always = deferralOn ? visible.filter((entry) => entry.exposure === "always") : visible;
+  const autos = deferralOn ? visible.filter((entry) => entry.exposure === "auto") : [];
+  const explicit = deferralOn ? visible.filter((entry) => entry.exposure === "deferred") : [];
   const overThreshold = always.length + autos.length > context.deferThreshold;
   const autosOffered = overThreshold ? [] : autos;
   const thresholdDeferred = overThreshold ? autos : [];
@@ -163,7 +181,7 @@ export function planExposure(
   const stillDeferred: ToolEntry[] = [];
   let left = room - advertisedAutos.length;
   for (const entry of deferredAll) {
-    if (input.activated.has(entry.name) && left > 0) {
+    if (isActivated(entry, input, allow) && left > 0) {
       advertised.push(entry);
       left -= 1;
     } else {
