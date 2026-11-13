@@ -511,7 +511,14 @@ const fetchFields = {
   maxChars: Type.Optional(Type.Integer({ minimum: 2_000, maximum: 500_000, default: 15_000 })),
   render: Type.Optional(RenderModeSchema),
   freshness: Type.Optional(FreshnessSchema),
-  timeoutMs: Type.Optional(Type.Integer({ minimum: 1_000, maximum: 120_000, default: 30_000 })),
+  timeoutMs: Type.Optional(
+    Type.Integer({
+      minimum: 1_000,
+      maximum: 120_000,
+      default: 30_000,
+      description: "Timeout in ms, 1000 to 120000",
+    }),
+  ),
 };
 
 export type WebFetchToolParams = {
@@ -863,7 +870,9 @@ const browseActInputShape = Type.Object({
   waitFor: Type.Optional(
     Type.Union([Type.Literal("load"), Type.Literal("networkidle"), Type.Literal("ref")]),
   ),
-  timeoutMs: Type.Optional(Type.Integer({ minimum: 100, maximum: 60_000 })),
+  timeoutMs: Type.Optional(
+    Type.Integer({ minimum: 100, maximum: 60_000, description: "Timeout in ms, 100 to 60000" }),
+  ),
   snapshot: Type.Optional(Type.Boolean()),
 });
 export const BrowseActInputSchema: TUnsafe<BrowseActInput> = Type.Unsafe<BrowseActInput>(
@@ -1183,9 +1192,13 @@ export const ResearchBudgetSchema: TObject<{
   maxMinutes: TOptional<TInteger>;
   maxSearches: TOptional<TInteger>;
 }> = Type.Object({
-  maxUsd: Type.Number({ minimum: 0.01, maximum: 100 }),
-  maxMinutes: Type.Optional(Type.Integer({ minimum: 1, maximum: 120 })),
-  maxSearches: Type.Optional(Type.Integer({ minimum: 1, maximum: 500 })),
+  maxUsd: Type.Number({ minimum: 0.01, maximum: 100, description: "USD, 0.01 to 100" }),
+  maxMinutes: Type.Optional(
+    Type.Integer({ minimum: 1, maximum: 120, description: "Minutes, 1 to 120" }),
+  ),
+  maxSearches: Type.Optional(
+    Type.Integer({ minimum: 1, maximum: 500, description: "Searches, 1 to 500" }),
+  ),
 });
 export type ResearchBudget = Static<typeof ResearchBudgetSchema>;
 /** 도구 경로에서 budget을 생략했을 때 toInput이 채우는 값 */

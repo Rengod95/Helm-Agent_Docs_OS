@@ -471,7 +471,13 @@ const ScheduleCreateToolParams: TObject<{
   {
     prompt: Type.String({ minLength: 1, maxLength: 20000 }),
     everySeconds: Type.Optional(Type.Integer({ minimum: 1, maximum: 31536000 })),
-    at: Type.Optional(Type.String({ format: "date-time", maxLength: 64 })),
+    at: Type.Optional(
+      Type.String({
+        format: "date-time",
+        maxLength: 64,
+        description: "ISO 8601 date-time, e.g. 2026-11-20T09:00:00+09:00",
+      }),
+    ),
     title: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
   },
   { additionalProperties: false },

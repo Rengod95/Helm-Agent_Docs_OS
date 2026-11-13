@@ -298,6 +298,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 `F.capabilities.spec` §4.5와 pi-ai `SystemMessage.toolsAdded`·`toolsRemoved`(`types.ts:536-557`)를 쓴다. Anthropic 경로는 이 메시지를 `tool_addition`·`tool_removal` 블록으로 바꾸고 같은 이름 재정의는 제거 없이 추가만 보낸다(`anthropic-messages.ts:1325-1352`).
 
 1. 접두를 아직 만들지 않았으면 정렬 전체 목록을 접두에 둔다. 결정 `readvertise(first_request)`.
+   - 접두와 도구 변경 메시지가 싣는 `parameters`는 `modelWire`(F.capabilities.spec §4.3 `toModelSchema`)가 줄인 구조다. 직전 광고와 이번 목록은 둘 다 같은 변환을 거쳐 비교하므로, 줄이기 전에 기록된 접두는 도구 정의가 그대로면 변경으로 잡히지 않는다(기록된 접두는 그대로 쓰여 캐시가 유지된다). 줄이기 규칙 자체가 바뀌어도 같다. 도구 `description`·필드 설명이 바뀐 도구만 `added`가 된다(`midConversationToolChanges`면 `append`, 아니면 `defer`+`tools_deferred` 경고. 컴팩션이나 `readvertise`에서 새 접두를 만들 때 한 번 캐시가 다시 쓰인다).
 2. 접두 뒤에는 `diffToolsets(직전 광고 목록, 이번 목록)`을 계산한다. 직전 광고 목록은 접두 `toolsAdded`에 그 뒤 도구 변경 item을 차례로 적용한 결과다.
 3. `added`, `removed`가 모두 비면 아무것도 하지 않는다.
 4. `cachePolicy.midConversationToolChanges`가 참이면 `SystemMessage{ toolsAdded: added, toolsRemoved: removed }`를 `pendingItems`(`purpose: "tool_change"`)로 낸다. 결정 `append`. 접두는 바뀌지 않는다.

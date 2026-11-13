@@ -30,7 +30,10 @@ import { ImageBlobRefSchema } from "./workspace.ts";
 // L2.dialog.spec §3. 정의 파일은 이 파일 하나다. 순수 함수(checkAskQuestions, validateAskAnswer,
 // buildAskAnswerSchema, defaultAskAnswer, renderAsk)는 L1.tools와 L4 질문 화면도 import해 쓴다(§8).
 
-const ShortId = Type.String({ pattern: "^[a-z0-9][a-z0-9_-]{0,31}$" });
+const ShortId = Type.String({
+  pattern: "^[a-z0-9][a-z0-9_-]{0,31}$",
+  description: "Lowercase letters, digits, - or _; max 32 chars",
+});
 
 /** 입력이 없는 메서드가 쓴다 */
 const EmptyInput: TObject<{}> = Type.Object({}, { additionalProperties: false });
@@ -48,7 +51,7 @@ export type AskOption = {
 const askOptionShape = Type.Object(
   {
     id: ShortId,
-    label: Type.String({ minLength: 1, maxLength: 80 }),
+    label: Type.String({ minLength: 1, maxLength: 80, description: "Max 80 chars" }),
     description: Type.Optional(Type.String({ maxLength: 300 })),
     recommended: Type.Optional(Type.Boolean()),
   },
@@ -72,7 +75,9 @@ export type AskQuestion = {
 const askQuestionShape = Type.Object(
   {
     id: ShortId,
-    header: Type.Optional(Type.String({ minLength: 1, maxLength: 16 })),
+    header: Type.Optional(
+      Type.String({ minLength: 1, maxLength: 16, description: "Max 16 chars" }),
+    ),
     question: Type.String({ minLength: 1, maxLength: 1000 }),
     options: Type.Optional(Type.Array(AskOptionSchema, { minItems: 2, maxItems: 8 })),
     multiSelect: Type.Optional(Type.Boolean()),

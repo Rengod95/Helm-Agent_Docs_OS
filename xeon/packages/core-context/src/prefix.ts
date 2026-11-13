@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import { Bug, canonicalJson } from "@fresnel/contracts";
+import { canonicalJson } from "@fresnel/contracts";
 import {
-  toJsonSchema,
+  modelWire,
   toolOrderKey,
   toolsetFingerprint,
   type OrderedTool,
@@ -25,24 +25,8 @@ function sortTools(tools: readonly OrderedTool[]): readonly OrderedTool[] {
   return tools.toSorted(toolOrderKey);
 }
 
-/**
- * 파라미터 스키마를 평범한 JSON 스키마로 바꾼다. TypeBox 내부 키(~kind 등)를 지우므로
- * 이벤트로 저장했다 읽어도 정규화 JSON이 변하지 않는다
- */
-function plainParameters(tool: OrderedTool): Tool["parameters"] {
-  const json = toJsonSchema(tool.wire.parameters);
-  if (typeof json !== "object" || json === null || Array.isArray(json)) {
-    throw new Bug(`prefix.parameters_not_object: ${tool.name}`);
-  }
-  return json;
-}
-
 function toolDeclaration(tool: OrderedTool): Tool {
-  return {
-    name: tool.wire.name,
-    description: tool.wire.description,
-    parameters: plainParameters(tool),
-  };
+  return modelWire(tool);
 }
 
 /** 고정 접두 SystemMessage { content: basePrompt, sections, toolsAdded: 정렬 전체 } */

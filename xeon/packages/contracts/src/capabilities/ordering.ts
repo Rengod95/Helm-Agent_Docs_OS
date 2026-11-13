@@ -1,7 +1,7 @@
 import { Bug, canonicalJson } from "../base/index.ts";
 import type { AnyCapabilityDef } from "./capability.ts";
 import type { OrderedTool, ToolRef, ToolReference, ToolWire } from "./tool-spec.ts";
-import { toJsonSchema } from "./validate.ts";
+import { modelSchemaScope, toModelSchema } from "./validate.ts";
 
 /** 한 도구 집합의 최대 도구 수. 거부는 L1.tools가 한다. F는 상수만 둔다. */
 export const MAX_TOOLS_PER_REQUEST: number = 128;
@@ -50,8 +50,20 @@ function exposure(tool: OrderedTool): { name: string; description: string; param
   return {
     name: tool.wire.name,
     description: tool.wire.description,
-    parameters: toJsonSchema(tool.wire.parameters),
+    parameters: toModelSchema(tool.wire.parameters, modelSchemaScope(tool.capability)),
   };
+}
+
+/**
+ * 모델에게 광고하는 도구 선언. parameters는 toModelSchema 결과(순수 JSON)다. 접두와 도구 변경 메시지가 이것을 싣는다.
+ * 서버 검증은 정의의 원래 parameters로 계속 한다.
+ */
+export function modelWire(tool: OrderedTool): ToolWire {
+  const parameters = toModelSchema(tool.wire.parameters, modelSchemaScope(tool.capability));
+  if (typeof parameters !== "object" || parameters === null || Array.isArray(parameters)) {
+    throw new Bug(`modelWire.parameters_not_object: ${tool.name}`);
+  }
+  return { name: tool.wire.name, description: tool.wire.description, parameters };
 }
 
 /** fingerprint 입력 문자열. 키 정렬 JSON(공백 없음). 테스트와 디버깅용으로 공개한다 */
@@ -95,7 +107,7 @@ export function diffToolsets(
   const added: ToolWire[] = [];
   for (const tool of next) {
     nextNames.add(tool.name);
-    if (prevByName.get(tool.name) !== canonicalJson(exposure(tool))) added.push(tool.wire);
+    if (prevByName.get(tool.name) !== canonicalJson(exposure(tool))) added.push(modelWire(tool));
   }
   const removed: ToolReference[] = [];
   for (const tool of prev) if (!nextNames.has(tool.name)) removed.push({ name: tool.name });
