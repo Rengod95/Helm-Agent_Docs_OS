@@ -2,6 +2,7 @@ import type { CancelScope } from "@fresnel/contracts/services";
 import type { WorkspaceDeps } from "../deps.ts";
 import { WorkspaceFailure } from "../errors.ts";
 import { relativeToRoots, resolveWorkspacePath } from "../roots.ts";
+import { askOutsideWrite } from "../write-access.ts";
 import { getOrThrow } from "../upstream/get-or-throw.ts";
 import { atomicWrite } from "./atomic.ts";
 import { buildFileChange } from "./diff.ts";
@@ -47,7 +48,9 @@ export function createEdit(deps: WorkspaceDeps): EditMethod {
     return queueInCallOrder(
       deps.env.id,
       async () => {
-        const target = await resolveWorkspacePath(deps.roots, input.path, "write", context);
+        const target = await resolveWorkspacePath(deps.roots, input.path, "write", context, {
+          askOutsideWrite: askOutsideWrite(deps, "edit", options?.context, options?.signal),
+        });
         if (!target.exists) {
           throw new WorkspaceFailure("not_found", `File not found: ${input.path}`);
         }

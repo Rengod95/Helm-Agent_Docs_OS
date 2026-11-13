@@ -8,3 +8,10 @@ export {
   readWorkspaceSettings,
 } from "./settings.ts";
 export type { WorkspaceSettings, WorkspaceSettingsSource } from "./settings.ts";
+export { createWriteAccessAdapter, writeAccessTitle } from "./write-access-adapter.ts";
+export type {
+  WriteAccessError,
+  WriteAccessPort,
+  WriteAccessRequest,
+  WriteAccessVia,
+} from "./ports/write-access.ts";

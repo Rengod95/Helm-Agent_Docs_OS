@@ -3,6 +3,7 @@ import type { SandboxService } from "@fresnel/contracts/services";
 import type { WorkspaceEnv } from "./env.ts";
 import type { BlobSink } from "./ports/blobs.ts";
 import type { ThreadWorkspaces } from "./ports/threads.ts";
+import type { WriteAccessPort } from "./ports/write-access.ts";
 import type { RootsDeps } from "./roots.ts";
 import type { WorkspaceSettings } from "./settings.ts";
 
@@ -34,4 +35,8 @@ export interface WorkspaceDeps {
   readonly rg?: RgResolver;
   /** 무인 호출(`CallContext.interactive === false`)의 셸 제한 시간 상한(ms). 호출마다 읽는다. 없으면 상한을 걸지 않는다(L0.exec.spec §3.8.1) */
   readonly unattendedTimeoutMs?: () => number;
+  /** 작업 폴더 밖 쓰기 허용을 사람에게 묻는 포트. 없으면 묻지 않고 지금처럼 막는다(L2.workspace.spec §4.3.1) */
+  readonly writeAccess?: WriteAccessPort;
+  /** 사용자 홈. 막힌 경로를 쓰기 루트로 올릴 폴더(`~/.npm`, `~/Library/Caches/<앱>`)로 바꿀 때 쓴다 */
+  readonly homeDir?: string;
 }
