@@ -379,6 +379,7 @@ export const WorkspaceFilesKey = serviceKey(WorkspaceFiles);
 
 - 기계 이름은 pi 이름 그대로다(`read`, `write`, `edit`, `bash`, `grep`, `find`, `ls`). `ls` 도구의 메서드 이름은 `list`다. 메서드 이름 규칙(`^[a-z][a-zA-Z0-9]{0,47}$`)에는 `ls`도 맞지만 서비스 API에서 뜻이 드러나는 이름을 쓴다 [제안].
 - `read`, `write`, `ls`, `grep`, `find`는 `toInput`이 없으므로 `parameters`와 메서드 `input`이 같은 스키마 상수다(`tool_input_mismatch` 없음). `edit`만 `toInput`을 둔다.
+- 노출: 등록(`WorkspaceFiles` 등록의 `exposure`)은 `ls`와 `find`만 `deferred`로 지정한다. 나머지 `read`, `write`, `edit`, `grep`과 `bash`는 `always`다. 목록과 찾기는 `bash`가 맡고, `ls`·`find`는 `tool_search`로 찾을 수 있다 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]. 등록과 실행은 그대로이고 광고만 바뀐다(L1.tools §4.1).
 - `edit`의 `toInput`은 `JSON.parse`를 쓰지만 입력만 보고 결과를 내므로 순수 함수다. 정규화 뒤 `edits`가 비면 메서드 입력 검사(`minItems: 1`)에서 `invalid_input`이 난다.
 - 메서드 `replay`와 도구 `replay`가 같다. 도구가 메서드보다 넓지 않으므로 `replay_widened`가 나지 않는다(`F.capabilities.spec` §4.2).
 
