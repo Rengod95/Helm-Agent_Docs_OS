@@ -69,7 +69,7 @@ export const ArtifactKindSchema: TUnion<
 > = Type.Union([
   Type.Literal("document"), // 글. text/markdown, text/plain 등
   Type.Literal("table"), // 표. text/csv, application/json(행 배열)
-  Type.Literal("plan"), // 계획. work.plans가 등록한다
+  Type.Literal("plan"), // 계획. 옛 기록. 더는 만들지 않음
   Type.Literal("changeset"), // 파일 변경 목록. 리뷰가 등록한다. 본문은 통합 diff
   Type.Literal("file"), // 작업 공간 파일의 등록 시점 사본
   Type.Literal("image"), // 이미지
