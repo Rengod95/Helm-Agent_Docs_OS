@@ -235,6 +235,32 @@ describe("nested ceiling", () => {
   });
 });
 
+describe("keepParentList and exact-named deferred tools", () => {
+  // L1.tools §4.1 5번 (다): 이름을 glob 없이 그대로 적은 지연 도구는 검색 없이 싣는다. keepParentList의 부모 목록도 같은 규칙을 쓴다
+  test("an exact name in the child's allow adds that deferred tool to the parent list; a glob or an unnamed tool does not", async () => {
+    const h = openHarness();
+    h.tools.setDeferredTools(["find", "grep", "ls"]);
+    const { origin } = h.openToolCall("tc-1");
+    const child = await h.service.spawn(
+      {
+        agent: "explorer",
+        task: "t",
+        tools: { allow: ["read", "find", "gr*"], keepParentList: true },
+      },
+      origin,
+    );
+    expect(child.status).toBe("completed");
+    // 활성화 집합은 자식 상한의 글자 그대로 적은 이름이다. gr*는 glob이라 들어가지 않는다
+    expect(h.tools.advertised.map((input) => [...input.activated])).toEqual([["read", "find"]]);
+    const [call] = h.loop.calls;
+    expect(call?.tools.keepParentList?.parent.tools.map((tool) => tool.name)).toEqual(["find"]);
+    expect(call?.tools.keepParentList?.parent.deferred.map((ref) => ref.name)).toEqual([
+      "grep",
+      "ls",
+    ]);
+  });
+});
+
 describe("requestId derivation", () => {
   // spec plan spawn_request_id_derivation
   test("spawn_request_id_derivation: n counts per owner request, explicit ids are kept, long ids are hashed", async () => {
