@@ -196,6 +196,11 @@ export function hostMcpPlugin(options: HostMcpOptions): ExtensionUnit {
           mcp_list_resources: { risk: "read" },
           mcp_read_resource: { risk: "read" },
         },
+        exposure: {
+          mcp_servers: "deferred",
+          mcp_list_resources: "deferred",
+          mcp_read_resource: "deferred",
+        },
       };
       const registered = tools.register(registration);
       if (!registered.ok) {
