@@ -10,6 +10,7 @@ import {
   useHeightRatchet,
 } from "../../lib/motion-presets.tsx";
 import { useSmoothText } from "../../lib/smooth-text.ts";
+import { cssPxOf, cssZoomOf } from "../../lib/zoom.ts";
 import { cardOf, provenanceOf } from "../../plugin-ui/placements.ts";
 import {
   useHasToolCall,
@@ -326,7 +327,7 @@ export function PreparingCall(props: {
     const el = box.current;
     if (el === null) return undefined;
     return () => {
-      handoffHeight(id, el.getBoundingClientRect().height);
+      handoffHeight(id, cssPxOf(el.getBoundingClientRect().height, cssZoomOf(el)));
     };
   }, [id]);
   return (
