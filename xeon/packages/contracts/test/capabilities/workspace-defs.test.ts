@@ -29,17 +29,9 @@ describe("workspace definitions (M1)", () => {
     expect(validateCapabilitySet(DEFS)).toEqual([]);
   });
 
-  test("seven tools are declared: read write edit ls grep find bash", () => {
+  test("five tools are declared: read write edit grep bash", () => {
     // 기능 ID 순(workspace.files < workspace.shell), 그 안에서 이름 순
-    expect(orderTools(DEFS).map((t) => t.name)).toEqual([
-      "edit",
-      "find",
-      "grep",
-      "ls",
-      "read",
-      "write",
-      "bash",
-    ]);
+    expect(orderTools(DEFS).map((t) => t.name)).toEqual(["edit", "grep", "read", "write", "bash"]);
   });
 
   test("keys and the bundle name", () => {
@@ -109,21 +101,7 @@ describe("RunOutput sandboxBlocks", () => {
 
 describe("tool adapters", () => {
   const read = WorkspaceFiles.tools[0];
-  const ls = WorkspaceFiles.tools[3];
   const bash = WorkspaceShell.tools[0];
-
-  test("ls maps to the list method and renders directories with a slash", () => {
-    expect(ls.name).toBe("ls");
-    expect(ls.method).toBe("list");
-    const out = ls.toContent?.({
-      path: "/w",
-      entries: [
-        { name: "a.txt", kind: "file" },
-        { name: "src", kind: "directory" },
-      ],
-    });
-    expect(out && content(out)).toBe("a.txt\nsrc/");
-  });
 
   test("read renders text with a continuation note when truncated", () => {
     const out = read.toContent?.({
