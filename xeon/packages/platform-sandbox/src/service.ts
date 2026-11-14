@@ -276,18 +276,28 @@ export async function createSandboxService(
     return { entries, kept, pathEntries: entries.filter((entry) => entry.match !== "basename") };
   };
 
+  /** srt가 정책과 상관없이 쓰기를 허용하는 곳(임시·로그 폴더). 읽기 전용 프로필은 이 곳도 쓰기를 막는다 */
+  const srtImplicitWritePaths = (): string[] =>
+    [
+      "/tmp/claude",
+      "/private/tmp/claude",
+      `${dirs.home}/.npm/_logs`,
+      `${dirs.home}/.claude/debug`,
+    ].map((path) => canonicalizePath(path));
+
   const resolvePolicy = (policy: SandboxPolicy, baseDir: string): EffectivePolicy => {
+    const readOnly = policy.profile === "read-only";
     const input: PolicyInput = {
       policy,
       protectedReadDeny: [],
       protectedWriteDeny: [],
       basenameFiles: [],
-      extraWriteRoots: deps.settings().writeRootsExtra,
+      extraWriteRoots: readOnly ? [] : deps.settings().writeRootsExtra,
       home: dirs.home,
       base: baseDir,
     };
-    const { entries, kept, pathEntries } = analyzeRoots(candidateWriteRoots(input));
-    return mergePolicy(
+    const { entries, kept, pathEntries } = analyzeRoots(readOnly ? [] : candidateWriteRoots(input));
+    const merged = mergePolicy(
       {
         ...input,
         protectedReadDeny: pathEntries
@@ -298,6 +308,9 @@ export async function createSandboxService(
       },
       kept,
     );
+    return readOnly
+      ? { ...merged, writeDeny: sortedUnique([...merged.writeDeny, ...srtImplicitWritePaths()]) }
+      : merged;
   };
 
   const wrapDeps = (withSelfTest: boolean): WrapShellDeps => ({
@@ -306,6 +319,7 @@ export async function createSandboxService(
     random: deps.os.time.random,
     logger,
     parentEnv,
+    readOnlyTempBase: () => dirs.tmp,
     status: () => currentStatus(withSelfTest),
     escapeRetry: () => deps.settings().escapeRetry,
     resolvePolicy,
@@ -317,6 +331,20 @@ export async function createSandboxService(
   });
 
   const defaultPolicy: SandboxService["defaultPolicy"] = (input) => {
+    if (input.profile === "read-only") {
+      // 쓰기 루트 없음, 네트워크 차단 프로필. 보호 경로 읽기 금지는 그대로 더한다. 호출마다 만드는 임시 폴더는 wrapShell이 더한다
+      const { pathEntries } = analyzeRoots([]);
+      return {
+        writeRoots: [],
+        readDeny: sortedUnique(
+          pathEntries.filter((entry) => entry.access === "read_write").map((entry) => entry.path),
+        ),
+        writeDeny: sortedUnique(pathEntries.map((entry) => entry.path)),
+        network: { allowedDomains: [], deniedDomains: [] },
+        allowEscape: false,
+        profile: "read-only",
+      };
+    }
     const roots = sortedUnique(
       [...input.workspaceRoots, input.tempDir, ...deps.settings().writeRootsExtra].map((root) =>
         canonicalizePath(toAbsolutePath(root, dirs.home, "/")),
