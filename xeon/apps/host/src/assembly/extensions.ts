@@ -222,7 +222,7 @@ export const L2_TOOL_CAPABILITIES: readonly AnyCapabilityDef[] = [
  * MCP 서버 도구가 쓰면 안 되는 기계 이름: 도구를 올리는 L2 기능의 도구와 코어 내장 도구. 같은 이름을 낸 서버 도구는 `name_conflict`로 숨는다
  */
 function reservedToolNames(): ReadonlySet<string> {
-  const names = new Set<string>(["read", "ls", "bash", "tool_search", "agent"]);
+  const names = new Set<string>(["read", "bash", "tool_search", "agent"]);
   for (const def of L2_TOOL_CAPABILITIES) for (const tool of def.tools) names.add(tool.name);
   return names;
 }

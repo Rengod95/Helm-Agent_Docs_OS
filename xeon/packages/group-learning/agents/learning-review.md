@@ -9,8 +9,6 @@ tools:
   - session_read
   - read
   - grep
-  - find
-  - ls
 model: review
 ---
 
