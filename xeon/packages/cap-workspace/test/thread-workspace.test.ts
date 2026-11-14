@@ -79,12 +79,13 @@ describe("thread workspace roots", () => {
     expect(reverse.data.code).toBe("denied");
   });
 
-  test("ls lists the thread workspace", async () => {
-    const { deps } = fixture(MAP);
+  test("grep searches the thread workspace root and cwd", async () => {
+    const { deps, env } = fixture(MAP);
     const files = createFilesApi(deps);
-    const listed = await files.list({}, callOptions(BETA));
-    expect(listed.path).toBe("/projects/beta");
-    expect(listed.entries.map((entry) => entry.name)).toEqual(["who.txt"]);
+    env.reply({ exitCode: 1 });
+    const found = await files.grep({ pattern: "x" }, callOptions(BETA));
+    expect(found).toEqual({ root: "/projects/beta", matches: [] });
+    expect(env.calls.at(-1)?.options?.cwd).toBe("/projects/beta");
   });
 
   test("bash starts in the thread workspace and the sandbox may write only there", async () => {

@@ -17,9 +17,9 @@ binds: [xeon/packages/cap-workspace/**]
 | 마일스톤 | 범위 | 근거 |
 |---|---|---|
 | M0 | 없음. 선행 조건만 준비된다: `contracts`의 기능 계약(F.capabilities.plan M0), `platform-exec`(durable env 포크) | `_research/foundation-plan.md` §5 P4 M0 |
-| M1 | F `defs/workspace.ts`의 정의 3개 전체(도구 7개 선언 포함). 구현은 `read`, `ls`, `bash` 3개. `fresnel.workspace` 서비스 등록, L1.tools 어댑터 연결. 걸어 다니는 골격 스모크에서 이 세 도구가 호출된다 | [결정] `_research/foundation-plan.md` §5 P4 M1, `F.capabilities.plan` M1, `product.scope.spec` §4.3 M1 |
+| M1 | F `defs/workspace.ts`의 정의 3개 전체(도구 5개 선언 포함, ls·find는 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]). 구현은 `read`, `bash` 2개(`ls`는 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]). `fresnel.workspace` 서비스 등록, L1.tools 어댑터 연결. 걸어 다니는 골격 스모크에서 이 도구들이 호출된다 | [결정] `_research/foundation-plan.md` §5 P4 M1, `F.capabilities.plan` M1, `product.scope.spec` §4.3 M1 |
 | M2 | `workspace.images` 최소형(`register`, `load`. 처리기 없이 형식·크기 검사와 blob 등록)과 `read`의 이미지 분기. `dialog.attachments`의 필수 의존. 대화별 작업 폴더 root(`thread.started.workspace`, open-issues M-06) (구현 2026-10-24, §8 기록) | [제안] `L2.readme` §2 각주 ws, §10 미결 10 |
-| M3 | `write`, `edit`(정확·퍼지 일치, `edits` 배열), `grep`, `find` | `product.scope.spec` §4.3 M3 "`cap-workspace`의 M1 밖 도구" |
+| M3 | `write`, `edit`(정확·퍼지 일치, `edits` 배열), `grep`(`find`는 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]) | `product.scope.spec` §4.3 M3 "`cap-workspace`의 M1 밖 도구" |
 
 M3 이후(2차·보류) 표:
 
@@ -31,7 +31,7 @@ M3 이후(2차·보류) 표:
 | PowerShell 도구 | 보류 | Windows 네이티브는 나중이다(`product.scope.spec` §4.2 N4). 포크 원본의 `createPowerShellTool`은 복사만 하고 등록하지 않는다 |
 
 - 계획 v2는 "편집 방식"(정확·퍼지·줄 해시)을 통째로 2차로 적었다. 정확·퍼지 일치는 `edit-diff.ts` 한 파일에 함께 있어 `edit` 도구와 분리할 수 없으므로 M3 `edit`과 같이 들어온다 [제안]. 줄 해시만 2차로 남는다.
-- `write`, `edit`, `grep`, `find`를 M2로 당길 근거 [제안, 확정 아님]: M2 종료 조건의 Helm 탐구 유즈케이스(`product.scope.spec` §4.4 M2)는 "쓰기 도구 호출을 거부"하는지를 본다. 거부 대상인 `write`·`edit`가 없으면 이 조건을 `bash`로만 확인하게 된다. M2 계획 때 Helm 쪽 테스트가 `write`·`edit` 정의(M1에 이미 F에 있음)만으로 충분한지 보고, 부족하면 W5를 M2로 당긴다.
+- `write`, `edit`, `grep`를 M2로 당길 근거
 
 ## 2. 패키지와 파일 배치
 
@@ -51,9 +51,9 @@ xeon/packages/cap-workspace/
       tool-types.ts       # harness/types.ts에서 추출한 도구 타입(W2)
       output.ts           # harness/output.ts에서 read가 쓰는 함수만(characterEnd 등)
     files/
-      read.ts  write.ts  list.ts  grep.ts  find.ts   # 메서드 구현(포크 본문을 메서드 모양으로 감쌈)
+      read.ts  write.ts  grep.ts   # 메서드 구현(포크 본문을 메서드 모양으로 감쌈). list.ts·find.ts는 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]
       upstream/read.ts  upstream/write.ts  upstream/path-utils.ts  upstream/file-mutation-queue.ts
-      upstream/grep.ts  upstream/find.ts  upstream/ls.ts               # pi coding-agent core/tools 포크
+      upstream/grep.ts               # pi coding-agent core/tools 포크. find.ts·ls.ts 포크는 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]
     edit/
       edit.ts             # 메서드 구현, 오류 코드 매핑
       upstream/edit.ts  upstream/edit-diff.ts
@@ -81,13 +81,13 @@ xeon/packages/cap-workspace/
 | `D/tools/bash.ts` | 184 | `src/shell/upstream/bash.ts` | M1 | `Context` 치환. `prepareExecution` 앞에 `fresnel.sandbox` 래핑을 넣는다(`src/shell/run.ts`). `api.output`·`retainedOutput` 대신 `ExecutionEnv.exec`의 spill·window 옵션을 직접 쓴다. PowerShell 부분은 복사만 하고 등록하지 않는다 |
 | `D/tools/env.ts` | 8 | 복사하지 않음 | — | `requireEnv`는 서비스 주입으로 대체 |
 | `D/tools/index.ts` | 39 | 복사하지 않음 | — | Harness 확장 객체(`createCodingTools`)라 쓰지 않는다 |
-| `CA/ls.ts` | 175 | `src/files/upstream/ls.ts` | M1 | fs 직접 호출 → `ExecutionEnv.listDir`. 렌더러·TUI 의존 제거. 정렬을 코드 단위 바이트 순으로 고정(`localeCompare` 제거) |
+| `CA/ls.ts` | 175 | (삭제됨) | M1 | 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]. 옛 설명: fs 직접 호출 → `ExecutionEnv.listDir`, 코드 단위 바이트 순 정렬 |
 | `D/tools/write.ts` | 39 | `src/files/upstream/write.ts` | M3 | 도구 타입 치환. `FileChange` 계산(이전 내용 읽기 + `generateUnifiedPatch`) 추가 |
 | `D/tools/file-mutation-queue.ts` | 55 | `src/files/upstream/file-mutation-queue.ts` | M3 | `Context` 치환 |
 | `D/tools/edit.ts` | 144 | `src/edit/upstream/edit.ts` | M3 | 도구 타입 치환. `prepareEditArguments`는 F 정의의 `toEditInput`으로 옮겼으므로 지운다. 오류 메시지 문자열 대신 고유 코드로 던진다(`edit_not_found` 등) |
 | `D/tools/edit-diff.ts` | 500 | `src/files/upstream/edit-diff.ts` | M3 | 오류 생성 함수 5개(`getNotFoundError` 등)가 코드 달린 오류를 만들도록 고친다. 정규화 규칙은 바꾸지 않는다 |
 | `CA/grep.ts` | 323 | `src/files/upstream/grep.ts` | M3 | `ensureTool` 내려받기 제거, `fresnel.os`가 제공하는 `rg` 경로(`platform-os`의 `@vscode/ripgrep` 연결) 또는 `l2.workspace.grep.rgPath`. 실행은 `ExecutionEnv.exec`. 출력 파싱은 `rg --json`으로 고정 |
-| `CA/find.ts` | 318 | `src/files/upstream/find.ts` | M3 | `fd` 대신 `rg --files --glob`(spec §10 미결 6). 실행은 `ExecutionEnv.exec` |
+| `CA/find.ts` | 318 | (삭제됨) | M3 | 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]. 옛 설명: `fd` 대신 `rg --files --glob`(spec §10 미결 6) |
 | `D/truncate.ts` | 205 | 이 패키지에 두지 않는다. `platform-exec`(L0.exec.plan)가 포크한다 | M1 | spec §4.5 D-08. 이 패키지는 `fresnel.exec`(F `ExecutionEnv`)로 호출한다 |
 | `D/harness/types.ts` | 786 중 100~200 | `src/upstream/tool-types.ts` | M1 | `ToolRegistration`, `ToolExecutionApi`, `ToolExecutionResult`, `ToolDiagnostic`과 이들이 참조하는 타입만 추출 |
 | `D/harness/define.ts` | 44 | `src/upstream/tool-types.ts`에 합침 | M1 | `JsonValue`(Chord) → `@fresnel/contracts/conversation`의 `JsonValue` |
@@ -106,10 +106,10 @@ xeon/packages/cap-workspace/
 |---|---|---|---|
 | W1 | F `src/capabilities/defs/workspace.ts`: spec §3.1~§3.5의 스키마, `WorkspaceFiles`, `WorkspaceShell`, `WorkspaceImages`, 각 `…Key`, `WorkspaceService`, `WorkspaceServiceName`. 명시 타입 주석(`isolatedDeclarations`). `validateCapability`·`validateCapabilitySet` 테스트 | F.capabilities.plan M0(P1~P7) | M |
 | W2 | 도구 타입 추출: `D/harness/types.ts`·`define.ts`에서 `src/upstream/tool-types.ts`(100~200줄), `harness/output.ts`의 필요 함수. `UPSTREAM.json`·`PATCHES.md`·`LICENSE.pi` 골격 | W1과 병렬 가능. `CancelScope`는 L0.exec.plan의 F 추가 작업 | S |
-| W3 | `read`, `ls`, `bash` 포크와 `ExecutionEnv` 연결: `src/roots.ts`(경로 해석, M1은 cwd 하나), `src/errors.ts`, `src/files/read.ts`·`list.ts`, `src/shell/run.ts`(샌드박스 래핑, `exit_nonzero`), `src/truncate/paging.ts`. 절단 함수는 L1.tools.plan의 결정 위치에서 import | W1, W2, L0.exec.plan(env 포크), L0.sandbox.plan(래핑 API), L1.tools.plan(절단 함수 위치 결정) | L |
+| W3 | `read`, `bash` 포크와 `ExecutionEnv` 연결: `src/roots.ts`(경로 해석, M1은 cwd 하나), `src/errors.ts`, `src/files/read.ts`, `src/shell/run.ts`(샌드박스 래핑, `exit_nonzero`), `src/truncate/paging.ts`. 절단 함수는 L1.tools.plan의 결정 위치에서 import | W1, W2, L0.exec.plan(env 포크), L0.sandbox.plan(래핑 API), L1.tools.plan(절단 함수 위치 결정) | L |
 | W4 | provider 등록과 L1.tools 어댑터 연결 확인: `src/index.ts`·`manifest.ts`·`service.ts`, 기능별 `hostOf(g).provide(key, impl)` 등록(X가 `cap:<id>` 바인딩을 만든다), L1.tools가 `ToolSpec` 7개 중 구현된 3개로 `AgentTool`을 만드는지, 미구현 도구는 노출하지 않는지 확인 | W3, X.primitives.plan(서비스 등록 API), L1.tools.plan(도구 어댑터) | M |
 | W5 | `write`, `edit`과 `edit-diff` 포크: `FileChange` 계산, 고유 오류 코드, 퍼지 규칙 E1~E17 테스트, 경로별 줄 세우기 | W3 | L |
-| W6 | `grep`(ripgrep 연결, `rg --json` 파싱), `find`(`rg --files --glob`) | W3 | M |
+| W6 | `grep`(ripgrep 연결, `rg --json` 파싱). `find`는 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"] | W3 | M |
 | W7 | images 포크와 blob 등록: M2는 `image.ts`·`image-processor.ts`와 `register`·`load` 최소형, blob 연결(`src/ports/blobs.ts`와 `src/images/prepare.ts`), `read`의 이미지 분기. 2차는 photon 처리기, 워커, `resize`, 시작 탐침 (M2 완료 2026-10-24) | W3, L0.store.plan(blob API). 자리표시 치환은 L1.context.plan | M(최소형), L(2차) |
 | W8 | 설정 키 선언: `src/settings.ts`에 spec §6 표의 15개 키. `checkSettingDef` D1~D9 통과 테스트. 각 메서드가 설정을 읽는 시점(호출마다 유효 값 조회) | W1. 키별 소비 코드는 W3·W5·W6·W7 | S |
 | W9 | 줄 해시 편집 설계 메모(2차): omp `crates/pi-edit` hashline 알고리즘 요약, TS 재작성 범위, `read` 출력 변경과 fingerprint 영향, 새 메서드·도구 모양. 문서로만 남긴다(`L2.workspace.spec` §4.4 보강) | W5 | S |
@@ -124,7 +124,7 @@ xeon/packages/cap-workspace/
 | `typebox` | 1.3.27(워크스페이스 catalog, review.decisions-2 U-24) | MIT | 정의 스키마(F). durable 원본도 1.3.27이라 포크 본문의 `Type.*` 호출이 그대로 맞는다 |
 | `diff` | 8.0.4 정확 고정(durable `package.json`과 같은 값) | BSD-3-Clause [가정, 레지스트리 확인] | `edit-diff.ts`의 diff 생성(`generateDiffString`, `generateUnifiedPatch`) |
 | `@silvia-odwyer/photon` | 0.3.3 정확 고정(durable `package.json`과 같은 값) | Apache-2.0 [가정, 레지스트리 확인] | 2차 이미지 처리기. wasm 파일 `photon_rs_bg.wasm` |
-| `@vscode/ripgrep` | 1.18.0 정확 고정 | MIT | `grep`, `find`의 rg 바이너리. `platform-os`가 import하고 경로를 제공한다. 이 패키지는 그 경로로 실행만 하고 의존 선언에 넣지 않는다 [결정: review.m2-plan §8]. postinstall 다운로드 없음(플랫폼 패키지) (`_research/packages.md` §5) |
+| `@vscode/ripgrep` | 1.18.0 정확 고정 | MIT | `grep`의 rg 바이너리. `platform-os`가 import하고 경로를 제공한다. 이 패키지는 그 경로로 실행만 하고 의존 선언에 넣지 않는다 [결정: review.m2-plan §8]. postinstall 다운로드 없음(플랫폼 패키지) (`_research/packages.md` §5) |
 | pi durable `tools/`, `images/`, `truncate.ts`, `harness/` 일부 | 커밋 `cdaf6c2` | MIT | 포크(§2 표) |
 | pi coding-agent `core/tools/{grep,find,ls}.ts` | 커밋 `cdaf6c2` | MIT | 포크(§2 표) |
 | omp `crates/pi-edit` hashline | — | [가정] MIT | 2차. 코드 복사 없이 알고리즘만 참고 |
@@ -147,9 +147,9 @@ Chord 값 import 0건 확인 절차(ADR-0003 §4.2 검증 방법을 이 패키�
 | 파일 | 테스트 | 확인할 동작 |
 |---|---|---|
 | `test/defs.test.ts` | `workspace defs have no issues` | 정의 3개의 `validateCapability` 이슈 0건, `validateCapabilitySet` 이슈 0건 |
-| `test/read-only.conformance.test.ts` | `the declared classes are the reads and the undeclared writes`, `read, list and images.load leave every file as it was` | 기능 적합성(ADR-0015 §3.6, M3-REQ-88·89). workspace 열 메서드의 분류와 `replay`가 spec 효과 분류 표와 같다. `read`·`list`·`images.load`를 되풀이한 뒤 파일 내용과 목록이 같고 exec 호출이 늘지 않는다. workspace에는 멱등 쓰기가 없다. `grep`·`find`의 호출 시험은 구현(M3-new-10)이 들어올 때 더한다 |
-| | `replay and execution policy declared` | `read`·`ls`·`grep`·`find`: 메서드·도구 `replay: "safe"`, `executionMode: "parallel"`, `hints.readOnly: true`. `write`·`edit`·`bash`: `replay: "unsafe"` |
-| | `tool order is stable` | `orderTools([WorkspaceShell, WorkspaceImages, WorkspaceFiles])`가 `edit, find, grep, ls, read, write, bash` 순 |
+| `test/read-only.conformance.test.ts` | `the declared classes are the reads and the undeclared writes`, `read and images.load leave every file as it was` | 기능 적합성(ADR-0015 §3.6, M3-REQ-88·89). workspace 열 메서드의 분류와 `replay`가 spec 효과 분류 표와 같다. `read`·`images.load`를 되풀이한 뒤 파일 내용이 같고 exec 호출이 늘지 않는다. workspace에는 멱등 쓰기가 없다. `grep`의 호출 시험은 구현(M3-new-10)이 들어올 때 더한다 |
+| | `replay and execution policy declared` | `read`·`grep`: 메서드·도구 `replay: "safe"`, `executionMode: "parallel"`, `hints.readOnly: true`. `write`·`edit`·`bash`: `replay: "unsafe"` |
+| | `tool order is stable` | `orderTools([WorkspaceShell, WorkspaceImages, WorkspaceFiles])`가 `edit, grep, read, write, bash` 순 |
 | | `edit toInput repairs shapes` | 문자열 `edits`, 단일 객체 `edits`, 최상위 `oldText`/`newText`가 같은 `EditInput`이 된다 |
 | `test/read.test.ts` | `read returns whole small file` | 한도 아래 파일은 `truncated`가 없고 `endLine === totalLines` |
 | | `read truncates at line limit` | `maxLines`를 넘으면 `truncated.by === "lines"`, `nextOffset === endLine + 1` |
@@ -163,8 +163,7 @@ Chord 값 import 0건 확인 절차(ADR-0003 §4.2 검증 방법을 이 패키�
 | | `rejects traversal in missing segments` | 없는 `a/../../x`로 쓰기 시도는 `reason: "parent_traversal"` |
 | | `segment-wise containment` | root `/w/a`일 때 `/w/ab/x`는 밖이다 |
 | | `rejects protected path` | 가짜 보호 경로 목록의 경로는 root 안이어도 `protected_path` |
-| `test/list.test.ts` | `ls sorts by bytes and marks dirs` | 바이트 순, 디렉터리 `/` 접미, 점 파일 포함 |
-| | `ls truncates at entry limit` | `by: "entries"`, `shown`, `total` |
+| `test/list.test.ts` | (삭제됨) | 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]. 옛 시험(바이트 순, 디렉터리 `/`, 절단, 빈 디렉터리)은 파일과 함께 지웠다 |
 | `test/shell.test.ts` | `bash returns output and exit code` | 가짜 exec 응답이 그대로 `RunOutput`이 된다 |
 | | `bash nonzero exit is tool error` | 도구 경로 `toInput`으로 `failOnNonZero: true` → `exit_nonzero`, `message`에 출력 꼬리 |
 | | `service run without failOnNonZero` | 같은 명령이 오류 없이 `exitCode`를 돌려준다 |
@@ -183,8 +182,7 @@ Chord 값 import 0건 확인 절차(ADR-0003 §4.2 검증 방법을 이 패키�
 | | `grep invalid pattern` | rg 오류 출력 → `pattern_invalid` |
 | | `grep missing rg` | 바이너리 없음 → `unavailable`, `reason: "rg_missing"` |
 | | `grep long line cut` | `maxLineLength` 초과 줄 절단 |
-| `test/find.test.ts` | `find uses rg files glob` | 가짜 exec에 넘긴 인자가 `--files --glob <pattern>` |
-| | `find sorts and truncates` | 바이트 순, `limit` 절단 |
+| `test/find.test.ts` | (삭제됨) | 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]. 옛 시험(rg 글로브 인자, 바이트 순, `limit` 절단)은 파일과 함께 지웠다. glob 의미는 `test/rg.int.test.ts`의 `grep` 글로브 시험이 고정한다 |
 | `test/images.test.ts` | `register passes inline image within limit` | 처리기 없음 상태에서 png·jpeg·gif·webp 한도 안은 그대로 등록 |
 | | `register rejects oversize without processor` | `image_too_large` |
 | | `register rejects unsupported format` | bmp는 처리기 없음 상태에서 `image_unsupported` |
@@ -196,13 +194,13 @@ Chord 값 import 0건 확인 절차(ADR-0003 §4.2 검증 방법을 이 패키�
 | | `settings change applies next call` | `read.maxLines` 변경 뒤 다음 호출부터 새 한도 |
 | `test/errors.test.ts` | `maps env errors` | spec §4.1 표의 각 행 |
 | `test/replay.test.ts` | `unsafe tools are not rerun on unknown outcome` | 의도 기록 뒤 결과가 없을 때 어댑터 정책 표가 `write`·`edit`·`bash`를 재실행 대상에서 뺀다(F records 판정 함수 `decideEffectRecovery`에 정의 값 입력) |
-| `apps/cli/test/` 스모크(통합 1개, L4 소유) | `chat turn uses read ls bash` | 모델 테이프가 `read`, `ls`, `bash`를 차례로 호출하고 결과가 테이프와 맞는다 |
+| `apps/cli/test/` 스모크(통합 1개, L4 소유) | `chat turn uses read bash` | 모델 테이프가 `read`, `bash`를 차례로 호출하고 결과가 테이프와 맞는다 |
 
 ## 6. 완료 기준
 
 M1 완료:
 
-1. `fresnel chat` 한 턴에서 `read`, `ls`, `bash` 도구 호출이 모델 테이프로 재생되고 결과가 기대값과 같다(`_research/foundation-plan.md` §6 M1 스모크).
+1. `fresnel chat` 한 턴에서 `read`, `bash` 도구 호출이 모델 테이프로 재생되고 결과가 기대값과 같다(`_research/foundation-plan.md` §6 M1 스모크).
 2. `cd xeon && just verify`가 종료코드 0이다.
 3. F `defs/workspace.ts`의 정의 3개가 `validateCapability` 이슈 0건이다(`F.capabilities.plan` M1).
 4. `L2.workspace.spec` §9 수용 기준 2, 4, 5, 6, 7(M1 도구 범위), 10이 테스트로 확인된다.
@@ -222,17 +220,17 @@ M3 완료: spec §9 수용 기준 1~10 전부. 퍼지 규칙 표와 테스트 �
 | 퍼지 편집 오적용 | 정규화된 공간에서 엉뚱한 구간이 바뀐다 | 모호 일치(`edit_ambiguous`)를 퍼지 공간에서도 센다(원본 규칙 E14). 바뀌지 않은 줄 원문 보존(E10). 설정으로 퍼지를 끌 수 있다(E17). `FileChange.diff`가 결과에 남아 리뷰할 수 있다 |
 | 포크 원본이 실험 API라 upstream이 예고 없이 바뀜 | 업그레이드 때 diff가 크다 | 커밋 `cdaf6c2`로 고정하고 `UPSTREAM.json`·`PATCHES.md`·`FRESNEL-PATCH` 표지로 바꾼 점을 추적한다(ADR-0003 §3.4). upstream 변경은 필요할 때만 수동으로 가져온다 |
 | 도구 타입 추출 규모가 추정(100~200줄)보다 큼 | W2가 길어진다 | W2를 W1과 병렬로 먼저 시작하고, 추출 대상이 도구 본문이 실제로 쓰는 타입뿐인지 타입체크로 좁힌다(ADR-0003 §4.2) |
-| ripgrep 플랫폼 패키지가 compile 산출물에 들어가지 않음 | 배포판에서 `grep`, `find`가 `unavailable` | 사이드카 빌드에 rg 바이너리를 같이 넣는 방법을 `L4.desktop.plan`에 요청한다. 시스템 rg와 `l2.workspace.grep.rgPath`로 우회할 수 있다 |
+| ripgrep 플랫폼 패키지가 compile 산출물에 들어가지 않음 | 배포판에서 `grep`가 `unavailable` | 사이드카 빌드에 rg 바이너리를 같이 넣는 방법을 `L4.desktop.plan`에 요청한다. 시스템 rg와 `l2.workspace.grep.rgPath`로 우회할 수 있다 |
 | `typebox` 판 차이 | 해소했다. 원본과 catalog가 같은 1.3.27이다(review.decisions-2 U-24) | W2 타입체크로 확인한다 |
 | 경로 검사와 샌드박스 정책이 서로 다른 root를 씀 | 파일 도구와 bash의 허용 범위가 달라 사용자가 혼란스럽다 | 허용 root를 L1.tools 한 곳에서 받고 L0.sandbox 쓰기 경로와 같은 값을 쓰도록 L1.tools.plan에 요청한다 |
 
 ## 8. M2 구현 기록 (DG.3·DG.4, 2026-10-24)
 
 - 이미지 포크는 `image.ts`(형식 판별과 크기 읽기, 패치 P11)와 `image-processor.ts`(`INLINE_IMAGE_TYPES`, `base64Length`만, 패치 P12)다. 처리기 타입과 `toBase64`는 쓰는 곳이 없어 2차로 미뤘다. 한도 기본값은 `DEFAULT_IMAGE_LIMITS` 대신 설정 키 `l2.workspace.images.*`가 갖는다.
-- 설정 키는 `images.maxWidth`, `maxHeight`, `maxBytes`, `maxInputBytes` 넷을 선언했다(§6 표). 나머지(`grep.*`, `find.*`, `edit.fuzzy`)는 M3다.
+- 설정 키는 `images.maxWidth`, `maxHeight`, `maxBytes`, `maxInputBytes` 넷을 선언했다(§6 표). 나머지(`grep.*`, `edit.fuzzy`)는 M3다. `find.*`는 `find` 삭제 뒤 읽는 곳이 사라졌다(L2.workspace.spec §10 미결 15).
 - 파일 배치: `src/ports/blobs.ts`(`BlobSink`), `src/ports/threads.ts`(`ThreadWorkspaces`), `src/scope.ts`(`scopedDeps`), `src/images/{service,prepare,decode}.ts`. 계획의 `images/blob.ts`는 포트 파일로 대신했다.
 - 대화별 작업 폴더: `createFilesApi`, `createShellApi`, `createImagesApi`가 호출마다 `scopedDeps(deps, context.threadId)`로 의존을 맞춘다. 플러그인은 `fresnel.session`의 `query.thread(threadId).workspace`와 `fresnel.exec`의 `withCwd`로 `ThreadWorkspaces`를 만든다. `fresnel.session`, `fresnel.store` 포트가 없으면 경고 로그를 남기고 각각 엔진 cwd와 `unavailable`로 동작한다.
 - 확인한 것: `images.test.ts`(최소형 규칙 전부와 `read` 이미지 분기), `thread-workspace.test.ts`(root, 상대 경로, 셸 cwd, 보호 경로, 작업 폴더 없음), `plugin.test.ts`(대화·저장소 포트 연결).
 - 통합 단계에서 확인할 것: (1) HOST 조립이 `fresnel.session`과 `fresnel.store`를 이 플러그인보다 먼저 제공하는지(포트는 설치 때 한 번 읽는다), (2) `thread.create`가 `workspace`를 `thread.started` payload에 싣는지(L1B, open-issues M-06의 남은 부분), (3) 샌드박스 쓰기 root가 대화의 작업 폴더와 같은 값을 쓰는지(L1.tools의 허용 root API가 정해지기 전까지 이 패키지가 정한다).
-- `grep`·`find`는 M3이고, `rg` 경로는 `fresnel.os`의 `resolveBinary("rg")`가 준다. 이 패키지는 `@vscode/ripgrep`을 import하지 않는다.
+- `grep`는 M3이고(`find`는 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]), `rg` 경로는 `fresnel.os`의 `resolveBinary("rg")`가 준다. 이 패키지는 `@vscode/ripgrep`을 import하지 않는다.
 

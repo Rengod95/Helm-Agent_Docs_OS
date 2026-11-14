@@ -26,9 +26,7 @@ describe("workspace readOnly conformance", () => {
       "workspace.files.read readOnly safe",
       "workspace.files.write none unsafe",
       "workspace.files.edit none unsafe",
-      "workspace.files.list readOnly safe",
       "workspace.files.grep readOnly safe",
-      "workspace.files.find readOnly safe",
       "workspace.images.load readOnly safe",
       "workspace.images.resize readOnly safe",
       "workspace.images.register none unsafe",
@@ -36,7 +34,7 @@ describe("workspace readOnly conformance", () => {
     ]);
   });
 
-  test("read, list and images.load leave every file as it was", async () => {
+  test("read and images.load leave every file as it was", async () => {
     const env = memoryEnv({ cwd: "/work" });
     env.mkdir("/work");
     env.put("/work/a.txt", "alpha\nbeta\n");
@@ -47,18 +45,14 @@ describe("workspace readOnly conformance", () => {
     const service = createWorkspaceService(deps);
     const snapshot = async (): Promise<unknown> => {
       const text = await files.read({ path: "a.txt" });
-      const listing = await files.list({});
-      const pics = await files.list({ path: "pics" });
-      return [text, listing, pics];
+      return [text];
     };
     const before = await snapshot();
     const callsBefore = env.calls.length;
 
     await files.read({ path: "a.txt" });
-    await files.list({});
     await service.images.load({ path: "pics/a.png" });
     await files.read({ path: "a.txt" });
-    await files.list({});
     await service.images.load({ path: "pics/a.png" });
 
     expect(await snapshot()).toEqual(before);

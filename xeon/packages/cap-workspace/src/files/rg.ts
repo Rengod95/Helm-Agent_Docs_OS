@@ -106,7 +106,7 @@ function relativeRgPath(path: string): string {
 }
 
 /** `rg --files`처럼 한 줄에 경로 하나를 내는 출력을 기준 디렉터리 상대 경로 목록으로 바꾼다 */
-export function pathsOf(stdout: string): string[] {
+function pathsOf(stdout: string): string[] {
   return stdout
     .split("\n")
     .filter((line) => line !== "")

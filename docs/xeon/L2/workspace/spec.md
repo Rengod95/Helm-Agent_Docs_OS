@@ -16,7 +16,7 @@ binds: [xeon/packages/cap-workspace/**]
 
 ### 1.1 정하는 것
 
-- 파일·셸 도구셋 7종: `read`, `write`, `edit`, `bash`, `grep`, `find`, `ls`(`_research/layer-plan-v2.json` L2-a "파일·셸 도구셋").
+- 파일·셸 도구셋 5종: `read`, `write`, `edit`, `bash`, `grep`(`_research/layer-plan-v2.json` L2-a "파일·셸 도구셋"). `find`와 `ls`는 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]: 목록과 찾기는 `bash`가 맡는다.
 - 위 도구가 환원되는 기능 3개의 정의: `workspace.files`, `workspace.shell`, `workspace.images`. 정의 데이터는 F `capabilities/defs/workspace.ts`에 들어간다(`L2.readme` §5.1).
 - 편집 방식: 정확 일치, 퍼지 일치, `edits` 배열, 실패 코드. 줄 해시 편집은 2차 설계 메모만 둔다.
 - 이미지와 첨부 처리: 이미지 읽기, 크기 맞춤, blob 등록, 모델에 참조로 전달.
@@ -68,11 +68,11 @@ const PathParam = Type.String({ minLength: 1, maxLength: 4096, description: "파
 
 /** 절단 정보. 절단이 없으면 필드 자체를 두지 않는다 */
 export const TruncationInfoSchema = Type.Object({
-  /** 어느 한도에 걸렸는가. entries는 grep·find·ls의 개수 한도 */
+  /** 어느 한도에 걸렸는가. entries는 grep의 개수 한도 */
   by: Type.Union([Type.Literal("lines"), Type.Literal("bytes"), Type.Literal("entries")]),
   /** 결과에 담은 단위 수(줄 또는 항목) */
   shown: Type.Integer({ minimum: 0 }),
-  /** 전체 단위 수. 끝까지 세지 않는 도구(grep, find)는 알 수 없을 때 생략한다 */
+  /** 전체 단위 수. 끝까지 세지 않는 도구(grep)는 알 수 없을 때 생략한다 */
   total: Type.Optional(Type.Integer({ minimum: 0 })),
   /** read 전용. 이어 읽을 때 넘길 offset(1부터) */
   nextOffset: Type.Optional(Type.Integer({ minimum: 1 })),
@@ -182,20 +182,7 @@ export const EditOutput = Type.Object({
   change: FileChangeSchema,
 });
 
-// ---- list (도구 이름 ls)
-export const ListInput = Type.Object({
-  path: Type.Optional(PathParam),
-  limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 10000 })),
-});
-export const ListOutput = Type.Object({
-  path: Type.String(),
-  /** 이름 바이트 순. 점 파일 포함 */
-  entries: Type.Array(Type.Object({
-    name: Type.String(),
-    kind: Type.Union([Type.Literal("file"), Type.Literal("directory"), Type.Literal("symlink")]),
-  })),
-  truncated: Type.Optional(TruncationInfoSchema),
-});
+// ---- list (도구 이름 ls): 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]
 
 // ---- grep
 export const GrepInput = Type.Object({
@@ -219,18 +206,7 @@ export const GrepOutput = Type.Object({
   truncated: Type.Optional(TruncationInfoSchema),
 });
 
-// ---- find
-export const FindInput = Type.Object({
-  pattern: Type.String({ minLength: 1, maxLength: 512, description: "파일 glob. 예: **/*.spec.ts" }),
-  path: Type.Optional(PathParam),
-  limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100000 })),
-});
-export const FindOutput = Type.Object({
-  root: Type.String(),
-  /** root 기준 상대 경로, 바이트 순 */
-  paths: Type.Array(Type.String()),
-  truncated: Type.Optional(TruncationInfoSchema),
-});
+// ---- find: 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]
 
 // ---- 렌더링(순수 함수)
 function truncNote(t: TruncationInfo | undefined): string {
@@ -262,18 +238,9 @@ function renderChange(verb: string) {
   });
 }
 
-function renderList(out: Static<typeof ListOutput>): ToolContent {
-  const lines = out.entries.map((e) => (e.kind === "directory" ? `${e.name}/` : e.name));
-  return { content: [{ type: "text", text: lines.join("\n") + truncNote(out.truncated) }], structuredContent: out };
-}
-
 function renderGrep(out: Static<typeof GrepOutput>): ToolContent {
   const lines = out.matches.map((m) => `${m.path}${m.kind === "match" ? ":" : "-"}${m.line}${m.kind === "match" ? ":" : "-"} ${m.text}`);
   return { content: [{ type: "text", text: lines.join("\n") + truncNote(out.truncated) }], structuredContent: out };
-}
-
-function renderFind(out: Static<typeof FindOutput>): ToolContent {
-  return { content: [{ type: "text", text: out.paths.join("\n") + truncNote(out.truncated) }], structuredContent: out };
 }
 
 /** EditToolParams → EditInput. 순수 함수. durable tools/edit.ts prepareEditArguments의 규칙을 옮긴다 */
@@ -323,19 +290,10 @@ export const WorkspaceFiles = defineCapability({
           edit_conflict: { description: "읽은 뒤 다른 쓰기가 파일을 바꿈. 아무것도 쓰지 않음", retryable: false },
         },
       },
-      list: {
-        description: "디렉터리 항목을 이름 순으로 돌려준다.",
-        input: ListInput, output: ListOutput, replay: "safe", readOnly: true,
-      },
       grep: {
         description: "파일 내용을 정규식이나 문자열로 검색한다. .gitignore를 따른다.",
         input: GrepInput, output: GrepOutput, replay: "safe", readOnly: true,
         errors: { pattern_invalid: { description: "정규식 문법 오류", retryable: false } },
-      },
-      find: {
-        description: "glob으로 파일을 찾는다. .gitignore를 따른다.",
-        input: FindInput, output: FindOutput, replay: "safe", readOnly: true,
-        errors: { pattern_invalid: { description: "glob 문법 오류", retryable: false } },
       },
     },
   },
@@ -358,28 +316,18 @@ export const WorkspaceFiles = defineCapability({
       hints: { readOnly: false, destructive: true, idempotent: false },
     },
     {
-      name: "ls", label: "디렉터리 목록", method: "list", parameters: ListInput,
-      description: "디렉터리 항목을 이름 순으로 보여 준다. 디렉터리는 끝에 /를 붙인다. 점 파일을 포함한다.",
-      toContent: renderList, replay: "safe", executionMode: "parallel", hints: READ_ONLY,
-    },
-    {
       name: "grep", label: "내용 검색", method: "grep", parameters: GrepInput,
       description: "파일 내용을 검색해 경로와 줄 번호를 돌려준다. .gitignore를 따른다. 결과 수와 줄 길이에 한도가 있다.",
       toContent: renderGrep, replay: "safe", executionMode: "parallel", hints: READ_ONLY,
-    },
-    {
-      name: "find", label: "파일 찾기", method: "find", parameters: FindInput,
-      description: "glob 패턴으로 파일을 찾아 기준 디렉터리 상대 경로를 돌려준다. .gitignore를 따른다.",
-      toContent: renderFind, replay: "safe", executionMode: "parallel", hints: READ_ONLY,
     },
   ],
 });
 export const WorkspaceFilesKey = serviceKey(WorkspaceFiles);
 ```
 
-- 기계 이름은 pi 이름 그대로다(`read`, `write`, `edit`, `bash`, `grep`, `find`, `ls`). `ls` 도구의 메서드 이름은 `list`다. 메서드 이름 규칙(`^[a-z][a-zA-Z0-9]{0,47}$`)에는 `ls`도 맞지만 서비스 API에서 뜻이 드러나는 이름을 쓴다 [제안].
-- `read`, `write`, `ls`, `grep`, `find`는 `toInput`이 없으므로 `parameters`와 메서드 `input`이 같은 스키마 상수다(`tool_input_mismatch` 없음). `edit`만 `toInput`을 둔다.
-- 노출: 등록(`WorkspaceFiles` 등록의 `exposure`)은 `ls`와 `find`만 `deferred`로 지정한다. 나머지 `read`, `write`, `edit`, `grep`과 `bash`는 `always`다. 목록과 찾기는 `bash`가 맡고, `ls`·`find`는 `tool_search`로 찾을 수 있다 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]. 등록과 실행은 그대로이고 광고만 바뀐다(L1.tools §4.1).
+- 기계 이름은 pi 이름 그대로다(`read`, `write`, `edit`, `bash`, `grep`). `find`와 `ls`는 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"].
+- `read`, `write`, `grep`는 `toInput`이 없으므로 `parameters`와 메서드 `input`이 같은 스키마 상수다(`tool_input_mismatch` 없음). `edit`만 `toInput`을 둔다.
+- 노출: 작업 폴더 도구는 모두 `always`다. `ls`와 `find`는 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]이므로 지연 등록의 `exposure` 항목은 두지 않는다(L1.tools §4.1).
 - `edit`의 `toInput`은 `JSON.parse`를 쓰지만 입력만 보고 결과를 내므로 순수 함수다. 정규화 뒤 `edits`가 비면 메서드 입력 검사(`minItems: 1`)에서 `invalid_input`이 난다.
 - 메서드 `replay`와 도구 `replay`가 같다. 도구가 메서드보다 넓지 않으므로 `replay_widened`가 나지 않는다(`F.capabilities.spec` §4.2).
 
@@ -536,9 +484,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 | `workspace.files.read` | readOnly | safe | 파일 조회. 이미지 읽기가 만드는 blob은 같은 바이트의 사본이다 |
 | `workspace.files.write` | 선언 없음 | unsafe | 파일을 쓴다(spec §3.2. 같은 내용이어도 중간에 다른 쓰기가 끼일 수 있다) |
 | `workspace.files.edit` | 선언 없음 | unsafe | 파일을 바꾼다 |
-| `workspace.files.list` | readOnly | safe | 디렉터리 조회 |
 | `workspace.files.grep` | readOnly | safe | 파일 조회 |
-| `workspace.files.find` | readOnly | safe | 파일 조회 |
 | `workspace.images.load` | readOnly | safe | 파일을 읽어 같은 바이트의 blob 사본을 만든다. 원본이 남아 있다 |
 | `workspace.images.resize` | readOnly | safe | 등록된 blob에서 다시 만든다. 공급자는 2차 |
 | `workspace.images.register` | 선언 없음 | unsafe | 붙여넣은 데이터가 유일한 사본인 blob을 저장한다. `requestId` 멱등이 없다 |
@@ -583,11 +529,11 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 2. 절대화: `ExecutionEnv.absolutePath`로 cwd 기준 절대 경로를 만든다.
 3. 읽기 변형(read만): 없으면 macOS 스크린샷 이름 변형(좁은 공백 AM/PM, NFD, 곡선 따옴표)을 차례로 시도한다(`resolveReadToolPath`).
 4. 정규 경로: `ExecutionEnv.canonicalPath`로 심볼릭 링크와 `..`를 푼다. 대상이 아직 없으면(새 파일 쓰기) 존재하는 가장 가까운 상위 디렉터리의 정규 경로에 나머지 마디를 붙인다. 나머지 마디에 `..`가 있으면 거부한다.
-5. 포함 검사: 정규 경로가 허용 root 가운데 하나의 안에 있어야 한다. 읽기 도구(`read`, `ls`, `grep`, `find`)는 읽기 root, 쓰기 도구(`write`, `edit`)는 쓰기 root와 비교한다. 비교는 경로 마디 단위다. 문자열 접두 비교는 쓰지 않는다(`/a/bc`는 `/a/b` 안이 아니다).
+5. 포함 검사: 정규 경로가 허용 root 가운데 하나의 안에 있어야 한다. 읽기 도구(`read`, `grep`)는 읽기 root, 쓰기 도구(`write`, `edit`)는 쓰기 root와 비교한다. 비교는 경로 마디 단위다. 문자열 접두 비교는 쓰지 않는다(`/a/bc`는 `/a/b` 안이 아니다).
 6. 보호 경로: 정규 경로가 L0.sandbox의 보호 경로 목록에 걸리면 root 안이어도 거부한다. 목록을 조회할 때 이 호출의 허용 root를 넘겨(`protectedPaths(roots)`), bash를 한 번도 돌리지 않았어도 root별 `.git/hooks`, `.git/config`가 첫 호출부터 막히게 한다.
 
 - 4·5·6번 위반은 `denied`다. `detail`은 `{ reason: "outside_root" | "protected_path" | "parent_traversal", requested: <입력 경로>, resolved: <정규 경로> }`다.
-- `grep`, `find`는 검색 기준 디렉터리를 검사하고, 결과에서는 읽기 보호 경로에 걸린 파일을 뺀다(`read`가 거부하는 경로가 검색으로 드러나지 않게 한다) [결정: 오케스트레이터 기본값]. 검색 중 만나는 심볼릭 링크는 따라가지 않는다(ripgrep 기본 동작, `--follow` 미사용).
+- `grep`는 검색 기준 디렉터리를 검사하고, 결과에서는 읽기 보호 경로에 걸린 파일을 뺀다(`read`가 거부하는 경로가 검색으로 드러나지 않게 한다) [결정: 오케스트레이터 기본값]. 검색 중 만나는 심볼릭 링크는 따라가지 않는다(ripgrep 기본 동작, `--follow` 미사용).
 
 역할 나눔 [제안]:
 
@@ -662,14 +608,13 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 - 위치 [결정: review.decisions-2 D-08]: 절단 함수의 포크 원본은 ADR-0003대로 `platform-exec`에 둔다. `cap-workspace`는 구현 패키지를 import하지 않고 F 서비스 인터페이스(`ExecutionEnv`, `@fresnel/contracts/services`, 서비스 `fresnel.exec`)로 절단을 호출한다. L1.tools의 결과 경계화도 같은 서비스를 쓴다. `cap-workspace/src/truncate/`에는 `read`의 이어 읽기 계산(offset, nextOffset, `TruncationInfo` 조립)만 둔다. 서비스 메서드는 `truncateHead`·`truncateHeadOf`·`formatSize`다(`L0.exec.spec` §3.1). `read`는 파일 앞부분만 읽으므로 앞부분과 전체 합계를 받는 `truncateHeadOf`를 부른다.
 - `read`: 앞에서부터 남긴다. `offset`부터 `min(limit, maxLines)`줄을 읽고 바이트 한도를 넘으면 그 전 줄까지 남긴다. 남긴 줄이 끝까지가 아니면 `truncated = { by, shown, total, nextOffset: endLine + 1 }`이다. 첫 줄 하나가 바이트 한도를 넘으면 그 줄의 앞부분만 남기고 `by: "bytes"`, `nextOffset: startLine + 1`로 둔다(`TruncationResult.firstLineExceedsLimit`).
 - `bash`: 꼬리를 남기고 넘친 출력은 spill 파일로 둔다(`fullOutputPath`). spill은 `ExecutionEnv.exec`가 한다.
-- `grep`, `find`, `ls`: 항목 수 한도(`limit` 또는 설정 기본값)와 바이트 한도 중 먼저 걸리는 쪽에서 자른다. `by: "entries"` 또는 `"bytes"`. `grep`의 긴 줄은 설정 `l2.workspace.grep.maxLineLength`자에서 자른다.
-- `grep`와 `find`는 ripgrep(`rg`)을 `ExecutionEnv.exec`에 argv 배열로 실행한다. 셸 문자열을 만들지 않고, 샌드박스(§4.2)도 거치지 않는다. 실행 파일은 설정 `l2.workspace.grep.rgPath`가 비어 있지 않으면 그 경로이고, 비어 있으면 `fresnel.os`의 `resolveBinary("rg")`다. 찾지 못하거나 띄우지 못하면 `unavailable`(`detail.reason: "rg_missing"`)이다.
+- `grep`: 항목 수 한도(`limit` 또는 설정 기본값)와 바이트 한도 중 먼저 걸리는 쪽에서 자른다. `by: "entries"` 또는 `"bytes"`. `grep`의 긴 줄은 설정 `l2.workspace.grep.maxLineLength`자에서 자른다.
+- `grep`는 ripgrep(`rg`)을 `ExecutionEnv.exec`에 argv 배열로 실행한다. 셸 문자열을 만들지 않고, 샌드박스(§4.2)도 거치지 않는다. 실행 파일은 설정 `l2.workspace.grep.rgPath`가 비어 있지 않으면 그 경로이고, 비어 있으면 `fresnel.os`의 `resolveBinary("rg")`다. 찾지 못하거나 띄우지 못하면 `unavailable`(`detail.reason: "rg_missing"`)이다.
   - `grep`: `rg --json --no-config --no-require-git --sort path -e <패턴> [-i] [-F] [-C n] [--glob <glob>] --no-messages -- .`. `-i`는 `ignoreCase`, `-F`는 `literal`, `-C`는 `context`가 0보다 클 때다.
-  - `find`: `rg --files --no-config --no-require-git --sort path --glob <패턴> --no-messages -- .`.
   - 검색 기준 디렉터리가 cwd이고, 출력 경로는 그 기준 상대 경로다. 결과는 경로의 바이트 순이다. `--no-require-git`은 git 저장소 밖에서도 `.gitignore`를 읽게 한다. 숨김 파일은 rg 기본대로 건너뛴다.
-  - rg의 `--glob`은 예외 규칙이라 `.gitignore`와 숨김 규칙을 넘어 파일을 되살린다. 그래서 글로브 결과는 글로브 없이 같은 검색을 한 번 더 걸어 얻은 파일 집합과 교차한다. `find`는 항상, `grep`은 `glob`이 있을 때 교차한다.
+  - rg의 `--glob`은 예외 규칙이라 `.gitignore`와 숨김 규칙을 넘어 파일을 되살린다. 그래서 글로브 결과는 글로브 없이 같은 검색을 한 번 더 걸어 얻은 파일 집합과 교차한다. `grep`은 `glob`이 있을 때 교차한다.
   - 종료 코드 1은 일치 없음으로 정상 결과다. 종료 코드 2의 `regex parse error`와 `error parsing glob`은 `pattern_invalid`이고, 그 밖의 실패는 `internal`이다.
-  - `grep`의 한도(`maxMatches`, `limit`)는 일치 줄만 센다. 남긴 일치의 문맥 줄은 함께 남기고, 잘린 일치의 앞 문맥 줄은 버린다. 바이트 한도는 `read.maxBytes`를 쓴다. `find`의 한도는 `find.maxResults`(또는 `limit`)다.
+  - `grep`의 한도(`maxMatches`, `limit`)는 일치 줄만 센다. 남긴 일치의 문맥 줄은 함께 남기고, 잘린 일치의 앞 문맥 줄은 버린다. 바이트 한도는 `read.maxBytes`를 쓴다.
 - 한도는 모두 설정(§6)으로 바꿀 수 있다. 도구 설명 문자열에는 수치를 넣지 않는다. 설정 변경이 도구 fingerprint와 프롬프트 캐시를 바꾸지 않게 하기 위해서다(`F.capabilities.spec` §4.5).
 - L1.tools의 결과 경계화는 도구 결과 전체에 한 번 더 적용된다. 이 문서의 한도가 그보다 작으면 L1 경계화는 아무 일도 하지 않는다.
 
@@ -698,7 +643,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 
 ### 4.7 재생과 결과 불명
 
-- `read`, `ls`, `grep`, `find`와 `workspace.images` 메서드는 `safe`다. 재개 때 결과가 불명이면 다시 실행한다(`F.records.spec` §3.5 판정 표).
+- `read`, `grep`와 `workspace.images` 메서드는 `safe`다. 재개 때 결과가 불명이면 다시 실행한다(`F.records.spec` §3.5 판정 표).
 - `write`, `edit`, `bash`는 `unsafe`다. 의도 기록 뒤 결과가 불명이면 다시 실행하지 않고 결과 불명 합성 결과를 모델에 보낸다(`F.conversation.spec` §3.6 `ReplayPolicy`, `eng.transactions.design` §5).
 - `write`는 같은 내용이면 결과가 같아 `idempotent: true` 힌트를 단다. 그래도 `replay`는 `unsafe`로 둔다. 다시 쓰기 사이에 사용자나 다른 도구가 파일을 바꿨을 수 있기 때문이다 [제안].
 
@@ -720,7 +665,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 | 7 | 샌드박스 안에서 root 밖 쓰기 시도 | 명령이 0 아닌 종료로 끝나 `exit_nonzero`. 위반 보고가 있으면 `detail.sandboxViolations` |
 | 8 | bash 제한 시간 초과 | `timeout`. 프로세스 그룹 종료. `detail`에 그때까지의 `RunOutput` |
 | 9 | 도구 실행 중 사용자 중단 | `aborted`. L1.tools가 중단 결과로 처리 |
-| 10 | ripgrep 바이너리를 찾지 못함 | `grep`, `find`가 `unavailable`, `detail.reason: "rg_missing"` |
+| 10 | ripgrep 바이너리를 찾지 못함 | `grep`가 `unavailable`, `detail.reason: "rg_missing"` |
 | 11 | 같은 파일에 `edit` 두 개가 한 라운드에서 병렬로 옴 | 경로별 줄 세우기로 차례로 적용. 두 번째 편집은 첫 번째 결과를 원본으로 본다 |
 | 12 | 편집 중 다른 프로세스가 파일을 바꿈 | 이름을 바꾸기 직전 비교에서 감지해 `edit_conflict`로 거부한다. 대상은 그 프로세스가 쓴 그대로다(§4.4) |
 | 13 | photon 로드 실패 | 처리기 없음 상태로 동작. 큰 이미지는 `image_too_large` |
@@ -750,7 +695,8 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 | `l2.workspace.grep.rgPath` | string | `""` | — | restart | managed, user | tools | false |
 
 - `shell.defaultTimeoutSec`의 0은 제한 없음이다(pi durable `bash`의 기본값과 같다).
-- `grep.rgPath`가 빈 문자열이면 `fresnel.os`의 `resolveBinary("rg")`가 돌려주는 경로를 쓴다. `@vscode/ripgrep`은 `platform-os`가 번들하고 이 패키지는 그 경로로 `rg`를 실행만 한다(`ExecutionEnv.exec`) [결정: review.m2-plan §8]. 범위를 관리·사용자로 제한한다. 작업 폴더 설정 파일이 실행 파일 경로를 바꾸게 두면 저장소를 여는 것만으로 임의 바이너리가 실행될 수 있기 때문이다 [제안]. `find`도 같은 바이너리(`rg --files --glob`)를 쓴다(§10 미결 6).
+- `find.maxResults`와 `list.maxEntries`는 읽는 기능이 더는 쓰이지 않는다(`find`와 `ls` 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]). 키는 옛 설정 파일과 맞추려고 남겼고, 제거는 §10 미결 15다.
+- `grep.rgPath`가 빈 문자열이면 `fresnel.os`의 `resolveBinary("rg")`가 돌려주는 경로를 쓴다. `@vscode/ripgrep`은 `platform-os`가 번들하고 이 패키지는 그 경로로 `rg`를 실행만 한다(`ExecutionEnv.exec`) [결정: review.m2-plan §8]. 범위를 관리·사용자로 제한한다. 작업 폴더 설정 파일이 실행 파일 경로를 바꾸게 두면 저장소를 여는 것만으로 임의 바이너리가 실행될 수 있기 때문이다 [제안].
 - 이미지 한도의 기본값은 durable `DEFAULT_IMAGE_LIMITS`와 같다. 모델 provider별 한도가 더 작으면 L1.models가 요청 조립 때 다시 줄인다 [가정].
 - UI 위젯: integer 키는 `number`, boolean은 `toggle`, string은 `text`. `ui.label`은 한국어로 둔다(예: `read.maxLines` → "읽기 최대 줄 수").
 
@@ -788,13 +734,13 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 
 ## 9. 수용 기준
 
-1. `ExecutionEnv` 가짜 구현(`@fresnel/platform-exec/testing`의 `fakeExec`와 메모리 파일 시스템) 위에서 7개 도구(`read`, `write`, `edit`, `ls`, `grep`, `find`, `bash`)가 같은 입력에 같은 결과(`structuredContent` 바이트 일치)를 낸다. `grep`, `find`는 ripgrep 실행을 가짜 `exec` 응답 표로 대신한다.
+1. `ExecutionEnv` 가짜 구현(`@fresnel/platform-exec/testing`의 `fakeExec`와 메모리 파일 시스템) 위에서 5개 도구(`read`, `write`, `edit`, `grep`, `bash`)가 같은 입력에 같은 결과(`structuredContent` 바이트 일치)를 낸다. `grep`는 ripgrep 실행을 가짜 `exec` 응답 표로 대신한다.
 2. `WorkspaceFiles`, `WorkspaceShell`, `WorkspaceImages` 각각에 대해 `validateCapability`의 이슈가 0건이고, 세 정의를 합친 `validateCapabilitySet` 이슈도 0건이다.
 3. §4.4 표의 규칙 E1~E17이 같은 이름의 테스트와 1:1로 대응하고 모두 통과한다. 표에 없는 테스트 이름이나 테스트가 없는 규칙이 있으면 실패하는 검사를 둔다.
 4. `l2.workspace.read.maxLines`보다 긴 파일을 `read`하면 결과의 `truncated.nextOffset`이 `endLine + 1`이고, 그 값으로 다시 `read`하면 이어지는 줄부터 나온다.
 5. `../` 조합, root 밖을 가리키는 심볼릭 링크, 존재하지 않는 `..` 마디가 섞인 새 파일 경로가 모두 `denied` `CapabilityError`를 낸다.
 6. 가짜 `fresnel.sandbox`가 실행 전 거부를 돌려주면 `bash` 도구 결과가 `isError: true`이고 `details.code`가 `denied`다.
-7. `read`, `ls`, `grep`, `find`의 메서드와 도구 `replay`가 `"safe"`이고 `executionMode`가 `"parallel"`, `hints.readOnly`가 참이다. `write`, `edit`, `bash`의 `replay`는 `"unsafe"`다(정의 상수 검사).
+7. `read`, `grep`의 메서드와 도구 `replay`가 `"safe"`이고 `executionMode`가 `"parallel"`, `hints.readOnly`가 참이다. `write`, `edit`, `bash`의 `replay`는 `"unsafe"`다(정의 상수 검사).
 8. 0이 아닌 종료 코드의 `bash` 도구 결과는 `isError: true`이고 `content`에 출력 꼬리가 있다. 같은 명령을 서비스로 `failOnNonZero` 없이 부르면 오류 없이 `exitCode`를 돌려준다.
 9. 이미지 파일 `read` 결과의 `content`에 `ImageContent`가 있고 `data`가 `blob:sha256:`로 시작하며, 같은 파일을 두 번 읽으면 같은 sha256이다.
 10. `cap-workspace`의 `src/`와 `test/`에 `chord` import가 0건이다(ADR-0003 §4.2 검증 방법 1~3).
@@ -808,7 +754,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 3. [미결] `ImageBlobRefSchema`의 중복. F capabilities는 records를 import하지 않으므로 같은 모양을 적었다. `BlobRef`를 conversation이나 base로 내려 공유할지 F 문서가 정한다. 그 전까지는 두 스키마의 JSON이 같은지 테스트로 확인한다.
 4. [결정: 오케스트레이터 기본값] 원자적 쓰기와 동시 변경 감지. 포크 원본은 직접 덮어쓰므로 임시 파일 + 이름 바꾸기로 바꾸고, `edit`는 읽은 내용 비교로 동시 변경을 감지한다(§4.4).
 5. [미결] 도구 없는 기능(`workspace.images`) 허용(`F.capabilities.spec` §4.4).
-6. [결정: 오케스트레이터 기본값] `find`의 엔진은 `rg --files --glob`이다. pi coding-agent `find`는 `fd`를 내려받아 쓰므로(`core/tools/find.ts` `ensureTool("fd")`) 내려받기를 피한다. glob 의미는 rg의 `--glob`을 따른다. 슬래시가 없는 패턴은 어느 깊이의 같은 이름과도 맞고(`*.ts`), 슬래시가 있으면 검색 기준 디렉터리에 상대적이며(`src/*.ts`), `**`는 디렉터리를 가로지른다(`**/*.spec.ts`). `test/find.test.ts`와 `test/rg.int.test.ts`가 이 의미를 고정한다. §4.5의 교차 규칙을 따른다.
+6. [삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]] `find` 도구와 그 엔진(`rg --files --glob`) 결정은 쓰이지 않는다. `grep`의 `glob` 필터는 같은 rg 의미를 따르고 `test/rg.int.test.ts`가 고정한다.
 7. [미결] 허용 root 조회 API의 이름과 모양(`L1.tools.spec`). M1은 cwd 하나, M2는 대화의 작업 폴더 하나로 둔다(§4.3, open-issues M-06). 추가 디렉터리와 사용자가 승인해 넓힌 경로는 L1.tools의 API가 정해진 뒤에 더한다.
 8. [미결] `bash` `executionMode: "sequential"`의 비용. 같은 라운드의 읽기 도구까지 순차가 된다. 실측 뒤 `parallel`로 바꿀지 정한다.
 9. [미결] 0 아닌 종료 코드를 `exit_nonzero` 오류로 내는 방식(§3.3). F `ToolContent`에 `isError` 필드를 더해 정상 출력으로 `isError`를 표시하는 대안이 있다. F 문서의 판단이 필요하다.
@@ -817,3 +763,4 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 12. [미결] 패치 적용 메서드. `L2.artifacts.spec`의 거절 hunk 되돌림 안 A는 `workspace.files`에 패치 적용 서비스 메서드(`applyPatch` 후보, 도구 없음, `unsafe`)를 요구한다. 그 안이 채택되면 `workspace.files` minor 버전으로 더하고 §4.3 경로 검사와 §4.4 줄 세우기를 그대로 적용한다. 채택 전에는 `edit`로 같은 일을 할 수 있다.
 13. [미결] 내용 주소(sha256) blob 쓰기(`images.register`)의 분류. 같은 바이트는 같은 blob이라 재실행해도 결과와 효과가 같지만, ADR-0015 §3.3은 `requestId` 기억이 있는 쓰기만 `idempotent`로 둔다. 지금은 선언 없음이다. 내용 주소 쓰기를 `idempotent`로 인정하려면 ADR의 정의를 넓혀야 한다.
 14. [미결] 원자적 쓰기가 기존 파일의 모드 비트(실행 권한)를 잃는다. `FileInfo`에 모드가 없고 `ExecutionEnv`에 chmod가 없어 L0.exec 확장이 필요하다. 그 전까지 실행 파일을 `edit`하면 권한을 다시 줘야 한다.
+15. [미결] `l2.workspace.find.maxResults`와 `l2.workspace.list.maxEntries`는 읽는 코드가 더는 쓰이지 않는다. 키를 지우면 옛 설정 파일의 값이 버려지므로 제거 여부는 사용자가 정한다. [근거: packages/cap-workspace/src/settings.ts]

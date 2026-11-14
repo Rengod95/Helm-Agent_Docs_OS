@@ -172,12 +172,8 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
             read: { risk: "read" },
             write: { risk: "write" },
             edit: { risk: "write" },
-            ls: { risk: "read" },
             grep: { risk: "read" },
-            find: { risk: "read" },
           },
-          // ls·find는 bash로 대체한다(사용자 결정 2026-11-13). 등록은 살리고 광고만 지연으로 둔다
-          exposure: { ls: "deferred", find: "deferred" },
         },
         {
           kind: "capability",

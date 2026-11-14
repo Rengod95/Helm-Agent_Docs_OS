@@ -18,14 +18,12 @@ describe("workspace definitions", () => {
   });
 
   test("every declared files tool is implemented and advertised", () => {
-    // 여섯 도구가 모두 구현되어 광고된다(plugin.ts의 등록이 WorkspaceFiles 정의 그대로를 쓴다)
+    // 네 도구가 모두 구현되어 광고된다(plugin.ts의 등록이 WorkspaceFiles 정의 그대로를 쓴다)
     expect(WorkspaceFiles.tools.map((tool) => tool.name)).toEqual([
       "read",
       "write",
       "edit",
-      "ls",
       "grep",
-      "find",
     ]);
   });
 
@@ -34,9 +32,7 @@ describe("workspace definitions", () => {
     expect(tools.map((tool) => tool.name).toSorted()).toEqual([
       "bash",
       "edit",
-      "find",
       "grep",
-      "ls",
       "read",
       "write",
     ]);
@@ -44,7 +40,7 @@ describe("workspace definitions", () => {
     for (const tool of tools) {
       const method = methods[tool.method];
       expect(method.replay).toBe(tool.replay);
-      if (["read", "ls", "grep", "find"].includes(tool.name)) {
+      if (["read", "grep"].includes(tool.name)) {
         expect(tool.replay).toBe("safe");
         expect(tool.executionMode).toBe("parallel");
         expect(tool.hints?.readOnly).toBe(true);
@@ -63,12 +59,10 @@ describe("workspace definitions", () => {
   test("tool order is stable", () => {
     expect(
       orderTools([WorkspaceShell, WorkspaceImages, WorkspaceFiles]).map((tool) => tool.name),
-    ).toEqual(["edit", "find", "grep", "ls", "read", "write", "bash"]);
+    ).toEqual(["edit", "grep", "read", "write", "bash"]);
     expect(orderTools([WorkspaceShell, WorkspaceFiles]).map((tool) => tool.name)).toEqual([
       "edit",
-      "find",
       "grep",
-      "ls",
       "read",
       "write",
       "bash",
