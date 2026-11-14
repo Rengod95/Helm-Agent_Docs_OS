@@ -287,7 +287,7 @@ describe("plugin", () => {
     ]);
     expect(shell?.kind === "capability" ? shell.key : undefined).toEqual(WorkspaceShellKey);
     expect(shell?.kind === "capability" ? shell.policy : undefined).toEqual({
-      bash: { risk: "exec" },
+      bash: { risk: "exec", riskUnderReadOnlySandbox: "read" },
     });
   });
 

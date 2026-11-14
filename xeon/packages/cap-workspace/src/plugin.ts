@@ -179,7 +179,7 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
           kind: "capability",
           def: WorkspaceShell,
           key: WorkspaceShellKey,
-          policy: { bash: { risk: "exec" } },
+          policy: { bash: { risk: "exec", riskUnderReadOnlySandbox: "read" } },
         },
       ];
       // 이름 충돌은 확장 조합이 낼 수 있는 시작 실패다. 먼저 넣은 등록을 거두고 setup이 값으로 알린다
