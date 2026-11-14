@@ -187,7 +187,7 @@ const EXTRA_ENV_NAMES = [
   "SRT_ENCODED_CMD",
 ];
 
-export function readOnlyCommand(command: string, tempDir: string): string {
+function readOnlyCommand(command: string, tempDir: string): string {
   // 이름에 proxy가 든 변수는 모두 지운다(srt가 넣은 것과 부모 환경의 것 모두)
   const clear = `for v in $(env | grep -i proxy | cut -d= -f1); do unset "$v"; done; unset ${EXTRA_ENV_NAMES.join(" ")}`;
   return `${clear}; export TMPDIR=${quoteArg(tempDir)}; ${command}`;
