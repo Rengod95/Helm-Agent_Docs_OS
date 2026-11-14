@@ -110,11 +110,10 @@ export function stopNoticeOf(turn: TurnSummary): StopNotice | null {
 const PERMISSION_MODE_NAME: Readonly<Record<PermissionMode, MessageId>> = {
   default: "desktop.composer.mode.default",
   acceptEdits: "desktop.composer.mode.acceptEdits",
-  plan: "desktop.composer.mode.plan",
   bypass: "desktop.composer.mode.bypass",
 };
 
-/** 표지에 보일 권한 모드 이름. 네 모드가 아닌 값(옛 기록·확장 값)은 그대로 둔다 */
+/** 표지에 보일 권한 모드 이름. 세 모드가 아닌 값(옛 기록·확장 값)은 그대로 둔다 */
 function permissionModeNameOf(value: string): string {
   const mode = permissionModeOf(value);
   return mode === null ? value : t(PERMISSION_MODE_NAME[mode]);

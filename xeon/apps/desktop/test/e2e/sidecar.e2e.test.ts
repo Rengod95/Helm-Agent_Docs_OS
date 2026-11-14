@@ -110,7 +110,7 @@ describe("what the desktop asks, answered by the real host (T7)", () => {
     expect(pick(after, "result", "verdict")).toBe("allow");
     expect(pick(after, "result", "via")).toBe("store");
 
-    // command.list: 엔진에 등록된 /goal, /learning(학습 그룹), /plan, /tasks. thread를 주어도 같은 목록이다. /helm은 없다:
+    // command.list: 엔진에 등록된 /goal, /learning(학습 그룹), /tasks(/plan은 계획 모드와 함께 없앴다). thread를 주어도 같은 목록이다. /helm은 없다:
     // 기본 플러그인 번들이 이 실행 환경(실행 파일 옆 default-plugins/)에 없어 Helm이 설치·적재되지 않는다
     const names = (reply: unknown): unknown[] => {
       const commands = pick(reply, "result", "commands");
@@ -119,13 +119,11 @@ describe("what the desktop asks, answered by the real host (T7)", () => {
     expect(names(nthReply(run.responses, "command.list", 0))).toEqual([
       "goal",
       "learning",
-      "plan",
       "tasks",
     ]);
     expect(names(nthReply(run.responses, "command.list", 1))).toEqual([
       "goal",
       "learning",
-      "plan",
       "tasks",
     ]);
 

@@ -47,7 +47,8 @@ export interface ReviewFileView {
 /** 승인 프롬프트가 kind별로 필요로 하는 구조. 제목·본문(body)은 모든 kind가 같다 */
 type ApprovalForm =
   | { readonly kind: "tool" }
-  | { readonly kind: "plan"; readonly nextModes: readonly string[] }
+  /** 옛 계획 기록. 새 계획은 없어 거부만 보낸다 */
+  | { readonly kind: "plan" }
   | { readonly kind: "review"; readonly files: readonly ReviewFileView[] }
   | { readonly kind: "question"; readonly questions: readonly QuestionView[] };
 

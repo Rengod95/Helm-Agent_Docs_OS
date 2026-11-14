@@ -3699,7 +3699,6 @@
       "enum": [
         "default",
         "acceptEdits",
-        "plan",
         "bypass"
       ],
       "maxLength": 16,
@@ -3842,10 +3841,6 @@
                     },
                     {
                       "const": "acceptEdits",
-                      "type": "string"
-                    },
-                    {
-                      "const": "plan",
                       "type": "string"
                     },
                     {
@@ -6151,32 +6146,6 @@
           "order": 104,
           "tab": "tools",
           "widget": "text"
-        }
-      }
-    },
-    "l2.work.plans.requireApproval": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L2",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "help": "When on, plan mode cannot be exited without an approved plan",
-          "helpKey": "settings.l2.work.plans.requireApproval.help",
-          "label": "Require plan approval",
-          "labelKey": "settings.l2.work.plans.requireApproval.label",
-          "order": 300,
-          "tab": "permissions",
-          "widget": "toggle"
         }
       }
     },

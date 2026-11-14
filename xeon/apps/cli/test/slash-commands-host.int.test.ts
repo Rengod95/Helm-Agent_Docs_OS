@@ -38,23 +38,19 @@ function start(options: Parameters<typeof createRealCli>[0], lines: readonly str
   };
 }
 
-test("/help, /tasks and /plan come from the real engine, and command.list carries the opened thread's id", async () => {
-  const { cli } = start({ models: answeringModels("slash-none", []) }, [
-    "/help",
-    "/tasks",
-    "/plan",
-  ]);
+test("/help and /tasks come from the real engine, /plan is gone, and command.list carries the opened thread's id", async () => {
+  const { cli } = start({ models: answeringModels("slash-none", []) }, ["/help", "/tasks"]);
   expect(await cli.harness.run(["chat"])).toBe(EXIT.ok);
   const out = cli.harness.stdoutText();
   expect(out).toContain("엔진 명령\n");
-  expect(out).toMatch(/\/plan .*\n/);
+  expect(out).toMatch(/\/goal .*\n/);
   expect(out).toMatch(/\/tasks .*\n/);
-  expect(out).toContain("계획 모드를 시작했어요. 이전 승인 모드:");
+  expect(out).not.toMatch(/\/plan/);
   expect(out).toContain("(no tasks)");
   const listed = cli.sent("command.list");
   expect(listed).toHaveLength(1);
   const created = cli.sent("command.run");
-  expect(created.map((request) => request.params["text"])).toEqual(["/tasks", "/plan"]);
+  expect(created.map((request) => request.params["text"])).toEqual(["/tasks"]);
   expect(listed[0]?.params["threadId"]).toBe(created[0]?.params["threadId"]);
   // 동작 명령은 turn을 만들지 않는다
   expect(cli.sent("turn.start")).toEqual([]);

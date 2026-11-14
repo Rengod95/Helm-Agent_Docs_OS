@@ -95,8 +95,8 @@ describe("permission mode chip", () => {
     expect(markup).toContain("<svg");
   });
 
-  test("plan mode reads as plan mode", () => {
-    expect(permissionModeChipText("plan")).toBe("계획 모드");
+  test("each mode's chip reads as its name", () => {
+    expect(permissionModeChipText("default")).toBe("실행마다 묻기");
     expect(permissionModeChipText("acceptEdits")).toBe("편집 자동 허용");
     expect(permissionModeChipText("bypass")).toBe("모두 허용");
   });
@@ -104,7 +104,12 @@ describe("permission mode chip", () => {
   test("a disabled composer disables the chip", () => {
     const { tag } = firstButton(
       renderToString(
-        <PermissionModeChip mode="plan" bypassAllowed={false} disabled onChange={() => {}} />,
+        <PermissionModeChip
+          mode="acceptEdits"
+          bypassAllowed={false}
+          disabled
+          onChange={() => {}}
+        />,
       ),
     );
     expect(tag).toMatch(/ disabled=""/);

@@ -16,17 +16,17 @@ import {
 } from "../../src/views/permission-mode-model.ts";
 import { evt, thr } from "../state/helpers.ts";
 
-const ALL_MODES = ["default", "acceptEdits", "plan", "bypass"] as const;
+const ALL_MODES = ["default", "acceptEdits", "bypass"] as const;
 
 describe("permissionModeOf", () => {
-  test("네 모드 값은 그대로 받는다", () => {
+  test("세 모드 값은 그대로 받는다", () => {
     expect(permissionModeOf("default")).toBe("default");
     expect(permissionModeOf("acceptEdits")).toBe("acceptEdits");
-    expect(permissionModeOf("plan")).toBe("plan");
     expect(permissionModeOf("bypass")).toBe("bypass");
   });
 
-  test("모르는 값과 문자열이 아닌 값은 null이다", () => {
+  test("모르는 값과 문자열이 아닌 값은 null이다. 없앤 계획 모드 값도 모르는 값이다", () => {
+    expect(permissionModeOf("plan")).toBeNull();
     expect(permissionModeOf("Plan")).toBeNull();
     expect(permissionModeOf("auto")).toBeNull();
     expect(permissionModeOf("")).toBeNull();
@@ -41,7 +41,6 @@ describe("permissionModeToneOf", () => {
     expect(permissionModeToneOf("bypass")).toBe("danger");
     expect(permissionModeToneOf("default")).toBe("normal");
     expect(permissionModeToneOf("acceptEdits")).toBe("normal");
-    expect(permissionModeToneOf("plan")).toBe("normal");
   });
 });
 
@@ -52,27 +51,25 @@ describe("switchModeOf", () => {
     expect(switchModeOf("bypass")).toBe("bypass");
   });
 
-  test("계획과 모르는 값은 설정 쓰기의 목표가 아니다(계획은 명령으로 간다)", () => {
+  test("옛 계획 값과 모르는 값은 설정 쓰기의 목표가 아니다", () => {
     expect(switchModeOf("plan")).toBeNull();
     expect(switchModeOf("nope")).toBeNull();
   });
 });
 
 describe("permissionModeOptionsOf", () => {
-  test("모두 허용이 허락되지 않으면 묻기, 편집 자동 허용, 계획 셋이고 지금 모드에 표시가 있다", () => {
+  test("모두 허용이 허락되지 않으면 묻기, 편집 자동 허용 둘이고 지금 모드에 표시가 있다", () => {
     const expected: readonly PermissionModeOption[] = [
       { mode: "default", selected: false },
       { mode: "acceptEdits", selected: true },
-      { mode: "plan", selected: false },
     ];
     expect(permissionModeOptionsOf("acceptEdits", false)).toEqual(expected);
   });
 
-  test("모두 허용이 허락되면 넷째 줄로 나온다", () => {
-    expect(permissionModeOptionsOf("plan", true).map((option) => option.mode)).toEqual([
+  test("모두 허용이 허락되면 셋째 줄로 나온다", () => {
+    expect(permissionModeOptionsOf("acceptEdits", true).map((option) => option.mode)).toEqual([
       "default",
       "acceptEdits",
-      "plan",
       "bypass",
     ]);
   });
@@ -100,16 +97,6 @@ describe("bypassAllowedOf", () => {
 describe("modeStepOf", () => {
   test("같은 모드는 할 일이 없다", () => {
     expect(modeStepOf("default", "default")).toEqual({ kind: "none" });
-  });
-
-  test("계획으로는 명령으로 들어간다", () => {
-    expect(modeStepOf("default", "plan")).toEqual({ kind: "enterPlan" });
-    expect(modeStepOf("bypass", "plan")).toEqual({ kind: "enterPlan" });
-  });
-
-  test("계획에서는 나온 뒤 고른 모드를 쓴다", () => {
-    expect(modeStepOf("plan", "acceptEdits")).toEqual({ kind: "exitPlan", target: "acceptEdits" });
-    expect(modeStepOf("plan", "default")).toEqual({ kind: "exitPlan", target: "default" });
   });
 
   test("나머지는 설정 쓰기다", () => {

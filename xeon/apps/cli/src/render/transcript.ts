@@ -243,7 +243,7 @@ export function approvalViewOf(
         body: [...callerLine(payload.origin.caller), ...plan.split("\n"), ...expiryLine(payload)],
         allowsAnswer: false,
         remember,
-        form: { kind: "plan", nextModes: body.plan.nextModes },
+        form: { kind: "plan" },
       };
     }
     case "question":

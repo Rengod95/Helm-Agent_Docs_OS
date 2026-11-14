@@ -98,7 +98,7 @@ const REQUESTS: readonly ApprovalRequestedPayload[] = [
       plan: {
         plan: "1. Split the step\n2. Add two tests",
         planRef: null,
-        nextModes: ["default", "plan"],
+        nextModes: ["default", "acceptEdits"],
       },
     },
   }),

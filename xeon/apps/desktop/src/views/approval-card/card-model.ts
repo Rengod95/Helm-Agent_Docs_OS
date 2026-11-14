@@ -13,9 +13,6 @@ const DAY_MS = 24 * HOUR_MS;
 /** 계획 본문을 카드에 먼저 보이는 줄 수. 넘는 줄은 "전체 보기"로 접는다 */
 export const PLAN_FOLD_LINES = 12;
 
-/** 피드백 입력의 상한(계약 DenyAnswer·PlanAnswer.note의 최대 길이와 같다) */
-export const FEEDBACK_MAX = 8192;
-
 /** 요청 뒤 지난 시간. 1분 안은 "지금", 그 밖은 단위별로 내린 수 */
 export type ApprovalAge =
   | { readonly unit: "now" }
@@ -95,12 +92,6 @@ export function reviewTotalsOf(files: readonly { readonly hunks: number }[]): {
     files: files.length,
     hunks: files.reduce((sum, file) => sum + file.hunks, 0),
   };
-}
-
-/** 피드백 입력을 보낼 글로 바꾼다. 앞뒤 공백만 있으면 없는 것으로 보고 null이다 */
-export function feedbackTextOf(input: string): string | null {
-  const text = input.trim();
-  return text === "" ? null : text.slice(0, FEEDBACK_MAX);
 }
 
 /**
@@ -188,16 +179,4 @@ export function cardTitleViewOf(request: ApprovalRequestedPayload): CardTitleVie
  */
 export function ruleTextIdOf(ruleId: string): MessageId {
   return ruleId === "mcp.default" ? "desktop.approvals.rule.mcpDefault" : "desktop.approvals.rule";
-}
-
-const MODE_LABEL: Readonly<Record<string, MessageId>> = {
-  default: "desktop.approvals.plan.mode.default",
-  acceptEdits: "desktop.approvals.plan.mode.acceptEdits",
-  plan: "desktop.approvals.plan.mode.plan",
-  bypass: "desktop.approvals.plan.mode.bypass",
-};
-
-/** 승인 뒤 모드의 라벨 키. 모르는 모드는 null이라 원시값을 그대로 보인다 */
-export function modeLabelIdOf(mode: string): MessageId | null {
-  return MODE_LABEL[mode] ?? null;
 }

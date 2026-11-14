@@ -310,7 +310,8 @@ describe("markerTextOf", () => {
     const mode = (value: string | null): string =>
       markerTextOf({ seq: 3, at, change: { kind: "permission_mode", value } });
     expect(mode("acceptEdits")).toBe("권한 모드: 편집 자동 허용");
-    expect(mode("plan")).toBe("권한 모드: 계획 모드");
+    // 없앤 계획 값은 모르는 값이라 그대로 보인다(옛 기록)
+    expect(mode("plan")).toBe("권한 모드: plan");
     expect(mode("bypass")).toBe("권한 모드: 모두 허용");
     expect(mode("default")).toBe("권한 모드: 실행마다 묻기");
     expect(mode("custom")).toBe("권한 모드: custom");

@@ -407,8 +407,7 @@ export type ModeChangeError =
 
 /**
  * 이 대화의 승인 모드(입력창 칩이 보이는 값)와 고르기(DP-101). 값은 대화 범위 `settings.get`이고, 설정이 바뀌면 다시 읽고, 고르기가 이기면 다시 읽는다.
- * 읽지 못했거나 네 모드가 아니면 `mode`가 null이고 칩은 그리지 않는다(모르는 값을 지어내지 않는다).
- * 계획 모드는 `/plan`으로 들어가고 `/plan exit`로 나온다(`modeStepOf`). 나온 뒤에도 계획이면(승인이 필요한 계획 등) 엔진 문장으로 실패를 알린다.
+ * 읽지 못했거나 세 모드가 아니면 `mode`가 null이고 칩은 그리지 않는다(모르는 값을 지어내지 않는다).
  * `bypassAllowed`는 `l1.tools.bypassAllowed`이고 참일 때만 메뉴에 모두 허용이 있다
  */
 export function useThreadPermissionMode(threadId: ThreadId): {
@@ -448,18 +447,13 @@ export function useThreadPermissionMode(threadId: ThreadId): {
       stop();
     };
   }, [commands, phase, threadId, reads]);
-  const runPlan = async (line: string): Promise<Result<string | null, ModeChangeError>> => {
-    const ran = await commands.runCommandLine(threadId, line);
-    if (!ran.ok) return err({ kind: "command", error: ran.error });
-    return ok(ran.value.status === "done" ? ran.value.message : null);
-  };
   const readNow = async (): Promise<PermissionMode | null> => {
     const read = await commands.readThreadMode(threadId);
     return read.ok ? permissionModeOf(read.value) : null;
   };
   const choose = async (next: PermissionMode): Promise<Result<null, ModeChangeError>> => {
     if (mode === null) return ok(null);
-    // 칩이 보이는 값은 늦을 수 있다(계획 승인, 입력창의 `/plan`, 다른 창). 걸음은 엔진의 지금 값으로 정한다
+    // 칩이 보이는 값은 늦을 수 있다(다른 창, 설정 파일). 걸음은 엔진의 지금 값으로 정한다
     const step = modeStepOf((await readNow()) ?? mode, next);
     switch (step.kind) {
       case "none":
@@ -469,25 +463,6 @@ export function useThreadPermissionMode(threadId: ThreadId): {
       case "set": {
         const set = await commands.setThreadMode(threadId, step.mode);
         if (!set.ok) return err({ kind: "command", error: set.error });
-        setReads((count) => count + 1);
-        return ok(null);
-      }
-      case "enterPlan": {
-        const ran = await runPlan("/plan");
-        if (!ran.ok) return ran;
-        if ((await readNow()) !== "plan") return err({ kind: "refused", message: ran.value });
-        setReads((count) => count + 1);
-        return ok(null);
-      }
-      case "exitPlan": {
-        const ran = await runPlan("/plan exit");
-        if (!ran.ok) return ran;
-        const after = await readNow();
-        if (after === "plan") return err({ kind: "refused", message: ran.value });
-        if (after !== step.target) {
-          const set = await commands.setThreadMode(threadId, step.target);
-          if (!set.ok) return err({ kind: "command", error: set.error });
-        }
         setReads((count) => count + 1);
         return ok(null);
       }

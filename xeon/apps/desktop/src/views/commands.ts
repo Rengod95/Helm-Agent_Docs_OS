@@ -25,7 +25,7 @@ import type {
   SelfTestReport,
 } from "@fresnel/contracts/services";
 import type { EffectiveSetting, SettingDefWire } from "@fresnel/contracts/settings";
-import type { DenyAnswerJson, PlanAnswerJson, ReviewAnswerJson } from "@fresnel/contracts/records";
+import type { DenyAnswerJson, ReviewAnswerJson } from "@fresnel/contracts/records";
 import type {
   ExtGetResult,
   ExtHealthEntry,
@@ -141,7 +141,6 @@ export type BusyInputMode = "steer" | "followUp";
 
 /**
  * 입력창 승인 모드 칩이 설정 쓰기로 고르는 모드(DP-101). `bypass`는 `l1.tools.bypassAllowed`가 참일 때만 칩 메뉴에 나온다.
- * `plan`은 설정 쓰기가 아니라 `/plan` 명령(`command.run`)으로 들어가고 나온다(계획 서비스가 이전 모드를 기억한다)
  */
 export type SwitchMode = "default" | "acceptEdits" | "bypass";
 
@@ -172,11 +171,11 @@ export type CommandError =
   | { readonly kind: "switching" };
 
 export type ApprovalDecision =
-  /** 계획 승인은 `{ mode }`, 수정 요청과 거부는 `{ feedback }`를 answer로 싣는다(F.wire-settings.spec §3.3.1). 그 밖에는 답이 없다 */
+  /** 거부는 `{ feedback }`을 answer로 싣을 수 있다(F.wire-settings.spec §3.3.1). 그 밖에는 답이 없다 */
   | {
       readonly decision: "allow" | "deny";
       readonly remember?: "once" | "thread" | "always";
-      readonly answer?: PlanAnswerJson | DenyAnswerJson;
+      readonly answer?: DenyAnswerJson;
     }
   /** 질문 응답은 QuestionAnswer(질문 id → 선택지 id 목록과 자유 입력), 검토 응답은 ReviewAnswer다(F.wire-settings.spec §3.3.1) */
   | {

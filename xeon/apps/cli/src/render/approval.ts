@@ -4,7 +4,8 @@ import type { ApprovalRespondParams, ApprovalRespondResult } from "@fresnel/cont
 import type { ApprovalView, QuestionView, ReviewFileView } from "./ops.ts";
 
 // L4.cli.spec §4.11. 승인 프롬프트. 줄 입력으로 허용·거부·답을 받아 approval.respond 인자로 바꾼다.
-// 질문(question)은 QuestionAnswer, 계획(plan)의 허용은 PlanAnswer, 검토(review)는 ReviewAnswer, 거부는 DenyAnswer가 정본 모양이다(F wire §3.3.1).
+// 질문(question)은 QuestionAnswer, 검토(review)는 ReviewAnswer, 거부는 DenyAnswer가 정본 모양이다(F wire §3.3.1).
+// 옛 계획 승인(plan)은 거부만 받는다(core-tools가 allow를 거절한다). 계획 모드는 없앴다 [결정: 2026-11-13 사용자].
 
 /** approval.respond에서 approvalId를 뺀 부분 */
 export type ApprovalResponse = Omit<ApprovalRespondParams, "approvalId">;
@@ -57,54 +58,6 @@ async function askTool(io: PromptIo, signal: AbortSignal): Promise<AskOutcome | 
   }
   await io.stdout(t("cli.render.approval.invalidTool"));
   return "retry";
-}
-
-/** 계획 승인: 승인하면서 다음 권한 모드를 고르거나, 거부한다 */
-async function askPlan(
-  nextModes: readonly string[],
-  io: PromptIo,
-  signal: AbortSignal,
-): Promise<AskOutcome | "retry"> {
-  const line = await io.readLine(t("cli.render.approval.planPrompt"), signal);
-  if (isAborted(signal)) return { kind: "dismissed" };
-  if (line === null) return { kind: "answered", response: DENY_ONLY };
-  const choice = line.trim().toLowerCase();
-  if (choice === "n" || choice === "no") {
-    const denied = await askFeedback(io, signal);
-    return isAborted(signal) ? { kind: "dismissed" } : { kind: "answered", response: denied };
-  }
-  if (choice !== "y" && choice !== "yes") {
-    await io.stdout(t("cli.render.approval.invalidPlan"));
-    return "retry";
-  }
-  let mode: string | undefined;
-  if (nextModes.length > 0) {
-    const list = nextModes.map((name, index) => `${String(index + 1)}) ${name}`).join("  ");
-    const picked = await io.readLine(t("cli.render.approval.modePrompt", { list }), signal);
-    if (isAborted(signal)) return { kind: "dismissed" };
-    const text = picked?.trim() ?? "";
-    if (text.length > 0) {
-      const index = Number(text);
-      mode = Number.isInteger(index) ? nextModes[index - 1] : nextModes.find((m) => m === text);
-      if (mode === undefined) {
-        await io.stdout(t("cli.render.approval.unknownMode", { text }));
-        return "retry";
-      }
-    }
-  }
-  const noteLine = await io.readLine(t("cli.render.approval.notePrompt"), signal);
-  if (isAborted(signal)) return { kind: "dismissed" };
-  const note = noteLine?.trim() ?? "";
-  return {
-    kind: "answered",
-    response: {
-      decision: "allow",
-      answer: {
-        ...(mode === undefined ? {} : { mode }),
-        ...(note.length === 0 ? {} : { note }),
-      },
-    },
-  };
 }
 
 /** 검토 카드가 보인 hunk id 전부(`f<파일 순번>h<hunk 순번>`, L2.artifacts.spec §4.2.4). 파일 순서는 요청 files 순서다 */
@@ -306,7 +259,8 @@ function askForm(
     case "tool":
       return askTool(io, signal);
     case "plan":
-      return askPlan(form.nextModes, io, signal);
+      // 옛 계획 기록은 거부만 보낸다. 묻지 않는다
+      return Promise.resolve({ kind: "answered", response: DENY_ONLY });
     case "review":
       return askReview(form.files, io, signal);
     default:

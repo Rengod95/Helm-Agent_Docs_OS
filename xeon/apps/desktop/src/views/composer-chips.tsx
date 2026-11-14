@@ -1,13 +1,5 @@
 import { Button, ComboboxRow, Menu, MenuItem, MenuSeparator } from "@caustic/react";
-import {
-  Check,
-  FolderOpen,
-  ListChecks,
-  LockOpen,
-  Pencil,
-  RotateCcw,
-  Shield,
-} from "@caustic/react/icons";
+import { Check, FolderOpen, LockOpen, Pencil, RotateCcw, Shield } from "@caustic/react/icons";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { ModelThinkingLevel } from "@fresnel/contracts/conversation";
@@ -37,8 +29,6 @@ function modeIcon(mode: PermissionMode): ReactNode {
       return <Shield aria-hidden />;
     case "acceptEdits":
       return <Pencil aria-hidden />;
-    case "plan":
-      return <ListChecks aria-hidden />;
     case "bypass":
       return <LockOpen aria-hidden />;
     default:
@@ -50,7 +40,6 @@ function modeIcon(mode: PermissionMode): ReactNode {
 const MODE_CHIP_ID: Readonly<Record<PermissionMode, MessageId>> = {
   default: "desktop.composer.mode.default",
   acceptEdits: "desktop.composer.mode.acceptEdits",
-  plan: "desktop.composer.mode.plan",
   bypass: "desktop.composer.mode.bypass",
 };
 
@@ -58,7 +47,6 @@ const MODE_CHIP_ID: Readonly<Record<PermissionMode, MessageId>> = {
 const MODE_HINT_ID: Readonly<Record<PermissionMode, MessageId>> = {
   default: "desktop.composer.mode.default.hint",
   acceptEdits: "desktop.composer.mode.acceptEdits.hint",
-  plan: "desktop.composer.mode.plan.hint",
   bypass: "desktop.composer.mode.bypass.hint",
 };
 
@@ -77,8 +65,7 @@ function MenuText(props: { readonly title: string; readonly hint: string }): Rea
 }
 
 /**
- * 권한 모드 칩. 메뉴는 묻기, 편집 자동 허용, 계획, 그리고 허락되면 모두 허용(`permissionModeOptionsOf`). 모두 허용은 위험 색이다.
- * 계획으로 들어가고 나오는 것은 부르는 쪽(`useThreadPermissionMode`)이 명령으로 한다.
+ * 권한 모드 칩. 메뉴는 묻기, 편집 자동 허용, 그리고 허락되면 모두 허용(`permissionModeOptionsOf`). 모두 허용은 위험 색이다.
  * `writeAccess`(이 대화에서 샌드박스 밖 쓰기를 계속 허용함, DP-205)면 모드 이름 뒤에 폴더 아이콘 14(사이 4)를 붙이고,
  * 메뉴 맨 아래 구분선 뒤에 누를 수 없는 설명 줄(12 tertiary)을 둔다. 철회 동작은 없다(엔진에 방법이 없다)
  */
