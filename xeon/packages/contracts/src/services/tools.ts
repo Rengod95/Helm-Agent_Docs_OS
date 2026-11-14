@@ -394,6 +394,8 @@ export interface PolicyCeiling {
   readonly deny?: readonly string[];
   /** `allow` 밖이거나 `deny`에 걸린 호출의 거부 문장에 붙일 안내 */
   readonly denyHint?: string;
+  /** 자식 샌드박스 프로필. 손자에게도 이어진다(더 넓어지지 않는다) [결정: 2026-11-13 사용자] */
+  readonly sandbox?: "read-only";
 }
 
 /** 규칙 정적 검사가 찾는 문제 */

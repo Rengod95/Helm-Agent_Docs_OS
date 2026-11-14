@@ -30,6 +30,11 @@ export interface AgentPermissions {
   readonly mode?: PermissionMode;
   /** 정의가 더하는 규칙. extension 티어로 평가한다. allow는 부모 결정을 넓히지 못한다 */
   readonly rules?: readonly PolicyRule[];
+  /**
+   * 이 정의의 자식이 쓰는 샌드박스 프로필. `"read-only"`면 bash가 읽기 전용 샌드박스(쓰기·네트워크 차단)에서만 돈다.
+   * 자식이 다시 띄운 자식에게도 내려간다 [결정: 2026-11-13 사용자]
+   */
+  readonly sandbox?: "read-only";
 }
 
 export type AgentDefinitionSource =
@@ -73,6 +78,7 @@ const agentDefinitionShape = Type.Object(
             ]),
           ),
           rules: Type.Optional(Type.Array(PolicyRuleSchema, { maxItems: 128 })),
+          sandbox: Type.Optional(Type.Literal("read-only")),
         },
         { additionalProperties: false },
       ),
