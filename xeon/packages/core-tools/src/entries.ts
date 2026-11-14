@@ -109,6 +109,8 @@ function callContext(call: RawCall): CallContext {
     toolCallId: call.toolCallId,
     caller: callerInfoOf(call.run.caller, call.afterUntrusted),
     interactive: call.run.interactive,
+    // 자식 상한의 샌드박스 프로필. 도구 구현은 read-only면 샌드박스 안에서만 실행하고, 쓸 수 없으면 실행을 거부한다(L1.tools.spec §4.5)
+    ...(call.run.ceiling?.sandbox === undefined ? {} : { sandbox: call.run.ceiling.sandbox }),
     // 시크릿 사용 승인 증거는 도구 구현이 SecretEnvRequest.ctx.approval로 옮긴다(L1.tools.spec §4.12, F 요청 13)
     ...(call.secretApproval === null ? {} : { approval: call.secretApproval }),
   };
@@ -299,6 +301,7 @@ function capabilityEntries(
       mcpServer: policy?.mcpServer,
       mcpDeclared: policy?.mcpDeclared,
       risk: deriveRisk(policy?.risk, spec.hints),
+      riskUnderReadOnlySandbox: policy?.riskUnderReadOnlySandbox,
       classes: policy?.classes ?? [],
       hints: spec.hints ?? {},
       replay: spec.replay ?? "unsafe",
@@ -390,6 +393,7 @@ function directEntry(registration: DirectToolRegistration, bridge: InputBridge):
     mcpServer,
     mcpDeclared: registration.policy?.mcpDeclared,
     risk: deriveRisk(registration.policy?.risk, registration.hints),
+    riskUnderReadOnlySandbox: registration.policy?.riskUnderReadOnlySandbox,
     classes: registration.policy?.classes ?? [],
     hints: registration.hints ?? {},
     replay: toReplayPolicy(tool.replay),

@@ -99,6 +99,8 @@ export interface OutputLimits {
 /** 도구 하나의 정책 메타. ToolSpec에 없는 필드를 core-tools가 받는 자리(§8.3 F 요청 1) */
 export interface ToolPolicyMeta {
   readonly risk?: ToolRisk;
+  /** 읽기 전용 샌드박스 상한 아래에서 쓸 위험 등급. 생략은 `risk`다(§4.5 읽기 전용 샌드박스 상한) [결정: 2026-11-13 사용자] */
+  readonly riskUnderReadOnlySandbox?: ToolRisk;
   readonly classes?: readonly ToolClass[];
   /** MCP 서버 도구면 서버 이름. 정책 resource.mcpServer와 대조한다 */
   readonly mcpServer?: string;
@@ -163,6 +165,7 @@ export interface ToolRegisterError { readonly kind: "name_conflict"; readonly to
 
 - `ToolSpec`에는 `execute`가 없다(F.capabilities.spec §3.3). 기능 도구의 실행 함수는 §4.3의 어댑터가 서비스 키로 얻은 provider API에서 합성한다.
 - 호출 문맥 [결정: m2c G1-09, A-08]: 기능 도구는 `CallOptions.context`(F `CallContext`)로, 직접 등록 도구는 `executeWithContinuation`의 `threadId`와 `context`로 같은 문맥을 받는다. 어댑터(`entries.ts`의 `callContext`)가 `ToolRunContext`에서 채운다: `caller`는 주 대화면 `{ kind: "model", agent: "main" }`, 서브에이전트면 `{ kind: "model", agent: "subagent", agentName: <정의 이름> }`이다. `afterUntrusted`는 같은 turn이 웹·MCP 도구 결과를 이미 읽었으면 `true`이고 아니면 필드가 없다(§4.3 `afterUntrusted` 규칙). `extension`은 확장·그룹 코드가 호출자일 때의 이름이라 이 경로에서는 비어 있다. 도구 구현과 L2 어댑터는 승인 origin의 `caller`를 `approvalCallerOf(context.caller)`(F `services/approvals.ts`) 하나로 만든다. 자기 복제를 두지 않는다. `execute`(pi `AgentTool.execute`)에는 문맥을 실을 자리가 없으므로 호출 주체와 대화가 필요한 직접 등록 도구는 `executeWithContinuation`으로 등록한다.
+- 샌드박스 프로필 [결정: 2026-11-13 사용자]: 어댑터는 `ToolRunContext.ceiling.sandbox`가 `"read-only"`이면 `CallContext.sandbox: "read-only"`를 싣는다. 없으면 필드가 없다. 도구 구현(cap-workspace의 bash)은 이 값이 있으면 읽기 전용 샌드박스(쓰기 루트 없음, 네트워크 차단) 안에서만 실행하고, 샌드박스를 쓸 수 없으면 실행하지 않고 거부한다. 이 거부가 §4.5의 승인 생략을 뒷받침한다.
 - `DirectToolRegistration.tool`은 F `AgentTool`(F.conversation.spec §3.1.1)이다. 실행 함수를 가진 도구(확장 `registerTool`, MCP 동적 도구, 내장 `tool_search`)가 이 경로를 쓴다. 이런 도구도 같은 파이프라인을 지난다. 파이프라인 밖 실행 경로는 없다.
 - `core.<L1 도메인>` 순서 키 [제안]: L1이 내장하는 도구(`tool_search`, L1.agents.spec의 `agent`)의 순서 키다. F.capabilities.spec §4.5는 `ext.`, `mcp.` 접두만 정했으므로 추가를 요청한다(§8.3 F 요청 2).
 
@@ -839,6 +842,9 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 
 - `ToolRunContext.ceiling`이 있으면 5b의 결정은 `stricter(childDecision(call, parent, child, rules), evaluatePolicy(input, rules))`다. `parent`는 `ToolRunContext.ceiling`, `child`는 자식 관점 입력(caller, depth, 자식 모드)이다. `childDecision`은 부모 관점 평가, 자식 관점 평가, 정의 제한(`ceiling.allow`)을 `stricter`로 합치는 순수 함수다(L1.agents.spec §4.3 1번). F `policy.ts`에 두도록 요청한다(§8.3 F 요청 9, L1.agents.spec §8.3 5와 같은 항목).
 - `evaluatePolicy` 자체는 ceiling을 받지 않는다. ceiling 단계는 파이프라인이 평가기 바깥에서 적용한다. 그래서 위 1~6단계의 순수성은 그대로다.
+- 읽기 전용 샌드박스 상한 [결정: 2026-11-13 사용자]: `ceiling.sandbox`가 `"read-only"`이고 도구가 `riskUnderReadOnlySandbox`를 선언했으면(대체 항목은 제외) 이 호출의 정책 위험 등급은 그 선언 값이다. 실효 등급이 `read`면 평가기는 `evaluateReadOnlySandboxed`(`policy/engine.ts`)다. 같은 평가기가 `evaluatePolicy`에 내장 기본 규칙(출처 `core:tools`)의 ask를 뺀 규칙을 넣는다. 그래서 `default.bash-ask`가 빠지고, `read`의 모드 기본값은 모든 모드에서 allow다. deny 규칙, managed와 사용자 규칙의 ask, 정의가 더한 규칙은 그대로 평가한다. 부모 관점 평가(`childDecision`의 두 평가)도 같은 평가기를 쓴다. 실효 등급이 `read`가 아니면 등급만 바꾸고 평가기는 `evaluatePolicy` 그대로다.
+  - 이 판정이 승인을 건너뛰는 근거는 샌드박스를 쓸 수 없으면 도구가 실행을 거부한다는 구현이다(§3 `CallContext.sandbox`, cap-workspace의 `shell.run`이 판단한다). 이 구현이 없으면 이 절은 적용하지 않는다.
+  - 선택 이유: 위험 등급만 `read`로 낮추면 `default.bash-ask`가 여전히 ask를 내고(ask가 이긴다), 그 규칙에 등급 조건을 더하면 샌드박스 밖에서 `read`로 선언한 같은 이름 도구의 승인까지 바뀐다. 그래서 판정 쪽에서 내장 ask만 뺀다.
 - 합친 결과가 ask이고 `interactive`가 거짓이면 deny(`reason: "noninteractive"`)다. 6단계와 같은 규칙이다.
 - 구현 [결정: L1A.6]: `prepare`는 `ceiling`이 있으면 `stricter(childDecision(evaluatePolicy, input, ceiling, { caller, depth, mode }, rules), evaluatePolicy(input, rules))`를 5b 결정으로 쓴다. `stricter`와 `childDecision`은 F `@fresnel/contracts/services`의 순수 함수이고 core-tools는 사본을 두지 않는다. 자식 관점의 `mode`는 자식 대화의 유효 권한 모드(`l1.tools.permissionMode`, core-agents가 교집합으로 써 둔다)다. 정의의 도구 제한은 `ceiling.allow`가 실행 시점에 거부하고(`agent.<이름>.tools`), 호출자의 `tools.deny`는 `ceiling.deny`가 거부한다(`agent.<이름>.tools.deny`). 두 거부 문장은 `ceiling.denyHint`로 끝난다 [제안: M3-REQ-78]. 정의가 더하는 규칙은 `registerRules("core:agents")`의 default 티어 규칙으로 들어온다.
 - 서브에이전트 승인 [결정: L1A.6]: 자식 호출의 승인 요청은 `surfaceThreadId`(소유 트리 루트 대화)에 기록하고 `origin`에 자식 대화·호출·caller를 남긴다. 한 커밋은 한 대화의 것이라 대기 체크포인트는 같은 커밋에 넣지 않는다. 이벤트의 `turnId`·`stepId`는 비운다. 자식 대화는 재개 때 마지막 단계 체크포인트의 `tools` 진입으로 같은 `requestKey` 요청을 다시 내고, 커밋이 `replayed`로 끝나 기록된 요청을 이어 받는다.
@@ -858,7 +864,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 - 설정 범위별 규칙 수집 [제안]: F.wire-settings.spec §4.7 규칙 2는 키 하나의 값을 통째로 바꾼다. 정책 규칙은 범위마다 모아야 한다. 그래서 core-tools는 `l1.tools.rules`를 유효 값 하나로 읽지 않고 범위별 층(`ScopeStack`)에서 각각 읽어 티어를 붙인다. 이 읽기 방식을 SettingDef에 표시하는 필드(예: `merge: "collect"`)를 F.wire-settings.spec에 요청한다(§8.3 F 요청 5).
 - 코어 규칙 등록 [제안]: L1 패키지는 `ToolService.registerRules(source, rules)`로 default 티어 규칙을 넣는다. `source`는 `core:<도메인>`이고 `TieredRule.source`에 그대로 들어간다. 같은 `source`로 다시 부르면 그 출처의 규칙을 통째로 바꾼다. core-agents는 `l1.agents.maxDepth`가 바뀔 때 차단 규칙을 다시 등록한다. 등록은 `validateRules`를 거치고, 문제가 있는 규칙은 적재하지 않고 `RuleRegistration.issues`로 돌려준다. 규칙 변경은 다음 단계 경계의 `advertise`와 다음 도구 호출 평가부터 적용한다(M2).
 - bash 연쇄 규칙: 도구 `bash`의 `/command`를 정규식으로 보는 allow 규칙은 명령에 `;`, `&`, `|`, `<`, `>`, `$(`, 백틱, 개행이 있으면 allow가 아니라 ask로 평가한다(규칙 id와 티어는 그대로, 평가기 `demoteCompound`). 셸 구문을 해석하지 않는 보수적 판정이라 따옴표 안의 `;`도 ask다. deny와 ask 규칙, `/command` 조건이 없는 규칙은 그대로다. 셸 명령 단위 규칙은 §4.11의 2차다.
-- 내장 기본 규칙(M1): `default.read-allow`(risk `read` → allow), `default.read-tool-allow`(도구 `read` → allow. 이름만으로 허용하지 않고 기능 `workspace.files`와 risk `read`를 함께 본다. 같은 이름을 등록한 확장 도구는 기능 id가 없고 위험 등급이 exec라 모드 기본값을 따른다), `default.bash-ask`(도구 `bash` → ask). 나머지는 모드 기본값을 따른다.
+- 내장 기본 규칙(M1): `default.read-allow`(risk `read` → allow), `default.read-tool-allow`(도구 `read` → allow. 이름만으로 허용하지 않고 기능 `workspace.files`와 risk `read`를 함께 본다. 같은 이름을 등록한 확장 도구는 기능 id가 없고 위험 등급이 exec라 모드 기본값을 따른다), `default.bash-ask`(도구 `bash` → ask. 읽기 전용 샌드박스 상한 아래의 `read` 호출에는 적용하지 않는다, 위 절). 나머지는 모드 기본값을 따른다.
 - 확장의 `tool.call.before` 핸들러와 정책 규칙의 관계: 둘 다 거부할 수 있다. 핸들러는 그룹 상태에 따라 바뀌는 동적 판정(예: Helm 확산 단계의 쓰기 거부, L3.helm.spec §4.6)에 쓰고, 규칙은 선언형 정적 판정에 쓴다. 순서는 핸들러(5a) 뒤 정책(5b)이다. 핸들러가 거부하면 정책과 승인을 부르지 않는다. 그래서 사용자는 이미 거부된 호출의 승인 요청을 받지 않는다.
 
 ### 4.6 권한 모드와 위험 등급

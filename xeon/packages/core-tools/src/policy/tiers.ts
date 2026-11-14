@@ -12,7 +12,8 @@ import { builtinRules, loadableRules, validateRules } from "./rules.ts";
 // L1.tools.spec §4.5 티어와 규칙 출처. default는 내장 규칙과 registerRules(policy/core-rules.ts), user·managed는 설정이다.
 // extension 티어는 평가기가 순위로 다루지만 규칙을 넣는 경로(매니페스트 선언)는 2차다(§4.11).
 
-const BUILTIN_RULE_SOURCE = "core:tools";
+/** 내장 기본 규칙(`builtinRules`)의 출처. 같은 이름의 `default` 티어 규칙 가운데 이 출처만 내장이다 */
+export const BUILTIN_RULE_SOURCE = "core:tools";
 
 /**
  * 저장소가 적을 수 있는 범위(project·local)에서 온 규칙 출처인가. 출처는 `settings:<범위>[:<경로>]`(아래 `collectRules`)다.

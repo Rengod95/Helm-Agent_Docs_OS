@@ -10,7 +10,7 @@ import {
   type TieredRule,
 } from "@fresnel/contracts/services";
 import { globMatches, isJsonObject, tryRegExp } from "../util.ts";
-import { isRepositorySource } from "./tiers.ts";
+import { BUILTIN_RULE_SOURCE, isRepositorySource } from "./tiers.ts";
 import { DEFAULT_RULE_PRIORITY } from "./rules.ts";
 import { modeDefault } from "./modes.ts";
 
@@ -238,4 +238,20 @@ export function evaluateReplacement(
   rules: readonly TieredRule[],
 ): PolicyDecision {
   return demoteReplacementAllow(evaluatePolicy(input, withoutRepositoryAllow(rules)), input);
+}
+
+/**
+ * 읽기 전용 샌드박스 상한 아래에서 위험 등급이 read로 내려간 호출의 판정(L1.tools.spec §4.5, 결정 2026-11-13 사용자).
+ * 샌드박스는 쓰기와 네트워크를 막으므로 상태를 바꿀 수 없어 내장 기본 규칙의 ask(bash 승인)를 주지 않는다. deny 규칙, managed와 사용자의
+ * 규칙, 정의가 더한 규칙은 그대로 평가하므로 그쪽의 ask는 남는다. 이 판정이 승인을 건너뛰는 근거는 샌드박스를 쓸 수 없으면 도구가 실행을 거부한다는
+ * 구현(`CallContext.sandbox`를 보고 cap-workspace가 판단한다)이다
+ */
+export function evaluateReadOnlySandboxed(
+  input: PolicyInput,
+  rules: readonly TieredRule[],
+): PolicyDecision {
+  return evaluatePolicy(
+    input,
+    rules.filter((rule) => !(rule.source === BUILTIN_RULE_SOURCE && rule.effect === "ask")),
+  );
 }

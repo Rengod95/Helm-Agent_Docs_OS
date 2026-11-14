@@ -66,7 +66,7 @@ import {
   resultRequest,
   type EffectKit,
 } from "./effects.ts";
-import { evaluatePolicy, evaluateReplacement } from "./policy/engine.ts";
+import { evaluatePolicy, evaluateReadOnlySandboxed, evaluateReplacement } from "./policy/engine.ts";
 import { checkSecretUse, secretHandlesOf, secretUseTitle } from "./secret-gate.ts";
 import type { ToolRegistry } from "./registry.ts";
 import { addHits, hitsPayload, maskResult } from "./secrets.ts";
@@ -586,13 +586,18 @@ export function createPipeline(
   ): Promise<Denied | undefined> {
     const { run, entry, toolCallId } = state;
     const config = deps.config(run.threadId);
+    // 읽기 전용 샌드박스 상한 아래에서는 도구가 선언한 샌드박스 위험 등급을 쓴다(대체 항목은 제외한다)
+    const sandboxRisk =
+      run.ceiling?.sandbox === "read-only" && entry.replacesBuiltin !== true
+        ? entry.riskUnderReadOnlySandbox
+        : undefined;
     const input: PolicyInput = {
       action: "tool.call",
       tool: entry.name,
       ...(entry.capability === undefined ? {} : { capability: entry.capability.id }),
       ...(entry.mcpServer === undefined ? {} : { mcpServer: entry.mcpServer }),
       classes: entry.classes,
-      risk: entry.risk,
+      risk: sandboxRisk ?? entry.risk,
       args: state.args,
       caller: run.caller,
       depth: run.depth,
@@ -604,17 +609,19 @@ export function createPipeline(
       bypassAllowed:
         entry.replacesBuiltin === true && config.modeFromRepository ? false : config.bypassAllowed,
     };
+    // 샌드박스 위험 등급이 read로 내려간 호출은 빌트인 ask를 주지 않는 판정을 쓴다(engine.ts evaluateReadOnlySandboxed)
+    const evaluate = sandboxRisk === "read" ? evaluateReadOnlySandboxed : evaluatePolicy;
     const evaluated =
       entry.replacesBuiltin === true
         ? evaluateReplacement(input, config.rules)
-        : evaluatePolicy(input, config.rules);
+        : evaluate(input, config.rules);
     // 자식 대화는 부모 관점과 정의 제한을 합친 결정과 일반 평가 중 엄격한 쪽이다(L1.tools.spec §4.5 ceiling 단계, TL-13)
     const decision =
       run.ceiling === undefined
         ? evaluated
         : stricter(
             childDecision(
-              evaluatePolicy,
+              evaluate,
               input,
               run.ceiling,
               { caller: run.caller, depth: run.depth, mode: config.mode },

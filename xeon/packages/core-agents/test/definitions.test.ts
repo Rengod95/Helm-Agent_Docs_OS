@@ -24,6 +24,28 @@ You explore the repository.
 `;
 
 describe("definition files", () => {
+  test("permissions.sandbox: read-only is read from the frontmatter; any other value is one diagnostic", () => {
+    const source = { kind: "user" as const, path: "/u/reader.md" };
+    const readOnly = parseDefinitionFile(
+      "/u/reader.md",
+      GOOD.replace("mode: acceptEdits", "mode: acceptEdits\n  sandbox: read-only"),
+      source,
+    );
+    expect("definition" in readOnly).toBe(true);
+    if ("definition" in readOnly) {
+      expect(readOnly.definition.permissions).toMatchObject({
+        mode: "acceptEdits",
+        sandbox: "read-only",
+      });
+    }
+    const writable = parseDefinitionFile(
+      "/u/reader.md",
+      GOOD.replace("mode: acceptEdits", "mode: acceptEdits\n  sandbox: write"),
+      source,
+    );
+    expect("diagnostic" in writable).toBe(true);
+  });
+
   test("a good file becomes a definition with the body as its prompt", () => {
     const parsed = parseDefinitionFile("/ext/explorer.md", GOOD, {
       kind: "extension",

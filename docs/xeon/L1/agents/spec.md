@@ -80,6 +80,8 @@ export interface AgentPermissions {
   readonly mode?: PermissionMode;
   /** 정의가 더하는 규칙. extension 티어로 평가한다. allow는 부모 결정을 넓히지 못한다 */
   readonly rules?: readonly PolicyRule[];
+  /** 이 정의의 자식이 쓰는 샌드박스 프로필. `"read-only"`면 bash가 읽기 전용 샌드박스에서만 돈다(§4.3 샌드박스 프로필) [결정: 2026-11-13 사용자] */
+  readonly sandbox?: "read-only";
 }
 
 export interface AgentDefinition {
@@ -402,6 +404,7 @@ export type AgentJudgedPayload = JudgeRecord;
 - 생성 검사(drive·scope 경로): 도구 호출이 아닌 생성도 `PolicyInput{ tool: "agent", classes: ["spawn"], caller, depth }`로 평가한다. drive와 그룹 위임의 caller는 `main`, depth 0이다.
   - [결정: 감사 l1/A-03] 구현은 `ToolService.checkSpawn`(L1.tools.spec)이 같은 규칙 평가기로 판정하고, `prepare`가 `owner.kind`가 `tool`이 아닐 때 부른다. `deny`는 `agents.denied`로 거부하고 자식 thread를 만들지 않는다. `ask`는 승인 요청을 올리지 않고 통과시킨다(호출자가 그룹 코드이고 막을 수 있는 것은 사용자의 명시적 deny뿐이다).
 - [결정: 감사 l1/A-01] 중첩 자식의 상한은 부모 자식의 상한 안에 든다. `ceilingOf`는 부모 자식이 받은 `ceiling`(실행 중인 자식의 `ChildMeta`)을 입력으로 받아 `allow`는 교집합, `deny`는 합집합으로 합치고 거부 안내는 이번 요청의 것이 없으면 부모 것을 잇는다.
+- 샌드박스 프로필 [결정: 2026-11-13 사용자]: `ceiling.sandbox = 부모 상한.sandbox ?? 정의.permissions.sandbox`다. 부모 상한이 프로필을 정했으면 그쪽이 이기고, 자식이 더 넓은 프로필을 얻지 못한다. 정의가 `"read-only"`를 요구하면 부모 상한에 프로필이 없어도 자식은 read-only다. 손자 정의가 `sandbox`를 적지 않아도 부모 상한의 `read-only`를 이어받는다. 상한의 프로필은 core-tools 파이프라인이 정책 판정(L1.tools.spec §4.5 읽기 전용 샌드박스 상한)과 `CallContext.sandbox`(L1.tools.spec §3)에 쓴다.
 
 ### 4.4 깊이와 동시 상한
 
@@ -486,8 +489,8 @@ export type AgentJudgedPayload = JudgeRecord;
 
 ### 4.9 서브에이전트 정의 (정의 파일 로더는 2차)
 
-- 형식: 마크다운 파일. 프런트매터 `name`, `description`, `tools`(glob 목록), `model`(모델 역할 이름), `permissions`(`mode`, `rules`), 본문은 `prompt`다(`_research/item-catalog.md` L1-g "서브에이전트 정의 파일", Claude Code·omp·opencode 공통 형태).
-- 내장 정의 둘 [제안]: 코어가 출처 `builtin`으로 `general`(부모가 쓸 수 있는 도구 전부, 일반 작업)과 `explore`(`read`, `grep`만, 쓰기와 셸은 허용 목록에 없어 거부)를 싣는다. 프롬프트는 짧게, 모델 역할은 `subagent`(생략 기본값)다. 같은 이름의 사용자·확장·작업 폴더 정의가 덮는다. 정의 파일 없이도 `agent` 도구가 바로 쓰인다(시나리오 scE S5).
+- 형식: 마크다운 파일. 프런트매터 `name`, `description`, `tools`(glob 목록), `model`(모델 역할 이름), `permissions`(`mode`, `rules`, `sandbox`), 본문은 `prompt`다(`_research/item-catalog.md` L1-g "서브에이전트 정의 파일", Claude Code·omp·opencode 공통 형태).
+- 내장 정의 둘 [제안]: 코어가 출처 `builtin`으로 `general`(부모가 쓸 수 있는 도구 전부, 일반 작업)과 `explore`(`read`, `grep`, `bash`를 쓰고, `permissions.sandbox: read-only`라 bash는 읽기 전용 샌드박스(쓰기·네트워크 차단)에서만 돈다. 쓰기 도구는 허용 목록에 없어 거부) [결정: 2026-11-13 사용자]를 싣는다. 프롬프트는 짧게, 모델 역할은 `subagent`(생략 기본값)다. 같은 이름의 사용자·확장·작업 폴더 정의가 덮는다. 정의 파일 없이도 `agent` 도구가 바로 쓰인다(시나리오 scE S5).
 - `agent` 도구 설명은 쓸 수 있는 정의 이름과 한 줄 설명(`description`의 첫 줄)을 싣는다. 정의가 등록·해제되면 도구를 다시 등록해 다음 턴 광고에 반영한다. 내부용 정의(학습 검토 `learning-review`)는 조립 루트가 `unlistedDefinitions`로 넘긴 이름이라 광고에서 뺀다. 계약에 `hidden` 표시는 없어 이 이름 목록으로 대신한다 [제안]. 위임은 이름으로 계속 부를 수 있다. 없는 이름을 부르면 `agents.unknown_definition` 메시지에 쓸 수 있는 이름 목록을 붙인다(§5 사례 1).
 - 위치 우선순위: 작업 폴더 > 사용자 > 확장 > 내장 [제안]. 같은 이름은 앞쪽이 이긴다. 결정 문구 "작업 폴더 > 사용자 > 내장"에 확장(매니페스트 `components.agents`, F.extensions.spec §3.1)을 사용자와 내장 사이에 넣었다. [가정] 작업 폴더와 사용자 디렉터리 경로(예: `.fresnel/agents/*.md`, 사용자 설정 디렉터리의 `agents/*.md`)는 L0.os.spec이 정한다.
 - `model` 필드는 L1.models.spec 라우팅 기준으로 해석한다. 값이 `ModelRole`(`main`, `review`, `summary`, `subagent`, `judge`, `search`) 중 하나면 그 역할로 고르고, 그 밖의 값은 `subagent` 역할의 `RoleOverrides.ref`(모델 참조 문자열)로 넘긴다(L1.models.spec 역할 표 `subagent` 행). 참조 해석에 실패하면 정의 적재 진단을 남기고 `subagent` 역할 기본값을 쓴다 [제안].
