@@ -49,9 +49,9 @@ describe("slashLineOf", () => {
   test("a slash command line keeps the whole text and its name", () => {
     expect(slashLineOf("/helm start")).toEqual({ name: "helm", text: "/helm start" });
     expect(slashLineOf("/learning")).toEqual({ name: "learning", text: "/learning" });
-    expect(slashLineOf("/plan 설계\n둘째 줄")).toEqual({
-      name: "plan",
-      text: "/plan 설계\n둘째 줄",
+    expect(slashLineOf("/tasks 설계\n둘째 줄")).toEqual({
+      name: "tasks",
+      text: "/tasks 설계\n둘째 줄",
     });
     expect(slashLineOf("/group:run go")).toEqual({ name: "group:run", text: "/group:run go" });
   });
