@@ -174,6 +174,8 @@ export interface CallContext {
   readonly interactive?: boolean;
   /** 이 호출이 쓰는 시크릿(secretEnv)을 사람이 승인한 증거. L1.tools가 채운다. 없으면 승인이 없다 [결정: m2 F.8] */
   readonly approval?: SecretApprovalEvidence;
+  /** 이 호출이 읽기 전용 샌드박스 안에서만 돌아야 하는가. L1.tools가 `ceiling.sandbox`로 채운다. 샌드박스를 쓸 수 없으면 실행을 거부한다 [결정: 2026-11-13 사용자] */
+  readonly sandbox?: "read-only";
 }
 
 /** input_required 뒤의 재호출에 싣는 연속 정보(MRTR). 첫 호출에는 없다 [결정: m2 F.8] */

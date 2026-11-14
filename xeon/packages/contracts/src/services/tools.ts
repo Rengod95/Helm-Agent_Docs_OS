@@ -95,6 +95,11 @@ export interface McpDeclaredHints {
 /** 도구 하나의 정책 메타. ToolSpec에 없는 필드를 core-tools가 받는 자리 */
 export interface ToolPolicyMeta {
   readonly risk?: ToolRisk;
+  /**
+   * 읽기 전용 샌드박스 상한 아래(`PolicyCeiling.sandbox`)에서 쓸 위험 등급. 생략은 `risk`다.
+   * `"read"`면 그 호출은 모드 기본값과 빌트인 ask 없이 허용된다. 이 값은 도구가 샌드박스를 쓸 수 없으면 실행을 거부한다는 구현(CallContext.sandbox를 보고 판단)을 전제로 한다
+   */
+  readonly riskUnderReadOnlySandbox?: ToolRisk;
   readonly classes?: readonly ToolClass[];
   /** MCP 서버 도구면 서버 이름. 정책 resource.mcpServer와 대조한다 */
   readonly mcpServer?: string;
