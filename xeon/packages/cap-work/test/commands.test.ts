@@ -9,7 +9,6 @@ import type {
 } from "@fresnel/contracts/capabilities";
 import { registerWorkCommands, WORK_COMMAND_ORIGIN } from "../src/commands.ts";
 import { openHarness, type Harness } from "./support/harness.ts";
-import { PlanId } from "./support/plans.ts";
 
 let opened: Harness | undefined;
 
@@ -57,91 +56,21 @@ async function boot() {
   opened = await openHarness();
   const registry = fakeRegistry(opened);
   const unregister = registerWorkCommands(registry, {
-    plans: opened.plans,
     tasks: opened.api,
     goals: opened.goals,
-    runtime: opened.runtime,
   });
   return { h: opened, registry, unregister };
 }
 
 describe("work commands", () => {
-  test("/plan and /tasks are registered with the cap-work origin and removed together", async () => {
+  test("/tasks and /goal are registered with the cap-work origin and removed together", async () => {
     const { registry, unregister } = await boot();
     expect(registry.decls.map((d) => `${d.name}:${d.origin}`)).toEqual([
-      `plan:${WORK_COMMAND_ORIGIN}`,
       `tasks:${WORK_COMMAND_ORIGIN}`,
       `goal:${WORK_COMMAND_ORIGIN}`,
     ]);
     unregister();
-    expect(registry.removed).toEqual(["plan", "tasks", "goal"]);
-  });
-
-  test("/plan enters plan mode and /plan exit leaves it after an approval", async () => {
-    const { h, registry } = await boot();
-    expect((await registry.run("plan", [])).message).toBe(
-      "계획 모드를 시작했어요. 이전 승인 모드: 모두 허용",
-    );
-    expect(h.mode.current(h.threadId)).toBe("plan");
-    await h.plans.submit({ title: "t", body: "b" }, h.opts("c1"));
-    expect((await registry.run("plan", ["approve", "looks", "good"])).message).toBe(
-      "계획 p1 v1을 승인했어요.",
-    );
-    await h.settle();
-    expect(h.mode.current(h.threadId)).toBe("bypass");
-  });
-
-  test("/plan reject and /plan revise answer the pending plan", async () => {
-    const { h, registry } = await boot();
-    await h.plans.submit({ title: "t", body: "b" }, h.opts("c1"));
-    expect((await registry.run("plan", ["revise"])).message).toBe(
-      "수정을 요청하려면 피드백이 필요해요: /plan revise <피드백>",
-    );
-    expect((await registry.run("plan", ["revise", "add", "tests"])).message).toBe(
-      "계획 p1 v1에 수정을 요청했어요.",
-    );
-    await h.plans.submit({ title: "t", body: "b2" }, h.opts("c2"));
-    expect((await registry.run("plan", ["reject", "no", "thanks"])).message).toBe(
-      "계획 p2 v1을 반려했어요.",
-    );
-    const versions = await h.plans.versions({ planId: PlanId("p1") }, h.opts());
-    expect(versions.versions[0]).toMatchObject({
-      status: "rejected",
-      feedback: "add tests",
-    });
-  });
-
-  test("without a pending plan the decide commands say so", async () => {
-    const { registry } = await boot();
-    expect((await registry.run("plan", ["approve"])).message).toBe(
-      "승인을 기다리는 계획이 없어요.",
-    );
-    expect((await registry.run("plan", ["unknown"])).message).toContain("사용법");
-  });
-
-  test("a service refusal reaches the user as one line instead of an exception", async () => {
-    const { registry } = await boot();
-    const result = await registry.run("plan", ["exit"]);
-    expect(result.message).toBe("지금은 계획 모드가 아니에요.");
-  });
-
-  test("/plan exit with no plan submitted leaves plan mode", async () => {
-    const { h, registry } = await boot();
-    await registry.run("plan", []);
-    const result = await registry.run("plan", ["exit"]);
-    expect(result.message).toBe("계획 모드를 끝냈어요. 지금 승인 모드: 모두 허용");
-    expect(h.mode.current(h.threadId)).toBe("bypass");
-  });
-
-  test("leaving plan mode while a plan waits for approval says what to do, in Korean", async () => {
-    const { h, registry } = await boot();
-    await registry.run("plan", []);
-    await h.plans.submit({ title: "t", body: "b" }, h.opts("c1"));
-    const result = await registry.run("plan", ["exit"]);
-    expect(result.message).toBe(
-      "승인을 기다리는 계획이 있어요. 계획 카드에서 승인하거나 거절하면 나갈 수 있어요.",
-    );
-    expect(h.mode.current(h.threadId)).toBe("plan");
+    expect(registry.removed).toEqual(["tasks", "goal"]);
   });
 
   test("/tasks prints the checklist", async () => {

@@ -312,7 +312,7 @@ describe("option labels", () => {
 
 describe("option help, warning and locked switch", () => {
   const MODE = "l1.tools.permissionMode";
-  const MODES = ["default", "acceptEdits", "plan", "bypass"] as const;
+  const MODES = ["default", "acceptEdits", "bypass"] as const;
 
   test("each permission mode has a one-line help in Korean and in English", () => {
     const previous = activeLocale();
@@ -321,13 +321,12 @@ describe("option help, warning and locked switch", () => {
       expect(MODES.map((mode) => optionHelpOf(MODE, mode))).toEqual([
         "도구 실행과 편집을 매번 물어요.",
         "파일 편집은 묻지 않고, 명령 실행은 물어요.",
-        "읽기만 하고 편집·실행은 막아요. 계획을 승인하면 나와요.",
         "명령과 편집을 묻지 않고 실행해요. 믿는 폴더에서만 쓰세요.",
       ]);
+      // 없앤 계획 모드는 도움말이 없다
+      expect(optionHelpOf(MODE, "plan")).toBeNull();
       setActiveLocale("en");
-      expect(optionHelpOf(MODE, "plan")).toBe(
-        "Read only. Edits and commands are blocked. Approving a plan leaves this mode.",
-      );
+      expect(optionHelpOf(MODE, "default")).toBe("Asks before each tool run and each edit.");
     } finally {
       setActiveLocale(previous);
     }

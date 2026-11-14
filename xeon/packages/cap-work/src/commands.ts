@@ -1,28 +1,24 @@
 import {
   isCapabilityError,
-  renderTaskList,
   type CapabilityApi,
   type CommandActionContext,
   type CommandActionRegistry,
   type CommandActionResult,
   type GoalStatus,
   type WorkGoals,
-  type WorkPlans,
   type WorkTasks,
+  renderTaskList,
 } from "@fresnel/contracts/capabilities";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { PlansRuntime } from "./plans/service.ts";
 
-// L2.work.spec §6.2. 계획 모드, 작업 목록, 목표(/goal)의 슬래시 명령.
+// L2.work.spec §6.2. 작업 목록과 목표(/goal)의 슬래시 명령. 계획 명령(/plan)은 계획 모드와 함께 없앴다 [결정: 2026-11-13 사용자].
 // 등록은 dialog.commands의 동작 명령 등록부(CommandActionRegistry)로 한다. 그 기능은 선택 의존이라(W-10) 조립 루트가 등록부를 넘길 때만 등록한다.
 
 export const WORK_COMMAND_ORIGIN = "cap-work";
 
 export interface WorkCommandDeps {
-  readonly plans: CapabilityApi<typeof WorkPlans>;
   readonly tasks: CapabilityApi<typeof WorkTasks>;
   readonly goals: CapabilityApi<typeof WorkGoals>;
-  readonly runtime: Pick<PlansRuntime, "pendingPlan">;
 }
 
 function optionsOf(ctx: CommandActionContext) {
@@ -33,79 +29,16 @@ function optionsOf(ctx: CommandActionContext) {
   };
 }
 
-/** 사용자가 직접 할 수 있는 거부는 한국어 해요체 한 줄로 말한다(영어 사유와 원시 코드를 보이지 않는다). 설정 이름은 설정 화면의 글과 같다 */
-const USER_FACING_REFUSALS: Readonly<Record<string, string>> = {
-  plan_not_approved:
-    "승인을 기다리는 계획이 있어요. 계획 카드에서 승인하거나 거절하면 나갈 수 있어요.",
-  plan_mode_inactive: "지금은 계획 모드가 아니에요.",
-};
-
-/** 서비스 거부를 사용자에게 보일 한 줄로 바꾼다. 그 밖의 예외는 그대로 둔다 */
+/** 서비스 거부를 한 줄로 바꾼다. 그 밖의 예외는 그대로 둔다 */
 async function reported(work: () => Promise<CommandActionResult>): Promise<CommandActionResult> {
   try {
     return await work();
   } catch (caught) {
     if (isCapabilityError(caught)) {
-      const known = USER_FACING_REFUSALS[caught.data.code];
-      return { message: known ?? `[${caught.data.code}] ${caught.data.message}` };
+      return { message: `[${caught.data.code}] ${caught.data.message}` };
     }
     throw caught;
   }
-}
-
-/**
- * 승인 모드 이름. 입력창의 승인 모드 칩과 같은 글이다(데스크톱 로캘 `desktop.approvals.plan.mode.*`).
- * 원시 값(`default`)은 화면에 보이지 않는다. 모르는 값은 그대로 둔다
- */
-const MODE_NAMES: Readonly<Record<string, string>> = {
-  default: "기본(실행마다 묻기)",
-  acceptEdits: "편집 자동 허용",
-  plan: "계획만",
-  bypass: "모두 허용",
-};
-
-function modeNameOf(mode: string): string {
-  return MODE_NAMES[mode] ?? mode;
-}
-
-async function planCommand(
-  deps: WorkCommandDeps,
-  args: readonly string[],
-  ctx: CommandActionContext,
-): Promise<CommandActionResult> {
-  const [verb, ...rest] = args;
-  const options = optionsOf(ctx);
-  if (verb === undefined) {
-    const out = await deps.plans.enterMode({}, options);
-    return {
-      message:
-        out.previousMode === null
-          ? "이미 계획 모드예요."
-          : `계획 모드를 시작했어요. 이전 승인 모드: ${modeNameOf(out.previousMode)}`,
-    };
-  }
-  if (verb === "exit") {
-    const out = await deps.plans.exitMode({}, options);
-    return { message: `계획 모드를 끝냈어요. 지금 승인 모드: ${modeNameOf(out.mode)}` };
-  }
-  if (verb !== "approve" && verb !== "reject" && verb !== "revise") {
-    return { message: "사용법: /plan [exit | approve | reject [사유] | revise <피드백>]" };
-  }
-  const pending = deps.runtime.pendingPlan(ctx.threadId);
-  if (pending === undefined) return { message: "승인을 기다리는 계획이 없어요." };
-  const target = { planId: pending.planId, version: pending.version };
-  const text = rest.join(" ");
-  if (verb === "approve") {
-    await deps.plans.approve({ ...target, ...(text === "" ? {} : { note: text }) }, options);
-    return { message: `계획 ${pending.planId} v${pending.version}을 승인했어요.` };
-  }
-  if (verb === "reject") {
-    await deps.plans.reject({ ...target, ...(text === "" ? {} : { reason: text }) }, options);
-    return { message: `계획 ${pending.planId} v${pending.version}을 반려했어요.` };
-  }
-  if (text === "") return { message: "수정을 요청하려면 피드백이 필요해요: /plan revise <피드백>" };
-  await deps.plans.revise({ ...target, feedback: text }, options);
-  return { message: `계획 ${pending.planId} v${pending.version}에 수정을 요청했어요.` };
 }
 
 async function tasksCommand(
@@ -173,20 +106,11 @@ async function goalCommand(
   }
 }
 
-/** `/plan`, `/tasks`, `/goal`을 등록하고 해제 함수를 돌려준다. 이름이 이미 쓰이면 등록부가 CapabilityError(command_name_taken)로 거부한다 */
+/** `/tasks`, `/goal`을 등록하고 해제 함수를 돌려준다. 이름이 이미 쓰이면 등록부가 CapabilityError(command_name_taken)로 거부한다 */
 export function registerWorkCommands(
   registry: CommandActionRegistry,
   deps: WorkCommandDeps,
 ): () => void {
-  const plan = registry.registerAction(
-    {
-      name: "plan",
-      description: "계획 모드를 시작하거나 끝내고, 대기 중인 계획을 승인·반려·수정 요청한다",
-      argumentHint: "[exit | approve | reject [사유] | revise <피드백>]",
-      origin: WORK_COMMAND_ORIGIN,
-    },
-    (args, ctx) => reported(() => planCommand(deps, args, ctx)),
-  );
   const tasks = registry.registerAction(
     {
       name: "tasks",
@@ -205,7 +129,6 @@ export function registerWorkCommands(
     (args, ctx) => reported(() => goalCommand(deps, args, ctx)),
   );
   return () => {
-    plan();
     tasks();
     goal();
   };

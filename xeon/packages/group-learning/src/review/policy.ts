@@ -13,8 +13,6 @@ export const REVIEW_ALLOWED_TOOLS: readonly string[] = [
   "session_read",
   "read",
   "grep",
-  "find",
-  "ls",
 ];
 
 export function reviewToolPolicy(): DelegateToolPolicy {

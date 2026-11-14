@@ -345,7 +345,7 @@ export function hostWebPlugin(options: HostWebOptions): ExtensionUnit {
             policy: { web_fetch: { risk: "read" } },
             exposure: { web_fetch: "deferred" },
           },
-          // 브라우저 동작 도구의 위험 등급. 열기·조작·닫기는 쓰기 등급이라 기본 모드에서 승인을 거치고 plan 모드에서는 막힌다.
+          // 브라우저 동작 도구의 위험 등급. 열기·조작·닫기는 쓰기 등급이라 승인을 거친다.
           // 읽기만 읽기 등급이다 [결정: 오케스트레이터 기본값]
           {
             kind: "capability",

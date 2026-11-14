@@ -18,7 +18,6 @@ import {
   type L2ApprovalSnapshot,
   type L2ApprovalsPort,
   type OpenedApproval,
-  type PermissionMode,
   type ToolRisk,
 } from "@fresnel/contracts/services";
 
@@ -31,11 +30,7 @@ function isRisk(value: string): value is ToolRisk {
   return value === "read" || value === "write" || value === "exec";
 }
 
-function isMode(value: string): value is PermissionMode {
-  return value === "default" || value === "acceptEdits" || value === "plan" || value === "bypass";
-}
-
-/** 기록 수준 body(JSON)를 서비스 타입의 ApprovalBody로 되돌린다. 모르는 등급·기능·모드가 있으면 undefined */
+/** 기록 수준 body(JSON)를 서비스 타입의 ApprovalBody로 되돌린다. 모르는 등급·기능이 있으면 undefined */
 function bodyOfJson(body: ApprovalBodyJson): ApprovalBody | undefined {
   switch (body.kind) {
     case "tool": {
@@ -57,14 +52,8 @@ function bodyOfJson(body: ApprovalBodyJson): ApprovalBody | undefined {
       };
     }
     case "plan":
-      return {
-        kind: "plan",
-        plan: {
-          plan: body.plan.plan,
-          planRef: body.plan.planRef,
-          nextModes: body.plan.nextModes.filter(isMode),
-        },
-      };
+      // 계획 승인은 더는 만들지 않는다 [결정: 2026-11-13 사용자]. 요청 경로는 이 종류를 받지 않아 subject 불일치로 거부한다
+      return undefined;
     case "question":
       return { kind: "question", question: { questions: body.question.questions } };
     case "review":

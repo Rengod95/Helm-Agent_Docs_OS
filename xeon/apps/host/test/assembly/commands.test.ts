@@ -16,8 +16,8 @@ const THREAD = ids.next("thr");
 const SIGNAL = new AbortController().signal;
 
 const INFO: CommandInfo = {
-  name: "plan",
-  description: "plan mode",
+  name: "tasks",
+  description: "task list",
   argumentHint: null,
   args: [],
   kind: "action",
@@ -74,10 +74,10 @@ test("list calls the command service as the host without a thread and returns wh
     holder: holderWith(seen, () => Promise.reject(new Error("x"))),
     ids,
   });
-  const listed = await port.list({ prefix: "pl" }, SIGNAL);
+  const listed = await port.list({ prefix: "ta" }, SIGNAL);
   expect(listed).toEqual({ ok: true, value: { commands: [INFO] } });
   expect(seen).toHaveLength(1);
-  expect(seen[0]?.input).toEqual({ prefix: "pl" });
+  expect(seen[0]?.input).toEqual({ prefix: "ta" });
   expect(seen[0]?.options?.signal).toBe(SIGNAL);
   expect(seen[0]?.options?.context).toEqual({ caller: { kind: "host" } });
 });
@@ -88,24 +88,29 @@ test("list with a thread puts it into the call context and not into the service 
     holder: holderWith(seen, () => Promise.reject(new Error("x"))),
     ids,
   });
-  const listed = await port.list({ prefix: "pl", threadId: THREAD }, SIGNAL);
+  const listed = await port.list({ prefix: "ta", threadId: THREAD }, SIGNAL);
   expect(listed).toEqual({ ok: true, value: { commands: [INFO] } });
   expect(seen).toHaveLength(1);
-  expect(seen[0]?.input).toEqual({ prefix: "pl" });
+  expect(seen[0]?.input).toEqual({ prefix: "ta" });
   expect(seen[0]?.options?.context).toEqual({ threadId: THREAD, caller: { kind: "host" } });
 });
 
 test("run passes the thread, the host as the caller and a fresh request key every call", async () => {
   const seen: Seen[] = [];
-  const done: CommandRunOutputValue = { status: "done", name: "plan", message: "ok", result: null };
+  const done: CommandRunOutputValue = {
+    status: "done",
+    name: "tasks",
+    message: "ok",
+    result: null,
+  };
   const port = createCommandPort({ holder: holderWith(seen, () => Promise.resolve(done)), ids });
-  const first = await port.run(THREAD, { text: "/plan", confirmShell: true }, SIGNAL);
-  const second = await port.run(THREAD, { text: "/plan" }, SIGNAL);
+  const first = await port.run(THREAD, { text: "/tasks", confirmShell: true }, SIGNAL);
+  const second = await port.run(THREAD, { text: "/tasks" }, SIGNAL);
   expect(first).toEqual({ ok: true, value: done });
   expect(second).toEqual({ ok: true, value: done });
   expect(seen.map((entry) => entry.input)).toEqual([
-    { text: "/plan", confirmShell: true },
-    { text: "/plan" },
+    { text: "/tasks", confirmShell: true },
+    { text: "/tasks" },
   ]);
   for (const entry of seen) {
     expect(entry.options?.context).toEqual({ threadId: THREAD, caller: { kind: "host" } });
@@ -123,7 +128,7 @@ test("a rejection of the service is a value with its code and a cut message, not
     holder: holderWith([], () => Promise.reject(capabilityError("command_args_invalid", long))),
     ids,
   });
-  const ran = await port.run(THREAD, { text: "/plan x" }, SIGNAL);
+  const ran = await port.run(THREAD, { text: "/tasks x" }, SIGNAL);
   expect(ran).toEqual({
     ok: false,
     error: { kind: "rejected", code: "command_args_invalid", message: "x".repeat(200) },
@@ -135,7 +140,7 @@ test("a failure that is not a capability error is a defect and is thrown again",
     holder: holderWith([], () => Promise.reject(new TypeError("broken"))),
     ids,
   });
-  const caught = await port.run(THREAD, { text: "/plan" }, SIGNAL).then(
+  const caught = await port.run(THREAD, { text: "/tasks" }, SIGNAL).then(
     () => undefined,
     (error: unknown) => error,
   );
@@ -155,7 +160,7 @@ test("without a command service both calls are unavailable", async () => {
     ids,
   });
   expect(await port.list({}, SIGNAL)).toEqual({ ok: false, error: { kind: "unavailable" } });
-  expect(await port.run(THREAD, { text: "/plan" }, SIGNAL)).toEqual({
+  expect(await port.run(THREAD, { text: "/tasks" }, SIGNAL)).toEqual({
     ok: false,
     error: { kind: "unavailable" },
   });

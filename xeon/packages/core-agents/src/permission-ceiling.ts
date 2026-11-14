@@ -8,7 +8,7 @@ import {
   type PolicyCeiling,
 } from "@fresnel/contracts/services";
 
-/** 자식 모드: 부모 모드와 정의가 요청한 모드 중 엄격한 쪽. 부모가 plan이면 자식도 plan이다 */
+/** 자식 모드: 부모 모드와 정의가 요청한 모드 중 엄격한 쪽(`PERMISSION_MODE_STRICTNESS` 순서) */
 export function childMode(
   parent: PermissionMode,
   requested: PermissionMode | undefined,
@@ -59,14 +59,19 @@ export interface CeilingInput {
    * allow는 교집합, deny는 합집합, 거부 안내는 이번 요청의 것이 없으면 부모 것을 이어받는다 [결정: 감사 l1/A-01]
    */
   readonly parentCeiling?: PolicyCeiling | undefined;
+  /**
+   * 정의의 샌드박스 프로필(`permissions.sandbox`). 부모 상한이 프로필을 이미 정했으면 그쪽이 이긴다(자식이 더 넓은 프로필을 얻지 못한다)
+   */
+  readonly definitionSandbox?: "read-only" | undefined;
 }
 
-/** 자식 `ToolRunContext.ceiling`: 부모 관점과 정의 제한(교집합) */
+/** 자식 `ToolRunContext.ceiling`: 부모 관점과 정의 제한(교집합), 샌드박스 프로필(부모 우선) */
 export function ceilingOf(input: CeilingInput): PolicyCeiling {
   const own = intersectGlobs(input.definitionTools, input.requestAllow);
   const allow = intersectGlobs(input.parentCeiling?.allow, own);
   const deny = [...new Set([...(input.parentCeiling?.deny ?? []), ...(input.requestDeny ?? [])])];
   const denyHint = input.denyHint ?? input.parentCeiling?.denyHint;
+  const sandbox = input.parentCeiling?.sandbox ?? input.definitionSandbox;
   return {
     caller: input.parent.caller,
     depth: input.parent.depth,
@@ -74,5 +79,6 @@ export function ceilingOf(input: CeilingInput): PolicyCeiling {
     ...(allow === undefined ? {} : { allow }),
     ...(deny.length === 0 ? {} : { deny }),
     ...(denyHint === undefined ? {} : { denyHint }),
+    ...(sandbox === undefined ? {} : { sandbox }),
   };
 }

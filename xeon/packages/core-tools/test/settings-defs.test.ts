@@ -50,7 +50,9 @@ describe("l1.tools settings", () => {
 
   test("values outside the documented type or range are rejected, valid ones pass", () => {
     expect(validateSettingValue(defOf("l1.tools.output.maxLines"), 50).ok).toBe(false);
-    expect(validateSettingValue(defOf("l1.tools.permissionMode"), "plan").ok).toBe(true);
+    // 계획 모드는 더는 설정 값이 아니다 [결정: 2026-11-13 사용자]. 옛 값은 읽을 때만 default로 본다(settings.ts pickMode)
+    expect(validateSettingValue(defOf("l1.tools.permissionMode"), "plan").ok).toBe(false);
+    expect(validateSettingValue(defOf("l1.tools.permissionMode"), "bypass").ok).toBe(true);
   });
 
   test("bypassAllowed is managed-only and output limits accept only file scopes", () => {

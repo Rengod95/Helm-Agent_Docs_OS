@@ -9,16 +9,14 @@ import {
   type SettingGroup,
 } from "@fresnel/contracts/settings";
 
-// L2.work.spec §6.1. 키 다섯 개를 한 번에 선언한다. 이 마일스톤(WK.1)이 읽는 것은 tasks.* 둘이고,
-// plans.*는 WK.2·WK.3, goal.*는 M3(T9~T11)가 읽는다. 상한과 판정 역할은 l1.agents.judge.maxRuns,
+// L2.work.spec §6.1. 키 셋을 한 번에 선언한다. tasks.*는 작업 목록이, goal.*는 목표가 읽는다.
+// 계획 키(plans.*)는 계획 모드와 함께 없앴다 [결정: 2026-11-13 사용자]. 상한과 판정 역할은 l1.agents.judge.maxRuns,
 // l1.models.routing.judge의 몫이라 여기에 두지 않는다(spec §6.1, W-12).
 
 const workSettings: SettingGroup<
   "l2.work",
   {
     readonly "goal.delegatedTimeoutSec": SettingDefInput;
-    readonly "plans.requireApproval": SettingDefInput;
-    readonly "plans.exitOnApprove": SettingDefInput;
     readonly "tasks.autoStart": SettingDefInput;
     readonly "tasks.reminderTurns": SettingDefInput;
   }
@@ -35,33 +33,6 @@ const workSettings: SettingGroup<
       order: 300,
       label: "Delegated judgment wait time",
       unit: "s",
-    },
-    since: "0.1.0",
-  },
-  "plans.requireApproval": {
-    type: Type.Boolean(),
-    default: true,
-    runtimeChange: "nextTurn",
-    allowedScopes: ["managed", "user", "project", "local", "launch"],
-    ui: {
-      tab: "permissions",
-      widget: "toggle",
-      order: 300,
-      label: "Require plan approval",
-      help: "When on, plan mode cannot be exited without an approved plan",
-    },
-    since: "0.1.0",
-  },
-  "plans.exitOnApprove": {
-    type: Type.Boolean(),
-    default: true,
-    runtimeChange: "nextTurn",
-    allowedScopes: ["user", "project", "local", "launch"],
-    ui: {
-      tab: "permissions",
-      widget: "toggle",
-      order: 310,
-      label: "Exit plan mode on approval",
     },
     since: "0.1.0",
   },
@@ -103,13 +74,11 @@ export const WORK_SETTING_DEFS: readonly SettingDef[] = Object.values(workSettin
 /** 호출 한 번이 읽는 유효 설정 */
 export interface WorkSettings {
   readonly tasks: { readonly autoStart: boolean; readonly reminderTurns: number };
-  readonly plans: { readonly requireApproval: boolean; readonly exitOnApprove: boolean };
   readonly goal: { readonly delegatedTimeoutSec: number };
 }
 
 export const DEFAULT_WORK_SETTINGS: WorkSettings = {
   tasks: { autoStart: false, reminderTurns: 0 },
-  plans: { requireApproval: true, exitOnApprove: true },
   goal: { delegatedTimeoutSec: 300 },
 };
 
@@ -139,18 +108,6 @@ export function readWorkSettings(layers: ScopeStack): WorkSettings {
         defs["tasks.reminderTurns"],
         layers,
         fallback.tasks.reminderTurns,
-      ),
-    },
-    plans: {
-      requireApproval: booleanValue(
-        defs["plans.requireApproval"],
-        layers,
-        fallback.plans.requireApproval,
-      ),
-      exitOnApprove: booleanValue(
-        defs["plans.exitOnApprove"],
-        layers,
-        fallback.plans.exitOnApprove,
       ),
     },
     goal: {

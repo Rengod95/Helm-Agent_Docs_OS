@@ -66,8 +66,6 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
         : { run: state.run, effectId: state.intent?.effectId ?? null };
     },
     requesterOf: (threadId) => calls.requesterOf(threadId),
-    modeOf: (threadId) => deps.config(threadId).mode,
-    setMode: (threadId, mode) => tools.setMode(threadId, mode, "plan_approval"),
   });
   const pipeline = createPipeline(deps, registry, calls, approvals);
   // 내장 도구 `tool_search`(순서 키 core.tools). 같은 파이프라인을 지난다

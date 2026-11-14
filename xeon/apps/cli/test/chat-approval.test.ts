@@ -115,34 +115,6 @@ test("n asks for a reason and sends it as the deny answer; an empty reason sends
   expect(plain.responds[0]).toEqual({ approvalId: expect.any(String), decision: "deny" });
 });
 
-test("a plan approval can pick the next mode and add a note", async () => {
-  const body = {
-    kind: "plan",
-    plan: { plan: "1. 읽는다\n2. 고친다", planRef: null, nextModes: ["default", "acceptEdits"] },
-  };
-  const s = scenario({ body, replies: ["y", "2", "진행해"] });
-  await s.h.run(["chat"]);
-  expect(s.responds[0]).toMatchObject({
-    decision: "allow",
-    answer: { mode: "acceptEdits", note: "진행해" },
-  });
-  expect(s.h.stderrText()).toContain("1. 읽는다");
-
-  const denied = scenario({ body, replies: ["n", "다시 계획해"] });
-  await denied.h.run(["chat"]);
-  expect(denied.responds[0]).toMatchObject({
-    decision: "deny",
-    answer: { feedback: "다시 계획해" },
-  });
-});
-
-test("a plan approval with no modes and no note allows with an empty answer", async () => {
-  const body = { kind: "plan", plan: { plan: "계획", planRef: null, nextModes: [] } };
-  const s = scenario({ body, replies: ["y", ""] });
-  await s.h.run(["chat"]);
-  expect(s.responds[0]).toMatchObject({ decision: "allow", answer: {} });
-});
-
 const REVIEW_BODY = {
   kind: "review",
   review: {
@@ -414,6 +386,7 @@ test("pending approvals are asked again when a conversation is resumed (approval
   });
 });
 
+/** 옛 계획 승인 기록. 새 계획은 없고, 이 기록에는 거부만 보낸다 */
 const PLAN_BODY = {
   kind: "plan",
   plan: { plan: "파일을 고친다", planRef: null, nextModes: [] },
@@ -484,11 +457,18 @@ test("--auto-approve still denies a question approval, with the same notice as t
   ]);
 });
 
-test("--auto-approve still denies a plan approval", async () => {
+test("--auto-approve still denies a legacy plan approval", async () => {
   const { h, responds } = printWithApproval({ body: PLAN_BODY, remember: ["once"] });
   expect(await h.run(["chat", "-p", "run it", "--auto-approve"])).toBe(EXIT.ok);
   expect(responds).toEqual([{ approvalId: expect.any(String), decision: "deny" }]);
   expect(noticeLines(h.stderrText())).toEqual([
     '승인 요청 "bash 실행"에 비대화 모드라 거부로 답했다',
   ]);
+});
+
+test("a legacy plan approval is answered with a deny at once, without a question", async () => {
+  const s = scenario({ body: PLAN_BODY, replies: [] });
+  await s.h.run(["chat"]);
+  expect(s.responds).toEqual([{ approvalId: expect.any(String), decision: "deny" }]);
+  expect(s.input.prompts.filter((prompt) => prompt.startsWith("[y]"))).toEqual([]);
 });

@@ -90,6 +90,15 @@ function secretEnvOf(
   };
 }
 
+/** 읽기 전용 샌드박스가 막은 실패에 붙이는 한 줄. 막힌 이유가 샌드박스라는 것을 모델에 알린다 */
+const READ_ONLY_NOTE = "\n[read-only sandbox: writes and network access are blocked]";
+const DENIAL_TEXT =
+  /operation not permitted|permission denied|read-only file system|could not resolve|couldn't connect/i;
+
+function blockedBySandbox(outcome: BashOutcome): boolean {
+  return (outcome.sandbox?.blocks ?? []).length > 0 || DENIAL_TEXT.test(outcome.output);
+}
+
 function toRunOutput(outcome: BashOutcome, durationMs: number): RunResult {
   const blocks = outcome.sandbox?.blocks;
   return {
@@ -156,11 +165,20 @@ export function createShellApi(base: WorkspaceDeps): ShellApi {
         const secretEnv = secretEnvOf(input, callContext);
         const startedAt = deps.clock.now();
         // 허용한 쓰기 루트(grants)를 정책에 더해 한 번 실행한다. 정책의 보호 경로 처리가 보호 경로 안의 루트를 다시 뺀다
+        // 읽기 전용 프로필 호출(서브에이전트 정의의 `permissions.sandbox`): 쓰기 루트 없음, 네트워크 차단, 쓰기 허용 승인 없음.
+        // 샌드박스를 쓸 수 없으면 wrapShell이 실행하지 않고 거부한다(L0.sandbox.spec §4.2)
+        const readOnly = callContext?.sandbox === "read-only";
         const execute = (grants: readonly string[]): ReturnType<typeof runBashCommand> => {
-          const policy = sandbox.defaultPolicy({
-            workspaceRoots: [...roots.write, ...grants],
-            tempDir: deps.tempDir,
-          });
+          const policy = readOnly
+            ? sandbox.defaultPolicy({
+                workspaceRoots: [],
+                tempDir: deps.tempDir,
+                profile: "read-only",
+              })
+            : sandbox.defaultPolicy({
+                workspaceRoots: [...roots.write, ...grants],
+                tempDir: deps.tempDir,
+              });
           return runBashCommand(
             sandbox.wrapShell(deps.env, policy),
             {
@@ -179,7 +197,7 @@ export function createShellApi(base: WorkspaceDeps): ShellApi {
           grants: readonly string[],
           round: number,
         ): Promise<Awaited<ReturnType<typeof execute>>> => {
-          if (!previous.ok || round > MAX_WRITE_ACCESS_ROUNDS) return previous;
+          if (readOnly || !previous.ok || round > MAX_WRITE_ACCESS_ROUNDS) return previous;
           const outcome = previous.value;
           if (outcome.exitCode === 0 || outcome.sandbox?.sandboxed !== true) return previous;
           const reported = (outcome.sandbox.blocks ?? []).flatMap((block) =>
@@ -238,7 +256,11 @@ export function createShellApi(base: WorkspaceDeps): ShellApi {
           }
           throw error;
         }
-        const output = toRunOutput(ran.value, durationMs);
+        const plain = toRunOutput(ran.value, durationMs);
+        const output =
+          readOnly && plain.exitCode !== 0 && blockedBySandbox(ran.value)
+            ? { ...plain, output: `${plain.output}${READ_ONLY_NOTE}` }
+            : plain;
         if (input.failOnNonZero === true && output.exitCode !== 0) {
           throw new WorkspaceFailure(
             "exit_nonzero",

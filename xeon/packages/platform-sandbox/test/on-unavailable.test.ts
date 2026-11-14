@@ -179,3 +179,37 @@ describe("disabled sandbox", () => {
     expect(r.srt.resetCalls).toBe(1);
   });
 });
+
+function readOnly(r: Rig): SandboxPolicy {
+  return r.service.defaultPolicy({ workspaceRoots: [], tempDir: r.dirs.tmp, profile: "read-only" });
+}
+
+describe("read-only profile", () => {
+  test("is refused without running when the sandbox is unavailable, even with run_unsandboxed", async () => {
+    const r = await rig(WIN32, { onUnavailable: "run_unsandboxed" });
+    const result = await exec(r, readOnly(r));
+    expect(!result.ok && result.error.code).toBe("sandbox_unavailable");
+    expect(!result.ok && result.error.message).toContain("read-only sandbox is not available");
+    expect(r.shell.calls.length).toBe(0);
+  });
+
+  test("is refused without running when the user turned the sandbox off", async () => {
+    const r = await rig(linuxPlatform(), { enabled: false });
+    const result = await exec(r, readOnly(r));
+    expect(!result.ok && result.error.message).toContain("read-only sandbox is not available");
+    expect(r.shell.calls.length).toBe(0);
+  });
+
+  test("an available sandbox wraps the command with only its per-call temp folder writable and removes the folder", async () => {
+    const r = await rig(linuxPlatform());
+    const result = await exec(r, readOnly(r));
+    expect(result.ok && result.value.sandbox?.sandboxed).toBe(true);
+    const wrapped = r.srt.wrapCalls[0];
+    const allowWrite = wrapped?.customConfig.filesystem?.allowWrite ?? [];
+    expect(allowWrite).toHaveLength(1);
+    expect(JSON.stringify(allowWrite)).toContain("/ro-");
+    expect(wrapped?.command.startsWith("for v in $(env | grep -i proxy")).toBe(true);
+    const denied = wrapped?.customConfig.filesystem?.denyWrite ?? [];
+    expect(JSON.stringify(denied)).toContain("/tmp/claude");
+  });
+});

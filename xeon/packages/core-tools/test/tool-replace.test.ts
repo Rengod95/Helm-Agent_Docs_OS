@@ -192,16 +192,16 @@ test("a deny answer keeps the built-in and the replacement is not asked again", 
 
 test("a project-scope plugin needs the same approval and the request carries its trust level", async () => {
   const { h } = await workspace();
-  expectOk(h.runtime.tools.register("repo-files/main", replacement("ls", PROJECT, [])));
-  expect(h.runtime.tools.replacements()).toMatchObject([{ toolName: "ls", trust: "project" }]);
-  expect(h.runtime.tools.meta("ls")?.capability?.id).toBe("workspace.files");
+  expectOk(h.runtime.tools.register("repo-files/main", replacement("grep", PROJECT, [])));
+  expect(h.runtime.tools.replacements()).toMatchObject([{ toolName: "grep", trust: "project" }]);
+  expect(h.runtime.tools.meta("grep")?.capability?.id).toBe("workspace.files");
   await advertiseNames(h);
   const [request] = h.runtime.approvals.pending(h.thread);
   expect(request?.body).toMatchObject({
     kind: "tool",
-    tool: { toolName: TOOL_REPLACE_APPROVAL_TOOL, args: { tool: "ls", trust: "project" } },
+    tool: { toolName: TOOL_REPLACE_APPROVAL_TOOL, args: { tool: "grep", trust: "project" } },
   });
-  expect(h.runtime.tools.meta("ls")?.capability?.id).toBe("workspace.files");
+  expect(h.runtime.tools.meta("grep")?.capability?.id).toBe("workspace.files");
 });
 
 test("the risk floor is the original risk even when the replacement declares less", async () => {

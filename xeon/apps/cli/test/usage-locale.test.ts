@@ -131,7 +131,7 @@ Commands
   chat -p <input> --quiet   Do not write the one-line usage summary to stderr at the end
   chat -p <input> --json    JSON mode: write the JSON-RPC messages exchanged with the engine, one per line
   chat -p <input> --auto-approve
-                            Print mode: approve a tool call once. Questions, plans, and reviews are declined
+                            Print mode: approve a tool call once. Questions and reviews are declined
   chat --continue           Resume the last conversation in the current working folder
   chat --resume <id>        Resume the given conversation
   chat --set <key>=<value>  Override a setting for this conversation only (can be repeated)

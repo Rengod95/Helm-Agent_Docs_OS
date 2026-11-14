@@ -3,16 +3,14 @@ import { WorkGoals, WorkPlans, WorkReports, WorkTasks } from "@fresnel/contracts
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { rejection } from "./support/assertions.ts";
 import { asCaller, gid } from "./support/goals.ts";
 import { openHarness, type Harness } from "./support/harness.ts";
-import { PlanId } from "./support/plans.ts";
 import { tid } from "./support/tasks.ts";
 
-// M3-REQ-88·89, ADR-0015 §3.6, L2.work.spec §3.1: 멱등 쓰기 아홉 개는 같은 requestId를 두 번 불러도 효과가 한 번이고 결과가 같다.
+// M3-REQ-88·89, ADR-0015 §3.6, L2.work.spec §3.1: 멱등 쓰기 여덟 개는 같은 requestId를 두 번 불러도 효과가 한 번이고 결과가 같다.
 // 두 번째 호출은 저장소를 닫았다 다시 연 새 프로세스에서 한다. 이벤트 수와 투영 표의 내용이 그대로여야 한다.
-// plans.enterMode·exitMode(권한 모드는 L1.tools 소유)와 plans.approve·reject·revise(결정은 승인 해결 하나에 기록됨)는
-// requestId를 기억하지 않아 선언 없음이다(spec §3.9). 이 적합성 시험이 뒤의 세 메서드를 드러냈다.
+// 계획 쓰기(submit, approve, reject, revise, enterMode, exitMode)는 계획 모드와 함께 없앴다 [결정: 2026-11-13 사용자].
+// work.plans는 옛 기록을 읽는 versions뿐이라 쓰기가 없다.
 
 const dirs: string[] = [];
 const harnesses: Harness[] = [];
@@ -28,8 +26,6 @@ interface Case {
   readonly setup: (h: Harness) => Promise<(target: Harness, requestId: string) => Promise<unknown>>;
 }
 
-const PLAN = { title: "Refactor", body: "1. split\n2. test" };
-
 const CLASSES: readonly string[] = [
   ...Object.entries(WorkTasks.service.methods),
   ...Object.entries(WorkPlans.service.methods),
@@ -40,10 +36,6 @@ const CLASSES: readonly string[] = [
     method.readOnly === true ? "readOnly" : method.idempotent === true ? "idempotent" : "none";
   return `${name} ${effect} ${method.replay ?? "unsafe"}`;
 });
-
-async function withPlan(h: Harness): Promise<void> {
-  await h.plans.submit(PLAN, h.opts("setup-plan"));
-}
 
 const CASES: readonly Case[] = [
   {
@@ -80,10 +72,6 @@ const CASES: readonly Case[] = [
           t.opts(key),
         ),
       ),
-  },
-  {
-    name: "work.plans.submit",
-    setup: () => Promise.resolve((t, key) => t.plans.submit(PLAN, t.opts(key))),
   },
   {
     name: "work.goals.set",
@@ -128,12 +116,6 @@ describe("work effect classes", () => {
       "link idempotent safe",
       "list readOnly safe",
       "write idempotent safe",
-      "enterMode none unsafe",
-      "exitMode none unsafe",
-      "submit idempotent safe",
-      "approve none unsafe",
-      "reject none unsafe",
-      "revise none unsafe",
       "versions readOnly safe",
       "set idempotent safe",
       "status readOnly safe",
@@ -172,16 +154,6 @@ describe("work writes dedupe on requestId across a store reopen", () => {
       expect(await reopened.workDigests()).toEqual(digests);
     });
   }
-
-  test("a plan decision does not remember its requestId, so a repeat with the same key is plan_closed", async () => {
-    const h = await openHarness();
-    harnesses.push(h);
-    await withPlan(h);
-    const first = await h.plans.approve({ planId: PlanId("p1") }, h.opts("decide-1"));
-    expect(first.plan.status).toBe("approved");
-    const repeated = await rejection(h.plans.approve({ planId: PlanId("p1") }, h.opts("decide-1")));
-    expect(repeated.data.code).toBe("plan_closed");
-  });
 
   test("a different requestId is a new write", async () => {
     const h = await openHarness();

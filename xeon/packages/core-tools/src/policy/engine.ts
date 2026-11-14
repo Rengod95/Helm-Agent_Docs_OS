@@ -10,7 +10,7 @@ import {
   type TieredRule,
 } from "@fresnel/contracts/services";
 import { globMatches, isJsonObject, tryRegExp } from "../util.ts";
-import { isRepositorySource } from "./tiers.ts";
+import { BUILTIN_RULE_SOURCE, isRepositorySource } from "./tiers.ts";
 import { DEFAULT_RULE_PRIORITY } from "./rules.ts";
 import { modeDefault } from "./modes.ts";
 
@@ -137,7 +137,7 @@ function demoteCompound(rule: TieredRule, input: PolicyInput): TieredRule {
   return { ...rule, effect: "ask" };
 }
 
-/** 7단계. ask인데 사람이 답할 수 없으면 deny다 */
+/** 6단계. ask인데 사람이 답할 수 없으면 deny다 */
 function finish(decision: PolicyDecision, input: PolicyInput): PolicyDecision {
   if (decision.effect === "ask" && !input.interactive) {
     return {
@@ -153,9 +153,8 @@ function finish(decision: PolicyDecision, input: PolicyInput): PolicyDecision {
 
 /**
  * 평가 순서(L1.tools.spec §4.5):
- * 1 일치 규칙 M, 2 deny가 있으면 가장 높은 티어·priority의 deny, 3 plan 모드의 write·exec는 deny,
- * 4 bypass(금지면 default로 보고 계속), 5 M에서 가장 높은 티어·priority(ask가 있으면 ask), 6 모드 기본값,
- * 7 비대화형이면 ask를 deny로.
+ * 1 일치 규칙 M, 2 deny가 있으면 가장 높은 티어·priority의 deny, 3 bypass(금지면 default로 보고 계속),
+ * 4 M에서 가장 높은 티어·priority(ask가 있으면 ask), 5 모드 기본값, 6 비대화형이면 ask를 deny로.
  * bypass가 금지되어 default로 내려온 호출이 6단계(모드 기본값)로 정해지면 reason은 "bypass_forbidden"이다.
  */
 export function evaluatePolicy(input: PolicyInput, rules: readonly TieredRule[]): PolicyDecision {
@@ -175,19 +174,6 @@ export function evaluatePolicy(input: PolicyInput, rules: readonly TieredRule[])
     }
     mode = "default";
     bypassDemoted = true;
-  }
-
-  if (mode === "plan" && input.risk !== "read") {
-    return finish(
-      {
-        effect: "deny",
-        reason: "mode",
-        ruleId: null,
-        tier: null,
-        message: `[fresnel:denied_by_mode] Tool "${input.tool}" changes state and is not allowed in plan mode.`,
-      },
-      input,
-    );
   }
 
   if (matched.length > 0) {
@@ -221,7 +207,7 @@ export function evaluatePolicy(input: PolicyInput, rules: readonly TieredRule[])
 }
 
 /**
- * 내장 도구를 대체한 항목의 allow 판정을 ask로 낮춘다(L1.tools.spec §4.13). 내장 기본 규칙(`default` 티어)의 allow(`read`·`ls`의 기본 허용 포함)와
+ * 내장 도구를 대체한 항목의 allow 판정을 ask로 낮춘다(L1.tools.spec §4.13). 내장 기본 규칙(`default` 티어)의 allow(`read`의 기본 허용 포함)와
  * 위험 등급이 낮아서 생기는 모드 기본 허용은 내장 파일 도구를 위한 것이라 같은 이름의 다른 코드에 넘기지 않는다.
  * 사용자·managed 규칙의 allow와 사용자가 고른 bypass는 그대로다. 사람이 답할 수 없으면 ask는 deny가 된다
  */
@@ -252,4 +238,20 @@ export function evaluateReplacement(
   rules: readonly TieredRule[],
 ): PolicyDecision {
   return demoteReplacementAllow(evaluatePolicy(input, withoutRepositoryAllow(rules)), input);
+}
+
+/**
+ * 읽기 전용 샌드박스 상한 아래에서 위험 등급이 read로 내려간 호출의 판정(L1.tools.spec §4.5, 결정 2026-11-13 사용자).
+ * 샌드박스는 쓰기와 네트워크를 막으므로 상태를 바꿀 수 없어 내장 기본 규칙의 ask(bash 승인)를 주지 않는다. deny 규칙, managed와 사용자의
+ * 규칙, 정의가 더한 규칙은 그대로 평가하므로 그쪽의 ask는 남는다. 이 판정이 승인을 건너뛰는 근거는 샌드박스를 쓸 수 없으면 도구가 실행을 거부한다는
+ * 구현(`CallContext.sandbox`를 보고 cap-workspace가 판단한다)이다
+ */
+export function evaluateReadOnlySandboxed(
+  input: PolicyInput,
+  rules: readonly TieredRule[],
+): PolicyDecision {
+  return evaluatePolicy(
+    input,
+    rules.filter((rule) => !(rule.source === BUILTIN_RULE_SOURCE && rule.effect === "ask")),
+  );
 }

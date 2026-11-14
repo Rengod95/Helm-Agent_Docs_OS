@@ -5,7 +5,7 @@ import {
   type CallContext,
   type CallOptions,
 } from "@fresnel/contracts/capabilities";
-import { approvalCallerOf } from "@fresnel/contracts/services";
+import { approvalCallerOf, type PolicyCeiling } from "@fresnel/contracts/services";
 import { Type } from "typebox";
 import { callTool, createHarness, layer } from "./support/harness.ts";
 
@@ -38,6 +38,7 @@ const Probe = defineCapability({
 async function contextOf(
   caller: "main" | `subagent:${string}`,
   via: "capability" | "direct",
+  ceiling?: PolicyCeiling,
 ): Promise<CallContext | undefined> {
   const h = await createHarness({ layers: ALLOW });
   let seen: CallContext | undefined;
@@ -77,7 +78,8 @@ async function contextOf(
       },
     });
   }
-  const out = await callTool(h.runtime.tools, h.run({ caller }), {
+  const run = { ...h.run({ caller }), ...(ceiling === undefined ? {} : { ceiling }) };
+  const out = await callTool(h.runtime.tools, run, {
     id: "ctx_1",
     name: "probe",
     args: { value: "x" },
@@ -98,5 +100,24 @@ for (const via of ["capability", "direct"] as const) {
     // 이름은 agentName에 실린다. extension은 확장 호출자의 이름이라 비어 있다
     expect(context?.caller).toEqual({ kind: "model", agent: "subagent", agentName: "explorer" });
     expect(context && approvalCallerOf(context.caller)).toBe("subagent:explorer");
+  });
+}
+
+for (const via of ["capability", "direct"] as const) {
+  test(`${via}_tool_gets_the_ceiling_sandbox_profile_and_no_profile_without_one`, async () => {
+    // 읽기 전용 샌드박스 상한은 호출 문맥의 sandbox로 실린다. 상한이 없으면 필드가 없다
+    const sandboxed = await contextOf("subagent:explorer", via, {
+      caller: "main",
+      depth: 0,
+      mode: "default",
+      sandbox: "read-only",
+    });
+    expect(sandboxed?.sandbox).toBe("read-only");
+    const plain = await contextOf("subagent:explorer", via, {
+      caller: "main",
+      depth: 0,
+      mode: "default",
+    });
+    expect(plain).not.toHaveProperty("sandbox");
   });
 }

@@ -1,4 +1,4 @@
-// 실제 SQLite(platform-store) 위에 core-persistence 세션 서비스를 올리고 cap-work 작업 서비스를 붙이는 시험 조립.
+// 실제 SQLite(platform-store) 위에 core-persistence 세션 서비스를 올리고 cap-work 작업·목표·계획 읽기 서비스를 붙이는 시험 조립.
 // 저장소를 배열로 흉내 내지 않는다(eng.testing.guide TS-07).
 import { Bug, type Logger, type LogFields } from "@fresnel/contracts";
 import type {
@@ -10,29 +10,16 @@ import type {
   WorkTasks,
 } from "@fresnel/contracts/capabilities";
 import type { IdFactory, ThreadId, TurnId, Usage } from "@fresnel/contracts/conversation";
-import type { SessionService } from "@fresnel/contracts/records";
-import type { ScopeStack } from "@fresnel/contracts/settings";
+import type { ProducerHandle, SessionService } from "@fresnel/contracts/records";
 import { createSessionService } from "@fresnel/core-persistence";
-import { realTools, type RealTools } from "@fresnel/core-tools/testing";
 import { openTestStore, TEST_HOLDER_A, type TestStore } from "@fresnel/platform-store/testing";
-import type { WorkPlansDeps } from "../../src/deps.ts";
-import { startPlanModeListener, type PlanModeListener } from "../../src/plans/listener.ts";
-import { createPlans, type PlansRuntime } from "../../src/plans/service.ts";
-import { createFakeArtifacts, type FakeArtifacts } from "../../src/testing/index.ts";
+import type { WorkTasksDeps } from "../../src/deps.ts";
+import { createPlans } from "../../src/plans/service.ts";
 import { createGoals, type GoalsRuntime } from "../../src/goals/service.ts";
 import { createTasksApi } from "../../src/tasks/service.ts";
 import { createWorkProjector } from "../../src/projection/projector.ts";
 import { DEFAULT_WORK_SETTINGS, type WorkSettings } from "../../src/settings.ts";
-import { flushMicrotasks } from "@fresnel/ext-host/testing";
 import { fixedIdFactory, manualClock, type ManualClock } from "./clock.ts";
-import {
-  approvalsDriver,
-  modeDriver,
-  withRequestFaults,
-  type ApprovalsDriver,
-  type ModeDriver,
-  type RequestFaults,
-} from "./l1.ts";
 
 interface LogLine {
   readonly level: "debug" | "info" | "warn" | "error";
@@ -57,12 +44,6 @@ export interface Base extends AsyncDisposable {
   readonly store: TestStore;
   /** 실제 core-persistence 세션 서비스. 투영기 등록부와 세션 범위 설정도 실제 구현이다 */
   readonly session: SessionService;
-  /** 실제 core-tools(ToolService, ApprovalService)를 이 세션 위에 세운 것 */
-  readonly l1: RealTools;
-  /** L1.tools 파일 범위 설정 층(managed, user …)을 바꾼다. 호출마다 읽으므로 다음 호출부터 적용된다 */
-  setLayers(layers: ScopeStack): void;
-  /** 승인 요청 커밋 장애 주입 상태 */
-  readonly faults: RequestFaults;
   readonly threadId: ThreadId;
   readonly logs: LogLine[];
   /** 쓰기 호출 옵션. requestId를 생략하면 호출마다 새 값을 만든다 */
@@ -77,29 +58,24 @@ export interface Base extends AsyncDisposable {
   workDigests(): Promise<Readonly<Record<string, string>>>;
 }
 
-/** 작업 서비스를 붙인 조립 */
+/** 작업·목표·계획 읽기 서비스를 붙인 조립 */
 export interface Harness extends Base {
   readonly api: CapabilityApi<typeof WorkTasks>;
   /** 설정을 바꾼다. 호출마다 읽으므로 다음 호출부터 적용된다 */
   setSettings(next: WorkSettings): void;
+  /** 옛 계획 기록을 읽는 work.plans(versions만 있다) */
   readonly plans: CapabilityApi<typeof WorkPlans>;
+  /** `cap.work` 생산자 핸들. 생산자는 한 번만 받으므로 시험은 이 핸들로 옛 계획 기록을 직접 남긴다 */
+  readonly workProducer: ProducerHandle;
+  /** `core.tools` 생산자 핸들(승인 요청과 해결 기록). 옛 계획 승인 기록을 시험이 직접 남길 때만 쓴다 */
+  readonly toolsProducer: ProducerHandle;
   readonly goals: CapabilityApi<typeof WorkGoals>;
   readonly reports: CapabilityApi<typeof WorkReports>;
   readonly goalsRuntime: GoalsRuntime;
   /** `l1.agents.judge.maxRuns`의 유효 값을 바꾼다. 호출마다 읽으므로 다음 호출부터 적용된다 */
   setMaxRuns(next: number): void;
-  readonly runtime: PlansRuntime;
-  readonly mode: ModeDriver;
-  readonly approvals: ApprovalsDriver;
-  /** artifacts: false로 열면 없다 */
-  readonly artifacts: FakeArtifacts | undefined;
-  readonly listener: PlanModeListener | undefined;
   /** 투영 테이블을 지우고 이벤트에서 다시 만든다 */
   rebuild(): Promise<void>;
-  /** 프로세스 재시작을 흉내 낸다: 같은 저장소와 L1 대역 위에 새 계획 런타임을 만든다(메모리 상태가 없다) */
-  restartPlans(overrides?: Partial<WorkPlansDeps>): PlansRuntime;
-  /** 마이크로태스크와 구독 처리가 끝나기를 기다린다 */
-  settle(): Promise<void>;
 }
 
 export interface BaseOptions {
@@ -113,8 +89,6 @@ export interface BaseOptions {
 
 export interface HarnessOptions extends BaseOptions {
   readonly settings?: WorkSettings;
-  /** false면 산출물 포트 없이 연다 */
-  readonly artifacts?: boolean;
   /** `l1.agents.judge.maxRuns`. 생략하면 3 */
   readonly maxRuns?: number;
 }
@@ -144,14 +118,6 @@ export async function openBase(options: BaseOptions = {}): Promise<Base> {
     throw new Bug("harness could not create the session service", { cause: created.error });
   const session = created.value;
   const loop = session.producer("core.loop");
-  let fileLayers: ScopeStack = [];
-  const faults: RequestFaults = { remaining: 0 };
-  const l1 = await realTools({
-    session: withRequestFaults(session, faults),
-    clock,
-    ids,
-    layers: () => fileLayers,
-  });
   let counter = 0;
   const adopt = (threadId: ThreadId): ThreadId => {
     const token = store.leases.acquire(`thread:${threadId}`, TEST_HOLDER_A);
@@ -172,11 +138,6 @@ export async function openBase(options: BaseOptions = {}): Promise<Base> {
     ids,
     store,
     session,
-    l1,
-    setLayers(layers) {
-      fileLayers = layers;
-    },
-    faults,
     threadId,
     logs,
     opts(requestId, thread = threadId) {
@@ -242,7 +203,7 @@ export async function openBase(options: BaseOptions = {}): Promise<Base> {
   };
 }
 
-/** 작업·계획 서비스를 직접 조립한다(플러그인을 거치지 않는다) */
+/** 작업·목표·계획 읽기 서비스를 직접 조립한다(플러그인을 거치지 않는다) */
 export async function openHarness(options: HarnessOptions = {}): Promise<Harness> {
   const base = await openBase(options);
   const projector = createWorkProjector();
@@ -253,53 +214,33 @@ export async function openHarness(options: HarnessOptions = {}): Promise<Harness
     });
   const settings = { current: options.settings ?? DEFAULT_WORK_SETTINGS };
   const logger = recordingLogger(base.logs);
-  // 권한 모드와 승인은 실제 L1.tools 서비스를 같은 세션 위에서 쓴다. cap-work는 plugin이 기본으로 만드는 어댑터를 그대로 쓴다
-  const mode = modeDriver(base.l1.tools);
-  const approvals = approvalsDriver({
-    session: base.session,
-    approvals: base.l1.approvals,
-    faults: base.faults,
-  });
-  const artifacts = options.artifacts === false ? undefined : createFakeArtifacts();
-  const deps: WorkPlansDeps = {
+  const workProducer = base.session.producer("cap.work");
+  const toolsProducer = base.session.producer("core.tools");
+  const deps: WorkTasksDeps = {
     session: base.session,
     reader: base.store.service.scoped("cap.work"),
-    producer: base.session.producer("cap.work"),
+    producer: workProducer,
     ids: base.ids,
     logger,
     settings: () => settings.current,
-    mode,
-    approvals: approvals.factory,
-    artifacts,
   };
   const api = createTasksApi(deps);
   const maxRuns = { current: options.maxRuns ?? 3 };
   const goals = createGoals({ ...deps, clock: base.clock, maxRuns: () => maxRuns.current });
-  const runtime = createPlans(deps);
-  const listener = startPlanModeListener(base.session, runtime, logger);
-  const settle = async (): Promise<void> => {
-    await flushMicrotasks();
-    await listener?.settled();
-    await flushMicrotasks();
-  };
   return Object.assign(base, {
     api,
-    plans: runtime.api,
+    plans: createPlans({ reader: deps.reader }),
+    workProducer,
+    toolsProducer,
     goals: goals.goalsApi,
     reports: goals.reportsApi,
     goalsRuntime: goals,
     setMaxRuns(next: number): void {
       maxRuns.current = next;
     },
-    runtime,
-    mode,
-    approvals,
-    artifacts,
-    listener,
     setSettings(next: WorkSettings): void {
       settings.current = next;
     },
-    restartPlans: (overrides = {}) => createPlans({ ...deps, ...overrides }),
     async rebuild(): Promise<void> {
       // 등록을 풀고 투영 테이블을 지운 뒤 다시 등록한다: 등록부가 이벤트 전체에서 이 투영기를 다시 만든다
       if (registration.ok) registration.value.dispose();
@@ -314,6 +255,5 @@ export async function openHarness(options: HarnessOptions = {}): Promise<Harness
         throw new Bug("harness could not register cap.work again", { cause: registration.error });
       await Promise.resolve();
     },
-    settle,
   });
 }

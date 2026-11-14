@@ -154,6 +154,8 @@ export interface SandboxPolicy {
   network: SandboxNetworkPolicy;
   /** 참이면 이 호출을 샌드박스 밖에서 실행한다. L1 tools가 사람 승인을 받은 호출에만 참으로 둔다 */
   allowEscape: boolean;
+  /** `"read-only"`면 읽기 전용 프로필이다(4.2절 읽기 전용 프로필). 생략하면 보통 프로필이다 [결정: 2026-11-13 사용자] */
+  profile?: "read-only";
 }
 export const SandboxPolicySchema: Schema<SandboxPolicy>;
 
@@ -392,6 +394,15 @@ export function selectSandboxProvider(input: {
 판정 가능 범위 요약: 네트워크 차단 목록 거부는 프록시가 응답 전에 기록하므로 두 OS에서 판정한다. 쓰기와 읽기 거부는 macOS 로그 스트림에서 오므로 macOS에서만 판정하고, 그 줄은 명령이 끝난 뒤에 나타날 수 있다. 2026-11-08 맥의 srt 0.0.79 측정에서 쓰기 거부 줄은 명령 종료 뒤 20~110ms에 보인 경우가 대부분이었고, 3초 안에 보이지 않은 경우도 한 번 있었다. 읽기 거부(보호 파일 `.env` 내용 읽기)는 같은 명령 결과에 판정되었다.
 
 `cleanup(context)`는 아래 `shell.cleanup`을 부른다. srt `reset()`은 서비스 dispose 때 한 번 부른다.
+
+#### 읽기 전용 프로필 [결정: 2026-11-13 사용자]
+
+`policy.profile`이 `"read-only"`면 서브에이전트 `explore`의 bash용이다(`SandboxService.defaultPolicy({ …, profile: "read-only" })`가 이 정책을 만든다). `wrapShell`은 아래와 같이 바꿔 실행한다.
+
+- **쓰기 루트 없음**: 정책의 `writeRoots`와 설정 `writeRoots.extra`를 쓰지 않는다. 쓰기를 허용하는 곳은 호출마다 만드는 빈 임시 폴더 하나(`<os.dirs.tmp>/ro-<commandId>`, 권한 0700)뿐이고 `TMPDIR`를 그 폴더로 돌린다. 근거: macOS의 bash 3.2 here-doc·here-string과 `sort` 같은 명령은 임시 파일을 쓴다. 이 폴더는 호출이 끝나면(성공·실패·중단 모두) 지운다. srt가 정책과 상관없이 허용하는 `/tmp/claude`, `~/.npm/_logs`, `~/.claude/debug`는 쓰기 거부 목록에 더한다. 보호 경로 읽기·쓰기 금지는 그대로다.
+- **네트워크 차단**: srt의 네트워크 설정은 프로세스 전역이라 호출별로 끌 수 없다. 대신 명령 앞에서 이름에 `proxy`가 든 환경 변수(srt가 넣은 프록시 주소와 인증 토큰 포함)와 `GIT_SSH_COMMAND`, `GIT_CONFIG_PARAMETERS`, `JAVA_TOOL_OPTIONS`, `SRT_ENCODED_CMD`를 지운다. 샌드박스는 프록시 포트 밖 직접 연결을 막고(Seatbelt, Linux는 네트워크 네임스페이스) 프록시는 인증 토큰이 없는 요청을 거부하므로 이 호출은 어디에도 연결하지 못한다. 한계: 같은 사용자의 다른 프로세스 환경을 읽어 토큰을 얻는 우회는 이 프로필이 막지 못한다.
+- **우회 없음**: 샌드박스를 쓸 수 없으면(사용자가 껐거나 플랫폼 미지원, `onUnavailable`이 `run_unsandboxed`여도) 실행하지 않고 `err(ExecutionError("sandbox_unavailable", "read-only sandbox is not available, so the command was not run …"))`로 거부한다. `allowEscape`는 무시한다. 호출자는 쓰기 허용 승인 흐름(L2.workspace.spec §4.3.1)을 타지 않는다.
+- 확인: `sandbox.read-only.int.test.ts`(실제 srt). 맥 Seatbelt에서 `ls`, `find`, `rg`, `git log`, `git status`, `cat`은 성공하고 `touch`, `>` 리다이렉트, 공용 임시 폴더 쓰기, `curl`은 실패한다(대조로 보통 프로필의 `curl`은 프록시 응답을 받는다). 상태 폴더 `spill/tmp-*/pi-output-*.log`는 읽힌다.
 
 ### 4.3 자동 허용 판정 [제안]
 

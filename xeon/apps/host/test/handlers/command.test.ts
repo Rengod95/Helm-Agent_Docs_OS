@@ -28,9 +28,9 @@ async function wireErrorOf(call: Promise<unknown>): Promise<WireError> {
 const LISTED: WireResult<"command.list"> = {
   commands: [
     {
-      name: "plan",
-      description: "plan mode",
-      argumentHint: "[exit]",
+      name: "tasks",
+      description: "task list",
+      argumentHint: "",
       args: [],
       kind: "action",
       source: "capability",
@@ -53,10 +53,10 @@ test("command.list passes the filter on and returns the list as the service gave
     },
   });
   const connection = await open(host);
-  expect(await connection.request("command.list", { prefix: "pl", includeHidden: true })).toEqual(
+  expect(await connection.request("command.list", { prefix: "ta", includeHidden: true })).toEqual(
     LISTED,
   );
-  expect(asked).toEqual([{ prefix: "pl", includeHidden: true }]);
+  expect(asked).toEqual([{ prefix: "ta", includeHidden: true }]);
   await connection.close();
 });
 
@@ -115,7 +115,7 @@ test("command.run on an unknown thread is thread.notFound and runs nothing", asy
   });
   const connection = await open(host);
   const threadId = fixedIdFactory(88).next("thr");
-  const error = await wireErrorOf(connection.request("command.run", { threadId, text: "/plan" }));
+  const error = await wireErrorOf(connection.request("command.run", { threadId, text: "/tasks" }));
   expect(error.code).toBe(3001);
   expect(ran).toEqual([]);
   await connection.close();
@@ -125,9 +125,9 @@ test("command.run takes the write ownership like turn.start, then hands over the
   const calls: { readonly threadId: ThreadId; readonly params: unknown }[] = [];
   const done: WireResult<"command.run"> = {
     status: "done",
-    name: "plan",
-    message: "계획 모드를 시작했어요. 이전 승인 모드: 기본(실행마다 묻기)",
-    result: { mode: "plan" },
+    name: "tasks",
+    message: "작업 목록을 보여 줬어요.",
+    result: { count: 0 },
   };
   const host = createFakeHost({
     overrides: {
@@ -145,11 +145,11 @@ test("command.run takes the write ownership like turn.start, then hands over the
   expect(host.fake.held.has(threadId)).toBe(false);
   const result = await connection.request("command.run", {
     threadId,
-    text: "/plan",
+    text: "/tasks",
     confirmShell: true,
   });
   expect(result).toEqual(done);
-  expect(calls).toEqual([{ threadId, params: { text: "/plan", confirmShell: true } }]);
+  expect(calls).toEqual([{ threadId, params: { text: "/tasks", confirmShell: true } }]);
   expect(host.fake.held.has(threadId)).toBe(true);
   expect(host.hub.state(served.id)?.writeThreads.has(threadId)).toBe(true);
   await connection.close();
@@ -159,7 +159,7 @@ test("command.run on a thread another process owns is thread.locked", async () =
   const host = createFakeHost({ lockedBy: "service" });
   const threadId = host.fake.seedThread();
   const connection = await open(host);
-  const error = await wireErrorOf(connection.request("command.run", { threadId, text: "/plan" }));
+  const error = await wireErrorOf(connection.request("command.run", { threadId, text: "/tasks" }));
   expect(error.code).toBe(3002);
   await connection.close();
 });

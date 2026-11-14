@@ -154,10 +154,10 @@ test("ToolSpec.locks becomes LockDecl: read is shared and write is exclusive", (
     },
   );
   const read = entries.find((entry) => entry.name === "read");
-  const ls = entries.find((entry) => entry.name === "ls");
+  const grep = entries.find((entry) => entry.name === "grep");
   expect(read?.locks?.({ path: "x" })).toEqual([
     { path: "/w/a", mode: "shared" },
     { path: "/w/b", mode: "exclusive" },
   ]);
-  expect(ls?.locks).toBeUndefined();
+  expect(grep?.locks).toBeUndefined();
 });

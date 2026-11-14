@@ -85,7 +85,8 @@ test("the plugin provides fresnel.agents, registers the agent tool and the deny 
   ]);
   expect(service?.definition("explore")).toMatchObject({
     source: { kind: "builtin" },
-    tools: ["read", "ls", "grep", "find"],
+    tools: ["read", "grep", "bash"],
+    permissions: { sandbox: "read-only" },
   });
   expect(service?.definition("general")?.tools).toBeUndefined();
   const description = tools.directTool("agent")?.tool.description ?? "";

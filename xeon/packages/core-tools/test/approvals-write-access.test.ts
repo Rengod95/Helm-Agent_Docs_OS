@@ -125,8 +125,6 @@ test("another conversation is not covered, and the choice survives a restart (re
     ext: h.deps.ext,
     logger: undefined,
     callOf: () => undefined,
-    modeOf: () => "default",
-    setMode: (_thread, mode) => Promise.resolve({ ok: true, mode }),
   });
   expect(expectOk(await rest(fresh)(h.thread, WRITE_ACCESS_RULE_ID))).toBe(true);
   expect(expectOk(await rest(fresh)(other, WRITE_ACCESS_RULE_ID))).toBe(false);
@@ -150,8 +148,6 @@ test("a child conversation inherits the parent's choice", async () => {
     callOf: () => undefined,
     requesterOf: (threadId) =>
       threadId === child ? { surfaceThreadId: h.thread, caller: "main" } : undefined,
-    modeOf: () => "default",
-    setMode: (_thread, mode) => Promise.resolve({ ok: true, mode }),
   });
   expect(expectOk(await rest(service)(child, WRITE_ACCESS_RULE_ID))).toBe(true);
 });

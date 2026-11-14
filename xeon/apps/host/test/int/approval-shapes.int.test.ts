@@ -171,7 +171,7 @@ function expectOriginValues(
 }
 
 realTest(
-  "question tool, plan approval, MCP question, tool approval and secret approval are recorded as the same approval request record",
+  "question tool, MCP question, tool approval and secret approval are recorded as the same approval request record",
   async () => {
     const stub = createStubServer({
       era: "modern",
@@ -236,13 +236,6 @@ realTest(
         ],
         { decision: "answer", answer: { color: { selected: ["blue"] } } },
       );
-      const plan = await runScenario(
-        [
-          { name: "enter_plan_mode", args: {} },
-          { name: "submit_plan", args: { title: "Refactor", body: "1. read\n2. change" } },
-        ],
-        { decision: "allow", answer: { mode: "acceptEdits" } },
-      );
       const tool = await runScenario(
         [{ name: "bash", args: { command: "echo shapes" } }],
         {
@@ -270,16 +263,11 @@ realTest(
 
       const questionOutline = outline(question.asked);
       const mcpOutline = outline(mcp.asked);
-      const planOutline = outline(plan.asked);
       const toolOutline = outline(tool.asked);
       expect(questionOutline.bodyKind).toBe("question");
-      expect(planOutline.bodyKind).toBe("plan");
       expect(mcpOutline.bodyKind).toBe("question");
-      // 세 레코드는 봉투, payload, 출처, 기억 범위, 본문 바깥 모양이 같다
+      // 질문 레코드와 MCP 질문 레코드는 봉투, payload, 출처, 기억 범위, 본문 바깥 모양이 같다
       expect(mcpOutline).toEqual(questionOutline);
-      expect({ ...planOutline, bodyKind: "question", bodyKeys: questionOutline.bodyKeys }).toEqual(
-        questionOutline,
-      );
       expect(questionOutline.remember).toEqual(["once"]);
       // 질문 본문의 묶음 모양도 같다
       const questionBody = recordOf(recordOf(recordOf(question.asked.payload)["body"])["question"]);
@@ -306,7 +294,6 @@ realTest(
 
       // 출처의 값도 같은 규칙이다: 요청한 turn과 단계(이벤트 봉투와 같은 값), 모델이 낸 호출 id, 주 대화
       expectOriginValues(question.asked, { ...question, toolCallId: "call_1" });
-      expectOriginValues(plan.asked, { ...plan, toolCallId: "call_2" });
       expectOriginValues(mcp.asked, { ...mcp, toolCallId: "call_1" });
       expectOriginValues(tool.asked, { ...tool, toolCallId: "call_1" });
       expectOriginValues(secret.asked, { ...secret, toolCallId: "call_1" });

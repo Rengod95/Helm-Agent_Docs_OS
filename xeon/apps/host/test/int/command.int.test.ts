@@ -11,14 +11,14 @@ import { realEngineGate } from "../fixtures/real-engine.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
-// G1-01 (int): 실제 엔진에 등록된 슬래시 명령(cap-work의 /plan, /tasks)을 wire로 읽고 실행한다.
-// 사람이 쓰는 클라이언트가 /plan, /tasks를 부를 수 있어야 계획과 작업 목록 산출물을 만들 수 있다.
+// G1-01 (int): 실제 엔진에 등록된 슬래시 명령(cap-work의 /tasks)을 wire로 읽고 실행한다.
+// 사람이 쓰는 클라이언트가 /tasks를 부를 수 있어야 작업 목록을 볼 수 있다. 계획 명령(/plan)은 계획 모드와 함께 없앴다.
 
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
 
 realTest(
-  "command.list shows /plan and /tasks, and command.run executes them for a thread",
+  "command.list shows /tasks, and command.run executes it for a thread",
   async () => {
     const home = useEngineHome();
     const host = await startInProcessHost({ devChecks: true, defaultGroups: false });
@@ -26,8 +26,6 @@ realTest(
     await connection.request("host.hello", HELLO_PARAMS);
     try {
       const listed = await connection.request("command.list", {});
-      const plan = listed.commands.find((command) => command.name === "plan");
-      expect(plan).toMatchObject({ kind: "action", source: "capability", origin: "cap-work" });
       expect(listed.commands.find((command) => command.name === "tasks")).toMatchObject({
         kind: "action",
         origin: "cap-work",
@@ -45,21 +43,6 @@ realTest(
       expect(tasks.status === "done" ? tasks.message : null).toBe(
         emptyList?.type === "text" ? emptyList.text : "(no tasks)",
       );
-
-      const started = await connection.request("command.run", {
-        threadId: created.threadId,
-        text: "/plan",
-      });
-      expect(started).toMatchObject({ status: "done", name: "plan" });
-      expect(started.status === "done" ? started.message : "").toContain(
-        "계획 모드를 시작했어요. 이전 승인 모드: 모두 허용",
-      );
-
-      const usage = await connection.request("command.run", {
-        threadId: created.threadId,
-        text: "/plan nonsense",
-      });
-      expect(usage.status === "done" ? usage.message : "").toContain("사용법");
 
       // 명령이 아닌 줄과 모르는 명령은 클라이언트가 turn.start로 보낼 입력이다
       expect(

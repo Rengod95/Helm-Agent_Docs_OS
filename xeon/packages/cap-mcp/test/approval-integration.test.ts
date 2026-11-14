@@ -301,7 +301,7 @@ describe("input_required through the real approval service", () => {
 });
 
 describe("record shape (E5)", () => {
-  test("an MCP question, the question tool and a plan approval share one approval.requested record shape", async () => {
+  test("an MCP question and the question tool share one approval.requested record shape", async () => {
     const seen: StubCall[] = [];
     const world = worldOf(seen);
     await startWorld(world);
@@ -334,20 +334,14 @@ describe("record shape (E5)", () => {
       },
       requestId: "ask-shape",
     });
-    const planned = await port.request({
-      threadId,
-      kind: "plan",
-      subject: { plan: "# Plan", planRef: null, nextModes: ["default"] },
-      requestId: "plan-shape",
-    });
-    expect(asked.ok && planned.ok).toBe(true);
+    expect(asked.ok).toBe(true);
 
     const events = eventsOf(approvals, "approval.requested");
-    expect(events).toHaveLength(3);
+    expect(events).toHaveLength(2);
     const payloads = events.map((event) => parse(ApprovalRequestedPayloadSchema, event.payload));
     for (const payload of payloads) expect(payload.ok).toBe(true);
     const values = payloads.flatMap((payload) => (payload.ok ? [payload.value] : []));
-    expect(values.map((value) => value.body.kind)).toEqual(["question", "question", "plan"]);
+    expect(values.map((value) => value.body.kind)).toEqual(["question", "question"]);
 
     // 이벤트 봉투와 payload의 키, 출처, 기억 범위, 기록 대화가 모두 같다
     const shapeOf = (index: number) => {
@@ -364,12 +358,9 @@ describe("record shape (E5)", () => {
         surface: value?.surfaceThreadId,
       };
     };
-    const [mcp, tool, plan] = [shapeOf(0), shapeOf(1), shapeOf(2)];
+    const [mcp, tool] = [shapeOf(0), shapeOf(1)];
     expect(mcp).toEqual({ ...tool, bodyKeys: mcp.bodyKeys });
     expect(mcp.bodyKeys).toEqual(["kind", "question"]);
-    expect(plan.payloadKeys).toEqual(mcp.payloadKeys);
-    expect(plan.originKeys).toEqual(mcp.originKeys);
-    expect(plan.remember).toEqual(mcp.remember);
 
     // 질문 항목: 필수 키는 질문 도구와 같고, MCP가 올리는 항목에는 질문 도구 전용 키(header, recommended)가 없다
     const body = (index: number) => {

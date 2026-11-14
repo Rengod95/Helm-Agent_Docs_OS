@@ -395,3 +395,47 @@ describe("home folder candidates", () => {
     expect(requests[0]).toMatchObject({ roots: [`${HOME}/existing.txt`], homeWide: false });
   });
 });
+
+describe("bash under the read-only sandbox profile", () => {
+  const readOnly: CallOptions = {
+    context: {
+      threadId: THREAD,
+      toolCallId: "call_ro",
+      caller: { kind: "model", agent: "subagent" },
+      interactive: true,
+      sandbox: "read-only",
+    },
+  };
+
+  test("runs with a read-only policy, never asks for write access and says so when a write is blocked", async () => {
+    const { env, shell, sandbox, requests } = shellSetup("allow");
+    env.reply(blockedRun([`${HOME}/.npm/_logs/1.log`], 1), blockedRun([], 0));
+    const out = await shell.run({ command: "touch x" }, readOnly);
+    expect(out.exitCode).toBe(1);
+    expect(out.output).toBe("denied\n\n[read-only sandbox: writes and network access are blocked]");
+    expect(requests).toHaveLength(0);
+    expect(env.calls.map((call) => call.command)).toEqual(["touch x"]);
+    expect(sandbox.policies.map((policy) => [policy.writeRoots, policy.profile])).toEqual([
+      [[], "read-only"],
+    ]);
+  });
+
+  test("a successful read keeps its output untouched", async () => {
+    const { env, shell } = shellSetup("allow");
+    env.reply({ chunks: [{ text: "a.txt\n" }], exitCode: 0 });
+    const out = await shell.run({ command: "ls" }, readOnly);
+    expect([out.exitCode, out.output]).toEqual([0, "a.txt\n"]);
+  });
+
+  test("is not run when the sandbox cannot be used", async () => {
+    const env = memoryEnv({ cwd: "/work" });
+    env.mkdir("/work");
+    const sandbox = fakeSandbox();
+    sandbox.deny = true;
+    const shell = createShellApi(depsFor(env, { sandbox }));
+    const failed = await rejection(shell.run({ command: "ls" }, readOnly));
+    expect(failed.data.code).toBe("denied");
+    expect(failed.data.detail).toEqual({ by: "sandbox", reason: "sandbox_unavailable" });
+    expect(env.calls).toHaveLength(0);
+  });
+});

@@ -70,6 +70,7 @@ function maskBody(body: Body, leaves: readonly LeafMask[]): Body | null {
         },
       };
     }
+    // 더는 쓰지 않음 [결정: 2026-11-13 사용자]. 옛 계획 승인 기록을 가리기 위해 남긴다(읽기 전용)
     case "plan": {
       const plan = body.plan;
       return {

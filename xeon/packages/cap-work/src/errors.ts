@@ -3,7 +3,6 @@ import { CapabilityError, type CapabilityId } from "@fresnel/contracts/capabilit
 import type { JsonValue } from "@fresnel/contracts/conversation";
 import type { StoreError } from "@fresnel/contracts/records";
 import type { GoalFailure } from "./goals/failure.ts";
-import type { PlanFailure } from "./plans/failure.ts";
 import type { OpFailure } from "./tasks/failure.ts";
 
 // 서비스 메서드는 CapabilityError로만 거부한다(F.capabilities.spec §3.6). 내부 규칙은 값(OpFailure, StoreError)으로
@@ -99,60 +98,13 @@ export function taskRejection(
   }
 }
 
-/** 계획 규칙 거부와 권한 모드·승인 포트 부재 */
-export function planRejection(
+/** 옛 계획 기록에 없는 계획 번호 */
+export function planNotFound(
   capability: CapabilityId,
   method: string,
-  failure: PlanFailure,
+  id: string,
 ): CapabilityError {
-  switch (failure.kind) {
-    case "invalid_input":
-      return make(capability, method, "invalid_input", failure.message, false);
-    case "not_found":
-      return make(capability, method, "not_found", `${failure.id} does not exist.`, false, {
-        id: failure.id,
-      });
-    case "plan_pending":
-      return make(
-        capability,
-        method,
-        "plan_pending",
-        "An earlier version of this plan is still waiting for approval.",
-        false,
-      );
-    case "plan_closed":
-      return make(
-        capability,
-        method,
-        "plan_closed",
-        `This plan version is already ${failure.status}.`,
-        false,
-        { status: failure.status },
-      );
-    case "plan_not_approved":
-      return make(
-        capability,
-        method,
-        "plan_not_approved",
-        "Plan mode can only be left after the plan is approved. Submit it with submit_plan.",
-        false,
-      );
-    case "plan_mode_inactive":
-      return make(capability, method, "plan_mode_inactive", "Plan mode is not active.", false);
-    case "unavailable":
-      return make(capability, method, "unavailable", failure.message, false);
-    case "mode_forbidden":
-      return make(
-        capability,
-        method,
-        "denied",
-        `The permission mode ${failure.mode} cannot be set here.`,
-        false,
-        { mode: failure.mode },
-      );
-    default:
-      return assertNever(failure, "planRejection");
-  }
+  return make(capability, method, "not_found", `${id} does not exist.`, false, { id });
 }
 
 /** 목표 규칙 거부(spec §3.4 GoalErrors) */

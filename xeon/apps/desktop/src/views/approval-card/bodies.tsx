@@ -11,7 +11,6 @@ import {
   ListDescription,
   ListDescriptionRow,
   MessageCode,
-  Textarea,
 } from "@caustic/react";
 import { useId, useState, type ReactNode } from "react";
 import {
@@ -37,24 +36,11 @@ import {
   type ToolApprovalView,
   type ToolReplaceView,
 } from "../approval-form.ts";
-import {
-  FEEDBACK_MAX,
-  PLAN_FOLD_LINES,
-  foldPlanLines,
-  modeLabelIdOf,
-  reviewTotalsOf,
-  ruleTextIdOf,
-} from "./card-model.ts";
+import { PLAN_FOLD_LINES, foldPlanLines, reviewTotalsOf, ruleTextIdOf } from "./card-model.ts";
 import { FileChangeDiff } from "../file-change-view.tsx";
 import { Collapse } from "../../lib/motion-presets.tsx";
 import { ChevronRight } from "@caustic/react/icons";
 import { InfoTip } from "../craft/info-tip.tsx";
-
-/** 승인 뒤 모드의 화면 글. 모르는 모드는 원시값이다 */
-function modeLabelOf(mode: string): string {
-  const id = modeLabelIdOf(mode);
-  return id === null ? mode : t(id);
-}
 
 // 승인 카드 본문(종류별). 상태와 단추는 approval-card.tsx가 맡는다. 본문은 값만 받고 응답을 보내지 않는다.
 
@@ -459,50 +445,17 @@ export function QuestionBody(props: {
   );
 }
 
-export function PlanBody(props: {
-  readonly plan: PlanView;
-  readonly mode: string;
-  readonly onMode: (mode: string) => void;
-  readonly feedback: string;
-  readonly onFeedback: (text: string) => void;
-  readonly disabled: boolean;
-}): ReactNode {
+/** 옛 계획 승인 본문. 새 계획은 없어 모드 고르기와 수정 피드백은 없다. 거부만 보낼 수 있다(core-tools) */
+export function PlanBody(props: { readonly plan: PlanView }): ReactNode {
   const { plan } = props;
   const text = typeof plan.plan === "string" ? plan.plan : null;
   const fold = text === null ? null : foldPlanLines(text, PLAN_FOLD_LINES);
-  return (
+  return fold === null ? (
+    <div className="text-ui text-text-secondary">{t("desktop.approvals.plan.storageNote")}</div>
+  ) : (
     <>
-      {fold === null ? (
-        <div className="text-ui text-text-secondary">{t("desktop.approvals.plan.storageNote")}</div>
-      ) : (
-        <>
-          <MessageCode className={BLOCK_CODE}>{fold.head}</MessageCode>
-          {fold.rest === null ? null : <PlanRest rest={fold.rest} />}
-        </>
-      )}
-      {plan.nextModes.length === 0 ? null : (
-        <ChoiceGroup
-          appearance="answer"
-          question={t("desktop.approvals.plan.mode")}
-          value={props.mode}
-          disabled={props.disabled}
-          onValueChange={(value) => {
-            if (typeof value === "string") props.onMode(value);
-          }}
-        >
-          {plan.nextModes.map((mode) => (
-            <ChoiceGroupItem key={mode} value={mode} title={modeLabelOf(mode)} />
-          ))}
-        </ChoiceGroup>
-      )}
-      <Textarea
-        aria-label={t("desktop.approvals.plan.feedback")}
-        rows={2}
-        maxLength={FEEDBACK_MAX}
-        value={props.feedback}
-        disabled={props.disabled}
-        onValueChange={props.onFeedback}
-      />
+      <MessageCode className={BLOCK_CODE}>{fold.head}</MessageCode>
+      {fold.rest === null ? null : <PlanRest rest={fold.rest} />}
     </>
   );
 }

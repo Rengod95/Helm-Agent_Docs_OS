@@ -1215,7 +1215,7 @@ export function guardWrite(g: GroupApi<HelmState>, marker: ExplorationMarker): H
 | `hints.readOnly === true`인데 `risk`가 `write`·`exec` | `risk`를 따른다. `hints`는 작성자 힌트이고 MCP annotation도 `hints`로 들어오므로 등급을 낮추지 않는다(L1.tools.spec 등급 유도 규칙) |
 
 - 대상 대화(`caller`) [제안]: `main`과 `subagent:explorer`를 거부 대상으로 본다. 그 밖의 서브에이전트(다른 그룹의 위임, 학습 검토 포크)는 Helm 탐구와 관계가 없으므로 거부하지 않는다. `caller`가 없으면 `main`으로 본다. 핸들러는 그 밖에 `ctx.threadId`가 Helm 상태를 가진 대화이거나 그 자식인지에 기대지 않는다. 자식 대화에서 그룹 핸들러가 발화하는 범위는 L1.agents가 정한다(REQ-L1-04). 자식 대화에서 발화하지 않으면 explorer의 쓰기 차단은 아래 정의 상한 하나가 맡는다.
-- explorer 도구 상한 [제안]: explorer 정의의 도구 목록은 `risk: read` 도구(`read`, `ls`, `grep`, `find`, `web_search`, `web_fetch`, 지식 검색 도구)만 둔다. 이 상한은 L1.agents 권한 상한(§4.3)으로 집행되고 Helm 핸들러 발화와 상관없이 적용된다.
+- explorer 도구 상한 [제안]: explorer 정의의 도구 목록은 `risk: read` 도구(`read`, `grep`, `web_search`, `web_fetch`, 지식 검색 도구)와 읽기 전용 샌드박스 bash(`bash`, `permissions.sandbox: read-only`, 샌드박스 밖에서는 exec라 묻는다 [결정: 2026-11-13 사용자])만 둔다. 이 상한은 L1.agents 권한 상한(§4.3)으로 집행되고 Helm 핸들러 발화와 상관없이 적용된다.
 - 처리 순서 [가정] (H-IN-16, REQ-X-11): `tool.call.before` 훅 디스패치는 인자 검증 뒤, 정책 판정·승인 요청 앞에서 실행된다. 그래서 Helm이 거부한 호출은 사용자 승인 창을 띄우지 않는다. 샌드박스는 실행 경로(L0)에서 따로 걸리므로 Helm 거부와 겹치지 않는다. 순서가 다르게 정해지면 이 절의 "승인 창을 띄우지 않는다" 문장만 고친다.
 - 핸들러 예외는 `FIRST_DENY["tool.call.before"]`로 바뀌어 호출이 거부된다(F.extensions.spec §4.1 first fail-closed). 이 거부는 Helm 단계와 상관없이 일어나므로 핸들러는 상태 읽기와 순수 판정만 하고 I/O를 하지 않는다.
 - 강제력: 이 거부는 모델의 응답 내용과 상관없이 도구 실행 전에 적용된다. 모델이 쓰기 금지 고지(§4.4)를 무시하고 쓰기 도구를 불러도 도구는 실행되지 않는다.

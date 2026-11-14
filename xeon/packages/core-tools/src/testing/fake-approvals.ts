@@ -39,8 +39,6 @@ export async function fakeApprovals(options: FakeApprovalsOptions = {}): Promise
     ext: host.host,
     logger: undefined,
     callOf: () => undefined,
-    modeOf: () => "default",
-    setMode: (_threadId, mode) => Promise.resolve({ ok: true, mode }),
     ...(options.resolvedKept === undefined ? {} : { resolvedKept: options.resolvedKept }),
   });
   return {

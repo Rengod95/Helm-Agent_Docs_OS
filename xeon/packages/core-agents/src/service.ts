@@ -609,6 +609,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
       requestDeny: request.tools?.deny,
       denyHint: request.tools?.denyHint,
       parentCeiling: meta.get(origin.parentThreadId)?.ceiling,
+      definitionSandbox: definition.permissions?.sandbox,
     });
     const known = meta.get(childThreadId);
     if (known !== undefined) meta.set(childThreadId, { ...known, ceiling });

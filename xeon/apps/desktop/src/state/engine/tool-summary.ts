@@ -1,5 +1,5 @@
 // 도구 호출 인자의 화면용 요약과 연속 호출 묶음 세기. 순수 함수이고 던지지 않는다. 모양이 맞지 않으면 generic이다.
-// 도구 이름과 인자 모양의 출처: packages/contracts/src/capabilities/defs/workspace.ts(read, write, edit, ls, grep, find, bash),
+// 도구 이름과 인자 모양의 출처: packages/contracts/src/capabilities/defs/workspace.ts(read, write, edit, grep, bash),
 // work.ts(task_write), knowledge.ts(memory_manage, knowledge_search, skill_*, session_*), web.ts(web_*), mcp.ts(mcp_*),
 // packages/core-agents/src/tool.ts(agent). 인자는 모델이 보낸 값이라 모양만 본다.
 // MCP 도구의 기계 이름은 `mcp__서버__도구`가 아니라 서버가 광고한 이름 그대로다(cap-mcp/src/client/dynamic-tools.ts `mcpToolName`).
@@ -37,7 +37,7 @@ interface EditSummary {
   readonly path: string;
 }
 
-/** ls. 경로가 없으면 작업 폴더다 */
+/** ls 도구는 없어졌다. 이 요약은 지금 만들지 않는다(옛 ls 호출은 generic으로 그린다) */
 interface ListSummary {
   readonly kind: "list";
   readonly path: string | null;
@@ -45,11 +45,11 @@ interface ListSummary {
 
 interface SearchSummary {
   readonly kind: "search";
-  /** content: grep(파일 내용 정규식), files: find(파일 이름 glob), knowledge: knowledge_search(지식·세션 검색) */
+  /** content: grep(파일 내용 정규식), files: find 도구는 없어졌다(지금은 만들지 않는다), knowledge: knowledge_search(지식·세션 검색) */
   readonly target: "content" | "files" | "knowledge";
   readonly pattern: string;
   readonly path: string | null;
-  /** grep의 파일 필터 glob. find와 knowledge에는 없다 */
+  /** grep의 파일 필터 glob. knowledge에는 없다 */
   readonly glob: string | null;
 }
 
@@ -156,7 +156,7 @@ export type ToolCategory =
   | "other";
 
 /**
- * 도구 이름 → 범주. ls, grep, find, knowledge_search는 찾기라 search다. skill_view와 session_*은 읽기라 read다.
+ * 도구 이름 → 범주. grep, knowledge_search는 찾기라 search다. skill_view와 session_*은 읽기라 read다.
  * skill_manage와 memory_manage는 지식 저장소를 바꾸므로 memory다. 표에 없는 이름은 other다.
  */
 const CATEGORY_OF_TOOL: Readonly<Record<string, ToolCategory>> = {
@@ -164,9 +164,7 @@ const CATEGORY_OF_TOOL: Readonly<Record<string, ToolCategory>> = {
   skill_view: "read",
   session_read: "read",
   session_scroll: "read",
-  ls: "search",
   grep: "search",
-  find: "search",
   knowledge_search: "search",
   bash: "command",
   edit: "edit",
@@ -271,9 +269,7 @@ const SUMMARIZERS: Readonly<Record<string, Summarizer>> = {
   skill_view: skillViewOf,
   write: writeOf,
   edit: editOf,
-  ls: listOf,
   grep: grepOf,
-  find: findOf,
   knowledge_search: knowledgeSearchOf,
   task_write: tasksOf,
   memory_manage: memoryOf,
@@ -328,24 +324,12 @@ function editOf(args: Record<string, unknown>): ToolArgsSummary | null {
   return isString(path) ? { kind: "edit", path } : null;
 }
 
-function listOf(args: Record<string, unknown>): ToolArgsSummary | null {
-  const path = optionalOf(args["path"], isString);
-  return path.ok ? { kind: "list", path: path.value } : null;
-}
-
 function grepOf(args: Record<string, unknown>): ToolArgsSummary | null {
   const pattern = args["pattern"];
   const path = optionalOf(args["path"], isString);
   const glob = optionalOf(args["glob"], isString);
   if (!isString(pattern) || !path.ok || !glob.ok) return null;
   return { kind: "search", target: "content", pattern, path: path.value, glob: glob.value };
-}
-
-function findOf(args: Record<string, unknown>): ToolArgsSummary | null {
-  const pattern = args["pattern"];
-  const path = optionalOf(args["path"], isString);
-  if (!isString(pattern) || !path.ok) return null;
-  return { kind: "search", target: "files", pattern, path: path.value, glob: null };
 }
 
 function knowledgeSearchOf(args: Record<string, unknown>): ToolArgsSummary | null {

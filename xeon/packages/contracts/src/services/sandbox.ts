@@ -107,6 +107,9 @@ export interface SandboxNetworkPolicy {
   deniedDomains: string[];
 }
 
+/** 샌드박스 프로필. 생략은 보통 프로필이다. `"read-only"`는 쓰기 허용 루트 없음 + 네트워크 차단 + 쓰기 허용 승인 없음이다 */
+export type SandboxProfile = "read-only";
+
 export interface SandboxPolicy {
   /** 절대·정규 경로. 쓰기를 허용하는 디렉터리 */
   writeRoots: string[];
@@ -117,6 +120,8 @@ export interface SandboxPolicy {
   network: SandboxNetworkPolicy;
   /** 참이면 이 호출을 샌드박스 밖에서 실행한다. L1 tools가 사람 승인을 받은 호출에만 참으로 둔다 */
   allowEscape: boolean;
+  /** `"read-only"`면 `writeRoots`·`network` 값과 상관없이 읽기 전용 프로필로 감싼다. 샌드박스를 쓸 수 없으면 실행하지 않고 거부한다 */
+  profile?: SandboxProfile;
 }
 
 const sandboxPolicyShape = Type.Object(
@@ -136,6 +141,7 @@ const sandboxPolicyShape = Type.Object(
       { additionalProperties: false },
     ),
     allowEscape: Type.Boolean(),
+    profile: Type.Optional(Type.Literal("read-only")),
   },
   { additionalProperties: false },
 );
@@ -357,7 +363,12 @@ export type SandboxWrapError =
 export interface SandboxService {
   status(): SandboxStatus;
   /** 작업 공간 root와 임시 디렉터리로 기본 정책을 만든다. 보호 경로와 설정 추가분이 들어간다 */
-  defaultPolicy(input: { workspaceRoots: readonly string[]; tempDir: string }): SandboxPolicy;
+  defaultPolicy(input: {
+    workspaceRoots: readonly string[];
+    tempDir: string;
+    /** `"read-only"`면 쓰기 루트 없이 읽기 전용 프로필 정책을 만든다(`workspaceRoots`·`tempDir`는 무시) */
+    profile?: SandboxProfile;
+  }): SandboxPolicy;
   /**
    * 보호 경로 전체(기본 + 설정 추가분). L2 파일 도구용. `roots`는 호출한 쪽이 지금 허용하는 작업 공간 root(정규 경로)다.
    * root별 git 항목(`.git/hooks`, `.git/config` 등)이 이 호출의 결과에 들어가므로, bash를 한 번도 돌리지 않은 파일 도구도

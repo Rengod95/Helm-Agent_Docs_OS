@@ -4,7 +4,6 @@ import type { TSchema, Static } from "typebox";
 import {
   ApprovalRequestedPayloadSchema,
   ApprovalResolvedPayloadSchema,
-  SettingsChangedPayloadSchema,
   WorkGoalJudgedSchema,
   WorkGoalSetSchema,
   WorkGoalSettledSchema,
@@ -20,7 +19,7 @@ import {
   type Projector,
 } from "@fresnel/contracts/records";
 import { outcomeOf } from "../plans/decision.ts";
-import { PERMISSION_MODE_KEY, PLAN_REF_PATTERN } from "../plans/refs.ts";
+import { PLAN_REF_PATTERN } from "../plans/refs.ts";
 import {
   WORK_PROJECTOR_DDL,
   WORK_PROJECTOR_NAME,
@@ -30,6 +29,7 @@ import {
 
 // L2.work.spec §3.8. 이벤트의 순수 함수다(EV-06): 시계, 난수, 파일을 쓰지 않고 소유 테이블만 갱신한다.
 // 이벤트 payload는 커밋 때 카탈로그 스키마로 검증됐으므로 모양이 다르면 코드 결함이다.
+// 계획 쪽 처리(work.plan_*, 승인 요청·해결)는 옛 기록을 읽기 위해서만 남는다 [결정: 2026-11-13 사용자].
 
 function ordOf(taskId: string): number {
   return Number(taskId.slice(1));
@@ -167,7 +167,6 @@ const WORK_PROJECTOR_KINDS: readonly EventKind[] = [
   "work.report_built",
   "approval.requested",
   "approval.resolved",
-  "settings.changed",
   "turn.completed",
 ];
 
@@ -234,35 +233,6 @@ function applyApprovalResolved(tx: ProjectionTx, event: DurableEventEnvelope): v
     `UPDATE cap_work_plans SET status = ?, feedback = ?, decided_seq = ?
      WHERE approval_id = ? AND status = 'submitted'`,
     [outcome.decision, outcome.feedback, event.seq, resolved.approvalId],
-  );
-}
-
-/**
- * 권한 모드 변경(세션 범위)을 따라가며 계획 모드에 들어가기 직전 모드와 들어온 시점을 기록한다(spec §4.2.5).
- * 세션 범위 값이 한 번도 없었으면 이전 모드는 기본값 default다
- */
-function applySettingsChanged(tx: ProjectionTx, event: DurableEventEnvelope): void {
-  const change = payloadOf(SettingsChangedPayloadSchema, event);
-  if (change.key !== PERMISSION_MODE_KEY || change.scope !== "launch") return;
-  if (typeof change.value !== "string") return;
-  const row = tx.get(`SELECT mode FROM cap_work_meta WHERE session_id = ?`, [event.threadId]);
-  const previous = typeof row?.["mode"] === "string" ? row["mode"] : "default";
-  if (change.value === "plan" && previous !== "plan") {
-    tx.run(
-      `INSERT INTO cap_work_meta (session_id, turns_completed, last_task_change_turn, mode, mode_before_plan, plan_entered_seq)
-       VALUES (?, 0, 0, 'plan', ?, ?)
-       ON CONFLICT(session_id) DO UPDATE SET mode = 'plan', mode_before_plan = excluded.mode_before_plan,
-         plan_entered_seq = excluded.plan_entered_seq`,
-      [event.threadId, previous, event.seq],
-    );
-    return;
-  }
-  tx.run(
-    `INSERT INTO cap_work_meta (session_id, turns_completed, last_task_change_turn, mode, plan_entered_seq)
-     VALUES (?, 0, 0, ?, NULL)
-     ON CONFLICT(session_id) DO UPDATE SET mode = excluded.mode,
-       plan_entered_seq = CASE WHEN excluded.mode = 'plan' THEN plan_entered_seq ELSE NULL END`,
-    [event.threadId, change.value],
   );
 }
 
@@ -357,7 +327,6 @@ const HANDLERS: ReadonlyMap<string, Handler> = new Map<string, Handler>([
   ["work.report_built", applyReportBuilt],
   ["approval.requested", applyApprovalRequested],
   ["approval.resolved", applyApprovalResolved],
-  ["settings.changed", applySettingsChanged],
   ["turn.completed", applyTurnCompleted],
 ]);
 

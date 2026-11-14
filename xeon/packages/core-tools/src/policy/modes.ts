@@ -10,8 +10,6 @@ export function modeDefault(mode: PermissionMode, risk: ToolRisk): ModeEffect {
       return risk === "read" ? "allow" : "ask";
     case "acceptEdits":
       return risk === "exec" ? "ask" : "allow";
-    case "plan":
-      return risk === "read" ? "allow" : "deny";
     case "bypass":
       return "allow";
     default:

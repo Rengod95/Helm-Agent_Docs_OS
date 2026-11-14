@@ -1,12 +1,4 @@
-import {
-  Type,
-  type Static,
-  type TLiteral,
-  type TObject,
-  type TString,
-  type TUnion,
-  type TUnsafe,
-} from "typebox";
+import { Type, type Static, type TLiteral, type TString, type TUnion, type TUnsafe } from "typebox";
 import type { Brand, SchemaProof, SchemaSound } from "../../base/index.ts";
 import {
   ApprovalIdSchema,
@@ -20,7 +12,7 @@ import { defineCapability } from "../capability.ts";
 import { serviceKey, type ServiceKey } from "../service-key.ts";
 import type { ToolContent, ToolSpec } from "../tool-spec.ts";
 
-// L2.work.spec §3. 정의 파일은 이 파일 하나다. 순수 함수(renderTaskList, renderPlanSubmit)는 모델에 가는 텍스트를 고정한다.
+// L2.work.spec §3. 정의 파일은 이 파일 하나다. 순수 함수(renderTaskList)는 모델에 가는 텍스트를 고정한다.
 
 // ── 공통: ID와 호출 문맥 (§3.1) ─────────────────────────────────────────
 
@@ -480,18 +472,20 @@ export const WorkTasks: CapabilityDef<
 export const WorkTasksKey: ServiceKey<CapabilityApi<typeof WorkTasks>> = serviceKey(WorkTasks);
 
 // ── work.plans (§3.3) ──────────────────────────────────────────────────
+// 계획 모드와 계획 승인은 없앴다 [결정: 2026-11-13 사용자]. 남는 것은 옛 계획 기록을 읽는 `versions`뿐이다.
+// 데스크톱이 옛 대화의 계획 카드를 그리는 데 쓰고, 기록 모양(PlanStatus, PlanDecision, PlanVersion)은 그대로 둔다.
 
 export const PlanStatusSchema: TUnion<
   [
-    // 승인 대기
+    // 옛 승인 대기
     TLiteral<"submitted">,
     TLiteral<"approved">,
     TLiteral<"rejected">,
-    // 사용자가 수정 요청
+    // 옛 수정 요청. 투영은 반려와 같은 기록으로 읽어 이 값을 만들지 않는다
     TLiteral<"revision_requested">,
-    // 새 버전이 제출됨
+    // 옛 새 판이 나옴
     TLiteral<"superseded">,
-    // 승인 없이 계획 모드를 나감
+    // 옛 승인 없이 철회됨
     TLiteral<"withdrawn">,
   ]
 > = Type.Union([
@@ -504,6 +498,7 @@ export const PlanStatusSchema: TUnion<
 ]);
 export type PlanStatus = Static<typeof PlanStatusSchema>;
 
+/** 옛 계획 결정(읽기 전용) */
 export const PlanDecisionSchema: TUnion<
   [TLiteral<"approved">, TLiteral<"rejected">, TLiteral<"revision_requested">]
 > = Type.Union([
@@ -548,129 +543,6 @@ export const PlanVersionSchema: TUnsafe<PlanVersion> = Type.Unsafe<PlanVersion>(
   planVersionShape satisfies SchemaProof<PlanVersion, typeof planVersionShape>,
 );
 
-export type PlanEnterModeInputValue = { reason?: string };
-const planEnterModeInputShape = Type.Object(
-  { reason: Type.Optional(Type.String({ maxLength: 500 })) },
-  { additionalProperties: false },
-);
-export const PlanEnterModeInput: TUnsafe<PlanEnterModeInputValue> =
-  Type.Unsafe<PlanEnterModeInputValue>(
-    planEnterModeInputShape satisfies SchemaProof<
-      PlanEnterModeInputValue,
-      typeof planEnterModeInputShape
-    >,
-  );
-
-export type PlanModeOutputValue = { mode: string; previousMode: string | null };
-const planModeOutputShape = Type.Object(
-  {
-    mode: Type.String({ minLength: 1, maxLength: 32 }),
-    previousMode: Type.Union([Type.String({ maxLength: 32 }), Type.Null()]),
-  },
-  { additionalProperties: false },
-);
-export const PlanModeOutput: TUnsafe<PlanModeOutputValue> = Type.Unsafe<PlanModeOutputValue>(
-  planModeOutputShape satisfies SchemaProof<PlanModeOutputValue, typeof planModeOutputShape>,
-);
-
-/** 입력이 없는 메서드와 도구가 쓴다 */
-export const PlanExitModeInput: TObject<{}> = Type.Object({}, { additionalProperties: false });
-
-export type PlanSubmitParamsValue = {
-  title: string;
-  body: string;
-  /** 기존 계획의 새 버전이면 그 planId */
-  planId?: PlanId;
-};
-const submitFields = {
-  title: PlanTitle,
-  body: PlanBody,
-  planId: Type.Optional(PlanIdSchema),
-};
-const planSubmitParamsShape = Type.Object(submitFields, { additionalProperties: false });
-export const PlanSubmitParams: TUnsafe<PlanSubmitParamsValue> = Type.Unsafe<PlanSubmitParamsValue>(
-  planSubmitParamsShape satisfies SchemaProof<PlanSubmitParamsValue, typeof planSubmitParamsShape>,
-);
-
-export type PlanSubmitInputValue = PlanSubmitParamsValue & {
-  /** 참이면 결정이 날 때까지 반환을 미룬다(메모리 대기). 도구 경로는 거짓(§4.2.4) */
-  wait?: boolean;
-};
-const planSubmitInputShape = Type.Object(
-  { ...submitFields, wait: Type.Optional(Type.Boolean()) },
-  { additionalProperties: false },
-);
-export const PlanSubmitInput: TUnsafe<PlanSubmitInputValue> = Type.Unsafe<PlanSubmitInputValue>(
-  planSubmitInputShape satisfies SchemaProof<PlanSubmitInputValue, typeof planSubmitInputShape>,
-);
-
-export type PlanSubmitResult =
-  | { status: "input_required"; planId: PlanId; version: number; approvalId: ApprovalId }
-  | {
-      status: "decided";
-      planId: PlanId;
-      version: number;
-      approvalId: ApprovalId;
-      decision: PlanDecision;
-      feedback: string | null;
-    };
-const planSubmitOutputShape = Type.Union([
-  Type.Object(
-    {
-      status: Type.Literal("input_required"),
-      planId: PlanIdSchema,
-      version: Type.Integer({ minimum: 1 }),
-      approvalId: ApprovalIdSchema,
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    {
-      status: Type.Literal("decided"),
-      planId: PlanIdSchema,
-      version: Type.Integer({ minimum: 1 }),
-      approvalId: ApprovalIdSchema,
-      decision: PlanDecisionSchema,
-      feedback: Type.Union([Type.String(), Type.Null()]),
-    },
-    { additionalProperties: false },
-  ),
-]);
-export const PlanSubmitOutput: TUnsafe<PlanSubmitResult> = Type.Unsafe<PlanSubmitResult>(
-  planSubmitOutputShape satisfies SchemaSound<PlanSubmitResult, typeof planSubmitOutputShape>,
-);
-
-const planTargetFields = {
-  planId: PlanIdSchema,
-  version: Type.Optional(Type.Integer({ minimum: 1 })),
-};
-export type PlanApproveInputValue = { planId: PlanId; version?: number; note?: string };
-const planApproveInputShape = Type.Object(
-  { ...planTargetFields, note: Type.Optional(Type.String({ maxLength: 2000 })) },
-  { additionalProperties: false },
-);
-export const PlanApproveInput: TUnsafe<PlanApproveInputValue> = Type.Unsafe<PlanApproveInputValue>(
-  planApproveInputShape satisfies SchemaProof<PlanApproveInputValue, typeof planApproveInputShape>,
-);
-
-export type PlanRejectInputValue = { planId: PlanId; version?: number; reason?: string };
-const planRejectInputShape = Type.Object(
-  { ...planTargetFields, reason: Type.Optional(Type.String({ maxLength: 8192 })) },
-  { additionalProperties: false },
-);
-export const PlanRejectInput: TUnsafe<PlanRejectInputValue> = Type.Unsafe<PlanRejectInputValue>(
-  planRejectInputShape satisfies SchemaProof<PlanRejectInputValue, typeof planRejectInputShape>,
-);
-
-export type PlanReviseInputValue = { planId: PlanId; version?: number; feedback: string };
-const planReviseInputShape = Type.Object(
-  { ...planTargetFields, feedback: Type.String({ minLength: 1, maxLength: 8192 }) },
-  { additionalProperties: false },
-);
-export const PlanReviseInput: TUnsafe<PlanReviseInputValue> = Type.Unsafe<PlanReviseInputValue>(
-  planReviseInputShape satisfies SchemaProof<PlanReviseInputValue, typeof planReviseInputShape>,
-);
-
 export type PlanVersionsInputValue = { planId: PlanId };
 const planVersionsInputShape = Type.Object(
   { planId: PlanIdSchema },
@@ -683,12 +555,6 @@ export const PlanVersionsInput: TUnsafe<PlanVersionsInputValue> =
       typeof planVersionsInputShape
     >,
   );
-
-export type PlanOutputValue = { plan: PlanVersion };
-const planOutputShape = Type.Object({ plan: PlanVersionSchema }, { additionalProperties: false });
-export const PlanOutput: TUnsafe<PlanOutputValue> = Type.Unsafe<PlanOutputValue>(
-  planOutputShape satisfies SchemaProof<PlanOutputValue, typeof planOutputShape>,
-);
 
 export type PlanVersionsOutputValue = { versions: PlanVersion[] };
 const planVersionsOutputShape = Type.Object(
@@ -703,152 +569,20 @@ export const PlanVersionsOutput: TUnsafe<PlanVersionsOutputValue> =
     >,
   );
 
-const PLAN_ERRORS = {
-  plan_not_approved: {
-    description: "Tried to exit plan mode without an approved plan while approval is required",
-    retryable: false,
-  },
-  plan_pending: {
-    description: "An earlier version of the same plan is still awaiting approval",
-    retryable: false,
-  },
-  plan_closed: {
-    description: "Tried to decide again on a version that was already decided",
-    retryable: false,
-    detail: Type.Object({ status: PlanStatusSchema }),
-  },
-  plan_mode_inactive: {
-    description: "Requested a plan-mode-only action while not in plan mode",
-    retryable: false,
-  },
-} as const;
-
-/** submit_plan 결과의 모델용 문장. 순수 함수 */
-export function renderPlanSubmit(out: PlanSubmitResult): ToolContent {
-  const head = `Plan ${out.planId} v${out.version}`;
-  let text: string;
-  if (out.status === "input_required") {
-    text = `${head}: awaiting user approval.`;
-  } else if (out.decision === "approved") {
-    text = `${head}: Approved. Proceed with the plan.`;
-  } else if (out.decision === "rejected") {
-    text = `${head}: Rejected.${out.feedback === null || out.feedback === "" ? "" : ` Reason: ${out.feedback}`}`;
-  } else {
-    text = `${head}: Revision requested. ${out.feedback ?? ""}`.trimEnd();
-  }
-  return { content: [{ type: "text", text }], structuredContent: out };
-}
-
-/** 승인 요청의 대상(subject) 내용. 승인 kind = "plan" */
-export type PlanApprovalSubject = {
-  planId: PlanId;
-  version: number;
-  title: string;
-  body: string;
-  artifact: ArtifactRef | null;
-};
-const planApprovalSubjectShape = Type.Object(
-  {
-    planId: PlanIdSchema,
-    version: Type.Integer({ minimum: 1 }),
-    title: Type.String({ maxLength: 200 }),
-    body: Type.String({ maxLength: 65536 }),
-    artifact: Type.Union([ArtifactRefSchema, Type.Null()]),
-  },
-  { additionalProperties: false },
-);
-export const PlanApprovalSubjectSchema: TUnsafe<PlanApprovalSubject> =
-  Type.Unsafe<PlanApprovalSubject>(
-    planApprovalSubjectShape satisfies SchemaProof<
-      PlanApprovalSubject,
-      typeof planApprovalSubjectShape
-    >,
-  );
-
-/** decision = "answer"일 때의 answer 내용. decision이 "allow" | "deny"이면 answer는 null 또는 { note: string }이다 */
-export type PlanApprovalAnswer = { action: "revise"; feedback: string };
-const planApprovalAnswerShape = Type.Object(
-  { action: Type.Literal("revise"), feedback: Type.String({ minLength: 1, maxLength: 8192 }) },
-  { additionalProperties: false },
-);
-export const PlanApprovalAnswerSchema: TUnsafe<PlanApprovalAnswer> =
-  Type.Unsafe<PlanApprovalAnswer>(
-    planApprovalAnswerShape satisfies SchemaProof<
-      PlanApprovalAnswer,
-      typeof planApprovalAnswerShape
-    >,
-  );
-
 type PlansMethods = {
-  readonly enterMode: MethodDef<typeof PlanEnterModeInput, typeof PlanModeOutput>;
-  readonly exitMode: MethodDef<typeof PlanExitModeInput, typeof PlanModeOutput>;
-  readonly submit: MethodDef<typeof PlanSubmitInput, typeof PlanSubmitOutput>;
-  readonly approve: MethodDef<typeof PlanApproveInput, typeof PlanOutput>;
-  readonly reject: MethodDef<typeof PlanRejectInput, typeof PlanOutput>;
-  readonly revise: MethodDef<typeof PlanReviseInput, typeof PlanOutput>;
   readonly versions: MethodDef<typeof PlanVersionsInput, typeof PlanVersionsOutput>;
 };
 
-export const WorkPlans: CapabilityDef<
-  PlansMethods,
-  readonly [
-    ToolSpec<"enterMode", typeof PlanEnterModeInput, PlansMethods["enterMode"]>,
-    ToolSpec<"exitMode", typeof PlanExitModeInput, PlansMethods["exitMode"]>,
-    ToolSpec<"submit", typeof PlanSubmitParams, PlansMethods["submit"]>,
-  ]
-> = defineCapability({
+/** 모델 도구가 없는 기능이다. 옛 계획 기록을 읽기만 하고 아무것도 쓰지 않는다 */
+export const WorkPlans: CapabilityDef<PlansMethods, readonly []> = defineCapability({
   id: "work.plans",
   version: "1.0.0",
   description:
-    "Plan objects and the approval flow. Write blocking in plan mode is handled by L1.tools.",
+    "Reads the plans recorded before plan mode was removed. It has no model tools and writes nothing.",
   service: {
     methods: {
-      enterMode: {
-        description: "Asks L1.tools to switch the permission mode to plan mode.",
-        input: PlanEnterModeInput,
-        output: PlanModeOutput,
-        replay: "unsafe",
-        errors: PLAN_ERRORS,
-      },
-      exitMode: {
-        description:
-          "Ends plan mode and restores the previous mode. If approval is required, an approved plan must exist.",
-        input: PlanExitModeInput,
-        output: PlanModeOutput,
-        replay: "unsafe",
-        errors: PLAN_ERRORS,
-      },
-      submit: {
-        description: "Submits a plan and requests approval.",
-        input: PlanSubmitInput,
-        output: PlanSubmitOutput,
-        replay: "safe",
-        idempotent: true,
-        errors: PLAN_ERRORS,
-      },
-      approve: {
-        description: "Approves a version awaiting approval.",
-        input: PlanApproveInput,
-        output: PlanOutput,
-        replay: "unsafe",
-        errors: PLAN_ERRORS,
-      },
-      reject: {
-        description: "Rejects a version awaiting approval.",
-        input: PlanRejectInput,
-        output: PlanOutput,
-        replay: "unsafe",
-        errors: PLAN_ERRORS,
-      },
-      revise: {
-        description: "Requests changes to a version awaiting approval.",
-        input: PlanReviseInput,
-        output: PlanOutput,
-        replay: "unsafe",
-        errors: PLAN_ERRORS,
-      },
       versions: {
-        description: "Lists all versions of the plan.",
+        description: "Lists all versions of an old plan.",
         input: PlanVersionsInput,
         output: PlanVersionsOutput,
         replay: "safe",
@@ -856,45 +590,7 @@ export const WorkPlans: CapabilityDef<
       },
     },
   },
-  tools: [
-    {
-      name: "enter_plan_mode",
-      label: "Enter Plan Mode",
-      description:
-        "Enters plan mode, which blocks write tools. Use it to research and plan only before a large change.",
-      method: "enterMode",
-      parameters: PlanEnterModeInput,
-      replay: "unsafe",
-      executionMode: "sequential",
-      hints: { readOnly: false, destructive: false, idempotent: true, openWorld: false },
-    },
-    {
-      name: "exit_plan_mode",
-      label: "Exit Plan Mode",
-      description:
-        "Ends plan mode. If approval is required by settings, plan mode can only be ended after the plan is approved via submit_plan.",
-      method: "exitMode",
-      parameters: PlanExitModeInput,
-      replay: "unsafe",
-      executionMode: "sequential",
-      hints: { readOnly: false, destructive: false, idempotent: true, openWorld: false },
-    },
-    {
-      name: "submit_plan",
-      label: "Submit Plan",
-      description:
-        "Submits the plan as a Markdown body and requests user approval. The result is one of approved, rejected, or revision requested. " +
-        "For a revision request, submit a new version with the same planId.",
-      method: "submit",
-      parameters: PlanSubmitParams,
-      toInput: (p) => ({ ...p, wait: false }),
-      toContent: renderPlanSubmit,
-      outputSchema: PlanSubmitOutput,
-      replay: "safe",
-      executionMode: "sequential",
-      hints: { readOnly: false, destructive: false, idempotent: true, openWorld: false },
-    },
-  ],
+  tools: [],
 });
 export const WorkPlansKey: ServiceKey<CapabilityApi<typeof WorkPlans>> = serviceKey(WorkPlans);
 

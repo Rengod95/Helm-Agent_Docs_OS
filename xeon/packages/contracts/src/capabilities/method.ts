@@ -68,6 +68,8 @@ export interface CallContext {
    * 시크릿을 쓰지 않거나 증거를 얻지 못한 호출은 없다. 도구 구현은 `SecretEnvRequest.ctx.approval`에 그대로 옮긴다
    */
   readonly approval?: SecretApprovalEvidence;
+  /** 이 호출이 읽기 전용 샌드박스 안에서만 돌아야 하는가(서브에이전트 정의의 `permissions.sandbox`). L1.tools가 채운다 */
+  readonly sandbox?: "read-only";
 }
 
 /**

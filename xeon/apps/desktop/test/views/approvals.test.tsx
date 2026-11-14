@@ -412,16 +412,16 @@ const planRequest = (plan: string): ApprovalRequestedPayload => ({
   remember: ["once"],
   surfaceThreadId: thr(1),
   requestedAt: 0,
-  body: { kind: "plan", plan: { plan, planRef: null, nextModes: ["default", "plan"] } },
+  body: { kind: "plan", plan: { plan, planRef: null, nextModes: ["default", "acceptEdits"] } },
 });
 
 describe("plan approval card", () => {
-  test("shows the mode choice and the approve, request-changes and deny buttons", () => {
+  test("a legacy plan shows its text and only the deny button; the approve button is off", () => {
     const out = html(planRequest("1. Split the step\n2. Add two tests"));
-    expect(out).toContain("승인 뒤 모드");
-    expect(out).toContain("수정 요청");
-    expect(out).toContain("피드백");
-    expect(out).toMatch(/data-action="primary"[^>]*>승인</);
+    expect(out).not.toContain("승인 뒤 모드");
+    expect(out).not.toContain("수정 요청");
+    expect(out).not.toContain("피드백");
+    expect(out).toMatch(/<button[^>]*disabled=""[^>]*data-action="primary"[^>]*>승인</);
     expect(out).toMatch(/data-action="deny"[^>]*>거부</);
   });
 

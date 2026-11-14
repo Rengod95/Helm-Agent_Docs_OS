@@ -8,7 +8,6 @@ test("only bypass covers run approvals, and only while managed does not forbid i
   expect(modeCoversRunApprovals("bypass", false)).toBe(false);
   expect(modeCoversRunApprovals("default", true)).toBe(false);
   expect(modeCoversRunApprovals("acceptEdits", true)).toBe(false);
-  expect(modeCoversRunApprovals("plan", true)).toBe(false);
 });
 
 test("ToolService.coversRunApprovals follows the thread's mode and the managed bypass switch", async () => {

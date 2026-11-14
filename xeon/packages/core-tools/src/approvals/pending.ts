@@ -59,6 +59,7 @@ export function approvalBodyOf(body: ApprovalBodyJson): ApprovalBody | undefined
         },
       };
     }
+    // 옛 계획 승인 기록(더는 만들지 않음 [결정: 2026-11-13 사용자]). 옛 `plan` 문자열은 모드가 아니라서 버리고, 디코드는 실패하지 않는다
     case "plan": {
       const modes = body.plan.nextModes.filter(isMode);
       return {

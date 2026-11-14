@@ -128,6 +128,7 @@ const ToolApprovalDetail: TObject<{
   { additionalProperties: false },
 );
 
+// 계획 승인(plan)은 더는 쓰지 않음 [결정: 2026-11-13 사용자]. 아래 PlanApprovalDetail·PlanBody·PlanAnswerSchema는 옛 기록 읽기 전용으로 남긴다. 저장 문자열은 그대로다.
 const PlanApprovalDetail: TObject<{
   plan: TUnion<[TString, typeof BlobRefSchema]>;
   planRef: TUnion<[TString, TNull]>;
@@ -374,7 +375,7 @@ export const QuestionAnswerSchema: TRecord<"^.*$", typeof QuestionAnswerItemSche
 );
 export type QuestionAnswerJson = Static<typeof QuestionAnswerSchema>;
 
-/** 계획 승인 `allow`의 answer. 다음 권한 모드(요청의 `nextModes` 안)와 메모. 둘 다 선택이다 */
+/** 더는 쓰지 않음 [결정: 2026-11-13 사용자]. 옛 계획 승인 `allow`의 answer(읽기 전용). `nextModes`는 문자열이라 옛 `plan` 값도 받는다 */
 export const PlanAnswerSchema: TObject<{
   mode: TOptional<TString>;
   note: TOptional<TString>;

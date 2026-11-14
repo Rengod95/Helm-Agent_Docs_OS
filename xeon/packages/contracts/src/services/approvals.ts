@@ -27,6 +27,9 @@ export const ApprovalServicePortKey: PortKey<ApprovalService> = { name: Approval
  */
 export const WRITE_ACCESS_RULE_ID = "sandbox.write_access" as const;
 
+/**
+ * `plan`은 더는 쓰지 않음 [결정: 2026-11-13 사용자]. 옛 기록을 읽기 전용으로 디코드하려고 남겼다. 새 계획 승인 요청은 core-tools가 거부한다.
+ */
 export type ApprovalKind = "tool" | "plan" | "question" | "review";
 export type ApprovalDecision = "allow" | "deny" | "answer";
 export type ApprovalRemember = "once" | "thread" | "always";
@@ -79,6 +82,7 @@ export interface ToolApprovalBody {
   readonly mcp?: { readonly server: string; readonly declared?: McpDeclaredHints };
 }
 
+/** 더는 쓰지 않음 [결정: 2026-11-13 사용자]. 옛 기록 읽기 전용: `nextModes`에 옛 `plan` 문자열이 있을 수 있어 서비스가 버린다 */
 export interface PlanApprovalBody {
   /** 계획 본문(마크다운). 큰 값은 BlobRef */
   readonly plan: string | BlobRef;
@@ -137,6 +141,7 @@ export interface ReviewBody {
 
 export type ApprovalBody =
   | { readonly kind: "tool"; readonly tool: ToolApprovalBody }
+  /** 더는 쓰지 않음 [결정: 2026-11-13 사용자]. 옛 기록 읽기 전용 */
   | { readonly kind: "plan"; readonly plan: PlanApprovalBody }
   | { readonly kind: "question"; readonly question: QuestionBody }
   | { readonly kind: "review"; readonly review: ReviewBody };
@@ -184,7 +189,7 @@ export type QuestionAnswer = Readonly<
   Record<string, { readonly selected: readonly string[]; readonly text?: string }>
 >;
 
-/** 계획 승인(kind `plan`) decision `allow`의 answer. 다음 권한 모드(요청의 `nextModes` 안)와 메모. 둘 다 선택이다 */
+/** 더는 쓰지 않음 [결정: 2026-11-13 사용자]. 옛 계획 승인(kind `plan`) decision `allow`의 answer 모양. 새 응답은 받지 않는다 */
 export interface PlanAnswer {
   readonly mode?: PermissionMode;
   readonly note?: string;
@@ -197,7 +202,7 @@ export interface DenyAnswer {
 
 /**
  * `respond`가 응답을 적용하지 못한 이유. 클라이언트는 이 값으로 "응답을 고쳐 다시 보낸다"와 "더 할 일이 없다"를 구분한다.
- * - `answer_invalid`: decision이 요청 kind에 맞지 않거나, answer가 질문·계획 모양에 맞지 않거나, 요청이 제시하지 않은 기억 범위다. 요청은 대기 그대로다.
+ * - `answer_invalid`: decision이 요청 kind에 맞지 않거나, answer가 질문 모양에 맞지 않거나, 요청이 제시하지 않은 기억 범위다. 요청은 대기 그대로다.
  * - `already_resolved`: 이미 해결됐거나 다른 응답이 해결을 커밋하는 중이다.
  * - `unknown_approval`: 이 런타임의 대기 목록에 없는 approvalId다.
  * - `commit_failed`: 응답은 맞았으나 `approval.resolved` 커밋이 실패했다. 요청은 대기 그대로라 다시 보낼 수 있다.
@@ -221,7 +226,7 @@ export interface ApprovalApplyOutcome {
 export interface ApprovalResponse {
   readonly decision: ApprovalDecision;
   /**
-   * kind별 정본 모양(records `ApprovalAnswerSchema`): decision "answer"면 QuestionAnswer(question), decision "allow"면 PlanAnswer(plan, 선택),
+   * kind별 정본 모양(records `ApprovalAnswerSchema`): decision "answer"면 QuestionAnswer(question), decision "allow"면 옛 PlanAnswer(plan은 더 받지 않는다),
    * decision "deny"면 DenyAnswer(선택). 그 밖의 조합은 `applied: false`다
    */
   readonly answer?: JsonValue;

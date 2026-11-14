@@ -100,7 +100,7 @@ Where definitions come from:
 
 | Source | Location | Status |
 |---|---|---|
-| Built-in | In code: `general` (all tools), `explore` (`read`, `ls`, `grep`, `find` only) | Always present |
+| Built-in | In code: `general` (all tools), `explore` (`read`, `grep` only) | Always present |
 | Installed default plugin | `<config dir>/extensions/<plugin>/agents/*.md` | Read at startup, for default plugins only |
 | User | `<config dir>/agents/*.md` | Not read |
 | Work folder | `.fresnel/agents/*.md` | Not read |
@@ -113,7 +113,7 @@ File format: markdown. YAML frontmatter, then the system prompt as the body.
 ---
 name: reviewer
 description: Reviews a diff for correctness. Read-only.
-tools: ["read*", "grep", "find"]
+tools: ["read*", "grep"]
 model: subagent
 ---
 You review the diff the parent gives you. Report findings with file paths.

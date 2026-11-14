@@ -22,7 +22,7 @@ binds: [xeon/packages/core-tools/**]
 |---|---|---|
 | M0 | core-tools 코드 없음. 선행 조건만: contracts에 L1.tools.spec §8.3 F 요청 1·4·6의 타입이 들어가야 한다(F.capabilities.plan, F.extensions.plan, `@fresnel/contracts/services`). 요청 3의 `approval.*` kind는 F.records 카탈로그에 있다 | `_research/foundation-plan.md` §5 P4 M0 범위 |
 | M1 | 어댑터와 파이프라인(agent-core 훅 연결), tool 범위 노드와 키 큐 연결(잠금 키 산출 포함), 2계층 시크릿 마스킹, 의도·실행·결과 커밋, 최소 정책(티어 default·user, resource는 `tool` glob과 `args` 패턴만), 내장 규칙(read·ls allow, bash ask), 권한 모드 `default`만, 결과 경계화(`fresnel.exec` 절단 + blob), 최소 승인 대기(kind `tool`만, CLI 한 곳에서 응답), 대기 내구화와 재개 복원 | `_research/foundation-plan.md` §5 P4 M1(도구 read, ls, bash), product.scope.spec M1 종료 조건(승인과 명령 패턴을 갖춘 bash 호출) |
-| M2 | 정책 티어 4종 전체와 resource 전 필드, 코어 규칙 등록(`registerRules`), `tools` 풀 슬롯(C3 순서), 모드 4종(`acceptEdits`, `plan`, `bypass`, managed 금지), 승인·질문·계획 승인 통합 프로토콜(`kind: plan`, `question`, wire `approval.respond`), 도구 지연 노출(`tool_search`), 서브에이전트 ceiling 연결 | product.scope.spec M2 종료 조건 "질문 도구와 계획 승인이 같은 승인 요청 레코드로 기록된다", L1.agents.plan M2 |
+| M2 | 정책 티어 4종 전체와 resource 전 필드, 코어 규칙 등록(`registerRules`), `tools` 풀 슬롯(C3 순서), 모드 3종(`acceptEdits`, `bypass`, managed 금지. 계획 모드는 2026-11-13 삭제 [결정: 2026-11-13 사용자]), 승인·질문 통합 프로토콜(`kind: question`, wire `approval.respond`. `kind: plan`은 2026-11-13 삭제), 도구 지연 노출(`tool_search`), 서브에이전트 ceiling 연결 | product.scope.spec M2 종료 조건 "질문 도구와 계획 승인이 같은 승인 요청 레코드로 기록된다", L1.agents.plan M2 |
 | M3 | 서비스 모드의 승인 대기 처리(runtime-flow §7 [미결] 결정 뒤), 원격 클라이언트 응답 | product.scope.spec M3 |
 | 2차(M3 이후) | 항상 허용 캐시(`core_tools_approvals`), 셸 명령 접두 규칙, 인자 변경용 별도 chain 훅(`tool.call.before`은 인자 변경 없음, review.decisions-2 U-06), 확장 티어 규칙 등록 | `_research/layer-plan-v2.json` L1-d 2차 행 |
 | 보류 | 자동 분류 모드, 자동 승인 리뷰어와 연속 거부 서킷브레이커, 모델 자가 위험도 | `_research/item-catalog.md` L1-d "보류" 행 |
@@ -90,7 +90,7 @@ xeon/packages/core-tools/
 | TL-9 | `tool.call.before` fail-closed: ext-host first 디스패치 결과 처리, 핸들러 예외·디스패처 예외·결정 스키마 위반을 모두 거부로, 거부 사유 문장 고정 | TL-0 | S | M1 |
 | TL-10 | `tool_search` 내장 도구와 지연 노출 (완료 2026-10-24: `builtin/tool-search.ts`, `builtin/activation.ts`) | TL-7 | M | M2 |
 | TL-11 | ~~`read_tool_output` 내장 도구~~ 폐지(2026-11-13): 잘린 출력은 파일 사본의 경로를 안내하고 `read`로 읽는다(spec §4.8 6번) | TL-6 | S | M2 |
-| TL-12 | 질문·계획 승인 통합: `kind: plan`(`setMode` 연결), `kind: question`(`QuestionAnswer` 검사), 활성 호출 표로 L2 요청의 체크포인트 초안 생성, wire `approval.respond` 연결 확인(L4.host-service와 함께) (완료 2026-10-24: `plan_approval`이 모드를 바꾸고, `input_required { approvalId }` 변형은 어댑터가 승인 해결을 기다려 재호출, 시험용 `L2ApprovalsPort` 어댑터는 `testing/l2-port.ts`. MCP 변형은 L1F에서 `mcp-input.ts`로 완료: 질문 승인을 올리고 `continuation`으로 재호출. 동적 MCP 도구(`DirectToolRegistration`)의 재호출은 F 변경 뒤) | TL-5 | M | M2 |
+| TL-12 | 질문 승인 통합: `kind: question`(`QuestionAnswer` 검사), 활성 호출 표로 L2 요청의 체크포인트 초안 생성, wire `approval.respond` 연결 확인(L4.host-service와 함께) (완료 2026-10-24. 계획 승인과 `plan_approval` 모드 변경은 2026-11-13 삭제 [결정: 2026-11-13 사용자]. `input_required { approvalId }` 변형은 어댑터가 승인 해결을 기다려 재호출, 시험용 `L2ApprovalsPort` 어댑터는 `testing/l2-port.ts`. MCP 변형은 L1F에서 `mcp-input.ts`로 완료: 질문 승인을 올리고 `continuation`으로 재호출. 동적 MCP 도구(`DirectToolRegistration`)의 재호출은 F 변경 뒤) | TL-5 | M | M2 |
 | TL-13 | 서브에이전트 ceiling 연결: `ToolRunContext.ceiling`이 있으면 5b 결정을 `stricter(childDecision(…), evaluatePolicy(…))`로 낸다(L1.tools.spec §4.5 ceiling 단계), 비대화형 ask → deny, 자식 광고 목록(`allow`, `keepParentList`), `registerRules("core:agents")` 수용 (완료 2026-10-24: `stricter`·`childDecision`은 F 것을 쓰고 core-tools 사본은 없앴다. 자식 광고는 `allow`·`keepParentList`·부모 관점 deny) | TL-3, TL-7, F `policy.ts`의 `childDecision`(F 요청 9), L1.agents.plan AG-3 | S | M2 |
 | TL-14 | `rerun`: 저장된 `intent.args`로 단계 7a~11 실행(키 잠금·슬롯 재획득 포함), `tool.call.before`·정책 생략 | TL-2, TL-17 | S | M1 |
 | TL-15 | `settleRejected`: 중단으로 실행하지 않는 호출을 `not_executed`로, `length` 절단 응답의 호출을 `truncated`로 닫기(adr.0009 §3.4, 이전 이름 `closeUnexecuted`) | TL-2 | S | M1 |
@@ -154,7 +154,7 @@ xeon/packages/core-tools/
 | `policy_noninteractive_ask_becomes_deny` | `interactive: false`이고 ask 결과면 deny, `reason: "noninteractive"` | TL-3 |
 | `policy_evaluator_pure` | 동결한 입력·규칙으로 두 번 평가해 같은 결과, 예외 없음 | TL-3 |
 | `policy_invalid_regex_skipped` | 잘못된 정규식 규칙은 적재에서 빠지고 진단 1건, 다른 규칙은 평가된다 | TL-3 |
-| `plan_mode_blocks_write_tools` | 모드 `plan`에서 risk write·exec는 deny, read는 allow. 광고 목록은 `default` 모드와 같다 | TL-4, TL-7 |
+| `plan_mode_blocks_write_tools` | 삭제 [결정: 2026-11-13 사용자]. 계획 모드가 없어졌다. 모드 `acceptEdits`의 쓰기 허용과 exec 확인은 `rules.test.ts`가 본다 | TL-4, TL-7 |
 | `undeclared_risk_is_exec` | 등급과 `hints.readOnly`가 없는 도구는 `exec`로 평가되고 replay는 `unsafe` | TL-4 |
 | `bypass_forbidden_by_managed` | `bypassAllowed: false`면 `setMode("bypass")`가 `tools.mode_forbidden`, 평가는 default로 | TL-4 |
 | `approval_pending_restored_after_restart` | 승인 대기 중 강제 종료(fault 테스트) 뒤 `restore` → `pending`에 같은 `approvalId` 하나, core-loop 대역이 같은 `prepare`·`execute`로 다시 돌린 뒤 새 `approval.requested` 0건 | TL-5 |
@@ -162,7 +162,7 @@ xeon/packages/core-tools/
 | `the oldest resolved requests leave memory first...` | `resolvedKept`를 넘기면 가장 먼저 해결된 요청이 메모리 표에서 빠지고(`get`이 `undefined`, `respond`는 적용 안 함) 대기 중인 요청은 남는다. 빠진 요청의 `requestKey`로 `open`하면 새 이벤트 없이 같은 `approvalId`와 저장된 해결(`answer` 값 포함)을 돌려준다 (`approvals-eviction.test.ts`) | L7 |
 | `approval memory is request-level: a thread response is refused ...` | `remember: "thread"` 응답은 `answer_invalid`이고 같은 도구의 다음 ask도 다시 묻는다(승인 기억은 요청 단위뿐, 2026-11-04 점검) | TL-5 |
 | `approval_turn_abort_cancels_pending` | 턴 취소가 대기 요청을 `resolvedBy: "cancelled"`로 닫고 도구는 실행되지 않는다 | TL-5 |
-| `question_and_plan_approval_share_request_shape` | 질문 요청과 계획 요청이 모두 `approval.requested`이고 `ApprovalRequestSchema`를 통과하며 `body.kind`만 다르다 | TL-12 |
+| `question_approval_is_an_approval_requested_record` | 질문 요청은 `approval.requested`이고 payload가 `ApprovalRequestedPayloadSchema`를 통과하며 답은 `approval.resolved`의 `answer`로 남는다. 계획 승인 요청은 `approvals.request_invalid`다(2026-11-13 삭제) | TL-12 |
 | `tool_search_activates_for_next_step` (core-tools) | 지연 도구를 찾으면 활성화가 기록되고 다음 `advertise`가 그 도구를 싣는다. 재시작 뒤에도 같다 | TL-10 |
 | `bound_notice_names_output_file` (core-tools) | 잘린 결과의 안내가 `[Showing lines 1-N of T. Full output: <path>]` 한 꼴이고 그 파일이 blob과 같은 원문이다 | TL-11 |
 | `tools_pool_cap_waits_after_lock` (core-tools) | 슬롯 1개면 두 번째 실행이 첫 실행의 반납 뒤 시작하고 키 잠금 → 슬롯 순서다 | TL-17 |
@@ -172,7 +172,8 @@ xeon/packages/core-tools/
 | `mcp_input_declined`, `mcp_input_non_interactive` | 거부와 비대화형은 모든 입력 요청에 `decline`으로 답하고 서버가 마무리한다. 비대화형은 요청과 거부 해결이 한 커밋이다 | TL-12 |
 | `mcp_input_cancelled_with_the_turn`, `mcp_input_second_round`, `mcp_input_malformed` | turn 취소는 승인을 닫고 재호출하지 않는다. 라운드마다 다른 요청이고 라운드 번호가 늘어난다. 모양이 틀린 변형은 오류 결과다 | TL-12 |
 | `secret_use_evidence_from_the_bash_approval` | `check`가 `needs_approval`인 `secretEnv` 호출이 정책 승인 하나로 증거를 얻고, 규칙이 허용한 호출은 `secret.use` 요청을 따로 올린다 | TL-18 |
-| `plan_approval_switches_mode` | 계획 승인 `answer: { mode: "acceptEdits" }`가 `settings.changed`(launch 범위)를 남긴다 | TL-12 |
+| 옛 계획 승인 시험 (`approvals-kinds.test.ts`) | 열 때 대기 중이던 옛 `plan` 승인은 `resolvedBy: "cancelled"`로 정착하고, 해결된 것은 기록대로 읽히며 모드를 바꾸지 않는다. `nextModes`의 옛 `plan` 문자열은 버리고 디코드는 실패하지 않는다 [결정: 2026-11-13 사용자] | TL-12 |
+| 옛 계획 모드 시험 (`settings.test.ts`) | 저장된 `plan` 모드 값(설정 층, 대화 범위 값)은 `default`로 읽히고 그 층에서 멈춘다. 옛 대화 보호 [결정: 2026-11-13 사용자] | TL-12 |
 | `truncate_spills_full_output_to_blob` | 60,000바이트 출력 → `putBlob` 1회, `effect.result.blobRef.sha256`가 원문 해시, 모델 내용은 51,200바이트 이하 미리보기 + 안내 문장 | TL-6 |
 | `bound_uses_exec_truncation` | `bound.ts`가 절단을 `fresnel.exec` 대역으로 부르고 `truncateHead` 결과를 그대로 미리보기로 쓴다(core-tools 소스에 `truncate.ts`가 없다) | TL-6 |
 | `self_bounded_tool_skips_bounding` | `outputLimits: "self"` 도구의 `details.blobRef`가 `effect.result.blobRef`로 옮겨지고 다시 자르지 않는다 | TL-6 |
@@ -206,7 +207,7 @@ xeon/packages/core-tools/
 - check-layers: core-tools가 다른 `core-*`, `cap-*`, `group-*` 패키지와 `cordis`, `@earendil-works/*`를 import하지 않는다. contracts의 capabilities 소스도 `@earendil-works/pi-agent-core`를 import하지 않는다(DR-07, L1.tools.spec §9-21).
 - M1 시크릿 종료 조건(`product.scope.spec` §4.4 M1 행)의 L1.tools 몫은 `tool_result_masked_before_commit_and_points`와 bash 명령 패턴 규칙(`args` 패턴, 승인)이다. 주입과 lease는 L0.exec.plan·L0.secrets.plan이 맡고, 세 몫을 함께 확인하는 것은 `apps/cli` M1 스모크 시나리오다(L1.tools.spec §4.12).
 - M1 키 큐 사용(`L1.tasks.plan` M1의 "도구 병렬과 파일 직렬화")의 구현 주체는 이 계획의 TL-17이고 확인 테스트는 `same_realpath_writes_serialized`다.
-- M2 완료: product.scope.spec M2 종료 조건 중 "질문 도구와 계획 승인이 같은 승인 요청 레코드로 기록된다"를 `question_and_plan_approval_share_request_shape`와 L2.dialog·L2.work 통합 테스트 훅으로 확인한다.
+- M2 완료: product.scope.spec M2 종료 조건 중 "질문 도구와 계획 승인이 같은 승인 요청 레코드로 기록된다"를 `question_approval_is_an_approval_requested_record`와 L2.dialog 통합 테스트 훅으로 확인한다(계획 승인은 2026-11-13에 삭제되었다 [결정: 2026-11-13 사용자]).
 
 ## 7. 위험과 대응
 

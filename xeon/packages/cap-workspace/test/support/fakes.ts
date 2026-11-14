@@ -37,11 +37,12 @@ export function fakeSandbox(protectedPaths: readonly ProtectedPathEntry[] = []):
     policies,
     deny: false,
     defaultPolicy: (input) => ({
-      writeRoots: [...input.workspaceRoots, input.tempDir],
+      writeRoots: input.profile === "read-only" ? [] : [...input.workspaceRoots, input.tempDir],
       readDeny: [],
       writeDeny: [],
       network: { allowedDomains: [], deniedDomains: [] },
       allowEscape: false,
+      ...(input.profile === undefined ? {} : { profile: input.profile }),
     }),
     protectedPaths: () => protectedPaths,
     wrapShell: (shell: Shell, policy: SandboxPolicy): Shell => {

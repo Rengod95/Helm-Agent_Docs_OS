@@ -12,11 +12,9 @@ function layer(scope: ScopeLayer["scope"], values: Record<string, unknown>): Sco
 }
 
 describe("settings", () => {
-  test("the five keys of the spec table pass the definition checks", () => {
+  test("the three keys left after plan mode was removed pass the definition checks", () => {
     expect(WORK_SETTING_DEFS.map((def) => def.key)).toEqual([
       "l2.work.goal.delegatedTimeoutSec",
-      "l2.work.plans.requireApproval",
-      "l2.work.plans.exitOnApprove",
       "l2.work.tasks.autoStart",
       "l2.work.tasks.reminderTurns",
     ]);
@@ -33,9 +31,6 @@ describe("settings", () => {
 
   test("tabs and scopes follow the spec table", () => {
     const byKey = new Map(WORK_SETTING_DEFS.map((def) => [def.key, def]));
-    expect(byKey.get("l2.work.plans.requireApproval")?.allowedScopes).toContain("managed");
-    expect(byKey.get("l2.work.plans.requireApproval")?.ui?.tab).toBe("permissions");
-    expect(byKey.get("l2.work.plans.exitOnApprove")?.allowedScopes).not.toContain("managed");
     expect(byKey.get("l2.work.tasks.autoStart")?.ui?.tab).toBe("tools");
     expect(byKey.get("l2.work.goal.delegatedTimeoutSec")?.allowedScopes).not.toContain("launch");
   });
@@ -44,7 +39,6 @@ describe("settings", () => {
     expect(readWorkSettings([])).toEqual(DEFAULT_WORK_SETTINGS);
     expect(DEFAULT_WORK_SETTINGS).toEqual({
       tasks: { autoStart: false, reminderTurns: 0 },
-      plans: { requireApproval: true, exitOnApprove: true },
       goal: { delegatedTimeoutSec: 300 },
     });
   });
@@ -54,6 +48,24 @@ describe("settings", () => {
     const unknown = readWorkSettings([layer("user", { "l2.work.goal.noSuchKey": "continue" })]);
     expect(removed).toEqual(unknown);
     expect(removed).toEqual(DEFAULT_WORK_SETTINGS);
+  });
+
+  test("stored values for the removed plans keys are ignored and their writes are refused as unknown keys", () => {
+    const stored = readWorkSettings([
+      layer("user", {
+        "l2.work.plans.requireApproval": false,
+        "l2.work.plans.exitOnApprove": false,
+      }),
+    ]);
+    expect(stored).toEqual(DEFAULT_WORK_SETTINGS);
+    const built = buildCatalog([
+      { owner: "cap-work", namespace: "l2.work", defs: WORK_SETTING_DEFS },
+    ]);
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    expect(
+      checkSettingWrite(built.catalog, [], "l2.work.plans.requireApproval", "user", false),
+    ).toMatchObject({ ok: false, kind: "settings.unknownKey" });
   });
 
   test("a write of the removed key is refused as an unknown key, like an unregistered one", () => {

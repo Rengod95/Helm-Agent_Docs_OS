@@ -12,7 +12,7 @@ description: Explores the repository.
 tools: [read, grep]
 model: review
 permissions:
-  mode: plan
+  mode: acceptEdits
   rules:
     - id: no-bash
       action: tool.call
@@ -24,6 +24,28 @@ You explore the repository.
 `;
 
 describe("definition files", () => {
+  test("permissions.sandbox: read-only is read from the frontmatter; any other value is one diagnostic", () => {
+    const source = { kind: "user" as const, path: "/u/reader.md" };
+    const readOnly = parseDefinitionFile(
+      "/u/reader.md",
+      GOOD.replace("mode: acceptEdits", "mode: acceptEdits\n  sandbox: read-only"),
+      source,
+    );
+    expect("definition" in readOnly).toBe(true);
+    if ("definition" in readOnly) {
+      expect(readOnly.definition.permissions).toMatchObject({
+        mode: "acceptEdits",
+        sandbox: "read-only",
+      });
+    }
+    const writable = parseDefinitionFile(
+      "/u/reader.md",
+      GOOD.replace("mode: acceptEdits", "mode: acceptEdits\n  sandbox: write"),
+      source,
+    );
+    expect("diagnostic" in writable).toBe(true);
+  });
+
   test("a good file becomes a definition with the body as its prompt", () => {
     const parsed = parseDefinitionFile("/ext/explorer.md", GOOD, {
       kind: "extension",
@@ -37,8 +59,23 @@ describe("definition files", () => {
         prompt: "You explore the repository.",
         tools: ["read", "grep"],
         model: "review",
-        permissions: { mode: "plan" },
+        permissions: { mode: "acceptEdits" },
         source: { kind: "extension", extension: "helm" },
+      });
+    }
+  });
+
+  test("a definition that names the removed plan mode is one diagnostic, not a definition", () => {
+    const parsed = parseDefinitionFile(
+      "/ext/explorer.md",
+      GOOD.replace("mode: acceptEdits", "mode: plan"),
+      { kind: "extension", extension: "helm", path: "/ext/explorer.md" },
+    );
+    expect("diagnostic" in parsed).toBe(true);
+    if ("diagnostic" in parsed) {
+      expect(parsed.diagnostic).toMatchObject({
+        code: "agents.definition_invalid",
+        path: "/ext/explorer.md",
       });
     }
   });

@@ -315,7 +315,7 @@ describe("removed keys and unit numbers", () => {
 });
 
 describe("permission mode field", () => {
-  const MODES = ["default", "acceptEdits", "plan", "bypass"] as const;
+  const MODES = ["default", "acceptEdits", "bypass"] as const;
   const PERMISSION_MODE = defOf(
     "l1.tools.permissionMode",
     "permissions",

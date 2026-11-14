@@ -4,8 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./testing": "./src/testing/index.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test",
@@ -21,7 +20,6 @@
   },
   "devDependencies": {
     "@fresnel/core-persistence": "workspace:*",
-    "@fresnel/core-tools": "workspace:*",
     "@fresnel/platform-store": "workspace:*",
     "@types/bun": "catalog:"
   },

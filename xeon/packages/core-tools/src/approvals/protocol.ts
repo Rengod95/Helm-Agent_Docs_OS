@@ -2,7 +2,6 @@ import { assertNever, err, ok, parse, type Result } from "@fresnel/contracts";
 import type { JsonObject, JsonValue } from "@fresnel/contracts/conversation";
 import { ReviewAnswerSchema } from "@fresnel/contracts/records";
 import {
-  PERMISSION_MODE_STRICTNESS,
   WRITE_ACCESS_RULE_ID,
   type ApprovalDecision,
   type ApprovalRemember,
@@ -10,14 +9,14 @@ import {
   type ApprovalRequestInput,
   type ApprovalResolution,
   type ApprovalResponse,
-  type PermissionMode,
   type QuestionBody,
   type ReviewBody,
 } from "@fresnel/contracts/services";
 import { isJsonObject } from "../util.ts";
 import { isRequestKey } from "./keys.ts";
 
-// L1.tools.spec §3.6 응답 규칙, §3.9 requestId 규칙, §4.7 기억 범위. kind 넷(tool, plan, question, review)의 요청 검사와 응답 검사.
+// L1.tools.spec §3.6 응답 규칙, §3.9 requestId 규칙, §4.7 기억 범위. kind의 요청 검사와 응답 검사.
+// 계획 승인(plan)은 더는 만들지 않는다 [결정: 2026-11-13 사용자]. 옛 기록은 열 때 취소로 정착하므로(service `restore`) 응답을 받지 않는다.
 
 const OPTION_ID_MAX = 32;
 const QUESTION_MAX = 4;
@@ -25,10 +24,6 @@ const FREE_TEXT_MAX = 8192;
 const FEEDBACK_MAX = 8192;
 
 // ── 요청 검사 ────────────────────────────────────────────────────────────
-
-function isMode(value: unknown): value is PermissionMode {
-  return PERMISSION_MODE_STRICTNESS.some((mode) => mode === value);
-}
 
 function questionIssue(body: QuestionBody): string | undefined {
   const { questions } = body;
@@ -90,11 +85,8 @@ export function requestIssue(input: ApprovalRequestInput): string | undefined {
   switch (body.kind) {
     case "tool":
       return undefined;
-    case "plan": {
-      const modes = new Set(body.plan.nextModes);
-      if (modes.size !== body.plan.nextModes.length) return "nextModes lists a mode more than once";
-      return body.plan.nextModes.every(isMode) ? undefined : "nextModes has an unknown mode";
-    }
+    case "plan":
+      return "a plan approval is no longer requested: plan mode was removed";
     case "question":
       return questionIssue(body.question);
     case "review":
@@ -157,32 +149,6 @@ function feedbackOf(answer: JsonValue | undefined): Result<JsonObject | null, Re
     return invalid(`feedback must be a string of at most ${FEEDBACK_MAX} characters`);
   }
   return ok({ feedback });
-}
-
-/** plan allow 응답의 answer. `{ mode }`(nextModes 안)와 `{ note }`만 받는다 */
-function planAnswerOf(
-  request: ApprovalRequest,
-  answer: JsonValue | undefined,
-): Result<JsonObject | null, ResponseError> {
-  if (answer === undefined || answer === null) return ok(null);
-  if (!isJsonObject(answer)) return invalid("a plan answer must be an object");
-  const out: Record<string, JsonValue> = {};
-  const mode = answer["mode"];
-  if (mode !== undefined) {
-    const offered = request.body.kind === "plan" ? request.body.plan.nextModes : [];
-    if (!isMode(mode) || !offered.includes(mode)) {
-      return invalid("mode is not one of the offered next modes");
-    }
-    out["mode"] = mode;
-  }
-  const note = answer["note"];
-  if (note !== undefined) {
-    if (typeof note !== "string" || note.length > FEEDBACK_MAX) {
-      return invalid(`note must be a string of at most ${FEEDBACK_MAX} characters`);
-    }
-    out["note"] = note;
-  }
-  return ok(Object.keys(out).length === 0 ? null : out);
 }
 
 /**
@@ -258,7 +224,7 @@ function checkQuestionAnswer(
 
 /**
  * 요청 kind에 맞는 응답인지 검사한다(L1.tools.spec §3.6 표).
- * tool: allow·deny, 기억 범위 once·thread·always. plan: allow·deny(allow는 `{ mode }` 선택). question: answer·deny.
+ * tool: allow·deny, 기억 범위 once·thread·always. plan: deny만(옛 기록, allow는 받지 않는다). question: answer·deny.
  * review: answer·deny(answer는 `ReviewAnswer` 필수, 기억 범위 once).
  * deny의 answer는 `{ feedback }`만 받고 그 밖의 answer는 버린다.
  */
@@ -285,11 +251,9 @@ export function validateResponse(
   switch (request.body.kind) {
     case "tool":
       return decision === "allow" ? applied(null) : err({ kind: "decision_not_allowed", decision });
-    case "plan": {
-      if (decision !== "allow") return err({ kind: "decision_not_allowed", decision });
-      const answer = planAnswerOf(request, response.answer);
-      return answer.ok ? applied(answer.value) : answer;
-    }
+    // 옛 계획 승인은 allow를 받지 않는다(deny는 위에서 받는다). 열 때 취소로 정착하므로 실제로는 응답이 올 일이 없다
+    case "plan":
+      return err({ kind: "decision_not_allowed", decision });
     case "question": {
       if (decision !== "answer") return err({ kind: "decision_not_allowed", decision });
       const answer = checkQuestionAnswer(request.body.question, response.answer);

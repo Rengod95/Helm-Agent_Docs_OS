@@ -51,12 +51,25 @@ describe("summarizeToolArgs: 도구별 입력 → 요약", () => {
     ).toEqual({ kind: "edit", path: "src/x.ts" });
   });
 
-  test("ls: 경로가 없으면 null이다", () => {
-    expect(summarizeToolArgs("ls", {})).toEqual({ kind: "list", path: null });
-    expect(summarizeToolArgs("ls", { path: "src" })).toEqual({ kind: "list", path: "src" });
+  test("없어진 ls와 find의 옛 기록 호출은 표에 없어 generic으로 보이고 범주는 other다", () => {
+    expect(summarizeToolArgs("ls", {})).toEqual({ kind: "generic", text: "{}" });
+    expect(summarizeToolArgs("ls", { path: "src" })).toEqual({
+      kind: "generic",
+      text: '{"path":"src"}',
+    });
+    expect(summarizeToolArgs("find", { pattern: "**/*.spec.ts", limit: 5 })).toEqual({
+      kind: "generic",
+      text: '{"pattern":"**/*.spec.ts","limit":5}',
+    });
+    expect(toolCategoryOf("ls")).toBe("other");
+    expect(toolCategoryOf("find")).toBe("other");
+    expect(groupToolCalls([{ toolName: "ls", args: { path: "src" } }])).toEqual({
+      counts: [{ category: "other", count: 1, distinct: null }],
+      total: 1,
+    });
   });
 
-  test("grep, find, knowledge_search: 찾기 대상과 질의를 나눈다", () => {
+  test("grep과 knowledge_search: 찾기 대상과 질의를 나눈다", () => {
     expect(summarizeToolArgs("grep", { pattern: "foo", path: "src", glob: "*.ts" })).toEqual({
       kind: "search",
       target: "content",
@@ -68,13 +81,6 @@ describe("summarizeToolArgs: 도구별 입력 → 요약", () => {
       kind: "search",
       target: "content",
       pattern: "bar",
-      path: null,
-      glob: null,
-    });
-    expect(summarizeToolArgs("find", { pattern: "**/*.spec.ts", limit: 5 })).toEqual({
-      kind: "search",
-      target: "files",
-      pattern: "**/*.spec.ts",
       path: null,
       glob: null,
     });
@@ -501,9 +507,9 @@ describe("toolCategoryOf", () => {
       ["skill_view", "read"],
       ["session_read", "read"],
       ["session_scroll", "read"],
-      ["ls", "search"],
+      ["ls", "other"],
       ["grep", "search"],
-      ["find", "search"],
+      ["find", "other"],
       ["knowledge_search", "search"],
       ["bash", "command"],
       ["edit", "edit"],

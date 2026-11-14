@@ -2,7 +2,7 @@
 
 ## Permission modes (`l1.tools.permissionMode`)
 
-| Mode | read tools (`read`, `ls`, `grep`, `find`) | write tools (`write`, `edit`) | exec (`bash`) |
+| Mode | read tools (`read`, `grep`) | write tools (`write`, `edit`) | exec (`bash`) |
 |---|---|---|---|
 | `default` | allow | ask | ask |
 | `acceptEdits` | allow | allow | ask |
@@ -30,7 +30,7 @@ Ways to set the mode:
 7. An ask that no one can answer is denied.
 
 - A bash `allow` is downgraded to `ask` when the command contains `;`, `&`, `|`, `<`, `>`, a backtick, a newline, or `$(`. Deny and ask rules are not changed.
-- Built-in defaults: read-risk tools are allowed, `ls` and `read` are allowed for workspace files, and `bash` is `ask`.
+- Built-in defaults: read-risk tools are allowed, `read` is allowed for workspace files, and `bash` is `ask`.
 
 ## Tiers
 
@@ -88,7 +88,7 @@ Other approval settings:
 
 - Shell commands (`bash`) run inside the OS sandbox.
 - MCP stdio servers run in it when their source says so: `l2.mcp.sandbox.projectSource` (default `true`) covers project and extension sources; `l2.mcp.sandbox.userSource` (default `false`) covers user settings.
-- File tools (`read`, `write`, `edit`, `ls`, `grep`, `find`) are not OS-sandboxed. They check the allowed roots and the protected-path list.
+- File tools (`read`, `write`, `edit`, `grep`) are not OS-sandboxed. They check the allowed roots and the protected-path list.
 - Network: open by default. Commands reach any host except those in `l0.sandbox.network.blockedDomains`, which is checked first (default empty). There is no allowlist setting.
 
 ### Filesystem rules for sandboxed commands

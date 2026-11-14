@@ -1,10 +1,14 @@
 import { expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
+import type { EventId } from "@fresnel/contracts/conversation";
 import {
   ApprovalRequestedPayloadSchema,
   ApprovalResolvedPayloadSchema,
   EffectIntentSchema,
   StepCheckpointSchema,
+  type ApprovalBodyJson,
+  type ApprovalRequestedPayload,
+  type ApprovalResolvedPayload,
 } from "@fresnel/contracts/records";
 import type {
   ApprovalBody,
@@ -12,6 +16,8 @@ import type {
   ApprovalResolution,
   ApprovalRequestInput,
 } from "@fresnel/contracts/services";
+import { approvalBodyOf } from "../src/approvals/pending.ts";
+import { requestCommitKey, resolveCommitKey } from "../src/approvals/keys.ts";
 import { createToolRuntime } from "../src/runtime.ts";
 import { eachInOrder } from "../src/util.ts";
 import {
@@ -19,12 +25,12 @@ import {
   createHarness,
   directTool,
   expectOk,
-  layer,
   until,
   type Harness,
 } from "./support/harness.ts";
 
-// L1A.4: 질문(question)과 계획(plan) 승인이 도구 승인과 같은 approval.requested 레코드로 기록된다(TL-12)
+// L1A.4: 질문(question) 승인이 도구 승인과 같은 approval.requested 레코드로 기록된다(TL-12).
+// 계획(plan) 승인은 더는 만들지 않는다 [결정: 2026-11-13 사용자]. 옛 기록은 읽기 전용으로 디코드하고 열 때 취소로 정착한다.
 
 const QUESTION: ApprovalBody = {
   kind: "question",
@@ -45,9 +51,10 @@ const QUESTION: ApprovalBody = {
   },
 };
 
-const PLAN: ApprovalBody = {
+/** 계획 모드가 있던 시절의 계획 승인 본문(옛 기록). nextModes의 옛 `plan` 문자열을 담고 있다 */
+const LEGACY_PLAN: ApprovalBodyJson = {
   kind: "plan",
-  plan: { plan: "# Plan\n1. do it", planRef: null, nextModes: ["default", "acceptEdits"] },
+  plan: { plan: "# Plan\n1. do it", planRef: null, nextModes: ["plan", "acceptEdits"] },
 };
 
 interface Asker {
@@ -117,45 +124,32 @@ function pendingOf(h: Harness): ApprovalRequest {
   return request;
 }
 
-test("question_and_plan_approval_share_request_shape: both are approval.requested with the same envelope and only body.kind differs", async () => {
+test("question_approval_is_an_approval_requested_record: the question is recorded with the shared envelope and its answer is recorded as answer", async () => {
   const h = await createHarness();
   registerAsker(h, "ask_user", QUESTION, "q-1");
-  registerAsker(h, "submit_plan", PLAN, "p-1");
   const question = callTool(h.runtime.tools, h.run(), { id: "call_q", name: "ask_user", args: {} });
   await until(() => h.runtime.approvals.pending(h.thread).length === 1);
-  const plan = callTool(h.runtime.tools, h.run(), { id: "call_p", name: "submit_plan", args: {} });
-  await until(() => h.runtime.approvals.pending(h.thread).length === 2);
 
   const requested = h.session.events.filter((event) => event.kind === "approval.requested");
-  expect(requested).toHaveLength(2);
-  const parsed = requested.map((event) => parse(ApprovalRequestedPayloadSchema, event.payload));
-  expect(parsed.every((entry) => entry.ok)).toBe(true);
-  const bodies = parsed.map((entry) => (entry.ok ? entry.value.body.kind : "invalid"));
-  expect(bodies).toEqual(["question", "plan"]);
-  const [first, second] = parsed;
-  if (first?.ok !== true || second?.ok !== true) throw new Error("payload did not parse");
-  expect(Object.keys(first.value).toSorted()).toEqual(Object.keys(second.value).toSorted());
-  expect(first.value.remember).toEqual(["once"]);
+  expect(requested).toHaveLength(1);
+  const parsed = parse(ApprovalRequestedPayloadSchema, requested[0]?.payload);
+  if (!parsed.ok) throw new Error("payload did not parse");
+  expect(parsed.value.body.kind).toBe("question");
+  expect(parsed.value.remember).toEqual(["once"]);
 
-  // 응답이 오면 두 도구 모두 끝난다
-  const [q, p] = h.runtime.approvals.pending(h.thread);
+  const [q] = h.runtime.approvals.pending(h.thread);
   expect(
     await h.runtime.approvals.respond(q?.approvalId ?? "", {
       decision: "answer",
       answer: { color: { selected: ["red"] }, note: { selected: [], text: "no" } },
     }),
   ).toEqual({ applied: true });
-  expect(await h.runtime.approvals.respond(p?.approvalId ?? "", { decision: "allow" })).toEqual({
-    applied: true,
-  });
   expect((await question).blocked).toBeUndefined();
-  expect((await plan).blocked).toBeUndefined();
   const resolved = h.session.events
     .filter((event) => event.kind === "approval.resolved")
     .map((event) => parse(ApprovalResolvedPayloadSchema, event.payload));
   expect(resolved.map((entry) => (entry.ok ? entry.value.decision : "invalid"))).toEqual([
     "answer",
-    "allow",
   ]);
 });
 
@@ -235,79 +229,6 @@ test("question answers are checked against the questions: unknown ids, bad optio
   expect(resolved.ok && resolved.value.answer).toEqual({ feedback: "later" });
 });
 
-test("plan_approval_switches_mode: allow with a mode writes the session mode before the plan tool continues", async () => {
-  const h = await createHarness({ layers: [layer("user", { "l1.tools.permissionMode": "plan" })] });
-  expect(h.runtime.tools.mode(h.thread)).toBe("plan");
-  const asker = registerAsker(h, "submit_plan", PLAN, "p-2");
-  const modeWhenResolved: string[] = [];
-  const done = callTool(h.runtime.tools, h.run(), { id: "call_m", name: "submit_plan", args: {} });
-  await until(() => h.runtime.approvals.pending(h.thread).length === 1);
-  const id = pendingOf(h).approvalId;
-  // 허용 목록 밖의 모드와 질문용 decision은 적용되지 않는다
-  expect(
-    await h.runtime.approvals.respond(id, { decision: "allow", answer: { mode: "bypass" } }),
-  ).toMatchObject({ applied: false, reason: "answer_invalid" });
-  expect(await h.runtime.approvals.respond(id, { decision: "answer" })).toEqual({
-    applied: false,
-    reason: "answer_invalid",
-    detail: 'decision "answer" does not fit this request',
-  });
-  expect(h.runtime.tools.mode(h.thread)).toBe("plan");
-  expect(
-    await h.runtime.approvals.respond(id, { decision: "allow", answer: { mode: "acceptEdits" } }),
-  ).toEqual({ applied: true });
-  await done;
-  modeWhenResolved.push(h.runtime.tools.mode(h.thread));
-  expect(modeWhenResolved).toEqual(["acceptEdits"]);
-  expect(h.session.sessionValues(h.thread).get("l1.tools.permissionMode")).toBe("acceptEdits");
-  expect(asker.resolutions[0]).toMatchObject({
-    decision: "allow",
-    answer: { mode: "acceptEdits" },
-  });
-});
-
-test("a plan denial keeps the mode; a plan allow without a mode keeps it too", async () => {
-  const h = await createHarness({ layers: [layer("user", { "l1.tools.permissionMode": "plan" })] });
-  registerAsker(h, "submit_plan", PLAN, "p-3");
-  const first = callTool(h.runtime.tools, h.run(), { id: "call_d", name: "submit_plan", args: {} });
-  await until(() => h.runtime.approvals.pending(h.thread).length === 1);
-  await h.runtime.approvals.respond(pendingOf(h).approvalId, {
-    decision: "deny",
-    answer: { feedback: "split it" },
-  });
-  await first;
-  expect(h.runtime.tools.mode(h.thread)).toBe("plan");
-  expect(h.session.sessionValues(h.thread).has("l1.tools.permissionMode")).toBe(false);
-});
-
-test("a plan approval whose answer was committed before a crash applies the mode when the plan tool asks again", async () => {
-  const h = await createHarness({ layers: [layer("user", { "l1.tools.permissionMode": "plan" })] });
-  registerAsker(h, "submit_plan", PLAN, "p-4");
-  const first = callTool(h.runtime.tools, h.run(), { id: "call_c", name: "submit_plan", args: {} });
-  await until(() => h.runtime.approvals.pending(h.thread).length === 1);
-  const request = pendingOf(h);
-  // 모드를 쓰는 단계에서 끊긴 것을 흉내 낸다: 해결 이벤트는 커밋되지만 모드 쓰기는 실패한다
-  h.session.failNextSettingsWrite({ kind: "io", code: "EIO" });
-  await h.runtime.approvals.respond(request.approvalId, {
-    decision: "allow",
-    answer: { mode: "default" },
-  });
-  await first;
-  expect(h.session.events.filter((event) => event.kind === "approval.resolved")).toHaveLength(1);
-  expect(h.runtime.tools.mode(h.thread)).toBe("plan");
-
-  // 재시작한 프로세스에서 계획 도구가 같은 requestKey로 다시 요청한다
-  const restarted = createToolRuntime(h.deps);
-  const again = await restarted.approvals.request({ ...request }, new AbortController().signal);
-  expect(again).toMatchObject({ ok: true, value: { decision: "allow" } });
-  expect(h.session.events.filter((event) => event.kind === "approval.requested")).toHaveLength(1);
-  expect(restarted.tools.mode(h.thread)).toBe("default");
-  // 한 번 더 요청해도 모드를 다시 쓰지 않는다
-  const writes = h.session.sessionValues(h.thread).get("l1.tools.permissionMode");
-  await restarted.approvals.request({ ...request }, new AbortController().signal);
-  expect(h.session.sessionValues(h.thread).get("l1.tools.permissionMode")).toBe(writes);
-});
-
 test("a non-interactive question is denied in the same commit that records it", async () => {
   const h = await createHarness();
   registerAsker(h, "ask_user", QUESTION, "q-4");
@@ -370,9 +291,10 @@ test("invalid requests come back as values: bad key, bad remember, duplicate que
         },
       },
     },
+    // 계획 승인은 더는 만들지 않는다
     {
       ...base,
-      body: { kind: "plan", plan: { plan: "p", planRef: null, nextModes: ["plan", "plan"] } },
+      body: { kind: "plan", plan: { plan: "p", planRef: null, nextModes: ["default"] } },
     },
     { ...base, title: "" },
   ];
@@ -386,14 +308,71 @@ test("invalid requests come back as values: bad key, bad remember, duplicate que
   expect(h.session.events).toHaveLength(0);
 });
 
-test("restore returns pending question and plan requests of all kinds after a restart", async () => {
+/**
+ * 계획 모드가 있던 시절의 승인 기록을 흉내 낸다: `approval.requested`를 커밋하고 approvalId(요청 이벤트 id)를 돌려준다.
+ * 새 코드는 계획 요청을 만들지 않으므로 시험이 직접 쓴다
+ */
+function seedLegacyPlan(h: Harness, requestKey: string, body: ApprovalBodyJson): EventId {
+  const requestedId = h.deps.ids.next("evt");
+  const payload: ApprovalRequestedPayload = {
+    origin: { threadId: h.thread, turnId: null, stepId: null, toolCallId: null, caller: "main" },
+    requestKey,
+    title: "Review the plan",
+    body,
+    remember: ["once"],
+    surfaceThreadId: h.thread,
+    requestedAt: 1,
+  };
+  const draft = h.deps.producer.draft({
+    id: requestedId,
+    kind: "approval.requested",
+    threadId: h.thread,
+    turnId: null,
+    stepId: null,
+    causationId: null,
+    correlationId: null,
+    payload,
+  });
+  const committed = h.session.commit({
+    threadId: h.thread,
+    requestId: requestCommitKey(h.thread, requestKey),
+    fingerprintSource: { kind: "approval.requested", requestKey },
+    build: () => ({ kind: "append", drafts: [draft], checkpoint: null }),
+  });
+  expect(committed.ok).toBe(true);
+  return requestedId;
+}
+
+/** 옛 계획 승인의 해결 기록(`approval.resolved`)을 커밋한다 */
+function seedLegacyResolution(
+  h: Harness,
+  approvalId: EventId,
+  resolution: ApprovalResolvedPayload,
+): void {
+  const draft = h.deps.producer.draft({
+    id: h.deps.ids.next("evt"),
+    kind: "approval.resolved",
+    threadId: h.thread,
+    turnId: null,
+    stepId: null,
+    causationId: approvalId,
+    correlationId: null,
+    payload: resolution,
+  });
+  const committed = h.session.commit({
+    threadId: h.thread,
+    requestId: resolveCommitKey(approvalId),
+    fingerprintSource: { kind: "approval.resolved", approvalId },
+    build: () => ({ kind: "append", drafts: [draft], checkpoint: null }),
+  });
+  expect(committed.ok).toBe(true);
+}
+
+test("restore returns pending question requests after a restart and the answer is recorded", async () => {
   const h = await createHarness();
   registerAsker(h, "ask_user", QUESTION, "q-5");
-  registerAsker(h, "submit_plan", PLAN, "p-5");
   void callTool(h.runtime.tools, h.run(), { id: "call_r1", name: "ask_user", args: {} });
   await until(() => h.runtime.approvals.pending(h.thread).length === 1);
-  void callTool(h.runtime.tools, h.run(), { id: "call_r2", name: "submit_plan", args: {} });
-  await until(() => h.runtime.approvals.pending(h.thread).length === 2);
   const before = h.runtime.approvals.pending(h.thread);
 
   const restarted = createToolRuntime(h.deps);
@@ -401,9 +380,9 @@ test("restore returns pending question and plan requests of all kinds after a re
   expect(restored.map((request) => request.approvalId)).toEqual(
     before.map((request) => request.approvalId),
   );
-  expect(restored.map((request) => request.body.kind)).toEqual(["question", "plan"]);
+  expect(restored.map((request) => request.body.kind)).toEqual(["question"]);
   // restore는 두 번 불러도 같다
-  expect(expectOk(await restarted.approvals.restore(h.thread))).toHaveLength(2);
+  expect(expectOk(await restarted.approvals.restore(h.thread))).toHaveLength(1);
   // 재시작한 서비스가 응답을 받아 해결을 커밋한다
   const [question] = restored;
   expect(
@@ -412,5 +391,62 @@ test("restore returns pending question and plan requests of all kinds after a re
       answer: { color: { selected: ["blue"] }, note: { selected: [], text: "ok" } },
     }),
   ).toEqual({ applied: true });
-  expect(restarted.approvals.pending(h.thread)).toHaveLength(1);
+  expect(restarted.approvals.pending(h.thread)).toHaveLength(0);
+});
+
+test("an old plan approval that was still waiting is settled as cancelled on restore; the question beside it keeps waiting", async () => {
+  const h = await createHarness();
+  registerAsker(h, "ask_user", QUESTION, "q-6");
+  void callTool(h.runtime.tools, h.run(), { id: "call_o1", name: "ask_user", args: {} });
+  await until(() => h.runtime.approvals.pending(h.thread).length === 1);
+  const legacy = seedLegacyPlan(h, "legacy-plan-1", LEGACY_PLAN);
+
+  const restarted = createToolRuntime(h.deps);
+  const restored = expectOk(await restarted.approvals.restore(h.thread));
+  expect(restored.map((request) => request.body.kind)).toEqual(["question"]);
+  expect(restarted.approvals.get(legacy)?.resolution).toMatchObject({
+    decision: "deny",
+    answer: null,
+    resolvedBy: "cancelled",
+  });
+  const settled = h.session.events
+    .filter((event) => event.kind === "approval.resolved")
+    .map((event) => parse(ApprovalResolvedPayloadSchema, event.payload))
+    .flatMap((entry) => (entry.ok ? [entry.value] : []));
+  expect(settled).toMatchObject([
+    { approvalId: legacy, decision: "deny", resolvedBy: "cancelled", remember: "once" },
+  ]);
+  // 두 번째 restore는 이미 정착한 옛 계획 승인을 다시 쓰지 않는다
+  expect(expectOk(await restarted.approvals.restore(h.thread))).toHaveLength(1);
+  expect(h.session.events.filter((event) => event.kind === "approval.resolved")).toHaveLength(1);
+});
+
+test("an old plan approval that was already answered is read as answered: nothing is pending and no mode is written", async () => {
+  const h = await createHarness();
+  const legacy = seedLegacyPlan(h, "legacy-plan-2", LEGACY_PLAN);
+  seedLegacyResolution(h, legacy, {
+    approvalId: legacy,
+    decision: "allow",
+    answer: { mode: "acceptEdits" },
+    remember: "once",
+    requestedRemember: null,
+    resolvedBy: "user",
+  });
+
+  const restarted = createToolRuntime(h.deps);
+  expect(expectOk(await restarted.approvals.restore(h.thread))).toEqual([]);
+  expect(restarted.approvals.get(legacy)?.resolution).toMatchObject({
+    decision: "allow",
+    answer: { mode: "acceptEdits" },
+    resolvedBy: "user",
+  });
+  expect(h.session.events.filter((event) => event.kind === "approval.resolved")).toHaveLength(1);
+  expect(h.session.sessionValues(h.thread).has("l1.tools.permissionMode")).toBe(false);
+});
+
+test("a legacy plan body still decodes: the removed plan string is dropped from its modes and nothing else changes", () => {
+  expect(approvalBodyOf(LEGACY_PLAN)).toEqual({
+    kind: "plan",
+    plan: { plan: "# Plan\n1. do it", planRef: null, nextModes: ["acceptEdits"] },
+  });
 });

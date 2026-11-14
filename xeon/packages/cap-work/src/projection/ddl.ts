@@ -1,9 +1,10 @@
 // L2.work.spec §3.8. 투영기 cap.work의 작업·계획·목표·보고 부분.
 // 버전 2: cap_work_plans와 cap_work_meta의 권한 모드 추적 열(mode, mode_before_plan, plan_entered_seq)을 더했다.
 // 버전 3: 목표(cap_work_goals, cap_work_judgments)와 보고(cap_work_reports) 테이블을 더했다(M3-REQ-90).
+// 버전 4: 계획 모드를 없앴다 [결정: 2026-11-13 사용자]. cap_work_meta의 권한 모드 추적 열을 뺐다. cap_work_plans는 옛 계획 기록을 읽기 위해 남긴다.
 
 export const WORK_PROJECTOR_NAME = "cap.work";
-export const WORK_PROJECTOR_VERSION = 3;
+export const WORK_PROJECTOR_VERSION = 4;
 
 export const WORK_PROJECTOR_TABLES: readonly string[] = [
   "cap_work_tasks",
@@ -53,10 +54,7 @@ export const WORK_PROJECTOR_DDL: readonly string[] = [
   `CREATE TABLE cap_work_meta (
   session_id   TEXT NOT NULL PRIMARY KEY,
   turns_completed INTEGER NOT NULL,
-  last_task_change_turn INTEGER NOT NULL,
-  mode         TEXT,
-  mode_before_plan TEXT,
-  plan_entered_seq INTEGER
+  last_task_change_turn INTEGER NOT NULL
 ) STRICT`,
   // goal은 Goal JSON(최신). set_at은 work.goal_set의 recordedAt이고 보고의 durationMs 기준이다(spec §3.8에 없던 열)
   `CREATE TABLE cap_work_goals (

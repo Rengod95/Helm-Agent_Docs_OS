@@ -234,17 +234,17 @@ describe("plugin", () => {
     await bundled.t.host.install(unit);
     await bundled.t.settled();
     bundled.env.reply({ exitCode: 1 });
-    await apis.files?.find({ pattern: "*" });
+    await apis.files?.grep({ pattern: "x" });
     expect(bundled.resolved).toEqual(["rg"]);
     expect(bundled.env.calls[0]?.command).toEqual([
       "/bundle/rg",
-      "--files",
+      "--json",
       "--no-config",
       "--no-require-git",
       "--sort",
       "path",
-      "--glob",
-      "*",
+      "-e",
+      "x",
       "--no-messages",
       "--",
       ".",
@@ -257,12 +257,12 @@ describe("plugin", () => {
     await configured.t.host.install(second.unit);
     await configured.t.settled();
     configured.env.reply({ exitCode: 1 });
-    await second.apis.files?.find({ pattern: "*" });
+    await second.apis.files?.grep({ pattern: "x" });
     expect(configured.resolved).toEqual([]);
     expect(configured.env.calls[0]?.command[0]).toBe("/opt/rg/rg");
   });
 
-  test("all six files tools reach L1.tools, with their risk", async () => {
+  test("all four files tools reach L1.tools, with their risk", async () => {
     const { registered } = await boot();
     expect(registered).toHaveLength(2);
     const [files, shell] = registered;
@@ -271,30 +271,23 @@ describe("plugin", () => {
       "read",
       "write",
       "edit",
-      "ls",
       "grep",
-      "find",
     ]);
     expect(files?.kind === "capability" ? files.key : undefined).toEqual(WorkspaceFilesKey);
     expect(files?.kind === "capability" ? files.policy : undefined).toEqual({
       read: { risk: "read" },
       write: { risk: "write" },
       edit: { risk: "write" },
-      ls: { risk: "read" },
       grep: { risk: "read" },
-      find: { risk: "read" },
     });
-    // ls와 find만 지연이다. 나머지 files 도구와 bash는 항상 싣는다(사용자 결정 2026-11-13)
-    expect(files?.kind === "capability" ? files.exposure : undefined).toEqual({
-      ls: "deferred",
-      find: "deferred",
-    });
+    // 지연 광고 항목이 없으므로 exposure는 싣지 않는다
+    expect(files?.kind === "capability" ? files.exposure : undefined).toBeUndefined();
     expect(shell?.kind === "capability" ? shell.def.tools.map((tool) => tool.name) : []).toEqual([
       "bash",
     ]);
     expect(shell?.kind === "capability" ? shell.key : undefined).toEqual(WorkspaceShellKey);
     expect(shell?.kind === "capability" ? shell.policy : undefined).toEqual({
-      bash: { risk: "exec" },
+      bash: { risk: "exec", riskUnderReadOnlySandbox: "read" },
     });
   });
 

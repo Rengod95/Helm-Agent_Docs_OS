@@ -39,11 +39,11 @@ export const TruncationInfoSchema: TObject<{
   nextOffset: TOptional<TInteger>;
 }> = Type.Object(
   {
-    /** 어느 한도에 걸렸는가. entries는 grep·find·ls의 개수 한도 */
+    /** 어느 한도에 걸렸는가. entries는 grep의 개수 한도 */
     by: Type.Union([Type.Literal("lines"), Type.Literal("bytes"), Type.Literal("entries")]),
     /** 결과에 담은 단위 수(줄 또는 항목) */
     shown: Type.Integer({ minimum: 0 }),
-    /** 전체 단위 수. 끝까지 세지 않는 도구(grep, find)는 알 수 없을 때 생략한다 */
+    /** 전체 단위 수. 끝까지 세지 않는 도구(grep)는 알 수 없을 때 생략한다 */
     total: Type.Optional(Type.Integer({ minimum: 0 })),
     /** read 전용. 이어 읽을 때 넘길 offset(1부터) */
     nextOffset: Type.Optional(Type.Integer({ minimum: 1 })),
@@ -260,39 +260,6 @@ export const EditOutput: TObject<{
   { additionalProperties: false },
 );
 
-/** 도구 이름 ls의 입력 */
-export const ListInput: TObject<{ path: TOptional<TString>; limit: TOptional<TInteger> }> =
-  Type.Object(
-    {
-      path: Type.Optional(PathParam),
-      limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 10_000 })),
-    },
-    { additionalProperties: false },
-  );
-const ListEntry: TObject<{
-  name: TString;
-  kind: TUnion<[TLiteral<"file">, TLiteral<"directory">, TLiteral<"symlink">]>;
-}> = Type.Object(
-  {
-    name: Type.String({ maxLength: 4096 }),
-    kind: Type.Union([Type.Literal("file"), Type.Literal("directory"), Type.Literal("symlink")]),
-  },
-  { additionalProperties: false },
-);
-export const ListOutput: TObject<{
-  path: TString;
-  entries: TArray<typeof ListEntry>;
-  truncated: TOptional<typeof TruncationInfoSchema>;
-}> = Type.Object(
-  {
-    path: Type.String({ maxLength: 4096 }),
-    /** 이름 바이트 순. 점 파일 포함 */
-    entries: Type.Array(ListEntry, { maxItems: 10_000 }),
-    truncated: Type.Optional(TruncationInfoSchema),
-  },
-  { additionalProperties: false },
-);
-
 export const GrepInput: TObject<{
   pattern: TString;
   path: TOptional<TString>;
@@ -347,36 +314,6 @@ export const GrepOutput: TObject<{
   { additionalProperties: false },
 );
 
-export const FindInput: TObject<{
-  pattern: TString;
-  path: TOptional<TString>;
-  limit: TOptional<TInteger>;
-}> = Type.Object(
-  {
-    pattern: Type.String({
-      minLength: 1,
-      maxLength: 512,
-      description: "File glob. Example: **/*.spec.ts",
-    }),
-    path: Type.Optional(PathParam),
-    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100_000 })),
-  },
-  { additionalProperties: false },
-);
-export const FindOutput: TObject<{
-  root: TString;
-  paths: TArray<TString>;
-  truncated: TOptional<typeof TruncationInfoSchema>;
-}> = Type.Object(
-  {
-    root: Type.String({ maxLength: 4096 }),
-    /** root 기준 상대 경로, 바이트 순 */
-    paths: Type.Array(Type.String({ maxLength: 4096 }), { maxItems: 100_000 }),
-    truncated: Type.Optional(TruncationInfoSchema),
-  },
-  { additionalProperties: false },
-);
-
 // ── 렌더링과 입력 변환(순수 함수) ───────────────────────────────────────
 
 function truncNote(t: TruncationInfo | undefined): string {
@@ -423,14 +360,6 @@ function renderChange(verb: string): (out: { change: FileChange }) => ToolConten
   });
 }
 
-function renderList(out: Static<typeof ListOutput>): ToolContent {
-  const lines = out.entries.map((e) => (e.kind === "directory" ? `${e.name}/` : e.name));
-  return {
-    content: [{ type: "text", text: lines.join("\n") + truncNote(out.truncated) }],
-    structuredContent: out,
-  };
-}
-
 function renderGrep(out: Static<typeof GrepOutput>): ToolContent {
   const lines = out.matches.map((m) => {
     const sep = m.kind === "match" ? ":" : "-";
@@ -438,13 +367,6 @@ function renderGrep(out: Static<typeof GrepOutput>): ToolContent {
   });
   return {
     content: [{ type: "text", text: lines.join("\n") + truncNote(out.truncated) }],
-    structuredContent: out,
-  };
-}
-
-function renderFind(out: Static<typeof FindOutput>): ToolContent {
-  return {
-    content: [{ type: "text", text: out.paths.join("\n") + truncNote(out.truncated) }],
     structuredContent: out,
   };
 }
@@ -484,9 +406,7 @@ type FilesMethods = {
   readonly read: MethodDef<typeof ReadInput, typeof ReadOutput>;
   readonly write: MethodDef<typeof WriteInput, typeof WriteOutput>;
   readonly edit: MethodDef<typeof EditInput, typeof EditOutput>;
-  readonly list: MethodDef<typeof ListInput, typeof ListOutput>;
   readonly grep: MethodDef<typeof GrepInput, typeof GrepOutput>;
-  readonly find: MethodDef<typeof FindInput, typeof FindOutput>;
 };
 
 export const WorkspaceFiles: CapabilityDef<
@@ -495,15 +415,12 @@ export const WorkspaceFiles: CapabilityDef<
     ToolSpec<"read", typeof ReadInput, FilesMethods["read"]>,
     ToolSpec<"write", typeof WriteInput, FilesMethods["write"]>,
     ToolSpec<"edit", typeof EditToolParams, FilesMethods["edit"]>,
-    ToolSpec<"list", typeof ListInput, FilesMethods["list"]>,
     ToolSpec<"grep", typeof GrepInput, FilesMethods["grep"]>,
-    ToolSpec<"find", typeof FindInput, FilesMethods["find"]>,
   ]
 > = defineCapability({
   id: "workspace.files",
   version: "1.0.0",
-  description:
-    "Read, write, edit, list, search contents of, and find files in the working directory.",
+  description: "Read, write, edit, and search the contents of files in the working directory.",
   service: {
     methods: {
       read: {
@@ -553,13 +470,6 @@ export const WorkspaceFiles: CapabilityDef<
           },
         },
       },
-      list: {
-        description: "Returns directory entries sorted by name.",
-        input: ListInput,
-        output: ListOutput,
-        replay: "safe",
-        readOnly: true,
-      },
       grep: {
         description: "Searches file contents by regular expression or string. Respects .gitignore.",
         input: GrepInput,
@@ -569,14 +479,6 @@ export const WorkspaceFiles: CapabilityDef<
         errors: {
           pattern_invalid: { description: "Invalid regular expression syntax", retryable: false },
         },
-      },
-      find: {
-        description: "Finds files by glob. Respects .gitignore.",
-        input: FindInput,
-        output: FindOutput,
-        replay: "safe",
-        readOnly: true,
-        errors: { pattern_invalid: { description: "Invalid glob syntax", retryable: false } },
       },
     },
   },
@@ -619,18 +521,6 @@ export const WorkspaceFiles: CapabilityDef<
       hints: { readOnly: false, destructive: true, idempotent: false },
     },
     {
-      name: "ls",
-      label: "List Directory",
-      method: "list",
-      parameters: ListInput,
-      description:
-        "Lists directory entries sorted by name. Directories end with /. Includes dot files.",
-      toContent: renderList,
-      replay: "safe",
-      executionMode: "parallel",
-      hints: READ_ONLY,
-    },
-    {
       name: "grep",
       label: "Search Contents",
       method: "grep",
@@ -638,18 +528,6 @@ export const WorkspaceFiles: CapabilityDef<
       description:
         "Searches file contents and returns paths and line numbers. Respects .gitignore. Result count and line length are limited.",
       toContent: renderGrep,
-      replay: "safe",
-      executionMode: "parallel",
-      hints: READ_ONLY,
-    },
-    {
-      name: "find",
-      label: "Find Files",
-      method: "find",
-      parameters: FindInput,
-      description:
-        "Finds files by glob pattern and returns paths relative to the base directory. Respects .gitignore.",
-      toContent: renderFind,
       replay: "safe",
       executionMode: "parallel",
       hints: READ_ONLY,

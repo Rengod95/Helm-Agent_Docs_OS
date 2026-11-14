@@ -89,6 +89,8 @@ export interface ToolEntry {
   /** MCP 서버가 알린 성질(표시용). 정책 입력이 아니다 */
   readonly mcpDeclared?: McpDeclaredHints | undefined;
   readonly risk: ToolRisk;
+  /** 읽기 전용 샌드박스 상한 아래의 위험 등급(`ToolPolicyMeta.riskUnderReadOnlySandbox`). 없으면 `risk`를 쓴다 */
+  readonly riskUnderReadOnlySandbox?: ToolRisk | undefined;
   readonly classes: readonly ToolClass[];
   readonly hints: NonNullable<ToolSpec["hints"]>;
   readonly replay: ReplayPolicy;

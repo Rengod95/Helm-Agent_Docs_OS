@@ -1,6 +1,7 @@
 import {
   Bug,
   assertNever,
+  attempt,
   err,
   ok,
   type Logger,
@@ -17,6 +18,10 @@ import {
   type ShellExecOptions,
   type ShellExecResult,
 } from "@fresnel/contracts/services";
+import { mkdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { posix } from "node:path";
+import { canonicalizePath } from "./paths.ts";
 import type { EffectivePolicy, SrtTools } from "./policy.ts";
 import { toSrtFileConfig, validationCandidate } from "./policy.ts";
 import type { SandboxProvider } from "./provider.ts";
@@ -42,6 +47,8 @@ export interface WrapShellDeps {
   readonly resolvePolicy: (policy: SandboxPolicy, baseDir: string) => EffectivePolicy;
   /** srt에 넘길 헬퍼 경로. 검증 후보를 만들 때 쓴다 */
   readonly tools: () => SrtTools;
+  /** 읽기 전용 프로필이 호출마다 빈 임시 폴더를 만들 부모 폴더(`os.dirs.tmp`). 생략하면 OS 임시 폴더 */
+  readonly readOnlyTempBase?: () => string;
   /** exec 때마다 맨 먼저 부른다. 설정 변경(enabled)으로 낡은 탐지 결과를 새로 고치는 자리다 */
   readonly ensureCurrent: (context: CancelScope) => Promise<void>;
 }
@@ -161,6 +168,31 @@ export function decideExecution(
   }
 }
 
+/** 읽기 전용 프로필 호출이 샌드박스 없이는 돌지 않는다는 오류(L0.sandbox.spec §4.2 읽기 전용 프로필) */
+function readOnlyUnavailableError(status: SandboxStatus): ExecutionError {
+  return new ExecutionError(
+    "sandbox_unavailable",
+    `read-only sandbox is not available, so the command was not run (reason=${status.reason ?? "none"})`,
+  );
+}
+
+/**
+ * 읽기 전용 프로필 명령 앞에 붙이는 문장. 샌드박스 프록시로 나가는 길(주소와 인증 토큰이 든 환경 변수)을 지우고,
+ * 임시 파일은 호출 전용 빈 폴더로 보낸다. 프록시 토큰이 없으면 프록시가 요청을 거부하고 직접 연결은 샌드박스가 막는다
+ */
+const EXTRA_ENV_NAMES = [
+  "GIT_SSH_COMMAND",
+  "GIT_CONFIG_PARAMETERS",
+  "JAVA_TOOL_OPTIONS",
+  "SRT_ENCODED_CMD",
+];
+
+function readOnlyCommand(command: string, tempDir: string): string {
+  // 이름에 proxy가 든 변수는 모두 지운다(srt가 넣은 것과 부모 환경의 것 모두)
+  const clear = `for v in $(env | grep -i proxy | cut -d= -f1); do unset "$v"; done; unset ${EXTRA_ENV_NAMES.join(" ")}`;
+  return `${clear}; export TMPDIR=${quoteArg(tempDir)}; ${command}`;
+}
+
 export interface SrtWrapRequest {
   readonly command: string;
   /** 정책의 상대 경로 기준 디렉터리 */
@@ -168,6 +200,8 @@ export interface SrtWrapRequest {
   readonly cwd: string | undefined;
   readonly abortSignal: AbortSignal | undefined;
   readonly commandId: string;
+  /** 읽기 전용 프로필이 이 호출에 허용하는 유일한 쓰기 루트(호출 전용 빈 임시 폴더) */
+  readonly readOnlyTemp?: string;
 }
 
 /**
@@ -185,7 +219,15 @@ export async function srtWrap(
       new ExecutionError("sandbox_failed", "network allow-list policy is not supported yet"),
     );
   }
-  const effective = deps.resolvePolicy(policy, request.baseDir);
+  const resolved = deps.resolvePolicy(policy, request.baseDir);
+  const effective: EffectivePolicy =
+    policy.profile === "read-only"
+      ? {
+          ...resolved,
+          writeRoots:
+            request.readOnlyTemp === undefined ? [] : [canonicalizePath(request.readOnlyTemp)],
+        }
+      : resolved;
   const customConfig = toSrtFileConfig(effective);
   const issues = deps.srt.validateConfig(validationCandidate(deps.tools(), customConfig));
   if (issues.length > 0) {
@@ -280,14 +322,39 @@ export function wrapShellWith(deps: WrapShellDeps, shell: Shell, policy: Sandbox
     if (isAborted(context)) return err(new ExecutionError("aborted", "aborted"));
 
     const commandId = newCommandId(deps.random);
+    const readOnly = policy.profile === "read-only";
+    let readOnlyTemp: string | undefined;
+    if (readOnly) {
+      const dir = posix.join(deps.readOnlyTempBase?.() ?? tmpdir(), `ro-${commandId}`);
+      const made = attempt(() => mkdirSync(dir, { recursive: true, mode: 0o700 }));
+      if (!made.ok) {
+        return err(
+          new ExecutionError(
+            "sandbox_failed",
+            "read-only sandbox could not prepare its temp folder",
+          ),
+        );
+      }
+      readOnlyTemp = dir;
+    }
+    const removeReadOnlyTemp = (): void => {
+      if (readOnlyTemp === undefined) return;
+      const removed = attempt(() => rmSync(readOnlyTemp, { recursive: true, force: true }));
+      if (!removed.ok) deps.logger.warn("sandbox.read_only_temp_cleanup_failed", {});
+    };
     const wrapped = await srtWrap(deps, policy, {
-      command: shellCommand,
+      command:
+        readOnlyTemp === undefined ? shellCommand : readOnlyCommand(shellCommand, readOnlyTemp),
       baseDir: baseDirOf(options),
       cwd: options?.cwd,
       abortSignal: context.abortSignal,
       commandId,
+      ...(readOnlyTemp === undefined ? {} : { readOnlyTemp }),
     });
-    if (!wrapped.ok) return err(wrapped.error);
+    if (!wrapped.ok) {
+      removeReadOnlyTemp();
+      return err(wrapped.error);
+    }
 
     const additions = envAdditions(deps.parentEnv(), wrapped.value.env);
     const seen = { denial: false };
@@ -307,6 +374,7 @@ export function wrapShellWith(deps: WrapShellDeps, shell: Shell, policy: Sandbox
       result = await shell.exec(wrapped.value.argv, execOptions, context);
       failed = result.ok && result.value.exitCode !== 0;
     } finally {
+      removeReadOnlyTemp();
       lines = deps.srt.getViolationLines(commandId);
       // macOS는 위반을 로그 스트림으로 받아 명령이 끝난 뒤에 도착할 수 있다. 실패한 명령의 출력에 거부 문구가 있으면 쓰기 거부 줄을 잠깐 기다린다
       if (failed && seen.denial) lines = await settleWriteBlocks(deps, commandId, lines, 0);
@@ -331,6 +399,10 @@ export function wrapShellWith(deps: WrapShellDeps, shell: Shell, policy: Sandbox
       await deps.ensureCurrent(context);
       const status = deps.status();
       const decision = decideExecution(status, policy, deps.escapeRetry());
+      // 읽기 전용 프로필은 샌드박스 밖 실행이나 격리 불가 우회를 허용하지 않는다: 돌리지 않고 거부한다
+      if (policy.profile === "read-only" && decision.action !== "sandboxed") {
+        return err(readOnlyUnavailableError(status));
+      }
       switch (decision.action) {
         case "reject":
           return err(rejectionError(decision, status));

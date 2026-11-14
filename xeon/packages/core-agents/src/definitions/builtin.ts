@@ -4,8 +4,8 @@ import type { AgentDefinition } from "@fresnel/contracts/services";
 const GENERAL_AGENT_NAME = "general";
 const EXPLORE_AGENT_NAME = "explore";
 
-/** 읽기 전용 정의가 쓰는 도구. 쓰기와 셸은 목록에 없으니 거부된다 */
-const EXPLORE_TOOLS: readonly string[] = ["read", "ls", "grep", "find"];
+/** 읽기 전용 정의가 쓰는 도구. bash는 `permissions.sandbox: read-only`라 읽기 전용 샌드박스에서만 돈다. 쓰기 도구는 목록에 없다 */
+const EXPLORE_TOOLS: readonly string[] = ["read", "grep", "bash"];
 
 /** 코어 기본 정의 둘. 모델 역할은 subagent(생략 기본값) */
 export function coreAgentDefinitions(): readonly AgentDefinition[] {
@@ -22,12 +22,13 @@ export function coreAgentDefinitions(): readonly AgentDefinition[] {
     {
       name: EXPLORE_AGENT_NAME,
       description:
-        "Read-only explorer. Reads, lists and searches files; never writes or runs a shell.",
+        "Read-only explorer. Reads and searches files; its shell is a read-only sandbox.",
       prompt: [
-        "You are a read-only exploration subagent. You can only read, list and search files.",
+        "You are a read-only exploration subagent. Use read, grep and the read-only shell.",
         "Investigate the task, then finish with a short report: what you looked at and what you found, with file paths.",
       ].join("\n"),
       tools: [...EXPLORE_TOOLS],
+      permissions: { sandbox: "read-only" },
       source: { kind: "builtin" },
     },
   ];

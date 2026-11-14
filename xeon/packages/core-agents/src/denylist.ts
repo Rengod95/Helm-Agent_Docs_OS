@@ -35,7 +35,7 @@ export function subagentRules(maxDepth: number): readonly PolicyRule[] {
       action: "tool.call",
       resource: { classes: ["user_interaction"], caller: "subagent" },
       effect: "deny",
-      description: "Subagents cannot ask the user questions or request plan approval.",
+      description: "Subagents cannot ask the user questions.",
     },
     {
       id: "subagent.no-shared-write",

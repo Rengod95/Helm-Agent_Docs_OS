@@ -60,8 +60,9 @@ function call(overrides: Partial<PolicyInput> = {}): PolicyInput {
 describe("child mode and ceiling", () => {
   // spec plan child_mode_never_looser_than_parent
   test("child_mode_never_looser_than_parent", () => {
-    expect(childMode("plan", "acceptEdits")).toBe("plan");
-    expect(childMode("acceptEdits", "plan")).toBe("plan");
+    expect(childMode("acceptEdits", "default")).toBe("default");
+    expect(childMode("default", "acceptEdits")).toBe("default");
+    expect(childMode("acceptEdits", "bypass")).toBe("acceptEdits");
     expect(childMode("default", undefined)).toBe("default");
     expect(childMode("default", "bypass")).toBe("default");
     expect(childMode("bypass", "default")).toBe("default");
@@ -80,11 +81,11 @@ describe("child mode and ceiling", () => {
   test("ceilingOf keeps the parent's view and the definition limit", () => {
     expect(
       ceilingOf({
-        parent: { caller: "main", depth: 0, mode: "plan" },
+        parent: { caller: "main", depth: 0, mode: "acceptEdits" },
         definitionTools: ["read*", "grep"],
         requestAllow: ["read*"],
       }),
-    ).toEqual({ caller: "main", depth: 0, mode: "plan", allow: ["read*"] });
+    ).toEqual({ caller: "main", depth: 0, mode: "acceptEdits", allow: ["read*"] });
     expect(
       ceilingOf({
         parent: { caller: "main", depth: 0, mode: "default" },
@@ -92,6 +93,56 @@ describe("child mode and ceiling", () => {
         requestAllow: undefined,
       }),
     ).toEqual({ caller: "main", depth: 0, mode: "default" });
+  });
+
+  test("ceilingOf carries the definition's sandbox profile; a parent's profile wins and a grandchild inherits it", () => {
+    expect(
+      ceilingOf({
+        parent: { caller: "main", depth: 0, mode: "default" },
+        definitionTools: undefined,
+        requestAllow: undefined,
+        definitionSandbox: "read-only",
+      }),
+    ).toEqual({ caller: "main", depth: 0, mode: "default", sandbox: "read-only" });
+    // 손자 정의는 sandbox를 적지 않아도 부모 상한의 read-only를 이어받는다
+    const grandchild = ceilingOf({
+      parent: { caller: "subagent:explorer", depth: 1, mode: "default" },
+      definitionTools: undefined,
+      requestAllow: undefined,
+      definitionSandbox: undefined,
+      parentCeiling: {
+        caller: "subagent:explorer",
+        depth: 1,
+        mode: "default",
+        sandbox: "read-only",
+      },
+    });
+    expect(grandchild.sandbox).toBe("read-only");
+    expect(grandchild).toEqual({
+      caller: "subagent:explorer",
+      depth: 1,
+      mode: "default",
+      sandbox: "read-only",
+    });
+    // 부모 상한에 프로필이 없어도 정의가 read-only를 요구하면 자식은 read-only다
+    expect(
+      ceilingOf({
+        parent: { caller: "subagent:explorer", depth: 1, mode: "default" },
+        definitionTools: undefined,
+        requestAllow: undefined,
+        definitionSandbox: "read-only",
+        parentCeiling: { caller: "main", depth: 0, mode: "default" },
+      }).sandbox,
+    ).toBe("read-only");
+    // 한쪽도 프로필을 말하지 않으면 상한에 프로필이 없다
+    expect(
+      ceilingOf({
+        parent: { caller: "subagent:explorer", depth: 1, mode: "default" },
+        definitionTools: undefined,
+        requestAllow: undefined,
+        parentCeiling: { caller: "main", depth: 0, mode: "default" },
+      }),
+    ).not.toHaveProperty("sandbox");
   });
 
   test("ceilingOf carries the caller deny globs and the deny hint for run-time rejection", () => {

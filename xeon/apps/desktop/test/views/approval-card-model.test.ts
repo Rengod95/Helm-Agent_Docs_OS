@@ -4,10 +4,7 @@ import {
   approvalExpiryOf,
   approvalKeyOf,
   cardTitleViewOf,
-  feedbackTextOf,
-  FEEDBACK_MAX,
   foldPlanLines,
-  modeLabelIdOf,
   PLAN_FOLD_LINES,
   reviewTotalsOf,
   ruleTextIdOf,
@@ -131,19 +128,6 @@ describe("review totals", () => {
       hunks: 7,
     });
     expect(reviewTotalsOf([])).toEqual({ files: 0, hunks: 0 });
-  });
-});
-
-describe("feedback text", () => {
-  test("blank feedback is no feedback; the rest is trimmed", () => {
-    expect(feedbackTextOf("   ")).toBeNull();
-    expect(feedbackTextOf("")).toBeNull();
-    expect(feedbackTextOf("  split the step  ")).toBe("split the step");
-  });
-
-  test("feedback is cut at the contract's maximum length", () => {
-    const long = "a".repeat(FEEDBACK_MAX + 5);
-    expect(feedbackTextOf(long)?.length).toBe(FEEDBACK_MAX);
   });
 });
 
@@ -279,14 +263,6 @@ describe("knowledge write card title", () => {
         requestWith({ title: "Approve nuke.all on user memory?", body: toolBody("memory_manage") }),
       ),
     ).toBeNull();
-  });
-});
-
-describe("plan mode label", () => {
-  test("known modes map to catalog keys and an unknown mode keeps its raw value", () => {
-    expect(modeLabelIdOf("default")).toBe("desktop.approvals.plan.mode.default");
-    expect(modeLabelIdOf("acceptEdits")).toBe("desktop.approvals.plan.mode.acceptEdits");
-    expect(modeLabelIdOf("custom-mode")).toBeNull();
   });
 });
 

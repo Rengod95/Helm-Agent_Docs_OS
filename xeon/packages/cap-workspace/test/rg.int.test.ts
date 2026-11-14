@@ -7,7 +7,7 @@ import { createFilesApi } from "../src/service.ts";
 import { rejection } from "./support/assertions.ts";
 import { realDeps, realEnv } from "./support/real-env.ts";
 
-// L2.workspace.spec §3.2 grep·find, §4.3(심볼릭 링크를 따라가지 않음), §10 미결 6(find의 glob 의미).
+// L2.workspace.spec §3.2 grep, §4.3(심볼릭 링크를 따라가지 않음), §10 미결 6(glob 의미: grep의 glob 필터가 쓴다).
 // 실제 ripgrep 실행 파일과 실제 파일 시스템으로 확인한다. rg가 PATH에 없으면 건너뛴다.
 
 const RG = Bun.which("rg");
@@ -38,8 +38,8 @@ function write(root: string, path: string, content: string): void {
   writeFileSync(full, content);
 }
 
-describe.skipIf(RG === null)("grep and find on a real ripgrep", () => {
-  test("grep and find honour .gitignore in a directory that is not a git repository", async () => {
+describe.skipIf(RG === null)("grep on a real ripgrep", () => {
+  test("grep honours .gitignore in a directory that is not a git repository", async () => {
     const root = tempRoot();
     write(root, ".gitignore", "ignored.txt\nbuild/\n");
     write(root, "ignored.txt", "foo\n");
@@ -48,7 +48,6 @@ describe.skipIf(RG === null)("grep and find on a real ripgrep", () => {
     const files = filesAt(root);
     const grep = await files.grep({ pattern: "foo" });
     expect(grep.matches.map((m) => m.path)).toEqual(["keep.txt"]);
-    expect((await files.find({ pattern: "*.txt" })).paths).toEqual(["keep.txt"]);
   });
 
   test("symbolic links are not followed, and hidden files are skipped by default", async () => {
@@ -61,7 +60,9 @@ describe.skipIf(RG === null)("grep and find on a real ripgrep", () => {
     symlinkSync(outside, join(root, "linkdir"));
     const files = filesAt(root);
     expect((await files.grep({ pattern: "foo" })).matches.map((m) => m.path)).toEqual(["real.txt"]);
-    expect((await files.find({ pattern: "*" })).paths).toEqual(["real.txt"]);
+    expect((await files.grep({ pattern: "foo", glob: "*" })).matches.map((m) => m.path)).toEqual([
+      "real.txt",
+    ]);
   });
 
   test("a glob does not bring back ignored or hidden files", async () => {
@@ -72,8 +73,9 @@ describe.skipIf(RG === null)("grep and find on a real ripgrep", () => {
     write(root, "keep.txt", "foo\n");
     const files = filesAt(root);
     // rg --glob은 예외 규칙이라 .gitignore와 숨김 파일을 되살린다. 결과는 글로브 없는 목록과 교차해야 한다
-    expect((await files.find({ pattern: "*.txt" })).paths).toEqual(["keep.txt"]);
-    expect((await files.find({ pattern: "*" })).paths).toEqual(["keep.txt"]);
+    expect((await files.grep({ pattern: "foo", glob: "*" })).matches.map((m) => m.path)).toEqual([
+      "keep.txt",
+    ]);
     expect(
       (await files.grep({ pattern: "foo", glob: "*.txt" })).matches.map((m) => m.path),
     ).toEqual(["keep.txt"]);
@@ -84,13 +86,6 @@ describe.skipIf(RG === null)("grep and find on a real ripgrep", () => {
     // 바이트 순. 대소문자를 구분하지 않는 파일 시스템(macOS)에서 b.txt와 겹치지 않도록 대문자 이름은 Z로 한다: "Z.txt"(0x5A) < "a/..."(0x61) < "b.txt"(0x62) < "é.txt"(0xC3) < "～"(EF BD 9E)
     for (const name of ["b.txt", "é.txt", "Z.txt", "a/x.txt", "～.txt"]) write(root, name, "foo\n");
     const files = filesAt(root);
-    expect((await files.find({ pattern: "*.txt" })).paths).toEqual([
-      "Z.txt",
-      "a/x.txt",
-      "b.txt",
-      "é.txt",
-      "～.txt",
-    ]);
     expect((await files.grep({ pattern: "foo" })).matches.map((m) => m.path)).toEqual([
       "Z.txt",
       "a/x.txt",
@@ -153,30 +148,26 @@ describe.skipIf(RG === null)("grep and find on a real ripgrep", () => {
     expect(error.data.detail).toEqual({ syntax: "glob", pattern: "[" });
   });
 
-  test("find glob forms: a bare name matches at any depth, a slash anchors to the root, ** crosses directories", async () => {
+  test("grep glob forms: a bare name matches at any depth, a slash anchors to the root, ** crosses directories", async () => {
     const root = tempRoot();
-    write(root, "x.ts", "");
-    write(root, "src/x.ts", "");
-    write(root, "src/deep/x.ts", "");
-    write(root, "src/a.spec.ts", "");
-    write(root, "src/deep/b.spec.ts", "");
-    const files = filesAt(root);
-    expect((await files.find({ pattern: "x.ts" })).paths).toEqual([
-      "src/deep/x.ts",
-      "src/x.ts",
+    for (const name of [
       "x.ts",
-    ]);
-    expect((await files.find({ pattern: "src/*.ts" })).paths).toEqual([
-      "src/a.spec.ts",
       "src/x.ts",
-    ]);
-    expect((await files.find({ pattern: "**/*.spec.ts" })).paths).toEqual([
+      "src/deep/x.ts",
       "src/a.spec.ts",
       "src/deep/b.spec.ts",
-    ]);
+    ]) {
+      write(root, name, "foo\n");
+    }
+    const files = filesAt(root);
+    const paths = async (glob: string) =>
+      (await files.grep({ pattern: "foo", glob })).matches.map((m) => m.path);
+    expect(await paths("x.ts")).toEqual(["src/deep/x.ts", "src/x.ts", "x.ts"]);
+    expect(await paths("src/*.ts")).toEqual(["src/a.spec.ts", "src/x.ts"]);
+    expect(await paths("**/*.spec.ts")).toEqual(["src/a.spec.ts", "src/deep/b.spec.ts"]);
   });
 
-  test("grep and find under a search directory report paths relative to it", async () => {
+  test("grep under a search directory reports paths relative to it", async () => {
     const root = tempRoot();
     write(root, "pkg/src/m.ts", "foo\n");
     const files = filesAt(root);
@@ -185,10 +176,9 @@ describe.skipIf(RG === null)("grep and find on a real ripgrep", () => {
       root: join(root, "pkg"),
       matches: [{ path: "src/m.ts", line: 1, text: "foo", kind: "match" }],
     });
-    expect(await files.find({ pattern: "*.ts", path: "pkg" })).toEqual({
-      root: join(root, "pkg"),
-      paths: ["src/m.ts"],
-    });
+    expect(
+      (await files.grep({ pattern: "foo", glob: "*.ts", path: "pkg" })).matches.map((m) => m.path),
+    ).toEqual(["src/m.ts"]);
   });
 
   test("a search directory outside the root is denied before rg runs", async () => {

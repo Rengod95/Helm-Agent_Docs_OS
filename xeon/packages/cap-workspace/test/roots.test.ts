@@ -174,12 +174,24 @@ describe("saved tool output (read root)", () => {
     return { env, deps };
   }
 
-  test("the folder is a read root but not a write root", async () => {
+  test("the spill folder is a read root but not a write root", async () => {
     const { env, deps } = withOutputs({});
     env.put(PATH, "kept");
-    expect(await deps.roots(CONTEXT)).toEqual({ read: ["/work", DIR], write: ["/work"] });
+    expect(await deps.roots(CONTEXT)).toEqual({
+      read: ["/work", "/state/spill"],
+      write: ["/work"],
+    });
     expect((await resolveWorkspacePath(deps, PATH, "read", CONTEXT)).canonical).toBe(PATH);
     const denied = await failure(resolveWorkspacePath(deps, PATH, "write", CONTEXT));
+    expect(denied.detail).toMatchObject({ reason: "outside_root" });
+  });
+
+  test("a bash overflow file under spill/tmp-* is readable by path but not writable", async () => {
+    const { env, deps } = withOutputs({});
+    const overflow = "/state/spill/tmp-1a2b/pi-output-9.log";
+    env.put(overflow, "tail of a long command output");
+    expect((await resolveWorkspacePath(deps, overflow, "read", CONTEXT)).canonical).toBe(overflow);
+    const denied = await failure(resolveWorkspacePath(deps, overflow, "write", CONTEXT));
     expect(denied.detail).toMatchObject({ reason: "outside_root" });
   });
 

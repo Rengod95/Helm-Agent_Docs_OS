@@ -233,6 +233,50 @@ describe("nested ceiling", () => {
       deny: ["web.*"],
     });
   });
+
+  // 정의의 샌드박스 프로필은 자식 상한에 실리고, 손자 정의가 적지 않아도 부모 상한을 이어받는다
+  test("a read-only definition's sandbox reaches its child's ceiling and the grandchild's, which does not ask for it", async () => {
+    const reader: AgentDefinition = {
+      ...EXPLORER,
+      name: "reader",
+      tools: ["read", "agent"],
+      permissions: { sandbox: "read-only" },
+    };
+    const holder: { harness?: Harness } = {};
+    const h = openHarness({
+      maxDepth: 2,
+      definitions: [reader, EXPLORER],
+      run: async (request, session) => {
+        if (request.tools.caller === "subagent:reader" && holder.harness !== undefined) {
+          await holder.harness.service.spawn(
+            { agent: "explorer", task: "t" },
+            {
+              parentThreadId: request.threadId,
+              owner: { kind: "tool", turnId: holder.harness.ids.next("trn"), toolCallId: "tc-s" },
+              caller: request.tools.caller,
+              depth: request.tools.depth,
+              ownerRequestId: "tool:tc-s",
+              signal: new AbortController().signal,
+            },
+          );
+        }
+        return {
+          status: "completed",
+          finalItemId: session.seedAssistantItem(request.threadId, "ok"),
+        };
+      },
+    });
+    holder.harness = h;
+    const { origin } = h.openToolCall("tc-sandbox");
+    await h.service.spawn({ agent: "reader", task: "t" }, origin);
+    const [childCall, grandchildCall] = h.loop.calls;
+    expect(childCall?.tools.ceiling).toMatchObject({ sandbox: "read-only" });
+    expect(grandchildCall?.tools.ceiling).toMatchObject({
+      caller: "subagent:reader",
+      sandbox: "read-only",
+    });
+    expect(grandchildCall?.tools.ceiling?.sandbox).toBe("read-only");
+  });
 });
 
 describe("keepParentList and exact-named deferred tools", () => {

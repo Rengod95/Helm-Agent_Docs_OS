@@ -41,11 +41,15 @@ function addWriteTool(
 test("register_rules_replaces_same_source: the second registration replaces the first, issues are returned, dispose removes", async () => {
   const h = await createHarness();
   registerWorkspace(h);
-  const first = h.runtime.tools.registerRules("core:agents", [deny("agents.no-ls", "ls")]);
+  const first = h.runtime.tools.registerRules("core:agents", [deny("agents.no-grep", "grep")]);
   expect(first.issues).toEqual([]);
-  const denied = await callTool(h.runtime.tools, h.run(), { id: "r1", name: "ls", args: {} });
+  const denied = await callTool(h.runtime.tools, h.run(), {
+    id: "r1",
+    name: "grep",
+    args: { pattern: "x" },
+  });
   expect(denied.blocked).toContain("denied_by_policy");
-  expect(denied.blocked).toContain("agents.no-ls");
+  expect(denied.blocked).toContain("agents.no-grep");
 
   // 같은 source의 두 번째 등록이 첫 집합을 통째로 바꾼다
   const second = h.runtime.tools.registerRules("core:agents", [
@@ -54,14 +58,18 @@ test("register_rules_replaces_same_source: the second registration replaces the 
     {
       id: "agents.bad",
       action: "tool.call",
-      resource: { tool: "ls", args: [{ pointer: "/path", pattern: "(" }] },
+      resource: { tool: "grep", args: [{ pointer: "/path", pattern: "(" }] },
       effect: "deny",
     },
   ]);
   expect(second.issues.map((issue) => [issue.ruleId, issue.code])).toEqual([
     ["agents.bad", "pattern_invalid"],
   ]);
-  const listed = await callTool(h.runtime.tools, h.run(), { id: "r2", name: "ls", args: {} });
+  const listed = await callTool(h.runtime.tools, h.run(), {
+    id: "r2",
+    name: "grep",
+    args: { pattern: "x" },
+  });
   expect(listed.blocked).toBeUndefined();
   const read = await callTool(h.runtime.tools, h.run(), {
     id: "r3",
@@ -91,14 +99,14 @@ test("registered rules are default-tier: a user rule overrides a registered ask,
   const h = await createHarness();
   registerWorkspace(h);
   h.runtime.tools.registerRules("core:a", [
-    { id: "a.ask-ls", action: "tool.call", resource: { tool: "ls" }, effect: "ask" },
+    { id: "a.ask-grep", action: "tool.call", resource: { tool: "grep" }, effect: "ask" },
   ]);
   const other = h.runtime.tools.registerRules("core:b", [deny("b.no-read", "read")]);
   // 비대화형이면 ask는 deny다. 규칙 id는 등록한 규칙이다
   const asked = await callTool(h.runtime.tools, h.run({ interactive: false }), {
     id: "t1",
-    name: "ls",
-    args: {},
+    name: "grep",
+    args: { pattern: "x" },
   });
   expect(asked.blocked).toContain("noninteractive_ask_denied");
   other.dispose();
@@ -119,35 +127,6 @@ test("a registered global deny removes the tool from advertise with the default 
   expect(toolset.removed.map((entry) => [entry.ruleId, entry.tier])).toEqual([
     ["agents.no-bash", "default"],
   ]);
-});
-
-test("plan_mode_blocks_write_tools: write and exec tools are denied, reads pass, the advertised list is the same as in default mode", async () => {
-  const h = await createHarness();
-  const writer = addWriteTool(h, "write_file", "write");
-  const reader = addWriteTool(h, "peek", "read");
-  const before = expectOk(await h.runtime.tools.advertise({ run: h.run(), activated: new Set() }));
-  expect(await h.runtime.tools.setMode(h.thread, "plan", "user")).toMatchObject({ ok: true });
-  const after = expectOk(await h.runtime.tools.advertise({ run: h.run(), activated: new Set() }));
-  expect(after.fingerprint).toBe(before.fingerprint);
-
-  const blocked = await callTool(h.runtime.tools, h.run(), {
-    id: "p1",
-    name: "write_file",
-    args: {},
-  });
-  expect(blocked.blocked).toContain("denied_by_mode");
-  expect(writer.calls).toBe(0);
-  const read = await callTool(h.runtime.tools, h.run(), { id: "p2", name: "peek", args: {} });
-  expect(read.blocked).toBeUndefined();
-  expect(reader.calls).toBe(1);
-  // plan에서 빠져나오면 쓰기 도구는 다시 ask다(비대화형이라 deny 문장은 noninteractive)
-  await h.runtime.tools.setMode(h.thread, "default", "plan_approval");
-  const back = await callTool(h.runtime.tools, h.run({ interactive: false }), {
-    id: "p3",
-    name: "write_file",
-    args: {},
-  });
-  expect(back.blocked).toContain("noninteractive_ask_denied");
 });
 
 test("acceptEdits allows write tools without asking but still asks for exec; bypass allows exec", async () => {

@@ -20,9 +20,9 @@ afterEach(() => {
 
 const TTY = { stdinIsTty: true, stdoutIsTty: true, columns: 80 } as const;
 
-const PLAN: CommandListResult["commands"][number] = {
-  name: "plan",
-  description: "계획 모드를 켠다",
+const WATCH: CommandListResult["commands"][number] = {
+  name: "watch",
+  description: "변화를 지켜본다",
   argumentHint: "[on|off]",
   args: [{ name: "mode", choices: ["on", "off"] }],
   kind: "action",
@@ -70,26 +70,26 @@ function runParams(h: Harness): readonly Record<string, unknown>[] {
 }
 
 test("parseSlash hands a name that is neither built-in nor alias to the engine with the whole line", () => {
-  expect(parseSlash("/plan on")).toEqual({ kind: "engine", name: "plan", text: "/plan on" });
+  expect(parseSlash("/watch on")).toEqual({ kind: "engine", name: "watch", text: "/watch on" });
   expect(parseSlash("/frob")).toEqual({ kind: "engine", name: "frob", text: "/frob" });
   // 내장이 이름이 겹치는 엔진 명령보다 앞선다
   expect(parseSlash("/help")).toEqual({ kind: "help" });
 });
 
 test("an action command prints done.message and sends the line unchanged to command.run", async () => {
-  const s = chat(["/plan on"], {
+  const s = chat(["/watch on"], {
     "command.run": () => ({
       status: "done",
-      name: "plan",
-      message: "계획 모드를 켰다",
+      name: "watch",
+      message: "변화를 지켜봤다",
       result: null,
     }),
   });
   expect(await s.h.run(["chat"])).toBe(EXIT.ok);
-  expect(s.h.stdoutText()).toContain("계획 모드를 켰다\n");
+  expect(s.h.stdoutText()).toContain("변화를 지켜봤다\n");
   const calls = runParams(s.h);
   expect(calls).toHaveLength(1);
-  expect(calls[0]).toEqual({ threadId: expect.stringMatching(/^thr_/), text: "/plan on" });
+  expect(calls[0]).toEqual({ threadId: expect.stringMatching(/^thr_/), text: "/watch on" });
   // 동작 명령은 turn을 만들지 않는다
   expect(s.h.methods()).not.toContain("turn.start");
 });
@@ -157,15 +157,15 @@ test("not_command reports an unknown slash command and keeps the conversation", 
 });
 
 test("a host without command.run never gets the call and answers unknown", async () => {
-  const s = chat(["/plan on"], {});
+  const s = chat(["/watch on"], {});
   expect(await s.h.run(["chat"])).toBe(EXIT.ok);
   expect(s.h.methods()).not.toContain("command.run");
   expect(s.h.methods()).not.toContain("command.list");
-  expect(s.h.stderrText()).toContain("모르는 슬래시 명령: /plan");
+  expect(s.h.stderrText()).toContain("모르는 슬래시 명령: /watch");
 });
 
 test("command failures are mapped to two-line phrases and the conversation goes on", async () => {
-  const s = chat(["/plan x", "hello"], {
+  const s = chat(["/watch x", "hello"], {
     "command.run": () => {
       throw new WireError(4000, "developer text", {
         kind: "cap.dialog.commands.command_args_invalid",
@@ -183,22 +183,22 @@ test("command failures are mapped to two-line phrases and the conversation goes 
 });
 
 test("/help lists the engine commands and the completer knows their names and first-argument choices", async () => {
-  const s = chat(["/help"], { "command.list": () => ({ commands: [PLAN, REVIEW] }) });
+  const s = chat(["/help"], { "command.list": () => ({ commands: [WATCH, REVIEW] }) });
   expect(await s.h.run(["chat"])).toBe(EXIT.ok);
   expect(s.h.stdoutText()).toContain(
-    "엔진 명령\n  /plan [on|off]   계획 모드를 켠다\n  /review   변경을 검토한다\n",
+    "엔진 명령\n  /watch [on|off]   변화를 지켜본다\n  /review   변경을 검토한다\n",
   );
   const complete = s.h.completer();
-  expect(complete?.("/pl")).toEqual(["/plan"]);
-  expect(complete?.("/plan o")).toEqual(["/plan on", "/plan off"]);
-  expect(complete?.("/plan of")).toEqual(["/plan off"]);
+  expect(complete?.("/wa")).toEqual(["/watch"]);
+  expect(complete?.("/watch o")).toEqual(["/watch on", "/watch off"]);
+  expect(complete?.("/watch of")).toEqual(["/watch off"]);
   // 내장 이름은 한 번만 나온다
   expect(complete?.("/re")).toEqual(["/resume", "/rename", "/review"]);
 });
 
 test("completionsOf is a pure function over the engine command list", () => {
-  expect(completionsOf("/p", [], [PLAN, REVIEW])).toEqual(["/plan"]);
-  expect(completionsOf("/plan ", [], [PLAN])).toEqual(["/plan on", "/plan off"]);
+  expect(completionsOf("/w", [], [WATCH, REVIEW])).toEqual(["/watch"]);
+  expect(completionsOf("/watch ", [], [WATCH])).toEqual(["/watch on", "/watch off"]);
   expect(completionsOf("/review ", [], [REVIEW])).toEqual([]);
 });
 
@@ -210,9 +210,9 @@ function requestsOf(h: Harness, method: string): readonly Record<string, unknown
 }
 
 test("command.list is asked with the id of the conversation the chat opened (G1-01)", async () => {
-  const s = chat(["/plan on"], {
-    "command.list": () => ({ commands: [PLAN] }),
-    "command.run": () => ({ status: "done", name: "plan", message: "ok", result: null }),
+  const s = chat(["/watch on"], {
+    "command.list": () => ({ commands: [WATCH] }),
+    "command.run": () => ({ status: "done", name: "watch", message: "ok", result: null }),
   });
   expect(await s.h.run(["chat"])).toBe(EXIT.ok);
   const listed = requestsOf(s.h, "command.list");
@@ -244,7 +244,7 @@ test("switching conversations with /resume reads the command list again for the 
         }),
         // 프로젝트 명령은 세션의 작업 폴더에 달려 있다: 두 번째 세션에서만 /review가 있다
         "command.list": (params) => ({
-          commands: params["threadId"] === T2 ? [PLAN, REVIEW] : [PLAN],
+          commands: params["threadId"] === T2 ? [WATCH, REVIEW] : [WATCH],
         }),
       },
     },
@@ -364,7 +364,7 @@ test("a host without thread.compact never gets the call", async () => {
 
 test("/compact is built in: it wins over an engine command with the same name and shows in /help and completion", async () => {
   const compactCommand: CommandListResult["commands"][number] = {
-    ...PLAN,
+    ...WATCH,
     name: "compact",
     description: "엔진 쪽 compact",
     argumentHint: null,

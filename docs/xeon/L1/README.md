@@ -212,7 +212,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 | `item.recorded`(toolResult) | 도구 결과 item | tools(`effect.result`와 같은 커밋) | `core.tools` | 있음 |
 | `part.recorded` | 어시스턴트 파트 | loop | `core.loop` | 있음 |
 | `effect.intent`, `effect.exec`, `effect.result` | 도구 효과 3단 | tools | `core.tools` | 있음 |
-| `approval.requested`, `approval.resolved` | 승인·질문·계획 승인 | tools | `core.tools` | 있음(`L1.tools.spec` §8.3 3 반영, 승인 요청 A안: review.decisions-2 U-02) |
+| `approval.requested`, `approval.resolved` | 승인·질문 | tools | `core.tools` | 있음(`L1.tools.spec` §8.3 3 반영, 승인 요청 A안: review.decisions-2 U-02) |
 | `thread.started`, `thread.updated`, `thread.closed`, `thread.leaf_moved` | thread 수명, 분기 | persistence | `core.persistence` | 있음 |
 | `checkpoint.step` | 단계 체크포인트 | 이 층은 persistence로 배정한다. `L1.loop.spec` §3.7은 `core.loop`를 제안(§13 (j)) | `core.persistence` | 있음 |
 | `thread.compacted`, `thread.branch_summarized` | 컴팩션, 떠난 가지 요약 | context | `core.context` | 있음(생산자 지정은 `L1.context.spec` §8.3 4 요청) |

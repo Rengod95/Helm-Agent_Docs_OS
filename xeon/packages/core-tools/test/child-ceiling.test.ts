@@ -228,3 +228,112 @@ test("child_advertise_respects_allow_and_keep_parent_list", async () => {
   });
   expect(refused.blocked).toContain("m.child-no-b");
 });
+
+// 읽기 전용 샌드박스 상한(L1.tools §4.5, 결정 2026-11-13 사용자): 샌드박스에서 read로 내려간 호출은 빌트인 ask 없이 허용된다.
+// 이 판정은 샌드박스를 쓸 수 없으면 도구가 실행을 거부한다는 구현을 전제로 한다.
+
+const SANDBOX: PolicyCeiling = { ...PARENT, sandbox: "read-only" };
+
+/** `riskUnderReadOnlySandbox: "read"`를 선언한 bash. 샌드박스 밖에서는 exec라 기본 모드에서 승인을 묻는다 */
+function addSandboxedBash(h: Harness): { calls: number } {
+  const probe = { calls: 0 };
+  expectOk(
+    h.runtime.tools.register({
+      kind: "direct",
+      orderKey: "ext.child",
+      tool: directTool("bash", () => {
+        probe.calls += 1;
+        return Promise.resolve({ content: [{ type: "text", text: "bash ok" }], details: null });
+      }),
+      policy: { risk: "exec", riskUnderReadOnlySandbox: "read" },
+    }),
+  );
+  return probe;
+}
+
+test("sandboxed_declared_read_bash_runs_without_asking: default mode under a read-only ceiling", async () => {
+  const h = await createHarness();
+  const probe = addSandboxedBash(h);
+  const out = await callTool(h.runtime.tools, childRun(h, SANDBOX), {
+    id: "sb1",
+    name: "bash",
+    args: { command: "ls" },
+  });
+  expect(out.blocked).toBeUndefined();
+  expect(probe.calls).toBe(1);
+  expect(h.session.events.some((event) => event.kind === "approval.requested")).toBe(false);
+});
+
+test("the same bash call without the ceiling still asks; a non-interactive run denies it, a sandboxed one allows it", async () => {
+  const h = await createHarness();
+  const probe = addSandboxedBash(h);
+  const plain = await callTool(h.runtime.tools, childRun(h, PARENT, { interactive: false }), {
+    id: "sb2",
+    name: "bash",
+    args: { command: "ls" },
+  });
+  expect(plain.blocked).toContain("noninteractive_ask_denied");
+  expect(probe.calls).toBe(0);
+  const sandboxed = await callTool(h.runtime.tools, childRun(h, SANDBOX, { interactive: false }), {
+    id: "sb3",
+    name: "bash",
+    args: { command: "ls" },
+  });
+  expect(sandboxed.blocked).toBeUndefined();
+  expect(probe.calls).toBe(1);
+});
+
+test("a managed deny rule still denies the sandboxed bash, and a user ask rule still asks", async () => {
+  const denied = await createHarness({
+    layers: [
+      layer("managed", {
+        "l1.tools.rules": [
+          { id: "m.no-bash", action: "tool.call", resource: { tool: "bash" }, effect: "deny" },
+        ],
+      }),
+    ],
+  });
+  const deniedProbe = addSandboxedBash(denied);
+  const refused = await callTool(denied.runtime.tools, childRun(denied, SANDBOX), {
+    id: "sb4",
+    name: "bash",
+    args: { command: "ls" },
+  });
+  expect(refused.blocked).toContain("denied_by_policy");
+  expect(refused.blocked).toContain("m.no-bash");
+  expect(deniedProbe.calls).toBe(0);
+
+  const asked = await createHarness({
+    layers: [
+      layer("user", {
+        "l1.tools.rules": [
+          { id: "u.ask-bash", action: "tool.call", resource: { tool: "bash" }, effect: "ask" },
+        ],
+      }),
+    ],
+  });
+  const askProbe = addSandboxedBash(asked);
+  const blocked = await callTool(
+    asked.runtime.tools,
+    childRun(asked, SANDBOX, { interactive: false }),
+    {
+      id: "sb5",
+      name: "bash",
+      args: { command: "ls" },
+    },
+  );
+  expect(blocked.blocked).toContain("noninteractive_ask_denied");
+  expect(askProbe.calls).toBe(0);
+});
+
+test("a tool that declares no sandbox risk keeps its own risk under the read-only ceiling", async () => {
+  const h = await createHarness();
+  const probe = addTool(h, "writer", "write");
+  const out = await callTool(h.runtime.tools, childRun(h, SANDBOX, { interactive: false }), {
+    id: "sb6",
+    name: "writer",
+    args: {},
+  });
+  expect(out.blocked).toContain("noninteractive_ask_denied");
+  expect(probe.calls).toBe(0);
+});

@@ -172,18 +172,14 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
             read: { risk: "read" },
             write: { risk: "write" },
             edit: { risk: "write" },
-            ls: { risk: "read" },
             grep: { risk: "read" },
-            find: { risk: "read" },
           },
-          // ls·find는 bash로 대체한다(사용자 결정 2026-11-13). 등록은 살리고 광고만 지연으로 둔다
-          exposure: { ls: "deferred", find: "deferred" },
         },
         {
           kind: "capability",
           def: WorkspaceShell,
           key: WorkspaceShellKey,
-          policy: { bash: { risk: "exec" } },
+          policy: { bash: { risk: "exec", riskUnderReadOnlySandbox: "read" } },
         },
       ];
       // 이름 충돌은 확장 조합이 낼 수 있는 시작 실패다. 먼저 넣은 등록을 거두고 setup이 값으로 알린다

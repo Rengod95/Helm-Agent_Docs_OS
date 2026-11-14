@@ -91,7 +91,7 @@ export function readMeta(reader: WorkReader, threadId: ThreadId): Result<WorkMet
   return ok({ turnsCompleted: turns, lastTaskChangeTurn: changed });
 }
 
-// ── 계획(cap_work_plans)과 권한 모드 추적(cap_work_meta) ────────────────────
+// ── 옛 계획 기록(cap_work_plans). 계획 모드는 없앴다 [결정: 2026-11-13 사용자] ──────────
 
 /** 투영에서 읽은 계획 한 판. PlanVersion에 제출·결정 시점(seq)을 더했다 */
 export interface PlanRow extends PlanVersion {
@@ -143,55 +143,6 @@ export function readPlans(reader: WorkReader, threadId: ThreadId): Result<PlanRo
     ),
   );
   return read.ok ? planRowsOf(read.value) : err(read.error);
-}
-
-/** 승인 id로 계획 판과 그 판이 속한 스레드를 찾는다. 해당 판이 없으면 undefined */
-export function readPlanByApproval(
-  reader: WorkReader,
-  approvalId: string,
-): Result<{ readonly threadId: string; readonly plan: PlanRow } | undefined, ReadFailure> {
-  const read = reader.read((tx) =>
-    tx.get(`SELECT session_id, ${PLAN_COLUMNS} FROM cap_work_plans WHERE approval_id = ?`, [
-      approvalId,
-    ]),
-  );
-  if (!read.ok) return err(read.error);
-  if (read.value === undefined) return ok(undefined);
-  const plan = planRowOf(read.value);
-  const threadId = read.value["session_id"];
-  if (!plan.ok) return plan;
-  if (typeof threadId !== "string") return err(rowInvalid("cap_work_plans.session_id"));
-  return ok({ threadId, plan: plan.value });
-}
-
-/** 권한 모드 추적. 세션 범위 모드 변경 이벤트에서 만든 값이다(spec §4.2.5) */
-export interface ModeMeta {
-  /** 세션 범위에서 마지막으로 정한 모드. 한 번도 없으면 null */
-  readonly mode: string | null;
-  readonly modeBeforePlan: string | null;
-  /** 지금 계획 모드이면 들어온 시점의 seq, 아니면 null */
-  readonly planEnteredSeq: number | null;
-}
-
-export function readModeMeta(
-  reader: WorkReader,
-  threadId: ThreadId,
-): Result<ModeMeta, ReadFailure> {
-  const read = reader.read((tx) =>
-    tx.get(
-      `SELECT mode, mode_before_plan, plan_entered_seq FROM cap_work_meta WHERE session_id = ?`,
-      [threadId],
-    ),
-  );
-  if (!read.ok) return err(read.error);
-  const row = read.value;
-  if (row === undefined) return ok({ mode: null, modeBeforePlan: null, planEnteredSeq: null });
-  const entered = row["plan_entered_seq"];
-  return ok({
-    mode: textOrNull(row["mode"]),
-    modeBeforePlan: textOrNull(row["mode_before_plan"]),
-    planEnteredSeq: entered === null || entered === undefined ? null : Number(entered),
-  });
 }
 
 // ── 목표와 보고(cap_work_goals, cap_work_judgments, cap_work_reports) ───────

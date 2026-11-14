@@ -8,11 +8,6 @@ import {
   MAX_WORK_TASKS,
   OWNER_PATTERN,
   PLAN_ID_PATTERN,
-  PlanApprovalAnswerSchema,
-  PlanApprovalSubjectSchema,
-  PlanIdSchema,
-  PlanSubmitInput,
-  PlanSubmitOutput,
   PlanVersionSchema,
   REPORT_ID_PATTERN,
   TaskOpSchema,
@@ -31,13 +26,11 @@ import {
   WorkTasks,
   WorkTasksKey,
   orderTools,
-  renderPlanSubmit,
   parseTaskList,
   renderTaskList,
   validateCapability,
   validateCapabilitySet,
   type AnyCapabilityDef,
-  type PlanSubmitResult,
   type TaskWriteOutputValue,
   type ToolContent,
   type WorkTaskView,
@@ -87,13 +80,9 @@ describe("work definitions", () => {
     ]);
   });
 
-  test("four model tools; goals and reports have none", () => {
-    expect(orderTools(DEFS).map((t) => t.name)).toEqual([
-      "enter_plan_mode",
-      "exit_plan_mode",
-      "submit_plan",
-      "task_write",
-    ]);
+  test("task_write is the only model tool; plans, goals and reports have none", () => {
+    expect(orderTools(DEFS).map((t) => t.name)).toEqual(["task_write"]);
+    expect(WorkPlans.tools).toEqual([]);
     expect(WorkGoals.tools).toEqual([]);
     expect(WorkReports.tools).toEqual([]);
   });
@@ -107,29 +96,15 @@ describe("work definitions", () => {
     expect(MAX_WORK_TASKS).toBe(500);
   });
 
-  test("the plan mode switches and the plan decisions are replay unsafe (nothing keyed by requestId remembers them)", () => {
+  test("every work method is replay safe now that no method remembers a requestId for plan decisions", () => {
     const unsafe: string[] = [];
     for (const def of DEFS) {
       for (const [name, method] of Object.entries(def.service.methods)) {
         if (method.replay !== "safe") unsafe.push(`${def.id}.${name}`);
       }
     }
-    expect(unsafe).toEqual([
-      "work.plans.enterMode",
-      "work.plans.exitMode",
-      "work.plans.approve",
-      "work.plans.reject",
-      "work.plans.revise",
-    ]);
-  });
-
-  test("submit_plan hides wait from the model and forces it off", () => {
-    const tool = WorkPlans.tools[2];
-    const params = { title: "Plan", body: "# steps" };
-    const input = tool.toInput?.(params);
-    expect(input).toEqual({ ...params, wait: false });
-    expect(parse(PlanSubmitInput, input).ok).toBe(true);
-    expect(tool.outputSchema).toBe(PlanSubmitOutput);
+    expect(unsafe).toEqual([]);
+    expect(Object.keys(WorkPlans.service.methods)).toEqual(["versions"]);
   });
 
   test("task_write is a single list-operation tool that returns the whole list", () => {
@@ -187,36 +162,6 @@ describe("work schemas", () => {
     expect(parse(PlanVersionSchema, { ...version, approvalId: rawId("trn", 1) }).ok).toBe(false);
     expect(parse(PlanVersionSchema, { ...version, status: "pending" }).ok).toBe(false);
     expect(parse(ApprovalIdSchema, APPROVAL_ID).ok).toBe(true);
-  });
-
-  test("approval subject and answer follow the plan approval record", () => {
-    const subject = {
-      planId: "p1",
-      version: 2,
-      title: "Plan",
-      body: "body",
-      artifact: { artifactId: "art_1", kind: "plan", title: null },
-    };
-    expect(parse(PlanApprovalSubjectSchema, subject).ok).toBe(true);
-    expect(parse(PlanApprovalAnswerSchema, { action: "revise", feedback: "split step 2" }).ok).toBe(
-      true,
-    );
-    expect(parse(PlanApprovalAnswerSchema, { action: "revise", feedback: "" }).ok).toBe(false);
-    expect(parse(PlanApprovalAnswerSchema, { action: "approve", feedback: "x" }).ok).toBe(false);
-  });
-
-  test("submit output is input_required or decided", () => {
-    const pending = { status: "input_required", planId: "p1", version: 1, approvalId: APPROVAL_ID };
-    expect(parse(PlanSubmitOutput, pending).ok).toBe(true);
-    const decided = {
-      ...pending,
-      status: "decided",
-      decision: "revision_requested",
-      feedback: "more detail",
-    };
-    expect(parse(PlanSubmitOutput, decided).ok).toBe(true);
-    expect(parse(PlanSubmitOutput, { ...decided, decision: "maybe" }).ok).toBe(false);
-    expect(parse(PlanSubmitOutput, { ...pending, feedback: null }).ok).toBe(false);
   });
 
   test("goal judges are model or delegated", () => {
@@ -305,43 +250,5 @@ describe("work renderers", () => {
     ]);
     expect(parseTaskList("(no tasks)")).toEqual([]);
     expect(parseTaskList("task_ref_unknown: @z")).toBeNull();
-  });
-});
-
-describe("renderPlanSubmit outcomes", () => {
-  const id = must(ApprovalIdSchema, APPROVAL_ID);
-  const planId = must(PlanIdSchema, "p3");
-  function result(
-    patch: Partial<Extract<PlanSubmitResult, { status: "decided" }>>,
-  ): PlanSubmitResult {
-    return {
-      status: "decided",
-      planId,
-      version: 2,
-      approvalId: id,
-      decision: "approved",
-      feedback: null,
-      ...patch,
-    };
-  }
-
-  test("pending, approved, rejected with and without a reason, revision requested", () => {
-    expect(
-      firstText(renderPlanSubmit({ status: "input_required", planId, version: 2, approvalId: id })),
-    ).toBe("Plan p3 v2: awaiting user approval.");
-    expect(firstText(renderPlanSubmit(result({})))).toBe(
-      "Plan p3 v2: Approved. Proceed with the plan.",
-    );
-    expect(firstText(renderPlanSubmit(result({ decision: "rejected" })))).toBe(
-      "Plan p3 v2: Rejected.",
-    );
-    expect(
-      firstText(renderPlanSubmit(result({ decision: "rejected", feedback: "too risky" }))),
-    ).toBe("Plan p3 v2: Rejected. Reason: too risky");
-    expect(
-      firstText(
-        renderPlanSubmit(result({ decision: "revision_requested", feedback: "add rollback" })),
-      ),
-    ).toBe("Plan p3 v2: Revision requested. add rollback");
   });
 });

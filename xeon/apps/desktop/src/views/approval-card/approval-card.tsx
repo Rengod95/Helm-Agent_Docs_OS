@@ -30,7 +30,6 @@ import {
   approvalKeyOf,
   cardTitleViewOf,
   clockTextOf,
-  feedbackTextOf,
   threadLinkVisibleOf,
   type ApprovalAge,
 } from "./card-model.ts";
@@ -113,13 +112,12 @@ function ageTextOf(age: ApprovalAge): string {
 }
 
 /**
- * 카드가 보내는 답들. primary는 Y, deny는 N, edit는 계획의 수정 요청, thread는 샌드박스 밖 쓰기의 "이 대화에서 계속 허용"이다.
- * null이면 그 동작을 끈다(edit·thread는 그 단추를 그리지 않는다)
+ * 카드가 보내는 답들. primary는 Y, deny는 N, thread는 샌드박스 밖 쓰기의 "이 대화에서 계속 허용"이다.
+ * null이면 그 동작을 끈다(thread는 그 단추를 그리지 않는다)
  */
 type Decisions = {
   readonly primary: ApprovalDecision | null;
   readonly deny: ApprovalDecision;
-  readonly edit: ApprovalDecision | null;
   readonly thread: ApprovalDecision | null;
 };
 
@@ -171,8 +169,6 @@ function PendingCard(props: {
   const goToThread = useGoToThread();
   const now = useClockNow();
   const [draft, setDraft] = useState<QuestionDraft>({});
-  const [mode, setMode] = useState("");
-  const [feedback, setFeedback] = useState("");
   // 도구 인자(원시 JSON)는 접어 두고 단추 줄 왼쪽의 펼침 단추로 연다
   const [argsOpen, setArgsOpen] = useState(false);
   // 쓰기 허용 본문이 폭 때문에 잘린 값이 있다고 알린 상태(펼침 단추를 세운다)
@@ -183,7 +179,7 @@ function PendingCard(props: {
   const busy = sendState === "sending";
 
   const writeAccess = writeAccessViewOf(request);
-  const decisions: Decisions = decisionsOf(request, { draft, mode, feedback });
+  const decisions: Decisions = decisionsOf(request, { draft });
   const respond = (decision: ApprovalDecision): void => {
     detach(commands.respondApproval(id, decision), rethrow);
   };
@@ -275,14 +271,6 @@ function PendingCard(props: {
   const answers: Action[] = [
     { id: "deny", label: denyLabelOf(body.kind), decision: decisions.deny, look: "ghost" },
   ];
-  if (body.kind === "plan") {
-    answers.push({
-      id: "edit",
-      label: "desktop.approvals.plan.edit.button",
-      decision: decisions.edit,
-      look: "soft",
-    });
-  }
   if (decisions.thread !== null) {
     answers.push({
       id: "allow-thread",
@@ -318,14 +306,7 @@ function PendingCard(props: {
         onChange={setDraft}
       />
     ) : body.kind === "plan" ? (
-      <PlanBody
-        plan={body.plan}
-        mode={mode}
-        onMode={setMode}
-        feedback={feedback}
-        onFeedback={setFeedback}
-        disabled={busy}
-      />
+      <PlanBody plan={body.plan} />
     ) : (
       <ReviewBody review={body.review} />
     );
@@ -515,7 +496,7 @@ function primaryLabelOf(kind: ApprovalBodyKind): MessageId {
 /** 종류와 입력 상태에서 보낼 답을 만든다. 질문은 모든 문항에 답이 있어야 기본 답이 생긴다 */
 function decisionsOf(
   request: ApprovalRequestedPayload,
-  state: { readonly draft: QuestionDraft; readonly mode: string; readonly feedback: string },
+  state: { readonly draft: QuestionDraft },
 ): Decisions {
   const { body } = request;
   const deny: ApprovalDecision = { decision: "deny" };
@@ -523,13 +504,12 @@ function decisionsOf(
   const writeAccess = writeAccessViewOf(request);
   if (writeAccess !== null) {
     const choices = writeAccessDecisionsOf(writeAccess);
-    return { primary: choices.once, deny: choices.deny, edit: null, thread: choices.thread };
+    return { primary: choices.once, deny: choices.deny, thread: choices.thread };
   }
   if (body.kind === "tool") {
     return {
       primary: { decision: "allow", remember: "once" },
       deny,
-      edit: null,
       thread: null,
     };
   }
@@ -538,27 +518,16 @@ function decisionsOf(
     return {
       primary: answer === null ? null : { decision: "answer", answer },
       deny,
-      edit: null,
       thread: null,
     };
   }
   if (body.kind === "plan") {
-    const text = feedbackTextOf(state.feedback);
-    return {
-      primary: {
-        decision: "allow",
-        remember: "once",
-        ...(state.mode === "" ? {} : { answer: { mode: state.mode } }),
-      },
-      deny,
-      edit: text === null ? null : { decision: "deny", answer: { feedback: text } },
-      thread: null,
-    };
+    // 옛 계획 승인은 거부만 받는다(core-tools). 승인 단추는 끈다
+    return { primary: null, deny, thread: null };
   }
   return {
     primary: { decision: "answer", answer: APPROVE_ALL_ANSWER },
     deny,
-    edit: null,
     thread: null,
   };
 }

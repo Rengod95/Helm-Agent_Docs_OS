@@ -19,7 +19,7 @@ import { OsPortKey, ToolServicePortKey, type ToolRegistration } from "@fresnel/c
 import { hostOf, type ExtensionUnit } from "@fresnel/ext-host";
 
 // m2-plan HOST.6. cap-dialog와 cap-work가 옵션으로 받는 명령 등록부, 그리고 질문 도구를 L1.tools에 올리는 브리지 확장.
-// 질문·계획 승인 포트와 사용자 셸은 두 패키지의 기본 구현(`questionApprovalsOver`, `planApprovalsOver`, `shellPortOver`)이 `fresnel.approvals`와
+// 질문 승인 포트와 사용자 셸은 두 패키지의 기본 구현(`questionApprovalsOver`, `shellPortOver`)이 `fresnel.approvals`와
 // `fresnel.loop`를 감싸므로 조립 루트가 따로 잇지 않는다. 조립 루트 코드(DR-14 예외 2).
 
 /** `dialog.commands` 기능의 서비스 API(목록, 실행). 호스트의 `command.*` 처리기가 쓴다 */
@@ -55,7 +55,7 @@ function publishNotify(holder: CommandRegistryHolder, api: NotifyApi | undefined
 }
 
 /**
- * `dialog.commands` 기능의 동작 명령 등록부. cap-work가 `/plan`, `/tasks`를 등록할 때 쓴다. 기능 선택 의존(W-10)이 확정되기 전이라
+ * `dialog.commands` 기능의 동작 명령 등록부. cap-work가 `/tasks`, `/goal`을 등록할 때 쓴다. 기능 선택 의존(W-10)이 확정되기 전이라
  * 브리지 확장(`dialogBridgePlugin`)이 기능을 얻어 이 자리에 채운다. cap-work는 브리지보다 뒤에 싣는다: 등록 시점에 비어 있으면
  * 명령 없이 올라간다
  */
@@ -125,7 +125,7 @@ const DIALOG_BRIDGE_NAME = "host-dialog-bridge";
  * cap-dialog 곁에 싣는 조립 확장 하나가 맡는 두 가지:
  * - 질문 도구(`ask_user`)를 L1.tools에 올린다. cap-dialog는 `dialog.ask` 기능만 제공하고 도구 등록은 하지 않는다.
  *   질문은 사용자 응답을 기다리므로 `user_interaction` 부류를 달아 서브에이전트에서 막을 수 있게 한다(L1.agents.spec §4.6)
- * - `dialog.commands` 기능의 동작 명령 등록부를 `holder`에 채운다(cap-work의 `/plan`, `/tasks`)
+ * - `dialog.commands` 기능의 동작 명령 등록부를 `holder`에 채운다(cap-work의 `/tasks`, `/goal`)
  * - 상태줄, 첨부, 알림 기능 API를 `holder`에 채운다(`status.list`, `attachments.add`, M3-REQ-16)
  */
 export function dialogBridgePlugin(
@@ -169,7 +169,7 @@ export function dialogBridgePlugin(
       if (isCommandRegistry(commands)) holder.current = commands;
       else
         logger.warn("dialog.command_registry_missing", {
-          effect: "/plan and /tasks are not registered",
+          effect: "/tasks and /goal are not registered",
         });
       const status: unknown = g.capability(DialogStatusKey);
       if (isStatusApi(status)) holder.status = status;
