@@ -254,7 +254,7 @@ test("bypass allows everything except deny rules; a managed ban demotes it to de
   expect(banned).toMatchObject({ effect: "ask", reason: "bypass_forbidden" });
 });
 
-test("builtin rules: read and ls are allowed, bash asks, others follow the mode", () => {
+test("builtin rules: read is allowed, bash asks, others follow the mode", () => {
   const rules: TieredRule[] = [];
   for (const entry of builtinRules()) {
     rules.push({ ...entry, tier: "default", source: "core:tools" });
@@ -264,10 +264,10 @@ test("builtin rules: read and ls are allowed, bash asks, others follow the mode"
     reason: "rule",
   });
   // 이름만 같은 exec 위험 도구는 허용하지 않는다(source·risk 조건)
-  expect(evaluatePolicy(input({ tool: "ls", risk: "exec" }), rules).effect).toBe("ask");
+  expect(evaluatePolicy(input({ tool: "read", risk: "exec" }), rules).effect).toBe("ask");
   expect(
     evaluatePolicy(
-      input({ tool: "ls", risk: "read", capability: "workspace.files", args: {} }),
+      input({ tool: "read", risk: "read", capability: "workspace.files", args: {} }),
       rules,
     ),
   ).toMatchObject({ effect: "allow", reason: "rule" });
@@ -402,25 +402,24 @@ test("a compound command stays ask even when the mode default would allow bash",
   expect(decision.effect).toBe("ask");
 });
 
-test("default read and ls allow rules need the workspace source and read risk, not just the name", () => {
+test("default read allow rule needs the workspace source and read risk, not just the name", () => {
   const rules = defaultRules();
-  for (const tool of ["read", "ls"]) {
-    // 확장이 이름만 같게 등록한 도구: capability 없음, 위험 등급 exec
-    expect(evaluatePolicy(input({ tool, risk: "exec", args: {} }), rules).effect).toBe("ask");
-    // 같은 출처라도 위험 등급이 read가 아니면 허용하지 않는다
-    expect(
-      evaluatePolicy(input({ tool, risk: "exec", capability: "workspace.files", args: {} }), rules)
-        .effect,
-    ).toBe("ask");
-    // 다른 능력의 같은 이름
-    expect(
-      evaluatePolicy(input({ tool, risk: "read", capability: "other.thing", args: {} }), rules)
-        .ruleId,
-    ).not.toBe(tool === "read" ? "default.read-tool-allow" : "default.ls-allow");
-    expect(
-      evaluatePolicy(input({ tool, risk: "read", capability: "workspace.files", args: {} }), rules),
-    ).toMatchObject({
-      effect: "allow",
-    });
-  }
+  const tool = "read";
+  // 확장이 이름만 같게 등록한 도구: capability 없음, 위험 등급 exec
+  expect(evaluatePolicy(input({ tool, risk: "exec", args: {} }), rules).effect).toBe("ask");
+  // 같은 출처라도 위험 등급이 read가 아니면 허용하지 않는다
+  expect(
+    evaluatePolicy(input({ tool, risk: "exec", capability: "workspace.files", args: {} }), rules)
+      .effect,
+  ).toBe("ask");
+  // 다른 능력의 같은 이름
+  expect(
+    evaluatePolicy(input({ tool, risk: "read", capability: "other.thing", args: {} }), rules)
+      .ruleId,
+  ).not.toBe("default.read-tool-allow");
+  expect(
+    evaluatePolicy(input({ tool, risk: "read", capability: "workspace.files", args: {} }), rules),
+  ).toMatchObject({
+    effect: "allow",
+  });
 });

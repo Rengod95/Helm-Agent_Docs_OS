@@ -41,11 +41,15 @@ function addWriteTool(
 test("register_rules_replaces_same_source: the second registration replaces the first, issues are returned, dispose removes", async () => {
   const h = await createHarness();
   registerWorkspace(h);
-  const first = h.runtime.tools.registerRules("core:agents", [deny("agents.no-ls", "ls")]);
+  const first = h.runtime.tools.registerRules("core:agents", [deny("agents.no-grep", "grep")]);
   expect(first.issues).toEqual([]);
-  const denied = await callTool(h.runtime.tools, h.run(), { id: "r1", name: "ls", args: {} });
+  const denied = await callTool(h.runtime.tools, h.run(), {
+    id: "r1",
+    name: "grep",
+    args: { pattern: "x" },
+  });
   expect(denied.blocked).toContain("denied_by_policy");
-  expect(denied.blocked).toContain("agents.no-ls");
+  expect(denied.blocked).toContain("agents.no-grep");
 
   // 같은 source의 두 번째 등록이 첫 집합을 통째로 바꾼다
   const second = h.runtime.tools.registerRules("core:agents", [
@@ -54,14 +58,18 @@ test("register_rules_replaces_same_source: the second registration replaces the 
     {
       id: "agents.bad",
       action: "tool.call",
-      resource: { tool: "ls", args: [{ pointer: "/path", pattern: "(" }] },
+      resource: { tool: "grep", args: [{ pointer: "/path", pattern: "(" }] },
       effect: "deny",
     },
   ]);
   expect(second.issues.map((issue) => [issue.ruleId, issue.code])).toEqual([
     ["agents.bad", "pattern_invalid"],
   ]);
-  const listed = await callTool(h.runtime.tools, h.run(), { id: "r2", name: "ls", args: {} });
+  const listed = await callTool(h.runtime.tools, h.run(), {
+    id: "r2",
+    name: "grep",
+    args: { pattern: "x" },
+  });
   expect(listed.blocked).toBeUndefined();
   const read = await callTool(h.runtime.tools, h.run(), {
     id: "r3",
@@ -91,14 +99,14 @@ test("registered rules are default-tier: a user rule overrides a registered ask,
   const h = await createHarness();
   registerWorkspace(h);
   h.runtime.tools.registerRules("core:a", [
-    { id: "a.ask-ls", action: "tool.call", resource: { tool: "ls" }, effect: "ask" },
+    { id: "a.ask-grep", action: "tool.call", resource: { tool: "grep" }, effect: "ask" },
   ]);
   const other = h.runtime.tools.registerRules("core:b", [deny("b.no-read", "read")]);
   // 비대화형이면 ask는 deny다. 규칙 id는 등록한 규칙이다
   const asked = await callTool(h.runtime.tools, h.run({ interactive: false }), {
     id: "t1",
-    name: "ls",
-    args: {},
+    name: "grep",
+    args: { pattern: "x" },
   });
   expect(asked.blocked).toContain("noninteractive_ask_denied");
   other.dispose();

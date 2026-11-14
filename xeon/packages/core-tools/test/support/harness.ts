@@ -226,7 +226,7 @@ export function layer(
   };
 }
 
-/** bash·read·ls 기능 도구를 올리고 API 호출 기록을 돌려준다 */
+/** bash·read 기능 도구를 올리고 API 호출 기록을 돌려준다 */
 export interface WorkspaceProbe {
   readonly calls: {
     readonly method: string;
@@ -259,6 +259,10 @@ export function registerWorkspace(harness: Harness): WorkspaceProbe {
     },
   });
   harness.apis.set(WorkspaceFiles.id, {
+    grep: (input: unknown) => {
+      calls.push({ method: "grep", input });
+      return Promise.resolve({ root: "/", matches: [] });
+    },
     read: (input: unknown) => {
       calls.push({ method: "read", input });
       return Promise.resolve({
@@ -269,10 +273,6 @@ export function registerWorkspace(harness: Harness): WorkspaceProbe {
         endLine: 1,
         totalLines: 1,
       });
-    },
-    list: (input: unknown) => {
-      calls.push({ method: "list", input });
-      return Promise.resolve({ path: ".", entries: [{ name: "a.txt", kind: "file" }] });
     },
   });
   harness.runtime.tools.register({

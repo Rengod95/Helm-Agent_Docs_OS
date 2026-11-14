@@ -92,7 +92,7 @@ test("exec_committed_separately: intent and exec are different commits before th
 test("result_and_tool_result_item_same_commit: consecutive seq under one request id", async () => {
   const h = await createHarness();
   registerWorkspace(h);
-  await callTool(h.runtime.tools, h.run(), { id: "call_3", name: "ls", args: {} });
+  await callTool(h.runtime.tools, h.run(), { id: "call_3", name: "read", args: { path: "a.txt" } });
   const result = h.session.commits.find((commit) => commit.requestId === "tool:call_3:result");
   expect(result).toBeDefined();
   expect(result?.lastSeq).toBe((result?.firstSeq ?? 0) + 1);
@@ -472,10 +472,14 @@ test("tool_result_handler_throw_skipped: one failing handler does not turn the r
       content: [...current.content, { type: "text", text: "appended by handler" }],
     }));
   });
-  const out = await callTool(h.runtime.tools, h.run(), { id: "call_15", name: "ls", args: {} });
+  const out = await callTool(h.runtime.tools, h.run(), {
+    id: "call_15",
+    name: "read",
+    args: { path: "a.txt" },
+  });
   expect(out.isError).toBe(false);
   expect(textOf(out.result)).toContain("appended by handler");
-  expect(textOf(out.result)).toContain("a.txt");
+  expect(textOf(out.result)).toContain("hello");
 });
 
 test("a tool.result patch that changes the result names the patching extension in details", async () => {
@@ -486,7 +490,11 @@ test("a tool.result patch that changes the result names the patching extension i
       content: [...current.content, { type: "text", text: "patched" }],
     }));
   });
-  const out = await callTool(h.runtime.tools, h.run(), { id: "call_23", name: "ls", args: {} });
+  const out = await callTool(h.runtime.tools, h.run(), {
+    id: "call_23",
+    name: "read",
+    args: { path: "a.txt" },
+  });
   expect(out.isError).toBe(false);
   expect(textOf(out.result)).toContain("patched");
   expect(out.outcome.message.details).toEqual({ resultPatchedBy: ["patcher"] });
@@ -498,7 +506,11 @@ test("a tool.result patch that leaves the result as it was adds no resultPatched
   await installHandlers(h, "noop", ["tool.result"], (g) => {
     g.on("tool.result", (_payload, current) => ({ isError: current.isError }));
   });
-  const out = await callTool(h.runtime.tools, h.run(), { id: "call_24", name: "ls", args: {} });
+  const out = await callTool(h.runtime.tools, h.run(), {
+    id: "call_24",
+    name: "read",
+    args: { path: "a.txt" },
+  });
   expect(out.isError).toBe(false);
   expect(out.outcome.message.details).toBeUndefined();
 });
@@ -519,7 +531,11 @@ test("resultPatchedBy names each patching extension once, in chain order", async
       content: [...current.content, { type: "text", text: "three" }],
     }));
   });
-  const out = await callTool(h.runtime.tools, h.run(), { id: "call_25", name: "ls", args: {} });
+  const out = await callTool(h.runtime.tools, h.run(), {
+    id: "call_25",
+    name: "read",
+    args: { path: "a.txt" },
+  });
   expect(textOf(out.result)).toContain("three");
   expect(out.outcome.message.details).toEqual({ resultPatchedBy: ["alpha", "beta"] });
 });
@@ -533,7 +549,11 @@ test("a tool.result patch with object details keeps them and adds resultPatchedB
       details: { source: "patch" },
     }));
   });
-  const out = await callTool(h.runtime.tools, h.run(), { id: "call_26", name: "ls", args: {} });
+  const out = await callTool(h.runtime.tools, h.run(), {
+    id: "call_26",
+    name: "read",
+    args: { path: "a.txt" },
+  });
   expect(out.outcome.message.details).toEqual({
     source: "patch",
     resultPatchedBy: ["detailer"],
@@ -549,7 +569,11 @@ test("a tool.result patch with non-object details leaves those details alone", a
       details: ["listed"],
     }));
   });
-  const out = await callTool(h.runtime.tools, h.run(), { id: "call_27", name: "ls", args: {} });
+  const out = await callTool(h.runtime.tools, h.run(), {
+    id: "call_27",
+    name: "read",
+    args: { path: "a.txt" },
+  });
   expect(out.outcome.message.details).toEqual(["listed"]);
 });
 

@@ -5,7 +5,7 @@ const GENERAL_AGENT_NAME = "general";
 const EXPLORE_AGENT_NAME = "explore";
 
 /** 읽기 전용 정의가 쓰는 도구. 쓰기와 셸은 목록에 없으니 거부된다 */
-const EXPLORE_TOOLS: readonly string[] = ["read", "ls", "grep", "find"];
+const EXPLORE_TOOLS: readonly string[] = ["read", "grep"];
 
 /** 코어 기본 정의 둘. 모델 역할은 subagent(생략 기본값) */
 export function coreAgentDefinitions(): readonly AgentDefinition[] {
