@@ -59,8 +59,18 @@ export async function defaultRoots(
   const root = getOrThrow(await env.canonicalPath(env.cwd, context));
   if (outputs === undefined) return { read: [root], write: [root] };
   // 폴더가 아직 없으면(첫 사본 전) 설정된 경로 그대로 둔다. 읽기 직전 복원이 폴더를 만든다
-  const canonical = await env.canonicalPath(outputs.dir, context);
-  return { read: [root, canonical.ok ? canonical.value : outputs.dir], write: [root] };
+  // 읽기 루트는 사본 폴더(`spill/tool-output`)의 부모인 `spill/` 전체다: bash가 넘친 출력(`spill/tmp-*/pi-output-*.log`)도
+  // `read`·`grep`으로 읽힌다. 쓰기 루트에는 더하지 않는다
+  const spill = parentOf(outputs.dir);
+  const canonical = await env.canonicalPath(spill, context);
+  return { read: [root, canonical.ok ? canonical.value : spill], write: [root] };
+}
+
+/** 마지막 마디를 뺀 부모 경로. 구분자는 `/`와 `\\` 둘 다 본다 */
+function parentOf(path: string): string {
+  const trimmed = path.replace(/[\\/]+$/, "");
+  const cut = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+  return cut <= 0 ? trimmed : trimmed.slice(0, cut);
 }
 
 function segmentsOf(path: string): string[] {

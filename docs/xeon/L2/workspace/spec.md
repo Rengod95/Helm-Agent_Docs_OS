@@ -514,6 +514,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 
 1. `cwd`를 §4.3 규칙으로 해석한다(쓰기 root 검사는 하지 않고 읽기 root 안인지만 본다).
 2. `fresnel.sandbox`에 명령과 cwd를 넘겨 샌드박스 래핑을 받는다. 샌드박스 설정이 꺼져 있으면 래핑 없이 실행하고 `sandboxed: false`와 이유 `unsandboxedBy: "disabled"`를 돌려준다. 켜고 끄는 설정은 L0.sandbox·L1.tools 소관이다(`_research/layer-plan-v2-notes.md` "OS 샌드박스가 왜 필요한가").
+   - (읽기 전용 프로필 [결정: 2026-11-13 사용자]) `CallContext.sandbox`가 `"read-only"`(서브에이전트 정의의 `permissions.sandbox`, L1.agents.spec)면 `defaultPolicy({ profile: "read-only" })`로 감싼다: 쓰기 루트 없음, 네트워크 차단(L0.sandbox.spec §4.2 읽기 전용 프로필). 쓰기 거부가 나도 §4.3.1 질문을 하지 않고 그냥 실패하며, 막힌 것으로 보이면 출력 끝에 `[read-only sandbox: writes and network access are blocked]` 한 줄을 붙인다. 샌드박스를 쓸 수 없으면 실행하지 않고 3번처럼 거부한다(그때 explore는 `read`·`grep`만으로 일한다).
 3. `fresnel.sandbox`가 실행 전에 거부하면(정책상 금지, 샌드박스 필수인데 사용 불가) `denied` `CapabilityError`를 낸다. `detail`은 `{ by: "sandbox", reason: <L0.sandbox가 준 사유 코드> }`다. 도구 경로에서는 `isError: true` 결과가 된다.
 4. 래핑한 명령을 `ExecutionEnv.exec`로 실행한다. 출력 spill 기준은 `l2.workspace.shell.maxLines`, `l2.workspace.shell.maxBytes`이고 남기는 쪽은 꼬리다(durable `bash.ts` `outputLimits: { retain: "tail" }`).
 5. 실행 중 샌드박스 위반(커널이 막은 쓰기·네트워크)은 명령 자체의 실패로 나타난다. 종료 코드가 0이 아니면 3.3절 `exit_nonzero` 규칙을 따른다. 위반 보고를 L0.sandbox가 주면 `detail.sandboxBlocks`에 싣는다. 쓰기 거부가 있으면 보호 경로가 아닌 경로를 §4.3.1로 묻고 허용되면 같은 명령을 다시 실행한다.
@@ -548,7 +549,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 - 허용 root를 얻는 API는 `L1.tools.spec`이 정한다 [가정]. 그 API가 생기기 전에는 읽기 root와 쓰기 root 모두 대화의 작업 폴더 하나로 둔다 [제안].
 - [결정: review.m2-plan DG.4, open-issues M-06] 대화의 작업 폴더는 `thread.started`의 `workspace`(`ThreadSummaryRow.workspace`)다. 호출 문맥(`CallOptions.context.threadId`)으로 `fresnel.session`의 대화 투영을 읽고(`ThreadWorkspaces.workspaceOf`), 값이 있으면 그 폴더가 다음 셋의 기준이 된다. (1) 상대 경로를 푸는 cwd, (2) 읽기·쓰기 root 하나, (3) `bash`의 기본 cwd와 샌드박스 쓰기 root. 실행 환경은 `fresnel.exec`의 `withCwd`로 만든다. 값이 없거나(옛 행) 대화 문맥이 없으면 엔진의 cwd를 쓴다(M1 동작). 작업 폴더가 없는 경로를 가리키면 `not_found`이고 엔진 cwd로 물러나지 않는다. 한 엔진이 여러 작업 폴더의 대화를 동시에 열어도 대화마다 root가 다르다.
 - 같은 쓰기를 파일 도구는 L2에서, bash는 L0 샌드박스가 먼저 막고, 보호 경로가 아니면 §4.3.1로 사람에게 묻는다. 파일 도구는 샌드박스를 거치지 않으므로 L2 검사가 유일한 경로 방어다.
-- [결정: 2026-11-13 사용자, `read_tool_output` 폐지] 잘린 도구 출력의 파일 사본 폴더(`<상태 디렉터리>/spill/tool-output`, L1.tools.spec §4.8 6번)는 **읽기 root에만** 더한다(`RootsDeps.outputs`). 쓰기 root에는 없어서 `write`·`edit`는 거기에 묻지 않고 막는다(`outside_root`). 읽기 직전에 이 폴더 안의 없는 사본은 blob에서 되살린다(`ToolOutputFiles.restore`). 되살리지 못하면(blob이 지워짐) 일반 `not_found`다. 엔진이 원격 컴퓨터에서 돌아도 같은 엔진 안의 경로다.
+- [결정: 2026-11-13 사용자, `read_tool_output` 폐지, 범위 확대 같은 날] 읽기 root에 더하는 것은 `<상태 디렉터리>/spill/` 전체다. 잘린 도구 출력의 파일 사본 폴더(`spill/tool-output`, L1.tools.spec §4.8 6번)와 bash가 넘친 출력을 두는 `spill/tmp-*/pi-output-*.log`가 `read`·`grep`으로 읽힌다(`defaultRoots`가 사본 폴더의 부모를 더한다). 쓰기 root에는 더하지 않는다. 아래는 사본 폴더에 대한 규칙이다. 사본 폴더는 **읽기 root에만** 더한다(`RootsDeps.outputs`). 쓰기 root에는 없어서 `write`·`edit`는 거기에 묻지 않고 막는다(`outside_root`). 읽기 직전에 이 폴더 안의 없는 사본은 blob에서 되살린다(`ToolOutputFiles.restore`). 되살리지 못하면(blob이 지워짐) 일반 `not_found`다. 엔진이 원격 컴퓨터에서 돌아도 같은 엔진 안의 경로다.
 
 ### 4.3.1 작업 폴더 밖 쓰기는 막지 않고 묻는다 [결정: 2026-11-13 사용자]
 
