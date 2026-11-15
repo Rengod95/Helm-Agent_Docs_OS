@@ -20,7 +20,7 @@ binds: [xeon/packages/core-tools/**]
 
 - 층 구성 계획 v2 L1-d 구성요소 8개(`_research/layer-plan-v2.json` L1-d): 도구 노출 분리, 실행 파이프라인, 검증 오류 반환, 선언형 정책 엔진, 권한 모드, 승인과 질문 프로토콜, 결과 경계화, 항상 허용 캐시와 셸 규칙(2차).
 - 패키지 판정(`_research/packages.md` §4.3 L1-d 행): 노출 분리·파이프라인·검증 오류 반환은 agent-core 1.3.0 그대로, 정책 엔진·모드·승인 프로토콜은 설계, 결과 경계화는 포크. adr.0009 이후 파이프라인은 core-tools `prepare`·`execute`가, 인자 검증은 core-tools `validate.ts`가 옮겨 맡는다.
-- [결정] 질문 도구와 계획 승인은 L1-d 승인 프로토콜 하나로 합친다(`_research/foundation-plan.md` §1 결정 5, `_research/decisions-log.md` 2026-10-21 3차).
+- [결정] 질문 도구와 계획 승인은 L1-d 승인 프로토콜 하나로 합친다(`_research/foundation-plan.md` §1 결정 5, `_research/decisions-log.md` 2026-10-21 3차). 계획 승인은 2026-11-13에 폐지했고 프로토콜은 질문과 도구·검토 승인만 쓴다 [결정: 2026-11-13 사용자].
 - [결정] pi durable에서 truncate를 Chord 제거 포크로 가져온다(adr.0003, `_research/foundation-plan.md` §1 결정 1).
 
 정하는 것:
@@ -40,7 +40,7 @@ binds: [xeon/packages/core-tools/**]
 - 기능 정의 형식, 도구 이름 규칙, 결정적 순서 함수: F.capabilities.spec.
 - 효과 3단 이벤트의 payload와 재개 판정 함수(`decideEffectRecovery`): F.records.spec §3.5. 재개 절차 자체: L1.persistence.spec.
 - 루프 단계, 체크포인트를 쓰는 시점, 병렬·순차 실행 모드 선택: L1.loop.spec, L1.tasks.spec.
-- 개별 도구 구현(read, bash, 편집 등): L2.workspace.spec. 질문 도구와 계획 도구의 모델 노출: L2.dialog.spec, L2.work.spec.
+- 개별 도구 구현(read, bash, 편집 등): L2.workspace.spec. 질문 도구의 모델 노출: L2.dialog.spec, L2.work.spec(계획 도구는 2026-11-13 폐지 [결정: 2026-11-13 사용자]).
 - 샌드박스와 실행 환경: L0.sandbox.spec, L0.exec.spec. L1.tools와의 경계는 §4.12다.
 - 서브에이전트의 권한 상한 계산: L1.agents.spec(이 문서의 평가기를 호출한다).
 - 대화 중간 도구 추가·제거를 대화 기록에 넣는 일: L1.context.spec(F.capabilities.spec §4.5).
@@ -469,7 +469,7 @@ export function validateRules(rules: readonly PolicyRule[]): readonly { readonly
 ```ts
 export const ApprovalServiceName = "fresnel.approvals" as const;
 
-export type ApprovalKind = "tool" | "plan" | "question";   // plan은 더는 만들지 않는다. 옛 기록 읽기 전용 [결정: 2026-11-13 사용자]
+export type ApprovalKind = "tool" | "question" | "review";   // "plan"은 은퇴했다. 타입에만 남아 옛 기록을 읽고 새로 만들지 않는다 [결정: 2026-11-13 사용자]
 export type ApprovalDecision = "allow" | "deny" | "answer";
 export type ApprovalRemember = "once" | "thread" | "always";
 
@@ -477,7 +477,7 @@ export interface ApprovalOrigin {
   readonly threadId: ThreadId;
   readonly turnId: TurnId | null;
   readonly stepId: StepId | null;
-  /** 이 요청을 일으킨 도구 호출. 질문·계획 도구도 도구 호출이므로 보통 채워진다 */
+  /** 이 요청을 일으킨 도구 호출. 질문 도구도 도구 호출이므로 보통 채워진다 */
   readonly toolCallId: string | null;
   readonly caller: CallerId;
   /**

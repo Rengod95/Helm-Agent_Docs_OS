@@ -191,7 +191,7 @@ flowchart TD
 |---|---|---|---|
 | 1 | `run-engine`(L1 tasks·loop·context·agents) | 컨텍스트 하나가 같은 층 패키지 넷에 걸친다. DR-02 때문에 컨텍스트 안에서도 import할 수 없다 | 컨텍스트 안 협력도 F 정의와 `fresnel.tasks`·`fresnel.loop`·`fresnel.context`·`fresnel.agents` 서비스로 한다. 컨텍스트는 이벤트 어휘와 데이터 소유를 묶는 단위다. import 허용 여부는 층 규칙(DR-01, DR-02)이 패키지 단위로 정한다 |
 | 2 | `extension-host`(X, 순위 1) | L3 그룹(순위 5)을 호스트하고, 대화 쓰기(L1 `session-core`)와 루프(L1 `run-engine`)를 써야 한다. 순위상 import할 수 없다 | F2 `SessionService`·`ProducerHandle`, F4 훅 선언과 포트를 F에 두고, 구현은 Cordis로 주입받는다. X 순위 유지와 세 조건은 [결정: review.decisions-2 U-14](`eng.dependency-rules.guide` 1.1절, `architecture.layers.spec` 4.3.3절) |
-| 3 | `approval.` 접두사(L1 `tool-runtime`) | 질문 도구(L2 dialog)와 계획 승인(L2 work)의 기능은 L2에 있으나 이벤트는 L1이 소유한다 | 결정 5(질문·계획 승인을 L1-d 승인 프로토콜 하나로)를 따른다. L2는 `fresnel.approvals`로 요청하고 결과를 이벤트로 받는다 |
+| 3 | `approval.` 접두사(L1 `tool-runtime`) | 질문 도구(L2 dialog)의 기능은 L2에 있으나 이벤트는 L1이 소유한다(계획 승인은 2026-11-13 폐지 [결정: 2026-11-13 사용자]) | 결정 5(질문·계획 승인을 L1-d 승인 프로토콜 하나로)를 따른다. L2는 `fresnel.approvals`로 요청하고 결과를 이벤트로 받는다 |
 | 4 | 대화 제목(L2 artifacts "세션 제목과 메타") | 기능은 L2, 이벤트 `thread.updated`(제목)는 L1 `session-core` 소유 | artifacts가 `fresnel.session`의 제목 변경 API를 부르고, 이벤트는 session-core가 쓴다 |
 | 5 | 학습 그룹(L3)의 저장 | 그룹의 산출물이 아래 층 컨텍스트(L2 knowledge) 테이블에 있다 | 3절 결정 5. 학습 그룹은 `x_learning_*`에 트리거 카운터만 둔다 |
 | 6 | `settings-ui`(L4) | layout 경로 `xeon/packages/client/src/settings/**`가 `client` 패키지 안이다(adr.0020). 화면은 `desktop`에 있다 | 두 도메인을 `clients` 컨텍스트로 묶는다. 설정 화면 생성은 F5 설정 스키마 하나에서 나온다 |

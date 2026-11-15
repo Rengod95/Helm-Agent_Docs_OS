@@ -207,7 +207,7 @@ export interface WebService {
 
 ```ts
 // cap-<domain>/src/ports/approvals.ts  (패키지 내부. L1.tools.spec 승인 프로토콜을 감싼다 [가정])
-export type L2ApprovalKind = "tool" | "question" | "plan" | "review";
+export type L2ApprovalKind = "tool" | "question" | "review";   // "plan"은 2026-11-13 폐지 [결정: 2026-11-13 사용자]
 
 export interface ApprovalSnapshot {
   readonly approvalId: ApprovalId;
@@ -349,7 +349,7 @@ flowchart LR
 | [결정] L2 기능은 F3 정의를 구현한 provider이고 그룹은 서비스를 코드에서 바로 호출한다 | `_research/layer-plan-v2.json` L2 intro |
 | [결정] 같은 층 패키지는 import하지 않는다. 협력은 F 정의와 Cordis 서비스로만 한다 | `_research/foundation-plan.md` §3, `eng.dependency-rules.guide` DR-02 |
 | [결정] 유료 웹 API는 플러그인, 기본은 로컬 도구 | `_research/decisions-log.md` 2026-10-21 결정(2차) |
-| [결정] 질문 도구와 계획 승인은 승인 프로토콜 하나 | `_research/decisions-log.md` 2026-10-21 결정(3차), `_research/foundation-plan.md` §1 5번 |
+| [결정] 질문 도구와 계획 승인은 승인 프로토콜 하나(계획 승인은 2026-11-13 폐지 [결정: 2026-11-13 사용자]) | `_research/decisions-log.md` 2026-10-21 결정(3차), `_research/foundation-plan.md` §1 5번 |
 | [결정] 예약·원격·알림 범위 포함(데몬 허용) | `_research/decisions-log.md` 2026-10-21 결정(3차), `_research/foundation-plan.md` §1 2번 |
 | [결정] pi durable tools·images·truncate는 Chord 제거 포크 | ADR-0003 §3.1 |
 | [결정] 대화 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블 | `_research/decisions-log.md` 2026-10-21 결정(2차), ADR-0004 |

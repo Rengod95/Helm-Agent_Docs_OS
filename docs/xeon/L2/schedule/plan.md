@@ -235,7 +235,7 @@ xeon/packages/cap-schedule/
 | 테스트 | 확인할 동작 |
 |---|---|
 | `classify.test.ts` › agent 전이 | `agent.spawned` → working, 자식 대화 `approval.requested` → needs_input, `approval.resolved` → working, `agent.settled` → done |
-| › 승인 대기를 입력 필요로 | kind `tool`, `question`, `plan` 모두 needs_input |
+| › 승인 대기를 입력 필요로 | kind `tool`, `question` 모두 needs_input(`plan`은 은퇴) |
 | › process 전이 | running → working, exited 0 → done(succeeded), exited 1 → done(failed), killed → stopped |
 | › loop 전이 | 사유별 done/stopped 대응(spec §4.2.1 표) |
 | › run 전이 | started → working, 승인 대기 → needs_input, finished → done, stalled → stopped |

@@ -104,7 +104,7 @@ export const PostWhenSchema = Type.Union([Type.Literal("steer"), Type.Literal("f
 export const ArtifactKindSchema = Type.Union([
   Type.Literal("document"),    // 글. text/markdown, text/plain 등
   Type.Literal("table"),       // 표. text/csv, application/json(행 배열)
-  Type.Literal("plan"),        // 계획. 옛 기록 읽기 전용, 만들지 않음 [결정: 2026-11-13 사용자]
+  Type.Literal("plan"),        // 계획. 옛 기록 읽기 전용. 새 산출물로 만들지 않는 것이 결정이나 `artifact_create`가 아직 받는다 [미결] [근거: xeon/packages/contracts/src/capabilities/defs/artifacts.ts:62] [결정: 2026-11-13 사용자]
   Type.Literal("changeset"),   // 파일 변경 목록. 리뷰가 등록한다. 본문은 통합 diff
   Type.Literal("file"),        // 작업 공간 파일의 등록 시점 사본
   Type.Literal("image"),       // 이미지

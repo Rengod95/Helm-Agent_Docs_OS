@@ -57,7 +57,7 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
   1. 사용자가 CLI(`fresnel chat`) 또는 데스크톱에서 입력한다. 두 클라이언트는 같은 Runtime API로 엔진에 입력을 보낸다.
   2. 입력이 입력 큐에 들어가고, 실행 중인 턴이 없으면 새 턴이 시작된다.
   3. 컨텍스트가 조립되고 모델 요청이 나간다. request 종류 훅(`input.agent.before` 등)의 chain 핸들러가 있으면 요청이 형성된다.
-  4. 모델이 도구를 호출하면 `tool.call.before` 훅(tool 종류)의 first 핸들러와 정책 엔진을 거쳐 실행된다. 기본 도구는 `read`, `ls`, `bash`다. `bash`는 OS 샌드박스 안에서 실행되며, 샌드박스 범위 안의 명령은 매번 묻지 않는다(layer-plan-v2-notes.md "OS 샌드박스가 왜 필요한가").
+  4. 모델이 도구를 호출하면 `tool.call.before` 훅(tool 종류)의 first 핸들러와 정책 엔진을 거쳐 실행된다. 기본 도구는 `read`, `bash`다(`ls`는 2026-11-13 폐지 [결정: 2026-11-13 사용자]). `bash`는 OS 샌드박스 안에서 실행되며, 샌드박스 범위 안의 명령은 매번 묻지 않는다(layer-plan-v2-notes.md "OS 샌드박스가 왜 필요한가").
   5. 도구 결과와 완성된 메시지 파트가 이벤트로 저장되고 투영이 같은 트랜잭션에서 갱신된다. 스트리밍 토큰은 휘발 이벤트로 클라이언트에 전달된다.
   6. 모델이 도구 호출 없이 답하면 턴이 끝난다. step마다 그 step이 끝난 직후 단계 경계 처리가 실행된다.
 - 실행 중 입력(큐 모드)
@@ -77,7 +77,7 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
   - L1 `core-tasks`, `core-loop`, `core-models`, `core-tools`, `core-context`, `core-persistence`
   - L2 `cap-workspace`, L4 `apps/cli`, `apps/desktop`, `apps/host`
 - 수용 기준
-  - 모델 테이프로 `fresnel chat` 한 턴을 실행하면 `read`, `ls`, `bash` 호출과 결과가 이벤트로 저장되고, 같은 DB를 다시 열었을 때 투영에서 같은 대화가 복원된다.
+  - 모델 테이프로 `fresnel chat` 한 턴을 실행하면 `read`, `bash` 호출과 결과가 이벤트로 저장되고, 같은 DB를 다시 열었을 때 투영에서 같은 대화가 복원된다.
   - 도구 실행 중 `steer`로 넣은 입력은 그 턴의 다음 모델 요청에 포함된다.
   - `next`로 넣은 입력의 수용 기준은 ADR-0007 §6 [미결](`next`가 요청을 스스로 시작하는지)이 정해진 뒤에 쓴다.
 
@@ -246,7 +246,7 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
 
 | 이름 | 내용 | 관여 패키지 | 근거 |
 |---|---|---|---|
-| 질문·계획 승인 | 모델의 사용자 질문과 계획 승인을 L1-d 승인 프로토콜 하나로 처리한다. 요청은 내구 이벤트 `approval.requested`, 응답은 호스트 메서드 `approval.respond`다 [결정: review.decisions-2 U-02]. 원격 승인(UC-5)도 같은 경로를 쓴다. | `core-tools`, `cap-dialog`, `cap-work` | [결정: decisions-log 2026-10-21 3차, foundation-plan.md §1 결정 5] |
+| 질문 승인 | 모델의 사용자 질문을 L1-d 승인 프로토콜로 처리한다(계획 승인은 2026-11-13 폐지 [결정: 2026-11-13 사용자]). 요청은 내구 이벤트 `approval.requested`, 응답은 호스트 메서드 `approval.respond`다 [결정: review.decisions-2 U-02]. 원격 승인(UC-5)도 같은 경로를 쓴다. | `core-tools`, `cap-dialog`, `cap-work` | [결정: decisions-log 2026-10-21 3차, foundation-plan.md §1 결정 5] |
 | 목표 지속 | 완료 조건을 걸면 턴이 끝날 때마다 별도 판정 모델이 판정하고, 미충족이면 다음 턴을 시작한다. 판정 실행 횟수 상한(`l1.agents.judge.maxRuns`)에서 멈춘다. | `cap-work`, `core-loop`, `core-models` | [결정: decisions-log 2026-10-21 3차, foundation-plan.md §1 결정 4] |
 | 재개 | 크래시 뒤 다시 열면 복구 표식이 남은 대화를 "이어서 실행" 후보로 제시한다. 자동 재개(`l1.persistence.autoResume`)는 기본 꺼짐이다(기본값은 ADR-0006 §6 [미결]). 재개 시도 상한은 `l1.persistence.maxResumeAttempts`다. 결과 불명 도구 호출 가운데 `replay` 선언이 `unsafe`(기본값)이거나 선언이 없는 도구는 다시 실행하지 않고 "중단됨" 결과로 합성한다. 저장된 정책과 현재 선언이 모두 `safe`인 도구만 다시 실행한다(ADR-0004 §3.2 3번). | `core-persistence`, `platform-store` | [제안: process.md §6.3 5~6] 후보 제시와 자동 재개 기본값 / [결정: ADR-0004] 결과 불명 처리 |
 | 무료 웹 검색 | 모델용은 provider 내장 검색, 서비스 API `web.search`는 내장 검색 래퍼를 쓰고, 무료 크레딧 API는 플러그인으로 권장한다. [결정: 2026-11-04 사용자 B15] SearXNG는 없앴다. 쓰려면 검색 플러그인으로 직접 등록한다. | `cap-web` | [결정: decisions-log 2026-10-21 3차, foundation-plan.md §1 결정 6, ADR-0005] |

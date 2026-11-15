@@ -286,7 +286,7 @@ export function reviewFinishOutcome(state: LearningState, settled: ReviewSettled
 - 기본 허용 목록 `toolPolicy.allow` [제안]. 도구 이름으로 적는다(L1.agents.spec §3.2 `ChildToolPolicy.allow`):
   - 제안 도구 `learning_propose`
   - L2 지식 읽기 도구 `skill_view`, `knowledge_search`, `session_scroll`, `session_read`(L2.knowledge.spec §3의 모델 도구 중 `readOnly` 도구)
-  - 작업 공간 읽기 도구 `read`, `grep`, `find`, `ls` [가정: L2.workspace.spec의 도구 이름]
+  - 작업 공간 읽기 도구 `read`, `grep`. `find`와 `ls`는 2026-11-13 폐지로 뺐다 [결정: 2026-11-13 사용자]. 코드 `REVIEW_ALLOWED_TOOLS`와 `agents/learning-review.md`가 같다 [가정: L2.workspace.spec의 도구 이름]
   - 위 목록 밖 도구(쓰기, 편집, 셸, 웹, 위임, 사용자 질문, `skill_manage`·`memory_manage` 같은 지식 쓰기 도구)는 모두 거부한다.
 - `denyHint`는 "후보는 `learning_propose`로 제출한다"를 담는다(§4.3 쓰기 거부).
 - 도구 정책의 허용·차단 방식은 L3.group-sdk.spec §3.4가 정한다(둘 다 받는다). 학습 그룹은 허용 목록을 쓴다.

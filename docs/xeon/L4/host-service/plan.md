@@ -364,7 +364,7 @@ m2/l1f, host2, mcp4, webkn, wkdg, cli2를 이 순서로 합친 뒤 남은 연결
 | thread.read 시험 | cap-knowledge의 첫 turn 문맥이 사용자 입력 뒤에 custom item 하나를 더한다. `lifecycle.int.test.ts`의 기대 종류가 `user, custom, system, assistant`다 |
 | 질문 승인, 사용자 셸 | cap-dialog와 cap-work의 기본 구현(`questionApprovalsOver`, `shellPortOver`)이 `fresnel.approvals`와 `fresnel.loop`를 감싼다. 조립 루트의 같은 일을 하던 `dialogApprovalsFactory`, `planApprovalsFactory`, `userShellPort`와 `createCallL2ApprovalsPort`, `createOriginL2ApprovalsPort`를 지웠다. 계획 승인(`planApprovalsOver`)은 2026-11-13 폐지로 없어졌고 2026-11-15 정리로 지웠다 [결정: 2026-11-15 사용자]. 기본 구현은 재시작 뒤 `restore`와 `key_reused` 거부를 더 한다. `l2-approvals.ts`에는 cap-web이 쓰는 출처 없는 포트만 남았다 |
 | 사용자 셸 종단 | core-loop `runUserBash`가 구현되어 `shell-injection.int.test.ts`가 슬래시 명령의 `!{...}`를 실제 셸로 실행하고 출력을 치환하며 효과 레코드를 확인한다 |
-| MCP 서버 주도 요청 종단 (D5 a) | F `DirectToolRegistration.executeWithContinuation`을 더했다. cap-mcp `createToolServiceRegistrar`가 채우고, core-tools `settleDirectInput`이 `input_required`를 질문 승인으로 올려 같은 `toolCallId`로 다시 부른다. `approval-shapes.int.test.ts`가 질문 도구, 계획 승인, MCP 질문의 `approval.requested` 레코드 모양이 같음(E5)과 종단 흐름을 확인한다 |
+| MCP 서버 주도 요청 종단 (D5 a) | F `DirectToolRegistration.executeWithContinuation`을 더했다. cap-mcp `createToolServiceRegistrar`가 채우고, core-tools `settleDirectInput`이 `input_required`를 질문 승인으로 올려 같은 `toolCallId`로 다시 부른다. `approval-shapes.int.test.ts`가 질문 도구와 MCP 질문의 `approval.requested` 레코드 모양이 같음(E5. 계획 승인은 2026-11-13 폐지)과 종단 흐름을 확인한다 |
 
 ## 9. M2 마감 구현 기록 (m2c T2 HOST)
 

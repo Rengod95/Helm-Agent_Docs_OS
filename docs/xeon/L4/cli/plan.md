@@ -243,7 +243,7 @@ xeon/apps/cli/
 |---|---|---|
 | C9 `secret` 명령 | 구현: `ls`, `add`, `set`, `meta`, `rotate`, `rm`, `test`, `reveal`. 값은 `InProcessHost.secretOutOfBand`로 맡기고 가려진 입력은 `CliIo.readSecret`(raw 모드 바이트)이 받는다. `test`는 처음에 wire가 주는 `state`만 보였고 지금은 §4.6 표의 확장된 출력을 쓴다 | `src/commands/secret.ts`, `src/runtime.ts` |
 | C10 `sessions` | 구현: `ls`(쪽 단위, `--all`, `--limit`, `--json`), `show`(`events.subscribe` → 머리까지 → `events.unsubscribe`), `fork --at`, `rm`(`--yes`, 비TTY는 2) | `src/commands/sessions.ts` |
-| C11 승인·잠금·중단 | 구현: 도구·계획·질문 프롬프트(kind별 `answer` 모양), `approval.list` 복원, `approval.resolved`로 프롬프트 닫기, `thread.locked` 프롬프트(관찰·분기), Ctrl+C `turn.interrupt` | `src/render/approval.ts`, `src/render/lock.ts`, `src/commands/chat-session.ts`, `src/commands/chat.ts`, `src/signals.ts` |
+| C11 승인·잠금·중단 | 구현: 도구·질문 프롬프트(kind별 `answer` 모양. 계획은 2026-11-13 폐지), `approval.list` 복원, `approval.resolved`로 프롬프트 닫기, `thread.locked` 프롬프트(관찰·분기), Ctrl+C `turn.interrupt` | `src/render/approval.ts`, `src/render/lock.ts`, `src/commands/chat-session.ts`, `src/commands/chat.ts`, `src/signals.ts` |
 | C13 `config set/reset/list`, `--set`, 슬래시 | 구현. 사전 검사는 하지 않는다(spec §10 13번). 슬래시는 `/set`, `/model`, `/resume`, `/help`, `/quit`와 Tab 완성 | `src/commands/config.ts`, `src/commands/overrides.ts`, `src/slash.ts`, `src/tui/minimal.ts` |
 | C15 `doctor` | 구현: 엔진·저장소·시크릿 저장소·외부 바이너리·서비스·터미널과 검색 provider 두 줄([결정: 2026-11-04 사용자 B15] 옛 세 줄에서 SearXNG 줄을 뺐다). 바이너리는 `host.status { includeBinaries: true }`로 받는다(M2 마감 G2-07). SearXNG는 설정한 주소 하나만 탐침했다(자동 감지 삭제, M2 마감 H1)(삭제됨 2026-11-04). 진단 경로는 임시 결정(spec §10 5번) | `src/commands/doctor.ts` |
 | C16 `host --stdio` | 구현: `startStdioHost`에 `l4.cli.*` 그룹을 넘긴다. stdout은 `CliIo.stdoutStream` 전용. M3b B2-RMT: 원격 주소(`--remote` 또는 설정)가 있으면 엔진을 열지 않고 `bridgeStdioToService`로 중계한다 | `src/commands/host.ts` |
@@ -327,7 +327,7 @@ M2 CLI.1~CLI.4에서 더한 시험(가짜 호스트 서버 위, `test/support/fa
 |---|---|---|---|
 | sessions | `test/sessions.test.ts` | unit | `ls`(작업 폴더 필터, `--all`, cursor), `show`(트랜스크립트, 구독 해제, 없는 id는 1), `fork`, `rm`(`--yes`, 비TTY 거부, 확인 프롬프트, `thread.hasForks`) |
 | chat-open | `test/chat-open.test.ts` | unit | `--resume`·`--continue`가 `thread.open`·`thread.list`를 쓰고, 잠금에서 관찰·분기·취소(4)·print(4)·위임 숨김, `--set` 순서와 실패(2) |
-| chat-approval | `test/chat-approval.test.ts` | unit | 도구·계획·질문 프롬프트의 응답 모양, 기억 범위 제한, 다른 곳에서 먼저 닫힘, `applied: false`, print 자동 거부, `approval.list` 복원 |
+| chat-approval | `test/chat-approval.test.ts` | unit | 도구·질문 프롬프트의 응답 모양, 기억 범위 제한, 다른 곳에서 먼저 닫힘, `applied: false`, print 자동 거부, `approval.list` 복원 |
 | chat-interrupt | `test/chat-interrupt.test.ts` | unit | Ctrl+C 1회에 `turn.interrupt` 정확히 한 번(AC9), 2회는 종료(130), 미지원·실패는 종료 요청, print는 종료 요청 |
 | slash | `test/slash.test.ts` | unit | `/set`, `/model`, `/resume`(전환과 구독 해제), 파싱, Tab 완성 |
 | secret | `test/secret.test.ts` | unit | stdin·TTY 입력, 불일치·취소·빈 값·크기 상한, 맡긴 수단 거두기, 값 배열 0 덮기, 값이 출력·요청에 없음(AC5·AC6), `rm` 확인, 오류 문구, `reveal`의 TTY 전용(AC13)·확인 문구·재확인 도장 |

@@ -118,7 +118,7 @@ xeon/packages/contracts/test/records/catalog-doc.test.ts  # 스펙 §3.3 표와 
 | `kinds.test.ts` › 레지스트리 계약 | 테스트 안의 가짜 `EventKindRegistry` 구현으로 계약을 확인한다(실제 구현은 X 몫). 같은 kind 두 번 등록 → `duplicate`, 형식 위반 kind 등록 → `malformed`, 등록 뒤 `lookup`이 `CatalogEntry`를 돌려주고 미등록 kind는 `undefined`. `EventKindRegistration`에 코어 kind를 넣으면 타입 오류(`// @ts-expect-error`) |
 | `catalog.test.ts` › 왕복 | `CORE_EVENT_CATALOG` 항목마다 대표 payload 픽스처를 JSON 왕복한 뒤 `payload` 스키마를 통과한다. 픽스처가 없는 항목이 있으면 실패한다 |
 | `catalog.test.ts` › 유일성 | kind 중복 없음(병합 카탈로그 포함), `version ≥ 1` |
-| `catalog.test.ts` › 요청 kind payload | 스펙 §3.3.1 payload 15종마다 정상·거부 픽스처. `secret.*` payload에 값 필드가 없고, `approval.requested`의 `body.kind`는 `tool`, `question`, `plan`만 통과한다 |
+| `catalog.test.ts` › 요청 kind payload | 스펙 §3.3.1 payload 15종마다 정상·거부 픽스처. `secret.*` payload에 값 필드가 없고, `approval.requested`의 `body.kind`는 `tool`, `question`, `review`만 통과한다(`plan`은 은퇴) |
 | `ports.test.ts` › 비공개 기록 | 테스트 안의 가짜 `RecordCommitPort`로 스펙 §3.9 비공개 기록 규칙을 확인한다. `visibility: "private"` 행은 `queryRecords`의 셋째 인자 `reader`가 소유 확장일 때만 돌아오고, 다른 확장 접두 kind의 private 커밋은 `rejected(invalid)`다. 같은 적합성 사례를 `L1.persistence.plan`이 실제 구현에 돌린다 |
 | `versioning.test.ts` › 청크 | 가짜 `SqlTx`로 `runChunk`가 동기로 `{ next, processed }`를 돌려주는 계약을 확인한다(실행기 테스트는 `L0.store.plan`) |
 | `catalog.test.ts` › 신규 payload 거부 | 스펙 §3.3이 새로 정의한 payload 10종(LeafMoved, Compacted, BranchSummarized, ItemRecorded, PartRecorded, ScopeChanged, LeaseAcquired, LeaseReleased, PostAccepted, SettingsChanged)마다 거부 픽스처를 둔다. 필수 필드 누락, 열거값 밖(`reason: "expired"`, `status: "entered"`, `when: "later"`), 잘못된 ID 접두가 모두 실패한다 `PostAccepted`에 `inputId`가 없으면 실패한다(스펙 §3.3, review.decisions-2 U-05) |

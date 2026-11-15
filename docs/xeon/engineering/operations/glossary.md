@@ -56,7 +56,7 @@ binds: []
 | `세션` | 옛 이름입니다. 이제 코드·문서는 Thread, 화면은 "대화"입니다(`thread` 하나). 남은 "세션"은 pi 원문 인용과 아직 정리하지 않은 문장입니다 | L4.cli.spec §2, F.wire-settings.spec §2 |
 | 스킬 | `SKILL.md` 하나와 지원 파일(`references/`, `templates/`, `scripts/`, `assets/`)을 담은 디렉터리입니다. Agent Skills 규격입니다 | L2.knowledge.spec §2 |
 | 스텝 (step) | 모델 응답 한 번과 그 응답이 부른 도구 결과 묶음입니다. 체크포인트 단위입니다 | F.conversation.spec §2 |
-| 승인 (approval) | 사람의 응답을 기다리는 단일 대기 레코드입니다. 종류는 도구(`tool`), 계획(`plan`), 질문(`question`), 검토(`review`)입니다. 한 프로토콜로 처리합니다 | adr.0018, L1.tools.spec §2 |
+| 승인 (approval) | 사람의 응답을 기다리는 단일 대기 레코드입니다. 종류는 도구(`tool`), 질문(`question`), 검토(`review`)입니다. 계획(`plan`)은 2026-11-13 폐지되어 옛 기록만 읽습니다 [결정: 2026-11-13 사용자]. 한 프로토콜로 처리합니다 | adr.0018, L1.tools.spec §2 |
 | 신뢰 (trust) | 작업 폴더의 확장과 작업 폴더 자원을 쓸지 정하는 판정입니다. 신뢰 등급은 `builtin`, `user`, `project`, `untrusted` 넷이고 확장이 할 수 있는 일을 정합니다 | X.loading-trust.spec §4.6, §4.7 |
 | `실행권` (Scheduler leader) | 옛 이름입니다. `sys_leases`의 `scheduler` 자원을 쥔 프로세스 하나, 곧 Scheduler leader가 예약 틱을 돌립니다. 아직 아무도 잡지 않습니다 | L2.schedule.spec §2, L4.host-service.spec HS-102 |
 | 아이템 (item) | 입출력 단위입니다. 사용자 메시지, 어시스턴트 메시지, 시스템 메시지, 도구 호출, 도구 결과, 확장 커스텀 메시지가 있습니다 | F.conversation.spec §2 |

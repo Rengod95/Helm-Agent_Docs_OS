@@ -952,7 +952,7 @@ export interface JudgePort {
 
 ### 6.1 설정 키
 
-`defineSettings("l2.work", …)`로 선언한다(F.wire-settings.spec §3.8.3). 비고 열의 L4 노출은 `_research/layer-plan-v2.json` L2-e의 L4 열(계획 모드와 계획 승인: 명령, 목표 지속: 명령)을 따른다.
+`defineSettings("l2.work", …)`로 선언한다(F.wire-settings.spec §3.8.3). 비고 열의 L4 노출은 `_research/layer-plan-v2.json` L2-e의 L4 열(계획 모드와 계획 승인: 명령, 2026-11-13 폐지 [결정: 2026-11-13 사용자]. 목표 지속: 명령)을 따른다.
 
 | 키 | 타입 | 기본값 | range | runtimeChange | allowedScopes | ui.tab | secret | 비고(L4) |
 |---|---|---|---|---|---|---|---|---|
@@ -1027,7 +1027,7 @@ export const manifest = defineManifest({
 | 이름 | 쓰는 문서 |
 |---|---|
 | `WorkTasks`, `WorkGoals`, `WorkReports`, 각 `*Key`, `WorkService`, `WorkServiceName` | L3 그룹 문서, L3.group-sdk.spec, L2.schedule.spec, L4 |
-| `WorkTaskId`, `PlanId`, `GoalId`, `ReportId`와 스키마, `WorkTask`, `WorkTaskView`, `PlanVersion`, `Goal`, `GoalJudgment`, `GoalVerdict`, `GoalJudgeSpec`, `WorkReport`, `ArtifactRef`(work 쪽 사본) | L3, L4, L2.dialog.spec(알림), L2.schedule.spec |
+| `WorkTaskId`, `PlanId`, `GoalId`, `ReportId`와 스키마, `WorkTask`, `WorkTaskView`, `Goal`, `GoalJudgment`, `GoalVerdict`, `GoalJudgeSpec`, `WorkReport`, `ArtifactRef`(work 쪽 사본) | L3, L4, L2.dialog.spec(알림), L2.schedule.spec |
 | `work.*` 이벤트 10종(`WORK_EVENT_CATALOG`) | eng.events.design 카탈로그, L4, L3 그룹, L2.dialog.spec(알림) |
 | 설정 `l2.work.*` 3개 | L4.settings-ui.spec |
 | 명령 `/goal`, `/tasks` | L2.dialog.spec, L4.cli.spec |

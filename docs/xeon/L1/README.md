@@ -312,7 +312,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 | [결정] pi-ai provider는 그대로 쓰고 부족분만 포크 커스텀(새로 만들지 않음) | `_research/decisions-log.md` 2026-10-21 결정 2차 |
 | [결정] 예산은 pi 방식(기본 상한 없음). 가드레일은 보류 | `_research/decisions-log.md` 2026-10-21 계획 v2 |
 | [결정] 위장 provider는 `plugins/provider-anthropic-oauth`로 분리, 배포 제외, 기본 꺼짐 | `_research/decisions-log.md` 2026-10-21 결정 2차, `product.scope.spec` N6 |
-| [결정] 승인·질문·계획 승인은 L1-d 승인 프로토콜 하나 | `_research/foundation-plan.md` §1 결정 5 |
+| [결정] 승인·질문은 L1-d 승인 프로토콜 하나(계획 승인은 2026-11-13 폐지 [결정: 2026-11-13 사용자]) | `_research/foundation-plan.md` §1 결정 5 |
 | [결정] 목표 판정은 별도 판정 모델 + 실행 횟수 상한 | `_research/foundation-plan.md` §1 결정 4 |
 | [결정] Helm과 학습 그룹은 L3 기본 그룹. 학습 그룹은 drive를 쓰지 않는다. 검토 포크를 백그라운드 위임으로 돌리고, L1이 제공하는 쪽은 `fresnel.agents`의 백그라운드 위임과 `post` 경로다 | `_research/decisions-log.md` 2026-10-21 계획 v2(학습 그룹 drive 미사용, Helm과 공존), `_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로", `L1.agents.spec` §4.7 |
 | [결정] 대화 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블 | `_research/decisions-log.md` 2026-10-21 결정 2차, ADR-0004 |

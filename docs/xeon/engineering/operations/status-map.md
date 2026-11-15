@@ -113,7 +113,7 @@ binds: []
 | L2/knowledge | 제안 대기열 두 개의 목록과 결정 | 부분 (M3a 이월: `proposal.decide`의 `revision` 선택 인자) | 91 |
 | L2/dialog | 알림 분류, `dialog.notify`, OS 알림 provider 연결, `status.list` | 구현됨 표기 있음 (`M3b B1-NTF H4`, `M3b D11`). 이월 있음 → 부분 | 92 |
 | L2/schedule | 타이머, 파일 감시, 원격 트리거, 루프 | 부분 (B1-SCH) | 93 |
-| L2/workspace | `write`, `edit`, `grep`, `find`, 원자적 쓰기, 동시 변경 감지 | 부분 (B1-WS) | 94 |
+| L2/workspace | `write`, `edit`, `grep`, 원자적 쓰기, 동시 변경 감지 | 부분 (B1-WS) | 94 |
 | L2/artifacts | 리뷰·diff 승인, 제목·라벨 메타, 레코드 카탈로그 | 부분 (B2-ART) | 95 |
 | L2/web | `web.browse`의 브라우저 provider | 부분 (B2-WEB). Stagehand 의존은 2026-11-04 승인됨(설치 약 30 MB), 구현 전 | 96 |
 | L2/web | 검색 provider 체인과 키 플러그인 첫 사용 고지 | 부분 (B2-WEB). 고지는 호출 뒤 경고로 나감 | — |
@@ -172,7 +172,7 @@ binds: []
 - 모델이 쓰는 예약 조회·취소 도구가 없습니다.
 - `schedule.create`에 `requestId` 멱등이 없습니다. `cron` 식과 시간대는 이월 목록의 항목입니다.
 - 예약 틱의 Scheduler leader를 아무도 잡지 않습니다(HS-102, HS-40).
-- `--auto-approve`는 도구 승인만 허용합니다. 질문과 계획 승인은 거부합니다.
+- `--auto-approve`는 도구 승인만 허용합니다. 질문 승인은 거부합니다.
 
 **알림과 목표 판정 (B1-NTF)**
 - `handler_failed`와 `dialog.status`의 계수가 따로 집계됩니다.

@@ -40,7 +40,7 @@ L2-e 묶음 대응(`_research/l2e.md` §5): L2-e1 작업 관리(A1, A2, A2b, A5,
 
 결정 반영:
 
-- [결정] 질문 도구와 계획 승인은 승인 프로토콜 하나로 합친다(`_research/decisions-log.md` 2026-10-21 3차, `_research/foundation-plan.md` §1 5번). `_research/l2e.md` §8의 열린 결정 "승인 프로토콜 통합"은 이 결정으로 닫혔다. 판정자 분리도 같은 결정으로 닫혔다(`L2.work.spec` §4.3).
+- [결정] 질문 도구와 계획 승인은 승인 프로토콜 하나로 합친다(계획 승인은 2026-11-13 폐지 [결정: 2026-11-13 사용자]. `_research/decisions-log.md` 2026-10-21 3차, `_research/foundation-plan.md` §1 5번). `_research/l2e.md` §8의 열린 결정 "승인 프로토콜 통합"은 이 결정으로 닫혔다. 판정자 분리도 같은 결정으로 닫혔다(`L2.work.spec` §4.3).
 - 마일스톤: `ask`, `commands`, `status`, `attachments`는 M2(`_research/layer-plan-v2.json` L2-f 1차). `aside`, `styles`는 2차(M3 이후). `notify`는 3차 결정(예약·원격·알림 범위 포함)으로 M3 [제안][^n].
 
 [^n]: `_research/layer-plan-v2.json` L2-f에는 알림 행이 없다. 알림은 `_research/l2e.md` §3.2 B4에서 왔고 3차 결정이 범위에 넣었다. `L2.readme` §2 각주 dialog와 같다.
@@ -846,7 +846,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 - [제안] 같은 이름이 여러 출처에 있으면 `builtin` > `capability` > `project` > `user` > `extension` 순으로 앞의 것을 쓴다. 가려진 명령은 `list({ includeHidden: true })`에서 보이고 진단을 남긴다.
 - pi는 사용자(전역) 파일을 먼저 읽고 첫 일치를 쓰므로 사용자가 작업 폴더보다 앞선다(`prompt-templates.ts` 238-304행). Fresnel은 설정 우선순위(작업 폴더가 사용자보다 앞섬, F.wire-settings.spec §4.7)와 맞추려고 순서를 바꾼다.
 - `capability` 출처끼리 같은 이름을 등록하면 뒤 등록이 `command_name_taken`으로 거부된다. 그룹 명령은 `<그룹>:<이름>` 형식을 권한다.
-- 동작 명령(`registerAction`)은 `capability` 출처다. `L2.work.spec` §6.2의 `/goal`, `/plan`, `/tasks`가 여기에 들어간다.
+- 동작 명령(`registerAction`)은 `capability` 출처다. `L2.work.spec` §6.2의 `/goal`, `/tasks`가 여기에 들어간다(`/plan`은 2026-11-13 폐지 [결정: 2026-11-13 사용자]).
 - `builtin` 출처는 클라이언트(L4)가 `declareBuiltin(명령 선언 목록)`으로 알린다(`dialog.commands` API 객체의 TS 메서드, 반환 함수로 해제). 이 패키지는 `builtin` 명령을 실행하지 않는다. `builtin`이 이긴 이름은 `expand`가 `matched: false`, `run`이 `not_command`를 돌려주고 실행은 클라이언트가 한다. 목록과 광고에는 보인다.
 - 같은 등급 안에서는 들어온 순서가 앞선 것이 이긴다(파일 명령은 작업 폴더 디렉터리, 사용자 디렉터리, 설정 디렉터리 순). 템플릿 `register`로 올린 명령에는 해제 수단이 없다. 코드가 해제해야 하면 `registerAction`을 쓴다.
 

@@ -238,7 +238,7 @@ M3:
 
 | 항목 | 상태 | 남은 일 |
 |---|---|---|
-| T6 `submit_plan` → 승인(kind `plan`), `input_required`·`decided`, `approve`·`reject`·`revise` | 삭제됨 [결정: 2026-11-13 사용자] | 없음 |
+| (삭제됨) T6 `submit_plan` → 승인(kind `plan`), `input_required`·`decided`, `approve`·`reject`·`revise` | 삭제됨 [결정: 2026-11-13 사용자] | 없음 |
 | T7 계획 산출물 등록(선택 의존) | 삭제됨 [결정: 2026-11-13 사용자] | 없음 |
 | T8 설정 키 셋(`l2.work.plans.*` 삭제) | 완료 | 없음 |
 | T8 명령 `/tasks`, `/goal` | 완료: 등록 함수와 시험(`/plan`은 삭제됨 [결정: 2026-11-13 사용자]) | `dialog.commands` 선택 의존 확정(W-10) 뒤 매니페스트 `optional`로 연결 |

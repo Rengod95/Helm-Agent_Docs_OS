@@ -72,7 +72,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `fresnel chat -p <입력>`, `--print <입력>` | print 모드. 입력 하나로 turn 하나를 돌리고 응답 텍스트를 stdout에 쓴다. `-p -` 또는 `-p`만 쓰면 stdin 전체가 입력이다 | 위와 같음 | M1 |
 | `fresnel chat -p … --json` | JSON 모드. 연결에서 오간 JSON-RPC 메시지를 순서대로 한 줄에 하나씩 쓴다(§4.4) | 위와 같음 | M1 |
 | `fresnel chat -p … --quiet` | print 모드(JSON 모드 제외)는 turn이 끝난 뒤 `usage.get { threadId }`로 이 대화의 합을 읽어 stderr에 한 줄(`사용량: 토큰 N · 비용 $X · 호출 M회`)을 쓴다. `--quiet`이면 부르지도 쓰지도 않는다. 엔진이 `usage.get`을 처리하지 않거나 읽지 못하면 쓰지 않고 응답과 종료 코드는 그대로다 [기본값] | `usage.get` | M4 |
-| `fresnel chat -p … --auto-approve` | print 모드에서 도구 승인 요청을 `{ decision: "allow" }`로 한 번 허용한다(`remember`를 보내지 않는다). 질문·계획·검토 승인은 거부한다. 승인마다 stderr에 한 줄을 쓴다(§4.11 4번). 대화형과 함께 쓰면 사용법 오류 2(`autoApproveRequiresPrint`) | `approval.respond`(`decision: "allow"`) | M3(구현됨, M3b B1-SCH) |
+| `fresnel chat -p … --auto-approve` | print 모드에서 도구 승인 요청을 `{ decision: "allow" }`로 한 번 허용한다(`remember`를 보내지 않는다). 질문·검토 승인은 거부한다. 계획 승인은 2026-11-13 폐지 [결정: 2026-11-13 사용자]. 승인마다 stderr에 한 줄을 쓴다(§4.11 4번). 대화형과 함께 쓰면 사용법 오류 2(`autoApproveRequiresPrint`) | `approval.respond`(`decision: "allow"`) | M3(구현됨, M3b B1-SCH) |
 | `fresnel chat --continue` | 현재 작업 폴더의 마지막 대화를 이어 연다. M1은 CLI 상태 파일, M2부터 `thread.list`. 대화형이고 그 대화에 끊긴 turn이 있으면 묻고 `turn.resume`을 부른다(§4.4) | M1: 위와 같음. M2: `thread.list`, `thread.open` 추가 | M1 |
 | `fresnel chat --resume <id>` | 지정 대화를 이어 연다 | M1: `events.subscribe`, `turn.start`. M2: `thread.open` 추가 | M1 |
 | `fresnel chat --set <key>=<value>` | 이 대화에만 설정을 덮어쓴다(launch 범위). 여러 번 쓸 수 있다 | `settings.set`(scope `launch`, `threadId`) | M2 |
@@ -900,12 +900,11 @@ export interface GroupTemplatesPort {
   3. `approval.resolved` 이벤트가 오면 프롬프트를 닫는다. 다른 클라이언트가 먼저 답한 경우도 같다.
   4. print 모드는 프롬프트를 열 수 없으므로 답을 자동으로 보내고 승인마다 stderr에 한 줄 알린다. 기본(플래그 없음)은 모든 승인에 `decision: "deny"`로 답한다(`createAutoDeny`). 엔진은 사전 허용 규칙(`l1.tools.rules`, L1.tools 정책)을 승인 요청 전에 적용하므로, CLI가 받는 `approval.requested`는 사전 허용되지 않은 요청이다. 그래서 기본 모드는 사전 허용 규칙만 적용하고 나머지는 거부한다 [결정: review.m3-design-inputs D-M3-14 c](§10 8번).
      - `--auto-approve`는 옵션이다 [결정: 오케스트레이터 기본값, M3b B1-SCH]. 도구 승인(`form.kind === "tool"`)만 `{ decision: "allow" }`로 한 번 허용한다. `remember`는 보내지 않는다(호스트가 `once`로 본다). 승인마다 stderr에 `승인 요청 "<제목>"을 --auto-approve로 허용했다`를 쓴다. 응답이 적용되지 않았으면 이유를 붙이고(`already_resolved`는 아래 한 줄로 바꾼다), 응답 수단이 없으면 그 사실을 붙인다(`createAutoAllow`).
-     - 질문, 계획, 검토 승인은 사람이 답해야 하므로 이 플래그로도 거부한다. 거부 알림은 기본과 같다. 자동 응답은 사람의 답(질문 번호, 수정 요청 내용)을 대신하지 않는다.
+     - 질문과 검토 승인은 사람이 답해야 하므로 이 플래그로도 거부한다. 거부 알림은 기본과 같다. 자동 응답은 사람의 답(질문 번호, 수정 요청 내용)을 대신하지 않는다.
      - 알림에는 승인 제목만 쓴다. 본문(명령, 인자, `secret://` 핸들)은 쓰지 않는다.
   5. payload 모양은 `L1.tools.spec` 소관이다. CLI는 제목·본문·질문 여부만 읽는다.
   6. 구현 (대화형 줄 입력): 요청 payload의 `remember`가 허용하는 범위만 보인다.
      - 도구: `[y]` 이번만 허용, `[t]` 이 대화 동안 허용(`thread`가 있을 때), `[a]` 항상 허용(`always`가 있을 때), `[n]` 거부. `n` 뒤에 이유를 받아 있으면 `answer: { feedback }`으로 보낸다.
-     - 계획: `[y]` 승인이면 `nextModes` 중 하나(엔터는 지금 모드)와 메모를 받아 `answer: { mode?, note? }`로 보낸다. `[n]`은 도구와 같다.
      - 검토(`review`, ADR-0018): 카드는 제목, 라운드, 파일별 변경 종류와 hunk 수 요약만 보인다(hunk 본문은 요청에 없다). 프롬프트는 `[y] 모두 승인  [r] 일부 거절  [c] 수정 요청  [n] 모두 거절`이다. 그 밖의 입력은 `y, r, c, n 중 하나를 입력한다`를 보이고 다시 묻는다.
        - `[y]` 모두 승인은 `decision: "answer"`와 `ReviewAnswer { decisions: [], comments: [], submit: true, approveRemaining: true }`로 보낸다.
        - `[r]` 일부 거절은 `거절할 hunk (쉼표로 구분, 예 f0h1,f1h0 / all = 전부) > `를 한 번 더 묻는다. hunk id는 카드의 파일 순서대로 `f<파일 순번>h<hunk 순번>`이고 둘 다 0부터 센다. `all`은 카드가 보인 hunk id 전부다. 목록에 없는 id는 `알 수 없는 hunk: <id>`를, 빈 입력은 `알 수 없는 hunk: (비어 있음)`을 보이고 검토 프롬프트로 돌아간다. hunk가 하나도 없는 카드에서는 `[r]`을 받지 않고 `거절할 hunk가 없다`를 보인 뒤 검토 프롬프트로 돌아간다. 고른 id는 `rejected`로, 나머지는 승인하고 제출한다: `decision: "answer"`와 `ReviewAnswer { decisions: [{ hunkId, decision: "rejected" }, …], comments: [], submit: true, approveRemaining: true }`로 보낸다.
