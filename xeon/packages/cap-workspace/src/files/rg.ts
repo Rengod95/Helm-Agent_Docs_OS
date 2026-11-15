@@ -5,7 +5,7 @@ import type { WorkspaceDeps } from "../deps.ts";
 import type { WorkspaceEnv } from "../env.ts";
 import { WorkspaceFailure } from "../errors.ts";
 
-// L2.workspace.spec §3.2 grep·find, §4.2(샌드박스 밖), §5 10번. ripgrep은 `fresnel.exec`에 argv 배열로 넘긴다(셸 문자열을 만들지 않는다).
+// L2.workspace.spec §3.2 grep, §4.2(샌드박스 밖), §5 10번. ripgrep은 `fresnel.exec`에 argv 배열로 넘긴다(셸 문자열을 만들지 않는다).
 // 샌드박스(fresnel.sandbox)는 거치지 않는다. 이 패키지가 고른 인자로만 실행하고, 검색 경로는 `resolveWorkspacePath`가 검사한다.
 
 /** `rg`의 실행 결과. 출력은 전부 모은다. 한도는 호출자가 건다 */
@@ -192,7 +192,7 @@ export function parseRgJson(stdout: string): readonly RgLine[] {
 
 /**
  * 검색 기준 디렉터리 안에서 읽기 보호 경로에 걸린 파일을 결과에서 뺀다. 기준 디렉터리 자체의 검사(`resolveWorkspacePath`)만으로는
- * 허용 root 안의 보호 하위 경로(시크릿 키 등)가 `grep`·`find`로 드러난다. `read`가 거부하는 경로는 여기서도 보이지 않는다.
+ * 허용 root 안의 보호 하위 경로(시크릿 키 등)가 `grep`으로 드러난다. `read`가 거부하는 경로는 여기서도 보이지 않는다.
  */
 export function unprotected(deps: WorkspaceDeps, root: string): (relativePath: string) => boolean {
   const entries = deps.roots.protectedPaths([root]);

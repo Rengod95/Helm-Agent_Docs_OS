@@ -114,7 +114,7 @@ xeon/packages/cap-workspace/
 | W8 | 설정 키 선언: `src/settings.ts`에 spec §6 표의 15개 키. `checkSettingDef` D1~D9 통과 테스트. 각 메서드가 설정을 읽는 시점(호출마다 유효 값 조회) | W1. 키별 소비 코드는 W3·W5·W6·W7 | S |
 | W9 | 줄 해시 편집 설계 메모(2차): omp `crates/pi-edit` hashline 알고리즘 요약, TS 재작성 범위, `read` 출력 변경과 fingerprint 영향, 새 메서드·도구 모양. 문서로만 남긴다(`L2.workspace.spec` §4.4 보강) | W5 | S |
 
-- M1 범위는 W1~W4, W8(M1 소비 키만: `read.*`, `shell.*`, `list.maxEntries`)이다. W5·W6은 M3, W7 최소형은 M2, W7 처리기와 W9는 2차다.
+- M1 범위는 W1~W4, W8(M1 소비 키만: `read.*`, `shell.*`. `list.maxEntries`는 2026-11-15 정리로 지웠다 [결정: 2026-11-15 사용자])이다. W5·W6은 M3, W7 최소형은 M2, W7 처리기와 W9는 2차다.
 - W3의 `bash`는 M1 스모크 조건 "샌드박스 `bash`가 작업 폴더 밖 쓰기를 거부한다"(`product.scope.spec` §4.4 M1)를 L0.sandbox와 함께 만족해야 한다.
 
 ## 4. 채택 코드
@@ -227,7 +227,7 @@ M3 완료: spec §9 수용 기준 1~10 전부. 퍼지 규칙 표와 테스트 �
 ## 8. M2 구현 기록 (DG.3·DG.4, 2026-10-24)
 
 - 이미지 포크는 `image.ts`(형식 판별과 크기 읽기, 패치 P11)와 `image-processor.ts`(`INLINE_IMAGE_TYPES`, `base64Length`만, 패치 P12)다. 처리기 타입과 `toBase64`는 쓰는 곳이 없어 2차로 미뤘다. 한도 기본값은 `DEFAULT_IMAGE_LIMITS` 대신 설정 키 `l2.workspace.images.*`가 갖는다.
-- 설정 키는 `images.maxWidth`, `maxHeight`, `maxBytes`, `maxInputBytes` 넷을 선언했다(§6 표). 나머지(`grep.*`, `edit.fuzzy`)는 M3다. `find.*`는 `find` 삭제 뒤 읽는 곳이 사라졌다(L2.workspace.spec §10 미결 15).
+- 설정 키는 `images.maxWidth`, `maxHeight`, `maxBytes`, `maxInputBytes` 넷을 선언했다(§6 표). 나머지(`grep.*`, `edit.fuzzy`)는 M3다. `find.*`는 `find` 삭제 뒤 읽는 곳이 사라졌고, `find.*`와 `list.*`는 2026-11-15 정리로 지웠다(L2.workspace.spec §10 미결 15, [결정: 2026-11-15 사용자]).
 - 파일 배치: `src/ports/blobs.ts`(`BlobSink`), `src/ports/threads.ts`(`ThreadWorkspaces`), `src/scope.ts`(`scopedDeps`), `src/images/{service,prepare,decode}.ts`. 계획의 `images/blob.ts`는 포트 파일로 대신했다.
 - 대화별 작업 폴더: `createFilesApi`, `createShellApi`, `createImagesApi`가 호출마다 `scopedDeps(deps, context.threadId)`로 의존을 맞춘다. 플러그인은 `fresnel.session`의 `query.thread(threadId).workspace`와 `fresnel.exec`의 `withCwd`로 `ThreadWorkspaces`를 만든다. `fresnel.session`, `fresnel.store` 포트가 없으면 경고 로그를 남기고 각각 엔진 cwd와 `unavailable`로 동작한다.
 - 확인한 것: `images.test.ts`(최소형 규칙 전부와 `read` 이미지 분기), `thread-workspace.test.ts`(root, 상대 경로, 셸 cwd, 보호 경로, 작업 폴더 없음), `plugin.test.ts`(대화·저장소 포트 연결).

@@ -2,7 +2,7 @@
 import type { ShellOutputSkip } from "@fresnel/contracts/services";
 
 // FRESNEL-PATCH: P3
-/** UTF-8 byte length. The output buffer and the read/ls bounds count bytes the same way. */
+/** UTF-8 byte length. The output buffer and the read bounds count bytes the same way. */
 export function utf8ByteLength(content: string): number {
   return Buffer.byteLength(content, "utf8");
 }
