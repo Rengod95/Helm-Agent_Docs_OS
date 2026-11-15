@@ -400,10 +400,8 @@ export function useModelNameOf(): (ref: string) => string {
   return useCallback((ref: string) => modelDisplayNameOf(ref, choices), [choices]);
 }
 
-/** 모드 바꾸기가 실패한 까닭. 명령 경로(계획)가 거절하면 엔진이 준 문장을 그대로 보인다 */
-export type ModeChangeError =
-  | { readonly kind: "command"; readonly error: CommandError }
-  | { readonly kind: "refused"; readonly message: string | null };
+/** 모드 바꾸기가 실패한 까닭. 명령이 실패한 것이다 */
+export type ModeChangeError = { readonly kind: "command"; readonly error: CommandError };
 
 /**
  * 이 대화의 승인 모드(입력창 칩이 보이는 값)와 고르기(DP-101). 값은 대화 범위 `settings.get`이고, 설정이 바뀌면 다시 읽고, 고르기가 이기면 다시 읽는다.

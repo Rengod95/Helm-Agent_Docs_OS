@@ -137,13 +137,10 @@ describe("noticeTitleViewOf", () => {
     });
   });
 
-  test("an approval notice carries its tool name after the colon, and plan has its own title", () => {
+  test("an approval notice carries its tool name after the colon", () => {
     expect(noticeTitleViewOf(of("approval_waiting", "approval.requested", "a: edit"))).toEqual({
       id: "desktop.notices.title.approvalTool",
       params: { tool: "edit" },
-    });
-    expect(noticeTitleViewOf(of("approval_waiting", "approval.requested", "a: plan"))).toEqual({
-      id: "desktop.notices.title.approvalPlan",
     });
     expect(noticeTitleViewOf(of("approval_waiting", "approval.requested", "no colon"))).toBeNull();
   });

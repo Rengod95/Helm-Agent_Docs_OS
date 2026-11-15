@@ -154,7 +154,7 @@ describe("thread permission mode commands", () => {
     await app.stop();
   });
 
-  test("a session write with no invalidation (plan approval) wakes through the event batch, for this thread's mode key only", async () => {
+  test("a session write with no invalidation wakes through the event batch, for this thread's mode key only", async () => {
     const { app, fake } = await liveApp({});
     let woke = 0;
     const stop = app.commands.onThreadModeChanged(thr(1), () => void (woke += 1));

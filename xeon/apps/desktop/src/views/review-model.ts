@@ -1,12 +1,12 @@
 import { assertNever } from "@fresnel/contracts";
 import type { EventId } from "@fresnel/contracts/conversation";
 import type {
-  ApprovalRequestedPayload,
   ReviewAnswerJson,
   ReviewAppliedPayload,
   ReviewSubmittedPayload,
 } from "@fresnel/contracts/records";
 import type { HunkView } from "@fresnel/contracts/wire";
+import type { LiveApprovalRequest } from "../state/engine/input.ts";
 import type { ReviewTarget } from "../state/ui/index.ts";
 
 // 변경 검토 화면(P-04)의 순수 값(V-06, L4.desktop-ux §6.8). 화면 로컬 초안, 제출할 `ReviewAnswer`, 제출이 막힌 이유,
@@ -245,12 +245,12 @@ export function hunkIdsOf(
 }
 
 /** 화면이 보는 검토 요청 본문(승인 요청의 `review`와 같은 모양) */
-export type ReviewSummary = Extract<ApprovalRequestedPayload["body"], { kind: "review" }>["review"];
+export type ReviewSummary = Extract<LiveApprovalRequest["body"], { kind: "review" }>["review"];
 
 /** 대기열의 승인 한 건. 엔진 거울의 `PendingApproval`이 이 모양을 가진다 */
 export interface ReviewCandidate {
   readonly approvalId: EventId;
-  readonly request: ApprovalRequestedPayload;
+  readonly request: LiveApprovalRequest;
 }
 
 /**

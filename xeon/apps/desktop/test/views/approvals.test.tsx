@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
-import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
+import type { LiveApprovalRequest } from "../../src/state/engine/input.ts";
 import { renderToString } from "react-dom/server";
 import type { EngineMirror } from "../../src/state/engine/index.ts";
 import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
@@ -21,7 +21,7 @@ function frozen<T>(state: T): ReadonlyStore<T> {
 
 const commands: Commands = fakeCommands();
 
-function mirrorWith(request: ApprovalRequestedPayload): EngineMirror {
+function mirrorWith(request: LiveApprovalRequest): EngineMirror {
   const h = openedHarness();
   h.store.ingest({ type: "threads", threads: [] });
   h.store.ingest({
@@ -35,7 +35,7 @@ function mirrorWith(request: ApprovalRequestedPayload): EngineMirror {
 }
 
 function html(
-  request: ApprovalRequestedPayload,
+  request: LiveApprovalRequest,
   options: {
     readonly failure?: "invalid" | "closed" | "unapplied" | "failed" | "gone" | "locked";
     readonly detail?: string;
@@ -55,7 +55,7 @@ function html(
 
 const origin = { threadId: thr(1), turnId: null, stepId: null, toolCallId: null, caller: "main" };
 
-function toolRequest(args: Record<string, unknown>): ApprovalRequestedPayload {
+function toolRequest(args: Record<string, unknown>): LiveApprovalRequest {
   return {
     origin,
     requestKey: "k",
@@ -77,8 +77,8 @@ function toolRequest(args: Record<string, unknown>): ApprovalRequestedPayload {
 }
 
 function questionRequest(
-  question: Extract<ApprovalRequestedPayload["body"], { kind: "question" }>["question"],
-): ApprovalRequestedPayload {
+  question: Extract<LiveApprovalRequest["body"], { kind: "question" }>["question"],
+): LiveApprovalRequest {
   return {
     origin,
     requestKey: "k",
@@ -110,10 +110,7 @@ describe("tool approval card", () => {
   });
 });
 
-const fileRequest = (
-  toolName: string,
-  args: Record<string, unknown>,
-): ApprovalRequestedPayload => ({
+const fileRequest = (toolName: string, args: Record<string, unknown>): LiveApprovalRequest => ({
   ...toolRequest({}),
   body: {
     kind: "tool",
@@ -140,7 +137,7 @@ function visibleText(markup: string): string {
 }
 
 /** 기동 승인 요청. 저장된 제목은 엔진이 쓴 영어 그대로다 */
-function startRequest(args: Record<string, unknown>): ApprovalRequestedPayload {
+function startRequest(args: Record<string, unknown>): LiveApprovalRequest {
   return {
     ...toolRequest({}),
     title: 'Start MCP server "gh" with secret://gh-token?',
@@ -341,7 +338,7 @@ describe("answer_invalid detail", () => {
   });
 });
 
-const replaceRequest = (args: Record<string, unknown>): ApprovalRequestedPayload => ({
+const replaceRequest = (args: Record<string, unknown>): LiveApprovalRequest => ({
   ...toolRequest({}),
   title: 'Let "safe-write" replace the built-in tool "write"?',
   body: {
@@ -392,7 +389,7 @@ describe("tool replacement approval card", () => {
   });
 });
 
-const withCaller = (caller: string): ApprovalRequestedPayload => ({
+const withCaller = (caller: string): LiveApprovalRequest => ({
   ...toolRequest({ command: "ls" }),
   origin: { ...origin, caller },
 });
@@ -405,34 +402,7 @@ describe("approval origin line", () => {
   });
 });
 
-const planRequest = (plan: string): ApprovalRequestedPayload => ({
-  origin,
-  requestKey: "k",
-  title: "Split the cache step",
-  remember: ["once"],
-  surfaceThreadId: thr(1),
-  requestedAt: 0,
-  body: { kind: "plan", plan: { plan, planRef: null, nextModes: ["default", "acceptEdits"] } },
-});
-
-describe("plan approval card", () => {
-  test("a legacy plan shows its text and only the deny button; the approve button is off", () => {
-    const out = html(planRequest("1. Split the step\n2. Add two tests"));
-    expect(out).not.toContain("승인 뒤 모드");
-    expect(out).not.toContain("수정 요청");
-    expect(out).not.toContain("피드백");
-    expect(out).toMatch(/<button[^>]*disabled=""[^>]*data-action="primary"[^>]*>승인</);
-    expect(out).toMatch(/data-action="deny"[^>]*>거부</);
-  });
-
-  test("a plan longer than the fold line offers the rest behind 전체 보기, a short plan does not", () => {
-    const long = Array.from({ length: 14 }, (_, i) => `step ${i + 1}`).join("\n");
-    expect(html(planRequest(long))).toContain("전체 보기");
-    expect(html(planRequest("1. only step"))).not.toContain("전체 보기");
-  });
-});
-
-const reviewRequest: ApprovalRequestedPayload = {
+const reviewRequest: LiveApprovalRequest = {
   origin,
   requestKey: "k",
   title: "Review the cache changes",
@@ -481,7 +451,7 @@ describe("approval queue per conversation", () => {
     const h = openedHarness();
     h.store.ingest({ type: "threads", threads: [] });
     const here = toolRequest({ command: "echo here" });
-    const elsewhere: ApprovalRequestedPayload = {
+    const elsewhere: LiveApprovalRequest = {
       ...toolRequest({ command: "echo elsewhere" }),
       surfaceThreadId: thr(2),
     };
@@ -511,9 +481,9 @@ describe("approval queue per conversation", () => {
 
 /** MCP 서버 도구의 승인 요청. 서버 이름과 서버가 알린 성질을 본문에 싣는다 */
 function mcpToolRequest(
-  mcp: NonNullable<Extract<ApprovalRequestedPayload["body"], { kind: "tool" }>["tool"]["mcp"]>,
+  mcp: NonNullable<Extract<LiveApprovalRequest["body"], { kind: "tool" }>["tool"]["mcp"]>,
   ruleId = "mcp.default",
-): ApprovalRequestedPayload {
+): LiveApprovalRequest {
   return {
     ...toolRequest({ text: "hi" }),
     title: 'Allow tool "echo"?',

@@ -34,7 +34,7 @@ import {
   type ReviewKeyFile,
   type ReviewState,
 } from "../../src/views/review-model.ts";
-import { thr } from "../state/helpers.ts";
+import { liveApprovalOf, thr } from "../state/helpers.ts";
 
 // 변경 검토 화면의 순수 값(V-06)을 값으로 비교한다. 답의 모양은 ReviewAnswerSchema로도 검사한다.
 
@@ -64,7 +64,7 @@ const candidate = (approval: number, reviewId: string, round: number): ReviewCan
     requestedAt: 0,
   });
   if (!request.ok) throw new Error("the test review approval must be valid");
-  return { approvalId: evt(approval), request: request.value };
+  return { approvalId: evt(approval), request: liveApprovalOf(request.value) };
 };
 
 const HUNKS = ["f0h0", "f0h1", "f1h0"] as const;

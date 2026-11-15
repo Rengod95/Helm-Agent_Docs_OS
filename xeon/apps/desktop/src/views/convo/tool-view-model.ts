@@ -13,12 +13,11 @@ import { toolOutputOf } from "../tool-output-model.ts";
 
 // 도구 줄 하나의 화면 값(dzT2a 시안 3.3, 4절). 순수 함수이고 화면 없이 시험한다.
 // 머리(아이콘·동사·대상)는 인자 요약(`tool-summary.ts`)에서, 상태(끝남·실패 종류)는 결과 item의 details에서 읽는다.
-// 엔진이 모델에 주는 영어 문장(거부, 중단, 계획 모드 아님)은 여기서 화면 문구로 바꾼다. 모델에 가는 글은 그대로다.
+// 엔진이 모델에 주는 영어 문장(거부, 중단)은 여기서 화면 문구로 바꾼다. 모델에 가는 글은 그대로다.
 
 /** 줄 머리 아이콘. 부품이 caustic 아이콘으로 바꾼다 */
 export type ToolIcon =
   | "read"
-  | "list"
   | "search"
   | "command"
   | "edit"
@@ -29,7 +28,6 @@ export type ToolIcon =
   | "skill"
   | "tasks"
   | "agent"
-  | "plan"
   | "other";
 
 /** 동사 뒤 대상 */
@@ -92,16 +90,6 @@ const BUILTIN_VERBS: Readonly<
     icon: "edit",
     done: "desktop.convo.tool.artifactUpdate",
     running: "desktop.convo.tool.artifactUpdate.running",
-  },
-  enter_plan_mode: {
-    icon: "plan",
-    done: "desktop.convo.tool.planEnter",
-    running: "desktop.convo.tool.planEnter.running",
-  },
-  exit_plan_mode: {
-    icon: "plan",
-    done: "desktop.convo.tool.planExit",
-    running: "desktop.convo.tool.planExit.running",
   },
   review_request: {
     icon: "other",
@@ -223,15 +211,6 @@ export function toolHeadOf(name: string, args: JsonObject, server: string | null
         path: summary.path,
         suffix: rangeOf(summary.range),
       });
-    case "list":
-      return head(
-        "list",
-        "desktop.convo.tool.list",
-        "desktop.convo.tool.list.running",
-        summary.path === null
-          ? { kind: "text", text: t("desktop.convo.tool.workFolder"), mono: false }
-          : { kind: "path", path: summary.path, suffix: null },
-      );
     case "search": {
       const where = summary.path === null ? "" : ` · ${summary.path}`;
       const glob = summary.glob === null ? "" : ` (${summary.glob})`;
@@ -329,11 +308,6 @@ export function toolHeadOf(name: string, args: JsonObject, server: string | null
         mono: false,
       });
     case "generic": {
-      if (name === "submit_plan") {
-        return head("plan", "desktop.convo.tool.plan", "desktop.convo.tool.plan.running", {
-          kind: "none",
-        });
-      }
       const builtin = Object.hasOwn(BUILTIN_VERBS, name) ? BUILTIN_VERBS[name] : undefined;
       if (builtin !== undefined) {
         return head(
@@ -427,14 +401,6 @@ function interruptedBodyOf(body: string): string {
   return INTERRUPT_WORDS.has(text) || text === "" ? t("desktop.item.interrupted.body") : body;
 }
 
-/** 엔진이 영어로 주는 흔한 실패를 화면 문구로 바꾼다 (rtE R-10) */
-function localizedFailureBody(code: string | null, body: string): string {
-  if (code === "plan_mode_inactive" || body.trim() === "Plan mode is not active.") {
-    return t("desktop.item.planInactive.body");
-  }
-  return body;
-}
-
 /** 결과 item을 줄 상태로 옮긴다. 결과 item이 아니면 null */
 export function toolResultOf(item: ItemRecord): ToolResultView | null {
   if (item.kind !== "toolResult") return null;
@@ -500,13 +466,13 @@ export function toolResultOf(item: ItemRecord): ToolResultView | null {
     return {
       ...base,
       outcome: { kind: "failed", failure: "sandbox" },
-      output: localizedFailureBody(code, body),
+      output: body,
     };
   }
   return {
     ...base,
     outcome: { kind: "failed", failure: "failed" },
-    output: localizedFailureBody(code, body),
+    output: body,
   };
 }
 
@@ -572,37 +538,4 @@ export function commandMetaOf(view: ToolResultView): string | null {
   if (view.exitCode !== null) parts.push(t("desktop.convo.exitCode", { code: view.exitCode }));
   if (view.durationMs !== null) parts.push(durationText(view.durationMs));
   return parts.length === 0 ? null : parts.join(" · ");
-}
-
-/** 계획 제출 결과(모델용 글 `Plan <id> v<n>: …`)에서 상태와 판을 읽는다 */
-export type PlanState = "pending" | "approved" | "rejected" | "revise";
-
-const PLAN_LINE =
-  /^Plan (\S+) v(\d+): (awaiting user approval|Approved|Rejected|Revision requested)/;
-
-export function planResultOf(
-  text: string,
-): { readonly version: number; readonly state: PlanState } | null {
-  const found = PLAN_LINE.exec(text.trim());
-  if (found === null) return null;
-  const word = found[3] ?? "";
-  const state: PlanState =
-    word === "Approved"
-      ? "approved"
-      : word === "Rejected"
-        ? "rejected"
-        : word === "Revision requested"
-          ? "revise"
-          : "pending";
-  return { version: Number(found[2] ?? "1"), state };
-}
-
-/** 계획 인자(`title`, `body`). 모양이 틀리면 빈 글 */
-export function planArgsOf(args: JsonObject): { readonly title: string; readonly body: string } {
-  const title = args["title"];
-  const body = args["body"];
-  return {
-    title: typeof title === "string" ? title : "",
-    body: typeof body === "string" ? body : "",
-  };
 }

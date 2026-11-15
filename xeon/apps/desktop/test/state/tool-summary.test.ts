@@ -299,6 +299,18 @@ describe("summarizeToolArgs: 도구별 입력 → 요약", () => {
     expect(toolCategoryOf("read_tool_output")).toBe(toolCategoryOf("ask_user"));
   });
 
+  test("없어진 계획 도구의 옛 기록 호출(submit_plan, enter_plan_mode, exit_plan_mode)은 표에 없어 generic으로 보인다", () => {
+    expect(summarizeToolArgs("submit_plan", { title: "캐시 수정", body: "1. a" })).toEqual({
+      kind: "generic",
+      text: '{"title":"캐시 수정","body":"1. a"}',
+    });
+    expect(summarizeToolArgs("enter_plan_mode", {})).toEqual({ kind: "generic", text: "{}" });
+    expect(summarizeToolArgs("exit_plan_mode", {})).toEqual({ kind: "generic", text: "{}" });
+    expect(toolCategoryOf("submit_plan")).toBe("other");
+    expect(toolCategoryOf("enter_plan_mode")).toBe("other");
+    expect(toolCategoryOf("exit_plan_mode")).toBe("other");
+  });
+
   test("generic 글은 400글자 이내로 줄이고 끝에 …을 붙인다", () => {
     const summary = summarizeToolArgs("skill_view", { text: "a".repeat(500) });
     // `{"text":"` 아홉 글자 뒤 a 390개로 400글자, 끝의 …까지 합쳐 400글자다

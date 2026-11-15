@@ -11,9 +11,8 @@ import type {
   TurnId,
 } from "@fresnel/contracts/conversation";
 import type { TransitionEntry } from "@fresnel/client/workbench";
-import type { CompactionFact, PlanEventFact, QueuedInputFact } from "./input.ts";
+import type { CompactionFact, LiveApprovalRequest, QueuedInputFact } from "./input.ts";
 import type {
-  ApprovalRequestedPayload,
   ReviewAppliedPayload,
   ReviewSubmittedPayload,
   StatusItemRecord,
@@ -116,7 +115,7 @@ export type PendingApproval = {
   readonly approvalId: EventId;
   readonly threadId: ThreadId;
   readonly seq: number;
-  readonly request: ApprovalRequestedPayload;
+  readonly request: LiveApprovalRequest;
 };
 
 type Approvals = {
@@ -162,12 +161,6 @@ export type TransitionRecord = TransitionEntry & { readonly threadId: ThreadId }
 
 /** 전환 기록 상한(thread마다). 넘으면 그 thread의 가장 오래된 것부터 버린다(spec §4.9.8 최근 20개) */
 export const TRANSITION_CAP = 20;
-
-/** 받은 계획 기록 한 건. 계획마다 가장 최근에 받은 판 하나다. 철회만 받은 판은 제목이 null이고 뒤에 온 제출이 채운다. 계획 카드가 계획 id를 찾는 데 쓴다 */
-export type PlanRecord = PlanEventFact & { readonly threadId: ThreadId };
-
-/** 계획 기록 상한(thread마다). 넘으면 그 thread의 가장 오래된 계획부터 버린다 */
-export const PLAN_CAP = 20;
 
 /** 받은 대화 요약 한 건(`thread.compacted`). 사건 시각 `at`(ISO)으로 구분선이 서는 자리를 고른다 */
 export type CompactionRecord = CompactionFact & {
@@ -218,18 +211,13 @@ export type EngineMirror = {
    */
   readonly transitions: readonly TransitionRecord[];
   /**
-   * 받은 계획 기록(내구, `work.plan_*`). 계획마다 한 줄이고 가장 최근에 받은 사건이 뒤에 온다. thread마다 `PLAN_CAP`개까지 둔다.
-   * 연결 전에 낸 계획은 읽어 오지 않는다. 거울을 head부터 다시 맞추면 비운다(전환 기록과 같다)
-   */
-  readonly plans: readonly PlanRecord[];
-  /**
    * 받은 대화 요약(내구, `thread.compacted`). 받은 순서이고 thread마다 `COMPACTION_CAP`개까지 둔다.
-   * 연결 전에 낸 요약은 계획과 같은 보조 재생(`backfill`)으로 채운다. 거울을 head부터 다시 맞추면 비운다
+   * 연결 전에 낸 요약은 보조 재생(`backfill`)으로 채운다. 거울을 head부터 다시 맞추면 비운다
    */
   readonly compactions: readonly CompactionRecord[];
   /**
    * 아직 배치되지 않은 대기 입력(내구, `input.queued`). 받은 순서이고 thread마다 `QUEUED_INPUT_CAP`개까지 둔다.
-   * `input.placed`·`input.withdrawn`이 오면 뺀다. 연결 전에 든 입력과 계획은 head부터 맞춘 뒤 `work.plan_`·`input.`만 거르는 처음부터의 재생(`backfill`)으로 채운다.
+   * `input.placed`·`input.withdrawn`이 오면 뺀다. 연결 전에 든 입력은 head부터 맞춘 뒤 `input.`만 거르는 처음부터의 재생(`backfill`)으로 채운다.
    * 거울을 head부터 다시 맞추면 비운다
    */
   readonly queuedInputs: readonly QueuedInput[];
@@ -275,7 +263,6 @@ export const INITIAL_MIRROR: EngineMirror = {
   recentTurnIds: {},
   handlerFailures: [],
   transitions: [],
-  plans: [],
   compactions: [],
   queuedInputs: [],
   statusItems: {},

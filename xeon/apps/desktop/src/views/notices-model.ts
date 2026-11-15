@@ -65,9 +65,7 @@ export function noticeTitleViewOf(notice: Notice): NoticeTitleView | null {
       const at = notice.title.indexOf(TOOL_SEPARATOR);
       if (at < 0) return null;
       const tool = notice.title.slice(at + TOOL_SEPARATOR.length);
-      return tool === "plan"
-        ? { id: "desktop.notices.title.approvalPlan" }
-        : { id: "desktop.notices.title.approvalTool", params: { tool } };
+      return { id: "desktop.notices.title.approvalTool", params: { tool } };
     }
     case "background_completed":
       return notice.sourceType === "schedule.run_finished"

@@ -1,5 +1,5 @@
 import { Badge, Input, Switch } from "@caustic/react";
-import { ListChecks, Lock, LockOpen, MessageCircleQuestion, SquarePen } from "@caustic/react/icons";
+import { Lock, LockOpen, MessageCircleQuestion, SquarePen } from "@caustic/react/icons";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import type { FieldVM, SettingsView } from "@fresnel/client/settings";
 import type { SettingKey } from "@fresnel/contracts/settings";
@@ -124,7 +124,6 @@ const BYPASS_KEY: SettingKey = "l1.tools.bypassAllowed";
 const MODE_ICON: Readonly<Record<string, ComponentType>> = {
   default: MessageCircleQuestion,
   acceptEdits: SquarePen,
-  plan: ListChecks,
   bypass: LockOpen,
 };
 
@@ -464,19 +463,15 @@ export function PermissionRulesPanel(props: PermissionPanelProps): ReactNode {
   );
 }
 
-// ── 승인 기다림: 무인 실행과 계획 ────────────────────────────────────────────
+// ── 승인 기다림: 무인 실행 ────────────────────────────────────────────
 
 const UNATTENDED_APPROVAL: SettingKey = "l1.tools.unattended.approval";
 const UNATTENDED_TIMEOUT: SettingKey = "l1.tools.unattended.timeoutSeconds";
-const PLAN_REQUIRE: SettingKey = "l2.work.plans.requireApproval";
-const PLAN_EXIT: SettingKey = "l2.work.plans.exitOnApprove";
 
-/** 작은 카드 안 줄의 짧은 이름표. 카드 제목이 "무인 실행"·"계획"을 이미 말한다 */
+/** 작은 카드 안 줄의 짧은 이름표. 카드 제목이 "무인 실행"을 이미 말한다 */
 const SHORT_LABEL: ReadonlyMap<SettingKey, MessageId> = new Map<SettingKey, MessageId>([
   [UNATTENDED_APPROVAL, "desktop.settings.perm.wait.unattended.approval"],
   [UNATTENDED_TIMEOUT, "desktop.settings.perm.wait.unattended.timeout"],
-  [PLAN_REQUIRE, "desktop.settings.perm.wait.plan.require"],
-  [PLAN_EXIT, "desktop.settings.perm.wait.plan.exit"],
 ]);
 
 const CARD = "rounded-xl bg-surface-base shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]";
@@ -524,10 +519,6 @@ export function ApprovalWaitPanel(props: PermissionPanelProps): ReactNode {
           <MiniCard title={t("desktop.settings.perm.wait.unattended.title")}>
             {row(UNATTENDED_APPROVAL)}
             {showTimeout ? row(UNATTENDED_TIMEOUT) : null}
-          </MiniCard>
-          <MiniCard title={t("desktop.settings.perm.wait.plan.title")}>
-            {row(PLAN_REQUIRE)}
-            {row(PLAN_EXIT)}
           </MiniCard>
         </div>
       </div>

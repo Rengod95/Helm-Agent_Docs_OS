@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
+import type { LiveApprovalRequest } from "../../src/state/engine/input.ts";
 import { thr } from "../state/helpers.ts";
 import {
   approvalAnnouncement,
@@ -23,7 +23,7 @@ describe("announce model (scD 1-2)", () => {
 
 const origin = { threadId: thr(1), turnId: null, stepId: null, toolCallId: null, caller: "main" };
 
-function toolRequest(title: string): ApprovalRequestedPayload {
+function toolRequest(title: string): LiveApprovalRequest {
   return {
     origin,
     requestKey: "k",

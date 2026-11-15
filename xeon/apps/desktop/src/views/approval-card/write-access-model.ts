@@ -1,5 +1,5 @@
 import type { JsonValue } from "@fresnel/contracts/conversation";
-import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
+import type { LiveApprovalRequest } from "../../state/engine/input.ts";
 import { WRITE_ACCESS_RULE_ID } from "@fresnel/contracts/services";
 import type { ToolApprovalBody } from "../approval-form.ts";
 import type { ApprovalDecision } from "../commands.ts";
@@ -49,7 +49,7 @@ export function isWriteAccessTool(body: ToolApprovalBody): boolean {
 }
 
 /** 샌드박스 밖 쓰기 승인이면 그 값, 아니면 null */
-export function writeAccessViewOf(request: ApprovalRequestedPayload): WriteAccessView | null {
+export function writeAccessViewOf(request: LiveApprovalRequest): WriteAccessView | null {
   const { body } = request;
   if (body.kind !== "tool" || !isWriteAccessTool(body.tool)) return null;
   const args = argsOf(body.tool);

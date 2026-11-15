@@ -4,20 +4,17 @@
 // chip은 "이 대화에서 계속 허용"을 고른 대화의 입력창 권한 칩과 그 메뉴다. 첫 그림이 끝나면 `document.body.dataset.ready = "1"`이다.
 import { setActiveLocale } from "@fresnel/client/i18n";
 import { parse } from "@fresnel/contracts";
-import {
-  ApprovalRequestedPayloadSchema,
-  type ApprovalRequestedPayload,
-} from "@fresnel/contracts/records";
+import { ApprovalRequestedPayloadSchema } from "@fresnel/contracts/records";
 import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import type { DurableFact } from "../../../src/state/engine/input.ts";
+import type { DurableFact, LiveApprovalRequest } from "../../../src/state/engine/input.ts";
 import type { EngineMirror } from "../../../src/state/engine/index.ts";
 import type { ReadonlyStore } from "../../../src/state/shared/readonly-store.ts";
 import { createUiStore } from "../../../src/state/ui/store.ts";
 import { ApprovalCardList } from "../../../src/views/approval-card/approval-card.tsx";
 import { PermissionModeChip } from "../../../src/views/composer-chips.tsx";
 import { Providers } from "../../../src/views/providers.tsx";
-import { SUB, evt, openedHarness, summary, thr } from "../../state/helpers.ts";
+import { SUB, evt, liveApprovalOf, openedHarness, summary, thr } from "../../state/helpers.ts";
 import { fakeCommands } from "../../views/fake-commands.ts";
 
 const params = new URLSearchParams(window.location.search);
@@ -37,7 +34,7 @@ function request(
     readonly remember?: string[];
     readonly title?: string;
   } = {},
-): ApprovalRequestedPayload {
+): LiveApprovalRequest {
   const parsed = parse(ApprovalRequestedPayloadSchema, {
     origin,
     surfaceThreadId: T,
@@ -57,11 +54,11 @@ function request(
     },
   });
   if (!parsed.ok) throw new Error(`showcase request ${key} is not valid`);
-  return parsed.value;
+  return liveApprovalOf(parsed.value);
 }
 
 const HOME = "/Users/mina";
-const REQUESTS: readonly ApprovalRequestedPayload[] = [
+const REQUESTS: readonly LiveApprovalRequest[] = [
   request("bash", "bash", {
     subject: "write_access",
     tool: "bash",

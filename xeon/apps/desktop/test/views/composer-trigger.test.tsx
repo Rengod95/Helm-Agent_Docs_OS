@@ -171,11 +171,7 @@ describe("stop button", () => {
 });
 
 describe("mode change error text", () => {
-  test("a refused plan command shows the engine's sentence, or the generic one when it gave none", () => {
-    expect(modeErrorText({ kind: "refused", message: "지금은 계획 모드가 아니에요." })).toBe(
-      "지금은 계획 모드가 아니에요.",
-    );
-    expect(modeErrorText({ kind: "refused", message: null })).toBe("승인 모드를 바꾸지 못했어요.");
+  test("a failed mode change shows the approval-mode sentence", () => {
     expect(modeErrorText({ kind: "command", error: { kind: "unsupported" } })).toBe(
       "승인 모드를 바꾸지 못했어요.",
     );

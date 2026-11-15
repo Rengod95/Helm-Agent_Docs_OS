@@ -245,7 +245,6 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       goal: () => Promise.resolve(err({ kind: "unsupported" })),
       tasks: () => Promise.resolve(err({ kind: "unsupported" })),
       goalCommand: () => Promise.resolve(err({ kind: "unsupported" })),
-      planVersions: () => Promise.resolve(err({ kind: "unsupported" })),
     },
     review: {
       get: () => Promise.resolve(err({ kind: "unsupported" })),

@@ -38,8 +38,8 @@ const SKILLS: SkillsVM = {
     },
     { name: "home-only", description: "Home.", scope: "user", modelInvocable: false },
     {
-      name: "plan",
-      description: "Clashes with the plan command.",
+      name: "tasks",
+      description: "Clashes with the tasks command.",
       scope: "user",
       modelInvocable: true,
     },
@@ -58,7 +58,7 @@ const SKILLS: SkillsVM = {
   ],
 };
 
-const ENGINE = [row("helm", "탐구"), row("learning"), row("plan")];
+const ENGINE = [row("helm", "탐구"), row("learning"), row("tasks")];
 
 describe("slash menu", () => {
   test("a lone slash lists the app command first and then the engine commands", () => {
@@ -66,7 +66,7 @@ describe("slash menu", () => {
       "/compact",
       "/helm",
       "/learning",
-      "/plan",
+      "/tasks",
     ]);
   });
 
@@ -103,7 +103,7 @@ describe("slash menu", () => {
       ["/helm", null],
       ["/scigreet-hello", "프로젝트"],
       ["/home-only", "사용자"],
-      ["/plan", "사용자"],
+      ["/tasks", "사용자"],
     ]);
   });
 
@@ -122,7 +122,7 @@ describe("slash menu", () => {
       ["command", "/compact", "[지침]"],
       ["command", "/helm", null],
       ["command", "/learning", null],
-      ["command", "/plan", null],
+      ["command", "/tasks", null],
       ["skill", "/scigreet-hello", null],
       ["skill", "/home-only", "직접 부르는 스킬"],
     ]);

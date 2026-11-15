@@ -48,11 +48,10 @@ export type LinkDeps = {
 };
 
 /**
- * 연결 전 사건을 채우는 보조 구독이 거르는 종류: 계획(`work.plan_submitted`·`work.plan_withdrawn`), 대기 입력(`input.queued`·`placed`·`withdrawn`),
+ * 연결 전 사건을 채우는 보조 구독이 거르는 종류: 대기 입력(`input.queued`·`placed`·`withdrawn`),
  * 대화 요약(`thread.compacted`, 구분선이 연결 전 요약을 다시 보이게 한다), 대화 상태에 쓰는 종류(아래 목록)
  */
 const BACKFILL_PREFIXES: string[] = [
-  "work.plan_",
   "input.",
   "thread.compacted",
   // 대화 상태(`convo.ts`): 턴·단계 기록, 승인 기록, 주도 임대, 하위 에이전트, 목표와 할 일, 변화 표지, 개입.
@@ -99,7 +98,7 @@ export function startLink(deps: LinkDeps): EngineLink {
   // 엔진은 연결당 구독 수를 제한한다(F.wire-settings.spec §3.4.3, 기본 16). 새 구독이 서면 이전 구독을 닫는다
   let current: SubId | null = null;
   let generation = 0;
-  // 연결 전에 생긴 계획과 대기 입력을 처음부터 다시 받는 보조 구독(`backfill`). 끝나면 닫는다. 같은 때에 하나만 있다
+  // 연결 전에 생긴 대기 입력과 대화 요약을 처음부터 다시 받는 보조 구독(`backfill`). 끝나면 닫는다. 같은 때에 하나만 있다
   let backfilling: { sub: SubId | null; facts: DurableFact[]; early: EventsBatchParams[] } | null =
     null;
 
@@ -150,8 +149,8 @@ export function startLink(deps: LinkDeps): EngineLink {
   };
 
   /**
-   * head부터 맞춘 뒤에 연결 전의 계획과 대기 입력을 채운다. 거울은 head 뒤의 사건만 받으므로 앞선 `work.plan_*`와 `input.*`는 처음부터 다시
-   * 읽어야 한다. 이 두 종류만 거른 구독을 0부터 열어 따라잡히면 거울에 넣고 닫는다. 0이 재생 한도 밖이면(`beforeOldest`) 남은 가장 오래된 사건부터 채우고, 그 밖의 `replay.outOfRange`는 채우지 않는다.
+   * head부터 맞춘 뒤에 연결 전의 대기 입력과 대화 요약을 채운다. 거울은 head 뒤의 사건만 받으므로 앞선 `input.*`와 `thread.compacted`는 처음부터 다시
+   * 읽어야 한다. 이 종류들만 거른 구독을 0부터 열어 따라잡히면 거울에 넣고 닫는다. 0이 재생 한도 밖이면(`beforeOldest`) 남은 가장 오래된 사건부터 채우고, 그 밖의 `replay.outOfRange`는 채우지 않는다.
    * 기다리지 않는다: 끝나지 않아도 화면은 head부터의 사건으로 계속 맞는다
    */
   const backfill = async (storeId: StoreId): Promise<void> => {

@@ -1,17 +1,14 @@
 import type { MessageId } from "@fresnel/client/i18n";
-import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
+import type { LiveApprovalRequest } from "../../state/engine/input.ts";
 import { mcpStartViewOf } from "../approval-form.ts";
 import { isWriteAccessTool } from "./write-access-model.ts";
 
-// 승인 카드가 그리는 순수 값(시간 표시, 만료, 키 해석, 계획 접기, 검토 합계). React 밖에서 시험한다(approval-card-model.test.ts).
+// 승인 카드가 그리는 순수 값(시간 표시, 만료, 키 해석, 검토 합계). React 밖에서 시험한다(approval-card-model.test.ts).
 // 도구 인자·질문 답 조립은 ../approval-form.ts가 맡는다.
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
-
-/** 계획 본문을 카드에 먼저 보이는 줄 수. 넘는 줄은 "전체 보기"로 접는다 */
-export const PLAN_FOLD_LINES = 12;
 
 /** 요청 뒤 지난 시간. 1분 안은 "지금", 그 밖은 단위별로 내린 수 */
 export type ApprovalAge =
@@ -37,7 +34,7 @@ export function clockTextOf(at: number): string {
 /** 만료 시각과 만료 때 해결(거부 또는 정한 답). `expiresAt`이 없으면 만료가 없다 */
 type ApprovalExpiry = { readonly at: number; readonly decision: "deny" | "answer" };
 
-export function approvalExpiryOf(request: ApprovalRequestedPayload): ApprovalExpiry | null {
+export function approvalExpiryOf(request: LiveApprovalRequest): ApprovalExpiry | null {
   if (request.expiresAt === undefined) return null;
   return {
     at: request.expiresAt,
@@ -73,16 +70,6 @@ export function approvalKeyOf(event: ApprovalKeyLike, onCard = false): ApprovalK
   return null;
 }
 
-/** 계획 본문을 앞 `max`줄과 나머지로 나눈다. 넘는 줄이 없으면 rest는 null */
-export function foldPlanLines(
-  text: string,
-  max: number,
-): { readonly head: string; readonly rest: string | null } {
-  const lines = text.split("\n");
-  if (lines.length <= max) return { head: text, rest: null };
-  return { head: lines.slice(0, max).join("\n"), rest: lines.slice(max).join("\n") };
-}
-
 /** 검토 파일 목록의 합계. 파일 수와 hunk 수 */
 export function reviewTotalsOf(files: readonly { readonly hunks: number }[]): {
   readonly files: number;
@@ -106,10 +93,9 @@ export function threadLinkVisibleOf(input: {
   return input.openable && input.within !== input.threadId;
 }
 
-/** 카드 제목의 카탈로그 키. 엔진이 영어로 만든 제목(도구 승인, 계획 승인, 기동 승인)만 한국어로 바꾸고, 그 밖의 제목(시크릿 사용, 질문)은 원문이다 */
+/** 카드 제목의 카탈로그 키. 엔진이 영어로 만든 제목(도구 승인, 기동 승인)만 한국어로 바꾸고, 그 밖의 제목(시크릿 사용, 질문)은 원문이다 */
 export type CardTitleView =
   | { readonly id: "desktop.approvals.title.tool"; readonly params: { readonly tool: string } }
-  | { readonly id: "desktop.approvals.title.plan" }
   | { readonly id: "desktop.approvals.title.writeAccess" }
   | { readonly id: "desktop.approvals.title.web"; readonly params: { readonly host: string } }
   | {
@@ -140,7 +126,7 @@ const WRITE_OP_ID: Readonly<Record<string, MessageId>> = {
 const WEB_TITLE = /^Allow web access to (.+)\?$/;
 const WRITE_TITLE = /^Approve (\S+) on (?:skill (.+)|(.+) memory)\?$/;
 
-export function cardTitleViewOf(request: ApprovalRequestedPayload): CardTitleView | null {
+export function cardTitleViewOf(request: LiveApprovalRequest): CardTitleView | null {
   const { body } = request;
   // 샌드박스 밖 쓰기 승인은 엔진 제목(영어 대체 문장)과 상관없이 이 종류의 제목이다(DP-204)
   if (body.kind === "tool" && isWriteAccessTool(body.tool)) {
@@ -152,9 +138,6 @@ export function cardTitleViewOf(request: ApprovalRequestedPayload): CardTitleVie
     return { id: "desktop.approvals.title.mcpStart", params: { server: mcp.server } };
   if (body.kind === "tool" && request.title === `Allow tool "${body.tool.toolName}"?`) {
     return { id: "desktop.approvals.title.tool", params: { tool: body.tool.toolName } };
-  }
-  if (body.kind === "plan" && request.title === "Review the plan") {
-    return { id: "desktop.approvals.title.plan" };
   }
   const web = body.kind === "tool" ? WEB_TITLE.exec(request.title) : null;
   if (web !== null) return { id: "desktop.approvals.title.web", params: { host: web[1] ?? "" } };

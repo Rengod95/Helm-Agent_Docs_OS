@@ -4,13 +4,11 @@ import {
   approvalExpiryOf,
   approvalKeyOf,
   cardTitleViewOf,
-  foldPlanLines,
-  PLAN_FOLD_LINES,
   reviewTotalsOf,
   ruleTextIdOf,
   threadLinkVisibleOf,
 } from "../../src/views/approval-card/card-model.ts";
-import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
+import type { LiveApprovalRequest } from "../../src/state/engine/input.ts";
 import type { ToolApprovalBody } from "../../src/views/approval-form.ts";
 import { thr } from "../state/helpers.ts";
 
@@ -31,7 +29,7 @@ describe("approval age", () => {
   });
 });
 
-function requestWith(extra: Partial<ApprovalRequestedPayload>): ApprovalRequestedPayload {
+function requestWith(extra: Partial<LiveApprovalRequest>): LiveApprovalRequest {
   return {
     origin: { threadId: thr(1), turnId: null, stepId: null, toolCallId: null, caller: "main" },
     requestKey: "k",
@@ -106,21 +104,6 @@ describe("approval keys", () => {
   });
 });
 
-describe("plan fold", () => {
-  test("a plan of PLAN_FOLD_LINES lines or fewer is shown whole", () => {
-    const text = Array.from({ length: PLAN_FOLD_LINES }, (_, i) => `${i + 1}`).join("\n");
-    expect(foldPlanLines(text, PLAN_FOLD_LINES)).toEqual({ head: text, rest: null });
-  });
-
-  test("a longer plan shows the first lines and folds the rest", () => {
-    const lines = Array.from({ length: PLAN_FOLD_LINES + 2 }, (_, i) => `line ${i + 1}`);
-    const folded = foldPlanLines(lines.join("\n"), PLAN_FOLD_LINES);
-    expect(folded.head.split("\n")).toHaveLength(PLAN_FOLD_LINES);
-    expect(folded.head.endsWith(`line ${PLAN_FOLD_LINES}`)).toBe(true);
-    expect(folded.rest).toBe(`line ${PLAN_FOLD_LINES + 1}\nline ${PLAN_FOLD_LINES + 2}`);
-  });
-});
-
 describe("review totals", () => {
   test("the file count is the list length and the hunk count is their sum", () => {
     expect(reviewTotalsOf([{ hunks: 4 }, { hunks: 2 }, { hunks: 1 }])).toEqual({
@@ -150,7 +133,7 @@ describe("thread link in the card head", () => {
   });
 });
 
-const toolBody = (toolName: string): ApprovalRequestedPayload["body"] => ({
+const toolBody = (toolName: string): LiveApprovalRequest["body"] => ({
   kind: "tool",
   tool: { toolName, risk: "write", args: {}, argsHash: "h", ruleId: null },
 });
@@ -162,15 +145,7 @@ describe("card title", () => {
     ).toEqual({ id: "desktop.approvals.title.tool", params: { tool: "edit" } });
   });
 
-  test("the plan title is translated and any other title stays as written", () => {
-    expect(
-      cardTitleViewOf(
-        requestWith({
-          title: "Review the plan",
-          body: { kind: "plan", plan: { plan: "1. x", planRef: null, nextModes: ["default"] } },
-        }),
-      ),
-    ).toEqual({ id: "desktop.approvals.title.plan" });
+  test("any other title stays as written", () => {
     expect(
       cardTitleViewOf(requestWith({ title: "edit 쓰기 허용", body: toolBody("edit") })),
     ).toBeNull();
@@ -181,7 +156,7 @@ describe("card title", () => {
 });
 
 /** 기동 승인 본문. 인자 모양만 바꿔 쓴다 */
-const startBody = (args: ToolApprovalBody["args"]): ApprovalRequestedPayload["body"] => ({
+const startBody = (args: ToolApprovalBody["args"]): LiveApprovalRequest["body"] => ({
   kind: "tool",
   tool: { toolName: "mcp_start", risk: "exec", args, argsHash: "h", ruleId: "mcp.start" },
 });

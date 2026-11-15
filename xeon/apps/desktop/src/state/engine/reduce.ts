@@ -49,8 +49,6 @@ import {
   type TransitionRecord,
   COMPACTION_CAP,
   type CompactionRecord,
-  PLAN_CAP,
-  type PlanRecord,
   QUEUED_INPUT_CAP,
   type QueuedInput,
   SETTLED_CAP,
@@ -159,14 +157,13 @@ export function reduceMirror(state: EngineMirror, input: MirrorInput): Reduced<E
         "applied",
       );
     case "backfill": {
-      // 연결 전에 생긴 계획과 대기 입력(`work.plan_*`, `input.*`)을 처음부터 다시 받은 것이다. 거울의 위치와 연결 상태는 건드리지 않는다.
-      // 다른 저장소의 재생이면 버린다. 계획과 대기 입력 사실만 같은 규칙으로 넣는다(이미 있는 것은 그대로다)
+      // 연결 전에 생긴 대화 요약과 대기 입력(`input.*`)을 처음부터 다시 받은 것이다. 거울의 위치와 연결 상태는 건드리지 않는다.
+      // 다른 저장소의 재생이면 버린다. 요약과 대기 입력 사실만 같은 규칙으로 넣는다(이미 있는 것은 그대로다)
       const cursor = state.cursor;
       if (cursor === null || cursor.storeId !== input.storeId) return keep(state, "foreign");
       let next = state;
       for (const fact of input.facts) {
         if (
-          fact.type === "plan.event" ||
           fact.type === "thread.compacted" ||
           fact.type === "input.queued" ||
           fact.type === "input.placed" ||
@@ -690,7 +687,6 @@ function convoOf(convo: Convo, fact: DurableFact, at: ConvoAt, before: EngineMir
     case "scope.changed":
     case "review.applied":
     case "review.submitted":
-    case "plan.event":
     case "thread.compacted":
     case "input.queued":
     case "input.placed":
@@ -849,8 +845,6 @@ function applyFactCore(state: EngineMirror, fact: DurableFact): EngineMirror {
         submitted: true,
         delivery: fact.payload.delivery,
       }));
-    case "plan.event":
-      return recordPlan(state, fact);
     case "thread.compacted":
       return recordCompaction(state, fact);
     case "input.queued":
@@ -902,43 +896,6 @@ function appendTransition(
 }
 
 /**
- * 계획 사건 하나를 거울에 넣는다. 계획마다 한 줄이고 가장 최근에 받은 것이 뒤에 온다.
- * 옛 판의 사건은 무시한다(판 번호가 줄어들면 안 된다). 같은 판의 철회는 철회 상태로 바꾸고 제목은 그대로 둔다.
- * 철회가 제출보다 먼저 오면(연결 전 제출은 재생으로 뒤에 온다) 제목 없는 철회 기록을 두고, 뒤에 온 같은 판의 제출은 철회 상태를 지킨 채 제목만 채운다.
- * 그래서 두 순서의 결과가 같다.
- */
-function recordPlan(
-  state: EngineMirror,
-  fact: Extract<DurableFact, { readonly type: "plan.event" }>,
-): EngineMirror {
-  const { plan, threadId } = fact;
-  const found = state.plans.find((r) => r.threadId === threadId && r.planId === plan.planId);
-  if (found !== undefined && found.version > plan.version) return state;
-  const same = found?.version === plan.version ? found : undefined;
-  let record: PlanRecord;
-  if (plan.status === "submitted") {
-    record = {
-      threadId,
-      planId: plan.planId,
-      version: plan.version,
-      title: plan.title,
-      status: same?.status ?? "submitted",
-    };
-  } else {
-    // 철회 사건은 제목이 없다. 같은 판의 기록이 있으면 그 제목을 두고, 없으면 null이다
-    record = {
-      threadId,
-      planId: plan.planId,
-      version: plan.version,
-      title: same?.title ?? null,
-      status: "withdrawn",
-    };
-  }
-  const others = state.plans.filter((r) => r !== found);
-  return { ...state, plans: capPlans([...others, record], threadId) };
-}
-
-/**
  * 대화 요약 한 건을 거울에 넣는다. 사건 id가 같으면 한 번만 넣는다(보조 재생과 구독이 같은 사건을 겹쳐 줄 수 있다).
  * thread마다 `COMPACTION_CAP`개만 두고, 넘으면 그 thread의 가장 오래된 요약부터 버린다.
  */
@@ -961,13 +918,6 @@ function capCompactions(
   threadId: ThreadId,
 ): readonly CompactionRecord[] {
   if (list.filter((r) => r.threadId === threadId).length <= COMPACTION_CAP) return list;
-  const oldest = list.findIndex((r) => r.threadId === threadId);
-  return list.filter((_, i) => i !== oldest);
-}
-
-/** thread마다 `PLAN_CAP`개만 두고, 넘으면 그 thread의 가장 오래된 계획을 버린다 */
-function capPlans(list: readonly PlanRecord[], threadId: ThreadId): readonly PlanRecord[] {
-  if (list.filter((r) => r.threadId === threadId).length <= PLAN_CAP) return list;
   const oldest = list.findIndex((r) => r.threadId === threadId);
   return list.filter((_, i) => i !== oldest);
 }
