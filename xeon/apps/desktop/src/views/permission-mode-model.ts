@@ -1,5 +1,6 @@
+import type { MessageId } from "@fresnel/client/i18n";
 import { invalidationConcerns, type SettingsInvalidation } from "@fresnel/client/settings";
-import { parse } from "@fresnel/contracts";
+import { assertNever, parse } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { SettingsChangedPayloadSchema } from "@fresnel/contracts/records";
 import type { PermissionMode } from "@fresnel/contracts/services";
@@ -22,6 +23,60 @@ const SWITCH_MODES: readonly SwitchMode[] = ["default", "acceptEdits", "bypass"]
 /** `settings.get`이 준 값이 세 모드 가운데 하나면 그 모드, 아니면 null(모르는 값)이다. 값을 단언하지 않고 같은지만 본다 */
 export function permissionModeOf(value: unknown): PermissionMode | null {
   return MODES.find((mode) => mode === value) ?? null;
+}
+
+/**
+ * 칩이 아는 승인 모드(DP-213). 읽는 중, 읽음, 읽기 실패, 엔진이 모르는 값(옛 엔진의 `plan` 등)이나 값 없음을 가른다.
+ * 어느 경우에도 칩 자리는 그대로이고, 모르는 동안은 기본 모드로 보이며 이유를 말한다(조용히 숨기지 않는다)
+ */
+export type PermissionModeRead =
+  | { readonly kind: "loading" }
+  | { readonly kind: "known"; readonly mode: PermissionMode }
+  | { readonly kind: "failed" }
+  | { readonly kind: "unknown"; readonly value: string | null };
+
+/** 모르는 값을 이유 문장에 넣을 때의 최대 글자 수 */
+const UNKNOWN_VALUE_MAX = 24;
+
+/** `settings.get` 결과(성공 여부와 값)를 읽기 상태로 바꾼다. 값이 문자열이 아니면(없음 포함) 값 없는 모름이다 */
+export function permissionModeReadOf(ok: boolean, value: unknown): PermissionModeRead {
+  if (!ok) return { kind: "failed" };
+  const mode = permissionModeOf(value);
+  if (mode !== null) return { kind: "known", mode };
+  return {
+    kind: "unknown",
+    value: typeof value === "string" && value !== "" ? value.slice(0, UNKNOWN_VALUE_MAX) : null,
+  };
+}
+
+/** 칩이 그릴 값. `mode`가 null이면 읽는 중이라 "승인 모드" 글로 자리만 지킨다. `note`가 있으면 기본 모드로 보이는 까닭이다 */
+export interface PermissionChipView {
+  readonly mode: PermissionMode | null;
+  readonly note: { readonly id: MessageId; readonly value?: string } | null;
+  /** 메뉴에 "다시 읽기"를 둘지(읽기 실패) */
+  readonly retry: boolean;
+}
+
+export function permissionChipViewOf(read: PermissionModeRead): PermissionChipView {
+  switch (read.kind) {
+    case "loading":
+      return { mode: null, note: null, retry: false };
+    case "known":
+      return { mode: read.mode, note: null, retry: false };
+    case "failed":
+      return { mode: "default", note: { id: "desktop.composer.approvalMode.failed" }, retry: true };
+    case "unknown":
+      return {
+        mode: "default",
+        note:
+          read.value === null
+            ? { id: "desktop.composer.approvalMode.missing" }
+            : { id: "desktop.composer.approvalMode.unknown", value: read.value },
+        retry: false,
+      };
+    default:
+      return assertNever(read, "PermissionModeRead");
+  }
 }
 
 /** 설정 쓰기로 고르는 모드로 좁힌다. 모르는 값은 null이다 */

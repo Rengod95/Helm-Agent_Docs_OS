@@ -8,8 +8,10 @@ import {
   modeChangeConcerns,
   modeEventConcerns,
   modeStepOf,
+  permissionChipViewOf,
   permissionModeOf,
   permissionModeOptionsOf,
+  permissionModeReadOf,
   permissionModeToneOf,
   switchModeOf,
   type PermissionModeOption,
@@ -173,5 +175,50 @@ describe("modeEventConcerns", () => {
     expect(modeEventConcerns({ events: [record({ kind: "turn.started" })] }, threadId)).toBe(false);
     expect(modeEventConcerns({ events: [record({ payload: {} })] }, threadId)).toBe(false);
     expect(modeEventConcerns({ events: [] }, threadId)).toBe(false);
+  });
+});
+
+describe("permissionModeReadOf · permissionChipViewOf (DP-213)", () => {
+  test("읽은 결과를 읽음·실패·모르는 값·값 없음으로 가른다", () => {
+    expect(permissionModeReadOf(true, "acceptEdits")).toEqual({
+      kind: "known",
+      mode: "acceptEdits",
+    });
+    expect(permissionModeReadOf(false, null)).toEqual({ kind: "failed" });
+    expect(permissionModeReadOf(true, "plan")).toEqual({ kind: "unknown", value: "plan" });
+    expect(permissionModeReadOf(true, undefined)).toEqual({ kind: "unknown", value: null });
+    expect(permissionModeReadOf(true, 3)).toEqual({ kind: "unknown", value: null });
+    expect(permissionModeReadOf(true, "x".repeat(40))).toEqual({
+      kind: "unknown",
+      value: "x".repeat(24),
+    });
+  });
+
+  test("칩은 어느 경우에도 그린다: 읽는 중은 모드 없이, 실패·모르는 값은 기본 모드와 이유로", () => {
+    expect(permissionChipViewOf({ kind: "loading" })).toEqual({
+      mode: null,
+      note: null,
+      retry: false,
+    });
+    expect(permissionChipViewOf({ kind: "known", mode: "bypass" })).toEqual({
+      mode: "bypass",
+      note: null,
+      retry: false,
+    });
+    expect(permissionChipViewOf({ kind: "failed" })).toEqual({
+      mode: "default",
+      note: { id: "desktop.composer.approvalMode.failed" },
+      retry: true,
+    });
+    expect(permissionChipViewOf({ kind: "unknown", value: "plan" })).toEqual({
+      mode: "default",
+      note: { id: "desktop.composer.approvalMode.unknown", value: "plan" },
+      retry: false,
+    });
+    expect(permissionChipViewOf({ kind: "unknown", value: null })).toEqual({
+      mode: "default",
+      note: { id: "desktop.composer.approvalMode.missing" },
+      retry: false,
+    });
   });
 });
