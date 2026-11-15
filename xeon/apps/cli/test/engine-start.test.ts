@@ -87,7 +87,11 @@ function startCounted(record: Calls): HostApi["startInProcessHost"] {
  * 서비스 접속의 가짜. 가짜 서버에 붙어 host.hello를 실제로 보낸다. 전송은 kind "socket"이고, wrapTransport가 있으면 그것을 거친다.
  * failure를 주면 그 오류를 돌려준다
  */
-function serviceAttach(record: Calls, failure?: AttachError): HostApi["attachToService"] {
+function serviceAttach(
+  record: Calls,
+  failure?: AttachError,
+  serviceNotice?: "replaced" | "outdated",
+): HostApi["attachToService"] {
   return async (target, options) => {
     record.targets.push(target);
     record.attachOptions.push(options);
@@ -108,6 +112,7 @@ function serviceAttach(record: Calls, failure?: AttachError): HostApi["attachToS
       connection,
       hello,
       source: target.kind === "local" ? "local" : "remote",
+      ...(serviceNotice === undefined ? {} : { serviceNotice }),
     };
     return ok(attachment);
   };
@@ -410,6 +415,34 @@ test("the service preference attaches to the local service and starts no host", 
   expect(result.ok).toBe(true);
   expect(calls.targets).toEqual([{ kind: "local" }]);
   expect(calls.starts).toBe(0);
+});
+
+async function noticeLinesOf(serviceNotice?: "replaced" | "outdated"): Promise<string[]> {
+  const calls = newCalls();
+  const lines: string[] = [];
+  const connect = createConnectEngine(
+    api(startCounted(calls), undefined, {
+      attachToService: serviceAttach(calls, undefined, serviceNotice),
+    }),
+  );
+  const result = await connect({
+    ...OPTIONS,
+    preference: "service",
+    notice: (text) => lines.push(text),
+  });
+  expect(result.ok).toBe(true);
+  return lines;
+}
+
+test("a service restarted to match this build is announced in one line; a busy older one gets its own line", async () => {
+  expect(await noticeLinesOf("replaced")).toEqual([
+    "the background service was restarted to match this version of fresnel",
+  ]);
+  expect(await noticeLinesOf("outdated")).toEqual([
+    'the background service is an older build and is busy; run "fresnel service stop" when its work is done',
+  ]);
+  // 알릴 일이 없으면 줄도 없다
+  expect(await noticeLinesOf()).toEqual([]);
 });
 
 test("auto with no address and the service setting off starts the in-process host as before", async () => {

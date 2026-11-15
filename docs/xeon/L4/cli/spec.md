@@ -1114,6 +1114,7 @@ $ fresnel db previous-rm 20261106T010203004Z --yes --json
 | 터미널 폭이 매우 좁다(20열 미만) | 대화형은 상태 줄을 숨기고 트랜스크립트만 그린다 |
 | `--json`과 `sessions rm` 확인 | `--yes` 없이 비TTY면 2 |
 | 서비스 소켓이 사라졌다 | `HostConnection.closed`가 끝난다. CLI는 진행을 멈추고 "엔진 연결이 끊겼다", 해결 `fresnel service status`, 1 |
+| 서비스가 다른 엔진 빌드(버전은 같아도) | `attachToService`는 `ensure`가 한가한 서비스를 새 빌드로 다시 띄웠으면 stderr에 한 줄("the background service was restarted to match this version of fresnel"), 일하는 중이라 못 바꿨으면 한 줄("…is an older build and is busy; run \"fresnel service stop\"…")을 낸다. 판정과 조건은 데스크톱과 같다(`L4.host-service.spec` SV-03, `L4.desktop.spec` §4.8) |
 | 계약 버전 불일치(서비스가 옛 버전) | adr.0006 §3.7 3번 규칙(한가하면 재기동, 작업 중이면 경고)은 `ensureService`가 한다(`L4.host-service.spec` SV-03). 끝까지 맞지 않으면 `protocolUnsupported`, 3 |
 | 출력 파이프가 닫혔다(`| head`) | 출력을 멈추고 종료 요청, 0 [제안] |
 | `--remote` 주소 문법이 틀리다 | 엔진을 열지 않고 `invalidRemote`, 2. 로컬로 가지 않는다(HS-87) |

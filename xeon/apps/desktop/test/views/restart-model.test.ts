@@ -73,6 +73,7 @@ describe("reason text", () => {
     setActiveLocale("ko");
     expect(restartReasonTextOf({ kind: "install", name: "alpha" })).toBe("alpha 설치");
     expect(restartReasonTextOf({ kind: "rollback", name: "beta" })).toBe("beta 되돌리기");
+    expect(restartReasonTextOf({ kind: "engine_outdated", name: "" })).toBe("엔진 새 버전");
     expect(
       restartInfoTextOf([
         { kind: "install", name: "alpha" },
@@ -85,6 +86,7 @@ describe("reason text", () => {
     setActiveLocale("en");
     expect(restartReasonTextOf({ kind: "install", name: "alpha" })).toBe("Install alpha");
     expect(restartReasonTextOf({ kind: "rollback", name: "beta" })).toBe("Roll back beta");
+    expect(restartReasonTextOf({ kind: "engine_outdated", name: "" })).toBe("New engine version");
     expect(restartInfoTextOf([{ kind: "install", name: "alpha" }])).toBe(
       "Install alpha. Open conversations disconnect briefly and then reconnect.",
     );

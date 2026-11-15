@@ -4,6 +4,7 @@ import {
   createRegistrationStore,
 } from "@fresnel/platform-process";
 import { createOsService, readOsRuntime } from "@fresnel/platform-os";
+import { ENGINE_BUILD } from "../assemble.ts";
 import { hostResourceDir } from "../state-paths.ts";
 import {
   ok,
@@ -81,9 +82,11 @@ export type ServiceStatusResult =
  * 화면과 `--json`에 내보내는 모양. 등록 파일의 접속 토큰은 뺀다(호스트 접속 권한이라 출력하지 않는다).
  * `autostart`는 서비스가 떠 있는지와 상관없이 더한다(등록 파일과 OS 등록 상태다)
  */
+/** 서비스를 화면과 `--json`에 내보내는 모양에 대한 주: `ownBuild`는 이 실행 파일의 빌드다 */
 export function serviceStatusView(
   result: ServiceStatusResult,
   autostart: AutostartStatus,
+  ownBuild: string = ENGINE_BUILD,
 ): unknown {
   if (!result.running) return { ...result, autostart };
   const { token: _token, ...registration } = result.registration;
@@ -93,6 +96,9 @@ export function serviceStatusView(
     status: result.status,
     remote: result.remote,
     autostart,
+    // 이 바이너리의 빌드와 서비스의 빌드(`status.build`, 옛 서비스는 없다)가 다르면 참이다. 앱은 이 값으로 "다시 시작 필요"를 올린다
+    ownBuild,
+    outdated: result.status.build !== ownBuild,
   };
 }
 

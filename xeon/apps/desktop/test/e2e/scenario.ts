@@ -49,6 +49,8 @@ function normalizer(roots: readonly string[] = []): (value: unknown) => unknown 
       seen.set(value, next);
       return next;
     }
+    // 엔진 빌드 식별자는 컴파일한 바이너리("<커밋>.<시각>")와 소스 실행("dev")이 다르게 만든 값이다(L4.host-service.spec §3.5)
+    if (key === "build" && typeof value === "string") return "build";
     if (key !== undefined && /(At|Since)$/.test(key) && typeof value === "string") return "time";
     if (key !== undefined && /(At|Ms|^pid)$/.test(key) && typeof value === "number") return 0;
     if (Array.isArray(value)) return value.map((item: unknown) => walk(item, undefined));

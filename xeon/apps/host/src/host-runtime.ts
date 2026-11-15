@@ -1,6 +1,6 @@
 import { attemptAsync, Bug } from "@fresnel/contracts";
 import { resolveSetting } from "@fresnel/contracts/settings";
-import { assemble, ENGINE_VERSION } from "./assemble.ts";
+import { assemble, ENGINE_BUILD, ENGINE_VERSION } from "./assemble.ts";
 import { shutdownTimeoutOf, type SettingReader } from "./assembly/settings-sources.ts";
 import { createConnectionHub } from "./connection.ts";
 import type { ConnectionHub } from "./connection-types.ts";
@@ -54,7 +54,12 @@ export async function startHost(
       if (slot.hub === undefined) throw new Bug("connection hub is used before it is created");
       return slot.hub;
     },
-    { serverName: "fresnel", serverVersion: ENGINE_VERSION, pid: process.pid },
+    {
+      serverName: "fresnel",
+      serverVersion: ENGINE_VERSION,
+      serverBuild: ENGINE_BUILD,
+      pid: process.pid,
+    },
     lifecycle,
   );
   const hub = createConnectionHub(engine, handlers);

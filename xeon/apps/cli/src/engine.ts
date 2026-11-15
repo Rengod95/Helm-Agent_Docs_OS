@@ -76,6 +76,8 @@ export interface EngineConnectOptions {
   readonly observe?: (message: JsonRpcMessage) => void;
   /** `--remote`로 받은 주소 원문(전역 플래그). 없으면 생략한다. "auto"일 때만 본다(HS-87) */
   readonly remote?: string;
+  /** 서비스를 맞춘 일을 알리는 한 줄을 받는다. 없으면 stderr다 */
+  readonly notice?: (line: string) => void;
   /** 프로세스 환경 변수(CliIo.env). 원격 접속 토큰 FRESNEL_REMOTE_TOKEN을 읽는 데 쓴다 */
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly assemble?: EngineAssembleOverrides;
@@ -627,6 +629,11 @@ async function closeConnectionOnly(connection: HostConnection): Promise<"clean">
   throw new Error("engine shutdown failed", { cause: closed.error.cause });
 }
 
+const ENGINE_REPLACED_LINE =
+  "the background service was restarted to match this version of fresnel";
+const ENGINE_OUTDATED_LINE =
+  'the background service is an older build and is busy; run "fresnel service stop" when its work is done';
+
 /** 서비스(로컬 또는 원격)에 붙는다. 엔진을 열지 않는다(HS-88) */
 async function attachService(
   api: HostApi,
@@ -643,7 +650,11 @@ async function attachService(
       : { wrapTransport: (transport: Transport) => tapTransport(transport, observe) }),
   });
   if (!attached.ok) return err(attachErrorStart(attached.error));
-  const { connection, hello } = attached.value;
+  const { connection, hello, serviceNotice } = attached.value;
+  // 다른 빌드의 서비스를 맞춘 일은 한 줄로 알린다(자동 재시작 조건은 데스크톱과 같다: 진행 중 turn과 승인 대기가 없을 때)
+  const say = options.notice ?? ((line: string) => console.error(line));
+  if (serviceNotice === "replaced") say(ENGINE_REPLACED_LINE);
+  if (serviceNotice === "outdated") say(ENGINE_OUTDATED_LINE);
   const { clock, ids } = api.serviceClock();
   const features = supportedFeatures(hello);
   const closing: { current: Promise<"clean" | "deadline"> | undefined } = { current: undefined };

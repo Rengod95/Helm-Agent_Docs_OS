@@ -5,6 +5,7 @@ import type { LaunchFailure, Launched, Launcher, OnceOutput } from "../src/main/
 import type { SafeMode } from "../src/main/engine/policy.ts";
 import type { EngineTarget } from "../src/main/engine/state.ts";
 import {
+  createEngineNoteSlot,
   createServiceModule,
   createStartFailureSlot,
   serviceAwareLauncher,
@@ -230,12 +231,13 @@ describe("serviceAwareLauncher", () => {
 function commandRig(
   replies: Readonly<Record<string, OnceReply>> = {},
   failure?: { readonly code: "ensure_failed"; readonly detail: string },
+  notes = createEngineNoteSlot(),
 ) {
   const inner = innerOf({ replies });
   const fake = fakeCtx();
   const failures = createStartFailureSlot();
   failures.set(failure ?? null);
-  createServiceModule({ launcherOf: () => inner.launcher, failures }).register(fake.ctx);
+  createServiceModule({ launcherOf: () => inner.launcher, failures, notes }).register(fake.ctx);
   return { fake, runs: inner.runs };
 }
 
@@ -304,6 +306,8 @@ describe("service_status", () => {
         pid: 4321,
         version: "1.2.3",
         startedAt: 1_700_000_000_000,
+        engineOutdated: false,
+        engineReplaced: false,
         autostart: {
           supported: true,
           registered: true,
@@ -318,6 +322,58 @@ describe("service_status", () => {
     expect(r.runs).toEqual([["service", "status", "--json"]]);
   });
 
+  test("the host's outdated flag is passed on, and a service restart done at launch is reported once", async () => {
+    const running = JSON.stringify({
+      running: true,
+      registration: { socket: SOCKET, pid: 7, startedAt: 9, version: "0.0.0" },
+      outdated: true,
+      autostart: {
+        platform: "darwin",
+        supported: true,
+        registered: false,
+        active: false,
+        linger: null,
+      },
+    });
+    const notes = createEngineNoteSlot();
+    const replaced = out(
+      0,
+      JSON.stringify({
+        ok: true,
+        socket: SOCKET,
+        version: "0.0.0",
+        action: "spawned",
+        replaced: true,
+      }),
+    );
+    const inner = innerOf({
+      replies: {
+        [LAUNCH_MODE]: SERVICE_MODE,
+        [ENSURE]: replaced,
+        "service status --json": out(0, running),
+      },
+    });
+    valueOf(
+      await serviceAwareLauncher(
+        inner.launcher,
+        recordingLog(),
+        createStartFailureSlot(),
+        notes,
+      ).launch(LOCAL, "default"),
+    );
+    const fake = fakeCtx();
+    createServiceModule({ launcherOf: () => inner.launcher, notes }).register(fake.ctx);
+    const first = await fake.call("service_status");
+    const second = await fake.call("service_status");
+    expect(first).toMatchObject({
+      ok: true,
+      value: { engineOutdated: true, engineReplaced: true },
+    });
+    expect(second).toMatchObject({
+      ok: true,
+      value: { engineOutdated: true, engineReplaced: false },
+    });
+  });
   test("exit 1 with running false is a normal not-running answer, and a status without autostart is an older host", async () => {
     const r = commandRig({
       "service status --json": out(1, '{"running":false,"reason":"no registration"}'),

@@ -146,6 +146,10 @@ if (container === null) {
     onEngineRestarted: () => {
       toast({ tone: "success", title: t("desktop.restart.done") });
     },
+    // 앱을 열며 서비스를 새 엔진 빌드로 다시 띄웠으면 조용히 한 번 알린다
+    onServiceEngineReplaced: () => {
+      toast({ tone: "info", title: t("desktop.engine.replaced") });
+    },
     ipc,
     clock: { now: () => Date.now() },
     scheduler: {

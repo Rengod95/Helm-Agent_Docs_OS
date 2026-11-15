@@ -22,7 +22,7 @@ import {
   createRegistrationStore,
 } from "@fresnel/platform-process";
 import { WIRE_PROTOCOL_VERSION } from "@fresnel/contracts/wire";
-import { ENGINE_VERSION } from "../assemble.ts";
+import { ENGINE_BUILD, ENGINE_VERSION } from "../assemble.ts";
 import {
   createHostConnection,
   connectServiceTransport,
@@ -48,6 +48,8 @@ export interface EnsureHostServiceOptions {
   readonly retryMs?: number;
   /** 비교할 엔진 버전. 기본 이 호스트의 버전 */
   readonly ownVersion?: string;
+  /** 비교할 엔진 빌드 식별자. 기본 이 호스트의 `ENGINE_BUILD`. 서비스의 build와 다르면(필드가 없는 옛 서비스 포함) 다른 서비스다 */
+  readonly ownBuild?: string;
   readonly time?: { readonly clock: Clock; readonly scheduler: Scheduler };
   /** 교체 종료를 기다리는 시한. 기본 `l0.process.shutdown.timeoutMs`(3000) + 2000 */
   readonly replaceWaitMs?: number;
@@ -66,15 +68,16 @@ const DEFAULT_REPLACE_WAIT_MS = 5000;
 const CLIENT_NAME = "fresnel-ensure";
 
 /**
- * 버전이 다른 서비스를 바꿔도 되는 한가함. 진행 중 turn이 없고 연결이 자기 하나뿐이며 승인을 기다리는 thread도 없어야 한다.
- * 승인 대기 thread는 turn이 멈춰 있어도 바쁜 것이다(결정 2026-11-04 B11, L1.tools.plan §7)
+ * 다른 빌드·버전의 서비스를 바꿔도 되는 때: 진행 중 turn이 없고 승인을 기다리는 thread도 없다. 다른 연결이 있어도 일하는 중이 아니면 바꾼다.
+ * 연결은 서비스가 닫을 때 끊기고 클라이언트(데스크톱 브리지)가 다시 붙는다. 앱을 새로 띄웠는데 옛 앱 창이 열려 있다는 이유만으로
+ * 옛 엔진이 남지 않게 한다. 승인 대기 thread는 turn이 멈춰 있어도 바쁜 것이다(결정 2026-11-04 B11, L1.tools.plan §7)
+ * [결정: 2026-11-15 메인 세션, 목표 "다른 클라이언트가 일하는 중이 아니면"]
  */
-export function isServiceIdle(status: {
+export function isServiceReplaceable(status: {
   readonly liveTurns: number;
-  readonly connections: number;
   readonly waitingApprovals?: number | undefined;
 }): boolean {
-  return status.liveTurns === 0 && (status.waitingApprovals ?? 0) === 0 && status.connections <= 1;
+  return status.liveTurns === 0 && (status.waitingApprovals ?? 0) === 0;
 }
 
 /** 소켓에 접속해 hello와 status를 한 번 왕복한다. 연결은 닫고 돌려준다 */
@@ -103,7 +106,8 @@ async function probeService(
     return ok({
       version: hello.value.server.version,
       protocolVersion: hello.value.protocolVersion,
-      idle: isServiceIdle(status.value),
+      idle: isServiceReplaceable(status.value),
+      build: hello.value.server.build,
       pid: status.value.pid,
       startedAt: status.value.startedAt,
     });
@@ -202,6 +206,7 @@ export async function ensureHostService(
       clock: time.clock,
       scheduler: time.scheduler,
       engineVersion: options.ownVersion ?? ENGINE_VERSION,
+      engineBuild: options.ownBuild ?? ENGINE_BUILD,
       protocolVersion: WIRE_PROTOCOL_VERSION,
     },
     {

@@ -207,6 +207,16 @@ export { buildEngineCatalog, coreSettingGroups } from "./assembly/catalog.ts";
 /** 릴리즈 빌드가 `bun build --define FRESNEL_BUILD_VERSION="x.y.z"`로 넣는 값(scripts/build-sidecar.ts). 소스 실행에는 없다 */
 declare const FRESNEL_BUILD_VERSION: string | undefined;
 
+/**
+ * 빌드마다 다른 식별자를 넣는 값(`bun build --define FRESNEL_BUILD_ID="<소스 커밋>[-dirty].<UTC 빌드 시각>"`, scripts/build-sidecar.ts).
+ * 소스에서 직접 돌리면 없다(L4.host-service.spec §3.5)
+ */
+declare const FRESNEL_BUILD_ID: string | undefined;
+
+/** 엔진 빌드 식별자. `version`(0.0.0)과 따로 빌드를 가른다. 주입이 없으면 "dev"다. `host.hello`의 `server.build`와 `host.status`의 `build`다 */
+export const ENGINE_BUILD: string =
+  typeof FRESNEL_BUILD_ID === "string" && FRESNEL_BUILD_ID !== "" ? FRESNEL_BUILD_ID : "dev";
+
 /** 엔진 빌드 버전. 등록 파일 version과 host.hello server.version이 같은 값을 쓴다. 주입이 없으면 "0.0.0"이다(L4.release.spec §8.1) */
 export const ENGINE_VERSION: string =
   typeof FRESNEL_BUILD_VERSION === "string" ? FRESNEL_BUILD_VERSION : "0.0.0";

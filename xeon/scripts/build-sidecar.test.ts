@@ -11,6 +11,7 @@ import {
   exitCodeOf,
   hostTriple,
   isBuildVersion,
+  makeBuildId,
   MIB,
   outputFileName,
   parseSidecarConfig,
@@ -108,6 +109,23 @@ test("compile arguments carry --compile --minify --bytecode and the target; byte
     "/o/fresnel-x",
   ]);
   expect(compileArgs({ ...base, bytecode: false })).not.toContain("--bytecode");
+});
+
+test("the build id goes in as the FRESNEL_BUILD_ID define, apart from the version", () => {
+  const base = { entry: "/e/main.ts", outFile: "/o/f", bunTarget: "bun-linux-x64", bytecode: true };
+  const args = compileArgs({ ...base, version: "1.2.3", buildId: "abc123def456.20261115T140000Z" });
+  expect(args).toContain('FRESNEL_BUILD_VERSION="1.2.3"');
+  expect(args).toContain('FRESNEL_BUILD_ID="abc123def456.20261115T140000Z"');
+  expect(compileArgs(base).some((arg) => arg.startsWith("FRESNEL_BUILD_ID"))).toBe(false);
+});
+
+test("makeBuildId joins the commit, the dirty mark and the UTC build time", () => {
+  const at = new Date("2026-11-15T14:00:09.123Z");
+  expect(makeBuildId("abc123def456", false, at)).toBe("abc123def456.20261115T140009Z");
+  expect(makeBuildId("abc123def456", true, at)).toBe("abc123def456-dirty.20261115T140009Z");
+  expect(makeBuildId("abc123def456", true, new Date("2026-11-15T14:00:10Z"))).not.toBe(
+    makeBuildId("abc123def456", true, at),
+  );
 });
 
 test("size cap: exactly 500 MiB passes, one byte more fails", () => {

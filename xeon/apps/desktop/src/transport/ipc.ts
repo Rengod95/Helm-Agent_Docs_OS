@@ -285,6 +285,8 @@ const ServiceStatusSchema: TUnion<
       pid: TInteger;
       version: TString;
       startedAt: TInteger;
+      engineOutdated: TOptional<TBoolean>;
+      engineReplaced: TOptional<TBoolean>;
       autostart: typeof ServiceAutostartSchema;
       startFailure: TOptional<typeof ServiceStartFailureSchema>;
     }>,
@@ -306,6 +308,10 @@ const ServiceStatusSchema: TUnion<
       pid: Type.Integer({ minimum: 0 }),
       version: Type.String({ maxLength: 128 }),
       startedAt: Type.Integer({ minimum: 0 }),
+      /** 서비스의 엔진 빌드가 이 앱의 엔진 빌드와 다르다(일하는 중이라 바꾸지 못했다). 없으면 거짓이다 */
+      engineOutdated: Type.Optional(Type.Boolean()),
+      /** 이 앱이 서비스를 새 빌드로 다시 띄웠고 아직 알리지 않았다. 없으면 거짓이다 */
+      engineReplaced: Type.Optional(Type.Boolean()),
       autostart: ServiceAutostartSchema,
       startFailure: Type.Optional(ServiceStartFailureSchema),
     },
