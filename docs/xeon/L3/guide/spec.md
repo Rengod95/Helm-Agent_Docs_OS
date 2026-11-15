@@ -31,7 +31,7 @@ binds: [xeon/packages/group-guide/**]
 
 - 호스트(`apps/host/src/assembly/guide.ts`)가 켜짐 판정이 참일 때만 가이드 폴더를 확장 제공 스킬 루트로 `cap-knowledge`의 `extensionSkillRoots`에 알립니다(`L2.knowledge.spec` §4.2.7). 대화가 시작될 때 읽으므로 켠 뒤 새 대화부터 보입니다.
 - 꺼져 있으면 빈 목록이라 스킬 인덱스에 아무것도 더하지 않습니다. 켜지면 늘어나는 것은 스킬 이름과 설명뿐입니다.
-- 가이드 폴더는 환경 변수 `FRESNEL_GUIDE_SKILLS_DIR`, 릴리즈 자원 폴더의 `guide/skills`, 소스 저장소의 `packages/group-guide/skills` 순으로 찾습니다(`locateGuideSkills`). 릴리즈 번들 설정 `release-bundle.json`의 `guide`가 이 폴더를 아카이브의 `guide/skills`로 싣습니다.
+- 가이드 폴더는 환경 변수 `FRESNEL_GUIDE_SKILLS_DIR`, 릴리즈 자원 폴더의 `guide/skills`, 소스 저장소의 `packages/group-guide/skills` 순으로 찾습니다(`locateGuideSkills`). 릴리즈 번들 설정 `release-bundle.json`의 `guide`가 이 폴더를 아카이브의 `guide/skills`로 싣고, 묶은 데스크톱 앱은 같은 폴더를 `Resources/guide/skills`로 싣습니다(`L4.desktop.spec` §11.7). 데스크톱 개발 실행의 사이드카는 실행 파일 옆 `guide/skills`(`apps/desktop/dist/sidecar/guide/skills`, `just desktop-sidecar host`가 만든다)에서 찾습니다. 소스 저장소 후보는 소스로 실행할 때만 맞습니다(컴파일된 바이너리의 `import.meta.dir`는 가상 경로입니다).
 
 ## 3. 플러그인 빌더의 참조
 
