@@ -121,6 +121,10 @@ describe("M1 method schemas", () => {
     };
     expect(parse(result, answer).ok).toBe(true);
     expect(parse(result, { ...answer, transport: "pigeon" }).ok).toBe(false);
+    // 빌드 식별자는 선택이다: 있으면 문자열이고 빈 값은 거절한다
+    const withBuild = parse(result, { ...answer, server: { ...answer.server, build: "dev" } });
+    expect(withBuild.ok && withBuild.value.server.build).toBe("dev");
+    expect(parse(result, { ...answer, server: { ...answer.server, build: "" } }).ok).toBe(false);
   });
 
   test("thread.create", () => {
