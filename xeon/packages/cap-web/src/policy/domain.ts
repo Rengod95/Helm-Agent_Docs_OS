@@ -62,10 +62,14 @@ export function mergeDomainRules(base: DomainRules, extra: DomainRules | undefin
   };
 }
 
-/** deny > ask > allow. 어느 규칙에도 맞지 않으면 ask */
-export function decideDomain(rules: DomainRules, host: string): DomainVerdict {
+/** deny > ask > allow. 어느 규칙에도 맞지 않으면 `fallback`(기본 ask, `l2.web.policy.default`) */
+export function decideDomain(
+  rules: DomainRules,
+  host: string,
+  fallback: "ask" | "allow" = "ask",
+): DomainVerdict {
   if (rules.deny.some((pattern) => matchDomain(pattern, host))) return "deny";
   if (rules.ask.some((pattern) => matchDomain(pattern, host))) return "ask";
   if (rules.allow.some((pattern) => matchDomain(pattern, host))) return "allow";
-  return "ask";
+  return fallback;
 }

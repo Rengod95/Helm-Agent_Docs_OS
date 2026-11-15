@@ -1,14 +1,15 @@
-import { attempt, err, ok, type Result } from "@fresnel/contracts";
+import { attempt, err, ok, type Logger, type Result } from "@fresnel/contracts";
 import type { CallerInfo } from "@fresnel/contracts/capabilities";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { deniedFailure, invalidInput, type WebFailure } from "../errors.ts";
-import type { AskReason, WebAskPort } from "../ports/ask.ts";
+import type { AskReason, WebAskPort, WebAskScope } from "../ports/ask.ts";
+import type { WebPolicyWriter } from "../ports/policy-writer.ts";
 import type { DnsResolver } from "../ports/resolver.ts";
 import type { OutboundSecretGuard } from "../ports/secrets.ts";
 import type { TransportMode } from "../ports/transport.ts";
 import type { WebSettings } from "../settings.ts";
 import { sha256Hex } from "../util/hash.ts";
-import { decideDomain, mergeDomainRules, type DomainRules } from "./domain.ts";
+import { decideDomain, isDomainPattern, mergeDomainRules, type DomainRules } from "./domain.ts";
 import type { SeenUrls } from "./seen-urls.ts";
 import {
   addressVerdict,
@@ -36,6 +37,9 @@ export interface AccessDeps {
    * 이유에 있으면 모드와 무관하게 묻는다. 없으면 덮지 않는다
    */
   readonly approvalCover?: (threadId: ThreadId) => boolean;
+  /** "이 사이트 계속 허용"·"모든 사이트 허용" 선택을 사용자 범위 설정에 쓴다. 없으면 두 선택은 이번만 허용과 같다 */
+  readonly policyWriter?: WebPolicyWriter;
+  readonly logger?: Logger;
 }
 
 export interface AccessContext {
@@ -193,12 +197,21 @@ export function createAccess(deps: AccessDeps): Access {
       });
     }
     const requestKey = `web-${sha256Hex(`${ctx.askKey}|${checked.host}`).slice(0, 40)}`;
+    const secretLike = reasons.includes("secret_pattern");
+    // 시크릿이 든 질문은 이번만 허용으로만 답할 수 있다. "계속 허용"이 비밀 확인을 건너뛰게 하지 않는다
+    const scopes: readonly WebAskScope[] = secretLike
+      ? ["once"]
+      : isDomainPattern(checked.host)
+        ? ["once", "site", "all"]
+        : ["once", "all"];
     const answer = await deps.asker.ask(
       {
         threadId: ctx.threadId,
         capability: ctx.capability,
         host: checked.host,
+        url: secretLike ? `${checked.url.origin}/` : checked.url.href,
         reasons,
+        scopes,
         requestKey,
       },
       ctx.signal,
@@ -208,6 +221,20 @@ export function createAccess(deps: AccessDeps): Access {
     }
     if (answer.value === "deny") {
       return deniedFailure("ask_denied", "The user declined this request.", { host: checked.host });
+    }
+    if (secretLike || answer.value === "allow") return undefined;
+    // 허용 + 계속 허용 선택: 설정에 남긴다. 쓰기가 실패해도 이번 호출은 허용된 채로 진행하고 다음에 다시 묻는다
+    const written =
+      answer.value === "allow_site" && scopes.includes("site")
+        ? await deps.policyWriter?.allowHost(checked.host)
+        : answer.value === "allow_all" && scopes.includes("all")
+          ? await deps.policyWriter?.allowAllSites()
+          : undefined;
+    if (written !== undefined && !written.ok) {
+      deps.logger?.warn("web.policy_write_failed", {
+        choice: answer.value,
+        message: written.error.message,
+      });
     }
     return undefined;
   }
@@ -227,7 +254,7 @@ export function createAccess(deps: AccessDeps): Access {
       { allow: settings.policy.allow, ask: settings.policy.ask, deny: settings.policy.deny },
       ctx.agentRules,
     );
-    const verdict = decideDomain(rules, checked.host);
+    const verdict = decideDomain(rules, checked.host, settings.policy.default);
     if (verdict === "deny") {
       return err(
         deniedFailure("domain_denied", `The domain policy denies ${checked.host}.`, {
@@ -241,7 +268,8 @@ export function createAccess(deps: AccessDeps): Access {
     // 모델 도구 경로: 대화에 나온 적 없는 URL(§4.6.6). 확장·호스트 호출은 대화가 없어 적용하지 않는다
     if (ctx.caller.kind === "model" && ctx.threadId !== undefined) {
       const mode = settings.policy.unseenUrl;
-      if (mode !== "allow") {
+      // 기본값이 allow("모든 사이트 허용")면 처음 보는 URL 확인(ask)도 함께 끈다. deny는 그대로 막는다
+      if (mode !== "allow" && !(mode === "ask" && settings.policy.default === "allow")) {
         const seen = await deps.seen.has(ctx.threadId, rawUrl);
         if (!seen.ok) {
           return err({
@@ -285,7 +313,7 @@ export function createAccess(deps: AccessDeps): Access {
       { allow: settings.policy.allow, ask: settings.policy.ask, deny: settings.policy.deny },
       ctx.agentRules,
     );
-    if (decideDomain(rules, checked.host) === "deny") {
+    if (decideDomain(rules, checked.host, settings.policy.default) === "deny") {
       return err(
         deniedFailure("domain_denied", `The domain policy denies ${checked.host}.`, {
           host: checked.host,

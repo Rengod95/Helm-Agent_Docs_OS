@@ -28,6 +28,7 @@ const SPEC_KEYS = [
   "policy.ask",
   "policy.deny",
   "policy.allowPrivateNetwork",
+  "policy.default",
   "policy.unseenUrl",
   "policy.robots",
   "cache.searchTtlMinutes",
@@ -80,7 +81,7 @@ describe("web settings", () => {
       expect(scopes(name)).toContain("local");
     }
     // 저장소 설정이 허용 목록을 넓히거나 "대화에 없던 URL" 확인을 끄지 못한다. 막는 쪽(ask, deny)에는 더할 수 있다
-    for (const name of ["policy.allow", "policy.unseenUrl"]) {
+    for (const name of ["policy.allow", "policy.default", "policy.unseenUrl"]) {
       expect(scopes(name)).not.toContain("project");
       expect(scopes(name)).toContain("local");
     }
@@ -104,6 +105,17 @@ describe("web settings", () => {
       maxMegabytes: 256,
     });
     expect(DEFAULT_WEB_SETTINGS.policy.unseenUrl).toBe("ask");
+    expect(DEFAULT_WEB_SETTINGS.policy.default).toBe("ask");
+  });
+
+  test("policy.default: user scope turns it to allow, project is ignored, removing the user value restores ask", () => {
+    const user: ScopeStack = [layer("user", { "l2.web.policy.default": "allow" })];
+    expect(readWebSettings(user).policy.default).toBe("allow");
+    const project: ScopeStack = [layer("project", { "l2.web.policy.default": "allow" })];
+    expect(readWebSettings(project).policy.default).toBe("ask");
+    expect(readWebSettings([layer("user", {})]).policy.default).toBe("ask");
+    const invalid: ScopeStack = [layer("user", { "l2.web.policy.default": "deny" })];
+    expect(readWebSettings(invalid).policy.default).toBe("ask");
   });
 
   test("scalar keys take the highest scope and skip invalid values", () => {

@@ -28,7 +28,7 @@ export const ApprovalServicePortKey: PortKey<ApprovalService> = { name: Approval
 export const WRITE_ACCESS_RULE_ID = "sandbox.write_access" as const;
 
 /**
- * 웹 접근 승인(L2.web.spec §4.5.4)의 `ruleId`. 이 규칙의 도구 승인만 `remember: ["once", "always", "thread"]`를 낼 수 있다
+ * 웹 접근 승인(L2.web.spec §4.5.5)의 `ruleId`. 이 규칙의 도구 승인만 `remember: ["once", "always", "thread"]`를 낼 수 있다
  * (나머지 승인은 once뿐, L1.tools.spec §4.7 6번). 이 규칙에서 기억 범위는 웹 정책 설정에 쓰는 선택을 뜻한다:
  * `once` = 이번만 허용, `always` = 이 사이트 계속 허용(호스트를 `l2.web.policy.allow`의 user 범위에 더한다),
  * `thread` = 모든 사이트 허용(`l2.web.policy.default`를 user 범위에서 `allow`로 둔다). 이름과 달리 `thread`는 그 대화에 묶이지 않는다.

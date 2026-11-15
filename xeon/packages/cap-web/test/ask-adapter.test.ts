@@ -14,7 +14,9 @@ const REQUEST = {
   threadId: threadIdOf(1),
   capability: "web.fetch",
   host: "docs.example.com",
+  url: "https://docs.example.com/a?q=1",
   reasons: ["policy_ask", "unseen_url"],
+  scopes: ["once", "site", "all"],
   requestKey: "web-abc",
 } as const;
 
@@ -59,6 +61,12 @@ function portOf(options: {
   return { port, requests, cancelled };
 }
 
+const withRemember = (remember: "once" | "always" | "thread"): L2ApprovalSnapshot => ({
+  approvalId: approvalIdOf(1),
+  state: "resolved",
+  resolution: { decision: "allow", answer: null, remember },
+});
+
 describe("ask adapter", () => {
   test("sends a tool approval with the host and reasons, then waits for the answer", async () => {
     const { port, requests } = portOf({
@@ -74,10 +82,42 @@ describe("ask adapter", () => {
         toolName: "web.fetch",
         capability: { id: "web.fetch", method: "fetch" },
         risk: "read",
-        args: { host: "docs.example.com", reasons: ["policy_ask", "unseen_url"] },
-        ruleId: null,
+        args: {
+          subject: "web_access",
+          host: "docs.example.com",
+          url: "https://docs.example.com/a?q=1",
+          tool: "web.fetch",
+          reasons: ["policy_ask", "unseen_url"],
+          scopes: ["once", "site", "all"],
+        },
+        ruleId: "web.access",
       },
+      remember: ["once", "always", "thread"],
     });
+  });
+
+  test("the remember scope of an allow maps to the answer", async () => {
+    const answers = await Promise.all(
+      (["once", "always", "thread"] as const).map((remember) =>
+        createAskAdapter(portOf({ requested: withRemember(remember) }).port).ask(REQUEST, SIGNAL),
+      ),
+    );
+    expect(answers).toEqual([
+      { ok: true, value: "allow" },
+      { ok: true, value: "allow_site" },
+      { ok: true, value: "allow_all" },
+    ]);
+  });
+
+  test("an allow without a remember field (an old card) is once", async () => {
+    const { port } = portOf({ requested: snapshot("resolved", "allow") });
+    expect(await createAskAdapter(port).ask(REQUEST, SIGNAL)).toEqual({ ok: true, value: "allow" });
+  });
+
+  test("a once-only question offers only once", async () => {
+    const { port, requests } = portOf({ requested: snapshot("resolved", "allow") });
+    await createAskAdapter(port).ask({ ...REQUEST, scopes: ["once"] }, SIGNAL);
+    expect(requests[0]?.remember).toEqual(["once"]);
   });
 
   test("an already resolved request is not waited for", async () => {

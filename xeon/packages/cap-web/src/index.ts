@@ -50,7 +50,15 @@ export { createSeenUrls, extractUrls } from "./policy/seen-urls.ts";
 export type { SeenUrls, SeenUrlsError } from "./policy/seen-urls.ts";
 export { addressVerdict, checkUrlSyntax, resolvedVerdict } from "./policy/ssrf.ts";
 export type { CheckedUrl, UrlRejection } from "./policy/ssrf.ts";
-export type { AskReason, WebAskError, WebAskPort, WebAskRequest } from "./ports/ask.ts";
+export type {
+  AskReason,
+  WebAskAnswer,
+  WebAskError,
+  WebAskPort,
+  WebAskRequest,
+  WebAskScope,
+} from "./ports/ask.ts";
+export type { WebPolicyWriteError, WebPolicyWriter } from "./ports/policy-writer.ts";
 export type { DnsResolver, ResolveError } from "./ports/resolver.ts";
 export type {
   HeaderSecretError,

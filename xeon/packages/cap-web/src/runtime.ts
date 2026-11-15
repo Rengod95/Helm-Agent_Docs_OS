@@ -16,6 +16,7 @@ import { createContentHttp } from "./policy/content-http.ts";
 import type { ProviderHttpDeps } from "./policy/guarded-http.ts";
 import { createSeenUrls } from "./policy/seen-urls.ts";
 import type { WebAskPort } from "./ports/ask.ts";
+import type { WebPolicyWriter } from "./ports/policy-writer.ts";
 import type {
   BrowseCandidate,
   FetchCandidate,
@@ -60,6 +61,8 @@ export interface WebRuntimeOptions {
   readonly convert?: ConvertRunner;
   readonly store?: WebStorePort;
   readonly asker?: WebAskPort;
+  /** "계속 허용" 선택을 사용자 범위 설정에 쓰는 통로(L2.web.spec §4.5.5). 없으면 그 선택은 이번만 허용과 같다 */
+  readonly policyWriter?: WebPolicyWriter;
   /** 대화의 권한 모드가 실행 허가 성격의 승인을 덮는가(`ToolService.coversRunApprovals`). 도메인·처음 보는 URL·브라우저 동작 확인이 쓴다. 없으면 덮지 않는다 */
   readonly approvalCover?: (threadId: ThreadId) => boolean;
   readonly guard?: OutboundSecretGuard;
@@ -126,6 +129,8 @@ export function createWebRuntime(options: WebRuntimeOptions): WebRuntime {
     seen,
     guard: options.guard,
     asker: options.asker,
+    logger: options.logger,
+    ...(options.policyWriter === undefined ? {} : { policyWriter: options.policyWriter }),
     ...(options.approvalCover === undefined ? {} : { approvalCover: options.approvalCover }),
   });
   const content = createContentHttp(access, transport);

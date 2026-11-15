@@ -1228,8 +1228,8 @@ Claude Code의 `WebFetch(domain:…)` 문법을 따른다(`_research/web-tools.m
 
 #### 4.5.3 ask 처리
 
-- `ask` 판정이면 `fresnel.approvals`로 승인을 요청한다(`L2.readme` §5.7). 요청 kind는 `tool`이고 대상은 도구 승인 body(`ToolApprovalDetail`, `additionalProperties:false`)다: `toolName`은 기능 id(`web.fetch`), `capability`는 `{ id, method }`, `risk`는 `"read"`(`ToolRisk` 안의 값만 읽힌다), `args`는 `{ host, reasons }`, `argsHash`는 그 정규화 JSON의 sha256, `ruleId`는 `null`이다. 화면 제목은 호스트 이름을 넣어 만든다(`ask-adapter.ts`의 `webApprovalTitle`).
-- 승인 범위는 승인 프로토콜의 기억 범위(이번만, 이 대화, 항상)를 따른다(`L4.cli.spec` 승인 화면). "항상"이면 local 범위 `l2.web.policy.allow`에 그 호스트를 더한다. project 범위는 허용하지 않는다(§6) [제안].
+- `ask` 판정이면 `fresnel.approvals`로 승인을 요청한다(`L2.readme` §5.7). 요청 kind는 `tool`이고 대상은 도구 승인 body(`ToolApprovalDetail`, `additionalProperties:false`)다: `toolName`은 기능 id(`web.fetch`), `capability`는 `{ id, method }`, `risk`는 `"read"`(`ToolRisk` 안의 값만 읽힌다), `args`는 `{ subject: "web_access", host, url, tool, reasons, scopes }`, `argsHash`는 그 정규화 JSON의 sha256, `ruleId`는 `"web.access"`(`WEB_ACCESS_RULE_ID`)다. 값의 뜻과 선택지는 §4.5.5다. 화면 제목은 호스트 이름을 넣어 만든다(`ask-adapter.ts`의 `webApprovalTitle`).
+- 승인 범위(이번만, 이 사이트 계속, 모든 사이트)는 §4.5.5다. 요청의 `remember`로 고르고, 허용 응답을 받은 뒤 cap-web이 사용자 범위 설정에 쓴다. project 범위는 허용하지 않는다(§6) [제안].
 - 승인 대기가 끊기면(호출 중단, 탐구 하위 대화의 끝) 그 요청을 `cancel`로 닫는다. 답을 줄 곳이 없는 요청이 승인 대기 표시로 남지 않게 한다. 호출은 `unavailable`이다.
 - 호출자가 확장이고 대화가 없으면 승인 창을 띄울 곳이 없다. 이때 `ask`는 `denied`(`detail.reason: "ask_without_session"`)다.
 - 백그라운드 포크(`caller.agent = "background"`)는 `ask`를 `denied`로 바꾼다. 사람이 없는 경로에서 승인 대기를 만들지 않는다 [제안].
@@ -1238,6 +1238,28 @@ Claude Code의 `WebFetch(domain:…)` 문법을 따른다(`_research/web-tools.m
 #### 4.5.4 provider 매핑 한계
 
 - 검색 provider의 도메인 필터 한계(`manifest.limits.domainFilter`)를 넘거나 allow·deny를 함께 쓸 수 없는 provider면, 앞단은 provider에 넘길 수 있는 만큼만 넘기고 나머지는 결과 후처리로 거른다. 거른 사실을 `meta.warnings`에 남긴다(`_research/web-tools.md` §4.9 마지막 항목).
+
+#### 4.5.5 승인 선택지
+
+[결정: 2026-11-15 사용자] 기본·편집 허용 모드에서 도메인 확인이 뜰 때 고를 수 있는 선택은 넷이다: 이번만 허용, 이 사이트 계속 허용, 모든 사이트 허용, 거부.
+
+| 선택 | 응답(`approval.respond`) | 효과 |
+| --- | --- | --- |
+| 이번만 허용 | `{ decision: "allow" }` 또는 `remember: "once"` | 이 호출만 통과. 설정을 쓰지 않는다. 기억 범위를 모르는 옛 화면의 허용도 이 뜻이다 |
+| 이 사이트 계속 허용 | `{ decision: "allow", remember: "always" }` | 그 호스트(소문자, punycode)를 user 범위 `l2.web.policy.allow`에 더한다. 이후 모든 대화에서 그 호스트는 도메인 확인을 하지 않는다. 하위 도메인은 목록의 매칭 규칙(§4.5.1)을 따라 정확한 호스트만 더하고 `*.`를 붙이지 않는다 |
+| 모든 사이트 허용 | `{ decision: "allow", remember: "thread" }` | user 범위 `l2.web.policy.default`를 `allow`로 쓴다. 이름과 달리 `thread`는 그 대화에 묶이지 않는다(L1.tools.spec §4.7 6번 예외 2) |
+| 거부 | `{ decision: "deny" }` | 호출은 `denied`(`ask_denied`). 설정을 쓰지 않는다 |
+
+- 평가 순서는 deny > ask > allow > 기본값(`l2.web.policy.default`, 기본 `ask`)이다. 차단 목록과 확인 목록은 "모든 사이트 허용" 뒤에도 이긴다.
+- `policy.default`가 `allow`이고 `unseenUrl`이 `ask`면 처음 보는 URL 확인도 건너뛴다(사용자가 "웹 접근에 계속 묻지 않기"를 골랐다). `unseenUrl = deny`는 그대로 막는다. 시크릿 의심(`secret_pattern`) 확인은 이 선택과 무관하게 남는다.
+- "이 사이트 계속 허용"은 호스트의 도메인 확인만 끈다. 그 호스트의 처음 보는 URL 확인(`unseen_url`)은 `unseenUrl`을 따라 남는다. 허용 목록 `*`도 지금까지 그랬다(`access-unseen` 시험).
+- 시크릿 의심 질문은 `scopes: ["once"]`뿐이고 요청 `remember`도 `["once"]`다. 화면에 싣는 URL도 출처(`https://호스트/`)로 줄인다(승인 기록에 시크릿이 남지 않게). IP 리터럴이 도메인 패턴이 아니면(IPv6) "이 사이트" 선택은 빠진다(`scopes: ["once", "all"]`).
+- 요청 `args`: `subject`(`"web_access"`), `host`, `url`(전체 URL), `tool`(`web.fetch`, `web.browse` 등), `reasons`(`policy_ask`, `unseen_url`, `secret_pattern`), `scopes`(`once`, `site`, `all`의 부분 목록. `once`가 먼저). 요청의 `remember`는 `scopes`를 `once`→`once`, `site`→`always`, `all`→`thread`로 옮긴 목록이다. 화면은 `ruleId`나 `args.subject`로 알아보고 `scopes`로 선택지를 그린다. 제목(`title`)은 영어 대체 문장이다.
+- 되돌리기: 허용 목록에서 호스트를 빼거나(`l2.web.policy.allow`), `l2.web.policy.default`를 `ask`로 돌린다(설정 화면 또는 `settings.reset`). 다음 호출부터 다시 묻는다.
+- 쓰기가 실패해도(설정 파일 잠금, 목록 500개 초과) 이번 호출은 허용된 채로 진행하고 `web.policy_write_failed`를 남긴다. 다음에 다시 묻는다.
+- 한 호출이 묻는 호스트는 하나다. 도메인 확인은 처음 요청하는 URL(`authorize`)에서만 하고, 리다이렉트 hop과 robots는 deny 판정만 다시 한다(묻지 않는다). 검색 결과 URL을 여러 개 여는 일은 호출이 여럿이라 호출마다 묻고, 여러 호스트를 한 번에 묻는 구조는 두지 않는다.
+- 브라우저 동작 확인(민감한 클릭 등, `web.browse.confirm`)은 이 선택지의 대상이 아니다. 이번만 허용 하나다.
+- 대화가 없거나 백그라운드 포크처럼 사람이 없는 실행은 §4.5.3 그대로다(물을 수 없으면 거부). "모두 허용" 권한 모드는 지금처럼 묻지 않는다.
 
 ### 4.6 SSRF 규칙
 
@@ -1693,6 +1715,7 @@ stateDiagram-v2
 | `l2.web.policy.ask` | string[](도메인 패턴) | `[]` | — | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.web.policy.deny` | string[](도메인 패턴) | `[]` | — | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.web.policy.allowPrivateNetwork` | boolean | `false` | — | nextTurn | managed, user, local | tools | false |
+| `l2.web.policy.default` | string | `"ask"` (`allow`면 어느 목록에도 없는 도메인을 묻지 않고 허용하고 처음 보는 URL 확인도 건너뜀, §4.5.5) | enum ask, allow | nextTurn | managed, user, local, launch | tools | false |
 | `l2.web.policy.unseenUrl` | string | `"ask"` (권한 모드가 "모두 허용"이면 묻지 않고 허용, §4.6.6) | enum ask, allow, deny | nextTurn | managed, user, local, launch | tools | false |
 | `l2.web.policy.robots` | string | `"never"` | enum auto, always, never | nextTurn | managed, user, project, local | tools | false |
 | `l2.web.cache.searchTtlMinutes` | integer | `20` | min 0, max 1440 | live | managed, user, project, local | tools | false |
@@ -1718,6 +1741,7 @@ stateDiagram-v2
 
 - 플러그인 키는 `ext.<확장 이름>.*`이다. 예: `ext.web-exa.apiKey`(string, `secret://` 참조, `secret: true`, 기본값 없음, ui.tab `plugins`)(`F.wire-settings.spec` §3.8.3). L2 키에는 시크릿이 없다.
 - `l2.web.search.provider`, `l2.web.browse.provider`, `order`, `pluginOrder`는 플러그인 설치 상태에 따라 값 목록이 바뀌므로 `range.enum`을 두지 않는다. 위젯은 `text`이고, L4는 `fresnel.web` 앞단이 아는 후보 목록으로 고르기 화면을 만들 수 있다(§10 미결 11).
+- `l2.web.policy.default`는 project 범위를 허용하지 않는다(저장소 설정이 모든 도메인 확인을 끄지 못하게, `allow`·`unseenUrl`과 같은 이유) [제안]. "모든 사이트 허용" 선택이 user 범위에 쓴다(§4.5.5).
 - 도메인 목록 세 키는 범위별 값을 합친다(§4.5.2). 다른 키는 `F.wire-settings.spec` §3.9 일반 규칙(높은 범위 하나)을 따른다.
 - `l2.web.browse.allowNamedProfiles`는 관리·사용자 범위만 허용한다. 작업 폴더 파일로 로그인 프로필을 켜는 경로를 막기 위해서다.
 - `l2.web.policy.allow`(허용 목록)와 `l2.web.policy.unseenUrl`(대화에 없던 URL 확인)은 project 범위를 허용하지 않는다 [제안]. 저장소 설정 파일이 `allow: ["*"]`와 `unseenUrl: "allow"`를 넣으면 기본 `ask`가 모든 도메인에서 꺼지고 대화 내용을 쿼리에 실어 내보내는 경로를 막는 검사도 꺼진다. project 범위는 `ask`와 `deny`처럼 막는 쪽 목록에만 더할 수 있다.

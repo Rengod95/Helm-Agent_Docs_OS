@@ -1,8 +1,13 @@
 import { canonicalJson, err, ok, parse } from "@fresnel/contracts";
 import type { JsonObject } from "@fresnel/contracts/conversation";
-import type { L2ApprovalRequest, L2ApprovalsPort } from "@fresnel/contracts/services";
+import {
+  WEB_ACCESS_RULE_ID,
+  type ApprovalRemember,
+  type L2ApprovalRequest,
+  type L2ApprovalsPort,
+} from "@fresnel/contracts/services";
 import { Type } from "typebox";
-import type { WebAskPort, WebAskRequest } from "./ports/ask.ts";
+import type { WebAskAnswer, WebAskPort, WebAskRequest, WebAskScope } from "./ports/ask.ts";
 import { sha256Hex } from "./util/hash.ts";
 
 // 도메인·URL 승인 요청을 `fresnel.approvals`의 도구 승인 body(`ToolApprovalDetail`, additionalProperties:false)로 옮긴다.
@@ -11,7 +16,10 @@ import { sha256Hex } from "./util/hash.ts";
 // - toolName은 기능 id(`web.fetch`)이고 capability.method는 그 기능의 메서드 이름이다.
 // - risk는 `ToolRisk`("read"|"write"|"exec") 안에서만 고를 수 있다. 웹 기능은 읽기라 "read"다. 허용 목록에 없는 값은
 //   core-tools가 body를 읽지 못해 요청을 거부한다.
-// - args는 `{ host, reasons }`이고 argsHash는 그 정규화 JSON의 sha256이다. ruleId는 도메인 규칙이 아니라 웹 정책이 낸 질문이라 null이다.
+// - args는 `{ subject: "web_access", host, url, tool, reasons, scopes }`이고 argsHash는 그 정규화 JSON의 sha256이다. ruleId는 `WEB_ACCESS_RULE_ID`다.
+//   화면은 `ruleId`나 `args.subject`로 이 요청을 알아보고 `args.scopes`로 선택지를 그린다. 제목 문장은 영어 대체 문장이다.
+// - 선택지: 승인 요청의 `remember`는 `scopes`를 옮긴 목록이다. 허용+once = 이번만, 허용+always = 이 사이트 계속 허용(`site`), 허용+thread = 모든 사이트 허용(`all`),
+//   거절 = 거절. 옛 카드의 허용은 once(이번만)다. `thread`는 이름과 달리 그 대화에 묶이지 않는다(L1.tools.spec §4.7 6번 예외 2).
 
 const METHOD_OF: Readonly<Record<WebAskRequest["capability"], string>> = {
   "web.search": "search",
@@ -23,16 +31,29 @@ const HostSubjectSchema = Type.Object({
   tool: Type.Object({ args: Type.Object({ host: Type.String() }) }),
 });
 
+const REMEMBER_OF: Readonly<Record<WebAskScope, ApprovalRemember>> = {
+  once: "once",
+  site: "always",
+  all: "thread",
+};
+
 /** 승인 요청의 대상(`kind: "tool"`의 body 내용) */
 function webAskSubject(request: WebAskRequest): JsonObject {
-  const args: JsonObject = { host: request.host, reasons: [...request.reasons] };
+  const args: JsonObject = {
+    subject: "web_access",
+    host: request.host,
+    url: request.url,
+    tool: request.capability,
+    reasons: [...request.reasons],
+    scopes: [...request.scopes],
+  };
   return {
     toolName: request.capability,
     capability: { id: request.capability, method: METHOD_OF[request.capability] },
     risk: "read",
     args,
     argsHash: sha256Hex(canonicalJson(args)),
-    ruleId: null,
+    ruleId: WEB_ACCESS_RULE_ID,
   };
 }
 
@@ -47,6 +68,12 @@ export function webApprovalTitle(request: L2ApprovalRequest): string {
     : "Allow this web access?";
 }
 
+function answerOf(remember: ApprovalRemember | undefined): WebAskAnswer {
+  if (remember === "always") return "allow_site";
+  if (remember === "thread") return "allow_all";
+  return "allow";
+}
+
 /** `fresnel.approvals`의 L2 공통 포트를 웹 승인 요청 모양으로 감싼다. 요청 kind는 `tool`, 대상은 `webAskSubject`다 */
 export function createAskAdapter(approvals: L2ApprovalsPort): WebAskPort {
   return {
@@ -56,6 +83,7 @@ export function createAskAdapter(approvals: L2ApprovalsPort): WebAskPort {
         kind: "tool",
         subject: webAskSubject(request),
         requestId: request.requestKey,
+        remember: request.scopes.map((scope) => REMEMBER_OF[scope]),
       });
       if (!requested.ok) {
         return err({
@@ -77,11 +105,10 @@ export function createAskAdapter(approvals: L2ApprovalsPort): WebAskPort {
         }
         snapshot = waited.value;
       }
-      return ok(
-        snapshot.state === "resolved" && snapshot.resolution?.decision === "allow"
-          ? "allow"
-          : "deny",
-      );
+      if (snapshot.state !== "resolved" || snapshot.resolution?.decision !== "allow") {
+        return ok("deny");
+      }
+      return ok(answerOf(snapshot.resolution.remember));
     },
   };
 }

@@ -1,5 +1,6 @@
 import { err, ok } from "@fresnel/contracts";
-import type { WebAskPort, WebAskRequest } from "../ports/ask.ts";
+import type { WebAskAnswer, WebAskPort, WebAskRequest } from "../ports/ask.ts";
+import type { WebPolicyWriter } from "../ports/policy-writer.ts";
 import type { HeaderSecretSender, OutboundSecretGuard } from "../ports/secrets.ts";
 import type { RecordedSource, WebSessionSourcesPort } from "../ports/session-sources.ts";
 
@@ -10,7 +11,7 @@ export interface FakeAsker extends WebAskPort {
 }
 
 /** 정해진 답으로 응답하는 승인 포트. answer가 "unavailable"이면 승인 채널이 없는 것처럼 실패한다 */
-export function fakeAsker(answer: "allow" | "deny" | "unavailable"): FakeAsker {
+export function fakeAsker(answer: WebAskAnswer | "unavailable"): FakeAsker {
   const requests: WebAskRequest[] = [];
   return {
     requests,
@@ -20,6 +21,31 @@ export function fakeAsker(answer: "allow" | "deny" | "unavailable"): FakeAsker {
         return Promise.resolve(err({ kind: "unavailable", message: "no approval channel" }));
       }
       return Promise.resolve(ok(answer));
+    },
+  };
+}
+
+export interface FakePolicyWriter extends WebPolicyWriter {
+  readonly hosts: string[];
+  readonly allSites: { count: number };
+}
+
+/** 쓴 내용을 기록하는 정책 쓰기 대역. `fails`가 참이면 쓰기가 실패한다 */
+export function fakePolicyWriter(fails = false): FakePolicyWriter {
+  const hosts: string[] = [];
+  const allSites = { count: 0 };
+  return {
+    hosts,
+    allSites,
+    allowHost(host) {
+      if (fails) return Promise.resolve(err({ kind: "failed", message: "write refused" }));
+      hosts.push(host);
+      return Promise.resolve(ok(undefined));
+    },
+    allowAllSites() {
+      if (fails) return Promise.resolve(err({ kind: "failed", message: "write refused" }));
+      allSites.count += 1;
+      return Promise.resolve(ok(undefined));
     },
   };
 }
