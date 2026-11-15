@@ -1,11 +1,6 @@
 import { Type, type Static, type TLiteral, type TString, type TUnion, type TUnsafe } from "typebox";
 import type { Brand, SchemaProof, SchemaSound } from "../../base/index.ts";
-import {
-  ApprovalIdSchema,
-  TurnIdSchema,
-  type ApprovalId,
-  type TurnId,
-} from "../../conversation/index.ts";
+import { TurnIdSchema, type TurnId } from "../../conversation/index.ts";
 import type { CapabilityApi, CapabilityDef } from "../capability.ts";
 import type { MethodDef } from "../method.ts";
 import { defineCapability } from "../capability.ts";
@@ -471,9 +466,9 @@ export const WorkTasks: CapabilityDef<
 });
 export const WorkTasksKey: ServiceKey<CapabilityApi<typeof WorkTasks>> = serviceKey(WorkTasks);
 
-// ── work.plans (§3.3) ──────────────────────────────────────────────────
-// 계획 모드와 계획 승인은 없앴다 [결정: 2026-11-13 사용자]. 남는 것은 옛 계획 기록을 읽는 `versions`뿐이다.
-// 데스크톱이 옛 대화의 계획 카드를 그리는 데 쓰고, 기록 모양(PlanStatus, PlanDecision, PlanVersion)은 그대로 둔다.
+// ── 옛 계획 참조 (§3.3) ────────────────────────────────────────────────
+// 계획 모드와 계획 기능은 없앴다 [결정: 2026-11-13 사용자]. 보고서의 `plan` 칸이 옛 계획을 가리킬 때 쓰는 상태 모양만 남긴다.
+// 판 모양(PlanVersion), `work.plans` 기능 정의, `versions` 메서드는 지웠다 [결정: 2026-11-15 사용자].
 
 export const PlanStatusSchema: TUnion<
   [
@@ -497,102 +492,6 @@ export const PlanStatusSchema: TUnion<
   Type.Literal("withdrawn"),
 ]);
 export type PlanStatus = Static<typeof PlanStatusSchema>;
-
-/** 옛 계획 결정(읽기 전용) */
-export const PlanDecisionSchema: TUnion<
-  [TLiteral<"approved">, TLiteral<"rejected">, TLiteral<"revision_requested">]
-> = Type.Union([
-  Type.Literal("approved"),
-  Type.Literal("rejected"),
-  Type.Literal("revision_requested"),
-]);
-export type PlanDecision = Static<typeof PlanDecisionSchema>;
-
-const PlanTitle = Type.String({ minLength: 1, maxLength: 200 });
-const PlanBody = Type.String({
-  minLength: 1,
-  maxLength: 65536,
-  description: "Markdown plan body, max 64 KiB",
-});
-
-export type PlanVersion = {
-  planId: PlanId;
-  version: number;
-  title: string;
-  body: string;
-  status: PlanStatus;
-  artifact: ArtifactRef | null;
-  approvalId: ApprovalId | null;
-  /** 반려 사유 또는 수정 요청 내용 */
-  feedback: string | null;
-};
-const planVersionShape = Type.Object(
-  {
-    planId: PlanIdSchema,
-    version: Type.Integer({ minimum: 1, maximum: 999 }),
-    title: PlanTitle,
-    body: PlanBody,
-    status: PlanStatusSchema,
-    artifact: Type.Union([ArtifactRefSchema, Type.Null()]),
-    approvalId: Type.Union([ApprovalIdSchema, Type.Null()]),
-    feedback: Type.Union([Type.String({ maxLength: 8192 }), Type.Null()]),
-  },
-  { additionalProperties: false },
-);
-export const PlanVersionSchema: TUnsafe<PlanVersion> = Type.Unsafe<PlanVersion>(
-  planVersionShape satisfies SchemaProof<PlanVersion, typeof planVersionShape>,
-);
-
-export type PlanVersionsInputValue = { planId: PlanId };
-const planVersionsInputShape = Type.Object(
-  { planId: PlanIdSchema },
-  { additionalProperties: false },
-);
-export const PlanVersionsInput: TUnsafe<PlanVersionsInputValue> =
-  Type.Unsafe<PlanVersionsInputValue>(
-    planVersionsInputShape satisfies SchemaProof<
-      PlanVersionsInputValue,
-      typeof planVersionsInputShape
-    >,
-  );
-
-export type PlanVersionsOutputValue = { versions: PlanVersion[] };
-const planVersionsOutputShape = Type.Object(
-  { versions: Type.Array(PlanVersionSchema) },
-  { additionalProperties: false },
-);
-export const PlanVersionsOutput: TUnsafe<PlanVersionsOutputValue> =
-  Type.Unsafe<PlanVersionsOutputValue>(
-    planVersionsOutputShape satisfies SchemaProof<
-      PlanVersionsOutputValue,
-      typeof planVersionsOutputShape
-    >,
-  );
-
-type PlansMethods = {
-  readonly versions: MethodDef<typeof PlanVersionsInput, typeof PlanVersionsOutput>;
-};
-
-/** 모델 도구가 없는 기능이다. 옛 계획 기록을 읽기만 하고 아무것도 쓰지 않는다 */
-export const WorkPlans: CapabilityDef<PlansMethods, readonly []> = defineCapability({
-  id: "work.plans",
-  version: "1.0.0",
-  description:
-    "Reads the plans recorded before plan mode was removed. It has no model tools and writes nothing.",
-  service: {
-    methods: {
-      versions: {
-        description: "Lists all versions of an old plan.",
-        input: PlanVersionsInput,
-        output: PlanVersionsOutput,
-        replay: "safe",
-        readOnly: true,
-      },
-    },
-  },
-  tools: [],
-});
-export const WorkPlansKey: ServiceKey<CapabilityApi<typeof WorkPlans>> = serviceKey(WorkPlans);
 
 // ── work.goals (§3.4) ──────────────────────────────────────────────────
 
@@ -1072,15 +971,10 @@ export const WorkReportsKey: ServiceKey<CapabilityApi<typeof WorkReports>> =
 /** work 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 기능마다 cap:<id> 바인딩이다 */
 export interface WorkService {
   readonly tasks: CapabilityApi<typeof WorkTasks>;
-  readonly plans: CapabilityApi<typeof WorkPlans>;
   readonly goals: CapabilityApi<typeof WorkGoals>;
   readonly reports: CapabilityApi<typeof WorkReports>;
 }
 /** 묶음 이름. eng.context-map.design §5.3 표의 이름이고 Cordis 등록 이름이 아니다 */
 export const WorkServiceName = "fresnel.work" as const;
-export const WORK_CAPABILITIES: readonly [
-  typeof WorkTasks,
-  typeof WorkPlans,
-  typeof WorkGoals,
-  typeof WorkReports,
-] = [WorkTasks, WorkPlans, WorkGoals, WorkReports];
+export const WORK_CAPABILITIES: readonly [typeof WorkTasks, typeof WorkGoals, typeof WorkReports] =
+  [WorkTasks, WorkGoals, WorkReports];

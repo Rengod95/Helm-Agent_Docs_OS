@@ -152,7 +152,7 @@ function entryOf(kind: string): (typeof WORK_EVENT_CATALOG)[number] {
 }
 
 describe("work event catalog", () => {
-  test("has the ten kinds of L2.work.spec §3.7, all durable at version 1", () => {
+  test("has the ten kinds of L2.work.spec §3.7 (two retired), all durable at version 1", () => {
     expect(WORK_EVENT_CATALOG.map((e) => e.kind)).toEqual([
       "work.task_created",
       "work.task_changed",
@@ -168,7 +168,18 @@ describe("work event catalog", () => {
     for (const entry of WORK_EVENT_CATALOG) {
       expect(entry.durable).toBe(true);
       expect(entry.version).toBe(1);
-      expect(entry.retired).toBeUndefined();
+    }
+    expect(WORK_EVENT_CATALOG.filter((e) => e.retired === true).map((e) => e.kind)).toEqual([
+      "work.plan_submitted",
+      "work.plan_withdrawn",
+    ]);
+  });
+
+  test("retired plan kinds read the old rows as they were written", () => {
+    for (const kind of ["work.plan_submitted", "work.plan_withdrawn"]) {
+      const old = FIXTURES[kind];
+      const result = parse(entryOf(kind).payload, old);
+      expect(result.ok ? result.value : null).toEqual(old);
     }
   });
 
@@ -220,16 +231,6 @@ describe("work payload rejections", () => {
     const entry = entryOf("work.task_linked");
     expect(parse(entry.payload, { taskId: "t2", blockedBy: [] }).ok).toBe(false);
     expect(parse(entry.payload, { taskId: "x2", blockedBy: ["t1"] }).ok).toBe(false);
-  });
-
-  test("plan payloads: version >= 1, body up to 64 KiB, known withdrawal reason", () => {
-    const submitted = entryOf("work.plan_submitted");
-    expect(parse(submitted.payload, { ...PLAN_SUBMITTED, version: 0 }).ok).toBe(false);
-    expect(parse(submitted.payload, { ...PLAN_SUBMITTED, body: "x".repeat(65537) }).ok).toBe(false);
-    const withdrawn = entryOf("work.plan_withdrawn");
-    expect(parse(withdrawn.payload, { planId: "p1", version: 1, reason: "timeout" }).ok).toBe(
-      false,
-    );
   });
 
   test("judged payload carries the turn id of the trn_ kind and nullable usage", () => {

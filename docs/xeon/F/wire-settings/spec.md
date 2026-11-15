@@ -398,7 +398,6 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | review | `review.get` | `{ reviewId: string }` | `{ reviewId, files: { path, hunks: HunkView[] }[] }` | M4 (W-02) |
 | goal | `goal.status` | `{ threadId: string }` | `{ goal: GoalView \| null }` | M4 (W-05) |
 | work | `work.tasks.list` | `{ threadId: string }` | `{ tasks: TaskView[] }` | M4 (W-06) |
-| work | `work.plans.versions` | `{ threadId: string, planId: string }` | `{ versions: PlanVersion[] }`. 계획 id의 꼴이 맞지 않거나 그 계획이 없으면 `jsonrpc.invalidParams`(path `planId`)다. 기능이 없으면 빈 목록이다 | M4 (W-18) |
 | knowledge | `knowledge.skills.view` | `{ name: string(1..128), threadId?: string }` | `{ name, scope: "user"\|"project"\|"extension"\|"path", description, body: string, bodyTruncated: boolean, files: string[], treeHash: string }`. 본문은 앞 20000자까지다(넘으면 `bodyTruncated`가 참). 없는 스킬이면 `jsonrpc.invalidParams`(path `name`), 기능이 없거나 스킬 설정이 꺼져 있으면 `jsonrpc.methodNotFound`다 | M4 (W-14) |
 | knowledge | `knowledge.skills.list` | `{ threadId?: string }` | `{ skills: { name, description: string(≤1024), scope: "user"\|"project"\|"extension"\|"path", modelInvocable: boolean }[](≤2000), diagnostics: { severity: "warning"\|"collision", message: string(≤512), path: string(≤1024) }[](≤200) }`. 이 대화의 작업 폴더 기준으로 읽은 색인과, 색인에서 빠진 스킬의 이유(형식 오류, 폴더 신뢰 안 됨)다. 슬래시 목록의 "스킬" 묶음이 쓴다. 스킬 설정이 꺼져 있으면 `jsonrpc.methodNotFound`다 [결정: 오케스트레이터 기본값, scI] | M4 (W-14b) |
 | knowledge | `knowledge.memory.read` | `{ stores?: ("user"\|"env")[] }` | `{ stores: MemoryStoreView[] }`. 저장소마다 `{ store, entries: { id, text, chars }[], usedChars, limitChars, fileHash, writeBlocked }`다. `stores`를 생략하면 둘 다 읽는다. 기억 설정이 꺼져 있으면 `jsonrpc.methodNotFound`다 | M4 (W-19) |
@@ -570,9 +569,8 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   | 요청 kind | decision | answer |
   |---|---|---|
   | `question` | `answer` | `QuestionAnswer`: 질문 id → `{ selected: string[], text?: string }`. 키는 `QuestionBody`의 질문 id, `selected`는 그 질문의 선택지 id다. 질문은 최대 4개다 |
-  | `plan` | `allow` | `{ mode?, note? }`(선택). `mode`는 승인 뒤에 쓸 다음 권한 모드로 `nextModes` 가운데 하나다. `note`는 계획 도구에 돌려줄 메모(최대 8192자)다 |
   | `review` | `answer` | `ReviewAnswer`: `{ decisions, comments, submit, approveRemaining? }`. 스키마는 `F.records` `ReviewAnswerSchema`이고 모양은 `L2.artifacts.spec` §4.2.4와 같다 [제안: M3-REQ-09] |
-  | `tool`, `plan`, `question`, `review` | `deny` | `{ feedback }`(선택). 모델에게 돌려줄 거부 이유(1~8192자) |
+  | `tool`, `question`, `review` | `deny` | `{ feedback }`(선택). 모델에게 돌려줄 거부 이유(1~8192자) |
   | `tool` | `allow` | 없음 |
 
   - 그 밖의 조합(예: 도구 승인에 질문 답, 질문에 `allow`)은 모양이 스키마를 통과해도 승인 서비스가 `applied: false`로 돌려준다. 스키마에 맞지 않는 `answer`는 `-32602`다.
@@ -1448,7 +1446,7 @@ export declare function validateSettingValue(def: SettingDef, value: unknown):
 | A. 내구 이벤트 + 응답 메서드 [결정] | 엔진이 `approval.requested` 내구 이벤트를 커밋한다. 클라이언트는 `events.batch`로 받고 `approval.respond`로 답한다. 결과는 `approval.resolved` 이벤트로 남는다 | 재접속·재시작 뒤에도 대기 상태가 저장소에서 복구된다. 여러 클라이언트 중 아무나 답할 수 있다. 서버 → 클라이언트 요청이 필요 없다 | 대기 시간 제한을 엔진이 따로 관리한다 |
 | B. 서버 → 클라이언트 요청 | 엔진이 JSON-RPC 요청 `approval.request`를 보내고 클라이언트 응답을 기다린다 | ACP·MCP의 elicitation과 모양이 같다 | 연결이 끊기면 요청이 사라진다. 클라이언트가 여럿이면 누구에게 보낼지 정해야 한다 |
 
-- A안이라 승인 요청·해결 이벤트가 필요하다. `approval.requested`, `approval.resolved` kind를 `F.records.spec` §3.3.1 코어 카탈로그에 두었다(`body.kind`는 `tool`, `question`, `plan`). 하위 모양의 필드 뜻은 `L1.tools.spec`(승인 프로토콜) 소관이다. 이 문서는 `approval.respond` 메서드만 정한다. 사용자가 B안으로 답하면 두 kind를 `retired: true`로 두고 이 절을 고친다.
+- A안이라 승인 요청·해결 이벤트가 필요하다. `approval.requested`, `approval.resolved` kind를 `F.records.spec` §3.3.1 코어 카탈로그에 두었다(`body.kind`는 `tool`, `question`, `review`다. 옛 `plan`은 은퇴해 읽기만 한다 [결정: 2026-11-15 사용자]). 하위 모양의 필드 뜻은 `L1.tools.spec`(승인 프로토콜) 소관이다. 이 문서는 `approval.respond` 메서드만 정한다. 사용자가 B안으로 답하면 두 kind를 `retired: true`로 두고 이 절을 고친다.
 - `approvalId`는 [가정] 승인 요청 이벤트의 id(`EventId`)를 그대로 쓴다.
 
 ### 4.7 설정 우선순위 [제안]

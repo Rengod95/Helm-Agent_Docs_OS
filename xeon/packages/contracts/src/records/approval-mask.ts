@@ -70,21 +70,9 @@ function maskBody(body: Body, leaves: readonly LeafMask[]): Body | null {
         },
       };
     }
-    // 더는 쓰지 않음 [결정: 2026-11-13 사용자]. 옛 계획 승인 기록을 가리기 위해 남긴다(읽기 전용)
-    case "plan": {
-      const plan = body.plan;
-      return {
-        kind: "plan",
-        plan: {
-          ...plan,
-          plan: typeof plan.plan === "string" ? m("/body/plan/plan", plan.plan) : plan.plan,
-          planRef: plan.planRef === null ? null : m("/body/plan/planRef", plan.planRef),
-          nextModes: plan.nextModes.map((mode, index) =>
-            m(`/body/plan/nextModes/${String(index)}`, mode),
-          ),
-        },
-      };
-    }
+    // 더는 쓰지 않음 [결정: 2026-11-13 사용자]. 옛 계획 승인 본문은 가리지 않고 그대로 돌려준다 [결정: 2026-11-15 사용자]
+    case "plan":
+      return body;
     case "question":
       return {
         kind: "question",

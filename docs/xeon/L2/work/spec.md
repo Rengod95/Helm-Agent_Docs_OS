@@ -10,7 +10,7 @@ binds: [xeon/packages/cap-work/**]
 
 # L2 작업 관리 (work)
 
-패키지: `xeon/packages/cap-work`. 서비스: `fresnel.work`. 기능: `work.tasks`, `work.plans`(옛 기록 읽기만), `work.goals`, `work.reports`. 이벤트 접두사: `work.`. 테이블 접두사: `cap_work_`. 생산자 id: `cap.work`.
+패키지: `xeon/packages/cap-work`. 서비스: `fresnel.work`. 기능: `work.tasks`, `work.goals`, `work.reports`(`work.plans`는 2026-11-15 정리로 지웠다 [결정: 2026-11-15 사용자]). 이벤트 접두사: `work.`. 테이블 접두사: `cap_work_`. 생산자 id: `cap.work`.
 
 ## 1. 목적과 범위
 
@@ -21,7 +21,7 @@ L2-e 묶음 대응(`_research/l2e.md` §5): L2-e1 작업 관리(A1, A2, A2b, A5,
 정하는 것:
 
 - `work.tasks`: 작업 항목(내용, 상태, owner, 선행 작업), 의존 간선과 순환 거부, 막힘 표시, 자동 시작 옵션, 목록 연산 도구 `task_write`
-- `work.plans`: 옛 계획 기록을 읽는 `versions`와 그 모양. 계획 모드와 계획 승인은 삭제됐다 [결정: 2026-11-13 사용자]
+- `work.plans`: 기능이 지워졌다. 계획 모드와 계획 승인은 삭제됐고 옛 기록을 읽던 `versions`도 지웠다 [결정: 2026-11-13 사용자], [결정: 2026-11-15 사용자]
 - `work.goals`: 목표 설정·상태·해제, 턴마다의 판정, 판정 횟수 상한, 판정 주입(L3 판정자 대체)
 - `work.reports`: 완료 보고 스키마와 생성
 - `work.*` 이벤트 카탈로그와 `cap_work_` 투영
@@ -307,25 +307,12 @@ export function parseTaskList(text: string): readonly { id: string; status: Work
 - [결정: WK.1] `task_write`는 L1.tools 등록에서 `risk: "read"`다. 작업 목록은 작업 영역의 파일을 바꾸지 않으므로 read로 두고, 매번 승인을 묻지 않는다. 계획 모드는 삭제됐다 [결정: 2026-11-13 사용자]. 클래스 표지(`classes`)는 달지 않는다. 서브에이전트는 자기 스레드의 목록을 쓰기 때문이다.
 - [결정: WK.1] `list`도 스레드별 쓰기 큐(§4.1.1)를 지난다. 먼저 부른 쓰기가 끝난 뒤의 목록을 본다.
 
-### 3.3 `work.plans` [삭제됨 [결정: 2026-11-13 사용자]]
+### 3.3 `work.plans` [삭제됨 [결정: 2026-11-13 사용자]; 정리 [결정: 2026-11-15 사용자]]
 
 계획 모드와 계획 승인을 없앴다. 모델은 계획을 글로 쓰고 필요하면 `ask_user`로 묻는다. 그래서 계획 도구(`enter_plan_mode`, `exit_plan_mode`, `submit_plan`), 계획 쓰기 메서드(`enterMode`, `exitMode`, `submit`, `approve`, `reject`, `revise`), 설정 `l2.work.plans.*`, 명령 `/plan`은 모두 없다. 계획 렌더 함수(`renderPlanSubmit`)와 계획 실패 값도 없다. [근거: 2026-11-13 사용자 결정]
 
-남는 것은 옛 계획 기록을 읽는 `versions` 하나다. 데스크톱이 옛 대화의 계획 카드를 그리는 데 쓴다. 기록 모양(`PlanStatus`, `PlanDecision`, `PlanVersion`)과 wire 메서드 `work.plans.versions`는 그대로다.
+2026-11-15 정리로 옛 계획 기록을 읽던 기능 `work.plans`, 메서드 `versions`, wire 메서드 `work.plans.versions`, 판 모양(`PlanVersion`)도 지웠다. 코드에 남는 것은 보고서의 `plan` 칸을 읽는 계획 상태 모양(`PlanId`, `PlanStatus`)뿐이다 [결정: 2026-11-15 사용자]. 옛 `work.plan_submitted`와 `work.plan_withdrawn`은 카탈로그에 은퇴 종류(`retired: true`)로 남아 값을 검사하지 않고 읽기만 한다(§3.7).
 
-```ts
-// xeon/packages/contracts/src/capabilities/defs/work.ts
-export const WorkPlans = defineCapability({
-  id: "work.plans",
-  version: "1.0.0",
-  service: { methods: {
-    versions: { input: PlanVersionsInput, output: PlanVersionsOutput, replay: "safe", readOnly: true },
-  } },
-  tools: [],   // 모델 도구 없음
-});
-```
-
-- `versions`: 스레드 큐를 지나 투영 `cap_work_plans`의 판을 제출 순서대로 돌려준다. 계획 번호가 없으면 `not_found`다. 쓰지 않는다.
 - 옛 기록의 `withdrawn`은 승인 없이 철회된 판이다. `revision_requested`는 투영이 만들지 않는다(§4.2 표).
 - 투영이 읽는 옛 기록: `work.plan_submitted`, `work.plan_withdrawn`, 계획 승인 요청과 해결(§3.7, §3.8).
 
@@ -549,13 +536,12 @@ export const WorkReportsKey = serviceKey(WorkReports);
 /** work 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 기능마다 cap:<id> 바인딩이다 */
 export interface WorkService {
   readonly tasks: CapabilityApi<typeof WorkTasks>;
-  readonly plans: CapabilityApi<typeof WorkPlans>;   // versions만 남았다(§3.3)
   readonly goals: CapabilityApi<typeof WorkGoals>;
   readonly reports: CapabilityApi<typeof WorkReports>;
 }
 /** 묶음 이름. eng.context-map.design §5.3 표의 이름이고 Cordis 등록 이름이 아니다 */
 export const WorkServiceName = "fresnel.work";
-export const WORK_CAPABILITIES = [WorkTasks, WorkPlans, WorkGoals, WorkReports] as const;
+export const WORK_CAPABILITIES = [WorkTasks, WorkGoals, WorkReports] as const;
 ```
 
 - consumer는 `RegistrationApi.capability(WorkTasksKey)`처럼 기능 단위 키로 API를 얻는다(`L2.readme` §5.6). L3 문서가 [가정]으로 적은 `work.task.create`는 이 문서의 `work.tasks`의 `create` 메서드다.
@@ -570,8 +556,8 @@ export const WORK_CAPABILITIES = [WorkTasks, WorkPlans, WorkGoals, WorkReports] 
 | `work.task_changed` | 내구 | `{ taskId, from, set, cause }` | 같음. 자동 시작은 원인 커밋의 키를 같이 쓴다 | 투영, L4, L3 그룹 |
 | `work.task_linked` | 내구 | `{ taskId, blockedBy[] }` | `work:tasks:<호출 requestId>` | 투영, L4 그래프 |
 | `work.task_unlinked` | 내구 | `{ taskId, blockedBy[] }` | 같음 | 투영, L4 그래프 |
-| `work.plan_submitted` | 내구(옛 기록, 더는 쓰지 않음 [결정: 2026-11-13 사용자]) | `{ planId, version, title, body, artifact, supersedes }` | — | 투영, L4 계획 카드(읽기) |
-| `work.plan_withdrawn` | 내구(옛 기록, 더는 쓰지 않음) | `{ planId, version, reason }` | — | 투영, L4 계획 카드(읽기) |
+| `work.plan_submitted` | 내구(옛 기록, 더는 쓰지 않음 [결정: 2026-11-13 사용자]) | 아무 값(`Type.Unknown()`, 읽기만 [결정: 2026-11-15 사용자]) | — | 투영, L4 계획 카드(읽기) |
+| `work.plan_withdrawn` | 내구(옛 기록, 더는 쓰지 않음) | 아무 값(`Type.Unknown()`, 읽기만 [결정: 2026-11-15 사용자]) | — | 투영, L4 계획 카드(읽기) |
 | `work.goal_set` | 내구 | `{ goal: Goal }`(`judgments: 0`, `status: "active"`) | `work:goals:<호출 requestId>` | 투영, L4 상태줄, schedule.loops |
 | `work.goal_judged` | 내구 | `GoalJudgment & { usage }` | `work:goal:<goalId>:judge:<turnId>` | 투영, L4, 보고 생성, L3 그룹 |
 | `work.goal_settled` | 내구 | `{ goalId, status, judgments }` | 종결 원인 커밋의 키 | 투영, L4, schedule.loops |
@@ -581,7 +567,7 @@ export const WORK_CAPABILITIES = [WorkTasks, WorkPlans, WorkGoals, WorkReports] 
 - `work.task_changed.cause`: `"call"`(서비스 호출) 또는 `"auto_start"`(§4.1.4).
 - 큰 값: `work.plan_submitted.body`는 64 KiB 이하라 envelope 한도 256 KiB 안에 든다. 그래서 blob으로 옮기지 않는다(eng.events.design EV-04).
 
-코드 모양(F 쪽 선행 작업, `L2.work.plan` T1):
+코드 모양(옛 설계. 2026-11-15 정리로 코드에서 지웠다 [결정: 2026-11-15 사용자]):
 
 ```ts
 // xeon/packages/contracts/src/records/catalog/work.ts
@@ -750,7 +736,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 | `work.goals.clear` | idempotent | safe | `work.goal_settled`(cleared)를 `work:goals:<requestId>` 커밋 키로 남긴다 |
 | `work.goals.judge` | idempotent | safe | `work.goal_judged`를 `work:goals:<requestId>` 커밋 키로 남기고 같은 턴 판정이 있으면 기존 판정을 돌려준다 |
 | `work.plans` 쓰기 6개(`enterMode`, `exitMode`, `submit`, `approve`, `reject`, `revise`) | 삭제됨 [결정: 2026-11-13 사용자] | — | 계획 모드와 함께 없앴다 |
-| `work.plans.versions` | readOnly | safe | 투영 조회 |
+| `work.plans.versions` | 삭제됨 [결정: 2026-11-15 사용자] | — | 옛 계획 기록 조회도 지웠다 |
 | `work.reports.build` | idempotent | safe | `work.report_built`를 `work:reports:<requestId>` 커밋 키로 남긴다 |
 | `work.tasks.create` | idempotent | safe | `work:tasks:<requestId>` 커밋 키(TX-05) |
 | `work.tasks.update` | idempotent | safe | 같음 |
@@ -1026,7 +1012,7 @@ export const manifest = defineManifest({
   plugins: [{
     layer: "L2",
     provides: [
-      { id: "work.tasks", version: "1.0.0" }, { id: "work.plans", version: "1.0.0" },
+      { id: "work.tasks", version: "1.0.0" },
       { id: "work.goals", version: "1.0.0" }, { id: "work.reports", version: "1.0.0" },
     ],
     optional: [
@@ -1058,7 +1044,7 @@ export const manifest = defineManifest({
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `WorkTasks`, `WorkPlans`, `WorkGoals`, `WorkReports`, 각 `*Key`, `WorkService`, `WorkServiceName` | L3 그룹 문서, L3.group-sdk.spec, L2.schedule.spec, L4 |
+| `WorkTasks`, `WorkGoals`, `WorkReports`, 각 `*Key`, `WorkService`, `WorkServiceName` | L3 그룹 문서, L3.group-sdk.spec, L2.schedule.spec, L4 |
 | `WorkTaskId`, `PlanId`, `GoalId`, `ReportId`와 스키마, `WorkTask`, `WorkTaskView`, `PlanVersion`, `Goal`, `GoalJudgment`, `GoalVerdict`, `GoalJudgeSpec`, `WorkReport`, `ArtifactRef`(work 쪽 사본) | L3, L4, L2.dialog.spec(알림), L2.schedule.spec |
 | `work.*` 이벤트 10종(`WORK_EVENT_CATALOG`) | eng.events.design 카탈로그, L4, L3 그룹, L2.dialog.spec(알림) |
 | 설정 `l2.work.*` 3개 | L4.settings-ui.spec |
@@ -1098,7 +1084,7 @@ export const manifest = defineManifest({
 
 - W-1 닫힘. 호출 문맥은 `F.capabilities.spec` §3.2 `CallOptions.context: CallContext`다(`L2.readme` §5.8).
 - W-2 [삭제됨 [결정: 2026-11-13 사용자]] 계획 승인과 `submit_plan`의 약속(판별 필드, 재시도, `approval.resolved` 결정 값)이었다. 계획 도구가 없어 해당 없다. [근거: 2026-11-13 사용자 결정]
-- W-3 [미결] 도구 없는 기능(`work.goals`, `work.reports`). F.capabilities.spec §4.4가 허용하지 않으면 두 기능의 메서드를 `work.tasks`나 `work.plans`에 옮기지 않고, 관리용 읽기 도구(`goal_status`)를 하나 두는 안을 쓴다. 이 경우에도 판정 결과를 쓰는 도구는 두지 않는다.
+- W-3 [미결] 도구 없는 기능(`work.goals`, `work.reports`). F.capabilities.spec §4.4가 허용하지 않으면 두 기능의 메서드를 `work.tasks`에 옮기지 않고, 관리용 읽기 도구(`goal_status`)를 하나 두는 안을 쓴다. 이 경우에도 판정 결과를 쓰는 도구는 두지 않는다.
 - W-4 [미결] 이벤트 카탈로그 형식은 `F.records.spec` §3.3.2(`records/catalog/work.ts`, `WORK_EVENT_CATALOG`, `TYPE_PREFIX_OWNERS`)로 정해졌다. 남은 것은 records 카탈로그가 capabilities 정의를 import할 수 있는지이고 F.records.plan이 정한다.
 - W-5 [미결] 되감기 뒤 cap 투영. M2는 활성 가지 기준 재생성을 제안한다. 조회 시점에 가지로 거르는 방식이 eng.events.design §6에 맞는지 L1.persistence.spec과 정한다.
 - W-6 [미결] `goals.judge` 호출자 확인. `owner`와 `CallOptions.context.caller.extension`을 대조한다(§4.3.4). X의 capability 래퍼가 그룹 호출에 이 값을 채운다(`F.capabilities.spec` §3.2 주석). 채우는 값이 그룹 이름인지 scope id인지는 `X.primitives.spec`과 맞춘다.

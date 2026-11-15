@@ -128,20 +128,6 @@ const ToolApprovalDetail: TObject<{
   { additionalProperties: false },
 );
 
-// 계획 승인(plan)은 더는 쓰지 않음 [결정: 2026-11-13 사용자]. 아래 PlanApprovalDetail·PlanBody·PlanAnswerSchema는 옛 기록 읽기 전용으로 남긴다. 저장 문자열은 그대로다.
-const PlanApprovalDetail: TObject<{
-  plan: TUnion<[TString, typeof BlobRefSchema]>;
-  planRef: TUnion<[TString, TNull]>;
-  nextModes: TArray<TString>;
-}> = Type.Object(
-  {
-    plan: Type.Union([Type.String({ maxLength: 65_536 }), BlobRefSchema]),
-    planRef: Nullable(Type.String({ minLength: 1, maxLength: 256 })),
-    nextModes: Type.Array(Type.String({ minLength: 1, maxLength: 64 }), { maxItems: 16 }),
-  },
-  { additionalProperties: false },
-);
-
 const QuestionOption: TObject<{
   id: TString;
   label: TString;
@@ -237,9 +223,11 @@ const ToolBody: TObject<{ kind: TLiteral<"tool">; tool: typeof ToolApprovalDetai
   { kind: Type.Literal("tool"), tool: ToolApprovalDetail },
   { additionalProperties: false },
 );
-const PlanBody: TObject<{ kind: TLiteral<"plan">; plan: typeof PlanApprovalDetail }> = Type.Object(
-  { kind: Type.Literal("plan"), plan: PlanApprovalDetail },
-  { additionalProperties: false },
+// 계획 승인(plan)은 더는 쓰지 않음 [결정: 2026-11-13 사용자]. 옛 요청을 디코드하려고 kind만 본다.
+// 나머지 필드(plan, planRef, nextModes)는 옛 기록에 있던 그대로 두고 값을 검사하지 않는다 [결정: 2026-11-15 사용자]
+const LegacyPlanBody: TObject<{ kind: TLiteral<"plan"> }> = Type.Object(
+  { kind: Type.Literal("plan") },
+  { additionalProperties: true },
 );
 const QuestionBody: TObject<{
   kind: TLiteral<"question">;
@@ -257,10 +245,10 @@ const ReviewBody: TObject<{
   { additionalProperties: false },
 );
 
-/** body.kind는 tool, question, plan, review 넷뿐이다(ADR-0018 §3 2). */
+/** body.kind는 tool, question, review와 옛 기록의 plan(LegacyPlanBody)이다. ADR-0018 §3 2의 넷에서 plan은 은퇴했다. */
 export const ApprovalBodyJsonSchema: TUnion<
-  [typeof ToolBody, typeof PlanBody, typeof QuestionBody, typeof ReviewBody]
-> = Type.Union([ToolBody, PlanBody, QuestionBody, ReviewBody]);
+  [typeof ToolBody, typeof LegacyPlanBody, typeof QuestionBody, typeof ReviewBody]
+> = Type.Union([ToolBody, LegacyPlanBody, QuestionBody, ReviewBody]);
 export type ApprovalBodyJson = Static<typeof ApprovalBodyJsonSchema>;
 
 const RememberScope: TUnion<[TLiteral<"once">, TLiteral<"thread">, TLiteral<"always">]> =
@@ -352,7 +340,8 @@ export const ApprovalResolvedPayloadSchema: TObject<{
 export type ApprovalResolvedPayload = Static<typeof ApprovalResolvedPayloadSchema>;
 
 // ── approval.respond의 answer 정본 모양 (L1.tools.spec §3.6, F.wire-settings.spec §3.3.1) ─────────────────
-// kind와 decision이 모양을 정한다: question + answer → QuestionAnswer, plan + allow → PlanAnswer, review + answer → ReviewAnswer, deny → DenyAnswer.
+// kind와 decision이 모양을 정한다: question + answer → QuestionAnswer, review + answer → ReviewAnswer, deny → DenyAnswer.
+// 옛 계획 승인의 allow 답은 `approval.resolved.answer`에 남는다. 그 칸은 JsonValueSchema라 어떤 JSON이든 읽힌다.
 // 어느 조합이 맞는지는 승인 서비스가 요청 body와 대조해 판단하고, 여기서는 JSON 모양만 검사한다.
 
 /** 질문 하나의 답. 선택지 id 목록과 자유 입력 */
@@ -374,19 +363,6 @@ export const QuestionAnswerSchema: TRecord<"^.*$", typeof QuestionAnswerItemSche
   { maxProperties: 4 },
 );
 export type QuestionAnswerJson = Static<typeof QuestionAnswerSchema>;
-
-/** 더는 쓰지 않음 [결정: 2026-11-13 사용자]. 옛 계획 승인 `allow`의 answer(읽기 전용). `nextModes`는 문자열이라 옛 `plan` 값도 받는다 */
-export const PlanAnswerSchema: TObject<{
-  mode: TOptional<TString>;
-  note: TOptional<TString>;
-}> = Type.Object(
-  {
-    mode: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
-    note: Type.Optional(Type.String({ maxLength: 8192 })),
-  },
-  { additionalProperties: false },
-);
-export type PlanAnswerJson = Static<typeof PlanAnswerSchema>;
 
 /** `deny`의 answer. 모델에 돌려줄 거부 이유 */
 export const DenyAnswerSchema: TObject<{ feedback: TString }> = Type.Object(
@@ -466,11 +442,6 @@ export const ReviewAnswerSchema: TObject<{
 export type ReviewAnswerJson = Static<typeof ReviewAnswerSchema>;
 
 export const ApprovalAnswerSchema: TUnion<
-  [
-    typeof PlanAnswerSchema,
-    typeof DenyAnswerSchema,
-    typeof QuestionAnswerSchema,
-    typeof ReviewAnswerSchema,
-  ]
-> = Type.Union([PlanAnswerSchema, DenyAnswerSchema, QuestionAnswerSchema, ReviewAnswerSchema]);
+  [typeof DenyAnswerSchema, typeof QuestionAnswerSchema, typeof ReviewAnswerSchema]
+> = Type.Union([DenyAnswerSchema, QuestionAnswerSchema, ReviewAnswerSchema]);
 export type ApprovalAnswerJson = Static<typeof ApprovalAnswerSchema>;

@@ -69,7 +69,7 @@ export const ArtifactKindSchema: TUnion<
 > = Type.Union([
   Type.Literal("document"), // 글. text/markdown, text/plain 등
   Type.Literal("table"), // 표. text/csv, application/json(행 배열)
-  Type.Literal("plan"), // 계획. 옛 기록. 더는 만들지 않음
+  Type.Literal("plan"), // 계획. 옛 기록 읽기 전용, 만들지 않음 [결정: 2026-11-13 사용자]
   Type.Literal("changeset"), // 파일 변경 목록. 리뷰가 등록한다. 본문은 통합 diff
   Type.Literal("file"), // 작업 공간 파일의 등록 시점 사본
   Type.Literal("image"), // 이미지
@@ -338,20 +338,17 @@ const ArchiveInput: TObject<{
   ),
 });
 
-/** artifact_create 도구의 파라미터. 모델에게는 텍스트로 만들 수 있는 4종만 보인다(§3.2) */
+/**
+ * artifact_create 도구의 파라미터. 모델에게는 텍스트로 만들 수 있는 3종만 보인다(§3.2). `plan`은 만들지 않는다 [결정: 2026-11-13 사용자]
+ */
 const ArtifactCreateParams: TObject<{
-  kind: TUnion<[TLiteral<"document">, TLiteral<"table">, TLiteral<"plan">, TLiteral<"log">]>;
+  kind: TUnion<[TLiteral<"document">, TLiteral<"table">, TLiteral<"log">]>;
   title: TString;
   text: TString;
   mediaType: TOptional<TString>;
   summary: TOptional<TString>;
 }> = Type.Object({
-  kind: Type.Union([
-    Type.Literal("document"),
-    Type.Literal("table"),
-    Type.Literal("plan"),
-    Type.Literal("log"),
-  ]),
+  kind: Type.Union([Type.Literal("document"), Type.Literal("table"), Type.Literal("log")]),
   title: Type.String({ minLength: 1, maxLength: 200 }),
   text: Type.String({ minLength: 1, maxLength: 1_048_576, description: "Body, max 1 MiB" }),
   mediaType: Type.Optional(MediaTypeSchema),
@@ -490,7 +487,7 @@ export const ArtifactsRegistry: CapabilityDef<
       name: "artifact_create",
       label: "Create artifact",
       description:
-        "Registers work results (documents, tables, plans, logs, etc.) as session artifacts. The user can find and open them later from the list. " +
+        "Registers work results (documents, tables, logs, etc.) as session artifacts. The user can find and open them later from the list. " +
         "Does not register short answers already given in the conversation.",
       method: "register",
       parameters: ArtifactCreateParams,

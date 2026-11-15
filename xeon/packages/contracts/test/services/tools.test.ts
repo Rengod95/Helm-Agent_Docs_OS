@@ -42,6 +42,14 @@ describe("PolicyRuleSchema", () => {
     expect(parse(PolicyRuleSchema, { ...rule, resource: {} }).ok).toBe(true);
   });
 
+  test("a retired plan mode in a rule's mode list is read as written, so the rule stays whole", () => {
+    const legacy = { ...rule, resource: { ...rule.resource, mode: ["plan", "default"] } };
+    const result = parse(PolicyRuleSchema, legacy);
+    const decoded: unknown = result.ok ? result.value : null;
+    expect(decoded).toEqual(legacy);
+    expect(parse(PolicyRuleSchema, { ...rule, resource: { mode: ["bogus"] } }).ok).toBe(false);
+  });
+
   test("rejects out-of-range or unknown values", () => {
     expect(parse(PolicyRuleSchema, { ...rule, priority: 1000 }).ok).toBe(false);
     expect(parse(PolicyRuleSchema, { ...rule, effect: "maybe" }).ok).toBe(false);

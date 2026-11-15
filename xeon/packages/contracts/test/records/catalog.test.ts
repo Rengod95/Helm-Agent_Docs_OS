@@ -286,7 +286,7 @@ describe("requested kinds (F.records.spec 3.3.1)", () => {
     expect(parse(ApprovalRequestedPayloadSchema, empty).ok).toBe(false);
   });
 
-  test("approval.requested body kinds are tool, question, plan, review only", () => {
+  test("approval.requested body kinds are tool, question, review, and the retired plan kind", () => {
     const base = PAYLOAD_FIXTURES["approval.requested"];
     const question = {
       kind: "question",
@@ -302,18 +302,7 @@ describe("requested kinds (F.records.spec 3.3.1)", () => {
         ],
       },
     };
-    const plan = {
-      kind: "plan",
-      plan: { plan: "do things", planRef: null, nextModes: ["default"] },
-    };
     expect(parse(ApprovalRequestedPayloadSchema, { ...base, body: question }).ok).toBe(true);
-    expect(parse(ApprovalRequestedPayloadSchema, { ...base, body: plan }).ok).toBe(true);
-    // 옛 계획 승인 기록(계획 모드가 있을 때 쓴 것): nextModes에 옛 `plan` 문자열이 있어도 디코드된다 [결정: 2026-11-13 사용자]
-    const legacyPlan = {
-      kind: "plan",
-      plan: { plan: "do things", planRef: null, nextModes: ["plan", "acceptEdits"] },
-    };
-    expect(parse(ApprovalRequestedPayloadSchema, { ...base, body: legacyPlan }).ok).toBe(true);
     expect(parse(ApprovalRequestedPayloadSchema, { ...base, body: { kind: "other" } }).ok).toBe(
       false,
     );

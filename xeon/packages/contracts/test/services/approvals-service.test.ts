@@ -4,10 +4,8 @@ import {
   ApprovalAnswerSchema,
   ApprovalRequestedPayloadSchema,
   DenyAnswerSchema,
-  PlanAnswerSchema,
   QuestionAnswerSchema,
   type DenyAnswerJson,
-  type PlanAnswerJson,
   type QuestionAnswerJson,
 } from "../../src/records/index.ts";
 import {
@@ -23,7 +21,6 @@ import type {
   ApprovalWaitFailure,
   DenyAnswer,
   OpenedApproval,
-  PlanAnswer,
   QuestionAnswer,
   QuestionItem,
   QuestionOption,
@@ -57,7 +54,6 @@ export type SchemaAnswerFitsTheServiceType = Expect<Assignable<QuestionAnswerJso
 export type ServiceAnswerFitsTheSchema = Expect<
   Assignable<DeepMutable<QuestionAnswer>, QuestionAnswerJson>
 >;
-export type PlanAnswerFitsTheSchema = Expect<Assignable<PlanAnswer, PlanAnswerJson>>;
 export type DenyAnswerFitsTheSchema = Expect<Assignable<DenyAnswer, DenyAnswerJson>>;
 
 const THREAD = rawId("thr", 1);
@@ -80,12 +76,7 @@ describe("approval.respond answer shapes", () => {
     expect(parse(ApprovalAnswerSchema, { q1: "yes" }).ok).toBe(false);
   });
 
-  test("plan and deny answers", () => {
-    expect(parse(PlanAnswerSchema, { mode: "acceptEdits" }).ok).toBe(true);
-    expect(parse(PlanAnswerSchema, { mode: "default", note: "go ahead" }).ok).toBe(true);
-    expect(parse(PlanAnswerSchema, { note: "only a note" }).ok).toBe(true);
-    expect(parse(PlanAnswerSchema, { mode: "default", extra: 1 }).ok).toBe(false);
-    expect(parse(ApprovalAnswerSchema, { mode: "default" }).ok).toBe(true);
+  test("deny answers", () => {
     expect(parse(DenyAnswerSchema, { feedback: "not this file" }).ok).toBe(true);
     expect(parse(DenyAnswerSchema, { feedback: "" }).ok).toBe(false);
     expect(parse(ApprovalAnswerSchema, { feedback: "no" }).ok).toBe(true);
@@ -119,9 +110,8 @@ describe("approval.respond answer shapes", () => {
 
   test("ApprovalResponse.answer accepts the canonical shapes as JSON", () => {
     const question: ApprovalResponse = { decision: "answer", answer: { q1: { selected: ["a"] } } };
-    const plan: ApprovalResponse = { decision: "allow", answer: { mode: "default" } };
     const deny: ApprovalResponse = { decision: "deny", answer: { feedback: "no" } };
-    expect([question, plan, deny]).toHaveLength(3);
+    expect([question, deny]).toHaveLength(2);
   });
 });
 
