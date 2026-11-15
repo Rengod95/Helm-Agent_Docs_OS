@@ -206,11 +206,14 @@ function itemOps(item: ItemRecord, ctx: EventContext, synthesizedResult: boolean
   }
 }
 
-/** 승인 요청 payload를 프롬프트가 쓰는 보기로 바꾼다. 이벤트(approval.requested)와 approval.list의 항목이 같이 쓴다 */
+/**
+ * 승인 요청 payload를 프롬프트가 쓰는 보기로 바꾼다. 이벤트(approval.requested)와 approval.list의 항목이 같이 쓴다.
+ * 은퇴한 계획 승인(`plan`)은 보기가 없다(undefined): 답을 받지 않고 읽지 못한 이벤트와 같이 알린다.
+ */
 export function approvalViewOf(
   approvalId: string,
   payload: ApprovalRequestedPayload,
-): ApprovalView {
+): ApprovalView | undefined {
   const { body, title, remember } = payload;
   switch (body.kind) {
     case "tool": {
@@ -232,20 +235,9 @@ export function approvalViewOf(
         form: { kind: "tool" },
       };
     }
-    case "plan": {
-      const plan =
-        typeof body.plan.plan === "string"
-          ? body.plan.plan
-          : t("cli.render.transcript.attachedPlan");
-      return {
-        approvalId,
-        title,
-        body: [...callerLine(payload.origin.caller), ...plan.split("\n"), ...expiryLine(payload)],
-        allowsAnswer: false,
-        remember,
-        form: { kind: "plan" },
-      };
-    }
+    case "plan":
+      // 은퇴한 계획 승인 기록(ADR-0018 §3의 넷에서 plan은 빠졌다). 보기를 만들지 않는다
+      return undefined;
     case "question":
       return {
         approvalId,

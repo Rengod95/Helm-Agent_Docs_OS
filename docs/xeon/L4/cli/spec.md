@@ -447,7 +447,7 @@ export interface ToolResultRenderer {
   /** details(UI 채널)를 줄로 바꾼다. 모양이 맞지 않으면 undefined를 돌려 일반 규칙으로 넘긴다. */
   render(details: unknown, width: number): readonly string[] | undefined;
 }
-export declare const BUILTIN_TOOL_RENDERERS: readonly ToolResultRenderer[];   // M1: read, ls, bash
+export declare const BUILTIN_TOOL_RENDERERS: readonly ToolResultRenderer[];   // M1: read, bash
 ```
 
 ### 3.6 종료 코드 [제안]
@@ -950,7 +950,7 @@ export interface GroupTemplatesPort {
     - `host.hello`의 `features`에 `thread.compact`가 없는 호스트에서는 부르지 않고 "이 엔진은 수동 컴팩션을 처리하지 않는다"를 알린다.
     - 이름이 같은 엔진 명령이 있어도 내장이 앞선다. `/help`와 Tab 완성에 보인다. 자동 컴팩션(`threshold`, `overflow`)은 루프가 하고 CLI는 관여하지 않는다.
   - `/help`, `/quit`: CLI 내장.
-  - 엔진 명령 [결정: m2c G1-01]: 내장도 별칭도 아닌 이름은 줄 전체를 `command.run { threadId, text }`에 그대로 넘긴다. `/plan`, `/tasks`, `/goal`처럼 L2·L3 코드가 등록한 동작 명령이 여기서 실행된다. 이름이 겹치면 내장과 별칭이 앞선다.
+  - 엔진 명령 [결정: m2c G1-01]: 내장도 별칭도 아닌 이름은 줄 전체를 `command.run { threadId, text }`에 그대로 넘긴다. `/tasks`, `/goal`처럼 L2·L3 코드가 등록한 동작 명령이 여기서 실행된다. 이름이 겹치면 내장과 별칭이 앞선다.
     - 결과 `done`은 `message`를 stdout에 쓴다. `message`가 `null`이고 `result`가 `null`이 아니면 `result`를 들여쓴 JSON으로 쓴다. 동작 명령은 turn을 만들지 않는다.
     - 결과 `expanded`는 템플릿을 펼친 최종 텍스트다. 사용자가 그 텍스트를 친 것처럼 `turn.start`로 보낸다(`command.run`은 turn을 만들지 않는다).
     - 결과 `needs_confirmation`은 셸 주입이 있는 템플릿이다. 실행할 셸 명령을 보이고 `[y/N]`로 묻는다. `y`면 `confirmShell: true`로 한 번 더 부르고, 그 밖의 입력은 "실행하지 않았다"를 알리고 끝낸다.
@@ -1185,9 +1185,9 @@ $ fresnel db previous-rm 20261106T010203004Z --yes --json
 - AC13. stdout이 TTY가 아닐 때 `fresnel secret reveal <name>`은 2로 끝나고, stdout·stderr·이벤트 DB 어디에도 그 시크릿 값이 없다. TTY에서 열람하면 감사 기록이 한 건 늘고 그 기록에 값이 없다.
 - AC14. [결정: 2026-11-04 사용자 B15] 키 플러그인이 없는 설정에서 `fresnel doctor`는 검색 provider 묶음 두 줄(검색 provider 줄과 키 플러그인 권장 줄)을 내고, 권장 목록에 Exa와 Brave가 있다. SearXNG 줄과 SearXNG 탐침은 없다. 옛 AC14의 SearXNG 주소 부분(빈 주소에서 탐침하지 않음, 옛 후보 주소에서 응답해도 쓰지 않음)은 삭제됐다.
 - AC24. `fresnel doctor`는 `host.status { includeBinaries: true }`를 한 번 보내 바이너리마다 한 줄을 낸다. 필수 바이너리를 쓸 수 없으면 종료 코드 3이고 선택 바이너리만 빠졌으면 0이다. `--json`의 `binaries`는 호스트가 준 보고서와 같다.
-- AC15. 승인 프롬프트의 응답이 kind별 정본 모양이다: 도구 허용은 `remember`만, 거부 이유는 `{ feedback }`, 계획 승인은 `{ mode?, note? }`, 질문은 `QuestionAnswer`, 검토는 `ReviewAnswer`다. 다른 클라이언트가 먼저 답하면 열린 프롬프트가 닫히고 `approval.respond`를 보내지 않는다.
+- AC15. 승인 프롬프트의 응답이 kind별 정본 모양이다: 도구 허용은 `remember`만, 거부 이유는 `{ feedback }`, 질문은 `QuestionAnswer`, 검토는 `ReviewAnswer`다. 계획 승인(`plan`)은 2026-11-13 폐지로 답을 받지 않는다 [결정: 2026-11-13 사용자]. 다른 클라이언트가 먼저 답하면 열린 프롬프트가 닫히고 `approval.respond`를 보내지 않는다.
 - AC16. `host --stdio`의 stdout에는 JSON-RPC 메시지만 나오고(사람용 출력은 stderr), stdin EOF에서 0으로 끝난다. `l4.cli.*` 키가 그 호스트의 카탈로그에 있다. 컴파일(`--minify --bytecode`) 바이너리에서도 같다.
-- AC17. 대화형이 시작할 때 `command.list { threadId }`로 연 대화의 id를 보내고, `/resume`으로 대화를 바꾸면 새 id로 다시 읽는다. 엔진에 등록한 동작 명령(`/plan on`)을 치면 `command.run { threadId, text: "/plan on" }`이 한 번 가고 `done.message`가 stdout에 나오며 `turn.start`는 가지 않는다. `expanded` 결과는 펼친 텍스트가 `turn.start`의 `input`이 되고, `needs_confirmation`은 사용자가 `y`를 입력해야만 `confirmShell: true`로 다시 간다.
+- AC17. 대화형이 시작할 때 `command.list { threadId }`로 연 대화의 id를 보내고, `/resume`으로 대화를 바꾸면 새 id로 다시 읽는다. 엔진에 등록한 동작 명령(`/tasks`)을 치면 `command.run { threadId, text: "/tasks" }`이 한 번 가고 `done.message`가 stdout에 나오며 `turn.start`는 가지 않는다. `expanded` 결과는 펼친 텍스트가 `turn.start`의 `input`이 되고, `needs_confirmation`은 사용자가 `y`를 입력해야만 `confirmShell: true`로 다시 간다.
 - AC18. 대화형으로 `thread.list`가 `resumable`을 알린 대화를 열면 `이어서 실행할까요? [y/N]`을 묻는다. `y`일 때만 `turn.resume { threadId }`가 한 번 가고, 그 turn의 나머지 이벤트가 그려진다. 새 대화와 print 모드는 묻지 않고 `turn.resume`을 보내지 않는다.
 - AC19. 결정이 없고 신뢰할 자원이 있는 폴더에서 대화형 `chat`을 시작하면 `thread.create`보다 앞서 카드를 묻고, 번호를 입력하면 그 선택지의 `choice`로 `trust.decide { workspace, choice }`가 한 번 간다. 엔터는 `trust.decide`를 보내지 않는다. `fresnel trust allow --scope parent`는 host가 낸 선택지의 `{ kind: "parent", verdict: "allow" }`를 보낸다.
 - AC20. `fresnel secret rm <name>`은 `secret.references`로 읽은 설정 키·활성 lease·최근 대화를 보인 뒤 묻고, 활성 lease가 있으면 `secret.remove`를 보내지 않는다. `fresnel secret test <name>`의 출력에는 길이와 SHA-256 앞 8자가 있고 값, 값의 base64·hex는 stdout·stderr·요청 어디에도 없다.

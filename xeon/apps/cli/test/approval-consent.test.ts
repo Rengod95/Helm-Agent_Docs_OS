@@ -13,6 +13,7 @@ import {
 } from "../src/render/approval.ts";
 import { pieceOf } from "../src/render/text-sink.ts";
 import { approvalViewOf } from "../src/render/transcript.ts";
+import type { ApprovalView } from "../src/render/ops.ts";
 import {
   approvalRequested,
   approvalResolved,
@@ -54,8 +55,15 @@ function toolBody(args: Record<string, unknown>): unknown {
   };
 }
 
+/** 보기가 있는 요청만 쓴다. 은퇴한 plan은 보기가 없어 이 시험들에는 나오지 않는다 */
+function viewOf(approvalId: string, payload: ApprovalRequestedPayload): ApprovalView {
+  const view = approvalViewOf(approvalId, payload);
+  if (view === undefined) throw new Error("the payload has no approval view");
+  return view;
+}
+
 function bodyOf(options: Parameters<typeof approvalRequested>[2] = {}): readonly string[] {
-  return approvalViewOf("evt_1", payloadOf(options)).body;
+  return viewOf("evt_1", payloadOf(options)).body;
 }
 
 test("a tool card shows the whole command, not only the 120-character summary", () => {
@@ -230,7 +238,7 @@ function prompter(results: readonly ApprovalRespondResult[], lines: readonly str
       superseded.push(reason);
     },
   });
-  sink.offer(approvalViewOf("evt_1", payloadOf()));
+  sink.offer(viewOf("evt_1", payloadOf()));
   return { sink, sent, out, superseded };
 }
 
@@ -329,7 +337,7 @@ test("a review approval shows its title, round and one row per file (compile fix
       ],
     },
   };
-  const view = approvalViewOf("evt_1", payloadOf({ body: review }));
+  const view = viewOf("evt_1", payloadOf({ body: review }));
   expect(view.body.slice(-3)).toEqual([
     "검토: refactor loader (라운드 2)",
     "modified src/a.ts (hunk 3)",

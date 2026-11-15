@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { t } from "@fresnel/client/i18n";
 import type { EventsBatchParams, EventWire, StreamChunkParams } from "@fresnel/contracts/wire";
 import {
   applyBatch,
@@ -319,6 +320,28 @@ test("approval.requested and approval.resolved draw and track the pending set", 
     },
   ]);
   expect(second.state.pendingApprovals.size).toBe(0);
+});
+
+// 은퇴한 계획 승인 기록(kind `plan`)은 승인 보기를 만들지 않는다. 읽지 못한 이벤트와 같은 한 줄로 남고, 대기 승인에도 넣지 않는다
+test("a retired plan approval draws the unreadable-event notice and is not pending", () => {
+  const retired: EventDraft = {
+    kind: "approval.requested",
+    turnId: TURN,
+    payload: {
+      origin: { threadId: THREAD, turnId: TURN, stepId: null, toolCallId: null, caller: "main" },
+      requestKey: "k",
+      title: "계획 검토",
+      body: { kind: "plan", plan: { plan: "파일을 고친다", planRef: null, nextModes: [] } },
+      remember: ["once"],
+      surfaceThreadId: THREAD,
+      requestedAt: 1,
+    },
+  };
+  const out = applied(START, batch(0, [retired]));
+  expect(out.ops).toEqual([
+    { kind: "notice", text: t("cli.render.transcript.unreadable", { kind: "approval.requested" }) },
+  ]);
+  expect(out.state.pendingApprovals.size).toBe(0);
 });
 
 function chunk(n: number, afterSeq: number, delta: string, item = 2): StreamChunkParams {

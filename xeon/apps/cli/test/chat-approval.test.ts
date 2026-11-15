@@ -386,7 +386,7 @@ test("pending approvals are asked again when a conversation is resumed (approval
   });
 });
 
-/** 옛 계획 승인 기록. 새 계획은 없고, 이 기록에는 거부만 보낸다 */
+/** 은퇴한 계획 승인 기록(kind `plan`). 새 계획은 없고, 이 기록은 보기가 없어 답을 받지 않는다 */
 const PLAN_BODY = {
   kind: "plan",
   plan: { plan: "파일을 고친다", planRef: null, nextModes: [] },
@@ -457,18 +457,23 @@ test("--auto-approve still denies a question approval, with the same notice as t
   ]);
 });
 
-test("--auto-approve still denies a legacy plan approval", async () => {
+test("--auto-approve does not answer a retired plan approval, and says nothing about it", async () => {
   const { h, responds } = printWithApproval({ body: PLAN_BODY, remember: ["once"] });
   expect(await h.run(["chat", "-p", "run it", "--auto-approve"])).toBe(EXIT.ok);
-  expect(responds).toEqual([{ approvalId: expect.any(String), decision: "deny" }]);
-  expect(noticeLines(h.stderrText())).toEqual([
-    '승인 요청 "bash 실행"에 비대화 모드라 거부로 답했다',
-  ]);
+  expect(responds).toEqual([]);
+  expect(noticeLines(h.stderrText())).toEqual([]);
 });
 
-test("a legacy plan approval is answered with a deny at once, without a question", async () => {
-  const s = scenario({ body: PLAN_BODY, replies: [] });
+test("a retired plan approval is not asked: no prompt and no answer", async () => {
+  // 승인이 답을 기다리지 않으므로 턴은 서버가 바로 끝낸다
+  const s = scenario({
+    body: PLAN_BODY,
+    replies: [],
+    afterRequest: (server, context) => {
+      server.commit(context.threadId, [turnCompleted(context.turnId)]);
+    },
+  });
   await s.h.run(["chat"]);
-  expect(s.responds).toEqual([{ approvalId: expect.any(String), decision: "deny" }]);
+  expect(s.responds).toEqual([]);
   expect(s.input.prompts.filter((prompt) => prompt.startsWith("[y]"))).toEqual([]);
 });

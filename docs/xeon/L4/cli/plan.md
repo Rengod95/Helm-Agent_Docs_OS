@@ -52,7 +52,7 @@ xeon/apps/cli/
       transcript.ts       # 내구 이벤트 → RenderOp
       stream.ts           # 휘발 조각 → 진행 줄
       approval.ts         # ApprovalView, 승인 응답 (M2)
-      tools.ts            # ToolResultRenderer, BUILTIN_TOOL_RENDERERS (read, ls, bash)
+      tools.ts            # ToolResultRenderer, BUILTIN_TOOL_RENDERERS (read, bash)
       text-sink.ts        # 제어 문자 없는 출력
       json-tap.ts         # observe 탭 → JSON Lines
     tui/
@@ -273,7 +273,7 @@ M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰
 
 | 시험 파일 | 실제 호스트에서 확인한 것 | 가짜 호스트 시험에만 남은 것 |
 |---|---|---|
-| `slash-commands-host.int.test.ts` | `command.list { threadId }`의 id가 `command.run`의 id와 같다. `/help`에 `/plan`, `/tasks`가 보이고 `/tasks`, `/plan`의 출력이 호스트가 쓴 문구와 같다. 신뢰 전에는 프로젝트 명령 `/hello`가 없고 `fresnel trust allow` 뒤에는 있으며 펼친 텍스트가 `turn.start`의 `input`이 된다. `/compact`가 긴 대화(테이프 모델 요약)를 요약하고 둘째 호출은 `last_entry_is_compaction`이다. 짧은 대화는 `nothing_to_summarize`다 | `needs_confirmation`(셸 주입), 확장 차단과 요약 실패 오류 문구 |
+| `slash-commands-host.int.test.ts` | `command.list { threadId }`의 id가 `command.run`의 id와 같다. `/help`에 `/tasks`가 보이고 `/plan`은 없고(2026-11-15 정리) `/tasks`의 출력이 호스트가 쓴 문구와 같다. 신뢰 전에는 프로젝트 명령 `/hello`가 없고 `fresnel trust allow` 뒤에는 있으며 펼친 텍스트가 `turn.start`의 `input`이 된다. `/compact`가 긴 대화(테이프 모델 요약)를 요약하고 둘째 호출은 `last_entry_is_compaction`이다. 짧은 대화는 `nothing_to_summarize`다 | `needs_confirmation`(셸 주입), 확장 차단과 요약 실패 오류 문구 |
 | `turn-resume-host.int.test.ts` | 승인을 기다리다 SIGKILL된 호스트의 저장소를 새 호스트가 열면 `thread.list`의 `resumable`로 묻고, y에서만 `turn.resume`이 한 번 가며 되살아난 승인에 답하면 turn이 끝난다. n이면 `turn.resume`이 가지 않는다. 새 대화는 묻지 않는다 | 결과 `closed`·`nothing`의 문구, `turn.resume` 실패 문구 |
 | `trust-host.int.test.ts` | 실제 `trust.get`의 카드와 `--json`, `trust allow --scope parent`가 `trust.json`(0600)에 남고 다음 실행의 판정이 `allow`(`store`)가 된다. `session` 범위 결정은 파일을 쓰지 않는다. 시작 카드는 `thread.create`보다 앞서고 번호로 고른 선택지를 보내며 두 번째 실행은 묻지 않는다. 엔터는 아무것도 저장하지 않는다. 자원이 없는 폴더는 stderr 한 줄이다 | 저장 실패(`store.io`)와 `trust.get` 실패 문구, print·JSON 모드 |
 | `secret-host.int.test.ts` | 실제 sops·age로 `secret add`, `ls`, `test`(길이와 해시 앞 8자), `rm`(참조 한 줄과 `[y/N]`), `rm --yes`를 한 저장소에서 잇는다. 값, base64, hex가 stdout·stderr·보낸 요청·홈 아래 모든 파일에 없다 | 설정 키와 활성 lease가 있는 참조 표시, `reveal`, 제공자·키 오류 종료 코드 |
@@ -340,7 +340,7 @@ M2 CLI.1~CLI.4에서 더한 시험(가짜 호스트 서버 위, `test/support/fa
 | doctor | `test/doctor.test.ts` | unit | 검색 세 줄(AC14), 주소가 없으면 탐침 없음, 설정한 주소의 응답·응답 없음·JSON 꺼짐, 줄 1·줄 3이 `web.providers` 값을 따름(고정 provider 표시 포함), 엔진 실패 항목과 종료 코드, 터미널 항목, 바이너리 점검 줄과 종료 코드와 `--json`(AC24) |
 | doctor-web | `test/doctor-web.test.ts` | unit | X9: `검색 provider`와 `웹 provider` 블록 전체를 줄 값으로 비교한다. 기본(내장 현재, Exa 키 필요, Brave 설치 필요), Exa와 Brave 모두 쓸 수 있음(순서가 Exa 우선, 가격표 오래됨, 고지 대기), `web.providers` 없음과 실패(알 수 없다와 기본 설정 주석, 블록 없음), `--json`의 `web`(행 id와 권장 상태 값, 없으면 `null`), 상세 문구가 출력에 없음, 고정·목록에 없는 provider·쓸 수 있는 provider 없음·사용 불가 권장 문구, 빈 목록 |
 
-추가 unit [제안]: `tool-renderers`(read·ls·bash의 `details` 표시, 렌더러가 없을 때 `content` 20줄), `state-file`(깨진 파일 버림, 원자 쓰기), `keybindings-conflict`(충돌 목록 출력). 이 셋은 위 목록의 이름 규칙을 따른다.
+추가 unit [제안]: `tool-renderers`(read·bash의 `details` 표시, 렌더러가 없을 때 `content` 20줄), `state-file`(깨진 파일 버림, 원자 쓰기), `keybindings-conflict`(충돌 목록 출력). 이 셋은 위 목록의 이름 규칙을 따른다.
 
 추가 unit(M2 CLI.5): `width`(한글·한자·이모지의 칸 수와 폭 자르기, §4.4.4), `no-top-level-await`(`src` 안 최상위 await 금지, §4.3).
 

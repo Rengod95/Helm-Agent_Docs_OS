@@ -5,7 +5,7 @@ import type { ApprovalView, QuestionView, ReviewFileView } from "./ops.ts";
 
 // L4.cli.spec §4.11. 승인 프롬프트. 줄 입력으로 허용·거부·답을 받아 approval.respond 인자로 바꾼다.
 // 질문(question)은 QuestionAnswer, 검토(review)는 ReviewAnswer, 거부는 DenyAnswer가 정본 모양이다(F wire §3.3.1).
-// 옛 계획 승인(plan)은 거부만 받는다(core-tools가 allow를 거절한다). 계획 모드는 없앴다 [결정: 2026-11-13 사용자].
+// 계획 승인(plan)은 은퇴했다 [결정: 2026-11-13 사용자]. 이 프롬프트는 그 종류의 보기를 받지 않는다(render/transcript.ts `approvalViewOf`가 만들지 않는다).
 
 /** approval.respond에서 approvalId를 뺀 부분 */
 export type ApprovalResponse = Omit<ApprovalRespondParams, "approvalId">;
@@ -258,9 +258,6 @@ function askForm(
   switch (form.kind) {
     case "tool":
       return askTool(io, signal);
-    case "plan":
-      // 옛 계획 기록은 거부만 보낸다. 묻지 않는다
-      return Promise.resolve({ kind: "answered", response: DENY_ONLY });
     case "review":
       return askReview(form.files, io, signal);
     default:
