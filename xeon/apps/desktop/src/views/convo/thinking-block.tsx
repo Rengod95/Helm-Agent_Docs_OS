@@ -8,6 +8,8 @@ import { Reveal, useDisclosure } from "./tool-line.tsx";
 
 // 생각 블록(dzT2a 시안 3.2). 본문보다 한 단계 물러난다: 13/20 tertiary, 왼쪽 2px 레일. 펼쳐도 240px 넘으면 안쪽에서 스크롤해 답을 밀지 않는다.
 // 머리 한 줄(28): chevron + "생각" + 접혀 있으면 첫 줄 미리보기. 생각하는 동안은 chevron 자리에 작은 orb(DP-168)가 돌고 "생각하는 중"이 반짝인다. 설정 "모두 보기"=펼침, "요약"=접힘, "숨김"=없음.
+// 생각 표시는 대화 본문 한 곳이다(DP-212): 첫 응답을 기다리는 줄(`ThinkingPending`)과 생각하는 동안의 머리는 같은 말풍선 면(`data-live`)이라
+// 기다림이 생각으로, 생각이 답으로 바뀌어도 같은 자리에서 잇는다. 입력창 위에는 생각 표시를 두지 않는다.
 
 function previewLine(text: string): string {
   const line =
@@ -28,7 +30,12 @@ export function ThinkingBlock(props: {
   if (mode === "none") return null;
   return (
     <div className="grid min-w-0">
-      <div className="convo-line" data-toggle="true" data-open={open ? "true" : undefined}>
+      <div
+        className="convo-line"
+        data-toggle="true"
+        data-open={open ? "true" : undefined}
+        data-live={live ? "true" : undefined}
+      >
         <button
           type="button"
           className="convo-line-hit"
@@ -54,6 +61,15 @@ export function ThinkingBlock(props: {
       <Reveal open={open}>
         <div className="convo-thinking-body whitespace-pre-wrap text-ui-relaxed">{props.text}</div>
       </Reveal>
+    </div>
+  );
+}
+
+/** 첫 응답을 기다리는 줄: 답이 놓일 자리의 말풍선 면에 생각 구슬과 "생각하는 중". 목록의 마지막 줄(`pending`)이 그린다 */
+export function ThinkingPending(): ReactNode {
+  return (
+    <div role="status" className="convo-line" data-live="true">
+      <ThinkingLive label={t("desktop.convo.thinking.live")} />
     </div>
   );
 }

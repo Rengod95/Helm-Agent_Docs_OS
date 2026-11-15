@@ -161,6 +161,18 @@ describe("transcriptRowsOf: 키 안정", () => {
     expect(keys(rows)).toEqual([itm(1)]);
   });
 
+  test("첫 응답을 기다리면 끝에 기다림 줄 하나가 서고, 진행 중 줄이 오면 그 줄이 대신한다(DP-212)", () => {
+    const waiting = rowsOf({ shapes: [user(1)], running: true, awaiting: true });
+    const streaming = rowsOf({ shapes: [user(1)], live: [itm(2)], running: true, awaiting: true });
+    const unread = rowsOf({ shapes: [user(1)], showLive: false, running: true, awaiting: true });
+    expect([kinds(waiting), keys(waiting)]).toEqual([
+      ["user", "pending"],
+      [itm(1), "pending"],
+    ]);
+    expect(kinds(streaming)).toEqual(["user", "live"]);
+    expect(kinds(unread)).toEqual(["user"]);
+  });
+
   test("묶음이 커져도 키는 첫 호출 id 그대로다", () => {
     const one = rowsOf({ shapes: [user(1), assistant(2, call(0, "c1", "read"))], running: true });
     const two = rowsOf({
