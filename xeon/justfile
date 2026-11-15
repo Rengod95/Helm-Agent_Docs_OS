@@ -111,10 +111,14 @@ exit-tests:
 web-pricing:
     cd packages/cap-web && {{bun}} run web-pricing
 
-# 데스크톱 사이드카 빌드 <triple|host>: bun build --compile --minify --bytecode, 크기 상한 검사 (scripts/build-sidecar.ts). --no-bytecode, --list는 `just desktop-sidecar host --no-bytecode`처럼 붙인다
+# 데스크톱 사이드카 빌드 <triple|host>: bun build --compile --minify --bytecode, 크기 상한 검사 (scripts/build-sidecar.ts). host 빌드는 가이드 스킬도 apps/desktop/dist/sidecar/guide/skills에 둔다. --no-bytecode, --list는 `just desktop-sidecar host --no-bytecode`처럼 붙인다
 [group('local')]
 desktop-sidecar triple *flags:
+    #!/usr/bin/env bash
+    set -euo pipefail
     {{bun}} scripts/build-sidecar.ts {{triple}} {{flags}}
+    # 가이드 스킬: 개발 사이드카 옆 guide/skills(locateGuideSkills의 두 번째 후보, 묶은 앱의 Resources/guide/skills와 같은 규칙). --gateway(웹 게이트웨이)와 --list는 건너뛴다
+    if [ "{{triple}}" = "host" ] && [[ " {{flags}} " != *" --gateway "* && " {{flags}} " != *" --list "* ]]; then {{bun}} scripts/guide-skills.ts --out apps/desktop/dist/sidecar/guide/skills; fi
 
 # 릴리즈 아카이브 빌드 <triple|host> [--version x.y.z] [--binaries-dir 폴더] [--no-build]
 [group('local')]
