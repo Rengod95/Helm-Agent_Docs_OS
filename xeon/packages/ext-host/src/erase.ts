@@ -62,12 +62,15 @@ function eraseWants(wants: (state: never) => boolean): (state: unknown) => boole
   return wants as unknown as (state: unknown) => boolean;
 }
 
-/** 상태 타입 S를 지운 drive 옵션. `wants`는 StateDecl.schema로 검증된 문서만 받는다 */
+/**
+ * 상태 타입 S를 지운 drive 옵션. `limits`는 등록 때 복사하지 않고, 임대를 받을 때마다 호출자 옵션에서 읽는다
+ * (getter로 넘긴 값이 임대마다 반영된다). `wants`는 StateDecl.schema로 검증된 문서만 받는다
+ */
 export function eraseDriveOptions<S>(options: DriveOptions<S> | undefined): ErasedDriveOptions {
-  if (options === undefined) return {};
-  const { limits, wants } = options;
+  if (options === undefined) return { limits: () => undefined };
+  const { wants } = options;
   return {
-    ...(limits === undefined ? {} : { limits }),
+    limits: () => options.limits,
     ...(wants === undefined ? {} : { wants: eraseWants(wants) }),
   };
 }

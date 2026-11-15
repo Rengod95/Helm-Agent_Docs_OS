@@ -602,7 +602,7 @@ export function createLeaseBroker(
     const { limits, clamped } = effectiveLimits(
       core.deps.settings.driveDefaultLimits(thread.threadId),
       core.deps.settings.driveLimits(thread.threadId),
-      drive.options.limits,
+      drive.options.limits(),
     );
     if (clamped.length > 0) {
       core.deps.report({
