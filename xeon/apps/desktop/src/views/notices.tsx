@@ -1,23 +1,38 @@
 import { InboxArt } from "./illustrations/index.tsx";
 import { t, type MessageId } from "@fresnel/client/i18n";
-import { detach, rethrow } from "@fresnel/contracts";
-import type { Notice } from "@fresnel/contracts/capabilities";
+import { assertNever, detach, rethrow } from "@fresnel/contracts";
+import type { Notice, NoticeKind } from "@fresnel/contracts/capabilities";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   Alert,
   Button,
-  Chip,
   Dialog,
   DialogAction,
   DialogClose,
   EmptyState,
   IconButton,
-  Popover,
   Skeleton,
   toast,
 } from "@caustic/react";
-import { Info, MessageSquare, TriangleAlert } from "@caustic/react/icons";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  CalendarClock,
+  CircleCheck,
+  Inbox,
+  Layers,
+  MessageCircleQuestion,
+  MessageSquare,
+  TriangleAlert,
+  X,
+} from "@caustic/react/icons";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import {
   useApprovalMirror,
   useLinkPhase,
@@ -27,25 +42,33 @@ import {
 } from "../state/engine/index.ts";
 import { useClockNow } from "./approval-card/clock.ts";
 import { useCommands } from "./commands.ts";
-import { arrangeInboxNotices, type InboxSort, type InboxThread } from "./inbox-model.ts";
+import { InfoTip } from "./craft/info-tip.tsx";
+import { arrangeInboxNotices, type InboxThread } from "./inbox-model.ts";
 import {
   clearedNotices,
   highestSeqOf,
   mergeNotices,
   noticeAgeViewOf,
   noticeBodyViewOf,
-  noticeKindId,
-  noticeResolved,
+  noticeItemsOf,
+  noticeMarks,
   noticeShownAtOf,
-  noticeToneOf,
   noticesAfter,
   noticeTitleViewOf,
   noticeToastVisible,
+  NOTICE_KEEP,
+  NOTICE_PAGE,
   NOTICE_TOAST_MS,
+  readNoticePages,
+  repeatTextOf,
   threadBySeqOf,
+  unreadCountOf,
   type NoticeAction,
   type NoticeBodyView,
+  type NoticeDay,
   type NoticeEntry,
+  type NoticeItem,
+  type NoticeMarks,
 } from "./notices-model.ts";
 import { useSelectedThreadId } from "../state/ui/index.ts";
 import { useGoToThread } from "./thread-link.ts";
@@ -161,166 +184,380 @@ const ACTION_TEXT: Readonly<Record<NoticeAction, MessageId>> = {
   "open-providers": "desktop.turnFailure.action.openProviders",
 };
 
-/** 정보 아이콘 뒤 "자세히"의 원문. 대화의 오류 줄과 같은 팝오버다 */
-function Detail(props: { readonly text: string }): ReactNode {
-  const [open, setOpen] = useState(false);
-  const clipped =
-    props.text.length > DETAIL_MAX ? `${props.text.slice(0, DETAIL_MAX)}…` : props.text;
+const DAY_TEXT: Readonly<Record<NoticeDay, MessageId>> = {
+  today: "desktop.notices.day.today",
+  yesterday: "desktop.notices.day.yesterday",
+  earlier: "desktop.notices.day.earlier",
+};
+
+// 알림 목록(DP-214~216 [결정: 2026-11-15 사용자 "정보 위계계층이 명확하도록", dzN2]). 날짜 머리와 알림이 왼쪽 세로 레일 하나에 매달린다.
+// 할 일(오늘의 안 읽은 오류, 답을 기다리는 질문)은 카드(무슨 일 · 왜 · 어느 대화에서 · 할 일 단추 하나)이고, 나머지는 레일 위 한 줄
+// (제목 · 대화 · 시각)이다. 종류는 배지가 아니라 면(오류 카드의 옅은 위험색)과 레일 마디의 아이콘 하나로 말한다. 색은 오류 카드에만 쓴다.
+// 같은 날 이어진 같은 원인은 한 장으로 접고 "같은 오류 N번"을 단다. 처음 20장을 그리고 끝에 닿으면 20장씩 더 그린다. 치수는 notices.css.
+
+/** 레일 마디의 아이콘 14. 오류 카드만 위험색이고 나머지는 글 색 계열이다 */
+function NoticeIcon(props: { readonly kind: NoticeKind; readonly strong: boolean }): ReactNode {
+  switch (props.kind) {
+    case "error":
+      return (
+        <TriangleAlert
+          aria-hidden
+          className={props.strong ? "text-danger-text" : "text-text-tertiary"}
+        />
+      );
+    case "approval_waiting":
+      return <Inbox aria-hidden className="text-text-tertiary" />;
+    case "question_waiting":
+      return (
+        <MessageCircleQuestion
+          aria-hidden
+          className={props.strong ? "text-text-secondary" : "text-text-tertiary"}
+        />
+      );
+    case "background_completed":
+      return <Layers aria-hidden className="text-text-tertiary" />;
+    case "completed":
+      return <CircleCheck aria-hidden className="text-text-tertiary" />;
+    default:
+      return assertNever(props.kind, "NoticeKind");
+  }
+}
+
+/** 원문 "자세히": 앱의 정보 아이콘 하나(InfoTip, 패딩 0, 글과 4) 뒤에 둔다 */
+function detailLinesOf(text: string): string {
+  return text.length > DETAIL_MAX ? `${text.slice(0, DETAIL_MAX)}…` : text;
+}
+
+/** 카드 본문. 실패는 대화의 오류 줄과 같은 문장 + 정보 아이콘, 대화 없는 예약 실패는 사유 문장, 평문은 원문이다 */
+function CardBody(props: { readonly view: NoticeBodyView }): ReactNode {
+  const { view } = props;
   return (
-    <Popover
-      trigger="click"
-      size="xs"
-      className="craft-glass"
-      open={open}
-      onOpenChange={setOpen}
-      anchor={
-        <IconButton label={t("desktop.turnFailure.detail.label")} size="xs" variant="ghost">
-          <Info />
-        </IconButton>
-      }
-    >
-      <div className="max-w-96 whitespace-pre-wrap [overflow-wrap:anywhere]">{clipped}</div>
-    </Popover>
+    <p className="notice-card-body">
+      <span>{bodyTextOf(view)}</span>
+      {view.kind === "failure" && view.detail !== null ? (
+        <span className="notice-card-detail">
+          <InfoTip
+            text={detailLinesOf(view.detail)}
+            label={t("desktop.turnFailure.detail.label")}
+          />
+        </span>
+      ) : null}
+    </p>
   );
 }
 
-/** 알림 본문. 실패는 위험 글 한 줄과 "자세히"와 단추, 대화 없는 예약 실패는 사유 글 한 줄, 평문은 원문 한 줄이다 */
-function NoticeBody(props: { readonly view: NoticeBodyView }): ReactNode {
-  const commands = useCommands();
-  const { view } = props;
-  if (view.kind === "plain") {
-    return <span className="dim [overflow-wrap:anywhere]">{view.text}</span>;
+/** 출처: 대화 이름(누르면 그 대화로) 또는 "예약". 모르면 그리지 않는다 */
+function Source(props: { readonly entry: NoticeEntry; readonly onOpen: () => void }): ReactNode {
+  const { entry } = props;
+  if (entry.threadId !== null) {
+    return <ThreadSource threadId={entry.threadId} onOpen={props.onOpen} />;
   }
-  if (view.kind === "scheduleReason") {
-    return <span className="text-danger-text [overflow-wrap:anywhere]">{bodyTextOf(view)}</span>;
-  }
-  const { action } = view;
+  if (entry.notice.sourceType !== "schedule.run_finished") return null;
   return (
-    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-      <span className="min-w-0 text-danger-text [overflow-wrap:anywhere]">{bodyTextOf(view)}</span>
-      {view.detail === null ? null : <Detail text={view.detail} />}
-      {action === null ? null : (
-        <Button
-          size="xs"
-          variant="solid"
-          onClick={() => {
-            commands.requestSettingsJump({ tab: "providers", key: null });
-          }}
-        >
-          {t(ACTION_TEXT[action])}
-        </Button>
-      )}
+    <span className="notice-source" data-slot="notice-source">
+      <CalendarClock aria-hidden />
+      <span className="truncate">{t("desktop.notices.origin.schedule")}</span>
     </span>
   );
 }
 
-/** 대화 이름. 열 수 있으면 본문 글처럼 보이는 링크이고, 예약에서 만든 대화면 앞에 "예약 ·"을 붙인다 */
-const LINK_CLASS =
-  "cursor-pointer border-0 bg-transparent p-0 text-start font-ui text-text-link no-underline underline-offset-2 outline-none hover:underline focus-visible:shadow-focus";
+/** 대화 이름. 예약에서 만든 대화면 앞에 "예약 ·"을 붙인다. 대화를 모르면 null */
+function useThreadLabel(threadId: ThreadId): string | null {
+  const thread = useThread(threadId);
+  if (thread === undefined) return null;
+  const name = thread.title ?? t("desktop.threads.untitled");
+  return thread.origin?.kind === "schedule"
+    ? `${t("desktop.notices.origin.schedule")} · ${name}`
+    : name;
+}
 
-/** 출처 줄의 틀: 대화 아이콘과 이름. 이름이 없으면 줄 자체를 그리지 않는다 */
-function SourceFrame(props: { readonly children: ReactNode }): ReactNode {
+function ThreadSource(props: {
+  readonly threadId: ThreadId;
+  readonly onOpen: () => void;
+}): ReactNode {
+  const goTo = useGoToThread();
+  const label = useThreadLabel(props.threadId);
+  if (label === null) return null;
+  if (goTo === null) {
+    return (
+      <span className="notice-source" data-slot="notice-source">
+        <MessageSquare aria-hidden />
+        <span className="truncate">{label}</span>
+      </span>
+    );
+  }
+  const { threadId } = props;
   return (
-    <div
-      role="group"
-      aria-label={t("desktop.notices.source")}
-      className="flex min-w-0 items-center gap-1.5 border-t border-border-subtle pt-1.5 text-ui"
+    <button
+      type="button"
+      className="notice-source notice-source-link"
+      data-slot="notice-source"
+      aria-label={`${t("desktop.notices.source")}: ${label}`}
+      title={label}
+      onClick={() => {
+        props.onOpen();
+        goTo(threadId);
+      }}
     >
-      <MessageSquare aria-hidden className="size-icon-sm shrink-0 text-text-tertiary" />
-      {props.children}
+      <MessageSquare aria-hidden />
+      <span className="truncate">{label}</span>
+    </button>
+  );
+}
+
+/** 줄의 곁 글: 대화 이름, 대화가 없으면 본문 한 줄(예약 실패면 사유) */
+function LineMeta(props: { readonly id: string; readonly entry: NoticeEntry }): ReactNode {
+  const { entry } = props;
+  if (entry.threadId !== null) return <ThreadMeta id={props.id} threadId={entry.threadId} />;
+  const body = noticeBodyViewOf(entry.notice);
+  const text = body === null ? null : bodyTextOf(body);
+  return text === null ? null : (
+    <span id={props.id} className="notice-line-meta" title={text}>
+      {text}
+    </span>
+  );
+}
+
+function ThreadMeta(props: { readonly id: string; readonly threadId: ThreadId }): ReactNode {
+  const label = useThreadLabel(props.threadId);
+  return label === null ? null : (
+    <span id={props.id} className="notice-line-meta" title={label}>
+      {label}
+    </span>
+  );
+}
+
+function NoticeTime(props: { readonly entry: NoticeEntry; readonly now: number }): ReactNode {
+  const at = noticeShownAtOf(props.entry);
+  const age = noticeAgeViewOf(props.now, at);
+  return (
+    <time
+      className="notice-time"
+      dateTime={new Date(at).toISOString()}
+      title={new Date(at).toLocaleString()}
+    >
+      {t(age.id, age.params)}
+    </time>
+  );
+}
+
+function DismissButton(props: { readonly onDismiss: () => void }): ReactNode {
+  return (
+    <IconButton
+      size="xs"
+      variant="ghost"
+      label={t("desktop.notices.dismiss")}
+      className="notice-dismiss"
+      onClick={() => {
+        props.onDismiss();
+      }}
+    >
+      <X aria-hidden />
+    </IconButton>
+  );
+}
+
+function seqsOf(item: NoticeItem): readonly number[] {
+  return item.entries.map((entry) => entry.notice.seq);
+}
+
+/** 할 일 카드: 1줄 제목 · 반복 · 시각, 2줄 왜(본문), 3줄 어느 대화에서 · 할 일 단추 하나 */
+function NoticeCard(props: { readonly item: NoticeItem; readonly now: number }): ReactNode {
+  const commands = useCommands();
+  const goTo = useGoToThread();
+  const { item } = props;
+  const entry = item.head;
+  const { notice } = entry;
+  const body = noticeBodyViewOf(notice);
+  const action = body?.kind === "failure" ? body.action : null;
+  const repeat = repeatTextOf(item);
+  const read = (): void => {
+    noticeMarks.markRead(seqsOf(item));
+  };
+  const threadId = entry.threadId;
+  const answer = notice.kind === "question_waiting" && threadId !== null && goTo !== null;
+  return (
+    <article
+      className="notice-card"
+      data-tone={notice.kind === "error" ? "danger" : "neutral"}
+      data-read={item.read ? "true" : undefined}
+    >
+      <div className="notice-card-head">
+        <h4 className="notice-card-title">{noticeTitleText(notice)}</h4>
+        {repeat === null ? null : (
+          <span className="notice-repeat">{t(repeat.id, { count: repeat.count })}</span>
+        )}
+        <NoticeTime entry={entry} now={props.now} />
+        <DismissButton
+          onDismiss={() => {
+            noticeMarks.dismiss(seqsOf(item));
+          }}
+        />
+      </div>
+      {body === null ? null : <CardBody view={body} />}
+      <div className="notice-card-foot">
+        <span className="min-w-0 flex-1">
+          <Source entry={entry} onOpen={read} />
+        </span>
+        {action === null ? null : (
+          <Button
+            size="sm"
+            variant="solid"
+            onClick={() => {
+              read();
+              commands.requestSettingsJump({ tab: "providers", key: null });
+            }}
+          >
+            {t(ACTION_TEXT[action])}
+          </Button>
+        )}
+        {answer ? (
+          <Button
+            size="sm"
+            variant="solid"
+            onClick={() => {
+              read();
+              goTo(threadId);
+            }}
+          >
+            {t("desktop.notices.action.answer")}
+          </Button>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+/** 레일 위 한 줄(32): 제목 · 곁 글 · 시각. 줄 전체가 그 대화로 가는 단추이고(대화가 없으면 읽음만), hover·초점에서 시각 자리에 지우기가 뜬다 */
+function NoticeLine(props: { readonly item: NoticeItem; readonly now: number }): ReactNode {
+  const goTo = useGoToThread();
+  const titleId = useId();
+  const metaId = useId();
+  const { item } = props;
+  const entry = item.head;
+  const title = noticeTitleText(entry.notice);
+  const repeat = repeatTextOf(item);
+  const threadId = entry.threadId;
+  return (
+    <div className="notice-line" data-read={item.read ? "true" : undefined}>
+      <button
+        type="button"
+        className="notice-line-hit"
+        aria-labelledby={`${titleId} ${metaId}`}
+        onClick={() => {
+          noticeMarks.markRead(seqsOf(item));
+          if (threadId !== null && goTo !== null) goTo(threadId);
+        }}
+      />
+      <span id={titleId} className="notice-line-title" title={title}>
+        {title}
+      </span>
+      {repeat === null ? null : (
+        <span className="notice-repeat">{t(repeat.id, { count: repeat.count })}</span>
+      )}
+      <LineMeta id={metaId} entry={entry} />
+      <NoticeTime entry={entry} now={props.now} />
+      <DismissButton
+        onDismiss={() => {
+          noticeMarks.dismiss(seqsOf(item));
+        }}
+      />
     </div>
   );
 }
 
-function ThreadName(props: { readonly threadId: ThreadId }): ReactNode {
-  const goTo = useGoToThread();
-  const thread = useThread(props.threadId);
-  if (thread === undefined) return null;
-  const name = thread.title ?? t("desktop.threads.untitled");
-  const tag =
-    thread.origin?.kind === "schedule" ? (
-      <span className="dim">{`${t("desktop.notices.origin.schedule")} · `}</span>
-    ) : null;
-  if (goTo === null) {
-    return (
-      <SourceFrame>
-        <span className="dim">
-          {tag}
-          {name}
-        </span>
-      </SourceFrame>
-    );
+/** 날짜 머리와 장을 레일 위 한 줄씩으로 편다. 레일 선은 첫 칸 위와 끝 칸 아래에서 끊긴다 */
+type RailRow =
+  | { readonly kind: "day"; readonly key: string; readonly day: NoticeDay }
+  | { readonly kind: "item"; readonly key: string; readonly item: NoticeItem };
+
+function railRowsOf(items: readonly NoticeItem[]): readonly RailRow[] {
+  const rows: RailRow[] = [];
+  let day: NoticeDay | null = null;
+  for (const item of items) {
+    if (item.day !== day) {
+      day = item.day;
+      rows.push({ kind: "day", key: `day:${item.day}`, day: item.day });
+    }
+    rows.push({ kind: "item", key: item.key, item });
   }
-  return (
-    <SourceFrame>
-      <span className="flex min-w-0 flex-wrap items-baseline">
-        {tag}
-        <button
-          type="button"
-          className={LINK_CLASS}
-          onClick={() => {
-            goTo(props.threadId);
-          }}
-        >
-          {name}
-        </button>
-      </span>
-    </SourceFrame>
-  );
+  return rows;
 }
 
-/** 대화 없는 알림의 출처. 예약이 대화를 열기 전에 실패한 알림이면 "예약"이고, 대화 이름 링크는 없다 */
-function ThreadlessOrigin(props: { readonly notice: Notice }): ReactNode {
-  if (props.notice.sourceType !== "schedule.run_finished") return null;
-  return (
-    <SourceFrame>
-      <span className="dim">{t("desktop.notices.origin.schedule")}</span>
-    </SourceFrame>
-  );
-}
-
-function NoticeRow(props: {
-  readonly entry: NoticeEntry;
-  readonly waiting: ReadonlySet<string>;
+function NoticeRail(props: {
+  readonly items: readonly NoticeItem[];
   readonly now: number;
 }): ReactNode {
-  const { notice, threadId } = props.entry;
-  const failed = notice.kind === "error";
-  const resolved = noticeResolved(props.entry, props.waiting);
-  const kind = resolved ? t("desktop.notices.kind.resolved") : t(noticeKindId(notice.kind));
-  const shownAt = noticeShownAtOf(props.entry);
-  const age = noticeAgeViewOf(props.now, shownAt);
-  const body = noticeBodyViewOf(notice);
+  const rows = railRowsOf(props.items);
   return (
-    // 한 건이 한 카드다. 위에서 아래로: 상태 배지와 끝난 시각 → 무슨 일(제목) → 내용 → 어느 대화에서(눌러서 이동)
-    <li className="grid gap-1.5 rounded-lg border border-border-subtle bg-surface-raised p-3">
-      <div className="flex items-center gap-2">
-        <Chip
-          size="xs"
-          variant="soft"
-          tone={noticeToneOf(notice.kind, resolved)}
-          icon={failed ? <TriangleAlert aria-hidden /> : undefined}
-        >
-          {kind}
-        </Chip>
-        <time
-          className="ms-auto text-ui-xs tabular-nums text-text-tertiary"
-          dateTime={new Date(shownAt).toISOString()}
-          title={new Date(shownAt).toLocaleString()}
-        >
-          {t(age.id, age.params)}
-        </time>
-      </div>
-      <span className="text-ui-strong text-text-primary [overflow-wrap:anywhere]">
-        {noticeTitleText(notice)}
-      </span>
-      {body === null ? null : <NoticeBody view={body} />}
-      {threadId === null ? (
-        <ThreadlessOrigin notice={notice} />
-      ) : (
-        <ThreadName threadId={threadId} />
-      )}
-    </li>
+    <ol className="notice-rail" data-slot="notice-rail">
+      {rows.map((row, index) => {
+        const edge = {
+          "data-rail-start": index === 0 ? "true" : undefined,
+          "data-rail-end": index === rows.length - 1 ? "true" : undefined,
+        };
+        if (row.kind === "day") {
+          return (
+            <li key={row.key} className="notice-rail-row" data-shape="day" {...edge}>
+              <span aria-hidden className="notice-node" />
+              <h3 className="notice-day">{t(DAY_TEXT[row.day])}</h3>
+            </li>
+          );
+        }
+        const { item } = row;
+        const kind = item.head.notice.kind;
+        return (
+          <li
+            key={row.key}
+            className="notice-rail-row"
+            data-shape={item.prominent ? "card" : "line"}
+            {...edge}
+          >
+            <span className="notice-node">
+              <NoticeIcon kind={kind} strong={item.prominent} />
+            </span>
+            {item.prominent ? (
+              <NoticeCard item={item} now={props.now} />
+            ) : (
+              <NoticeLine item={item} now={props.now} />
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/** 끝에 닿으면 `onMore`를 부른다(IntersectionObserver). 관찰할 수 없는 곳에서는 단추가 같은 일을 한다 */
+function MoreSentinel(props: { readonly onMore: () => void }): ReactNode {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const more = useRef(props.onMore);
+  useEffect(() => {
+    more.current = props.onMore;
+  }, [props.onMore]);
+  useEffect(() => {
+    const node = ref.current;
+    if (node === null || typeof IntersectionObserver === "undefined") return undefined;
+    const observer = new IntersectionObserver((seen) => {
+      if (seen.some((entry) => entry.isIntersecting)) more.current();
+    });
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+  return (
+    <div ref={ref} className="notice-more">
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={() => {
+          props.onMore();
+        }}
+      >
+        {t("desktop.notices.more")}
+      </Button>
+    </div>
   );
 }
 
@@ -331,6 +568,9 @@ export interface NoticeFeed {
   readonly retry: () => void;
   readonly clear: () => void;
 }
+
+/** 대화별로 읽어 대화 이름을 붙일 때 한 대화에서 넘기는 쪽 수 상한 */
+const NAMED_PAGE_CALLS = 20;
 
 /** 알림을 읽고(연결이 살아 있을 때), 전달되는 대로 더하고, 지우면 경계를 올린다 */
 export function useNoticeFeed(): NoticeFeed {
@@ -348,14 +588,19 @@ export function useNoticeFeed(): NoticeFeed {
 
   const read = useCallback((): void => {
     const run = async (): Promise<void> => {
-      const listed = await commands.notices.list();
+      // 엔진은 오래된 것부터 한 쪽씩 준다. 끝까지 넘겨 새것을 든다(DP-216)
+      const listed = await readNoticePages((after) => commands.notices.list(undefined, after));
       if (!listed.ok) {
         setLoad("error");
         return;
       }
       const scoped = await Promise.all(
         recentIds.current.map(async (threadId) => {
-          const got = await commands.notices.list(threadId);
+          const got = await readNoticePages(
+            (after) => commands.notices.list(threadId, after),
+            NOTICE_KEEP,
+            NAMED_PAGE_CALLS,
+          );
           return { threadId, notices: got.ok ? got.value.notices : [] };
         }),
       );
@@ -366,7 +611,7 @@ export function useNoticeFeed(): NoticeFeed {
           threadId: threads.get(notice.seq) ?? null,
         })),
         // 대화 없는 알림은 대화별 목록에 없고, 이 목록의 `threadless`로만 온다
-        ...(listed.value.threadless ?? []).map((notice) => ({ notice, threadId: null })),
+        ...listed.value.threadless.map((notice) => ({ notice, threadId: null })),
       ];
       // 지운 경계는 읽는 동안 올라갔을 수 있어 합치는 순간에 본다
       setEntries((now) => mergeNotices(now, noticesAfter(clearedNotices, incoming)));
@@ -439,23 +684,67 @@ function ClearDialog(props: {
   );
 }
 
-function NoticeList(props: {
-  readonly feed: NoticeFeed;
-  readonly thread: InboxThread;
-  readonly sort: InboxSort;
+/** 읽음·지우기 표지의 판. 바뀌면 다시 그린다 */
+function useNoticeMarks(): NoticeMarks {
+  useSyncExternalStore(noticeMarks.subscribe, noticeMarks.version, noticeMarks.version);
+  return noticeMarks.marks();
+}
+
+/** 상태 없이 그리는 목록(서버 렌더 시험과 견본이 직접 그린다) */
+export function NoticeListView(props: {
+  readonly items: readonly NoticeItem[];
+  readonly now: number;
+  /** 그릴 장 수. 나머지는 끝에 닿으면 더 그린다 */
+  readonly shown: number;
+  readonly onMore: () => void;
 }): ReactNode {
+  const visible = props.items.slice(0, props.shown);
+  return (
+    <>
+      <NoticeRail items={visible} now={props.now} />
+      {visible.length < props.items.length ? <MoreSentinel onMore={props.onMore} /> : null}
+    </>
+  );
+}
+
+function NoticeList(props: { readonly feed: NoticeFeed; readonly thread: InboxThread }): ReactNode {
   const { feed } = props;
   const phase = useLinkPhase();
   const approvals = useApprovalMirror();
   const waiting = new Set(approvals.ids.flatMap((id) => approvals.byId[id]?.threadId ?? []));
   const now = useClockNow();
+  const marks = useNoticeMarks();
   const [confirming, setConfirming] = useState(false);
-  const shown = arrangeInboxNotices(feed.entries, { thread: props.thread, sort: props.sort });
+  const [shown, setShown] = useState(NOTICE_PAGE);
+  // 알림은 늘 새것 먼저다(날짜 머리와 더 보기가 그 순서를 전제한다). 정렬 셀렉트는 승인 구역만 거른다(DP-216)
+  const entries = arrangeInboxNotices(feed.entries, { thread: props.thread, sort: "newest" });
+  const items = noticeItemsOf(entries, { now, marks, waitingThreads: waiting });
+  const unread = unreadCountOf(items);
+  const more = useCallback((): void => {
+    setShown((count) => count + NOTICE_PAGE);
+  }, []);
   return (
     <section className="grid gap-2" aria-label={t("desktop.notices.label")}>
-      <header className="flex items-center gap-2">
-        <h2 className="m-0 flex-1 text-title-4">{t("desktop.notices.title")}</h2>
-        {feed.entries.length === 0 ? null : (
+      <header className="flex h-7 items-center gap-2">
+        <h2 className="m-0 text-ui-strong text-text-primary">{t("desktop.notices.title")}</h2>
+        {unread === 0 ? null : (
+          <span className="text-ui-sm text-text-tertiary tabular-nums">
+            {t("desktop.notices.unread", { count: unread })}
+          </span>
+        )}
+        <span className="flex-1" />
+        {unread === 0 ? null : (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              noticeMarks.markRead(items.flatMap(seqsOf));
+            }}
+          >
+            {t("desktop.notices.markAllRead")}
+          </Button>
+        )}
+        {items.length === 0 ? null : (
           <Button
             size="sm"
             variant="ghost"
@@ -473,7 +762,11 @@ function NoticeList(props: {
         </Alert>
       ) : null}
       {feed.load === "loading" && phase === "live" && feed.entries.length === 0 ? (
-        <Skeleton aria-label={t("desktop.notices.loading")} />
+        <div className="grid gap-1" aria-label={t("desktop.notices.loading")} role="status">
+          <Skeleton className="h-8" />
+          <Skeleton className="h-8" />
+          <Skeleton className="h-8" />
+        </div>
       ) : null}
       {feed.load === "error" ? (
         <Alert tone="danger" size="sm" radius="md" role="alert">
@@ -489,7 +782,7 @@ function NoticeList(props: {
           </Button>
         </Alert>
       ) : null}
-      {feed.load === "ready" && shown.length === 0 ? (
+      {feed.load === "ready" && items.length === 0 ? (
         <EmptyState
           media={<InboxArt />}
           size="sm"
@@ -497,11 +790,9 @@ function NoticeList(props: {
           title={t("desktop.notices.empty")}
         />
       ) : null}
-      <ul className="m-0 grid list-none gap-3 p-0">
-        {shown.map((entry) => (
-          <NoticeRow key={entry.notice.seq} entry={entry} waiting={waiting} now={now} />
-        ))}
-      </ul>
+      {items.length === 0 ? null : (
+        <NoticeListView items={items} now={now} shown={shown} onMore={more} />
+      )}
       <ClearDialog
         open={confirming}
         onOpenChange={setConfirming}
@@ -516,23 +807,19 @@ function NoticeList(props: {
 
 /**
  * 받은 요청 탭의 알림 묶음. 화면이 `feed`를 넘기면 그 목록을 쓰고, 없으면(끝 영역 탭) 이 자리에서 읽는다.
- * 거르기와 정렬은 승인과 같은 값을 쓴다
+ * 대화 거르기는 승인과 같은 값을 쓰고, 순서는 늘 새것 먼저다
  */
 export function InboxNotices(props: {
   readonly feed?: NoticeFeed | undefined;
   readonly thread: InboxThread;
-  readonly sort: InboxSort;
 }): ReactNode {
   if (props.feed !== undefined) {
-    return <NoticeList feed={props.feed} thread={props.thread} sort={props.sort} />;
+    return <NoticeList feed={props.feed} thread={props.thread} />;
   }
-  return <OwnFeedNotices thread={props.thread} sort={props.sort} />;
+  return <OwnFeedNotices thread={props.thread} />;
 }
 
-function OwnFeedNotices(props: {
-  readonly thread: InboxThread;
-  readonly sort: InboxSort;
-}): ReactNode {
+function OwnFeedNotices(props: { readonly thread: InboxThread }): ReactNode {
   const feed = useNoticeFeed();
-  return <NoticeList feed={feed} thread={props.thread} sort={props.sort} />;
+  return <NoticeList feed={feed} thread={props.thread} />;
 }

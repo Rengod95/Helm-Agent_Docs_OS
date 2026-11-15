@@ -604,12 +604,9 @@ export function createCommands(
     memory: createMemoryCommands(withConnection, withWriteConnection),
     usage: createUsageCommands(withConnection),
     notices: {
-      list: (threadId) =>
+      list: (threadId, afterSeq = 0) =>
         withConnection((c) =>
-          c.request(
-            "notify.list",
-            threadId === undefined ? { afterSeq: 0 } : { afterSeq: 0, threadId },
-          ),
+          c.request("notify.list", threadId === undefined ? { afterSeq } : { afterSeq, threadId }),
         ),
       onDelivered(listener) {
         const connection = session.connection();

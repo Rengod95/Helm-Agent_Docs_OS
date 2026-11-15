@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { err, ok } from "@fresnel/contracts";
 import { t } from "@fresnel/client/i18n";
 import { THREADLESS_NOTICE_SEQ_BASE, type Notice } from "@fresnel/contracts/capabilities";
 import {
@@ -8,12 +9,17 @@ import {
   NOTICE_KEEP,
   noticeAgeViewOf,
   noticeBodyViewOf,
-  noticeKindId,
   noticeResolved,
-  noticeToneOf,
   noticeShownAtOf,
+  createNoticeMarkStore,
+  noticeDayOf,
+  noticeItemsOf,
+  noticeProminentOf,
   noticesAfter,
   noticeTitleViewOf,
+  readNoticePages,
+  repeatTextOf,
+  unreadCountOf,
   noticeToastVisible,
   NOTICE_TOAST_MS,
   threadBySeqOf,
@@ -84,11 +90,6 @@ describe("mergeNotices", () => {
     expect(merged.length).toBe(NOTICE_KEEP);
     expect(merged[0]?.notice.seq).toBe(NOTICE_KEEP + 5);
     expect(merged.at(-1)?.notice.seq).toBe(6);
-  });
-
-  test("each kind has its own text id", () => {
-    expect(noticeKindId("error")).toBe("desktop.notices.kind.error");
-    expect(noticeKindId("approval_waiting")).toBe("desktop.notices.kind.approvalWaiting");
   });
 });
 
@@ -478,13 +479,160 @@ describe("cleared notices", () => {
   });
 });
 
-describe("noticeToneOf", () => {
-  test("maps each kind to its badge tone and a resolved wait to neutral", () => {
-    expect(noticeToneOf("completed", false)).toBe("success");
-    expect(noticeToneOf("background_completed", false)).toBe("info");
-    expect(noticeToneOf("approval_waiting", false)).toBe("warning");
-    expect(noticeToneOf("question_waiting", false)).toBe("warning");
-    expect(noticeToneOf("error", false)).toBe("danger");
-    expect(noticeToneOf("approval_waiting", true)).toBe("neutral");
+describe("readNoticePages (DP-216)", () => {
+  // 엔진처럼 오래된 것부터 한 쪽 2개씩 준다. 쪽마다 nextSeq는 마지막 알림의 seq다
+  const LOG = [1, 2, 3, 4, 5].map((seq) => notice(seq));
+  const pageOf = (after: number) => {
+    const rest = LOG.filter((n) => n.seq > after).slice(0, 2);
+    return { notices: rest, nextSeq: rest.at(-1)?.seq ?? after, threadless: [notice(900)] };
+  };
+
+  test("follows nextSeq to the end and keeps the newest", async () => {
+    const calls: number[] = [];
+    const read = await readNoticePages((after) => {
+      calls.push(after);
+      return Promise.resolve(ok(pageOf(after)));
+    }, 3);
+    expect(read.ok ? read.value.notices.map((n) => n.seq) : null).toEqual([3, 4, 5]);
+    expect(read.ok ? read.value.threadless.map((n) => n.seq) : null).toEqual([900]);
+    expect(calls).toEqual([0, 2, 4, 5]);
+  });
+
+  test("stops at the call cap, returns the error of a failing first page and keeps pages read before a later failure", async () => {
+    const capped = await readNoticePages((after) => Promise.resolve(ok(pageOf(after))), 10, 2);
+    expect(capped.ok ? capped.value.notices.map((n) => n.seq) : null).toEqual([1, 2, 3, 4]);
+    const first = await readNoticePages(() => Promise.resolve(err("down")));
+    expect(first).toEqual(err("down"));
+    const later = await readNoticePages((after) =>
+      Promise.resolve(after === 0 ? ok(pageOf(after)) : err("down")),
+    );
+    expect(later.ok ? later.value.notices.map((n) => n.seq) : null).toEqual([1, 2]);
+  });
+});
+
+describe("noticeDayOf", () => {
+  test("splits by calendar day in the device time zone", () => {
+    const now = new Date(2026, 10, 15, 9, 0).getTime();
+    expect(noticeDayOf(now, new Date(2026, 10, 15, 0, 5).getTime())).toBe("today");
+    expect(noticeDayOf(now, new Date(2026, 10, 14, 23, 59).getTime())).toBe("yesterday");
+    expect(noticeDayOf(now, new Date(2026, 10, 14, 0, 0).getTime())).toBe("yesterday");
+    expect(noticeDayOf(now, new Date(2026, 10, 13, 23, 59).getTime())).toBe("earlier");
+  });
+});
+
+const shape = (items: ReturnType<typeof noticeItemsOf>) =>
+  items.map((item) => [item.key, item.day, item.entries.length, item.prominent, item.read]);
+
+describe("noticeItemsOf (DP-214)", () => {
+  const NOW = new Date(2026, 10, 15, 15, 0).getTime();
+  const MIN = 60_000;
+  const at = (
+    seq: number,
+    kind: Notice["kind"],
+    minutesAgo: number,
+    thread: number | null,
+    body: string | null = null,
+  ): NoticeEntry => ({
+    notice: {
+      kind,
+      title: "t",
+      body,
+      seq,
+      sourceType: "turn.completed",
+      createdAt: NOW - minutesAgo * MIN,
+    },
+    threadId: thread === null ? null : thr(thread),
+  });
+  const none = { read: new Set<number>(), dismissed: new Set<number>() };
+
+  test("folds a run of the same cause on the same day, and only that run", () => {
+    const entries = [
+      at(9, "error", 1, 1, "401"),
+      at(8, "error", 2, 1, "401"),
+      at(7, "error", 3, 1, "401"),
+      at(6, "completed", 4, 1),
+      at(5, "error", 5, 1, "401"),
+      at(4, "error", 6, 2, "401"),
+      at(3, "error", 60 * 24, 2, "401"),
+    ];
+    const items = noticeItemsOf(entries, { now: NOW, marks: none, waitingThreads: new Set() });
+    expect(shape(items)).toEqual([
+      ["9", "today", 3, true, false],
+      ["6", "today", 1, false, false],
+      ["5", "today", 1, true, false],
+      ["4", "today", 1, true, false],
+      ["3", "yesterday", 1, false, false],
+    ]);
+    expect(items.map(repeatTextOf)).toEqual([
+      { id: "desktop.notices.repeat.error", count: 3 },
+      null,
+      null,
+      null,
+      null,
+    ]);
+    expect(unreadCountOf(items)).toBe(5);
+  });
+
+  test("a read item is read only when all its notices are; dismissed notices leave the list", () => {
+    const entries = [
+      at(9, "error", 1, 1, "x"),
+      at(8, "error", 2, 1, "x"),
+      at(7, "completed", 3, 1),
+    ];
+    const partly = noticeItemsOf(entries, {
+      now: NOW,
+      marks: { read: new Set([9]), dismissed: new Set() },
+      waitingThreads: new Set(),
+    });
+    const all = noticeItemsOf(entries, {
+      now: NOW,
+      marks: { read: new Set([8, 9]), dismissed: new Set([7]) },
+      waitingThreads: new Set(),
+    });
+    expect(shape(partly)).toEqual([
+      ["9", "today", 2, true, false],
+      ["7", "today", 1, false, false],
+    ]);
+    expect(shape(all)).toEqual([["9", "today", 2, false, true]]);
+  });
+
+  test("cards: unresolved questions and today's unread errors; approvals, endings and old errors are lines", () => {
+    const today = { day: "today", read: false, resolved: false } as const;
+    expect([
+      noticeProminentOf("question_waiting", today),
+      noticeProminentOf("question_waiting", { ...today, resolved: true }),
+      noticeProminentOf("approval_waiting", today),
+      noticeProminentOf("error", today),
+      noticeProminentOf("error", { ...today, read: true }),
+      noticeProminentOf("error", { ...today, day: "yesterday" }),
+      noticeProminentOf("completed", today),
+      noticeProminentOf("background_completed", today),
+    ]).toEqual([true, false, false, true, false, false, false, false]);
+  });
+});
+
+describe("createNoticeMarkStore", () => {
+  test("marks read and dismissed seqs, bumps the version once per change and tells listeners", () => {
+    const store = createNoticeMarkStore();
+    let heard = 0;
+    const off = store.subscribe(() => {
+      heard += 1;
+    });
+    store.markRead([1, 2]);
+    store.markRead([2]);
+    store.dismiss([3]);
+    off();
+    store.dismiss([4]);
+    expect([[...store.marks().read], [...store.marks().dismissed], store.version(), heard]).toEqual(
+      [[1, 2], [3, 4], 3, 2],
+    );
+  });
+});
+
+describe("noticeTitleViewOf for extension notices", () => {
+  test("keeps the title an extension wrote itself", () => {
+    expect(
+      noticeTitleViewOf({ ...notice(1, "색인 갱신이 끝났어요"), sourceType: "dialog.notified" }),
+    ).toBeNull();
   });
 });

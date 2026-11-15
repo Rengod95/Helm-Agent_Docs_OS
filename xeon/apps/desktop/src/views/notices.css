@@ -1,0 +1,299 @@
+/* 알림 목록(notices.tsx, DP-214~216 [결정: 2026-11-15 사용자, dzN2]). 날짜 머리와 알림이 왼쪽 세로 레일 하나에 매달린다.
+   레일 칸 20(선 1px, 마디 가운데), 칸과 내용 사이 8. 선은 마디 둘레 4를 비우고 줄마다 위아래 조각으로 그려서
+   바탕색을 몰라도 아이콘 뒤를 지나지 않는다. 첫 줄 위와 끝 줄 아래는 끊긴다.
+   한 줄 32(제목 13 · 곁 글 12 · 시각 12), 할 일 카드는 안쪽 10/12·반경 lg, 오류 카드만 옅은 위험색 면이다.
+   styles.css가 가져온다(CSP가 인라인 <style>을 막는다). */
+
+.notice-rail {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notice-rail-row {
+  /* 마디 가운데의 y. 줄·날짜 머리는 16·14, 카드는 제목 줄(위 10 + 20의 반) 20 */
+  --notice-node-y: 16px;
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  column-gap: 8px;
+  align-items: start;
+}
+.notice-rail-row[data-shape="day"] {
+  --notice-node-y: 14px;
+}
+/* 카드는 위아래 4를 띄워 줄과 가른다. 마디는 카드 제목 줄 가운데(4 + 10 + 10) */
+.notice-rail-row[data-shape="card"] {
+  --notice-node-y: 24px;
+  --notice-pad: 4px;
+  padding-block: 4px;
+}
+
+/* 레일 선 조각: 마디 위(줄 맨 위 → 마디 위 4)와 마디 아래(마디 아래 4 → 줄 맨 아래) */
+.notice-rail-row::before,
+.notice-rail-row::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: 9.5px;
+  width: 1px;
+  background: var(--cs-color-border-subtle);
+}
+.notice-rail-row::before {
+  top: 0;
+  height: max(0px, calc(var(--notice-node-y) - 11px));
+}
+.notice-rail-row::after {
+  top: calc(var(--notice-node-y) + 11px);
+  bottom: 0;
+}
+.notice-rail-row[data-rail-start="true"]::before,
+.notice-rail-row[data-rail-end="true"]::after {
+  display: none;
+}
+
+/* 마디: 아이콘 14를 레일 가운데에 */
+.notice-node {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  /* 줄의 위 여백(--notice-pad)을 빼야 마디가 선 조각 사이 가운데에 온다 */
+  margin-top: calc(var(--notice-node-y) - 10px - var(--notice-pad, 0px));
+}
+.notice-node svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+/* 날짜 마디: 레일을 가로지르는 눈금 하나 */
+.notice-rail-row[data-shape="day"] .notice-node::before {
+  content: "";
+  width: 9px;
+  height: 1px;
+  background: var(--cs-color-text-tertiary);
+  opacity: 0.6;
+}
+
+.notice-day {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  margin: 0;
+  /* 날짜 글은 줄·카드 글과 같은 안쪽 12에서 시작한다 */
+  padding-inline-start: 12px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--cs-color-text-tertiary);
+}
+/* 첫 날짜 머리가 아닌 머리는 위 8을 더 띄워 날짜 사이를 가른다 */
+.notice-rail-row[data-shape="day"]:not([data-rail-start="true"]) {
+  padding-top: 8px;
+  --notice-node-y: 22px;
+  --notice-pad: 8px;
+}
+
+/* ── 한 줄 ─────────────────────────────────────────────────────── */
+.notice-line {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 32px;
+  /* 카드와 같은 상자: 글은 카드 글과 같은 안쪽 12에서 시작하고 hover 면은 카드 자리만큼이다 */
+  padding-inline: 12px;
+  border-radius: var(--cs-radius-lg);
+}
+.notice-line:has(> .notice-line-hit:hover),
+.notice-line:focus-within {
+  background: var(--cs-color-neutral-hover);
+}
+.notice-line-hit {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.notice-line-hit:focus-visible {
+  outline: 2px solid var(--cs-color-accent-border);
+  outline-offset: -2px;
+}
+.notice-line > :not(.notice-line-hit):not(.notice-dismiss) {
+  pointer-events: none;
+}
+.notice-line-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--cs-color-text-primary);
+}
+.notice-line[data-read="true"] .notice-line-title {
+  font-weight: 400;
+  color: var(--cs-color-text-secondary);
+}
+.notice-line-meta {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--cs-color-text-tertiary);
+}
+
+/* 시각: 줄과 카드 머리 끝. hover·초점에서는 같은 자리에 지우기가 뜨고 시각은 숨는다(폭은 그대로라 글이 밀리지 않는다) */
+.notice-time {
+  flex: none;
+  margin-inline-start: auto;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--cs-color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.notice-repeat {
+  flex: none;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--cs-color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.notice-dismiss {
+  position: absolute;
+  inset-inline-end: 8px;
+  top: 50%;
+  translate: 0 -50%;
+  z-index: 1;
+  opacity: 0;
+}
+.notice-line:hover .notice-dismiss,
+.notice-line:focus-within .notice-dismiss,
+.notice-card:hover .notice-dismiss,
+.notice-card:focus-within .notice-dismiss {
+  opacity: 1;
+}
+.notice-line:hover .notice-time,
+.notice-line:focus-within .notice-time,
+.notice-card:hover .notice-card-head .notice-time,
+.notice-card:focus-within .notice-card-head .notice-time {
+  opacity: 0;
+}
+
+/* ── 할 일 카드 ────────────────────────────────────────────────── */
+.notice-card {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: var(--cs-radius-lg);
+  background: var(--cs-color-surface-raised);
+  box-shadow: inset 0 0 0 1px var(--cs-color-border-subtle);
+}
+.notice-card[data-tone="danger"] {
+  background: color-mix(in oklch, var(--cs-color-danger-solid) 6%, var(--cs-color-surface-raised));
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--cs-color-danger-solid) 14%, transparent);
+}
+:root[data-theme="light"] .notice-card[data-tone="danger"] {
+  background: color-mix(in oklch, var(--cs-color-danger-solid) 5%, var(--cs-color-surface-raised));
+}
+.notice-card-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 20px;
+}
+.notice-card-head .notice-dismiss {
+  inset-inline-end: -4px;
+}
+.notice-card-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--cs-color-text-primary);
+}
+.notice-card-body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--cs-color-text-secondary);
+  overflow-wrap: anywhere;
+}
+/* 정보 아이콘은 본문 끝 글과 4 떨어져 글 가운데에 선다(InfoTip은 패딩 0) */
+.notice-card-detail {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-inline-start: 4px;
+}
+.notice-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 28px;
+  margin-top: 2px;
+}
+
+/* 출처: 대화 아이콘 12 + 이름 12 secondary. 누르면 그 대화로(밑줄은 hover에서만) */
+.notice-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--cs-color-text-secondary);
+}
+.notice-source svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  color: var(--cs-color-text-tertiary);
+}
+.notice-source-link {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+  border-radius: var(--cs-radius-xs);
+  outline: none;
+}
+.notice-source-link:hover {
+  color: var(--cs-color-text-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.notice-source-link:focus-visible {
+  box-shadow: 0 0 0 2px var(--cs-color-accent-border);
+}
+
+/* 더 보기: 레일 칸(20 + 8)만큼 들여 가운데 */
+.notice-more {
+  display: flex;
+  justify-content: center;
+  padding-inline-start: 28px;
+}
