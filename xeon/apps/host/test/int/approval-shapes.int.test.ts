@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { createStubServer } from "@fresnel/cap-mcp/testing";
 import type { JsonObject, ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type { QuestionAnswerJson } from "@fresnel/contracts/records";
 import type { EventWire } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
@@ -37,7 +38,7 @@ interface Scenario {
 
 interface Settled {
   readonly decision: "allow" | "answer";
-  readonly answer?: JsonObject;
+  readonly answer?: QuestionAnswerJson;
 }
 
 async function runScenario(

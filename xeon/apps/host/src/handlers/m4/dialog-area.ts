@@ -1,11 +1,7 @@
 import { assertNever, type Result } from "@fresnel/contracts";
 import type { ReadFailure } from "@fresnel/contracts/records";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
-import type {
-  MemoryReadOutput,
-  MemoryWriteOutput,
-  PlanVersionsOutputValue,
-} from "@fresnel/contracts/capabilities";
+import type { MemoryReadOutput, MemoryWriteOutput } from "@fresnel/contracts/capabilities";
 import {
   wireError,
   type GoalStatusResult,
@@ -26,14 +22,14 @@ import {
 } from "@fresnel/contracts/wire";
 
 // 대화 영역 wire(`review.get` W-02, `goal.status` W-05, `work.tasks.list` W-06, `schedule.update`·`schedule.runs` W-07,
-// `knowledge.skills.view` W-14, `work.plans.versions` W-18). `host.clients`(W-12)는 host.ts, `turn.withdraw`(W-17)는 turn.ts에 있다.
+// `knowledge.skills.view` W-14). `host.clients`(W-12)는 host.ts, `turn.withdraw`(W-17)는 turn.ts에 있다.
 // 처리기는 포트가 돌려준 오류 값을 와이어 오류로 옮길 뿐이다. 포트 구현은 `assembly/m4/dialog-area-port.ts`다.
 // 전용 와이어 오류 kind가 아직 없어서(F 갭) 모르는 id와 한도는 `jsonrpc.invalidParams`의 issue로 알린다.
 
 /** 포트가 읽지 못한 이유. 처리기가 와이어 오류로 옮긴다 */
 export type DialogAreaFailure =
   | { readonly kind: "thread_not_found"; readonly threadId: ThreadId }
-  /** 모르는 id: 리뷰, 예약, 계획, 스킬 이름 */
+  /** 모르는 id: 리뷰, 예약, 스킬 이름, 기억 항목 */
   | { readonly kind: "unknown"; readonly path: UnknownPath; readonly id: string }
   /** 켜진 예약 수 상한에 닿아 다시 켤 수 없다 */
   | { readonly kind: "limit_reached"; readonly max: number }
@@ -49,7 +45,7 @@ export type DialogAreaFailure =
 export type DialogAreaOutcome<T> = Result<T, DialogAreaFailure>;
 
 /** `unknown` 실패가 가리키는 params 이름. 와이어 issue의 path가 된다 */
-type UnknownPath = "reviewId" | "scheduleId" | "planId" | "name" | "entryId" | "baseHash";
+type UnknownPath = "reviewId" | "scheduleId" | "name" | "entryId" | "baseHash";
 
 /** 처리기가 쓰는 포트 */
 export interface DialogAreaPort {
@@ -77,12 +73,6 @@ export interface DialogAreaPort {
     threadId: ThreadId | undefined,
     signal: AbortSignal,
   ): Promise<DialogAreaOutcome<SkillListResult>>;
-  /** 계획의 모든 판(W-18). 기능이 꺼져 있으면 빈 목록 */
-  plansVersions(
-    threadId: ThreadId,
-    planId: string,
-    signal: AbortSignal,
-  ): Promise<DialogAreaOutcome<PlanVersionsOutputValue>>;
   /** 기억 읽기(W-19). 기억 설정이 꺼져 있으면 `unavailable` */
   memoryRead(
     params: MemoryReadParams,
@@ -114,8 +104,7 @@ export type DialogAreaMethods =
   | "schedule.update"
   | "schedule.runs"
   | "knowledge.skills.view"
-  | "knowledge.skills.list"
-  | "work.plans.versions";
+  | "knowledge.skills.list";
 
 const MESSAGE_MAX = 200;
 
@@ -123,7 +112,6 @@ const MESSAGE_MAX = 200;
 const UNKNOWN_LABEL: Readonly<Record<UnknownPath, string>> = {
   reviewId: "review",
   scheduleId: "schedule",
-  planId: "plan",
   name: "skill",
   entryId: "memory entry",
   baseHash: "file version (changed outside, read again)",
@@ -234,10 +222,5 @@ export function createDialogAreaHandlers(
       unwrapped(port.memoryReplace(params, context.signal), "knowledge.memory.replace"),
     "knowledge.memory.remove": (params, context) =>
       unwrapped(port.memoryRemove(params, context.signal), "knowledge.memory.remove"),
-    "work.plans.versions": (params, context) =>
-      unwrapped(
-        port.plansVersions(threadIdOf(params.threadId), params.planId, context.signal),
-        "work.plans.versions",
-      ),
   };
 }

@@ -286,6 +286,15 @@ export async function installedAgentDefinitions(
             });
             return undefined;
           }
+          // 정의는 실었지만 무시한 값이 있으면(은퇴한 `permissions.mode: plan`) 그 알림을 경고로 남긴다
+          for (const diagnostic of parsed.diagnostics) {
+            logger.warn("default_plugins.agent_definition_warning", {
+              path,
+              code: diagnostic.code,
+              severity: diagnostic.severity,
+              message: diagnostic.message,
+            });
+          }
           return parsed.definition;
         }),
       );

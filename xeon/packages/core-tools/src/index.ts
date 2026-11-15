@@ -6,6 +6,7 @@ export {
   type ToolsPluginOptions,
 } from "./plugin.ts";
 export {
+  normalizeStoredMode,
   TOOLS_SETTING_DEFAULTS,
   TOOLS_SETTING_DEFS,
   TOOLS_SETTING_KEYS,

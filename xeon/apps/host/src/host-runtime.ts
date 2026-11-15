@@ -1,5 +1,5 @@
 import { attemptAsync, Bug } from "@fresnel/contracts";
-import { resolveSetting } from "@fresnel/contracts/settings";
+import { resolveEngineSetting } from "./settings-read.ts";
 import { assemble, ENGINE_VERSION } from "./assemble.ts";
 import { shutdownTimeoutOf, type SettingReader } from "./assembly/settings-sources.ts";
 import { createConnectionHub } from "./connection.ts";
@@ -32,7 +32,7 @@ export function settingReaderOf(engine: Engine): SettingReader {
   return (key) => {
     const def = engine.catalog.get(key);
     if (def === undefined) return undefined;
-    return resolveSetting(def, engine.ports.settings.layers(undefined)).setting.value;
+    return resolveEngineSetting(def, engine.ports.settings.layers(undefined)).setting.value;
   };
 }
 

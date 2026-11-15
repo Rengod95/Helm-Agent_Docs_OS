@@ -141,6 +141,45 @@ test("settings.get marks a saved default model the catalog lacks, and a catalog 
   await second.connection.close();
 });
 
+// dzPl §12-2: 저장된 옛 권한 모드 `plan`은 엔진이 `default`로 읽고 그 층에서 멈춘다. settings.get도 같은 값을 내야 하고(다음 층 값이 아니라),
+// 저장소의 문자열은 그대로 남는다.
+test("a stored retired permission mode plan in a higher layer reads as default, the way the engine reads it, and the stored string stays", async () => {
+  const key = "l1.tools.permissionMode";
+  const local = new Map<string, unknown>([[key, "plan"]]);
+  const host = createFakeHost({
+    layers: [
+      { scope: "local", values: local },
+      { scope: "user", values: new Map([[key, "acceptEdits"]]) },
+    ],
+  });
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const result = await connection.request("settings.get", { keys: [key] });
+  expect(result.settings[0]).toMatchObject({
+    key,
+    value: "default",
+    source: { scope: "local" },
+    shadowed: [{ scope: "user" }],
+  });
+  expect(local.get(key)).toBe("plan");
+  await connection.close();
+});
+
+test("a permission mode the engine does not know is still skipped, and the layer below decides", async () => {
+  const key = "l1.tools.permissionMode";
+  const host = createFakeHost({
+    layers: [
+      { scope: "user", values: new Map([[key, "bypass"]]) },
+      { scope: "local", values: new Map([[key, "nonsense"]]) },
+    ],
+  });
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const skipped = await connection.request("settings.get", { keys: [key] });
+  expect(skipped.settings[0]).toMatchObject({ value: "bypass", source: { scope: "user" } });
+  await connection.close();
+});
+
 // ── HOST.2: settings.set, settings.reset, settings.list ────────────────────────────────────────
 
 const REPLAY = "l4.host-service.maxReplayEvents";

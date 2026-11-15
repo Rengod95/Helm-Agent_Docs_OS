@@ -27,12 +27,14 @@ let bundleDir: string;
 let extensionsDir: string;
 let stateDir: string;
 const warnings: string[] = [];
+const warned: { readonly event: string; readonly fields: unknown }[] = [];
 
 const logger: Logger = {
   debug: () => {},
   info: () => {},
-  warn: (message) => {
+  warn: (message, fields) => {
     warnings.push(message);
+    warned.push({ event: message, fields });
   },
   error: () => {},
   child: () => logger,
@@ -77,6 +79,7 @@ beforeEach(() => {
   stateDir = join(root, "state");
   mkdirSync(bundleDir, { recursive: true });
   warnings.length = 0;
+  warned.length = 0;
 });
 
 afterEach(() => {
@@ -200,6 +203,39 @@ test("installed agent definitions come from <extension>/agents/*.md with the ext
     tools: ["read"],
     source: { kind: "extension", extension: "helm" },
   });
+});
+
+// 은퇴한 `permissions.mode: plan`이 든 정의는 정의를 싣고 그 값만 경고로 남긴다(core-agents가 warning 진단을 낸다)
+test("an agent definition with the retired plan mode loads without the mode and logs a warning", async () => {
+  writeBundle("0.1.0");
+  await install();
+  const path = join(extensionsDir, "helm", "agents", "planner.md");
+  writeFileSync(
+    path,
+    "---\nname: planner\ndescription: plans things\ntools: [read]\npermissions:\n  mode: plan\n---\nYou plan.\n",
+  );
+  const definitions = await installedAgentDefinitions(extensionsDir, ["helm"], logger);
+  expect(definitions.map((definition) => definition.name).toSorted()).toEqual([
+    "explorer",
+    "planner",
+  ]);
+  expect(definitions.find((definition) => definition.name === "planner")).toMatchObject({
+    name: "planner",
+    tools: ["read"],
+    source: { kind: "extension", extension: "helm" },
+  });
+  expect(warned).toEqual([
+    {
+      event: "default_plugins.agent_definition_warning",
+      fields: {
+        path,
+        code: "agents.definition_invalid",
+        severity: "warning",
+        message:
+          'permissions.mode "plan" is retired and ignored; the definition loads without a mode',
+      },
+    },
+  ]);
 });
 
 test("the bundled version of a plugin is read from its bundle; a missing or unreadable bundle is null", async () => {

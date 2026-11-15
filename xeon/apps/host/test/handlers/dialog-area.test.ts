@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
-import { err, ok, parse } from "@fresnel/contracts";
-import { PlanVersionsOutput, type PlanVersionsOutputValue } from "@fresnel/contracts/capabilities";
+import { err, ok } from "@fresnel/contracts";
 import {
   WireError,
   wireError,
@@ -17,7 +16,7 @@ import { rejectionOf } from "../fixtures/rejection.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
 // 대화 영역 처리기(W-05 `goal.status`, W-06 `work.tasks.list`, W-07 `schedule.update`·`schedule.runs`, W-14 `knowledge.skills.view`,
-// W-18 `work.plans.versions`)와 `host.clients`(W-12), `turn.withdraw`(W-17)를 가짜 포트 위에서 본다.
+// 기억 wire)와 `host.clients`(W-12), `turn.withdraw`(W-17)를 가짜 포트 위에서 본다.
 // 처리기는 포트가 돌려준 값을 옮기고 실패를 와이어 오류로 바꾼다. 포트 구현은 test/assembly/dialog-area-port.test.ts,
 // 실제 엔진 위의 시험은 test/int/dialog-area.int.test.ts다. `review.get`은 다른 트랙이 채우므로 여기서 다루지 않는다.
 
@@ -30,28 +29,6 @@ const SKILL: SkillViewResult = {
   files: ["scripts/run.sh"],
   treeHash: "a".repeat(64),
 };
-
-/** 계획 판 목록. 계획 id는 브랜드 값이라 스키마로 만든다(`PlanVersionsOutput`이 받는 모양) */
-const VERSIONS: PlanVersionsOutputValue = versionsFixture();
-
-function versionsFixture(): PlanVersionsOutputValue {
-  const parsed = parse(PlanVersionsOutput, {
-    versions: [
-      {
-        planId: "p1",
-        version: 1,
-        title: "Migrate the store",
-        body: "1. Back up",
-        status: "approved",
-        artifact: null,
-        approvalId: null,
-        feedback: null,
-      },
-    ],
-  });
-  if (!parsed.ok) throw new Error("the plan version fixture does not match its schema");
-  return parsed.value;
-}
 
 const GOAL: GoalView = {
   condition: "the report section is written",
@@ -372,7 +349,7 @@ test("host.hello lists the dialog-area methods the host now implements", async (
   expect(names).toContain("turn.withdraw");
   expect(names).toContain("knowledge.skills.view");
   expect(names).toContain("knowledge.skills.list");
-  expect(names).toContain("work.plans.versions");
+  expect(names).not.toContain("work.plans.versions");
   await connection.close();
 });
 
@@ -470,57 +447,7 @@ test("knowledge.skills.view answers method not found when the knowledge capabili
   await connection.close();
 });
 
-test("work.plans.versions hands the thread and the plan to the port and returns the versions it reports", async () => {
-  const asked: { threadId: string; planId: string; signal: AbortSignal }[] = [];
-  const host = createFakeHost({
-    overrides: {
-      dialogArea: {
-        plansVersions: (threadId, planId, signal) => {
-          asked.push({ threadId, planId, signal });
-          return Promise.resolve(ok(VERSIONS));
-        },
-      },
-    },
-  });
-  const threadId = host.fake.ids.next("thr");
-  const connection = await open(host);
-  expect(await connection.request("work.plans.versions", { threadId, planId: "p1" })).toEqual(
-    VERSIONS,
-  );
-  expect(asked.map((call) => ({ threadId: call.threadId, planId: call.planId }))).toEqual([
-    { threadId, planId: "p1" },
-  ]);
-  expect(asked[0]?.signal).toBeInstanceOf(AbortSignal);
-  await connection.close();
-});
-
-test("work.plans.versions answers an unknown plan with invalid params on planId, and a missing thread with thread.notFound", async () => {
-  const host = createFakeHost({
-    overrides: {
-      dialogArea: {
-        plansVersions: (threadId, planId) =>
-          planId === "p9"
-            ? Promise.resolve(err({ kind: "unknown", path: "planId", id: planId }))
-            : Promise.resolve(err({ kind: "thread_not_found", threadId })),
-      },
-    },
-  });
-  const connection = await open(host);
-  const threadId = host.fake.ids.next("thr");
-  const unknown = await wireErrorOf(
-    connection.request("work.plans.versions", { threadId, planId: "p9" }),
-  );
-  expect(unknown.code).toBe(-32602);
-  expect(unknown.data.details).toEqual({ issues: [{ path: "planId", message: "unknown plan" }] });
-  const missing = await wireErrorOf(
-    connection.request("work.plans.versions", { threadId, planId: "p1" }),
-  );
-  expect(missing.code).toBe(wireError("thread.notFound").code);
-  expect(missing.data.details).toEqual({ threadId });
-  await connection.close();
-});
-
-test("knowledge.skills.view and work.plans.versions answer a threadId that is not a thread id with thread.notFound, without asking the port", async () => {
+test("knowledge.skills.view answers a threadId that is not a thread id with thread.notFound, without asking the port", async () => {
   const asked: string[] = [];
   const host = createFakeHost({
     overrides: {
@@ -529,10 +456,6 @@ test("knowledge.skills.view and work.plans.versions answer a threadId that is no
           asked.push("knowledge.skills.view");
           return Promise.resolve(ok(SKILL));
         },
-        plansVersions: () => {
-          asked.push("work.plans.versions");
-          return Promise.resolve(ok(VERSIONS));
-        },
       },
     },
   });
@@ -540,13 +463,8 @@ test("knowledge.skills.view and work.plans.versions answer a threadId that is no
   const skill = await wireErrorOf(
     connection.request("knowledge.skills.view", { name: "deploy", threadId: "not-a-thread" }),
   );
-  const plans = await wireErrorOf(
-    connection.request("work.plans.versions", { threadId: "not-a-thread", planId: "p1" }),
-  );
   expect(skill.code).toBe(wireError("thread.notFound").code);
   expect(skill.data.details).toEqual({ threadId: "not-a-thread" });
-  expect(plans.code).toBe(wireError("thread.notFound").code);
-  expect(plans.data.details).toEqual({ threadId: "not-a-thread" });
   expect(asked).toEqual([]);
   await connection.close();
 });

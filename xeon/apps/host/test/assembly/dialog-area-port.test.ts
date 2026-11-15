@@ -3,13 +3,10 @@ import { Bug, err, ok, parse } from "@fresnel/contracts";
 import {
   CapabilityError,
   GoalIdSchema,
-  PlanIdSchema,
   WorkTaskIdSchema,
   type CallOptions,
   type Goal,
   type GoalId,
-  type PlanId,
-  type PlanVersion,
   type SkillViewOutput,
   type WorkTaskId,
   type WorkTaskView,
@@ -29,7 +26,6 @@ import type { M4PortDeps } from "../../src/assembly/m4/deps.ts";
 import {
   createDialogAreaHolder,
   type GoalsApi,
-  type PlansApi,
   type SkillsApi,
   type TasksApi,
 } from "../../src/assembly/m4/dialog-area-bridge.ts";
@@ -146,7 +142,6 @@ interface PortParts {
   readonly goals?: Partial<GoalsApi>;
   readonly tasks?: Partial<TasksApi>;
   readonly skills?: Partial<SkillsApi>;
-  readonly plans?: Partial<PlansApi>;
 }
 
 /** 포트를 세운다. 기능이 없으면 그 자리는 비어 있다(조립과 같다) */
@@ -155,7 +150,6 @@ function portFor(parts: PortParts): DialogAreaPort {
   holder.goals = parts.goals === undefined ? undefined : partial<GoalsApi>(parts.goals);
   holder.tasks = parts.tasks === undefined ? undefined : partial<TasksApi>(parts.tasks);
   holder.skills = parts.skills === undefined ? undefined : partial<SkillsApi>(parts.skills);
-  holder.plans = parts.plans === undefined ? undefined : partial<PlansApi>(parts.plans);
   return createDialogAreaPort(
     partial<M4PortDeps>({
       schedule: partial<ScheduleService>(parts.schedule ?? {}),
@@ -1114,126 +1108,3 @@ describe("skillView", () => {
     });
   });
 });
-
-const PLAN_VERSION: PlanVersion = {
-  planId: plan("p1"),
-  version: 1,
-  title: "Migrate the store",
-  body: "1. Back up",
-  status: "approved",
-  artifact: null,
-  approvalId: null,
-  feedback: null,
-};
-
-describe("plansVersions", () => {
-  test("a thread the store does not know is thread_not_found, and no version list is read", async () => {
-    const asked: string[] = [];
-    const port = portFor({
-      exists: () => ok(false),
-      plans: {
-        versions: () => {
-          asked.push("versions");
-          return Promise.resolve({ versions: [PLAN_VERSION] });
-        },
-      },
-    });
-    expect(await port.plansVersions(THREAD, "p1", signal)).toEqual({
-      ok: false,
-      error: { kind: "thread_not_found", threadId: THREAD },
-    });
-    expect(asked).toEqual([]);
-  });
-
-  test("without a plans service the answer is an empty version list", async () => {
-    expect(await portFor({}).plansVersions(THREAD, "p1", signal)).toEqual({
-      ok: true,
-      value: { versions: [] },
-    });
-  });
-
-  test("a plan id of the wrong shape is unknown on planId, and the service is not asked", async () => {
-    const asked: string[] = [];
-    const port = portFor({
-      plans: {
-        versions: () => {
-          asked.push("versions");
-          return Promise.resolve({ versions: [PLAN_VERSION] });
-        },
-      },
-    });
-    expect(await port.plansVersions(THREAD, "plan-one", signal)).toEqual({
-      ok: false,
-      error: { kind: "unknown", path: "planId", id: "plan-one" },
-    });
-    expect(asked).toEqual([]);
-  });
-
-  test("the versions are returned as the service gives them, with the thread's host context and the signal", async () => {
-    const seen: { input: unknown; options: CallOptions | undefined }[] = [];
-    const port = portFor({
-      plans: {
-        versions: (input, options) => {
-          seen.push({ input, options });
-          return Promise.resolve({ versions: [PLAN_VERSION] });
-        },
-      },
-    });
-    expect(await port.plansVersions(THREAD, "p1", signal)).toEqual({
-      ok: true,
-      value: { versions: [PLAN_VERSION] },
-    });
-    expect(seen).toHaveLength(1);
-    expect(seen[0]?.input).toEqual({ planId: "p1" });
-    expect(seen[0]?.options?.signal).toBe(signal);
-    expect(seen[0]?.options?.context).toEqual({ threadId: THREAD, caller: { kind: "host" } });
-  });
-
-  test("a plan the service does not have is unknown on planId", async () => {
-    const port = portFor({
-      plans: {
-        versions: () =>
-          Promise.reject(
-            new CapabilityError({
-              capability: "work.plans",
-              method: "versions",
-              code: "not_found",
-              message: "p9 does not exist.",
-              retryable: false,
-            }),
-          ),
-      },
-    });
-    expect(await port.plansVersions(THREAD, "p9", signal)).toEqual({
-      ok: false,
-      error: { kind: "unknown", path: "planId", id: "p9" },
-    });
-  });
-
-  test("a capability rejection is a rejected failure with the capability's code and message", async () => {
-    const port = portFor({
-      plans: {
-        versions: () =>
-          Promise.reject(
-            new CapabilityError({
-              capability: "work.plans",
-              method: "versions",
-              code: "unavailable",
-              message: "The session store is busy.",
-              retryable: true,
-            }),
-          ),
-      },
-    });
-    expect(await port.plansVersions(THREAD, "p1", signal)).toEqual({
-      ok: false,
-      error: { kind: "rejected", code: "unavailable", message: "The session store is busy." },
-    });
-  });
-});
-
-function plan(raw: string): PlanId {
-  const parsed = parse(PlanIdSchema, raw);
-  if (!parsed.ok) throw new Bug(`test input ${raw} is not a plan id`);
-  return parsed.value;
-}

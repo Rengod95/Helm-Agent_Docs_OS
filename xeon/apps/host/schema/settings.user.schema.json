@@ -3789,6 +3789,10 @@
                     {
                       "const": "bypass",
                       "type": "string"
+                    },
+                    {
+                      "const": "plan",
+                      "type": "string"
                     }
                   ]
                 },
@@ -6449,34 +6453,6 @@
         }
       }
     },
-    "l2.workspace.find.maxResults": {
-      "default": 1000,
-      "maximum": 100000,
-      "minimum": 1,
-      "type": "integer",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L2",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Max file find results",
-          "labelKey": "settings.l2.workspace.find.maxResults.label",
-          "order": 213,
-          "tab": "tools",
-          "unit": "items",
-          "unitKey": "settings.l2.workspace.find.maxResults.unit",
-          "widget": "number"
-        }
-      }
-    },
     "l2.workspace.grep.maxLineLength": {
       "default": 500,
       "maximum": 10000,
@@ -6660,34 +6636,6 @@
           "tab": "tools",
           "unit": "px",
           "unitKey": "settings.l2.workspace.images.maxWidth.unit",
-          "widget": "number"
-        }
-      }
-    },
-    "l2.workspace.list.maxEntries": {
-      "default": 500,
-      "maximum": 10000,
-      "minimum": 1,
-      "type": "integer",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L2",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Max list entries",
-          "labelKey": "settings.l2.workspace.list.maxEntries.label",
-          "order": 205,
-          "tab": "tools",
-          "unit": "items",
-          "unitKey": "settings.l2.workspace.list.maxEntries.unit",
           "widget": "number"
         }
       }
