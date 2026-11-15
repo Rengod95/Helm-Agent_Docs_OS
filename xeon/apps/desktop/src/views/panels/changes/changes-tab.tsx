@@ -348,7 +348,11 @@ function turnDetailOf(turn: ChangeTurn): string {
   return parts.join(" · ");
 }
 
-/** 턴별 보기(caustic Timeline). 턴을 고르면 그 끝으로 대화를 되감는 단추가 나오고, 확인 단계에서 무엇이 바뀌고 무엇이 남는지 말한다 */
+/**
+ * 턴별 보기(caustic Timeline). 턴을 고르면 그 끝으로 대화를 되감는 단추가 나오고, 확인 단계에서 무엇이 바뀌고 무엇이 남는지 말한다.
+ * 고른 턴은 고리로 표시하지 않는다(DP-209 [결정: 2026-11-15 사용자]): Timeline을 neutral·ghost로 써서 마디의 테두리 고리를 빼고
+ * (점은 같은 자리의 채운 점), 고른 상태는 턴 머리(제목·요약 두 줄을 한 단추로)의 면(selection 연한 채움)과 말의 글자색(secondary → primary)이 말한다
+ */
 function TurnChanges(props: {
   readonly view: ChangesView;
   readonly threadId: ThreadId;
@@ -373,6 +377,8 @@ function TurnChanges(props: {
     <Timeline
       aria-label={t("desktop.changes.mode.turns")}
       size="lg"
+      tone="neutral"
+      variant="ghost"
       restore={rewind?.kind === "ok" && port !== null ? "item" : "none"}
       restoreLabel={t("desktop.changes.rewind.label")}
       cancelLabel={t("desktop.convo.cancel")}
@@ -403,20 +409,30 @@ function TurnChanges(props: {
             title={
               <button
                 type="button"
-                className="block w-full min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-start text-inherit outline-none focus-visible:focus-ring"
+                data-changes-turn-head=""
+                className={`-mx-2 -my-1 grid w-[calc(100%+1rem)] min-w-0 cursor-pointer rounded-md border-0 px-2 py-1 text-start text-inherit outline-none transition-colors duration-quick focus-visible:focus-ring ${selected ? "bg-neutral-soft" : "bg-transparent hover:bg-neutral-hover"}`}
                 aria-pressed={selected}
                 onClick={() => {
                   setFailed(false);
                   setPicked(selected ? "" : id);
                 }}
               >
-                {turnLabelOf(turn)}
-                {turn.prompt === null ? null : (
-                  <span className="font-normal text-text-secondary"> · {turn.prompt}</span>
-                )}
+                <span className="min-w-0 truncate">
+                  {turnLabelOf(turn)}
+                  {turn.prompt === null ? null : (
+                    <span
+                      className={`font-normal ${selected ? "text-text-primary" : "text-text-secondary"}`}
+                    >
+                      {" "}
+                      · {turn.prompt}
+                    </span>
+                  )}
+                </span>
+                <span className="min-w-0 truncate text-ui-sm font-normal text-text-tertiary">
+                  {turnDetailOf(turn)}
+                </span>
               </button>
             }
-            detail={turnDetailOf(turn)}
             time={turn.running ? <ProgressOrb /> : ageText(turn.startedAt, nowMs)}
             {...(turn.startedAt === null ? {} : { dateTime: turn.startedAt })}
             confirmMessage={

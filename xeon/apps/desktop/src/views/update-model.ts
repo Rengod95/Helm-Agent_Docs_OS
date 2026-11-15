@@ -4,7 +4,7 @@
 import type { MessageArgs, MessageId } from "@fresnel/client/i18n";
 import type { UpdateCheckLine } from "@fresnel/client/settings";
 import { assertNever } from "@fresnel/contracts";
-import type { StatusDot } from "./status-cell.tsx";
+import type { StatusDot, StatusTone } from "./status-cell.tsx";
 
 /** 실패가 난 단계. 확인, 내려받기, 설치 가운데 하나다 */
 export type UpdateStage = "check" | "download" | "install";
@@ -277,6 +277,13 @@ export interface UpdateCell {
   readonly text: MessageId;
   readonly dot: StatusDot;
   readonly showCell: boolean;
+}
+
+/** 상태 줄 칸의 글자색(DP-206). 상태 줄은 점을 그리지 않으므로 실패는 위험, 연결 끊김은 경고 글자색이고 나머지는 평소 색이다 */
+export function updateToneOf(dot: StatusDot): StatusTone | undefined {
+  if (dot === "danger") return "danger";
+  if (dot === "warning") return "warning";
+  return undefined;
 }
 
 function cellOf(text: MessageId, dot: StatusDot, showCell: boolean): UpdateCell {

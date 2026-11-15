@@ -1,4 +1,4 @@
-// 상태 줄 전시 화면(시험 전용, 제품 코드가 import하지 않는다). 고정 거울과 명령 대역으로 실제 `StatusBar`를 상태마다 하나씩 그린다(DP-182).
+// 상태 줄 전시 화면(시험 전용, 제품 코드가 import하지 않는다). 고정 거울과 명령 대역으로 실제 `StatusBar`를 상태마다 하나씩 그린다(DP-182, DP-206).
 // 줄마다 무대와 같은 바탕(bg.app) 위에 둔다. 주소의 `?theme=dark|light`가 `<html data-theme>`를, `?width=`가 줄 폭(기본 1168)을 정한다.
 // 그림이 끝나면 `document.body.dataset.ready = "1"`이다.
 import { setActiveLocale } from "@fresnel/client/i18n";
@@ -89,7 +89,7 @@ function ui(options: {
   return store.read.getState();
 }
 
-/** 샌드박스 켜짐과 문맥 사용량을 정한 명령 대역 */
+/** 샌드박스 켜짐과 컨텍스트 사용량을 정한 명령 대역 */
 function commands(options: { readonly sandboxOff?: boolean; readonly context?: number }): Commands {
   const base = fakeCommands();
   const used = options.context;
@@ -122,7 +122,7 @@ interface Scene {
   readonly commands: Commands;
 }
 
-/** 열린 대화(thr 1)는 쉬고 다른 대화 n개가 돈다. 문맥 값은 열린 대화가 쉬는 동안 읽힌다 */
+/** 열린 대화(thr 1)는 쉬고 다른 대화 n개가 돈다. 컨텍스트 값은 열린 대화가 쉬는 동안 읽힌다 */
 const running = (n: number): ThreadSummary[] => [
   summary(thr(1), { status: "idle", title: "열린 대화" }),
   ...Array.from({ length: n }, (_, i) =>
@@ -140,14 +140,14 @@ const SCENES: readonly Scene[] = [
   },
   {
     id: "thread",
-    label: "대화 열림 · 문맥 42%",
+    label: "대화 열림 · 컨텍스트 42%",
     engine: mirror({ engine: RUNNING, live: true }),
     ui: ui({ thread: true }),
     commands: commands({ context: 84_000 }),
   },
   {
     id: "busy",
-    label: "문맥 86%(요약 가까움) · 진행 중 2 · 승인 대기 1",
+    label: "컨텍스트 86%(요약 가까움) · 진행 중 2 · 승인 대기 1",
     engine: mirror({ engine: RUNNING, live: true, threads: running(2), approvals: 1 }),
     ui: ui({ thread: true }),
     commands: commands({ context: 172_000 }),
@@ -163,6 +163,28 @@ const SCENES: readonly Scene[] = [
     id: "starting",
     label: "엔진 시작 중",
     engine: mirror({ engine: { kind: "starting", source: "sidecar", attempt: 0 }, live: false }),
+    ui: ui({}),
+    commands: commands({}),
+  },
+  {
+    id: "restarting",
+    label: "엔진 다시 시작 중",
+    engine: mirror({
+      engine: {
+        kind: "restarting",
+        attempt: 1,
+        retryAt: "2026-11-15T00:00:05.000Z",
+        lastExit: EXIT,
+      },
+      live: false,
+    }),
+    ui: ui({}),
+    commands: commands({}),
+  },
+  {
+    id: "offline",
+    label: "연결 없음(엔진은 돎)",
+    engine: mirror({ engine: RUNNING, live: false }),
     ui: ui({}),
     commands: commands({}),
   },
@@ -214,7 +236,7 @@ async function start(): Promise<void> {
   const host = document.getElementById("root");
   if (host === null) return;
   createRoot(host).render(<Scenes />);
-  // 문맥과 샌드박스 값은 그린 뒤 명령으로 읽힌다. 두 프레임 기다린 뒤 준비 표식을 단다
+  // 컨텍스트와 샌드박스 값은 그린 뒤 명령으로 읽힌다. 두 프레임 기다린 뒤 준비 표식을 단다
   await new Promise((resolve) => setTimeout(resolve, 400));
   document.body.dataset["ready"] = "1";
 }

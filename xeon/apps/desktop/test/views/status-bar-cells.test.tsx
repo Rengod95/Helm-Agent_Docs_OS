@@ -14,12 +14,11 @@ import {
   contextNearOf,
   contextTextOf,
   engineDescriptionOf,
-  engineDotOf,
+  engineHealthOf,
   goalCellOf,
   goalShownOf,
   healthOf,
   linkDescriptionOf,
-  liveDotOf,
   liveKindsOf,
   LiveList,
   liveRowsOf,
@@ -48,13 +47,13 @@ const RESTARTING: EngineState = {
 const TEST_RUN = { profileId: null, target: null, paused: false } as const;
 
 describe("status bar engine cell", () => {
-  test("the dot follows the engine state", () => {
-    expect(engineDotOf(RUNNING)).toBe("success");
-    expect(engineDotOf(RESTARTING)).toBe("warning");
-    expect(engineDotOf(FAILED)).toBe("danger");
-    expect(engineDotOf({ kind: "stopped" })).toBe("neutral");
-    expect(engineDotOf(null)).toBe("neutral");
-    expect(engineDotOf(undefined)).toBe("neutral");
+  test("the health level follows the engine state: ok, passing (busy), stopped (idle) or failed", () => {
+    expect(engineHealthOf(RUNNING)).toBe("ok");
+    expect(engineHealthOf(RESTARTING)).toBe("busy");
+    expect(engineHealthOf(FAILED)).toBe("failed");
+    expect(engineHealthOf({ kind: "stopped" })).toBe("idle");
+    expect(engineHealthOf(null)).toBe("busy");
+    expect(engineHealthOf(undefined)).toBe("busy");
   });
 
   test("a running, failed or restarting engine adds a sentence to its popover", () => {
@@ -68,34 +67,39 @@ describe("status bar engine cell", () => {
     const local = { kind: "local" } as const;
     const remote = { kind: "remote", address: "unix:/run/box.sock", label: "box" } as const;
     expect(healthOf(RUNNING, "live", 0, local)).toEqual({
-      dot: "success",
       text: null,
       tone: undefined,
+      busy: false,
     });
     expect(healthOf(RUNNING, "live", 0, remote)).toEqual({
-      dot: "success",
       text: "원격 · box",
       tone: undefined,
+      busy: false,
     });
     expect(healthOf(RUNNING, "resync", 2, local)).toEqual({
-      dot: "warning",
       text: "다시 맞추는 중 (2/3)",
       tone: undefined,
+      busy: true,
     });
     expect(healthOf(RUNNING, "failed", 0, local)).toEqual({
-      dot: "danger",
       text: "연결 복구 실패",
       tone: "danger",
+      busy: false,
+    });
+    expect(healthOf(RUNNING, "offline", 0, local)).toEqual({
+      text: "연결 없음",
+      tone: undefined,
+      busy: false,
     });
     expect(healthOf(RESTARTING, "offline", 0, local)).toEqual({
-      dot: "warning",
       text: "엔진 다시 시작 중",
       tone: undefined,
+      busy: true,
     });
     expect(healthOf(FAILED, "offline", 0, local)).toEqual({
-      dot: "danger",
       text: "엔진 시작 실패",
       tone: "danger",
+      busy: false,
     });
   });
 });
@@ -156,26 +160,6 @@ describe("status bar in-progress cell", () => {
       { kind: "thread", threadId: thr(1), title: "캐시 무효화 조사", failed: false, reason: null },
       { kind: "schedule", threadId: thr(4), title: "예약 실행 중", failed: false, reason: null },
     ]);
-  });
-
-  test("the dot is danger only while a row failed, and no dot otherwise", () => {
-    const failed: LiveRow = {
-      kind: "schedule",
-      threadId: thr(2),
-      title: null,
-      failed: true,
-      reason: "rate_limited",
-    };
-    const running: LiveRow = {
-      kind: "thread",
-      threadId: thr(1),
-      title: null,
-      failed: false,
-      reason: null,
-    };
-    expect(liveDotOf([running, failed])).toBe("danger");
-    expect(liveDotOf([running])).toBeUndefined();
-    expect(liveDotOf([])).toBeUndefined();
   });
 
   test("a group with a failed row moves to the top, the other groups keep their order", () => {
@@ -302,7 +286,7 @@ describe("status bar in-progress cell", () => {
     expect(row.reason).not.toContain("run_failed");
   });
 
-  test("a thread-less failure alone turns the progress dot red and moves the schedule group to the top", () => {
+  test("a thread-less failure alone moves the schedule group to the top", () => {
     const failedThreadless: LiveRow = {
       kind: "schedule",
       threadId: null,
@@ -317,7 +301,6 @@ describe("status bar in-progress cell", () => {
       failed: false,
       reason: null,
     };
-    expect(liveDotOf([thread, failedThreadless])).toBe("danger");
     expect(liveKindsOf([thread, failedThreadless])).toEqual(["schedule", "thread", "trial"]);
   });
 
@@ -475,23 +458,28 @@ describe("status bar in-progress cell with a failed schedule", () => {
     setActiveLocale(previous);
   });
 
-  test("the live cell's dot turns danger when a scheduled conversation's last turn failed", () => {
+  test("a scheduled conversation whose last turn failed draws a danger failed cell, no dot", () => {
     const html = barWith(mirrorWithFailure());
-    const live = html.slice(html.indexOf('data-bar-cell="live"'));
-    expect(live.slice(0, live.indexOf("</button>"))).toContain('data-bar-dot="danger"');
+    expect(cellTextOf(html, "failed")).toBe("예약 실패 1");
+    const failed = html.slice(html.indexOf('data-bar-cell="failed"'));
+    expect(failed.slice(0, failed.indexOf("</button>"))).toContain('data-bar-tone="danger"');
+    expect(html).not.toContain("data-bar-dot");
   });
 
   test("with nothing running and no failure there is no live cell at all", () => {
-    expect(cellIdsOf(barWith(liveMirror([])))).toEqual(["health"]);
+    expect(cellIdsOf(barWith(liveMirror([])))).toEqual([]);
   });
 
-  test("without a failure the live cell draws no dot", () => {
+  test("the live cell is a plain count with no dot and no failed cell beside it", () => {
     const html = barWith(
       liveMirror([summary(thr(1), { status: "running", title: "캐시 무효화 조사" })]),
     );
-    expect(cellIdsOf(html)).toContain("live");
+    expect(cellIdsOf(html)).toEqual(["live"]);
     const live = html.slice(html.indexOf('data-bar-cell="live"'));
-    expect(live.slice(0, live.indexOf("</button>"))).not.toContain("data-bar-dot");
+    const face = live.slice(0, live.indexOf("</button>"));
+    expect(face).not.toContain("data-bar-dot");
+    expect(face).not.toContain("data-bar-tone");
+    expect(face).toContain('title="실행 중 탭 열기"');
   });
 
   test("a schedule run started on this connection lands in the schedule group with its failure row first", () => {
@@ -507,8 +495,7 @@ describe("status bar in-progress cell with a failed schedule", () => {
       },
     ]);
     const html = barWith(state);
-    const live = html.slice(html.indexOf('data-bar-cell="live"'));
-    expect(live.slice(0, live.indexOf("</button>"))).toContain('data-bar-dot="danger"');
+    expect(cellTextOf(html, "failed")).toBe("예약 실패 1");
   });
 });
 
@@ -542,7 +529,7 @@ describe("status bar server render", () => {
       </Providers>,
     );
     expect(cellTextOf(html, "health")).toBe("엔진 시작 실패");
-    expect(html).toContain('data-bar-dot="danger"');
+    expect(html).not.toContain("data-bar-dot");
     expect(html).toContain('data-bar-tone="danger"');
     expect(html).not.toContain('data-bar-cell="engine"');
     expect(html).not.toContain('data-bar-cell="link"');
@@ -646,17 +633,22 @@ describe("status bar cell order", () => {
     setActiveLocale(previous);
   });
 
-  test("the health cell leads on the left, and in-progress then approvals follow the spacer on the right", () => {
+  test("a healthy bar is empty on the left, and in-progress then approvals follow the spacer on the right", () => {
     const html = barWith(mirrorWithApproval());
-    expect(cellIdsOf(html)).toEqual(["health", "live", "approvals"]);
+    expect(cellIdsOf(html)).toEqual(["live", "approvals"]);
     const spacer = html.indexOf('class="grow"');
-    expect(html.indexOf('data-bar-cell="health"')).toBeLessThan(spacer);
     expect(spacer).toBeLessThan(html.indexOf('data-bar-cell="live"'));
   });
 
   test("the approval cell reads its count, and is absent when no approval waits", () => {
-    expect(cellTextOf(barWith(mirrorWithApproval()), "approvals")).toBe("승인 대기 1");
-    expect(cellIdsOf(barWith(mirrorWithFailure()))).toEqual(["health", "live"]);
+    const approvals = barWith(mirrorWithApproval());
+    expect(cellTextOf(approvals, "approvals")).toBe("승인 대기 1");
+    // 점 없이 대화 목록의 확인 수와 같은 따뜻한 글자색·굵기다(DP-206)
+    const face = approvals.slice(approvals.indexOf('data-bar-cell="approvals"'));
+    expect(face.slice(0, face.indexOf("</button>"))).toContain('data-bar-tone="attention"');
+    expect(approvals).toContain("fx-attend-count");
+    expect(approvals).not.toContain("data-bar-dot");
+    expect(cellIdsOf(barWith(mirrorWithFailure()))).toEqual(["failed"]);
   });
 
   test("the bar has no settings button, the sidebar footer is the way to settings", () => {
@@ -720,20 +712,20 @@ describe("status bar engine cell names the attached target", () => {
     );
   });
 
-  test("a running process whose link is not live yet shows the link state with a warning dot, not a green dot", () => {
+  test("a running process whose link is not live yet shows the link state in words, with no dot", () => {
     const h = harness();
     h.store.ingest({ type: "engine", state: RUNNING });
     h.store.flush();
     const html = barWithUi(h.store.read.getState(), createUiStore().read.getState());
     expect(cellTextOf(html, "health")).toBe("연결 없음");
-    expect(html).not.toContain('data-bar-dot="success"');
+    expect(html).not.toContain("data-bar-dot");
   });
 
-  test("this computer on a live link says nothing: one success dot named by its label", () => {
+  test("this computer on a live link draws no health cell; the hidden status line still names the engine", () => {
     const html = barWithUi(mirrorRunning(), createUiStore().read.getState());
-    expect(cellTextOf(html, "health")).toBeNull();
-    expect(html).toContain('data-bar-dot="success"');
-    expect(html).toContain('aria-label="엔진 실행 중 (앱 안) · 연결됨"');
+    expect(html).not.toContain('data-bar-cell="health"');
+    expect(html).not.toContain("data-bar-dot");
+    expect(html).toContain('<span role="status" class="sr-only">엔진 실행 중 (앱 안)</span>');
     expect(html).not.toContain("연결됨<");
   });
 });
@@ -752,14 +744,14 @@ describe("status bar model and usage cells", () => {
     const known = renderToString(
       <ContextCell usage={{ tokens: 41_000, percent: 40.4, limit: 100_000 }} />,
     );
-    expect(cellTextOf(known, "context")).toBe("문맥 40%");
+    expect(cellTextOf(known, "context")).toBe("컨텍스트 40%");
     expect(known).toContain('data-slot="progress"');
     expect(known).toContain("--cs-progress:40%");
     expect(known).not.toContain("data-bar-tone");
     const unknown = renderToString(
       <ContextCell usage={{ tokens: 41_000, percent: null, limit: null }} />,
     );
-    expect(cellTextOf(unknown, "context")).toBe("문맥 4.1만");
+    expect(cellTextOf(unknown, "context")).toBe("컨텍스트 4.1만");
     expect(unknown).not.toContain('data-slot="progress"');
   });
 
@@ -772,15 +764,15 @@ describe("status bar model and usage cells", () => {
       <ContextCell usage={{ tokens: 91_000, percent: 91, limit: 100_000 }} />,
     );
     expect(html).toContain('data-bar-tone="warning"');
-    expect(contextTextOf({ tokens: 91_000, percent: 91, limit: 100_000 })).toBe("문맥 91%");
+    expect(contextTextOf({ tokens: 91_000, percent: 91, limit: 100_000 })).toBe("컨텍스트 91%");
   });
 
-  test("collapsible cells keep their text for screen readers and carry it as the tooltip", () => {
+  test("collapsible cells keep their text for screen readers, and the context tooltip says the tokens", () => {
     const html = renderToString(
       <ContextCell usage={{ tokens: 41_000, percent: 40, limit: 100_000 }} />,
     );
     expect(html).toContain("data-bar-collapsible");
-    expect(html).toContain('title="문맥 40%"');
+    expect(html).toContain('title="지금 컨텍스트에 4.1만 토큰이 있고, 컨텍스트 창의 40%예요."');
     expect(html).toContain("data-bar-icon");
     expect(html).toContain("data-bar-trailing");
   });
@@ -800,10 +792,10 @@ describe("status bar model and usage cells", () => {
 
   test("the tokens sentence names the tokens, and the percent only when the limit is known", () => {
     expect(tokensDescriptionOf({ tokens: 41_000, percent: null, limit: null })).toBe(
-      "지금 문맥에 4.1만 토큰이 있어요.",
+      "지금 컨텍스트에 4.1만 토큰이 있어요.",
     );
     expect(tokensDescriptionOf({ tokens: 41_000, percent: 40.4, limit: 100_000 })).toBe(
-      "지금 문맥에 4.1만 토큰이 있고, 문맥 창의 40%예요.",
+      "지금 컨텍스트에 4.1만 토큰이 있고, 컨텍스트 창의 40%예요.",
     );
     setActiveLocale("en");
     expect(tokensDescriptionOf({ tokens: 41_000, percent: 40, limit: 100_000 })).toBe(
@@ -830,7 +822,6 @@ describe("status bar model and usage cells", () => {
     const ui = createUiStore();
     ui.actions.selectThread(thr(1));
     expect(cellIdsOf(barWithUi(mirrorWithApproval(), ui.read.getState()))).toEqual([
-      "health",
       "live",
       "approvals",
     ]);

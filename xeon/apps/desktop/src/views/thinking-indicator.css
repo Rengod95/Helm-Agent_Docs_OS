@@ -1,4 +1,4 @@
-/* 생각 표시(DP-162·168). orb 자체는 thinking-orbs가 canvas에 그린다. 여기는 자리와 반짝이는 글이다.
+/* 생각 표시(DP-162·168·208). 구슬은 앱의 DotOrb가 thinking-orbs 기하로 canvas에 그린다(배율까지 또렷). 여기는 자리와 반짝이는 글이다.
    반짝임은 libraries.dev/orbs 미리보기 칸(.t-shimmer)의 짜임 그대로다(띠 폭 400%, 2초 linear). 구슬은 작은 프리셋(20) 하나다. */
 
 .thinking-indicator {

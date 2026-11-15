@@ -1,5 +1,5 @@
 import { Button, Progress } from "@caustic/react";
-import { Inbox, Layers, Link2, Shield, TriangleAlert } from "@caustic/react/icons";
+import { Inbox, Layers, Link2, Play, Shield, TriangleAlert } from "@caustic/react/icons";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { Notice } from "@fresnel/contracts/capabilities";
@@ -50,16 +50,18 @@ import { tokenCountText, useSessionUsage, type SessionUsage } from "./model-usag
 import { EntrySurface, screenKeyOf } from "./plugin/plugin-view.tsx";
 import { usePluginUi, usePluginUiState } from "./plugin/plugin-context.tsx";
 import { RestartLine } from "./restart-line.tsx";
-import { UsageBreakdownBody } from "./usage-breakdown.tsx";
 import { SafeModeChip } from "./safe-mode-chip.tsx";
 import { useScheduleRunFailures } from "./schedule-run-failures.ts";
-import { StatusAction, StatusCell, type StatusDot, type StatusTone } from "./status-cell.tsx";
+import { ProgressOrb } from "./effects/progress-orb.tsx";
+import { CONTEXT_TAB_ID, INBOX_TAB_ID, RUNNING_TAB_ID } from "./panels/tab-ids.ts";
+import { StatusAction, StatusCell, type StatusTone } from "./status-cell.tsx";
 import { statusItemText } from "./status-item-text.ts";
 import { useGoToThread, type GoToThread } from "./thread-link.ts";
 import { useUpdate } from "./update-context.ts";
 import type { UpdateController } from "./update-controller.ts";
 import {
   needsRunningConfirm,
+  updateToneOf,
   progressPercentOf,
   retryStepOf,
   shouldAutoInstall,
@@ -244,20 +246,26 @@ export function linkTextOf(phase: Link["phase"]): MessageId {
   return LINK_TEXT[phase];
 }
 
-/** 엔진 칸의 점. 돌고 있으면 초록, 시작·다시 시작·끄는 중이면 노랑, 실패면 빨강, 꺼짐과 확인 전은 회색이다 */
-export function engineDotOf(engine: EngineState | null | undefined): StatusDot {
-  if (engine === undefined || engine === null) return "neutral";
+/**
+ * 엔진·연결의 건강 단계(DP-206). ok는 정상(칸을 그리지 않음), busy는 지나가는 상태(흑백 진행 구슬 + 글),
+ * idle은 멈춘 상태(글만), failed는 실패(위험 글자색)다. 단색 점은 쓰지 않는다
+ */
+export type HealthLevel = "ok" | "busy" | "idle" | "failed";
+
+/** 엔진의 건강 단계. 확인 전과 시작·다시 시작·끄는 중은 busy, 꺼짐은 idle, 실패는 failed다 */
+export function engineHealthOf(engine: EngineState | null | undefined): HealthLevel {
+  if (engine === undefined || engine === null) return "busy";
   switch (engine.kind) {
     case "running":
-      return "success";
+      return "ok";
     case "starting":
     case "restarting":
     case "stopping":
-      return "warning";
+      return "busy";
     case "failed":
-      return "danger";
+      return "failed";
     case "stopped":
-      return "neutral";
+      return "idle";
     default:
       return assertNever(engine, "EngineState");
   }
@@ -282,14 +290,14 @@ export function engineDescriptionOf(engine: EngineState | null | undefined): Mes
   return undefined;
 }
 
-const LINK_DOT: Readonly<Record<Link["phase"], StatusDot>> = {
-  offline: "neutral",
-  connecting: "warning",
-  syncing: "warning",
-  live: "success",
-  resync: "warning",
-  reset: "warning",
-  failed: "danger",
+const LINK_HEALTH: Readonly<Record<Link["phase"], HealthLevel>> = {
+  offline: "idle",
+  connecting: "busy",
+  syncing: "busy",
+  live: "ok",
+  resync: "busy",
+  reset: "busy",
+  failed: "failed",
 };
 
 /** 연결 Popover의 설명. 끊긴 동안은 읽기만 된다는 것을, 맞추는 중과 실패는 어떻게 되는지를 보인다 */
@@ -394,22 +402,25 @@ export function liveKindsOf(rows: readonly LiveRow[]): readonly LiveKind[] {
   return [...failing, ...LIVE_KINDS.filter((kind) => !failing.includes(kind))];
 }
 
-/** 진행 중 칸의 점. 실패 행이 하나라도 있으면 빨강이고, 없으면 점을 그리지 않는다 */
-export function liveDotOf(rows: readonly LiveRow[]): StatusDot | undefined {
-  return rows.some((row) => row.failed) ? "danger" : undefined;
-}
-
-/** 엔진·연결 칸의 겉. 정상이면 점 하나이고(원격 대상이면 "원격 · 이름"), 이상이면 점과 그 상태 글이다(DP-182) */
+/**
+ * 엔진·연결 칸의 겉(DP-182, DP-206). 정상이고 이 기기면 칸이 없고(text null), 원격 대상이면 "원격 · 이름" 글만이다.
+ * 이상이면 그 상태 글이고, 지나가는 상태(busy)는 앞에 흑백 진행 구슬을, 실패는 위험 글자색을 쓴다
+ */
 export interface HealthView {
-  readonly dot: StatusDot;
   readonly text: string | null;
   readonly tone: StatusTone | undefined;
+  /** 지나가는 상태(시작 중, 다시 시작 중, 끄는 중, 연결 중, 따라잡는 중, 다시 맞추는 중)라 진행 구슬을 앞에 둔다 */
+  readonly busy: boolean;
+}
+
+function healthViewOf(level: HealthLevel, text: string | null): HealthView {
+  return { text, tone: level === "failed" ? "danger" : undefined, busy: level === "busy" };
 }
 
 /**
  * 상태 줄의 엔진·연결 칸. 정상인 상태("엔진 실행 중", "연결됨")는 글로 말하지 않는다. 엔진이 돌지 않으면 엔진 글(시작 중, 다시 시작 중, 꺼짐,
  * 시작 실패와 그 이유), 엔진은 도는데 연결이 live가 아니면 연결 글(연결 중, 따라잡는 중, 다시 맞추는 중, 연결 없음, 복구 실패)이다.
- * 실패만 위험 글자색이고, 지나가는 상태는 점만 경고색이다. `engine`은 셸이 보낸 그대로(`shownEngineOf` 전)의 값이다
+ * 실패만 위험 글자색이고, 지나가는 상태는 흑백 진행 구슬이 앞에 선다. `engine`은 셸이 보낸 그대로(`shownEngineOf` 전)의 값이다
  */
 export function healthOf(
   engine: EngineState | null | undefined,
@@ -417,29 +428,21 @@ export function healthOf(
   attempt: number,
   target: EngineTargetView | undefined,
 ): HealthView {
-  if (engine?.kind !== "running") {
-    const dot = engineDotOf(engine);
-    return { dot, text: t(engineTextOf(engine)), tone: dot === "danger" ? "danger" : undefined };
-  }
+  if (engine?.kind !== "running")
+    return healthViewOf(engineHealthOf(engine), t(engineTextOf(engine)));
   if (phase !== "live") {
     const tail = attempt > 0 ? ` ${t("desktop.status.link.attempt", { attempt })}` : "";
-    const dot = LINK_DOT[phase];
-    return {
-      dot,
-      text: `${t(LINK_TEXT[phase])}${tail}`,
-      tone: dot === "danger" ? "danger" : undefined,
-    };
+    return healthViewOf(LINK_HEALTH[phase], `${t(LINK_TEXT[phase])}${tail}`);
   }
   if (target?.kind === "remote")
-    return {
-      dot: "success",
-      text: t("desktop.status.engine.sourceRemote", { name: target.label }),
-      tone: undefined,
-    };
-  return { dot: "success", text: null, tone: undefined };
+    return healthViewOf("ok", t("desktop.status.engine.sourceRemote", { name: target.label }));
+  return healthViewOf("ok", null);
 }
 
-/** 엔진·연결 칸 하나(전에는 엔진 칸과 연결 칸 둘). 팝오버는 엔진 줄과 연결 줄, 그리고 지금 상태의 설명 한 문장이다 */
+/**
+ * 엔진·연결 칸 하나(전에는 엔진 칸과 연결 칸 둘). 팝오버는 엔진 줄과 연결 줄, 그리고 지금 상태의 설명 한 문장이다.
+ * 정상인 이 기기 엔진은 칸을 그리지 않는다(DP-206, 전에는 초록 점 하나). 상태 글은 줄의 숨은 낭독 영역이 그대로 말한다
+ */
 function HealthCell(props: {
   readonly engine: EngineState | null | undefined;
   readonly shown: EngineState | null | undefined;
@@ -450,6 +453,7 @@ function HealthCell(props: {
   const [open, setOpen] = useState(false);
   const target = useEngineTarget();
   const view = healthOf(engine, phase, attempt, target);
+  if (view.text === null) return null;
   const linkLine = `${t(LINK_TEXT[phase])}${attempt > 0 ? ` ${t("desktop.status.link.attempt", { attempt })}` : ""}`;
   const description =
     engine?.kind === "running" && phase !== "live"
@@ -463,9 +467,9 @@ function HealthCell(props: {
         engine: engineLineOf(shown, target),
         link: linkLine,
       })}
-      dot={view.dot}
+      lead={view.busy ? <ProgressOrb size="sm" /> : undefined}
       tone={view.tone}
-      collapseIcon={view.text === null ? undefined : <Link2 className="size-3.5" />}
+      collapseIcon={<Link2 className="size-3.5" />}
       title={t("desktop.status.health.title")}
       description={description === undefined ? undefined : t(description)}
       body={
@@ -657,28 +661,44 @@ function ScheduleFailureLine(props: { readonly reason: string | null }): ReactNo
 }
 
 /**
- * "진행 중 n" 칸과 Popover(N-58). 돌고 있는 것이 없으면 칸을 두지 않는다(DP-182, 전에는 "진행 중 0"이 늘 보였다).
- * 돌고 있는 대화가 없어도 예약 실패가 남았으면 "실패 n"을 위험 글자색으로 보인다. 행을 누르면 그 대화로 가고 Popover를 닫는다
+ * "진행 중 n" 칸(DP-182, DP-207). 돌고 있는 것이 있을 때만 그리고, 누르면 오른쪽 막대의 실행 중 탭을 연다.
+ * 전에는 대화 목록 팝오버였는데 실행 중 탭(DP-196)이 같은 대화를 하위 에이전트·기다림·방금 끝남과 함께 더 자세히 보이므로 길을 하나로 모았다
  */
 function LiveCell(): ReactNode {
   const running = useRunningCount();
+  const shell = useContext(ShellStoreContext);
+  if (running === 0) return null;
+  return (
+    <StatusAction
+      cellId="live"
+      text={t("desktop.status.running", { count: running })}
+      collapseIcon={<Play className="size-3.5" />}
+      hint={t("desktop.status.cell.live.open")}
+      onSelect={() => {
+        shell?.actions.openEndTab(RUNNING_TAB_ID, "chat");
+      }}
+    />
+  );
+}
+
+/**
+ * "예약 실패 n" 칸과 Popover(N-58, DP-207). 예약에서 시작한 대화가 실패했거나 대화 없이 예약 실행이 실패했을 때만 위험 글자색으로 그린다.
+ * 실행 중 탭은 방금 끝난 것만 남기고 대화 없는 실패는 싣지 않으므로 실패 목록은 이 팝오버가 맡는다. 행을 누르면 그 대화로 가고 Popover를 닫는다
+ */
+function FailedCell(): ReactNode {
   const scheduleFailures = useScheduleRunFailures();
-  const rows = liveRowsOf(useThreadSummaries(), useTurnFailures(), scheduleFailures);
+  const rows = liveRowsOf(useThreadSummaries(), useTurnFailures(), scheduleFailures).filter(
+    (row) => row.failed,
+  );
   const goTo = useGoToThread();
   const [open, setOpen] = useState(false);
-  const failed = rows.filter((row) => row.failed).length;
-  if (running === 0 && failed === 0) return null;
+  if (rows.length === 0) return null;
   return (
     <StatusCell
-      cellId="live"
-      text={
-        running > 0
-          ? t("desktop.status.running", { count: running })
-          : t("desktop.status.liveFailed", { count: failed })
-      }
-      dot={liveDotOf(rows)}
-      tone={running === 0 ? "danger" : undefined}
-      title={t("desktop.status.cell.live.title")}
+      cellId="failed"
+      text={t("desktop.status.liveFailed", { count: rows.length })}
+      tone="danger"
+      title={t("desktop.status.cell.failed.title")}
       wide
       open={open}
       onOpenChange={setOpen}
@@ -710,7 +730,7 @@ function TokenBar(props: { readonly percent: number; readonly near: boolean }): 
 }
 
 /**
- * 사용량 Popover의 설명. 이 대화에서 쓴 토큰 수를 말하고, 한도를 알 때만 비율을 한 문장 더한다. 비율을 지어내지 않는다
+ * 컨텍스트 칸의 툴팁. 이 대화에서 쓴 토큰 수를 말하고, 한도를 알 때만 비율을 한 문장 더한다. 비율을 지어내지 않는다
  */
 export function tokensDescriptionOf(usage: SessionUsage): string {
   const tokens = tokenCountText(usage.tokens);
@@ -722,36 +742,33 @@ export function tokensDescriptionOf(usage: SessionUsage): string {
       });
 }
 
-/** 문맥이 이 비율 이상 차면 칸을 경고 글자색으로 보인다(자동 요약이 가깝다, DP-182) */
+/** 컨텍스트가 이 비율 이상 차면 칸을 경고 글자색으로 보인다(자동 요약이 가깝다, DP-182) */
 export const CONTEXT_NEAR_PERCENT = 80;
 
-/** 문맥 칸의 글. 한도를 알면 "문맥 42%", 모르면 "문맥 4.1만"(토큰 수)이다 */
+/** 컨텍스트 칸의 글. 한도를 알면 "컨텍스트 42%", 모르면 "컨텍스트 4.1만"(토큰 수)이다 */
 export function contextTextOf(usage: SessionUsage): string {
   return usage.percent === null
     ? t("desktop.status.contextTokens", { tokens: tokenCountText(usage.tokens) })
     : t("desktop.status.context", { percent: Math.round(usage.percent) });
 }
 
-/** 문맥이 자동 요약에 가까운가. 한도를 모르면 판정하지 않는다 */
+/** 컨텍스트가 자동 요약에 가까운가. 한도를 모르면 판정하지 않는다 */
 export function contextNearOf(usage: SessionUsage): boolean {
   return usage.percent !== null && usage.percent >= CONTEXT_NEAR_PERCENT;
 }
 
 /**
- * "문맥" 칸(전 "사용량" 칸). 이 대화가 문맥 창을 얼마나 채웠는지를 보이고, 한도를 알면 48px 막대를 붙인다.
- * 80% 이상이면 경고 글자색과 설명 한 문장을 더한다. Popover에 토큰·비용 내역이 있다
+ * "컨텍스트" 칸(전 "사용량" 칸). 이 대화가 컨텍스트 창을 얼마나 채웠는지를 보이고, 한도를 알면 48px 막대를 붙인다.
+ * 80% 이상이면 경고 글자색과 툴팁 한 문장을 더한다. 누르면 오른쪽 막대의 컨텍스트 탭을 연다(DP-207). 전에는 토큰·비용 내역 팝오버였는데
+ * 컨텍스트 탭(DP-201~203)이 채움·자동 요약 문턱·구성·사용량 표를 모두 보이므로 같은 값을 두 곳에 두지 않는다
  */
-export function ContextCell(props: {
-  readonly usage: SessionUsage;
-  /** 있으면 Popover에 토큰·비용 내역을 더한다 */
-  readonly threadId?: ThreadId;
-}): ReactNode {
+export function ContextCell(props: { readonly usage: SessionUsage }): ReactNode {
   const { usage } = props;
-  const [open, setOpen] = useState(false);
+  const shell = useContext(ShellStoreContext);
   const near = contextNearOf(usage);
   const description = tokensDescriptionOf(usage);
   return (
-    <StatusCell
+    <StatusAction
       cellId="context"
       collapseIcon={<Layers className="size-3.5" />}
       text={contextTextOf(usage)}
@@ -759,25 +776,22 @@ export function ContextCell(props: {
       trailing={
         usage.percent === null ? undefined : <TokenBar percent={usage.percent} near={near} />
       }
-      title={t("desktop.status.cell.tokens.title")}
-      description={near ? `${description} ${t("desktop.status.cell.context.near")}` : description}
-      body={
-        props.threadId === undefined ? undefined : <UsageBreakdownBody threadId={props.threadId} />
-      }
-      open={open}
-      onOpenChange={setOpen}
+      hint={near ? `${description} ${t("desktop.status.cell.context.near")}` : description}
+      onSelect={() => {
+        shell?.actions.openEndTab(CONTEXT_TAB_ID, "chat");
+      }}
     />
   );
 }
 
-/** 문맥과 목표 칸을 대화에 맞춰 읽는다. 훅은 대화 id가 있어야 하므로 대화가 있을 때만 이 조각을 그린다. 모델은 입력창 칩이 맡는다 */
+/** 컨텍스트와 목표 칸을 대화에 맞춰 읽는다. 훅은 대화 id가 있어야 하므로 대화가 있을 때만 이 조각을 그린다. 모델은 입력창 칩이 맡는다 */
 function ThreadCells(props: { readonly threadId: ThreadId }): ReactNode {
   const running = useThreadRunning(props.threadId);
   const usage = useSessionUsage(props.threadId, running);
   return (
     <>
       <GoalCell threadId={props.threadId} />
-      {usage === null ? null : <ContextCell usage={usage} threadId={props.threadId} />}
+      {usage === null ? null : <ContextCell usage={usage} />}
     </>
   );
 }
@@ -897,18 +911,21 @@ function GoalCell(props: { readonly threadId: ThreadId }): ReactNode {
   );
 }
 
-/** "승인 대기 n" 칸. 답을 기다리는 승인이 있을 때만 그린다. 누르면 받은 요청 탭이 열린다(설명만 있는 팝오버를 거치지 않는다) */
+/**
+ * "승인 대기 n" 칸. 답을 기다리는 승인이 있을 때만 그린다. 누르면 받은 요청 탭이 열린다(설명만 있는 팝오버를 거치지 않는다).
+ * 점 없이 대화 목록의 확인 수와 같은 따뜻한 글자색·굵기로 구분한다(DP-206)
+ */
 function ApprovalsCell(props: { readonly count: number }): ReactNode {
   const shell = useContext(ShellStoreContext);
   return (
     <StatusAction
       cellId="approvals"
       text={t("desktop.status.approvalsWaiting", { count: props.count })}
-      dot="warning"
+      tone="attention"
       collapseIcon={<Inbox className="size-3.5" />}
-      label={t("desktop.status.cell.approvals.open")}
+      hint={t("desktop.status.cell.approvals.open")}
       onSelect={() => {
-        shell?.actions.openEndTab("inbox", "chat");
+        shell?.actions.openEndTab(INBOX_TAB_ID, "chat");
       }}
     />
   );
@@ -960,7 +977,7 @@ function UpdateCellOf(props: { readonly controller: UpdateController }): ReactNo
       <StatusCell
         cellId="update"
         text={t(cell.text, percent === null ? undefined : { percent })}
-        dot={cell.dot}
+        tone={updateToneOf(cell.dot)}
         title={t("desktop.update.cell.title")}
         description={description === undefined ? undefined : t(description)}
         wide
@@ -1019,8 +1036,8 @@ function UpdateCellOf(props: { readonly controller: UpdateController }): ReactNo
 }
 
 /**
- * 하단 상태 줄(DP-181, DP-182). 바탕 없이 무대 위에 글과 표시만 뜬다. "정상임"은 글로 말하지 않는다: 엔진·연결이 정상이면 점 하나다.
- * 왼쪽은 환경(엔진·연결 이상, 원격 엔진, 샌드박스 꺼짐, 안전 모드, 업데이트, 다시 시작 필요, 확장 칸), 오른쪽은 이 대화의 자원(목표, 문맥)과
+ * 하단 상태 줄(DP-181, DP-182, DP-206). 바탕 없이 무대 위에 글과 표시만 뜬다. "정상임"은 글로 말하지 않는다: 엔진·연결이 정상이면 칸이 없다.
+ * 왼쪽은 환경(엔진·연결 이상, 원격 엔진, 샌드박스 꺼짐, 안전 모드, 업데이트, 다시 시작 필요, 확장 칸), 오른쪽은 이 대화의 자원(목표, 컨텍스트)과
  * 돌고 있는 것(진행 중), 기다리는 것(승인 대기, 맨 끝)이다. 폴더·실행 위치·권한 모드·모델·추론은 입력창 칩이 맡아 여기 두지 않는다.
  * 실패 단추는 엔진·연결 칸 바로 뒤에 둔다
  */
@@ -1115,7 +1132,12 @@ export function StatusBar(): ReactNode {
       <StatusCells />
       <span className="grow" />
       <UsageCells />
-      {engineGone ? null : <LiveCell />}
+      {engineGone ? null : (
+        <>
+          <LiveCell />
+          <FailedCell />
+        </>
+      )}
       {approvals > 0 ? <ApprovalsCell count={approvals} /> : null}
     </footer>
   );

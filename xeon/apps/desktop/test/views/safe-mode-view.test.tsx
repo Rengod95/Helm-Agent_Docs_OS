@@ -89,9 +89,9 @@ function cellOf(markup: string, cellId: string): string {
   return markup.slice(start, end < 0 ? undefined : end);
 }
 
-/** 칸의 점 값(`data-bar-dot`). 점이 없으면 null */
-function dotOf(cell: string): string | null {
-  return /data-bar-dot="([^"]+)"/.exec(cell)?.[1] ?? null;
+/** 칸의 글자색 값(`data-bar-tone`). 상태 줄 칸은 점을 그리지 않는다(DP-206). 평소 색이면 null */
+function toneOf(cell: string): string | null {
+  return /data-bar-tone="([^"]+)"/.exec(cell)?.[1] ?? null;
 }
 
 /** 칸에 보이는 글. 글 칸은 숫자와 같이 `tabular-nums` 줄 뒤에 온다 */
@@ -175,10 +175,11 @@ describe("the safe mode chip in the status bar", () => {
   // Popover 본문은 열 때만 그려지므로 칸은 닫힌 모양(표지 글과 점)을 보고, 본문은 `SafeModeActions`를 직접 그린다.
   // 칸 설명(꺼진 것과 원인)은 `safeModeTipOf`가 만들고 safe-mode-model 시험이 값을 본다.
 
-  test("in safe mode the chip is a status cell with a warning dot and the words", () => {
+  test("in safe mode the chip is a status cell in warning text with the words, no dot", () => {
     const html = render(<SafeModeChip />, { snapshot: SAFE, shell: true, running: true });
     const cell = cellOf(html, "safe-mode");
-    expect(dotOf(cell)).toBe("warning");
+    expect(toneOf(cell)).toBe("warning");
+    expect(cell).not.toContain("data-bar-dot");
     expect(textOf(cell)).toBe("안전 모드");
     expect(html).not.toContain('data-slot="safe-mode-chip"');
   });
@@ -211,10 +212,11 @@ describe("the safe mode chip in the status bar", () => {
     expect(isDisabled(buttonOf(starting, "안전 모드 끄고 다시 시작"))).toBe(true);
   });
 
-  test("on the web the chip keeps its dot and words, and the body draws nothing", () => {
+  test("on the web the chip keeps its warning text and words, and the body draws nothing", () => {
     const html = render(<SafeModeChip />, { snapshot: SAFE, shell: false, running: true });
     const cell = cellOf(html, "safe-mode");
-    expect(dotOf(cell)).toBe("warning");
+    expect(toneOf(cell)).toBe("warning");
+    expect(cell).not.toContain("data-bar-dot");
     expect(textOf(cell)).toBe("안전 모드");
     expect(render(<SafeModeActions />, { snapshot: SAFE, shell: false, running: true })).toBe("");
   });

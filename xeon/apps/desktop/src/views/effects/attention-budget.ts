@@ -5,17 +5,26 @@
 import { useEffect, useId, useSyncExternalStore } from "react";
 import { useMotionReduced } from "../../lib/motion-presets.tsx";
 
-/** mark 주의 구슬(AttentionMark), progress 진행 구슬(ProgressOrb), card 카드 오로라(AttendGlow) */
-export type AttentionLiveKind = "mark" | "progress" | "card";
+/**
+ * mark 주의 구슬(AttentionMark), progress 진행 구슬(ProgressOrb), card 카드 오로라(AttendGlow),
+ * thinking 생각 구슬(ThinkingIndicator, DP-208). 생각 구슬은 전에도 상한 밖이었다(라이브러리 부품): 화면에 하나둘뿐이고 지금 일하는 중임을 말하므로 멈추지 않는다
+ */
+export type AttentionLiveKind = "mark" | "progress" | "card" | "thinking";
 
 /** 종류마다 동시에 움직일 수 있는 수 */
 export const ATTENTION_LIVE_LIMIT: Readonly<Record<AttentionLiveKind, number>> = {
   mark: 3,
   progress: 8,
   card: 1,
+  thinking: Number.POSITIVE_INFINITY,
 };
 
-const queues: Record<AttentionLiveKind, string[]> = { mark: [], progress: [], card: [] };
+const queues: Record<AttentionLiveKind, string[]> = {
+  mark: [],
+  progress: [],
+  card: [],
+  thinking: [],
+};
 const listeners = new Set<() => void>();
 
 function notify(): void {
