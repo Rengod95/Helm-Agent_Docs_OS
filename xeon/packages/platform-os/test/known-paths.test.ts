@@ -4,11 +4,11 @@ import { join } from "node:path";
 import { err, ok } from "@fresnel/contracts";
 import type { OsInfo } from "@fresnel/contracts/services";
 import { knownCandidates, sortVersionsDescending } from "../src/binaries/known-paths.ts";
+import type { BinaryFs } from "../src/binaries/binary-fs.ts";
 import { generateBinariesLock } from "../src/binaries/lock.ts";
 import {
   createBinaryResolver,
   createNodeBinaryFs,
-  type BinaryFs,
   type BinaryResolverDeps,
 } from "../src/binaries/resolve.ts";
 import type { RunCommand } from "../src/proc.ts";

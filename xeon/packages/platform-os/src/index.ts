@@ -41,12 +41,8 @@ export type { OsRuntime } from "./runtime.ts";
 export { readOsRuntime } from "./runtime.ts";
 export { OS_SETTING_DEFS } from "./settings.ts";
 export type { LogLevelSource, LogRedact, LogSink } from "./logger.ts";
-export {
-  createNodeBinaryFs,
-  type BinaryFs,
-  type BundledPath,
-  type BundledSource,
-} from "./binaries/resolve.ts";
+export type { BinaryFs } from "./binaries/binary-fs.ts";
+export { createNodeBinaryFs, type BundledPath, type BundledSource } from "./binaries/resolve.ts";
 export {
   generateBinariesLock,
   type LockGenerateError,

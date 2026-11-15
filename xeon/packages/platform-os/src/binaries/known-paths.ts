@@ -1,6 +1,6 @@
 import { posix } from "node:path";
 import type { BinaryName, OsPlatform } from "@fresnel/contracts/services";
-import type { BinaryFs } from "./resolve.ts";
+import type { BinaryFs } from "./binary-fs.ts";
 
 // L0.os.spec §3.6 OS-11 시스템 후보. GUI에서 띄운 앱의 PATH는 `/usr/bin:/bin:...`뿐이라 PATH만 보면 mise, nix, asdf로 설치한 도구를 놓친다.
 // PATH에서 못 찾았을 때만 이 자리들을 본다. 찾은 곳의 이름(`via`)은 진단에 보인다.

@@ -1,6 +1,7 @@
 import { assertNever, err, ok, type Clock, type Logger, type Result } from "@fresnel/contracts";
 import type { NotifyError, OsInfo, OsNotification } from "@fresnel/contracts/services";
-import { lookupOnPath, type BinaryFs } from "../binaries/resolve.ts";
+import type { BinaryFs } from "../binaries/binary-fs.ts";
+import { lookupOnPath } from "../binaries/resolve.ts";
 import type { RunCommand } from "../proc.ts";
 import { PRODUCT } from "../product.ts";
 
