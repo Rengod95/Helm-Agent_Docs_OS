@@ -41,7 +41,10 @@ interface World {
   insecure: number | null;
 }
 
-function build(world: World, options: { readonly spawnDelayMs?: number } = {}) {
+function build(
+  world: World,
+  options: { readonly spawnDelayMs?: number; readonly engineBuild?: string } = {},
+) {
   const clock = manualClock();
   let spawnedAt: number | null = null;
   const store: RegistrationStore = {
@@ -81,6 +84,7 @@ function build(world: World, options: { readonly spawnDelayMs?: number } = {}) {
     clock,
     scheduler: clock,
     engineVersion: "1.0.0",
+    engineBuild: options.engineBuild,
     protocolVersion: "1.0.0",
   };
   return { clock, deps };
@@ -123,7 +127,12 @@ describe("ensureService", () => {
     expect(world.spawns).toBe(1);
     expect(result).toEqual({
       ok: true,
-      value: { kind: "connected", registration: registration("1.0.0", 777), started: true },
+      value: {
+        kind: "connected",
+        registration: registration("1.0.0", 777),
+        started: true,
+        replaced: false,
+      },
     });
   });
 
@@ -136,7 +145,12 @@ describe("ensureService", () => {
     expect(world.spawns).toBe(1);
     expect(second).toEqual({
       ok: true,
-      value: { kind: "connected", registration: registration("1.0.0", 777), started: false },
+      value: {
+        kind: "connected",
+        registration: registration("1.0.0", 777),
+        started: false,
+        replaced: false,
+      },
     });
   });
 
@@ -190,6 +204,63 @@ describe("ensureService", () => {
     expect(result).toEqual({
       ok: true,
       value: { kind: "version_mismatch_busy", registration: registration("0.9.0", 5) },
+    });
+  });
+
+  test("same version but another build: an idle service is replaced and the outcome says replaced", async () => {
+    const world = freshWorld();
+    world.reg = registration("1.0.0", 5);
+    world.listening = true;
+    world.probe = { version: "1.0.0", protocolVersion: "1.0.0", idle: true, build: "old" };
+    const { clock, deps } = build(world, { engineBuild: "new" });
+    const pending = ensureService(deps, { retryMs: 200 });
+    await clock.advance(0);
+    world.probe = { version: "1.0.0", protocolVersion: "1.0.0", idle: true, build: "new" };
+    await run(clock, pending, 200, 3);
+    expect(await pending).toEqual({
+      ok: true,
+      value: {
+        kind: "connected",
+        registration: registration("1.0.0", 777),
+        started: true,
+        replaced: true,
+      },
+    });
+    expect(world.replaced).toBe(1);
+    expect(world.spawns).toBe(1);
+  });
+
+  test("a service that reports no build counts as another build", async () => {
+    const world = freshWorld();
+    world.reg = registration("1.0.0", 5);
+    world.listening = true;
+    world.probe = { version: "1.0.0", protocolVersion: "1.0.0", idle: false };
+    const { deps } = build(world, { engineBuild: "new" });
+    const result = await ensureService(deps);
+    expect(world.replaced).toBe(0);
+    expect(result).toEqual({
+      ok: true,
+      value: { kind: "version_mismatch_busy", registration: registration("1.0.0", 5) },
+    });
+  });
+
+  test("the same build attaches without replacing", async () => {
+    const world = freshWorld();
+    world.reg = registration("1.0.0", 5);
+    world.listening = true;
+    world.probe = { version: "1.0.0", protocolVersion: "1.0.0", idle: true, build: "same" };
+    const { deps } = build(world, { engineBuild: "same" });
+    const result = await ensureService(deps);
+    expect(world.replaced).toBe(0);
+    expect(world.spawns).toBe(0);
+    expect(result).toEqual({
+      ok: true,
+      value: {
+        kind: "connected",
+        registration: registration("1.0.0", 5),
+        started: false,
+        replaced: false,
+      },
     });
   });
 
