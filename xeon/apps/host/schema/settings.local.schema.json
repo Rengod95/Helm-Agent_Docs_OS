@@ -3567,6 +3567,35 @@
         }
       }
     },
+    "l2.web.policy.default": {
+      "default": "ask",
+      "enum": [
+        "ask",
+        "allow"
+      ],
+      "type": "string",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "local",
+          "launch"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.3.0",
+        "ui": {
+          "help": "ask confirms each new domain. allow reads any domain without asking, including URLs not in the conversation. Blocked and confirm lists still apply.",
+          "helpKey": "settings.l2.web.policy.default.help",
+          "label": "Domains not in any list",
+          "labelKey": "settings.l2.web.policy.default.label",
+          "order": 119,
+          "tab": "tools",
+          "widget": "select"
+        }
+      }
+    },
     "l2.web.policy.deny": {
       "default": [],
       "items": {

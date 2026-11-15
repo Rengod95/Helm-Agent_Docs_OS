@@ -40,6 +40,7 @@ import {
   type DnsResolver,
   type HttpTransport,
   type PluginRegistration,
+  type WebPolicyWriter,
   type RegistrationSource,
   type WebRuntime,
   type WebSessionSourcesPort,
@@ -85,6 +86,8 @@ export interface HostWebOptions {
   readonly hostedSearch?: HostedSearchPort;
   /** 시험 주입(AssembleOptions.webPorts): 브라우저 엔진. 생략하면 Stagehand 어댑터다. 시험은 실제 Chrome을 띄우지 않으려고 가짜를 넣는다 */
   readonly browserEngine?: BrowserEnginePort;
+  /** "이 사이트 계속 허용"·"모든 사이트 허용"을 user 범위 설정에 쓰는 통로(L2.web.spec §4.5.5). 생략하면 그 선택은 이번만 허용과 같다 */
+  readonly policyWriter?: WebPolicyWriter;
   /** 설정이 바뀔 때마다 부른다. 돌려주는 함수로 구독을 푼다 */
   readonly onSettingsChange: (listener: () => void) => () => void;
   /** 이 엔진이 지금 쓰기 소유를 쥔 thread. `thread.shutdown`에서 살아 있는 세션을 가린다 */
@@ -269,6 +272,7 @@ export function hostWebPlugin(options: HostWebOptions): ExtensionUnit {
         settings: (threadId) => readWebSettings(options.layers(threadId)),
         sessionSources: sessionSourcesOf(session),
         store,
+        ...(options.policyWriter === undefined ? {} : { policyWriter: options.policyWriter }),
         ...(approvals === undefined
           ? {}
           : { asker: createAskAdapter(createBareL2ApprovalsPort(approvals, webApprovalTitle)) }),

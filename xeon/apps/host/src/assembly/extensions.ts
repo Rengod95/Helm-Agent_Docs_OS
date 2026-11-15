@@ -52,6 +52,7 @@ import type { AgentDefinition, ToolOutputFiles } from "@fresnel/contracts/servic
 import { agentsPlugin } from "@fresnel/core-agents";
 import { contextSettingsOf, createContextExtension } from "@fresnel/core-context";
 import { cancelledByOwnerOf } from "./owner-cancel.ts";
+import { createWebPolicyWriter } from "./web-policy-writer.ts";
 import { loopExtensionUnit } from "@fresnel/core-loop";
 import { createModelsExtension, type ModelsExtensionOptions } from "@fresnel/core-models";
 import { sessionPlugin } from "@fresnel/core-persistence";
@@ -449,6 +450,11 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           ids: deps.localIds,
           layers: (threadId) => settings.layers(isId("thr", threadId) ? threadId : undefined),
           settingValue: (key) => settings.value(key),
+          policyWriter: createWebPolicyWriter({
+            catalog: deps.groups.catalog,
+            store: deps.groups.store,
+            layers: () => settings.layers(undefined),
+          }),
           resources: () => deps.ext.resources,
           status: deps.web,
           onSettingsChange: (listener) => settings.onChange(() => listener()),
