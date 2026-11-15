@@ -9,7 +9,7 @@ import {
   NOTIFY_TITLE_MAX,
   type NotifierProvider,
 } from "../src/notify/provider.ts";
-import type { BinaryFs } from "../src/binaries/resolve.ts";
+import type { BinaryFs } from "../src/binaries/binary-fs.ts";
 import { createRunCommand } from "../src/proc.ts";
 import { tempDir, type TempDir } from "../src/testing/index.ts";
 import { manualClock } from "./support/clock.ts";

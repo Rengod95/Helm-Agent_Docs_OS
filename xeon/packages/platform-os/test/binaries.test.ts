@@ -8,9 +8,9 @@ import {
   createBinaryResolver,
   createNodeBinaryFs,
   parseBinariesLock,
-  type BinaryFs,
   type BinaryResolverDeps,
 } from "../src/binaries/resolve.ts";
+import type { BinaryFs } from "../src/binaries/binary-fs.ts";
 import { compareTriples, findVersion, parseTriple } from "../src/binaries/semver.ts";
 import { checkExternalBinaries } from "../src/binaries/requirements.ts";
 import type { CommandOutput, RunCommand } from "../src/proc.ts";

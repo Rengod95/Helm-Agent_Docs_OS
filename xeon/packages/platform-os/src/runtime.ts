@@ -11,7 +11,8 @@ import {
   type RunCommand,
   type RunCommandSync,
 } from "./proc.ts";
-import { createNodeBinaryFs, type BinaryFs } from "./binaries/resolve.ts";
+import type { BinaryFs } from "./binaries/binary-fs.ts";
+import { createNodeBinaryFs } from "./binaries/resolve.ts";
 import {
   createFlockPrimitive,
   type FlockPrimitive,
