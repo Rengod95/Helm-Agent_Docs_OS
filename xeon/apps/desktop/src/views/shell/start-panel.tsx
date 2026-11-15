@@ -22,7 +22,6 @@ import { ContextPicker, type ContextProfile } from "./context-picker.tsx";
 import type { ActionId } from "./keybindings.ts";
 import { NAV_BY_AREA, type NavItem } from "./nav.ts";
 import { SIDE_ROW } from "../side-row.ts";
-import { AttentionMark } from "../effects/attention-mark.tsx";
 import type { Area } from "../../state/shell/index.ts";
 import type { ScreenDef, ShellRegistry } from "./registry.ts";
 import { useShell, useShellActions } from "../../state/shell/index.ts";
@@ -180,13 +179,8 @@ function NavRow(props: {
         )
       }
       className={props.active ? `${SIDE_ROW} ${ACTIVE_LABEL}` : SIDE_ROW}
+      // 수만 둔다. 수 앞에 색 표시를 붙이지 않는다(DP-211 [결정: 2026-11-13 사용자 "남용"])
       count={badge === undefined || badge <= 0 ? undefined : badge}
-      // 내 확인을 기다리는 수 앞에는 주의 표시(DP-189). 수가 없으면 표시도 없다
-      meta={
-        props.def?.attention === true && badge !== undefined && badge > 0 ? (
-          <AttentionMark size="sm" />
-        ) : undefined
-      }
       onSelect={props.onSelect}
     >
       {props.label}

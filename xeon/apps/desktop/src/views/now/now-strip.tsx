@@ -27,7 +27,6 @@ import { Aurora, type AuroraState } from "../effects/aurora.tsx";
 import { useDoneFlash } from "../effects/beam.tsx";
 import { DrawnCheck } from "../effects/drawn-check.tsx";
 import { auroraOn } from "../effects/fx-config.ts";
-import { AttentionMark } from "../effects/attention-mark.tsx";
 import { ProgressOrb } from "../effects/progress-orb.tsx";
 import {
   nowShownOf,
@@ -45,7 +44,7 @@ import {
 // 값은 거울의 선택자라 턴이 도는 동안 사건마다 갱신된다. 그릴 것이 없으면 아무것도 그리지 않는다.
 // 움직임(dzM2 시안 §7, DP-119): 입력창 위로 8px 올라와 가라앉고(band) 사라질 때 4px 내려가며 나간다. 몸은 높이를 잇고(Reveal),
 // 본문 글과 진행 수는 교차 전환, 막대는 caustic Progress 폭 전환, 펼친 목록에서 끝난 할 일은 체크 선이 그려진다.
-// 도는 중 표시는 회전 스피너가 아니라 생각 구슬과 같은 점 구슬(ProgressOrb, DP-127·189)이고, 승인을 기다리며 멈췄으면 주의 구슬(AttentionMark)이다. 오로라 자리(fx-config)가 strip이면 띠 바탕에 오로라가 흐른다(DP-126).
+// 도는 중 표시는 회전 스피너가 아니라 생각 구슬과 같은 점 구슬(ProgressOrb, DP-127·189)이다. 승인을 기다리는 것은 곁 정보 "승인 N개"(경고 글색)가 말하고 앞 칸에 따로 표시를 두지 않는다(DP-211). 오로라 자리(fx-config)가 strip이면 띠 바탕에 오로라가 흐른다(DP-126).
 
 const ICON = "size-3.5 shrink-0";
 
@@ -71,18 +70,14 @@ function NowStripFor(props: { readonly threadId: ThreadId }): ReactNode {
   );
 }
 
-function PulseIcon(props: {
-  readonly pulse: NowPulse;
-  readonly goal: boolean;
-  readonly waiting: boolean;
-}): ReactNode {
+function PulseIcon(props: { readonly pulse: NowPulse; readonly goal: boolean }): ReactNode {
   // 멈춰 있을 때 본문이 목표면 과녁, 아니면 할 일 표시
   if (props.pulse === "idle" && props.goal) {
     return <Target aria-hidden className={`${ICON} text-text-tertiary`} />;
   }
   switch (props.pulse) {
     case "running":
-      return props.waiting ? <AttentionMark /> : <ProgressOrb />;
+      return <ProgressOrb />;
     case "stopping":
       return <Stop aria-hidden className={`${ICON} text-warning-text`} />;
     case "idle":
@@ -220,11 +215,7 @@ export function NowStripView(props: {
       {auroraOn("strip") ? <StripAurora view={view} /> : null}
       {/* 줄 전체가 펼침 단추다. 끝의 chevron은 같은 동작을 보이는 표시라 따로 탭 순서에 두지 않는다 */}
       <div className="relative flex h-9 min-w-0 items-center gap-2 ps-3 pe-1 hover:bg-neutral-hover">
-        <PulseIcon
-          pulse={view.pulse}
-          goal={view.headline.kind === "goal"}
-          waiting={view.pendingApprovals > 0}
-        />
+        <PulseIcon pulse={view.pulse} goal={view.headline.kind === "goal"} />
         <button
           type="button"
           aria-expanded={open}
