@@ -5,9 +5,12 @@ import type { DriveLimits, LoopHandle } from "@fresnel/contracts/extensions";
 /** 상태 타입 S를 지운 자리. 호스트 안에서만 쓴다. 문서는 StateDecl.schema 검사를 거친다 */
 export type AnyState = Readonly<Record<string, unknown>>;
 
-/** 상태 타입 S를 지운 drive 옵션 */
+/**
+ * 상태 타입 S를 지운 drive 옵션. `limits`는 값이 아니라 읽는 함수다. 임대를 받을 때(lease.ts) 호출자 옵션의 `limits`를 읽어,
+ * 등록 뒤에 바뀐 값(예: getter로 넘긴 설정)이 다음 임대부터 반영되게 한다
+ */
 export interface ErasedDriveOptions {
-  readonly limits?: DriveLimits;
+  readonly limits: () => DriveLimits | undefined;
   readonly wants?: (state: unknown) => boolean;
 }
 

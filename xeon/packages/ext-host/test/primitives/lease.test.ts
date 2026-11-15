@@ -308,3 +308,38 @@ test("a drive whose state wants the lock is a candidate again and runs", async (
   expect(calls).toEqual(["ls-lazy2"]);
   expect(kinds(t, thread, "lease.acquired")).toMatchObject([{ scopeId: "ls-lazy2" }]);
 });
+
+test("drive limits are read from the options getter when a lease is taken, so a change applies to the next lease", async () => {
+  const t = await createTestHost();
+  const thread = t.newThread();
+  let maxTurns = 2;
+  await t.host.install(
+    makeGroupUnit({ name: "ls-limits" }, (g) => {
+      g.drive(() => Promise.resolve(), {
+        get limits() {
+          return { maxTurns };
+        },
+      });
+    }),
+  );
+  await t.host.openThread(thread);
+  await t.settled();
+  expect(kinds(t, thread, "lease.acquired")).toMatchObject([
+    { scopeId: "ls-limits", limits: { maxTurns: 2 } },
+  ]);
+  // 효과 없이 반환하면 idle로 반납된다(위 idle 테스트와 같은 순서)
+  await t.boundary(thread).turnSettled();
+  await t.settled();
+  expect(kinds(t, thread, "lease.released")).toMatchObject([{ reason: "idle" }]);
+  // 등록 뒤에 바뀐 값은 다음 임대부터 반영된다
+  maxTurns = 5;
+  await t.boundary(thread).idle();
+  await t.settled();
+  await t.boundary(thread).turnSettled();
+  await t.boundary(thread).idle();
+  await t.settled();
+  expect(kinds(t, thread, "lease.acquired")).toMatchObject([
+    { scopeId: "ls-limits", limits: { maxTurns: 2 } },
+    { scopeId: "ls-limits", limits: { maxTurns: 5 } },
+  ]);
+});
