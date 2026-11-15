@@ -351,6 +351,44 @@ test("collectRules tags settings layers as user or managed and drops invalid rul
   expect(managed?.source).toBe("settings:managed:/etc/fresnel/managed.json");
 });
 
+test("a user rule that names the retired plan mode keeps its other modes; a rule left with no mode is skipped and reported", () => {
+  const collected = collectRules([
+    layer("user", {
+      "l1.tools.rules": [
+        {
+          id: "u.mixed",
+          action: "tool.call",
+          resource: { tool: "bash", mode: ["plan", "default"] },
+          effect: "allow",
+        },
+        {
+          id: "u.only-plan",
+          action: "tool.call",
+          resource: { tool: "bash", mode: ["plan"] },
+          effect: "allow",
+        },
+        {
+          id: "u.plain",
+          action: "tool.call",
+          resource: { tool: "bash", mode: ["acceptEdits"] },
+          effect: "deny",
+        },
+      ],
+    }),
+  ]);
+  const user = collected.rules.filter((entry) => entry.tier === "user");
+  expect(user.map((entry) => [entry.id, entry.resource.mode])).toEqual([
+    ["u.mixed", ["default"]],
+    ["u.plain", ["acceptEdits"]],
+  ]);
+  // 빈 목록은 모든 모드에 걸리므로 u.only-plan은 적재하지 않는다
+  expect(collected.rules.some((entry) => entry.id === "u.only-plan")).toBe(false);
+  const reported = collected.issues.filter((issue) => issue.source === "settings:user");
+  expect(reported.map((issue) => [issue.ruleId, issue.code])).toEqual([
+    ["u.only-plan", "schema_invalid"],
+  ]);
+});
+
 function defaultRules(): TieredRule[] {
   const rules: TieredRule[] = [];
   for (const entry of builtinRules())

@@ -7,7 +7,7 @@ import {
 } from "@fresnel/contracts/services";
 import type { ScopeStack } from "@fresnel/contracts/settings";
 import { layerValue, REPOSITORY_SCOPES, TOOLS_SETTING_KEYS } from "../settings.ts";
-import { builtinRules, loadableRules, validateRules } from "./rules.ts";
+import { builtinRules, loadableRules, validateRules, withoutRetiredModes } from "./rules.ts";
 
 // L1.tools.spec §4.5 티어와 규칙 출처. default는 내장 규칙과 registerRules(policy/core-rules.ts), user·managed는 설정이다.
 // extension 티어는 평가기가 순위로 다루지만 규칙을 넣는 경로(매니페스트 선언)는 2차다(§4.11).
@@ -50,6 +50,7 @@ export function tag(
  * 내장 규칙과 설정 `l1.tools.rules`를 모은다. 설정 값은 키 하나의 값을 통째로 바꾸는 규칙(F.wire-settings.spec §4.7)이
  * 아니라 범위마다 따로 읽는다(L1.tools.spec §4.5 "설정 범위별 규칙 수집"). managed 범위는 managed 티어, 그 밖은 user 티어다.
  * 스키마를 어기거나 validateRules에 걸린 규칙은 적재하지 않고 issues로 돌려준다.
+ * 은퇴한 모드 `plan`은 목록에서만 뺀다. 빼고 모드가 하나도 남지 않은 규칙은 모든 모드에 적용되지 않도록 건너뛰고 진단을 남긴다.
  */
 export function collectRules(layers: ScopeStack): CollectedRules {
   const issues: RuleSourceIssue[] = [];
@@ -73,7 +74,17 @@ export function collectRules(layers: ScopeStack): CollectedRules {
     for (const item of items) {
       const result = parse(PolicyRuleSchema, item);
       if (result.ok) {
-        parsed.push(result.value);
+        const kept = withoutRetiredModes(result.value);
+        if (kept === undefined) {
+          issues.push({
+            source,
+            ruleId: result.value.id,
+            code: "schema_invalid",
+            message: `resource.mode has only the retired "plan" mode, so the rule is skipped`,
+          });
+        } else {
+          parsed.push(kept);
+        }
       } else {
         const first = result.error.issues[0];
         issues.push({

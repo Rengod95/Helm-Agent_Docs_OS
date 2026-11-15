@@ -11,12 +11,10 @@ import {
   type SessionService,
 } from "@fresnel/contracts/records";
 import {
-  PERMISSION_MODE_STRICTNESS,
   TOOL_RISK_ORDER,
   type ApprovalBody,
   type ApprovalRequest,
   type CallerId,
-  type PermissionMode,
   type ToolRisk,
 } from "@fresnel/contracts/services";
 
@@ -30,11 +28,10 @@ function isRisk(value: string): value is ToolRisk {
   return TOOL_RISK_ORDER.some((risk) => risk === value);
 }
 
-function isMode(value: string): value is PermissionMode {
-  return PERMISSION_MODE_STRICTNESS.some((mode) => mode === value);
-}
-
-/** 기록된 body(JSON 수준)를 서비스 타입의 ApprovalBody로 되돌린다. 모르는 등급·기능·모드가 있으면 undefined */
+/**
+ * 기록된 body(JSON 수준)를 서비스 타입의 ApprovalBody로 되돌린다. 모르는 등급·기능이 있으면 undefined다.
+ * 은퇴한 계획 승인(`plan`)도 undefined다: 대기 목록에 올리지 않고 쓰지도 않는다 [결정: 2026-11-15 사용자]
+ */
 export function approvalBodyOf(body: ApprovalBodyJson): ApprovalBody | undefined {
   switch (body.kind) {
     case "tool": {
@@ -59,14 +56,8 @@ export function approvalBodyOf(body: ApprovalBodyJson): ApprovalBody | undefined
         },
       };
     }
-    // 옛 계획 승인 기록(더는 만들지 않음 [결정: 2026-11-13 사용자]). 옛 `plan` 문자열은 모드가 아니라서 버리고, 디코드는 실패하지 않는다
-    case "plan": {
-      const modes = body.plan.nextModes.filter(isMode);
-      return {
-        kind: "plan",
-        plan: { plan: body.plan.plan, planRef: body.plan.planRef, nextModes: modes },
-      };
-    }
+    case "plan":
+      return undefined;
     case "question":
       return { kind: "question", question: { questions: body.question.questions } };
     case "review":

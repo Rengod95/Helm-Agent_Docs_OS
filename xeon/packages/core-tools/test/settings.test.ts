@@ -1,6 +1,11 @@
 import { expect, test } from "bun:test";
 import { eachInOrder } from "../src/util.ts";
-import { readScalarConfig, TOOLS_SETTING_DEFAULTS, TOOLS_SETTING_KEYS } from "../src/settings.ts";
+import {
+  normalizeStoredMode,
+  readScalarConfig,
+  TOOLS_SETTING_DEFAULTS,
+  TOOLS_SETTING_KEYS,
+} from "../src/settings.ts";
 import { callTool, createHarness, layer, registerWorkspace } from "./support/harness.ts";
 
 test("defaults match the l1.tools settings table", () => {
@@ -98,6 +103,18 @@ test("a saved plan mode from before the plan mode was removed is read as default
   ).toBe("bypass");
   // 저장소 범위(project)의 옛 plan도 default다
   expect(readScalarConfig([layer("project", { "l1.tools.permissionMode": "plan" })]).mode).toBe(
+    "default",
+  );
+});
+
+test("normalizeStoredMode is the one reading rule: a stored plan is default, known modes are themselves, anything else is unknown", () => {
+  expect(normalizeStoredMode("plan")).toBe("default");
+  expect(normalizeStoredMode("acceptEdits")).toBe("acceptEdits");
+  expect(normalizeStoredMode("bypass")).toBe("bypass");
+  expect(normalizeStoredMode("nope")).toBeUndefined();
+  expect(normalizeStoredMode(null)).toBeUndefined();
+  // 엔진 읽기(pickMode)가 같은 함수를 거친 값을 돌려준다
+  expect(readScalarConfig([layer("user", { "l1.tools.permissionMode": "plan" })]).mode).toBe(
     "default",
   );
 });

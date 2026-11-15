@@ -65,18 +65,21 @@ describe("definition files", () => {
     }
   });
 
-  test("a definition that names the removed plan mode is one diagnostic, not a definition", () => {
+  test("a definition that names the retired plan mode loads without a mode and carries one warning", () => {
     const parsed = parseDefinitionFile(
       "/ext/explorer.md",
       GOOD.replace("mode: acceptEdits", "mode: plan"),
       { kind: "extension", extension: "helm", path: "/ext/explorer.md" },
     );
-    expect("diagnostic" in parsed).toBe(true);
-    if ("diagnostic" in parsed) {
-      expect(parsed.diagnostic).toMatchObject({
-        code: "agents.definition_invalid",
-        path: "/ext/explorer.md",
-      });
+    expect("definition" in parsed).toBe(true);
+    if ("definition" in parsed) {
+      expect(parsed.definition.name).toBe("explorer");
+      expect(parsed.definition.permissions?.mode).toBeUndefined();
+      // 모드 말고 다른 칸은 그대로다
+      expect(parsed.definition.permissions?.rules?.map((rule) => rule.id)).toEqual(["no-bash"]);
+      expect(parsed.diagnostics.map((item) => [item.severity, item.code, item.path])).toEqual([
+        ["warning", "agents.definition_invalid", "/ext/explorer.md"],
+      ]);
     }
   });
 

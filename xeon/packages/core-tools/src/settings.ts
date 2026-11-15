@@ -246,8 +246,17 @@ export interface ToolsUnattendedConfig {
 }
 
 /**
+ * 저장된 권한 모드 값을 읽는 규칙 한 곳. 계획 모드를 없앴다 [결정: 2026-11-13 사용자]. 저장된 대화·설정의 옛 `plan` 값은
+ * 옛 대화 보호를 위해 `default`로 본다. 엔진(`pickMode`)과 `settings.get`(host, dzPl §12-2)이 이 함수를 같이 쓴다.
+ * 모르는 값은 undefined다(그 층은 건너뛴다).
+ */
+export function normalizeStoredMode(value: unknown): PermissionMode | undefined {
+  if (value === "plan") return "default";
+  return isPermissionMode(value) ? value : undefined;
+}
+
+/**
  * 권한 모드와 그 값을 정한 범위. `pick`과 같은 순서와 검사를 쓰되 범위를 함께 돌려준다.
- * 계획 모드를 없앴다 [결정: 2026-11-13 사용자]. 저장된 대화·설정의 옛 `plan` 값은 옛 대화 보호를 위해 `default`로 본다.
  * 이 층에서 멈추고 아래 층으로 넘어가지 않는다(그 층이 정한 모드가 `default`다).
  */
 function pickMode(layers: ScopeStack): {
@@ -258,13 +267,9 @@ function pickMode(layers: ScopeStack): {
     if (!ALL_SCOPES.some((allowed) => allowed === scope)) continue;
     const layer = layers.find((candidate) => candidate.scope === scope);
     if (layer === undefined || !layer.values.has(TOOLS_SETTING_KEYS.permissionMode)) continue;
-    const value = layer.values.get(TOOLS_SETTING_KEYS.permissionMode);
-    // 옛 대화 보호: 계획 모드 시절에 저장된 값. 이 한 곳만 문자열 "plan"을 쓴다
-    if (value === "plan") {
-      return { mode: "default", fromRepository: REPOSITORY_SCOPES.some((repo) => repo === scope) };
-    }
-    if (isPermissionMode(value)) {
-      return { mode: value, fromRepository: REPOSITORY_SCOPES.some((repo) => repo === scope) };
+    const mode = normalizeStoredMode(layer.values.get(TOOLS_SETTING_KEYS.permissionMode));
+    if (mode !== undefined) {
+      return { mode, fromRepository: REPOSITORY_SCOPES.some((repo) => repo === scope) };
     }
   }
   return { mode: TOOLS_SETTING_DEFAULTS.permissionMode, fromRepository: false };

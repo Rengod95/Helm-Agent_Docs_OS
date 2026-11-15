@@ -1,8 +1,31 @@
-import type { PolicyIssue, PolicyRule } from "@fresnel/contracts/services";
+import {
+  PERMISSION_MODE_STRICTNESS,
+  type PermissionMode,
+  type PolicyIssue,
+  type PolicyRule,
+} from "@fresnel/contracts/services";
 import { tryRegExp } from "../util.ts";
 
 // L1.tools.spec §4.5 내장 기본 규칙(M1)과 규칙 정적 검사.
 export const DEFAULT_RULE_PRIORITY = 500;
+
+function isPermissionMode(value: string): value is PermissionMode {
+  return PERMISSION_MODE_STRICTNESS.some((mode) => mode === value);
+}
+
+/**
+ * 은퇴한 모드 `plan`을 규칙의 `resource.mode` 목록에서 뺀다 [결정: 2026-11-15 사용자]. 옛 사용자 규칙이 `plan`을 담고 있어도
+ * 나머지 모드에 대한 규칙은 그대로 쓴다. 목록이 비면 undefined다: 빈 목록은 모든 모드에 적용되는 규칙이라서 건너뛰어야 한다
+ * (engine `ruleMatches`는 목록이 비면 모드를 가리지 않는다)
+ */
+export function withoutRetiredModes(rule: PolicyRule): PolicyRule | undefined {
+  const modes = rule.resource.mode;
+  if (modes === undefined) return rule;
+  const kept = modes.filter(isPermissionMode);
+  if (kept.length === modes.length) return rule;
+  if (kept.length === 0) return undefined;
+  return { ...rule, resource: { ...rule.resource, mode: kept } };
+}
 
 /** read를 내는 내장 능력. 이름만으로 허용하면 같은 이름을 등록한 다른 출처의 도구가 승인을 건너뛴다 */
 const WORKSPACE_FILES = "workspace.files";

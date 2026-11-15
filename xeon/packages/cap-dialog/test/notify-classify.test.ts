@@ -202,14 +202,11 @@ describe("classifyNotice: approval.requested", () => {
     });
   });
 
-  test("plan 승인 대기는 kind를 넣은 approval_waiting이다", () => {
+  test("은퇴한 plan 승인 기록은 알림을 만들지 않는다", () => {
     const thread = newThread();
     const body = { kind: "plan", plan: { plan: "1단계", planRef: null, nextModes: [] } };
     const event = envelope(thread, "approval.requested", approvalPayload(thread, body));
-    expect(classifyNotice(event)).toMatchObject({
-      kind: "approval_waiting",
-      title: "승인이 필요해요: plan",
-    });
+    expect(classifyNotice(event)).toBeNull();
   });
 
   test("question 대기는 question_waiting이다", () => {

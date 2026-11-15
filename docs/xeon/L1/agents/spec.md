@@ -379,7 +379,7 @@ export type AgentJudgedPayload = JudgeRecord;
    - 자식 관점: `evaluatePolicy({ …호출, caller: "subagent:<agent>", depth: 자식 depth, mode: 자식 모드 }, 규칙 + 정의 규칙)`.
    - 정의 제한: 도구 이름이 정의 `tools`(와 `ChildToolPolicy.allow`의 교집합) glob에 없거나 `deny`에 있으면 deny(`ruleId: "agent.<이름>.tools"`).
    - 그래서 자식은 부모가 거부한 도구를 쓸 수 없고, 정의가 allow 규칙을 더해도 부모 결정보다 넓어지지 않는다. `caller: "main"` 조건 규칙도 부모 관점 평가에서 그대로 적용된다.
-2. 자식 모드: `PERMISSION_MODE_STRICTNESS`에서 부모 모드와 정의 `permissions.mode` 중 앞쪽(엄격한 쪽)이다. 정의의 `permissions.mode`는 `default`·`acceptEdits`·`bypass`만 받는다. 계획 모드(`plan`)는 없다 [결정: 2026-11-13 사용자] [근거: 2026-11-13 사용자 결정].
+2. 자식 모드: `PERMISSION_MODE_STRICTNESS`에서 부모 모드와 정의 `permissions.mode` 중 앞쪽(엄격한 쪽)이다. 정의의 `permissions.mode`는 `default`·`acceptEdits`·`bypass`만 받는다. 계획 모드(`plan`)는 없다 [결정: 2026-11-13 사용자] [근거: 2026-11-13 사용자 결정]. 옛 값 `plan`은 무시하고 지정 없음으로 본다(§4.9) [결정: 2026-11-15 사용자].
 3. 광고 목록: 자식의 `advertise`는 `allow`에 정의 제한을 넣고, 자식 관점 전역 deny와 부모 관점 전역 deny를 모두 뺀다. `keepParentList`면 부모 목록을 그대로 쓰고 위 결정을 실행 시점에만 적용한다(L1.tools.spec §4.1 7번).
 4. 이 계산은 core-agents의 `permission-ceiling.ts`가 순수 함수로 하고, core-tools 파이프라인은 자식 `ToolRunContext.ceiling`이 있으면 이 함수의 결과와 일반 평가 중 엄격한 쪽을 정책 결정으로 쓴다(L1.tools.spec §4.5 ceiling 단계) [제안]. [가정] core-tools가 ceiling 평가를 호출할 수 있게 함수가 F `policy.ts`에 있어야 한다. 그래서 `childDecision(call, parent, child, rules)`을 F로 옮기도록 요청한다(§8.3 F 요청 5).
 5. 승인: 자식의 ask는 부모 대화의 사용자에게 올라간다. 승인 요청 이벤트는 `surfaceThreadId`(소유 트리 루트) 대화에 기록되고 `origin.threadId`는 자식 대화다(L1.tools.spec §3.9). `remember: "thread"`는 루트 대화 기준으로 적용된다.
@@ -494,7 +494,7 @@ export type AgentJudgedPayload = JudgeRecord;
 - `agent` 도구 설명은 쓸 수 있는 정의 이름과 한 줄 설명(`description`의 첫 줄)을 싣는다. 정의가 등록·해제되면 도구를 다시 등록해 다음 턴 광고에 반영한다. 내부용 정의(학습 검토 `learning-review`)는 조립 루트가 `unlistedDefinitions`로 넘긴 이름이라 광고에서 뺀다. 계약에 `hidden` 표시는 없어 이 이름 목록으로 대신한다 [제안]. 위임은 이름으로 계속 부를 수 있다. 없는 이름을 부르면 `agents.unknown_definition` 메시지에 쓸 수 있는 이름 목록을 붙인다(§5 사례 1).
 - 위치 우선순위: 작업 폴더 > 사용자 > 확장 > 내장 [제안]. 같은 이름은 앞쪽이 이긴다. 결정 문구 "작업 폴더 > 사용자 > 내장"에 확장(매니페스트 `components.agents`, F.extensions.spec §3.1)을 사용자와 내장 사이에 넣었다. [가정] 작업 폴더와 사용자 디렉터리 경로(예: `.fresnel/agents/*.md`, 사용자 설정 디렉터리의 `agents/*.md`)는 L0.os.spec이 정한다.
 - `model` 필드는 L1.models.spec 라우팅 기준으로 해석한다. 값이 `ModelRole`(`main`, `review`, `summary`, `subagent`, `judge`, `search`) 중 하나면 그 역할로 고르고, 그 밖의 값은 `subagent` 역할의 `RoleOverrides.ref`(모델 참조 문자열)로 넘긴다(L1.models.spec 역할 표 `subagent` 행). 참조 해석에 실패하면 정의 적재 진단을 남기고 `subagent` 역할 기본값을 쓴다 [제안].
-- 파서: pi `coding-agent/src/utils/frontmatter.ts`(40줄) 포크 + `yaml` 2.9. 검증은 `AgentDefinitionSchema`(TypeBox)로 한다. 잘못된 파일은 그 정의만 빼고 진단으로 남긴다.
+- 파서: pi `coding-agent/src/utils/frontmatter.ts`(40줄) 포크 + `yaml` 2.9. 검증은 `AgentDefinitionSchema`(TypeBox)로 한다. 잘못된 파일은 그 정의만 빼고 진단으로 남긴다. 은퇴한 `permissions.mode: plan`은 예외다. 검증 전에 그 칸만 빼서 정의는 싣고, 모드는 지정 없음으로 둔다(부모 상한 그대로). 진단은 하나를 남기며 심각도는 `warning`이다(코드는 `agents.definition_invalid`) [결정: 2026-11-15 사용자]. 다른 값(`sandbox` 포함)은 기존처럼 정의를 뺀다.
 - 마일스톤 조정 [제안]: Helm은 M2에 `explorer` 정의를 매니페스트 `components.agents`로 싣는다(L3.helm.spec §3, 129행). 그래서 확장 경로의 정의 읽기와 코드 등록(`define`)은 M2에 둔다. 작업 폴더·사용자 디렉터리 탐색과 우선순위 덮어쓰기는 2차다.
 
 ### 4.10 새 스레드 handoff (2차)
