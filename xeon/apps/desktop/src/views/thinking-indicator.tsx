@@ -60,3 +60,11 @@ export function ShimmerText(props: {
     </span>
   );
 }
+
+/**
+ * 단계 표시의 살아 있는 표시(DP-185 2차): caustic Stepper·Plan의 `live` 칸(14px)에 넣는 생각 구슬. 고리·별·단색 점 대신 쓴다.
+ * 움직이지 않는 지금 단계(사용자 입력을 기다림)는 멈춘 한 장면이다
+ */
+export function stepperLive(moving: boolean): ReactNode {
+  return <ThinkingIndicator active={moving} className="thinking-indicator-inline" />;
+}

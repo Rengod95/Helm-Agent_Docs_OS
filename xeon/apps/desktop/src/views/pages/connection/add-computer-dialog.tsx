@@ -56,8 +56,9 @@ import {
   type ProbeRunArgs,
   type ProbeState,
 } from "./connection-probe-model.ts";
+import { stepperLive } from "../../thinking-indicator.tsx";
 
-// "컴퓨터 추가" wizard(시안 §5.2, DP-115). caustic Dialog(md) + 가로 Stepper(방식 · 점검 · 저장). 본문은 최소 320px라서
+// "컴퓨터 추가" wizard(시안 §5.2, DP-115, DP-186). caustic Dialog(md) + 가로 Stepper(방식 · 점검 · 저장, 렌즈 마디). 본문은 최소 320px라서
 // 단계가 바뀌어도 대화 상자 높이가 출렁이지 않는다. 점검을 통과하기 전에는 저장 단추가 없다.
 //   방식  두 카드(2열). SSH면 ssh 설정 목록(listbox, 줄 36, 5줄까지 보이고 스크롤) + 직접 입력 한 칸 + 접힌 고급(서비스 주소).
 //         웹이면 주소 한 칸.
@@ -740,10 +741,11 @@ const STEP_LABEL = {
   save: "desktop.connection.add.step.save",
 } as const;
 
-/** Stepper의 한 단계. 점검이 멈췄으면 그 단계를 실패로 보인다 */
-function stepperStepOf(step: AddStep, failed: boolean): StepperStep {
+/** Stepper의 한 단계. 점검이 멈췄으면 그 단계를 실패로, 점검이 도는 동안은 살아 있는 지금 단계로 보인다(DP-186) */
+function stepperStepOf(step: AddStep, failed: boolean, busy: boolean): StepperStep {
   const label = t(STEP_LABEL[step]);
-  return failed ? { id: step, label, status: "failed" } : { id: step, label };
+  if (failed) return { id: step, label, status: "failed" };
+  return busy ? { id: step, label, busy: true } : { id: step, label };
 }
 
 /** wizard 본문: 위에 가로 Stepper, 아래에 그 단계의 내용. 최소 높이 320 */
@@ -757,13 +759,20 @@ export function AddComputerBody(props: AddComputerBodyProps): ReactNode {
     !state.probe.busy &&
     probeNoticeOf(state.probe) !== null &&
     stopLineOf(state.probe.steps)?.status === "fail";
+  // 점검 단계에서 사전 점검, 확인 값 읽기, 웹 연결이 도는 동안
+  const checking =
+    state.step === "check" &&
+    (state.probe.busy || state.fingerprint.kind === "reading" || state.pair.kind === "busy");
   return (
     <div data-slot="add-computer" data-step={state.step} className="grid content-start gap-5">
       <Stepper
         size="sm"
         orientation="horizontal"
-        steps={ADD_STEPS.map((step, i) => stepperStepOf(step, i === stepIndex && probeStopped))}
+        steps={ADD_STEPS.map((step, i) =>
+          stepperStepOf(step, i === stepIndex && probeStopped, i === stepIndex && checking),
+        )}
         value={stepIndex + 1}
+        live={stepperLive}
       />
       <div className="grid min-h-80 content-start">
         {state.step === "method" ? (

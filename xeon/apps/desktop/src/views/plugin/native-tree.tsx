@@ -50,6 +50,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { ProgressOrb } from "../effects/progress-orb.tsx";
+import { stepperLive } from "../thinking-indicator.tsx";
 
 // 선언형 화면 트리(ADR-0021 §3.4.1)를 caustic 부품으로 그린다. 순수 렌더러이고 앱 밖의 일을 하지 않는다.
 // 규칙:
@@ -774,7 +775,8 @@ function StepperNode({ node }: NodeProps): ReactNode {
       return { id, label: textProp(child, "text") ?? id };
     });
   const value = steps.findIndex((step) => step.id === current) + 1;
-  return <Stepper steps={steps} value={value} variant="ghost" />;
+  // 앱 wizard와 같은 모양(프레넬 홈 레일, 지금 단계는 생각 구슬, DP-185·186). 플러그인 트리는 상태를 주지 않으므로 value만 쓴다
+  return <Stepper steps={steps} value={value} live={stepperLive} />;
 }
 
 function activityOf(item: ResolvedItem, index: number): ActivityNode {
