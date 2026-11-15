@@ -42,7 +42,7 @@ export interface NoticePage {
 }
 
 /** 쪽을 넘겨 읽을 때 한 번의 읽기에서 부르는 최대 수. 엔진의 한 호출은 내구 이벤트 1000줄만 훑는다 */
-export const NOTICE_PAGE_CALLS = 200;
+const NOTICE_PAGE_CALLS = 200;
 
 /**
  * `notify.list`를 `nextSeq`로 끝까지 넘겨 읽는다(DP-216). 엔진은 오래된 것부터 한 번에 최대 100개, 내구 이벤트 1000줄만 훑어서
