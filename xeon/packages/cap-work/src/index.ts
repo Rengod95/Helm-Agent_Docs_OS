@@ -10,8 +10,7 @@ export {
   type WorkSettingsSource,
 } from "./settings.ts";
 export { createTasksApi } from "./tasks/service.ts";
-export { createPlans } from "./plans/service.ts";
-export type { WorkPlansDeps, WorkTasksDeps } from "./deps.ts";
+export type { WorkTasksDeps } from "./deps.ts";
 export type { WorkReader, WorkSessionPort } from "./ports/session.ts";
 export { createWorkProjector } from "./projection/projector.ts";
 export {

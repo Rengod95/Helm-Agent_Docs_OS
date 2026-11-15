@@ -54,8 +54,6 @@ xeon/packages/cap-work/
       write.ts                                   # write 연산 적용과 이벤트 초안(순수)
       service.ts                                 # create/update/link/list/write
       reminder.ts                                # before_agent_start 핸들러(질의만)
-    plans/
-      decision.ts                                # 옛 승인 해결의 계획 상태 대응표(읽기 전용)
       service.ts                                 # versions(옛 기록 읽기만). 쓰기 메서드는 삭제됨 [결정: 2026-11-13 사용자]
     goals/
       model.ts                                   # 목표 상태 머신, 종결 판단(순수)
@@ -89,7 +87,7 @@ xeon/packages/cap-work/
 | T1 | F `capabilities/defs/work.ts`(네 정의, 스키마, `WorkService`)와 `records/catalog/work.ts`(`WORK_EVENT_CATALOG` 10종, `CatalogEntry` 형식) 추가. `work` 영역과 `owners.ts`의 `work.` 행(F.records §3.3.2), `CallOptions.context`(F.capabilities §3.2)는 F에 있으므로 확인만 한다. 선행 작업: F.capabilities.plan의 `defineCapability`·`validateCapability`, F.records.plan의 카탈로그 형식 | F.capabilities.plan 정의 형식 완료, F.records.plan 카탈로그 완료 | M | M2 |
 | T2 | 작업 모델: 상태 전이 표(§4.1.2), 막힘 계산, 순환 검사(DFS, 경로 반환), `write` 연산 적용(임시 참조 해석, 전부 또는 전무) | T1 | M | M2 |
 | T3 | `task_write` 도구와 `work.tasks` 서비스(create/update/link/list/write), 스레드별 쓰기 큐, 순번 ID 발급, 투영기 `cap.work`의 작업 부분(`cap_work_tasks`, `cap_work_edges`, `cap_work_meta`), 자동 시작, 방치 알림 핸들러 | T2, L1.persistence(커밋·투영기 등록) | L | M2 |
-| T4 | 계획 객체와 버전: 상태 모델, `work.plan_submitted`·`work.plan_withdrawn` 커밋, 투영(`cap_work_plans`)의 `approval.requested`·`approval.resolved` 반영, `versions` | T3(투영기 골격) | M | M2 |
+| T4 | 계획 객체와 버전(삭제됨 [결정: 2026-11-13 사용자]. 옛 기록 읽기 `versions`와 투영 `cap_work_plans`도 2026-11-15 정리로 지웠다 [결정: 2026-11-15 사용자]) | T3(투영기 골격) | M | M2 |
 | T5 | 삭제됨 [결정: 2026-11-13 사용자]. 계획 모드 진입·이탈과 `PermissionModePort`는 없다 | T4 | M | M2 | [근거: 2026-11-13 사용자 결정]
 | T6 | 삭제됨 [결정: 2026-11-13 사용자]. 계획 제출과 계획 승인 연결은 없다 | T4 | L | M2 | [근거: 2026-11-13 사용자 결정]
 | T7 | 삭제됨 [결정: 2026-11-13 사용자]. 계획 산출물 등록은 없다 | T6 | S | M2 | [근거: 2026-11-13 사용자 결정]
@@ -138,7 +136,7 @@ xeon/packages/cap-work/
 | `test/tasks-service.int.test.ts` | 자동 시작 | 설정 참이고 owner가 있으면 선행 완료 커밋에 `cause: "auto_start"` 변경이 함께 들어간다. owner가 null이면 들어가지 않는다 |
 | `test/projection.int.test.ts` | 재생성 동일성 | 무작위 연산열 뒤 `expectProjectionsRebuildable`(eng.events.design §5.4)이 통과한다 |
 | `test/reminder.test.ts` | 방치 알림 | `reminderTurns = 2`에서 변경 없이 2턴이 지나면 패치를 내고, 0이면 내지 않는다. 핸들러가 이벤트를 쓰지 않는다 |
-| `test/plans-versions.int.test.ts` | 계획 버전 보관 | 옛 승인 해결 상태별 판 목록(`approved`, `rejected`, `withdrawn`, `superseded`, `submitted`)을 값으로 비교하고 재투영 뒤 같은 값이다. 없는 계획은 `not_found`다 |
+| `test/legacy-plan-records.int.test.ts` | 옛 계획 기록 | 이벤트 표에 남긴 옛 `work.plan_*`과 승인 기록이 있어도 재구성이 실패하지 않고, 작업 표와 투영 표의 값이 옛 기록이 없을 때와 같다. 옛 `cap_work_plans` 표는 지워진다 |
 | `test/goals-service.int.test.ts` | `set`·`status`·`clear`·`judge`, 보고 | 실제 SQLite와 대화 위에서 목표 기본값과 판정 상한 값, `goal_active`와 `replace`(종결 보고가 같은 커밋), `clear`의 보고와 `goal_closed`, 같은 `requestId`는 처음 결과와 같은 거부를 되풀이하고 이벤트를 쓰지 않음, 위임 판정(`goal_not_delegated`, 소유자만, `goal_turn_stale`, 같은 턴은 첫 판정, `met`·`limit_reached` 종결과 보고), `reports.build`(턴 사용량 합계, 남은 작업, 알 수 없는 대상) |
 | `test/goals-gate.test.ts` | 완료 게이트 | 가짜 `fresnel.agents.judge`로 `boundary.settle.before` 핸들러를 직접 부른다. `not_met`·`undecidable`은 지시 항목과 `continue: true`, 증거(최종 텍스트, 도구 호출, 작업, 직전 판정), `met`은 종결과 보고, `capped`는 판정 기록 없이 `limit_reached`와 안내 항목, 마지막 허용 실행의 미충족은 바로 종결, 판정 실패(`failed`, 던짐, `fresnel.agents` 없음)는 `judge_failed`와 stop, 중단·오류 turn·위임 목표·판정 중 해제는 끼어들지 않음, 단계 id가 없으면 엔트리 없이 결정만, 같은 답이 다시 오면 이벤트가 늘지 않음 |
 | `test/idempotency.conformance.test.ts` | 기능 적합성 | ADR-0015 §3.6, M3-REQ-88·89. 멱등 쓰기 여덟 개(`tasks.create`·`update`·`link`·`write`, `goals.set`·`clear`·`judge`, `reports.build`)를 같은 `requestId`로 저장소를 닫았다 다시 열고 두 번 부른다. 결과가 같고 이벤트 수와 `cap_work_` 표가 그대로다. 분류 값이 spec 표와 같고. 계획 쓰기 여섯 개는 삭제됐다 [결정: 2026-11-13 사용자] |
@@ -228,11 +226,11 @@ M3:
 - **재생성 시간 기록.** 이벤트 10,000개 재생성 시간(§7)은 아직 재지 않았다. 실제 등록부로 바꿨으니 잴 수 있다.
 - **W-5.** 되감기 뒤 활성 가지 재생성은 구현하지 않았다(spec §4.1.5).
 
-### 8.2 WK.2 (T4, T5): 계획 객체와 버전 읽기, 모드 진입·이탈 [모드 부분 삭제됨 [결정: 2026-11-13 사용자]]
+### 8.2 WK.2 (T4, T5): 계획 객체와 버전 읽기, 모드 진입·이탈 [모드 부분 삭제됨 [결정: 2026-11-13 사용자]; 읽기 부분도 2026-11-15 정리로 삭제됨 [결정: 2026-11-15 사용자]]
 
 | 항목 | 상태 | 위치 |
 |---|---|---|
-| T4 옛 계획 기록 읽기: 투영 `cap_work_plans`(옛 승인 요청·해결 반영), `versions`. 쓰기 경로는 삭제됨 [결정: 2026-11-13 사용자] | 완료(읽기만) | `src/plans/service.ts`, `src/plans/decision.ts`, `src/plans/refs.ts`, `src/projection/projector.ts` |
+| T4 옛 계획 기록 읽기 [결정: 2026-11-13 사용자] | 2026-11-15 정리로 지웠다 [결정: 2026-11-15 사용자]: `versions`, 투영 `cap_work_plans`(버전 5에서 `DROP`), `src/plans/`. 옛 기록은 이벤트 표에 남고 투영은 건너뛴다 | `src/projection/ddl.ts`, `src/projection/projector.ts` |
 | T5 `enterMode`·`exitMode`, `requireApproval` 검사, 대기 버전 철회 | 삭제됨 [결정: 2026-11-13 사용자] | 없음 |
 | T5 권한 모드 추적(직전 모드, 진입 시점) | 삭제됨 [결정: 2026-11-13 사용자]. 투영 버전 4에서 열을 뺐다 | 없음 |
 
@@ -251,7 +249,7 @@ M3:
 
 | 파일 | 확인하는 것(§5 대응) |
 |---|---|
-| `plans-versions.int.test.ts` | 옛 계획 기록의 판 목록과 승인 상태(값 비교), 없는 계획, 재투영 뒤 같은 값 |
+| `legacy-plan-records.int.test.ts` | 옛 계획 기록이 든 이벤트 표를 재구성해도 작업 표와 투영 표 값이 그대로이고, 옛 계획 표는 지워진다 |
 | `commands.test.ts`, `plugin.test.ts` | 명령 등록(`/tasks`, `/goal`), 플러그인 조립과 읽기 전용 `versions` |
 
 통합 결과(WK.2·WK.3, 2026-10-24):

@@ -4,7 +4,6 @@ import {
   validateCapabilitySet,
   WORK_CAPABILITIES,
   WorkGoals,
-  WorkPlans,
   WorkReports,
   WorkTasks,
 } from "@fresnel/contracts/capabilities";
@@ -12,8 +11,8 @@ import {
 // L2.work.spec §9-6, plan §5 defs.contract. 정의의 정본은 F다. cap-work가 그 정의로 일하기 시작해도 계약이 깨지지 않았는지 확인한다.
 
 describe("work capability definitions", () => {
-  test("the four definitions have no validateCapability issue", () => {
-    for (const def of [WorkTasks, WorkPlans, WorkGoals, WorkReports]) {
+  test("the three definitions have no validateCapability issue", () => {
+    for (const def of [WorkTasks, WorkGoals, WorkReports]) {
       expect(validateCapability(def)).toEqual([]);
     }
   });

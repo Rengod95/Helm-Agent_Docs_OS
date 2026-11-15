@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { WorkGoals, WorkPlans, WorkReports, WorkTasks } from "@fresnel/contracts/capabilities";
+import { WorkGoals, WorkReports, WorkTasks } from "@fresnel/contracts/capabilities";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,7 +10,7 @@ import { tid } from "./support/tasks.ts";
 // M3-REQ-88·89, ADR-0015 §3.6, L2.work.spec §3.1: 멱등 쓰기 여덟 개는 같은 requestId를 두 번 불러도 효과가 한 번이고 결과가 같다.
 // 두 번째 호출은 저장소를 닫았다 다시 연 새 프로세스에서 한다. 이벤트 수와 투영 표의 내용이 그대로여야 한다.
 // 계획 쓰기(submit, approve, reject, revise, enterMode, exitMode)는 계획 모드와 함께 없앴다 [결정: 2026-11-13 사용자].
-// work.plans는 옛 기록을 읽는 versions뿐이라 쓰기가 없다.
+// 옛 계획 읽기(work.plans.versions)도 2026-11-15 정리로 지웠다.
 
 const dirs: string[] = [];
 const harnesses: Harness[] = [];
@@ -28,7 +28,6 @@ interface Case {
 
 const CLASSES: readonly string[] = [
   ...Object.entries(WorkTasks.service.methods),
-  ...Object.entries(WorkPlans.service.methods),
   ...Object.entries(WorkGoals.service.methods),
   ...Object.entries(WorkReports.service.methods),
 ].map(([name, method]) => {
@@ -116,7 +115,6 @@ describe("work effect classes", () => {
       "link idempotent safe",
       "list readOnly safe",
       "write idempotent safe",
-      "versions readOnly safe",
       "set idempotent safe",
       "status readOnly safe",
       "clear idempotent safe",

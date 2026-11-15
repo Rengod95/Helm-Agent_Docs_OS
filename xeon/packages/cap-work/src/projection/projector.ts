@@ -2,13 +2,9 @@ import { Bug, parse, parseJson } from "@fresnel/contracts";
 import { GoalSchema, type Goal } from "@fresnel/contracts/capabilities";
 import type { TSchema, Static } from "typebox";
 import {
-  ApprovalRequestedPayloadSchema,
-  ApprovalResolvedPayloadSchema,
   WorkGoalJudgedSchema,
   WorkGoalSetSchema,
   WorkGoalSettledSchema,
-  WorkPlanSubmittedSchema,
-  WorkPlanWithdrawnSchema,
   WorkReportBuiltSchema,
   WorkTaskChangedSchema,
   WorkTaskCreatedSchema,
@@ -18,8 +14,6 @@ import {
   type ProjectionTx,
   type Projector,
 } from "@fresnel/contracts/records";
-import { outcomeOf } from "../plans/decision.ts";
-import { PLAN_REF_PATTERN } from "../plans/refs.ts";
 import {
   WORK_PROJECTOR_DDL,
   WORK_PROJECTOR_NAME,
@@ -29,7 +23,7 @@ import {
 
 // L2.work.spec §3.8. 이벤트의 순수 함수다(EV-06): 시계, 난수, 파일을 쓰지 않고 소유 테이블만 갱신한다.
 // 이벤트 payload는 커밋 때 카탈로그 스키마로 검증됐으므로 모양이 다르면 코드 결함이다.
-// 계획 쪽 처리(work.plan_*, 승인 요청·해결)는 옛 기록을 읽기 위해서만 남는다 [결정: 2026-11-13 사용자].
+// 옛 계획 기록(work.plan_*, 계획 승인 요청·해결)은 이 투영기가 읽지 않는다 [결정: 2026-11-15 사용자]. 종류 목록에 없어 건너뛴다.
 
 function ordOf(taskId: string): number {
   return Number(taskId.slice(1));
@@ -159,82 +153,12 @@ const WORK_PROJECTOR_KINDS: readonly EventKind[] = [
   "work.task_changed",
   "work.task_linked",
   "work.task_unlinked",
-  "work.plan_submitted",
-  "work.plan_withdrawn",
   "work.goal_set",
   "work.goal_judged",
   "work.goal_settled",
   "work.report_built",
-  "approval.requested",
-  "approval.resolved",
   "turn.completed",
 ];
-
-function applyPlanSubmitted(tx: ProjectionTx, event: DurableEventEnvelope): void {
-  const plan = payloadOf(WorkPlanSubmittedSchema, event);
-  tx.run(
-    `INSERT INTO cap_work_plans
-       (session_id, plan_id, version, title, body, status, artifact, approval_id, feedback, submitted_seq, decided_seq)
-     VALUES (?, ?, ?, ?, ?, 'submitted', ?, NULL, NULL, ?, NULL)`,
-    [
-      event.threadId,
-      plan.planId,
-      plan.version,
-      plan.title,
-      plan.body,
-      plan.artifact === null ? null : JSON.stringify(plan.artifact),
-      event.seq,
-    ],
-  );
-  // 새 판을 낼 수 있는 이전 판은 결정이 났거나 철회된 것이다. 아직 대기 중인 판만 superseded로 바꾼다
-  if (plan.supersedes !== null) {
-    tx.run(
-      `UPDATE cap_work_plans SET status = 'superseded', decided_seq = ?
-       WHERE session_id = ? AND plan_id = ? AND version = ? AND status = 'submitted'`,
-      [event.seq, event.threadId, plan.planId, plan.supersedes],
-    );
-  }
-}
-
-function applyPlanWithdrawn(tx: ProjectionTx, event: DurableEventEnvelope): void {
-  const plan = payloadOf(WorkPlanWithdrawnSchema, event);
-  tx.run(
-    `UPDATE cap_work_plans SET status = 'withdrawn', decided_seq = ?
-     WHERE session_id = ? AND plan_id = ? AND version = ? AND status = 'submitted'`,
-    [event.seq, event.threadId, plan.planId, plan.version],
-  );
-}
-
-/** kind plan의 승인 요청이 어느 계획 판의 것인지 planRef로 찾아 승인 id를 기록한다 */
-function applyApprovalRequested(tx: ProjectionTx, event: DurableEventEnvelope): void {
-  const request = payloadOf(ApprovalRequestedPayloadSchema, event);
-  if (request.body.kind !== "plan") return;
-  const ref = PLAN_REF_PATTERN.exec(request.body.plan.planRef ?? "");
-  if (ref === null) return;
-  tx.run(
-    `UPDATE cap_work_plans SET approval_id = ?
-     WHERE session_id = ? AND plan_id = ? AND version = ? AND approval_id IS NULL`,
-    [event.id, request.origin.threadId, ref[1] ?? "", Number(ref[2])],
-  );
-}
-
-function applyApprovalResolved(tx: ProjectionTx, event: DurableEventEnvelope): void {
-  const resolved = payloadOf(ApprovalResolvedPayloadSchema, event);
-  const outcome = outcomeOf(resolved.decision, resolved.answer, resolved.resolvedBy);
-  if (outcome.kind === "withdrawn") {
-    tx.run(
-      `UPDATE cap_work_plans SET status = 'withdrawn', decided_seq = ?
-       WHERE approval_id = ? AND status = 'submitted'`,
-      [event.seq, resolved.approvalId],
-    );
-    return;
-  }
-  tx.run(
-    `UPDATE cap_work_plans SET status = ?, feedback = ?, decided_seq = ?
-     WHERE approval_id = ? AND status = 'submitted'`,
-    [outcome.decision, outcome.feedback, event.seq, resolved.approvalId],
-  );
-}
 
 // ── 목표와 보고(spec §3.8) ──────────────────────────────────────────────────
 
@@ -319,14 +243,10 @@ const HANDLERS: ReadonlyMap<string, Handler> = new Map<string, Handler>([
   ["work.task_changed", applyChanged],
   ["work.task_linked", applyLinked],
   ["work.task_unlinked", applyUnlinked],
-  ["work.plan_submitted", applyPlanSubmitted],
-  ["work.plan_withdrawn", applyPlanWithdrawn],
   ["work.goal_set", applyGoalSet],
   ["work.goal_judged", applyGoalJudged],
   ["work.goal_settled", applyGoalSettled],
   ["work.report_built", applyReportBuilt],
-  ["approval.requested", applyApprovalRequested],
-  ["approval.resolved", applyApprovalResolved],
   ["turn.completed", applyTurnCompleted],
 ]);
 

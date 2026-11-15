@@ -1,11 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { err, ok, type Clock, type Logger, type LogFields, type Result } from "@fresnel/contracts";
 import {
-  WorkPlansKey,
   WorkTasksKey,
   type CapabilityApi,
   type CommandActionRegistry,
-  type WorkPlans,
   type WorkTasks,
 } from "@fresnel/contracts/capabilities";
 import {
@@ -28,7 +26,6 @@ import { workManifest, WORK_EXTENSION_NAME } from "../src/manifest.ts";
 import { workPlugin } from "../src/plugin.ts";
 import { rejection } from "./support/assertions.ts";
 import { openBase, type Base } from "./support/harness.ts";
-import { PlanId } from "./support/plans.ts";
 import { tid } from "./support/tasks.ts";
 
 interface FakeTools {
@@ -117,14 +114,12 @@ async function boot(
   return { t, opened, installed, registered, unregistered, lines };
 }
 
-/** work.tasks와 work.plans를 requires로 쓰는 소비자(L3 그룹 경로: 서비스를 직접 부른다) */
+/** work.tasks를 requires로 쓰는 소비자(L3 그룹 경로: 서비스를 직접 부른다) */
 function consumer() {
-  const apis: { tasks?: CapabilityApi<typeof WorkTasks>; plans?: CapabilityApi<typeof WorkPlans> } =
-    {};
+  const apis: { tasks?: CapabilityApi<typeof WorkTasks> } = {};
   const entry: ExtensionEntry = ({ manifest, register }) => {
     register(manifest.name, {}, (g) => {
       apis.tasks = g.capability(WorkTasksKey);
-      apis.plans = g.capability(WorkPlansKey);
     });
   };
   const unit: ExtensionUnit = {
@@ -137,10 +132,7 @@ function consumer() {
         {
           layer: "L3",
           hooks: [],
-          requires: [
-            { id: "work.tasks", range: "^1.0.0" },
-            { id: "work.plans", range: "^1.0.0" },
-          ],
+          requires: [{ id: "work.tasks", range: "^1.0.0" }],
         },
       ],
     }),
@@ -157,10 +149,8 @@ describe("manifest", () => {
     expect(checked.issues.filter((issue) => issue.severity === "error")).toEqual([]);
     expect(checked.manifest?.name).toBe(WORK_EXTENSION_NAME);
     expect(checked.manifest?.plugins[0]?.layer).toBe("L2");
-    // work.plans는 옛 계획 기록을 읽는 versions만 제공한다(계획 모드 제거 뒤)
     expect(checked.manifest?.plugins[0]?.provides).toEqual([
       { id: "work.tasks", version: "1.0.0" },
-      { id: "work.plans", version: "1.0.0" },
       { id: "work.goals", version: "1.0.0" },
       { id: "work.reports", version: "1.0.0" },
     ]);
@@ -243,19 +233,6 @@ describe("plugin", () => {
     await t.settled();
     const error = await rejection(apis.tasks?.list({}) ?? Promise.resolve());
     expect(error.data.code).toBe("invalid_input");
-  });
-
-  test("the plans capability reads only: an unknown plan through the provider is not_found and nothing is written", async () => {
-    const { t, opened } = await boot();
-    const { apis, unit } = consumer();
-    await t.host.install(unit);
-    await t.settled();
-    const events = opened.eventCount();
-    const error = await rejection(
-      apis.plans?.versions({ planId: PlanId("p1") }, opened.opts()) ?? Promise.resolve(),
-    );
-    expect(error.data.code).toBe("not_found");
-    expect(opened.eventCount()).toBe(events);
   });
 });
 

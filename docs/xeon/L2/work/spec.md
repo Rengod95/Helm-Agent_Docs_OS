@@ -30,7 +30,7 @@ L2-e 묶음 대응(`_research/l2e.md` §5): L2-e1 작업 관리(A1, A2, A2b, A5,
 다루지 않는 것:
 
 - 권한 모드 자체(모드 상태 저장, 쓰기 도구 차단 규칙): `L1.tools.spec`. 계획 모드는 없으므로 이 문서는 모드를 다루지 않는다 [결정: 2026-11-13 사용자].
-- 승인 요청 레코드의 필드 정의(`approvalId`, kind, 대상, 선택지, 결과)와 `approval.*` 이벤트: `L1.tools.spec`. 이 문서는 옛 kind `plan` 기록을 읽는 방식만 쓴다(§4.2).
+- 승인 요청 레코드의 필드 정의(`approvalId`, kind, 대상, 선택지, 결과)와 `approval.*` 이벤트: `L1.tools.spec`. 이 문서는 옛 kind `plan` 기록을 읽는 방식을 2026-11-15 정리로 지웠다(§4.2).
 - 판정 모델의 선택과 호출 구현: `L1.models.spec`(용도별 라우팅). 이 문서는 용도 이름만 넘긴다.
 - 턴 시작·정착, 입력 큐: `L1.loop.spec`, `L1.tasks.spec`.
 - 슬래시 명령 해석: `L2.dialog.spec`. 이 문서는 등록할 명령 목록만 정한다(§6.2).
@@ -41,7 +41,7 @@ L2-e 묶음 대응(`_research/l2e.md` §5): L2-e1 작업 관리(A1, A2, A2b, A5,
 
 - [결정] 목표 판정은 별도 판정 모델을 두고 실행 횟수 상한을 건다(`_research/decisions-log.md` 2026-10-21 3차, `_research/foundation-plan.md` §1 4번). `_research/l2e.md` §8의 열린 결정 "판정자 분리 방식"은 이 결정으로 닫혔다.
 - [결정] 질문 도구와 계획 승인은 L1 승인 프로토콜 하나로 합친다(같은 결정, §1 5번). `_research/l2e.md` §8의 "승인 프로토콜을 B1과 A2b에서 하나로 합칠지"도 닫혔다. [결정: 2026-11-13 사용자] 계획 승인은 삭제됐다. 승인 프로토콜은 질문만 쓴다.
-- 마일스톤: `work.tasks`, `work.plans`는 M2, `work.goals`, `work.reports`는 M3다(`product.scope.spec` §4.1 I9·I11). `_research/layer-plan-v2.json` L2-e는 목표 지속·완료 보고를 2차로 적었으나 3차 결정이 목표 판정을 범위에 넣었으므로 M3로 둔다[^ms].
+- 마일스톤: `work.tasks`는 M2, `work.goals`, `work.reports`는 M3다(`product.scope.spec` §4.1 I9·I11). `work.plans`는 M2였고 2026-11-15 정리로 지웠다 [결정: 2026-11-15 사용자]. `_research/layer-plan-v2.json` L2-e는 목표 지속·완료 보고를 2차로 적었으나 3차 결정이 목표 판정을 범위에 넣었으므로 M3로 둔다[^ms].
 
 [^ms]: `L2.readme` §2 각주 work는 `work.reports`를 2차로 남겼다. 이 문서는 목표 판정의 종료가 완료 보고를 만들어야 하므로(§4.4 2항) 보고 스키마와 생성을 M3에 함께 둔다. 차이는 §10 W-9와 `L2.readme` §10 미결 17이다.
 
@@ -313,8 +313,8 @@ export function parseTaskList(text: string): readonly { id: string; status: Work
 
 2026-11-15 정리로 옛 계획 기록을 읽던 기능 `work.plans`, 메서드 `versions`, wire 메서드 `work.plans.versions`, 판 모양(`PlanVersion`)도 지웠다. 코드에 남는 것은 보고서의 `plan` 칸을 읽는 계획 상태 모양(`PlanId`, `PlanStatus`)뿐이다 [결정: 2026-11-15 사용자]. 옛 `work.plan_submitted`와 `work.plan_withdrawn`은 카탈로그에 은퇴 종류(`retired: true`)로 남아 값을 검사하지 않고 읽기만 한다(§3.7).
 
-- 옛 기록의 `withdrawn`은 승인 없이 철회된 판이다. `revision_requested`는 투영이 만들지 않는다(§4.2 표).
-- 투영이 읽는 옛 기록: `work.plan_submitted`, `work.plan_withdrawn`, 계획 승인 요청과 해결(§3.7, §3.8).
+- 옛 기록의 `withdrawn`은 승인 없이 철회된 판이다. 2026-11-15 정리 전에도 `revision_requested`는 투영이 만들지 않았다(§4.2 표).
+- 투영이 읽던 옛 기록(`work.plan_submitted`, `work.plan_withdrawn`, 계획 승인 요청과 해결)은 2026-11-15 정리로 읽지 않는다(§3.7, §3.8) [결정: 2026-11-15 사용자].
 
 ### 3.4 `work.goals`
 
@@ -563,9 +563,9 @@ export const WORK_CAPABILITIES = [WorkTasks, WorkGoals, WorkReports] as const;
 | `work.goal_settled` | 내구 | `{ goalId, status, judgments }` | 종결 원인 커밋의 키 | 투영, L4, schedule.loops |
 | `work.report_built` | 내구 | `{ report: WorkReport }` | 목표 종결이면 그 커밋의 키, 직접 호출이면 `work:reports:<호출 requestId>` | 투영, L4 보고 화면, 알림(dialog.notify) |
 
-- [결정: 2026-11-13 사용자] 계획 쓰기 경로는 없다. 옛 계획의 결정(승인·반려·수정 요청)은 L1의 `approval.requested`(kind `plan`)와 `approval.resolved`에 남아 있고, `cap.work` 투영기가 그것을 읽어 옛 계획 상태를 만든다(§4.2 표). 투영기는 다른 컨텍스트의 이벤트를 읽을 수 있다(eng.events.design §5.1 규칙 6). [근거: 2026-11-13 사용자 결정]
+- [결정: 2026-11-13 사용자] 계획 쓰기 경로는 없다. 옛 계획의 결정(승인·반려·수정 요청)은 L1의 `approval.requested`(kind `plan`)와 `approval.resolved`에 남아 있다. 2026-11-15 정리로 `cap.work` 투영기는 그것을 더는 읽지 않는다(§3.8, §4.2) [결정: 2026-11-15 사용자]. 투영기는 다른 컨텍스트의 이벤트를 읽을 수 있다(eng.events.design §5.1 규칙 6). [근거: 2026-11-13 사용자 결정]
 - `work.task_changed.cause`: `"call"`(서비스 호출) 또는 `"auto_start"`(§4.1.4).
-- 큰 값: `work.plan_submitted.body`는 64 KiB 이하라 envelope 한도 256 KiB 안에 든다. 그래서 blob으로 옮기지 않는다(eng.events.design EV-04).
+- 큰 값(옛 기록): `work.plan_submitted.body`는 64 KiB 이하라 envelope 한도 256 KiB 안에 든다. 그래서 blob으로 옮기지 않는다(eng.events.design EV-04).
 
 코드 모양(옛 설계. 2026-11-15 정리로 코드에서 지웠다 [결정: 2026-11-15 사용자]):
 
@@ -647,21 +647,6 @@ CREATE TABLE cap_work_edges (
   blocked_by   TEXT NOT NULL,
   PRIMARY KEY (session_id, task_id, blocked_by)
 ) STRICT;
-CREATE TABLE cap_work_plans (
-  session_id   TEXT NOT NULL,
-  plan_id      TEXT NOT NULL,
-  version      INTEGER NOT NULL,
-  title        TEXT NOT NULL,
-  body         TEXT NOT NULL,
-  status       TEXT NOT NULL,
-  artifact     TEXT,                   -- ArtifactRef JSON
-  approval_id  TEXT,
-  feedback     TEXT,
-  submitted_seq INTEGER NOT NULL,
-  decided_seq  INTEGER,
-  PRIMARY KEY (session_id, plan_id, version)
-) STRICT;
-CREATE INDEX cap_work_plans_approval ON cap_work_plans (approval_id);   -- [결정: WK.2] 요청한 대화와 기록한 대화가 다를 수 있어 승인 id만으로 찾는다
 CREATE TABLE cap_work_goals (
   session_id   TEXT NOT NULL,
   goal_id      TEXT NOT NULL,
@@ -699,17 +684,13 @@ CREATE TABLE cap_work_meta (
 ) STRICT;
 ```
 
-관심 type: `work.*` 전부(옛 계획 기록 포함), `approval.requested`, `approval.resolved`(옛 계획 승인 기록을 읽는다), `turn.completed`.
+관심 type: `work.task_*`, `work.goal_*`, `work.report_built`, `turn.completed`. 옛 계획 기록(`work.plan_*`)과 승인 요청·해결은 2026-11-15 정리로 읽지 않는다 [결정: 2026-11-15 사용자].
 
 | 입력 이벤트 | 갱신 |
 |---|---|
 | `work.task_created` | `cap_work_tasks` 행 추가, `blockedBy`마다 `cap_work_edges` 행. `last_task_change_turn = turns_completed` |
 | `work.task_changed` | 해당 행 갱신, `updated_seq`. `cap_work_meta.last_task_change_turn = turns_completed` |
 | `work.task_linked` / `work.task_unlinked` | 간선 행 추가·삭제, 해당 작업 행의 `updated_seq`. `last_task_change_turn = turns_completed` |
-| `work.plan_submitted` | 버전 행 추가(`status = submitted`). `supersedes`가 있고 그 버전이 아직 `submitted`이면 `superseded`로 바꾼다(결정이 난 판의 상태는 지키므로 보통은 바뀌지 않는다) |
-| `approval.requested`(kind `plan`) | `body.plan.planRef`(`plan:<planId>:<version>`)가 가리키는 행에 `approval_id` 기록(`origin.threadId`의 행) |
-| `approval.resolved` | `approval_id`가 일치하고 `submitted`인 행이 있으면 결정에 따라 `status`, `feedback`, `decided_seq` 갱신(§4.2 표). 없으면 무시 |
-| `work.plan_withdrawn` | 해당 행 `withdrawn`(`submitted`일 때만) |
 | `settings.changed` | 권한 모드 추적은 버전 4에서 뺐다 [결정: 2026-11-13 사용자]. 이 투영은 이 이벤트를 읽지 않는다 |
 | `work.goal_set` | 목표 행 추가 |
 | `work.goal_judged` | 판정 행 추가, 목표 JSON의 `judgments`, `lastVerdict` 갱신 |
@@ -717,13 +698,14 @@ CREATE TABLE cap_work_meta (
 | `work.report_built` | 보고 행 추가 |
 | `turn.completed` | `cap_work_meta.turns_completed + 1` |
 
+- 옛 계획 기록(`work.plan_submitted`, `work.plan_withdrawn`, 계획 승인 요청과 해결)은 종류 목록에 없어 건너뛴다. 재구성은 이들을 읽지 않으므로 실패하지 않는다 [결정: 2026-11-15 사용자].
 - 순번 ID 발급(§4.1.1)에 필요한 최댓값은 이 테이블에서 계산한다.
 - [결정: WK.1] 방치 알림(§4.1.6)의 기준 턴은 작업 이벤트 네 종류(`task_created`, `task_changed`, `task_linked`, `task_unlinked`)가 모두 갱신한다. 목록을 처음 만든 호출도 목록을 쓴 것으로 센다. `cap_work_meta` 행은 첫 작업 이벤트나 첫 `turn.completed`에서 만든다.
 - [결정: WK.1] 간선 행의 읽기 순서는 삽입 순서(`rowid`)다. `blockedBy` 배열의 순서가 재생성 뒤에도 같다.
 - [결정: WK.3 통합] 작업 의존 간선 테이블 이름은 `cap_work_edges`다. 투영기 등록부(F.records.spec §3.4)가 접두 뒤 지역 이름에 밑줄을 허용하지 않아 `cap_work_task_edges`를 바꿨다. 투영 대역이 이 검사를 하지 않아 실제 등록부로 바꾸기 전에는 드러나지 않았다.
-- 투영기 `cap.work` 버전 4는 `cap_work_tasks`, `cap_work_edges`, `cap_work_plans`, `cap_work_meta`와 목표·보고의 `cap_work_goals`, `cap_work_judgments`, `cap_work_reports`를 만든다(버전 1은 작업 셋, 버전 2는 계획 추가, 버전 3은 목표·보고 추가, 버전 4는 계획 모드 제거로 권한 모드 추적 열을 뺌. `cap_work_plans`는 옛 기록 읽기용으로 남는다).
+- 투영기 `cap.work` 버전 5는 `cap_work_tasks`, `cap_work_edges`, `cap_work_meta`와 목표·보고의 `cap_work_goals`, `cap_work_judgments`, `cap_work_reports`를 만든다(버전 1은 작업 셋, 버전 2는 계획 추가, 버전 3은 목표·보고 추가, 버전 4는 계획 모드 제거로 권한 모드 추적 열을 뺌, 버전 5는 계획 표 `cap_work_plans`와 그 인덱스를 지웠다 [결정: 2026-11-15 사용자]. 버전 5 재구성의 첫 문장이 옛 DB에 남은 `cap_work_plans`를 `DROP`으로 지운다).
 - [삭제됨 [결정: 2026-11-13 사용자]] 권한 모드 추적(`settings.changed`)과 직전 모드 기억은 계획 모드와 함께 없앴다(§10 W-16 닫힘).
-- `approval.resolved` payload의 결정 필드 이름은 L1.tools.spec이 정한다. 투영기는 F에 있는 그 payload 스키마만 import한다(§10 W-2).
+- 투영기는 승인 이벤트를 읽지 않는다(2026-11-15 정리). 옛 `approval.resolved` payload의 결정 필드 이름은 L1.tools.spec이 정한다(§10 W-2).
 
 ### 3.9 효과 분류 [결정: M3-REQ-88]
 
@@ -803,7 +785,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 
 계획 모드와 계획 승인은 없앴다. 모델은 계획을 글로 쓰고 필요하면 `ask_user`로 묻는다. 시스템 프롬프트, 환경 블록, 도구 설명에는 계획 모드 문장을 넣지 않는다. 그래서 다음이 모두 없다: 권한 모드 `plan`으로의 진입과 이탈, 계획 도구 3개, 계획 승인 요청(`kind: "plan"`)의 새 생성, 승인 뒤 모드 자동 복원(`exitOnApprove`), 승인 필수 설정(`requireApproval`), 대화를 다시 열 때의 계획 재요청과 모드 복원(§4.5), 외부 편집기 수정 후보. 새 `kind: "plan"` 승인 요청은 L1.tools가 `approvals.request_invalid`로 거부한다. [근거: 2026-11-13 사용자 결정]
 
-옛 계획 기록은 읽기만 한다. 투영기(§3.8)가 옛 승인 해결을 계획 판의 상태로 옮기는 규칙은 다음과 같다. 새 기록은 생기지 않는다.
+옛 계획 기록은 2026-11-15 정리 전까지 읽기만 했다. 투영기(§3.8)가 옛 승인 해결을 계획 판의 상태로 옮기던 규칙은 다음 표와 같다. 2026-11-15 정리로 이 규칙은 코드에서 지웠고, 표는 옛 기록의 뜻만 남긴다 [결정: 2026-11-15 사용자]. 새 기록은 생기지 않는다.
 
 | 옛 기록 | 계획 판 상태 |
 |---|---|
@@ -813,7 +795,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 | `work.plan_withdrawn` | `withdrawn`(대기 중인 판만) |
 | 같은 계획의 새 판 `work.plan_submitted` | 이전 판이 아직 대기 중이었으면 `superseded` |
 
-읽기 규칙의 정본은 `outcomeOf`(`src/plans/decision.ts`)다.
+읽기 규칙의 정본이던 `outcomeOf`(`src/plans/decision.ts`)는 2026-11-15 정리로 지웠다 [결정: 2026-11-15 사용자].
 
 ### 4.3 목표 지속
 
@@ -931,7 +913,7 @@ export interface JudgePort {
 4. `resources.agent`는 대상 범위 턴들의 `turn.completed.usage` 합계, `resources.judge`는 `work.goal_judged.usage` 합계, `durationMs`는 범위 첫 이벤트와 마지막 이벤트의 `recordedAt` 차이다. 범위는 목표면 `work.goal_set`부터 종결 커밋까지, 턴이면 그 턴이다.
 5. `remaining.tasks`는 `pending`, `in_progress`, `failed` 작업(최대 100개)이다.
 6. `artifacts`는 호출자가 준 목록이다. `artifacts.registry`의 범위 조회와 합치는 규칙은 `L2.artifacts.spec`이 범위 조회를 제공할 때 더한다 [미결: 이 구현에 없다. 목표 종결 보고의 산출물은 비어 있다].
-7. `plan`은 범위 안에서 마지막으로 결정된 계획 버전이다.
+7. `plan`은 항상 `null`이다. 계획 기록이 없어져 범위 안의 결정된 계획을 찾을 곳이 없다. 칸은 옛 보고를 읽으려고 타입에 남긴다 [결정: 2026-11-15 사용자]. [근거: 2026-11-15 사용자 결정]
 8. 보고는 `work.report_built` 이벤트로 남아 다른 소비자(L4 보고 화면, `dialog.notify`의 완료 알림, 학습 그룹)가 읽는다.
 
 ### 4.5 재개
@@ -958,7 +940,7 @@ export interface JudgePort {
 4. 작업 수 상한(`MAX_WORK_TASKS = 500`) 초과: `task_limit`. 완료 작업을 지우는 연산은 두지 않는다. 지우는 대신 새 스레드로 넘기는 것이 맞다 [제안].
 5. (삭제됨 [결정: 2026-11-13 사용자]) 계획 도구가 없다. 계획 모드 밖 제출 규칙도 없다. [근거: 2026-11-13 사용자 결정]
 6. (삭제됨 [결정: 2026-11-13 사용자]) 계획 제출 대기 규칙(`plan_pending`)이 없다. [근거: 2026-11-13 사용자 결정]
-7. 승인 요청이 L1에서 취소됨(턴 취소, 스레드 닫힘): 투영이 버전을 `withdrawn`으로 둔다(§4.2 표). [가정] 취소도 `approval.resolved`(결정 값 `cancelled` 계열)로 기록된다. L1.tools.spec의 표현에 맞춘다.
+7. (2026-11-15 정리 전 규칙. 계획 판 투영은 지웠다 [결정: 2026-11-15 사용자]) 승인 요청이 L1에서 취소됨(턴 취소, 스레드 닫힘)이면 투영이 버전을 `withdrawn`으로 두었다(§4.2 표). [가정] 취소도 `approval.resolved`(결정 값 `cancelled` 계열)로 기록된다. L1.tools.spec의 표현에 맞춘다.
 8. (삭제됨 [결정: 2026-11-13 사용자]) 계획 산출물 등록은 없다. [근거: 2026-11-13 사용자 결정]
 9. 판정 모델이 조건과 관계없는 답을 냄: 스키마는 통과하면 판정으로 기록한다. 판정 품질은 이 계약의 범위 밖이다. 상한이 비용을 막는다.
 10. `l1.agents.judge.maxRuns`보다 많은 판정 시도: 상한에 이른 목표는 종결이므로 더 판정하지 않는다. `judge` 호출은 `goal_closed`다.

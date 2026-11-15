@@ -1,7 +1,6 @@
 import { err, ok } from "@fresnel/contracts";
 import {
   WorkGoalsKey,
-  WorkPlansKey,
   WorkReportsKey,
   WorkTasks,
   WorkTasksKey,
@@ -35,14 +34,13 @@ import { createGoals } from "./goals/service.ts";
 import { workManifest } from "./manifest.ts";
 import { createWorkProjector } from "./projection/projector.ts";
 import { readMeta, readTasks } from "./projection/read.ts";
-import { createPlans } from "./plans/service.ts";
 import { readJudgeMaxRuns, readWorkSettings, type WorkSettingsSource } from "./settings.ts";
 import { reminderMessage } from "./tasks/reminder.ts";
 import { createTasksApi } from "./tasks/service.ts";
 
 // L2.work.plan 패키지 구조. 구현 패키지(core-persistence, core-tools, platform-store)를 import하지 않고 F 서비스 인터페이스를
 // 포트(fresnel.session, fresnel.store, fresnel.tools, fresnel.os)로만 받는다. Cordis는 import하지 않는다(DR-11).
-// 계획 모드와 계획 승인은 없앴다 [결정: 2026-11-13 사용자]. work.plans는 옛 계획 기록을 읽는 `versions`만 제공한다.
+// 계획 모드와 계획 승인은 없앴다 [결정: 2026-11-13 사용자]. 계획 기능(work.plans)은 2026-11-15 정리로 지웠다.
 
 export const WORK_PRODUCER = "cap.work";
 
@@ -108,7 +106,6 @@ export function workPlugin(options: WorkPluginOptions): ExtensionUnit {
         logger,
         settings: (threadId) => readWorkSettings(options.settings.layers(threadId)),
       };
-      host.provide(WorkPlansKey, createPlans({ reader }));
       const tasksApi = createTasksApi(deps);
       host.provide(WorkTasksKey, tasksApi);
       // 목표 지속(M3-REQ-90): 판정과 완료 보고. 완료 게이트는 `boundary.settle.before` chain 핸들러 하나다

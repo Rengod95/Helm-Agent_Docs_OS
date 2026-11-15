@@ -56,7 +56,6 @@ import { goalRejection, internalError, storeRejection } from "../errors.ts";
 import {
   readGoals,
   readJudgments,
-  readPlans,
   readReports,
   readTasks,
   type GoalRow,
@@ -400,8 +399,6 @@ export function createGoals(deps: WorkGoalsDeps): GoalsRuntime {
       tasks: read(capability, method, readTasks(deps.reader, threadId)),
       missing: row.goal.lastVerdict?.missing ?? [],
       artifacts: extras.artifacts ?? [],
-      plans: read(capability, method, readPlans(deps.reader, threadId)),
-      planAfterSeq: row.setSeq,
     };
   }
 
@@ -680,8 +677,6 @@ export function createGoals(deps: WorkGoalsDeps): GoalsRuntime {
       tasks: read(REPORTS, "build", readTasks(deps.reader, threadId)),
       missing: [],
       artifacts: extras.artifacts ?? [],
-      plans: read(REPORTS, "build", readPlans(deps.reader, threadId)),
-      planAfterSeq: startSeq - 1,
     });
   }
 

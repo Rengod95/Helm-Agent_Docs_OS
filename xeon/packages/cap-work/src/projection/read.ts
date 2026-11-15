@@ -2,14 +2,12 @@ import { err, ok, parse, parseJson, type Result } from "@fresnel/contracts";
 import {
   GoalJudgmentSchema,
   GoalSchema,
-  PlanVersionSchema,
   ReportUsageSchema,
   WorkReportSchema,
   WorkTaskSchema,
   type Goal,
   type GoalId,
   type GoalJudgment,
-  type PlanVersion,
   type ReportUsage,
   type WorkReport,
   type WorkTask,
@@ -89,60 +87,6 @@ export function readMeta(reader: WorkReader, threadId: ThreadId): Result<WorkMet
   if (!Number.isInteger(turns) || !Number.isInteger(changed))
     return err(rowInvalid("cap_work_meta"));
   return ok({ turnsCompleted: turns, lastTaskChangeTurn: changed });
-}
-
-// ── 옛 계획 기록(cap_work_plans). 계획 모드는 없앴다 [결정: 2026-11-13 사용자] ──────────
-
-/** 투영에서 읽은 계획 한 판. PlanVersion에 제출·결정 시점(seq)을 더했다 */
-export interface PlanRow extends PlanVersion {
-  readonly submittedSeq: number;
-  readonly decidedSeq: number | null;
-}
-
-const PLAN_COLUMNS = `plan_id, version, title, body, status, artifact, approval_id, feedback, submitted_seq, decided_seq`;
-
-function planRowOf(row: SqlRow): Result<PlanRow, ReadFailure> {
-  const artifactText = textOrNull(row["artifact"]);
-  const artifactJson = artifactText === null ? ok(null) : parseJson(artifactText);
-  if (!artifactJson.ok) return err(rowInvalid("cap_work_plans.artifact"));
-  const version = parse(PlanVersionSchema, {
-    planId: row["plan_id"],
-    version: row["version"] === undefined ? undefined : Number(row["version"]),
-    title: row["title"],
-    body: row["body"],
-    status: row["status"],
-    artifact: artifactJson.value,
-    approvalId: textOrNull(row["approval_id"]),
-    feedback: textOrNull(row["feedback"]),
-  });
-  if (!version.ok) return err(rowInvalid("cap_work_plans"));
-  const decided = row["decided_seq"];
-  return ok({
-    ...version.value,
-    submittedSeq: Number(row["submitted_seq"]),
-    decidedSeq: decided === null || decided === undefined ? null : Number(decided),
-  });
-}
-
-function planRowsOf(rows: readonly SqlRow[]): Result<PlanRow[], ReadFailure> {
-  const plans: PlanRow[] = [];
-  for (const row of rows) {
-    const plan = planRowOf(row);
-    if (!plan.ok) return plan;
-    plans.push(plan.value);
-  }
-  return ok(plans);
-}
-
-/** 스레드의 계획 모든 판, 제출 순서대로 */
-export function readPlans(reader: WorkReader, threadId: ThreadId): Result<PlanRow[], ReadFailure> {
-  const read = reader.read((tx) =>
-    tx.all(
-      `SELECT ${PLAN_COLUMNS} FROM cap_work_plans WHERE session_id = ? ORDER BY submitted_seq`,
-      [threadId],
-    ),
-  );
-  return read.ok ? planRowsOf(read.value) : err(read.error);
 }
 
 // ── 목표와 보고(cap_work_goals, cap_work_judgments, cap_work_reports) ───────

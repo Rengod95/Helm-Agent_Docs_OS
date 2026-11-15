@@ -16,8 +16,3 @@ export interface WorkTasksDeps {
   /** 호출 한 번이 읽는 유효 설정. 스레드의 세션 범위를 포함한다 */
   readonly settings: (threadId: ThreadId) => WorkSettings;
 }
-
-/** 옛 계획 기록을 읽는 work.plans 서비스의 의존. 쓰지 않으므로 투영 읽기 핸들만 받는다 [결정: 2026-11-13 사용자] */
-export interface WorkPlansDeps {
-  readonly reader: WorkReader;
-}
