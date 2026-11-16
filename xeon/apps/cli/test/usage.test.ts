@@ -128,7 +128,7 @@ test("usage --thread sends the thread id and shows the context line", async () =
   expect(seen).toEqual([{ threadId: threadId(1) }]);
   const lines = h.stdoutText().trimEnd().split("\n");
   expect(lines[0]).toBe(`대화 ${threadId(1)}의 사용량 (2026-11-07T00:00:00.000Z 기준)`);
-  expect(lines.at(-1)).toBe("문맥: anthropic/claude-haiku-5-5 2,000 / 200,000 토큰");
+  expect(lines.at(-1)).toBe("컨텍스트: anthropic/claude-haiku-5-5 2,000 / 200,000 토큰");
 });
 
 test("usage --json prints the wire result as it is", async () => {
