@@ -15,6 +15,7 @@ export function rowEnterOf(kind: TranscriptRow["kind"]): RowEnter {
       return "user";
     case "reply":
     case "live":
+    case "pending":
       return "reply";
     case "activity":
     case "result":
@@ -49,6 +50,7 @@ export function rowItemIdsOf(row: TranscriptRow): readonly ItemId[] {
       return [row.itemId];
     case "activity":
       return row.entries.map((entry) => entry.itemId);
+    case "pending":
     case "compaction":
     case "marker":
     case "leadHead":

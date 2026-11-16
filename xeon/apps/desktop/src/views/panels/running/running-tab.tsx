@@ -7,7 +7,7 @@ import { useLinkPhase, useOpenThreadId, useRunSources } from "../../../state/eng
 import { useShellActions } from "../../../state/shell/index.ts";
 import { useClockNow } from "../../approval-card/clock.ts";
 import { useCommands } from "../../commands.ts";
-import { AttentionMark } from "../../effects/attention-mark.tsx";
+import { RequestArt } from "../../illustrations/request-art.tsx";
 import { ProgressOrb } from "../../effects/progress-orb.tsx";
 import { tokenCountText } from "../../model-usage.ts";
 import { relativeAgeOf } from "../../pages/shared/relative-age.ts";
@@ -122,7 +122,10 @@ function RunRows(props: {
 
 function RunIcon(props: { readonly row: RunRow }): ReactNode {
   const { row } = props;
-  if (row.state === "waiting") return <AttentionMark />;
+  // 승인을 기다리는 줄은 요청 그림(받은 편지함)의 멈춘 판이다. 여러 줄에 서므로 움직이지 않는다(DP-211)
+  if (row.state === "waiting") {
+    return <RequestArt kind="approval" size={16} live={false} className="text-text-secondary" />;
+  }
   if (row.state === "running") return <ProgressOrb />;
   return row.outcome === "completed" ? (
     <CircleCheck aria-hidden className="size-icon-sm text-success-text" />

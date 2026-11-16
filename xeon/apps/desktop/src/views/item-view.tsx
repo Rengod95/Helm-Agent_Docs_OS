@@ -6,6 +6,7 @@ import { CompactionDivider } from "./compaction-divider.tsx";
 import { ActivityGroup } from "./convo/activity-group.tsx";
 import { CardRow } from "./convo/cards.tsx";
 import { CustomRow, ReplyRow, UserRow } from "./convo/message-rows.tsx";
+import { ThinkingPending } from "./convo/thinking-block.tsx";
 import { OrphanResultRow } from "./convo/tool-call-row.tsx";
 import { LeadEnd, LeadHead, MarkerRow, TurnFoot } from "./convo/turn-rows.tsx";
 import { transcriptRowsOf, type TranscriptRow } from "./transcript-rows.ts";
@@ -23,6 +24,7 @@ const ROW_PAD: Readonly<Record<TranscriptRow["kind"], string>> = {
   result: "pb-1",
   custom: "pb-3",
   live: "pb-2",
+  pending: "pb-2",
   compaction: "py-2",
   marker: "py-2",
   leadHead: "pb-1",
@@ -63,6 +65,8 @@ function RowBody(props: {
       return <ReplyRow id={row.id} blocks={row.blocks} />;
     case "live":
       return <ReplyRow id={row.id} blocks={null} />;
+    case "pending":
+      return <ThinkingPending />;
     case "activity":
       return <ActivityGroup threadId={threadId} entries={row.entries} />;
     case "card":

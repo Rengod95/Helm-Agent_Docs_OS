@@ -42,7 +42,6 @@ import { ProposalsScreen } from "./pages/proposals/proposals-screen.tsx";
 import { ReviewScreen } from "./pages/review/review-screen.tsx";
 import { TasksSummary, TasksTab } from "./panels/tasks/tasks-tab.tsx";
 import { RunningSummary, RunningTab } from "./panels/running/running-tab.tsx";
-import { AttentionMark } from "./effects/attention-mark.tsx";
 import { SecretsPanel } from "./pages/secrets/secrets-screen.tsx";
 import { TrustCard } from "./trust.tsx";
 import { ThreadContextBar } from "./thread-context-bar.tsx";
@@ -214,7 +213,6 @@ const INBOX_SCREEN: ScreenDef = {
   label: "desktop.shell.nav.inbox",
   icon: <Inbox />,
   Badge: (p) => p.render(useApprovalCount()),
-  attention: true,
   render: () => <InboxScreen />,
 };
 
@@ -244,7 +242,6 @@ const PROPOSALS_SCREEN: ScreenDef = {
   label: "desktop.shell.nav.proposals",
   icon: <Lightbulb />,
   Badge: (p) => p.render(useProposalPending().count),
-  attention: true,
   render: () => <ProposalsScreen />,
 };
 
@@ -290,16 +287,11 @@ const REVIEW_SCREEN: ScreenDef = {
   render: () => <ReviewScreen />,
 };
 
-/** 받은 요청 well 머리 요약(DP-193): 주의 표시 + "승인 2개가 기다려요", 없으면 "기다리는 요청이 없어요" */
+/** 받은 요청 well 머리 요약(DP-193): "승인 2개가 기다려요", 없으면 "기다리는 요청이 없어요". 문장에 수가 있어 표시를 붙이지 않는다(DP-211) */
 function InboxSummary(): ReactNode {
   const count = useApprovalCount();
   if (count === 0) return t("desktop.shell.end.inboxSummary.none");
-  return (
-    <>
-      <AttentionMark size="sm" />
-      {t("desktop.shell.end.inboxSummary.waiting", { count })}
-    </>
-  );
+  return t("desktop.shell.end.inboxSummary.waiting", { count });
 }
 
 // 오른쪽 막대의 고정 탭 다섯(DP-192). 플러그인과 무관한 하네스 공통 기능이고 순서·자리가 바뀌지 않는다:

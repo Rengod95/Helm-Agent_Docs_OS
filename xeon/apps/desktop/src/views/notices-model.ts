@@ -1,5 +1,5 @@
 import type { MessageArgs, MessageId } from "@fresnel/client/i18n";
-import { assertNever } from "@fresnel/contracts";
+import { assertNever, ok, type Result } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   INPUT_NEEDED_KINDS,
@@ -28,19 +28,52 @@ export interface NoticeEntry {
   readonly deliveredAt?: number;
 }
 
-/** 화면에 두는 알림 수 상한(`notify.list`의 한 번 최대 500과 별개로 오래된 것부터 버린다) */
-export const NOTICE_KEEP = 100;
+/** 화면에 두는 알림 수 상한(`notify.list`의 한 번 최대 500과 별개로 오래된 것부터 버린다). 그리기는 `NOTICE_PAGE`씩 나눈다 */
+export const NOTICE_KEEP = 300;
 
-const KIND_TEXT: Readonly<Record<NoticeKind, MessageId>> = {
-  completed: "desktop.notices.kind.completed",
-  approval_waiting: "desktop.notices.kind.approvalWaiting",
-  question_waiting: "desktop.notices.kind.questionWaiting",
-  error: "desktop.notices.kind.error",
-  background_completed: "desktop.notices.kind.backgroundCompleted",
-};
+/** 목록이 처음 그리는 알림 묶음 수와, 끝에 닿을 때마다 더 그리는 수(DP-216) */
+export const NOTICE_PAGE = 20;
 
-export function noticeKindId(kind: NoticeKind): MessageId {
-  return KIND_TEXT[kind];
+/** 알림 목록 한 쪽(`notify.list`의 결과 중 쪽 넘기기에 쓰는 것) */
+export interface NoticePage {
+  readonly notices: readonly Notice[];
+  readonly nextSeq: number;
+  readonly threadless?: readonly Notice[] | undefined;
+}
+
+/** 쪽을 넘겨 읽을 때 한 번의 읽기에서 부르는 최대 수. 엔진의 한 호출은 내구 이벤트 1000줄만 훑는다 */
+const NOTICE_PAGE_CALLS = 200;
+
+/**
+ * `notify.list`를 `nextSeq`로 끝까지 넘겨 읽는다(DP-216). 엔진은 오래된 것부터 한 번에 최대 100개, 내구 이벤트 1000줄만 훑어서
+ * 첫 쪽만 읽으면 사건이 많은 기록에서 최근 알림이 빠진다. `nextSeq`가 더 나아가지 않으면 끝이다. 새것 `keep`개만 든다.
+ * 대화 없는 알림(`threadless`)은 쪽과 무관하게 매번 같은 목록이라 마지막 것을 쓴다. 첫 쪽부터 실패하면 그 오류를 돌려주고,
+ * 중간에 실패하면 거기까지 읽은 것을 돌려준다
+ */
+export async function readNoticePages<E>(
+  page: (afterSeq: number) => Promise<Result<NoticePage, E>>,
+  keep: number = NOTICE_KEEP,
+  calls: number = NOTICE_PAGE_CALLS,
+): Promise<
+  Result<{ readonly notices: readonly Notice[]; readonly threadless: readonly Notice[] }, E>
+> {
+  const read = async (
+    call: number,
+    after: number,
+    notices: readonly Notice[],
+    threadless: readonly Notice[],
+  ): Promise<
+    Result<{ readonly notices: readonly Notice[]; readonly threadless: readonly Notice[] }, E>
+  > => {
+    if (call >= calls) return ok({ notices, threadless });
+    const got = await page(after);
+    if (!got.ok) return call === 0 ? got : ok({ notices, threadless });
+    const kept = [...notices, ...got.value.notices].slice(-keep);
+    const rest = got.value.threadless ?? threadless;
+    if (got.value.nextSeq <= after) return ok({ notices: kept, threadless: rest });
+    return read(call + 1, got.value.nextSeq, kept, rest);
+  };
+  return read(0, 0, [], []);
 }
 
 /**
@@ -56,6 +89,8 @@ export type NoticeTitleView = {
 const TOOL_SEPARATOR = ": ";
 
 export function noticeTitleViewOf(notice: Notice): NoticeTitleView | null {
+  // 확장이 직접 낸 알림(`dialog.notified`)은 제목이 그 알림의 말이라 그대로 둔다
+  if (notice.sourceType === "dialog.notified") return null;
   switch (notice.kind) {
     case "completed":
       return { id: "desktop.notices.title.completed" };
@@ -337,22 +372,164 @@ export function noticeResolved(entry: NoticeEntry, waitingThreads: ReadonlySet<s
   return entry.threadId !== null && !waitingThreads.has(entry.threadId);
 }
 
-/** 상태 배지의 색 계열. 풀린 입력 대기는 중립, 기다리는 입력은 경고, 실패는 위험, 끝난 일은 성공이다 */
-export type NoticeTone = "neutral" | "success" | "warning" | "danger" | "info";
+/** 알림 줄의 날짜 묶음(DP-215): 오늘, 어제, 그 전. 기기 시간대의 달력 날짜로 가른다 */
+export type NoticeDay = "today" | "yesterday" | "earlier";
 
-export function noticeToneOf(kind: NoticeKind, resolved: boolean): NoticeTone {
-  if (resolved) return "neutral";
-  switch (kind) {
-    case "completed":
-      return "success";
-    case "background_completed":
-      return "info";
-    case "approval_waiting":
-    case "question_waiting":
-      return "warning";
-    case "error":
-      return "danger";
-    default:
-      return assertNever(kind, "noticeToneOf");
+function dayStart(at: number): number {
+  const day = new Date(at);
+  day.setHours(0, 0, 0, 0);
+  return day.getTime();
+}
+
+export function noticeDayOf(now: number, at: number): NoticeDay {
+  const today = dayStart(now);
+  if (at >= today) return "today";
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  return at >= yesterday.getTime() ? "yesterday" : "earlier";
+}
+
+/** 같은 원인으로 보고 한 장으로 접는 열쇠: 대화, 종류, 출처 이벤트, 본문 */
+function repeatKeyOf(entry: NoticeEntry): string {
+  const { notice } = entry;
+  return JSON.stringify([entry.threadId, notice.kind, notice.sourceType, notice.body]);
+}
+
+/**
+ * 목록의 알림 한 장(DP-214). 같은 날 이어진 같은 원인의 알림(`repeatKeyOf`)은 가장 새 것 하나로 접고 `entries`에 모두 든다(새것 먼저).
+ * `prominent`면 할 일 카드이고, 아니면 한 줄이다
+ */
+export interface NoticeItem {
+  readonly key: string;
+  readonly day: NoticeDay;
+  /** 보이는 알림(장 안 가장 새 것) */
+  readonly head: NoticeEntry;
+  /** 새것 먼저. 첫 것이 보이는 알림이다 */
+  readonly entries: readonly NoticeEntry[];
+  readonly prominent: boolean;
+  readonly read: boolean;
+  readonly resolved: boolean;
+}
+
+/** 읽음과 하나 지우기 표지(seq 집합). 화면 상태라 앱을 다시 열면 비어 있다 */
+export interface NoticeMarks {
+  readonly read: ReadonlySet<number>;
+  readonly dismissed: ReadonlySet<number>;
+}
+
+/**
+ * 할 일 카드가 되는가(DP-214). 아직 풀리지 않은 질문 대기는 늘 카드다. 오류는 오늘 생겼고 안 읽었을 때만 카드다.
+ * 승인 대기는 받은 요청의 승인 구역이 같은 요청을 카드로 보이므로 한 줄이다. 끝남·정보는 한 줄이다(지난 것은 작게)
+ */
+export function noticeProminentOf(
+  kind: NoticeKind,
+  context: { readonly day: NoticeDay; readonly read: boolean; readonly resolved: boolean },
+): boolean {
+  if (kind === "question_waiting") return !context.resolved;
+  if (kind === "error") return context.day === "today" && !context.read;
+  return false;
+}
+
+/**
+ * 보일 알림 목록(새것 먼저로 정렬된 것)을 장으로 묶는다. 지운 알림은 뺀다. 같은 날 바로 이어진 같은 원인만 접는다(사이에 다른 알림이
+ * 끼면 따로 선다). 한 장의 읽음은 든 알림이 모두 읽혔을 때다
+ */
+export function noticeItemsOf(
+  entries: readonly NoticeEntry[],
+  context: {
+    readonly now: number;
+    readonly marks: NoticeMarks;
+    readonly waitingThreads: ReadonlySet<string>;
+  },
+): readonly NoticeItem[] {
+  const groups: { day: NoticeDay; key: string; entries: NoticeEntry[] }[] = [];
+  for (const entry of entries) {
+    if (context.marks.dismissed.has(entry.notice.seq)) continue;
+    const day = noticeDayOf(context.now, noticeShownAtOf(entry));
+    const key = repeatKeyOf(entry);
+    const last = groups.at(-1);
+    if (last !== undefined && last.day === day && last.key === key) last.entries.push(entry);
+    else groups.push({ day, key, entries: [entry] });
   }
+  return groups.flatMap((group) => {
+    const [head] = group.entries;
+    if (head === undefined) return [];
+    const read = group.entries.every((entry) => context.marks.read.has(entry.notice.seq));
+    const resolved = noticeResolved(head, context.waitingThreads);
+    return [
+      {
+        key: String(head.notice.seq),
+        day: group.day,
+        head,
+        entries: group.entries,
+        prominent: noticeProminentOf(head.notice.kind, { day: group.day, read, resolved }),
+        read,
+        resolved,
+      },
+    ];
+  });
+}
+
+/** 장들 중 안 읽은 장의 수(머리의 "새 알림 N") */
+export function unreadCountOf(items: readonly NoticeItem[]): number {
+  return items.filter((item) => !item.read).length;
+}
+
+/**
+ * 읽음과 하나 지우기 표지의 모듈 상태(DP-215). 지운 경계(`clearedNotices`)처럼 화면이 떠났다 와도 남고, 앱을 다시 열면 비어 있다.
+ * 값이 바뀌면 판(`version`)이 올라 구독자가 다시 그린다
+ */
+export interface NoticeMarkStore {
+  readonly marks: () => NoticeMarks;
+  readonly version: () => number;
+  readonly markRead: (seqs: readonly number[]) => void;
+  readonly dismiss: (seqs: readonly number[]) => void;
+  readonly subscribe: (listener: () => void) => () => void;
+}
+
+export function createNoticeMarkStore(): NoticeMarkStore {
+  let read = new Set<number>();
+  let dismissed = new Set<number>();
+  let version = 0;
+  const listeners = new Set<() => void>();
+  const bump = (): void => {
+    version += 1;
+    for (const listener of listeners) listener();
+  };
+  return {
+    marks: () => ({ read, dismissed }),
+    version: () => version,
+    markRead: (seqs) => {
+      if (seqs.every((seq) => read.has(seq))) return;
+      read = new Set([...read, ...seqs]);
+      bump();
+    },
+    dismiss: (seqs) => {
+      if (seqs.every((seq) => dismissed.has(seq))) return;
+      dismissed = new Set([...dismissed, ...seqs]);
+      bump();
+    },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+}
+
+/** 받은 요청 화면의 읽음·지우기 표지 */
+export const noticeMarks: NoticeMarkStore = createNoticeMarkStore();
+
+/** 반복 장의 꼬리 글 키: 오류는 "같은 오류 N번", 그 밖은 "N번". 하나면 null */
+export function repeatTextOf(
+  item: NoticeItem,
+): { readonly id: MessageId; readonly count: number } | null {
+  const count = item.entries.length;
+  if (count < 2) return null;
+  const kind = item.head.notice.kind;
+  return {
+    id: kind === "error" ? "desktop.notices.repeat.error" : "desktop.notices.repeat.other",
+    count,
+  };
 }

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { t } from "@fresnel/client/i18n";
 import type { CommandRowVM } from "@fresnel/client/settings";
 import { renderToString } from "react-dom/server";
 import type { ModelEntry } from "@fresnel/contracts/wire";
@@ -113,6 +114,37 @@ describe("permission mode chip", () => {
       ),
     );
     expect(tag).toMatch(/ disabled=""/);
+  });
+
+  test("keeps its place while the mode is being read: a disabled chip named for the mode (DP-213)", () => {
+    const markup = renderToString(
+      <PermissionModeChip mode={null} bypassAllowed={false} disabled={false} onChange={() => {}} />,
+    );
+    const { tag } = firstButton(markup);
+    expect([
+      tag.includes(' disabled=""'),
+      tag.includes('data-state="loading"'),
+      visibleText(markup),
+    ]).toEqual([true, true, t("desktop.composer.mode.loading")]);
+  });
+
+  test("an unknown engine value shows the default mode, dotted, with the reason as its title (DP-213)", () => {
+    const markup = renderToString(
+      <PermissionModeChip
+        mode="default"
+        note={{ id: "desktop.composer.approvalMode.unknown", value: "plan" }}
+        bypassAllowed={false}
+        disabled={false}
+        onChange={() => {}}
+      />,
+    );
+    const { tag } = firstButton(markup);
+    const reason = t("desktop.composer.approvalMode.unknown", { value: "plan" });
+    expect([
+      tag.includes('data-state="unsure"'),
+      tag.includes(`title="${reason}"`),
+      visibleText(markup),
+    ]).toEqual([true, true, permissionModeChipText("default")]);
   });
 
   test("the bypass chip uses the danger text colour, the other modes the tertiary one", () => {

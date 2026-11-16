@@ -1,4 +1,4 @@
-// 살아 움직이는 표시의 수 상한(DP-190). 화면 전체에서 움직이는 주의 구슬은 3개, 진행 구슬은 8개, 흐르는 카드 오로라는 1개까지다.
+// 살아 움직이는 표시의 수 상한(DP-190). 화면 전체에서 흐르는 요청 그림 빛은 3개, 진행 구슬은 8개, 흐르는 카드 오로라는 1개까지다.
 // 먼저 붙은 것이 자리를 받고, 자리를 가진 것이 떨어지면 다음 것이 받는다. 나머지는 같은 모양으로 멈춰 있다.
 // 상태는 모듈 하나가 가진다(부품마다 따로 세면 상한이 안 된다). 움직임 줄이기면 아무도 움직이지 않는다.
 
@@ -6,7 +6,7 @@ import { useEffect, useId, useSyncExternalStore } from "react";
 import { useMotionReduced } from "../../lib/motion-presets.tsx";
 
 /**
- * mark 주의 구슬(AttentionMark), progress 진행 구슬(ProgressOrb), card 카드 오로라(AttendGlow),
+ * mark 요청 그림의 흐르는 빛(RequestArt), progress 진행 구슬(ProgressOrb), card 카드 오로라(AttendGlow),
  * thinking 생각 구슬(ThinkingIndicator, DP-208). 생각 구슬은 전에도 상한 밖이었다(라이브러리 부품): 화면에 하나둘뿐이고 지금 일하는 중임을 말하므로 멈추지 않는다
  */
 export type AttentionLiveKind = "mark" | "progress" | "card" | "thinking";

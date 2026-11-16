@@ -76,6 +76,7 @@ import {
   useThreadPermissionMode,
   useThreadThinking,
 } from "./model-usage.ts";
+import { permissionChipViewOf } from "./permission-mode-model.ts";
 import { thinkingSelectableOf } from "./thinking-level-model.ts";
 import {
   appSlashOf,
@@ -260,8 +261,9 @@ function ComposerFor(props: {
   // 이 대화의 모델(정하지 않았으면 기본 모델)과 문맥 사용량(model-usage.ts)
   const defaultModel = useDefaultModel();
   const threadModel = useThreadModel(props.threadId, defaultModel);
-  // 이 대화의 승인 모드 칩(설정 l1.tools.permissionMode, 대화 범위). 모르는 동안은 칩을 그리지 않는다
+  // 이 대화의 승인 모드 칩(설정 l1.tools.permissionMode, 대화 범위). 칩 자리는 늘 있고, 모르면 기본 모드로 보이며 이유를 말한다(DP-213)
   const permission = useThreadPermissionMode(props.threadId);
+  const permissionChip = permissionChipViewOf(permission.read);
   const writeAccessAllowed = useWriteAccessAllowed(props.threadId);
   const thinking = useThreadThinking(props.threadId);
   const modelChoices = useModelChoices();
@@ -826,23 +828,23 @@ function ComposerFor(props: {
           }
           submit={
             <span className="flex min-w-0 items-center gap-1">
-              {permission.mode === null ? null : (
-                <PermissionModeChip
-                  mode={permission.mode}
-                  bypassAllowed={permission.bypassAllowed}
-                  disabled={props.disabledReason !== null}
-                  writeAccess={writeAccessAllowed}
-                  onChange={(next) => {
-                    detach(
-                      permission.choose(next).then((result) => {
-                        if (!result.ok) setError(modeErrorText(result.error));
-                        return undefined;
-                      }),
-                      rethrow,
-                    );
-                  }}
-                />
-              )}
+              <PermissionModeChip
+                mode={permissionChip.mode}
+                note={permissionChip.note}
+                bypassAllowed={permission.bypassAllowed}
+                disabled={props.disabledReason !== null}
+                writeAccess={writeAccessAllowed}
+                onRetry={permission.retry}
+                onChange={(next) => {
+                  detach(
+                    permission.choose(next).then((result) => {
+                      if (!result.ok) setError(modeErrorText(result.error));
+                      return undefined;
+                    }),
+                    rethrow,
+                  );
+                }}
+              />
               {threadModel.ref === null ? null : (
                 <ModelChip
                   current={threadModel.ref}

@@ -47,7 +47,7 @@ export function useInboxThreads(
 }
 
 /** 끝 영역 받은 요청 탭과 받은 요청 화면. 트랜스크립트 아래와 같은 카드를 쓴다(`approval.resolved`로 함께 사라진다).
- * 대화와 정렬은 승인과 알림 구역을 함께 거른다. 기본은 모든 대화이고 오래된 것 먼저다.
+ * 대화는 승인과 알림 구역을 함께 거르고, 정렬은 승인 구역만 거른다(알림은 늘 새것 먼저, DP-216). 기본은 모든 대화이고 오래된 것 먼저다.
  * 대기 제안이 있으면 거르기가 "모두"일 때 맨 위에 제안 줄 하나를 둔다(`InboxProposalsRow`). 제안 줄은 대화와 정렬을 받지 않는다 */
 export function InboxApprovals(props: {
   readonly show?: InboxFilter;
@@ -82,7 +82,7 @@ export function InboxApprovals(props: {
       )}
       {show === "approvals" ? null : (
         <section className="grid gap-2">
-          <InboxNotices feed={props.feed} thread={thread} sort={sort} />
+          <InboxNotices feed={props.feed} thread={thread} />
         </section>
       )}
     </div>

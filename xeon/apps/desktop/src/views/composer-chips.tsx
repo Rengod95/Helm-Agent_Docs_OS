@@ -9,7 +9,11 @@ import type { ReactNode } from "react";
 import { modelKeyOf } from "./denied-model-model.ts";
 import { modelOptionsOf } from "./model-usage.ts";
 import { ModelPicker } from "./pages/shared/model-picker.tsx";
-import { permissionModeOptionsOf, permissionModeToneOf } from "./permission-mode-model.ts";
+import {
+  permissionModeOptionsOf,
+  permissionModeToneOf,
+  type PermissionChipView,
+} from "./permission-mode-model.ts";
 import { THINKING_LEVEL_LABEL_IDS, thinkingLevelOf } from "./thinking-level-model.ts";
 
 // 입력창 아래 칩 셋(L4.desktop-ux DP-101 [결정: 2026-11-11 사용자]): 권한 모드, 모델, 추론 수준.
@@ -67,18 +71,48 @@ function MenuText(props: { readonly title: string; readonly hint: string }): Rea
 /**
  * 권한 모드 칩. 메뉴는 묻기, 편집 자동 허용, 그리고 허락되면 모두 허용(`permissionModeOptionsOf`). 모두 허용은 위험 색이다.
  * `writeAccess`(이 대화에서 샌드박스 밖 쓰기를 계속 허용함, DP-205)면 모드 이름 뒤에 폴더 아이콘 14(사이 4)를 붙이고,
- * 메뉴 맨 아래 구분선 뒤에 누를 수 없는 설명 줄(12 tertiary)을 둔다. 철회 동작은 없다(엔진에 방법이 없다)
+ * 메뉴 맨 아래 구분선 뒤에 누를 수 없는 설명 줄(12 tertiary)을 둔다. 철회 동작은 없다(엔진에 방법이 없다).
+ * 칩 자리는 늘 있다(DP-213): `mode`가 null이면 읽는 중이라 "승인 모드" 글의 비활성 칩이고, `note`가 있으면(읽기 실패, 모르는 값)
+ * 기본 모드 글에 점선 밑줄을 긋고 이유를 툴팁(title)과 메뉴 맨 위 설명 줄로 말한다. 그때는 메뉴의 어느 모드도 골라져 있지 않고, 실패면 "다시 읽기"가 있다
  */
 export function PermissionModeChip(props: {
-  readonly mode: PermissionMode;
+  readonly mode: PermissionMode | null;
   readonly bypassAllowed: boolean;
   readonly disabled: boolean;
   readonly writeAccess?: boolean;
+  readonly note?: PermissionChipView["note"];
+  readonly onRetry?: () => void;
   readonly onChange: (mode: PermissionMode) => void;
 }): ReactNode {
+  const { mode } = props;
+  if (mode === null) {
+    return (
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        disabled
+        aria-busy
+        data-composer-chip="mode"
+        data-state="loading"
+        aria-label={t("desktop.composer.approvalMode.loading")}
+        className={COMPOSER_CHIP_CLASS}
+      >
+        <Shield aria-hidden />
+        <span className="truncate">{t("desktop.composer.mode.loading")}</span>
+      </Button>
+    );
+  }
+  const note =
+    props.note === undefined || props.note === null
+      ? null
+      : t(props.note.id, props.note.value === undefined ? undefined : { value: props.note.value });
   const writeAccess = props.writeAccess === true;
-  const chipLabel = `${t("desktop.composer.approvalMode.label")}: ${permissionModeChipText(props.mode)}`;
-  const danger = permissionModeToneOf(props.mode) === "danger";
+  const chipLabel = `${t("desktop.composer.approvalMode.label")}: ${permissionModeChipText(mode)}`;
+  const danger = note === null && permissionModeToneOf(mode) === "danger";
+  const label = [chipLabel, writeAccess ? t("desktop.composer.writeAccess.label") : null, note]
+    .filter((part) => part !== null)
+    .join(", ");
   return (
     <Menu
       size="sm"
@@ -93,36 +127,69 @@ export function PermissionModeChip(props: {
           variant="ghost"
           disabled={props.disabled}
           data-composer-chip="mode"
-          aria-label={
-            writeAccess ? `${chipLabel}, ${t("desktop.composer.writeAccess.label")}` : chipLabel
-          }
+          data-state={note === null ? "ready" : "unsure"}
+          aria-label={label}
+          title={note ?? undefined}
           className={`${COMPOSER_CHIP_CLASS} ${danger ? "text-danger-text hover:text-danger-text" : ""}`}
         >
-          {modeIcon(props.mode)}
-          <span className="truncate">{permissionModeChipText(props.mode)}</span>
+          {modeIcon(mode)}
+          <span
+            className={
+              note === null
+                ? "truncate"
+                : "truncate underline decoration-dotted decoration-1 underline-offset-4"
+            }
+          >
+            {permissionModeChipText(mode)}
+          </span>
           {writeAccess ? <FolderOpen aria-hidden data-slot="write-access-mark" /> : null}
         </Button>
       }
     >
-      {permissionModeOptionsOf(props.mode, props.bypassAllowed).map((option) => (
-        <MenuItem
-          key={option.mode}
-          role="menuitemradio"
-          selected={option.selected}
-          tone={option.mode === "bypass" ? "danger" : "neutral"}
-          className="h-auto min-h-control-md items-start py-1.5 [&>[data-slot=menu-icon]]:pt-0.5 [&>[data-slot=menu-label]]:whitespace-normal"
-          icon={modeIcon(option.mode)}
-          end={option.selected ? <Check aria-hidden className="size-3.5" /> : undefined}
-          onSelect={() => {
-            if (!option.selected) props.onChange(option.mode);
-          }}
-        >
-          <MenuText
-            title={permissionModeChipText(option.mode)}
-            hint={t(MODE_HINT_ID[option.mode])}
-          />
-        </MenuItem>
-      ))}
+      {note === null ? null : (
+        <>
+          <p
+            data-slot="mode-note"
+            className="m-0 px-2 py-1.5 text-ui-sm text-text-secondary [overflow-wrap:anywhere]"
+          >
+            {note}
+          </p>
+          {props.onRetry === undefined ||
+          props.note?.id !== "desktop.composer.approvalMode.failed" ? null : (
+            <MenuItem
+              icon={<RotateCcw aria-hidden />}
+              onSelect={() => {
+                props.onRetry?.();
+              }}
+            >
+              {t("desktop.composer.approvalMode.retry")}
+            </MenuItem>
+          )}
+          <MenuSeparator />
+        </>
+      )}
+      {permissionModeOptionsOf(mode, props.bypassAllowed).map((option) => {
+        const selected = note === null && option.selected;
+        return (
+          <MenuItem
+            key={option.mode}
+            role="menuitemradio"
+            selected={selected}
+            tone={option.mode === "bypass" ? "danger" : "neutral"}
+            className="h-auto min-h-control-md items-start py-1.5 [&>[data-slot=menu-icon]]:pt-0.5 [&>[data-slot=menu-label]]:whitespace-normal"
+            icon={modeIcon(option.mode)}
+            end={selected ? <Check aria-hidden className="size-3.5" /> : undefined}
+            onSelect={() => {
+              if (!selected) props.onChange(option.mode);
+            }}
+          >
+            <MenuText
+              title={permissionModeChipText(option.mode)}
+              hint={t(MODE_HINT_ID[option.mode])}
+            />
+          </MenuItem>
+        );
+      })}
       {writeAccess ? (
         <>
           <MenuSeparator />

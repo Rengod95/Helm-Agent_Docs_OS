@@ -41,6 +41,8 @@ export type TranscriptRow = VirtualRow &
     | { readonly kind: "result"; readonly id: ItemId }
     | { readonly kind: "custom"; readonly id: ItemId }
     | { readonly kind: "live"; readonly id: ItemId }
+    /** 첫 응답을 기다리는 동안 답이 놓일 자리의 "생각하는 중" 줄(DP-212). 진행 중 글이 오면 그 줄이 이 자리를 잇는다 */
+    | { readonly kind: "pending" }
     | { readonly kind: "compaction"; readonly record: CompactionRecord }
     | { readonly kind: "marker"; readonly marker: ConvoMarker }
     | { readonly kind: "leadHead"; readonly leaseId: string }
@@ -230,6 +232,7 @@ function itemIdsOf(row: TranscriptRow): readonly ItemId[] {
     case "activity":
       return [...new Set(row.entries.map((entry) => entry.itemId))];
     case "live":
+    case "pending":
     case "compaction":
     case "marker":
     case "leadHead":
@@ -265,6 +268,8 @@ export function transcriptRowsOf(input: {
   readonly leads: readonly LeadRef[];
   /** 열린 대화가 도는 중이다. 마지막 교환에는 턴 발 줄을 두지 않는다 */
   readonly running: boolean;
+  /** 첫 응답을 기다리는 중이다(마지막 확정 item이 내 말). 진행 중 줄이 없으면 끝에 기다림 줄을 둔다 */
+  readonly awaiting?: boolean;
 }): readonly TranscriptRow[] {
   const turnByInput = new Map<ItemId, TurnRef>();
   for (const turn of input.turns) {
@@ -368,11 +373,18 @@ export function transcriptRowsOf(input: {
     }
   });
   rows.push(...markerRows(exchanges.length));
+  let liveShown = false;
   if (input.showLive) {
     const recorded = new Set(input.shapes.map((shape) => shape.id));
     for (const id of input.live) {
-      if (!recorded.has(id)) rows.push({ kind: "live", key: id, lead: null, id });
+      if (recorded.has(id)) continue;
+      rows.push({ kind: "live", key: id, lead: null, id });
+      liveShown = true;
     }
+  }
+  // 생각 표시는 대화 본문 한 곳이다(DP-212): 기다림 줄도 목록 안 답 자리에 선다(입력창 위에 따로 붙지 않는다)
+  if (input.awaiting === true && input.showLive && !liveShown) {
+    rows.push({ kind: "pending", key: "pending", lead: null });
   }
   return rows;
 }

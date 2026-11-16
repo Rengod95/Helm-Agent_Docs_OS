@@ -128,7 +128,7 @@ function codeOf(file: string): string {
 
 test("no caustic spectrum ring (orb) in the app (DP-188)", () => {
   // 사용자 결정(2026-11-13, 영구): 파랑 → 보라 그라데이션 고리(caustic `orb` 유틸리티: conic 스펙트럼 + 가운데 구멍 + 회전)는 어디에도 쓰지 않는다.
-  // 그 고리로 가는 길을 막는다. 주의는 AttentionMark, 진행은 ProgressOrb(views/effects, 점 구슬)를 쓴다.
+  // 그 고리로 가는 길을 막는다. 주의는 요청 그림(RequestArt, 선 그림), 진행은 ProgressOrb(views/effects, 점 구슬)를 쓴다.
   const ANYWHERE: readonly (readonly [string, RegExp])[] = [
     ["orb class", /["'`\s]orb(-sm|-lg|-dot)?["'`\s]/],
     ["CardOrb", /\bCardOrb\b/],
@@ -150,7 +150,7 @@ test("no caustic spectrum ring (orb) in the app (DP-188)", () => {
 
 test("status marks are dotted orbs, never stars or solid dots (DP-189)", () => {
   // 사용자 결정(2026-11-13 밤, 영구): 네 꼭지 별·반짝임, 단색 점(LiveDot), 불씨 원, 느낌표 글리프를 표시로 쓰지 않는다.
-  // 진행과 주의 표시는 생각 구슬과 같은 점 구슬(dot-orb.tsx: ProgressOrb, AttentionMark)이다.
+  // 진행 표시는 생각 구슬과 같은 점 구슬(dot-orb.tsx: ProgressOrb)이고, 주의 표시는 페이지 그림과 같은 선 그림(RequestArt)이다.
   const TSX: readonly (readonly [string, RegExp])[] = [
     ["LiveDot", /\bLiveDot\b|live-dot\.tsx/],
     ["solid dot class", /["'`\s]fx-dot(-core)?["'`\s]/],
@@ -172,13 +172,22 @@ test("status marks are dotted orbs, never stars or solid dots (DP-189)", () => {
     }),
   ];
   expect(found).toEqual([]);
-  // 두 표시 부품은 점 구슬을 그린다(벡터 모양으로 돌아가지 않는다)
-  for (const file of ["views/effects/attention-mark.tsx", "views/effects/progress-orb.tsx"]) {
-    const code = codeOf(join(SRC, file));
-    expect([file, /<DotOrb\b/.test(code), /<(svg|path|circle)\b/.test(code)]).toEqual([
-      file,
-      true,
-      false,
-    ]);
-  }
+  // 진행 표시는 점 구슬을 그린다(벡터 모양으로 돌아가지 않는다)
+  const progress = codeOf(join(SRC, "views/effects/progress-orb.tsx"));
+  expect([/<DotOrb\b/.test(progress), /<(svg|path|circle)\b/.test(progress)]).toEqual([
+    true,
+    false,
+  ]);
+  // 요청 표시는 페이지 그림과 같은 선 그림이다(DP-210): 선(path)만 있고 점 구슬·원 점(circle)이 없다
+  const request = codeOf(join(SRC, "views/illustrations/request-art.tsx"));
+  expect([/<path\b/.test(request), /<DotOrb\b/.test(request), /<circle\b/.test(request)]).toEqual([
+    true,
+    false,
+    false,
+  ]);
+  // 호박 주의 구슬(AttentionMark)은 없앴다(DP-211). 수 옆에 색 표시를 다시 붙이지 않는다
+  const marks = sourceFiles([".tsx", ".ts"]).filter((file) =>
+    /\bAttentionMark\b/.test(codeOf(file)),
+  );
+  expect(marks.map(relative)).toEqual([]);
 });

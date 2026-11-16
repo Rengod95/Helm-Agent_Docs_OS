@@ -18,6 +18,7 @@
 @import "./views/effects/drawn-check.css";
 @import "./views/effects/attention.css";
 @import "./views/convo/convo.css";
+@import "./views/notices.css";
 @import "./lib/highlight-theme.css";
 @source "./";
 
