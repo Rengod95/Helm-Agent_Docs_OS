@@ -1,10 +1,9 @@
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
-import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
+import type { LiveApprovalRequest } from "../../state/engine/input.ts";
 import {
   Alert,
   Badge,
-  Button,
   ChoiceGroup,
   ChoiceGroupItem,
   Input,
@@ -12,7 +11,7 @@ import {
   ListDescriptionRow,
   MessageCode,
 } from "@caustic/react";
-import { useId, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
   QUESTION_TEXT_MAX,
   REVIEW_CHANGE_ID,
@@ -36,16 +35,14 @@ import {
   type ToolApprovalView,
   type ToolReplaceView,
 } from "../approval-form.ts";
-import { PLAN_FOLD_LINES, foldPlanLines, reviewTotalsOf, ruleTextIdOf } from "./card-model.ts";
+import { reviewTotalsOf, ruleTextIdOf } from "./card-model.ts";
 import { FileChangeDiff } from "../file-change-view.tsx";
 import { Collapse } from "../../lib/motion-presets.tsx";
-import { ChevronRight } from "@caustic/react/icons";
 import { InfoTip } from "../craft/info-tip.tsx";
 
 // 승인 카드 본문(종류별). 상태와 단추는 approval-card.tsx가 맡는다. 본문은 값만 받고 응답을 보내지 않는다.
 
-type ApprovalBody = ApprovalRequestedPayload["body"];
-type PlanView = Extract<ApprovalBody, { kind: "plan" }>["plan"];
+type ApprovalBody = LiveApprovalRequest["body"];
 type ReviewView = Extract<ApprovalBody, { kind: "review" }>["review"];
 
 // 공백 없는 긴 조각(주소, base64)도 카드 폭 안에서 끊는다. break-words는 최소 폭을 줄이지 못해 카드가 넓어진다(DP-180)
@@ -445,21 +442,6 @@ export function QuestionBody(props: {
   );
 }
 
-/** 옛 계획 승인 본문. 새 계획은 없어 모드 고르기와 수정 피드백은 없다. 거부만 보낼 수 있다(core-tools) */
-export function PlanBody(props: { readonly plan: PlanView }): ReactNode {
-  const { plan } = props;
-  const text = typeof plan.plan === "string" ? plan.plan : null;
-  const fold = text === null ? null : foldPlanLines(text, PLAN_FOLD_LINES);
-  return fold === null ? (
-    <div className="text-ui text-text-secondary">{t("desktop.approvals.plan.storageNote")}</div>
-  ) : (
-    <>
-      <MessageCode className={BLOCK_CODE}>{fold.head}</MessageCode>
-      {fold.rest === null ? null : <PlanRest rest={fold.rest} />}
-    </>
-  );
-}
-
 /** 검토 본문: 파일 합계와 파일마다 변경 종류, hunk 수. hunk 본문은 싣지 않는다(검토 열기는 P-04가 맡는다) */
 export function ReviewBody(props: { readonly review: ReviewView }): ReactNode {
   const { review } = props;
@@ -486,35 +468,6 @@ export function ReviewBody(props: { readonly review: ReviewView }): ReactNode {
           </div>
         ))}
       </div>
-    </>
-  );
-}
-
-/** 계획의 나머지 줄. 앞 줄 아래 "전체 보기" 펼침 단추(ghost sm, 화살표가 90° 돈다)로 연다 */
-function PlanRest(props: { readonly rest: string }): ReactNode {
-  const [open, setOpen] = useState(false);
-  const id = useId();
-  return (
-    <>
-      <Collapse open={open}>
-        <div id={id}>
-          <MessageCode className={BLOCK_CODE}>{props.rest}</MessageCode>
-        </div>
-      </Collapse>
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        aria-expanded={open}
-        aria-controls={id}
-        className="-ml-2.5 self-start justify-self-start gap-1 text-text-secondary [&_svg]:size-3.5 [&_svg]:transition-transform aria-expanded:[&_svg]:rotate-90"
-        onClick={() => {
-          setOpen((value) => !value);
-        }}
-      >
-        <ChevronRight aria-hidden />
-        {t(open ? "desktop.approvals.plan.less" : "desktop.approvals.plan.more")}
-      </Button>
     </>
   );
 }

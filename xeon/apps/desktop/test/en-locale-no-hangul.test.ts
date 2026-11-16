@@ -81,7 +81,6 @@ describe("en locale: no Hangul on the main screen models", () => {
   test("slash command list: the engine's Korean descriptions and hints are replaced", () => {
     const list: CommandListResult = {
       commands: [
-        commandOf("plan", "계획 모드", "[exit | approve | reject [사유] | revise <피드백>]"),
         commandOf("tasks", "작업 목록을 보여 준다", null),
         commandOf("goal", "완료 조건", "<조건> | status | clear"),
         commandOf("helm", "사용법: /helm start [주제] | stop | status", null),

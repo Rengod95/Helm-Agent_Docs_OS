@@ -1,13 +1,11 @@
-import { assertNever, attemptAsync, err, ok, parse } from "@fresnel/contracts";
+import { assertNever, attemptAsync, err, ok } from "@fresnel/contracts";
 import type { ReviewText, ReviewTextFailure, ReviewTextReader } from "@fresnel/cap-artifacts";
 import type { ScheduleEntry, RunRecord, UpdateInput } from "@fresnel/cap-schedule";
 import {
   isCapabilityError,
-  PlanIdSchema,
   type CallContext,
   type CallOptions,
   type Goal,
-  type PlanVersionsOutputValue,
   type SkillViewOutput,
   type WorkTaskView,
 } from "@fresnel/contracts/capabilities";
@@ -370,27 +368,6 @@ export function createDialogAreaPort(deps: M4PortDeps): DialogAreaPort {
       memoryCall((api, options) => api.replace(params, options), signal),
     memoryRemove: (params, signal) =>
       memoryCall((api, options) => api.remove(params, options), signal),
-
-    async plansVersions(threadId, planId, signal) {
-      const missing = threadExists(threadId);
-      if (missing !== undefined) return err(missing);
-      const api = dialogArea.plans;
-      if (api === undefined) return ok({ versions: [] });
-      // 계획 id의 꼴이 맞지 않으면 그런 계획은 없다(기능을 부르지 않는다)
-      const parsed = parse(PlanIdSchema, planId);
-      if (!parsed.ok) return err({ kind: "unknown", path: "planId", id: planId });
-      const planKey = parsed.value;
-      const options: CallOptions = { signal, context: hostContext(threadId) };
-      const listed = await attemptAsync(() => api.versions({ planId: planKey }, options));
-      if (!listed.ok) {
-        const cause = listed.error.cause;
-        if (isCapabilityError(cause) && cause.data.code === "not_found") {
-          return err({ kind: "unknown", path: "planId", id: planId });
-        }
-        return err(rejectedOf(cause));
-      }
-      return ok<PlanVersionsOutputValue>(listed.value);
-    },
 
     async scheduleUpdate(params: ScheduleUpdateParams) {
       const failed = await opened();

@@ -16,6 +16,7 @@ import {
 } from "@fresnel/contracts/conversation";
 import {
   ApprovalRequestedPayloadSchema,
+  type ApprovalRequestedPayload,
   ApprovalResolvedPayloadSchema,
   CompactedPayloadSchema,
   ItemRecordedPayloadSchema,
@@ -50,8 +51,6 @@ import {
   WorkTaskChangedSchema,
   WorkTaskCreatedSchema,
   WorkTaskLinkSchema,
-  WorkPlanSubmittedSchema,
-  WorkPlanWithdrawnSchema,
   maskApprovalRequest,
   maskQueuedInput,
   type InputQueuedPayload,
@@ -62,7 +61,13 @@ import type {
   PendingApproval as WirePendingApproval,
   VolatileEventWire,
 } from "@fresnel/contracts/wire";
-import type { DurableFact, QueuedPreview, VolatileFact } from "./input.ts";
+import type {
+  DurableFact,
+  LiveApprovalRequest,
+  LivePendingApproval,
+  QueuedPreview,
+  VolatileFact,
+} from "./input.ts";
 import { progressTextOf, turnNoticeOf, type ConvoEvent } from "./convo.ts";
 import type { Static, TSchema } from "typebox";
 
@@ -263,9 +268,12 @@ const DURABLE: Readonly<
     const p = parse(ApprovalRequestedPayloadSchema, payload);
     if (!p.ok) return { ...base, type: "unreadable" };
     // 승인 카드의 제목과 도구 인자에 호스트의 표식을 적용한다. 적용하지 못하면 읽을 수 없는 사실이다
-    const request = maskApprovalRequest(p.value, mask);
+    const masked = maskApprovalRequest(p.value, mask);
+    if (masked === null) return { ...base, type: "unreadable" };
+    // 은퇴한 계획 승인 요청은 거울에 넣지 않는다(엔진도 대기 목록에 올리지 않는다). 알 수 없는 종류로 건너뛴다
+    const request = liveRequestOf(masked);
     return request === null
-      ? { ...base, type: "unreadable" }
+      ? { ...base, type: "other" }
       : { ...base, type: "approval.requested", request };
   },
   "approval.resolved": (base, payload) => {
@@ -329,37 +337,6 @@ const DURABLE: Readonly<
             tokensBefore: p.value.tokensBefore,
             tokensAfter: p.value.tokensAfter ?? null,
             reason: p.value.reason ?? null,
-          },
-        }
-      : { ...base, type: "unreadable" };
-  },
-  // 계획 사건(P-14 계획 카드): 계획 id, 판 번호, 제목과 상태만 싣는다. 본문과 산출물은 거울에 들어가지 않는다
-  "work.plan_submitted": (base, payload) => {
-    const p = parse(WorkPlanSubmittedSchema, payload);
-    return p.ok
-      ? {
-          ...base,
-          type: "plan.event",
-          plan: {
-            planId: p.value.planId,
-            version: p.value.version,
-            title: p.value.title,
-            status: "submitted",
-          },
-        }
-      : { ...base, type: "unreadable" };
-  },
-  "work.plan_withdrawn": (base, payload) => {
-    const p = parse(WorkPlanWithdrawnSchema, payload);
-    return p.ok
-      ? {
-          ...base,
-          type: "plan.event",
-          plan: {
-            planId: p.value.planId,
-            version: p.value.version,
-            title: null,
-            status: "withdrawn",
           },
         }
       : { ...base, type: "unreadable" };
@@ -446,12 +423,20 @@ export function decodeDurable(event: EventWire): DurableFact {
 export function decodePendingApprovals(result: {
   readonly approvals: readonly WirePendingApproval[];
   readonly masks?: readonly ApprovalMaskEntry[];
-}): readonly WirePendingApproval[] {
+}): readonly LivePendingApproval[] {
   return result.approvals.flatMap((approval) => {
     const leaves = result.masks?.find((entry) => entry.approvalId === approval.approvalId)?.leaves;
-    const request = maskApprovalRequest(approval.request, leaves);
+    const masked = maskApprovalRequest(approval.request, leaves);
+    const request = masked === null ? null : liveRequestOf(masked);
     return request === null ? [] : [{ ...approval, request }];
   });
+}
+
+/** 승인 요청을 화면 모양으로 바꾼다. 은퇴한 계획 승인이면 null이다 */
+export function liveRequestOf(request: ApprovalRequestedPayload): LiveApprovalRequest | null {
+  const { body } = request;
+  if (body.kind === "plan") return null;
+  return { ...request, body };
 }
 
 /**

@@ -13,7 +13,6 @@ import type {
   TurnId,
   TurnStartedPayload,
 } from "@fresnel/contracts/conversation";
-import type { PlanId } from "@fresnel/contracts/capabilities";
 import type {
   ApprovalRequestedPayload,
   ApprovalResolvedPayload,
@@ -46,14 +45,15 @@ type DurableBase = {
 };
 
 /**
- * 계획 사건의 내용(내구, `work.plan_submitted`·`work.plan_withdrawn`). 본문과 산출물은 싣지 않는다.
- * 제출은 "submitted", 승인 없이 나가기는 "withdrawn"이다. 철회 사건은 제목이 없어 title이 null이다.
+ * 거울과 화면이 받는 승인 요청. 은퇴한 계획 승인(`body.kind` "plan")은 여기 없다. 엔진이 대기 목록에 올리지 않으므로 화면에 뜰 일이 없다.
  */
-export type PlanEventFact = {
-  readonly planId: PlanId;
-  readonly version: number;
-  readonly title: string | null;
-  readonly status: "submitted" | "withdrawn";
+export type LiveApprovalRequest = Omit<ApprovalRequestedPayload, "body"> & {
+  readonly body: Exclude<ApprovalRequestedPayload["body"], { readonly kind: "plan" }>;
+};
+
+/** approval.list의 대기 승인 한 건(화면 모양의 요청) */
+export type LivePendingApproval = Omit<WirePendingApproval, "request"> & {
+  readonly request: LiveApprovalRequest;
 };
 
 /**
@@ -108,7 +108,7 @@ export type DurableFact =
   | (DurableBase & { readonly type: "item.recorded"; readonly item: ItemRecord })
   | (DurableBase & {
       readonly type: "approval.requested";
-      readonly request: ApprovalRequestedPayload;
+      readonly request: LiveApprovalRequest;
     })
   | (DurableBase & {
       readonly type: "approval.resolved";
@@ -124,7 +124,6 @@ export type DurableFact =
   | (DurableBase & { readonly type: "scope.changed"; readonly payload: ScopeChangedPayload })
   | (DurableBase & { readonly type: "review.applied"; readonly payload: ReviewAppliedPayload })
   | (DurableBase & { readonly type: "review.submitted"; readonly payload: ReviewSubmittedPayload })
-  | (DurableBase & { readonly type: "plan.event"; readonly plan: PlanEventFact })
   /** 대화 요약. 구분선과 "요약 보기"가 쓴다. 사건 id는 `DurableBase.eventId`다 */
   | (DurableBase & { readonly type: "thread.compacted"; readonly compaction: CompactionFact })
   /** 큐에 든 입력. 입력 id는 이 사실의 `eventId`다 */
@@ -236,7 +235,7 @@ export type MirrorInput =
       readonly truncated?: true;
     }
   | { readonly type: "transcript_closed" }
-  | { readonly type: "approvals"; readonly approvals: readonly WirePendingApproval[] }
+  | { readonly type: "approvals"; readonly approvals: readonly LivePendingApproval[] }
   /**
    * 화면이 승인을 대기열에서 뺀다(응답이 이미 해결됐다는 답 뒤의 제거, host가 모르는 승인의 지우기). 내구 사실이 아니라 거울만 바꾼다.
    * 거울에 없는 id면 아무것도 하지 않는다. 뺀 id는 `resolved`에 남아 목록 복원이 되살리지 못한다.

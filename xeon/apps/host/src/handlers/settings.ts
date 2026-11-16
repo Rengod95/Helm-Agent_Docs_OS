@@ -3,7 +3,6 @@ import { parseModelRef } from "@fresnel/contracts/services";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   checkSettingWrite,
-  resolveSetting,
   toSettingDefWire,
   type EffectiveSetting,
   type SettingDef,
@@ -22,6 +21,7 @@ import type { ConnectionHub } from "../connection-types.ts";
 import type { Engine, SettingsFileFailure, SettingsWriteFailure } from "../types.ts";
 import { threadLocked, withWriteOwner } from "./owner.ts";
 import { settingsFileInvalidDetails } from "../settings-file-details.ts";
+import { resolveEngineSetting } from "../settings-read.ts";
 
 // L4.host-service.spec §3.4. settings.get(M1)과 settings.set, settings.reset, settings.list(M2, HOST.2).
 // 값 검사는 F의 checkSettingWrite가 한다. 오류 details에는 값을 싣지 않는다(F wire §4.9 시크릿 값 비표시 규칙 4).
@@ -69,7 +69,7 @@ export function createSettingsGetHandler(engine: Engine): WireHandler<"settings.
       if (def === undefined) {
         throw wireError("settings.unknownKey", { details: { key } });
       }
-      const resolved = resolveSetting(def, layers);
+      const resolved = resolveEngineSetting(def, layers);
       for (const issue of resolved.issues) {
         // 값은 싣지 않는다(시크릿 값 비표시 규칙). 건너뛴 범위와 이유만 남긴다
         ports.log.info("settings.value_skipped", {
@@ -176,13 +176,13 @@ function effectiveOf(
 ): EffectiveSetting {
   return withProblem(
     engine,
-    withPending(engine, resolveSetting(def, engine.ports.settings.layers(threadId)).setting),
+    withPending(engine, resolveEngineSetting(def, engine.ports.settings.layers(threadId)).setting),
   );
 }
 
 /** 쓰기 전에 지금 값을 적용된 값으로 기억한다 */
 function rememberApplied(engine: Engine, def: SettingDef, threadId: ThreadId | undefined): void {
-  withPending(engine, resolveSetting(def, engine.ports.settings.layers(threadId)).setting);
+  withPending(engine, resolveEngineSetting(def, engine.ports.settings.layers(threadId)).setting);
 }
 
 /** 모델 id를 값으로 갖는 설정 키: 기본 모델과 역할별 모델 */

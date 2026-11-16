@@ -9,7 +9,7 @@ import {
 import { rawId } from "../helpers/ids.ts";
 
 // L0.secrets.spec §3.5.1, F.wire-settings.spec §3.4.5a [결정: 2026-11-03 사용자].
-// 승인 카드의 제목, 출처, 본문(도구 인자, 계획, 질문, 검토)은 호스트가 준 구간으로 가린다. 요청 키와 식별자는 바뀌지 않는다.
+// 승인 카드의 제목, 출처, 본문(도구 인자, 질문, 검토)은 호스트가 준 구간으로 가린다. 요청 키와 식별자는 바뀌지 않는다.
 
 const THREAD = rawId("thr", 1);
 const VALUE = "maskprobe";
@@ -105,19 +105,6 @@ describe("maskApprovalRequest", () => {
     const caller = payload.origin.caller;
     const masked = maskApprovalRequest(payload, [kvLeaf("/origin/caller", caller)]);
     expect(masked?.origin.caller).toBe("ext:token=[REDACTED:kv]");
-  });
-
-  test("a plan body has its text masked, and a non-string plan (a blob) is kept as it is", () => {
-    const text = `step one with token=${VALUE}`;
-    const payload = build("Plan", {
-      kind: "plan",
-      plan: { plan: text, planRef: null, nextModes: ["default"] },
-    });
-    const masked = maskApprovalRequest(payload, [kvLeaf("/body/plan/plan", text)]);
-    expect(masked?.body.kind === "plan" ? masked.body.plan.plan : null).toBe(
-      "step one with token=[REDACTED:kv]",
-    );
-    expect(JSON.stringify(masked)).not.toContain(VALUE);
   });
 
   test("a question's text and option labels are masked; its ids are unchanged", () => {

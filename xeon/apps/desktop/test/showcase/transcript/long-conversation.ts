@@ -152,10 +152,6 @@ ${MINIFIED}
 
 ${BASE64}`;
 
-const PLAN_LONG = `1. ${PATH_LONG}을 고친다.
-2. ${CMD_LONG}
-3. ${URL_LONG}`;
-
 const AGENT_LONG = `## 보고\n\n- ${URL_LONG}\n- \`${MINIFIED.slice(0, 300)}\`\n\n\`\`\`\n${CODE_LINE}\n\`\`\``;
 
 const ITEMS: readonly ItemRecord[] = [
@@ -208,8 +204,6 @@ const ITEMS: readonly ItemRecord[] = [
   result(16, "l-mcp", "mcp__docs__search_pages", MINIFIED, {
     details: { server: "docs", tool: "search_pages" },
   }),
-  assistant(17, [call("l-plan", "submit_plan", { title: `계획 ${PATH_LONG}`, body: PLAN_LONG })]),
-  result(18, "l-plan", "submit_plan", "Plan p1 v1: Approved"),
   assistant(19, [call("l-agent", "agent", { agent: "reviewer", task: `점검 ${URL_LONG}` })]),
   result(20, "l-agent", "agent", AGENT_LONG, { details: { status: "completed" } }),
   assistant(21, [

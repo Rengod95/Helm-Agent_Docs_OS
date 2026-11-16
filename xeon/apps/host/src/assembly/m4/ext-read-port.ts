@@ -18,12 +18,7 @@ import {
   type McpToolInfo,
 } from "@fresnel/contracts/capabilities";
 import type { GroupStatus } from "@fresnel/contracts/services";
-import {
-  resolveSetting,
-  type ScopeStack,
-  type SettingCatalog,
-  type SettingScope,
-} from "@fresnel/contracts/settings";
+import type { ScopeStack, SettingCatalog, SettingScope } from "@fresnel/contracts/settings";
 import type {
   CapabilityBinding,
   EnabledSource,
@@ -65,6 +60,7 @@ import {
   type PreviewRow,
 } from "@fresnel/ext-host";
 import type { ExtReadPort, ExtReadResult } from "../../handlers/m4/ext-read.ts";
+import { resolveEngineSetting } from "../../settings-read.ts";
 import type { HostErrorMappers, ProfileWriteFailure } from "../../handlers/m4/profile-test-run.ts";
 import type { M4HostEnv, M4PortDeps } from "./deps.ts";
 
@@ -1041,7 +1037,7 @@ export function createExtReadPort(
       if (!thread.ok) return thread;
       const def = sources.settings.catalog.get(params.key);
       if (def === undefined) return err({ kind: "unknown_setting", key: params.key });
-      const { setting } = resolveSetting(def, sources.settings.layers(params.threadId));
+      const { setting } = resolveEngineSetting(def, sources.settings.layers(params.threadId));
       const scope = setting.source.scope === "default" ? null : setting.source.scope;
       const context = sources.settings.writerContext?.(params.key, params.threadId);
       return ok({

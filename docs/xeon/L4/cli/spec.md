@@ -72,7 +72,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `fresnel chat -p <입력>`, `--print <입력>` | print 모드. 입력 하나로 turn 하나를 돌리고 응답 텍스트를 stdout에 쓴다. `-p -` 또는 `-p`만 쓰면 stdin 전체가 입력이다 | 위와 같음 | M1 |
 | `fresnel chat -p … --json` | JSON 모드. 연결에서 오간 JSON-RPC 메시지를 순서대로 한 줄에 하나씩 쓴다(§4.4) | 위와 같음 | M1 |
 | `fresnel chat -p … --quiet` | print 모드(JSON 모드 제외)는 turn이 끝난 뒤 `usage.get { threadId }`로 이 대화의 합을 읽어 stderr에 한 줄(`사용량: 토큰 N · 비용 $X · 호출 M회`)을 쓴다. `--quiet`이면 부르지도 쓰지도 않는다. 엔진이 `usage.get`을 처리하지 않거나 읽지 못하면 쓰지 않고 응답과 종료 코드는 그대로다 [기본값] | `usage.get` | M4 |
-| `fresnel chat -p … --auto-approve` | print 모드에서 도구 승인 요청을 `{ decision: "allow" }`로 한 번 허용한다(`remember`를 보내지 않는다). 질문·계획·검토 승인은 거부한다. 승인마다 stderr에 한 줄을 쓴다(§4.11 4번). 대화형과 함께 쓰면 사용법 오류 2(`autoApproveRequiresPrint`) | `approval.respond`(`decision: "allow"`) | M3(구현됨, M3b B1-SCH) |
+| `fresnel chat -p … --auto-approve` | print 모드에서 도구 승인 요청을 `{ decision: "allow" }`로 한 번 허용한다(`remember`를 보내지 않는다). 질문·검토 승인은 거부한다. 계획 승인은 2026-11-13 폐지 [결정: 2026-11-13 사용자]. 승인마다 stderr에 한 줄을 쓴다(§4.11 4번). 대화형과 함께 쓰면 사용법 오류 2(`autoApproveRequiresPrint`) | `approval.respond`(`decision: "allow"`) | M3(구현됨, M3b B1-SCH) |
 | `fresnel chat --continue` | 현재 작업 폴더의 마지막 대화를 이어 연다. M1은 CLI 상태 파일, M2부터 `thread.list`. 대화형이고 그 대화에 끊긴 turn이 있으면 묻고 `turn.resume`을 부른다(§4.4) | M1: 위와 같음. M2: `thread.list`, `thread.open` 추가 | M1 |
 | `fresnel chat --resume <id>` | 지정 대화를 이어 연다 | M1: `events.subscribe`, `turn.start`. M2: `thread.open` 추가 | M1 |
 | `fresnel chat --set <key>=<value>` | 이 대화에만 설정을 덮어쓴다(launch 범위). 여러 번 쓸 수 있다 | `settings.set`(scope `launch`, `threadId`) | M2 |
@@ -447,7 +447,7 @@ export interface ToolResultRenderer {
   /** details(UI 채널)를 줄로 바꾼다. 모양이 맞지 않으면 undefined를 돌려 일반 규칙으로 넘긴다. */
   render(details: unknown, width: number): readonly string[] | undefined;
 }
-export declare const BUILTIN_TOOL_RENDERERS: readonly ToolResultRenderer[];   // M1: read, ls, bash
+export declare const BUILTIN_TOOL_RENDERERS: readonly ToolResultRenderer[];   // M1: read, bash
 ```
 
 ### 3.6 종료 코드 [제안]
@@ -900,12 +900,11 @@ export interface GroupTemplatesPort {
   3. `approval.resolved` 이벤트가 오면 프롬프트를 닫는다. 다른 클라이언트가 먼저 답한 경우도 같다.
   4. print 모드는 프롬프트를 열 수 없으므로 답을 자동으로 보내고 승인마다 stderr에 한 줄 알린다. 기본(플래그 없음)은 모든 승인에 `decision: "deny"`로 답한다(`createAutoDeny`). 엔진은 사전 허용 규칙(`l1.tools.rules`, L1.tools 정책)을 승인 요청 전에 적용하므로, CLI가 받는 `approval.requested`는 사전 허용되지 않은 요청이다. 그래서 기본 모드는 사전 허용 규칙만 적용하고 나머지는 거부한다 [결정: review.m3-design-inputs D-M3-14 c](§10 8번).
      - `--auto-approve`는 옵션이다 [결정: 오케스트레이터 기본값, M3b B1-SCH]. 도구 승인(`form.kind === "tool"`)만 `{ decision: "allow" }`로 한 번 허용한다. `remember`는 보내지 않는다(호스트가 `once`로 본다). 승인마다 stderr에 `승인 요청 "<제목>"을 --auto-approve로 허용했다`를 쓴다. 응답이 적용되지 않았으면 이유를 붙이고(`already_resolved`는 아래 한 줄로 바꾼다), 응답 수단이 없으면 그 사실을 붙인다(`createAutoAllow`).
-     - 질문, 계획, 검토 승인은 사람이 답해야 하므로 이 플래그로도 거부한다. 거부 알림은 기본과 같다. 자동 응답은 사람의 답(질문 번호, 수정 요청 내용)을 대신하지 않는다.
+     - 질문과 검토 승인은 사람이 답해야 하므로 이 플래그로도 거부한다. 거부 알림은 기본과 같다. 자동 응답은 사람의 답(질문 번호, 수정 요청 내용)을 대신하지 않는다.
      - 알림에는 승인 제목만 쓴다. 본문(명령, 인자, `secret://` 핸들)은 쓰지 않는다.
   5. payload 모양은 `L1.tools.spec` 소관이다. CLI는 제목·본문·질문 여부만 읽는다.
   6. 구현 (대화형 줄 입력): 요청 payload의 `remember`가 허용하는 범위만 보인다.
      - 도구: `[y]` 이번만 허용, `[t]` 이 대화 동안 허용(`thread`가 있을 때), `[a]` 항상 허용(`always`가 있을 때), `[n]` 거부. `n` 뒤에 이유를 받아 있으면 `answer: { feedback }`으로 보낸다.
-     - 계획: `[y]` 승인이면 `nextModes` 중 하나(엔터는 지금 모드)와 메모를 받아 `answer: { mode?, note? }`로 보낸다. `[n]`은 도구와 같다.
      - 검토(`review`, ADR-0018): 카드는 제목, 라운드, 파일별 변경 종류와 hunk 수 요약만 보인다(hunk 본문은 요청에 없다). 프롬프트는 `[y] 모두 승인  [r] 일부 거절  [c] 수정 요청  [n] 모두 거절`이다. 그 밖의 입력은 `y, r, c, n 중 하나를 입력한다`를 보이고 다시 묻는다.
        - `[y]` 모두 승인은 `decision: "answer"`와 `ReviewAnswer { decisions: [], comments: [], submit: true, approveRemaining: true }`로 보낸다.
        - `[r]` 일부 거절은 `거절할 hunk (쉼표로 구분, 예 f0h1,f1h0 / all = 전부) > `를 한 번 더 묻는다. hunk id는 카드의 파일 순서대로 `f<파일 순번>h<hunk 순번>`이고 둘 다 0부터 센다. `all`은 카드가 보인 hunk id 전부다. 목록에 없는 id는 `알 수 없는 hunk: <id>`를, 빈 입력은 `알 수 없는 hunk: (비어 있음)`을 보이고 검토 프롬프트로 돌아간다. hunk가 하나도 없는 카드에서는 `[r]`을 받지 않고 `거절할 hunk가 없다`를 보인 뒤 검토 프롬프트로 돌아간다. 고른 id는 `rejected`로, 나머지는 승인하고 제출한다: `decision: "answer"`와 `ReviewAnswer { decisions: [{ hunkId, decision: "rejected" }, …], comments: [], submit: true, approveRemaining: true }`로 보낸다.
@@ -950,7 +949,7 @@ export interface GroupTemplatesPort {
     - `host.hello`의 `features`에 `thread.compact`가 없는 호스트에서는 부르지 않고 "이 엔진은 수동 컴팩션을 처리하지 않는다"를 알린다.
     - 이름이 같은 엔진 명령이 있어도 내장이 앞선다. `/help`와 Tab 완성에 보인다. 자동 컴팩션(`threshold`, `overflow`)은 루프가 하고 CLI는 관여하지 않는다.
   - `/help`, `/quit`: CLI 내장.
-  - 엔진 명령 [결정: m2c G1-01]: 내장도 별칭도 아닌 이름은 줄 전체를 `command.run { threadId, text }`에 그대로 넘긴다. `/plan`, `/tasks`, `/goal`처럼 L2·L3 코드가 등록한 동작 명령이 여기서 실행된다. 이름이 겹치면 내장과 별칭이 앞선다.
+  - 엔진 명령 [결정: m2c G1-01]: 내장도 별칭도 아닌 이름은 줄 전체를 `command.run { threadId, text }`에 그대로 넘긴다. `/tasks`, `/goal`처럼 L2·L3 코드가 등록한 동작 명령이 여기서 실행된다. 이름이 겹치면 내장과 별칭이 앞선다.
     - 결과 `done`은 `message`를 stdout에 쓴다. `message`가 `null`이고 `result`가 `null`이 아니면 `result`를 들여쓴 JSON으로 쓴다. 동작 명령은 turn을 만들지 않는다.
     - 결과 `expanded`는 템플릿을 펼친 최종 텍스트다. 사용자가 그 텍스트를 친 것처럼 `turn.start`로 보낸다(`command.run`은 turn을 만들지 않는다).
     - 결과 `needs_confirmation`은 셸 주입이 있는 템플릿이다. 실행할 셸 명령을 보이고 `[y/N]`로 묻는다. `y`면 `confirmShell: true`로 한 번 더 부르고, 그 밖의 입력은 "실행하지 않았다"를 알리고 끝낸다.
@@ -1185,9 +1184,9 @@ $ fresnel db previous-rm 20261106T010203004Z --yes --json
 - AC13. stdout이 TTY가 아닐 때 `fresnel secret reveal <name>`은 2로 끝나고, stdout·stderr·이벤트 DB 어디에도 그 시크릿 값이 없다. TTY에서 열람하면 감사 기록이 한 건 늘고 그 기록에 값이 없다.
 - AC14. [결정: 2026-11-04 사용자 B15] 키 플러그인이 없는 설정에서 `fresnel doctor`는 검색 provider 묶음 두 줄(검색 provider 줄과 키 플러그인 권장 줄)을 내고, 권장 목록에 Exa와 Brave가 있다. SearXNG 줄과 SearXNG 탐침은 없다. 옛 AC14의 SearXNG 주소 부분(빈 주소에서 탐침하지 않음, 옛 후보 주소에서 응답해도 쓰지 않음)은 삭제됐다.
 - AC24. `fresnel doctor`는 `host.status { includeBinaries: true }`를 한 번 보내 바이너리마다 한 줄을 낸다. 필수 바이너리를 쓸 수 없으면 종료 코드 3이고 선택 바이너리만 빠졌으면 0이다. `--json`의 `binaries`는 호스트가 준 보고서와 같다.
-- AC15. 승인 프롬프트의 응답이 kind별 정본 모양이다: 도구 허용은 `remember`만, 거부 이유는 `{ feedback }`, 계획 승인은 `{ mode?, note? }`, 질문은 `QuestionAnswer`, 검토는 `ReviewAnswer`다. 다른 클라이언트가 먼저 답하면 열린 프롬프트가 닫히고 `approval.respond`를 보내지 않는다.
+- AC15. 승인 프롬프트의 응답이 kind별 정본 모양이다: 도구 허용은 `remember`만, 거부 이유는 `{ feedback }`, 질문은 `QuestionAnswer`, 검토는 `ReviewAnswer`다. 계획 승인(`plan`)은 2026-11-13 폐지로 답을 받지 않는다 [결정: 2026-11-13 사용자]. 다른 클라이언트가 먼저 답하면 열린 프롬프트가 닫히고 `approval.respond`를 보내지 않는다.
 - AC16. `host --stdio`의 stdout에는 JSON-RPC 메시지만 나오고(사람용 출력은 stderr), stdin EOF에서 0으로 끝난다. `l4.cli.*` 키가 그 호스트의 카탈로그에 있다. 컴파일(`--minify --bytecode`) 바이너리에서도 같다.
-- AC17. 대화형이 시작할 때 `command.list { threadId }`로 연 대화의 id를 보내고, `/resume`으로 대화를 바꾸면 새 id로 다시 읽는다. 엔진에 등록한 동작 명령(`/plan on`)을 치면 `command.run { threadId, text: "/plan on" }`이 한 번 가고 `done.message`가 stdout에 나오며 `turn.start`는 가지 않는다. `expanded` 결과는 펼친 텍스트가 `turn.start`의 `input`이 되고, `needs_confirmation`은 사용자가 `y`를 입력해야만 `confirmShell: true`로 다시 간다.
+- AC17. 대화형이 시작할 때 `command.list { threadId }`로 연 대화의 id를 보내고, `/resume`으로 대화를 바꾸면 새 id로 다시 읽는다. 엔진에 등록한 동작 명령(`/tasks`)을 치면 `command.run { threadId, text: "/tasks" }`이 한 번 가고 `done.message`가 stdout에 나오며 `turn.start`는 가지 않는다. `expanded` 결과는 펼친 텍스트가 `turn.start`의 `input`이 되고, `needs_confirmation`은 사용자가 `y`를 입력해야만 `confirmShell: true`로 다시 간다.
 - AC18. 대화형으로 `thread.list`가 `resumable`을 알린 대화를 열면 `이어서 실행할까요? [y/N]`을 묻는다. `y`일 때만 `turn.resume { threadId }`가 한 번 가고, 그 turn의 나머지 이벤트가 그려진다. 새 대화와 print 모드는 묻지 않고 `turn.resume`을 보내지 않는다.
 - AC19. 결정이 없고 신뢰할 자원이 있는 폴더에서 대화형 `chat`을 시작하면 `thread.create`보다 앞서 카드를 묻고, 번호를 입력하면 그 선택지의 `choice`로 `trust.decide { workspace, choice }`가 한 번 간다. 엔터는 `trust.decide`를 보내지 않는다. `fresnel trust allow --scope parent`는 host가 낸 선택지의 `{ kind: "parent", verdict: "allow" }`를 보낸다.
 - AC20. `fresnel secret rm <name>`은 `secret.references`로 읽은 설정 키·활성 lease·최근 대화를 보인 뒤 묻고, 활성 lease가 있으면 `secret.remove`를 보내지 않는다. `fresnel secret test <name>`의 출력에는 길이와 SHA-256 앞 8자가 있고 값, 값의 base64·hex는 stdout·stderr·요청 어디에도 없다.

@@ -17,7 +17,7 @@ binds: [xeon/packages/platform-exec/**]
 | 마일스톤 | 범위 | 근거 |
 |---|---|---|
 | M0 | 포크 5파일과 적합성 자산 복사, 포크 기록 3종, CancelScope 치환(P1), Result 정리(P2), 오류 클래스 F 이동(P6), 테스트 포팅(P4, P5), 플랫폼 provider 추출(P3, darwin·linux), 적합성 스위트 Linux 통과, Bun 동작 스파이크 | [결정: `_research/foundation-plan.md` §5 P4 M0 "`platform-exec`(durable env 포크)"] |
-| M1 | env 허용 목록 빌더, sandbox 데코레이터 접점(조립 시험), `secretEnv` 시크릿 주입 위치(EX-13), `fresnel.exec` 서비스 등록, 설정 정의, `fakeExec`·`memoryFs`, 적합성 macOS 통과 | [결정: foundation-plan §5 M1 "도구 read, ls, bash(sandbox)"]. M1의 "SOPS 시크릿 참조 1종"은 bash 도구의 env 주입(실행마다 승인)으로 검증한다 [결정: review.decisions-2 U-19] |
+| M1 | env 허용 목록 빌더, sandbox 데코레이터 접점(조립 시험), `secretEnv` 시크릿 주입 위치(EX-13), `fresnel.exec` 서비스 등록, 설정 정의, `fakeExec`·`memoryFs`, 적합성 macOS 통과 | [결정: foundation-plan §5 M1 "도구 read, ls, bash(sandbox)"; ls는 2026-11-13 폐지 [결정: 2026-11-13 사용자]]. M1의 "SOPS 시크릿 참조 1종"은 bash 도구의 env 주입(실행마다 승인)으로 검증한다 [결정: review.decisions-2 U-19] |
 | M2 | 백그라운드 실행 `startBackground`(EX-20), 포크 정리 단계 Logger(P16, open-issues N-10), spill 위치를 상태 디렉터리로(EX-22, P19) | [제안: `L0.exec.spec` §1 범위 표], [제안: m2-plan PLT.3] |
 | M2 이후 | Windows provider 보강과 Windows CI, Docker 어댑터, git worktree 격리(2차), SSH(보류) | [제안: `L0.exec.spec` §1 범위 표] |
 
@@ -217,7 +217,7 @@ export function fakeExec(
   - EX-10 스파이크 결과(통과 또는 대응 전환)를 `PATCHES.md` 끝 "확인 기록"에 남긴다.
 - M1:
   - 위 조건에 더해 macOS CI에서 적합성 스위트가 통과한다.
-  - `fresnel.exec`가 ext-host로 등록되고 `L2.workspace`의 `read`·`ls`·`bash`가 이 서비스로 돈다(M1 스모크, `product.scope.spec` §4.4).
+  - `fresnel.exec`가 ext-host로 등록되고 `L2.workspace`의 `read`·`bash`가 이 서비스로 돈다(M1 스모크, `product.scope.spec` §4.4).
   - `L0.exec.spec` §9 수용 기준 1~11이 아래 대응 표의 시험으로 확인된다. 10번은 M1에서 Windows provider 단위 시험까지만 확인한다. 5번은 EX-13(M1), 12번은 M2(EX-20)다.
 - M2: §9 12번이 `background.int.test.ts`로 확인된다.
 - M2 이후: §9 10번의 Windows 네이티브 적합성 기대 표가 Windows CI 결과로 갱신된다.

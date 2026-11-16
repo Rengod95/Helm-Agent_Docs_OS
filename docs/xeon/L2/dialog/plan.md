@@ -23,7 +23,7 @@ binds: [xeon/packages/cap-dialog/**]
 | M3 이후(2차) | 곁가지 질문(`dialog.aside`) D9, 출력 스타일(`dialog.styles`) D10 | `_research/layer-plan-v2.json` L2-f 2차 |
 | 보류 | 음성 입력(L4 입력 어댑터) | `_research/layer-plan-v2.json` L2-f 보류, `L2.dialog.spec` §1 |
 
-- M2 종료 조건 중 이 패키지가 맡는 것: "질문 도구와 계획 승인이 같은 승인 요청 레코드로 기록된다"(`product.scope.spec` §4.4 M2). `L2.work.plan`과 공동이다.
+- M2 종료 조건 중 이 패키지가 맡는 것: "질문 도구와 계획 승인이 같은 승인 요청 레코드로 기록된다"(`product.scope.spec` §4.4 M2). 계획 승인은 2026-11-13 폐지 [결정: 2026-11-13 사용자]이라 질문 쪽만 본다.
 - 알림을 M3에 두는 것은 [제안]이다. `_research/layer-plan-v2.json` L2-f에는 알림 행이 없고, 3차 결정이 알림을 범위에 넣었다. 서비스 모드(M3)와 함께 쓰이므로 M3에 둔다(`L2.dialog.spec` §10 D-11).
 
 ## 2. 패키지와 파일 배치
@@ -180,7 +180,7 @@ spec §9 수용 기준과 테스트의 대응:
 M2:
 
 1. §5의 M2 테스트(질문, 명령, 상태줄, 첨부, 정의, 카탈로그)가 통과한다. 위 표의 M2 행(spec §9-1~5, 7, 8)이 모두 포함된다.
-2. M2 종료 조건 "질문 도구와 계획 승인이 같은 승인 요청 레코드로 기록"이 `L2.work.plan`의 계획 테스트와 함께 통과한다(두 테스트가 L1.tools의 같은 `approval.requested` payload 스키마로 검사).
+2. M2 종료 조건 "질문 도구와 계획 승인이 같은 승인 요청 레코드로 기록"은 계획 승인 폐지(2026-11-13 사용자)로 질문 쪽만 확인한다. 질문 승인은 L1.tools의 `approval.requested` payload 스키마로 검사한다.
 3. `cd xeon && just verify`가 종료코드 0이다.
 4. `L2.dialog.spec` §10 D-1·D-2·D-3이 F·L1 문서와 합의되어 포트 파일의 [가정] 주석이 실제 이름으로 바뀌었다.
 

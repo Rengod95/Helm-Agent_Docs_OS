@@ -2,14 +2,10 @@ import { readFile } from "node:fs/promises";
 import { assertNever, attemptAsync, jsonErrorPosition, parseJson } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { SessionSettingsStore } from "@fresnel/contracts/records";
-import {
-  resolveSetting,
-  type ScopeLayer,
-  type ScopeStack,
-  type SettingCatalog,
-} from "@fresnel/contracts/settings";
+import type { ScopeLayer, ScopeStack, SettingCatalog } from "@fresnel/contracts/settings";
 import type { SettingsFileProblem } from "@fresnel/contracts/wire";
 import type { SettingsChange } from "../types.ts";
+import { resolveEngineSetting } from "../settings-read.ts";
 
 // L4.host-service.spec §3.3.2 SettingsStorePort의 읽기 쪽. 설정 파일 범위의 위치·읽기·병합은 호스트 소유다
 // (L1.persistence.spec §6.2 마지막 [제안]). M1은 사용자 파일 하나와 세션 범위를 읽는다:
@@ -247,7 +243,7 @@ export function createSettingsEngine(catalog: SettingCatalog): SettingsEngine {
     value(key, threadId) {
       const def = catalog.get(key);
       if (def === undefined) return undefined;
-      return resolveSetting(def, layers(threadId)).setting.value;
+      return resolveEngineSetting(def, layers(threadId)).setting.value;
     },
     raw(prefix) {
       const out: Record<string, unknown> = {};

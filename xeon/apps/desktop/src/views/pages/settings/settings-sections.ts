@@ -169,12 +169,7 @@ export const SETTINGS_SECTIONS: Readonly<Record<SettingsSectionId, SectionSpec>>
     parts: [
       panel("permissionMode", ["l1.tools.permissionMode", "l1.tools.bypassAllowed"]),
       panel("permissionRules", ["l1.tools.rules"]),
-      panel("approvalWait", [
-        "l1.tools.unattended.approval",
-        "l1.tools.unattended.timeoutSeconds",
-        "l2.work.plans.requireApproval",
-        "l2.work.plans.exitOnApprove",
-      ]),
+      panel("approvalWait", ["l1.tools.unattended.approval", "l1.tools.unattended.timeoutSeconds"]),
       panel("trust", ["x.loading-trust.defaultProjectTrust"]),
       panel("webAccess", [
         "l2.web.policy.allow",

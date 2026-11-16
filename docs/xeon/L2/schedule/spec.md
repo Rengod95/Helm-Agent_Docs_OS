@@ -850,8 +850,8 @@ export const ScheduleTimersKey = serviceKey(ScheduleTimers);
 export const PendingRequestSchema = Type.Object({
   approvalId: Type.String({ minLength: 1, maxLength: 64 }),
   threadId: ThreadIdSchema,
-  /** approval.requested의 종류. L2가 쓰는 kind 넷(L2.readme §5.7). review는 L1.tools 요청([미결] L2.readme §10 미결 14) */
-  kind: Type.Union([Type.Literal("tool"), Type.Literal("question"), Type.Literal("plan"), Type.Literal("review")]),
+  /** approval.requested의 종류. L2가 쓰는 kind 셋(L2.readme §5.7. 계획 kind `plan`은 2026-11-13 폐지 [결정: 2026-11-13 사용자]). review는 L1.tools 요청([미결] L2.readme §10 미결 14) */
+  kind: Type.Union([Type.Literal("tool"), Type.Literal("question"), Type.Literal("review")]),
   /** 원격 화면용 요약. 시크릿 값과 도구 출력 원문을 담지 않는다(§4.5.2) */
   summary: Type.String({ maxLength: 500 }),
   requestedAt: EpochMsSchema,
@@ -1437,7 +1437,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 3. 클라이언트가 `approval.respond`(F wire §3.3.1)를 보낸다. 호스트는 연결이 원격이면 `schedule.remote.respond({ ...params, clientId })`로 넘기고, 로컬이면 기존 경로(`ApprovalPort.respond`)를 쓴다 [제안].
 4. `respond`는 정책을 검사한다: `l2.schedule.remote.enabled`가 거짓이면 `remote_disabled`, `l0.process.service.allowRemoteRespond`(L0.process §6)가 거짓이면 `respond_not_allowed`(wire에서는 `approval.remoteNotAllowed` 3009), `remember: "always"`는 `remember_not_allowed`다. "항상 허용" 같은 영구 정책 변경은 로컬에서만 하게 하려는 것이다 [제안].
 5. 통과하면 `fresnel.approvals`에 응답하고, 승인 요청이 있던 대화에 `schedule.remote_responded`를 커밋한다.
-- 질문 도구(`dialog.ask`)와 계획 승인(`work.plans`), 리뷰(`artifacts.reviews`, kind `review`는 [미결] `L2.readme` §10 미결 14)는 모두 같은 승인 프로토콜을 쓰므로 원격 답도 같은 경로다(결정 5, `product.usecases.spec` "질문·계획 승인" 행).
+- 질문 도구(`dialog.ask`)와 리뷰(`artifacts.reviews`, kind `review`는 [미결] `L2.readme` §10 미결 14)는 모두 같은 승인 프로토콜을 쓰므로 원격 답도 같은 경로다(결정 5, `product.usecases.spec` "질문 승인" 행).
 - `pending.summary`는 승인 요청의 표시용 요약에서 만든다. 도구 인자 원문과 출력 원문, 시크릿 값을 넣지 않는다. 원격 화면이 잃어버리거나 엿보이는 기기에 있을 수 있기 때문이다.
 
 #### 4.5.3 인증 요구

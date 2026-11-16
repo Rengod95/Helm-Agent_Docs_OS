@@ -306,6 +306,11 @@ export const POLICY_TIER_ORDER: readonly PolicyTier[] = ["default", "extension",
 
 /** 권한 모드. 계획 모드(`plan`)는 없다 [결정: 2026-11-13 사용자]. 저장된 옛 `plan` 값은 설정 읽기가 `default`로 본다(core-tools settings) */
 export type PermissionMode = "default" | "acceptEdits" | "bypass";
+/**
+ * 은퇴한 권한 모드 값. 옛 사용자 규칙의 `resource.mode`에 남아 있을 수 있어 읽기에서만 받는다. 규칙 전체가 버려지지 않게 하려는 것이고,
+ * 걸러내는 일은 core-tools 로더가 한다. 새로 쓰지 않는다 [결정: 2026-11-15 사용자]
+ */
+export type RetiredPermissionMode = "plan";
 /** 엄격한 쪽이 앞이다. 자식 모드 계산(L1.agents)에 쓴다 */
 export const PERMISSION_MODE_STRICTNESS: readonly PermissionMode[] = [
   "default",
@@ -339,7 +344,8 @@ export interface PolicyResource {
   readonly caller?: "main" | "subagent" | `subagent:${string}`;
   /** 이 깊이 이상에서만 일치(L1.agents 재귀 spawn 차단) */
   readonly minDepth?: number;
-  readonly mode?: readonly PermissionMode[];
+  /** 모드 목록. 은퇴한 `plan`은 옛 규칙을 읽으려고만 받는다(RetiredPermissionMode) */
+  readonly mode?: readonly (PermissionMode | RetiredPermissionMode)[];
 }
 
 export interface PolicyRule {
@@ -471,6 +477,8 @@ const policyRuleShape = Type.Object(
               Type.Literal("default"),
               Type.Literal("acceptEdits"),
               Type.Literal("bypass"),
+              // 은퇴한 값. 읽기에서만 받는다(RetiredPermissionMode)
+              Type.Literal("plan"),
             ]),
             { maxItems: 4 },
           ),

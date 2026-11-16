@@ -63,7 +63,7 @@ export type TurnRef = {
 };
 
 /** 결과물이라 묶지 않고 카드로 늘 보이는 도구 */
-const CARD_TOOLS: ReadonlySet<string> = new Set(["agent", "task_write", "submit_plan"]);
+const CARD_TOOLS: ReadonlySet<string> = new Set(["agent", "task_write"]);
 /** 묶지 않고 한 줄로 드러내는 도구(파일 변경은 diff가 보여야 한다) */
 const SOLO_TOOLS: ReadonlySet<string> = new Set(["edit", "write"]);
 

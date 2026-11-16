@@ -291,7 +291,7 @@ export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 | `lease.rejected` | 예 | `LeaseRejectedPayloadSchema` | drive 락 요청이 대기 상한 뒤 거부됨(`{ groupId, reason, requestSeq }`). 수명주기 훅 `lifecycle.lease.rejected`의 페이로드 [결정: adr.0017, `review.m3-lower-requirements` M3-REQ-99] |
 | `post.accepted` | 예 | `PostAcceptedPayloadSchema` | retired(`retired: true`, [결정: review.decisions-2 U-05]). 새로 쓰지 않는다. M1 개발 DB에 남은 행을 읽을 때만 스키마를 쓴다. 확장 post의 기록은 `input.queued`(`source.type: "extension"`)다 |
 | `settings.changed` | 예 | `SettingsChangedPayloadSchema` | 대화 범위 설정 변경 |
-| `approval.requested` | 예 | `ApprovalRequestedPayloadSchema` | 승인 요청. `body.kind`는 `tool` \| `question` \| `plan`. 승인 id = 이 이벤트 id |
+| `approval.requested` | 예 | `ApprovalRequestedPayloadSchema` | 승인 요청. `body.kind`는 `tool` \| `question` \| `review`다. 옛 `plan`은 은퇴했고 옛 행을 읽기만 한다 [결정: 2026-11-13 사용자], [결정: 2026-11-15 사용자]. 승인 id = 이 이벤트 id |
 | `approval.resolved` | 예 | `ApprovalResolvedPayloadSchema` | 승인 응답 결과. 다른 기기에서 답했으면 선택 필드 `deviceId`에 그 기기 id가 남는다(`L4.remote.spec` §8.9) [결정: 2026-11-12 사용자] |
 | `input.queued` | 예 | `InputQueuedPayloadSchema` | 입력 큐 등록. 입력 id = 이 이벤트 id |
 | `input.placed` | 예 | `InputPlacedPayloadSchema` | 큐 입력을 대화 item으로 배치 |
@@ -420,7 +420,7 @@ export interface ApprovalOriginJson {
 export type ApprovalBodyJson =
   | { kind: "tool"; tool: { toolName: string; capability?: { id: string; method: string }; risk: string;
                             args: JsonObject | BlobRef; argsHash: string; ruleId: string | null } }
-  | { kind: "plan"; plan: { plan: string | BlobRef; planRef: string | null; nextModes: string[] } }
+  | { kind: "plan" }   // 은퇴한 옛 계획 승인. 읽기만 한다. 나머지 필드는 값을 검사하지 않는다 [결정: 2026-11-15 사용자]
   | { kind: "question"; question: { questions: { id: string; header?: string; text: string;                    // header: 1~64자 머리글
                                                  options: { id: string; label: string; description?: string; recommended?: boolean }[];
                                                  multiSelect: boolean; allowFreeText: boolean }[] } }   // questions 1~4개
@@ -458,11 +458,11 @@ export interface ApprovalResolvedPayload {
 
 /**
  * approval.respond의 answer 정본 모양이다. 승인 서비스는 검증한 응답의 answer를 approval.resolved의 answer(ApprovalResolvedPayload.answer)에 그대로 싣는다 [결정: m2 F.8].
- * 스키마는 ApprovalAnswerSchema = PlanAnswerSchema | DenyAnswerSchema | QuestionAnswerSchema | ReviewAnswerSchema (records/catalog/approval.ts).
+ * 스키마는 ApprovalAnswerSchema = DenyAnswerSchema | QuestionAnswerSchema | ReviewAnswerSchema (records/catalog/approval.ts). 옛 계획 승인의 allow 답은 더 받지 않는다 [결정: 2026-11-15 사용자].
  * 어느 kind·decision에 어느 모양이 맞는지는 F.wire-settings.spec §3.3.1이 정한다.
  */
 export type QuestionAnswerJson = Record<string, { selected: string[]; text?: string }>;   // 질문 id → 답. 최대 4개
-export interface PlanAnswerJson { mode?: string; note?: string }       // plan allow. mode는 nextModes 안, note 최대 8192자
+// 옛 계획 승인(plan) allow의 답 { mode?, note? }은 정의하지 않는다. 옛 행은 approval.resolved.answer(JsonValue)로 그대로 읽힌다 [결정: 2026-11-15 사용자]
 export interface DenyAnswerJson { feedback: string }                                      // 1~8192자
 /** review decision "answer" [제안]. 모양은 L2.artifacts.spec §4.2.4 ReviewAnswer와 같다 */
 export interface ReviewAnswerJson {
@@ -569,7 +569,7 @@ export interface ToolUntrustedReadPayload {
 }
 ```
 
-- [결정: m2c G1-09] `origin`의 필드마다 값을 채우는 주체가 하나다. 승인 요청을 올리는 쪽(L1.tools의 도구 승인, L2 어댑터의 질문·계획 승인)이 아니라 승인 서비스(`ApprovalService.open`)가 요청을 받을 때 채우거나 검사한다.
+- [결정: m2c G1-09] `origin`의 필드마다 값을 채우는 주체가 하나다. 승인 요청을 올리는 쪽(L1.tools의 도구 승인, L2 어댑터의 질문 승인)이 아니라 승인 서비스(`ApprovalService.open`)가 요청을 받을 때 채우거나 검사한다.
 
   | 필드 | 값 | 공급 |
   |---|---|---|
@@ -608,7 +608,7 @@ export interface ToolUntrustedReadPayload {
 4. 소유: `TYPE_PREFIX_OWNERS`(`src/records/owners.ts`, 표의 정본은 `eng.context-map.design` §5.1)에 `work.` → `cap.work`, `dialog.` → `cap.dialog`, `artifact.` → `cap.artifacts`, `schedule.` → `cap.schedule` 행을 둔다. 커밋 때 접두 소유 검사는 이 표로 한다.
 5. payload 스키마는 records 순서(`F.readme` §3)를 지켜 각 카탈로그 파일에 둔다. capabilities 정의 파일(`defs/<domain>.ts`)에서 import하지 않는다(`L2.work.spec` W-4 답). 정의 파일과 같은 값 모양(작업, 목표, 보고, 상태줄 세그먼트 등)은 카탈로그 파일에 다시 적고, `test/records/work-catalog.test.ts`·`dialog-catalog.test.ts`가 두 쪽을 JSON Schema로 비교해(설명 문구는 제외) 어긋남을 잡는다. 브랜드 타입은 `base`의 같은 `Brand`라 서로 대입된다. [결정: m2-plan F.3]
 6. 외부 확장이 `DomainArea`·`ReservedDomainArea`를 접두 없이 쓰면 `reserved_area`다. 외부 확장이 L2 도메인 이름을 확장 이름으로 쓰는 경우는 `F.extensions.spec` §4.7 `name_reserved`가 막는다.
-7. [결정: m2-plan F.3] M2 현재 `WORK_EVENT_CATALOG`(10종, 모두 내구)와 `DIALOG_EVENT_CATALOG`(`dialog.status` 휘발, `dialog.notified` 내구)가 `EVENT_CATALOG`에 병합되어 있다. `artifact`(12종)와 `schedule`(15종)은 M3b B0-F가 더했다(`catalog/artifact.ts`, `catalog/schedule.ts`, M3-REQ-14). payload 모양의 정본은 `L2.artifacts.spec` §3.6과 `L2.schedule.spec` §3.7이고, kind·durable 표는 `test/records/artifact-schedule-catalog.test.ts`가 코드와 대조한다. `CatalogEntry` 타입은 `catalog/entry.ts`에 있고 `catalog/index.ts`가 재노출한다(도메인 카탈로그 파일이 `index.ts`를 import하면 순환이라서다).
+7. [결정: m2-plan F.3] M2 현재 `WORK_EVENT_CATALOG`(10종, 모두 내구. 그중 `work.plan_submitted`·`work.plan_withdrawn` 두 종은 은퇴해 `retired: true`이고 payload는 `Type.Unknown()`이다 [결정: 2026-11-15 사용자])와 `DIALOG_EVENT_CATALOG`(`dialog.status` 휘발, `dialog.notified` 내구)가 `EVENT_CATALOG`에 병합되어 있다. `artifact`(12종)와 `schedule`(15종)은 M3b B0-F가 더했다(`catalog/artifact.ts`, `catalog/schedule.ts`, M3-REQ-14). payload 모양의 정본은 `L2.artifacts.spec` §3.6과 `L2.schedule.spec` §3.7이고, kind·durable 표는 `test/records/artifact-schedule-catalog.test.ts`가 코드와 대조한다. `CatalogEntry` 타입은 `catalog/entry.ts`에 있고 `catalog/index.ts`가 재노출한다(도메인 카탈로그 파일이 `index.ts`를 import하면 순환이라서다).
 
 ### 3.4 내구/휘발과 큰 값 분리
 

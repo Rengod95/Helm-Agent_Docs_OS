@@ -696,7 +696,8 @@ export async function openChatSession(
       const listed = await attemptAsync(() => connection.request("approval.list", { threadId }));
       if (listed.ok) {
         for (const pending of listed.value.approvals) {
-          pendingSink.offer(approvalViewOf(pending.approvalId, pending.request));
+          const view = approvalViewOf(pending.approvalId, pending.request);
+          if (view !== undefined) pendingSink.offer(view);
         }
         return;
       }

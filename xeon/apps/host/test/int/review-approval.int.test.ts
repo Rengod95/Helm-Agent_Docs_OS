@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
 import type { JsonObject } from "@fresnel/contracts/conversation";
+import type { ReviewAnswerJson } from "@fresnel/contracts/records";
 import type { EventWire } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
@@ -58,7 +59,7 @@ interface Outcome {
   readonly applied: readonly unknown[];
 }
 
-async function run(reviewAnswer: JsonObject, settledKind: string): Promise<Outcome> {
+async function run(reviewAnswer: ReviewAnswerJson, settledKind: string): Promise<Outcome> {
   const home = useEngineHome();
   writeUserSettings(home, { ...TAPE_SETTINGS, "l0.sandbox.enabled": false });
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "xh-review-")));

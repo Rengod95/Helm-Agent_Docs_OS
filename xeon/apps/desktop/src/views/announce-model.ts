@@ -1,4 +1,4 @@
-import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
+import type { LiveApprovalRequest } from "../state/engine/input.ts";
 import type { MessageId } from "@fresnel/client/i18n";
 import { cardTitleViewOf } from "./approval-card/card-model.ts";
 
@@ -11,13 +11,11 @@ export type Announcement = {
   readonly params?: Readonly<Record<string, string>>;
 };
 
-/** 새 승인 요청의 안내. 도구 승인은 도구 이름, 계획 검토는 "계획 검토", 그 밖은 요청 제목 */
-export function approvalAnnouncement(request: ApprovalRequestedPayload): Announcement {
+/** 새 승인 요청의 안내. 도구 승인은 도구 이름, 그 밖은 요청 제목 */
+export function approvalAnnouncement(request: LiveApprovalRequest): Announcement {
   const view = cardTitleViewOf(request);
   if (view !== null && view.id === "desktop.approvals.title.tool")
     return { id: "desktop.announce.approval", params: { what: view.params.tool } };
-  if (view !== null && view.id === "desktop.approvals.title.plan")
-    return { id: "desktop.announce.approval.plan" };
   if (view !== null && view.id === "desktop.approvals.title.writeAccess")
     return { id: "desktop.announce.approval.writeAccess" };
   if (view !== null && view.id === "desktop.approvals.title.web")

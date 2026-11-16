@@ -1,11 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
-import {
-  ApprovalRequestedPayloadSchema,
-  type ApprovalRequestedPayload,
-} from "@fresnel/contracts/records";
+import { ApprovalRequestedPayloadSchema } from "@fresnel/contracts/records";
 import { renderToString } from "react-dom/server";
-import type { DurableFact } from "../../src/state/engine/input.ts";
+import type { DurableFact, LiveApprovalRequest } from "../../src/state/engine/input.ts";
 import type { EngineMirror } from "../../src/state/engine/index.ts";
 import { selectWriteAccessAllowed } from "../../src/state/engine/convo-select.ts";
 import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
@@ -19,7 +16,7 @@ import {
   writeAccessViewOf,
 } from "../../src/views/approval-card/write-access-model.ts";
 import { Providers } from "../../src/views/providers.tsx";
-import { SUB, evt, openedHarness, summary, thr } from "../state/helpers.ts";
+import { SUB, evt, liveApprovalOf, openedHarness, summary, thr } from "../state/helpers.ts";
 import { fakeCommands } from "./fake-commands.ts";
 
 // 샌드박스 밖 쓰기 승인 카드(DP-204)와 입력창의 조용한 표시 값(DP-205).
@@ -35,7 +32,7 @@ function payload(input: {
   readonly toolName?: string;
   readonly remember?: readonly string[];
   readonly title?: string;
-}): ApprovalRequestedPayload {
+}): LiveApprovalRequest {
   const parsed = parse(ApprovalRequestedPayloadSchema, {
     origin,
     surfaceThreadId: T,
@@ -55,7 +52,7 @@ function payload(input: {
     },
   });
   if (!parsed.ok) throw new Error("the test approval payload must be valid");
-  return parsed.value;
+  return liveApprovalOf(parsed.value);
 }
 
 const BASH = payload({
@@ -94,7 +91,7 @@ function frozen<S>(state: S): ReadonlyStore<S> {
   return { getState: () => state, getInitialState: () => state, subscribe: () => () => {} };
 }
 
-function stateWith(requests: readonly ApprovalRequestedPayload[]): EngineMirror {
+function stateWith(requests: readonly LiveApprovalRequest[]): EngineMirror {
   const h = openedHarness();
   h.store.ingest({ type: "threads", threads: [summary(T, { title: "Build" })] });
   requests.forEach((request, index) => {

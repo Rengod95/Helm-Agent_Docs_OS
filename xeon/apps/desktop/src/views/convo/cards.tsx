@@ -1,10 +1,9 @@
-import { Badge, Button } from "@caustic/react";
+import { Button } from "@caustic/react";
 import { Circle, CircleCheck, CircleDot, CircleX, Diamond } from "@caustic/react/icons";
 import { assertNever } from "@fresnel/contracts";
-import { t, type MessageId } from "@fresnel/client/i18n";
+import { t } from "@fresnel/client/i18n";
 import type { ItemId, JsonObject, ThreadId } from "@fresnel/contracts/conversation";
 import type { ReactNode } from "react";
-import { useShellActions } from "../../state/shell/index.ts";
 import { useAgentRows, useToolResult } from "../../state/engine/index.ts";
 import type { AgentRow } from "../../state/engine/index.ts";
 import { summarizeToolArgs } from "../../state/engine/tool-summary.ts";
@@ -26,7 +25,7 @@ import { CallChip } from "../call-chip.tsx";
 import { ToolLine, useDisclosure, type LineStatus } from "./tool-line.tsx";
 import { Collapse } from "../../lib/motion-presets.tsx";
 import { checklistOf, type ChecklistRow, type TaskOp } from "./task-checklist-model.ts";
-import { failureLabelOf, planArgsOf, planResultOf, type PlanState } from "./tool-view-model.ts";
+import { failureLabelOf } from "./tool-view-model.ts";
 import type { CallBlock } from "../transcript-rows.ts";
 
 // 결과물 도구의 카드(dzT2a 시안 3.4, 3.5, 3.7). 묶음에 넣지 않고 늘 보인다.
@@ -167,89 +166,6 @@ function AgentCard(props: {
   );
 }
 
-const PLAN_STATE: Readonly<
-  Record<PlanState, { readonly label: MessageId; readonly className: string }>
-> = {
-  pending: { label: "desktop.convo.plan.pending", className: "text-text-tertiary" },
-  approved: { label: "desktop.convo.plan.approved", className: "text-success-text" },
-  rejected: { label: "desktop.convo.plan.rejected", className: "text-danger-text" },
-  revise: { label: "desktop.convo.plan.revise", className: "text-warning-text" },
-};
-
-function PlanCard(props: { readonly callId: string; readonly args: JsonObject }): ReactNode {
-  const result = useToolResult(props.callId);
-  const running = useCallRunning();
-  const shell = useShellActions();
-  const [open, toggle] = useDisclosure(false);
-  const view = resultViewOf(result);
-  const plan = planArgsOf(props.args);
-  const state = view?.outcome.kind === "done" ? planResultOf(view.output) : null;
-  const status = lineStatusOf({
-    outcome: view?.outcome ?? null,
-    running,
-    awaiting: false,
-    seconds: 0,
-  });
-  return (
-    <section
-      className="convo-card"
-      data-slot="convo-plan"
-      aria-label={t("desktop.convo.plan.title")}
-    >
-      <div className="convo-card-head">
-        <Badge size="xs">{t("desktop.convo.plan.title")}</Badge>
-        <span className="convo-card-title">
-          {plan.title === "" ? t("desktop.convo.plan.untitled") : plan.title}
-        </span>
-        {state === null ? null : (
-          <span className="convo-mono text-text-tertiary">v{state.version}</span>
-        )}
-        <span className="ml-auto">
-          {state === null && status.kind === "running" ? (
-            // submit_plan은 사용자의 승인을 기다리는 동안 결과가 없다. "실행 중"이 아니라 승인 대기로 보인다(DP-143)
-            <span className={`text-footnote ${PLAN_STATE.pending.className}`}>
-              {t(PLAN_STATE.pending.label)}
-            </span>
-          ) : state === null ? (
-            <StatusText status={status.kind === "done" ? { kind: "none" } : status} />
-          ) : (
-            <span className={`text-footnote ${PLAN_STATE[state.state].className}`}>
-              {t(PLAN_STATE[state.state].label)}
-            </span>
-          )}
-        </span>
-      </div>
-      {plan.body === "" ? null : (
-        // 접힌 높이 240(카드 바탕 위 흐림). 96이면 "변경 내용" 제목 바로 아래에서 잘려 빈 구역처럼 보였다(dzV 문제 5)
-        <div
-          className="convo-clip text-text-secondary"
-          data-size="plan"
-          data-open={open ? "true" : "false"}
-        >
-          <MarkdownBody text={plan.body} size="compact" />
-        </div>
-      )}
-      {view?.outcome.kind === "failed" ? <OutputBox text={view.output} /> : null}
-      <div className="convo-card-foot">
-        {plan.body === "" ? null : (
-          <Button size="xs" variant="ghost" aria-expanded={open} onClick={toggle}>
-            {open ? t("desktop.convo.collapse") : t("desktop.convo.plan.full")}
-          </Button>
-        )}
-        <Button
-          size="xs"
-          variant="ghost"
-          onClick={() => {
-            shell.openEndTab("work");
-          }}
-        >
-          {t("desktop.convo.plan.openWork")}
-        </Button>
-      </div>
-    </section>
-  );
-}
-
 function TaskGlyph(props: { readonly status: string | null }): ReactNode {
   // 상태는 할 일 기록의 글이다(모르는 값은 아직 안 한 것으로 본다)
   if (props.status === "completed") {
@@ -386,7 +302,6 @@ export function CardRow(props: {
       <AgentCard threadId={props.threadId} callId={props.call.callId} args={props.call.args} />
     );
   }
-  if (name === "submit_plan") return <PlanCard callId={props.call.callId} args={props.call.args} />;
   if (name === "task_write") {
     return <TaskChecklist threadId={props.threadId} itemId={props.itemId} call={props.call} />;
   }

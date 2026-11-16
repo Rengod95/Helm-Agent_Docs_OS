@@ -98,15 +98,6 @@ export function taskRejection(
   }
 }
 
-/** 옛 계획 기록에 없는 계획 번호 */
-export function planNotFound(
-  capability: CapabilityId,
-  method: string,
-  id: string,
-): CapabilityError {
-  return make(capability, method, "not_found", `${id} does not exist.`, false, { id });
-}
-
 /** 목표 규칙 거부(spec §3.4 GoalErrors) */
 export function goalRejection(
   capability: CapabilityId,

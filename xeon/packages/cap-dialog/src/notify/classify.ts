@@ -88,10 +88,10 @@ function fromApprovalRequested(event: DurableEventEnvelope): Notice | null {
   switch (body.kind) {
     case "tool":
       return notice(event, "approval_waiting", `승인이 필요해요: ${body.tool.toolName}`, null);
-    case "plan":
-      return notice(event, "approval_waiting", "승인이 필요해요: plan", null);
     case "question":
       return notice(event, "question_waiting", "질문에 답이 필요해요", null);
+    // 계획 승인은 은퇴했다. 옛 기록을 다시 분류해도 알리지 않는다 [결정: 2026-11-13 사용자]
+    case "plan":
     // 검토 승인은 §4.7.1 표에 없다 [미결]
     case "review":
       return null;

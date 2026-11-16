@@ -113,7 +113,6 @@ describe("cap.work projection", () => {
         "cap_work_goals",
         "cap_work_judgments",
         "cap_work_meta",
-        "cap_work_plans",
         "cap_work_reports",
         "cap_work_tasks",
       ]);

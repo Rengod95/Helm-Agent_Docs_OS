@@ -291,7 +291,7 @@ describe("link: resync with a gap", () => {
     expect(loads).toHaveLength(2);
   });
 
-  test("after a head subscribe the plans and queued inputs from before the connection are replayed from seq 0 and filled in", async () => {
+  test("after a head subscribe the queued inputs from before the connection are replayed from seq 0 and filled in", async () => {
     const h = harness();
     const asked: unknown[] = [];
     const fake = fakeConnection({
@@ -331,7 +331,6 @@ describe("link: resync with a gap", () => {
         from: { storeId: STORE, seq: 0 },
         filter: {
           kindPrefixes: [
-            "work.plan_",
             "input.",
             "thread.compacted",
             "turn.",
@@ -352,7 +351,7 @@ describe("link: resync with a gap", () => {
         },
       },
     ]);
-    // 두 대기 입력 중 하나는 이미 배치됐다. 계획 하나는 연결 전에 제출됐다
+    // 두 대기 입력 중 하나는 이미 배치됐다
     fake.emit("events.batch", {
       sub: "back",
       from: 0,
@@ -362,23 +361,12 @@ describe("link: resync with a gap", () => {
         wire(3, "input.queued", queuedPayload("q-1")),
         wire(4, "input.queued", queuedPayload("q-2")),
         wire(5, "input.placed", { inputId: evt(3), itemId: itm(9) }),
-        wire(7, "work.plan_submitted", {
-          planId: "p1",
-          version: 2,
-          title: "이전 계획",
-          body: "1. 읽기",
-          artifact: null,
-          supersedes: 1,
-        }),
       ],
     });
     await pump(h);
     const s = h.store.read.getState();
     expect(s.queuedInputs.map((r) => [r.requestId, r.preview])).toEqual([
       ["q-2", { kind: "text", text: "이어서 해 줘" }],
-    ]);
-    expect(s.plans.map((r) => [String(r.planId), r.version, r.title, r.status])).toEqual([
-      ["p1", 2, "이전 계획", "submitted"],
     ]);
     expect(s.cursor).toEqual({ storeId: STORE, seq: 50 });
     expect(s.link).toEqual({ phase: "live", sub: "main" });
@@ -441,19 +429,10 @@ describe("link: resync with a gap", () => {
       from: 6,
       to: 50,
       caughtUp: true,
-      events: [
-        wire(7, "work.plan_submitted", {
-          planId: "p1",
-          version: 1,
-          title: "바닥 뒤 계획",
-          body: "1. 읽기",
-          artifact: null,
-          supersedes: null,
-        }),
-      ],
+      events: [wire(7, "input.queued", queuedPayload("바닥 뒤 입력"))],
     });
     await pump(h);
-    expect(h.store.read.getState().plans.map((r) => r.title)).toEqual(["바닥 뒤 계획"]);
+    expect(h.store.read.getState().queuedInputs.map((r) => r.requestId)).toEqual(["바닥 뒤 입력"]);
   });
 
   test("replayFloorOf only reopens for beforeOldest on the same store with a floor above 0", () => {
@@ -462,70 +441,6 @@ describe("link: resync with a gap", () => {
     expect(replayFloorOf(range("storeMismatch", STORE, 124), STORE)).toBeNull();
     expect(replayFloorOf(range("beforeOldest", "sto_other", 124), STORE)).toBeNull();
     expect(replayFloorOf(new Error("x"), STORE)).toBeNull();
-  });
-
-  test("a live withdrawal that lands before the replay of an earlier submission keeps the plan withdrawn", async () => {
-    const h = harness();
-    const fake = fakeConnection({
-      "events.subscribe": (params) => {
-        if (params.filter === undefined) {
-          return Promise.resolve({
-            sub: "main",
-            start: 50,
-            headSeq: 50,
-            storeId: STORE,
-            mode: "live",
-          });
-        }
-        return Promise.resolve({
-          sub: "back",
-          start: 0,
-          headSeq: 50,
-          storeId: STORE,
-          mode: "replaying",
-        });
-      },
-      "events.unsubscribe": () => Promise.resolve({}),
-      "thread.list": () => Promise.resolve(listEmpty),
-    });
-    startLink({
-      connection: fake.connection,
-      store: h.store,
-      transcripts: noTranscripts,
-      logger: silent,
-      openThreadId: () => null,
-    });
-    await pump(h);
-    // 철회는 라이브 구독으로 먼저 오고, 연결 전에 낸 제출은 재생이 끝날 때 온다
-    fake.emit("events.batch", {
-      sub: "main",
-      from: 50,
-      to: 51,
-      caughtUp: true,
-      events: [wire(51, "work.plan_withdrawn", { planId: "p1", version: 1, reason: "exit_mode" })],
-    });
-    await pump(h);
-    fake.emit("events.batch", {
-      sub: "back",
-      from: 0,
-      to: 7,
-      caughtUp: true,
-      events: [
-        wire(7, "work.plan_submitted", {
-          planId: "p1",
-          version: 1,
-          title: "이전 계획",
-          body: "1. 읽기",
-          artifact: null,
-          supersedes: null,
-        }),
-      ],
-    });
-    await pump(h);
-    const s = h.store.read.getState();
-    expect(s.plans.map((r) => [String(r.planId), r.version, r.title, r.status])).toEqual([
-      ["p1", 1, "이전 계획", "withdrawn"],
-    ]);
   });
 
   test("stream.chunk is decoded into a chunk input; an undecodable payload becomes 'other' and only advances n", async () => {

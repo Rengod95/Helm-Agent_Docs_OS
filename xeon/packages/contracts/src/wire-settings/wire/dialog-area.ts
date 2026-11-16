@@ -6,13 +6,11 @@ import {
   MemoryReadOutputSchema,
   MemoryStoreSchema,
   MemoryWriteOutputSchema,
-  PlanVersionsOutput,
   SkillFilePathSchema,
   SkillScopeSchema,
   type MemoryReadOutput,
   type MemoryStore,
   type MemoryWriteOutput,
-  type PlanVersionsOutputValue,
   type SkillScope,
 } from "../../capabilities/index.ts";
 import {
@@ -428,21 +426,6 @@ export const SkillListResultSchema: TUnsafe<SkillListResult> = Type.Unsafe<Skill
   SkillListResultShape satisfies SchemaProof<SkillListResult, typeof SkillListResultShape>,
 );
 
-/** `work.plans.versions`(W-18). 계획 하나의 모든 판. 판의 모양은 `PlanVersionSchema`(capabilities/defs/work.ts)다 */
-export interface PlanVersionsParams {
-  readonly threadId: string;
-  readonly planId: string;
-}
-const PlanVersionsParamsShape = request({ threadId: ThreadRef, planId: Id });
-export const PlanVersionsParamsSchema: TUnsafe<Req<PlanVersionsParams>> = Type.Unsafe<
-  Req<PlanVersionsParams>
->(
-  PlanVersionsParamsShape satisfies SchemaProof<
-    Req<PlanVersionsParams>,
-    typeof PlanVersionsParamsShape
-  >,
-);
-
 /** `knowledge.memory.read`(W-19). 사용자 기억과 환경 기억의 항목, 쓰기 막힘, `fileHash`. `stores`를 생략하면 둘 다 읽는다 */
 export interface MemoryReadParams {
   readonly stores?: readonly MemoryStore[];
@@ -520,7 +503,6 @@ export interface DialogAreaSchemas {
   "turn.withdraw": Io<U<Req<TurnWithdrawParams>>, U<TurnWithdrawResult>>;
   "knowledge.skills.view": Io<U<Req<SkillViewParams>>, U<SkillViewResult>>;
   "knowledge.skills.list": Io<U<Req<SkillListParams>>, U<SkillListResult>>;
-  "work.plans.versions": Io<U<Req<PlanVersionsParams>>, U<PlanVersionsOutputValue>>;
   "knowledge.memory.read": Io<U<Req<MemoryReadParams>>, U<MemoryReadOutput>>;
   "knowledge.memory.add": Io<U<Req<MemoryAddParams>>, U<MemoryWriteOutput>>;
   "knowledge.memory.replace": Io<U<Req<MemoryReplaceParams>>, U<MemoryWriteOutput>>;
@@ -542,7 +524,6 @@ export const DIALOG_AREA_METHODS: Table = {
   "turn.withdraw": m4(TurnWithdrawParamsSchema, TurnWithdrawResultSchema),
   "knowledge.skills.view": m4(SkillViewParamsSchema, SkillViewResultSchema),
   "knowledge.skills.list": m4(SkillListParamsSchema, SkillListResultSchema),
-  "work.plans.versions": m4(PlanVersionsParamsSchema, PlanVersionsOutput),
   "knowledge.memory.read": m4(MemoryReadParamsSchema, MemoryReadOutputSchema),
   "knowledge.memory.add": m4(MemoryAddParamsSchema, MemoryWriteOutputSchema),
   "knowledge.memory.replace": m4(MemoryReplaceParamsSchema, MemoryWriteOutputSchema),

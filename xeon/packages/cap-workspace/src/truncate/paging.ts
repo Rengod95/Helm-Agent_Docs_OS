@@ -39,7 +39,7 @@ export function pageRead(slice: ReadSlice): ReadPage {
   };
 }
 
-/** 항목 수 한도(ls, grep, find)의 절단 정보. 끝까지 센 항목 수를 `total`로 싣는다 */
+/** 항목 수 한도(grep)의 절단 정보. 끝까지 센 항목 수를 `total`로 싣는다 */
 export function pageEntries(
   by: "entries" | "bytes",
   shown: number,

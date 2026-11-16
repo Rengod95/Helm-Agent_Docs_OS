@@ -1,14 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
 import type { LeafMask } from "@fresnel/contracts/conversation";
-import {
-  ApprovalRequestedPayloadSchema,
-  type ApprovalRequestedPayload,
-} from "@fresnel/contracts/records";
+import { ApprovalRequestedPayloadSchema } from "@fresnel/contracts/records";
 import type { EventWire } from "@fresnel/contracts/wire";
 import { decodeDurable, decodePendingApprovals } from "../../src/state/engine/decode.ts";
 import { toolApprovalView } from "../../src/views/approval-form.ts";
-import { evt, thr } from "./helpers.ts";
+import { evt, liveApprovalOf, thr } from "./helpers.ts";
+import type { LiveApprovalRequest } from "../../src/state/engine/input.ts";
 
 // L0.secrets.spec §3.5.1, F.wire-settings.spec §3.4.5a [결정: 2026-11-03 사용자].
 // 승인 카드의 제목과 도구 인자는 호스트의 표식을 적용한 뒤에만 거울과 화면에 들어간다. 값은 거울에 들어가지 않는다.
@@ -18,7 +16,7 @@ const TITLE = `Run bash with ${SECRET}`;
 const COMMAND = `curl -H token=${SECRET} https://example.test`;
 const CREATED = "2026-10-24T00:00:00.000Z";
 
-function approvalPayload(): ApprovalRequestedPayload {
+function approvalPayload(): LiveApprovalRequest {
   const parsed = parse(ApprovalRequestedPayloadSchema, {
     origin: { threadId: thr(1), turnId: null, stepId: null, toolCallId: null, caller: "main" },
     requestKey: "req-1",
@@ -38,7 +36,7 @@ function approvalPayload(): ApprovalRequestedPayload {
     requestedAt: 1,
   });
   if (!parsed.ok) throw new Error("the test approval payload must be valid");
-  return parsed.value;
+  return liveApprovalOf(parsed.value);
 }
 
 /** 호스트가 만들 표식과 같은 모양. 제목과 명령의 값 위치를 문자열에서 찾는다 */

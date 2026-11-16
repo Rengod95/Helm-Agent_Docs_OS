@@ -83,7 +83,7 @@ Layers follow the docs: F = contracts, X = extension system, L0 = platform, L1 =
 | `x.` | X | `x.operations` (budgets, auto-disable, safe mode, trace, hook order), `x.loading-trust` (project trust, extension search paths, isolation restarts), `x.ui` (app policy), `x.primitives` |
 | `l0.` | L0 | `l0.os` (log level, telemetry, directories), `l0.store`, `l0.exec` (shell timeouts, output spill), `l0.secrets` (secret use approval, age key), `l0.process`, `l0.sandbox` |
 | `l1.` | L1 | `l1.tools` (permission mode, rules, output limits, unattended approval), `l1.models` (default model, thinking level, routing), `l1.loop`, `l1.agents` (subagent depth and concurrency), `l1.context`, `l1.persistence`, `l1.tasks` |
-| `l2.` | L2 | `l2.workspace` (read, grep, find, shell limits), `l2.web` (search, fetch, web policy), `l2.knowledge` (skills, memory, write approval), `l2.mcp` (servers, approval mode, sandbox), `l2.work`, `l2.artifacts`, `l2.dialog`, `l2.schedule` |
+| `l2.` | L2 | `l2.workspace` (read, grep, shell limits), `l2.web` (search, fetch, web policy), `l2.knowledge` (skills, memory, write approval), `l2.mcp` (servers, approval mode, sandbox), `l2.work`, `l2.artifacts`, `l2.dialog`, `l2.schedule` |
 | `l3.` | L3 | Plugin groups: `l3.group-sdk`, `l3.learning`, `l3.authoring` |
 | `ext.<name>.enabled` | per extension | Turns one extension on or off, live. Non-built-in extensions also have `ext.<name>.isolation` (`none` or `process`, restart, user or managed only). |
 | `l4.` | L4 | App settings: `l4.cli`, `l4.ui`, `l4.desktop`, `l4.host-service`, `l4.remote` |

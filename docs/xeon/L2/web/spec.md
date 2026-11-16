@@ -1581,7 +1581,7 @@ Stagehand는 기본 엔진 provider로 이미 들어왔다(§4.10.4a) [근거: `
 
 - 기본 provider `native`는 우리 에이전트 루프다(`_research/web-tools.md` §1.1, §4.5).
 - `fresnel.agents`로 서브에이전트 하나를 띄운다. 서브에이전트의 도구는 `web_search`, `web_fetch`와 내부 노트 도구 하나뿐이다. 파일 쓰기, 셸, 메시지 전송 도구를 주지 않는다(`_research/web-tools.md` §5.2 3번 기능 분리).
-- 단계: plan(질문을 하위 질문 3~8개로) → search·read 반복 → write(보고서와 주장 목록) → verify(인용 검증). `plan: "confirm"`이면 plan 결과를 승인 요청(kind `plan`)으로 보이고 승인 뒤 계속한다.
+- 단계: plan(질문을 하위 질문 3~8개로) → search·read 반복 → write(보고서와 주장 목록) → verify(인용 검증). `plan: "confirm"`이면 plan 결과를 질문(kind `question`)으로 보여 주고 답을 받은 뒤 계속한다 [제안: kind `plan` 승인은 2026-11-13에 폐지됐다].
 - 하위 호출은 이 문서의 `search`, `fetch` 앞단을 그대로 쓰므로 정책·캐시·비용·상한이 같게 적용된다. 하위 fetch는 자동 수집이라 robots.txt를 지킨다(§4.7).
 - 외부 위임 provider(Exa Agent, Parallel Task API 등)는 플러그인 후보로 두고 2차 이후 정한다.
 
@@ -1810,7 +1810,7 @@ export const webSettings = defineSettings("l2.web", {
 | `defineSettings`, `ScopeStack`, `SettingDef` | `F.wire-settings.spec` | 있음 |
 | `HostedSearchPort`: 모델 지정, hosted 검색 도구 하나만 단 단일 턴 요청, `stopReason`(`end_turn`·`pause_turn`·`max_tokens`·`refusal`), 이어 요청용 불투명 continuation, 결과 블록(url, title, page_age, cited_text), 토큰·검색 요청 사용량, 조직 차단 400 식별, 모델별 hosted 지원 여부 조회 | `L1.models.spec` | 있음(F `services/models.ts`의 `HostedSearchPort`, 구현 `core-models`의 `createHostedSearch`, `ModelService.hostedSearch`) |
 | hosted 서버 도구를 모델 요청에 넣는 기능과 `encrypted_content` 반송(§4.8.1 A안) | `L1.models.spec` | 없음 [미결]. M2에 구현하지 않았다(§10 미결 3, `L1.models.spec` §10 12번) |
-| `ApprovalService`(`fresnel.approvals`) 요청 kind `tool`·`plan`, 기억 범위 | `L1.tools.spec` | [가정] |
+| `ApprovalService`(`fresnel.approvals`) 요청 kind `tool`(옛 `plan`은 2026-11-13 폐지), 기억 범위 | `L1.tools.spec` | [가정] |
 | `redactForPersistence` 적용 경로(영속 사본) | `L1.tools.spec`, `L1.persistence.spec` | 요청 [가정] |
 | 서브에이전트 실행과 위임 옵션의 웹 규칙 필드 | `L1.agents.spec` | 2차 [가정] |
 | 플러그인 provider 헤더 시크릿 치환(M3), 마스킹 등록부 조회 | `L0.secrets.spec` §3.5, §3.6(`createPluginHttp`, `withHttp`) | 통로는 있음. 조립 쪽 어댑터(`HeaderSecretSender` 구현)는 L4 후속 유닛에서 잇는다 [결정: 오케스트레이터 기본값] |

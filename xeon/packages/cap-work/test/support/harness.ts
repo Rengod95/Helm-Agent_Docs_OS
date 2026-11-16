@@ -1,20 +1,18 @@
-// 실제 SQLite(platform-store) 위에 core-persistence 세션 서비스를 올리고 cap-work 작업·목표·계획 읽기 서비스를 붙이는 시험 조립.
+// 실제 SQLite(platform-store) 위에 core-persistence 세션 서비스를 올리고 cap-work 작업·목표·보고 서비스를 붙이는 시험 조립.
 // 저장소를 배열로 흉내 내지 않는다(eng.testing.guide TS-07).
 import { Bug, type Logger, type LogFields } from "@fresnel/contracts";
 import type {
   CallOptions,
   CapabilityApi,
   WorkGoals,
-  WorkPlans,
   WorkReports,
   WorkTasks,
 } from "@fresnel/contracts/capabilities";
 import type { IdFactory, ThreadId, TurnId, Usage } from "@fresnel/contracts/conversation";
-import type { ProducerHandle, SessionService } from "@fresnel/contracts/records";
+import type { SessionService } from "@fresnel/contracts/records";
 import { createSessionService } from "@fresnel/core-persistence";
 import { openTestStore, TEST_HOLDER_A, type TestStore } from "@fresnel/platform-store/testing";
 import type { WorkTasksDeps } from "../../src/deps.ts";
-import { createPlans } from "../../src/plans/service.ts";
 import { createGoals, type GoalsRuntime } from "../../src/goals/service.ts";
 import { createTasksApi } from "../../src/tasks/service.ts";
 import { createWorkProjector } from "../../src/projection/projector.ts";
@@ -58,17 +56,11 @@ export interface Base extends AsyncDisposable {
   workDigests(): Promise<Readonly<Record<string, string>>>;
 }
 
-/** 작업·목표·계획 읽기 서비스를 붙인 조립 */
+/** 작업·목표·보고 서비스를 붙인 조립 */
 export interface Harness extends Base {
   readonly api: CapabilityApi<typeof WorkTasks>;
   /** 설정을 바꾼다. 호출마다 읽으므로 다음 호출부터 적용된다 */
   setSettings(next: WorkSettings): void;
-  /** 옛 계획 기록을 읽는 work.plans(versions만 있다) */
-  readonly plans: CapabilityApi<typeof WorkPlans>;
-  /** `cap.work` 생산자 핸들. 생산자는 한 번만 받으므로 시험은 이 핸들로 옛 계획 기록을 직접 남긴다 */
-  readonly workProducer: ProducerHandle;
-  /** `core.tools` 생산자 핸들(승인 요청과 해결 기록). 옛 계획 승인 기록을 시험이 직접 남길 때만 쓴다 */
-  readonly toolsProducer: ProducerHandle;
   readonly goals: CapabilityApi<typeof WorkGoals>;
   readonly reports: CapabilityApi<typeof WorkReports>;
   readonly goalsRuntime: GoalsRuntime;
@@ -203,7 +195,7 @@ export async function openBase(options: BaseOptions = {}): Promise<Base> {
   };
 }
 
-/** 작업·목표·계획 읽기 서비스를 직접 조립한다(플러그인을 거치지 않는다) */
+/** 작업·목표·보고 서비스를 직접 조립한다(플러그인을 거치지 않는다) */
 export async function openHarness(options: HarnessOptions = {}): Promise<Harness> {
   const base = await openBase(options);
   const projector = createWorkProjector();
@@ -214,12 +206,10 @@ export async function openHarness(options: HarnessOptions = {}): Promise<Harness
     });
   const settings = { current: options.settings ?? DEFAULT_WORK_SETTINGS };
   const logger = recordingLogger(base.logs);
-  const workProducer = base.session.producer("cap.work");
-  const toolsProducer = base.session.producer("core.tools");
   const deps: WorkTasksDeps = {
     session: base.session,
     reader: base.store.service.scoped("cap.work"),
-    producer: workProducer,
+    producer: base.session.producer("cap.work"),
     ids: base.ids,
     logger,
     settings: () => settings.current,
@@ -229,9 +219,6 @@ export async function openHarness(options: HarnessOptions = {}): Promise<Harness
   const goals = createGoals({ ...deps, clock: base.clock, maxRuns: () => maxRuns.current });
   return Object.assign(base, {
     api,
-    plans: createPlans({ reader: deps.reader }),
-    workProducer,
-    toolsProducer,
     goals: goals.goalsApi,
     reports: goals.reportsApi,
     goalsRuntime: goals,

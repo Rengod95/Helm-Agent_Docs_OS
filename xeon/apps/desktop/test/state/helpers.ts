@@ -11,9 +11,14 @@ import {
   type TurnId,
 } from "@fresnel/contracts/conversation";
 import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
+import { liveRequestOf } from "../../src/state/engine/decode.ts";
 import type { StoreId, ThreadSummary } from "@fresnel/contracts/wire";
 import { createEngineStore, type EngineStore } from "../../src/state/engine/store.ts";
-import type { DurableFact, VolatileFact } from "../../src/state/engine/input.ts";
+import type {
+  DurableFact,
+  LiveApprovalRequest,
+  VolatileFact,
+} from "../../src/state/engine/input.ts";
 import type { ApplyNote } from "../../src/state/engine/reduce.ts";
 import { manualFrameClock } from "../../src/state/shared/frame.ts";
 import { createJournal, type Journal } from "../../src/state/shared/journal.ts";
@@ -116,7 +121,14 @@ export function summary(threadId: ThreadId, over: Partial<ThreadSummary> = {}): 
   };
 }
 
-export function approvalRequest(threadId: ThreadId): ApprovalRequestedPayload {
+/** 스키마로 읽은 승인 요청을 화면 모양으로 바꾼다. 은퇴한 계획 승인은 시험 값으로 만들지 않는다 */
+export function liveApprovalOf(request: ApprovalRequestedPayload): LiveApprovalRequest {
+  const live = liveRequestOf(request);
+  if (live === null) throw new Bug("a retired plan approval is not a test request");
+  return live;
+}
+
+export function approvalRequest(threadId: ThreadId): LiveApprovalRequest {
   return {
     origin: { threadId, turnId: null, stepId: null, toolCallId: null, caller: "main" },
     requestKey: "k1",

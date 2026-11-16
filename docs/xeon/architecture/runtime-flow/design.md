@@ -254,7 +254,7 @@ flowchart TB
 
 목표 지속(L2-e `cap-work`)의 완료 판정은 루프를 도는 모델의 자가 판정에 맡기지 않는다. 별도 판정 모델이 증거를 보고 판정하고, 판정 실행 횟수에는 상한을 둔다(사용자 결정, `_research/foundation-plan.md` §1 4번). 상한 키는 `l1.agents.judge.maxRuns` 하나이고 L2.work는 이 키를 참조한다. 판정 모델은 L1-c 용도별 라우팅의 한 용도로 고른다. 판정 결과는 단계 경계 커밋에 내구 이벤트로 남아 재개 때 다시 판정하지 않는다 [제안].
 
-사용자 질문과 계획 승인은 L1-d 승인 프로토콜 하나로 합친다(사용자 결정, `_research/foundation-plan.md` §1 5번). 승인 요청은 내구 이벤트 `approval.requested`로 나가고, 응답은 호스트 메서드 `approval.respond`로 받는다 [결정: review.decisions-2 U-02]. 루프는 `approval.requested`와 승인 대기 체크포인트를 한 커밋(A1)으로 쓰고 멈춘다. 대기 중에 돌아가는 프로세스는 없다. 대화를 다시 열면 승인 대기 상태가 그대로 복원되어 응답을 받을 수 있다(durable spec 1898-1915, `_research/process.md` §1.1). 서비스 모드의 유휴 종료 판정에서 승인 대기 대화는 live로 센다 [결정: 2026-11-04 사용자 B11]. 승인 대기 대화가 있는 동안 서비스는 유휴 종료하지 않고, 버전이 다른 서비스로 바꾸지도 않는다(`host.status.waitingApprovals`).
+사용자 질문은 L1-d 승인 프로토콜로 처리한다(원래 결정은 사용자 결정, `_research/foundation-plan.md` §1 5번이었고, 계획 승인은 2026-11-13 폐지 [결정: 2026-11-13 사용자]). 승인 요청은 내구 이벤트 `approval.requested`로 나가고, 응답은 호스트 메서드 `approval.respond`로 받는다 [결정: review.decisions-2 U-02]. 루프는 `approval.requested`와 승인 대기 체크포인트를 한 커밋(A1)으로 쓰고 멈춘다. 대기 중에 돌아가는 프로세스는 없다. 대화를 다시 열면 승인 대기 상태가 그대로 복원되어 응답을 받을 수 있다(durable spec 1898-1915, `_research/process.md` §1.1). 서비스 모드의 유휴 종료 판정에서 승인 대기 대화는 live로 센다 [결정: 2026-11-04 사용자 B11]. 승인 대기 대화가 있는 동안 서비스는 유휴 종료하지 않고, 버전이 다른 서비스로 바꾸지도 않는다(`host.status.waitingApprovals`).
 
 ### 4.6 전송별 차이
 

@@ -27,11 +27,11 @@ L2는 F3 기능 정의(서비스 API + 모델 도구 한 쌍)를 구현한 provi
 
 | 하위 층 id | 계획 v2 이름 | 도메인 | 패키지 | 기능 ID | 묶음 이름(§5.6) | 이벤트 접두사 | 테이블 접두사 | 마일스톤 | 문서 id |
 |---|---|---|---|---|---|---|---|---|---|
-| L2-a | 작업 도구 | workspace | cap-workspace | workspace.files, workspace.shell, workspace.images | fresnel.workspace | workspace.(예약) | cap_workspace_(예약) | M1(read, ls, bash), M3(write, edit, grep, find)[^ws] | `L2.workspace.spec`, `L2.workspace.plan` |
+| L2-a | 작업 도구 | workspace | cap-workspace | workspace.files, workspace.shell, workspace.images | fresnel.workspace | workspace.(예약) | cap_workspace_(예약) | M1(read, bash), M3(write, edit, grep)[^ws] | `L2.workspace.spec`, `L2.workspace.plan` |
 | L2-b | MCP 통합 | mcp | cap-mcp | mcp.client | fresnel.mcp | mcp.(휘발, 예약) | cap_mcp_ | M2(브리지, 서버 정의, 서버 주도 요청)[^mcp] | `L2.mcp.spec`, `L2.mcp.plan` |
 | L2-c | 웹 | web | cap-web | web.search, web.fetch, web.browse, web.research | fresnel.web | web.(휘발, 예약) | cap_web_ | M2(search, fetch), M3(browse, 구현 M3b 2026-10-29)[^web] | `L2.web.spec`, `L2.web.plan` |
 | L2-d | 지식과 기억 (저장소) | knowledge | cap-knowledge | knowledge.skills, knowledge.memory, knowledge.search, knowledge.ledger | fresnel.knowledge | knowledge.(예약) | cap_knowledge_ | M2 | `L2.knowledge.spec`, `L2.knowledge.plan` |
-| L2-e | 작업 관리 | work | cap-work | work.tasks, work.plans, work.goals, work.reports | fresnel.work | work. | cap_work_ | M2(tasks, plans), M3(goals, reports)[^work] | `L2.work.spec`, `L2.work.plan` |
+| L2-e | 작업 관리 | work | cap-work | work.tasks, work.goals, work.reports | fresnel.work | work. | cap_work_ | M2(tasks), M3(goals, reports)[^work] | `L2.work.spec`, `L2.work.plan` |
 | L2-f | 사용자 대화 | dialog | cap-dialog | dialog.ask, dialog.commands, dialog.status, dialog.attachments, dialog.aside, dialog.styles, dialog.notify | fresnel.dialog | dialog.(휘발 status) | 없음 | M2(ask, commands, status, attachments), M3(notify)[^dialog] | `L2.dialog.spec`, `L2.dialog.plan` |
 | L2-g | 산출물과 대화 | artifacts | cap-artifacts | artifacts.registry, artifacts.reviews, artifacts.sessions | fresnel.artifacts | artifact.(단수 주의) | cap_artifacts_ | M3(정의·카탈로그도 구현은 M3b 2026-10-29)[^art] | `L2.artifacts.spec`, `L2.artifacts.plan` |
 | L2-h | 예약과 백그라운드 | schedule | cap-schedule | schedule.loops, schedule.jobs, schedule.sessions, schedule.timers, schedule.remote | fresnel.schedule | schedule. | cap_schedule_ | M3(정의·카탈로그도 구현은 M3b 2026-10-29)[^sch] | `L2.schedule.spec`, `L2.schedule.plan` |
@@ -44,10 +44,10 @@ L2는 F3 기능 정의(서비스 API + 모델 도구 한 쌍)를 구현한 provi
 
 마일스톤 칸은 `product.scope.spec` §4.3을 따른다. 계획 v2 JSON의 구성요소 단계(1차/2차/보류)와 다른 곳은 아래 각주에 적는다. 단계와 마일스톤은 다른 구분이다. 단계 '1차'는 첫 사용 버전(M3 종료)에 들어간다는 뜻이고 마일스톤은 그 안의 순서다(`product.scope.spec` §2).
 
-[^ws]: [결정] M1의 `read`, `ls`, `bash`는 `_research/foundation-plan.md` §5 P4와 `F.capabilities.plan` M1과 같다. 나머지 도구는 `product.scope.spec` §4.3 M3. JSON은 "편집 방식" 2차, "이미지와 첨부 처리" 2차, "AST·LSP" 보류다. [제안] `workspace.images`의 최소형(등록, 형식·크기 검사, 리사이즈 없음)은 M2 `dialog.attachments`의 필수 의존이므로 M2에 만든다. photon 리사이즈는 2차다. 퍼지 편집은 `edit-diff.ts` 포크에 함께 들어 있어 M3 `edit`과 같이 온다. 줄 해시 편집은 2차(설계 메모만)다. 세부는 `L2.workspace.plan` §1.
+[^ws]: [결정] M1의 `read`, `bash`는 `_research/foundation-plan.md` §5 P4와 `F.capabilities.plan` M1과 같다. `ls`와 `find`는 2026-11-13에 폐지했고 2026-11-15 정리로 지웠다 [결정: 2026-11-13 사용자; 2026-11-15 사용자]. 나머지 도구는 `product.scope.spec` §4.3 M3. JSON은 "편집 방식" 2차, "이미지와 첨부 처리" 2차, "AST·LSP" 보류다. [제안] `workspace.images`의 최소형(등록, 형식·크기 검사, 리사이즈 없음)은 M2 `dialog.attachments`의 필수 의존이므로 M2에 만든다. photon 리사이즈는 2차다. 퍼지 편집은 `edit-diff.ts` 포크에 함께 들어 있어 M3 `edit`과 같이 온다. 줄 해시 편집은 2차(설계 메모만)다. 세부는 `L2.workspace.plan` §1.
 [^mcp]: JSON은 브리지·서버 주도 요청 1차, Tasks·변경 구독·OAuth 2차다. 마일스톤과 같다. Tasks·변경 구독·OAuth는 M3 이후 2차 표에 둔다(`L2.mcp.plan` §1).
 [^web]: JSON은 web.search·web.fetch·web.browse·공통 웹 계약 1차, agent-browser provider·web.research 2차, 선택 엔진 플러그인 보류다. 무료 검색 기본값 단계 구성은 M2다(`product.scope.spec` §4.1 I10, ADR-0005). [조사 2026-11-04, B16] `web.browse`는 M2 종료 조건에 들지 않아 M3 초입으로 정했고(`L2.web.plan` §1.2, review.m2-plan §8 D4), 실제로 M3b에서 구현했다(`cap-web` 브라우저 서비스와 Playwright MCP provider, 커밋 a5d9209e·11d4d636·632085fe, 2026-10-29, M3-REQ-96). 옛 "M2 후반~M3 초입" 표기는 [제안]이었고 `L2.web.plan`의 [결정]은 "M3 초입"이다. 기본 provider는 D-M3-23으로 Stagehand로 바뀌었지만 구현은 Playwright MCP 어댑터 먼저다. 이 배치는 §10 미결 17이다.
-[^work]: JSON은 작업 목록·계획 승인 1차, 목표 지속·완료 보고 2차, 작업 보드 보류다. 목표 판정은 3차 결정(별도 판정 모델 + 실행 횟수 상한)으로 범위에 들어와 M3다(`product.scope.spec` §4.1 I11). [제안] `work.reports`는 목표 종결 커밋이 완료 보고를 함께 만들어야 하므로 `work.goals`와 같이 M3에 둔다(`L2.work.spec` §1, `L2.work.plan` §1). [조사 2026-11-04, B16] `work.reports`는 [결정: review.m3-design-inputs D-M3-30 행 2, 2026-10-26 사용자]로 M3이고 `work.goals`와 같은 커밋(d74e980c, 2026-10-28, M3-REQ-88~90)으로 구현했다. 배치와 구현이 일치한다. JSON의 2차 표기와 다를 뿐이다(§10 미결 17).
+[^work]: JSON은 작업 목록 1차, 목표 지속·완료 보고 2차, 작업 보드 보류다. 계획 승인은 2026-11-13에 폐지했고 `work.plans`는 2026-11-15 정리로 지웠다 [결정: 2026-11-13 사용자; 2026-11-15 사용자]. 목표 판정은 3차 결정(별도 판정 모델 + 실행 횟수 상한)으로 범위에 들어와 M3다(`product.scope.spec` §4.1 I11). [제안] `work.reports`는 목표 종결 커밋이 완료 보고를 함께 만들어야 하므로 `work.goals`와 같이 M3에 둔다(`L2.work.spec` §1, `L2.work.plan` §1). [조사 2026-11-04, B16] `work.reports`는 [결정: review.m3-design-inputs D-M3-30 행 2, 2026-10-26 사용자]로 M3이고 `work.goals`와 같은 커밋(d74e980c, 2026-10-28, M3-REQ-88~90)으로 구현했다. 배치와 구현이 일치한다. JSON의 2차 표기와 다를 뿐이다(§10 미결 17).
 [^dialog]: JSON은 질문 도구·슬래시 명령·진행 표시·첨부 1차, 곁가지 질문·출력 스타일 2차, 음성 입력 보류다. `dialog.notify`(사용자 알림)는 3차 결정이 범위에 넣었으므로 M3다(`product.scope.spec` §4.1 I13). `dialog.aside`, `dialog.styles`는 2차다.
 [^art]: JSON은 산출물 등록·리뷰와 diff 승인·대화 제목과 메타 1차, 대화 핸드오프·내보내기 2차다. M3는 `product.scope.spec` §4.3 "나머지 1차 구성요소(`cap-artifacts` 등)"다. [조사 2026-11-04, B16] F 정의와 이벤트 카탈로그(`L2.artifacts.plan` A1)를 M2에 두려던 계획([제안])은 지켜지지 않았다. 정의(`d851f59f`)와 카탈로그(`dfcabbf8`)와 구현(`5afd0a5c`, `28a16d64`)이 모두 M3b(2026-10-29)에 들어갔다. `cap-work`는 선택 의존이라 정의 없이도 컴파일되어 M2 종료에 걸리지 않았던 것으로 보이나, 미룬 이유를 적은 기록은 찾지 못했다.
 [^sch]: JSON은 루프·백그라운드 모니터·다중 대화 2차, 예약 실행·원격 제어 보류다. 3차 결정(예약·원격·알림 범위 포함, 데몬 허용)이 JSON 표기를 덮어써 1차로 본다(`product.scope.spec` §4.1 I4 해설, I13). 그래서 M3다. 루프는 서비스 모드가 필요 없지만 `cap-schedule` 묶음으로 함께 만든다(`product.scope.spec` §4.5). [조사 2026-11-04, B16] F 정의와 이벤트 카탈로그(`L2.schedule.plan` H1)를 M2에 두려던 계획([제안])은 지켜지지 않았다. 정의(`09444528`)와 카탈로그(`dfcabbf8`)와 구현(`1ff1ee39` 외)이 모두 M3b(2026-10-29)에 들어갔다. 미룬 이유를 적은 기록은 찾지 못했다(Helm은 선택 의존으로 건너뛰므로 M2에 막힘이 없었다).
@@ -207,7 +207,7 @@ export interface WebService {
 
 ```ts
 // cap-<domain>/src/ports/approvals.ts  (패키지 내부. L1.tools.spec 승인 프로토콜을 감싼다 [가정])
-export type L2ApprovalKind = "tool" | "question" | "plan" | "review";
+export type L2ApprovalKind = "tool" | "question" | "review";   // "plan"은 2026-11-13 폐지 [결정: 2026-11-13 사용자]
 
 export interface ApprovalSnapshot {
   readonly approvalId: ApprovalId;
@@ -236,7 +236,7 @@ export interface ApprovalsPort {
 }
 ```
 
-- 기능마다 쓰는 메서드만 쓴다. `request`·`get`은 모두 쓰고, `wait`는 그룹 경로에서 결과를 기다리는 `work.plans`·`dialog.ask`가, `cancel`은 `work.plans`가, `respond`는 `work.plans`의 편의 메서드와 `schedule.remote`가 쓴다.
+- 기능마다 쓰는 메서드만 쓴다. `request`·`get`은 모두 쓰고, `wait`는 그룹 경로에서 결과를 기다리는 `dialog.ask`가, `cancel`은 2026-11-15 정리로 지운 `work.plans`가 쓰던 호출이다, `respond`는 `schedule.remote`가 쓴다.
 
 ### 5.8 호출 문맥 (`CallOptions.context`)
 
@@ -333,7 +333,7 @@ flowchart LR
 
 | 수준 | 기능 | 이유 |
 |---|---|---|
-| 0 | `workspace.files`, `workspace.shell`, `workspace.images`, `web.search`, `web.fetch`, `knowledge.skills`, `knowledge.memory`, `knowledge.search`, `knowledge.ledger`, `work.tasks`, `work.plans`, `work.reports`, `dialog.ask`, `dialog.commands`, `dialog.attachments`, `dialog.styles`, `artifacts.registry`, `artifacts.reviews`, `artifacts.sessions` | 호출 안에서 끝난다. 승인 대기는 내구 상태라 프로세스가 필요 없다 |
+| 0 | `workspace.files`, `workspace.shell`, `workspace.images`, `web.search`, `web.fetch`, `knowledge.skills`, `knowledge.memory`, `knowledge.search`, `knowledge.ledger`, `work.tasks`, `work.reports`, `dialog.ask`, `dialog.commands`, `dialog.attachments`, `dialog.styles`, `artifacts.registry`, `artifacts.reviews`, `artifacts.sessions` | 호출 안에서 끝난다. 승인 대기는 내구 상태라 프로세스가 필요 없다 |
 | 1 | `mcp.client`(stdio 서버 자식 프로세스, 연결), `web.browse`(브라우저 프로세스), `web.research`(앱 안 루프), `work.goals`(다음 턴 시작), `dialog.status`, `dialog.aside`, `dialog.notify`의 OS 알림, `schedule.loops`, `schedule.sessions`의 목록 | 앱이 켜져 있는 동안만 동작하면 된다 |
 | 2 | `schedule.timers`, `schedule.remote`, `schedule.jobs`의 분리 실행, `dialog.notify`의 모바일 푸시 | 앱을 닫아도 실행되어야 한다. 서비스 모드 전용이다 |
 
@@ -349,7 +349,7 @@ flowchart LR
 | [결정] L2 기능은 F3 정의를 구현한 provider이고 그룹은 서비스를 코드에서 바로 호출한다 | `_research/layer-plan-v2.json` L2 intro |
 | [결정] 같은 층 패키지는 import하지 않는다. 협력은 F 정의와 Cordis 서비스로만 한다 | `_research/foundation-plan.md` §3, `eng.dependency-rules.guide` DR-02 |
 | [결정] 유료 웹 API는 플러그인, 기본은 로컬 도구 | `_research/decisions-log.md` 2026-10-21 결정(2차) |
-| [결정] 질문 도구와 계획 승인은 승인 프로토콜 하나 | `_research/decisions-log.md` 2026-10-21 결정(3차), `_research/foundation-plan.md` §1 5번 |
+| [결정] 질문 도구와 계획 승인은 승인 프로토콜 하나(계획 승인은 2026-11-13 폐지 [결정: 2026-11-13 사용자]) | `_research/decisions-log.md` 2026-10-21 결정(3차), `_research/foundation-plan.md` §1 5번 |
 | [결정] 예약·원격·알림 범위 포함(데몬 허용) | `_research/decisions-log.md` 2026-10-21 결정(3차), `_research/foundation-plan.md` §1 2번 |
 | [결정] pi durable tools·images·truncate는 Chord 제거 포크 | ADR-0003 §3.1 |
 | [결정] 대화 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블 | `_research/decisions-log.md` 2026-10-21 결정(2차), ADR-0004 |

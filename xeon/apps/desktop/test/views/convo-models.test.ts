@@ -20,8 +20,6 @@ import {
   commandMetaOf,
   durationText,
   failureToneOf,
-  planArgsOf,
-  planResultOf,
   readableToolName,
   toolHeadOf,
   type ToolResultView,
@@ -206,26 +204,6 @@ describe("failureToneOf", () => {
     expect(failureToneOf("hookBlocked")).toBe("warning");
     expect(failureToneOf("guard")).toBe("warning");
     expect(failureToneOf("sandbox")).toBe("warning");
-  });
-});
-
-describe("plan", () => {
-  test("결과 글에서 판과 상태를 읽고, 모양이 다르면 null", () => {
-    expect(planResultOf("Plan p1 v3: Approved")).toEqual({ version: 3, state: "approved" });
-    expect(planResultOf("Plan p1 v1: awaiting user approval")).toEqual({
-      version: 1,
-      state: "pending",
-    });
-    expect(planResultOf("Plan p1 v2: Revision requested. Notes")).toEqual({
-      version: 2,
-      state: "revise",
-    });
-    expect(planResultOf("done")).toBeNull();
-  });
-
-  test("인자는 제목과 본문이고 모양이 틀리면 빈 글", () => {
-    expect(planArgsOf({ title: "이전", body: "1. a" })).toEqual({ title: "이전", body: "1. a" });
-    expect(planArgsOf({ title: 3 })).toEqual({ title: "", body: "" });
   });
 });
 

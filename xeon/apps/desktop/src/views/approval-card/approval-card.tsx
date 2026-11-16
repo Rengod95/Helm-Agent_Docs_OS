@@ -1,15 +1,9 @@
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
-import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
+import type { LiveApprovalRequest } from "../../state/engine/input.ts";
 import { Badge, Button } from "@caustic/react";
-import {
-  ChevronRight,
-  FileText,
-  ListChecks,
-  MessageCircleQuestion,
-  ShieldCheck,
-} from "@caustic/react/icons";
+import { ChevronRight, FileText, MessageCircleQuestion, ShieldCheck } from "@caustic/react/icons";
 import { memo, useId, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useApproval, useThread } from "../../state/engine/index.ts";
 import { useApprovalDetail, useApprovalSend } from "../../state/ui/index.ts";
@@ -22,7 +16,7 @@ import {
 } from "../approval-form.ts";
 import { useCommands, type ApprovalDecision } from "../commands.ts";
 import { APPROVE_ALL_ANSWER } from "../review-model.ts";
-import { PlanBody, QuestionBody, ReviewBody, RiskBadge, ToolBody, toolHasArgs } from "./bodies.tsx";
+import { QuestionBody, ReviewBody, RiskBadge, ToolBody, toolHasArgs } from "./bodies.tsx";
 import { useClockNow } from "./clock.ts";
 import {
   approvalAgeOf,
@@ -49,12 +43,11 @@ import {
 // 본문과 단추 줄은 제목 열(왼쪽 40)에 맞추고 사이 12. 단추 줄은 오른쪽 아래에 [거부] [주 동작](sm 28, 사이 8), 왼쪽은 펼침 단추나 보조 동작.
 // caustic AgentRequest는 종류마다 틀(구슬·유리 판·띠)과 단추 배치가 달라 쓰지 않는다. 본문은 ChoiceGroup·Input·Textarea·MessageCode·Alert.
 
-type ApprovalBodyKind = ApprovalRequestedPayload["body"]["kind"];
+type ApprovalBodyKind = LiveApprovalRequest["body"]["kind"];
 
 const KIND_LEAD: Readonly<Record<ApprovalBodyKind, MessageId>> = {
   tool: "desktop.approvals.kind.tool",
   question: "desktop.approvals.kind.question",
-  plan: "desktop.approvals.kind.plan",
   review: "desktop.approvals.kind.review",
 };
 
@@ -64,7 +57,6 @@ const KIND_TILE: Readonly<
 > = {
   tool: { icon: <ShieldCheck aria-hidden />, tone: "bg-warning-tint text-warning-text" },
   question: { icon: <MessageCircleQuestion aria-hidden />, tone: "bg-info-tint text-info-text" },
-  plan: { icon: <ListChecks aria-hidden />, tone: "bg-agent-tint text-agent-text" },
   review: { icon: <FileText aria-hidden />, tone: "bg-agent-tint text-agent-text" },
 };
 
@@ -157,7 +149,7 @@ function ActionButton(props: {
 function PendingCard(props: {
   readonly id: EventId;
   readonly threadId: ThreadId;
-  readonly request: ApprovalRequestedPayload;
+  readonly request: LiveApprovalRequest;
   /** 이 카드를 그리는 트랜스크립트의 대화. 트랜스크립트 밖이면 null */
   readonly within: ThreadId | null;
 }): ReactNode {
@@ -209,15 +201,13 @@ function PendingCard(props: {
       ? request.title
       : titleView.id === "desktop.approvals.title.tool"
         ? t(titleView.id, titleView.params)
-        : titleView.id === "desktop.approvals.title.plan"
+        : titleView.id === "desktop.approvals.title.writeAccess"
           ? t(titleView.id)
-          : titleView.id === "desktop.approvals.title.writeAccess"
-            ? t(titleView.id)
-            : titleView.id === "desktop.approvals.title.web"
+          : titleView.id === "desktop.approvals.title.web"
+            ? t(titleView.id, titleView.params)
+            : titleView.id === "desktop.approvals.title.mcpStart"
               ? t(titleView.id, titleView.params)
-              : titleView.id === "desktop.approvals.title.mcpStart"
-                ? t(titleView.id, titleView.params)
-                : t(titleView.id, { name: titleView.params.name, op: t(titleView.params.opId) });
+              : t(titleView.id, { name: titleView.params.name, op: t(titleView.params.opId) });
   const origin = approvalOriginView(request.origin.caller, request.origin.source);
   const expiry = approvalExpiryOf(request);
   const review = body.kind === "review" ? body.review : null;
@@ -305,8 +295,6 @@ function PendingCard(props: {
         disabled={busy}
         onChange={setDraft}
       />
-    ) : body.kind === "plan" ? (
-      <PlanBody plan={body.plan} />
     ) : (
       <ReviewBody review={body.review} />
     );
@@ -360,22 +348,7 @@ function PendingCard(props: {
           data-slot="approval-body"
           className="grid min-w-0 gap-2 pl-10 [&:not(:has(>:not(:empty)))]:hidden"
         >
-          {body.kind === "plan" ? (
-            // 긴 계획은 본문만 최대 높이 안에서 스크롤하고 단추 줄은 아래에 늘 보인다. 초점 순서는 본문 → 단추
-            <div
-              data-slot="approval-plan-scroll"
-              role="region"
-              aria-label={t("desktop.approvals.plan.scrollLabel")}
-              // 키보드로 방향키 스크롤을 하려면 스크롤 영역이 초점을 받아야 한다
-              tabIndex={0}
-              // 자식(코드 블록의 overflow-auto)이 flex 축소로 min-height 0까지 눌리지 않게 shrink-0이다. 최대 높이는 대기열 띠(창 높이의 40%, `--app-dvh`)에서 카드 머리·단추 줄·띠 머리를 뺀 몫이라 단추 줄이 띠 밖으로 밀리지 않는다(rtE R-1)
-              className="flex max-h-[clamp(6rem,calc(var(--app-dvh)*0.4-10rem),20rem)] flex-col gap-2 overflow-y-auto [&>*]:shrink-0"
-            >
-              {bodyNode}
-            </div>
-          ) : (
-            bodyNode
-          )}
+          {bodyNode}
           {sendState === undefined || sendState === "sending" ? null : (
             <p className="m-0 text-ui text-danger-text" role="alert" data-failure={sendState}>
               {t(APPROVAL_FAILURE_ID[sendState])}
@@ -484,8 +457,6 @@ function primaryLabelOf(kind: ApprovalBodyKind): MessageId {
       return "desktop.approvals.allow.button";
     case "question":
       return "desktop.approvals.answer.button";
-    case "plan":
-      return "desktop.approvals.plan.approve.button";
     case "review":
       return "desktop.approvals.review.approveAll.button";
     default:
@@ -495,7 +466,7 @@ function primaryLabelOf(kind: ApprovalBodyKind): MessageId {
 
 /** 종류와 입력 상태에서 보낼 답을 만든다. 질문은 모든 문항에 답이 있어야 기본 답이 생긴다 */
 function decisionsOf(
-  request: ApprovalRequestedPayload,
+  request: LiveApprovalRequest,
   state: { readonly draft: QuestionDraft },
 ): Decisions {
   const { body } = request;
@@ -520,10 +491,6 @@ function decisionsOf(
       deny,
       thread: null,
     };
-  }
-  if (body.kind === "plan") {
-    // 옛 계획 승인은 거부만 받는다(core-tools). 승인 단추는 끈다
-    return { primary: null, deny, thread: null };
   }
   return {
     primary: { decision: "answer", answer: APPROVE_ALL_ANSWER },

@@ -1,6 +1,5 @@
 import type {
   ArtifactRef,
-  PlanStatus,
   ReportId,
   ReportOutcome,
   ReportSubject,
@@ -9,7 +8,7 @@ import type {
   WorkTask,
 } from "@fresnel/contracts/capabilities";
 import type { Usage } from "@fresnel/contracts/conversation";
-import type { JudgmentRow, PlanRow } from "../projection/read.ts";
+import type { JudgmentRow } from "../projection/read.ts";
 
 // L2.work.spec §3.5, §4.4. 완료 보고는 이벤트에서 계산하는 순수 함수의 결과다. 모델을 부르지 않는다.
 
@@ -76,9 +75,6 @@ export interface ReportFacts {
   readonly tasks: readonly WorkTask[];
   readonly missing: readonly string[];
   readonly artifacts: readonly ArtifactRef[];
-  readonly plans: readonly PlanRow[];
-  /** 이 seq 뒤에 결정된 계획만 본다(범위 시작) */
-  readonly planAfterSeq: number;
 }
 
 /** 4,000자 이하의 요약. 호출자 값이 있으면 그대로, 없으면 판정 이유와 최종 텍스트를 이어 붙인다(spec §4.4 3항) */
@@ -88,24 +84,6 @@ function summaryOf(facts: Pick<ReportFacts, "summary" | "reason" | "finalText">)
     (part): part is string => part !== undefined && part !== "",
   );
   return parts.join("\n\n").slice(0, MAX_SUMMARY_CHARS);
-}
-
-function lastDecidedPlan(
-  plans: readonly PlanRow[],
-  afterSeq: number,
-): { planId: PlanRow["planId"]; version: number; status: PlanStatus } | null {
-  let latest: PlanRow | undefined;
-  for (const plan of plans) {
-    const decided =
-      plan.status === "approved" ||
-      plan.status === "rejected" ||
-      plan.status === "revision_requested";
-    if (!decided || plan.decidedSeq === null || plan.decidedSeq <= afterSeq) continue;
-    if (latest === undefined || (latest.decidedSeq ?? 0) < plan.decidedSeq) latest = plan;
-  }
-  return latest === undefined
-    ? null
-    : { planId: latest.planId, version: latest.version, status: latest.status };
 }
 
 /** 보고를 만든다. 순수 함수다 */
@@ -145,6 +123,7 @@ export function composeReport(facts: ReportFacts): WorkReport {
       missing: facts.missing.slice(0, 20),
     },
     artifacts: facts.artifacts.slice(0, 100),
-    plan: lastDecidedPlan(facts.plans, facts.planAfterSeq),
+    // 계획 기록이 없어졌다 [결정: 2026-11-15 사용자]. 칸은 옛 보고를 읽으려고 타입에 남기고, 새 보고의 값은 null이다
+    plan: null,
   };
 }

@@ -23,7 +23,6 @@ import type {
   EngineMirror,
   Link,
   PendingApproval,
-  PlanRecord,
   ProviderRetry,
   QueuedInput,
   StreamingItem,
@@ -148,12 +147,9 @@ export const useHandlerFailures = (): EngineMirror["handlerFailures"] =>
 /** 이 대화의 전환 기록(받은 순서, 대화마다 최대 20개). 대화가 없으면 빈 목록이다. 기록이 같으면 같은 참조를 준다 */
 export const useTransitions = (threadId: ThreadId | null): readonly TransitionRecord[] =>
   useEngine(useShallow((s: EngineMirror) => sel.selectTransitions(s, threadId)));
-/** 이 대화의 계획 기록(받은 순서, 가장 최근 것이 뒤, 대화마다 최대 20개). 계획 카드가 최근 계획의 id를 고른다 */
 /** 이 대화의 요약 구분선 자리(열린 대화의 목록에 끼운다). 같은 기록이면 같은 참조다 */
 export const useCompactionAnchors = (threadId: ThreadId | null): readonly AnchoredCompaction[] =>
   useEngine((s: EngineMirror) => sel.selectCompactionAnchors(s, threadId));
-export const usePlans = (threadId: ThreadId | null): readonly PlanRecord[] =>
-  useEngine(useShallow((s: EngineMirror) => sel.selectPlans(s, threadId)));
 /** 이 대화의 아직 배치되지 않은 대기 입력(받은 순서, 대화마다 최대 20개). 입력창 위 칩이 쓴다 */
 export const useQueuedInputs = (threadId: ThreadId | null): readonly QueuedInput[] =>
   useEngine(useShallow((s: EngineMirror) => sel.selectQueuedInputs(s, threadId)));

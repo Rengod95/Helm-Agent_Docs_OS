@@ -40,7 +40,7 @@ L2-e 묶음 대응(`_research/l2e.md` §5): L2-e1 작업 관리(A1, A2, A2b, A5,
 
 결정 반영:
 
-- [결정] 질문 도구와 계획 승인은 승인 프로토콜 하나로 합친다(`_research/decisions-log.md` 2026-10-21 3차, `_research/foundation-plan.md` §1 5번). `_research/l2e.md` §8의 열린 결정 "승인 프로토콜 통합"은 이 결정으로 닫혔다. 판정자 분리도 같은 결정으로 닫혔다(`L2.work.spec` §4.3).
+- [결정] 질문 도구와 계획 승인은 승인 프로토콜 하나로 합친다(계획 승인은 2026-11-13 폐지 [결정: 2026-11-13 사용자]. `_research/decisions-log.md` 2026-10-21 3차, `_research/foundation-plan.md` §1 5번). `_research/l2e.md` §8의 열린 결정 "승인 프로토콜 통합"은 이 결정으로 닫혔다. 판정자 분리도 같은 결정으로 닫혔다(`L2.work.spec` §4.3).
 - 마일스톤: `ask`, `commands`, `status`, `attachments`는 M2(`_research/layer-plan-v2.json` L2-f 1차). `aside`, `styles`는 2차(M3 이후). `notify`는 3차 결정(예약·원격·알림 범위 포함)으로 M3 [제안][^n].
 
 [^n]: `_research/layer-plan-v2.json` L2-f에는 알림 행이 없다. 알림은 `_research/l2e.md` §3.2 B4에서 왔고 3차 결정이 범위에 넣었다. `L2.readme` §2 각주 dialog와 같다.
@@ -232,7 +232,7 @@ export const DialogAskKey = serviceKey(DialogAsk);
 - [결정: review.m2-plan DG.1] 승인 요청에 싣는 대상은 L1.tools의 `QuestionBody`다(§4.1.1). `AskApprovalSubjectSchema`와 `answerSchema` 필드는 전송에 쓰지 않는다. L1.tools가 `QuestionBody`로 응답을 검사하기 때문이다.
 - 질문 수 1~4개, 선택지 2~8개는 Claude Code AskUserQuestion의 범위(질문 1~4개)를 따르고 선택지 상한은 화면 폭을 고려한 [제안]이다.
 - `executionMode: "sequential"`: 같은 단계에서 질문 도구가 둘 나오면 순서대로 묻는다. Hermes는 질문 도구를 병렬 실행에서 뺀다(`_research/refs/hermes.md` L1d-7).
-- `hints.readOnly: true`: 질문은 환경을 바꾸지 않는다. L1.tools가 이 힌트로 계획 모드에서도 질문을 허용한다 [가정].
+- `hints.readOnly: true`: 질문은 환경을 바꾸지 않는다. L1.tools가 이 힌트로 질문을 허용한다 [가정]. 계획 모드는 없다 [결정: 2026-11-13 사용자] [근거: 2026-11-13 사용자 결정].
 - `ask_unavailable_headless`: `fresnel -p` 같은 비대화형 실행에서는 답할 클라이언트가 없다. 이때 L1.tools가 승인 요청을 받지 않는다고 알려 주면(포트의 `interactive: false`) 즉시 이 오류를 낸다 [가정].
   - [잠정: review.m2-plan DG.1] 호출 문맥(`CallContext`)에 대화형 여부가 없다. cap-dialog는 조립 루트가 넘기는 판정 함수 `interactive(context)`로 이 오류를 낸다(기본은 항상 대화형). 판정 함수가 없고 L1.tools가 비대화형 요청을 `approval.resolved{ deny, noninteractive }`로 끝내면 `ask`는 이를 `cancelled(dismissed)`로 읽는다. F `CallContext.interactive`가 들어갔으므로(m2 F.8) 조립 루트가 판정 함수를 넘기지 않아도 `ask`는 `options.context.interactive === false`이면 `ask_unavailable_headless`를 낼 수 있다. 판정 함수가 있으면 그것이 이긴다.
 
@@ -575,7 +575,7 @@ export const DialogStylesKey = serviceKey(DialogStyles);
 // defs/dialog.ts (7/7)
 export const NoticeKindSchema = Type.Union([
   Type.Literal("completed"),            // 턴·목표가 끝나 사용자 차례
-  Type.Literal("approval_waiting"),     // 도구·계획 승인 대기(입력 필요)
+  Type.Literal("approval_waiting"),     // 도구 승인 대기(입력 필요)
   Type.Literal("question_waiting"),     // 질문 대기(입력 필요)
   Type.Literal("error"),                // 턴 실패, 판정 실패 등
   Type.Literal("background_completed"), // 백그라운드 위임·서브에이전트 완료
@@ -715,7 +715,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 
 #### 4.1.1 승인 요청의 사용 방식
 
-- [결정] 질문은 `fresnel.approvals`에 kind `question`으로 요청한다. 계획 승인(kind `plan`, `L2.work.spec` §4.2)과 같은 레코드 형식이다. 레코드 필드(`approvalId`, kind, 대상, 선택지, 결과)의 정의는 L1.tools.spec이 소유하고, 이 문서는 대상 내용(`AskApprovalSubjectSchema`)과 답 내용(`AskAnswerSchema`)만 정한다.
+- [결정] 질문은 `fresnel.approvals`에 kind `question`으로 요청한다. 옛 계획 승인(kind `plan`, `L2.work.spec` §4.2)과 같은 레코드 형식이었다. 계획 승인은 은퇴했다 [결정: 2026-11-13 사용자]. 레코드 필드(`approvalId`, kind, 대상, 선택지, 결과)의 정의는 L1.tools.spec이 소유하고, 이 문서는 대상 내용(`AskApprovalSubjectSchema`)과 답 내용(`AskAnswerSchema`)만 정한다.
 - cap-dialog는 `fresnel.approvals`를 포트 한 곳(`cap-dialog/src/ports/approvals.ts`)으로 감싼다. 포트 모양은 F의 L2 공통 `L2ApprovalsPort`(`L2.readme` §5.7)이고 kind는 `"question"`이다. 요청이 낸 쪽(출처)은 호출마다 정해지므로 포트는 호출 문맥으로 포트를 만드는 팩토리(`ApprovalsPortFactory.forCall`)로 받는다. 도구 호출 안이면 문맥의 `toolCallId`가 요청의 `origin`이 되어 L1.tools가 그 호출의 대기 체크포인트를 같은 커밋에 넣는다. 기본 팩토리는 `questionApprovalsOver(approvals)`다. `dialogPlugin`은 `DialogPluginOptions.approvals`가 없으면 `fresnel.approvals` 포트를 이 함수로 감싼다. 이 어댑터는 서비스의 메모리 대기 목록이 비어 있는 재시작 직후에 모르는 `approvalId`를 만나면 그 대화의 `restore`를 먼저 부르고, 같은 `requestId`의 두 번째 요청이 처음과 다른 질문 묶음이면 `key_reused`로 거부한다(서비스는 키만 보고 처음 요청을 돌려주므로 어댑터가 비교한다).
 - [결정: review.m2-plan DG.1] 레코드 모양은 L1.tools가 정한다. cap-dialog가 도메인 모양과 레코드 모양을 옮긴다(`ask/mapping.ts`).
   - 대상: `AskQuestion[]`을 `QuestionBody`(`{ questions: [{ id, text, options: [{ id, label, description? }], multiSelect, allowFreeText }] }`)로 옮긴다. `question`은 `text`가 되고, 선택지가 없는 질문은 `options: []`와 `allowFreeText: true`다(L1.tools는 선택지 없는 질문의 `allowFreeText`가 참이어야 받는다). `header`와 `recommended`도 레코드에 싣는다(F.8에서 `QuestionItem.header`, `QuestionOption.recommended`가 들어왔다). 화면이 추천 표시를 그리고, 시간 제한의 추천 답은 입력(`AskInput`)의 `defaultAskAnswer`가 정한다.
@@ -846,7 +846,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 - [제안] 같은 이름이 여러 출처에 있으면 `builtin` > `capability` > `project` > `user` > `extension` 순으로 앞의 것을 쓴다. 가려진 명령은 `list({ includeHidden: true })`에서 보이고 진단을 남긴다.
 - pi는 사용자(전역) 파일을 먼저 읽고 첫 일치를 쓰므로 사용자가 작업 폴더보다 앞선다(`prompt-templates.ts` 238-304행). Fresnel은 설정 우선순위(작업 폴더가 사용자보다 앞섬, F.wire-settings.spec §4.7)와 맞추려고 순서를 바꾼다.
 - `capability` 출처끼리 같은 이름을 등록하면 뒤 등록이 `command_name_taken`으로 거부된다. 그룹 명령은 `<그룹>:<이름>` 형식을 권한다.
-- 동작 명령(`registerAction`)은 `capability` 출처다. `L2.work.spec` §6.2의 `/goal`, `/plan`, `/tasks`가 여기에 들어간다.
+- 동작 명령(`registerAction`)은 `capability` 출처다. `L2.work.spec` §6.2의 `/goal`, `/tasks`가 여기에 들어간다(`/plan`은 2026-11-13 폐지 [결정: 2026-11-13 사용자]).
 - `builtin` 출처는 클라이언트(L4)가 `declareBuiltin(명령 선언 목록)`으로 알린다(`dialog.commands` API 객체의 TS 메서드, 반환 함수로 해제). 이 패키지는 `builtin` 명령을 실행하지 않는다. `builtin`이 이긴 이름은 `expand`가 `matched: false`, `run`이 `not_command`를 돌려주고 실행은 클라이언트가 한다. 목록과 광고에는 보인다.
 - 같은 등급 안에서는 들어온 순서가 앞선 것이 이긴다(파일 명령은 작업 폴더 디렉터리, 사용자 디렉터리, 설정 디렉터리 순). 템플릿 `register`로 올린 명령에는 해제 수단이 없다. 코드가 해제해야 하면 `registerAction`을 쓴다.
 
@@ -953,7 +953,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 | kind | 입력 필요 | 원인 이벤트 | 제목 예 |
 |---|---|---|---|
 | `completed` | 아니오 | `turn.completed`(종결 `completed`), `work.goal_settled`(`met`, `limit_reached`) | "작업이 끝났어요" |
-| `approval_waiting` | 예 | `approval.requested`(kind `tool`, `plan`) | "승인이 필요해요: bash" |
+| `approval_waiting` | 예 | `approval.requested`(kind `tool`) | "승인이 필요해요: bash" |
 | `question_waiting` | 예 | `approval.requested`(kind `question`) | "질문에 답이 필요해요" |
 | `error` | 아니오 | `turn.completed`(종결 `failed`), `work.goal_settled`(`judge_failed`) | "턴이 실패했어요" |
 | `background_completed` | 아니오 | `agent.settled`(background), `schedule.*` 실행 완료 [가정: L2.schedule.spec 이벤트 이름] | "백그라운드 작업이 끝났어요" |
@@ -964,7 +964,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 - 구현 대응은 `xeon/packages/cap-dialog/src/notify/classify.ts`다. 제목은 120자, 본문은 1000자를 넘지 않게 자르고, `sourceType`은 원인 이벤트 종류다. 아래에 없는 종류와 해석할 수 없는 payload는 `null`이다.
   - `turn.completed`: `completed`는 `completed`("작업이 끝났어요"), `failed`는 `error`("턴이 실패했어요", 본문은 `error` 문구), `interrupted`는 `null`.
   - `work.goal_settled`: `met`는 `completed`("목표를 달성했어요"), `limit_reached`는 `completed`("목표 판정 한도에 도달했어요"). 두 경우 본문은 `판정 N회`다. `judge_failed`는 `error`("목표 판정에 실패했어요"). `active`와 `cleared`는 `null`.
-  - `approval.requested`: `tool`은 `approval_waiting`("승인이 필요해요: <도구 이름>"), `plan`은 `approval_waiting`("승인이 필요해요: plan"), `question`은 `question_waiting`("질문에 답이 필요해요"). `review`는 표에 없어 `null`이다 [미결].
+  - `approval.requested`: `tool`은 `approval_waiting`("승인이 필요해요: <도구 이름>"), `question`은 `question_waiting`("질문에 답이 필요해요"). `review`는 표에 없어 `null`이다 [미결]. 은퇴한 `plan` 기록은 알림을 만들지 않는다(`null`) [결정: 2026-11-15 사용자].
   - `agent.settled`: `completed`는 `background_completed`("백그라운드 작업이 끝났어요"), `error`는 `error`("백그라운드 작업이 실패했어요", 본문은 `error` 문구), `aborted`는 `null`. 이벤트에 전경·백그라운드 구분이 없어 모든 종료를 분류한다. 전경 위임의 종료도 알림이 된다 [결정: 오케스트레이터 기본값].
   - `schedule.run_finished`: `completed`는 `background_completed`("예약 작업이 끝났어요"), `failed`는 `error`("예약 작업이 실패했어요"), `aborted`와 `awaiting_approval`은 `null`이다. 표의 `schedule.*` [가정]은 이 종류로 정한다 [결정: 오케스트레이터 기본값].
   - `dialog.notified`: 기록된 `notice`의 종류, 제목, 본문을 그대로 옮긴다. 제목이 빈 기록은 `null`이다.
@@ -1106,7 +1106,7 @@ export const manifest = defineManifest({
 
 ## 9. 수용 기준
 
-1. `ask_user` 도구 호출 하나가 `approval.requested`(kind `question`) 기록 하나와 `status: "input_required"`인 도구 결과(`InputRequiredInfo` 포함)를 만든다. 같은 시나리오의 계획 제출(`L2.work.spec` §9-1)과 두 `approval.requested` payload가 L1.tools의 같은 스키마를 통과한다.
+1. `ask_user` 도구 호출 하나가 `approval.requested`(kind `question`) 기록 하나와 `status: "input_required"`인 도구 결과(`InputRequiredInfo` 포함)를 만든다. 이 `approval.requested` payload는 L1.tools의 `ApprovalRequestedPayloadSchema`를 통과한다(계획 제출 시나리오는 은퇴했다 [결정: 2026-11-13 사용자]).
 2. 답이 기록된 뒤 프로세스를 강제 종료하고 재개하면 도구 결과의 완료 커밋(`tool:<toolCallId>:result`)이 정확히 한 번 있다. 재시도 호출이 여러 번 일어나도 승인 요청은 하나다.
 3. 인자 치환 표 테스트: §4.2.2 표의 여섯 표기와 pi 테스트(`prompt-templates.test.ts`의 `substituteArgs` 묶음)를 옮긴 사례가 모두 통과한다.
 4. `dialog.status` 이벤트는 `events` 테이블에 저장되지 않고, 투영 재생성과 `readEvents` 결과에 나타나지 않는다. 재접속 뒤 `list`가 현재 세그먼트를 돌려준다.

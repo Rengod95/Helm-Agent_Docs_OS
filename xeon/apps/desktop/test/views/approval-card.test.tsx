@@ -1,9 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
-import {
-  ApprovalRequestedPayloadSchema,
-  type ApprovalRequestedPayload,
-} from "@fresnel/contracts/records";
+import { ApprovalRequestedPayloadSchema } from "@fresnel/contracts/records";
+import type { LiveApprovalRequest } from "../../src/state/engine/input.ts";
 import type { LeafMask } from "@fresnel/contracts/conversation";
 import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
 import type { EngineMirror } from "../../src/state/engine/state.ts";
@@ -11,7 +9,7 @@ import { decodePendingApprovals } from "../../src/state/engine/decode.ts";
 import { createUiStore } from "../../src/state/ui/store.ts";
 import { Providers } from "../../src/views/providers.tsx";
 import { ApprovalQueue } from "../../src/views/approvals.tsx";
-import { evt, openedHarness, thr } from "../state/helpers.ts";
+import { evt, liveApprovalOf, openedHarness, thr } from "../state/helpers.ts";
 import { fakeCommands } from "./fake-commands.ts";
 import { renderToString } from "react-dom/server";
 
@@ -25,7 +23,7 @@ function frozen<T>(state: T): ReadonlyStore<T> {
   return { getState: () => state, getInitialState: () => state, subscribe: () => () => {} };
 }
 
-function request(title: string, command: string): ApprovalRequestedPayload {
+function request(title: string, command: string): LiveApprovalRequest {
   const parsed = parse(ApprovalRequestedPayloadSchema, {
     origin: { threadId: thr(1), turnId: null, stepId: null, toolCallId: null, caller: "main" },
     requestKey: "req-1",
@@ -39,7 +37,7 @@ function request(title: string, command: string): ApprovalRequestedPayload {
     requestedAt: 1,
   });
   if (!parsed.ok) throw new Error("the test approval payload must be valid");
-  return parsed.value;
+  return liveApprovalOf(parsed.value);
 }
 
 function leafOf(text: string, pointer: string): LeafMask {

@@ -127,11 +127,9 @@ function modelErrorText(error: CommandError): string {
 }
 
 /**
- * 승인 모드를 바꾸지 못했을 때의 문장. 잠김과 연결 끊김은 보낼 때와 같은 문장이다. 계획 명령이 거절하면 엔진이 준 문장을 그대로 쓰고,
- * 없으면 승인 모드 문장이다
+ * 승인 모드를 바꾸지 못했을 때의 문장. 잠김과 연결 끊김은 보낼 때와 같은 문장이다. 그 밖은 승인 모드 문장이다
  */
 export function modeErrorText(error: ModeChangeError): string {
-  if (error.kind === "refused") return error.message ?? t("desktop.composer.approvalMode.error");
   const cause = error.error;
   if (cause.kind === "offline" || cause.kind === "switching" || cause.kind === "locked") {
     return sendErrorText(cause);

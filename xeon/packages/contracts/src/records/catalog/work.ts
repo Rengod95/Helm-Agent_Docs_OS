@@ -30,8 +30,7 @@ const TaskStatusRecord = Type.Union([
 ]);
 type TaskStatus = "pending" | "in_progress" | "completed" | "failed" | "cancelled";
 
-// 계획 기록 모양은 옛 work.plan_* 이벤트를 읽으려고 남긴다
-// 더는 쓰지 않음 [결정: 2026-11-13 사용자]. 옛 기록 읽기 전용이다. 저장 문자열은 그대로다.
+// 계획 상태 모양은 보고서의 `plan` 칸(옛 계획 참조)을 읽으려고 남긴다. 계획 기능은 없앴다 [결정: 2026-11-13 사용자]
 const PlanStatusRecord = Type.Union([
   Type.Literal("submitted"),
   Type.Literal("approved"),
@@ -344,60 +343,6 @@ export const WorkTaskLinkSchema: TUnsafe<WorkTaskLinkPayload> = Type.Unsafe<Work
   workTaskLinkShape satisfies SchemaProof<WorkTaskLinkPayload, typeof workTaskLinkShape>,
 );
 
-// 더는 쓰지 않음 [결정: 2026-11-13 사용자]. 옛 기록 읽기 전용이다. 저장 문자열은 그대로다.
-export type WorkPlanSubmittedPayload = {
-  planId: PlanId;
-  version: number;
-  title: string;
-  body: string;
-  artifact: ArtifactRefRecord | null;
-  supersedes: number | null;
-};
-const workPlanSubmittedShape = Type.Object(
-  {
-    planId: PlanIdRecord,
-    version: Type.Integer({ minimum: 1 }),
-    title: Type.String(),
-    body: Type.String({ maxLength: 65536 }),
-    artifact: Type.Union([ArtifactRefRecordSchema, Type.Null()]),
-    supersedes: Type.Union([Type.Integer({ minimum: 1 }), Type.Null()]),
-  },
-  { additionalProperties: false },
-);
-export const WorkPlanSubmittedSchema: TUnsafe<WorkPlanSubmittedPayload> =
-  Type.Unsafe<WorkPlanSubmittedPayload>(
-    workPlanSubmittedShape satisfies SchemaProof<
-      WorkPlanSubmittedPayload,
-      typeof workPlanSubmittedShape
-    >,
-  );
-
-// 더는 쓰지 않음 [결정: 2026-11-13 사용자]. 옛 기록 읽기 전용이다. 저장 문자열은 그대로다.
-export type WorkPlanWithdrawnPayload = {
-  planId: PlanId;
-  version: number;
-  reason: "exit_mode" | "goal_cleared" | "call";
-};
-const workPlanWithdrawnShape = Type.Object(
-  {
-    planId: PlanIdRecord,
-    version: Type.Integer({ minimum: 1 }),
-    reason: Type.Union([
-      Type.Literal("exit_mode"),
-      Type.Literal("goal_cleared"),
-      Type.Literal("call"),
-    ]),
-  },
-  { additionalProperties: false },
-);
-export const WorkPlanWithdrawnSchema: TUnsafe<WorkPlanWithdrawnPayload> =
-  Type.Unsafe<WorkPlanWithdrawnPayload>(
-    workPlanWithdrawnShape satisfies SchemaProof<
-      WorkPlanWithdrawnPayload,
-      typeof workPlanWithdrawnShape
-    >,
-  );
-
 /** judgments: 0, status: "active"인 새 목표 */
 export type WorkGoalSetPayload = { goal: GoalRecord };
 const workGoalSetShape = Type.Object({ goal: GoalRecordSchema }, { additionalProperties: false });
@@ -446,9 +391,22 @@ export const WORK_EVENT_CATALOG: readonly CatalogEntry[] = [
   { kind: "work.task_changed", version: 1, durable: true, payload: WorkTaskChangedSchema },
   { kind: "work.task_linked", version: 1, durable: true, payload: WorkTaskLinkSchema },
   { kind: "work.task_unlinked", version: 1, durable: true, payload: WorkTaskLinkSchema },
-  // 더는 쓰지 않음 [결정: 2026-11-13 사용자]. 옛 기록 읽기 전용이다. 저장 문자열은 그대로다.
-  { kind: "work.plan_submitted", version: 1, durable: true, payload: WorkPlanSubmittedSchema },
-  { kind: "work.plan_withdrawn", version: 1, durable: true, payload: WorkPlanWithdrawnSchema },
+  // 없앤 kind [결정: 2026-11-13 사용자]. 옛 행을 읽기만 하고 새로 쓰지 않는다(producers.ts가 거부한다).
+  // 옛 모양은 검사하지 않는다: payload는 아무 값이나 받는다 [결정: 2026-11-15 사용자]
+  {
+    kind: "work.plan_submitted",
+    version: 1,
+    durable: true,
+    payload: Type.Unknown(),
+    retired: true,
+  },
+  {
+    kind: "work.plan_withdrawn",
+    version: 1,
+    durable: true,
+    payload: Type.Unknown(),
+    retired: true,
+  },
   { kind: "work.goal_set", version: 1, durable: true, payload: WorkGoalSetSchema },
   { kind: "work.goal_judged", version: 1, durable: true, payload: WorkGoalJudgedSchema },
   { kind: "work.goal_settled", version: 1, durable: true, payload: WorkGoalSettledSchema },

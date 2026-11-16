@@ -103,6 +103,10 @@ function snapshotOfResolution(resolution: ApprovalResolution): L2ApprovalSnapsho
   };
 }
 
+/**
+ * 기본 제목. `plan`은 은퇴한 종류라 새 요청이 없다(`request`가 subject 불일치로 거부한다). ApprovalKind가 옛 기록을 읽으려고 `plan`을 남겨서
+ * `Record`가 그 칸을 요구한다.
+ */
 const DEFAULT_TITLES: Readonly<Record<L2ApprovalRequest["kind"], string>> = {
   tool: "Approve this action?",
   plan: "Review the plan",

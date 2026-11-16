@@ -23,7 +23,7 @@ binds: [xeon/packages/core-tasks/**]
 | M2 승인 통합과 Helm 서브에이전트 | 동시 상한 풀 세 개와 교착 방지, 설정 노출(`l1.tasks.*` 다섯 키), `next`·`aside` 모드, 서브에이전트 풀(Helm 렌즈 N개 탐구, UC-2) | 동시 실행 상한(1차), 내구 입력 큐 next·aside(1차) |
 | 2차(M3 이후) | 수락과 완료 분리(ACP v2), 병렬 interrupt 다중 재개 | 수락과 완료 분리(2차), 병렬 interrupt 재개(`_research/packages.md` §4.3, 2차) |
 
-- M1에 동시 상한을 넣지 않는 이유 [제안]: M1 도구는 `read`, `ls`, `bash` 셋이고 서브에이전트가 없다(`product.scope.spec` §4.3 M1). 상한이 없어도 M1 스모크는 성립한다. 교착 방지 규칙(C1~C4)은 서브에이전트가 들어오는 M2와 함께 시험한다.
+- M1에 동시 상한을 넣지 않는 이유 [제안]: M1 도구는 `read`, `bash` 둘이고 서브에이전트가 없다(`product.scope.spec` §4.3 M1). 상한이 없어도 M1 스모크는 성립한다. 교착 방지 규칙(C1~C4)은 서브에이전트가 들어오는 M2와 함께 시험한다.
 - `next`·`aside`를 M2로 미루는 이유: F 계약이 맞지 않는다(`L1.tasks.spec` §4.9, FR-T4). M1에서는 `mode_not_supported`를 돌려준다.
 
 ## 2. 패키지와 파일 배치

@@ -10,7 +10,7 @@ import type {
 import type { Result } from "../base/index.ts";
 import type { PortKey } from "../extensions/index.ts";
 import type { BlobRef, ReadFailure, StoreError } from "../records/index.ts";
-import type { CallerId, McpDeclaredHints, PermissionMode, RunSource, ToolRisk } from "./tools.ts";
+import type { CallerId, McpDeclaredHints, RunSource, ToolRisk } from "./tools.ts";
 
 // L1.tools.spec §3.6. 구현은 core-tools다. 승인 요청은 내구 이벤트 approval.requested로 나가고
 // 응답은 호스트 메서드 approval.respond로 들어온다(review.decisions-2 U-02).
@@ -28,7 +28,7 @@ export const ApprovalServicePortKey: PortKey<ApprovalService> = { name: Approval
 export const WRITE_ACCESS_RULE_ID = "sandbox.write_access" as const;
 
 /**
- * `plan`은 더는 쓰지 않음 [결정: 2026-11-13 사용자]. 옛 기록을 읽기 전용으로 디코드하려고 남겼다. 새 계획 승인 요청은 core-tools가 거부한다.
+ * 승인 종류. `"plan"`은 은퇴한 종류다 [결정: 2026-11-13 사용자]. 저장된 문자열이라 타입에 남기고, 새 계획 승인은 만들지 않는다.
  */
 export type ApprovalKind = "tool" | "plan" | "question" | "review";
 export type ApprovalDecision = "allow" | "deny" | "answer";
@@ -82,16 +82,6 @@ export interface ToolApprovalBody {
   readonly mcp?: { readonly server: string; readonly declared?: McpDeclaredHints };
 }
 
-/** 더는 쓰지 않음 [결정: 2026-11-13 사용자]. 옛 기록 읽기 전용: `nextModes`에 옛 `plan` 문자열이 있을 수 있어 서비스가 버린다 */
-export interface PlanApprovalBody {
-  /** 계획 본문(마크다운). 큰 값은 BlobRef */
-  readonly plan: string | BlobRef;
-  /** L2.work의 계획 레코드 참조. 형식은 L2.work.spec */
-  readonly planRef: string | null;
-  /** 승인 때 고를 수 있는 다음 권한 모드 */
-  readonly nextModes: readonly PermissionMode[];
-}
-
 export interface QuestionOption {
   /** 1~32자 */
   readonly id: string;
@@ -141,8 +131,6 @@ export interface ReviewBody {
 
 export type ApprovalBody =
   | { readonly kind: "tool"; readonly tool: ToolApprovalBody }
-  /** 더는 쓰지 않음 [결정: 2026-11-13 사용자]. 옛 기록 읽기 전용 */
-  | { readonly kind: "plan"; readonly plan: PlanApprovalBody }
   | { readonly kind: "question"; readonly question: QuestionBody }
   | { readonly kind: "review"; readonly review: ReviewBody };
 
@@ -189,12 +177,6 @@ export type QuestionAnswer = Readonly<
   Record<string, { readonly selected: readonly string[]; readonly text?: string }>
 >;
 
-/** 더는 쓰지 않음 [결정: 2026-11-13 사용자]. 옛 계획 승인(kind `plan`) decision `allow`의 answer 모양. 새 응답은 받지 않는다 */
-export interface PlanAnswer {
-  readonly mode?: PermissionMode;
-  readonly note?: string;
-}
-
 /** decision `deny`의 answer. 거부 이유를 모델에 돌려줄 때 쓴다 */
 export interface DenyAnswer {
   readonly feedback: string;
@@ -226,8 +208,8 @@ export interface ApprovalApplyOutcome {
 export interface ApprovalResponse {
   readonly decision: ApprovalDecision;
   /**
-   * kind별 정본 모양(records `ApprovalAnswerSchema`): decision "answer"면 QuestionAnswer(question), decision "allow"면 옛 PlanAnswer(plan은 더 받지 않는다),
-   * decision "deny"면 DenyAnswer(선택). 그 밖의 조합은 `applied: false`다
+   * kind별 정본 모양(records `ApprovalAnswerSchema`): decision "answer"면 QuestionAnswer(question), decision "deny"면 DenyAnswer(선택).
+   * 계획 승인(plan)의 allow 답은 더 받지 않는다. 그 밖의 조합은 `applied: false`다
    */
   readonly answer?: JsonValue;
   readonly remember?: ApprovalRemember;
@@ -348,9 +330,9 @@ export interface L2ApprovalSnapshot {
 export interface L2ApprovalRequest {
   readonly threadId: ThreadId;
   readonly kind: L2ApprovalKind;
-  /** 도메인 대상. question은 AskApprovalSubject, plan은 PlanApprovalSubject 등 */
+  /** 도메인 대상. question은 AskApprovalSubject 등 */
   readonly subject: JsonValue;
-  /** decision "answer"일 때 answer를 검사할 JSON Schema. question·plan이 쓴다 */
+  /** decision "answer"일 때 answer를 검사할 JSON Schema. question이 쓴다 */
   readonly answerSchema?: JsonObject;
   /** false면 턴을 멈추지 않는 비차단 요청. 생략하면 true. M2에는 비차단 kind가 없다 */
   readonly blocking?: boolean;

@@ -30,7 +30,7 @@ binds: [xeon/packages/platform-sandbox/**]
 |---|---|
 | 셸 실행, 자식 env 허용 목록, 시크릿 주입 | `L0.exec.spec` |
 | 승인 UI, 권한 모드, 명령 패턴 규칙, 자동 허용 판정의 적용 | `L1.tools.spec` |
-| 파일 도구(read, write, edit, ls, grep, find)의 경로 검사 | `L2.workspace.spec` §4.3 (이 문서는 보호 경로 목록과 판정 함수만 준다) |
+| 파일 도구(read, write, edit, grep)의 경로 검사 | `L2.workspace.spec` §4.3 (이 문서는 보호 경로 목록과 판정 함수만 준다) |
 | 시크릿 lease, sentinel 프록시, 마스킹 | `L0.secrets.spec` |
 | 사용자·앱 디렉터리 질의 | `L0.os.spec` |
 | doctor 명령과 종료 코드 | `L4.cli.spec` |
@@ -39,7 +39,7 @@ binds: [xeon/packages/platform-sandbox/**]
 
 | 구성요소 | 단계 | 표지 |
 |---|---|---|
-| OS 샌드박스(srt 래핑), 보호 경로, 자가 시험, 격리 불가 정책 | 1차, M1 | [결정: `_research/foundation-plan.md` §5 M1 "도구 read, ls, bash(sandbox)"], `_research/layer-plan-v2.json` L0-b 1차 |
+| OS 샌드박스(srt 래핑), 보호 경로, 자가 시험, 격리 불가 정책 | 1차, M1 | [결정: `_research/foundation-plan.md` §5 M1 "도구 read, ls, bash(sandbox)"; ls는 2026-11-13 폐지 [결정: 2026-11-13 사용자]], `_research/layer-plan-v2.json` L0-b 1차 |
 | 네트워크 정책(srt 프록시) | M3b에서 기본 허용 + 차단 도메인 목록(§3.2, §10 1번). 허용 목록 방식은 후속. M1은 전부 차단이었다 | [결정: 계획 v2 L0-b "네트워크 정책 2차"] / 1차 차단 [제안] |
 | 이름 붙은 권한 프로필, 실행 없는 오프라인 규칙 검사 | 2차 | [결정: 계획 v2 L0-b]. Gemini CLI `core/src/policy/*`(Apache-2.0)는 구조만 참고하고 import하지 않는다(`_research/packages.md` §4.2 162행) |
 | Windows 네이티브 격리 | 1차 범위 밖. status `none`과 격리 불가 정책만 | [결정: `_research/decisions-log.md` 2026-10-19 "Windows 네이티브는 나중"] |
@@ -466,7 +466,7 @@ export function selectSandboxProvider(input: {
 ### 4.7 감싸는 범위
 
 - 감싸는 것: bash 계열 셸 명령과 그 자식 프로세스(`wrapShell`을 거친 `Shell.exec`), 켠 stdio MCP 서버 프로세스(`wrapArgv`, 4.9절).
-- 감싸지 않는 것: 파일 도구(read, write, edit, ls, grep·find 중 in-process 구현), 웹 도구, 출처 판정으로 끈 로컬 MCP 서버(4.8절), 확장 코드 자체(`_research/refs/claude-code.md` §3.2, `_research/notes/L0-1.md` §0 8번). 그래서 파일 도구는 realpath 기준 보호 경로 검사를 L1·L2에서 해야 한다(18 R-12, 8.3절 요구).
+- 감싸지 않는 것: 파일 도구(read, write, edit, grep 중 in-process 구현), 웹 도구, 출처 판정으로 끈 로컬 MCP 서버(4.8절), 확장 코드 자체(`_research/refs/claude-code.md` §3.2, `_research/notes/L0-1.md` §0 8번). 그래서 파일 도구는 realpath 기준 보호 경로 검사를 L1·L2에서 해야 한다(18 R-12, 8.3절 요구).
 - MCP stdio 서버 프로세스는 §4.8의 출처별 판정으로 정한다. 켬이면 서버 프로세스의 명령줄을 `wrapArgv`(4.9절)로 받고, 호출자가 스트림을 연다.
 
 ### 4.8 MCP stdio 서버와 중첩 네임스페이스

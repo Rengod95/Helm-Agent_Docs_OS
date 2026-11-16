@@ -6,8 +6,8 @@ import {
   type SettingDef,
 } from "@fresnel/contracts/settings";
 
-// L2.workspace.spec §6. 읽는 키만 선언한다(M1: read.*, shell.*, list.maxEntries, M2: images.*; plan W8).
-// M3b: edit.fuzzy, grep.*, find.*를 더했다. grep·find는 ripgrep으로 돈다(spec §4.5).
+// L2.workspace.spec §6. 읽는 키만 선언한다(M1: read.*, shell.*, M2: images.*; plan W8).
+// M3b: edit.fuzzy, grep.*를 더했다. grep은 ripgrep으로 돈다(spec §4.5). find.*와 list.*는 2026-11-15 정리로 지웠다 [결정: 2026-11-15 사용자].
 // 키를 더하거나 바꾸면 apps/host/schema/settings.<범위>.schema.json을 다시 만든다(settings-schema-committed 시험이 막는다):
 // `cd xeon/apps/host && mise exec -- bun src/main.ts config schema --scope <managed|user|project|local> --core-only --out schema/settings.<범위>.schema.json`
 
@@ -96,30 +96,6 @@ const workspaceSettings = defineSettings("l2.workspace", {
       label: "Max search result line length",
       unit: "chars",
     },
-    since: "0.1.0",
-  },
-  "find.maxResults": {
-    type: Type.Integer(),
-    default: 1000,
-    range: { min: 1, max: 100000 },
-    runtimeChange: "nextTurn",
-    allowedScopes: ALL_SCOPES,
-    ui: {
-      tab: "tools",
-      widget: "number",
-      order: 213,
-      label: "Max file find results",
-      unit: "items",
-    },
-    since: "0.1.0",
-  },
-  "list.maxEntries": {
-    type: Type.Integer(),
-    default: 500,
-    range: { min: 1, max: 10000 },
-    runtimeChange: "nextTurn",
-    allowedScopes: ALL_SCOPES,
-    ui: { tab: "tools", widget: "number", order: 205, label: "Max list entries", unit: "items" },
     since: "0.1.0",
   },
   "edit.fuzzy": {
@@ -219,8 +195,6 @@ export interface WorkspaceSettings {
     /** 빈 문자열이면 `fresnel.os`가 번들 rg를 찾는다 */
     readonly rgPath: string;
   };
-  readonly find: { readonly maxResults: number };
-  readonly list: { readonly maxEntries: number };
   readonly edit: { readonly fuzzy: boolean };
   readonly images: {
     readonly maxWidth: number;
@@ -236,8 +210,6 @@ export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
   read: { maxLines: 2000, maxBytes: 51200 },
   shell: { maxLines: 2000, maxBytes: 51200, defaultTimeoutSec: 0 },
   grep: { maxMatches: 100, maxLineLength: 500, rgPath: "" },
-  find: { maxResults: 1000 },
-  list: { maxEntries: 500 },
   edit: { fuzzy: true },
   images: { maxWidth: 2000, maxHeight: 2000, maxBytes: 4718592, maxInputBytes: 41943040 },
 };
@@ -285,8 +257,6 @@ export function readWorkspaceSettings(layers: ScopeStack): WorkspaceSettings {
       maxLineLength: integerValue(defs["grep.maxLineLength"], layers, fallback.grep.maxLineLength),
       rgPath: stringValue(defs["grep.rgPath"], layers, fallback.grep.rgPath),
     },
-    find: { maxResults: integerValue(defs["find.maxResults"], layers, fallback.find.maxResults) },
-    list: { maxEntries: integerValue(defs["list.maxEntries"], layers, fallback.list.maxEntries) },
     edit: { fuzzy: booleanValue(defs["edit.fuzzy"], layers, fallback.edit.fuzzy) },
     images: {
       maxWidth: integerValue(defs["images.maxWidth"], layers, fallback.images.maxWidth),

@@ -37,16 +37,10 @@ interface EditSummary {
   readonly path: string;
 }
 
-/** ls 도구는 없어졌다. 이 요약은 지금 만들지 않는다(옛 ls 호출은 generic으로 그린다) */
-interface ListSummary {
-  readonly kind: "list";
-  readonly path: string | null;
-}
-
 interface SearchSummary {
   readonly kind: "search";
-  /** content: grep(파일 내용 정규식), files: find 도구는 없어졌다(지금은 만들지 않는다), knowledge: knowledge_search(지식·세션 검색) */
-  readonly target: "content" | "files" | "knowledge";
+  /** content: grep(파일 내용 정규식), knowledge: knowledge_search(지식·세션 검색) */
+  readonly target: "content" | "knowledge";
   readonly pattern: string;
   readonly path: string | null;
   /** grep의 파일 필터 glob. knowledge에는 없다 */
@@ -131,7 +125,6 @@ export type ToolArgsSummary =
   | ReadSummary
   | WriteSummary
   | EditSummary
-  | ListSummary
   | SearchSummary
   | TasksSummary
   | MemorySummary

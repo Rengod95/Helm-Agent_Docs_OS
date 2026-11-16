@@ -262,6 +262,14 @@ describe("artifacts.registry schemas", () => {
     }
   });
 
+  test("artifact_create takes only the three kinds it can make; plan is refused", () => {
+    const create = ArtifactsRegistry.tools[0];
+    for (const kind of ["document", "table", "log"]) {
+      expect(parse(create.parameters, { kind, title: "t", text: "body" }).ok).toBe(true);
+    }
+    expect(parse(create.parameters, { kind: "plan", title: "t", text: "body" }).ok).toBe(false);
+  });
+
   test("kind rejects an unknown word, an uppercase word and a two-part extension", () => {
     for (const kind of ["bogus", "Document", "x.mermaid", "y.mermaid.diagram"]) {
       expect(parse(ArtifactKindSchema, kind).ok).toBe(false);

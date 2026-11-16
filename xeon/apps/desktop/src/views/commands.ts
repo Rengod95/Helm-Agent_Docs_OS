@@ -352,11 +352,6 @@ export interface WorkCommands {
     threadId: ThreadId,
     text: string,
   ): Promise<Result<WireResult<"command.run">, CommandError>>;
-  /** 계획의 모든 판(W-18). 모르는 계획 id는 `rejected`이고 `path`가 `planId`다 */
-  planVersions(
-    threadId: ThreadId,
-    planId: string,
-  ): Promise<Result<WireResult<"work.plans.versions">, CommandError>>;
 }
 
 /**

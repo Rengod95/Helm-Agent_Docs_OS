@@ -686,8 +686,6 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 | `l2.workspace.shell.defaultTimeoutSec` | integer | 0 | min 0, max 86400 | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.workspace.grep.maxMatches` | integer | 100 | min 1, max 10000 | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.workspace.grep.maxLineLength` | integer | 500 | min 80, max 10000 | nextTurn | managed, user, project, local, launch | tools | false |
-| `l2.workspace.find.maxResults` | integer | 1000 | min 1, max 100000 | nextTurn | managed, user, project, local, launch | tools | false |
-| `l2.workspace.list.maxEntries` | integer | 500 | min 1, max 10000 | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.workspace.edit.fuzzy` | boolean | true | — | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.workspace.images.maxWidth` | integer | 2000 | min 64, max 16384 | nextTurn | managed, user, project, local | tools | false |
 | `l2.workspace.images.maxHeight` | integer | 2000 | min 64, max 16384 | nextTurn | managed, user, project, local | tools | false |
@@ -696,7 +694,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 | `l2.workspace.grep.rgPath` | string | `""` | — | restart | managed, user | tools | false |
 
 - `shell.defaultTimeoutSec`의 0은 제한 없음이다(pi durable `bash`의 기본값과 같다).
-- `find.maxResults`와 `list.maxEntries`는 읽는 기능이 더는 쓰이지 않는다(`find`와 `ls` 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]). 키는 옛 설정 파일과 맞추려고 남겼고, 제거는 §10 미결 15다.
+- `find.maxResults`와 `list.maxEntries`는 2026-11-15 정리로 지웠다 [결정: 2026-11-15 사용자]. 저장된 값은 알 수 없는 키처럼 무시하고, 쓰기는 `settings.unknownKey`로 거부한다(`test/settings.test.ts`). 이 키들을 읽던 기능(`find`, `ls`)은 2026-11-13에 이미 지웠다 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]. §10 미결 15는 닫혔다.
 - `grep.rgPath`가 빈 문자열이면 `fresnel.os`의 `resolveBinary("rg")`가 돌려주는 경로를 쓴다. `@vscode/ripgrep`은 `platform-os`가 번들하고 이 패키지는 그 경로로 `rg`를 실행만 한다(`ExecutionEnv.exec`) [결정: review.m2-plan §8]. 범위를 관리·사용자로 제한한다. 작업 폴더 설정 파일이 실행 파일 경로를 바꾸게 두면 저장소를 여는 것만으로 임의 바이너리가 실행될 수 있기 때문이다 [제안].
 - 이미지 한도의 기본값은 durable `DEFAULT_IMAGE_LIMITS`와 같다. 모델 provider별 한도가 더 작으면 L1.models가 요청 조립 때 다시 줄인다 [가정].
 - UI 위젯: integer 키는 `number`, boolean은 `toggle`, string은 `text`. `ui.label`은 한국어로 둔다(예: `read.maxLines` → "읽기 최대 줄 수").
@@ -764,4 +762,4 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 12. [미결] 패치 적용 메서드. `L2.artifacts.spec`의 거절 hunk 되돌림 안 A는 `workspace.files`에 패치 적용 서비스 메서드(`applyPatch` 후보, 도구 없음, `unsafe`)를 요구한다. 그 안이 채택되면 `workspace.files` minor 버전으로 더하고 §4.3 경로 검사와 §4.4 줄 세우기를 그대로 적용한다. 채택 전에는 `edit`로 같은 일을 할 수 있다.
 13. [미결] 내용 주소(sha256) blob 쓰기(`images.register`)의 분류. 같은 바이트는 같은 blob이라 재실행해도 결과와 효과가 같지만, ADR-0015 §3.3은 `requestId` 기억이 있는 쓰기만 `idempotent`로 둔다. 지금은 선언 없음이다. 내용 주소 쓰기를 `idempotent`로 인정하려면 ADR의 정의를 넓혀야 한다.
 14. [미결] 원자적 쓰기가 기존 파일의 모드 비트(실행 권한)를 잃는다. `FileInfo`에 모드가 없고 `ExecutionEnv`에 chmod가 없어 L0.exec 확장이 필요하다. 그 전까지 실행 파일을 `edit`하면 권한을 다시 줘야 한다.
-15. [미결] `l2.workspace.find.maxResults`와 `l2.workspace.list.maxEntries`는 읽는 코드가 더는 쓰이지 않는다. 키를 지우면 옛 설정 파일의 값이 버려지므로 제거 여부는 사용자가 정한다. [근거: packages/cap-workspace/src/settings.ts]
+15. (삭제됨 [결정: 2026-11-15 사용자]) `l2.workspace.find.maxResults`와 `l2.workspace.list.maxEntries`는 사용자가 지우기로 정했고 2026-11-15 정리로 지웠다. 옛 설정 파일의 값은 무시된다. [근거: 2026-11-15 사용자 결정]

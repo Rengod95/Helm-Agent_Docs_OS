@@ -8,7 +8,6 @@ import {
   MAX_WORK_TASKS,
   OWNER_PATTERN,
   PLAN_ID_PATTERN,
-  PlanVersionSchema,
   REPORT_ID_PATTERN,
   TaskOpSchema,
   TaskWriteInput,
@@ -16,8 +15,6 @@ import {
   WORK_TASK_ID_PATTERN,
   WorkGoals,
   WorkGoalsKey,
-  WorkPlans,
-  WorkPlansKey,
   WorkReportSchema,
   WorkReports,
   WorkReportsKey,
@@ -35,10 +32,9 @@ import {
   type ToolContent,
   type WorkTaskView,
 } from "../../src/capabilities/index.ts";
-import { ApprovalIdSchema } from "../../src/conversation/index.ts";
 import { must, rawId } from "../helpers/ids.ts";
 
-const DEFS: readonly AnyCapabilityDef[] = [WorkTasks, WorkPlans, WorkGoals, WorkReports];
+const DEFS: readonly AnyCapabilityDef[] = [WorkTasks, WorkGoals, WorkReports];
 
 function firstText(result: ToolContent): string {
   const first = result.content[0];
@@ -65,7 +61,6 @@ function task(
   };
 }
 
-const APPROVAL_ID = rawId("evt", 7);
 const TURN_ID = rawId("trn", 3);
 
 describe("work definitions", () => {
@@ -74,7 +69,6 @@ describe("work definitions", () => {
     expect(validateCapabilitySet(DEFS)).toEqual([]);
     expect(WORK_CAPABILITIES.map((d) => d.id)).toEqual([
       "work.tasks",
-      "work.plans",
       "work.goals",
       "work.reports",
     ]);
@@ -82,21 +76,19 @@ describe("work definitions", () => {
 
   test("task_write is the only model tool; plans, goals and reports have none", () => {
     expect(orderTools(DEFS).map((t) => t.name)).toEqual(["task_write"]);
-    expect(WorkPlans.tools).toEqual([]);
     expect(WorkGoals.tools).toEqual([]);
     expect(WorkReports.tools).toEqual([]);
   });
 
   test("keys and the bundle name", () => {
     expect(WorkTasksKey.capability).toBe("work.tasks");
-    expect(WorkPlansKey.capability).toBe("work.plans");
     expect(WorkGoalsKey.capability).toBe("work.goals");
     expect(WorkReportsKey.capability).toBe("work.reports");
     expect(WorkServiceName).toBe("fresnel.work");
     expect(MAX_WORK_TASKS).toBe(500);
   });
 
-  test("every work method is replay safe now that no method remembers a requestId for plan decisions", () => {
+  test("every work method is replay safe", () => {
     const unsafe: string[] = [];
     for (const def of DEFS) {
       for (const [name, method] of Object.entries(def.service.methods)) {
@@ -104,7 +96,6 @@ describe("work definitions", () => {
       }
     }
     expect(unsafe).toEqual([]);
-    expect(Object.keys(WorkPlans.service.methods)).toEqual(["versions"]);
   });
 
   test("task_write is a single list-operation tool that returns the whole list", () => {
@@ -145,23 +136,6 @@ describe("work schemas", () => {
     expect(parse(TaskOpSchema, { op: "create", content: "x", extra: 1 }).ok).toBe(false);
     expect(parse(TaskOpSchema, { op: "link", id: "t1", blockedBy: [] }).ok).toBe(false);
     expect(parse(TaskWriteInput, { ops: [] }).ok).toBe(false);
-  });
-
-  test("plan versions carry an approval id of the evt_ kind", () => {
-    const version = {
-      planId: "p1",
-      version: 1,
-      title: "Plan",
-      body: "body",
-      status: "submitted",
-      artifact: null,
-      approvalId: APPROVAL_ID,
-      feedback: null,
-    };
-    expect(parse(PlanVersionSchema, version).ok).toBe(true);
-    expect(parse(PlanVersionSchema, { ...version, approvalId: rawId("trn", 1) }).ok).toBe(false);
-    expect(parse(PlanVersionSchema, { ...version, status: "pending" }).ok).toBe(false);
-    expect(parse(ApprovalIdSchema, APPROVAL_ID).ok).toBe(true);
   });
 
   test("goal judges are model or delegated", () => {

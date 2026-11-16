@@ -237,13 +237,9 @@ const ITEMS: readonly ItemRecord[] = [
     }),
   ]),
   result(18, "c-write", "write", "Wrote src/auth/rules.ts"),
-  assistant(19, [call("c-find", "find", { pattern: "*.test.ts", path: "src/auth" })]),
-  result(20, "c-find", "find", "src/auth/rules.test.ts\nsrc/auth/session.test.ts"),
-  assistant(21, [
-    text("테스트 파일 위치를 확인했어요. 폴더 구성도 한 번 볼게요."),
-    call("c-ls", "ls", { path: "src/auth" }),
-  ]),
-  result(22, "c-ls", "ls", "app.ts\nerrors.ts\nlogin-form.tsx\nrules.ts\nsession.ts"),
+  assistant(19, [call("c-find", "grep", { pattern: "describe", path: "src/auth" })]),
+  result(20, "c-find", "grep", 'src/auth/rules.test.ts:3:describe("rules", () => {'),
+  assistant(21, [text("테스트 파일 위치를 확인했어요.")]),
   assistant(23, [
     thinking("정리가 끝났다. 바뀐 점을 표로 보여 주고 검증 명령을 알려 준다."),
     text(REPLY_MARKDOWN),

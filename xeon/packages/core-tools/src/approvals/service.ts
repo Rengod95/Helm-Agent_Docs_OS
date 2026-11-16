@@ -45,8 +45,8 @@ import { unattendedPlan } from "./unattended.ts";
 import { invalidDetail, requestIssue, validateResponse } from "./protocol.ts";
 
 // L1.tools.spec §3.6, §4.7 승인 대기. 도구 승인(tool), 질문(question), 검토(review)가 하나의 대기 형식을 쓴다.
-// 계획 승인(plan)은 더는 만들지 않는다 [결정: 2026-11-13 사용자]. 옛 대기는 `restore`에서 취소로 정착한다.
-// L2 기능은 자기 도구의 실행 안에서 `request`(또는 비차단 `open`+`wait`)를 부른다.
+// 계획 승인(plan)은 더는 만들지 않는다 [결정: 2026-11-13 사용자]. 옛 계획 승인 기록은 `scanApprovals`가 대기 목록에 올리지 않고 건너뛴다
+// (쓰기 없음 [결정: 2026-11-15 사용자]). L2 기능은 자기 도구의 실행 안에서 `request`(또는 비차단 `open`+`wait`)를 부른다.
 
 /** 승인을 일으킨 도구 호출의 활성 상태. 대기 체크포인트 초안과 비대화형 판정에 쓴다 */
 interface ActiveCall {
@@ -114,11 +114,6 @@ interface Entry {
 
 function ruleOf(request: ApprovalRequest): string | null {
   return request.body.kind === "tool" ? request.body.tool.ruleId : null;
-}
-
-/** 옛 계획 승인 대기인가. 계획 승인은 더는 만들지 않는다 [결정: 2026-11-13 사용자] */
-function isLegacyPlan(entry: Entry): boolean {
-  return entry.request.body.kind === "plan";
 }
 
 function grantsThread(resolution: {
@@ -675,27 +670,9 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
       if (resolved !== undefined) settle(entry, resolved);
       else added.push(entry);
     }
-    // 계획 승인은 더는 만들지 않는다 [결정: 2026-11-13 사용자]. 대기 중이던 옛 계획 승인은 응답할 길이 없으니 취소로 정착한다
-    await Promise.all(added.filter(isLegacyPlan).map(settleLegacyPlan));
-    // 재시작 사이에 만료 시각이 지난 요청은 되살리면서 바로 해결한다(이미 정착한 옛 계획 승인은 `expire`가 건너뛴다)
+    // 재시작 사이에 만료 시각이 지난 요청은 되살리면서 바로 해결한다
     await Promise.all(added.filter(overdue).map(expire));
     return ok(pending(threadId));
-  }
-
-  /**
-   * 옛 계획 승인 대기를 취소로 정착한다(`resolvedBy: "cancelled"`). 커밋이 실패하면 대기로 남기고 경고만 남긴다:
-   * 그 요청은 거부로 닫을 수 있다(거부는 모든 kind가 받는다)
-   */
-  async function settleLegacyPlan(entry: Entry): Promise<void> {
-    if (stateOf(entry) !== "pending") return;
-    const committed = await commitSettling(entry, cancelledResolution(entry.request));
-    if (committed.ok) {
-      deps.logger?.info("tools.legacy_plan_cancelled", { approvalId: entry.request.approvalId });
-    } else {
-      deps.logger?.warn("tools.legacy_plan_cancel_failed", {
-        approvalId: entry.request.approvalId,
-      });
-    }
   }
 
   async function rememberedIn(

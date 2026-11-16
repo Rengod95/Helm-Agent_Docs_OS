@@ -661,15 +661,15 @@ describe("web source chips", () => {
 });
 
 describe("engine failure texts are shown in Korean (rtE R-10)", () => {
-  test("a plan-mode-inactive result shows the catalog sentence, not the English one", () => {
+  test("an old exit_plan_mode call has no table row, so it draws as a generic line with the engine's text as sent", () => {
     const h = openedHarness();
     ingestRecords(h, [
       callItem(1, 2, "exit_plan_mode"),
       toolResultItem(2, "exit_plan_mode", "Plan mode is not active.", true),
     ]);
     const text = visibleText(render(<RecordedItem id={itm(1)} />, h));
-    expect(text).toContain(t("desktop.item.planInactive.body"));
-    expect(text).not.toContain("Plan mode is not active.");
+    expect(text).toContain("exit_plan_mode");
+    expect(text).toContain("Plan mode is not active.");
   });
 
   test('an interrupted bash result with the body "aborted" shows the catalog sentence', () => {

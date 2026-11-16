@@ -1,11 +1,9 @@
 import {
   ChevronRight,
-  Clipboard,
   Command,
   Diamond,
   File,
   FileText,
-  Folder,
   Globe,
   Lightbulb,
   ListChecks,
@@ -48,8 +46,6 @@ function LineIcon(props: { readonly icon: ToolIcon }): ReactNode {
   switch (props.icon) {
     case "read":
       return <FileText aria-hidden className={className} />;
-    case "list":
-      return <Folder aria-hidden className={className} />;
     case "search":
       return <Search aria-hidden className={className} />;
     case "command":
@@ -70,8 +66,6 @@ function LineIcon(props: { readonly icon: ToolIcon }): ReactNode {
       return <ListChecks aria-hidden className={className} />;
     case "agent":
       return <Diamond aria-hidden className={className} />;
-    case "plan":
-      return <Clipboard aria-hidden className={className} />;
     case "other":
       return <Command aria-hidden className={className} />;
     default:

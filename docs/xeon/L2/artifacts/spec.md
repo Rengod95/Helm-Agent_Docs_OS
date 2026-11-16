@@ -104,7 +104,7 @@ export const PostWhenSchema = Type.Union([Type.Literal("steer"), Type.Literal("f
 export const ArtifactKindSchema = Type.Union([
   Type.Literal("document"),    // 글. text/markdown, text/plain 등
   Type.Literal("table"),       // 표. text/csv, application/json(행 배열)
-  Type.Literal("plan"),        // 계획. work.plans가 등록한다
+  Type.Literal("plan"),        // 계획. 옛 기록 읽기 전용. 새 산출물로 만들지 않는 것이 결정이나 `artifact_create`가 아직 받는다 [미결] [근거: xeon/packages/contracts/src/capabilities/defs/artifacts.ts:62] [결정: 2026-11-13 사용자]
   Type.Literal("changeset"),   // 파일 변경 목록. 리뷰가 등록한다. 본문은 통합 diff
   Type.Literal("file"),        // 작업 공간 파일의 등록 시점 사본
   Type.Literal("image"),       // 이미지
@@ -324,7 +324,7 @@ export const ArtifactsRegistry = defineCapability({
       method: "register",
       parameters: Type.Object({
         kind: Type.Union([
-          Type.Literal("document"), Type.Literal("table"), Type.Literal("plan"), Type.Literal("log"),
+          Type.Literal("document"), Type.Literal("table"), Type.Literal("log"),
         ]),
         title: Type.String({ minLength: 1, maxLength: 200 }),
         text: Type.String({ minLength: 1, maxLength: 1_048_576, description: "본문" }),
@@ -1155,7 +1155,6 @@ export const ARTIFACTS_CAPABILITIES = [ArtifactsRegistry, ArtifactsReviews, Arti
 |---|---|
 | 도구 경로 | `CallOptions.requestId` 그대로(L1.tools가 `toolCallId`에서 만든다) |
 | 서비스 경로, 호출자가 준 키 | 그대로. 형식은 `eng.transactions.design` §4.7 `REQUEST_ID_PATTERN` |
-| `work.plans`의 계획 등록 | `plan:<planId>:<planVersion>` (§8 제공 표) |
 | 리뷰가 등록하는 changeset | `review:<reviewId>:open` (리뷰 열기 커밋과 같은 키) |
 | 호출자가 키를 주지 않음 | `art:<새 ULID>` + 경고 로그(멱등 없음) |
 
@@ -1168,28 +1167,9 @@ export const ARTIFACTS_CAPABILITIES = [ArtifactsRegistry, ArtifactsReviews, Arti
 - 보관된 산출물의 blob을 실제로 지우는 일은 L0.store blob 정리(참조 계산)에 맡긴다. 이벤트가 blob을 참조하는 한 지워지지 않는다. 그래서 보관은 디스크 공간을 줄이지 않는다. 공간 회수는 대화 삭제나 L1.persistence의 정리 기능이 한다 [가정].
 - 메타 JSON은 16 KiB 이하다. 넘으면 `invalid_input`이다.
 
-#### 4.1.5 `work.plans`의 계획 등록 경로
+#### 4.1.5 `work.plans`의 계획 등록 경로 [삭제됨 [결정: 2026-11-13 사용자]; 정리 [결정: 2026-11-15 사용자]]
 
-[제안] `work.plans`는 계획 판을 제출할 때(승인 요청 전) `artifacts.registry`를 선택 의존(`optional`)으로 부른다(`L2.readme` §6 표, `L2.work.spec` §4.2.4 2단계). 승인 화면이 대상에서 산출물을 열 수 있게 하려는 것이다.
-
-```ts
-// cap-work 쪽 호출 예. artifacts.registry가 없으면 건너뛴다
-await registry.register(
-  {
-    threadId,
-    kind: "plan",
-    title: plan.title,
-    content: { type: "blob", ref: planBlob },          // 계획 본문 Markdown
-    meta: { summary: plan.summary, custom: { planId: plan.planId, planVersion: plan.version } },
-    producer: "cap.work",
-  },
-  { requestId: `plan:${plan.planId}:${plan.version}` },
-);
-```
-
-- 계획의 새 판은 `update`로 같은 산출물의 버전을 늘린다. `work.plans`는 `planId → artifactId` 대응을 자기 투영(`cap_work_*`)에 둔다. artifacts는 `meta.custom.planId`를 해석하지 않는다.
-- 계획 상태(제출, 승인, 반려)는 `work.` 이벤트가 정본이다. 산출물은 사본이고 목록·미리보기·핸드오프에 쓰인다.
-- 제출 시점에 등록하므로 반려·수정 요청·철회된 판도 산출물 버전으로 남는다. artifacts는 판의 승인 여부를 싣지 않는다. 화면은 `meta.custom`의 `planId`·`planVersion`으로 `work.plans`를 조회해 판의 상태를 함께 보인다 [제안].
+계획을 제출하지 않으므로 `work.plans`가 산출물을 등록하는 경로는 지웠다 [결정: 2026-11-15 사용자]. 옛 계획 산출물(kind `plan`)은 기록으로 남아 목록과 열기에서 읽기만 한다. artifacts는 `meta.custom.planId`를 해석하지 않는다.
 
 #### 4.1.6 M3b 구현 결정 [결정: 오케스트레이터 기본값]
 
@@ -1387,7 +1367,7 @@ export const ReviewAnswerSchema = Type.Object({
    - 원본에 컴팩션 요약(`thread.compacted`, 또는 `eng.events.design`의 `compaction.recorded`)이 있고, 그 뒤 구간이 `l2.artifacts.handoff.reuseCompactionMaxTurns`(기본 3턴) 이하면 요약을 그대로 쓰고(`origin: "compaction"`), 뒤 구간이 있으면 그 구간만 소형 모델로 요약해 덧붙인다(`compaction+tail`).
    - 그 밖에는 `fresnel.models` 용도 `l2.artifacts.handoff.purpose`(기본 `"compaction"`)로 새로 요약한다(`generated`). 요약 프롬프트는 L1.context의 컴팩션 프롬프트를 재사용하지 않는다. 핸드오프 요약은 "다음 세션이 이어서 할 일" 중심이라 목적이 다르다 [제안].
    - 컴팩션 요약 재사용 근거: omp `/handoff`는 요약을 만든 뒤 컴팩션하고 Zed는 "요약으로 새 스레드"다(`_research/l2e.md` §3.3 C3). 재사용하면 모델 호출 한 번을 아낀다.
-3. 산출물 참조를 고른다. 기본은 원본의 `active` 산출물 전부(최대 128개, 최근 갱신 순)이고 각 최신 버전을 고정한다. 계획은 kind `plan` 산출물로 들어간다. artifacts는 work를 호출하지 않는다.
+3. 산출물 참조를 고른다. 기본은 원본의 `active` 산출물 전부(최대 128개, 최근 갱신 순)이고 각 최신 버전을 고정한다. 옛 계획 산출물(kind `plan`)도 같은 규칙으로 들어간다. artifacts는 work를 호출하지 않는다.
 4. `HandoffPackage`를 만들어 blob으로 쓴다.
 5. `fresnel.session.create`로 새 대화를 만든다. `requestId = handoff:<handoffId>:create`.
 6. 새 대화에 `artifact.handoff_received`를, 원본 대화에 `artifact.handoff_sent`를 커밋한다. 두 대화는 커밋이 따로다. 원본 쪽 기록이 빠져도 새 대화 쪽 기록이 원본 링크(`fromThreadId`, `fromLeafEventId`)를 갖는다.

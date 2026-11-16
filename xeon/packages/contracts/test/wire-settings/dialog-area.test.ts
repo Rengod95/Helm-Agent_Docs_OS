@@ -216,38 +216,6 @@ describe("M4 dialog area methods", () => {
     ).toBe(false);
   });
 
-  test("work.plans.versions takes a thread and a plan id, and returns every version of the plan", () => {
-    expect(
-      parse(WIRE_METHODS["work.plans.versions"].params, { threadId: "thr_1", planId: "p1" }).ok,
-    ).toBe(true);
-    expect(parse(WIRE_METHODS["work.plans.versions"].params, { threadId: "thr_1" }).ok).toBe(false);
-    roundTrip(WIRE_METHODS["work.plans.versions"].result, {
-      versions: [
-        {
-          planId: "p1",
-          version: 1,
-          title: "Migrate the store",
-          body: "1. Back up\n2. Migrate",
-          status: "superseded",
-          artifact: null,
-          approvalId: null,
-          feedback: null,
-        },
-        {
-          planId: "p1",
-          version: 2,
-          title: "Migrate the store",
-          body: "1. Back up\n2. Migrate\n3. Verify",
-          status: "submitted",
-          artifact: null,
-          approvalId: null,
-          feedback: null,
-        },
-      ],
-    });
-    roundTrip(WIRE_METHODS["work.plans.versions"].result, { versions: [] });
-  });
-
   test("thread.read accepts around, ThreadSummary accepts origin", () => {
     expect(
       parse(WIRE_METHODS["thread.read"].params, {

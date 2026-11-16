@@ -308,8 +308,7 @@
 .convo-line[data-toggle="true"] > :not(.convo-line-hit) {
   pointer-events: none;
 }
-.convo-line .convo-tag,
-.convo-line .convo-line-live {
+.convo-line .convo-tag {
   position: relative;
   z-index: 1;
   pointer-events: auto;
@@ -541,16 +540,6 @@
   min-width: 0;
   min-height: 20px;
 }
-.convo-card-title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--cs-color-text-primary);
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 18px;
-}
 .convo-card-text {
   margin: 0;
   color: var(--cs-color-text-secondary);
@@ -576,9 +565,6 @@
 .convo-clip[data-size="card"] {
   --convo-clip-bg: var(--cs-color-bg-app);
   max-height: 320px;
-}
-.convo-clip[data-size="plan"] {
-  max-height: 240px;
 }
 .convo-clip[data-open="true"] {
   max-height: none;
@@ -821,7 +807,7 @@
   text-overflow: ellipsis;
 }
 /* 카드 머리: 제목만 줄어들고(말줄임) 판·상태·꼬리 칸은 제 폭을 지킨다 */
-.convo-card-head > :not(.convo-card-title, .truncate) {
+.convo-card-head > :not(.truncate) {
   flex: none;
   white-space: nowrap;
 }

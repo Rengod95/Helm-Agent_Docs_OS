@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   buildCatalog,
   checkSettingDef,
+  checkSettingWrite,
   type ScopeLayer,
   type ScopeStack,
 } from "@fresnel/contracts/settings";
@@ -21,7 +22,7 @@ function layer(scope: ScopeLayer["scope"], values: Record<string, unknown>): Sco
 
 describe("settings", () => {
   test("settings defs pass checks", () => {
-    // 읽는 키만 선언한다: read.*, shell.*, list.maxEntries(M1), images.*(M2), edit.fuzzy·grep.*·find.*(M3b). plan W8
+    // 읽는 키만 선언한다: read.*, shell.*(M1), images.*(M2), edit.fuzzy·grep.*(M3b). plan W8. find.*와 list.*는 2026-11-15 정리로 지웠다
     expect(WORKSPACE_SETTING_DEFS.map((def) => def.key)).toEqual([
       "l2.workspace.read.maxLines",
       "l2.workspace.read.maxBytes",
@@ -30,8 +31,6 @@ describe("settings", () => {
       "l2.workspace.shell.defaultTimeoutSec",
       "l2.workspace.grep.maxMatches",
       "l2.workspace.grep.maxLineLength",
-      "l2.workspace.find.maxResults",
-      "l2.workspace.list.maxEntries",
       "l2.workspace.edit.fuzzy",
       "l2.workspace.images.maxWidth",
       "l2.workspace.images.maxHeight",
@@ -65,30 +64,26 @@ describe("settings", () => {
       read: { maxLines: 2000, maxBytes: 51200 },
       shell: { maxLines: 2000, maxBytes: 51200, defaultTimeoutSec: 0 },
       grep: { maxMatches: 100, maxLineLength: 500, rgPath: "" },
-      find: { maxResults: 1000 },
-      list: { maxEntries: 500 },
       edit: { fuzzy: true },
       images: { maxWidth: 2000, maxHeight: 2000, maxBytes: 4718592, maxInputBytes: 41943040 },
     });
   });
 
-  test("grep and find keys read their ranges and types, and rgPath is only a string", () => {
+  test("grep keys read their ranges and types, and rgPath is only a string", () => {
     const stack: ScopeStack = [
       layer("user", {
         "l2.workspace.grep.maxMatches": 7,
         "l2.workspace.grep.maxLineLength": 80,
-        "l2.workspace.find.maxResults": 3,
         "l2.workspace.grep.rgPath": "/opt/rg/bin/rg",
       }),
       // 범위 밖(최솟값 80 미만)과 형식 틀림(문자열이 아님)은 건너뛴다
       layer("managed", {
         "l2.workspace.grep.maxLineLength": 79,
-        "l2.workspace.find.maxResults": "3",
+        "l2.workspace.grep.maxMatches": "3",
       }),
     ];
     const settings = readWorkspaceSettings(stack);
     expect(settings.grep).toEqual({ maxMatches: 7, maxLineLength: 80, rgPath: "/opt/rg/bin/rg" });
-    expect(settings.find).toEqual({ maxResults: 3 });
     // rgPath는 managed·user 범위만 허용한다. project 층의 값은 읽지 않는다
     const project = readWorkspaceSettings([
       layer("project", { "l2.workspace.grep.rgPath": "/tmp/evil" }),
@@ -98,15 +93,40 @@ describe("settings", () => {
 
   test("scopes follow the precedence and invalid values are skipped", () => {
     const stack: ScopeStack = [
-      layer("user", { "l2.workspace.read.maxLines": 100, "l2.workspace.list.maxEntries": 20 }),
+      layer("user", { "l2.workspace.read.maxLines": 100, "l2.workspace.grep.maxMatches": 20 }),
       layer("launch", { "l2.workspace.read.maxLines": 50 }),
       // 범위 밖 값(최솟값 1 미만)은 건너뛰고 아래 층 값이 이긴다
-      layer("project", { "l2.workspace.list.maxEntries": 0, "l2.workspace.shell.maxBytes": 3 }),
+      layer("project", { "l2.workspace.grep.maxMatches": 0, "l2.workspace.shell.maxBytes": 3 }),
     ];
     const settings = readWorkspaceSettings(stack);
     expect(settings.read.maxLines).toBe(50);
-    expect(settings.list.maxEntries).toBe(20);
+    expect(settings.grep.maxMatches).toBe(20);
     expect(settings.shell.maxBytes).toBe(DEFAULT_WORKSPACE_SETTINGS.shell.maxBytes);
+  });
+
+  test("stored values for the removed find and list keys are ignored, other values stay, and their writes are refused as unknown keys", () => {
+    const stored = readWorkspaceSettings([
+      layer("user", {
+        "l2.workspace.find.maxResults": 3,
+        "l2.workspace.list.maxEntries": 20,
+        "l2.workspace.read.maxLines": 100,
+      }),
+    ]);
+    expect(stored).toEqual({
+      ...DEFAULT_WORKSPACE_SETTINGS,
+      read: { ...DEFAULT_WORKSPACE_SETTINGS.read, maxLines: 100 },
+    });
+    const built = buildCatalog([
+      { owner: "cap-workspace", namespace: "l2.workspace", defs: WORKSPACE_SETTING_DEFS },
+    ]);
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    expect(
+      checkSettingWrite(built.catalog, [], "l2.workspace.find.maxResults", "user", 3),
+    ).toMatchObject({ ok: false, kind: "settings.unknownKey" });
+    expect(
+      checkSettingWrite(built.catalog, [], "l2.workspace.list.maxEntries", "user", 20),
+    ).toMatchObject({ ok: false, kind: "settings.unknownKey" });
   });
 
   test("settings change applies next call", async () => {
