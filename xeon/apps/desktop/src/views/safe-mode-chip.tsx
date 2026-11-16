@@ -54,7 +54,7 @@ export function SafeModeChip(): ReactNode {
     <StatusCell
       cellId="safe-mode"
       text={t("desktop.safe.chip")}
-      dot="warning"
+      tone="warning"
       title={t("desktop.safe.chip")}
       description={safeModeTipOf(snapshot)}
       open={open}

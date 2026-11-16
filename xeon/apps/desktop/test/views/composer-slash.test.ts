@@ -81,7 +81,7 @@ describe("slash menu", () => {
     expect(compact).toEqual({
       name: "compact",
       label: "/compact",
-      description: "대화를 요약해 문맥을 줄여요",
+      description: "대화를 요약해 컨텍스트를 줄여요",
       hint: "[지침]",
       group: "command",
       sourceChip: null,

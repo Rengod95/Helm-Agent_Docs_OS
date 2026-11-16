@@ -73,10 +73,11 @@ describe("update status bar cell", () => {
     expect(barHtml(null)).not.toContain('data-bar-cell="update"');
   });
 
-  test("the cell shows for an available update, with a success dot and the mockup's words", () => {
+  test("the cell shows for an available update in plain words, with no dot and no tone", () => {
     const html = barHtml(stubOf(AVAILABLE));
     expect(html).toContain('data-bar-cell="update"');
-    expect(html).toContain('data-bar-dot="success"');
+    expect(html).not.toContain("data-bar-dot");
+    expect(html).not.toContain("data-bar-tone");
     expect(html).toContain(t("desktop.update.cell.available"));
   });
 
@@ -95,7 +96,7 @@ describe("update status bar cell", () => {
     expect(applying).toContain(t("desktop.update.cell.installing"));
   });
 
-  test("a failure is danger, and an offline download is warning", () => {
+  test("a failure is danger text, and an offline download is warning text", () => {
     const failed = barHtml(
       stubOf({
         kind: "failed",
@@ -105,12 +106,12 @@ describe("update status bar cell", () => {
         notes: null,
       }),
     );
-    expect(failed).toContain('data-bar-dot="danger"');
+    expect(failed).toContain('data-bar-tone="danger"');
     expect(failed).toContain(t("desktop.update.cell.failed"));
     const offline = barHtml(
       stubOf({ kind: "offline", stage: "download", version: "0.4.2", notes: null }),
     );
-    expect(offline).toContain('data-bar-dot="warning"');
+    expect(offline).toContain('data-bar-tone="warning"');
     expect(offline).toContain(t("desktop.update.cell.offline"));
   });
 

@@ -417,7 +417,7 @@ describe("find, sort, and the context line", () => {
         stores: [store("user", ["a".repeat(30)]), store("env", ["b".repeat(10)])],
       },
     });
-    expect(t("desktop.memory.context", { tokens: "10" })).toEqual("문맥에 약 10토큰");
+    expect(t("desktop.memory.context", { tokens: "10" })).toEqual("컨텍스트에 약 10토큰");
     expect(html).toContain(t("desktop.memory.context", { tokens: "10" }));
     expect(html).toContain(t("desktop.memory.context.info"));
     // 바꾼 기억이 언제 반영되는지도 같은 정보 아이콘이 말한다

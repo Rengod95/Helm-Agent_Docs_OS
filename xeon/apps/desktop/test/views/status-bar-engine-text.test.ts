@@ -4,7 +4,7 @@ import type { EngineState } from "../../src/state/engine/index.ts";
 import type { EngineTargetView } from "../../src/state/ui/index.ts";
 import {
   engineDescriptionOf,
-  engineDotOf,
+  engineHealthOf,
   engineLineOf,
   engineRestoreShownOf,
   engineTextOf,
@@ -132,14 +132,14 @@ describe("a running process is shown as running only while its link is live", ()
       attempt: 0,
     });
     expect(engineLineOf(shownEngineOf(RUNNING, false))).toBe("엔진 시작 중");
-    expect(engineDotOf(shownEngineOf(RUNNING, false))).toBe("warning");
+    expect(engineHealthOf(shownEngineOf(RUNNING, false))).toBe("busy");
     expect(engineDescriptionOf(shownEngineOf(RUNNING, false))).toBeUndefined();
   });
 
-  test("a live link keeps the running view, green dot and the source", () => {
+  test("a live link keeps the running view, the ok level and the source", () => {
     expect(shownEngineOf(RUNNING, true)).toBe(RUNNING);
     expect(engineLineOf(shownEngineOf(RUNNING, true))).toBe("엔진 실행 중 (앱 안)");
-    expect(engineDotOf(shownEngineOf(RUNNING, true))).toBe("success");
+    expect(engineHealthOf(shownEngineOf(RUNNING, true))).toBe("ok");
   });
 
   test("the other engine states are shown as they are, whatever the link", () => {

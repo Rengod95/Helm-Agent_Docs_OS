@@ -9,7 +9,12 @@ import {
 // 살아 움직이는 표시의 상한(DP-190): 먼저 선 것부터 상한까지 움직이고, 앞이 빠지면 다음이 받는다
 
 test("marks: the first three move, the rest stay still", () => {
-  expect(ATTENTION_LIVE_LIMIT).toEqual({ mark: 3, progress: 8, card: 1 });
+  expect(ATTENTION_LIVE_LIMIT).toEqual({
+    mark: 3,
+    progress: 8,
+    card: 1,
+    thinking: Number.POSITIVE_INFINITY,
+  });
   const ids = ["m1", "m2", "m3", "m4", "m5"];
   for (const id of ids) joinAttentionLive("mark", id);
   expect(ids.map((id) => isAttentionLive("mark", id))).toEqual([true, true, true, false, false]);

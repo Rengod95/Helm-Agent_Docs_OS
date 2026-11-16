@@ -156,7 +156,7 @@ function stepperOf(markup: string): (readonly [string, boolean])[] {
 function liveOf(markup: string): string | null {
   const at = markup.indexOf('data-slot="stepper-indicator" data-status="current"');
   if (at < 0) return null;
-  const orb = /<[^>]*class="thinking-indicator[^"]*"[^>]*>/.exec(
+  const orb = /<[^>]*class="[^"]*thinking-indicator[^"]*"[^>]*>/.exec(
     markup.slice(at, markup.indexOf("</li>", at)),
   );
   return orb === null ? null : (/data-active="(\w+)"/.exec(orb[0])?.[1] ?? null);

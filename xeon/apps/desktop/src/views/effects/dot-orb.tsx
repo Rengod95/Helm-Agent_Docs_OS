@@ -21,8 +21,8 @@ import { useAttentionLive, type AttentionLiveKind } from "./attention-budget.ts"
 /** 잉크. ink는 생각 구슬과 같은 흑백, warm은 주의 물듦과 같은 호박 → 산호 */
 export type DotOrbTone = "ink" | "warm";
 
-/** 칸 크기(CSS px). 12는 내비 줄 숫자 옆, 14는 아이콘 칸(size-icon-md) */
-export type DotOrbSize = 12 | 14;
+/** 칸 크기(CSS px). 12는 내비 줄 숫자 옆, 14는 아이콘 칸(size-icon-md), 20은 생각 구슬(라이브러리 프리셋 20 그대로, DP-208) */
+export type DotOrbSize = 12 | 14 | 20;
 
 type Rgb = readonly [number, number, number];
 
@@ -221,6 +221,8 @@ export function DotOrb(props: {
   /** false면 처음부터 멈춘 한 장면이다 */
   readonly live?: boolean;
   readonly className?: string;
+  /** 부르는 쪽이 정한 움직임 뜻(생각 구슬의 `data-active`). 시험과 CSS가 읽는다 */
+  readonly "data-active"?: "true" | "false";
 }): ReactNode {
   const ref = useRef<HTMLCanvasElement>(null);
   const entryRef = useRef<Entry | null>(null);
@@ -277,6 +279,7 @@ export function DotOrb(props: {
       data-slot="dot-orb"
       data-tone={props.tone}
       data-live={live ? "true" : "false"}
+      data-active={props["data-active"]}
       className={`fx-dot-orb${props.className === undefined ? "" : ` ${props.className}`}`}
       style={{ width: props.size, height: props.size }}
     />
