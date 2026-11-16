@@ -5114,6 +5114,8 @@
   "desktop.restart.failed": "다시 시작하지 못했어요",
   "desktop.restart.reason.install": "{name} 설치",
   "desktop.restart.reason.rollback": "{name} 되돌리기",
+  "desktop.restart.reason.engineOutdated": "엔진 새 버전",
+  "desktop.engine.replaced": "엔진을 새 버전으로 다시 시작했어요",
   "desktop.restart.web": "서비스를 다시 시작해야 해요",
   "desktop.safe.suggest.title": "엔진 연속 시작 실패 {count}회",
   "desktop.safe.suggest.body": "안전 모드로 시작하면 기본 에이전트만 띄워요.",

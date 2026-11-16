@@ -1,4 +1,5 @@
 // 다시 시작 줄과 확인 대화 상자의 모양(U-02). 그림은 `status-bar.tsx`와 `restart-confirm-dialog.tsx`가 그린다.
+import { assertNever } from "@fresnel/contracts";
 import { t } from "@fresnel/client/i18n";
 import type { RestartReason } from "../state/ui/index.ts";
 import type { EngineState } from "../transport/ipc.ts";
@@ -51,11 +52,18 @@ export function restartConfirmOf(
   return { needed: lines.length > 0, lines };
 }
 
-/** 이유 한 줄. 설치는 "{이름} 설치", 되돌리기는 "{이름} 되돌리기" */
+/** 이유 한 줄. 설치는 "{이름} 설치", 되돌리기는 "{이름} 되돌리기", 옛 엔진은 "엔진 새 버전" */
 export function restartReasonTextOf(reason: RestartReason): string {
-  return reason.kind === "install"
-    ? t("desktop.restart.reason.install", { name: reason.name })
-    : t("desktop.restart.reason.rollback", { name: reason.name });
+  switch (reason.kind) {
+    case "install":
+      return t("desktop.restart.reason.install", { name: reason.name });
+    case "rollback":
+      return t("desktop.restart.reason.rollback", { name: reason.name });
+    case "engine_outdated":
+      return t("desktop.restart.reason.engineOutdated");
+    default:
+      return assertNever(reason.kind, "RestartReason.kind");
+  }
 }
 
 /** 정보 아이콘 글: 이유를 쉼표로 모으고 뒤에 설명을 붙인다. 이유가 없으면 설명만 남는다 */

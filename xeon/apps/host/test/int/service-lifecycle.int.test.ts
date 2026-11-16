@@ -91,6 +91,7 @@ describe("service files and double start", () => {
             kind: "connected",
             registration,
             started: false,
+            replaced: false,
           });
         }
 
@@ -99,6 +100,28 @@ describe("service files and double start", () => {
         if (status.ok && status.value.running) {
           expect(status.value.status).toMatchObject({ mode: "service", pid: process.pid });
         }
+      } finally {
+        await handle.shutdown("stop");
+        runtime.dispose();
+      }
+    },
+    60_000,
+  );
+
+  realTest(
+    "ensure from another build shuts down the idle service and then tries to start a new one",
+    async () => {
+      const runtime = scratchRuntimeDir();
+      const handle = await started(optionsFor(runtime.dir));
+      try {
+        const result = await ensureHostService({
+          runtimeDir: runtime.dir,
+          start: NO_SPAWN,
+          ownBuild: "another-build",
+        });
+        // 한가한 서비스는 host.shutdown으로 내려갔고, 새로 띄우려는 명령이 없어 spawn_failed다(두 번째 서비스는 뜨지 않는다)
+        expect(result).toEqual({ ok: false, error: { kind: "spawn_failed", code: "ENOENT" } });
+        expect(existsSync(join(runtime.dir, "service.json"))).toBe(false);
       } finally {
         await handle.shutdown("stop");
         runtime.dispose();

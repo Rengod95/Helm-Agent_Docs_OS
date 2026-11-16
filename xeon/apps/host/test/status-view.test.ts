@@ -38,7 +38,7 @@ test("the status JSON view keeps the registration fields except the connection t
     status,
     remote: null,
   };
-  const text = JSON.stringify(serviceStatusView(result, AUTOSTART));
+  const text = JSON.stringify(serviceStatusView(result, AUTOSTART, "b2"));
   expect(text).not.toContain(TOKEN);
   expect(JSON.parse(text)).toEqual({
     running: true,
@@ -54,7 +54,13 @@ test("the status JSON view keeps the registration fields except the connection t
     status: { ...status },
     remote: null,
     autostart: AUTOSTART,
+    ownBuild: "b2",
+    // 서비스가 build를 모르는 옛 서비스이므로 다르다
+    outdated: true,
   });
+  expect(
+    serviceStatusView({ ...result, status: { ...status, build: "b2" } }, AUTOSTART, "b2"),
+  ).toMatchObject({ outdated: false });
 });
 
 test("a not-running status keeps its reason and adds the autostart object", () => {

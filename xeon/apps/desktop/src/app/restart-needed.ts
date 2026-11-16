@@ -9,7 +9,7 @@ import type { EngineState } from "../transport/ipc.ts";
 /** 엔진 프로세스와 연결을 함께 본 단계. down: 엔진이 돌지 않는다, up: 엔진은 떴지만 연결이 아직 live가 아니다, live: 엔진이 돌고 연결도 live다 */
 export type ReturnStage = "down" | "up" | "live";
 
-function stageOf(engine: EngineState | null, linkPhase: Link["phase"]): ReturnStage {
+export function stageOf(engine: EngineState | null, linkPhase: Link["phase"]): ReturnStage {
   if (engine?.kind !== "running") return "down";
   return linkPhase === "live" ? "live" : "up";
 }

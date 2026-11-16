@@ -5114,6 +5114,8 @@
   "desktop.restart.failed": "Could not restart",
   "desktop.restart.reason.install": "Install {name}",
   "desktop.restart.reason.rollback": "Roll back {name}",
+  "desktop.restart.reason.engineOutdated": "New engine version",
+  "desktop.engine.replaced": "Restarted the engine on the new version",
   "desktop.restart.web": "The service needs a restart",
   "desktop.safe.suggest.title": "The engine failed to start {count} times in a row",
   "desktop.safe.suggest.body": "Safe mode starts only the default agent.",

@@ -29,6 +29,11 @@ export interface ServiceAttachment {
   readonly connection: HostConnection;
   readonly hello: WireResult<"host.hello">;
   readonly source: "local" | "remote";
+  /**
+   * 이 기기의 서비스를 맞출 때 있었던 일. `replaced`: 다른 빌드의 한가한 서비스를 내리고 이 빌드로 새로 띄웠다.
+   * `outdated`: 다른 빌드의 서비스가 일하는 중이라 내리지 못하고 그대로 붙었다. 원격 주소나 일이 없으면 없다
+   */
+  readonly serviceNotice?: "replaced" | "outdated";
 }
 
 export interface AttachOptions {
@@ -43,6 +48,7 @@ export async function attachToService(
   options: AttachOptions,
 ): Promise<Result<ServiceAttachment, AttachError>> {
   let endpoint: ServiceEndpoint;
+  let serviceNotice: ServiceAttachment["serviceNotice"];
   if (target.kind === "endpoint") {
     endpoint = target.endpoint;
   } else {
@@ -51,7 +57,10 @@ export async function attachToService(
       ...(target.runtimeDir === undefined ? {} : { runtimeDir: target.runtimeDir }),
     });
     if (!ensured.ok) return err({ kind: "ensure_failed", reason: ensured.error.kind });
-    endpoint = { kind: "unix", path: ensured.value.outcome.registration.socket };
+    const outcome = ensured.value.outcome;
+    endpoint = { kind: "unix", path: outcome.registration.socket };
+    if (outcome.kind === "version_mismatch_busy") serviceNotice = "outdated";
+    else if (outcome.replaced) serviceNotice = "replaced";
   }
   const transport = await connectServiceTransport(endpoint);
   if (!transport.ok) return err({ kind: "connect_failed", error: transport.error });
@@ -70,5 +79,6 @@ export async function attachToService(
     connection,
     hello: hello.value,
     source: target.kind === "local" ? "local" : "remote",
+    ...(serviceNotice === undefined ? {} : { serviceNotice }),
   });
 }

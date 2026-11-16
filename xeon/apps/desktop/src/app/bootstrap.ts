@@ -10,6 +10,7 @@ import { createCommands } from "./commands.ts";
 import type { MessageCommands } from "./message-commands.ts";
 import { createEngineSwitch } from "./engine-switch.ts";
 import { watchEngineReturn } from "./restart-needed.ts";
+import { watchServiceEngine } from "./service-engine.ts";
 import { BUILD_CHECKS } from "./build.ts";
 import { startLocale } from "./locale.ts";
 import { createWebViewLogger, type LogLine, type LogRing } from "./logger.ts";
@@ -42,6 +43,8 @@ export type AppEnv = {
   readonly onLocaleChange?: (locale: Locale) => void;
   /** 엔진이 다시 running으로 돌아왔을 때 한 번 부른다(다시 시작 완료 알림). 호출자가 토스트를 띄운다 */
   readonly onEngineRestarted?: () => void;
+  /** 앱을 열며 이 기기의 서비스를 새 엔진 빌드로 다시 띄웠을 때 한 번 부른다. 호출자가 조용한 알림을 띄운다 */
+  readonly onServiceEngineReplaced?: () => void;
   /** 데스크톱 로컬 설정. 주면 호출자와 같은 저장소를 쓴다. 없으면 여기서 만든다 */
   readonly localSettings?: LocalSettings;
 };
@@ -116,6 +119,20 @@ export function createApp(env: AppEnv): App {
       });
     },
   });
+  // 이 기기의 서비스가 이 앱과 다른 엔진 빌드였던 일을 알린다(다시 띄웠으면 알림, 일하는 중이라 못 바꿨으면 다시 시작 필요)
+  const stopServiceEngineWatch = watchServiceEngine({
+    engine: engine.read,
+    ui,
+    serviceStatus: () => env.ipc.serviceStatus(),
+    onReplaced: () => {
+      env.onServiceEngineReplaced?.();
+    },
+    report: (cause) => {
+      log.logger.error("desktop.ui.service_engine_watch_failed", {
+        error: cause instanceof Error ? cause.name : "unknown",
+      });
+    },
+  });
   const engineSwitch = createEngineSwitch({
     ipc: env.ipc,
     engine: engine.read,
@@ -153,6 +170,7 @@ export function createApp(env: AppEnv): App {
     async stop() {
       stopCleanup();
       stopRestartWatch();
+      stopServiceEngineWatch();
       engineSwitch.dispose();
       await session.stop();
     },

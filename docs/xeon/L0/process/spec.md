@@ -340,14 +340,16 @@ export interface EnsureDeps {
   readonly clock: Clock;
   readonly scheduler: Scheduler;                                     // 200 ms 재시도 간격, startTimeoutMs 시한
   readonly engineVersion: string;
+  /** 이 클라이언트의 엔진 빌드 식별자. 있으면 서비스의 build와 달라도(필드가 없는 옛 서비스 포함) 다른 서비스로 본다 */
+  readonly engineBuild?: string;
   readonly protocolVersion: string;
 }
-export interface ServiceProbe { readonly version: string; readonly protocolVersion: string; readonly idle: boolean }
+export interface ServiceProbe { readonly version: string; readonly protocolVersion: string; readonly build?: string; readonly idle: boolean }
 export type ProbeError = { readonly kind: "auth_failed" } | { readonly kind: "timeout" } | { readonly kind: "protocol_unsupported" };
 
 /** 접속은 돌려주지 않는다. probe 연결은 닫혔고 host.hello는 연결마다 한 번이라, 호출자가 registration.socket으로 새로 접속한다 */
 export type EnsureOutcome =
-  | { readonly kind: "connected"; readonly registration: ServiceRegistration; readonly started: boolean }
+  | { readonly kind: "connected"; readonly registration: ServiceRegistration; readonly started: boolean; readonly replaced: boolean }   // replaced: 다른 빌드·버전의 한가한 서비스를 내리고 새로 띄웠다
   | { readonly kind: "version_mismatch_busy"; readonly registration: ServiceRegistration };   // 경고 후 그대로 접속
 export type EnsureError =
   | { readonly kind: "start_timeout"; readonly waitedMs: number }
@@ -571,8 +573,8 @@ ensureService():
        p = probe(t, reg.token)               auth_failed → err(auth_failed). timeout → 3
        p.protocolVersion 주 버전이 다르고 p.idle → host.shutdown 요청, 종료 대기 → 3
        p.protocolVersion 주 버전이 다르고 바쁨 → err(protocol_unsupported) (경고 문구는 L4)
-       p.version ≠ engineVersion이고 p.idle → host.shutdown 요청(reason version_replace), 종료 대기 → 3
-       p.version ≠ engineVersion이고 바쁨 → ok(version_mismatch_busy) (경고하고 그대로 접속)
+       (p.version ≠ engineVersion 또는 engineBuild가 있고 p.build ≠ engineBuild)이고 p.idle → host.shutdown 요청(reason version_replace), 종료 대기 → 3
+       (같은 조건)이고 바쁨 → ok(version_mismatch_busy) (경고하고 그대로 접속)
        그 밖 → ok(connected, started: false)
   3. spawnService()                         detached + unref
   4. startTimeoutMs(기본 10000 [제안]) 안에서 200 ms 간격으로 1~2를 다시 한다
@@ -631,7 +633,7 @@ ensureService():
 |---|---|---|
 | 1 | 등록 파일 | `write` 뒤 파일 모드가 0600이다. 스키마에 없는 필드 `{"future":1}`가 든 파일을 읽고 다시 쓰면 그 필드가 남는다. 모드가 0644인 파일은 `insecure_mode`로 읽기를 거부한다 |
 | 2 | 기동 경합 | 같은 runtimeDir에서 `ensureService`를 동시에 두 번 부르면 살아 남는 서비스 프로세스가 하나이고, 두 호출 모두 같은 `pid`의 등록 정보로 `connected`를 받는다 |
-| 3 | 버전 불일치 | 한가한 구버전 서비스에 `ensure`하면 구버전이 종료되고 새 버전이 뜬다. live task가 있는 구버전에는 `version_mismatch_busy`로 접속하고 구버전이 계속 돈다 |
+| 3 | 버전 불일치 | 한가한 구버전 서비스(또는 버전은 같고 build가 다르거나 build를 모르는 서비스)에 `ensure`하면 그 서비스가 종료되고 새 서비스가 뜨며 결과의 `replaced`가 참이다. live task가 있는 구버전에는 `version_mismatch_busy`로 접속하고 구버전이 계속 돈다 |
 | 4 | 유휴 종료 | §4.4.4 표의 다섯 행이 수동 시계 테스트에서 그대로 성립한다. 승인 대기 대화 1개만 있으면 종료하지 않는다 |
 | 5 | 인증 | 토큰이 틀린 `host.hello`는 거부되고 연결이 닫힌다. hello 전 `turn.start`는 1001이다. 소켓 파일 모드가 0600이다 |
 | 6 | 부모-자식 수명 | stdio 자식 엔진의 부모를 SIGKILL하면 자식이 `shutdown.timeoutMs` + 1초 안에 끝난다. `ensure`로 띄운 서비스는 띄운 CLI가 끝나도 살아 있다 |

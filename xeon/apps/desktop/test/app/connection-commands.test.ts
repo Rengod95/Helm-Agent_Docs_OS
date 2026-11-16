@@ -514,6 +514,10 @@ async function serviceApp(
   const lines: LogLine[] = [];
   const app = makeAppOver(ipc, { logSink: (line) => lines.push(line) });
   await until(() => app.engine.read.getState().link.phase === "live", "live link");
+  // 연결이 live가 되면 앱이 서비스 상태를 한 번 읽는다(엔진 빌드 비교). 시험이 세는 호출은 그 뒤의 것이다
+  await Promise.resolve();
+  await Promise.resolve();
+  engine.fake.serviceCalls.length = 0;
   return { app, ...engine, log, lines };
 }
 

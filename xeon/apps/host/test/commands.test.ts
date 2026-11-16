@@ -204,6 +204,7 @@ test("service status text shows the tcp address and the idle line, and never the
       "service running (pid 4242, version 0.0.1)",
       "socket /tmp/fresnel.sock",
       "tcp 127.0.0.1:7777",
+      'build unknown (an older service; this binary is dev), run "fresnel service stop" and start it again',
       "connections 1, live turns 0",
       "idle shutdown none (clients are connected)",
       "",
@@ -224,6 +225,7 @@ test("service status text without tcp has no tcp line, and a set idle shutdown t
     [
       "service running (pid 4242, version 0.0.1)",
       "socket /tmp/fresnel.sock",
+      'build unknown (an older service; this binary is dev), run "fresnel service stop" and start it again',
       "connections 0, live turns 0",
       "idle shutdown at 2023-11-14T22:14:20.000Z, safe mode",
       "",
@@ -237,27 +239,27 @@ test("--listen-tcp on a service that is already running is named on stderr and n
   expect(
     listenTcpNotAppliedNotice(
       { host: "127.0.0.1", port: 7777 },
-      { kind: "connected", registration: REGISTRATION, started: false },
+      { kind: "connected", registration: REGISTRATION, started: false, replaced: false },
     ),
   ).toBe(warning);
   expect(
     listenTcpNotAppliedNotice(
       { host: "127.0.0.1", port: 8888 },
-      { kind: "connected", registration: WITH_TCP, started: false },
+      { kind: "connected", registration: WITH_TCP, started: false, replaced: false },
     ),
   ).toBe(warning);
   // 요청한 주소로 이미 열려 있으면 알릴 것이 없다
   expect(
     listenTcpNotAppliedNotice(
       { host: "127.0.0.1", port: 7777 },
-      { kind: "connected", registration: WITH_TCP, started: false },
+      { kind: "connected", registration: WITH_TCP, started: false, replaced: false },
     ),
   ).toBeUndefined();
   // 이 실행이 새로 띄운 서비스이면 옵션이 적용된 것이다
   expect(
     listenTcpNotAppliedNotice(
       { host: "127.0.0.1", port: 7777 },
-      { kind: "connected", registration: WITH_TCP, started: true },
+      { kind: "connected", registration: WITH_TCP, started: true, replaced: false },
     ),
   ).toBeUndefined();
 });
@@ -273,4 +275,25 @@ test("parseHostArgv maps host --service and service run to service-run with safe
     ok: true,
     command: { kind: "service-run", safeMode: true, tcp: { host: "127.0.0.1", port: 7777 } },
   });
+});
+
+test("service status text names the build and tells how to replace a different one", () => {
+  const same = serviceStatusText(
+    REGISTRATION,
+    { ...HOST, build: "abc.1" },
+    null,
+    undefined,
+    "abc.1",
+  );
+  expect(same.split("\n")[2]).toBe("build abc.1");
+  const other = serviceStatusText(
+    REGISTRATION,
+    { ...HOST, build: "old.1" },
+    null,
+    undefined,
+    "new.2",
+  );
+  expect(other.split("\n")[2]).toBe(
+    'build old.1 (this binary is new.2), run "fresnel service stop" and start it again',
+  );
 });

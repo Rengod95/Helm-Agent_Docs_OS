@@ -2,9 +2,11 @@
 // Sidecar build (m2-plan DESK.3, L4.desktop.plan 2.1, D3). Compiles the engine entry named in
 // apps/desktop/sidecar.json with `bun build --compile --minify --bytecode` for one Rust target triple and
 // checks the size cap. Output: apps/desktop/dist/sidecar/<name>-<triple>[.exe] (not committed, TC-05).
-//   build-sidecar <triple|host> [--no-bytecode] [--version x.y.z] [--out-dir <dir>]
+//   build-sidecar <triple|host> [--no-bytecode] [--version x.y.z] [--build-id <id>] [--out-dir <dir>]
 // `--out-dir` writes the binary there instead of dist/sidecar. Release builds use it so a release version never lands on the
 // development sidecar (the e2e tests and ensure-sidecar reuse that one and expect "0.0.0").
+// The engine also gets FRESNEL_BUILD_ID (`<commit>[-dirty].<UTC time>`, or `--build-id`): the value a service and a client compare to tell builds
+// apart while `version` stays 0.0.0 (L4.host-service.spec 3.5). Running from source reports "dev".
 // `--version` defines the string constant FRESNEL_BUILD_VERSION (bun build --define); CLI_VERSION and ENGINE_VERSION read it.
 //   build-sidecar <triple|host> --gateway   builds the web gateway program (`fresnel-web`, the `gateway` section of sidecar.json) the same way
 //   build-sidecar --list
@@ -164,6 +166,37 @@ export function outputFileName(name: string, triple: string): string {
 /** The global the build defines (`--define`). `apps/cli` and `apps/host` read it as `typeof FRESNEL_BUILD_VERSION`. */
 export const VERSION_DEFINE_NAME = "FRESNEL_BUILD_VERSION";
 
+/** The global that carries the build identifier (`apps/host` reads it as `typeof FRESNEL_BUILD_ID`). Without it a binary reports "dev". */
+export const BUILD_ID_DEFINE_NAME = "FRESNEL_BUILD_ID";
+
+/** `<commit>[-dirty].<UTC build time>`: one value per build, so two builds of the same sources still differ (L4.host-service.spec 3.5). */
+export function makeBuildId(commit: string, dirty: boolean, now: Date): string {
+  const stamp = now
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d+Z$/, "Z");
+  return `${commit}${dirty ? "-dirty" : ""}.${stamp}`;
+}
+
+/** The commit (12 hex digits) and whether the working tree differs, read from git in `cwd`. "unknown" when git cannot say. */
+export async function readSourceState(
+  cwd: string,
+): Promise<{ readonly commit: string; readonly dirty: boolean }> {
+  // git가 없으면 spawn이 던지므로 먼저 찾는다. 없거나 저장소가 아니면 모른다("unknown")
+  if (Bun.which("git") === null) return { commit: "unknown", dirty: false };
+  const run = async (args: string[]): Promise<string | undefined> => {
+    const child = Bun.spawn(["git", ...args], { cwd, stdout: "pipe", stderr: "ignore" });
+    const [text, code] = await Promise.all([new Response(child.stdout).text(), child.exited]);
+    return code === 0 ? text.trim() : undefined;
+  };
+  const commit = await run(["rev-parse", "--short=12", "HEAD"]);
+  const status = await run(["status", "--porcelain", "--", "."]);
+  return {
+    commit: commit === undefined || commit === "" ? "unknown" : commit,
+    dirty: status !== "",
+  };
+}
+
 /** Plain dotted version with an optional pre-release tail; the same rule as release.ts `isSafeVersion`. */
 export function isBuildVersion(version: string): boolean {
   return /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$/.test(version);
@@ -178,6 +211,8 @@ export interface CompileOptions {
   readonly bytecode: boolean;
   /** Injected as the string constant `FRESNEL_BUILD_VERSION`. Without it the binary reports "0.0.0". */
   readonly version?: string | undefined;
+  /** Injected as the string constant `FRESNEL_BUILD_ID`. Without it the binary reports "dev". */
+  readonly buildId?: string | undefined;
 }
 
 /** Arguments after the `bun` executable. */
@@ -191,6 +226,9 @@ export function compileArgs(options: CompileOptions): string[] {
     ...(options.version === undefined
       ? []
       : ["--define", `${VERSION_DEFINE_NAME}=${JSON.stringify(options.version)}`]),
+    ...(options.buildId === undefined
+      ? []
+      : ["--define", `${BUILD_ID_DEFINE_NAME}=${JSON.stringify(options.buildId)}`]),
     options.entry,
     ...(options.workers ?? []),
     "--outfile",
@@ -238,6 +276,8 @@ export interface BuildRequest {
   readonly bytecode: boolean;
   /** The release version to inject; undefined builds the "0.0.0" development binary. */
   readonly version?: string | undefined;
+  /** The build identifier to inject into the engine (not the gateway). */
+  readonly buildId?: string | undefined;
   /** Where the binary goes. Default: apps/desktop/dist/sidecar (the development sidecar). */
   readonly outDir?: string | undefined;
   /** Build the web gateway (`gateway` in sidecar.json) instead of the engine. */
@@ -289,6 +329,7 @@ export async function buildSidecar(
     bunTarget: target.value.bunTarget,
     bytecode: request.bytecode,
     version: request.version,
+    buildId: request.gateway === true ? undefined : request.buildId,
   });
   const run = await io.runBun(args, request.desktopDir);
   if (run instanceof Error) return fail({ kind: "build.spawn", message: run.message });
@@ -396,6 +437,7 @@ if (import.meta.main) {
     options: {
       "no-bytecode": { type: "boolean", default: false },
       version: { type: "string" },
+      "build-id": { type: "string" },
       "out-dir": { type: "string" },
       gateway: { type: "boolean", default: false },
       list: { type: "boolean", default: false },
@@ -423,7 +465,7 @@ if (import.meta.main) {
   const requested = positionals[0];
   if (requested === undefined || positionals.length > 1) {
     process.stderr.write(
-      "usage: build-sidecar <triple|host> [--gateway] [--no-bytecode] [--version x.y.z] [--out-dir dir] | --list\n",
+      "usage: build-sidecar <triple|host> [--gateway] [--no-bytecode] [--version x.y.z] [--build-id id] [--out-dir dir] | --list\n",
     );
     process.exit(1);
   }
@@ -441,9 +483,18 @@ if (import.meta.main) {
   if (!bytecode) {
     process.stderr.write("build-sidecar: WARNING --no-bytecode is not the release configuration\n");
   }
+  if (values["build-id"] !== undefined && !/^[0-9A-Za-z._-]{1,64}$/.test(values["build-id"])) {
+    process.stderr.write("build-sidecar: --build-id must be 1-64 characters of [0-9A-Za-z._-]\n");
+    process.exit(1);
+  }
+  const source = values["build-id"] === undefined ? await readSourceState(fresnelRoot) : undefined;
+  const buildId =
+    values["build-id"] ??
+    (source === undefined ? undefined : makeBuildId(source.commit, source.dirty, new Date()));
   const result = await buildSidecar(
     {
       desktopDir,
+      buildId,
       triple: triple.value,
       bytecode,
       version: values.version,

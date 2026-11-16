@@ -10,6 +10,7 @@ import {
   stopHostService,
   type ServiceControlOptions,
 } from "./control.ts";
+import { ENGINE_BUILD } from "../assemble.ts";
 import { ensureHostService, type ServiceCommand } from "./ensure.ts";
 import {
   autostartStatus,
@@ -139,11 +140,21 @@ function remoteLinesOf(remote: WireResult<"host.remote.status"> | null | undefin
 /**
  * `service status`의 사람용 글(서비스가 떠 있을 때). 접속 토큰은 쓰지 않는다. `autostart`를 주면 idle 줄 뒤에 자동 시작 줄을 더한다
  */
+/** 서비스의 빌드 줄. 이 바이너리의 빌드와 다르면(필드가 없는 옛 서비스 포함) 어떻게 하면 되는지 덧붙인다 */
+function buildLineOf(serviceBuild: string | undefined, ownBuild: string): string {
+  if (serviceBuild === undefined) {
+    return `build unknown (an older service; this binary is ${ownBuild}), run "fresnel service stop" and start it again`;
+  }
+  if (serviceBuild === ownBuild) return `build ${serviceBuild}`;
+  return `build ${serviceBuild} (this binary is ${ownBuild}), run "fresnel service stop" and start it again`;
+}
+
 export function serviceStatusText(
   registration: ServiceRegistration,
   host: WireResult<"host.status">,
   remote?: WireResult<"host.remote.status"> | null,
   autostart?: AutostartStatus,
+  ownBuild: string = ENGINE_BUILD,
 ): string {
   const tcp = tcpAddressOf(registration);
   const idle =
@@ -152,6 +163,7 @@ export function serviceStatusText(
     `service running (pid ${String(registration.pid)}, version ${registration.version})`,
     `socket ${registration.socket}`,
     ...(tcp === undefined ? [] : [`tcp ${tcp}`]),
+    buildLineOf(host.build, ownBuild),
     `connections ${String(host.connections)}, live turns ${String(host.liveTurns)}`,
     `idle shutdown ${idle}${host.safeMode === true ? ", safe mode" : ""}`,
     ...(autostart === undefined ? [] : [autostartLineOf(autostart)]),
@@ -261,10 +273,13 @@ export async function runServiceCommand(
           : outcome.started
             ? "spawned"
             : "connected";
+      // 다른 빌드의 서비스를 내리고 새로 띄웠는지(`replaced`)와 바쁜 옛 서비스에 그대로 붙었는지(`outdated`)를 알린다
+      const replaced = outcome.kind === "connected" && outcome.replaced;
+      const outdated = outcome.kind === "version_mismatch_busy";
       if (json) {
         await write(
           io.stdout,
-          `${JSON.stringify({ ok: true, socket: registration.socket, version: registration.version, action })}\n`,
+          `${JSON.stringify({ ok: true, socket: registration.socket, version: registration.version, action, replaced, outdated })}\n`,
         );
       } else {
         await write(
@@ -274,7 +289,7 @@ export async function runServiceCommand(
         if (outcome.kind === "version_mismatch_busy") {
           await write(
             io.stderr,
-            `the running service is version ${registration.version} and is busy; run "fresnel service stop" to replace it\n`,
+            `the running service is another build (version ${registration.version}) and is busy; run "fresnel service stop" to replace it\n`,
           );
         }
         // `--listen-tcp`는 service start에만 있다. 이 분기는 json이 아니라서 command가 service-start로 좁혀진다

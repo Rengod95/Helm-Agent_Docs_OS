@@ -205,7 +205,7 @@ export type HostHelloParams = Static<typeof HostHelloParamsSchema>;
 
 export const HostHelloResultSchema: TObject<{
   protocolVersion: typeof SemVerSchema;
-  server: TObject<{ name: TString; version: TString }>;
+  server: TObject<{ name: TString; version: TString; build: TOptional<TString> }>;
   storeId: typeof StoreIdSchema;
   transport: typeof TransportKindSchema;
   features: TArray<typeof FeatureInfoSchema>;
@@ -217,6 +217,8 @@ export const HostHelloResultSchema: TObject<{
       {
         name: Type.String({ minLength: 1, maxLength: 64 }),
         version: Type.String({ minLength: 1, maxLength: 64 }),
+        /** 엔진 빌드 식별자(소스 커밋, 변경 여부, 빌드 시각). 소스 실행은 "dev". 옛 서버에는 없다(L4.host-service.spec §3.5) */
+        build: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
       },
       { additionalProperties: false },
     ),
@@ -368,6 +370,7 @@ export type StartupNotice = Static<typeof StartupNoticeSchema>;
 export const HostStatusResultSchema: TObject<{
   mode: TUnion<[TLiteral<"in-process">, TLiteral<"stdio">, TLiteral<"service">]>;
   pid: TInteger;
+  build: TOptional<TString>;
   startedAt: typeof IsoTimeSchema;
   connections: TInteger;
   liveTurns: TInteger;
@@ -386,6 +389,8 @@ export const HostStatusResultSchema: TObject<{
   {
     mode: Type.Union([Type.Literal("in-process"), Type.Literal("stdio"), Type.Literal("service")]),
     pid: Type.Integer({ minimum: 0 }),
+    /** 엔진 빌드 식별자. `host.hello`의 `server.build`와 같은 값이다. 옛 서버에는 없다 */
+    build: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
     startedAt: IsoTimeSchema,
     connections: Type.Integer({ minimum: 0 }),
     liveTurns: Type.Integer({ minimum: 0 }),

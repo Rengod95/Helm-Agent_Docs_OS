@@ -85,10 +85,14 @@ export type SettingsJump = {
 };
 
 /**
- * 다시 시작해야 적용되는 일 하나. 설치 결과(`appliesAt: restart`)와 되돌리기(`restart`)가 만든다.
+ * 다시 시작해야 적용되는 일 하나. 설치 결과(`appliesAt: restart`)와 되돌리기(`restart`)가 만들고,
+ * 이 기기의 서비스가 이 앱과 다른 엔진 빌드인데 일하는 중이라 바꾸지 못했을 때 `engine_outdated`(이름 "")가 올라온다.
  * 같은 종류와 이름은 한 번만 든다(`noteRestartNeeded`가 거른다).
  */
-export type RestartReason = { readonly kind: "install" | "rollback"; readonly name: string };
+export type RestartReason = {
+  readonly kind: "install" | "rollback" | "engine_outdated";
+  readonly name: string;
+};
 
 /**
  * 엔진이 지금 붙은 대상. 원격이면 이름을 함께 든다(상태 표시줄 첫 칸이 "원격 · 이름"을 보인다). 앱을 켜면 이 컴퓨터다.

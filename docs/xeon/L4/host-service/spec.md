@@ -779,6 +779,8 @@ M4(thread 내보내기, F wire §3.4.7 [제안]):
 
 [결정: ADR-0006 §3.4] 등록 파일은 권한 0600이고 소켓 주소, pid, 버전, 시작 시각 지문, 무작위 토큰을 담는다. 스키마에 없는 필드를 보존한다.
 
+[결정: 2026-11-15 오케스트레이터, 사용자 보고 "이번 빌드에서 도구들 목록이 제대로 안바뀐거같은데"] 엔진 빌드 식별자(`ENGINE_BUILD`, `apps/host/src/assemble.ts`)는 `version`(릴리스 버전, 개발 빌드는 `0.0.0`)과 따로 빌드 하나를 가른다. 사이드카를 컴파일할 때 `scripts/build-sidecar.ts`가 `bun build --define FRESNEL_BUILD_ID="<소스 커밋 12자리>[-dirty].<UTC 빌드 시각>"`으로 넣는다(`-dirty`는 `xeon/` 작업 트리에 변경이 있을 때, `--build-id <값>`으로 덮어쓴다). 같은 소스를 두 번 빌드해도 값이 다르다. 소스에서 `bun`으로 직접 돌리면 주입이 없어 `"dev"`다. 값은 `host.hello`의 `server.build`와 `host.status`의 `build`에 싣고(F wire §3.3.1, 둘 다 선택 필드), `fresnel service status`가 `build <값>` 줄로 보인다(`--json`에는 `status.build`, 이 실행 파일의 값 `ownBuild`, 둘이 다르면 `outdated: true`). 이 필드를 모르는 옛 서비스는 값이 없고 "다르다"로 본다. 등록 파일에는 싣지 않는다(이미 접속해 묻는 hello·status로 충분하다).
+
 [결정: 오케스트레이터 기본값, §10 7번] 스키마와 읽기·쓰기는 `L0.process.spec` §3.2(`ServiceRegistration`, `createRegistrationStore`)가 정본이다. 아래 블록은 초안이고 어긋나면 L0 쪽이 맞다: `startedAt`은 epoch ms 정수, `schemaVersion`·`protocolVersion`·`storeId`가 더 있고, 읽기·쓰기는 동기 `Result`이며 `readRegistration` 등 이름은 `RegistrationStore` 메서드다. 서비스는 TCP로 열면 `tcp: "host:port"` 필드를 더한다(모르는 필드로 보존된다).
 
 ```ts
@@ -996,13 +998,14 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
     2. 접속이 거부되면(파일은 있으나 듣는 프로세스 없음) 낡은 소켓 파일이다. 낡은 파일 삭제와 바인드는 활성화 잠금을 쥔 동안에만 한다. 활성화 잠금은 L0.os의 `fileLock.withLock`(`<runtimeDir>/service.activation`, 기다리지 않음)을 `ActivationLock`으로 감싸 L0.process의 `bindServiceSocket`에 넘긴다 [결정: 오케스트레이터 기본값]. 잠금을 못 얻은 쪽은 `inUse`로 본다.
     3. 바인드한다. `EADDRINUSE`이면 `inUse`.
   - `inUse`를 받은 `startService`는 `{ started: false, existing }`을 돌려주고, `service run`은 종료코드 0으로 끝난다. 그 프로세스를 띄운 `ensure`는 기존 서비스에 접속한다.
+  - 서비스를 띄우는 길은 둘이고(launchd 사용자 에이전트의 `RunAtLoad`, `ensure`의 detached 기동) 어느 쪽이든 이 바인드가 한 벌만 남긴다. 교체(SV-03)는 `host.shutdown`으로 옛 서비스를 종료코드 0으로 내리므로 `KeepAlive`의 `SuccessfulExit=false`가 되살리지 않는다. 새 서비스는 `ensure`가 띄우고, 같은 때 launchd가 따로 띄운 `service run`이 있으면 바인드에서 져서 종료코드 0으로 끝난다. 옛 서비스가 신호로 죽어 launchd가 되살리는 경우도 같다(새 바이너리 경로를 실행하고 먼저 바인드한 쪽이 이긴다).
   - 두 프로세스가 같은 DB에 대해 서비스 둘을 여는 경우는 생기지 않는다. 포트 0처럼 늘 성공하는 바인드는 쓰지 않는다(opencode `background-service.ts:49-52`의 이유와 같다).
 - SV-03 버전 불일치 [결정: ADR-0006 §3.7 3번]. `ensureService` 절차:
   1. `readRegistration`. `missing`이거나 `invalid`이면 기동(4번)으로 간다. `invalid`는 진단을 남긴다.
   2. 소켓에 접속해 `host.hello`, `host.status`를 부른다. 접속이 안 되거나 `status.startedAt`이 등록 파일과 다르면 낡은 등록이다. 기동으로 간다.
-  3. `version`이 자기 버전과 다르면:
-     - 서비스가 한가하면 재기동한다. 한가함은 `liveTurns == 0`이고 `connections == 1`(자기 연결뿐)이다. 재기동은 등록 파일의 pid로 SIGTERM을 보내고(L0.process), 등록 파일이 사라지거나 `l0.process.shutdown.timeoutMs` + 2000ms가 지나면 기동한다. 신호 전에 `host.status.pid`와 `startedAt`이 등록 파일과 같은지 확인한다. pid 재사용 오인을 막기 위해서다.
-     - 한가하지 않으면 경고를 남기고 그대로 접속한다(`action: "versionWarning"`). hello가 1003이면 `{ ok: false, reason: "protocolUnsupported" }`이고, CLI는 `fresnel service stop` 뒤 다시 시도하라고 안내한다.
+  3. `version`이 자기 버전과 다르거나 `build`가 자기 빌드(`ENGINE_BUILD`, §3.5)와 다르면(`build` 필드가 없는 옛 서비스 포함) 다른 서비스다 [결정: 2026-11-15 오케스트레이터]:
+     - 서비스가 한가하면 재기동한다. 한가함(`isServiceReplaceable`)은 `liveTurns == 0`이고 승인을 기다리는 thread가 없는 것이다. 다른 연결이 있어도 일하는 중이 아니면 한가하다: 앱을 새로 띄웠는데 옛 앱 창이 열려 있다는 이유만으로 옛 엔진이 남지 않게 한다. 연결은 서비스가 닫을 때 끊기고 데스크톱 브리지가 다시 붙는다(L4.desktop §4.8). 결과는 `replaced: true`다(CLI는 한 줄로 알리고, 데스크톱 셸은 `service ensure --json`의 `replaced`를 `service_status`로 한 번 알린다). 재기동은 등록 파일의 pid로 SIGTERM을 보내고(L0.process), 등록 파일이 사라지거나 `l0.process.shutdown.timeoutMs` + 2000ms가 지나면 기동한다. 신호 전에 `host.status.pid`와 `startedAt`이 등록 파일과 같은지 확인한다. pid 재사용 오인을 막기 위해서다.
+     - 한가하지 않으면(진행 중 turn이나 승인 대기가 있다) 끊지 않고 경고를 남기고 그대로 접속한다(`action: "versionWarning"`, `service ensure --json`에 `outdated: true`). 데스크톱은 이 상태를 "다시 시작 필요"(`engine_outdated`)로 올린다. 턴이 끝난 뒤 자동으로 다시 시작하지는 않는다: 사용자가 상태 줄의 단추를 누르거나 `fresnel service stop` 뒤 다시 붙으면 그때 한가함을 다시 판정해 바꾼다 [제안: 2026-11-15, 진행 중에 보이지 않는 곳에서 엔진이 갈아 끼워지는 것을 피한다]. hello가 1003이면 `{ ok: false, reason: "protocolUnsupported" }`이고, CLI는 `fresnel service stop` 뒤 다시 시도하라고 안내한다.
   4. 기동: L0.process로 자기 실행 명령(§3.2)에 `service run`을 붙여 detached로 띄운다(SV-06). 소켓이 hello에 응답할 때까지 조건 대기(100ms 간격, 상한 `spawnTimeoutMs`)한다.
 - SV-04 유휴 종료 [결정: ADR-0006 §3.7 4번]
   - 판정은 L0.process의 `createIdleMonitor`가 한다(`L0.process.spec` §3.2, §4.4.4). 서비스는 `IdleInputs { connections, liveTasks, pendingSchedules }`를 입력이 바뀔 때마다 넘긴다. `liveTasks`는 `ActivitySnapshot.liveTasks + waitingApprovals`다(승인 대기 대화 포함). `pendingSchedules`는 `ActivitySnapshot.pendingSchedules`이고 값의 출처는 예약 서비스의 대기 수다(HS-84). `AssembleOptions.pendingSchedules`(`PendingSchedulesPort { count, onChange }`)를 넣으면 그 값이 이긴다(시험 주입) [결정: 오케스트레이터 기본값, M3b B1-SVC, B1-SCH].

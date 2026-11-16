@@ -51,6 +51,33 @@ export function createStartFailureSlot(): StartFailureSlot {
 /** 엔진 launcher와 서비스 명령 모듈이 같은 프로세스에서 나눠 쓰는 칸 */
 export const sharedStartFailure: StartFailureSlot = createStartFailureSlot();
 
+/**
+ * 이번 앱 실행에서 서비스를 맞출 때 있었던 일. `replaced`: 다른 빌드의 한가한 서비스를 내리고 이 앱의 엔진으로 다시 띄웠다(화면이 한 번 알리고 `takeReplaced`로 비운다).
+ * 다른 빌드의 서비스가 일하는 중이라 그대로 붙은 일(`outdated`)은 `service status --json`의 `outdated`가 현재 값을 준다
+ */
+export interface EngineNoteSlot {
+  noteReplaced(): void;
+  /** 알릴 `replaced`가 있으면 참을 돌려주고 비운다 */
+  takeReplaced(): boolean;
+}
+
+export function createEngineNoteSlot(): EngineNoteSlot {
+  const state = { replaced: false };
+  return {
+    noteReplaced() {
+      state.replaced = true;
+    },
+    takeReplaced() {
+      const was = state.replaced;
+      state.replaced = false;
+      return was;
+    },
+  };
+}
+
+/** 엔진 launcher와 서비스 명령 모듈이 같은 프로세스에서 나눠 쓰는 칸 */
+export const sharedEngineNote: EngineNoteSlot = createEngineNoteSlot();
+
 /** 서비스 모드 로그 한 줄을 남기고 사유를 칸에 적고 사이드카로 돌아간다. 주소와 토큰은 로그에 넣지 않는다 */
 function fallbackTo(
   log: AppLog,
@@ -72,7 +99,12 @@ function modeNameOf(stdout: string): string | null {
 }
 
 /** `service ensure --json`의 답. 성공 표시가 있고 소켓이 절대 경로여야 쓸 수 있다. 아니면 null이다 */
-function ensureOf(stdout: string): { socket: string; version: string; action: string } | null {
+function ensureOf(stdout: string): {
+  socket: string;
+  version: string;
+  action: string;
+  replaced: boolean;
+} | null {
   const parsed = parseJson(stdout);
   if (!parsed.ok) return null;
   const good = ownField(parsed.value, "ok") === true;
@@ -81,7 +113,8 @@ function ensureOf(stdout: string): { socket: string; version: string; action: st
   const action = ownField(parsed.value, "action");
   if (!good || typeof socket !== "string" || !path.isAbsolute(socket)) return null;
   if (typeof version !== "string" || typeof action !== "string") return null;
-  return { socket, version, action };
+  // 다른 빌드의 서비스를 내리고 새로 띄웠는지. 필드가 없으면(옛 호스트) 아니다
+  return { socket, version, action, replaced: ownField(parsed.value, "replaced") === true };
 }
 
 /**
@@ -93,6 +126,7 @@ async function serviceSocketOf(
   safeMode: SafeMode,
   log: AppLog,
   slot: StartFailureSlot,
+  notes: EngineNoteSlot,
 ): Promise<string | null> {
   const mode = await inner.runOnce(["service", "launch-mode"]);
   if (!mode.ok) return fallbackTo(log, slot, "launch_mode_unrunnable", mode.error.message);
@@ -118,6 +152,10 @@ async function serviceSocketOf(
   }
   const answer = ensureOf(ensured.value.stdout);
   if (answer === null) return fallbackTo(log, slot, "ensure_unusable", "unusable output");
+  if (answer.replaced) {
+    log.line(`${LOG_PREFIX} the service was restarted to match this app's engine build`);
+    notes.noteReplaced();
+  }
   return answer.socket;
 }
 
@@ -142,11 +180,12 @@ export function serviceAwareLauncher(
   inner: Launcher,
   log: AppLog,
   slot: StartFailureSlot = sharedStartFailure,
+  notes: EngineNoteSlot = sharedEngineNote,
 ): Launcher {
   return {
     async launch(target, safeMode) {
       if (target.kind === "remote") return inner.launch(target, safeMode);
-      const socket = await serviceSocketOf(inner, safeMode, log, slot);
+      const socket = await serviceSocketOf(inner, safeMode, log, slot, notes);
       if (socket === null) return inner.launch(target, safeMode);
       const bridged = await inner.launch({ kind: "remote", address: `unix:${socket}` }, safeMode);
       if (!bridged.ok) {
@@ -219,12 +258,16 @@ export type ServiceStatusReply =
       readonly pid: number;
       readonly version: string;
       readonly startedAt: number;
+      /** 서비스의 엔진 빌드가 이 앱의 엔진 빌드와 다르다(필드를 모르는 옛 서비스 포함). 일하는 중이라 바꾸지 못했을 때 참으로 남는다 */
+      readonly engineOutdated: boolean;
+      /** 이 앱이 서비스를 새 빌드로 다시 띄운 일이 아직 알려지지 않았다. 한 번 읽으면 거짓이 된다 */
+      readonly engineReplaced: boolean;
       readonly autostart: ServiceAutostart;
       readonly startFailure?: ServiceStartFailure;
     };
 
 /** `service status --json`을 읽는다. 실행 중(종료 0)과 실행 아님(종료 1)만 정상이고, 나머지는 읽을 수 없는 답이다 */
-function statusReplyOf(output: OnceOutput): ServiceStatusReply {
+function statusReplyOf(output: OnceOutput, notes: EngineNoteSlot): ServiceStatusReply {
   const parsed = parseJson(output.stdout);
   if (!parsed.ok) fail("storage-failed");
   const running = ownField(parsed.value, "running");
@@ -243,7 +286,16 @@ function statusReplyOf(output: OnceOutput): ServiceStatusReply {
     ) {
       fail("storage-failed");
     }
-    return { running: true, socket, pid, version, startedAt, autostart };
+    return {
+      running: true,
+      socket,
+      pid,
+      version,
+      startedAt,
+      engineOutdated: ownField(parsed.value, "outdated") === true,
+      engineReplaced: notes.takeReplaced(),
+      autostart,
+    };
   }
   const reason = ownField(parsed.value, "reason");
   if (output.exitCode === 1 && running === false && typeof reason === "string") {
@@ -277,6 +329,8 @@ export interface ServiceModuleDeps {
   readonly launcherOf: (ctx: ShellContext) => Launcher;
   /** 마지막 서비스 시작 실패 칸. 기본은 엔진 launcher와 나눠 쓰는 `sharedStartFailure`다 */
   readonly failures?: StartFailureSlot;
+  /** 서비스를 새 빌드로 다시 띄운 일을 적는 칸. 기본은 엔진 launcher와 나눠 쓰는 `sharedEngineNote`다 */
+  readonly notes?: EngineNoteSlot;
 }
 
 export function createServiceModule(deps: ServiceModuleDeps): ShellModule {
@@ -285,10 +339,11 @@ export function createServiceModule(deps: ServiceModuleDeps): ShellModule {
     register(ctx) {
       const launcher = deps.launcherOf(ctx);
       const failures = deps.failures ?? sharedStartFailure;
+      const notes = deps.notes ?? sharedEngineNote;
 
       ctx.handle("service_status", async () => {
         const output = await runOnce(launcher, ["service", "status", "--json"], "storage-failed");
-        const reply = statusReplyOf(output);
+        const reply = statusReplyOf(output, notes);
         const failure = failures.get();
         return failure === null ? reply : { ...reply, startFailure: failure };
       });
@@ -298,7 +353,7 @@ export function createServiceModule(deps: ServiceModuleDeps): ShellModule {
         if (output.exitCode !== 0) throw new ShellError("start_failed");
         const answer = ensureOf(output.stdout);
         if (answer === null) throw new ShellError("start_failed");
-        return answer;
+        return { socket: answer.socket, version: answer.version, action: answer.action };
       });
 
       ctx.handle("service_stop", async () => {

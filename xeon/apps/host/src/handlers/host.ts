@@ -37,6 +37,8 @@ export interface HostInfo {
   readonly serverName: "fresnel";
   /** 엔진 빌드 버전. 등록 파일 version과 같은 값 */
   readonly serverVersion: string;
+  /** 엔진 빌드 식별자(`ENGINE_BUILD`). 없으면 hello·status에 싣지 않는다 */
+  readonly serverBuild?: string;
   readonly pid: number;
 }
 
@@ -122,7 +124,11 @@ export function createHostHelloHandler(
     };
     return Promise.resolve({
       protocolVersion: WIRE_PROTOCOL_VERSION,
-      server: { name: info.serverName, version: info.serverVersion },
+      server: {
+        name: info.serverName,
+        version: info.serverVersion,
+        ...(info.serverBuild === undefined ? {} : { build: info.serverBuild }),
+      },
       storeId: engine.storeId,
       transport: state.transportKind,
       features: [...features],
@@ -173,6 +179,7 @@ export function createHostStatusHandler(
     const status = {
       mode: engine.mode,
       pid: info.pid,
+      ...(info.serverBuild === undefined ? {} : { build: info.serverBuild }),
       startedAt: new Date(engine.startedAt).toISOString(),
       connections: hub().size,
       liveTurns: activity.liveTurns,
