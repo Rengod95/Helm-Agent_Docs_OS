@@ -193,6 +193,21 @@ const webSettings = defineSettings("l2.web", {
     },
     since: "0.1.0",
   },
+  "policy.default": {
+    type: Type.String(),
+    default: "ask",
+    range: { enum: ["ask", "allow"] },
+    runtimeChange: "nextTurn",
+    allowedScopes: NO_PROJECT_KEEP_SESSION,
+    ui: {
+      tab: "tools",
+      widget: "select",
+      order: 119,
+      label: "Domains not in any list",
+      help: "ask confirms each new domain. allow reads any domain without asking, including URLs not in the conversation. Blocked and confirm lists still apply.",
+    },
+    since: "0.3.0",
+  },
   "policy.unseenUrl": {
     type: Type.String(),
     default: "ask",
@@ -478,6 +493,8 @@ export interface WebSettings {
     readonly ask: readonly string[];
     readonly deny: readonly string[];
     readonly allowPrivateNetwork: boolean;
+    /** 어느 목록에도 맞지 않는 도메인의 판정. `allow`면 묻지 않고 처음 보는 URL 확인(`unseenUrl: "ask"`)도 건너뛴다. deny·ask 목록이 먼저다 */
+    readonly default: "ask" | "allow";
     readonly unseenUrl: "ask" | "allow" | "deny";
     readonly robots: "auto" | "always" | "never";
   };
@@ -521,6 +538,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     ask: [],
     deny: [],
     allowPrivateNetwork: false,
+    default: "ask",
     unseenUrl: "ask",
     robots: "never",
   },
@@ -662,6 +680,11 @@ export function readWebSettings(layers: ScopeStack): WebSettings {
       allowPrivateNetwork: booleanOr(
         effective("policy.allowPrivateNetwork", layers),
         fallback.policy.allowPrivateNetwork,
+      ),
+      default: choice(
+        effective("policy.default", layers),
+        ["ask", "allow"],
+        fallback.policy.default,
       ),
       unseenUrl: choice(
         effective("policy.unseenUrl", layers),

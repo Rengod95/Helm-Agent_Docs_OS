@@ -40,7 +40,9 @@ test("a web ask becomes a valid tool approval and an allow answer resumes the ca
       threadId,
       capability: "web.fetch",
       host: "docs.example.com",
+      url: "https://docs.example.com/a",
       reasons: ["policy_ask", "unseen_url"],
+      scopes: ["once", "site", "all"],
       requestKey: "web-call-1",
     },
     SIGNAL,
@@ -53,8 +55,15 @@ test("a web ask becomes a valid tool approval and an allow answer resumes the ca
       toolName: "web.fetch",
       capability: { id: "web.fetch", method: "fetch" },
       risk: "read",
-      args: { host: "docs.example.com", reasons: ["policy_ask", "unseen_url"] },
-      ruleId: null,
+      args: {
+        subject: "web_access",
+        host: "docs.example.com",
+        url: "https://docs.example.com/a",
+        tool: "web.fetch",
+        reasons: ["policy_ask", "unseen_url"],
+        scopes: ["once", "site", "all"],
+      },
+      ruleId: "web.access",
     },
   });
   expect(await world.approvals.respond(request.approvalId, { decision: "allow" })).toEqual({
@@ -63,13 +72,41 @@ test("a web ask becomes a valid tool approval and an allow answer resumes the ca
   expect(await asked).toEqual({ ok: true, value: "allow" });
 });
 
+test("allow + always means this site, allow + thread means all sites, both through the real service", async () => {
+  const { world, threadId, adapter } = await setup();
+  const ask = (key: string) =>
+    adapter.ask(
+      {
+        threadId,
+        capability: "web.fetch",
+        host: "docs.example.com",
+        url: "https://docs.example.com/a",
+        reasons: ["policy_ask"],
+        scopes: ["once", "site", "all"],
+        requestKey: key,
+      },
+      SIGNAL,
+    );
+  const site = ask("web-site");
+  const first = await pendingOf(world.approvals, threadId);
+  expect(first.remember).toEqual(["once", "always", "thread"]);
+  await world.approvals.respond(first.approvalId, { decision: "allow", remember: "always" });
+  expect(await site).toEqual({ ok: true, value: "allow_site" });
+  const all = ask("web-all");
+  const second = await pendingOf(world.approvals, threadId);
+  await world.approvals.respond(second.approvalId, { decision: "allow", remember: "thread" });
+  expect(await all).toEqual({ ok: true, value: "allow_all" });
+});
+
 test("a deny answer is a refusal and the same key does not open a second request", async () => {
   const { world, threadId, adapter } = await setup();
   const input = {
     threadId,
     capability: "web.search",
     host: "search.example",
+    url: "https://search.example/",
     reasons: ["policy_ask"],
+    scopes: ["once"],
     requestKey: "web-call-2",
   } as const;
   const asked = adapter.ask(input, SIGNAL);

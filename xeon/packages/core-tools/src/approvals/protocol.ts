@@ -2,6 +2,7 @@ import { assertNever, err, ok, parse, type Result } from "@fresnel/contracts";
 import type { JsonObject, JsonValue } from "@fresnel/contracts/conversation";
 import { ReviewAnswerSchema } from "@fresnel/contracts/records";
 import {
+  WEB_ACCESS_RULE_ID,
   WRITE_ACCESS_RULE_ID,
   type ApprovalDecision,
   type ApprovalRemember,
@@ -68,6 +69,17 @@ function rememberIssue(input: ApprovalRequestInput): string | undefined {
   if (remember.length === 1 && remember[0] === "once") return undefined;
   const writeAccess = body.kind === "tool" && body.tool.ruleId === WRITE_ACCESS_RULE_ID;
   if (writeAccess && remember.length === 2 && remember[0] === "once" && remember[1] === "thread") {
+    return undefined;
+  }
+  // 웹 접근 승인은 이번만·이 사이트 계속(always)·모든 사이트(thread)를 함께 제안한다 [결정: 2026-11-15 사용자]
+  const webAccess = body.kind === "tool" && body.tool.ruleId === WEB_ACCESS_RULE_ID;
+  if (
+    webAccess &&
+    remember.length === 3 &&
+    remember[0] === "once" &&
+    remember[1] === "always" &&
+    remember[2] === "thread"
+  ) {
     return undefined;
   }
   return `${body.kind} requests offer only "once"`;
