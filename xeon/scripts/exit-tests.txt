@@ -48,8 +48,8 @@ X11 scripts release-smoke.test.ts
 # M6 states the new conditions (W1 to W15). Y4 and Y10 host lines are still enabled and keep running.
 # A commented line is a placeholder for a test file that is not written yet; an uncommented line with an unfilled <파일> fails as
 # missing, so an unfinished condition cannot pass by accident.
-# M4 conditions still open: Y1 (half: approval card; the six-states test is missing), Y6 (half: wire doc tables and registry; no host
-# int test for knowledge.memory.add and remove), Y7 (half: no replayDrive test for a group that asks), Y14 (no axe, no keyboard path
+# M4 conditions still open: Y1 (half: approval card; the six-states test is missing), Y6 (half: wire doc tables and registry, and the host int test for knowledge.memory.*; 25 methods
+# have only a handler-level host test, no int test, see the report of track enM4s), Y7 (half: no replayDrive test for a group that asks), Y14 (no axe, no keyboard path
 # test), Y15 (half: the Hangul rule and terms check run as `just check-ts-rules` and `just terms check`, not here).
 # Y1 half: approval-card.same-in-three-places. pages.six-states-render is not written (Y1 stays partial).
 Y1 apps/desktop test/views/approval-card-mounts.test.tsx
@@ -60,8 +60,10 @@ Y1 apps/desktop test/views/approval-card-mounts.test.tsx
 Y4 apps/host test/int/trace-turn.int.test.ts
 # Y5 packages/client <파일>
 # Y5 apps/desktop test/e2e/frame-isolation.e2e.test.ts
-# Y6 half: the wire doc tables equal the registry. One host int test per method is not complete (knowledge.memory.add and remove have none).
+# Y6 half: the wire doc tables equal the registry; knowledge.memory.read, add, replace and remove run on the real engine. One host int test per method is still not complete:
+# 25 methods are called only by test/handlers (fake ports), not by test/int.
 Y6 packages/contracts test/wire-settings/wire.doc.test.ts
+Y6 apps/host test/int/knowledge-memory.int.test.ts
 # Y7 half: manifest plugins[] and group, drive policy, loop.ask approval and lock hand-back, same requestId re-run. Missing: replayDrive on a group that asks.
 Y7 packages/contracts test/extensions/manifest-plugins.test.ts test/extensions/drive-ask.test.ts
 Y7 packages/ext-host test/primitives/drive-policy.test.ts test/primitives/drive-ask.test.ts test/primitives/drive-ask-rerun.test.ts
