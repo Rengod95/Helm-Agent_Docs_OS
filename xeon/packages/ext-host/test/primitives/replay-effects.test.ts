@@ -31,7 +31,8 @@ function makeProvider() {
   const seen = new Set<string>();
   const requestIds: (string | undefined)[] = [];
   const callers: unknown[] = [];
-  const state = { calls: 0, effects: 0, requestIds, callers };
+  const pokeContexts: unknown[] = [];
+  const state = { calls: 0, effects: 0, requestIds, callers, pokeContexts };
   const service: Svc = {
     echo(_input, options) {
       state.calls += 1;
@@ -48,7 +49,8 @@ function makeProvider() {
       state.calls += 1;
       return Promise.resolve("peeked");
     },
-    poke() {
+    poke(_input, options) {
+      state.pokeContexts.push(options?.context);
       state.calls += 1;
       state.effects += 1;
       return Promise.resolve("poked");
@@ -180,6 +182,53 @@ test("replaying a drive twice produces the effect once", async () => {
 });
 
 // ── 효과 워커(ADR-0015 §3.5, M3-REQ-27) ──
+
+test("the worker passes the unattended flag and read-only ceiling of the turn that requested the effect", async () => {
+  const t = await createTestHost({
+    capabilityDefs: echoDefs,
+    loop: { callConditions: () => ({ interactive: false, sandbox: "read-only" }) },
+  });
+  const provider = makeProvider();
+  await t.host.install(
+    makeUnit({ name: "re-provider", provides: [{ id: "demo.echo", version: "1.0.0" }] }, (g) => {
+      hostOf(g).provide(svcKey, provider.service);
+    }),
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await t.host.install(
+    makeUnit(
+      {
+        name: "ew-cond",
+        group: {},
+        loadIndex: 1,
+        hooks: ["boundary.settle.after"],
+        requires: [{ id: "demo.echo", range: "^1.0.0" }],
+      },
+      (g) => {
+        g.on("boundary.settle.after", async () => {
+          await hostOf(g).requestEffect({
+            capability: "demo.echo",
+            method: "poke",
+            input: {},
+            key: "ew:cond",
+          });
+        });
+      },
+    ),
+  );
+  await t.settled();
+  await fire(t, thread, "k");
+  await t.settled();
+  expect(provider.state.pokeContexts).toMatchObject([
+    {
+      threadId: thread,
+      caller: { kind: "extension", extension: "ew-cond" },
+      interactive: false,
+      sandbox: "read-only",
+    },
+  ]);
+});
 
 test("an undeclared write goes through a request record and the worker, once", async () => {
   const { t, provider } = await setup();

@@ -532,6 +532,7 @@ export function createLeaseBroker(
 
   function candidatesFor(thread: ThreadRuntime, txn: BoundaryTxn): RegistrationRecord[] {
     const out: RegistrationRecord[] = [];
+    if (thread.userStopped) return out;
     for (const record of core.scopes.values()) {
       if (record.driveError) continue;
       const activeHere = thread.active.has(record.id) || txn.activating.includes(record);
@@ -754,6 +755,14 @@ export function createLeaseBroker(
     },
     release,
     collectReleases(thread, txn) {
+      if (txn.signal.kind === "turn_settled") {
+        // 사용자 중단이면 이 경계에서 임대를 내려놓고 사용자의 다음 명령이 정착할 때까지 후보로 올리지 않는다
+        thread.userStopped = txn.signal.userInterrupted === true;
+        const held = thread.lease;
+        if (thread.userStopped && held !== null && held.status === "active" && held.committed) {
+          release(held, "revoked");
+        }
+      }
       const lease = thread.lease;
       if (lease !== null && lease.status === "active" && lease.committed) {
         // 사용자가 다른 그룹을 구동 그룹으로 골랐고 그 그룹이 후보이면 현재 임대를 회수한다(P-22 revoked)

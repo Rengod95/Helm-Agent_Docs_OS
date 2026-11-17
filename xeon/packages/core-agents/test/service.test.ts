@@ -16,6 +16,20 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
 }
 
 describe("spawn", () => {
+  test("the child inherits the parent's workspace", async () => {
+    const h = openHarness({ parentWorkspace: "/work/parent" });
+    const { origin } = h.openToolCall("tc-ws");
+    const result = await h.service.spawn({ agent: "explorer", task: "look" }, origin);
+    expect(h.session.workspaceOf(result.childThreadId)).toBe("/work/parent");
+  });
+
+  test("a parent without a workspace leaves the child without one", async () => {
+    const h = openHarness();
+    const { origin } = h.openToolCall("tc-nows");
+    const result = await h.service.spawn({ agent: "explorer", task: "look" }, origin);
+    expect(h.session.workspaceOf(result.childThreadId)).toBeUndefined();
+  });
+
   test("an unexpected failure inside the child run is not recorded as aborted and releases the slot", async () => {
     const h = openHarness({
       run: () => Promise.reject(new TypeError("loop exploded")),

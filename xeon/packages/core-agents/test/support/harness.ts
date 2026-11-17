@@ -73,6 +73,8 @@ export interface HarnessOptions extends StaticAgentsSettings {
   readonly models?: FakeModels;
   /** 설정 읽기 대역. 주면 정적 설정 대신 쓴다(thread별 값 시험) */
   readonly agentsSettings?: AgentsSettingsSource;
+  /** 부모 대화의 작업 폴더 */
+  readonly parentWorkspace?: string;
 }
 
 export function openHarness(options: HarnessOptions = {}): Harness {
@@ -113,7 +115,10 @@ export function openHarness(options: HarnessOptions = {}): Harness {
   for (const definition of options.definitions ?? [EXPLORER]) service.define(definition);
 
   const parentThreadId = ids.next("thr");
-  const created = session.threads.create({ threadId: parentThreadId });
+  const created = session.threads.create({
+    threadId: parentThreadId,
+    ...(options.parentWorkspace === undefined ? {} : { workspace: options.parentWorkspace }),
+  });
   if (!created.ok) throw new Error("fake parent creation failed");
   const parentScope = tasks.openScope(tasks.root, { kind: "thread", id: parentThreadId });
 

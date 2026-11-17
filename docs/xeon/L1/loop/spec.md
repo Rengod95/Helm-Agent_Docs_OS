@@ -185,6 +185,7 @@ export type LoopError =
  * - runTurn(request: LoopTurnRequest): Promise<LoopTurnResult>  drive turn(§4.8)
  * - spawn(request: LoopSpawnRequest): Promise<LoopSpawnResult>   fresnel.agents의 spawn에 위임한다(L1.agents.spec §4.2)
  * - whenIdle(threadId, fn)                                        유휴 동안 새 turn 시작을 막는다(§4.1)
+ * - callConditions(threadId)                                      도는 turn의 `interactive`와 자식 turn의 읽기 전용 천장(`ceiling.sandbox`). 도는 turn이 없으면 undefined. 플러그인 발 기능 호출이 이어받는다(X.primitives.spec §4.4)
  * 포트 메서드는 Result를 쓰지 않는다. turn을 열기 전 실패(stale_lease, StoreError)는 Promise를 LoopError 값으로 거부한다 [제안].
  */
 export interface LoopService extends LoopPort {

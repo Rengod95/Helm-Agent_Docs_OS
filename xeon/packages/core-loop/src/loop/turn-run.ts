@@ -261,6 +261,7 @@ export function boundarySignal(
   run: TurnRun,
   kind: BoundarySignal["kind"],
   stepId: StepId | undefined,
+  userInterrupted = false,
 ): BoundarySignal {
   return {
     threadId: run.threadId,
@@ -268,6 +269,7 @@ export function boundarySignal(
     turnId: run.turnId,
     ...(stepId === undefined ? {} : { stepId }),
     ...(run.spec.leaseId === null ? {} : { drivenBy: run.spec.leaseId }),
+    ...(userInterrupted && kind === "turn_settled" ? { userInterrupted: true as const } : {}),
   };
 }
 

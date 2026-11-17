@@ -646,7 +646,14 @@ export interface LoopSpawnResult {
   readonly replayed: boolean;
   readonly usage: Usage | null;
 }
+/** 대화에서 지금 도는 turn의 호출 조건 */
+export interface LoopCallConditions {
+  readonly interactive: boolean;          // 사람이 승인 요청에 답할 수 있는 실행인가
+  readonly sandbox?: "read-only";         // 서브에이전트 정의의 읽기 전용 천장. 없으면 천장 없음
+}
 export interface LoopPort {
+  /** 지금 도는 turn의 호출 조건. 도는 turn이 없으면 undefined. 시험 대역은 생략할 수 있다 [결정: 2026-11-17 F3] */
+  callConditions?(threadId: ThreadId): LoopCallConditions | undefined;
   status(threadId: ThreadId): "idle" | "running";
   /** 유휴일 때 turn을 시작하고, 정착한 뒤 결과를 돌려준다. 실행 중이면 현재 turn이 정착한 뒤 시작한다 */
   runTurn(request: LoopTurnRequest): Promise<LoopTurnResult>;

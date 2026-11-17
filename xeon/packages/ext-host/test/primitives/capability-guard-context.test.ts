@@ -78,3 +78,74 @@ test("a built-in extension (the L1 tools adapter) keeps the context it filled", 
   const seen = await contextSeenByProvider(true);
   expect(seen).toEqual(forgedSeen.at(-1));
 });
+
+async function conditionsSeen(
+  conditions: { interactive: boolean; sandbox?: "read-only" } | undefined,
+): Promise<CallContext | undefined> {
+  const t = await createTestHost({
+    capabilityDefs: echoDefs,
+    loop: { callConditions: () => conditions },
+  });
+  const received: (CallContext | undefined)[] = [];
+  await t.host.install(
+    makeUnit({ name: "kc-provider", provides: [{ id: "demo.echo", version: "1.0.0" }] }, (g) => {
+      hostOf(g).provide(svcKey, {
+        echo: (_input, options) => {
+          received.push(options?.context);
+          return Promise.resolve("ok");
+        },
+      });
+    }),
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await t.host.install(
+    makeUnit(
+      {
+        name: "kc-consumer",
+        builtin: false,
+        loadIndex: 1,
+        hooks: [POINT],
+        requires: [{ id: "demo.echo", range: "^1.0.0" }],
+      },
+      (g) => {
+        g.on(POINT, async () => {
+          // 호출자가 위조한 조건은 무시되고 호스트가 아는 조건이 간다
+          await g
+            .capability(svcKey)
+            .echo(
+              {},
+              { requestId: "kc:1", context: { caller: { kind: "host" }, interactive: true } },
+            );
+        });
+      },
+    ),
+  );
+  await t.host.dispatch(
+    POINT,
+    { turnId: t.ids.next("trn"), aborted: false },
+    { threadId: thread, dispatchKey: "k" },
+  );
+  return received[0];
+}
+
+test("a plugin capability call carries the unattended flag and the read-only ceiling of the turn it ran in", async () => {
+  const seen = await conditionsSeen({ interactive: false, sandbox: "read-only" });
+  expect(seen).toMatchObject({
+    caller: { kind: "extension", extension: "kc-consumer" },
+    interactive: false,
+    sandbox: "read-only",
+  });
+});
+
+test("a plugin capability call in an interactive turn without a ceiling carries interactive true and no sandbox", async () => {
+  const seen = await conditionsSeen({ interactive: true });
+  expect(seen?.interactive).toBe(true);
+  expect(seen?.sandbox).toBeUndefined();
+});
+
+test("without turn conditions the context carries none and the call counts as interactive", async () => {
+  const seen = await conditionsSeen(undefined);
+  expect(seen?.interactive).toBeUndefined();
+  expect(seen?.sandbox).toBeUndefined();
+});

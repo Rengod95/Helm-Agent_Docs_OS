@@ -106,3 +106,54 @@ test("the token budget is reported after each turn and never cuts the running tu
   expect(group.probe.errors).toEqual([]);
   expect(h.models.requests).toHaveLength(2);
 });
+
+test("a user interrupt releases the drive lock as revoked and the drive runs again only after the next command", async () => {
+  const h = await createHarness({
+    script: [{ kind: "stall" }, answer("next command done")],
+  });
+  const calls: string[] = [];
+  const entry: ExtensionEntry = ({ manifest, register }) => {
+    register(manifest.name, {}, (g) => {
+      g.drive(() => {
+        calls.push("drive");
+        return Promise.resolve();
+      });
+    });
+  };
+  await runWith(h, {
+    manifest: defineManifest({
+      schemaVersion: 2,
+      name: "stop-drive",
+      version: "0.1.0",
+      entry: "./index.ts",
+      plugins: [{ layer: "L3", hooks: [], drives: true }],
+      group: {},
+      trust: { level: "builtin" },
+    }),
+    entry,
+    loadIndex: 3,
+    builtin: false,
+  });
+  expect(calls).toEqual(["drive"]);
+
+  await h.loop.admit({ threadId: h.threadId, content: "work", via: "interactive" });
+  await h.tick();
+  await h.tick();
+  expect(await h.loop.interrupt(h.threadId)).toBe(true);
+  await h.settle();
+  await h.host.settled();
+  const released = h.fake
+    .events(h.threadId)
+    .filter((event) => event.kind === "lease.released")
+    .map((event) => event.payload);
+  expect(released).toMatchObject([{ reason: "revoked" }]);
+  expect(calls).toEqual(["drive"]);
+
+  await h.loop.admit({ threadId: h.threadId, content: "again", via: "interactive" });
+  await h.settle();
+  await h.host.settled();
+  const kinds = h.fake.events(h.threadId).map((event) => event.kind);
+  // 반납 뒤 다음 명령의 turn이 정착해야 임대가 다시 부여된다
+  expect(kinds.slice(kinds.lastIndexOf("turn.started"))).toContain("lease.acquired");
+  expect(calls).toEqual(["drive", "drive"]);
+});

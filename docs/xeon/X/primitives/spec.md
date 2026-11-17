@@ -506,6 +506,8 @@ export interface BoundarySignal {
   readonly stepId?: StepId;
   /** 이 경계를 만든 turn이 drive 임대의 loop.turn으로 시작됐으면 그 임대 id */
   readonly drivenBy?: DriveLockId;
+  /** turn_settled만: 그 turn이 사용자 중단(취소 사유 코드 `user`)으로 끝났다. 임대가 있으면 `revoked`로 반납하고, 사용자의 다음 명령이 정착할 때까지 후보를 올리지 않는다(§4.4.1 12번) */
+  readonly userInterrupted?: true;
 }
 
 export interface BoundaryContribution {
@@ -1101,6 +1103,7 @@ lifecycle [결정: adr.0017]:
 9. 역할 분담: `DriveArbiter`(group-sdk)는 누가 받는지(정책)를, X는 대기 계수, 상한 집행, `lease.rejected` 커밋, 부여·반납 커밋(메커니즘)을 맡는다. 유휴 중 drive 락을 받은 그룹은 drive 락 상한 안에서 turn을 연다([결정: review.m3-design-inputs D-M3-06 a], §4.5.5).
 10. [결정: X-17, 2026-10-31 사용자] `loop.ask`의 첫 호출로 사유 `waiting`으로 반납한 Registration은 그 질문 승인이 해결될 때까지 이 thread의 후보가 아니다. 그래서 8번의 대기 계수에도 들지 않는다(후보 목록으로 대기를 세므로 제외가 계수에도 그대로 적용된다). 승인이 해결되면 X가 그 Registration을 다시 후보로 올리고, 같은 상태 판에서도 바로 부여할 수 있다. `waiting`은 `idle`·`budget`과 달리 쿨다운(`cooldown`)을 걸지 않는다. 답이 온 뒤 `x.primitives.activeDriver`이 이 그룹을 가리키면 지금 가진 다른 그룹의 drive 락은 5번에 따라 회수된다.
 11. [결정: X-17 재부여, REQ-X-04] 계통 id(`lineageId`). `leaseId`는 부여마다 새로 발급하는 펜싱 값이다. 앞 부여의 핸들은 재부여 뒤에도 `lease_revoked`를 받고, `lease:<leaseId>:released` 같은 커밋 키가 `leaseId`의 유일성에 기대므로 재사용하지 않는다. 대신 `lease.acquired` 페이로드에 `lineageId`를 싣는다(필수 필드, 옛 기록 읽기 없음). 같은 thread에서 사유 `waiting`의 `lease.released`가 마지막 `lease.*` 기록이고 다음 부여가 같은 Registration에게 가면 앞 drive 락의 `lineageId`를 이어받는다. 그 밖의 모든 부여(첫 부여, `budget`·`idle`·`error`·`revoked`·`restart`·`disabled` 반납 뒤, 다른 Registration이 끼어든 뒤)는 자기 `leaseId`와 같은 값으로 새 계통을 연다. 재시작 뒤에도 같다: `ExtThreadSnapshot.openLease.lineageId`가 열린 drive 락의 계통을, `ExtThreadSnapshot.waitingLineage`가 활성 가지 위 마지막 `lease.*` 기록이 `waiting` 반납일 때 그 scope와 계통을 돌려준다. 구현은 `primitives/lease.ts`의 `decide`(부여), `applyCommitted`(반납 반영)다.
+12. [결정: 2026-11-16 사용자] 사용자가 턴을 중지하면 그 대화의 drive 락을 내려놓고 기본 루프로 돌아간다. L1은 사용자 중단(취소 사유 코드 `user`)으로 끝난 turn의 `turn_settled` 신호에 `userInterrupted: true`를 싣는다. 그 경계의 `prepare`에서 `active`인 drive 락을 사유 `revoked`로 `releasing`으로 바꾸고 같은 커밋에 `lease.released`를 기록한다. 이후 사용자의 다음 명령이 정착한 `turn_settled`(`userInterrupted` 없음)가 올 때까지 그 thread에는 후보가 없다. 그 사이 낡은 핸들의 `loop.turn`은 `lease_revoked`로 거부되므로 drive 함수는 `aborted` 결과로 다시 불리지 않는다. 같은 turn 범위 아래 진행 중인 서브에이전트는 turn의 취소 신호를 따라 함께 멈춘다. 백그라운드 서브에이전트는 경계를 넘어 계속 돈다(core-tasks의 백그라운드 경계). 구현은 `primitives/lease.ts`의 `collectReleases`와 `candidatesFor`, `core-loop/src/loop/finish-turn.ts`다.
 
 #### 4.4.2 상한
 
@@ -1186,7 +1189,7 @@ makeLoopHandle(lease, inv):
 - 키 길이: `lineageId` 40자 이하(`leaseId`와 같은 발급 값이거나 앞 부여의 계통) + 판·일련번호 십진수. 64자 상한(F.extensions.spec §2) 안이다.
 - 명시 `requestId`(예: L3.helm.spec의 `helm:<inquiryId>:turn:<phase>:<round>`)는 그대로 쓴다. 포트의 멱등 범위가 (scopeId, requestId)라서 다른 그룹의 키와 섞이지 않는다.
 - thread가 실행 중이면 `loop.turn`은 그 turn이 정착한 뒤에 새 turn을 시작한다. 사용자 입력은 drive 락과 관계없이 turn을 시작할 수 있다 [제안]. drive 락은 drive 함수가 turn을 시작할 권한을 뜻하고, 사용자 입력을 막지 않는다.
-- 반납은 `loop.turn()` 호출 사이에서만 일어난다. 실행 중인 `loop.turn`은 끊지 않는다([제안] ADR-0007 §3.6, F.extensions.spec §4.5). `lease.signal`은 반납이 시작되면 abort되어 drive 함수가 협조적으로 멈출 수 있게 한다. `runTurn`에는 이 신호를 넘기지 않고 thread 취소 신호(`threadSignal`, 사용자 중단 경로)를 넘긴다. 반납으로 진행 중인 turn이 끊기지 않게 하기 위해서다 [제안]. `spawn`에는 `lease.signal`을 넘긴다.
+- 반납은 `loop.turn()` 호출 사이에서만 일어난다. 실행 중인 `loop.turn`은 끊지 않는다([제안] ADR-0007 §3.6, F.extensions.spec §4.5). `lease.signal`은 반납이 시작되면 abort되어 drive 함수가 협조적으로 멈출 수 있게 한다. `runTurn`에는 이 신호를 넘기지 않고 thread 신호를 넘긴다. thread 신호는 `closeThread`에서만 abort되며 사용자 중단 경로가 아니다. 사용자 중단은 turn 범위의 취소(`interrupt`)로 들어가고 X에는 `turn_settled`의 `userInterrupted`로 알려진다(§4.4.1 12번). 반납으로 진행 중인 turn이 끊기지 않게 하기 위해서다 [제안]. `spawn`에는 `lease.signal`을 넘긴다.
 - eng.transactions.design §4.7·§4.8의 drive 턴·spawn 키는 이 규칙을 따른다. 옛 형식(`drive:<scopeId>:<leaseEpoch>:<turnIndex>`)은 쓰지 않는다.
 
 - [결정: X-17, 2026-10-31 사용자] `ask(request)`는 사람 확인 원시다. 계약은 F.extensions.spec §3.2(`LoopHandle.ask`, `AskRequest`, `AskOutcome`)이고, 구현은 `primitives/lease.ts`의 `makeLoopHandle`이다. 검사 순서는 drive 락이 `active`인지(아니면 `lease_revoked`, 사유가 budget이면 `lease_budget`), 승인 서비스 포트가 있는지(없으면 `port_unavailable`), 입력이 `AskRequestSchema`에 맞는지(아니면 `record_invalid`)다. 셋 모두 승인을 만들기 전에 본다.
@@ -1208,6 +1211,7 @@ makeLoopHandle(lease, inv):
 | `error` | drive 함수 예외 | 다음 경계. 함수가 이미 반환했으므로 진행 중인 `loop.turn`이 없다 |
 | `idle` | 같은 판으로 연속 두 번 효과 없음 | 다음 경계 |
 | `revoked` | `x.primitives.activeDriver`이 다른 후보 그룹을 가리켜 회수(§4.4.1 5번) | 다음 경계. 같은 thread의 다음 부여는 이어서 판단 |
+| `revoked` | 사용자가 턴을 중지함(`turn_settled`의 `userInterrupted`, §4.4.1 12번). 맞는 전용 값이 없어 기존 `revoked`를 쓴다 | 그 `turn_settled` 경계 |
 | `restart` | 재개 때 drive 락 scope가 설치되지 않았거나 꺼져 있음 | `openThread` 직후 첫 경계 |
 | `waiting` | `loop.ask`의 첫 호출(§4.4.4). drive 함수가 답을 기다리려고 반납한다 | 다음 경계. 실행 중인 `loop.turn`은 끊지 않는다. 답이 오면 그 Registration이 다시 후보가 된다(§4.4.1 10번). 쿨다운을 걸지 않는다 |
 
@@ -1243,7 +1247,7 @@ learning이 drive를 등록하지 않으므로 후보는 계속 [helm] 하나다
 - `idempotent` 호출에 `requestId`가 없으면 on 핸들러와 drive 함수 모두 `invalid_input`으로 거부한다(공급자를 부르지 않는다). 길이가 1~64자가 아니어도 `invalid_input`이다.
 - [결정: adr.0015] drive 함수의 `idempotent` 호출도 명시 `requestId`만 받는다(ADR-0015 §3.4 3번). 기본 키를 주지 않고, 키가 없으면 공급자를 부르지 않고 `invalid_input`으로 거부한다. 기본 키(`${leaseId}:${순번}`)는 `loop.turn`·`loop.spawn`만 받는다(§4.4.4).
 - 공급자는 `withoutAmbient`로 부른다. 공급자 안에서 도는 도구와 서비스가 호출자의 재실행 문맥으로 판정되지 않게 한다. `loop.turn`·`loop.spawn`도 같다(turn 안의 도구).
-- 호출 옵션에 `context`가 없으면 `CallOptions.context`(`threadId`, `caller { kind: "extension", extension }`)를 채운다(F.capabilities.spec §3.2). 내장 확장(`fresnel.*` 포트를 읽을 수 있는 코드, L1.tools 어댑터 포함)이 채운 `context`(도구 호출 id, 모델 호출자, 승인 증거)는 덮지 않는다. 내장이 아닌 확장은 `caller`를 고를 수 없다. `caller`는 항상 `{ kind: "extension", extension }`으로 다시 채우고, 넘긴 `context`에서는 `toolCallId`만 받는다(`threadId`는 호출한 맥락의 값을 먼저 쓰고 없을 때만 넘긴 값을 쓴다). `turnId`, `interactive`, `approval`은 버린다(호스트나 모델 행세, 시크릿 승인 증거 위조를 막는다).
+- 호출 옵션에 `context`가 없으면 `CallOptions.context`(`threadId`, `caller { kind: "extension", extension }`)를 채운다(F.capabilities.spec §3.2). 내장 확장(`fresnel.*` 포트를 읽을 수 있는 코드, L1.tools 어댑터 포함)이 채운 `context`(도구 호출 id, 모델 호출자, 승인 증거)는 덮지 않는다. 내장이 아닌 확장은 `caller`를 고를 수 없다. `caller`는 항상 `{ kind: "extension", extension }`으로 다시 채우고, 넘긴 `context`에서는 `toolCallId`만 받는다(`threadId`는 호출한 맥락의 값을 먼저 쓰고 없을 때만 넘긴 값을 쓴다). `turnId`, `interactive`, `sandbox`, `approval`은 호출자가 넘긴 값을 버린다(호스트나 모델 행세, 시크릿 승인 증거 위조를 막는다). 대신 호출이 일어난 대화의 값을 호스트가 채운다. `LoopPort.callConditions(threadId)`가 그 대화에서 도는 turn의 조건을 돌려주면 그 `interactive`와 읽기 전용 천장(`sandbox`)을 싣는다. 그래서 무인 실행(예약, 비대화형 서브에이전트)에서 플러그인이 부른 기능은 사람에게 묻지 않고 그 실행의 규칙대로 처리되고, 읽기 전용 서브에이전트 안의 호출은 같은 천장을 받는다. 도는 turn이 없거나 포트가 조건을 알리지 않으면 싣지 않고 대화형으로 본다. `requestEffect`는 요청 레코드(`…effect.requested`)에 같은 `interactive`와 `sandbox`를 기록해 워커가 나중에 돌아도 요청 때의 조건으로 호출한다. 승인 증거(`approval`)는 여전히 싣지 않는다.
 - `effects` 계수에는 기능 호출을 넣지 않는다. 공급자의 반환만으로는 처음 결과인지 재생된 결과인지 알 수 없다 [미결].
 - 시험: `replay-effects.test.ts`가 "재생 2회, 효과 1회"(같은 상태 판으로 drive를 두 번 호출해도 공급자 효과 1회), on의 읽기·선언 없는 쓰기·키 없는 멱등 쓰기 거부와 공급자 미호출을 확인한다.
 
@@ -1863,6 +1867,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 62. (M4, X-3) 호출 신호가 이미 abort되었으면 `aborted`이고 처리기를 부르지 않는다. 처리기가 도는 중에 호출 신호가 abort되면 처리기 결과를 기다리지 않고 `aborted`를 돌려주며, 그때 처리기의 `ctx.signal`은 abort된 상태다.
 63. (M4, X-3) scope를 끄고 다시 켜면 메서드가 `list()`에 다시 나타나고 검사기가 새로 만들어져 `params` 검사가 그대로 된다.
 64. (M4, X-3) thread가 열려 있으면 처리기는 `invocation: "method"`인 ambient 안에서 돌아 `hostOf(g).commit`이 `no_thread` 없이 동작한다. `threadId`가 `null`이면 처리기는 ambient 없이 돈다.
+65. (M4, F1) 사용자 중단으로 끝난 turn의 `turn_settled`에서 drive 락이 `lease.released { reason: "revoked" }`로 반납되고, 그 뒤 drive 함수가 다시 불리지 않으며, 사용자의 다음 명령이 정착하면 다시 부여된다. 확인: `packages/ext-host/test/primitives/lease.test.ts`, `packages/core-loop/test/drive-budget.test.ts`.
 - [미결] 기능 호출의 `effects` 계수. 공급자 반환으로는 처음 결과와 재생 결과를 구별할 수 없어 세지 않는다(§4.4.7).
 - [미결] `ServiceKey`가 정의를 싣지 않아 X가 `ExtHostDeps.capabilityDefs`를 받는다. 조립 루트가 내장 기능 정의 표를 만들어 넘겨야 한다(F에 정의 목록이 없다).
 - [미결] drive 락 대기 상한의 단위와 기본값 8(§4.4.1 8번, §6). 경계 수 대신 시간으로 둘지.

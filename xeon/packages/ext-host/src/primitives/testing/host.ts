@@ -65,6 +65,8 @@ export interface BoundaryStep {
   readonly stepId?: StepId;
   /** 참이면 커밋이 실패한 것으로 settle한다 */
   readonly fail?: boolean;
+  /** 참이면 turn_settled가 사용자 중단으로 끝난 것으로 알린다 */
+  readonly userInterrupted?: boolean;
 }
 
 /** L1이 하는 일을 흉내 낸다: prepare → 기여 초안을 따로 커밋 → settle */
@@ -154,6 +156,7 @@ export async function createTestHost(options: TestHostOptions = {}): Promise<Tes
       kind,
       ...(step.turnId === undefined ? {} : { turnId: step.turnId }),
       ...(step.stepId === undefined ? {} : { stepId: step.stepId }),
+      ...(step.userInterrupted === true ? { userInterrupted: true as const } : {}),
     };
     const contribution = await host.boundary.prepare(signal);
     let committed = step.fail !== true;

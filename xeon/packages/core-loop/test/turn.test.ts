@@ -372,3 +372,15 @@ test("a_model_chosen_for_the_thread_overrides_main_from_the_next_turn_and_null_r
     new Set([undefined]),
   );
 });
+
+test("callConditions reports the running turn as interactive for a user input and nothing once idle", async () => {
+  const h = await createHarness({ script: [{ kind: "stall" }] });
+  expect(h.loop.callConditions?.(h.threadId)).toBeUndefined();
+  await h.loop.admit({ threadId: h.threadId, content: "go", via: "interactive" });
+  await h.tick();
+  await h.tick();
+  expect(h.loop.callConditions?.(h.threadId)).toEqual({ interactive: true });
+  expect(await h.loop.interrupt(h.threadId)).toBe(true);
+  await h.settle();
+  expect(h.loop.callConditions?.(h.threadId)).toBeUndefined();
+});
