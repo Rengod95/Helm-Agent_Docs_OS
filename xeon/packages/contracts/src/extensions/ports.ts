@@ -205,14 +205,19 @@ export const StoreMigrationsPortKey: PortKey<StoreMigrationsPort> = {
 
 /**
  * 플러그인 호스트 프로세스를 띄우는 요청(review.m5-drive-isolation §3.1). 엔진이 자기 실행 파일을 다른 모드로 다시 실행한다
- * (`command` = `process.execPath`, `args`에 하위 명령). L0는 OS 샌드박스로 감싸 띄운다: 파일은 `readRoot`와 런타임 읽기뿐,
- * 쓰기 없음, 네트워크 전체 허용(§3.4 [결정: 2026-11-17 사용자])
+ * (`command` = `process.execPath`, `args`에 하위 명령). L0는 OS 샌드박스로 감싸 띄운다: 읽기는 `readRoot`와 실행 파일과 런타임이 꼭 필요한 시스템 경로뿐(허용 목록),
+ * 쓰기는 이 프로세스 전용 빈 임시 폴더 하나뿐, 네트워크 전체 허용(§3.4 [결정: 2026-11-17 사용자])
  */
 export interface IsolationSpawnSpec {
   readonly command: string;
   readonly args: readonly string[];
   /** 플러그인 패키지 폴더(검토본 `tree/`, 초안은 `drafts/<draftId>/tree/`). 읽기 전용으로 열린다. 작업 폴더이기도 하다 */
   readonly readRoot: string;
+  /**
+   * 호스트 런타임이 `readRoot` 밖에서 더 읽어야 하는 절대 경로(소스 실행이면 소스 작업 공간). 컴파일 바이너리는 비어 있다.
+   * 실행 파일(`command`)은 적지 않아도 읽힌다
+   */
+  readonly runtimeReadRoots?: readonly string[];
   /** 허용 목록으로만 만든다. DB 경로와 시크릿은 넣지 않는다 */
   readonly env: Readonly<Record<string, string>>;
   /** "ext:<name>:<versionId>" */

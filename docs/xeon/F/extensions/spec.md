@@ -840,8 +840,10 @@ export const StoreMigrationsPortKey: PortKey<StoreMigrationsPort>; // { name: "f
 export interface IsolationSpawnSpec {
   readonly command: string;          // process.execPath
   readonly args: readonly string[];  // 하위 명령 `plugin-host --stdio`
-  /** 플러그인 패키지 폴더. 읽기 전용으로 열리고 작업 폴더다. 쓰기 없음, 네트워크 전체 허용 */
+  /** 플러그인 패키지 폴더. 읽기 전용으로 열리고 작업 폴더다. 읽기는 이 폴더와 실행 파일과 런타임뿐(허용 목록), 쓰기는 프로세스 전용 빈 임시 폴더 하나뿐, 네트워크 전체 허용 */
   readonly readRoot: string;
+  /** 호스트 런타임이 readRoot 밖에서 더 읽어야 하는 절대 경로(소스 실행의 소스 작업 공간). 컴파일 바이너리는 비어 있다 */
+  readonly runtimeReadRoots?: readonly string[];
   /** 허용 목록으로만 만든다. DB 경로와 시크릿은 넣지 않는다 */
   readonly env: Readonly<Record<string, string>>;
   readonly label: string;            // "ext:<name>:<versionId>"
