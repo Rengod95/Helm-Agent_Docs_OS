@@ -78,8 +78,8 @@ test("authoring.guard-blocks-outside-dir: writes inside the target folder pass, 
       toolName: "write",
       risk: "write",
       input: { path: "/work/demo-evil/a.ts" },
-    })?.block,
-  ).toBe(true);
+    }),
+  ).toMatchObject({ block: true });
 });
 
 function devkitSpy(): { devkit: ReleaseDevkit; calls: string[] } {

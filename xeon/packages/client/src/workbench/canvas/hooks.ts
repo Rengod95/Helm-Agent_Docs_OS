@@ -1,5 +1,5 @@
 // 순서 화면의 훅 표. 줄 이름과 설명은 화면이 id로 찾으므로 여기에는 id, fold, phase, failure, orderMatters만 둔다.
-// 훅 id와 fold는 contracts의 HOOKS와 같아야 하고, id 집합은 HOOK_POSITIONS의 키와 같아야 한다. hooks.test.ts가 46개 전부를 대조한다.
+// 훅 id와 fold는 contracts의 HOOKS와 같아야 하고, id 집합은 HOOK_POSITIONS의 키와 같아야 한다. hooks.test.ts가 50개 전부를 대조한다.
 import type { CanvasPlugin } from "./types.ts";
 
 /** 훅 결과 규칙(F.extensions §4.1): 관찰, 차단, 수정, 합치기 */
@@ -33,8 +33,10 @@ interface HookDef {
  * - chain: 핸들러가 값을 고쳐 다음으로 넘기므로 순서가 최종 값을 바꾼다 → 참.
  * - first, 값이 있는 답: 처음 답한 핸들러가 이기고 뒤는 건너뛴다. 답이 허용·대체·값(trust의 yes/no,
  *   input.bash의 result, compact·fork·tree의 계속 변형)을 담으면 순서가 이긴 값을 바꾼다 → 참.
- * - first, 막음만: ToolCallDecision, GuardDecision, SessionCancelDecision은 block/cancel뿐이다. 결과는 어느 순서에서도 막힘이고
+ * - first, 막음만: GuardDecision, SessionCancelDecision은 block/cancel뿐이다. 결과는 어느 순서에서도 막힘이고
  *   순서가 바꾸는 것은 사유와 뒤 핸들러의 실행 여부뿐이다. 그래서 손잡이는 주지 않고 저장 전 경고와 줄 경고가 맡는다 → 거짓.
+ * - first, 합치기(tool.call.before, agent.spawn.before): 막음·결과 대신 주기·묻기를 모두 낸다. 강한 종류가 이기므로(M5e H-2)
+ *   순서가 승자를 바꾸지 않고, 바꾸는 것은 사유와 같은 종류 안의 값뿐이다 → 거짓(이 표가 정한 기준).
  * - collect, tap: 이 기준(chain, 값이 있는 first 답)에 들지 않는다. tap은 바꾸지 않고, collect는 조각을 모을 뿐 승자나 고친 값이 없다 → 거짓.
  * 판단 근거는 F.extensions §3.4·§3.5, X.operations §4.1.3이다.
  */
@@ -74,12 +76,16 @@ export const HOOKS: readonly HookDef[] = [
   { id: "tool.call.before", fold: "first", phase: "act", failure: "closed", orderMatters: false },
   { id: "tool.result", fold: "chain", phase: "act", failure: "skip", orderMatters: true },
   { id: "tool.execution.after", fold: "tap", phase: "act", failure: "open", orderMatters: false },
+  { id: "ask.human.before", fold: "first", phase: "act", failure: "open", orderMatters: true },
+  { id: "ask.human.after", fold: "tap", phase: "act", failure: "open", orderMatters: false },
+  { id: "agent.spawn.before", fold: "first", phase: "act", failure: "closed", orderMatters: false },
+  { id: "agent.spawn.after", fold: "chain", phase: "act", failure: "skip", orderMatters: true },
   { id: "boundary.step.after", fold: "chain", phase: "wrap", failure: "skip", orderMatters: true },
   { id: "boundary.settle.after", fold: "tap", phase: "wrap", failure: "open", orderMatters: false },
   { id: "thread.shutdown", fold: "tap", phase: "wrap", failure: "open", orderMatters: false },
 ];
 
-/** 나머지 훅 33개(46개 중). 펼치면 id만 보인다 */
+/** 나머지 훅 33개(50개 중). 펼치면 id만 보인다 */
 export const OTHER_HOOKS: readonly {
   readonly id: string;
   readonly fold: Fold;
@@ -160,17 +166,17 @@ export const CORE_STEPS: readonly CoreStep[] = [
   },
 ];
 
-/** id의 훅 정의(13개 순간만). 나머지 33개는 undefined다 */
+/** id의 훅 정의(17개 순간만). 나머지 33개는 undefined다 */
 export function hookDef(id: string): HookDef | undefined {
   return HOOKS.find((h) => h.id === id);
 }
 
-/** id의 fold(46개 전부). 모르는 훅이면 undefined */
+/** id의 fold(50개 전부). 모르는 훅이면 undefined */
 export function hookFold(id: string): Fold | undefined {
   return hookDef(id)?.fold ?? OTHER_HOOKS.find((h) => h.id === id)?.fold;
 }
 
-/** id의 orderMatters(46개 전부). 모르는 훅이면 false다 */
+/** id의 orderMatters(50개 전부). 모르는 훅이면 false다 */
 export function hookOrderMatters(id: string): boolean {
   return [...HOOKS, ...OTHER_HOOKS].find((h) => h.id === id)?.orderMatters ?? false;
 }

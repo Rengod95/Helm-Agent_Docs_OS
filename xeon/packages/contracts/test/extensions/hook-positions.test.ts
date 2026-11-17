@@ -7,7 +7,7 @@ import {
   type HookPositionRow,
 } from "../../src/extensions/index.ts";
 
-// 스펙 M5e §3.1 표의 46개 이름. 이름 문자열은 바뀌지 않는다(§4.1 규칙). 표 순서가 HOOK_NAMES 순서다.
+// 스펙 M5e §3.1 표의 46개 이름과 M5e에서 더한 4개(47~50번). 이름 문자열은 바뀌지 않는다(§4.1 규칙). 표 순서가 HOOK_NAMES 순서다.
 const CURRENT_46 = [
   "input.user.before",
   "input.bash.before",
@@ -57,6 +57,13 @@ const CURRENT_46 = [
   "lifecycle.lease.rejected",
 ] satisfies readonly string[];
 
+const NEW_4 = [
+  "ask.human.before",
+  "ask.human.after",
+  "agent.spawn.before",
+  "agent.spawn.after",
+] satisfies readonly string[];
+
 const rows = HOOK_NAMES.map((name) => HOOK_POSITIONS[name]);
 
 function hooksWhere(predicate: (row: HookPositionRow) => boolean): string[] {
@@ -64,9 +71,38 @@ function hooksWhere(predicate: (row: HookPositionRow) => boolean): string[] {
 }
 
 describe("hook positions table", () => {
-  test("the 46 hook names are unchanged, in spec order", () => {
-    expect(HOOK_NAMES.map(String)).toEqual(CURRENT_46);
-    expect(Object.keys(HOOK_POSITIONS)).toEqual(CURRENT_46);
+  test("the 50 hook names: the 46 are unchanged, in spec order, and the four new ones come last", () => {
+    const all = [...CURRENT_46, ...NEW_4];
+    expect(HOOK_NAMES.map(String)).toEqual(all);
+    expect(Object.keys(HOOK_POSITIONS)).toEqual(all);
+    expect(HOOK_NAMES).toHaveLength(50);
+  });
+
+  test("the four new rows sit at the block ask, the event ask, and the block agents", () => {
+    expect(HOOK_POSITIONS["ask.human.before"]).toEqual({
+      hook: "ask.human.before",
+      positions: [{ kind: "block", block: "ask", side: "before" }],
+      powers: ["decide"],
+      fired: false,
+    });
+    expect(HOOK_POSITIONS["ask.human.after"]).toEqual({
+      hook: "ask.human.after",
+      positions: [{ kind: "event", anchor: { block: "ask", side: "after" } }],
+      powers: ["observe"],
+      fired: false,
+    });
+    expect(HOOK_POSITIONS["agent.spawn.before"]).toEqual({
+      hook: "agent.spawn.before",
+      positions: [{ kind: "block", block: "agents", side: "before" }],
+      powers: ["decide"],
+      fired: false,
+    });
+    expect(HOOK_POSITIONS["agent.spawn.after"]).toEqual({
+      hook: "agent.spawn.after",
+      positions: [{ kind: "block", block: "agents", side: "after" }],
+      powers: ["modify"],
+      fired: false,
+    });
   });
 
   test("the table passes the validator with no issues", () => {
@@ -141,14 +177,14 @@ describe("hook positions table", () => {
     ]);
   });
 
-  test("the position kinds split the 46 hooks 18, 23 and 5", () => {
+  test("the position kinds split the 50 hooks 21, 24 and 5", () => {
     const blockOrBoundary = hooksWhere((row) =>
       row.positions.some((p) => p.kind === "block" || p.kind === "boundary"),
     );
     const events = hooksWhere((row) => row.positions.some((p) => p.kind === "event"));
     const internal = hooksWhere((row) => row.positions.some((p) => p.kind === "internal"));
-    expect(blockOrBoundary).toHaveLength(18);
-    expect(events).toHaveLength(23);
+    expect(blockOrBoundary).toHaveLength(21);
+    expect(events).toHaveLength(24);
     expect(internal).toEqual([
       "request.cache.before",
       "thread.trust.before",
@@ -156,15 +192,16 @@ describe("hook positions table", () => {
       "thread.fork.before",
       "thread.tree.before",
     ]);
-    expect(blockOrBoundary.length + events.length + internal.length).toBe(46);
+    expect(blockOrBoundary.length + events.length + internal.length).toBe(50);
   });
 
-  test("the four hooks that never fire are marked not fired", () => {
+  test("the eight hooks that this build does not fire are marked not fired", () => {
     expect(hooksWhere((row) => !row.fired)).toEqual([
       "request.cache.before",
       "thread.trust.before",
       "thread.resources",
       "thread.mcp.after",
+      ...NEW_4,
     ]);
   });
 
@@ -176,9 +213,9 @@ describe("hook positions table", () => {
     ]);
   });
 
-  test("the 24 tap hooks are exactly the ones with the observe power", () => {
+  test("the 25 tap hooks are exactly the ones with the observe power", () => {
     const tap = HOOK_NAMES.filter((name) => HOOKS[name].fold === "tap");
-    expect(tap).toHaveLength(24);
+    expect(tap).toHaveLength(25);
     expect(hooksWhere((row) => row.powers.length === 1 && row.powers[0] === "observe")).toEqual(
       tap,
     );

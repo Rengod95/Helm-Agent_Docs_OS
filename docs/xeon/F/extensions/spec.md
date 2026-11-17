@@ -140,6 +140,8 @@ export const PluginDeclSchema = Type.Object({
   defaultEnabled: Type.Optional(Type.Boolean()),
   /** 이 플러그인이 on을 거는 Hook 목록. 정적 선언. 빈 배열 허용 */
   hooks: Type.Array(HookNameSchema, { maxItems: 64 }),
+  /** M5e §4.1.1. 훅이 낼 수 있는 결정 종류를 미리 적는다. `hooks`는 이름 문자열 목록이라 훅 이름과 짝을 이룬 목록이다. 강제하지 않는다 */
+  hookDecides: Type.Optional(Type.Array(Type.Object({ hook: HookNameSchema, decides: Type.Array(DecisionKindSchema, { minItems: 1, maxItems: 3 }) }), { maxItems: 64 })),
   usesPost: Type.Optional(Type.Boolean()),
   /** 이 플러그인이 drive를 등록한다. 허용 여부는 정책 `x.primitives.driveRequiresGroup`이 정한다(§4.6) */
   drives: Type.Optional(Type.Boolean()),
@@ -915,14 +917,14 @@ export interface TrustPrompter {
 
 ```ts
 export type Fold = "tap" | "first" | "chain" | "collect";
-export type HookKind = "input" | "request" | "tool" | "boundary" | "thread" | "lifecycle" | "guard";
+export type HookKind = "input" | "request" | "tool" | "boundary" | "thread" | "lifecycle" | "guard" | "ask" | "agent";
 
 export interface TapSig<P> { readonly fold: "tap"; readonly payload: P }
 export interface FirstSig<P, D> { readonly fold: "first"; readonly payload: P; readonly decision: D }
 export interface ChainSig<P, V, X> { readonly fold: "chain"; readonly payload: P; readonly value: V; readonly patch: X }
 export interface CollectSig<P, V, C> { readonly fold: "collect"; readonly payload: P; readonly value: V; readonly contribution: C }
 
-/** 훅 이름 → 정적 시그니처. §3.4 표와 같은 46행 */
+/** 훅 이름 → 정적 시그니처. §3.4 표와 같은 50행 */
 export interface HookSignatures {
   "input.user.before": ChainSig<InputPayload, InputValue, InputPatch>;
   "input.bash.before": FirstSig<UserBashPayload, UserBashDecision>;
@@ -972,8 +974,10 @@ export const GUARD_HOOKS: { readonly request: "guard.model.before"; readonly too
 /** lifecycle 훅과 내구 이벤트 kind의 대응. 레코드 kind에서 훅 이름으로 가는 길은 이 표 하나다 */
 export const LIFECYCLE_HOOKS: { readonly "agent.settled": "lifecycle.agent.settled"; readonly "lease.rejected": "lifecycle.lease.rejected" };
 
-/** fail-closed first 훅의 거부값. 핸들러 예외는 이 값으로 바뀐다. fail-open first 훅(thread.compact.before)은 없다 */
-export const FIRST_DENY: { readonly [N in Exclude<FirstHookName, "thread.compact.before">]: HookSignatures[N]["decision"] };
+/** fail-closed first 훅의 거부값. 핸들러 예외는 이 값으로 바뀐다. fail-open first 훅(thread.compact.before, ask.human.before)은 없다 */
+export const FIRST_DENY: { readonly [N in Exclude<FirstHookName, FailOpenFirstHookName>]: HookSignatures[N]["decision"] };
+/** 합치기 지점(M5e §5.1 H-2): 모든 핸들러를 돌린 뒤 순위가 가장 강한 결정이 이긴다. 앞에 있는 종류가 강하다 */
+export const FIRST_RANK: { readonly [N in "tool.call.before" | "agent.spawn.before"]: readonly ["block", "replace", "ask"] };
 
 /** chain 훅의 병합·중단 규칙. 순수 함수 */
 export interface ChainRule<V, X> {
@@ -997,7 +1001,7 @@ export type ChainHookName = { [N in HookName]: HookSignatures[N]["fold"] extends
 export type CollectHookName = { [N in HookName]: HookSignatures[N]["fold"] extends "collect" ? N : never }[HookName];
 ```
 
-- 페이로드 스키마는 훅 종류별 파일 `hooks/input.ts`, `hooks/request.ts`, `hooks/tool.ts`, `hooks/boundary.ts`, `hooks/thread.ts`, `hooks/guard.ts`에 둔다. lifecycle 훅의 페이로드는 내구 이벤트 payload 스키마(`records/catalog`의 `AgentSettledEventPayloadSchema`, `LeaseRejectedPayloadSchema`)를 그대로 쓴다.
+- 페이로드 스키마는 훅 종류별 파일 `hooks/input.ts`, `hooks/request.ts`, `hooks/tool.ts`, `hooks/boundary.ts`, `hooks/thread.ts`, `hooks/guard.ts`, `hooks/ask.ts`, `hooks/agent.ts`에 둔다. 도구 실행 앞의 결정(`ToolCallDecision`)은 `hooks/tool.ts`에서 막기(`block`), 묻기(`ask`), 결과 대신 주기(`replace`)의 셋 가운데 하나다(M5e §4.2). lifecycle 훅의 페이로드는 내구 이벤트 payload 스키마(`records/catalog`의 `AgentSettledEventPayloadSchema`, `LeaseRejectedPayloadSchema`)를 그대로 쓴다.
 - 페이로드 형태 규칙: pi 이벤트 인터페이스에서 `type` 필드를 빼고 필드 이름을 그대로 쓴다. pi coding-agent 고유 타입(`BashOperations`, `CompactionPreparation`, `SessionEntry` 등)은 F 타입으로 바꾼다. 바꿀 F 타입이 아직 없으면 JSON 값 스키마로 정한다 [결정: M3-REQ-05]. 인자·시스템 프롬프트 옵션은 정적 타입도 `JsonObject`(`DeepJsonObjectSchema`)이고, 제공자 요청 본문·스트림 데이터·도구 결과는 호출자 호환을 위해 정적 타입을 `unknown`으로 두고 런타임만 JSON을 끝까지 검사한다(`CheckedJsonObjectSchema`·`CheckedJsonValueSchema`). 호출자가 좁힌 뒤 정적 타입도 좁힌다 [제안]. 훅 페이로드에 `Type.Unknown()` 필드는 남기지 않는다. pi coding-agent 패키지에는 의존하지 않는다.
 
 ### 3.4 훅 선언 표
@@ -1006,7 +1010,7 @@ export type CollectHookName = { [N in HookName]: HookSignatures[N]["fold"] exten
 - `lifecycle` 훅은 이름이 `lifecycle.<내구 kind>`다. 내구 레코드 kind(`agent.settled`, `lease.rejected`)는 따로 있는 이름 공간이고, 레코드 kind에서 훅 이름으로 가는 대응은 `LIFECYCLE_HOOKS` 표 하나가 정한다. 디스패치는 이 표를 쓴다.
 - 이름 대응(옛 pi 이름)은 표의 `pi 이름` 열이다. 코드의 `PiSource.event`와 같다. 문서 대조 시험이 이 열을 코드와 맞춘다.
 - pi 위치 약어: 정의는 `~/projects/_ref/pi-src/packages/coding-agent/src/core/extensions/types.ts`의 줄(이벤트/결과), 합성은 같은 디렉터리 `runner.ts`의 줄이다. `cache-warmer.ts`는 `core/cache-warmer.ts`다. 줄 번호는 pi 1.1.0 소스 기준이다(`_research/notes/F-1.md` §2).
-- 실패 열은 훅 선언의 `failure` 필드다 [결정: adr.0017 §3.4]. `closed` = 핸들러 예외를 거부값(`FIRST_DENY`)으로 처리, `open` = 기록하고 그 핸들러의 몫만 버린 채 계속, `skip` = 그 핸들러의 패치만 버림. fold 기본값은 tap·collect `open`, first `closed`, chain `skip`이고, 기본값과 다른 훅은 `thread.compact.before`(first, `open`) 하나다. 사유는 `HOOKS` 선언의 주석에 적는다.
+- 실패 열은 훅 선언의 `failure` 필드다 [결정: adr.0017 §3.4]. `closed` = 핸들러 예외를 거부값(`FIRST_DENY`)으로 처리, `open` = 기록하고 그 핸들러의 몫만 버린 채 계속, `skip` = 그 핸들러의 패치만 버림. fold 기본값은 tap·collect `open`, first `closed`, chain `skip`이고, 기본값과 다른 훅은 `thread.compact.before`(first, `open`)와 `ask.human.before`(first, `open`) 둘이다. 사유는 `HOOKS` 선언의 주석에 적는다.
 - M1 열의 ●는 M1 스모크에서 페이로드를 정확화하는 훅이다(F.extensions.plan).
 - pi 차이 열은 Fresnel fold가 pi 합성과 다른 점이다. 41종의 pi fold 분포는 tap 22, 제자리 변경 tap 1, first 7, chain 9, collect 2다(`_research/notes/F-1.md` §2.6). Fresnel 표의 pi 41행은 tap 22, first 7, chain 10, collect 2다. `request.cache.before`은 pi collect지만 핸들러가 원본을 받으므로 chain으로 둔다 [결정: 2026-10-28 오케스트레이터].
 - `collect` 배정은 `input.agent.before`와 `thread.resources` 둘이다. boundary 엔트리 추가(`boundary.step.after`, `boundary.settle.before`)는 chain + `finalize`로 둔다. `collect` 전환은 Helm·학습 설계(A5)가 필요를 보인 뒤 다시 본다 [결정: 2026-10-28 오케스트레이터].
@@ -1060,8 +1064,14 @@ export type CollectHookName = { [N in HookName]: HookSignatures[N]["fold"] exten
 | 44 | `guard.output.before` | guard | first | GuardOutputPayload | GuardDecision | closed |  | — | — | — | 모델 출력이 표시나 실행 경로로 넘어가기 전. 출력 대상(`display`, `execution`)은 [가정] |
 | 45 | `lifecycle.agent.settled` | lifecycle | tap | AgentSettledEventPayload | void | open |  | — | — | — | 내구 이벤트 `agent.settled`(위임 정착)의 커밋 뒤. 이름이 같은 `boundary.settle.after`는 turn 끝 시점이고 다른 훅이다. 페이로드의 `owner`(위임 주체)와 `limitHit`(상한 종료 표지)로 그룹이 자기 위임의 정착만 읽는다(M3-REQ-103, REQ-LN-02. 소유 Registration 거르기는 X) |
 | 46 | `lifecycle.lease.rejected` | lifecycle | tap | LeaseRejectedPayload | void | open |  | — | — | — | 내구 이벤트 `lease.rejected`(drive lock 요청 거부)의 커밋 뒤 |
+| 47 | `ask.human.before` | ask | first | AskHumanBeforePayload | AskHumanBeforeDecision | open |  | — | — | — | 사람에게 묻기 카드를 새로 만들기 전(승인 서비스 `open`). 결정은 `cancel`(카드 없이 취소)과 `answer`(질문 종류만)다. 실패는 결정 없음이고 사람에게 묻는다. M5e 스펙 §4.3.1 |
+| 48 | `ask.human.after` | ask | tap | AskHumanAfterPayload | void | open |  | — | — | — | 해결이 커밋된 뒤(위치 `ask`의 뒤, 이벤트로도 구독한다). 결정 없음. M5e 스펙 §4.3.2 |
+| 49 | `agent.spawn.before` | agent | first | AgentSpawnBeforePayload | AgentSpawnBeforeDecision | closed |  | — | — | — | 자식 대화를 만들기 전. 결정은 `block`, `ask`, `replace`(자식을 만들지 않고 보고만 돌려줌)이고 `tool.call.before`와 같은 합치기다. M5e 스펙 §4.3.3 |
+| 50 | `agent.spawn.after` | agent | chain | AgentSpawnAfterPayload | AgentSpawnAfterPatch | skip |  | — | — | — | 자식이 정착하고 결과 검사를 거친 뒤. 값 `{ report: { text, truncated } }`, 패치 `{ reportText? }`이고 보고 본문은 60,000자로 자른다. M5e 스펙 §4.3.4 |
 
-집계: kind는 input 3, request 9, tool 5, boundary 9, thread 15, lifecycle 2, guard 3이다(46행). fold는 tap 24, first 10, chain 10, collect 2다. 실패는 closed 9, open 27, skip 10이다. pi에서 결과를 돌려받는 훅은 18개(반환 기반)와 제자리 변경 1개(`request.headers.before`)이고 pi의 나머지 22개는 관찰 전용이다(`_research/notes/F-1.md` §4 정정 2). guard와 lifecycle 5행은 pi에 없다.
+집계(50행): kind는 input 3, request 9, tool 5, boundary 9, thread 15, lifecycle 2, guard 3, ask 2, agent 2다(46행과 M5e가 더한 4행). fold는 tap 25, first 12, chain 11, collect 2다. 실패는 closed 10, open 29, skip 11이다. pi에서 결과를 돌려받는 훅은 18개(반환 기반)와 제자리 변경 1개(`request.headers.before`)이고 pi의 나머지 22개는 관찰 전용이다(`_research/notes/F-1.md` §4 정정 2). guard와 lifecycle 5행, M5e의 ask·agent 4행은 pi에서 온 것이 아니다.
+
+47~50번 행의 페이로드와 결정 모양의 정본은 `contracts/src/extensions/hooks/ask.ts`와 `hooks/agent.ts`다. 같은 목록의 위치(블록, 이벤트, 내부)와 발화 여부는 `HOOK_POSITIONS`(§3.4.1)가 적는다. 50행 가운데 `fired`가 거짓인 행은 이 빌드가 아직 발화하지 않는 것이다.
 
 #### 3.4.1 훅 위치 데이터 (`hook-positions.ts`) [제안: `docs/xeon/review/m5/hooks-core-boundary.md` §4.1, 구현 1단계]
 
@@ -1072,7 +1082,7 @@ export type CollectHookName = { [N in HookName]: HookSignatures[N]["fold"] exten
 - 위치 종류는 블록 앞·뒤(`block`), 경계(`boundary`), 이벤트(`event`), 내부(`internal`) 넷이다. 이벤트의 닻(`anchor`)은 블록과 앞·뒤 쪽이고, 닻이 없는 이벤트는 기록 블록의 구독이다.
 - `powers`는 `observe`(관찰), `modify`(고치기), `decide`(막기·묻기·대체·취소·가로채기), `contribute`(보태기) 넷이다. tap 훅은 `observe`뿐이고, tap이 아닌 fold는 `observe`를 가지지 않는다.
 - `checkHookPositions`(순수 함수)가 검사한다. 키 집합이 `HOOK_NAMES`와 같은지, 이벤트 위치는 tap에만 있는지, 블록·경계 위치는 tap이 아닌 fold와 `thread.start`에만 있는지, `powers`가 위 규칙을 따르는지다.
-- 현재 46행에서 블록 또는 경계 위치가 18개, 이벤트가 23개, 내부가 5개다(18 + 23 + 5 = 46). 발화하지 않는 훅은 `request.cache.before`, `thread.trust.before`, `thread.resources`, `thread.mcp.after` 넷이다. 고빈도 이벤트는 `request.stream`, `boundary.message.update`, `tool.execution.update` 셋이다.
+- 50행에서 블록 또는 경계 위치가 21개, 이벤트가 24개, 내부가 5개다(21 + 24 + 5 = 50). 이 빌드가 발화하지 않는 훅은 `request.cache.before`, `thread.trust.before`, `thread.resources`, `thread.mcp.after`와 M5e의 새 네 행(`ask.human.before`, `ask.human.after`, `agent.spawn.before`, `agent.spawn.after`)이라 여덟이다. 고빈도 이벤트는 `request.stream`, `boundary.message.update`, `tool.execution.update` 셋이다.
 - 블록 모델(`BLOCK_MODEL`, 서브패스 `@fresnel/contracts/blocks`)의 훅 목록은 이 표에서 파생한다. 손으로 두 번 적지 않는다.
 - [미결] `tool.execution.update`의 닻 쪽. 스펙 §3.1은 쪽을 적지 않았고 §3.2는 도구 실행 뒤 묶음에 두었다. 지금은 뒤로 둔다 [근거: `docs/xeon/review/m5/hooks-core-boundary.md` §3.1, §3.2].
 
@@ -1376,7 +1386,7 @@ export type ManifestIssueCode =
   | "name_invalid" | "name_reserved" | "version_invalid" | "entry_invalid"
   | "plugin_id_invalid" | "plugin_id_duplicate" | "plugin_root_ambiguous" | "layer_mixed_external"
   | "group_member_unknown" | "group_member_duplicate"
-  | "hook_unknown" | "hook_duplicate"
+  | "hook_unknown" | "hook_duplicate" | "hook_internal" | "hook_not_fired" | "hook_decision_not_allowed"
   | "capability_invalid" | "range_invalid" | "capability_duplicate" | "capability_both"
   | "provides_reserved" | "record_kind_prefix" | "record_kind_duplicate" | "read_kind_invalid"
   | "replaces_invalid" | "replaces_duplicate"
@@ -1440,7 +1450,7 @@ export function validateGroupRecord(record: GroupRecord, decl: RecordKindDecl | 
 3. `chain`: 훅이 초기값을 만들고, 핸들러마다 `(payload, current)`를 넘긴다. 반환 패치가 있으면 `CHAIN_RULES[point].merge(current, patch)`로 다음 값을 만든다. 정책은 `skip`이다. 핸들러 예외나 병합 거부(예: `boundary.message.after`의 role 불일치)는 그 핸들러의 패치만 버리고 계속한다. `stop(value)`가 참이면 뒤 핸들러를 실행하지 않는다.
 4. `collect`: 모든 핸들러가 원본 `payload`만 받는다(`current`는 없다). 훅이 초기값을 만들고, `undefined`가 아닌 반환값(기여)을 등록 순서대로 목록에 모은 뒤 `COLLECT_RULES[point].merge(initial, contributions)`가 한 번 합친다. 정책은 `open`이다. 예외를 낸 핸들러는 그 기여만 빼고 계속한다.
 
-권한·차단 훅(`input.bash.before`, `tool.call.before`, `thread.trust.before`, `thread.switch.before`, `thread.fork.before`, `thread.tree.before`, guard 훅 셋)은 `closed`다. `thread.compact.before`는 `open` 예외다. 컨텍스트가 넘친 상태에서 핸들러 예외가 컴팩션을 막으면 대화를 이어 갈 수 없기 때문이다 [제안: adr.0017 §3.4].
+권한·차단 훅(`input.bash.before`, `tool.call.before`, `agent.spawn.before`, `thread.trust.before`, `thread.switch.before`, `thread.fork.before`, `thread.tree.before`, guard 훅 셋)은 `closed`다. `thread.compact.before`는 `open` 예외다. 컨텍스트가 넘친 상태에서 핸들러 예외가 컴팩션을 막으면 대화를 이어 갈 수 없기 때문이다 [제안: adr.0017 §3.4]. `ask.human.before`도 `open`이다. 훅 오류가 승인을 조용히 허용하지도, 대화를 멈추지도 않게 하려는 것이다(M5e §4.3.1).
 
 chain의 보충 규칙 [제안]:
 
@@ -1537,6 +1547,9 @@ chain의 보충 규칙 [제안]:
 | `group_member_unknown` / `group_member_duplicate` | error | `group.members`가 선언하지 않은 id를 가리킴 / 같은 id 두 번 |
 | `entry_invalid` | error | `entry`가 절대 경로이거나 `..`로 확장 루트 밖을 가리킴 |
 | `hook_unknown` / `hook_duplicate` | error | `plugins[].hooks`에 `HOOKS`에 없는 이름 / 같은 이름 두 번. 경로 `/plugins/<i>/hooks/<j>` |
+| `hook_internal` | error | 내부 훅(`request.cache.before`, `thread.trust.before`, `thread.switch.before`, `thread.fork.before`, `thread.tree.before`)을 `trust.level`이 `builtin`이 아닌 확장이 `hooks`에 적음. 내장은 허용한다 [결정: M5e §5.1 H-4] |
+| `hook_not_fired` | warning | `hooks`에 적은 훅이 이 빌드에서 발화하지 않음(`HOOK_POSITIONS`의 `fired`가 거짓). 등록은 그대로다 [결정: M5e §5.1 H-4] |
+| `hook_decision_not_allowed` | error | `hookDecides`가 그 플러그인의 `hooks`에 없는 훅을 가리키거나, 그 훅이 낼 수 없는 결정 종류를 선언함. 셋(`block`, `ask`, `replace`)을 낼 수 있는 훅은 `tool.call.before`와 `agent.spawn.before`뿐이다 [제안: M5e §4.1.1] |
 | `capability_invalid` / `range_invalid` | error | 기능 ID 또는 범위 형식 위반 |
 | `capability_duplicate` / `capability_both` | error | 같은 목록 안 중복 / `requires`와 `optional`에 동시에 있음 |
 | `provides_reserved` | error | 예약 접두(F.capabilities.spec §3.1) 기능을 provide |
@@ -1667,8 +1680,8 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 ## 9. 수용 기준
 
 1. 플러그인의 `hooks`에 없는 훅에 `on`을 건 사용 기록은 `validateUsage`가 `hook_undeclared` 오류를 낸다.
-2. `HOOKS`의 46행 모두 `fold`, `kind`, `payload` 스키마, `failure`를 가진다. pi에서 온 41행은 `pi` 출처도 가진다. `first` 행은 `FIRST_DENY`에, `chain` 행은 `CHAIN_RULES`에 항목이 있다.
-3. `HOOKS`의 훅 이름은 중복이 없고, pi `ExtensionEvent` 합집합(`types.ts:1377-1409`)을 펼친 41개 이름의 새 이름과 guard 3개, lifecycle 2개를 더한 집합과 같다(46개).
+2. `HOOKS`의 50행 모두 `fold`, `kind`, `payload` 스키마, `failure`를 가진다. pi에서 온 41행은 `pi` 출처도 가진다. `first` 행은 `FIRST_DENY`에(`ask.human.before`는 열린 훅이라 `FIRST_DENY` 항목을 두지 않는다), `chain` 행은 `CHAIN_RULES`에 항목이 있다.
+3. `HOOKS`의 훅 이름은 중복이 없고, pi `ExtensionEvent` 합집합(`types.ts:1377-1409`)을 펼친 41개 이름의 새 이름과 guard 3개, lifecycle 2개, M5e의 새 4개를 더한 집합과 같다(50개).
 4. `drives: true`이고 기본 켜짐인 플러그인을 가진 매니페스트 두 개를 `validateManifestSet`에 넣으면 `drive_conflict` 경고가 나온다.
 5. `Handler<"tool.call.before">`의 반환 타입은 `ToolCallDecision | undefined`(Promise 포함)이고, `Handler<"boundary.step.after">`는 `(payload, current: BoundaryValue, ctx)`를 받아 `BoundaryPatch | undefined`를 반환하며, `Handler<"thread.start">`는 `void`를 반환한다(타입 테스트).
 6. 스키마 1 매니페스트(`schemaVersion: 1`, 최상위 `kind`·`points`·`usesDrive`)는 `schema_version_unsupported`와 `legacy_field`로 거부된다. `plugins[]`와 선택적 `group`이 있는 스키마 2 매니페스트는 통과한다. 정책 `x.primitives.driveRequiresGroup`이 참일 때 그룹이 아닌 플러그인의 `drive`는 X가 `drive_requires_group`으로 거부한다.

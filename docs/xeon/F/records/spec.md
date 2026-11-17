@@ -449,7 +449,8 @@ export interface ApprovalResolvedPayload {
   answer: JsonValue | null;
   remember: "once" | "thread" | "always";
   requestedRemember: "once" | "thread" | "always" | null;
-  resolvedBy: "user" | "noninteractive" | "cancelled" | "superseded" | "expired";   // expired: expiresAt이 지나 onExpire대로 해결 [결정: m2c G1-11]
+  resolvedBy: "user" | "noninteractive" | "cancelled" | "superseded" | "expired" | "extension";   // expired: expiresAt이 지나 onExpire대로 해결 [결정: m2c G1-11]. extension: 확장 훅이 카드를 취소로 해결 [결정: M5e §4.3.1]
+  resolvedByExtension?: string;   // resolvedBy가 extension일 때 해결한 확장 이름. 선택이라 version을 올리지 않는다 [제안: M5e §4.2]
 }
 
 - [결정: m2c G1-11] 승인 만료는 내구 필드 두 개와 해결자 하나다. `expiresAt`(요청 커밋 시각 + 제한, epoch ms)은 `approval.requested`에 기록되어 프로세스를 다시 시작해도 제한 시간이 처음부터 다시 재어지지 않는다. `onExpire`는 만료 때의 해결이고, 생략하면 `{ decision: "deny" }`다. `allow`는 쓸 수 없다. 응답이 없던 요청이 허용으로 끝나면 안 되기 때문이다. `answer`는 질문의 추천 답처럼 호출자가 정한 답이고 모양은 요청 kind가 정한다. 만료로 해결되면 `approval.resolved`의 `resolvedBy`가 `expired`이고 `decision`과 `answer`는 `onExpire`의 값이다. 두 필드는 선택이라 `version`을 올리지 않는다(옛 기록은 그대로 읽힌다). 서비스 쪽 입력은 `ApprovalRequestInput.expiresAt`·`onExpire`, L2 포트는 `L2ApprovalRequest`의 같은 이름 필드다(`F.capabilities.spec` §3.12).

@@ -5,6 +5,7 @@ import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type {
   ExtTimingsResult,
   HookName,
+  HookRunDecision,
   TraceFailureReason,
   TraceHandlerEntry,
   TraceHandlerResult,
@@ -52,6 +53,8 @@ interface TraceRecord {
   /** 앞 핸들러 때문에 건너뛴 경우 그 핸들러. 아니면 null */
   readonly skippedBy: string | null;
   readonly reason: TraceFailureReason | null;
+  /** 낸 결정(M5e §4.5). 지금은 보관하지 않는다. 기록 스펙(M5d)이 저장할 때 항목에 싣는다 */
+  readonly decision?: HookRunDecision;
 }
 
 /** 디스패치 하나의 기록기. 핸들러 기록은 첫 기록 때 항목 하나로 만들어진다 */

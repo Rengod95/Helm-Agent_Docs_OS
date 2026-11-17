@@ -89,6 +89,11 @@ export interface ToolApprovalBody {
   readonly ruleId: string | null;
   /** MCP 서버 도구면 서버 이름과 서버가 알린 성질. 표시용이고 신뢰하지 않는다. 옛 기록과 MCP가 아닌 도구에는 없다 */
   readonly mcp?: { readonly server: string; readonly declared?: McpDeclaredHints };
+  /**
+   * 훅이 이 카드를 물었으면 그 확장과 사유. `ruleId`는 `hook:<확장 이름>`이다 (M5e 스펙 §4.3.1, D-6).
+   * 화면은 이 값으로 "어느 플러그인이 물었나"를 보인다
+   */
+  readonly askedBy?: { readonly extension: string; readonly reason: string };
 }
 
 export interface QuestionOption {
@@ -232,7 +237,9 @@ export type ApprovalResolvedBy =
   | "cancelled"
   | "superseded"
   /** `expiresAt`이 지나 `onExpire`대로 해결했다 [결정: m2c G1-11] */
-  | "expired";
+  | "expired"
+  /** 확장 훅이 `cancel`로 해결했다(M5e 스펙 §4.3.1). `resolvedByExtension`이 그 확장이다 */
+  | "extension";
 
 export interface ApprovalResolution {
   readonly approvalId: string;
@@ -242,6 +249,8 @@ export interface ApprovalResolution {
   readonly remember: ApprovalRemember;
   readonly requestedRemember: ApprovalRemember | null;
   readonly resolvedBy: ApprovalResolvedBy;
+  /** `resolvedBy`가 `extension`이면 해결한 확장 이름 */
+  readonly resolvedByExtension?: string;
   /** 다른 기기에서 답한 해결이면 그 기기 id */
   readonly deviceId?: string;
 }

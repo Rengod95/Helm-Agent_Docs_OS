@@ -52,7 +52,7 @@ const FLOAT_GAP = 18;
 const EDGE_GAP = 12;
 /** 연속 실패 기준의 기본값. 실패 기록이 없을 때 막대의 최대치로만 쓴다(리뷰 그룹의 maxFailures와 같다) */
 const FAIL_LIMIT = 5;
-/** 훅 전체 수: 순서 화면의 13개와 나머지 33개 */
+/** 훅 전체 수: 순서 화면의 17개와 나머지 33개 */
 const HOOK_TOTAL = HOOKS.length + OTHER_HOOKS.length;
 
 /** 종류의 색. 값은 link.css가 caustic 토큰으로 정한다. 위험(danger)은 종류에 쓰지 않는다. */

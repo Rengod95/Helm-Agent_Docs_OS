@@ -1,4 +1,4 @@
-// 자세히 보기의 가운데: 한 턴의 생명선. 순간 14개를 세로로 놓고 이 플러그인이 끼어드는 순간만 펼친다.
+// 자세히 보기의 가운데: 한 턴의 생명선. 순간 18개를 세로로 놓고 이 플러그인이 끼어드는 순간만 펼친다.
 // 그룹은 구성원마다 열 하나를 같은 생명선에 놓아 구성원 사이 손 넘김이 보이게 한다.
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { PHASES } from "@fresnel/client/workbench/canvas";

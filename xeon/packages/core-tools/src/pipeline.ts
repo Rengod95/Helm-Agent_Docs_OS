@@ -512,7 +512,9 @@ export function createPipeline(
         signal,
       });
       const decision = outcome.decision;
-      if (decision === undefined) return undefined;
+      // 묻기(`ask`)와 결과 대신 주기(`replace`)는 이 자리에서 해석하지 않는다. 다음 층이 승인 카드와 결과 기록에 잇는다(M5e 스펙 §4.2).
+      // 지금은 결정 없음과 같다. 정책 판정은 그대로 이어진다
+      if (decision === undefined || !("block" in decision)) return undefined;
       // 대체된 결정(실패·시간 초과·스키마 위반)은 핸들러가 던진 것과 같은 "오류" 거부다. 모델 본문은 두 경우 모두 그대로 둔다
       const extension = outcome.decidedBy?.extension ?? null;
       if (outcome.substituted) {

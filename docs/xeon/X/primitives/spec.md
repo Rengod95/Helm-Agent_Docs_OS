@@ -994,7 +994,8 @@ first:
 
 ```text
 first(entries, payload):
-  closed = decl.failure == "closed"      // adr.0017. open인 훅은 thread.compact.before뿐이고 FIRST_DENY 항목이 없다
+  closed = decl.failure == "closed"      // adr.0017. open인 훅은 thread.compact.before와 ask.human.before뿐이고 FIRST_DENY 항목을 두지 않는다
+  merged = point ∈ FIRST_RANK            // M5e H-2: tool.call.before, agent.spawn.before. 아래 합치기 규칙을 본다
   for e in entries:
     r = await runOne(e, [payload])
     if !r.ok:                            // 예외·시간 초과
@@ -1009,7 +1010,8 @@ first(entries, payload):
   return { decision: undefined, decidedBy: null, substituted: false, failures }
 ```
 
-- 결정으로 인정하는 값은 `undefined`가 아니고 `HookDecl.result` 스키마를 통과하는 값뿐이다. F의 first 결정 타입은 모두 객체 형태(예: `ToolCallDecision = { block: true, reason, terminate? }`)다. 그래서 Cordis `bail`처럼 `0`, `''`, `NaN`을 결정으로 받는 일이 없다. 이 값들은 스키마 위반이므로 F.extensions.spec §5 2번대로 거부값으로 바뀐다.
+- 합치기 훅(M5e 스펙 §5.1 H-2 [결정: 2026-11-17 사용자, U3]). `tool.call.before`와 `agent.spawn.before`만 `FIRST_RANK` 항목이 있다. 이 둘은 `ask`와 `replace`에서 멈추지 않는다. 모든 핸들러가 원본 payload를 받고 돌아가며, 끝난 뒤 순위가 가장 강한 결정이 이긴다: `block` > `replace` > `ask`. 같은 종류 안에서는 등록 순서가 앞선 핸들러의 값이 이긴다. `block`은 어느 순위보다 강하므로 거기서 멈춘다(뒤 핸들러는 건너뛴다). 닫힌 훅의 예외·시간 초과·스키마 위반은 지금까지의 결정을 버리고 `FIRST_DENY`로 멈춘다(거부가 가장 강하다). 기록은 핸들러마다 남고 `ask`·`replace`는 결과 `passed`에 결정 칸(`ask`, `replace`)을 단다(M5e §4.5). 나머지 first 훅(`ask.human.before` 포함)은 처음 결정에서 멈춘다.
+- 결정으로 인정하는 값은 `undefined`가 아니고 `HookDecl.result` 스키마를 통과하는 값뿐이다. F의 first 결정 타입은 모두 객체 형태(예: `ToolCallDecision = { block: true, reason, terminate? } | { ask: true, reason } | { replace: {…}, reason }`)다. 그래서 Cordis `bail`처럼 `0`, `''`, `NaN`을 결정으로 받는 일이 없다. 이 값들은 스키마 위반이므로 F.extensions.spec §5 2번대로 거부값으로 바뀐다.
 - 결정 스키마 검사는 `strict`와 관계없이 항상 한다. first는 보안 훅(`tool.call.before`, `input.bash.before`, `thread.trust.before`, guard 훅 셋)이라 비용보다 정확성이 우선이다 [제안].
 - guard 훅(`guard.model.before`, `guard.tool.before`, `guard.output.before`)은 `failure: "closed"`인 first다. 핸들러 예외·시간 초과·스키마 위반은 `FIRST_DENY`의 차단 결정(`{ block: true, reason }`)이 된다. 핸들러가 없으면 결정 없음이고 통과다. 발화 시점은 L1이 정한다(같은 대상의 일반 훅이 끝난 뒤, M3-REQ-109). 내장 검사는 두지 않는다 [결정: adr.0017 §3.6].
 

@@ -31,7 +31,7 @@ describe("block model", () => {
 
   test("positions are the whole HOOK_POSITIONS table in HOOK_NAMES order", () => {
     expect(BLOCK_MODEL.positions.map((row) => row.hook)).toEqual([...HOOK_NAMES]);
-    expect(BLOCK_MODEL.positions).toHaveLength(46);
+    expect(BLOCK_MODEL.positions).toHaveLength(50);
     for (const row of BLOCK_MODEL.positions) {
       expect(row).toEqual(HOOK_POSITIONS[row.hook]);
     }
@@ -56,7 +56,7 @@ describe("block model", () => {
     ]);
   });
 
-  test("the block hook lists come from the positions, with the current 46 hooks", () => {
+  test("the block hook lists come from the positions, over all 50 hooks", () => {
     expect(blockOf("context").hooks).toEqual({
       before: [
         "input.agent.before",
@@ -85,13 +85,13 @@ describe("block model", () => {
       events: ["tool.execution.before", "tool.execution.update", "tool.execution.after"],
     });
     expect(blockOf("ask").hooks).toEqual({
-      before: [],
+      before: ["ask.human.before"],
       after: [],
-      events: ["thread.prompt.before", "thread.prompt.after"],
+      events: ["thread.prompt.before", "thread.prompt.after", "ask.human.after"],
     });
     expect(blockOf("agents").hooks).toEqual({
-      before: [],
-      after: [],
+      before: ["agent.spawn.before"],
+      after: ["agent.spawn.after"],
       events: ["lifecycle.agent.settled"],
     });
   });

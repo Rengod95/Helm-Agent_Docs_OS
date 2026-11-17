@@ -2,7 +2,8 @@ import { HOOKS, HOOK_NAMES, type HookName } from "./hooks.ts";
 
 // 훅 위치 데이터(M5e 스펙 §4.1). 위치는 HOOKS 선언의 필드가 아니라 이 별도 표다. 이름과 HookSignatures는 그대로 두고,
 // 각 훅이 블록 앞·뒤, 경계, 이벤트, 내부 가운데 어디에 서는지와 할 수 있는 일을 적는다.
-// 블록 모델(`contracts/src/blocks`)의 훅 목록은 이 표에서 파생한다. 지금은 발화 46개 중 현재 코드의 46행이다.
+// 블록 모델(`contracts/src/blocks`)의 훅 목록은 이 표에서 파생한다. 행은 50개다. 47~50번(사람에게 묻기, 서브에이전트)은
+// 발화를 연결하는 층(M5e 2b·2c)이 켜기 전까지 `fired: false`다.
 
 /** 블록 여섯. `record`는 앞뒤 훅이 없고 이벤트 구독만 있다 */
 export type BlockId = "context" | "model" | "tools" | "ask" | "agents" | "record";
@@ -51,7 +52,7 @@ const onEvent = (block: BlockId, side: Side): HookPosition => ({
 const freeEvent: HookPosition = { kind: "event" };
 const internal: HookPosition = { kind: "internal" };
 
-/** 현재 46개 훅의 위치. 행 순서는 스펙 §3.1 표 순서(HOOK_NAMES와 같다) */
+/** 50개 훅의 위치. 행 순서는 스펙 §3.1 표 순서이고 47~50번은 M5e에서 더한 행이다(HOOK_NAMES와 같다) */
 export const HOOK_POSITIONS: { readonly [N in HookName]: HookPositionRow } = {
   "input.user.before": {
     hook: "input.user.before",
@@ -333,6 +334,30 @@ export const HOOK_POSITIONS: { readonly [N in HookName]: HookPositionRow } = {
     positions: [freeEvent],
     powers: ["observe"],
     fired: true,
+  },
+  "ask.human.before": {
+    hook: "ask.human.before",
+    positions: [at("ask", "before")],
+    powers: ["decide"],
+    fired: false,
+  },
+  "ask.human.after": {
+    hook: "ask.human.after",
+    positions: [onEvent("ask", "after")],
+    powers: ["observe"],
+    fired: false,
+  },
+  "agent.spawn.before": {
+    hook: "agent.spawn.before",
+    positions: [at("agents", "before")],
+    powers: ["decide"],
+    fired: false,
+  },
+  "agent.spawn.after": {
+    hook: "agent.spawn.after",
+    positions: [at("agents", "after")],
+    powers: ["modify"],
+    fired: false,
   },
 };
 

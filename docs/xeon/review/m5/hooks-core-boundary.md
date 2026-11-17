@@ -204,15 +204,15 @@ export const HOOK_POSITIONS: { readonly [N in HookName]: HookPositionRow };
 
 #### 4.1.1 매니페스트 훅 선언의 결정 선언 [M6 요청 M5e-1 반영]
 
-매니페스트 `hooks[]`의 각 항목에 선택 필드 `decides?: readonly ("block" | "ask" | "replace")[]`를 더한다. 이 훅이 낼 수 있는 결정값(§4.2·§4.3)을 작성자가 미리 선언한다.
+플러그인 항목(`plugins[]`)에 선택 필드 `hookDecides`를 더한다. 이 훅이 낼 수 있는 결정값(§4.2·§4.3)을 작성자가 미리 선언한다. `hooks`는 훅 이름 문자열 목록이라(F.extensions §3.1) 각 훅 이름에 필드를 붙일 수 없다. 그래서 결정 선언은 훅 이름과 짝을 이룬 `{ hook, decides }` 목록이다. `decides`는 `("block" | "ask" | "replace")[]`다 [구현 결정: 2026-11-18, 2a층. 문자열 목록을 객체 목록으로 바꾸면 소비자 서른 곳 이상이 바뀌어 피했다].
 
-- 검사: 선언한 값은 그 훅 위치의 `powers`가 허용하는 것(`decide`가 있는 위치, 위치가 허용하는 결정 종류)의 부분집합이어야 한다. 아니면 매니페스트 검증 오류 `hook_decision_not_allowed`(`validate.ts`, M5c의 매니페스트 변경과 한 트랙).
+- 검사: 선언한 훅은 같은 플러그인의 `hooks`에 있어야 하고, 선언한 종류는 그 훅이 낼 수 있는 것의 부분집합이어야 한다. 셋을 낼 수 있는 훅은 합치기 지점 `tool.call.before`와 `agent.spawn.before`뿐이다. 아니면 매니페스트 검증 오류 `hook_decision_not_allowed`(`validate.ts`).
 - 쓰임: 카드(`PluginCard.does.hook.hooks[].decides`)와 검토 차이(`WhatItDoesDiff`)와 Craft 권한 칸이 "묻거나 막는 Hook"을 정적으로 나열한다. 선언이 없는 훅은 정적으로 알 수 없다고 표시하고 관찰된 결과(`blocks.applied.handlers[].outcome24h`)만 보인다.
 - 강제하지 않는다: 선언과 다른 결정이 오면 디스패처는 그 결정을 그대로 처리하고 기록(E의 `HookRun.reason` 진단 `decision_undeclared`)만 남긴다. 거부하면 막기·묻기 동작이 바뀌므로 하지 않는다 [제안]. 선언이 없는 기존 플러그인은 그대로 동작한다.
 
 ### 4.2 도구 실행 앞의 결정 어휘
 
-지금: `tool.call.before`(first, closed)는 `{ block: true, reason, terminate? }`를 낸다. 이어서 정책 평가, 승인, 시크릿 사용 승인, `guard.tool.before`가 순서대로 온다(`core-tools/src/pipeline.ts:972-995` `gate`). 훅 결정이 정책보다 먼저 나가고 승인 카드를 띄울 방법이 없다.
+지금: `tool.call.before`(first, closed)는 `{ block: true, reason, terminate? }`를 낸다. 이어서 정책 평가, 승인, 시크릿 사용 승인, `guard.tool.before`가 순서대로 온다(`core-tools/src/pipeline.ts:976-995` `gate`). 훅 결정이 정책보다 먼저 나가고 승인 카드를 띄울 방법이 없다.
 
 새 결정 [제안]:
 
@@ -240,14 +240,14 @@ export type ToolCallDecision =
 - 훅 결정은 `decide()`(`core-tools/src/pipeline.ts:581`)의 입력이 된다. 정책 결과가 `deny`면 거부다(훅이 deny를 ask로 느슨하게 만들지 못한다). `allow`거나 `ask`면 한 장의 카드를 띄운다. 카드 하나에 훅의 사유와 정책의 사유를 함께 싣는다(승인이 두 번 뜨지 않는다).
 - 권한 모드가 `bypass`여도 훅의 묻기는 카드를 띄운다. `bypass`는 "코어가 스스로 묻지 않는다"는 뜻이고 훅이 요청한 질문은 코어의 질문이 아니다. 단 저장소가 고른 bypass의 평가 규칙(`bypassAllowed`)은 바뀌지 않는다.
 - 카드의 기억 범위는 `once`뿐이다(`remember: ["once"]`, `pipeline.ts:652`와 같다). 훅의 묻기가 영구 허용 규칙이나 "이 대화에서 계속 허용"을 만들지 못한다 [제안, 12절 O-2].
-- 카드 본문: `ToolApprovalBody`(`contracts/src/services/approvals.ts:72-85`)에 `askedBy?: { extension: string; reason: string }`를 더한다. 값이 있으면 `ruleId`는 `hook:<확장 이름>`이다. 화면은 이 필드로 "어느 플러그인이 물었나"를 보인다.
+- 카드 본문: `ToolApprovalBody`(`contracts/src/services/approvals.ts:81-92`, 2a층에서 `askedBy`를 더했다)에 `askedBy?: { extension: string; reason: string }`를 더한다. 값이 있으면 `ruleId`는 `hook:<확장 이름>`이다. 화면은 이 필드로 "어느 플러그인이 물었나"를 보인다.
 - 사람이 없는 실행(`interactive: false`): 기존 무인 정책을 그대로 탄다(`approvals/unattended.ts:15-35`). 서브에이전트, 깊이가 있는 호출, 표면 대화가 다른 호출은 묻지 않고 거부한다(`resolvedBy: "noninteractive"`). 주 대화의 비대화형 턴은 설정 `l1.tools.unattended.approval`(`deny`, `wait`, `expire`)을 따른다. 거부될 때 모델에 보이는 사유는 `[fresnel:denied_by_extension] <reason> (confirmation unavailable)` 한 줄이다. 턴 기록의 훅 결과는 `asked`로 적고 답은 `noninteractive`로 이어 적는다.
 - 응답 기록: 카드의 답(`approval.resolved`)이 기존 방식대로 기록된다. 결과가 "허용"이면 도구가 실행되고 `effect.intent`에 훅 묻기를 거쳤다는 사실을 `approvalId`로 잇는다(지금도 `state.userApprovalId`가 있다, `pipeline.ts:661`). "거부"면 `[fresnel:denied_by_user]` 계열의 기존 거부 결과다.
 - 어느 핸들러도 허용을 값으로 낼 수 없으므로 훅이 정책 거부나 승인 요구를 건너뛰게 만드는 길이 없다. 규칙 H-1 (5.1).
 
 `replace`의 동작 [제안]: 실행하지 않고 `effect.intent`를 쓰지 않으며 도구 결과 항목(`effectId: null`)을 기록한다. 차단된 호출의 기록과 같은 모양이다(`L1.tools.spec` §4.2 부속 규칙). `tool.result` 훅은 `replace`가 낸 결과에도 돌지 않는다(이미 훅이 정한 값이다). `details`에는 `{ hook: "replaced", extension }`을 병합한다.
 
-외부 셸 훅의 결과 JSON도 같은 어휘를 받는다: `{"decision":"ask","reason":"…"}`를 `tool.call.before`에서 받는다(`ext-host/src/operations/hooks/runner.ts:298`의 `isDecisionOf` 확장).
+외부 셸 훅의 결과 JSON도 같은 어휘를 받는다: `{"decision":"ask","reason":"…"}`를 `tool.call.before`에서 받는다(`ext-host/src/operations/hooks/runner.ts:114`의 `isDecisionOf`와 `runner.ts:309`의 `tool.call.before` 분기를 확장한다. 셸 출력은 `reason`을 최상위에 싣는다).
 
 ### 4.3 새 앞뒤 훅 둘
 
@@ -257,14 +257,14 @@ export type ToolCallDecision =
 
 | 항목 | 값 |
 |---|---|
-| 발화 | 코어의 승인 서비스 `open`(`core-tools/src/approvals/service.ts:394`)이 새 요청을 만들 때, `approval.requested`를 커밋하기 전. 이미 있는 요청(키가 같은 재호출)에는 발화하지 않는다(`service.ts:403-405`의 `known` 분기 뒤) |
+| 발화 | 코어의 승인 서비스 `open`(`core-tools/src/approvals/service.ts:394`)이 새 요청을 만들 때, `approval.requested`를 커밋하기 전. 이미 있는 요청(키가 같은 재호출)에는 발화하지 않는다(`service.ts:402-404`의 `known` 분기 뒤) |
 | 범위 | 모든 종류의 카드: `tool`(정책, 훅 묻기, 시크릿 사용, 바깥 쓰기, 대체 승인), `question`(`dialog.ask`, `loop.ask`, MCP 질문), `review` |
 | payload | `{ threadId, surfaceThreadId, requestKey, askKind: "tool" \| "question" \| "review", title, origin: { turnId?, stepId?, toolCallId?, caller }, summary: { toolName?, risk?, questionIds? }, interactive, unattended: "silent" \| "wait" \| "expire" \| null, askedBy?: string }` |
 | 결정 | `{ cancel: true, reason }`(카드 없이 취소 해결), `{ answer: QuestionAnswers, reason }`(`askKind: "question"`일 때만), 없음(사람에게 묻는다) |
 | fold, 합치기 | first. 처음 결정으로 멈춘다 |
 | 실패 정책 | open. 핸들러 예외, 시간 초과, 스키마 위반은 "결정 없음"으로 보고 사람에게 묻는다. `thread.compact.before`와 같은 예외 사유를 달아 `FailOpenFirstHookName`에 올린다. 근거: 훅 오류가 승인을 조용히 허용하지 않고, 대화도 멈추지 않는다 |
 | 시간 | 예산 `first`(30초)이고 사람 응답을 기다리는 동안 시계가 멈추는 기존 장치(`HandlerGate`)를 쓴다 |
-| 해결 기록 | 새 `resolvedBy` 값 `extension`(`ApprovalResolution.resolvedBy`, `contracts/src/services/approvals.ts:238-246`에 값 하나 추가)과 `resolvedByExtension: string`. 기존 값 문자열은 그대로다 |
+| 해결 기록 | 새 `resolvedBy` 값 `extension`(`ApprovalResolution.resolvedBy`, `contracts/src/services/approvals.ts:229-247`에 값 하나 추가)과 `resolvedByExtension: string`. 기존 값 문자열은 그대로다 |
 
 허용 방향 제한이 핵심이다. `tool` 종류와 `review` 종류에서 이 훅은 `cancel`만 낼 수 있다. 자동 허용을 낼 수 없다. `question` 종류는 답을 대신 내줄 수 있다(예: 이미 알고 있는 확인 질문). 이유: 승인은 권한이고, 플러그인 코드가 사용자 대신 권한을 줄 수 있으면 훅이 정책을 우회한다. 규칙 H-1.
 
@@ -300,13 +300,13 @@ export type ToolCallDecision =
 | 발화 | 자식이 정착하고 결과 검사(`core-agents/src/result-guard.ts`)를 거친 뒤, 부모 대화에 `agent.settled`를 커밋하기 전(`service.ts:842-868`) |
 | payload | `{ threadId, requestId, agent, status, usage, childThreadId }` |
 | 값과 패치 | 값 `{ report: { text: string; truncated: boolean } }`, 패치 `{ reportText?: string }` |
-| 제한 | 보고 본문 상한(`service.ts:52`, 65,536자 중 격리 블록 여유를 뺀 값)을 병합 규칙이 다시 적용한다. `status`와 `usage`는 고칠 수 없다 |
+| 제한 | 보고 본문 상한(`core-agents/src/service.ts:52-53`의 `STORED_REPORT_MAX`, 60,000자. 기록 상한 65,536자에서 격리 블록 여유를 뺀 값)을 병합 규칙이 다시 적용한다. 계약의 `AGENT_REPORT_TEXT_MAX`가 같은 값을 가진다. `status`와 `usage`는 고치지 못한다 |
 
 `lifecycle.agent.settled`(45번)는 그대로 이벤트로 남는다(커밋 뒤 관찰).
 
 #### 4.3.5 결과: 훅 50개
 
-`HookSignatures`는 46에서 50행이 된다. `HOOK_NAMES`에 네 이름이 더해지고 `HOOKS`, `CHAIN_RULES`(`agent.spawn.after`), `FIRST_DENY`(`agent.spawn.before`), `HOOK_POSITIONS`, F 스펙 §3.4 표, 화면 표가 같이 바뀐다. 이름 길이 상한 48자(`HookNameSchema`) 안이다.
+`HookSignatures`는 46에서 50행이 된다. `HOOK_NAMES`에 네 이름이 더해지고 `HOOKS`, `CHAIN_RULES`(`agent.spawn.after`), `FIRST_DENY`(`agent.spawn.before`), `HOOK_POSITIONS`, F 스펙 §3.4 표, 화면 표가 같이 바뀐다. 이름 길이 상한 48자(`HookNameSchema`) 안이다. 발화를 잇는 층(D-7, D-8)이 들어가기 전까지 `HOOK_POSITIONS`의 네 행은 `fired: false`다. 그 전에 이 훅을 선언한 매니페스트는 `hook_not_fired` 경고를 받는다(H-4).
 
 ### 4.4 이벤트 구독
 
@@ -683,12 +683,12 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 
 | # | 위치 | 변경 | 크기 |
 |---|---|---|---|
-| D-1 | `contracts/src/extensions/hooks.ts:162-208, 264-322, 375-` | `HookKind`에 `ask`, `agent`, `HookSignatures` 4행, `HOOK_NAMES`, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `FailOpenFirstHookName`에 `ask.human.before` | M |
+| D-1 | `contracts/src/extensions/hooks.ts:158, 188-247, 264-311, 375-, 927-939, 1042-1055` | `HookKind`에 `ask`, `agent`, `HookSignatures` 4행, `HOOK_NAMES`, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `FailOpenFirstHookName`에 `ask.human.before` | M |
 | D-2 | `contracts/src/extensions/hook-positions.ts` (신규) | `HOOK_POSITIONS` 50행, 위치 종류별 검사 | M |
 | D-3 | `contracts/src/extensions/hooks/tool.ts:84-98` | `ToolCallDecision`을 3종 union으로. `ask`, `replace` 스키마 | S |
 | D-4 | `ext-host/src/primitives/fold/` 및 `dispatch.ts` | `tool.call.before`, `agent.spawn.before`의 합치기 규칙(H-2) | M |
 | D-5 | `core-tools/src/pipeline.ts:503-540, 581-660, 972-995` | `dispatchToolCall`이 `ask`, `replace`를 해석하고 `decide`가 훅 ask를 정책 결과와 합치며 카드를 한 장으로 | M |
-| D-6 | `contracts/src/services/approvals.ts:72-85, 238-246` | `ToolApprovalBody.askedBy`, `resolvedBy`에 `"extension"`, `resolvedByExtension` | S |
+| D-6 | `contracts/src/services/approvals.ts:81-92, 229-247` | `ToolApprovalBody.askedBy`, `resolvedBy`에 `"extension"`, `resolvedByExtension` | S |
 | D-7 | `core-tools/src/approvals/service.ts:394-405, 385` | `ask.human.before|after` 발화 | M |
 | D-8 | `core-agents/src/service.ts:1117, 1160, 842-868` | `agent.spawn.before|after` 발화, `loop.spawn`과 `g.delegate`와 `agent` 도구가 같은 입구를 지남을 확인 | M |
 | D-9 | `ext-host` 매니페스트 검증(`contracts/src/extensions/validate.ts`) | 내부 훅 거부 `hook_internal`, `hook_not_fired` 경고 | S |

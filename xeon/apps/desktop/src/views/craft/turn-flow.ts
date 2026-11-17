@@ -1,4 +1,4 @@
-// 자세히 보기의 한 턴 흐름(순수 모델). 생명선의 순간 14개, 플러그인이 끼어드는 순간, 최근 실행 얹기를 만든다.
+// 자세히 보기의 한 턴 흐름(순수 모델). 생명선의 순간 18개, 플러그인이 끼어드는 순간, 최근 실행 얹기를 만든다.
 // 문구는 두지 않는다: 동사·값·결과는 id로 내고, 화면이 message key로 바꾼다. 플러그인별 손글 문장은 없다.
 import {
   HOOKS,
@@ -62,6 +62,12 @@ const GETS: Readonly<Record<string, ValueKind>> = {
   "boundary.step.after": "step",
   "boundary.settle.after": "turn",
   "thread.shutdown": "thread",
+  // M5e에서 더한 네 순간의 값 종류는 근사다. 사람에게 묻기는 도구 호출 카드가 가장 흔해서 도구 호출로, 해결은 도구 결과로 본다.
+  // 서브에이전트는 자식을 부르는 도구 호출과 자식의 보고로 본다. 정확한 값 종류는 데스크톱 층이 정한다 [미결]
+  "ask.human.before": "tool-call",
+  "ask.human.after": "tool-result",
+  "agent.spawn.before": "tool-call",
+  "agent.spawn.after": "tool-result",
 };
 
 function gets(id: string): ValueKind {
@@ -70,7 +76,7 @@ function gets(id: string): ValueKind {
   return kind;
 }
 
-/** 턴의 순간 14개. 훅 13개를 순서대로 두고 tool.call.before 뒤에 "도구가 실행될 때"를 끼운다 */
+/** 턴의 순간 18개. 훅 17개를 순서대로 두고 tool.call.before 뒤에 "도구가 실행될 때"를 끼운다 */
 export const MOMENTS: readonly Moment[] = HOOKS.flatMap((h): Moment[] => {
   const here: Moment = { id: h.id, phase: h.phase, fold: h.fold, gets: gets(h.id) };
   if (h.id !== "tool.call.before") return [here];

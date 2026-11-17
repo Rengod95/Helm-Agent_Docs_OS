@@ -182,6 +182,44 @@ export const PAYLOAD_SAMPLES: Readonly<Record<string, unknown>> = {
   "guard.output.before": { threadId: THREAD, turnId: TURN, target: "display", content: "text" },
   "lifecycle.agent.settled": PAYLOAD_FIXTURES["agent.settled"],
   "lifecycle.lease.rejected": PAYLOAD_FIXTURES["lease.rejected"],
+  "ask.human.before": {
+    threadId: THREAD,
+    surfaceThreadId: THREAD,
+    requestKey: "req-1",
+    askKind: "tool",
+    title: "Run ls",
+    origin: { turnId: TURN, stepId: STEP, toolCallId: "call_1", caller: "main" },
+    summary: { toolName: "bash", risk: "exec" },
+    interactive: true,
+    unattended: null,
+  },
+  "ask.human.after": {
+    threadId: THREAD,
+    approvalId: EVENT,
+    askKind: "question",
+    resolution: { decision: "answer", resolvedBy: "user", answer: { q1: { selected: ["a"] } } },
+    durationMs: 120,
+    origin: { caller: "main" },
+  },
+  "agent.spawn.before": {
+    threadId: THREAD,
+    requestId: "req-1",
+    agent: "reviewer",
+    task: "look at it",
+    caller: "main",
+    depth: 0,
+    entry: "tool",
+    toolCallId: "call_2",
+    background: false,
+  },
+  "agent.spawn.after": {
+    threadId: THREAD,
+    requestId: "req-1",
+    agent: "reviewer",
+    status: "completed",
+    usage,
+    childThreadId: rawId("thr", 2),
+  },
 };
 
 /** first·chain 훅의 결정·패치 표본 */
@@ -213,4 +251,7 @@ export const RESULT_SAMPLES: Readonly<Record<string, unknown>> = {
   "guard.model.before": { block: true, reason: "blocked" },
   "guard.tool.before": { block: true, reason: "blocked" },
   "guard.output.before": { block: true, reason: "blocked" },
+  "ask.human.before": { cancel: true, reason: "no" },
+  "agent.spawn.before": { block: true, reason: "denied" },
+  "agent.spawn.after": { reportText: "short" },
 };

@@ -343,6 +343,7 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
           size: verdict.result === "modified" ? sizeOfValue(verdict.value) : 0,
           skippedBy: null,
           reason: verdict.result === "failed" ? verdict.reason : null,
+          ...(verdict.decision === undefined ? {} : { decision: verdict.decision }),
         });
       },
       noteLost(entry, run) {
