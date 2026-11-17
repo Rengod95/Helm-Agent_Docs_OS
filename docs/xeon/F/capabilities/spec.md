@@ -936,6 +936,22 @@ export type NotifyError =
 10. [결정: open-issues D-03] 자식 프로세스 env 거부 목록 `SENSITIVE_ENV_PATTERNS`의 위치는 `@fresnel/contracts/services`의 `services/exec.ts` 하나다. `capabilities` 서브패스에 두지 않는다. `L0.exec.spec`, `L0.sandbox.spec`(자가 시험), `L0.secrets.spec`(sops 호출 env)과 각 plan은 이 위치를 인용한다.
 11. [결정: m2-plan F.4] 정책 상한 계산(`childDecision`)처럼 두 L1 패키지가 함께 써야 하는 순수 함수는 F `services/`에 두되, 구현 패키지만 아는 평가기는 인자로 받는다. F는 구현 패키지를 import하지 않는다.
 
+### 3.13 변경 기록 형식 (`file-change.ts`)
+
+[제안: `docs/xeon/review/m5/hooks-core-boundary.md` §4.7, R22. 구현 1단계] 도구 결과 `details`에 싣는 파일 변경의 공통 형식이다. 정의 파일은 `file-change.ts` 하나다. 쓰기·편집 결과의 `FileChangeSchema`(`defs/workspace.ts`)는 그대로 두고 그 위에 여러 파일과 출처를 더한다.
+
+```ts
+export const FileChangeEntrySchema: TObject<{ ... }>; // path, op, from?, existed, diff?, added, removed, firstChangedLine?, before?, after?, source
+export type FileChangeEntry = Static<typeof FileChangeEntrySchema>;
+export const FILE_CHANGES_KEY = "fileChanges" as const;
+export function fileChangesOf(details: JsonValue | null): readonly FileChangeEntry[];
+```
+
+- `op`은 `create`, `modify`, `delete`, `rename` 넷이고, `source`는 `observed`(코어 파일 서비스가 본 변경)와 `reported`(플러그인이 알린 변경, 검증되지 않음) 둘이다. 객체는 닫힌 모양이다.
+- `before`와 `after`는 `{ sha256, size }` 내용 참조다. 되감기가 읽는다. 이 파일 안에서 정의하며, 공유 내용 참조 스키마는 두지 않았다(`records/blob.ts`의 `BlobRefSchema`와 다른 모양이다).
+- `FILE_CHANGES_KEY`는 도구 결과 `details`의 예약 키다. 코어가 쓴다. 훅이 `details`를 통째로 바꿔도 코어가 관찰한 변경은 `tool.result` 체인 뒤에 다시 들어간다(스펙 §4.7).
+- `fileChangesOf`(순수 함수)는 새 형식을 먼저 읽는다. 키가 없으면 옛 `FileChange` 한 건을 `source: "observed"` 항목 하나로 읽는다. `op`은 `existed`가 참이면 `modify`, 거짓이면 `create`다. `null`과 모양이 맞지 않는 값은 빈 목록이다. 키가 있는데 모양이 틀리면 옛 형식으로 넘어가지 않고 빈 목록이다.
+
 ## 4. 동작 규칙
 
 ### 4.1 버전과 범위

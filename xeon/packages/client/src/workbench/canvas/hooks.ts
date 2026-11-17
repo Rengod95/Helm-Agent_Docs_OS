@@ -1,5 +1,5 @@
 // 순서 화면의 훅 표. 줄 이름과 설명은 화면이 id로 찾으므로 여기에는 id, fold, phase, failure, orderMatters만 둔다.
-// 훅 id와 fold는 contracts의 HOOKS와 같아야 한다. hooks.test.ts가 46개 전부를 대조한다.
+// 훅 id와 fold는 contracts의 HOOKS와 같아야 하고, id 집합은 HOOK_POSITIONS의 키와 같아야 한다. hooks.test.ts가 46개 전부를 대조한다.
 import type { CanvasPlugin } from "./types.ts";
 
 /** 훅 결과 규칙(F.extensions §4.1): 관찰, 차단, 수정, 합치기 */
@@ -14,6 +14,10 @@ export const PHASES: readonly PhaseId[] = ["start", "think", "act", "wrap"];
 interface HookDef {
   readonly id: string;
   readonly fold: Fold;
+  /**
+   * 순서 화면의 묶음. HOOK_POSITIONS의 위치에서 파생하지 않는다: `input.agent.before`(컨텍스트 조립 앞)는 start이고
+   * `thread.compact.before`(같은 컨텍스트 조립 앞)는 think라서 위치로는 같은 묶음이 나오지 않는다. 이 값은 13개 순간에만 있다.
+   */
   readonly phase: PhaseId;
   readonly failure: Failure;
   /** 내장이 이 순간을 맡고 있다(대체할 수 있다) */

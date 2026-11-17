@@ -3,6 +3,7 @@ export * from "./registration-id.ts";
 export * from "./post.ts";
 export * from "./group-record.ts";
 export * from "./hooks.ts";
+export * from "./hook-positions.ts";
 export * from "./drive.ts";
 export * from "./ops.ts";
 export * from "./registration.ts";

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { HOOKS as CONTRACT_HOOKS, HOOK_NAMES } from "@fresnel/contracts/extensions";
+import { HOOKS as CONTRACT_HOOKS, HOOK_NAMES, HOOK_POSITIONS } from "@fresnel/contracts/extensions";
 import { FIXTURE_ORDER, buildFixture } from "../../../src/workbench/canvas/fixture.ts";
 import {
   CORE_STEPS,
@@ -20,6 +20,16 @@ describe("hook table", () => {
     const ids = [...HOOKS, ...OTHER_HOOKS].map((h) => h.id);
     expect(new Set(ids).size).toEqual(46);
     expect(ids.toSorted()).toEqual([...HOOK_NAMES].toSorted());
+  });
+
+  test("the table ids are exactly the HOOK_POSITIONS rows, and the tap rows are the observe-only ones", () => {
+    const all = [...HOOKS, ...OTHER_HOOKS];
+    expect(all.map((h) => h.id).toSorted()).toEqual(Object.keys(HOOK_POSITIONS).toSorted());
+    const tap = all.filter((h) => h.fold === "tap").map((h) => h.id);
+    const observeOnly = Object.values(HOOK_POSITIONS)
+      .filter((row) => row.powers.length === 1 && row.powers[0] === "observe")
+      .map((row): string => row.hook);
+    expect(observeOnly.toSorted()).toEqual(tap.toSorted());
   });
 
   test("every hook id and fold matches contracts HOOKS", () => {

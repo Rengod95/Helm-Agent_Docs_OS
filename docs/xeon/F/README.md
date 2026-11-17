@@ -56,8 +56,9 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 기능, 
 | `@fresnel/contracts/wire` | `src/wire-settings/wire/` | `src/wire-settings/wire/index.ts` |
 | `@fresnel/contracts/settings` | `src/wire-settings/settings/` | `src/wire-settings/settings/index.ts` |
 | `@fresnel/contracts/services` | `src/services/` | `src/services/index.ts` |
+| `@fresnel/contracts/blocks` | `src/blocks/` | `src/blocks/index.ts` |
 
-- 패키지는 `xeon/packages/contracts`다. 도메인은 5개이고 서브패스는 7개다. wire-settings 도메인 하나가 서브패스 둘을 만든다. 설정 선언은 X~L4 모두 쓰고 wire는 L4만 쓰기 때문이다(`F.wire-settings.spec` 첫 표). `./services`는 L0·L1 서비스 인터페이스와 X 포트를 확장하는 `McpService`·`GroupService`, `SERVICE_NAMES`(15개)의 모음이다(`F.capabilities.spec` §3.12).
+- 패키지는 `xeon/packages/contracts`다. 도메인은 5개이고 서브패스는 8개다. `./blocks`는 블록 모델 값(`BLOCK_MODEL`)만 두는 순수 상수 서브패스로 extensions 위, wire 아래다(M5e §4.8). wire-settings 도메인 하나가 서브패스 둘을 만든다. 설정 선언은 X~L4 모두 쓰고 wire는 L4만 쓰기 때문이다(`F.wire-settings.spec` 첫 표). `./services`는 L0·L1 서비스 인터페이스와 X 포트를 확장하는 `McpService`·`GroupService`, `SERVICE_NAMES`(15개)의 모음이다(`F.capabilities.spec` §3.12).
 - `package.json`은 다음 모양을 목표로 한다. 각 도메인 plan이 자기 항목을 더한다.
 
   ```json
@@ -71,7 +72,8 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 기능, 
       "./extensions": "./src/extensions/index.ts",
       "./wire": "./src/wire-settings/wire/index.ts",
       "./settings": "./src/wire-settings/settings/index.ts",
-      "./services": "./src/services/index.ts"
+      "./services": "./src/services/index.ts",
+      "./blocks": "./src/blocks/index.ts"
     },
     "xeon": { "layer": "F", "domain": "contracts" }
   }
@@ -91,6 +93,7 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 기능, 
   | 3 | `src/extensions/` | base, conversation(ID, 메시지), capabilities(`CapabilityIdSchema`, `SemVerSchema`, `ServiceKey`), records(`ExtensionEventKind`, `DurableEventDraft`) |
   | 4 | `src/wire-settings/settings/` | base, capabilities(`SemVer`, `toJsonSchema`), extensions(`ExtensionManifest`, `import type`). 테스트는 records 정합 확인에 records를 쓴다 |
   | 4 | `src/services/` | base, conversation(ID, pi 재노출), records(`CommitRequest`, `StoreError` 등), capabilities(`ServiceKey`, 모델·도구 값 타입), extensions(`LoopPort`, `InputQueuePort`, `ToolsPort`, `ModelsPort`, `ProcessPort`, `McpPort`, `LeaseArbiterPort`, `PostItem`, `GroupId`). 모두 `import type`이다(`F.capabilities.spec` §3.12) |
+  | 4 | `src/blocks/` | base, extensions(`HOOK_POSITIONS`, `HookName`). 순수 상수와 타입만 둔다 |
   | 5 | `src/wire-settings/wire/` | 위 전부(`EventKind`, envelope, `SettingKey`, `EffectiveSetting` 등) |
 
   - settings와 services는 같은 순서라 서로 import하지 않는다. wire는 services를 import하지 않는다.

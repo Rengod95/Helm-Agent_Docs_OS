@@ -1063,6 +1063,19 @@ export type CollectHookName = { [N in HookName]: HookSignatures[N]["fold"] exten
 
 집계: kind는 input 3, request 9, tool 5, boundary 9, thread 15, lifecycle 2, guard 3이다(46행). fold는 tap 24, first 10, chain 10, collect 2다. 실패는 closed 9, open 27, skip 10이다. pi에서 결과를 돌려받는 훅은 18개(반환 기반)와 제자리 변경 1개(`request.headers.before`)이고 pi의 나머지 22개는 관찰 전용이다(`_research/notes/F-1.md` §4 정정 2). guard와 lifecycle 5행은 pi에 없다.
 
+#### 3.4.1 훅 위치 데이터 (`hook-positions.ts`) [제안: `docs/xeon/review/m5/hooks-core-boundary.md` §4.1, 구현 1단계]
+
+위치(블록 앞·뒤, 경계, 이벤트, 내부)와 할 수 있는 일은 `HOOKS`가 아니라 같은 디렉터리의 별도 표 `HOOK_POSITIONS`가 맡는다. `HOOKS`에 넣으면 pi 출처가 없는 훅의 필드가 어긋나기 때문이다. 이름 위에 얹는 메타데이터라서 공개 이름 층은 따로 두지 않는다.
+
+- 키 집합은 `HOOK_NAMES`와 같고 행 순서도 같다. 훅 이름은 바뀌지 않는다. `HookSignatures`, 매니페스트의 `hooks` 문자열, 설정 `x.operations.hookOrder`의 키는 그대로다.
+- 행마다 `hook`, `positions`, `powers`, `fired`(지금 코드가 발화하는가), `highFrequency`(고빈도 이벤트에만)를 가진다. `positions`는 한 훅이 둘 이상의 자리에 설 수 있다: `guard.output.before`는 `display`(모델 호출 뒤 블록)와 `execution`(도구 실행 앞 블록) 둘이다.
+- 위치 종류는 블록 앞·뒤(`block`), 경계(`boundary`), 이벤트(`event`), 내부(`internal`) 넷이다. 이벤트의 닻(`anchor`)은 블록과 앞·뒤 쪽이고, 닻이 없는 이벤트는 기록 블록의 구독이다.
+- `powers`는 `observe`(관찰), `modify`(고치기), `decide`(막기·묻기·대체·취소·가로채기), `contribute`(보태기) 넷이다. tap 훅은 `observe`뿐이고, tap이 아닌 fold는 `observe`를 가지지 않는다.
+- `checkHookPositions`(순수 함수)가 검사한다. 키 집합이 `HOOK_NAMES`와 같은지, 이벤트 위치는 tap에만 있는지, 블록·경계 위치는 tap이 아닌 fold와 `thread.start`에만 있는지, `powers`가 위 규칙을 따르는지다.
+- 현재 46행에서 블록 또는 경계 위치가 18개, 이벤트가 23개, 내부가 5개다(18 + 23 + 5 = 46). 발화하지 않는 훅은 `request.cache.before`, `thread.trust.before`, `thread.resources`, `thread.mcp.after` 넷이다. 고빈도 이벤트는 `request.stream`, `boundary.message.update`, `tool.execution.update` 셋이다.
+- 블록 모델(`BLOCK_MODEL`, 서브패스 `@fresnel/contracts/blocks`)의 훅 목록은 이 표에서 파생한다. 손으로 두 번 적지 않는다.
+- [미결] `tool.execution.update`의 닻 쪽. 스펙 §3.1은 쪽을 적지 않았고 §3.2는 도구 실행 뒤 묶음에 두었다. 지금은 뒤로 둔다 [근거: `docs/xeon/review/m5/hooks-core-boundary.md` §3.1, §3.2].
+
 ### 3.5 M1 훅의 페이로드와 반환 타입
 
 M1 열 ● 훅은 아래 형태로 확정한다. M1 밖 훅 중 소유 문서가 제안한 것은 §3.5.1에 둔다. 나머지 훅은 §3.3의 페이로드 형태 규칙으로 같은 PR에서 표를 채운다.
