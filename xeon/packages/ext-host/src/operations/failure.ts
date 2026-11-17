@@ -5,13 +5,15 @@ import type { ExtMethodSettled } from "../primitives/ext-method.ts";
 import type { HandlerOwner, HandlerOwnerKey, Tier } from "./tier.ts";
 import { ownerKey } from "./tier.ts";
 
-/** primitives의 HandlerFailureReason에서 value_from_tap을 뺀 것 + 외부 훅·격리 실패(X.operations.spec §3.3) */
+/**
+ * primitives의 HandlerFailureReason에서 value_from_tap을 뺀 것 + 외부 훅 실패(X.operations.spec §3.3).
+ * 격리 프로세스의 실패(`process_exit`, `process_killed`)는 HandlerFailureReason에 들어 있어 여기서 함께 나온다
+ */
 type FailureKind =
   | Exclude<HandlerFailureReason, "value_from_tap">
   | "hook_exit"
   | "hook_output"
-  | "hook_spawn"
-  | "isolation_exited";
+  | "hook_spawn";
 
 type HandlerResultKind = "ok" | "aborted" | "value_from_tap" | FailureKind;
 

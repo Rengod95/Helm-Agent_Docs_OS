@@ -8,7 +8,7 @@ import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { Type } from "typebox";
 import { AssembleError, assemble } from "../src/assemble.ts";
 import { createHostConnection } from "../src/client.ts";
-import { startInProcessHost, startStdioHost } from "../src/main.ts";
+import { startInProcessHost, startStdioHost } from "../src/command-run.ts";
 import { useEngineHome } from "./fixtures/engine-home.ts";
 import { realEngineGate } from "./fixtures/real-engine.ts";
 import { stdioStreams } from "./fixtures/stdio-pair.ts";

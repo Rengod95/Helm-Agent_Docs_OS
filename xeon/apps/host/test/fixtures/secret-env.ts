@@ -19,7 +19,7 @@ import { hostOf, type BuiltinExtensionModule } from "@fresnel/ext-host";
 import type { EventWire, HostConnection } from "@fresnel/contracts/wire";
 import { memorySecrets, type MemorySecrets } from "@fresnel/platform-secrets/testing";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { callingModels } from "./call-tape.ts";
 import { createFakeKeys } from "./fake-keys.ts";
 import { useEngineHome } from "./engine-home.ts";

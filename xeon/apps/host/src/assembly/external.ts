@@ -3,6 +3,7 @@ import { attemptAsync, parseJson, type Clock, type Logger } from "@fresnel/contr
 import {
   validateManifest,
   type ExtensionManifest,
+  type IsolationProcessPort,
   type LoaderFs,
   type TrustStoreBackend,
 } from "@fresnel/contracts/extensions";
@@ -10,20 +11,19 @@ import {
   createExtensionLoader,
   type ExtensionLoader,
   type ExtHost,
+  type LoaderIsolation,
   type LoadOptions,
   type LoadReport,
   type OperationsPolicy,
-  type SdkModules,
   type StartupOptions,
 } from "@fresnel/ext-host";
-import * as groupSdk from "@fresnel/group-sdk";
 import { coreCapabilityVersions } from "./capability-defs.ts";
+import type { ExtSettingsSource } from "./ext-settings.ts";
+import { HOST_SDK_MODULES } from "../plugin-host/sdk-modules.ts";
 
 // X.loading-trust.spec §4.2, §4.4.6. 조립 루트가 외부 확장 로더를 만들어 사용자 확장 위치(<config>/extensions)를 싣는다.
-// 외부 플러그인 번들은 SDK 모듈을 외부 import로 남기므로 호스트가 같은 인스턴스를 가상 모듈로 등록한다. 조립 루트 코드(DR-14 예외 2).
-
-/** X가 직접 등록하지 못하는 L3 모듈만 넘긴다. `@fresnel/contracts`(하위 경로 포함)와 `typebox`는 X가 등록한다(X.loading-trust.spec §4.4.6) */
-const HOST_SDK_MODULES: SdkModules = { "@fresnel/group-sdk": groupSdk };
+// 외부 플러그인 번들은 SDK 모듈을 외부 import로 남기므로 호스트가 같은 인스턴스를 가상 모듈로 등록한다(plugin-host/sdk-modules.ts). 조립 루트 코드(DR-14 예외 2).
+// 격리(L4.host-service.spec §4.9)는 띄우기 포트(`process`)와 띄우기 설정(`isolation`)이 둘 다 있어야 켜진다.
 
 export interface ExternalLoadingDeps {
   readonly ext: ExtHost;
@@ -35,8 +35,12 @@ export interface ExternalLoadingDeps {
   readonly trustBackend: TrustStoreBackend;
   readonly clock: Pick<Clock, "now">;
   readonly logger: Logger;
-  /** `ext.<name>.enabled` 유효 값. 값이 없으면 undefined */
-  readonly enabled: (name: string) => boolean | undefined;
+  /** 로더의 설정 읽기: `ext.<name>.enabled`, 필수 사용자 설정, `ext.<name>.isolation` 명시 값, 설정 값(ext-settings.ts) */
+  readonly settings: ExtSettingsSource;
+  /** 격리 확장의 띄우기 포트(`fresnel.process`). 없으면 격리 확장은 명시 요청이면 `isolation_unavailable`이다 */
+  readonly process?: IsolationProcessPort;
+  /** 격리 띄우기 설정(명령, 시계, 진단, 재시작 한도). `process`와 함께 있어야 격리가 켜진다 */
+  readonly isolation?: LoaderIsolation;
   readonly cwd: string;
   /** `x.loading-trust.paths`에서 옮긴 절대 경로(settings-sources.ts `extensionSearchPathsOf`). 사용자 위치 뒤에 탐색한다 */
   readonly extraPaths: readonly string[];
@@ -91,7 +95,10 @@ export async function loadExternalExtensions(deps: ExternalLoadingDeps): Promise
     trustBackend: deps.trustBackend,
     clock: deps.clock,
     sdkModules: HOST_SDK_MODULES,
-    settings: { enabled: deps.enabled, hasValue: () => false },
+    settings: deps.settings,
+    // 격리는 두 값이 다 있어야 켜진다(X.loading-trust §4.3.2). 없는 쪽은 넘기지 않는다(exactOptionalPropertyTypes)
+    ...(deps.process === undefined ? {} : { process: deps.process }),
+    ...(deps.isolation === undefined ? {} : { isolation: deps.isolation }),
     coreCapabilities: coreCapabilityVersions(),
   });
   const report = await loader.loadAll(loadAllOptionsOf(deps));

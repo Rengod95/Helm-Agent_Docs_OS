@@ -5,7 +5,7 @@ import { join } from "node:path";
 import type { ServiceRegistration } from "@fresnel/platform-process";
 import { parseHostArgv } from "../src/argv.ts";
 import { buildEngineCatalog } from "../src/assembly/catalog.ts";
-import { runHostCommand, type CommandIo } from "../src/main.ts";
+import { runHostCommand, type CommandIo } from "../src/command-run.ts";
 import {
   listenTcpNotAppliedNotice,
   runServiceCommand,

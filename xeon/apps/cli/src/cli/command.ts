@@ -242,6 +242,11 @@ interface CliHostCommand {
   /** `--no-safe-mode`: 설정 `x.operations.safeMode.default`가 켜져 있어도 이번 엔진 시작은 안전 모드로 열지 않는다. "안전 모드 끄고 다시 시작"이 쓴다 */
   readonly noSafeMode: boolean;
 }
+/** `plugin-host --stdio`: 엔진이 자기 실행 파일을 다시 띄우는 플러그인 호스트 프로세스의 내부 진입. 도움말에 없다(L4.host-service.spec §4.9) */
+interface PluginHostCommand {
+  readonly kind: "plugin-host";
+  readonly stdio: true;
+}
 export interface DoctorCommand {
   readonly kind: "doctor";
   readonly output: OutputMode;
@@ -304,6 +309,7 @@ export type CliCommand =
   | ServiceCommand
   | DbCommand
   | CliHostCommand
+  | PluginHostCommand
   | DoctorCommand
   | VersionCommand
   | UsageCommand
@@ -1916,6 +1922,27 @@ function parseHost(acc: GlobalAcc, rest: readonly string[]): Result<CliHostComma
   });
 }
 
+const PLUGIN_HOST_SYNTAX = "fresnel plugin-host --stdio";
+
+/**
+ * `plugin-host --stdio`. 인자는 정확히 `--stdio` 하나다. 공통 플래그(-h, -C, --remote 따위)도 받지 않는다:
+ * 엔진이 이 모양으로만 다시 띄우므로 다른 모양은 사용 오류다(L4.host-service.spec §3.2).
+ */
+function parsePluginHost(rest: readonly string[]): Result<PluginHostCommand, UsageError> {
+  const [first, ...extra] = rest;
+  if (first === undefined) {
+    return err(
+      usage("missingArgument", t("cli.usage.pluginHost.stdioMissing.message"), PLUGIN_HOST_SYNTAX),
+    );
+  }
+  if (first !== "--stdio" || extra.length > 0) {
+    return err(
+      usage("unexpectedArgument", t("cli.usage.pluginHost.onlyStdio.message"), PLUGIN_HOST_SYNTAX),
+    );
+  }
+  return ok({ kind: "plugin-host", stdio: true });
+}
+
 function parseDb(acc: GlobalAcc, rest: readonly string[]): Result<DbCommand, UsageError> {
   const [action, ...tail] = rest;
   switch (action) {
@@ -2366,6 +2393,7 @@ const COMMAND_WORDS: ReadonlySet<string> = new Set([
   "service",
   "db",
   "host",
+  "plugin-host",
   "group",
   "author",
   "doctor",
@@ -2405,6 +2433,8 @@ function commandOf(
       return parseDb(acc, rest);
     case "host":
       return parseHost(acc, rest);
+    case "plugin-host":
+      return parsePluginHost(rest);
     case "group":
       return parseGroup(acc, rest);
     case "author":

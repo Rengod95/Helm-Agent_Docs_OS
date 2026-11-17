@@ -135,6 +135,12 @@ export {
   type TreeSignal,
 } from "./select.ts";
 export {
+  createIsolationProcessPort,
+  DEFAULT_ISOLATION_DRAIN_MS,
+  type IsolationProcessDeps,
+  type IsolationSandboxSource,
+} from "./port/isolation-spawn.ts";
+export {
   createMcpProcessPort,
   DEFAULT_MCP_STDIN_CLOSE_MS,
   type McpChild,

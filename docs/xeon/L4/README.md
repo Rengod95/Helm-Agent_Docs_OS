@@ -123,7 +123,7 @@ L4 각 문서가 아래 층 문서의 무엇을 쓰는지 적는다. 실제로 �
 
 의존 규칙 요약(`eng.dependency-rules.guide`, `architecture.layers.spec` §3.2):
 
-- DR-10: 앱(`apps/*`)끼리 import하지 않는다. 예외 하나를 둔다 [결정: review.decisions-2 U-15]: `apps/cli` → `@fresnel/host`(진입점 `.`, `./client`)의 한 방향 간선. 허용 목록 항목 `DR-10/cli-host`로 연다. 이는 `architecture.layers.spec` §3.2의 "층 기반 패키지"(L4는 `host`)를 L4에 적용한 결과다. `apps/host`는 다른 앱을 import하지 않는다. `apps/desktop`은 `@fresnel/host`를 import하지 않고 엔진 바이너리를 실행한다(`L4.host-service.spec` §3.1).
+- DR-10: 앱(`apps/*`)끼리 import하지 않는다. 예외 하나를 둔다 [결정: review.decisions-2 U-15]: `apps/cli` → `@fresnel/host`(진입점 `.`, `./client`, `./plugin-host`)의 한 방향 간선. `./plugin-host`는 내부 명령 `plugin-host --stdio`가 엔진을 싣지 않고 플러그인 호스트 본체만 싣도록 더했다(`L4.host-service.spec` §4.22). 허용 목록 항목 `DR-10/cli-host`로 연다. 이는 `architecture.layers.spec` §3.2의 "층 기반 패키지"(L4는 `host`)를 L4에 적용한 결과다. `apps/host`는 다른 앱을 import하지 않는다. `apps/desktop`은 `@fresnel/host`를 import하지 않고 엔진 바이너리를 실행한다(`L4.host-service.spec` §3.1).
 - DR-14: 조립 루트는 `apps/host` 하나다. 플러그인을 등록하려고 모든 패키지를 import한다. `apps/cli`는 조립 루트가 아니며 F와 `@fresnel/host` 공개 진입점 외의 워크스페이스 패키지를 import하지 않는다(같은 절 수정안).
 - 조립 위치 결정의 근거: 조립 코드는 L3 그룹까지 모두 import하므로 L4 아래 어느 순위에도 둘 수 없다(DR-01·DR-02). CLI가 항상 서비스를 거치는 안은 in-process 결정과 충돌한다(`L4.host-service.spec` §3.1 비교표).
 - 셸 호출은 `apps/desktop/src/shell/`의 어댑터만 거친다. 실행 때 preload가 내놓는 `window.fresnelShell`이 있으면 Electron 다리를 쓴다. 옛 Tauri 구현(커밋 424f338a)의 `@tauri-apps/*`는 `src/shell/tauri-bridge.ts` 한 파일만 import했고, 지금은 그 의존을 쓰지 않는다 [근거: `xeon/apps/desktop/src/shell/`]. WebView 코드 안에서도 셸 경계 모듈로 제한한다(`L4.desktop.spec` §4.9 W2, §11.1).

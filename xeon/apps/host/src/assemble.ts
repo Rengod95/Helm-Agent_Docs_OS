@@ -149,7 +149,13 @@ import {
   followExtEnabled,
   followThreadEnabled,
 } from "./assembly/ext-enabled.ts";
+import { extSettingsOf } from "./assembly/ext-settings.ts";
 import { loadExternalExtensions } from "./assembly/external.ts";
+import {
+  createPluginHostAssembly,
+  processPortOf,
+  sandboxSourceOf,
+} from "./assembly/plugin-host.ts";
 import { createExtUiVersionSource } from "./assembly/m4/ext-ui-version-source.ts";
 import { createProjectExtensions } from "./assembly/project-extensions.ts";
 import { createProviderLinker } from "./secrets/provider-link.ts";
@@ -689,11 +695,14 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     unbridge: (() => void) | undefined;
     unfollowEnabled: (() => void) | undefined;
     unfollowBuiltin: (() => void) | undefined;
+    /** 격리 확장의 표준오류 꼬리 읽기(진단용). 외부 확장을 싣지 않으면 undefined다 */
+    pluginHostStderrTail: ((name: string) => readonly string[]) | undefined;
   } = {
     loader: undefined,
     unbridge: undefined,
     unfollowEnabled: undefined,
     unfollowBuiltin: undefined,
+    pluginHostStderrTail: undefined,
   };
 
   const settingsWatchSlot: { watch: SettingsWatch | undefined } = { watch: undefined };
@@ -831,6 +840,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         settings: { shutdownTimeoutMs: shutdownTimeoutMs(settings) },
         exit,
         shutdown: shutdownCoordinator,
+        // 격리 자식의 샌드박스. fresnel.sandbox는 이 포트보다 늦게 올라오므로 spawn 때마다 찾는다. 없으면 격리 자식은 막힌다(닫힌 실패)
+        sandbox: options.pluginHost?.sandbox ?? sandboxSourceOf(ext),
       }),
     );
 
@@ -1216,6 +1227,15 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         os.logger("ext-loader").warn("ext.extra_path_ignored", { path });
       }
       // 화면 앱 정책도 재시작할 때 읽는다. 바뀐 값은 다음 시작에 적용한다(X.loading-trust.spec §4.3.4)
+      // 격리 확장: 띄우기 포트(fresnel.process)와 띄우기 설정이 둘 다 있어야 격리가 켜진다(L4.host-service.spec §4.9)
+      const processPort = processPortOf(ext);
+      const pluginHosts = createPluginHostAssembly({
+        scheduler: os.time.scheduler,
+        logger: os.logger("plugin-host"),
+        maskSecrets: (line) => secrets.service.redactor.mask(line).text,
+        autoDisabler: operations.autoDisabler,
+        ...(options.pluginHost?.self === undefined ? {} : { self: options.pluginHost.self }),
+      });
       const loaded = await loadExternalExtensions({
         ext,
         operations,
@@ -1227,14 +1247,13 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         trustBackend: fileBackend(join(os.dirs.config, "trust.json"), osHandle.fileLock),
         clock,
         logger: os.logger("ext-loader"),
-        enabled: (name) => {
-          const key = `ext.${name}.enabled`;
-          // 로더가 매니페스트를 읽는 중이라 키가 아직 없을 수 있다. 그때는 사용자 파일에 적힌 값을 그대로 읽는다(재시작 뒤에도 끈 채로 있게)
-          const value = built.catalog.has(key)
-            ? settings.value(key)
-            : settings.raw("ext.")[`${name}.enabled`];
-          return typeof value === "boolean" ? value : undefined;
-        },
+        // 로더가 매니페스트를 읽는 중이라 키가 아직 없을 수 있다. 그래서 키가 카탈로그에 없으면 사용자 파일의 값을 읽는다(ext-settings.ts)
+        settings: extSettingsOf(built.catalog, settings),
+        // 시험이 끄면 포트와 설정을 둘 다 넘기지 않는다(그러면 사용자 확장은 엔진 안에서 돈다)
+        ...(processPort === undefined || options.pluginHost?.disabled === true
+          ? {}
+          : { process: processPort }),
+        ...(options.pluginHost?.disabled === true ? {} : { isolation: pluginHosts.isolation }),
         cwd: process.cwd(),
         projects: options.mode === "service" ? "on_demand" : "cwd",
         signal: lifetime.signal,
@@ -1242,6 +1261,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           ? {}
           : { startup: { safeMode: { active: true, source: safeModeSource }, disabled: [] } }),
       });
+      options.pluginHost?.onLoadReport?.(loaded.report);
+      external.pluginHostStderrTail = pluginHosts.stderrTail;
       external.loader = loaded.loader;
       // 일반 켜기 스위치도 "다시 켜기"와 같은 결과를 낸다(싣지 않은 확장을 싣고, 자동 꺼짐 표시를 지운다)
       external.unfollowEnabled = followExtEnabled({

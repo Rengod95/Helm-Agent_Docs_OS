@@ -5,7 +5,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
 import { buildHelmPlugin } from "@fresnel/group-helm/build";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { SDK_MODULE_SPECIFIERS } from "@fresnel/ext-host";
 import { DEFAULT_PLUGINS_MARKER_FILE } from "../../src/assembly/default-plugins.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";

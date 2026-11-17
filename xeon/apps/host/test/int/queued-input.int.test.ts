@@ -19,7 +19,7 @@ import {
   type TapeStream,
 } from "@fresnel/core-models/testing";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost, type InProcessHost } from "../../src/main.ts";
+import { startInProcessHost, type InProcessHost } from "../../src/command-run.ts";
 import type { AssembleOptions } from "../../src/types.ts";
 import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";

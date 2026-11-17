@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { writeUserSettings } from "../fixtures/user-settings.ts";

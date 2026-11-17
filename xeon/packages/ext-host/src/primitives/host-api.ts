@@ -205,6 +205,17 @@ export function hostOf<S>(g: RegistrationApi<S>): RegistrationHostApi<S> {
   return restoreAs(witness, found);
 }
 
+/**
+ * 플러그인 호스트 프로세스(자식 쪽) 전용. 자식이 만든 g에 부가 API를 붙여 플러그인 코드의 `hostOf(g)`가 읽게 한다.
+ * 엔진 쪽은 `createRegistrationApi`가 같은 표를 채우므로 이 함수를 부르지 않는다(X.isolation, isolation-protocol.ts)
+ */
+export function bindHostApiForIsolation(
+  g: RegistrationApi<AnyState>,
+  api: RegistrationHostApi<AnyState>,
+): void {
+  hostApis.set(g, api);
+}
+
 /** 패키지 안에서만 쓴다. ext-host가 만든 g의 호스트 핵심과 scope 기록 */
 export function scopeInternalsOf<S>(g: RegistrationApi<S>): RegistrationInternals {
   const found = internals.get(g);

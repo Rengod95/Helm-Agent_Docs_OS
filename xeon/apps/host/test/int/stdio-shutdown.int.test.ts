@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import type { EventWire, HostConnection } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost, startStdioHost, type HostExit } from "../../src/main.ts";
+import { startInProcessHost, startStdioHost, type HostExit } from "../../src/command-run.ts";
 import type { AssembleOptions } from "../../src/types.ts";
 import { createStdioTransport } from "../../src/transport/stdio.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";

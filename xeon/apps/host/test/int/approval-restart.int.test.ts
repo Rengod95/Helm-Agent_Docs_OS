@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { expect, test } from "bun:test";
 import type { EventWire } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { createStdioTransport } from "../../src/transport/stdio.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { APPROVAL_COMMAND } from "../fixtures/approval-tape.ts";

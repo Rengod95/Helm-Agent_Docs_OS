@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { attempt } from "@fresnel/contracts";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { callingModelsAfterTool, warmUntilAdvertised } from "../fixtures/mcp-settle.ts";

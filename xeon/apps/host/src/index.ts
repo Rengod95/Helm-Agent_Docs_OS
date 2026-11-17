@@ -33,7 +33,7 @@ export {
   type HostExit,
   type InProcessHost,
   type StdioHostOptions,
-} from "./main.ts";
+} from "./command-run.ts";
 export { renderSettingsSchema } from "./settings.ts";
 export {
   resolveHostStatePaths,

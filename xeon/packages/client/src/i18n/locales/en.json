@@ -829,6 +829,8 @@
   "cli.usage.oneName.fix": "Use only one name",
   "cli.usage.oneOf.fix": "Use one of {list}",
   "cli.usage.onlyOne.fix": "Use only one of them",
+  "cli.usage.pluginHost.onlyStdio.message": "plugin-host accepts only --stdio",
+  "cli.usage.pluginHost.stdioMissing.message": "plugin-host needs --stdio",
   "cli.usage.remote.missing.fix": "Use the form --remote <address>",
   "cli.usage.remote.missing.message": "--remote needs an address",
   "cli.usage.schedule.addSyntax": "fresnel schedule add <prompt> (--every <seconds> | --at <time> | --remote | --watch <path>[,<path>…] | --loop <seconds> --max-iterations <n> --expires-in <seconds>) [--title <title>] [--workspace <folder>] [--disabled]",

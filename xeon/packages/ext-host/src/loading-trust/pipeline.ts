@@ -91,7 +91,6 @@ export type LoadDiagnosticCode =
   | "isolation_unavailable"
   | "isolation_point_unsupported"
   | "isolation_drive_unsupported"
-  | "isolation_exited"
   | "isolation_restart_limit"
   | "isolation_protocol"
   | UiDiagnosticCode;

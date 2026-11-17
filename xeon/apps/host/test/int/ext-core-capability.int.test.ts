@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { answeringModels } from "../fixtures/tape-host.ts";
@@ -40,6 +40,7 @@ async function statusesOf(requires: readonly { id: string; range: string }[]) {
   writeUserSettings(home, TAPE_SETTINGS);
   install(join(home.root, "config", "extensions", "demo-user"), "demo-user", requires);
   const host = await startInProcessHost({
+    pluginHost: { disabled: true },
     devChecks: true,
     defaultPluginsDir: mkdtempSync(join(tmpdir(), "ext-core-cap-bundles-")),
     extraPlugins: [],

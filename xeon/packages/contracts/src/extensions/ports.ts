@@ -195,15 +195,19 @@ export const StoreMigrationsPortKey: PortKey<StoreMigrationsPort> = {
 
 // ── 프로세스 실행 (서비스 fresnel.process, 제공 platform-process) ───────────
 
-/** 격리 확장 자식 프로세스(2차). 사용처: X.loading-trust.spec §3.8 */
+/**
+ * 플러그인 호스트 프로세스를 띄우는 요청(review.m5-drive-isolation §3.1). 엔진이 자기 실행 파일을 다른 모드로 다시 실행한다
+ * (`command` = `process.execPath`, `args`에 하위 명령). L0는 OS 샌드박스로 감싸 띄운다: 파일은 `readRoot`와 런타임 읽기뿐,
+ * 쓰기 없음, 네트워크 전체 허용(§3.4 [결정: 2026-11-17 사용자])
+ */
 export interface IsolationSpawnSpec {
-  /** 자식 런타임 진입점. ext-host의 isolation/child-main.ts 절대 경로 */
-  readonly main: string;
+  readonly command: string;
   readonly args: readonly string[];
-  readonly cwd: string;
-  /** 허용 목록으로만 만든다. DB 경로와 시크릿은 넣지 않는다(X.loading-trust.spec §4.9.6) */
+  /** 플러그인 패키지 폴더(검토본 `tree/`, 초안은 `drafts/<draftId>/tree/`). 읽기 전용으로 열린다. 작업 폴더이기도 하다 */
+  readonly readRoot: string;
+  /** 허용 목록으로만 만든다. DB 경로와 시크릿은 넣지 않는다 */
   readonly env: Readonly<Record<string, string>>;
-  /** "ext:<name>:<generation>" */
+  /** "ext:<name>:<versionId>" */
   readonly label: string;
 }
 
@@ -213,11 +217,17 @@ export interface IsolatedChild {
   readonly stdout: NodeJS.ReadableStream;
   readonly stderr: NodeJS.ReadableStream;
   readonly exited: Promise<{ readonly code: number | null; readonly signal: string | null }>;
+  /** 프로세스 트리 전체에 보낸다 */
   kill(signal: "SIGTERM" | "SIGKILL"): void;
 }
 
+export type IsolationSpawnError =
+  | { readonly kind: "spawn_failed"; readonly code: string; readonly message: string }
+  /** 샌드박스에 넣어야 하는데 이 기기에서 격리할 수 없다. 격리 없이 띄우지 않는다(닫힌 실패) */
+  | { readonly kind: "sandbox_unavailable"; readonly reason: string };
+
 export interface IsolationProcessPort {
-  spawn(spec: IsolationSpawnSpec): Promise<IsolatedChild>;
+  spawn(spec: IsolationSpawnSpec): Promise<Result<IsolatedChild, IsolationSpawnError>>;
 }
 
 /** 외부 훅 실행. 사용처: X.operations.spec §3.7 */

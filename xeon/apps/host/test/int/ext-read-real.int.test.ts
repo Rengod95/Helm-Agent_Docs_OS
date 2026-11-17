@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { answeringModels } from "../fixtures/tape-host.ts";
@@ -77,7 +77,12 @@ async function startReal(options: {
   readonly settings?: Readonly<Record<string, unknown>>;
 }) {
   const home = useEngineHome();
-  writeUserSettings(home, { ...TAPE_SETTINGS, ...options.settings });
+  // 사용자 확장은 기본이 격리(플러그인 호스트 프로세스)다. 이 시험은 엔진 안의 실패 장부와 읽기 규칙을 보므로 명시로 끈다(L4.host-service.spec §4.9)
+  writeUserSettings(home, {
+    ...TAPE_SETTINGS,
+    [`ext.${PROBE}.isolation`]: "none",
+    ...options.settings,
+  });
   writeProbe(home, options.fail);
   const group = testGroup(fixedIdFactory(9));
   const host = await startInProcessHost({

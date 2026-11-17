@@ -6,6 +6,11 @@ import type { AssembleOptions } from "./types.ts";
 
 export type HostCommand =
   | { readonly kind: "host-stdio" }
+  /**
+   * 격리 확장의 플러그인 호스트 프로세스를 실행한다(`plugin-host --stdio`). 엔진을 세우지 않고 설정과 저장소를 열지 않는다(L4.host-service.spec §4.9).
+   * 종료코드 0은 정상 끝(엔진이 dispose했거나 입력이 닫힘), 1은 시작 실패나 루프 실패다
+   */
+  | { readonly kind: "plugin-host" }
   /** 서비스 본체를 전경에서 실행한다(`fresnel service run`, `fresnel host --service`). 시작 거부는 종료코드 1, 이미 떠 있으면 0 */
   | {
       readonly kind: "service-run";

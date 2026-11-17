@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { ok, repeatAsync } from "@fresnel/contracts";
 import type { DnsResolver, HttpTransport } from "@fresnel/cap-web";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
