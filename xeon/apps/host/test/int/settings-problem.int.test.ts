@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 import type { HostConnection } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { writeUserSettings } from "../fixtures/user-settings.ts";

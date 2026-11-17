@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { answeringModels } from "../fixtures/tape-host.ts";
@@ -25,6 +25,7 @@ const GROUP = "demo-group";
 async function startReal(home: EngineHome, settings: Readonly<Record<string, unknown>>) {
   writeUserSettings(home, settings);
   const host = await startInProcessHost({
+    pluginHost: { disabled: true },
     devChecks: true,
     defaultPluginsDir: mkdtempSync(join(tmpdir(), "ext-test-bundles-")),
     extraPlugins: [],

@@ -1,8 +1,8 @@
-import { basename } from "node:path";
 import { assertNever } from "@fresnel/contracts";
 import type { WireResult } from "@fresnel/contracts/wire";
 import type { EnsureOutcome, ServiceRegistration } from "@fresnel/platform-process";
 import type { CommandIo, HostCommand } from "../host-command.ts";
+import { currentSelf, selfEntryPrefix } from "../self-command.ts";
 import {
   serviceStatus,
   serviceStatusView,
@@ -79,22 +79,16 @@ export function defaultServiceCommand(
     readonly tcp?: { readonly host: string; readonly port: number };
   } = {},
 ): ServiceCommand {
-  const entry = Bun.main;
-  const isScript = /\.(ts|js|mjs)$/.test(entry) && !entry.startsWith("/$bunfs/");
   const flags = [
     ...(extra.safeMode === true ? ["--safe-mode"] : []),
     ...(extra.tcp === undefined
       ? []
       : ["--listen-tcp", `${extra.tcp.host}:${String(extra.tcp.port)}`]),
   ];
+  const self = currentSelf();
   return {
-    command: process.execPath,
-    args: [
-      ...(isScript && basename(process.execPath) !== basename(entry) ? [entry] : []),
-      "service",
-      "run",
-      ...flags,
-    ],
+    command: self.execPath,
+    args: [...selfEntryPrefix(self), "service", "run", ...flags],
   };
 }
 

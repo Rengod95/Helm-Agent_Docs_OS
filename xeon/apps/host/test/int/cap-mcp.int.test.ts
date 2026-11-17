@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { createStubServer } from "@fresnel/cap-mcp/testing";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import {

@@ -100,6 +100,11 @@ export interface CliDeps {
    */
   readonly startStdioHost: (options: StdioHostOptions) => Promise<HostExit>;
   /**
+   * `plugin-host --stdio`의 본체(L4.host-service.spec §4.9). 실제 값은 @fresnel/host/plugin-host의 runPluginHostStdio다.
+   * 엔진을 싣지 않도록 모듈은 부를 때 읽는다(runtime.ts). 끝나면 0(정상 끝), 1(시작 실패 또는 루프 실패)이다
+   */
+  readonly runPluginHost: (io: CommandIo) => Promise<0 | 1>;
+  /**
    * `host --stdio`가 원격 주소를 받았을 때 주소를 정한다(HS-89). 실제 값은 @fresnel/host의 resolveRemoteEndpoint.
    * `--remote` 플래그가 없으면 `flag`를 넘기지 않는다
    */

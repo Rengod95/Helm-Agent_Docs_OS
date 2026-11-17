@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { expect, test } from "bun:test";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { answeringModels } from "../fixtures/tape-host.ts";
@@ -23,6 +23,7 @@ const NAME = "auth-demo";
 async function startReal(home: EngineHome) {
   writeUserSettings(home, TAPE_SETTINGS);
   const host = await startInProcessHost({
+    pluginHost: { disabled: true },
     devChecks: true,
     defaultPluginsDir: mkdtempSync(join(tmpdir(), "devkit-bundles-")),
     extraPlugins: [],

@@ -11,7 +11,7 @@ import {
   type ReviewGetResult,
 } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";

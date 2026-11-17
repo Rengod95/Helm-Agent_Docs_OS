@@ -114,6 +114,7 @@ CLI는 엔진을 in-process로 쓴다(ADR-0006 §3.3). 그래서 CLI 프로세�
 | `fresnel service run` | 서비스 본체를 전경에서 실행한다. `service start`와 `ensure`가 이 인자로 자기 바이너리를 detached 실행한다. 사용자 문서에는 싣지 않는다 | `runHostCommand({ kind: "service-run" })` → `startService` | M3 |
 | `fresnel service install` / `uninstall` | 로그인 자동 시작을 등록하거나 해제한다(사용자 영역의 launchd 사용자 에이전트 또는 systemd 사용자 유닛). 설정 키 없이 등록 파일로 상태를 본다(아래 문단) | `runHostCommand({ kind: "service-install" \| "service-uninstall" })` → `installAutostart`, `uninstallAutostart` | W6 |
 | `fresnel config schema --scope <scope>` | 설정 파일 JSON Schema 출력(§6.2) | `runHostCommand({ kind: "config-schema" })` | M1 |
+| `fresnel plugin-host --stdio` | 격리 확장의 플러그인 호스트 프로세스. 엔진이 자기 실행 파일을 이 인자로 다시 띄운다. 설정과 저장소를 열지 않고 stdin·stdout으로 줄 단위 프로토콜(`isolation-protocol.ts`)을 처리한다. 사용자 문서에는 싣지 않는다(§4.22) | `main.ts`가 엔진을 싣지 않고 `plugin-host/run.ts`의 `runPluginHostStdio`를 바로 부른다. CLI 진입은 `deps.runPluginHost`로 `@fresnel/host/plugin-host`의 같은 함수를 부른다(§4.22) [근거: apps/cli/src/commands/plugin-host.ts, apps/cli/src/runtime.ts] | M5b-1 |
 
 명령줄 파싱과 도움말은 `L4.cli.spec`(§3.1, §3.2)이 정한다. 이 문서는 서브커맨드 이름과 호출 API만 정한다.
 
@@ -523,6 +524,7 @@ export declare function startStdioHost(options: StdioHostOptions): Promise<HostE
 
 export type HostCommand =
   | { readonly kind: "host-stdio" }
+  | { readonly kind: "plugin-host" }   // `fresnel plugin-host --stdio`(§4.22)
   | { readonly kind: "service-run"; readonly safeMode: boolean; readonly tcp?: { readonly host: string; readonly port: number } }   // `fresnel service run`, `fresnel host --service [--safe-mode] [--listen-tcp <host>:<port>]`
   | { readonly kind: "service-start"; readonly start?: ServiceCommand; readonly safeMode?: boolean; readonly tcp?: { readonly host: string; readonly port: number } }   // safeMode·tcp는 새로 띄울 때 `service run`의 인자가 된다
   | { readonly kind: "service-status"; readonly json: boolean }
@@ -852,7 +854,7 @@ export declare function resolveLaunchMode(options?: { readonly dataDir?: string 
 
 1. 경로: `dataDir`가 없으면 L0.os에서 기본 데이터 디렉터리를 받는다.
 2. 루트 컨텍스트: ext-host가 제공하는 루트 생성 API로 Cordis 루트 컨텍스트를 만든다. `apps/host`는 Cordis를 직접 import하지 않는다(DR-11). L4는 Cordis 서비스를 제공하지 않는다(`architecture.layers.spec` §4.4).
-3. 플러그인 등록: 기본 플러그인을 의존 순서로 싣고(§4.15), 이어서 `extraPlugins`를 싣는다. `defaultGroups`가 `false`거나 안전 모드이면 L3 기본 그룹(Helm, 학습 그룹)을 빼고 싣는다. 안전 모드는 `AssembleOptions.safeMode`(CLI `--safe-mode`)가 참이거나, 옵션이 없고 사용자 설정 `x.operations.safeMode.default`가 참일 때다(옵션이 `false`를 명시하면 설정보다 앞서 끈다). `Engine.safeMode`와 `host.status.safeMode`가 이 값을 알린다. `defaultGroups`가 `false`가 아니면 기본 플러그인(Helm)을 사용자 확장 위치(`<config>/extensions/<이름>/`)에 설치하고(`installDefaultPlugin`, 번들 버전 비교, 호스트 상태의 표지 `<state>/default-plugins.json`) 외부 로더가 `user` 등급으로 싣는다. 사용자가 설치본을 지우면 표지가 있어 다시 설치하지 않는다. 설치본이 낸 서브에이전트 정의(`agents/*.md`)는 엔진 조립에 필요해 단위 목록보다 먼저 읽어 `agentDefinitions`에 더한다. 확장이 `registerCommand`로 올린 명령(`/helm`)은 명령 서비스(`command.list`·`command.run`)에 이어 준다. 호출 id는 명령 입력의 `requestId`를 `invocationId`로 넘긴다(재시도에도 같은 값). 번들이 외부 import로 남기는 SDK 모듈 가운데 `@fresnel/group-sdk`만 호스트가 가상 모듈로 넘긴다(나머지는 X가 등록한다). 작업 폴더 확장은 시작 때와 여는 때로 나뉜다: in-process·stdio는 시작 때 `loadAll`이 `cwd`의 작업 폴더를 판정해 싣고, 서비스 모드는 시작 때 싣지 않고(`projects: "on_demand"`), 모든 모드가 작업 폴더를 여는 때 싣는다(§4.9.4, M3-REQ-38). [결정: 오케스트레이터 기본값, fxPT] 그룹의 켜기·끄기는 `ext.helm.enabled`(`reservedExtensionSettings`로 카탈로그에 실린다)와 `l3.learning.*`이 정하고, Helm 동작 설정은 `ext.helm.*`이다(외부 그룹은 X의 `settingValue`로 자기 키를 읽는다). 신뢰 판정은 X(`X.loading-trust.spec`)가 한다.
+3. 플러그인 등록: 기본 플러그인을 의존 순서로 싣고(§4.15), 이어서 `extraPlugins`를 싣는다. `defaultGroups`가 `false`거나 안전 모드이면 L3 기본 그룹(Helm, 학습 그룹)을 빼고 싣는다. 안전 모드는 `AssembleOptions.safeMode`(CLI `--safe-mode`)가 참이거나, 옵션이 없고 사용자 설정 `x.operations.safeMode.default`가 참일 때다(옵션이 `false`를 명시하면 설정보다 앞서 끈다). `Engine.safeMode`와 `host.status.safeMode`가 이 값을 알린다. `defaultGroups`가 `false`가 아니면 기본 플러그인(Helm)을 사용자 확장 위치(`<config>/extensions/<이름>/`)에 설치하고(`installDefaultPlugin`, 번들 버전 비교, 호스트 상태의 표지 `<state>/default-plugins.json`) 외부 로더가 `user` 등급으로 싣는다. 사용자가 설치본을 지우면 표지가 있어 다시 설치하지 않는다. 설치본이 낸 서브에이전트 정의(`agents/*.md`)는 엔진 조립에 필요해 단위 목록보다 먼저 읽어 `agentDefinitions`에 더한다. 확장이 `registerCommand`로 올린 명령(`/helm`)은 명령 서비스(`command.list`·`command.run`)에 이어 준다. 호출 id는 명령 입력의 `requestId`를 `invocationId`로 넘긴다(재시도에도 같은 값). 번들이 외부 import로 남기는 SDK 모듈 가운데 `@fresnel/group-sdk`만 호스트가 가상 모듈로 넘긴다(나머지는 X가 등록한다). 작업 폴더 확장은 시작 때와 여는 때로 나뉜다: in-process·stdio는 시작 때 `loadAll`이 `cwd`의 작업 폴더를 판정해 싣고, 서비스 모드는 시작 때 싣지 않고(`projects: "on_demand"`), 모든 모드가 작업 폴더를 여는 때 싣는다(§4.9.4, M3-REQ-38). [결정: 오케스트레이터 기본값, fxPT] 그룹의 켜기·끄기는 `ext.helm.enabled`(`reservedExtensionSettings`로 카탈로그에 실린다)와 `l3.learning.*`이 정하고, Helm 동작 설정은 `ext.helm.*`이다(외부 그룹은 X의 `settingValue`로 자기 키를 읽는다). 신뢰 판정은 X(`X.loading-trust.spec`)가 한다. 격리 확장의 조립 의존(띄우기 포트, 띄울 명령, 시계, 재시작 한도, 샌드박스 찾기)과 설정 `ext.<이름>.isolation`의 뜻은 §4.22가 정한다.
 4. 서비스 확인: 포트가 요구하는 서비스(§3.3.2)가 모두 주입됐는지 확인한다. 없으면 `missingService`.
 5. 카탈로그: 모든 패키지의 설정 그룹과 확장 매니페스트에서 나온 정의를 `buildCatalog`에 넣는다. 결과가 `{ ok: false }`이면 기동을 거부한다(`catalog`). 단, F wire §5 규칙대로 확장 키 문제(`foreignNamespace`, 확장 사이 `duplicateKey`)는 X 로더가 그 확장의 설정을 빼고 다시 조립하므로 여기까지 오는 문제는 코어 키 문제다 [가정: 재조립 절차는 `X.loading-trust.spec`이 정한다]. 정적 카탈로그에는 `group-helm`, `group-account-rotation`의 설정 그룹이 듭니다(HS-80).
 6. 설정 범위: `SettingsStorePort.layers(undefined)`로 파일 범위를 읽는다. 값 검사 실패는 진단으로 남기고 시작을 막지 않는다(F wire §4.8).
@@ -1208,6 +1210,44 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 - 케이스(`case.ts`): `parseCase`가 `{ id, type: capability|regression|quiet, start?: { workspace? }, prompt, checks[] }`를 검증한다. 검사는 `file_exists`, `file_matches { path, pattern }`(정규식 200자, 파일 1 MiB 상한), `command`(+`exit`, 기본 0), `tool_used { name, min?, max? }`, `max_cost_usd`다. 경로는 작업 폴더 안이어야 한다(`..`와 절대 경로는 실패 `path_outside_workspace`). `gradeCase(case, evidence, runCommand)`는 모든 검사를 돌려 검사마다 통과와 이유를 돌려준다. 명령은 실행 쪽이 넘기는 `CommandRunner`로 돈다. 케이스 파일(YAML)을 읽는 일, 결과 저장, 근거 Turn 연결은 하지 않았다 [미결].
 - 비교(`compare.ts`): `compareRuns`가 케이스마다 반복별 통과 횟수를 두 프로필로 견줘 좋아짐·나빠짐·같음 수와 양측 정확 부호 검정 p값, 판정(`improved`, `regressed`, `indistinguishable`, 기준 5%)을 낸다. 같은 프로필끼리 비교가 구분 안 됨이 아니면 `isNoisy`로 표시한다. `planRuns`는 시작 전 확인 창에 보일 실행 수(케이스 × 반복 × 2, 처음 변동폭 측정은 케이스 × 반복을 더함)와 비용 범위다. 한 번 비용은 호출자가 작업 몇 개로 재서 넘긴다.
 - 시험: `test/assembly/eval/{isolate,case,compare}.test.ts`.
+
+### 4.22 플러그인 호스트 진입과 격리 조립 [구현: M5b-1, 2026-11-18]
+
+**진입.** `plugin-host --stdio`는 `main.ts`가 엔진을 싣기 전에 처리한다. `main.ts`는 엔진(`assemble`, 카탈로그, 전송)을 정적으로 싣지 않는다. 플러그인 호스트 경로는 `plugin-host/run.ts`를 동적으로 싣고, 그 경로가 싣는 것은 `@fresnel/ext-host`, `@fresnel/contracts`, `@fresnel/group-sdk`뿐이다. 나머지 서브커맨드는 `command-run.ts`를 동적으로 싣는다. 인자는 정확히 `--stdio` 하나다. 그 밖의 인자는 사용 오류(종료코드 2)다. 실행 결과는 `runPluginHost`가 끝나는 이유로 정한다. `disposed`와 `stdin_closed`는 0, `init_failed`와 `fault`는 1이다. 설정과 저장소는 열지 않는다. 측정값은 아래 표다.
+
+| 측정(이 기기 macOS, 2026-11-18, `/usr/bin/time -l`, 표준입력 닫힘, 5회) | 값 |
+|---|---|
+| `bun apps/host/src/main.ts plugin-host --stdio`의 시작부터 종료까지 | 0.20~0.27초(중앙 0.22초) |
+| 최대 상주 메모리 | 70~72 MB |
+| 비교: 빈 `bun -e 0` | 0.01초, 9 MB |
+| 비교: 엔진을 싣는 `config schema`(같은 진입, 명령만 다름) | 0.8초, 170 MB |
+
+목표(약 20 ms)에는 못 미친다. 시작 비용의 대부분은 `@fresnel/contracts`를 싣는 데서 나온다(단독으로 0.19초, 36 MB). `ext-host`와 `group-sdk`는 그 위에 각각 약 0.03초를 더한다. 엔진 조립을 뺀 덕에 엔진 경로보다 훨씬 가볍지만, 20 ms는 F 계약 패키지의 가져오기 비용을 줄여야 닿는다 [미결] [근거: 위 측정, packages/contracts/src의 가져오기 그래프].
+
+**자기 실행 명령.** `pluginHostLaunch(info)`(`plugin-host/launch.ts`)는 실행 파일을 `process.execPath`로 하고, 인자는 소스 실행이면 `[진입 파일, "plugin-host", "--stdio"]`, 컴파일 바이너리면 `["plugin-host", "--stdio"]`다. 두 모양은 `selfEntryPrefix`(`self-command.ts`)가 가른다. 환경은 `FRESNEL_EXT_NAME`(확장 이름) 하나뿐이고, 부모 환경의 허용 목록 이름은 포트(`platform-process`)가 더한다. 시크릿과 데이터 경로는 넘기지 않는다.
+
+**조립 의존.** 외부 확장 로더(`assembly/external.ts`의 `loadExternalExtensions`)는 격리 의존을 다음처럼 받는다(`assembly/plugin-host.ts`).
+
+- `process`: `fresnel.process` 포트(`ProcessService.spawn`)다. 플랫폼 프로세스가 올라와 있으면 넘긴다.
+- `isolation.launch`: `pluginHostLaunch`. `isolation.setTimer`: `fresnel.os`의 스케줄러. `isolation.logger`: 구성 요소 `plugin-host`.
+- `initTimeoutMs` 5000, `idleMs` 60000, `maxRestarts` 1. `idleMs`와 `maxRestarts`는 설정 키가 없어 상수다. 설정 키 `x.loading-trust.isolation.maxRestarts`와 `restartWindowSec`는 감독자가 읽지 않는다 [근거: packages/ext-host/src/isolation/supervisor.ts, X.loading-trust §4.9.7].
+- `maskSecrets`: 엔진의 시크릿 마스킹(`secrets.service.redactor.mask`). 표준오류 줄은 저장하기 전에 가린다.
+- `onRestartLimit`: `autoDisabler.disableNow("ext:<이름>", "isolation_restart_limit")`. 재시작 한도를 넘은 확장은 면제 없이 바로 끈다. 다시 켜기는 설정으로 한다(X.operations.spec §4.3.4).
+- `onSupervisor`: 확장 이름마다 감독자를 기록한다. `stderrTail(name)`이 표준오류의 마지막 줄을 돌려준다. 진단 화면과 와이어 메서드에는 아직 연결하지 않았다 [미결] [근거: apps/host/src/assembly/plugin-host.ts `PluginHostAssembly.stderrTail`].
+- 샌드박스: `platform-process`의 `processPlugin({ sandbox })`에 `() => ext.ports.get(fresnel.sandbox)`를 넘긴다. 샌드박스 서비스는 포트보다 늦게 올라오므로 자식을 띄울 때마다 찾는다. 찾지 못하면 자식 기동은 `sandbox_unavailable`이다(닫힌 실패).
+- 프로젝트 확장(`loadProject`)은 같은 로더 인스턴스를 쓰므로 같은 의존을 받는다. 조립에 따로 넘기는 것은 없다 [근거: apps/host/src/assembly/project-extensions.ts].
+
+**초기화 예산.** 확장의 setup은 설정 `x.operations.budget.setupMs`(기본 10초) 안에 끝나야 한다. 격리 확장의 setup은 `host.init` 응답을 기다리므로, `host.init` 시한은 예산보다 짧아야 한다. 그래서 `initTimeoutMs`를 5초로 낮춘다(5초와 여유 5초). 로더의 기본 10초(`LoaderIsolation.initTimeoutMs`)는 조립이 넘기는 값으로 바뀐다 [제안].
+
+**설정 `ext.<이름>.isolation`(예약 키, X.loading-trust §4.5.2).** 로더에 넘는 값은 사용자 파일에 명시된 값뿐이다(`extSettingsOf`, `assembly/ext-settings.ts`). 명시하지 않았으면 로더가 매니페스트 `isolation`을 쓰고, 그것도 없으면 `process`다(§4.9.0). 명시 `none`은 그 확장을 엔진 안에서 돌린다. 명시 `process`는 포트가 없으면 `isolation_unavailable`이다. 카탈로그의 정의 기본값은 `manifest.isolation ?? "process"`이고 `none`과 `process`만 받는다(`reservedExtensionSettings`). 저장된 스키마 파일의 기본값이 `none`이던 것은 이 정의를 따라 `process`로 고쳤다(`schema/settings.<범위>.schema.json`).
+
+**필수 사용자 설정.** 로더의 `hasValue(key)`는 키의 유효 값이 있고 빈 문자열이 아니면 참이다. 이전에는 항상 거짓이라 필수 사용자 설정이 있는 확장은 설정이 채워져도 `config_required`로 꺼졌다 [근거: 이전 `apps/host/src/assembly/external.ts`의 `hasValue: () => false`, 지금은 `apps/host/src/assembly/ext-settings.ts`].
+
+**하지 않은 것.** 엔진이 비정상 종료해 남은 플러그인 호스트 프로세스를 다음 시작에 정리하는 일은 없다. 자식은 표준입력이 닫히면 스스로 끝난다(§4.9.7) [근거: apps/host/src/assembly/plugin-host.ts, packages/ext-host/src/isolation/child-runtime.ts `runPluginHost`]. 기본 플러그인 Helm은 주도(`drives`)를 쓰므로 기본 설정에서도 엔진 안에서 돈다(§4.9.0). 설정 화면의 기본 표시만 `process`로 보인다.
+
+**해결: 배포 CLI 바이너리(M5b-1).** 격리 확장의 자식은 `process.execPath`로 다시 뜬다. `apps/cli`의 `fresnel`은 `plugin-host --stdio`를 내부 명령으로 받는다(`apps/cli/src/cli/command.ts`의 `parsePluginHost`, 도움말에 없다). 진입은 `deps.runPluginHost`로 `@fresnel/host/plugin-host`(`apps/host/src/plugin-host/run.ts`)의 `runPluginHostStdio`를 동적으로 싣는다. `runHostCommand`는 거치지 않는다: `command-run.ts`가 엔진 전체를 싣기 때문이다. 확인(2026-11-18, 맥): `printf '' | bun apps/cli/src/main.ts plugin-host --stdio`는 0으로 끝난다(약 0.15초, 최대 RSS 약 87 MB). 입력을 열어 둔 채 `host.init` 한 줄을 보내면 잘못된 루트에 `handler_threw` 오류 응답을 쓰고 1로 끝난다(약 0.14초). `bun build --compile --minify --bytecode apps/cli/src/main.ts`로 만든 바이너리는 같은 입력에 약 0.05초, 최대 RSS 약 77 MB로 답하고, 이 바이너리를 자식으로 띄운 격리 시험 다섯 개가 모두 통과했다. 사용 오류(`plugin-host`, `plugin-host --foo`, `plugin-host --stdio x`)는 종료 코드 2다 [근거: apps/cli/src/commands/plugin-host.ts, apps/cli/src/runtime.ts, apps/cli/test/plugin-host.test.ts].
+
+**시험.** `test/plugin-host.test.ts`는 인자 두 모양과 자기 실행 명령의 두 모양과 종료코드를 본다. `test/int/plugin-host.int.test.ts`는 실제 자식(`bun apps/host/src/main.ts plugin-host --stdio`)을 띄우고 샌드박스만 대역으로 바꿔, 훅이 상태를 커밋하고 기록을 쓰는 것, 자식의 프로세스 번호가 엔진과 다른 것, 엔진을 닫으면 자식이 끝나는 것, 명시 `none`이면 엔진 안에서 도는 것을 본다. 실제 Helm 묶음을 싣는 시험은 Helm의 격리가 `none`(엔진 안)인지 본다. `defineGroup` 플러그인(같은 파일의 마지막 시험)도 같은 자식에서 돈다. 첫 turn의 정산 훅이 상태를 1로 커밋하고, 둘째 turn에서 도구가 그 상태를 읽는다(외부 도구는 exec 위험이라 승인을 한 번 허용한다). 명령 `/pluginhostgroup`이 같은 상태를 돌려주고, 자식 프로세스 번호가 두 turn에서 같다. 평범한 `register` 플러그인의 `g`에는 `registerTool`과 `registerCommand`가 없다 [근거: packages/ext-host/src/isolation/child-api.ts `makeApi`, `makeHost`]. 상태 버전 2 이상은 자식의 `migrateState`가 `unsupported_api`라서 적재가 `isolation_protocol` 진단으로 실패한다(2026-11-18 탐침, 시험으로는 남기지 않았다) [근거: packages/ext-host/src/isolation/child-api.ts `makeHost`, packages/group-sdk/src/wrap.ts `wrap`]. `port`(`fresnel.agents`)는 `service_reserved`로 답하고 group-sdk가 없음으로 받는다 [근거: packages/group-sdk/src/wrap.ts `optionalPort`].
 
 ## 5. 실패와 경계 사례
 

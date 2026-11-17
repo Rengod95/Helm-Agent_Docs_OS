@@ -6,7 +6,7 @@ import { defineManifest, type ExtensionEntry } from "@fresnel/contracts/extensio
 import { hostOf, type BuiltinExtensionModule } from "@fresnel/ext-host";
 import { Type } from "typebox";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";

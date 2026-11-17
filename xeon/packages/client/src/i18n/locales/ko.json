@@ -828,6 +828,8 @@
   "cli.usage.oneName.fix": "이름 하나만 쓴다",
   "cli.usage.oneOf.fix": "{list} 중 하나를 쓴다",
   "cli.usage.onlyOne.fix": "둘 중 하나만 쓴다",
+  "cli.usage.pluginHost.onlyStdio.message": "plugin-host는 --stdio만 받는다",
+  "cli.usage.pluginHost.stdioMissing.message": "plugin-host에는 --stdio가 필요하다",
   "cli.usage.remote.missing.fix": "--remote <주소> 형식으로 쓴다",
   "cli.usage.remote.missing.message": "--remote에 주소가 없다",
   "cli.usage.schedule.addSyntax": "fresnel schedule add <프롬프트> (--every <초> | --at <시각> | --remote | --watch <경로>[,<경로>…] | --loop <초> --max-iterations <n> --expires-in <초>) [--title <제목>] [--workspace <폴더>] [--disabled]",

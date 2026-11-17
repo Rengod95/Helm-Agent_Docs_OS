@@ -4,7 +4,7 @@ import { WorkGoalsKey } from "@fresnel/contracts/capabilities";
 import { defineManifest, type ExtensionEntry } from "@fresnel/contracts/extensions";
 import { wireError, type HostConnection } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { startService, type ServiceHandle, type ServiceStart } from "../../src/index.ts";
 import type { HostPluginModule } from "../../src/types.ts";
 import { callingModels } from "../fixtures/call-tape.ts";

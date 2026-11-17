@@ -51,7 +51,7 @@
       }
     },
     "ext.account-rotation.isolation": {
-      "default": "none",
+      "default": "process",
       "enum": [
         "none",
         "process"
@@ -67,6 +67,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
+          "help": "none = allow running inside the engine. process = run in its own plugin process (default).",
           "label": "Account rotation isolation",
           "labelArgs": {
             "name": "Account rotation"
@@ -642,7 +643,7 @@
       }
     },
     "ext.helm.isolation": {
-      "default": "none",
+      "default": "process",
       "enum": [
         "none",
         "process"
@@ -658,6 +659,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
+          "help": "none = allow running inside the engine. process = run in its own plugin process (default).",
           "label": "Helm isolation",
           "labelArgs": {
             "name": "Helm"
@@ -939,7 +941,7 @@
       }
     },
     "ext.provider-anthropic-oauth.isolation": {
-      "default": "none",
+      "default": "process",
       "enum": [
         "none",
         "process"
@@ -955,6 +957,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
+          "help": "none = allow running inside the engine. process = run in its own plugin process (default).",
           "label": "Anthropic OAuth provider isolation",
           "labelArgs": {
             "name": "Anthropic OAuth provider"

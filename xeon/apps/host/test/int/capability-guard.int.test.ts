@@ -9,7 +9,7 @@ import { defineManifest } from "@fresnel/contracts/extensions";
 import { hostOf } from "@fresnel/ext-host";
 import { Type } from "typebox";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import type { HostPluginModule } from "../../src/types.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";

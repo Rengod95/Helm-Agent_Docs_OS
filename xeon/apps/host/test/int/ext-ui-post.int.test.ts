@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
 import { buildHelmPlugin } from "@fresnel/group-helm/build";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { isRecord, rawClient, type RawClient } from "../fixtures/raw-client.ts";

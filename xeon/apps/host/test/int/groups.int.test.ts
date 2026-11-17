@@ -8,7 +8,7 @@ import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { GroupSettingsSourceKey, type GroupSettingsSource } from "@fresnel/group-sdk";
 import { AssembleError, assemble } from "../../src/assemble.ts";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import type { HostPluginModule } from "../../src/types.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
