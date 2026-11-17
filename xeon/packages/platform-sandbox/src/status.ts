@@ -30,6 +30,15 @@ export interface DetectDeps {
 const HINT_MAX = 500;
 const BWRAP_MIN_VERSION = "0.4.0";
 
+/** `missing`에 싣는 이름. 상태 요약이 "missing nested user namespaces"로 읽힌다 */
+const NESTED_USERNS_MISSING = "nested user namespaces";
+
+/** bwrap은 뜨는데 그 안의 중첩 네임스페이스가 막힐 때의 안내. 조용히 끄지 않고 고치는 법을 알린다(spec §4.1) */
+const NESTED_USERNS_HINTS: readonly string[] = [
+  "The Linux security policy blocks the nested user namespace the sandbox needs (Ubuntu 26.04 AppArmor profile bwrap-userns-restrict, which kernel.apparmor_restrict_unprivileged_userns=0 does not lift).",
+  "Fix with administrator rights: sudo apparmor_parser -R /etc/apparmor.d/bwrap-userns-restrict, or load an AppArmor profile for /usr/bin/bwrap with flags=(unconfined) and userns. This lets every program bwrap starts create namespaces.",
+];
+
 function unavailable(
   reason: SandboxUnavailableReason,
   missing: readonly string[] = [],
@@ -132,6 +141,12 @@ export async function detectSandbox(
   if (!srt.isSupportedPlatform()) return unavailable("unsupported_os");
   const report = srt.checkDependencies(found.ripgrepCommand);
   if (report.errors.length > 0) return classifySrtMessages(report.errors, provider);
+  if (provider.kind === "bwrap" && found.bwrapPath !== undefined) {
+    const nested = await srt.probeNestedUserns(found.bwrapPath, signal);
+    if (nested.kind === "restricted") {
+      return unavailable("missing_dependency", [NESTED_USERNS_MISSING], NESTED_USERNS_HINTS);
+    }
+  }
   return { kind: "ready", tools: found };
 }
 
