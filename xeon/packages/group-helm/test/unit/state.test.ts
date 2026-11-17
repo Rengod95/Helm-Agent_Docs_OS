@@ -6,6 +6,7 @@ import {
   INITIAL_HELM_STATE,
   fitState,
   helmStateDecl,
+  helmStateMigrations,
   updateState,
   type HelmFinding,
   type HelmState,
@@ -53,7 +54,7 @@ function worstCase(): HelmState {
 
 test("state.initial-valid", () => {
   expect(parse(HelmStateSchema, INITIAL_HELM_STATE).ok).toBe(true);
-  expect(helmStateDecl.version).toBe(1);
+  expect(helmStateDecl.version).toBe(2);
   expect(helmStateDecl.initial).toBe(INITIAL_HELM_STATE);
 });
 
@@ -105,4 +106,13 @@ test("updateState returns a state inside the budget even when the update is too 
   const result = await updateState(api, () => big);
   expect(result.ok).toBe(true);
   expect(bytes(api.state())).toBeLessThanOrEqual(HELM_STATE_BUDGET_BYTES);
+});
+
+test("state.v1-document-migrates-with-no-turn-awaited", () => {
+  // 옛 문서(버전 1)에는 턴 표지가 없다. 이전 판은 턴을 내기 전 상태에서만 저장됐으므로 기다리는 턴은 없다
+  const v1: Record<string, unknown> = { ...INITIAL_HELM_STATE };
+  delete v1.awaitingTurn;
+  const migrated = helmStateMigrations[1]?.(v1);
+  expect(parse(HelmStateSchema, migrated).ok).toBe(true);
+  expect(migrated).toEqual(INITIAL_HELM_STATE);
 });

@@ -15,7 +15,7 @@ import {
   type TallyStore,
   type ToolExecutionEndView,
 } from "./signals.ts";
-import { helmStateDecl, type HelmState } from "./state.ts";
+import { helmStateDecl, helmStateMigrations, type HelmState } from "./state.ts";
 
 /** 그룹 등록. 설정은 g.settings()로 읽고, drive 상한은 임대를 새로 받을 때마다 다시 읽는다 */
 function setupHelm(g: GroupApi<HelmState, typeof helmSettings.defs>): void {
@@ -69,6 +69,7 @@ export const helmGroup: GroupModule = defineGroup<HelmState, typeof helmSettings
   manifest: helmManifest,
   composition: helmComposition,
   state: helmStateDecl,
+  migrations: helmStateMigrations,
   settings: helmSettings,
   setup: setupHelm,
 });

@@ -42,6 +42,7 @@ export function reactionOf(
       return { type: "finish", event: { type: "limitReached", limit: failure.limit } };
     case "state_too_large":
     case "state_inconsistent":
+    case "refused":
       return { type: "finish", event: { type: "failed", failure } };
     case "capability":
       return { type: "degrade", source: source ?? sourceOfCapability(failure.capability) };

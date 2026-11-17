@@ -140,9 +140,10 @@ function holderGroup(): GroupModule {
     }),
     state: COUNTER,
     setup(g) {
-      g.drive(async (_loop, state) => {
-        await g.commit({ n: state.n + 1 });
-      });
+      // 임대를 쥐고 있는 구동 그룹: 매 단계 카운터를 올리고 다음 경계까지 기다린다
+      g.drive(({ state }) =>
+        Promise.resolve({ do: "commit", state: { n: state.n + 1 }, next: { do: "yield" } }),
+      );
     },
   });
 }
