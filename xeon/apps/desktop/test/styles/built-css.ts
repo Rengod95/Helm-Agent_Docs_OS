@@ -12,7 +12,15 @@ function outputs(result: Awaited<ReturnType<typeof build>>): Output[] {
   return "output" in result ? [result] : [];
 }
 
-export async function buildCss(): Promise<string> {
+// 이 프로세스에서 한 번만 빌드한다. 두 시험 파일이 각자 빌드하면 vite(rolldown)의 네이티브 메모리가 빌드마다 쌓여 한 프로세스의 최고점이 커진다.
+let built: Promise<string> | undefined;
+
+export function buildCss(): Promise<string> {
+  built ??= buildOnce();
+  return built;
+}
+
+async function buildOnce(): Promise<string> {
   const result = await build({
     root: ROOT,
     configFile: join(ROOT, "vite.config.ts"),

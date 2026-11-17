@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { repeatAsync } from "@fresnel/contracts";
@@ -217,8 +217,13 @@ suite("real sandbox (srt)", () => {
       `echo planted > ${target}`,
       { cwd: box.dirs.workspace },
     );
-    expect(ran.exitCode).not.toBe(0);
+    // 막는 방식이 OS마다 다르다. macOS(Seatbelt)는 쓰기를 거부해 종료 코드가 0이 아니다.
+    // Linux(bubblewrap)는 보호 폴더를 빈 tmpfs로 덮어서 안쪽 쓰기가 성공하지만 호스트 폴더에는 닿지 않는다.
+    // 두 OS가 공통으로 지키는 성질은 호스트 쪽 결과다: 파일이 생기지 않고, 원래 내용이 그대로다
+    if (process.platform === "darwin") expect(ran.exitCode).not.toBe(0);
     expect(existsSync(target)).toBe(false);
+    expect(readdirSync(box.vault)).toEqual(["secret.txt"]);
+    expect(readFileSync(join(box.vault, "secret.txt"), "utf8")).toBe(VAULT_SECRET);
   });
 
   test("the built-in self test passes all six items against the real sandbox", async () => {

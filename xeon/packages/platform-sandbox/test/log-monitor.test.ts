@@ -33,9 +33,9 @@ describe("log monitor selection", () => {
   });
 
   test("sweep ends a monitor-shaped child of this process", async () => {
-    // 실제 log stream 대신 같은 명령줄을 가진 자식을 띄운다
+    // 실제 log stream 대신 같은 명령줄을 가진 자식을 띄운다. exec -a는 bash 기능이다(Linux의 sh는 dash라 지원하지 않는다)
     const child = spawn(
-      "sh",
+      "bash",
       [
         "-c",
         `exec -a 'log stream --predicate (eventMessage ENDSWITH "_zz_SBX") --style compact' sleep 30`,
