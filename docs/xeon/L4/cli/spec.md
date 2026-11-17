@@ -950,7 +950,7 @@ export interface GroupTemplatesPort {
     - `host.hello`의 `features`에 `thread.compact`가 없는 호스트에서는 부르지 않고 "이 엔진은 수동 컴팩션을 처리하지 않는다"를 알린다.
     - 이름이 같은 엔진 명령이 있어도 내장이 앞선다. `/help`와 Tab 완성에 보인다. 자동 컴팩션(`threshold`, `overflow`)은 루프가 하고 CLI는 관여하지 않는다.
   - `/help`, `/quit`: CLI 내장.
-  - 엔진 명령 [결정: m2c G1-01]: 내장도 별칭도 아닌 이름은 줄 전체를 `command.run { threadId, text }`에 그대로 넘긴다. `/tasks`, `/goal`처럼 L2·L3 코드가 등록한 동작 명령이 여기서 실행된다. 이름이 겹치면 내장과 별칭이 앞선다.
+  - 엔진 명령 [결정: m2c G1-01]: 내장도 별칭도 아니고 `command.list`에 든 이름은 줄 전체를 `command.run { threadId, text }`에 그대로 넘긴다. `/tasks`, `/goal`처럼 L2·L3 코드가 등록한 동작 명령이 여기서 실행된다. 이름이 겹치면 내장과 별칭이 앞선다. `command.list`에 없는 이름은 아래 플러그인 이름 풀이를 먼저 거친다.
     - 결과 `done`은 `message`를 stdout에 쓴다. `message`가 `null`이고 `result`가 `null`이 아니면 `result`를 들여쓴 JSON으로 쓴다. 동작 명령은 turn을 만들지 않는다.
     - 결과 `expanded`는 템플릿을 펼친 최종 텍스트다. 사용자가 그 텍스트를 친 것처럼 `turn.start`로 보낸다(`command.run`은 turn을 만들지 않는다).
     - 결과 `needs_confirmation`은 셸 주입이 있는 템플릿이다. 실행할 셸 명령을 보이고 `[y/N]`로 묻는다. `y`면 `confirmShell: true`로 한 번 더 부르고, 그 밖의 입력은 "실행하지 않았다"를 알리고 끝낸다.
@@ -958,7 +958,13 @@ export interface GroupTemplatesPort {
     - 실패는 기능 오류(`cap.dialog.commands.*`)와 `thread.notFound`로 온다. 문구는 §4.10 표다.
     - `/help`는 `command.list`가 알려 준 명령을 "엔진 명령" 아래에 보인다. Tab 완성은 명령 이름과 첫 인자의 `choices`를 쓴다. 목록은 `command.list { threadId }`로 읽는다 [결정: m2c G1-01]. 호스트가 프로젝트 명령(`.fresnel/commands`)을 그 대화의 작업 폴더 기준으로 읽게 하려는 것이다. 대화형을 시작할 때 한 번 읽고, `/resume`으로 대화를 바꾸면 새 대화의 id로 다시 읽는다.
     - `host.hello`의 `features`에 `command.run`이 없는 호스트에서는 부르지 않고 모르는 명령으로 처리한다.
-    - print 모드(`-p`)도 입력이 `command.list`에 있는 엔진 명령 이름으로 시작하면 대화형처럼 `command.run`으로 실행하고 모델을 부르지 않는다(`src/slash.ts`의 `runPrintSlash`). 결과 `done`은 stdout에, 실패는 stderr에 쓰고 종료 코드는 1이다. 결과 `expanded`는 그 텍스트를 turn으로 보낸다. 내장 명령과 목록에 없는 이름, 목록을 읽지 못한 경우는 이전처럼 모델 입력이다(`-p "/etc/hosts를 설명해"`가 명령 오류가 되지 않게) [결정: 오케스트레이터 기본값, scH]. 내장 명령(`/set`, `/compact` 등)은 print 모드에서 아직 명령으로 풀지 않는다.
+    - print 모드(`-p`)도 입력이 `command.list`에 있는 엔진 명령 이름으로 시작하면 대화형처럼 `command.run`으로 실행하고 모델을 부르지 않는다(`src/slash.ts`의 `runPrintSlash`). 결과 `done`은 stdout에, 실패는 stderr에 쓰고 종료 코드는 1이다. 결과 `expanded`는 그 텍스트를 turn으로 보낸다. `command.list`에 없는 이름(목록을 읽지 못한 경우를 포함)은 아래 플러그인 이름 풀이를 거친다. 풀리지 않으면 이전처럼 모델 입력이다(`-p "/etc/hosts를 설명해"`가 명령 오류가 되지 않게) [결정: 오케스트레이터 기본값, scH]. 내장 명령(`/set`, `/compact`, `/profile` 등)은 print 모드에서 아직 명령으로 풀지 않는다.
+    - 플러그인 이름 풀이 [제안, `review/m5/profile-project-loader.md` §4.3.9. 이름 규칙은 C0에서 확정한다]: 내장도 별칭도 엔진 명령도 아닌 `/이름`은 `plugin.invocables`의 항목으로 푼다(`@fresnel/client`의 `resolveSlashName`). 우선순위는 (1) 이 대화의 프로필(`E(T)`)에 든 플러그인의 스킬·명령, (2) 그 밖의 검토된 플러그인의 스킬·명령, (3) 플러그인 이름(`kind: "plugin"` 항목)이다. 한 층에서 풀린 플러그인이 둘 이상이면 고르지 않는다. 후보를 한정 이름 줄로 보이고 아무것도 보내지 않는다. `drive` 항목은 풀이에 쓰지 않는다. 대화의 프로필 집합은 `plugin.list { filter: { profileId } }`의 `usedBy`(프로필 id 또는 `"common"`)로 만든다.
+      - 한정 문법 [제안]: `/plugin:<이름>`은 플러그인 전체를 항목 이름 없이 얹는다. `/<플러그인>:<항목>`은 그 플러그인의 스킬이나 명령 하나를 얹는다. 첫 `:`에서 나눈다. `plugin`은 한정 접두로 예약한다.
+      - 풀린 항목은 그 턴에만 얹는다. `turn.start { threadId, input, overlay }`로 보내고, `input`은 이름 뒤의 글, `overlay`는 `{ plugin, entry? }` 목록이다. 이미 프로필에 든 플러그인은 `overlay`에 넣지 않는다. 그 대신 "이미 이 대화의 프로필에 있어 이번 턴에는 따로 얹지 않았다: <플러그인>"을 stderr에 한 줄 쓰고 글만 보낸다. 이름 뒤에 글이 없으면 보내지 않고 "<이름> 뒤에 이번 턴에 할 말을 적는다"를 알린다. 한 턴에 4개를 넘으면 호스트가 `overlay.limit`으로 거절하고, 그 문구를 보인다.
+      - `plugin.invocables`를 알리지 않는 호스트(`host.hello`의 `features`에 없음)에서는 풀지 않는다. 이름은 이전처럼 모르는 명령으로 처리한다.
+      - print 모드에서 모호한 이름이나 글이 없는 이름은 stderr에 안내하고 종료 코드 2로 끝낸다. 아무것도 보내지 않는다.
+    - `/profile remove <플러그인 이름>` [제안, `review/m5/profile-project-loader.md` §8 수용 기준 39와 `review/m6/craft-flows.md` T5]: 내장 명령이다. 이 대화가 쓰는 프로필에서 플러그인 하나를 뺀다. 대화의 `profileId`는 `thread.list`에서 찾고, `profile.get`으로 `rev`를 읽은 뒤 `profile.removePlugin { id, plugin, baseRev: rev }`를 보낸다. 성공하면 "프로필 <id>에서 <플러그인> 플러그인을 뺐다"를 쓴다. 응답의 `preview.dropsDrive`가 null이 아니면 "Drive 중인 플러그인이라 실행 중인 Drive가 내려간다"를 한 줄 더 쓴다. 오류 `profile.commonPlugin`은 공통 묶음에서 온 것이라 이 대화의 프로필에서는 뺄 수 없다는 문구로, `profile.pluginNotInProfile`은 프로필에 없다는 문구로, `profile.conflict`는 명령을 다시 실행하라는 문구로 옮긴다. 인자가 없거나 이름 형식이 틀리면 `사용법: /profile remove <플러그인 이름>`을 쓰고 아무것도 보내지 않는다. 빼면 다음 단계부터 그 플러그인의 도구와 Hook이 빠진다. [근거: review/m5/profile-project-loader.md §8 수용 기준 39]
 - 별칭 표는 `src/slash.ts`의 상수 하나에 둔다. 키 이름이 없는 별칭은 등록하지 않는다. 현재 별칭은 `/model` → `l1.models.default` 하나다.
 - Tab 완성: `/set ` 뒤는 launch 범위를 허용하는 키, 줄 첫 단어는 슬래시 이름이다. 키 목록은 대화형을 시작할 때 `settings.list`로 한 번 읽는다.
 - 실패한 슬래시 명령(없는 키, 허용되지 않은 범위)은 두 줄 오류를 stderr에 쓰고 입력을 이어 받는다.
@@ -1236,3 +1242,6 @@ $ fresnel db previous-rm 20261106T010203004Z --yes --json
 29. 닫음: 템플릿 패키징(B5-REL). 릴리즈 아카이브는 템플릿을 `group-sdk/templates/`에 싣고, `locateGroupTemplates`가 실행 파일 옆 그 자리를 찾는다. 배치와 탐색 순서는 `L4.release.spec` §3.1과 §3.2이고, 시험은 `test/group-templates-locate.test.ts`와 X11의 `group new`(환경 변수 없이)다.
 30. (닫힘 M4 T-RT2) 생성 패키지의 의존 선언. 생성한 `package.json`은 `@fresnel/contracts`, `@fresnel/group-sdk`(`workspace:*`), `typebox`(`catalog:`)를 적고 drive·policy는 `@fresnel/ext-host`를 개발 의존으로 더한다. 적은 의존은 생성된 코드의 import와 시험이 대조한다.
 31. [미결] `apps/cli/package.json`의 `@fresnel/group-sdk` 워크스페이스 의존은 소스가 쓰지 않는다. knip은 잡지 않는다. 지우면 루트 `bun.lock`을 고쳐야 해서 이 작업 범위 밖이다. 다음 정리 때 지운다.
+32. [미결] 플러그인 이름 풀이와 `/profile remove`의 이름과 문법(§4.12, [제안]). 구현(`apps/cli/src/overlay-slash.ts`, `packages/client/src/slash/resolve.ts`)은 `review/m5/profile-project-loader.md` §4.3.9의 [제안, 기본값]을 따랐다. 한정 접두 `plugin`, 한정 문법 `/<플러그인>:<항목>`, 내장 명령 `/profile remove`는 C0에서 확정한다. [근거: review/m5/profile-project-loader.md §4.3.9]
+33. [미결] Drive 플러그인의 `/이름` 풀이. 풀이는 `drive` 항목을 쓰지 않는다(§4.12). 그런데 `review/m5/profile-project-loader.md` §4.3.10은 시작 항목이 있는 Drive 플러그인을 `/<이름>`으로 부른다고 적는다. 호스트가 그 플러그인에 `kind: "plugin"` 항목을 함께 내지 않으면 `/이름`은 풀리지 않는다. `plugin.invocables`의 항목 구성이 정해지면 확인한다. [근거: review/m5/profile-project-loader.md §4.3.10]
+34. [미결] 코어 플러그인의 프로필 집합 포함 여부. 프로필 집합은 `plugin.list`의 카드(`usedBy`)에서 만든다. 코어 플러그인이 카드 목록에 없으면 프로필에 든 것으로 보이지 않아 `/이름`이 덧씌우기로 보내진다. 서버는 `E(T)`에 든 플러그인에 아무 일도 하지 않으므로 턴의 결과는 같지만 "이미 있다" 안내는 나오지 않는다. [근거: apps/host/src/assembly/plugins/service.ts의 `usedBy` 계산과 필터]
