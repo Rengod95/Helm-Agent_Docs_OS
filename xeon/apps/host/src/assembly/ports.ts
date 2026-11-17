@@ -1078,6 +1078,14 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         },
         openThreadProfiles: () => openThreadProfilesOf(session),
         openThreadIds: () => openThreadIdsOf(session),
+        // 대화의 모델 참조로 main 역할을 풀어 캐시 정책을 읽는다(`core-loop`의 `roleOf`와 같은 기준). 없으면 undefined
+        cachePolicyOf: (threadId) => {
+          const found = session.query.thread(threadId);
+          if (!found.ok || found.value === undefined) return undefined;
+          const ref = found.value.model;
+          const resolved = deps.models.resolve("main", ref === undefined ? {} : { ref });
+          return resolved.ok ? resolved.value.cachePolicy : undefined;
+        },
         forcedPlugins: () => deps.pluginsForced?.() ?? [],
         // 번들 기본 플러그인(`DEFAULT_PLUGIN_NAMES`)은 기본 프로필에 항상 든다. 나머지는 m4가 등급으로 더한다(§4.1.2)
         defaultPlugins: () => [...DEFAULT_PLUGIN_NAMES],

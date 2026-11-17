@@ -20,6 +20,7 @@ import { createExtUiVersionPort } from "./ext-ui-version-port.ts";
 import { REQUIRED_BY_CORE } from "./profile-defaults.ts";
 import { createPluginSet, type PluginSetHandle } from "./plugin-set.ts";
 import { createProfileTestRunPort, type PluginFact } from "./profile-test-run-port.ts";
+import { readTextFile } from "./profile-cost.ts";
 import { createSandboxSelfTestPort } from "./sandbox-self-test-port.ts";
 
 // M4 wire 처리기 43개의 포트 묶음(`spec-deltas/t-f.md` §5). 이 파일은 T-F가 한 번 쓰고, 그 뒤에는 T-XD가
@@ -32,6 +33,28 @@ function isCore(record: ExtensionRecord): boolean {
     record.tier === "core" ||
     (record.origin === "builtin" && effectiveLayer(record.manifest) === "L1")
   );
+}
+
+/** 코어 확장의 이름: 등급이 guard·core이거나 내장 L1 단위이거나 코어 필수 단위다(§4.1.3, §4.1.17). 프로필과 무관하게 켜진다 */
+export function coreNamesOf(records: readonly ExtensionRecord[]): readonly string[] {
+  return records
+    .filter((record) => isCore(record) || REQUIRED_BY_CORE.has(record.manifest.name))
+    .map((record) => record.manifest.name);
+}
+
+/** 코어가 아닌 확장 가운데 매니페스트 기본이 켜진 것의 이름(§4.1.2). 공장 기본 프로필의 플러그인 가운데 이 부분이다 */
+function defaultNamesOf(records: readonly ExtensionRecord[]): readonly string[] {
+  return records
+    .filter((record) => !isCore(record) && record.manifest.defaultEnabled !== false)
+    .map((record) => record.manifest.name);
+}
+
+/** 공장 기본 프로필의 플러그인 이름: 기본 번들 `base`와 `defaultNamesOf`의 합집합(중복 없음). 옮김과 기본 프로필이 같은 목록을 쓴다 */
+export function factoryPluginsOf(
+  base: readonly string[],
+  records: readonly ExtensionRecord[],
+): readonly string[] {
+  return [...new Set([...base, ...defaultNamesOf(records)])];
 }
 
 export interface M4Ports {
@@ -71,25 +94,16 @@ export function createM4Ports(
   // 프로필·Test run 포트는 표지 장부를 쥐므로 제작 포트와 한 인스턴스를 나눠 쓴다(`ext.test.run`의 testRun이 표지를 단다)
   // 코어는 모든 대화에 항상 켜진다(빠지면 `core-tasks`의 `fresnel.tasks`가 없어 `turn.start`가 응답하지 않는다).
   // 공장 기본 프로필은 코어가 아닌 확장 가운데 매니페스트 기본이 켜진 것이다(§4.1.2, §7.2)
-  const coreNames = (): readonly string[] =>
-    extReadSources
-      .extensions()
-      .filter((record) => isCore(record) || REQUIRED_BY_CORE.has(record.manifest.name))
-      .map((record) => record.manifest.name);
-  const defaultNames = (): readonly string[] =>
-    extReadSources
-      .extensions()
-      .filter((record) => !isCore(record) && record.manifest.defaultEnabled !== false)
-      .map((record) => record.manifest.name);
   const scopedEnv: M4HostEnv = {
     ...env,
-    forcedPlugins: () => [...coreNames(), ...env.forcedPlugins()],
-    defaultPlugins: () => [...new Set([...env.defaultPlugins(), ...defaultNames()])],
+    forcedPlugins: () => [...coreNamesOf(extReadSources.extensions()), ...env.forcedPlugins()],
+    defaultPlugins: () => [...factoryPluginsOf(env.defaultPlugins(), extReadSources.extensions())],
   };
   const profileTestRun = createProfileTestRunPort({
     ...deps,
     env: scopedEnv,
     pluginFacts: () => extReadSources.extensions().map(pluginFactOf),
+    readText: readTextFile,
   });
   const pluginSet = createPluginSet({
     profiles: profileTestRun,
@@ -170,7 +184,7 @@ function managedOffOf(env: M4HostEnv, name: string): boolean {
   return setting.source.scope === "managed" && setting.value === false;
 }
 
-/** 매니페스트에서 프로필 검증이 쓰는 사실을 뽑는다. 대체 도구, Drive 등록 가능, 필수 설정 키 */
+/** 매니페스트에서 프로필 검증과 미리 보기가 쓰는 사실을 뽑는다. 대체 도구, Drive 등록 가능, 필수 설정 키, 선언된 재료 */
 function pluginFactOf(record: ExtensionRecord): PluginFact {
   const manifest = record.manifest;
   const plugins = manifest.plugins ?? [];
@@ -181,5 +195,12 @@ function pluginFactOf(record: ExtensionRecord): PluginFact {
     requiredKeys: Object.values(manifest.userConfig ?? {})
       .filter((entry) => entry.required === true)
       .map((entry) => entry.setting),
+    declared: {
+      code: manifest.entry !== undefined,
+      root: record.location,
+      tools: manifest.tools ?? [],
+      instructions: manifest.components?.instructions ?? [],
+      skills: manifest.components?.skills ?? [],
+    },
   };
 }

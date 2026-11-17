@@ -34,6 +34,8 @@ export interface ProfileSettingInfo {
   readonly secret: boolean;
   /** `ext.<name>.<key>`의 소유 플러그인 이름. 코어 키는 null */
   readonly owner: string | null;
+  /** 값을 바꾸면 다시 시작해야 적용되는가(`SettingDef.runtimeChange === "restart"`, M5c §4.1.7) */
+  readonly restart: boolean;
   /** 값 검사. `secret_literal`은 시크릿 키에 `secret://` 참조가 아닌 값을 준 경우다 */
   checkValue(
     value: unknown,
@@ -194,6 +196,18 @@ export function validateProfile(
   }
 
   return issues;
+}
+
+/**
+ * 프로필 설정 가운데 다시 시작해야 적용되는 키(M5c §4.1.7). 카탈로그에 없는 키와 같은 키의 중복은 뺀다.
+ * 이 값으로 `profile.preview`가 경고를 낼 수 있게 하는 자리다. 경고 코드는 아직 없어 지금은 내지 않는다(§4.1.7 구현 상태)
+ */
+export function restartKeysOf(
+  settings: readonly { readonly key: string; readonly value: unknown }[],
+  catalog: ProfileCatalog,
+): readonly string[] {
+  const keys = new Set(settings.map((setting) => setting.key));
+  return [...keys].filter((key) => catalog.lookup(key)?.restart === true);
 }
 
 /** 이슈 가운데 저장을 막는 오류가 있는가 */

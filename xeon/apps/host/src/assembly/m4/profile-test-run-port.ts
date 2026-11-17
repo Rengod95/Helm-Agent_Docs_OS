@@ -4,6 +4,7 @@ import { ThreadIdSchema, TurnIdSchema, type ThreadId } from "@fresnel/contracts/
 import { checkSettingWrite, type ScopeStack } from "@fresnel/contracts/settings";
 import type { RegistrationInfo } from "@fresnel/ext-host";
 import type {
+  CacheImpact,
   CommonGetResult,
   CommonInput,
   CommonPutParams,
@@ -13,7 +14,6 @@ import type {
   PluginRef,
   Profile,
   ProfileCloneParams,
-  ProfileCostFigures,
   ProfileDefaultForResult,
   ProfileDefaultResetParams,
   ProfileDefaultResetResult,
@@ -27,6 +27,7 @@ import type {
   ProfileRemovePluginResult,
   ProfileSetting,
   TestRunMarker,
+  ToolsChanged,
   Unsubscribe,
 } from "@fresnel/contracts/wire";
 import type {
@@ -50,6 +51,14 @@ import {
   type ProfileLibrary,
   type ProfileLibraryEntry,
 } from "./profile-validate.ts";
+import {
+  pluginCostOf,
+  toolsChangedOf,
+  totalCostOf,
+  UNKNOWN_COST,
+  type DeclaredInventory,
+  type ReadText,
+} from "./profile-cost.ts";
 import type { M4HostEnv, M4PortDeps } from "./deps.ts";
 import type { LegacyInputs } from "./profile-migrate.ts";
 
@@ -65,6 +74,8 @@ export interface PluginFact {
   readonly drives: boolean;
   /** 필수 설정 키(`userConfig`의 `required` 항목) */
   readonly requiredKeys: readonly string[];
+  /** 선언된 재료(도구, 지침, 스킬). 비용과 도구 변화의 근거다(M5c §4.2.8) */
+  readonly declared: DeclaredInventory;
 }
 
 export interface ProfileTestRunPortDeps extends Pick<
@@ -73,16 +84,9 @@ export interface ProfileTestRunPortDeps extends Pick<
 > {
   /** 설치된 플러그인의 매니페스트 사실. 확장 읽기 원천에서 온다 */
   readonly pluginFacts: () => readonly PluginFact[];
+  /** 선언된 재료 파일을 읽는다(비용 추정). 운영은 `readTextFile`이다 */
+  readonly readText: ReadText;
 }
-
-/** 비용을 셀 수 없을 때의 값. 정적 추정이 아직 없다(카드 비용은 나중 작업) */
-const UNKNOWN_COST: ProfileCostFigures = {
-  always: null,
-  drive: null,
-  onDemand: null,
-  toolCount: null,
-  basis: "unknown",
-};
 
 const EMPTY_BODY: ProfileBody = { plugins: [], settings: [], driver: null };
 const NO_LAYERS: ScopeStack = [];
@@ -92,6 +96,12 @@ const EXT_KEY = /^ext\.([^.]+)\./u;
 function ownerOf(key: string): string | null {
   const match = EXT_KEY.exec(key);
   return match?.[1] ?? null;
+}
+
+/** 관리 범위가 이 플러그인의 켜짐(`ext.<name>.enabled`)을 거짓으로 잠갔는가(M5c §4.1.10) */
+function managedOff(env: M4HostEnv, plugin: string): boolean {
+  const managed = env.settings.layers(undefined).find((layer) => layer.scope === "managed");
+  return managed?.values.get(`ext.${plugin}.enabled`) === false;
 }
 
 /** 같은 키가 여러 번 나오면 마지막 값이 이긴다 */
@@ -149,6 +159,7 @@ function catalogOf(env: M4HostEnv, names: ReadonlySet<string> | null): ProfileCa
         allowedScopes: [...def.allowedScopes],
         secret: def.secret === true,
         owner: ownerOf(key),
+        restart: def.runtimeChange === "restart",
         checkValue(value) {
           // 쓰기 검사와 같은 함수다. 범위·잠금은 위에서 따로 보므로 빈 층을 넘긴다
           const verdict = checkSettingWrite(env.catalog, NO_LAYERS, key, "profile", value);
@@ -161,10 +172,7 @@ function catalogOf(env: M4HostEnv, names: ReadonlySet<string> | null): ProfileCa
       };
     },
     secretExists: (name) => names === null || names.has(name),
-    managedDisabled(plugin) {
-      const managed = env.settings.layers(undefined).find((layer) => layer.scope === "managed");
-      return managed?.values.get(`ext.${plugin}.enabled`) === false;
-    },
+    managedDisabled: (plugin) => managedOff(env, plugin),
   };
 }
 
@@ -206,8 +214,19 @@ function sameNames(left: readonly PluginRef[], right: readonly PluginRef[]): boo
   return left.length === right.length && left.every((ref, at) => right[at]?.name === ref.name);
 }
 
-function unknownCostByPlugin(plugins: readonly PluginRef[]): readonly ProfilePluginCost[] {
-  return plugins.map((ref) => ({ plugin: ref.name, cost: UNKNOWN_COST }));
+/** 해소된 목록의 플러그인별 정적 비용. 사실이 없는 플러그인은 unknown이다 */
+function costsOf(
+  plugins: readonly PluginRef[],
+  facts: readonly PluginFact[],
+  readText: ReadText,
+): Promise<readonly ProfilePluginCost[]> {
+  return Promise.all(
+    plugins.map(async (ref) => {
+      const fact = facts.find((item) => item.name === ref.name);
+      const cost = fact === undefined ? UNKNOWN_COST : await pluginCostOf(fact.declared, readText);
+      return { plugin: ref.name, cost };
+    }),
+  );
 }
 
 function resolvedOf(body: ProfileBody, common: CommonSet): PluginRef[] {
@@ -281,6 +300,67 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
       if (effective === profileId) count += 1;
     }
     return count;
+  }
+
+  /**
+   * 활성 목록의 도구 이름(§4.2.8). 선언이 없는 플러그인은 아무것도 더하지 않는다. 오류로 멈춘 플러그인과 관리 잠금은
+   * E(T)에서 빠지므로 뺀다.
+   */
+  function toolNamesOf(
+    refs: readonly PluginRef[],
+    facts: readonly PluginFact[],
+  ): ReadonlySet<string> {
+    const names = new Set<string>();
+    for (const ref of refs) {
+      if (env.stopped(ref.name) || managedOff(env, ref.name)) continue;
+      const fact = facts.find((item) => item.name === ref.name);
+      for (const tool of fact?.declared.tools ?? []) names.add(tool.name);
+    }
+    return names;
+  }
+
+  /** 대화가 지금 참조하는 프로필의 해소 목록. 없는 프로필을 가리키면 `default`로 읽는다(§4.1.1) */
+  function threadPluginsOf(
+    stored: readonly Profile[],
+    threadId: ThreadId,
+    common: CommonSet,
+  ): readonly PluginRef[] {
+    const id = env.threadProfileId(threadId) ?? DEFAULT_PROFILE_ID;
+    const profile =
+      findProfile(stored, id, factory()) ??
+      findProfile(stored, DEFAULT_PROFILE_ID, factory()) ??
+      factory();
+    return resolvedOf(profile, common);
+  }
+
+  /**
+   * 바뀜을 잴 기준 목록. 대화가 있으면 그 대화가 지금 참조하는 프로필, 없으면 같은 id의 저장된 프로필이다.
+   * 기준이 없으면(대화 없이 아직 저장하지 않은 새 id를 볼 때) undefined다.
+   */
+  function baselineOf(
+    stored: readonly Profile[],
+    id: string,
+    common: CommonSet,
+    threadId: ThreadId | undefined,
+  ): readonly PluginRef[] | undefined {
+    if (threadId !== undefined) return threadPluginsOf(stored, threadId, common);
+    const saved = findProfile(stored, id, factory());
+    return saved === undefined ? undefined : resolvedOf(saved, common);
+  }
+
+  /**
+   * 캐시 영향(§4.3.7). 도구 변화가 없으면 `none`이다. 도구가 바뀌면 대화의 캐시 정책이 정한다. 대화가 없거나 정책을
+   * 읽지 못하면 값이 없다(기본값을 꾸며 내지 않는다)
+   */
+  function cacheImpactOf(
+    toolsChanged: ToolsChanged | undefined,
+    threadId: ThreadId | undefined,
+  ): CacheImpact | undefined {
+    if (toolsChanged === undefined) return "none";
+    if (threadId === undefined) return undefined;
+    const policy = env.cachePolicyOf?.(threadId);
+    if (policy === undefined) return undefined;
+    return policy.midConversationToolChanges ? "tool_change_append" : "readvertise";
   }
 
   /** 권한 모드가 바뀌는 경우의 `from`, `to`. `to`는 공통 묶음과 프로필 가운데 프로필 쪽 값이 이긴다(§4.2.7) */
@@ -489,15 +569,26 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
         }
       }
       const resolved = resolvedOf(body, common);
+      const facts = deps.pluginFacts();
+      const byPlugin = await costsOf(resolved, facts, deps.readText);
       const permission = permissionOf(body, common, threadId);
+      // 기준이 없으면 도구 변화와 캐시 영향을 싣지 않는다. 기준이 있고 바뀜이 없으면 도구 변화는 생략하고 캐시 영향은 none이다
+      const before = baselineOf(snapshot.value.profiles, id, common, threadId);
+      const toolsChanged =
+        before === undefined
+          ? undefined
+          : toolsChangedOf(toolNamesOf(before, facts), toolNamesOf(resolved, facts));
+      const cacheImpact = before === undefined ? undefined : cacheImpactOf(toolsChanged, threadId);
       return ok({
         resolved,
         issues,
-        cost: { total: UNKNOWN_COST, byPlugin: unknownCostByPlugin(resolved) },
+        cost: { total: totalCostOf(byPlugin), byPlugin },
         missingRequired,
         threadsUsing: threadsUsing(id, idsOf(snapshot.value.profiles)),
         ...(permission === undefined ? {} : { permission }),
-        // 드라이브 프레임과 도구 목록은 아직 이 호스트가 셀 수 없다(E(T)와 Drive 프레임은 나중 작업). 그래서 이 값들을 싣지 않는다
+        ...(toolsChanged === undefined ? {} : { toolsChanged }),
+        ...(cacheImpact === undefined ? {} : { cacheImpact }),
+        // Drive 프레임 스택은 이 브랜치에 없다(E3). 프레임을 쥔 플러그인을 셀 원천이 없어 null이다(§4.3.7, §4.1.13)
         dropsDrive: null,
       });
     },
@@ -521,6 +612,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
       const issuesOf = await checksOf();
       const done = await store.transact<
         {
+          readonly before: Profile;
           readonly profile: Profile;
           readonly common: CommonSet;
           readonly known: ReadonlySet<string>;
@@ -563,17 +655,29 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
         return ok({
           profiles: next,
           common: snapshot.common,
-          value: { profile, common: snapshot.common, known: idsOf(snapshot.profiles) },
+          value: {
+            before: current,
+            profile,
+            common: snapshot.common,
+            known: idsOf(snapshot.profiles),
+          },
         });
       });
       if (!done.ok) return done;
-      const { profile, common, known } = done.value.value;
+      const { before, profile, common, known } = done.value.value;
       const permission = permissionOf(profile, common, undefined);
+      // 지우기 전과 뒤의 저장된 상태를 잰다(대화를 고르지 않으므로 캐시 영향은 싣지 않는다)
+      const facts = deps.pluginFacts();
+      const toolsChanged = toolsChangedOf(
+        toolNamesOf(resolvedOf(before, common), facts),
+        toolNamesOf(resolvedOf(profile, common), facts),
+      );
       return ok({
         profile,
         preview: {
           threadsUsing: threadsUsing(profile.id, known),
           ...(permission === undefined ? {} : { permission }),
+          ...(toolsChanged === undefined ? {} : { toolsChanged }),
           dropsDrive: null,
         },
       });

@@ -1,6 +1,7 @@
 import type { ScheduleService } from "@fresnel/cap-schedule";
 import type { Clock, Result } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { CachePolicy } from "@fresnel/contracts/services";
 import type { TestRunControlPort, TraceReadPort } from "@fresnel/contracts/extensions";
 import type { ReadFailure } from "@fresnel/contracts/records";
 import type { ScopeStack, SettingCatalog, SettingScope } from "@fresnel/contracts/settings";
@@ -84,6 +85,11 @@ export interface M4HostEnv {
   readonly openThreadProfiles: () => readonly (string | null)[];
   /** 닫히지 않은 대화 id. 프로필이 바뀌었을 때 대화별 켜짐 집합을 다시 맞춘다 */
   readonly openThreadIds: () => readonly ThreadId[];
+  /**
+   * 대화의 프롬프트 캐시 정책(모델 호환 플래그). 도구 변화의 캐시 영향을 정한다(M5c §4.3.7). 값이 없으면
+   * (생략했거나 읽지 못했으면) `profile.preview`는 도구가 바뀌는 경우 `cacheImpact`를 싣지 않는다
+   */
+  readonly cachePolicyOf?: (threadId: ThreadId) => CachePolicy | undefined;
   /** 대화가 저장한 프로필 id(없거나 대화가 없으면 null). 대화별 켜짐 집합(E(T))이 읽는다 */
   readonly threadProfileId: (threadId: ThreadId) => string | null;
   /** 모든 대화에 항상 켜는 플러그인(개발 모드의 가이드 그룹) */

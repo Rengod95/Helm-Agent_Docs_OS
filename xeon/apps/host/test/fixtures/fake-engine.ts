@@ -31,6 +31,7 @@ import {
   createProfileTestRunPort,
   type PluginFact,
 } from "../../src/assembly/m4/profile-test-run-port.ts";
+import type { ReadText } from "../../src/assembly/m4/profile-cost.ts";
 import { createExtReadPort, EMPTY_EXT_READ_SOURCES } from "../../src/assembly/m4/ext-read-port.ts";
 import { createProjectPort } from "../../src/assembly/m4/project-port.ts";
 import { createLocalIdFactory, systemRandom } from "@fresnel/platform-os";
@@ -124,6 +125,8 @@ export interface FakeEngineOptions {
     readonly testRunControl?: TestRunControlPort;
     /** 설치된 플러그인의 매니페스트 사실. 생략하면 설치된 플러그인이 없다 */
     readonly pluginFacts?: () => readonly PluginFact[];
+    /** 선언된 재료 파일 읽기(비용 추정). 생략하면 어떤 파일도 없다 */
+    readonly readText?: ReadText;
     readonly env?: Partial<M4HostEnv>;
   };
   /** 확장 버전과 화면 목록 포트를 바꿔 끼운다(`ext.versions`·`ext.rollback`·`ext.ui.list`). 생략하면 확장이 없는 포트다 */
@@ -671,6 +674,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         traceRead: options.profiles?.traceRead ?? OFF_TRACE,
         testRunControl: options.profiles?.testRunControl ?? UNAVAILABLE_TEST_RUN,
         pluginFacts: options.profiles?.pluginFacts ?? (() => []),
+        readText: options.profiles?.readText ?? (() => Promise.resolve(undefined)),
         projects,
         env: {
           catalog: built.catalog,

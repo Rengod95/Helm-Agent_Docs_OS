@@ -6,9 +6,11 @@ import { ok } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { TestRunControlPort, TraceReadPort } from "@fresnel/contracts/extensions";
 import { WIRE_METHODS, WireError } from "@fresnel/contracts/wire";
-import type { ProfileInput } from "@fresnel/contracts/wire";
+import type { ProfileCostFigures, ProfileInput } from "@fresnel/contracts/wire";
 import type { RegistrationInfo } from "@fresnel/ext-host";
+import type { CachePolicy } from "@fresnel/contracts/services";
 import { isDevMode, type PluginFact } from "../../src/assembly/m4/profile-test-run-port.ts";
+import type { DeclaredInventory } from "../../src/assembly/m4/profile-cost.ts";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
@@ -26,9 +28,17 @@ afterAll(() => {
 });
 
 const PERMISSION = "l1.tools.permissionMode";
+/** 선언된 재료가 없는 사실. 비용은 0이고 도구는 없다 */
+const NONE: DeclaredInventory = {
+  code: false,
+  root: "/nonexistent",
+  tools: [],
+  instructions: [],
+  skills: [],
+};
 const DEMO_FACTS: readonly PluginFact[] = [
-  { name: "helm", replaces: [], drives: false, requiredKeys: [] },
-  { name: "demo", replaces: [], drives: true, requiredKeys: [] },
+  { name: "helm", replaces: [], drives: false, requiredKeys: [], declared: NONE },
+  { name: "demo", replaces: [], drives: true, requiredKeys: [], declared: NONE },
 ];
 
 interface Rig {
@@ -45,6 +55,14 @@ interface RigOptions {
   readonly settingValue?: (key: string) => unknown;
   /** 닫히지 않은 대화가 저장한 프로필 id(없으면 null) */
   readonly openThreads?: readonly (string | null)[];
+  /** 대화가 저장한 프로필 id. 생략하면 모든 대화가 기본을 쓴다 */
+  readonly threadProfileId?: (threadId: ThreadId) => string | null;
+  /** 오류로 멈춘 확장인가 */
+  readonly stopped?: (name: string) => boolean;
+  /** 선언된 재료 파일 내용. 생략하면 어떤 파일도 없다 */
+  readonly readText?: (path: string) => Promise<string | undefined>;
+  /** 대화의 캐시 정책. 생략하면 알 수 없다 */
+  readonly cachePolicyOf?: (threadId: ThreadId) => CachePolicy | undefined;
 }
 
 function rigOf(options: RigOptions = {}): Rig {
@@ -64,14 +82,17 @@ function rigOf(options: RigOptions = {}): Rig {
       pluginFacts: () => options.pluginFacts ?? DEMO_FACTS,
       ...(options.traceRead === undefined ? {} : { traceRead: options.traceRead }),
       ...(options.testRunControl === undefined ? {} : { testRunControl: options.testRunControl }),
+      ...(options.readText === undefined ? {} : { readText: options.readText }),
       env: {
         registrations: () => options.registrations ?? [],
         openThreadProfiles: () => options.openThreads ?? [],
         openThreadIds: () => [],
-        threadProfileId: () => null,
+        threadProfileId: options.threadProfileId ?? (() => null),
         forcedPlugins: () => [],
         defaultPlugins: () => ["helm"],
+        stopped: options.stopped ?? (() => false),
         ...(options.settingValue === undefined ? {} : { settingValue: options.settingValue }),
+        ...(options.cachePolicyOf === undefined ? {} : { cachePolicyOf: options.cachePolicyOf }),
       },
     },
   });
@@ -315,8 +336,8 @@ test("profile.common.put stores the common set with the matching baseRev and bum
 /** 코어가 기대는 내장 단위 두 개와 데모 플러그인의 사실. 저장 검증이 목록을 알아야 한다 */
 const REQUIRED_FACTS: readonly PluginFact[] = [
   ...DEMO_FACTS,
-  { name: "cap-workspace", replaces: [], drives: false, requiredKeys: [] },
-  { name: "cap-dialog", replaces: [], drives: false, requiredKeys: [] },
+  { name: "cap-workspace", replaces: [], drives: false, requiredKeys: [], declared: NONE },
+  { name: "cap-dialog", replaces: [], drives: false, requiredKeys: [], declared: NONE },
 ];
 
 test("a profile edit that drops a core-required unit is plugin.requiredByCore and stores nothing; adding it back is fine", async () => {
@@ -407,7 +428,7 @@ test("profile.common.put refuses to drop a core-required unit from the common se
 
 // ── 미리 보기 ───────────────────────────────────────────────────────────
 
-test("profile.preview of a draft reports the resolved list, unknown cost, the threads using it and the permission change", async () => {
+test("profile.preview of a draft reports the resolved list, the declared cost, the threads using it and the permission change", async () => {
   const rig = rigOf({
     openThreads: [null, null],
     settingValue: (key) => (key === PERMISSION ? "ask" : undefined),
@@ -421,17 +442,19 @@ test("profile.preview of a draft reports the resolved list, unknown cost, the th
   });
   expect(preview.resolved).toEqual([{ name: "helm" }, { name: "demo" }]);
   expect(preview.issues).toEqual([]);
+  // 두 플러그인 모두 선언된 재료가 없는 비코드 플러그인이라 비용은 0으로 선언되어 있다(§4.2.8)
+  const zero: ProfileCostFigures = {
+    always: 0,
+    drive: null,
+    onDemand: 0,
+    toolCount: 0,
+    basis: "declared",
+  };
   expect(preview.cost).toEqual({
-    total: { always: null, drive: null, onDemand: null, toolCount: null, basis: "unknown" },
+    total: zero,
     byPlugin: [
-      {
-        plugin: "helm",
-        cost: { always: null, drive: null, onDemand: null, toolCount: null, basis: "unknown" },
-      },
-      {
-        plugin: "demo",
-        cost: { always: null, drive: null, onDemand: null, toolCount: null, basis: "unknown" },
-      },
+      { plugin: "helm", cost: zero },
+      { plugin: "demo", cost: zero },
     ],
   });
   expect(preview.permission).toEqual({ from: "ask", to: "bypass" });
@@ -445,8 +468,14 @@ test("profile.preview of the stored default counts the open threads and reports 
   const rig = rigOf({
     openThreads: [null, "gone"],
     pluginFacts: [
-      { name: "helm", replaces: [], drives: false, requiredKeys: ["ext.helm.token"] },
-      { name: "demo", replaces: [], drives: true, requiredKeys: [] },
+      {
+        name: "helm",
+        replaces: [],
+        drives: false,
+        requiredKeys: ["ext.helm.token"],
+        declared: NONE,
+      },
+      { name: "demo", replaces: [], drives: true, requiredKeys: [], declared: NONE },
     ],
   });
   const connection = await connect(rig);
@@ -463,8 +492,8 @@ test("profile.preview of the stored default counts the open threads and reports 
 test("profile.preview names a plugin the library does not have, and a replaced tool that two plugins claim", async () => {
   const rig = rigOf({
     pluginFacts: [
-      { name: "alpha", replaces: ["web.fetch"], drives: false, requiredKeys: [] },
-      { name: "beta", replaces: ["web.fetch"], drives: false, requiredKeys: [] },
+      { name: "alpha", replaces: ["web.fetch"], drives: false, requiredKeys: [], declared: NONE },
+      { name: "beta", replaces: ["web.fetch"], drives: false, requiredKeys: [], declared: NONE },
     ],
   });
   const connection = await connect(rig);
@@ -481,6 +510,317 @@ test("profile.preview names a plugin the library does not have, and a replaced t
       tool: "web.fetch",
     },
   ]);
+  await connection.close();
+});
+
+// ── 미리 보기의 비용과 도구 변화(M5c §4.2.8, §3.4, §4.3.7) ──────────────────
+
+const UNKNOWN_COST: ProfileCostFigures = {
+  always: null,
+  drive: null,
+  onDemand: null,
+  toolCount: null,
+  basis: "unknown",
+};
+
+/** 도구 `ping`(이름과 설명 "abcdefgh"는 13글자라 4토큰)을 선언한 코드 플러그인 */
+const TOOLY: PluginFact = {
+  name: "tooly",
+  replaces: [],
+  drives: false,
+  requiredKeys: [],
+  declared: {
+    code: true,
+    root: "/ext/tooly",
+    tools: [{ name: "ping", description: "abcdefgh" }],
+    instructions: [],
+    skills: [],
+  },
+};
+/** 도구 `run`, `stop`을 선언한 코드 플러그인 */
+const RUNNER: PluginFact = {
+  name: "runner",
+  replaces: [],
+  drives: false,
+  requiredKeys: [],
+  declared: {
+    code: true,
+    root: "/ext/runner",
+    tools: [
+      { name: "run", description: "x" },
+      { name: "stop", description: "y" },
+    ],
+    instructions: [],
+    skills: [],
+  },
+};
+/** 코드가 없고 지침 파일과 스킬 하나를 선언한 플러그인 */
+const NOTES: PluginFact = {
+  name: "notes",
+  replaces: [],
+  drives: false,
+  requiredKeys: [],
+  declared: {
+    code: false,
+    root: "/ext/notes",
+    tools: [],
+    instructions: ["AGENTS.md"],
+    skills: ["skills/a"],
+  },
+};
+/** 코드 플러그인인데 도구를 선언하지 않았다. 비용을 셀 수 없다 */
+const BARE: PluginFact = {
+  name: "bare",
+  replaces: [],
+  drives: false,
+  requiredKeys: [],
+  declared: { code: true, root: "/ext/bare", tools: [], instructions: [], skills: [] },
+};
+/** 선언한 지침 파일이 없다 */
+const GONE: PluginFact = {
+  name: "gone",
+  replaces: [],
+  drives: false,
+  requiredKeys: [],
+  declared: { code: false, root: "/ext/gone", tools: [], instructions: ["MISSING.md"], skills: [] },
+};
+const HELM: PluginFact = {
+  name: "helm",
+  replaces: [],
+  drives: false,
+  requiredKeys: [],
+  declared: NONE,
+};
+
+/** 시험의 재료 파일. 글자 수가 정해져 있어 토큰 수를 손으로 셀 수 있다 */
+const FILES: ReadonlyMap<string, string> = new Map([
+  ["/ext/notes/AGENTS.md", "12345678"],
+  // 설명 "abcd"(4글자, 1토큰), 본문 "body12345"(9글자, 3토큰)
+  ["/ext/notes/skills/a/SKILL.md", "---\ndescription: abcd\n---\nbody12345"],
+]);
+const readFixture = (path: string): Promise<string | undefined> => Promise.resolve(FILES.get(path));
+
+function policyOf(midConversationToolChanges: boolean): CachePolicy {
+  return {
+    retention: "short",
+    sessionKey: "thread",
+    sites: ["system", "tools", "summary", "tail"],
+    maxBreakpoints: 4,
+    midConversationSystem: true,
+    midConversationToolChanges,
+  };
+}
+
+test("profile.preview sums the declared cost of tools, instruction files and skills on fixed fixtures", async () => {
+  const rig = rigOf({ pluginFacts: [TOOLY, NOTES], readText: readFixture });
+  const connection = await connect(rig);
+  const preview = await connection.request("profile.preview", {
+    draft: inputOf({ plugins: [{ name: "tooly" }, { name: "notes" }] }),
+  });
+  // tooly: 도구 4토큰. notes: 지침 2토큰, 스킬은 색인 1 + 본문 3이다
+  expect(preview.cost).toEqual({
+    total: { always: 6, drive: null, onDemand: 4, toolCount: 1, basis: "declared" },
+    byPlugin: [
+      {
+        plugin: "tooly",
+        cost: { always: 4, drive: null, onDemand: 0, toolCount: 1, basis: "declared" },
+      },
+      {
+        plugin: "notes",
+        cost: { always: 2, drive: null, onDemand: 4, toolCount: 0, basis: "declared" },
+      },
+    ],
+  });
+  await connection.close();
+});
+
+test("a code plugin without declared tools, or a declared file that cannot be read, is unknown and makes the total unknown", async () => {
+  const rig = rigOf({ pluginFacts: [TOOLY, BARE, GONE], readText: readFixture });
+  const connection = await connect(rig);
+  const withBare = await connection.request("profile.preview", {
+    draft: inputOf({ plugins: [{ name: "tooly" }, { name: "bare" }] }),
+  });
+  expect(withBare.cost).toEqual({
+    total: UNKNOWN_COST,
+    byPlugin: [
+      {
+        plugin: "tooly",
+        cost: { always: 4, drive: null, onDemand: 0, toolCount: 1, basis: "declared" },
+      },
+      { plugin: "bare", cost: UNKNOWN_COST },
+    ],
+  });
+  const withGone = await connection.request("profile.preview", {
+    draft: inputOf({ plugins: [{ name: "gone" }] }),
+  });
+  expect(withGone.cost.byPlugin).toEqual([{ plugin: "gone", cost: UNKNOWN_COST }]);
+  await connection.close();
+});
+
+test("profile.preview with a thread reports the tools the thread would gain, and the cache impact from its policy", async () => {
+  const rig = rigOf({ pluginFacts: [TOOLY, RUNNER, HELM], cachePolicyOf: () => policyOf(true) });
+  const connection = await connect(rig);
+  const thread = await connection.request("thread.create", {});
+  await connection.request("profile.put", {
+    profile: inputOf({ id: "review", plugins: [{ name: "tooly" }, { name: "runner" }] }),
+    baseRev: null,
+  });
+  // 대화는 기본(helm)을 쓰므로 기준에는 도구가 없다
+  const preview = await connection.request("profile.preview", {
+    id: "review",
+    threadId: thread.threadId,
+  });
+  expect(preview.toolsChanged).toEqual({ added: ["ping", "run", "stop"], removed: [] });
+  expect(preview.cacheImpact).toBe("tool_change_append");
+  await connection.close();
+});
+
+test("a cache policy without mid-conversation tool changes makes the same tool change a readvertise", async () => {
+  const rig = rigOf({ pluginFacts: [TOOLY, RUNNER, HELM], cachePolicyOf: () => policyOf(false) });
+  const connection = await connect(rig);
+  const thread = await connection.request("thread.create", {});
+  await connection.request("profile.put", {
+    profile: inputOf({ id: "review", plugins: [{ name: "tooly" }] }),
+    baseRev: null,
+  });
+  const preview = await connection.request("profile.preview", {
+    id: "review",
+    threadId: thread.threadId,
+  });
+  expect(preview.toolsChanged).toEqual({ added: ["ping"], removed: [] });
+  expect(preview.cacheImpact).toBe("readvertise");
+  await connection.close();
+});
+
+test("the tools a thread loses are the removed names, measured against the profile the thread uses", async () => {
+  const rig = rigOf({
+    pluginFacts: [TOOLY, RUNNER, HELM],
+    threadProfileId: () => "review",
+    cachePolicyOf: () => policyOf(false),
+  });
+  const connection = await connect(rig);
+  const thread = await connection.request("thread.create", {});
+  await connection.request("profile.put", {
+    profile: inputOf({ id: "review", plugins: [{ name: "tooly" }, { name: "runner" }] }),
+    baseRev: null,
+  });
+  const preview = await connection.request("profile.preview", {
+    draft: inputOf({ id: "review", plugins: [{ name: "helm" }] }),
+    threadId: thread.threadId,
+  });
+  expect(preview.toolsChanged).toEqual({ added: [], removed: ["ping", "run", "stop"] });
+  expect(preview.cacheImpact).toBe("readvertise");
+  await connection.close();
+});
+
+test("a preview of the profile the thread already uses reports no tool change and cache impact none", async () => {
+  const rig = rigOf({ pluginFacts: [TOOLY, RUNNER, HELM], cachePolicyOf: () => policyOf(true) });
+  const connection = await connect(rig);
+  const thread = await connection.request("thread.create", {});
+  const preview = await connection.request("profile.preview", {
+    id: "default",
+    threadId: thread.threadId,
+  });
+  expect(preview).not.toHaveProperty("toolsChanged");
+  expect(preview.cacheImpact).toBe("none");
+  await connection.close();
+});
+
+test("without a thread, the baseline is the stored profile of the same id; a new id has no baseline and reports no tool change", async () => {
+  const rig = rigOf({ pluginFacts: [TOOLY, RUNNER, HELM], cachePolicyOf: () => policyOf(true) });
+  const connection = await connect(rig);
+  await connection.request("profile.put", {
+    profile: inputOf({ id: "review", plugins: [{ name: "tooly" }, { name: "runner" }] }),
+    baseRev: null,
+  });
+  const shrunk = await connection.request("profile.preview", {
+    draft: inputOf({ id: "review", plugins: [{ name: "tooly" }] }),
+  });
+  expect(shrunk.toolsChanged).toEqual({ added: [], removed: ["run", "stop"] });
+  // 대화가 없으면 캐시 정책을 알 수 없어 cacheImpact를 싣지 않는다
+  expect(shrunk.cacheImpact).toBeUndefined();
+
+  const fresh = await connection.request("profile.preview", {
+    draft: inputOf({ id: "fresh", plugins: [{ name: "tooly" }] }),
+  });
+  expect(fresh.toolsChanged).toBeUndefined();
+  expect(fresh.cacheImpact).toBeUndefined();
+  await connection.close();
+});
+
+test("a plugin the runtime has stopped does not contribute its tools to the change", async () => {
+  const rig = rigOf({
+    pluginFacts: [TOOLY, RUNNER, HELM],
+    stopped: (name) => name === "runner",
+    cachePolicyOf: () => policyOf(true),
+  });
+  const connection = await connect(rig);
+  const thread = await connection.request("thread.create", {});
+  await connection.request("profile.put", {
+    profile: inputOf({ id: "review", plugins: [{ name: "tooly" }, { name: "runner" }] }),
+    baseRev: null,
+  });
+  const preview = await connection.request("profile.preview", {
+    id: "review",
+    threadId: thread.threadId,
+  });
+  expect(preview.toolsChanged).toEqual({ added: ["ping"], removed: [] });
+  await connection.close();
+});
+
+test("with no cache policy known for the thread, a tool change omits cacheImpact and keeps toolsChanged", async () => {
+  const rig = rigOf({ pluginFacts: [TOOLY, RUNNER, HELM] });
+  const connection = await connect(rig);
+  const thread = await connection.request("thread.create", {});
+  await connection.request("profile.put", {
+    profile: inputOf({ id: "review", plugins: [{ name: "tooly" }] }),
+    baseRev: null,
+  });
+  const preview = await connection.request("profile.preview", {
+    id: "review",
+    threadId: thread.threadId,
+  });
+  expect(preview.toolsChanged).toEqual({ added: ["ping"], removed: [] });
+  expect(preview.cacheImpact).toBeUndefined();
+  await connection.close();
+});
+
+test("thread.setProfile reports the tool change and the cache impact of the switch it makes", async () => {
+  const rig = rigOf({ pluginFacts: [TOOLY, RUNNER, HELM], cachePolicyOf: () => policyOf(true) });
+  const connection = await connect(rig);
+  const thread = await connection.request("thread.create", {});
+  await connection.request("profile.put", {
+    profile: inputOf({ id: "review", plugins: [{ name: "tooly" }, { name: "runner" }] }),
+    baseRev: null,
+  });
+  const switched = await connection.request("thread.setProfile", {
+    threadId: thread.threadId,
+    profileId: "review",
+  });
+  expect(switched.preview).toEqual({
+    toolsChanged: { added: ["ping", "run", "stop"], removed: [] },
+    cacheImpact: "tool_change_append",
+  });
+  await connection.close();
+});
+
+test("profile.removePlugin reports the tools the removed plugin took away from the stored profile", async () => {
+  const rig = rigOf({ pluginFacts: [TOOLY, RUNNER, HELM] });
+  const connection = await connect(rig);
+  await connection.request("profile.put", {
+    profile: inputOf({ plugins: [{ name: "tooly" }, { name: "runner" }] }),
+    baseRev: null,
+  });
+  const removed = await connection.request("profile.removePlugin", {
+    id: "review",
+    plugin: "runner",
+    baseRev: 1,
+  });
+  expect(removed.preview).toEqual({
+    threadsUsing: 0,
+    toolsChanged: { added: [], removed: ["run", "stop"] },
+    dropsDrive: null,
+  });
   await connection.close();
 });
 

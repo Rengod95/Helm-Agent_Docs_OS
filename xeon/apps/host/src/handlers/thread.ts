@@ -115,10 +115,15 @@ export function createThreadSetProfileHandler(
     if (!set.ok) throw wireErrorOfLifecycle(set.error, "thread.setProfile");
     // 전환은 다음 단계 경계에서 적용된다. 유휴 대화도 다음 매크로태스크에 맞춘다(M5c §4.1.8)
     engine.ports.m4.pluginSet.recompute(threadId);
+    // 미리 본 값을 그대로 싣는다(M5c §3.4). 전환 전의 대화 기준으로 잰 값이다
+    const { permission, toolsChanged, cacheImpact } = previewed.value;
     return {
       position: set.value.position,
-      preview:
-        previewed.value.permission === undefined ? {} : { permission: previewed.value.permission },
+      preview: {
+        ...(permission === undefined ? {} : { permission }),
+        ...(toolsChanged === undefined ? {} : { toolsChanged }),
+        ...(cacheImpact === undefined ? {} : { cacheImpact }),
+      },
     };
   };
 }
