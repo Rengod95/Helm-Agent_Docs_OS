@@ -9,6 +9,7 @@ import {
 import {
   capabilityEffectOf,
   isEffectAllowed,
+  type LoopCallConditions,
   REPLAY_EFFECT_TABLE,
   type ExtensionName,
   type ReplayContext,
@@ -46,6 +47,8 @@ export interface GuardTarget {
   readonly providerTrusted: () => boolean;
   readonly extension: ExtensionName;
   readonly scopeId: RegistrationId;
+  /** 호출이 일어난 대화의 turn 조건(interactive, 읽기 전용 천장). 포트가 없으면 생략한다 */
+  readonly conditionsOf?: (threadId: ThreadId) => LoopCallConditions | undefined;
   /**
    * 호출자가 넘긴 `options.context`를 그대로 실어도 되는가. 내장 확장(L1.tools 어댑터처럼 `fresnel.*` 포트를 읽는 코드)만 참이다.
    * 거짓이면 `caller`는 항상 이 확장으로 다시 채우고 호출자가 고를 수 있는 것은 `threadId`와 `toolCallId`뿐이다
@@ -89,10 +92,11 @@ function effectLabel(effect: ReplayEffect): string {
   return `${effect} (on ${row.on}, drive ${row.drive})`;
 }
 
-function untrustedContext(
+export function untrustedContext(
   given: CallContext | undefined,
   ambientThread: ThreadId | undefined,
   extension: ExtensionName,
+  conditions?: LoopCallConditions,
 ): CallContext {
   const threadId = ambientThread ?? given?.threadId;
   const toolCallId = given?.toolCallId;
@@ -100,6 +104,13 @@ function untrustedContext(
     ...(threadId === undefined ? {} : { threadId }),
     ...(toolCallId === undefined ? {} : { toolCallId }),
     caller: { kind: "extension", extension },
+    // 호출이 일어난 대화의 조건은 호스트가 채운다. 호출자가 고를 수 없다
+    ...(conditions === undefined
+      ? {}
+      : {
+          interactive: conditions.interactive,
+          ...(conditions.sandbox === undefined ? {} : { sandbox: conditions.sandbox }),
+        }),
   };
 }
 
@@ -173,7 +184,12 @@ export function guardCapabilityService(target: GuardTarget): Readonly<Record<str
           context:
             target.contextTrusted && given?.context !== undefined
               ? given.context
-              : untrustedContext(given?.context, amb?.threadId, target.extension),
+              : untrustedContext(
+                  given?.context,
+                  amb?.threadId,
+                  target.extension,
+                  conditionsFor(target, amb?.threadId ?? given?.context?.threadId),
+                ),
         };
         // 공급자 안에서 도는 도구와 서비스는 재실행되는 문맥이 아니다. 호출자의 ambient가 따라 들어가지 않게 끊는다
         return withoutAmbient(() => method.call(service, input, merged));
@@ -189,6 +205,13 @@ export function guardCapabilityService(target: GuardTarget): Readonly<Record<str
     }
   }
   return Object.fromEntries(wrapped);
+}
+
+function conditionsFor(
+  target: GuardTarget,
+  threadId: ThreadId | undefined,
+): LoopCallConditions | undefined {
+  return threadId === undefined ? undefined : target.conditionsOf?.(threadId);
 }
 
 /** 서비스 객체의 자기 키와 클래스 프로토타입의 메서드 이름 */

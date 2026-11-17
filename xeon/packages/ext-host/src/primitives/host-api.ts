@@ -1,7 +1,7 @@
 import type { ServiceKey, WebProviderRegistration } from "@fresnel/contracts/capabilities";
 import { Bug, ok, type Result } from "@fresnel/contracts";
 import type { JsonValue, ThreadId } from "@fresnel/contracts/conversation";
-import { extensionPrefix } from "@fresnel/contracts/extensions";
+import { extensionPrefix, LoopPortKey } from "@fresnel/contracts/extensions";
 import type {
   DriveOptions,
   ExtensionName,
@@ -387,6 +387,7 @@ export function createRegistrationApi(
           providerTrusted: () => deps.bindings.providerIsBuiltin(id),
           extension: record.extension,
           scopeId: record.id,
+          conditionsOf: (threadId) => core.ports.get(LoopPortKey)?.callConditions?.(threadId),
           contextTrusted: record.builtin,
         }),
       );
@@ -466,6 +467,11 @@ export function createRegistrationApi(
         throw new TypeError(`effect key must be 1-${EFFECT_KEY_MAX} chars`);
       }
       generation.usage.capabilities.add(request.capability);
+      const requestThread = ambient()?.threadId;
+      const conditions =
+        requestThread === undefined
+          ? undefined
+          : core.ports.get(LoopPortKey)?.callConditions?.(requestThread);
       await deps.state.recordPrivate(
         record,
         generation,
@@ -476,6 +482,12 @@ export function createRegistrationApi(
           capability: request.capability,
           method: request.method,
           input: request.input,
+          ...(conditions === undefined
+            ? {}
+            : {
+                interactive: conditions.interactive,
+                ...(conditions.sandbox === undefined ? {} : { sandbox: conditions.sandbox }),
+              }),
         },
       );
       const threadId = ambient()?.threadId;

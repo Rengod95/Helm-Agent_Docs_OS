@@ -18,6 +18,7 @@ import {
   type ExtRecordRow,
   type ExtThreadSnapshot,
   type InputQueuePort,
+  type LoopCallConditions,
   type LoopPort,
   type LoopSpawnRequest,
   type LoopSpawnResult,
@@ -55,6 +56,8 @@ export function fakeUsage(totalTokens: number): Usage {
 }
 
 export interface MemoryLoopOptions {
+  /** 대화에서 지금 도는 turn의 호출 조건. 없으면 조건을 알리지 않는다 */
+  readonly callConditions?: (threadId: ThreadId) => LoopCallConditions | undefined;
   /** turn 하나를 실행한다. 기본은 곧바로 completed와 usage 10토큰 */
   readonly runTurn?: (request: LoopTurnRequest) => Promise<{
     readonly outcome: TurnOutcome;
@@ -150,6 +153,7 @@ export function memoryLoopPort(options: MemoryLoopOptions = {}): MemoryLoopPort 
     spawns,
     setRunning,
     isLocked: (threadId) => locked.has(threadId),
+    ...(options.callConditions === undefined ? {} : { callConditions: options.callConditions }),
     status: (threadId) => (running.has(threadId) ? "running" : "idle"),
     async runTurn(request) {
       const key = `${request.threadId}|${request.scopeId}|${request.requestId}`;

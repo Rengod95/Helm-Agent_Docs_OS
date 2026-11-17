@@ -51,6 +51,9 @@ const RequestedSchema = Type.Object({
   capability: Type.String(),
   method: Type.String(),
   input: Type.Unknown(),
+  // 요청이 일어난 대화의 turn 조건. 워커는 나중에 돌 수 있으므로 요청 때 기록한다
+  interactive: Type.Optional(Type.Boolean()),
+  sandbox: Type.Optional(Type.Literal("read-only")),
 });
 const StartedSchema = Type.Object({ scopeId: Type.String(), key: Type.String() });
 const SettledSchema = Type.Object({
@@ -118,6 +121,8 @@ export function createEffectWorker(core: HostCore, defs: CapabilityDefLookup): E
         context: {
           threadId: job.threadId,
           caller: { kind: "extension", extension: job.extension },
+          ...(request.interactive === undefined ? {} : { interactive: request.interactive }),
+          ...(request.sandbox === undefined ? {} : { sandbox: request.sandbox }),
         },
       });
       return { kind: "ok", output: toJsonValue(output) ?? null };
