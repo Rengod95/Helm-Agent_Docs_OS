@@ -2,6 +2,9 @@ import type { TSchema } from "typebox";
 import type {
   CallerInfo,
   PluginCallRequest,
+  PluginModelError,
+  PluginModelRequest,
+  PluginModelResult,
   ToolError,
   ToolHints,
   ToolName,
@@ -342,9 +345,16 @@ export interface ToolsPort {
   register(owner: RegistrationId, def: ToolResourceDef): Result<Unsubscribe, ToolRegisterError>;
   executeForPlugin(request: PluginCallRequest): Promise<Result<ToolResultView, ToolError>>;
 }
-/** ModelService(fresnel.models)가 포함하는 등록 부분형 */
+/**
+ * ModelService(fresnel.models)가 포함하는 부분형. `completeForPlugin`은 주도 단계의 `model` 명령이 쓴다(drive-isolation.md §1.2).
+ * 역할 `judge`로 해석하고 `guard.model.before`와 `request.provider.before`를 지난다. `request.context.before`와
+ * `request.system.before`는 지나지 않는다(턴 조립 전용). 같은 대화의 같은 (scopeId, requestId)는 프로세스 안에서 한 번만 호출한다
+ */
 export interface ModelsPort {
   registerProvider(owner: RegistrationId, name: string, config: ProviderResourceDef): Unsubscribe;
+  completeForPlugin(
+    request: PluginModelRequest,
+  ): Promise<Result<PluginModelResult, PluginModelError>>;
 }
 /** McpService(fresnel.mcp)가 포함하는 등록 부분형 */
 export interface McpPort {

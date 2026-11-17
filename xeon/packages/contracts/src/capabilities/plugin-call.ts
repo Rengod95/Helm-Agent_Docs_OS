@@ -71,8 +71,13 @@ export type ToolErrorKind =
   | "storage"
   | "unknown_outcome";
 
-/** 플러그인 호출의 실패 값. 메시지는 `[fresnel:<코드>] <사유>` 형식을 따른다 */
+/**
+ * 플러그인 호출의 실패 값. 메시지는 `[fresnel:<코드>] <사유>` 형식을 따른다.
+ * `resolvedBy`는 `denied`일 때만 있다: 정책 규칙이 막았는지, 사용자가 거부했는지, 무인 실행이라 물을 수 없었는지.
+ * 취소·만료로 끝난 승인은 거부한 쪽이 없으므로 싣지 않는다
+ */
 export interface ToolError {
   readonly kind: ToolErrorKind;
   readonly message: string;
+  readonly resolvedBy?: "policy" | "human" | "noninteractive";
 }

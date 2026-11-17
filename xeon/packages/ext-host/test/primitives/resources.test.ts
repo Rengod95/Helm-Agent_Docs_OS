@@ -58,6 +58,13 @@ async function withPorts(t: Host): Promise<Fakes> {
         providers.delete(name);
       };
     },
+    completeForPlugin: () =>
+      Promise.resolve(
+        err({
+          kind: "provider_unavailable",
+          message: "test double: plugin model calls are not used here",
+        }),
+      ),
   };
   const mcpPort: McpPort = {
     registerServer(_owner, name, config) {

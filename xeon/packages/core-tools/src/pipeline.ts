@@ -40,6 +40,7 @@ import {
   stricter,
   type ApprovalOrigin,
   type ApprovalRequestInput,
+  type ApprovalResolvedBy,
   type CallPreparation,
   type UserShellRequest,
   type PolicyInput,
@@ -164,6 +165,8 @@ interface Denied {
   readonly details: JsonObject | null;
   /** 플러그인 호출에서 `ToolError`의 종류가 된다(모델 호출에는 쓰지 않는다) */
   readonly kind: DeniedKind;
+  /** `denied`일 때 거부한 쪽. 플러그인 호출의 `ToolError.resolvedBy`가 된다 */
+  readonly resolvedBy: ToolError["resolvedBy"];
 }
 
 /** 실행 전에 막은 이유의 종류. `blocked`는 훅이 막음, `storage`는 저장소 실패, `aborted`는 중단, 나머지는 `denied` */
@@ -174,8 +177,19 @@ function denied(
   terminate: boolean = false,
   details: JsonObject | null = null,
   kind: DeniedKind = "denied",
+  resolvedBy?: ToolError["resolvedBy"],
 ): Denied {
-  return { reason, terminate, details, kind };
+  return { reason, terminate, details, kind, resolvedBy };
+}
+
+/**
+ * 승인 해결자를 `ToolError.resolvedBy`의 값으로 옮긴다. 사용자 거부와 무인 실행만 거부한 쪽이 있다. 취소·중복 대체·만료는
+ * 거부한 쪽이 없으므로 undefined다
+ */
+function resolvedByOf(resolvedBy: ApprovalResolvedBy): ToolError["resolvedBy"] {
+  if (resolvedBy === "user") return "human";
+  if (resolvedBy === "noninteractive") return "noninteractive";
+  return undefined;
 }
 
 /** 같은 플러그인 호출의 durable 기록 상태. `none`은 의도가 없음, `open`은 의도만 있음(결과 없음) */
@@ -687,6 +701,10 @@ export function createPipeline(
     if (decision.effect === "deny") {
       return denied(
         decision.message ?? `[fresnel:denied_by_policy] Tool call "${entry.name}" is denied.`,
+        false,
+        null,
+        "denied",
+        "policy",
       );
     }
     if (decision.effect === "allow") return undefined;
@@ -783,7 +801,13 @@ export function createPipeline(
       // 턴 취소는 대기 중인 요청을 cancelled로 닫는다(L1.tools.spec §4.7 8번)
       await approvals.cancel(resolution.approvalId, "turn aborted");
     }
-    return denied(denialReason(resolution), false, denialDetails(resolution));
+    return denied(
+      denialReason(resolution),
+      false,
+      denialDetails(resolution),
+      "denied",
+      resolvedByOf(resolution.resolvedBy),
+    );
   }
 
   // ── 5c' 시크릿 사용 승인(L1.tools.spec §4.12) ────────────────────────────
@@ -805,7 +829,7 @@ export function createPipeline(
       toolCallId: state.toolCallId,
     });
     if (verdict.kind === "none") return undefined;
-    if (verdict.kind === "denied") return denied(verdict.reason);
+    if (verdict.kind === "denied") return denied(verdict.reason, false, null, "denied", "policy");
     let approvalId = state.userApprovalId;
     if (approvalId === undefined) {
       const asked = await askUser(
@@ -1925,7 +1949,11 @@ export function createPipeline(
         result: rejectedResult(verdict.reason, verdict.terminate, verdict.details),
         silent: true,
       });
-      return err({ kind: verdict.kind, message: verdict.reason });
+      return err({
+        kind: verdict.kind,
+        message: verdict.reason,
+        ...(verdict.resolvedBy === undefined ? {} : { resolvedBy: verdict.resolvedBy }),
+      });
     }
     const outcome = await execute({ toolCall: call, args: checked.value }, () => {}, run);
     // 결과가 durable하게 기록됐을 때만 돌려주고 기억한다. 결과 커밋이 실패했으면 의도만 남아 같은 요청 id는 `unknown_outcome`이 된다

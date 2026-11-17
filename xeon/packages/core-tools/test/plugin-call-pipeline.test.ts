@@ -59,7 +59,7 @@ test("a policy deny rule refuses the plugin call with a denied error and runs no
   });
   const probe = registerWorkspace(h);
   const result = await h.runtime.tools.executeForPlugin(callOf(h));
-  expect(result).toMatchObject({ ok: false, error: { kind: "denied" } });
+  expect(result).toMatchObject({ ok: false, error: { kind: "denied", resolvedBy: "policy" } });
   expect(probe.calls).toEqual([]);
   expect(h.session.events).toEqual([]);
 });
@@ -246,5 +246,8 @@ test("a plugin's pending approval is read back after a restart with caller plugi
   // 정리: 원래 서비스에서 대기 중인 카드를 거부해 호출을 끝낸다
   const [request] = h.runtime.approvals.pending(h.thread);
   await h.runtime.approvals.respond(request?.approvalId ?? "", { decision: "deny" });
-  expect(await pending).toMatchObject({ ok: false, error: { kind: "denied" } });
+  expect(await pending).toMatchObject({
+    ok: false,
+    error: { kind: "denied", resolvedBy: "human" },
+  });
 });

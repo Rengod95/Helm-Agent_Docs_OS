@@ -2,11 +2,19 @@
 // 명시 id, done·yield·idle 반납, 아직 없는 명령의 거부 결과, drive.command_settled 사건, 사용자 메시지 전달, 효과 없는 명령의 상한,
 // state_conflict 거부를 본다. 승인 서비스, 기록 저장소, 루프는 대역이다.
 import { expect, test } from "bun:test";
-import { parse } from "@fresnel/contracts";
+import { err, ok, parse } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
+import type {
+  PluginModelError,
+  PluginModelResult,
+  ToolError,
+  ToolResultView,
+} from "@fresnel/contracts/capabilities";
 import type {
   AskCard,
   DriveCommand,
+  DriveLimits,
+  DriveLockBudget,
   DriveStep,
   DriveStepInput,
   PostItem,
@@ -19,6 +27,7 @@ import {
   type DriveCommandSettledPayload,
 } from "@fresnel/contracts/records";
 import { Type } from "typebox";
+import { MAX_CHAINED_REINVOKES } from "../../src/primitives/lease.ts";
 import { hostOf } from "../../src/primitives/index.ts";
 import { createTestHost, fixedIdFactory, type MemoryLoopOptions } from "../../src/testing/index.ts";
 import {
@@ -29,6 +38,12 @@ import {
   type FakeApprovals,
   type Host,
 } from "./fixtures/fake-approvals.ts";
+import {
+  fakeModels,
+  fakeTools,
+  provideModelsPort,
+  provideToolsPort,
+} from "./fixtures/fake-plugin-calls.ts";
 import { makeGroupUnit, snapshotOf } from "./fixtures/support.ts";
 
 interface Counter {
@@ -74,6 +89,8 @@ const TURN_RESULT: StepResult = {
   value: { turnId: TURN, status: "completed" },
 };
 const REFUSED: StepResult = { kind: "refused", code: "command_unavailable" };
+/** E2 뒤에도 아직 없는 명령(E3). 거부되는 효과 없는 명령의 본보기로 쓴다 */
+const HANDOFF: DriveCommand<Counter> = { do: "handoff", to: "other", input: "x" };
 const MODEL: DriveCommand<Counter> = {
   do: "model",
   messages: [{ role: "user", content: "hi" }],
@@ -296,32 +313,24 @@ test("two yields in a row at the same state rev give the lease back as idle", as
   expect(t.loop.turns).toHaveLength(0);
 });
 
-const unavailable: readonly [string, DriveCommand<Counter>][] = [
-  ["model", MODEL],
-  ["tool", { do: "tool", name: "read", args: { path: "a" } }],
-  ["handoff", { do: "handoff", to: "other", input: "x" }],
-];
+test("a handoff command is refused as command_unavailable in the next last and is not thrown", async () => {
+  const t = await createTestHost({ loop: SCRIPTED });
+  const calls: Call[] = [];
+  await install(
+    t,
+    "refuse-handoff",
+    stepOf(calls, ({ last }) => (last === null ? HANDOFF : { do: "done" })),
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await t.settled();
 
-for (const [label, command] of unavailable) {
-  test(`a ${label} command is refused as command_unavailable in the next last and is not thrown`, async () => {
-    const t = await createTestHost({ loop: SCRIPTED });
-    const calls: Call[] = [];
-    await install(
-      t,
-      `refuse-${label}`,
-      stepOf(calls, ({ last }) => (last === null ? command : { do: "done" })),
-    );
-    const thread = t.newThread();
-    await t.host.openThread(thread);
-    await t.settled();
-
-    expect(calls.map((call) => call.last)).toEqual([null, REFUSED]);
-    // 예외였다면 임대가 error로 반납되었을 것이다
-    expect(releasedOf(t, thread).map((released) => released.reason)).toEqual(["done"]);
-    expect(t.diagnostics.filter((diagnostic) => diagnostic.level === "error")).toEqual([]);
-    expect(t.loop.turns).toHaveLength(0);
-  });
-}
+  expect(calls.map((call) => call.last)).toEqual([null, REFUSED]);
+  // 예외였다면 임대가 error로 반납되었을 것이다
+  expect(releasedOf(t, thread).map((released) => released.reason)).toEqual(["done"]);
+  expect(t.diagnostics.filter((diagnostic) => diagnostic.level === "error")).toEqual([]);
+  expect(t.loop.turns).toHaveLength(0);
+});
 
 test("each command settles once with its lease, scope, request id, command, outcome and ref", async () => {
   const t = await createTestHost({ loop: SCRIPTED });
@@ -459,7 +468,7 @@ test("three steps after a user message without a turn or done give the lease bac
   await install(
     t,
     "user-hand-back",
-    stepOf(calls, ({ last }) => (last === null ? { do: "yield" } : MODEL)),
+    stepOf(calls, ({ last }) => (last === null ? { do: "yield" } : HANDOFF)),
   );
   const thread = t.newThread();
   await t.host.openThread(thread);
@@ -499,7 +508,7 @@ test("eight effect-less commands in a row end the invoke with a scope notice, no
   await install(
     t,
     "chain-limit",
-    stepOf(calls, () => MODEL),
+    stepOf(calls, () => HANDOFF),
   );
   const thread = t.newThread();
   await t.host.openThread(thread);
@@ -540,3 +549,436 @@ test("a commit the store rejects as state_conflict arrives as a refused last", a
   expect(settledOf(t, thread)).toEqual([]);
   expect(releasedOf(t, thread).map((released) => released.reason)).toEqual(["done"]);
 });
+
+// ── 도구와 모델 명령(E2) ─────────────────────────────────────────────────
+
+const TOOL_VIEW: ToolResultView = {
+  content: "42",
+  structuredContent: null,
+  isError: false,
+  details: null,
+};
+
+/** 제공자가 낸 답. 엔진은 `replayed`를 떼고 `text`, `usage`, `stopReason`만 단계 함수에 준다 */
+function modelResult(input: number, output: number): PluginModelResult {
+  return {
+    text: "hi back",
+    usage: { input, output, total: input + output },
+    stopReason: "stop",
+    replayed: false,
+  };
+}
+
+const JUDGE: DriveCommand<Counter> = {
+  do: "model",
+  messages: [
+    { role: "system", content: "Judge." },
+    { role: "user", content: "Is it done?" },
+  ],
+  label: "judge",
+  requestId: "model-1",
+};
+
+test("a tool command runs through ToolsPort as the drive's call, and its result comes back as the next last", async () => {
+  const t = await createTestHost({ loop: SCRIPTED });
+  const tools = fakeTools(() => ok(TOOL_VIEW));
+  await provideToolsPort(t, tools.port);
+  const calls: Call[] = [];
+  await install(
+    t,
+    "tool-ok",
+    stepOf(calls, ({ last }) =>
+      last === null
+        ? { do: "tool", name: "read", args: { path: "a.txt" }, requestId: "tool-1" }
+        : { do: "done" },
+    ),
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await t.settled();
+
+  expect(calls.map((call) => call.last)).toEqual([
+    null,
+    { kind: "ok", of: "tool", value: TOOL_VIEW },
+  ]);
+  expect(tools.requests).toMatchObject([
+    {
+      threadId: thread,
+      plugin: { name: "tool-ok", scopeId: "tool-ok" },
+      via: "drive",
+      target: { kind: "tool", name: "read" },
+      input: { path: "a.txt" },
+      requestId: "tool-1",
+    },
+  ]);
+  expect(settledOf(t, thread)).toEqual([
+    { scopeId: "tool-ok", requestId: "tool-1", command: "tool", outcome: "completed" },
+  ]);
+  expect(releasedOf(t, thread).map((released) => released.reason)).toEqual(["done"]);
+});
+
+test("a restart that replays a tool command records no second drive.command_settled for it", async () => {
+  const first = await createTestHost({ loop: SCRIPTED });
+  await provideToolsPort(first, fakeTools(() => ok(TOOL_VIEW)).port);
+  const thread = first.newThread();
+  const step = stepOf([], ({ last }) =>
+    last === null
+      ? { do: "tool", name: "read", args: null, requestId: "tool-replay" }
+      : { do: "yield" },
+  );
+  await install(first, "tool-replay", step);
+  await first.host.openThread(thread);
+  await first.settled();
+  const before = settledOf(first, thread);
+  expect(before).toEqual([
+    { scopeId: "tool-replay", requestId: "tool-replay", command: "tool", outcome: "completed" },
+  ]);
+
+  await first.host.closeThread(thread);
+  const second = await first.restart();
+  await provideToolsPort(second, fakeTools(() => ok(TOOL_VIEW)).port);
+  await install(second, "tool-replay", step);
+  await second.host.openThread(thread);
+  await second.settled();
+
+  expect(settledOf(second, thread)).toEqual(before);
+});
+
+/** ToolsPort가 준 실패가 단계 결과로 어떻게 옮겨지는가. 거부한 쪽이 없는 거부는 `refused`다 */
+const TOOL_FAILURES: readonly [string, ToolError, StepResult, string][] = [
+  [
+    "a human denial",
+    {
+      kind: "denied",
+      message: "[fresnel:denied_by_user] The user denied this call.",
+      resolvedBy: "human",
+    },
+    { kind: "denied", by: "human", reason: "[fresnel:denied_by_user] The user denied this call." },
+    "denied",
+  ],
+  [
+    "a policy denial",
+    {
+      kind: "denied",
+      message: '[fresnel:denied_by_policy] Tool call "write" is denied.',
+      resolvedBy: "policy",
+    },
+    {
+      kind: "denied",
+      by: "policy",
+      reason: '[fresnel:denied_by_policy] Tool call "write" is denied.',
+    },
+    "denied",
+  ],
+  [
+    "a denial nobody decided (the approval was cancelled)",
+    { kind: "denied", message: "[fresnel:cancelled] The approval was cancelled." },
+    { kind: "refused", code: "denied" },
+    "refused",
+  ],
+  [
+    "a hook block",
+    { kind: "blocked", message: "[fresnel:denied_by_extension] no reads today" },
+    {
+      kind: "blocked",
+      by: { plugin: null, hook: null },
+      reason: "[fresnel:denied_by_extension] no reads today",
+    },
+    "blocked",
+  ],
+  [
+    "an abort",
+    { kind: "aborted", message: "[fresnel:aborted] Operation aborted" },
+    { kind: "aborted" },
+    "aborted",
+  ],
+  [
+    "an unknown tool",
+    { kind: "unavailable", message: "[fresnel:tool_unavailable] write is not available." },
+    { kind: "refused", code: "unavailable" },
+    "refused",
+  ],
+  [
+    "an unknown outcome",
+    { kind: "unknown_outcome", message: "[fresnel:unknown_outcome] It may have taken effect." },
+    { kind: "refused", code: "unknown_outcome" },
+    "refused",
+  ],
+];
+
+for (const [label, error, expected, outcome] of TOOL_FAILURES) {
+  test(`${label} from ToolsPort comes back as the next last, is not thrown, and settles as ${outcome}`, async () => {
+    const t = await createTestHost({ loop: SCRIPTED });
+    await provideToolsPort(t, fakeTools(() => err(error)).port);
+    const calls: Call[] = [];
+    await install(
+      t,
+      "tool-failure",
+      stepOf(calls, ({ last }) =>
+        last === null
+          ? { do: "tool", name: "write", args: {}, requestId: "tool-failed" }
+          : { do: "done" },
+      ),
+    );
+    const thread = t.newThread();
+    await t.host.openThread(thread);
+    await t.settled();
+
+    expect(calls.map((call) => call.last)).toEqual([null, expected]);
+    expect(releasedOf(t, thread).map((released) => released.reason)).toEqual(["done"]);
+    expect(t.diagnostics.filter((diagnostic) => diagnostic.level === "error")).toEqual([]);
+    expect(settledOf(t, thread).map((entry) => entry.outcome)).toEqual([outcome]);
+  });
+}
+
+test("a tool command without fresnel.tools is refused as port_unavailable and the drive sees the refusal", async () => {
+  const t = await createTestHost({ loop: SCRIPTED });
+  const calls: Call[] = [];
+  await install(
+    t,
+    "tool-no-port",
+    stepOf(calls, ({ last }) =>
+      last === null ? { do: "tool", name: "read", args: null } : { do: "done" },
+    ),
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await t.settled();
+
+  expect(calls.map((call) => call.last)).toEqual([
+    null,
+    { kind: "refused", code: "port_unavailable" },
+  ]);
+  expect(releasedOf(t, thread).map((released) => released.reason)).toEqual(["done"]);
+  expect(settledOf(t, thread)).toEqual([]);
+});
+
+test("a model command returns the text and usage, deducts the tokens from the budget, and settles as model", async () => {
+  const t = await createTestHost({ loop: SCRIPTED });
+  const models = fakeModels(() => ok(modelResult(6, 4)));
+  await provideModelsPort(t, models.port);
+  const calls: Call[] = [];
+  const budgets: DriveLockBudget[] = [];
+  const step: DriveStep<Counter> = (input) => {
+    calls.push({ state: input.state, last: input.last });
+    budgets.push(input.budget);
+    return Promise.resolve(input.last === null ? JUDGE : { do: "done" });
+  };
+  await t.host.install(
+    makeGroupUnit<Counter>({ name: "model-ok", def: COUNTER_DEF }, (g) => {
+      g.drive(step, { limits: { maxTokens: 100 } });
+    }),
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await t.settled();
+
+  expect(calls.map((call) => call.last)).toEqual([
+    null,
+    {
+      kind: "ok",
+      of: "model",
+      value: { text: "hi back", usage: { input: 6, output: 4, total: 10 }, stopReason: "stop" },
+    },
+  ]);
+  // 두 번째 단계는 첫 호출의 토큰 10을 뺀 남은 예산을 본다
+  expect(budgets.map((budget) => budget.tokens)).toEqual([100, 90]);
+  expect(models.requests).toMatchObject([
+    {
+      threadId: thread,
+      plugin: { name: "model-ok", scopeId: "model-ok" },
+      requestId: "model-1",
+      label: "judge",
+      messages: [
+        { role: "system", content: "Judge." },
+        { role: "user", content: "Is it done?" },
+      ],
+    },
+  ]);
+  expect(settledOf(t, thread)).toEqual([
+    { scopeId: "model-ok", requestId: "model-1", command: "model", outcome: "completed" },
+  ]);
+  expect(releasedOf(t, thread).map((released) => released.reason)).toEqual(["done"]);
+});
+
+test("a model command after the token budget is spent releases the lease as budget, like a turn does", async () => {
+  const t = await createTestHost({ loop: SCRIPTED });
+  const models = fakeModels(() => ok(modelResult(1, 0)));
+  await provideModelsPort(t, models.port);
+  const calls: Call[] = [];
+  await installLimited(
+    t,
+    "model-budget",
+    (input) => {
+      calls.push({ state: input.state, last: input.last });
+      return Promise.resolve(input.last === null ? JUDGE : { ...JUDGE, requestId: "model-2" });
+    },
+    { maxTokens: 1 },
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await t.settled();
+
+  // 첫 호출이 토큰 1을 다 쓴다. 두 번째 명령은 호출되지 않고 임대가 budget으로 반납된다
+  expect(calls.map((call) => call.last)).toEqual([
+    null,
+    {
+      kind: "ok",
+      of: "model",
+      value: { text: "hi back", usage: { input: 1, output: 0, total: 1 }, stopReason: "stop" },
+    },
+  ]);
+  expect(models.requests.map((request) => request.requestId)).toEqual(["model-1"]);
+  expect(releasedOf(t, thread).map((released) => released.reason)).toEqual(["budget"]);
+  expect(settledOf(t, thread).map((entry) => entry.requestId)).toEqual(["model-1"]);
+});
+
+const MODEL_FAILURES: readonly [string, PluginModelError, StepResult, string][] = [
+  [
+    "a guard denial",
+    { kind: "denied_by_guard", message: "[fresnel:denied_by_guard] no model calls" },
+    { kind: "refused", code: "denied_by_guard" },
+    "refused",
+  ],
+  [
+    "a provider error",
+    { kind: "provider_error", message: "upstream exploded" },
+    { kind: "refused", code: "provider_error" },
+    "refused",
+  ],
+  ["an abort", { kind: "aborted", message: "aborted" }, { kind: "aborted" }, "aborted"],
+];
+
+for (const [label, error, expected, outcome] of MODEL_FAILURES) {
+  test(`${label} from ModelsPort comes back as the next last, is not thrown, and settles as ${outcome}`, async () => {
+    const t = await createTestHost({ loop: SCRIPTED });
+    const models = fakeModels(() => err(error));
+    await provideModelsPort(t, models.port);
+    const calls: Call[] = [];
+    await install(
+      t,
+      "model-failure",
+      stepOf(calls, ({ last }) => (last === null ? JUDGE : { do: "done" })),
+    );
+    const thread = t.newThread();
+    await t.host.openThread(thread);
+    await t.settled();
+
+    expect(calls.map((call) => call.last)).toEqual([null, expected]);
+    expect(models.requests).toHaveLength(1);
+    expect(releasedOf(t, thread).map((released) => released.reason)).toEqual(["done"]);
+    expect(t.diagnostics.filter((diagnostic) => diagnostic.level === "error")).toEqual([]);
+    expect(settledOf(t, thread).map((entry) => entry.outcome)).toEqual([outcome]);
+  });
+}
+
+const NOTHING_TO_SEND: readonly [
+  string,
+  readonly { role: "system" | "user" | "assistant"; content: string }[],
+][] = [
+  ["no messages", []],
+  ["only a system message", [{ role: "system", content: "alone" }]],
+];
+
+for (const [label, messages] of NOTHING_TO_SEND) {
+  test(`a model command with ${label} is refused as input_invalid without a provider call`, async () => {
+    const t = await createTestHost({ loop: SCRIPTED });
+    const models = fakeModels(() => ok(modelResult(6, 4)));
+    await provideModelsPort(t, models.port);
+    const calls: Call[] = [];
+    await install(
+      t,
+      "model-empty",
+      stepOf(calls, ({ last }) => (last === null ? { do: "model", messages } : { do: "done" })),
+    );
+    const thread = t.newThread();
+    await t.host.openThread(thread);
+    await t.settled();
+
+    expect(calls.map((call) => call.last)).toEqual([
+      null,
+      { kind: "refused", code: "input_invalid" },
+    ]);
+    expect(models.requests).toEqual([]);
+    expect(settledOf(t, thread)).toEqual([]);
+  });
+}
+
+test("a model command without fresnel.models is refused as port_unavailable and the drive sees the refusal", async () => {
+  const t = await createTestHost({ loop: SCRIPTED });
+  const calls: Call[] = [];
+  await install(
+    t,
+    "model-no-port",
+    stepOf(calls, ({ last }) => (last === null ? MODEL : { do: "done" })),
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await t.settled();
+
+  expect(calls.map((call) => call.last)).toEqual([
+    null,
+    { kind: "refused", code: "port_unavailable" },
+  ]);
+  expect(settledOf(t, thread)).toEqual([]);
+});
+
+test("failed model calls are not effects, so a chain of them ends at the chain limit with a scope notice", async () => {
+  const t = await createTestHost({ loop: SCRIPTED });
+  const models = fakeModels(() =>
+    err({ kind: "denied_by_guard", message: "[fresnel:denied_by_guard] no model calls" }),
+  );
+  await provideModelsPort(t, models.port);
+  const calls: Call[] = [];
+  await install(
+    t,
+    "model-chain",
+    stepOf(calls, () => MODEL),
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await t.settled();
+
+  expect(calls).toHaveLength(MAX_CHAINED_REINVOKES);
+  expect(models.requests).toHaveLength(MAX_CHAINED_REINVOKES);
+  expect(t.diagnostics.filter((diagnostic) => diagnostic.code === "scope_notice")).toHaveLength(1);
+  expect(t.host.leaseOf(thread)).not.toBeNull();
+});
+
+test("successful tool commands are effects, so a run longer than the chain limit is not cut", async () => {
+  const t = await createTestHost({ loop: SCRIPTED });
+  const tools = fakeTools(() => ok(TOOL_VIEW));
+  await provideToolsPort(t, tools.port);
+  const calls: Call[] = [];
+  await install(
+    t,
+    "tool-run",
+    stepOf(calls, () =>
+      calls.length >= MAX_CHAINED_REINVOKES + 2
+        ? { do: "done" }
+        : { do: "tool", name: "read", args: null },
+    ),
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await t.settled();
+
+  expect(calls).toHaveLength(MAX_CHAINED_REINVOKES + 2);
+  expect(tools.requests).toHaveLength(MAX_CHAINED_REINVOKES + 1);
+  expect(t.diagnostics.filter((diagnostic) => diagnostic.code === "scope_notice")).toEqual([]);
+  expect(releasedOf(t, thread).map((released) => released.reason)).toEqual(["done"]);
+});
+
+/** 한도를 준 그룹 하나를 설치한다. 단계 함수는 `step`이다 */
+async function installLimited(
+  t: Host,
+  name: string,
+  step: DriveStep<Counter>,
+  limits: DriveLimits,
+): Promise<void> {
+  await t.host.install(
+    makeGroupUnit<Counter>({ name, def: COUNTER_DEF }, (g) => {
+      g.drive(step, { limits });
+    }),
+  );
+}

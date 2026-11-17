@@ -84,6 +84,10 @@ test("resources.provider-released-on-disable", async () => {
             providers.delete(name);
           };
         },
+        completeForPlugin: () =>
+          Promise.resolve(
+            err({ kind: "provider_unavailable", message: "test double: no model calls" }),
+          ),
       });
     },
   });

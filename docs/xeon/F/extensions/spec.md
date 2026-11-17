@@ -483,13 +483,13 @@ export interface DriveStepInput<S> {
 
 /**
  * 단계 함수가 돌려주는 명령 하나. 엔진이 블록으로 실행하고 결과를 다음 단계의 `last`로 준다.
- * `model`, `tool`(E2), `handoff`(E3)는 타입 자리만 있고 E1 엔진은 `{ kind: "refused", code: "command_unavailable" }`를 돌려준다.
+ * `model`, `tool`은 E2 엔진이 `ModelsPort.completeForPlugin`, `ToolsPort.executeForPlugin`으로 실행한다. `handoff`(E3)는 타입 자리만 있고 E2 엔진은 `{ kind: "refused", code: "command_unavailable" }`를 돌려준다.
  * `commit`의 이어 실행 이름은 `next`다(스펙 초안의 `then`은 lint 규칙 unicorn/no-thenable이 막는다)
  */
 export type DriveCommand<S> =
   | { readonly do: "turn"; readonly input: PostItem; readonly note?: string; readonly requestId?: string }
-  | { readonly do: "model"; readonly messages: readonly DriveModelMessage[]; readonly label?: string }
-  | { readonly do: "tool"; readonly name: string; readonly args: JsonValue }
+  | { readonly do: "model"; readonly messages: readonly DriveModelMessage[]; readonly label?: string; readonly requestId?: string }
+  | { readonly do: "tool"; readonly name: string; readonly args: JsonValue; readonly requestId?: string }
   | { readonly do: "ask"; readonly card: AskCard; readonly title?: string; readonly requestId?: string }
   | { readonly do: "spawn"; readonly agent: string; readonly task: string; readonly background?: boolean; readonly label?: string; readonly requestId?: string }
   | { readonly do: "handoff"; readonly to: string; readonly input: JsonValue }
@@ -501,7 +501,8 @@ export type DriveCommand<S> =
 export type StepResult =
   | { readonly kind: "ok"; readonly of: "turn"; readonly value: TurnOutcome }
   | { readonly kind: "ok"; readonly of: "spawn"; readonly value: SpawnOutcome }
-  | { readonly kind: "ok"; readonly of: "model" | "tool"; readonly value: JsonValue | null }
+  | { readonly kind: "ok"; readonly of: "model"; readonly value: PluginModelValue }   // { text, usage, stopReason }
+  | { readonly kind: "ok"; readonly of: "tool"; readonly value: ToolResultView }
   | { readonly kind: "ask"; readonly answer: "answered" | "cancelled" | "expired" | "noninteractive"; readonly value: JsonValue | null }
   | { readonly kind: "blocked"; readonly by: { plugin: string | null; hook: string | null }; readonly reason: string }
   | { readonly kind: "denied"; readonly by: "policy" | "human" | "noninteractive"; readonly reason: string | null }
@@ -837,7 +838,11 @@ export interface ToolReplaceClaim { readonly extension: string; readonly trust: 
 /** ToolService(fresnel.tools)가 포함하는 등록 부분형. 이름이 겹치면 등록은 통째로 실패하고 도구 표는 그대로다 */
 export interface ToolsPort { register(owner: RegistrationId, def: ToolResourceDef): Result<Unsubscribe, ToolRegisterError> }
 /** ModelService(fresnel.models)가 포함하는 등록 부분형 */
-export interface ModelsPort { registerProvider(owner: RegistrationId, name: string, config: ProviderResourceDef): Unsubscribe }
+export interface ModelsPort {
+  registerProvider(owner: RegistrationId, name: string, config: ProviderResourceDef): Unsubscribe;
+  /** 주도 단계의 `model` 명령. 역할 `judge`, `guard.model.before`와 `request.provider.before`를 지난다. 같은 대화의 같은 (scopeId, requestId)의 성공은 프로세스 안에서 같은 결과를 돌려준다 */
+  completeForPlugin(request: PluginModelRequest): Promise<Result<PluginModelResult, PluginModelError>>;
+}
 /** McpService(fresnel.mcp)가 포함하는 등록 부분형 */
 export interface McpPort { registerServer(owner: RegistrationId, name: string, config: McpServerResourceDef): Unsubscribe }
 export const ToolsPortKey: PortKey<ToolsPort>;                     // { name: "fresnel.tools" }

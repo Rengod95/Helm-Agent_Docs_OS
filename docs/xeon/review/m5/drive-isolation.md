@@ -98,8 +98,8 @@ type StepResult =
 | 명령 | 블록 | 따라오는 보장 | 지금 |
 |---|---|---|---|
 | `turn` | 컨텍스트 조립 → 모델 호출 → 도구 실행 반복 | 전부 | 있음 (`loop.turn`) |
-| `model` | 모델 호출 | 요청 가드, 토큰 집계, 주도 한도 차감, 기록. 지나는 훅은 모델 호출 앞 훅(`request.provider.before`, `guard.model.before`)뿐이다. 컨텍스트 조립 앞 훅(`request.context.before`, `request.system.before`)은 지나지 않는다: 턴 조립 전용이고 `ModelService.complete`는 조립을 부르지 않는다(`core-context/src/assemble.ts:139-160`, `core-models/src/pipeline.ts:349-366`) | 없음. 판정 API는 내장 전용이고 한도에 안 잡힘 |
-| `tool` | 도구 실행 | 플러그인 판정 훅(`tool.call.before`, `guard.tool.before`), 권한 모드, 승인, 샌드박스, 실행 기록, 결과 훅(`tool.result`), 변경 추적. 모델이 부른 도구와 같은 관문이고 호출 주체는 `plugin:<이름>`이다 | 없음 |
+| `model` | 모델 호출 | 요청 가드, 토큰 집계, 주도 한도 차감, 기록. 지나는 훅은 모델 호출 앞 훅(`request.provider.before`, `guard.model.before`)뿐이다. 컨텍스트 조립 앞 훅(`request.context.before`, `request.system.before`)은 지나지 않는다: 턴 조립 전용이고 `ModelService.complete`는 조립을 부르지 않는다(`core-context/src/assemble.ts:139-160`, `core-models/src/pipeline.ts:349-366`) | 있음 (E2). `ModelsPort.completeForPlugin`(core-models), 역할 `judge`. 토큰은 주도 한도에서 뺀다. 판정 API(`agents.judge`)는 내장 전용으로 남는다 |
+| `tool` | 도구 실행 | 플러그인 판정 훅(`tool.call.before`, `guard.tool.before`), 권한 모드, 승인, 샌드박스, 실행 기록, 결과 훅(`tool.result`), 변경 추적. 모델이 부른 도구와 같은 관문이고 호출 주체는 `plugin:<이름>`이다 | 있음 (E2). `ToolsPort.executeForPlugin`(core-tools), `via: drive`. 횟수 한도는 없고 토큰 소진만 막는다 |
 | `ask` | 사람에게 묻기 | 답이 올 때까지 멈춤, 복원. `ask.human.before` 훅이 카드를 취소하거나 답을 대신 낼 수 있다(F §4.3.1) | 있음 (`loop.ask`) |
 | `spawn` | 서브에이전트 | 부모 프로필·권한·작업 폴더 상속. `agent.spawn.before/after` 훅(F §4.3.3) | 있음. 작업 폴더 상속 버그는 고쳐졌다(4절 F2) |
 | `commit` | 기록 | 재시작 안전 | 있음 |
@@ -162,7 +162,7 @@ type StepResult =
 ### 2.3 한도
 
 - 프레임마다 한도를 가진다. `handoff`로 생긴 프레임의 한도는 **맡긴 쪽의 남은 한도를 넘지 못하고**, 맡은 쪽이 쓴 만큼 맡긴 쪽에서도 빠진다(지금은 부모 연결이 없어 새로 만든다). 프레임 한도의 사용량은 `used {turns, spawns, tokens}`로 기록한다(E §3.2).
-- `model` 명령의 토큰도 한도에서 빠진다(지금 판정 호출은 빠지지 않는다). 훅 안에서 부른 `agents.judge`, `models.complete` 같은 플러그인 호출도 같다. 부른 시점에 주도 프레임이 없는 보통 턴이면 코어 루프(프레임 0)의 한도에서 뺀다.
+- `model` 명령의 토큰도 한도에서 빠진다(지금 판정 호출은 빠지지 않는다). [제안] 도구 명령은 횟수 한도가 없고 토큰 소진만 막는다. 도구 호출은 토큰을 쓰지 않고 성공한 호출은 효과로 세므로, 도구 명령만 연속으로 내는 단계 함수를 막는 장치가 없다(6절 5번에 적는다. [근거: xeon/packages/ext-host/src/primitives/lease.ts]). 훅 안에서 부른 `agents.judge`, `models.complete` 같은 플러그인 호출도 같다. 부른 시점에 주도 프레임이 없는 보통 턴이면 코어 루프(프레임 0)의 한도에서 뺀다.
 - 기본 한도(4턴, 서브에이전트 8번, 40만 토큰)는 그대로 둔다. 프로필이 바꿀 수 있는 것은 코어 설정 값이다: `x.primitives.driveDefaultLimits`(기본 한도)와 깊이 상한 키 `x.primitives.driveMaxDepth`(기본 3 [권고: 메인 세션, 확인 대기]. 이름은 [제안]이고 C0에서 확정한다. 정의는 F 부록 A의 `x.primitives.*` 줄)는 `profile` 범위를 연다. 한도 차감의 세부(맡은 쪽이 쓴 만큼 맡긴 쪽에서 빠진다)도 같은 [권고]다. 천장 `x.primitives.driveLimits`는 프로필이 바꾸지 못한다(D §3.3).
 
 ### 2.4 사용자 개입 [결정]
@@ -316,6 +316,8 @@ E2와 E3는 서로 독립이라 병렬로 할 수 있다. P1은 주도와 무관
 2. **[권고: 메인 세션, 확인 대기] 깊이 상한 3과 한도 차감 세부**(2.3).
 3. **플러그인 프로세스의 메모리.** 기본은 플러그인(버전)마다 하나. P1의 측정 결과가 넘치면 같은 신뢰 등급끼리 묶는 설정을 둔다.
 4. **문서의 층 지도와 이름을 실제로 바꿀지**(8절). 코드의 디렉터리 이름은 바꾸지 않는다. 막지 않는다.
+5. **[미결] 도구 명령만 연속으로 내는 단계 함수.** 도구 호출은 토큰을 쓰지 않고 횟수 한도가 없다. 성공한 호출은 효과로 세므로 효과 없는 명령의 연속 상한(`MAX_CHAINED_REINVOKES`)에도 걸리지 않는다. E2 구현은 막는 장치 없이 들어갔다. 도구 명령 횟수 상한이나 한 호출 안의 효과 상한 중 하나를 정한다. [근거: xeon/packages/ext-host/src/primitives/lease.ts]
+6. **[미결] 재시작 뒤 `model` 명령의 재생.** §1.1은 기록이 남는 명령을 재시작 뒤 다시 실행하지 않는다고 적었다. E2 구현은 `drive.command_settled`를 남기기만 하고 재시작 뒤 그 기록을 조회하지 않는다. 기록에는 결과 본문이 없어(결과 요약 또는 참조만) 같은 모델 호출의 답을 돌려줄 수 없다. 메모리 안의 재생(같은 프로세스)만 있다. 결과 본문을 기록에 넣을지, 재시작 뒤 같은 `model` 명령을 다시 부르는 것을 받아들일지 정한다. `tool`은 core-tools의 효과 기록이 재생을 맡는다. [근거: xeon/packages/ext-host/src/primitives/lease.ts, xeon/packages/core-models/src/plugin-model.ts]
 
 ## 7. 확인하지 못한 것
 
