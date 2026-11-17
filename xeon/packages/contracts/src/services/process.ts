@@ -10,7 +10,8 @@ export const ProcessServiceName = "fresnel.process" as const;
 
 /** "bgp_<ULID>". F.conversation.spec §3.2.1 LocalIdPrefix, 발급은 LocalIdFactory.next("bgp") */
 export type BackgroundProcessId = LocalId<"bgp">;
-export type BackgroundOwnerKind = "tool" | "mcp" | "schedule" | "other";
+/** `plugin-host`는 격리 확장의 플러그인 호스트 프로세스다(review.m5-drive-isolation §3.1, `IsolationProcessPort.spawn`) */
+export type BackgroundOwnerKind = "tool" | "mcp" | "schedule" | "plugin-host" | "other";
 export type BackgroundState = "running" | "stopping" | "exited" | "killed" | "lost";
 
 export interface BackgroundOwner {

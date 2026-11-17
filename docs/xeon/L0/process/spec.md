@@ -25,7 +25,7 @@ binds: [xeon/packages/platform-process/**]
 5. 대화 잠금 실패 때 동작 정책 `LockFallbackPolicy`
 6. 복구 표식 기반 '이어서 실행' 제시 정책
 7. OS 서비스 등록 provider(2차)
-8. X 포트 `ProcessPort`(`F.extensions.spec` §3.2.1) 구현: 외부 훅 실행 `run`(포트는 M2, 외부 훅 소비자는 M4 [결정: 2026-10-28 사용자])과 격리 확장 자식 기동 `spawn`(2차). `ProcessService`가 이 포트를 확장한다(§3.1, §4.8)
+8. X 포트 `ProcessPort`(`F.extensions.spec` §3.2.1) 구현: 외부 훅 실행 `run`(포트는 M2, 외부 훅 소비자는 M4 [결정: 2026-10-28 사용자])과 격리 확장 자식 기동 `spawn`(플러그인 호스트, M5b-1, §4.10). `ProcessService`가 이 포트를 확장한다(§3.1, §4.8)
 
 원격 사용은 1차(M3)이고 새 전송을 두지 않는다. 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결해 쓴다. 내장 TLS + 토큰 WebSocket은 2차다 [결정: review.decisions-2 U-11].
 
@@ -758,12 +758,7 @@ ssh -N -T -o ExitOnForwardFailure=yes -o BatchMode=yes -o ServerAliveInterval=15
 4. 실행 파일이 없거나 권한이 없어 기동하지 못하면 거부(reject)하지 않고 `exitCode: null`, `spawnError: <코드>`(`"ENOENT"` 등)로 돌려준다. 해석은 `interpretHookRun`(X)이 한다. `argv`가 비었으면 `"EINVAL"`, 트리 종료 수단이 없는 OS면 `"unsupported_platform"`이다. 호출 시점에 `signal`이 이미 중단되어 있으면 띄우지 않고 `timedOut: true`로 돌려준다. 중단된 실행은 자식이 끝난 뒤에도 트리에 force를 한 번 더 보내 손자를 남기지 않는다.
 5. 훅 프로세스는 레지스트리에 등록하지 않는다. 짧은 실행이므로 `signal`과 종료 협조(§4.2) 참여로 정리한다. 종료 협조가 시작되면 실행 중인 훅을 3번 규칙대로 멈춘다.
 
-`spawn(spec: IsolationSpawnSpec): Promise<IsolatedChild>`(격리 확장 자식, `X.loading-trust.spec` §3.8, 2차):
-
-1. `main`을 Bun으로 실행하고 `args`, `cwd`, `env`만 넘긴다. `env`는 호출자가 허용 목록으로 만든 값이다(DB 경로와 시크릿 없음).
-2. 기동한 자식은 레지스트리에 `owner.kind: "other"`, `owner.ref: spec.label`(`"ext:<name>:<generation>"`)로 등록한다. 그래서 `stopOwnedBy`와 종료 협조(§4.3)가 격리 자식도 정리한다.
-3. `IsolatedChild.kill("SIGTERM" | "SIGKILL")`은 프로세스 트리 전체에 보낸다. `exited`는 레지스트리 항목의 종료와 같은 사건이다.
-4. 1차 구현의 `spawn`은 자식을 띄우지 않고 거부(reject)한다. 조립 루트는 1차에서 `LoaderDeps.process`를 넣지 않으므로(`X.loading-trust.spec` §3.5) 운영 경로는 이 메서드를 부르지 않고, 격리 설정 확장은 `isolation_unavailable`이 된다 [제안].
+`spawn(spec: IsolationSpawnSpec): Promise<Result<IsolatedChild, IsolationSpawnError>>`(격리 확장 자식, 플러그인 호스트 프로세스, `review.m5-drive-isolation` §3.1·§3.4, M5b-1)는 `createIsolationProcessPort`(`src/port/isolation-spawn.ts`)에 위임한다. 샌드박스를 쓸 수 없으면 값으로 막고 띄우지 않는다. 규칙은 §4.10이다. 이전의 거부 구현(`isolation_unavailable` 뒤 `Bug`)은 없다 [근거: packages/platform-process/src/service.ts `createProcessService`].
 
 ### 4.9 MCP stdio 서버 포트 `McpProcessPort`
 
@@ -785,6 +780,22 @@ L2.mcp가 stdio 서버의 표준 입출력을 SDK 전송으로 감싸려면 스�
 8. 정지 순서는 stdin 닫기, 유예(`stdinCloseMs`, 기본 500ms), SIGTERM, 유예(레지스트리의 `graceMs`), SIGKILL이다. 레지스트리의 `graceful` 단계가 stdin을 닫고 서버가 그 사이에 끝나면 신호를 보내지 않는다. 끝나지 않으면 트리에 SIGTERM을 보내고, 레지스트리가 시한 뒤 `force`(SIGKILL)를 부른다. 그래서 종료 협조(§4.3)가 모든 MCP 서버의 트리를 이 순서로 정지한다.
 9. `exited`는 프로세스 종료와 stdout 닫힘이 모두 끝난 뒤 이행한다. 서버가 마지막 응답을 쓰고 바로 끝나도 그 출력을 읽을 수 있다. 프로세스가 끝나면 남은 손자를 force로 정리하고, 그래도 파이프가 `drainMs` 안에 닫히지 않으면 스트림을 닫고 이행한다.
 10. stdin 오류(`EPIPE`)는 처리기를 달아 둔다. 전송이 시작하기 전에 서버가 죽어도 엔진이 처리되지 않은 오류로 끝나지 않는다.
+
+### 4.10 격리 확장 자식 포트 `IsolationProcessPort`
+
+플러그인 호스트 프로세스(엔진 실행 파일을 다른 모드로 다시 띄운 것)를 샌드박스로 감싸 띄운다. 포트 모양은 `F.extensions.spec` §3.2.1이 정본이고, 구현은 `createIsolationProcessPort(deps)`(`src/port/isolation-spawn.ts`)다. 파이프 기동은 §4.9의 `spawnPiped`, 정지 순서는 `stopperOfPiped`(`src/port/child-stop.ts`)를 쓴다. `deps.sandbox`는 샌드박스 서비스를 spawn 때마다 찾는 함수다(조립 순서상 포트가 서비스보다 먼저 만들어진다). 조립은 `ProcessServiceDeps.sandbox`로 이 함수를 넘긴다. 함수가 없거나 undefined를 돌려주면 모든 spawn이 `sandbox_unavailable`(`reason: "service_missing"`)이다.
+
+`spawn(spec)`:
+
+1. 정책은 `review.m5-drive-isolation` §3.4대로다 [결정: 2026-11-17 사용자]. `defaultPolicy`가 채운 보호 경로 읽기·쓰기 거부 목록과 사용자의 차단 도메인을 그대로 쓰고, 쓰기 루트는 비운다. 쓰기 거부에는 `/`를 더해 모든 경로의 쓰기를 막는다. 네트워크는 허용 목록 없이 차단 목록만 둔다(기본 전체 허용). `profile`은 쓰지 않는다. `"read-only"`는 네트워크를 막기 때문이다. `allowEscape`는 `false`다.
+2. 쓰기 루트를 비우는 것만으로는 쓰기가 닫히지 않는다. srt는 정책과 상관없이 `/tmp/claude`, `~/.npm/_logs` 같은 임시·로그 경로에 쓰기를 열어 두고, 설정 `l0.sandbox.writeRoots.extra`의 디렉터리도 정책 쓰기 루트에 더해진다 [근거: packages/platform-sandbox/src/service.ts `srtImplicitWritePaths`, `resolvePolicy`]. 쓰기 거부 `/`는 두 경우를 모두 막는다. 실측(2026-11-18): `/` 없이는 `/tmp/claude`에 쓸 수 있었고, `/`를 더한 뒤에는 그 경로, `/private/tmp`, `~/.npm/_logs`, 작업 디렉터리, `writeRoots.extra` 디렉터리 쓰기가 모두 `EPERM`으로 막혔다.
+3. 읽기는 허용 목록이 아니다. 보호 경로 거부 목록(예: `fresnel_data` 데이터 폴더, `~/.ssh`, `~/.claude`)만 막는다. 그 밖의 파일은 읽힌다. 실측(2026-11-18): `~/.ssh`와 `~/.claude` 목록 읽기와 데이터 폴더 파일 읽기는 `EPERM`이고, 작업 디렉터리 안 파일과 `/etc/hosts`는 읽혔다. 읽기 허용 목록은 `SandboxPolicy`로 표현할 수 없다 [근거: packages/contracts/src/services/sandbox.ts `SandboxPolicy`, 읽기 허용 필드가 없다](`[미결 P-16]`).
+4. 명령줄은 `wrapArgv(policy, { command, args, cwd: readRoot }, ...)`가 돌려준 `argv`다. 격리를 쓸 수 없으면 띄우지 않고 `sandbox_unavailable`을 돌려준다(`reason`은 `SandboxUnavailableReason`, 사유가 없으면 `unknown`). 격리 없이 띄우는 것은 사용자가 끈 때(`disabled`)와 `run_unsandboxed`일 때뿐이고, 그때 경고 `isolation.sandbox_not_enforced`(`label`, `by`)를 남긴다. `failed`는 `spawn_failed`(`code: "sandbox_failed"`), `aborted`는 `aborted`다.
+5. 자식 env는 부모 env의 허용 목록 이름(§4.9 3번과 같은 목록, 거부 패턴 제외)에 `spec.env`를 더하고, 샌드박스가 준 env를 마지막에 덮는다. 시크릿은 넘기지 않는다. `spec.env`의 이름이 변수 이름 형식이 아니면 `env_denied`, `spec.readRoot`가 절대 경로가 아니면 `EINVAL`이다. 두 경우 모두 샌드박스를 묻지 않는다 [근거: packages/platform-process/src/port/isolation-spawn.ts `spawn`의 검사 순서].
+6. cwd는 `spec.readRoot`다. 기동하지 못하면(`ENOENT` 등) `spawn_failed`와 errno 코드를 돌려주고 명령줄 정리(`cleanup`)를 부른다. 프로세스가 끝나면 `cleanup`을 한 번 부른다.
+7. 기동한 자식은 레지스트리에 `owner.kind: "plugin-host"`, `owner.ref: spec.label`, `threadId: null`으로 등록한다. `BackgroundOwnerKind`에 `plugin-host`를 더했다(`F` 서비스 `process.ts`). 그래서 종료 협조(§4.3)가 격리 자식도 정지한다. 정지 순서는 stdin 닫기, 유예(`stdinCloseMs`), SIGTERM, 유예(레지스트리의 `graceMs`), SIGKILL이다. 같은 순서가 §4.9 8번 MCP 서버에도 쓰인다.
+8. `IsolatedChild.kill("SIGTERM" | "SIGKILL")`은 프로세스 트리 전체에 보낸다. `exited`는 프로세스 종료와 stdout 닫힘이 모두 끝난 뒤 이행한다.
+9. 정책의 보안 경계는 이 포트가 만든 정책과 샌드박스 서비스가 정한다. 호출자가 정책을 넓힐 입력은 없다 [근거: packages/contracts/src/extensions/ports.ts `IsolationSpawnSpec`, 필드는 command, args, readRoot, env, label뿐이다].
 
 ## 5. 실패와 경계 사례
 
@@ -926,6 +937,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 25. `parseSshConfig`와 `readSshConfig`는 와일드카드 항목과 `Match`를 빼고, `Include`(글롭, `~`, 깊이, 순환)를 따르며, 파일이 없거나 못 읽으면 빈 목록과 사유를 준다(`ssh-config.test.ts`).
 26. `runSshPreflight`는 가짜 `ssh`, `ssh-keyscan`, `ssh-keygen` 실행 파일로 단계별 성공과 실패를 값으로 비교한다: 새 호스트 키의 지문과 신뢰 뒤 `known_hosts` 내용, 지문 불일치, 키 바뀜(`-R` 인자), 비밀번호만, 공개 키 거절, DNS·거절·시한, ssh 없음, ProxyJump, 설치 없음, 계약 버전 불일치 양쪽, 서비스 띄우기와 실패, 소켓 없음, 잘못된 대상이 ssh를 부르지 않는 것(`ssh-preflight.test.ts`).
 27. `pairWithGateway`는 로컬 TLS 서버에서 요청(method, path, `Origin`, 본문)과 받은 토큰을 값으로 비교하고, 지문 불일치는 서버에 요청을 보내지 않으며, 거절·잠금·잘못된 본문·연결 거부·시한을 오류 값으로 돌려준다(`pair.test.ts`).
+28. `IsolationProcessPort.spawn`(`isolation-spawn-sandbox.test.ts`, 대역 `support/sandbox-fake.ts`, 실제 자식 `isolation-spawn.int.test.ts`): 정책은 쓰기 루트가 비고, 쓰기 거부에 `/`가 있으며, `profile`이 없고, `allowEscape`가 거짓이다. 서비스가 없거나 격리 불가(`missing_dependency`)면 `sandbox_unavailable`이고 띄우지 않는다. 격리 없는 기동은 사용자가 끈 때와 `run_unsandboxed`뿐이고 `isolation.sandbox_not_enforced`를 남긴다. 자식 env는 허용 목록 이름과 `spec.env`만 담고, `*_TOKEN`·`*_KEY` 이름의 부모 env는 없으며, 샌드박스 env가 이긴다. 레지스트리에 `owner.kind: "plugin-host"`로 등록되고 정지 순서는 stdin 닫기, SIGTERM, SIGKILL이다. 실제 자식은 줄 단위 입력에 같은 줄로 답하고 stdin이 닫히면 끝난다. 실제 샌드박스 점검(커밋하지 않음)은 §4.10 2번과 3번의 실측을 남긴다.
 
 ## 10. 미결 사항
 
@@ -940,6 +952,9 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 - [결정: review.decisions-2 U-11] P-9. 원격은 1차(M3)이고 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결한다. 내장 TLS + 토큰 WebSocket(PR-18)은 2차다.
 - [결정: review.m3-design-inputs D-M3-16] P-10. Unix 소켓은 파일 권한으로 막고 TCP로 열 때만 토큰을 요구한다(§4.4.5). `host.hello`의 `auth` 필드와 `host.authFailed` 오류는 F에 반영되었다.
 - [미결 P-11] Windows에서 `.cmd` 셔임(`npx.cmd` 등)으로 stdio MCP 서버를 띄우는 방법. 셸 없이 실행할 수 없어 `cross-spawn` 같은 해석이 필요하다. 1차 지원 OS(macOS, Linux, WSL)에는 해당이 없다.
+- [미결 P-16] 플러그인 호스트의 읽기 범위. §4.10 3번과 같이 읽기는 보호 경로 거부 목록이고 허용 목록이 아니다(`review.m5-drive-isolation` §3.4는 "자기 패키지 폴더와 런타임만 읽는다"를 요구했다). 허용 목록은 `SandboxPolicy`에 읽기 허용 필드가 생겨야 표현된다(`F` 계약과 `L0.sandbox.spec` 변경). 또 패키지 폴더가 `fresnel_data`나 `~/.claude` 아래에 있으면 호스트가 자기 코드를 읽지 못한다. 포트는 이를 검사하지 않는다 [근거: packages/platform-process/src/port/isolation-spawn.ts `spawn`, 보호 경로 검사 없음]. 패키지 폴더 위치는 조립이 정한다.
+- [미결 P-17] 쓰기 거부 `/`는 srt가 정책 밖에서 여는 경로를 막는 우회 수단이다(§4.10 2번). 샌드박스 서비스가 "쓰지 않는" 정책을 직접 주면(예: `profile`에 쓰기 없음 값을 더하기) 이 포트는 `/`를 뺄 수 있다. 그 변경은 `L0.sandbox.spec`과 platform-sandbox에 속한다 [근거: packages/platform-sandbox/src/service.ts `defaultPolicy`, profile은 read-only 하나뿐이다].
+- [미결 P-18] 조립(`apps/host/src/assemble.ts`의 `processPlugin` 호출)이 아직 `sandbox`를 넘기지 않는다. 격리 확장 로더(`LoaderDeps.process`)를 붙이는 M5b 작업에서 넘긴다. 넘기지 않으면 모든 격리 spawn은 `sandbox_unavailable`이다 [근거: apps/host/src/assemble.ts `processPlugin` 호출, sandbox 인자 없음].
 - [해소 P-15] `McpSpawnSpec.sandbox`는 이 포트가 강제한다(§4.9 2번). 격리가 되면 샌드박스 서비스 `wrapArgv`의 명령줄로 띄우고, 격리를 쓸 수 없으면 `sandbox_unavailable`로 막는다. 격리 없이 띄우는 것은 사용자가 끈 때뿐이고 그때 경고 `mcp.sandbox_not_enforced`를 남긴다. 스트림은 호출자가 `argv`를 파이프로 띄워 연다(`L0.sandbox.spec` §4.9).
 - [해소 P-12, M3-05] 시크릿 env가 있는 MCP stdio 서버의 기동 승인은 정의 해시마다 한 번이다(`L0.secrets.spec` §4.3.1). `L2.mcp`가 승인을 받아 증거를 `McpSpawnSpec.approval`에 싣는다(`L2.mcp.spec` §4.3).
 - [해소 P-13: 2026-11-08 `L4.remote.spec` §9] 사설망 TCP와 비루프백 리스너. `review.m3-design-inputs` D-M3-16 c는 소켓을 사설망에 TCP로 여는 경우에 토큰을 요구하고, 이 문서 §4.4.5는 `allowNonLoopback`으로 그것을 허용한다. 그러나 `product.scope.spec` X5와 `architecture.security.spec` T-10은 M3 원격에서 서비스가 비루프백 리스너를 열지 않는다고 적는다. 이 문서는 X5·T-10을 따라 원격에 TCP 리스너를 새로 열지 않는다. 그래서 `tcp://` 원격 값은 루프백 주소에서만 뜻이 있다. 사설망 주소(Tailscale 등)를 허용할지는 사용자가 정해야 하고, 허용하면 §4.4.5, X5, T-10을 함께 고친다.

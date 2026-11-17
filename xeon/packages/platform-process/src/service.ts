@@ -1,9 +1,10 @@
-import { Bug, type Clock, type Logger, type Scheduler } from "@fresnel/contracts";
+import type { Clock, Logger, Scheduler } from "@fresnel/contracts";
 import type { LocalIdFactory } from "@fresnel/contracts/conversation";
 import {
   ProcessPortKey,
   type HookRawRun,
   type HookRunSpec,
+  type IsolationProcessPort,
   type IsolationSpawnSpec,
   type PortKey,
   type ProcessPort,
@@ -12,11 +13,12 @@ import { OsServiceName, type OsService, type ProcessService } from "@fresnel/con
 import { createProcessShutdown, type ProcessShutdown } from "./lease/shutdown.ts";
 import { createBackgroundRegistry, type BackgroundRegistryController } from "./registry.ts";
 import { createHookRunner } from "./port/hook-run.ts";
+import { createIsolationProcessPort, type IsolationSandboxSource } from "./port/isolation-spawn.ts";
 import { detectProcessPlatform, type ProcessPlatformProvider } from "./select.ts";
 import type { ProcessServiceSettings } from "./settings.ts";
 
 // L0.process.spec §3.1·§4.8, L0.process.plan PR-08. ProcessService를 조립하고 fresnel.process 포트로 내놓는다.
-// run(외부 훅, PR-21)은 M2에서 구현했다. spawn(격리 확장 자식, PR-22)은 2차라 거부 구현이다(spec §4.8 spawn 4번).
+// run(외부 훅, PR-21)은 M2에서 구현했다. spawn(격리 확장 자식)은 `IsolationProcessPort`(`port/isolation-spawn.ts`)에 위임한다.
 
 export interface ProcessServiceDeps {
   readonly clock: Clock;
@@ -34,6 +36,13 @@ export interface ProcessServiceDeps {
    * `null`이면 지원하지 않는 OS로 보고 모든 훅 실행이 spawnError `unsupported_platform`이다.
    */
   readonly platform?: ProcessPlatformProvider | null;
+  /**
+   * 격리 자식(플러그인 호스트)의 샌드박스 서비스. spawn 때마다 찾는다. 생략하거나 undefined를 돌려주면 spawn은
+   * `sandbox_unavailable`(`service_missing`)로 막힌다. 격리 없이 띄우지 않는다(닫힌 실패)
+   */
+  readonly sandbox?: () => IsolationSandboxSource | undefined;
+  /** 격리 자식 env의 허용 목록 이름을 읽을 부모 env. 생략하면 `process.env`다 */
+  readonly parentEnv?: Readonly<Record<string, string | undefined>>;
 }
 
 /** ProcessService와, 조립 루트가 종료를 요청하고 레지스트리를 닫는 데 쓰는 소유자 쪽 객체 */
@@ -82,16 +91,22 @@ export function createProcessService(deps: ProcessServiceDeps): ProcessServiceHa
   shutdown.onShutdown("hook-runs", async () => {
     await hooks.drain();
   });
+  const isolation: IsolationProcessPort = createIsolationProcessPort({
+    platform: platform ?? undefined,
+    background,
+    sandbox: deps.sandbox ?? ((): undefined => undefined),
+    parentEnv: deps.parentEnv ?? process.env,
+    scheduler: deps.scheduler,
+    logger: deps.logger,
+  });
   const service: ProcessService = {
     background,
     shutdown,
     run(spec: HookRunSpec): Promise<HookRawRun> {
       return hooks.run(spec);
     },
-    spawn(_spec: IsolationSpawnSpec): ReturnType<ProcessService["spawn"]> {
-      return Promise.reject(
-        new Bug("ProcessPort.spawn is not available in the first release (isolation_unavailable)"),
-      );
+    spawn(spec: IsolationSpawnSpec): ReturnType<IsolationProcessPort["spawn"]> {
+      return isolation.spawn(spec);
     },
   };
   return { service, shutdown, background };
@@ -127,6 +142,8 @@ export interface ProcessPluginOptions {
   readonly exit: (code: number) => never;
   /** 조립 루트가 종료를 직접 요청하려면 미리 만들어 넘긴다 */
   readonly shutdown?: ProcessShutdown;
+  /** 격리 자식의 샌드박스 서비스 찾기. 없으면 격리 자식 spawn은 `sandbox_unavailable`이다 */
+  readonly sandbox?: () => IsolationSandboxSource | undefined;
 }
 
 const OS_PORT_KEY: PortKey<ProcessOsPort> = { name: OsServiceName };
@@ -145,6 +162,7 @@ export function processPlugin(options: ProcessPluginOptions): ProcessPlatformMod
         settings: options.settings,
         exit: options.exit,
         ...(options.shutdown === undefined ? {} : { shutdown: options.shutdown }),
+        ...(options.sandbox === undefined ? {} : { sandbox: options.sandbox }),
       });
       ctx.providePort(ProcessPortKey, handle.service);
       ctx.onDispose(async () => {

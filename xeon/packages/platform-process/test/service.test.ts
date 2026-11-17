@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { Bug } from "@fresnel/contracts";
 import { ProcessPortKey, type PortKey, type ProcessPort } from "@fresnel/contracts/extensions";
 import type { ProcessService, ShutdownCoordinator } from "@fresnel/contracts/services";
 import {
@@ -48,15 +47,21 @@ describe("process service", () => {
     expect(handle.service.background).toBe(handle.background);
   });
 
-  test("spawn rejects in the first release instead of starting anything", async () => {
+  test("spawn without a sandbox service fails closed as a value and starts nothing", async () => {
     const { handle } = build();
-    const spawnRejection = await rejectionOf(
-      handle.service.spawn({ command: "/x", args: [], readRoot: "/", env: {}, label: "ext:a:1" }),
-    );
-    expect(spawnRejection).toBeInstanceOf(Bug);
-    if (spawnRejection instanceof Error) {
-      expect(spawnRejection.message).toContain("isolation_unavailable");
-    }
+    expect(
+      await handle.service.spawn({
+        command: "/x",
+        args: [],
+        readRoot: "/",
+        env: {},
+        label: "ext:a:1",
+      }),
+    ).toEqual({
+      ok: false,
+      error: { kind: "sandbox_unavailable", reason: "service_missing" },
+    });
+    expect(handle.service.background.list()).toEqual([]);
   });
 
   test("run reports an unsupported platform as a spawn error instead of rejecting", async () => {
