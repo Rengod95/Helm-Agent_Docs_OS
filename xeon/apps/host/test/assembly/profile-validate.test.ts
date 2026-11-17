@@ -56,15 +56,21 @@ function settingOf(spec: SettingSpec): ProfileSettingInfo {
 
 function catalogOf(
   settings: readonly ProfileSettingInfo[],
-  options: { readonly secrets?: readonly string[]; readonly managedOff?: readonly string[] } = {},
+  options: {
+    readonly secrets?: readonly string[];
+    readonly managedOff?: readonly string[];
+    readonly stopped?: readonly string[];
+  } = {},
 ): ProfileCatalog {
   const byKey = new Map(settings.map((item) => [item.key, item] as const));
   const secrets = new Set(options.secrets ?? []);
   const managedOff = new Set(options.managedOff ?? []);
+  const stopped = new Set(options.stopped ?? []);
   return {
     lookup: (key) => byKey.get(key),
     secretExists: (name) => secrets.has(name),
     managedDisabled: (plugin) => managedOff.has(plugin),
+    unavailable: (plugin) => stopped.has(plugin) || managedOff.has(plugin),
   };
 }
 
@@ -110,6 +116,20 @@ test("replace_conflict: two plugins in the resolved list that replace the same b
   );
   expect(issues).toEqual([
     { code: "replace_conflict", severity: "error", plugin: "b", other: "a", tool: "web.fetch" },
+  ]);
+});
+
+test("driver_unavailable: a start drive that is stopped or managed off is a warning that it will not start", () => {
+  const library = libraryOf([entry("runner", { drives: true })]);
+  const profile = { plugins: [{ name: "runner" }], settings: [], startDrive: "runner" };
+  expect(
+    validateProfile(profile, NO_COMMON, library, catalogOf([], { stopped: ["runner"] })),
+  ).toEqual([{ code: "driver_unavailable", severity: "warning", plugin: "runner" }]);
+  expect(
+    validateProfile(profile, NO_COMMON, library, catalogOf([], { managedOff: ["runner"] })),
+  ).toEqual([
+    { code: "managed_forbidden", severity: "warning", plugin: "runner" },
+    { code: "driver_unavailable", severity: "warning", plugin: "runner" },
   ]);
 });
 

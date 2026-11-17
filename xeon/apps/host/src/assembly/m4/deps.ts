@@ -83,6 +83,8 @@ export interface M4HostEnv {
    * 닫히지 않은 대화마다 저장한 프로필 id(없으면 null = 기본). 프로필을 참조하는 열린 대화를 셀 때 쓴다(M5c §4.1.14)
    */
   readonly openThreadProfiles: () => readonly (string | null)[];
+  /** 대화의 주도권 스택에 든 플러그인(확장) 이름. 코어 루프는 빼고 아래에서 위 순서다. 열려 있지 않으면 빈 목록(`dropsDrive`의 원천) */
+  readonly driveFramePlugins: (threadId: ThreadId) => readonly string[];
   /** 닫히지 않은 대화 id. 프로필이 바뀌었을 때 대화별 켜짐 집합을 다시 맞춘다 */
   readonly openThreadIds: () => readonly ThreadId[];
   /**

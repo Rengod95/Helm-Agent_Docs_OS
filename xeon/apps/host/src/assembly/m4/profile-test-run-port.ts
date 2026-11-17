@@ -9,6 +9,7 @@ import type {
   CommonInput,
   CommonPutParams,
   CommonSet,
+  DropsDrive,
   PermissionChange,
   ProfilePluginCost,
   PluginRef,
@@ -173,6 +174,7 @@ function catalogOf(env: M4HostEnv, names: ReadonlySet<string> | null): ProfileCa
     },
     secretExists: (name) => names === null || names.has(name),
     managedDisabled: (plugin) => managedOff(env, plugin),
+    unavailable: (plugin) => env.stopped(plugin) || managedOff(env, plugin),
   };
 }
 
@@ -300,6 +302,30 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
       if (effective === profileId) count += 1;
     }
     return count;
+  }
+
+  /**
+   * 이 프로필의 목록으로 바꾸면 주도권 스택에서 내려갈 프레임을 가진 열린 대화 수(§4.3.7, §4.1.13). 그 프로필을 참조하는 대화만 센다.
+   * 프레임을 쥔 플러그인이 새 목록에 없거나 오류로 멈췄거나 관리 잠금으로 꺼졌으면 그 프레임은 내려간다. 없으면 null
+   */
+  function dropsDriveOf(
+    profileId: string,
+    stored: ReadonlySet<string>,
+    next: readonly PluginRef[],
+  ): DropsDrive | null {
+    const kept = new Set(
+      next
+        .filter((ref) => !env.stopped(ref.name) && !managedOff(env, ref.name))
+        .map((ref) => ref.name),
+    );
+    let threadCount = 0;
+    for (const threadId of env.openThreadIds()) {
+      const saved = env.threadProfileId(threadId);
+      const effective = saved !== null && stored.has(saved) ? saved : DEFAULT_PROFILE_ID;
+      if (effective !== profileId) continue;
+      if (env.driveFramePlugins(threadId).some((plugin) => !kept.has(plugin))) threadCount += 1;
+    }
+    return threadCount === 0 ? null : { threadCount };
   }
 
   /**
@@ -588,8 +614,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
         ...(permission === undefined ? {} : { permission }),
         ...(toolsChanged === undefined ? {} : { toolsChanged }),
         ...(cacheImpact === undefined ? {} : { cacheImpact }),
-        // Drive 프레임 스택은 이 브랜치에 없다(E3). 프레임을 쥔 플러그인을 셀 원천이 없어 null이다(§4.3.7, §4.1.13)
-        dropsDrive: null,
+        dropsDrive: dropsDriveOf(id, idsOf(snapshot.value.profiles), resolved),
       });
     },
     async defaultFor(
@@ -678,7 +703,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
           threadsUsing: threadsUsing(profile.id, known),
           ...(permission === undefined ? {} : { permission }),
           ...(toolsChanged === undefined ? {} : { toolsChanged }),
-          dropsDrive: null,
+          dropsDrive: dropsDriveOf(profile.id, known, resolvedOf(profile, common)),
         },
       });
     },

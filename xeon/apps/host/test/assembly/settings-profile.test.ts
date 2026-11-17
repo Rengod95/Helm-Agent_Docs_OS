@@ -5,6 +5,7 @@ import { resolveSetting, type ScopeStack } from "@fresnel/contracts/settings";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { createSettingsEngine, type SettingsEngine } from "../../src/assembly/settings-engine.ts";
+import { primitivesSource } from "../../src/assembly/settings-sources.ts";
 
 // M5c §3.3, §4.1.7 시험: `profile` 범위 층의 우선순위. 값은 `l1.tools.permissionMode`(허용 범위에 user, project, local, launch, profile이 모두 있다)로 본다.
 // 프로필 층은 엔진에 `bindProfiles`로 연결된 값이고, 대화가 없는 조회에는 없다.
@@ -93,4 +94,30 @@ test("the managed lock wins over the profile: the precedence order puts managed 
   expect(setting.value).toBe("default");
   expect(setting.source.scope).toBe("managed");
   expect(setting.locked).toBe(true);
+});
+
+test("the drive keys that open the profile scope reach the engine's drive limits through the profile layer, and the ceiling key does not", () => {
+  const settings = engineOver();
+  settings.replaceUserValues(new Map([["x.primitives.driveMaxDepth", 6]]));
+  settings.bindProfiles((threadId) =>
+    threadId === THREAD
+      ? new Map<string, unknown>([
+          ["x.primitives.driveMaxDepth", 2],
+          ["x.primitives.driveDefaultLimits", { maxTurns: 9 }],
+          // 천장 키는 프로필 범위를 열지 않았다. 값이 와도 읽히지 않는다
+          ["x.primitives.driveLimits", { maxTurns: 1 }],
+        ])
+      : undefined,
+  );
+  const source = primitivesSource(settings);
+  expect(source.driveMaxDepth(THREAD)).toBe(2);
+  expect(source.driveDefaultLimits(THREAD)).toEqual({
+    maxTurns: 9,
+    maxSpawns: 8,
+    maxTokens: 400000,
+  });
+  expect(source.driveLimits(THREAD)).toEqual({});
+  // 프로필이 없는 대화는 사용자 값을 쓴다
+  const other = fixedIdFactory(7).next("thr");
+  expect(source.driveMaxDepth(other)).toBe(6);
 });

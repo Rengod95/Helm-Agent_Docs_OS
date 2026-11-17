@@ -48,6 +48,8 @@ export interface ProfileCatalog {
   secretExists(name: string): boolean;
   /** 관리 범위가 이 플러그인의 켜짐(`ext.<name>.enabled`)을 거짓으로 잠갔는가 */
   managedDisabled(plugin: string): boolean;
+  /** 이 플러그인이 지금 켜질 수 없는가(관리 잠금으로 꺼짐, 오류로 멈춤). 시작 Drive가 조용히 빠지는 것을 미리 알리는 데 쓴다 */
+  unavailable(plugin: string): boolean;
 }
 
 /** 검증 입력의 모양. 저장된 프로필과 입력 프로필이 모두 맞는다 */
@@ -149,6 +151,13 @@ export function validateProfile(
       const entry = entries.get(profile.startDrive);
       if (entry !== undefined && !entry.drives) {
         issues.push({ code: "driver_cannot_drive", severity: "error", plugin: profile.startDrive });
+      } else if (catalog.unavailable(profile.startDrive)) {
+        // 저장은 되지만 대화를 열 때 시작 Drive가 쌓이지 않는다
+        issues.push({
+          code: "driver_unavailable",
+          severity: "warning",
+          plugin: profile.startDrive,
+        });
       }
     }
   }

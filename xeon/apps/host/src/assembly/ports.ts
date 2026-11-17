@@ -373,10 +373,14 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         .filter((decl) => decl.drives === true)
         .map((decl) => registrationIdOf({ name: named }, decl.id)),
     );
-    return (
+    const found =
       registrations.find((info) => info.extension === named && declared.has(info.id))?.id ??
-      registrations.find((info) => info.extension === named && info.drive !== "none")?.id
-    );
+      registrations.find((info) => info.extension === named && info.drive !== "none")?.id;
+    // 조용히 넘어가지 않는다: 이 대화는 시작 Drive 없이 열린다. 같은 사유는 `profile.preview`의 이슈(`driver_unavailable` 등)로도 보인다
+    if (found === undefined) {
+      logger.warn("profile.start_drive_unavailable", { profileId, plugin: named, threadId });
+    }
+    return found;
   }
   /** Test run 대화인가. 메모리에 없으면 측정 저장소의 표지에서 되살린다(재시작 뒤) */
   function isTestRunThread(threadId: ThreadId): boolean {
@@ -1119,6 +1123,10 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         },
         openThreadProfiles: () => openThreadProfilesOf(session),
         openThreadIds: () => openThreadIdsOf(session),
+        driveFramePlugins: (threadId) =>
+          deps.ext
+            .driveFrames(threadId)
+            .flatMap((frame) => (frame.plugin === null ? [] : [frame.plugin])),
         // 대화의 모델 참조로 main 역할을 풀어 캐시 정책을 읽는다(`core-loop`의 `roleOf`와 같은 기준). 없으면 undefined
         cachePolicyOf: (threadId) => {
           const found = session.query.thread(threadId);

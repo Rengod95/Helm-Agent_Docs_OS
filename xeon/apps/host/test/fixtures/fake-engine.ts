@@ -695,6 +695,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
           openThreadProfiles: () =>
             [...threads].map((threadId) => chosenProfiles.get(threadId) ?? null),
           openThreadIds: () => [...threads],
+          driveFramePlugins: () => [],
           threadProfileId: (threadId) => chosenProfiles.get(threadId) ?? null,
           forcedPlugins: () => [],
           defaultPlugins: () => ["helm"],

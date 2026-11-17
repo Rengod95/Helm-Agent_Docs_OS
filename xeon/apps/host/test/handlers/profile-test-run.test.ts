@@ -11,6 +11,7 @@ import type { RegistrationInfo } from "@fresnel/ext-host";
 import type { CachePolicy } from "@fresnel/contracts/services";
 import { isDevMode, type PluginFact } from "../../src/assembly/m4/profile-test-run-port.ts";
 import type { DeclaredInventory } from "../../src/assembly/m4/profile-cost.ts";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
@@ -57,6 +58,10 @@ interface RigOptions {
   readonly openThreads?: readonly (string | null)[];
   /** 대화가 저장한 프로필 id. 생략하면 모든 대화가 기본을 쓴다 */
   readonly threadProfileId?: (threadId: ThreadId) => string | null;
+  /** 닫히지 않은 대화 id */
+  readonly openThreadIds?: readonly ThreadId[];
+  /** 대화의 주도권 스택에 든 플러그인 이름(코어 제외). 생략하면 비어 있다 */
+  readonly driveFramePlugins?: (threadId: ThreadId) => readonly string[];
   /** 오류로 멈춘 확장인가 */
   readonly stopped?: (name: string) => boolean;
   /** 선언된 재료 파일 내용. 생략하면 어떤 파일도 없다 */
@@ -86,7 +91,8 @@ function rigOf(options: RigOptions = {}): Rig {
       env: {
         registrations: () => options.registrations ?? [],
         openThreadProfiles: () => options.openThreads ?? [],
-        openThreadIds: () => [],
+        openThreadIds: () => options.openThreadIds ?? [],
+        driveFramePlugins: (threadId) => options.driveFramePlugins?.(threadId) ?? [],
         threadProfileId: options.threadProfileId ?? (() => null),
         forcedPlugins: () => [],
         defaultPlugins: () => ["helm"],
@@ -1018,4 +1024,30 @@ test("isDevMode is true only when l3.authoring.devMode is the value true", () =>
   expect(isDevMode((key) => (key === "l3.authoring.devMode" ? true : undefined))).toBe(true);
   expect(isDevMode((key) => (key === "l3.authoring.devMode" ? "true" : undefined))).toBe(false);
   expect(isDevMode(() => undefined)).toBe(false);
+});
+
+test("profile.preview reports the open threads of the profile whose drive stack holds a plugin the new list drops", async () => {
+  const thread: ThreadId = fixedIdFactory().next("thr");
+  const rig = rigOf({
+    openThreads: [null],
+    openThreadIds: [thread],
+    driveFramePlugins: () => ["demo"],
+  });
+  const connection = await connect(rig);
+  // 기본 프로필을 참조하는 대화가 demo를 주도 중이다. demo를 뺀 새 목록은 그 프레임을 내린다
+  const drops = await connection.request("profile.preview", {
+    draft: inputOf({ id: "default", plugins: [{ name: "helm" }] }),
+  });
+  expect(drops.dropsDrive).toEqual({ threadCount: 1 });
+  // demo를 남기면 내려갈 프레임이 없다
+  const keeps = await connection.request("profile.preview", {
+    draft: inputOf({ id: "default", plugins: [{ name: "helm" }, { name: "demo" }] }),
+  });
+  expect(keeps.dropsDrive).toBeNull();
+  // 다른 프로필을 참조하는 대화의 프레임은 세지 않는다
+  const other = await connection.request("profile.preview", {
+    draft: inputOf({ id: "review", plugins: [{ name: "helm" }] }),
+  });
+  expect(other.dropsDrive).toBeNull();
+  await connection.close();
 });
