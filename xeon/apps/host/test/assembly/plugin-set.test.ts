@@ -394,6 +394,18 @@ test("a thread with no stored profile uses the default profile's settings", asyn
   expect([...h.set.settingsOf(THREAD)]).toEqual([["l1.tools.permissionMode", "plan"]]);
 });
 
+// M5c §4.1.1, §7.6: 옛 대화(`thread.started.profileId`가 없는 것)는 기본 프로필을 참조한다. 이벤트는 다시 쓰지 않는다
+test("an old thread with no stored profile id resolves to the default profile and the view names it", async () => {
+  const h = harness({ profiles: [profileOf("default", ["helm"], NO_SETTINGS, 3)] });
+  await h.set.refresh();
+  expect(h.set.port.resolve(THREAD)).toEqual({
+    plugins: ["helm"],
+    profileId: "default",
+    profileRev: 3,
+    commonRev: 1,
+  });
+});
+
 test("the lifecycle loads a plugin when its first thread uses it and unloads it when the last one lets go", async () => {
   const h = harness({ profiles: [profileOf("work", ["alpha"])], lifecycle: true });
   h.open.push(OTHER);

@@ -19,8 +19,9 @@ import {
 } from "@fresnel/contracts/wire";
 import type { FileLock, FileLockError } from "@fresnel/platform-os";
 import { replaceFileAtomically } from "../trust.ts";
-import { NEVER_EDITED_ISO } from "./profile-defaults.ts";
+import { DEFAULT_PROFILE_ID, NEVER_EDITED_ISO } from "./profile-defaults.ts";
 import {
+  defaultProfileOf,
   migrateV1,
   V1ProfilesFileSchema,
   type LegacyInputs,
@@ -83,8 +84,19 @@ interface ProfileStoreChange<T> {
   readonly value: T;
 }
 
+/** 첫 시작 옮김의 프로필 부분이 한 일(§7.2). `unchanged`면 파일에 쓴 것이 없다 */
+export type FirstStartProfileOutcome = "migrated" | "default_added" | "unchanged";
+
 export interface ProfileStore {
   read(): Promise<Result<ProfileStoreSnapshot, ProfileStoreFailure>>;
+  /**
+   * 첫 시작 옮김의 프로필 부분(M5c §7.2·§7.3). 호출자가 사용자 파일에서 읽은 값으로 입력을 만든다.
+   * 잠금 안에서 `profiles.json`이 v1이면 옮기고, 저장된 `default` 행이 없는데 옮길 사용자 값이 있으면 옮긴 기본 행을 더한다.
+   * 그 밖에는 아무것도 쓰지 않는다.
+   */
+  migrateFirstStart(
+    inputs: LegacyInputs,
+  ): Promise<Result<FirstStartProfileOutcome, ProfileStoreFailure>>;
   /**
    * 잠금 안에서 읽고, `change`가 돌려준 새 내용을 쓴다. `change`가 오류를 돌려주면 파일은 그대로다.
    * 쓰고 나면 바뀐 것을 알린다(`ProfilesChange`).
@@ -196,8 +208,9 @@ export function createProfileStore(deps: ProfileStoreDeps): ProfileStore {
   async function migrate(
     text: string,
     legacy: V1ProfilesFile,
+    inputs: LegacyInputs,
   ): Promise<Result<ProfilesFile, ProfileStoreFailure>> {
-    const moved = migrateV1(legacy, deps.legacy(), new Date(deps.clock.now()).toISOString());
+    const moved = migrateV1(legacy, inputs, new Date(deps.clock.now()).toISOString());
     const backup = await attemptAsync(() => writeFile(`${path}.v1.bak`, text, { flag: "wx" }));
     if (!backup.ok && errorCode(backup.error.cause) !== "EEXIST") {
       return err({ kind: "io", path, code: errorCode(backup.error.cause) });
@@ -223,7 +236,7 @@ export function createProfileStore(deps: ProfileStoreDeps): ProfileStore {
         const again = await load();
         if (!again.ok) return again;
         if (again.value.kind !== "legacy") return ok(undefined);
-        const migrated = await migrate(again.value.text, again.value.file);
+        const migrated = await migrate(again.value.text, again.value.file, deps.legacy());
         return migrated.ok ? ok(undefined) : migrated;
       },
       { signal: deps.signal },
@@ -241,7 +254,7 @@ export function createProfileStore(deps: ProfileStoreDeps): ProfileStore {
       return ok({ profiles: [], common: emptyCommon(), rev: state.rev });
     }
     if (raw.value.kind === "legacy") {
-      const migrated = await migrate(raw.value.text, raw.value.file);
+      const migrated = await migrate(raw.value.text, raw.value.file, deps.legacy());
       if (!migrated.ok) return migrated;
       observe(serialize(migrated.value));
       return ok({
@@ -270,12 +283,68 @@ export function createProfileStore(deps: ProfileStoreDeps): ProfileStore {
     return ok(undefined);
   }
 
+  /**
+   * 저장된 `default` 행이 없을 때 옮긴 기본 행을 더한다. 파일이 없으면 공통 묶음은 빈 값이다. 있으면 다른 프로필과 공통 묶음을 그대로 둔다.
+   * 잠금 안에서 부른다.
+   */
+  async function addDefaultRow(
+    stored: ProfilesFile | undefined,
+    inputs: LegacyInputs,
+  ): Promise<Result<FirstStartProfileOutcome, ProfileStoreFailure>> {
+    const now = new Date(deps.clock.now()).toISOString();
+    const row = defaultProfileOf(inputs, now);
+    const others = stored?.profiles ?? [];
+    if (others.length + 1 > MAX_PROFILES) return err({ kind: "limit", max: MAX_PROFILES });
+    const next: ProfilesFile = {
+      schemaVersion: 2,
+      common: stored?.common ?? { plugins: [], settings: [], updatedAt: now, rev: 0 },
+      profiles: [row, ...others],
+    };
+    const written = await persist(next);
+    if (!written.ok) return written;
+    const logged = await attemptAsync(async () => {
+      await mkdir(dirname(deps.migrationLogPath), { recursive: true });
+      await appendFile(
+        deps.migrationLogPath,
+        `${JSON.stringify({
+          at: new Date(deps.clock.now()).toISOString(),
+          step: "default_added",
+          profileId: DEFAULT_PROFILE_ID,
+          plugins: row.plugins.length,
+        })}\n`,
+      );
+    });
+    if (!logged.ok) return err({ kind: "io", path, code: errorCode(logged.error.cause) });
+    return ok("default_added");
+  }
+
   function emit(change: ProfilesChange, written: ProfilesWritten): void {
     for (const listener of listeners) listener(change);
     for (const listener of writtenListeners) listener(written);
   }
 
   return {
+    async migrateFirstStart(inputs) {
+      const locked = await deps.fileLock.withLock(
+        path,
+        async (): Promise<Result<FirstStartProfileOutcome, ProfileStoreFailure>> => {
+          const raw = await load();
+          if (!raw.ok) return raw;
+          if (raw.value.kind === "legacy") {
+            const moved = await migrate(raw.value.text, raw.value.file, inputs);
+            return moved.ok ? ok("migrated") : moved;
+          }
+          const stored = raw.value.kind === "current" ? raw.value.file : undefined;
+          const hasDefault = stored?.profiles.some((profile) => profile.id === DEFAULT_PROFILE_ID);
+          // 공장 값과 같은 기본은 쓸 것이 없다. 저장된 기본이 있으면 이미 옮겼거나 고친 것이라 건드리지 않는다
+          if (hasDefault === true || inputs.userEnabled.size === 0) return ok("unchanged");
+          return addDefaultRow(stored, inputs);
+        },
+        { signal: deps.signal },
+      );
+      if (!locked.ok) return err({ kind: "io", path, code: lockFailureCode(locked.error) });
+      return locked.value;
+    },
     async read() {
       const migrated = await ensureCurrent();
       if (!migrated.ok) return migrated;

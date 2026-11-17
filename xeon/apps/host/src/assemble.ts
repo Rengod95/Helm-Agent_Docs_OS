@@ -138,6 +138,7 @@ import {
 import { createProjectTrust, createLoaderFs, fileBackend } from "./assembly/trust.ts";
 import {
   bundledPluginVersionOf,
+  DEFAULT_PLUGIN_NAMES,
   defaultPluginNamesFor,
   installDefaultPlugins,
   installedAgentDefinitions,
@@ -152,6 +153,8 @@ import {
   sandboxSourceOf,
 } from "./assembly/plugin-host.ts";
 import { createExtUiVersionSource } from "./assembly/m4/ext-ui-version-source.ts";
+import { runFirstStartMigration, threadRowsOf } from "./assembly/m4/first-start-migration.ts";
+import { coreNamesOf, factoryPluginsOf } from "./assembly/m4/index.ts";
 import { observeStops } from "./assembly/m4/plugin-set.ts";
 import { createProjectExtensions } from "./assembly/project-extensions.ts";
 import { createProviderLinker } from "./secrets/provider-link.ts";
@@ -1469,6 +1472,28 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       signal: lifetime.signal,
     });
     scheduleRunner.ports = portsHandle.ports;
+    const enginePorts = portsHandle.ports;
+    // 첫 시작 옮김(M5c §7). 한 번만 돌고 표지를 `migration.log`에 남긴다. 프로필 옮김과 사용자 설정 옛 키 지우기는 같은 읽기 값을 쓴다
+    const firstStart = await runFirstStartMigration({
+      configDir: os.dirs.config,
+      stateDir: os.dirs.state,
+      settingsPath: settings.userPath() ?? join(os.dirs.config, "settings.json"),
+      fileLock: osHandle.fileLock,
+      clock,
+      signal: lifetime.signal,
+      ids: localIds,
+      catalog: built.catalog,
+      factoryPlugins: () => factoryPluginsOf(DEFAULT_PLUGIN_NAMES, extensionRecords()),
+      coreNames: () => coreNamesOf(extensionRecords()),
+      threads: () =>
+        threadRowsOf(
+          session,
+          (threadId) => enginePorts.m4.profileTestRun.testRunMarker(threadId) !== undefined,
+        ),
+      roots: () => enginePorts.m4.project.roots(),
+      refreshUserSettings: () => enginePorts.settings.refreshUserFile(),
+    });
+    for (const failure of firstStart.failures) logger.warn("migration.failed", { failure });
     // 다른 프로세스가 사용자 설정 파일을 바꾸면 메모리 층을 다시 읽고 알린다(M3-REQ-49)
     const userSettingsPath = settings.userPath();
     const settingsPort = portsHandle.ports.settings;

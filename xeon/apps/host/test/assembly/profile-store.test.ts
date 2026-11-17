@@ -234,3 +234,52 @@ test("a change that returns a failure writes nothing and says nothing", async ()
   expect(existsSync(join(dir, "profiles.json"))).toBe(false);
   expect(changes).toEqual([]);
 });
+
+test("migrateFirstStart adds the migrated default row in front of the other profiles and keeps the common set, and does nothing once a default row is stored", async () => {
+  const dir = tempDir();
+  const alpha = {
+    id: "alpha",
+    title: "Alpha",
+    builtin: false,
+    plugins: [{ name: "demo" }],
+    settings: [],
+    driver: null,
+    updatedAt: NOW,
+    rev: 2,
+  };
+  const common = { plugins: [], settings: [], updatedAt: NOW, rev: 3 };
+  writeFileSync(
+    join(dir, "profiles.json"),
+    JSON.stringify({ schemaVersion: 2, common, profiles: [alpha] }, null, 2),
+  );
+  const store = storeAt(dir);
+
+  const added = await store.migrateFirstStart(LEGACY);
+  expect(added).toEqual({ ok: true, value: "default_added" });
+  const after = await store.read();
+  expect(after.ok && after.value.profiles.map((profile) => profile.id)).toEqual([
+    "default",
+    "alpha",
+  ]);
+  expect(after.ok && after.value.common).toEqual(common);
+  expect(after.ok && after.value.profiles[0]?.plugins).toEqual([{ name: "helm" }]);
+  expect(
+    readFileSync(join(dir, "state", "migration.log"), "utf8")
+      .trim()
+      .split("\n")
+      .map((line): unknown => JSON.parse(line)),
+  ).toMatchObject([{ step: "default_added", profileId: "default", plugins: 1 }]);
+
+  const again = await store.migrateFirstStart(LEGACY);
+  expect(again).toEqual({ ok: true, value: "unchanged" });
+});
+
+test("migrateFirstStart writes nothing when there are no user values and no profiles file", async () => {
+  const dir = tempDir();
+  const store = storeAt(dir, { ...LEGACY, userEnabled: new Map() });
+
+  const outcome = await store.migrateFirstStart({ ...LEGACY, userEnabled: new Map() });
+
+  expect(outcome).toEqual({ ok: true, value: "unchanged" });
+  expect(existsSync(join(dir, "profiles.json"))).toBe(false);
+});
