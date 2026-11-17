@@ -12,6 +12,7 @@ import {
   type Result,
 } from "@fresnel/contracts";
 import {
+  FileChangeEntrySchema,
   isCapabilityId,
   isCapabilityError,
   isSemVer,
@@ -34,6 +35,8 @@ import {
   type PluginHostError,
   type RecordQuery,
   type RegistrationApi,
+  type ReportedFileChange,
+  type ToolChangeReport,
 } from "@fresnel/contracts/extensions";
 import { stateAs } from "../erase.ts";
 import { type Ambient, withAmbient } from "../primitives/ambient.ts";
@@ -41,6 +44,18 @@ import { PrimitiveError } from "../primitives/errors.ts";
 import type { AnyState } from "../primitives/erased-types.ts";
 import { EFFECT_KEY_MAX } from "../primitives/effect-worker.ts";
 import { hostOf } from "../primitives/host-api.ts";
+
+const ReportedChangeSchema = Type.Omit(FileChangeEntrySchema, ["source"]);
+
+/** 알린 값 가운데 파일 변경 모양이 맞는 것만 남긴다 */
+function reportedOf(values: readonly JsonValue[]): readonly ReportedFileChange[] {
+  const kept: ReportedFileChange[] = [];
+  for (const value of values) {
+    const checked = parse(ReportedChangeSchema, value);
+    if (checked.ok) kept.push(checked.value);
+  }
+  return kept;
+}
 
 /** 오류 메시지 상한. 프로토콜의 `error.message` 상한과 같다 */
 const MESSAGE_MAX = 4000;
@@ -55,6 +70,7 @@ const EngineCallParamsSchema = Type.Object({
     Type.Literal("post"),
     Type.Literal("capability"),
     Type.Literal("requestEffect"),
+    Type.Literal("reportChanges"),
   ]),
   registration: Type.String({ minLength: 1 }),
   requestId: Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]),
@@ -105,6 +121,9 @@ const PostSchema = Type.Object({
   }),
 });
 
+/** `ctx.changes.report`가 알린 항목. 모양 확인은 코어가 하므로 여기서는 JSON 배열인지만 본다 */
+const ReportChangesSchema = Type.Object({ entries: Type.Array(JsonValueSchema) });
+
 const CapabilitySchema = Type.Object({
   key: Type.Object({
     capability: Type.String({ minLength: 1, maxLength: 96 }),
@@ -137,6 +156,8 @@ export interface EngineCallRouterDeps {
    * (쓰기와 기록은 thread와 멱등 키를 문맥에서 읽는다). 없으면 문맥 없이 부른다. 대리 등록이 채운다 [제안 part 2]
    */
   readonly ambientOf?: (requestId: number | null) => Ambient | undefined;
+  /** 호출을 낳은 도구 실행의 `ctx.changes`. 도구 실행 밖이거나 코어가 주지 않았으면 undefined다 */
+  readonly changesOf?: (requestId: number | null) => ToolChangeReport | undefined;
 }
 
 /** `engine.call` 하나를 처리한다. 값은 응답의 `result`이고 오류는 응답의 `error`다 */
@@ -207,6 +228,7 @@ async function route(
   method: PluginEngineCallName,
   params: JsonValue,
   replay: boolean,
+  changes: ToolChangeReport | undefined,
 ): Promise<Result<JsonValue, PluginHostError>> {
   switch (method) {
     case "commit": {
@@ -294,6 +316,19 @@ async function route(
       if (!replay) await hostOf(g).requestEffect({ capability, method: name, input, key });
       return ok(null);
     }
+    case "reportChanges": {
+      const parsed = parse(ReportChangesSchema, params);
+      if (!parsed.ok) return invalidParams(parsed.error);
+      if (changes === undefined) {
+        return err({
+          kind: "invalid_params",
+          message: "reportChanges is only valid while a tool call runs",
+        });
+      }
+      // 코어가 항목마다 모양을 확인하고 틀린 것은 버린다(F.capabilities.spec §3.13). 모양이 맞는 것만 넘긴다
+      if (!replay) changes.report(reportedOf(parsed.value.entries));
+      return ok(null);
+    }
     default:
       return assertNever(method, "PluginEngineCallName");
   }
@@ -308,10 +343,11 @@ export function createEngineCallRouter(deps: EngineCallRouterDeps): EngineCallRo
     }
     const replay = deps.replayOf(params.requestId);
     const amb = deps.ambientOf?.(params.requestId);
+    const changes = deps.changesOf?.(params.requestId);
     const routed = await attemptAsync(() =>
       amb === undefined
-        ? route(g, params.method, params.params, replay)
-        : withAmbient(amb, () => route(g, params.method, params.params, replay)),
+        ? route(g, params.method, params.params, replay, changes)
+        : withAmbient(amb, () => route(g, params.method, params.params, replay, changes)),
     );
     if (!routed.ok) return err(failureOf(routed.error.cause));
     return routed.value;

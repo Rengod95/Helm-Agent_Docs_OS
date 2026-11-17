@@ -1768,7 +1768,7 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 | `event.notify` | 엔진 → 호스트 | 알림 | 스트림 지켜보기 훅(`PLUGIN_HOST_NOTIFY_HOOKS`). `eventKey`로 멱등(적어도 한 번). `hook.invoke`와 `event.notify`는 엔진 디스패치 키를 선택 칸 `dispatchKey`로 싣는다. 격리된 `g.subscribe`가 봉투의 `eventKey`(엔진 안과 같은 값)로 쓴다. |
 | `request.cancel` | 엔진 → 호스트 | 알림 | 취소 뒤 늦게 온 응답은 버린다 |
 | `scope.dispose`, `host.dispose` | 엔진 → 호스트 | 요청 | 등록 하나의 정리 / 프로세스 종료(`idle`, `shutdown`, `reload`, `disabled`) |
-| `engine.call` | 호스트 → 엔진 | 요청 | `commit`, `commitWith`, `record`, `recordPrivate`, `readRecords`, `post`, `capability`, `requestEffect`. 신원 `plugin:<이름>`은 엔진이 연결에서 붙인다. `replay`면 쓰기는 성공으로 받아 버리고 `capability`는 `replay_mode_denied` |
+| `engine.call` | 호스트 → 엔진 | 요청 | `commit`, `commitWith`, `record`, `recordPrivate`, `readRecords`, `post`, `capability`, `requestEffect`, `reportChanges`. 신원 `plugin:<이름>`은 엔진이 연결에서 붙인다. `replay`면 쓰기는 성공으로 받아 버리고 `capability`는 `replay_mode_denied`. `reportChanges`는 도구 실행 중에만 받고(도구의 `ctx.changes.report`가 낳는다. 자식은 응답 전에 모두 기다린다) 모양이 맞는 항목만 엔진의 `ctx.changes`에 넘긴다 |
 | 표준오류 | 호스트 → 엔진 | 스트림 | 줄 상한 `PLUGIN_HOST_STDERR_LINE_MAX`, 보관 줄 수 `PLUGIN_HOST_STDERR_LINES_MAX` |
 
 넘기지 않는 API(`unsupported_api`로 등록이 거부된다): `drive`(P2), `migrateState`(동기 호출이라 경계를 못 넘는다. group-sdk는 상태 버전 2 이상에서 부른다), `provide`·`providePort`, `port`는 격리 호스트에서 `service_reserved`(내장이 아닌 호스트와 같다)로 답한다, `registerWebProvider`, `updateState`(함수를 엔진 줄 안에서 돌린다), `awaitUser`. 그 플러그인은 `ext.<이름>.isolation = none`으로 엔진 안에서 돈다.

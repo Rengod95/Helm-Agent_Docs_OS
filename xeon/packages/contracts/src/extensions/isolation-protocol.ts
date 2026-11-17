@@ -48,6 +48,7 @@ export const PLUGIN_ENGINE_CALLS = [
   "post",
   "capability",
   "requestEffect",
+  "reportChanges",
 ] as const;
 export type PluginEngineCallName = (typeof PLUGIN_ENGINE_CALLS)[number];
 
