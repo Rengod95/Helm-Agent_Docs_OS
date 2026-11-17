@@ -30,6 +30,7 @@ import { ApprovalRequestedPayloadSchema, ApprovalResolvedPayloadSchema } from ".
 import { ItemRecordedPayloadSchema, PartRecordedPayloadSchema } from "./content.ts";
 import {
   LeaseAcquiredPayloadSchema,
+  DriveCommandSettledPayloadSchema,
   LeaseRejectedPayloadSchema,
   LeaseReleasedPayloadSchema,
   PostAcceptedPayloadSchema,
@@ -67,7 +68,7 @@ function retiredCore(kind: CoreEventKind, durable: boolean, payload: TSchema): C
 }
 
 /**
- * 코어 카탈로그 43종, 모두 version 1. F.records.spec §3.3 표와 같다(test/records/catalog-doc.test.ts가 대조한다).
+ * 코어 카탈로그 44종, 모두 version 1. F.records.spec §3.3 표와 같다(test/records/catalog-doc.test.ts가 대조한다).
  * 휘발 kind: turn.updated, step.updated, item.started, item.updated, scope.handler_failed.
  */
 export const CORE_EVENT_CATALOG: readonly CatalogEntry[] = [
@@ -98,6 +99,7 @@ export const CORE_EVENT_CATALOG: readonly CatalogEntry[] = [
   core("lease.acquired", true, LeaseAcquiredPayloadSchema),
   core("lease.released", true, LeaseReleasedPayloadSchema),
   core("lease.rejected", true, LeaseRejectedPayloadSchema),
+  core("drive.command_settled", true, DriveCommandSettledPayloadSchema),
   retiredCore("post.accepted", true, PostAcceptedPayloadSchema),
   core("settings.changed", true, SettingsChangedPayloadSchema),
   core("approval.requested", true, ApprovalRequestedPayloadSchema),

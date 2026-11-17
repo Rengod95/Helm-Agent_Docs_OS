@@ -1,6 +1,6 @@
 import type { ThreadId } from "../conversation/index.ts";
 import type { Unsubscribe } from "../records/index.ts";
-import type { DriveFn, DriveOptions } from "./drive.ts";
+import type { DriveOptions, DriveStep } from "./drive.ts";
 import type { HookName, HookSignatures, TapSig, FirstSig, ChainSig, CollectSig } from "./hooks.ts";
 import type { PostItem, PostOptions, PostReceipt } from "./post.ts";
 import type { RegistrationId } from "./registration-id.ts";
@@ -35,5 +35,5 @@ export interface ExtensionOps<S> {
   on<N extends HookName>(point: N, handler: Handler<N, S>): Unsubscribe;
   post(item: PostItem, options: PostOptions): Promise<PostReceipt>;
   /** 그룹만 쓴다. 등록만 하고 임대는 X가 중재한다 */
-  drive(fn: DriveFn<S>, options?: DriveOptions<S>): void;
+  drive(step: DriveStep<S>, options?: DriveOptions): void;
 }

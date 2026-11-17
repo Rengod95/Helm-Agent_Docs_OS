@@ -34,25 +34,25 @@ function roundTrip(value: unknown): unknown {
 }
 
 describe("core catalog", () => {
-  test("has the 43 kinds of the spec table, each at version 1", () => {
-    expect(CORE_EVENT_CATALOG.length).toBe(43);
-    expect(CORE_EVENT_KINDS.length).toBe(43);
+  test("has the 44 kinds of the spec table, each at version 1", () => {
+    expect(CORE_EVENT_CATALOG.length).toBe(44);
+    expect(CORE_EVENT_KINDS.length).toBe(44);
     expect(CORE_EVENT_CATALOG.map((e) => e.kind)).toEqual([...CORE_EVENT_KINDS]);
     for (const entry of CORE_EVENT_CATALOG) expect(entry.version).toBe(1);
   });
 
   test("kinds are unique and the merged catalog adds no duplicates", () => {
-    expect(new Set(CORE_EVENT_CATALOG.map((e) => e.kind)).size).toBe(43);
-    // 코어 43종에 내장 L2 도메인 카탈로그(work 10종, dialog 2종, artifact 12종, schedule 15종)가 이어 붙는다
+    expect(new Set(CORE_EVENT_CATALOG.map((e) => e.kind)).size).toBe(44);
+    // 코어 44종에 내장 L2 도메인 카탈로그(work 10종, dialog 2종, artifact 12종, schedule 15종)가 이어 붙는다
     expect(EVENT_CATALOG.length).toBe(
-      43 +
+      44 +
         WORK_EVENT_CATALOG.length +
         DIALOG_EVENT_CATALOG.length +
         ARTIFACT_EVENT_CATALOG.length +
         SCHEDULE_EVENT_CATALOG.length,
     );
     expect(new Set(EVENT_CATALOG.map((e) => e.kind)).size).toBe(EVENT_CATALOG.length);
-    expect(EVENT_CATALOG.slice(0, 43)).toEqual([...CORE_EVENT_CATALOG]);
+    expect(EVENT_CATALOG.slice(0, 44)).toEqual([...CORE_EVENT_CATALOG]);
     const entry = CORE_EVENT_CATALOG[0];
     expect(entry).toBeDefined();
     if (entry !== undefined) {
