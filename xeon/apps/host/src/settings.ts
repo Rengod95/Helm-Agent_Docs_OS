@@ -64,6 +64,36 @@ export const hostSettings: SettingGroup<"l4.host-service", HostSettingInputs> = 
   },
 );
 
+// review m5 프로필·프로젝트 §3.3. 프로젝트 없는 대화의 기본 폴더다. 빈 값은 `<OsDirs.data>/default-project`이고, 값은 절대 경로여야 한다.
+export type HostProjectSettingInputs = {
+  readonly defaultFolder: SettingDefInput<TString>;
+};
+
+/** 프로젝트 없는 대화의 기본 폴더 설정 키 */
+export const PROJECT_DEFAULT_FOLDER_KEY = "l4.host.defaultFolder";
+
+/** 빈 값이 가리키는 기본 폴더의 이름(`OsDirs.data` 아래). 기본값은 이 상수 한 곳에만 둔다(BP-06) */
+export const DEFAULT_PROJECT_FOLDER_NAME = "default-project";
+
+/** 프로젝트 없는 대화의 기본 폴더. 작업 폴더 없이 만든 대화는 이 아래 `<threadId>` 폴더에서 돈다 */
+export const hostProjectSettings: SettingGroup<"l4.host", HostProjectSettingInputs> =
+  defineSettings("l4.host", {
+    defaultFolder: {
+      type: Type.String({ maxLength: 4096 }),
+      default: "",
+      runtimeChange: "live",
+      allowedScopes: ["managed", "user"],
+      ui: {
+        tab: "sessions",
+        widget: "text",
+        order: 300,
+        label: "Default folder for conversations without a project",
+        help: "Folder that holds one working folder per conversation when none is given. Empty uses the data folder's default-project. Must be an absolute path",
+      },
+      since: "0.1.0",
+    },
+  });
+
 export type RemoteSettingInputs = {
   readonly "web.enabled": SettingDefInput<TBoolean>;
   readonly "web.listen": SettingDefInput<TString>;

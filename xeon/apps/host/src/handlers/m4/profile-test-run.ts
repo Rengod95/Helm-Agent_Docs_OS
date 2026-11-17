@@ -39,6 +39,7 @@ import type {
   ProfilesWritten,
 } from "../../assembly/m4/profile-store.ts";
 import { settingsFileInvalidDetails } from "../../settings-file-details.ts";
+import { wireErrorOfProject, type ProjectPortFailure } from "./project.ts";
 
 // 프로필·Test run·Trace wire(M5c §3.4, §3.6). 처리기는 값 검사와 오류 옮기기만 하고, 저장·검증·계산은 포트 구현
 // (`assembly/m4/profile-test-run-port.ts`)이 한다. 알림 `profile.changed`는 포트의 `onProfilesChanged`를 연결 허브(`handlers/events.ts`)가 듣고 전체 연결에 보낸다.
@@ -58,7 +59,9 @@ export type ProfilePortFailure =
   | { readonly kind: "builtin_protected"; readonly id: string }
   | { readonly kind: "invalid"; readonly issues: readonly ProfileIssue[] }
   | { readonly kind: "plugin_not_in_profile"; readonly plugin: string }
-  | { readonly kind: "common_plugin"; readonly plugin: string };
+  | { readonly kind: "common_plugin"; readonly plugin: string }
+  /** 프로젝트 쪽 실패(`profile.defaultFor`가 대화의 소속을 읽을 때) */
+  | { readonly kind: "project"; readonly failure: ProjectPortFailure };
 
 /** `profile.preview`의 대상. 저장된 프로필이거나 아직 저장하지 않은 입력이다 */
 type PreviewSource =
@@ -181,6 +184,8 @@ export function wireErrorOfProfile(failure: ProfilePortFailure): WireError {
       return wireError("profile.pluginNotInProfile", { details: { name: failure.plugin } });
     case "common_plugin":
       return wireError("profile.commonPlugin", { details: { name: failure.plugin } });
+    case "project":
+      return wireErrorOfProject(failure.failure);
     default:
       return assertNever(failure, "ProfilePortFailure");
   }

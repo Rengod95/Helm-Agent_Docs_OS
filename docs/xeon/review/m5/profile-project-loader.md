@@ -424,17 +424,21 @@ export type ContextRef =
 
 ### 4.4 프로젝트
 
+> [구현 상태, 2026-11-18] §4.4.1~4.4.6, §4.4.8과 §4.4.2 소속 계산은 호스트에 들어갔다(`L4.host-service.spec` §4.23). §4.4.7은 `project.instructions` 목록(호스트 `project-port.ts`)과 문맥 주입(`sections`, 턴 시작 읽기, `L1.context.spec` §4.2a)이 들어갔다. §4.4.10(다른 하네스 형식 제거)은 이 트랙 밖이다.
+
+> [구현 상태, 2026-11-18] §4.4.1~4.4.6, §4.4.8과 §4.4.2 소속 계산은 호스트에 들어갔다(`L4.host-service.spec` §4.23). §4.4.7은 `project.instructions` 목록(호스트 `project-port.ts`)과 문맥 주입(`sections`, 턴 시작 읽기, `L1.context.spec` §4.2a)이 들어갔다. §4.4.10(다른 하네스 형식 제거)은 이 트랙 밖이다.
+
 1. 프로젝트는 `projects.json`의 `Project`다. `root`는 존재하는 절대 폴더이고 심볼릭 링크를 푼 정규 경로로 저장한다. 같은 정규 경로가 이미 있으면 `project.exists`, 폴더가 없거나 절대 경로가 아니면 `project.rootInvalid`. 루트가 다른 루트 안에 있는 중첩은 허용한다.
 2. 소속은 저장하지 않고 계산한다: 대화 폴더(`thread.started.workspace`)를 포함하는 루트 가운데 가장 깊은 것이 그 대화의 프로젝트다. 프로젝트를 새로 만들면 그 안의 기존 대화가 따라 들어온다. 프로젝트를 지워도 대화는 남고 같은 계산으로 바깥 루트에 속하거나 4번 규칙의 "프로젝트 없음"이 된다. 루트 폴더를 옮기거나 이름을 바꾼 경우는 다루지 않는다(미결 6).
 3. 대화 폴더는 루트 안의 아무 하위 폴더다. 구성 제약이 없다 [결정: 2026-11-17]. `thread.create { workspace }`가 어느 루트에도 속하지 않는 폴더를 주면 호스트가 그 폴더를 루트로 하는 프로젝트를 만든다(`result.project`에 알린다) [제안: 미결 2]. 이렇게 하면 `fresnel` CLI의 cwd 시작과 예약 실행(`handlers/schedule.ts:59`)이 그대로 동작한다.
-4. 쓰기 허용 범위는 프로젝트 루트 전체다 [결정: 2026-11-17 사용자]. 지금 읽기·쓰기 허용 root는 대화 폴더 하나다(`cap-workspace/src/roots.ts` `defaultRoots`, `scope.ts:21-24`). 바꿀 곳: `scopedDeps`가 `workspaceOf` 대신 프로젝트 루트를 만들고, `env.cwd`는 대화 폴더로 두며, `roots.write = [프로젝트 루트]`, `roots.read = [프로젝트 루트, 출력 사본 폴더]`로 한다 [제안: 읽기도 루트까지]. 샌드박스의 쓰기 root(`shell/run.ts:179` `workspaceRoots`)가 같은 값을 받는다. 보호 경로(`.git/hooks` 등)는 그대로다.
-5. 프로젝트가 없는 대화(`workspace` 없이 생성): 기본 폴더 아래에 대화 폴더를 만든다. 경로는 `<기본 폴더>/<threadId>`이고 생성 때 만든다. 기본 폴더는 `l4.host.defaultFolder`(빈 값이면 `<OsDirs.data>/default-project`)다. 지금은 호스트 프로세스의 cwd로 떨어진다(`ThreadStartedPayload.workspace` 주석 `lifecycle.ts:57-60`, `scopedDeps`가 `workspace === null`이면 그대로 둠). 이 대화들의 "프로젝트"는 id `prj_default`의 암묵 프로젝트이고 `projects.json`에 없다. 쓰기 범위는 대화 폴더(`<기본 폴더>/<threadId>`)다(기본 폴더 전체는 아니다) [제안: 서로 무관한 대화가 파일을 섞지 않게. 미결 1].
+4. 쓰기 허용 범위는 프로젝트 루트 전체다 [결정: 2026-11-17 사용자]. 지금 읽기·쓰기 허용 root는 대화 폴더 하나다(`cap-workspace/src/roots.ts` `defaultRoots`, `scope.ts:19-22`). 바꿀 곳: `scopedDeps`가 `workspaceOf` 대신 프로젝트 루트를 만들고, `env.cwd`는 대화 폴더로 두며, `roots.write = [프로젝트 루트]`, `roots.read = [프로젝트 루트, 출력 사본 폴더]`로 한다 [제안: 읽기도 루트까지]. 샌드박스의 쓰기 root(`shell/run.ts:179` `workspaceRoots`)가 같은 값을 받는다. 보호 경로(`.git/hooks` 등)는 그대로다.
+5. 프로젝트가 없는 대화(`workspace` 없이 생성): 기본 폴더 아래에 대화 폴더를 만든다. 경로는 `<기본 폴더>/<threadId>`이고 생성 때 만든다. 기본 폴더는 `l4.host.defaultFolder`(빈 값이면 `<OsDirs.data>/default-project`)다. 지금은 호스트 프로세스의 cwd로 떨어진다(`ThreadStartedPayload.workspace` 주석 `packages/contracts/src/conversation/lifecycle.ts:66-70`, `scopedDeps`가 `workspace === null`이면 그대로 둠). 이 대화들의 "프로젝트"는 id `prj_default`의 암묵 프로젝트이고 `projects.json`에 없다. 쓰기 범위는 대화 폴더(`<기본 폴더>/<threadId>`)다(기본 폴더 전체는 아니다) [제안: 서로 무관한 대화가 파일을 섞지 않게. 미결 1].
 6. 이미 `workspace`가 null인 기존 대화는 읽기 전용으로 열지 않고 지금처럼 호스트 cwd를 쓴다(저장된 대화의 동작을 바꾸지 않는다) [제안]. 마이그레이션 §7.6.
-7. 지침 파일: 대화를 시작한 폴더 F와 프로젝트 루트 R에 대해 R에서 F까지 각 폴더의 `AGENTS.md`를 R이 먼저, F가 마지막인 순서로 모은다. 모델 문맥에 넣는 방법은 `sections`다: 키 `project:<R 기준 상대 경로>`, 값은 파일 내용 그대로(머리말이나 설명 문장을 더하지 않는다. 최소 하네스 [결정: 2026-11-12 사용자, 메모리]). 지금 `core-loop/src/loop/prepare-request.ts:95`가 `sections: {}`로 고정이고 `AGENTS.md`를 읽는 코드는 코어에 없다(`grep` 결과 없음). 문서(`data-privacy.md:121,136`, `loading-trust/spec.md:1246`)는 읽힌다고 적었으므로 이 항목이 그 문서 내용을 실제로 만드는 일이다.
+7. 지침 파일: 대화를 시작한 폴더 F와 프로젝트 루트 R에 대해 R에서 F까지 각 폴더의 `AGENTS.md`를 R이 먼저, F가 마지막인 순서로 모은다. 모델 문맥에 넣는 방법은 `sections`다: 키 `project:<R 기준 상대 경로>`, 값은 파일 내용 그대로(머리말이나 설명 문장을 더하지 않는다. 최소 하네스 [결정: 2026-11-12 사용자, 메모리]). 이 항목 전에는 `core-loop/src/loop/prepare-request.ts:95`가 `sections: {}`로 고정이었고 `AGENTS.md`를 읽는 코드가 코어에 없었다. [구현 2026-11-18] 읽기는 `core-context/src/instructions.ts`(`createInstructionSections`), 턴 시작 호출과 진단 경고는 `core-loop/src/loop/run-turn.ts`, 요청의 `sections`는 `prepare-request.ts`다. 세부 규칙은 `L1.context.spec` §4.2a다. R 자신의 키는 `project:.`이다 [구현 결정: 2026-11-18. 빈 상대 경로는 `.`으로 쓴다]. 문서 `data-privacy.md`(121, 136행), `X/loading-trust/spec.md`(1176행), `architecture/security/spec.md`(90행)가 `CLAUDE.md`도 읽힌다고 적었던 것은 같은 변경에서 고쳤다.
    - 파일 하나가 `l1.context.instructionFiles.maxBytes`를 넘으면 그 파일을 싣지 않고 진단(`instruction_too_large`)만 남긴다.
    - R 밖으로 나가는 심볼릭 링크는 읽지 않는다. 읽기 실패는 건너뛰고 진단을 남긴다.
-   - 읽는 시점은 대화를 열 때와 각 턴 시작이다(수정 시각 비교). 바뀌면 `sections` 변경 규칙(`L1.context.spec` §4.2)을 따른다.
-   - `CLAUDE.md`는 읽지 않는다 [제안: 사용자 결정은 `AGENTS.md`만 말한다. 미결 5].
+   - 읽는 시점은 대화를 열 때와 각 턴 시작이다(수정 시각 비교). [구현 결정: 2026-11-18] 구현은 턴 시작에만 읽는다(`L1.context.spec` §4.2a 6번). 턴이 없으면 접두는 만들어지지 않는다. 바뀌면 `sections` 변경 규칙(`L1.context.spec` §4.2)을 따른다.
+   - `CLAUDE.md`는 읽지 않는다 [결정: 2026-11-18 사용자. 미결 5 닫힘].
 8. 프로필은 사용자 수준이고 프로젝트와 독립이다. 프로젝트 레코드에 프로필 필드가 없다("프로젝트 기본 프로필"은 없다 [결정: 2026-11-17 "플러그인과 프로필은 프로젝트가 아니라 대화 단위"]). **[결정: 2026-11-17 사용자, U5]** 선택기의 기본값은 같은 대화 폴더에서 마지막으로 쓴 프로필(저장 없이 계산). 세부 계산 규칙은 [제안]이다: `profile.defaultFor { workspace }`는 `thread.list { workspace }`가 주는 가장 최근 대화의 현재 프로필(전환 반영)을 돌려주고, 없으면 같은 프로젝트의 가장 최근 대화, 그것도 없으면 `default`다 [제안: 계산 규칙. 저장 없음]. `thread.create`에 `profileId`가 없으면 같은 값을 쓴다.
 9. 같은 폴더 동시 대화: 코어는 정책이 없고 알리기만 한다. `thread.create`는 같은 정규 대화 폴더에서 `running` 또는 열린 다른 대화를 `sameFolder`에 담아 돌려준다. 막지 않는다. worktree 분리는 플러그인이 하고, 코어는 "대화 시작" 훅이 대화 폴더를 정할 수 있게만 연다. **[결정: 2026-11-17 사용자, U6]** 코어는 알리기만 하고(막지 않고 자동 복사도 없다) 폴더는 대화 시작 훅이 경로 하나로 정하며 worktree는 플러그인이 한다. 훅 결과의 `workspace`가 있으면 쓰기 소유를 얻은 호스트가 첫 턴 전에 코어의 `applyOpenWorkspace`를 부르고, 코어가 `thread.updated { workspace }`를 커밋한다(H-7 구현). 조건은 첫 턴 전이고, 새 폴더가 같은 프로젝트 루트 안이어야 하며, 아니면 무시하고 진단을 남긴다(`workspace_outside_project`). 받을 훅과 결과 모양은 F §5.1 H-7이 정한다(`thread.start`는 관찰만 하는 tap이라 값을 돌려주지 못한다). 수용 22의 후반은 F H-7이 구현된 뒤 켜진다.
 10. 프로젝트 동반 플러그인(R24): `project.create`, 프로젝트 안 대화 생성, `plugin.scan {projectId}`, 원본 감시가 `<루트>/.fresnel/plugins/*`와 기존 `<루트>/.fresnel/extensions/*`, Fresnel 자체 배치의 느슨한 자원(`.fresnel/skills`, `.fresnel/commands`, `.fresnel/agents`, `.fresnel/prompts`, `.fresnel/mcp.json`)을 후보로 만든다. 후보는 `origin: project`로 검토 항목이 된다. 승인 전에는 적재도, 문맥 재료로 쓰는 것도 하지 않는다(§4.7.9).
@@ -622,9 +626,9 @@ plugin-store/
 | 스레드의 프로필 필드 | 없음. `ThreadCreateParams.profileId`는 `testRun`만(`methods.ts:584-600`, `handlers/thread.ts:35-40`) | `thread.started/updated.profileId`, `thread.setProfile`, 요약에 노출 | M |
 | 시작 Drive | `driver`를 `x.primitives.activeDriver`에 씀(`profile-test-run-port.ts:24`, `:122`) | 시작 때만 프레임을 쌓는다. 키 제거는 엔진 스펙 | S(이 문서 몫) |
 | 프로젝트 개념 | 없음. 폴더 기준 "작업 폴더"만 있다. `X.primitives.spec` §4.5.7은 대화 묶음 정의로 쓰여 있고 `ADR-0022` §3.3은 3층 덧씌우기 | 프로젝트 레코드, 소속 계산, `thread.create` 변경. §4.5.7과 ADR-0022 §3.3 1·5번을 이 문서와 새 결정으로 고쳐 쓴다 | M |
-| 쓰기 범위 | 읽기·쓰기 root는 대화 폴더 하나(`roots.ts` `defaultRoots`, `scope.ts:21-24`), 샌드박스 쓰기 root가 같은 값(`shell/run.ts:179`) | 루트는 프로젝트 루트, `cwd`는 대화 폴더(§4.4.4) | M |
-| 폴더 없는 대화 | 호스트 cwd로 떨어짐(`lifecycle.ts:57-60`, `scope.ts:17`, `assemble.ts:890`, `:1195`) | 기본 폴더 아래 대화별 폴더(§4.4.5) | S |
-| 지침 파일 | 코어는 읽지 않음(`prepare-request.ts:95` `sections: {}`, `grep AGENTS` 결과 없음). 문서만 읽힌다고 적음 | 루트→대화 폴더 경로의 `AGENTS.md`를 `sections`로(§4.4.7) | M |
+| 쓰기 범위 | 읽기·쓰기 root는 대화 폴더 하나(`roots.ts` `defaultRoots`, `scope.ts:19-22`), 샌드박스 쓰기 root가 같은 값(`shell/run.ts:179`) | 루트는 프로젝트 루트, `cwd`는 대화 폴더(§4.4.4) | M |
+| 폴더 없는 대화 | 호스트 cwd로 떨어짐(`lifecycle.ts:66-70`, `scope.ts:17`, `assemble.ts:890`, `:1195`) | 기본 폴더 아래 대화별 폴더(§4.4.5) | S |
+| 지침 파일 | 코어는 읽지 않음(`prepare-request.ts:95` `sections: {}`, `grep AGENTS` 결과 없음). 문서만 읽힌다고 적음 | 루트→대화 폴더 경로의 `AGENTS.md`를 `sections`로(§4.4.7) [구현 2026-11-18: `L1.context.spec` §4.2a] | M |
 | 서브에이전트 상속 | 대화 폴더는 이미 상속(`core-agents/service.ts:1033-1043`). 프로필 필드 없음 | 자식이 부모 `profileId`를 받는다(`service.ts:1041` 생성 입력). 엔진 설계 F2("상속 안 함")는 커밋 `9ce14f8b0`으로 non-fork 경로에서 이미 고쳐졌다 | S |
 | 매니페스트 | `entry`, `plugins` 필수(`manifest.ts:249-250`). `components.skills/commands/mcpServers`는 선언만 있고 읽는 곳이 없다(`components`를 읽는 곳은 `default-plugins.ts:259`의 `agents`뿐) | 선택으로, `purpose`, `components.instructions`, `tools`, `commands` 추가, 추론(§4.5.4) | M |
 | 발견 | `<config>/extensions/*`, `.fresnel/extensions/*`, 한 단계, `.fresnel-plugin/plugin.json` 필수(`discover.ts:56-62`, `:121-`) | 새 위치 `plugins/`, 매니페스트 없는 폴더 추론, 느슨한 자원을 후보로 | M |
@@ -756,7 +760,7 @@ plugin-store/
 2. **프로젝트 밖 폴더로 `thread.create`를 부를 때.** 기본값: 그 폴더를 루트로 프로젝트를 자동 생성한다(CLI와 예약 실행 유지). 대안: 오류로 거절하고 프로젝트를 먼저 만들게 한다.
 3. **도중 전환 때 새 프로필의 시작 Drive.** 기본값: 시작하지 않는다(첫 턴 전에만). 대안: 스택이 비어 있으면 전환 직후 시작.
 4. **새 검토본 승인이 번지는 범위.** 기본값: 이름으로 든 모든 프로필(프로필은 버전을 고정하지 않는다). 대안: 프로필마다 해시 핀.
-5. **지침 파일 이름.** 기본값: `AGENTS.md`만. 문서(`data-privacy.md:121`)에는 `CLAUDE.md`도 읽는다고 적혀 있으나 코드에 읽는 곳이 없다. 대안: 둘 다 읽는다.
+5. **지침 파일 이름. [결정: 2026-11-18 사용자] `AGENTS.md`만 읽는다.** `CLAUDE.md`와 다른 이름은 읽지 않는다. 문서(`data-privacy.md`, `X/loading-trust/spec.md`, `architecture/security/spec.md`)의 `CLAUDE.md` 문장은 같은 변경에서 고쳤다. 대안(둘 다 읽기)은 버린다.
 6. **프로젝트 루트 이동.** 기본값: 다루지 않는다(루트 없음 상태로 보인다). 대안: `project.relocate`.
 7. **이전 검토본으로 되돌리기.** 기본값: 새 검토 없이 기록만 한다. 대안: 되돌리기도 항목으로.
 8. **번들(Helm) 갱신의 검토 면제.** 기본값: 앱 업데이트가 신뢰 근거이므로 항목 없음. 대안: 번들 갱신도 항목으로 올림(처음 한 번은 면제).

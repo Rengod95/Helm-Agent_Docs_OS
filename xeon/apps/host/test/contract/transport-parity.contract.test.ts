@@ -31,6 +31,12 @@ function normalizer(): (value: unknown) => unknown {
       seen.set(value, next);
       return next;
     }
+    // 기본 폴더의 대화 폴더(`<데이터 폴더>/default-project/<threadId>`)는 실행마다 다른 임시 폴더와 대화 id를 낸다
+    const folder = /^.*\/default-project\/(thr_[0-9A-Za-z]+)$/u.exec(
+      typeof value === "string" ? value : "",
+    );
+    if (folder?.[1] !== undefined)
+      return `<data>/default-project/${String(walk(folder[1], undefined))}`;
     if (typeof value === "number" && key !== undefined && /(At|Ms|[Tt]imestamp)$/.test(key))
       return 0;
     if (typeof value === "string" && key !== undefined && /(At|Since)$/.test(key)) return "time";

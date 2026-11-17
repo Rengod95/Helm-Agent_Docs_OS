@@ -8,6 +8,7 @@ import type { ExtMethodPort } from "../../handlers/m4/ext-method.ts";
 import type { ExtReadPort } from "../../handlers/m4/ext-read.ts";
 import type { ExtUiVersionPort } from "../../handlers/m4/ext-ui-version.ts";
 import type { ProfileTestRunPort } from "../../handlers/m4/profile-test-run.ts";
+import type { ProjectPort } from "../../handlers/m4/project.ts";
 import type { SandboxSelfTestPort } from "../../handlers/m4/sandbox-self-test.ts";
 import type { M4EngineDeps, M4HostEnv, M4PortDeps } from "./deps.ts";
 import type { ExtUiVersionSource } from "./ext-ui-version-source.ts";
@@ -43,6 +44,8 @@ export interface M4Ports {
   /** 확장 메서드 `ext.<확장>.<동사>`의 호출(X-2, X-3). 닫힌 처리기 표 밖이라 연결 층이 바로 쓴다 */
   readonly extMethod: ExtMethodPort;
   readonly profileTestRun: ProfileTestRunPort;
+  /** 프로젝트 wire(`project.*`). 포트는 조립 루트가 만들어 `M4EngineDeps.projects`로 넘긴다 */
+  readonly project: ProjectPort;
   /** 대화별 켜짐 집합(E(T)). X가 `PluginSetPortKey`로 읽고, 처리기가 프로필 전환 뒤 다시 맞춘다 */
   readonly pluginSet: PluginSetHandle;
   readonly dialogArea: DialogAreaPort;
@@ -149,6 +152,7 @@ export function createM4Ports(
       },
     },
     profileTestRun,
+    project: engine.projects,
     dialogArea: createDialogAreaPort(deps),
     devkit: createDevkitPort(deps, { profiles: profileTestRun }),
     sandboxSelfTest: createSandboxSelfTestPort(host),

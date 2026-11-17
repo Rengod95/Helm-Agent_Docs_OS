@@ -4,6 +4,7 @@ import type { ContextError } from "@fresnel/contracts/services";
 import { assertNever, Bug, err, ok, type Result } from "@fresnel/contracts";
 import {
   wireError,
+  type ThreadProjectRef,
   type ThreadSummary,
   type WireError,
   type WireHandler,
@@ -20,6 +21,9 @@ import { renderMarkdownHeader } from "../export/thread-markdown.ts";
 import type { Engine, ThreadCompactFailure, ThreadReadFailure } from "../types.ts";
 import { wireErrorOfLifecycle, wireErrorOfStore } from "../store-error.ts";
 import { markTestRun, wireErrorOfProfile } from "./m4/profile-test-run.ts";
+import { wireErrorOfProject } from "./m4/project.ts";
+import { DEFAULT_PROFILE_ID } from "../assembly/m4/profile-defaults.ts";
+import { projectRefOf } from "../assembly/m4/project-scope.ts";
 import { claimWrite, threadLocked, withWriteOwner } from "./owner.ts";
 
 // L4.host-service.spec §3.4 M1 표. thread.create: thread를 만들고 쓰기 소유를 함께 얻는다(M1에서는 create가 소유를 얻는다).
@@ -31,17 +35,30 @@ export function createThreadCreateHandler(
 ): WireHandler<"thread.create"> {
   const { ports } = engine;
   const profiles = ports.m4.profileTestRun;
+  const projects = ports.m4.project;
   return async (params, context) => {
-    // 대화를 만들기 전에 프로필이 있는지 본다: 없는 프로필 때문에 빈 대화가 남지 않게 한다(M5c §3.4)
+    // 프로필: 적은 값이 있으면 그 프로필이 있는지 본다(없는 프로필 때문에 빈 대화가 남지 않게 한다, M5c §3.4). 없으면 기본값을 쓴다(§4.4.8).
+    // 기본값에서 고른 `default`는 저장하지 않는다. 저장된 값이 없으면 `default`로 읽는다(§4.1.1)
+    let profileId: string;
+    let storedProfileId: string | undefined;
     if (params.profileId !== undefined) {
       const found = await profiles.get(params.profileId);
       if (!found.ok) throw wireErrorOfProfile(found.error);
+      profileId = params.profileId;
+      storedProfileId = params.profileId;
+    } else {
+      const chosen = await profiles.defaultFor(params.workspace);
+      if (!chosen.ok) throw wireErrorOfProfile(chosen.error);
+      profileId = chosen.value.profileId;
+      storedProfileId = profileId === DEFAULT_PROFILE_ID ? undefined : profileId;
     }
     const created = await ports.threads.create({
       ...(params.workspace === undefined ? {} : { workspace: params.workspace }),
       ...(params.title === undefined ? {} : { title: params.title }),
       ...(params.testRun === true ? { testRun: true } : {}),
-      ...(params.profileId === undefined ? {} : { profileId: params.profileId }),
+      ...(storedProfileId === undefined ? {} : { profileId: storedProfileId }),
+      // 작업 폴더를 주지 않으면 기본 폴더 아래 대화별 폴더를 쓴다(§4.4.5)
+      ...(params.workspace === undefined ? { defaultFolder: true } : {}),
     });
     await claimWrite(engine, hub(), context.connectionId, created.threadId);
     // 열기 훅의 대화 폴더는 쓰기 소유를 얻은 뒤, 첫 턴 전에 정한다(H-7)
@@ -52,12 +69,21 @@ export function createThreadCreateHandler(
     if (!position.ok) throw wireErrorOfStore(position.error, "thread.create position");
     // 같은 폴더의 다른 열린 대화는 알리기만 한다(U6). 막지 않고 복사하지 않는다
     const sameFolder = ports.threads.sameFolder(created.threadId);
+    // 프로젝트 소속(§4.4.2). 열기 훅이 대화 폴더를 바꿨을 수 있으므로 지금의 값을 읽는다. Test run 대화는 프로젝트 묶음에서 뺀다(§4.8)
+    const workspace = ports.threads.workspaceOf(created.threadId);
+    if (!workspace.ok) throw wireErrorOfStore(workspace.error, "thread.create workspace");
+    let project: ThreadProjectRef | null = null;
+    if (workspace.value !== null && params.testRun !== true) {
+      const attached = await projects.attach(workspace.value);
+      if (!attached.ok) throw wireErrorOfProject(attached.error);
+      project = attached.value;
+    }
     return {
       threadId: created.threadId,
       position: position.value,
       sameFolder,
-      // 저장된 프로필 id가 없으면 기본이다(M5c §4.1.1). 저장한 값을 그대로 돌려준다
-      profileId: params.profileId ?? "default",
+      project,
+      profileId,
     };
   };
 }
@@ -165,11 +191,16 @@ export function createThreadListHandler(engine: Engine): WireHandler<"thread.lis
     const page = await engine.ports.threads.list(params);
     // Test run 표지(W-34)는 호스트가 안다. Test run이 아닌 대화에는 필드를 싣지 않는다
     const profiles = engine.ports.m4.profileTestRun;
+    // 프로젝트 소속은 루트 목록으로 계산한다(§4.4.2). 루트를 읽지 못하면 목록은 그대로 보이고 소속만 비운다
+    const roots = await engine.ports.m4.project.roots();
+    if (!roots.ok) engine.ports.log.error("thread.list.project_roots", { kind: roots.error.kind });
     const threads: ThreadSummary[] = [];
     for (const summary of page.threads) {
       const testRun = profiles.testRunMarker(summary.threadId);
       // 저장된 프로필 id가 없으면 기본이다(M5c §4.1.1)
-      const withProfile = { ...summary, profileId: summary.profileId ?? "default" };
+      const project =
+        roots.ok && testRun === undefined ? projectRefOf(summary.workspace, roots.value) : null;
+      const withProfile = { ...summary, profileId: summary.profileId ?? "default", project };
       threads.push(testRun === undefined ? withProfile : { ...withProfile, testRun });
     }
     return { ...page, threads };

@@ -959,6 +959,13 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // 외부 로더가 올린 그룹(Helm). 적재가 끝나면 채워진다
     const externalGroups: { manifest: ExtensionManifest; loadIndex: number }[] = [];
     const workspaceOf = threadWorkspaceOf(ext, logger);
+    // 대화의 프로젝트 루트(M5c §4.4.7): 작업 폴더를 포함하는 가장 깊은 루트다. 기본 폴더 대화는 기본 폴더가 루트다. 포트가 아직 없으면 없다
+    const projectRootOfThread = (threadId: ThreadId): string | undefined => {
+      const workspace = workspaceOf(threadId);
+      return workspace === undefined
+        ? undefined
+        : portsHandle?.ports.m4.project.rootOfWorkspace(workspace);
+    };
     const commands: CommandRegistryHolder = {
       current: undefined,
       api: undefined,
@@ -1090,6 +1097,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         },
         settings,
         workspaceOf,
+        projectRootOf: projectRootOfThread,
         openedSkillPaths: openedSkillPathsOf(ext),
         db: store.value.root,
         faults: store.value.faults,
@@ -1319,6 +1327,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       session,
       usage: models.usage,
       trace: traceReadOf(ext),
+      // 턴 시작 프로필 값의 원천. 포트는 아래에서 만들어진다(호출 때 읽는다)
+      pluginSet: () => portsHandle?.ports.m4.pluginSet.port,
       enabled: () => operations.trace().enabled,
       logger,
       now: () => clock.now(),
@@ -1430,6 +1440,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       }),
       configDir: os.dirs.config,
       stateDir: os.dirs.state,
+      dataDir: os.dirs.data,
+      localIds,
       fileLock: osHandle.fileLock,
       trust: projectTrust,
       afterSettingsPrepare: (threadId) => externalHooks.sync(threadId),

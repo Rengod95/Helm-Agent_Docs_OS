@@ -7,6 +7,7 @@ import type { ScopeStack, SettingCatalog, SettingScope } from "@fresnel/contract
 import type { RegistrationInfo, RegistrationToggleSourceOf } from "@fresnel/ext-host";
 import type { FileLock } from "@fresnel/platform-os";
 import type { HostErrorMappers, ProfileWriteFailure } from "../../handlers/m4/profile-test-run.ts";
+import type { ProjectPort } from "../../handlers/m4/project.ts";
 import type { TestRunMarks } from "../measure/test-run-marks.ts";
 import type { DialogAreaHolder } from "./dialog-area-bridge.ts";
 import type { ExtUiVersionSource } from "./ext-ui-version-source.ts";
@@ -30,6 +31,8 @@ export interface M4EngineDeps {
   };
   /** T-WC: 목표·작업 기능 API 자리(조립 확장이 채운다) */
   readonly dialogArea: DialogAreaHolder;
+  /** 프로젝트 포트(review m5 §4.4). 프로필 기본값(`profile.defaultFor`)이 같은 프로젝트의 대화를 고를 때 쓴다 */
+  readonly projects: ProjectPort;
   /** 호스트 로그. Test run 대화를 지우지 못했을 때 남긴다. 구조 타입이다(`types.ts`의 `HostLogPort`가 대입된다) */
   readonly log: { error(message: string, fields: Readonly<Record<string, unknown>>): void };
 }

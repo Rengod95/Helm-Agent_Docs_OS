@@ -68,7 +68,7 @@ export interface PluginFact {
 
 export interface ProfileTestRunPortDeps extends Pick<
   M4PortDeps,
-  "traceRead" | "testRunControl" | "env"
+  "traceRead" | "testRunControl" | "env" | "projects"
 > {
   /** 설치된 플러그인의 매니페스트 사실. 확장 읽기 원천에서 온다 */
   readonly pluginFacts: () => readonly PluginFact[];
@@ -479,9 +479,19 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
         dropsDrive: null,
       });
     },
-    defaultFor(): Promise<Result<ProfileDefaultForResult, ProfilePortFailure>> {
-      // 대화가 프로필 id를 아직 저장하지 못하므로 가장 최근 대화도 기본을 쓴다(§4.4.8의 계산은 투영 뒤에 바뀐다)
-      return Promise.resolve(ok({ profileId: DEFAULT_PROFILE_ID }));
+    async defaultFor(
+      workspace: string | undefined,
+    ): Promise<Result<ProfileDefaultForResult, ProfilePortFailure>> {
+      // §4.4.8: 같은 폴더의, 없으면 같은 프로젝트의 가장 최근 대화가 지금 참조하는 프로필이다. 없으면 기본이다
+      const picked = await deps.projects.recentThread(workspace);
+      if (!picked.ok) return err({ kind: "project", failure: picked.error });
+      const candidate = picked.value?.profileId ?? null;
+      if (candidate === null) return ok({ profileId: DEFAULT_PROFILE_ID });
+      // 지워졌거나 없는 프로필 id는 읽지 않고 기본으로 돌아간다
+      const snapshot = await store.read();
+      if (!snapshot.ok) return err(snapshot.error);
+      const exists = snapshot.value.profiles.some((profile) => profile.id === candidate);
+      return ok({ profileId: exists ? candidate : DEFAULT_PROFILE_ID });
     },
     async removePlugin(
       params: ProfileRemovePluginParams,

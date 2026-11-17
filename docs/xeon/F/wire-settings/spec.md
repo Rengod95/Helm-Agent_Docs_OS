@@ -311,7 +311,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | host | `host.remote.proxyExample` | `{ kind: "caddy"\|"nginx", domain: string, tlsPort: integer(1..65535) }` | `{ text: string, plan: { listen: string, listenTls: string, hosts: string[] } }`. 상태를 바꾸지 않는다. 잘못된 도메인·포트는 `jsonrpc.invalidParams`다. `plan`은 루프백 전용 구성(`loopbackOnlyPlan`)이고 `listen`의 포트는 설정 `listen`의 포트(없으면 8480)다 | M4 [결정: 2026-11-11 사용자] |
 | host | `host.clients` | `{}` | `{ clients: { connectionId: string, transport: "in-process"\|"stdio"\|"socket", name?: string, version?: string, writeThreads: integer, observedThreads: integer, self: boolean }[] }`. 연결마다 한 행이고 요청한 연결(`self`)이 맨 앞이다(최대 256개). `name`과 `version`은 `host.hello`를 마친 연결만 싣는다. 인증 토큰은 싣지 않는다 | M4 (W-12) |
 | thread | `thread.list` | `{ cursor?: string, limit?: integer(1..200), workspace?: string }` | `{ threads: ThreadSummary[], nextCursor: string \| null }` | M2 |
-| thread | `thread.create` | `{ workspace?: string, title?: string, testRun?: boolean, profileId?: string }`(`testRun`, `profileId`는 M4, W-34) | `{ threadId: ThreadId, position: StreamPosition }` | M1 |
+| thread | `thread.create` | `{ workspace?: string, title?: string, testRun?: boolean, profileId?: string }`(`testRun`, `profileId`는 M4, W-34) | `{ threadId: ThreadId, position: StreamPosition, project?: ThreadProjectRef(없으면 null), profileId?: string, sameFolder: { threadId, status }[] }`. `project`는 작업 폴더가 속한 명시 프로젝트다. `profileId`는 정해진 프로필이다(없으면 `profile.defaultFor` 값). 계산은 review m5 프로필·프로젝트 §4.4, L4 host-service §4.23 | M1 |
 | thread | `thread.open` | `{ threadId: ThreadId, mode: "write"\|"observe", includeItems?: boolean, limit?: integer(1..500) }` | `{ threadId: ThreadId, role: "owner"\|"observer", position: StreamPosition, items?: ItemRecord[], hasMore?: boolean, asOfSeq?: integer }` | M2 |
 | thread | `thread.read` | `{ threadId: ThreadId, limit?: integer(1..500), before?: ItemId, around?: ItemId }`(`around`는 M4, W-16) | `{ threadId: ThreadId, items: ItemRecord[], position: StreamPosition, hasMore: boolean }` | M2 |
 | thread | `thread.close` | `{ threadId: ThreadId }` | `{}` | M2 |
@@ -1508,6 +1508,7 @@ export declare function validateSettingValue(def: SettingDef, value: unknown):
 - 지표 값의 이유 목록에는 §3.8의 `user_marked`(사용자 표시로 정한 "따랐나")가 없다. 정본 목록 그대로 두었다 [미결] [근거: review/m5/turn-record-metrics.md §3.8, §3.5].
 - `profileCost.get`의 플러그인 행과 `total`은 `PluginCost`가 아니라 `ProfileCostRow`(`CostFigures` 모양에 `plugin`, `shared`를 더한 것)다. 정적 추정 기준의 `drive`가 null이라 `PluginCost`의 숫자 칸으로는 담을 수 없어서다 [제안].
 - 정본에 정의가 없던 이름은 다음처럼 정했다. `HookOutcome`은 hooks-core-boundary §4.5의 표시값 여섯, `metrics.query`의 `window`는 `MetricWindow`(`{ from, to }`), `findings.list`의 `asOf`는 시각(ms), `dataRevision`은 `tr_turn`의 가장 큰 rowid(§4.7 규칙 41)다. `metrics.query`의 행 `key`는 `groupBy`로 고른 차원만 가질 수 있어 모든 차원을 요구하지 않는다 [제안].
+- `TurnRecord.profile`(`id`, `rev`, `source`, `inherited`)과 `profileRevChanges`의 값은 `review/m5/turn-record-metrics.md` §4.10 규칙 60~63이 정한다. 턴 시작 값은 대화 로그의 `thread.started`·`thread.updated`·`profile.applied`에서 온다. `source`는 `thread`와 `builtin`, `inherited`는 하위 대화 여부다 [제안].
 
 ## 4. 동작 규칙
 

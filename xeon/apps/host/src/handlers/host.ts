@@ -51,6 +51,7 @@ const IMPLEMENTED_NOTIFICATIONS: readonly (
   "stream.chunk",
   "settings.invalidated",
   "profile.changed",
+  "project.changed",
   "notify.delivered",
   "$/cancelRequest",
   "$/connectionReset",

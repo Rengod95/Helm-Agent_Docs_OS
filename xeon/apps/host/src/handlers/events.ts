@@ -475,6 +475,17 @@ export function startEventFanout(engine: Engine, hub: ConnectionHub): EventFanou
       });
     }
   });
+  // 프로젝트 목록을 바꾸면 연결 전체에 `project.changed`를 보낸다(review m5 §3.4). 프로필과 같은 규칙이다
+  const offProjects = engine.ports.m4.project.onChange((change) => {
+    for (const conn of hub.connections()) {
+      if (conn.phase !== "ready") continue;
+      conn.sender.push({
+        jsonrpc: "2.0",
+        method: "project.changed",
+        params: toRecord({ rev: change.rev, ids: [...change.ids] }),
+      });
+    }
+  });
   // 알림이 생기면 연결 전체에 `notify.delivered`를 보낸다(HS-94). 값과 설정 판정은 notice-delivery.ts가 한다
   const offNotices = startNoticeDelivery(engine, hub);
   return {
@@ -486,6 +497,7 @@ export function startEventFanout(engine: Engine, hub: ConnectionHub): EventFanou
       offVolatile();
       offSettings();
       offProfiles();
+      offProjects();
       offNotices();
       poller.dispose();
     },
