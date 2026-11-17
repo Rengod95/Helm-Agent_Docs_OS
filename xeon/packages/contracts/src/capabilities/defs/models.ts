@@ -80,6 +80,7 @@ export const ModelsComplete: CapabilityDef<ModelsMethods, readonly []> = defineC
   service: {
     methods: {
       complete: {
+        risk: "read",
         description:
           "Calls the model once with the given messages and returns its text, usage and stop reason. A call with the same requestId is not sent again.",
         input: ModelsCompleteInput,

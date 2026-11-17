@@ -143,6 +143,8 @@ export interface MethodDef<I extends TSchema = TSchema, O extends TSchema = TSch
   readonly idempotent?: true;
   /** 대화 상태, 세션 DB, 작업 공간, 외부 시스템 어디에도 효과를 남기지 않는다(ADR-0015 §3.3). replay "safe"여야 한다 */
   readonly readOnly?: true;
+  /** 도구 매핑이 없는 쓰기 메서드를 플러그인이 부를 때 정책이 보는 위험 등급. 생략하면 가장 엄한 "exec". readOnly와 함께 쓸 수 없다. 모델이 부르는 같은 효과의 도구와 같은 등급이어야 한다(파일 쓰기 "write", 셸·네트워크 "exec", 대화 안 상태만 바꾸면 "read") [제안: enE2m] */
+  readonly risk?: ToolRisk;
 }
 
 export type MethodMap = Readonly<Record<string, MethodDef>>;
@@ -1048,7 +1050,7 @@ export function fileChangesOf(details: JsonValue | null): readonly FileChangeEnt
 | `replay_widened` | error | 도구 `replay`가 `"safe"`인데 메서드 `replay`가 `"unsafe"`(생략 포함) |
 | `idempotent_replay_unsafe` | error | 메서드가 `idempotent: true`인데 `replay`가 `"safe"`가 아님(생략 포함) |
 | `read_only_replay_unsafe` | error | 메서드가 `readOnly: true`인데 `replay`가 `"safe"`가 아님(생략 포함) |
-| `effect_class_conflict` | error | 한 메서드가 `idempotent`와 `readOnly`를 함께 선언함 |
+| `effect_class_conflict` | error | 한 메서드가 `idempotent`와 `readOnly`를 함께 선언하거나 `risk`와 `readOnly`를 함께 선언함 |
 | `effect_class_missing` | warning | `replay: "safe"`인데 `idempotent`와 `readOnly`가 모두 없음. L2 정의 분류(M3-REQ-88)가 끝나면 error로 올릴지 다시 본다 |
 | `parameters_not_object` | error | `parameters` 루트가 객체가 아님 |
 | `schema_ref_external` | error | §4.3 `$ref` 규칙 위반 |

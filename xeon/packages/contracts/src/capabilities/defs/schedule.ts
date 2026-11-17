@@ -582,6 +582,7 @@ export const ScheduleEntries: CapabilityDef<
         },
       },
       cancel: {
+        risk: "write",
         description:
           "Disables a schedule entry. The stop reason is recorded as cancelled. An entry that is already disabled is returned unchanged.",
         input: ScheduleCancelInputSchema,
@@ -596,6 +597,7 @@ export const ScheduleEntries: CapabilityDef<
         },
       },
       fire: {
+        risk: "exec",
         description:
           "Fires a remote-trigger entry once now. Entries that are not remote, or that are disabled, are rejected.",
         input: ScheduleFireInputSchema,

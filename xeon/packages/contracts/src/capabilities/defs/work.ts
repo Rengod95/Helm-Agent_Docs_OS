@@ -405,6 +405,7 @@ export const WorkTasks: CapabilityDef<
   service: {
     methods: {
       create: {
+        risk: "read",
         description: "Creates one task.",
         input: TaskCreateInput,
         output: TaskOutput,
@@ -413,6 +414,7 @@ export const WorkTasks: CapabilityDef<
         errors: TASK_ERRORS,
       },
       update: {
+        risk: "read",
         description: "Changes a task's content, status, or owner.",
         input: TaskUpdateInput,
         output: TaskOutput,
@@ -421,6 +423,7 @@ export const WorkTasks: CapabilityDef<
         errors: TASK_ERRORS,
       },
       link: {
+        risk: "read",
         description:
           "Adds or removes prerequisite edges. Rejects the change if it would create a cycle.",
         input: TaskLinkInput,
@@ -742,6 +745,7 @@ export const WorkGoals: CapabilityDef<GoalsMethods, readonly []> = defineCapabil
   service: {
     methods: {
       set: {
+        risk: "read",
         description: "Sets a goal.",
         input: GoalSetInput,
         output: GoalOutput,
@@ -757,6 +761,7 @@ export const WorkGoals: CapabilityDef<GoalsMethods, readonly []> = defineCapabil
         readOnly: true,
       },
       clear: {
+        risk: "read",
         description: "Releases the goal.",
         input: GoalClearInput,
         output: GoalOutput,
@@ -765,6 +770,7 @@ export const WorkGoals: CapabilityDef<GoalsMethods, readonly []> = defineCapabil
         errors: GOAL_ERRORS,
       },
       judge: {
+        risk: "read",
         description: "The delegated judge submits a verdict.",
         input: GoalJudgeInput,
         output: GoalJudgeOutput,
@@ -953,6 +959,7 @@ export const WorkReports: CapabilityDef<ReportsMethods, readonly []> = defineCap
   service: {
     methods: {
       build: {
+        risk: "read",
         description: "Builds a completion report for the target (a goal or a turn).",
         input: ReportBuildInput,
         output: ReportBuildOutput,

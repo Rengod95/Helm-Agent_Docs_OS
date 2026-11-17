@@ -54,6 +54,13 @@ describe("effect class declarations (ADR-0015 §3.3)", () => {
     ]);
   });
 
+  test("a declared risk is fine on a write method and conflicts with readOnly", () => {
+    expect(classIssues(withMethod({ risk: "write" }))).toEqual([]);
+    expect(classIssues(withMethod({ replay: "safe", readOnly: true, risk: "read" }))).toEqual([
+      ["error", "effect_class_conflict"],
+    ]);
+  });
+
   test("a safe method without a mark is the effect_class_missing warning", () => {
     expect(classIssues(withMethod({ replay: "safe" }))).toEqual([
       ["warning", "effect_class_missing"],

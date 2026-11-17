@@ -126,6 +126,7 @@ export const AgentsJudge: CapabilityDef<AgentsMethods, readonly []> = defineCapa
   service: {
     methods: {
       judge: {
+        risk: "read",
         description:
           "Returns the verdict, or capped or failed as values. A call with the same stepId returns the recorded verdict.",
         input: AgentsJudgeInput,
