@@ -203,7 +203,7 @@ export interface WebService {
 
 - `schedule.remote`는 요청하지 않고 원격 클라이언트의 응답을 `respond`로 중계만 한다(`L2.schedule.spec` §4.5.2).
 - [결정: m2c G1-09] 승인 origin의 `caller`는 호출 문맥의 `CallContext.caller`를 `approvalCallerOf`(`@fresnel/contracts/services`)에 넣어 만든다. cap-dialog, cap-work, cap-knowledge의 승인 포트는 자기 변환 함수를 두지 않는다. 호출 문맥이 없는 요청(스레드를 다시 열 때 등)은 호스트가 직접 낸 호출이므로 `host`다. 규칙의 정본은 `F.records.spec` §3.3.1이다.
-- [제안] L2 공통 승인 포트. 각 `cap-*`는 `fresnel.approvals`를 패키지 내부 포트 한 곳(`src/ports/approvals.ts`)으로 감싸고 아래 모양을 따른다. L2 패키지끼리 import하지 않으므로 같은 모양을 각자 둔다. 도메인 spec은 kind와 `subject` 타입만 좁힌다. L1.tools.spec의 실제 이름이 다르면 포트만 고친다.
+- [제안] L2 공통 승인 포트. 각 `cap-*`는 `fresnel.approvals`를 패키지 내부 포트 한 곳(`src/ports/approvals.ts`)으로 감싸고 아래 모양을 따른다. L2 패키지끼리 import하지 않으므로 같은 모양을 각자 둔다. 도메인 spec은 kind와 `subject` 타입만 좁힌다. L1.tools.spec의 실제 이름이 다르면 포트만 고친다. [이동: review.m5 D-28, 2026-11-18] 질문(`dialog.ask`)의 승인 포트는 cap-dialog에 두지 않고 L1 `core-tools/src/ask/approvals.ts`에 둔다. 이 조항은 승인을 쓰는 다른 `cap-*`(예: `cap-knowledge/src/ports/approvals.ts`)에 그대로 적용한다.
 
 ```ts
 // cap-<domain>/src/ports/approvals.ts  (패키지 내부. L1.tools.spec 승인 프로토콜을 감싼다 [가정])

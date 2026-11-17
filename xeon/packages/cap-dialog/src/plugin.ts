@@ -26,11 +26,11 @@ import {
   type ExtensionUnit,
   type RegistrationHostApi,
 } from "@fresnel/ext-host";
+import { questionApprovalsOver, type ApprovalsPortFactory } from "@fresnel/core-tools";
 import type { ChunkNumbering } from "./chunk-numbering.ts";
 import type { DialogDeps } from "./deps.ts";
 import { dialogManifest } from "./manifest.ts";
 import { createOsDelivery } from "./notify/os-delivery.ts";
-import { questionApprovalsOver, type ApprovalsPortFactory } from "./ports/approvals.ts";
 import type { ImagesPort } from "./ports/images.ts";
 import { shellPortOver, type ShellPort } from "./ports/shell.ts";
 import { createDialogRuntime } from "./service.ts";

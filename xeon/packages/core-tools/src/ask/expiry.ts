@@ -2,8 +2,8 @@ import type { AskQuestion } from "@fresnel/contracts/capabilities";
 import { defaultAskAnswer } from "@fresnel/contracts/capabilities";
 import type { ApprovalId, ThreadId } from "@fresnel/contracts/conversation";
 import type { Logger, TimerHandle } from "@fresnel/contracts";
-import type { L2ApprovalsPort } from "../ports/approvals.ts";
-import type { Timers } from "../ports/timers.ts";
+import type { L2ApprovalsPort } from "./approvals.ts";
+import type { Timers } from "./deps.ts";
 import { toQuestionAnswer } from "./mapping.ts";
 
 // L2.dialog.spec §4.1.3 시간 제한. 만료 시각과 만료 결과를 승인 요청에 실어 L1.tools가 내구적으로 관리하는 것이

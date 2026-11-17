@@ -4,7 +4,7 @@ export type { DialogPluginOptions } from "./plugin.ts";
 export { dialogManifest, DIALOG_EXTENSION_NAME } from "./manifest.ts";
 export { DEFAULT_DIALOG_SETTINGS, DIALOG_SETTING_DEFS, readDialogSettings } from "./settings.ts";
 export type { DialogSettings, DialogSettingsSource } from "./settings.ts";
-export type { ApprovalsPortFactory } from "./ports/approvals.ts";
+export type { ApprovalsPortFactory } from "@fresnel/core-tools";
 export type { ShellFailure, ShellOutput, ShellPort, ShellRunContext } from "./ports/shell.ts";
 export type { BuiltinCommandDecl, CommandsServiceApi } from "./commands/service.ts";
 // 휘발 조각 번호 발급기. 조립 루트가 하나를 만들어 `scope.handler_failed`와 `dialogPlugin`에 나눠 준다

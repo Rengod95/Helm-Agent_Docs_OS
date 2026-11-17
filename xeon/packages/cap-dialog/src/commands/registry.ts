@@ -4,7 +4,7 @@ import type {
   CommandInfo,
   CommandSource,
 } from "@fresnel/contracts/capabilities";
-import { DialogFailure } from "../errors.ts";
+import { DialogFailure } from "@fresnel/core-tools";
 import type { CommandEntry } from "./loader.ts";
 import type { TemplateSegment } from "./shell.ts";
 

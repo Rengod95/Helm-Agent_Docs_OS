@@ -11,13 +11,14 @@ import { assertNever } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { requestKeyFor } from "@fresnel/contracts/records";
 import type { ApprovalRequestError, L2ApprovalSnapshot } from "@fresnel/contracts/services";
-import type { DialogDeps } from "../deps.ts";
-import { DialogFailure, guarded } from "../errors.ts";
+import { sha256HexSync } from "../util.ts";
+import type { AskDeps } from "./deps.ts";
+import { DialogFailure, guarded } from "./errors.ts";
 import { createAskExpiry, type AskExpiry } from "./expiry.ts";
-import { sha256Hex } from "../hash.ts";
 import { fromQuestionAnswer, toQuestionBody } from "./mapping.ts";
 
-// L2.dialog.spec §3.1, §4.1. 질문은 승인 프로토콜(kind `question`)로 받는다. 대기는 승인 기록(내구)이 갖고
+// L2.dialog.spec §3.1, §4.1(층 D1에서 L1 core-tools로 옮겼다. 기능 등록과 `ask_user` 도구 등록은 cap-dialog와 apps/host에 남는다).
+// 질문은 승인 프로토콜(kind `question`)로 받는다. 대기는 승인 기록(내구)이 갖고
 // 이 서비스는 상태를 두지 않는다. 같은 `requestId`로 다시 부르면 기존 요청의 현재 상태를 돌려받는다.
 
 type AskApi = CapabilityApi<typeof DialogAsk>;
@@ -68,7 +69,7 @@ function contextOf(
   return { ...context, threadId: context.threadId };
 }
 
-export function createAskService(deps: DialogDeps): AskService {
+export function createAskService(deps: AskDeps): AskService {
   const expiry: AskExpiry = createAskExpiry(deps.timers, deps.logger);
 
   /** 해결·취소된 승인을 `ask` 출력으로 옮긴다(§4.1.1 표) */
@@ -136,7 +137,7 @@ export function createAskService(deps: DialogDeps): AskService {
           });
         }
         const approvals = deps.approvals.forCall(context);
-        const requestKey = requestKeyFor(requestId, sha256Hex);
+        const requestKey = requestKeyFor(requestId, sha256HexSync);
         const requested = await approvals.request({
           threadId: context.threadId,
           kind: "question",

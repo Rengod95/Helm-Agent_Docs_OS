@@ -1,11 +1,16 @@
 import type { AskAnswer, AskAnswerItem, AskQuestion } from "@fresnel/contracts/capabilities";
 import type { JsonObject, JsonValue } from "@fresnel/contracts/conversation";
-import { isJsonObject } from "../util.ts";
 
 // 질문 도메인 모양(AskQuestion, AskAnswer)과 L1.tools 승인 레코드 모양(QuestionBody, QuestionAnswer)을 서로 옮긴다.
 // 레코드 모양이 정본이다(L1.tools.spec §3.6, wire `approval.respond`의 answer): L1.tools가 응답을 QuestionBody에 비춰 검사하므로
 // 승인 요청의 대상은 QuestionBody여야 한다. `header`와 `recommended`도 레코드가 싣는다(F.8). `AskAnswer`는 wire를 지나지 않는다:
 // 클라이언트는 QuestionBody를 그려 `QuestionAnswer`로 답하고 이 파일이 `AskAnswer`로 옮긴다.
+
+// cap-dialog `util.ts`의 `isJsonObject`와 같은 얕은 검사(배열과 null 제외)다. core-tools `util.ts`의 같은 이름 함수는
+// JSON 깊이 검사를 하므로 여기서 쓰지 않는다(응답 해석 동작을 옮기기 전과 같게 둔다).
+function isJsonObject(value: JsonValue | null | undefined): value is JsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 function objectOf(value: JsonValue | null | undefined): JsonObject | undefined {
   return isJsonObject(value) ? value : undefined;

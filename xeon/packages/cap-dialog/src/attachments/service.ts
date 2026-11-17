@@ -10,8 +10,8 @@ import {
 import type { ImageContent, TextContent, ThreadId } from "@fresnel/contracts/conversation";
 import { BLOB_PLACEHOLDER_PREFIX, type BlobRef } from "@fresnel/contracts/records";
 import type { CancelScope } from "@fresnel/contracts/services";
+import { DialogFailure, guarded } from "@fresnel/core-tools";
 import type { DialogDeps } from "../deps.ts";
-import { DialogFailure, guarded } from "../errors.ts";
 import { isJsonObject } from "../util.ts";
 import {
   attributeValue,

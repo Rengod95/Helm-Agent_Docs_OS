@@ -9,8 +9,8 @@ import {
 } from "@fresnel/contracts/capabilities";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { CancelScope } from "@fresnel/contracts/services";
+import { DialogFailure, guarded, toCapabilityError } from "@fresnel/core-tools";
 import type { DialogDeps } from "../deps.ts";
-import { DialogFailure, guarded, toCapabilityError } from "../errors.ts";
 import { PROJECT_COMMANDS_DIR } from "../ports/command-files.ts";
 import { parseCommandArgs, parseCommandLine } from "../upstream/pi/prompt-templates.ts";
 import { checkActionArgs } from "./action-args.ts";
