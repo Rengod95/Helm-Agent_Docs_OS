@@ -5,7 +5,7 @@ import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import {
   withEnabledSources,
   type EnabledSourceView,
-} from "../../src/assembly/m4/ext-read-sources.ts";
+} from "../../src/assembly/m4/enabled-source.ts";
 import { createRecordedSources } from "../fixtures/ext-read-sources.ts";
 
 // M5c §3.4 `ext.list.enabledSource`: 출처는 E(T)를 쥔 쪽이 정하고, 원천은 등록에서 확장 이름을 찾아 그 값을 쓴다.

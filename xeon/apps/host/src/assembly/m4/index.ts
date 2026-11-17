@@ -15,7 +15,7 @@ import type { ExtUiVersionSource } from "./ext-ui-version-source.ts";
 import { createDevkitPort } from "./devkit-port.ts";
 import { createDialogAreaPort } from "./dialog-area-port.ts";
 import { createExtReadPort, type ExtensionRecord, type ExtReadSources } from "./ext-read-port.ts";
-import { withEnabledSources } from "./ext-read-sources.ts";
+import { withEnabledSources } from "./enabled-source.ts";
 import { createExtUiVersionPort } from "./ext-ui-version-port.ts";
 import { REQUIRED_BY_CORE } from "./profile-defaults.ts";
 import { createPluginSet, type PluginSetHandle } from "./plugin-set.ts";

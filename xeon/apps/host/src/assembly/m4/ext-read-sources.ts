@@ -6,7 +6,6 @@ import type { DurableEventEnvelope, ReadFailure } from "@fresnel/contracts/recor
 import type { GroupStatus } from "@fresnel/contracts/services";
 import { resolveSetting, type ScopeStack, type SettingCatalog } from "@fresnel/contracts/settings";
 import type {
-  EnabledSource,
   ExtDiagnostic,
   GroupMetricsFull,
   GroupPromotionResult,
@@ -85,56 +84,6 @@ function threadIdOf(value: string | undefined): ThreadId | undefined {
 
 function layersOf(settings: SettingsEngine, threadId: string | undefined): ScopeStack {
   return settings.layers(threadIdOf(threadId));
-}
-
-/**
- * 대화별 켜짐 집합(E(T))을 쥔 쪽이 주는 읽기 면(M5c §4.1). 호스트 조립의 플러그인 집합이 구현한다.
- * `sourceOf`는 관리 잠금, 오류 정지, 코어, 공통 묶음, 프로필 순으로 출처를 정한다.
- */
-export interface EnabledSourceView {
-  sourceOf(threadId: ThreadId | undefined, extension: string): EnabledSource;
-  /** 열린 대화의 E(T)를 다시 맞춘다. 정지가 풀리면(`ext.reenable`, `ext.disableConfirm`) 쓴다 */
-  recomputeAll(): void;
-}
-
-/**
- * 켜짐의 출처(`ext.list`의 `enabledSource`, M5c §3.4). 관리 잠금은 `managed`, 코어 단위는 `core`, 공통 묶음은 `common`,
- * 대화의 프로필은 `profile`, 덧씌우기는 아직 없어 `overlay`를 내지 않는다, 그 밖은 `none`이다.
- * 오류로 멈춘 플러그인은 E(T)에서 빠지므로 `none`이다(§4.1.12).
- */
-function enabledSourceOf(
-  view: EnabledSourceView,
-  threadId: ThreadId | undefined,
-  extension: string,
-): EnabledSource {
-  return view.sourceOf(threadId, extension);
-}
-
-/**
- * 확장 읽기 원천에 E(T) 출처를 붙인다. `enabledSource`는 등록의 확장 이름으로 `enabledSourceOf`를 부른다.
- * `ext.reenable`과 `ext.disableConfirm`은 정지 상태를 바꾸므로 원천을 부른 뒤 열린 대화의 E(T)를 다시 맞춘다.
- */
-export function withEnabledSources(
-  sources: ExtReadSources,
-  view: EnabledSourceView,
-  registrationsOf: () => readonly { readonly id: string; readonly extension: string }[],
-): ExtReadSources {
-  return {
-    ...sources,
-    enabledSource(registrationId, threadId) {
-      const info = registrationsOf().find((item) => item.id === registrationId);
-      if (info === undefined) return "none";
-      return enabledSourceOf(view, threadIdOf(threadId), info.extension);
-    },
-    reenable(name) {
-      sources.reenable(name);
-      view.recomputeAll();
-    },
-    disableConfirm(name) {
-      sources.disableConfirm(name);
-      view.recomputeAll();
-    },
-  };
 }
 
 /** 대화 범위(launch)에 저장된 켜짐 값이 이 대화의 상태다. 그 범위에 값이 없으면 undefined(전역 값을 따른다) */
