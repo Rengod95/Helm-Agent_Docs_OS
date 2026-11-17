@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { Database } from "bun:sqlite";
 import { expect, test } from "bun:test";
 import { Bug, ok } from "@fresnel/contracts";
 import {
@@ -11,16 +15,18 @@ import {
   createTurnRecordPort,
   type TurnRecordReadPort,
 } from "../../../src/assembly/measure/turn-read.ts";
-import type {
-  TrCacheRow,
-  TrCallRow,
-  TrFrameRow,
-  TrHookRow,
-  TrMaterialRow,
-  TrSkillRow,
-  TrStepRow,
-  TrToolUseRow,
-  TrTurnRow,
+import {
+  colNum,
+  colsOf,
+  type TrCacheRow,
+  type TrCallRow,
+  type TrFrameRow,
+  type TrHookRow,
+  type TrMaterialRow,
+  type TrSkillRow,
+  type TrStepRow,
+  type TrToolUseRow,
+  type TrTurnRow,
 } from "../../../src/assembly/measure/turn-tables.ts";
 
 // 턴 기록 지표와 살펴볼 것(M5d 수용 기준 14~18, 20, 38, 39). 합성 데이터를 저장소의 쓰기 면으로 만들고 읽기 포트의 값을 비교한다.
@@ -1670,4 +1676,163 @@ test("the cache, block and drive counters read the same values from tr_daily as 
   expect(after).toEqual(before);
   expect(before["block.cache_breaks"]).toMatchObject({ value: 2 });
   store.close();
+});
+
+// ---- 보관 기간을 가로지르는 창: 접힌 턴과 원본 턴이 섞여도 값이 같다 ----------
+
+/** 턴 하나: 단계 0에 캐시 원인 한 줄, 주도 프레임 한 줄(helm), 물음이 있으면 프레임 안의 물음 한 번 */
+function writeSpanTurn(
+  store: MeasureStore,
+  thread: string,
+  turn: string,
+  startedAt: number,
+  cause: {
+    readonly kind: string;
+    readonly plugin: string | null;
+    readonly observed: boolean;
+    readonly write: number;
+  },
+  exit: string,
+  ask: boolean,
+): void {
+  writeSteps(
+    store,
+    thread,
+    turn,
+    startedAt,
+    [
+      {
+        index: 0,
+        input: 100,
+        cacheRead: 200,
+        cacheWrite: cause.write,
+        calls: [call(thread, turn, `${turn}-c`, { plugin: "guard", execMs: 7 })],
+        hooks: ask ? [hook(thread, turn, 1, { askVia: "decision", askMs: 50, atMs: 10 })] : [],
+        cache: [causeRow(thread, turn, 0, cause.kind, cause.plugin, cause.observed, cause.write)],
+      },
+    ],
+    { endedAt: startedAt + 3000 },
+  );
+  writeFrameRows(store, [
+    frameRow(
+      thread,
+      turn,
+      `lease-${turn}`,
+      1,
+      "helm",
+      { entered: 0, exited: 500 },
+      exit,
+      { maxTurns: 2 },
+      { turns: 1 },
+    ),
+  ]);
+}
+
+function rowsIn(path: string, table: string, thread: string): number {
+  const raw = new Database(path);
+  try {
+    return colNum(
+      colsOf(raw.query(`SELECT COUNT(*) AS n FROM ${table} WHERE thread_id = ?`).get(thread)),
+      "n",
+    );
+  } finally {
+    raw.close();
+  }
+}
+
+test("a window that crosses the retention cutoff reads the same cache, block and drive values before and after the prune", () => {
+  const dir = mkdtempSync(join(tmpdir(), "measure-span-"));
+  try {
+    const path = join(dir, "measure.db");
+    const store = must(openMeasureStore(path));
+    const T = "thr_span";
+    // 창은 날 경계(UTC 0시)에서 시작한다. 보관 기간의 컷오프는 2026-10-19 12:00(UTC)이다
+    const from = Date.UTC(2026, 9, 14);
+    // 컷오프 앞의 세 턴. 셋째(10-19 09시)는 컷오프와 같은 날이지만 컷오프 앞이라 접힌다
+    writeSpanTurn(
+      store,
+      T,
+      "trn_sp1",
+      Date.UTC(2026, 9, 15, 10),
+      { kind: "prefix_reset", plugin: "guard", observed: true, write: 50 },
+      "budget",
+      true,
+    );
+    writeSpanTurn(
+      store,
+      T,
+      "trn_sp2",
+      Date.UTC(2026, 9, 17, 15),
+      { kind: "ttl", plugin: null, observed: true, write: 0 },
+      "done",
+      false,
+    );
+    writeSpanTurn(
+      store,
+      T,
+      "trn_sp3",
+      Date.UTC(2026, 9, 19, 9),
+      { kind: "toolset", plugin: "guard", observed: false, write: 0 },
+      "budget",
+      false,
+    );
+    // 컷오프 뒤: 원본으로 남는 두 턴
+    writeSpanTurn(
+      store,
+      T,
+      "trn_sp4",
+      Date.UTC(2026, 9, 19, 13),
+      { kind: "prefix_reset", plugin: "guard", observed: true, write: 30 },
+      "done",
+      true,
+    );
+    writeSpanTurn(
+      store,
+      T,
+      "trn_sp5",
+      Date.UTC(2026, 10, 10, 8),
+      { kind: "prefix_reset", plugin: "guard", observed: true, write: 30 },
+      "budget",
+      false,
+    );
+
+    const metrics = [
+      "block.cache_hit_rate",
+      "block.cache_breaks",
+      "block.cache_breaks.predicted",
+      "block.cache_breaks.unattributed",
+      "block.cache_breaks_by_plugin",
+      "block.cache_breaks_by_plugin.tokens",
+      "block.time_split.ask",
+      "drive.entries",
+      "drive.exit_reasons.budget",
+      "drive.usage_vs_limit",
+      "drive.asks",
+    ];
+    const before = valuesOf(portOf(store, 1), metrics, from, NOW);
+    must(store.prune(NOW, 30));
+
+    // 접힌 턴의 원본 행은 지워지고 원본 턴 둘의 행만 남는다
+    expect(must(store.readTurn(T, "trn_sp1"))).toBeUndefined();
+    expect(rowsIn(path, "tr_turn", T)).toBe(2);
+    expect(rowsIn(path, "tr_cache", T)).toBe(2);
+    expect(rowsIn(path, "tr_frame", T)).toBe(2);
+    // 접힌 값은 tr_daily에 남는다: 프레임 진입 셋은 helm의 세 번
+    expect(
+      must(store.dailyCounters("drive"))
+        .filter((row) => row.counter === "entries")
+        .map((row) => [row.day, row.plugin, row.n]),
+    ).toEqual([
+      ["2026-10-15", "helm", 1],
+      ["2026-10-17", "helm", 1],
+      ["2026-10-19", "helm", 1],
+    ]);
+
+    const after = valuesOf(portOf(store, 1), metrics, from, NOW);
+    expect(after).toEqual(before);
+    expect(before["drive.entries"]).toMatchObject({ value: 5, state: "exact" });
+    store.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

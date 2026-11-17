@@ -610,7 +610,7 @@ export const TR_FINDING_STATE: TableSpec<TrFindingStateRow> = tableSpec<TrFindin
   ],
 );
 
-/** 대화 삭제(`forgetThread`)와 접기 뒤 지우기가 턴마다 지우는 표. `tr_daily`는 여기 없다 */
+/** 대화 삭제(`forgetThread`)가 턴마다 지우는 표. 보관 정리(`prune`)도 지난 턴을 지울 때 이 표를 지우되 `TURN_CHILD_TABLES_KEPT_BY_PRUNE`은 뺀다. `tr_daily`는 여기 없다 */
 export const TURN_CHILD_TABLES = [
   "tr_mark",
   "tr_plugincall",
@@ -623,6 +623,12 @@ export const TURN_CHILD_TABLES = [
   "tr_call",
   "tr_step",
 ] as const;
+
+/**
+ * 보관 정리가 지난 턴을 지울 때 남겨 두는 표. 표시(`tr_mark`)는 사용자 입력이라 보관 기간을 따르지 않는다
+ * (턴 기록 문서 §3.4 [제안]). 대화를 지울 때는 `forgetThread`가 `TURN_CHILD_TABLES` 전부를 지우므로 여기서도 지워진다.
+ */
+export const TURN_CHILD_TABLES_KEPT_BY_PRUNE: readonly string[] = ["tr_mark"];
 
 // ---- 읽기 -------------------------------------------------------------------
 

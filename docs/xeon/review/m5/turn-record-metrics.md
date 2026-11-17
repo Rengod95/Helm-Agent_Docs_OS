@@ -380,7 +380,7 @@ export interface TurnFlags {
 | `tr_plugincall` | `(thread_id, turn_id, seq)` | `plugin`, `capability`, `method`, `request_key`, `ok`, `ms`, `via`, `tool_call_id` | 가벼운 길의 호출 한 줄(`pluginCalls`) |
 | `tr_cache` | `(thread_id, turn_id, step_index, n)` | `observed`, `kind`, `plugin`, `registrations`, `evidence`, `cache_read`, `cache_write`, `prior_cache_read`, `prior_cache_write` | 기존 `measure_raw kind=cache` 행은 그대로 둔다 |
 | `tr_daily` | `(day, subject, plugin, ref, model, profile, scope_kind, caller, counter)` | `n`, `sum`, `min`, `max`, `hist_json` | 원본을 접을 때 채운다(§4.7 규칙 31) |
-| `tr_mark` | `(thread_id, turn_id, ref)` | `mark`(`followed`/`not_followed`), `plugin`, `marked_at` | 사용자가 "지침을 따랐나"를 누른 표시(§3.8). 관찰이 아니라 사용자 입력이지만 대화 로그에 더하지 않고 `measure.db`에만 둔다 |
+| `tr_mark` | `(thread_id, turn_id, ref)` | `mark`(`followed`/`not_followed`), `plugin`, `marked_at` | 사용자가 "지침을 따랐나"를 누른 표시(§3.8). 관찰이 아니라 사용자 입력이지만 대화 로그에 더하지 않고 `measure.db`에만 둔다. [제안] 표시는 보존 기간이 지나도 지우지 않는다, 대화를 지우면 함께 지운다. 턴이 접혀도 표시는 접기 대상이 아니다(§5의 지표 가운데 표시를 읽는 것이 없다 [근거: §5 지표 표, 규칙 38]). [구현: `turn-tables.ts`의 `TURN_CHILD_TABLES_KEPT_BY_PRUNE`을 `store.ts`의 `deleteTurn`이 건너뛴다. `forgetThread`는 그대로 지운다. 시험: `turn-record-store.test.ts`] |
 | `tr_finding_state` | `finding_id` | `state`, `dismissed_at`, `snooze_until`, `fingerprint` | |
 | `tr_backtest_run`, `tr_backtest_item` | `run_id`, `(run_id, tool_call_id)` | 요청, 상태, 항목 결과(§3.7) | 보존은 원본과 같다 |
 
@@ -542,7 +542,7 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 7. 기록은 모델에게 보이지 않는다. 수집기는 (a) 메시지를 만들지 않고, (b) 도구 설명·이름·스키마를 바꾸지 않고, (c) 시스템 프롬프트와 환경 블록에 줄을 더하지 않고, (d) 요청 본문을 바꾸지 않는다. `callKey`, `targetKey`, 재료 id는 저장소 안에만 있다. 켠 상태와 끈 상태에서 같은 입력의 모델 요청 본문이 바이트 단위로 같아야 한다(AC-1).
 8. 상한(턴당): 훅 500, 호출 500, 재료 200, 도구 행 256, 스킬 이름 256. `maxTurnBytes`를 넘으면 순서대로 줄인다: 재료의 `ref` 문자열 → `Advertised.tools` → 훅의 `decisionText` → 훅 행(오래된 `passed`부터). 줄인 수는 `elided`에 센다. 줄인 뒤에도 넘으면 단계 기록은 유지하고 `record_json`은 요약으로 대체하며 `complete: false`다.
 9. [제안] 대화가 지워지면(`threads.remove`, 보관 정리 `onRemoved`: `retention.ts:34`) `measure.db`가 `tr_*`의 그 `thread_id` 행을 같은 호출 안에서 지운다. `tr_daily`는 대화 단위 값이 없으므로 남는다. 일별 집계에는 대화 id, 도구 인자, 훅 사유가 들어가지 않는다.
-10. 원본 보관은 `x.operations.trace.retentionDays`다. 시간이 지난 `tr_*` 행은 `tr_daily`로 접은 뒤 지운다(규칙 31). 접기는 기존 `prune`과 같은 트랜잭션에서 한다.
+10. 원본 보관은 `x.operations.trace.retentionDays`다. 시간이 지난 `tr_*` 행은 `tr_daily`로 접은 뒤 지운다(규칙 31). 접기는 기존 `prune`과 같은 트랜잭션에서 한다. 표시(`tr_mark`)는 예외다(§3.4 [제안]).
 11. 개인정보. 저장하지 않는 것: 프롬프트·메시지 본문, 도구 인자 값, 도구 결과 본문, 시크릿 값, 훅 입력 payload, 훅이 고친 내용. 저장하는 것 가운데 사람이 쓴 문자열은 둘이다: 훅 `decisionText`(200자, `mask` 적용)와 스킬·도구·플러그인 이름. 요청 본문은 기존 `storeRequestBody`가 켜졌을 때만, 기존 규칙대로 가린 뒤 저장한다. 인자와 대상은 설치별 소금으로 HMAC한 짧은 값(`callKey`, `targetKey`)만 둔다. 내용이 필요하면 대화 로그를 읽는다(§4.8 규칙 40).
 
 ### 4.2 훅 실행 기록
@@ -828,7 +828,7 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 26. [미구현: 알림은 단계 행을 쓴 뒤에만 간다(M5d-1 층 5). 단계 끝 전의 `modified` 행은 아직 없다] (R23) 훅이 `tool.result`를 고친 호출에서 `turnRecord.delta`가 단계 끝 전에 `modified` 행을 보낸다. 닫은 뒤 다시 열어 `turnRecord.get`으로 같은 행을 읽는다.
 27. (R23) 계측이 꺼져 있어도 막힌 호출의 toolResult `details`만으로 막음 칩의 데이터가 있다.
 28. (R23, R13) 하위 에이전트 자식 대화의 턴 기록이 `parent`와 부모와 같은 프로필 표지를 가진다.
-29. 성능. 계측 켠 턴과 끈 턴의 디스패치·턴 시간 차이를 기존 `dispatch_overhead_trace_on_vs_off` 벤치(`docs/xeon/X/operations/spec.md` §4.8.5)와 같은 방식으로 재서 기록한다. 지금 기준값이 없으므로 이 문서도 수치를 정하지 않는다. 단계당 쓰기 묶음이 모델 호출 경로를 기다리게 하지 않는다(`measure` 기존 TX-09 규칙).
+29. 성능. 계측 켠 턴과 끈 턴의 디스패치·턴 시간 차이를 기존 `dispatch_overhead_trace_on_vs_off` 벤치(`docs/xeon/X/operations/spec.md` §4.8.5)와 같은 방식으로 재서 기록한다. 지금 기준값이 없으므로 이 문서도 수치를 정하지 않는다. 단계당 쓰기 묶음이 모델 호출 경로를 기다리게 하지 않는다(`measure` 기존 TX-09 규칙). [측정: 2026-11-18, loaded dev machine, 수치는 `docs/xeon/L4/host-service/spec.md` §4.20. 명세에 기준값이 없어 판정하지 않는다. 동기 구간은 단계당 p95 0.26 ms 이하, 연기된 쓰기는 단계당 p95 0.7~9.4 ms, 계측 켬과 끔의 턴 차이는 p50 2.0~22.4 ms다]
 30. (R12) 훅이 `{ ask: true }`를 낸 호출에서 `HookRun.decision = "ask"`, `ask.via = "decision"`이고 사람이 허용하면 `verdict = allowed`, 거부하면 `denied_human`이다. 사람이 없는 실행이면 `denied_noninteractive`다. `awaitUser`로 직접 기다린 핸들러는 `ask.via = "awaitUser"`로 기록된다. [구현: 결정 `ask`와 승인 잇기는 `turn-record-write.test.ts`의 승인 잇기 시험이 시험한다]
 31. (R12) `tool.call.before`의 `replace`는 `verdict = replaced_hook`이고 `effectId`가 없다. `agent.spawn.before`의 막음은 `blocked_spawn`, `ask.human.before`의 취소는 `cancelled_ask`다. 새 훅 행에는 `subject.approvalId` 또는 `subject.spawnRequestId`가 있다.
 32. (R12) 플러그인 코드가 부른 파일 쓰기 호출이 `CallRecord`(`caller = "plugin"`, `callerPlugin`, `via`)로 남고, 읽기 전용 호출은 `pluginCalls` 한 줄로 남는다. 중첩 호출이 승인을 물려받으면 `approval.inheritedFrom`이 채워진다. `untracked_write`는 `flags.untrackedWrite`로 읽힌다.

@@ -43,6 +43,7 @@ import {
   TR_TOOLUSE,
   TR_TURN,
   TURN_CHILD_TABLES,
+  TURN_CHILD_TABLES_KEPT_BY_PRUNE,
   TURN_RECORD_DDL,
   TURN_RECORD_VERSION,
   TURN_SUMMARY_COLUMNS,
@@ -72,6 +73,7 @@ import {
 // 원본 행(`measure_raw`)은 보존 기간(기본 30일)이 지나면 일별 집계(`measure_daily`)로 접고 지운다. 일별 집계는 계속 둔다.
 // 턴 기록 테이블(`tr_*`, 문서 `review/m5/turn-record-metrics.md` §3.4)은 같은 파일에 `PRAGMA user_version` 2로 더한다.
 // 턴 기록의 보존은 턴 시작 시각 기준이고, 지난 턴의 하위 행은 `tr_daily`로 접은 뒤 지운다(같은 트랜잭션, `prune`).
+// 예외는 표시(`tr_mark`)다. 사용자 입력이라 보존 기간을 따르지 않고, 대화를 지울 때(`forgetThread`)만 지운다.
 // 백분위는 SQLite에 함수가 없어 원본 행을 정렬해서 계산한다(`percentile`). 보존 기간을 넘긴 날의 백분위는 집계(개수, 합, 최소, 최대)만 남는다.
 // 쓰기는 호출자가 모아서 `writeBatch`(측정 행)나 `writeStep`(턴 기록의 한 단계)으로 한 번에 한다(Turn 경계). 이 파일은 읽기와 쓰기만 하고 켬·끔 판단은 `recorder.ts`가 한다.
 
@@ -139,7 +141,7 @@ export interface MeasureStore {
   writeBatch(records: readonly MeasureRecord[]): Result<number, MeasureStoreError>;
   /**
    * `now` 기준 `retentionDays`보다 오래된 원본을 일별 집계로 접고 지운다. 접기와 지우기는 한 트랜잭션이다. 지운 원본(`measure_raw`) 수를 돌려준다.
-   * 턴 기록이 쓸 수 있으면 같은 트랜잭션에서 턴 시작이 `retentionDays`보다 오래된 `tr_*` 턴을 `tr_daily`로 접고 그 턴의 하위 행을 지운다.
+   * 턴 기록이 쓸 수 있으면 같은 트랜잭션에서 턴 시작이 `retentionDays`보다 오래된 `tr_*` 턴을 `tr_daily`로 접고 그 턴의 하위 행을 지운다. 표시(`tr_mark`)는 지우지 않는다.
    * 일수가 0 이하면 아무것도 지우지 않는다(보관 끔이 아니라 잘못된 값으로 본다)
    */
   prune(now: number, retentionDays: number): Result<number, MeasureStoreError>;
@@ -918,8 +920,10 @@ function planTurnFolds(
   return ok(out);
 }
 
+/** 보관 정리가 접은 턴을 지운다. `tr_mark`처럼 `TURN_CHILD_TABLES_KEPT_BY_PRUNE`에 든 표는 남긴다 */
 function deleteTurn(db: Database, threadId: string, turnId: string): void {
   for (const table of TURN_CHILD_TABLES) {
+    if (TURN_CHILD_TABLES_KEPT_BY_PRUNE.includes(table)) continue;
     db.query(`DELETE FROM ${table} WHERE thread_id = ? AND turn_id = ?`).run(threadId, turnId);
   }
   db.query("DELETE FROM tr_turn WHERE thread_id = ? AND turn_id = ?").run(threadId, turnId);
