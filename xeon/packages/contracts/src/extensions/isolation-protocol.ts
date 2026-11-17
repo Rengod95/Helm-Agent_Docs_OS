@@ -1,6 +1,7 @@
 import { Type, type TUnsafe } from "typebox";
 import { err, ok, type Result } from "../base/index.ts";
 import type { SchemaProof } from "../base/schema-proof.ts";
+import type { CallerInfo } from "../capabilities/index.ts";
 import type { JsonValue } from "../conversation/index.ts";
 
 // review.m5-drive-isolation §3.2 P1 프로토콜 한 표. 엔진과 플러그인 호스트 프로세스는 줄 단위 JSON으로 말한다.
@@ -228,6 +229,8 @@ export interface ToolExecuteParams extends PluginCallContext {
   readonly name: string;
   readonly args: JsonValue;
   readonly toolCallId: string | null;
+  /** 엔진이 정한 호출자 정보(`CallerInfo` 문서). 도구 `execute`의 `ctx.caller`가 된다 */
+  readonly callerInfo: CallerInfo;
 }
 
 export interface CommandRunParams extends PluginCallContext {

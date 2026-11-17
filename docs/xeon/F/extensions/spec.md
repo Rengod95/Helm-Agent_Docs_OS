@@ -1693,14 +1693,14 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 | 메시지 | 방향 | 종류 | 비고 |
 |---|---|---|---|
 | `host.init` | 엔진 → 호스트 | 요청 | `protocolVersion`, 확장 이름, `versionId`, 매니페스트, 루트와 엔트리, 설정. 응답: 버전과 등록 선언(`PluginRegistrationDecl[]`: 훅, 도구, 명령, 메서드, 플래그, 제공자, 렌더러). 버전이 다르면 `protocol_version` |
-| `hook.invoke` | 엔진 → 호스트 | 요청 | 지점, `handlerIndex`, 입력, chain의 `current`, 호출 문맥(`threadId`, `deadlineMs`, `replay`, `caller`, 상태·설정 스냅샷) |
-| `tool.execute`, `command.run`, `method.call` | 엔진 → 호스트 | 요청 | 같은 호출 문맥 |
+| `hook.invoke` | 엔진 → 호스트 | 요청 | 훅 이름, `handlerIndex`, 입력, chain의 `current`, 호출 문맥(`threadId`, `deadlineMs`, `replay`, `caller`, 상태·설정 스냅샷) |
+| `tool.execute`, `command.run`, `method.call` | 엔진 → 호스트 | 요청 | 같은 호출 문맥. `tool.execute`는 `callerInfo`(`CallerInfo` JSON)를 더 싣는다 |
 | `event.notify` | 엔진 → 호스트 | 알림 | 스트림 지켜보기 훅(`PLUGIN_HOST_NOTIFY_HOOKS`). `eventKey`로 멱등(적어도 한 번) |
 | `request.cancel` | 엔진 → 호스트 | 알림 | 취소 뒤 늦게 온 응답은 버린다 |
 | `scope.dispose`, `host.dispose` | 엔진 → 호스트 | 요청 | 등록 하나의 정리 / 프로세스 종료(`idle`, `shutdown`, `reload`, `disabled`) |
 | `engine.call` | 호스트 → 엔진 | 요청 | `commit`, `commitWith`, `record`, `recordPrivate`, `readRecords`, `post`, `capability`, `requestEffect`. 신원 `plugin:<이름>`은 엔진이 연결에서 붙인다. `replay`면 쓰기는 성공으로 받아 버리고 `capability`는 `replay_mode_denied` |
 | 표준오류 | 호스트 → 엔진 | 스트림 | 줄 상한 `PLUGIN_HOST_STDERR_LINE_MAX`, 보관 줄 수 `PLUGIN_HOST_STDERR_LINES_MAX` |
 
-넘기지 않는 API(`unsupported_api`로 등록이 거부된다): `drive`(P2), `migrateState`(동기 호출이라 경계를 못 넘는다), `provide`·`providePort`·`port`, `registerWebProvider`, `updateState`(함수를 엔진 줄 안에서 돌린다), `awaitUser`. 그 플러그인은 `ext.<이름>.isolation = none`으로 엔진 안에서 돈다.
+넘기지 않는 API(`unsupported_api`로 등록이 거부된다): `drive`(P2), `migrateState`(동기 호출이라 경계를 못 넘는다. group-sdk는 상태 버전 2 이상에서 부른다), `provide`·`providePort`, `port`는 격리 호스트에서 `service_reserved`(내장이 아닌 호스트와 같다)로 답한다, `registerWebProvider`, `updateState`(함수를 엔진 줄 안에서 돌린다), `awaitUser`. 그 플러그인은 `ext.<이름>.isolation = none`으로 엔진 안에서 돈다.
 
 훅 실패 이유에 `process_exit`(프로세스가 스스로 끝남), `process_killed`(엔진이 시간 초과로 종료)를 더한다. 기록(`TraceFailureReason`)에 새 문자열로 저장된다.

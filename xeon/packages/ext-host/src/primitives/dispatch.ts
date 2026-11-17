@@ -10,6 +10,7 @@ import {
   type TraceFailureReason,
 } from "@fresnel/contracts/extensions";
 import { eraseDispatchOptions, restoreOutcome } from "../erase.ts";
+import { isPluginProcessError } from "../isolation/errors.ts";
 import type { TraceBuffer, TraceDispatch } from "../operations/trace-buffer.ts";
 import { withAmbient } from "./ambient.ts";
 import type {
@@ -137,6 +138,11 @@ function refOf(entry: HandlerEntry): HandlerRef {
 function sizeOfValue(value: unknown): number {
   const size = attempt(() => JSON.stringify(value).length);
   return size.ok ? size.value : 0;
+}
+
+/** 핸들러가 던진 값의 실패 이유. 플러그인 프로세스 오류는 그 이유를 싣고, 그 밖의 예외는 `threw`다 */
+function reasonOfThrow(error: unknown): HandlerFailureReason {
+  return isPluginProcessError(error) ? error.reason : "threw";
 }
 
 /** 실패 이유를 계측 이유로 옮긴다. `value_from_tap`은 실행 실패가 아니라 쓰이지 않는다 */
@@ -299,7 +305,12 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
         case "threw":
           return {
             kind: "failed",
-            failure: failureOf(entry, "threw", outcome.error, outcome.activeMs),
+            failure: failureOf(
+              entry,
+              reasonOfThrow(outcome.error),
+              outcome.error,
+              outcome.activeMs,
+            ),
             startedAt,
           };
         case "timeout":

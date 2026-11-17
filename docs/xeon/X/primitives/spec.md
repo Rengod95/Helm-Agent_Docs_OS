@@ -380,7 +380,9 @@ export type HandlerFailureReason =
   | "timeout"          // DispatchPolicy.budgetMs 초과
   | "result_invalid"   // first 결정·chain 패치가 HookDecl.result 스키마 위반
   | "merge_rejected"   // CHAIN_RULES[N].merge가 예외
-  | "value_from_tap";  // tap 핸들러가 undefined 아닌 값을 반환(기록만, 동작 영향 없음)
+  | "value_from_tap"  // tap 핸들러가 undefined 아닌 값을 반환(기록만, 동작 영향 없음)
+  | "process_exit"    // 격리 호스트 프로세스가 스스로 끝남(`PluginProcessError`를 던진 핸들러). 실패 규칙은 `threw`와 같다
+  | "process_killed"; // 엔진이 시간 초과로 호스트 프로세스를 종료함
 
 export interface HandlerFailure {
   readonly point: HookName;
@@ -697,6 +699,9 @@ export function hostOf<S>(g: RegistrationApi<S>): RegistrationHostApi<S>;
 - `callContext`는 ambient(§4.2 `withAmbient`)를 읽는다. ambient의 `scopeId`가 g를 만든 scope와 다르면 undefined다. drive 문맥의 `signal`은 `LoopHandle.signal`과 같은 drive 락 신호이고, on 문맥의 `signal`은 핸들러 `ctx.signal`과 같아 시간 초과 때 abort된 상태가 된다. drive의 `turn`·`spawn`과 기능 공급자 호출은 ambient를 끊으므로(§4.4.7) 그 안에서는 undefined다. 이 값으로 L3가 `g.delegate`의 thread를 얻고, on·drive에서 허용되지 않는 연산을 거부한다.
 - 포트로 넘기는 리소스 정의(`ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef`)는 F.extensions.spec §3.2.1 정의를 쓰고, X가 보관하는 리소스 정의(`CommandResourceDef` 등)는 §3.9에 둔다.
 - [미결] F.extensions.spec §3.2 `RegistrationApi`에 `provide`를 두지 않은 상태에서 L2 공급자가 이 API로 등록하는 방식이 F.capabilities.spec의 의도와 같은지. 다른 안은 F `RegistrationApi`에 `provide<Api>(key, impl)`를 추가하는 것이다.
+
+
+격리 호스트용 추가 공개(M5b-1, 코드 `isolation/`와 `primitives/host-api.ts`): `bindHostApiForIsolation(g, api)`는 호스트 프로세스 안의 실행기가 자기 `g`에 `RegistrationHostApi`를 묶는 함수이고(그 밖의 곳에서 쓰지 않는다), `PluginProcessError`(`reason`: `process_exit`|`process_killed`)를 던진 핸들러는 디스패치가 그 이유로 실패를 기록한다. 호스트 프로세스에서 `port`는 `service_reserved`로 답하고 `drive`, `migrateState`, `provide`, `providePort`, `updateState`, `awaitUser`, `registerWebProvider`, `registerShortcut`은 `unsupported_api`다(`X.loading-trust.spec` §4.9.5).
 
 ### 3.9 scope 정보, 리소스 표, 리소스 포트
 

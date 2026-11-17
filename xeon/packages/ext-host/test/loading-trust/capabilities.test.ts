@@ -180,20 +180,21 @@ test("capabilities: range arithmetic", () => {
   }
 });
 
-test("isolation: a process-isolated extension is refused instead of running in process", async () => {
+test("isolation: a builtin extension stays in the engine even when its manifest asks for process", async () => {
+  // F5: builtin은 격리 설정과 무관하게 엔진 안에서 돈다(격리 금지, TRUST_MATRIX builtin)
   const harness = await createLoaderHarness();
-  let entryCalls = 0;
-  const isolated = moduleOf({ name: "iso-ext", extraManifest: { isolation: "process" } }, () => {
-    entryCalls += 1;
+  let setupCalls = 0;
+  const builtin = moduleOf({ name: "iso-ext", extraManifest: { isolation: "process" } }, () => {
+    setupCalls += 1;
   });
-  const report = await harness.loader.loadAll(harness.options([isolated]));
-  expect(entryCalls).toBe(0);
+  const report = await harness.loader.loadAll(harness.options([builtin]));
+  expect(setupCalls).toBe(1);
   expect(report.extensions.map((info) => [info.name, info.state, info.isolation])).toEqual([
-    ["iso-ext", "error", "none"],
+    ["iso-ext", "active", "none"],
   ]);
-  const diagnostic = report.diagnostics.find((entry) => entry.code === "isolation_unavailable");
-  expect(diagnostic?.stage).toBe("isolation");
-  expect(diagnostic?.severity).toBe("error");
+  expect(
+    report.diagnostics.find((entry) => entry.code === "isolation_unavailable"),
+  ).toBeUndefined();
 });
 
 test("capabilities: a consumer sorted before its provider by name is installed after it", async () => {
