@@ -92,7 +92,7 @@ function effectLabel(effect: ReplayEffect): string {
   return `${effect} (on ${row.on}, drive ${row.drive})`;
 }
 
-export function untrustedContext(
+function untrustedContext(
   given: CallContext | undefined,
   ambientThread: ThreadId | undefined,
   extension: ExtensionName,
