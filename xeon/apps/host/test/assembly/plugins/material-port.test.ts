@@ -52,7 +52,7 @@ test("켜짐 집합의 플러그인 재료만 낸다. 폴더가 없는 이름은
   const id = threadId();
 
   expect(port.instructions(id)).toEqual([{ key: "plugin:a:instructions.md", text: "Rule A" }]);
-  expect(port.skillRoots(id)).toEqual([dirA]);
+  expect(port.skillRoots(id)).toEqual([{ plugin: "a", dir: dirA }]);
   expect(port.agentDefinitions(id)).toEqual([{ key: "plugin:a:agents/helper.md", text: "Helper" }]);
   expect(port.commands(id)).toEqual([{ key: "plugin:a:commands/run.md", text: "Run it" }]);
   expect(port.mcpServers(id)).toEqual([{ plugin: "b", name: "srv", config: { command: "node" } }]);

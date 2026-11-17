@@ -41,10 +41,17 @@ function bigInput(topic: string): string {
   return `${topic} ${"build cache notes and the reasons behind each decision. ".repeat(200)}`;
 }
 
-/** 사용자 스킬 하나와 사용자 메모리 항목 하나를 둔 엔진 홈 */
+/**
+ * 설정 경로(`l2.knowledge.skills.paths`)의 스킬 하나와 사용자 메모리 항목 하나를 둔 엔진 홈. 느슨한 사용자 스킬 폴더는 플러그인으로
+ * 옮긴 뒤 cap-knowledge가 읽지 않으므로 스킬은 설정 경로로 준다(M5c §7.5)
+ */
 function homeWithKnowledge(settings: Readonly<Record<string, unknown>>): EngineHome {
   const home = useEngineHome();
-  writeUserSettings(home, { ...TAPE_SETTINGS, ...settings });
+  writeUserSettings(home, {
+    ...TAPE_SETTINGS,
+    "l2.knowledge.skills.paths": [join(home.dataDir, "skills")],
+    ...settings,
+  });
   mkdirSync(join(home.dataDir, "skills", "reinject-probe"), { recursive: true, mode: 0o700 });
   writeFileSync(
     join(home.dataDir, "skills", "reinject-probe", "SKILL.md"),

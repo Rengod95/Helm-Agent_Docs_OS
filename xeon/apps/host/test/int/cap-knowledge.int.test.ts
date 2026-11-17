@@ -77,7 +77,8 @@ function prepareProjectSkill({ workspace }: { readonly workspace: string }): voi
 }
 
 describe("skill_view", () => {
-  realTest("reads a user skill from the data directory", async () => {
+  // 느슨한 사용자 스킬 폴더는 플러그인으로 옮긴 뒤 cap-knowledge가 읽지 않는다(M5c §7.5). 스킬은 재료 포트가 낸 플러그인 루트에서 온다
+  realTest("does not read a loose skill folder in the data directory", async () => {
     const text = await viewSkill({
       userSettings: {},
       skill: "user-demo",
@@ -87,7 +88,7 @@ describe("skill_view", () => {
         writeFileSync(join(dir, "SKILL.md"), skillFile("user-demo", "user skill body marker"));
       },
     });
-    expect(text).toContain("user skill body marker");
+    expect(text).not.toContain("user skill body marker");
   });
 
   realTest("a project skill loads only when the project is trusted", async () => {

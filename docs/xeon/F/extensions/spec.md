@@ -1043,7 +1043,7 @@ export interface PluginSetPort {                                  // 호스트�
 }
 export interface MaterialPort {                                   // X가 구현. 문맥 조립이 instructions를 sections로 쓴다(§4.5.10)
   instructions(threadId: ThreadId): readonly MaterialText[];      // MaterialText = { key, text }
-  skillRoots(threadId: ThreadId): readonly string[];              // [미결] 반환 모양은 스펙이 적지 않아 가장 가까운 모양을 골랐다
+  skillRoots(threadId: ThreadId): readonly SkillRootMaterial[];   // { plugin, dir }. 켜짐 집합에 든 플러그인 중 스킬이 있는 것. [미결] 반환 모양은 스펙이 적지 않아 가장 가까운 모양을 골랐다
   agentDefinitions(threadId: ThreadId): readonly MaterialText[];  // [미결] [근거: review/m5/profile-project-loader.md §3.5]
   mcpServers(threadId: ThreadId): readonly McpServerMaterial[];   // { plugin, name, config }. 소유 플러그인 이름을 남긴다
   commands(threadId: ThreadId): readonly MaterialText[];          // [미결] [근거: review/m5/profile-project-loader.md §3.5]

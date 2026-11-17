@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import {
   appendFile,
   chmod,
@@ -12,6 +13,7 @@ import {
 } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
+  attempt,
   attemptAsync,
   Bug,
   err,
@@ -49,6 +51,8 @@ const SNAPSHOT_TRIES = 3;
 
 const HASH_PATTERN = /^sha256:([0-9a-f]{64})$/;
 const HEX_PATTERN = /^[0-9a-f]{64}$/;
+/** 검토본 저장소의 하위 폴더 이름. 배치 주석과 같다 */
+const REVIEWED_DIR = "reviewed";
 
 const REVIEW_ORIGINS = ["user", "project", "bundled"] as const;
 export type ReviewOrigin = (typeof REVIEW_ORIGINS)[number];
@@ -280,6 +284,26 @@ function ioOf(path: string, cause: unknown): PluginStoreError {
   return { kind: "io", path, cause };
 }
 
+/**
+ * 검토본 `current`가 가리키는 `tree/` 경로를 동기로 읽는다. 재료 포트(`MaterialPort`)가 동기 인터페이스라서 쓴다(§4.5.10).
+ * 검토본이 없으면 `ok(null)`이다. 읽기 오류와 형식이 틀린 `current`는 `err`다(호출자가 기록한다).
+ */
+export function currentTreePathSync(
+  root: string,
+  name: string,
+): Result<string | null, PluginStoreError> {
+  const valid = validName(name);
+  if (!valid.ok) return err(valid.error);
+  const path = join(root, REVIEWED_DIR, name, "current");
+  const text = attempt(() => readFileSync(path, "utf8"));
+  if (!text.ok) {
+    return codeOf(text.error.cause) === "ENOENT" ? ok(null) : err(ioOf(path, text.error.cause));
+  }
+  const hex = text.value.trim();
+  if (!HEX_PATTERN.test(hex)) return err({ kind: "corrupt", path });
+  return ok(join(root, REVIEWED_DIR, name, hex, "tree"));
+}
+
 let sequence = 0;
 
 /** 같은 프로세스 안에서 겹치지 않는 임시 이름 */
@@ -492,7 +516,7 @@ async function readItemFile(path: string): Promise<Result<ReviewItem, PluginStor
 /** 검토본 저장소를 연다. 디렉터리는 쓸 때 만든다 */
 export function createPluginStore(deps: PluginStoreDeps): PluginStore {
   const root = deps.root;
-  const reviewedDir = join(root, "reviewed");
+  const reviewedDir = join(root, REVIEWED_DIR);
   const candidatesDir = join(root, "candidates");
   const draftsDir = join(root, "drafts");
   const queueDir = join(root, "queue");
@@ -604,9 +628,9 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
     srcDir: string,
     attemptNo: number,
   ): Promise<Result<{ readonly contentHash: string }, PluginStoreError>> {
-    const attempt = await snapshotOnce(srcDir);
-    if (!attempt.ok) return err(attempt.error);
-    if (attempt.value !== null) return ok(attempt.value);
+    const snapshot = await snapshotOnce(srcDir);
+    if (!snapshot.ok) return err(snapshot.error);
+    if (snapshot.value !== null) return ok(snapshot.value);
     if (attemptNo >= SNAPSHOT_TRIES) return err({ kind: "source_unstable", path: srcDir });
     return snapshotWithRetry(srcDir, attemptNo + 1);
   }

@@ -13,7 +13,7 @@ import {
   type Logger,
 } from "@fresnel/contracts";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
-import type { ExtensionManifest, PortKey } from "@fresnel/contracts/extensions";
+import type { ExtensionManifest, MaterialPort, PortKey } from "@fresnel/contracts/extensions";
 import {
   SessionServiceName,
   StoreServiceName,
@@ -149,8 +149,11 @@ import { BUILTIN_GROUP_NAMES } from "./assembly/ext-enabled.ts";
 import { extSettingsOf } from "./assembly/ext-settings.ts";
 import { loadExternalExtensions } from "./assembly/external.ts";
 import {
+  createMaterialPort,
   createPluginStore,
   createReviewedSource,
+  currentTreePathSync,
+  readPluginFolder,
   reviewStartupPlugins,
 } from "./assembly/plugins/index.ts";
 import {
@@ -666,6 +669,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
   const scheduleSlot: { service: ScheduleService | undefined } = { service: undefined };
   /** 보관 정리와 블롭 GC 타이머. 닫을 때 먼저 끊는다(저장소를 닫기 전) */
   const dataOpsSlot: { ops: DataOps | undefined } = { ops: undefined };
+  /** 재료 포트(M5c §4.5.10). 엔진 포트가 만들어진 뒤에 채운다. 턴 시작 지침과 스킬 색인이 호출 때 읽는다 */
+  const materialSlot: { port: MaterialPort | undefined } = { port: undefined };
   const measureSlot: {
     stop: (() => void) | undefined;
     recordFailure: ((input: HandlerFailureInput) => void) | undefined;
@@ -1003,8 +1008,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const defaultsEnabled = options.defaultGroups !== false;
     const userExtensionsDir = join(os.dirs.config, "extensions");
     // 검토본 저장소(M5c §4.6.2). 앱이 실행하고 읽는 플러그인은 여기서 온다. 원본 폴더는 실행하지 않는다
+    const pluginStoreRoot = join(os.dirs.data, "plugin-store");
     const pluginStore = createPluginStore({
-      root: join(os.dirs.data, "plugin-store"),
+      root: pluginStoreRoot,
       fileLock: osHandle.fileLock,
     });
     // 확장 목록(내장 단위 + 로더가 찾은 외부 확장). 예약 키 등록과 `ext.list`가 같은 원천을 읽는다
@@ -1164,6 +1170,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           workspaceOf,
         },
         guide: guideWiring,
+        materials: () => materialSlot.port,
         ...(options.defaultGroups === undefined ? {} : { defaultGroups: options.defaultGroups }),
         safeMode,
         groups: {
@@ -1528,6 +1535,22 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     });
     scheduleRunner.ports = portsHandle.ports;
     const enginePorts = portsHandle.ports;
+    // 재료 포트(M5c §4.5.10). 대화의 켜짐 집합(E(T))에 든 플러그인의 검토본 사본에서만 읽는다. 검토본이 없는 번들 구성요소(저장소 패키지)는 재료가 없다
+    const materialLog = os.logger("plugin-store");
+    materialSlot.port = createMaterialPort({
+      pluginSet: (threadId) => portsHandle?.ports.m4.pluginSet.port.resolve(threadId).plugins ?? [],
+      treeOf: (name) => {
+        const tree = currentTreePathSync(pluginStoreRoot, name);
+        if (tree.ok) return tree.value;
+        materialLog.warn("plugin.material.tree_failed", { plugin: name, kind: tree.error.kind });
+        return null;
+      },
+      // 재료 읽기는 출처를 쓰지 않는다(지침·스킬·에이전트·명령·MCP 정의의 모양은 같다)
+      read: (dir) => readPluginFolder(dir, { origin: "user" }),
+      report: (name, rejection) => {
+        materialLog.warn("plugin.material.read_failed", { plugin: name, kind: rejection.kind });
+      },
+    });
     // 첫 시작 옮김(M5c §7). 한 번만 돌고 표지를 `migration.log`에 남긴다. 프로필 옮김과 사용자 설정 옛 키 지우기는 같은 읽기 값을 쓴다
     const firstStart = await runFirstStartMigration({
       configDir: os.dirs.config,

@@ -25,7 +25,6 @@ describe("skill paths contributed at conversation open", () => {
     fs.put("/kit/skills/a.md", "# a");
     const contributed = await existingContributedPaths(fs, ["/kit/skills/a.md"]);
     const roots = resolveSkillRoots({
-      dataDir: "/data",
       projectDir: undefined,
       projectSkills: false,
       projectTrusted: false,
@@ -40,7 +39,6 @@ describe("skill paths contributed at conversation open", () => {
     const contributed = await existingContributedPaths(fs, []);
     expect(contributed).toEqual({ paths: [], diagnostics: [] });
     const withoutContribution = resolveSkillRoots({
-      dataDir: "/data",
       projectDir: undefined,
       projectSkills: false,
       projectTrusted: false,
@@ -48,7 +46,6 @@ describe("skill paths contributed at conversation open", () => {
       extension: [],
     });
     const settingsOnly = resolveSkillRoots({
-      dataDir: "/data",
       projectDir: undefined,
       projectSkills: false,
       projectTrusted: false,

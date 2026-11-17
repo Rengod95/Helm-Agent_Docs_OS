@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, expect, test } from "bun:test";
 import { assemble } from "../../src/assemble.ts";
@@ -133,7 +133,7 @@ async function driveOneProposal(): Promise<Drive> {
 }
 
 realTest(
-  "UC-3 on the real SQLite path: a candidate waits in the projected queue, no file changes before approval, and the approval applies it through learning.queue evidence",
+  "UC-3 on the real SQLite path: a candidate waits in the projected queue and no file changes before approval; a user-scope approval is recorded but not applied, because the host path has no loose user skills folder (M5c §7.5)",
   async () => {
     const { connection, home, toolText } = await driveOneProposal();
     const skillFile = join(home.dataDir, "skills", "release-notes", "SKILL.md");
@@ -169,18 +169,15 @@ realTest(
       decision: "approve",
       revision: 1,
     });
+    // 사용자 범위 스킬은 쓸 루트가 없어 적용되지 않는다. 승인은 기록되고 파일은 생기지 않는다(호스트 경로는 느슨한 사용자 폴더를 읽지도 쓰지도 않는다)
     expect(approved).toMatchObject({
       ok: true,
-      applied: true,
-      proposal: { source: "learning", status: "applied" },
+      applied: false,
+      proposal: { source: "learning", status: "approved" },
     });
-    // cap-knowledge가 `learning.queue` 증거를 믿어 승인이 한 번이고 파일이 생겼다
-    expect(readFileSync(skillFile, "utf8")).toContain(
-      "Write release notes from the merged pull requests.",
-    );
-    // 투영이 결정을 반영한다: 목록의 같은 행이 applied이고 같은 승인을 다시 보내면 닫힌 후보다
-    const after = await connection.request("proposal.list", { status: ["applied"] });
-    expect(after.proposals.map((row) => [row.id, row.status])).toEqual([[pending.id, "applied"]]);
+    expect(existsSync(skillFile)).toBe(false);
+    const after = await connection.request("proposal.list", { status: ["approved"] });
+    expect(after.proposals.map((row) => [row.id, row.status])).toEqual([[pending.id, "approved"]]);
     const again = await connection.request("proposal.decide", {
       source: "learning",
       id: pending.id,

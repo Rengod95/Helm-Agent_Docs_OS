@@ -1,6 +1,11 @@
 import type { Result } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { MaterialPort, MaterialText, McpServerMaterial } from "@fresnel/contracts/extensions";
+import type {
+  MaterialPort,
+  MaterialText,
+  McpServerMaterial,
+  SkillRootMaterial,
+} from "@fresnel/contracts/extensions";
 import type { FolderRejection, PluginFolder } from "./folder-reader.ts";
 
 // 대화의 재료 공급(M5c §4.5.10). 대화의 켜짐 집합에 든 플러그인의 재료만 낸다.
@@ -63,10 +68,10 @@ export function createMaterialPort(deps: MaterialPortDeps): MaterialPort {
         })),
       );
     },
-    skillRoots(threadId: ThreadId): readonly string[] {
+    skillRoots(threadId: ThreadId): readonly SkillRootMaterial[] {
       return loadedFor(threadId)
         .filter(({ folder }) => folder.materials.skills.length > 0)
-        .map(({ dir }) => dir);
+        .map(({ name, dir }) => ({ plugin: name, dir }));
     },
     agentDefinitions(threadId: ThreadId): readonly MaterialText[] {
       return loadedFor(threadId).flatMap(({ name, folder }) =>

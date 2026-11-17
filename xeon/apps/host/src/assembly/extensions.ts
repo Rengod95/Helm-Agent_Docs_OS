@@ -6,7 +6,7 @@ import {
   type LocalIdFactory,
   type ThreadId,
 } from "@fresnel/contracts/conversation";
-import type { ExtensionName } from "@fresnel/contracts/extensions";
+import type { ExtensionName, MaterialPort } from "@fresnel/contracts/extensions";
 import { BUILTIN_CAPABILITY_DEFS } from "./capability-defs.ts";
 import {
   EVENT_CATALOG,
@@ -172,6 +172,11 @@ export interface ExtensionDeps {
   readonly authoring: AuthoringWiring;
   /** 가이드 그룹(스킬만 내는 내장 그룹)의 가이드 폴더와 켜짐 판정 */
   readonly guide: GuideWiring;
+  /**
+   * 재료 포트(M5c §4.5.10). 엔진 포트가 플러그인 집합을 만든 뒤에 조립이 채운다. 지침과 스킬 루트를 턴 시작과 스킬 색인이 부를 때 읽는다.
+   * 채우기 전에는 재료가 없다
+   */
+  readonly materials: () => MaterialPort | undefined;
   /** AssembleOptions.defaultGroups. false면 L3 기본 그룹(학습)을 싣지 않는다 */
   readonly defaultGroups?: boolean;
   /** AssembleOptions.safeMode. 참이면 L3 내장 그룹을 싣지 않는다 */
@@ -256,6 +261,21 @@ export function scheduleUnit(
   return schedulePlugin({ service, settings, loadIndex, serviceModeOff, outsideWatchPaths });
 }
 
+/**
+ * 대화의 켜짐 집합에 든 플러그인의 스킬 루트를 스킬 색인의 확장 제공 루트 모양으로 옮긴다(M5c §4.5.10). 대화가 없으면 빈 목록이다.
+ * 재료 포트가 아직 없으면(조립 중) 빈 목록이다
+ */
+function pluginSkillRootsOf(
+  materials: () => MaterialPort | undefined,
+  threadId: string | undefined,
+): readonly { readonly dir: string; readonly extension: string }[] {
+  if (threadId === undefined || !isId("thr", threadId)) return [];
+  return (materials()?.skillRoots(threadId) ?? []).map((root) => ({
+    dir: root.dir,
+    extension: root.plugin,
+  }));
+}
+
 /** 의존 순서로 늘어놓은 기본 확장 단위. loadIndex는 이 순서다 */
 export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
   const { settings } = deps;
@@ -265,12 +285,25 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
   const workspaceOfId = (threadId: string): string | undefined =>
     isId("thr", threadId) ? deps.workspaceOf(threadId) : undefined;
   // 턴 시작 지침 절(M5c §4.4.7). 프로세스당 한 원천이라 파일 상태 캐시를 함께 쓴다. 상한은 설정을 호출 때 읽는다
-  const instructionSectionsOf = createInstructionSections({
+  const projectInstructionsOf = createInstructionSections({
     workspaceOf: deps.workspaceOf,
     ...(deps.projectRootOf === undefined ? {} : { projectRootOf: deps.projectRootOf }),
     maxBytes: () => contextSettingsOf((key) => settings.value(key)).instructionFilesMaxBytes,
     fs: nodeInstructionFs,
   });
+  // 대화의 켜짐 집합(E(T))에 든 플러그인의 지침을 프로젝트 지침 절 옆에 더한다(M5c §4.5.10). 키는 `project:`와 `plugin:`으로 달라 겹치지 않는다.
+  // 프로젝트 지침의 진단은 그대로 준다
+  const instructionSectionsOf = async (threadId: ThreadId) => {
+    const project = await projectInstructionsOf(threadId);
+    const plugins = deps.materials()?.instructions(threadId) ?? [];
+    return {
+      sections: {
+        ...project.sections,
+        ...Object.fromEntries(plugins.map((item) => [item.key, item.text])),
+      },
+      diagnostics: project.diagnostics,
+    };
+  };
   const openedSkillPathsOfId = (threadId: string): Promise<readonly string[]> =>
     isId("thr", threadId) ? deps.openedSkillPaths(threadId) : Promise.resolve([]);
   const learning = learningLoaded({ defaultGroups: deps.defaultGroups, safeMode: deps.safeMode });
@@ -514,7 +547,10 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           // 학습 그룹을 싣는 구성에서만 그 대기열의 승인 증거를 믿는다(M3-REQ-104)
           trustedEvidenceSources: learning ? [APPROVAL_SOURCE] : [],
           // 이 대화의 켜짐 집합에 가이드가 있거나 개발 모드일 때만 가이드 스킬을 싣는다. 꺼져 있으면 빈 목록이라 문맥에 아무것도 더하지 않는다
-          extensionSkillRoots: (threadId) => (guide ? guideSkillRoots(deps.guide, threadId) : []),
+          extensionSkillRoots: (threadId) => [
+            ...(guide ? guideSkillRoots(deps.guide, threadId) : []),
+            ...pluginSkillRootsOf(deps.materials, threadId),
+          ],
           loadIndex,
         }),
     ],

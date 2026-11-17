@@ -5,8 +5,11 @@ import type { SkillDiagnostic, SkillRoots } from "../upstream/skills.ts";
 // L2.knowledge.spec §4.1 경로, §4.2.1 루트 순서. 경로는 `fresnel.os`가 준 디렉터리와 설정에서만 만든다(DR-13).
 
 export interface RootsInput {
-  /** `OsDirs.data`. 사용자 스킬은 `<data>/skills` */
-  readonly dataDir: string;
+  /**
+   * 사용자 스킬 루트. 호스트는 주지 않는다: 느슨한 사용자 스킬 폴더는 플러그인으로 옮긴 뒤 cap-knowledge가 읽지 않고 재료 포트만 쓴다
+   * (M5c §7.5). 단위 시험이 명시로 준다. 호스트의 옮김은 `userSkillsDir`로 같은 위치를 찾는다
+   */
+  readonly userDir?: string;
   /** 엔진이 도는 프로젝트 디렉터리. 없으면 프로젝트 스킬이 없다 */
   readonly projectDir: string | undefined;
   /** `l2.knowledge.skills.projectSkills` */
@@ -37,7 +40,7 @@ export function resolveSkillRoots(input: RootsInput): SkillRoots {
     ...(input.projectSkills && input.projectTrusted && input.projectDir !== undefined
       ? { project: projectSkillsDir(input.projectDir) }
       : {}),
-    user: userSkillsDir(input.dataDir),
+    ...(input.userDir === undefined ? {} : { user: input.userDir }),
     extension: input.extension,
     paths: input.paths,
   };

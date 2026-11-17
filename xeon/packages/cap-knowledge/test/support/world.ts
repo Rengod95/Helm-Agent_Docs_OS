@@ -17,7 +17,6 @@ import { createMemoryFs, type MemoryFs } from "./memory-fs.ts";
 import { createSessionKit, type SessionKit } from "./sessions.ts";
 import { setupSearch } from "../../src/search/setup.ts";
 
-const DATA_DIR = "/data";
 const PROJECT_DIR = "/proj";
 export const MEMORY_DIR = "/data/memory";
 export const USER_SKILLS = "/data/skills";
@@ -157,7 +156,7 @@ export async function createWorld(options: WorldOptions = {}): Promise<World> {
       const settings = readKnowledgeSettings(layers);
       return Promise.resolve({
         roots: resolveSkillRoots({
-          dataDir: DATA_DIR,
+          userDir: USER_SKILLS,
           projectDir: PROJECT_DIR,
           projectSkills: settings.skills.projectSkills,
           projectTrusted: true,

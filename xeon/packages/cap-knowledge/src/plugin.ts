@@ -220,7 +220,6 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
           }
           return {
             roots: resolveSkillRoots({
-              dataDir: os.dirs.data,
               projectDir,
               projectSkills: settings.skills.projectSkills,
               projectTrusted,

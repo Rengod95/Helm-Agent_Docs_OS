@@ -13,6 +13,8 @@ interface RecordingModels {
   readonly buildModels: NonNullable<AssembleOptions["buildModels"]>;
   /** 요청마다 모델이 받은 메시지 열을 JSON 텍스트로 한 줄씩. 요약 호출도 한 요청이다 */
   requestTexts(): readonly string[];
+  /** 요청마다 모델에 보낸 본문 전체(시스템 접두의 절과 도구 광고를 포함)를 JSON 텍스트로 한 줄씩 */
+  requestBodies(): readonly string[];
   /** `holdRequest`번째(0부터) 요청이 모델에 닿으면 풀린다. `holdRequest`가 없으면 영영 풀리지 않는다 */
   readonly reached: Promise<void>;
   /** 붙잡아 둔 요청의 응답을 내보낸다. 붙잡지 않았으면 아무 일도 없다 */
@@ -21,6 +23,11 @@ interface RecordingModels {
 
 interface RecordingOptions {
   readonly contextWindow: number;
+  /**
+   * 대화 중 system 메시지를 받는 모델을 흉내 낸다. 아니면 엔진은 절 갱신(플러그인 지침의 추가와 제거)을 다음 컴팩션까지 미룬다
+   * (L1.context §4.1). 가이드 시험이 같은 방법을 쓴다
+   */
+  readonly midConversationSystem?: boolean;
   /** 이 번호(0부터)의 요청은 `release()`가 불릴 때까지 응답을 내지 않는다 */
   readonly holdRequest?: number;
 }
@@ -77,6 +84,9 @@ export function recordingModels(
   const provider = tapeProvider(player, {
     models: [{ id: "tape-1", contextWindow: options.contextWindow, maxTokens: 1024 }],
   });
+  if (options.midConversationSystem === true) {
+    Object.assign(provider.model, { compat: { supportsMidConvoSystemMessages: true } });
+  }
   return {
     buildModels: tapeBuildModels(provider),
     requestTexts: () =>
@@ -85,6 +95,7 @@ export function recordingModels(
         if (typeof payload !== "object" || payload === null || !("messages" in payload)) return "";
         return JSON.stringify(payload.messages);
       }),
+    requestBodies: () => provider.calls().map((call) => JSON.stringify(call.payload)),
     reached: reached.promise,
     release: () => {
       released.resolve();

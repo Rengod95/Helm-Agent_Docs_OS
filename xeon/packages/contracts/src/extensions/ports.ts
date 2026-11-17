@@ -522,14 +522,19 @@ export interface McpServerMaterial {
   readonly name: string;
   readonly config: McpServerResourceDef;
 }
+/** 스킬 루트 하나: 소유 플러그인 이름과 검토본 폴더. 스킬 색인이 `roots.extension`의 `{dir, extension}`으로 옮긴다(§4.5.10) */
+export interface SkillRootMaterial {
+  readonly plugin: string;
+  readonly dir: string;
+}
 /**
- * 대화의 재료 공급. 구현은 X다. 반환 모양 가운데 스펙이 적지 않은 것(`skillRoots`, `agentDefinitions`, `commands`, `mcpServers`)은
+ * 대화의 재료 공급. 구현은 X다. 반환 모양 가운데 스펙이 적지 않은 것(`agentDefinitions`, `commands`, `mcpServers`)은
  * 본문이나 경로로 가장 가까운 모양을 골랐다. [미결] 구현 때 확정한다
  */
 export interface MaterialPort {
   instructions(threadId: ThreadId): readonly MaterialText[];
-  /** 검토본 폴더의 루트 경로. 스킬 색인이 `roots.extension`으로 읽는다 */
-  skillRoots(threadId: ThreadId): readonly string[];
+  /** 대화의 켜짐 집합에 든 플러그인의 검토본 폴더. 스킬이 없는 플러그인은 빠진다. 스킬 색인이 `roots.extension`으로 읽는다 */
+  skillRoots(threadId: ThreadId): readonly SkillRootMaterial[];
   agentDefinitions(threadId: ThreadId): readonly MaterialText[];
   mcpServers(threadId: ThreadId): readonly McpServerMaterial[];
   commands(threadId: ThreadId): readonly MaterialText[];

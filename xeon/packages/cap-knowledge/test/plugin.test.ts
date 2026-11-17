@@ -28,7 +28,7 @@ import { IMPLEMENTED_SKILL_TOOLS, knowledgePlugin } from "../src/plugin.ts";
 import { fixedIdFactory, fixedLocalIds, manualClock } from "./support/clock.ts";
 import { createMemoryFs, type MemoryFs } from "./support/memory-fs.ts";
 import { createSessionKit } from "./support/sessions.ts";
-import { PROJECT_SKILLS, putSkill, USER_SKILLS, userLayer } from "./support/world.ts";
+import { PROJECT_SKILLS, putSkill, userLayer } from "./support/world.ts";
 
 interface FakeTools {
   register(registration: ToolRegistration): Result<Unregister, ToolRegisterError>;
@@ -65,6 +65,10 @@ const stores: TestStore[] = [];
 afterEach(async () => {
   await Promise.all(stores.splice(0).map((store) => store[Symbol.asyncDispose]()));
 });
+
+/** 재료 포트가 낸 확장 제공 스킬 루트를 흉내 낸다. 옮김 뒤 사용자 스킬 폴더 대신 이 자리를 쓴다(M5c §4.5.10) */
+const PLUGIN_SKILLS = "/kit/skills";
+const PLUGIN_ROOTS = [{ dir: PLUGIN_SKILLS, extension: "kit" }] as const;
 
 async function boot(
   options: {
@@ -129,6 +133,7 @@ async function boot(
       fs,
       ...(options.projectTrust === undefined ? {} : { projectTrust: options.projectTrust }),
       ...(options.workspaceOf === undefined ? {} : { workspaceOf: options.workspaceOf }),
+      extensionSkillRoots: () => PLUGIN_ROOTS,
     }),
   );
   return { t, fs, store, installed, registered, unregistered, lines, kit };
@@ -198,7 +203,7 @@ describe("manifest", () => {
 describe("plugin", () => {
   test("installing migrates, reindexes at startup and provides the capabilities", async () => {
     const { t, installed, store } = await boot({
-      prepare: (fs) => putSkill(fs, USER_SKILLS, "deploy", { description: "Deploy steps" }),
+      prepare: (fs) => putSkill(fs, PLUGIN_SKILLS, "deploy", { description: "Deploy steps" }),
     });
     expect(installed.setups[0]?.status).toBe("applied");
     expect(installed.issues.filter((issue) => issue.severity === "error")).toEqual([]);
@@ -214,15 +219,15 @@ describe("plugin", () => {
     expect(listed?.skills.map((skill) => skill.name)).toEqual(["deploy"]);
     const viewed = await apis.skills?.view({ name: "deploy" });
     expect(viewed?.description).toBe("Deploy steps");
-    // 시작 시 재색인이 처음 본 스킬을 바깥 편집으로 원장에 남겼다
+    // 읽기 전용 확장 스킬(플러그인 폴더)은 바깥 편집으로 원장에 남기지 않는다. 사용자 폴더였을 때는 `external` 한 줄이었다
     const entries = await apis.ledger?.list({});
-    expect(entries?.entries.map((entry) => entry.op)).toEqual(["external"]);
+    expect(entries?.entries.map((entry) => entry.op)).toEqual([]);
   });
 
   test("with a session service the plugin registers the projector, indexes messages and serves search", async () => {
     const { t, kit, store, lines } = await boot({
       sessions: true,
-      prepare: (fs) => putSkill(fs, USER_SKILLS, "deploy", { description: "Deploy steps." }),
+      prepare: (fs) => putSkill(fs, PLUGIN_SKILLS, "deploy", { description: "Deploy steps." }),
     });
     if (kit === undefined) throw new Error("no sessions");
     const threadId = kit.newThread({ title: "Plugin thread" });
@@ -247,7 +252,7 @@ describe("plugin", () => {
 
   test("without a session service search still starts and reports session search as unavailable", async () => {
     const { t, lines } = await boot({
-      prepare: (fs) => putSkill(fs, USER_SKILLS, "deploy", { description: "Deploy steps." }),
+      prepare: (fs) => putSkill(fs, PLUGIN_SKILLS, "deploy", { description: "Deploy steps." }),
     });
     expect(lines.map((line) => line.event)).toContain("knowledge.search_unavailable");
     const { apis, unit } = consumer();
@@ -272,19 +277,19 @@ describe("plugin", () => {
     expect(error instanceof Error && error.message).toContain("session.projectors");
   });
 
-  test("a consumer extension's write is attributed to it by the capability wrapper and queued, not applied", async () => {
+  test("a consumer extension's user-scope write is refused as unavailable before any queue: the plugin path has no user skills folder", async () => {
     const { t } = await boot({
-      prepare: (fs) => putSkill(fs, USER_SKILLS, "deploy"),
+      prepare: (fs) => putSkill(fs, PLUGIN_SKILLS, "deploy"),
     });
     const { apis, unit } = consumer();
     await t.host.install(unit);
     await t.settled();
-    const entries = await apis.ledger?.list({});
-    const rollback = await apis.ledger?.rollback({ ledgerId: entries?.entries[0]?.ledgerId ?? "" });
-    const write = await apis.skills?.create({ name: "x", description: "d", body: "b" });
-    // L2.knowledge.spec §4.5 표의 `extension`, 증거 없음, 세션 없음 행: 기본 설정에서 모든 쓰기는 대기열로 간다
-    expect(rollback?.status).toBe("queued");
-    expect(write?.status).toBe("queued");
+    // 플러그인 폴더의 스킬은 원장 항목이 없어 되돌릴 대상도 없다. 사용자 범위 쓰기는 쓸 루트가 없어 대기열에 가기 전에 거절된다
+    const write = await apis.skills?.create({ name: "x", description: "d", body: "b" }).then(
+      () => undefined,
+      (reason: unknown) => reason,
+    );
+    expect(write).toMatchObject({ data: { capability: "knowledge.skills", code: "unavailable" } });
     expect((await apis.skills?.list({}))?.skills.map((skill) => skill.name)).toEqual(["deploy"]);
   });
 
@@ -347,7 +352,7 @@ describe("plugin", () => {
   test("without the tools service nothing is advertised but the capabilities still work", async () => {
     const { t, registered, lines } = await boot({
       tools: false,
-      prepare: (fs) => putSkill(fs, USER_SKILLS, "deploy"),
+      prepare: (fs) => putSkill(fs, PLUGIN_SKILLS, "deploy"),
     });
     expect(registered).toEqual([]);
     expect(lines.map((line) => line.event)).toContain("knowledge.tools_missing");
@@ -360,8 +365,8 @@ describe("plugin", () => {
   test("an unreadable skill root is a warning, not a startup failure", async () => {
     const { installed, lines } = await boot({
       prepare: (fs) => {
-        putSkill(fs, USER_SKILLS, "deploy");
-        fs.failNext("list", USER_SKILLS, "io", 100);
+        putSkill(fs, PLUGIN_SKILLS, "deploy");
+        fs.failNext("list", PLUGIN_SKILLS, "io", 100);
       },
     });
     expect(installed.setups[0]?.status).toBe("applied");
@@ -385,7 +390,9 @@ async function agentStart(
 
 describe("turn hooks", () => {
   test("the first turn carries the index block, a later change one delta memo, and shutdown forgets", async () => {
-    const { t, fs } = await boot({ prepare: (memory) => putSkill(memory, USER_SKILLS, "deploy") });
+    const { t, fs } = await boot({
+      prepare: (memory) => putSkill(memory, PLUGIN_SKILLS, "deploy"),
+    });
     const thread = t.newThread();
     await t.host.openThread(thread);
     await t.host.dispatch(
@@ -404,7 +411,7 @@ describe("turn hooks", () => {
     const { apis, unit } = consumer();
     await t.host.install(unit);
     await t.settled();
-    putSkill(fs, USER_SKILLS, "rollback", { description: "Roll back." });
+    putSkill(fs, PLUGIN_SKILLS, "rollback", { description: "Roll back." });
     await apis.skills?.reindex({});
     const third = await agentStart(t, thread, "turn-3");
     expect(third.map((message) => message.customType)).toEqual(["knowledge.index-delta"]);
@@ -422,7 +429,9 @@ describe("turn hooks", () => {
 
 describe("compaction", () => {
   test("a compaction does not make the next turn add the block again: L1.context puts the folded block back, and a later index change arrives as a delta only", async () => {
-    const { t, fs } = await boot({ prepare: (memory) => putSkill(memory, USER_SKILLS, "deploy") });
+    const { t, fs } = await boot({
+      prepare: (memory) => putSkill(memory, PLUGIN_SKILLS, "deploy"),
+    });
     const thread = t.newThread();
     await t.host.openThread(thread);
     await t.host.dispatch(
@@ -438,7 +447,7 @@ describe("compaction", () => {
     const { apis, unit } = consumer();
     await t.host.install(unit);
     await t.settled();
-    putSkill(fs, USER_SKILLS, "rollback", { description: "Roll back." });
+    putSkill(fs, PLUGIN_SKILLS, "rollback", { description: "Roll back." });
     await apis.skills?.reindex({});
     await t.host.dispatch(
       "thread.compact.after",
@@ -461,7 +470,7 @@ describe("compaction", () => {
   });
 
   test("a compaction with no index change leaves the next turn empty", async () => {
-    const { t } = await boot({ prepare: (memory) => putSkill(memory, USER_SKILLS, "deploy") });
+    const { t } = await boot({ prepare: (memory) => putSkill(memory, PLUGIN_SKILLS, "deploy") });
     const thread = t.newThread();
     await t.host.openThread(thread);
     await t.host.dispatch(
@@ -487,7 +496,7 @@ describe("compaction", () => {
 });
 
 const workspaceSkills = (fs: MemoryFs): void => {
-  putSkill(fs, USER_SKILLS, "deploy", { description: "Deploy steps." });
+  putSkill(fs, PLUGIN_SKILLS, "deploy", { description: "Deploy steps." });
   putSkill(fs, "/ws-a/.fresnel/skills", "alpha", { description: "Only in workspace A." });
   putSkill(fs, "/ws-b/.fresnel/skills", "beta", { description: "Only in workspace B." });
   putSkill(fs, PROJECT_SKILLS, "engine-cwd-skill", { description: "In the engine cwd." });
@@ -625,7 +634,7 @@ describe("the thread workspace is the project folder", () => {
     expect(fs.has("/proj/.fresnel/skills/gamma/SKILL.md")).toBe(false);
   });
 
-  test("skills put in the workspace and the user folder mid-conversation reach the next turn", async () => {
+  test("skills put in the workspace and the plugin folder mid-conversation reach the next turn", async () => {
     WORKSPACES.clear();
     const { t, fs } = await boot({
       prepare: workspaceSkills,
@@ -635,7 +644,7 @@ describe("the thread workspace is the project folder", () => {
     const a = await startedThread(t, "/ws-a");
     expect(await firstBlock(t, a, "a-1")).toContain("<name>alpha</name>");
     putSkill(fs, "/ws-a/.fresnel/skills", "scigreet-hello", { description: "Greets in Korean." });
-    putSkill(fs, USER_SKILLS, "home-skill", { description: "From the home folder." });
+    putSkill(fs, PLUGIN_SKILLS, "home-skill", { description: "From the home folder." });
     const [delta, ...rest] = await agentStart(t, a, "a-2");
     expect(rest).toEqual([]);
     expect(delta?.customType).toBe("knowledge.index-delta");
@@ -676,7 +685,7 @@ describe("the thread workspace is the project folder", () => {
 });
 
 function withProjectSkill(fs: MemoryFs): void {
-  putSkill(fs, USER_SKILLS, "deploy");
+  putSkill(fs, PLUGIN_SKILLS, "deploy");
   putSkill(fs, PROJECT_SKILLS, "repo-skill", { description: "From the repository" });
 }
 
@@ -729,7 +738,7 @@ describe("project skills and project trust", () => {
 
   test("no diagnostic when an untrusted project has no skills directory", async () => {
     const { diagnostics } = await skillNames({
-      prepare: (fs) => putSkill(fs, USER_SKILLS, "deploy"),
+      prepare: (fs) => putSkill(fs, PLUGIN_SKILLS, "deploy"),
     });
     expect(diagnostics).toEqual([]);
   });

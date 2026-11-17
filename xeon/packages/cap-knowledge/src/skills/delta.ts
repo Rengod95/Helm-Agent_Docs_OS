@@ -5,7 +5,10 @@ import { compareBytes } from "../hash.ts";
 
 /** 어느 시점에 모델이 볼 수 있는 인덱스. 이름 → 잘린 설명 */
 export interface IndexSnapshot {
-  /** 원장의 인덱스 버전(`indexVersion`). 같으면 인덱스가 같다 */
+  /**
+   * 원장의 인덱스 버전(`indexVersion`). 원장의 적용 항목만 센다. 같아도 인덱스가 같다는 뜻은 아니다: 읽기 전용 확장 스킬의
+   * 추가와 삭제는 버전을 바꾸지 않는다. 델타는 이 값이 아니라 이름과 설명을 비교해 낸다
+   */
   readonly version: number;
   readonly descriptions: ReadonlyMap<string, string>;
 }

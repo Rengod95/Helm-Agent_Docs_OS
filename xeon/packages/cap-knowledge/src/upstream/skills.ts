@@ -61,7 +61,8 @@ export interface LoadSkillsResult {
 /** 스킬 루트 넷. 경로는 `skills/roots.ts`가 `fresnel.os`와 설정에서 만든다 */
 export interface SkillRoots {
   readonly project?: string;
-  readonly user: string;
+  /** 사용자 스킬 루트. 호스트 경로는 싣지 않는다(M5c §7.5). 없으면 사용자 범위 읽기와 쓰기가 없다 */
+  readonly user?: string;
   readonly extension: readonly { readonly dir: string; readonly extension: string }[];
   readonly paths: readonly string[];
 }
@@ -467,7 +468,9 @@ export async function loadSkills(fs: KnowledgeFs, roots: SkillRoots): Promise<Lo
   if (roots.project !== undefined) {
     sources.push({ dir: roots.project, source: { scope: "project", root: roots.project } });
   }
-  sources.push({ dir: roots.user, source: { scope: "user", root: roots.user } });
+  if (roots.user !== undefined) {
+    sources.push({ dir: roots.user, source: { scope: "user", root: roots.user } });
+  }
   for (const extension of roots.extension) {
     sources.push({
       dir: extension.dir,

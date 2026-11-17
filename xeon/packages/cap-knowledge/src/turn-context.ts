@@ -107,8 +107,8 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
       warn("knowledge.context.index_failed", threadId, current.error);
       return undefined;
     }
-    if (current.value.version === state.version) return undefined;
-    // 본문만 바뀐 변경은 버전이 같아 여기까지 오지 않거나, 델타가 비어 알리지 않는다
+    // 버전은 원장의 적용 항목만 센다. 읽기 전용 확장 스킬의 추가와 삭제는 원장에 항목을 남기지 않아 버전이 그대로일 수 있으므로,
+    // 버전이 같다고 건너뛰지 않고 모델이 보는 이름과 설명을 비교한다. 본문만 바뀐 변경은 비교에 나타나지 않는다
     states.set(threadId, current.value);
     const changes = diffIndex(state, current.value);
     if (isEmptyDelta(changes)) return undefined;

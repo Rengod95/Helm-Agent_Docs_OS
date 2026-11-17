@@ -243,7 +243,9 @@ export function createSkillWrites(deps: SkillWriteDeps): SkillWrites {
       return err(
         failure(
           "unavailable",
-          "the project skills directory is not available (no trusted project)",
+          scope === "project"
+            ? "the project skills directory is not available (no trusted project)"
+            : "the user skills directory is not available (loose user skills are not read; they belong to a plugin)",
         ),
       );
     }
