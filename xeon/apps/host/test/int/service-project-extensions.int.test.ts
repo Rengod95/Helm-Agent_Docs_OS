@@ -62,7 +62,7 @@ function handleOf(started: Awaited<ReturnType<typeof startService>>): ServiceHan
 }
 
 realTest(
-  "a project extension is not loaded at start; it loads when the connection that opened the workspace allows it, and not for a denied workspace",
+  "a project extension is not run at start or after its workspace is trusted: it waits for its review item to be approved (M5c §4.7.9), and a denied workspace never runs it",
   async () => {
     const trusted = workspaceWith("trusted");
     const denied = workspaceWith("denied");
@@ -89,12 +89,12 @@ realTest(
       await client.request("thread.create", { workspace: trusted.workspace });
       expect(existsSync(trusted.marker)).toBe(false);
 
-      // 그 연결이 허용하면 그때 싣는다
+      // 그 연결이 허용해도 검토 항목이 승인되기 전에는 돌리지 않는다. 승인 층은 다음 단계다(M5c §4.7.9)
       await client.request("trust.decide", {
         workspace: trusted.workspace,
         choice: { kind: "session", verdict: "allow" },
       });
-      expect(existsSync(trusted.marker)).toBe(true);
+      expect(existsSync(trusted.marker)).toBe(false);
 
       // 거부한 폴더는 싣지 않는다. thread를 열어도 같다
       await client.request("trust.decide", {
@@ -114,7 +114,7 @@ realTest(
 );
 
 realTest(
-  "a workspace trusted by a stored decision loads its project extension when a thread is created in it, not at start",
+  "a workspace trusted by a stored decision does not run its project extension before the review item is approved (M5c §4.7.9)",
   async () => {
     const stored = workspaceWith("stored");
     const bundles = mkdtempSync(join(tmpdir(), "xsvc-bundles-"));
@@ -135,11 +135,12 @@ realTest(
         workspace: stored.workspace,
         choice: { kind: "folder", verdict: "allow" },
       });
-      expect(existsSync(stored.marker)).toBe(true);
+      // 결정은 저장되지만 검토 항목이 승인되기 전에는 돌리지 않는다(M5c §4.7.9)
+      expect(existsSync(stored.marker)).toBe(false);
       await client.close();
       await first.shutdown("stop");
       firstRuntime.dispose();
-      rmSync(stored.marker);
+      rmSync(stored.marker, { force: true });
 
       // 두 번째 서비스: 시작 때는 싣지 않고, 작업 폴더에 thread를 만들 때 싣는다
       const secondRuntime = scratchRuntimeDir();
@@ -148,7 +149,7 @@ realTest(
         expect(existsSync(stored.marker)).toBe(false);
         const again = await connectedClient({ kind: "unix", path: second.registration.socket });
         await again.request("thread.create", { workspace: stored.workspace });
-        expect(existsSync(stored.marker)).toBe(true);
+        expect(existsSync(stored.marker)).toBe(false);
         await again.close();
       } finally {
         await second.shutdown("stop");

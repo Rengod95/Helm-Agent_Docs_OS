@@ -1,4 +1,5 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { removeTree } from "../fixtures/remove-tree.ts";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
@@ -272,8 +273,9 @@ realTest(
     } finally {
       await closeHost(first);
     }
-    // 확장 폴더를 지운다: 다음 시작에서 GONE은 실리지 않는다
+    // 확장을 지운다: 설치 폴더와 검토본 저장소의 사본을 함께 지운다. 검토본은 원본 폴더 삭제로 사라지지 않는다(삭제는 검토 결정이다, M5c §4.7.1)
     rmSync(join(home.root, "config", "extensions", GONE), { recursive: true, force: true });
+    removeTree(join(home.root, "data", "plugin-store", "reviewed", GONE));
 
     const second = await openHost(ANSWERS);
     try {

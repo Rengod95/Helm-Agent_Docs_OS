@@ -52,6 +52,7 @@ import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { flushMicrotasks } from "../fixtures/clock.ts";
 import { createManualScheduler } from "../fixtures/manual-scheduler.ts";
 import { partial } from "../fixtures/unsafe.ts";
+import type { PluginStoreReader } from "../../src/assembly/plugins/index.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
 import { sequentially } from "../../src/util.ts";
 
@@ -364,6 +365,8 @@ function harness(): Harness {
         groupService: () => undefined,
       },
       defaultPluginsDir: join(tmpdir(), "fresnel-ports-default-plugins"),
+      // 포트 시험은 플러그인 읽기를 부르지 않는다. 자리만 채운다
+      pluginStore: partial<PluginStoreReader>({}),
       schedule: partial<ScheduleService>({
         open: () => Promise.resolve(ok(undefined)),
         list: () => [],

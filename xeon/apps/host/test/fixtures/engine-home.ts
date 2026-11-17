@@ -1,6 +1,7 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { removeTree } from "./remove-tree.ts";
 
 // 시험이 실제 사용자 디렉터리(~/.config, ~/.local/share)를 건드리지 않게 FRESNEL_HOME을 임시 디렉터리로 돌린다(L0.os.spec §3.2).
 // 시험 파일 하나가 한 번에 하나의 엔진 홈만 쓴다(bun test는 파일 안의 시험을 차례로 실행한다).
@@ -21,7 +22,7 @@ export function useEngineHome(): EngineHome {
     dispose() {
       if (previous === undefined) delete process.env["FRESNEL_HOME"];
       else process.env["FRESNEL_HOME"] = previous;
-      rmSync(root, { recursive: true, force: true });
+      removeTree(root);
     },
   };
 }

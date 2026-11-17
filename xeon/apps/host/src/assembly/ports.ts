@@ -96,7 +96,7 @@ import { readThread } from "./thread-read.ts";
 import type { DialogAreaHolder } from "./m4/dialog-area-bridge.ts";
 import { createExtReadSources, type ExtReadAssembly } from "./m4/ext-read-sources.ts";
 import { createM4Ports } from "./m4/index.ts";
-import { createPluginService } from "./plugins/index.ts";
+import { createPluginService, type PluginStoreReader } from "./plugins/index.ts";
 import { DEFAULT_PLUGIN_NAMES } from "./default-plugins.ts";
 import type { ExtUiVersionSource } from "./m4/ext-ui-version-source.ts";
 import type { ProjectExtensions } from "./project-extensions.ts";
@@ -167,6 +167,8 @@ export interface PortsDeps {
   readonly extRead: ExtReadAssembly;
   /** 기본 플러그인 번들 뿌리(`defaultPluginsDir()` 또는 옵션). 플러그인 읽기 서비스가 번들 폴더로 본다 */
   readonly defaultPluginsDir: string;
+  /** 검토본 저장소 읽기(플러그인 읽기 서비스가 검토 칸, 무결성, 보관 목록을 읽는다) */
+  readonly pluginStore: PluginStoreReader;
   /** 시작 때 저장소 등이 알린 일(`host.status.startupNotices`). 없으면 알릴 것이 없는 것이다 */
   readonly startupNotices?: readonly StartupNotice[] | undefined;
 }
@@ -989,6 +991,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       bundleDir: deps.defaultPluginsDir,
       records: () => deps.extRead.extensions(),
       profiles: { list: () => ports.m4.profileTestRun.list() },
+      store: deps.pluginStore,
       log,
     }),
     m4: createM4Ports(

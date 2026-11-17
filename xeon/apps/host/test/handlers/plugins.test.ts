@@ -123,7 +123,7 @@ test("a profile list failure under plugin.list is the profile error, not a silen
   await connection.close();
 });
 
-test("host.hello lists plugin.list and plugin.get as implemented and the other plugin methods as not", async () => {
+test("host.hello lists plugin.list, plugin.get and plugin.scan as implemented and the other plugin methods as not", async () => {
   const host = createFakeHost();
   const { connection } = host.connect();
   const hello = await connection.request("host.hello", HELLO_PARAMS);
@@ -131,6 +131,7 @@ test("host.hello lists plugin.list and plugin.get as implemented and the other p
   expect(featured.has("plugin.list")).toBe(true);
   expect(featured.has("plugin.get")).toBe(true);
   expect(featured.has("plugin.invocables")).toBe(false);
-  expect(featured.has("plugin.scan")).toBe(false);
+  // plugin.scan은 M5c §3.4 읽기 처리기로 구현됐다(검토 항목은 만들지 않는다)
+  expect(featured.has("plugin.scan")).toBe(true);
   await connection.close();
 });

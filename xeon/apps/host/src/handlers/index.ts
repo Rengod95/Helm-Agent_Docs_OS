@@ -142,7 +142,6 @@ export function createWireHandlers(
     "project.delete": notImplemented("project.delete"),
     "project.instructions": notImplemented("project.instructions"),
     "plugin.invocables": notImplemented("plugin.invocables"),
-    "plugin.scan": notImplemented("plugin.scan"),
     "plugin.revert": notImplemented("plugin.revert"),
     "plugin.requestRemove": notImplemented("plugin.requestRemove"),
     "plugin.draft.create": notImplemented("plugin.draft.create"),

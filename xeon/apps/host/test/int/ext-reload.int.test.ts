@@ -127,18 +127,20 @@ async function lastErrorAfterTurn(
   return health.health[0]?.lastError;
 }
 
+// 새 규칙(M5c §4.5.8, §4.6.3, §8 수용 27): 실행하는 것은 검토본 `tree/`다. 설치 폴더를 고쳐도 검토와 승인 전에는 돌지 않는다.
+// 승인 층(검토 항목, 승인 뒤 current 전환)은 다음 단계다. 그래서 다시 읽기는 검토본을 그대로 다시 싣고, 옛 핸들러가 계속 돈다.
+
 realTest(
-  "ext.reload with an open idle thread swaps at once, and the next turn runs the new handler",
+  "ext.reload does not run an edited install folder before its review item is approved: the reviewed copy keeps running",
   async () => {
     const { home, host, connection } = await startReal({ tag: "v1", version: "1.0.0" });
     try {
       const created = await connection.request("thread.create", {});
       writeFiles(installedRoot(home), { tag: "v2", version: "1.1.0" });
-      const reloaded = await connection.request("ext.reload", { name: NAME });
-      expect(reloaded).toEqual({ appliesAt: "now", diagnostics: [] });
+      await connection.request("ext.reload", { name: NAME });
       const listed = await connection.request("ext.list", {});
-      expect(listed.extensions.find((entry) => entry.name === NAME)?.version).toBe("1.1.0");
-      expect(await lastErrorAfterTurn(connection, created.threadId)).toContain("v2 failed");
+      expect(listed.extensions.find((entry) => entry.name === NAME)?.version).toBe("1.0.0");
+      expect(await lastErrorAfterTurn(connection, created.threadId)).toContain("v1 failed");
     } finally {
       await connection.close();
       await host.close();
@@ -149,17 +151,13 @@ realTest(
 );
 
 realTest(
-  "ext.reload of an entry that does not import reports it and the old handler keeps running",
+  "an unapproved edit that does not import is never loaded: ext.reload leaves the reviewed copy and its handler running",
   async () => {
     const { home, host, connection } = await startReal({ tag: "v1", version: "1.0.0" });
     try {
       const created = await connection.request("thread.create", {});
       writeFiles(installedRoot(home), { tag: "v2", version: "1.1.0", syntaxError: true });
-      const reloaded = await connection.request("ext.reload", { name: NAME });
-      expect(reloaded.appliesAt).toBe("nextStepBoundary");
-      expect(reloaded.diagnostics.map((entry) => [entry.severity, entry.code])).toEqual([
-        ["error", "entry_import_failed"],
-      ]);
+      await connection.request("ext.reload", { name: NAME });
       const listed = await connection.request("ext.list", {});
       expect(listed.extensions.find((entry) => entry.name === NAME)?.version).toBe("1.0.0");
       expect(await lastErrorAfterTurn(connection, created.threadId)).toContain("v1 failed");
@@ -173,17 +171,13 @@ realTest(
 );
 
 realTest(
-  "ext.reload of a version whose setup throws reports reload_failed and the old handler keeps running",
+  "an unapproved edit whose setup would throw is never run: ext.reload leaves the reviewed copy and its handler running",
   async () => {
     const { home, host, connection } = await startReal({ tag: "v1", version: "1.0.0" });
     try {
       const created = await connection.request("thread.create", {});
       writeFiles(installedRoot(home), { tag: "v2", version: "1.1.0", setupThrows: true });
-      const reloaded = await connection.request("ext.reload", { name: NAME });
-      expect(reloaded.appliesAt).toBe("now");
-      expect(reloaded.diagnostics.map((entry) => [entry.severity, entry.code])).toEqual([
-        ["error", "reload_failed"],
-      ]);
+      await connection.request("ext.reload", { name: NAME });
       const listed = await connection.request("ext.list", {});
       expect(listed.extensions.find((entry) => entry.name === NAME)?.version).toBe("1.0.0");
       expect(await lastErrorAfterTurn(connection, created.threadId)).toContain("v1 failed");
@@ -196,26 +190,20 @@ realTest(
   60_000,
 );
 
+// 되돌리기(`ext.rollback`)와 버전 목록(`ext.versions`)은 아직 설치 폴더의 `.history`를 본다. 실행본은 검토본 저장소에서 온다.
+// 되돌리기를 저장소의 current 전환으로 옮기는 일(M5c §4.6.8, §7.8)은 이 변경의 범위 밖이다. 여기서는 실행본이 바뀌지 않는 것만 본다.
 realTest(
-  "ext.rollback with an open thread swaps the stored version in and the next turn runs it",
+  "ext.rollback does not change the running copy: the reviewed store owns the running version",
   async () => {
     const { home, host, connection } = await startReal({ tag: "new", version: "1.0.0" });
     try {
       writeStored(home, { tag: "old", version: "0.9.0" });
       const created = await connection.request("thread.create", {});
-      const rolled = await connection.request("ext.rollback", { name: NAME, version: "0.9.0" });
-      expect(rolled).toEqual({ appliesAt: "nextStepBoundary", stateCleared: false });
-      // 되돌리기 전 설치본이 보관되어 다시 앞으로 갈 수 있다
-      const versions = await connection.request("ext.versions", { name: NAME });
-      expect(
-        versions.versions
-          .map((entry) => [entry.version, entry.current] as const)
-          .toSorted((a, b) => a[0].localeCompare(b[0])),
-      ).toEqual([
-        ["0.9.0", true],
-        ["1.0.0", false],
-      ]);
-      expect(await lastErrorAfterTurn(connection, created.threadId)).toContain("old failed");
+      await connection.request("ext.rollback", { name: NAME, version: "0.9.0" }).then(
+        () => undefined,
+        () => undefined,
+      );
+      expect(await lastErrorAfterTurn(connection, created.threadId)).toContain("new failed");
     } finally {
       await connection.close();
       await host.close();
@@ -226,19 +214,16 @@ realTest(
 );
 
 realTest(
-  "ext.rollback to a stored version that does not load leaves the installed files and the running version alone",
+  "ext.rollback to a stored version that does not load leaves the running version alone",
   async () => {
     const { home, host, connection } = await startReal({ tag: "new", version: "1.0.0" });
     try {
       writeStored(home, { tag: "old", version: "0.9.0", syntaxError: true });
       const created = await connection.request("thread.create", {});
-      const caught = await connection
-        .request("ext.rollback", { name: NAME, version: "0.9.0" })
-        .then(
-          () => undefined,
-          (error: unknown) => error,
-        );
-      expect(caught).toBeInstanceOf(Error);
+      await connection.request("ext.rollback", { name: NAME, version: "0.9.0" }).then(
+        () => undefined,
+        () => undefined,
+      );
       const versions = await connection.request("ext.versions", { name: NAME });
       expect(versions.versions.find((entry) => entry.version === "1.0.0")?.current).toBe(true);
       expect(await lastErrorAfterTurn(connection, created.threadId)).toContain("new failed");

@@ -15,6 +15,7 @@ import {
   type LoadOptions,
   type LoadReport,
   type OperationsPolicy,
+  type ReviewedSource,
   type StartupOptions,
 } from "@fresnel/ext-host";
 import { coreCapabilityVersions } from "./capability-defs.ts";
@@ -41,6 +42,8 @@ export interface ExternalLoadingDeps {
   readonly process?: IsolationProcessPort;
   /** 격리 띄우기 설정(명령, 시계, 진단, 재시작 한도). `process`와 함께 있어야 격리가 켜진다 */
   readonly isolation?: LoaderIsolation;
+  /** 검토본 목록(M5c §4.6). 있으면 사용자·프로젝트·번들 확장은 검토본 `tree/`에서 싣는다(원본 폴더를 훑지 않는다) */
+  readonly reviewedSource?: ReviewedSource;
   readonly cwd: string;
   /** `x.loading-trust.paths`에서 옮긴 절대 경로(settings-sources.ts `extensionSearchPathsOf`). 사용자 위치 뒤에 탐색한다 */
   readonly extraPaths: readonly string[];
@@ -99,6 +102,7 @@ export async function loadExternalExtensions(deps: ExternalLoadingDeps): Promise
     // 격리는 두 값이 다 있어야 켜진다(X.loading-trust §4.3.2). 없는 쪽은 넘기지 않는다(exactOptionalPropertyTypes)
     ...(deps.process === undefined ? {} : { process: deps.process }),
     ...(deps.isolation === undefined ? {} : { isolation: deps.isolation }),
+    ...(deps.reviewedSource === undefined ? {} : { reviewedSource: deps.reviewedSource }),
     coreCapabilities: coreCapabilityVersions(),
   });
   const report = await loader.loadAll(loadAllOptionsOf(deps));
@@ -116,7 +120,7 @@ export async function loadExternalExtensions(deps: ExternalLoadingDeps): Promise
     report.extensions.map(async (info) => ({
       name: info.name,
       loadIndex: info.state === "active" ? info.loadIndex : null,
-      manifest: await manifestOf(deps, info.name),
+      manifest: await manifestOf(deps, info.root),
     })),
   );
   const discovered = read.flatMap((entry) =>
@@ -130,12 +134,14 @@ export async function loadExternalExtensions(deps: ExternalLoadingDeps): Promise
   return { loader, report, manifests };
 }
 
+/** 적재한 확장의 매니페스트. 루트가 없으면(내장) 파일이 없다. 루트는 설치 위치나 검토본 `tree/`다 */
 async function manifestOf(
   deps: ExternalLoadingDeps,
-  name: string,
+  root: string | undefined,
 ): Promise<ExtensionManifest | undefined> {
+  if (root === undefined) return undefined;
   const text = await attemptAsync(() =>
-    deps.fs.readText(join(deps.userDir, "extensions", name, ".fresnel-plugin", "plugin.json")),
+    deps.fs.readText(join(root, ".fresnel-plugin", "plugin.json")),
   );
   if (!text.ok || text.value === null) return undefined;
   const checked = validateManifest(safeJson(text.value));

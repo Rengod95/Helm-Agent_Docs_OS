@@ -442,7 +442,7 @@ export type ContextRef =
 
 ### 4.5 플러그인 원본과 로더
 
-> **구현 상태(M5c 읽기 단계, 2026-11-18).** 발견(2번), 폴더 읽기와 신호(3번), 추론(4번), 카드(5번)와 읽기 처리기 `plugin.list`·`plugin.get`(§3.4)을 구현했다. 코드는 `apps/host/src/assembly/plugins/`(`discover.ts`, `folder-reader.ts`, `card.ts`, `content-hash.ts`, `material-port.ts`, `service.ts`)와 `apps/host/src/handlers/m5/plugins.ts`다. 아직 없는 것은 검토본 저장소(6·8번), 원본 감시(7번), 재료 로더의 코어 연결(10번: `MaterialPort`는 만들었지만 코어가 아직 부르지 않는다), 검토함이다. 이 단계의 `plugin.get`은 `versions`, `entries`, `settingsDefs`를 빈 배열로 준다.
+> **구현 상태(M5c 읽기 단계, 2026-11-18).** 발견(2번), 폴더 읽기와 신호(3번), 추론(4번), 카드(5번)와 읽기 처리기 `plugin.list`·`plugin.get`(§3.4)을 구현했다. 코드는 `apps/host/src/assembly/plugins/`(`discover.ts`, `folder-reader.ts`, `card.ts`, `content-hash.ts`, `material-port.ts`, `service.ts`)와 `apps/host/src/handlers/m5/plugins.ts`다. 검토본 저장소와 옮김은 §4.6에 구현됐다(번들 넣기와 설치본 옮김은 검토 항목을 거치지 않는다). 아직 없는 것은 검토 항목과 검토함(항목 생성과 승인, `pluginReview.*`), 원본 감시(7번), 재료 로더의 코어 연결(10번: `MaterialPort`는 만들었지만 코어가 아직 부르지 않는다), 다시 읽기와 되돌리기의 저장소 전환(§4.6.7~8, §7.8), `plugin.scan`의 항목 생성이다. 이 단계의 `plugin.get`은 `versions`, `entries`, `settingsDefs`를 빈 배열로 준다.
 >
 > 이 단계에서 정한 것은 다음과 같다. [제안] 목록은 `scan()`이 채운 캐시를 읽는다. 원본이 바뀌어도 `plugin.scan`(다음 단계)을 부르기 전에는 다시 훑지 않는다. 사용처(`usedBy`)는 캐시하지 않고 읽을 때 프로필에서 계산한다. [제안] 발견 순서는 내장 레코드, 폴더 원본, 나머지 레코드 순이다. 폴더 원본이 있는 이름의 로드된 레코드는 카드를 만들지 않는다. 기본 제공 번들 `helm`은 기본 설치 때 `<config>/extensions/helm`에도 놓이므로, 번들 쪽이 `name_conflict` 진단으로 남는다(§10 17번). 프로젝트 루트 목록은 enC2 트랙이 주입하기 전까지 빈 목록이고, 관리 폴더는 조립에 없어 `null`이다.
 >
@@ -494,6 +494,8 @@ export type ContextRef =
 | 화면 | `ext.ui.list` | `threadId`를 받아 `E(T)`로 거른다 | 호스트 S |
 
 ### 4.6 검토본
+
+> **구현 상태(M5c 검토본 단계, 2026-11-18).** 저장소는 `apps/host/src/assembly/plugins/store.ts`(`createPluginStore`), 목록 포트의 구현은 `reviewed-source.ts`, 번들 넣기와 설치본 옮김은 `release.ts`(시작 때 `reviewStartupPlugins`), 조립은 `apps/host/src/assembly.ts`다. 로더의 검토본 목록은 `packages/ext-host/src/loading-trust/index.ts`의 `LoaderDeps.reviewedSource`다. 구현이 이 절과 다르게 한 것은 다음과 같다. (a) 실행 비트가 있는 파일은 읽기 전용 권한이 0555다. 해시가 실행 비트를 쓰므로 0444로 두면 해시가 바뀐다. (b) `recover()`는 기록(`review-log.jsonl`)에 없는 검토본을 승인 도중 끊긴 것으로 보고 지운다. 기록의 `itemId`가 메타의 `decisionId`와 맞는 것만 승인으로 본다. current는 지우지 않는다. (c) 번들 출처(`bundled`)는 로더에서 사용자 등급으로 싣는다(§4.6.9). 같은 이름을 사용자 검토본이 쥐고 있으면 번들은 물러나고 `name_conflict` 진단이 남는다(§10 17번 기본값). (d) 프로젝트 검토본은 루트와 묶이지 않는다(프로젝트 개념이 아직 없다). 목록은 이름으로만 보므로 신뢰된 프로젝트가 열릴 때마다 같은 항목이 실린다. 이 단계에는 프로젝트 검토본을 만드는 길이 없다. (e) `prune`(보관), `drafts/`(초안), `queue/`(검토 항목)은 함수나 경로만 있고 쓰는 곳은 다음 단계다. (f) 되돌리기와 버전 목록은 아직 설치 폴더의 `.history`를 본다(§7.8 미이행). 실행본은 검토본 저장소에서 온다.
 
 1. 내용 해시: 폴더를 재귀로 훑어 일반 파일마다 한 줄 `"<상대 경로>\0<x|->\0<sha256 소문자 16진>\n"`을 만든다. 경로는 `/` 구분의 NFC UTF-8이고 줄은 경로의 UTF-8 바이트 순으로 정렬하며 `x`는 실행 비트가 있는 파일이다. 전체 줄의 sha256을 `sha256:<16진>`으로 쓴다. 제외: `.git/`, `.hg/`, `.svn/`, `.DS_Store`. 빈 폴더는 세지 않는다. 심볼릭 링크는 따라가지 않고 `plugin.symlinkRefused`로 거절한다(지금 버전 보관 복사는 링크가 가리키는 내용을 복사한다. `version-history.ts:63` `copyDir` 규약. 해시 일관성을 위해 이 문서는 거절한다). `node_modules/`는 허용하지 않는다(`node_modules_present`). 의존성은 `ext.package`처럼 한 파일로 묶는다. 상한: 파일 2000개, 합계 32 MiB, 깊이 16(`plugin.tooLarge`) [제안]. `ext.installPreview`가 주던 `sha256`은 패키지 파일 해시이고 이 해시와 다른 값이다.
 2. 저장소 배치(`OsDirs.data` 아래, 쓰기는 `fileLock`으로 직렬화):
@@ -635,7 +637,7 @@ plugin-store/
 | 매니페스트 | `entry`, `plugins` 필수(`manifest.ts:249-250`). `components.skills/commands/mcpServers`는 선언만 있고 읽는 곳이 없다(`components`를 읽는 곳은 `default-plugins.ts:259`의 `agents`뿐) | 선택으로, `purpose`, `components.instructions`, `tools`, `commands` 추가, 추론(§4.5.4) | M |
 | 발견 | `<config>/extensions/*`, `.fresnel/extensions/*`, 한 단계, `.fresnel-plugin/plugin.json` 필수(`discover.ts:56-62`, `:121-`) | 새 위치 `plugins/`, 매니페스트 없는 폴더 추론, 느슨한 자원을 후보로. 이 단계에서 구현했다(`assembly/plugins/discover.ts`, `folder-reader.ts`) | M |
 | 재료 로더 | 스킬은 가이드만(`extensions.ts:484`), MCP는 설정과 루트 `.mcp.json`만(`cap-mcp/servers/loader.ts:12`. `.mcp.json` 읽기는 제거한다, §4.4.10), 에이전트는 기본 플러그인만(`default-plugins.ts:259`), 명령은 코드만 | `MaterialPort`와 §4.5.10 표. `E(T)` 필터. 포트 구현은 이 단계에서 끝났다(`assembly/plugins/material-port.ts`, 시험 있음). 코어 연결은 다음 단계 | L |
-| 검토본 | 없음. 사용자 설치본은 `<config>/extensions/<name>`에서 바로 실행. 버전 보관은 설치본 복사와 `manifestHash`(`version-history.ts:32-39`) | 내용 해시, `plugin-store/`, 항상 검토본에서 적재, 적재 때 해시 재확인 | L |
+| 검토본 | 없음. 사용자 설치본은 `<config>/extensions/<name>`에서 바로 실행. 버전 보관은 설치본 복사와 `manifestHash`(`version-history.ts:32-39`) | 내용 해시, `plugin-store/`, 항상 검토본에서 적재, 적재 때 해시 재확인. **구현됨(검토본 단계):** `plugin-store/`(`store.ts`), 시작 때 번들 넣기와 설치본 옮김(`release.ts`), 적재는 `LoaderDeps.reviewedSource`에서, 적재 때 해시 재확인(`reviewed-source.ts`, `pinned_corrupt`). **아직 없음:** 검토 항목과 승인, 다시 읽기·되돌리기의 저장소 전환(§4.6.7~8) | L |
 | 검토함 | 없음. 설치는 `ext.installPreview`(`sha256`로 `source_changed` 거부) + `ext.install`, 삭제는 `ext.remove` | 검토 항목·결정·기록, `pluginReview.*`, `plugin.*`. 위 `ext.*` 설치·삭제 제거. 플러그인 빌더의 산출 경로(`link` → `ext.install`)는 이 단계에서 `PluginSubmitPort.submit`으로 바꾼다(엔진 설계 E1은 기존 `link`를 그대로 둔다) | L |
 | 신뢰 등급 | 4등급과 tier, 폴더 신뢰 카드가 플러그인류 자원도 판정(`trust/resources.ts:20-33`) | 등급은 유지, 검토본 없음 = `untrusted`, 플러그인류는 검토함이 판정(§4.6.9) | M |
 | 프로젝트 동반 플러그인 | 폴더 신뢰 뒤 `.fresnel/extensions`를 적재(`discover.ts:62`) | 열 때 항목 생성, 승인 전 미적재 | M |
@@ -730,7 +732,7 @@ plugin-store/
 - 프레임 스택이 기록에서 복원되고, `lease.acquired`에 `contentHash`가 있다(§3.2, §4.3.5. 엔진 설계 §2.6이 `parent`, `depth`, `contentHash`를 한 번에 선언한다).
 - 플러그인이 `E(T)`에서 빠질 때 그 프레임과 위를 내리고 `last: aborted`를 아래에 준다(엔진 설계 §2.4, 해제 사유 `disabled`). 이 문서는 그 호출 시점만 정한다. 프로필의 시작 Drive, Drive 덧씌우기, 빠질 때의 프레임 내림, 재시작 복원은 프레임 스택(E3)이 있어야 하고 `x.primitives.activeDriver` 제거도 E3이다.
 - `replaceUnit`이 새 검토본 세대로 교체한다(`X.primitives.spec` §4.4.10).
-- 플러그인 프로세스는 검토본 `tree/`를 읽기 전용 root로 쓴다(엔진 설계 §3.4). 초안은 `drafts/<draftId>/tree/`에서 돈다. 프로세스 키는 `(이름, 내용 해시 | draftId)`이고(엔진 설계 §3.1) 초안과 검토본, 낡은 세대와 새 세대가 동시에 돌 수 있다. P1에서 `tree/`의 위치는 임시 설치 경로를 먼저 쓰고 나중에 `plugin-store/`로 바꾼다.
+- 플러그인 프로세스는 검토본 `tree/`를 읽기 전용 root로 쓴다(엔진 설계 §3.4). 초안은 `drafts/<draftId>/tree/`에서 돈다. 프로세스 키는 `(이름, 내용 해시 | draftId)`이고(엔진 설계 §3.1) 초안과 검토본, 낡은 세대와 새 세대가 동시에 돌 수 있다. `tree/`의 위치는 처음부터 `plugin-store/reviewed/<이름>/<해시>/tree/`다(검토본 단계 구현, §4.6.3). 로더는 검토본 후보의 `versionId`를 내용 해시로 준다(후보의 `contentHash`, 구현됨). 세대는 `versionId`에 넣지 않는다. 초안의 격리 실행은 P1 뒤다.
 - 프로필의 시작 Drive는 스택이 빌 때, 새 대화의 첫 턴 앞에서만 쌓는다. `x.primitives.activeDriver`와 중재기는 엔진 스펙이 지운다.
 - 턴 시작 훅 입력의 `driver`, `stack`(엔진 설계 §2.5)은 덧씌우기 지침과 무관하다(주도 중에만 실리는 지침은 훅이 넣고, 항상 싣는 지침은 §4.5.10의 `sections`로 간다).
 

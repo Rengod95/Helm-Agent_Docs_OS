@@ -153,7 +153,12 @@ realTest(
         origin: "user",
         autoDisabled: false,
         safeModeExcluded: null,
-        location: realpathSync(join(home.root, "config", "extensions", PROBE)),
+        // 실행하는 것은 검토본 `tree/`다(M5c §4.6.3). 설치 폴더는 옮김의 원본일 뿐이라 위치가 아니다
+        location: expect.stringMatching(
+          new RegExp(
+            `^${realpathSync(join(home.root, "data", "plugin-store", "reviewed", PROBE)).replaceAll("/", "\\/")}/[0-9a-f]{64}/tree$`,
+          ),
+        ),
       });
 
       const got = await connection.request("ext.get", { name: PROBE });

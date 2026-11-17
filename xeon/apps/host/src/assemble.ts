@@ -147,6 +147,11 @@ import { BUILTIN_GROUP_NAMES } from "./assembly/ext-enabled.ts";
 import { extSettingsOf } from "./assembly/ext-settings.ts";
 import { loadExternalExtensions } from "./assembly/external.ts";
 import {
+  createPluginStore,
+  createReviewedSource,
+  reviewStartupPlugins,
+} from "./assembly/plugins/index.ts";
+import {
   createPluginHostAssembly,
   processPortOf,
   sandboxSourceOf,
@@ -981,6 +986,11 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // 기본 플러그인(Helm)을 사용자 확장 위치에 설치한다. 설치본이 낸 서브에이전트 정의는 엔진 조립에 필요해 단위 목록보다 먼저 읽는다
     const defaultsEnabled = options.defaultGroups !== false;
     const userExtensionsDir = join(os.dirs.config, "extensions");
+    // 검토본 저장소(M5c §4.6.2). 앱이 실행하고 읽는 플러그인은 여기서 온다. 원본 폴더는 실행하지 않는다
+    const pluginStore = createPluginStore({
+      root: join(os.dirs.data, "plugin-store"),
+      fileLock: osHandle.fileLock,
+    });
     // 확장 목록(내장 단위 + 로더가 찾은 외부 확장). 예약 키 등록과 `ext.list`가 같은 원천을 읽는다
     const listExtensions = createExtensionRecords({
       units: () => [...unitList.units, ...lateUnits],
@@ -1039,6 +1049,23 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         },
         defaultPluginNames,
       );
+    }
+    if (defaultsEnabled) {
+      // 저장소를 정리하고(끊긴 승인의 흔적 제거), 번들을 넣고, 설치된 사용자 플러그인을 옮긴다(M5c §4.6, §7.4~7.5)
+      const recovered = await pluginStore.recover();
+      if (!recovered.ok) {
+        os.logger("plugin-store").error("plugin.store.recover_failed", {
+          kind: recovered.error.kind,
+        });
+      }
+      await reviewStartupPlugins({
+        store: pluginStore,
+        bundleDir: bundleRoot,
+        bundledNames: defaultPluginNames,
+        installedDir: userExtensionsDir,
+        logger: os.logger("plugin-store"),
+        now: () => new Date(clock.now()).toISOString(),
+      });
     }
     const pluginAgents = defaultsEnabled
       ? await installedAgentDefinitions(
@@ -1214,6 +1241,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           ? {}
           : { process: processPort }),
         ...(options.pluginHost?.disabled === true ? {} : { isolation: pluginHosts.isolation }),
+        reviewedSource: createReviewedSource(pluginStore, os.logger("plugin-store")),
         cwd: process.cwd(),
         projects: options.mode === "service" ? "on_demand" : "cwd",
         signal: lifetime.signal,
@@ -1353,6 +1381,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       // 개발 모드에서 켜지는 가이드 그룹은 모든 대화에 든다(대화별 켜짐 집합, M5c §4.1.3). 코어는 m4가 등급으로 정한다
       pluginsForced: () => (guideWiring.forced() ? [GUIDE_GROUP_NAME] : []),
       defaultPluginsDir: bundleRoot,
+      pluginStore,
       startupNotices,
       measure: {
         store: () => measurement.store,

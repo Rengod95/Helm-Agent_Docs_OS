@@ -31,6 +31,10 @@ export interface ExtensionCandidate {
   readonly manifestPath: string | null;
   /** 내장만 */
   readonly builtin: BuiltinExtensionModule | null;
+  /**
+   * 검토본 후보의 내용 해시(`sha256:<hex>`). 있으면 판 식별자 `versionId`가 된다(M5c §9.1). 내장이나 원본 폴더 탐색 후보는 없다(null·생략)
+   */
+  readonly contentHash?: string | null;
 }
 
 /** 내장 모듈 목록 → 후보(X.loading-trust.spec §4.2.1). 외부 위치 탐색은 `discoverExternal`이다 */

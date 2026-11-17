@@ -13,6 +13,11 @@ const ADDITIONS: ReadonlySet<string> = new Set([
   "RegistrationToggleSource",
   "AdmitInfo",
   "LoaderSettingsSource",
+  // 검토본 목록 포트(M5c §4.6, LoaderDeps.reviewedSource): 호스트의 PluginStore가 구현한다. X 표에 없어 여기에 적는다 [제안: X 표 반영 요청]
+  "ReviewedSource",
+  "ReviewedSourceDiagnostic",
+  "ReviewedSourceEntry",
+  "ReviewedSourceListing",
   "ExtDiagnostic", // §3.2에 정의되어 있으나 §3.1 표에는 빠져 있다
   "createExtStorageManager", // 실제 저장소 위의 통합 시험(core-persistence)이 만든다
   "ExtStorageManager", // 조립 루트가 확장 제거의 미리 보기와 저장 테이블 지우기(extUi.storage)의 타입으로 쓴다

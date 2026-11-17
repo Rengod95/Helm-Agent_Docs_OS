@@ -58,7 +58,7 @@ function handleOf(started: Awaited<ReturnType<typeof startService>>): ServiceHan
 }
 
 realTest(
-  "ext.list shows a project extension with its origin and location once its workspace is trusted, and never for a denied workspace",
+  "ext.list does not show a project extension of a trusted workspace before its review item is approved (M5c §4.7.9)",
   async () => {
     const trusted = workspaceWith("trusted");
     const denied = workspaceWith("denied");
@@ -86,22 +86,17 @@ realTest(
         choice: { kind: "session", verdict: "allow" },
       });
       const list = await client.request("ext.list", {});
-      const row = list.extensions.find((entry) => entry.name === trusted.extension);
-      expect(row).toMatchObject({
-        version: "2.1.0",
-        origin: "project",
-        location: trusted.root,
-        status: "enabled",
-        hookCount: 1,
-        diagnostics: [],
-      });
+      // 검토 항목이 승인되기 전에는 목록에 오르지 않는다(M5c §4.7.9). 승인 층은 다음 단계다
+      expect(list.extensions.find((entry) => entry.name === trusted.extension)).toBeUndefined();
       // 같은 목록의 내장 단위는 그대로 `builtin`이다
       expect(list.extensions.find((entry) => entry.name === "core-loop")?.origin).toBe("builtin");
 
-      // 실제 등록과 같은 원천이다: 프로젝트 확장의 핸들러가 hooks.list에 실제 등록으로 나온다
+      // 실행 목록에도 없다: 등록은 적재된 확장에서만 나온다(승인 전에는 적재하지 않는다)
       const hooks = await client.request("hooks.list", {});
       const settle = hooks.hooks.find((hook) => hook.hook === "boundary.settle.after");
-      expect(settle?.order?.map((handler) => handler.registrationId)).toContain(trusted.extension);
+      expect(settle?.order?.map((handler) => handler.registrationId)).not.toContain(
+        trusted.extension,
+      );
 
       await client.request("trust.decide", {
         workspace: denied.workspace,

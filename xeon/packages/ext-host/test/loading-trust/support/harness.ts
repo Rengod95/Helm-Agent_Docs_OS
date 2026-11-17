@@ -80,6 +80,7 @@ export type LoaderOverrides = Partial<
     | "emitProjectTrust"
     | "process"
     | "isolation"
+    | "reviewedSource"
   >
 >;
 
@@ -127,6 +128,9 @@ export async function createLoaderHarness(
       : { emitProjectTrust: options.loader.emitProjectTrust }),
     ...(options.loader?.process === undefined ? {} : { process: options.loader.process }),
     ...(options.loader?.isolation === undefined ? {} : { isolation: options.loader.isolation }),
+    ...(options.loader?.reviewedSource === undefined
+      ? {}
+      : { reviewedSource: options.loader.reviewedSource }),
     clock: { now: harness.t.timers.now },
     settings: source,
     ...(options.core === undefined ? {} : { coreCapabilities: options.core }),

@@ -1,5 +1,5 @@
 // loading-trust 도메인의 모든 export(패키지 내부용 포함). 루트(src/index.ts)는 공개 이름만 다시 내보낸다.
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 import {
   attemptAsync,
   Bug,
@@ -35,6 +35,7 @@ import {
   candidatesFromBuiltins,
   discoverExternal,
   externalLocations,
+  MANIFEST_RELATIVE_PATH,
   orderKeyOfBuiltin,
   type BuiltinExtensionModule,
   type ExtensionCandidate,
@@ -312,6 +313,72 @@ export interface LoaderIsolation {
   readonly onSupervisor?: (name: ExtensionName, supervisor: PluginHostSupervisor) => void;
 }
 
+/**
+ * 검토본 목록의 항목 하나(M5c §4.6.3). `root`는 검토본 `tree/`이고 실행과 읽기는 이 폴더만 쓴다. 원본 폴더는 읽지 않는다.
+ * `source`는 저장소 기록의 출처다(`bundled`는 로더에서 사용자 등급으로 싣는다, §4.6.9)
+ */
+export interface ReviewedSourceEntry {
+  readonly name: ExtensionName;
+  readonly source: "user" | "project" | "bundled";
+  readonly root: string;
+  /** `sha256:<hex>`. 판 식별자 `versionId`가 된다 */
+  readonly contentHash: string;
+}
+
+/** 적재 때 검토본 저장소가 낸 진단. 무결성이 어긋난 항목은 목록에서 빠지고 이것으로 남는다(M5c §4.6.5) */
+export interface ReviewedSourceDiagnostic {
+  readonly name: ExtensionName;
+  readonly source: ReviewedSourceEntry["source"];
+  readonly code: "pinned_corrupt";
+  readonly message: string;
+}
+
+export interface ReviewedSourceListing {
+  readonly entries: readonly ReviewedSourceEntry[];
+  readonly diagnostics: readonly ReviewedSourceDiagnostic[];
+}
+
+/**
+ * 검토본 목록 포트(M5c §4.6). 호스트가 구현한다. 있으면 사용자·프로젝트·번들 출처의 외부 확장은 원본 폴더를 훑지 않고 이 목록에서 싣는다.
+ * `list()`가 적재 때마다 검토본의 해시를 다시 계산해 저장된 값과 맞춘다(호출자가 맡는 일이 아니다)
+ */
+export interface ReviewedSource {
+  list(): Promise<ReviewedSourceListing>;
+}
+
+/** 검토본 목록에서 고른 후보 하나와 그 이름 */
+interface ReviewedPick {
+  readonly name: ExtensionName;
+  readonly candidate: ExtensionCandidate;
+}
+
+/** 검토본 출처를 로더의 설치 위치로 옮긴다. 번들은 사용자 등급이고 격리 대상이다(M5c §4.6.9) */
+function installSourceOf(source: ReviewedSourceEntry["source"]): InstallSource {
+  return source === "project" ? "project" : "user";
+}
+
+/** 검토본 목록의 진단을 로더 진단으로 옮긴다 */
+function reviewedDiagnosticOf(item: ReviewedSourceDiagnostic): LoadDiagnostic {
+  return {
+    extension: item.name,
+    source: installSourceOf(item.source),
+    stage: "discover",
+    severity: "error",
+    code: item.code,
+    message: item.message,
+    generation: 0,
+  };
+}
+
+/** 로더가 판 식별자를 정한다: 검토본이면 내용 해시, 아니면 매니페스트 버전과 세대(내장·시험 후보) */
+function versionIdOf(
+  candidate: ExtensionCandidate,
+  manifest: ExtensionManifest,
+  generation: number,
+): string {
+  return candidate.contentHash ?? `${manifest.version}.${generation}`;
+}
+
 /** 조립 루트가 주입하는 의존. 필수 항목이 없으면 시작 실패다(X.loading-trust.spec §4.3.2) */
 export interface LoaderDeps {
   /** 설치 대상. 엔트리 호출과 scope 실행은 ExtHost.install이 한다 */
@@ -332,6 +399,10 @@ export interface LoaderDeps {
   readonly isolation?: LoaderIsolation;
   readonly clock: { now(): number };
   readonly settings?: LoaderSettingsSource;
+  /**
+   * 검토본 목록(M5c §4.6). 있으면 사용자·프로젝트·번들 외부 확장은 원본 폴더를 훑지 않고 이 목록에서 싣는다(시험 호환: 없으면 기존 탐색)
+   */
+  readonly reviewedSource?: ReviewedSource;
   /** 코어가 제공하는 기능과 버전. 6단계가 매니페스트 provides와 함께 본다 [가정: 코어 기능 레지스트리 API는 X.primitives] */
   readonly coreCapabilities?: ReadonlyMap<CapabilityId, SemVer>;
   /**
@@ -701,6 +772,70 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       return { ok: false, code: "manifest_parse", message: `${path} is not valid JSON` };
     }
     return { ok: true, input: json.value };
+  }
+
+  /** 검토본 목록의 한 항목을 후보로 만든다. 매니페스트가 없으면 undefined다(코드가 없다) */
+  async function reviewedPickOf(entry: ReviewedSourceEntry): Promise<ReviewedPick | undefined> {
+    // 발견과 같은 규칙으로 실제 경로를 쓴다. 엔트리가 루트 밖인지 가리는 검사는 실제 경로끼리 비교하기 때문이다(macOS의 /var → /private/var)
+    const resolved = await attemptAsync(() => deps.fs.realpath(entry.root));
+    if (!resolved.ok) {
+      diagnosticLog.push({
+        extension: entry.name,
+        source: installSourceOf(entry.source),
+        stage: "discover",
+        severity: "warning",
+        code: "manifest_missing",
+        message: `cannot resolve the reviewed copy of ${entry.name}; it is not loaded`,
+        path: entry.root,
+        generation: 0,
+      });
+      return undefined;
+    }
+    const root = resolved.value;
+    const manifestPath = join(root, MANIFEST_RELATIVE_PATH);
+    const present = await attemptAsync(() => deps.fs.exists(manifestPath));
+    if (!present.ok) {
+      diagnosticLog.push({
+        extension: entry.name,
+        source: installSourceOf(entry.source),
+        stage: "discover",
+        severity: "warning",
+        code: "manifest_missing",
+        message: `cannot check the manifest of ${entry.name}; it is not loaded`,
+        path: manifestPath,
+        generation: 0,
+      });
+      return undefined;
+    }
+    if (!present.value) return undefined;
+    return {
+      name: entry.name,
+      candidate: {
+        source: installSourceOf(entry.source),
+        root,
+        manifestPath,
+        builtin: null,
+        contentHash: entry.contentHash,
+      },
+    };
+  }
+
+  /**
+   * 검토본 목록에서 `include`가 고른 출처의 후보를 만든다. 매니페스트가 없는 항목(스킬만 든 폴더 따위)은 코드가 없어
+   * 적재 대상이 아니므로 건너뛴다. 매니페스트를 확인하지 못한 항목은 경고 진단을 남기고 건너뛴다
+   */
+  async function reviewedPicksOf(
+    listing: ReviewedSourceListing,
+    include: (source: ReviewedSourceEntry["source"]) => boolean,
+  ): Promise<ReviewedPick[]> {
+    const checked = await Promise.all(
+      listing.entries.filter((entry) => include(entry.source)).map(reviewedPickOf),
+    );
+    const picks: ReviewedPick[] = [];
+    for (const pick of checked) {
+      if (pick !== undefined) picks.push(pick);
+    }
+    return picks;
   }
 
   function orderKeyOfRecord(record: ExtRecord): OrderKey {
@@ -1083,7 +1218,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     return createIsolatedEntry({
       manifest,
       root,
-      versionId: `${manifest.version}.${generation}`,
+      versionId: versionIdOf(record.candidate, manifest, generation),
       port,
       launch: isolation.launch,
       setTimer: isolation.setTimer,
@@ -1635,19 +1770,34 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     if (startup.safeMode.active) return err({ kind: "safe_mode" });
     throwIfCancelled(signal, `loading ${name}`);
     const mark = diagnosticLog.mark();
-    const found = await discoverExternal(
-      deps.fs,
-      externalLocations({
-        paths: deps.paths,
-        extraPaths: [],
-        projectRoot: null,
-        sources: ["user"],
-      }),
-    );
-    // 위치는 사용자 확장 위치 하나뿐이라 디렉터리 이름이 곧 설치 이름이다
-    const target = found.candidates.find(
-      (candidate) => candidate.root !== null && basename(candidate.root) === name,
-    );
+    let target: ExtensionCandidate | undefined;
+    if (deps.reviewedSource === undefined) {
+      const found = await discoverExternal(
+        deps.fs,
+        externalLocations({
+          paths: deps.paths,
+          extraPaths: [],
+          projectRoot: null,
+          sources: ["user"],
+        }),
+      );
+      // 위치는 사용자 확장 위치 하나뿐이라 디렉터리 이름이 곧 설치 이름이다
+      target = found.candidates.find(
+        (candidate) => candidate.root !== null && basename(candidate.root) === name,
+      );
+    } else {
+      // 검토본 목록에서 이름으로 찾는다. 검토본 폴더 이름은 해시라서 디렉터리 이름으로 찾을 수 없다
+      const listing = await deps.reviewedSource.list();
+      diagnosticLog.pushAll(
+        listing.diagnostics
+          .filter((item) => item.name === name && item.source !== "project")
+          .map(reviewedDiagnosticOf),
+      );
+      const pick = (await reviewedPicksOf(listing, (source) => source !== "project")).find(
+        (item) => item.name === name,
+      );
+      target = pick?.candidate;
+    }
     if (target === undefined) {
       return err({ kind: "not_found", diagnostics: diagnosticLog.since(mark) });
     }
@@ -1812,6 +1962,22 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
 
   /** 신뢰된 프로젝트 루트의 확장을 찾아 한 묶음으로 싣는다 */
   async function loadProjectCandidates(projectRoot: string, signal: AbortSignal): Promise<void> {
+    if (deps.reviewedSource !== undefined) {
+      // 검토본 목록이 있으면 프로젝트 폴더를 훑지 않는다. 프로젝트 동반은 검토 항목이 승인된 뒤에만 목록에 나타난다(M5c §4.7.9).
+      // 목록은 루트별이 아니다(프로젝트 개념은 enC2 트랙이 맡는다). 이미 실린 이름은 다시 싣지 않는다
+      const listing = await deps.reviewedSource.list();
+      diagnosticLog.pushAll(
+        listing.diagnostics.filter((item) => item.source === "project").map(reviewedDiagnosticOf),
+      );
+      const picks = (await reviewedPicksOf(listing, (source) => source === "project")).filter(
+        (pick) => !records.has(pick.name),
+      );
+      await processBatch(
+        picks.map((pick) => pick.candidate),
+        signal,
+      );
+      return;
+    }
     const project = await discoverExternal(
       deps.fs,
       externalLocations({
@@ -1887,19 +2053,35 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       const safeMode = startup.safeMode.active;
       const extraPaths = options.extraPaths ?? [];
 
-      // 1. 내장, 관리, 사용자 확장. 프로젝트 위치는 신뢰 판정 뒤에만 탐색한다(§4.7.4)
+      // 1. 내장, 관리, 사용자 확장. 검토본 목록이 있으면 사용자와 번들 확장은 거기서 받고 사용자 위치는 훑지 않는다(M5c §4.5.2, §4.6.3).
+      //    프로젝트 위치는 신뢰 판정 뒤에만 탐색한다(§4.7.4)
+      const reviewed =
+        deps.reviewedSource === undefined ? undefined : await deps.reviewedSource.list();
       const external = await discoverExternal(
         deps.fs,
         externalLocations({
           paths: deps.paths,
-          extraPaths,
+          extraPaths: reviewed === undefined ? extraPaths : [],
           projectRoot: null,
-          sources: ["managed", "user"],
+          sources: reviewed === undefined ? ["managed", "user"] : ["managed"],
         }),
       );
       diagnosticLog.pushAll(external.diagnostics);
+      const reviewedFirst =
+        reviewed === undefined
+          ? []
+          : await reviewedPicksOf(reviewed, (source) => source !== "project");
+      diagnosticLog.pushAll(
+        (reviewed?.diagnostics ?? [])
+          .filter((item) => item.source !== "project")
+          .map(reviewedDiagnosticOf),
+      );
       await processBatch(
-        [...candidatesFromBuiltins(options.builtins), ...external.candidates],
+        [
+          ...candidatesFromBuiltins(options.builtins),
+          ...external.candidates,
+          ...reviewedFirst.map((pick) => pick.candidate),
+        ],
         options.signal,
       );
 

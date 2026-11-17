@@ -813,6 +813,7 @@ export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
 | `user` | `<userDir>/extensions/<dir>/`, `x.loading-trust.paths`의 각 경로(`extensions/`와 같은 모양의 디렉터리, 그 아래 한 단계가 확장 하나) [제안] | `.fresnel-plugin/plugin.json` | `user` |
 | `project` | `<projectRoot>/.fresnel/extensions/<dir>/` | `.fresnel-plugin/plugin.json` | `project` |
 
+- [구현: M5c 검토본 단계] `LoaderDeps.reviewedSource`(검토본 목록 포트)가 있으면 `user`·`project` 위치와 `extraPaths`는 훑지 않고 목록에서 받는다. 목록 항목의 `root`는 검토본 `tree/`이고 후보의 `contentHash`가 된다. 매니페스트가 없는 항목(스킬만 든 검토본)은 적재하지 않는다. `managed`만 위 표대로 훑는다. 번들 출처는 사용자 등급으로 싣는다. 포트가 없으면 위 표 그대로다(시험 호환). 목록은 적재 때마다 검토본의 해시를 다시 맞추고 어긋난 항목은 진단 `pinned_corrupt`로 뺀다(`docs/xeon/review/m5/profile-project-loader.md` §4.6).
 - 외부 확장의 매니페스트는 확장 루트의 `.fresnel-plugin/plugin.json`이다(F.extensions.spec §3.1, Claude Code `.claude-plugin/plugin.json` 레이아웃, `_research/refs/claude-code.md` 96-99행).
 - 내장 패키지는 엔트리 모듈이 `manifest` 상수와 `extension` 엔트리를 named export한다. 로더는 같은 `validateManifest`로 검사한다. 내장 매니페스트도 JSON 파싱 결과와 같은 검사를 받는다.
 - 탐색 깊이는 한 단계다. `extensions/` 아래 디렉터리마다 `.fresnel-plugin/plugin.json`이 있으면 후보 하나다. 더 깊이 내려가지 않는다.
@@ -1270,7 +1271,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 #### 4.9.1 구조와 수명
 
-프로세스 하나가 플러그인(확장) 하나를 맡는다. 호스트 프로세스는 엔진 실행 파일을 하위 명령으로 다시 실행한 것이고 OS 샌드박스로 감싼다(§4.9.6). 새 `versionId`(`<매니페스트 버전>.<로드 세대>`)는 새 프로세스를 뜻한다. 다시 읽기는 새 감독자를 만들고 옛 것을 내린다. 마지막 등록이 꺼지면 연결을 닫고, 다시 켜면 새 연결을 연다. 감독자는 `dispose` 뒤 쓸 수 없다.
+프로세스 하나가 플러그인(확장) 하나를 맡는다. 호스트 프로세스는 엔진 실행 파일을 하위 명령으로 다시 실행한 것이고 OS 샌드박스로 감싼다(§4.9.6). 새 `versionId`는 새 프로세스를 뜻한다. 검토본 후보의 `versionId`는 내용 해시(`sha256:<hex>`)이고 같은 해시의 다시 읽기는 같은 값을 쓴다. 내장과 시험 후보는 `<매니페스트 버전>.<로드 세대>`다([구현: M5c 검토본 단계], `docs/xeon/review/m5/profile-project-loader.md` §9.1). 다시 읽기는 새 감독자를 만들고 옛 것을 내린다. 마지막 등록이 꺼지면 연결을 닫고, 다시 켜면 새 연결을 연다. 감독자는 `dispose` 뒤 쓸 수 없다.
 
 #### 4.9.2 프록시
 

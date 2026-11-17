@@ -9,7 +9,8 @@ import {
   type PluginRecordSource,
   type PluginService,
 } from "../../../src/assembly/plugins/service.ts";
-import { removeTree, tempRoot, writeFiles } from "./support.ts";
+import { createPluginStore, type PluginStoreReader } from "../../../src/assembly/plugins/index.ts";
+import { passThroughFileLock, removeTree, tempRoot, writeFiles } from "./support.ts";
 
 // M5c §3.4 `plugin.list`, `plugin.get`, §4.5: 원본 폴더와 로드된 레코드에서 카드를 만들고, 사용처와 필터를 계산하고, 캐시를 `scan`으로 바꾼다.
 
@@ -34,6 +35,8 @@ interface HarnessOptions {
   readonly files?: Readonly<Record<string, string>>;
   readonly records?: readonly PluginRecordSource[];
   readonly profiles?: Result<ProfileListResult, ProfilePortFailure>;
+  /** 검토본 저장소. 없으면 `configDir` 아래의 빈 실제 저장소다 */
+  readonly store?: PluginStoreReader;
 }
 
 const EMPTY_LIST: ProfileListResult = {
@@ -48,6 +51,9 @@ function harnessOf(options: HarnessOptions = {}): Harness {
   writeFiles(configDir, options.files ?? {});
   const logged: LogLine[] = [];
   const profiles = options.profiles ?? ok(EMPTY_LIST);
+  const store =
+    options.store ??
+    createPluginStore({ root: join(configDir, "plugin-store"), fileLock: passThroughFileLock });
   const service = createPluginService({
     configDir,
     projectRoots: () => [],
@@ -55,6 +61,7 @@ function harnessOf(options: HarnessOptions = {}): Harness {
     bundleDir: null,
     records: () => options.records ?? [],
     profiles: { list: () => Promise.resolve(profiles) },
+    store,
     log: {
       info: (message, fields) => {
         logged.push({ message, fields });
@@ -184,7 +191,9 @@ test("같은 이름이 두 위치에 있으면 먼저 발견된 것만 카드가
   });
   const names = await namesOf(service);
   expect(names).toEqual(["dup"]);
-  const conflicts = service.diagnostics().filter((item) => item.code === "name_conflict");
+  const diagnostics = await service.diagnostics();
+  if (!diagnostics.ok) throw new Error(`diagnostics failed: ${diagnostics.error.kind}`);
+  const conflicts = diagnostics.value.filter((item) => item.code === "name_conflict");
   expect(conflicts).toHaveLength(1);
   expect(logged.some((line) => line.fields["code"] === "name_conflict")).toBe(true);
 });
@@ -315,6 +324,6 @@ test("캐시는 scan()을 부를 때만 바뀐다. 처음 읽을 때 한 번 훑
   expect(await namesOf(service)).toEqual(["greeter"]);
   writeFiles(configDir, { "plugins/notes/SKILL.md": SKILL.replace("greeter", "notes") });
   expect(await namesOf(service)).toEqual(["greeter"]);
-  service.scan();
+  expect((await service.scan()).ok).toBe(true);
   expect(await namesOf(service)).toEqual(["greeter", "notes"]);
 });
