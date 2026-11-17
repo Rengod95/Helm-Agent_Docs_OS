@@ -50,7 +50,7 @@ binds: [xeon/packages/core-agents/**]
 | 서브에이전트 | 정의(이름, 프롬프트, 도구, 모델, 권한)를 따라 자식 대화에서 도는 에이전트 |
 | 자식 대화 | 서브에이전트 실행마다 새로 여는 thread. 부모 대화 연결과 소유자를 기록한다 |
 | 포그라운드 자식 | 부모의 도구 호출이나 drive `loop.spawn`이 결과를 기다리는 자식. 부모 turn이 소유한다 |
-| 백그라운드 자식 | 핸들을 즉시 돌려주고 완료 보고를 부모 inbox에 넣는 자식. 소유 경계라서 부모 취소가 넘지 않는다 |
+| 백그라운드 자식 | 핸들을 즉시 돌려주고 완료 보고를 부모 inbox에 넣는 자식. 소유 경계라서 부모 취소가 넘지 않는다. 사용자 중지는 넘는다(§4.7 3번) |
 | 소유자 | 자식을 만든 쪽. (부모 turn, 도구 호출) 또는 (drive 락) 또는 (그룹 scope) |
 | 깊이 | 주 대화 0, 그 자식 1, 손자 2 |
 | 최종 보고 | 자식 turn의 마지막 어시스턴트 메시지 텍스트. 부모에 돌아가는 유일한 내용 |
@@ -462,7 +462,7 @@ export type AgentJudgedPayload = JudgeRecord;
 2. 완료 보고: 자식이 정착하면 `agent.settled`와 보고 입력 `input.queued`를 부모 대화의 한 커밋에 쓴다 [제안]. 단일 DB이고 부모 thread도 같은 엔진 인스턴스가 쓰기 소유하므로 한 트랜잭션에 넣을 수 있다(spawn 커밋과 같은 방식). 두 커밋으로 나누면 그 사이 크래시 뒤 `agent.settled`만 남고, §4.5 재개 규칙상 자식을 다시 돌리지 않으므로 보고가 영영 들어가지 않는다. 보고 초안은 `agent.settled` 커밋의 `build` 안에서 `fresnel.tasks.inputs.draftQueued(view, draft)`로 만든다(`L1.tasks.spec` §3.6). `InputDraft{ mode: report.when, item: { kind: "context", customType: report.customType, content: report.text, display: report.display, details: { childThreadId, requestId, status, flags } }, requestId: "<requestId>:report", source: { type: "delegation", childThreadId } }`. `kind: "user"`는 쓰지 않는다. 사용자 발화와 섞이기 때문이다(L3.group-sdk.spec §3.4).
    - 모델 도구 `agent`의 `background: true` 경로는 `customType: AGENT_REPORT_TYPE`(`"agent.report"`), `display: true`, `when: "followUp"`다. 코어 customType은 F 형식(`x.`·`grp.` 접두)에 없으므로 코어 예약 값 허용을 요청한다(§8.3 F 요청 6).
    - eng.transactions.design §4.8 표의 `deleg:<childSessionId>:done` 키는 이 문서의 `<requestId>:report`로 바꾸도록 요청한다(§8.4). 그룹이 정한 requestId와 연결되어야 재개 중복을 막을 수 있기 때문이다.
-3. 소유 경계: 백그라운드 자식은 소유 경계다. 부모 turn 취소와 부모 대화의 보통 취소는 경계를 넘지 않는다(durable spec 1972-2030 "a background task is a boundary", eng.transactions.design §6.1). 부모 turn은 백그라운드 자식을 기다리지 않고 정착한다.
+3. 소유 경계: 백그라운드 자식은 소유 경계다. 부모 turn 취소와 부모 대화의 보통 취소는 경계를 넘지 않는다(durable spec 1972-2030 "a background task is a boundary", eng.transactions.design §6.1). 부모 turn은 백그라운드 자식을 기다리지 않고 정착한다. 사용자 중지(`interrupt`)만은 경계를 넘는다 [결정: 2026-11-17 사용자]: 도는 turn의 유무와 상관없이 이 대화의 백그라운드 자식을 사유 `user`로 취소하고, 그 자식은 `agent.settled{ status: "aborted" }`로 정착한다(§4.7 4번). 구현은 `xeon/packages/core-loop/src/service.ts`의 `interrupt`와 `stopBackgroundSubagents`다.
 4. 직접 취소: `AgentService.cancel({ childThreadId })` 또는 `{ parentThreadId, requestId }`. 대화 전체 취소에 `{ background: true }`를 주면 경계를 넘는다(L1.tasks.spec). 취소된 백그라운드 자식도 `agent.settled{ status: "aborted" }`와 보고 post를 남긴다. 그룹 비활성화 때의 정리는 그룹이 `onDispose`에서 `cancel`을 부른다(L3.learning.spec §5 사례 5).
 5. 학습 그룹: 검토 포크는 이 경로로 돈다. drive 락을 쓰지 않으므로 Helm이 drive 락을 가진 동안에도 위임이 동작한다(`_research/layer-plan-v2-notes.md` L3-c, F.extensions.spec §4.6). 부모 이력 복제는 `fork`, 광고 목록 유지는 `tools.keepParentList`로 표현한다. 캐시 접두가 실제로 공유되려면 모델, 도구 배열 순서, 시스템 프롬프트, 메시지 접두가 같아야 한다 [가정: L3.learning.spec §4.3]. 정의 `prompt`가 부모와 다르면 공유되지 않으므로, 검토 포크용 정의는 부모 시스템 프롬프트를 쓰고 검토 지시를 `task`에 넣는 방식을 쓴다 [제안].
 6. 재개: 보고 입력은 `agent.settled`와 같은 커밋이라 `agent.settled`가 있으면 보고도 있다. 재전송 규칙이 필요 없다. 보고 입력의 `requestId`는 `<requestId>:report`이고 같은 키가 이미 있으면 `draftQueued`가 초안을 만들지 않는다(durable spec 3206-3266 reporter의 requestId 파생). 정착 전에 끊긴 백그라운드 자식은 재개 때 다시 실행된다(§4.5). `eng.transactions.design` §7 표에 이 경로를 "outbox 불필요(같은 커밋)" 행으로 더하도록 요청한다(§8.4).
@@ -505,7 +505,7 @@ export type AgentJudgedPayload = JudgeRecord;
 
 1. 없는 정의 이름: `agents.unknown_definition`(메시지에 `Available: <이름들>`을 붙인다). 도구 경로는 `isError: true` 결과로 모델에 돌아간다.
 2. 깊이 한도 초과: `agents.depth_exceeded`. 보통은 `agent` 도구가 광고되지 않아 생기지 않는다. 모델이 광고되지 않은 도구를 부르면 L1.tools.spec §5 사례 1이다.
-3. 부모 turn 취소(포그라운드): 취소 의도가 소유 트리를 따라 자식으로 전파된다. 자식의 열린 도구 호출이 정착하고, 자식 turn이 `aborted`로 끝나고, `agent.settled{ status: "aborted" }`가 커밋된 뒤에 부모 turn이 종결한다(eng.transactions.design §6.2 규칙 4·5). 백그라운드 자식은 계속된다.
+3. 부모 turn 취소(포그라운드): 취소 의도가 소유 트리를 따라 자식으로 전파된다. 자식의 열린 도구 호출이 정착하고, 자식 turn이 `aborted`로 끝나고, `agent.settled{ status: "aborted" }`가 커밋된 뒤에 부모 turn이 종결한다(eng.transactions.design §6.2 규칙 4·5). 백그라운드 자식은 계속된다(사용자 중지는 예외다, §4.7 3번).
 4. 취소 의도가 커밋된 부모 turn 아래에서 새 spawn: `agents.parent_aborting`. 새 자식을 만들지 않는다.
 5. 자식 실행 중 프로세스 강제 종료: 재개 때 부모의 열린 `agent` 도구 호출은 `replay: "safe"`라 다시 실행되고 §4.5 멱등으로 같은 자식을 이어 받는다. 자식 대화는 자기 체크포인트에서 재개한다.
 6. 자식 모델 오류: 자식 turn `error` → `agent.settled{ status: "error" }` → 부모에 `[fresnel:subagent_error]` 블록.

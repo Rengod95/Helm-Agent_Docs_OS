@@ -169,7 +169,7 @@ export function createFakeTasks(options: FakeTasksOptions): FakeTasks {
       kind,
       id,
       parent,
-      background: false,
+      background: spec?.background === true,
       signal,
       get state() {
         return scope.settledState;
