@@ -214,6 +214,11 @@ export function inquiryIdFrom(seed: string): string {
   return `h${base32Of(fnv1a64(seed))}`;
 }
 
+/** 순수 함수. 결정적 맡기기 id(플러그인 요청마다 하나). "n" + base32(fnv1a64(seed)) 13자 */
+export function needIdFrom(seed: string): string {
+  return `n${base32Of(fnv1a64(seed))}`;
+}
+
 const STOPWORDS: ReadonlySet<string> = new Set([
   "그리고",
   "하지만",

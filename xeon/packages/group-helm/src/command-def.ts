@@ -3,6 +3,7 @@ import {
   HELM_USAGE,
   commandErrorText,
   parseHelmCommand,
+  pluginRequestText,
   runHelmCommand,
   startFailureText,
   statusText,
@@ -34,8 +35,15 @@ export function helmCommand(
       const terms = current.length > 0 ? current : (signalTerms.get(ctx.threadId) ?? []);
       const result = await runHelmCommand(g, parsed.value, { nonce: ctx.invocationId, terms });
       if (!result.ok) return commandErrorText(result.error);
+      const command = parsed.value;
+      // 맡기기 요청도 상태를 커밋한 뒤 주도 시작 요청을 낸다(drive-isolation.md 2.2). 탐구 시작과 같은 계기다
+      if (command.name === "plugin") {
+        const requested = g.startDrive();
+        const line = pluginRequestText(command.purpose);
+        return requested.ok ? line : `${line}\n${startFailureText(requested.error)}`;
+      }
       const text = statusText(result.value, [...missingMeta]);
-      if (parsed.value.name !== "start") return text;
+      if (command.name !== "start") return text;
       // 탐구 시작은 상태를 커밋한 뒤 주도 시작 요청을 낸다(drive-isolation.md 2.2). 거부되면 이유를 결과 글에 붙인다
       const started = g.startDrive();
       return started.ok ? text : `${text}\n${startFailureText(started.error)}`;

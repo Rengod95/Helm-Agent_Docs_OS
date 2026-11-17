@@ -1,9 +1,10 @@
 import { assertNever, err, ok, type Result } from "@fresnel/contracts";
 import type { GroupApi } from "@fresnel/group-sdk";
 import type { HelmCommandError } from "./failures.ts";
-import { inquiryIdFrom } from "./signals.ts";
+import { inquiryIdFrom, needIdFrom } from "./signals.ts";
 import {
   PHASE_TEXT,
+  pluginNeedOf,
   updateState,
   type HelmLens,
   type HelmPhase,
@@ -16,7 +17,8 @@ import { LEASE_TEXT, LENS_STATUS_TEXT } from "./texts.ts";
 export type HelmCommand =
   | { readonly name: "start"; readonly topic?: string }
   | { readonly name: "stop" }
-  | { readonly name: "status" };
+  | { readonly name: "status" }
+  | { readonly name: "plugin"; readonly purpose: string };
 
 export interface HelmStatusView {
   readonly enabled: boolean;
@@ -30,7 +32,7 @@ export interface HelmStatusView {
   readonly leaseHolder?: string;
 }
 
-export const HELM_USAGE = "사용법: /helm start [주제] | stop | status";
+export const HELM_USAGE = "사용법: /helm start [주제] | stop | status | plugin <설명>";
 
 /** 순수 함수. "/helm" 뒤의 인자 문자열을 해석한다. 인자가 없으면 status다 */
 export function parseHelmCommand(
@@ -41,6 +43,11 @@ export function parseHelmCommand(
   const [sub = "", ...rest] = text.split(/\s+/u);
   const tail = rest.join(" ");
   if (sub === "start") return ok(tail === "" ? { name: "start" } : { name: "start", topic: tail });
+  if (sub === "plugin") {
+    return tail === ""
+      ? err({ kind: "usage", message: HELM_USAGE })
+      : ok({ name: "plugin", purpose: tail.slice(0, 500) });
+  }
   if (sub === "stop" || sub === "status") {
     return tail === "" ? ok({ name: sub }) : err({ kind: "usage", message: HELM_USAGE });
   }
@@ -49,7 +56,8 @@ export function parseHelmCommand(
 
 /** 순수 함수. 커밋된 상태를 상태 보기로 바꾼다. `/helm status`와 확장 메서드 `status`가 같이 쓴다 */
 export function viewOf(state: Readonly<HelmState>): HelmStatusView {
-  const lease = state.phase !== "idle" ? "held" : state.pending !== null ? "waiting" : "none";
+  const waiting = state.pending !== null || pluginNeedOf(state) !== null;
+  const lease = state.phase !== "idle" ? "held" : waiting ? "waiting" : "none";
   return {
     enabled: true,
     phase: state.phase,
@@ -107,9 +115,24 @@ export async function runHelmCommand(
       );
       return written.ok ? ok(viewOf(written.value)) : failedWrite(written.error);
     }
+    case "plugin": {
+      const current = g.state();
+      // 탐구가 있으면 맡기기를 쌓지 않는다. 맡기기 요청은 탐구보다 먼저 처리되므로 대기 중인 요청도 한 번에 하나다
+      if (current.phase !== "idle" || current.pending !== null) {
+        const inquiryId = current.inquiryId ?? current.pending?.inquiryId ?? null;
+        return err({ kind: "already_running", inquiryId });
+      }
+      if (pluginNeedOf(current) !== null) return err({ kind: "plugin_pending" });
+      const pluginNeed = { purpose: cmd.purpose, id: needIdFrom(`plugin:${ctx.nonce}`) };
+      const written = await updateState(g, (state) => ({ ...state, pluginNeed }));
+      return written.ok ? ok(viewOf(written.value)) : failedWrite(written.error);
+    }
     case "stop": {
       const written = await updateState(g, (state) => {
-        if (state.phase === "idle") return transition(state, { type: "stopRequested" }).state;
+        // 맡기기 요청도 취소한다. 이미 맡겨졌다면 돌아온 결과는 요청이 없으므로 알림 없이 끝난다
+        if (state.phase === "idle") {
+          return { ...transition(state, { type: "stopRequested" }).state, pluginNeed: null };
+        }
         return { ...state, stopRequested: true };
       });
       return written.ok ? ok(viewOf(written.value)) : failedWrite(written.error);
@@ -160,6 +183,8 @@ export function commandErrorText(error: HelmCommandError): string {
       return "이미 탐구 중이거나 시작을 기다리는 탐구가 있습니다.";
     case "no_topic":
       return "주제를 알 수 없습니다. /helm start 주제 로 주제를 적어 주세요.";
+    case "plugin_pending":
+      return "플러그인 맡기기를 기다리는 중입니다. /helm stop 으로 취소할 수 있어요.";
     case "disabled":
       return "Helm 그룹이 꺼져 있습니다.";
     case "state_write":
@@ -167,6 +192,11 @@ export function commandErrorText(error: HelmCommandError): string {
     default:
       return assertNever(error, "HelmCommandError");
   }
+}
+
+/** `/helm plugin` 결과 글. 요청은 커밋됐고 주도 시작 요청을 냈다. 제작은 맡기기 결과가 올 때 알린다 */
+export function pluginRequestText(purpose: string): string {
+  return `[helm] 플러그인 제작을 authoring에 맡기려고 요청했어요: ${purpose}`;
 }
 
 /** 상태 한 줄 문장. `missingMeta`가 있으면 도구 메타 없음 경고를 붙인다 */

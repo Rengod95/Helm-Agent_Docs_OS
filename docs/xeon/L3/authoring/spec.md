@@ -228,6 +228,11 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 - 단계 함수의 규칙(drive-isolation.md §1.1, §2.4): 사용자 메시지(`last.kind === "user"`)는 `turn`으로 그 메시지를 입력으로 처리합니다. 열린 제작 대화에서 할 일이 없으면 `yield`로 상주하고, 제작 대화가 닫혀 있고 확인도 없으면 `done`으로 물러납니다(스택에 다시 오르려면 시작 요청이 필요합니다. 중재가 없어 상태가 바뀌어도 저절로 오르지 않습니다). 명령은 `state`와 `last`만 보고 정하므로 같은 입력에는 같은 명령이 나옵니다(재시작 안전, 시험 `authoring.drive-steps`).
 - 확인의 답이 `yes`가 아니면(거절, 취소, 만료, 무인 실행) `pack`, `link`, `testRun`을 부르지 않습니다. 답을 기다리는 동안에는 같은 `ask`를 다시 냅니다.
 - [미결] [근거: packages/ext-host/src/primitives/lease.ts, packages/core-loop/src/service.ts] 열린 제작 대화에서 사용자 메시지를 두 번째로 받으면 턴의 요청 id가 첫 턴과 같아져, 코어 루프가 기록된 결과로 재생하고 그 메시지를 처리하지 않습니다. 엔진의 기본 요청 id가 호출마다 0부터 세기 때문입니다(`lease.ts`의 `invocation.i`). 빌더 쪽 우회(상태 문서에 턴 수를 더하고 버전을 올림)는 하지 않았습니다. 엔진을 고친 뒤 다시 봅니다.
+- 맡겨졌을 때(drive-isolation.md 2.2, 2.6; `packages/plugin-builder/src/group-drive.ts`의 `handoffStep`). 다른 플러그인이 `handoff`로 부르면 프레임의 `calledBy`가 맡긴 쪽 이름이고, 첫 단계(`last`가 없음)에서 상주하지 않고 답한다. 입력은 `{ purpose, id? }`로 읽는다(`id`는 맡긴 쪽의 요청 id).
+  - 제작 대화가 열려 있으면 받지 않는다: `done({ accepted: false, reason: "session_open" })`, 알림은 내지 않는다.
+  - 입력을 읽지 못하면(목적 문자열이 빠짐, 재시작 뒤 입력이 비어 있음) `done({ accepted: false, reason: "bad_input" })`.
+  - 그 밖이면 알림 `[authoring] <calledBy>가 플러그인 제작을 맡겼다: <purpose>`를 `post`하고 `done({ accepted: true, purpose })`를 돌려준다. 알림 requestId는 `authoring:handoff:<id>`다(`id`가 없으면 목적). 같은 단계가 재시작 뒤 다시 와도 알림이 한 번만 난다.
+  - 이 단계는 목적을 알리고 돌려주는 데까지다. 제작 대화를 열지 않는다. 제작은 사용자가 `authoring_start`로 이어 간다. [미결] 맡겨진 목적으로 제작 대화를 자동으로 여는 일은 정하지 않았다. [근거: packages/plugin-builder/src/group-drive.ts, packages/group-helm/src/drive.ts]
 - 단계와 상관없이 사용자는 `/author stop`으로 대화를 멈출 수 있습니다. 만든 파일은 지우지 않습니다.
 
 ### 4.2 쓰기 범위 가드
