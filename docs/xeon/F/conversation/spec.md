@@ -258,7 +258,8 @@ export type LocalIdPrefix =
   | "wcl" | "wbr" | "wrs"                  // L2.web: 호출, 브라우저, 결과
   | "knl" | "knp"                          // L2.knowledge: 원장, 제안
   | "bgp"                                  // L0.process: 백그라운드 프로세스
-  | "sls";                                 // L0.secrets: 시크릿 임대
+  | "sls"                                  // L0.secrets: 시크릿 임대
+  | "drf";                                 // L4.host: 플러그인 초안(M5c §4.9 [제안])
 
 export type LocalId<P extends LocalIdPrefix> = `${P}_${string}`;
 export function localIdPattern(prefix: LocalIdPrefix): string;          // `^${prefix}_${ULID_PATTERN}$`

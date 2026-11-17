@@ -294,7 +294,7 @@ export interface OverlayRef { readonly plugin: string; readonly draftId?: string
 |---|---|---|
 | `PluginSetPort` | F `extensions/ports.ts`에 정의, 호스트가 구현해 X에 주입 | `resolve(threadId): { plugins: readonly string[]; profileId; profileRev; commonRev }`. X는 호스트의 프로필 저장소를 import하지 않는다(DR-14) |
 | `MaterialPort` | F `extensions/ports.ts`, X가 구현 | `instructions(threadId): { key; text }[]`(문맥 조립이 `sections`로 쓴다), `skillRoots(threadId)`, `agentDefinitions(threadId)`, `mcpServers(threadId)`, `commands(threadId)` |
-| `PluginSubmitPort` | F, 호스트 구현 | 담당 AI(플러그인 빌더)만 부른다: `submit({ dir, originThreadId, evidence, purpose? }) → { draftId, itemId }`. 내부에서 `plugin.draft.create`와 `pluginReview.submitDraft`를 한 번에 한다(§4.9). wire 메서드가 아니다 |
+| `PluginSubmitPort` | F, 호스트 구현 | 담당 AI(플러그인 빌더)만 부른다: `submit({ dir, originThreadId, evidence, purpose? }) → { draftId, itemId }`. 내부에서 `plugin.draft.create`와 `pluginReview.submitDraft`를 한 번에 한다(§4.9). wire 메서드가 아니다. 포트 키는 `fresnel.pluginSubmit`(`PluginSubmitPortKey`, 플랫폼 모듈 `fresnel.plugin-submit`)이다 [제안: 스펙이 이름을 정하지 않았다] |
 
 ### 3.6 테스트 대화, 테스트 실행, 초안 목록, 제출 [M6 요청 M5c-1·2·4·5·6·7·9·10·11·13 반영]
 
@@ -442,7 +442,7 @@ export type ContextRef =
 
 ### 4.5 플러그인 원본과 로더
 
-> **구현 상태(M5c 읽기 단계, 2026-11-18).** 발견(2번), 폴더 읽기와 신호(3번), 추론(4번), 카드(5번)와 읽기 처리기 `plugin.list`·`plugin.get`(§3.4)을 구현했다. 코드는 `apps/host/src/assembly/plugins/`(`discover.ts`, `folder-reader.ts`, `card.ts`, `content-hash.ts`, `material-port.ts`, `service.ts`)와 `apps/host/src/handlers/m5/plugins.ts`다. 검토본 저장소와 옮김은 §4.6에 구현됐다(번들 넣기와 설치본 옮김은 검토 항목을 거치지 않는다). 아직 없는 것은 검토 항목과 검토함(항목 생성과 승인, `pluginReview.*`), 원본 감시(7번), 재료 로더의 코어 연결(10번: `MaterialPort`는 만들었지만 코어가 아직 부르지 않는다), 다시 읽기와 되돌리기의 저장소 전환(§4.6.7~8, §7.8), `plugin.scan`의 항목 생성이다. 이 단계의 `plugin.get`은 `versions`, `entries`, `settingsDefs`를 빈 배열로 준다.
+> **구현 상태(M5c 읽기 단계, 2026-11-18).** 발견(2번), 폴더 읽기와 신호(3번), 추론(4번), 카드(5번)와 읽기 처리기 `plugin.list`·`plugin.get`(§3.4)을 구현했다. 코드는 `apps/host/src/assembly/plugins/`(`discover.ts`, `folder-reader.ts`, `card.ts`, `content-hash.ts`, `material-port.ts`, `service.ts`)와 `apps/host/src/handlers/m5/plugins.ts`다. 검토본 저장소와 옮김은 §4.6에 구현됐다(번들 넣기와 설치본 옮김은 검토 항목을 거치지 않는다). 검토 단계(§4.7)에서 검토 항목, 훑기(`plugin.scan`과 시작 때 한 번)의 항목 생성, 결정(승인은 current 교체까지, 돌려보내기, 버리기), 제거 요청, 손 수정 되돌리기(`plugin.revert`), 초안, 제출 포트, `pluginReview.*`와 `plugin.*` 처리기를 구현했다. 아직 없는 것은 원본 감시(7번, 폴더 변화를 디바운스로 보지 않는다), 승인의 프로필 적용과 열린 대화 반영(3b), 재료 로더의 코어 연결(10번: `MaterialPort`는 만들었지만 코어가 아직 부르지 않는다), `ext.versions`·`ext.rollback`의 저장소 전환(§4.6.7~8, §7.8)이다. 코드는 `apps/host/src/assembly/plugins/review.ts`, `diff.ts`, `apps/host/src/handlers/m5/plugin-review.ts`다. 이 단계의 `plugin.get`은 `versions`, `entries`, `settingsDefs`를 빈 배열로 준다.
 >
 > 이 단계에서 정한 것은 다음과 같다. [제안] 목록은 `scan()`이 채운 캐시를 읽는다. 원본이 바뀌어도 `plugin.scan`(다음 단계)을 부르기 전에는 다시 훑지 않는다. 사용처(`usedBy`)는 캐시하지 않고 읽을 때 프로필에서 계산한다. [제안] 발견 순서는 내장 레코드, 폴더 원본, 나머지 레코드 순이다. 폴더 원본이 있는 이름의 로드된 레코드는 카드를 만들지 않는다. 기본 제공 번들 `helm`은 기본 설치 때 `<config>/extensions/helm`에도 놓이므로, 번들 쪽이 `name_conflict` 진단으로 남는다(§10 17번). 프로젝트 루트 목록은 enC2 트랙이 주입하기 전까지 빈 목록이고, 관리 폴더는 조립에 없어 `null`이다.
 >
@@ -495,7 +495,7 @@ export type ContextRef =
 
 ### 4.6 검토본
 
-> **구현 상태(M5c 검토본 단계, 2026-11-18).** 저장소는 `apps/host/src/assembly/plugins/store.ts`(`createPluginStore`), 목록 포트의 구현은 `reviewed-source.ts`, 번들 넣기와 설치본 옮김은 `release.ts`(시작 때 `reviewStartupPlugins`), 조립은 `apps/host/src/assembly.ts`다. 로더의 검토본 목록은 `packages/ext-host/src/loading-trust/index.ts`의 `LoaderDeps.reviewedSource`다. 구현이 이 절과 다르게 한 것은 다음과 같다. (a) 실행 비트가 있는 파일은 읽기 전용 권한이 0555다. 해시가 실행 비트를 쓰므로 0444로 두면 해시가 바뀐다. (b) `recover()`는 기록(`review-log.jsonl`)에 없는 검토본을 승인 도중 끊긴 것으로 보고 지운다. 기록의 `itemId`가 메타의 `decisionId`와 맞는 것만 승인으로 본다. current는 지우지 않는다. (c) 번들 출처(`bundled`)는 로더에서 사용자 등급으로 싣는다(§4.6.9). 같은 이름을 사용자 검토본이 쥐고 있으면 번들은 물러나고 `name_conflict` 진단이 남는다(§10 17번 기본값). (d) 프로젝트 검토본은 루트와 묶이지 않는다(프로젝트 개념이 아직 없다). 목록은 이름으로만 보므로 신뢰된 프로젝트가 열릴 때마다 같은 항목이 실린다. 이 단계에는 프로젝트 검토본을 만드는 길이 없다. (e) `prune`(보관), `drafts/`(초안), `queue/`(검토 항목)은 함수나 경로만 있고 쓰는 곳은 다음 단계다. (f) 되돌리기와 버전 목록은 아직 설치 폴더의 `.history`를 본다(§7.8 미이행). 실행본은 검토본 저장소에서 온다.
+> **구현 상태(M5c 검토본 단계, 2026-11-18).** 저장소는 `apps/host/src/assembly/plugins/store.ts`(`createPluginStore`), 목록 포트의 구현은 `reviewed-source.ts`, 번들 넣기와 설치본 옮김은 `release.ts`(시작 때 `reviewStartupPlugins`), 조립은 `apps/host/src/assembly.ts`다. 로더의 검토본 목록은 `packages/ext-host/src/loading-trust/index.ts`의 `LoaderDeps.reviewedSource`다. 구현이 이 절과 다르게 한 것은 다음과 같다. (a) 실행 비트가 있는 파일은 읽기 전용 권한이 0555다. 해시가 실행 비트를 쓰므로 0444로 두면 해시가 바뀐다. (b) `recover()`는 기록(`review-log.jsonl`)에 없는 검토본을 승인 도중 끊긴 것으로 보고 지운다. 기록의 `itemId`가 메타의 `decisionId`와 맞는 것만 승인으로 본다. current는 지우지 않는다. (c) 번들 출처(`bundled`)는 로더에서 사용자 등급으로 싣는다(§4.6.9). 같은 이름을 사용자 검토본이 쥐고 있으면 번들은 물러나고 `name_conflict` 진단이 남는다(§10 17번 기본값). (d) 프로젝트 검토본은 루트와 묶이지 않는다(프로젝트 개념이 아직 없다). 목록은 이름으로만 보므로 신뢰된 프로젝트가 열릴 때마다 같은 항목이 실린다. 이 단계에는 프로젝트 검토본을 만드는 길이 없다. (e) `prune`(보관), `drafts/`(초안), `queue/`(검토 항목)은 검토 단계가 쓴다(`review.ts`, 초안 보관 20개). (f) 되돌리기와 버전 목록은 아직 설치 폴더의 `.history`를 본다(§7.8 미이행). 실행본은 검토본 저장소에서 온다.
 
 1. 내용 해시: 폴더를 재귀로 훑어 일반 파일마다 한 줄 `"<상대 경로>\0<x|->\0<sha256 소문자 16진>\n"`을 만든다. 경로는 `/` 구분의 NFC UTF-8이고 줄은 경로의 UTF-8 바이트 순으로 정렬하며 `x`는 실행 비트가 있는 파일이다. 전체 줄의 sha256을 `sha256:<16진>`으로 쓴다. 제외: `.git/`, `.hg/`, `.svn/`, `.DS_Store`. 빈 폴더는 세지 않는다. 심볼릭 링크는 따라가지 않고 `plugin.symlinkRefused`로 거절한다(지금 버전 보관 복사는 링크가 가리키는 내용을 복사한다. `version-history.ts:63` `copyDir` 규약. 해시 일관성을 위해 이 문서는 거절한다). `node_modules/`는 허용하지 않는다(`node_modules_present`). 의존성은 `ext.package`처럼 한 파일로 묶는다. 상한: 파일 2000개, 합계 32 MiB, 깊이 16(`plugin.tooLarge`) [제안]. `ext.installPreview`가 주던 `sha256`은 패키지 파일 해시이고 이 해시와 다른 값이다.
 2. 저장소 배치(`OsDirs.data` 아래, 쓰기는 `fileLock`으로 직렬화):
@@ -521,13 +521,15 @@ plugin-store/
 
 ### 4.7 검토
 
+> **구현 상태(M5c 검토 단계, 2026-11-18).** 3a를 구현했다. 항목은 `queue/<itemId>.json`에 쓰고 재시작 뒤 파일에서 읽는다. 훑기는 `plugin.scan`과 시작 때 한 번 돈다(감시는 없다). 승인은 검사, 승격, `current` 교체, 보관 정리(5개), 기록, 훅 순서로 커밋하고 `appliedTo`는 빈 목록이다. 프로필 검증(`beforeCommit`)과 프로필 갱신·열린 대화 반영(`afterCommit`)은 3b가 `applyApproval`의 훅 자리에 넣는다. 아래 [제안] 판단은 `review.ts`에 있다: 손 수정 제한은 `update` 항목에만 건다(항 4), 제거 항목의 출처는 `unknown`이다, 원본이 사라진 것은 폴더 이름으로 가린다. 돌려보내기 사유는 `originThreadId` 대화의 다음 입력(`next`, 사용자 입력 큐)으로 넣고, 대화가 없으면 항목에만 남는다.
+
 1. 항목을 만드는 일: 담당 AI의 `PluginSubmitPort.submit`(provenance `assistant`, `originThreadId`와 증거 필수), `pluginReview.submitDraft`(초안, 만든 대화가 `originThreadId`), 원본 해시가 검토본과 다름(§4.5.8, 원본 출처가 사용자 폴더면 `unknown`, 프로젝트 동반이면 `project`), `plugin.requestRemove`와 원본 폴더 삭제 감지(`remove`), 번들 갱신(`bundled`. 항목 없이 §7.5가 처리).
 2. 항목 내용: 카드(후보 기준), "하는 일의 차이"(`WhatItDoesDiff`: 이전 검토본 카드와 후보 카드의 칸별 비교, 강제력 변화, 비용 변화), 증거 참조, 코드(파일 목록과 `pluginReview.file`로 읽는 내용), 만든 대화.
 3. 결정은 셋이다.
    - 승인: `profileIds`(기본은 `originProfileId`)에 넣거나 `libraryOnly`로 보관만 한다. 모든 대상 프로필을 먼저 `validateProfile`로 검사하고 하나라도 오류면 `pluginReview.profileInvalid`로 전체를 거절한다(아무것도 바뀌지 않는다). 통과하면 한 번에 스냅샷 승격, `current` 교체, 프로필 갱신(순서 맨 뒤)을 커밋한다. `update` 항목은 `profileIds`가 비어도 되고(이름으로 든 프로필 모두에 새 검토본이 적용된다 [제안: 미결 4]), `remove` 승인은 이름이 든 모든 프로필·공통 묶음에서 그 이름을 빼고 라이브러리에서 내린다. 지울 때 미리 보기(`pluginReview.get`의 `item.diff.removed`와 영향받는 프로필 id, 같이 지워지는 상태·기록)를 항목에 싣는다.
    - 돌려보내기: `reason`(1~2000자)을 항목에 저장하고 `originThreadId` 대화가 열려 있으면 그 사유를 그 대화의 입력으로 넣는다(`post`, `when: "next"`) [제안]. 대화가 없으면 항목에만 남는다.
    - 버리기: 후보 스냅샷을 지우고 항목을 닫는다. 같은 해시가 원본에서 다시 발견되어도 원본이 바뀔 때까지 항목을 만들지 않는다.
-4. 손 수정: 출처가 사용자 폴더이고 `provenance: "unknown"`인 항목은 승인할 수 없다(`pluginReview.handEditNotAllowed`). 선택지는 `plugin.revert`(원본을 검토본으로 되돌림), 담당 AI에게 넘겨 새 버전으로 들여오기(그 AI가 `submit`하면 `provenance: "assistant"`의 새 항목이 된다), 버리기다 [제안: flow §3.3]. 프로젝트 동반 플러그인(`provenance: "project"`)은 저장소에서 온 것이라 이 제한이 없고 승인할 수 있다.
+4. 손 수정: 출처가 사용자 폴더이고 `provenance: "unknown"`인 **수정 항목(`update`)**은 승인할 수 없다(`pluginReview.handEditNotAllowed`). 처음 만드는 플러그인(`new`)은 되돌릴 검토본이 없어 이 제한을 받지 않는다. 사용자가 쓴 것을 한 번 확인하면 된다 [제안]. 제거 항목도 받지 않는다(§10 19번). 선택지는 `plugin.revert`(원본을 검토본으로 되돌림), 담당 AI에게 넘겨 새 버전으로 들여오기(그 AI가 `submit`하면 `provenance: "assistant"`의 새 항목이 된다), 버리기다 [제안: flow §3.3]. 프로젝트 동반 플러그인(`provenance: "project"`)은 저장소에서 온 것이라 이 제한이 없고 승인할 수 있다.
 5. 승인 전에는 이전 검토본이 계속 돈다(`new`면 아무것도 돌지 않는다).
 6. 목적 문장: `card.purpose`가 비어 있으면 승인할 수 없다(`pluginReview.purposeRequired`). 스킬 폴더는 `description`이 채운다. 담당 AI가 쓰고 사용자가 항목에서 고칠 수 있다 [제안]. 고친 문장은 검토본 `meta.json`에 들어가며 해시에 영향을 주지 않는다.
 7. 항목 상태 전이: `pending → approved | sent_back | discarded | superseded | withdrawn`. 닫힌 항목은 다시 열지 않는다(`pluginReview.notPending`).
@@ -638,7 +640,7 @@ plugin-store/
 | 발견 | `<config>/extensions/*`, `.fresnel/extensions/*`, 한 단계, `.fresnel-plugin/plugin.json` 필수(`discover.ts:56-62`, `:121-`) | 새 위치 `plugins/`, 매니페스트 없는 폴더 추론, 느슨한 자원을 후보로. 이 단계에서 구현했다(`assembly/plugins/discover.ts`, `folder-reader.ts`) | M |
 | 재료 로더 | 스킬은 가이드만(`extensions.ts:484`), MCP는 설정과 루트 `.mcp.json`만(`cap-mcp/servers/loader.ts:12`. `.mcp.json` 읽기는 제거한다, §4.4.10), 에이전트는 기본 플러그인만(`default-plugins.ts:259`), 명령은 코드만 | `MaterialPort`와 §4.5.10 표. `E(T)` 필터. 포트 구현은 이 단계에서 끝났다(`assembly/plugins/material-port.ts`, 시험 있음). 코어 연결은 다음 단계 | L |
 | 검토본 | 없음. 사용자 설치본은 `<config>/extensions/<name>`에서 바로 실행. 버전 보관은 설치본 복사와 `manifestHash`(`version-history.ts:32-39`) | 내용 해시, `plugin-store/`, 항상 검토본에서 적재, 적재 때 해시 재확인. **구현됨(검토본 단계):** `plugin-store/`(`store.ts`), 시작 때 번들 넣기와 설치본 옮김(`release.ts`), 적재는 `LoaderDeps.reviewedSource`에서, 적재 때 해시 재확인(`reviewed-source.ts`, `pinned_corrupt`). **아직 없음:** 검토 항목과 승인, 다시 읽기·되돌리기의 저장소 전환(§4.6.7~8) | L |
-| 검토함 | 없음. 설치는 `ext.installPreview`(`sha256`로 `source_changed` 거부) + `ext.install`, 삭제는 `ext.remove` | 검토 항목·결정·기록, `pluginReview.*`, `plugin.*`. 위 `ext.*` 설치·삭제 제거. 플러그인 빌더의 산출 경로(`link` → `ext.install`)는 이 단계에서 `PluginSubmitPort.submit`으로 바꾼다(엔진 설계 E1은 기존 `link`를 그대로 둔다) | L |
+| 검토함 | 없음. 설치는 `ext.installPreview`(`sha256`로 `source_changed` 거부) + `ext.install`, 삭제는 `ext.remove` | 검토 항목·결정·기록, `pluginReview.*`, `plugin.*`. 위 `ext.*` 설치·삭제 제거. 플러그인 빌더의 산출 경로(`link` → `ext.install`)는 이 단계에서 `PluginSubmitPort.submit`으로 바꾼다(엔진 설계 E1은 기존 `link`를 그대로 둔다). **구현됨(검토 단계, 3a):** 항목과 결정, 훑기, 제거 요청, 되돌리기, 초안, 제출 포트, `pluginReview.*`·`plugin.*` 처리기다. **아직 없음:** 승인의 프로필 적용과 열린 대화 반영(3b), `ext.versions`·`ext.rollback`의 저장소 전환, `plugin.invocables`, `plugin.draft.fromInstruction` | L |
 | 신뢰 등급 | 4등급과 tier, 폴더 신뢰 카드가 플러그인류 자원도 판정(`trust/resources.ts:20-33`) | 등급은 유지, 검토본 없음 = `untrusted`, 플러그인류는 검토함이 판정(§4.6.9) | M |
 | 프로젝트 동반 플러그인 | 폴더 신뢰 뒤 `.fresnel/extensions`를 적재(`discover.ts:62`) | 열 때 항목 생성, 승인 전 미적재 | M |
 | 덧씌우기 | 없음 | `turn.start.overlay`, `plugin.invocables`, `plugin.draft.*`, `profile.applied` | L |
@@ -780,6 +782,11 @@ plugin-store/
 15. **[확인 대기] 테스트 대화의 시작 Drive 재쌓기**(§4.8.6)와 숨은 프로필이 공통 묶음을 받지 않는 것. 기본값은 본문대로.
 16. **[확인 대기] 초안 보관 20개**(§4.9.2).
 17. **[미결] 기본 제공 번들과 설치 복사의 이름 충돌.** [근거: `apps/host/src/assemble.ts:983`, `:1009`] 기본값: 기본 설치로 놓인 `<config>/extensions/helm`이 먼저 발견되어 카드가 되고, 번들 `helm`은 `name_conflict` 진단으로 남는다(§4.5 8번). 대안: 번들을 먼저 발견되는 쪽으로 세우거나, 설치 복사를 두지 않는다.
+18. **[제안] 검토 단계의 판단.** (a) 손 수정 제한은 `update` 항목에만 건다(§4.7.4). 처음 만드는 플러그인도 손 수정 판정을 받으면 사용자가 직접 만든 플러그인을 승인할 수 없고, `plugin.revert`로 되돌릴 검토본도 없다. (b) 목적 문장 검사는 제거 항목에 걸지 않는다. (c) 훑기가 만든 `superseded`·`withdrawn` 전이도 기록에 `actor: "user"`로 한 줄 남긴다(기록의 행위자는 세 값뿐이다).
+19. **[제안] 제거 항목의 출처.** `provenance`의 다섯 값 가운데 사용자 요청이나 원본 사라짐에 맞는 것이 없어 `unknown`을 쓴다. 제거 항목은 손 수정 판정을 받지 않는다. 요청과 사라짐을 구분하려면 값을 더해야 한다(스키마 변경).
+20. **[제안] 원본 사라짐의 판정.** 검토본의 출처가 사용자 폴더이고, 원본 훑기에 그 이름의 읽을 수 있는 원본과 그 이름의 폴더가 없을 때 제거 항목을 만든다. 폴더 이름과 플러그인 이름이 다르고 그 폴더를 읽지 못하면 놓칠 수 있다(진단으로만 남는다).
+21. **[미결] `ext.versions`와 `ext.rollback`의 저장소 전환.** [근거: `apps/host/src/assembly/m4/ext-ui-version-port.ts`] 이번 단계에서 하지 않았다. 두 처리기는 설치 폴더의 `.history`를 보고 실행본을 바꾸지 않는다. 저장소의 `versions`를 읽고 `setCurrent`로 되돌리는 일과 열린 대화 반영이 남았다.
+22. **[미결] 승인의 프로필 적용과 열린 대화 반영(3b).** [근거: `apps/host/src/assembly/plugins/review.ts`] `applyApproval`의 `beforeCommit`(프로필 검증)과 `afterCommit`(프로필 갱신, 열린 대화 반영)은 비어 있다. 3a의 `appliedTo`는 빈 목록이다.
 
 ## 11. 요구 추적표
 

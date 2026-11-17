@@ -28,6 +28,13 @@ import {
 } from "@fresnel/contracts/extensions";
 import type { FileLock, FileLockError } from "@fresnel/platform-os";
 import { Type, type TUnsafe } from "typebox";
+import { isLocalId } from "@fresnel/contracts/conversation";
+import {
+  DraftInfoSchema,
+  ReviewItemSchema,
+  type DraftInfo,
+  type ReviewItem,
+} from "@fresnel/contracts/wire";
 import { sequentially } from "../../util.ts";
 import { compareUtf8, hashPluginTree, type TreeError } from "./content-hash.ts";
 
@@ -199,6 +206,49 @@ export interface PluginStore {
   /** 경로 계산만: 초안 폴더(`drafts/<draftId>`)와 검토 항목 파일(`queue/<itemId>.json`) */
   draftDir(draftId: string): string;
   queueFile(itemId: string): string;
+  /** 제거를 승인할 때 현재 검토본을 치운다. 보관 사본은 그대로 둔다. 검토본이 없어도 성공이다 */
+  clearCurrent(name: string): Promise<Result<void, PluginStoreError>>;
+  /** 후보 스냅샷의 `tree/` 경로(해시 기준). 경로 계산만 한다 */
+  candidateTree(contentHash: string): Result<string, PluginStoreError>;
+  /** 후보 스냅샷 안 파일의 바이트. 경로는 호출자가 후보의 파일 목록에서 고른다 */
+  readCandidateFile(
+    contentHash: string,
+    path: string,
+  ): Promise<Result<Uint8Array, PluginStoreError>>;
+  /**
+   * 원본 폴더를 초안 스냅샷(`drafts/<draftId>/tree`)으로 복사하고 `meta(contentHash)`를 `meta.json`으로 쓴다.
+   * 복사 중 원본이 바뀌면 `source_unstable`이다. 원본은 읽기만 한다
+   */
+  saveDraft(
+    srcDir: string,
+    draftId: string,
+    meta: (contentHash: string) => DraftInfo,
+  ): Promise<Result<DraftInfo, PluginStoreError>>;
+  /** 초안 정보 파일을 다시 쓴다(검토 항목을 연결할 때) */
+  writeDraft(info: DraftInfo): Promise<Result<void, PluginStoreError>>;
+  /** 초안 정보 하나. 없으면 `not_found`, 깨졌으면 `corrupt`다 */
+  readDraft(draftId: string): Promise<Result<DraftInfo, PluginStoreError>>;
+  /** 저장된 초안 정보 전부(순서 없음) */
+  listDrafts(): Promise<Result<readonly DraftInfo[], PluginStoreError>>;
+  /** 초안 폴더 하나를 지운다. 없으면 성공이다 */
+  removeDraft(draftId: string): Promise<Result<void, PluginStoreError>>;
+  /** 검토 항목을 `queue/<itemId>.json`에 쓴다 */
+  writeItem(item: ReviewItem): Promise<Result<void, PluginStoreError>>;
+  /** 검토 항목 하나. 없으면 `not_found`다 */
+  readItem(itemId: string): Promise<Result<ReviewItem, PluginStoreError>>;
+  /** 검토 항목 전부(순서 없음) */
+  listItems(): Promise<Result<readonly ReviewItem[], PluginStoreError>>;
+}
+
+/** 지역 id 형식이 아니면 파일 경로로 쓰지 않는다(경로 탈출 방지). 형식이 틀린 id는 없는 것으로 본다 */
+function localIdOk(prefix: "rvw" | "drf", id: string): boolean {
+  return isLocalId(prefix, id);
+}
+
+/** 상대 경로가 폴더 밖을 가리키는가. 절대 경로, 역슬래시, `..` 조각은 거절한다 */
+function escapesFolder(path: string): boolean {
+  if (path === "" || path.startsWith("/") || path.includes("\\")) return true;
+  return path.split("/").some((part) => part === ".." || part === "");
 }
 
 /** 이름이 폴더 이름으로 안전한지 본다(검토본 이름은 확장 이름과 같다) */
@@ -404,6 +454,35 @@ function interruptedOf(
 ): boolean {
   if (!meta.ok) return meta.error.kind === "not_found";
   return !decided.has(meta.value.decisionId);
+}
+
+/** 초안 정보 파일을 읽는다. 없으면 `not_found`, 깨졌으면 `corrupt`다 */
+async function readDraftFile(path: string): Promise<Result<DraftInfo, PluginStoreError>> {
+  const text = await attemptAsync(() => readFile(path, "utf8"));
+  if (!text.ok) {
+    return codeOf(text.error.cause) === "ENOENT"
+      ? err({ kind: "not_found", what: path })
+      : err(ioOf(path, text.error.cause));
+  }
+  const json = parseJson(text.value);
+  if (!json.ok) return err({ kind: "corrupt", path });
+  const info = parse(DraftInfoSchema, json.value);
+  if (!info.ok) return err({ kind: "corrupt", path });
+  return ok(info.value);
+}
+
+async function readItemFile(path: string): Promise<Result<ReviewItem, PluginStoreError>> {
+  const text = await attemptAsync(() => readFile(path, "utf8"));
+  if (!text.ok) {
+    return codeOf(text.error.cause) === "ENOENT"
+      ? err({ kind: "not_found", what: path })
+      : err(ioOf(path, text.error.cause));
+  }
+  const json = parseJson(text.value);
+  if (!json.ok) return err({ kind: "corrupt", path });
+  const item = parse(ReviewItemSchema, json.value);
+  if (!item.ok) return err({ kind: "corrupt", path });
+  return ok(item.value);
 }
 
 /** 검토본 저장소를 연다. 디렉터리는 쓸 때 만든다 */
@@ -773,6 +852,146 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
     });
   }
 
+  async function clearCurrent(name: string): Promise<Result<void, PluginStoreError>> {
+    const valid = validName(name);
+    if (!valid.ok) return err(valid.error);
+    return locked(async () => {
+      const path = join(reviewedDir, name, "current");
+      const removed = await attemptAsync(() => rm(path, { force: true }));
+      if (!removed.ok) return err(ioOf(path, removed.error.cause));
+      return ok(undefined);
+    });
+  }
+
+  function candidateTreeOf(contentHash: string): Result<string, PluginStoreError> {
+    const hex = hexOf(contentHash);
+    if (!hex.ok) return err(hex.error);
+    return ok(join(candidatesDir, hex.value, "tree"));
+  }
+
+  async function readCandidateFile(
+    contentHash: string,
+    path: string,
+  ): Promise<Result<Uint8Array, PluginStoreError>> {
+    const tree = candidateTreeOf(contentHash);
+    if (!tree.ok) return err(tree.error);
+    if (escapesFolder(path)) return err({ kind: "not_found", what: `candidate file ${path}` });
+    const file = join(tree.value, path);
+    const bytes = await attemptAsync(() => readFile(file));
+    if (!bytes.ok) {
+      return codeOf(bytes.error.cause) === "ENOENT"
+        ? err({ kind: "not_found", what: `candidate file ${path}` })
+        : err(ioOf(file, bytes.error.cause));
+    }
+    return ok(new Uint8Array(bytes.value));
+  }
+
+  function draftPathOf(draftId: string): string {
+    return join(draftsDir, draftId);
+  }
+
+  async function saveDraft(
+    srcDir: string,
+    draftId: string,
+    meta: (contentHash: string) => DraftInfo,
+  ): Promise<Result<DraftInfo, PluginStoreError>> {
+    if (!localIdOk("drf", draftId)) return err({ kind: "invalid_name", name: draftId });
+    return locked(async () => {
+      const source = hashPluginTree(srcDir);
+      if (!source.ok) return err({ kind: "tree_rejected", path: srcDir, error: source.error });
+      const dir = draftPathOf(draftId);
+      const staging = join(candidatesDir, tempName(".staging"));
+      const stagingTree = join(staging, "tree");
+      const copied = await copyFiles(srcDir, stagingTree, source.value.files);
+      if (!copied.ok) {
+        await removeTree(staging);
+        return err(copied.error);
+      }
+      const copy = hashPluginTree(stagingTree);
+      if (!copy.ok || copy.value.contentHash !== source.value.contentHash) {
+        await removeTree(staging);
+        return err({ kind: "source_unstable", path: srcDir });
+      }
+      const made = await attemptAsync(() => mkdir(dir, { recursive: true }));
+      if (!made.ok) return err(ioOf(dir, made.error.cause));
+      const moved = await attemptAsync(() => rename(stagingTree, join(dir, "tree")));
+      if (!moved.ok) return err(ioOf(dir, moved.error.cause));
+      const dropped = await removeTree(staging);
+      if (!dropped.ok) return err(dropped.error);
+      const info = meta(source.value.contentHash);
+      const written = await writeAtomic(
+        join(dir, "meta.json"),
+        `${JSON.stringify(info, null, 2)}\n`,
+      );
+      if (!written.ok) return err(written.error);
+      return ok(info);
+    });
+  }
+
+  async function writeDraft(info: DraftInfo): Promise<Result<void, PluginStoreError>> {
+    if (!localIdOk("drf", info.draftId)) return err({ kind: "invalid_name", name: info.draftId });
+    return locked(() =>
+      writeAtomic(
+        join(draftPathOf(info.draftId), "meta.json"),
+        `${JSON.stringify(info, null, 2)}\n`,
+      ),
+    );
+  }
+
+  async function readDraft(draftId: string): Promise<Result<DraftInfo, PluginStoreError>> {
+    if (!localIdOk("drf", draftId)) return err({ kind: "not_found", what: `draft ${draftId}` });
+    return readDraftFile(join(draftPathOf(draftId), "meta.json"));
+  }
+
+  async function listDrafts(): Promise<Result<readonly DraftInfo[], PluginStoreError>> {
+    const listed = await namesIn(draftsDir);
+    if (!listed.ok) return err(listed.error);
+    const ids = listed.value.filter((entry) => localIdOk("drf", entry)).toSorted(compareUtf8);
+    const loaded = await Promise.all(
+      ids.map((id) => readDraftFile(join(draftPathOf(id), "meta.json"))),
+    );
+    const infos: DraftInfo[] = [];
+    for (const item of loaded) {
+      if (!item.ok) {
+        // 메타가 없는 폴더는 저장 도중 끊긴 흔적이라 세지 않는다. 읽지 못하는 메타는 손상이다
+        if (item.error.kind === "not_found") continue;
+        return err(item.error);
+      }
+      infos.push(item.value);
+    }
+    return ok(infos);
+  }
+
+  async function removeDraft(draftId: string): Promise<Result<void, PluginStoreError>> {
+    if (!localIdOk("drf", draftId)) return err({ kind: "not_found", what: `draft ${draftId}` });
+    return locked(() => removeTree(draftPathOf(draftId)));
+  }
+
+  async function writeItem(item: ReviewItem): Promise<Result<void, PluginStoreError>> {
+    if (!localIdOk("rvw", item.itemId)) return err({ kind: "invalid_name", name: item.itemId });
+    return locked(() =>
+      writeAtomic(join(queueDir, `${item.itemId}.json`), `${JSON.stringify(item, null, 2)}\n`),
+    );
+  }
+
+  async function readItem(itemId: string): Promise<Result<ReviewItem, PluginStoreError>> {
+    if (!localIdOk("rvw", itemId)) return err({ kind: "not_found", what: `item ${itemId}` });
+    return readItemFile(join(queueDir, `${itemId}.json`));
+  }
+
+  async function listItems(): Promise<Result<readonly ReviewItem[], PluginStoreError>> {
+    const listed = await namesIn(queueDir);
+    if (!listed.ok) return err(listed.error);
+    const files = listed.value.filter((entry) => entry.endsWith(".json")).toSorted(compareUtf8);
+    const loaded = await Promise.all(files.map((file) => readItemFile(join(queueDir, file))));
+    const items: ReviewItem[] = [];
+    for (const item of loaded) {
+      if (!item.ok) return err(item.error);
+      items.push(item.value);
+    }
+    return ok(items);
+  }
+
   return {
     snapshotCandidate,
     promote,
@@ -789,5 +1008,16 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
     recover,
     draftDir: (draftId) => join(draftsDir, draftId),
     queueFile: (itemId) => join(queueDir, `${itemId}.json`),
+    clearCurrent,
+    candidateTree: candidateTreeOf,
+    readCandidateFile,
+    saveDraft,
+    writeDraft,
+    readDraft,
+    listDrafts,
+    removeDraft,
+    writeItem,
+    readItem,
+    listItems,
   };
 }

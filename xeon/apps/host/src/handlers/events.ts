@@ -475,6 +475,25 @@ export function startEventFanout(engine: Engine, hub: ConnectionHub): EventFanou
       });
     }
   });
+  // 검토함이 바뀌면 `pluginReview.changed`(항목 상태), 검토본이 바뀌면 `plugin.changed`(이름)를 연결 전체에 보낸다(M5c §3.4)
+  const offPluginReview = engine.ports.pluginReview.onChanged((change) => {
+    for (const conn of hub.connections()) {
+      if (conn.phase !== "ready") continue;
+      conn.sender.push(
+        change.kind === "review"
+          ? {
+              jsonrpc: "2.0",
+              method: "pluginReview.changed",
+              params: toRecord({ itemId: change.itemId, state: change.state }),
+            }
+          : {
+              jsonrpc: "2.0",
+              method: "plugin.changed",
+              params: toRecord({ name: change.name }),
+            },
+      );
+    }
+  });
   // 알림이 생기면 연결 전체에 `notify.delivered`를 보낸다(HS-94). 값과 설정 판정은 notice-delivery.ts가 한다
   const offNotices = startNoticeDelivery(engine, hub);
   return {
@@ -486,6 +505,7 @@ export function startEventFanout(engine: Engine, hub: ConnectionHub): EventFanou
       offVolatile();
       offSettings();
       offProfiles();
+      offPluginReview();
       offNotices();
       poller.dispose();
     },

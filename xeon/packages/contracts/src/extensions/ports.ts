@@ -534,3 +534,5 @@ export type PluginSubmitError =
 export interface PluginSubmitPort {
   submit(request: PluginSubmitRequest): Promise<Result<PluginSubmitResult, PluginSubmitError>>;
 }
+/** 포트 키 [제안]: 스펙(M5c §3.5)이 이름을 정하지 않았다. 플랫폼 모듈 `fresnel.plugin-submit`이 이 키로 낸다 */
+export const PluginSubmitPortKey: PortKey<PluginSubmitPort> = { name: "fresnel.pluginSubmit" };

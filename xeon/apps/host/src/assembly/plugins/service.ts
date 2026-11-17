@@ -1,5 +1,6 @@
+import { basename } from "node:path";
 import { err, ok, type Result } from "@fresnel/contracts";
-import type { PluginCard } from "@fresnel/contracts/extensions";
+import type { PluginCard, PluginOriginKind } from "@fresnel/contracts/extensions";
 import type {
   PluginGetResult,
   PluginListFilter,
@@ -57,11 +58,31 @@ export interface PluginServiceDeps {
   readonly log: { info(message: string, fields: Readonly<Record<string, unknown>>): void };
 }
 
-export interface PluginService extends PluginPort {
+export interface PluginService extends Pick<PluginPort, "list" | "get" | "scan"> {
   /** 마지막 훑기에서 나온 진단. `plugin.list`의 결과에는 넣을 자리가 없어 이 함수로만 본다(§3.4) */
   diagnostics(): Promise<Result<readonly PluginDiagnostic[], PluginPortFailure>>;
   /** 원본 폴더가 검토본과 다른 이름들(검토본이 없는 원본 포함). 다음 층이 검토 항목을 만들 때 쓴다 */
   changedSources(): Promise<Result<readonly string[], PluginPortFailure>>;
+  /** 검토 항목을 만들 재료: 원본이 읽히는 플러그인과 발견된 폴더 이름(M5c §4.7.1). 캐시를 읽는다 */
+  sources(): Promise<Result<PluginSources, PluginPortFailure>>;
+}
+
+/** 원본 폴더가 읽히는 플러그인 하나(검토 항목을 만드는 재료). 내장과 번들은 아래 `origin`으로 가린다 */
+export interface PluginSourceEntry {
+  readonly name: string;
+  /** 원본 폴더 경로 */
+  readonly dir: string;
+  readonly origin: PluginOriginKind;
+  /** 원본 폴더의 현재 내용 해시 */
+  readonly sourceHash: string;
+  /** 현재 검토본의 해시. 검토본이 없으면 null */
+  readonly reviewedHash: string | null;
+}
+
+/** 원본 폴더의 훑기 결과. `discoveredNames`는 읽지 못한 폴더도 든 폴더 이름이다(원본이 사라졌는지 가린다) */
+export interface PluginSources {
+  readonly entries: readonly PluginSourceEntry[];
+  readonly discoveredNames: readonly string[];
 }
 
 /** 사용처 목록에서 공통 묶음을 가리키는 값(§3.1) */
@@ -104,6 +125,8 @@ interface Index {
   /** 이름 순 */
   readonly entries: readonly Entry[];
   readonly diagnostics: readonly PluginDiagnostic[];
+  /** 발견된 사용자·프로젝트 폴더의 이름(폴더 이름). 읽지 못한 폴더도 든다 */
+  readonly discoveredNames: readonly string[];
 }
 
 function storeFailure(error: PluginStoreError): PluginPortFailure {
@@ -191,6 +214,9 @@ async function buildIndex(deps: PluginServiceDeps): Promise<Result<Index, Plugin
   for (const item of found.diagnostics) {
     diagnostics.push({ code: item.code, dir: item.dir, message: item.message });
   }
+  const discoveredNames = found.candidates
+    .filter((candidate) => candidate.origin !== "bundled")
+    .map((candidate) => basename(candidate.dir));
   for (const candidate of found.candidates) {
     const read = readPluginFolder(candidate.dir, { origin: candidate.origin });
     if (!read.ok) {
@@ -307,7 +333,7 @@ async function buildIndex(deps: PluginServiceDeps): Promise<Result<Index, Plugin
   }
 
   const entries = [...byName.values()].toSorted((a, b) => compareUtf8(a.card.name, b.card.name));
-  return ok({ entries, diagnostics });
+  return ok({ entries, diagnostics, discoveredNames });
 }
 
 /** 원본이 있는데 검토본과 내용이 다른 이름(검토본이 없는 원본 포함). 원본이 없는 항목은 빠진다 */
@@ -430,6 +456,22 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       const read = await current();
       if (!read.ok) return read;
       return ok(changedOf(read.value.entries));
+    },
+    sources: async () => {
+      const read = await current();
+      if (!read.ok) return read;
+      const entries: PluginSourceEntry[] = [];
+      for (const entry of read.value.entries) {
+        if (entry.source === null || entry.sourceHash === null) continue;
+        entries.push({
+          name: entry.card.name,
+          dir: entry.source,
+          origin: entry.card.origin.kind,
+          sourceHash: entry.sourceHash,
+          reviewedHash: entry.reviewedHash,
+        });
+      }
+      return ok({ entries, discoveredNames: read.value.discoveredNames });
     },
   };
 }

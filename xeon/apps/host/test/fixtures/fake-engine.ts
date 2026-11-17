@@ -20,6 +20,7 @@ import type { ScheduleService } from "@fresnel/cap-schedule";
 import { partial } from "./unsafe.ts";
 import type { DevkitPort } from "../../src/handlers/m4/devkit.ts";
 import type { PluginPort } from "../../src/handlers/m5/plugins.ts";
+import type { PluginReviewPort } from "../../src/handlers/m5/plugin-review.ts";
 import type { SandboxSelfTestPort } from "../../src/handlers/m4/sandbox-self-test.ts";
 import type { DialogAreaPort } from "../../src/handlers/m4/dialog-area.ts";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
@@ -152,6 +153,8 @@ export interface FakeEngineOptions {
     readonly sandboxSelfTest?: Partial<SandboxSelfTestPort>;
     /** 플러그인 읽기 포트(`plugin.list`, `plugin.get`). 쓰지 않는 멤버는 부르면 바로 실패한다 */
     readonly plugins?: Partial<PluginPort>;
+    /** 검토함 포트(`pluginReview.*`). 알림 구독은 기본으로 아무것도 보내지 않는다 */
+    readonly pluginReview?: Partial<PluginReviewPort>;
   };
 }
 
@@ -569,6 +572,10 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     // 확장 버전·화면 목록 처리기는 T-XV가 채웠으므로 확장이 없는 포트를 넘긴다(시험은 `extUi`로 바꿔 끼운다)
     // M4 처리기는 소유 트랙이 채울 때까지 모두 기본(notImplemented)이다. 포트는 빈 구현이다. 프로필·Test run은 T-WB가 채웠다
     plugins: partial<PluginPort>({ ...options.overrides?.plugins }),
+    pluginReview: partial<PluginReviewPort>({
+      onChanged: () => () => undefined,
+      ...options.overrides?.pluginReview,
+    }),
     m4: {
       extRead: createExtReadPort(
         {

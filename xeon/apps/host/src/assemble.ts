@@ -1382,6 +1382,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       pluginsForced: () => (guideWiring.forced() ? [GUIDE_GROUP_NAME] : []),
       defaultPluginsDir: bundleRoot,
       pluginStore,
+      localIds,
       startupNotices,
       measure: {
         store: () => measurement.store,
@@ -1478,6 +1479,22 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       signal: lifetime.signal,
     });
     scheduleRunner.ports = portsHandle.ports;
+    // 시작 때 원본 폴더를 한 번 훑는다. 바뀐 원본은 검토 항목이 된다(M5c §4.5.7). 실패는 로그에만 남긴다
+    detach(
+      portsHandle.ports.plugins.scan().then((scanned) => {
+        if (!scanned.ok) {
+          os.logger("plugin-store").error("plugin.startup_scan_failed", {
+            kind: scanned.error.kind,
+          });
+        }
+        return scanned.ok;
+      }),
+      (cause) => {
+        os.logger("plugin-store").error("plugin.startup_scan_failed", {
+          reason: cause instanceof Error ? cause.message : String(cause),
+        });
+      },
+    );
     // 다른 프로세스가 사용자 설정 파일을 바꾸면 메모리 층을 다시 읽고 알린다(M3-REQ-49)
     const userSettingsPath = settings.userPath();
     const settingsPort = portsHandle.ports.settings;

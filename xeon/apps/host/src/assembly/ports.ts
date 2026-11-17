@@ -14,7 +14,12 @@ import {
   type LogValue,
   type Logger,
 } from "@fresnel/contracts";
-import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
+import {
+  isId,
+  type IdFactory,
+  type LocalIdFactory,
+  type ThreadId,
+} from "@fresnel/contracts/conversation";
 import type {
   LeaseHolder,
   LeaseToken,
@@ -43,6 +48,7 @@ import {
   type WireResult,
 } from "@fresnel/contracts/wire";
 import { cancelledByOwnerOf } from "./owner-cancel.ts";
+import { PluginSubmitPortKey } from "@fresnel/contracts/extensions";
 import { isAbsolute } from "node:path";
 import type { ScheduleService } from "@fresnel/cap-schedule";
 import { itemPagesOf } from "@fresnel/core-persistence";
@@ -96,7 +102,7 @@ import { readThread } from "./thread-read.ts";
 import type { DialogAreaHolder } from "./m4/dialog-area-bridge.ts";
 import { createExtReadSources, type ExtReadAssembly } from "./m4/ext-read-sources.ts";
 import { createM4Ports } from "./m4/index.ts";
-import { createPluginService, type PluginStoreReader } from "./plugins/index.ts";
+import { createPluginReview, createPluginService, type PluginStore } from "./plugins/index.ts";
 import { DEFAULT_PLUGIN_NAMES } from "./default-plugins.ts";
 import type { ExtUiVersionSource } from "./m4/ext-ui-version-source.ts";
 import type { ProjectExtensions } from "./project-extensions.ts";
@@ -168,7 +174,10 @@ export interface PortsDeps {
   /** 기본 플러그인 번들 뿌리(`defaultPluginsDir()` 또는 옵션). 플러그인 읽기 서비스가 번들 폴더로 본다 */
   readonly defaultPluginsDir: string;
   /** 검토본 저장소 읽기(플러그인 읽기 서비스가 검토 칸, 무결성, 보관 목록을 읽는다) */
-  readonly pluginStore: PluginStoreReader;
+  /** 검토본 저장소(M5c §4.6). 읽기 면과 검토 쓰기를 모두 쓴다 */
+  readonly pluginStore: PluginStore;
+  /** 지역 id 발급(`rvw_`, `drf_`). 검토 항목과 초안의 id다 */
+  readonly localIds: LocalIdFactory;
   /** 시작 때 저장소 등이 알린 일(`host.status.startupNotices`). 없으면 알릴 것이 없는 것이다 */
   readonly startupNotices?: readonly StartupNotice[] | undefined;
 }
@@ -946,6 +955,66 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
 
   // 시작 때 알린 일은 저장소가 열린 뒤 정해져 엔진이 뜬 동안 바뀌지 않는다. 호출마다 복사본을 준다
   const startupNotices: readonly StartupNotice[] = deps.startupNotices ?? [];
+  // 플러그인 읽기 서비스(M5c §3.4)와 검토 서비스(§4.7, §4.9). 프로필 목록은 M4 포트가 쥔 것을 부를 때마다 읽는다(`ports`는 아래에서 채워진다)
+  const pluginService = createPluginService({
+    configDir: deps.configDir,
+    // 프로젝트 개념(enC2 트랙)이 주입하기 전까지 프로젝트 위치를 보지 않는다
+    projectRoots: () => [],
+    // 관리 폴더는 아직 조립되지 않았다
+    managedDir: null,
+    bundleDir: deps.defaultPluginsDir,
+    records: () => deps.extRead.extensions(),
+    profiles: { list: () => ports.m4.profileTestRun.list() },
+    store: deps.pluginStore,
+    log,
+  });
+  const pluginReview = createPluginReview({
+    store: deps.pluginStore,
+    plugins: pluginService,
+    profiles: { list: () => ports.m4.profileTestRun.list() },
+    ids: deps.localIds,
+    now: () => new Date(deps.clock.now()).toISOString(),
+    log: deps.logger,
+    // 돌려보내기 사유를 만든 대화의 다음 입력으로 넣는다(입력 큐, 사용자가 보낸 것으로 기록한다 [제안])
+    notifyOrigin: async ({ threadId, reason, itemId }) => {
+      if (!isId("thr", threadId)) return false;
+      const found = session.query.thread(threadId);
+      if (!found.ok || found.value === undefined) return false;
+      const queued = await attemptAsync(() =>
+        tasks.inputs.enqueue({
+          threadId,
+          mode: "next",
+          item: { kind: "user", content: reason },
+          requestId: `plugin-review-${itemId}`,
+          source: { type: "user", via: "rpc" },
+        }),
+      );
+      if (!queued.ok) {
+        deps.logger.error("plugin.review.notify_failed", { itemId });
+        return false;
+      }
+      return queued.value.ok;
+    },
+  });
+  // 담당 AI의 제출 포트를 플랫폼 모듈로 낸다(M5c §3.5). 키 이름은 스펙이 정하지 않아 [제안]이다. m4의 `fresnel.plugin-set`과 같은 등록 방식이다
+  detach(
+    ext
+      .registerPlatform({
+        name: "fresnel.plugin-submit",
+        setup(ctx) {
+          ctx.providePort(PluginSubmitPortKey, pluginReview.submitPort);
+        },
+      })
+      .then((registered) => {
+        if (!registered.ok) deps.logger.error("plugin_submit.register_failed", {});
+        return registered.ok;
+      }),
+    (cause) => {
+      deps.logger.error("plugin_submit.register_failed", {
+        reason: cause instanceof Error ? cause.message : String(cause),
+      });
+    },
+  );
   const ports: EnginePorts = {
     threads,
     turns,
@@ -981,19 +1050,18 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     ids: deps.ids,
     clock: deps.clock,
     scheduler: deps.scheduler,
-    // 플러그인 읽기(M5c §3.4). 프로필 목록은 M4 포트가 쥔 것을 부를 때마다 읽는다(`ports`는 이 객체가 만들어진 뒤에 채워진다)
-    plugins: createPluginService({
-      configDir: deps.configDir,
-      // 프로젝트 개념(enC2 트랙)이 주입하기 전까지 프로젝트 위치를 보지 않는다
-      projectRoots: () => [],
-      // 관리 폴더는 아직 조립되지 않았다
-      managedDir: null,
-      bundleDir: deps.defaultPluginsDir,
-      records: () => deps.extRead.extensions(),
-      profiles: { list: () => ports.m4.profileTestRun.list() },
-      store: deps.pluginStore,
-      log,
-    }),
+    // 플러그인 읽기와 검토 흐름(M5c §3.4). 읽기는 서비스가, 검토 쓰기는 검토 서비스가 한다
+    plugins: {
+      list: (filter) => pluginService.list(filter),
+      get: (name) => pluginService.get(name),
+      scan: () => pluginReview.scan(),
+      requestRemove: (name) => pluginReview.requestRemove(name),
+      revert: (name) => pluginReview.revert(name),
+      draftCreate: (dir, originThreadId) => pluginReview.draftCreate(dir, originThreadId),
+      draftList: (name) => pluginReview.draftList(name),
+      draftDiscard: (draftId) => pluginReview.draftDiscard(draftId),
+    },
+    pluginReview,
     m4: createM4Ports(
       deps.ext,
       {

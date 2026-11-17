@@ -25,6 +25,7 @@ import { notImplemented } from "./not-implemented.ts";
 import { createProposalHandlers } from "./proposal.ts";
 import { createM5Handlers } from "./m5/index.ts";
 import { createPluginHandlers } from "./m5/plugins.ts";
+import { createPluginReviewHandlers } from "./m5/plugin-review.ts";
 import { createMeasureHandlers } from "./measure.ts";
 import { createModelsListHandler } from "./models.ts";
 import { createUsageGetHandler } from "./usage.ts";
@@ -134,7 +135,8 @@ export function createWireHandlers(
     ...createSandboxSelfTestHandlers(engine.ports.m4.sandboxSelfTest),
     ...createRemoteHandlers(remotePortOf(lifecycle?.remote)),
     ...createPluginHandlers(engine.ports.plugins),
-    // 프로젝트·플러그인 검토 메서드(M5c §3.4)는 후속 작업이 처리기를 채운다. 그 전까지는 -32601이다
+    ...createPluginReviewHandlers(engine.ports.pluginReview),
+    // 프로젝트·플러그인 메서드 가운데 아직 없는 것은 후속 작업이 처리기를 채운다. 그 전까지는 -32601이다
     "project.list": notImplemented("project.list"),
     "project.get": notImplemented("project.get"),
     "project.create": notImplemented("project.create"),
@@ -142,17 +144,7 @@ export function createWireHandlers(
     "project.delete": notImplemented("project.delete"),
     "project.instructions": notImplemented("project.instructions"),
     "plugin.invocables": notImplemented("plugin.invocables"),
-    "plugin.revert": notImplemented("plugin.revert"),
-    "plugin.requestRemove": notImplemented("plugin.requestRemove"),
-    "plugin.draft.create": notImplemented("plugin.draft.create"),
-    "plugin.draft.list": notImplemented("plugin.draft.list"),
-    "plugin.draft.discard": notImplemented("plugin.draft.discard"),
     "plugin.draft.fromInstruction": notImplemented("plugin.draft.fromInstruction"),
-    "pluginReview.list": notImplemented("pluginReview.list"),
-    "pluginReview.get": notImplemented("pluginReview.get"),
-    "pluginReview.decide": notImplemented("pluginReview.decide"),
-    "pluginReview.file": notImplemented("pluginReview.file"),
-    "pluginReview.submitDraft": notImplemented("pluginReview.submitDraft"),
   };
   return table;
 }
