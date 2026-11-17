@@ -3,6 +3,7 @@ import type { TraceHandlerEntry, TraceTurnEntry } from "@fresnel/contracts/exten
 import type { UsageRecord } from "@fresnel/contracts/services";
 import type {
   Advertised,
+  FrameMark,
   HookRun,
   ModelCall,
   RecordLevel,
@@ -12,7 +13,7 @@ import type {
   TurnRecord,
   TurnStatus,
 } from "@fresnel/contracts/wire";
-import type { TrHookRow, TrStepRow, TrTurnRow } from "./turn-tables.ts";
+import type { TrFrameRow, TrHookRow, TrStepRow, TrTurnRow } from "./turn-tables.ts";
 
 // 턴 기록 행과 `record_json`을 만드는 순수 함수(정본 `docs/xeon/review/m5/turn-record-metrics.md` §3.2, §3.4, §4.1~4.2).
 // 저장하지 않는 것과 아직 채우지 않는 것은 값 자체를 두지 않는다: 덧씌우기·초안·프레임·재료·광고·캐시 원인은
@@ -77,6 +78,8 @@ export interface TurnDraft {
   scope: ScopeKind;
   /** 끝난 단계의 기록 */
   readonly steps: StepRecord[];
+  /** 주도권 스택의 프레임: 턴 시작 때 열려 있던 것과 턴 안의 변화(코어 위 프레임만, 깊이는 코어를 0으로 센다) */
+  readonly frames: FrameMark[];
   /** 단계 id별 모델 호출(사용량 합산기가 준 것). 단계가 끝날 때 읽는다 */
   readonly calls: Map<string, UsageRecord[]>;
   /** 이 턴에 쓴 훅 행 수. 상한을 셀 때 쓴다 */
@@ -111,6 +114,7 @@ export function newDraft(input: {
     lastStepIndex: null,
     scope: "live",
     steps: [],
+    frames: [],
     calls: new Map(),
     hookRows: 0,
     elidedHooks: 0,
@@ -337,7 +341,7 @@ function turnRecordOf(draft: TurnDraft, state: TurnState): TurnRecord {
     overlay: null,
     testRun: null,
     children: [],
-    frames: [],
+    frames: draft.frames.map((frame) => ({ ...frame })),
     steps: [...draft.steps],
     turnHooks: [...state.turnHooks],
     continues: [],
@@ -375,5 +379,29 @@ export function turnRowOf(draft: TurnDraft, state: TurnState): TrTurnRow {
     recordJson,
     recordBytes: new TextEncoder().encode(recordJson).byteLength,
     startedEventId: draft.startedEventId,
+  };
+}
+
+/** 프레임 표지를 `tr_frame` 행으로 옮긴다. 코어(`leaseId` 없음)는 행으로 쓰지 않는다 */
+export function trFrameRowOf(
+  ids: { readonly threadId: string; readonly turnId: string },
+  frame: FrameMark,
+): TrFrameRow | null {
+  if (frame.leaseId === null) return null;
+  return {
+    threadId: ids.threadId,
+    turnId: ids.turnId,
+    leaseId: frame.leaseId,
+    depth: frame.depth,
+    plugin: frame.plugin,
+    versionId: frame.versionId,
+    parentLeaseId: frame.parentLeaseId,
+    enteredAtMs: frame.enteredAtMs,
+    exitedAtMs: frame.exitedAtMs,
+    exitReason: frame.exitReason,
+    lowerResumedWith: frame.lowerResumedWith,
+    limitsJson: JSON.stringify(frame.limits),
+    usedJson: JSON.stringify(frame.used),
+    userMessages: frame.userMessages,
   };
 }

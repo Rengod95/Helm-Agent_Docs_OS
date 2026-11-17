@@ -11,12 +11,15 @@ import {
 import type { PluginSetPort, PluginSetView, TraceReadPort } from "@fresnel/contracts/extensions";
 import {
   AgentSpawnedPayloadSchema,
+  LeaseAcquiredPayloadSchema,
+  LeaseReleasedPayloadSchema,
   ProfileAppliedPayloadSchema,
   type DurableEventEnvelope,
 } from "@fresnel/contracts/records";
 import type { UsageRecord } from "@fresnel/contracts/services";
 import {
   SCOPE_KINDS,
+  type FrameMark,
   type RecordLevel,
   type ScopeKind,
   type TurnStatus,
@@ -31,6 +34,7 @@ import {
   stepAfterBoundary,
   stepRecordOf,
   stepRowOf,
+  trFrameRowOf,
   trHookRowOf,
   turnRowOf,
   type TurnDraft,
@@ -117,6 +121,8 @@ function scopeOf(store: MeasureStore, threadId: string, logger: Logger): ScopeKi
 export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
   /** 열려 있는 턴. 끝나면(`turn.completed`) 지운다 */
   const drafts = new Map<string, TurnDraft>();
+  /** 대화별로 열려 있는 주도권 프레임(`lease.acquired` 뒤 `lease.released` 전). 아래에서 위 순서다. 턴과 무관하게 이어진다 */
+  const openFrames = new Map<string, FrameMark[]>();
   /** 대화가 저장한 프로필 id(`thread.started`·`thread.updated`의 `profileId`). 저장하지 않았으면 null. 모르는 대화는 키가 없다 */
   const storedProfiles = new Map<string, string | null>();
   /** 대화마다 마지막으로 적용된 프로필(`profile.applied`) */
@@ -205,6 +211,61 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
     if (parsed.ok) addBounded(childThreads, parsed.value.childThreadId);
   }
 
+  /** 이 대화에서 지금 열려 있는 턴(있으면 하나) */
+  function openDraftOf(threadId: string): TurnDraft | undefined {
+    for (const draft of drafts.values()) if (draft.threadId === threadId) return draft;
+    return undefined;
+  }
+
+  /**
+   * 프레임 사건을 따른다(drive-isolation.md 2.6, 턴 기록 §4.9 규칙 23). `lease.acquired`는 프레임을 쌓고, `lease.released`는 내린다.
+   * 깊이는 코어를 0으로 센다(`lease.acquired.depth`는 코어 위 첫 프레임이 0이라 1을 더한다).
+   * 한도 소비량, 사용자 메시지 수, `lowerResumedWith`는 사건에 실리지 않아 0과 null이다
+   */
+  function frameEvent(record: DurableEventEnvelope): void {
+    const draft = openDraftOf(record.threadId);
+    const sinceStart = (): number => Math.max(0, record.recordedAt - (draft?.startedAt ?? 0));
+    if (record.kind === "lease.acquired") {
+      const parsed = parse(LeaseAcquiredPayloadSchema, record.payload);
+      if (!parsed.ok) return;
+      const { leaseId, scopeId, limits, parent, depth, contentHash } = parsed.value;
+      const frame: FrameMark = {
+        depth: (depth ?? 0) + 1,
+        plugin: scopeId,
+        versionId: contentHash ?? null,
+        leaseId,
+        parentLeaseId: parent ?? null,
+        enteredAtMs: sinceStart(),
+        exitedAtMs: null,
+        exitReason: null,
+        lowerResumedWith: null,
+        limits,
+        used: { turns: 0, spawns: 0, tokens: 0 },
+        userMessages: 0,
+      };
+      const stack = openFrames.get(record.threadId) ?? [];
+      rememberBounded(openFrames, record.threadId, [...stack, frame]);
+      draft?.frames.push({ ...frame });
+      return;
+    }
+    const parsed = parse(LeaseReleasedPayloadSchema, record.payload);
+    if (!parsed.ok) return;
+    const { leaseId, reason } = parsed.value;
+    const stack = openFrames.get(record.threadId);
+    if (stack !== undefined) {
+      rememberBounded(
+        openFrames,
+        record.threadId,
+        stack.filter((frame) => frame.leaseId !== leaseId),
+      );
+    }
+    const mark = draft?.frames.findIndex((frame) => frame.leaseId === leaseId) ?? -1;
+    const found = draft?.frames[mark];
+    if (draft !== undefined && found !== undefined) {
+      draft.frames[mark] = { ...found, exitedAtMs: sinceStart(), exitReason: reason };
+    }
+  }
+
   function remember(draft: TurnDraft): void {
     drafts.set(draft.turnId, draft);
     if (drafts.size <= MAX_OPEN_TURNS) return;
@@ -240,6 +301,10 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       level: levelNow(),
       profile: profileAtStart(record.threadId),
     });
+    // 턴 시작 때 열려 있던 스택. 턴 전에 들어온 프레임은 들어온 시각이 0이다
+    for (const frame of openFrames.get(record.threadId) ?? []) {
+      draft.frames.push({ ...frame, enteredAtMs: 0 });
+    }
     remember(draft);
     deps.queue((store) => {
       writeTurnRow(
@@ -339,7 +404,18 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
         ).rows.map((row) => row.run)
       : [];
     const endedAt = record.recordedAt;
+    const frameRows = (full ? draft.frames : []).flatMap((frame) => {
+      const row = trFrameRowOf({ threadId: draft.threadId, turnId: draft.turnId }, frame);
+      return row === null ? [] : [row];
+    });
     deps.queue((store) => {
+      if (frameRows.length > 0) {
+        const written = store.writeFrames(frameRows);
+        if (!written.ok) {
+          draft.writeFailures += 1;
+          deps.logger.warn("measure.frame_write_failed", { reason: written.error.kind });
+        }
+      }
       // 단계 쓰기가 하나라도 실패했으면 턴은 불완전하다. 계측이 꺼진 턴도 단계 기록이 없으므로 불완전하다
       const complete = full && draft.writeFailures === 0;
       writeTurnRow(store, draft, { status, endedAt, complete, turnHooks }, "closed");
@@ -352,6 +428,9 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       else if (record.kind === "thread.started" || record.kind === "thread.updated") {
         rememberStored(record);
       } else if (record.kind === "agent.spawned") rememberChild(record);
+      else if (record.kind === "lease.acquired" || record.kind === "lease.released") {
+        frameEvent(record);
+      }
       const turnId = record.turnId;
       if (turnId === null) return;
       if (record.kind === "turn.started") turnStarted(record, turnId);
@@ -373,6 +452,7 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       storedProfiles.delete(threadId);
       appliedProfiles.delete(threadId);
       childThreads.delete(threadId);
+      openFrames.delete(threadId);
     },
   };
 }

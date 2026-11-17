@@ -690,3 +690,80 @@ test("a non-default profile applied for a thread the recorder has not seen is it
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("the drive stack opened before a turn and the frames it changes are recorded with core-0 depths, and their rows are written", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-frames-"));
+  try {
+    const harness = openHarness(dir, { enabled: true });
+    const limits = { maxTurns: 3 };
+    // 턴 전에 프레임 하나(깊이 0 = 코어 위 첫 프레임)가 열려 있다
+    harness.commit([
+      event(
+        1,
+        "lease.acquired",
+        { leaseId: "lse_a", scopeId: "helm", lineageId: "lse_a", limits, depth: 0 },
+        { turnId: null },
+      ),
+    ]);
+    harness.commit([event(2, "turn.started", TURN_STARTED)]);
+    // 턴 안에서 맡기기로 위에 프레임이 쌓이고, 그 프레임은 끝난다
+    harness.commit([
+      event(3, "lease.acquired", {
+        leaseId: "lse_b",
+        scopeId: "verify",
+        lineageId: "lse_b",
+        limits: {},
+        parent: "lse_a",
+        depth: 1,
+        contentHash: "sha256:abc",
+      }),
+    ]);
+    harness.commit([
+      event(4, "lease.released", { leaseId: "lse_b", scopeId: "verify", reason: "done" }),
+    ]);
+    harness.commit([event(5, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+
+    const bundle = turnBundle(harness);
+    const record = recordOf(bundle.turn.recordJson);
+    expect(record.frames).toEqual([
+      {
+        depth: 1,
+        plugin: "helm",
+        versionId: null,
+        leaseId: "lse_a",
+        parentLeaseId: null,
+        enteredAtMs: 0,
+        exitedAtMs: null,
+        exitReason: null,
+        lowerResumedWith: null,
+        limits,
+        used: { turns: 0, spawns: 0, tokens: 0 },
+        userMessages: 0,
+      },
+      {
+        depth: 2,
+        plugin: "verify",
+        versionId: "sha256:abc",
+        leaseId: "lse_b",
+        parentLeaseId: "lse_a",
+        enteredAtMs: 10,
+        exitedAtMs: 20,
+        exitReason: "done",
+        lowerResumedWith: null,
+        limits: {},
+        used: { turns: 0, spawns: 0, tokens: 0 },
+        userMessages: 0,
+      },
+    ]);
+    expect(
+      bundle.frames.map((row) => [row.leaseId, row.depth, row.parentLeaseId, row.exitReason]),
+    ).toEqual([
+      ["lse_a", 1, null, null],
+      ["lse_b", 2, "lse_a", "done"],
+    ]);
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
