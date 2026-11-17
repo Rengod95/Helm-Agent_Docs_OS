@@ -3877,6 +3877,8 @@
   "desktop.craft.detail.provides.optional": "Pairs with",
   "desktop.craft.detail.reason.error": "The handler ended with an error",
   "desktop.craft.detail.reason.overBudget": "The handler went over its time limit",
+  "desktop.craft.detail.reason.processExit": "The plugin process ended while the handler was running",
+  "desktop.craft.detail.reason.processKilled": "The plugin process was stopped while the handler was running",
   "desktop.craft.detail.recent.error": "Could not read the recent run. Switch views and come back.",
   "desktop.craft.detail.recent.loading": "Reading the recent run",
   "desktop.craft.detail.recent.locked": "Instrumentation is off, so the recent run is not available. Turn it on in settings and runs are kept from the next turn.",

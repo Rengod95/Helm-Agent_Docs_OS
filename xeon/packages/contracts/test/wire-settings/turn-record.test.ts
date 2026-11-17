@@ -13,7 +13,6 @@ import {
   FindingSchema,
   FindingsBundleResultSchema,
   FindingsListParamsSchema,
-  HOOK_FAILURE_REASONS,
   HOOK_OUTCOMES,
   HookOutcomeSchema,
   HookRunSchema,
@@ -260,9 +259,12 @@ describe("턴 기록 값 목록(정본 순서와 글자)", () => {
     expect(parse(HookOutcomeSchema, "timeout").ok).toBe(true);
   });
 
-  test("HookRun.reason is the live failure list plus the two process reasons", () => {
-    expect([...HOOK_FAILURE_REASONS]).toEqual([
-      ...TRACE_FAILURE_REASONS,
+  test("HookRun.reason is the one live failure list, process reasons included", () => {
+    expect([...TRACE_FAILURE_REASONS]).toEqual([
+      "threw",
+      "timeout",
+      "result_invalid",
+      "merge_rejected",
       "process_exit",
       "process_killed",
     ]);
