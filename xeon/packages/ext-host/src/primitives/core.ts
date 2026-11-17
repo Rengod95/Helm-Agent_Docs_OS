@@ -191,6 +191,10 @@ export interface LeaseRuntime {
   wantInvoke: boolean;
   /** 실행 중에 호출 조건(turn_settled·idle)이 지나갔다 */
   missed: boolean;
+  /** 단계 함수가 `done`이 아닌 명령이나 `yield`를 낸 적이 있다(주도를 이어 가겠다는 뜻). 아니면 막 받은 임대라 사용자 메시지를 가로채지 않는다 */
+  engaged: boolean;
+  /** 지금까지 단계 함수에 전달한 사용자 메시지 수. 사용자 메시지 turn의 기본 요청 id 재료다(같은 판의 둘째 메시지가 첫 turn의 id를 재사용하지 않게) */
+  userSeq: number;
   /** 사용자가 보낸 메시지 중 아직 단계 함수에 `last`로 전달하지 못한 것(2.4). 앞에서부터 하나씩 전달한다 */
   readonly inbox: PostItem[];
   /** 전달한 사용자 메시지 하나를 단계 함수가 처리했는지 센다. 전달한 뒤 처리 없이 지난 단계 수. 전달 중이 아니면 null */

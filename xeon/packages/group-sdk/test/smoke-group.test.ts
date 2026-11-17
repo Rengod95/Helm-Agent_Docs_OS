@@ -73,7 +73,7 @@ test("smoke.uses-on-post-drive-in-one-turn", async () => {
   await t.host.openThread(thread);
   await t.settled();
 
-  // drive: 임대를 받아 turn 명령을 한 번 내고 상태를 커밋한다. 명령마다 결과 사건(drive.command_settled)이 하나씩 남는다
+  // drive: 임대를 받아 turn 명령을 한 번 내고 상태를 커밋한다. turn 명령의 결과 사건(drive.command_settled)이 남고 commit은 상태 커밋 사건이 그 기록이다
   expect(t.loop.turns).toHaveLength(1);
   const events = t.records.events(thread);
   expect(events.map((event) => event.kind)).toEqual([
@@ -81,14 +81,10 @@ test("smoke.uses-on-post-drive-in-one-turn", async () => {
     "lease.acquired",
     "drive.command_settled",
     "grp.smoke-group.state.committed",
-    "drive.command_settled",
   ]);
   expect(
     events.filter((event) => event.kind === "drive.command_settled").map((event) => event.payload),
-  ).toMatchObject([
-    { command: "turn", outcome: "completed" },
-    { command: "commit", outcome: "committed" },
-  ]);
+  ).toMatchObject([{ command: "turn", outcome: "completed" }]);
 
   // tool_call: 쓰기 도구만 거부한다
   const denied = await t.host.dispatch(

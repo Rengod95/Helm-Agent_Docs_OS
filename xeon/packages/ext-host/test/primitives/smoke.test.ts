@@ -22,7 +22,6 @@ test("the smoke group denies a tool, adds an entry at boundary.step.after, posts
     "lease.acquired",
     "drive.command_settled",
     "grp.smoke-group.state.committed",
-    "drive.command_settled",
   ]);
 
   // tool.call.before: 특정 도구만 거부한다

@@ -237,6 +237,11 @@ type StepOutcome =
 
 const INACTIVE: StepOutcome = { kind: "inactive" };
 
+/** `commit`으로 감싼 명령의 맨 안쪽(실제로 실행되는 마지막) 명령 */
+function finalCommandOf(command: DriveCommand<AnyState>): DriveCommand<AnyState> {
+  return command.do === "commit" ? finalCommandOf(command.next) : command;
+}
+
 /** 명령 하나를 실행하는 문맥 */
 interface StepContext {
   readonly thread: ThreadRuntime;
@@ -245,6 +250,8 @@ interface StepContext {
   readonly generation: NonNullable<RegistrationRecord["generation"]>;
   readonly loop: StepLoop;
   readonly invocation: DriveInvocation;
+  /** 이 단계의 `last`가 사용자 메시지이면 그 메시지의 순번. 그 메시지로 여는 turn의 기본 요청 id 재료다 */
+  readonly userSeq: number | null;
 }
 
 /** 예외가 "거부" 결과가 될 수 있으면 그 코드. PrimitiveError는 `code`, 루프 거부는 `kind`를 쓴다. 그 밖은 버그라 undefined */
@@ -511,7 +518,7 @@ export function createLeaseBroker(
   async function recordSettled(
     ctx: StepContext,
     requestId: string,
-    command: "turn" | "ask" | "spawn" | "commit",
+    command: "turn" | "ask" | "spawn",
     outcome: string,
     ref?: string,
   ): Promise<void> {
@@ -526,7 +533,6 @@ export function createLeaseBroker(
           threadId: thread.threadId,
           kind: "drive.command_settled",
           payload: {
-            lineageId: lease.lineageId,
             scopeId: lease.scopeId,
             requestId,
             command,
@@ -551,7 +557,10 @@ export function createLeaseBroker(
     command: DriveCommand<AnyState>,
   ): Promise<StepOutcome> {
     const { lease, invocation, loop, thread, record, generation } = ctx;
-    const nextId = (): string => `${lease.lineageId}:${invocation.baseRev}.${invocation.i}`;
+    const nextId = (): string =>
+      ctx.userSeq === null
+        ? `${lease.lineageId}:${invocation.baseRev}.${invocation.i}`
+        : `${lease.lineageId}:u${String(ctx.userSeq)}.${invocation.i}`;
     switch (command.do) {
       case "turn": {
         const requestId = command.requestId ?? nextId();
@@ -597,12 +606,10 @@ export function createLeaseBroker(
         return { kind: "result", result: askStepResult(ran.value) };
       }
       case "commit": {
-        const requestId = nextId();
         const committed = await runGuarded(ctx, () =>
           stateService.commit(record, generation, command.state),
         );
         if (!committed.ok) return committed.out;
-        await recordSettled(ctx, requestId, "commit", "committed");
         return executeCommand(ctx, command.next);
       }
       case "yield":
@@ -619,7 +626,12 @@ export function createLeaseBroker(
   }
 
   /** 전달 중이던 사용자 메시지를 코어 루프로 돌려보낸다. 입력 큐에 다음 입력으로 넣어 평소처럼 처리되게 한다 */
-  function returnUserMessage(thread: ThreadRuntime, lease: LeaseRuntime, item: PostItem): void {
+  function returnUserMessage(
+    thread: ThreadRuntime,
+    lease: LeaseRuntime,
+    item: PostItem,
+    index = 0,
+  ): void {
     const queue = core.ports.get(InputQueuePortKey);
     if (queue === undefined) return;
     detach(
@@ -627,7 +639,7 @@ export function createLeaseBroker(
         .enqueue({
           threadId: thread.threadId,
           scopeId: lease.scopeId,
-          requestId: `user-return:${lease.leaseId}`.slice(0, 64),
+          requestId: `user-return:${lease.leaseId}:${String(index)}`.slice(0, 64),
           when: "next",
           item,
         })
@@ -642,6 +654,20 @@ export function createLeaseBroker(
         });
       },
     );
+  }
+
+  /** 임대가 내려가면 전달하지 못한 사용자 메시지를 코어 루프로 돌려보낸다(메시지가 묻히지 않게) */
+  function flushUserMessages(thread: ThreadRuntime, lease: LeaseRuntime): void {
+    const pending = [
+      ...(lease.deliveredUser === null ? [] : [lease.deliveredUser]),
+      ...lease.inbox,
+    ];
+    lease.deliveredUser = null;
+    lease.userSteps = null;
+    lease.inbox.length = 0;
+    pending.forEach((item, index) => {
+      returnUserMessage(thread, lease, item, index);
+    });
   }
 
   /**
@@ -668,6 +694,7 @@ export function createLeaseBroker(
     if (message === undefined) return { last, handedBack: false };
     lease.deliveredUser = message;
     lease.userSteps = 0;
+    lease.userSeq += 1;
     return { last: { kind: "user", message }, handedBack: false };
   }
 
@@ -706,6 +733,7 @@ export function createLeaseBroker(
       generation,
       loop: makeStepLoop(thread, lease, invocation),
       invocation,
+      userSeq: next.last?.kind === "user" ? lease.userSeq : null,
     };
     const outcome = await withAmbient(
       {
@@ -724,9 +752,14 @@ export function createLeaseBroker(
           budget: budgetOf(lease),
           frame: { frameDepth: 1, calledBy: null, input: null },
         });
-        if (lease.deliveredUser !== null && (command.do === "turn" || command.do === "done")) {
-          lease.deliveredUser = null;
-          lease.userSteps = null;
+        if (lease.deliveredUser !== null) {
+          // 처리는 `turn`(commit으로 감싸도 같다)이나 `done`이다. `done`으로 물러나면 메시지는 코어 루프가 받는다
+          const final = finalCommandOf(command);
+          if (final.do === "turn" || final.do === "done") {
+            if (final.do === "done") returnUserMessage(thread, lease, lease.deliveredUser);
+            lease.deliveredUser = null;
+            lease.userSteps = null;
+          }
         }
         return executeCommand(ctx, command);
       },
@@ -734,6 +767,7 @@ export function createLeaseBroker(
     progress.nextIndex = Math.max(invocation.i, progress.nextIndex + 1);
     progress.totalEffects += invocation.effects;
     progress.quiet = invocation.effects > 0 ? 0 : progress.quiet + 1;
+    if (outcome.kind === "result" || outcome.kind === "yield") lease.engaged = true;
     if (outcome.kind !== "result") return outcome.kind;
     progress.last = outcome.result;
     if (progress.quiet >= MAX_CHAINED_REINVOKES) {
@@ -807,6 +841,7 @@ export function createLeaseBroker(
     lease.running = false;
     const endRev = stateService.revOf(thread.threadId, lease.scopeId);
     lease.lastBaseRev = endRev;
+    if (lease.status !== "active" || end === "done") flushUserMessages(thread, lease);
     if (end === "done" && lease.status === "active") {
       thread.withdrawn.set(lease.scopeId, endRev);
       release(lease, "done");
@@ -967,6 +1002,8 @@ export function createLeaseBroker(
       running: false,
       wantInvoke: true,
       missed: false,
+      engaged: false,
+      userSeq: 0,
       inbox: [],
       userSteps: null,
       deliveredUser: null,
@@ -1051,6 +1088,8 @@ export function createLeaseBroker(
         running: false,
         wantInvoke: true,
         missed: false,
+        engaged: false,
+        userSeq: 0,
         inbox: [],
         userSteps: null,
         deliveredUser: null,
@@ -1156,7 +1195,9 @@ export function createLeaseBroker(
     claimUserInput(thread, item) {
       if (thread.child) return false;
       const lease = thread.lease;
-      if (lease === null || lease.status !== "active" || !lease.committed) return false;
+      if (lease === null || lease.status !== "active" || !lease.committed || !lease.engaged) {
+        return false;
+      }
       const record = core.scopes.get(lease.scopeId);
       if (record === undefined || record.generation?.open !== true) return false;
       lease.inbox.push(item);

@@ -356,10 +356,8 @@ test("each command settles once with its lease, scope, request id, command, outc
   await answerFirst(approvals, t);
   const [firstGrant, secondGrant] = acquiredOf(t, thread);
   if (firstGrant === undefined || secondGrant === undefined) throw new Error("two grants expected");
-  const lineage = firstGrant.lineageId;
   expect(settledOf(t, thread)).toEqual([
     {
-      lineageId: firstGrant.lineageId,
       scopeId: "settle-events",
       requestId: "turn-1",
       command: "turn",
@@ -367,14 +365,6 @@ test("each command settles once with its lease, scope, request id, command, outc
       ref: TURN,
     },
     {
-      lineageId: firstGrant.lineageId,
-      scopeId: "settle-events",
-      requestId: `${lineage}:0.1`,
-      command: "commit",
-      outcome: "committed",
-    },
-    {
-      lineageId: firstGrant.lineageId,
       scopeId: "settle-events",
       requestId: "spawn-1",
       command: "spawn",
@@ -382,7 +372,6 @@ test("each command settles once with its lease, scope, request id, command, outc
       ref: CHILD,
     },
     {
-      lineageId: secondGrant.lineageId,
       scopeId: "settle-events",
       requestId: "ask-1",
       command: "ask",
@@ -497,7 +486,7 @@ test("three steps after a user message without a turn or done give the lease bac
     {
       threadId: thread,
       scopeId: "user-hand-back",
-      requestId: `user-return:${grant.leaseId}`,
+      requestId: `user-return:${grant.leaseId}:0`,
       when: "next",
       item: message,
     },

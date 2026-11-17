@@ -303,7 +303,7 @@ test("wrap.commit-command-counts-only-a-changed-state", async () => {
   expect(seen.slice(0, 2)).toEqual([0, 1]);
   const kinds = t.records.events(thread).map((event) => event.kind);
   expect(kinds.filter((kind) => kind === "grp.tally.state.committed")).toHaveLength(1);
-  expect(kinds.filter((kind) => kind === "drive.command_settled")).toHaveLength(1);
+  expect(kinds.filter((kind) => kind === "drive.command_settled")).toHaveLength(0);
   expect(api?.metrics.snapshot()).toMatchObject({ commits: 1 });
 });
 

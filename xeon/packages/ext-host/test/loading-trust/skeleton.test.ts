@@ -28,7 +28,6 @@ test("skeleton: the loader loads the smoke group and its operations run", async 
     "lease.acquired",
     "drive.command_settled",
     "grp.smoke-group.state.committed",
-    "drive.command_settled",
   ]);
 
   // on: tool_call 거부
