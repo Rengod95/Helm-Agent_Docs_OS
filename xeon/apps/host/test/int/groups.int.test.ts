@@ -220,7 +220,7 @@ function plainDriverModule(captured: { ext: ExtHost | undefined }): HostPluginMo
     extension: ({ register }) => {
       register("drive-plain", {}, (g) => {
         captured.ext = hostOf(g).port(ExtHostPortKey);
-        g.drive(async () => {});
+        g.drive(async () => ({ do: "yield" }));
       });
     },
   };
