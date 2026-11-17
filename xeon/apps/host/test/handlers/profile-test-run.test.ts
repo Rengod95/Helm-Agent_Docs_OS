@@ -28,7 +28,6 @@ afterAll(() => {
 
 const KEY_STEPS = "l1.loop.maxSteps";
 const KEY_REPEAT = "l1.loop.repeat.enabled";
-const KEY_DRIVER = "x.primitives.activeDriver";
 
 interface WriteRecord {
   readonly op: "write" | "reset";
@@ -93,7 +92,7 @@ function inputOf(over: Partial<ProfileInput> = {}): ProfileInput {
     enable: [],
     disable: [],
     settings: [],
-    driver: null,
+    startDrive: null,
     ...over,
   };
 }
@@ -191,7 +190,7 @@ test("profile.put creates at rev 1, updates with the matching baseRev and reject
     enable: [],
     disable: [],
     settings: [],
-    driver: null,
+    startDrive: null,
     updatedAt: "2026-01-05T00:00:00.000Z",
     rev: 1,
   });
@@ -270,22 +269,16 @@ const FULL: ProfileInput = inputOf({
     { key: KEY_STEPS, value: 5 },
     { key: KEY_REPEAT, value: false },
   ],
-  driver: "helm",
+  startDrive: "helm",
 });
 
-test("profile.apply writes the extension switches, the settings and the driver to the user layer, and a missing layer means user", async () => {
+test("profile.apply writes the extension switches and the settings to the user layer, and a missing layer means user", async () => {
   const rig = rigOf();
   const connection = await connect(rig);
   await connection.request("profile.put", { profile: FULL, baseRev: null });
   const applied = await connection.request("profile.apply", { id: "review" });
   expect(applied).toEqual({
-    written: [
-      "ext.helm.enabled",
-      "ext.account-rotation.enabled",
-      KEY_STEPS,
-      KEY_REPEAT,
-      KEY_DRIVER,
-    ],
+    written: ["ext.helm.enabled", "ext.account-rotation.enabled", KEY_STEPS, KEY_REPEAT],
     layer: "user",
     appliesAt: "now",
   });
@@ -300,7 +293,6 @@ test("profile.apply writes the extension switches, the settings and the driver t
     },
     { op: "write", scope: "user", key: KEY_STEPS, value: 5, threadId: undefined },
     { op: "write", scope: "user", key: KEY_REPEAT, value: false, threadId: undefined },
-    { op: "write", scope: "user", key: KEY_DRIVER, value: "helm", threadId: undefined },
   ]);
   await connection.close();
 });
@@ -434,20 +426,13 @@ test("the thread layer writes the launch scope and sends per-thread switch reque
     threadId,
   });
   expect(applied).toEqual({
-    written: [
-      "ext.helm.enabled",
-      "ext.account-rotation.enabled",
-      KEY_STEPS,
-      KEY_REPEAT,
-      KEY_DRIVER,
-    ],
+    written: ["ext.helm.enabled", "ext.account-rotation.enabled", KEY_STEPS, KEY_REPEAT],
     layer: "thread",
     appliesAt: "nextStepBoundary",
   });
   expect(rig.memory.records.map((record) => [record.scope, record.key, record.threadId])).toEqual([
     ["launch", KEY_STEPS, threadId],
     ["launch", KEY_REPEAT, threadId],
-    ["launch", KEY_DRIVER, threadId],
   ]);
   expect(rig.toggles).toEqual([
     { id: "helm", enabled: true, reason: "request", threadId },
@@ -500,7 +485,7 @@ test("profile.preview computes the holder and the overrides without writing, and
     profile: inputOf({
       enable: ["account-rotation"],
       settings: [{ key: KEY_STEPS, value: 7 }],
-      driver: "account-rotation",
+      startDrive: "account-rotation",
     }),
     baseRev: null,
   });
@@ -509,32 +494,26 @@ test("profile.preview computes the holder and the overrides without writing, and
     disabled: [],
     candidates: ["helm", "account-rotation"],
     expectedHolder: "account-rotation",
-    overrides: [
-      { key: KEY_STEPS, value: 7 },
-      { key: KEY_DRIVER, value: "account-rotation" },
-    ],
+    overrides: [{ key: KEY_STEPS, value: 7 }],
     hookCount: 0,
     layer: "user",
   });
-  // 드라이버를 정하지 않으면 이미 켜져 있던 쪽이 먼저다
+  // 시작 설정이 없으면 주도를 맡기지 않는다(중재가 없다, drive-isolation.md 2.2)
   await connection.request("profile.put", {
     profile: inputOf({ id: "auto", enable: ["account-rotation"] }),
     baseRev: null,
   });
-  expect((await connection.request("profile.preview", { id: "auto" })).expectedHolder).toBe("helm");
-  // 켜져 있던 쪽을 끄면 새로 켜지는 쪽만 남는다
+  expect((await connection.request("profile.preview", { id: "auto" })).expectedHolder).toBeNull();
+  // 켜져 있던 쪽을 끄면 새로 켜지는 쪽만 남고, 시작 설정이 없으면 여전히 아무도 받지 않는다
   await connection.request("profile.put", {
     profile: inputOf({ id: "swap", enable: ["account-rotation"], disable: ["helm"] }),
     baseRev: null,
   });
   const swapped = await connection.request("profile.preview", { id: "swap" });
-  expect([swapped.candidates, swapped.expectedHolder]).toEqual([
-    ["account-rotation"],
-    "account-rotation",
-  ]);
+  expect([swapped.candidates, swapped.expectedHolder]).toEqual([["account-rotation"], null]);
   // 지정한 드라이버가 후보가 아니면 아무도 받지 않는다
   await connection.request("profile.put", {
-    profile: inputOf({ id: "named", driver: "plain" }),
+    profile: inputOf({ id: "named", startDrive: "plain" }),
     baseRev: null,
   });
   expect((await connection.request("profile.preview", { id: "named" })).expectedHolder).toBeNull();
@@ -560,7 +539,6 @@ test("thread.create { testRun, profileId } applies the profile to the thread lay
   expect(rig.memory.records.map((record) => [record.scope, record.key, record.threadId])).toEqual([
     ["launch", KEY_STEPS, created.threadId],
     ["launch", KEY_REPEAT, created.threadId],
-    ["launch", KEY_DRIVER, created.threadId],
   ]);
   const bare = await connection.request("thread.create", { testRun: true });
   const list = await connection.request("thread.list", {});

@@ -82,8 +82,8 @@ import { dialogBridgePlugin, type CommandRegistryHolder, lazyCommandRegistry } f
 import { dialogAreaBridgePlugin, type DialogAreaHolder } from "./m4/dialog-area-bridge.ts";
 import type { WebStatusHolder } from "./web-providers.ts";
 import type { ProjectTrust } from "./trust.ts";
-import type { GroupCatalogEntry, GroupServiceWithUsage } from "@fresnel/group-sdk";
 import type { SettingCatalog } from "@fresnel/contracts/settings";
+import type { GroupCatalogEntry, GroupServiceWithUsage } from "@fresnel/group-sdk";
 import type { SettingsEngine } from "./settings-engine.ts";
 import {
   agentsSource,
@@ -339,11 +339,8 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
       (loadIndex) =>
         hostGroupsPlugin({
           ext: deps.ext,
-          catalog: deps.groups.catalog,
           settings,
-          store: deps.groups.store,
           currentThread: deps.groups.currentThread,
-          heldThreads: deps.groups.heldThreads,
           groups: deps.groups.entries,
           onEnabled: deps.groups.onEnabled,
           onService: deps.groups.onService,

@@ -6,7 +6,7 @@ import {
   type SpawnOutcome,
 } from "@fresnel/contracts/extensions";
 import { Type, type Static } from "typebox";
-import { hostOf } from "@fresnel/ext-host";
+import { ExtHostPortKey, hostOf, type ExtHost } from "@fresnel/ext-host";
 import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
 import { realTapeClock } from "./tape-host.ts";
 import type { AssembleOptions, HostPluginModule } from "../../src/types.ts";
@@ -71,6 +71,8 @@ export interface SpawnGroupProbe {
   mainThread: string | undefined;
   /** 마지막 자식 결과를 상태에 커밋하는 명령을 돌려줄 때 이행된다 */
   readonly committed: Promise<void>;
+  /** 주도 시작(`startDrive`)을 부르는 확장 호스트. 등록 때 잡는다. 주도는 자동으로 주지 않는다(drive-isolation.md 2.2) */
+  ext: ExtHost | undefined;
 }
 
 /** 임대를 받으면 `count`개 자식을 차례로 띄우고 답을 상태에 커밋한다 */
@@ -84,6 +86,7 @@ export function spawnGroup(count: number): {
     calls: 0,
     mainThread: undefined,
     committed: committed.promise,
+    ext: undefined,
   };
   const manifest = defineManifest({
     schemaVersion: 2,
@@ -106,6 +109,7 @@ export function spawnGroup(count: number): {
           SPAWN_GROUP_NAME,
           { state: { schema: StateSchema, initial: INITIAL_STATE, version: 1 } },
           (g) => {
+            probe.ext = hostOf(g).port(ExtHostPortKey);
             // 순서가 의미다: 자식은 하나씩 끝나야 테이프가 순서대로 소비된다 (L1.loop.spec §4.8).
             // 자식 결과는 `last`로 받고, 받은 답마다 상태에 커밋해 다음 자식을 답 수로 정한다. 클로저에 진행 상태를 두지 않는다
             g.drive(

@@ -20,9 +20,6 @@ import { createProfileStore } from "./profile-store.ts";
 
 // ProfileTestRun 포트 구현(`spec-deltas/t-wb.md` §1, §2). 프로필 저장은 `profile-store.ts`, 적용과 되돌리기는 이 파일이 한다.
 
-/** 프로필의 `driver`를 쓰는 설정 키(T-REG §3.3) */
-const ACTIVE_DRIVER_KEY = "x.primitives.activeDriver";
-
 /** 개발 모드(replay·benchmark·core diff 실행 허용) 판정(§3). `l3.authoring.devMode`가 참인가. 키가 아직 카탈로그에 없으면 거짓이다 */
 export function isDevMode(settingValue: (key: string) => unknown): boolean {
   return settingValue("l3.authoring.devMode") === true;
@@ -119,7 +116,6 @@ export function createProfileTestRunPort(
       }
     }
     for (const setting of profile.settings) raw.push({ key: setting.key, value: setting.value });
-    if (profile.driver !== null) raw.push({ key: ACTIVE_DRIVER_KEY, value: profile.driver });
     const writes = collapsed(raw);
     for (const write of writes) {
       const checked = checkSettingWrite(env.catalog, layers, write.key, scope, write.value);
@@ -211,23 +207,17 @@ export function createProfileTestRunPort(
         info.drive !== "none",
     );
     const candidates = [...staying, ...joining].map((info) => info.id);
-    const current = env.settingValue(ACTIVE_DRIVER_KEY, request.threadId);
-    const named = profile.driver ?? (typeof current === "string" ? current : null);
-    let expectedHolder: string | null;
-    if (named !== null) {
-      expectedHolder = candidates.find((id) => id === named) ?? null;
-    } else {
-      expectedHolder = candidates[0] ?? null;
-    }
+    // 시작 설정이 가리킨 Registration이 후보일 때만 주도를 맡는다. 시작 설정이 없으면 시작 요청이 없다(중재가 없다, drive-isolation.md 2.2)
+    const named = profile.startDrive;
+    const expectedHolder = named === null ? null : (candidates.find((id) => id === named) ?? null);
     return ok({
       enabled: [...profile.enable],
       disabled: [...profile.disable],
       candidates,
       expectedHolder,
-      overrides: collapsed([
-        ...profile.settings.map((setting) => ({ key: setting.key, value: setting.value })),
-        ...(profile.driver === null ? [] : [{ key: ACTIVE_DRIVER_KEY, value: profile.driver }]),
-      ]),
+      overrides: collapsed(
+        profile.settings.map((setting) => ({ key: setting.key, value: setting.value })),
+      ),
       // ext-host가 등록별 Hook 수를 내놓지 않는다(계약 간극): T-WA의 `hooks.list` 원천이 생기면 채운다
       hookCount: 0,
       layer: request.layer,

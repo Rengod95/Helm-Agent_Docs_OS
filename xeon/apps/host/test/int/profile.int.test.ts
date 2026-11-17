@@ -67,7 +67,7 @@ realTest(
         enable: [],
         disable: [],
         settings: [{ key: KEY, value: 5 }],
-        driver: null,
+        startDrive: null,
       };
       expect(await second.request("profile.list", {})).toEqual({ profiles: [], rev: 0 });
       const created = await first.request("profile.put", { profile, baseRev: null });
@@ -126,7 +126,7 @@ realTest(
       connection.onNotification("settings.invalidated", (params) => {
         invalidated.push(params);
       });
-      const base = { enable: [], disable: [], driver: null } as const;
+      const base = { enable: [], disable: [], startDrive: null } as const;
       await connection.request("profile.put", {
         profile: { ...base, id: "ok", title: "Ok", settings: [{ key: KEY, value: 5 }] },
         baseRev: null,

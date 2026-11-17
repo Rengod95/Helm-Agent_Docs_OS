@@ -194,7 +194,7 @@ export function createProfileStore(deps: ProfileStoreDeps): ProfileStore {
           enable: input.enable,
           disable: input.disable,
           settings: input.settings,
-          driver: input.driver,
+          startDrive: input.startDrive,
           updatedAt: new Date(deps.clock.now()).toISOString(),
           rev: storedRev === null ? 1 : storedRev + 1,
         };

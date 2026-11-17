@@ -559,7 +559,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "When an inquiry signal fires: off only records it, suggest posts a proposal message, auto requests the inquiry right away",
+          "help": "When an inquiry signal fires: off only records it, suggest posts a proposal message, auto queues the inquiry until you run /helm start",
           "helpKey": "settings.ext.helm.autoStart.help",
           "label": "Helm auto start",
           "labelKey": "settings.ext.helm.autoStart.label",
@@ -7602,6 +7602,32 @@
           "order": 101,
           "tab": "plugins",
           "widget": "table"
+        }
+      }
+    },
+    "x.primitives.driveMaxDepth": {
+      "default": 8,
+      "minimum": 1,
+      "type": "integer",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "launch"
+        ],
+        "layer": "X",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "How many plugins may lead one conversation at once, one on top of another. A handoff past this depth is refused.",
+          "helpKey": "settings.x.primitives.driveMaxDepth.help",
+          "label": "Drive stack depth limit",
+          "labelKey": "settings.x.primitives.driveMaxDepth.label",
+          "order": 102,
+          "tab": "plugins",
+          "widget": "number"
         }
       }
     },

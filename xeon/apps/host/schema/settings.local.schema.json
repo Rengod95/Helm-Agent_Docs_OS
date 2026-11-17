@@ -510,7 +510,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "When an inquiry signal fires: off only records it, suggest posts a proposal message, auto requests the inquiry right away",
+          "help": "When an inquiry signal fires: off only records it, suggest posts a proposal message, auto queues the inquiry until you run /helm start",
           "helpKey": "settings.ext.helm.autoStart.help",
           "label": "Helm auto start",
           "labelKey": "settings.ext.helm.autoStart.label",
@@ -4366,7 +4366,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Shows the enabled groups and the active driver group in the status line.",
+          "help": "Shows the enabled groups and the group that holds the drive in the status line.",
           "helpKey": "settings.l3.groupSdk.statusLine.help",
           "label": "Show groups in status line",
           "labelKey": "settings.l3.groupSdk.statusLine.label",

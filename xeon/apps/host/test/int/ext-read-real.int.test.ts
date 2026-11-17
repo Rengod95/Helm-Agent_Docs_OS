@@ -230,17 +230,17 @@ realTest(
 );
 
 realTest(
-  "a real host reads per-thread status and the drive lock of the group, its metrics, and refuses unknown names and threads",
+  "a real host reads per-thread status, the drive frames of an idle thread, the group list and metrics, and refuses unknown names and threads",
   async () => {
     const { home, host, connection, group } = await startReal({ fail: false });
     try {
       const groupId = group.module.manifest.name;
       const created = await connection.request("thread.create", {});
-      // 임대는 경계 커밋 뒤에 보유자가 된다
-      const lock = await until(
-        () => connection.request("group.driveLock", { threadId: created.threadId }),
-        (value) => value.holder !== null,
-      );
+      // 그룹을 켠 것만으로는 주도하지 않는다(drive-isolation.md 2.2). 주도한 적 없는 대화의 스택은 코어 루프 한 칸이다
+      const frames = await connection.request("drive.frames", { threadId: created.threadId });
+      expect(frames.frames.map((frame) => [frame.depth, frame.plugin, frame.state])).toEqual([
+        [0, null, "driving"],
+      ]);
 
       const scoped = await connection.request("ext.list", { threadId: created.threadId });
       const groupRow = scoped.extensions.find((entry) => entry.name === groupId);
@@ -260,26 +260,14 @@ realTest(
         [groupId, true, "enabled"],
       ]);
 
-      expect(lock.holder).toBe(groupId);
-      expect(lock.leaseEpoch).toBe(1);
-      expect(lock.activeDriver).toBeNull();
-      expect(lock.limits.turns).toBeGreaterThan(0);
-      expect(lock.used).toEqual({
-        turns: expect.any(Number),
-        spawns: 0,
-        tokens: expect.any(Number),
-      });
-      expect(lock.candidates).toEqual([]);
-      expect(lock.lastRejected).toBeNull();
-
       const metrics = await connection.request("group.metrics", {
         id: groupId,
         threadId: created.threadId,
       });
       expect(metrics.id).toBe(groupId);
-      expect(metrics.metrics?.leases).toBe(1);
+      expect(metrics.metrics?.leases).toBe(0);
       expect(metrics.sinceIgnoredBy).toEqual([]);
-      // since 이전의 임대는 세지 않는다. 메모리 카운터 값은 since를 지키지 못한다고 밝힌다
+      // since 이전의 drive 락 기록은 세지 않는다. 메모리 카운터 값은 since를 지키지 못한다고 밝힌다
       const later = await connection.request("group.metrics", {
         id: groupId,
         threadId: created.threadId,

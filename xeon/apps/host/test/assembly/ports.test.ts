@@ -66,6 +66,8 @@ const TURN = ids.next("trn");
 interface Harness {
   readonly deps: PortsDeps;
   readonly calls: string[];
+  /** `ext.openThread`가 받은 선택 인자(없으면 undefined)를 열 때마다 기록한다 */
+  readonly openOptions: unknown[];
   readonly infos: string[];
   readonly errors: string[];
   readonly compactRequests: { readonly threadId: ThreadId; readonly request: CompactRequest }[];
@@ -131,6 +133,7 @@ function busy(row: LeaseOwnerInfo | null): ReturnType<StoreService["leases"]["ac
 
 function harness(): Harness {
   const calls: string[] = [];
+  const openOptions: unknown[] = [];
   const infos: string[] = [];
   const errors: string[] = [];
   const state: Harness["state"] = {
@@ -171,6 +174,7 @@ function harness(): Harness {
   const result: Harness = {
     deps: partial<PortsDeps>({}),
     calls,
+    openOptions,
     infos,
     errors,
     compactRequests: [],
@@ -297,8 +301,9 @@ function harness(): Harness {
     }),
   });
   const ext = partial<ExtHost>({
-    openThread: () => {
+    openThread: (_threadId, options) => {
       calls.push("ext.openThread");
+      openOptions.push(options);
       return state.openThreadError === undefined
         ? Promise.resolve()
         : Promise.reject(state.openThreadError);
@@ -464,6 +469,14 @@ describe("threads", () => {
     } finally {
       rmSync(workspace, { recursive: true, force: true });
     }
+  });
+
+  test("a thread created with a profile's start drive opens the extension host with startDrive", async () => {
+    const h = harness();
+    const { ports } = createEnginePorts(h.deps);
+    await ports.threads.create({ startDrive: "helm" });
+    await ports.locks.tryAcquire(THREAD, "app");
+    expect(h.openOptions).toEqual([{ startDrive: "helm" }]);
   });
 
   test("a create with the same creationKey gives back the first thread, and the list keeps one thread", async () => {

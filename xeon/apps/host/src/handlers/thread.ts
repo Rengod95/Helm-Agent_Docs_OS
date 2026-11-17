@@ -38,15 +38,18 @@ export function createThreadCreateHandler(
         details: { issues: [{ path: "profileId", message: "profileId requires testRun: true" }] },
       });
     }
-    // 대화를 만들기 전에 프로필이 있는지 본다: 없는 프로필 때문에 빈 대화가 남지 않게 한다
+    // 대화를 만들기 전에 프로필이 있는지 본다: 없는 프로필 때문에 빈 대화가 남지 않게 한다. 시작 설정은 처음 열 때 넘긴다
+    let startDrive: string | null = null;
     if (params.profileId !== undefined) {
       const found = await profiles.getProfile(params.profileId);
       if (!found.ok) throw wireErrorOfApply(found.error, profiles.errors);
+      startDrive = found.value.startDrive;
     }
     const created = await ports.threads.create({
       ...(params.workspace === undefined ? {} : { workspace: params.workspace }),
       ...(params.title === undefined ? {} : { title: params.title }),
       ...(params.testRun === true ? { testRun: true } : {}),
+      ...(startDrive === null ? {} : { startDrive }),
     });
     await claimWrite(engine, hub(), context.connectionId, created.threadId);
     if (params.testRun === true) {

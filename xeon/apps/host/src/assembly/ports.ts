@@ -282,6 +282,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
 
   /** Test run 대화(X-19). 만들 때 표지하고 다시 열 때도 확장 호스트에 넘긴다. 지우면 비운다 */
   const testRunThreads = new Set<ThreadId>();
+  /** 프로필의 시작 설정(drive-isolation.md 2.2). 만들 때 적고 열 때 `ThreadOpenOptions.startDrive`로 넘긴다. 지우면 비운다 */
+  const startDriveThreads = new Map<ThreadId, string>();
 
   const threads: ThreadPort = {
     async create(input) {
@@ -302,6 +304,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       });
       if (!created.ok) throw wireErrorOfCreate(created.error, "threads.create failed");
       if (input.testRun === true) testRunThreads.add(created.value.threadId);
+      if (input.startDrive !== undefined)
+        startDriveThreads.set(created.value.threadId, input.startDrive);
       const head = session.feed.headSeq();
       if (!head.ok) throw wireErrorOfStore(head.error, "threads.create position");
       return { threadId: created.value.threadId, position: { storeId, seq: head.value } };
@@ -410,6 +414,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       const removed = session.threads.remove(threadId);
       if (!removed.ok) return removed;
       testRunThreads.delete(threadId);
+      startDriveThreads.delete(threadId);
       await dropHeldThread(threadId);
       await deps.toolOutputs.removeThread(threadId);
       return removed;
@@ -665,7 +670,17 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       onLeaseLost(threadId);
     });
     try {
-      await ext.openThread(threadId, testRunThreads.has(threadId) ? { testRun: true } : undefined);
+      const testRun = testRunThreads.has(threadId);
+      const startDrive = startDriveThreads.get(threadId);
+      await ext.openThread(
+        threadId,
+        testRun || startDrive !== undefined
+          ? {
+              ...(testRun ? { testRun: true } : {}),
+              ...(startDrive === undefined ? {} : { startDrive }),
+            }
+          : undefined,
+      );
     } catch (caught) {
       await abandonOpened(threadId, token, alive);
       // 확장 상태를 읽지 못한 것(busy, io, 손상 행)은 저장소 오류로 알린다. 빈 상태로 열면 켜짐과 상태 판을 잃는다

@@ -24,6 +24,7 @@ export interface M4EngineDeps {
       readonly workspace?: string;
       readonly title?: string;
       readonly testRun?: boolean;
+      readonly startDrive?: string;
     }): Promise<{ readonly threadId: ThreadId }>;
     remove(threadId: ThreadId): Promise<Result<void, { readonly kind: string }>>;
   };

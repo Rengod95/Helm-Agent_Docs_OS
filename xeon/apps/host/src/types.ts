@@ -350,6 +350,8 @@ export interface ThreadPort {
     readonly creationKey?: string;
     /** Test run 대화다. 이 thread를 열 때(처음과 다시 열 때) 확장 호스트에 Test run 표지를 넘긴다(X-19) */
     readonly testRun?: boolean;
+    /** 프로필의 시작 설정. 이 thread를 처음 열 때 확장 호스트에 `startDrive`로 넘긴다(drive-isolation.md 2.2) */
+    readonly startDrive?: string;
   }): Promise<{ readonly threadId: ThreadId; readonly position: StreamPosition }>;
   /** 읽기 연결의 busy·io, 손상 행은 오류 값이다. 처리기가 store.* 와이어 오류로 옮긴다 */
   exists(threadId: ThreadId): Result<boolean, ReadFailure>;

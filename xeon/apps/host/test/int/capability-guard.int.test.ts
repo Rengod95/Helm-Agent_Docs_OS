@@ -6,7 +6,7 @@ import {
   type ServiceKey,
 } from "@fresnel/contracts/capabilities";
 import { defineManifest } from "@fresnel/contracts/extensions";
-import { hostOf } from "@fresnel/ext-host";
+import { ExtHostPortKey, hostOf, type ExtHost } from "@fresnel/ext-host";
 import { Type } from "typebox";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
@@ -107,10 +107,12 @@ realTest(
       },
     };
     const outcome = Promise.withResolvers<Record<string, string>>();
+    let ext: ExtHost | undefined;
     const group: HostPluginModule = {
       manifest: manifestOf("cg-group", "group"),
       extension: ({ register }) => {
         register("cg-group", {}, (g) => {
+          ext = hostOf(g).port(ExtHostPortKey);
           g.drive(async () => {
             const probe = g.capability(probeKey);
             const attempts: [string, () => Promise<string>][] = [
@@ -141,7 +143,9 @@ realTest(
     });
     const connection = createHostConnection(host.client);
     await connection.request("host.hello", HELLO_PARAMS);
-    await connection.request("thread.create", {});
+    const created = await connection.request("thread.create", {});
+    // 주도 시작 요청을 넣는다. 그룹을 켠 것만으로는 주도하지 않는다(drive-isolation.md 2.2)
+    expect(ext?.startDrive(created.threadId, "cg-group").ok).toBe(true);
     expect(await outcome.promise).toEqual({
       read: "peeked",
       undeclared: "effect_not_allowed",
