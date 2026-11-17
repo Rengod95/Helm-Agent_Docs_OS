@@ -65,12 +65,21 @@ export interface DelegateCallOptions {
   readonly signal?: AbortSignal;
 }
 
-export interface DelegateReceipt {
-  readonly requestId: string;
-  readonly childThreadId: ThreadId;
-  /** duplicate: 같은 requestId의 위임이 이미 있어 새로 만들지 않았다 */
-  readonly status: "accepted" | "duplicate";
-}
+export type DelegateReceipt =
+  | {
+      readonly requestId: string;
+      readonly childThreadId: ThreadId;
+      /** duplicate: 같은 requestId의 위임이 이미 있어 새로 만들지 않았다 */
+      readonly status: "accepted" | "duplicate";
+    }
+  | {
+      readonly requestId: string;
+      /** 자식 thread는 없다. 만들지 않은 자리 id다 */
+      readonly childThreadId: ThreadId;
+      /** replaced: `agent.spawn.before` 훅이 자식 없이 보고를 돌려줬다(report) */
+      readonly status: "replaced";
+      readonly report: string;
+    };
 
 export type DelegateError =
   | {

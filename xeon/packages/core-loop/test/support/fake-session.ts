@@ -769,7 +769,11 @@ export function createFakeSession(options: FakeSessionOptions): FakeSession {
       moveLeaf: () => notImplemented("threads.moveLeaf"),
       setTitle: () => notImplemented("threads.setTitle"),
       setModel: () => notImplemented("threads.setModel"),
+      setProfile: () => notImplemented("threads.setProfile"),
       prepareSwitch: () => notImplemented("threads.prepareSwitch"),
+      openSettled: () => Promise.resolve(undefined),
+      applyOpenWorkspace: () => notImplemented("threads.applyOpenWorkspace"),
+      sameFolder: () => notImplemented("threads.sameFolder"),
     },
     sessionSettings: {
       layer: () => notImplemented("sessionSettings.layer"),

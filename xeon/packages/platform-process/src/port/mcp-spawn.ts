@@ -1,16 +1,17 @@
 import { err, ok, type Logger, type Result, type Scheduler } from "@fresnel/contracts";
 import { parseSecretRef } from "@fresnel/contracts/capabilities";
 import { resolve as resolvePath } from "node:path";
-import {
-  SENSITIVE_ENV_PATTERNS,
-  type ApprovalEvidence,
-  type BackgroundRegistry,
-  type SandboxedArgv,
-  type SandboxService,
-  type SecretService,
+import type {
+  ApprovalEvidence,
+  BackgroundRegistry,
+  SandboxedArgv,
+  SandboxService,
+  SecretService,
 } from "@fresnel/contracts/services";
 import type { ProcessPlatformProvider } from "../select.ts";
-import { spawnPiped, type PipedChild, type PipedExit } from "./spawn-piped.ts";
+import { childEnv, VALID_ENV_NAME } from "./child-env.ts";
+import { DEFAULT_STDIN_CLOSE_MS, stopperOfPiped } from "./child-stop.ts";
+import { spawnPiped, type PipedExit } from "./spawn-piped.ts";
 
 // L0.process.spec §4.9, L0.process.plan PR-23. stdio MCP 서버를 사용자 권한으로 띄우는 포트(결정 D6).
 // L2.mcp는 L0를 import하지 않으므로 같은 모양을 `cap-mcp/src/ports/process.ts`의 `McpProcessPort`로 선언해 두었고,
@@ -79,7 +80,7 @@ export type McpSecretSource = Pick<SecretService, "withEnv">;
 export type McpSandboxSource = Pick<SandboxService, "defaultPolicy" | "wrapArgv">;
 
 /** 정지 첫 단계에서 stdin을 닫고 서버가 스스로 끝나기를 기다리는 시간(ms) 기본값 */
-export const DEFAULT_MCP_STDIN_CLOSE_MS = 500;
+export const DEFAULT_MCP_STDIN_CLOSE_MS: number = DEFAULT_STDIN_CLOSE_MS;
 
 export interface McpProcessDeps {
   /** 프로세스 트리 종료 수단. 지원하지 않는 OS면 undefined이고 모든 spawn이 `unsupported_platform`으로 실패한다 */
@@ -102,32 +103,6 @@ export interface McpProcessDeps {
   readonly drainMs: number;
   /** graceful 정지에서 stdin을 닫은 뒤 SIGTERM을 보내기 전까지 기다리는 시간(ms). 기본 `DEFAULT_MCP_STDIN_CLOSE_MS` */
   readonly stdinCloseMs?: number;
-}
-
-/** 자식에게 옮기는 부모 env 이름(L0.exec.spec §3.5 `BASE_ENV_POLICY.pass`와 같은 목록) */
-const INHERITED_ENV: readonly string[] = [
-  "PATH",
-  "HOME",
-  "USER",
-  "LOGNAME",
-  "LANG",
-  "LC_ALL",
-  "LC_CTYPE",
-  "TZ",
-  "TMPDIR",
-  "SHELL",
-];
-const VALID_ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const DEFAULT_LANG = "C.UTF-8";
-
-function escapeRegExp(text: string): string {
-  return text.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function isDeniedName(name: string): boolean {
-  return SENSITIVE_ENV_PATTERNS.some((pattern) =>
-    new RegExp(`^${pattern.split("*").map(escapeRegExp).join(".*")}$`, "i").test(name),
-  );
 }
 
 function spawnFailed(code: string, message: string): Result<never, McpSpawnError> {
@@ -221,55 +196,8 @@ async function acquireSecretEnv(
   return ok({ values, dispose });
 }
 
-function childEnv(
-  parent: Readonly<Record<string, string | undefined>>,
-  plain: Readonly<Record<string, string>>,
-  secretValues: Readonly<Record<string, string>>,
-): Record<string, string> {
-  const env: Record<string, string> = {};
-  for (const name of INHERITED_ENV) {
-    if (isDeniedName(name)) continue;
-    const value = parent[name];
-    if (value !== undefined) env[name] = value;
-  }
-  if (!("LANG" in env)) env["LANG"] = DEFAULT_LANG;
-  // 평문 env는 정의가 이름과 값을 정한 것이라 거부 패턴을 거치지 않는다(시크릿 이름 패턴은 L2가 정의를 읽을 때 거부했다)
-  Object.assign(env, plain);
-  // 시크릿 값은 거부 패턴(`*_TOKEN` 등)을 거치지 않는다: 사용자가 이름을 골라 정책을 통과한 값이다(exec와 같다)
-  return Object.assign(env, secretValues);
-}
-
 export function createMcpProcessPort(deps: McpProcessDeps): McpProcessPort {
   const stdinCloseMs = deps.stdinCloseMs ?? DEFAULT_MCP_STDIN_CLOSE_MS;
-
-  /** 레지스트리가 부르는 정지 수단. graceful은 stdin 닫기 → 유예 → SIGTERM, force는 SIGKILL이다 */
-  function stopperOf(child: PipedChild): {
-    stop(mode: "graceful" | "force"): Promise<void>;
-    readonly exited: Promise<PipedExit>;
-  } {
-    return {
-      async stop(mode) {
-        if (mode === "force") {
-          child.signalTree("force");
-          return;
-        }
-        child.stdin.end();
-        const ended = await new Promise<boolean>((resolve) => {
-          const timer = deps.scheduler.setTimeout(() => {
-            resolve(false);
-          }, stdinCloseMs);
-          const settled = (): boolean => {
-            deps.scheduler.clearTimeout(timer);
-            resolve(true);
-            return true;
-          };
-          child.exited.then(settled, settled);
-        });
-        if (!ended) child.signalTree("graceful");
-      },
-      exited: child.exited,
-    };
-  }
 
   /**
    * 샌드박스 요청이 있으면 명령줄을 감싼다. 요청이 없으면 undefined(감싸지 않음)다.
@@ -346,9 +274,10 @@ export function createMcpProcessPort(deps: McpProcessDeps): McpProcessPort {
             command,
             args,
             cwd: spec.cwd,
-            // 샌드박스가 정한 값(프록시 주소 등)은 정의의 env보다 앞선다
+            // 샌드박스가 정한 값(프록시 주소 등)은 정의의 env보다 앞선다.
+            // 시크릿 값은 거부 패턴(`*_TOKEN` 등)을 거치지 않는다: 사용자가 이름을 골라 정책을 통과한 값이다(exec와 같다)
             env: {
-              ...childEnv(deps.parentEnv, spec.env ?? {}, secretEnv.value.values),
+              ...Object.assign(childEnv(deps.parentEnv, spec.env ?? {}), secretEnv.value.values),
               ...wrapped?.env,
             },
             label: spec.server,
@@ -375,7 +304,7 @@ export function createMcpProcessPort(deps: McpProcessDeps): McpProcessPort {
         label: spec.label,
         owner: { kind: "mcp", threadId: null, ref: spec.server },
         pid: child.pid,
-        stopper: stopperOf(child),
+        stopper: stopperOfPiped(child, { scheduler: deps.scheduler, stdinCloseMs }),
       });
       if (!registered.ok) {
         child.signalTree("force");

@@ -1,4 +1,4 @@
-import { mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
@@ -41,7 +41,7 @@ import type {
 } from "@fresnel/contracts/services";
 import { WireError } from "@fresnel/contracts/wire";
 import type { ScheduleService } from "@fresnel/cap-schedule";
-import type { ExtHost, OperationsPolicy } from "@fresnel/ext-host";
+import type { ExtHost, OperationsPolicy, RegistrationInfo } from "@fresnel/ext-host";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { unreadableInputNotice } from "@fresnel/cap-dialog";
 import type { CommandRegistryHolder, NotifyApi } from "../../src/assembly/l2-units.ts";
@@ -91,6 +91,10 @@ interface Harness {
     threadsCreate: ReturnType<SessionService["threads"]["create"]>;
     threadExists: boolean;
     threadRowStatus: ThreadStatus;
+    /** 대화 행이 저장한 프로필 id */
+    threadProfileId: string | undefined;
+    /** 확장 호스트가 아는 등록 */
+    registrations: RegistrationInfo[];
     modelResolve: ReturnType<ModelService["resolve"]>;
     compact: Awaited<ReturnType<ContextService["compact"]>>;
     /** 값이 있으면 요약 호출이 이 약속이 풀릴 때까지 끝나지 않는다 */
@@ -131,7 +135,8 @@ function busy(row: LeaseOwnerInfo | null): ReturnType<StoreService["leases"]["ac
   });
 }
 
-function harness(): Harness {
+/** `configDir`: 사용자 설정 폴더(`profiles.json`의 자리) */
+function harness(configDir = "/nonexistent-config"): Harness {
   const calls: string[] = [];
   const openOptions: unknown[] = [];
   const infos: string[] = [];
@@ -151,6 +156,8 @@ function harness(): Harness {
     threadsCreate: ok({ threadId: THREAD, headSeq: 1, replayed: false, token: null }),
     threadExists: true,
     threadRowStatus: "idle",
+    threadProfileId: undefined,
+    registrations: [],
     modelResolve: ok(
       partial<ResolvedModel>({
         binding: {
@@ -221,7 +228,12 @@ function harness(): Harness {
       thread: () =>
         ok(
           state.threadExists
-            ? partial<ThreadSummaryRow>({ status: state.threadRowStatus })
+            ? partial<ThreadSummaryRow>({
+                status: state.threadRowStatus,
+                ...(state.threadProfileId === undefined
+                  ? {}
+                  : { profileId: state.threadProfileId }),
+              })
             : undefined,
         ),
       turnByRequestId: () =>
@@ -301,6 +313,9 @@ function harness(): Harness {
     }),
   });
   const ext = partial<ExtHost>({
+    // 대화별 켜짐 집합 포트를 플랫폼 모듈로 등록한다(m4/index.ts). 시험 가짜는 등록만 받는다
+    registerPlatform: () => Promise.resolve(ok(undefined)),
+    registrations: () => state.registrations,
     openThread: (_threadId, options) => {
       calls.push("ext.openThread");
       openOptions.push(options);
@@ -408,7 +423,10 @@ function harness(): Harness {
       ext,
       holder: { holderId: "h", kind: "app" as const, pid: 1, startedAt: 1, host: "m" },
       settings: createSettingsEngine(built.catalog),
-      configDir: "/nonexistent-config",
+      configDir,
+      stateDir: "/nonexistent-state",
+      // 측정 저장소를 열지 못한 호스트와 같다. 테스트 표지는 메모리에만 남는다
+      measure: { store: () => undefined, enabled: () => false },
       trust: {
         resolve: () => Promise.reject(new Error("trust is not used by these tests")),
         isTrusted: () => Promise.resolve(false),
@@ -471,12 +489,48 @@ describe("threads", () => {
     }
   });
 
-  test("a thread created with a profile's start drive opens the extension host with startDrive", async () => {
+  test("opening a thread whose profile names a start drive passes that plugin's drive registration as startDrive", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "xh-startdrive-"));
+    try {
+      const at = "2026-01-01T00:00:00.000Z";
+      writeFileSync(
+        join(dir, "profiles.json"),
+        JSON.stringify({
+          schemaVersion: 2,
+          common: { plugins: [], settings: [], updatedAt: at, rev: 0 },
+          profiles: [
+            {
+              id: "review",
+              title: "Review",
+              builtin: false,
+              plugins: [{ name: "helm" }],
+              settings: [],
+              startDrive: "helm",
+              updatedAt: at,
+              rev: 1,
+            },
+          ],
+        }),
+      );
+      const h = harness(dir);
+      h.state.threadProfileId = "review";
+      h.state.registrations = [
+        partial<RegistrationInfo>({ id: "helm/side", extension: "helm", drive: "none" }),
+        partial<RegistrationInfo>({ id: "helm", extension: "helm", drive: "registered" }),
+      ];
+      const { ports } = createEnginePorts(h.deps);
+      await ports.locks.tryAcquire(THREAD, "app");
+      expect(h.openOptions).toEqual([{ startDrive: "helm" }]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a thread without a profile start drive opens the extension host without startDrive", async () => {
     const h = harness();
     const { ports } = createEnginePorts(h.deps);
-    await ports.threads.create({ startDrive: "helm" });
     await ports.locks.tryAcquire(THREAD, "app");
-    expect(h.openOptions).toEqual([{ startDrive: "helm" }]);
+    expect(h.openOptions).toEqual([undefined]);
   });
 
   test("a create with the same creationKey gives back the first thread, and the list keeps one thread", async () => {
@@ -801,12 +855,18 @@ describe("turns", () => {
     const bad: AdmitResult[] = [
       { status: "duplicate", inputId, turnId: null },
       { status: "queued", inputId, mode: "followUp", runningTurnId: null },
-      { status: "handled" },
     ];
     await sequentially(bad, async (status) => {
       h.state.admit = ok(status);
       expect(await rejectionOf(ports.turns.submit(THREAD, "hi", "r"))).toBeInstanceOf(Bug);
     });
+  });
+
+  test("an input a driving plugin or the input hook handled is accepted as delivered without a turn", async () => {
+    const h = harness();
+    const { ports } = createEnginePorts(h.deps);
+    h.state.admit = ok({ status: "handled" });
+    expect(await ports.turns.submit(THREAD, "hi", "r")).toEqual({ ok: true, delivered: true });
   });
 
   test("a refused admit is an expected rejection carrying the loop error, not a Bug", async () => {

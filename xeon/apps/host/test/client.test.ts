@@ -93,6 +93,7 @@ test("a timeout rejects with kind timeout, sends $/cancelRequest and ignores the
   const created: WireResult<"thread.create"> = {
     threadId: fixedIdFactory().next("thr"),
     position: { storeId: "sto_01ARZ3NDEKTSV4RRFFQ69G5FAV", seq: 0 },
+    sameFolder: [],
   };
   manual.deliver({ jsonrpc: "2.0", id: "r2", result: created });
   expect(await slow).toEqual(created);

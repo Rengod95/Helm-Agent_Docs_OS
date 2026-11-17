@@ -14,8 +14,9 @@ import type {
   ExtensionName,
   HookName,
   PluginEntry,
-  PortLookup,
+  PluginSetView,
   PostItem,
+  PortLookup,
   RecordKind,
   RegistrationApi,
   RegistrationDef,
@@ -329,6 +330,13 @@ export interface ThreadRuntime {
   /** 사용자가 턴을 중지했다. 사용자의 다음 명령이 정착(turn_settled)할 때까지 프로필·맡기기 시작을 막는다 */
   userStopped: boolean;
   txn: BoundaryTxn | null;
+  /** 마지막으로 `profile.applied`로 알린 대화별 켜짐 집합(E(T), M5c §4.1.5). 처음이면 null이고 첫 경계가 `open`으로 남긴다 */
+  appliedPlugins: PluginSetView | null;
+  /**
+   * 등록마다 E(T)에 맞춰 마지막으로 요청한 값. 여는 때와 경계마다 이 값과 E(T)가 다른 등록만 요청한다.
+   * 엔진이 끈 등록(`disable()`, 자동 끄기, 안전 모드)은 이 값을 바꾸지 않으므로 E(T)가 바뀌기 전까지 꺼진 채 둔다
+   */
+  pluginReconciled: WeakMap<RegistrationRecord, boolean>;
   /** 같은 thread에서 포트 부재 경고를 한 번만 내는 표시 */
   warnedPorts: Set<string>;
   /** 유휴 적용이 진행 중이다 */

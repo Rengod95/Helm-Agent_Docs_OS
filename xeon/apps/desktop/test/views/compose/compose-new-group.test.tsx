@@ -76,7 +76,20 @@ describe("StartGrid", () => {
     expect(chosen).not.toContain("지금 막혀 있어요");
   });
 
-  test("준비 중(미리 보기) 종류는 고를 수 있고 미리 보기 주석이 붙는다", () => {
+  test("준비 중(미리 보기) 단일 플러그인은 고를 수 있고 미리 보기 주석이 붙는다", () => {
+    const html = renderToString(
+      <StartGrid
+        points={startPointsOf([kindOf("single-plugin", "preview", "단일 플러그인")])}
+        selected={null}
+        onPick={NOOP}
+      />,
+    );
+    const preview = radioWith(html, "단일 플러그인");
+    expect(preview).toContain("미리 보기");
+    expect(preview).toContain('aria-disabled="false"');
+  });
+
+  test("플러그인 묶음은 준비 중이어도 고를 수 없다(M5c-1에서 wire가 받지 않는다)", () => {
     const html = renderToString(
       <StartGrid
         points={startPointsOf([kindOf("plugin-group", "preview", "플러그인 그룹")])}
@@ -84,9 +97,7 @@ describe("StartGrid", () => {
         onPick={NOOP}
       />,
     );
-    const preview = radioWith(html, "플러그인 그룹");
-    expect(preview).toContain("미리 보기");
-    expect(preview).toContain('aria-disabled="false"');
+    expect(radioWith(html, "플러그인 그룹")).toContain('aria-disabled="true"');
   });
 
   test("고른 것이 없으면 aria-checked=true가 하나도 없다", () => {

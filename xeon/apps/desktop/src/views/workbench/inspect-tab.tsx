@@ -1,7 +1,7 @@
 // 검사 탭(LightCraft 오른쪽 "검사", spec §6.22.4). 캔버스나 목록에서 고른 확장 하나를 읽는다. 고른 것이 없으면 빈 상태다.
 // 구역: 머리(이름, 층·종류·등급·버전·상태, 켜기·끄기, 다시 켜기, 확장 상세), 훅(예산과 p95), 주도 락(그룹이고 drive를 쓸 때),
 // 기능, 설정 바인딩(`settings.explain`, 읽기만), 구성(그룹만), 최근 실패.
-// 이 대화에서 끄기 스위치(`views/plugin/thread-switches.tsx`)와 이 대화의 프로필(`thread-profile.tsx`)은 대화 영역 "플러그인" 탭에 있다.
+// 이 대화의 플러그인 구역(`views/plugin/thread-switches.tsx`, 읽기만)과 이 대화의 프로필(`thread-profile.tsx`)은 대화 영역 "플러그인" 탭에 있다.
 // 값은 `packages/client/src/workbench/inspect.ts`가 만든다.
 // 데이터: `ext.get`, `ext.timings`, `group.list`·`drive.frames`(대화가 열렸을 때, 주도권 스택이 바뀌면 다시 읽는다), 엔진 거울의 실패 기록과 장부(`health`).
 import { InspectArt } from "../illustrations/index.tsx";

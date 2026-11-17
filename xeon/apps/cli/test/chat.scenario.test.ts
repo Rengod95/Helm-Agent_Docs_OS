@@ -1,6 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
 import { parse, parseJson } from "@fresnel/contracts";
-import type { TurnId } from "@fresnel/contracts/conversation";
 import type { ExtensionEntry, RegistrationHandle } from "@fresnel/contracts/extensions";
 import {
   checkEnvelope,
@@ -8,6 +7,7 @@ import {
   WIRE_PROTOCOL_VERSION,
   WireError,
   type EventWire,
+  type TurnStartResult,
 } from "@fresnel/contracts/wire";
 import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
 import { smokeGroup } from "@fresnel/group-sdk/testing";
@@ -299,7 +299,21 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
       protocolVersion: WIRE_PROTOCOL_VERSION,
       client: { name: "fresnel-cli-scenario", version: "0.0.0", kind: "other" },
     });
-    const created = await connection.request("thread.create", { workspace: home.work });
+    // 대화를 열 때 프로필의 시작 Drive가 주도 시작 요청을 낸다(drive-isolation.md 2.2)
+    await connection.request("profile.put", {
+      profile: {
+        id: "drive-start",
+        title: "Drive start",
+        plugins: [{ name: groupId }],
+        settings: [],
+        startDrive: groupId,
+      },
+      baseRev: null,
+    });
+    const created = await connection.request("thread.create", {
+      workspace: home.work,
+      profileId: "drive-start",
+    });
     await connection.request("events.subscribe", {
       from: created.position,
       filter: { threadIds: [created.threadId] },
@@ -310,7 +324,7 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
     const startTurn = async (
       input: string,
       attemptsLeft: number = BUSY_RETRY_LIMIT,
-    ): Promise<{ readonly turnId: TurnId }> => {
+    ): Promise<TurnStartResult> => {
       try {
         return await connection.request("turn.start", {
           threadId: created.threadId,
@@ -327,6 +341,7 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
 
     // 첫 사용자 turn. 그룹의 scope는 첫 단계 경계에서 켜지고, 그 뒤 유휴가 되면 drive가 임대를 받아 turn을 만든다
     const first = await startTurn("hello");
+    if (!("turnId" in first)) throw new Error("the first turn was not started");
     const firstEnded = await log.waitFor(turnEnded(first.turnId), "first turn end");
     const driveStarted = await log.waitFor(
       (event) => event.kind === "turn.started" && payloadField(event, "scopeId") === groupId,
@@ -343,23 +358,36 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
     expect(enabled.seq).toBeLessThan(acquired.seq);
     expect(acquired.seq).toBeLessThan(driveStarted.seq);
     expect(payloadField(acquired, "scopeId")).toBe(groupId);
-    expect(String(payloadField(driveStarted, "requestId"))).toStartWith(
-      String(payloadField(acquired, "leaseId")),
-    );
+    // 단계 함수의 turn 명령이 준 요청 id가 그대로 실린다(enE1: 임대 id를 앞에 붙이지 않는다)
+    expect(String(payloadField(driveStarted, "requestId"))).toStartWith("smoke:turn:");
     expect(payloadField(driveEnded, "status")).toBe("completed");
     const driveAnswer = log.all(isKind("item.recorded")).map((event) => event.payload);
     expect(JSON.stringify(driveAnswer)).toContain("drive turn answered.");
 
     // 두 번째 사용자 turn: 도구 호출 지점에서 그룹이 자기 scope 끄기를 요청한다. 같은 단계는 그대로 끝나고,
     // 끄기는 그 단계의 경계에서 적용된다
-    const second = await startTurn("read the notes");
-    const secondEnded = await log.waitFor(turnEnded(second.turnId), "second turn end");
+    // 그룹이 아직 주도 중이면 사용자 메시지는 그 단계 함수에 전달된다(`delivered`, turn 없음). 스모크 그룹은 처리하지 않으므로
+    // 단계 한도 안에 코어 루프로 돌아오고(`user-return:` 요청 id), 그 입력의 turn이 시작된다
+    const secondStart = await startTurn("read the notes");
+    const secondTurnId =
+      "turnId" in secondStart
+        ? secondStart.turnId
+        : (
+            await log.waitFor(
+              (event) =>
+                event.kind === "turn.started" &&
+                String(payloadField(event, "requestId")).startsWith("user-return:"),
+              "the turn of the returned user input",
+            )
+          ).turnId;
+    if (secondTurnId === null) throw new Error("the second turn has no turn id");
+    const secondEnded = await log.waitFor(turnEnded(secondTurnId), "second turn end");
     const toolResult = log.need(
-      (event) => event.kind === "effect.result" && event.turnId === second.turnId,
+      (event) => event.kind === "effect.result" && event.turnId === secondTurnId,
       "the read result",
     );
-    const stepDone = log.need(stepEvent("step.completed", second.turnId, 0), "step 0 end");
-    const nextStep = log.need(stepEvent("step.started", second.turnId, 1), "step 1 start");
+    const stepDone = log.need(stepEvent("step.completed", secondTurnId, 0), "step 0 end");
+    const nextStep = log.need(stepEvent("step.started", secondTurnId, 1), "step 1 start");
     const disabled = log.need(scopeChanged(groupId, "disabled"), "scope disabled");
     expect(payloadField(toolResult, "status")).toBe("ok");
     // 도구 호출 단계는 끊기지 않고 끝난다. 끄기는 그 단계가 끝난 뒤, 다음 단계가 시작되기 전에 적용된다

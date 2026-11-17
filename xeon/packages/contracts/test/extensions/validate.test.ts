@@ -289,7 +289,7 @@ describe("plugin replaces", () => {
   test("a declared built-in tool name is accepted and kept on the plugin", () => {
     const result = validateManifest(pluginJson({}, { replaces: ["read", "ls"] }));
     expect(result.issues).toEqual([]);
-    expect(result.manifest?.plugins[0]?.replaces).toEqual(["read", "ls"]);
+    expect(result.manifest?.plugins?.[0]?.replaces).toEqual(["read", "ls"]);
   });
 
   test("a name that is not a tool name is rejected", () => {

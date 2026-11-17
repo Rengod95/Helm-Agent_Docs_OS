@@ -250,7 +250,11 @@ export function startFakeServer(
         server.commit(created, [
           { kind: "thread.started", turnId: null, payload: { title: null, forkedFrom: null } },
         ]);
-        return { threadId: created, position: { storeId: options.storeId, seq: log.length } };
+        return {
+          threadId: created,
+          position: { storeId: options.storeId, seq: log.length },
+          sameFolder: [],
+        };
       }
       case "events.subscribe": {
         const from = params["from"];

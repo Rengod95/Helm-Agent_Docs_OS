@@ -28,6 +28,7 @@ import { SCHEDULE_EVENT_CATALOG } from "./schedule.ts";
 import { WORK_EVENT_CATALOG } from "./work.ts";
 import { ApprovalRequestedPayloadSchema, ApprovalResolvedPayloadSchema } from "./approval.ts";
 import { ItemRecordedPayloadSchema, PartRecordedPayloadSchema } from "./content.ts";
+import { ProfileAppliedPayloadSchema } from "./profile.ts";
 import {
   LeaseAcquiredPayloadSchema,
   DriveCommandSettledPayloadSchema,
@@ -116,6 +117,7 @@ export const CORE_EVENT_CATALOG: readonly CatalogEntry[] = [
   core("secret.masked", true, SecretMaskedPayloadSchema),
   core("tool.sandbox_bypassed", true, ToolSandboxBypassedPayloadSchema),
   core("tool.untrusted_read", true, ToolUntrustedReadPayloadSchema),
+  core("profile.applied", true, ProfileAppliedPayloadSchema),
 ];
 
 /** 카탈로그 목록을 이어 붙인다. 같은 kind가 두 번 나오면 Bug다(모듈 로드 시 검사). */
@@ -164,6 +166,7 @@ export * from "./content.ts";
 export * from "./dialog.ts";
 export * from "./extension-ops.ts";
 export * from "./input.ts";
+export * from "./profile.ts";
 export * from "./schedule.ts";
 export * from "./secret.ts";
 export * from "./settings.ts";

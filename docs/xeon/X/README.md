@@ -23,7 +23,7 @@ X가 정하지 않는 것:
 
 | 대상 | 정하는 곳 |
 |---|---|
-| 훅 이름 46개, fold 배정, 페이로드·결정·패치 타입, `FIRST_DENY`, `CHAIN_RULES`, 매니페스트 스키마 | `F.extensions.spec` |
+| 훅 이름 50개, fold 배정, 페이로드·결정·패치 타입, `FIRST_DENY`, `CHAIN_RULES`, 매니페스트 스키마 | `F.extensions.spec` |
 | 훅을 실제로 발화하는 코드, boundary 최종 검증 | `L1.loop.spec`, `L1.tools.spec`, `L1.context.spec`, `L1.models.spec`, `L1.persistence.spec` |
 | 그룹 내부 설계(Helm의 탐구 흐름, 학습 그룹의 제안 대기열), drive 락 정책의 그룹 측 판단 | `L3.group-sdk.spec`, `L3.helm.spec`, `L3.learning.spec` |
 | 대화 커밋 경로와 투영기 실행, 테이블 DDL 실행 | `L1.persistence.spec`, `L0.store.spec` |

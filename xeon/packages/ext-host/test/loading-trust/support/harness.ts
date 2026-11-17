@@ -70,7 +70,17 @@ export function moduleOf(
 
 /** 외부 확장 시험에서 바꾸는 로더 의존. 나머지는 빈 파일 시스템과 고정 경로다 */
 export type LoaderOverrides = Partial<
-  Pick<LoaderDeps, "fs" | "paths" | "trustBackend" | "prompter" | "sdkModules" | "emitProjectTrust">
+  Pick<
+    LoaderDeps,
+    | "fs"
+    | "paths"
+    | "trustBackend"
+    | "prompter"
+    | "sdkModules"
+    | "emitProjectTrust"
+    | "process"
+    | "isolation"
+  >
 >;
 
 export interface LoaderHarness extends OperationsHarness {
@@ -79,7 +89,11 @@ export interface LoaderHarness extends OperationsHarness {
     builtins: readonly BuiltinExtensionModule[],
     extra?: Partial<LoadOptions>,
   ) => LoadOptions;
-  readonly settings: { enabled: Map<string, boolean>; values: Set<string> };
+  readonly settings: {
+    enabled: Map<string, boolean>;
+    values: Set<string>;
+    isolation: Map<string, "none" | "process">;
+  };
 }
 
 export async function createLoaderHarness(
@@ -90,10 +104,15 @@ export async function createLoaderHarness(
   } = {},
 ): Promise<LoaderHarness> {
   const harness = await createOperationsHarness(options);
-  const settings = { enabled: new Map<string, boolean>(), values: new Set<string>() };
+  const settings = {
+    enabled: new Map<string, boolean>(),
+    values: new Set<string>(),
+    isolation: new Map<string, "none" | "process">(),
+  };
   const source: LoaderSettingsSource = {
     enabled: (name) => settings.enabled.get(name),
     hasValue: (key) => settings.values.has(key),
+    isolation: (name) => settings.isolation.get(name),
   };
   const loader = createExtensionLoader({
     host: harness.t.host,
@@ -106,6 +125,8 @@ export async function createLoaderHarness(
     ...(options.loader?.emitProjectTrust === undefined
       ? {}
       : { emitProjectTrust: options.loader.emitProjectTrust }),
+    ...(options.loader?.process === undefined ? {} : { process: options.loader.process }),
+    ...(options.loader?.isolation === undefined ? {} : { isolation: options.loader.isolation }),
     clock: { now: harness.t.timers.now },
     settings: source,
     ...(options.core === undefined ? {} : { coreCapabilities: options.core }),

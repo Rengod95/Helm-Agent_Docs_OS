@@ -449,6 +449,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 | `l1.context.pruneThresholdChars` | integer 50~100000 | `200` | M U P | nextTurn | number | 2차 |
 | `l1.context.reinjectRecentFiles` | integer 0~20 | `5` | M U P | nextTurn | number | 2차 |
 | `l1.context.cacheWarming` | `"off" \| "idle"` | `"off"` | M U | live | select | 2차 |
+| `l1.context.instructionFiles.maxBytes` | integer | `65536` | M U | nextTurn | number(바이트) | M5c |
 
 - 명령: `/compact [지침]`(수동 컴팩션), `fresnel config set l1.context.autoCompact false`.
 - 요약 모델은 `l1.models.routing.summary`(models 탭)다.

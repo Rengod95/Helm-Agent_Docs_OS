@@ -467,7 +467,11 @@ export function startEventFanout(engine: Engine, hub: ConnectionHub): EventFanou
       conn.sender.push({
         jsonrpc: "2.0",
         method: "profile.changed",
-        params: toRecord({ rev: change.rev, ids: [...change.ids] }),
+        params: toRecord({
+          rev: change.rev,
+          ids: [...change.ids],
+          commonChanged: change.commonChanged,
+        }),
       });
     }
   });

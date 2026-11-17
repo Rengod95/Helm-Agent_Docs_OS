@@ -504,6 +504,8 @@ export interface ToolApprovalBody {
   readonly ruleId: string | null;
   /** MCP 서버 도구면 서버 이름과 서버가 알린 성질. 표시용이고 신뢰하지 않는다(정책과 승인 결정에 쓰지 않는다). 옛 기록과 MCP가 아닌 도구에는 싣지 않는다 [결정: 오케스트레이터 기본값, fxMC] */
   readonly mcp?: { readonly server: string; readonly declared?: McpDeclaredHints };
+  /** 훅 `tool.call.before`이 `ask`를 낸 카드면 그 확장과 사유. `ruleId`는 `hook:<확장 이름>`이다 [제안: M5e §4.3.1, D-6] */
+  readonly askedBy?: { readonly extension: string; readonly reason: string };
 }
 
 // 계획 승인 본문(`PlanApprovalBody`)은 없다 [결정: 2026-11-13 사용자] [근거: 2026-11-15 사용자 정리]. 옛 기록의 body는 kind `plan`만 읽는다(F `LegacyPlanBody`).
@@ -572,6 +574,8 @@ export interface ApprovalResolution {
   readonly remember: ApprovalRemember;
   readonly requestedRemember: ApprovalRemember | null;
   readonly resolvedBy: ApprovalResolvedBy;
+  /** `resolvedBy`가 `"extension"`이면 해결한 확장 이름. 훅 `ask.human.before`의 `cancel`·`answer`가 낸다 [제안: M5e §4.3.1] */
+  readonly resolvedByExtension?: string;
 }
 
 /** 요청 이벤트 커밋이 실패한 이유 */
@@ -747,9 +751,9 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 | 2 | 도구 이름 해석 | `prepare`. 원본 agent-loop.ts:716-722 | 없으면 `[fresnel:tool_unavailable]` 오류 결과(`settled`) |
 | 3 | 인자 준비 | 없다. 도구별 `prepareArguments`는 F `AgentTool`에서 뺐다(F.conversation.spec §3.1.1) | — |
 | 4 | 스키마 검증 `validateToolArguments` | `prepare`. core-tools `validate.ts`가 pi-ai 1.3.0 `validateToolArguments`의 TypeBox 경로(argumentsError 확인, 사본, 선택 null 제거, `Value.Convert`, 스키마 검사)를 옮겼다. TypeBox 표지가 없는 순수 JSON Schema(MCP)의 `coerceWithJsonSchema` 경로는 옮기지 않았다(M2 cap-mcp에서 더한다) | 예외 대신 `settled` 오류 결과로 모델에 돌아간다 |
-| 5a | `tool.call.before` 훅(first) | `prepare` | 핸들러 예외는 `FIRST_DENY.tool_call`로 거부(fail-closed). 디스패처 자체 예외도 거부 |
+| 5a | `tool.call.before` 훅(first, 합치기 `block` > `replace` > `ask`) | `prepare` | 핸들러 예외는 `FIRST_DENY.tool_call`로 거부(fail-closed). 디스패처 자체 예외도 거부. 막기는 거부다. 결과 대신 주기(`replace`)는 실행 없이 결과를 기록하고 5b~11을 건너뛴다. 묻기(`ask`)는 5c의 카드로 잇는다(§4.2.1) |
 | 5b | 정책 평가 `evaluatePolicy`. 자식 대화(`ceiling` 있음)는 §4.5 ceiling 단계 적용 | `prepare` | deny는 `settled` |
-| 5c | 승인 대기(ask일 때) | `prepare`. `ApprovalService.request` | deny·cancelled는 `settled` |
+| 5c | 승인 대기(정책이 ask일 때, 또는 훅이 `ask`를 냈을 때) | `prepare`. `ApprovalService.request`. 정책 카드와 훅 묻기 카드는 합쳐 한 장이다(§4.2.1) | deny·cancelled는 `settled`. 답할 사람이 없는 실행에서 훅 묻기가 거부되면 `[fresnel:denied_by_extension] <사유> (confirmation unavailable)`이다 |
 | 5c2 | `guard.tool.before` 훅(first) [M3-REQ-109] | `prepare`. 정책·승인(시크릿 사용 승인 포함)을 모두 통과한 호출만 온다. 의도를 쓰기 전이다 | 핸들러 `{ block: true, reason }`는 `settled`(`[fresnel:denied_by_guard] <reason>`)이고 효과 이벤트가 없다. 핸들러·디스패처 예외도 거부(fail-closed, `FIRST_DENY["guard.tool.before"]`). 내장 검사는 없다. 페이로드는 5a와 같은 `ToolCallPayload`다 |
 | 5d | 중단 확인 | `prepare`. 의도를 쓰기 전에 turn 신호를 본다 | 중단이면 `settled`(`[fresnel:aborted]`) |
 | 6 | `effect.intent` 커밋 | `prepare`의 끝 | 커밋 실패는 `settled`(`[fresnel:tools.commit_failed] …`) |
@@ -778,6 +782,41 @@ export type ApprovalResolvedPayload = ApprovalResolution;
   - 7b의 키 산출 함수(durable `file-mutation-queue.ts` 7-26행 `mutationKey`, `canonical`)는 core-tools로 옮긴다(L1.tasks.spec §4.4 포크 2번). 파일 시스템 접근은 `fresnel.exec`만 쓴다(DR-13).
   - 기능 밖 도구(`DirectToolRegistration`)는 M1에 잠금 선언이 없다. 필요해지면 같은 모양의 선택 필드를 더한다 [제안].
   - `rerun`(§4.9)도 7a~11단계를 지나므로 키 잠금과 슬롯을 다시 얻는다.
+
+#### 4.2.1 훅 결정 ask와 replace [제안: M5e 스펙 §4.2, §5.1 H-1~H-3, §7 E-1~E-3]
+
+`tool.call.before`의 결정은 셋이다(`ToolCallDecision`, `contracts/src/extensions/hooks/tool.ts`). 허용은 값으로 내지 않는다(`undefined`가 허용이다).
+
+| 화면 말 | 값 | core-tools가 하는 일 |
+|---|---|---|
+| 막기 | `block` | 실행하지 않고 `[fresnel:denied_by_extension] <사유>`를 모델에 준다. 기록은 차단된 호출과 같다 |
+| 묻기 | `ask` | 정책 판정 뒤 승인 카드를 연다(아래 규칙 1~6). 허용이면 시크릿 사용 승인과 `guard.tool.before`가 이어진다. 거부면 `The user denied this tool call.`의 거부 결과다 |
+| 결과 대신 주기 | `replace` | 실행하지 않고 훅이 낸 결과를 기록한다(아래 "결과 대신 주기의 기록"). 정책·승인·`guard.tool.before`·`tool.result`를 평가하지 않는다 |
+
+합치기 [결정: 2026-11-17 사용자, U3. M5e §5.1 H-2]: `tool.call.before`는 같은 위치의 모든 핸들러를 돌린 뒤 `block` > `replace` > `ask` 순으로 가장 강한 결정을 쓴다. 같은 종류 안에서는 순서가 앞선 핸들러의 값이 이긴다. 구현은 `ext-host`의 `FIRST_RANK`다. 다른 first 훅은 처음 결정에서 멈춘다.
+
+묻기의 규칙:
+
+1. 정책 deny는 deny다. 훅의 묻기는 정책 거부를 풀지 못한다(H-1). 정책 판정은 카드보다 먼저 끝나므로 정책이 deny면 카드를 열지 않는다.
+2. 정책이 allow거나 ask면 카드를 정확히 한 장 연다(H-3). 카드 본문의 `askedBy`는 `{ extension, reason }`이고 `ruleId`는 `hook:<확장 이름>`이다. `remember`는 `["once"]`뿐이다 [제안, M5e 12절 O-2]. 정책도 물었으면 카드 제목에 정책의 규칙 id와 훅의 사유를 함께 싣는다. 사유 전문은 `askedBy.reason`에 있다.
+3. 훅이 물은 호출에서는 정책의 `ask`를 무인 거부로 바꾸지 않는다(§4.5 6단계를 건너뛴다). 답할 수 없을 때의 거부는 승인 서비스의 무인 정책(§4.7 6c)이 정한다.
+4. 권한 모드 `bypass`에서도 훅의 묻기는 카드를 연다(E-2). `bypass`는 코어가 스스로 묻지 않는다는 뜻이다. 저장소가 고른 `bypassAllowed` 평가는 바뀌지 않는다.
+5. 허용되면 시크릿 사용 승인(§4.12)과 `guard.tool.before`가 이어진다. 사용자가 누른 허용은 `state.userApprovalId`로 남아 시크릿 사용의 증거가 된다.
+6. 사용자가 `!명령`으로 직접 친 셸 호출의 훅 묻기는 허용으로 본다. 사용자가 낸 명령이라서다 [가정: 확장이 사용자 셸 명령에 묻는 경로는 현재 구현에 들어 있지 않다. 근거: `core-tools/src/pipeline.ts`의 `decide`가 `state.userShell`이면 묻기도 허용으로 본다. 이 가정이 틀리면 §10에서 다시 정한다].
+
+무인 실행 [결정: M5e §7 E-1, A-5]: 답할 사람이 없으면 승인 서비스의 무인 정책(`l1.tools.unattended.approval`: `deny`, `wait`, `expire`)을 따른다. `deny`로 거부되면 모델에 보이는 본문은 정확히 다음 한 줄이다.
+
+`[fresnel:denied_by_extension] <사유> (confirmation unavailable)`
+
+사유에 줄바꿈이 있으면 공백으로 바꾼다. 서브에이전트와 깊이가 있는 호출은 카드를 열지 않고 같은 문장으로 거부한다 [제안: 시험 지시의 "침묵 거부"를 이 문장으로 읽었다. M5e §7 E-4의 "묻지 않고 거부"와 맞다]. 이 거부 결과의 `details`는 `{ code: "denied_by_extension", hook: "tool.call.before", extension, outcome: "asked", reason }`이다. `outcome`의 `asked`는 M5e §4.5의 표시값 변환이 쓰는 값이다. 막음의 `details` 모양(`blocked`, `threw`)은 바뀌지 않는다.
+
+결과 대신 주기의 기록 [제안: M5e §4.2 "replace의 동작"]:
+
+- `effect.intent`를 쓰지 않는다. 도구 결과 항목 하나를 `effectId: null`로 기록한다. 커밋 키는 차단된 호출과 같은 `tool:<key>:result`다(§4.2 부속 규칙).
+- 결과의 `content`는 훅이 낸 `content`다. `isError`는 훅이 낸 값이고, 없으면 `false`다. `details`는 훅이 낸 객체에 `{ hook: "replaced", extension }`을 합친다. 훅이 낸 `details`가 객체가 아니면 `details` 키 아래에 그대로 싣는다.
+- `tool.result` 훅은 돌지 않는다. 훅이 이미 정한 값이기 때문이다. 정책, 승인, `guard.tool.before`도 평가하지 않는다. 기준 시험은 §9 43번이다.
+- 결과 본문은 `outputLimits` 경계화(§4.8)를 거치지 않는다. 본문 상한은 §10 미결이다.
+- 사용자 셸 호출에서 `replace`가 닫은 호출은 `runUserShell`이 `details.code`를 `not_executed`로 바꿔 돌려준다(§3.3 `runUserShell`).
 
 ### 4.3 어댑터 환원
 
@@ -871,7 +910,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 - 위험 등급 [제안]: 도구가 등급을 선언하고 선언이 없으면 가장 위험한 쪽을 쓴다(`_research/item-catalog.md` L1-d "위험 등급과 승인 필요 선언", omp 미선언 시 exec). 등급과 재생 선언은 도구 등록 필드로 받는다. 미선언 등급은 `exec`, 미선언 재생은 `unsafe`다.
 - 등급 유도 [제안]: `ToolPolicyMeta.risk`가 있으면 그 값이다. 없으면 `hints.readOnly === true`면 `read`, 그 밖은 `exec`다. MCP annotation(`readOnlyHint` 등)은 `hints`로 들어오는 입력일 뿐이다. annotation이 `destructiveHint: false`라도 등급을 `write`로 낮추지 않는다. 신뢰할 수 없는 서버의 선언이기 때문이다.
 - 위험 등급은 F `ToolSpec`에 필드가 없다. F.capabilities.spec에 `risk?: ToolRisk`, `classes?: ToolClass[]` 추가를 요청한다(§8.3 F 요청 1). 추가 전에는 `CapabilityToolsRegistration.policy`로 받는다.
-- 권한 모드는 대화 범위 설정 `l1.tools.permissionMode`의 유효 값이다. 모드 변경은 다음 도구 호출부터 적용한다(`runtimeChange: "live"`). 이미 승인 대기 중인 요청은 모드가 바뀌어도 그대로 둔다.
+- 권한 모드는 대화 범위 설정 `l1.tools.permissionMode`의 유효 값이다. 우선순위는 managed > launch > profile > local > project > user다(M5c §3.3, 프로필 범위는 대화가 참조한 프로필의 `settings` 값). 모드 변경은 다음 도구 호출부터 적용한다(`runtimeChange: "live"`). 이미 승인 대기 중인 요청은 모드가 바뀌어도 그대로 둔다.
 - 옛 `plan` 값 [결정: 2026-11-13 사용자, 옛 대화 보호. 읽기 규칙 정리 2026-11-15 사용자]: 계획 모드 시절에 저장된 대화·설정의 `l1.tools.permissionMode` 값이 문자열 `"plan"`이면 `default`로 읽는다. 저장된 문자열은 바꾸지 않는다. 이 읽기는 `core-tools/src/settings.ts`의 `normalizeStoredMode` 한 곳에 있고, 엔진(`pickMode`)이 그 함수를 쓴다. `"plan"` 층에서 멈추고 아래 층으로 넘어가지 않는다. 설정 값 검사(`validateSettingValue`)는 `plan`을 거부하므로 새로 쓸 수 없다.
   - 설정 읽기(`settings.get`)도 엔진과 같은 `default`를 보여야 한다 [결정: 2026-11-15 사용자]. `resolveSetting`(F wire-settings)은 값 검사에 걸리는 층을 건너뛰므로, `settings.get`은 옛 `plan` 층을 건너뛰고 아래 층의 값을 보인다. 정의에는 값 정규화 훅이 없다. 그래서 `settings.get`을 만드는 host 층이 `resolveSetting`에 넘기기 전에 `normalizeStoredMode`를 거쳐야 한다 [미결: host 층에서 할 것. L4.host-service 범위라 이 층에서 고치지 않았다]. 그 전까지 화면과 엔진이 다른 값을 보일 수 있다. [근거: packages/contracts/src/wire-settings/settings/effective.ts resolveSetting]
   - 사용자 정책 규칙의 `resource.mode`에 든 `"plan"`은 그 항목만 뺀다(`policy/rules.ts` `withoutRetiredModes`). 목록이 비면 그 규칙만 건너뛴다. 빈 목록은 모든 모드에 적용되는 규칙이라 그렇게 두지 않는다. 건너뛰면 진단 하나를 남긴다(`collectRules`의 issues) [결정: 2026-11-15 사용자]. 계약은 읽기에서만 `plan`을 받는다(`RetiredPermissionMode`).
@@ -907,6 +946,19 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
    - 살아 있는 호출이 기다리는 요청은 파이프라인(`decide`)과 어댑터(`input_required` 대기)가 신호가 끊길 때 닫는다. 프로세스가 끊긴 뒤 남은 요청은 호출이 없다. core-loop가 열린 turn을 닫을 때(`closeOpenTurn`) `ApprovalService.restore`로 미해결 요청을 읽어 그 turn의 것을 `cancel`로 닫는다.
 9. 옛 계획 승인의 건너뜀 [결정: 2026-11-13 사용자 폐지, 2026-11-15 사용자 정리]: 계획 승인은 더는 만들지 않는다. 요청 종류에 `plan`이 없어 `request`·`open`으로 만들 수 없다. 열 때(`restore`) 옛 `plan` 요청은 `approval.requested` 기록에 있어도 대기 목록에 올리지 않고 건너뛴다. 쓰기도 없다. 그래서 정착 커밋(`resolvedBy: "cancelled"`)도 없고, 이미 해결된 옛 `plan` 기록도 그냥 지나간다. 옛 body는 kind만 읽는다(`approvalBodyOf`가 `undefined`를 돌려준다). 응답을 받지 않으므로 그 id로 `respond`하면 `unknown_approval`이다. 옛 대화가 닫힐 때 `restore`가 이 요청을 찾지 못하므로 해결 기록 없이 남는다. 화면과 대기는 이 기록에 기대지 않아 실행에는 영향이 없다 [제안]. 모드를 쓰는 경로는 없다. [근거: packages/core-tools/src/approvals/pending.ts approvalBodyOf, packages/core-tools/src/approvals/service.ts restore]
 10. 메모리 표의 크기 [결정: 통합 검토 L7]: 해결된 요청은 `RESOLVED_KEPT`(256)개까지만 `byId`·`byKey`에 남기고, 넘으면 가장 먼저 해결된 요청부터 뺀다(FIFO). 대기 중인 요청은 해결되기 전이라 표에 오르지 않으므로 빼지 않는다(해결된 요청의 대기자는 해결 때 모두 깨워 비우고 새 대기자는 즉시 해결을 받으므로, 해결된 요청에 대기자가 남아 빼기를 막는 경우는 없다) [결정: 통합 검토 L7 후속 N-6]. 빠진 요청도 이벤트는 남아 있다. 같은 `requestKey`의 `open`은 커밋 키로 기록된 요청을 되찾고 저장된 해결을 이어 받는다(`replayed`, 같은 `approvalId`, 새 이벤트 없음). 빠진 `approvalId`로 `get`은 `undefined`, `wait`은 `unknown`이고 `respond`는 적용하지 않는다. 대화 허용 목록(`remember: "thread"`)은 이 표와 따로 둔다.
+
+#### 4.7.1 사람에게 묻기 훅 [결정: 2026-11-16 사용자, M5e 결정 A. 발화 세부는 M5e 스펙 §4.3.1·§4.3.2]
+
+두 훅은 승인 서비스(`core-tools/src/approvals/service.ts`)가 발화한다. 이름과 payload 모양은 `contracts/src/extensions/hooks/ask.ts`가 정한다.
+
+- `ask.human.before`(first, 실패는 열린 실패). 발화: `open`이 새 요청을 만들 때, `approval.requested`를 커밋하기 전. 같은 `requestKey`의 요청이 메모리 표에 있으면(`known`) 발화하지 않는다. 복원된 요청(`restore`)에도 발화하지 않는다(M5e E-7). 범위는 모든 kind(`tool`, `question`, `review`)다. 결정은 둘이다.
+  - `{ cancel: true, reason }`: 모든 kind에서 허용한다. 카드 없이 해결한다. `decision: "deny"`, `resolvedBy: "extension"`, `resolvedByExtension: <확장 이름>`이다. 모델에 보이는 거부 문장은 `[fresnel:denied_by_extension] An extension cancelled this approval request.`다. 사유는 기록에 남지 않는다(§10).
+  - `{ answer, reason }`: `question`에서만 허용한다. 답이 질문 묶음 검사(§3.6 응답 규칙)를 통과하면 카드 없이 `decision: "answer"`로 해결하고 `resolvedBy: "extension"`이다. `tool`과 `review`에서 받은 `answer`는 무시하고 진단 `tools.ask_human_answer_ignored`를 남긴다. 승인은 권한이라서 훅이 대신 줄 수 없다(M5e H-1).
+  - 결정이 없거나, 핸들러가 예외를 던지거나, 시간 초과이거나, 스키마에 맞지 않으면 결정 없음으로 보고 사람에게 묻는다(M5e E-3). 그 뒤에는 무인 정책이 이어진다.
+  - 카드 없이 해결한 요청은 `approval.requested`와 `approval.resolved`를 한 커밋에 쓴다. 대기 체크포인트와 `ui_prompt` 발화는 쓰지 않는다(§4.7 7번과 같은 모양이다).
+- `ask.human.after`(tap, 실패는 열린 실패). 발화: 이 프로세스가 해결을 새로 커밋한 뒤 한 번이다. 대화형 카드를 닫는 커밋(`prompt(end)` 자리, 4번)과 카드 없이 해결한 커밋 둘 다 해당한다. 복원된 해결에는 발화하지 않는다. 결정은 받지 않는다(값을 바꾸면 사용자의 답을 위조하게 된다). payload의 `resolution`은 `decision`, `resolvedBy`, `resolvedByExtension`, `answer`를 싣는다.
+- 해결 기록: `approval.resolved`의 `resolvedBy`에 `"extension"`이 더해지고 `resolvedByExtension`이 그 확장 이름이다(§3.6). 카드 본문 `ToolApprovalBody.askedBy`는 §4.2.1의 묻기 카드에만 있다.
+- `thread.prompt.before`와 `thread.prompt.after`(§7 표)는 대신하지 않는다. 화면이 카드를 띄우고 닫은 신호로 남는다(M5e §4.3.2).
 
 내구화와 재개:
 
@@ -1050,6 +1102,10 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 11. `bypass` 모드인데 managed가 금지함: `setMode`는 `tools.mode_forbidden`을 돌려준다. 이미 `launch` 값이 `bypass`인 채 managed 금지가 생기면 평가기가 `default`로 본다(§4.5 4단계).
 12. 같은 이름의 도구를 두 출처가 등록함: `register`가 `err({ kind: "name_conflict", toolName })`을 돌려주고 도구 표는 바뀌지 않는다. 확장 조합이 낼 수 있는 정상 운영 중의 실패라 던지지 않는다(eng.typescript.guide TY-24). 해소 규칙은 F.capabilities.spec §10 [결정: 2026-11-03 사용자](내장 도구 같은 이름 대체)를 따른다. 확장이 매니페스트 `replaces`로 선언한 내장 도구 이름만 대체할 수 있고, 선언 없는 겹침은 이 오류다. 대체는 §4.13이 정한다.
 13. `tool.result` 훅이 결과를 고침: 체인의 `applied`에 든 확장이 있고 최종 값이 훅 호출 전과 다르면 결과 `details`에 `resultPatchedBy: [<확장 이름>…]`를 더한다. 이름은 등록 순서이고 같은 확장은 한 번만 적는다. 기존 `details`가 객체면 키를 더해 합치고, `null`이거나 없으면 `{ resultPatchedBy }`로 둔다. 객체가 아닌 값은 건드리지 않는다. 패치가 적용됐어도 최종 값이 그대로면, 또는 `applied`가 비었으면 아무것도 더하지 않는다. 화면은 이 키로 훅 개입을 일반 실패와 구분한다 [결정: 2026-11-11 사용자].
+    - 파일 변경 `fileChanges`(M5e §5.4 F-1·F-3·F-4·F-6): 코어 기능 도구(`capability`가 있는 항목)의 결과 `details`에 든 변경(내장 `write`·`edit`의 옛 `FileChange` 한 건)은 체인에 들어가기 전에 떼어 둔다. 플러그인 도구가 `ctx.changes.report`로 알린 변경은 `source: "reported"`로 검증해 모은다. 체인이 끝난 뒤 두 목록을 합쳐 `details.fileChanges`에 싣는다. 관찰 항목이 같은 `path`의 보고 항목을 이긴다. 체인이 `details`를 지우거나 `isError`를 바꿔도 관찰·보고 항목은 남는다(오류 결과도 같다). 합칠 것이 없으면 예약 키 `fileChanges`는 두지 않는다. 도구나 훅이 낸 같은 키는 지운다. 관찰 항목이 옛 한 건과 같으면 `details`의 모양을 바꾸지 않는다. 합친 뒤에 마스킹한다. 구현은 core-tools `src/file-changes.ts`와 `src/pipeline.ts`의 `finishCall`이다.
+14. 훅 묻기가 답할 사람이 없는 실행에서 거부됨: 카드는 열리지 않고, 모델 본문은 `[fresnel:denied_by_extension] <사유> (confirmation unavailable)` 한 줄이다. 결과 `details.outcome`은 `asked`다(§4.2.1 무인 실행, M5e E-1).
+15. `ask.human.before` 핸들러가 예외를 던짐, 시간 초과, 스키마 위반: 결정 없음이다. 사람에게 묻는다(열린 실패, M5e E-3). 승인이 조용히 허용되지 않고 요청도 멈추지 않는다.
+16. 같은 호출에서 훅이 `replace`를 내고 정책은 deny다: `replace`가 이긴다. 정책은 평가하지 않으므로 호출은 실행되지 않고 훅의 결과가 기록된다(§4.2.1). 이 동작의 검토는 §10에 있다.
 
 ## 6. 설정 노출
 
@@ -1057,7 +1113,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 | 키 | 타입 | 기본값 | runtimeChange | allowedScopes | 탭 | widget |
 |---|---|---|---|---|---|---|
-| `l1.tools.permissionMode` | `"default" \| "acceptEdits" \| "bypass"` | `"bypass"` [결정: 2026-11-13 사용자] | live | managed, user, project, local, launch | permissions | select |
+| `l1.tools.permissionMode` | `"default" \| "acceptEdits" \| "bypass"` | `"bypass"` [결정: 2026-11-13 사용자] | live | managed, user, project, local, launch, profile | permissions | select |
 | `l1.tools.bypassAllowed` | boolean | `true` | live | managed | permissions | toggle |
 | `l1.tools.rules` | `PolicyRule[]` | `[]` | live | managed, user, project, local, launch | permissions | table |
 | `l1.tools.output.maxLines` | integer(100~100,000) | 2000 | nextTurn | managed, user, project, local | tools | number |
@@ -1073,11 +1129,13 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 ## 7. 훅
 
-발화 소유: core-tools는 7개 훅을 발화한다(`L1.readme` §6 소유표). fold, 페이로드, 실패 규칙은 F.extensions.spec §3.4·§3.5를 인용만 한다.
+발화 소유: core-tools는 9개 훅을 발화한다(`L1.readme` §6 소유표). `ask.human.before`와 `ask.human.after`를 더했다(M5e 결정 A). fold, 페이로드, 실패 규칙은 F.extensions.spec §3.4·§3.5를 인용만 한다.
 
 | 훅 | fold | 발화 위치 | 비고 |
 |---|---|---|---|
-| `tool.call.before` | first | §4.2 5a | 결정은 `ToolCallDecision`. 예외는 거부(fail-closed) |
+| `tool.call.before` | first(합치기 `block` > `replace` > `ask`) | §4.2 5a | 결정은 `ToolCallDecision`(막기, 묻기, 결과 대신 주기, §4.2.1). 예외는 거부(fail-closed) |
+| `ask.human.before` | first, 실패는 열린 실패 | §4.7.1, `approval.requested` 커밋 전 | 결정은 `cancel`과 질문 답(`answer`)이다. 예외는 결정 없음이다 |
+| `ask.human.after` | tap, 실패는 열린 실패 | §4.7.1, 해결 커밋 뒤 | 관찰만 한다 |
 | `tool.result` | chain | §4.2 9 | 패치는 `ToolResultPatch`, 병합은 `CHAIN_RULES.tool_result` |
 | `tool.execution.before` | tap | §4.2 1 | core-tools가 `prepare`(또는 준비 없이 닫는 `settleRejected`)에서 발화한다 |
 | `tool.execution.update` | tap | §4.2 8 | `execute`의 진행 콜백에서 발화한다 |
@@ -1192,6 +1250,14 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 36. `respond`는 `applied: false`일 때 `reason`을 낸다: 모르는 `approvalId`는 `unknown_approval`, 해결된 요청은 `already_resolved`, 맞지 않는 decision·answer·remember는 `answer_invalid`와 `detail`이다.
 37. `origin.stepId`가 없는 요청은 활성 호출의 단계로 채워 기록한다(`approval.requested` payload의 `origin`과 이벤트 봉투가 같은 값). `secretEnv`를 쓰는 호출의 정책 승인 제목은 시크릿 참조를 말하고 120자를 넘으면 개수로 줄인다.
 38. 같은 turn에서 웹·MCP 도구 결과 뒤에 부른 확장 도구(`ToolResourceDef.execute`)의 `ctx.caller.afterUntrusted`는 `true`이고, 그 전과 다음 turn에서는 없다. 기능 도구의 `CallOptions.context.caller`도 같다.
+39. 훅 `ask`를 낸 `read` 호출은 승인 카드 한 장을 연다. 카드 본문의 `askedBy`가 `{ extension, reason }`이고 `ruleId`가 `hook:<확장 이름>`이며 `remember`가 `["once"]`다. 허용하면 실행되고 거부하면 결과 본문이 `The user denied this tool call.`이다.
+40. 정책 deny인 호출에 훅 `ask`가 있으면 거부이고 카드를 열지 않는다. 정책 ask인 호출에 훅 `ask`가 있으면 카드는 한 장이고 제목에 정책 규칙 id와 훅 사유가 함께 있다.
+41. 권한 모드 `bypass`에서도 훅 `ask`의 카드가 뜬다.
+42. `interactive: false`이고 무인 정책이 `deny`인 호출의 훅 `ask`는 카드 없이 거부되고, 모델 본문은 `[fresnel:denied_by_extension] <사유> (confirmation unavailable)` 한 줄이다.
+43. 훅 `replace`를 낸 호출은 도구를 실행하지 않고, `effect.intent`가 없고, 결과 `content`가 훅 값과 같고, `details`에 `{ hook: "replaced", extension }`이 있고, `tool.result` 핸들러는 한 번도 불리지 않는다.
+44. 앞 핸들러가 `ask`를 내고 뒤 핸들러가 `block`을 내면 결과는 `block`이다. `ask`와 `replace`이면 `replace`다.
+45. `ask.human.before`가 `cancel`을 내면 카드 없이 `resolvedBy: "extension"`으로 거부된다. `answer`는 질문 카드에서만 해결하고, 도구 카드에서는 무시되어 카드가 뜬다(진단 `tools.ask_human_answer_ignored`). 핸들러 예외는 카드를 띄운다.
+46. 같은 `requestKey`의 두 번째 `open`과 재시작 뒤 복원된 요청은 `ask.human.before`를 다시 발화하지 않는다. `ask.human.after`는 해결 커밋마다 정확히 한 번 발화한다.
 
 ## 10. 미결 사항
 
@@ -1208,3 +1274,8 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 - (닫음) `remember: "thread"`·`"always"`: M4의 승인 기억은 요청 단위뿐이라 제안하지 않는다(§4.7 6번). 영구 허용은 사용자 규칙이다.
 - [미결] 도구가 다른 도구를 부르는 중첩 호출의 진입점(§4.2). `prepare`·`execute`를 부르는 쪽은 core-loop이므로 `LoopService`에 진입점을 둘지, 중첩 호출을 2차로 미룰지 L1.loop.spec과 정한다.
 - [미결] 시크릿 lease를 부르는 쪽(L0.exec 대 L1.tools)과 `secretEnv`가 모델 도구 인자로 들어오는 경로(§4.12). 증거를 도구 구현까지 옮기는 길은 F 요청 13으로 닫혔다(`CallContext.approval`). M1 검증 모드 자체는 `env`로 정했다(U-19).
+- [미결] [근거: `core-tools/src/approvals/service.ts` `open`의 `known` 분기, `pending.ts` `scanApprovals`] `ask.human.before`는 같은 `requestKey`의 요청이 메모리 표에서 빠진 뒤(`RESOLVED_KEPT` 넘김, §4.7 10번) 다시 열리면, 커밋 키로 저장된 요청을 되찾기 전에 한 번 발화할 수 있다. 커밋 전에 재생 여부를 알 방법이 없다(`scanApprovals`는 가지 전체를 읽는다). 해결안은 저장소에 요청 키 조회를 더하는 것과, 발화를 커밋 뒤로 옮기고 `cancel`을 따로 커밋해 닫는 것이다. 둘 다 M5e E-7을 이 경우까지 지킨다.
+- [미결] [근거: `core-tools/src/pipeline.ts` `recordWithoutEffect`] `replace`의 결과 본문은 `outputLimits` 경계화를 거치지 않는다. 기록 커밋이 실패하면 `itemId`는 null이고 결과는 모델에 그대로 간다(§4.2 `recordWithoutEffect`). 큰 본문의 상한을 정해야 한다.
+- [미결] [근거: H-1, `core-tools/src/pipeline.ts` `dispatchToolCall`의 `replace` 분기가 `decide`보다 먼저 닫는다] `replace`는 정책 deny인 호출도 훅의 결과로 대신한다. 실행은 되지 않으므로 H-1의 "좁히기만 한다"는 실행 면에서 지켜진다. 그러나 모델은 정책 거부 대신 훅의 본문을 본다. 확장 권한을 정할 때 정책 거부를 `replace`가 덮어도 되는지 다시 본다.
+- [미결] [근거: `contracts/src/records/catalog/approval.ts` `ApprovalResolvedPayloadSchema`] 취소 해결(`cancel`)의 사유는 `approval.resolved` 스키마에 싣는 자리가 없어 기록에 남지 않는다. 모델 본문도 고정 문장이다.
+- [가정] 사용자가 셸로 친 명령(`runUserShell`)의 훅 묻기는 허용으로 본다(§4.2.1 6번).

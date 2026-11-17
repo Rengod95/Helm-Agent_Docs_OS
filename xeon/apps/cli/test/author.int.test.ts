@@ -36,11 +36,11 @@ test("author subcommands parse into their command values", () => {
     extensionKind: "single-plugin",
     output: "text",
   });
-  expect(parse(["author", "scaffold", "demo-ext", "--dir", "out", "--group", "--json"])).toEqual({
+  expect(parse(["author", "scaffold", "demo-ext", "--dir", "out", "--json"])).toEqual({
     kind: "author.scaffold",
     name: "demo-ext",
     dir: "out",
-    extensionKind: "plugin-group",
+    extensionKind: "single-plugin",
     output: "json",
   });
   expect(parse(["author", "validate", "x"])).toEqual({
@@ -78,6 +78,8 @@ test("author usage mistakes are usage errors", () => {
   expect(parse(["author", "scaffold", "demo-ext"])).toBe("missingArgument");
   expect(parse(["author", "scaffold", "Bad Name", "--dir", "x"])).toBe("invalidGroupName");
   expect(parse(["author", "ls", "extra"])).toBe("unexpectedArgument");
+  // 묶음 종류는 M5c-1에서 뺐다. 플래그가 없으니 알 수 없는 옵션이다
+  expect(parse(["author", "scaffold", "demo-ext", "--dir", "out", "--group"])).toBe("unknownFlag");
 });
 
 test("scaffold, validate, pack, install, ls and remove run end to end without a model", async () => {
@@ -108,32 +110,30 @@ test("scaffold, validate, pack, install, ls and remove run end to end without a 
   expect(packed).toMatchObject({ path: packedPath });
   expect(existsSync(join(packedPath, "dist", "index.js"))).toBe(true);
 
-  // 터미널이 아니고 --yes도 없으면 거부한다(2). 아무것도 설치되지 않는다
+  // 설치는 M5c-1에서 wire에서 빠졌다. 검토함 길을 아직 부르지 않으므로 typed not_available로 끝나고, 아무것도 설치되지 않는다
   clear();
   h.useTerminal({ stdinIsTty: false, stdoutIsTty: false });
-  expect(await h.run(["author", "install", packedPath])).toBe(EXIT.usage);
+  expect(await h.run(["author", "install", packedPath, "--yes", "--json"])).toBe(EXIT.error);
+  expect(JSON.parse(h.stdoutText())).toEqual({ kind: "not_available", command: "author.install" });
+  clear();
+  expect(await h.run(["author", "install", packedPath])).toBe(EXIT.error);
+  expect(h.stderrText()).toContain("fresnel author install은 이 버전에서 쓸 수 없다.");
   expect(h.stderrText()).toContain("해결:");
   expect(await h.run(["author", "ls", "--json"])).toBe(EXIT.ok);
   expect(namesOf(h.stdoutText())).not.toContain("demo-ext");
 
+  // 저장 데이터 지우기(`--drop-data`)는 대체가 없어 보내지 않고 not_available이다
   clear();
-  expect(await h.run(["author", "install", packedPath, "--yes", "--json"])).toBe(EXIT.ok);
-  expect(JSON.parse(h.stdoutText())).toMatchObject({
-    name: "demo-ext",
-    version: "0.1.0",
-    location: join(cli.home.root, "config", "extensions", "demo-ext"),
+  expect(await h.run(["author", "remove", "demo-ext", "--drop-data", "--yes", "--json"])).toBe(
+    EXIT.error,
+  );
+  expect(JSON.parse(h.stdoutText())).toEqual({
+    kind: "not_available",
+    command: "author.remove.dropData",
   });
 
-  clear();
-  expect(await h.run(["author", "ls", "--json"])).toBe(EXIT.ok);
-  expect(namesOf(h.stdoutText())).toContain("demo-ext");
-
-  clear();
-  expect(await h.run(["author", "remove", "demo-ext", "--yes"])).toBe(EXIT.ok);
-  expect(h.stdoutText()).toBe("demo-ext을 지웠다\n");
-  clear();
-  expect(await h.run(["author", "ls", "--json"])).toBe(EXIT.ok);
-  expect(namesOf(h.stdoutText())).not.toContain("demo-ext");
+  // 지우기 요청(`plugin.requestRemove`)의 성공 경로는 여기서 시험하지 않는다. 호스트가 아직 이 메서드를 구현하지 않았다
+  // (`apps/host/src/handlers/index.ts`의 notImplemented). 구현되면 `{ name, itemId }`를 값으로 시험한다
 }, 120_000);
 
 test("validate prints one line per issue with the path and code, and pack refuses a broken manifest", async () => {

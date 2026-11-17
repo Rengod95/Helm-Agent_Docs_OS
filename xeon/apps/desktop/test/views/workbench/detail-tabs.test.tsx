@@ -448,25 +448,28 @@ function headerOf(over: Parameters<typeof entry>[1]): string {
 
 describe("머리 출처 글", () => {
   // 시안 머리 줄은 배지 대신 글로 잇는다: 설치 위치 · 종류 · 버전, 상태 글 뒤에 범위 글
-  test("설치 위치와 켜짐 범위를 머리 글로 보이고 배지는 두지 않는다(사용자 설치, 전역)", () => {
-    const html = headerOf({ origin: "user", enabledSource: "user" });
+  test("설치 위치와 켜짐 출처를 머리 글로 보이고 배지는 두지 않는다(사용자 설치, 프로필 값)", () => {
+    const html = headerOf({ origin: "user", enabledSource: "profile" });
     expect(textOf(html)).toContain(t("desktop.workbench.origin.user"));
-    expect(textOf(html)).toContain(t("desktop.workbench.scope.global"));
+    expect(textOf(html)).toContain(t("desktop.workbench.scope.profile"));
     expect(badgesOf(html)).toEqual([]);
   });
 
-  test("작업 폴더 등급과 이 대화 출처를 보이고, 출처가 없으면 범위 글을 두지 않는다", () => {
-    const withThread = headerOf({ origin: "project", enabledSource: "thread" });
-    expect(textOf(withThread)).toContain(t("desktop.workbench.origin.project"));
-    expect(textOf(withThread)).toContain(t("desktop.workbench.scope.thread"));
+  test("작업 폴더 등급과 공통 묶음 출처를 보이고, 출처가 없으면 범위 글을 두지 않는다", () => {
+    const withCommon = headerOf({ origin: "project", enabledSource: "common" });
+    expect(textOf(withCommon)).toContain(t("desktop.workbench.origin.project"));
+    expect(textOf(withCommon)).toContain(t("desktop.workbench.scope.common"));
     const withoutSource = headerOf({ origin: "builtin" });
     expect(textOf(withoutSource)).toContain(t("desktop.workbench.origin.builtin"));
-    expect(textOf(withoutSource)).not.toContain(t("desktop.workbench.scope.global"));
+    expect(textOf(withoutSource)).not.toContain(t("desktop.workbench.scope.common"));
   });
 
-  test("작업 폴더 범위는 wire가 준 출처가 project일 때만 보인다", () => {
-    const html = headerOf({ origin: "user", enabledSource: "project" });
-    expect(textOf(html)).toContain(t("desktop.workbench.scope.project"));
+  test("코어 출처는 코어 글로 보이고, 꺼짐(none)은 범위 글을 두지 않는다", () => {
+    const core = headerOf({ origin: "builtin", enabledSource: "core" });
+    expect(textOf(core)).toContain(t("desktop.workbench.scope.core"));
+    const off = headerOf({ origin: "user", enabledSource: "none" });
+    expect(textOf(off)).not.toContain(t("desktop.workbench.scope.profile"));
+    expect(textOf(off)).not.toContain(t("desktop.workbench.scope.core"));
   });
 });
 

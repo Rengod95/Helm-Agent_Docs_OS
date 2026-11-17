@@ -56,7 +56,7 @@ binds: []
 | 프로필 | 플러그인 목록과 설정 값에 이름을 붙인 것. 대화는 프로필 하나를 참조한다 [결정: 2026-11-16] |
 | 내장 기본 프로필 | id `default`. 지울 수 없다. 권한 모드 "모두 허용"(`bypass`)을 가진다 [결정: 2026-11-16] |
 | 공통 묶음 | 사용자가 두는 "모든 프로필 공통" 플러그인과 설정 값. 모든 프로필에 항상 더해진다 [결정: 2026-11-16 개념 §6] |
-| 시작 Drive | 프로필이 가진 "대화를 시작할 때 누가 주도하나"(없음 또는 플러그인 하나). 저장 필드 이름은 `driver` |
+| 시작 Drive | 프로필이 가진 "대화를 시작할 때 누가 주도하나"(없음 또는 플러그인 하나). 저장 필드 이름은 `startDrive`(v1 파일의 `driver`는 옮길 때 이 이름으로 바꾼다) |
 | 코어 설정 값 | 코어 블록이 읽는 설정 키(권한 모드, 기본 모델 등)의 프로필별 값. 별도 "블록 설정" 개념은 없다. 화면이 블록별로 나눠 보일 뿐이다 [결정: 2026-11-16] |
 | 덧씌우기 (overlay) | 프로필 기록은 그대로 두고 이번 턴(Drive는 반납까지)의 켜짐 집합에만 플러그인을 더하는 것 [결정: 2026-11-17 사용자] |
 | 프로젝트 | 루트 작업 폴더 하나에 대화가 묶이는 최소 공통 맥락. 공통 지침, 파일, 플러그인 설정을 공유하지 않는다 [결정: 2026-11-17] |
@@ -90,7 +90,7 @@ export interface Profile {
   readonly builtin: boolean;                 // 추가. 참이면 삭제 불가
   readonly plugins: readonly PluginRef[];    // 순서 있음. enable/disable 목록을 대체한다
   readonly settings: readonly ProfileSetting[]; // 코어 키와 `ext.<name>.<key>`. 미설정은 기본값을 따른다
-  readonly driver: string | null;            // 시작 Drive. 저장 이름 유지. 값은 plugins 안의 이름
+  readonly startDrive: string | null;        // 시작 Drive(v1 파일의 `driver`). 값은 plugins 안의 이름
   readonly updatedAt: string;
   readonly rev: number;
 }
@@ -239,7 +239,7 @@ export interface OverlayRef { readonly plugin: string; readonly draftId?: string
 | `x.loading-trust.sourceWatch` | 추가 | boolean, 기본 `true`, `runtimeChange: "live"`, `managed,user` | 원본 폴더 감시(§4.5.7) |
 | `l1.context.instructionFiles.maxBytes` | 추가 | integer, 기본 65536, 파일 하나당. `managed,user` | 지침 파일 상한(§4.4.7) |
 | `l4.host.defaultFolder` | 추가 | string, 기본 빈 값 = `<OsDirs.data>/default-project`. `managed,user` | 프로젝트 없는 대화의 기본 폴더 [제안 이름] |
-| `x.primitives.activeDriver` | 엔진 스펙이 제거 | - | 프로필 `driver`는 더 이상 이 키를 쓰지 않는다(§4.2.6) |
+| `x.primitives.activeDriver` | 엔진 스펙이 제거 | - | 프로필 `startDrive`는 더 이상 이 키를 쓰지 않는다(§4.2.6) |
 
 설정 정의에 `ui.block?: "context" | "model" | "tools" | "ask" | "agents" | "record"`를 더한다 [제안]. 화면이 코어 설정을 블록별로 나눠 보이는 근거이고 엔진 동작에는 쓰지 않는다.
 
@@ -375,7 +375,7 @@ export type ContextRef =
 2. 내장 기본 프로필(`default`)은 삭제할 수 없고(`profile.builtinProtected`), 공장 값은 권한 모드 `bypass`(`core-tools/src/settings.ts:55`, 2026-11-13 결정), 시작 Drive 없음, 플러그인은 매니페스트 기본이 켜짐인 기본 설치 플러그인(`bundled` 출처와 저장소 패키지 가운데 코어가 아닌 것)이다. 내용은 사용자가 고칠 수 있다. 권한 모드를 프로필이 가진다 [결정: 2026-11-16].
 3. 대화 T의 켜짐 집합은 경계마다 `E(T) = 코어 ∪ (공통.plugins ∪ 프로필.plugins ∪ 덧씌우기) − 관리 잠금 − 오류 정지`다. 코어는 tier `guard`, `core`(`tier.ts:assignTier`)이고 프로필에 적지 않으며 항상 켜진다. 순서는 공통, 프로필 순이고 중복은 처음 것을 남긴다.
 4. 프로필 저장(`profile.put`, `profile.common.put`)이 커밋되면 호스트가 `profile.changed`를 보내고, 그 프로필을 참조하는 모든 열린 대화에 대해 다음 단계 경계에서 `E(T)`를 다시 계산해 적용한다. 유휴 대화는 다음 매크로태스크에서 적용한다(`X.primitives.spec` §4.5.5). 열려 있지 않은 대화는 열 때 계산한다.
-5. 적용은 지금의 대화별 켜짐 요청 경로(`registration.ts:835-871` `toggle`, `:894-899` `request`, `:963` `applyToggles`)를 재사용한다. 계산 결과와 현재 상태의 차이만 켜기·끄기 요청으로 바꾸고, 경계 기여에 `profile.applied`와 `scope.changed`를 넣는다. `profile.applied.added/removed`는 집합 차이다.
+5. 적용은 지금의 대화별 켜짐 요청 경로(`registration.ts:835-871` `toggle`, `:894-899` `request`, `:963` `applyToggles`)를 재사용한다. 계산 결과와 등록별로 마지막에 맞춘 값의 차이만(엔진이 직접 끈 등록은 E(T)가 바뀔 때까지 건드리지 않는다) 켜기·끄기 요청으로 바꾸고, 경계 기여에 `profile.applied`와 `scope.changed`를 넣는다. `profile.applied.added/removed`는 집합 차이다.
 6. 실행 중인 턴 안의 프로필 편집이나 전환도 같은 규칙이다: 현재 단계는 끝까지 이전 집합으로 돌고 다음 단계 경계에서 바뀐다. 이미 시작한 도구 호출은 끝나고 결과가 기록된다.
 7. 설정 값도 같은 경계에서 바꾼다. 대화의 `profile` 범위 층은 `공통.settings`와 `프로필.settings`의 병합(프로필이 이긴다)이다. `runtimeChange`가 `restart`인 키(예: `ext.<name>.isolation`)는 다음 시작까지 이전 값을 쓰고 `profile.preview`가 경고한다.
 8. 대화 전환 `thread.setProfile`은 프로필이 있으면 `thread.updated { profileId }`를 커밋하고 4~6번 규칙으로 적용한다. 전환으로 권한 모드가 넓어지면 결과의 `preview.permission`에 `from`, `to`를 싣고 확인은 받지 않는다 [결정: 2026-11-16]. 승인 카드의 "이 대화에서 계속 허용"은 대화의 실행 상태이고 프로필 전환이 지우지 않는다 [결정: 2026-11-16].
@@ -387,7 +387,7 @@ export type ContextRef =
 14. 프로필 삭제는 참조하는 대화를 `default`로 다시 읽게 한다(1번). 삭제 결과의 `reassignedThreads`는 호스트가 아는 열린 대화 수다.
 15. 서브에이전트: 자식 대화의 `thread.started.profileId`는 생성 시점의 부모 값이다. 이후 그 프로필의 편집은 자식에게도 적용된다. 부모의 이후 전환은 이미 도는 자식을 바꾸지 않는다 [제안]. 대화 폴더는 부모 것을 물려받고(`core-agents/src/service.ts:1033-1043`이 이미 한다. fork 경로 제외) 권한은 부모 천장을 넘지 못한다(`core-agents/src/permission-ceiling.ts`). 덧씌우기는 물려주지 않는다 [제안].
 16. 프로필 변경의 감사 가능성: 한 대화에서 어느 프로필 개정(`profileRev`, `commonRev`)과 어느 검토본 해시로 돌았는지는 `profile.applied`의 `profileRev`, `commonRev`, `updated`로 복원된다.
-17. **내장 플러그인을 프로필에서 빼는 일의 순서.** `cap-workspace`와 `cap-dialog`의 코어 부분(F D-27·D-28, 엔진 설계 E2의 L1 분할)이 L1로 내려가기 전에는 이 둘을 프로필에서 뺄 수 없는 필수로 표시한다(빼면 도구 파이프라인의 파일 서비스와 사람에게 묻기가 사라진다). 분할 뒤에는 코어가 아니라 플러그인으로 남는 부분만 뺄 수 있다. 코어는 프로필에 적지 않고 항상 켜져 있다(3번). "뺄 수 없는 플러그인"은 없다 [엔진 설계 §8, 결정: 2026-11-17 사용자, U4 확정]. 이 표시와 오류 `plugin.requiredByCore`는 L1 분할 전의 일시 조치이고 분할 뒤 삭제한다(코어는 코어이고 모든 플러그인은 프로필에서 뺄 수 있다). 쓰기 범위(§4.4.4)가 고치는 `cap-workspace/src/roots.ts`, `shell/run.ts`는 F가 새 코어 서비스로 옮기는 파일이므로 §4.4.4의 구현은 그 이동(F 9절 6단계) 뒤의 경로에서 한다.
+17. **내장 플러그인을 프로필에서 빼는 일의 순서.** `cap-workspace`와 `cap-dialog`의 코어 부분(F D-27·D-28, 엔진 설계 E2의 L1 분할)이 L1로 내려가기 전에는 이 둘을 프로필에서 뺄 수 없는 필수로 표시한다(빼면 도구 파이프라인의 파일 서비스와 사람에게 묻기가 사라진다). 분할 뒤에는 코어가 아니라 플러그인으로 남는 부분만 뺄 수 있다. 코어는 프로필에 적지 않고 항상 켜져 있다(3번). "뺄 수 없는 플러그인"은 없다 [엔진 설계 §8, 결정: 2026-11-17 사용자, U4 확정]. 구현: 켜짐 집합 E(T)는 코어(내장 L1 단위 `core-*`와 등급 guard·core)와 이 필수 둘(`cap-workspace`, `cap-dialog`)을 프로필과 무관하게 항상 넣는다. 프로필이 이 단위를 적지 않아도 대화는 켜진다(`[guide]`만 든 프로필이 `core-tasks`를 빼 `turn.start`가 멈추던 결함을 닫는다). 오류 `plugin.requiredByCore` 자체는 아직 내지 않는다. 이 표시와 오류 `plugin.requiredByCore`는 L1 분할 전의 일시 조치이고 분할 뒤 삭제한다(코어는 코어이고 모든 플러그인은 프로필에서 뺄 수 있다). 쓰기 범위(§4.4.4)가 고치는 `cap-workspace/src/roots.ts`, `shell/run.ts`는 F가 새 코어 서비스로 옮기는 파일이므로 §4.4.4의 구현은 그 이동(F 9절 6단계) 뒤의 경로에서 한다.
 
 ### 4.2 프로필 내용과 검증
 
@@ -396,7 +396,7 @@ export type ContextRef =
 3. 시크릿 값: 정의가 `secret: true`(`SecretRef` 타입)인 키는 `secret://<이름>` 형태만 저장한다. 리터럴이면 `secret_literal` 오류이고 값은 이벤트, 로그, 오류에 싣지 않는다. 시크릿 저장소에 이름이 없으면 `secret_missing` 경고다. 프로필은 참조만 가지고, 값은 사용 때 `fresnel.secrets`가 연다(`L0.secrets.spec` §4.2, §4.3).
 4. 코어 설정 값: 키 정의의 `allowedScopes`에 `profile`이 있는 키만 둔다. 검사는 지금의 `checkSettingWrite`(`profile-test-run-port.ts:125`)를 `profile` 범위로 호출한다. 프로필이 권한 모드를 두지 않으면(미설정) 아래 층의 값(사용자 파일, 기본값 `bypass`)이 쓰인다. 새 프로필은 만들 때 `default`의 코어 설정 값을 복사해 시작한다 [제안].
 5. 공통 묶음은 같은 검증을 받는다. 시작 Drive는 없다. 공통 묶음에 든 플러그인을 프로필에서 뺄 수 없다 [제안].
-6. 시작 Drive는 `driver` 한 필드라서 둘이 겹칠 수 없다. 값은 `E`에 들고 `drives: true`이며 시작 항목(`does.drive.start`)이 있어야 한다. 아니면 `driver_not_in_list`, `driver_cannot_drive`다. 엔진은 새 대화의 첫 턴 앞에서 스택이 비어 있을 때만 그 플러그인의 프레임을 쌓는다(엔진 설계 §2.2). 도중 전환(`thread.setProfile`)은 시작 Drive를 시작하지 않는다 [제안: 미결 3].
+6. 시작 Drive는 `startDrive` 한 필드라서 둘이 겹칠 수 없다. 값은 `E`에 들고 `drives: true`이며 시작 항목(`does.drive.start`)이 있어야 한다. 아니면 `driver_not_in_list`, `driver_cannot_drive`다. 엔진은 새 대화의 첫 턴 앞에서 스택이 비어 있을 때만 그 플러그인의 프레임을 쌓는다(엔진 설계 §2.2). 도중 전환(`thread.setProfile`)은 시작 Drive를 시작하지 않는다 [제안: 미결 3].
 7. 검증은 저장과 `profile.preview`에서 같은 함수(`validateProfile(profile, common, library, catalog)`)가 한다. 오류(`error`)가 하나라도 있으면 `profile.put`을 `profile.invalid`로 거절하고 저장하지 않는다. 오류:
    - `plugin_unknown`(라이브러리에 없음), `plugin_not_reviewed`(검토본이 없고 승인 대기뿐)
    - `replace_conflict`: 해소된 목록 안에서 두 플러그인이 `replaces`로 같은 내장 도구를 대체(`PluginDecl.replaces`, `manifest.ts:147`). 플러그인 둘의 이름과 도구 이름을 싣는다
@@ -436,7 +436,7 @@ export type ContextRef =
    - 읽는 시점은 대화를 열 때와 각 턴 시작이다(수정 시각 비교). 바뀌면 `sections` 변경 규칙(`L1.context.spec` §4.2)을 따른다.
    - `CLAUDE.md`는 읽지 않는다 [제안: 사용자 결정은 `AGENTS.md`만 말한다. 미결 5].
 8. 프로필은 사용자 수준이고 프로젝트와 독립이다. 프로젝트 레코드에 프로필 필드가 없다("프로젝트 기본 프로필"은 없다 [결정: 2026-11-17 "플러그인과 프로필은 프로젝트가 아니라 대화 단위"]). **[결정: 2026-11-17 사용자, U5]** 선택기의 기본값은 같은 대화 폴더에서 마지막으로 쓴 프로필(저장 없이 계산). 세부 계산 규칙은 [제안]이다: `profile.defaultFor { workspace }`는 `thread.list { workspace }`가 주는 가장 최근 대화의 현재 프로필(전환 반영)을 돌려주고, 없으면 같은 프로젝트의 가장 최근 대화, 그것도 없으면 `default`다 [제안: 계산 규칙. 저장 없음]. `thread.create`에 `profileId`가 없으면 같은 값을 쓴다.
-9. 같은 폴더 동시 대화: 코어는 정책이 없고 알리기만 한다. `thread.create`는 같은 정규 대화 폴더에서 `running` 또는 열린 다른 대화를 `sameFolder`에 담아 돌려준다. 막지 않는다. worktree 분리는 플러그인이 하고, 코어는 "대화 시작" 훅이 대화 폴더를 정할 수 있게만 연다. **[결정: 2026-11-17 사용자, U6]** 코어는 알리기만 하고(막지 않고 자동 복사도 없다) 폴더는 대화 시작 훅이 경로 하나로 정하며 worktree는 플러그인이 한다. 훅 결과의 `workspace`가 있으면 호스트가 `thread.updated { workspace }`를 커밋한다. 조건은 첫 턴 전이고, 새 폴더가 같은 프로젝트 루트 안이어야 하며, 아니면 무시하고 진단을 남긴다(`workspace_outside_project`). 받을 훅과 결과 모양은 F §5.1 H-7이 정한다(`thread.start`는 관찰만 하는 tap이라 값을 돌려주지 못한다). 수용 22의 후반은 F H-7이 구현된 뒤 켜진다.
+9. 같은 폴더 동시 대화: 코어는 정책이 없고 알리기만 한다. `thread.create`는 같은 정규 대화 폴더에서 `running` 또는 열린 다른 대화를 `sameFolder`에 담아 돌려준다. 막지 않는다. worktree 분리는 플러그인이 하고, 코어는 "대화 시작" 훅이 대화 폴더를 정할 수 있게만 연다. **[결정: 2026-11-17 사용자, U6]** 코어는 알리기만 하고(막지 않고 자동 복사도 없다) 폴더는 대화 시작 훅이 경로 하나로 정하며 worktree는 플러그인이 한다. 훅 결과의 `workspace`가 있으면 쓰기 소유를 얻은 호스트가 첫 턴 전에 코어의 `applyOpenWorkspace`를 부르고, 코어가 `thread.updated { workspace }`를 커밋한다(H-7 구현). 조건은 첫 턴 전이고, 새 폴더가 같은 프로젝트 루트 안이어야 하며, 아니면 무시하고 진단을 남긴다(`workspace_outside_project`). 받을 훅과 결과 모양은 F §5.1 H-7이 정한다(`thread.start`는 관찰만 하는 tap이라 값을 돌려주지 못한다). 수용 22의 후반은 F H-7이 구현된 뒤 켜진다.
 10. 프로젝트 동반 플러그인(R24): `project.create`, 프로젝트 안 대화 생성, `plugin.scan {projectId}`, 원본 감시가 `<루트>/.fresnel/plugins/*`와 기존 `<루트>/.fresnel/extensions/*`, Fresnel 자체 배치의 느슨한 자원(`.fresnel/skills`, `.fresnel/commands`, `.fresnel/agents`, `.fresnel/prompts`, `.fresnel/mcp.json`)을 후보로 만든다. 후보는 `origin: project`로 검토 항목이 된다. 승인 전에는 적재도, 문맥 재료로 쓰는 것도 하지 않는다(§4.7.9).
     - **[결정: 2026-11-17 사용자] 다른 하네스 형식은 인식하지 않는다.** Fresnel은 `.mcp.json`, `.agents/skills`, 그 밖의 다른 하네스 형식을 인식하지 않고 플러그인 폴더는 Fresnel 자체 배치(`.fresnel-plugin/plugin.json`, `skills/`, `instructions.md`, `agents/`, `commands/`, `mcp.json`)만 쓴다. 사용자가 든 예는 `.mcp.json`, `.agents/skills` 등이다: 이 둘은 [결정]이고 "그 밖의 형식"으로 범위를 넓히는 것과 `.fresnel/hooks` 같은 배치 이름을 후보로 만들지 않는 것은 [제안]이다. 이 둘과 루트 `.mcp.json`은 후보로 만들지 않는다. **지금 엔진이 읽는 부분은 제거한다**: MCP 로더의 루트 `.mcp.json` 읽기(`cap-mcp/src/servers/loader.ts:12`)와 폴더 신뢰의 자원 판정이 보는 `.agents/skills`(`ext-host/src/loading-trust/trust/resources.ts:35`)를 없앤다. 제거는 되돌릴 수 없는 동작 변화라서 이 항목은 마이그레이션 기능(§7.9)이 같이 나가거나 그 전에 사용자에게 알리는 릴리스 노트를 먼저 낸다. 아래 §4.5.3의 `.mcp.json` 행과 §7의 느슨한 자원도 같은 결정을 따른다.
 
@@ -611,10 +611,10 @@ plugin-store/
 
 | 주제 | 지금 | 바꿀 것 | 크기 |
 |---|---|---|---|
-| 프로필 적용 방식 | `profile.apply`가 `ext.<name>.enabled`와 설정 키를 층에 쓴다(`profile-test-run-port.ts:97-123` `planOf`, `:146-190` `apply`). thread 층은 대화별 켜짐 요청(`:113-118`, `:178`) | 쓰지 않고 참조한다. `apply` 제거, `PluginSetPort`가 `E(T)`를 계산(§4.1) | L |
-| 프로필 형식 | `enable`, `disable`, `settings`, `driver`(`profile-test-run.ts:45-62`), 한도 64/64/128(`:34`), 파일 v1(`profile-store.ts:156`) | `plugins`, `settings`, `driver`, `builtin`, 공통 묶음, 파일 v2 | M |
+| 프로필 적용 방식 | `profile.apply`가 `ext.<name>.enabled`와 설정 키를 층에 쓴다(`profile-test-run-port.ts:97-123` `planOf`, `:146-190` `apply`; 적용 경로는 이 변경으로 제거되었다). thread 층은 대화별 켜짐 요청(`:113-118`, `:178`) | 쓰지 않고 참조한다. `apply` 제거, `PluginSetPort`가 `E(T)`를 계산(§4.1) | L |
+| 프로필 형식 | `enable`, `disable`, `settings`, `driver`(계약 이전 `packages/contracts/src/wire-settings/wire/profile-test-run.ts:45-62`), 한도 64/64/128(같은 파일 `:34`), 파일 v1(`apps/host/src/assembly/m4/profile-store.ts:156`) | `plugins`, `settings`, `startDrive`, `builtin`, 공통 묶음, 파일 v2 | M |
 | 프로필 검증 | 설정 키 검사만(`:125` `checkSettingWrite`), 충돌 검사 없음 | `validateProfile`(§4.2.7), 비용·충돌 미리 보기 | M |
-| 프로필 층 | `PROFILE_LAYERS = user/project/thread`(`:151`), 범위 `scopeOf`(`:31-41`) | 새 설정 범위 `profile`(`layers.ts:8`), `core-tools/settings.ts:265-275` `pickMode` 순회에 반영 | M |
+| 프로필 층 | 층 이름 `ProfileLayer = user/project/thread`와 범위 `scopeOf`(`apps/host/src/assembly/m4/profile-test-run-port.ts:31-41`) | 새 설정 범위 `profile`(`layers.ts:8`), `core-tools/settings.ts:265-275` `pickMode` 순회에 반영 | M |
 | 스레드 켜짐 | `thread.want`/`record.desired`(`registration.ts:225`, `:835-871`)가 전역 기본값과 대화별 요청 | 대화별 값이 유일한 원천(`E(T)`), 전역 `desired`는 오류 정지만 | M |
 | 켜짐 설정 키 | 사용자·프로젝트·local·launch 범위(`settings-keys.ts:30-38`), 설정 변경을 따라가는 `followExtEnabled`(`ext-enabled.ts:25-60`, 호스트 `assemble.ts:1203-1215`) | 키를 관리 범위로 한정, `followExtEnabled`를 프로필 변경 구독으로 대체 | M |
 | 적재 트리거 | `enabled` 설정이 거짓이면 적재 안 함(`loading-trust/index.ts:837`, `:1670`) | `PluginSetPort`가 "열린 대화 중 쓰는 곳 있음"을 알림 | M |
@@ -649,7 +649,7 @@ plugin-store/
    - `launch` 범위는 메모리뿐이라 옮길 것이 없다.
    - 카탈로그에서 키 정의가 사라지므로 위 파일에 남은 키는 알 수 없는 키 경고만 낸다.
 2. **기본 프로필 `default`**: 공장 값은 §4.1.2다. 옮김은 `default.plugins`를 "비코어 플러그인 가운데 user 범위 유효 켜짐이 참인 것(값이 없으면 `defaultEnabled`)"으로 채운다. 권한 모드는 `bypass`로 쓰고, 사용자 파일에 이미 `l1.tools.permissionMode`가 있으면 그 값을 쓴다.
-3. **기존 프로필**(`profiles.json` v1): `plugins = 옮긴 default.plugins ∪ enable − disable`. `settings`는 `ext.*.enabled` 키를 뺀 나머지 가운데 `profile` 범위가 허용하는 키만 남기고, 허용하지 않는 키는 `migration.log`의 `rejected`에 적고 버린다. `driver`는 같은 이름으로 유지하고 `plugins`에 없으면 더한다. `id`, `title`, `rev`는 유지하고 `updatedAt`을 새로 쓴다. 공통 묶음은 빈 값으로 만든다. v1 파일은 `profiles.json.v1.bak`로 보존한다. v1 의미("그대로 둠")를 v2("목록에 없으면 꺼짐")로 옮기는 것이라 기존 프로필이 켜는 집합이 달라질 수 있고, `default`를 바탕으로 계산하는 이유가 그것이다.
+3. **기존 프로필**(`profiles.json` v1): `plugins = 옮긴 default.plugins ∪ enable − disable`. `settings`는 `ext.*.enabled` 키를 뺀 나머지 가운데 `profile` 범위가 허용하는 키만 남기고, 허용하지 않는 키는 `migration.log`의 `rejected`에 적고 버린다. `driver`는 `startDrive`로 옮기고 `plugins`에 없으면 더한다. `id`, `title`, `rev`는 유지하고 `updatedAt`을 새로 쓴다. 공통 묶음은 빈 값으로 만든다. v1 파일은 `profiles.json.v1.bak`로 보존한다. v1 의미("그대로 둠")를 v2("목록에 없으면 꺼짐")로 옮기는 것이라 기존 프로필이 켜는 집합이 달라질 수 있고, `default`를 바탕으로 계산하는 이유가 그것이다.
 4. **설치된 사용자 플러그인**(`<config>/extensions/<name>`, `.history`): 각각 현재 내용을 `reviewed/<name>/<해시>/`에 복사하고 `review-log.jsonl`에 `actor: "migration"`, `decision: "migrated"`로 남긴다(사용자가 직접 설치한 것이라 재검토를 강제하지 않는다 [제안]). `.history`의 이전 버전은 해시를 다시 계산해 같은 구조로 옮긴다(최근 5개). 원본 폴더는 제자리에 두고 한 릴리스 동안 `legacy` 표시로 읽는다. 매니페스트가 없는 옛 폴더는 `.fresnel-plugin/plugin.json`이 있어야 설치된 것이므로 해당 없다.
 5. **기본 제공 번들(Helm)과 느슨한 자원**: 번들은 `bundled` 출처이고 릴리스가 `reviewed/`에 직접 넣는다(`actor: "release"`). 번들 갱신(`installDefaultPlugin`의 교체, `default-plugins.ts`)은 검토 항목 없이 새 검토본이 된다 [제안: 앱 업데이트와 같은 신뢰. 미결 8]. 사용자 수준의 느슨한 스킬 폴더(`<OsDirs.data>` 아래 스킬 루트, `resolveSkillRoots({dataDir})`)는 스킬 폴더 하나당 플러그인 하나로 보고 4번처럼 `migrated`로 승인한다. 프로젝트의 느슨한 자원은 옮기지 않고 프로젝트를 열 때 검토 항목이 된다. 옮긴 뒤 `cap-knowledge`는 느슨한 루트를 읽지 않고 `MaterialPort`만 쓴다.
 6. **기존 대화**: `thread.started.profileId`가 없는 대화는 `default`를 참조한다(1번 규칙). 이벤트를 다시 쓰지 않는다. 대화별로 꺼 두었던 상태(`scope.changed` 이력)는 새 대화 열기에서 쓰지 않고 `default`로 다시 계산한다(켜짐 집합이 달라질 수 있다) [제안: 미결 9]. `workspace`가 있는 기존 대화는 4.4.3 규칙으로 암묵 프로젝트를 만든다. 서로 포함하는 폴더가 있으면 중첩으로 둔다. 쓰기 범위는 가장 깊은 루트이므로 기존보다 넓어지지 않는다. `workspace`가 null인 기존 대화는 지금처럼 호스트 cwd를 쓴다(4.4.6).

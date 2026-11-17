@@ -284,7 +284,7 @@ test("a user message held by a driver that is revoked goes back to the input que
   await t.settled();
 
   // 메시지는 단계 함수에 전달되지 않고 코어 루프의 입력 큐로 돌아간다. 주도는 전환되었다
-  expect(t.queue.items).toMatchObject([{ scopeId: "frame-a", when: "next", item: MESSAGE }]);
+  expect(t.queue.items).toMatchObject([{ scopeId: "frame-a", when: "followUp", item: MESSAGE }]);
   expect(releasedOf(t, thread)).toMatchObject([{ scopeId: "frame-a", reason: "revoked" }]);
   expect(acquiredOf(t, thread).map((grant) => grant.scopeId)).toEqual(["frame-a", "frame-b"]);
 });
@@ -325,5 +325,5 @@ test("a user message the top frame does not answer in three steps revokes the wh
     ["frame-a", "revoked"],
   ]);
   expect(t.host.driveFrames(thread)).toHaveLength(1);
-  expect(t.queue.items).toMatchObject([{ scopeId: "frame-b", when: "next", item: MESSAGE }]);
+  expect(t.queue.items).toMatchObject([{ scopeId: "frame-b", when: "followUp", item: MESSAGE }]);
 });

@@ -53,6 +53,7 @@ export const ThreadStartedPayloadSchema: TObject<{
   title: TUnion<[TString, TNull]>;
   forkedFrom: TUnion<[TObject<{ threadId: TUnsafe<ThreadId>; eventId: TUnsafe<EventId> }>, TNull]>;
   workspace: TAddOptional<TUnion<[TString, TNull]>>;
+  profileId: TAddOptional<TString>;
 }> = Type.Object(
   {
     title: Nullable(Type.String({ maxLength: 200 })),
@@ -67,6 +68,11 @@ export const ThreadStartedPayloadSchema: TObject<{
      * M1이 쓴 옛 행에는 필드가 없어 선택 필드로 더했다: 없는 값은 null과 같고 version 1 그대로 읽는다(F.records.spec §3.2 규칙 5).
      */
     workspace: Type.Optional(Nullable(Type.String({ minLength: 1, maxLength: 4096 }))),
+    /**
+     * 대화를 만들 때 고른 프로필 id(F.records 규칙 5: 선택 필드, 없으면 `default`로 읽는다). M5c §3.2.
+     * 이 값은 시작 시점의 값이고, 이후 전환은 `thread.updated.profileId`가 쓴다.
+     */
+    profileId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
   },
   { additionalProperties: false },
 );
@@ -82,8 +88,10 @@ export const ThreadUpdatedPayloadSchema: TObject<{
   title: TAddOptional<TUnion<[TString, TNull]>>;
   titleSource: TAddOptional<typeof ThreadTitleSourceSchema>;
   model: TAddOptional<TUnion<[TString, TNull]>>;
+  workspace: TAddOptional<TString>;
   status: TAddOptional<typeof ThreadStatusSchema>;
   leafEventId: TAddOptional<TUnsafe<EventId>>;
+  profileId: TAddOptional<TString>;
 }> = Type.Object(
   {
     title: Type.Optional(Nullable(Type.String({ maxLength: 200 }))),
@@ -91,8 +99,14 @@ export const ThreadUpdatedPayloadSchema: TObject<{
     titleSource: Type.Optional(ThreadTitleSourceSchema),
     /** 이 대화가 다음 turn부터 쓸 모델 참조(`provider/id`). null이면 지정을 거둬 기본 모델로 돌아간다. 필드가 없으면 바꾸지 않는다 */
     model: Type.Optional(Nullable(Type.String({ minLength: 1, maxLength: 200 }))),
+    /** 대화 폴더(절대 경로, 정규 경로). 첫 턴 전에 열기 훅(`thread.resources`)의 결과로만 커밋한다(H-7). 없으면 바꾸지 않는다 */
+    workspace: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
     status: Type.Optional(ThreadStatusSchema),
     leafEventId: Type.Optional(EventIdSchema),
+    /**
+     * 프로필 전환(`thread.setProfile`). `model`과 같은 규칙이다: 활성 가지의 마지막 값이 현재 값이다. 필드가 없으면 바꾸지 않는다 [M5c §3.2]
+     */
+    profileId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
   },
   { additionalProperties: false },
 );

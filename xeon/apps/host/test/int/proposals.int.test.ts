@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { afterEach, expect, test } from "bun:test";
 import { assemble } from "../../src/assemble.ts";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import type { AssembleOptions, Engine } from "../../src/types.ts";
 import { callingModels } from "../fixtures/call-tape.ts";
 import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";

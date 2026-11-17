@@ -3,7 +3,6 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
   EffectiveSetting,
   SettingKey,
-  SettingScope,
   SettingSource,
   SettingDefWire,
 } from "@fresnel/contracts/settings";
@@ -97,7 +96,7 @@ export interface SettingsController {
   /** 다른 곳에서 값이 바뀐 초안을 그대로 둔다. 이 뒤에야 저장할 수 있다 */
   keepDraft(key: SettingKey): void;
   /** 범위 값을 지운다. 로컬 항목은 기본값으로 되돌린다 */
-  reset(key: SettingKey, scope: Exclude<SettingScope, "managed">): Promise<void>;
+  reset(key: SettingKey, scope: WritableScope): Promise<void>;
   restartHost(): Promise<void>;
   dispose(): Promise<void>;
 }
@@ -114,9 +113,9 @@ function requestOptions(signal: AbortSignal | undefined): WireRequestOptions | u
   return signal === undefined ? undefined : { signal };
 }
 
-/** 가려진 범위가 파일에 쓴 값을 읽을 범위. `launch`와 `default`는 파일이 없다 */
+/** 가려진 범위가 파일에 쓴 값을 읽을 범위. `launch`, `profile`, `default`는 파일이 없다 */
 function fileScopeOf(scope: SettingSource["scope"]): SettingsFileScope | null {
-  return scope === "default" || scope === "launch" ? null : scope;
+  return scope === "default" || scope === "launch" || scope === "profile" ? null : scope;
 }
 
 /** 값이 가려진 범위 가운데 파일에서 읽을 범위. 같은 범위는 한 번만 읽는다 */
@@ -436,7 +435,7 @@ export function createSettingsController(port: SettingsHostPort): SettingsContro
     );
   }
 
-  function reset(key: SettingKey, scope: Exclude<SettingScope, "managed">): Promise<void> {
+  function reset(key: SettingKey, scope: WritableScope): Promise<void> {
     const after = queued(key, () => reset(key, scope));
     if (after !== null) return after;
     syncThread();

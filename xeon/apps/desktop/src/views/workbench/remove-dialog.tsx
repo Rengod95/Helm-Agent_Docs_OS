@@ -1,10 +1,9 @@
-// B-04 지우기 확인(위험 확인). 지우면 실행 중인 대화의 Turn에서도 이 플러그인이 바로 빠진다는 점을 본문에 적는다.
-// 저장 데이터(`ext.removePreview`)는 상자를 열 때마다 읽는다. 읽지 못하면 한 줄과 "다시 확인"을, 비었으면 한 줄만 보인다.
-// "저장된 데이터도 지우기" 칸은 표가 실제로 있을 때만 그리고 기본은 꺼짐이다. 저장 데이터를 지우다 실패하면 상자를 연 채 알린다.
-// 영향 묶음은 두 줄이다: 이 확장을 쓰는 프로필(`profile.list`의 enable)과 플러그인 뷰(화면 항목 목록, 상태와 무관하게 이 확장의 것).
+// 지우기 확인(위험 확인). 확인하면 지우기 요청(`plugin.requestRemove`)이 검토함에 올라간다. 본문은 그 사실을 적는다.
+// 저장 데이터 목록(`removePreview`)은 M5c-1에서 대체가 없어 `not_available`이고, 그 칸은 "확인하지 못했어요"와 "다시 확인"을 보인다.
+// 영향 묶음은 두 줄이다: 이 확장을 쓰는 프로필(`profile.list`의 plugins)과 플러그인 뷰(화면 항목 목록, 상태와 무관하게 이 확장의 것).
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow, type Result } from "@fresnel/contracts";
-import type { ExtRemovePreviewResult, ExtUiEntry, Profile } from "@fresnel/contracts/wire";
+import type { ExtUiEntry, Profile } from "@fresnel/contracts/wire";
 import {
   Alert,
   Button,
@@ -17,7 +16,7 @@ import {
   Skeleton,
 } from "@caustic/react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import type { CommandError } from "../commands.ts";
+import type { CommandError, StorageTablesPreview } from "../commands.ts";
 import {
   dropDataOf,
   placementTextOf,
@@ -31,7 +30,7 @@ import {
 } from "./remove-model.ts";
 
 /** 저장 데이터 미리 보기를 읽는 함수. 명령 하나를 감싼 것이고 아무것도 바꾸지 않는다 */
-type LoadPreview = (name: string) => Promise<Result<ExtRemovePreviewResult, CommandError>>;
+type LoadPreview = (name: string) => Promise<Result<StorageTablesPreview, CommandError>>;
 
 /** 프로필 목록을 읽는 함수(`profile.list`). 아무것도 바꾸지 않는다 */
 type LoadProfiles = () => Promise<Result<readonly Profile[], CommandError>>;

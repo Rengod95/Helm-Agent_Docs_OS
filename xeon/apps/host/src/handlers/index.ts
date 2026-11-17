@@ -3,6 +3,7 @@ import type { ConnectionHub } from "../connection-types.ts";
 import type { Engine } from "../types.ts";
 import { createApprovalListHandler, createApprovalRespondHandler } from "./approval.ts";
 import { createCommandHandlers } from "./command.ts";
+import { createBlocksHandlers } from "./blocks.ts";
 import { createDialogHandlers } from "./dialog.ts";
 import { createDevkitHandlers } from "./m4/devkit.ts";
 import { createDialogAreaHandlers } from "./m4/dialog-area.ts";
@@ -22,6 +23,7 @@ import {
 } from "./host.ts";
 import { notImplemented } from "./not-implemented.ts";
 import { createProposalHandlers } from "./proposal.ts";
+import { createM5Handlers } from "./m5/index.ts";
 import { createMeasureHandlers } from "./measure.ts";
 import { createModelsListHandler } from "./models.ts";
 import { createUsageGetHandler } from "./usage.ts";
@@ -46,6 +48,7 @@ import {
   createThreadReadHandler,
   createThreadRenameHandler,
   createThreadSetModelHandler,
+  createThreadSetProfileHandler,
   createThreadRevertHandler,
 } from "./thread.ts";
 import { createTrustHandlers } from "./trust.ts";
@@ -91,6 +94,7 @@ export function createWireHandlers(
     "thread.revert": createThreadRevertHandler(engine),
     "thread.rename": createThreadRenameHandler(engine, hub),
     "thread.setModel": createThreadSetModelHandler(engine, hub),
+    "thread.setProfile": createThreadSetProfileHandler(engine, hub),
     "thread.compact": createThreadCompactHandler(engine, hub),
     "thread.export": createThreadExportHandler(engine),
     "turn.start": createTurnStartHandler(engine, hub),
@@ -110,6 +114,7 @@ export function createWireHandlers(
     "usage.get": createUsageGetHandler(engine),
     "models.list": createModelsListHandler(engine),
     ...createMeasureHandlers(engine),
+    ...createM5Handlers(engine),
     ...createProposalHandlers(engine),
     ...createSecretHandlers(engine, hub),
     ...createTrustHandlers(engine),
@@ -120,12 +125,35 @@ export function createWireHandlers(
     ...createScheduleHandlers(engine),
     ...createDialogHandlers(engine),
     ...createExtReadHandlers(engine.ports.m4.extRead),
+    ...createBlocksHandlers(),
     ...createExtUiVersionHandlers(engine.ports.m4.extUi),
     ...createProfileTestRunHandlers(engine.ports.m4.profileTestRun),
     ...createDialogAreaHandlers(engine.ports.m4.dialogArea),
     ...createDevkitHandlers(engine.ports.m4.devkit),
     ...createSandboxSelfTestHandlers(engine.ports.m4.sandboxSelfTest),
     ...createRemoteHandlers(remotePortOf(lifecycle?.remote)),
+    // 프로젝트·플러그인 검토 메서드(M5c §3.4)는 후속 작업이 처리기를 채운다. 그 전까지는 -32601이다
+    "project.list": notImplemented("project.list"),
+    "project.get": notImplemented("project.get"),
+    "project.create": notImplemented("project.create"),
+    "project.rename": notImplemented("project.rename"),
+    "project.delete": notImplemented("project.delete"),
+    "project.instructions": notImplemented("project.instructions"),
+    "plugin.list": notImplemented("plugin.list"),
+    "plugin.get": notImplemented("plugin.get"),
+    "plugin.invocables": notImplemented("plugin.invocables"),
+    "plugin.scan": notImplemented("plugin.scan"),
+    "plugin.revert": notImplemented("plugin.revert"),
+    "plugin.requestRemove": notImplemented("plugin.requestRemove"),
+    "plugin.draft.create": notImplemented("plugin.draft.create"),
+    "plugin.draft.list": notImplemented("plugin.draft.list"),
+    "plugin.draft.discard": notImplemented("plugin.draft.discard"),
+    "plugin.draft.fromInstruction": notImplemented("plugin.draft.fromInstruction"),
+    "pluginReview.list": notImplemented("pluginReview.list"),
+    "pluginReview.get": notImplemented("pluginReview.get"),
+    "pluginReview.decide": notImplemented("pluginReview.decide"),
+    "pluginReview.file": notImplemented("pluginReview.file"),
+    "pluginReview.submitDraft": notImplemented("pluginReview.submitDraft"),
   };
   return table;
 }

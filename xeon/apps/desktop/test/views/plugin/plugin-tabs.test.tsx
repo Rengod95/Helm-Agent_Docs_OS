@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { t } from "@fresnel/client/i18n";
 import { ok } from "@fresnel/contracts";
 import type { ExtUiEntry, HostConnection } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
@@ -117,12 +118,12 @@ describe("plugin tabs", () => {
     expect(html).not.toContain("Helm 패널");
   });
 
-  test("the pages tab puts the per-chat switch list above the plugin screen, always expanded", async () => {
+  test("the pages tab puts the per-chat plugin list above the plugin screen, always expanded", async () => {
     const html = await render(
       [uiEntryOf({ extension: "other", id: "page", placement: "page", title: "쪽 화면" })],
       "pages",
     );
-    const heading = html.indexOf("이 대화에서 끄기");
+    const heading = html.indexOf(t("desktop.plugin.thread.title"));
     expect(heading).toBeGreaterThanOrEqual(0);
     expect(heading).toBeLessThan(html.indexOf("쪽 화면"));
     expect(html).not.toContain('data-slot="accordion');

@@ -172,7 +172,7 @@ export const SettingsInvalidatedParamsSchema: TObject<{
 }> = Type.Object(
   {
     keys: Type.Array(SettingKeySchema, { maxItems: 256 }),
-    scopes: Type.Array(SettingScopeSchema, { minItems: 1, maxItems: 5, uniqueItems: true }),
+    scopes: Type.Array(SettingScopeSchema, { minItems: 1, maxItems: 6, uniqueItems: true }),
     /** `session` 범위 변경이 속한 thread. 그 밖의 범위는 null */
     threadId: Nullable(ThreadIdSchema),
   },

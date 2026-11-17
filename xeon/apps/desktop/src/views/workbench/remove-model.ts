@@ -1,28 +1,24 @@
-// 확장 지우기(B-04, `ext.remove`)의 순수 판단: 어떤 행을 지울 수 있나, 결과를 어떤 문장으로 알리나.
+// 확장 지우기(B-04)의 순수 판단: 어떤 행을 지울 수 있나, 결과를 어떤 문장으로 알리나.
+// M5c-1부터 지우기는 `plugin.requestRemove`가 검토 항목을 만든다(바로 지우지 않는다). 저장 데이터 목록(`ext.removePreview`)과
+// 저장 데이터 지우기는 대체가 없어 `not_available`이다.
 import { assertNever } from "@fresnel/contracts";
 import { activeLocale, type MessageId } from "@fresnel/client/i18n";
 import type { Placement } from "@fresnel/contracts/extensions";
-import type {
-  ExtListEntry,
-  ExtRemovePreviewResult,
-  ExtRemoveResult,
-  ExtUiEntry,
-  Profile,
-} from "@fresnel/contracts/wire";
-import type { CommandError } from "../commands.ts";
+import type { ExtListEntry, ExtUiEntry, Profile } from "@fresnel/contracts/wire";
+import type { CommandError, StorageTableRow } from "../commands.ts";
 import { stripUnsafeText } from "@fresnel/client/views/app";
 import { extMessageOf } from "@fresnel/client/views/native";
 
 /**
- * 이 확장을 쓰는 프로필의 제목. 프로필의 `enable`에 이름이 있는 것만 센다. `disable`에만 적힌 프로필은 이 확장을 끄는 것이라 쓰는 것이 아니다.
+ * 이 확장을 쓰는 프로필의 제목. 프로필의 `plugins` 목록에 이름이 있는 것만 센다(목록에 없으면 그 프로필은 이 확장을 쓰지 않는다).
  * 목록 순서(`profile.list`의 순서)를 따른다
  */
 export function profilesUsingOf(
-  profiles: readonly Pick<Profile, "title" | "enable">[],
+  profiles: readonly Pick<Profile, "title" | "plugins">[],
   name: string,
 ): readonly string[] {
   return profiles
-    .filter((profile) => profile.enable.includes(name))
+    .filter((profile) => profile.plugins.some((plugin) => plugin.name === name))
     .map((profile) => profile.title);
 }
 
@@ -77,19 +73,8 @@ export function removableOf(entry: Pick<ExtListEntry, "origin">): boolean {
   return entry.origin === "user";
 }
 
-/** 지운 결과 문장. 로더가 내리면 `now`, 켜기가 경계로 미뤄졌으면 `nextStepBoundary`, 로더가 없으면 `restart`다 */
-export function removeDoneText(appliesAt: ExtRemoveResult["appliesAt"]): MessageId {
-  switch (appliesAt) {
-    case "now":
-      return "desktop.workbench.remove.done.now";
-    case "nextStepBoundary":
-      return "desktop.workbench.remove.done.boundary";
-    case "restart":
-      return "desktop.workbench.remove.done.restart";
-    default:
-      return assertNever(appliesAt, "removeDoneText");
-  }
-}
+/** 지우기 요청을 보냈을 때의 문장. 지우는 것은 검토가 승인한 뒤이므로 "바로 지웠다"고 쓰지 않는다 */
+export const REMOVE_REQUESTED_TEXT: MessageId = "desktop.workbench.remove.requested";
 
 /** 이미 없는 이름(`extension.notFound`, 3401)을 지우려 했나. 목록이 낡았다는 뜻이라 문장이 다르다 */
 const REMOVE_NOT_FOUND_CODE = 3401;
@@ -100,7 +85,7 @@ const REMOVE_NOT_FOUND_CODE = 3401;
  */
 export type RemoveOutcome = "removed" | "gone" | "failed";
 
-/** 실패한 `ext.remove`의 오류 값에서 결과를 가른다 */
+/** 실패한 `plugin.requestRemove`의 오류 값에서 결과를 가른다 */
 export function removeOutcomeOfError(error: CommandError): RemoveOutcome {
   return error.kind === "rejected" && error.code === REMOVE_NOT_FOUND_CODE ? "gone" : "failed";
 }
@@ -110,8 +95,8 @@ export function keepsDialogOpen(outcome: RemoveOutcome, dropData: boolean): bool
   return outcome === "failed" && dropData;
 }
 
-/** 확장이 소유한 저장 테이블 한 줄(`ext.removePreview`의 `tables`) */
-export type StorageTable = ExtRemovePreviewResult["tables"][number];
+/** 확장이 소유한 저장 테이블 한 줄(저장 데이터 목록의 한 줄). 지금은 만들어지지 않는다(`not_available`) */
+export type StorageTable = StorageTableRow;
 
 /**
  * 지우기 상자가 읽은 저장 데이터. `ready`에서 `tables`가 비었으면 "확인된 저장 데이터가 없어요"다.
@@ -142,23 +127,9 @@ export function totalRowsOf(tables: readonly StorageTable[]): number {
 }
 
 /**
- * `ext.remove`에 `dropData`로 보낼 값. 칸을 켰고 지울 테이블이 실제로 보일 때만 참이다.
+ * 저장 데이터 지우기를 요청할 값. 칸을 켰고 지울 테이블이 실제로 보일 때만 참이다.
  * 표가 비었으면 칸이 없으므로 체크 상태와 무관하게 거짓이다
  */
 export function dropDataOf(checked: boolean, tables: readonly StorageTable[]): boolean {
   return checked && tables.length > 0;
-}
-
-/**
- * 지운 뒤 알림 문장. 제목은 적용 시점 문장이고(`removeDoneText`), 저장 테이블을 함께 지웠으면(`dataDropped` > 0)
- * 그 수를 덧붙인 문장을 `data`로 준다. 적용 시점을 잃지 않으려고 제목을 바꾸지 않는다
- */
-export function removeDoneCopyOf(
-  appliesAt: ExtRemoveResult["appliesAt"],
-  dataDropped: number | undefined,
-): { readonly title: MessageId; readonly data: number | null } {
-  return {
-    title: removeDoneText(appliesAt),
-    data: dataDropped !== undefined && dataDropped > 0 ? dataDropped : null,
-  };
 }

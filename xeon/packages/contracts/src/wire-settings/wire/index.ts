@@ -24,3 +24,8 @@ export * from "./dialog-area.ts";
 export * from "./profile-test-run.ts";
 export * from "./devkit.ts";
 export * from "./measure.ts";
+export * from "./profile.ts";
+export * from "./project.ts";
+export * from "./plugin.ts";
+export * from "./plugin-review.ts";
+export * from "./turn-record.ts";

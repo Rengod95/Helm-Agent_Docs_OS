@@ -566,6 +566,42 @@ test("order: a saved hooks.order moves one external hook ahead of another, so th
   expect(hookIdsOf(specs)).toEqual(["beta-hook"]);
 });
 
+test('interpretHookRun: a first hook\'s {"decision":"ask","reason"} is the ask decision, and a chain hook ignores it', () => {
+  const ask = JSON.stringify({ decision: "ask", reason: "check with the user" });
+  expect(interpretHookRun("first", { ...rawOk, stdout: ask })).toEqual({
+    kind: "decision",
+    decision: { ask: true, reason: "check with the user" },
+  });
+  expect(interpretHookRun("first", { ...rawOk, stdout: '{"decision":"ask"}' })).toEqual({
+    kind: "decision",
+    decision: { ask: true, reason: "" },
+  });
+  expect(interpretHookRun("chain", { ...rawOk, stdout: ask })).toEqual({ kind: "pass" });
+});
+
+test('runner: a tool.call.before hook that prints {"decision":"ask","reason"} asks, and the dispatch keeps the ask', async () => {
+  const hook = loaded(
+    def({ id: "ask-first", point: "tool.call.before", tools: ["bash"], command: ["check"] }),
+  );
+  const { harness } = await rig([hook], () => ({
+    ...rawOk,
+    stdout: JSON.stringify({ decision: "ask", reason: "rm needs a look" }),
+  }));
+  const thread = harness.t.newThread();
+  await harness.t.host.openThread(thread);
+  const bash = await harness.t.host.dispatch("tool.call.before", toolPayload("bash"), {
+    threadId: thread,
+    dispatchKey: "k-ask",
+  });
+  expect(bash).toMatchObject({
+    fold: "first",
+    decision: { ask: true, reason: "rm needs a look" },
+    substituted: false,
+  });
+  // 묻기는 막음이 아니므로 실행기의 계측 결과는 passed다
+  expect(bash.failures).toEqual([]);
+});
+
 test("unit names: a hook unit is the reserved prefix plus the hook id, and only that prefix is a hook unit", () => {
   expect(hookUnitName("no-rm")).toBe("fresnel-hooks-no-rm");
   expect(hookIdOfUnit("fresnel-hooks-no-rm")).toBe("no-rm");

@@ -7,7 +7,7 @@ import {
   type CallContext,
   type CallOptions,
 } from "@fresnel/contracts/capabilities";
-import { Bug, type Clock, type Result, type Scheduler } from "@fresnel/contracts";
+import { Bug, type Clock, type Logger, type Result, type Scheduler } from "@fresnel/contracts";
 import type {
   AgentTool,
   AgentToolResult,
@@ -67,6 +67,8 @@ export interface HarnessOptions {
   readonly scheduler?: Scheduler;
   /** 시계. 생략하면 고정 시각이다 */
   readonly clock?: Clock;
+  /** 기록기. 생략하면 기록하지 않는다. 진단 로그를 확인하는 시험이 넣는다 */
+  readonly logger?: Logger;
 }
 
 export interface Harness {
@@ -158,7 +160,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     clock,
     ...(options.scheduler === undefined ? {} : { scheduler: options.scheduler }),
     ids,
-    logger: undefined,
+    logger: options.logger,
   };
   const runtime = createToolRuntime(deps);
   return {
@@ -226,6 +228,16 @@ export function layer(
   };
 }
 
+/** `registerWorkspace`의 `edit`이 돌려주는 변경 기록(내장 `edit`의 결과 `details`가 된다) */
+export const EDITED_FILE_CHANGE = {
+  path: "a.txt",
+  existed: true,
+  diff: "--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-hello\n+bye\n",
+  added: 1,
+  removed: 1,
+  firstChangedLine: 1,
+} as const;
+
 /** bash·read 기능 도구를 올리고 API 호출 기록을 돌려준다 */
 export interface WorkspaceProbe {
   readonly calls: {
@@ -259,6 +271,10 @@ export function registerWorkspace(harness: Harness): WorkspaceProbe {
     },
   });
   harness.apis.set(WorkspaceFiles.id, {
+    edit: (input: unknown) => {
+      calls.push({ method: "edit", input });
+      return Promise.resolve({ applied: 1, matchMode: "exact", change: EDITED_FILE_CHANGE });
+    },
     grep: (input: unknown) => {
       calls.push({ method: "grep", input });
       return Promise.resolve({ root: "/", matches: [] });

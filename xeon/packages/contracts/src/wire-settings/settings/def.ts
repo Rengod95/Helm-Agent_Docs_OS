@@ -31,7 +31,31 @@ export const SettingKeySchema: TString = Type.String({
 });
 export type SettingKey = string;
 
+/**
+ * 설정 범위. `profile`은 대화가 참조한 프로필과 공통 묶음의 `settings` 병합 값이다(M5c §3.3). 읽기 전용이다.
+ * 쓰기는 `profile.put`·`profile.common.put`만 한다. 쓰기 요청은 `SettingWriteScopeSchema`를 쓴다.
+ */
 export const SettingScopeSchema: TUnion<
+  [
+    TLiteral<"managed">,
+    TLiteral<"user">,
+    TLiteral<"project">,
+    TLiteral<"local">,
+    TLiteral<"launch">,
+    TLiteral<"profile">,
+  ]
+> = Type.Union([
+  Type.Literal("managed"),
+  Type.Literal("user"),
+  Type.Literal("project"),
+  Type.Literal("local"),
+  Type.Literal("launch"),
+  Type.Literal("profile"),
+]);
+export type SettingScope = Static<typeof SettingScopeSchema>;
+
+/** `settings.set`·`settings.reset`이 받는 범위. `profile`은 없다(프로필은 `profile.put`으로만 쓴다) */
+export const SettingWriteScopeSchema: TUnion<
   [
     TLiteral<"managed">,
     TLiteral<"user">,
@@ -46,7 +70,11 @@ export const SettingScopeSchema: TUnion<
   Type.Literal("local"),
   Type.Literal("launch"),
 ]);
-export type SettingScope = Static<typeof SettingScopeSchema>;
+export type SettingWriteScope = Static<typeof SettingWriteScopeSchema>;
+
+/** `ext.<확장id>.enabled` 키. 관리자가 플러그인을 막는 잠금으로만 쓴다(M5c §3.3). 쓰기 화면과 wire 쓰기 경로는 없다 */
+export const EXT_ENABLED_KEY_PATTERN: string = "^ext\\.[a-z][a-z0-9-]*\\.enabled$";
+const EXT_ENABLED_KEY_REGEX = new RegExp(EXT_ENABLED_KEY_PATTERN);
 
 export const RuntimeChangeSchema: TUnion<
   [TLiteral<"live">, TLiteral<"nextTurn">, TLiteral<"restart">]
@@ -289,7 +317,7 @@ export const SettingDefWireSchema: TObject<{
     range: Type.Optional(SettingRangeSchema),
     runtimeChange: RuntimeChangeSchema,
     layer: SettingLayerSchema,
-    allowedScopes: Type.Array(SettingScopeSchema, { minItems: 1, maxItems: 5, uniqueItems: true }),
+    allowedScopes: Type.Array(SettingScopeSchema, { minItems: 1, maxItems: 6, uniqueItems: true }),
     ui: Type.Optional(SettingUiSchema),
     secret: Type.Optional(Type.Boolean()),
     since: SemVerSchema,
@@ -312,8 +340,8 @@ export const KEY_PREFIX_LAYERS: Readonly<Record<string, SettingLayer>> = {
   l4: "L4",
 };
 
-/** SettingDef 검사 규칙 D1~D9. D9는 카탈로그를 조립할 때 검사한다(buildCatalog). */
-export type SettingDefRule = "D1" | "D2" | "D3" | "D4" | "D5" | "D6" | "D7" | "D8" | "D9";
+/** SettingDef 검사 규칙 D1~D10. D9는 카탈로그를 조립할 때 검사한다(buildCatalog). D10은 ext.<이름>.enabled의 범위를 관리로 묶는다(M5c §3.3). */
+export type SettingDefRule = "D1" | "D2" | "D3" | "D4" | "D5" | "D6" | "D7" | "D8" | "D9" | "D10";
 
 export interface SettingDefIssue {
   readonly rule: SettingDefRule;
@@ -337,7 +365,7 @@ function typeName(json: unknown): string | undefined {
 }
 
 /**
- * SettingDef 하나를 규칙 D1~D8로 검사한다. 순수 함수. 하나라도 어기면 정의를 거부해야 한다.
+ * SettingDef 하나를 규칙 D1~D8, D10으로 검사한다. 순수 함수. 하나라도 어기면 정의를 거부해야 한다.
  * D3의 ui는 선택이다: ui가 있을 때만 widget이 "secret"이어야 한다(화면에 두지 않는 시크릿 키는 파일·명령으로만 쓴다).
  */
 export function checkSettingDef(def: SettingDef): readonly SettingDefIssue[] {
@@ -415,6 +443,14 @@ export function checkSettingDef(def: SettingDef): readonly SettingDefIssue[] {
     if (widget === "secret" && def.secret !== true) {
       add("D8", "widget secret needs secret: true");
     }
+  }
+
+  // D10: ext.<이름>.enabled는 관리 범위만 쓴다(M5c §3.3)
+  if (
+    EXT_ENABLED_KEY_REGEX.test(def.key) &&
+    !(def.allowedScopes.length === 1 && def.allowedScopes[0] === "managed")
+  ) {
+    add("D10", "ext.<name>.enabled may only be allowed in the managed scope");
   }
 
   // D4: 마지막에 본다. 앞의 규칙을 어긴 정의의 기본값 검사는 의미가 흐리다.

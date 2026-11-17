@@ -55,7 +55,7 @@ function hookRowIds(html: string): string[] {
 }
 
 describe("Strata render", () => {
-  test("renders the 13 visible hook rows in HOOKS order, then the 33 others", () => {
+  test("renders the 17 visible hook rows in HOOKS order, then the 33 others", () => {
     const html = render();
     const ids = hookRowIds(html);
     const detailsAt = html.indexOf("<details");
@@ -64,8 +64,8 @@ describe("Strata render", () => {
     const others = hookRowIds(html.slice(detailsAt));
     expect(visible).toEqual(HOOKS.map((h) => h.id));
     expect(others).toEqual(OTHER_HOOKS.map((o) => o.id));
-    expect(ids.length).toBe(46);
-    expect(visible.length).toBe(13);
+    expect(ids.length).toBe(50);
+    expect(visible.length).toBe(17);
     expect(others.length).toBe(33);
   });
 

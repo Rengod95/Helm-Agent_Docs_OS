@@ -58,17 +58,21 @@ const RENAMES: readonly (readonly [string, HookName])[] = [
   ["ui_prompt_end", "thread.prompt.after"],
 ];
 
-/** pi에서 온 지점. guard와 lifecycle 5행은 pi 출처가 없다 */
+/** pi에서 온 지점. guard와 lifecycle 5행, M5e에서 더한 사람에게 묻기·서브에이전트 4행은 pi 출처가 없다 */
 const NEW_HOOKS: readonly HookName[] = [
   "guard.model.before",
   "guard.tool.before",
   "guard.output.before",
   "lifecycle.agent.settled",
   "lifecycle.lease.rejected",
+  "ask.human.before",
+  "ask.human.after",
+  "agent.spawn.before",
+  "agent.spawn.after",
 ];
 
 /** `<종류>.<대상>[.<시점>]`. 시점은 before, after, 명사형 대상은 아래 허용 목록의 마지막 마디를 쓴다 */
-const NAME_RULE = /^(input|request|tool|boundary|thread|lifecycle|guard)(\.[a-z]+){1,2}$/;
+const NAME_RULE = /^(input|request|tool|boundary|thread|lifecycle|guard|ask|agent)(\.[a-z]+){1,2}$/;
 const NOUN_WORDS: ReadonlySet<string> = new Set([
   "update",
   "failed",
@@ -87,7 +91,7 @@ function count(pick: (row: (typeof rows)[number]) => string): Record<string, num
 
 describe("HOOKS", () => {
   test("every row has fold, payload and failure", () => {
-    expect(rows).toHaveLength(46);
+    expect(rows).toHaveLength(50);
     for (const row of rows) {
       expect(row.fold).toBeDefined();
       expect(row.kind).toBeDefined();
@@ -100,9 +104,11 @@ describe("HOOKS", () => {
   test("failure follows the fold default except the declared exception", () => {
     const defaults = { tap: "open", collect: "open", chain: "skip", first: "closed" } as const;
     const differing = rows.filter((row) => row.failure !== defaults[row.fold]).map((r) => r.name);
-    expect(differing).toEqual(["thread.compact.before"]);
+    expect(differing).toEqual(["thread.compact.before", "ask.human.before"]);
     expect(HOOKS["thread.compact.before"].failure).toBe("open");
-    expect(count((r) => r.failure)).toEqual({ closed: 9, open: 27, skip: 10 });
+    expect(HOOKS["ask.human.before"].failure).toBe("open");
+    expect(HOOKS["agent.spawn.before"].failure).toBe("closed");
+    expect(count((r) => r.failure)).toEqual({ closed: 10, open: 29, skip: 11 });
   });
 
   test("names follow the rule, are unique and complete", () => {
@@ -144,8 +150,10 @@ describe("HOOKS", () => {
       thread: 15,
       lifecycle: 2,
       guard: 3,
+      ask: 2,
+      agent: 2,
     });
-    expect(count((r) => r.fold)).toEqual({ tap: 24, first: 10, chain: 10, collect: 2 });
+    expect(count((r) => r.fold)).toEqual({ tap: 25, first: 12, chain: 11, collect: 2 });
   });
 
   test("pi fold distribution matches F-1", () => {
@@ -169,6 +177,11 @@ describe("HOOKS", () => {
     const denied = firsts.filter((r) => r.failure === "closed").map((r) => r.name);
     expect(Object.keys(FIRST_DENY).toSorted()).toEqual(denied.toSorted());
     expect(Object.keys(FIRST_DENY)).not.toContain("thread.compact.before");
+    expect(Object.keys(FIRST_DENY)).not.toContain("ask.human.before");
+    expect(FIRST_DENY["agent.spawn.before"]).toEqual({
+      block: true,
+      reason: "extension handler failed",
+    });
     expect(Object.keys(CHAIN_RULES).toSorted()).toEqual(chains.toSorted());
   });
 

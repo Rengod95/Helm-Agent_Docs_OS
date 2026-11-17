@@ -13,14 +13,14 @@ const textOf = (html: string): string => html.replace(/<[^>]*>/g, "");
 const QUIET: Profile = {
   id: "quiet",
   title: "조용히",
-  enable: [],
-  disable: ["web"],
+  builtin: false,
+  plugins: [],
   settings: [],
   startDrive: null,
   updatedAt: "2026-11-04T10:00:00Z",
   rev: 1,
 };
-const LOUD: Profile = { ...QUIET, id: "loud", title: "시끄럽게", disable: [], enable: ["web"] };
+const LOUD: Profile = { ...QUIET, id: "loud", title: "시끄럽게", plugins: [{ name: "web" }] };
 
 function section(profiles: ProfileLoad, threadOpen: boolean): string {
   return renderToString(

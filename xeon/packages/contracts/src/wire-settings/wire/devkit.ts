@@ -1,7 +1,6 @@
 import { Type, type TUnsafe } from "typebox";
 import type { SchemaProof } from "../../base/index.ts";
 import {
-  BRIDGE_CAPABILITIES,
   CompositionDeclSchema,
   ExtensionLayerSchema,
   PluginIdSchema,
@@ -12,15 +11,11 @@ import {
 } from "../../extensions/index.ts";
 import type {
   DevkitIssue,
-  ExtensionKind,
-  InstallPreview,
   KindEntry,
-  LinkResult,
   PackResult,
   ReplayReport,
   ScaffoldResult,
 } from "../../services/devkit.ts";
-import { ExtDiagnosticSchema, type ExtDiagnostic } from "./ext-read.ts";
 import {
   closed,
   m4,
@@ -84,8 +79,11 @@ export const ExtKindsResultSchema: TUnsafe<ExtKindsResult> = Type.Unsafe<ExtKind
   ExtKindsResultShape satisfies SchemaProof<ExtKindsResult, typeof ExtKindsResultShape>,
 );
 
+/**
+ * `ext.scaffold`의 종류. M5c-1에서 `plugin-group`을 뺐다(플러그인 묶음은 검토 흐름에서 만들지 않는다). `ext.kinds`는 옛 두 종류를 그대로 돌려준다
+ */
 export interface ExtScaffoldParams {
-  readonly kind: ExtensionKind;
+  readonly kind: "single-plugin";
   readonly name: string;
   readonly dir: string;
   readonly layer?: ExtensionLayer;
@@ -93,7 +91,7 @@ export interface ExtScaffoldParams {
   readonly ui?: UiDecl;
 }
 const ExtScaffoldParamsShape = request({
-  kind: ExtensionKindShape,
+  kind: Type.Literal("single-plugin"),
   name: Name,
   dir: Path,
   layer: Type.Optional(ExtensionLayerSchema),
@@ -169,187 +167,6 @@ const ExtPackageResultShape = closed({
 export const ExtPackageResultSchema: TUnsafe<PackResult> = Type.Unsafe<PackResult>(
   ExtPackageResultShape satisfies SchemaProof<PackResult, typeof ExtPackageResultShape>,
 );
-
-/** `ext.install`(W-32). 설치는 사람 확인 뒤 호스트가 서비스 `link`로 한다 */
-export interface ExtInstallParams {
-  readonly source: string;
-  /** `ext.installPreview`가 돌려준 `sha256`. 다르면 `source_changed`로 거부한다 */
-  readonly sha256: string;
-}
-const Sha256 = Type.String({ pattern: "^[0-9a-f]{64}$" });
-const ExtInstallParamsShape = request({ source: Path, sha256: Sha256 });
-export const ExtInstallParamsSchema: TUnsafe<Req<ExtInstallParams>> = Type.Unsafe<
-  Req<ExtInstallParams>
->(ExtInstallParamsShape satisfies SchemaProof<Req<ExtInstallParams>, typeof ExtInstallParamsShape>);
-/**
- * 설치한 확장이 켜지는 때. 새 이름은 설치 뒤 로더가 곧바로 싣는다: 실행 중인 turn이 없으면 `now`, 있으면 켜기가 다음 단계 경계로 미뤄져 `nextStepBoundary`다.
- * 같은 이름이 이미 실행 중이면 `nextStepBoundary`이고 호출자가 `ext.reload`로 바꾼다. `restart`는 싣지 못했을 때(`loadFailure`)나 로더가 없을 때만 남는다
- * [결정: 2026-11-03 사용자 (a), M4 T-RELOAD]
- */
-export const EXT_LOAD_FAILURE_REASONS = [
-  "safe_mode",
-  "not_found",
-  "rejected",
-  "error",
-  "disabled",
-  "loader_unavailable",
-] as const;
-export type ExtLoadFailureReason = (typeof EXT_LOAD_FAILURE_REASONS)[number];
-/** 파일은 복사됐지만 싣지 못한 이유. 화면이 "설치했지만 켜지 못했어요"와 진단을 보인다 */
-export interface ExtLoadFailure {
-  readonly reason: ExtLoadFailureReason;
-  readonly diagnostics: readonly ExtDiagnostic[];
-}
-const ExtLoadFailureShape = closed({
-  reason: Type.Union(EXT_LOAD_FAILURE_REASONS.map((name) => Type.Literal(name))),
-  diagnostics: Type.Array(ExtDiagnosticSchema, { maxItems: 64 }),
-});
-export interface ExtInstallResult extends LinkResult {
-  readonly appliesAt: "now" | "nextStepBoundary" | "restart";
-  readonly loadFailure?: ExtLoadFailure;
-  /** 같은 이름이 이미 실행 중이라 호출자가 `ext.reload`로 새 판으로 바꿔야 한다. 새 이름이 단계 경계에서 켜지는 `nextStepBoundary`와 구별한다 */
-  readonly needsReload?: true;
-}
-const ExtInstallResultShape = closed({
-  name: Name,
-  version: Name,
-  location: Path,
-  appliesAt: Type.Union([
-    Type.Literal("now"),
-    Type.Literal("nextStepBoundary"),
-    Type.Literal("restart"),
-  ]),
-  loadFailure: Type.Optional(ExtLoadFailureShape),
-  needsReload: Type.Optional(Type.Literal(true)),
-});
-export const ExtInstallResultSchema: TUnsafe<ExtInstallResult> = Type.Unsafe<ExtInstallResult>(
-  ExtInstallResultShape satisfies SchemaProof<ExtInstallResult, typeof ExtInstallResultShape>,
-);
-
-/** `ext.installPreview`(W-32). 설치 전 확인 화면 값. 디스크에 쓰지 않는다 */
-export interface ExtInstallPreviewParams {
-  readonly source: string;
-}
-const ExtInstallPreviewParamsShape = request({ source: Path });
-export const ExtInstallPreviewParamsSchema: TUnsafe<Req<ExtInstallPreviewParams>> = Type.Unsafe<
-  Req<ExtInstallPreviewParams>
->(
-  ExtInstallPreviewParamsShape satisfies SchemaProof<
-    Req<ExtInstallPreviewParams>,
-    typeof ExtInstallPreviewParamsShape
-  >,
-);
-const CapabilityRef = closed({ id: Name, optional: Type.Boolean() });
-const PreviewScreen = closed({
-  id: Name,
-  title: Type.String({ maxLength: 128 }),
-  placement: Name,
-  mode: Type.Union([Type.Literal("native"), Type.Literal("app")]),
-  capabilities: Type.Array(Type.Union(BRIDGE_CAPABILITIES.map((name) => Type.Literal(name))), {
-    maxItems: BRIDGE_CAPABILITIES.length,
-  }),
-});
-const ExtInstallPreviewResultShape = closed({
-  name: Name,
-  version: Name,
-  displayName: Type.Union([Name, Type.Null()]),
-  description: Type.Union([Type.String({ maxLength: 1024 }), Type.Null()]),
-  source: Path,
-  sha256: Sha256,
-  trustRequest: Type.Union([
-    Type.Literal("user"),
-    Type.Literal("project"),
-    Type.Literal("untrusted"),
-    Type.Null(),
-  ]),
-  installedVersion: Type.Union([Name, Type.Null()]),
-  hooks: Type.Array(Name, { maxItems: 1024 }),
-  tools: Type.Array(Name, { maxItems: 256 }),
-  capabilities: Type.Array(CapabilityRef, { maxItems: 2048 }),
-  network: Type.Array(Name, { maxItems: 256 }),
-  files: Type.Array(Name, { maxItems: 256 }),
-  shell: Type.Array(Name, { maxItems: 256 }),
-  drives: Type.Boolean(),
-  screens: Type.Array(PreviewScreen, { maxItems: 64 }),
-  warnings: Type.Array(
-    closed({
-      severity: Type.Union([Type.Literal("error"), Type.Literal("warning"), Type.Literal("info")]),
-      code: Name,
-      path: Type.String({ maxLength: 512 }),
-      message: Type.String({ maxLength: 2048 }),
-      file: Type.Optional(Path),
-      line: Type.Optional(Count),
-    }),
-    { maxItems: 500 },
-  ),
-});
-export const ExtInstallPreviewResultSchema: TUnsafe<InstallPreview> = Type.Unsafe<InstallPreview>(
-  ExtInstallPreviewResultShape satisfies SchemaProof<
-    InstallPreview,
-    typeof ExtInstallPreviewResultShape
-  >,
-);
-
-export interface ExtRemoveParams {
-  readonly name: string;
-  /** 참이면 그 확장의 저장 테이블도 지운다. 이벤트 기록은 남는다. 생략하면 남긴다 */
-  readonly dropData?: boolean;
-}
-const ExtRemoveParamsShape = request({ name: Name, dropData: Type.Optional(Type.Boolean()) });
-export const ExtRemoveParamsSchema: TUnsafe<Req<ExtRemoveParams>> = Type.Unsafe<
-  Req<ExtRemoveParams>
->(ExtRemoveParamsShape satisfies SchemaProof<Req<ExtRemoveParams>, typeof ExtRemoveParamsShape>);
-/**
- * 지운 확장이 내려가는 때. 로더가 내리면 `now`(목록에서 바로 빠진다), 로더가 없으면 `restart`다.
- * `dataDropped`는 `dropData`가 참이었을 때만 있고 지운 저장 테이블 수다
- */
-export interface ExtRemoveResult {
-  readonly name: string;
-  readonly appliesAt: "now" | "nextStepBoundary" | "restart";
-  readonly dataDropped?: number;
-}
-const ExtRemoveResultShape = closed({
-  name: Name,
-  appliesAt: Type.Union([
-    Type.Literal("now"),
-    Type.Literal("nextStepBoundary"),
-    Type.Literal("restart"),
-  ]),
-  dataDropped: Type.Optional(Count),
-});
-export const ExtRemoveResultSchema: TUnsafe<ExtRemoveResult> = Type.Unsafe<ExtRemoveResult>(
-  ExtRemoveResultShape satisfies SchemaProof<ExtRemoveResult, typeof ExtRemoveResultShape>,
-);
-
-/** 지우기 확인 화면의 미리 보기. 아무것도 바꾸지 않는다 */
-export interface ExtRemovePreviewParams {
-  readonly name: string;
-}
-const ExtRemovePreviewParamsShape = request({ name: Name });
-export const ExtRemovePreviewParamsSchema: TUnsafe<Req<ExtRemovePreviewParams>> = Type.Unsafe<
-  Req<ExtRemovePreviewParams>
->(
-  ExtRemovePreviewParamsShape satisfies SchemaProof<
-    Req<ExtRemovePreviewParams>,
-    typeof ExtRemovePreviewParamsShape
-  >,
-);
-/** 확장이 소유한 저장 테이블과 행 수. 저장 영역이 없거나 테이블이 없으면 빈 목록이다 */
-export interface ExtRemovePreviewResult {
-  readonly name: string;
-  readonly tables: readonly { readonly name: string; readonly rows: number }[];
-}
-const ExtRemovePreviewResultShape = closed({
-  name: Name,
-  tables: Type.Array(closed({ name: Id, rows: Count }), { maxItems: 64 }),
-});
-export const ExtRemovePreviewResultSchema: TUnsafe<ExtRemovePreviewResult> =
-  Type.Unsafe<ExtRemovePreviewResult>(
-    ExtRemovePreviewResultShape satisfies SchemaProof<
-      ExtRemovePreviewResult,
-      typeof ExtRemovePreviewResultShape
-    >,
-  );
 
 /**
  * `ext.test.run`(W-29). replay 실행은 개발 모드만(`dev_mode_required`). 이름이 Test run(격리 대화)과 헷갈리지만
@@ -447,10 +264,6 @@ export interface DevkitWireSchemas {
   "ext.scaffold": Io<U<Req<ExtScaffoldParams>>, U<ScaffoldResult>>;
   "ext.validate": Io<U<Req<ExtDirParams>>, U<ExtValidateDirResult>>;
   "ext.package": Io<U<Req<ExtPackageParams>>, U<PackResult>>;
-  "ext.installPreview": Io<U<Req<ExtInstallPreviewParams>>, U<InstallPreview>>;
-  "ext.install": Io<U<Req<ExtInstallParams>>, U<ExtInstallResult>>;
-  "ext.remove": Io<U<Req<ExtRemoveParams>>, U<ExtRemoveResult>>;
-  "ext.removePreview": Io<U<Req<ExtRemovePreviewParams>>, U<ExtRemovePreviewResult>>;
   "ext.test.run": Io<U<Req<ExtTestRunParams>>, U<ExtTestRunResult>>;
   "ext.test.list": Io<U<NoParams>, U<ExtTestListResult>>;
 }
@@ -465,10 +278,6 @@ export const DEVKIT_WIRE_METHODS: Table = {
   "ext.scaffold": m4(ExtScaffoldParamsSchema, ExtScaffoldResultSchema),
   "ext.validate": m4(ExtDirParamsSchema, ExtValidateDirResultSchema),
   "ext.package": m4(ExtPackageParamsSchema, ExtPackageResultSchema),
-  "ext.installPreview": m4(ExtInstallPreviewParamsSchema, ExtInstallPreviewResultSchema),
-  "ext.install": m4(ExtInstallParamsSchema, ExtInstallResultSchema),
-  "ext.remove": m4(ExtRemoveParamsSchema, ExtRemoveResultSchema),
-  "ext.removePreview": m4(ExtRemovePreviewParamsSchema, ExtRemovePreviewResultSchema),
   "ext.test.run": m4(ExtTestRunParamsSchema, ExtTestRunResultSchema),
   "ext.test.list": m4(NoParamsSchema, ExtTestListResultSchema),
 };

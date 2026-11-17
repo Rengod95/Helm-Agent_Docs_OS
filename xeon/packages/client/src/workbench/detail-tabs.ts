@@ -6,24 +6,42 @@ import type { EnabledSource, ExtUiEntry, GroupMetricsResult } from "@fresnel/con
 import { buildSettingsView } from "../settings/view.ts";
 import type { BadgeScope, FieldVM } from "../settings/types.ts";
 
-/** 출처 배지의 범위(ADR-0022 §3.3: 전역 / 프로젝트 / 이 대화). `local`과 `managed`, `default`는 같은 자리에 그대로 보인다 */
-export type SourceScope = "global" | "project" | "thread" | "managed" | "local" | "default";
+/**
+ * 출처 배지의 범위. ADR-0022 §3.3의 전역·프로젝트·이 대화에 더해, M5c-1부터 켜짐이 프로필에서 계산되므로
+ * 프로필 층(`profile`, `common`, `overlay`)과 코어(`core`)를 쓴다. `local`과 `managed`, `default`는 같은 자리에 그대로 보인다
+ */
+export type SourceScope =
+  | "global"
+  | "project"
+  | "thread"
+  | "managed"
+  | "local"
+  | "default"
+  | "profile"
+  | "common"
+  | "overlay"
+  | "core";
 
-/** 켜짐 요청의 출처(`ext.list`의 `enabledSource`)를 배지 범위로 바꾼다. 호스트가 싣지 않았으면 null */
+/**
+ * 켜짐의 출처(`ext.list`의 `enabledSource`: core | common | profile | overlay | managed | none)를 배지 범위로 바꾼다.
+ * `none`(꺼짐)과 호스트가 싣지 않은 값은 배지를 두지 않으므로 null이다
+ */
 export function enabledScopeOf(source: EnabledSource | undefined): SourceScope | null {
   switch (source) {
     case undefined:
       return null;
-    case "user":
-      return "global";
-    case "project":
-      return "project";
-    case "thread":
-      return "thread";
+    case "core":
+      return "core";
+    case "common":
+      return "common";
+    case "profile":
+      return "profile";
+    case "overlay":
+      return "overlay";
     case "managed":
       return "managed";
-    case "default":
-      return "default";
+    case "none":
+      return null;
     default:
       return assertNever(source, "EnabledSource");
   }
@@ -42,6 +60,8 @@ export function settingScopeOf(scope: BadgeScope): SourceScope {
       return "local";
     case "launch":
       return "thread";
+    case "profile":
+      return "profile";
     case "default":
       return "default";
     default:

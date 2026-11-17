@@ -45,6 +45,18 @@ export function portAs<Api>(_key: PortKey<Api>, service: unknown): Api {
   return service as Api;
 }
 
+/**
+ * 지점 이름을 지운 대리 처리기를 그 지점의 처리기 타입으로 되돌린다. 플러그인 프로세스의 대리 핸들러(isolation/proxy-entry.ts)가
+ * 쓴다. 디스패처는 fold에 맞춰 (payload, current?, ctx)를 넘기고, 대리 핸들러는 그 인자를 그대로 받아 자식에게 보낸다
+ */
+export function handlerOfHook<N extends HookName>(
+  _point: N,
+  fn: (...args: readonly unknown[]) => unknown,
+): Handler<N, AnyState> {
+  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A3 타입 복원: 대리 처리기는 지점의 fold에 맞는 인자를 디스패처에서 받는다 (eng.typescript.guide TY-06)
+  return fn as unknown as Handler<N, AnyState>;
+}
+
 /** 훅 종류를 지운 핸들러 함수. 디스패처가 HOOKS[point].fold에 맞는 인자로만 부른다(X.primitives.spec §4.2) */
 export function eraseHandler<N extends HookName>(handler: Handler<N>): HandlerEntry["fn"] {
   // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A3 타입 지움: 핸들러 시그니처는 fold별 조건부 타입이다 (eng.typescript.guide TY-06)

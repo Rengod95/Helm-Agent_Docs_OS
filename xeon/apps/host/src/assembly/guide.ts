@@ -7,8 +7,9 @@ import {
   type GuideReader,
 } from "@fresnel/group-guide";
 
-// 가이드 그룹 `guide`(L3.guide.spec)를 내장 그룹으로 싣는다. 기본은 꺼짐이고 개발 모드(`l3.authoring.devMode`)에서는 항상 켜진다([결정: 2026-11-13 사용자]).
-// 그룹이 모델에게 내는 것은 스킬뿐이다: 켜져 있으면 가이드 폴더를 확장 제공 스킬 루트로 `cap-knowledge`에 싣고, 꺼져 있으면 아무것도 싣지 않아 문맥 비용이 0이다.
+// 가이드 그룹 `guide`(L3.guide.spec)를 내장 그룹으로 싣는다. 기본은 꺼짐이다. 대화가 쓰는 프로필이 넣었거나(M5c §4.1, E(T)),
+// 개발 모드(`l3.authoring.devMode`)이면 모든 대화에서 켜진 채 잠긴다([결정: 2026-11-13 사용자]).
+// 그룹이 모델에게 내는 것은 스킬뿐이다: 대화의 켜짐 집합에 있으면 가이드 폴더를 확장 제공 스킬 루트로 `cap-knowledge`에 싣고, 없으면 아무것도 싣지 않아 문맥 비용이 0이다.
 // 같은 폴더를 플러그인 빌더의 `authoring_guide`도 읽는다(가이드 그룹이 꺼져 있어도). 조립 루트 코드(DR-14 예외 2).
 
 /** 가이드 그룹을 싣는가. 기본 그룹을 끄거나(`defaultGroups: false`) 안전 모드면 싣지 않는다(안전 모드는 확장 기여를 모두 뺀다) */
@@ -26,8 +27,11 @@ export interface GuideWiring {
   readonly dir: string | undefined;
   /** 개발 모드인가: 설정 `l3.authoring.devMode`가 참이거나 Fresnel을 개발 실행으로 띄웠다(`devRunOf`). 켜진 채 잠긴다 */
   readonly forced: () => boolean;
-  /** 가이드를 모델에게 내보일 때인가: 개발 모드이거나 `ext.guide.enabled`가 참. 스킬 루트를 읽을 때마다 부른다 */
-  readonly active: () => boolean;
+  /**
+   * 가이드를 모델에게 내보일 때인가: 개발 모드이거나 이 대화의 켜짐 집합(E(T))에 가이드가 있다. 대화가 없으면 개발 모드만 본다.
+   * 스킬 루트를 읽을 때마다 부른다
+   */
+  readonly active: (threadId: string | undefined) => boolean;
 }
 
 /**
@@ -43,7 +47,8 @@ export function guideWiringOf(options: {
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly resourceDir: string;
   readonly devMode: () => boolean;
-  readonly enabledSetting: () => boolean;
+  /** 이 대화의 켜짐 집합에 가이드 그룹이 있는가(조립이 E(T)를 읽어 준다) */
+  readonly inSet: (threadId: string | undefined) => boolean;
 }): GuideWiring {
   const forced = (): boolean => options.devMode() || devRunOf(options.env);
   const dir = locateGuideSkills(options.env, options.resourceDir);
@@ -51,15 +56,16 @@ export function guideWiringOf(options: {
     reader: dir === undefined ? undefined : createGuideReader(dir),
     dir,
     forced,
-    active: () => forced() || options.enabledSetting(),
+    active: (threadId) => forced() || options.inSet(threadId),
   };
 }
 
-/** `cap-knowledge`에 알리는 확장 제공 스킬 루트. 꺼져 있으면 빈 목록이다 */
+/** `cap-knowledge`에 알리는 확장 제공 스킬 루트. 이 대화에서 꺼져 있으면 빈 목록이다 */
 export function guideSkillRoots(
   wiring: GuideWiring,
+  threadId: string | undefined,
 ): readonly { readonly dir: string; readonly extension: string }[] {
-  return wiring.dir !== undefined && wiring.active()
+  return wiring.dir !== undefined && wiring.active(threadId)
     ? [{ dir: wiring.dir, extension: GUIDE_GROUP_NAME }]
     : [];
 }

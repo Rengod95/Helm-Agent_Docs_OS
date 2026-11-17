@@ -8,6 +8,7 @@ export function commandErrorIdOf(error: CommandError): MessageId {
   switch (error.kind) {
     case "offline":
       return "desktop.offline.hint";
+    case "not_available":
     case "unsupported":
       return "desktop.work.command.unsupported";
     case "switching":

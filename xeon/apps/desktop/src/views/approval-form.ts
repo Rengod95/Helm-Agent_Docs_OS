@@ -312,7 +312,8 @@ export type FileChangeView =
     };
 
 const DIFF_CONTEXT_LINES = 2;
-const DIFF_HEAD_ROWS = 30;
+/** edit 그림의 머리 줄 수. 나머지는 `rest`로 접는다(승인 카드와 변경 탭이 같이 쓴다) */
+export const DIFF_HEAD_ROWS = 30;
 const WRITE_HEAD_LINES = 40;
 
 type Replacement = { readonly oldText: string; readonly newText: string };

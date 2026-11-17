@@ -282,6 +282,9 @@ const DENIED_EXPIRED =
 const DENIED_BY_USER = "The user denied this tool call.";
 const DENIED_CANCELLED =
   "[fresnel:approval_cancelled] The approval request was cancelled before an answer.";
+/** 확장 훅이 카드를 취소로 해결했다(M5e 스펙 §4.3.1). 사용자가 거부한 것이 아니다 */
+const DENIED_BY_EXTENSION =
+  "[fresnel:denied_by_extension] An extension cancelled this approval request.";
 
 /** 사용자가 거부했을 때 모델에 보일 사유. feedback이 있으면 덧붙인다 */
 export function denialReason(resolution: ApprovalResolution): string {
@@ -289,6 +292,7 @@ export function denialReason(resolution: ApprovalResolution): string {
     return DENIED_CANCELLED;
   }
   if (resolution.resolvedBy === "expired") return DENIED_EXPIRED;
+  if (resolution.resolvedBy === "extension") return DENIED_BY_EXTENSION;
   if (resolution.resolvedBy === "noninteractive") {
     return "[fresnel:noninteractive_ask_denied] This tool call needs approval, but nobody can answer in a non-interactive run.";
   }
@@ -307,6 +311,7 @@ export function denialDetails(resolution: ApprovalResolution): JsonObject | null
     resolution.resolvedBy === "cancelled" ||
     resolution.resolvedBy === "superseded" ||
     resolution.resolvedBy === "expired" ||
+    resolution.resolvedBy === "extension" ||
     resolution.resolvedBy === "noninteractive";
   return other ? null : { code: "denied_by_user" };
 }

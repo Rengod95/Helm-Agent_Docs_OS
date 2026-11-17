@@ -4,7 +4,12 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { join } from "node:path";
 import { eachAsync, parse, parseJson } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import { FIRST_DENY, validateManifest, type ToolCallDecision } from "@fresnel/contracts/extensions";
+import {
+  FIRST_DENY,
+  validateManifest,
+  type ToolCallDecision,
+  pluginDeclsOf,
+} from "@fresnel/contracts/extensions";
 import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
 import {
   checkGroupName,
@@ -304,8 +309,12 @@ test("template.manifest-passes-validateManifest", async () => {
       expect(result.manifest).toMatchObject({ name: "tpl-manifest", defaultEnabled: false });
       // 그룹 템플릿은 group 선언과 L3 루트 플러그인 하나를 쓴다. drive는 drive 템플릿만 등록하고, 아니면 drives를 적지 않는다
       expect(result.manifest?.group).toEqual({});
-      expect(result.manifest?.plugins.map((plugin) => plugin.layer)).toEqual(["L3"]);
-      const root = result.manifest?.plugins.find((plugin) => plugin.id === undefined);
+      expect(
+        pluginDeclsOf(result.manifest ?? { plugins: [] }).map((plugin) => plugin.layer),
+      ).toEqual(["L3"]);
+      const root = pluginDeclsOf(result.manifest ?? { plugins: [] }).find(
+        (plugin) => plugin.id === undefined,
+      );
       expect(root?.drives).toBe(kind === "drive" ? true : undefined);
       // 색인의 drives 표시는 생성되는 매니페스트의 루트 플러그인과 같아야 한다
       expect(index.templates[kind].drives).toBe(root?.drives === true);

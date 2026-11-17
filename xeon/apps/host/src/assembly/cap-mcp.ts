@@ -1,9 +1,11 @@
 import { detach, err, ok } from "@fresnel/contracts";
 import { McpClient, McpClientKey, type CapabilityApi } from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   defineManifest,
   McpPortKey,
   type ExtensionEntry,
+  type McpServersChangePayload,
   type PortKey,
 } from "@fresnel/contracts/extensions";
 import {
@@ -43,8 +45,8 @@ import { createLoaderFs, type ProjectTrust } from "./trust.ts";
 // - stdio 서버(결정 D6, ADR-0011): L0 platform-process의 `createMcpProcessPort`를 조립 루트가 `options.process`로 넘긴다(`mcp-process.ts`).
 //   cap-mcp는 L0를 import하지 않는다. 시크릿 env를 쓰는 stdio 서버는 정의 해시마다 한 번 기동 승인을 받는다(`mcp-start.ts`, M3-05).
 //
-// 아직 없는 것:
-// - `thread.mcp.after` 발화: 훅 발화에는 thread가 필요한데 서버 변화는 thread에 속하지 않는다.
+// `thread.mcp.after`는 서버 변화를 처음 본 `applyBoundary`를 부른 대화(`boundary.step.before`의 대화)에서 발화한다(H-8).
+// `createMcp`의 `onServersChange` 콜백은 대화를 받지 않으므로 쓰지 않고, 같은 보고서를 호출한 쪽에서 받는다.
 // 조립 루트 코드(DR-14 예외 2).
 
 export interface HostMcpOptions {
@@ -65,6 +67,15 @@ export interface HostMcpOptions {
   readonly process?: McpProcessPort;
   /** 기능 공급자가 올라왔을 때 한 번 부른다. 확장 읽기 wire(`mcp.servers`)가 상태를 읽는 데 쓴다 */
   readonly onClient?: (client: CapabilityApi<typeof McpClient>) => void;
+  /**
+   * `thread.mcp.after`(tap, detached) 발화. 서버 상태나 도구 집합이 바뀐 단계 경계에서 그 단계를 연 대화에 한 번 부른다(H-8).
+   * 키는 대화와 단계로 정해져서 같은 단계를 다시 발화해도 같은 값이다
+   */
+  readonly dispatchServersChanged?: (input: {
+    readonly threadId: ThreadId;
+    readonly stepId: string;
+    readonly payload: McpServersChangePayload;
+  }) => Promise<unknown>;
   readonly loadIndex?: number;
 }
 
@@ -182,9 +193,27 @@ export function hostMcpPlugin(options: HostMcpOptions): ExtensionUnit {
       // 서버 변화는 단계 경계에서 도구 표에 반영한다(L2.mcp.spec §4.9). 단계를 여는 `boundary.step.before`(도구 광고 앞)에서 그 대화의 정의를 다시 읽어
       // 지문이 바뀌었으면 서버를 맞추고, 모아 둔 변화를 한 번에 올린다. 연결이 단계 도중에 끝나면 다음 단계의 `boundary.step.before`에 오른다.
       // `request.provider.before`는 광고 뒤라 쓰지 않는다
-      g.on("boundary.step.before", async (_payload, ctx) => {
+      g.on("boundary.step.before", async (payload, ctx) => {
         await runtime.reload(options.signal, { threadId: ctx.threadId });
-        await runtime.applyBoundary();
+        const report = await runtime.applyBoundary();
+        // `applyBoundary`는 한 번에 하나씩 돌고 변화를 처음 본 호출만 `changed`를 낸다. 그래서 변화는 이 단계를 연 대화에 한 번만 발화한다.
+        // 보고서의 모양이 `thread.mcp.after`의 payload와 같다(M5e §5.1 H-8)
+        if (report.changed && options.dispatchServersChanged !== undefined) {
+          detach(
+            options.dispatchServersChanged({
+              threadId: ctx.threadId,
+              stepId: payload.stepId,
+              payload: {
+                servers: [...report.servers],
+                toolsAdded: [...report.toolsAdded],
+                toolsRemoved: [...report.toolsRemoved],
+              },
+            }),
+            (caught) => {
+              logger.warn("mcp.change_emit_failed", { message: messageOf(caught) });
+            },
+          );
+        }
       });
 
       const registration: ToolRegistration = {

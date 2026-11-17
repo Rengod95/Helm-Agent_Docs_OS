@@ -1,5 +1,9 @@
 import { err, ok, parse, type Result } from "@fresnel/contracts";
-import { ExtensionManifestSchema, type ExtensionManifest } from "@fresnel/contracts/extensions";
+import {
+  ExtensionManifestSchema,
+  pluginDeclsOf,
+  type ExtensionManifest,
+} from "@fresnel/contracts/extensions";
 import type { ExtGetResult, ExtTrust, ExtUiEntry } from "@fresnel/contracts/wire";
 import {
   defaultAllowPost,
@@ -77,7 +81,9 @@ export function policyContextOf(
     safeMode: get.entry.safeModeExcluded !== null,
     trust,
     methods,
-    readsRecordKinds: uniqueOf(manifest.plugins.flatMap((plugin) => plugin.readsRecordKinds ?? [])),
+    readsRecordKinds: uniqueOf(
+      pluginDeclsOf(manifest).flatMap((plugin) => plugin.readsRecordKinds ?? []),
+    ),
     settingPrefixes,
     declaredSettingKeys: new Set(
       Object.values(manifest.userConfig ?? {}).map((setting) => setting.setting),

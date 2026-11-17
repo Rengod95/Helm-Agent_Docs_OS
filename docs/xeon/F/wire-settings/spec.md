@@ -323,7 +323,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | thread | `thread.setModel` | `{ threadId: ThreadId, model: string(1..200) \| null }` | `{ position: StreamPosition }` | M4 |
 | thread | `thread.compact` | `{ threadId: ThreadId, instructions?: string(1..20000) }` | `{ status: "compacted", eventId: EventId, tokensBefore: integer, tokensAfter: integer, fromExtension: string \| null, position: StreamPosition }`, `{ status: "skipped", why: "nothing_to_summarize"\|"last_entry_is_compaction"\|"disabled" }` | M2 |
 | thread | `thread.export` | `{ threadId: ThreadId, format: "markdown"\|"json", after?: ItemId }` | `{ format: "markdown"\|"json", filename: string(1..200), chunk: string, next?: ItemId, itemCount: integer }`. 쪽 나누기, 가림, 파일 이름은 §3.4.7 | M4 |
-| turn | `turn.start` | `{ threadId: ThreadId, input: TurnStartInput, requestId?: string(1..64), whenBusy?: "steer"\|"followUp"\|"aside" }` | `{ turnId: TurnId, queued?: true }`. `whenBusy`와 `queued`는 §3.3.1 0a | M1 |
+| turn | `turn.start` | `{ threadId: ThreadId, input: TurnStartInput, requestId?: string(1..64), whenBusy?: "steer"\|"followUp"\|"aside" }` | `{ turnId: TurnId, queued?: true }` 또는 `{ delivered: true }`. `whenBusy`와 `queued`는 §3.3.1 0a, `delivered`는 0b | M1 |
 | turn | `turn.interrupt` | `{ threadId: ThreadId, turnId?: TurnId }` | `{ interrupted: boolean }` | M2 |
 | turn | `turn.resume` | `{ threadId: ThreadId }` | `{ status: "resumed", turnId: TurnId, from: ResumeFrom }`, `{ status: "closed", turnId: TurnId, reason: "abort_requested"\|"owner_cancelled" }`, `{ status: "nothing" }` | M2 |
 | turn | `turn.withdraw` | `{ threadId: string, requestId: string(1..64) }` | `{ withdrawn: boolean }`. 큐에 넣고 아직 배치되지 않은 입력을 요청 키로 거둔다. 쓰기 소유자만 한다(`turn.interrupt`와 같다). 요청 키가 맞는 대기 입력을 찾지 못했거나 이미 배치됐으면 거짓이다 | M4 (W-17) |
@@ -368,7 +368,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | schedule | `schedule.list` | `{ enabled?: boolean, before?: ScheduleId, limit?: 1..200 }` | `{ ok: true, items: ScheduleListItem[](최대 200), nextBefore?: ScheduleId }`. `ScheduleListItem`은 `entry`, `lastRun`에 `missedRuns`(놓친 기한 수)와 선택 `outsideWatchPaths`(허용 범위 밖 감시 경로)를 더한다 [결정: 오케스트레이터 기본값, fxSC2], `{ ok: false, error: ScheduleError }` | M3 |
 | schedule | `schedule.cancel` | `{ scheduleId: ScheduleId }` | `{ ok: true, entry: ScheduleEntryView }`, `{ ok: false, error: ScheduleError }` | M3 |
 | schedule | `schedule.fire` | `{ scheduleId: ScheduleId }` | `{ ok: true, run: RunView }`, `{ ok: false, error: ScheduleError }` | M3 |
-| ext | `ext.list` | `{ threadId?: string }` | `{ extensions: ExtListEntry[] }`. 행은 확장 하나: `isGroup`, 유효 층 `layer`, 대표 Registration의 `status`·`registration?`(대화 상태)·`enabledSource?`, Registration마다 `plugins: { registrationId, id?, layer, status, thread?, inGroup, enabledSource? }[]`, `hookCount`. 행의 `origin`은 실린 위치(`builtin`, `managed`, `user`, `project`)다. 작업 폴더 확장은 신뢰된 작업 폴더에서 로더가 실은 것이 로더 목록에서 바로 나온다. 선택 필드 `keepOffQuestion: { rule: "consecutive"\|"rate", consecutive, windowFailures }`가 있으면 그 확장이 자동 끄기 기준을 넘어 사용자에게 "끌까요"를 묻는 중이고 아직 켜 둔 채다 [결정: 2026-11-04 사용자, 앞선 B5의 시작 3회 질문을 대체]. "끄기"는 `ext.disableConfirm`, "켜 두기"는 `ext.reenable`이다. 선택 필드 `forcedOn: "devMode"`가 있으면 그 내장 그룹은 개발 모드라 설정 값과 무관하게 켜진 채 잠겨 있다(화면은 켜짐·잠김으로 보인다. 지금은 `guide` 행만) [결정: 2026-11-13 사용자] | M4 (W-15, W-41) |
+| ext | `ext.list` | `{ threadId?: string }` | `{ extensions: ExtListEntry[] }`. 행은 확장 하나: `isGroup`, 유효 층 `layer`, 대표 Registration의 `status`·`registration?`(대화 상태)·`enabledSource?`, Registration마다 `plugins: { registrationId, id?, layer, status, thread?, inGroup, enabledSource? }[]`, `hookCount`. `enabledSource`는 M5c-1에서 `core | common | profile | overlay | managed | none`으로 바뀌었다(옛 값 `thread·project·user·default`는 거절한다. 켜짐이 프로필에서 계산되므로 `ext.list`의 값도 그렇다)[결정: 2026-11-17 M5c-1]. 행의 `origin`은 실린 위치(`builtin`, `managed`, `user`, `project`)다. 작업 폴더 확장은 신뢰된 작업 폴더에서 로더가 실은 것이 로더 목록에서 바로 나온다. 선택 필드 `keepOffQuestion: { rule: "consecutive"\|"rate", consecutive, windowFailures }`가 있으면 그 확장이 자동 끄기 기준을 넘어 사용자에게 "끌까요"를 묻는 중이고 아직 켜 둔 채다 [결정: 2026-11-04 사용자, 앞선 B5의 시작 3회 질문을 대체]. "끄기"는 `ext.disableConfirm`, "켜 두기"는 `ext.reenable`이다. 선택 필드 `forcedOn: "devMode"`가 있으면 그 내장 그룹은 개발 모드라 설정 값과 무관하게 켜진 채 잠겨 있다(화면은 켜짐·잠김으로 보인다. 지금은 `guide` 행만) [결정: 2026-11-13 사용자] | M4 (W-15, W-41) |
 | ext | `ext.get` | `{ name: string }` | `{ entry: ExtListEntry, manifest, hooks: ExtHookInfo[], bindings: ExtBindingEdge[] }` | M4 (W-20) |
 | ext | `ext.reenable` | `{ name: string }` | `{ appliesAt: "nextStepBoundary"\|"now", diagnostics: ExtDiagnostic[] }` | M4 (W-21) |
 | ext | `ext.disableConfirm` | `{ name: string }` | `ext.reenable`과 같음. "끌까요" 질문(`ExtListEntry.keepOffQuestion`)에 "끄기"로 답한다. 호스트가 `AutoDisabler.answer(ext:<이름>, true)`로 끄고 내구 `scope.changed`(reason `auto_disable`)를 남긴다. 질문이 없으면 아무 일도 하지 않고 같은 결과를 돌려준다 [제안]. "켜 두기"는 `ext.reenable`이다 [결정: 2026-11-04 사용자, 질문과 답은 사용자 결정, 메서드 이름과 이 모양은 제안] | M4 |
@@ -395,6 +395,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | hooks | `hooks.order.set` | `{ hook: string, order: string[](Registration id, 최대 256) }` | `{ hook, saved: string[], appliesAt: "nextStepBoundary" }`. `saved`는 제안한 순서를 지킨 중복 없는 저장 값이다(guard 핸들러 이름도 남는다). 이름이 없는 핸들러는 기본 자리를 지키고, 지워졌거나 싣지 않았거나 꺼진 핸들러의 이름은 오류 없이 저장되고 디스패치에서 무시된다. guard 핸들러를 옮겨도 거절하지 않는다. [결정: 2026-11-03 사용자] 모르는 훅이면 `hooks.notFound`다. 외부 훅도 훅마다 Registration(`fresnel-hooks-<훅 id>`, X.operations §4.7.4)이라 다른 핸들러처럼 순서에 넣는다 [결정: 2026-11-03 사용자, 15-2]. 그 밖에는 저장을 막는 사유가 없다 [근거: packages/ext-host/src/operations/hook-order.ts `checkOrder`] | M4 (W-51) |
 | hooks | `hooks.order.reset` | `{ hook?: string }` | `{ hooks: string[], appliesAt: "nextStepBoundary" }`. 그 훅(생략하면 모든 훅)의 저장된 덮어쓰기를 지우고 기본 순서로 돌린다. `hooks`는 실제로 지운 훅이다. 저장된 값이 없으면 빈 목록이다. 모르는 훅이면 `hooks.notFound` | M4 (W-51) |
 | hooks | `hooks.order.preview` | `{ hook: string, order: string[] }` | `{ hook, order: string[], saveable: true, skips: HookSkipNote[], valueChanges: HookValueChangeNote[], autoDisable: HookAutoDisableNote[], guardRisk: HookGuardRiskNote[] }`. 저장하기 전에 읽는다. `order`는 이 제안을 적용했을 때의 전체 순서(덮어쓰기 적용 뒤, 덮어쓰기가 없으면 guard가 먼저)다. `skips`는 핸들러마다 `reason`(`first_answer`: 앞선 first 핸들러가 답하면 실행되지 않는다, `first_failure_deny`: closed first 훅에서 앞선 핸들러가 실패하면 `FIRST_DENY`가 결정이 되고 디스패치가 멈춘다, `chain_stop`: chain 훅의 멈춤 규칙)와 `by`(앞선 핸들러 `{ registrationId, extension, tier }[]`)를 가진다. `valueChanges`는 건너뜀이 아니라 "값이 바뀔 수 있음"이다: chain에서 뒤 핸들러의 패치가 앞 핸들러의 패치를 덮어쓴다. `autoDisable`은 closed first 훅에서 자동 끄기 대상인 핸들러가 실패하는 동안 가려지는 뒤 핸들러(`affects`)다. guard 핸들러는 면제라 나오지 않는다. 외부 훅 단위 이름이 든 `order`는 `jsonrpc.invalidParams`다(`set`과 같다) [제안]. [결정: 2026-11-03 사용자] `saveable`은 항상 참이다(저장을 막는 사유가 없다 [근거: packages/ext-host/src/operations/hook-order.ts `checkOrder`]). `guardRisk`는 guard 핸들러의 위험 노트다. `mayBeSkipped`는 제안이 앞에 둔 핸들러 때문에 이 훅에서 실행되지 않을 수 있다는 뜻이다(기본 순서에서 이미 앞이던 핸들러는 세지 않는다). `losesFirstPosition`은 기본 순서에서 맨 앞이던 guard가 이 제안에서 맨 앞을 잃었다는 뜻이다. `by`는 앞선 핸들러다. 비어 있지 않으면 UI는 "안전 검사가 건너뛰어질 수 있다"는 강한 경고를 띄운다. `skips`와 따로 낸다 | M4 (W-51) |
+| blocks | `blocks.describe` | `{}` | `BlockModel`(`version: 1`, `blocks` 여섯, `boundaries` 셋, `positions` 훅 위치 표 전체). 엔진 빌드의 정적 상수를 돌려주므로 대화 없이 읽는다. 기록 블록의 `hooks.before`·`hooks.after`는 빈 배열로 온다(생략하지 않는다). 스키마는 `wire/ext-read.ts`, 값은 `@fresnel/contracts/blocks`의 `BLOCK_MODEL`이다 [제안: `docs/xeon/review/m5/hooks-core-boundary.md` §4.9] | M4 |
 | review | `review.get` | `{ reviewId: string }` | `{ reviewId, files: { path, hunks: HunkView[] }[] }` | M4 (W-02) |
 | goal | `goal.status` | `{ threadId: string }` | `{ goal: GoalView \| null }` | M4 (W-05) |
 | work | `work.tasks.list` | `{ threadId: string }` | `{ tasks: TaskView[] }` | M4 (W-06) |
@@ -406,32 +407,68 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | knowledge | `knowledge.memory.remove` | `{ store, entryId, baseHash }` | 같은 모양. 지운 항목은 원장에 남는다 | M4 (W-19) |
 | schedule | `schedule.update` | `{ scheduleId: string, enabled?: boolean, title?: string, prompt?: string }` | `{ scheduleId, enabled, nextRunAt: IsoTime \| null }` | M4 (W-07) |
 | schedule | `schedule.runs` | `{ scheduleId: string, limit?: integer(1..200) }` | `{ runs: ScheduleRunRecord[] }`. `ScheduleRunRecord`는 `missed: boolean`(놓친 기한을 따라잡았거나 놓쳐 건너뜀)을 싣는다 [결정: 오케스트레이터 기본값, fxSC2] | M4 (W-07) |
-| profile | `profile.list` | `{}` | `{ profiles: Profile[], rev: integer }` | M4 (W-46) |
-| profile | `profile.get` | `{ id: string }` | `{ profile: Profile }` | M4 (W-46) |
-| profile | `profile.put` | `{ profile: ProfileInput, baseRev: integer \| null }` | `{ profile: Profile }` | M4 (W-46) |
-| profile | `profile.delete` | `{ id: string }` | `{ rev: integer }` | M4 (W-46) |
-| profile | `profile.apply` | `{ id: string, threadId?: string, layer?: "user"\|"project"\|"thread" }` | `{ written: string[], layer: "user"\|"project"\|"thread", appliesAt: "nextStepBoundary"\|"now" }` | M4 (W-46) |
-| profile | `profile.preview` | `{ id: string, threadId?: string, layer?: "user"\|"project"\|"thread" }` | `{ enabled, disabled, candidates: string[], expectedHolder: string \| null, overrides, hookCount, layer }` | M4 (W-44) |
 | settings | `settings.explain` | `{ key: string, threadId: string }` | `{ key, value, winningScope: string \| null, writer: "default"\|"user"\|"profile"\|"testRun"\|"session", profileId? }` | M4 (W-45) |
 | trace | `trace.turn` | `{ threadId: string, turnId: string }` | `{ traceEnabled: boolean, retained: boolean, entries: { seq, hook, step, handlers: { registrationId, ms, result, atMs, size, skippedBy, reason }[] }[] }`. `result`는 `modified`·`passed`·`blocked`·`failed`·`skipped`, `atMs`는 Turn 시작 후 시점(ms), `size`는 바뀐 크기, `skippedBy`는 앞 핸들러 때문에 건너뛴 경우 그 RegistrationId(아니면 null), `reason`은 `failed`의 이유(`threw`·`timeout`·`result_invalid`·`merge_rejected`, 아니면 null). 정본은 X.operations §4.8.2다 | M4 (W-43) |
 | measure | `measure.turn` | `{ threadId: string, turnId: string }` | `{ enabled: boolean, rows: { at: number, kind: string, metrics: Record<string, number>, tags: Record<string, string> }[] }` | M4 (T-MEAS-READ) |
 | measure | `measure.daily` | `{ kind: string, metric: string }` | `{ enabled: boolean, days: { day: string, count: integer, sum: number, min: number, max: number }[] }` | M4 (T-MEAS-READ) |
+| turnRecord | `turnRecord.list` | `{ threadId, cursor?, limit?(기본 50, 최대 200), scope?, flags? }` | `{ enabled, level, items: TurnSummary[], next }` | M5 (M5d, 턴 기록) |
+| turnRecord | `turnRecord.get` | `{ threadId, turnId, detail? }` | `{ enabled, level, record: TurnRecord \| null, absent: "never_recorded" \| "purged" \| "off" \| null }` | M5 (M5d, 턴 기록) |
+| turnRecord | `turnRecord.search` | `{ plugin, hook?, outcome?, period, scopes?, cursor?, limit? }` | `{ items: { threadId, turnId, hookSeq, plugin, outcome, at }[], next }` | M5 (M5d, 턴 기록) |
+| turnRecord | `turnRecord.mark` | `{ threadId, turnId, plugin, mark: "followed" \| "not_followed" }` | `{}` | M5 (M5d, 턴 기록) |
+| metrics | `metrics.catalog` | `{}` | `{ metrics: MetricDef[] }` | M5 (M5d, 지표) |
+| metrics | `metrics.query` | `{ metrics: string[](최대 16), filter: MetricFilter, groupBy?, compare? }` | `{ window, rows, notes }` | M5 (M5d, 지표) |
+| findings | `findings.list` | `{ profileId?, period?, state? }` | `{ asOf, dataRevision, findings: Finding[] }` | M5 (M5d, 살펴볼 것) |
+| findings | `findings.evidence` | `{ findingId, cursor? }` | `{ items: EvidenceRef[], next }` | M5 (M5d, 살펴볼 것) |
+| findings | `findings.dismiss` | `{ findingId, until? }` | `{}` | M5 (M5d, 살펴볼 것) |
+| findings | `findings.bundle` | `{ findingId }` | `{ bundle: FindingBundle, bytes }`(16 KiB 이하) | M5 (M5d, 살펴볼 것) |
+| profileCost | `profileCost.get` | `{ profileId, basis? }` | `{ profileId, rev, basis, nTurns, plugins: ProfileCostRow[], total: ProfileCostRow }` | M5 (M5d, 비용) |
+| testRun | `testRun.compare` | `{ threadIds: string[](2~8) }` | `{ sameInput, columns, rows: CompareRow[] }` | M5 (M5d, 테스트 실행) |
 | testRun | `testRun.pause` | `{ threadId: string }` | `{ paused: boolean }` | M4 (W-48) |
 | testRun | `testRun.resume` | `{ threadId: string }` | `{ paused: boolean }` | M4 (W-48) |
 | testRun | `testRun.step` | `{ threadId: string }` | `{ paused: boolean }` | M4 (W-48) |
 | testRun | `testRun.phase` | `{ threadId: string }` | `{ phase: string \| null, group: string \| null, seq: integer \| null, paused: boolean, lock: { holder: string \| null, status: "active"\|"releasing"\|"none", epoch: integer \| null }, guardHits: integer, traceEnabled: boolean, boundaries: { seq: integer, phase: string \| null, paused: boolean }[] }`. 모든 칸은 필수다. `boundaries`는 최대 200개이고 오래된 것부터다(마지막이 가장 최근). 정본은 `TestRunPhaseResultSchema`(`extensions/trace-types.ts`)다 | M4 (W-50) |
 | ext | `ext.kinds` | `{}` | `{ kinds: KindEntry[] }`. `KindEntry.id`는 `single-plugin` 또는 `plugin-group`이고 `layers`는 그 종류가 쓸 수 있는 층이다 | M4 (W-27) |
-| ext | `ext.scaffold` | `{ kind: "single-plugin"\|"plugin-group", name: string, dir: string, layer?: ExtensionLayer, group?: { members?: string[], composition?: CompositionDecl }, ui?: UiDecl }` | `{ dir: string, files: string[] }` | M4 (W-27) |
+| ext | `ext.scaffold` | `{ kind: "single-plugin", name: string, dir: string, layer?: ExtensionLayer, group?: { members?: string[], composition?: CompositionDecl }, ui?: UiDecl }`. M5c-1: `kind`에서 `plugin-group`을 뺐다(`ext.kinds`는 두 종류를 그대로 돌려준다) | `{ dir: string, files: string[] }` | M4 (W-27) |
 | ext | `ext.validate` | `{ dir: string }` | `{ ok: boolean, issues: DevkitIssue[] }`(`schemaVersion: 2` 매니페스트 검사 결과) | M4 (W-28) |
 | ext | `ext.package` | `{ dir: string, out?: string }` | `{ path: string, files: string[], sha256: string }` | M4 (W-49) |
-| ext | `ext.installPreview` | `{ source: string }` | `InstallPreview`(`name`, `version`, `displayName`, `description`, `source`, `sha256`, `trustRequest`, `installedVersion`, `hooks`, `tools`, `capabilities`, `network`, `files`, `shell`, `drives`, `screens`(`id`, `title`, `placement`, `mode`, `capabilities`: 화면이 선언한 다리 권한), `warnings`) | M4 (W-32) |
-| ext | `ext.install` | `{ source: string, sha256: string }` | `{ name: string, version: string, location: string, appliesAt: "now"\|"nextStepBoundary"\|"restart", loadFailure?: { reason: "safe_mode"\|"not_found"\|"rejected"\|"error"\|"disabled"\|"loader_unavailable", diagnostics: ExtDiagnostic[] }, needsReload?: true }` | M4 (W-32) |
-| ext | `ext.remove` | `{ name: string, dropData?: boolean }` | `{ name: string, appliesAt: "now"\|"nextStepBoundary"\|"restart", dataDropped?: integer }` | M4 (W-32) |
-| ext | `ext.removePreview` | `{ name: string }` | `{ name: string, tables: { name: string, rows: integer }[] }`(최대 64개) | M4 (W-32) |
 | ext | `ext.test.run` | `{ kind: "replay"\|"testRun", target: string, options?: { maxCommits?, profileId?, workspace? } }` | `{ testId: string, threadId: string \| null }` | M4 (W-29) |
 | ext | `ext.test.list` | `{}` | `{ tests: ExtTestRecord[] }`. `replay`는 `ReplayReport`(`ok`, `commits`, `passed`, `firstDiff`, `cuts`, `effects`, `failure`)이고 `cuts`는 커밋 시점마다 한 칸 `{ commitIndex: integer(1..), equal: boolean, firstDiff: integer \| null }`(커밋 순, 최대 1000칸)이다. 정본은 `ReplayReportShape`(`wire/devkit.ts`)다 | M4 (W-29) |
+| profile | `profile.list` | `{}` | `{ profiles: Profile[](숨은 프로필 제외, 최대 200), common: CommonSet, rev: integer }`. `rev`는 목록 전체의 개정이다. 저장 파일이 손상되었으면 `profile.fileCorrupt`(3303) | M4 (M5c-1) |
+| profile | `profile.get` | `{ id: string }` | `{ profile: Profile }`. 없으면 `profile.notFound`(3301) | M4 (M5c-1) |
+| profile | `profile.put` | `{ profile: ProfileInput, baseRev: integer\|null }` | `{ profile: Profile, issues: ProfileIssue[] }`. 경고만 싣는다. 오류가 있으면 저장하지 않고 `profile.invalid`(3307, `details.issues`)다. `baseRev`가 저장된 `rev`와 다르면 `profile.conflict`(3302), 개수 상한은 `profile.limit`(3306), 내장 프로필의 `id`·`builtin` 변경은 `profile.builtinProtected`(3308) | M4 (M5c-1) |
+| profile | `profile.delete` | `{ id: string }` | `{ rev: integer, reassignedThreads: integer }`. `reassignedThreads`는 이 프로필을 쓰던 열린 대화 수다(다음 읽기에서 `default`로 읽는다). 내장 프로필은 `profile.builtinProtected`(3308), 없으면 `profile.notFound`(3301) | M4 (M5c-1) |
+| profile | `profile.clone` | `{ id: string, newId: string, title: string }` | `{ profile: Profile }`. `profile.notFound`(3301), `profile.conflict`(3302) | M4 (M5c-1) |
+| profile | `profile.common.get` | `{}` | `{ common: CommonSet, issues: ProfileIssue[] }`. 공통 묶음은 모든 대화에 얹히며 시작 Drive를 두지 않는다 | M4 (M5c-1) |
+| profile | `profile.common.put` | `{ common: CommonInput, baseRev: integer }` | `{ common: CommonSet, issues: ProfileIssue[] }`. `baseRev`는 공통 묶음의 `rev`다(아직 쓴 적이 없으면 0). 맞지 않으면 `profile.conflict`(3302), 오류가 있으면 `profile.invalid`(3307) | M4 (M5c-1) |
+| profile | `profile.preview` | `{ id: string, threadId?: string }` 또는 `{ draft: ProfileInput, threadId?: string }` | `{ resolved: PluginRef[], issues: ProfileIssue[], cost: { total, byPlugin }, missingRequired: { plugin, key }[], threadsUsing: integer, permission?, toolsChanged?, cacheImpact?, dropsDrive: DropsDrive \| null }`. 저장하지 않고 바뀜을 미리 본다. `threadId`를 주면 그 대화 기준으로 계산한다. 없는 `id`는 `profile.notFound`(3301) | M4 (M5c-1) |
+| profile | `profile.defaultFor` | `{ workspace?: string }` | `{ profileId: string }`. 대화 폴더에 맞는 기본 프로필이다. `workspace`를 생략하면 프로젝트를 가리지 않는 가장 최근 대화를 본다. 계산 규칙은 `review/m5/profile-project-loader.md` §4.4.8이다 | M4 (M5c-1) |
+| profile | `profile.removePlugin` | `{ id: string, plugin: string, baseRev: integer }` | `{ profile: Profile, preview: { threadsUsing: integer, permission?, toolsChanged?, dropsDrive: DropsDrive \| null } }`. 프로필에서 플러그인 하나를 뺀다. 그 프로필에 없으면 `profile.pluginNotInProfile`(3309), 공통 묶음에서 온 것이면 `profile.commonPlugin`(3310). 그 밖에 `profile.notFound`(3301), `profile.conflict`(3302) | M4 (M5c-1) |
+| profile | `profile.default.reset` | `{ preview?: boolean }` | `{ profile: Profile, changed: { plugins: boolean, settings: boolean }, threadsUsing: integer }`. `preview`가 참이면 바꾸지 않고 바뀔 내용만 돌려준다 | M4 (M5c-1) |
+| thread | `thread.setProfile` | `{ threadId: ThreadId, profileId: string }` | `{ position: StreamPosition, preview: { permission?, toolsChanged?, cacheImpact? } }`. 쓰기 연결이 아닌 쪽이 부르면 `thread.notOwner`(3314)다. `profile.notFound`(3301), `thread.notFound`(3001) | M4 (M5c-1) |
+| project | `project.list` | `{}` | `{ projects: ProjectListItem[](최대 200) }`. 항목은 `Project`에 `threadCount`, `runningCount`를 더한 모양이다 | M4 (M5c-1) |
+| project | `project.get` | `{ projectId: string }` | `{ project: Project, pendingReview: integer }`. `pendingReview`는 이 프로젝트 안의 검토 대기 항목 수다. 없으면 `project.notFound`(3601) | M4 (M5c-1) |
+| project | `project.create` | `{ root: string, name?: string(1..128) }` | `{ project: Project }`. `root`는 존재하는 절대 폴더다. 아니면 `project.rootInvalid`(3603), 같은 정규 경로의 프로젝트가 있으면 `project.exists`(3602) | M4 (M5c-1) |
+| project | `project.rename` | `{ projectId: string, name: string(1..128) }` | `{ project: Project }`. 없으면 `project.notFound`(3601) | M4 (M5c-1) |
+| project | `project.delete` | `{ projectId: string }` | `{}`. 프로젝트 기록만 지운다. 대화는 지우지 않는다. 없으면 `project.notFound`(3601) | M4 (M5c-1) |
+| project | `project.instructions` | `{ workspace: string }` | `{ files: { path, bytes, included: boolean }[](최대 256) }`. 대화 폴더에서 루트까지 모은 지침 파일(`AGENTS.md`)과 포함 여부다. 루트가 없으면 `project.rootInvalid`(3603) | M4 (M5c-1) |
+| plugin | `plugin.list` | `{ filter?: { profileId?: string, origin?: "builtin"\|"bundled"\|"user"\|"project"\|"managed", reviewState?: "approved"\|"pending"\|"draft"\|"none" } }` | `{ plugins: PluginCard[] }`. 카드 타입은 §3.3.4a의 `extensions/plugin-card.ts`다 | M4 (M5c-1) |
+| plugin | `plugin.get` | `{ name: string }` | `{ card: PluginCard, versions: { hash, approvedAt, current }[], source: { path, matchesReviewed } \| null, entries: InvocableEntry[], settingsDefs: PluginSettingDef[] }`. 원본 폴더가 없는 플러그인이면 `source`가 null이다. 없는 플러그인은 `extension.notFound`(3401) | M4 (M5c-1) |
+| plugin | `plugin.invocables` | `{ threadId: string }` | `{ entries: InvocableEntry[] }`. 프로필 밖의 검토된 플러그인 항목을 포함한다. 모든 검토된 플러그인은 이름으로 얹는 `kind: "plugin"` 항목을 하나 가진다. 없는 대화는 `thread.notFound`(3001) | M4 (M5c-1) |
+| plugin | `plugin.scan` | `{ projectId?: string }` | `{ queued: string[] }`(새 검토 항목 id). 원본 폴더를 다시 훑어 바뀐 것마다 검토 항목을 만든다. 없는 프로젝트는 `project.notFound`(3601) | M4 (M5c-1) |
+| plugin | `plugin.revert` | `{ name: string }` | `{ restored: true }`. 원본 폴더를 현재 검토본 내용으로 되돌린다. 없는 플러그인은 `extension.notFound`(3401), 검토본이 없으면 `plugin.noReviewedCopy`(3625) | M4 (M5c-1) |
+| plugin | `plugin.requestRemove` | `{ name: string }` | `{ itemId: string }`(`remove` 검토 항목). `ext.remove`·`ext.removePreview`를 대체한다. `extension.notFound`(3401), `plugin.requiredByCore`(3626, E2의 L1 분할이 끝나기 전까지만) | M4 (M5c-1) |
+| plugin | `plugin.draft.create` | `{ dir: string, originThreadId?: string }` | `{ draftId: string, contentHash: string, card: PluginCard, info: DraftInfo }`. 원본 폴더 하나를 초안 스냅샷으로 만든다. 검토함에는 아직 가지 않는다. `plugin.invalid`(3621, `details.issues`), `plugin.tooLarge`(3622), `plugin.symlinkRefused`(3623) | M4 (M5c-1) |
+| plugin | `plugin.draft.discard` | `{ draftId: string }` | `{}`. 초안 하나를 지운다. 검토 항목이 가리키는 초안은 지우지 않는다. `draft.notFound`(3616) | M4 (M5c-1) |
+| plugin | `plugin.draft.list` | `{ name: string }` | `{ drafts: DraftInfo[] }`(최신 먼저, 플러그인마다 보관 20개 [제안]). 없는 플러그인은 `extension.notFound`(3401) | M4 (M5c-1) |
+| plugin | `plugin.draft.fromInstruction` | `{ text: string(1..2000자), name?: string(확장 이름 문법), profileId?: string }` | `{ draftId: string, itemId: string }`. 지침만 든 플러그인 초안과 `user_instruction` 검토 항목을 만든다(`review/m5/profile-project-loader.md` §4.10). `name`을 안 주면 `instr-<내용 해시 앞 6자>`다. `plugin.invalid`(3621), `plugin.exists`(3624) | M4 (M5c-1) |
+| pluginReview | `pluginReview.list` | `{ state?: ReviewState, name?: string }` | `{ items: ReviewItem[] }`(`files`와 `card`는 요약). 검토함 목록이다. 변경 검토 `review.get`(위 표)과 이름 공간이 다르다 | M4 (M5c-1) |
+| pluginReview | `pluginReview.get` | `{ itemId: string }` | `{ item: ReviewItem }`. 없으면 `pluginReview.notFound`(3651) | M4 (M5c-1) |
+| pluginReview | `pluginReview.file` | `{ itemId: string, path: string }` | `{ path: string, text: string \| null, truncated: boolean }`(후보 스냅샷의 파일이다. 텍스트가 아니면 `text`가 null이고, 잘렸으면 `truncated`가 참이다). 후보 스냅샷에 없는 경로는 `pluginReview.pathInvalid`(3653) | M4 (M5c-1) |
+| pluginReview | `pluginReview.submitDraft` | `{ draftId: string }` | `{ itemId: string }`. 초안을 검토함으로 보낸다. 없는 초안은 `draft.notFound`(3616) | M4 (M5c-1) |
+| pluginReview | `pluginReview.decide` | `{ itemId: string, decision: ReviewDecision }`(§3.3.4a) | `{ item: ReviewItem, appliedTo: string[] }`(적용된 프로필 id). `pluginReview.notFound`(3651), `pluginReview.notPending`(3652), `pluginReview.handEditNotAllowed`(3654), `pluginReview.purposeRequired`(3655), `pluginReview.profileInvalid`(3656, `details.issues`) | M4 (M5c-1) |
 
 - 0a. [결정: 2026-11-04 오케스트레이터 기본값] `turn.start`의 `whenBusy`는 실행 중 사용자 입력의 큐 자리다(`L1.loop.spec` `admit`의 `whenBusy`와 같다). 이 문서와 호스트 스펙은 사용자 입력에 `turn.busy`를 쓰라고 정한 적이 없고(3003은 컴팩션·재개 같은 turn 사이 연산의 거절이다), `turn.busy`가 남은 것은 큐를 연결하지 않았기 때문이다. `whenBusy`가 있고 열린 turn이 있으면 호스트는 `loop.admit`으로 그 자리의 큐에 넣고 `{ turnId: <실행 중인 turn>, queued: true }`를 돌려준다(새 turn이 아니다). 입력은 `input.queued`로 보이고 `turn.withdraw { requestId }`로 거둔다. 같은 `requestId`를 다시 보내면 같은 답이다. `whenBusy`가 없으면 전과 같이 `turn.busy`(3003)다: `whenBusy`를 모르는 클라이언트(CLI의 재시도 방식)는 바뀌지 않는다. 열린 turn이 없으면 `whenBusy`는 무시하고 turn을 시작한다.
+- 0b. [제안: enE1f 기본값] 주도 중인 플러그인이 있으면(`X.drive-isolation` §2.4) 사용자 입력은 새 turn이 아니라 그 플러그인 단계 함수의 `last: { kind: "user" }`로 간다. 이때 `turn.start`는 오류 없이 `{ delivered: true }`를 돌려준다. `turnId`가 없다: 접수만 뜻하고 아직 turn이 없다. 플러그인이 `turn` 명령으로 처리하면 그 turn은 평소의 `turn.started`로 보이고, 3단계 안에 처리하지 않으면 코어 루프가 같은 입력을 followUp으로 받아 turn을 시작한다(그 turn의 `requestId`는 `user-return:`으로 시작한다). 클라이언트는 `delivered`에서 turn을 기다리지 않고 이벤트로 이어지는 turn을 본다. input 훅이 입력을 처리 끝(`handled`)으로 낸 경우도 같은 결과다. 같은 `requestId`의 재제출은 주도 중인 동안 입력을 다시 넘기지 않고 `{ delivered: true }`를 돌려준다(thread마다 최근 64개를 기억하는 메모리 상태이고 재시작 뒤에는 잊는다).
 
 - [결정: review.m3-design-inputs D-M3-32 a, M3-REQ-18] 지식 제안 대기열 wire(`proposal.*`, `wire/proposals.ts`). 대기열은 둘이다: 학습 그룹의 `x_learning_proposals`(`source: "learning"`)와 L2.knowledge의 쓰기 승인 대기열 `cap_knowledge_proposals`(`source: "knowledge"`). 이 wire는 두 출처를 한 목록으로 보이는 조회와 결정이고, 대기열을 하나로 합치지 않는다.
   - `proposal.list`는 두 출처를 `createdAt` 내림차순(같으면 `(source, id)` 오름차순)으로 합친다. `ProposalRow`는 두 출처가 같은 모양이다: `source`, `id`, `kind`(`skill`, `memory`, `feedback`, `script`), `op`, `target`, `status`(두 대기열 상태의 합집합: `pending`, `approved`, `applied`, `rejected`, `stale`, `expired`, `reverted`), `destructive`, `diff`, `rationale`, `evidence`, `conflictsWith`, `reason`, `note`, `revision`, `scope`, `afterUntrusted`, `createdAt`, `expiresAt`. 출처에 없는 필드는 빈 값(null, false, 빈 배열, `revision` 1)이다. `note`는 거절할 때 사용자가 적은 메모(1~500자, 없으면 null)이고 `expiresAt`은 대기 중인 학습 후보의 만료 시각(epoch ms, 대기 상태가 아니면 null)이다. 지식 출처는 두 필드를 모두 null로 둔다 [결정: 오케스트레이터 기본값, fxLM]. 한 출처를 읽지 못하면(지식 저장소 없음 등) 그 출처만 `unavailable`에 올리고 나머지 행은 돌려준다. `source`와 `status` 필터는 서버가 건다.
@@ -586,6 +623,8 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
     `reason`이 없는 `applied: false`는 이유를 알리지 않는 구현이다. 클라이언트는 `answer_invalid`가 아닌 모든 값을 "다시 보내도 같다"로 다룬다. `applied: true`에는 `reason`이 없다. 요청이 속한 thread의 쓰기 소유가 없으면 결과 대신 3002 오류가 난다(§4.6).
   - L2.dialog의 `AskAnswer`(`{ answers: [{ questionId, selected, text }] }`)는 wire에 나오지 않는다. 클라이언트는 `QuestionBody`를 그려서 답을 `QuestionAnswer`로 만들고, 기능 쪽 어댑터(cap-dialog)가 `AskAnswer`와 서로 옮긴다(`L2.dialog.spec` §4.1.1). 선택지가 없는 질문은 `selected: []`와 `text`로 답한다.
 
+M5c-1 [제안]: 프로필·프로젝트 메서드의 params·result 스키마는 `wire/profile.ts`(`PROFILE_WIRE_METHODS`)와 `wire/project.ts`(`PROJECT_WIRE_METHODS`)에 있다. `profile.list`, `profile.get`, `profile.put`, `profile.delete`, `profile.apply`, `profile.preview` 행은 옛 모양이라 이 표에서 뺐다. `profile.apply`와 `ProfileApplyParams`, `PROFILE_LAYERS`는 제거했다(review.m5-profile-project-loader §3.4). 새 메서드(`profile.clone`, `profile.common.*`, `profile.defaultFor`, `profile.removePlugin`, `profile.default.reset`, `thread.setProfile`, `project.*`)는 `WIRE_METHODS`에 등록할 때 이 표에 행을 더한다. 등록은 통합 단계가 한다. 같은 단계에서 `ThreadSummary`에 `profileId`, `project`, `overlay`를, `thread.create` 결과에 `project`, `profileId`, `sameFolder`를, `turn.start` 입력에 `overlay`(최대 4)를, 결과에 `cacheImpact`를 더한다(조각은 `wire/profile.ts`의 `ThreadProfileViewSchema`, `OverlayListSchema`, `CacheImpactSchema`).
+
 #### 3.3.2 알림 표
 
 | 방향 | 알림 | params | 단계 |
@@ -595,8 +634,11 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | 서버 → 클라이언트 | `stream.chunk` | `{ event: VolatileEventWire }` (`n`, `afterSeq`를 담은 휘발 이벤트) | M1 |
 | 서버 → 클라이언트 | `settings.invalidated` | `{ keys: SettingKey[], scopes: SettingScope[], threadId: ThreadId, 없으면 null }`. 값이 없다. 받으면 `settings.get`으로 다시 읽는다(§3.3.4) | M2 |
 | 서버 → 클라이언트 | `notify.delivered` | `{ threadId: ThreadId(없으면 null), notice: Notice, deliveredAt: IsoTime }`. 알림 한 건을 연결된 클라이언트 모두에 보낸다(M3-REQ-16, 아래 설명) | M3 |
-| 서버 → 클라이언트 | `profile.changed` | `{ rev: integer, ids: string[] }`. 프로필 목록이 바뀌었다. `profile.list`를 다시 읽는다(W-46) | M4 |
+| 서버 → 클라이언트 | `profile.changed` | `{ rev: integer, ids: string[], commonChanged: boolean }`. 프로필 목록이 바뀌었다. `commonChanged`가 참이면 공통 묶음도 바뀌었다. `profile.list`를 다시 읽는다(W-46, M5c-1 §3.4) | M4 |
 | 서버 → 클라이언트 | `drive.framesChanged` | `{ threadId: string }`. 주도권 스택이 바뀌었다. `drive.frames`를 다시 읽는다(drive-isolation.md 2.6) | M4 |
+| 서버 → 클라이언트 | `project.changed` | `{ rev: integer, ids: string[](최대 200) }`. 프로젝트 목록이 바뀌었다. `project.list`를 다시 읽는다(M5c-1 §3.4) | M4 |
+| 서버 → 클라이언트 | `plugin.changed` | `{ name: string }`. 플러그인의 카드나 상태가 바뀌었다. `plugin.list`와 `plugin.get`을 다시 읽는다(M5c-1 §3.4) | M4 |
+| 서버 → 클라이언트 | `pluginReview.changed` | `{ itemId: string, state: ReviewState }`. 검토 항목의 상태가 바뀌었다. `pluginReview.get`으로 항목을 다시 읽는다(M5c-1 §3.4) | M4 |
 | 클라이언트 → 서버 | `$/cancelRequest` | `{ id: RpcId }` | M1 |
 | 클라이언트 → 서버 | `$/connectionReset` | `{}`. 클라이언트 화면이 같은 연결 위에서 다시 시작되어 이전 화면의 상태를 버린다(WebView 새로고침, `L4.desktop.spec` §4.5). 동작은 §4.1 5~7번 | M2 |
 
@@ -714,6 +756,38 @@ export declare const WIRE_NOTIFICATIONS: { readonly [N in ServerNotificationName
 - [결정: m2c G1-08] `settings.invalidated`의 `keys`는 바뀐 키 목록이고 비어 있으면 어느 키인지 모르는 변경(파일 통째 교체, 손상 복구)이다. `scopes`는 바뀐 범위이고 1개 이상이다. `threadId`는 `session` 범위 변경이 속한 thread이고 다른 범위면 `null`이다. 호스트는 모든 범위의 `settings.set`·`settings.reset`과 project·local·user 파일 변경 결과에 이 알림을 연결 전체에 보낸다. 같은 연결의 `settings.set` 호출자도 받는다.
 - [결정: m2c G1-08] 설정 변경 반영 규칙의 소유자는 호스트다. 알림을 받은 클라이언트는 `settings.get`으로 다시 읽을 뿐이고 값을 추측해 바꾸지 않는다. MCP 정의 재적재는 호스트 안에서 같은 신호를 받아 다음 단계 시작에 처리한다(`L2.mcp.spec`).
 - 판정이 "보류"인 요청은 M3 계획(`review.m3-plan`)이 받는다. 정하기 전에는 소비 문서가 이 요청에 의존하지 않는다.
+
+#### 3.3.4a 플러그인과 검토 wire (M5c-1) [결정: 2026-11-17, `review/m5/profile-project-loader.md` §3.4, §3.6]
+
+플러그인은 폴더이고 검토 항목을 지나야 켜진다. 이 절은 그 wire다. 스키마는 `wire/plugin.ts`(`PLUGIN_WIRE_METHODS`, `InvocableEntry`, `DraftInfo`, `PluginChangedParamsSchema`)와 `wire/plugin-review.ts`(`PLUGIN_REVIEW_WIRE_METHODS`, `ReviewItem`, `ReviewDecision`, `PluginReviewChangedParamsSchema`)다. 카드 타입은 `extensions/plugin-card.ts`(F 확장 계약 §3.1.3)다.
+
+- 등록: 이 메서드와 알림은 `methods.ts`(`WIRE_METHODS`, `WIRE_NOTIFICATIONS`)에 등록되었고, §3.3.1 메서드 표와 §3.3.2 알림 표에 행이 있다. 표 대조 시험(`wire.doc.test`)이 이 행들을 레지스트리와 대조한다.
+- 단계: 스키마 파일은 `m4()`을 쓰므로 단계가 "M4"로 찍힌다. M5 단계 값이 `WireMethodSpec.stage`에 생기면 바꾼다 [미결] [근거: `xeon/packages/contracts/src/wire-settings/wire/methods.ts`].
+- 이름 공간: 검토함은 `pluginReview.*`다. 기존 `review.get`(변경 검토)과 겹치지 않으려고 접두를 따로 뒀다. 플러그인 메서드 `plugin.*`는 `ext.*` 곁의 새 접두다.
+
+| 메서드 | params | result | 주요 오류 |
+|---|---|---|---|
+| `plugin.list` | `{ filter?: { profileId?, origin?: builtin\|bundled\|user\|project\|managed, reviewState?: approved\|pending\|draft\|none } }` | `{ plugins: PluginCard[] }` | - |
+| `plugin.get` | `{ name }` | `{ card, versions: { hash, approvedAt, current }[], source: { path, matchesReviewed } \| null, entries: InvocableEntry[], settingsDefs: PluginSettingDef[] }` | `extension.notFound`(3401) |
+| `plugin.invocables` | `{ threadId }` | `{ entries: InvocableEntry[] }`. 프로필 밖의 검토된 플러그인 항목을 포함한다 | `thread.notFound` |
+| `plugin.scan` | `{ projectId? }` | `{ queued: string[] }`(새 검토 항목 id) | `project.notFound` |
+| `plugin.revert` | `{ name }` | `{ restored: true }`(원본 폴더를 현재 검토본 내용으로 되돌린다) | `extension.notFound`, `plugin.noReviewedCopy` |
+| `plugin.requestRemove` | `{ name }` | `{ itemId }`(`remove` 검토 항목). `ext.remove`·`ext.removePreview`를 대체한다 | `extension.notFound`, `plugin.requiredByCore`(E2의 L1 분할 전까지만) |
+| `plugin.draft.create` | `{ dir, originThreadId? }` | `{ draftId, contentHash, card, info: DraftInfo }` | `plugin.invalid`(`details.issues`), `plugin.tooLarge`, `plugin.symlinkRefused` |
+| `plugin.draft.discard` | `{ draftId }` | `{}` | `draft.notFound` |
+| `plugin.draft.list` | `{ name }` | `{ drafts: DraftInfo[] }`(최신 먼저, 플러그인마다 보관 20개 [제안]) | `extension.notFound` |
+| `plugin.draft.fromInstruction` | `{ text(1~2000자), name?(확장 이름 문법), profileId? }` | `{ draftId, itemId }`. 지침만 든 초안과 `user_instruction` 검토 항목을 만든다(§4.10) | `plugin.invalid`, `plugin.exists` |
+| `pluginReview.list` | `{ state?, name? }` | `{ items: ReviewItem[] }` | - |
+| `pluginReview.get` | `{ itemId }` | `{ item: ReviewItem }` | `pluginReview.notFound` |
+| `pluginReview.file` | `{ itemId, path }` | `{ path, text: string \| null, truncated }`(후보 스냅샷의 파일) | `pluginReview.notFound`, `pluginReview.pathInvalid` |
+| `pluginReview.submitDraft` | `{ draftId }` | `{ itemId }` | `draft.notFound` |
+| `pluginReview.decide` | `{ itemId, decision: ReviewDecision }` | `{ item, appliedTo: string[] }` | `pluginReview.notFound`, `pluginReview.notPending`, `pluginReview.handEditNotAllowed`, `pluginReview.purposeRequired`, `pluginReview.profileInvalid`(`details.issues`) |
+
+- `ReviewDecision`은 셋이다: `{ kind: "approve", profileIds, libraryOnly, purpose? }`(`purpose`는 1~200자이고 목적 문장이 비었을 때 승인하면서 채운다, §4.7.6), `{ kind: "sendBack", reason }`(1~2000자), `{ kind: "discard" }`. 닫힌 객체다.
+- `ReviewItem`의 `kind`는 `new | update | remove`, `state`는 `pending | approved | sent_back | discarded | superseded | withdrawn`, `provenance`는 `assistant | project | unknown | bundled | user_instruction`이다. `removal`은 `kind: "remove"`일 때만 채운다. `diff`는 "하는 일의 차이"(`added`, `removed`, `changed`, `enforcementChange`, `costDelta`)다.
+- 알림(서버 → 클라이언트): `plugin.changed { name }`(카드나 상태가 바뀌었다. `plugin.list`와 `plugin.get`을 다시 읽는다), `pluginReview.changed { itemId, state }`(항목 상태가 바뀌었다).
+- 오류 이름(등록됨, 숫자는 구현 때 배정했다): 3600~3649 구간에 `plugin.invalid`, `plugin.tooLarge`, `plugin.symlinkRefused`, `plugin.exists`, `plugin.noReviewedCopy`, `plugin.requiredByCore`, `draft.notFound`, 3650~3669 구간에 `pluginReview.notFound`, `pluginReview.notPending`, `pluginReview.pathInvalid`, `pluginReview.handEditNotAllowed`, `pluginReview.purposeRequired`, `pluginReview.profileInvalid`. 프로젝트 오류(`project.*`)는 프로젝트 wire 절이 정한다. 이 이름들은 §3.5.2 오류 표와 `WIRE_ERRORS`에 함께 들어 있다.
+- 옛 메서드와 대응: `ext.install`, `ext.installPreview`, `ext.remove`, `ext.removePreview`는 wire에서 뺐다(§3.3.1). 설치는 초안과 검토 항목으로, 지우기는 `plugin.requestRemove`로 간다. `ext.list`의 `enabledSource`는 `core | common | profile | overlay | managed | none`이다(§3.3.1 `ext.list` 행).
 
 ### 3.4 커서, 구독, 휘발 스트림
 
@@ -1034,12 +1108,38 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 3211 | `secret.auditUnwritable` | false | 감사 기록을 쓸 수 없어 동작을 멈췄다 | `code` |
 | 3212 | `secret.writeFailed` | false | 키 파일, OS 키 저장소, 기본 SOPS 시크릿 파일, 열쇠 보관 설정 쓰기에 실패했다. 값과 경로는 싣지 않는다 | `target`(`key_file`, `key_store`, `sops_file`, `settings`), `code` |
 | 3213 | `secret.localOnly` | false | 값을 주고받는 `channel`을 쓴 요청이 같은 컴퓨터·같은 사용자의 연결이 아니다(원격 연결이거나 연결 상태를 찾지 못했다), 또는 채널 폴더·소켓이 이 사용자 것이 아니거나 절대 경로가 아니다. 값은 오가지 않았다 | - |
-| 3301 | `profile.notFound` | false | 그 id의 프로필이 없다(`profile.get`, `profile.delete`, `profile.apply`, `profile.preview`, `thread.create { profileId }`) | `id` |
+| 3301 | `profile.notFound` | false | 그 id의 프로필이 없다(`profile.get`, `profile.delete`, `profile.clone`, `profile.preview`, `thread.setProfile`, `thread.create { profileId }`) | `id` |
 | 3302 | `profile.conflict` | false | `profile.put`의 `baseRev`가 저장된 `rev`와 다르다. `rev`가 null이면 저장된 프로필이 없다. 다시 읽고 합친 뒤 보낸다 | `id`, `rev`, `baseRev` |
 | 3303 | `profile.fileCorrupt` | false | `profiles.json`이 JSON이 아니거나 모양이 틀리다. 호스트는 덮어쓰지 않는다 | `reason`(200자까지) |
 | 3304 | `profile.trustRequired` | false | 신뢰하지 않은 작업 폴더의 `project` 층에는 적용하지 않는다 | `workspace` |
-| 3305 | `profile.applyPartial` | false | 적용이 중간에 실패했고 되돌리기도 실패했다. 쓰인 채 남은 키를 알린다 | `written`(256개까지), `failed` |
+| 3305 | `profile.applyPartial` | false | 적용이 중간에 실패했고 되돌리기도 실패했다. 쓰인 채 남은 키를 알린다(M5c-1 뒤로 `profile.apply`가 없어 쓰이지 않는다. 제거 여부는 통합 단계가 정한다 [미결: review.m5-profile-project-loader §3.4]) | `written`(256개까지), `failed` |
 | 3306 | `profile.limit` | false | 프로필 개수가 상한을 넘는다 | `max` |
+| 3307 | `profile.invalid` | false | 프로필 검증에서 오류가 났다(`profile.put`·`profile.common.put`에서 난다. `testRun.start`는 레지스트리에 아직 등록되지 않았다). 저장하지 않았다 | `issues: {code, severity?, plugin?, key?, other?, tool?}[]` |
+| 3308 | `profile.builtinProtected` | false | 내장·숨은 프로필의 삭제나 `id`·`builtin` 변경, 숨은 `craft` 프로필의 전환은 할 수 없다 | `id` |
+| 3309 | `profile.pluginNotInProfile` | false | `profile.removePlugin`의 플러그인이 그 프로필에 들어 있지 않다 | `name` |
+| 3310 | `profile.commonPlugin` | false | `profile.removePlugin`의 플러그인이 공통 묶음에서 온 것이다 | `name` |
+| 3314 | `thread.notOwner` | false | `thread.setProfile`을 쓰기 연결이 아닌 쪽이 불렀다 | - |
+| 3601 | `project.notFound` | false | 그 id의 프로젝트가 등록되어 있지 않다 | `id` |
+| 3602 | `project.exists` | false | 같은 정규 루트의 프로젝트가 이미 있다 | - |
+| 3603 | `project.rootInvalid` | false | 루트가 없거나 절대 경로가 아니다 | - |
+| 3611 | `overlay.notReviewed` | false | 검토본이 없는 플러그인은 얹을 수 없다 | `name` |
+| 3612 | `overlay.notFound` | false | 그 플러그인이나 항목이 등록되어 있지 않다 | `name` |
+| 3613 | `overlay.limit` | false | 덧씌우기는 한 턴에 4개까지다 | - |
+| 3614 | `overlay.noEntry` | false | 그 플러그인에 그 이름의 항목이 들어 있지 않다 | `name` |
+| 3615 | `overlay.draftUnavailable` | false | 격리 1단계 전에는 초안을 얹지 않는다 | - |
+| 3616 | `draft.notFound` | false | 그 id의 초안이 남아 있지 않다 | `id` |
+| 3621 | `plugin.invalid` | false | 후보 폴더의 매니페스트나 구성이 올바르지 않다 | `issues: {code, severity?, plugin?, key?, other?, tool?}[]` |
+| 3622 | `plugin.tooLarge` | false | 후보 폴더가 파일 수, 크기, 깊이 상한을 넘는다 | - |
+| 3623 | `plugin.symlinkRefused` | false | 후보 폴더에 심볼릭 링크가 있다 | - |
+| 3624 | `plugin.exists` | false | 같은 이름의 플러그인 폴더가 이미 있다 | `name` |
+| 3625 | `plugin.noReviewedCopy` | false | 현재 검토본이 남아 있지 않다 | `name` |
+| 3626 | `plugin.requiredByCore` | false | 코어 분할 전까지 뺄 수 없는 내장 플러그인이다 | `name` |
+| 3651 | `pluginReview.notFound` | false | 그 id의 검토 항목이 남아 있지 않다 | `id` |
+| 3652 | `pluginReview.notPending` | false | 대기 상태가 아닌 항목이다 | `id` |
+| 3653 | `pluginReview.pathInvalid` | false | 후보 스냅샷에 없는 경로다 | - |
+| 3654 | `pluginReview.handEditNotAllowed` | false | 손으로 고친 변경은 승인할 수 없다 | `id` |
+| 3655 | `pluginReview.purposeRequired` | false | 목적 문장이 없어 승인할 수 없다 | `id` |
+| 3656 | `pluginReview.profileInvalid` | false | 대상 프로필 검증에 실패해 아무것도 바뀌지 않았다 | `issues: {code, severity?, plugin?, key?, other?, tool?}[]` |
 | 3311 | `testRun.unavailable` | false | 이 호스트에는 Test run 제어 포트가 없다 | - |
 | 3312 | `testRun.notATestRun` | false | 그 대화는 Test run이 아니다 | - |
 | 3313 | `testRun.notPaused` | false | Test run이 멈춰 있지 않아 `testRun.resume`·`testRun.step`을 받지 않는다 | - |
@@ -1048,6 +1148,10 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 3403 | `extension.safeModeActive` | false | 안전 모드라 `ext.reenable`·`ext.reload`를 받지 않는다. 안전 모드를 끄고 다시 시작해야 한다 | - |
 | 3405 | `hooks.notFound` | false | 그런 이름의 훅이 없다(`hooks.order.set`, `hooks.order.reset`, `hooks.order.preview`, `hooks.disableConfirm`, `hooks.reenable`). [결정: 2026-11-03 사용자] 3404는 옛 `hooks.guardPinned`(guard 고정 거절)가 쓰던 번호라 지금은 비어 있다. guard 이동은 거절하지 않는다 [근거: `apps/host/src/assembly/m4/ext-read-port.ts`의 `hookKnown`] | `hook` |
 | 3406 | `mcp.serverNotFound` | false | 그 id의 MCP 서버가 정의되어 있지 않다(`mcp.serverAction`) | `server` |
+| 3501 | `turnRecord.turnNotFound` | false | 로그에도 없는 턴이다(`turnRecord.get`, `turnRecord.mark`). 기록이 꺼졌거나 지워진 턴은 오류가 아니라 `absent`로 준다 [제안] | - |
+| 3511 | `metrics.unknownMetric` | false | `metrics.catalog`에 없는 지표 이름이다(`metrics.query`) [제안] | - |
+| 3512 | `metrics.filterInvalid` | false | 필터가 잘못되었다(`metrics.query`, `turnRecord.search`). 두 메서드의 필터 검사는 같다 [제안] | - |
+| 3531 | `findings.notFound` | false | 그 id의 발견이 저장되어 있지 않다(`findings.evidence`, `findings.dismiss`, `findings.bundle`) [제안] | - |
 | 5001 | `request.cancelled` | false | `$/cancelRequest`로 취소했다 | - |
 | 5002 | `host.shuttingDown` | true | 호스트가 종료 중이다 | `retryAfterMs` |
 | 5003 | `store.busy` | true | 저장소 쓰기 잠금 대기가 시간을 넘었다. 같은 요청을 다시 보내도 된다 | - |
@@ -1064,7 +1168,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | -32768 ~ -32000 | JSON-RPC 예약 | 표준 다섯 개만 쓴다 |
 | 1000 ~ 1999 | F wire | 연결, 핸드셰이크, 버전 |
 | 2000 ~ 2999 | F wire | 이벤트, 구독, 재전송 |
-| 3000 ~ 3999 | 코어(L1) 메서드 | thread, turn, approval(3000~3099), settings(3100~3199), secret(3200~3299), 프로필·Test run(3300~3399), 확장 읽기(3400~3499), 나머지 L1 예비 |
+| 3000 ~ 3999 | 코어(L1) 메서드 | thread, turn, approval(3000~3099), settings(3100~3199), secret(3200~3299), 프로필·Test run(3300~3399), 확장 읽기(3400~3499), 턴 기록·지표(3500~3599) [제안], 나머지 L1 예비 |
 | 4000 ~ 4999 | 기능(L2) | 기능 오류는 code 4000 하나로 싣는다. `kind`는 `cap.<CapabilityId>.<code>`, `details`는 `CapabilityErrorData`(`F.capabilities.spec` §3.6)다. 기능의 오류 코드는 문자열이라 숫자 블록을 배정하지 않는다. 4001~4999는 예비 |
 | 5000 ~ 5999 | 호스트(L4) | 호스트 상태, 취소, 서비스 모드 |
 | 10000 ~ 19999 | 확장(X 이후, 외부 확장) | 확장은 이 구간 안에서 자유롭게 쓰고 `kind`를 `ext.<확장id>.`로 시작한다. 코드가 겹치면 `kind`로 구분한다 |
@@ -1148,6 +1252,11 @@ export const SettingKey = Type.String({ minLength: 3, maxLength: 128, pattern: S
 
 export const SettingScope = Type.Union([
   Type.Literal("managed"), Type.Literal("user"), Type.Literal("project"),
+  Type.Literal("local"), Type.Literal("launch"), Type.Literal("profile"),
+]);
+// settings.set·settings.reset이 받는 범위. profile을 뺀다(프로필은 profile.put·profile.common.put으로만 쓴다)
+export const SettingWriteScope = Type.Union([
+  Type.Literal("managed"), Type.Literal("user"), Type.Literal("project"),
   Type.Literal("local"), Type.Literal("launch"),
 ]);
 export const RuntimeChange = Type.Union([Type.Literal("live"), Type.Literal("nextTurn"), Type.Literal("restart")]);
@@ -1166,6 +1275,7 @@ export { SecretRef } from "../../capabilities/secrets.ts";   // 형식 정본은
 - 키 접두와 `layer` 필드는 일치해야 한다(`l1.` ↔ `"L1"`). 확장 키의 `layer`는 그 확장 매니페스트가 선언한 층이다.
 - `SettingLayer`에 L4를 포함한다. [제안] 테마, 키 바인딩 같은 표시 설정(`_research/settings.md` §2.13 "층 밖 항목")의 소유자가 L4이기 때문이다. 브리프의 "F..L3"보다 범위를 넓혔다.
 - [결정] 시크릿 참조 형식은 `secret://<name>`이다(`_research/secrets.md` §6.1, `_research/decisions-log.md` 2026-10-21 2차 "에이전트는 값을 모른 채 참조로 사용").
+- [결정: M5c §3.3, §4.1.7] 범위 `profile`은 읽기 전용이다. 우선순위는 `managed > launch > profile > local > project > user > default`(`SCOPE_PRECEDENCE`)다. `settings.set`·`settings.reset`은 `SettingWriteScope`(`profile` 없음)를 받는다. `ext.<이름>.enabled`는 `managed`만 허용한다(검사 규칙 D10, `checkSettingDef`).
 
 #### 3.8.2 SettingDef
 
@@ -1383,6 +1493,24 @@ export declare function validateSettingValue(def: SettingDef, value: unknown):
   { readonly ok: true } | { readonly ok: false; readonly issues: readonly { readonly path: string; readonly message: string }[] };
 ```
 
+### 3.10 턴 기록 스키마 (`wire/turn-record.ts`) [제안]
+
+턴 기록(M5d)의 저장 문자열 정본은 `review/m5/turn-record-metrics.md`의 §3.2(기록), §3.5(메서드), §3.7(지난 턴에 돌려 보기), §3.8(화면용 읽기)이다. 이 파일은 다음을 export한다. 메서드는 처리기가 생기기 전까지 레지스트리(§3.3.1)에 넣지 않는다.
+
+- 값 목록과 타입: `RecordLevel`, `ScopeKind`(`live|overlay_reviewed|overlay_draft|test|craft`), `CallerKind`, `Verdict`(열네 가지), `HookOutcome`(표시값 여섯), `Dim`, 지표 상태와 이유, 턴 플래그 키.
+- 기록 타입과 TypeBox 스키마: `TurnRecord`와 하위 타입(`StepRecord`, `CallRecord`, `HookRun`, `FrameMark`, `OverlayMark`, `PluginCost`, `TurnFlags` 등). `HookRun.result`는 `TraceHandlerResult`를, `StepRecord.composition`은 `StepComposition`을 그대로 쓴다.
+- 지표와 발견, 지난 턴에 돌려 보기의 타입: `MetricFilter`, `MetricValue`, `MetricDef`, `EvidenceRef`, `Finding`, `BacktestItem`, `BacktestSummary`(`backtest.*` 메서드 스키마는 M5d-2다).
+- 메서드 params·result 스키마: `turnRecord.list·get·watch·unwatch·search·mark`, `metrics.query`, `findings.list·evidence·dismiss·bundle`, `profileCost.get`, `testRun.compare`와 알림 `turnRecord.delta`. `metrics.catalog`의 params는 `NoParamsSchema`, 결과 `{}`는 `EmptyParamsSchema`(`notifications.ts`)를 쓴다.
+
+재사용과 바뀐 곳:
+
+- `HookRun.reason`은 라이브 `trace.turn`과 같은 목록 `TRACE_FAILURE_REASONS`(`threw`, `timeout`, `result_invalid`, `merge_rejected`, `process_exit`, `process_killed`)를 쓴다. 격리 프로세스 종료 둘은 enP1이 라이브 목록에 더했고, 기록 전용 목록(`HOOK_FAILURE_REASONS`)은 없앴다. apps/desktop의 `RESULT_REASON` 표에 새 두 값의 글을 더했다.
+- `TestRunMarker`(`ThreadSummary.testRun`)에 선택 필드 `kind`(`"draft"`), `draft`, `runGroupId`를 더했다 [제안].
+- 오류 3501, 3511, 3512, 3531은 §3.5.2 표에 있다. 백테스트 3521~3525는 M5d-2에서 더한다.
+- 지표 값의 이유 목록에는 §3.8의 `user_marked`(사용자 표시로 정한 "따랐나")가 없다. 정본 목록 그대로 두었다 [미결] [근거: review/m5/turn-record-metrics.md §3.8, §3.5].
+- `profileCost.get`의 플러그인 행과 `total`은 `PluginCost`가 아니라 `ProfileCostRow`(`CostFigures` 모양에 `plugin`, `shared`를 더한 것)다. 정적 추정 기준의 `drive`가 null이라 `PluginCost`의 숫자 칸으로는 담을 수 없어서다 [제안].
+- 정본에 정의가 없던 이름은 다음처럼 정했다. `HookOutcome`은 hooks-core-boundary §4.5의 표시값 여섯, `metrics.query`의 `window`는 `MetricWindow`(`{ from, to }`), `findings.list`의 `asOf`는 시각(ms), `dataRevision`은 `tr_turn`의 가장 큰 rowid(§4.7 규칙 41)다. `metrics.query`의 행 `key`는 `groupBy`로 고른 차원만 가질 수 있어 모든 차원을 요구하지 않는다 [제안].
+
 ## 4. 동작 규칙
 
 ### 4.1 연결 수명
@@ -1405,17 +1533,17 @@ export declare function validateSettingValue(def: SettingDef, value: unknown):
 - [결정: 2026-11-03 M4 T-ORDER, 사용자 결정 m4-decisions 15-2] 훅별 핸들러 순서(W-51, `hooks.order.*`)의 스키마는 `wire/ext-read.ts`다. 순서는 설정 `x.operations.hookOrder`(범위 managed, user)에 저장되고 `hooks.order.set`은 사용자 범위에 쓴다. 적용은 다음 단계 경계다(`pending`). [결정: 2026-11-03 사용자] guard tier 핸들러도 옮길 수 있다(고정 없음, `X.operations.spec` §4.1.5). 저장을 막는 사유는 없다. 옮긴 guard가 건너뛰어질 수 있는 위험은 `hooks.order.preview`의 `guardRisk`로 미리 알리고, 화면은 강한 경고를 띄운다. 설정 범위는 `managed`, `user`이고 `project`는 받지 않는다.
 - [결정: 2026-10-31 사용자, M4 T-F] 확장 읽기(W-15, W-20~W-26, W-31, W-33, W-35~W-42, W-47)의 스키마는 `wire/ext-read.ts`다. 행의 단위는 확장이고 Registration(플러그인 하나)은 `plugins`와 `registrationId`로 나온다(ADR-0022 §3.2). `ext.list`의 `enabledSource`는 켜짐 요청이 온 층(`managed`, `thread`, `project`, `user`, `default`)이다(T-REG §7 5번). `group.driveLock`(옛 `group.lease`, 저장 이름 `lease.*`는 그대로)은 drive lock을 가진 Registration과 후보·대기 수, 설정 `x.primitives.activeDriver` 값, 최근 `lease.rejected`를 돌려준다. `drive.frames`(E3)는 주도권 스택의 프레임 목록을 돌려주고, 알림 `drive.framesChanged`가 바뀌었음을 알린다(drive-isolation.md 2.6). `host.status`는 `safeModeCause`(`user`, `startupFailures`, `flag`)를 더한다(W-35, W-39).
 - [결정: 2026-10-31 사용자, M4 T-F] 대화 영역 변경(W-01, W-16, W-37): `approval.list`의 `threadId`는 선택이고 생략하면 모든 대화의 대기 승인이다. `thread.read`는 `around: ItemId`(가운데 창, `before`와 함께 쓰지 않음)를 받고, `ThreadSummary.origin`(`user`, `schedule`+`scheduleId`, `remote`)은 선택 필드다. W-37(런타임 이벤트만 거르는 구독)은 이미 있는 `events.subscribe`의 `filter.kindPrefixes`와 `threadIds` 생략으로 닫는다. 새 인자가 없다. 새 메서드(`review.get`, `goal.status`, `work.tasks.list`, `schedule.update`, `schedule.runs`, `host.clients`, `turn.withdraw`, `knowledge.skills.view`, `knowledge.memory.read`·`add`·`replace`·`remove`)의 스키마는 `wire/dialog-area.ts`다.
-- [결정: 2026-10-31 사용자, M4 T-F] 프로필·Test run·계측(W-34, W-43~W-46, W-48, W-50): 프로필 `{ id, title, enable, disable, settings: {key, value}[], startDrive, updatedAt, rev }`는 런타임 호스트의 `profiles.json`(`ProfilesFile`)에 저장하고 `profile.put`은 `baseRev` 비교로 충돌을 막는다. `enable`·`disable`은 확장 이름이고 Registration id가 아니다 [제안: 플러그인 단위 켜기는 아직 프로필이 다루지 않는다]. `driver`(옛 `driveGroup`)는 설정 `x.primitives.activeDriver`에 쓴다. `thread.create`는 `testRun`, `profileId`를 받고 `ThreadSummary.testRun`은 `{ profileId, target, paused }`다(선택). Test run 대화만 `testRun.pause|resume|step`이 있고 drive lock을 쥔 채 멈춘다. 스키마는 `wire/profile-test-run.ts`이고 계측·Test run 결과 타입은 `extensions/trace-types.ts`다.
-  - `profile.apply`·`profile.preview`의 `layer`(`user`, `project`, `thread`)는 [제안, T-REG §7 4번 사용자 확인 대기]이다. 생략하면 호스트는 `user`로 읽고, 결과가 쓴 층을 돌려준다. `thread` 층이면 `threadId`가 필요하다. `SETTING_WRITERS`에는 `thread`를 더하지 않는다. 대화 층에 쓴 설정 값은 `session` 범위의 값이므로 `writer: "profile"`, `winningScope: "session"`으로 나온다 [제안: 미결 4번의 기본 선택].
-  - 처리기 동작(T-WB, `apps/host`): `profile.put`은 `baseRev`가 저장된 `rev`(없으면 null)와 다르면 `profile.conflict`(3302, `details: { id, rev, baseRev }`)이고 성공하면 `rev`를 올린다. `profile.apply`는 쓰기 전에 모든 키를 `checkSettingWrite`로 검사해(카탈로그에 없으면 `settings.unknownKey`) 하나라도 거절되면 아무것도 쓰지 않고, 쓰는 중 실패하면 이미 쓴 키를 거꾸로 이전 값(없던 키는 지움)으로 되돌린 뒤 그 실패를 돌려준다. 되돌리기도 실패하면 `profile.applyPartial`(3305, `details: { written, failed }`)이다. `layer`가 `user`이면 `enable`·`disable`은 `ext.<이름>.enabled`(카탈로그에 선언된 확장만, 아니면 `settings.unknownKey`)와 `settings`, `driver`(`x.primitives.activeDriver`, null이면 쓰지 않음)를 그 범위에 쓴다. `project`와 `thread`는 `threadId`가 필요하고(`project`는 작업 폴더를 알아야 한다), `thread` 층은 `settings`·`driver`를 `launch` 범위의 thread 값으로 쓰고 `enable`·`disable`은 설정이 아니라 확장의 대화별 켜짐 요청으로 보내며 `appliesAt`은 `nextStepBoundary`다. 신뢰하지 않은 작업 폴더의 `project` 층은 `profile.trustRequired`(3304)다. `thread.create { testRun: true, profileId }`는 대화를 만들고 쓰기 소유를 얻은 뒤 `thread` 층에 적용하며, 적용이 실패하면 그 대화를 지우고 실패를 돌려준다. `profileId`가 있는데 `testRun`이 참이 아니면 `-32602`다. 오류 kind 아홉(`profile.notFound`·`conflict`·`fileCorrupt`·`trustRequired`·`applyPartial`·`limit`, `testRun.unavailable`·`notATestRun`·`notPaused`)은 §3.5.2 표와 `WIRE_ERRORS`에 있다(코드 3301~3306, 3311~3313, 코어 구간의 3300~3399). 처리기는 비공개 표를 두지 않고 `wireError(kind)`로 낸다. 모든 `profile.*` 실패(`ProfileStoreFailure`, `ProfileApplyFailure`)는 이 kind나 기존 kind(`store.io`, `settings.*`, `thread.*`, `jsonrpc.invalidParams`, `internal`)로 옮겨지며 옮김 표는 시험(`apps/host/test/handlers/profile-wire-errors.test.ts`)이 값으로 비교한다. 클라이언트는 옛 문자열 형태에 기대지 말고 `kind`로 분기한다. `testRun.*`는 호스트가 Test run으로 적어 둔 대화에만 포트를 부른다. `profile.preview`의 `hookCount`는 확장 호스트가 등록별 Hook 수를 내놓을 때까지 0이다 [미결].
-  - `trace.turn`은 계측이 꺼져 있으면 `traceEnabled: false`, 켜져 있는데 링 버퍼에서 밀려난 Turn이면 `traceEnabled: true`, `retained: false`이고 어느 쪽이든 `entries`는 비어 있다. `ext.timings`의 `traceEnabled`도 같은 뜻이다. 두 결과는 호스트 포트 `TraceReadPort`(`extensions/ports.ts`)가 같은 원천에서 주고, `testRun.*`는 `TestRunControlPort`가 준다. 제어가 실패하면 `TestRunControlError.kind`(`not_a_test_run`, `not_paused`, `not_available`)가 있는 값이다.
+- [결정: 2026-10-31 사용자, M4 T-F] 프로필·Test run·계측(W-34, W-43~W-46, W-48, W-50): 프로필 `{ id, title, enable, disable, settings: {key, value}[], startDrive, updatedAt, rev }`는 런타임 호스트의 `profiles.json`(`ProfilesFile`)에 저장하고 `profile.put`은 `baseRev` 비교로 충돌을 막는다. `enable`·`disable`은 확장 이름이고 Registration id가 아니다 [제안: 플러그인 단위 켜기는 아직 프로필이 다루지 않는다]. `startDrive`(옛 `driver`, `driveGroup`)는 시작 Drive 플러그인 이름이고 대화를 열 때 `ExtHost.openThread`의 `startDrive`가 된다(drive-isolation.md 2.2). `thread.create`는 `testRun`, `profileId`를 받고 `ThreadSummary.testRun`은 `{ profileId, target, paused }`다(선택). Test run 대화만 `testRun.pause|resume|step`이 있고 drive lock을 쥔 채 멈춘다. 스키마는 `wire/profile-test-run.ts`이고 계측·Test run 결과 타입은 `extensions/trace-types.ts`다.
+  - M5c-1 [제안]: `profile.apply`와 `layer`(`user`·`project`·`thread`)를 없앴다. 프로필 저장은 `profile.put`·`profile.common.put`이 하고, 대화의 켜짐 집합과 설정 값은 경계마다 `E(T) = 코어 ∪ (공통 ∪ 프로필 ∪ 덧씌우기) − 관리 잠금 − 오류 정지`로 계산한다(review.m5-profile-project-loader §4.1). 적용 결과는 `profile.applied` 이벤트로 남는다(F.records.spec). `SETTING_WRITERS`에는 `thread`를 더하지 않는다.
+  - 처리기 동작(T-WB, `apps/host`, M5c-1 [제안]): `profile.put`은 `baseRev`가 저장된 `rev`(없으면 null)와 다르면 `profile.conflict`(3302, `details: { id, rev, baseRev }`)이고 성공하면 `rev`를 올린다. 저장 전 `validateProfile`이 오류를 내면 `profile.invalid`로 거절한다. `thread.create`의 `profileId`는 `testRun` 없이도 받는다(M5c §3.4). 신뢰하지 않은 작업 폴더의 `project` 층은 `profile.trustRequired`(3304)다. 오류 kind 아홉(`profile.notFound`·`conflict`·`fileCorrupt`·`trustRequired`·`applyPartial`·`limit`, `testRun.unavailable`·`notATestRun`·`notPaused`)은 §3.5.2 표와 `WIRE_ERRORS`에 있다(코드 3301~3306, 3311~3313, 코어 구간의 3300~3399). 처리기는 비공개 표를 두지 않고 `wireError(kind)`로 낸다. 모든 `profile.*` 실패(`ProfileStoreFailure`, `ProfileApplyFailure`)는 이 kind나 기존 kind(`store.io`, `settings.*`, `thread.*`, `jsonrpc.invalidParams`, `internal`)로 옮겨지며 옮김 표는 시험(`apps/host/test/handlers/profile-wire-errors.test.ts`)이 값으로 비교한다. 클라이언트는 옛 문자열 형태에 기대지 말고 `kind`로 분기한다. `testRun.*`는 호스트가 Test run으로 적어 둔 대화에만 포트를 부른다.  - `trace.turn`은 계측이 꺼져 있으면 `traceEnabled: false`, 켜져 있는데 링 버퍼에서 밀려난 Turn이면 `traceEnabled: true`, `retained: false`이고 어느 쪽이든 `entries`는 비어 있다. `ext.timings`의 `traceEnabled`도 같은 뜻이다. 두 결과는 호스트 포트 `TraceReadPort`(`extensions/ports.ts`)가 같은 원천에서 주고, `testRun.*`는 `TestRunControlPort`가 준다. 제어가 실패하면 `TestRunControlError.kind`(`not_a_test_run`, `not_paused`, `not_available`)가 있는 값이다.
 - [결정: 2026-11-04 사용자 지시에 따른 기본값] `testRun.phase`의 결과를 넓힌다(W-50). f01–f03 시안이 필요로 하는 값이다. 단계 칸 `phase`, `group`, `seq`는 그대로이고 칸 다섯을 더한다. `paused`는 이 대화에 멈춤 요청이 걸려 있는가다. `lock`은 drive lock이다. `holder`는 쥔 그룹 확장 이름, `status`는 `active`(쓰는 중)·`releasing`(반납이 정해져 다음 경계에서 커밋된다)·`none`(커밋된 drive lock 없음)이고, `none`이면 `holder`와 `epoch`가 null이다. `guardHits`는 이 대화의 계측 기록에서 핸들러 결과가 `blocked`인 수다. `traceEnabled`는 그 수가 측정된 값인지 알리며, 거짓이면 화면은 "측정 꺼짐"을 보이고 `guardHits`는 0이다. `boundaries`는 호스트가 남긴 최근 단계 경계 기록을 최대 200개까지 오래된 것부터 싣는다. 칸은 `seq`(그 경계의 상태 revision), `phase`(그때 커밋된 단계, 없으면 null), `paused`(멈춰 기다렸는가)다. 칸은 모두 필수이고 `additionalProperties`는 거짓이다. 값은 ext-host(`testRunControlOf.phase`)가 채운다(`X.primitives.spec` X-19).
 - [결정: 2026-11-04 사용자 지시에 따른 기본값] `ext.test.list`의 replay 보고 `ReplayReport`에 칸별 `cuts`를 더한다. f02 시안의 절단 띠가 필요로 하는 값이다. `cuts`는 group-sdk `ReplayCut`의 wire 모양이고(`commitIndex`는 1 이상, `equal`, `firstDiff`는 0 이상 또는 null), 커밋 시점마다 한 칸, 커밋 순, 최대 1000칸이다. `passed`는 `cuts`에서 `equal`인 칸의 수다. `ext.test.run`의 `maxCommits` 상한을 1000으로 낮춰 `cuts`의 칸 수와 맞춘다(기본 200은 그대로) [근거: `packages/contracts/src/wire-settings/wire/devkit.ts`의 `ExtTestRunParamsShape`와 `ReplayReportShape`].
 - [결정: 2026-11-04 사용자 지시에 따른 기본값] `ext.test.run`과 `ext.test.list`의 저장과 실행 규칙(HS-112와 같다). 기록은 사용자 설정 폴더의 `ext-tests.json` 하나이고 시작 순서이며 최대 500개다(넘으면 가장 오래된 것부터 버린다). `replay`는 동기다. 기록을 `running`으로 남기고 끝나면 `passed` 또는 `failed`와 `ReplayReport`를 채워 돌려준다. 한 번에 하나만 돈다(돌고 있으면 `denied`). 개발 모드(`l3.authoring.devMode`)가 거짓이면 `dev_mode_required`이고 기록을 남기지 않는다. 이 프로세스가 처음 읽을 때 앞 프로세스에서 `running`으로 남은 기록은 `failed`(중단됨, `durationMs` null)로 바꿔 저장한다. 손상된 기록 파일은 `io`이고 덮어쓰지 않는다. `testRun`은 Test run 대화를 열고 `running`으로 남긴다(끝내기는 사용자가 한다). 재생기는 `@fresnel/plugin-builder`의 `runInstalledReplay`다. 재생이 실행되지 못하면(매니페스트나 엔트리가 없음, 그룹이 아님, 엔트리가 폴더 밖, 함수 export 없음, 가져오기 실패) `replay`는 그 오류를 돌려주고 기록은 `failed`(보고 null)로 남는다 [결정: 2026-11-04 사용자 지시에 따른 기본값] [근거: packages/plugin-builder/src/replay.ts, apps/host/src/assembly/m4/replay-run.ts]. 설치된 그룹이 `defaultEnabled: false`로 있으면 drive가 돌지 않아 보고는 `no-commits`다 [미결: 재생에서 꺼진 그룹을 켜서 볼지].
-- [결정: 2026-10-31 사용자, M4 T-F] 제작(W-27~W-29, W-32, W-49)은 서비스 `fresnel.devkit`(`services/devkit.ts`, `L3.authoring.spec` §3.3, 구현은 L4)을 wire로 노출한다. `ext.kinds`는 새 모델의 `single-plugin`, `plugin-group` 둘을 돌려주고(옛 plugin·group 종류를 대체한다) `ext.scaffold`는 `group`(`members`, `composition`)과 `ui` 초안을 받는다 [제안: T-REG §8]. `ext.validate`의 `issues`는 F 검사와 AU 규칙(`AU-NNN`)을 함께 싣는다. `ext.test.run`의 replay는 개발 모드가 아니면 오류 `dev_mode_required`다. 이름 `ext.test.run`, `ext.test.list`(플러그인 시험 묶음 실행)는 Test run(격리 대화)과 헷갈리지만 그대로 둔다 [결정: 2026-11-03 제안 기본값 자동 승인, 대안 `ext.suite.run`, `ext.suite.list`는 쓰지 않는다. `test`는 어느 쪽이든 확장 이름으로 쓸 수 없다]. `ext.test.list`의 `kind`는 `replay`와 `testRun`뿐이다. benchmark와 코어 변경 검사 결과는 이 목록에 없다. W-30(benchmark·코어 변경 검사)은 wire가 아니라 개발 모드 전용 셸 명령이라 이 문서에 없다. 스키마는 `wire/devkit.ts`다.
+- [결정: 2026-10-31 사용자, M4 T-F] 제작(W-27~W-29, W-32, W-49)은 서비스 `fresnel.devkit`(`services/devkit.ts`, `L3.authoring.spec` §3.3, 구현은 L4)을 wire로 노출한다. `ext.kinds`는 새 모델의 `single-plugin`, `plugin-group` 둘을 돌려주고(옛 plugin·group 종류를 대체한다) `ext.scaffold`는 `group`(`members`, `composition`)과 `ui` 초안을 받는다 [제안: T-REG §8]. M5c-1에서 `kind`는 `single-plugin`만 받는다(`plugin-group`은 검토 흐름에서 만들지 않는다, `review/m5/profile-project-loader.md` §4.9.5). `ext.validate`의 `issues`는 F 검사와 AU 규칙(`AU-NNN`)을 함께 싣는다. `ext.test.run`의 replay는 개발 모드가 아니면 오류 `dev_mode_required`다. 이름 `ext.test.run`, `ext.test.list`(플러그인 시험 묶음 실행)는 Test run(격리 대화)과 헷갈리지만 그대로 둔다 [결정: 2026-11-03 제안 기본값 자동 승인, 대안 `ext.suite.run`, `ext.suite.list`는 쓰지 않는다. `test`는 어느 쪽이든 확장 이름으로 쓸 수 없다]. `ext.test.list`의 `kind`는 `replay`와 `testRun`뿐이다. benchmark와 코어 변경 검사 결과는 이 목록에 없다. W-30(benchmark·코어 변경 검사)은 wire가 아니라 개발 모드 전용 셸 명령이라 이 문서에 없다. 스키마는 `wire/devkit.ts`다.
 - [결정: 2026-11-04 사용자, Q9] 플러그인은 앱 안에서 설치한다(W-32). 설치 전에 권한을 확인받는다. 출처는 지금 지원하는 것만 받는다: 이 컴퓨터의 폴더(묶은 `.js`·`.mjs` 엔트리, 절대 경로). URL·마켓플레이스·원격 카탈로그·자동 업데이트는 범위 밖이다.
-  - [제안] `ext.installPreview`는 디스크에 쓰지 않고 `InstallPreview`를 돌려준다. `network`, `files`, `shell`은 요청한 기능 id를 접두로 가른 것이다(`web.*`·`mcp.*`, `workspace.files`·`workspace.images`, `workspace.shell`). 매니페스트에 네트워크·파일 권한 필드가 따로 없어서다. `tools`는 `replaces`로 바꿔 놓겠다고 선언한 내장 도구다. `sha256`은 폴더 내용 해시(`folderHash`)다.
-  - [제안] `ext.install`은 `sha256`을 필수로 받는다. 호스트가 복사한 사본의 해시가 다르면 `source_changed`(`jsonrpc.invalidParams`의 `issues`)로 거부하고 사본을 지운다. 안전 모드는 `extension.safeModeActive`, `managed` 범위가 잠근 이름은 `managed_locked`(`invalidParams`)로 거부한다. 결과 `appliesAt`은 같은 이름이 실행 중이면 `nextStepBoundary`에 `needsReload: true`(호출자가 `ext.reload`를 부른다. 설치는 `ext.reload`를 부르지 않는다. `needsReload`가 없는 `nextStepBoundary`는 새 이름의 켜기가 경계로 미뤄진 것이라 부를 일이 없다), 새 이름이면 설치 뒤 로더가 곧바로 싣고(`ExtensionLoader.loadInstalled`, `X.loading-trust.spec` §4.4.4) 실행 중인 turn이 없으면 `now`, 있으면 켜기가 다음 단계 경계로 미뤄져 `nextStepBoundary`다 [결정: 2026-11-04 사용자: 새 이름 플러그인도 재시작 없이 바로 불러온다]. `restart`는 파일은 복사됐지만 싣지 못했을 때(`loadFailure`에 `reason`과 진단)와 로더가 없을 때만 남는다. `ext.remove`의 `appliesAt`은 로더가 내리면 `now`(목록에서 바로 빠진다)다. `dropData`가 참이면 호스트는 먼저 확장을 내리고 그 확장의 저장 테이블을 지운 뒤 폴더를 지운다. 결과 `dataDropped`는 지운 테이블 수다. 데이터를 지우지 못하면 `io`(`store.io`)로 거절하고 폴더는 남겨 같은 요청을 다시 보낼 수 있게 한다. `dropData`가 없거나 거짓이면 저장 테이블은 남고 `dataDropped` 칸은 나오지 않는다. 지우기 확인 화면은 `ext.removePreview`(`{ name }`)로 그 확장이 소유한 테이블과 행 수를 미리 읽는다. 미리 보기는 아무것도 바꾸지 않고, 이름이 없으면 `extension.notFound`, 사용자 확장 위치가 없으면 빈 목록이다.
+  - [제거: M5c-1, `review/m5/profile-project-loader.md` §3.4] 아래 `ext.installPreview`, `ext.install`, `ext.remove`, `ext.removePreview` 설명은 이력이다. 네 메서드는 wire 표(§3.3.1)에서 빠졌다. 설치는 검토함을 지난다(`plugin.draft.create` 뒤 `pluginReview.submitDraft`와 `pluginReview.decide`, §3.3.4a). 지우기는 `plugin.requestRemove`가 `remove` 검토 항목을 만든다. 레지스트리 등록은 통합 담당이 한다.
+  - [제안, 제거됨] `ext.installPreview`는 디스크에 쓰지 않고 `InstallPreview`를 돌려준다. `network`, `files`, `shell`은 요청한 기능 id를 접두로 가른 것이다(`web.*`·`mcp.*`, `workspace.files`·`workspace.images`, `workspace.shell`). 매니페스트에 네트워크·파일 권한 필드가 따로 없어서다. `tools`는 `replaces`로 바꿔 놓겠다고 선언한 내장 도구다. `sha256`은 폴더 내용 해시(`folderHash`)다.
+  - [제안, 제거됨] `ext.install`은 `sha256`을 필수로 받는다. 호스트가 복사한 사본의 해시가 다르면 `source_changed`(`jsonrpc.invalidParams`의 `issues`)로 거부하고 사본을 지운다. 안전 모드는 `extension.safeModeActive`, `managed` 범위가 잠근 이름은 `managed_locked`(`invalidParams`)로 거부한다. 결과 `appliesAt`은 같은 이름이 실행 중이면 `nextStepBoundary`에 `needsReload: true`(호출자가 `ext.reload`를 부른다. 설치는 `ext.reload`를 부르지 않는다. `needsReload`가 없는 `nextStepBoundary`는 새 이름의 켜기가 경계로 미뤄진 것이라 부를 일이 없다), 새 이름이면 설치 뒤 로더가 곧바로 싣고(`ExtensionLoader.loadInstalled`, `X.loading-trust.spec` §4.4.4) 실행 중인 turn이 없으면 `now`, 있으면 켜기가 다음 단계 경계로 미뤄져 `nextStepBoundary`다 [결정: 2026-11-04 사용자: 새 이름 플러그인도 재시작 없이 바로 불러온다]. `restart`는 파일은 복사됐지만 싣지 못했을 때(`loadFailure`에 `reason`과 진단)와 로더가 없을 때만 남는다. `ext.remove`의 `appliesAt`은 로더가 내리면 `now`(목록에서 바로 빠진다)다. `dropData`가 참이면 호스트는 먼저 확장을 내리고 그 확장의 저장 테이블을 지운 뒤 폴더를 지운다. 결과 `dataDropped`는 지운 테이블 수다. 데이터를 지우지 못하면 `io`(`store.io`)로 거절하고 폴더는 남겨 같은 요청을 다시 보낼 수 있게 한다. `dropData`가 없거나 거짓이면 저장 테이블은 남고 `dataDropped` 칸은 나오지 않는다. 지우기 확인 화면은 `ext.removePreview`(`{ name }`)로 그 확장이 소유한 테이블과 행 수를 미리 읽는다. 미리 보기는 아무것도 바꾸지 않고, 이름이 없으면 `extension.notFound`, 사용자 확장 위치가 없으면 빈 목록이다.
 - [제안, T-MEAS-READ] 측정 읽기: 스키마는 `wire/measure.ts`다. 이름 `measure.turn`, `measure.daily`는 제안이다. `measure.turn`은 한 Turn의 측정 행(`turn`, `call`, `hook`, `ctx`, `cache`, 쓰는 칸은 L4.host-service.spec §4.20)을 시간 순으로 돌려준다. `kind`마다 `metrics`(이름 → 숫자)와 `tags`(이름 → 짧은 문자열) 이름이 다르다. 측정이 꺼져 있으면 `enabled: false`이고 목록은 비며, 보존 기간이 지나 접힌 Turn도 빈 목록이다. `thread`가 없으면 3001이고 저장소를 읽지 못하면 `store.io`다. 요청 본문은 어떤 행에도 없다. `measure.daily`는 `kind`와 `metric` 하나의 일별 집계(개수, 합, 최소, 최대)를 UTC 날짜 순으로 돌려준다. 원본이 남은 날과 이미 접힌 날을 합친 값이다. 백분위는 wire에 내지 않는다(원본이 접히면 계산할 수 없다). 결과 상한은 `measure.turn` 4000행, `measure.daily` 3650일이다.
 - M4 메서드(단계 M4)는 §3.3.1 표에 있다.
 

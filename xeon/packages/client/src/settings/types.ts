@@ -52,8 +52,8 @@ export type FieldError =
   | { readonly kind: "transient"; readonly message: string }
   | { readonly kind: "internal"; readonly message: string; readonly traceId: string | null };
 
-/** 쓰기 범위 후보. managed는 화면이 쓰지 않는다(§4.3.6) */
-export type WritableScope = Exclude<SettingScope, "managed">;
+/** 쓰기 범위 후보. managed는 화면이 쓰지 않는다(§4.3.6). profile은 읽기 전용이라 `settings.set`에 없다(프로필은 `profile.put`으로만 쓴다) */
+export type WritableScope = Exclude<SettingScope, "managed" | "profile">;
 export type BadgeScope = SettingScope | "default";
 
 export interface ScopeBadge {

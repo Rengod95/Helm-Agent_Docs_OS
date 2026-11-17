@@ -3,6 +3,8 @@ import { Bug } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   LoopPortKey,
+  PluginSetPortKey,
+  type PluginSetView,
   RecordCommitPortKey,
   type ExtCommitResult,
   type RecordCommitPort,
@@ -18,6 +20,7 @@ import type {
   ThreadOpenOptions,
   ThreadRuntime,
 } from "./core.ts";
+import { isHookUnitName } from "../operations/hooks/names.ts";
 import { makeDraft } from "./drafts.ts";
 import { PrimitiveError } from "./errors.ts";
 import { keyPart } from "./keys.ts";
@@ -121,6 +124,95 @@ function commitIdleTxn(
   });
 }
 
+/** 대화가 쓰는 플러그인 집합(E(T))을 포트에서 읽는다. 포트가 없는 조립이면 undefined다 */
+function pluginSetOf(core: HostCore, threadId: ThreadId): PluginSetView | undefined {
+  return core.ports.get(PluginSetPortKey)?.resolve(threadId);
+}
+
+/** 대화를 열 때 등록별 켜짐을 E(T)로 맞추고, 그 값을 맞춘 값으로 기록한다(`applyPluginSet`의 기준) */
+function seedPluginSet(core: HostCore, thread: ThreadRuntime): void {
+  const view = pluginSetOf(core, thread.threadId);
+  if (view === undefined) return;
+  const wanted = new Set(view.plugins);
+  for (const record of core.scopes.values()) {
+    if (isHookUnitName(record.extension)) continue;
+    const enabled = wanted.has(record.extension);
+    thread.want.set(record.id, { enabled, reason: undefined });
+    thread.pluginReconciled.set(record, enabled);
+  }
+}
+
+function sameApplied(a: PluginSetView, b: PluginSetView): boolean {
+  return (
+    a.profileId === b.profileId &&
+    a.profileRev === b.profileRev &&
+    a.commonRev === b.commonRev &&
+    a.missingProfileId === b.missingProfileId &&
+    a.plugins.toSorted().join("\n") === b.plugins.toSorted().join("\n")
+  );
+}
+
+/**
+ * 단계 경계마다 E(T)를 다시 계산해, 마지막으로 맞춘 값(`pluginReconciled`)과 다른 등록만 켜기·끄기 요청으로 옮긴다(기존 경로
+ * `RegistrationRuntime.request`, M5c §4.1.5). 현재 상태와 비교하지 않으므로 엔진이 끈 등록은 E(T)가 바뀔 때까지 다시 켜지지 않는다.
+ * 적용이 바뀌었으면 `profile.applied`를 이 경계 기여에 넣는다. 요청은 같은 경계의 `applyToggles`가 적용하고 `scope.changed`는 reconcile이 남긴다.
+ */
+function applyPluginSet(
+  core: HostCore,
+  scope: RegistrationRuntime,
+  thread: ThreadRuntime,
+  txn: BoundaryTxn,
+): void {
+  const view = pluginSetOf(core, thread.threadId);
+  if (view === undefined) return;
+  const wanted = new Set(view.plugins);
+  for (const record of core.scopes.values()) {
+    // 훅 단위는 폴더 신뢰와 저장된 끄기가 정한다(프로필 집합 밖)
+    if (isHookUnitName(record.extension)) continue;
+    const enabled = wanted.has(record.extension);
+    if (thread.pluginReconciled.get(record) === enabled) continue;
+    thread.pluginReconciled.set(record, enabled);
+    scope.request(record, enabled, undefined, thread.threadId);
+  }
+  const previous = thread.appliedPlugins;
+  if (previous !== null && sameApplied(previous, view)) return;
+  const before = new Set(previous?.plugins ?? []);
+  const added = view.plugins.filter((name) => !before.has(name)).toSorted();
+  const removed = (previous?.plugins ?? []).filter((name) => !wanted.has(name)).toSorted();
+  const reason =
+    previous === null
+      ? view.missingProfileId === undefined
+        ? "open"
+        : "profile_missing"
+      : previous.profileId !== view.profileId
+        ? "switched"
+        : previous.profileRev !== view.profileRev
+          ? "profile_edited"
+          : previous.commonRev !== view.commonRev
+            ? "common_edited"
+            : removed.length > 0
+              ? "plugin_stopped"
+              : "profile_edited";
+  txn.drafts.push(
+    makeDraft(core.deps.ids, {
+      threadId: thread.threadId,
+      kind: "profile.applied",
+      payload: {
+        reason,
+        profileId: view.profileId,
+        profileRev: view.profileRev,
+        commonRev: view.commonRev,
+        added,
+        removed,
+        overlay: [],
+      },
+      turnId: txn.signal.turnId,
+      stepId: txn.signal.stepId,
+    }),
+  );
+  thread.appliedPlugins = view;
+}
+
 export function createBoundary(
   core: HostCore,
   scope: RegistrationRuntime,
@@ -209,7 +301,10 @@ export function createBoundary(
       abandoning: null,
     };
     thread.txn = txn;
-    if (signal.kind !== "turn_settled") await scope.applyToggles(thread, txn);
+    if (signal.kind !== "turn_settled") {
+      applyPluginSet(core, scope, thread, txn);
+      await scope.applyToggles(thread, txn);
+    }
     lease.collectReleases(thread, txn);
     reconcile(thread, txn);
     lease.grant(thread, txn);
@@ -401,12 +496,16 @@ export function createBoundary(
         userStopped: false,
         txn: null,
         warnedPorts: new Set(),
+        appliedPlugins: null,
+        pluginReconciled: new WeakMap(),
         applying: false,
         applyAgain: false,
         idleApply: null,
         applyDeferred: false,
       };
       core.threads.set(threadId, thread);
+      // 대화별 켜짐은 E(T)로 정한다(M5c §4.1.3). 저장된 끄기 기록보다 E(T)가 이긴다
+      seedPluginSet(core, thread);
       // 이미 세대가 열린 scope를 이 thread에서 켠다. 저장된 켜짐 기록과 같으면 scope.changed를 다시 남기지 않는다(N-01)
       await scope.seedThread(thread);
       lease.restore(thread, snapshot.openLeases);

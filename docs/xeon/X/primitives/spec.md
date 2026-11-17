@@ -385,7 +385,9 @@ export type HandlerFailureReason =
   | "timeout"          // DispatchPolicy.budgetMs 초과
   | "result_invalid"   // first 결정·chain 패치가 HookDecl.result 스키마 위반
   | "merge_rejected"   // CHAIN_RULES[N].merge가 예외
-  | "value_from_tap";  // tap 핸들러가 undefined 아닌 값을 반환(기록만, 동작 영향 없음)
+  | "value_from_tap"  // tap 핸들러가 undefined 아닌 값을 반환(기록만, 동작 영향 없음)
+  | "process_exit"    // 격리 호스트 프로세스가 스스로 끝남(`PluginProcessError`를 던진 핸들러). 실패 규칙은 `threw`와 같다
+  | "process_killed"; // 엔진이 시간 초과로 호스트 프로세스를 종료함
 
 export interface HandlerFailure {
   readonly point: HookName;
@@ -700,6 +702,9 @@ export function hostOf<S>(g: RegistrationApi<S>): RegistrationHostApi<S>;
 - 포트로 넘기는 리소스 정의(`ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef`)는 F.extensions.spec §3.2.1 정의를 쓰고, X가 보관하는 리소스 정의(`CommandResourceDef` 등)는 §3.9에 둔다.
 - [미결] F.extensions.spec §3.2 `RegistrationApi`에 `provide`를 두지 않은 상태에서 L2 공급자가 이 API로 등록하는 방식이 F.capabilities.spec의 의도와 같은지. 다른 안은 F `RegistrationApi`에 `provide<Api>(key, impl)`를 추가하는 것이다.
 
+
+격리 호스트용 추가 공개(M5b-1, 코드 `isolation/`와 `primitives/host-api.ts`): `bindHostApiForIsolation(g, api)`는 호스트 프로세스 안의 실행기가 자기 `g`에 `RegistrationHostApi`를 묶는 함수이고(그 밖의 곳에서 쓰지 않는다), `PluginProcessError`(`reason`: `process_exit`|`process_killed`)를 던진 핸들러는 디스패치가 그 이유로 실패를 기록한다. 호스트 프로세스에서 `port`는 `service_reserved`로 답하고 `drive`, `migrateState`, `provide`, `providePort`, `updateState`, `awaitUser`, `registerWebProvider`, `registerShortcut`은 `unsupported_api`다(`X.loading-trust.spec` §4.9.5).
+
 ### 3.9 scope 정보, 리소스 표, 리소스 포트
 
 ```ts
@@ -929,6 +934,13 @@ Cordis는 두 가지에만 쓴다.
 2. 등록 순번 `seq`는 ExtHost 전체에서 단조 증가하는 정수다.
 3. 디스패치 시작 때 `registry.snapshot(point, threadId)`가 항목 배열을 복사한다. 이 배열에는 스냅샷 시점에 세대가 열려 있고 그 thread에서 켜진 scope의 항목만 들어간다. 디스패치 도중의 `add`·`remove`·토글은 진행 중인 디스패치에 반영되지 않는다(pi `runner.ts:269-271` `snapshotEventHandlers`와 같다).
 4. 스냅샷에 들어간 항목의 scope가 디스패치 도중 꺼져도 그 디스패치에서는 실행된다. 끄기 적용은 단계 경계에서만 일어나고 디스패치는 step 안에서 일어나므로 실제로는 겹치지 않는다. detached tap만 경계를 넘어 실행될 수 있다.
+5. `g.subscribe(events, handler, options)` [제안, M5e §4.4.1]. 이벤트마다 `g.on`(tap) 등록을 하나씩 한다. 규칙:
+   - `events`가 배열이면 각 이름은 매니페스트 `hooks`에 선언되어야 한다. 아니면 `hook_undeclared`로 거부한다(`g.on`과 같다). 위치가 `event`가 아닌 이름은 `subscribe_not_event`로 거부한다. `"all"`은 선언된 이벤트 이름 전부다(선언된 비이벤트 훅은 뺀다).
+   - `sample: "coalesce"`는 고빈도 이벤트(`request.stream`, `boundary.message.update`, `tool.execution.update`)에만 준다. 배열 안에 다른 이름이 있으면 `subscribe_not_high_frequency`로 거부한다. `"all"`에서는 고빈도 이벤트만 합치고 나머지는 `every`다.
+   - `every`: 같은 대화 안에서 한 구독(한 `subscribe` 호출)에게 발화 순서대로 하나씩 전달한다. 핸들러 결과는 무시되고 tap 디스패치가 기다리며, 예외는 tap 실패로 기록된다(턴 결과를 바꾸지 않는다, M5e H-6).
+   - `coalesce`: 디스패치를 기다리지 않는다. 구독 핸들러가 바쁜 동안 들어온 이벤트는 대기 칸 하나를 덮고, 돌릴 때 `dropped`(덮인 수)를 싣는다. 실행은 `core.track`으로 뒤에서 하고, 실패는 추적기가 진단으로 보고한다. 뒤 실행은 그 이벤트의 디스패치 맥락을 다시 싣는다(처리 상태 칸은 비운다).
+   - 봉투 `EventEnvelope`는 `event`, `threadId`, `eventKey`(디스패치 키), `payload`(동결), 위치 표의 `anchor`(있을 때), `coalesce`에서만 `dropped`를 싣는다. 같은 `eventKey`는 재발화에서 같은 값이다(시험 있음).
+   - 반환하는 `Unsubscribe`를 부르면 그 뒤의 전달은 없고 대기 칸은 버린다.
 
 ### 4.2 디스패처
 
@@ -996,7 +1008,8 @@ first:
 
 ```text
 first(entries, payload):
-  closed = decl.failure == "closed"      // adr.0017. open인 훅은 thread.compact.before뿐이고 FIRST_DENY 항목이 없다
+  closed = decl.failure == "closed"      // adr.0017. open인 훅은 thread.compact.before와 ask.human.before뿐이고 FIRST_DENY 항목을 두지 않는다
+  merged = point ∈ FIRST_RANK            // M5e H-2: tool.call.before, agent.spawn.before. 아래 합치기 규칙을 본다
   for e in entries:
     r = await runOne(e, [payload])
     if !r.ok:                            // 예외·시간 초과
@@ -1011,7 +1024,8 @@ first(entries, payload):
   return { decision: undefined, decidedBy: null, substituted: false, failures }
 ```
 
-- 결정으로 인정하는 값은 `undefined`가 아니고 `HookDecl.result` 스키마를 통과하는 값뿐이다. F의 first 결정 타입은 모두 객체 형태(예: `ToolCallDecision = { block: true, reason, terminate? }`)다. 그래서 Cordis `bail`처럼 `0`, `''`, `NaN`을 결정으로 받는 일이 없다. 이 값들은 스키마 위반이므로 F.extensions.spec §5 2번대로 거부값으로 바뀐다.
+- 합치기 훅(M5e 스펙 §5.1 H-2 [결정: 2026-11-17 사용자, U3]). `tool.call.before`와 `agent.spawn.before`만 `FIRST_RANK` 항목이 있다. 이 둘은 `ask`와 `replace`에서 멈추지 않는다. 모든 핸들러가 원본 payload를 받고 돌아가며, 끝난 뒤 순위가 가장 강한 결정이 이긴다: `block` > `replace` > `ask`. 같은 종류 안에서는 등록 순서가 앞선 핸들러의 값이 이긴다. `block`은 어느 순위보다 강하므로 거기서 멈춘다(뒤 핸들러는 건너뛴다). 닫힌 훅의 예외·시간 초과·스키마 위반은 지금까지의 결정을 버리고 `FIRST_DENY`로 멈춘다(거부가 가장 강하다). 기록은 핸들러마다 남고 `ask`·`replace`는 결과 `passed`에 결정 칸(`ask`, `replace`)을 단다(M5e §4.5). 나머지 first 훅(`ask.human.before` 포함)은 처음 결정에서 멈춘다.
+- 결정으로 인정하는 값은 `undefined`가 아니고 `HookDecl.result` 스키마를 통과하는 값뿐이다. F의 first 결정 타입은 모두 객체 형태(예: `ToolCallDecision = { block: true, reason, terminate? } | { ask: true, reason } | { replace: {…}, reason }`)다. 그래서 Cordis `bail`처럼 `0`, `''`, `NaN`을 결정으로 받는 일이 없다. 이 값들은 스키마 위반이므로 F.extensions.spec §5 2번대로 거부값으로 바뀐다.
 - 결정 스키마 검사는 `strict`와 관계없이 항상 한다. first는 보안 훅(`tool.call.before`, `input.bash.before`, `thread.trust.before`, guard 훅 셋)이라 비용보다 정확성이 우선이다 [제안].
 - guard 훅(`guard.model.before`, `guard.tool.before`, `guard.output.before`)은 `failure: "closed"`인 first다. 핸들러 예외·시간 초과·스키마 위반은 `FIRST_DENY`의 차단 결정(`{ block: true, reason }`)이 된다. 핸들러가 없으면 결정 없음이고 통과다. 발화 시점은 L1이 정한다(같은 대상의 일반 훅이 끝난 뒤, M3-REQ-109). 내장 검사는 두지 않는다 [결정: adr.0017 §3.6].
 
@@ -1420,6 +1434,18 @@ ADR-0022 §3.3 5번의 규칙입니다. [결정: 2026-11-04 사용자] 세 층(�
 프로젝트의 정의 [결정: 2026-11-04 사용자]: 프로젝트는 대화(thread) 여러 개를 묶은 이름 있는 묶음이고, 공통 지침, 공통 파일, 플러그인 설정을 함께 씁니다. 작업 폴더는 선택입니다. 지금 폴더 기준의 설정 화면 이름은 "작업 폴더 설정"으로 바꿉니다. 폴더에서 온 코드의 신뢰(`X.loading-trust.spec`)는 그대로 폴더 기준입니다. 구현은 M5입니다. M4에서는 프로젝트 층을 구현하지 않고 위 4.5.2의 규칙을 유지합니다.
 
 M5에서 정할 것 [제안]: 호스트 저장소에 프로젝트 레코드(`projectId`, 이름, 지침, 파일, 선택 작업 폴더)와 thread의 소속 한 곳(thread 하나는 프로젝트 하나에만)을 두고, 프로젝트 층의 켜짐 값은 그 레코드에 붙여 저장합니다. 프로필 저장(`profiles.json`, 호스트 쪽)과 같은 층에서 다루면 데스크톱·웹·앱이 함께 씁니다. 소속 변경 규칙도 그때 정합니다.
+
+> [갱신 2026-11-18, M5c §4.1] 위 4.5.7의 1~8번이 그리는 "전역·프로젝트·대화" 세 층 방식은 대화별 켜짐이 프로필 집합 E(T)로 바뀌면서 대체되었다. 대화별 켜짐의 현재 규칙은 아래 4.5.8이다. `ext.<이름>.enabled`는 관리 범위만 허용하므로 사용자·프로젝트 범위의 켜짐 값은 두지 않는다. 4.5.7의 나머지(`enabledSource` 값 집합, 프로필 `layer` 인자)도 4.5.8과 M5c §4.1·§3.4로 읽는다.
+
+#### 4.5.8 대화별 켜짐 집합 E(T)를 PluginSetPort로 받기 [결정: M5c §4.1, 2026-11-16·11-18]
+
+1. 대화 T의 켜짐 집합은 `E(T) = 코어 ∪ (공통.plugins ∪ 프로필.plugins) − 관리 잠금`이다. X는 호스트가 `PluginSetPortKey`로 낸 포트(`resolve(threadId) → PluginSetView`, `plugins`·`profileId`·`profileRev`·`commonRev`·`missingProfileId?`)로 읽는다. 읽기는 동기다. 호스트는 프로필 복사를 메모리에 두고, 저장이 끝난 순간 `onProfilesWritten`이 복사를 바꾼 뒤 응답하므로 쓰고 바로 읽은 값이 새 집합이다(`apps/host/src/assembly/m4/plugin-set.ts`).
+2. 관리 잠금은 `ext.<이름>.enabled`가 관리 범위에서 거짓인 경우뿐이다. 키는 관리 범위만 허용되므로(`reservedExtensionSettings`) 기본값과 매니페스트 `defaultEnabled`는 잠금이 아니다.
+3. 대화를 열 때 `seedPluginSet`이, 단계 경계마다 `applyPluginSet`이 E(T)를 계산해 등록별 켜기·끄기 요청을 기존 경로(`scope.request(record, enabled, undefined, threadId)`)로 낸다. 요청은 등록마다 마지막으로 맞춘 E(T) 값과 다를 때만 낸다(`pluginReconciled`). 엔진이 `disable()`로 끈 등록(자동 끄기, 안전 모드)은 E(T)가 바뀔 때까지 그대로 꺼져 있다. 열기 때 seed는 E(T)가 이긴다. 턴이 정착한 신호는 건너뛴다. 집합이 같으면 `profile.applied`를 남기지 않고, 바뀌면 `reason`, `profileId`, `profileRev`, `commonRev`, `added`, `removed`, `overlay`를 경계 기여에 넣는다. 프로필을 고친 뒤 열린 대화는 `recompute`가 요청만 옮기고 적용은 다음 경계다(유휴 대화는 §4.5.5).
+4. 열린 대화에서는 E(T)가 이긴다. 같은 확장의 Registration은 그 확장이 E(T)에 있으면 함께 켜진다. `plugins[].defaultEnabled`(비루트 선언의 기본 꺼짐 포함)는 켜짐에 쓰지 않는다(M5c §4.1.9). 대화가 없는 전역 상태(`record.desired`)는 아직 매니페스트 기본을 쓴다 [미결: 전역 상태를 기본 프로필의 집합으로 바꿀지] [근거: apps/host/src/assembly/m4/ext-read-port.ts `orderPreview`가 기본 프로필 집합을 따로 쓴다]. 실패 장부는 확장 단위(`ext:<이름>`)라서 같은 확장의 다른 Registration이 성공하면 연속 실패가 비워진다 [미결: 장부를 Registration 단위로 둘지] [근거: apps/host/src/assembly/m4/ext-read-sources.ts `health`].
+5. 훅 단위(`x.operations.hookDefs`의 훅 정의, `hookUnitName`으로 만든 단위)는 플러그인이 아니라서 E(T)가 켜고 끄지 않는다. 폴더 신뢰와 저장된 끄기가 정한다. seed와 apply는 `isHookUnitName`인 등록을 건너뛴다.
+6. 가이드 그룹(`guide`)의 스킬은 대화의 E(T)에 가이드가 있을 때만 모델에 나간다(`cap-knowledge`의 확장 제공 스킬 루트가 대화 id를 받는다). 개발 모드는 가이드를 모든 대화의 E(T)에 넣고 잠근다(`forcedOn: "devMode"`). 대화의 프로필이 기본 목록의 내장 단위를 모두 뺀 경우(예: `[guide]`만 든 프로필)에는 `turn.start`가 응답하지 않았다(guide 시험에서 실측, 60초 시간 초과). 어느 단위가 빠져서인지는 확인하지 않았다. 내장 단위 `host-groups`처럼 tier가 `builtin`인 것은 코어가 아니라서 프로필이 뺄 수 있다 [미결: 빠졌을 때 턴이 멈추지 않게 할 규칙] [근거: apps/host/src/assembly/groups.ts `host-groups`, packages/ext-host/src/operations/tier.ts `assignTier`].
+7. `hooks.order.preview`는 대화를 받지 않으므로 기본 프로필의 집합(`PluginSetHandle.defaultView`)에 든 확장의 핸들러만 본다.
 
 ### 4.6 상태 문서, 기록, 레코드
 

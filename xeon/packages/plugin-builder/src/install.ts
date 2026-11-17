@@ -1,7 +1,11 @@
 import { cp, mkdir, readFile, rename, rm, stat } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { err, ok, parseJson, type Result } from "@fresnel/contracts";
-import { EXTENSION_NAME_PATTERN, validateManifest } from "@fresnel/contracts/extensions";
+import {
+  EXTENSION_NAME_PATTERN,
+  pluginDeclsOf,
+  validateManifest,
+} from "@fresnel/contracts/extensions";
 import type { ExtensionManifest, ManifestIssue } from "@fresnel/contracts/extensions";
 import type {
   DevkitError,
@@ -111,19 +115,23 @@ async function readInstallable(source: string): Promise<Result<ExtensionManifest
       message: "AU-002: builtin trust cannot be installed",
       reasons: [fieldReason("builtin_trust", "trust/level", text.value)],
     });
-  if (!/\.(js|mjs)$/.test(manifest.entry))
-    return err({
-      kind: "invalid_input",
-      message: "entry must be a bundled single file (run ext.package first)",
-      reasons: [fieldReason("entry_format", "entry", text.value)],
-    });
-  const entry = await io(manifest.entry, () => stat(join(source, manifest.entry)));
-  if (!entry.ok)
-    return err({
-      kind: "invalid_input",
-      message: `entry ${manifest.entry} does not exist`,
-      reasons: [fieldReason("entry_missing", "entry", text.value)],
-    });
+  // 엔트리가 없으면 코드가 없다(§4.5.4). 코드 검사는 엔트리가 있을 때만 한다
+  const entryPath = manifest.entry;
+  if (entryPath !== undefined) {
+    if (!/\.(js|mjs)$/.test(entryPath))
+      return err({
+        kind: "invalid_input",
+        message: "entry must be a bundled single file (run ext.package first)",
+        reasons: [fieldReason("entry_format", "entry", text.value)],
+      });
+    const entry = await io(entryPath, () => stat(join(source, entryPath)));
+    if (!entry.ok)
+      return err({
+        kind: "invalid_input",
+        message: `entry ${entryPath} does not exist`,
+        reasons: [fieldReason("entry_missing", "entry", text.value)],
+      });
+  }
   return ok(manifest);
 }
 
@@ -159,10 +167,11 @@ export async function previewInstall(
   );
   const current = installed.ok ? parseJson(installed.value) : undefined;
   const installedManifest = current?.ok ? validateManifest(current.value).manifest : undefined;
-  const requested = manifest.plugins.flatMap((plugin) => [
-    ...(plugin.requires ?? []).map((cap) => ({ id: cap.id, optional: false })),
-    ...(plugin.optional ?? []).map((cap) => ({ id: cap.id, optional: true })),
-  ]);
+  const requested = pluginDeclsOf(manifest).flatMap((plugin) =>
+    (plugin.requires ?? [])
+      .map((cap) => ({ id: cap.id, optional: false }))
+      .concat((plugin.optional ?? []).map((cap) => ({ id: cap.id, optional: true }))),
+  );
   const ids = [...new Set(requested.map((cap) => cap.id))];
   const trust = manifest.trust?.level;
   return ok({
@@ -174,13 +183,13 @@ export async function previewInstall(
     sha256: hash.value,
     trustRequest: trust === "user" || trust === "project" || trust === "untrusted" ? trust : null,
     installedVersion: installedManifest?.version ?? null,
-    hooks: unique(manifest.plugins.flatMap((plugin) => plugin.hooks)),
-    tools: unique(manifest.plugins.flatMap((plugin) => plugin.replaces ?? [])),
+    hooks: unique(pluginDeclsOf(manifest).flatMap((plugin) => plugin.hooks)),
+    tools: unique(pluginDeclsOf(manifest).flatMap((plugin) => plugin.replaces ?? [])),
     capabilities: requested,
     network: unique(ids.filter((id) => NETWORK_PREFIXES.some((prefix) => id.startsWith(prefix)))),
     files: unique(ids.filter((id) => FILE_IDS.has(id))),
     shell: unique(ids.filter((id) => SHELL_IDS.has(id))),
-    drives: manifest.plugins.some((plugin) => plugin.drives === true),
+    drives: pluginDeclsOf(manifest).some((plugin) => plugin.drives === true),
     screens: (manifest.ui?.items ?? []).map((item) => ({
       id: item.id,
       title: item.title,

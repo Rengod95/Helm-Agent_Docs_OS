@@ -27,7 +27,7 @@ describe("ExtensionManifest", () => {
     expect(result.manifest?.plugins).toEqual([{ layer: "plugin", hooks: [] }]);
   });
 
-  test.each(["schemaVersion", "name", "version", "entry", "plugins"])(
+  test.each(["schemaVersion", "name", "version"])(
     "required top-level field: %s missing is a schema error",
     (field) => {
       const input = pluginJson();
@@ -107,7 +107,7 @@ describe("ExtensionManifest", () => {
     const result = validateManifest(smokeGroup);
     expect(result.issues).toEqual([]);
     expect(result.manifest?.group).toEqual({});
-    expect(result.manifest?.plugins.map((plugin) => plugin.layer)).toEqual(["L3"]);
+    expect(result.manifest?.plugins?.map((plugin) => plugin.layer)).toEqual(["L3"]);
   });
 
   test("smoke group usage matches its declaration", () => {

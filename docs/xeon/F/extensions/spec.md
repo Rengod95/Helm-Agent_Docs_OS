@@ -140,6 +140,8 @@ export const PluginDeclSchema = Type.Object({
   defaultEnabled: Type.Optional(Type.Boolean()),
   /** 이 플러그인이 on을 거는 Hook 목록. 정적 선언. 빈 배열 허용 */
   hooks: Type.Array(HookNameSchema, { maxItems: 64 }),
+  /** M5e §4.1.1. 훅이 낼 수 있는 결정 종류를 미리 적는다. `hooks`는 이름 문자열 목록이라 훅 이름과 짝을 이룬 목록이다. 강제하지 않는다 */
+  hookDecides: Type.Optional(Type.Array(Type.Object({ hook: HookNameSchema, decides: Type.Array(DecisionKindSchema, { minItems: 1, maxItems: 3 }) }), { maxItems: 64 })),
   usesPost: Type.Optional(Type.Boolean()),
   /** 이 플러그인이 drive를 등록한다. 허용 여부는 정책 `x.primitives.driveRequiresGroup`이 정한다(§4.6) */
   drives: Type.Optional(Type.Boolean()),
@@ -188,13 +190,27 @@ export const ExtensionManifestSchema = Type.Object({
     commands: Type.Optional(Type.Array(Type.String())),
     agents: Type.Optional(Type.Array(Type.String())),
     mcpServers: Type.Optional(Type.String()),
+    /** 항상 싣는 지침 파일 경로(M5c-1) */
+    instructions: Type.Optional(Type.Array(Type.String())),
   })),
   userConfig: Type.Optional(Type.Record(Type.String({ pattern: "^[a-zA-Z][a-zA-Z0-9_]{0,63}$" }), UserConfigEntrySchema)),
   // Fresnel 필드: 확장 수준
-  /** 확장 루트 기준 상대 경로. 예: "./src/index.ts". 엔트리 모듈 하나가 모든 플러그인을 등록한다 */
-  entry: Type.String({ minLength: 1 }),
-  /** 확장이 담는 플러그인. 1~16개 */
-  plugins: Type.Array(PluginDeclSchema, { minItems: 1, maxItems: 16 }),
+  /** 한 문장짜리 목적(M5c-1, 최대 200자). 카드의 `purpose`가 된다. 없으면 검토에서 승인할 수 없다 */
+  purpose: Type.Optional(Type.String({ maxLength: 200 })),
+  /** 코드가 등록할 도구의 정적 선언(M5c-1). 이름은 `TOOL_NAME_PATTERN`, 같은 이름이 둘이면 `tool_duplicate` */
+  tools: Type.Optional(Type.Array(Type.Object({
+    name: Type.String({ pattern: TOOL_NAME_PATTERN, maxLength: 64 }),
+    description: Type.String({ maxLength: 512 }),
+  }, { additionalProperties: false }), { maxItems: 64 })),
+  /** 명령의 정적 선언(M5c-1). 이름은 `CommandNameSchema`(`COMMAND_NAME_PATTERN`), 같은 이름이 둘이면 `command_duplicate` */
+  commands: Type.Optional(Type.Array(Type.Object({
+    name: Type.String({ pattern: COMMAND_NAME_PATTERN, maxLength: 96 }),
+    description: Type.String({ maxLength: 512 }),
+  }, { additionalProperties: false }), { maxItems: 64 })),
+  /** 확장 루트 기준 상대 경로. 예: "./src/index.ts". 엔트리 모듈 하나가 모든 플러그인을 등록한다. 생략하면 폴더 신호에서 추론한다(M5c-1, X.loading-trust) */
+  entry: Type.Optional(Type.String({ minLength: 1, maxLength: 512 })),
+  /** 확장이 담는 플러그인. 1~16개. 생략하면 루트 플러그인 하나를 추론한다(`layer: "plugin"`, 훅 없음, M5c-1) */
+  plugins: Type.Optional(Type.Array(PluginDeclSchema, { minItems: 1, maxItems: 16 })),
   group: Type.Optional(GroupDeclSchema),
   /** Plugin UI 기여(ADR-0021, §3.1.1). 확장 수준. 화면마다 mode가 native 또는 app이다 */
   ui: Type.Optional(UiDeclSchema),
@@ -221,6 +237,8 @@ export interface PluginEntry {
   readonly root: boolean;                  // id가 없는 루트 플러그인
   readonly inGroup: boolean;               // `group` 선언이 있고 (members 없음 | 루트 | members에 포함)
 }
+/** `plugins`가 없으면 `{ layer: "plugin", hooks: [] }` 하나(§4.5.4 추론과 같은 모양), 있으면 그대로(M5c-1) */
+export function pluginDeclsOf(manifest: { readonly plugins?: readonly PluginDecl[] }): readonly PluginDecl[];
 export function pluginsOf(manifest: Pick<ExtensionManifest, "name" | "plugins" | "group">): readonly PluginEntry[];
 /** Registration 기본 켜짐: `decl.defaultEnabled ?? (루트 ? manifest.defaultEnabled ?? true : false)` */
 export function pluginDefaultEnabled(manifest: Pick<ExtensionManifest, "defaultEnabled">, entry: Pick<PluginEntry, "decl" | "root">): boolean;
@@ -236,6 +254,8 @@ export function effectiveLayer(manifest: Pick<ExtensionManifest, "plugins">): Ex
 - Claude Code의 `dependencies`(확장 사이 직접 의존)는 채택하지 않는다 [제안]. 그룹끼리 직접 참조하지 않는다는 층 사이 규칙 3 때문이다. 확장 사이 의존은 기능 요구(`requires`, `optional`)와 레코드 종류(`readsRecordKinds`)로만 표현한다.
 - `plugins[].layer`의 `plugin`은 층 패키지가 아닌 외부 플러그인을 뜻한다. 외부 플러그인은 L2 기능 provider, 관찰·형성 핸들러, 도구 등록을 할 수 있다.
 - `CapabilityIdSchema`, `SemVerSchema`, `SemVerRangeSchema`는 F.capabilities.spec §3.1을 그대로 import한다. 두 문서의 기능 ID 형식은 같다.
+- M5c-1 매니페스트 변경 [결정: 2026-11-17, `review/m5/profile-project-loader.md` §3.1, §4.5]: `entry`와 `plugins`는 선택이다. 둘 다 없으면 루트 플러그인 하나(`layer: "plugin"`, `hooks: []`)를 추론한다(`pluginDeclsOf`, §4.5.4). `pluginsOf`와 `effectiveLayer`는 추론한 목록으로 계산한다. 새 선택 필드는 `purpose`, `tools`, `commands`, `components.instructions`다. 옛 매니페스트는 그대로 유효하다. `defaultEnabled`는 바뀌지 않는다.
+- 중복 이름 [결정: M5c-1 §4.5.6]: `tools` 이름이 둘이면 `tool_duplicate`, `commands` 이름이 둘이면 `command_duplicate`(둘 다 오류, §3.7). 두 목록은 따로 센다.
 
 #### 3.1.1 Plugin UI와 확장 메서드 (`ui.ts`, `ext-method.ts`) [결정: 2026-10-31 사용자, ADR-0021, ADR-0022 §3.6]
 
@@ -290,6 +310,8 @@ export function validateMethods(methods: readonly ExtMethodDecl[]): readonly Man
   | `widgets_required` | `native` 화면이 있는데 `ui.widgets`가 없음 |
   | `method_invalid` | `methods` 항목의 스키마 위반(동사 문법 포함), `readOnly: true`와 `approval: true`를 함께 선언 |
   | `method_duplicate` | 같은 `verb`가 둘 |
+  | `tool_duplicate` | `tools` 선언 이름이 둘 [결정: M5c-1 §4.5.6]. 두 목록은 따로 센다 |
+  | `command_duplicate` | `commands` 선언 이름이 둘 [결정: M5c-1 §4.5.6] |
 
 - 화면 트리는 `UiNode`(`{ type, props?, bind?, each?, when?, children? }`)입니다. `props`는 글자·숫자·불리언·null 값만 받고(색, CSS, HTML 키는 렌더러가 버립니다), `bind`는 속성 이름에서 JSON Pointer 경로(`format?`은 `UI_FORMATS`)로, `each`는 `{ path, as }`, `when`은 `{ path, op: "eq"|"ne"|"exists"|"missing", value? }`입니다. `validateUiTree(input)`이 스키마와 크기 상한(`UI_LIMITS`: 노드 2000개, 깊이 24)을 검사해 `{ ok: true, tree }` 또는 `{ ok: false, issues }`(`ui_invalid`, `ui_limit`)를 돌려줍니다. 순수 함수입니다.
 - Plugin App 다리 메시지 스키마는 `BridgeRequestSchema`(`{ v: 1, id, op, args }`), `BridgeResponseSchema`(`{ v: 1, id, ok: true, value }` 또는 `{ v: 1, id, ok: false, error: { kind, detail? } }`), `BridgePushSchema`(`{ v: 1, push, value }`, `push`는 `theme`, `host`, `event`, `invalidate`, `ping`이고 `ping`은 5초마다 `{ n }`을 보내 `pong` 요청 `{ n }`으로 답을 받는 생존 확인입니다. 2번 연속 답이 없으면 그 프레임을 내립니다), `BridgeReadySchema`(`{ v: 1, ready: true, bridge, nonce? }`, `nonce`는 8~64자이고 셸이 프레임 주소 조각 `#n=<nonce>`로 준 값을 되돌린다. 셸이 nonce를 냈으면 같은 값이 와야 포트를 넘긴다)입니다. 메서드 선언의 `label`(1~48자)은 확인 줄에 동사 대신 보이는 글이고 셸이 제어·방향 제어 글자를 지우고 보입니다 [결정: 2026-11-03 M4 T-VIEW]. `op`는 `BRIDGE_OPS`(호스트 API 아홉과 `resize`, `log`, `pong`), 오류 `kind`는 `BRIDGE_ERROR_KINDS`입니다. 메시지 크기 상한 1 MiB는 `bridgeMessageWithinLimit`이 보고, 초당 50개 제한은 호스트가 셉니다. `args`와 `value`의 내용 검사는 `op`별로 셸이 합니다.
@@ -347,6 +369,56 @@ export function validateComposition(composition: CompositionDecl, context?: Comp
   | `phase_invalid` | 오류 | 단계 id 중복, `initial`이나 전이 끝이 노드가 아님, `end` 노드에서 나가는 전이 |
   | `phases_without_drive` | 오류 | `phases`가 있는데 drive 블록이 없음 |
   | `phase_unreachable` | 경고 | `initial`에서 닿지 않는 노드 |
+
+#### 3.1.3 플러그인 카드 (`plugin-card.ts`) [결정: 2026-11-17 M5c-1, `review/m5/profile-project-loader.md` §3.1]
+
+카드는 플러그인마다 같은 자리에 보이는 공통 스키마 값이다. `does`의 세 칸(Inject, Hook, Drive)은 종류이고, 칸에 값이 있으면 그 종류의 재료가 있다. 모든 값은 폴더와 매니페스트에서 정적으로 얻는다. 승인 전에도 코드를 실행하지 않는다(§4.5.5 원본 문서).
+
+```ts
+export interface PluginCard {
+  readonly name: string;                                          // ExtensionNameSchema
+  readonly displayName: string;
+  readonly purpose: string | null;                                // 한 문장, 최대 200자. 없으면 검토에서 승인할 수 없다
+  readonly does: {
+    readonly inject: InjectInventory | null;
+    readonly hook: { readonly hooks: readonly CardHook[] } | null;
+    readonly drive: { readonly start: boolean; readonly commands: readonly string[] } | null;
+  };
+  readonly enforcement: "advisory" | "enforced";                  // drives이거나 first·chain·collect 훅이 있으면 enforced
+  readonly runs: { readonly code: boolean; readonly isolated: boolean | null };
+  readonly cost: CostFigures;                                     // basis는 declared 또는 unknown
+  readonly health: { readonly state: "ok" | "idle" | "error" | "stopped" | "integrity"; readonly lastActiveAt: string | null; readonly lastError: string | null };
+  readonly origin: { readonly kind: "builtin" | "bundled" | "user" | "project" | "managed"; readonly projectId?: string; readonly createdIn?: { readonly threadId: string } };
+  readonly review: { readonly state: "approved" | "pending" | "draft" | "none"; readonly currentHash: string | null; readonly pendingItemId: string | null; readonly approvedAt: string | null };
+  readonly usedBy: readonly string[];                             // 프로필 id. 공통 묶음은 "common"
+}
+export interface CardHook { readonly name: string; readonly fold: Fold; readonly position: HookPosition; readonly powers: readonly HookPower[] }
+export interface InjectInventory {
+  readonly instructions: { readonly always: readonly InstructionEntry[]; readonly skills: readonly SkillEntry[] };
+  readonly tools: readonly { readonly name: string; readonly description: string | null }[];
+  readonly mcpServers: readonly { readonly name: string; readonly transport: "stdio" | "http" }[];
+  readonly agents: readonly string[];
+  readonly providers: readonly string[];
+  readonly commands: readonly string[];
+  readonly ui: readonly PluginUiDecl[];                           // 읽기 전용 계산값이라 저장 문자열 더하기 규칙에 걸리지 않는다
+  readonly replaces: readonly string[];
+}
+export interface InstructionEntry { readonly path: string; readonly bytes: number }
+export interface SkillEntry { readonly name: string; readonly path: string; readonly descriptionChars: number }
+export interface PluginUiDecl { readonly id: string; readonly placement: string; readonly readsState: string | null; readonly modelVisible: "none" | "partial" | "all" }
+export interface PluginSettingDef { readonly key: string; readonly label: string; readonly default: unknown; readonly required: boolean; readonly secret: boolean }
+
+// 최소 로컬 정의. E 문서(review/m5/turn-record-metrics.md §3.3, §3.5)의 정본을 옮긴 것이고, E 구현이 생기면 import로 바꾸고 이 블록을 지운다
+export type CostBasis = "measured" | "estimated" | "declared" | "unknown";
+export interface CostFigures { readonly always: number | null; readonly drive: number | null; readonly onDemand: number | null; readonly toolCount: number | null; readonly basis: CostBasis }
+export type EvidenceRef =
+  | { readonly kind: "turn" | "call" | "hook" | "material" | "skill"; readonly threadId: string; readonly turnId: string; readonly stepIndex?: number; readonly toolCallId?: string; readonly hookSeq?: number }
+  | { readonly kind: "backtest"; readonly backtestRunId: string; readonly toolCallId?: string };
+```
+
+- 이름 [결정: 구현 중]: `UiDecl`은 `ui.ts`의 매니페스트 화면 블록과 겹치고 `SettingDef`는 설정 카탈로그와 겹쳐서 카드의 것은 `PluginUiDecl`, `PluginSettingDef`로 쓴다. Fold는 새 이름 없이 `hooks.ts`의 `Fold`(`"tap" | "first" | "chain" | "collect"`)를 쓴다(`HookFold`를 따로 두지 않는다).
+- `HookPosition`, `HookPower` [미결]: 코드에도 이 문서에도 정의가 없다. 이 문서가 참조하는 `F §4.1 HOOK_POSITIONS`는 이 문서에 없다. M5e 제안(`review/m5/hooks-core-boundary.md` 훅 위치 절)이 두 타입과 표를 낸다. 구현은 문자열 자리로 두고, 정의가 확정되면 같은 자리에서 바꾼다.
+- 카드 `review.state`(`approved | pending | draft | none`)는 검토 항목 상태(`pending | approved | sent_back | discarded | superseded | withdrawn`, wire `plugin-review.ts`)와 다른 집합이다.
 
 ### 3.2 4연산 타입 (`ops.ts`, `drive.ts`, `registration.ts`)
 
@@ -408,6 +480,12 @@ export interface PostReceipt {
 
 export interface ExtensionOps<S> {
   on<N extends HookName>(point: N, handler: Handler<N, S>): Unsubscribe;
+  /** 이벤트 구독([제안], M5e §4.4.1). `on`의 tap 형태 위의 도우미다. 규칙은 X.primitives.spec §4.2 항목 5 */
+  subscribe(
+    events: readonly SubscribableEvent[] | "all",
+    handler: (event: EventEnvelope, ctx: EventContext<S>) => void | Promise<void>,
+    options?: SubscribeOptions,
+  ): Unsubscribe;
   post(item: PostItem, options: PostOptions): Promise<PostReceipt>;
   /** 그룹만 쓴다. 등록만 하고 임대는 X가 중재한다 */
   drive(step: DriveStep<S>, options?: DriveOptions): void;
@@ -757,15 +835,15 @@ export type StoreMigrationsPort = Pick<MigrationRunner, "apply">;
 export const StoreMigrationsPortKey: PortKey<StoreMigrationsPort>; // { name: "fresnel.store", member: "migrations" }
 
 // ── 프로세스 실행 (서비스 fresnel.process, 제공 platform-process) ────────
-/** 격리 확장 자식 프로세스(2차). 사용처: X.loading-trust.spec §3.8 */
+/** 플러그인 호스트 프로세스를 띄우는 요청(review.m5-drive-isolation §3.1, M5b-1). 엔진이 자기 실행 파일을 다른 모드로 다시 실행한다 */
 export interface IsolationSpawnSpec {
-  /** 자식 런타임 진입점. ext-host의 isolation/child-main.ts 절대 경로 */
-  readonly main: string;
-  readonly args: readonly string[];
-  readonly cwd: string;
-  /** 허용 목록으로만 만든다. DB 경로와 시크릿은 넣지 않는다(X.loading-trust.spec §4.9.6) */
+  readonly command: string;          // process.execPath
+  readonly args: readonly string[];  // 하위 명령 `plugin-host --stdio`
+  /** 플러그인 패키지 폴더. 읽기 전용으로 열리고 작업 폴더다. 쓰기 없음, 네트워크 전체 허용 */
+  readonly readRoot: string;
+  /** 허용 목록으로만 만든다. DB 경로와 시크릿은 넣지 않는다 */
   readonly env: Readonly<Record<string, string>>;
-  readonly label: string;   // "ext:<name>:<generation>"
+  readonly label: string;            // "ext:<name>:<versionId>"
 }
 export interface IsolatedChild {
   readonly pid: number;
@@ -773,10 +851,13 @@ export interface IsolatedChild {
   readonly stdout: NodeJS.ReadableStream;
   readonly stderr: NodeJS.ReadableStream;
   readonly exited: Promise<{ readonly code: number | null; readonly signal: string | null }>;
-  kill(signal: "SIGTERM" | "SIGKILL"): void;
+  kill(signal: "SIGTERM" | "SIGKILL"): void;  // 프로세스 트리 전체
 }
+export type IsolationSpawnError =
+  | { readonly kind: "spawn_failed"; readonly code: string; readonly message: string }
+  | { readonly kind: "sandbox_unavailable"; readonly reason: string };  // 격리 없이 띄우지 않는다
 export interface IsolationProcessPort {
-  spawn(spec: IsolationSpawnSpec): Promise<IsolatedChild>;
+  spawn(spec: IsolationSpawnSpec): Promise<Result<IsolatedChild, IsolationSpawnError>>;
 }
 /** 외부 훅 실행. 사용처: X.operations.spec §3.7 */
 export interface HookRunSpec {
@@ -818,7 +899,13 @@ export interface ToolResourceDef {
     readonly signal: AbortSignal;
     readonly toolCallId: string;     // 호출 id. X가 멱등 키의 디스패치 키로 쓴다(M3-REQ-102)
     readonly caller: CallerInfo;     // 호출 주체. caller.afterUntrusted는 이번 turn이 untrusted 도구 결과를 읽었는지(M3-REQ-100)
+    readonly changes?: ToolChangeReport;  // 이 호출이 바꾼 파일을 알린다(M5e §4.7 reported). 코어가 source를 정하고 검증해 결과 fileChanges에 합친다
   }): Promise<unknown>;
+}
+/** 알린 파일 변경 한 건. source는 코어가 "reported"로 정하므로 적지 않는다(F.capabilities.spec §3.13) */
+export type ReportedFileChange = Omit<FileChangeEntry, "source">;
+export interface ToolChangeReport {
+  report(entries: readonly ReportedFileChange[]): void;   // 검증되지 않은 값이다. 모양이 틀린 항목은 코어가 버린다
 }
 /** 모양은 L1.models.spec이 정한다 */
 export type ProviderResourceDef = JsonValue;
@@ -940,18 +1027,52 @@ export interface TrustPrompter {
   // TestRunControlError.kind: "not_a_test_run" | "not_paused" | "not_available"
   ```
 
+#### 3.2.2 플러그인 로더 포트 [결정: 2026-11-17, M5c-1, `review/m5/profile-project-loader.md` §3.5]
+
+인터페이스만 둔다. PortKey 이름은 스펙이 정하지 않아 두지 않는다. 구현은 호스트(`PluginSetPort`, `PluginSubmitPort`)와 X(`MaterialPort`)다.
+
+```ts
+export interface PluginSetPort {                                  // 호스트가 구현해 X에 주입. X는 프로필 저장소를 import하지 않는다(DR-14)
+  resolve(threadId: ThreadId): { readonly plugins: readonly string[]; readonly profileId: string; readonly profileRev: number; readonly commonRev: number };
+}
+export interface MaterialPort {                                   // X가 구현. 문맥 조립이 instructions를 sections로 쓴다(§4.5.10)
+  instructions(threadId: ThreadId): readonly MaterialText[];      // MaterialText = { key, text }
+  skillRoots(threadId: ThreadId): readonly string[];              // [미결] 반환 모양은 스펙이 적지 않아 가장 가까운 모양을 골랐다
+  agentDefinitions(threadId: ThreadId): readonly MaterialText[];  // [미결] [근거: review/m5/profile-project-loader.md §3.5]
+  mcpServers(threadId: ThreadId): readonly McpServerMaterial[];   // { plugin, name, config }. 소유 플러그인 이름을 남긴다
+  commands(threadId: ThreadId): readonly MaterialText[];          // [미결] [근거: review/m5/profile-project-loader.md §3.5]
+}
+export interface PluginSubmitPort {                               // 담당 AI(빌더)만 부른다. wire 메서드가 아니다
+  submit(request: PluginSubmitRequest): Promise<Result<PluginSubmitResult, PluginSubmitError>>;
+}
+export interface PluginSubmitRequest {
+  readonly dir: string;
+  readonly originThreadId: ThreadId;
+  readonly evidence: readonly [EvidenceRef, ...EvidenceRef[]];    // 증거는 한 개 이상 필수(§4.7.1)
+  readonly purpose?: string;
+}
+export interface PluginSubmitResult { readonly draftId: string; readonly itemId: string }
+export type PluginSubmitError =                                   // kind가 오류 이름 plugin.invalid·tooLarge·symlinkRefused에 대응
+  | { readonly kind: "invalid"; readonly issues: readonly ManifestIssue[] }
+  | { readonly kind: "too_large" }
+  | { readonly kind: "symlink_refused" };
+```
+
+- `submit`은 디스크 복사와 해시 계산이 있어 `Promise`다. 스펙의 표는 동기처럼 적었다. 이웃 포트(`InputQueuePort.enqueue`)와 맞춘 것이다 [제안].
+- `PluginSetPort.resolve`는 스펙 시그니처대로 실패 값을 두지 않는다. 없는 대화를 넘기면 어떻게 되는지는 X 구현 때 정한다 [미결] [근거: review/m5/profile-project-loader.md §3.5].
+
 ### 3.3 훅 선언 타입 (`hooks.ts`, `points/<kind>.ts`)
 
 ```ts
 export type Fold = "tap" | "first" | "chain" | "collect";
-export type HookKind = "input" | "request" | "tool" | "boundary" | "thread" | "lifecycle" | "guard";
+export type HookKind = "input" | "request" | "tool" | "boundary" | "thread" | "lifecycle" | "guard" | "ask" | "agent";
 
 export interface TapSig<P> { readonly fold: "tap"; readonly payload: P }
 export interface FirstSig<P, D> { readonly fold: "first"; readonly payload: P; readonly decision: D }
 export interface ChainSig<P, V, X> { readonly fold: "chain"; readonly payload: P; readonly value: V; readonly patch: X }
 export interface CollectSig<P, V, C> { readonly fold: "collect"; readonly payload: P; readonly value: V; readonly contribution: C }
 
-/** 훅 이름 → 정적 시그니처. §3.4 표와 같은 46행 */
+/** 훅 이름 → 정적 시그니처. §3.4 표와 같은 50행 */
 export interface HookSignatures {
   "input.user.before": ChainSig<InputPayload, InputValue, InputPatch>;
   "input.bash.before": FirstSig<UserBashPayload, UserBashDecision>;
@@ -1001,8 +1122,10 @@ export const GUARD_HOOKS: { readonly request: "guard.model.before"; readonly too
 /** lifecycle 훅과 내구 이벤트 kind의 대응. 레코드 kind에서 훅 이름으로 가는 길은 이 표 하나다 */
 export const LIFECYCLE_HOOKS: { readonly "agent.settled": "lifecycle.agent.settled"; readonly "lease.rejected": "lifecycle.lease.rejected" };
 
-/** fail-closed first 훅의 거부값. 핸들러 예외는 이 값으로 바뀐다. fail-open first 훅(thread.compact.before)은 없다 */
-export const FIRST_DENY: { readonly [N in Exclude<FirstHookName, "thread.compact.before">]: HookSignatures[N]["decision"] };
+/** fail-closed first 훅의 거부값. 핸들러 예외는 이 값으로 바뀐다. fail-open first 훅(thread.compact.before, ask.human.before)은 없다 */
+export const FIRST_DENY: { readonly [N in Exclude<FirstHookName, FailOpenFirstHookName>]: HookSignatures[N]["decision"] };
+/** 합치기 지점(M5e §5.1 H-2): 모든 핸들러를 돌린 뒤 순위가 가장 강한 결정이 이긴다. 앞에 있는 종류가 강하다 */
+export const FIRST_RANK: { readonly [N in "tool.call.before" | "agent.spawn.before"]: readonly ["block", "replace", "ask"] };
 
 /** chain 훅의 병합·중단 규칙. 순수 함수 */
 export interface ChainRule<V, X> {
@@ -1026,7 +1149,7 @@ export type ChainHookName = { [N in HookName]: HookSignatures[N]["fold"] extends
 export type CollectHookName = { [N in HookName]: HookSignatures[N]["fold"] extends "collect" ? N : never }[HookName];
 ```
 
-- 페이로드 스키마는 훅 종류별 파일 `hooks/input.ts`, `hooks/request.ts`, `hooks/tool.ts`, `hooks/boundary.ts`, `hooks/thread.ts`, `hooks/guard.ts`에 둔다. lifecycle 훅의 페이로드는 내구 이벤트 payload 스키마(`records/catalog`의 `AgentSettledEventPayloadSchema`, `LeaseRejectedPayloadSchema`)를 그대로 쓴다.
+- 페이로드 스키마는 훅 종류별 파일 `hooks/input.ts`, `hooks/request.ts`, `hooks/tool.ts`, `hooks/boundary.ts`, `hooks/thread.ts`, `hooks/guard.ts`, `hooks/ask.ts`, `hooks/agent.ts`에 둔다. 도구 실행 앞의 결정(`ToolCallDecision`)은 `hooks/tool.ts`에서 막기(`block`), 묻기(`ask`), 결과 대신 주기(`replace`)의 셋 가운데 하나다(M5e §4.2). lifecycle 훅의 페이로드는 내구 이벤트 payload 스키마(`records/catalog`의 `AgentSettledEventPayloadSchema`, `LeaseRejectedPayloadSchema`)를 그대로 쓴다.
 - 페이로드 형태 규칙: pi 이벤트 인터페이스에서 `type` 필드를 빼고 필드 이름을 그대로 쓴다. pi coding-agent 고유 타입(`BashOperations`, `CompactionPreparation`, `SessionEntry` 등)은 F 타입으로 바꾼다. 바꿀 F 타입이 아직 없으면 JSON 값 스키마로 정한다 [결정: M3-REQ-05]. 인자·시스템 프롬프트 옵션은 정적 타입도 `JsonObject`(`DeepJsonObjectSchema`)이고, 제공자 요청 본문·스트림 데이터·도구 결과는 호출자 호환을 위해 정적 타입을 `unknown`으로 두고 런타임만 JSON을 끝까지 검사한다(`CheckedJsonObjectSchema`·`CheckedJsonValueSchema`). 호출자가 좁힌 뒤 정적 타입도 좁힌다 [제안]. 훅 페이로드에 `Type.Unknown()` 필드는 남기지 않는다. pi coding-agent 패키지에는 의존하지 않는다.
 
 ### 3.4 훅 선언 표
@@ -1035,7 +1158,7 @@ export type CollectHookName = { [N in HookName]: HookSignatures[N]["fold"] exten
 - `lifecycle` 훅은 이름이 `lifecycle.<내구 kind>`다. 내구 레코드 kind(`agent.settled`, `lease.rejected`)는 따로 있는 이름 공간이고, 레코드 kind에서 훅 이름으로 가는 대응은 `LIFECYCLE_HOOKS` 표 하나가 정한다. 디스패치는 이 표를 쓴다.
 - 이름 대응(옛 pi 이름)은 표의 `pi 이름` 열이다. 코드의 `PiSource.event`와 같다. 문서 대조 시험이 이 열을 코드와 맞춘다.
 - pi 위치 약어: 정의는 `~/projects/_ref/pi-src/packages/coding-agent/src/core/extensions/types.ts`의 줄(이벤트/결과), 합성은 같은 디렉터리 `runner.ts`의 줄이다. `cache-warmer.ts`는 `core/cache-warmer.ts`다. 줄 번호는 pi 1.1.0 소스 기준이다(`_research/notes/F-1.md` §2).
-- 실패 열은 훅 선언의 `failure` 필드다 [결정: adr.0017 §3.4]. `closed` = 핸들러 예외를 거부값(`FIRST_DENY`)으로 처리, `open` = 기록하고 그 핸들러의 몫만 버린 채 계속, `skip` = 그 핸들러의 패치만 버림. fold 기본값은 tap·collect `open`, first `closed`, chain `skip`이고, 기본값과 다른 훅은 `thread.compact.before`(first, `open`) 하나다. 사유는 `HOOKS` 선언의 주석에 적는다.
+- 실패 열은 훅 선언의 `failure` 필드다 [결정: adr.0017 §3.4]. `closed` = 핸들러 예외를 거부값(`FIRST_DENY`)으로 처리, `open` = 기록하고 그 핸들러의 몫만 버린 채 계속, `skip` = 그 핸들러의 패치만 버림. fold 기본값은 tap·collect `open`, first `closed`, chain `skip`이고, 기본값과 다른 훅은 `thread.compact.before`(first, `open`)와 `ask.human.before`(first, `open`) 둘이다. 사유는 `HOOKS` 선언의 주석에 적는다.
 - M1 열의 ●는 M1 스모크에서 페이로드를 정확화하는 훅이다(F.extensions.plan).
 - pi 차이 열은 Fresnel fold가 pi 합성과 다른 점이다. 41종의 pi fold 분포는 tap 22, 제자리 변경 tap 1, first 7, chain 9, collect 2다(`_research/notes/F-1.md` §2.6). Fresnel 표의 pi 41행은 tap 22, first 7, chain 10, collect 2다. `request.cache.before`은 pi collect지만 핸들러가 원본을 받으므로 chain으로 둔다 [결정: 2026-10-28 오케스트레이터].
 - `collect` 배정은 `input.agent.before`와 `thread.resources` 둘이다. boundary 엔트리 추가(`boundary.step.after`, `boundary.settle.before`)는 chain + `finalize`로 둔다. `collect` 전환은 Helm·학습 설계(A5)가 필요를 보인 뒤 다시 본다 [결정: 2026-10-28 오케스트레이터].
@@ -1070,7 +1193,7 @@ export type CollectHookName = { [N in HookName]: HookSignatures[N]["fold"] exten
 | 25 | `boundary.turn.after` | boundary | tap | AgentEndPayload | void | open |  | `agent_end` | types.ts:937 | runner.ts:1089 emit | 같음 |
 | 26 | `boundary.settle.after` | boundary | tap | AgentSettledPayload | void | open | ● | `agent_settled` | types.ts:1005 | runner.ts:1089 emit | Fresnel turn 끝. `origin`, `status`, `hasFinalAnswer`, `lastItemId`를 싣는다(M3-REQ-100, §3.5 블록) |
 | 27 | `thread.trust.before` | thread | first | ProjectTrustPayload | ProjectTrustDecision | closed |  | `project_trust` | types.ts:686/693 | runner.ts:295 emitProjectTrustEvent | pi는 예외를 모으고 계속(fail-open). Fresnel은 불신(no). thread 없이 호스트 수준에서 발화한다(`threadless`, §7) |
-| 28 | `thread.resources` | thread | collect | ResourcesDiscoverPayload | ResourcesPatch | open |  | `resources_discover` | types.ts:711/718 | runner.ts:1474 emitResourcesDiscover | pi collect. 병합 규칙이 경로를 확장 이름과 함께 추가 |
+| 28 | `thread.resources` | thread | collect | ResourcesDiscoverPayload | ResourcesPatch | open |  | `resources_discover` | types.ts:711/718 | runner.ts:1474 emitResourcesDiscover | pi collect. 병합 규칙이 경로를 확장 이름과 함께 추가. H-7: 결과 `workspace`(대화 폴더 후보, 등록 순서. 첫 후보가 이기고 나머지는 호스트가 `workspace_conflict`로 알린다) |
 | 29 | `thread.mcp.after` | thread | tap | McpServersChangePayload | void | open |  | `mcp_servers_change` | types.ts:730 | runner.ts:459 emit (not awaited) | `dispatch: detached` |
 | 30 | `thread.start` | thread | tap | SessionStartPayload | void | open | ● | `session_start` | types.ts:741 | runner.ts:1089 emit | 같음 |
 | 31 | `thread.info.after` | thread | tap | SessionInfoChangedPayload | void | open |  | `session_info_changed` | types.ts:750 | runner.ts:1089 emit (not awaited) | `dispatch: detached` |
@@ -1089,8 +1212,27 @@ export type CollectHookName = { [N in HookName]: HookSignatures[N]["fold"] exten
 | 44 | `guard.output.before` | guard | first | GuardOutputPayload | GuardDecision | closed |  | — | — | — | 모델 출력이 표시나 실행 경로로 넘어가기 전. 출력 대상(`display`, `execution`)은 [가정] |
 | 45 | `lifecycle.agent.settled` | lifecycle | tap | AgentSettledEventPayload | void | open |  | — | — | — | 내구 이벤트 `agent.settled`(위임 정착)의 커밋 뒤. 이름이 같은 `boundary.settle.after`는 turn 끝 시점이고 다른 훅이다. 페이로드의 `owner`(위임 주체)와 `limitHit`(상한 종료 표지)로 그룹이 자기 위임의 정착만 읽는다(M3-REQ-103, REQ-LN-02. 소유 Registration 거르기는 X) |
 | 46 | `lifecycle.lease.rejected` | lifecycle | tap | LeaseRejectedPayload | void | open |  | — | — | — | 내구 이벤트 `lease.rejected`(drive lock 요청 거부)의 커밋 뒤 |
+| 47 | `ask.human.before` | ask | first | AskHumanBeforePayload | AskHumanBeforeDecision | open |  | — | — | — | 사람에게 묻기 카드를 새로 만들기 전(승인 서비스 `open`). 결정은 `cancel`(카드 없이 취소)과 `answer`(질문 종류만)다. 실패는 결정 없음이고 사람에게 묻는다. M5e 스펙 §4.3.1 |
+| 48 | `ask.human.after` | ask | tap | AskHumanAfterPayload | void | open |  | — | — | — | 해결이 커밋된 뒤(위치 `ask`의 뒤, 이벤트로도 구독한다). 결정 없음. M5e 스펙 §4.3.2 |
+| 49 | `agent.spawn.before` | agent | first | AgentSpawnBeforePayload | AgentSpawnBeforeDecision | closed |  | — | — | — | 자식 대화를 만들기 전. 결정은 `block`, `ask`, `replace`(자식을 만들지 않고 보고만 돌려줌)이고 `tool.call.before`와 같은 합치기다. M5e 스펙 §4.3.3 |
+| 50 | `agent.spawn.after` | agent | chain | AgentSpawnAfterPayload | AgentSpawnAfterPatch | skip |  | — | — | — | 자식이 정착하고 결과 검사를 거친 뒤. 값 `{ report: { text, truncated } }`, 패치 `{ reportText? }`이고 보고 본문은 60,000자로 자른다. M5e 스펙 §4.3.4 |
 
-집계: kind는 input 3, request 9, tool 5, boundary 9, thread 15, lifecycle 2, guard 3이다(46행). fold는 tap 24, first 10, chain 10, collect 2다. 실패는 closed 9, open 27, skip 10이다. pi에서 결과를 돌려받는 훅은 18개(반환 기반)와 제자리 변경 1개(`request.headers.before`)이고 pi의 나머지 22개는 관찰 전용이다(`_research/notes/F-1.md` §4 정정 2). guard와 lifecycle 5행은 pi에 없다.
+집계(50행): kind는 input 3, request 9, tool 5, boundary 9, thread 15, lifecycle 2, guard 3, ask 2, agent 2다(46행과 M5e가 더한 4행). fold는 tap 25, first 12, chain 11, collect 2다. 실패는 closed 10, open 29, skip 11이다. pi에서 결과를 돌려받는 훅은 18개(반환 기반)와 제자리 변경 1개(`request.headers.before`)이고 pi의 나머지 22개는 관찰 전용이다(`_research/notes/F-1.md` §4 정정 2). guard와 lifecycle 5행, M5e의 ask·agent 4행은 pi에서 온 것이 아니다.
+
+47~50번 행의 페이로드와 결정 모양의 정본은 `contracts/src/extensions/hooks/ask.ts`와 `hooks/agent.ts`다. 같은 목록의 위치(블록, 이벤트, 내부)와 발화 여부는 `HOOK_POSITIONS`(§3.4.1)가 적는다. 50행 가운데 `fired`가 거짓인 행은 이 빌드가 아직 발화하지 않는 것이다.
+
+#### 3.4.1 훅 위치 데이터 (`hook-positions.ts`) [제안: `docs/xeon/review/m5/hooks-core-boundary.md` §4.1, 구현 1단계]
+
+위치(블록 앞·뒤, 경계, 이벤트, 내부)와 할 수 있는 일은 `HOOKS`가 아니라 같은 디렉터리의 별도 표 `HOOK_POSITIONS`가 맡는다. `HOOKS`에 넣으면 pi 출처가 없는 훅의 필드가 어긋나기 때문이다. 이름 위에 얹는 메타데이터라서 공개 이름 층은 따로 두지 않는다.
+
+- 키 집합은 `HOOK_NAMES`와 같고 행 순서도 같다. 훅 이름은 바뀌지 않는다. `HookSignatures`, 매니페스트의 `hooks` 문자열, 설정 `x.operations.hookOrder`의 키는 그대로다.
+- 행마다 `hook`, `positions`, `powers`, `fired`(지금 코드가 발화하는가), `highFrequency`(고빈도 이벤트에만)를 가진다. `positions`는 한 훅이 둘 이상의 자리에 설 수 있다: `guard.output.before`는 `display`(모델 호출 뒤 블록)와 `execution`(도구 실행 앞 블록) 둘이다.
+- 위치 종류는 블록 앞·뒤(`block`), 경계(`boundary`), 이벤트(`event`), 내부(`internal`) 넷이다. 이벤트의 닻(`anchor`)은 블록과 앞·뒤 쪽이고, 닻이 없는 이벤트는 기록 블록의 구독이다.
+- `powers`는 `observe`(관찰), `modify`(고치기), `decide`(막기·묻기·대체·취소·가로채기), `contribute`(보태기) 넷이다. tap 훅은 `observe`뿐이고, tap이 아닌 fold는 `observe`를 가지지 않는다.
+- `checkHookPositions`(순수 함수)가 검사한다. 키 집합이 `HOOK_NAMES`와 같은지, 이벤트 위치는 tap에만 있는지, 블록·경계 위치는 tap이 아닌 fold와 `thread.start`에만 있는지, `powers`가 위 규칙을 따르는지다.
+- 50행에서 블록 또는 경계 위치가 21개, 이벤트가 24개, 내부가 5개다(21 + 24 + 5 = 50). 이 빌드가 발화하지 않는 훅은 `request.cache.before`와 `thread.trust.before` 둘이다. 둘 다 `internal`이고 아무도 부르지 않는다(M5e §4.4.2). `thread.resources`와 `thread.mcp.after`는 M5e 3단계에서 배선되어 발화하고, M5e의 새 네 행(`ask.human.before`, `ask.human.after`, `agent.spawn.before`, `agent.spawn.after`)도 발화한다. 고빈도 이벤트는 `request.stream`, `boundary.message.update`, `tool.execution.update` 셋이다.
+- 블록 모델(`BLOCK_MODEL`, 서브패스 `@fresnel/contracts/blocks`)의 훅 목록은 이 표에서 파생한다. 손으로 두 번 적지 않는다.
+- [미결] `tool.execution.update`의 닻 쪽. 스펙 §3.1은 쪽을 적지 않았고 §3.2는 도구 실행 뒤 묶음에 두었다. 지금은 뒤로 둔다 [근거: `docs/xeon/review/m5/hooks-core-boundary.md` §3.1, §3.2].
 
 ### 3.5 M1 훅의 페이로드와 반환 타입
 
@@ -1392,13 +1534,14 @@ export type ManifestIssueCode =
   | "name_invalid" | "name_reserved" | "version_invalid" | "entry_invalid"
   | "plugin_id_invalid" | "plugin_id_duplicate" | "plugin_root_ambiguous" | "layer_mixed_external"
   | "group_member_unknown" | "group_member_duplicate"
-  | "hook_unknown" | "hook_duplicate"
+  | "hook_unknown" | "hook_duplicate" | "hook_internal" | "hook_not_fired" | "hook_decision_not_allowed"
   | "capability_invalid" | "range_invalid" | "capability_duplicate" | "capability_both"
   | "provides_reserved" | "record_kind_prefix" | "record_kind_duplicate" | "read_kind_invalid"
   | "replaces_invalid" | "replaces_duplicate"
   | "user_config_invalid" | "isolation_invalid" | "trust_invalid"
   | "ui_invalid" | "ui_duplicate" | "ui_mode_not_allowed" | "ui_limit" | "ui_path_invalid"
   | "ui_reason_empty" | "widgets_required" | "method_invalid" | "method_duplicate"   // ui, methods, §3.1.1
+  | "tool_duplicate" | "command_duplicate"                                            // tools, commands, §3.1 (M5c-1)
   | "composition_invalid"                                                              // group.composition, §3.1.2
   // validateComposition(§3.1.2)
   | "composition_duplicate" | "composition_hooks" | "composition_plugin_unknown" | "drive_duplicate"
@@ -1456,7 +1599,7 @@ export function validateGroupRecord(record: GroupRecord, decl: RecordKindDecl | 
 3. `chain`: 훅이 초기값을 만들고, 핸들러마다 `(payload, current)`를 넘긴다. 반환 패치가 있으면 `CHAIN_RULES[point].merge(current, patch)`로 다음 값을 만든다. 정책은 `skip`이다. 핸들러 예외나 병합 거부(예: `boundary.message.after`의 role 불일치)는 그 핸들러의 패치만 버리고 계속한다. `stop(value)`가 참이면 뒤 핸들러를 실행하지 않는다.
 4. `collect`: 모든 핸들러가 원본 `payload`만 받는다(`current`는 없다). 훅이 초기값을 만들고, `undefined`가 아닌 반환값(기여)을 등록 순서대로 목록에 모은 뒤 `COLLECT_RULES[point].merge(initial, contributions)`가 한 번 합친다. 정책은 `open`이다. 예외를 낸 핸들러는 그 기여만 빼고 계속한다.
 
-권한·차단 훅(`input.bash.before`, `tool.call.before`, `thread.trust.before`, `thread.switch.before`, `thread.fork.before`, `thread.tree.before`, guard 훅 셋)은 `closed`다. `thread.compact.before`는 `open` 예외다. 컨텍스트가 넘친 상태에서 핸들러 예외가 컴팩션을 막으면 대화를 이어 갈 수 없기 때문이다 [제안: adr.0017 §3.4].
+권한·차단 훅(`input.bash.before`, `tool.call.before`, `agent.spawn.before`, `thread.trust.before`, `thread.switch.before`, `thread.fork.before`, `thread.tree.before`, guard 훅 셋)은 `closed`다. `thread.compact.before`는 `open` 예외다. 컨텍스트가 넘친 상태에서 핸들러 예외가 컴팩션을 막으면 대화를 이어 갈 수 없기 때문이다 [제안: adr.0017 §3.4]. `ask.human.before`도 `open`이다. 훅 오류가 승인을 조용히 허용하지도, 대화를 멈추지도 않게 하려는 것이다(M5e §4.3.1).
 
 chain의 보충 규칙 [제안]:
 
@@ -1554,6 +1697,9 @@ chain의 보충 규칙 [제안]:
 | `group_member_unknown` / `group_member_duplicate` | error | `group.members`가 선언하지 않은 id를 가리킴 / 같은 id 두 번 |
 | `entry_invalid` | error | `entry`가 절대 경로이거나 `..`로 확장 루트 밖을 가리킴 |
 | `hook_unknown` / `hook_duplicate` | error | `plugins[].hooks`에 `HOOKS`에 없는 이름 / 같은 이름 두 번. 경로 `/plugins/<i>/hooks/<j>` |
+| `hook_internal` | error | 내부 훅(`request.cache.before`, `thread.trust.before`, `thread.switch.before`, `thread.fork.before`, `thread.tree.before`)을 `trust.level`이 `builtin`이 아닌 확장이 `hooks`에 적음. 내장은 허용한다 [결정: M5e §5.1 H-4] |
+| `hook_not_fired` | warning | `hooks`에 적은 훅이 이 빌드에서 발화하지 않음(`HOOK_POSITIONS`의 `fired`가 거짓). 등록은 그대로다 [결정: M5e §5.1 H-4] |
+| `hook_decision_not_allowed` | error | `hookDecides`가 그 플러그인의 `hooks`에 없는 훅을 가리키거나, 그 훅이 낼 수 없는 결정 종류를 선언함. 셋(`block`, `ask`, `replace`)을 낼 수 있는 훅은 `tool.call.before`와 `agent.spawn.before`뿐이다 [제안: M5e §4.1.1] |
 | `capability_invalid` / `range_invalid` | error | 기능 ID 또는 범위 형식 위반 |
 | `capability_duplicate` / `capability_both` | error | 같은 목록 안 중복 / `requires`와 `optional`에 동시에 있음 |
 | `provides_reserved` | error | 예약 접두(F.capabilities.spec §3.1) 기능을 provide |
@@ -1636,7 +1782,7 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 | drive lock 상한 | 기본값 키 `x.primitives.driveDefaultLimits`(기본 4/8/400000)와 천장 키 `x.primitives.driveLimits`(`DriveLimits` 형식, 소유 X.primitives.spec, [결정: review.decisions-2 U-12]). `DriveOptions.limits`는 기본값을 덮어쓰고 천장보다 클 수 없다 | 같은 탭(`_research/layer-plan-v2-notes.md` L4 설정 화면 구성안 "drive 임대 상한") |
 | 시작 설정 | 프로필의 `startDrive`(처음 열 때 그 Registration이 주도를 시작한다). 설정 키 `x.primitives.activeDriver`는 없다(drive-isolation.md 2.2) | 프로필 화면의 "시작 설정" 선택 |
 | drive 정책 | 키 `x.primitives.driveRequiresGroup`(boolean, 기본 `true`, 범위 `user`·`managed`, 소유 X.primitives.spec) [결정: 2026-11-01 사용자, 키 이름과 범위는 제안]. 참이면 플러그인 그룹의 구성원만 drive를 등록한다. 설정 화면은 켜기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다 | 같은 탭 |
-| 격리 | [제안] 키 `ext.<name>.isolation`(예약 키, 소유 X.loading-trust.spec). 매니페스트 `isolation`은 요청이고 실제 값은 사용자 설정이 정한다(2차) | 같은 탭 |
+| 격리 | 키 `ext.<name>.isolation`(예약 키, 소유 X.loading-trust.spec, 범위 `managed`·`user`). 사용자·프로젝트 등급 플러그인은 기본이 `process`(플러그인 호스트 프로세스)다. 설정 값 `none`은 "엔진 안에서 돌리기를 허락하는 예외"이고 매니페스트 `isolation`은 값이 없을 때의 요청이다(`none`이면 엔진 안, `process`면 격리). 우선순위는 설정, 매니페스트, 기본 `process`. 저장소 패키지(`builtin`)와 `bundled` 출처(Helm, 주도를 쓰므로 P2 전까지)는 엔진 안이다 [결정: 2026-11-17 사용자, M5b-1] | 같은 탭 |
 
 ## 7. 훅
 
@@ -1684,8 +1830,8 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 ## 9. 수용 기준
 
 1. 플러그인의 `hooks`에 없는 훅에 `on`을 건 사용 기록은 `validateUsage`가 `hook_undeclared` 오류를 낸다.
-2. `HOOKS`의 46행 모두 `fold`, `kind`, `payload` 스키마, `failure`를 가진다. pi에서 온 41행은 `pi` 출처도 가진다. `first` 행은 `FIRST_DENY`에, `chain` 행은 `CHAIN_RULES`에 항목이 있다.
-3. `HOOKS`의 훅 이름은 중복이 없고, pi `ExtensionEvent` 합집합(`types.ts:1377-1409`)을 펼친 41개 이름의 새 이름과 guard 3개, lifecycle 2개를 더한 집합과 같다(46개).
+2. `HOOKS`의 50행 모두 `fold`, `kind`, `payload` 스키마, `failure`를 가진다. pi에서 온 41행은 `pi` 출처도 가진다. `first` 행은 `FIRST_DENY`에(`ask.human.before`는 열린 훅이라 `FIRST_DENY` 항목을 두지 않는다), `chain` 행은 `CHAIN_RULES`에 항목이 있다.
+3. `HOOKS`의 훅 이름은 중복이 없고, pi `ExtensionEvent` 합집합(`types.ts:1377-1409`)을 펼친 41개 이름의 새 이름과 guard 3개, lifecycle 2개, M5e의 새 4개를 더한 집합과 같다(50개).
 4. `drives: true`이고 기본 켜짐인 플러그인을 가진 매니페스트 두 개를 `validateManifestSet`에 넣으면 `drive_conflict` 경고가 나온다.
 5. `Handler<"tool.call.before">`의 반환 타입은 `ToolCallDecision | undefined`(Promise 포함)이고, `Handler<"boundary.step.after">`는 `(payload, current: BoundaryValue, ctx)`를 받아 `BoundaryPatch | undefined`를 반환하며, `Handler<"thread.start">`는 `void`를 반환한다(타입 테스트).
 6. 스키마 1 매니페스트(`schemaVersion: 1`, 최상위 `kind`·`points`·`usesDrive`)는 `schema_version_unsupported`와 `legacy_field`로 거부된다. `plugins[]`와 선택적 `group`이 있는 스키마 2 매니페스트는 통과한다. 정책 `x.primitives.driveRequiresGroup`이 참일 때 그룹이 아닌 플러그인의 `drive`는 X가 `drive_requires_group`으로 거부한다.
@@ -1712,3 +1858,26 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 - [결정: review.decisions-2 U-07] 매니페스트 선택 필드 `storage`·`hooks`(`X.operations.spec` §10), 위임 선언 `delegates`(`L3.group-sdk.spec`), `HandlerContext.ui` 포트는 M1에 넣지 않는다. M1 테스트 그룹은 on, post, drive, Registration만 쓴다. 소비 문서는 이 필드에 의존하지 않는다.
 - [결정: review.decisions-2 U-01] 켜기·끄기와 drive lock 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(§4.5). F.conversation.spec §10 1번, F.readme §8 1번과 같은 항목이다.
 - [미결] Cordis dispose와 `onDispose`의 관계. 정리 동작을 Cordis effect로만 둘지 F 타입에 남길지(X.primitives.spec과 함께).
+- [미결] [근거: review/m5/profile-project-loader.md §3.1] M5c-1 `HookPosition`, `HookPower`의 정의. 코드에도 이 문서에도 없다. M5e 제안(`review/m5/hooks-core-boundary.md`)을 확정하거나 이 문서 §4.1에 `HOOK_POSITIONS`를 세운 뒤 카드의 문자열 자리를 바꾼다(§3.1.3).
+- [미결] [근거: review/m5/profile-project-loader.md §4.5.4] M5c-1 `plugins`가 없는 매니페스트에 `group` 선언이 붙는 경우. 추론한 루트 플러그인은 id가 없어 `group.members`가 가리킬 대상이 없다. 구성원 검사를 어떻게 할지 정한다(§3.1, §3.7).
+- [미결] [근거: review/m5/profile-project-loader.md §3.1] M5c-1 `commands[].name`은 `CommandNameSchema`(`capabilities/defs/dialog.ts`)를 빌렸다. 플러그인 명령 이름 규칙이 따로 정해지면 바꾼다. `tools[].name`은 `TOOL_NAME_PATTERN`이다.
+- [미결] [근거: review/m5/profile-project-loader.md §3.5] M5c-1 로더 포트의 반환 모양 가운데 스펙이 적지 않은 것(`skillRoots`, `agentDefinitions`, `commands`, `mcpServers`)과 `PluginSetPort.resolve`의 실패 값(§3.2.2).
+
+## 부록. 플러그인 호스트 프로토콜 (M5b-1, `isolation-protocol.ts`)
+
+엔진과 플러그인 호스트 프로세스는 줄 단위 JSON(프레임 상한 `PLUGIN_HOST_MAX_FRAME_BYTES` = 16 MiB, 측정: 5 MB 왕복 약 14 ms)으로 말한다. 요청은 `id`를 싣고 응답은 같은 `id`, 알림은 `id`를 싣지 않는다. 정본 표는 `review.m5-drive-isolation` §3.2이고 이름과 필드의 코드 정본은 `packages/contracts/src/extensions/isolation-protocol.ts`다.
+
+| 메시지 | 방향 | 종류 | 비고 |
+|---|---|---|---|
+| `host.init` | 엔진 → 호스트 | 요청 | `protocolVersion`, 확장 이름, `versionId`, 매니페스트, 루트와 엔트리, 설정. 응답: 버전과 등록 선언(`PluginRegistrationDecl[]`: 훅, 도구, 명령, 메서드, 플래그, 제공자, 렌더러). 버전이 다르면 `protocol_version` |
+| `hook.invoke` | 엔진 → 호스트 | 요청 | 훅 이름, `handlerIndex`, 입력, chain의 `current`, 호출 문맥(`threadId`, `deadlineMs`, `replay`, `caller`, 상태·설정 스냅샷) |
+| `tool.execute`, `command.run`, `method.call` | 엔진 → 호스트 | 요청 | 같은 호출 문맥. `tool.execute`는 `callerInfo`(`CallerInfo` JSON)를 더 싣는다 |
+| `event.notify` | 엔진 → 호스트 | 알림 | 스트림 지켜보기 훅(`PLUGIN_HOST_NOTIFY_HOOKS`). `eventKey`로 멱등(적어도 한 번). `hook.invoke`와 `event.notify`는 엔진 디스패치 키를 선택 칸 `dispatchKey`로 싣는다. 격리된 `g.subscribe`가 봉투의 `eventKey`(엔진 안과 같은 값)로 쓴다. |
+| `request.cancel` | 엔진 → 호스트 | 알림 | 취소 뒤 늦게 온 응답은 버린다 |
+| `scope.dispose`, `host.dispose` | 엔진 → 호스트 | 요청 | 등록 하나의 정리 / 프로세스 종료(`idle`, `shutdown`, `reload`, `disabled`) |
+| `engine.call` | 호스트 → 엔진 | 요청 | `commit`, `commitWith`, `record`, `recordPrivate`, `readRecords`, `post`, `capability`, `requestEffect`, `reportChanges`. 신원 `plugin:<이름>`은 엔진이 연결에서 붙인다. `replay`면 쓰기는 성공으로 받아 버리고 `capability`는 `replay_mode_denied`. `reportChanges`는 도구 실행 중에만 받고(도구의 `ctx.changes.report`가 낳는다. 자식은 응답 전에 모두 기다린다) 모양이 맞는 항목만 엔진의 `ctx.changes`에 넘긴다 |
+| 표준오류 | 호스트 → 엔진 | 스트림 | 줄 상한 `PLUGIN_HOST_STDERR_LINE_MAX`, 보관 줄 수 `PLUGIN_HOST_STDERR_LINES_MAX` |
+
+넘기지 않는 API(`unsupported_api`로 등록이 거부된다): `drive`(P2), `migrateState`(동기 호출이라 경계를 못 넘는다. group-sdk는 상태 버전 2 이상에서 부른다), `provide`·`providePort`, `port`는 격리 호스트에서 `service_reserved`(내장이 아닌 호스트와 같다)로 답한다, `registerWebProvider`, `updateState`(함수를 엔진 줄 안에서 돌린다), `awaitUser`. 그 플러그인은 `ext.<이름>.isolation = none`으로 엔진 안에서 돈다.
+
+훅 실패 이유에 `process_exit`(프로세스가 스스로 끝남), `process_killed`(엔진이 시간 초과로 종료)를 더한다. 기록(`TraceFailureReason`)에 새 문자열로 저장된다.

@@ -1,0 +1,328 @@
+{
+  "labels": {
+    "inst.loaded_turns": {
+      "ko": "지침이 실린 턴",
+      "en": "Turns with instruction loaded"
+    },
+    "inst.tokens": {
+      "ko": "지침 토큰(p50)",
+      "en": "Instruction tokens (p50)"
+    },
+    "inst.tokens.p95": {
+      "ko": "지침 토큰(p95)",
+      "en": "Instruction tokens (p95)"
+    },
+    "inst.truncated": {
+      "ko": "잘린 지침 턴 비율",
+      "en": "Turns with truncated instruction"
+    },
+    "inst.defied": {
+      "ko": "지침을 두고 훅이 막거나 물은 턴 비율",
+      "en": "Turns where a loaded instruction's plugin hook blocked or asked"
+    },
+    "inst.defied_calls": {
+      "ko": "지침을 두고 막히거나 물린 호출 수",
+      "en": "Calls blocked or asked under a loaded instruction"
+    },
+    "skill.listed_turns": {
+      "ko": "스킬 목록에 실린 턴",
+      "en": "Turns with skill listed"
+    },
+    "skill.read_turns": {
+      "ko": "스킬을 읽은 턴",
+      "en": "Turns with skill read"
+    },
+    "skill.activation_rate": {
+      "ko": "스킬 발동률",
+      "en": "Skill activation rate"
+    },
+    "skill.read_origin": {
+      "ko": "모델이 읽은 비율",
+      "en": "Share of reads initiated by the model"
+    },
+    "skill.activation_by_model": {
+      "ko": "모델별 발동률",
+      "en": "Skill activation rate by model"
+    },
+    "skill.never_read": {
+      "ko": "목록에 실렸으나 한 번도 읽히지 않은 스킬 수",
+      "en": "Skills listed but never read"
+    },
+    "tool.calls": {
+      "ko": "도구 호출 수",
+      "en": "Tool calls"
+    },
+    "tool.calls.executed": {
+      "ko": "실행된 도구 호출 수",
+      "en": "Executed tool calls"
+    },
+    "tool.error_rate": {
+      "ko": "도구 실행 오류율",
+      "en": "Tool execution error rate"
+    },
+    "tool.duration": {
+      "ko": "도구 실행 시간(p50)",
+      "en": "Tool execution time (p50)"
+    },
+    "tool.duration.p95": {
+      "ko": "도구 실행 시간(p95)",
+      "en": "Tool execution time (p95)"
+    },
+    "tool.result_tokens": {
+      "ko": "도구 결과 토큰(p50)",
+      "en": "Tool result tokens (p50)"
+    },
+    "tool.result_tokens.p95": {
+      "ko": "도구 결과 토큰(p95)",
+      "en": "Tool result tokens (p95)"
+    },
+    "tool.never_called": {
+      "ko": "한 번도 불리지 않은 광고 도구 수",
+      "en": "Advertised tools never called"
+    },
+    "tool.never_called.tokens": {
+      "ko": "한 번도 불리지 않은 도구의 정의 토큰(턴당)",
+      "en": "Definition tokens of never-called tools per turn"
+    },
+    "tool.deferred_activation": {
+      "ko": "지연 도구 활성화율",
+      "en": "Deferred tool activation rate"
+    },
+    "hook.runs": {
+      "ko": "훅 실행 수",
+      "en": "Hook runs"
+    },
+    "hook.outcomes": {
+      "ko": "훅 결과 수",
+      "en": "Hook outcomes"
+    },
+    "hook.ask_answers": {
+      "ko": "훅 물음 수",
+      "en": "Hook asks"
+    },
+    "hook.duration": {
+      "ko": "훅 활성 시간(p50)",
+      "en": "Hook active time (p50)"
+    },
+    "hook.duration.p95": {
+      "ko": "훅 활성 시간(p95)",
+      "en": "Hook active time (p95)"
+    },
+    "hook.fault_rate": {
+      "ko": "훅 실패율",
+      "en": "Hook fault rate"
+    },
+    "hook.fault_rate.timeout": {
+      "ko": "훅 시간 초과율",
+      "en": "Hook timeout rate"
+    },
+    "hook.hit_rate": {
+      "ko": "훅 적중률",
+      "en": "Hook hit rate"
+    },
+    "hook.shadowed": {
+      "ko": "앞 훅에 가려진 비율",
+      "en": "Hook shadowed rate"
+    },
+    "hook.post_block": {
+      "ko": "막힌 호출 수",
+      "en": "Blocked calls"
+    },
+    "hook.post_block.bypass_suspect": {
+      "ko": "우회 의심 비율",
+      "en": "Suspected bypass rate"
+    },
+    "drive.entries": {
+      "ko": "주도 진입 횟수",
+      "en": "Drive entries"
+    },
+    "drive.usage_vs_limit": {
+      "ko": "주도 한도 사용 비율",
+      "en": "Drive usage against limits"
+    },
+    "drive.exit_reasons": {
+      "ko": "주도 반납 사유 분포",
+      "en": "Drive exit reasons"
+    },
+    "drive.asks": {
+      "ko": "주도 중 사람 물음 수",
+      "en": "Asks during drive"
+    },
+    "block.time_split": {
+      "ko": "턴 시간 분해(모델·도구·훅·사람·나머지)",
+      "en": "Turn time split"
+    },
+    "block.compactions": {
+      "ko": "컴팩션 횟수",
+      "en": "Compactions"
+    },
+    "block.cache_hit_rate": {
+      "ko": "캐시 적중률",
+      "en": "Cache hit rate"
+    },
+    "block.cache_breaks": {
+      "ko": "캐시 깨짐 수",
+      "en": "Cache breaks"
+    },
+    "block.cache_breaks_by_plugin": {
+      "ko": "플러그인별 캐시 깨짐 수",
+      "en": "Cache breaks by plugin"
+    },
+    "ver.compare": {
+      "ko": "버전별 비교",
+      "en": "Version comparison"
+    },
+    "cost.always": {
+      "ko": "항상 실린 토큰(턴당 평균)",
+      "en": "Always-loaded tokens per turn"
+    },
+    "cost.drive": {
+      "ko": "주도 중 실린 토큰(턴당 평균)",
+      "en": "Drive tokens per turn"
+    },
+    "cost.on_demand": {
+      "ko": "필요할 때 실린 토큰(턴당 평균)",
+      "en": "On-demand tokens per turn"
+    },
+    "hook.outcomes.pass": {
+      "ko": "훅 결과 통과",
+      "en": "Hook outcome pass"
+    },
+    "hook.outcomes.modified": {
+      "ko": "훅 결과 고침",
+      "en": "Hook outcome modified"
+    },
+    "hook.outcomes.asked": {
+      "ko": "훅 결과 물음",
+      "en": "Hook outcome asked"
+    },
+    "hook.outcomes.blocked": {
+      "ko": "훅 결과 막음",
+      "en": "Hook outcome blocked"
+    },
+    "hook.outcomes.error": {
+      "ko": "훅 결과 오류",
+      "en": "Hook outcome error"
+    },
+    "hook.outcomes.timeout": {
+      "ko": "훅 결과 시간 초과",
+      "en": "Hook outcome timeout"
+    },
+    "hook.outcomes.skipped": {
+      "ko": "훅 결과 건너뜀",
+      "en": "Hook outcome skipped"
+    },
+    "hook.ask_answers.allow": {
+      "ko": "물음 답 허용",
+      "en": "Ask answer allow"
+    },
+    "hook.ask_answers.deny": {
+      "ko": "물음 답 거부",
+      "en": "Ask answer deny"
+    },
+    "hook.ask_answers.answer": {
+      "ko": "물음 답 답함",
+      "en": "Ask answer answer"
+    },
+    "hook.ask_answers.cancelled": {
+      "ko": "물음 답 취소",
+      "en": "Ask answer cancelled"
+    },
+    "hook.ask_answers.expired": {
+      "ko": "물음 답 만료",
+      "en": "Ask answer expired"
+    },
+    "hook.ask_answers.noninteractive": {
+      "ko": "물음 답 비대화형",
+      "en": "Ask answer noninteractive"
+    },
+    "hook.post_block.stopped": {
+      "ko": "막은 뒤 멈춤",
+      "en": "After block: stopped"
+    },
+    "hook.post_block.repeat": {
+      "ko": "막은 뒤 같은 시도 반복",
+      "en": "After block: repeat"
+    },
+    "hook.post_block.rewrite": {
+      "ko": "막은 뒤 같은 대상 다시 쓰기",
+      "en": "After block: rewrite"
+    },
+    "hook.post_block.rewrite_text": {
+      "ko": "막은 뒤 문자열 우회(신뢰 낮음)",
+      "en": "After block: rewrite_text"
+    },
+    "hook.post_block.other_tool_same_target": {
+      "ko": "막은 뒤 다른 도구, 같은 대상",
+      "en": "After block: other_tool_same_target"
+    },
+    "hook.post_block.different_path": {
+      "ko": "막은 뒤 무관한 호출",
+      "en": "After block: different_path"
+    }
+  },
+  "notes": {
+    "inst.loaded_turns": "플러그인별로 나눠 본다(groupBy plugin)",
+    "inst.tokens": "글자 수 / 4 어림. 히스토그램 p50",
+    "inst.tokens.p95": "글자 수 / 4 어림. 히스토그램 p95",
+    "inst.truncated": "재료 출처가 잘림을 알려 주는 경우만. 분모는 inst.loaded_turns",
+    "inst.defied": "§5.1-①. 플러그인 단위 근사. 고장(*_fault)은 뺀다. 분모는 inst.loaded_turns",
+    "inst.defied_calls": "§5.1-①의 호출 수",
+    "skill.read_turns": "skill_view로 읽힌 것만 센다",
+    "skill.activation_rate": "읽은 턴 / 목록에 실린 턴. 목록에 있었다고 필요했던 것은 아니다",
+    "skill.read_origin": "읽음의 via 분포 중 model 비율",
+    "skill.activation_by_model": "§5.1-③. 턴의 모델 id 기준. 같은 스킬의 두 모델 차이만 신호로 쓴다",
+    "skill.never_read": "표본(목록 턴)이 minSample 이상인 스킬만",
+    "tool.calls": "막힌 호출을 포함한다",
+    "tool.calls.executed": "판정이 허용된 호출",
+    "tool.error_rate": "실행된 호출 중 exec.status = error. result.isError는 기록하지 않아 빠진다",
+    "tool.duration": "히스토그램 p50",
+    "tool.duration.p95": "히스토그램 p95",
+    "tool.result_tokens": "글자 수 / 4 어림",
+    "tool.result_tokens.p95": "글자 수 / 4 어림",
+    "tool.never_called": "표본(광고 턴)이 minSample 이상인 도구만. 창과 작업 종류가 좁으면 틀린다",
+    "tool.never_called.tokens": "지연 도구는 정의를 세지 않는다",
+    "tool.deferred_activation": "활성화된 지연 도구 / (활성화 + 지연 상태로 남은) 지연 도구",
+    "hook.outcomes": "갈래별 비율은 hook.outcomes.<갈래>로 낸다",
+    "hook.outcomes.pass": "기록된 result, reason, decision에서 파생한 표시값 일곱 갈래(§4.5). 분모는 훅 실행 수",
+    "hook.outcomes.modified": "기록된 result, reason, decision에서 파생한 표시값 일곱 갈래(§4.5). 분모는 훅 실행 수",
+    "hook.outcomes.asked": "기록된 result, reason, decision에서 파생한 표시값 일곱 갈래(§4.5). 분모는 훅 실행 수",
+    "hook.outcomes.blocked": "기록된 result, reason, decision에서 파생한 표시값 일곱 갈래(§4.5). 분모는 훅 실행 수",
+    "hook.outcomes.error": "기록된 result, reason, decision에서 파생한 표시값 일곱 갈래(§4.5). 분모는 훅 실행 수",
+    "hook.outcomes.timeout": "기록된 result, reason, decision에서 파생한 표시값 일곱 갈래(§4.5). 분모는 훅 실행 수",
+    "hook.outcomes.skipped": "기록된 result, reason, decision에서 파생한 표시값 일곱 갈래(§4.5). 분모는 훅 실행 수",
+    "hook.ask_answers": "물음에 대한 답이 있는 실행만",
+    "hook.ask_answers.allow": "분모는 훅 물음 수",
+    "hook.ask_answers.deny": "분모는 훅 물음 수",
+    "hook.ask_answers.answer": "분모는 훅 물음 수",
+    "hook.ask_answers.cancelled": "분모는 훅 물음 수",
+    "hook.ask_answers.expired": "분모는 훅 물음 수",
+    "hook.ask_answers.noninteractive": "분모는 훅 물음 수",
+    "hook.duration": "사람 응답 대기를 뺀 활성 시간. 히스토그램 p50",
+    "hook.duration.p95": "히스토그램 p95",
+    "hook.fault_rate": "failed / 실행 수",
+    "hook.fault_rate.timeout": "reason = timeout / 실행 수, 실패와 따로 센다",
+    "hook.hit_rate": "(막음 + 고침 + 물음) / 실행 수",
+    "hook.shadowed": "건너뛰었고 막은 훅이 있는 실행 / 실행 수",
+    "hook.post_block": "막음 판정(고장 제외)의 호출 수",
+    "hook.post_block.stopped": "§5.1-②. 분모는 막힌 호출 수. 화면에서 우회라고 단정하지 않는다",
+    "hook.post_block.repeat": "§5.1-②. 분모는 막힌 호출 수. 화면에서 우회라고 단정하지 않는다",
+    "hook.post_block.rewrite": "§5.1-②. 분모는 막힌 호출 수. 화면에서 우회라고 단정하지 않는다",
+    "hook.post_block.rewrite_text": "§5.1-②. 분모는 막힌 호출 수. 화면에서 우회라고 단정하지 않는다",
+    "hook.post_block.other_tool_same_target": "§5.1-②. 분모는 막힌 호출 수. 화면에서 우회라고 단정하지 않는다",
+    "hook.post_block.different_path": "§5.1-②. 분모는 막힌 호출 수. 화면에서 우회라고 단정하지 않는다",
+    "hook.post_block.bypass_suspect": "rewrite + rewrite_text + other_tool_same_target. 신뢰가 낮다",
+    "drive.entries": "Drive 프레임 스택이 필요하다(E1~E3)",
+    "drive.usage_vs_limit": "limits_json과 used_json이 필요하다",
+    "drive.exit_reasons": "저장된 lease.released.reason 값",
+    "block.time_split": "단계 시간이 tr_step에 없다. 병렬 호출은 구간 합집합",
+    "block.compactions": "thread.compacted 로그에서 세야 한다",
+    "block.cache_hit_rate": "제공자마다 칸 뜻이 다르다. tr_step 원본이 접히지 않아 아직 계산하지 않는다",
+    "block.cache_breaks": "관찰(observed)과 예측을 나눈다. tr_cache는 아직 접히지 않는다",
+    "block.cache_breaks_by_plugin": "§5.1-⑤",
+    "ver.compare": "비교는 metrics.query의 compare로 낸다. 버전 칸은 카운터 키에 없다",
+    "cost.always": "재료와 광고 도구 정의의 합. 턴 값은 마지막 단계 기준",
+    "cost.drive": "주도 프레임이 맨 위일 때의 재료",
+    "cost.on_demand": "스킬 본문과 활성화한 도구 정의"
+  }
+}

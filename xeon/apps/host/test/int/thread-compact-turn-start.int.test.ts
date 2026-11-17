@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { recordingModels } from "../fixtures/recording-tape.ts";
@@ -10,6 +10,7 @@ import {
   compactWhenIdle,
   HELLO_PARAMS,
   startTurnWhenIdle,
+  requestTurn,
 } from "../fixtures/wire-client.ts";
 
 // HS-77, §10 미결 31 (int): 수동 컴팩션이 요약하는 동안 같은 thread의 turn.start는 컴팩션이 커밋될 때까지 기다린 뒤 turn을 연다.
@@ -66,7 +67,7 @@ realTest(
       // 컴팩션이 요약 호출에서 멈춘 사이에 turn.start를 보낸다
       const compacting = compactWhenIdle(connection, { threadId: created.threadId });
       await models.reached;
-      const starting = connection.request("turn.start", {
+      const starting = requestTurn(connection, {
         threadId: created.threadId,
         input: "요약이 끝난 뒤의 질문",
       });

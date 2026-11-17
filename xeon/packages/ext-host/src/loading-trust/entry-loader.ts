@@ -8,6 +8,8 @@ import type {
   ManifestIssue,
   TrustRequest,
 } from "@fresnel/contracts/extensions";
+import { pluginsOf } from "@fresnel/contracts/extensions";
+import { IsolatedEntryError } from "../isolation/proxy-entry.ts";
 import { PrimitiveError } from "../primitives/errors.ts";
 import type { ExtensionUnit, InstallResult } from "../primitives/host.ts";
 import type { BuiltinExtensionModule } from "./discover.ts";
@@ -49,6 +51,15 @@ function issuesOf(code: ManifestIssue["code"], message: string): readonly Manife
 export function verdictOfInstall(result: InstallResult): InstallVerdict {
   const diagnostics: InstallDiagnostic[] = [];
   if (result.entryError !== undefined) {
+    // 격리 확장의 시작 실패는 격리 진단 코드로 남긴다(isolation_unavailable, isolation_drive_unsupported, isolation_protocol, entry_threw)
+    if (result.entryError instanceof IsolatedEntryError) {
+      diagnostics.push({
+        severity: "error",
+        code: result.entryError.code,
+        message: result.entryError.message,
+      });
+      return { ok: false, diagnostics };
+    }
     const unknownPlugin =
       result.entryError instanceof PrimitiveError &&
       result.entryError.code === "registration_unknown_plugin";
@@ -197,6 +208,16 @@ function exportedEntry(module: unknown): UnknownCallable | undefined {
 }
 
 /**
+ * 코드가 없는 확장의 엔트리(매니페스트에 `entry`가 없다, §4.5.4). 선언한 플러그인마다 설정도 상태도 없는 Registration
+ * 하나만 만든다. 훅과 Drive가 없으므로 Inject 재료만 가진 플러그인이 된다
+ */
+const noCodeEntry: ExtensionEntry = ({ manifest, register }) => {
+  for (const plugin of pluginsOf(manifest)) {
+    register(plugin.registrationId, {}, () => undefined);
+  }
+};
+
+/**
  * 외부 확장의 엔트리를 import한다(X.loading-trust.spec §4.4.2). 매니페스트 `entry`(확장 루트 상대 경로)를
  * `realpath`로 풀어 확장 루트 안인지 다시 확인한 뒤 import한다. 함수 export가 없으면 `entry_not_function`이다.
  * SDK 가상 모듈(`registerSdkModules`)은 이 호출 전에 등록되어 있어야 번들이 호스트와 같은 인스턴스를 쓴다
@@ -208,20 +229,22 @@ export async function importExternalEntry(
   /** 다시 읽기(§4.4.4)의 로드 세대. 0보다 크면 엔트리 URL에 `?fresnel-gen=<세대>`를 붙여 새 모듈로 평가한다 */
   generation = 0,
 ): Promise<Result<ExtensionEntry, EntryLoadError>> {
-  const declared = join(root, manifest.entry);
+  const entryPath = manifest.entry;
+  if (entryPath === undefined) return ok(noCodeEntry);
+  const declared = join(root, entryPath);
   const present = await attemptAsync(() => fs.exists(declared));
   if (!present.ok || !present.value) {
-    return err({ code: "entry_not_found", message: `entry ${manifest.entry} does not exist` });
+    return err({ code: "entry_not_found", message: `entry ${entryPath} does not exist` });
   }
   const resolved = await attemptAsync(() => fs.realpath(declared));
   if (!resolved.ok) {
-    return err({ code: "entry_not_found", message: `entry ${manifest.entry} cannot be resolved` });
+    return err({ code: "entry_not_found", message: `entry ${entryPath} cannot be resolved` });
   }
   const real = resolved.value;
   if (!real.startsWith(root.endsWith(sep) ? root : `${root}${sep}`)) {
     return err({
       code: "entry_import_failed",
-      message: `entry ${manifest.entry} resolves outside the extension root`,
+      message: `entry ${entryPath} resolves outside the extension root`,
     });
   }
   const imported = await attemptAsync(async () => {
@@ -234,14 +257,14 @@ export async function importExternalEntry(
   if (!imported.ok) {
     return err({
       code: "entry_import_failed",
-      message: `entry ${manifest.entry} failed to import: ${messageOf(imported.error.cause)}`,
+      message: `entry ${entryPath} failed to import: ${messageOf(imported.error.cause)}`,
     });
   }
   const fn = exportedEntry(imported.value);
   if (fn === undefined) {
     return err({
       code: "entry_not_function",
-      message: `entry ${manifest.entry} exports neither a default nor an "extension" function`,
+      message: `entry ${entryPath} exports neither a default nor an "extension" function`,
     });
   }
   const entry: ExtensionEntry = async (host) => {

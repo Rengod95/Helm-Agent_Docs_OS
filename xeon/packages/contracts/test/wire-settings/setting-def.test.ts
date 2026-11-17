@@ -9,6 +9,7 @@ import {
   SettingStageSchema,
   SettingKeySchema,
   SettingScopeSchema,
+  SettingWriteScopeSchema,
   checkSettingDef,
   toSettingDefWire,
   type SettingDefRule,
@@ -30,8 +31,27 @@ describe("checkSettingDef", () => {
     expect(rules(checkSettingDef(intDef({ key: "l1.loop.x", layer: "L2" })))).toEqual(["D1"]);
     expect(rules(checkSettingDef(intDef({ key: "Loop.max", layer: "L1" })))).toContain("D1");
     expect(rules(checkSettingDef(intDef({ key: "l9.loop.maxSteps" })))).toContain("D1");
-    // ext. 키는 층을 접두로 정하지 않는다
-    expect(checkSettingDef(boolDef({ key: "ext.web-exa.enabled", layer: "L2" }))).toEqual([]);
+    // ext. 키는 층을 접두로 정하지 않는다. 다만 ext.<이름>.enabled는 관리 범위뿐이다(D10, 아래 시험)
+    expect(
+      checkSettingDef(
+        boolDef({ key: "ext.web-exa.some", layer: "L2", allowedScopes: ["user", "project"] }),
+      ),
+    ).toEqual([]);
+  });
+
+  test("D10: ext.<name>.enabled is allowed in the managed scope only", () => {
+    const enabled = { key: "ext.web-exa.enabled", layer: "L2" } as const;
+    expect(checkSettingDef(boolDef({ ...enabled, allowedScopes: ["managed"] }))).toEqual([]);
+    expect(
+      rules(checkSettingDef(boolDef({ ...enabled, allowedScopes: ["managed", "user"] }))),
+    ).toEqual(["D10"]);
+    expect(rules(checkSettingDef(boolDef({ ...enabled, allowedScopes: ["profile"] })))).toEqual([
+      "D10",
+    ]);
+    // 다른 이름의 ext 키는 이 규칙을 받지 않는다
+    expect(
+      rules(checkSettingDef(boolDef({ key: "ext.web-exa.enabledX", allowedScopes: ["profile"] }))),
+    ).not.toContain("D10");
   });
 
   test("D2: a secret cannot have a default", () => {
@@ -155,11 +175,16 @@ describe("keys and scopes", () => {
     expect(new RegExp(SETTING_KEY_PATTERN).test("l3.helm.driveLimits")).toBe(true);
   });
 
-  test("five scopes", () => {
-    for (const scope of ["managed", "user", "project", "local", "launch"]) {
+  test("six scopes, profile included; the write scope leaves profile out", () => {
+    for (const scope of ["managed", "user", "project", "local", "launch", "profile"]) {
       expect(parse(SettingScopeSchema, scope).ok).toBe(true);
     }
     expect(parse(SettingScopeSchema, "default").ok).toBe(false);
+    // settings.set·settings.reset은 프로필 범위를 받지 않는다(프로필은 profile.put으로 쓴다)
+    for (const scope of ["managed", "user", "project", "local", "launch"]) {
+      expect(parse(SettingWriteScopeSchema, scope).ok).toBe(true);
+    }
+    expect(parse(SettingWriteScopeSchema, "profile").ok).toBe(false);
   });
 });
 

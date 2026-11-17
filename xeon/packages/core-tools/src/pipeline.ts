@@ -70,6 +70,7 @@ import { evaluatePolicy, evaluateReadOnlySandboxed, evaluateReplacement } from "
 import { checkSecretUse, secretHandlesOf, secretUseTitle } from "./secret-gate.ts";
 import type { ToolRegistry } from "./registry.ts";
 import { addHits, hitsPayload, maskResult } from "./secrets.ts";
+import { observedEntriesOf, reportedEntriesOf, withFileChanges } from "./file-changes.ts";
 import { lockRequests, openToolScope } from "./tasks.ts";
 import type { CallState, RawOutcome, RawToolResult, ToolEntry } from "./types.ts";
 import { validateToolArguments } from "./validate.ts";
@@ -139,12 +140,28 @@ interface Finished {
   readonly itemId: ItemId | null;
 }
 
-/** 실행 전에 막은 이유. `details`는 UI·로그용이고 모델에 가는 본문은 `reason`뿐이다 */
+/**
+ * 실행 전에 호출을 닫는 이유. `details`는 UI·로그용이고 모델에 가는 본문은 `reason`뿐이다.
+ * `replaced`가 있으면 거부가 아니라 훅이 낸 결과 대신 주기다: 실행하지 않고 이 결과를 그대로 기록한다(M5e 스펙 §4.2)
+ */
 interface Denied {
   readonly reason: string;
   readonly terminate: boolean;
   readonly details: JsonObject | null;
+  readonly replaced?: RawToolResult;
 }
+
+/** `tool.call.before`가 낸 묻기. 승인 카드의 `askedBy`와 `ruleId`(`hook:<확장>`)가 된다 */
+interface HookAsk {
+  readonly extension: string;
+  readonly reason: string;
+}
+
+/** `tool.call.before` 합치기의 결과: 호출을 닫거나, 묻기를 싣거나, 결정이 없다 */
+type ToolCallHookVerdict =
+  | { readonly kind: "none" }
+  | { readonly kind: "closed"; readonly denied: Denied }
+  | { readonly kind: "ask"; readonly ask: HookAsk };
 
 function denied(
   reason: string,
@@ -170,6 +187,39 @@ function hookDenialDetails(
     outcome,
     reason,
   };
+}
+
+/**
+ * 훅의 묻기가 답할 사람 없이 거부된 호출의 details(M5e 스펙 §7 E-1). 결과는 `asked`로 적는다. 막음과 같은 코드를 쓴다
+ */
+function hookAskDenialDetails(ask: HookAsk): JsonObject {
+  return {
+    code: "denied_by_extension",
+    hook: "tool.call.before",
+    extension: ask.extension,
+    outcome: "asked",
+    reason: ask.reason,
+  };
+}
+
+/** 묻기 사유가 비었을 때 카드에 싣는 문장. 카드의 사유는 비면 안 된다 */
+const HOOK_ASK_REASON_FALLBACK = "the extension asked for confirmation";
+/** 묻기를 낸 확장을 특정하지 못할 때의 이름(결정이 있으면 확장이 있어야 하므로 방어용이다) */
+const UNKNOWN_EXTENSION = "unknown";
+
+/** 묻기 사유를 한 줄로 만든다. 줄바꿈은 공백이 되고, 비면 기본 문장이다 */
+function askReasonOf(reason: string): string {
+  const line = reason.replace(/[\r\n]+/g, " ");
+  return line.trim().length === 0 ? HOOK_ASK_REASON_FALLBACK : line;
+}
+
+/**
+ * `replace` 결과의 details. 훅이 낸 객체에 `{ hook: "replaced", extension }`을 합친다. 객체가 아니면 `details` 키에 싣는다
+ */
+function replacedDetails(details: JsonValue | undefined, extension: string | null): JsonObject {
+  const marker = { hook: "replaced", extension };
+  if (details === undefined || details === null) return marker;
+  return isJsonObject(details) ? { ...details, ...marker } : { ...marker, details };
 }
 
 /** `guard.tool.before`가 막은 호출의 UI용 details. `hookDenialDetails`와 같은 모양이고 code와 hook만 다르다 */
@@ -328,6 +378,19 @@ function outcomeOf(
 function policyTitle(toolName: string, args: JsonObject): string {
   const handles = secretHandlesOf(args);
   return handles.length === 0 ? `Allow tool "${toolName}"?` : secretUseTitle(toolName, handles);
+}
+
+/** 정책이 물은 사유의 한 줄 표시. 규칙이 있으면 규칙 id, 없으면 정책 사유다 */
+function policyLabelOf(ruleId: string | null, reason: string): string {
+  return ruleId === null ? reason : `rule ${ruleId}`;
+}
+
+/**
+ * 훅 묻기의 카드 제목. 정책도 물었으면 정책의 사유를 함께 싣는다(M5e 스펙 §5.1 H-3). 제목은 120자로 잘리므로 사유 전문은 `askedBy.reason`이 싣는다
+ */
+function hookAskTitle(base: string, ask: HookAsk, policy: string | undefined): string {
+  const hook = `Extension "${ask.extension}" asks: ${ask.reason}`;
+  return policy === undefined ? `${base} ${hook}` : `${base} Policy asks: ${policy}. ${hook}`;
 }
 
 /** `untrustedTurns`에 기억하는 turn 수 상한. 넘으면 가장 오래된 것부터 잊는다 */
@@ -500,10 +563,14 @@ export function createPipeline(
 
   // ── 5a tool_call 지점 ─────────────────────────────────────────────────
 
+  /**
+   * `tool.call.before`의 합쳐진 결정을 해석한다(M5e 스펙 §4.2). 막기는 거부, 결과 대신 주기는 실행 없이 그 결과를 기록하고
+   * (정책과 승인과 `tool.result`를 건너뛴다), 묻기는 승인 카드를 거쳐 정책으로 이어진다. 결정이 없으면 정책이 그대로 판정한다
+   */
   async function dispatchToolCall(
     state: CallState,
     signal: AbortSignal,
-  ): Promise<Denied | undefined> {
+  ): Promise<ToolCallHookVerdict> {
     const { run, toolCallId } = state;
     try {
       const outcome = await deps.ext.dispatch("tool.call.before", callInfo(state), {
@@ -512,29 +579,63 @@ export function createPipeline(
         signal,
       });
       const decision = outcome.decision;
-      if (decision === undefined) return undefined;
-      // 대체된 결정(실패·시간 초과·스키마 위반)은 핸들러가 던진 것과 같은 "오류" 거부다. 모델 본문은 두 경우 모두 그대로 둔다
+      if (decision === undefined) return { kind: "none" };
       const extension = outcome.decidedBy?.extension ?? null;
+      if ("ask" in decision) {
+        return {
+          kind: "ask",
+          ask: {
+            extension: extension ?? UNKNOWN_EXTENSION,
+            reason: askReasonOf(decision.reason),
+          },
+        };
+      }
+      if ("replace" in decision) {
+        const details = replacedDetails(decision.replace.details, extension);
+        return {
+          kind: "closed",
+          denied: {
+            reason: decision.reason,
+            terminate: false,
+            details,
+            replaced: {
+              content: decision.replace.content,
+              details,
+              isError: decision.replace.isError === true,
+            },
+          },
+        };
+      }
+      // 대체된 결정(실패·시간 초과·스키마 위반)은 핸들러가 던진 것과 같은 "오류" 거부다. 모델 본문은 두 경우 모두 그대로 둔다
       if (outcome.substituted) {
-        return denied(
+        return {
+          kind: "closed",
+          denied: denied(
+            `[fresnel:denied_by_extension] ${decision.reason}`,
+            decision.terminate === true,
+            hookDenialDetails("threw", extension, null),
+          ),
+        };
+      }
+      return {
+        kind: "closed",
+        denied: denied(
           `[fresnel:denied_by_extension] ${decision.reason}`,
           decision.terminate === true,
-          hookDenialDetails("threw", extension, null),
-        );
-      }
-      return denied(
-        `[fresnel:denied_by_extension] ${decision.reason}`,
-        decision.terminate === true,
-        hookDenialDetails("blocked", extension, decision.reason),
-      );
+          hookDenialDetails("blocked", extension, decision.reason),
+        ),
+      };
     } catch (error) {
       // 디스패처 자체의 실패도 거부다(fail-closed, L1.tools.spec §5 사례 3)
       warn("tools.tool_call_dispatch_failed", { toolCallId, message: messageOf(error) });
-      return denied(
-        `[fresnel:denied_by_extension] ${FIRST_DENY["tool.call.before"].reason}`,
-        false,
-        hookDenialDetails("threw", null, null),
-      );
+      return {
+        kind: "closed",
+        denied: denied(
+          `[fresnel:denied_by_extension] ${FIRST_DENY["tool.call.before"].reason}`,
+          false,
+          hookDenialDetails("threw", null, null),
+        ),
+      };
     }
   }
 
@@ -578,10 +679,15 @@ export function createPipeline(
 
   // ── 5b·5c 정책과 승인 ─────────────────────────────────────────────────
 
+  /**
+   * 정책 판정과 승인. `hookAsk`는 `tool.call.before`가 낸 묻기다. 정책 deny는 훅이 있어도 deny다(H-1). 정책이 allow거나 ask면
+   * 카드는 하나만 열고 두 사유를 싣는다(H-3). 훅이 물었으면 정책의 무인 거부를 쓰지 않고 승인 서비스가 무인 정책을 따른다(E-1)
+   */
   async function decide(
     state: CallState,
     argsPayload: JsonObject | BlobRef,
     argsHash: string,
+    hookAsk: HookAsk | undefined,
     signal: AbortSignal,
   ): Promise<Denied | undefined> {
     const { run, entry, toolCallId } = state;
@@ -602,9 +708,12 @@ export function createPipeline(
       caller: run.caller,
       depth: run.depth,
       mode: config.mode,
-      // 무인 정책이 기다리는 쪽이면 ask를 거부로 바꾸지 않고 승인 요청으로 보낸다(M3-REQ-73)
+      // 무인 정책이 기다리는 쪽이면 ask를 거부로 바꾸지 않고 승인 요청으로 보낸다(M3-REQ-73).
+      // 훅이 물은 호출도 같다: 답할 수 없을 때의 거부는 승인 서비스의 무인 정책이 정한다(M5e 스펙 §4.2, E-1)
       interactive:
-        run.interactive || !unattendedPlan(run, config.unattended, deps.clock.now()).silent,
+        hookAsk !== undefined ||
+        run.interactive ||
+        !unattendedPlan(run, config.unattended, deps.clock.now()).silent,
       // 저장소가 고른 bypass는 내장 도구 대체에 쓰지 않는다. 대체에서는 bypass가 금지된 것으로 평가한다(L1.tools.spec §4.13)
       bypassAllowed:
         entry.replacesBuiltin === true && config.modeFromRepository ? false : config.bypassAllowed,
@@ -634,20 +743,31 @@ export function createPipeline(
         decision.message ?? `[fresnel:denied_by_policy] Tool call "${entry.name}" is denied.`,
       );
     }
-    if (decision.effect === "allow") return undefined;
-    // 사용자가 직접 친 명령이다. deny 규칙은 막지만 ask는 사용자 본인이 낸 명령이라 허용으로 본다
+    if (decision.effect === "allow" && hookAsk === undefined) return undefined;
+    // 사용자가 직접 친 명령이다. deny 규칙은 막지만 ask는 사용자 본인이 낸 명령이라 허용으로 본다.
+    // 훅의 묻기도 같게 둔다(가정: 사용자가 친 명령에 확장이 다시 묻는 경로는 지금 없다)
     if (state.userShell) return undefined;
 
+    const policyBase = policyTitle(entry.name, state.args);
+    const policyAsked = decision.effect === "ask";
     const asked = await askUser(
       state,
       {
         argsPayload,
         argsHash,
-        ruleId: decision.ruleId,
-        title: policyTitle(entry.name, state.args),
+        ruleId: hookAsk === undefined ? decision.ruleId : `hook:${hookAsk.extension}`,
+        title:
+          hookAsk === undefined
+            ? policyBase
+            : hookAskTitle(
+                policyBase,
+                hookAsk,
+                policyAsked ? policyLabelOf(decision.ruleId, decision.reason) : undefined,
+              ),
         requestKey: requestKeyFor(toolCallId, sha256HexSync),
         // M4의 승인 기억은 요청 단위뿐이다 [결정: 2026-10-31 사용자]. 영구 허용은 사용자 규칙(`l1.tools.rules`)이다
         remember: ["once"],
+        ...(hookAsk === undefined ? {} : { askedBy: hookAsk }),
       },
       signal,
     );
@@ -663,6 +783,8 @@ export function createPipeline(
     readonly title: string;
     readonly requestKey: string;
     readonly remember: ApprovalRequestInput["remember"];
+    /** 훅이 낸 묻기면 그 확장과 사유. 카드 본문의 `askedBy`가 되고 무인 거부의 사유가 된다 */
+    readonly askedBy?: HookAsk;
   }
 
   /** 도구 승인(kind tool) 요청을 올리고 답을 기다린다. 허용이면 승인 id를, 아니면 모델에 보일 거부 사유를 돌려준다 */
@@ -701,6 +823,7 @@ export function createPipeline(
           argsHash: input.argsHash,
           ruleId: input.ruleId,
           ...(mcp === undefined ? {} : { mcp }),
+          ...(input.askedBy === undefined ? {} : { askedBy: input.askedBy }),
         },
       },
       remember: input.remember,
@@ -716,6 +839,14 @@ export function createPipeline(
     if (resolution.resolvedBy === "cancelled" && signal.aborted) {
       // 턴 취소는 대기 중인 요청을 cancelled로 닫는다(L1.tools.spec §4.7 8번)
       await approvals.cancel(resolution.approvalId, "turn aborted");
+    }
+    if (input.askedBy !== undefined && resolution.resolvedBy === "noninteractive") {
+      // 훅이 물었는데 답할 사람이 없다(M5e 스펙 §4.2, E-1). 모델에는 확장의 사유와 확인 불가 표지를 한 줄로 준다
+      return denied(
+        `[fresnel:denied_by_extension] ${input.askedBy.reason} (confirmation unavailable)`,
+        false,
+        hookAskDenialDetails(input.askedBy),
+      );
     }
     return denied(denialReason(resolution), false, denialDetails(resolution));
   }
@@ -814,7 +945,8 @@ export function createPipeline(
   // ── 효과 없이 닫는 호출의 결과 기록 ────────────────────────────────────
 
   /**
-   * 효과(intent) 없이 끝난 호출의 결과를 toolResult item 하나로 기록한다. 시크릿 마스킹을 거친다.
+   * 효과(intent) 없이 끝난 호출의 결과를 toolResult item 하나로 기록한다. 시크릿 마스킹을 거친다. 오류 표지는 결과의 `isError`를 따른다
+   * (거부와 실행 전 닫기는 참이고, 훅의 결과 대신 주기는 훅이 정한 값이다).
    * item 커밋이 실패하면 itemId는 null이고 루프가 run을 끝낸다.
    */
   async function recordWithoutEffect(
@@ -830,14 +962,15 @@ export function createPipeline(
     const hits = new Map<string, number>();
     const masked = maskResult(deps.redactor, input.result);
     addHits(hits, masked.hits);
-    const result = asAgentResult({ ...masked.result, isError: true });
+    const isError = input.result.isError === true;
+    const result = asAgentResult({ ...masked.result, isError });
     const now = deps.clock.now();
     const message: ToolResultMessage = {
       role: "toolResult",
       toolCallId: call.id,
       toolName: call.name,
       content: result.content,
-      isError: true,
+      isError,
       timestamp: now,
       ...(result.details === undefined || result.details === null
         ? {}
@@ -885,7 +1018,7 @@ export function createPipeline(
       toolCall: call,
       state: input.state,
       result,
-      isError: true,
+      isError,
       message,
       itemId: recorded,
     };
@@ -911,18 +1044,16 @@ export function createPipeline(
     user: boolean,
   ): Promise<CallPreparation> {
     await tapStart(run, call);
-    const settle = async (
-      reason: string,
-      terminate: boolean = false,
-      details: JsonObject | null = null,
-    ): Promise<CallPreparation> => ({
+    const settleWith = async (result: RawToolResult): Promise<CallPreparation> => ({
       kind: "settled",
       outcome: await recordWithoutEffect(run, call, {
         state: "rejected",
-        result: rejectedResult(reason, terminate, details),
+        result,
         silent: user,
       }),
     });
+    const settle = (reason: string): Promise<CallPreparation> =>
+      settleWith(rejectedResult(reason, false));
 
     const entry = registry.get(call.name);
     if (entry === undefined) {
@@ -952,6 +1083,7 @@ export function createPipeline(
       maskedHits: new Map(),
       release: undefined,
       settledItem: undefined,
+      reported: [],
     };
     calls.put(state);
     let verdict: Denied | undefined;
@@ -967,22 +1099,30 @@ export function createPipeline(
     }
     if (verdict !== undefined) {
       forget(state);
-      return settle(verdict.reason, verdict.terminate, verdict.details);
+      return settleWith(
+        verdict.replaced ?? rejectedResult(verdict.reason, verdict.terminate, verdict.details),
+      );
     }
     return { kind: "ready", call: { toolCall: call, args: checked.value } };
   }
 
   /** tool_call 지점 → 정책·승인 → 중단 확인 → effect.intent. 막히면 이유를 돌려준다 */
   async function gate(state: CallState, signal: AbortSignal): Promise<Denied | undefined> {
-    const toolCallDenied = await dispatchToolCall(state, signal);
-    if (toolCallDenied !== undefined) return toolCallDenied;
+    const hook = await dispatchToolCall(state, signal);
+    if (hook.kind === "closed") return hook.denied;
 
     const argsPayload = inlineOrBlob(state.args);
     if (argsPayload === undefined) {
       return denied("[fresnel:tools.commit_failed] the tool arguments could not be stored");
     }
     const argsHash = await argsHashOf(state.args);
-    const verdict = await decide(state, argsPayload, argsHash, signal);
+    const verdict = await decide(
+      state,
+      argsPayload,
+      argsHash,
+      hook.kind === "ask" ? hook.ask : undefined,
+      signal,
+    );
     if (verdict !== undefined) return verdict;
     const secretVerdict = await approveSecretUse(state, argsPayload, argsHash, signal);
     if (secretVerdict !== undefined) return secretVerdict;
@@ -1040,6 +1180,16 @@ export function createPipeline(
         onUpdate: masking,
         secretApproval: state.secretApproval,
         afterUntrusted,
+        reportChanges: (values) => {
+          const reported = reportedEntriesOf(values);
+          state.reported.push(...reported.entries);
+          if (reported.rejected > 0) {
+            warn("tools.changes_rejected", {
+              toolCallId: state.toolCallId,
+              rejected: reported.rejected,
+            });
+          }
+        },
       });
       state.interrupted = outcome.interrupted;
       state.sandboxBypass = sandboxBypassOf(outcome.result.structuredContent);
@@ -1172,13 +1322,18 @@ export function createPipeline(
     const first = maskResult(deps.redactor, input);
     addHits(state.maskedHits, first.hits);
     const terminate = input.terminate;
+    // 코어 기능 도구의 관찰 변경(F-1)은 체인에 들어가기 전에 떼어 둔다. 체인이 `details`를 지워도 남는다(F-3)
+    const observed = observedEntriesOf(first.result.details, entry.capability !== undefined);
     let current = toValue(first.result, isError);
     if (!options.skipChain) {
       current = await chain(state, current, options.signal);
-      const again = maskResult(deps.redactor, fromValue(current, terminate));
-      addHits(state.maskedHits, again.hits);
-      current = toValue(again.result, current.isError);
     }
+    // `fileChanges`는 체인이 끝난 뒤에 합친다(F-3, F-4). 오류 결과도 관찰 항목을 지우지 않는다(F-6).
+    // 합친 뒤에 마스킹해서 보고된 diff의 가릴 값도 가린다
+    const merged = withFileChanges(current.details ?? null, observed, state.reported);
+    const again = maskResult(deps.redactor, { ...fromValue(current, terminate), details: merged });
+    addHits(state.maskedHits, again.hits);
+    current = toValue(again.result, current.isError);
 
     const finalResult = fromValue(current, terminate);
     let content = finalResult.content;
@@ -1457,6 +1612,7 @@ export function createPipeline(
       maskedHits: new Map(),
       release: undefined,
       settledItem: undefined,
+      reported: [],
     };
     calls.put(state);
     try {

@@ -1,6 +1,7 @@
 import { err, ok } from "@fresnel/contracts";
 import { createSettingsController } from "@fresnel/client/settings";
 import type { Commands } from "../../src/views/commands.ts";
+import { STORE } from "../state/helpers.ts";
 import { createFakeRemoteAdapter } from "../../src/app/remote/fake-remote-adapter.ts";
 
 /** 화면 시험이 쓰는 명령 대역. 기본은 모두 성공하고 신뢰 메서드는 host에 없는 것(unsupported)처럼 답한다 */
@@ -100,11 +101,13 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     workbench: {
       list: () => Promise.resolve(ok([])),
       onChanged: () => () => {},
-      installPreview: () => Promise.resolve(err({ kind: "unsupported" })),
+      installPreview: () =>
+        Promise.resolve(err({ kind: "not_available", command: "ext.installPreview" })),
       remove: () => Promise.resolve(err({ kind: "unsupported" })),
-      removePreview: () => Promise.resolve(err({ kind: "unsupported" })),
+      removePreview: () =>
+        Promise.resolve(err({ kind: "not_available", command: "ext.removePreview" })),
       bindings: () => Promise.resolve(err({ kind: "unsupported" })),
-      install: () => Promise.resolve(err({ kind: "unsupported" })),
+      install: () => Promise.resolve(err({ kind: "not_available", command: "ext.install" })),
       reload: () => Promise.resolve(ok(null)),
       get: () => Promise.resolve(err({ kind: "unsupported" })),
       groups: () => Promise.resolve(err({ kind: "unsupported" })),
@@ -115,23 +118,35 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       toggle: () => Promise.resolve(ok(null)),
       reenable: () => Promise.resolve(ok(null)),
       keepOff: () => Promise.resolve(ok(null)),
-      toggleForThread: () => Promise.resolve(ok(null)),
       profiles: () => Promise.resolve(ok([])),
       applyProfile: () =>
-        Promise.resolve(ok({ written: [], layer: "thread", appliesAt: "nextStepBoundary" })),
+        Promise.resolve(ok({ position: { storeId: STORE, seq: 1 }, preview: {} })),
       putProfile: (profile) =>
-        Promise.resolve(ok({ profile: { ...profile, updatedAt: "2026-11-04T10:00:00Z", rev: 1 } })),
+        Promise.resolve(
+          ok({
+            profile: { ...profile, builtin: false, updatedAt: "2026-11-04T10:00:00Z", rev: 1 },
+            issues: [],
+          }),
+        ),
       deleteProfile: () => Promise.resolve(ok(2)),
       previewProfile: () =>
         Promise.resolve(
           ok({
-            enabled: [],
-            disabled: [],
-            candidates: [],
-            expectedHolder: null,
-            overrides: [],
-            hookCount: 0,
-            layer: "user",
+            resolved: [],
+            issues: [],
+            cost: {
+              total: {
+                always: null,
+                drive: null,
+                onDemand: null,
+                toolCount: null,
+                basis: "unknown",
+              },
+              byPlugin: [],
+            },
+            missingRequired: [],
+            threadsUsing: 0,
+            dropsDrive: null,
           }),
         ),
       validateComposition: () => Promise.resolve(ok({ issues: [] })),

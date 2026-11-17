@@ -394,6 +394,7 @@ describe("overview and restart banner", () => {
       project: 1,
       local: 0,
       launch: 0,
+      profile: 0,
       default: 1,
     });
     expect(view.overview.locked).toEqual(["l1.models.c"]);

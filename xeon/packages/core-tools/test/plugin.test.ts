@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { validateManifest, type PortKey } from "@fresnel/contracts/extensions";
+import { validateManifest, type PortKey, pluginDeclsOf } from "@fresnel/contracts/extensions";
 import {
   WorkspaceFilesKey,
   WorkspaceFiles,
@@ -88,19 +88,19 @@ test("the manifest passes validateManifest and the unit is a builtin L1 plugin",
   const checked = validateManifest(toolsManifest());
   expect(checked.issues.filter((issue) => issue.severity === "error")).toEqual([]);
   expect(checked.manifest?.name).toBe(TOOLS_EXTENSION_NAME);
-  expect(checked.manifest?.plugins.map((plugin) => plugin.layer)).toEqual(["L1"]);
-  expect(checked.manifest?.plugins[0]?.optional?.map((entry) => entry.id)).toEqual([
-    "workspace.files",
-    "workspace.shell",
-    "workspace.images",
+  expect(pluginDeclsOf(checked.manifest ?? { plugins: [] }).map((plugin) => plugin.layer)).toEqual([
+    "L1",
   ]);
+  expect(
+    pluginDeclsOf(checked.manifest ?? { plugins: [] })[0]?.optional?.map((entry) => entry.id),
+  ).toEqual(["workspace.files", "workspace.shell", "workspace.images"]);
   const unit = toolsPlugin({
     clock: { now: () => NOW },
     ids: sequentialIds(),
     settings: { layers: () => [] },
   });
   expect(unit.builtin).toBe(true);
-  expect(unit.manifest.plugins.map((plugin) => plugin.hooks)).toEqual([[]]);
+  expect(pluginDeclsOf(unit.manifest).map((plugin) => plugin.hooks)).toEqual([[]]);
 });
 
 test("installing provides fresnel.tools and fresnel.approvals ports and runs a call end to end", async () => {

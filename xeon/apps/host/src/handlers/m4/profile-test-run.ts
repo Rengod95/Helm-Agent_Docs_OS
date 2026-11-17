@@ -1,4 +1,4 @@
-import { assertNever, err, ok, type Result } from "@fresnel/contracts";
+import { assertNever, type Result } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
   TestRunControlError,
@@ -7,35 +7,130 @@ import type {
   TraceTurnResult,
 } from "@fresnel/contracts/extensions";
 import type { ReadFailure, StoreError } from "@fresnel/contracts/records";
-import type { SettingScope, WriteCheck } from "@fresnel/contracts/settings";
+import type { SettingScope } from "@fresnel/contracts/settings";
 import {
   wireError,
-  type WireError,
-  type Profile,
-  type ProfileApplyResult,
+  type CommonGetResult,
+  type CommonPutParams,
+  type ProfileCloneParams,
+  type ProfileDefaultForResult,
+  type ProfileDefaultResetParams,
+  type ProfileDefaultResetResult,
+  type ProfileDeleteResult,
+  type ProfileGetResult,
   type ProfileInput,
-  type ProfileLayer,
+  type ProfileIssue,
   type ProfileListResult,
+  type ProfilePreviewParams,
   type ProfilePreviewResult,
+  type ProfilePutResult,
+  type ProfileRemovePluginParams,
+  type ProfileRemovePluginResult,
+  type Profile,
   type TestRunMarker,
   type Unsubscribe,
+  type WireError,
   type WireHandler,
   type WireHandlers,
 } from "@fresnel/contracts/wire";
-import type { ProfileStoreFailure, ProfilesChange } from "../../assembly/m4/profile-store.ts";
+import type {
+  ProfileStoreFailure,
+  ProfilesChange,
+  ProfilesWritten,
+} from "../../assembly/m4/profile-store.ts";
 import { settingsFileInvalidDetails } from "../../settings-file-details.ts";
 
-// 프로필·Test run·Trace wire(`spec-deltas/t-wb.md`). 처리기는 값 검사와 오류 옮기기만 하고, 저장·적용·되돌리기는 포트 구현
+// 프로필·Test run·Trace wire(M5c §3.4, §3.6). 처리기는 값 검사와 오류 옮기기만 하고, 저장·검증·계산은 포트 구현
 // (`assembly/m4/profile-test-run-port.ts`)이 한다. 알림 `profile.changed`는 포트의 `onProfilesChanged`를 연결 허브(`handlers/events.ts`)가 듣고 전체 연결에 보낸다.
 
 // `types.ts`가 `assembly/m4/index.ts`를 거쳐 이 파일을 import하므로 이 파일은 `types.ts`에 닿는 모듈(`store-error.ts`, `owner.ts`)을 import하지 않는다
-// (순환 금지, depcruise no-circular). 저장소 오류를 와이어 오류로 옮기는 두 함수는 조립이 포트에 넣어 준다.
+// (순환 금지, depcruise no-circular). 저장소 오류를 와이어 오류로 옮기는 함수는 조립이 포트에 넣어 준다.
 
 /** 호스트 조립이 넘기는 와이어 오류 변환. `store-error.ts`의 `wireErrorOfStore`, `owner.ts`의 `threadLocked`다 */
 export interface HostErrorMappers {
   ofStore(error: StoreError, where: string): WireError;
   threadLocked(): WireError;
 }
+
+/** 프로필 포트의 실패. 저장소 실패와 검증·규칙 위반을 한 합집합으로 둔다 */
+export type ProfilePortFailure =
+  | ProfileStoreFailure
+  | { readonly kind: "builtin_protected"; readonly id: string }
+  | { readonly kind: "invalid"; readonly issues: readonly ProfileIssue[] }
+  | { readonly kind: "plugin_not_in_profile"; readonly plugin: string }
+  | { readonly kind: "common_plugin"; readonly plugin: string };
+
+/** `profile.preview`의 대상. 저장된 프로필이거나 아직 저장하지 않은 입력이다 */
+type PreviewSource =
+  | { readonly kind: "stored"; readonly id: string }
+  | { readonly kind: "draft"; readonly draft: ProfileInput };
+
+export interface ProfilePreviewRequest {
+  readonly source: PreviewSource;
+  readonly threadId: ThreadId | undefined;
+}
+
+/** 처리기가 쓰는 포트 */
+export interface ProfileTestRunPort {
+  readonly errors: HostErrorMappers;
+  list(): Promise<Result<ProfileListResult, ProfilePortFailure>>;
+  get(id: string): Promise<Result<Profile, ProfilePortFailure>>;
+  put(
+    input: ProfileInput,
+    baseRev: number | null,
+  ): Promise<Result<ProfilePutResult, ProfilePortFailure>>;
+  remove(id: string): Promise<Result<ProfileDeleteResult, ProfilePortFailure>>;
+  clone(params: ProfileCloneParams): Promise<Result<ProfileGetResult, ProfilePortFailure>>;
+  commonGet(): Promise<Result<CommonGetResult, ProfilePortFailure>>;
+  commonPut(params: CommonPutParams): Promise<Result<CommonGetResult, ProfilePortFailure>>;
+  preview(
+    request: ProfilePreviewRequest,
+  ): Promise<Result<ProfilePreviewResult, ProfilePortFailure>>;
+  defaultFor(
+    workspace: string | undefined,
+  ): Promise<Result<ProfileDefaultForResult, ProfilePortFailure>>;
+  removePlugin(
+    params: ProfileRemovePluginParams,
+  ): Promise<Result<ProfileRemovePluginResult, ProfilePortFailure>>;
+  defaultReset(
+    params: ProfileDefaultResetParams,
+  ): Promise<Result<ProfileDefaultResetResult, ProfilePortFailure>>;
+  /** 이 호스트가 프로필 파일을 바꿀 때마다 부른다(연결 허브가 `profile.changed`로 전한다) */
+  onProfilesChanged(listener: (change: ProfilesChange) => void): Unsubscribe;
+  /** 같은 순간에 쓴 내용 전체를 준다. 대화별 켜짐 집합의 복사가 응답 전에 맞는다(M5c §4.1.4) */
+  onProfilesWritten(listener: (written: ProfilesWritten) => void): Unsubscribe;
+  /** wire가 준 문자열 id를 thread id로 읽고 thread가 있는지 본다. 모양이 틀리거나 없으면 undefined */
+  lookupThread(raw: string): Result<ThreadId | undefined, ReadFailure>;
+  /** 계측 읽기(X-15). 꺼졌으면 `traceEnabled`가 거짓이고, 버퍼 밖이거나 모양이 틀린 turn id면 `retained`가 거짓이다 */
+  traceTurn(threadId: ThreadId, rawTurnId: string): TraceTurnResult;
+  /** Test run 대화의 표지. Test run이 아니면 undefined */
+  testRunMarker(threadId: ThreadId): TestRunMarker | undefined;
+  /** Test run 대화를 표지한다. `profileId`는 표지에 적을 값이고 대화에 적용하지 않는다 */
+  registerTestRun(threadId: ThreadId, profileId: string | null): void;
+  controlTestRun(
+    threadId: ThreadId,
+    op: "pause" | "resume" | "step",
+  ): Result<TestRunControlResult, TestRunControlError>;
+  testRunPhase(threadId: ThreadId): Result<TestRunPhaseResult, TestRunControlError>;
+}
+
+export type ProfileTestRunMethods =
+  | "profile.list"
+  | "profile.get"
+  | "profile.put"
+  | "profile.delete"
+  | "profile.clone"
+  | "profile.common.get"
+  | "profile.common.put"
+  | "profile.preview"
+  | "profile.defaultFor"
+  | "profile.removePlugin"
+  | "profile.default.reset"
+  | "trace.turn"
+  | "testRun.pause"
+  | "testRun.resume"
+  | "testRun.step"
+  | "testRun.phase";
 
 /** 설정 저장소 쓰기가 실패한 이유. `types.ts`의 `SettingsWriteFailure`와 같은 합집합이다(구조가 같아 그대로 대입된다) */
 export type ProfileWriteFailure =
@@ -55,90 +150,11 @@ export type ProfileWriteFailure =
   | { readonly kind: "key_reused"; readonly requestKey: string }
   | StoreError;
 
-/** 쓰기 검사나 쓰기가 막은 키 하나 */
-export type ProfileApplyFailure =
-  | ProfileStoreFailure
-  /** 설정 검사(카탈로그, 범위, 값)가 거절했다. 아무것도 쓰지 않았다 */
-  | { readonly kind: "setting_rejected"; readonly rejected: Extract<WriteCheck, { ok: false }> }
-  /** 쓰는 중 실패했고 이미 쓴 키는 모두 되돌렸다 */
-  | {
-      readonly kind: "write_failed";
-      readonly key: string;
-      readonly failure: ProfileWriteFailure;
-    }
-  /** `layer`가 thread나 project인데 `threadId`가 없다 */
-  | { readonly kind: "thread_required"; readonly layer: ProfileLayer }
-  /** thread 층에서 켜거나 끌 확장이 설치되어 있지 않다 */
-  | { readonly kind: "unknown_extension"; readonly name: string }
-  /** 되돌리기까지 실패했다. `written`은 아직 쓰인 채 남은 키 */
-  | {
-      readonly kind: "apply_partial";
-      readonly written: readonly string[];
-      readonly failed: string;
-    };
-
-export interface ProfileApplyRequest {
-  readonly id: string;
-  readonly layer: ProfileLayer;
-  readonly threadId: ThreadId | undefined;
-}
-
-/** 처리기가 쓰는 포트 */
-export interface ProfileTestRunPort {
-  readonly errors: HostErrorMappers;
-  listProfiles(): Promise<Result<ProfileListResult, ProfileStoreFailure>>;
-  getProfile(id: string): Promise<Result<Profile, ProfileStoreFailure>>;
-  putProfile(
-    input: ProfileInput,
-    baseRev: number | null,
-  ): Promise<Result<Profile, ProfileStoreFailure>>;
-  deleteProfile(id: string): Promise<Result<{ readonly rev: number }, ProfileStoreFailure>>;
-  /** 원자적: 하나라도 실패하면 이미 쓴 키를 이전 값으로 되돌린다 */
-  applyProfile(
-    request: ProfileApplyRequest,
-  ): Promise<Result<ProfileApplyResult, ProfileApplyFailure>>;
-  /** 아무것도 쓰지 않고 적용 결과를 계산한다 */
-  previewProfile(
-    request: ProfileApplyRequest,
-  ): Promise<Result<ProfilePreviewResult, ProfileApplyFailure>>;
-  /** 이 호스트가 프로필 파일을 바꿀 때마다 부른다(연결 허브가 `profile.changed`로 전한다) */
-  onProfilesChanged(listener: (change: ProfilesChange) => void): Unsubscribe;
-  /** wire가 준 문자열 id를 thread id로 읽고 thread가 있는지 본다. 모양이 틀리거나 없으면 undefined */
-  lookupThread(raw: string): Result<ThreadId | undefined, ReadFailure>;
-  /** 계측 읽기(X-15). 꺼졌으면 `traceEnabled`가 거짓이고, 버퍼 밖이거나 모양이 틀린 turn id면 `retained`가 거짓이다 */
-  traceTurn(threadId: ThreadId, rawTurnId: string): TraceTurnResult;
-  /** Test run 대화의 표지. Test run이 아니면 undefined */
-  testRunMarker(threadId: ThreadId): TestRunMarker | undefined;
-  /** `thread.create { testRun }`이 만든 대화를 Test run으로 적는다 */
-  registerTestRun(threadId: ThreadId, profileId: string | null): void;
-  controlTestRun(
-    threadId: ThreadId,
-    op: "pause" | "resume" | "step",
-  ): Result<TestRunControlResult, TestRunControlError>;
-  testRunPhase(threadId: ThreadId): Result<TestRunPhaseResult, TestRunControlError>;
-}
-
-export type ProfileTestRunMethods =
-  | "profile.list"
-  | "profile.get"
-  | "profile.put"
-  | "profile.delete"
-  | "profile.apply"
-  | "profile.preview"
-  | "trace.turn"
-  | "testRun.pause"
-  | "testRun.resume"
-  | "testRun.step"
-  | "testRun.phase";
-
 // ── 오류 ────────────────────────────────────────────────────────────────
 // `profile.*`·`testRun.*` kind와 코드(3301~3313)는 계약 `WIRE_ERRORS`가 정한다(F.wire-settings.spec §3.5.2). 이 파일은 실패 값을 kind로 옮기기만 한다.
 
-function invalidParam(path: string, message: string): WireError {
-  return wireError("jsonrpc.invalidParams", { details: { issues: [{ path, message }] } });
-}
-
-function wireErrorOfProfileStore(failure: ProfileStoreFailure): WireError {
+/** 프로필 실패를 와이어 오류로 옮긴다 */
+export function wireErrorOfProfile(failure: ProfilePortFailure): WireError {
   switch (failure.kind) {
     case "not_found":
       return wireError("profile.notFound", { details: { id: failure.id } });
@@ -157,23 +173,58 @@ function wireErrorOfProfileStore(failure: ProfileStoreFailure): WireError {
       });
     case "limit":
       return wireError("profile.limit", { details: { max: failure.max } });
+    case "builtin_protected":
+      return wireError("profile.builtinProtected", { details: { id: failure.id } });
+    case "invalid":
+      return wireError("profile.invalid", { details: { issues: failure.issues.slice(0, 64) } });
+    case "plugin_not_in_profile":
+      return wireError("profile.pluginNotInProfile", { details: { name: failure.plugin } });
+    case "common_plugin":
+      return wireError("profile.commonPlugin", { details: { name: failure.plugin } });
     default:
-      return assertNever(failure, "ProfileStoreFailure");
+      return assertNever(failure, "ProfilePortFailure");
   }
 }
 
-/** 설정 쓰기 실패를 와이어 오류로 옮긴다. `where`는 메시지와 저장소 오류 머리말이다(프로필 적용은 `profile.apply`, 순서 쓰기는 메서드 이름) */
+function wireErrorOfControl(failure: TestRunControlError): WireError {
+  switch (failure.kind) {
+    case "not_a_test_run":
+      return wireError("testRun.notATestRun");
+    case "not_paused":
+      return wireError("testRun.notPaused");
+    case "not_available":
+      return wireError("testRun.unavailable");
+    default:
+      return assertNever(failure.kind, "TestRunControlError");
+  }
+}
+
+/**
+ * Test run 대화에 표지를 단다(W-34). `thread.create`(testRun)와 `ext.test.run`(testRun)이 같이 쓴다.
+ * 프로필은 대화에 적용하지 않는다(대화에 프로필 id를 저장하는 일은 아직 없다). 표지는 `profileId`를 그대로 적는다.
+ */
+export function markTestRun(
+  profiles: Pick<ProfileTestRunPort, "registerTestRun">,
+  threadId: ThreadId,
+  profileId: string | undefined,
+): void {
+  profiles.registerTestRun(threadId, profileId ?? null);
+}
+
+/** 설정 쓰기 실패를 와이어 오류로 옮긴다. `where`는 메시지 머리말이다(설정 쓰기 호출자가 정한다) */
 export function wireErrorOfWrite(
   key: string,
   failure: ProfileWriteFailure,
   errors: HostErrorMappers,
-  where = "profile.apply",
+  where = "settings.write",
 ): WireError {
   switch (failure.kind) {
     case "untrusted_project":
       return wireError("profile.trustRequired", { details: { workspace: failure.workspace } });
     case "thread_required":
-      return invalidParam("threadId", "threadId is required for this layer");
+      return wireError("jsonrpc.invalidParams", {
+        details: { issues: [{ path: "threadId", message: "threadId is required for this scope" }] },
+      });
     case "workspace_required":
       return wireError("settings.scopeNotAllowed", {
         details: { key, scope: failure.scope, reason: "workspaceRequired" },
@@ -196,98 +247,16 @@ export function wireErrorOfWrite(
       });
     case "key_reused":
       return wireError("internal", { message: `${where}: settings request key reused` });
+    case "thread_not_found":
     case "busy":
     case "disk_full":
     case "io":
     case "ownership_lost":
     case "read_only":
-    case "thread_not_found":
     case "row_invalid":
       return errors.ofStore(failure, where);
     default:
       return assertNever(failure, "ProfileWriteFailure");
-  }
-}
-
-/**
- * Test run 대화에 프로필을 붙이고 표지를 단다(W-34). `thread.create`(testRun)와 `ext.test.run`(testRun)이 같이 쓴다.
- * 프로필이 있으면 `thread` 층에 적용한다(`profile.apply { layer: "thread" }`와 같은 쓰기). 적용이 실패하면 이미 쓴 키는 되돌려져 있고
- * 이 대화는 지운다. 지우지 못하면 `where.cleanup_failed`를 남긴다. 표지는 적용이 성공한 뒤에만 단다.
- * 구조 타입을 쓰는 것은 이 파일이 `types.ts`를 import하지 않기 위해서다(위의 순환 금지 주석).
- */
-export async function markTestRun(
-  ports: {
-    readonly threads: {
-      remove(
-        threadId: ThreadId,
-      ): Promise<
-        { readonly ok: true } | { readonly ok: false; readonly error: { readonly kind: string } }
-      >;
-    };
-    readonly profiles: Pick<ProfileTestRunPort, "applyProfile" | "registerTestRun">;
-    readonly log: { error(message: string, fields: Readonly<Record<string, unknown>>): void };
-  },
-  threadId: ThreadId,
-  profileId: string | undefined,
-  where: string,
-): Promise<Result<void, ProfileApplyFailure>> {
-  if (profileId !== undefined) {
-    const applied = await ports.profiles.applyProfile({ id: profileId, layer: "thread", threadId });
-    if (!applied.ok) {
-      const removed = await ports.threads.remove(threadId);
-      if (!removed.ok) {
-        ports.log.error(`${where}.cleanup_failed`, { threadId, kind: removed.error.kind });
-      }
-      return err(applied.error);
-    }
-  }
-  ports.profiles.registerTestRun(threadId, profileId ?? null);
-  return ok(undefined);
-}
-
-/** 적용 실패를 와이어 오류로 옮긴다. `ProfileStoreFailure`는 같은 옮김을 쓴다 */
-export function wireErrorOfApply(
-  failure: ProfileApplyFailure,
-  errors: HostErrorMappers,
-): WireError {
-  switch (failure.kind) {
-    case "setting_rejected": {
-      const details: Record<string, unknown> = { ...failure.rejected.details };
-      const issues = details["issues"];
-      if (Array.isArray(issues)) details["issues"] = issues.slice(0, 20);
-      return wireError(failure.rejected.kind, { details });
-    }
-    case "write_failed":
-      return wireErrorOfWrite(failure.key, failure.failure, errors);
-    case "thread_required":
-      return invalidParam("threadId", `threadId is required for layer ${failure.layer}`);
-    case "unknown_extension":
-      return wireError("settings.unknownKey", { details: { key: `ext.${failure.name}.enabled` } });
-    case "apply_partial":
-      return wireError("profile.applyPartial", {
-        details: { written: failure.written.slice(0, 256), failed: failure.failed },
-      });
-    case "corrupt":
-    case "io":
-    case "not_found":
-    case "conflict":
-    case "limit":
-      return wireErrorOfProfileStore(failure);
-    default:
-      return assertNever(failure, "ProfileApplyFailure");
-  }
-}
-
-function wireErrorOfControl(failure: TestRunControlError): WireError {
-  switch (failure.kind) {
-    case "not_a_test_run":
-      return wireError("testRun.notATestRun");
-    case "not_paused":
-      return wireError("testRun.notPaused");
-    case "not_available":
-      return wireError("testRun.unavailable");
-    default:
-      return assertNever(failure.kind, "TestRunControlError");
   }
 }
 
@@ -301,24 +270,21 @@ function requireThread(port: ProfileTestRunPort, raw: string, where: string): Th
   return found.value;
 }
 
-function applyRequestOf(
-  port: ProfileTestRunPort,
-  params: { readonly id: string; readonly threadId?: string; readonly layer?: ProfileLayer },
-  where: string,
-): ProfileApplyRequest {
-  // 생략한 층은 사용자 층이다(T-REG §7 4번 [제안])
-  const layer = params.layer ?? "user";
-  const threadId =
-    params.threadId === undefined ? undefined : requireThread(port, params.threadId, where);
-  if (layer !== "user" && threadId === undefined) {
-    throw invalidParam("threadId", `threadId is required for layer ${layer}`);
-  }
-  return { id: params.id, layer, threadId };
+function okOrThrow<T>(result: Result<T, ProfilePortFailure>): T {
+  if (!result.ok) throw wireErrorOfProfile(result.error);
+  return result.value;
 }
 
-function failWith<T>(result: Result<T, ProfileStoreFailure>): T {
-  if (!result.ok) throw wireErrorOfProfileStore(result.error);
-  return result.value;
+function previewRequestOf(
+  port: ProfileTestRunPort,
+  params: ProfilePreviewParams,
+): ProfilePreviewRequest {
+  const threadId =
+    params.threadId === undefined
+      ? undefined
+      : requireThread(port, params.threadId, "profile.preview");
+  if ("draft" in params) return { source: { kind: "draft", draft: params.draft }, threadId };
+  return { source: { kind: "stored", id: params.id }, threadId };
 }
 
 function controlHandler(
@@ -337,24 +303,21 @@ export function createProfileTestRunHandlers(
   port: ProfileTestRunPort,
 ): Pick<WireHandlers, ProfileTestRunMethods> {
   return {
-    "profile.list": async () => failWith(await port.listProfiles()),
-    "profile.get": async (params) => ({ profile: failWith(await port.getProfile(params.id)) }),
-    "profile.put": async (params) => ({
-      profile: failWith(await port.putProfile(params.profile, params.baseRev)),
-    }),
-    "profile.delete": async (params) => failWith(await port.deleteProfile(params.id)),
-    "profile.apply": async (params) => {
-      const request = applyRequestOf(port, params, "profile.apply");
-      const applied = await port.applyProfile(request);
-      if (!applied.ok) throw wireErrorOfApply(applied.error, port.errors);
-      return applied.value;
+    "profile.list": async () => okOrThrow(await port.list()),
+    "profile.get": async (params) => ({ profile: okOrThrow(await port.get(params.id)) }),
+    "profile.put": async (params) => okOrThrow(await port.put(params.profile, params.baseRev)),
+    "profile.delete": async (params) => okOrThrow(await port.remove(params.id)),
+    "profile.clone": async (params) => okOrThrow(await port.clone(params)),
+    "profile.common.get": async () => okOrThrow(await port.commonGet()),
+    "profile.common.put": async (params) => okOrThrow(await port.commonPut(params)),
+    "profile.preview": async (params) =>
+      okOrThrow(await port.preview(previewRequestOf(port, params))),
+    "profile.defaultFor": async (params) => {
+      const workspace = params.workspace;
+      return okOrThrow(await port.defaultFor(workspace));
     },
-    "profile.preview": async (params) => {
-      const request = applyRequestOf(port, params, "profile.preview");
-      const previewed = await port.previewProfile(request);
-      if (!previewed.ok) throw wireErrorOfApply(previewed.error, port.errors);
-      return previewed.value;
-    },
+    "profile.removePlugin": async (params) => okOrThrow(await port.removePlugin(params)),
+    "profile.default.reset": async (params) => okOrThrow(await port.defaultReset(params)),
     "trace.turn": (params) => {
       const threadId = requireThread(port, params.threadId, "trace.turn");
       return Promise.resolve(port.traceTurn(threadId, params.turnId));

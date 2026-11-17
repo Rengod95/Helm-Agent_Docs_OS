@@ -38,7 +38,7 @@ describe("plugins[] format", () => {
       }),
     );
     expect(result.issues).toEqual([]);
-    expect(result.manifest?.plugins.map((plugin) => plugin.id)).toEqual([
+    expect(result.manifest?.plugins?.map((plugin) => plugin.id)).toEqual([
       undefined,
       "explore",
       "sync",

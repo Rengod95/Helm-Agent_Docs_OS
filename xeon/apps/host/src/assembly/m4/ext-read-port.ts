@@ -50,6 +50,7 @@ import {
   checkOrder,
   hookOrderValue,
   hookIdOfUnit,
+  isHookUnitName,
   previewOrder,
   TIERS,
   type GuardRiskNote,
@@ -229,7 +230,7 @@ export const EMPTY_EXT_READ_SOURCES: ExtReadSources = {
   extensions: () => [],
   registrations: () => [],
   threadStatus: () => undefined,
-  enabledSource: () => "default",
+  enabledSource: () => "none",
   managedLocked: () => false,
   forcedOn: () => null,
   mcpClient: () => undefined,
@@ -364,6 +365,8 @@ function writerOf(scope: SettingScope | null): SettingWriter {
     case "project":
     case "local":
       return "user";
+    case "profile":
+      return "profile";
     default:
       return assertNever(scope, "SettingScope");
   }
@@ -514,7 +517,14 @@ async function serverRowsOf(
 }
 
 export function createExtReadPort(
-  deps: Pick<M4PortDeps, "traceRead"> & { readonly env: HookOrderEnv },
+  deps: Pick<M4PortDeps, "traceRead"> & {
+    readonly env: HookOrderEnv;
+    /**
+     * 새 대화가 쓰는 기본 프로필의 플러그인 이름(M5c §4.1). 순서 미리 보기는 대화가 없으니 이 집합에 든 확장의 핸들러만 본다.
+     * 조립이 넘긴다. 없으면 거르지 않는다(확장 목록을 직접 넣는 시험).
+     */
+    readonly defaultPlugins?: () => readonly string[];
+  },
   sources: ExtReadSources,
 ): ExtReadPort {
   /**
@@ -1100,7 +1110,15 @@ export function createExtReadPort(
     orderPreview(params) {
       const hook = params.hook;
       if (!isHookName(hook)) return Promise.resolve(err({ kind: "unknown_hook", hook }));
-      const rows = defaultRowsOf(hook).map(previewRowOf);
+      // 기본 프로필에서 빠진 확장의 핸들러는 새 대화에서 돌지 않으므로 순서에도 끼지 않는다. 훅 단위(설정 파일의 훅)는 그 밖이다
+      const admitted =
+        deps.defaultPlugins === undefined ? undefined : new Set(deps.defaultPlugins());
+      const rows = defaultRowsOf(hook)
+        .filter(
+          (row) =>
+            admitted === undefined || isHookUnitName(row.extension) || admitted.has(row.extension),
+        )
+        .map(previewRowOf);
       const preview = previewOrder(hook, params.order, rows);
       return Promise.resolve(ok(previewResultOf(preview)));
     },

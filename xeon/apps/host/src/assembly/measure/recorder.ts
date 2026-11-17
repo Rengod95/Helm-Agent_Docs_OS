@@ -18,6 +18,8 @@ import {
   type MeasureRecord,
   type MeasureStore,
 } from "./store.ts";
+import { MAX_HOOK_ROWS_PER_TURN } from "./turn-rows.ts";
+import { createTurnWriter } from "./turn-writer.ts";
 
 /** 측정 DB 파일 이름 */
 const MEASURE_DB_FILE_NAME = "measure.db";
@@ -39,8 +41,9 @@ const PRUNE_INTERVAL_MS = 3_600_000;
 const MAX_BODY_CHARS = 262_144;
 /** 아직 쓰지 않은 본문 행의 상한 */
 const MAX_PENDING_BODIES = 20;
-/** Turn 하나에서 쓰는 `hook` 행 상한. 링 버퍼 상한(5000)보다 낮게 잡아 한 Turn이 저장소를 키우지 않게 한다 */
-const MAX_HOOK_ROWS_PER_TURN = 500;
+
+/** 저장소 쓰기 한 건. 마이크로태스크의 묶음에서 넣은 순서대로 실행한다 */
+type StoreOp = (store: MeasureStore) => void;
 
 interface MeasureRecorderDeps {
   readonly session: { readonly feed: Pick<EventFeed, "onCommit"> };
@@ -49,6 +52,8 @@ interface MeasureRecorderDeps {
   /** 핸들러 계측 링 버퍼 읽기. 없으면 `hook` 기록을 하지 않는다 */
   readonly trace: Pick<TraceReadPort, "turn"> | undefined;
   readonly store: MeasureStore;
+  /** 턴 기록 테이블을 쓸 수 있는가(`store.turnRecordAvailable()`). 거짓이면 턴 행과 단계 행을 쓰지 않는다 */
+  readonly turnRecords: boolean;
   /** 켬 여부(`x.operations.trace.enabled`의 현재 값) */
   readonly enabled: () => boolean;
   readonly logger: Logger;
@@ -294,10 +299,30 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
   readonly stop: () => void;
   readonly offerBody: (input: RequestBodyInput) => void;
   readonly offerFailure: (input: HandlerFailureInput) => void;
+  /** 대화를 지운다. 대기 중인 쓰기를 먼저 쓰고 그 대화의 열린 턴 상태를 버린다 */
+  readonly forget: (threadId: string) => void;
 } {
   let pending: MeasureRecord[] = [];
   let pendingBodies = 0;
   let scheduled = false;
+  /** 턴 기록 쓰기 묶음. 커밋 경로는 여기 넣기만 하고 마이크로태스크가 쓴다 */
+  let pendingOps: StoreOp[] = [];
+  const enqueueOp = (op: StoreOp): void => {
+    pendingOps.push(op);
+    if (!scheduled) {
+      scheduled = true;
+      queueMicrotask(flush);
+    }
+  };
+  const turns = deps.turnRecords
+    ? createTurnWriter({
+        store: deps.store,
+        trace: deps.trace,
+        enabled: deps.enabled,
+        logger: deps.logger,
+        queue: enqueueOp,
+      })
+    : undefined;
   /** Turn별로 쌓은 호출. 그 Turn의 `turn.completed` 커밋이 오면 묶음에 넣는다 */
   const callsByTurn = new Map<string, MeasureRecord[]>();
   /** thread별로 가장 나중에 끝난 Turn. Turn 밖 호출(제목 등)이 어느 Turn 뒤의 호출인지 붙이는 데 쓴다 */
@@ -308,6 +333,8 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
   let pendingCalls = 0;
 
   const offUsage = deps.usage.subscribe((call) => {
+    // 단계의 모델 호출은 턴 기록이 모은다(계측이 켜진 턴만 쓰므로 여기서 거르지 않는다)
+    turns?.usage(call);
     if (!deps.enabled() || pendingCalls >= MAX_PENDING_CALLS) return;
     pendingCalls += 1;
     const record = ownedCallRecord(callRecord(call), childOwners.get(call.threadId));
@@ -345,6 +372,9 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
 
   function flush(): void {
     scheduled = false;
+    const ops = pendingOps;
+    pendingOps = [];
+    for (const op of ops) op(deps.store);
     if (pending.length === 0) return;
     const batch = pending;
     pending = [];
@@ -405,6 +435,8 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
   }
 
   const off = deps.session.feed.onCommit((batch) => {
+    // 턴 기록은 계측이 꺼져도 턴 행을 쓴다(규칙 3: `log_only`). 아래의 측정 행 수집은 켜져 있을 때만 한다
+    for (const event of batch.events) turns?.event(event);
     if (!deps.enabled()) return;
     for (const event of batch.events) {
       if (event.kind === "agent.spawned") {
@@ -482,6 +514,10 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
     },
     offerBody,
     offerFailure,
+    forget: (threadId) => {
+      flush();
+      turns?.forget(threadId);
+    },
   };
 }
 
@@ -514,6 +550,8 @@ export function startMeasurement(deps: MeasurementDeps): {
   readonly offerBody: (input: RequestBodyInput) => void;
   /** 확장 핸들러 실패를 `handler_failed` 행으로 남긴다. 계측이 꺼져 있으면 아무것도 하지 않는다 */
   readonly offerFailure: (input: HandlerFailureInput) => void;
+  /** 대화를 지운다. 그 대화의 `tr_*` 행과 쌓인 턴 상태를 지운다(§4.1 규칙 9). 저장소가 없으면 아무것도 하지 않는다 */
+  readonly forgetThread: (threadId: string) => void;
 } {
   const opened = openMeasureStore(join(deps.dir, MEASURE_DB_FILE_NAME));
   if (!opened.ok) {
@@ -523,9 +561,15 @@ export function startMeasurement(deps: MeasurementDeps): {
       store: undefined,
       offerBody: () => undefined,
       offerFailure: () => undefined,
+      forgetThread: () => undefined,
     };
   }
   const store = opened.value;
+  // 열린 Turn은 프로세스가 죽었을 때 남은 것이다. 열 때 한 번 `lost`로 바꾼다(§4.1 규칙 5)
+  if (store.turnRecordAvailable()) {
+    const lost = store.markLostTurns();
+    if (!lost.ok) deps.logger.warn("measure.mark_lost_failed", { reason: lost.error.kind });
+  }
   const retention = (): number => deps.retentionDays?.() ?? DEFAULT_RETENTION_DAYS;
   let lastPrune = Number.NEGATIVE_INFINITY;
   /** 보존 기간이 지난 원본을 일별 집계로 접고 지운다. 1시간에 한 번만 한다 */
@@ -547,6 +591,7 @@ export function startMeasurement(deps: MeasurementDeps): {
     maintain,
     storeBody: deps.storeRequestBody ?? (() => false),
     mask: deps.mask,
+    turnRecords: store.turnRecordAvailable(),
   });
   return {
     stop: () => {
@@ -556,5 +601,10 @@ export function startMeasurement(deps: MeasurementDeps): {
     store,
     offerBody: recorder.offerBody,
     offerFailure: recorder.offerFailure,
+    forgetThread: (threadId) => {
+      recorder.forget(threadId);
+      const removed = store.forgetThread(threadId);
+      if (!removed.ok) deps.logger.warn("measure.forget_failed", { reason: removed.error.kind });
+    },
   };
 }

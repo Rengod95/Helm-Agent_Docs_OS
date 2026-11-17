@@ -260,6 +260,11 @@ export function createRealDeps(env: Readonly<Record<string, string | undefined>>
       const { runHostCommand } = await import("@fresnel/host");
       return runHostCommand(command, io);
     },
+    // 플러그인 호스트는 엔진을 싣지 않는 좁은 진입이다(L4.host-service.spec §4.9). 엔진 진입과 같은 실행 파일이 이 경로로 들어온다
+    runPluginHost: async (io) => {
+      const { runPluginHostStdio } = await import("@fresnel/host/plugin-host");
+      return runPluginHostStdio(io);
+    },
     startStdioHost: async (options) => {
       const { startStdioHost } = await import("@fresnel/host");
       return startStdioHost(options);

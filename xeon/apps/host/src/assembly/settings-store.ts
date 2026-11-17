@@ -1,7 +1,15 @@
 import { createHash } from "node:crypto";
 import { access, constants, mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { assertNever, attemptAsync, err, ok, type Logger, type Result } from "@fresnel/contracts";
+import {
+  assertNever,
+  attemptAsync,
+  Bug,
+  err,
+  ok,
+  type Logger,
+  type Result,
+} from "@fresnel/contracts";
 import { toJsonValue, type IdFactory, type ThreadId } from "@fresnel/contracts/conversation";
 import type { SessionService } from "@fresnel/contracts/records";
 import type { ScopeStack, SettingKey, SettingScope } from "@fresnel/contracts/settings";
@@ -259,6 +267,9 @@ export function createSettingsStore(deps: SettingsStoreDeps): SettingsStorePort 
         await reloadWorkspace(target.value.workspace);
         return ok(undefined);
       }
+      case "profile":
+        // `settings.set`은 프로필 범위에 쓰지 않는다(`profile.put`만 쓴다). 여기에 닿으면 조립이 틀린 것이다
+        throw new Bug("the profile scope is written by profile.put, not by a settings write");
       default:
         return assertNever(scope, "SettingScope");
     }

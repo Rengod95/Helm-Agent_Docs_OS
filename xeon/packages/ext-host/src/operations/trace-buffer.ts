@@ -5,6 +5,7 @@ import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type {
   ExtTimingsResult,
   HookName,
+  HookRunDecision,
   TraceFailureReason,
   TraceHandlerEntry,
   TraceHandlerResult,
@@ -52,6 +53,8 @@ interface TraceRecord {
   /** 앞 핸들러 때문에 건너뛴 경우 그 핸들러. 아니면 null */
   readonly skippedBy: string | null;
   readonly reason: TraceFailureReason | null;
+  /** 낸 결정(M5e §4.5). 지금은 보관하지 않는다. 기록 스펙(M5d)이 저장할 때 항목에 싣는다 */
+  readonly decision?: HookRunDecision;
 }
 
 /** 디스패치 하나의 기록기. 핸들러 기록은 첫 기록 때 항목 하나로 만들어진다 */
@@ -119,6 +122,28 @@ function prefixOf(dispatchKey: string): string {
   return colon < 0 ? dispatchKey : dispatchKey.slice(0, colon);
 }
 
+/**
+ * 키가 `<stepId>:<훅>:<toolCallId>[:<n>]` 모양인 도구 호출 지점의 훅(pipeline.ts의 dispatchKey 규칙).
+ * 다른 훅의 키에는 셋째 자리가 호출 id가 아니므로(예: `approval:<id>:…`) 이 훅들에서만 호출 id를 얻는다
+ */
+const TOOL_CALL_KEY_HOOKS: ReadonlySet<string> = new Set([
+  "tool.call.before",
+  "guard.tool.before",
+  "tool.result",
+  "tool.execution.before",
+  "tool.execution.update",
+  "tool.execution.after",
+]);
+
+/** 도구 호출 지점의 디스패치 키 접미에서 호출 id를 얻는다. 해당 지점이 아니거나 모양이 다르면 null */
+function toolCallIdOf(dispatchKey: string, hook: string): string | null {
+  if (!TOOL_CALL_KEY_HOOKS.has(hook)) return null;
+  const parts = dispatchKey.split(":");
+  if (parts.length < 3 || parts[1] !== hook) return null;
+  const callId = parts[2];
+  return callId === undefined || callId === "" ? null : callId;
+}
+
 /** 맵의 가장 오래된 항목(삽입 순서의 맨 앞)을 뺀다 */
 function dropOldest<V>(map: Map<string, V>): void {
   const oldest = map.keys().next();
@@ -183,6 +208,7 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
     turn: TurnTrace,
     step: number,
     hook: string,
+    toolCallId: string | null,
   ): TraceDispatch {
     let entry: MutableEntry | undefined;
     return {
@@ -204,6 +230,8 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
           size: run.size,
           skippedBy: run.skippedBy,
           reason: run.reason,
+          // 호출 지점이 아니면 키를 두지 않는다(옛 기록과 같은 모양)
+          ...(toolCallId === null ? {} : { toolCallId }),
         });
       },
     };
@@ -232,6 +260,7 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
     turnId: string,
     hook: HookName,
     now: number,
+    toolCallId: string | null,
   ): TraceDispatch | undefined {
     const thread = threadOf(threadId);
     let turn = thread.turns.get(turnId);
@@ -240,7 +269,7 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
       touch(threadId, thread);
     }
     thread.current = turnId;
-    return turn.enabled ? dispatchOf(threadId, thread, turn, 0, hook) : undefined;
+    return turn.enabled ? dispatchOf(threadId, thread, turn, 0, hook, toolCallId) : undefined;
   }
 
   /** stp_ 키와 그 밖의 키: 현재 Turn에 붙는다(stp_는 단계 번호를 받는다). 현재 Turn이 없으면 기록하지 않는다 */
@@ -248,20 +277,22 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
     threadId: string,
     prefix: string,
     hook: HookName,
+    toolCallId: string | null,
   ): TraceDispatch | undefined {
     const thread = threads.get(threadId);
     if (thread === undefined || thread.current === undefined) return undefined;
     const turn = thread.turns.get(thread.current);
     if (turn === undefined || !turn.enabled) return undefined;
     const step = prefix.startsWith("stp_") ? stepOrdinal(turn, prefix) : 0;
-    return dispatchOf(threadId, thread, turn, step, hook);
+    return dispatchOf(threadId, thread, turn, step, hook, toolCallId);
   }
 
   return {
     start({ threadId, dispatchKey, hook, now }) {
       const prefix = prefixOf(dispatchKey);
-      if (prefix.startsWith("trn_")) return startTurn(threadId, prefix, hook, now);
-      return startInCurrent(threadId, prefix, hook);
+      const toolCallId = toolCallIdOf(dispatchKey, hook);
+      if (prefix.startsWith("trn_")) return startTurn(threadId, prefix, hook, now, toolCallId);
+      return startInCurrent(threadId, prefix, hook, toolCallId);
     },
 
     turn(threadId, turnId) {

@@ -32,11 +32,18 @@ export function encodeHookInput(input: HookInput): string {
 const HookOutputSchema = Type.Object(
   {
     decision: Type.Optional(Type.Unknown()),
+    /** `decision`이 문자열 `"ask"`일 때의 사유(M5e 스펙 §4.2). 객체 결정은 자기 `reason`을 싣는다 */
+    reason: Type.Optional(Type.String({ maxLength: 2000 })),
     patch: Type.Optional(Type.Unknown()),
     message: Type.Optional(Type.String({ maxLength: 2000 })),
   },
   { additionalProperties: false },
 );
+
+/** 셸 훅의 묻기 표기 `{"decision":"ask","reason":"…"}`를 결정 값 `{ask: true, reason}`으로 읽는다(M5e 스펙 §4.2). 다른 값은 그대로 둔다 */
+function shellDecisionOf(decision: unknown, reason: string | undefined): unknown {
+  return decision === "ask" ? { ask: true, reason: (reason ?? "").slice(0, 500) } : decision;
+}
 
 type HookFailureKind = "hook_exit" | "hook_spawn" | "hook_output" | "timeout";
 
@@ -78,8 +85,10 @@ export function interpretHookRun(fold: "tap" | "first" | "chain", run: HookRawRu
   if (!parsed.ok || !Value.Check(HookOutputSchema, parsed.value)) {
     return { kind: "failure", failure: "hook_output", detail: "stdout is not a valid hook output" };
   }
-  const { decision, patch } = parsed.value;
-  if (fold === "first" && decision !== undefined) return { kind: "decision", decision };
+  const { decision, reason, patch } = parsed.value;
+  if (fold === "first" && decision !== undefined) {
+    return { kind: "decision", decision: shellDecisionOf(decision, reason) };
+  }
   if (fold === "chain" && patch !== undefined) return { kind: "patch", patch };
   return { kind: "pass" };
 }

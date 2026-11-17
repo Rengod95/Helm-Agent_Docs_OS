@@ -1,4 +1,4 @@
-import type { HookName, TraceFailureReason } from "@fresnel/contracts/extensions";
+import type { HookName, HookRunDecision, TraceFailureReason } from "@fresnel/contracts/extensions";
 import type { HandlerFailure, HandlerFailureReason, HandlerRef } from "../dispatch-types.ts";
 import type { HandlerEntry } from "../registry.ts";
 
@@ -25,7 +25,7 @@ interface AbortedRun {
 export type RunResult = OkRun | FailedRun | AbortedRun;
 
 /** 값을 낸 실행을 fold가 어떻게 받아들였는가(계측 결과 다섯 중 값을 내고 끝난 넷) */
-type OkVerdict =
+type OkVerdictResult =
   | { readonly result: "passed" }
   | { readonly result: "blocked" }
   /** 값이 결과에 반영됐다. 크기는 계측이 켜졌을 때만 센다 */
@@ -34,6 +34,12 @@ type OkVerdict =
       readonly result: "failed";
       readonly reason: Exclude<TraceFailureReason, "threw" | "timeout">;
     };
+
+/**
+ * 값을 낸 실행의 기록. `decision`은 낸 결정이다(M5e 스펙 §4.5). 합치기 지점의 `ask`·`replace`는 결과가 `passed`이고
+ * 결정만 이 칸에 남는다. 계측 기록기는 지금 이 칸을 저장하지 않고, 기록 스펙(M5d)이 저장한다
+ */
+type OkVerdict = OkVerdictResult & { readonly decision?: HookRunDecision };
 
 /** fold 알고리즘이 디스패처에서 받는 도구 묶음 */
 export interface FoldEnv {

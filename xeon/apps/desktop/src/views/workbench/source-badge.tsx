@@ -13,6 +13,10 @@ const SCOPE_TEXT: Readonly<Record<SourceScope, MessageId>> = {
   managed: "desktop.workbench.scope.managed",
   local: "desktop.workbench.scope.local",
   default: "desktop.workbench.scope.default",
+  profile: "desktop.workbench.scope.profile",
+  common: "desktop.workbench.scope.common",
+  core: "desktop.workbench.scope.core",
+  overlay: "desktop.workbench.scope.overlay",
 };
 
 /** 범위의 글. 어느 층이 값을 정했는지 글로 보인다 */

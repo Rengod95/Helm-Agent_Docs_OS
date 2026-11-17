@@ -13,6 +13,7 @@ import {
   type RecordQuery,
   type RecordSubject,
   extensionPrefix,
+  pluginDeclsOf,
   type RegistrationId,
   validateGroupRecord,
 } from "@fresnel/contracts/extensions";
@@ -735,7 +736,7 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
       }
       const rows = queried.value;
       const own = new Map(
-        record.manifest.plugins
+        pluginDeclsOf(record.manifest)
           .flatMap((p) => p.recordKinds ?? [])
           .map((decl) => [decl.kind, decl.version]),
       );

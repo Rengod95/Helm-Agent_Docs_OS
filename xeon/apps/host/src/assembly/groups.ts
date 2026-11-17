@@ -44,7 +44,7 @@ export interface HostGroupsOptions {
 export function isGroupCatalogManifest(manifest: ExtensionManifest): boolean {
   return (
     isGroupExtension(manifest) &&
-    manifest.plugins.some((plugin) => plugin.id === undefined && plugin.layer === "L3")
+    (manifest.plugins ?? []).some((plugin) => plugin.id === undefined && plugin.layer === "L3")
   );
 }
 

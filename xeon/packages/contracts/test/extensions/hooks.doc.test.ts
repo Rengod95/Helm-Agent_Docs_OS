@@ -46,8 +46,8 @@ function docRows(text: string): DocRow[] {
 describe("points doc table", () => {
   test.skipIf(!existsSync(SPEC))("name, kind, fold, failure, M1 and pi source match HOOKS", () => {
     const rows = docRows(readFileSync(SPEC, "utf8"));
-    expect(rows).toHaveLength(46);
-    expect(rows.map((row) => row.n)).toEqual(Array.from({ length: 46 }, (_, i) => i + 1));
+    expect(rows).toHaveLength(50);
+    expect(rows.map((row) => row.n)).toEqual(Array.from({ length: 50 }, (_, i) => i + 1));
     expect(rows.map((row) => row.name)).toEqual([...HOOK_NAMES]);
     for (const row of rows) {
       const code = HOOK_NAMES.map((name) => HOOKS[name]).find((decl) => decl.name === row.name);

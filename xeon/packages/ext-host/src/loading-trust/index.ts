@@ -1,17 +1,28 @@
 // loading-trust 도메인의 모든 export(패키지 내부용 포함). 루트(src/index.ts)는 공개 이름만 다시 내보낸다.
 import { basename } from "node:path";
-import { attemptAsync, Bug, err, ok, parseJson, type Result } from "@fresnel/contracts";
+import {
+  attemptAsync,
+  Bug,
+  err,
+  ok,
+  parseJson,
+  type Logger,
+  type Result,
+} from "@fresnel/contracts";
 import { isSemVer, type CapabilityId, type SemVer } from "@fresnel/contracts/capabilities";
 import {
   effectiveLayer,
+  pluginDeclsOf,
   validateManifest,
   validateManifestSet,
+  type ExtensionEntry,
   type ExtensionManifest,
   type ExtensionName,
   type LoaderFs,
   type LoaderPaths,
   type IsolationProcessPort,
   type ManifestIssue,
+  type PluginDecl,
   type TrustPrompter,
   type TrustStoreBackend,
 } from "@fresnel/contracts/extensions";
@@ -68,6 +79,17 @@ import {
 import { resolveProjectTrust, type ProjectTrustResult } from "./trust/resolve.ts";
 import { createProjectTrustStore } from "./trust/store.ts";
 import { registerSdkModules, X_SDK_MODULES, type SdkModules } from "./virtual-modules.ts";
+import {
+  effectiveIsolationOf,
+  type IsolationDecision,
+  type IsolationRefusal,
+} from "../isolation/effective.ts";
+import {
+  createIsolatedEntry,
+  type IsolationLaunch,
+  type IsolationLaunchInfo,
+} from "../isolation/proxy-entry.ts";
+import type { PluginHostSupervisor, RestartLimitInfo } from "../isolation/supervisor.ts";
 
 export {
   BUILTIN_LAYER_ORDER,
@@ -170,6 +192,11 @@ export { verdictOfInstall } from "./entry-loader.ts";
 
 export type { LoaderMode } from "./trust/levels.ts";
 
+/** 매니페스트의 플러그인 선언(`plugins` 없으면 추론한 루트 하나). 기록에 매니페스트가 없으면 빈 목록이다 */
+function declsOfManifest(manifest: ExtensionManifest | undefined): readonly PluginDecl[] {
+  return manifest === undefined ? [] : pluginDeclsOf(manifest);
+}
+
 export interface LoadOptions {
   readonly builtins: readonly BuiltinExtensionModule[];
   readonly cwd: string;
@@ -249,6 +276,40 @@ export interface LoaderSettingsSource {
   hasValue(key: string): boolean;
   /** `x.loading-trust.defaultProjectTrust` 유효 값. 없으면 "ask" */
   defaultProjectTrust?(): "ask" | "always" | "never";
+  /**
+   * `ext.<name>.isolation`의 명시 값. 값을 정하지 않았으면 undefined다(기본값은 세지 않는다. 매니페스트와 기본 규칙을 쓴다).
+   * 설정 값 `none`은 격리 확장을 엔진 안에서 돌리도록 허용한다(F5)
+   */
+  isolation?(name: ExtensionName): "none" | "process" | undefined;
+  /** `ext.*` 설정 키의 유효 값(`hostOf(g).settingValue`와 같은 값). 격리 확장의 호스트 초기화 설정에 쓴다 */
+  settingValue?(key: string): unknown;
+}
+
+/**
+ * 격리 확장(플러그인 호스트 프로세스)을 띄우는 조립 설정. `LoaderDeps.process`(띄우기 포트)와 함께 주입해야 격리를 쓸 수 있다.
+ * 둘 중 하나라도 없으면 격리 설정 확장은 명시 요청이면 `isolation_unavailable`, 기본이면 엔진 안에서 돈다
+ */
+export interface LoaderIsolation {
+  /** 띄울 명령과 환경을 정한다. 앱이 정한다(예: 엔진 실행 파일의 하위 명령). 띄울 때마다 부른다 */
+  readonly launch: (info: IsolationLaunchInfo) => IsolationLaunch;
+  /** 유휴 내리기, 시간 초과, 죽음 셈의 시계. 취소 함수를 돌려준다 */
+  readonly setTimer: (ms: number, fn: () => void) => () => void;
+  /** 감독 진단을 기록한다. 없으면 버린다 */
+  readonly logger?: Logger;
+  /** host.init 응답 시간 한도(ms). 기본 10초 */
+  readonly initTimeoutMs?: number;
+  /** 마지막 호출 뒤 내리기까지(ms). 기본은 감독 기본값 */
+  readonly idleMs?: number;
+  /** 멈춤 요청 뒤 강제 종료까지(ms). 기본은 감독 기본값 */
+  readonly killGraceMs?: number;
+  /** 죽은 뒤 다시 띄우는 횟수. 기본은 감독 기본값 */
+  readonly maxRestarts?: number;
+  /** 표준오류 한 줄을 저장하기 전에 가린다. 던지면 그 줄을 버린다 */
+  readonly maskSecrets?: (line: string) => string;
+  /** 재시작 한도를 넘으면 한 번 알린다. 앱은 이 알림으로 확장을 끌지 묻는다 */
+  readonly onRestartLimit?: (name: ExtensionName, info: RestartLimitInfo) => void;
+  /** 세션(감독)을 열 때마다 부른다. 조립이 표준오류 꼬리 같은 진단을 읽을 때 쓴다 */
+  readonly onSupervisor?: (name: ExtensionName, supervisor: PluginHostSupervisor) => void;
 }
 
 /** 조립 루트가 주입하는 의존. 필수 항목이 없으면 시작 실패다(X.loading-trust.spec §4.3.2) */
@@ -265,8 +326,10 @@ export interface LoaderDeps {
   readonly trustBackend: TrustStoreBackend;
   /** 대화형 프롬프트. headless면 없다 */
   readonly prompter?: TrustPrompter;
-  /** 격리(2차). 없으면 격리 설정 확장은 isolation_unavailable */
+  /** 격리의 띄우기 포트(fresnel.process 서비스). 없으면 격리 설정 확장은 명시면 isolation_unavailable, 기본이면 엔진 안이다 */
   readonly process?: IsolationProcessPort;
+  /** 격리 확장을 띄우는 설정(명령, 시계, 진단). `process`와 함께 있어야 격리가 실행된다(F5) */
+  readonly isolation?: LoaderIsolation;
   readonly clock: { now(): number };
   readonly settings?: LoaderSettingsSource;
   /** 코어가 제공하는 기능과 버전. 6단계가 매니페스트 provides와 함께 본다 [가정: 코어 기능 레지스트리 API는 X.primitives] */
@@ -406,6 +469,17 @@ interface ExtRecord {
   ui: readonly UiItemReport[];
   /** 마지막 설치에서 켜기가 실행 중인 turn 때문에 단계 경계로 미뤄졌는가 */
   deferred: boolean;
+  /** 실제로 격리 프로세스에서 도는가(설치가 성공한 격리 확장). 보고 `LoadedExtensionInfo.isolation`이 이것이다 */
+  isolation: "none" | "process";
+  /** 격리 감독 손잡이. 격리로 설치할 때 만들고, 세션이 열릴 때마다 현재 감독을 바꾼다 */
+  handle: IsolationHandle | undefined;
+  /** 다시 읽기 중인가. 격리 세션을 닫는 사유를 `reload`로 정한다 */
+  reloading: boolean;
+}
+
+/** 격리 확장 하나의 감독 손잡이. `current`는 지금 세션의 감독이다 */
+interface IsolationHandle {
+  current: PluginHostSupervisor | undefined;
 }
 
 function versionOf(manifest: ExtensionManifest | undefined): SemVer {
@@ -436,6 +510,31 @@ function projectDiagnostic(
     message,
     generation: 0,
   };
+}
+
+function refusalMessage(name: ExtensionName, code: IsolationRefusal): string {
+  return code === "isolation_drive_unsupported"
+    ? `${name} requires process isolation, but it declares drives, which an isolated extension does not support; set ext.${name}.isolation to none to run it inside the engine`
+    : `${name} requires process isolation, but no fresnel.process service is available; set ext.${name}.isolation to none to run it inside the engine`;
+}
+
+/** 격리 감독 손잡이의 세션을 닫는다. 손잡이가 없으면 아무것도 하지 않는다 */
+function retireHandle(handle: IsolationHandle | undefined, reason: "disabled" | "reload"): void {
+  handle?.current?.dispose(reason);
+}
+
+/** 기록의 격리 세션을 닫고 격리 상태를 되돌린다. 호스트에서 내린 뒤에 부른다(정리 동작이 먼저 돌도록) */
+function retireRecord(record: ExtRecord, reason: "disabled" | "reload"): void {
+  retireHandle(record.handle, reason);
+  record.handle = undefined;
+  record.isolation = "none";
+}
+
+/** 설치 진단 코드가 놓이는 단계. 격리 코드는 격리 단계다 */
+function stageOfVerdict(code: LoadDiagnosticCode): LoadStage {
+  if (code === "usage_invalid" || code === "usage_warning") return "usage";
+  if (code.startsWith("isolation_")) return "isolation";
+  return "entry";
 }
 
 function fallbackKey(name: string): OrderKey {
@@ -551,8 +650,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       source: record.source,
       trust: record.trust,
       state: record.state,
-      // 격리 실행은 없다. 격리를 요청한 확장은 isolation_unavailable로 거부되므로 실제 격리는 항상 none이다
-      isolation: "none",
+      isolation: record.isolation,
       essential: record.essential,
       loadIndex: record.loadIndex,
       generation: record.generation,
@@ -645,6 +743,9 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         diagnostics: [],
         ui: [],
         deferred: false,
+        isolation: "none",
+        handle: undefined,
+        reloading: false,
       };
       const first = records.get(name);
       if (first !== undefined) {
@@ -745,21 +846,29 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     return batch;
   }
 
-  /**
-   * 격리 설정 확장 거부. 2차 격리(§4.9)가 구현되기 전에는 `isolation: "process"`를 같은 프로세스에서 조용히 실행하지 않고
-   * `isolation_unavailable`로 거부한다(§5). 격리 포트가 주입돼 있어도 실행 경로가 없으므로 같다
-   */
+  /** 실효 격리 판정(F5). 설정 값, 매니페스트, 포트 유무, drives로 정한다. 다시 읽기는 새 매니페스트로 다시 부른다 */
+  function isolationOf(
+    record: ExtRecord,
+    manifest: ExtensionManifest | undefined,
+  ): IsolationDecision {
+    return effectiveIsolationOf({
+      source: record.source,
+      setting: deps.settings?.isolation?.(record.name),
+      manifest: manifest?.isolation,
+      hasEntry: manifest?.entry !== undefined,
+      hasDrives:
+        manifest === undefined
+          ? false
+          : pluginDeclsOf(manifest).some((plugin) => plugin.drives === true),
+      portAvailable: deps.process !== undefined && deps.isolation !== undefined,
+    });
+  }
+
+  /** 4b단계: 명시 요청이 맞지 않으면 거부한다. 기본 격리는 포트가 없거나 drives가 있으면 엔진 안에서 돈다 */
   function checkIsolation(record: ExtRecord): void {
-    if (record.manifest?.isolation !== "process") return;
-    fail(
-      record,
-      "error",
-      "isolation",
-      "isolation_unavailable",
-      deps.process === undefined
-        ? `${record.name} requires process isolation, but no fresnel.process service is available`
-        : `${record.name} requires process isolation, which this host does not run yet`,
-    );
+    const decision = isolationOf(record, record.manifest);
+    if (decision.kind !== "refused") return;
+    fail(record, "error", "isolation", decision.code, refusalMessage(record.name, decision.code));
   }
 
   /** 5단계: userConfig 검증. 예약 키 충돌과 다른 네임스페이스 침범은 거부한다 */
@@ -834,7 +943,8 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       );
       return false;
     }
-    const enabled = enabledSettingOf(record) ?? manifest.defaultEnabled ?? true;
+    // 켜짐은 대화별 E(T)가 정한다(M5c §4.1.11). 여기서는 관리 잠금(`ext.<이름>.enabled = false`)만 본다
+    const enabled = enabledSettingOf(record) ?? true;
     if (!enabled) {
       fail(
         record,
@@ -868,16 +978,20 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       for (const record of alive.filter((candidate) => candidate.state === "resolved")) {
         const manifest = record.manifest;
         if (manifest === undefined) continue;
-        for (const requirement of manifest.plugins.flatMap((plugin) => plugin.requires ?? [])) {
+        for (const requirement of pluginDeclsOf(manifest).flatMap(
+          (plugin) => plugin.requires ?? [],
+        )) {
           const provided = alive.some(
             (other) =>
               other !== record &&
               (other.state === "resolved" || other.state === "active") &&
-              (other.manifest?.plugins.flatMap((plugin) => plugin.provides ?? []) ?? []).some(
-                (provision) =>
-                  provision.id === requirement.id &&
-                  satisfiesRange(provision.version, requirement.range),
-              ),
+              declsOfManifest(other.manifest)
+                .flatMap((plugin) => plugin.provides ?? [])
+                .some(
+                  (provision) =>
+                    provision.id === requirement.id &&
+                    satisfiesRange(provision.version, requirement.range),
+                ),
           );
           const core = [...(deps.coreCapabilities ?? [])].some(
             ([id, version]) => id === requirement.id && satisfiesRange(version, requirement.range),
@@ -904,19 +1018,21 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
    */
   function installSequence(loadOrdered: readonly ExtRecord[]): readonly ExtRecord[] {
     const providersOf = (record: ExtRecord): ExtRecord[] => {
-      const requirements =
-        record.manifest?.plugins.flatMap((plugin) => plugin.requires ?? []) ?? [];
+      const requirements = declsOfManifest(record.manifest).flatMap(
+        (plugin) => plugin.requires ?? [],
+      );
       return loadOrdered.filter(
         (other) =>
           other !== record &&
-          (other.manifest?.plugins.flatMap((plugin) => plugin.provides ?? []) ?? []).some(
-            (provision) =>
+          declsOfManifest(other.manifest)
+            .flatMap((plugin) => plugin.provides ?? [])
+            .some((provision) =>
               requirements.some(
                 (requirement) =>
                   requirement.id === provision.id &&
                   satisfiesRange(provision.version, requirement.range),
               ),
-          ),
+            ),
       );
     };
     const sequence: ExtRecord[] = [];
@@ -934,20 +1050,60 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
 
   /** 요구한 기능을 공급하기로 한 확장이 모두 활성화되지 못했으면 그 기능 id를 돌려준다 */
   function deadProvider(record: ExtRecord): CapabilityId | undefined {
-    for (const requirement of record.manifest?.plugins.flatMap((plugin) => plugin.requires ?? []) ??
-      []) {
+    for (const requirement of declsOfManifest(record.manifest).flatMap(
+      (plugin) => plugin.requires ?? [],
+    )) {
       const potential = order.some(
         (other) =>
           other !== record &&
           (other.state === "resolved" || other.state === "loading" || other.state === "active") &&
-          (other.manifest?.plugins.flatMap((plugin) => plugin.provides ?? []) ?? []).some(
-            (provision) => provision.id === requirement.id,
-          ),
+          declsOfManifest(other.manifest)
+            .flatMap((plugin) => plugin.provides ?? [])
+            .some((provision) => provision.id === requirement.id),
       );
       const core = [...(deps.coreCapabilities ?? [])].some(([id]) => id === requirement.id);
       if (!potential && !core) return toCapabilityIds([requirement.id])[0];
     }
     return undefined;
+  }
+
+  /** 격리 확장의 엔트리를 만든다. 감독 손잡이는 세션이 열릴 때 채운다. 다시 읽기는 새 손잡이와 세대를 준다 */
+  function isolatedEntryFor(
+    record: ExtRecord,
+    manifest: ExtensionManifest,
+    root: string,
+    generation: number,
+    handle: IsolationHandle,
+  ): ExtensionEntry {
+    const port = deps.process;
+    const isolation = deps.isolation;
+    if (port === undefined || isolation === undefined) {
+      throw new Bug(`loader.isolation_without_port: ${record.name}`);
+    }
+    return createIsolatedEntry({
+      manifest,
+      root,
+      versionId: `${manifest.version}.${generation}`,
+      port,
+      launch: isolation.launch,
+      setTimer: isolation.setTimer,
+      now: () => deps.clock.now(),
+      ...(isolation.logger === undefined ? {} : { logger: isolation.logger }),
+      settingValue: (key) => deps.settings?.settingValue?.(key),
+      endReason: () => (record.reloading ? "reload" : "disabled"),
+      onRestartLimit: (info) => {
+        isolation.onRestartLimit?.(record.name, info);
+      },
+      onSupervisor: (supervisor) => {
+        handle.current = supervisor;
+        isolation.onSupervisor?.(record.name, supervisor);
+      },
+      ...(isolation.initTimeoutMs === undefined ? {} : { initTimeoutMs: isolation.initTimeoutMs }),
+      ...(isolation.idleMs === undefined ? {} : { idleMs: isolation.idleMs }),
+      ...(isolation.killGraceMs === undefined ? {} : { killGraceMs: isolation.killGraceMs }),
+      ...(isolation.maxRestarts === undefined ? {} : { maxRestarts: isolation.maxRestarts }),
+      ...(isolation.maskSecrets === undefined ? {} : { maskSecrets: isolation.maskSecrets }),
+    });
   }
 
   /** 외부 확장의 엔트리를 import해 설치 단위로 만든다. 실패하면 진단을 남기고 undefined */
@@ -958,12 +1114,21 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
   ): Promise<ExtensionUnit | undefined> {
     const module = record.candidate.builtin;
     const initialEnabled = enabledSettingOf(record);
+    record.handle = undefined;
     // 단위에 싣는 등급은 신뢰 단계가 정한 유효 등급이다. 요청 값은 상한을 넘으면 이미 거부되었다
     if (module !== null) {
       return unitOfBuiltin(module, manifest, loadIndex, initialEnabled, record.trust);
     }
     const root = record.candidate.root;
     if (root === null) return undefined;
+    const decision = isolationOf(record, manifest);
+    if (decision.kind === "refused") return undefined;
+    if (decision.kind === "process") {
+      const handle: IsolationHandle = { current: undefined };
+      record.handle = handle;
+      const entry = isolatedEntryFor(record, manifest, root, record.generation, handle);
+      return unitOfExternal(entry, manifest, loadIndex, initialEnabled, record.trust);
+    }
     // X가 쓰는 SDK 모듈(contracts와 하위 경로, typebox)은 항상 등록하고, 조립 루트가 넘긴 것(group-sdk 등)을 더한다
     const registered = registerSdkModules({ ...X_SDK_MODULES, ...deps.sdkModules });
     if (!registered.ok) {
@@ -1024,13 +1189,14 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       deps.policy.forget(record.name);
       return;
     }
+    const isolated = record.handle !== undefined;
     try {
       const result = await deps.host.install(unit, { signal });
       const verdict = verdictOfInstall(result);
       for (const entry of verdict.diagnostics) {
         diag(
           record,
-          entry.code === "usage_invalid" || entry.code === "usage_warning" ? "usage" : "entry",
+          stageOfVerdict(entry.code),
           entry.severity,
           entry.code,
           entry.message,
@@ -1040,10 +1206,12 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       if (!verdict.ok) {
         record.state = "error";
         await deps.host.uninstall(record.name);
+        retireRecord(record, "disabled");
         deps.policy.forget(record.name);
         return;
       }
       record.deferred = result.setups.some((setup) => setup.status === "deferred");
+      record.isolation = isolated ? "process" : "none";
       record.state = "active";
     } catch (error) {
       fail(
@@ -1054,6 +1222,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         `install of ${record.name} failed: ${error instanceof Error ? error.message : String(error)}`,
       );
       await deps.host.uninstall(record.name);
+      retireRecord(record, "disabled");
       deps.policy.forget(record.name);
     }
   }
@@ -1063,14 +1232,14 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     const orphan = order
       .filter((candidate) => candidate.state === "active")
       .find((record) =>
-        (record.manifest?.plugins.flatMap((plugin) => plugin.requires ?? []) ?? []).some(
-          (requirement) => !hasProvider(record, requirement.id),
-        ),
+        declsOfManifest(record.manifest)
+          .flatMap((plugin) => plugin.requires ?? [])
+          .some((requirement) => !hasProvider(record, requirement.id)),
       );
     if (orphan === undefined) return;
-    const lost = (orphan.manifest?.plugins.flatMap((plugin) => plugin.requires ?? []) ?? []).find(
-      (requirement) => !hasProvider(orphan, requirement.id),
-    );
+    const lost = declsOfManifest(orphan.manifest)
+      .flatMap((plugin) => plugin.requires ?? [])
+      .find((requirement) => !hasProvider(orphan, requirement.id));
     fail(
       orphan,
       "error",
@@ -1079,6 +1248,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       `${orphan.name} lost its provider of ${lost?.id ?? "?"}`,
     );
     await deps.host.uninstall(orphan.name);
+    retireRecord(orphan, "disabled");
     deps.policy.forget(orphan.name);
     await cascadeProviderFailures();
   }
@@ -1088,9 +1258,9 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       (other) =>
         other !== record &&
         other.state === "active" &&
-        (other.manifest?.plugins.flatMap((plugin) => plugin.provides ?? []) ?? []).some(
-          (provision) => provision.id === id,
-        ),
+        declsOfManifest(other.manifest)
+          .flatMap((plugin) => plugin.provides ?? [])
+          .some((provision) => provision.id === id),
     );
     return provider || [...(deps.coreCapabilities ?? [])].some(([coreId]) => coreId === id);
   }
@@ -1158,7 +1328,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       owner: {
         name: manifest.name,
         ...(manifest.group === undefined ? {} : { group: manifest.group }),
-        readsRecordKinds: manifest.plugins.flatMap((decl) => decl.readsRecordKinds ?? []),
+        readsRecordKinds: pluginDeclsOf(manifest).flatMap((decl) => decl.readsRecordKinds ?? []),
       },
       policy: uiPolicy,
       hostWidgetsVersion: HOST_WIDGETS_VERSION,
@@ -1267,6 +1437,31 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       );
       return rejected();
     }
+    // 3b. 격리 판정을 새 매니페스트로 다시 한다. 엔진 안과 격리 사이를 바꾸는 다시 읽기는 재시작이 필요하다
+    const decision = isolationOf(record, manifest);
+    if (decision.kind === "refused") {
+      reloadDiag(
+        record,
+        found,
+        "isolation",
+        decision.code,
+        `reload of ${name}: ${refusalMessage(name, decision.code)}`,
+      );
+      return rejected();
+    }
+    if ((decision.kind === "process") !== (record.isolation === "process")) {
+      reloadDiag(
+        record,
+        found,
+        "isolation",
+        "reload_rejected",
+        `reload of ${name}: the isolation changed; restart the host to apply it`,
+      );
+      return rejected();
+    }
+    if (decision.kind === "process") {
+      return reloadIsolated(record, manifest, root, record.loadIndex, signal, found, options);
+    }
     // 4. 엔트리를 새 세대로 import한다
     const registered = registerSdkModules({ ...X_SDK_MODULES, ...deps.sdkModules });
     if (!registered.ok) {
@@ -1336,6 +1531,82 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     return ok({ appliesAt: started.value.appliesAt, applied });
   }
 
+  /**
+   * 격리 확장의 다시 읽기. 새 세대의 엔트리가 새 감독을 연다(엔트리가 `host.init`까지 맞춘다). 적용이 끝나면 옛 감독을 `reload`로 닫는다.
+   * 적용이 실패하거나 취소되면 새 감독을 닫고 옛 버전이 그대로 돈다
+   */
+  async function reloadIsolated(
+    record: ExtRecord,
+    manifest: ExtensionManifest,
+    root: string,
+    loadIndex: number,
+    signal: AbortSignal,
+    found: LoadDiagnostic[],
+    options: ReloadOptions | undefined,
+  ): Promise<Result<ReloadStarted, ReloadFailure>> {
+    const name = record.name;
+    const generation = record.generation + 1;
+    throwIfCancelled(signal, `reloading ${name}`);
+    const handle: IsolationHandle = { current: undefined };
+    const unit = unitOfExternal(
+      isolatedEntryFor(record, manifest, root, generation, handle),
+      manifest,
+      loadIndex,
+      undefined,
+      record.trust,
+    );
+    record.reloading = true;
+    const started = await deps.host.replaceUnit(unit, {
+      signal,
+      ...(options?.resetRefusedState === true ? { resetRefusedState: true } : {}),
+    });
+    if (!started.ok) {
+      record.reloading = false;
+      retireHandle(handle, "reload");
+      const refusal = started.error;
+      reloadDiag(
+        record,
+        found,
+        "entry",
+        refusal.kind === "plugins_unregistered" ? "plugin_not_registered" : "entry_threw",
+        refusal.kind === "entry_failed"
+          ? `reload of ${name}: entry threw: ${messageOfError(refusal.error)}`
+          : refusal.kind === "plugins_unregistered"
+            ? `reload of ${name}: the entry did not register ${refusal.registrations.join(", ")}`
+            : `reload of ${name}: the extension is not installed in the host`,
+      );
+      return err({ kind: "rejected", diagnostics: found });
+    }
+    const applied = started.value.applied.then(async (outcome): Promise<ReloadApplied> => {
+      record.reloading = false;
+      if (outcome.status === "superseded" || outcome.status === "cancelled") {
+        retireHandle(handle, "reload");
+        return outcome;
+      }
+      if (outcome.status === "failed") {
+        retireHandle(handle, "reload");
+        const issued: LoadDiagnostic[] = [];
+        reloadDiag(
+          record,
+          issued,
+          "activate",
+          "reload_failed",
+          `reload of ${name} failed at ${outcome.scopeId} (${outcome.code}): ${outcome.message}; ${outcome.restored ? "the previous version keeps running" : `these scopes stayed off: ${outcome.failedToRestore.join(", ")}`}`,
+        );
+        return { status: "failed", diagnostics: issued, restored: outcome.restored };
+      }
+      const previous = record.handle;
+      record.handle = handle;
+      retireHandle(previous, "reload");
+      record.manifest = manifest;
+      record.generation = generation;
+      record.ui = [];
+      await checkUiOf(record);
+      return { status: "applied", statesCleared: outcome.statesCleared, info: infoOf(record) };
+    });
+    return ok({ appliesAt: started.value.appliesAt, applied });
+  }
+
   async function ensureLoaded(
     name: ExtensionName,
     signal: AbortSignal,
@@ -1349,6 +1620,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       checkCapabilities(
         order.filter((candidate) => candidate.state === "resolved" || candidate.state === "active"),
       );
+      checkIsolation(record);
       if (currentState(record) === "resolved") await install(record, signal);
     }
     assertNotEssentialFailure(record);
@@ -1410,6 +1682,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     order = order.filter((item) => item !== record);
     if (record.state === "active" || record.state === "loading") {
       await deps.host.uninstall(name);
+      retireRecord(record, "disabled");
       deps.policy.forget(name);
     }
     await cascadeProviderFailures();
@@ -1667,7 +1940,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       const record = records.get(name);
       if (record === undefined) return undefined;
       throwIfCancelled(signal, `applying the setting of ${name}`);
-      const enabled = enabledSettingOf(record) ?? record.manifest?.defaultEnabled ?? true;
+      const enabled = enabledSettingOf(record) ?? true;
       if (record.state === "disabled" && enabled) return ensureLoaded(name, signal);
       if (record.state === "active") {
         for (const info of deps.host.registrations().filter((scope) => scope.extension === name)) {
@@ -1695,6 +1968,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       await eachInOrder([...order].toReversed(), async (record) => {
         if (record.state !== "active") return "continue";
         await deps.host.uninstall(record.name);
+        retireRecord(record, "disabled");
         deps.policy.forget(record.name);
         record.state = "disabled";
         return "continue";

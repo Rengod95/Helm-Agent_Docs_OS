@@ -21,7 +21,7 @@ import {
   useWorkbenchController,
   type WorkbenchController,
 } from "../../../src/views/workbench/controller.ts";
-import { removableOf, removeDoneText } from "../../../src/views/workbench/remove-model.ts";
+import { REMOVE_REQUESTED_TEXT, removableOf } from "../../../src/views/workbench/remove-model.ts";
 import { SelectionPanel } from "../../../src/views/workbench/selection-panel.tsx";
 import { harness } from "../../state/helpers.ts";
 import { fakeCommands } from "../fake-commands.ts";
@@ -61,13 +61,9 @@ describe("지우기 판단", () => {
     expect(removableOf({})).toBe(false);
   });
 
-  test("적용 시점마다 다른 문장을 고른다", () => {
-    expect(t(removeDoneText("now"))).toBe(t("desktop.workbench.remove.done.now"));
-    expect(t(removeDoneText("nextStepBoundary"))).toBe(t("desktop.workbench.remove.done.boundary"));
-    expect(t(removeDoneText("restart"))).toBe(t("desktop.workbench.remove.done.restart"));
-    expect(t("desktop.workbench.remove.done.now")).not.toBe(
-      t("desktop.workbench.remove.done.restart"),
-    );
+  test("지우기 요청은 검토함에 올렸다는 문장이다(바로 지웠다고 쓰지 않는다)", () => {
+    expect(REMOVE_REQUESTED_TEXT).toBe("desktop.workbench.remove.requested");
+    expect(t(REMOVE_REQUESTED_TEXT)).toContain("검토함");
   });
 
   test("확인 문구는 실행 중인 Turn에서 바로 빠진다고 적는다", () => {
@@ -76,7 +72,7 @@ describe("지우기 판단", () => {
 });
 
 describe("controller.remove", () => {
-  test("ext.remove에 이름을 보내고, 성공하면 자세히를 닫고 목록을 다시 읽는다", async () => {
+  test("plugin.requestRemove에 이름을 보내고, 요청이 되면 자세히를 닫고 목록을 다시 읽는다", async () => {
     const web = entry("web");
     const store = createWorkbenchStore((s) => openDetail(pickPlugin(s, "web"), "web"));
     const sent: string[] = [];
@@ -84,7 +80,7 @@ describe("controller.remove", () => {
     const commands = commandsWith({
       remove: (name) => {
         sent.push(name);
-        return Promise.resolve(ok({ name, appliesAt: "now" }));
+        return Promise.resolve(ok({ itemId: "rvw_1" }));
       },
       list: () => {
         listed += 1;
@@ -137,41 +133,28 @@ describe("controller.remove", () => {
 });
 
 describe("controller.remove의 저장 데이터 지우기", () => {
-  test("dropData를 참으로 그대로 넘기고, 지웠으면 removed다", async () => {
+  test("dropData를 참으로 넘기면 대체가 없어 not_available이고, 목록을 다시 읽고 실패로 본다", async () => {
     const seen: { name: string; options: unknown }[] = [];
+    let listed = 0;
     const commands = commandsWith({
       remove: (name, options) => {
         seen.push({ name, options });
-        return Promise.resolve(ok({ name, appliesAt: "now", dataDropped: 2 }));
+        return Promise.resolve(err({ kind: "not_available", command: "ext.remove.dropData" }));
       },
-      list: () => Promise.resolve(ok([])),
-    });
-    const done = await controllerOf(createWorkbenchStore(), commands).remove("web", {
-      dropData: true,
-    });
-    expect(done).toBe("removed");
-    expect(seen).toEqual([{ name: "web", options: { dropData: true } }]);
-  });
-
-  test("저장 데이터를 지우다 실패하면 failed이고, 호스트가 확장을 먼저 내렸으니 목록을 다시 읽는다", async () => {
-    let listed = 0;
-    const commands = commandsWith({
-      remove: () => Promise.resolve(err({ kind: "rejected", code: 3405 })),
       list: () => {
         listed += 1;
         return Promise.resolve(ok([]));
       },
-      health: () => Promise.resolve(ok([])),
-      hooks: () => Promise.resolve(ok([])),
-      orderGet: () => Promise.resolve(ok({ hooks: [] })),
     });
-    expect(
-      await controllerOf(createWorkbenchStore(), commands).remove("web", { dropData: true }),
-    ).toBe("failed");
+    const done = await controllerOf(createWorkbenchStore(), commands).remove("web", {
+      dropData: true,
+    });
+    expect(done).toBe("failed");
+    expect(seen).toEqual([{ name: "web", options: { dropData: true } }]);
     expect(listed).toBe(1);
   });
 
-  test("저장 데이터를 지우는데 이미 없는 이름(3401)이면 gone이고 목록을 다시 읽는다(폴더가 남았다는 경고를 띄우지 않는다)", async () => {
+  test("저장 데이터 지우기가 이미 없는 이름(3401)이면 gone이고 목록을 다시 읽는다(폴더가 남았다는 경고를 띄우지 않는다)", async () => {
     let listed = 0;
     const commands = commandsWith({
       remove: () => Promise.resolve(err({ kind: "rejected", code: 3401 })),

@@ -335,9 +335,9 @@ describe("rebuild", () => {
         "SELECT version, last_seq FROM projector_state WHERE name = 'core'",
       )
       .get();
-    // 6은 제목 출처 투영(T-RT2), 7은 자리표시 블롭 참조 규칙(T-AUDIT2), 8은 대화별 모델 열(T-MODEL)이다
-    expect(CORE_PROJECTOR_VERSION).toBe(8);
-    expect(state?.version).toBe(8);
+    // 6은 제목 출처 투영(T-RT2), 7은 자리표시 블롭 참조 규칙(T-AUDIT2), 8은 대화별 모델 열(T-MODEL), 9는 대화별 프로필 열(M5c §4.1.1)이다
+    expect(CORE_PROJECTOR_VERSION).toBe(9);
+    expect(state?.version).toBe(9);
     expect(state?.last_seq).toBe(expectOk(restarted.service.feed.headSeq()));
   });
 

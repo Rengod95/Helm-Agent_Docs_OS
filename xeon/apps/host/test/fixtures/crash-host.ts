@@ -1,4 +1,4 @@
-import { startStdioHost } from "../../src/main.ts";
+import { startStdioHost } from "../../src/command-run.ts";
 import { approvalModels } from "./approval-tape.ts";
 
 // HOST.4 A1 시험이 SIGKILL로 죽이는 자식 호스트. 운영 진입(host --stdio)과 같은 startStdioHost에 모델 테이프만 넣는다.

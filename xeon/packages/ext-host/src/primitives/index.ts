@@ -70,6 +70,7 @@ export {
   type EventQueryError,
 } from "./event-query.ts";
 export {
+  bindHostApiForIsolation,
   hostOf,
   type RegistrationCallContext,
   type RegistrationHostApi,

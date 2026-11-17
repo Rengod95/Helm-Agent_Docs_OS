@@ -224,6 +224,7 @@ function withdrawFailureText(error: Exclude<CommandError, { readonly kind: "lock
       return t("desktop.composer.error.offline");
     case "switching":
       return t("desktop.composer.error.switching");
+    case "not_available":
     case "unsupported":
       return t("desktop.composer.error.unsupported");
     case "rejected":

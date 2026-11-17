@@ -50,7 +50,7 @@ const statusOf = (host: {
 }): string | undefined =>
   host.registrations().find((info) => info.id === "provider-anthropic-oauth")?.status;
 
-test("by default the loader leaves the plugin out, so no provider-anthropic-oauth scope is enabled", async () => {
+test("when the setting locks it off the loader leaves the plugin out, so no provider-anthropic-oauth scope is enabled", async () => {
   const t = await createTestHost();
   const rig = await loaderFor(t, join(root, "run1"), built.outDir, { userEnabled: false });
   const report = await rig.loader.loadAll({

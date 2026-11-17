@@ -8,14 +8,11 @@ import {
   type PhaseNodeKind,
   type PhasesDecl,
 } from "@fresnel/contracts/extensions";
-import type {
-  DevkitIssue,
-  ExtensionKind,
-  KindEntry,
-  ScaffoldInput,
-} from "@fresnel/contracts/services";
+import type { DevkitIssue, ExtensionKind, KindEntry } from "@fresnel/contracts/services";
 import {
   PROFILE_ID_PATTERN,
+  type ExtScaffoldParams,
+  type PluginRef,
   type Profile,
   type ProfileInput,
   type ProfileSetting,
@@ -135,14 +132,15 @@ export function phaseRowsOf(composition: CompositionDecl): readonly PhaseRow[] |
   }));
 }
 
-/** 프로필 편집 값. 확장마다 켜기·끄기·그대로 중 하나다. 그대로는 enable·disable 어디에도 넣지 않는다 */
-export type ProfileChoice = "on" | "off" | "keep";
-
+/**
+ * 프로필 편집 값. M5c-1부터 프로필은 플러그인 목록(`plugins`, 순서가 있다)을 가진다. 목록에 있으면 켜진 것이고
+ * 없으면 꺼진 것이다(끄기 목록은 없다). 목록 편집은 더하기와 빼기다.
+ */
 export interface ProfileDraft {
   readonly id: string;
   readonly title: string;
-  readonly enable: readonly string[];
-  readonly disable: readonly string[];
+  /** 순서가 있는 플러그인 목록. 같은 자리에 여럿이 걸리면 이 순서가 호출 순서다 */
+  readonly plugins: readonly PluginRef[];
   /** 화면이 고치지 않는 값은 저장할 때 그대로 돌려 보낸다 */
   readonly settings: readonly ProfileSetting[];
   /** 시작 설정(`startDrive`)과 같은 값. 화면의 drive 그룹 고르기가 쓴다 */
@@ -156,8 +154,7 @@ export function profileDraftOf(profile: Profile | null): ProfileDraft {
     return {
       id: "",
       title: "",
-      enable: [],
-      disable: [],
+      plugins: [],
       settings: [],
       driver: null,
       baseRev: null,
@@ -166,27 +163,32 @@ export function profileDraftOf(profile: Profile | null): ProfileDraft {
   return {
     id: profile.id,
     title: profile.title,
-    enable: profile.enable,
-    disable: profile.disable,
+    plugins: profile.plugins,
     settings: profile.settings,
     driver: profile.startDrive,
     baseRev: profile.rev,
   };
 }
 
-export function choiceOf(draft: ProfileDraft, name: string): ProfileChoice {
-  if (draft.enable.includes(name)) return "on";
-  if (draft.disable.includes(name)) return "off";
-  return "keep";
+/** 플러그인이 이 프로필 목록에 있나(있으면 켜진 것이다) */
+export function hasPluginOf(draft: ProfileDraft, name: string): boolean {
+  return draft.plugins.some((plugin) => plugin.name === name);
 }
 
-export function withChoice(draft: ProfileDraft, name: string, choice: ProfileChoice): ProfileDraft {
-  const enable = draft.enable.filter((item) => item !== name);
-  const disable = draft.disable.filter((item) => item !== name);
+/** 목록 끝에 더한다. 이미 있으면 그대로 둔다 */
+export function withPluginAdded(draft: ProfileDraft, name: string): ProfileDraft {
+  if (hasPluginOf(draft, name)) return draft;
+  return { ...draft, plugins: [...draft.plugins, { name }] };
+}
+
+/**
+ * 목록에서 뺀다. 시작 Drive가 그 플러그인이었으면 Drive도 비운다(`driver`는 `plugins` 안에 있어야 한다)
+ */
+export function withPluginRemoved(draft: ProfileDraft, name: string): ProfileDraft {
   return {
     ...draft,
-    enable: choice === "on" ? [...enable, name] : enable,
-    disable: choice === "off" ? [...disable, name] : disable,
+    plugins: draft.plugins.filter((plugin) => plugin.name !== name),
+    driver: draft.driver === name ? null : draft.driver,
   };
 }
 
@@ -203,8 +205,7 @@ export function profileInputOf(draft: ProfileDraft): ProfileInput {
   return {
     id: draft.id,
     title: draft.title.trim(),
-    enable: draft.enable.toSorted(),
-    disable: draft.disable.toSorted(),
+    plugins: draft.plugins,
     settings: draft.settings,
     startDrive: draft.driver,
   };
@@ -222,12 +223,20 @@ export interface StartPoint {
   readonly selectable: boolean;
 }
 
+/** `ext.scaffold`가 받는 종류. 플러그인 하나다 */
+const SCAFFOLD_KIND: ExtScaffoldParams["kind"] = "single-plugin";
+
+/**
+ * 시작점 목록. `plugin-group`은 M5c-1에서 `ext.scaffold`가 받지 않으므로(플러그인 묶음은 검토 흐름에서 만들지 않는다)
+ * 목록에는 있어도 고를 수 없다. 고를 수 있는 것은 `single-plugin`이 준비 중이거나 안정일 때뿐이다.
+ */
 export function startPointsOf(kinds: readonly KindEntry[]): readonly StartPoint[] {
   return kinds.map((kind) => ({
     id: kind.id,
     title: kind.title,
     status: kind.status,
-    selectable: kind.status === "stable" || kind.status === "preview",
+    selectable:
+      kind.id === SCAFFOLD_KIND && (kind.status === "stable" || kind.status === "preview"),
   }));
 }
 
@@ -235,7 +244,7 @@ export type NewGroupProblem = "name" | "kind" | "dir";
 
 export interface NewGroupDraft {
   readonly name: string;
-  readonly kind: ExtensionKind | null;
+  readonly kind: ExtScaffoldParams["kind"] | null;
   /** 만들 폴더의 부모. 사용자가 고른다 */
   readonly parentDir: string;
 }
@@ -263,21 +272,10 @@ export function targetDirOf(draft: NewGroupDraft): string {
   return draft.name === "" || parent === "" ? "" : `${parent}/${draft.name}`;
 }
 
-/** `ext.scaffold` 입력. 시작점이 `plugin-group`이면 비어 있는 `group` 선언을 싣는다(구성은 구성기에서 채운다) */
-export function scaffoldInputOf(draft: NewGroupDraft): ScaffoldInput | null {
+/** `ext.scaffold` 입력(`single-plugin`). 값이 막혔으면 null이다 */
+export function scaffoldInputOf(draft: NewGroupDraft): ExtScaffoldParams | null {
   if (newGroupProblemOf(draft) !== null || draft.kind === null) return null;
-  const base = { kind: draft.kind, name: draft.name, dir: targetDirOf(draft) };
-  return draft.kind === "plugin-group" ? { ...base, group: {} } : base;
-}
-
-/** `ext.scaffold` 입력에 고친 구성 선언을 싣는다. 시작점이 플러그인 그룹일 때만 `group.composition`이 들어간다 */
-export function scaffoldInputWithComposition(
-  draft: NewGroupDraft,
-  composition: CompositionDecl,
-): ScaffoldInput | null {
-  const input = scaffoldInputOf(draft);
-  if (input === null || input.kind !== "plugin-group") return input;
-  return { ...input, group: { composition } };
+  return { kind: draft.kind, name: draft.name, dir: targetDirOf(draft) };
 }
 
 /** 검사 이슈의 개수. 만든 뒤와 코드 보기의 `ext.validate` 결과에 쓴다 */
@@ -530,23 +528,16 @@ export function driverChoicesOf(
 }
 
 /**
- * 저장된 프로필과 화면의 값이 다른가. 이름, drive 그룹, 켜기·끄기 목록, 설정을 저장 입력으로 맞춰 비교한다.
+ * 저장된 프로필과 화면의 값이 다른가. 이름, drive 그룹, 플러그인 목록(순서 포함), 설정을 저장 입력으로 맞춰 비교한다.
  * 저장하지 않은 바꿈이 있으면 "새 Test run으로"는 저장 뒤에만 연다.
  */
 export function profileUnsavedOf(draft: ProfileDraft, saved: Profile): boolean {
   return savedKeyOf(profileInputOf(draft)) !== savedKeyOf(profileInputOf(profileDraftOf(saved)));
 }
 
-/** 저장 입력을 비교하는 값. 목록은 `profileInputOf`가 이미 정렬했다 */
+/** 저장 입력을 비교하는 값. 플러그인 목록은 순서가 의미이므로 정렬하지 않는다 */
 function savedKeyOf(input: ProfileInput): string {
-  return JSON.stringify([
-    input.id,
-    input.title,
-    input.startDrive,
-    input.enable,
-    input.disable,
-    input.settings,
-  ]);
+  return JSON.stringify([input.id, input.title, input.startDrive, input.plugins, input.settings]);
 }
 
 /**

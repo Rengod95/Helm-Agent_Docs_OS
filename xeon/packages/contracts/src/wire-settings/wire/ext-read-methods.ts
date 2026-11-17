@@ -32,6 +32,7 @@ export interface ExtReadSchemas {
   "hooks.order.set": Io<U<Req<r.HooksOrderSetParams>>, U<r.HooksOrderSetResult>>;
   "hooks.order.reset": Io<U<Req<r.HooksOrderResetParams>>, U<r.HooksOrderResetResult>>;
   "hooks.order.preview": Io<U<Req<r.HooksOrderPreviewParams>>, U<r.HooksOrderPreviewResult>>;
+  "blocks.describe": Io<U<NoParams>, U<r.BlocksDescribeResult>>;
   "mcp.servers": Io<U<Req<r.McpServersParams>>, U<r.McpServersResult>>;
   "mcp.serverAction": Io<U<Req<r.McpServerActionParams>>, U<r.McpServerActionResult>>;
 }
@@ -69,6 +70,7 @@ export const EXT_READ_METHODS: Table = {
   "hooks.order.set": m4(r.HooksOrderSetParamsSchema, r.HooksOrderSetResultSchema),
   "hooks.order.reset": m4(r.HooksOrderResetParamsSchema, r.HooksOrderResetResultSchema),
   "hooks.order.preview": m4(r.HooksOrderPreviewParamsSchema, r.HooksOrderPreviewResultSchema),
+  "blocks.describe": m4(NoParamsSchema, r.BlocksDescribeResultSchema),
   "mcp.servers": m4(r.McpServersParamsSchema, r.McpServersResultSchema),
   "mcp.serverAction": m4(r.McpServerActionParamsSchema, r.McpServerRowSchema),
 };

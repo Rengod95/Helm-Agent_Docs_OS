@@ -9,7 +9,7 @@ import { buildHelmPlugin } from "@fresnel/group-helm/build";
 import { tapeBuildModels, tapeProvider } from "@fresnel/core-models/testing";
 import type { EventWire } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { createStdioTransport } from "../../src/transport/stdio.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";

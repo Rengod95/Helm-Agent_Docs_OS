@@ -1,0 +1,636 @@
+{
+  "harness": "claude-code",
+  "rulesVersion": "2026-11-17",
+  "docs": [
+    "https://code.claude.com/docs/en/skills",
+    "https://code.claude.com/docs/en/sub-agents",
+    "https://code.claude.com/docs/en/mcp",
+    "https://code.claude.com/docs/en/memory",
+    "https://code.claude.com/docs/en/hooks",
+    "https://code.claude.com/docs/en/plugins-reference",
+    "https://agents.md/"
+  ],
+  "toolNames": {
+    "Bash": "bash",
+    "Read": "read",
+    "Write": "write",
+    "Edit": "edit",
+    "MultiEdit": "edit",
+    "Grep": "grep",
+    "WebSearch": "web_search",
+    "WebFetch": "web_fetch",
+    "Task": "agent",
+    "Agent": "agent"
+  },
+  "rules": [
+    {
+      "match": { "kind": "field", "container": "skill", "key": "when_to_use" },
+      "status": "not_ported",
+      "reason": {
+        "code": "skill_when_to_use_unsupported",
+        "text": "`when_to_use`에 대응하는 Fresnel 스킬 키가 없다. 복사본에는 이 키가 그대로 남지만 Fresnel은 읽지 않는다."
+      },
+      "alternative": "사용 시점을 `description`에 합쳐 쓴다. 합친 뒤에도 1024자 이내인지 확인한다."
+    },
+    {
+      "match": { "kind": "field", "container": "skill", "key": "argument-hint" },
+      "status": "not_ported",
+      "reason": {
+        "code": "skill_argument_hint_unsupported",
+        "text": "인자 힌트는 Fresnel 스킬에 대응이 없다. 복사본에는 이 키가 남지만 Fresnel은 읽지 않는다."
+      },
+      "alternative": "인자 형식을 설명이나 본문에 한 줄로 적는다."
+    },
+    {
+      "match": { "kind": "field", "container": "skill", "key": "arguments" },
+      "status": "not_ported",
+      "reason": {
+        "code": "skill_arguments_unsupported",
+        "text": "이름 붙은 인자 목록은 Fresnel 스킬에 대응이 없다. 복사본에는 이 키가 남지만 Fresnel은 읽지 않는다."
+      },
+      "alternative": "인자 이름을 본문에 적는다. 본문 치환은 다음 조각에서 지원한다."
+    },
+    {
+      "match": { "kind": "field", "container": "skill", "key": "model" },
+      "status": "not_ported",
+      "reason": {
+        "code": "skill_model_unsupported",
+        "text": "스킬은 모델을 지정하지 못한다. 옮기지 않았다. 복사본에는 이 키가 남지만 Fresnel은 읽지 않는다."
+      },
+      "alternative": "모델은 프로필 설정에서 정한다."
+    },
+    {
+      "match": { "kind": "field", "container": "skill", "key": "effort" },
+      "status": "not_ported",
+      "reason": {
+        "code": "skill_effort_unsupported",
+        "text": "스킬은 노력 수준을 지정하지 못한다. 옮기지 않았다. 복사본에는 이 키가 남지만 Fresnel은 읽지 않는다."
+      },
+      "alternative": "노력 수준은 프로필 설정에서 정한다."
+    },
+    {
+      "match": { "kind": "field", "container": "skill", "key": "shell" },
+      "status": "not_ported",
+      "reason": {
+        "code": "skill_shell_unsupported",
+        "text": "셸 종류 지정은 Fresnel 스킬에 대응이 없다. 본문의 명령 치환도 옮기지 않았다. 복사본에는 이 키가 남지만 Fresnel은 읽지 않는다."
+      },
+      "alternative": "명령은 본문에서 bash 도구로 실행한다고 직접 적는다."
+    },
+    {
+      "match": { "kind": "field", "container": "skill", "key": "allowed-tools" },
+      "status": "not_ported",
+      "reason": {
+        "code": "skill_preapproval_unsupported",
+        "text": "스킬별 도구 미리 승인이 없다. 복사본에는 이 키가 남지만 Fresnel은 읽지 않는다."
+      },
+      "difference": {
+        "kind": "approval_flow",
+        "text": "이 스킬을 쓸 때 승인 카드가 더 뜰 수 있다."
+      },
+      "alternative": "권한 모드를 올리거나 승인 카드에서 이 대화 동안 계속 허용을 고른다."
+    },
+    {
+      "match": { "kind": "field", "container": "skill", "key": "disallowed-tools" },
+      "status": "not_ported",
+      "reason": {
+        "code": "skill_disallowed_tools_unsupported",
+        "text": "스킬별 도구 제거가 없다. 복사본에는 이 키가 남지만 Fresnel은 읽지 않는다."
+      },
+      "difference": {
+        "kind": "approval_flow",
+        "text": "이 스킬을 쓸 때 승인 카드가 더 뜰 수 있다(도구 제한이 옮겨지지 않는다)."
+      },
+      "alternative": "이 스킬이 쓰면 안 되는 도구는 본문에서 쓰지 않는다고 직접 적는다."
+    },
+    {
+      "match": { "kind": "field", "container": "skill", "key": "user-invocable" },
+      "status": "not_ported",
+      "reason": {
+        "code": "skill_user_invocable_unsupported",
+        "text": "`user-invocable: false`(사용자에게 숨김)에 대응이 없다. 복사본에는 이 키가 남지만 Fresnel은 읽지 않는다."
+      },
+      "difference": {
+        "kind": "semantic_loss",
+        "text": "옮긴 스킬은 사용자도 `/`로 부를 수 있다(근사)."
+      },
+      "alternative": "사용자가 부르지 않을 스킬이면 설명에 '모델이 필요할 때만 쓴다'를 적는다."
+    },
+    {
+      "match": { "kind": "field", "container": "skill", "key": "disable-model-invocation" },
+      "status": "exact"
+    },
+    {
+      "match": { "kind": "field", "container": "skill", "key": "context" },
+      "status": "not_ported",
+      "reason": {
+        "code": "skill_context_fork_unsupported",
+        "text": "`context: fork`(서브에이전트에서 실행)는 스킬에 옮기지 않았다. 복사본에는 이 키가 남지만 Fresnel은 읽지 않는다."
+      },
+      "alternative": "서브에이전트 정의를 따로 만들고 본문 첫머리에 그 에이전트에 맡기라는 문장을 직접 쓴다."
+    },
+    {
+      "match": { "kind": "field", "container": "skill", "key": "agent" },
+      "status": "not_ported",
+      "reason": {
+        "code": "skill_agent_unsupported",
+        "text": "`agent`(fork할 서브에이전트 이름)는 스킬에 대응이 없다. 복사본에는 이 키가 남지만 Fresnel은 읽지 않는다."
+      },
+      "alternative": "서브에이전트 정의를 함께 가져오고 본문에서 그 에이전트에 맡긴다고 직접 적는다."
+    },
+    {
+      "match": { "kind": "field", "container": "skill", "key": "background" },
+      "status": "not_ported",
+      "reason": {
+        "code": "skill_background_unsupported",
+        "text": "백그라운드 실행은 스킬에 대응이 없다. 복사본에는 이 키가 남지만 Fresnel은 읽지 않는다."
+      },
+      "alternative": "오래 걸리는 작업은 서브에이전트로 맡겨 돌린다."
+    },
+    {
+      "match": { "kind": "field", "container": "skill", "key": "hooks" },
+      "status": "not_ported",
+      "reason": {
+        "code": "skill_hooks_unsupported",
+        "text": "스킬 머리말의 hooks는 스킬이 켜져 있는 동안만 도는 범위가 Fresnel에 없다. 옮기지 않았다. 복사본에는 이 키가 남지만 Fresnel은 읽지 않는다."
+      },
+      "alternative": "항상 도는 Hook이 필요하면 Hook 플러그인으로 따로 만든다(다음 조각)."
+    },
+    {
+      "match": { "kind": "field", "container": "skill", "key": "paths" },
+      "status": "not_ported",
+      "reason": {
+        "code": "skill_paths_unsupported",
+        "text": "경로 조건(`paths`)은 스킬에 대응이 없다. 복사본에는 이 키가 남지만 Fresnel은 읽지 않는다."
+      },
+      "alternative": "설명에 '다음 파일을 다룰 때 쓴다: <글롭>'을 적는다."
+    },
+    {
+      "match": { "kind": "field", "container": "skill-body", "key": "shell-injection" },
+      "status": "not_ported",
+      "reason": {
+        "code": "skill_body_shell_injection_deferred",
+        "text": "본문 치환은 아직 변환하지 않는다(다음 조각). 본문의 `!`cmd``는 그대로 남는다."
+      },
+      "alternative": "그 자리를 '다음 명령을 실행해 그 출력을 쓴다: `cmd`'로 직접 고친다."
+    },
+    {
+      "match": { "kind": "field", "container": "skill-body", "key": "skill-dir-var" },
+      "status": "not_ported",
+      "reason": {
+        "code": "skill_body_skill_dir_deferred",
+        "text": "본문 치환은 아직 변환하지 않는다(다음 조각). `${CLAUDE_SKILL_DIR}`는 그대로 남는다."
+      },
+      "alternative": "스킬 폴더 기준 상대 경로(`scripts/…`)로 직접 고친다."
+    },
+    {
+      "match": { "kind": "field", "container": "skill-body", "key": "argument-substitution" },
+      "status": "not_ported",
+      "reason": {
+        "code": "skill_body_argument_deferred",
+        "text": "본문 치환은 아직 변환하지 않는다(다음 조각). `$ARGUMENTS`, `$1` 같은 인자 치환은 인자 문법이 정해진 뒤 옮긴다."
+      },
+      "alternative": "인자 문법이 정해질 때까지 본문에 인자 형식을 설명으로 적는다."
+    },
+    {
+      "match": { "kind": "field", "container": "command", "key": "model" },
+      "status": "not_ported",
+      "reason": {
+        "code": "command_model_unsupported",
+        "text": "명령의 모델 지정은 Fresnel 명령에 대응이 없다. 옮기지 않았다."
+      },
+      "alternative": "모델은 프로필 설정에서 정한다."
+    },
+    {
+      "match": { "kind": "field", "container": "command", "key": "allowed-tools" },
+      "status": "not_ported",
+      "reason": {
+        "code": "command_allowed_tools_unsupported",
+        "text": "명령별 도구 미리 승인이 없다."
+      },
+      "difference": {
+        "kind": "approval_flow",
+        "text": "이 명령을 쓸 때 승인 카드가 더 뜰 수 있다."
+      },
+      "alternative": "승인 흐름은 권한 모드로 정한다."
+    },
+    {
+      "match": { "kind": "field", "container": "command", "key": "argument-hint" },
+      "status": "not_ported",
+      "reason": {
+        "code": "command_argument_hint_unsupported",
+        "text": "인자 힌트는 Fresnel 명령에 대응이 없다."
+      },
+      "alternative": "인자 형식을 명령 본문에 한 줄로 적는다."
+    },
+    {
+      "match": { "kind": "field", "container": "command", "key": "disable-model-invocation" },
+      "status": "not_ported",
+      "reason": {
+        "code": "command_disable_model_invocation_unsupported",
+        "text": "모델이 명령을 부르지 못하게 하는 설정은 Fresnel 명령에 없다."
+      },
+      "alternative": "명령을 사용자만 부르도록 본문에 적는다."
+    },
+    {
+      "match": { "kind": "field", "container": "agent", "key": "maxTurns" },
+      "status": "not_ported",
+      "reason": {
+        "code": "agent_max_turns_unsupported",
+        "text": "서브에이전트 정의에 최대 턴 필드가 없다. 한도는 맡길 때 정한다."
+      },
+      "alternative": "맡길 때 자식 한도로 정한다."
+    },
+    {
+      "match": { "kind": "field", "container": "agent", "key": "isolation" },
+      "status": "not_ported",
+      "reason": {
+        "code": "agent_isolation_unsupported",
+        "text": "worktree 격리는 플러그인 worktree 기능이 생긴 뒤에 옮긴다. 아직 없어서 옮기지 않았다."
+      },
+      "alternative": "worktree 기능이 생기면 다시 가져온다."
+    },
+    {
+      "match": { "kind": "field", "container": "agent", "key": "memory" },
+      "status": "not_ported",
+      "reason": {
+        "code": "agent_memory_unsupported",
+        "text": "서브에이전트의 기억 범위가 Fresnel에 없다."
+      },
+      "alternative": "기억할 내용은 본문에 직접 적는다."
+    },
+    {
+      "match": { "kind": "field", "container": "agent", "key": "background" },
+      "status": "not_ported",
+      "reason": {
+        "code": "agent_background_unsupported",
+        "text": "서브에이전트 정의에 백그라운드 설정이 없다. 백그라운드는 맡길 때 정한다."
+      },
+      "alternative": "위임할 때 백그라운드로 맡긴다."
+    },
+    {
+      "match": { "kind": "field", "container": "agent", "key": "hooks" },
+      "status": "not_ported",
+      "reason": {
+        "code": "agent_hooks_unsupported",
+        "text": "서브에이전트 한정 Hook은 옮기지 않았다."
+      },
+      "alternative": "항상 도는 Hook이 필요하면 Hook 플러그인으로 따로 만든다(다음 조각)."
+    },
+    {
+      "match": { "kind": "field", "container": "agent", "key": "color" },
+      "status": "not_ported",
+      "reason": {
+        "code": "agent_color_unsupported",
+        "text": "표시 색은 Fresnel에 대응이 없다. 동작에는 영향이 없다."
+      }
+    },
+    {
+      "match": { "kind": "field", "container": "agent", "key": "mcpServers" },
+      "status": "not_ported",
+      "reason": {
+        "code": "agent_mcp_servers_unsupported",
+        "text": "서브에이전트 한정 MCP 서버는 옮기지 않았다. 플러그인 서버로 올리면 적용 범위가 넓어진다."
+      },
+      "alternative": "MCP 서버를 따로 가져온 뒤 도구 목록에서 고른다."
+    },
+    {
+      "match": { "kind": "field", "container": "agent", "key": "skills" },
+      "status": "not_ported",
+      "reason": {
+        "code": "agent_skills_unsupported",
+        "text": "시작할 때 스킬 본문을 미리 싣는 기능이 없다."
+      },
+      "alternative": "본문에 '다음 스킬을 먼저 읽는다: <이름>'을 직접 적는다."
+    },
+    {
+      "match": { "kind": "field", "container": "agent", "key": "disallowedTools" },
+      "status": "not_ported",
+      "reason": {
+        "code": "agent_disallowed_tools_unsupported",
+        "text": "변환 시점의 도구 목록이 필요해 이번 조각에서는 옮기지 않았다."
+      },
+      "alternative": "허용 목록(tools)으로 직접 적는다."
+    },
+    {
+      "match": {
+        "kind": "field",
+        "container": "agent",
+        "key": "permissionMode",
+        "values": ["default", "acceptEdits"]
+      },
+      "status": "exact"
+    },
+    {
+      "match": {
+        "kind": "field",
+        "container": "agent",
+        "key": "permissionMode",
+        "values": ["bypassPermissions"]
+      },
+      "status": "differs",
+      "difference": {
+        "kind": "approval_flow",
+        "text": "부모 대화의 모드가 bypass일 때만 효력이 있다."
+      }
+    },
+    {
+      "match": { "kind": "field", "container": "agent", "key": "permissionMode" },
+      "status": "not_ported",
+      "reason": {
+        "code": "agent_permission_mode_unsupported",
+        "text": "이 권한 모드(plan, auto, dontAsk 등)는 Fresnel에 대응이 없어 옮기지 않았다."
+      },
+      "alternative": "권한 모드를 default로 두고 필요한 승인은 카드로 받는다."
+    },
+    {
+      "match": { "kind": "field", "container": "mcp", "key": "headersHelper" },
+      "status": "not_ported",
+      "reason": {
+        "code": "mcp_headers_helper_unsupported",
+        "text": "`headersHelper`는 실행해야 하는 명령이라 훑기가 실행하지 않는다. 옮기지 않았다."
+      },
+      "alternative": "헤더 값을 시크릿으로 넣거나 정적 헤더로 직접 적는다."
+    },
+    {
+      "match": { "kind": "field", "container": "mcp", "key": "oauth.clientId" },
+      "status": "not_ported",
+      "reason": {
+        "code": "mcp_oauth_detail_unsupported",
+        "text": "OAuth 세부 설정은 서버 정의가 받지 않는다. 옮긴 것은 `oauth` 사용 여부(불리언)뿐이다."
+      },
+      "alternative": "승인은 기동 승인으로 대신한다. 필요한 세부 값은 서버 문서를 보고 직접 정한다."
+    },
+    {
+      "match": { "kind": "field", "container": "mcp", "key": "oauth.callbackPort" },
+      "status": "not_ported",
+      "reason": {
+        "code": "mcp_oauth_detail_unsupported",
+        "text": "OAuth 세부 설정은 서버 정의가 받지 않는다. 옮긴 것은 `oauth` 사용 여부(불리언)뿐이다."
+      },
+      "alternative": "승인은 기동 승인으로 대신한다. 필요한 세부 값은 서버 문서를 보고 직접 정한다."
+    },
+    {
+      "match": { "kind": "field", "container": "mcp", "key": "oauth.scopes" },
+      "status": "not_ported",
+      "reason": {
+        "code": "mcp_oauth_detail_unsupported",
+        "text": "OAuth 세부 설정은 서버 정의가 받지 않는다. 옮긴 것은 `oauth` 사용 여부(불리언)뿐이다."
+      },
+      "alternative": "승인은 기동 승인으로 대신한다. 필요한 세부 값은 서버 문서를 보고 직접 정한다."
+    },
+    {
+      "match": { "kind": "field", "container": "mcp", "key": "oauth.authServerMetadataUrl" },
+      "status": "not_ported",
+      "reason": {
+        "code": "mcp_oauth_detail_unsupported",
+        "text": "OAuth 세부 설정은 서버 정의가 받지 않는다. 옮긴 것은 `oauth` 사용 여부(불리언)뿐이다."
+      },
+      "alternative": "승인은 기동 승인으로 대신한다. 필요한 세부 값은 서버 문서를 보고 직접 정한다."
+    },
+    {
+      "match": { "kind": "field", "container": "mcp", "key": "timeout" },
+      "status": "not_ported",
+      "reason": {
+        "code": "mcp_timeout_unclear",
+        "text": "원본 `timeout`이 연결 시간인지 호출 시간인지 공식 문서에서 확인하지 못했다. 옮기지 않았다."
+      },
+      "alternative": "필요하면 서버 정의의 `timeouts`에 연결 시간과 호출 시간을 따로 적는다."
+    },
+    {
+      "match": { "kind": "field", "container": "mcp", "key": "oauth" },
+      "status": "exact"
+    },
+    {
+      "match": { "kind": "blocked", "code": "import_outside_root" },
+      "status": "not_ported",
+      "reason": {
+        "code": "out_of_scope",
+        "text": "가져오기 경로가 훑는 루트 밖을 가리킨다. 범위 밖이라 읽지 않았다."
+      },
+      "alternative": "범위 안의 파일이면 그 내용을 이 지침 파일에 직접 붙여 넣는다."
+    },
+    {
+      "match": { "kind": "blocked", "code": "import_too_deep" },
+      "status": "not_ported",
+      "reason": {
+        "code": "import_depth_exceeded",
+        "text": "가져오기가 네 단계를 넘는다. 원본과 같이 여기서 멈춘다."
+      },
+      "alternative": "가져오기를 줄여 한 파일에 합친다."
+    },
+    {
+      "match": { "kind": "blocked", "code": "import_missing" },
+      "status": "not_ported",
+      "reason": {
+        "code": "import_missing",
+        "text": "가져올 파일이 없다."
+      },
+      "alternative": "가져오기 줄을 지우거나 파일을 만든다."
+    },
+    {
+      "match": { "kind": "blocked", "code": "conditional_rule" },
+      "status": "not_ported",
+      "reason": {
+        "code": "conditional_rule_deferred",
+        "text": "경로 조건(`paths:`) 규칙은 이번 조각에서 옮기지 않는다."
+      },
+      "alternative": "필요할 때 읽는 스킬로 직접 옮긴다. 설명에 '다음 파일을 다룰 때 쓴다: <글롭>'을 적는다(기본 변환은 다음 조각)."
+    },
+    {
+      "match": { "kind": "blocked", "code": "project_instruction_file" },
+      "status": "not_ported",
+      "reason": {
+        "code": "not_read_by_fresnel",
+        "text": "Fresnel은 프로젝트의 CLAUDE.md를 읽지 않는다. 프로젝트 내용이라 플러그인으로 옮기지 않는다."
+      },
+      "alternative": "① 내용을 프로젝트의 AGENTS.md로 복사한다(권장: Fresnel이 그 파일을 직접 읽는다. 마이그레이션은 파일을 쓰지 않는다). ② 사용자 지침 플러그인으로 가져온다(프로젝트 한정이 모든 프로젝트에 적용되는 쪽으로 넓어진다는 점을 확인한다)."
+    },
+    {
+      "match": { "kind": "blocked", "code": "settings_file" },
+      "status": "not_ported",
+      "reason": {
+        "code": "later_piece",
+        "text": "설정 파일은 이번 조각에서 옮기지 않는다. 설정 키는 설정 조각에서 지원한다."
+      },
+      "alternative": "필요한 값은 프로필 설정에서 직접 정한다."
+    },
+    {
+      "match": { "kind": "blocked", "code": "hooks_in_settings" },
+      "status": "not_ported",
+      "reason": {
+        "code": "later_piece",
+        "text": "설정 파일의 Hook은 조각 2에서 옮긴다. 번들 스크립트 실행 기능이 먼저 필요하다."
+      },
+      "alternative": "지금은 Hook을 직접 옮기지 않는다. 필요한 Hook은 조각 2 이후에 다시 가져온다."
+    },
+    {
+      "match": { "kind": "blocked", "code": "permissions" },
+      "status": "not_ported",
+      "reason": {
+        "code": "later_piece",
+        "text": "권한 규칙의 deny와 ask는 조각 2에서 Hook 플러그인으로 옮긴다. allow 규칙은 옮기지 않는다(불가)."
+      },
+      "alternative": "승인 카드의 '이 대화에서 계속 허용'이나 권한 모드를 쓴다."
+    },
+    {
+      "match": { "kind": "blocked", "code": "settings_known" },
+      "status": "not_ported",
+      "reason": {
+        "code": "setting_not_ported",
+        "text": "환경 변수 주입, 자격 명령, 상태줄, 모델 별칭, MCP 승인 선택은 자동으로 옮기지 않는다. 값에 시크릿이 있을 수 있고 개념이 다르다."
+      },
+      "alternative": "모델은 프로필 설정(`l1.models.default`)에서 직접 고른다. 시크릿은 시크릿 저장소에 직접 넣는다. 상태줄은 플러그인 빌더에게 맡긴다."
+    },
+    {
+      "match": { "kind": "blocked", "code": "output_style" },
+      "status": "not_ported",
+      "reason": {
+        "code": "later_piece",
+        "text": "출력 스타일은 이번 조각에서 옮기지 않는다. 본문을 지침으로 옮기는 근사는 다음 조각에서 한다."
+      },
+      "alternative": "본문을 지침 파일로 직접 옮긴다. 코딩 지침을 빼는 부분은 옮겨지지 않는다."
+    },
+    {
+      "match": { "kind": "blocked", "code": "plugin_bundle" },
+      "status": "not_ported",
+      "reason": {
+        "code": "later_piece",
+        "text": "Claude 플러그인 묶음은 이번 조각 범위 밖이다. 구성요소를 풀어 옮기는 일은 조각 4에서 지원 예정이다."
+      },
+      "alternative": "묶음 안의 구성요소를 직접 확인한다. 묶음 폴더는 그대로 옮기지 않는다."
+    },
+    {
+      "match": { "kind": "blocked", "code": "agents_md_subfolder" },
+      "status": "not_needed",
+      "difference": {
+        "kind": "scope_change",
+        "text": "하위 폴더의 AGENTS.md는 대화를 시작한 폴더까지만 읽힌다. 그 폴더에서 대화를 시작하면 읽힌다."
+      }
+    },
+    {
+      "match": { "kind": "instruction", "code": "agents_md" },
+      "status": "not_needed"
+    },
+    {
+      "match": { "kind": "instruction", "code": "agents_md_import_only" },
+      "status": "not_needed"
+    },
+    {
+      "match": { "code": "description_missing" },
+      "status": "not_ported",
+      "reason": {
+        "code": "description_missing",
+        "text": "설명(description)이 없어 옮기지 않았다. 설명으로 언제 쓸지 판단하므로 설명이 필요하다."
+      },
+      "alternative": "설명을 한두 문장으로 써 넣는다."
+    },
+    {
+      "match": { "code": "name_missing" },
+      "status": "not_ported",
+      "reason": {
+        "code": "name_missing",
+        "text": "머리말 name이 없어 옮기지 않았다. Agent Skills는 폴더 이름과 같은 name을 요구한다."
+      },
+      "alternative": "머리말에 name을 폴더 이름과 같게 넣는다."
+    },
+    {
+      "match": { "code": "question_open" },
+      "status": "not_ported",
+      "reason": {
+        "code": "question_open",
+        "text": "열린 질문이 있어 초안을 만들지 않았다."
+      },
+      "alternative": "질문에 답하면 다시 제안된다."
+    },
+    {
+      "match": { "code": "user_skipped" },
+      "status": "not_ported",
+      "reason": {
+        "code": "user_skipped",
+        "text": "사용자가 건너뛰기를 골랐다."
+      }
+    },
+    {
+      "match": { "code": "unsafe_path" },
+      "status": "not_ported",
+      "reason": {
+        "code": "unsafe_path",
+        "text": "원본 경로가 플러그인 폴더 밖을 가리키거나 안전하지 않아 옮기지 않았다."
+      },
+      "alternative": "원본 폴더 이름과 파일 이름에서 `..`이나 구분자를 없앤 뒤 다시 가져온다."
+    },
+    {
+      "match": { "code": "prompt_missing" },
+      "status": "not_ported",
+      "reason": {
+        "code": "prompt_missing",
+        "text": "본문(프롬프트)이 비어 있어 옮기지 않았다. 서브에이전트 정의는 본문이 시스템 프롬프트다."
+      },
+      "alternative": "본문에 지시를 써 넣는다."
+    },
+    {
+      "match": { "code": "agent_name_invalid" },
+      "status": "not_ported",
+      "reason": {
+        "code": "agent_name_invalid",
+        "text": "이름을 서브에이전트 이름 규칙(영문 소문자로 시작하고 소문자, 숫자, 하이픈만 쓰는 2~48자)에 맞출 수 없다."
+      },
+      "alternative": "파일 이름이나 name을 영문 소문자로 바꾼 뒤 다시 가져온다."
+    },
+    {
+      "match": { "code": "name_conflict" },
+      "status": "not_ported",
+      "reason": {
+        "code": "name_conflict",
+        "text": "같은 플러그인 안에 같은 이름이 이미 있어 옮기지 않았다."
+      },
+      "alternative": "원본의 이름을 바꾼 뒤 다시 가져온다."
+    },
+    {
+      "match": { "kind": "command", "code": "command_args_unspecified" },
+      "status": "not_ported",
+      "reason": {
+        "code": "command_args_unspecified",
+        "text": "명령 본문의 인자 치환(`$ARGUMENTS`, `$1`, 이름 인자, `!`cmd``)은 인자 문법이 정해지지 않아 옮기지 않았다(M5c-1)."
+      },
+      "alternative": "인자 문법이 정해진 뒤 다시 가져온다."
+    },
+    {
+      "match": { "code": "mcp_ws_unsupported" },
+      "status": "not_ported",
+      "reason": {
+        "code": "mcp_ws_unsupported",
+        "text": "ws 전송은 서버 정의가 지원하지 않는다(stdio, http, sse만 있다)."
+      },
+      "alternative": "서버를 stdio나 http로 바꿀 수 있는지 확인한다."
+    },
+    {
+      "match": { "code": "invalid_server_name" },
+      "status": "not_ported",
+      "reason": {
+        "code": "invalid_server_name",
+        "text": "서버 이름을 서버 id 규칙(소문자로 시작, 소문자·숫자·하이픈, 32자 이하)에 맞출 수 없다."
+      },
+      "alternative": "원본의 서버 이름을 줄여 다시 가져온다."
+    },
+    {
+      "match": { "code": "invalid_definition" },
+      "status": "not_ported",
+      "reason": {
+        "code": "invalid_definition",
+        "text": "서버 정의가 서버 정의 스키마를 통과하지 못해 옮기지 않았다."
+      },
+      "alternative": "원본 정의를 확인하고 다시 가져온다."
+    },
+    {
+      "match": { "code": "literal_secret_in_source" },
+      "status": "not_ported",
+      "reason": {
+        "code": "literal_secret_in_source",
+        "text": "원본에 리터럴 시크릿이 있다. 값은 보고서, 초안, 로그 어디에도 싣지 않았다."
+      },
+      "alternative": "원본의 키를 교체하라. 원본 설정의 시크릿을 새 값으로 바꾸고 새 값은 시크릿 저장소에 넣는다."
+    }
+  ]
+}

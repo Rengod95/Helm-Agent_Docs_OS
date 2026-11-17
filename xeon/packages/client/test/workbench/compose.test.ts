@@ -3,7 +3,6 @@ import type { CompositionDecl, PhasesDecl } from "@fresnel/contracts/extensions"
 import type { Profile, WireManifestIssue } from "@fresnel/contracts/wire";
 import {
   blockRowsOf,
-  choiceOf,
   compositionOf,
   compositionWithPhases,
   coreLockedOf,
@@ -41,8 +40,9 @@ import {
   profileDraftProblemOf,
   profileInputOf,
   profileUnsavedOf,
-  scaffoldInputWithComposition,
-  withChoice,
+  hasPluginOf,
+  withPluginAdded,
+  withPluginRemoved,
 } from "../../src/workbench/index.ts";
 
 const COMPOSITION: CompositionDecl = {
@@ -72,8 +72,8 @@ const COMPOSITION: CompositionDecl = {
 const PROFILE: Profile = {
   id: "quiet",
   title: "조용히",
-  enable: ["helm"],
-  disable: ["web"],
+  builtin: false,
+  plugins: [{ name: "helm" }, { name: "notes" }],
   settings: [{ key: "ext.helm.maxLenses", value: 3 }],
   startDrive: "helm",
   updatedAt: "2026-11-04T10:00:00Z",
@@ -174,36 +174,42 @@ describe("phaseRowsOf", () => {
   });
 });
 
-describe("프로필 편집", () => {
-  test("저장된 프로필의 값과 rev를 옮기고 새 프로필은 baseRev가 null이다", () => {
+describe("프로필 편집: 플러그인 목록 편집", () => {
+  test("저장된 프로필의 목록(순서 포함)과 rev를 옮기고 새 프로필은 baseRev가 null이다", () => {
     expect(profileDraftOf(PROFILE)).toEqual({
       id: "quiet",
       title: "조용히",
-      enable: ["helm"],
-      disable: ["web"],
+      plugins: [{ name: "helm" }, { name: "notes" }],
       settings: [{ key: "ext.helm.maxLenses", value: 3 }],
       driver: "helm",
       baseRev: 4,
     });
     expect(profileDraftOf(null).baseRev).toBeNull();
+    expect(profileDraftOf(null).plugins).toEqual([]);
   });
-  test("켜기·끄기·그대로를 바꾸면 반대쪽 목록에서 빠지고 그대로는 어디에도 없다", () => {
+  test("목록에 있으면 켜진 것이고, 더하면 끝에 붙고 이미 있으면 그대로다", () => {
     const draft = profileDraftOf(PROFILE);
-    expect(choiceOf(draft, "helm")).toBe("on");
-    expect(choiceOf(draft, "web")).toBe("off");
-    expect(choiceOf(draft, "other")).toBe("keep");
-    const swapped = withChoice(withChoice(draft, "helm", "off"), "web", "keep");
-    expect(swapped.enable).toEqual([]);
-    expect(swapped.disable).toEqual(["helm"]);
-    expect(choiceOf(withChoice(swapped, "helm", "keep"), "helm")).toBe("keep");
+    expect(hasPluginOf(draft, "helm")).toBe(true);
+    expect(hasPluginOf(draft, "web")).toBe(false);
+    const added = withPluginAdded(draft, "web");
+    expect(added.plugins).toEqual([{ name: "helm" }, { name: "notes" }, { name: "web" }]);
+    expect(withPluginAdded(draft, "helm")).toBe(draft);
   });
-  test("저장 입력은 이름을 정렬하고 화면이 안 고친 설정·drive를 그대로 보낸다", () => {
-    const draft = withChoice(withChoice(profileDraftOf(PROFILE), "zeta", "on"), "alpha", "on");
+  test("빼면 목록에서 빠지고, 시작 Drive였으면 Drive도 비운다", () => {
+    const draft = profileDraftOf(PROFILE);
+    const removed = withPluginRemoved(draft, "notes");
+    expect(removed.plugins).toEqual([{ name: "helm" }]);
+    expect(removed.driver).toBe("helm");
+    const droppedDriver = withPluginRemoved(draft, "helm");
+    expect(droppedDriver.plugins).toEqual([{ name: "notes" }]);
+    expect(droppedDriver.driver).toBeNull();
+  });
+  test("저장 입력은 목록 순서를 그대로 두고 화면이 안 고친 설정·drive를 보낸다", () => {
+    const draft = withPluginAdded(withPluginAdded(profileDraftOf(PROFILE), "zeta"), "alpha");
     expect(profileInputOf({ ...draft, title: "  조용히 " })).toEqual({
       id: "quiet",
       title: "조용히",
-      enable: ["alpha", "helm", "zeta"],
-      disable: ["web"],
+      plugins: [{ name: "helm" }, { name: "notes" }, { name: "zeta" }, { name: "alpha" }],
       settings: [{ key: "ext.helm.maxLenses", value: 3 }],
       startDrive: "helm",
     });
@@ -233,7 +239,7 @@ const FLOW = {
 };
 
 describe("새 그룹 초안", () => {
-  const draft = { name: "lens-review", kind: "plugin-group" as const, parentDir: "/work/code/" };
+  const draft = { name: "lens-review", kind: "single-plugin" as const, parentDir: "/work/code/" };
 
   test("이름 규칙: 빈 값은 오류 없음, 대문자와 한 글자는 pattern", () => {
     expect(newGroupNameErrorOf("")).toBeNull();
@@ -255,22 +261,17 @@ describe("새 그룹 초안", () => {
     expect(targetDirOf({ ...draft, parentDir: "" })).toBe("");
   });
 
-  test("scaffold 입력: 그룹 종류는 빈 group 선언을 싣고 단일 플러그인은 싣지 않는다", () => {
+  test("scaffold 입력은 단일 플러그인 종류와 이름, 폴더만 싣는다", () => {
     expect(scaffoldInputOf(draft)).toEqual({
-      kind: "plugin-group",
-      name: "lens-review",
-      dir: "/work/code/lens-review",
-      group: {},
-    });
-    expect(scaffoldInputOf({ ...draft, kind: "single-plugin" })).toEqual({
       kind: "single-plugin",
       name: "lens-review",
       dir: "/work/code/lens-review",
     });
+    expect(scaffoldInputOf({ ...draft, kind: null })).toBeNull();
     expect(scaffoldInputOf({ ...draft, name: "X" })).toBeNull();
   });
 
-  test("시작점은 stable과 preview만 고를 수 있다", () => {
+  test("시작점은 단일 플러그인이 stable이나 preview일 때만 고를 수 있다(그룹은 wire가 받지 않는다)", () => {
     const base = {
       layers: [],
       since: "1",
@@ -281,10 +282,12 @@ describe("새 그룹 초안", () => {
     };
     const rows = startPointsOf([
       { ...base, id: "plugin-group", title: "그룹", status: "stable" },
+      { ...base, id: "single-plugin", title: "플러그인", status: "stable" },
       { ...base, id: "single-plugin", title: "플러그인", status: "blocked" },
     ]);
     expect(rows.map((row) => [row.id, row.selectable])).toEqual([
-      ["plugin-group", true],
+      ["plugin-group", false],
+      ["single-plugin", true],
       ["single-plugin", false],
     ]);
   });
@@ -422,9 +425,13 @@ describe("프로필의 drive 그룹과 코어 잠금", () => {
     expect(withDriver(draft, null).driver).toBeNull();
   });
 
-  test("저장 입력에 시작 설정 startDrive로 실린다", () => {
-    const draft = withDriver({ ...profileDraftOf(null), id: "p1", title: "t" }, "helm");
+  test("저장 입력에 driver가 실린다", () => {
+    const draft = withPluginAdded(
+      withDriver({ ...profileDraftOf(null), id: "p1", title: "t" }, "helm"),
+      "helm",
+    );
     expect(profileInputOf(draft).startDrive).toBe("helm");
+    expect(profileInputOf(draft).plugins).toEqual([{ name: "helm" }]);
   });
 
   test("코어 잠금은 core tier나 내장이다", () => {
@@ -449,32 +456,7 @@ function phaseIssueAt(path: string, message: string): WireManifestIssue {
   return { severity: "error", code: "phase_invalid", path, message };
 }
 
-describe("구성 초안의 scaffold 입력과 단계 노드 이슈", () => {
-  const draft = {
-    name: "lens-review",
-    kind: "plugin-group" as const,
-    parentDir: "/work/code",
-  };
-
-  test("플러그인 그룹이면 고친 구성 선언을 group.composition으로 싣는다", () => {
-    expect(scaffoldInputWithComposition(draft, COMPOSITION)).toEqual({
-      kind: "plugin-group",
-      name: "lens-review",
-      dir: "/work/code/lens-review",
-      group: { composition: COMPOSITION },
-    });
-  });
-
-  test("다른 종류는 구성을 싣지 않고, 이름이나 폴더가 비면 null이다", () => {
-    expect(scaffoldInputWithComposition({ ...draft, kind: "single-plugin" }, COMPOSITION)).toEqual({
-      kind: "single-plugin",
-      name: "lens-review",
-      dir: "/work/code/lens-review",
-    });
-    expect(scaffoldInputWithComposition({ ...draft, name: "X" }, COMPOSITION)).toBeNull();
-    expect(scaffoldInputWithComposition({ ...draft, parentDir: "" }, COMPOSITION)).toBeNull();
-  });
-
+describe("단계 노드 이슈", () => {
   test("단계 노드 번호는 /phases/nodes/<번호>에서만 읽는다", () => {
     expect(phaseNodeIndexOf("/phases/nodes/2")).toBe(2);
     expect(phaseNodeIndexOf("/phases/nodes/0/id")).toBe(0);
@@ -529,17 +511,19 @@ describe("저장하지 않은 프로필 바꿈과 drive 그룹 고르기 목록"
     expect(profileUnsavedOf({ ...draft, title: "  조용히 " }, PROFILE)).toBe(false);
   });
 
-  test("이름, drive 그룹, 켜기·끄기 중 하나라도 다르면 바꿈이다", () => {
+  test("이름, drive 그룹, 플러그인 목록 중 하나라도 다르면 바꿈이다", () => {
     const draft = profileDraftOf(PROFILE);
     expect(profileUnsavedOf({ ...draft, title: "다른 이름" }, PROFILE)).toBe(true);
     expect(profileUnsavedOf(withDriver(draft, null), PROFILE)).toBe(true);
-    expect(profileUnsavedOf(withChoice(draft, "web", "keep"), PROFILE)).toBe(true);
-    expect(profileUnsavedOf(withChoice(draft, "zeta", "on"), PROFILE)).toBe(true);
+    expect(profileUnsavedOf(withPluginRemoved(draft, "notes"), PROFILE)).toBe(true);
+    expect(profileUnsavedOf(withPluginAdded(draft, "zeta"), PROFILE)).toBe(true);
   });
 
-  test("목록의 순서만 다르면 바꿈이 아니다", () => {
-    const draft = profileDraftOf({ ...PROFILE, enable: ["b", "a"] });
-    expect(profileUnsavedOf(draft, { ...PROFILE, enable: ["a", "b"] })).toBe(false);
+  test("목록의 순서만 다르면 바꿈이다(순서가 호출 순서다)", () => {
+    const draft = profileDraftOf({ ...PROFILE, plugins: [{ name: "notes" }, { name: "helm" }] });
+    expect(
+      profileUnsavedOf(draft, { ...PROFILE, plugins: [{ name: "helm" }, { name: "notes" }] }),
+    ).toBe(true);
   });
 
   test("drive 고르기 목록은 설치된 그룹 뒤에 저장된 이름을 더하고, 있으면 더하지 않는다", () => {

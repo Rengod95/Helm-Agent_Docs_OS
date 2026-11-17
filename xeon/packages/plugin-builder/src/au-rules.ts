@@ -1,4 +1,8 @@
-import { validateComposition, type ExtensionManifest } from "@fresnel/contracts/extensions";
+import {
+  pluginDeclsOf,
+  validateComposition,
+  type ExtensionManifest,
+} from "@fresnel/contracts/extensions";
 import type { CapabilityId } from "@fresnel/contracts/capabilities";
 import type { DevkitIssue } from "@fresnel/contracts/services";
 
@@ -38,7 +42,7 @@ export function au004(
   if (manifest === undefined || composition === undefined || providers === undefined)
     return aliased;
   const missing = validateComposition(composition, {
-    manifest: { plugins: manifest.plugins },
+    manifest: { plugins: pluginDeclsOf(manifest) },
     providers,
   })
     .filter((entry) => entry.code === "capability_missing")

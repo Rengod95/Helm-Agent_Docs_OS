@@ -53,22 +53,24 @@ const FULL = {
 };
 
 describe("출처 배지 범위", () => {
-  test("켜짐 출처는 user가 전역, project가 작업 폴더, thread가 이 대화다", () => {
-    expect(enabledScopeOf("user")).toBe("global");
-    expect(enabledScopeOf("project")).toBe("project");
-    expect(enabledScopeOf("thread")).toBe("thread");
+  test("켜짐 출처는 프로필 층 값을 그대로 범위로 옮긴다(core, common, profile, overlay, managed)", () => {
+    expect(enabledScopeOf("core")).toBe("core");
+    expect(enabledScopeOf("common")).toBe("common");
+    expect(enabledScopeOf("profile")).toBe("profile");
+    expect(enabledScopeOf("overlay")).toBe("overlay");
     expect(enabledScopeOf("managed")).toBe("managed");
-    expect(enabledScopeOf("default")).toBe("default");
   });
 
-  test("출처를 싣지 않았으면 배지를 두지 않는다(null)", () => {
+  test("꺼짐(none)과 출처를 싣지 않았으면 배지를 두지 않는다(null)", () => {
+    expect(enabledScopeOf("none")).toBeNull();
     expect(enabledScopeOf(undefined)).toBeNull();
   });
 
-  test("설정 범위는 user가 전역, launch가 이 대화, project가 작업 폴더다", () => {
+  test("설정 범위는 user가 전역, launch가 이 대화, profile이 프로필, project가 작업 폴더다", () => {
     expect(settingScopeOf("user")).toBe("global");
     expect(settingScopeOf("project")).toBe("project");
     expect(settingScopeOf("launch")).toBe("thread");
+    expect(settingScopeOf("profile")).toBe("profile");
     expect(settingScopeOf("local")).toBe("local");
     expect(settingScopeOf("managed")).toBe("managed");
     expect(settingScopeOf("default")).toBe("default");
