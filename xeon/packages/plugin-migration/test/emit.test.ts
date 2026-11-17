@@ -1,6 +1,7 @@
 // 내보내기 시험: 같은 입력이면 같은 바이트, 매니페스트 모양, 이식 기록의 내용과 금지 항목.
 import { expect, test } from "bun:test";
 import { parse, parseJson } from "@fresnel/contracts";
+import { validateManifest } from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
 import { itemIdOf, sha256Hex } from "../src/hash.ts";
 import { emit } from "../src/emit.ts";
@@ -246,4 +247,22 @@ test("migration metadata that does not match its schema is written as rejected, 
   expect(text).toContain('"metaRejected": true');
   expect(text).toContain('"sources": []');
   expect(text).not.toContain("~/.claude/skills/deploy");
+});
+
+test("emitted plugin manifests (schemaVersion 2, no entry) pass validateManifest", () => {
+  const cases: readonly [SourceItem, string][] = [
+    [deployItem, "deploy"],
+    [githubItem, "mcp-github"],
+  ];
+  for (const [item, name] of cases) {
+    const proposal = propose(scanOf([item]), BUNDLED_RULESETS, { answers: {} });
+    const emitted = emit(plugin(proposal, name));
+    const manifest = parseJson(decode(emitted.get(".fresnel-plugin/plugin.json")));
+    expect(manifest.ok).toBe(true);
+    if (!manifest.ok) return;
+    const result = validateManifest(manifest.value);
+    expect(result.issues.filter((entry) => entry.severity === "error")).toEqual([]);
+    expect(result.manifest?.name).toBe(name);
+    expect(result.manifest?.entry).toBeUndefined();
+  }
 });

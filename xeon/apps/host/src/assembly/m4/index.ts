@@ -1,5 +1,5 @@
 import { detach } from "@fresnel/contracts";
-import { PluginSetPortKey } from "@fresnel/contracts/extensions";
+import { effectiveLayer, PluginSetPortKey } from "@fresnel/contracts/extensions";
 import { resolveSetting } from "@fresnel/contracts/settings";
 import { testRunControlOf, traceReadOf, type ExtHost } from "@fresnel/ext-host";
 import type { DevkitPort } from "../../handlers/m4/devkit.ts";
@@ -21,6 +21,21 @@ import { createSandboxSelfTestPort } from "./sandbox-self-test-port.ts";
 
 // M4 wire 처리기 43개의 포트 묶음(`spec-deltas/t-f.md` §5). 이 파일은 T-F가 한 번 쓰고, 그 뒤에는 T-XD가
 // 계측 읽기와 Test run 제어(`emptyTraceRead`, `emptyTestRunControl`)를 ext-host 구현으로 바꾸는 한 줄만 고친다.
+
+/**
+ * 코어 서비스가 아직 이 단위에 기대는 L2 내장 플러그인(M5c §4.1.17, `plugin.requiredByCore`). 도구 파이프라인의 파일 서비스(`cap-workspace`)와
+ * 사람에게 묻기(`cap-dialog`)다. E2의 L1 분할이 끝나면 이 표시를 지운다. 프로필에 남지만 프로필과 무관하게 켜진다
+ */
+const REQUIRED_BY_CORE: ReadonlySet<string> = new Set(["cap-workspace", "cap-dialog"]);
+
+/** 코어인가: 등급이 guard·core이거나 내장 L1 단위(`core-*`)다. 내장 단위는 로더의 승인 표를 거치지 않아 등급이 늘 builtin이라 층으로 가린다 */
+function isCore(record: ExtensionRecord): boolean {
+  return (
+    record.tier === "guard" ||
+    record.tier === "core" ||
+    (record.origin === "builtin" && effectiveLayer(record.manifest) === "L1")
+  );
+}
 
 export interface M4Ports {
   readonly extRead: ExtReadPort;
@@ -55,21 +70,17 @@ export function createM4Ports(
     extUi,
   };
   // 프로필·Test run 포트는 표지 장부를 쥐므로 제작 포트와 한 인스턴스를 나눠 쓴다(`ext.test.run`의 testRun이 표지를 단다)
-  // 코어(등급 guard·core)는 모든 대화에 항상 켜진다. 공장 기본 프로필은 코어가 아닌 확장 가운데 매니페스트 기본이 켜진 것이다(§4.1.2, §7.2)
+  // 코어는 모든 대화에 항상 켜진다(빠지면 `core-tasks`의 `fresnel.tasks`가 없어 `turn.start`가 응답하지 않는다).
+  // 공장 기본 프로필은 코어가 아닌 확장 가운데 매니페스트 기본이 켜진 것이다(§4.1.2, §7.2)
   const coreNames = (): readonly string[] =>
     extReadSources
       .extensions()
-      .filter((record) => record.tier === "guard" || record.tier === "core")
+      .filter((record) => isCore(record) || REQUIRED_BY_CORE.has(record.manifest.name))
       .map((record) => record.manifest.name);
   const defaultNames = (): readonly string[] =>
     extReadSources
       .extensions()
-      .filter(
-        (record) =>
-          record.tier !== "guard" &&
-          record.tier !== "core" &&
-          record.manifest.defaultEnabled !== false,
-      )
+      .filter((record) => !isCore(record) && record.manifest.defaultEnabled !== false)
       .map((record) => record.manifest.name);
   const scopedEnv: M4HostEnv = {
     ...env,
