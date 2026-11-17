@@ -49,7 +49,12 @@ import { workspacePlugin, writeAccessTitle } from "@fresnel/cap-workspace";
 import { readUnattendedTimeoutMs } from "@fresnel/platform-exec";
 import type { AgentDefinition, ToolOutputFiles } from "@fresnel/contracts/services";
 import { agentsPlugin } from "@fresnel/core-agents";
-import { contextSettingsOf, createContextExtension } from "@fresnel/core-context";
+import {
+  contextSettingsOf,
+  createContextExtension,
+  createInstructionSections,
+  nodeInstructionFs,
+} from "@fresnel/core-context";
 import { cancelledByOwnerOf } from "./owner-cancel.ts";
 import { createWebPolicyWriter } from "./web-policy-writer.ts";
 import { loopExtensionUnit } from "@fresnel/core-loop";
@@ -130,6 +135,8 @@ export interface ExtensionDeps {
   readonly web: WebStatusHolder;
   /** thread의 작업 디렉터리(없으면 undefined). `input.bash.before` 지점 페이로드의 cwd가 된다 */
   readonly workspaceOf: (threadId: ThreadId) => string | undefined;
+  /** 대화의 프로젝트 루트(없으면 작업 폴더가 루트다). 턴 시작 지침 절(M5c §4.4.7)의 루트 */
+  readonly projectRootOf?: (threadId: ThreadId) => string | undefined;
   /** 열기 훅(`thread.resources`)이 대화에 낸 스킬 경로(H-7). 조립 루트가 세션을 읽어 준다 */
   readonly openedSkillPaths: (threadId: ThreadId) => Promise<readonly string[]>;
   readonly db: StoreDb;
@@ -253,6 +260,13 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
   // L2 패키지는 대화 id를 문자열로 받는다. thread id 모양이 아니면 작업 폴더가 없는 것이다
   const workspaceOfId = (threadId: string): string | undefined =>
     isId("thr", threadId) ? deps.workspaceOf(threadId) : undefined;
+  // 턴 시작 지침 절(M5c §4.4.7). 프로세스당 한 원천이라 파일 상태 캐시를 함께 쓴다. 상한은 설정을 호출 때 읽는다
+  const instructionSectionsOf = createInstructionSections({
+    workspaceOf: deps.workspaceOf,
+    ...(deps.projectRootOf === undefined ? {} : { projectRootOf: deps.projectRootOf }),
+    maxBytes: () => contextSettingsOf((key) => settings.value(key)).instructionFilesMaxBytes,
+    fs: nodeInstructionFs,
+  });
   const openedSkillPathsOfId = (threadId: string): Promise<readonly string[]> =>
     isId("thr", threadId) ? deps.openedSkillPaths(threadId) : Promise.resolve([]);
   const learning = learningLoaded({ defaultGroups: deps.defaultGroups, safeMode: deps.safeMode });
@@ -335,6 +349,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           ids: deps.ids,
           hostMode: deps.mode,
           workingDirectory: deps.workspaceOf,
+          instructionSectionsOf,
           settings: loopSource(settings),
           kindLookup,
           cancelledByOwnerOf,

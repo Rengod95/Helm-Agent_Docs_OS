@@ -74,6 +74,8 @@ export interface HarnessOptions {
   readonly withoutLoop?: boolean;
   /** `loop.spawn`이 위임하는 `fresnel.agents` 대역. 생략하면 서비스가 없는 구성이다 */
   readonly agents?: LoopDeps["agents"];
+  /** 턴 시작 지침 절 원천. 생략하면 루프에 원천이 없다(절은 `{}`) */
+  readonly instructionSectionsOf?: LoopDeps["instructionSectionsOf"];
 }
 
 export interface Harness {
@@ -207,6 +209,9 @@ async function build(
             ? {}
             : { workingDirectory: options.workingDirectory }),
           ...(options.platform === undefined ? {} : { platform: options.platform }),
+          ...(options.instructionSectionsOf === undefined
+            ? {}
+            : { instructionSectionsOf: options.instructionSectionsOf }),
         });
   await host.host.registerPlatform({
     name: "loop-test-ports",

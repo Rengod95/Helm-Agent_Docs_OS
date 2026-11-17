@@ -118,7 +118,7 @@ Fresnel은 `OsDirs`의 다섯 디렉터리를 씁니다. 값은 `L0.os.spec` §3
 
 | 대상 | 나가는 것 | 조건과 제한 | 근거 |
 |---|---|---|---|
-| 모델 provider | 모델 요청 본문. 기본 프롬프트, 프로젝트 지침(`AGENTS.md`, `CLAUDE.md` 포함), 스킬 인덱스, 메모리, 날짜와 작업 디렉터리 상태, 대화 항목, 도구 정의, 도구 결과(파일 내용 포함) | 모델을 부를 때마다 보냅니다. 요청 본문은 마스킹 계층 3과 4를 거칩니다. 모델 키는 provider 호스트에만 주입합니다 | L1.context.spec §2, L1.models.spec, X.loading-trust.spec §4.7.2, L0.secrets.spec §4.4 |
+| 모델 provider | 모델 요청 본문. 기본 프롬프트, 프로젝트 지침(루트에서 대화 폴더까지의 `AGENTS.md`), 스킬 인덱스, 메모리, 날짜와 작업 디렉터리 상태, 대화 항목, 도구 정의, 도구 결과(파일 내용 포함) | 모델을 부를 때마다 보냅니다. 요청 본문은 마스킹 계층 3과 4를 거칩니다. 모델 키는 provider 호스트에만 주입합니다 | L1.context.spec §2, L1.models.spec, X.loading-trust.spec §4.7.2, L0.secrets.spec §4.4 |
 | 웹 검색 provider | 검색 질의 | 사용자가 설정한 provider 체인에 있는 것만 씁니다. 자동으로 찾는 provider는 없습니다. 알려진 시크릿이 질의에 있으면 보내지 않고 거부합니다 | adr.0005 §3.3, L2.web.spec §4.1, architecture.security.spec T-08 |
 | 웹 가져오기(`web.fetch`) | 요청하는 URL | 기본은 승인 요청입니다. 대화에 나온 URL만 허용합니다. 사설망과 메타데이터 주소는 막습니다 | architecture.security.spec T-01, T-07, L2.web.spec §4.6 |
 | 키가 필요한 웹 provider | 검색 질의와 provider 키 | 첫 사용 때 고지합니다(`first_use_notice`). 고지 문구의 시점은 `[미결]`입니다 | L2.web.spec §4.8.2, adr.0005 개정 |
@@ -133,7 +133,7 @@ Fresnel은 `OsDirs`의 다섯 디렉터리를 씁니다. 값은 `L0.os.spec` §3
 
 - 프로젝트 폴더는 판정 전에 신뢰 판정을 받습니다. 판정 전에는 프로젝트 확장을 불러오지 않고, `.mcp.json`, 스킬, 설정을 읽지 않습니다(architecture.security.spec T-03).
 - 신뢰가 필요한 자원은 `.fresnel/extensions/`, `.fresnel/settings.json`, `.fresnel/settings.local.json`, `.fresnel/mcp.json`, `.mcp.json`, `.fresnel/hooks/`, `.fresnel/skills/`, `.fresnel/commands/`, `.fresnel/prompts/`, `.fresnel/agents/`, `.fresnel/SYSTEM.md`, `.fresnel/APPEND_SYSTEM.md`, `.agents/skills/`입니다(X.loading-trust.spec §4.7.2).
-- `AGENTS.md`와 `CLAUDE.md`는 신뢰와 관계없이 읽힙니다. 이 내용은 모델 입력으로만 쓰이고 코드로 실행되지 않습니다. 그래도 신뢰되지 않은 입력으로 취급합니다(X.loading-trust.spec §4.7.2, architecture.security.spec §5).
+- `AGENTS.md`는 신뢰와 관계없이 읽힙니다. `CLAUDE.md`는 읽지 않습니다. 이 내용은 모델 입력으로만 쓰이고 코드로 실행되지 않습니다. 그래도 신뢰되지 않은 입력으로 취급합니다(X.loading-trust.spec §4.7.2, architecture.security.spec §5).
 - 판정 순서는 다음과 같습니다. 재정의 값, 자원 없음, 이번 실행 기억, 대화 신뢰 훅, 저장된 결정, 기본 설정 `x.loading-trust.defaultProjectTrust`(기본 `ask`), 헤드리스 불신, 프롬프트입니다(X.loading-trust.spec §4.7.3).
 - 헤드리스 실행(print, JSON)에서는 프롬프트를 띄우지 않고 불신으로 처리합니다. 이때 결정을 저장하지 않습니다(X.loading-trust.spec §4.7.3 7번).
 - 신뢰 결정은 `trust.json`에 폴더마다 저장합니다. 파일이 깨졌으면 불신으로 처리하고, 덮어쓰지 않습니다(X.loading-trust.spec §4.7.5).

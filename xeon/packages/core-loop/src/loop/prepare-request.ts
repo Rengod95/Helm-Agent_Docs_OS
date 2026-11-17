@@ -92,7 +92,7 @@ export async function prepareRequest(run: TurnRun): Promise<Result<RequestInput,
     cachePolicy: resolved.value.cachePolicy,
     tools: toolset.tools,
     basePrompt: state.basePrompt,
-    sections: {},
+    sections: state.instructionSections,
     volatile: {
       environment: environmentText({
         now: ctx.clock.now(),
