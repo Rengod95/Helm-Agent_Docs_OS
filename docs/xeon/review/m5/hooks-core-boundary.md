@@ -15,9 +15,9 @@ binds: []
 >
 > **이 문서가 바꿀 층 스펙:** `docs/xeon/F/extensions/spec.md`, `docs/xeon/F/capabilities/spec.md`, `docs/xeon/X/primitives/spec.md`, `docs/xeon/X/operations/spec.md`, `docs/xeon/L1/tools/spec.md`, `docs/xeon/L1/loop/spec.md`, `docs/xeon/L1/agents/spec.md`, `docs/xeon/L1/context/spec.md`, `docs/xeon/L2/workspace/spec.md`, `docs/xeon/L2/dialog/spec.md`, `docs/xeon/architecture/layers/spec.md`, `docs/xeon/engineering/dependency-rules/spec.md`.
 >
-> **원천:** `_notes/design/lc/spec/m5e-hooks-core-boundary.md`(저장소 밖 메모, 2026-11-17 마지막 맞춤본). 문서 이름 대응: M5c = `docs/xeon/review/m5/profile-project-loader.md`, M5d = `turn-record-metrics.md`, M5e = `hooks-core-boundary.md`, 엔진 설계 = `drive-isolation.md`(모두 같은 폴더), 화면 스펙 = `docs/xeon/review/m6/craft-flows.md`, 요구 = `docs/xeon/review/m5-plan.md`, 일정 = `m5-plan.md`와 `m6-plan.md`, 개념과 결정 = `docs/xeon/decisions/ADR-0023-plugin-profile-core.md`. 코드 경로의 `path:line`은 `m4/cyP` 워크트리 읽기 시점의 값이다.
+> **원천:** `_notes/design/lc/spec/m5e-hooks-core-boundary.md`(저장소 밖 메모, 2026-11-17 마지막 맞춤본). 문서 이름 대응: M5c = `docs/xeon/review/m5/profile-project-loader.md`, M5d = `turn-record-metrics.md`, M5e = `hooks-core-boundary.md`, 엔진 설계 = `drive-isolation.md`(모두 같은 폴더), 화면 스펙 = `docs/xeon/review/m6/craft-flows.md`, 요구 = `docs/xeon/review/m5-plan.md`, 일정 = `m5-plan.md`와 `m6-plan.md`, 개념과 결정 = `docs/xeon/decisions/ADR-0023-plugin-profile-core.md`. 옛 이름 대응: "PRD" = `m5-plan.md`(R번호 그대로, "PRD §7"은 §14), "craft-flow"·"flow" = 화면 스펙 제1부(흐름 n), "개념 문서"·"개념 §9"·"개념 §10" = ADR-0023(대체한 절은 ADR §6), "로드맵" = `m5-plan.md` §7과 `m6-plan.md`, `craft-plan.md` §7 = ADR §3.2.3. 코드 경로의 `path:line`은 `m4/cyP` 워크트리 읽기 시점의 값이다.
 
-작성 기준: 2026-11-17, 워크트리 `cyP 워크트리`(브랜치 `m4/cyP`, HEAD `1c866ab00`). 코드 사실은 모두 이 시점의 정적 읽기이고 실행으로 확인하지 않았다. 표기: [결정] 사용자가 정한 것(출처 문서 명시), [제안] 이 스펙의 선택, [미확인] 코드로 확인하지 못한 것, [열림] 사용자가 정해야 하는 것(옆에 [권고]로 기본값). 경로는 따로 적지 않으면 `xeon/packages/` 아래다.
+작성 기준: 2026-11-17, 워크트리 `cyP 워크트리`(브랜치 `m4/cyP`, HEAD `1c866ab00`). 코드 사실은 모두 이 시점의 정적 읽기이고 실행으로 확인하지 않았다. 표기: [결정] 사용자가 정한 것(출처 문서 명시), [제안] 이 스펙의 선택, [미확인] 코드로 확인하지 못한 것, [권고: 메인 세션, 확인 대기] 메인 세션이 권하고 사용자가 아직 정하지 않은 것(작업 기본값). 경로는 따로 적지 않으면 `xeon/packages/` 아래다.
 
 **통합 정리(2026-11-17, `_notes/design/lc/spec/consolidation-log.md`).** 교차 점검 둘의 결과를 반영했다. 이 문서가 정의하는 것: 훅의 **결정값**(§4.2, §4.3)과 그 **표시값**(§4.5의 여섯 값)이다. **기록된 결과값**은 `docs/xeon/review/m5/turn-record-metrics.md` §3.2가 정의하고, 둘의 대응표는 §4.5에 한 벌만 둔다. 같은 말은 엔진 설계 통합본의 "공통 어휘"를 따른다(플러그인 정체 = 이름, 버전 정체 `versionId` = 내용 해시, 깊이 셋, 설정 범위). U2·U3·U4는 2026-11-17에 사용자가 권고대로 정했다([결정: 2026-11-17 사용자]). U6도 2026-11-17 밤에 사용자가 정했다([결정: 2026-11-17 사용자, U6]). 화면이 읽을 것은 `docs/xeon/review/m6/craft-flows.md`가 맡는다. 새 용어와 `terms.json`에서 걷을 항목은 14절 "용어 등록 요청"에 모았다.
 
@@ -30,11 +30,11 @@ binds: []
 | R10 | 플러그인이 어떤 길로 파일·셸·웹 기능을 부르든 도구 실행 블록을 지난다 | 4.6, 5.3 |
 | R21 | 훅 위치를 "블록마다 앞과 뒤 + 경계 셋"으로 정리해 공개하고, 지켜보기는 이벤트 구독 하나로 한다 | 3, 4.1~4.4, 5.1~5.2 |
 | R22 | 대체 편집 도구의 변경이 변경 탭과 되감기에 잡힌다(공통 결과 형식) | 4.7, 5.4 |
-| 결정 A | 훅은 블록마다 앞과 뒤 + 경계 셋(대화 시작, 입력 받기, 턴 종료 직전). 기록 블록은 이벤트 구독만. 사람에게 묻기와 서브에이전트의 앞뒤는 지금 훅에 없는 새 위치다 (`docs/xeon/decisions/ADR-0023-plugin-profile-core.md` §9 마지막에서 둘째 항목, 2026-11-16) | 3, 4.3 |
-| 결정 B | L2 가운데 코어인 부분을 L1으로 내리고 나머지 플러그인은 한 층으로 본다 (`docs/xeon/review/m5/drive-isolation.md` §8, 2026-11-17). [결정: 2026-11-17 사용자, U4] 확정. "뺄 수 없는 플러그인이 없다"가 개념 문서 §9의 "코어 플러그인은 뺄 수 없다"를 대체한다 | 6 |
-| 결정 C | 블록의 네 겹(설정, 주입, 부품 교체, 앞뒤 훅)과 못 바꾸는 보장 (`craft-plan.md` §7.1, `docs/xeon/decisions/ADR-0023-plugin-profile-core.md` §9 2026-11-16. "코어 플러그인의 설정 값"은 4.8.1의 소유자 구분으로 대체: 코어 키와 소유 플러그인 키) | 4.8 |
+| 결정 A | 훅은 블록마다 앞과 뒤 + 경계 셋(대화 시작, 입력 받기, 턴 종료 직전). 기록 블록은 이벤트 구독만. 사람에게 묻기와 서브에이전트의 앞뒤는 지금 훅에 없는 새 위치다 (`docs/xeon/decisions/ADR-0023-plugin-profile-core.md` §3.2.2, §3.4.1, [결정: 2026-11-16 사용자]) | 3, 4.3 |
+| 결정 B | L2 가운데 코어인 부분을 L1으로 내리고 나머지 플러그인은 한 층으로 본다 (`docs/xeon/review/m5/drive-isolation.md` §8, 2026-11-17). [결정: 2026-11-17 사용자, U4] 확정. "뺄 수 없는 플러그인이 없다"가 개념 초안의 "코어 플러그인은 뺄 수 없다"를 대체한다(ADR §3.12) | 6 |
+| 결정 C | 블록의 네 겹(설정, 주입, 부품 교체, 앞뒤 훅)과 못 바꾸는 보장 ([제안]: `docs/xeon/decisions/ADR-0023-plugin-profile-core.md` §3.2.3, 옛 `craft-plan.md` §7.1. "코어 플러그인의 설정 값"은 4.8.1의 소유자 구분으로 대체: 코어 키와 소유 플러그인 키) | 4.8 |
 | 결정 D | 플러그인이 부른 L2 기능 호출을 엔진이 도구 실행 블록에 태운다. 직접 호출도 남기되 같은 관문을 지난다 (`docs/xeon/review/m5/drive-isolation.md` §1.3) | 4.6, 5.3 |
-| 이름 | 화면 용어는 Inject / Hook / Drive (`docs/xeon/decisions/ADR-0023-plugin-profile-core.md` §10) | 전체 |
+| 이름 | 화면 용어는 Inject / Hook / Drive (`docs/xeon/decisions/ADR-0023-plugin-profile-core.md` §3.3.1, [결정: 2026-11-17 사용자]) | 전체 |
 
 ### 1.2 다루지 않는 것과 담당
 
@@ -50,7 +50,7 @@ binds: []
 
 ### 1.3 모델 컨텍스트 원칙
 
-이 스펙의 어떤 규칙도 시스템 프롬프트, 환경 블록, 도구 설명에 줄을 더하지 않는다 [결정: 사용자 하네스 최소 원칙]. 훅의 "묻기" 이유, 파일 변경 기록, 블록 설명 데이터는 모델에 보이지 않고 기록과 화면에만 간다. 모델에 보이는 새 문장은 막음 결과의 사유 한 줄(기존 `[fresnel:denied_by_extension] <reason>` 형식)뿐이다.
+이 스펙의 어떤 규칙도 시스템 프롬프트, 환경 블록, 도구 설명에 줄을 더하지 않는다 [결정: 2026-11-12 사용자, 하네스 최소 원칙]. 훅의 "묻기" 이유, 파일 변경 기록, 블록 설명 데이터는 모델에 보이지 않고 기록과 화면에만 간다. 모델에 보이는 새 문장은 막음 결과의 사유 한 줄(기존 `[fresnel:denied_by_extension] <reason>` 형식)뿐이다.
 
 ## 2. 용어
 
@@ -134,7 +134,7 @@ binds: []
 - fold 수: tap 24, first 10(2, 13, 27, 32, 33, 34, 37, 42, 43, 44), chain 10(1, 4, 5, 6, 7, 8, 14, 22, 23, 24), collect 2(3, 28). 합계 46.
 - 위치 종류별 개수: 블록 앞·뒤 또는 경계에서 고치거나 정하는 훅 18개(1, 2, 3, 4, 5, 7, 8, 13, 14, 22, 23, 24, 28, 30, 34, 42, 43, 44), 이벤트 23개(30번을 뺀 tap 23개), 내부 5개(6, 27, 32, 33, 37). 18+23+5=46.
 - 지금 발화하지 않는 훅 4개: `request.cache.before`(6), `thread.trust.before`(27), `thread.resources`(28), `thread.mcp.after`(29). 선언, 스키마, 문서, 화면 표만 있다. `HookSignatures`는 46행이라고 주석하지만 발화는 42개다.
-- 훅을 고치거나 막는 데 쓰는 번들 플러그인은 5개 위치뿐이다: 입력 받기(cap-dialog), 턴 시작(cap-knowledge, cap-work, cap-dialog, helm), 도구 실행 앞(helm), 단계 끝과 턴 종료 직전(cap-work, learning). `docs/xeon/decisions/ADR-0023-plugin-profile-core.md` §3.2의 "5개"와 일치한다.
+- 훅을 고치거나 막는 데 쓰는 번들 플러그인은 5개 위치뿐이다: 입력 받기(cap-dialog), 턴 시작(cap-knowledge, cap-work, cap-dialog, helm), 도구 실행 앞(helm), 단계 끝과 턴 종료 직전(cap-work, learning). 이 문서 3절의 표가 근거다.
 - 외부 훅 정의(설정 파일에 적는 셸 훅)가 붙을 수 있는 훅은 8개다: `input.user.before`, `input.bash.before`, `tool.call.before`, `tool.result`, `thread.start`, `thread.compact.before`, `boundary.settle.after`, `thread.shutdown`(`ext-host/src/operations/hooks/config.ts:12-21`). 이 8개는 새 위치에서도 모두 공개 위치다. 새 위치 때문에 외부 훅이 떨어져 나가는 일은 없다.
 - 기존 화면 표가 따로 있다. `client/src/workbench/canvas/hooks.ts`가 훅별 phase(`start/think/act/wrap`), fold, failure, orderMatters를 중복해서 들고 있고 `hooks.test.ts`가 46개를 대조한다. 이 스펙의 위치 데이터(4.1)가 정본이 되면 이 표는 파생값으로 바꾼다(8절).
 
@@ -346,7 +346,7 @@ interface EventEnvelope<E extends SubscribableEvent = SubscribableEvent> {
 | 훅 | 내부로 두는 이유 |
 |---|---|
 | `thread.trust.before`(27) | 폴더 신뢰는 플러그인을 읽기 전에 결정한다(`ext-host/src/loading-trust/trust/resolve.ts`). 비내장 플러그인은 그 시점에 아직 신뢰받지 못했다. 발화 연결(`emitProjectTrust`)도 없다 |
-| `thread.switch.before`(32), `thread.fork.before`(33), `thread.tree.before`(37) | 대화 구조를 바꾸는 사용자 조작을 플러그인이 취소하는 위치다. 번들 사용이 없고 개념 문서도 내부 후보로 둔다(`docs/xeon/decisions/ADR-0023-plugin-profile-core.md` §3.2 두 번째 불릿). 공개하지 않는다 [제안, 12절 O-3] |
+| `thread.switch.before`(32), `thread.fork.before`(33), `thread.tree.before`(37) | 대화 구조를 바꾸는 사용자 조작을 플러그인이 취소하는 위치다. 번들 사용이 없고 개념 초안도 내부 후보로 두었다(ADR에는 옮기지 않았다). 공개하지 않는다 [제안, 12절 O-3] |
 | `request.cache.before`(6) | 발화하는 코드가 없고 캐시 워밍 결정은 코어의 일이다 |
 
 내부 훅의 이름과 발화(있다면)와 `thread.tree.after` 같은 짝 이벤트는 그대로 둔다. 매니페스트 검증이 비내장 플러그인의 내부 훅 선언을 거부한다(5.1 규칙 H-4). 외부 셸 훅 정의의 허용 목록(`config.ts:12-21`)은 공개 위치뿐이므로 영향이 없다.
@@ -495,14 +495,16 @@ export const BLOCK_MODEL: BlockModel;
 ```
 
 - `hooks.before/after/events`는 `HOOK_POSITIONS`에서 파생한다. 손으로 두 번 적지 않는다. 생성 검사가 `BLOCK_MODEL.blocks[*].hooks`와 `HOOK_POSITIONS`의 일치를 확인한다.
-- `guarantees`는 `craft-plan.md` §7.2의 보장 열을 정본으로 한다: 컨텍스트("기록된 것만 모델에 보인다", "잘리면 표시된다"), 모델("요청과 응답 기록", "토큰 집계", "요청 가드, 재시도"), 도구("권한 확인", "승인", "샌드박스", "실행 기록", "결과 기록"), 묻기("답이 올 때까지 멈춤", "재시작 뒤 복원"), 서브에이전트("부모의 프로필·권한 상속"), 기록("재시작해도 같은 일을 두 번 하지 않음"). 문구는 Craft가 번역한다.
+- `guarantees`는 옛 `craft-plan.md` §7.2의 보장 열(ADR §3.2.3으로 옮겨짐)을 정본으로 한다: 컨텍스트("기록된 것만 모델에 보인다", "잘리면 표시된다"), 모델("요청과 응답 기록", "토큰 집계", "요청 가드, 재시도"), 도구("권한 확인", "승인", "샌드박스", "실행 기록", "결과 기록"), 묻기("답이 올 때까지 멈춤", "재시작 뒤 복원"), 서브에이전트("부모의 프로필·권한 상속"), 기록("재시작해도 같은 일을 두 번 하지 않음"). 문구는 Craft가 번역한다.
 - 모델 컨텍스트에는 이 데이터가 가지 않는다 (1.3).
 
 #### 4.8.1 블록별 설정 키
 
-설정 키의 정본 목록과 위치는 부록 A에 둔다. 키의 소유자는 둘로 나뉜다. 코어 키(`l1.*`, `l0.*`)는 코어 패키지(`core-context`, `core-models`, `core-tools`, `core-agents`, `core-persistence`)가 소유한다. 웹 허용(`l2.web.policy.*`), MCP(`l2.mcp.*`), 지식(`skills.*`, `memory.*`), `commands.advertise`는 기본 설치 플러그인(`cap-web`, `cap-mcp`, `cap-knowledge`, `cap-dialog`)이 소유한다. 블록의 설정 겹은 "그 블록이 읽는 코어 키 + 그 블록에 걸린 플러그인 키(소유 플러그인 표시)"다 [12절 O-10의 기본값 채택]. 이 키들은 M5c가 `profile` 범위에 개별로 연다(M5c §3.3). "코어 플러그인"이라는 말은 쓰지 않는다: 코어는 코어이고 뺄 수 없는 플러그인은 없다(엔진 설계 §8, [결정: 2026-11-17 사용자, U4]).
+설정 키의 정본 목록과 위치는 부록 A에 둔다. 키의 소유자는 둘로 나뉜다. 코어 키(`l1.*`, `l0.*`)는 코어 패키지(`core-context`, `core-models`, `core-tools`, `core-agents`, `core-persistence`)가 소유한다. 웹 허용(`l2.web.policy.*`), MCP(`l2.mcp.*`), 지식(`skills.*`, `memory.*`), `commands.advertise`는 기본 설치 플러그인(`cap-web`, `cap-mcp`, `cap-knowledge`, `cap-dialog`)이 소유한다. 블록의 설정 겹은 "그 블록이 읽는 코어 키 + 그 블록에 걸린 플러그인 키(소유 플러그인 표시)"다 [채택]. 이 키들은 M5c가 `profile` 범위에 개별로 연다(M5c §3.3). "코어 플러그인"이라는 말은 쓰지 않는다: 코어는 코어이고 뺄 수 없는 플러그인은 없다(엔진 설계 §8, [결정: 2026-11-17 사용자, U4]).
 
 ### 4.9 블록 읽기 (wire)
+
+오류 코드는 블록 3700~3719를 쓴다(`m5-plan.md` Z1이 C0에서 동결한다).
 
 클라이언트는 같은 데이터를 wire로 읽는다. 기존 읽기 짝(`ext.*` 계열과 `hooks.order.*`)의 곁에 읽기 전용 둘을 더한다 [제안].
 
@@ -520,12 +522,12 @@ export const BLOCK_MODEL: BlockModel;
 ### 5.1 훅 정리
 
 - **H-1 좁히기만 한다.** 어떤 훅의 결정도 정책의 `deny`나 승인 요구를 `allow`로 바꾸지 못한다. 결정 값에 허용이 없고(4.2), `ask.human.before`는 `tool`·`review` 종류에서 `cancel`만 낼 수 있다. 시험: 정책이 `deny`인 호출에 모든 핸들러가 `undefined`나 `ask`를 내도 결과는 거부다.
-- **H-2 결정 합치기 [결정: 2026-11-17 사용자, U3].** 채택(처음 결정으로 멈추는 단순안은 `ask`가 `block`을 가리므로 쓰지 않는다). `tool.call.before`와 `agent.spawn.before`는 모든 핸들러가 돈 뒤 `block` > `replace` > `ask` > 없음 순으로 결정한다. 같은 종류 안에서는 순서가 앞선 값이 이긴다. 다른 first 훅은 바뀌지 않는다(처음 결정에서 멈춤). 시험: 앞 핸들러 `ask`, 뒤 핸들러 `block`이면 `block`이다.
+- **H-2 결정 합치기 [결정: 2026-11-17 사용자, U3].** 채택. 사용자가 확인한 것은 `block` > `replace` > `ask` 순과 등급 셋(guard 맨 앞)이다. 아래 나머지는 [제안]이다: 처음 결정으로 멈추는 단순안은 `ask`가 `block`을 가리므로 쓰지 않는다. `tool.call.before`와 `agent.spawn.before`는 모든 핸들러가 돈 뒤 `block` > `replace` > `ask` > 없음 순으로 결정한다. 같은 종류 안에서는 순서가 앞선 값이 이긴다. 다른 first 훅은 바뀌지 않는다(처음 결정에서 멈춤). 시험: 앞 핸들러 `ask`, 뒤 핸들러 `block`이면 `block`이다.
 - **H-3 묻기는 한 번만 띄운다.** 같은 호출에 훅 묻기와 정책 ask가 겹치면 카드는 하나이고 두 사유가 함께 실린다. 시험: 카드 수 1.
 - **H-4 내부 훅은 공개하지 않는다.** 비내장 플러그인 매니페스트가 내부 훅(`request.cache.before`, `thread.trust.before`, `thread.switch.before`, `thread.fork.before`, `thread.tree.before`)을 선언하면 로딩이 `hook_internal`로 거부한다. 내장은 허용한다. 지금 발화하지 않는 훅을 선언하면 진단 경고 `hook_not_fired`를 남긴다. 시험: 사용자 등급 매니페스트로 `thread.fork.before` 선언 시 거부.
 - **H-5 위치표 완전성.** `HOOK_POSITIONS`는 `HOOK_NAMES`(50개)와 키가 같고 위치 종류별 개수는 블록·경계 21, 이벤트 24, 내부 5다. 훅 이름 문자열은 46개 모두 이전 빌드와 같다(스냅샷 시험).
 - **H-6 이벤트는 막지 못한다.** 구독 핸들러의 반환값과 예외는 턴의 결과를 바꾸지 못한다. 시험: 모든 이벤트 구독에서 예외를 던져도 턴의 기록은 구독 없을 때와 같다.
-- **H-7 `thread.resources` 배선** [제안]. 대화를 열 때 `thread.start` 앞에서 한 번 발화하고 반환한 경로를 스킬 탐색(`cap-knowledge`의 `skills.paths`와 같은 경로 처리)에 합친다. 실패는 open이다. **[결정: 2026-11-17 사용자, U6] 대화 시작 경계의 결과로 대화 폴더를 정하는 길.** `thread.start`는 관찰·`post`만 하는 tap이라 값을 돌려주지 못한다. `thread.resources`(collect)의 결과에 선택 필드 `workspace`를 더한다. 여럿이 내면 순서가 앞선 핸들러의 값만 쓰고 나머지는 진단(`workspace_conflict`)이다. 호스트는 첫 턴 전에 같은 프로젝트 루트 안의 폴더일 때만 `thread.updated { workspace }`를 커밋하고 아니면 무시한다(M5c §4.4.9). 같은 폴더 동시 대화의 정책(코어는 알리기만, 폴더는 이 훅이 정함, worktree는 플러그인)도 같은 결정 U6이다(코어는 알리기만, 막지 않고 자동 복사 없음, 훅은 경로 하나를 돌려준다). 이 필드는 결과 모양 그대로 구현한다. M5c 로더가 같은 일을 하면 이 훅은 "코드 플러그인이 동적으로 경로를 낼 때"만 쓴다.
+- **H-7 `thread.resources` 배선** [결정: 2026-11-17 사용자, U6]의 구현이다. 결과 필드 `workspace`는 사용자가 정한 것이고 배선 세부는 [제안]이다. 대화를 열 때 `thread.start` 앞에서 한 번 발화하고 반환한 경로를 스킬 탐색(`cap-knowledge`의 `skills.paths`와 같은 경로 처리)에 합친다. 실패는 open이다. **[결정: 2026-11-17 사용자, U6] 대화 시작 경계의 결과로 대화 폴더를 정하는 길.** `thread.start`는 관찰·`post`만 하는 tap이라 값을 돌려주지 못한다. `thread.resources`(collect)의 결과에 선택 필드 `workspace`를 더한다. 여럿이 내면 순서가 앞선 핸들러의 값만 쓰고 나머지는 진단(`workspace_conflict`)이다. 호스트는 첫 턴 전에 같은 프로젝트 루트 안의 폴더일 때만 `thread.updated { workspace }`를 커밋하고 아니면 무시한다(M5c §4.4.9). 같은 폴더 동시 대화의 정책(코어는 알리기만, 폴더는 이 훅이 정함, worktree는 플러그인)도 같은 결정 U6이다(코어는 알리기만, 막지 않고 자동 복사 없음, 훅은 경로 하나를 돌려준다). 이 필드는 결과 모양 그대로 구현한다. M5c 로더가 같은 일을 하면 이 훅은 "코드 플러그인이 동적으로 경로를 낼 때"만 쓴다.
 - **H-8 `thread.mcp.after` 배선** [제안]. `apps/host/src/assembly/cap-mcp.ts:170`의 `onServersChange`를 연결하고, 발화는 `applyBoundary`를 부른 대화(`boundary.step.before` 핸들러, `cap-mcp.ts:185`)의 것으로 한다. 서버 변화가 대화에 속하지 않는다는 주석(`cap-mcp.ts:47`)의 문제를 "변화를 처음 본 대화에서 발화"로 푼다.
 - **H-9 훅 결과 값.** 핸들러 호출마다 기록된 결과값(`result`, `reason`, `decision`, `ask`)이 남고 4.5의 변환표로 표시값 여섯이 파생된다.
 - **H-10 `lifecycle.lease.rejected`.** E3가 중재를 없애면 발화가 멈춘다. 이름과 위치표 행은 남기고 `fired: false`로 바꾼다. 매니페스트 경고(H-4)가 따른다.
@@ -537,7 +539,7 @@ export const BLOCK_MODEL: BlockModel;
 규칙:
 
 - **O-1 기본 순서는 `E(T)`의 순서다** [제안]. 공통 묶음의 플러그인, 프로필의 플러그인 목록, 덧씌우기 순이다(M5c §4.1.3). 같은 위치의 핸들러는 앞쪽 플러그인이 먼저 돈다. 프로필에 없는 핸들러(프로필이 없는 구성, 외부 셸 훅)는 지금 키 `(loadIndex, seq)`를 쓴다.
-- **O-2 tier는 셋으로 줄인다** [결정: 2026-11-17 사용자, U3: 채택. guard 맨 앞 기본 유지]. M5c §4.2.1도 이 규칙을 쓴다: `guard`(코어의 보안 가드와 managed 외부 훅, 맨 앞), `plugin`(번들, 사용자, 프로젝트 플러그인 전부, 한 등급), `core`(코어 자신의 핸들러, 맨 뒤). `user`, `project`, `builtin` 구분은 정렬에서 빠지고 출처 표시(`assignTier`의 `source`)로만 남는다. 지금은 `user`가 `builtin`보다 앞이라서 사용자의 chain 패치가 번들의 패치보다 먼저 적용된다. 새 기본에서는 프로필 목록 순서가 이 일을 한다. 기본 프로필의 번들 플러그인은 지금 로딩 순서대로 나열한다.
+- **O-2 tier는 셋으로 줄인다** [결정: 2026-11-17 사용자, U3: 채택. guard 맨 앞 기본 유지. 등급 이름과 순서는 [제안]]. M5c §4.2.1도 이 규칙을 쓴다: `guard`(코어의 보안 가드와 managed 외부 훅, 맨 앞), `plugin`(번들, 사용자, 프로젝트 플러그인 전부, 한 등급), `core`(코어 자신의 핸들러, 맨 뒤). `user`, `project`, `builtin` 구분은 정렬에서 빠지고 출처 표시(`assignTier`의 `source`)로만 남는다. 지금은 `user`가 `builtin`보다 앞이라서 사용자의 chain 패치가 번들의 패치보다 먼저 적용된다. 새 기본에서는 프로필 목록 순서가 이 일을 한다. 기본 프로필의 번들 플러그인은 지금 로딩 순서대로 나열한다.
 - **O-3 덮어쓰기 유지.** `x.operations.hookOrder`와 `hooks.order.get|set|reset|preview`(`contracts/src/wire-settings/wire/ext-read.ts:889-987`)는 그대로 쓰고 이름도 바꾸지 않는다. 가드 위험 미리보기(`previewOrder`, `checkOrder`)는 `guard` tier 핸들러를 옮길 때만 경고한다.
 - **O-4 순서가 뜻을 바꾸는 곳.** chain은 값이 흘러가므로 순서가 최종 값을 바꾼다. collect는 기여를 순서대로 모은다. `tool.call.before`와 `agent.spawn.before`는 H-2가 종류의 우선순위를 정하므로 순서는 사유와 `replace` 내용만 바꾼다. 화면의 "순서가 중요" 표시(`client/src/workbench/canvas/hooks.ts`의 `orderMatters`)는 이 규칙으로 다시 계산한다.
 - **O-5 변경 시점.** 프로필 목록 순서와 덮어쓰기는 다음 단계 경계에 적용된다(지금과 같다).
@@ -588,7 +590,7 @@ export const BLOCK_MODEL: BlockModel;
   1. 격리 프로세스에서 도는 플러그인(사용자, 프로젝트 등급, P1 이후)은 파일 쓰기와 프로세스 실행이 샌드박스로 막혀 있으므로 코어 서비스(통합 경로) 말고 길이 없다. 구조로 강제된다.
   2. 엔진 안에서 도는 플러그인(번들, 또는 `ext.<이름>.isolation` 예외 설정으로 허용된 것)은 막을 수 없다. 대신 (가) 플러그인 카드에 "코드가 직접 실행됨"을 표시하고 (나) `tool_replace` 승인 본문의 안내(`replace-gate.ts:21-22`: "내장 도구의 경로 보호는 대체 도구가 직접 지켜야 한다")를 이 경우에만 싣는다. 격리된 플러그인에는 이 안내를 싣지 않는다.
   3. 실행 중 계측: 도구 호출마다 코어 서비스 호출 수(`observedCoreCalls`)를 센다. 위험 등급이 `write` 이상인 대체 도구가 `observedCoreCalls = 0`이고 `reported` 변경도 없이 성공하면 턴 기록에 `untracked_write`를 남기고 변경 탭의 "추적 밖" 줄로 보낸다.
-- **P-5** 프로필에서 두 플러그인이 같은 도구를 대체하면 프로필 편집 때 충돌로 알린다(`docs/xeon/decisions/ADR-0023-plugin-profile-core.md` §5.9). 레지스트리의 `replace_conflict`가 마지막 방어선이다.
+- **P-5** 프로필에서 두 플러그인이 같은 도구를 대체하면 프로필 편집 때 충돌로 알린다(이 문서 5.5절). 레지스트리의 `replace_conflict`가 마지막 방어선이다.
 
 ## 6. 층 재편
 
@@ -720,7 +722,7 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 
 1. **데이터 먼저(동작 변화 없음).** D-2, D-19, D-24, D-23의 `blocks.describe`. 기존 46개 훅의 위치 데이터만 더하고 발화는 안 건드린다. 이 단계 끝에 화면이 위치 데이터를 읽을 수 있다.
 2. **새 훅 쌍과 결정 어휘.** D-1, D-3~D-9. 새 훅은 구독자가 없으면 아무 일도 하지 않는다. `tool.call.before`의 합치기(D-4)는 구독자가 `block`만 내는 동안 지금과 결과가 같다.
-3. **이벤트 구독 면.** D-10, D-11, D-12(`thread.resources`, 선택). `g.on`은 그대로 받는다. 번들과 템플릿을 `g.subscribe`로 옮기는 일은 이 뒤에 하나씩.
+3. **이벤트 구독 면.** D-10, D-11, D-12(`thread.resources`와 그 결과 `workspace`: H-7, A-20. U6의 구현이므로 선택이 아니라 이 단계의 예정 항목이다). `g.on`은 그대로 받는다. 번들과 템플릿을 `g.subscribe`로 옮기는 일은 이 뒤에 하나씩.
 4. **변경 기록.** D-19 사용 시작(D-20, D-22), 마지막에 D-21(데스크톱). 옛 형식(`FileChange` 한 건)도 `fileChangesOf`가 읽으므로 기존 대화는 그대로 보인다.
 5. **층 이름과 규칙.** D-26을 `P` 별칭으로 먼저 넣고(`L2`, `L3` 선언이 계속 통과), `cap-work`의 `core-agents` import(D-30)를 없앤 뒤 규칙을 켠다.
 6. **재수출 이동.** D-28(`ask/`)을 새 위치에 복사하고 `cap-dialog`가 재수출한다. 호스트 import를 새 경로로 바꾼 뒤 옛 파일을 지운다. D-27도 같은 방식(코어 서비스 파일 이동, 기능 id 유지, `cap-workspace`가 재수출). 가져다 쓰는 곳이 호스트뿐이라 한 번에 한 파일씩 옮겨도 녹색이다.
@@ -764,7 +766,6 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 
 | # | 질문 | 제안 기본값 |
 |---|---|---|
-| O-1 | [결정: 2026-11-17 사용자, U3] `ask`를 non-terminal로 하는 합치기(H-2) 대신 "처음 결정이 이김"을 쓸지. tier 축소(O-2)와 한 묶음이며 2026-11-03 동작을 바꾼다 | 닫음: 합치기를 `tool.call.before`·`agent.spawn.before`에만 쓰고 guard 맨 앞 기본은 유지한다 |
 | O-2 | 훅의 묻기에 "이 대화에서 계속 허용"을 줄지 | 주지 않는다(`once`뿐). 반복 질문 피로가 생기면 훅이 `rememberFor` 같은 필드를 선택하게 한다 |
 | O-3 | `thread.switch|fork|tree.before`를 내부로 둘지 | 내부. 쓰려는 번들이 없다 |
 | O-4 | 중첩 호출 승인 상속(U-11)을 쓸지 | 쓴다. 안 쓰면 대체 도구와 플러그인 도구의 이중 승인이 생긴다 |
@@ -773,10 +774,7 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 | O-7 | 턴 없는 호출(대화 시작 훅, 명령)의 효과 기록 `turnId: null` 허용 여부 | 구현 트랙의 첫 일로 `F.records` 스키마를 읽고 정한다 |
 | O-8 | `guard.output.before`의 `execution` 대상(`guardExecution`)과 `guard.tool.before`의 겹침 제거 | 이 스펙에서는 두고 이름만 정리한다 |
 | O-9 | `group-sdk`를 플러그인 등급에 둘지 SDK로 둘지 | SDK(플러그인 API 라이브러리). 의존 방향 때문에 규칙은 `DR-02/group-sdk` 예외로 지금과 같다 |
-| O-10 | 블록의 설정 겹과 플러그인 소유 설정의 관계. `craft-plan.md` §7.1은 "설정 겹 = 그 블록을 맡은 코어 플러그인의 설정 값"이라 하는데 웹 허용(`l2.web.policy.*`)과 MCP(`l2.mcp.*`)는 번들 플러그인이 소유한 키다 | 닫음(교차 점검 A8): `SettingRef.owner`에 소유 플러그인을 적고 화면이 블록별로 묶어 보인다. 코어가 소유한 키는 `l1.*`, `l0.*`다. `craft-plan.md` §7.1과 개념 문서 §9의 문장은 이 정의로 고친다 |
-| O-16 | [결정: 2026-11-17 사용자, U6] 대화 시작 경계의 결과로 대화 폴더를 정하는 길 | 닫음: `thread.resources`의 결과에 선택 필드 `workspace`(경로 하나, H-7) |
-| O-17 | [결정: 2026-11-17 사용자, U2] 초안 덧씌우기가 `bypass` 대화에서 실제 작업에 이를 때(U-6) | 닫음: 초안 출신 호출은 모드와 무관하게 카드를 띄우고 "초안" 표시 |
-| O-18 | [결정: 2026-11-17 사용자, U4] 층 재편 최종 확인(결정 B) | 닫음: 확정 |
+| O-19 | [제안] U3의 세부: 합치기를 두 위치에만 쓰는 것, 모든 핸들러가 돈 뒤 정하는 것, 등급 이름(`guard`, `plugin`, `core`)과 순서. 사용자가 정한 것은 `block` > `replace` > `ask`와 등급 셋, guard 맨 앞이다 | 5.1 H-2, 5.2 O-2대로. 사용자가 다르게 정하면 고친다 |
 | O-11 | 번들이 쓰는 내부 상태 기능(`work.tasks.create` 등)이 `default` 모드에서 카드를 띄우는 문제 | 도구 매핑이 없는 `idempotent` 기능은 위험 등급 `write`이지만 내부 상태 전용이라 평가를 `allow`로 하는 선언(`MethodDef.internalState`)을 더한다 [미확인: 지금 정책의 처리] |
 | O-12 | 새 설정 `l1.tools.pluginCallDepth`, `l1.tools.pluginCalls`(전환 스위치)의 이름 | 그대로. 전환이 끝나면 `pluginCalls`는 지운다 |
 | O-13 | `thread.start`를 경계 훅으로 두면서 `g.subscribe`에서도 받을지 | 받는다(이벤트 목록에는 넣지 않고 경계 목록에서만). 둘 다 쓰는 코드가 없다 |
@@ -798,7 +796,7 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 | 결정 D (플러그인 호출을 도구 블록에 태움) | 5.3 | 둠 |
 | R12 (훅 결과 값) | 4.5(결정값, 기록된 결과값, 표시값, 변환표), H-9, A-6 | 둠. 저장 모양은 M5d |
 | R21 의 일부: 같은 위치 순서와 합치기 | 4.2 결정 합치기, 5.1 H-2, 5.2 O-1~O-2, A-4 | 둠. [결정: 2026-11-17 사용자, U3] |
-| 대화 시작 경계의 결정 값 | 5.1 H-7, 12절 O-16, A-20 | 둠. [결정: 2026-11-17 사용자, U6] |
+| 대화 시작 경계의 결정 값 | 5.1 H-7, A-20 | 둠. [결정: 2026-11-17 사용자, U6] |
 | 훅 선언의 결정 선언(`decides`), 기록 블록의 빈 Hook 겹 명시(M6 요청 M5e-1·2) | 4.1.1, 4.9 | 둠 |
 | 위치에 못 놓은 것 | `L1.tools.spec` §4.10의 인자 재작성 훅(O-6), `bash`의 파일 변경 관찰(O-5), 기록 블록의 쓰기 훅(기록 블록은 이벤트만, 결정 A) | 범위 밖으로 표시 |
 
@@ -810,12 +808,11 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 
 | 말 | 쓰는 곳 | 비고 |
 |---|---|---|
-| 테스트 대화(Craft 전용 AI 대화), 테스트 실행(초안을 얹은 임시 구성) | M5c, M5d, M5e, craft-flow §8, 로드맵 | `testRun`(Test run, ui "테스트")과의 관계를 정의한다. M5d §2: "테스트 실행 = 기존 Test run과 같은 통로"이므로 `testRun`의 ui를 "테스트 실행"으로. "테스트 실행"은 [결정: 2026-11-17 사용자] |
-| 테스트 화면 [권고: 장소 이름은 "테스트", 사용자의 다른 안은 "실험실", 확인 대기] | M5d, craft-flow | 옛 "시험장"을 대신하는 화면 이름. "시험장"은 금지 목록에는 없지만 미등록이라 쓰지 않는다 |
-| Inject / Hook / Drive(화면 이름) | 전체 | 영어 표기이고 한국어 이름은 쓰지 않는다(개념 §10). `hook` ui "훅"과 정리. 코드 의미의 "주입"(의존성 주입, `injectionMode`)은 유지 |
-| 프로필 칩 | M5c, craft-flow, 로드맵 | 신규 |
-| 테스트(Craft의 화면 이름) [권고: 테스트, 사용자의 다른 안은 "실험실", 확인 대기] | craft-flow, 로드맵 | 사용자가 "시험장"을 반려했다(2026-11-17). "테스트"는 테스트 대화·테스트 실행과 같은 말뿌리다 |
-| Craft 화면 이름: 개요, 프로필, 검토함, 테스트, 지표 [권고, 확인 대기] | craft-flow | 지금 `terms.json`의 `benchmark`(성능 측정), `workbench` 등과의 관계를 정한다 |
+| 테스트 대화(Craft 전용 AI 대화), 테스트 실행(초안을 얹은 임시 구성) | M5c, M5d, M5e, 화면 스펙 흐름 8, `m5-plan.md` §7 | `testRun`(Test run, ui "테스트")과의 관계를 정의한다. M5d §2: "테스트 실행 = 기존 Test run과 같은 통로"이므로 `testRun`의 ui를 "테스트 실행"으로. "테스트 실행"은 [결정: 2026-11-17 사용자] |
+| Inject / Hook / Drive(화면 이름) | 전체 | 영어 표기이고 한국어 이름은 쓰지 않는다(ADR §3.3.1). `hook` ui "훅"과 정리. 코드 의미의 "주입"(의존성 주입, `injectionMode`)은 유지 |
+| 프로필 칩 | M5c, 화면 스펙, `m5-plan.md` | 신규 |
+| 테스트(Craft의 화면 이름) [결정: 2026-11-17 사용자] | 화면 스펙, `m5-plan.md` | 사용자가 "시험장"을 반려하고 "테스트"로 정했다. 테스트 대화·테스트 실행과 같은 말뿌리다 |
+| Craft 화면 이름: 개요, 프로필, 검토함, 테스트, 지표, 플러그인(여섯) [결정: 2026-11-17 사용자] | 화면 스펙 | 지금 `terms.json`의 `benchmark`(성능 측정), `workbench` 등과의 관계를 정한다 |
 | 지침 추가 | craft-flow, M5c §4.10 | 프로필 화면의 한 줄 지침 플러그인 입구 |
 | 덧씌우기, 일회 사용, 공통 묶음, 시작 Drive, 검토함, 검토본, 원본, 초안 | M5c, craft-flow | 신규 |
 | 대화 폴더, 프로젝트(루트), 기본 폴더 | M5c | "프로젝트"가 신규 |
@@ -832,7 +829,7 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 |---|---|
 | `extension`, `pluginGroup`, `layerExtensionRuntime`의 `ui` 값 | 화면에서 쓰지 않기로 결정했으므로 `status`를 `legacy`로, `ui` 값 제거 |
 | `testRun`(ui "테스트") | ui를 "테스트 실행"으로. `forbid.docs`의 "시험 대화"는 유지하고 "시험장"을 금지 목록에 더한다(사용자가 2026-11-17에 그 이름을 반려했다. 이 요청이 확인되면) |
-| `hook`의 `forbid`("지점", "연결 지점", "소켓") | 유지. 문서의 남은 "지점"은 "위치"나 훅 이름으로 치환(개념 문서, craft-flow, 로드맵, `_notes/m4-decisions.md`) |
+| `hook`의 `forbid`("지점", "연결 지점", "소켓") | 유지. 문서의 남은 "지점"은 "위치"나 훅 이름으로 치환(ADR, 화면 스펙, `m5-plan.md`, `_notes/m4-decisions.md`) |
 | `secret`의 `forbid`("비밀") | 유지. "비밀 값"은 "시크릿 값"으로 치환 |
 | `thread`의 `forbid`("세션") | 유지. 문서의 thread 뜻 "세션"은 "대화"로("세션 폴더"는 "대화 폴더"). 에이전트 작업 맥락을 뜻하는 "메인 세션"은 위반이 아니지만 혼동되므로 "메인 에이전트" 권고 |
 | `driver`(ui "주도") | "주도권"과 Drive(화면 이름)의 관계를 한 표기로 정리한다. 금지는 "임대", "진행권" |
@@ -863,6 +860,7 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 | 기록 | `l1.persistence.retention.maxAgeDays|maxCount`, `autoResume`, `maxResumeAttempts`, `export.format` | `core-persistence/src/settings.ts:9-69` |
 | | `l0.exec.outputSpillBytes|spillRetentionDays|spillMaxBytes`, `l0.store.*`, `x.operations.trace.enabled|retentionDays|storeRequestBody` | `platform-exec/src/settings.ts`, `platform-store/src/settings.ts`, `ext-host/src/operations/settings-keys.ts:216-241` |
 | 블록 밖(기본 흐름) | `l1.loop.maxSteps`, `gate.maxContinues`(8), `repeat.*` | `core-loop/src/settings.ts:22-77` |
+| 주도 | `x.primitives.driveDefaultLimits`, `x.primitives.driveLimits`(천장), `x.primitives.driveMaxDepth`(깊이 상한, 기본 3 [권고: 메인 세션, 확인 대기]. 이름은 [제안]이고 C0에서 확정. 프로필이 `profile` 범위로 바꿀 수 있는 것은 앞의 기본 한도와 깊이 상한이다) | `ext-host`(정의 위치는 구현 때 정한다). 범위 규칙은 M5c §3.3 |
 
 블록에 키가 없는 것: 샌드박스 프로필 `read-only`는 설정이 아니라 호출 옵션이고(`contracts/src/services/sandbox.ts:111`), 도구 대체에는 설정 키가 없으며 상태(`pending|active|denied`)만 있다(`L1.tools.spec` §4.13). 서브에이전트의 백그라운드 전용 키도 없다.
 
