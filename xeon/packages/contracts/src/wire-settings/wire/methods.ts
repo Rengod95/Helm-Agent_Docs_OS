@@ -72,6 +72,7 @@ import {
 import { WIRE_LIMITS, WireMetaSchema } from "./jsonrpc.ts";
 import { RequestKeySchema } from "./schema-kit.ts";
 import { EXT_READ_METHODS, type ExtReadSchemas } from "./ext-read-methods.ts";
+import { DriveFramesChangedParamsSchema } from "./ext-read.ts";
 import { DIALOG_AREA_METHODS, type DialogAreaSchemas } from "./dialog-area.ts";
 import { DEVKIT_WIRE_METHODS, type DevkitWireSchemas } from "./devkit.ts";
 import { MEASURE_WIRE_METHODS, type MeasureWireSchemas } from "./measure.ts";
@@ -2222,6 +2223,8 @@ interface ServerNotificationSchemas {
   "notify.delivered": typeof NotifyDeliveredParamsSchema;
   /** M4 */
   "profile.changed": typeof ProfileChangedParamsSchema;
+  /** M4 (drive-isolation.md 2.6) */
+  "drive.framesChanged": typeof DriveFramesChangedParamsSchema;
 }
 export type ServerNotificationMap = {
   readonly [N in keyof ServerNotificationSchemas]: Static<ServerNotificationSchemas[N]>;
@@ -2428,6 +2431,7 @@ export const WIRE_NOTIFICATIONS: {
   },
   "notify.delivered": { params: NotifyDeliveredParamsSchema, since: "0.1.0", stage: "M3" },
   "profile.changed": { params: ProfileChangedParamsSchema, since: "0.1.0", stage: "M4" },
+  "drive.framesChanged": { params: DriveFramesChangedParamsSchema, since: "0.1.0", stage: "M4" },
 };
 
 export const WIRE_CLIENT_NOTIFICATIONS: {

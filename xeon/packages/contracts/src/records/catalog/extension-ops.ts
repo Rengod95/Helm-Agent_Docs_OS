@@ -103,6 +103,9 @@ export const LeaseAcquiredPayloadSchema: TObject<{
   lineageId: TString;
   limits: typeof DriveLimitsJsonSchema;
   leaseEpoch: TOptional<TInteger>;
+  parent: TOptional<TString>;
+  depth: TOptional<TInteger>;
+  contentHash: TOptional<TString>;
 }> = Type.Object(
   {
     /** F.extensions.spec DriveLock.leaseId */
@@ -122,6 +125,18 @@ export const LeaseAcquiredPayloadSchema: TObject<{
      * 선택이라 `version`을 올리지 않는다. 없으면(옛 기록) 활성 가지 위 개수로 다시 센다 [결정: M3-REQ-08]
      */
     leaseEpoch: Type.Optional(Type.Integer({ minimum: 1 })),
+    /**
+     * 맡긴 쪽 프레임의 leaseId(`handoff`, drive-isolation.md 2.1). 사용자 명령이나 프로필 시작으로 쌓인 프레임은 없다.
+     * 선택이라 `version`을 올리지 않는다.
+     */
+    parent: Type.Optional(leaseId()),
+    /**
+     * 주도권 스택의 깊이. depth는 코어 위 첫 프레임이 0이고 옛 기록은 0으로 읽는다. 읽기 쪽 `DriveFrameView.depth`는 코어가 0이라 이 값에 1을 더한다.
+     * 선택이라 `version`을 올리지 않는다(drive-isolation.md 2.6).
+     */
+    depth: Type.Optional(Type.Integer({ minimum: 0 })),
+    /** 그 프레임을 낸 플러그인의 versionId(`sha256:<hex>` 또는 `draft:<draftId>:<해시 앞 8자>`). 지금 값이 없는 경로는 싣지 않는다 */
+    contentHash: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
   },
   { additionalProperties: false },
 );

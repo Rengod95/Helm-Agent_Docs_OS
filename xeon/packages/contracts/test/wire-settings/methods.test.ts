@@ -74,6 +74,7 @@ describe("WIRE_METHODS", () => {
       "settings.invalidated",
       "notify.delivered",
       "profile.changed",
+      "drive.framesChanged",
     ]);
     expect(Object.keys(WIRE_CLIENT_NOTIFICATIONS)).toEqual([
       "$/cancelRequest",

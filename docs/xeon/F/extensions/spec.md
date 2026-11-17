@@ -466,11 +466,24 @@ export interface SpawnOutcome {
   readonly answer?: string;
 }
 
-/** 단계 함수가 쓰는 프레임 정보. 프레임 스택(E3) 전에는 `frameDepth` 1, `calledBy`·`input` null [M5a-1, review.m5-drive-isolation 1.1] */
+/** 단계 함수가 쓰는 프레임 정보. `frameDepth`는 코어 0, 첫 플러그인 프레임 1이다 [M5a-1, review.m5-drive-isolation 1.1] */
 export interface DriveFrameInfo {
-  readonly frameDepth: number;
+  readonly frameDepth: number;     // 코어 0, 첫 플러그인 프레임 1
   readonly calledBy: string | null;
   readonly input: JsonValue | null;
+}
+/**
+ * 주도권 스택 프레임 하나를 읽는 모양(`drive.frames`, F.wire-settings.spec §3.3.1, 정의 `extensions/drive.ts`의 `DriveFrameViewSchema`).
+ * 스택 전체를 아래에서 위 순서로 준다. 맨 아래는 코어 루프(depth 0, plugin·versionId·leaseId가 null)다. 플러그인 프레임의 depth는 스택 인덱스(`lease.acquired.depth`) + 1이다.
+ */
+export interface DriveFrameView {
+  readonly depth: number;                       // 코어 0, 첫 플러그인 프레임 1
+  readonly plugin: string | null;
+  readonly versionId: string | null;
+  readonly leaseId: string | null;
+  readonly state: "driving" | "waiting" | "asking";   // asking은 임대를 반납하지 않은 질문 대기다
+  readonly used: { readonly turns: number; readonly spawns: number; readonly tokens: number };
+  readonly limits: { readonly turns?: number; readonly spawns?: number; readonly tokens?: number };
 }
 
 /** 엔진이 단계마다 새로 주는 입력 */
@@ -1047,7 +1060,7 @@ export type CollectHookName = { [N in HookName]: HookSignatures[N]["fold"] exten
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | 1 | `input.user.before` | input | chain | InputPayload | InputPatch | skip | ● | `input` | types.ts:1143/1156 | runner.ts:1520 emitInput | `handled`는 `stop` 규칙으로 표현 |
 | 2 | `input.bash.before` | input | first | UserBashPayload | UserBashDecision | closed |  | `user_bash` | types.ts:1125/1438 | runner.ts:1262 emitUserBash | 결정에 `deny` 변형 추가. pi는 예외를 다시 던짐 |
-| 3 | `input.agent.before` | input | collect | BeforeAgentStartPayload | BeforeAgentStartPatch | open |  | `before_agent_start` | types.ts:919/1468 | runner.ts:1420 emitBeforeAgentStart | pi의 message 수집을 `collect`로 받는다. `systemPrompt`는 원본 뒤에 덧붙인 값이 순서대로 쌓이고, 원본으로 시작하지 않는 전체 교체는 마지막 값이 이긴다(병합 규칙). `systemPromptOptions`(JSON 객체, 읽기 전용) 제자리 변경은 지원하지 않음 |
+| 3 | `input.agent.before` | input | collect | BeforeAgentStartPayload | BeforeAgentStartPatch | open |  | `before_agent_start` | types.ts:919/1468 | runner.ts:1420 emitBeforeAgentStart | pi의 message 수집을 `collect`로 받는다. `systemPrompt`는 원본 뒤에 덧붙인 값이 순서대로 쌓이고, 원본으로 시작하지 않는 전체 교체는 마지막 값이 이긴다(병합 규칙). `systemPromptOptions`(JSON 객체, 읽기 전용) 제자리 변경은 지원하지 않음. 페이로드에 `driver`(맨 위 주도 프레임의 플러그인 이름, 주도 중이 아니면 null)와 `stack`(아래에서 위 순서의 플러그인 이름, 주도 중이 아니면 빈 배열)을 더했다(review.m5-drive-isolation 2.5) |
 | 4 | `request.context.before` | request | chain | ContextPayload | ContextPatch | skip | ● | `context` | types.ts:871/1415 | runner.ts:1298 emitContext stage 1 | 제자리 수정 대신 패치 반환만 |
 | 5 | `request.system.before` | request | chain | ContextPayload | ContextPatch | skip |  | `context_with_system` | types.ts:881/1415 | runner.ts:1298 emitContext stage 2 | 같음 |
 | 6 | `request.cache.before` | request | chain | CacheWarmingDecisionPayload | CacheWarmingPatch | skip |  | `cache_warming_decision` | cache-warmer.ts:112/117 | runner.ts:1121 emitCacheWarmingDecision | pi collect(마지막 정의값). 핸들러가 원본 payload를 받으므로 결과가 같다 |
@@ -1668,7 +1681,7 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 |---|---|
 | `ExtensionManifest`, `ExtensionManifestSchema`, `defineManifest`, `validateManifest`, `validateUsage`, `validateManifestSet` | X.loading-trust.spec, 모든 확장 패키지 |
 | `HookName`, `HookSignatures`, `HookDecl`, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `COLLECT_RULES`, `GUARD_HOOKS`, `LIFECYCLE_HOOKS`, 페이로드·결정·패치 타입 | X.primitives.spec, L1.loop.spec, L1.tools.spec, L1.context.spec, L1.models.spec, L1.persistence.spec |
-| `Handler`, `HandlerContext`, `ExtensionOps`, `PostItem`, `PostOptions`, `PostReceipt`, `DriveStep`, `DriveCommand`, `StepResult`, `DriveLock`, `DriveLimits`, `RegistrationDef`, `RegistrationApi`, `RegistrationHandle`, `RegistrationFn`, `ExtensionEntry` | X.primitives.spec, L3.group-sdk.spec, L3.helm.spec, L3.learning.spec |
+| `Handler`, `HandlerContext`, `ExtensionOps`, `PostItem`, `PostOptions`, `PostReceipt`, `DriveStep`, `DriveCommand`, `StepResult`, `DriveLock`, `DriveLimits`, `DriveFrameView`, `RegistrationDef`, `RegistrationApi`, `RegistrationHandle`, `RegistrationFn`, `ExtensionEntry` | X.primitives.spec, L3.group-sdk.spec, L3.helm.spec, L3.learning.spec |
 | `GroupRecord`, `RecordKind`, `RecordKindDecl`, `RecordSubject`, `validateGroupRecord` | L3 전체, L1.persistence.spec |
 | `PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`(`IsolationProcessPort`, `HookProcessPort` 포함), `DriveLockArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`와 부속 타입, 각 `*PortKey`, `RecordCommitPort` 재노출 | X.primitives.spec, X.operations.spec, L0.store.spec, L0.process.spec, L1.loop.spec, L1.tasks.spec, L1.persistence.spec, L1.tools.spec, L1.models.spec, L2.mcp.spec, L3.group-sdk.spec, F.capabilities.spec §3.12 |
 | `LoaderFs`, `LoaderPaths`, `TrustStoreBackend`, `TrustPrompter`, `TrustPromptRequest`, `TrustOption`, `TrustUpdate`, `TrustChoice`, `TrustChoiceKind` | X.loading-trust.spec, L0.os.spec(구현), L4.cli.spec·L4.desktop.spec(프롬프트 구현) |

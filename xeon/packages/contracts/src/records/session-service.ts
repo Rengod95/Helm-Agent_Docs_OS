@@ -469,6 +469,12 @@ export interface OpenLease {
     readonly spawns: number;
     readonly tokens: number;
   };
+  /** 맡긴 프레임이면 맡긴 쪽 leaseId(`lease.acquired.parent`). 아니면 null */
+  readonly parent: string | null;
+  /** 스택 인덱스(`lease.acquired.depth`, 코어 위 첫 프레임 0). 옛 기록은 0으로 읽는다 */
+  readonly depth: number;
+  /** 그 프레임을 낸 플러그인의 versionId(`lease.acquired.contentHash`). 기록에 없으면 null */
+  readonly contentHash: string | null;
 }
 
 /** 모든 필드는 활성 가지(현재 leaf에서 parentId를 따라 올라간 사슬) 위 이벤트만으로 계산한다 */
@@ -481,13 +487,11 @@ export interface ExtThreadSnapshot {
   /** 켜진 scope마다 마지막 scope.changed{status:"enabled"}의 seq. 켜진 scope만 키를 갖는다 */
   readonly enabledAtSeq: Readonly<Record<string, number>>;
   readonly states: readonly StoredScopeState[];
-  /** lease.acquired 뒤 lease.released가 없는 임대. 최대 1개 */
-  readonly openLease: OpenLease | null;
   /**
-   * 활성 가지 위 마지막 lease.* 이벤트가 사유 `waiting`의 lease.released이면 그 scope와 반납한 drive 락의 계통 id.
-   * 다음 부여가 같은 scope로 가면 이 계통을 이어받는다. 아니면 null
+   * lease.acquired 뒤 lease.released가 없는 임대의 목록. 오래된 것부터이고 맨 위 프레임이 마지막이다(drive-isolation.md 2.1).
+   * 재시작 복원은 이 목록으로 주도권 스택을 다시 세운다.
    */
-  readonly waitingLineage: { readonly scopeId: string; readonly lineageId: string } | null;
+  readonly openLeases: readonly OpenLease[];
   /** scope마다 활성 가지 위 lease.acquired 개수 */
   readonly leaseEpochs: Readonly<Record<string, number>>;
 }

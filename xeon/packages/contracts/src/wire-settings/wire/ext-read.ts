@@ -2,6 +2,7 @@ import { Type, type TUnsafe } from "typebox";
 import type {
   AppDecl,
   CompositionDecl,
+  DriveFrameView,
   ManifestIssue,
   Placement,
   PluginDecl,
@@ -12,6 +13,7 @@ import type {
 import {
   AppDeclSchema,
   CompositionDeclSchema,
+  DriveFrameViewSchema,
   PluginDeclSchema,
   UiNodeSchema,
 } from "../../extensions/index.ts";
@@ -585,6 +587,47 @@ export const GroupDriveLockResultSchema: TUnsafe<GroupDriveLockResult> =
     GroupDriveLockResultShape2 satisfies SchemaProof<
       GroupDriveLockResult,
       typeof GroupDriveLockResultShape2
+    >,
+  );
+
+/**
+ * `drive.frames`(drive-isolation.md 2.6). 주도권 스택의 프레임 목록을 아래에서 위 순서로 준다. 맨 아래가 코어 루프(depth 0)다.
+ * `group.driveLock`(옛 메서드)을 대신하려고 더했다. 옛 메서드는 뒤 층이 지운다.
+ */
+export interface DriveFramesParams {
+  readonly threadId: string;
+}
+const DriveFramesParamsShape = request({ threadId: ThreadRef });
+export const DriveFramesParamsSchema: TUnsafe<Req<DriveFramesParams>> = Type.Unsafe<
+  Req<DriveFramesParams>
+>(
+  DriveFramesParamsShape satisfies SchemaProof<
+    Req<DriveFramesParams>,
+    typeof DriveFramesParamsShape
+  >,
+);
+/** 코어 루프 1 + 스택 최대 64. `drive.frames`의 `frames` 상한이다 */
+const DRIVE_FRAMES_MAX = 65;
+export interface DriveFramesResult {
+  readonly frames: readonly DriveFrameView[];
+}
+const DriveFramesResultShape = closed({
+  frames: Type.Array(DriveFrameViewSchema, { maxItems: DRIVE_FRAMES_MAX }),
+});
+export const DriveFramesResultSchema: TUnsafe<DriveFramesResult> = Type.Unsafe<DriveFramesResult>(
+  DriveFramesResultShape satisfies SchemaProof<DriveFramesResult, typeof DriveFramesResultShape>,
+);
+
+/** 알림 `drive.framesChanged { threadId }`. 주도권 스택이 바뀌었으니 `drive.frames`를 다시 읽는다 */
+export interface DriveFramesChangedParams {
+  readonly threadId: string;
+}
+const DriveFramesChangedParamsShape = closed({ threadId: ThreadRef });
+export const DriveFramesChangedParamsSchema: TUnsafe<DriveFramesChangedParams> =
+  Type.Unsafe<DriveFramesChangedParams>(
+    DriveFramesChangedParamsShape satisfies SchemaProof<
+      DriveFramesChangedParams,
+      typeof DriveFramesChangedParamsShape
     >,
   );
 
