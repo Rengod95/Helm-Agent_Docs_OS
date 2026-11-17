@@ -7,7 +7,7 @@ import {
   type CallContext,
   type CallOptions,
 } from "@fresnel/contracts/capabilities";
-import { Bug, type Clock, type Result, type Scheduler } from "@fresnel/contracts";
+import { Bug, type Clock, type Logger, type Result, type Scheduler } from "@fresnel/contracts";
 import type {
   AgentTool,
   AgentToolResult,
@@ -67,6 +67,8 @@ export interface HarnessOptions {
   readonly scheduler?: Scheduler;
   /** 시계. 생략하면 고정 시각이다 */
   readonly clock?: Clock;
+  /** 기록기. 생략하면 기록하지 않는다. 진단 로그를 확인하는 시험이 넣는다 */
+  readonly logger?: Logger;
 }
 
 export interface Harness {
@@ -158,7 +160,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     clock,
     ...(options.scheduler === undefined ? {} : { scheduler: options.scheduler }),
     ids,
-    logger: undefined,
+    logger: options.logger,
   };
   const runtime = createToolRuntime(deps);
   return {
