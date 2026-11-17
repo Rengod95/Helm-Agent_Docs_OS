@@ -11,7 +11,8 @@ import { realTapeClock } from "../fixtures/tape-host.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
-// M5c §4.1.17: 코어(내장 L1 단위 `core-*`)와 코어가 기대는 `cap-workspace`, `cap-dialog`는 프로필에 적지 않아도 항상 켜진다.
+// M5c §4.1.17: 코어(내장 L1 단위 `core-*`)는 프로필에 적지 않아도 항상 켜진다. `cap-workspace`와 `cap-dialog`는 서비스 부분이 코어(`core-workspace`,
+// `core-tools`의 ask)로 내려간 뒤 플러그인이라 프로필에 적어야 켜진다(코어 부분이 빠져 필수 표시를 지웠다, enE2m).
 // 옛 결함: 프로필이 내장 단위를 모두 빼면(예: `[guide]`만) 코어 단위 `core-tasks`가 꺼져 `turn.start`가 60초 멈췄다.
 
 const gate = await realEngineGate();
@@ -97,17 +98,19 @@ const CORE_UNITS = [
   "core-tools",
   "core-loop",
   "core-agents",
-  "cap-workspace",
-  "cap-dialog",
 ];
 
+/** 코어가 아니라 플러그인으로 남은 내장 단위. 프로필에 적지 않으면 켜지지 않는다 */
+const PLUGIN_UNITS = ["cap-workspace", "cap-dialog"];
+
 realTest(
-  "a profile with only the guide still answers: core units and the units core needs stay on",
+  "a profile with only the guide still answers: core units stay on and the plugin units are not forced",
   async () => {
     const run = await runWith(["guide"]);
     expect(run.turnStarted).toBe(true);
     expect(run.completed).toBe(true);
     for (const name of CORE_UNITS) expect(run.enabled).toContain(name);
+    for (const name of PLUGIN_UNITS) expect(run.enabled).not.toContain(name);
     expect(run.enabled).toContain("guide");
   },
   60_000,
@@ -120,6 +123,7 @@ realTest(
     expect(run.turnStarted).toBe(true);
     expect(run.completed).toBe(true);
     for (const name of CORE_UNITS) expect(run.enabled).toContain(name);
+    for (const name of PLUGIN_UNITS) expect(run.enabled).not.toContain(name);
   },
   60_000,
 );
