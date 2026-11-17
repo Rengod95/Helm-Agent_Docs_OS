@@ -54,8 +54,23 @@ case "$(basename "$PWD")" in
     ;;
 esac
 
+# apps/desktop: test/styles builds the whole UI bundle with vite (about 1.4 GB of native memory in one process, measured), the rest of the
+# tests need under 0.4 GB. Run in one process they went past the guard memory cap (1500M) in CI. So the styles tests run in their own
+# bun process after the others; the scope's peak is then the larger of the two instead of the sum. Both runs always happen; the exit code is the first failure.
+split_styles=false
+if [[ "$(basename "$PWD")" == "desktop" ]]; then split_styles=true; fi
+
 # runs inside the guard scope: the command, then the scope's peak memory (cgroup v2 memory.peak) when readable
-scope_cmd='"$@"; status=$?; f="/sys/fs/cgroup$(sed -n "s/^0:://p" /proc/self/cgroup)/memory.peak"
+scope_cmd="split_styles=$split_styles"'
+status=0
+if [ "$split_styles" = true ]; then
+  files=$(find test -name "*.test.ts" -not -path "test/styles/*" -o -name "*.test.tsx" -not -path "test/styles/*" | LC_ALL=C sort)
+  "$@" $files || status=$?
+  "$@" test/styles || { rc=$?; [ "$status" -ne 0 ] || status=$rc; }
+else
+  "$@" || status=$?
+fi
+f="/sys/fs/cgroup$(sed -n "s/^0:://p" /proc/self/cgroup)/memory.peak"
 [ -r "$f" ] && echo "test-pkg: peak $(( $(cat "$f") / 1048576 ))M"; exit $status'
 
 log="$(mktemp)"
@@ -63,6 +78,6 @@ trap 'rm -f "$log"' EXIT
 status=0
 started=$SECONDS
 "$guard" run -- bash -c "$scope_cmd" scope ${lock[@]+"${lock[@]}"} ${limit[@]+"${limit[@]}"} mise exec -- bun test ${bun_args[@]+"${bun_args[@]}"} 2>&1 | tee "$log" || status=$?
-count="$(sed -nE 's/^ *([0-9]+) skip$/\1/p' "$log" | tail -1)"
+count="$(sed -nE 's/^ *([0-9]+) skip$/\1/p' "$log" | awk '{ sum += $1 } END { print sum }')"
 echo "test-pkg: ran $((SECONDS - started))s, ${count:-0} skipped"
 exit "$status"
