@@ -130,6 +130,8 @@ export interface IsolationLaunch {
   readonly command: string;
   readonly args: readonly string[];
   readonly env: Readonly<Record<string, string>>;
+  /** 호스트 런타임이 확장 루트 밖에서 더 읽어야 하는 절대 경로(소스 실행의 소스 작업 공간). 없으면 확장 루트와 실행 파일만 읽는다 */
+  readonly runtimeReadRoots?: readonly string[];
 }
 
 /** 대리 등록 하나를 만드는 의존. 감독 설정과 시계를 주입받는다 */
@@ -468,6 +470,9 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
       args: [...launch.args],
       readRoot: deps.root,
       env: { ...launch.env },
+      ...(launch.runtimeReadRoots === undefined
+        ? {}
+        : { runtimeReadRoots: [...launch.runtimeReadRoots] }),
       label: `ext:${deps.manifest.name}:${deps.versionId}`,
     };
   }

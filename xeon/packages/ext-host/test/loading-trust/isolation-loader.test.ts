@@ -79,13 +79,24 @@ interface Rig {
 
 /** 격리 포트와 시계가 있는 로더. `isolated`가 거짓이면 포트를 주지 않는다 */
 async function rigOf(
-  options: { readonly isolated?: boolean; readonly isolation?: boolean } = {},
+  options: {
+    readonly isolated?: boolean;
+    readonly isolation?: boolean;
+    readonly runtimeReadRoots?: readonly string[];
+  } = {},
 ): Promise<Rig> {
   const port = createFakeProcessPort();
   const clock = createManualClock();
   const supervised: Supervised[] = [];
   const isolation: LoaderIsolation = {
-    launch: () => ({ command: "plugin-host", args: [], env: {} }),
+    launch: () => ({
+      command: "plugin-host",
+      args: [],
+      env: {},
+      ...(options.runtimeReadRoots === undefined
+        ? {}
+        : { runtimeReadRoots: options.runtimeReadRoots }),
+    }),
     setTimer: clock.setTimer,
     initTimeoutMs: 1000,
     onSupervisor: (name, supervisor) => {
@@ -135,6 +146,21 @@ test("an isolated extension loads in its own process and reports isolation proce
   await fire(rig.harness);
   expect(rig.port.children[0]?.received()).toContain('"boundary.settle.after"');
   await rig.harness.loader.dispose();
+});
+
+test("the spawn request reads the extension folder it was loaded from and carries the runtime read roots of the launch", async () => {
+  const rig = await rigOf({ runtimeReadRoots: ["/work/source"] });
+  await writePlugin(userExtensions, "iso", { name: "iso", entry: ENGINE_ENTRY });
+  await rig.harness.loader.loadAll(loadOptions(rig.harness));
+  expect(rig.port.specs.map((spec) => [spec.readRoot, spec.runtimeReadRoots])).toEqual([
+    [join(userExtensions, "iso"), ["/work/source"]],
+  ]);
+  const plain = await rigOf();
+  await writePlugin(userExtensions, "iso", { name: "iso", entry: ENGINE_ENTRY });
+  await plain.harness.loader.loadAll(loadOptions(plain.harness));
+  expect(plain.port.specs.map((spec) => "runtimeReadRoots" in spec)).toEqual([false]);
+  await rig.harness.loader.dispose();
+  await plain.harness.loader.dispose();
 });
 
 test("a default extension with no process port runs in the engine and reports isolation none", async () => {
